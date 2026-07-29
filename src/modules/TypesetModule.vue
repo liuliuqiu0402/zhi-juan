@@ -111,7 +111,7 @@
       <!-- 中间：内容编辑区 -->
       <div class="editor-panel">
         <!-- 🔧 主题 CSS 注入（contentEditable 用，不可 scoped） -->
-        <component is="style" v-if="themeCSS">{{ themeCSS }}</component>
+        <component :is="'style'" v-if="themeCSS">{{ themeCSS }}</component>
         <div class="panel-header">
           <h3>✏️ 内容编辑</h3>
           <div class="editor-actions">

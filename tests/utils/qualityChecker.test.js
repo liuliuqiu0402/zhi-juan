@@ -39,7 +39,7 @@ describe('HardRuleChecker', () => {
 
     it('未闭合标签报错', () => {
       const issues = HardRuleChecker.checkHTMLTags('<div><p>内容');
-      expect(issues.some(i => i.type === 'HTML格式错误')).toBe(true);
+      expect(issues.some(i => i.type === 'HTML标签不平衡')).toBe(true);
     });
   });
 
