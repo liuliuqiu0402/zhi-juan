@@ -814,13 +814,16 @@ onMounted(async () => {
       console.log('📱 页面从 bfcache 恢复，保留原界面');
     }
   });
-  // 🔄 软刷新：Header 刷新按钮 → 递增 key → 当前路由组件销毁重建（界面不跳）+ 拉取云端最新数据
+  // 🔄 软刷新：Header 刷新按钮 → 先推本地数据到云端 → 再从云端拉取最新数据
   window.addEventListener('app-refresh', async () => {
     refreshKey.value++;
     console.log('🔄 软刷新：重置当前页面状态');
-    // ☁️ 同时从云端拉取最新数据（指令库、设置等）
+    // ☁️ 先推后拉：确保本地数据同步到云端，再从云端拉取其他设备的数据
     if (isCloudConfigured()) {
       try {
+        // 🔼 先推：本地 → 云端
+        await quickPushToCloud();
+        // 🔽 后拉：云端 → 本地
         const data = await pullFromCloud();
         if (data.instructions && data.instructions.length > 0) {
           localStorage.setItem('instructionLib', JSON.stringify(data.instructions));
