@@ -1,0 +1,14 @@
+node_modules
+.temp
+.vercel-tmp
+.git
+python-scripts
+智卷工坊数据
+tests
+docs
+scripts
+*.docx
+*.pdf
+~$*
+_original_backup.txt
+screenshot-four-line.png

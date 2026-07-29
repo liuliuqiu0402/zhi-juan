@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全排版元素渲染测试</title>
+<style>
+/* ===== 从项目中提取的完整CSS ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: SimSun, 'Microsoft YaHei', serif;
+  font-size: 12pt;
+  line-height: 1.8;
+  margin: 40px;
+  background: white;
+  color: #1e1e1e;
+}
+
+h2 { margin: 30px 0 12px; border-bottom: 2px solid #2b5ea7; padding-bottom: 4px; color: #2b5ea7; font-size: 16pt; }
+h3 { margin: 20px 0 8px; color: #333; font-size: 13pt; }
+p { margin: 8px 0; }
+
+/* ⭐ 加点字 */
+.emphasis-dot { position: relative; display: inline-block; font-weight: bold; color: #d32f2f; }
+.emphasis-dot::after {
+  content: '\00B7'; position: absolute; bottom: -8px; left: 50%;
+  transform: translateX(-50%); font-size: 12px; color: #d32f2f; line-height: 1;
+}
+
+/* ⭐ 画线句子 */
+.underline-sentence { text-decoration: underline; text-decoration-style: solid; text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
+
+/* ⭐ 波浪线 */
+.wavy-underline { text-decoration: underline; text-decoration-style: wavy; text-decoration-color: #d32f2f; text-underline-offset: 3px; }
+
+/* ⭐ 双线格/单线格 */
+.double-line { text-decoration: underline; text-decoration-style: double; text-underline-offset: 3px; }
+.single-line { text-decoration: underline; text-decoration-style: solid; text-underline-offset: 3px; }
+
+/* ⭐ 拼音（使用拼音体） */
+ruby { ruby-position: over; ruby-align: center; }
+rt { font-size: 0.6em; text-align: center; color: #666; font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; }
+
+/* ⭐ 部首标注 */
+ruby.radical rb { font-size: 1em; }
+ruby.radical rt { font-size: 0.5em; color: #2b5ea7; }
+
+/* ⭐ 笔画笔顺 */
+.stroke-order { display: inline-flex; align-items: flex-start; gap: 1px; vertical-align: baseline; }
+.stroke-order::after {
+  content: attr(data-strokes) '画'; font-size: 0.55em;
+  vertical-align: super; color: #888; line-height: 1; margin-left: 1px;
+}
+
+/* ⭐ 上标/下标 */
+.superscript { vertical-align: super; font-size: smaller; line-height: 0; }
+.subscript { vertical-align: sub; font-size: smaller; line-height: 0; }
+
+/* ⭐ 田字格/米字格（与 renderHTML 统一使用 inline-flex + gradient） */
+.tian-zi-ge, .mi-zi-ge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.6em; height: 1.6em;
+  border: 1.5px solid #999;
+  font-family: 'KaiTi', 'SimSun', serif;
+  font-size: 1em; vertical-align: middle; margin: 0 1px;
+  box-sizing: border-box;
+  background:
+    linear-gradient(to right, transparent calc(50% - 0.5px), #ccc calc(50% - 0.5px), #ccc calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(to bottom, transparent calc(50% - 0.5px), #ccc calc(50% - 0.5px), #ccc calc(50% + 0.5px), transparent calc(50% + 0.5px));
+}
+.mi-zi-ge {
+  background:
+    linear-gradient(to right, transparent calc(50% - 0.5px), #ccc calc(50% - 0.5px), #ccc calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(to bottom, transparent calc(50% - 0.5px), #ccc calc(50% - 0.5px), #ccc calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(to top right, transparent calc(50% - 0.5px), #ccc calc(50% - 0.5px), #ccc calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(to bottom right, transparent calc(50% - 0.5px), #ccc calc(50% - 0.5px), #ccc calc(50% + 0.5px), transparent calc(50% + 0.5px));
+}
+
+/* ⭐ 四线三格 - 伪元素绘制4条等距线 */
+.four-line-three {
+  display: inline-block;
+  position: relative;
+  padding: 4px 4px;
+  font-family: 'Times New Roman', 'Georgia', SimSun, serif;
+  font-size: 16px;
+  line-height: 1;
+  min-width: 18px;
+  text-align: center;
+  vertical-align: middle;
+  overflow: visible;
+}
+.four-line-three::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(#999, #999) 0 1px / 100% 1px no-repeat,
+    linear-gradient(#999, #999) 0 8px / 100% 1px no-repeat,
+    linear-gradient(#666, #666) 0 16px / 100% 1px no-repeat,
+    linear-gradient(#999, #999) 0 23px / 100% 1px no-repeat;
+  pointer-events: none;
+}
+
+/* ⭐ 拼音格 - Times New Roman（拼音体专用） */
+.pinyin-line {
+  font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif;
+}
+/* ⭐ 英语书写格 - Times New Roman 印刷体（英语字母专用） */
+.english-line {
+  font-family: 'Times New Roman', 'Georgia', serif;
+}
+
+/* ⭐ 作文格 */
+.zuo-wen-ge {
+  display: grid; grid-template-columns: repeat(20, 1.3em);
+  gap: 0; border: 1.5px solid #999; margin: 8px 0; width: fit-content;
+}
+.zuo-wen-ge span {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.3em; height: 1.3em; border: 0.5px solid #ccc;
+  font-size: 0.9em; line-height: 1.3em; text-align: center;
+}
+
+/* ⭐ 口算框 */
+.oral-box { display: inline-block; border: 1.5px solid #333; padding: 2px 8px; margin: 0 2px; min-width: 40px; text-align: center; vertical-align: middle; }
+.oral-box.blank { min-width: 50px; border-style: dashed; color: #999; }
+
+/* ⭐ 竖式计算 */
+.vertical-calculation { display: inline-block; margin: 8px 16px; font-family: 'Courier New', monospace; }
+.vertical-calculation .vc-row { text-align: right; padding: 1px 8px; letter-spacing: 0.2em; }
+.vertical-calculation .vc-row.op { border-bottom: 1.5px solid #333; padding-bottom: 2px; }
+.vertical-calculation .vc-result { text-align: right; padding: 2px 8px; letter-spacing: 0.2em; font-weight: bold; }
+
+/* ⭐ 脱式计算 */
+.off-formula { margin: 8px 0; }
+.off-formula .of-line { text-indent: 1.5em; line-height: 1.8; }
+
+/* ⭐ 连线题 */
+.match-question { display: flex; gap: 40px; margin: 12px 0; }
+.match-question .match-col { display: flex; flex-direction: column; gap: 10px; }
+.match-question .match-item {
+  padding: 4px 16px; border: 1px solid #ccc; border-radius: 4px; min-width: 80px; text-align: center;
+}
+
+/* ⭐ 词库框 */
+.word-bank {
+  display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px;
+  border: 1.5px solid #666; border-radius: 4px; margin: 4px 0; background: #fafafa;
+}
+.word-bank .wb-item {
+  display: inline-block; padding: 2px 10px;
+  font-family: 'Times New Roman', serif;
+  font-size: 0.9em; color: #333;
+}
+
+/* ⭐ 化学反应条件 */
+.chem-condition { font-size: 0.7em; vertical-align: super; color: #555; line-height: 1; }
+
+/* ⭐ 元素周期表 */
+table.periodic-table { border-collapse: collapse; margin: 8px auto; font-size: 0.75em; }
+table.periodic-table td, table.periodic-table th { border: 1px solid #333; padding: 2px 4px; text-align: center; min-width: 2.5em; }
+table.periodic-table .nonmetal { background: #c8e6c9; }
+table.periodic-table .metal { background: #ffcdd2; }
+table.periodic-table .transition { background: #ffe0b2; }
+table.periodic-table .noble-gas { background: #b3e5fc; }
+
+/* ⭐ 密封线 */
+.seal-line {
+  writing-mode: vertical-lr; text-orientation: upright; position: absolute;
+  left: 8px; top: 0; bottom: 0; width: 2em;
+  display: flex; align-items: center; justify-content: center;
+  border-left: 1.5px dashed #999; border-right: 1.5px dashed #999;
+  background: #f9f9f9; color: #999; font-size: 10px; letter-spacing: 0.5em; z-index: 1;
+}
+
+/* ⭐ 评分栏 - 表格形式（横竖线全有） */
+.score-board {
+  display: inline-table;
+  border-collapse: collapse;
+  margin: 4px 0;
+}
+.score-board .sb-row {
+  display: table-row;
+}
+.score-board .sb-label, .score-board .sb-value {
+  display: table-cell;
+  padding: 4px 16px;
+  border: 1px solid #999;
+  text-align: center;
+}
+.score-board .sb-label {
+  font-size: 0.9em;
+  color: #555;
+  background: #f9f9f9;
+}
+.score-board .sb-value {
+  font-weight: bold;
+}
+
+/* ⭐ 方框填空 */
+.square-box {
+  display: inline-block;
+  border: 2px solid #333;
+  min-width: 1.6em;
+  height: 1.6em;
+  text-align: center;
+  line-height: 1.6em;
+  vertical-align: middle;
+  margin: 0 1px;
+  padding: 0 2px;
+  font-weight: bold;
+  color: #333;
+}
+
+/* ⭐ 得分框 */
+.score-box {
+  display: inline-block;
+  border: 1.5px solid #333;
+  padding: 3px 16px;
+  text-align: center;
+  min-width: 60px;
+  font-weight: bold;
+  font-size: 0.95em;
+}
+
+/* ⭐ 辅助线虚线 */
+.dashed-line { display: inline-block; border-bottom: 1.5px dashed #999; min-width: 40px; margin: 0 2px; }
+
+/* ⭐ 表格 */
+table.edu-table { border-collapse: collapse; margin: 8px 0; width: 100%; }
+table.edu-table th, table.edu-table td { border: 1px solid #333; padding: 6px 10px; text-align: left; }
+table.edu-table th { background: #d9e2ec; font-weight: bold; }
+
+/* ⭐ 数据表格 */
+table.data-table { border-collapse: collapse; margin: 8px 0; width: 100%; }
+table.data-table td { border: 1px solid #999; padding: 4px 8px; text-align: center; }
+
+/* 容器 */
+.test-container { position: relative; max-width: 800px; margin: 0 auto; padding: 20px 60px; border: 1px solid #ddd; }
+.section-desc { color: #888; font-size: 0.85em; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="test-container">
+
+<h2>一、语文学科</h2>
+
+<h3>1. 加点字（着重号）</h3>
+<p class="section-desc">HTML: &lt;span class="emphasis-dot"&gt;字&lt;/span&gt; → 字下方显示红点</p>
+<p>下列词语中，<span class="emphasis-dot">和</span>平的读音、<span class="emphasis-dot">强</span>壮的写法，请选出正确的一项。</p>
+
+<h3>2. 画线句子</h3>
+<p class="section-desc">HTML: &lt;u class="underline-sentence"&gt;句子&lt;/u&gt; → 实线下划线</p>
+<p>请赏析 <u class="underline-sentence">春风又绿江南岸</u> 中"绿"字的表达效果。</p>
+
+<h3>3. 波浪线（病句修改）</h3>
+<p class="section-desc">HTML: &lt;span class="wavy-underline"&gt;病句&lt;/span&gt; → 红色波浪线</p>
+<p><span class="wavy-underline">通过学习，使我提高了认识</span>，请修改这个病句。</p>
+
+<h3>4. 拼音标注</h3>
+<p class="section-desc">HTML: &lt;ruby&gt;汉&lt;rt&gt;hàn&lt;/rt&gt;&lt;/ruby&gt; → 汉字上方显示拼音</p>
+<p><ruby>春<rt>chūn</rt></ruby><ruby>眠<rt>mián</rt></ruby><ruby>不<rt>bù</rt></ruby><ruby>觉<rt>jué</rt></ruby><ruby>晓<rt>xiǎo</rt></ruby></p>
+
+<h3>5. 部首标注</h3>
+<p class="section-desc">HTML: &lt;ruby class="radical"&gt;&lt;rb&gt;字&lt;/rb&gt;&lt;rt&gt;部首&lt;/rt&gt;&lt;/ruby&gt;</p>
+<p><ruby class="radical"><rb>河</rb><rt>氵</rt></ruby>、<ruby class="radical"><rb>花</rb><rt>艹</rt></ruby>、<ruby class="radical"><rb>松</rb><rt>木</rt></ruby>、<ruby class="radical"><rb>明</rb><rt>日</rt></ruby></p>
+
+<h3>6. 笔画笔顺</h3>
+<p class="section-desc">HTML: &lt;span class="stroke-order" data-strokes="N"&gt;字&lt;/span&gt; → 显示"字(N画)"</p>
+<p><span class="stroke-order" data-strokes="4">火</span> <span class="stroke-order" data-strokes="3">大</span> <span class="stroke-order" data-strokes="6">华</span> <span class="stroke-order" data-strokes="8">国</span></p>
+
+<h3>7. 田字格</h3>
+<p class="section-desc">HTML: &lt;span class="tian-zi-ge"&gt;字&lt;/span&gt; → 田字格方框（带十字虚线）</p>
+<p>请在田字格中写出下列生字：<span class="tian-zi-ge">大</span><span class="tian-zi-ge">小</span><span class="tian-zi-ge">上</span><span class="tian-zi-ge">下</span><span class="tian-zi-ge">人</span></p>
+
+<h3>8. 米字格</h3>
+<p class="section-desc">HTML: &lt;span class="mi-zi-ge"&gt;字&lt;/span&gt; → 米字格方框（十字+对角线）</p>
+<p>用米字格练习书写：<span class="mi-zi-ge">永</span><span class="mi-zi-ge">安</span><span class="mi-zi-ge">天</span><span class="mi-zi-ge">正</span></p>
+
+<h3>9. 四线三格（拼音格）</h3>
+<p class="section-desc">HTML: &lt;span class="four-line-three pinyin-line"&gt;拼音&lt;/span&gt; → Times New Roman 拼音体 + 四线三格</p>
+<p>在四线三格中写出拼音：<span class="four-line-three pinyin-line">zhōng</span> <span class="four-line-three pinyin-line">guó</span> <span class="four-line-three pinyin-line">rén</span> <span class="four-line-three pinyin-line">mín</span> <span class="four-line-three pinyin-line">lǎo</span> <span class="four-line-three pinyin-line">shī</span></p>
+
+<h3>10. 四线三格（英语书写线）</h3>
+<p class="section-desc">HTML: &lt;span class="four-line-three english-line"&gt;word&lt;/span&gt; → Times New Roman 英语印刷体</p>
+<p>英语书写练习：<span class="four-line-three english-line">cat</span> <span class="four-line-three english-line">dog</span> <span class="four-line-three english-line">book</span> <span class="four-line-three english-line">school</span></p>
+
+<h3>11. 作文格</h3>
+<p class="section-desc">HTML: &lt;div class="zuo-wen-ge"&gt;&lt;span&gt;字&lt;/span&gt;...&lt;/div&gt; → 方格阵列</p>
+<div class="zuo-wen-ge">
+<span>我</span><span>爱</span><span>我</span><span>的</span><span>祖</span><span>国</span>
+</div>
+
+<h3>11. 双线格 / 单线格</h3>
+<p class="section-desc">双线：&lt;span class="double-line"&gt;文字&lt;/span&gt; → 双下划线</p>
+<p>重点词语：<span class="double-line">聚精会神</span>、<span class="double-line">持之以恒</span></p>
+<p>单线标记：<span class="single-line">关键语句</span>需要重点理解</p>
+
+<h2>二、数学学科</h2>
+
+<h3>12. 口算框</h3>
+<p class="section-desc">HTML: &lt;span class="oral-box"&gt;算式&lt;/span&gt;</p>
+<p>直接写出得数：<span class="oral-box">3 + 5 = </span> <span class="oral-box">12 - 7 = </span> <span class="oral-box">6 × 8 = </span></p>
+<p>填空：<span class="oral-box blank">（   ）</span> + 5 = 12</p>
+
+<h3>13. 方框填数字/比较符号</h3>
+<p class="section-desc">HTML: &lt;span class="square-box"&gt;&amp;nbsp;&lt;/span&gt; 空心方框表示空缺位置</p>
+<p>在方框中填上合适的数字或比较符号：</p>
+<p>3 + <span class="square-box">&nbsp;</span> = 7 &nbsp;&nbsp; <span class="square-box">&nbsp;</span> + 5 &gt; 12 &nbsp;&nbsp; 4 <span class="square-box">&nbsp;</span> 2 = 8 &nbsp;&nbsp; 9 <span class="square-box">&nbsp;</span> 5</p>
+<h3>14. 竖式计算</h3>
+<p class="section-desc">HTML: &lt;div class="vertical-calculation"&gt; → 右对齐数字+底线</p>
+<div class="vertical-calculation">
+  <div class="vc-row">  23</div>
+  <div class="vc-row op" style="position:relative;">+ 15</div>
+  <div class="vc-result">  38</div>
+</div>
+<div class="vertical-calculation">
+  <div class="vc-row">  456</div>
+  <div class="vc-row op" style="position:relative;">- 123</div>
+  <div class="vc-result">  333</div>
+</div>
+
+<h3>14. 脱式计算</h3>
+<p class="section-desc">HTML: &lt;div class="off-formula"&gt; → 等号左对齐</p>
+<div class="off-formula">
+  <div class="of-line">= 25 + 18</div>
+  <div class="of-line">= 43</div>
+</div>
+<div class="off-formula">
+  <div class="of-line">= 36 ÷ 4 × 3</div>
+  <div class="of-line">= 9 × 3</div>
+  <div class="of-line">= 27</div>
+</div>
+
+<h3>15. 辅助线虚线</h3>
+<p class="section-desc">HTML: &lt;span class="dashed-line"&gt;&lt;/span&gt; → 虚线</p>
+<p>画一条辅助线：<span class="dashed-line"></span> 测量图中线段的长度。</p>
+
+<h3>16. 上标/下标</h3>
+<p class="section-desc">HTML: &lt;sup&gt;²&lt;/sup&gt; / &lt;sub&gt;₂&lt;/sub&gt;</p>
+<p>x<sup class="superscript">2</sup> + y<sup class="superscript">2</sup> = r<sup class="superscript">2</sup></p>
+
+<h2>三、英语学科</h2>
+
+<h3>17. 连线题</h3>
+<p class="section-desc">HTML: &lt;div class="match-question"&gt; → 左右两列匹配</p>
+<div class="match-question">
+  <div class="match-col">
+    <div class="match-item">apple</div>
+    <div class="match-item">book</div>
+    <div class="match-item">cat</div>
+    <div class="match-item">dog</div>
+  </div>
+  <div class="match-col">
+    <div class="match-item">猫</div>
+    <div class="match-item">苹果</div>
+    <div class="match-item">狗</div>
+    <div class="match-item">书</div>
+  </div>
+</div>
+
+<h3>18. 完形填空词库框</h3>
+<p class="section-desc">HTML: &lt;span class="word-bank"&gt;&lt;span class="wb-item"&gt;word&lt;/span&gt;&lt;/span&gt;</p>
+<p>从方框中选择合适的单词填空：</p>
+<span class="word-bank">
+  <span class="wb-item">apple</span>
+  <span class="wb-item">banana</span>
+  <span class="wb-item">cat</span>
+  <span class="wb-item">dog</span>
+  <span class="wb-item">elephant</span>
+</span>
+
+<h3>19. 四线三格（英语书写线）</h3>
+<p><span class="four-line-three">cat</span> <span class="four-line-three">dog</span> <span class="four-line-three">bird</span> <span class="four-line-three">fish</span></p>
+
+<h2>四、化学学科</h2>
+
+<h3>20. 化学反应条件</h3>
+<p class="section-desc">HTML: &lt;span class="chem-condition"&gt;条件&lt;/span&gt; → 小号字在箭头上方</p>
+<p>2H₂O ======&gt; 2H₂↑ + O₂↑</p>
+<p>C + O₂ ======&gt; CO₂</p>
+<p>2KClO₃ ======&gt; 2KCl + 3O₂↑</p>
+
+<h3>21. 元素周期表片段</h3>
+<table class="periodic-table">
+  <tr>
+    <th>族</th><th>IA</th><th>IIA</th><th>IIIA</th><th>IVA</th><th>VA</th><th>VIA</th><th>VIIA</th><th>0</th>
+  </tr>
+  <tr>
+    <td>1</td><td class="nonmetal">H</td><td></td><td></td><td></td><td></td><td></td><td></td><td class="noble-gas">He</td>
+  </tr>
+  <tr>
+    <td>2</td><td class="metal">Li</td><td class="metal">Be</td><td class="transition">B</td><td class="nonmetal">C</td><td class="nonmetal">N</td><td class="nonmetal">O</td><td class="nonmetal">F</td><td class="noble-gas">Ne</td>
+  </tr>
+  <tr>
+    <td>3</td><td class="metal">Na</td><td class="metal">Mg</td><td class="transition">Al</td><td class="transition">Si</td><td class="nonmetal">P</td><td class="nonmetal">S</td><td class="nonmetal">Cl</td><td class="noble-gas">Ar</td>
+  </tr>
+</table>
+
+<h3>22. 上标/下标（化学式）</h3>
+<p>H<sub class="subscript">2</sub>O、CO<sub class="subscript">2</sub>、Ca<sup class="superscript">2+</sup>、Fe<sup class="superscript">3+</sup>、SO<sub class="subscript">4</sub><sup class="superscript">2-</sup></p>
+
+<h2>五、通用元素</h2>
+
+<h3>23. 数据表格</h3>
+<table class="edu-table">
+  <tr><th>姓名</th><th>语文</th><th>数学</th><th>英语</th></tr>
+  <tr><td>小明</td><td>95</td><td>92</td><td>88</td></tr>
+  <tr><td>小红</td><td>88</td><td>96</td><td>90</td></tr>
+  <tr><td>小华</td><td>92</td><td>88</td><td>95</td></tr>
+</table>
+
+<h3>24. 得分框</h3>
+<p>本题得分：<span class="score-box">8</span> &nbsp;&nbsp; 评卷人：<span class="score-box">张老师</span></p>
+
+<h3>25. 评分栏</h3>
+<div class="score-board">
+  <div class="sb-row">
+    <span class="sb-label">基础题</span>
+    <span class="sb-value">15</span>
+  </div>
+  <div class="sb-row">
+    <span class="sb-label">综合题</span>
+    <span class="sb-value">12</span>
+  </div>
+  <div class="sb-row">
+    <span class="sb-label">拓展题</span>
+    <span class="sb-value">8</span>
+  </div>
+</div>
+
+<h3>26. 删除线</h3>
+<p>错误选项：<del>A. 3个</del> <del>B. 4个</del> ✅ C. 5个</p>
+
+</div>
+</body>
+</html>

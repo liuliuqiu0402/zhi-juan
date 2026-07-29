@@ -1,0 +1,70 @@
+# 依赖目录
+node_modules/
+dist/
+release/
+
+# 构建输出
+*.exe
+*.msi
+*.dmg
+
+# 日志文件
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 编辑器配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 临时文件
+*.tmp
+*.temp
+Thumbs.db
+
+# Python缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# 教材 PDF（本地数据，超大文件）
+智卷工坊数据/
+
+# AI 模型权重（超大文件）
+*.safetensors
+*.bin
+*.pth
+*.ckpt
+
+# 环境变量
+.env
+.env.local
+
+# 证书文件（安全敏感）
+cert.crt
+cert.key
+cert.pem
+cert.pfx
+
+# Vercel 临时文件
+.vercel-tmp/
+
+# Capacitor
+iOS/App/App/public/
+iOS/DerivedData/
+.capacitor/
+
+# 测试覆盖率
+coverage/
+.nyc_output/
+.vercel

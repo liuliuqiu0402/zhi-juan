@@ -1,0 +1,2046 @@
+<template>
+  <div class="typeset-module">
+    <div class="typeset-layout">
+      <!-- 左侧：生成记录 + 主题库 -->
+      <div class="theme-panel">
+        <!-- 🔧 生成记录：直接从 localStorage 读取，点击载入编辑器 -->
+        <div class="gen-records-section" v-if="genRecords.length > 0">
+          <div class="panel-header">
+            <h3>📋 生成记录</h3>
+            <button class="btn-icon" @click="refreshGenRecords" title="刷新">🔄</button>
+          </div>
+          <div class="gen-records-list">
+            <div
+              v-for="rec in genRecords" :key="rec.id"
+              class="gen-record-item"
+              @click="loadGenRecord(rec)"
+            >
+              <span class="gen-record-title">{{ rec.title }}</span>
+              <span class="gen-record-type">{{ rec.genType }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-header">
+          <h3>🎨 排版主题库</h3>
+          <button class="btn-icon" @click="refreshThemes" title="刷新主题">🔄</button>
+        </div>
+
+        <!-- 上传自制Word -->
+        <div class="upload-section">
+          <button class="btn btn-full" @click="uploadCustomWord">
+            📤 上传自制 Word
+          </button>
+          <p class="hint" v-if="customFileName">当前文件: {{ customFileName }}</p>
+          <p class="hint" v-else>支持 .docx 格式</p>
+        </div>
+
+        <!-- 主题分组选择 -->
+        <div class="theme-filter">
+          <select v-model="themeGroupFilter" class="filter-select">
+            <option value="">全部主题</option>
+            <option value="我的样式">我的样式</option>
+            <option value="小学">小学</option>
+            <option value="初中">初中</option>
+            <option value="高中">高中</option>
+            <option value="特殊">特殊</option>
+            <option value="自定义">自定义</option>
+          </select>
+        </div>
+
+        <!-- 主题列表 -->
+        <div class="theme-list">
+          <!-- 🔧 无样式选项 -->
+          <div
+            class="theme-item no-style-item"
+            :class="{ active: !selectedThemeId }"
+            @click="selectTheme(null)"
+          >
+            <div class="theme-preview no-style-preview">
+              <div class="preview-title" style="font-size:14pt;font-weight:normal;color:var(--text-muted);text-align:left;">
+                无应用样式
+              </div>
+              <div class="preview-body" style="font-size:12pt;color:var(--text-muted);">
+                原始内容预览
+              </div>
+            </div>
+            <div class="theme-info">
+              <span class="theme-name">🚫 无样式</span>
+            </div>
+          </div>
+          <div
+            v-for="theme in filteredThemes"
+            :key="theme.id"
+            class="theme-item"
+            :class="{ active: selectedThemeId === theme.id }"
+            @click="selectTheme(theme.id)"
+          >
+            <div class="theme-preview" :style="getThemePreviewStyle(theme)">
+              <div class="preview-title" :style="getPreviewTitleStyle(theme)">
+                {{ theme.name }}
+              </div>
+              <div class="preview-body" :style="getPreviewBodyStyle(theme)">
+                正文预览样式
+              </div>
+              <div class="preview-table" :style="getPreviewTableStyle(theme)">
+                <div style="display: flex;">
+                  <span style="flex:1; padding:4px;">表头1</span>
+                  <span style="flex:1; padding:4px;">表头2</span>
+                </div>
+                <div style="display: flex;">
+                  <span style="flex:1; padding:4px;">数据1</span>
+                  <span style="flex:1; padding:4px;">数据2</span>
+                </div>
+              </div>
+            </div>
+            <div class="theme-info">
+              <span class="theme-name">{{ theme.name }}</span>
+              <span class="theme-badge" v-if="theme.type === 'custom'">自定义</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 主题操作 -->
+        <div class="theme-actions">
+          <button class="btn" @click="openCustomThemeEditor">➕ 自定义主题</button>
+          <button class="btn" v-if="selectedTheme?.type === 'custom'" @click="editCustomTheme">✏️ 编辑</button>
+          <button class="btn btn-danger" v-if="selectedTheme?.type === 'custom'" @click="deleteCustomTheme">🗑️ 删除</button>
+        </div>
+      </div>
+
+      <!-- 中间：内容编辑区 -->
+      <div class="editor-panel">
+        <!-- 🔧 主题 CSS 注入（contentEditable 用，不可 scoped） -->
+        <component is="style" v-if="themeCSS">{{ themeCSS }}</component>
+        <div class="panel-header">
+          <h3>✏️ 内容编辑</h3>
+          <div class="editor-actions">
+            <button class="btn" @click="clearContent">清空</button>
+            <button class="btn" @click="pasteFromClipboard">📋 粘贴</button>
+            <button v-if="isHtmlContent" class="btn" :class="{ 'btn-active': showSource }" @click="toggleSource" :title="showSource ? '切换视觉编辑' : '查看HTML源码'">
+              {{ showSource ? '🎨 渲染' : '<> 源码' }}
+            </button>
+            <select v-model="exportFormat" class="export-select">
+              <option value="docx">📘 Word</option>
+              <option value="pdf">📕 PDF</option>
+              <option value="html">🌐 HTML</option>
+            </select>
+            <button class="btn-primary" @click="exportDocument" :disabled="isExporting">
+              {{ isExporting ? '导出中...' : '📥 导出' }}
+            </button>
+          </div>
+        </div>
+        
+        <!-- 🔧 A4 纸张预览区（上下左右边距 2cm） -->
+        <div v-if="isHtmlContent && !showSource" class="paper-preview-area">
+          <div class="paper-page">
+            <RichTextEditor
+              ref="contentEditor"
+              v-model="rawHtmlContent"
+              :customCSS="themeCSS || ''"
+              :minHeight="'auto'"
+              @content-change="onRichEditorChange"
+            />
+          </div>
+        </div>
+        <textarea
+          v-if="isHtmlContent && showSource"
+          v-model="rawHtmlContent"
+          class="content-textarea source-view"
+          style="min-height: calc(100vh - 420px); font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; white-space: pre-wrap;"
+          placeholder="HTML 源码..."
+        ></textarea>
+        <textarea
+          v-else-if="!isHtmlContent"
+          ref="contentEditor"
+          v-model="currentContent"
+          placeholder="在此粘贴或编辑你的教辅内容...
+          
+支持 Markdown 基础语法：
+# 一级标题
+## 二级标题
+### 三级标题
+**粗体**
+*斜体*
+- 列表项
+1. 数字列表
+
+💡 提示：
+- 从生成模块跳转过来的内容会自动填充
+- 点击「智能识别」可自动识别标题层级"
+          class="content-textarea"
+        ></textarea>
+        
+        <p class="hint" v-if="!isHtmlContent">
+          💡 从生成模块跳转过来的内容会自动填充到这里。支持 Markdown 语法。
+        </p>
+        <p class="hint" v-else>
+          💡 HTML 原样编辑模式：切换左侧主题可预览效果，导出为 Word/PDF 时自动应用主题。
+        </p>
+      </div>
+    </div>
+
+    <!-- 自定义主题编辑弹窗 -->
+    <div v-if="showThemeEditor" class="modal-mask">
+      <div class="modal large-modal">
+        <h3>{{ editingTheme ? '✏️ 编辑主题' : '➕ 新建主题' }}</h3>
+        
+        <div class="form-group">
+          <label>主题名称</label>
+          <input type="text" v-model="themeForm.name" placeholder="例如：我的精品样式" />
+        </div>
+        
+        <div class="form-group">
+          <label>描述</label>
+          <input type="text" v-model="themeForm.description" placeholder="简要描述这个主题" />
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label>学段</label>
+            <select v-model="themeForm.stage">
+              <option value="primary">小学</option>
+              <option value="middle">初中</option>
+              <option value="high">高中</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>类型</label>
+            <select v-model="themeForm.category">
+              <option value="exam">试卷</option>
+              <option value="practice">课时练</option>
+              <option value="summary">知识点总结</option>
+              <option value="plan">教案</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>颜色主题</label>
+            <select v-model="themeForm.colorTheme">
+              <option value="original">蓝色系（原始）</option>
+              <option value="warm">暖色系</option>
+              <option value="fresh">清新系</option>
+              <option value="academic">学术系</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="modal-actions">
+          <button class="btn" @click="closeThemeEditor">取消</button>
+          <button class="btn-primary" @click="saveCustomTheme">保存主题</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 导出进度提示 -->
+    <div v-if="isExporting" class="loading-mask">
+      <div class="loading-content">
+        <div class="spinner"></div>
+        <p>{{ exportStatus }}</p>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, onActivated, watch, nextTick } from 'vue';
+import { useDialog } from '../composables/useDialog.js';
+import { getStoragePath } from '../utils/pathHelper.js';
+import { useFileHandler } from '../composables/useFileHandler.js';
+import {
+  getAllThemes, getThemeById, addCustomTheme, updateCustomTheme, deleteCustomTheme,
+  applyThemeToContent, wrapContentForTheme, getSpecialThemeEditorCSS, markdownToHtml, defaultThemeId, themeOptions
+} from '../themeConfig.js';
+import { APP_EVENTS } from '../constants/events.js';
+import RichTextEditor from '../components/RichTextEditor.vue';
+
+defineOptions({ name: 'TypesetModule' });
+
+// ==================== 状态 ====================
+const selectedThemeId = ref(null);  // 🔧 默认无选中样式
+const currentContent = ref('');
+const previewContent = ref('');
+const customFileName = ref('');
+const showThemeEditor = ref(false);
+const editingTheme = ref(null);
+const themeGroupFilter = ref('');
+const isExporting = ref(false);
+const exportStatus = ref('');
+const exportFormat = ref('docx');
+
+// 🔧 处理从生成模块跳转过来的 HTML 内容
+const isHtmlContent = ref(false);
+const rawHtmlContent = ref('');
+const pristineHtmlForExport = ref('');  // 🔧 原始 HTML 副本(保留所有 class)，专用于导出
+const showSource = ref(false);  // 🔧 源码/渲染视图切换
+let persistDebounceTimer = null;  // 🔧 性能优化：防抖 localStorage 写入（500ms）
+
+// 🔧 HTML 源码格式化：Tiptap getHTML() 输出为无换行的压缩单行 HTML，
+//    需在块级标签边界补换行，源码视图才能呈现段落结构。
+//    （块级标签之间的换行符是无害空白，不影响 Tiptap 重新解析与渲染）
+const formatHtmlSource = (html) => {
+  if (!html) return html;
+  return html
+    // 块级元素闭合标签后换行
+    .replace(/(<\/(?:p|h[1-6]|div|li|ul|ol|table|thead|tbody|tfoot|tr|blockquote|pre|figure|section)>)/gi, '$1\n')
+    // 块级容器开始标签后换行（ul/ol/table 内的子项独立成行）
+    .replace(/(<(?:ul|ol|table|thead|tbody|tfoot|tr)(?:\s[^>]*)?>)/gi, '$1\n')
+    // hr / 分页符等自闭合块后换行
+    .replace(/(<hr[^>]*>)/gi, '$1\n')
+    // 收敛多余空行（保证幂等）
+    .replace(/\n{2,}/g, '\n')
+    .replace(/\n+$/, '');
+};
+
+const toggleSource = async () => {
+  if (!showSource.value) {
+    // 切入源码视图前格式化，恢复段落结构展示
+    rawHtmlContent.value = formatHtmlSource(rawHtmlContent.value);
+  }
+  showSource.value = !showSource.value;
+};
+
+// 🔧 Tiptap 编辑器内容变更回调
+const onRichEditorChange = (html) => {
+  rawHtmlContent.value = html;
+  // 🔧 从 contentEditable DOM 读取真实 HTML（保留所有 class），同步到导出缓存
+  //    ⚠️ Vue 模板 ref 会自动解包 defineExpose 的 ShallowRef，
+  //       所以 contentEditor.value.editor 已经是 Editor 实例，不要加 .value
+  if (contentEditor.value?.editor?.view?.dom) {
+    pristineHtmlForExport.value = contentEditor.value.editor.view.dom.innerHTML;
+  } else {
+    pristineHtmlForExport.value = html;
+  }
+  // 🔧 性能优化：localStorage 写入防抖 500ms，避免每次按键都同步写盘
+  clearTimeout(persistDebounceTimer);
+  persistDebounceTimer = setTimeout(() => {
+    persistCurrentEdits(pristineHtmlForExport.value);
+  }, 500);
+};
+
+// 🔧 多文档管理：支持从生成模块传入多个文档并切换
+const documents = ref([]);
+
+// 🔧 生成记录：直接从 localStorage 读取，无需依赖事件推送
+const GEN_STORAGE_KEY = 'wisdom_generated_docs';
+const genRecords = ref([]);
+const currentGenRecordId = ref(null);  // 🔧 跟踪当前加载的生成记录，编辑后回写
+const refreshGenRecords = () => {
+  try {
+    const saved = localStorage.getItem(GEN_STORAGE_KEY);
+    genRecords.value = saved ? JSON.parse(saved) : [];
+  } catch (e) { genRecords.value = []; }
+};
+const loadGenRecord = (rec) => {
+  const content = rec?.content || '';
+  if (content.length < 50) return;
+  currentGenRecordId.value = rec.id || null;  // 🔧 记住加载的记录 ID
+  loadFromGenerate({ content, meta: { title: rec.title || '未命名', genType: rec.genType || '' } });
+};
+// 🔧 将当前编辑内容回写到 localStorage 生成记录，刷新后不丢
+const persistCurrentEdits = (content) => {
+  if (!content || !currentGenRecordId.value) return;
+  try {
+    const saved = localStorage.getItem(GEN_STORAGE_KEY);
+    if (!saved) return;
+    const records = JSON.parse(saved);
+    const idx = records.findIndex(r => r.id === currentGenRecordId.value);
+    if (idx >= 0) {
+      records[idx].content = content;
+      localStorage.setItem(GEN_STORAGE_KEY, JSON.stringify(records));
+      // 同步更新内存缓存
+      genRecords.value = records;
+    }
+  } catch (e) { /* ignore */ }
+};
+const activeDocId = ref(null);
+const currentDoc = computed(() => documents.value.find(d => d.id === activeDocId.value));
+const hasDocs = computed(() => documents.value.length > 0);
+// 🔧 导出文件名：基于当前文档标题，清理 Windows 非法字符
+const exportBaseName = computed(() => {
+  const title = currentDoc.value?.title || '排版文档';
+  return title
+    .replace(/\//g, '-')           // 日期中的 / 替换为 -
+    .replace(/[<>:"\\|?*]/g, '_') // 其他 Windows 非法字符
+    .replace(/\s+/g, ' ')
+    .trim() || '排版文档';
+});
+
+const contentEditor = ref(null);
+const { showConfirmDialogFn, showAlertDialogFn } = useDialog();
+
+const { selectFiles, parseWord } = useFileHandler();
+
+// 主题表单
+const themeForm = ref({
+  name: '',
+  description: '',
+  stage: 'high',
+  category: 'exam',
+  colorTheme: 'original'
+});
+
+// ==================== 计算属性 ====================
+const selectedTheme = computed(() => getThemeById(selectedThemeId.value));
+
+const filteredThemes = computed(() => {
+  let allThemes = getAllThemes();
+  
+  // 添加分组信息
+  allThemes = allThemes.map(t => {
+    const option = themeOptions.find(o => o.value === t.id);
+    return { ...t, group: option?.group || (t.type === 'custom' ? '自定义' : '其他') };
+  });
+  
+  if (!themeGroupFilter.value) return allThemes;
+  return allThemes.filter(t => t.group === themeGroupFilter.value);
+});
+
+// 🔧 提取当前主题的 CSS（用于注入富文本编辑器，实现编辑即预览）
+const themeCSS = computed(() => {
+  try {
+    const fullHtml = applyThemeToContent('<div></div>', selectedThemeId.value, { 
+      isHtmlContent: true, 
+      forceImportant: true  // 确保标题/字体等主题样式不被覆盖
+    });
+    const match = fullHtml.match(/<style>([\s\S]*?)<\/style>/i);
+    let css = match ? match[1].trim() : '';
+
+    // 🔧 过滤掉仅适用于独立预览页面的全局重置规则
+    css = css.replace(/\*\s*\{[^}]*\}/g, '');
+    css = css.replace(/body\s*\{[^}]*\}/g, '');
+
+    // 🔑 只保留 h1-h6 标题的 !important，其余全部移除
+    const preserveImportant = /(\bh[1-6]\b|four-line-three|sixian-ge|oral-box|square-box|zuo-wen-ge|pinyin-line|english-line|blank-\d)/;
+    css = css.replace(
+      /([^{}]+)\{([^{}]+)\}/g,
+      (full, selector, body) => {
+        if (preserveImportant.test(selector)) {
+          return `${selector}{${body}}`;
+        }
+        return `${selector}{${body.replace(/\s*!important/g, '')}}`;
+      }
+    );
+
+    // 🔑 田字格/米字格：彻底移除 CSS 规则，仅靠 Tiptap renderHTML 内联样式（与无样式模式一致）
+    //    无样式时田字格能正常居中，说明内联样式已足够；注入的 CSS 规则无论有无 !important 都有干扰风险
+    css = css.replace(/[^\}]*\btian-zi-ge\b[^\{]*\{[^\}]*\}/g, '');
+    css = css.replace(/[^\}]*\bmi-zi-ge\b[^\{]*\{[^\}]*\}/g, '');
+
+    // 🔧 编辑器中没有 <body>，通过 .ProseMirror 注入可继承的基础样式
+    //    ⚠️ 关键：font-size 设于 .ProseMirror 自身，利用 CSS 继承机制向下传递
+    //       子元素若没有自己的 font-size 规则，则继承 12pt
+    //       主题的 h1 { font-size:18pt !important } 会覆盖继承值（自身规则 > 继承值）
+    //       若用 .ProseMirror * — 则变成子元素的直接规则 (0,1,1)，会反杀 h1 的 !important
+    const theme = getThemeById(selectedThemeId.value);
+    if (theme) {
+      css += `\n.ProseMirror { font-family: ${theme.bodyFont}; font-size: ${theme.bodySize}pt; line-height: ${theme.lineHeight}; color: ${theme.bodyColor}; }\n`;
+      // 🔧 特殊主题布局 CSS（Tiptap 编辑区用 .ProseMirror，保留原名）
+      const specialCSS = getSpecialThemeEditorCSS(selectedThemeId.value);
+      if (specialCSS) css += specialCSS;
+      // 🔑 CSS 层面防御：清除主题 CSS（如 p{text-indent:2em!important}）对田字格内部 span 的污染
+      //    优先级 .tian-zi-ge span(0,1,1) > p(0,0,1)，带 !important 确保覆盖 forceImportant
+      css += `\n.tian-zi-ge span,.tian-zi-ge span span,.mi-zi-ge span,.mi-zi-ge span span{text-indent:0!important;padding-left:0!important;padding-right:0!important;margin-left:0!important;margin-right:0!important}\n`;
+      // 🔑 四线三格/四线格防御：防止主题的 p{text-indent:2em} 等规则污染 inline-block 内部
+      css += `.four-line-three,.sixian-ge{text-indent:0!important;padding-left:4px!important;padding-right:4px!important;text-align:center!important}\n`;
+    }
+
+    return css;
+  } catch (e) {
+    console.warn('提取主题 CSS 失败:', e);
+    return '';
+  }
+});
+
+// ==================== 主题预览样式 ====================
+const getThemePreviewStyle = (theme) => {
+  return {
+    fontFamily: theme.bodyFont,
+    backgroundColor: theme.tableOddRowBg || '#f5f9ff',
+    borderLeft: `4px solid ${theme.heading1Color || theme.titleColor}`
+  };
+};
+
+const getPreviewTitleStyle = (theme) => {
+  return {
+    fontFamily: theme.titleFont,
+    fontSize: '14px',
+    fontWeight: 'bold',
+    color: theme.titleColor
+  };
+};
+
+const getPreviewBodyStyle = (theme) => {
+  return {
+    fontFamily: theme.bodyFont,
+    fontSize: '12px',
+    color: '#333'
+  };
+};
+
+const getPreviewTableStyle = (theme) => {
+  return {
+    marginTop: '8px',
+    fontSize: '10px'
+  };
+};
+
+// ==================== 主题操作 ====================
+const selectTheme = (themeId) => {
+  // 🔧 支持切换：点击已选中主题 → 取消选中（无样式）
+  selectedThemeId.value = (selectedThemeId.value === themeId) ? null : themeId;
+};
+
+const refreshThemes = () => {
+  // 主题是响应式的，无需额外操作
+};
+
+const openCustomThemeEditor = () => {
+  editingTheme.value = null;
+  themeForm.value = {
+    name: '',
+    description: '',
+    stage: 'high',
+    category: 'exam',
+    colorTheme: 'original'
+  };
+  showThemeEditor.value = true;
+};
+
+const editCustomTheme = () => {
+  const theme = selectedTheme.value;
+  if (!theme || theme.type !== 'custom') return;
+  
+  editingTheme.value = theme;
+  themeForm.value = {
+    name: theme.name,
+    description: theme.description || '',
+    stage: theme.stage || 'high',
+    category: theme.category || 'exam',
+    colorTheme: theme.colorTheme || 'original'
+  };
+  showThemeEditor.value = true;
+};
+
+const closeThemeEditor = () => {
+  showThemeEditor.value = false;
+  editingTheme.value = null;
+};
+
+const saveCustomTheme = async () => {
+  if (!themeForm.value.name.trim()) {
+    await showAlertDialogFn('请输入主题名称');
+    return;
+  }
+  
+  if (editingTheme.value) {
+    updateCustomTheme(editingTheme.value.id, themeForm.value);
+  } else {
+    const newTheme = addCustomTheme(themeForm.value);
+    selectedThemeId.value = newTheme.id;
+  }
+  
+  closeThemeEditor();
+};
+
+const deleteCustomThemeHandler = async () => {
+  const theme = selectedTheme.value;
+  if (!theme || theme.type !== 'custom') return;
+  
+  const confirmed = await showConfirmDialogFn(`确定删除主题「${theme.name}」吗？`);
+  if (!confirmed) return;
+  
+  deleteCustomTheme(theme.id);
+  if (selectedThemeId.value === theme.id) {
+    selectedThemeId.value = defaultThemeId;
+  }
+};
+
+// ==================== 内容编辑 ====================
+const clearContent = () => {
+  currentContent.value = '';
+  previewContent.value = '';
+  isHtmlContent.value = false;
+  rawHtmlContent.value = '';
+};
+
+const pasteFromClipboard = async () => {
+  try {
+    // 🔧 优先尝试读取剪贴板的 HTML 内容（从 Word/网页复制时）
+    const clipboardItems = await navigator.clipboard.read();
+    for (const item of clipboardItems) {
+      if (item.types.includes('text/html')) {
+        const blob = await item.getType('text/html');
+        const html = await blob.text();
+        if (html && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(html)) {
+          // 检测到富文本内容，切换到 HTML 模式用富文本编辑器
+          isHtmlContent.value = true;
+          rawHtmlContent.value = html;
+          currentContent.value = '';
+          return;
+        }
+      }
+    }
+  } catch (e) {
+    // clipboard.read() 可能因权限被拒，回退到纯文本读取
+    console.warn('剪贴板 HTML 读取失败，回退纯文本:', e.message);
+  }
+
+  // 回退：纯文本粘贴
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text) {
+      currentContent.value = text;
+      isHtmlContent.value = false;
+      rawHtmlContent.value = '';
+    }
+  } catch (e) {
+    await showAlertDialogFn('无法读取剪贴板，请手动粘贴 (Ctrl+V)');
+  }
+};
+
+// 🔧 contentEditable 输入事件 → 同步到 rawHtmlContent
+const onHtmlEditorInput = () => {
+  // Tiptap 通过 v-model + content-change 事件管理，此函数保留以兼容旧逻辑
+};
+
+// 🔧 将主题 CSS 字符串转为内联 style 对象（已废弃，RichTextEditor 使用 customCSS prop）
+const parseThemeCSS = (cssString) => ({});
+
+// 🔧 监听 HTML 内容变化（Tiptap v-model 自动同步，这里仅做 HTML 检测兜底 + 源码编辑同步）
+watch(rawHtmlContent, (newVal) => {
+  // 🔧 性能优化：已经是 HTML 模式时跳过正则检测（每次按键都在同一模式下，无需重复判断）
+  if (!isHtmlContent.value) {
+    if (newVal && newVal.length > 20 && /<\/[a-zA-Z][^>]*>/i.test(newVal) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(newVal)) {
+      isHtmlContent.value = true;
+    }
+  }
+  // 🔧 源码视图编辑时同步到 pristineHtmlForExport，确保导出包含编辑内容
+  if (showSource.value && newVal && newVal.length > 20) {
+    pristineHtmlForExport.value = newVal;
+    // 🔧 源码视图编辑也回写生成记录
+    persistCurrentEdits(newVal);
+  }
+});
+
+// 🔧 纯文本 textarea 粘贴 HTML 源码 → 自动检测并迁移到富文本模式
+//    场景：用户在纯文本模式下直接 Ctrl+V 粘贴 HTML 源码，
+//    内容进入 currentContent 而非 rawHtmlContent，需自动切换让渲染按钮出现
+watch(currentContent, (newVal) => {
+  if (newVal && newVal.length > 20 && /<\/[a-zA-Z][^>]*>/i.test(newVal) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(newVal)) {
+    isHtmlContent.value = true;
+    rawHtmlContent.value = newVal;
+    currentContent.value = '';
+    pristineHtmlForExport.value = newVal;
+  }
+});
+
+// Markdown 工具栏（纯文本模式保留）
+const insertMarkdown = (syntax) => {
+  const textarea = contentEditor.value;
+  if (!textarea) return;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = currentContent.value;
+  currentContent.value = text.substring(0, start) + syntax + text.substring(end);
+  nextTick(() => {
+    textarea.focus();
+    textarea.setSelectionRange(start + syntax.length, start + syntax.length);
+  });
+};
+
+// ==================== 预览 ====================
+const applyThemeAndPreview = async () => {
+  const hasContent = isHtmlContent.value
+    ? (rawHtmlContent.value && rawHtmlContent.value.length > 20)  // 降低门槛，避免 Tiptap 初始空段落阻断
+    : currentContent.value.trim();
+
+  if (!hasContent) {
+    await showAlertDialogFn('请先输入内容');
+    return;
+  }
+  
+  try {
+    let htmlContent;
+    if (isHtmlContent.value && rawHtmlContent.value) {
+      htmlContent = wrapContentForTheme(rawHtmlContent.value, selectedThemeId.value);
+    } else if (isHtmlContent.value && pristineHtmlForExport.value) {
+      htmlContent = wrapContentForTheme(pristineHtmlForExport.value, selectedThemeId.value);
+    } else {
+      // 手动输入的 Markdown/纯文本：先转为 HTML
+      htmlContent = markdownToHtml(currentContent.value);
+    }
+    
+    // 应用主题（导出时也强制 !important，确保与编辑预览一致）
+    const themedHtml = applyThemeToContent(htmlContent, selectedThemeId.value, {
+      isHtmlContent: isHtmlContent.value,
+      forceImportant: true
+    });
+    previewContent.value = themedHtml;
+  } catch (e) {
+    console.error('预览失败:', e);
+    await showAlertDialogFn('预览失败: ' + e.message);
+  }
+};
+
+// ==================== 上传Word ====================
+const uploadCustomWord = async () => {
+  try {
+    const files = await selectFiles();
+    if (!files || files.length === 0) return;
+    
+    const filePath = files[0];
+    customFileName.value = filePath.split('\\').pop();
+    
+    // 解析Word
+    const result = await parseWord(filePath);
+    if (result && result.html) {
+      // 🔧 Word 解析结果是 HTML，走 loadFromGenerate 统一处理
+      loadFromGenerate(result.html);
+    }
+  } catch (e) {
+    console.error('上传Word失败:', e);
+    await showAlertDialogFn('上传失败: ' + e.message);
+  }
+};
+
+// ==================== PDF 打印降级 ====================
+/**
+ * 🔧 清洗导出内容中的 AI 对话残留和 markdown 代码块标记
+ *    仅剥离对话文本和 ```html 标记，不修改 HTML 结构本身
+ */
+const sanitizeExportContent = (html) => {
+  if (!html) return html;
+  let cleaned = html;
+  // 提取 markdown 代码块中的 HTML（支持对话前缀+代码块）
+  const mdBlockRegex = /```(?:html?|HTML?)?[\s\n]*([\s\S]*?)\n?```/g;
+  const mdBlocks = [];
+  let mdMatch;
+  while ((mdMatch = mdBlockRegex.exec(cleaned)) !== null) {
+    mdBlocks.push(mdMatch[1].trim());
+  }
+  if (mdBlocks.length > 0) {
+    cleaned = mdBlocks.join('\n\n');
+  } else {
+    // 无代码块但有对话前缀+HTML → 从第一个 HTML 标签开始截取
+    const htmlStartIdx = cleaned.search(/<(!DOCTYPE|html|head|body|h[1-6]|p\b|div|table|ul|ol|span)\b/i);
+    if (htmlStartIdx > 0 && htmlStartIdx < 500) {
+      cleaned = cleaned.substring(htmlStartIdx);
+    }
+  }
+  return cleaned;
+};
+
+const printFallback = (htmlContent) => {
+  const w = window.open('', '_blank', 'width=800,height=600');
+  if (w) {
+    w.document.write(htmlContent);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 500);
+  } else {
+    // 如果弹窗被拦截，在当前窗口打印
+    console.warn('弹窗被拦截，使用当前窗口打印');
+    window.print();
+  }
+};
+
+// ==================== 导出 ====================
+const exportDocument = async () => {
+  // 🔧 导出前强制从 contentEditable 实时 DOM 刷新，确保最新编辑不丢失
+  if (isHtmlContent.value && contentEditor.value?.editor?.view?.dom) {
+    const liveHtml = contentEditor.value.editor.view.dom.innerHTML;
+    pristineHtmlForExport.value = liveHtml;
+    rawHtmlContent.value = liveHtml;
+  }
+
+  // 🔧 导出时优先用原始 HTML（保留所有 class），无原始内容时降级用预览
+  const exportHtmlSource = pristineHtmlForExport.value || (isHtmlContent.value ? rawHtmlContent.value : currentContent.value);
+  
+  const hasContent = isHtmlContent.value
+    ? (exportHtmlSource && exportHtmlSource.length > 20)
+    : currentContent.value.trim();
+  if (!hasContent) {
+    await showAlertDialogFn('请先输入内容');
+    return;
+  }
+
+  // 🔧 用原始 HTML 直接包装主题（不走 Tiptap 的 applyThemeAndPreview，避免丢失 class）
+  let previewContentForExport;
+  if (isHtmlContent.value && pristineHtmlForExport.value) {
+    const wrapped = wrapContentForTheme(pristineHtmlForExport.value, selectedThemeId.value);
+    previewContentForExport = applyThemeToContent(wrapped, selectedThemeId.value, {
+      isHtmlContent: true,
+      forceImportant: true
+    });
+  } else {
+    // 降级：用预览流程
+    await applyThemeAndPreview();
+    previewContentForExport = previewContent.value;
+  }
+  
+  if (!previewContentForExport) {
+    await showAlertDialogFn('生成预览内容失败');
+    return;
+  }
+  
+  // 🔧 清洗 AI 对话残留和 markdown 代码块标记（第二道防线）
+  previewContentForExport = sanitizeExportContent(previewContentForExport);
+  
+  isExporting.value = true;
+  exportStatus.value = '正在生成文档...';
+  
+  try {
+    if (exportFormat.value === 'html') {
+      const blob = new Blob([previewContentForExport], { type: 'text/html;charset=utf-8' });
+      downloadBlob(blob, `${exportBaseName.value}.html`);
+    } else if (exportFormat.value === 'docx') {
+      exportStatus.value = '正在生成Word文档...';
+
+      // ✅ 导出前已从 contentEditable 实时 DOM 刷新 pristineHtmlForExport，直接使用
+      const sourceHtml = pristineHtmlForExport.value || rawHtmlContent.value;
+      if (!sourceHtml || sourceHtml.length < 20) {
+        throw new Error('编辑器内容为空');
+      }
+
+      // 🔧 懒加载 docxBuilder（避免 chunk 加载时序导致整个组件挂掉）
+      const { htmlToDocxBlob } = await import('../utils/docxBuilder.js');
+
+      // 🔑 WYSIWYG 导出：用 wrapper 隔离主题 CSS <style> 标签，
+      //    避免 style 被 docxBuilder 当作正文内容逐行解析。
+      //    CSS 通过文档级联生效（wrapper 在 document 中），
+      //    但 buildDocxFromDom 只处理 clone，不会遇到 style 标签。
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'position:absolute;visibility:hidden;width:210mm;left:-9999px;';
+
+      const clone = document.createElement('div');
+      const theme = getThemeById(selectedThemeId.value);
+      if (theme) {
+        clone.style.fontFamily = theme.bodyFont;
+        clone.style.fontSize = theme.bodySize + 'pt';
+        clone.style.lineHeight = String(theme.lineHeight);
+        clone.style.color = theme.bodyColor || '#333333';
+      }
+      clone.innerHTML = sourceHtml;
+
+      // 🔑 注入主题 CSS <style> 标签到 wrapper（不在 clone 内部），
+      //    CSS 规则通过文档级联对 clone 内所有元素生效，
+      //    确保 getComputedStyle(h1/p) 能读到主题的 font-size/color。
+      //    ⚠️ 不使用 forceImportant：避免正则产生的双 !important 非法 CSS。
+      if (selectedThemeId.value) {
+        const fullHtml = applyThemeToContent('<div></div>', selectedThemeId.value, {
+          isHtmlContent: true,
+          forceImportant: false,
+        });
+        const cssMatch = fullHtml.match(/<style>([\s\S]*?)<\/style>/i);
+        if (cssMatch) {
+          let exportCSS = cssMatch[1].trim();
+          // 清理不适用于导出克隆的规则
+          exportCSS = exportCSS.replace(/\*\s*\{[^}]*\}/g, '');
+          exportCSS = exportCSS.replace(/body\s*\{[^}]*\}/g, '');
+          exportCSS = exportCSS.replace(/@page\s*\{[^}]*\}/g, '');
+          exportCSS = exportCSS.replace(/@media\s+print\s*\{[^}]*\}/g, '');
+
+          const styleEl = document.createElement('style');
+          styleEl.setAttribute('data-export-theme', 'true');
+          styleEl.textContent = exportCSS;
+          wrapper.appendChild(styleEl);
+        }
+      }
+
+      wrapper.appendChild(clone);
+      document.body.appendChild(wrapper);
+
+      try {
+        // 只传 clone（不含 style 标签），避免 CSS 被当成正文
+        const blob = await htmlToDocxBlob(clone);
+        document.body.removeChild(wrapper);
+        downloadBlob(blob, `${exportBaseName.value}.docx`);
+      } finally {
+        if (wrapper.parentNode) document.body.removeChild(wrapper);
+      }
+
+    } else if (exportFormat.value === 'pdf') {
+      const storagePath = getStoragePath();
+      const defaultPath = `${storagePath}/导出/${exportBaseName.value}_${Date.now()}.pdf`;
+      
+      if (window.electronAPI?.exportPdf && window.electronAPI?.showSaveDialog) {
+        const { filePath, canceled } = await window.electronAPI.showSaveDialog({
+          title: '保存PDF',
+          defaultPath,
+          filters: [{ name: 'PDF文件', extensions: ['pdf'] }],
+        });
+        if (canceled || !filePath) {
+          exportStatus.value = '';
+          return;
+        }
+        exportStatus.value = '正在生成PDF文档...';
+        const result = await window.electronAPI.exportPdf(previewContentForExport, filePath);
+        exportStatus.value = '';
+        await nextTick();
+        if (result.success) {
+          await showAlertDialogFn(`PDF已保存至：${result.path}`);
+        } else {
+          await showAlertDialogFn(`PDF导出失败：${result.error || '未知错误'}\n\n将使用浏览器打印作为降级方案`);
+          printFallback(previewContentForExport);
+        }
+      } else {
+        // 🔧 降级：使用浏览器打印
+        exportStatus.value = '正在打开打印对话框（请选择"另存为PDF"）...';
+        printFallback(previewContentForExport);
+        exportStatus.value = '请在打印对话框中选择"另存为PDF"保存';
+      }
+    }
+    
+    exportStatus.value = '导出完成！';
+  } catch (e) {
+    console.error('导出失败:', e);
+    await showAlertDialogFn('导出失败: ' + e.message);
+  } finally {
+    setTimeout(() => {
+      isExporting.value = false;
+      exportStatus.value = '';
+    }, 1000);
+  }
+};
+
+const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// ==================== 接收生成模块传递的内容 ====================
+
+// ==================== 多文档切换 ====================
+const saveCurrentDoc = () => {
+  if (!activeDocId.value) return;
+  const doc = documents.value.find(d => d.id === activeDocId.value);
+  if (doc) { doc.content = isHtmlContent.value ? rawHtmlContent.value : currentContent.value; }
+};
+const switchToDoc = (docId) => {
+  if (docId === activeDocId.value) return;
+  saveCurrentDoc();
+  const doc = documents.value.find(d => d.id === docId);
+  if (!doc) return;
+  activeDocId.value = docId;
+  loadContentSilent(doc.content);
+};
+const closeDoc = (docId) => {
+  const idx = documents.value.findIndex(d => d.id === docId);
+  if (idx < 0) return;
+  documents.value.splice(idx, 1);
+  if (activeDocId.value === docId) {
+    const next = documents.value[Math.min(idx, documents.value.length - 1)];
+    activeDocId.value = next?.id || null;
+    if (next) loadContentSilent(next.content);
+    else { rawHtmlContent.value = ''; currentContent.value = ''; isHtmlContent.value = false; }
+  }
+};
+const loadContentSilent = (content) => {
+  if (!content || typeof content !== 'string') return;
+  const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
+  if (isHtml) { isHtmlContent.value = true; rawHtmlContent.value = content; currentContent.value = ''; }
+  else { isHtmlContent.value = false; rawHtmlContent.value = ''; currentContent.value = content; }
+};
+
+const loadFromGenerate = async (payload) => {
+  let content = typeof payload === 'string' ? payload : payload?.content || '';
+  const meta = (typeof payload === 'object' && payload.meta) ? payload.meta : {};
+  if (!content || typeof content !== 'string') return;
+  
+  // 🔧 直接保存原始 HTML（不再走 Tiptap 预处理，contentEditable 原样保留所有 class）
+  pristineHtmlForExport.value = content;
+  
+  const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
+  
+  if (isHtml) {
+    isHtmlContent.value = true;
+    rawHtmlContent.value = content;
+    currentContent.value = '';
+    // 🔧 等 Vue 渲染 RichTextEditor 后 v-model 自动注入内容
+    await nextTick();
+  } else {
+    isHtmlContent.value = false;
+    rawHtmlContent.value = '';
+    currentContent.value = content;
+    console.log('📥 加载纯文本内容:', content.length, '字');
+  }
+  // 🔧 多文档注册：保存或更新文档列表
+  saveCurrentDoc();
+  const docTitle = meta.title || '未命名文档';
+  const existing = documents.value.find(d => d.title === docTitle);
+  if (existing) {
+    existing.content = isHtmlContent.value ? rawHtmlContent.value : currentContent.value;
+    existing.cleanHtml = rawHtmlContent.value || currentContent.value;
+    existing.genType = meta.genType || existing.genType;
+    activeDocId.value = existing.id;
+  } else {
+    const newDoc = {
+      id: 'doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      title: docTitle,
+      genType: meta.genType || '',
+      content: isHtmlContent.value ? rawHtmlContent.value : currentContent.value,
+      cleanHtml: rawHtmlContent.value || currentContent.value,
+    };
+    documents.value.push(newDoc);
+    activeDocId.value = newDoc.id;
+  }
+};
+
+// ==================== 监听主题切换：刷新预览 ====================
+watch(selectedThemeId, async () => {
+  const hasContent = isHtmlContent.value
+    ? (rawHtmlContent.value && rawHtmlContent.value.length > 20)
+    : currentContent.value.trim();
+  if (hasContent) {
+    applyThemeAndPreview();
+  }
+});
+
+// 🔧 HTML 模式下编辑器已实时显示主题样式，仅导出时生成完整预览 HTML
+
+// ==================== 初始化 ====================
+// 🔧 keep-alive 支持：首次挂载和每次激活都检查待处理内容
+const consumePendingContent = () => {
+  if (window.__pendingTypesetContent) {
+    loadFromGenerate(window.__pendingTypesetContent);
+    window.__pendingTypesetContent = null;
+  }
+};
+
+onMounted(() => {
+  refreshGenRecords();
+  consumePendingContent();
+  window.addEventListener(APP_EVENTS.TYPESET_CONTENT, (e) => {
+    if (e.detail) {
+      loadFromGenerate(e.detail);
+    }
+  });
+});
+
+onActivated(() => {
+  refreshGenRecords();
+  consumePendingContent();
+});
+</script>
+
+<style scoped>
+.typeset-module {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.typeset-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 1px;
+  background: var(--border-light);
+}
+
+/* ==================== 左侧主题面板 ==================== */
+.theme-panel {
+  width: 280px;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.panel-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+  margin: 0;
+}
+
+.upload-section {
+  margin-bottom: 16px;
+}
+
+.theme-filter {
+  margin-bottom: 16px;
+}
+
+.filter-select {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: white;
+  font-size: 13px;
+}
+
+.theme-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.theme-item {
+  border: 2px solid var(--border-light);
+  border-radius: 12px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+}
+
+.theme-item:hover {
+  border-color: var(--primary-light);
+  box-shadow: 0 2px 8px rgba(43, 94, 167, 0.1);
+}
+
+.theme-item.active {
+  border-color: var(--primary-light);
+  background: #f0f7ff;
+  box-shadow: 0 2px 12px rgba(43, 94, 167, 0.15);
+}
+
+.theme-preview {
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.preview-title {
+  margin-bottom: 8px;
+}
+
+.preview-body {
+  margin-bottom: 8px;
+  opacity: 0.8;
+}
+
+.preview-table {
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.theme-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.theme-name {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.theme-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--primary-light);
+  color: white;
+  border-radius: 12px;
+}
+
+.theme-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-light);
+}
+
+/* ==================== 中间编辑面板 ==================== */
+.editor-panel {
+  flex: 1;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ═══════ A4 纸张预览区 ═══════ */
+/* 模拟 Word A4 纸张：宽 210mm，上下左右边距 2cm，连续滚动 */
+.paper-preview-area {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #e8e8e8;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.paper-page {
+  width: 210mm;
+  min-height: 100%;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+/* A4 纸张内：剥除编辑器外框，2cm 页边距 */
+.paper-page :deep(.rich-text-editor) {
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 20mm;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+/* A4 纸张内：工具栏吸顶固定，不随内容滚动 */
+.paper-page :deep(.editor-toolbar-wrapper) {
+  border-radius: 0 !important;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 12px;
+}
+
+.toolbar-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  background: white;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.toolbar-btn:hover {
+  background: var(--primary-bg);
+  border-color: var(--primary-light);
+}
+.toolbar-btn.active {
+  background: var(--primary-light);
+  color: white;
+  border-color: var(--primary-light);
+}
+
+.toolbar-sep {
+  width: 1px;
+  background: #ddd;
+  margin: 0 6px;
+  align-self: stretch;
+}
+
+.toolbar-select {
+  padding: 2px 4px;
+  border: 1px solid #d0d0d0;
+  border-radius: 3px;
+  background: #fff;
+  font-size: 11px;
+  height: 26px;
+  cursor: pointer;
+  outline: none;
+}
+
+.toolbar-color {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #d0d0d0;
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 1px;
+  background: #fff;
+}
+
+/* 🔧 contentEditable 编辑器 */
+.html-editor {
+  flex: 1;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: white;
+  overflow-y: auto;
+  outline: none;
+  line-height: 1.8;
+}
+.html-editor:focus {
+  border-color: var(--primary-light);
+}
+.html-editor[placeholder]:empty::before {
+  content: attr(placeholder);
+  color: #999;
+  font-style: italic;
+}
+
+.content-textarea {
+  flex: 1;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: none;
+  background: var(--bg-card);
+}
+
+.content-textarea:focus {
+  outline: none;
+  border-color: var(--primary-light);
+  background: white;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.export-select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: white;
+  font-size: 13px;
+}
+
+/* ==================== 弹窗 ==================== */
+.modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3500;
+  pointer-events: none;
+}
+
+.modal {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  min-width: 400px;
+  max-width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  pointer-events: auto;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.12), 0 16px 48px rgba(0,0,0,0.16);
+  border: 2px solid var(--border);
+  position: relative;
+}
+
+.modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--primary-light) 0%, #4a90d9 50%, var(--primary-light) 100%);
+  border-radius: 14px 14px 0 0;
+}
+
+.large-modal {
+  min-width: 600px;
+}
+
+.large-modal::before {
+  height: 6px;
+  background: linear-gradient(90deg, #1e4a8a 0%, var(--primary-light) 50%, #1e4a8a 100%);
+}
+
+.modal h3 {
+  margin-bottom: 20px;
+  color: var(--primary);
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: var(--primary);
+  font-size: 13px;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 13px;
+  background: white;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--primary-light);
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+/* 📱 移动端弹窗适配 */
+@media (max-width: 767px) {
+  .modal {
+    min-width: 0 !important;
+    width: 92vw !important;
+    max-width: 92vw !important;
+    padding: 16px 14px !important;
+    border-radius: 12px !important;
+    max-height: 85vh !important;
+  }
+  .modal::before {
+    border-radius: 10px 10px 0 0 !important;
+  }
+  .large-modal {
+    min-width: 0 !important;
+    width: 96vw !important;
+    max-width: 96vw !important;
+  }
+  .modal h3 {
+    font-size: 15px !important;
+    margin-bottom: 12px !important;
+  }
+  .modal p, .modal .hint {
+    font-size: 13px !important;
+  }
+  .modal-actions {
+    margin-top: 14px !important;
+    padding-top: 12px !important;
+    gap: 8px !important;
+  }
+  .modal-actions .btn,
+  .modal-actions .btn-primary {
+    flex: 1;
+    font-size: 13px;
+    padding: 10px 6px;
+    text-align: center;
+    min-height: 40px;
+  }
+  /* 主题编辑弹窗 */
+  .form-group label {
+    font-size: 12px !important;
+  }
+  .form-group input,
+  .form-group select {
+    font-size: 13px !important;
+    padding: 9px 10px !important;
+  }
+  .form-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+/* ==================== 加载遮罩 ==================== */
+.loading-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4000;
+  pointer-events: none;
+}
+
+.loading-content {
+  background: white;
+  padding: 32px 48px;
+  border-radius: 16px;
+  text-align: center;
+  pointer-events: auto;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15), 0 8px 32px rgba(0,0,0,0.2);
+  border: 2px solid #f39c12;
+  position: relative;
+}
+
+.loading-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #f39c12 0%, #f1c40f 50%, #f39c12 100%);
+  border-radius: 14px 14px 0 0;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-light);
+  border-top-color: var(--primary-light);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==================== 按钮样式 ==================== */
+.btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: white;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.btn:hover {
+  background: #f5f5f5;
+}
+
+.btn-primary {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary-light);
+  color: white;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  background: #1e4a8a;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  color: var(--danger);
+  border-color: var(--danger-light);
+}
+
+.btn-danger:hover {
+  background: var(--danger-light);
+}
+
+.btn-full {
+  width: 100%;
+  margin: 8px 0;
+}
+
+.btn-icon {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-icon:hover {
+  background: #f5f5f5;
+}
+
+/* ==================== 滚动条 ==================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+.recommend-badge {
+  background: var(--primary-light);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  margin-left: 6px;
+  font-weight: 500;
+}
+
+/* ⭐ 加点字样式 - 在字下方显示点(·) */
+.emphasis-dot {
+  position: relative;
+  display: inline-block;
+  font-weight: bold;
+  color: #d32f2f;
+}
+
+.emphasis-dot::after {
+  content: '·';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: #d32f2f;
+  line-height: 1;
+}
+
+/*  加点字样式 - 在字下方显示点(·) */
+.underline-sentence {
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+}
+
+/* ⭐ 上标样式 - 数学/物理/化学必备 */
+.superscript {
+  vertical-align: super;
+  font-size: smaller;
+  line-height: 0;
+}
+
+/* ⭐ 下标样式 - 数学/物理/化学必备 */
+.subscript {
+  vertical-align: sub;
+  font-size: smaller;
+  line-height: 0;
+}
+
+/* ⭐ 拼音标注 - 小学语文（使用拼音体） */
+ruby {
+  ruby-position: over;
+  ruby-align: center;
+}
+
+rt {
+  font-size: 0.6em;
+  text-align: center;
+  color: #666;
+  margin-bottom: -2px;
+  font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif;
+}
+
+/* ===== 新增强大排版样式 ===== */
+
+/* 波浪线 - 语文病句修改 */
+.wavy-underline {
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: #d32f2f;
+  text-underline-offset: 3px;
+}
+
+/* 双线格 */
+.double-line {
+  text-decoration: underline;
+  text-decoration-style: double;
+  text-underline-offset: 3px;
+}
+
+/* 单线格 */
+.single-line {
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-underline-offset: 3px;
+}
+
+/* ═══════ 填空横线（blank-N） ═══════ */
+u[class*="blank-"] {
+  display: inline-block;
+  text-align: center;
+  font-size: inherit !important;
+  min-width: 1em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+}
+u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }
+u.blank-3 { min-width: 3em; } u.blank-4 { min-width: 4em; }
+u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; }
+u.blank-8 { min-width: 8em; } u.blank-10 { min-width: 10em; }
+
+/* 括号内留空（span 无下划线，仅占位） */
+span[class*="blank-"] {
+  display: inline-block;
+  text-align: center;
+}
+span.blank-1 { min-width: 1em; } span.blank-2 { min-width: 2em; }
+span.blank-3 { min-width: 3em; } span.blank-4 { min-width: 4em; }
+span.blank-5 { min-width: 5em; } span.blank-6 { min-width: 6em; }
+span.blank-8 { min-width: 8em; } span.blank-10 { min-width: 10em; }
+
+/* 部首标注 */
+ruby.radical rb { font-size: 1em; }
+ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
+
+/* 笔画笔顺 */
+.stroke-order {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 1px;
+  vertical-align: baseline;
+}
+.stroke-order::after {
+  content: attr(data-strokes) '画';
+  font-size: 0.55em;
+  vertical-align: super;
+  color: var(--text-muted);
+  line-height: 1;
+  margin-left: 1px;
+}
+
+/* 田字格/米字格（⭐ inline-block + relative 容器，子元素 absolute+transform 居中） */
+.tian-zi-ge, .mi-zi-ge {
+  display: inline-block;
+  position: relative;
+  width: 1.8em;
+  height: 1.8em;
+  border: 1.5px solid #5B9BD5;
+  font-size: inherit !important;
+  vertical-align: middle;
+  margin: 0 1px;
+  box-sizing: border-box;
+  background:
+    repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,
+    repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat;
+}
+.tian-zi-ge > span, .mi-zi-ge > span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  line-height: 1;
+  white-space: nowrap;
+}
+.mi-zi-ge {
+  background:
+    repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,
+    repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,
+    repeating-linear-gradient(to top right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,
+    repeating-linear-gradient(to bottom right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat;
+}
+
+/* 四线三格 - 伪元素绘制4条等距线（fix: line-height:1让字体自然基线渲染） */
+.four-line-three {
+  display: inline-block;
+  position: relative;
+  padding: 4px 4px;
+  font-family: 'Times New Roman', 'Georgia', SimSun, serif;
+  font-size: inherit !important;
+  line-height: 1;
+  min-width: 18px;
+  text-align: center;
+  vertical-align: middle;
+  overflow: visible;
+}
+.four-line-three::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1.5em;
+  background:
+    linear-gradient(#999, #999) 0 0.1em / 100% 1px no-repeat,
+    linear-gradient(#999, #999) 0 0.55em / 100% 1px no-repeat,
+    linear-gradient(#666, #666) 0 1.0em / 100% 1px no-repeat,
+    linear-gradient(#999, #999) 0 1.45em / 100% 1px no-repeat;
+  pointer-events: none;
+}
+
+/* ⭐ 拼音格 - Times New Roman（拼音体专用） */
+.pinyin-line {
+  font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif;
+}
+/* ⭐ 英语书写格 - Times New Roman 印刷体（英语字母专用） */
+.english-line {
+  font-family: 'Times New Roman', 'Georgia', serif;
+}
+
+/* 作文格 */
+.zuo-wen-ge {
+  display: grid;
+  grid-template-columns: repeat(20, 1.3em);
+  gap: 0;
+  border: 1.5px solid var(--text-muted);
+  margin: 8px 0;
+  width: fit-content;
+}
+.zuo-wen-ge span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3em;
+  height: 1.3em;
+  border: 0.5px solid #ccc;
+  font-family: 'SimSun', 'KaiTi', serif;
+  font-size: inherit !important;
+  line-height: 1.3em;
+  text-align: center;
+}
+
+/* 口算框 */
+.oral-box {
+  display: inline-block;
+  border: 1.5px solid #333;
+  padding: 2px 8px;
+  margin: 0 2px;
+  min-width: 40px;
+  text-align: center;
+  vertical-align: middle;
+  font-size: inherit !important;
+}
+.oral-box.blank {
+  min-width: 50px;
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+/* 竖式计算 */
+.vertical-calculation {
+  display: inline-block;
+  margin: 8px 16px;
+  font-family: 'Courier New', monospace;
+}
+.vertical-calculation .vc-row {
+  text-align: right;
+  padding: 1px 8px;
+  letter-spacing: 0.2em;
+}
+.vertical-calculation .vc-row.op {
+  border-bottom: 1.5px solid #333;
+  padding-bottom: 2px;
+}
+.vertical-calculation .vc-result {
+  text-align: right;
+  padding: 2px 8px;
+  letter-spacing: 0.2em;
+  font-weight: bold;
+}
+
+/* 脱式计算等号对齐 */
+.off-formula { margin: 8px 0; }
+.off-formula .of-line { text-indent: 1.5em; line-height: 1.8; }
+
+/* 连线题 */
+.match-question {
+  display: flex;
+  gap: 40px;
+  margin: 12px 0;
+}
+.match-question .match-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.match-question .match-item {
+  padding: 4px 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  min-width: 80px;
+  text-align: center;
+}
+
+/* 词库框 - 完形填空 */
+.word-bank {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1.5px solid #666;
+  border-radius: 4px;
+  margin: 4px 0;
+  background: #fafafa;
+}
+.word-bank .wb-item {
+  display: inline-block;
+  padding: 2px 10px;
+  font-family: 'Times New Roman', serif;
+  font-size: 0.9em;
+  color: #333;
+}
+
+/* 化学反应条件 */
+.chem-condition {
+  font-size: 0.7em;
+  vertical-align: super;
+  color: #555;
+  line-height: 1;
+}
+
+/* 密封线 */
+.seal-line {
+  writing-mode: vertical-lr;
+  text-orientation: upright;
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: 0;
+  width: 2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1.5px dashed var(--text-muted);
+  border-right: 1.5px dashed var(--text-muted);
+  background: #f9f9f9;
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.5em;
+  z-index: 1;
+}
+
+/* 评分栏 - 表格形式（横竖线全有） */
+.score-board {
+  display: inline-table;
+  border-collapse: collapse;
+  margin: 4px 0;
+}
+.score-board .sb-row {
+  display: table-row;
+}
+.score-board .sb-label, .score-board .sb-value {
+  display: table-cell;
+  padding: 4px 16px;
+  border: 1px solid var(--text-muted);
+  text-align: center;
+}
+.score-board .sb-label {
+  font-size: 0.9em;
+  color: #555;
+  background: #f9f9f9;
+}
+.score-board .sb-value {
+  font-weight: bold;
+}
+
+/* 方框填空 */
+.square-box {
+  display: inline-block;
+  border: 2px solid #333;
+  min-width: 1.6em;
+  height: 1.6em;
+  text-align: center;
+  line-height: 1.6em;
+  vertical-align: middle;
+  margin: 0 1px;
+  padding: 0 2px;
+  font-weight: bold;
+  color: #333;
+  font-size: inherit !important;
+}
+
+/* 得分框 */
+.score-box {
+  display: inline-block;
+  border: 1.5px solid #333;
+  padding: 3px 16px;
+  text-align: center;
+  min-width: 60px;
+  font-weight: bold;
+  font-size: inherit !important;
+}
+
+/* 辅助线虚线 */
+.dashed-line {
+  display: inline-block;
+  border-bottom: 1.5px dashed var(--text-muted);
+  min-width: 40px;
+  margin: 0 2px;
+}
+
+/* 元素周期表 */
+table.periodic-table {
+  border-collapse: collapse;
+  margin: 8px auto;
+  font-size: 0.75em;
+}
+table.periodic-table td, table.periodic-table th {
+  border: 1px solid #333;
+  padding: 2px 4px;
+  text-align: center;
+  min-width: 2.5em;
+}
+table.periodic-table .nonmetal { background: #c8e6c9; }
+table.periodic-table .metal { background: #ffcdd2; }
+table.periodic-table .transition { background: #ffe0b2; }
+table.periodic-table .noble-gas { background: #b3e5fc; }
+table.periodic-table .lanthanide { background: #f8bbd0; }
+table.periodic-table .actinide { background: #e1bee7; }
+
+/* 多文档标签栏 */
+.doc-tabs { display: flex; gap: 2px; padding: 6px 8px 0; background: #f0f0f0; border-bottom: 1px solid #ddd; overflow-x: auto; }
+.doc-tab { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: #e0e0e0; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 12px; white-space: nowrap; border: 1px solid transparent; }
+.doc-tab:hover { background: #d5d5d5; }
+.doc-tab.active { background: #fff; border-color: #ddd; border-bottom-color: #fff; font-weight: 600; }
+.doc-tab-title { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.doc-tab-type { font-size: 10px; color: #888; background: #eee; padding: 1px 6px; border-radius: 8px; }
+.doc-tab-close { margin-left: 4px; font-size: 14px; color: #999; line-height: 1; }
+.doc-tab-close:hover { color: #d32f2f; }
+
+/* 生成记录列表 */
+.gen-records-section { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e0e0e0; }
+.gen-records-list { max-height: 200px; overflow-y: auto; }
+.gen-record-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 10px; margin: 2px 0; border-radius: 6px;
+  cursor: pointer; font-size: 12px; background: #f5f5f5;
+}
+.gen-record-item:hover { background: #e8f0fe; }
+.gen-record-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.gen-record-type { font-size: 10px; color: #888; background: #fff; padding: 1px 6px; border-radius: 8px; margin-left: 8px; }
+</style>

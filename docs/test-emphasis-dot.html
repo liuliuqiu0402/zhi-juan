@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>加点字功能测试</title>
+    <style>
+        body {
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+            background: #f5f7fc;
+        }
+
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            color: #1e3a6f;
+            border-bottom: 2px solid #2b5ea7;
+            padding-bottom: 10px;
+        }
+
+        /* ⭐ 加点字样式 - 在字下方显示点(·) */
+        .emphasis-dot {
+            position: relative;
+            display: inline-block;
+            font-weight: bold;
+            color: #d32f2f;
+        }
+
+        .emphasis-dot::after {
+            content: '·';
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            color: #d32f2f;
+            line-height: 1;
+        }
+
+        /* ⭐ 画线句子样式 - 整句下方显示连续直线 */
+        .underline-sentence {
+            text-decoration: underline;
+            text-decoration-style: solid;
+            text-underline-offset: 3px;
+            text-decoration-thickness: 1.5px;
+        }
+
+        .question {
+            margin: 15px 0;
+            line-height: 1.8;
+            font-size: 16px;
+        }
+
+        .option {
+            margin: 8px 0 8px 20px;
+            line-height: 1.6;
+        }
+
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f7ff;
+            border-left: 4px solid #2b5ea7;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .success {
+            color: #27ae60;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #f39c12;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="color: #1e3a6f; text-align: center;">🧪 加点字功能测试</h1>
+
+    <!-- 测试1：单个加点字 -->
+    <div class="test-section">
+        <h2>测试1：单个加点字</h2>
+        <div class="question">
+            下列词语中，<span class="emphasis-dot">和</span>平的读音相同的一项是（   ）
+        </div>
+        <div class="result">
+            ✅ 预期效果："和"字应该显示为红色加粗，下方有一个点(·)
+        </div>
+    </div>
+
+    <!-- 测试2：多个加点字 -->
+    <div class="test-section">
+        <h2>测试2：多个加点字</h2>
+        <div class="question">
+            语段①中的<span class="emphasis-dot">加点词语</span>含有<span class="emphasis-dot">一对</span>近义词...
+        </div>
+        <div class="result">
+            ✅ 预期效果："加点词语"和"一对"都应该有红点和加粗效果
+        </div>
+    </div>
+
+    <!-- 测试3：选择题中的加点字 -->
+    <div class="test-section">
+        <h2>测试3：选择题选项中的加点字</h2>
+        <div class="question">
+            1. 下列词语中，加点字的读音完全相同的一项是（   ）
+        </div>
+        <div class="option">A. <span class="emphasis-dot">和</span>平 / <span class="emphasis-dot">和</span>气</div>
+        <div class="option">B. <span class="emphasis-dot">重</span>量 / <span class="emphasis-dot">重</span>新</div>
+        <div class="option">C. <span class="emphasis-dot">行</span>走 / <span class="emphasis-dot">行</span>业</div>
+        <div class="option">D. <span class="emphasis-dot">乐</span>趣 / <span class="emphasis-dot">乐</span>观</div>
+        <div class="result">
+            ✅ 预期效果：每个选项中的两个字都应该有红点标记
+        </div>
+    </div>
+
+    <!-- 测试4：画线句子 -->
+    <div class="test-section">
+        <h2>测试4：画线句子</h2>
+        <div class="question">
+            阅读下面的语段，回答问题：
+        </div>
+        <div class="question">
+            "<u class="underline-sentence">春风又绿江南岸，明月何时照我还</u>"
+        </div>
+        <div class="question">
+            请赏析上面<u class="underline-sentence">画线句子</u>的表达效果。
+        </div>
+        <div class="result">
+            ✅ 预期效果：诗句和"画线句子"下方应该有连续的直线（不是虚线）
+        </div>
+    </div>
+
+    <!-- 测试5：组合使用 -->
+    <div class="test-section">
+        <h2>测试5：加点字 + 画线句子组合</h2>
+        <div class="question">
+            请分析下面语段中<span class="emphasis-dot">加点词</span>的表达效果：
+        </div>
+        <div class="question">
+            "<u class="underline-sentence">小草偷偷地从土里钻出来，嫩嫩的，绿绿的</u>"
+        </div>
+        <div class="result">
+            ✅ 预期效果："加点词"有红点，整句诗有下划线
+        </div>
+    </div>
+
+    <!-- 测试6：与其他格式组合 -->
+    <div class="test-section">
+        <h2>测试6：与其他格式组合使用</h2>
+        <div class="question">
+            下列句子中，<strong>修辞手法</strong>判断正确的是：<span class="emphasis-dot">比喻</span>的一项是（   ）
+        </div>
+        <div class="result">
+            ✅ 预期效果：加粗和加点字可以同时存在，互不影响
+        </div>
+    </div>
+
+    <!-- 总结 -->
+    <div class="test-section" style="background: #e8f5e9;">
+        <h2 style="color: #27ae60;">📊 测试总结</h2>
+        <div class="result">
+            <p><strong>检查要点：</strong></p>
+            <ol>
+                <li>✅ 加点字的点(·)是否清晰可见？</li>
+                <li>✅ 点的位置是否在字的正下方？</li>
+                <li>✅ 加点字是否为红色加粗？</li>
+                <li>✅ 画线句子的下划线是否是连续实线？</li>
+                <li>✅ 多种标记组合时是否正常显示？</li>
+                <li>✅ 文字排版是否整齐，没有错位？</li>
+            </ol>
+            <p class="success">如果以上都正常，说明加点字功能实现成功！✨</p>
+        </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 30px; color: #666;">
+        <p>测试完成后，请在智卷工坊应用中实际生成题目验证效果</p>
+    </div>
+</body>
+</html>

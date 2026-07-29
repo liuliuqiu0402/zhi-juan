@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智卷工坊 · 激活码生成器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1e3a6f 0%, #2b5ea7 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 { font-size: 28px; color: #1e3a6f; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+        .subtitle { color: #666; font-size: 14px; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #e9edf2; }
+        .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 14px 16px; border-radius: 8px; margin-bottom: 24px; color: #856404; font-size: 13px; }
+        .warning strong { display: block; margin-bottom: 4px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 6px; font-weight: 600; color: #1e3a6f; font-size: 14px; }
+        input, select { width: 100%; padding: 12px 16px; border-radius: 10px; border: 2px solid #e0e0e0; font-size: 14px; transition: border-color 0.2s; }
+        input:focus, select:focus { outline: none; border-color: #2b5ea7; }
+        .machine-id-input { display: flex; gap: 8px; }
+        .machine-id-input input { flex: 1; font-family: 'Consolas', 'Monaco', monospace; text-transform: uppercase; }
+        .btn {
+            padding: 14px 24px;
+            border-radius: 12px;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #2b5ea7, #1e4a8a);
+            color: white;
+            width: 100%;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(43, 94, 167, 0.3); }
+        .btn-copy {
+            padding: 12px 20px;
+            background: #f0f4fa;
+            color: #1e3a6f;
+            border: 1px solid #d9e2ec;
+        }
+        .btn-copy:hover { background: #e0e8f0; }
+        .result-section { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9edf2; }
+        .result-label { font-weight: 600; color: #1e3a6f; margin-bottom: 10px; }
+        .result-box { display: flex; gap: 8px; }
+        .result-box input {
+            flex: 1;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 18px;
+            text-align: center;
+            letter-spacing: 2px;
+            background: #f8fafc;
+        }
+        .footer { margin-top: 30px; text-align: center; color: #999; font-size: 12px; }
+        .footer a { color: #2b5ea7; text-decoration: none; }
+        .subject-group { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+        .subject-group label { display: flex; align-items: center; gap: 6px; font-weight: normal; margin-bottom: 0; cursor: pointer; }
+        .subject-group input[type="checkbox"] { width: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><span>🔐</span>智卷工坊</h1>
+        <div class="subtitle">激活码生成器 · 管理员专用</div>
+        
+        <div class="warning">
+            <strong>⚠️ 重要提示</strong>
+            此工具仅供管理员使用，请妥善保管，不要泄露给他人。
+            生成的激活码与客户机器码绑定，一机一码。
+        </div>
+        
+        <div class="form-group">
+            <label>📟 客户机器码</label>
+            <div class="machine-id-input">
+                <input type="text" id="machineId" placeholder="例如：3b6a767a924ba6e4b5b80ddafed1f8ec64493aa6b1b1f913003ac04abaa409bc" style="text-transform: none;">
+                <button class="btn btn-copy" onclick="pasteMachineId()">📋 粘贴</button>
+            </div>
+            <p style="font-size: 12px; color: #888; margin-top: 6px;">客户在软件激活界面可以看到机器码</p>
+        </div>
+        
+        <div class="form-group">
+            <label>📦 选择版本</label>
+            <select id="version">
+                <option value="basic">基础版 - 教材库 + 单生成</option>
+                <option value="pro">专业版 - + 模板库 + 复生成 + 排版导出</option>
+                <option value="ultimate" selected>旗舰版 - + 草稿箱 + 图形库 + 指令库 + 历史记录</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label>📅 有效期</label>
+            <select id="expireType" onchange="toggleExpireInput()">
+                <option value="30">30天</option>
+                <option value="90">90天</option>
+                <option value="180">180天</option>
+                <option value="365">365天（一年）</option>
+                <option value="custom">自定义日期</option>
+                <option value="permanent">永久有效</option>
+            </select>
+        </div>
+        
+        <div class="form-group" id="customDateGroup" style="display: none;">
+            <label>📆 到期日期</label>
+            <input type="date" id="expireDate">
+        </div>
+        
+        <div class="form-group">
+            <label>📚 学科限制（不选则不限）</label>
+            <div class="subject-group">
+                <label><input type="checkbox" value="语文"> 语文</label>
+                <label><input type="checkbox" value="数学"> 数学</label>
+                <label><input type="checkbox" value="英语"> 英语</label>
+                <label><input type="checkbox" value="物理"> 物理</label>
+                <label><input type="checkbox" value="化学"> 化学</label>
+                <label><input type="checkbox" value="生物"> 生物</label>
+                <label><input type="checkbox" value="历史"> 历史</label>
+                <label><input type="checkbox" value="地理"> 地理</label>
+                <label><input type="checkbox" value="政治"> 政治</label>
+                <label><input type="checkbox" value="科学"> 科学</label>
+            </div>
+        </div>
+        
+        <button class="btn btn-primary" onclick="generateCode()">🔑 生成激活码</button>
+        
+        <div class="result-section" id="resultSection" style="display: none;">
+            <div class="result-label">✅ 生成的激活码</div>
+            <div class="result-box">
+                <input type="text" id="resultCode" readonly>
+                <button class="btn btn-copy" onclick="copyResult()">📋 复制</button>
+            </div>
+            <p style="font-size: 12px; color: #888; margin-top: 8px;">
+                将此激活码发送给客户，在软件中输入即可激活
+            </p>
+        </div>
+        
+        <div class="footer">
+            智卷工坊 · 小初高学科教辅专家<br>
+            <a href="#" onclick="showSuperCode()">管理员超级码</a>
+        </div>
+    </div>
+    
+    <script>
+        const SUPER_CODE = 'WISDOM-ADMIN-2024';
+        
+        function toggleExpireInput() {
+            const type = document.getElementById('expireType').value;
+            document.getElementById('customDateGroup').style.display = type === 'custom' ? 'block' : 'none';
+        }
+        
+        async function pasteMachineId() {
+            try {
+                const text = await navigator.clipboard.readText();
+                document.getElementById('machineId').value = text.trim();
+            } catch (e) {
+                alert('无法读取剪贴板，请手动粘贴');
+            }
+        }
+        
+        function generateCode() {
+            const machineId = document.getElementById('machineId').value.trim();
+            if (!machineId) { alert('请输入客户机器码'); return; }
+            //  "node-machine-id"  64    ，不做格式校验
+            if (machineId.length < 10) {
+                alert('机器码太短，请检查是否完整复制');
+                return;
+            }
+            
+            const version = document.getElementById('version').value;
+            const expireType = document.getElementById('expireType').value;
+            
+            let expireDate;
+            if (expireType === 'permanent') {
+                expireDate = 'permanent';
+            } else if (expireType === 'custom') {
+                expireDate = document.getElementById('expireDate').value;
+                if (!expireDate) { alert('请选择到期日期'); return; }
+            } else {
+                const days = parseInt(expireType);
+                const date = new Date();
+                date.setDate(date.getDate() + days);
+                expireDate = date.toISOString().split('T')[0];
+            }
+            
+            const subjects = [];
+            document.querySelectorAll('.subject-group input:checked').forEach(cb => subjects.push(cb.value));
+            
+            const payload = {
+                machineId: machineId,
+                version: version,
+                expireDate: expireDate,
+                subjects: subjects.length > 0 ? subjects : ['all'],
+                issuedAt: new Date().toISOString().split('T')[0]
+            };
+            
+            const code = btoa(JSON.stringify(payload));
+            document.getElementById('resultCode').value = code;
+            document.getElementById('resultSection').style.display = 'block';
+        }
+        
+        function copyResult() {
+            const input = document.getElementById('resultCode');
+            input.select();
+            document.execCommand('copy');
+            alert('激活码已复制到剪贴板');
+        }
+        
+        function showSuperCode() {
+            alert(`【管理员超级激活码】\n\n${SUPER_CODE}\n\n此码仅供您自己使用，不限机器，永久有效，全功能开放。`);
+        }
+    </script>
+</body>
+</html>
