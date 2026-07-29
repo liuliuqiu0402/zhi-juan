@@ -91,6 +91,8 @@ defineProps({
 .mobile-header {
   height: 48px;
   padding: 0 16px;
+  padding-top: calc(env(safe-area-inset-top, 0px));
+  min-height: calc(48px + env(safe-area-inset-top, 0px));
 }
 .mobile-header .logo {
   font-size: 18px;
