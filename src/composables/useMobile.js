@@ -21,20 +21,22 @@ const onResize = () => {
 
 let _listening = false;
 
-// ── PWA 主屏幕检测 ──
+// ── PWA / Capacitor 原生 App 主屏幕检测 ──
 function detectPwa() {
   if (typeof navigator === 'undefined') return false;
   // iOS: 添加到主屏幕后 navigator.standalone === true
   if (navigator.standalone) return true;
   // Android / 通用: display-mode: standalone
   if (typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches) return true;
+  // Capacitor 原生 App（iOS/Android 打包运行）
+  if (typeof window !== 'undefined' && window.location?.protocol === 'capacitor:') return true;
   return false;
 }
 
 const _isPwa = ref(typeof window !== 'undefined' ? detectPwa() : false);
 
-// 非 PWA 模式（Safari）：保存视口高度占屏幕的比例，供 PWA 模式计算缩放补偿
-if (typeof window !== 'undefined' && !_isPwa.value && window.screen?.height) {
+// 非 PWA 模式（Safari）：保存视口高度占屏幕的比例，供全屏模式计算缩放补偿
+if (typeof window !== 'undefined' && !_isPwa.value && window.location?.protocol !== 'capacitor:' && window.screen?.height) {
   try {
     const ratio = _height.value / window.screen.height;
     localStorage.setItem('pwa_safari_vp_ratio', ratio.toFixed(4));
