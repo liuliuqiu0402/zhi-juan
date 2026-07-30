@@ -28,6 +28,34 @@
         <p class="hint" style="margin-top: 12px;">如需购买或续费，请联系客服</p>
       </div>
 
+      <!-- 📱 iOS 签名状态（仅手机端显示） -->
+      <div class="settings-section" v-if="isCapacitorIOS">
+        <h3>📱 签名状态</h3>
+        <div v-if="signCheckLoading" style="color:#999;font-size:13px;">检测中...</div>
+        <template v-else-if="signInfo.found">
+          <div class="info-row">
+            <span>到期时间：</span>
+            <span class="info-value">{{ signInfo.expirationDate || '未知' }}</span>
+          </div>
+          <div class="info-row">
+            <span>剩余时间：</span>
+            <span class="info-value" :style="{ color: signDaysInfo.color, fontWeight: signDaysInfo.warning ? 'bold' : 'normal' }">
+              {{ signDaysInfo.text }}
+            </span>
+          </div>
+          <div v-if="signDaysInfo.warning" style="margin-top:8px;padding:8px 12px;background:#fff5f5;border:1px solid #feb2b2;border-radius:8px;font-size:12px;color:#c53030;">
+            ⚠️ 签名即将到期！请在电脑上运行续签脚本，否则 App 将无法打开。
+          </div>
+          <div v-if="signInfo.daysRemaining <= 7 && signInfo.daysRemaining >= 0" style="margin-top:4px;padding:6px 12px;background:#fffff0;border:1px solid #f6e05e;border-radius:8px;font-size:11px;color:#975a16;">
+            💡 App 内无法自动续签（iOS 系统限制）。<br>请在电脑上运行 <b>renew-ios.ps1</b> 脚本。
+          </div>
+          <button class="btn" @click="showRenewGuide" style="margin-top:8px;">🔄 续签指南</button>
+        </template>
+        <div v-else style="color:#999;font-size:13px;">
+          未检测到签名信息（可能为开发构建）
+        </div>
+      </div>
+
       <!-- AI引擎 -->
       <div class="settings-section">
         <h3>🤖 AI 引擎（文本任务）</h3>
@@ -281,6 +309,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { Capacitor } from '@capacitor/core';
 import { useActivation } from '@/composables/useActivation.js';
 import { useDialog } from '@/composables/useDialog.js';
 import { useBackup } from '@/composables/useBackup.js';
@@ -288,6 +317,7 @@ import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
 import { apiConfig, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
 import { uploadSettings } from '@/utils/cloudStorage';
+import { getSignatureExpiration, formatDaysRemaining, clearSignatureCache } from '@/utils/signatureCheck';
 
 const { showAlertDialogFn } = useDialog();
 const {
@@ -358,7 +388,42 @@ const {
   remainingDays, changeActivationCode, checkActivationStatus
 } = useActivation();
 
+const isCapacitorIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 const isWebMode = typeof window !== 'undefined' && !window.electronAPI;
+
+// 📱 签名状态
+const signInfo = ref({ expirationDate: null, expirationTimestamp: 0, daysRemaining: -1, found: false });
+const signCheckLoading = ref(false);
+const signDaysInfo = ref({ text: '--', color: '#999', warning: false });
+
+const checkSignature = async () => {
+  signCheckLoading.value = true;
+  try {
+    const info = await getSignatureExpiration();
+    signInfo.value = info;
+    signDaysInfo.value = formatDaysRemaining(info.daysRemaining);
+  } catch {
+    // ignore
+  } finally {
+    signCheckLoading.value = false;
+  }
+};
+
+const showRenewGuide = async () => {
+  const { showAlertDialogFn } = useDialog();
+  await showAlertDialogFn(
+    '🔄 续签指南\n\n' +
+    '1. 电脑上下载最新 IPA\n' +
+    '   打开 https://github.com/liuliuqiu0402/zhi-juan/releases\n' +
+    '   下载最新的 智卷工坊.ipa\n\n' +
+    '2. 用爱思助手签名安装\n' +
+    '   打开爱思助手 → 工具箱 → IPA签名\n' +
+    '   拖入 IPA → 用 Apple ID 签名 → 安装到手机\n\n' +
+    '3. 或运行一键脚本（推荐）\n' +
+    '   在项目目录右键运行 renew-ios.ps1\n' +
+    '   选择 "PowerShell 运行"'
+  );
+};
 
 //  更换激活码 / 访问码
 const handleChangeActivation = async () => {
@@ -608,6 +673,10 @@ onMounted(async () => {
   // 🖥️ 桌面端：跳过——App.vue 已统一完成激活校验，licenseInfo 通过单例共享
   if (isWebMode) {
     await checkActivationStatus();
+  }
+  // 📱 iOS 签名到期检查
+  if (isCapacitorIOS) {
+    checkSignature();
   }
   // 从 localStorage 恢复其他设置
   const savedSettings = localStorage.getItem('apiConfig');
