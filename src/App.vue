@@ -959,6 +959,117 @@ onMounted(async () => {
       console.log('[App] 签名倒计时已重置:', signInfo.value.daysRemaining + '天');
     }
   });
+
+  // 🔄 后台定时同步：每30秒静默拉取云端数据，实现跨设备即时同步
+  //    仅在页面可见时执行，避免后台浪费资源
+  let _syncTimer = null;
+  const SILENT_SYNC_INTERVAL = 30000; // 30秒
+  const silentCloudSync = async () => {
+    if (!isCloudConfigured() || document.hidden) return;
+    try {
+      const data = await pullFromCloud();
+      let changed = false;
+      // 教材
+      if (data.textbooks && data.textbooks.length > 0) {
+        const local = await storage.getItem('textbooks');
+        if (JSON.stringify(local) !== JSON.stringify(data.textbooks)) {
+          await storage.setItem('textbooks', data.textbooks).catch(() => {});
+          changed = true;
+        }
+      }
+      // 历史
+      if (data.docHistory) {
+        const local = await storage.getItem('docHistory');
+        if (JSON.stringify(local) !== JSON.stringify(data.docHistory)) {
+          await storage.setItem('docHistory', data.docHistory).catch(() => {});
+          changed = true;
+        }
+      }
+      // 生成结果
+      if (data.generatedDocs && data.generatedDocs.length > 0) {
+        const local = localStorage.getItem('wisdom_generated_docs');
+        if (local !== JSON.stringify(data.generatedDocs)) {
+          localStorage.setItem('wisdom_generated_docs', JSON.stringify(data.generatedDocs));
+          changed = true;
+        }
+      }
+      // 指令库
+      if (data.instructions && data.instructions.length > 0) {
+        const local = localStorage.getItem('instructionLib');
+        if (local !== JSON.stringify(data.instructions)) {
+          localStorage.setItem('instructionLib', JSON.stringify(data.instructions));
+          localStorage.setItem('instructionLib_version', '12');
+          changed = true;
+        }
+      }
+      // 模板
+      if (data.templates && data.templates.length > 0) {
+        const local = await storage.getItem('templates');
+        if (JSON.stringify(local) !== JSON.stringify(data.templates)) {
+          await storage.setItem('templates', data.templates).catch(() => {});
+          changed = true;
+        }
+      }
+      // 引擎设置
+      if (data.settings && Object.keys(data.settings).length > 0) {
+        const engineFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
+          'deepseekGenerationModel', 'deepseekAnalysisModel'];
+        let settingsChanged = false;
+        for (const f of engineFields) {
+          if (data.settings[f] !== undefined && data.settings[f] !== apiConfig[f]) {
+            apiConfig[f] = data.settings[f];
+            settingsChanged = true;
+          }
+        }
+        if (settingsChanged) {
+          await saveConfig(Object.assign({}, apiConfig));
+          changed = true;
+        }
+      }
+      if (changed) {
+        console.log('🔄 后台同步：检测到云端数据变更，已更新本地');
+        window.dispatchEvent(new CustomEvent('data-sync-complete', { detail: { silent: true } }));
+      }
+    } catch { /* 静默失败，下次再试 */ }
+  };
+  _syncTimer = setInterval(silentCloudSync, SILENT_SYNC_INTERVAL);
+  // 页面切回前台时立即同步一次
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) silentCloudSync();
+  });
+  // 🔧 iOS PWA 专用：localStorage 降级备份到 sessionStorage
+  //    iOS 存储压力大时可能静默清空 localStorage，sessionStorage 相对稳定
+  const BACKUP_KEYS = ['apiConfig', 'wisdom_generated_docs', 'instructionLib', 'instructionLib_version', 'activationInfo', 'textbooks', 'docHistory', 'templates'];
+  const backupToSession = () => {
+    for (const k of BACKUP_KEYS) {
+      try {
+        const v = localStorage.getItem(k);
+        if (v) sessionStorage.setItem('__bk_' + k, v);
+      } catch {}
+    }
+  };
+  const restoreFromSession = () => {
+    let restored = 0;
+    for (const k of BACKUP_KEYS) {
+      try {
+        if (!localStorage.getItem(k)) {
+          const bk = sessionStorage.getItem('__bk_' + k);
+          if (bk) { localStorage.setItem(k, bk); restored++; }
+        }
+      } catch {}
+    }
+    if (restored > 0) console.log('📦 从 sessionStorage 恢复 ' + restored + ' 个数据键');
+    return restored;
+  };
+  // 启动时尝试恢复
+  restoreFromSession();
+  // 每60秒备份一次
+  setInterval(backupToSession, 60000);
+  backupToSession(); // 立即备份一次
+
+  // 🔧 页面隐藏时备份（iOS 可能在后台清 localStorage）
+  window.addEventListener('pagehide', backupToSession);
+  window.addEventListener('beforeunload', backupToSession);
 });
 </script>
 
