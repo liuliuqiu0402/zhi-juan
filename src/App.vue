@@ -871,110 +871,178 @@ onMounted(async () => {
       console.log('📱 页面从 bfcache 恢复，保留原界面');
     }
   });
-  // 🔄 软刷新：Header 刷新按钮 → 安全上推 + 云端下拉
+  // 🔄 软刷新：Header 刷新按钮 → 先拉取 → 合并 → 再推送（解决两端同时新增的冲突）
   window.addEventListener('app-refresh', async () => {
     refreshKey.value++;
     console.log('🔄 软刷新：重置当前页面状态');
-    // ☁️ 安全上推 + 下拉：桌面端推全量，手机端仅推双向数据
     if (isCloudConfigured()) {
       try {
-        // 🔼 安全上推：桌面端全量 → 手机端仅双向（防止手机端覆盖桌面端单向数据）
+        // ① 🔽 先从云端拉取最新数据（避免后推覆盖先推的冲突）
+        const cloudData = await pullFromCloud();
+
+        // ② 🔼 桌面端：推送单向数据（教材/模板/指令/设置/激活，桌面是唯一源头）
         if (!isWebMode.value) {
-          // 桌面端：全量上推（教材/模板/指令/设置/激活 + 历史 + 生成结果）
-          await quickPushToCloud();
-        } else {
-          // 手机端：仅上推双向数据（历史 + 生成结果）
-          const pushResults = [];
+          const desktopPushResults = [];
           try {
-            const localHistory = await storage.getItem('docHistory');
-            if (localHistory && localHistory.length > 0) {
-              await uploadDocHistory(localHistory);
-              pushResults.push('历史');
+            const localTextbooks = await storage.getItem('textbooks');
+            if (localTextbooks && localTextbooks.length > 0) {
+              await uploadTextbooks(localTextbooks);
+              desktopPushResults.push('教材');
             }
           } catch {}
           try {
-            const raw = localStorage.getItem('wisdom_generated_docs');
-            if (raw) {
-              const parsed = JSON.parse(raw);
-              if (parsed && parsed.length > 0) {
-                await uploadGeneratedDocs(parsed);
-                pushResults.push('生成结果');
+            const rawAct = localStorage.getItem('activationInfo');
+            if (rawAct) {
+              const act = JSON.parse(rawAct);
+              if (act && act.version && act.version !== 'basic') {
+                const { _sign, ...clean } = act;
+                await uploadActivationInfo(clean);
+                desktopPushResults.push('激活信息');
               }
             }
           } catch {}
-          if (pushResults.length > 0) {
-            console.log('🔄 刷新：手机端已安全上推双向数据:', pushResults.join('、'));
+          try {
+            const rawIns = localStorage.getItem('instructionLib');
+            if (rawIns) {
+              const parsed = JSON.parse(rawIns);
+              if (parsed && parsed.length > 0) {
+                await uploadInstructions(parsed);
+                desktopPushResults.push('指令库');
+              }
+            }
+          } catch {}
+          try {
+            const localTemplates = await storage.getItem('templates');
+            if (localTemplates && localTemplates.length > 0) {
+              await uploadTemplates(localTemplates);
+              desktopPushResults.push('模板');
+            }
+          } catch {}
+          try {
+            const settingsToPush = {};
+            const engineFields = ['deepseekBaseUrl', 'deepseekApiKey',
+              'deepseekGenerationModel', 'deepseekAnalysisModel'];
+            for (const f of engineFields) {
+              if (apiConfig[f]) settingsToPush[f] = apiConfig[f];
+            }
+            if (Object.keys(settingsToPush).length > 0) {
+              await uploadSettings(settingsToPush);
+              desktopPushResults.push('设置');
+            }
+          } catch {}
+          if (desktopPushResults.length > 0) {
+            console.log('🔄 刷新：桌面端已推送单向数据:', desktopPushResults.join('、'));
           }
         }
-        // 🔽 后拉：云端 → 本地（全量下载，仅当云端数据非空时才覆盖本地）
-        const data = await pullFromCloud();
-        // 📚 教材库同步（安全网：云端少于本地时不覆盖）
-        if (data.textbooks && data.textbooks.length > 0) {
+
+        // ③ 🔀 合并双向数据：cloud ∪ local（按 id 去重，解决两端同时新增冲突）
+        const localHistory = await storage.getItem('docHistory') || [];
+        const localGenRaw = localStorage.getItem('wisdom_generated_docs');
+        const localGenerated = localGenRaw ? JSON.parse(localGenRaw) : [];
+
+        const cloudHistory = cloudData.docHistory || [];
+        const cloudGenerated = cloudData.generatedDocs || [];
+
+        // 按 id 合并：云端 ∪ 本地，id 相同取本地（本地最新），无 id 用内容指纹兜底
+        const mergeById = (cloudArr, localArr) => {
+          const map = new Map();
+          let fallbackIdx = 0;
+          // 先加云端（后续 local 覆盖同 id 同指纹）
+          for (const item of cloudArr) {
+            const key = item.id || ('_fallback_' + (fallbackIdx++) + '_' + JSON.stringify(item).slice(0, 80));
+            map.set(key, item);
+          }
+          for (const item of localArr) {
+            const key = item.id || ('_fallback_' + (fallbackIdx++) + '_' + JSON.stringify(item).slice(0, 80));
+            map.set(key, item); // local 覆盖 cloud 同 id
+          }
+          // 按时间倒序（最新的在前），无时间戳的排在末尾
+          return Array.from(map.values()).sort((a, b) => {
+            const ta = a.savedAt || a.timestamp || 0;
+            const tb = b.savedAt || b.timestamp || 0;
+            return tb - ta;
+          });
+        };
+        const mergedHistory = mergeById(cloudHistory, localHistory).slice(0, 50);
+        const mergedGenerated = mergeById(cloudGenerated, localGenerated).slice(0, 20);
+
+        // ④ 🔼 推送合并后的双向数据到云端
+        if (mergedHistory.length > 0) {
+          await uploadDocHistory(mergedHistory).catch(() => {});
+        }
+        if (mergedGenerated.length > 0) {
+          await uploadGeneratedDocs(mergedGenerated).catch(() => {});
+        }
+
+        // ⑤ 💾 写入本地：双向数据写合并结果，单向数据写云端版本
+        // 教材
+        if (cloudData.textbooks && cloudData.textbooks.length > 0) {
           const localTextbooks = await storage.getItem('textbooks');
-          if (!localTextbooks || localTextbooks.length === 0 || data.textbooks.length >= localTextbooks.length) {
-            await storage.setItem('textbooks', data.textbooks).catch(() => {});
+          if (!localTextbooks || localTextbooks.length === 0 || cloudData.textbooks.length >= localTextbooks.length) {
+            await storage.setItem('textbooks', cloudData.textbooks).catch(() => {});
             try {
               const { useTextbookStore } = await import('@/stores/textbookStore');
               await useTextbookStore().loadTextbooks();
             } catch {}
-          } else {
-            console.warn('⚠️ 云端教材(' + data.textbooks.length + ')少于本地(' + localTextbooks.length + ')，跳过覆盖');
           }
         }
-        // 📋 历史记录同步
-        if (data.docHistory && data.docHistory.length > 0) {
-          await storage.setItem('docHistory', data.docHistory).catch(() => {});
-        }
-        // 📋 生成结果面板同步
-        if (data.generatedDocs && data.generatedDocs.length > 0) {
-          localStorage.setItem('wisdom_generated_docs', JSON.stringify(data.generatedDocs));
-        }
-        // 📝 指令库同步（安全网：云端少于本地时不覆盖）
-        if (data.instructions && data.instructions.length > 0) {
+        // 历史（合并后）
+        await storage.setItem('docHistory', mergedHistory).catch(() => {});
+        // 生成结果（合并后）
+        localStorage.setItem('wisdom_generated_docs', JSON.stringify(mergedGenerated));
+        // 指令
+        if (cloudData.instructions && cloudData.instructions.length > 0) {
           const localRaw = localStorage.getItem('instructionLib');
           let localCount = 0;
           if (localRaw) { try { const p = JSON.parse(localRaw); localCount = p.length || 0; } catch {} }
-          if (localCount === 0 || data.instructions.length >= localCount) {
-            localStorage.setItem('instructionLib', JSON.stringify(data.instructions));
+          if (localCount === 0 || cloudData.instructions.length >= localCount) {
+            localStorage.setItem('instructionLib', JSON.stringify(cloudData.instructions));
             localStorage.setItem('instructionLib_version', '12');
             try {
               const { useInstructionStore } = await import('@/stores/instructionStore');
               useInstructionStore().reload();
             } catch {}
-          } else {
-            console.warn('⚠️ 云端指令(' + data.instructions.length + ')少于本地(' + localCount + ')，跳过覆盖');
           }
         }
-        if (data.settings && Object.keys(data.settings).length > 0) {
+        // 设置
+        if (cloudData.settings && Object.keys(cloudData.settings).length > 0) {
           const engineFields = ['deepseekBaseUrl', 'deepseekApiKey',
             'deepseekGenerationModel', 'deepseekAnalysisModel'];
           let needsApply = false;
           for (const f of engineFields) {
-            if (data.settings[f] !== undefined && data.settings[f] !== apiConfig[f]) {
-              apiConfig[f] = data.settings[f];
+            if (cloudData.settings[f] !== undefined && cloudData.settings[f] !== apiConfig[f]) {
+              apiConfig[f] = cloudData.settings[f];
               needsApply = true;
             }
           }
           if (needsApply) {
             await saveConfig(Object.assign({}, apiConfig));
-            console.log('☁️ 刷新同步：已应用引擎配置');
           }
         }
-        // 📋 模板库同步（安全网：云端少于本地时不覆盖）
-        if (data.templates && data.templates.length > 0) {
+        // 激活
+        if (cloudData.activationInfo) {
+          localStorage.setItem('activationInfo', JSON.stringify(cloudData.activationInfo));
+          try { await storage.setItem('activationInfo', cloudData.activationInfo); } catch {}
+          if (isWebMode.value) {
+            licenseInfo.value = { ...cloudData.activationInfo, isActive: true };
+            activationStatus.value = 'active';
+          }
+        }
+        // 模板
+        if (cloudData.templates && cloudData.templates.length > 0) {
           const localTemplates = await storage.getItem('templates');
-          if (!localTemplates || localTemplates.length === 0 || data.templates.length >= localTemplates.length) {
-            await storage.setItem('templates', data.templates).catch(() => {});
+          if (!localTemplates || localTemplates.length === 0 || cloudData.templates.length >= localTemplates.length) {
+            await storage.setItem('templates', cloudData.templates).catch(() => {});
             try {
               const { useTemplateStore } = await import('@/stores/templateStore');
               await useTemplateStore().loadTemplates();
             } catch {}
-          } else {
-            console.warn('⚠️ 云端模板(' + data.templates.length + ')少于本地(' + localTemplates.length + ')，跳过覆盖');
           }
         }
-      } catch {}
-      // 🔔 通知各模块重新加载云端数据（确保 ref 与 storage 一致）
+
+        console.log('🔄 刷新同步完成', isWebMode.value ? '(手机端)' : '(桌面端)');
+      } catch (e) { console.warn('🔄 刷新同步失败:', e); }
+      // 🔔 通知各模块重新加载云端数据
       window.dispatchEvent(new CustomEvent('data-sync-complete'));
     }
   });
