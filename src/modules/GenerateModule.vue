@@ -5631,6 +5631,7 @@ const generate = async (mode) => {
         generatedTypes.push(genTypeTemplates[genType]?.name || genType);
       }
     } catch (e) {
+      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '❌ 生成失败：' + e.message, type: 'error' } }));
       await showAlertDialogFn(`生成出错：${e.message}`);
     }
   }
@@ -6375,10 +6376,12 @@ const finalizeGeneration = async (result, genType) => {
       if (!report.formatCheck?.passed) hint += ' | ⚠️ 格式问题';
       previewHint.value = hint;
     }
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '✅ 生成完成，已保存到结果区', type: 'info' } }));
   } else {
     const errorMsg = result.retried 
       ? `生成失败，已自动重试3次仍未成功。\n错误：${result.error}` 
       : `生成失败：${result.error}`;
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '❌ ' + errorMsg, type: 'error' } }));
     await showAlertDialogFn(errorMsg);
   }
 };
