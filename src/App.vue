@@ -109,6 +109,9 @@
         :isExpiringSoon="isExpiringSoon"
         :canAccessFeature="canAccessFeature"
         :isMobile="isMobile"
+        :signInfo="signInfo"
+        :signCheckLoading="signCheckLoading"
+        :isCapacitorIOS="isCapacitorIOS"
       />
 
       <div class="main-layout" :class="{ 'mobile-layout': isMobile }">
@@ -182,6 +185,8 @@ import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnap
 import { apiConfig, getCurrentEngineConfig, loadConfigSync } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
 import { saveConfig } from '@/config/apiConfig.js';
+// 📱 iOS 签名状态检测
+import { getSignatureExpiration } from '@/utils/signatureCheck';
 
 const router = useRouter();
 
@@ -199,6 +204,11 @@ const router = useRouter();
 
 // 📱 移动端检测
 const { isMobile, pwaScaleStyle } = useMobile();
+
+// 📱 iOS 签名状态（Capacitor 原生插件）
+const signInfo = ref(null);
+const signCheckLoading = ref(false);
+const isCapacitorIOS = ref(false);
 
 // 🔥 热启动检测：iOS 杀 PWA 进程后快速重启时，跳过云端下拉 + 恢复浏览状态
 //    原理：pagehide 时写时间戳 + 路由 → onMounted 时检测是否在窗口期内重启
@@ -633,6 +643,23 @@ onMounted(async () => {
       console.warn('⚠️ 激活检查未完成，降级为未激活状态');
       activationStatus.value = 'inactive';
     }
+  }
+
+  // 📱 iOS 签名检测（异步，不阻塞UI）
+  try {
+    const { Capacitor } = await import('@capacitor/core');
+    isCapacitorIOS.value = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+    if (isCapacitorIOS.value) {
+      signCheckLoading.value = true;
+      getSignatureExpiration().then((info) => {
+        signInfo.value = info;
+        console.log('[App] 签名状态:', info);
+      }).catch(() => {}).finally(() => {
+        signCheckLoading.value = false;
+      });
+    }
+  } catch {
+    // 非 Capacitor 环境，跳过
   }
 
   // ☁️ 云端数据同步（桌面端 + Web 端均尝试）

@@ -20,10 +20,15 @@
       <button class="header-btn" @click="$router.push('/settings')">⚙️ 设置</button>
     </div>
 
-    <!-- 📱 移动端：右侧刷新 + 设置按钮 -->
+    <!-- 📱 移动端：签名到期 + 小刷新按钮 -->
     <div class="header-right" v-if="isMobile">
-      <button class="header-btn" @click="refreshApp" title="刷新">🔄</button>
-      <button class="header-btn" @click="$router.push('/settings')">⚙️</button>
+      <span v-if="signInfo && signInfo.found && signInfo.daysRemaining >= 0" class="mobile-sign-badge" :class="{ warning: signInfo.daysRemaining <= 3 }">
+        📱 {{ signInfo.daysRemaining === 0 ? '今日到期!' : signInfo.daysRemaining + '天' }}
+      </span>
+      <span v-else-if="signInfo && !signInfo.found" class="mobile-sign-badge unknown">
+        📱 未签名
+      </span>
+      <button class="header-btn header-btn-sm" @click="refreshApp" title="刷新">🔄</button>
     </div>
   </header>
 </template>
@@ -40,6 +45,10 @@ defineProps({
   isExpiringSoon: { type: Boolean, default: false },
   canAccessFeature: { type: Function, required: true },
   isMobile: { type: Boolean, default: false },
+  // 📱 iOS 签名信息（移动端顶部显示）
+  signInfo: { type: Object, default: null },
+  signCheckLoading: { type: Boolean, default: false },
+  isCapacitorIOS: { type: Boolean, default: false },
 });
 </script>
 
@@ -100,5 +109,37 @@ defineProps({
 .mobile-header .header-btn {
   padding: 6px 12px;
   font-size: 18px;
+}
+.mobile-header .header-btn-sm {
+  padding: 4px 10px;
+  font-size: 16px;
+  min-width: unset;
+}
+
+/* 📱 签名到期徽章 */
+.mobile-sign-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: #f0fff4;
+  color: #38a169;
+  white-space: nowrap;
+  border: 1px solid #c6f6d5;
+}
+.mobile-sign-badge.warning {
+  background: #fff5f5;
+  color: #e53e3e;
+  border-color: #feb2b2;
+  animation: sign-pulse 2s ease-in-out infinite;
+}
+.mobile-sign-badge.unknown {
+  background: #f7fafc;
+  color: #a0aec0;
+  border-color: #e2e8f0;
+}
+@keyframes sign-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 </style>

@@ -15,8 +15,28 @@ public class AppSignaturePlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     @objc func getExpiration(_ call: CAPPluginCall) {
-        // 1. 查找 embedded.mobileprovision
-        guard let profilePath = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision") else {
+        // 1. 查找 embedded.mobileprovision（多种路径策略）
+        var profilePath: String?
+        
+        // 策略 A: Bundle.path(forResource:)
+        profilePath = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision")
+        
+        // 策略 B: 直接在 bundle 根目录查找 .mobileprovision 文件
+        if profilePath == nil || !FileManager.default.fileExists(atPath: profilePath!) {
+            let bundlePath = Bundle.main.bundlePath
+            if let files = try? FileManager.default.contentsOfDirectory(atPath: bundlePath) {
+                for file in files where file.hasSuffix(".mobileprovision") {
+                    let fullPath = bundlePath + "/" + file
+                    if FileManager.default.fileExists(atPath: fullPath) {
+                        profilePath = fullPath
+                        break
+                    }
+                }
+            }
+        }
+        
+        guard let finalPath = profilePath else {
+            print("[AppSignature] embedded.mobileprovision not found in bundle")
             call.resolve([
                 "expirationDate": NSNull(),
                 "expirationTimestamp": 0,
@@ -25,10 +45,12 @@ public class AppSignaturePlugin: CAPPlugin, CAPBridgedPlugin {
             ])
             return
         }
+        
+        print("[AppSignature] Found profile at: \(finalPath)")
 
-        // 2. 读取文件内容
-        guard let profileData = try? Data(contentsOf: URL(fileURLWithPath: profilePath)),
-              let profileString = String(data: profileData, encoding: .ascii) else {
+        // 2. 读取文件内容（先尝试 UTF-8，再尝试 ASCII）
+        guard let profileData = try? Data(contentsOf: URL(fileURLWithPath: finalPath)) else {
+            print("[AppSignature] Failed to read profile data")
             call.resolve([
                 "expirationDate": NSNull(),
                 "expirationTimestamp": 0,
@@ -37,10 +59,29 @@ public class AppSignaturePlugin: CAPPlugin, CAPBridgedPlugin {
             ])
             return
         }
+        
+        var profileString: String?
+        profileString = String(data: profileData, encoding: .utf8)
+        if profileString == nil {
+            profileString = String(data: profileData, encoding: .ascii)
+        }
+        
+        guard let profileStr = profileString else {
+            print("[AppSignature] Failed to decode profile (neither UTF-8 nor ASCII)")
+            call.resolve([
+                "expirationDate": NSNull(),
+                "expirationTimestamp": 0,
+                "daysRemaining": -1,
+                "found": true
+            ])
+            return
+        }
+        
+        print("[AppSignature] Profile size: \(profileData.count) bytes")
 
         // 3. 从 CMS 签名数据中提取 plist（位于 <?xml ... </plist> 之间）
-        guard let plistStart = profileString.range(of: "<?xml"),
-              let plistEnd = profileString.range(of: "</plist>", options: .backwards) else {
+        guard let plistStart = profileStr.range(of: "<?xml"),
+              let plistEnd = profileStr.range(of: "</plist>", options: .backwards) else {
             call.resolve([
                 "expirationDate": NSNull(),
                 "expirationTimestamp": 0,
@@ -50,7 +91,7 @@ public class AppSignaturePlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        let plistString = String(profileString[plistStart.lowerBound..<plistEnd.upperBound])
+        let plistString = String(profileStr[plistStart.lowerBound..<plistEnd.upperBound])
         guard let plistData = plistString.data(using: .utf8),
               let plist = try? PropertyListSerialization.propertyList(
                 from: plistData, options: [], format: nil
