@@ -68,8 +68,8 @@
               @change="(e) => toggleTemplateSelection(tpl, e.target.checked)"
               class="select-checkbox" 
             />
-            <img v-if="tpl.coverPath" :src="tpl.coverPath" class="template-cover" />
-            <div class="template-cover-placeholder" v-else>📄</div>
+            <img v-if="tpl.coverPath && !tpl.coverFailed" :src="tpl.coverPath" class="template-cover" @error="tpl.coverFailed = true" />
+            <div class="template-cover-placeholder" v-if="!tpl.coverPath || tpl.coverFailed">📄</div>
             <div class="item-info" @click="toggleExpand(tpl.id)">
               <span class="expand-icon">{{ expandedTemplates.includes(tpl.id) ? '▼' : '▶' }}</span>
               <span class="template-name">{{ tpl.name }}</span>

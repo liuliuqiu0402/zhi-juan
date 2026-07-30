@@ -71,8 +71,8 @@
               @change="(e) => toggleBookSelection(book, e.target.checked)"
               class="select-checkbox" 
             />
-            <img v-if="book.coverPath" :src="book.coverPath" class="book-cover" />
-            <div class="book-cover-placeholder" v-else>📘</div>
+            <img v-if="book.coverPath && !book.coverFailed" :src="book.coverPath" class="book-cover" @error="book.coverFailed = true" />
+            <div class="book-cover-placeholder" v-if="!book.coverPath || book.coverFailed">📘</div>
             <div class="item-info" @click="toggleExpand(book.id)">
               <span class="expand-icon">{{ expandedBooks.includes(book.id) ? '▼' : '▶' }}</span>
               <span class="book-name">{{ book.name }}</span>
