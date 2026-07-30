@@ -5,7 +5,7 @@ import Foundation
 /// 从 App Bundle 中的 embedded.mobileprovision 提取 ExpirationDate
 /// 用于在设置页展示签名剩余天数
 
-// MARK: - AppSignaturePlugin
+// MARK: - AppSignaturePlugin (CI trigger)
 @objc(AppSignaturePlugin)
 public class AppSignaturePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "AppSignaturePlugin"
