@@ -449,9 +449,10 @@
 
     <!-- 查看/编辑章节分析弹窗（左右两栏） -->
     <div v-if="showChapterAnalysisModal" class="modal-mask" @click.self="showChapterAnalysisModal = false">
-      <div class="modal draggable-modal" style="max-width: 1200px; width: 90%;" ref="chapterAnalysisModalRef">
+      <div class="modal draggable-modal" style="max-width: 1200px; width: 90%; display: flex; flex-direction: column;" ref="chapterAnalysisModalRef">
         <div class="modal-drag-handle" @mousedown="startChapterDrag($event)">📊 章节分析详情</div>
         <h3>📊 {{ viewingBook?.name }} - {{ viewingChapter?.title }}</h3>
+        <div class="modal-scroll-area">
         
         <div v-if="viewingChapter" class="chapter-analysis-two-columns">
           <div class="chapter-analysis-left">
@@ -608,6 +609,7 @@
               </div>
             </div>
           </div>
+        </div>
         </div>
         
         <div class="modal-actions">
@@ -3298,7 +3300,7 @@ kbd {
     max-height: 80vh !important;
     display: flex !important;
     flex-direction: column !important;
-    overflow-y: hidden !important;
+    overflow-y: auto !important;
   }
   /* 覆盖内联 style（防御层） */
   .modal.draggable-modal[style] {
@@ -3308,6 +3310,13 @@ kbd {
     font-size: 14px;
     margin-bottom: 8px;
     flex-shrink: 0 !important;
+  }
+  /* 弹窗内容滚动区域 */
+  .modal-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 4px;
   }
   .modal.draggable-modal .modal-drag-handle {
     font-size: 13px;

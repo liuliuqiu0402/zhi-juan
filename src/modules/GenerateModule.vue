@@ -453,6 +453,7 @@
     <div v-if="showDetailConfigModal" class="modal-mask" @click.self="showDetailConfigModal = false">
       <div class="modal large-modal">
         <h3>📝 详细配置</h3>
+        <div class="modal-scroll-area">
         
         <div class="config-section">
           <h4>总分设置</h4>
@@ -497,6 +498,7 @@
             <input type="checkbox" v-model="allowOriginalQuestions" />
             允许适量引用教材原题
           </label>
+        </div>
         </div>
         
         <div class="modal-actions">
@@ -559,9 +561,10 @@
     <div v-if="showAnalysisModal" class="modal-mask" @click.self="showAnalysisModal = false">
       <div class="modal large-modal" style="max-width: 900px; width: 90%;">
         <h3>📊 素材分析状态</h3>
-        <p style="color:var(--text-muted);font-size:13px;margin-bottom:8px;">
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:8px;flex-shrink:0;">
           {{ analysisType === 'textbook' ? '以下是将要分析的教材章节，请确认后选择分析方式' : '以下是将要分析的模板，请确认后选择分析方式' }}
         </p>
+        <div class="modal-scroll-area">
         <div class="chapter-analysis-two-columns">
           <!-- 左栏：章节列表 -->
           <div class="chapter-analysis-left">
@@ -641,6 +644,7 @@
               </button>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -9568,6 +9572,13 @@ table.periodic-table .actinide { background: #e1bee7; }
     margin-bottom: 10px !important;
     padding-bottom: 10px !important;
     flex-shrink: 0 !important;
+  }
+  /* 弹窗内容滚动区域 */
+  .modal-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 4px;
   }
   /* 覆盖内联 style（防御层） */
   .modal.large-modal[style] {

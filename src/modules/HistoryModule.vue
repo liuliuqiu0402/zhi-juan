@@ -365,11 +365,27 @@ onUnmounted(() => {
     max-width: 94vw;
     padding: 16px 12px;
     border-radius: 12px;
-    max-height: 82vh;
+    max-height: 85vh;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow-y: auto !important;
+    margin: auto !important;
+  }
+  .large-modal h3 {
+    font-size: 15px !important;
+    margin-bottom: 10px !important;
+    padding-bottom: 10px !important;
+    flex-shrink: 0 !important;
   }
   .preview-content {
-    max-height: 55vh;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
     font-size: 13px;
+    overflow-y: auto;
+  }
+  .modal-actions {
+    flex-shrink: 0;
   }
 }
 

@@ -3289,7 +3289,7 @@ kbd {
     max-height: 80vh !important;
     display: flex !important;
     flex-direction: column !important;
-    overflow-y: hidden !important;
+    overflow-y: auto !important;
     /* 🔧 修复：移动端覆盖 fixed 定位，回归 flex 居中 */
     position: relative !important;
     top: auto !important;
@@ -3306,6 +3306,13 @@ kbd {
     font-size: 14px;
     margin-bottom: 8px;
     flex-shrink: 0 !important;
+  }
+  /* 弹窗内容滚动区域 */
+  .modal-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 4px;
   }
   /* 📱 移动端：工具栏和拖拽把手隐藏 */
   .modal.draggable-modal .modal-drag-handle {
