@@ -1368,6 +1368,7 @@ onActivated(() => {
 
 .large-modal {
   min-width: 600px;
+  max-height: 90vh;
 }
 
 .large-modal::before {
@@ -1437,7 +1438,7 @@ onActivated(() => {
     max-width: 92vw !important;
     padding: 16px 14px !important;
     border-radius: 12px !important;
-    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px) !important;
+    max-height: 82vh !important;
   }
   .modal::before {
     border-radius: 10px 10px 0 0 !important;

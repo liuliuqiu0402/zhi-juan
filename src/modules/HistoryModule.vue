@@ -365,7 +365,7 @@ onUnmounted(() => {
     max-width: 94vw;
     padding: 16px 12px;
     border-radius: 12px;
-    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px);
+    max-height: 82vh;
   }
   .preview-content {
     max-height: 55vh;

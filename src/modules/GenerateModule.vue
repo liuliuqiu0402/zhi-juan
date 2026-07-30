@@ -647,7 +647,7 @@
 
     <!-- 🔧 新增：原文编辑弹窗（分步流程 - 步骤2） -->
     <div v-if="showRawTextEditor" class="modal-mask" @click.self="closeRawTextEditor">
-      <div class="modal large-modal" style="max-width: 1200px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal large-modal" style="max-width: 1200px; width: 95%; display: flex; flex-direction: column;">
         <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
           <h3 style="margin: 0;">📝 原文编辑器 - {{ rawTextEditorData?.chapterTitle }}</h3>
           <button class="close-btn" @click="closeRawTextEditor" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
@@ -739,7 +739,7 @@
 
     <!-- 分析结果确认弹窗 -->
     <div v-if="showAnalysisResultModal" class="modal-mask" @click.self="showAnalysisResultModal = false">
-      <div class="modal large-modal draggable-modal analysis-result-modal" style="max-width: 1200px; width: 96%; display: flex; flex-direction: column; max-height: 90vh;" ref="analysisResultModalRef">
+      <div class="modal large-modal draggable-modal analysis-result-modal" style="max-width: 1200px; width: 96%; display: flex; flex-direction: column;" ref="analysisResultModalRef">
         <!-- ✅ 固定头部：标题 + 提示 -->
         <div style="flex-shrink: 0;">
           <div class="modal-drag-handle" @mousedown="startAnalysisResultDrag($event)">📊 分析结果确认（可拖动）</div>
@@ -1000,7 +1000,7 @@
 
     <!-- 🔧 新增：多栏分割预览弹窗 -->
     <div v-if="showColumnSplitModal" class="modal-mask" @click.self="showColumnSplitModal = false">
-      <div class="modal large-modal column-split-modal" style="max-width: 1100px; width: 96%; display: flex; flex-direction: column; max-height: 90vh;">
+      <div class="modal large-modal column-split-modal" style="max-width: 1100px; width: 96%; display: flex; flex-direction: column;">
         <!-- ✅ 固定头部：标题 + 翻页导航 -->
         <div style="flex-shrink: 0;">
           <h3>📐 多栏分割预览与调整</h3>
@@ -1131,7 +1131,7 @@
 
     <!-- 🔧 重构：查看/编辑章节分析弹窗（左右两栏） -->
     <div v-if="showChapterAnalysisModal" class="modal-mask" @click.self="showChapterAnalysisModal = false">
-      <div class="modal draggable-modal" style="max-width: 1000px; width: 90%; display: flex; flex-direction: column; max-height: 85vh;" ref="chapterAnalysisModalRef">
+      <div class="modal draggable-modal" style="max-width: 1000px; width: 90%; display: flex; flex-direction: column;" ref="chapterAnalysisModalRef">
         <div class="modal-drag-handle" @mousedown="startChapterDrag($event)">📊 章节分析详情</div>
         <div style="flex-shrink: 0; padding: 8px 0;">
           <h3>📊 {{ viewingBook?.name }} - {{ viewingChapter?.title }}</h3>
@@ -7807,6 +7807,7 @@ const addBlueprintQuestion = () => {
 
 .large-modal {
   min-width: 600px;
+  max-height: 90vh;
 }
 
 .draggable-modal {
@@ -9551,7 +9552,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     min-width: 0 !important;
     width: 96vw !important;
     max-width: 96vw !important;
-    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px) !important;
+    max-height: 85vh !important;
     border-radius: 12px !important;
     padding: 16px 12px !important;
     display: flex !important;
@@ -9568,10 +9569,11 @@ table.periodic-table .actinide { background: #e1bee7; }
     padding-bottom: 10px !important;
     flex-shrink: 0 !important;
   }
-  /* 覆盖内联 style */
+  /* 覆盖内联 style（防御层） */
   .modal.large-modal[style] {
     max-width: 96vw !important;
     width: 96vw !important;
+    max-height: 85vh !important;
   }
   .preview-content {
     max-height: 55vh;
@@ -9614,7 +9616,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     max-width: 100vw !important;
     padding: 12px 10px !important;
     border-radius: 12px !important;
-    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px) !important;
+    max-height: 80vh !important;
     display: flex !important;
     flex-direction: column !important;
     overflow-y: hidden !important;
@@ -9625,6 +9627,10 @@ table.periodic-table .actinide { background: #e1bee7; }
     transform: none !important;
     /* 确保上下留白 */
     margin: auto !important;
+  }
+  /* 覆盖内联 style（防御层） */
+  .modal.draggable-modal[style] {
+    max-height: 80vh !important;
   }
   .modal.draggable-modal h3 {
     font-size: 14px;

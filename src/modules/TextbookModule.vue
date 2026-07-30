@@ -445,7 +445,7 @@
 
     <!-- 查看/编辑章节分析弹窗（左右两栏） -->
     <div v-if="showChapterAnalysisModal" class="modal-mask" @click.self="showChapterAnalysisModal = false">
-      <div class="modal draggable-modal" style="max-width: 1000px; width: 90%; display: flex; flex-direction: column; max-height: 85vh;" ref="chapterAnalysisModalRef">
+      <div class="modal draggable-modal" style="max-width: 1000px; width: 90%; display: flex; flex-direction: column;" ref="chapterAnalysisModalRef">
         <div class="modal-drag-handle" @mousedown="startChapterDrag($event)">📊 章节分析详情</div>
         <div style="flex-shrink: 0; padding: 8px 0;">
           <h3>📊 {{ viewingBook?.name }} - {{ viewingChapter?.title }}</h3>
@@ -2669,7 +2669,7 @@ const saveTextbook = async () => {
   background: linear-gradient(90deg, var(--primary-light) 0%, #4a90d9 50%, var(--primary-light) 100%);
   border-radius: 14px 14px 0 0;
 }
-.large-modal { min-width: 1000px; }
+.large-modal { min-width: 1000px; max-height: 90vh; }
 
 .large-modal::before {
   height: 6px;
@@ -3286,7 +3286,7 @@ kbd {
     max-width: 100vw !important;
     padding: 12px 10px !important;
     border-radius: 12px !important;
-    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px) !important;
+    max-height: 80vh !important;
     display: flex !important;
     flex-direction: column !important;
     overflow-y: hidden !important;
@@ -3297,6 +3297,10 @@ kbd {
     transform: none !important;
     /* 确保上下留白 */
     margin: auto !important;
+  }
+  /* 覆盖内联 style（防御层） */
+  .modal.draggable-modal[style] {
+    max-height: 80vh !important;
   }
   .modal.draggable-modal h3 {
     font-size: 14px;

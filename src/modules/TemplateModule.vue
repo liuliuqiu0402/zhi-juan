@@ -2660,7 +2660,7 @@ const saveTemplate = async () => {
   background: linear-gradient(90deg, var(--primary-light) 0%, #4a90d9 50%, var(--primary-light) 100%);
   border-radius: 14px 14px 0 0;
 }
-.large-modal { min-width: 1000px; }
+.large-modal { min-width: 1000px; max-height: 90vh; }
 
 .large-modal::before {
   height: 6px;
@@ -3252,7 +3252,7 @@ kbd {
     max-width: 90vw !important;
     padding: 16px 14px !important;
     border-radius: 12px !important;
-    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px) !important;
+    max-height: 82vh !important;
     overflow-y: auto !important;
   }
   .modal:not(.draggable-modal):not(.outline-editor-modal)::before {
@@ -3295,10 +3295,14 @@ kbd {
     max-width: 100vw !important;
     padding: 16px 12px !important;
     border-radius: 12px !important;
-    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px) !important;
+    max-height: 80vh !important;
     display: flex !important;
     flex-direction: column !important;
     overflow-y: hidden !important;
+  }
+  /* 覆盖内联 style（防御层） */
+  .modal.draggable-modal[style] {
+    max-height: 80vh !important;
   }
   .modal.draggable-modal h3 {
     font-size: 14px;
