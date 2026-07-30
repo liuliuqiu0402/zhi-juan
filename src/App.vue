@@ -920,8 +920,7 @@ onMounted(async () => {
   });
   // 🔄 软刷新：Header 刷新按钮 → 先拉取 → 合并 → 再推送（解决两端同时新增的冲突）
   window.addEventListener('app-refresh', async () => {
-    refreshKey.value++;
-    console.log('🔄 软刷新：重置当前页面状态');
+    console.log('🔄 软刷新：开始同步');
     if (isCloudConfigured()) {
       showToastMessage('☁️ 同步中…', 'info');
       try {
@@ -1089,6 +1088,8 @@ onMounted(async () => {
 
         console.log('🔄 刷新同步完成', isWebMode.value ? '(手机端)' : '(桌面端)');
         showToastMessage('✅ 同步完成', 'info');
+        // 🔄 二次刷新：数据已写入 localStorage，重新挂载组件以加载最新数据
+        refreshKey.value++;
       } catch (e) { console.warn('🔄 刷新同步失败:', e); }
       // 🔔 通知各模块重新加载云端数据
       window.dispatchEvent(new CustomEvent('data-sync-complete'));
