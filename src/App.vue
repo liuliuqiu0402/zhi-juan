@@ -180,6 +180,7 @@ import storage from '@/utils/storage';
 import { pullFromCloud, isCloudConfigured, uploadTextbooks, uploadDocHistory, uploadActivationInfo, uploadGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings } from '@/utils/cloudStorage';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
 import { apiConfig, getCurrentEngineConfig, loadConfigSync } from '@/config/apiConfig.js';
+// ☁️ Supabase 云端同步配置由 CI Secrets 注入
 import { saveConfig } from '@/config/apiConfig.js';
 
 const router = useRouter();
