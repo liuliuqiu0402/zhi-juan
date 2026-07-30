@@ -306,7 +306,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { Capacitor } from '@capacitor/core';
 import { useActivation } from '@/composables/useActivation.js';
 import { useDialog } from '@/composables/useDialog.js';
@@ -644,6 +644,28 @@ const refreshModels = async () => {
   }
 };
 
+// 🔄 云端同步后重载设置（确保手机端/桌面端配置一致）
+const reloadSettingsFromStorage = async () => {
+  const savedSettings = localStorage.getItem('apiConfig');
+  if (savedSettings) {
+    try {
+      const parsed = JSON.parse(savedSettings);
+      if (parsed.deepseekApiKey) {
+        parsed.deepseekApiKey = await decrypt(parsed.deepseekApiKey);
+      }
+      // 只更新云端同步的核心引擎字段，避免覆盖用户正在编辑的内容
+      const engineFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
+        'deepseekGenerationModel', 'deepseekAnalysisModel'];
+      for (const f of engineFields) {
+        if (parsed[f] !== undefined && parsed[f] !== settings.value[f]) {
+          settings.value[f] = parsed[f];
+        }
+      }
+      console.log('☁️ [SettingsModule] 同步完成，已刷新引擎配置');
+    } catch { /* ignore */ }
+  }
+};
+
 onMounted(async () => {
   // 📱 Web/手机端：读取激活信息用于显示（不影响 activationStatus，单例共享）
   // 🖥️ 桌面端：跳过——App.vue 已统一完成激活校验，licenseInfo 通过单例共享
@@ -682,6 +704,12 @@ onMounted(async () => {
       }
     } catch { /* 发现失败用兜底列表 */ }
   }
+  // ☁️ 监听云端同步事件，自动刷新引擎配置
+  window.addEventListener('data-sync-complete', reloadSettingsFromStorage);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('data-sync-complete', reloadSettingsFromStorage);
 });
 </script>
 

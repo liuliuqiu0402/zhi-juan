@@ -353,40 +353,6 @@ onUnmounted(() => {
     padding: 28px;
     font-size: 12px;
   }
-
-  /* 📱 移动端预览弹窗全屏 */
-  .modal-mask {
-    padding: env(safe-area-inset-top, 12px) 12px env(safe-area-inset-bottom, 12px) 12px;
-    box-sizing: border-box;
-  }
-  .large-modal {
-    min-width: auto !important;
-    width: 94vw;
-    max-width: 94vw;
-    padding: 16px 12px;
-    border-radius: 12px;
-    max-height: 85vh;
-    display: flex !important;
-    flex-direction: column !important;
-    overflow-y: auto !important;
-    margin: auto !important;
-  }
-  .large-modal h3 {
-    font-size: 15px !important;
-    margin-bottom: 10px !important;
-    padding-bottom: 10px !important;
-    flex-shrink: 0 !important;
-  }
-  .preview-content {
-    flex: 1;
-    min-height: 0;
-    max-height: none;
-    font-size: 13px;
-    overflow-y: auto;
-  }
-  .modal-actions {
-    flex-shrink: 0;
-  }
 }
 
 /* ===== 预览弹窗 ===== */
@@ -468,4 +434,41 @@ onUnmounted(() => {
   gap: 8px;
   justify-content: flex-end;
   margin-top: 16px;
-}</style>
+}
+
+/* 📱 移动端预览弹窗（放在桌面规则后面确保覆盖） */
+@media (max-width: 767px) {
+  .modal-mask {
+    padding: env(safe-area-inset-top, 12px) 12px env(safe-area-inset-bottom, 12px) 12px;
+    box-sizing: border-box;
+  }
+  .large-modal {
+    min-width: auto !important;
+    width: 94vw !important;
+    max-width: 94vw !important;
+    padding: 16px 12px !important;
+    border-radius: 12px !important;
+    max-height: calc(100% - 16px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow-y: auto !important;
+    margin: auto !important;
+  }
+  .large-modal h3 {
+    font-size: 15px !important;
+    margin-bottom: 10px !important;
+    padding-bottom: 10px !important;
+    flex-shrink: 0 !important;
+  }
+  .preview-content {
+    flex: 1 !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    font-size: 13px !important;
+    overflow-y: auto !important;
+  }
+  .modal-actions {
+    flex-shrink: 0 !important;
+  }
+}
+</style>

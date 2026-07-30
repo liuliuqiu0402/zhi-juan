@@ -925,10 +925,16 @@ onMounted(async () => {
         if (data.settings && Object.keys(data.settings).length > 0) {
           const engineFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
             'deepseekGenerationModel', 'deepseekAnalysisModel'];
+          let needsApply = false;
           for (const f of engineFields) {
             if (data.settings[f] !== undefined && data.settings[f] !== apiConfig[f]) {
               apiConfig[f] = data.settings[f];
+              needsApply = true;
             }
+          }
+          if (needsApply) {
+            await saveConfig(Object.assign({}, apiConfig));
+            console.log('☁️ 刷新同步：已应用引擎配置');
           }
         }
         if (data.templates && data.templates.length > 0) {

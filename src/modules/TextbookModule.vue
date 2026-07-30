@@ -3286,7 +3286,7 @@ kbd {
     max-width: 100vw !important;
     padding: 12px 10px !important;
     border-radius: 12px !important;
-    max-height: 80vh !important;
+    max-height: calc(100% - 16px) !important;
     display: flex !important;
     flex-direction: column !important;
     overflow-y: auto !important;
@@ -3300,7 +3300,7 @@ kbd {
   }
   /* 覆盖内联 style（防御层） */
   .modal.draggable-modal[style] {
-    max-height: 80vh !important;
+    max-height: calc(100% - 16px) !important;
   }
   .modal.draggable-modal h3 {
     font-size: 14px;

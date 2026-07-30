@@ -9556,7 +9556,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     min-width: 0 !important;
     width: 96vw !important;
     max-width: 96vw !important;
-    max-height: 85vh !important;
+    max-height: calc(100% - 16px) !important;
     border-radius: 12px !important;
     padding: 16px 12px !important;
     display: flex !important;
@@ -9584,7 +9584,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   .modal.large-modal[style] {
     max-width: 96vw !important;
     width: 96vw !important;
-    max-height: 85vh !important;
+    max-height: calc(100% - 16px) !important;
   }
   .preview-content {
     max-height: 55vh;
@@ -9627,7 +9627,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     max-width: 100vw !important;
     padding: 12px 10px !important;
     border-radius: 12px !important;
-    max-height: 80vh !important;
+    max-height: calc(100% - 16px) !important;
     display: flex !important;
     flex-direction: column !important;
     overflow-y: hidden !important;
@@ -9641,7 +9641,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   }
   /* 覆盖内联 style（防御层） */
   .modal.draggable-modal[style] {
-    max-height: 80vh !important;
+    max-height: calc(100% - 16px) !important;
   }
   .modal.draggable-modal h3 {
     font-size: 14px;
@@ -9877,7 +9877,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   .chapter-selector-modal {
     width: 92vw !important;
     max-width: 92vw !important;
-    max-height: 85vh !important;
+    max-height: calc(100% - 16px) !important;
     border-radius: 12px !important;
     padding: 0 !important;
   }

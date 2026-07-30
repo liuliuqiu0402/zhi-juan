@@ -3254,7 +3254,7 @@ kbd {
     max-width: 90vw !important;
     padding: 16px 14px !important;
     border-radius: 12px !important;
-    max-height: 82vh !important;
+    max-height: calc(100% - 16px) !important;
     overflow-y: auto !important;
   }
   .modal:not(.draggable-modal):not(.outline-editor-modal)::before {
@@ -3297,14 +3297,14 @@ kbd {
     max-width: 100vw !important;
     padding: 16px 12px !important;
     border-radius: 12px !important;
-    max-height: 80vh !important;
+    max-height: calc(100% - 16px) !important;
     display: flex !important;
     flex-direction: column !important;
     overflow-y: auto !important;
   }
   /* 覆盖内联 style（防御层） */
   .modal.draggable-modal[style] {
-    max-height: 80vh !important;
+    max-height: calc(100% - 16px) !important;
   }
   .modal.draggable-modal h3 {
     font-size: 14px;
