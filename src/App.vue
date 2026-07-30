@@ -177,7 +177,7 @@ import { useMobile } from '@/composables/useMobile.js';
 import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
-import { pullFromCloud, isCloudConfigured, uploadTextbooks, uploadDocHistory, uploadActivationInfo, uploadGeneratedDocs, uploadInstructions, uploadTemplates } from '@/utils/cloudStorage';
+import { pullFromCloud, isCloudConfigured, uploadTextbooks, uploadDocHistory, uploadActivationInfo, uploadGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings } from '@/utils/cloudStorage';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
 import { apiConfig, getCurrentEngineConfig, loadConfigSync } from '@/config/apiConfig.js';
 import { saveConfig } from '@/config/apiConfig.js';
@@ -368,16 +368,23 @@ const handlePullRefresh = async () => {
 
 // 🔥 热启动安全上推：仅上传本地数据到云端，不做下拉（避免云端旧数据覆盖本地）
 const quickPushToCloud = async () => {
+  const results: string[] = [];
   try {
     // 教材
     const localTextbooks = await storage.getItem('textbooks');
     if (localTextbooks && localTextbooks.length > 0) {
-      uploadTextbooks(localTextbooks);
+      try {
+        await uploadTextbooks(localTextbooks);
+        results.push('教材');
+      } catch (e) { console.warn('☁️ 教材上传失败:', e); }
     }
     // 历史
     const localHistory = await storage.getItem('docHistory');
     if (localHistory && localHistory.length > 0) {
-      uploadDocHistory(localHistory);
+      try {
+        await uploadDocHistory(localHistory);
+        results.push('历史');
+      } catch (e) { console.warn('☁️ 历史上传失败:', e); }
     }
     // 生成结果
     try {
@@ -385,10 +392,11 @@ const quickPushToCloud = async () => {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && parsed.length > 0) {
-          uploadGeneratedDocs(parsed);
+          await uploadGeneratedDocs(parsed);
+          results.push('生成结果');
         }
       }
-    } catch {}
+    } catch (e) { console.warn('☁️ 生成结果上传失败:', e); }
     // 激活信息
     try {
       const rawAct = localStorage.getItem('activationInfo');
@@ -396,28 +404,48 @@ const quickPushToCloud = async () => {
         const act = JSON.parse(rawAct);
         if (act && act.version && act.version !== 'basic') {
           const { _sign, ...clean } = act;
-          uploadActivationInfo(clean);
+          await uploadActivationInfo(clean);
+          results.push('激活信息');
         }
       }
-    } catch {}
+    } catch (e) { console.warn('☁️ 激活信息上传失败:', e); }
     // 指令库
     try {
       const rawIns = localStorage.getItem('instructionLib');
       if (rawIns) {
         const parsed = JSON.parse(rawIns);
         if (parsed && parsed.length > 0) {
-          uploadInstructions(parsed);
+          await uploadInstructions(parsed);
+          results.push('指令库');
         }
       }
-    } catch {}
+    } catch (e) { console.warn('☁️ 指令库上传失败:', e); }
     // 模板
     try {
       const localTemplates = await storage.getItem('templates');
       if (localTemplates && localTemplates.length > 0) {
-        uploadTemplates(localTemplates);
+        await uploadTemplates(localTemplates);
+        results.push('模板');
       }
-    } catch {}
-    console.log('🔥 热启动：本地数据已安全上推云端');
+    } catch (e) { console.warn('☁️ 模板上传失败:', e); }
+    // 设置
+    try {
+      const settingsToPush: Record<string, unknown> = {};
+      const engineFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
+        'deepseekGenerationModel', 'deepseekAnalysisModel'];
+      for (const f of engineFields) {
+        if (apiConfig[f]) settingsToPush[f] = apiConfig[f];
+      }
+      if (Object.keys(settingsToPush).length > 0) {
+        await uploadSettings(settingsToPush);
+        results.push('设置');
+      }
+    } catch (e) { console.warn('☁️ 设置上传失败:', e); }
+    if (results.length > 0) {
+      console.log('☁️ 已上推云端:', results.join('、'));
+    } else {
+      console.log('☁️ 无本地数据需要上推');
+    }
   } catch { /* 静默失败 */ }
 };
 
@@ -825,6 +853,23 @@ onMounted(async () => {
         await quickPushToCloud();
         // 🔽 后拉：云端 → 本地
         const data = await pullFromCloud();
+        // 📚 教材库同步
+        if (data.textbooks && data.textbooks.length > 0) {
+          await storage.setItem('textbooks', data.textbooks).catch(() => {});
+          try {
+            const { useTextbookStore } = await import('@/stores/textbookStore');
+            await useTextbookStore().loadTextbooks();
+          } catch {}
+        }
+        // 📋 历史记录同步
+        if (data.docHistory && data.docHistory.length > 0) {
+          await storage.setItem('docHistory', data.docHistory).catch(() => {});
+        }
+        // 📋 生成结果面板同步
+        if (data.generatedDocs && data.generatedDocs.length > 0) {
+          localStorage.setItem('wisdom_generated_docs', JSON.stringify(data.generatedDocs));
+        }
+        // 📝 指令库同步
         if (data.instructions && data.instructions.length > 0) {
           localStorage.setItem('instructionLib', JSON.stringify(data.instructions));
           localStorage.setItem('instructionLib_version', '12');
