@@ -372,6 +372,8 @@ const handlePullRefresh = async () => {
           await useTemplateStore().loadTemplates();
         } catch {}
       }
+      // 🔔 通知各模块重新加载云端数据
+      window.dispatchEvent(new CustomEvent('data-sync-complete'));
     } catch {}
   }
   showToastMessage('✅ 已刷新', 'info');

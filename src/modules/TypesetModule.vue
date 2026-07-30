@@ -1438,7 +1438,7 @@ onActivated(() => {
     max-width: 92vw !important;
     padding: 16px 14px !important;
     border-radius: 12px !important;
-    max-height: 82vh !important;
+    max-height: calc(100% - 16px) !important;
   }
   .modal::before {
     border-radius: 10px 10px 0 0 !important;

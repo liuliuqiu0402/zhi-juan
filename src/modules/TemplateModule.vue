@@ -3358,7 +3358,7 @@ kbd {
   .outline-editor-modal {
     width: 98vw !important;
     max-width: 98vw !important;
-    height: 90vh !important;
+    max-height: calc(100% - 16px) !important;
     padding: 12px 8px !important;
     border-radius: 12px !important;
   }

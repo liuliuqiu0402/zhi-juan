@@ -9726,7 +9726,7 @@ table.periodic-table .actinide { background: #e1bee7; }
 
   /* === 分析结果确认弹窗移动端适配 === */
   .analysis-result-modal {
-    max-height: 78vh !important;
+    max-height: calc(100% - 16px) !important;
   }
   .template-two-columns {
     flex-direction: column !important;
@@ -9761,7 +9761,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     max-width: 90vw !important;
     padding: 16px 14px !important;
     border-radius: 12px !important;
-    max-height: 82vh !important;
+    max-height: calc(100% - 16px) !important;
   }
   .modal:not(.large-modal):not(.draggable-modal)::before {
     border-radius: 10px 10px 0 0 !important;
