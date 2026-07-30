@@ -86,17 +86,17 @@ jobs:
           cp -R "$APP_PATH" Payload/
 
           # Create IPA (zip + rename)
-          zip -r "智卷工坊.ipa" Payload/
+          zip -r "zhijuan.ipa" Payload/
           rm -rf Payload
 
-          echo "IPA created: 智卷工坊.ipa"
-          ls -lh "智卷工坊.ipa"
+          echo "IPA created: zhijuan.ipa"
+          ls -lh "zhijuan.ipa"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: zhijuan-iOS
-          path: ios/App/智卷工坊.ipa
+          path: ios/App/zhijuan.ipa
           retention-days: 7
 
       - name: Publish to GitHub Release
@@ -112,12 +112,12 @@ jobs:
             - 运行编号: #${{ github.run_number }}
             
             ### 📥 使用方法
-            1. 下载 `智卷工坊.ipa`
-            2. 用**爱思助手**签名安装（推荐，支持中文名）
+            1. 下载 `zhijuan.ipa`
+            2. 用**爱思助手**签名安装（推荐）
             3. 或运行 `scripts/renew-ios.ps1` 一键续签
             
             > ⚠️ 免费 Apple ID 签名 7 天后到期，需重新安装
-          files: ios/App/智卷工坊.ipa
+          files: ios/App/zhijuan.ipa
           draft: false
           prerelease: false
           make_latest: true

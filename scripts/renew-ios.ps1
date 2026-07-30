@@ -22,7 +22,7 @@ $Host.UI.RawUI.WindowTitle = "智卷工坊 · iOS 续签"
 $APP_NAME   = "智卷工坊"
 $REPO_OWNER = "liuliuqiu0402"
 $REPO_NAME  = "zhi-juan"
-$IPA_FILE   = "智卷工坊.ipa"
+$IPA_FILE   = "zhijuan.ipa"
 $WORK_DIR   = "$env:LOCALAPPDATA\zhijuan-renew"
 
 # ==================== 工具函数 ====================
