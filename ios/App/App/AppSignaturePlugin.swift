@@ -3,6 +3,7 @@ import Foundation
 
 /// 读取 iOS 签名证书到期时间
 /// 从 App Bundle 中的 embedded.mobileprovision 提取 ExpirationDate
+// MARK: - AppSignaturePlugin
 @objc(AppSignaturePlugin)
 public class AppSignaturePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "AppSignaturePlugin"
