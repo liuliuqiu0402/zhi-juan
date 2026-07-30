@@ -53,7 +53,7 @@ jobs:
             -scheme App \
             -scmProvider system
 
-      - name: Build iOS (unsigned - for re-signing via 爱思助手)
+      - name: Build iOS (ad-hoc signed for re-signing)
         working-directory: ios/App
         run: |
           set -o pipefail
@@ -81,6 +81,12 @@ jobs:
             grep -i -A2 "error:" xcodebuild.log | head -40 || echo "(no 'error:' lines found)"
             exit 1
           fi
+
+          # Ad-hoc sign the .app so re-signing tools (爱思助手) can work with it
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "App.app" -path "*/Release-iphoneos/*" | head -1)
+          echo "Found app at: $APP_PATH"
+          echo "Applying ad-hoc signature..."
+          codesign --sign - --force --deep --timestamp=none "$APP_PATH"
 
       - name: Package as IPA
         working-directory: ios/App
