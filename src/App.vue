@@ -801,6 +801,43 @@ onMounted(async () => {
         }
       }
 
+      // 🔼 桌面端冷启动：仅推送单向数据到云端（教材/模板/指令/设置/激活）
+      //    双向数据（历史+生成结果）统一走刷新按钮，不在此处上推
+      if (!isWebMode.value) {
+        try {
+          const localTextbooks = await storage.getItem('textbooks');
+          if (localTextbooks && localTextbooks.length > 0) await uploadTextbooks(localTextbooks);
+        } catch {}
+        try {
+          const rawAct = localStorage.getItem('activationInfo');
+          if (rawAct) {
+            const act = JSON.parse(rawAct);
+            if (act && act.version && act.version !== 'basic') {
+              const { _sign, ...clean } = act;
+              await uploadActivationInfo(clean);
+            }
+          }
+        } catch {}
+        try {
+          const rawIns = localStorage.getItem('instructionLib');
+          if (rawIns) {
+            const parsed = JSON.parse(rawIns);
+            if (parsed && parsed.length > 0) await uploadInstructions(parsed);
+          }
+        } catch {}
+        try {
+          const localTemplates = await storage.getItem('templates');
+          if (localTemplates && localTemplates.length > 0) await uploadTemplates(localTemplates);
+        } catch {}
+        try {
+          const settingsToPush = {};
+          const engineFields = ['deepseekBaseUrl', 'deepseekApiKey',
+            'deepseekGenerationModel', 'deepseekAnalysisModel'];
+          for (const f of engineFields) { if (apiConfig[f]) settingsToPush[f] = apiConfig[f]; }
+          if (Object.keys(settingsToPush).length > 0) await uploadSettings(settingsToPush);
+        } catch {}
+      }
+
       // 📱 手机端：显示同步结果
       if (pulled.length > 0) {
         showToastMessage('☁️ 已同步: ' + pulled.join('、'), 'info');
