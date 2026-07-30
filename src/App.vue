@@ -368,7 +368,7 @@ const handlePullRefresh = async () => {
 
 // 🔥 热启动安全上推：仅上传本地数据到云端，不做下拉（避免云端旧数据覆盖本地）
 const quickPushToCloud = async () => {
-  const results: string[] = [];
+  const results = [];
   try {
     // 教材
     const localTextbooks = await storage.getItem('textbooks');
@@ -430,7 +430,7 @@ const quickPushToCloud = async () => {
     } catch (e) { console.warn('☁️ 模板上传失败:', e); }
     // 设置
     try {
-      const settingsToPush: Record<string, unknown> = {};
+      const settingsToPush = {};
       const engineFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
         'deepseekGenerationModel', 'deepseekAnalysisModel'];
       for (const f of engineFields) {
