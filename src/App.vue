@@ -1081,20 +1081,35 @@ onMounted(async () => {
           }
         }
       }
-      // 历史
-      if (data.docHistory) {
-        const local = await storage.getItem('docHistory');
+      // 历史（双向数据：合并而非覆盖，防止丢失本地新数据）
+      if (data.docHistory && data.docHistory.length > 0) {
+        const local = await storage.getItem('docHistory') || [];
         if (JSON.stringify(local) !== JSON.stringify(data.docHistory)) {
-          await storage.setItem('docHistory', data.docHistory).catch(() => {});
-          changed = true;
+          // 合并：cloud ∪ local，按 id 去重，同 id 取本地
+          const map = new Map();
+          for (const item of data.docHistory) { if (item.id) map.set(item.id, item); }
+          for (const item of local) { if (item.id) map.set(item.id, item); }
+          const merged = Array.from(map.values()).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)).slice(0, 50);
+          if (JSON.stringify(merged) !== JSON.stringify(local)) {
+            await storage.setItem('docHistory', merged).catch(() => {});
+            changed = true;
+          }
         }
       }
-      // 生成结果
+      // 生成结果（双向数据：合并而非覆盖，防止丢失本地新数据）
       if (data.generatedDocs && data.generatedDocs.length > 0) {
-        const local = localStorage.getItem('wisdom_generated_docs');
-        if (local !== JSON.stringify(data.generatedDocs)) {
-          localStorage.setItem('wisdom_generated_docs', JSON.stringify(data.generatedDocs));
-          changed = true;
+        const localRaw = localStorage.getItem('wisdom_generated_docs');
+        const local = localRaw ? JSON.parse(localRaw) : [];
+        if (JSON.stringify(local) !== JSON.stringify(data.generatedDocs)) {
+          // 合并：cloud ∪ local，按 id 去重，同 id 取本地
+          const map = new Map();
+          for (const item of data.generatedDocs) { if (item.id) map.set(item.id, item); }
+          for (const item of local) { if (item.id) map.set(item.id, item); }
+          const merged = Array.from(map.values()).slice(0, 20);
+          if (JSON.stringify(merged) !== JSON.stringify(local)) {
+            localStorage.setItem('wisdom_generated_docs', JSON.stringify(merged));
+            changed = true;
+          }
         }
       }
       // 指令库（安全网：仅当云端数据不少于本地时才覆盖）
