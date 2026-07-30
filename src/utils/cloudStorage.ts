@@ -174,39 +174,32 @@ export async function downloadActivationInfo(): Promise<Record<string, unknown> 
 
 // ── 用户设置同步 ──
 
-/** 判断当前是否为 Web/手机端 */
-function isWebDevice(): boolean {
-  return typeof window !== 'undefined' && !(window as any).electronAPI;
-}
-
-/** 上传设置到云端（按设备类型分 key，桌面/手机互不覆盖） */
+/** 上传设置到云端（共享 key，桌面/手机互通） */
 export async function uploadSettings(settings: Record<string, unknown>): Promise<void> {
   const client = getClient();
   if (!client) return;
 
-  const deviceKey = isWebDevice() ? 'settings_web' : 'settings_desktop';
   const safe = JSON.parse(JSON.stringify(settings));
   try {
     const { error } = await client
       .from('user_settings')
-      .upsert({ id: deviceKey, data: safe, updated_at: new Date().toISOString() });
+      .upsert({ id: 'settings', data: safe, updated_at: new Date().toISOString() });
     if (error) console.warn('☁️ 设置上传失败:', error.message);
   } catch (e) {
     console.warn('☁️ 设置上传异常:', e);
   }
 }
 
-/** 从云端下载设置（仅拉取同设备类型的设置） */
+/** 从云端下载设置（共享 key，桌面/手机互通） */
 export async function downloadSettings(): Promise<Record<string, unknown> | null> {
   const client = getClient();
   if (!client) return null;
 
-  const deviceKey = isWebDevice() ? 'settings_web' : 'settings_desktop';
   try {
     const { data, error } = await client
       .from('user_settings')
       .select('data')
-      .eq('id', deviceKey)
+      .eq('id', 'settings')
       .single();
     if (error || !data) return null;
     return data.data as Record<string, unknown>;

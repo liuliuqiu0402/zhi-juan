@@ -4,7 +4,7 @@
     <div class="library-panel">
       <div class="panel-header">
         <h3>📋 模板库 ({{ templateStore.templates.length }})</h3>
-        <button class="btn-primary" @click="openUploadModal">📤 上传模板</button>
+        <button v-if="!isMobile" class="btn-primary" @click="openUploadModal">📤 上传模板</button>
       </div>
 
       <!-- 筛选搜索行 -->
@@ -47,10 +47,10 @@
       </div>
 
       <!-- 批量操作栏 -->
-      <div class="batch-row">
+      <div class="batch-row" v-show="!isMobile || selectedCount > 0">
         <span>已选中 {{ selectedCount }} 个</span>
         <button class="btn" :disabled="selectedCount === 0" @click="batchDelete">🗑️ 批量删除</button>
-        <button class="btn" :disabled="selectedCount === 0" @click="batchExport">📤 导出目录</button>
+        <button v-if="!isMobile" class="btn" :disabled="selectedCount === 0" @click="batchExport">📤 导出目录</button>
         <button class="btn" :disabled="selectedCount === 0" @click="clearSelection">取消选择</button>
       </div>
 
@@ -123,7 +123,7 @@
     
 
     <!-- 没有预览时显示提示 -->
-    <div v-else class="preview-panel preview-empty-state">
+    <div v-else-if="!isMobile" class="preview-panel preview-empty-state">
       <div class="empty-hint">
         <span class="empty-icon">👈</span>
         <p>点击左侧目录中的章节名称<br/>即可在此预览内容</p>
@@ -624,6 +624,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, shallowRef, nextTick, h, watch } from 'vue';
 import { useDialog } from '../composables/useDialog.js';
+import { useMobile } from '../composables/useMobile.js';
 import ExcelJS from 'exceljs';
 import { getStoragePath } from '../utils/pathHelper.js';  // ✨ 存储路径工具
 import { useTemplateStore } from '../stores/templateStore.js';
@@ -638,6 +639,8 @@ import RichTextEditor from '../components/RichTextEditor.vue';
 import { APP_EVENTS } from '../constants/events.js';
 
 defineOptions({ name: 'TemplateModule' });
+
+const { isMobile } = useMobile();
 
 
 // ✅ 图片压缩函数
