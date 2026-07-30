@@ -55,7 +55,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import storage from '@/utils/storage';
 import { uploadDocHistory } from '@/utils/cloudStorage';
@@ -155,8 +155,19 @@ const sendToTypeset = (item) => {
   }, 150);
 };
 
+// ☁️ 云端数据同步完成后重新加载历史记录
+const onCloudSync = () => {
+  loadHistory();
+  console.log('☁️ [HistoryModule] 同步完成，已重新加载历史记录');
+};
+
 onMounted(() => {
   loadHistory();
+  window.addEventListener('data-sync-complete', onCloudSync);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('data-sync-complete', onCloudSync);
 });
 </script>
 
@@ -344,13 +355,17 @@ onMounted(() => {
   }
 
   /* 📱 移动端预览弹窗全屏 */
+  .modal-mask {
+    padding: env(safe-area-inset-top, 12px) 12px env(safe-area-inset-bottom, 12px) 12px;
+    box-sizing: border-box;
+  }
   .large-modal {
     min-width: auto !important;
     width: 94vw;
     max-width: 94vw;
     padding: 16px 12px;
     border-radius: 12px;
-    max-height: 85vh;
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px);
   }
   .preview-content {
     max-height: 55vh;

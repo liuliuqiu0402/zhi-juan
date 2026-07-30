@@ -1449,7 +1449,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick, h } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, h } from 'vue';
 import { useDialog } from '../composables/useDialog.js';
 import { useMobile } from '../composables/useMobile.js';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced } from '../config/apiConfig.js';  // 🔧 新增：导入 apiConfig
@@ -7006,6 +7006,15 @@ watch([() => selectedTextbooks.value?.[0]?.subject, () => selectedTextbooks.valu
 );
 
 // 初始化
+// ☁️ 云端数据同步完成后重新加载生成结果
+const onCloudSync = () => {
+  const fresh = loadGeneratedDocs();
+  if (fresh.length > 0) {
+    generatedDocs.value = fresh;
+    console.log('☁️ [GenerateModule] 同步完成，已加载 ' + fresh.length + ' 条生成结果');
+  }
+};
+
 onMounted(async () => {
   await textbookStore.loadTextbooks();
   await templateStore.loadTemplates();
@@ -7021,6 +7030,12 @@ onMounted(async () => {
       instructionDraft.value = e.detail;
     }
   });
+
+  window.addEventListener('data-sync-complete', onCloudSync);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('data-sync-complete', onCloudSync);
 });
 
 // 置信度检测函数
@@ -8225,6 +8240,7 @@ const addBlueprintQuestion = () => {
 .analysis-checkbox {
   flex-shrink: 0;
   cursor: pointer;
+  margin-right: 8px;
 }
 .analysis-toggle-all {
   cursor: pointer;
@@ -9141,6 +9157,11 @@ table.periodic-table .actinide { background: #e1bee7; }
 
 /* 📱 移动端适配 */
 @media (max-width: 767px) {
+  /* 弹窗安全区适配 */
+  .modal-mask {
+    padding: env(safe-area-inset-top, 12px) 12px env(safe-area-inset-bottom, 12px) 12px;
+    box-sizing: border-box;
+  }
   /* 双图标切换 */
   .icon-mobile { display: inline; }
   .icon-desktop { display: none; }
@@ -9380,6 +9401,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   .analysis-checkbox {
     width: 16px;
     height: 16px;
+    margin-right: 8px;
   }
   .chapter-title { font-size: 11px; }
 
@@ -9529,7 +9551,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     min-width: 0 !important;
     width: 96vw !important;
     max-width: 96vw !important;
-    max-height: 82vh !important;
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px) !important;
     border-radius: 12px !important;
     padding: 16px 12px !important;
     display: flex !important;
@@ -9592,7 +9614,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     max-width: 100vw !important;
     padding: 12px 10px !important;
     border-radius: 12px !important;
-    max-height: 78vh !important;
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px) !important;
     display: flex !important;
     flex-direction: column !important;
     overflow-y: hidden !important;

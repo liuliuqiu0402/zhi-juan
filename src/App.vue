@@ -185,8 +185,8 @@ import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnap
 import { apiConfig, getCurrentEngineConfig, loadConfigSync } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
 import { saveConfig } from '@/config/apiConfig.js';
-// 📱 iOS 签名状态检测
-import { getSignatureExpiration } from '@/utils/signatureCheck';
+// 📱 iOS 签名倒计时（基于安装时间计算 7 天有效期）
+import { getSignCountdown, resetInstallTime } from '@/utils/signatureCheck';
 
 const router = useRouter();
 
@@ -645,21 +645,16 @@ onMounted(async () => {
     }
   }
 
-  // 📱 iOS 签名检测（异步，不阻塞UI）
+  // 📱 iOS 签名倒计时：首次启动记录安装时间，7 天倒计时
   try {
     const { Capacitor } = await import('@capacitor/core');
     isCapacitorIOS.value = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
-    if (isCapacitorIOS.value) {
-      signCheckLoading.value = true;
-      getSignatureExpiration().then((info) => {
-        signInfo.value = info;
-        console.log('[App] 签名状态:', info);
-      }).catch(() => {}).finally(() => {
-        signCheckLoading.value = false;
-      });
-    }
   } catch {
-    // 非 Capacitor 环境，跳过
+    // 非 Capacitor 环境，不显示签名倒计时
+  }
+  if (isCapacitorIOS.value) {
+    signInfo.value = getSignCountdown();
+    console.log('[App] 签名倒计时:', signInfo.value.daysRemaining + '天');
   }
 
   // ☁️ 云端数据同步（桌面端 + Web 端均尝试）
@@ -828,6 +823,8 @@ onMounted(async () => {
         showToastMessage('☁️ 云端暂无数据，请在桌面端点刷新上传', 'info');
         console.log('☁️ 冷启动：云端无数据');
       }
+      // 🔔 通知各模块重新加载云端数据（确保 ref 与 storage 一致）
+      window.dispatchEvent(new CustomEvent('data-sync-complete', { detail: { pulled } }));
     }).catch(() => {});
     } // 结束 else（冷启动完整同步）
   } else {
@@ -942,6 +939,16 @@ onMounted(async () => {
           } catch {}
         }
       } catch {}
+      // 🔔 通知各模块重新加载云端数据（确保 ref 与 storage 一致）
+      window.dispatchEvent(new CustomEvent('data-sync-complete'));
+    }
+  });
+
+  // 📱 签名倒计时重置：SettingsModule 中用户点击"已续签"后刷新顶部徽章
+  window.addEventListener('sign-countdown-reset', () => {
+    if (isCapacitorIOS.value) {
+      signInfo.value = getSignCountdown();
+      console.log('[App] 签名倒计时已重置:', signInfo.value.daysRemaining + '天');
     }
   });
 });
@@ -1135,10 +1142,11 @@ onMounted(async () => {
 
   .guide-overlay {
     align-items: flex-end;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .guide-card {
     width: 100%;
-    padding: 20px 16px;
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px));
     border-radius: 16px 16px 0 0;
     max-height: 80vh;
     overflow-y: auto;

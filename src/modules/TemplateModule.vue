@@ -3235,6 +3235,11 @@ kbd {
 
 /* 📱 移动端弹窗适配 */
 @media (max-width: 767px) {
+  /* 弹窗安全区适配 */
+  .modal-mask {
+    padding: env(safe-area-inset-top, 12px) 12px env(safe-area-inset-bottom, 12px) 12px;
+    box-sizing: border-box;
+  }
   /* 双图标切换 */
   .icon-mobile { display: inline; }
   .icon-desktop { display: none; }
@@ -3247,7 +3252,7 @@ kbd {
     max-width: 90vw !important;
     padding: 16px 14px !important;
     border-radius: 12px !important;
-    max-height: 82vh !important;
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px) !important;
     overflow-y: auto !important;
   }
   .modal:not(.draggable-modal):not(.outline-editor-modal)::before {
@@ -3290,7 +3295,7 @@ kbd {
     max-width: 100vw !important;
     padding: 16px 12px !important;
     border-radius: 12px !important;
-    max-height: 85vh !important;
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px) !important;
     display: flex !important;
     flex-direction: column !important;
     overflow-y: hidden !important;

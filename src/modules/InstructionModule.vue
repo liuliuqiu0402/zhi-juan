@@ -562,13 +562,18 @@ const viewInstruction = (ins) => {
 
 /* 📱 移动端弹窗适配 */
 @media (max-width: 767px) {
+  /* 弹窗安全区适配 */
+  .modal-mask {
+    padding: env(safe-area-inset-top, 12px) 12px env(safe-area-inset-bottom, 12px) 12px;
+    box-sizing: border-box;
+  }
   .modal {
     min-width: 0 !important;
     width: 92vw !important;
     max-width: 92vw !important;
     padding: 16px 14px !important;
     border-radius: 12px !important;
-    max-height: 85vh !important;
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px) !important;
   }
   .modal::before {
     border-radius: 10px 10px 0 0 !important;
