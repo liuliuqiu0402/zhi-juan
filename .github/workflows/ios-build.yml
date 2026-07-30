@@ -39,7 +39,7 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Build iOS (unsigned)
+      - name: Build iOS (ad-hoc signed for re-signing)
         working-directory: ios/App
         run: |
           xcodebuild \
@@ -48,9 +48,11 @@ jobs:
             -sdk iphoneos \
             -configuration Release \
             -destination 'generic/platform=iOS' \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGNING_ALLOWED=YES \
+            PROVISIONING_PROFILE_SPECIFIER="" \
             build \
             | xcpretty || xcodebuild \
             -project App.xcodeproj \
@@ -58,9 +60,11 @@ jobs:
             -sdk iphoneos \
             -configuration Release \
             -destination 'generic/platform=iOS' \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGNING_ALLOWED=YES \
+            PROVISIONING_PROFILE_SPECIFIER="" \
             build
 
       - name: Package as IPA
@@ -80,15 +84,15 @@ jobs:
           cp -R "$APP_PATH" Payload/
 
           # Create IPA (zip + rename)
-          zip -r "智卷工坊.ipa" Payload/
+          zip -r "zhijuan.ipa" Payload/
           rm -rf Payload
 
-          echo "IPA created: 智卷工坊.ipa"
-          ls -lh "智卷工坊.ipa"
+          echo "IPA created: zhijuan.ipa"
+          ls -lh "zhijuan.ipa"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: 智卷工坊-iOS
-          path: ios/App/智卷工坊.ipa
+          name: zhijuan-iOS
+          path: ios/App/zhijuan.ipa
           retention-days: 7
