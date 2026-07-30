@@ -637,6 +637,7 @@ onMounted(async () => {
 
   // ☁️ 云端数据同步（桌面端 + Web 端均尝试）
   if (isCloudConfigured()) {
+    console.log('☁️ Supabase 已配置，开始云端同步...');
     // 🔧 始终同步指令库到云端（确保 HMR 场景下已存在的自定义指令不会丢失）
     try {
       const { useInstructionStore } = await import('@/stores/instructionStore');
@@ -649,7 +650,9 @@ onMounted(async () => {
     } else {
     pullFromCloud().then(async ({ textbooks, docHistory, settings, activationInfo, generatedDocs, instructions, templates }) => {
       // 🔽 下拉：云端 → 本地
-      if (textbooks) {
+      const pulled = [];
+      if (textbooks && textbooks.length > 0) {
+        pulled.push('教材' + textbooks.length + '本');
         await storage.setItem('textbooks', textbooks).catch(() => {});
         // 🔄 重载教材 store（确保已加载的组件获取最新数据）
         try {
@@ -658,14 +661,17 @@ onMounted(async () => {
         } catch {}
       }
       if (docHistory) {
+        pulled.push('历史' + docHistory.length + '条');
         await storage.setItem('docHistory', docHistory).catch(() => {});
       }
       // 📋 生成结果面板同步
       if (generatedDocs && generatedDocs.length > 0) {
+        pulled.push('生成结果' + generatedDocs.length + '条');
         localStorage.setItem('wisdom_generated_docs', JSON.stringify(generatedDocs));
       }
       // 📝 指令库同步（仅同步自定义指令，含桌面端手动修改的）
       if (instructions && instructions.length > 0) {
+        pulled.push('指令' + instructions.length + '条');
         localStorage.setItem('instructionLib', JSON.stringify(instructions));
         // 🔧 同步写入版本号，防止 loadInstructionLib 版本检查时误清数据
         localStorage.setItem('instructionLib_version', '12');
@@ -677,6 +683,7 @@ onMounted(async () => {
       }
       // 📋 模板库同步
       if (templates && templates.length > 0) {
+        pulled.push('模板' + templates.length + '个');
         await storage.setItem('templates', templates).catch(() => {});
         // 🔄 重载模板 store
         try {
@@ -687,6 +694,7 @@ onMounted(async () => {
 
       // 🔑 激活信息同步
       if (activationInfo) {
+        pulled.push('激活信息');
         // 下拉到本地：保存云端激活信息（手机端直接使用，桌面端作为备份）
         localStorage.setItem('activationInfo', JSON.stringify(activationInfo));
         try { await storage.setItem('activationInfo', activationInfo); } catch {}
@@ -785,8 +793,19 @@ onMounted(async () => {
           uploadActivationInfo(cleanActivation);
         }
       }
+      // 📱 手机端：显示同步结果
+      if (pulled.length > 0) {
+        showToastMessage('☁️ 已同步: ' + pulled.join('、'), 'info');
+        console.log('☁️ 冷启动云端同步完成:', pulled.join('、'));
+      } else {
+        showToastMessage('☁️ 云端暂无数据，请在桌面端点刷新上传', 'info');
+        console.log('☁️ 冷启动：云端无数据');
+      }
     }).catch(() => {});
     } // 结束 else（冷启动完整同步）
+  } else {
+    console.warn('☁️ Supabase 未配置！VITE_SUPABASE_URL/ANON_KEY 缺失');
+    showToastMessage('⚠️ 云端未配置，无法同步数据', 'info');
   }
 
   setupMenuListeners();
