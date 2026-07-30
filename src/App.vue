@@ -703,6 +703,7 @@ onMounted(async () => {
       }
     }
     // 🔽 完整云端下拉（冷启动 或 热启动回退）
+    showToastMessage('☁️ 同步中…', 'info');
     pullFromCloud().then(async ({ textbooks, docHistory, settings, activationInfo, generatedDocs, instructions, templates }) => {
       // 🔽 下拉：云端 → 本地
       const pulled = [];
@@ -780,8 +781,8 @@ onMounted(async () => {
       }
       // ⚙️ 引擎设置从云端恢复（共享 key，桌面/手机互通）
       if (settings && Object.keys(settings).length > 0) {
-        // 仅同步 DeepSeek 连接配置，currentEngine 各设备独立
-        const engineFields = ['deepseekBaseUrl', 'deepseekApiKey',
+        // 同步 DeepSeek 连接配置 + 引擎选择（手机端跳过 Ollama 字段）
+        const engineFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
           'deepseekGenerationModel', 'deepseekAnalysisModel'];
         // 桌面端额外恢复 Ollama 字段（手机端跳过，避免混乱）
         if (!isWebMode.value) {
@@ -792,13 +793,18 @@ onMounted(async () => {
           if (settings[f] !== undefined && settings[f] !== apiConfig[f]) {
             apiConfig[f] = settings[f];
             needsApply = true;
+            console.log('☁️ 从云端恢复字段:', f, '=', settings[f]);
           }
         }
         if (needsApply) {
           // 持久化到 localStorage，下次启动直接读取
           await saveConfig(Object.assign({}, apiConfig));
-          console.log('☁️ 从云端恢复引擎设置:', settings.currentEngine, isWebMode.value ? '(手机端)' : '(桌面端)');
+          console.log('☁️ 从云端恢复引擎设置完成, currentEngine:', settings.currentEngine, isWebMode.value ? '(手机端)' : '(桌面端)');
+        } else {
+          console.log('☁️ 云端设置与本地一致，跳过');
         }
+      } else {
+        console.log('☁️ 云端无设置数据');
       }
 
       // 🔼 桌面端冷启动：仅推送单向数据到云端（教材/模板/指令/设置/激活）
@@ -830,11 +836,15 @@ onMounted(async () => {
           if (localTemplates && localTemplates.length > 0) await uploadTemplates(localTemplates);
         } catch {}
         try {
-          const settingsToPush = {};
-          const engineFields = ['deepseekBaseUrl', 'deepseekApiKey',
+          // ☁️ 仅推送 DeepSeek 配置（手机端只接收这些，Ollama 字段不上云）
+          const dsFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
             'deepseekGenerationModel', 'deepseekAnalysisModel'];
-          for (const f of engineFields) { if (apiConfig[f]) settingsToPush[f] = apiConfig[f]; }
-          if (Object.keys(settingsToPush).length > 0) await uploadSettings(settingsToPush);
+          const settingsToPush = {};
+          for (const f of dsFields) { if (apiConfig[f]) settingsToPush[f] = apiConfig[f]; }
+          if (Object.keys(settingsToPush).length > 0) {
+            await uploadSettings(settingsToPush);
+            console.log('☁️ 冷启动已推送设置:', Object.keys(settingsToPush).join(', '));
+          }
         } catch {}
       }
 
@@ -913,6 +923,7 @@ onMounted(async () => {
     refreshKey.value++;
     console.log('🔄 软刷新：重置当前页面状态');
     if (isCloudConfigured()) {
+      showToastMessage('☁️ 同步中…', 'info');
       try {
         // ① 🔽 先从云端拉取最新数据（避免后推覆盖先推的冲突）
         const cloudData = await pullFromCloud();
@@ -956,12 +967,10 @@ onMounted(async () => {
             }
           } catch {}
           try {
-            const settingsToPush = {};
-            const engineFields = ['deepseekBaseUrl', 'deepseekApiKey',
+            const dsFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
               'deepseekGenerationModel', 'deepseekAnalysisModel'];
-            for (const f of engineFields) {
-              if (apiConfig[f]) settingsToPush[f] = apiConfig[f];
-            }
+            const settingsToPush = {};
+            for (const f of dsFields) { if (apiConfig[f]) settingsToPush[f] = apiConfig[f]; }
             if (Object.keys(settingsToPush).length > 0) {
               await uploadSettings(settingsToPush);
               desktopPushResults.push('设置');
@@ -1043,7 +1052,7 @@ onMounted(async () => {
         }
         // 设置
         if (cloudData.settings && Object.keys(cloudData.settings).length > 0) {
-          const engineFields = ['deepseekBaseUrl', 'deepseekApiKey',
+          const engineFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
             'deepseekGenerationModel', 'deepseekAnalysisModel'];
           let needsApply = false;
           for (const f of engineFields) {
@@ -1054,6 +1063,7 @@ onMounted(async () => {
           }
           if (needsApply) {
             await saveConfig(Object.assign({}, apiConfig));
+            console.log('🔄 刷新：已应用云端设置, currentEngine:', cloudData.settings.currentEngine);
           }
         }
         // 激活
@@ -1078,6 +1088,7 @@ onMounted(async () => {
         }
 
         console.log('🔄 刷新同步完成', isWebMode.value ? '(手机端)' : '(桌面端)');
+        showToastMessage('✅ 同步完成', 'info');
       } catch (e) { console.warn('🔄 刷新同步失败:', e); }
       // 🔔 通知各模块重新加载云端数据
       window.dispatchEvent(new CustomEvent('data-sync-complete'));
