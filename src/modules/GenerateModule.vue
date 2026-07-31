@@ -21,7 +21,10 @@
         <button class="ribbon-btn" @click="showDetailConfigModal = true">
           📝 详细配置
         </button>
-        <button class="ribbon-btn ribbon-btn-refresh hide-on-mobile" @click="refreshPage" title="刷新页面">
+        <button class="ribbon-btn ribbon-btn-sync" @click="syncPage" title="同步云端数据：拉取其他设备的教材/模板/生成结果（不重置任务）">
+          ☁️
+        </button>
+        <button class="ribbon-btn ribbon-btn-refresh" @click="refreshPage" title="重置任务：清空当前所有操作，恢复初始状态">
           🔄
         </button>
         <!-- 📱 移动端模型状态 -->
@@ -2722,25 +2725,18 @@ const loadGeneratedDocs = () => {
   return [];
 };
 const generatedDocs = ref(loadGeneratedDocs());
-let _skipNextDocsSave = false; // 守卫：云端合并回写时跳过重复保存
 const saveGeneratedDocs = () => {
-  if (_skipNextDocsSave) { _skipNextDocsSave = false; return; }
   try {
     // 🔧 同步裁剪：内存 + localStorage 同时截断，避免刷新丢数据且内存不膨胀
     if (generatedDocs.value.length > 20) {
       generatedDocs.value = generatedDocs.value.slice(-20);
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(generatedDocs.value));
-    // 🔒 安全上传：先拉云端→合并→再上传（防多端并发生成互相覆盖）
+    // 🔒 静默推送到云端（云端自动合并），不拉取不回写本地
+    //    各端各自推送，云端始终是最新合并结果，手动同步时统一下拉
     if (isCloudConfigured()) {
       const snapshot = [...generatedDocs.value];
-      safeUploadGeneratedDocs(snapshot).then(merged => {
-        if (JSON.stringify(merged) !== JSON.stringify(snapshot)) {
-          _skipNextDocsSave = true;
-          generatedDocs.value = merged;
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-        }
-      }).catch(() => {});
+      safeUploadGeneratedDocs(snapshot).catch(() => {});
     }
   } catch (e) { console.warn('保存生成记录失败:', e.message); }
 };
@@ -2976,9 +2972,20 @@ const handleMobileGenerate = (mode) => {
   generate(mode);
 };
 
-// 🔄 刷新页面
+// 🔄 重置任务：清空当前所有操作状态，恢复初始界面
+//    与数据同步(cloud sync)分离：同步只拉数据不破坏任务，重置才清空
 const refreshPage = () => {
-  window.location.reload();
+  // 先清空本模块的临时状态（避免组件重建后仍读取旧值）
+  instructionDraft.value = '';
+  generatedDocs.value = [];
+  showPreview.value = false;
+  // 通知 App 层做组件级软刷新
+  window.dispatchEvent(new CustomEvent('reset-task'));
+};
+
+// ☁️ 手动同步：拉取云端数据+推送本地数据（双向合并，不重置任务）
+const syncPage = () => {
+  window.dispatchEvent(new CustomEvent('app-refresh'));
 };
 
 // 🌐 DeepSeek API 真实就绪检测
@@ -3853,6 +3860,12 @@ const buildInstruction = async () => {
     '生成-范围扩展',         // scope_cross_* 系列（Section: 跨章综合语义 + chapterCount 替换）
     '生成-格式尾约束',       // format_tail_* 系列（recency 锚点，所有引擎通用）
     '生成-多章节标题',       // multi_ch_title_* 系列（多章节降级标题格式 + {titles} 替换）
+    // 🔧 补建（2026）：5个新类别，在 buildGenerationInstruction 中有专属 Section
+    '生成-学段控制',         // stage_* 系列：题量/难度/时长按学段建议
+    '生成-题量控制',         // layout_* 系列：建议总题量范围
+    '生成-难度控制',         // diff_control_* 系列：基础:中等:提高比例
+    '生成-学科核心素养',     // core_literacy_* 系列：课标核心素养关键词
+    '生成-学科禁止项',       // ban_supplement_* 系列：学科专属红线（与通用禁止项互补）
     // 非生成用途（分析用）
     '分析-文本分析规范', '分析-分析模板示例', '分析-分析提取要求', '分析-知识图谱构建',
   ]);
@@ -6775,9 +6788,8 @@ const saveToHistory = async (doc) => {
   const history = (await storage.getItem('docHistory')) || [];
   history.unshift({ ...doc, savedAt: Date.now() });
   await storage.setItem('docHistory', history.slice(0, 50));
-  // ☁️ 同步到云端
+  // ☁️ 静默同步到云端
   uploadDocHistory(history.slice(0, 50)).catch(() => {});
-  await showAlertDialogFn('已保存到历史');
 };
 
 const collectGraph = async (doc, idx) => {
@@ -7020,12 +7032,24 @@ watch([() => selectedTextbooks.value?.[0]?.subject, () => selectedTextbooks.valu
 
 // 初始化
 // ☁️ 云端数据同步完成后重新加载生成结果
+//    ⚠️ 竞态防护：生成中不覆盖，且只增量不删减（防 localStorage 滞后导致结果丢失）
 const onCloudSync = () => {
+  if (isGenerating.value) return;  // 生成进行中，跳过同步覆盖
   const fresh = loadGeneratedDocs();
-  if (fresh.length > 0) {
+  // 仅当 localStorage 数据不少于当前内存时才覆盖（增量同步，不丢数据）
+  if (fresh.length > 0 && fresh.length >= generatedDocs.value.length) {
     generatedDocs.value = fresh;
     console.log('☁️ [GenerateModule] 同步完成，已加载 ' + fresh.length + ' 条生成结果');
+  } else if (fresh.length > 0) {
+    console.log('☁️ [GenerateModule] 同步跳过：本地 ' + generatedDocs.value.length + ' 条 > 云端 ' + fresh.length + ' 条，保留本地');
   }
+};
+
+// 📱 下拉刷新处理器：仅重载数据（教材/模板），不重置任务状态
+const onPullRefresh = () => {
+  textbookStore.loadTextbooks().catch(() => {});
+  templateStore.loadTemplates().catch(() => {});
+  console.log('📱 下拉刷新：已重载教材和模板数据（保留当前任务）');
 };
 
 onMounted(async () => {
@@ -7036,6 +7060,9 @@ onMounted(async () => {
   await getCurrentEngineConfig();
   // 🌐 检测 DeepSeek API 真实就绪状态
   checkDeepSeekReady();
+
+  // 📱 下拉刷新（仅同步数据，不重置任务状态）
+  window.addEventListener('pull-refresh', onPullRefresh);
 
   // 🔧 新增：监听来自指令库/历史记录的指令加载事件
   window.addEventListener(APP_EVENTS.LOAD_INSTRUCTION, (e) => {
@@ -7048,6 +7075,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener('pull-refresh', onPullRefresh);
   window.removeEventListener('data-sync-complete', onCloudSync);
 });
 
@@ -9189,7 +9217,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     width: 100% !important;
   }
 
-  .ribbon-btn-refresh {
+  .ribbon-btn-refresh, .ribbon-btn-sync {
     font-size: 16px !important;
     padding: 6px 10px !important;
     min-width: 36px;

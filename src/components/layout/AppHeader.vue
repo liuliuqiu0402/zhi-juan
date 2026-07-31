@@ -28,7 +28,7 @@
       <span v-else-if="signInfo && !signInfo.found" class="mobile-sign-badge unknown">
         📱 未签名
       </span>
-      <button class="header-btn header-btn-sm" @click="refreshApp" title="刷新">🔄</button>
+      <button class="header-btn header-btn-sm" @click="refreshApp" title="同步云端数据">☁️</button>
     </div>
   </header>
 </template>

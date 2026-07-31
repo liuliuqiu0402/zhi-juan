@@ -184,7 +184,7 @@ import { useMobile } from '@/composables/useMobile.js';
 import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
-import { pullFromCloud, isCloudConfigured, uploadTextbooks, uploadDocHistory, uploadActivationInfo, uploadGeneratedDocs, safeUploadGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings, mergeGeneratedDocs } from '@/utils/cloudStorage';
+import { pullFromCloud, isCloudConfigured, uploadTextbooks, uploadDocHistory, uploadActivationInfo, safeUploadGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings, mergeGeneratedDocs } from '@/utils/cloudStorage';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
 import { apiConfig, getCurrentEngineConfig, loadConfigSync } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
@@ -342,8 +342,6 @@ if (typeof window !== 'undefined') {
 }
 
 const handlePullRefresh = async () => {
-  // 通知当前模块刷新
-  window.dispatchEvent(new CustomEvent('pull-refresh'));
   // 云端同步（仅下载，不上推——防止手机端覆盖桌面端数据）
   if (isCloudConfigured()) {
     try {
@@ -395,97 +393,7 @@ const handlePullRefresh = async () => {
       window.dispatchEvent(new CustomEvent('data-sync-complete'));
     } catch {}
   }
-  showToastMessage('✅ 已刷新', 'info');
-};
-
-// 🔥 热启动安全上推：仅上传本地数据到云端，不做下拉（避免云端旧数据覆盖本地）
-const quickPushToCloud = async () => {
-  const results = [];
-  try {
-    // ── 桌面端专属单向推送（教材/模板/指令/设置/激活）──
-    if (!isWebMode.value) {
-    // 教材
-    const localTextbooks = await storage.getItem('textbooks');
-    if (localTextbooks && localTextbooks.length > 0) {
-      try {
-        await uploadTextbooks(localTextbooks);
-        results.push('教材');
-      } catch (e) { console.warn('☁️ 教材上传失败:', e); }
-    }
-    // 激活信息
-    try {
-      const rawAct = localStorage.getItem('activationInfo');
-      if (rawAct) {
-        const act = JSON.parse(rawAct);
-        if (act && act.version && act.version !== 'basic') {
-          const { _sign, ...clean } = act;
-          await uploadActivationInfo(clean);
-          results.push('激活信息');
-        }
-      }
-    } catch (e) { console.warn('☁️ 激活信息上传失败:', e); }
-    // 指令库
-    try {
-      const rawIns = localStorage.getItem('instructionLib');
-      if (rawIns) {
-        const parsed = JSON.parse(rawIns);
-        if (parsed && parsed.length > 0) {
-          await uploadInstructions(parsed);
-          results.push('指令库');
-        }
-      }
-    } catch (e) { console.warn('☁️ 指令库上传失败:', e); }
-    // 模板
-    try {
-      const localTemplates = await storage.getItem('templates');
-      if (localTemplates && localTemplates.length > 0) {
-        await uploadTemplates(localTemplates);
-        results.push('模板');
-      }
-    } catch (e) { console.warn('☁️ 模板上传失败:', e); }
-    // 设置
-    try {
-      const settingsToPush = {};
-      const engineFields = ['deepseekBaseUrl', 'deepseekApiKey',
-        'deepseekGenerationModel', 'deepseekAnalysisModel'];
-      for (const f of engineFields) {
-        if (apiConfig[f]) settingsToPush[f] = apiConfig[f];
-      }
-      if (Object.keys(settingsToPush).length > 0) {
-        await uploadSettings(settingsToPush);
-        results.push('设置');
-      }
-    } catch (e) { console.warn('☁️ 设置上传失败:', e); }
-    } // 结束桌面端专属
-    // ── 双向同步（手机↔桌面互通）：仅生成结果 + 历史记录 ──
-    // 历史
-    const localHistory = await storage.getItem('docHistory');
-    if (localHistory && localHistory.length > 0) {
-      try {
-        await uploadDocHistory(localHistory);
-        results.push('历史');
-      } catch (e) { console.warn('☁️ 历史上传失败:', e); }
-    }
-    // 生成结果（安全合并上传：先拉云端→合并→再上传）
-    try {
-      const raw = localStorage.getItem('wisdom_generated_docs');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.length > 0) {
-          const merged = await safeUploadGeneratedDocs(parsed);
-          if (merged.length !== parsed.length) {
-            localStorage.setItem('wisdom_generated_docs', JSON.stringify(merged));
-          }
-          results.push('生成结果');
-        }
-      }
-    } catch (e) { console.warn('☁️ 生成结果上传失败:', e); }
-    if (results.length > 0) {
-      console.log('☁️ 已上推云端:', results.join('、'));
-    } else {
-      console.log('☁️ 无本地数据需要上推');
-    }
-  } catch { /* 静默失败 */ }
+  showToastMessage('✅ 同步完成', 'info');
 };
 
 // Toast 辅助方法（App.vue 级别使用）
@@ -683,206 +591,26 @@ onMounted(async () => {
   if (isCapacitorIOS.value) {
     signInfo.value = getSignCountdown();
     console.log('[App] 签名倒计时:', signInfo.value.daysRemaining + '天');
+    // ⏰ 自动倒数：每小时更新一次剩余天数（按天精度）
+    setInterval(() => {
+      const updated = getSignCountdown();
+      if (updated.daysRemaining !== signInfo.value?.daysRemaining) {
+        signInfo.value = updated;
+        console.log('[App] 签名倒计时更新:', updated.daysRemaining + '天');
+      }
+    }, 3600000);  // 1小时
   }
 
-  // ☁️ 云端数据同步（桌面端 + Web 端均尝试）
+  // ☁️ 云端配置检查 + 指令库同步
+  //    ❄️ 不做自动数据拉取/推送，统一走手动 ☁️ 同步按钮（app-refresh 事件）
   if (isCloudConfigured()) {
-    console.log('☁️ Supabase 已配置，开始云端同步...');
-    // 🔧 始终同步指令库到云端（确保 HMR 场景下已存在的自定义指令不会丢失）
+    console.log('☁️ Supabase 已配置');
+    // 🔧 始终同步指令库到云端（确保已存在的自定义指令不会丢失）
     try {
       const { useInstructionStore } = await import('@/stores/instructionStore');
       useInstructionStore().syncToCloudIfNeeded();
     } catch {}
-    // 🔥 热启动：仅做完整性检查，不做任何上推（同步统一走刷新按钮）
-    if (isWarmStart) {
-      console.log('🔥 检测到热启动（距上次 pagehide < 10min）');
-      // ⚠️ 防御：iOS 存储压力大时可能清空 IndexedDB，若关键数据丢失必须从云端恢复
-      const localTextbooks = await storage.getItem('textbooks');
-      const localTemplates = await storage.getItem('templates');
-      if ((!localTextbooks || localTextbooks.length === 0) && (!localTemplates || localTemplates.length === 0)) {
-        console.warn('⚠️ 热启动检测到本地数据全部丢失，回退到完整云端下拉恢复');
-        // 回退到完整同步（不 return，继续执行下方 pullFromCloud）
-      } else {
-        // 📱 本地数据完整：跳过一切同步，保留原界面（双向同步统一走刷新按钮）
-        console.log('🔥 热启动完成，本地数据完整');
-        return;
-      }
-    }
-    // 🔽 完整云端下拉（冷启动 或 热启动回退）
-    showToastMessage('☁️ 同步中…', 'info');
-    pullFromCloud().then(async ({ textbooks, docHistory, settings, activationInfo, generatedDocs, instructions, templates }) => {
-      // 🔽 下拉：云端 → 本地
-      const pulled = [];
-      if (textbooks && textbooks.length > 0) {
-        // ⚠️ 安全网：云端数据量少于本地时不覆盖
-        const localTextbooks = await storage.getItem('textbooks');
-        if (!localTextbooks || localTextbooks.length === 0 || textbooks.length >= localTextbooks.length) {
-          pulled.push('教材' + textbooks.length + '本');
-          await storage.setItem('textbooks', textbooks).catch(() => {});
-          // 🔄 重载教材 store（确保已加载的组件获取最新数据）
-          try {
-            const { useTextbookStore } = await import('@/stores/textbookStore');
-            await useTextbookStore().loadTextbooks();
-          } catch {}
-        } else {
-          console.warn('⚠️ 云端教材(' + textbooks.length + ')少于本地(' + localTextbooks.length + ')，跳过覆盖');
-          pulled.push('教材(已保留本地' + localTextbooks.length + '本)');
-        }
-      }
-      if (docHistory && docHistory.length > 0) {
-        const localHistory = await storage.getItem('docHistory') || [];
-        const map = new Map();
-        for (const item of docHistory) { const id = item?.id; if (id) map.set(id, item); }
-        for (const item of localHistory) { const id = item?.id; if (id) map.set(id, item); }
-        const merged = Array.from(map.values()).sort((a, b) => ((b?.savedAt || 0) - (a?.savedAt || 0))).slice(0, 50);
-        pulled.push('历史' + merged.length + '条');
-        await storage.setItem('docHistory', merged).catch(() => {});
-      }
-      // 📋 生成结果面板同步（合并云端与本地，按 id 去重）
-      if (generatedDocs && generatedDocs.length > 0) {
-        const localRaw = localStorage.getItem('wisdom_generated_docs');
-        const localDocs = localRaw ? JSON.parse(localRaw) : [];
-        const mergedGD = mergeGeneratedDocs(generatedDocs, localDocs);
-        pulled.push('生成结果' + mergedGD.length + '条');
-        localStorage.setItem('wisdom_generated_docs', JSON.stringify(mergedGD));
-      }
-      // 📝 指令库同步（安全网：云端少于本地时不覆盖）
-      if (instructions && instructions.length > 0) {
-        const localRaw = localStorage.getItem('instructionLib');
-        let localCount = 0;
-        if (localRaw) { try { const p = JSON.parse(localRaw); localCount = p.length || 0; } catch {} }
-        if (localCount === 0 || instructions.length >= localCount) {
-          pulled.push('指令' + instructions.length + '条');
-          localStorage.setItem('instructionLib', JSON.stringify(instructions));
-          // 🔧 同步写入版本号，防止 loadInstructionLib 版本检查时误清数据
-          localStorage.setItem('instructionLib_version', '12');
-          // 🔄 重载指令库 store
-          try {
-            const { useInstructionStore } = await import('@/stores/instructionStore');
-            useInstructionStore().reload();
-          } catch {}
-        } else {
-          console.warn('⚠️ 云端指令(' + instructions.length + ')少于本地(' + localCount + ')，跳过覆盖');
-        }
-      }
-      // 📋 模板库同步（安全网：云端少于本地时不覆盖）
-      if (templates && templates.length > 0) {
-        const localTemplates = await storage.getItem('templates');
-        if (!localTemplates || localTemplates.length === 0 || templates.length >= localTemplates.length) {
-          pulled.push('模板' + templates.length + '个');
-          await storage.setItem('templates', templates).catch(() => {});
-          // 🔄 重载模板 store
-          try {
-            const { useTemplateStore } = await import('@/stores/templateStore');
-            await useTemplateStore().loadTemplates();
-          } catch {}
-        } else {
-          console.warn('⚠️ 云端模板(' + templates.length + ')少于本地(' + localTemplates.length + ')，跳过覆盖');
-        }
-      }
-
-      // 🔑 激活信息同步
-      if (activationInfo) {
-        pulled.push('激活信息');
-        // 下拉到本地：保存云端激活信息（手机端直接使用，桌面端作为备份）
-        localStorage.setItem('activationInfo', JSON.stringify(activationInfo));
-        try { await storage.setItem('activationInfo', activationInfo); } catch {}
-        // 📱 手机端：应用云端激活信息到 licenseInfo（跳过机器码校验）
-        if (isWebMode.value) {
-          licenseInfo.value = { ...activationInfo, isActive: true };
-          activationStatus.value = 'active';
-        }
-      }
-      // ⚙️ 引擎设置从云端恢复（共享 key，桌面/手机互通）
-      if (settings && Object.keys(settings).length > 0) {
-        // 同步 DeepSeek 连接配置 + 引擎选择（手机端跳过 Ollama 字段）
-        const engineFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
-          'deepseekGenerationModel', 'deepseekAnalysisModel'];
-        // 桌面端额外恢复 Ollama 字段（手机端跳过，避免混乱）
-        if (!isWebMode.value) {
-          engineFields.push('ollamaBaseUrl', 'ollamaTextModel', 'ollamaLightModel');
-        }
-        let needsApply = false;
-        for (const f of engineFields) {
-          if (settings[f] !== undefined && settings[f] !== apiConfig[f]) {
-            apiConfig[f] = settings[f];
-            needsApply = true;
-            console.log('☁️ 从云端恢复字段:', f, '=', settings[f]);
-          }
-        }
-        if (needsApply) {
-          // 持久化到 localStorage，下次启动直接读取
-          await saveConfig(Object.assign({}, apiConfig));
-          console.log('☁️ 从云端恢复引擎设置完成, currentEngine:', settings.currentEngine, isWebMode.value ? '(手机端)' : '(桌面端)');
-        } else {
-          console.log('☁️ 云端设置与本地一致，跳过');
-        }
-      } else {
-        console.log('☁️ 云端无设置数据');
-      }
-
-      // 🔼 桌面端冷启动：仅推送单向数据到云端（教材/模板/指令/设置/激活）
-      //    双向数据（历史+生成结果）统一走刷新按钮，不在此处上推
-      if (!isWebMode.value) {
-        try {
-          const localTextbooks = await storage.getItem('textbooks');
-          if (localTextbooks && localTextbooks.length > 0) await uploadTextbooks(localTextbooks);
-        } catch {}
-        try {
-          const rawAct = localStorage.getItem('activationInfo');
-          if (rawAct) {
-            const act = JSON.parse(rawAct);
-            if (act && act.version && act.version !== 'basic') {
-              const { _sign, ...clean } = act;
-              await uploadActivationInfo(clean);
-            }
-          }
-        } catch {}
-        try {
-          const rawIns = localStorage.getItem('instructionLib');
-          if (rawIns) {
-            const parsed = JSON.parse(rawIns);
-            if (parsed && parsed.length > 0) await uploadInstructions(parsed);
-          }
-        } catch {}
-        try {
-          const localTemplates = await storage.getItem('templates');
-          if (localTemplates && localTemplates.length > 0) await uploadTemplates(localTemplates);
-        } catch {}
-        try {
-          // ☁️ 仅推送 DeepSeek 配置（手机端只接收这些，Ollama 字段不上云）
-          const dsFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
-            'deepseekGenerationModel', 'deepseekAnalysisModel'];
-          const settingsToPush = {};
-          for (const f of dsFields) { if (apiConfig[f]) settingsToPush[f] = apiConfig[f]; }
-          if (Object.keys(settingsToPush).length > 0) {
-            await uploadSettings(settingsToPush);
-            console.log('☁️ 冷启动已推送设置:', Object.keys(settingsToPush).join(', '));
-          }
-        } catch {}
-      }
-
-      // 📱 同步提示（桌面端仅提示双向数据：生成结果+历史记录）
-      if (pulled.length > 0) {
-        const displayItems = isWebMode.value
-          ? pulled
-          : pulled.filter(p => p.startsWith('历史') || p.startsWith('生成结果'));
-        if (displayItems.length > 0) {
-          showToastMessage('☁️ 已同步: ' + displayItems.join('、'), 'info');
-        }
-        console.log('☁️ 冷启动云端同步完成:', pulled.join('、'));
-      } else {
-        showToastMessage(isWebMode.value
-          ? '☁️ 云端暂无数据，请在电脑端上传'
-          : '☁️ 云端暂无数据，请在桌面端点刷新上传', 'info');
-        console.log('☁️ 冷启动：云端无数据');
-      }
-      // 🔔 通知各模块重新加载云端数据（确保 ref 与 storage 一致）
-      window.dispatchEvent(new CustomEvent('data-sync-complete', { detail: { pulled } }));
-    }).catch(() => {});
-  } else {
-    console.warn('☁️ Supabase 未配置！VITE_SUPABASE_URL/ANON_KEY 缺失');
-    showToastMessage('⚠️ 云端未配置，无法同步数据', 'info');
+    console.log((isWarmStart ? '🔥 热启动' : '❄️ 冷启动') + ' — 请手动点击 ☁️ 按钮同步云端数据');
   }
 
   setupMenuListeners();
@@ -1001,7 +729,7 @@ onMounted(async () => {
           }
         }
 
-        // ③ 🔀 合并双向数据：cloud ∪ local（按 id 去重，解决两端同时新增冲突）
+        // ③ 🔀 合并双向数据：cloud ∪ local（统一用 cloudStorage 的 mergeGeneratedDocs）
         const localHistory = await storage.getItem('docHistory') || [];
         const localGenRaw = localStorage.getItem('wisdom_generated_docs');
         const localGenerated = localGenRaw ? JSON.parse(localGenRaw) : [];
@@ -1009,35 +737,25 @@ onMounted(async () => {
         const cloudHistory = cloudData.docHistory || [];
         const cloudGenerated = cloudData.generatedDocs || [];
 
-        // 按 id 合并：云端 ∪ 本地，id 相同取本地（本地最新），无 id 用内容指纹兜底
-        const mergeById = (cloudArr, localArr) => {
-          const map = new Map();
-          let fallbackIdx = 0;
-          // 先加云端（后续 local 覆盖同 id 同指纹）
-          for (const item of cloudArr) {
-            const key = item.id || ('_fallback_' + (fallbackIdx++) + '_' + JSON.stringify(item).slice(0, 80));
-            map.set(key, item);
-          }
-          for (const item of localArr) {
-            const key = item.id || ('_fallback_' + (fallbackIdx++) + '_' + JSON.stringify(item).slice(0, 80));
-            map.set(key, item); // local 覆盖 cloud 同 id
-          }
-          // 按时间倒序（最新的在前），无时间戳的排在末尾
-          return Array.from(map.values()).sort((a, b) => {
-            const ta = a.savedAt || a.timestamp || 0;
-            const tb = b.savedAt || b.timestamp || 0;
-            return tb - ta;
-          });
-        };
-        const mergedHistory = mergeById(cloudHistory, localHistory).slice(0, 50);
-        const mergedGenerated = mergeById(cloudGenerated, localGenerated).slice(0, 20);
+        // 历史记录合并（保留最近50条）
+        const mergedHistory = mergeGeneratedDocs(cloudHistory, localHistory).slice(0, 50);
+        // 生成结果先本地合并（后续 safeUpload 返回云端最新合并结果）
+        let mergedGenerated = mergeGeneratedDocs(cloudGenerated, localGenerated).slice(0, 20);
 
-        // ④ 🔼 推送合并后的双向数据到云端
+        // ④ 🔼 推送合并后的双向数据到云端，用返回值更新 localStorage
         if (mergedHistory.length > 0) {
           await uploadDocHistory(mergedHistory).catch(() => {});
         }
-        if (mergedGenerated.length > 0) {
-          await safeUploadGeneratedDocs(mergedGenerated).catch(() => {});
+        // 🔒 安全上传：先拉云端→合并→上传，兜底直接上传
+        if (mergedGenerated.length > 0 || localGenerated.length > 0) {
+          const finalGenerated = await safeUploadGeneratedDocs(mergedGenerated).catch(() => mergedGenerated);
+          // 用 safeUpload 返回值（含云端最新合并）更新，而非本地合并结果
+          if (finalGenerated && finalGenerated.length > 0) {
+            mergedGenerated = finalGenerated;
+          } else if (mergedGenerated.length === 0 && localGenerated.length > 0) {
+            // 🛡️ 安全兜底：云端为空但本地有数据，回退到本地
+            mergedGenerated = localGenerated;
+          }
         }
 
         // ⑤ 💾 写入本地：双向数据写合并结果，单向数据写云端版本
@@ -1109,12 +827,18 @@ onMounted(async () => {
 
         console.log('🔄 刷新同步完成', isWebMode.value ? '(手机端)' : '(桌面端)');
         showToastMessage('✅ 同步完成', 'info');
-        // 🔄 二次刷新：数据已写入 localStorage，重新挂载组件以加载最新数据
-        refreshKey.value++;
+        // 🔔 通知各模块重新加载云端数据（不销毁组件，保留用户当前任务状态）
+        window.dispatchEvent(new CustomEvent('data-sync-complete'));
       } catch (e) { console.warn('🔄 刷新同步失败:', e); }
-      // 🔔 通知各模块重新加载云端数据
-      window.dispatchEvent(new CustomEvent('data-sync-complete'));
     }
+  });
+
+  // 🔄 任务重置：清空当前生成页状态，恢复初始界面（组件级软刷新）
+  //    与数据同步(cloud sync)分离——同步只拉数据不销毁组件，重置才重建组件
+  window.addEventListener('reset-task', () => {
+    console.log('🔄 任务重置：销毁重建当前组件');
+    refreshKey.value++;
+    showToastMessage('✅ 已重置', 'info');
   });
 
   // 📱 签名倒计时重置：SettingsModule 中用户点击"已续签"后刷新顶部徽章
@@ -1125,124 +849,6 @@ onMounted(async () => {
     }
   });
 
-  // 🔄 后台定时同步：每30秒静默拉取云端数据，实现跨设备即时同步
-  //    仅在页面可见时执行，避免后台浪费资源
-  let _syncTimer = null;
-  const SILENT_SYNC_INTERVAL = 30000; // 30秒
-  const silentCloudSync = async () => {
-    if (!isCloudConfigured() || document.hidden) return;
-    try {
-      const data = await pullFromCloud();
-      let changed = false;
-      // 教材（安全网：仅当云端数据不少于本地时才覆盖）
-      if (data.textbooks && data.textbooks.length > 0) {
-        const local = await storage.getItem('textbooks');
-        if (JSON.stringify(local) !== JSON.stringify(data.textbooks)) {
-          if (!local || local.length === 0 || data.textbooks.length >= local.length) {
-            await storage.setItem('textbooks', data.textbooks).catch(() => {});
-            // 重新加载教材 Store，确保 UI 刷新
-            try {
-              const { useTextbookStore } = await import('@/stores/textbookStore');
-              await useTextbookStore().loadTextbooks();
-            } catch {}
-            changed = true;
-          } else {
-            console.warn('⚠️ 后台同步：云端教材(' + data.textbooks.length + ')少于本地(' + local.length + ')，跳过覆盖');
-          }
-        }
-      }
-      // 历史（双向数据：合并而非覆盖，防止丢失本地新数据）
-      if (data.docHistory && data.docHistory.length > 0) {
-        const local = await storage.getItem('docHistory') || [];
-        if (JSON.stringify(local) !== JSON.stringify(data.docHistory)) {
-          // 合并：cloud ∪ local，按 id 去重，同 id 取本地
-          const map = new Map();
-          for (const item of data.docHistory) { if (item.id) map.set(item.id, item); }
-          for (const item of local) { if (item.id) map.set(item.id, item); }
-          const merged = Array.from(map.values()).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)).slice(0, 50);
-          if (JSON.stringify(merged) !== JSON.stringify(local)) {
-            await storage.setItem('docHistory', merged).catch(() => {});
-            changed = true;
-          }
-        }
-      }
-      // 生成结果（双向数据：合并→推送，防多端并发覆盖）
-      if (data.generatedDocs && data.generatedDocs.length > 0) {
-        const localRaw = localStorage.getItem('wisdom_generated_docs');
-        const local = localRaw ? JSON.parse(localRaw) : [];
-        if (JSON.stringify(local) !== JSON.stringify(data.generatedDocs)) {
-          const merged = mergeGeneratedDocs(data.generatedDocs, local);
-          if (JSON.stringify(merged) !== JSON.stringify(local)) {
-            localStorage.setItem('wisdom_generated_docs', JSON.stringify(merged));
-            changed = true;
-          }
-        }
-      }
-      // 指令库（安全网：仅当云端数据不少于本地时才覆盖）
-      if (data.instructions && data.instructions.length > 0) {
-        const local = localStorage.getItem('instructionLib');
-        if (local !== JSON.stringify(data.instructions)) {
-          let localCount = 0;
-          if (local) { try { const p = JSON.parse(local); localCount = p.length || 0; } catch {} }
-          if (localCount === 0 || data.instructions.length >= localCount) {
-            localStorage.setItem('instructionLib', JSON.stringify(data.instructions));
-            localStorage.setItem('instructionLib_version', '12');
-            changed = true;
-          }
-        }
-      }
-      // 模板（安全网：仅当云端数据不少于本地时才覆盖）
-      if (data.templates && data.templates.length > 0) {
-        const local = await storage.getItem('templates');
-        if (JSON.stringify(local) !== JSON.stringify(data.templates)) {
-          if (!local || local.length === 0 || data.templates.length >= local.length) {
-            await storage.setItem('templates', data.templates).catch(() => {});
-            // 重新加载模板 Store，确保 UI 刷新
-            try {
-              const { useTemplateStore } = await import('@/stores/templateStore');
-              await useTemplateStore().loadTemplates();
-            } catch {}
-            changed = true;
-          }
-        }
-      }
-      // 引擎设置（仅同步 DeepSeek 连接配置，currentEngine 各设备独立）
-      if (data.settings && Object.keys(data.settings).length > 0) {
-        const engineFields = ['deepseekBaseUrl', 'deepseekApiKey',
-          'deepseekGenerationModel', 'deepseekAnalysisModel'];
-        let settingsChanged = false;
-        for (const f of engineFields) {
-          if (data.settings[f] !== undefined && data.settings[f] !== apiConfig[f]) {
-            apiConfig[f] = data.settings[f];
-            settingsChanged = true;
-          }
-        }
-        if (settingsChanged) {
-          await saveConfig(Object.assign({}, apiConfig));
-          changed = true;
-        }
-      }
-      if (changed) {
-        console.log('🔄 后台同步：检测到云端数据变更，已更新本地');
-        // ☁️ 将合并后的生成结果推回云端（让其他设备获取最新合并数据）
-        try {
-          const mergedRaw = localStorage.getItem('wisdom_generated_docs');
-          if (mergedRaw) {
-            const mergedGD = JSON.parse(mergedRaw);
-            if (mergedGD && mergedGD.length > 0) {
-              safeUploadGeneratedDocs(mergedGD).catch(() => {});
-            }
-          }
-        } catch {}
-        window.dispatchEvent(new CustomEvent('data-sync-complete', { detail: { silent: true } }));
-      }
-    } catch { /* 静默失败，下次再试 */ }
-  };
-  _syncTimer = setInterval(silentCloudSync, SILENT_SYNC_INTERVAL);
-  // 页面切回前台时立即同步一次
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) silentCloudSync();
-  });
   // 🔧 iOS PWA 专用：localStorage 降级备份到 sessionStorage
   //    iOS 存储压力大时可能静默清空 localStorage，sessionStorage 相对稳定
   const BACKUP_KEYS = ['apiConfig', 'wisdom_generated_docs', 'instructionLib', 'instructionLib_version', 'activationInfo', 'textbooks', 'docHistory', 'templates'];

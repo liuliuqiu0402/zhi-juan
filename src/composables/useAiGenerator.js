@@ -4696,11 +4696,8 @@ ${cardAnalysisText.substring(0, 1000)}
     const gradeSegment = stage === 'primary'
       ? (isLowerPrimary ? 'primary_low' : isMiddlePrimary ? 'primary_mid' : 'primary_high')
       : stage || '';
-    // 🔧 优先 gradeSegment 精确匹配，再 fallback 到 stage 通用
-    let kbBlocks = getMatchingBlockInstructions({ category: '生成-知识边界', subject, stage, genType: gradeSegment });
-    if (kbBlocks.length === 0) {
-      kbBlocks = getMatchingBlockInstructions({ category: '生成-知识边界', subject, stage: '' });
-    }
+    // 🔧 用 gradeSegment 作为 stage 精确匹配 KB 块（KB 块已用 primary_low/mid/high/middle/high 做 stage）
+    let kbBlocks = getMatchingBlockInstructions({ category: '生成-知识边界', subject, stage: gradeSegment });
     if (kbBlocks.length > 0) {
       const boundaryList = kbBlocks[0].content.split('\n').filter(l => l.trim().startsWith('-'));
       if (boundaryList.length > 0) {
@@ -4780,11 +4777,11 @@ ${cardAnalysisText.substring(0, 1000)}
     // ========== 0.5.【标题格式】 ==========
     const titleBlocks = getMatchingBlockInstructions({ category: '生成-标题格式', subject: '', stage: '', genType: '' });
     if (titleBlocks.length > 0) {
-      instruction += `【${_title('title_format', '标题格式')}】\n${titleBlocks[0].content}\n\n`;
+      instruction += `\n---\n【${_title('title_format', '标题格式')}】\n${titleBlocks[0].content}\n\n`;
     }
     
     // ========== 1.【核心任务】 ==========
-    instruction += `【${_title('core_task', '核心任务')}】\n`;
+    instruction += `\n---\n【${_title('core_task', '核心任务')}】\n`;
     
     // 🔧 从教材勾选章节获取任务名（scopeType优先 > 单课标题 > 多章节单元提取）
     let taskName = '';
@@ -4847,6 +4844,16 @@ ${cardAnalysisText.substring(0, 1000)}
             }
           }
           instruction += `请生成一份「${displayName}」。${coreInstruction}\n`;
+          // 🔧 品质标准：从指令库按 genType × stage 三维度查询注入
+          const qualityBlocks = getMatchingBlockInstructions({ category: '生成-品质标准', stage: gradeSegment, genType: gt });
+          if (qualityBlocks.length > 0) {
+            instruction += qualityBlocks.map(b => b.content).join('\n') + '\n';
+          }
+          // 🔧 原创标准：从指令库按 genType × stage 三维度查询注入
+          const originalityBlocks = getMatchingBlockInstructions({ category: '生成-原创标准', stage: gradeSegment, genType: gt });
+          if (originalityBlocks.length > 0) {
+            instruction += originalityBlocks.map(b => b.content).join('\n') + '\n';
+          }
           // 🔧 专项突破：根据用户选择的专项子类型精确匹配结构（如阅读理解 vs 古诗词 vs 计算）
           const structQueryOpts = { category: '生成-资料类型结构', subject, stage: gradeSegment, genType: gt };
           if (gt === 'special' && specialSubType) {
@@ -4929,7 +4936,7 @@ ${cardAnalysisText.substring(0, 1000)}
               adaptedStructure = adaptedStructure.replace(/短文阅读（[\d-]+篇/, `短文阅读（${readingCount}`);
             }
             
-            instruction += `【结构大纲】（以下为各部分组织顺序和考查内容，具体题量根据文本内容灵活决定）：\n ${adaptedStructure}\n`;
+            instruction += `\n---\n【结构大纲】（以下为各部分组织顺序和考查内容，具体题量根据文本内容灵活决定）：\n ${adaptedStructure}\n`;
           }
         }
       }
@@ -4941,7 +4948,7 @@ ${cardAnalysisText.substring(0, 1000)}
     if (primaryGenType) {
       const anchorBlocks = getMatchingBlockInstructions({ category: '生成-答案区强制锚定', subject: '', stage: '', genType: primaryGenType });
       if (anchorBlocks.length > 0 && anchorBlocks[0].content) {
-        instruction += `\n【${_title('answer_anchor', '答案区强制锚定')}】\n${anchorBlocks[0].content}\n\n`;
+        instruction += `\n---\n【${_title('answer_anchor', '答案区强制锚定')}】\n${anchorBlocks[0].content}\n\n`;
       }
     }
     
@@ -5017,7 +5024,7 @@ ${cardAnalysisText.substring(0, 1000)}
         return '';
       };
       
-      instruction += `\n【教材章节确认——以下章节的所有知识内容需全部覆盖】\n`;
+      instruction += `\n---\n【教材章节确认——以下章节的所有知识内容需全部覆盖】\n`;
       for (const book of selectedBooks) {
         const selectedChapters = book.selectedChapters || [];
         if (selectedChapters.length > 0) {
@@ -5069,7 +5076,7 @@ ${cardAnalysisText.substring(0, 1000)}
     if (stage || subject) {
       // 🔧 DeepSeek 跳过：学段适配和学科适配指令 DeepSeek 训练数据已知，仅保留项目特有的学科特色
       if (!_isDeepSeekInstruction) {
-        instruction += `\n【${_title('stage_subject_adapt', '学段·学科精准适配')}】\n`;
+        instruction += `\n---\n【${_title('stage_subject_adapt', '学段·学科精准适配')}】\n`;
       
         // 🔧 从指令库获取学段适配块（按 gradeSegment+genType 匹配）
         const stageBlocks = getMatchingBlockInstructions({ category: '生成-学段适配', stage: gradeSegment, genType: primaryGenType });
@@ -5107,9 +5114,17 @@ ${cardAnalysisText.substring(0, 1000)}
       // 🔧 学科特色（按 subject+stage+genType 从指令库注入学科特点；传 genType 以排除听写/总结等非题类型）
       const subjectFeatureBlocks = getMatchingBlockInstructions({ category: '生成-学科特色', matchSubject, stage, genType: primaryGenType });
       if (subjectFeatureBlocks.length > 0) {
-        instruction += `【${_title('subject_feature', '学科特色')}】\n`;
+        instruction += `\n---\n【${_title('subject_feature', '学科特色')}】\n`;
         for (const block of subjectFeatureBlocks) {
           instruction += `- ${block.content}\n`;
+        }
+      }
+
+      // 🔧 学科核心素养（按 subject+stage 注入课标核心素养关键词）
+      if (subject) {
+        const coreBlocks = getMatchingBlockInstructions({ category: '生成-学科核心素养', subject, stage });
+        if (coreBlocks.length > 0) {
+          instruction += `\n---\n【${_title('core_literacy', '学科核心素养')}】${coreBlocks[0].content}\n\n`;
         }
       }
       
@@ -5120,6 +5135,28 @@ ${cardAnalysisText.substring(0, 1000)}
       if (!_isDeepSeekInstruction) {
         instruction += `\n⚠️ 学段约束用于控制题目难度和认知深度（如低段避免抽象推理、高段增加综合分析），但考查的知识内容以教材实际覆盖范围为准——教材有短文阅读则考查阅读，有科学探究则考查探究，不因学段标签限制内容广度。\n`;
       }
+
+      // 🔧 学段控制（按年级段精确匹配 primary_low/mid/high/middle/high，给出题量/难度/时长建议）
+      // 🔧 DeepSeek 跳过：课标对各学段的能力描述、识字量/计算范围等 DeepSeek 训练数据已知
+      if (!_isDeepSeekInstruction) {
+      const stageControlBlocks = getMatchingBlockInstructions({ category: '生成-学段控制', subject: '', stage });
+      if (stageControlBlocks.length > 0) {
+        let matchedStageBlock = null;
+        for (const block of stageControlBlocks) {
+          if (stage === 'primary') {
+            if (isLowerPrimary && block.id === 'stage_primary_low') { matchedStageBlock = block; break; }
+            if (isMiddlePrimary && block.id === 'stage_primary_mid') { matchedStageBlock = block; break; }
+            if (isUpperPrimary && block.id === 'stage_primary_high') { matchedStageBlock = block; break; }
+          } else {
+            matchedStageBlock = block;
+            break;
+          }
+        }
+        if (matchedStageBlock) {
+          instruction += `\n---\n【${_title('stage_control', '学段控制')}】${matchedStageBlock.content}\n`;
+        }
+      }
+      }// _isDeepSeekInstruction guard end (学段控制)
     }
 
     // ========== 13.【题型设计与难度配置】…
@@ -5145,7 +5182,7 @@ ${cardAnalysisText.substring(0, 1000)}
       // 🔧 从指令库获取块标题（三维度查询，无硬编码）
       const _tdTitleBlocks = getMatchingBlockInstructions({ category: '生成-指令块标题', subject: '', stage: '', genType: 'type_design' });
       const _tdTitle = _tdTitleBlocks.length > 0 ? _tdTitleBlocks[0].content : '题型设计与难度配置';
-      instruction += `【${_tdTitle}】\n`;
+      instruction += `\n---\n【${_tdTitle}】\n`;
       
       // 题型与数量分配（仅在用户手动配置时输出，DeepSeek 由结构大纲自主决定）
       if (hasTypeConfig && !_isDeepSeekInstruction) {
@@ -5216,6 +5253,23 @@ ${cardAnalysisText.substring(0, 1000)}
       if (timeAlloc) {
         instruction += `${timeAlloc}。\n`;
       }
+
+      // 🔧 题量控制（按 gradeSegment 从指令库注入建议总题量范围）
+      // 🔧 DeepSeek 跳过：合理题量设计 DeepSeek 训练数据充分覆盖
+      if (!_isDeepSeekInstruction) {
+      const layoutBlocks = getMatchingBlockInstructions({ category: '生成-题量控制', subject: '', stage: gradeSegment });
+      if (layoutBlocks.length > 0) {
+        instruction += `\n---\n【${_title('layout_control', '题量控制')}】${layoutBlocks[0].content}\n`;
+      }
+      }
+      // 🔧 难度控制（按 gradeSegment 从指令库注入基础:中等:提高比例）
+      // 🔧 DeepSeek 跳过：难度配比(5:3:2等) DeepSeek 训练数据已知
+      if (!_isDeepSeekInstruction) {
+      const diffControlBlocks = getMatchingBlockInstructions({ category: '生成-难度控制', subject: '', stage: gradeSegment });
+      if (diffControlBlocks.length > 0) {
+        instruction += `\n---\n【${_title('diff_control', '难度控制')}】${diffControlBlocks[0].content}\n`;
+      }
+      }
       
       // 🔴 分值分配原则 + 验算（防止凑分）：仅试卷类型
       if (primaryGenType === 'exam' && effectiveTotalScore) {
@@ -5265,7 +5319,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
       
       if (rules.length > 0) {
-        instruction += `【${_title('graphic_formula', '图形/图表/公式/配图专项指令')}】\n`;
+        instruction += `\n---\n【${_title('graphic_formula', '图形/图表/公式/配图专项指令')}】\n`;
         rules.forEach(r => { instruction += r + '\n'; });
         instruction += `\n`;
       }
@@ -5298,7 +5352,7 @@ ${cardAnalysisText.substring(0, 1000)}
       const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', matchSubject, stage, genType: 'summary' });
       if (fmtBlocks.length > 0) {
         const fmtContent = fmtBlocks.map(b => b.content).join('\n');
-        instruction += `【${_title('format_summary', '知识点总结格式规范')}】\n${fmtContent}\n`;
+        instruction += `\n---\n【${_title('format_summary', '知识点总结格式规范')}】\n${fmtContent}\n`;
       } else {
         console.warn('[instructionLib] 未找到输出格式: summary');
       }
@@ -5307,7 +5361,7 @@ ${cardAnalysisText.substring(0, 1000)}
       const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', matchSubject, stage, genType: 'errorbook' });
       if (fmtBlocks.length > 0) {
         const fmtContent = fmtBlocks.map(b => b.content).join('\n');
-        instruction += `【${_title('format_errorbook', '错题本格式规范')}】\n${fmtContent}\n`;
+        instruction += `\n---\n【${_title('format_errorbook', '错题本格式规范')}】\n${fmtContent}\n`;
       } else {
         console.warn('[instructionLib] 未找到输出格式: errorbook');
       }
@@ -5316,7 +5370,7 @@ ${cardAnalysisText.substring(0, 1000)}
       const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', matchSubject, stage, genType: 'preview' });
       if (fmtBlocks.length > 0) {
         const fmtContent = fmtBlocks.map(b => b.content).join('\n');
-        instruction += `【${_title('format_preview', '课前预习格式规范')}】\n${fmtContent}\n`;
+        instruction += `\n---\n【${_title('format_preview', '课前预习格式规范')}】\n${fmtContent}\n`;
       } else {
         console.warn('[instructionLib] 未找到输出格式: preview');
       }
@@ -5325,7 +5379,7 @@ ${cardAnalysisText.substring(0, 1000)}
       const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', matchSubject, stage, genType: 'dictation' });
       if (fmtBlocks.length > 0) {
         const fmtContent = fmtBlocks.map(b => b.content).join('\n');
-        instruction += `【${_title('format_dictation', '听写/默写格式规范')}】\n${fmtContent}\n`;
+        instruction += `\n---\n【${_title('format_dictation', '听写/默写格式规范')}】\n${fmtContent}\n`;
       } else {
         console.warn('[instructionLib] 未找到输出格式: dictation');
       }
@@ -5334,7 +5388,7 @@ ${cardAnalysisText.substring(0, 1000)}
       const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', matchSubject, stage, genType: 'reading' });
       if (fmtBlocks.length > 0) {
         const fmtContent = fmtBlocks.map(b => b.content).join('\n');
-        instruction += `【${_title('format_reading', '阅读训练格式规范')}】\n${fmtContent}\n`;
+        instruction += `\n---\n【${_title('format_reading', '阅读训练格式规范')}】\n${fmtContent}\n`;
       } else {
         console.warn('[instructionLib] 未找到输出格式: reading');
       }
@@ -5343,7 +5397,7 @@ ${cardAnalysisText.substring(0, 1000)}
       const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', matchSubject, stage, genType: primaryGenType, specialSubType: primaryGenType === 'special' ? specialSubType : '' });
       if (fmtBlocks.length > 0) {
         const fmtContent = fmtBlocks.map(b => b.content).join('\n');
-        instruction += `【${_title('format_exam', '试卷/练习格式规范')}】\n${fmtContent}\n`;
+        instruction += `\n---\n【${_title('format_exam', '试卷/练习格式规范')}】\n${fmtContent}\n`;
       } else {
         console.warn(`[instructionLib] 未找到输出格式: genType=${primaryGenType}`);
       }
@@ -5369,7 +5423,7 @@ ${cardAnalysisText.substring(0, 1000)}
       // 🔧 从指令库获取块标题（三维度查询，无硬编码）
       const _tplTitleBlocks = getMatchingBlockInstructions({ category: '生成-指令块标题', subject: '', stage: '', genType: 'template' });
       const _tplTitle = _tplTitleBlocks.length > 0 ? _tplTitleBlocks[0].content : '模板精准对标';
-      instruction += `【${_tplTitle}】\n`;
+      instruction += `\n---\n【${_tplTitle}】\n`;
       instruction += `请深度对标以下模板的风格特征（题型结构、设问方式、语言表达、难度层次），作为本次生成的质量基准：\n`;
       for (const tpl of selectedTemplates) {
         const selectedChapters = tpl.selectedChapters || [];
@@ -5608,7 +5662,7 @@ ${cardAnalysisText.substring(0, 1000)}
       const _ts_firstTpl = selectedTemplates[0];
       if (_ts_firstTpl?.analysis?.languageStyle) {
         const _ts_ls = _ts_firstTpl.analysis.languageStyle;
-        instruction += `\n【${_title('template_style', '模板风格参考——逐题生成时可参考')}】\n`;
+        instruction += `\n---\n【${_title('template_style', '模板风格参考——逐题生成时可参考')}】\n`;
         if (_ts_ls.avgSentenceLength) instruction += `- 题干平均句长约${_ts_ls.avgSentenceLength}字\n`;
         if (_ts_ls.commonPatterns?.length) instruction += `- 优先使用句式：${_ts_ls.commonPatterns.slice(0, 3).join('、')}\n`;
         if (_ts_ls.tone) instruction += `- 语气：${_ts_ls.tone}\n`;
@@ -5648,14 +5702,14 @@ ${cardAnalysisText.substring(0, 1000)}
     const qualitySubjOnly = qualitySubjAll.filter(b => b.subject && b.subject !== '');
     
     if (qualityBase.length > 0) {
-      instruction += `【${_title('quality_standard', '题目质量标准')}】${qualityBase[0].content}\n`;
+      instruction += `\n---\n【${_title('quality_standard', '题目质量标准')}】${qualityBase[0].content}\n`;
       // 学段补充（覆盖基础规则中的选项数、难度配比等）
       if (qualityStageOnly.length > 0 && qualityStageOnly[0].content !== qualityBase[0].content) {
         instruction += qualityStageOnly[0].content + '\n';
       }
       // 🔧 Q1: 学科专属补充 — 加分隔符与编号列表明确断开，避免被误解为延续编号
       if (qualitySubjOnly.length > 0) {
-        instruction += `\n【${_title('subject_supplement', '学科补充标准')}】\n${qualitySubjOnly[0].content}\n`;
+        instruction += `\n---\n【${_title('subject_supplement', '学科补充标准')}】\n${qualitySubjOnly[0].content}\n`;
       }
     } else {
       console.warn(`[instructionLib] 未找到题目质量标准: stage=${stage}, subject=${subject}`);
@@ -5684,10 +5738,11 @@ ${cardAnalysisText.substring(0, 1000)}
     }
 
     // ========== 16.【答题模板】学科答题规范（从指令库读取，传 genType 排除听写/总结等非答题类型）==========
-    if (subject) {
+    // 🔧 DeepSeek 跳过：学科答题规范（解、答、步骤格式等）DeepSeek 训练数据充分覆盖
+    if (!_isDeepSeekInstruction && subject) {
       const templateBlocks = getMatchingBlockInstructions({ category: '生成-答题模板', matchSubject, stage: '', genType: primaryGenType });
       if (templateBlocks.length > 0) {
-        instruction += `【${_title('answer_template', '答题模板')}】${templateBlocks[0].content}\n\n`;
+        instruction += `\n---\n【${_title('answer_template', '答题模板')}】${templateBlocks[0].content}\n\n`;
       }
     }
 
@@ -5696,15 +5751,15 @@ ${cardAnalysisText.substring(0, 1000)}
     if (!_isDeepSeekInstruction && subject) {
       const termBlocks = getMatchingBlockInstructions({ category: '生成-术语规范', matchSubject, stage: '', genType: primaryGenType });
       if (termBlocks.length > 0) {
-        instruction += `【${_title('terminology', '术语规范')}】${termBlocks[0].content}\n\n`;
+        instruction += `\n---\n【${_title('terminology', '术语规范')}】${termBlocks[0].content}\n\n`;
       }
     }
 
-    // 原题引用（允许适量引用教材原题，先告诉模型"可以用的参考"，再约束禁止事项）
-    if (allowOriginalQuestions) {
+    // 🔧 DeepSeek 跳过：原题引用（允许适量改编教材题）是通用常识，无需显式告知
+    if (!_isDeepSeekInstruction && allowOriginalQuestions) {
       const originalQuoteBlocks = getMatchingBlockInstructions({ category: '生成-原题引用', subject: '', stage: '', genType: primaryGenType });
       if (originalQuoteBlocks.length > 0) {
-        instruction += `【${_title('original_quote', '原题引用')}】${originalQuoteBlocks[0].content}\n`;
+        instruction += `\n---\n【${_title('original_quote', '原题引用')}】${originalQuoteBlocks[0].content}\n`;
       } else {
         console.warn('[instructionLib] 未找到原题引用条目');
       }
@@ -5730,11 +5785,22 @@ ${cardAnalysisText.substring(0, 1000)}
     }
     
     if (banParts.length > 0) {
-      instruction += `【${_title('ban_general', '禁止项')}】\n${banParts.join('\n')}\n`;
+      instruction += `\n---\n【${_title('ban_general', '禁止项')}】\n${banParts.join('\n')}\n`;
     } else {
       console.warn('[instructionLib] 未找到匹配的禁止项（学科/学段/类型无匹配）');
     }
     instruction += '\n';
+
+    // 🔧 学科禁止项补充（学科专属红线，如科学错误/偏题怪题，按 subject 精准匹配，与通用禁止项互补）
+    if (matchSubject) {
+      const banSupplementAll = getMatchingBlockInstructions({ category: '生成-学科禁止项', subject: matchSubject, stage: '' });
+      if (banSupplementAll.length > 0) {
+        instruction += `\n---\n【${_title('ban_subject', '禁止项-学科补充')}】\n`;
+        for (const block of banSupplementAll) {
+          instruction += block.content + '\n';
+        }
+      }
+    }
 
     // 🔧 通用约束：从指令库匹配标注出处、避免照搬、认知层级等通用要求（传 genType 以启用指令库中的 genType 过滤）
     const generalConstraintBlocks = getMatchingBlockInstructions({ category: '生成-通用约束', subject: '', stage, genType: primaryGenType });
@@ -5752,7 +5818,7 @@ ${cardAnalysisText.substring(0, 1000)}
       return true;
     });
     if (filteredConstraints.length > 0) {
-      instruction += `\n【${_title('general_constraint', '通用约束')}】\n`;
+      instruction += `\n---\n【${_title('general_constraint', '通用约束')}】\n`;
       for (const block of filteredConstraints) {
         instruction += `- ${block.content}\n`;
       }
@@ -5768,7 +5834,7 @@ ${cardAnalysisText.substring(0, 1000)}
 
     // ========== 12.【命题范围与风格】 ==========
     if (scopeType || propositionStyle) {
-      instruction += `【${_title('scope_style', '命题范围与风格')}】\n`;
+      instruction += `\n---\n【${_title('scope_style', '命题范围与风格')}】\n`;
     }
     if (scopeType) {
       const scopeBlocks = getMatchingBlockInstructions({ category: '生成-范围标签', genType: scopeType });
@@ -5812,7 +5878,7 @@ ${cardAnalysisText.substring(0, 1000)}
       const stageCtxBlocks = getMatchingBlockInstructions({ category: '生成-情境要求', subject: '', stage, genType: primaryGenType });
       const subjCtxBlocks = subject ? getMatchingBlockInstructions({ category: '生成-情境要求', matchSubject, stage: '', genType: primaryGenType }) : [];
       if (stageCtxBlocks.length > 0 || subjCtxBlocks.length > 0) {
-        instruction += `【${_title('context_req', '情境要求')}】\n`;
+        instruction += `\n---\n【${_title('context_req', '情境要求')}】\n`;
         if (stageCtxBlocks.length > 0) {
           instruction += `- ${stageCtxBlocks[0].content}\n`;
         }
@@ -5828,7 +5894,7 @@ ${cardAnalysisText.substring(0, 1000)}
       // 🔧 从指令库获取块标题（三维度查询，无硬编码）
       const _suppTitleBlocks = getMatchingBlockInstructions({ category: '生成-指令块标题', subject: '', stage: '', genType: 'supplement' });
       const _suppTitle = _suppTitleBlocks.length > 0 ? _suppTitleBlocks[0].content : '资料类型补充约束';
-      instruction += `\n【${_suppTitle}】\n`;
+      instruction += `\n---\n【${_suppTitle}】\n`;
       for (const fullIns of autoFullInstructions) {
         instruction += `- ${fullIns.content}\n`;
       }
@@ -5844,7 +5910,7 @@ ${cardAnalysisText.substring(0, 1000)}
     if (_sr_specialReqBlocks.length > 0) supplementParts.push(_sr_specialReqBlocks[0].content);
 
     if (supplementParts.length > 0) {
-      instruction += `【${_title('content_norm', '内容与特殊要求')}】\n${supplementParts.join('\n')}\n\n`;
+      instruction += `\n---\n【${_title('content_norm', '内容与特殊要求')}】\n${supplementParts.join('\n')}\n\n`;
     }
 
     // 🔧 最终输出规则已由 buildOutputPreamble() 在 prompt 最前端注入（查询指令库「生成-输出前置指令」），
@@ -5880,6 +5946,12 @@ ${cardAnalysisText.substring(0, 1000)}
       '生成-输出前置指令',    // buildOutputPreamble()
       '生成-范围扩展',       // Section: 跨章综合语义 + {chapterCount} 替换
       '生成-多章节标题',     // Section: 多章节降级标题格式 + {titles} 替换
+      // 🔧 补建（2026）：5个新类别专属 Section
+      '生成-学段控制',       // Section: 学段控制（题量/难度/时长按学段建议）
+      '生成-题量控制',       // Section: 题量控制（建议总题量范围）
+      '生成-难度控制',       // Section: 难度控制（基础:中等:提高比例）
+      '生成-学科核心素养',   // Section: 学科核心素养（课标核心素养关键词）
+      '生成-学科禁止项',     // Section: 禁止项-学科补充（学科专属红线）
       // 分析-文本分析专用
       '分析-文本分析规范', '分析-分析模板示例', '分析-分析提取要求', '分析-知识图谱构建'
     ]);
@@ -5906,7 +5978,7 @@ ${cardAnalysisText.substring(0, 1000)}
       // 🔧 从指令库获取块标题（三维度查询，无硬编码）
       const _usTitleBlocks = getMatchingBlockInstructions({ category: '生成-指令块标题', subject: '', stage: '', genType: 'user_supplement' });
       const _usTitle = _usTitleBlocks.length > 0 ? _usTitleBlocks[0].content : '用户补充指令';
-      instruction += `【${_usTitle}】\n`;
+      instruction += `\n---\n【${_usTitle}】\n`;
       for (const _ui_categoryFrags of Object.values(_ui_grouped)) {
         for (const _ui_frag of _ui_categoryFrags) {
           instruction += `- ${_ui_frag.content}\n`;
@@ -5922,7 +5994,7 @@ ${cardAnalysisText.substring(0, 1000)}
     //    此复述版在近因位置会覆盖精准版，DeepSeek 不需要这种重复强调
     const topConstraintBlocks = getMatchingBlockInstructions({ category: '生成-顶层约束', subject: '', stage: '', genType: primaryGenType });
     if (topConstraintBlocks.length > 0 && !_isDeepSeekInstruction) {
-      instruction += `\n【${_title('top_constraint', '顶层约束')}】\n${topConstraintBlocks[0].content}\n\n`;
+      instruction += `\n---\n【${_title('top_constraint', '顶层约束')}】\n${topConstraintBlocks[0].content}\n\n`;
     }
     
     // 🔧 格式重申锚点：利用近因效应，在生成前最后一次强调输出格式
@@ -5930,14 +6002,14 @@ ${cardAnalysisText.substring(0, 1000)}
     //    此处以最小干扰重申核心格式要求，与 buildOutputPreamble（首因）形成首尾呼应
     //    DeepSeek 跳过：纯元指令（"严格遵循上方各节"）无增量信息，buildOutputPreamble 已在首因完成同样约束
     if (!_isDeepSeekInstruction) {
-      instruction += `【输出格式重申】请严格遵循上方各节中的输出格式规范与结构要求。输出完整 HTML 文档，禁止 Markdown、禁止前言。\n\n`;
+      instruction += `\n---\n【输出格式重申】请严格遵循上方各节中的输出格式规范与结构要求。输出完整 HTML 文档，禁止 Markdown、禁止前言。\n\n`;
     }
     
     // ========== N+1.【尾约束】 ==========
     // 🔧 DeepSeek 跳过：尾约束中的填空互斥/空标签规则已前置合并至【输出格式】，答案区确认已由【答案区强制锚定】覆盖。全部冗余。
     const tailConstraintBlocks = getMatchingBlockInstructions({ category: '生成-尾约束', subject: '', stage: '', genType: primaryGenType });
     if (tailConstraintBlocks.length > 0 && !_isDeepSeekInstruction) {
-      instruction += `\n【${_title('tail_constraint', '尾约束')}】\n${tailConstraintBlocks[0].content}\n\n`;
+      instruction += `\n---\n【${_title('tail_constraint', '尾约束')}】\n${tailConstraintBlocks[0].content}\n\n`;
     }
 
     // ========== 格式尾约束（recency 效应：所有引擎通用，三维度匹配 genType）==========
@@ -5949,6 +6021,10 @@ ${cardAnalysisText.substring(0, 1000)}
     //
     // buildOutputPreamble() 已在 generateFullPaper 最前注入，此处不再重复。
     //
+
+    // 🔧 块间间距归一化：确保每个 --- 分隔线前恰好一个空行，消除不规则间距
+    instruction = instruction.replace(/\n+---\n/g, '\n\n---\n');
+    instruction = instruction.replace(/^\n+/, '');
 
     return instruction;
     } catch (e) {
@@ -7160,10 +7236,10 @@ ${recentContext.join('\n')}
             '🎲 【场景引导：图表数据】请用表格、统计图、示意图等可视化方式呈现关键信息，考查数据解读能力。',
             '🎲 【场景引导：探究思辨】请用"为什么...""如果...会怎样""你能发现什么规律"等开放式设问，考查深层理解。',
             '🎲 【场景引导：对比辨析】请设计需要对比两个易混淆概念/方法的题目，考查辨析能力而非死记硬背。',
-            '🎲 【反套路·去教辅化】请检查你的设问——是否和《53天天练》《黄冈小状元》《典中点》等常见教辅的题目"撞脸"？如果是，必须更换场景和句式，让你的题"不像任何一本教辅"。',
-            '🎲 【反套路·原创场景】请避免使用"买东西找零""分糖果""水池注水""小明小红""鸡兔同笼"等已被写烂的应用题场景。改用当下学生真正感兴趣的话题（校园科技节、研学旅行、班级义卖、社团活动、运动比赛等），去掉"小明""小红"这类万能角色名，换成有特点的原创名字。',
-'🎲 【反套路·去网络化】请检查你的题目——能否在学科网、教习网、菁优网、百度文库上被搜到几乎一样的题？如果换个数字就一模一样，必须推翻重写。你的题应该让搜索引擎找不到第二个。',
-'🎲 【反套路·去AI痕迹】请避免使用DeepSeek/ChatGPT等模型的高频套话：如在当今这个时代、值得注意的是、综上所述、体现了核心价值、是一个值得深思的问题、通过分析不难发现等。用你自然的语言风格写题，不要带AI腔。',
+            '🎲 【原创设计】创设全新的、有辨识度的题目情境与设问方式，让这道题独一无二、不撞脸任何已有题目。',
+            '🎲 【场景出新】选用新鲜有趣的真实场景（校园活动、生活实践、时事热点等），赋予角色有特色的名字，让题目有真实感和新鲜感。',
+'🎲 【独立原创】确保题目是全新的独立创作——情境、数据、设问角度均为原创设计，不参考任何已有题目。',
+'🎲 【自然表达】用自然的语言风格写题，像一位经验丰富的教师出题，语言精准、表述清晰，避免模板化套话。',
           ];
           const diversitySeed = diversitySeeds[i % diversitySeeds.length];
 
@@ -9824,10 +9900,10 @@ ${recentContext.join('\n')}
             '🎲 【场景引导：图表数据】请用表格、统计图、示意图等可视化方式呈现关键信息，考查数据解读能力。',
             '🎲 【场景引导：探究思辨】请用"为什么...""如果...会怎样""你能发现什么规律"等开放式设问，考查深层理解。',
             '🎲 【场景引导：对比辨析】请设计需要对比两个易混淆概念/方法的题目，考查辨析能力而非死记硬背。',
-            '🎲 【反套路·去教辅化】请检查你的设问——是否和《53天天练》《黄冈小状元》《典中点》等常见教辅的题目"撞脸"？如果是，必须更换场景和句式，让你的题"不像任何一本教辅"。',
-            '🎲 【反套路·原创场景】请避免使用"买东西找零""分糖果""水池注水""小明小红""鸡兔同笼"等已被写烂的应用题场景。改用当下学生真正感兴趣的话题（校园科技节、研学旅行、班级义卖、社团活动、运动比赛等），去掉"小明""小红"这类万能角色名，换成有特点的原创名字。',
-'🎲 【反套路·去网络化】请检查你的题目——能否在学科网、教习网、菁优网、百度文库上被搜到几乎一样的题？如果换个数字就一模一样，必须推翻重写。你的题应该让搜索引擎找不到第二个。',
-'🎲 【反套路·去AI痕迹】请避免使用DeepSeek/ChatGPT等模型的高频套话：如在当今这个时代、值得注意的是、综上所述、体现了核心价值、是一个值得深思的问题、通过分析不难发现等。用你自然的语言风格写题，不要带AI腔。',
+            '🎲 【原创设计】创设全新的、有辨识度的题目情境与设问方式，让这道题独一无二、不撞脸任何已有题目。',
+            '🎲 【场景出新】选用新鲜有趣的真实场景（校园活动、生活实践、时事热点等），赋予角色有特色的名字，让题目有真实感和新鲜感。',
+'🎲 【独立原创】确保题目是全新的独立创作——情境、数据、设问角度均为原创设计，不参考任何已有题目。',
+'🎲 【自然表达】用自然的语言风格写题，像一位经验丰富的教师出题，语言精准、表述清晰，避免模板化套话。',
           ];
           const diversitySeed = diversitySeeds[i % diversitySeeds.length];
 

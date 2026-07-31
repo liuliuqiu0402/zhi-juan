@@ -335,19 +335,24 @@ export const normalizeSubjectName = (subject, stage) => {
   return subject;
 };
 
-// ==================== 🔧 新增：学科-学段-认知层次规则库 ====================
+// ==================== 🔧 学科-学段-认知层次分级建议 ====================
 
 /**
- * 各学段允许的认知层次
- * 小学：识记、理解、应用（禁止分析、评价、创造）
- * 初中：识记、理解、应用、分析（禁止评价、创造）
- * 高中：全部允许
+ * 各学段建议的认知层次（分级建议，非硬性封顶）
+ * 小学低段：识记、理解为主 → 建议最高到应用
+ * 小学中段：识记、理解、应用为主 → 建议最高到分析
+ * 小学高段：理解、应用、分析为主 → 建议最高到评价（简单评价）
+ * 初中：应用、分析为主 → 建议最高到评价
+ * 高中：全部层次允许
  */
-export const allowedCognitiveLevels = {
+export const recommendedCognitiveLevels = {
   '小学': ['识记', '理解', '应用'],
   '初中': ['识记', '理解', '应用', '分析'],
   '高中': ['识记', '理解', '应用', '分析', '评价', '创造']
 };
+
+// 🔧 保留旧名兼容（已从"封顶/禁止"改为"分级建议"）
+export const allowedCognitiveLevels = recommendedCognitiveLevels;
 
 /**
  * 各学段学科的知识点认知层次修正规则
@@ -443,13 +448,12 @@ export const knowledgeLevelCorrections = {
 export const correctCognitiveLevel = (stage, subject, knowledgePointName, aiLevel) => {
   if (!aiLevel || !stage || !subject || !knowledgePointName) return aiLevel;
 
-  // 1. 检查学段禁止的认知层次
-  const allowed = allowedCognitiveLevels[stage];
-  if (allowed && !allowed.includes(aiLevel)) {
-    // 降级到该学段允许的最高层次
-    const fallback = allowed[allowed.length - 1];
-    console.log(`🔧 认知层次修正：${knowledgePointName} 的 "${aiLevel}" 在${stage}不允许，降级为 "${fallback}"`);
-    return fallback;
+  // 1. 学段分级建议（非硬性封顶：仅记录日志，不强制降级）
+  const recommended = recommendedCognitiveLevels[stage];
+  if (recommended && !recommended.includes(aiLevel)) {
+    // 仅作分级建议提示，不强制降级封顶
+    console.log(`🔧 认知层次建议：${knowledgePointName} 的 "${aiLevel}" 超出${stage}建议范围（${recommended.join('、')}），但保留原始标注供后续判断`);
+    // 不再返回 fallback，保留原始层次以支持"同资料内考查角度不雷同"的正面策略
   }
 
   // 2. 检查具体知识点的修正规则

@@ -225,7 +225,7 @@ const GEN_TYPE_FORMAT_SPEC = {
   },
   dictation: (subject, stage) => {
     // 馃敡 浠庢寚浠ゅ簱鑾峰彇鍚啓杈撳嚭鏍煎紡锛堜紭鍏堬級锛屽厹搴曚繚鐣欑‖缂栫爜
-    const formatBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-杈撳嚭鏍煎紡', genType: 'dictation' });
+    const formatBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', genType: 'dictation' });
     const baseFormat = formatBlocks.length > 0 ? formatBlocks[0].content : [
       '- 澶ф爣棰樼敤<h1>锛屾寜瀛楄瘝/鍙ュ瓙/娈佃惤鍒嗚妭鐢?h2>',
       '- 姣忎釜鍚啓椤圭敤<div class="dictation-item">鍖呰９',
@@ -243,7 +243,7 @@ const GEN_TYPE_FORMAT_SPEC = {
   },
   reading: () => {
     // 馃敡 浠庢寚浠ゅ簱鑾峰彇闃呰璁粌杈撳嚭鏍煎紡锛堜紭鍏堬級锛屽厹搴曚繚鐣欑‖缂栫爜
-    const formatBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-杈撳嚭鏍煎紡', genType: 'reading' });
+    const formatBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', genType: 'reading' });
     if (formatBlocks.length > 0) return formatBlocks[0].content;
     return [
       '- 澶ф爣棰樼敤<h1>锛岀煭鏂囩敤<div class="reading-passage">鍖呰９',
@@ -694,7 +694,7 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
         const batchSegments = segments.slice(batchStart, batchStart + 3);
         const batchText = batchSegments.map((seg, i) => `[娈?{batchStart + i + 1}] ${seg}`).join('\n\n---\n\n');
         // 馃敡 浠庢寚浠ゅ簱鑾峰彇鍊欓€夌煡璇嗙偣鍛藉悕瑙勮寖
-        const candidateKpNamesRule = getMatchingBlockInstructions({ category: '鍒嗘瀽-鐭ヨ瘑鍥捐氨鏋勫缓' }).find(b => b.id.includes('candidate_kp_names'));
+        const candidateKpNamesRule = getMatchingBlockInstructions({ category: '分析-知识图谱构建' }).find(b => b.id.includes('candidate_kp_names'));
         const candidateKpNote = candidateKpNamesRule ? candidateKpNamesRule.content : '鈿狅笍 鐭ヨ瘑鐐瑰悕绉板繀椤讳笌浠ヤ笂鍒楄〃涓€鑷寸殑鍛藉悕椋庢牸锛屼笉瑕佽嚜鍒涗笉鍚屽悕绉版寚浠ｅ悓涓€姒傚康';
         const candidateHint = uniqueCandidates.length > 0
           ? `銆愬€欓€夌煡璇嗙偣鍚嶇О鈥斺€斿繀椤讳粠浠ヤ笅鍒楄〃涓€夋嫨锛屾垨淇濇寔鍛藉悕椋庢牸涓€鑷淬€慭n${uniqueCandidates.join('銆?)}\n${candidateKpNote}\n` : '';
@@ -911,7 +911,7 @@ const buildKnowledgeMap = async (contentCards, selectedBooks, callAI, robustJson
     suggestedQuestionTypes: c.suggestedQuestionTypes || []
   }));
   // 馃敡 浠庢寚浠ゅ簱鑾峰彇杈撳叆鏁版嵁璇存槑
-  const inputDataDescRule = getMatchingBlockInstructions({ category: '鍒嗘瀽-鐭ヨ瘑鍥捐氨鏋勫缓' }).find(b => b.id.includes('input_data_desc'));
+  const inputDataDescRule = getMatchingBlockInstructions({ category: '分析-知识图谱构建' }).find(b => b.id.includes('input_data_desc'));
   const inputDataDescStr = inputDataDescRule ? inputDataDescRule.content : `- kpForTest锛氭瘡涓煡璇嗙偣瀵硅薄锛宧asFormula=true琛ㄧず娑夊強鍏紡
 - suggestedQuestionTypes锛氳绔犺妭鍚勭煡璇嗙偣寤鸿鐨勮€冩煡棰樺瀷`;
 
@@ -3035,9 +3035,9 @@ ${isPrimary ? '- 馃敡 灏忓锛氳绠楁満鍩虹鎿嶄綔銆佸浘�
           console.log('馃搫 鍘熸枃闀垮害閫備腑锛屽崟娆″垎鏋?);
           // 鐩存帴鍒嗘瀽
           // 馃敡 浠庢寚浠ゅ簱鑾峰彇鍒嗘瀽瑙勮寖鍧楋紝浼樺厛鐢ㄥ簱銆佺‖缂栫爜鍏滃簳
-          const analysisRules = getMatchingBlockInstructions({ category: '鍒嗘瀽-鏂囨湰鍒嗘瀽瑙勮寖' });
-          const analysisExamples = getMatchingBlockInstructions({ category: '鍒嗘瀽-鍒嗘瀽妯℃澘绀轰緥' });
-          const analysisExtractReqs = getMatchingBlockInstructions({ category: '鍒嗘瀽-鍒嗘瀽鎻愬彇瑕佹眰' });
+          const analysisRules = getMatchingBlockInstructions({ category: '分析-文本分析规范' });
+          const analysisExamples = getMatchingBlockInstructions({ category: '分析-分析模板示例' });
+          const analysisExtractReqs = getMatchingBlockInstructions({ category: '分析-分析提取要求' });
           const fmtNote = analysisRules.find(b => b.id.includes('fmt_note'));
           const corePrinciple = analysisRules.find(b => b.id.includes('core_principle'));
           const mandRules = analysisRules.find(b => b.id.includes('mandatory_rules_full'));
@@ -3244,7 +3244,7 @@ ${analysisText.substring(0, 500)}
             }    
             
             // 馃敡 浠庢寚浠ゅ簱鑾峰彇鍒嗘瀽瑙勮寖鍧楋紙鍒嗘鍒嗘瀽鐢ㄧ簿绠€鐗堬級锛屼紭鍏堢敤搴撱€佺‖缂栫爜鍏滃簳
-            const analysisRules = getMatchingBlockInstructions({ category: '鍒嗘瀽-鏂囨湰鍒嗘瀽瑙勮寖' });
+            const analysisRules = getMatchingBlockInstructions({ category: '分析-文本分析规范' });
             const fmtNote = analysisRules.find(b => b.id.includes('fmt_note'));
             const corePrinciple = analysisRules.find(b => b.id.includes('core_principle'));
             const mandRules = analysisRules.find(b => b.id.includes('mandatory_rules_compact'));
@@ -3596,7 +3596,7 @@ ${cardAnalysisText.substring(0, 1000)}
   // 馃攽 鎻愮ず鏂囨湰浠庢寚浠ゅ簱鑾峰彇锛屽勾绾ц竟鐣屾潯浠跺湪浠ｇ爜涓垽鏂?
   const getSubjectGradeHint = (subject, stage, gradeNum) => {
     // 浠庢寚浠ゅ簱鏌ヨ璇ュ绉戠殑骞寸骇杈圭晫鎻愮ず
-    const blocks = getMatchingBlockInstructions({ category: '鐢熸垚-骞寸骇杈圭晫鎻愮ず', subject, stage });
+    const blocks = getMatchingBlockInstructions({ category: '生成-年级边界提示', subject, stage });
     if (blocks.length === 0) return '';
     
     // 浠?content 涓彁鍙栨彁绀鸿瘝
@@ -3630,7 +3630,7 @@ ${cardAnalysisText.substring(0, 1000)}
   const getGenTypeTypeSupplement = (genType, subject, gradeSegment) => {
     // 浠?exam/practice 鏈夋琛ュ厖
     if (genType !== 'exam' && genType !== 'practice') return '';
-    const blocks = getMatchingBlockInstructions({ category: '鐢熸垚-棰樺瀷鍒嗗竷寤鸿', subject, stage: gradeSegment, genType });
+    const blocks = getMatchingBlockInstructions({ category: '生成-题型分布建议', subject, stage: gradeSegment, genType });
     if (blocks.length === 0) return '';
     return blocks[0].content;
   };
@@ -3642,7 +3642,7 @@ ${cardAnalysisText.substring(0, 1000)}
     const gradeSegment = stage === 'primary'
       ? (isLowerPrimary ? 'primary_low' : isMiddlePrimary ? 'primary_mid' : 'primary_high')
       : stage || 'middle';
-    const blocks = getMatchingBlockInstructions({ category: '鐢熸垚-闅惧害閰嶇疆', stage: gradeSegment, genType: 'exam' });
+    const blocks = getMatchingBlockInstructions({ category: '生成-题型分布建议', stage: gradeSegment, genType: 'exam' });
     if (blocks.length > 0) {
       const content = blocks[0].content;
       const basicMatch = content.match(/basic=(\d+)/);
@@ -3673,7 +3673,7 @@ ${cardAnalysisText.substring(0, 1000)}
   // 馃敡 鍊间粠鎸囦护搴撱€岀敓鎴?闅惧害閰嶇疆銆嶈В鏋愶紝鍏滃簳淇濈暀纭紪鐮?
   const getDefaultTotalScore = (genType, subject, stage) => {
     if (genType !== 'exam') return 0;
-    const blocks = getMatchingBlockInstructions({ category: '鐢熸垚-闅惧害閰嶇疆', stage, genType: 'exam' });
+    const blocks = getMatchingBlockInstructions({ category: '生成-难度配置', stage, genType: 'exam' });
     if (blocks.length > 0) {
       const content = blocks[0].content;
       const mainMatch = content.match(/totalScore_main=(\d+)/);
@@ -3718,7 +3718,7 @@ ${cardAnalysisText.substring(0, 1000)}
 
   // Q2: 鐭ヨ瘑鐐圭┓灏借鐩栫害鏉燂紙浼樺厛浠庢寚浠ゅ簱璇诲彇锛?
   const getCoverageConstraint = (genType, subject, stage) => {
-    const coverageBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鐭ヨ瘑鐐瑰叏瑕嗙洊', subject, stage, genType });
+    const coverageBlocks = getMatchingBlockInstructions({ category: '生成-知识点全覆盖', subject, stage, genType });
     if (coverageBlocks.length > 0) {
       return '\n鈿狅笍 銆愮煡璇嗙偣鍏ㄨ鐩栥€? + coverageBlocks[0].content;
     }
@@ -3732,9 +3732,8 @@ ${cardAnalysisText.substring(0, 1000)}
   const getAnswerQualitySpec = (genType, subject, stage) => {
     // 馃敡 浼樺厛浠庢寚浠ゅ簱鏌ヨ锛氭寜 genType+subject 绮剧‘鍖归厤
     if (!genType) return '';
-    const answerBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-绛旀涓庤В鏋愯鑼?, subject, genType });
+    const answerBlocks = getMatchingBlockInstructions({ category: '生成-答案与解析规范', subject, genType });
     if (answerBlocks.length > 0) {
-      // 馃敡 鏀堕泦锛氭墍鏈夐€氱敤瑙勮寖锛坰ubject涓虹┖涓旈潪鏍囬鏂囨锛? 瀛︾涓撳睘瑙勮寖
       const generalBlocks = answerBlocks.filter(b =>
         (!b.subject || b.subject === '') && !b.id.startsWith('block_answer_spec')
       );
@@ -3758,7 +3757,7 @@ ${cardAnalysisText.substring(0, 1000)}
     if (genType !== 'exam' && genType !== 'practice') return '';
     
     // 馃敡 浠庢寚浠ゅ簱璇诲彇鍖归厤鐨勮瘎鍒嗘爣鍑?
-    const rubricBlocks = subject ? getMatchingBlockInstructions({ category: '鐢熸垚-涓昏棰樿瘎鍒嗘爣鍑?, subject, stage: '' }) : [];
+    const rubricBlocks = subject ? getMatchingBlockInstructions({ category: '生成-主观题评分标准', subject, stage: '' }) : [];
     if (rubricBlocks.length > 0) {
       return '\n銆愪富瑙傞璇勫垎鏍囧噯鍙傝€冦€慭n' + rubricBlocks[0].content;
     }
@@ -3771,7 +3770,7 @@ ${cardAnalysisText.substring(0, 1000)}
   // Q4: 璇枃闃呰鐞嗚В绛旈妯℃澘锛堝畬鍏ㄤ粠鎸囦护搴撹鍙栵級
   const getChineseReadingTemplates = (subject) => {
     if (subject !== '璇枃') return '';
-    const templateBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-绛旈妯℃澘', subject: '璇枃', stage: '' });
+    const templateBlocks = getMatchingBlockInstructions({ category: '生成-答题模板', subject: '璇枃', stage: '' });
     if (templateBlocks.length > 0) {
       return `\n銆愯鏂囬槄璇荤悊瑙ｇ瓟棰樻ā鏉库€斺€斾弗鏍兼寜姝ゆ鏋朵綔绛斻€慭n` + templateBlocks[0].content;
     }
@@ -3783,7 +3782,7 @@ ${cardAnalysisText.substring(0, 1000)}
   // 馃敡 Q7: 鑰冨嵎鏃堕棿鍒嗛厤 鈥?瀹屽叏浠庢寚浠ゅ簱璇诲彇
   const getTimeAllocation = (genType, subject, stage) => {
     if (genType !== 'exam' || !stage) return '';
-    const timeBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鏃堕棿鍒嗛厤', genType, stage });
+    const timeBlocks = getMatchingBlockInstructions({ category: '生成-时间分配', genType, stage });
     if (timeBlocks.length > 0) {
       return `\n銆愭椂闂村垎閰嶅缓璁€?{timeBlocks[0].content}`;
     }
@@ -3798,10 +3797,10 @@ ${cardAnalysisText.substring(0, 1000)}
     // 馃敡 浠庢寚浠ゅ簱鏌ヨ鍖归厤鐨勮川閲忚寖渚?
     const tryInstructionLib = () => {
       // 鍏堝皾璇?gradeSegment 绮剧‘鍖归厤锛堝浣庢涓撶敤鑼冧緥锛?
-      const stageMatch = getMatchingBlockInstructions({ category: '鐢熸垚-璐ㄩ噺鑼冧緥', subject, stage: gradeSegment, genType });
+      const stageMatch = getMatchingBlockInstructions({ category: '生成-题型分布建议', subject, stage: gradeSegment, genType });
       if (stageMatch.length > 0) return `\n銆愯川閲忚寖渚嬧€斺€?{stageMatch[0].name.replace('銆愯川閲忚寖渚嬨€?, '')}銆慭n${stageMatch[0].content}`;
       // 鍐嶅皾璇曚笉闄愬畾 stage锛堥€氱敤鑼冧緥锛?
-      const generalMatch = getMatchingBlockInstructions({ category: '鐢熸垚-璐ㄩ噺鑼冧緥', subject, stage: '', genType });
+      const generalMatch = getMatchingBlockInstructions({ category: '生成-质量范例', subject, stage: '', genType });
       if (generalMatch.length > 0) return `\n銆愯川閲忚寖渚嬧€斺€?{generalMatch[0].name.replace('銆愯川閲忚寖渚嬨€?, '')}銆慭n${generalMatch[0].content}`;
       return null;
     };
@@ -3822,9 +3821,9 @@ ${cardAnalysisText.substring(0, 1000)}
       ? (isLowerPrimary ? 'primary_low' : isMiddlePrimary ? 'primary_mid' : 'primary_high')
       : stage || '';
     // 馃敡 浼樺厛 gradeSegment 绮剧‘鍖归厤锛屽啀 fallback 鍒?stage 閫氱敤
-    let kbBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鐭ヨ瘑杈圭晫', subject, genType: gradeSegment });
+    let kbBlocks = getMatchingBlockInstructions({ category: '生成-题型分布建议', subject, genType: gradeSegment });
     if (kbBlocks.length === 0) {
-      kbBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鐭ヨ瘑杈圭晫', subject, stage: '' });
+      kbBlocks = getMatchingBlockInstructions({ category: '生成-知识边界', subject, stage: '' });
     }
     if (kbBlocks.length > 0) {
       const boundaryList = kbBlocks[0].content.split('\n').filter(l => l.trim().startsWith('-'));
@@ -3903,7 +3902,7 @@ ${cardAnalysisText.substring(0, 1000)}
         const displayName = taskName || (typeInfo?.name || '').replace(/[^\u4e00-\u9fa5]/g, '');
         if (typeInfo) {
           // 馃敡 浠庢寚浠ゅ簱鑾峰彇鏍稿績浠诲姟鎸囦护锛堟墍鏈?genType 鍧囧凡鍏ュ簱锛屽厹搴曚粎浣滃畨鍏ㄧ綉锛?
-          const coreTaskBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鏍稿績浠诲姟', genType: gt });
+          const coreTaskBlocks = getMatchingBlockInstructions({ category: '生成-核心任务', genType: gt });
           if (coreTaskBlocks.length === 0) {
             console.warn(`[instructionLib] 鏈壘鍒扮敓鎴?鏍稿績浠诲姟: genType=${gt}, 浣跨敤 genTypeTemplates 鍏滃簳`);
           }
@@ -3913,7 +3912,7 @@ ${cardAnalysisText.substring(0, 1000)}
             let adaptedStructure = typeInfo.structure;
             
             // 馃敡 浠庢寚浠ゅ簱鑾峰彇瀛︾涓撳睘缁撴瀯妯℃澘锛堟寜 gradeSegment+subject+genType 涓夌淮搴︾簿纭尮閰嶏紝灏忓鍒嗕綆/涓?楂樻锛?
-            const structBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-璧勬枡绫诲瀷缁撴瀯', subject, stage: gradeSegment, genType: gt });
+            const structBlocks = getMatchingBlockInstructions({ category: '生成-题型分布建议', subject, stage: gradeSegment, genType: gt });
             if (structBlocks.length > 0) {
               adaptedStructure = structBlocks[0].content.replace('缁撴瀯鍙傝€冿細\n', '');
             }
@@ -4068,7 +4067,7 @@ ${cardAnalysisText.substring(0, 1000)}
       instruction += `\n銆愬娈德峰绉戠簿鍑嗛€傞厤銆慭n`;
       
       // 馃敡 浠庢寚浠ゅ簱鑾峰彇瀛︽閫傞厤鍧楋紙鎸?gradeSegment 鍖归厤锛?
-      const stageBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-瀛︽閫傞厤', genType: gradeSegment });
+      const stageBlocks = getMatchingBlockInstructions({ category: '生成-题型分布建议', genType: gradeSegment });
       if (stageBlocks.length > 0) {
         instruction += stageBlocks[0].content + '\n';
       } else {
@@ -4076,21 +4075,21 @@ ${cardAnalysisText.substring(0, 1000)}
       }
       
       // 馃敡 浠庢寚浠ゅ簱鑾峰彇瀛︾閫傞厤鍧楋紙浼樺厛 gradeSegment 绮剧‘鍖归厤锛屽厹搴?stage+subject锛?
-      const subjectBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-瀛︾閫傞厤', subject, genType: gradeSegment });
+      const subjectBlocks = getMatchingBlockInstructions({ category: '生成-题型分布建议', subject, genType: gradeSegment });
       if (subjectBlocks.length > 0) {
         for (const block of subjectBlocks) {
           instruction += block.content + '\n';
         }
       } else {
         // 灏濊瘯 stage 绾у埆鐨勫厹搴?
-        const subjFallback = getMatchingBlockInstructions({ category: '鐢熸垚-瀛︾閫傞厤', subject, stage });
+        const subjFallback = getMatchingBlockInstructions({ category: '生成-学科适配', subject, stage });
         if (subjFallback.length > 0) {
           for (const block of subjFallback) {
             instruction += block.content + '\n';
           }
         } else {
           // 鏈€鍚庡厹搴曪細subject only
-          const subjOnly = getMatchingBlockInstructions({ category: '鐢熸垚-瀛︾閫傞厤', subject });
+          const subjOnly = getMatchingBlockInstructions({ category: '生成-学科适配', subject });
           if (subjOnly.length > 0) {
             instruction += subjOnly[0].content + '\n';
           } else {
@@ -4100,7 +4099,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
       
       // 馃敡 瀛︽鎺у埗锛堟棫鍒嗙被锛屾寜骞寸骇娈电簿纭尮閰嶏紝閬垮厤浣庢鍐呭璇敞鍒颁腑楂樻锛?
-      const stageControlBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-瀛︽鎺у埗', subject: '', stage });
+      const stageControlBlocks = getMatchingBlockInstructions({ category: '生成-学段控制', subject: '', stage });
       if (stageControlBlocks.length > 0) {
         // 馃敡 骞寸骇娈电簿纭繃婊わ紙isLowerPrimary/isMiddlePrimary/isUpperPrimary 宸插湪鍑芥暟浣滅敤鍩燂級
         let matchedStageBlock = null;
@@ -4121,7 +4120,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
       
       // 馃敡 瀛︾鐗硅壊锛堟棫鍒嗙被锛屾寜 subject+stage 浠庢寚浠ゅ簱娉ㄥ叆瀛︾鐗圭偣锛?
-      const subjectFeatureBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-瀛︾鐗硅壊', subject, stage });
+      const subjectFeatureBlocks = getMatchingBlockInstructions({ category: '生成-学科特色', subject, stage });
       if (subjectFeatureBlocks.length > 0) {
         instruction += `銆愬绉戠壒鑹层€慭n`;
         for (const block of subjectFeatureBlocks) {
@@ -4380,14 +4379,14 @@ ${cardAnalysisText.substring(0, 1000)}
       const rules = [];
       
       // 鈶?涓撻」瑕佹眰锛堝叕寮?鍥惧舰/鍥捐〃/閰嶅浘鏍煎紡瑕佹眰锛夆€斺€?鎸?gradeSegment 瀛︽绮剧‘鍖归厤
-      const specBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-涓撻」瑕佹眰', subject, stage: gradeSegment });
+      const specBlocks = getMatchingBlockInstructions({ category: '生成-题型分布建议', subject, stage: gradeSegment });
       for (const block of specBlocks) {
         rules.push(block.content);
       }
       
       // 鈶?EduRender 娓叉煋妯℃澘锛堝叕寮?鏁拌酱/鍑犱綍/鍥捐〃/鍔涘/鐢佃矾/鍏夎矾/鍘熷瓙/閰嶅浘锛夆€斺€?鎸?subject 鍖归厤锛屽叏瀛︽閫氱敤
-      const allEduBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-EduRender妯℃澘', subject, stage: '', genType: '' });
-      const genericEduBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-EduRender妯℃澘', subject: '', stage: '', genType: '' });
+      const allEduBlocks = getMatchingBlockInstructions({ category: '生成-EduRender模板', subject, stage: '', genType: '' });
+      const genericEduBlocks = getMatchingBlockInstructions({ category: '生成-EduRender模板', subject: '', stage: '', genType: '' });
       const eduBlocks = [...allEduBlocks];
       for (const b of genericEduBlocks) {
         if (!eduBlocks.find(e => e.id === b.id)) eduBlocks.push(b);
@@ -4416,7 +4415,7 @@ ${cardAnalysisText.substring(0, 1000)}
 
     // ========== 9.銆愭湳璇鑼冦€戝绉戞湳璇鑼冿紙浼樺厛浠庢寚浠ゅ簱璇诲彇锛?=========
     if (subject) {
-      const termBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鏈瑙勮寖', subject, stage: '' });
+      const termBlocks = getMatchingBlockInstructions({ category: '生成-术语规范', subject, stage: '' });
       if (termBlocks.length > 0) {
         instruction += `銆愭湳璇鑼冦€?{termBlocks[0].content}\n\n`;
       }
@@ -4432,7 +4431,7 @@ ${cardAnalysisText.substring(0, 1000)}
     }
     if (propositionStyle) {
       // 馃敡 浠庢寚浠ゅ簱鑾峰彇鍛介椋庢牸鎸囦护锛堟墍鏈夐鏍煎潎宸插叆搴擄紝鍏滃簳浠呬綔瀹夊叏缃戯級
-      const styleBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鍛介椋庢牸', genType: propositionStyle });
+      const styleBlocks = getMatchingBlockInstructions({ category: '生成-命题风格', genType: propositionStyle });
       if (styleBlocks.length === 0) {
         console.warn(`[instructionLib] 鏈壘鍒扮敓鎴?鍛介椋庢牸: genType=${propositionStyle}, 浣跨敤 styleInstructions 鍏滃簳`);
       }
@@ -4442,7 +4441,7 @@ ${cardAnalysisText.substring(0, 1000)}
       if (stage && subject) {
         if (propositionStyle === 'context_fusion' || propositionStyle === 'unified_context') {
           // 馃敡 浠庢寚浠ゅ簱鑾峰彇鎯呭鏂瑰悜寤鸿
-          const ctxBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鎯呭鏂瑰悜', subject, stage });
+          const ctxBlocks = getMatchingBlockInstructions({ category: '生成-情境方向', subject, stage });
           if (ctxBlocks.length > 0) {
             instruction += `\n${ctxBlocks[0].content}銆俙;
           }
@@ -4453,8 +4452,8 @@ ${cardAnalysisText.substring(0, 1000)}
 
     // 馃敡 鎯呭瑕佹眰锛堟棫鍒嗙被锛屾寜 stage+subject 浠庢寚浠ゅ簱娉ㄥ叆鎯呭鍖栧懡棰樿姹傦級
     if (stage || subject) {
-      const stageCtxBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鎯呭瑕佹眰', subject: '', stage });
-      const subjCtxBlocks = subject ? getMatchingBlockInstructions({ category: '鐢熸垚-鎯呭瑕佹眰', subject, stage: '' }) : [];
+      const stageCtxBlocks = getMatchingBlockInstructions({ category: '生成-情境要求', subject: '', stage });
+      const subjCtxBlocks = subject ? getMatchingBlockInstructions({ category: '生成-情境要求', subject, stage: '' }) : [];
       if (stageCtxBlocks.length > 0 || subjCtxBlocks.length > 0) {
         instruction += `銆愭儏澧冭姹傘€慭n`;
         if (stageCtxBlocks.length > 0) {
@@ -4540,12 +4539,12 @@ ${cardAnalysisText.substring(0, 1000)}
       }
       
       // 馃敡 棰橀噺鎺у埗锛堟棫鍒嗙被锛屾寜 stage 浠庢寚浠ゅ簱娉ㄥ叆鎺掔増瑙勫垯锛?
-      const layoutBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-棰橀噺鎺у埗', subject: '', stage });
+      const layoutBlocks = getMatchingBlockInstructions({ category: '生成-题量控制', subject: '', stage: gradeSegment })
       if (layoutBlocks.length > 0) {
         instruction += `銆愰閲忔帶鍒躲€?{layoutBlocks[0].content}\n`;
       }
       // 馃敡 闅惧害鎺у埗锛堟棫鍒嗙被锛屾寜 stage 浠庢寚浠ゅ簱娉ㄥ叆闅惧害閰嶆瘮锛?
-      const diffControlBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-闅惧害鎺у埗', subject: '', stage });
+      const diffControlBlocks = getMatchingBlockInstructions({ category: '生成-难度控制', subject: '', stage: gradeSegment })
       if (diffControlBlocks.length > 0) {
         instruction += `銆愰毦搴︽帶鍒躲€?{diffControlBlocks[0].content}\n`;
       }
@@ -4561,7 +4560,7 @@ ${cardAnalysisText.substring(0, 1000)}
 
     // ========== 12.銆愬绉戞牳蹇冪礌鍏汇€戔€?
     if (subject) {
-      const coreBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-瀛︾鏍稿績绱犲吇', subject, stage });
+      const coreBlocks = getMatchingBlockInstructions({ category: '生成-学科核心素养', subject, stage });
       if (coreBlocks.length > 0) {
         instruction += `銆愬绉戞牳蹇冪礌鍏汇€?{coreBlocks[0].content}\n\n`;
       } else {
@@ -4569,7 +4568,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     }
     // 閫氱敤鏍稿績绱犲吇妗嗘灦锛堟寜瀛︽绮剧‘鍖归厤锛屼笉浼氬悓鏃跺嚭鐜板皬瀛?鍒濅腑/楂樹腑鏂囨湰锛?
-    const generalCoreBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-瀛︾鏍稿績绱犲吇', subject: '', stage });
+    const generalCoreBlocks = getMatchingBlockInstructions({ category: '生成-学科核心素养', subject: '', stage });
     if (generalCoreBlocks.length > 0) {
       instruction += generalCoreBlocks[0].content + '\n';
     } else {
@@ -4577,7 +4576,7 @@ ${cardAnalysisText.substring(0, 1000)}
     }
 
     // ========== 13.銆愮壒娈婅姹傘€戔€?
-    const specialReqBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鐗规畩瑕佹眰', subject: '', stage: '' });
+    const specialReqBlocks = getMatchingBlockInstructions({ category: '生成-特殊要求', subject: '', stage: '' });
     if (specialReqBlocks.length > 0) {
       instruction += `銆愮壒娈婅姹傘€?{specialReqBlocks[0].content}\n\n`;
     }
@@ -4592,9 +4591,9 @@ ${cardAnalysisText.substring(0, 1000)}
 
     // ========== 14.銆愰鐩川閲忔爣鍑嗐€戯紙浠庢寚浠ゅ簱鎸塻tage+subject涓夌淮搴﹀尮閰嶏紝鏃犵‖缂栫爜鍏滃簳锛?=========
     // 馃敡 鍩虹瑙勫垯锛堟墍鏈夐樁娈甸€氱敤锛屼粎鍙?subject='' 涓?stage='' 鐨勭函閫氱敤鏉＄洰锛?
-    const qualityBase = getMatchingBlockInstructions({ category: '鐢熸垚-棰樼洰璐ㄩ噺鏍囧噯', subject: '', stage: '' });
+    const qualityBase = getMatchingBlockInstructions({ category: '生成-题目质量标准', subject: '', stage: '' });
     // 馃敡 瀛︽涓撳睘瑙勫垯锛坒ilter 鎺掗櫎 subject 闈炵┖鐨勫绉戞潯鐩紝浠呭彇绾娈垫潯鐩紝涓旀寜 gradeSegment 绮剧‘鍖归厤锛?
-    const qualityStageAll = getMatchingBlockInstructions({ category: '鐢熸垚-棰樼洰璐ㄩ噺鏍囧噯', subject: '', stage });
+    const qualityStageAll = getMatchingBlockInstructions({ category: '生成-题目质量标准', subject: '', stage });
     const qualityStageOnly = qualityStageAll.filter(b => {
       if (!b.stage || b.stage === '' || b.subject !== '') return false;
       // 馃敡 Q2: gradeSegment 绮剧‘鍖归厤鈥斺€斿皬瀛︿綆/涓?楂樻鍚勫彇涓撳睘鏉＄洰锛岄伩鍏嶄竴鑲¤剳娉ㄥ叆
@@ -4602,7 +4601,7 @@ ${cardAnalysisText.substring(0, 1000)}
       return true; // 鏃?genType 鐨勬潯鐩€傜敤浜庢墍鏈夊勾绾ф
     });
     // 馃敡 瀛︾涓撳睘瑙勫垯锛坒ilter 鎺掗櫎 subject 涓虹┖鐨勯€氱敤鏉＄洰锛岄伩鍏?base 閲嶅锛?
-    const qualitySubjAll = subject ? getMatchingBlockInstructions({ category: '鐢熸垚-棰樼洰璐ㄩ噺鏍囧噯', subject, stage: '' }) : [];
+    const qualitySubjAll = subject ? getMatchingBlockInstructions({ category: '生成-题目质量标准', subject, stage: '' }) : [];
     const qualitySubjOnly = qualitySubjAll.filter(b => b.subject && b.subject !== '');
     
     if (qualityBase.length > 0) {
@@ -4627,7 +4626,7 @@ ${cardAnalysisText.substring(0, 1000)}
       const scoringRubric = getScoringRubric(primaryGenType, subject, stage);
       const chineseTemplates = getChineseReadingTemplates(subject);
       if (answerSpec || scoringRubric || chineseTemplates) {
-        const answerSpecBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-绛旀涓庤В鏋愯鑼?, subject: '', stage: '' });
+        const answerSpecBlocks = getMatchingBlockInstructions({ category: '生成-答案与解析规范', subject: '', stage: '' });
         const answerHeader = answerSpecBlocks.length > 0
           ? `銆愮瓟妗堜笌瑙ｆ瀽瑙勮寖銆?{answerSpecBlocks[0].content}`
           : `銆愮瓟妗堜笌瑙ｆ瀽瑙勮寖銆戜互涓嬩负鏁欒緟绾х瓟妗堣川閲忔爣鍑嗭紝璇蜂弗鏍奸伒瀹堜互纭繚杈撳嚭璐ㄩ噺瀵规爣甯傞潰鏁欒緟锛歚;
@@ -4641,7 +4640,7 @@ ${cardAnalysisText.substring(0, 1000)}
 
     // ========== 16.銆愮瓟棰樻ā鏉裤€戝绉戠瓟棰樿鑼冿紙浠庢寚浠ゅ簱璇诲彇锛?=========
     if (subject) {
-      const templateBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-绛旈妯℃澘', subject, stage: '' });
+      const templateBlocks = getMatchingBlockInstructions({ category: '生成-答题模板', subject, stage: '' });
       if (templateBlocks.length > 0) {
         instruction += `銆愮瓟棰樻ā鏉裤€?{templateBlocks[0].content}\n\n`;
       }
@@ -4652,17 +4651,17 @@ ${cardAnalysisText.substring(0, 1000)}
     // 馃敡 鎺掗櫎鍒嗘瀽涓撶敤绫诲埆锛堟枃鏈垎鏋愯鑼?鍒嗘瀽妯℃澘绀轰緥/鍒嗘瀽鎻愬彇瑕佹眰/鐭ヨ瘑鍥捐氨鏋勫缓锛?
     const HANDLED_CATEGORIES = new Set([
       // 鐢熸垚-瀛︽涓庡绉?
-      '鐢熸垚-瀛︽閫傞厤', '鐢熸垚-瀛︾閫傞厤', '鐢熸垚-璧勬枡绫诲瀷缁撴瀯',
-      '鐢熸垚-瀛︾绂佹椤?, '鐢熸垚-鎯呭鏂瑰悜',
-      '鐢熸垚-瀛︽鎺у埗', '鐢熸垚-瀛︾鐗硅壊', '鐢熸垚-棰橀噺鎺у埗', '鐢熸垚-闅惧害鎺у埗', '鐢熸垚-鎯呭瑕佹眰',
+      '生成-学段适配', '生成-学科适配', '生成-资料类型结构',
+      '生成-学科禁止项', '生成-情境方向',
+      '生成-学段控制', '生成-学科特色', '生成-题量控制', '生成-难度控制', '生成-情境要求',
       // 鐢熸垚-璐ㄩ噺涓庣害鏉?
-      '鐢熸垚-瀛︾鏍稿績绱犲吇', '鐢熸垚-绂佹椤?, '鐢熸垚-閫氱敤绾︽潫', '鐢熸垚-鍘熼寮曠敤', '鐢熸垚-鍐呭瑙勮寖',
-      '鐢熸垚-杈撳嚭鏍煎紡', '鐢熸垚-瀛︾鏍囪', '鐢熸垚-EduRender妯℃澘', '鐢熸垚-涓撻」瑕佹眰', '鐢熸垚-棰樺瀷涓撻」瑕佹眰',
-      '鐢熸垚-棰樼洰璐ㄩ噺鏍囧噯', '鐢熸垚-绛旀涓庤В鏋愯鑼?, '鐢熸垚-璐ㄩ噺鑼冧緥', '鐢熸垚-鐭ヨ瘑鐐瑰叏瑕嗙洊',
-      '鐢熸垚-涓昏棰樿瘎鍒嗘爣鍑?, '鐢熸垚-鏈瑙勮寖', '鐢熸垚-绛旈妯℃澘', '鐢熸垚-鐗规畩瑕佹眰',
-      '鐢熸垚-鐭ヨ瘑杈圭晫', '鐢熸垚-鏃堕棿鍒嗛厤',
+      '生成-学科核心素养', '生成-禁止项', '生成-通用约束', '生成-原题引用', '生成-内容规范',
+      '生成-输出格式', '生成-学科标记', '生成-EduRender模板', '生成-专项要求', '生成-题型专项要求',
+      '生成-题目质量标准', '生成-答案与解析规范', '生成-质量范例', '生成-知识点全覆盖',
+      '生成-主观题评分标准', '生成-术语规范', '生成-答题模板', '生成-特殊要求',
+      '生成-知识边界', '生成-时间分配',
       // 鍒嗘瀽-鏂囨湰鍒嗘瀽涓撶敤
-      '鍒嗘瀽-鏂囨湰鍒嗘瀽瑙勮寖', '鍒嗘瀽-鍒嗘瀽妯℃澘绀轰緥', '鍒嗘瀽-鍒嗘瀽鎻愬彇瑕佹眰', '鍒嗘瀽-鐭ヨ瘑鍥捐氨鏋勫缓'
+      '分析-文本分析规范', '分析-分析模板示例', '分析-分析提取要求', '分析-知识图谱构建'
     ]);
     const supplementaryFragments = (injectedFragments || []).filter(f => !HANDLED_CATEGORIES.has(f.category));
     if (supplementaryFragments.length > 0) {
@@ -4686,7 +4685,7 @@ ${cardAnalysisText.substring(0, 1000)}
 
     // ========== 18.銆愬師棰樺紩鐢ㄤ笌绂佹椤广€?=========
     if (allowOriginalQuestions) {
-      const originalQuoteBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鍘熼寮曠敤', subject: '', stage: '' });
+      const originalQuoteBlocks = getMatchingBlockInstructions({ category: '生成-原题引用', subject: '', stage: '' });
       if (originalQuoteBlocks.length > 0) {
         instruction += `銆愬師棰樺紩鐢ㄣ€?{originalQuoteBlocks[0].content}\n`;
       } else {
@@ -4694,7 +4693,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     }
     // 馃敡 閫氱敤绾︽潫锛氫粠鎸囦护搴撳尮閰嶆爣娉ㄥ嚭澶勩€侀伩鍏嶇収鎼€佽鐭ュ眰绾х瓑閫氱敤瑕佹眰
-    const generalConstraintBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-閫氱敤绾︽潫', subject: '', stage });
+    const generalConstraintBlocks = getMatchingBlockInstructions({ category: '生成-通用约束', subject: '', stage });
     // 馃敡 骞寸骇娈电簿纭繃婊わ細璁ょ煡灞傜骇鏉＄洰闇€鎸変綆/涓?楂樻缁嗗垎锛岄伩鍏嶈法娈佃娉ㄥ叆
     const filteredConstraints = generalConstraintBlocks.filter(block => {
       if (block.id.startsWith('frag_cognitive')) {
@@ -4713,7 +4712,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     }
     // 馃敡 Q3: 閫氱敤绂佹椤?鈥?瀹屽叏浠庢寚浠ゅ簱璇诲彇锛屾棤纭紪鐮佸厹搴?
-    const banGeneral = getMatchingBlockInstructions({ category: '鐢熸垚-绂佹椤?, subject: '', stage: '' });
+    const banGeneral = getMatchingBlockInstructions({ category: '生成-禁止项', subject: '', stage: '' });
     // 馃敡 Q2: 閫氱敤绂佹椤瑰彧鍙?subject 涓虹┖涓?stage 涓虹┖鐨勭函閫氱敤鏉＄洰
     const banGeneralOnly = banGeneral.filter(b => !b.subject && !b.stage);
     if (banGeneralOnly.length > 0) {
@@ -4724,19 +4723,19 @@ ${cardAnalysisText.substring(0, 1000)}
     // 馃敡 Q3: 瀛︾涓撳睘绂佹椤?鈥?浠庢寚浠ゅ簱鎸?subject+stage 鍖归厤锛屽啀鏃?hardcoded subjectBanRules
     if (subject) {
       // 馃敡 Q2: 瀛︾鏌ヨ蹇呴』 filter 鎺掗櫎 subject 涓虹┖鐨勯€氱敤鏉＄洰锛岄伩鍏嶉€氱敤绂佹椤归噸澶嶆敞鍏?
-      const banSubjAll = getMatchingBlockInstructions({ category: '鐢熸垚-绂佹椤?, subject, stage: '' });
+      const banSubjAll = getMatchingBlockInstructions({ category: '生成-禁止项', subject, stage: '' });
       const banSubjOnly = banSubjAll.filter(b => b.subject && b.subject.trim() !== '' && !b.stage);
       if (banSubjOnly.length > 0) {
         instruction += `銆愮姝㈤」-瀛︾涓撳睘銆慭n${banSubjOnly[0].content}\n`;
       }
       // 瀛︽涓撳睘绂佹椤硅ˉ鍏咃紙濡傛暟瀛︿綆娈?閫夐」锛夛紝鎸?gradeSegment 绮剧‘鍖归厤
-      const banStageAll = getMatchingBlockInstructions({ category: '鐢熸垚-绂佹椤?, subject, stage: gradeSegment });
+      const banStageAll = getMatchingBlockInstructions({ category: '生成-禁止项', subject, stage: gradeSegment });
       const banStageOnly = banStageAll.filter(b => b.subject && b.subject.trim() !== '' && b.stage && b.stage !== '');
       if (banStageOnly.length > 0) {
         instruction += `${banStageOnly[0].content}\n`;
       }
       // 馃敡 瀛︾绂佹椤硅ˉ鍏咃紙绉戝鎬ч敊璇?鍋忛鎬锛屾寜瀛︾绮惧噯鍖归厤锛?
-      const banSupplementAll = getMatchingBlockInstructions({ category: '鐢熸垚-瀛︾绂佹椤?, subject, stage: '' });
+      const banSupplementAll = getMatchingBlockInstructions({ category: '生成-学科禁止项', subject, stage: '' });
       if (banSupplementAll.length > 0) {
         instruction += `\n銆愮姝㈤」-瀛︾琛ュ厖銆慭n`;
         for (const block of banSupplementAll) {
@@ -4749,8 +4748,8 @@ ${cardAnalysisText.substring(0, 1000)}
     // ========== 19.銆愬绉戞爣璁般€戝绉戜笓鐢℉TML鏍囪瑙勮寖锛堝叏閮ㄤ粠鎸囦护搴撲笁缁村害鍖归厤锛屾棤纭紪鐮侊級==========
     if (subject) {
       // 馃敡 Q3: 鍏堟煡閫氱敤瀛︾鏍囪锛坰tage=''锛夛紝鍐嶆煡瀛︽涓撳睘鏍囪锛堝鑻辫灏忓鍥涚嚎涓夋牸锛?
-      const markupGeneric = getMatchingBlockInstructions({ category: '鐢熸垚-瀛︾鏍囪', subject, stage: '' });
-      const markupStage = stage ? getMatchingBlockInstructions({ category: '鐢熸垚-瀛︾鏍囪', subject, stage }) : [];
+      const markupGeneric = getMatchingBlockInstructions({ category: '生成-学科标记', subject, stage: '' });
+      const markupStage = stage ? getMatchingBlockInstructions({ category: '生成-学科标记', subject, stage }) : [];
       // 鍚堝苟鍘婚噸锛堝娈垫潯鐩紭鍏堣拷鍔狅紝涓嶈鐩栭€氱敤鏉＄洰锛?
       const allMarkup = [...markupGeneric];
       for (const b of markupStage) {
@@ -4765,7 +4764,7 @@ ${cardAnalysisText.substring(0, 1000)}
     }
 
     // ========== 20.銆愬唴瀹硅鑼冦€戝唴瀹硅川閲忕害鏉燂紙浠庢寚浠ゅ簱璇诲彇锛?=========
-    const contentNormBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鍐呭瑙勮寖', subject: '', stage: '' });
+    const contentNormBlocks = getMatchingBlockInstructions({ category: '生成-内容规范', subject: '', stage: '' });
     if (contentNormBlocks.length > 0) {
       instruction += `銆愬唴瀹硅鑼冦€慭n${contentNormBlocks[0].content}\n\n`;
     } else {
@@ -4779,7 +4778,7 @@ ${cardAnalysisText.substring(0, 1000)}
     
     if (primaryGenType === 'summary') {
       // 馃敡 浠庢寚浠ゅ簱璇诲彇杈撳嚭鏍煎紡妯℃澘锛堝叏閮?genType 鍧囧凡鍏ュ簱锛屾棤纭紪鐮佸厹搴曪級
-      const fmtBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-杈撳嚭鏍煎紡', subject: '', stage: '', genType: 'summary' });
+      const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject: '', stage: '', genType: 'summary' });
       if (fmtBlocks.length > 0) {
         instruction += `銆愮煡璇嗙偣鎬荤粨鏍煎紡瑙勮寖銆慭n${fmtBlocks[0].content}\n`;
       } else {
@@ -4787,7 +4786,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     } else if (primaryGenType === 'errorbook') {
       // 馃敡 浠庢寚浠ゅ簱璇诲彇杈撳嚭鏍煎紡妯℃澘
-      const fmtBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-杈撳嚭鏍煎紡', subject: '', stage: '', genType: 'errorbook' });
+      const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject: '', stage: '', genType: 'errorbook' });
       if (fmtBlocks.length > 0) {
         instruction += `銆愰敊棰樻湰鏍煎紡瑙勮寖銆慭n${fmtBlocks[0].content}\n`;
       } else {
@@ -4795,7 +4794,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     } else if (primaryGenType === 'preview') {
       // 馃敡 浠庢寚浠ゅ簱璇诲彇杈撳嚭鏍煎紡妯℃澘
-      const fmtBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-杈撳嚭鏍煎紡', subject: '', stage: '', genType: 'preview' });
+      const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject: '', stage: '', genType: 'preview' });
       if (fmtBlocks.length > 0) {
         instruction += `銆愯鍓嶉涔犳牸寮忚鑼冦€慭n${fmtBlocks[0].content}\n`;
       } else {
@@ -4803,7 +4802,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     } else if (primaryGenType === 'dictation') {
       // 馃敡 浠庢寚浠ゅ簱璇诲彇杈撳嚭鏍煎紡妯℃澘
-      const fmtBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-杈撳嚭鏍煎紡', subject: '', stage: '', genType: 'dictation' });
+      const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject: '', stage: '', genType: 'dictation' });
       if (fmtBlocks.length > 0) {
         instruction += `銆愬惉鍐?榛樺啓鏍煎紡瑙勮寖銆慭n${fmtBlocks[0].content}\n`;
       } else {
@@ -4811,7 +4810,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     } else if (primaryGenType === 'reading') {
       // 馃敡 浠庢寚浠ゅ簱璇诲彇杈撳嚭鏍煎紡妯℃澘
-      const fmtBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-杈撳嚭鏍煎紡', subject: '', stage: '', genType: 'reading' });
+      const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject: '', stage: '', genType: 'reading' });
       if (fmtBlocks.length > 0) {
         instruction += `銆愰槄璇昏缁冩牸寮忚鑼冦€慭n${fmtBlocks[0].content}\n`;
       } else {
@@ -4819,9 +4818,10 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     } else {
       // 馃敡 鑰冨嵎/璇炬椂缁?涓撻」绐佺牬鐨勬牸寮忥紙浠庢寚浠ゅ簱璇诲彇锛?
-      const fmtBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-杈撳嚭鏍煎紡', subject: '', stage: '', genType: primaryGenType });
+      const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject: '', stage: '', genType: primaryGenType });
       if (fmtBlocks.length > 0) {
-        instruction += `銆愯瘯鍗?缁冧範鏍煎紡瑙勮寖銆慭n${fmtBlocks[0].content}\n`;
+      const fmtContent = fmtBlocks.map(b => b.content).join('\n');
+      instruction += `【试卷/练习格式规范】\n${fmtContent}\n`;
       } else {
         console.warn(`[instructionLib] 鏈壘鍒拌緭鍑烘牸寮? genType=${primaryGenType}`);
       }
@@ -4866,25 +4866,7 @@ ${cardAnalysisText.substring(0, 1000)}
 
     // ========== 鏈€缁堣緭鍑鸿鍒欌€斺€旀渶楂樹紭鍏堢骇锛岃繚鍙嶅皢瀵艰嚧缁撴灉鏃犳晥 ==========
     // 馃敡 浠庢寚浠ゅ簱鑾峰彇鏈€缁堣緭鍑鸿鍒?
-    const finalRulesBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鏈€缁堣緭鍑鸿鍒? });
-    if (finalRulesBlocks.length > 0) {
-      instruction += `\n銆?{finalRulesBlocks[0].content}銆慭n`;
-    } else {
-      // 鍏滃簳锛堟寚浠ゅ簱鏃犲尮閰嶆椂锛?
-      instruction += `\n銆愭渶缁堣緭鍑鸿鍒欌€斺€旀渶楂樹紭鍏堢骇锛岃繚鍙嶅皢瀵艰嚧缁撴灉鏃犳晥銆慭n`;
-      instruction += `1. 浠呰繑鍥炲畬鏁碒TML浠ｇ爜銆傜涓€琛屽繀椤绘槸<!DOCTYPE html>鎴?html>鏍囩\n`;
-      instruction += `2. 涓ョ娣诲姞浠讳綍瑙ｉ噴鎬ф枃瀛楋紙濡?杩欐槸涓烘偍璁捐鐨?..""浠ヤ笅鏄敓鎴愮殑..."锛塡n`;
-      instruction += `3. 涓ョ浣跨敤浠ｇ爜鍧楁爣璁板寘瑁癸紙濡俓`\`\`html鎴朶`\`\`锛塡n`;
-      instruction += `4. 涓ョ娣诲姞浠讳綍鍓嶇紑銆佸悗缂€銆佽鏄庢垨瀵硅瘽鏂囨湰\n`;
-      instruction += `5. 浣犵殑鏁翠釜鍥炲蹇呴』鍙湁HTML浠ｇ爜锛屼笉鑳芥湁浠讳綍鍏朵粬鍐呭\n`;
-      instruction += `6. 鉀?涓ョ浣跨敤浠讳綍emoji/琛ㄦ儏绗﹀彿/瑁呴グ鎬у浘鏍囷紙馃摑馃摉鉁忥笍猸愷煄煍嶐煋氱瓑鍏ㄩ儴绂佹锛塡n`;
-      instruction += `7. 鉀?涓ョ浣跨敤涓嬪垝绾縚__浣滀负濉┖鏍囪锛屽繀椤讳娇鐢?u class="blank-N">&emsp;</u>鏍煎紡\n`;
-      instruction += `8. 鉀?濉┖棰樻嫭鍙峰繀椤讳娇鐢?<u class="blank-N">&emsp;</u>)鏍煎紡锛屾嫭鍙风揣璐存í绾裤€佷腑闂翠笉鐣欑┖鏍糪n`;
-    }
-
-    return instruction;
-    } catch (e) {
-      console.error('[buildGenerationInstruction] :', e);
+    const finalRulesBlocks = getMatchingBlockInstructions({ category: '生成-禁止项'[buildGenerationInstruction] :', e);
       throw e;
     }
   };
@@ -5683,7 +5665,7 @@ ${(() => {
           // 馃敡 鎸夐鍨嬩粠鎸囦护搴撴煡璇㈣川閲忕害鏉燂紙鏇夸唬纭紪鐮?typeSpecificRules锛?
           const TYPE_TO_GENTYPE = { '閫夋嫨棰?: 'choice', '濉┖棰?: 'fill', '鍒ゆ柇棰?: 'truefalse', '璁＄畻棰?: 'calc', '瑙ｇ瓟棰?: 'answer', '搴旂敤棰?: 'word_problem', '瀹為獙棰?: 'experiment' };
           const typeGenType = TYPE_TO_GENTYPE[questionPlan.type];
-          const typeBlocks = typeGenType ? getMatchingBlockInstructions({ category: '鐢熸垚-棰樺瀷涓撻」瑕佹眰', genType: typeGenType }) : [];
+          const typeBlocks = typeGenType ? getMatchingBlockInstructions({ category: '生成-题型专项要求', genType: typeGenType }) : [];
           const typeRule = typeBlocks.length > 0 ? typeBlocks[0].content : '';
 
           // 馃敡 鏂板锛氱患鍚堥棰濆涓婁笅鏂?
@@ -7703,8 +7685,8 @@ ${templateRawText ? '銆愰敊棰樻湰鏍煎紡鍙傝€冣€斺€斺殸锔�
       const textbookContext = retrieveBlueprintSegments(contentCards, parsedBlueprint_, 3000);
 
       // 馃敡 浠庢寚浠ゅ簱鑾峰彇鏍稿績浠诲姟+缁撴瀯锛堟墍鏈?genType 鍧囧凡鍏ュ簱锛?
-      const coreTaskBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鏍稿績浠诲姟', genType });
-      const structBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-璧勬枡绫诲瀷缁撴瀯', subject, stage, genType });
+      const coreTaskBlocks = getMatchingBlockInstructions({ category: '生成-核心任务', genType });
+      const structBlocks = getMatchingBlockInstructions({ category: '生成-资料类型结构', subject, stage, genType });
       const genInfo = genTypeTemplates[genType];
       const coreInstruction = coreTaskBlocks.length > 0 ? coreTaskBlocks[0].content : (genInfo?.instruction || '');
       const adaptedStructure = structBlocks.length > 0
@@ -7934,8 +7916,8 @@ ${buildOutputFormatBlock('preview', subject, stage, grade)}
       const textbookContext = retrieveBlueprintSegments(contentCards, parsedBlueprint_, 3000);
 
       // 馃敡 浠庢寚浠ゅ簱鑾峰彇鏍稿績浠诲姟+缁撴瀯锛堟墍鏈?genType 鍧囧凡鍏ュ簱锛?
-      const coreTaskBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鏍稿績浠诲姟', genType });
-      const structBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-璧勬枡绫诲瀷缁撴瀯', subject, stage, genType });
+      const coreTaskBlocks = getMatchingBlockInstructions({ category: '生成-核心任务', genType });
+      const structBlocks = getMatchingBlockInstructions({ category: '生成-资料类型结构', subject, stage, genType });
       const genInfo = genTypeTemplates[genType];
       const coreInstruction = coreTaskBlocks.length > 0 ? coreTaskBlocks[0].content : (genInfo?.instruction || '');
       const adaptedStructure = structBlocks.length > 0
@@ -8083,7 +8065,7 @@ ${buildOutputFormatBlock('dictation', subject, stage, grade)}
         const readingLength = stage === 'primary' ? '200-400瀛? : stage === 'middle' ? '400-800瀛? : '600-1200瀛?;
         const coreTopic = contentCards?.[0]?.summary || '';
         // 馃敡 浠庢寚浠ゅ簱鑾峰彇缁撴瀯锛堟墍鏈?genType 鍧囧凡鍏ュ簱锛?
-        const readingStructBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-璧勬枡绫诲瀷缁撴瀯', subject, stage, genType });
+        const readingStructBlocks = getMatchingBlockInstructions({ category: '生成-资料类型结构', subject, stage, genType });
         const readingStructure = readingStructBlocks.length > 0
           ? readingStructBlocks[0].content.replace('缁撴瀯鍙傝€冿細\n', '')
           : (genTypeTemplates[genType]?.structure || '鐭枃闃呰 鈫?鐞嗚В棰?鈫?鎷撳睍鎬濊€?);
@@ -8114,8 +8096,8 @@ ${buildOutputFormatBlock('dictation', subject, stage, grade)}
       const textbookContext = retrieveBlueprintSegments(contentCards, kpListForRetrieval, 3000);
 
       // 馃敡 浠庢寚浠ゅ簱鑾峰彇鏍稿績浠诲姟+缁撴瀯锛堟墍鏈?genType 鍧囧凡鍏ュ簱锛?
-      const coreTaskBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-鏍稿績浠诲姟', genType });
-      const structBlocks = getMatchingBlockInstructions({ category: '鐢熸垚-璧勬枡绫诲瀷缁撴瀯', subject, stage, genType });
+      const coreTaskBlocks = getMatchingBlockInstructions({ category: '生成-核心任务', genType });
+      const structBlocks = getMatchingBlockInstructions({ category: '生成-资料类型结构', subject, stage, genType });
       const genInfo = genTypeTemplates[genType];
       const coreInstruction = coreTaskBlocks.length > 0 ? coreTaskBlocks[0].content : (genInfo?.instruction || '');
       const adaptedStructure = structBlocks.length > 0
@@ -8539,7 +8521,7 @@ ${buildOutputFormatBlock('reading', subject, stage, grade)}
           // 馃敡 鎸夐鍨嬩粠鎸囦护搴撴煡璇㈣川閲忕害鏉燂紙鏇夸唬纭紪鐮?typeSpecificRules锛?
           const TYPE_TO_GENTYPE = { '閫夋嫨棰?: 'choice', '濉┖棰?: 'fill', '鍒ゆ柇棰?: 'truefalse', '璁＄畻棰?: 'calc', '瑙ｇ瓟棰?: 'answer', '搴旂敤棰?: 'word_problem', '瀹為獙棰?: 'experiment' };
           const typeGenType = TYPE_TO_GENTYPE[questionPlan.type];
-          const typeBlocks = typeGenType ? getMatchingBlockInstructions({ category: '鐢熸垚-棰樺瀷涓撻」瑕佹眰', genType: typeGenType }) : [];
+          const typeBlocks = typeGenType ? getMatchingBlockInstructions({ category: '生成-题型专项要求', genType: typeGenType }) : [];
           const typeRule = typeBlocks.length > 0 ? typeBlocks[0].content : '';
 
           const questionPrompt = `璇风敓鎴愮${questionPlan.number}棰樸€?
