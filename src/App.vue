@@ -853,13 +853,14 @@ onMounted(async () => {
     }
   });
 
-  // 📤 手动上推：推送本地全量数据到云端（生成结果 + 历史记录）
+  // 📤 手动上推：推送本地全量数据到云端（双向+单向，桌面端包含教材/模板/指令/设置/激活）
   window.addEventListener('app-upload', async () => {
     console.log('📤 手动上推：推送本地数据到云端');
     if (isCloudConfigured()) {
       showToastMessage('📤 上推中…', 'info');
       try {
         const results = [];
+        // 双向数据：历史记录
         try {
           const localHistory = await storage.getItem('docHistory') || [];
           if (localHistory.length > 0) {
@@ -867,6 +868,7 @@ onMounted(async () => {
             results.push('历史' + localHistory.length + '条');
           }
         } catch {}
+        // 双向数据：生成结果
         try {
           const localGenRaw = localStorage.getItem('wisdom_generated_docs');
           if (localGenRaw) {
@@ -877,6 +879,54 @@ onMounted(async () => {
             }
           }
         } catch {}
+        // 单向数据：仅桌面端推送（教材/模板/指令/设置/激活 → 手机端只拉不推）
+        if (!isWebMode.value) {
+          try {
+            const localTextbooks = await storage.getItem('textbooks');
+            if (localTextbooks && localTextbooks.length > 0) {
+              await uploadTextbooks(localTextbooks);
+              results.push('教材');
+            }
+          } catch {}
+          try {
+            const localTemplates = await storage.getItem('templates');
+            if (localTemplates && localTemplates.length > 0) {
+              await uploadTemplates(localTemplates);
+              results.push('模板');
+            }
+          } catch {}
+          try {
+            const rawIns = localStorage.getItem('instructionLib');
+            if (rawIns) {
+              const parsed = JSON.parse(rawIns);
+              if (parsed && parsed.length > 0) {
+                await uploadInstructions(parsed);
+                results.push('指令库');
+              }
+            }
+          } catch {}
+          try {
+            const dsFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
+              'deepseekGenerationModel', 'deepseekAnalysisModel'];
+            const settingsToPush = {};
+            for (const f of dsFields) { if (apiConfig[f]) settingsToPush[f] = apiConfig[f]; }
+            if (Object.keys(settingsToPush).length > 0) {
+              await uploadSettings(settingsToPush);
+              results.push('设置');
+            }
+          } catch {}
+          try {
+            const rawAct = localStorage.getItem('activationInfo');
+            if (rawAct) {
+              const act = JSON.parse(rawAct);
+              if (act && act.version && act.version !== 'basic') {
+                const { _sign, ...clean } = act;
+                await uploadActivationInfo(clean);
+                results.push('激活');
+              }
+            }
+          } catch {}
+        }
         if (results.length > 0) {
           console.log('📤 上推完成:', results.join('、'));
           showToastMessage('📤 已上推 ' + results.join('、'), 'info');

@@ -7038,10 +7038,18 @@ watch([() => selectedTextbooks.value?.[0]?.subject, () => selectedTextbooks.valu
 );
 
 // 初始化
-// ☁️ 云端数据同步完成后：清理本地 _deleted 标记项 + 重新加载
+// ☁️ 云端数据同步完成后：从 localStorage 重新加载 + 清理 _deleted 标记项
 const onCloudSync = () => {
   if (isGenerating.value) return;
-  // 清理已同步的 _deleted 项（云端合并已过滤，本地也应清理）
+  // 从 localStorage 重新加载（同步已写入合并结果）
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) generatedDocs.value = parsed;
+    } catch {}
+  }
+  // 清理 _deleted 项
   const before = generatedDocs.value.length;
   generatedDocs.value = generatedDocs.value.filter(d => !d._deleted);
   if (generatedDocs.value.length < before) {

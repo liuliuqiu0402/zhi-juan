@@ -109,28 +109,40 @@ defineProps({
 /* 📱 移动端 */
 .mobile-header {
   height: 48px;
-  padding: 0 16px;
+  padding: 0 12px;
   padding-top: calc(env(safe-area-inset-top, 0px));
   min-height: calc(48px + env(safe-area-inset-top, 0px));
 }
 .mobile-header .logo {
-  font-size: 18px;
+  font-size: 17px;
+}
+.mobile-header .header-right {
+  gap: 4px;
 }
 .mobile-header .header-btn {
-  padding: 6px 12px;
-  font-size: 18px;
+  padding: 6px 10px;
+  font-size: 17px;
+  min-width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-header .header-btn:active {
+  background: var(--primary-bg);
+  transform: scale(0.92);
 }
 .mobile-header .header-btn-sm {
-  padding: 4px 10px;
+  padding: 4px 8px;
   font-size: 16px;
-  min-width: unset;
 }
 
 /* 📱 签名到期徽章 */
 .mobile-sign-badge {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  padding: 3px 10px;
+  padding: 2px 8px;
   border-radius: 12px;
   background: #f0fff4;
   color: #38a169;
