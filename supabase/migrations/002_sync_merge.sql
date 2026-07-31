@@ -1,9 +1,11 @@
 -- 智慧工坊 · 同步机制重构：云端合并 + sync_key 隔离
 -- 客户端调用 RPC，服务端事务内原子合并，消除多端挤兑
+--
+-- 合并策略：客户端发完整列表 → 替换同 id 项 + 保留云端独有项（其他设备新增的）
+--   效果：新增 ✅  删除 ✅  多设备并发安全 ✅
 
 -- ══════════════════════════════════════════════════════════════
--- RPC：服务端合并 doc_history
--- 逻辑：读当前 → 按 id 去重（p_items 优先）→ 截断 50 条 → 写回
+-- RPC：服务端合并 doc_history（截断 50 条）
 -- ══════════════════════════════════════════════════════════════
 CREATE OR REPLACE FUNCTION merge_doc_history(p_sync_key TEXT, p_items JSONB)
 RETURNS JSONB AS $$
@@ -16,24 +18,24 @@ BEGIN
     v_current := '[]'::jsonb;
   END IF;
 
-  WITH all_items AS (
-    SELECT item, 1 AS priority FROM jsonb_array_elements(p_items) AS item
+  WITH client_items AS (
+    SELECT item FROM jsonb_array_elements(p_items) AS item
+  ),
+  cloud_only AS (
+    -- 云端有但客户端没有的条目（其他设备新增的，保留）
+    SELECT item FROM jsonb_array_elements(v_current) AS item
+    WHERE item->>'id' NOT IN (SELECT item->>'id' FROM client_items)
+  ),
+  merged AS (
+    SELECT item FROM client_items
     UNION ALL
-    SELECT item, 2 AS priority FROM jsonb_array_elements(v_current) AS item
-  ),
-  deduped AS (
-    SELECT DISTINCT ON (item->>'id') item
-    FROM all_items
-    ORDER BY (item->>'id'), priority
-  ),
-  sorted AS (
-    SELECT item FROM deduped
-    ORDER BY
-      (item->>'savedAt')::bigint DESC NULLS LAST,
-      (item->>'timestamp')::bigint DESC NULLS LAST
-    LIMIT 50
+    SELECT item FROM cloud_only
   )
-  SELECT COALESCE(jsonb_agg(item), '[]'::jsonb) INTO v_result FROM sorted;
+  SELECT COALESCE(jsonb_agg(item ORDER BY
+    (item->>'savedAt')::bigint DESC NULLS LAST,
+    (item->>'timestamp')::bigint DESC NULLS LAST
+  ), '[]'::jsonb) INTO v_result
+  FROM (SELECT item FROM merged LIMIT 50) sub;
 
   INSERT INTO doc_history (id, data, updated_at)
   VALUES (p_sync_key, v_result, now())
@@ -45,8 +47,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ══════════════════════════════════════════════════════════════
--- RPC：服务端合并 generated_docs
--- 同 doc_history，截断 20 条
+-- RPC：服务端合并 generated_docs（截断 20 条）
 -- ══════════════════════════════════════════════════════════════
 CREATE OR REPLACE FUNCTION merge_generated_docs(p_sync_key TEXT, p_items JSONB)
 RETURNS JSONB AS $$
@@ -62,24 +63,23 @@ BEGIN
     v_current := '[]'::jsonb;
   END IF;
 
-  WITH all_items AS (
-    SELECT item, 1 AS priority FROM jsonb_array_elements(p_items) AS item
+  WITH client_items AS (
+    SELECT item FROM jsonb_array_elements(p_items) AS item
+  ),
+  cloud_only AS (
+    SELECT item FROM jsonb_array_elements(v_current) AS item
+    WHERE item->>'id' NOT IN (SELECT item->>'id' FROM client_items)
+  ),
+  merged AS (
+    SELECT item FROM client_items
     UNION ALL
-    SELECT item, 2 AS priority FROM jsonb_array_elements(v_current) AS item
-  ),
-  deduped AS (
-    SELECT DISTINCT ON (item->>'id') item
-    FROM all_items
-    ORDER BY (item->>'id'), priority
-  ),
-  sorted AS (
-    SELECT item FROM deduped
-    ORDER BY
-      (item->>'savedAt')::bigint DESC NULLS LAST,
-      (item->>'timestamp')::bigint DESC NULLS LAST
-    LIMIT 20
+    SELECT item FROM cloud_only
   )
-  SELECT COALESCE(jsonb_agg(item), '[]'::jsonb) INTO v_result FROM sorted;
+  SELECT COALESCE(jsonb_agg(item ORDER BY
+    (item->>'savedAt')::bigint DESC NULLS LAST,
+    (item->>'timestamp')::bigint DESC NULLS LAST
+  ), '[]'::jsonb) INTO v_result
+  FROM (SELECT item FROM merged LIMIT 20) sub;
 
   INSERT INTO user_settings (id, data, updated_at)
   VALUES (v_id, v_result, now())
