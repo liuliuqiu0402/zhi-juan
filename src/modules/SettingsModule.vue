@@ -28,6 +28,22 @@
         <p class="hint" style="margin-top: 12px;">如需购买或续费，请联系客服</p>
       </div>
 
+      <!-- 🔑 同步密钥 -->
+      <div class="settings-section">
+        <h3>🔑 同步密钥</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:8px;">
+          同一同步密钥的设备共享数据。桌面端首次启动自动生成，手机端需手动输入桌面端的密钥。
+        </p>
+        <input
+          type="text"
+          v-model="syncKeyInput"
+          placeholder="输入4位同步密钥"
+          maxlength="16"
+          style="font-family: monospace; letter-spacing: 2px; text-transform: uppercase;"
+          @change="onSyncKeyChange"
+        />
+      </div>
+
       <!-- 📱 iOS 签名倒计时（仅手机端显示） -->
       <div class="settings-section" v-if="isCapacitorIOS">
         <h3>📱 签名倒计时</h3>
@@ -314,7 +330,7 @@ import { useBackup } from '@/composables/useBackup.js';
 import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
 import { apiConfig, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
-import { uploadSettings } from '@/utils/cloudStorage';
+import { uploadSettings, getSyncKey, setSyncKey } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
 
 const { showAlertDialogFn } = useDialog();
@@ -388,6 +404,16 @@ const {
 
 const isCapacitorIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 const isWebMode = typeof window !== 'undefined' && !window.electronAPI;
+
+// 🔑 同步密钥
+const syncKeyInput = ref(getSyncKey() || '');
+const onSyncKeyChange = () => {
+  const trimmed = syncKeyInput.value.trim().toUpperCase();
+  if (trimmed) {
+    setSyncKey(trimmed);
+    console.log('🔑 同步密钥已更新:', trimmed);
+  }
+};
 
 // 📱 签名倒计时
 const signInfo = ref(getSignCountdown());

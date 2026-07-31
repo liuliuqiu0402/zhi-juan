@@ -20,7 +20,7 @@
       <button class="header-btn" @click="$router.push('/settings')">⚙️ 设置</button>
     </div>
 
-    <!-- 📱 移动端：签名到期 + 小刷新按钮 -->
+    <!-- 📱 移动端：签名到期 + 操作按钮 -->
     <div class="header-right" v-if="isMobile">
       <span v-if="signInfo && signInfo.found && signInfo.daysRemaining >= 0" class="mobile-sign-badge" :class="{ warning: signInfo.daysRemaining <= 3 }">
         📱 {{ signInfo.daysRemaining === 0 ? '今日到期!' : signInfo.daysRemaining + '天' }}
@@ -28,6 +28,7 @@
       <span v-else-if="signInfo && !signInfo.found" class="mobile-sign-badge unknown">
         📱 未签名
       </span>
+      <button class="header-btn header-btn-sm" @click="resetTask" title="重置任务">🔄</button>
       <button class="header-btn header-btn-sm" @click="refreshApp" title="同步云端数据">☁️</button>
     </div>
   </header>
@@ -36,6 +37,10 @@
 <script setup>
 const refreshApp = () => {
   window.dispatchEvent(new CustomEvent('app-refresh'));
+};
+
+const resetTask = () => {
+  window.dispatchEvent(new CustomEvent('reset-task'));
 };
 
 defineProps({

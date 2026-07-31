@@ -58,7 +58,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import storage from '@/utils/storage';
-import { uploadDocHistory } from '@/utils/cloudStorage';
+import { safeUploadDocHistory } from '@/utils/cloudStorage';
 import { formatTime } from '@/utils/helpers';
 import { useDialog } from '@/composables/useDialog.js';
 import { useMobile } from '@/composables/useMobile.js';
@@ -87,7 +87,7 @@ const clearAllHistory = async () => {
     historyList.value = [];
     filteredHistoryList.value = [];
     await storage.setItem('docHistory', []);
-    uploadDocHistory([]).catch(() => {});
+    safeUploadDocHistory([]).catch(() => {});
   }
 };
 
@@ -95,7 +95,7 @@ const deleteHistoryItem = async (id) => {
   historyList.value = historyList.value.filter(h => h.id !== id);
   filteredHistoryList.value = filteredHistoryList.value.filter(h => h.id !== id);
   await storage.setItem('docHistory', historyList.value);
-  uploadDocHistory(historyList.value).catch(() => {});
+  safeUploadDocHistory(historyList.value).catch(() => {});
 };
 
 const loadFromHistory = (item) => {

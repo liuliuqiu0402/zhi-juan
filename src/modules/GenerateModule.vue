@@ -1476,7 +1476,7 @@ import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml, par
 import { buildTianZiGeMarker, htmlToDocxBlob } from '../utils/docxBuilder.js';
 import { injectDrawingML, TZG_MARKER, FLT_MARKER } from '../utils/drawingMLShapes.js';
 import storage from '../utils/storage';
-import { uploadDocHistory, uploadGeneratedDocs, downloadGeneratedDocs, safeUploadGeneratedDocs, isCloudConfigured } from '../utils/cloudStorage';
+import { mergeDocHistory, mergeGeneratedDocs, isCloudConfigured } from '../utils/cloudStorage';
 import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
 import { useInstructionStore } from '../stores/instructionStore.js';
@@ -2725,20 +2725,29 @@ const loadGeneratedDocs = () => {
   return [];
 };
 const generatedDocs = ref(loadGeneratedDocs());
-const saveGeneratedDocs = () => {
+let _mergeInProgress = false; // 防 watcher 回环：merge 写回时不触发二次上传
+const saveGeneratedDocs = async () => {
+  if (_mergeInProgress) return;
   try {
-    // 🔧 同步裁剪：内存 + localStorage 同时截断，避免刷新丢数据且内存不膨胀
     if (generatedDocs.value.length > 20) {
       generatedDocs.value = generatedDocs.value.slice(-20);
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(generatedDocs.value));
-    // 🔒 静默推送到云端（云端自动合并），不拉取不回写本地
-    //    各端各自推送，云端始终是最新合并结果，手动同步时统一下拉
     if (isCloudConfigured()) {
       const snapshot = [...generatedDocs.value];
-      safeUploadGeneratedDocs(snapshot).catch(() => {});
+      console.log('☁️ [saveGeneratedDocs] 推送', snapshot.length, '条到云端');
+      const merged = await mergeGeneratedDocs(snapshot);
+      // 写回云端合并结果，防止本地与云端不一致
+      if (merged && merged.length > 0) {
+        _mergeInProgress = true;
+        generatedDocs.value = merged;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        _mergeInProgress = false;
+      }
+    } else {
+      console.warn('☁️ [saveGeneratedDocs] Supabase 未配置，跳过云端推送');
     }
-  } catch (e) { console.warn('保存生成记录失败:', e.message); }
+  } catch (e) { console.warn('保存生成记录失败:', e?.message); _mergeInProgress = false; }
 };
 const batchDownloadFormat = ref('word');
 const teacherVersion = ref(true); // true=教师版（含答案）, false=学生版（无答案）
@@ -6787,9 +6796,13 @@ const retryGenerate = (doc) => {
 const saveToHistory = async (doc) => {
   const history = (await storage.getItem('docHistory')) || [];
   history.unshift({ ...doc, savedAt: Date.now() });
-  await storage.setItem('docHistory', history.slice(0, 50));
-  // ☁️ 静默同步到云端
-  uploadDocHistory(history.slice(0, 50)).catch(() => {});
+  const localTrimmed = history.slice(0, 50);
+  await storage.setItem('docHistory', localTrimmed);
+  // ☁️ 推送到云端（服务端事务合并，返回合并后完整数据）
+  const merged = await mergeDocHistory(localTrimmed);
+  if (merged && merged.length > 0) {
+    await storage.setItem('docHistory', merged);
+  }
 };
 
 const collectGraph = async (doc, idx) => {
