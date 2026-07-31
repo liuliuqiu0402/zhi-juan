@@ -1145,3 +1145,5 @@ onMounted(async () => {
   .guide-footer .btn-primary { font-size: 14px; padding: 10px 20px; }
 }
 </style>
+ 
+ 
