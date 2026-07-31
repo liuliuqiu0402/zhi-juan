@@ -3812,15 +3812,14 @@ const buildInstruction = async () => {
   const HANDLED_BY_DEDICATED_SECTION = new Set([
     // 生成专用分类（Section 1.5~10 中已通过 getMatchingBlockInstructions 精确匹配）—— dash 格式（内置 fragment）
     '生成-学段适配', '生成-学科适配', '生成-资料类型结构', '生成-情境方向',
-    '生成-题目质量', '生成-学科质量标准', '生成-禁止项',
-    '生成-学科核心素养',
+    '生成-题目质量标准', '生成-禁止项',
     '生成-通用约束', '生成-原题引用',
     '生成-答案与解析规范', '生成-主观题评分标准', '生成-答题模板',
     '生成-内容规范', '生成-输出格式',
     '生成-专项要求', '生成-EduRender模板',
     '生成-题目质量标准',
     '生成-质量范例', '生成-知识点全覆盖',
-    '生成-学段控制', '生成-学科特色', '生成-题量控制', '生成-难度控制', '生成-情境要求',
+    '生成-学科特色', '生成-情境要求',
     '生成-学科标记', '生成-术语规范', '生成-特殊要求',
     // 🔧 补漏：以下 category 有专属 Section 但此前被遗漏
     '生成-角色身份',        // Section 0.【角色身份】
@@ -3831,7 +3830,6 @@ const buildInstruction = async () => {
     '生成-输出前置指令',     // buildOutputPreamble()
     // 🔧 补漏（2026-07-24）：大量内置 fragment 因 category 遗漏而走自动注入→位置错误→指令失效
     '生成-题型专项要求',     // block_type_* 系列
-    '生成-学科禁止项',       // gen_ban_* 系列
     '生成-知识边界',         // kb_* 系列
     '生成-时间分配',         // time_* 系列
     '生成-题型分布建议',     // typedist_* 系列
@@ -3842,7 +3840,6 @@ const buildInstruction = async () => {
     '生成-范围标签',         // scope_label_* 系列
     '生成-模板禁止项',       // tpl_ban_* 系列
     '生成-快捷学段提示',     // quick_stage_* 系列
-    '生成-最终输出规则',     // final_output_* 系列
     '生成-指令块标题',       // section_title_* 系列
     '生成-范围扩展',         // scope_cross_* 系列（Section: 跨章综合语义 + chapterCount 替换）
     '生成-格式尾约束',       // format_tail_* 系列（recency 锚点，所有引擎通用）

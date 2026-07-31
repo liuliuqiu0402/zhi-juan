@@ -5710,22 +5710,18 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     }
     
-    // ========== 禁止项合集（通用 + 学科 合并为一个块）==========
+    // ========== 禁止项（三维度精准匹配注入：学科 × 学段 × 资料类型）==========
     const banParts = [];
     
-    const banGeneral = getMatchingBlockInstructions({ category: '生成-禁止项', subject: '', stage: '', genType: primaryGenType });
-    const banGeneralOnly = banGeneral.filter(b => !b.subject && !b.stage);
-    if (banGeneralOnly.length > 0) {
-      banParts.push(banGeneralOnly[0].content);
-    }
-    
     if (matchSubject) {
+      // 学科块内容已自包含（硬性红线 + 配图铁律 + 专属规则 + 反套路），按 subject + genType 精准匹配
       const banSubjAll = getMatchingBlockInstructions({ category: '生成-禁止项', matchSubject, stage: '', genType: primaryGenType });
       const banSubjOnly = banSubjAll.filter(b => b.subject && b.subject.trim() !== '' && !b.stage);
       if (banSubjOnly.length > 0) {
         banParts.push(banSubjOnly[0].content);
       }
-      // 学段专属禁止项补充（如数学低段），按 gradeSegment 精确匹配
+      
+      // 学段专属禁止项补充（如数学低段数据控制），按 gradeSegment 精确匹配
       const banStageAll = getMatchingBlockInstructions({ category: '生成-禁止项', matchSubject, stage: gradeSegment, genType: primaryGenType });
       const banStageOnly = banStageAll.filter(b => b.subject && b.subject.trim() !== '' && b.stage && b.stage !== '');
       if (banStageOnly.length > 0) {
@@ -5736,7 +5732,7 @@ ${cardAnalysisText.substring(0, 1000)}
     if (banParts.length > 0) {
       instruction += `【${_title('ban_general', '禁止项')}】\n${banParts.join('\n')}\n`;
     } else {
-      console.warn('[instructionLib] 未找到任何禁止项');
+      console.warn('[instructionLib] 未找到匹配的禁止项（学科/学段/类型无匹配）');
     }
     instruction += '\n';
 
@@ -5852,7 +5848,7 @@ ${cardAnalysisText.substring(0, 1000)}
     }
 
     // 🔧 最终输出规则已由 buildOutputPreamble() 在 prompt 最前端注入（查询指令库「生成-输出前置指令」），
-    //    此处不再重复注入「生成-最终输出规则」，避免同一语义出现两次导致模型困惑。
+    //    此处不再重复注入，避免同一语义出现两次导致模型困惑。
 
     // ========== 3.【用户补充指令——仅注入未被其他【】块覆盖的补充类片段】==========
     // 🔧 排除已在其他 section 中通过 getMatchingBlockInstructions 显式查询的类别
@@ -5860,19 +5856,19 @@ ${cardAnalysisText.substring(0, 1000)}
     const _ui_handledCategories = new Set([
       // 生成-学段与学科
       '生成-学段适配', '生成-学科适配', '生成-资料类型结构',
-      '生成-学科禁止项', '生成-情境方向',
-      '生成-学科特色', '生成-题量控制', '生成-难度控制', '生成-情境要求',
+      '生成-情境方向',
+      '生成-学科特色', '生成-情境要求',
       '生成-年级边界提示', '生成-快捷学段提示', '生成-难度配置',
       // 生成-核心任务与题型
       '生成-核心任务', '生成-题型分布建议', '生成-命题风格',
       // 生成-模板约束
       '生成-模板禁止项', '生成-范围标签',
       // 生成-质量与约束
-      '生成-学科核心素养', '生成-禁止项', '生成-通用约束', '生成-原题引用', '生成-内容规范',
+      '生成-禁止项', '生成-通用约束', '生成-原题引用', '生成-内容规范',
       '生成-输出格式', '生成-学科标记', '生成-EduRender模板', '生成-专项要求', '生成-题型专项要求',
       '生成-题目质量标准', '生成-答案与解析规范', '生成-质量范例', '生成-知识点全覆盖',
       '生成-主观题评分标准', '生成-术语规范', '生成-答题模板', '生成-特殊要求',
-      '生成-知识边界', '生成-时间分配', '生成-最终输出规则', '生成-格式尾约束',
+      '生成-知识边界', '生成-时间分配', '生成-格式尾约束',
       // 生成-元数据（指令块标题本身）
       '生成-指令块标题',
       // 🔧 补漏：以下 category 在 buildGenerationInstruction 中有专属 Section，但此前被遗漏
@@ -5881,6 +5877,7 @@ ${cardAnalysisText.substring(0, 1000)}
       '生成-答案区强制锚定',  // Section 1.5.【答案区强制锚定】
       '生成-顶层约束',       // Section N.【顶层约束】
       '生成-尾约束',         // Section N+1.【尾约束】
+      '生成-输出前置指令',    // buildOutputPreamble()
       '生成-范围扩展',       // Section: 跨章综合语义 + {chapterCount} 替换
       '生成-多章节标题',     // Section: 多章节降级标题格式 + {titles} 替换
       // 分析-文本分析专用
