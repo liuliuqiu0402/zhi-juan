@@ -29,6 +29,7 @@
         📱 未签名
       </span>
       <button class="header-btn header-btn-sm" @click="resetTask" title="重置任务">🔄</button>
+      <button class="header-btn header-btn-sm" @click="uploadToCloud" title="上推本地数据到云端">📤</button>
       <button class="header-btn header-btn-sm" @click="refreshApp" title="同步云端数据">☁️</button>
     </div>
   </header>
@@ -37,6 +38,10 @@
 <script setup>
 const refreshApp = () => {
   window.dispatchEvent(new CustomEvent('app-refresh'));
+};
+
+const uploadToCloud = () => {
+  window.dispatchEvent(new CustomEvent('app-upload'));
 };
 
 const resetTask = () => {

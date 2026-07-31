@@ -24,6 +24,9 @@
         <button class="ribbon-btn ribbon-btn-sync" @click="syncPage" title="同步云端数据：拉取其他设备的教材/模板/生成结果（不重置任务）">
           ☁️
         </button>
+        <button class="ribbon-btn ribbon-btn-upload" @click="uploadPage" title="上推本地数据到云端">
+          📤
+        </button>
         <button class="ribbon-btn ribbon-btn-refresh" @click="refreshPage" title="重置任务：清空当前所有操作，恢复初始状态">
           🔄
         </button>
@@ -2985,6 +2988,11 @@ const refreshPage = () => {
 // ☁️ 手动同步：拉取云端数据+推送本地数据（双向合并，不重置任务）
 const syncPage = () => {
   window.dispatchEvent(new CustomEvent('app-refresh'));
+};
+
+// 📤 手动上推：推送本地全量数据到云端（生成结果 + 历史记录）
+const uploadPage = () => {
+  window.dispatchEvent(new CustomEvent('app-upload'));
 };
 
 // 🌐 DeepSeek API 真实就绪检测

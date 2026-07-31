@@ -684,25 +684,6 @@ onMounted(async () => {
     if (isCloudConfigured()) {
       showToastMessage('☁️ 同步中…', 'info');
       try {
-        // 0️⃣ 🔼 先推本地已有数据到自己的设备行（首次同步/冷启动时本地数据尚无云端副本）
-        try {
-          const localHistory = await storage.getItem('docHistory') || [];
-          if (localHistory.length > 0) {
-            await pushDocHistory(localHistory);
-            console.log('🔄 预推历史记录:', localHistory.length, '条');
-          }
-        } catch {}
-        try {
-          const localGenRaw = localStorage.getItem('wisdom_generated_docs');
-          if (localGenRaw) {
-            const localGen = JSON.parse(localGenRaw);
-            if (localGen && localGen.length > 0) {
-              await pushGeneratedDocs(localGen);
-              console.log('🔄 预推生成结果:', localGen.length, '条');
-            }
-          }
-        } catch {}
-
         // ① 🔽 从云端拉取（RPC 已合并所有设备行 + 过滤 _deleted）
         const cloudData = await pullFromCloud();
 
@@ -869,6 +850,43 @@ onMounted(async () => {
         );
         window.dispatchEvent(new CustomEvent('data-sync-complete'));
       } catch (e) { console.warn('🔄 同步失败:', e); }
+    }
+  });
+
+  // 📤 手动上推：推送本地全量数据到云端（生成结果 + 历史记录）
+  window.addEventListener('app-upload', async () => {
+    console.log('📤 手动上推：推送本地数据到云端');
+    if (isCloudConfigured()) {
+      showToastMessage('📤 上推中…', 'info');
+      try {
+        const results = [];
+        try {
+          const localHistory = await storage.getItem('docHistory') || [];
+          if (localHistory.length > 0) {
+            await pushDocHistory(localHistory);
+            results.push('历史' + localHistory.length + '条');
+          }
+        } catch {}
+        try {
+          const localGenRaw = localStorage.getItem('wisdom_generated_docs');
+          if (localGenRaw) {
+            const localGen = JSON.parse(localGenRaw);
+            if (localGen && localGen.length > 0) {
+              await pushGeneratedDocs(localGen);
+              results.push('生成' + localGen.length + '条');
+            }
+          }
+        } catch {}
+        if (results.length > 0) {
+          console.log('📤 上推完成:', results.join('、'));
+          showToastMessage('📤 已上推 ' + results.join('、'), 'info');
+        } else {
+          showToastMessage('📤 无数据需上推', 'info');
+        }
+      } catch (e) {
+        console.warn('📤 上推失败:', e);
+        showToastMessage('📤 上推失败', 'error');
+      }
     }
   });
 
