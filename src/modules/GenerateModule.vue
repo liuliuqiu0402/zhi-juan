@@ -1476,7 +1476,7 @@ import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml, par
 import { buildTianZiGeMarker, htmlToDocxBlob } from '../utils/docxBuilder.js';
 import { injectDrawingML, TZG_MARKER, FLT_MARKER } from '../utils/drawingMLShapes.js';
 import storage from '../utils/storage';
-import { mergeDocHistory, mergeGeneratedDocs, isCloudConfigured } from '../utils/cloudStorage';
+import { pushDocHistory, pushGeneratedDocs, isCloudConfigured } from '../utils/cloudStorage';
 import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
 import { useInstructionStore } from '../stores/instructionStore.js';
@@ -2725,9 +2725,7 @@ const loadGeneratedDocs = () => {
   return [];
 };
 const generatedDocs = ref(loadGeneratedDocs());
-let _mergeInProgress = false; // 防 watcher 回环：merge 写回时不触发二次上传
 const saveGeneratedDocs = async () => {
-  if (_mergeInProgress) return;
   try {
     if (generatedDocs.value.length > 20) {
       generatedDocs.value = generatedDocs.value.slice(-20);
@@ -2735,19 +2733,11 @@ const saveGeneratedDocs = async () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(generatedDocs.value));
     if (isCloudConfigured()) {
       const snapshot = [...generatedDocs.value];
-      console.log('☁️ [saveGeneratedDocs] 推送', snapshot.length, '条到云端');
-      const merged = await mergeGeneratedDocs(snapshot);
-      // 写回云端合并结果，防止本地与云端不一致
-      if (merged && merged.length > 0) {
-        _mergeInProgress = true;
-        generatedDocs.value = merged;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-        _mergeInProgress = false;
-      }
+      pushGeneratedDocs(snapshot).catch(() => {});
     } else {
       console.warn('☁️ [saveGeneratedDocs] Supabase 未配置，跳过云端推送');
     }
-  } catch (e) { console.warn('保存生成记录失败:', e?.message); _mergeInProgress = false; }
+  } catch (e) { console.warn('保存生成记录失败:', e?.message); }
 };
 const batchDownloadFormat = ref('word');
 const teacherVersion = ref(true); // true=教师版（含答案）, false=学生版（无答案）
@@ -6498,31 +6488,30 @@ const copyToEduRender = async () => {
 };
 
 const deleteDoc = (idx) => {
-  generatedDocs.value.splice(idx, 1);
+  // 打 _deleted 标记，不立即移除（多端同步需要一条端删除即可）
+  generatedDocs.value[idx]._deleted = true;
 };
 
 const batchDeleteDocs = async () => {
-  const selectedCount = generatedDocs.value.filter(d => d.selected).length;
-  if (selectedCount === 0) {
+  const selected = generatedDocs.value.filter(d => d.selected && !d._deleted);
+  if (selected.length === 0) {
     await showAlertDialogFn('请先选择要删除的资料');
     return;
   }
   
-  // 确认删除
   const confirmed = await showConfirmDialogFn(
-    `确定要删除 ${selectedCount} 个资料吗？\n此操作不可恢复。`
+    `确定要删除 ${selected.length} 个资料吗？`
   );
   
   if (!confirmed) return;
   
-  // 执行删除
-  const beforeCount = generatedDocs.value.length;
-  generatedDocs.value = generatedDocs.value.filter(d => !d.selected);
-  const afterCount = generatedDocs.value.length;
-  const deletedCount = beforeCount - afterCount;
+  // 打 _deleted 标记（watcher 自动触发推送）
+  for (const d of selected) {
+    d._deleted = true;
+    d.selected = false;
+  }
   
-  // 显示结果
-  await showAlertDialogFn(`已删除 ${deletedCount} 个资料`);
+  await showAlertDialogFn(`已标记 ${selected.length} 个资料为待删除（同步后自动清理）`);
 };
 
 const toggleSelectAll = () => {
@@ -6798,11 +6787,8 @@ const saveToHistory = async (doc) => {
   history.unshift({ ...doc, savedAt: Date.now() });
   const localTrimmed = history.slice(0, 50);
   await storage.setItem('docHistory', localTrimmed);
-  // ☁️ 推送到云端（服务端事务合并，返回合并后完整数据）
-  const merged = await mergeDocHistory(localTrimmed);
-  if (merged && merged.length > 0) {
-    await storage.setItem('docHistory', merged);
-  }
+  // ☁️ 即时上推（只写自己设备行，不影响其他设备）
+  pushDocHistory(localTrimmed).catch(() => {});
 };
 
 const collectGraph = async (doc, idx) => {
@@ -7044,18 +7030,17 @@ watch([() => selectedTextbooks.value?.[0]?.subject, () => selectedTextbooks.valu
 );
 
 // 初始化
-// ☁️ 云端数据同步完成后重新加载生成结果
-//    ⚠️ 竞态防护：生成中不覆盖，且只增量不删减（防 localStorage 滞后导致结果丢失）
+// ☁️ 云端数据同步完成后：清理本地 _deleted 标记项 + 重新加载
 const onCloudSync = () => {
-  if (isGenerating.value) return;  // 生成进行中，跳过同步覆盖
-  const fresh = loadGeneratedDocs();
-  // 仅当 localStorage 数据不少于当前内存时才覆盖（增量同步，不丢数据）
-  if (fresh.length > 0 && fresh.length >= generatedDocs.value.length) {
-    generatedDocs.value = fresh;
-    console.log('☁️ [GenerateModule] 同步完成，已加载 ' + fresh.length + ' 条生成结果');
-  } else if (fresh.length > 0) {
-    console.log('☁️ [GenerateModule] 同步跳过：本地 ' + generatedDocs.value.length + ' 条 > 云端 ' + fresh.length + ' 条，保留本地');
+  if (isGenerating.value) return;
+  // 清理已同步的 _deleted 项（云端合并已过滤，本地也应清理）
+  const before = generatedDocs.value.length;
+  generatedDocs.value = generatedDocs.value.filter(d => !d._deleted);
+  if (generatedDocs.value.length < before) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(generatedDocs.value));
+    console.log('🧹 [GenerateModule] 同步后清理 ' + (before - generatedDocs.value.length) + ' 条已删除项');
   }
+  console.log('☁️ [GenerateModule] 同步完成，当前 ' + generatedDocs.value.length + ' 条生成结果');
 };
 
 // 📱 下拉刷新处理器：仅重载数据（教材/模板），不重置任务状态

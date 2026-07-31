@@ -184,31 +184,13 @@ import { useMobile } from '@/composables/useMobile.js';
 import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
-import { pullFromCloud, isCloudConfigured, uploadTextbooks, uploadActivationInfo, mergeDocHistory, mergeGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey } from '@/utils/cloudStorage';
+import { pullFromCloud, isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey } from '@/utils/cloudStorage';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
 import { apiConfig, getCurrentEngineConfig, loadConfigSync } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
 import { saveConfig } from '@/config/apiConfig.js';
 // 📱 iOS 签名倒计时（基于安装时间计算 7 天有效期）
 import { getSignCountdown, resetInstallTime } from '@/utils/signatureCheck';
-
-// 本地数组合并工具：按 id 去重（本地优先），时间倒序
-function mergeArraysById(cloud, local) {
-  const map = new Map();
-  for (const item of cloud) {
-    const id = item?.id;
-    if (id) map.set(id, item);
-  }
-  for (const item of local) {
-    const id = item?.id;
-    if (id) map.set(id, item);
-  }
-  return Array.from(map.values()).sort((a, b) => {
-    const ta = a?.savedAt || a?.timestamp || 0;
-    const tb = b?.savedAt || b?.timestamp || 0;
-    return tb - ta;
-  });
-}
 
 const router = useRouter();
 
@@ -360,10 +342,18 @@ if (typeof window !== 'undefined') {
 }
 
 const handlePullRefresh = async () => {
-  // 手动同步：先拉云端 → 本地合并（防止本地未推送数据丢失）→ 回推合并结果
   if (isCloudConfigured()) {
     try {
       const data = await pullFromCloud();
+      // 历史记录：云端合并结果直接写本地
+      if (data.docHistory && data.docHistory.length > 0) {
+        await storage.setItem('docHistory', data.docHistory).catch(() => {});
+      }
+      // 生成结果：云端合并结果直接写本地
+      if (data.generatedDocs && data.generatedDocs.length > 0) {
+        localStorage.setItem('wisdom_generated_docs', JSON.stringify(data.generatedDocs));
+      }
+      // 教材：单向覆盖
       if (data.textbooks && data.textbooks.length > 0) {
         const local = await storage.getItem('textbooks');
         if (!local || local.length === 0 || data.textbooks.length >= local.length) {
@@ -372,24 +362,6 @@ const handlePullRefresh = async () => {
             const { useTextbookStore } = await import('@/stores/textbookStore');
             await useTextbookStore().loadTextbooks();
           } catch {}
-        }
-      }
-      if (data.docHistory && data.docHistory.length > 0) {
-        const localHistory = await storage.getItem('docHistory') || [];
-        const merged = mergeArraysById(data.docHistory, localHistory).slice(0, 50);
-        await storage.setItem('docHistory', merged).catch(() => {});
-        // 本地有云中没有的数据 → 补推到云端
-        if (merged.length > data.docHistory.length) {
-          mergeDocHistory(merged).catch(() => {});
-        }
-      }
-      if (data.generatedDocs && data.generatedDocs.length > 0) {
-        const localRaw = localStorage.getItem('wisdom_generated_docs');
-        const localDocs = localRaw ? JSON.parse(localRaw) : [];
-        const mergedGD = mergeArraysById(data.generatedDocs, localDocs).slice(0, 20);
-        localStorage.setItem('wisdom_generated_docs', JSON.stringify(mergedGD));
-        if (mergedGD.length > data.generatedDocs.length) {
-          mergeGeneratedDocs(mergedGD).catch(() => {});
         }
       }
       if (data.instructions && data.instructions.length > 0) {
@@ -415,7 +387,6 @@ const handlePullRefresh = async () => {
           } catch {}
         }
       }
-      // 🔔 通知各模块重新加载云端数据
       window.dispatchEvent(new CustomEvent('data-sync-complete'));
     } catch {}
   }
@@ -706,14 +677,33 @@ onMounted(async () => {
       console.log('📱 页面从 bfcache 恢复，保留原界面');
     }
   });
-  // 🔄 手动同步按钮：拉取云端 → 写本地
-  //    双向数据（历史+生成结果）已在静默推送时完成云端合并，此处只需下拉
+  // 🔄 手动同步按钮：从云端拉取合并后的数据，写回本地
+  //    双向数据（历史+生成结果）已在 RPC 内合并去重，直接覆盖本地即可
   window.addEventListener('app-refresh', async () => {
     console.log('🔄 手动同步：从云端拉取');
     if (isCloudConfigured()) {
       showToastMessage('☁️ 同步中…', 'info');
       try {
-        // ① 🔽 从云端拉取（静默推送时已完成云端合并）
+        // 0️⃣ 🔼 先推本地已有数据到自己的设备行（首次同步/冷启动时本地数据尚无云端副本）
+        try {
+          const localHistory = await storage.getItem('docHistory') || [];
+          if (localHistory.length > 0) {
+            await pushDocHistory(localHistory);
+            console.log('🔄 预推历史记录:', localHistory.length, '条');
+          }
+        } catch {}
+        try {
+          const localGenRaw = localStorage.getItem('wisdom_generated_docs');
+          if (localGenRaw) {
+            const localGen = JSON.parse(localGenRaw);
+            if (localGen && localGen.length > 0) {
+              await pushGeneratedDocs(localGen);
+              console.log('🔄 预推生成结果:', localGen.length, '条');
+            }
+          }
+        } catch {}
+
+        // ① 🔽 从云端拉取（RPC 已合并所有设备行 + 过滤 _deleted）
         const cloudData = await pullFromCloud();
 
         // ② 🔼 桌面端：推送单向数据（教材/模板/指令/设置/激活，桌面是唯一源头）
@@ -769,7 +759,44 @@ onMounted(async () => {
           }
         }
 
-        // ③ 💾 写入本地：双向数据云端已有合并结果直接覆盖，单向数据保留安全网
+        // ③ 💾 写入本地：云端合并 + 本地兜底（防推送失败导致本地新数据被覆盖）
+        // 历史记录
+        {
+          const localHistory = await storage.getItem('docHistory') || [];
+          const cloudHistory = cloudData.docHistory || [];
+          const map = new Map();
+          for (const item of localHistory) { if (item?.id) map.set(item.id, item); }
+          for (const item of cloudHistory) {
+            const exist = map.get(item?.id);
+            if (!exist || (item?.savedAt || item?.timestamp || 0) >= (exist?.savedAt || exist?.timestamp || 0)) {
+              map.set(item?.id, item);
+            }
+          }
+          const merged = Array.from(map.values())
+            .sort((a, b) => (b?.savedAt || b?.timestamp || 0) - (a?.savedAt || a?.timestamp || 0))
+            .slice(0, 50);
+          await storage.setItem('docHistory', merged).catch(() => {});
+          pushDocHistory(merged).catch(() => {});
+        }
+        // 生成结果
+        {
+          const localGenRaw = localStorage.getItem('wisdom_generated_docs');
+          const localGen = localGenRaw ? JSON.parse(localGenRaw) : [];
+          const cloudGen = cloudData.generatedDocs || [];
+          const map = new Map();
+          for (const item of localGen) { if (item?.id) map.set(item.id, item); }
+          for (const item of cloudGen) {
+            const exist = map.get(item?.id);
+            if (!exist || (item?.savedAt || item?.timestamp || 0) >= (exist?.savedAt || exist?.timestamp || 0)) {
+              map.set(item?.id, item);
+            }
+          }
+          const merged = Array.from(map.values())
+            .sort((a, b) => (b?.savedAt || b?.timestamp || 0) - (a?.savedAt || a?.timestamp || 0))
+            .slice(0, 20);
+          localStorage.setItem('wisdom_generated_docs', JSON.stringify(merged));
+          pushGeneratedDocs(merged).catch(() => {});
+        }
         // 教材
         if (cloudData.textbooks && cloudData.textbooks.length > 0) {
           const localTextbooks = await storage.getItem('textbooks');
@@ -780,25 +807,6 @@ onMounted(async () => {
               await useTextbookStore().loadTextbooks();
             } catch {}
           }
-        }
-        // 历史记录：安全合并（兜底：本地数据若未推送到云端，合并后回推）
-        const localHistory = await storage.getItem('docHistory') || [];
-        const cloudHistory = cloudData.docHistory || [];
-        const mergedHistory = mergeArraysById(cloudHistory, localHistory).slice(0, 50);
-        await storage.setItem('docHistory', mergedHistory).catch(() => {});
-        // 本地有云中没有的数据 → 回推到云端
-        if (mergedHistory.length > (cloudHistory.length || 0)) {
-          mergeDocHistory(mergedHistory).catch(() => {});
-        }
-        // 生成结果：安全合并（兜底：本地未推送数据合并后回推）
-        const localGenRaw = localStorage.getItem('wisdom_generated_docs');
-        const localGenerated = localGenRaw ? JSON.parse(localGenRaw) : [];
-        const cloudGenerated = cloudData.generatedDocs || [];
-        let mergedGenerated = mergeArraysById(cloudGenerated, localGenerated).slice(0, 20);
-        localStorage.setItem('wisdom_generated_docs', JSON.stringify(mergedGenerated));
-        // 本地有云中没有的数据 → 回推到云端
-        if (mergedGenerated.length > (cloudGenerated.length || 0)) {
-          mergeGeneratedDocs(mergedGenerated).catch(() => {});
         }
         // 指令
         if (cloudData.instructions && cloudData.instructions.length > 0) {
@@ -851,13 +859,14 @@ onMounted(async () => {
           }
         }
 
+        const genCount = cloudData.generatedDocs ? cloudData.generatedDocs.length : 0;
+        const histCount = cloudData.docHistory ? cloudData.docHistory.length : 0;
         console.log('🔄 同步完成', isWebMode.value ? '(手机端)' : '(桌面端)',
-          '| 生成结果:', mergedGenerated.length, '条 | 历史:', mergedHistory.length, '条 | 教材:', (cloudData.textbooks || []).length, '本');
+          '| 生成结果:', genCount, '条 | 历史:', histCount, '条');
         showToastMessage(
-          '✅ 同步完成 · 生成' + mergedGenerated.length + '条 历史' + mergedHistory.length + '条',
+          '✅ 同步完成 · 生成' + genCount + '条 历史' + histCount + '条',
           'info'
         );
-        // 🔔 通知各模块重新加载云端数据
         window.dispatchEvent(new CustomEvent('data-sync-complete'));
       } catch (e) { console.warn('🔄 同步失败:', e); }
     }

@@ -1,8 +1,9 @@
 /**
- * ☁️ Supabase 云存储层（v2：云端 RPC 合并 + sync_key 隔离）
+ * ☁️ Supabase 云存储层（v3：按设备独立存储 + 拉取时动态合并）
  *
- * 合并逻辑已迁移到 PostgreSQL RPC 函数，客户端只需调用 rpc 即可。
- * 所有数据按 sync_key 隔离，同一密钥的多设备共享数据。
+ * 推：每个设备独立一行 (sync_key + device_id)，互不覆盖。本地数据变化即触发上推。
+ * 拉：读取所有设备行 → RPC 内合并去重（同 id 取最新时间戳）→ 过滤 _deleted 标记。
+ * 删除：客户端打 _deleted: true 标记保留在列表中，手动同步后消失。
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -48,6 +49,25 @@ export function hasSyncKey(): boolean {
   return !!getSyncKey();
 }
 
+// ── device_id 管理 ──
+
+const DEVICE_ID_KEY = 'wisdom_device_id';
+
+/** 获取当前设备唯一标识（首次自动生成 UUID，永不改变） */
+export function getDeviceId(): string {
+  try {
+    let did = localStorage.getItem(DEVICE_ID_KEY);
+    if (!did) {
+      did = crypto.randomUUID();
+      localStorage.setItem(DEVICE_ID_KEY, did);
+      console.log('🆔 已生成设备标识:', did.slice(0, 8));
+    }
+    return did;
+  } catch {
+    return 'fallback_' + Math.random().toString(36).slice(2, 10);
+  }
+}
+
 // ── 工具 ──
 
 function safeClone<T>(value: T): T {
@@ -62,102 +82,114 @@ function noSyncKey(): boolean {
   return false;
 }
 
+function noClient(): SupabaseClient | null {
+  const client = getClient();
+  if (!client) console.warn('☁️ Supabase 客户端未初始化');
+  return client;
+}
+
 // ══════════════════════════════════════════════════════════════
-// doc_history（RPC 合并 + select 拉取）
+// doc_history：push（即时上推） + pull（拉取合并）
 // ══════════════════════════════════════════════════════════════
 
-/** 上传历史记录到云端（RPC 服务端合并，防挤兑）。返回云端合并后的完整数据 */
-export async function mergeDocHistory(items: unknown[]): Promise<unknown[] | null> {
-  if (noSyncKey()) return null;
-  const client = getClient();
-  if (!client) return null;
+/** 推历史记录到云端（只写自己设备的行，不影响其他设备） */
+export async function pushDocHistory(items: unknown[]): Promise<boolean> {
+  if (noSyncKey()) return false;
+  const client = noClient();
+  if (!client) return false;
 
   try {
-    const { data: result, error } = await client.rpc('merge_doc_history', {
+    const { error } = await client.rpc('push_doc_history', {
       p_sync_key: getSyncKey(),
+      p_device_id: getDeviceId(),
       p_items: safeClone(items),
     });
     if (error) {
-      console.error('☁️ merge_doc_history RPC 失败:', error.message);
+      console.error('☁️ push_doc_history 失败:', error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn('☁️ push_doc_history 异常:', e);
+    return false;
+  }
+}
+
+/** 从云端拉取合并后的历史记录（读所有设备行 → RPC 合并去重） */
+export async function pullDocHistory(): Promise<unknown[] | null> {
+  if (noSyncKey()) return null;
+  const client = noClient();
+  if (!client) return null;
+
+  try {
+    const { data: result, error } = await client.rpc('pull_doc_history', {
+      p_sync_key: getSyncKey(),
+    });
+    if (error) {
+      console.error('☁️ pull_doc_history 失败:', error.message);
       return null;
     }
     const r = result as { ok: boolean; count: number; data: unknown[] };
-    console.log('☁️ merge_doc_history 成功:', r?.count, '条');
-    return r?.data || null;
+    console.log('☁️ pull_doc_history:', r?.count, '条（已合并）');
+    return r?.data || [];
   } catch (e) {
-    console.warn('☁️ merge_doc_history 异常:', e);
-    return null;
-  }
-}
-
-/** 从云端下载历史记录 */
-export async function downloadDocHistory(): Promise<unknown[] | null> {
-  if (noSyncKey()) return null;
-  const client = getClient();
-  if (!client) return null;
-
-  try {
-    const { data, error } = await client
-      .from('doc_history')
-      .select('data')
-      .eq('id', getSyncKey())
-      .single();
-    if (error || !data) return null;
-    return data.data as unknown[];
-  } catch {
+    console.warn('☁️ pull_doc_history 异常:', e);
     return null;
   }
 }
 
 // ══════════════════════════════════════════════════════════════
-// generated_docs（RPC 合并 + select 拉取）
+// generated_docs：push（即时上推） + pull（拉取合并）
 // ══════════════════════════════════════════════════════════════
 
-/** 上传生成结果到云端（RPC 服务端合并，防挤兑）。返回云端合并后的完整数据 */
-export async function mergeGeneratedDocs(items: unknown[]): Promise<unknown[] | null> {
-  if (noSyncKey()) return null;
-  const client = getClient();
-  if (!client) return null;
+/** 推生成结果到云端（只写自己设备的行） */
+export async function pushGeneratedDocs(items: unknown[]): Promise<boolean> {
+  if (noSyncKey()) return false;
+  const client = noClient();
+  if (!client) return false;
 
   try {
-    const { data: result, error } = await client.rpc('merge_generated_docs', {
+    const { error } = await client.rpc('push_generated_docs', {
       p_sync_key: getSyncKey(),
+      p_device_id: getDeviceId(),
       p_items: safeClone(items),
     });
     if (error) {
-      console.error('☁️ merge_generated_docs RPC 失败:', error.message);
-      return null;
+      console.error('☁️ push_generated_docs 失败:', error.message);
+      return false;
     }
-    const r = result as { ok: boolean; count: number; data: unknown[] };
-    console.log('☁️ merge_generated_docs 成功:', r?.count, '条');
-    return r?.data || null;
+    return true;
   } catch (e) {
-    console.warn('☁️ merge_generated_docs 异常:', e);
-    return null;
+    console.warn('☁️ push_generated_docs 异常:', e);
+    return false;
   }
 }
 
-/** 从云端下载生成结果面板 */
-export async function downloadGeneratedDocs(): Promise<unknown[] | null> {
+/** 从云端拉取合并后的生成结果 */
+export async function pullGeneratedDocs(): Promise<unknown[] | null> {
   if (noSyncKey()) return null;
-  const client = getClient();
+  const client = noClient();
   if (!client) return null;
 
   try {
-    const { data, error } = await client
-      .from('user_settings')
-      .select('data')
-      .eq('id', getSyncKey() + ':generated_docs')
-      .single();
-    if (error || !data) return null;
-    return data.data as unknown[];
-  } catch {
+    const { data: result, error } = await client.rpc('pull_generated_docs', {
+      p_sync_key: getSyncKey(),
+    });
+    if (error) {
+      console.error('☁️ pull_generated_docs 失败:', error.message);
+      return null;
+    }
+    const r = result as { ok: boolean; count: number; data: unknown[] };
+    console.log('☁️ pull_generated_docs:', r?.count, '条（已合并）');
+    return r?.data || [];
+  } catch (e) {
+    console.warn('☁️ pull_generated_docs 异常:', e);
     return null;
   }
 }
 
 // ══════════════════════════════════════════════════════════════
-// 教材库（覆盖写入）
+// 教材库（覆盖写入 — 桌面是唯一源头，单向推送）
 // ══════════════════════════════════════════════════════════════
 
 export async function uploadTextbooks(textbooks: unknown[]): Promise<void> {
@@ -194,7 +226,7 @@ export async function downloadTextbooks(): Promise<unknown[] | null> {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 模板库（覆盖写入）
+// 模板库（覆盖写入 — 桌面是唯一源头，单向推送）
 // ══════════════════════════════════════════════════════════════
 
 export async function uploadTemplates(templates: unknown[]): Promise<void> {
@@ -292,7 +324,7 @@ export function downloadInstructions(): Promise<unknown[] | null> {
 // 一键同步
 // ══════════════════════════════════════════════════════════════
 
-/** 从云端拉取所有数据 */
+/** 从云端拉取所有数据（合并后的生成结果 + 历史记录 + 单向数据） */
 export async function pullFromCloud(): Promise<{
   textbooks: unknown[] | null;
   docHistory: unknown[] | null;
@@ -304,17 +336,17 @@ export async function pullFromCloud(): Promise<{
 }> {
   const [textbooks, docHistory, settings, activationInfo, generatedDocs, instructions, templates] = await Promise.all([
     downloadTextbooks(),
-    downloadDocHistory(),
+    pullDocHistory(),
     downloadSettings(),
     downloadActivationInfo(),
-    downloadGeneratedDocs(),
+    pullGeneratedDocs(),
     downloadInstructions(),
     downloadTemplates(),
   ]);
   return { textbooks, docHistory, settings, activationInfo, generatedDocs, instructions, templates };
 }
 
-/** 推送单向数据到云端 */
+/** 推送单向数据到云端 + 即时上推双向数据 */
 export async function pushToCloud(data: {
   textbooks?: unknown[];
   docHistory?: unknown[];
@@ -325,9 +357,9 @@ export async function pushToCloud(data: {
 }): Promise<void> {
   const tasks: Promise<unknown>[] = [];
   if (data.textbooks) tasks.push(uploadTextbooks(data.textbooks));
-  if (data.docHistory) tasks.push(mergeDocHistory(data.docHistory));
+  if (data.docHistory) tasks.push(pushDocHistory(data.docHistory));
   if (data.settings) tasks.push(uploadSettings(data.settings));
-  if (data.generatedDocs) tasks.push(mergeGeneratedDocs(data.generatedDocs));
+  if (data.generatedDocs) tasks.push(pushGeneratedDocs(data.generatedDocs));
   if (data.instructions) tasks.push(uploadInstructions(data.instructions));
   if (data.templates) tasks.push(uploadTemplates(data.templates));
   await Promise.all(tasks);
@@ -339,7 +371,7 @@ export function isCloudConfigured(): boolean {
 }
 
 // ── 保留旧导出名兼容（后续逐步迁移） ──
-export { mergeDocHistory as safeUploadDocHistory };
-export { mergeGeneratedDocs as safeUploadGeneratedDocs };
-// uploadGeneratedDocs / uploadDocHistory 保留但不再导出（内部已改为 merge）
-// 如需覆盖写入（不合并），直接调用 upsertUserSetting
+export { pushDocHistory as mergeDocHistory };
+export { pushDocHistory as safeUploadDocHistory };
+export { pushGeneratedDocs as mergeGeneratedDocs };
+export { pushGeneratedDocs as safeUploadGeneratedDocs };

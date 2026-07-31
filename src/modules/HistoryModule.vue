@@ -58,7 +58,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import storage from '@/utils/storage';
-import { safeUploadDocHistory } from '@/utils/cloudStorage';
+import { pushDocHistory } from '@/utils/cloudStorage';
 import { formatTime } from '@/utils/helpers';
 import { useDialog } from '@/composables/useDialog.js';
 import { useMobile } from '@/composables/useMobile.js';
@@ -77,25 +77,31 @@ const loadHistory = async () => {
   const saved = await storage.getItem('docHistory');
   if (saved) {
     historyList.value = saved;
-    filteredHistoryList.value = historyList.value;
+    filteredHistoryList.value = historyList.value.filter(h => !h._deleted);
   }
 };
 
 const clearAllHistory = async () => {
   const confirmed = await showConfirmDialogFn('确定清空所有历史记录吗？');
   if (confirmed) {
-    historyList.value = [];
+    // 打 _deleted 标记（同步后自动清理）
+    for (const h of historyList.value) {
+      h._deleted = true;
+    }
     filteredHistoryList.value = [];
-    await storage.setItem('docHistory', []);
-    safeUploadDocHistory([]).catch(() => {});
+    await storage.setItem('docHistory', historyList.value);
+    pushDocHistory(historyList.value).catch(() => {});
   }
 };
 
 const deleteHistoryItem = async (id) => {
-  historyList.value = historyList.value.filter(h => h.id !== id);
-  filteredHistoryList.value = filteredHistoryList.value.filter(h => h.id !== id);
-  await storage.setItem('docHistory', historyList.value);
-  safeUploadDocHistory(historyList.value).catch(() => {});
+  const item = historyList.value.find(h => h.id === id);
+  if (item) {
+    item._deleted = true;
+    filteredHistoryList.value = filteredHistoryList.value.filter(h => h.id !== id);
+    await storage.setItem('docHistory', historyList.value);
+    pushDocHistory(historyList.value).catch(() => {});
+  }
 };
 
 const loadFromHistory = (item) => {
@@ -155,7 +161,7 @@ const sendToTypeset = (item) => {
   }, 150);
 };
 
-// ☁️ 云端数据同步完成后重新加载历史记录
+// ☁️ 云端数据同步完成后重新加载 + 清理 _deleted 项
 const onCloudSync = () => {
   loadHistory();
   console.log('☁️ [HistoryModule] 同步完成，已重新加载历史记录');

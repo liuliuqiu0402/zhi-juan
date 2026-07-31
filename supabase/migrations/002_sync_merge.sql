@@ -1,17 +1,23 @@
--- 智慧工坊 · 同步机制重构：云端覆盖写入 + sync_key 隔离
--- 客户端调用 RPC，服务端事务内原子覆盖，消除多端挤兑
+-- 智慧工坊 · 同步机制 v3：按设备独立存储 + 拉取时动态合并
 --
--- 合并策略：客户端发完整列表 → 直接覆盖写入（Last-Write-Wins）
---   效果：新增 ✅  删除 ✅  更新 ✅  单用户多设备可预期
+-- 推：每个设备独立一行 (sync_key + device_id)，互不覆盖
+-- 拉：读取所有设备行 → 按 id 去重（最新时间戳优先）→ 过滤 _deleted 标记
+-- 效果：多端同时生成不丢数据 ✅  一端删除全端同步 ✅  无需手动合并 ✅
 
 -- ══════════════════════════════════════════════════════════════
--- RPC：覆盖写入 doc_history（截断 50 条）
+-- doc_history：push（设备写自己的行）
 -- ══════════════════════════════════════════════════════════════
-CREATE OR REPLACE FUNCTION merge_doc_history(p_sync_key TEXT, p_items JSONB)
-RETURNS JSONB AS $$
+CREATE OR REPLACE FUNCTION push_doc_history(
+  p_sync_key TEXT,
+  p_device_id TEXT,
+  p_items JSONB
+) RETURNS JSONB AS $$
 DECLARE
+  v_id TEXT;
   v_result JSONB;
 BEGIN
+  v_id := p_sync_key || ':' || p_device_id;
+
   SELECT COALESCE(jsonb_agg(item ORDER BY
     (item->>'savedAt')::bigint DESC NULLS LAST,
     (item->>'timestamp')::bigint DESC NULLS LAST
@@ -19,24 +25,67 @@ BEGIN
   FROM (SELECT item FROM jsonb_array_elements(p_items) AS item LIMIT 50) sub;
 
   INSERT INTO doc_history (id, data, updated_at)
-  VALUES (p_sync_key, v_result, now())
+  VALUES (v_id, v_result, now())
   ON CONFLICT (id) DO UPDATE
   SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at;
+
+  RETURN jsonb_build_object('ok', true, 'count', jsonb_array_length(v_result));
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ══════════════════════════════════════════════════════════════
+-- doc_history：pull（读所有设备行 → 合并去重 → 过滤删除标记）
+-- ══════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION pull_doc_history(p_sync_key TEXT)
+RETURNS JSONB AS $$
+DECLARE
+  v_result JSONB;
+BEGIN
+  WITH all_items AS (
+    SELECT jsonb_array_elements(data) AS item
+    FROM doc_history
+    WHERE id LIKE p_sync_key || ':%'
+  ),
+  -- 任意设备标记 _deleted 即视为删除
+  tombstone_ids AS (
+    SELECT DISTINCT item->>'id' AS tid
+    FROM all_items
+    WHERE (item->>'_deleted')::boolean IS TRUE
+  ),
+  -- 去重：同 id 保留最新时间戳版本
+  merged AS (
+    SELECT DISTINCT ON ((item->>'id'))
+      item
+    FROM all_items
+    WHERE (item->>'id') NOT IN (SELECT tid FROM tombstone_ids)
+    ORDER BY (item->>'id'),
+      (item->>'savedAt')::bigint DESC NULLS LAST,
+      (item->>'timestamp')::bigint DESC NULLS LAST
+  )
+  SELECT COALESCE(jsonb_agg(item ORDER BY
+    (item->>'savedAt')::bigint DESC NULLS LAST,
+    (item->>'timestamp')::bigint DESC NULLS LAST
+  ), '[]'::jsonb) INTO v_result
+  FROM merged
+  LIMIT 50;
 
   RETURN jsonb_build_object('ok', true, 'count', jsonb_array_length(v_result), 'data', v_result);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ══════════════════════════════════════════════════════════════
--- RPC：覆盖写入 generated_docs（截断 20 条）
+-- generated_docs：push（设备写自己的行到 user_settings）
 -- ══════════════════════════════════════════════════════════════
-CREATE OR REPLACE FUNCTION merge_generated_docs(p_sync_key TEXT, p_items JSONB)
-RETURNS JSONB AS $$
+CREATE OR REPLACE FUNCTION push_generated_docs(
+  p_sync_key TEXT,
+  p_device_id TEXT,
+  p_items JSONB
+) RETURNS JSONB AS $$
 DECLARE
   v_id TEXT;
   v_result JSONB;
 BEGIN
-  v_id := p_sync_key || ':generated_docs';
+  v_id := p_sync_key || ':generated_docs:' || p_device_id;
 
   SELECT COALESCE(jsonb_agg(item ORDER BY
     (item->>'savedAt')::bigint DESC NULLS LAST,
@@ -49,12 +98,52 @@ BEGIN
   ON CONFLICT (id) DO UPDATE
   SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at;
 
+  RETURN jsonb_build_object('ok', true, 'count', jsonb_array_length(v_result));
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ══════════════════════════════════════════════════════════════
+-- generated_docs：pull（读所有设备行 → 合并去重 → 过滤删除标记）
+-- ══════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION pull_generated_docs(p_sync_key TEXT)
+RETURNS JSONB AS $$
+DECLARE
+  v_result JSONB;
+BEGIN
+  WITH all_items AS (
+    SELECT jsonb_array_elements(data) AS item
+    FROM user_settings
+    WHERE id LIKE p_sync_key || ':generated_docs:%'
+  ),
+  tombstone_ids AS (
+    SELECT DISTINCT item->>'id' AS tid
+    FROM all_items
+    WHERE (item->>'_deleted')::boolean IS TRUE
+  ),
+  merged AS (
+    SELECT DISTINCT ON ((item->>'id'))
+      item
+    FROM all_items
+    WHERE (item->>'id') NOT IN (SELECT tid FROM tombstone_ids)
+    ORDER BY (item->>'id'),
+      (item->>'savedAt')::bigint DESC NULLS LAST,
+      (item->>'timestamp')::bigint DESC NULLS LAST
+  )
+  SELECT COALESCE(jsonb_agg(item ORDER BY
+    (item->>'savedAt')::bigint DESC NULLS LAST,
+    (item->>'timestamp')::bigint DESC NULLS LAST
+  ), '[]'::jsonb) INTO v_result
+  FROM merged
+  LIMIT 20;
+
   RETURN jsonb_build_object('ok', true, 'count', jsonb_array_length(v_result), 'data', v_result);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ══════════════════════════════════════════════════════════════
--- GRANT：允许 anon 角色执行 RPC
+-- GRANT
 -- ══════════════════════════════════════════════════════════════
-GRANT EXECUTE ON FUNCTION merge_doc_history(TEXT, JSONB) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION merge_generated_docs(TEXT, JSONB) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION push_doc_history(TEXT, TEXT, JSONB) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION pull_doc_history(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION push_generated_docs(TEXT, TEXT, JSONB) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION pull_generated_docs(TEXT) TO anon, authenticated;
