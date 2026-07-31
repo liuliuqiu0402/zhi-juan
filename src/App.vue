@@ -862,12 +862,19 @@ onMounted(async () => {
         } catch {}
       }
 
-      // 📱 手机端：显示同步结果
+      // 📱 同步提示（桌面端仅提示双向数据：生成结果+历史记录）
       if (pulled.length > 0) {
-        showToastMessage('☁️ 已同步: ' + pulled.join('、'), 'info');
+        const displayItems = isWebMode.value
+          ? pulled
+          : pulled.filter(p => p.startsWith('历史') || p.startsWith('生成结果'));
+        if (displayItems.length > 0) {
+          showToastMessage('☁️ 已同步: ' + displayItems.join('、'), 'info');
+        }
         console.log('☁️ 冷启动云端同步完成:', pulled.join('、'));
       } else {
-        showToastMessage('☁️ 云端暂无数据，请在桌面端点刷新上传', 'info');
+        showToastMessage(isWebMode.value
+          ? '☁️ 云端暂无数据，请在电脑端上传'
+          : '☁️ 云端暂无数据，请在桌面端点刷新上传', 'info');
         console.log('☁️ 冷启动：云端无数据');
       }
       // 🔔 通知各模块重新加载云端数据（确保 ref 与 storage 一致）
