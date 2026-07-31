@@ -395,7 +395,7 @@ const handlePullRefresh = async () => {
       window.dispatchEvent(new CustomEvent('data-sync-complete'));
     } catch {}
   }
-  showToastMessage(isWebMode.value ? '✅ 已从云端更新' : '✅ 已刷新', 'info');
+  showToastMessage('✅ 已刷新', 'info');
 };
 
 // 🔥 热启动安全上推：仅上传本地数据到云端，不做下拉（避免云端旧数据覆盖本地）
@@ -466,14 +466,13 @@ const quickPushToCloud = async () => {
         results.push('历史');
       } catch (e) { console.warn('☁️ 历史上传失败:', e); }
     }
-    // 生成结果（🔒 安全合并上传：先拉云端→合并→再上传，防多端并发覆盖）
+    // 生成结果（安全合并上传：先拉云端→合并→再上传）
     try {
       const raw = localStorage.getItem('wisdom_generated_docs');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && parsed.length > 0) {
           const merged = await safeUploadGeneratedDocs(parsed);
-          // 云端可能有我们本地没有的条目，回写到本地
           if (merged.length !== parsed.length) {
             localStorage.setItem('wisdom_generated_docs', JSON.stringify(merged));
           }
@@ -710,7 +709,7 @@ onMounted(async () => {
       }
     }
     // 🔽 完整云端下拉（冷启动 或 热启动回退）
-    showToastMessage(isWebMode.value ? '☁️ 正在从云端同步…' : '☁️ 正在同步至云端…', 'info');
+    showToastMessage('☁️ 同步中…', 'info');
     pullFromCloud().then(async ({ textbooks, docHistory, settings, activationInfo, generatedDocs, instructions, templates }) => {
       // 🔽 下拉：云端 → 本地
       const pulled = [];
@@ -731,7 +730,6 @@ onMounted(async () => {
         }
       }
       if (docHistory && docHistory.length > 0) {
-        // 🔀 双向数据：合并云端与本地历史（按 id 去重，本地优先）
         const localHistory = await storage.getItem('docHistory') || [];
         const map = new Map();
         for (const item of docHistory) { const id = item?.id; if (id) map.set(id, item); }
@@ -825,14 +823,10 @@ onMounted(async () => {
 
       // 🔼 桌面端冷启动：仅推送单向数据到云端（教材/模板/指令/设置/激活）
       //    双向数据（历史+生成结果）统一走刷新按钮，不在此处上推
-      const pushedUp = [];
       if (!isWebMode.value) {
         try {
           const localTextbooks = await storage.getItem('textbooks');
-          if (localTextbooks && localTextbooks.length > 0) {
-            await uploadTextbooks(localTextbooks);
-            pushedUp.push('教材' + localTextbooks.length + '本');
-          }
+          if (localTextbooks && localTextbooks.length > 0) await uploadTextbooks(localTextbooks);
         } catch {}
         try {
           const rawAct = localStorage.getItem('activationInfo');
@@ -848,18 +842,12 @@ onMounted(async () => {
           const rawIns = localStorage.getItem('instructionLib');
           if (rawIns) {
             const parsed = JSON.parse(rawIns);
-            if (parsed && parsed.length > 0) {
-              await uploadInstructions(parsed);
-              pushedUp.push('指令' + parsed.length + '条');
-            }
+            if (parsed && parsed.length > 0) await uploadInstructions(parsed);
           }
         } catch {}
         try {
           const localTemplates = await storage.getItem('templates');
-          if (localTemplates && localTemplates.length > 0) {
-            await uploadTemplates(localTemplates);
-            pushedUp.push('模板' + localTemplates.length + '个');
-          }
+          if (localTemplates && localTemplates.length > 0) await uploadTemplates(localTemplates);
         } catch {}
         try {
           // ☁️ 仅推送 DeepSeek 配置（手机端只接收这些，Ollama 字段不上云）
@@ -869,31 +857,18 @@ onMounted(async () => {
           for (const f of dsFields) { if (apiConfig[f]) settingsToPush[f] = apiConfig[f]; }
           if (Object.keys(settingsToPush).length > 0) {
             await uploadSettings(settingsToPush);
-            pushedUp.push('设置');
             console.log('☁️ 冷启动已推送设置:', Object.keys(settingsToPush).join(', '));
           }
         } catch {}
       }
 
-      // ☁️ 同步提示（区分两端数据方向）
-      if (isWebMode.value) {
-        // 📱 手机端：显示从云端拉取的全部数据
-        if (pulled.length > 0) {
-          showToastMessage('☁️ 已从云端同步: ' + pulled.join('、'), 'info');
-          console.log('☁️ 冷启动云端同步完成:', pulled.join('、'));
-        } else {
-          showToastMessage('☁️ 云端暂无数据，请在电脑端上传', 'info');
-          console.log('☁️ 冷启动：云端无数据');
-        }
+      // 📱 手机端：显示同步结果
+      if (pulled.length > 0) {
+        showToastMessage('☁️ 已同步: ' + pulled.join('、'), 'info');
+        console.log('☁️ 冷启动云端同步完成:', pulled.join('、'));
       } else {
-        // 🖥️ 桌面端：仅提示双向数据（生成结果+历史），单向数据提示上传
-        const bidirectional = pulled.filter(p => p.startsWith('历史') || p.startsWith('生成结果'));
-        if (bidirectional.length > 0) {
-          showToastMessage('☁️ 已同步: ' + bidirectional.join('、'), 'info');
-        }
-        if (pushedUp.length > 0) {
-          console.log('☁️ 冷启动已推送:', pushedUp.join('、'));
-        }
+        showToastMessage('☁️ 云端暂无数据，请在桌面端点刷新上传', 'info');
+        console.log('☁️ 冷启动：云端无数据');
       }
       // 🔔 通知各模块重新加载云端数据（确保 ref 与 storage 一致）
       window.dispatchEvent(new CustomEvent('data-sync-complete', { detail: { pulled } }));
@@ -961,7 +936,7 @@ onMounted(async () => {
   window.addEventListener('app-refresh', async () => {
     console.log('🔄 软刷新：开始同步');
     if (isCloudConfigured()) {
-      showToastMessage(isWebMode.value ? '☁️ 正在从云端同步…' : '☁️ 正在同步至云端…', 'info');
+      showToastMessage('☁️ 同步中…', 'info');
       try {
         // ① 🔽 先从云端拉取最新数据（避免后推覆盖先推的冲突）
         const cloudData = await pullFromCloud();
@@ -1126,7 +1101,7 @@ onMounted(async () => {
         }
 
         console.log('🔄 刷新同步完成', isWebMode.value ? '(手机端)' : '(桌面端)');
-        showToastMessage(isWebMode.value ? '✅ 已从云端更新' : '✅ 数据已同步至云端', 'info');
+        showToastMessage('✅ 同步完成', 'info');
         // 🔄 二次刷新：数据已写入 localStorage，重新挂载组件以加载最新数据
         refreshKey.value++;
       } catch (e) { console.warn('🔄 刷新同步失败:', e); }
