@@ -1473,7 +1473,7 @@ import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml, par
 import { buildTianZiGeMarker, htmlToDocxBlob } from '../utils/docxBuilder.js';
 import { injectDrawingML, TZG_MARKER, FLT_MARKER } from '../utils/drawingMLShapes.js';
 import storage from '../utils/storage';
-import { uploadDocHistory, uploadGeneratedDocs, downloadGeneratedDocs, isCloudConfigured } from '../utils/cloudStorage';
+import { uploadDocHistory, uploadGeneratedDocs, downloadGeneratedDocs, safeUploadGeneratedDocs, isCloudConfigured } from '../utils/cloudStorage';
 import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
 import { useInstructionStore } from '../stores/instructionStore.js';
@@ -2722,16 +2722,25 @@ const loadGeneratedDocs = () => {
   return [];
 };
 const generatedDocs = ref(loadGeneratedDocs());
+let _skipNextDocsSave = false; // 守卫：云端合并回写时跳过重复保存
 const saveGeneratedDocs = () => {
+  if (_skipNextDocsSave) { _skipNextDocsSave = false; return; }
   try {
     // 🔧 同步裁剪：内存 + localStorage 同时截断，避免刷新丢数据且内存不膨胀
     if (generatedDocs.value.length > 20) {
       generatedDocs.value = generatedDocs.value.slice(-20);
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(generatedDocs.value));
-    // ☁️ 同步到云端，保证桌面端和手机端数据一致
+    // 🔒 安全上传：先拉云端→合并→再上传（防多端并发生成互相覆盖）
     if (isCloudConfigured()) {
-      uploadGeneratedDocs(generatedDocs.value).catch(() => {});
+      const snapshot = [...generatedDocs.value];
+      safeUploadGeneratedDocs(snapshot).then(merged => {
+        if (JSON.stringify(merged) !== JSON.stringify(snapshot)) {
+          _skipNextDocsSave = true;
+          generatedDocs.value = merged;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        }
+      }).catch(() => {});
     }
   } catch (e) { console.warn('保存生成记录失败:', e.message); }
 };

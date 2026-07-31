@@ -280,6 +280,53 @@ export async function downloadGeneratedDocs(): Promise<unknown[] | null> {
   }
 }
 
+/** 按 id 合并两个生成结果数组（本地覆盖云端同 id），按时间倒序 */
+export function mergeGeneratedDocs(cloud: unknown[], local: unknown[]): unknown[] {
+  const map = new Map<string, unknown>();
+  // 先加云端
+  for (const item of cloud) {
+    const id = (item as Record<string, unknown>)?.id as string;
+    if (id) map.set(id, item);
+  }
+  // 本地覆盖云端同 id
+  for (const item of local) {
+    const id = (item as Record<string, unknown>)?.id as string;
+    if (id) map.set(id, item);
+  }
+  // 按时间倒序（最新的在前），无时间戳排末尾
+  return Array.from(map.values()).sort((a, b) => {
+    const ta = (a as Record<string, unknown>)?.savedAt as number || (a as Record<string, unknown>)?.timestamp as number || 0;
+    const tb = (b as Record<string, unknown>)?.savedAt as number || (b as Record<string, unknown>)?.timestamp as number || 0;
+    return tb - ta;
+  });
+}
+
+/** 安全上传生成结果：先拉云端→合并本地→再上传（防多端并发覆盖） */
+export async function safeUploadGeneratedDocs(localDocs: unknown[]): Promise<unknown[]> {
+  const client = getClient();
+  if (!client) return localDocs;
+
+  try {
+    // ① 拉取云端最新
+    const cloudDocs = await downloadGeneratedDocs() || [];
+    // ② 合并：云端 ∪ 本地，同 id 取本地
+    const merged = mergeGeneratedDocs(cloudDocs, localDocs).slice(0, 20);
+    // ③ 上传合并结果
+    const safe = JSON.parse(JSON.stringify(merged));
+    await client
+      .from('user_settings')
+      .upsert({ id: 'generated_docs', data: safe, updated_at: new Date().toISOString() });
+    return merged;
+  } catch (e) {
+    console.warn('☁️ 生成结果安全上传失败:', e);
+    // 兜底：直接上传（尽力而为）
+    try {
+      await uploadGeneratedDocs(localDocs);
+    } catch {}
+    return localDocs;
+  }
+}
+
 // ── 一键同步 ──
 
 /** 登录后首次拉取：云端 → 本地 */
