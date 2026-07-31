@@ -687,54 +687,72 @@ onMounted(async () => {
         // ① 🔽 从云端拉取（RPC 已合并所有设备行 + 过滤 _deleted）
         const cloudData = await pullFromCloud();
 
-        // ② 🔼 桌面端：推送单向数据（教材/模板/指令/设置/激活，桌面是唯一源头）
+        // ② 🔼 桌面端：推送单向数据（并行上传，不再串行阻塞）
         if (!isWebMode.value) {
-          const desktopPushResults = [];
-          try {
-            const localTextbooks = await storage.getItem('textbooks');
-            if (localTextbooks && localTextbooks.length > 0) {
-              await uploadTextbooks(localTextbooks);
-              desktopPushResults.push('教材');
-            }
-          } catch {}
-          try {
-            const rawAct = localStorage.getItem('activationInfo');
-            if (rawAct) {
-              const act = JSON.parse(rawAct);
-              if (act && act.version && act.version !== 'basic') {
-                const { _sign, ...clean } = act;
-                await uploadActivationInfo(clean);
-                desktopPushResults.push('激活信息');
+          const pushTasks = [];
+          // 教材
+          pushTasks.push((async () => {
+            try {
+              const localTextbooks = await storage.getItem('textbooks');
+              if (localTextbooks && localTextbooks.length > 0) {
+                await uploadTextbooks(localTextbooks);
+                return '教材';
               }
-            }
-          } catch {}
-          try {
-            const rawIns = localStorage.getItem('instructionLib');
-            if (rawIns) {
-              const parsed = JSON.parse(rawIns);
-              if (parsed && parsed.length > 0) {
-                await uploadInstructions(parsed);
-                desktopPushResults.push('指令库');
+            } catch {}
+          })());
+          // 激活
+          pushTasks.push((async () => {
+            try {
+              const rawAct = localStorage.getItem('activationInfo');
+              if (rawAct) {
+                const act = JSON.parse(rawAct);
+                if (act && act.version && act.version !== 'basic') {
+                  const { _sign, ...clean } = act;
+                  await uploadActivationInfo(clean);
+                  return '激活';
+                }
               }
-            }
-          } catch {}
-          try {
-            const localTemplates = await storage.getItem('templates');
-            if (localTemplates && localTemplates.length > 0) {
-              await uploadTemplates(localTemplates);
-              desktopPushResults.push('模板');
-            }
-          } catch {}
-          try {
-            const dsFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
-              'deepseekGenerationModel', 'deepseekAnalysisModel'];
-            const settingsToPush = {};
-            for (const f of dsFields) { if (apiConfig[f]) settingsToPush[f] = apiConfig[f]; }
-            if (Object.keys(settingsToPush).length > 0) {
-              await uploadSettings(settingsToPush);
-              desktopPushResults.push('设置');
-            }
-          } catch {}
+            } catch {}
+          })());
+          // 指令库
+          pushTasks.push((async () => {
+            try {
+              const rawIns = localStorage.getItem('instructionLib');
+              if (rawIns) {
+                const parsed = JSON.parse(rawIns);
+                if (parsed && parsed.length > 0) {
+                  await uploadInstructions(parsed);
+                  return '指令库';
+                }
+              }
+            } catch {}
+          })());
+          // 模板
+          pushTasks.push((async () => {
+            try {
+              const localTemplates = await storage.getItem('templates');
+              if (localTemplates && localTemplates.length > 0) {
+                await uploadTemplates(localTemplates);
+                return '模板';
+              }
+            } catch {}
+          })());
+          // 设置
+          pushTasks.push((async () => {
+            try {
+              const dsFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
+                'deepseekGenerationModel', 'deepseekAnalysisModel'];
+              const sp = {};
+              for (const f of dsFields) { if (apiConfig[f]) sp[f] = apiConfig[f]; }
+              if (Object.keys(sp).length > 0) {
+                await uploadSettings(sp);
+                return '设置';
+              }
+            } catch {}
+          })());
+          const desktopPushResults = (await Promise.allSettled(pushTasks))
+            .filter(r => r.status === 'fulfilled' && r.value)
+            .map(r => r.value);
           if (desktopPushResults.length > 0) {
             console.log('🔄 刷新：桌面端已推送单向数据:', desktopPushResults.join('、'));
           }
