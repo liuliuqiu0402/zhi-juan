@@ -153,6 +153,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ══════════════════════════════════════════════════════════════
 -- v4 轻量拉取：只查原始行，合并去重交给客户端 JS
 --   旧 RPC (pull_*) 保留兼容，新客户端走 fetch_*
+--   返回格式：[{"data": [items...]}, {"data": [items...]}, ...]
 -- ══════════════════════════════════════════════════════════════
 
 -- doc_history：纯查询，不做任何处理
@@ -161,7 +162,7 @@ RETURNS JSONB
 LANGUAGE sql
 SECURITY DEFINER
 AS $$
-  SELECT COALESCE(jsonb_agg(data ORDER BY updated_at DESC), '[]'::jsonb)
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('data', data) ORDER BY updated_at DESC), '[]'::jsonb)
   FROM doc_history
   WHERE id LIKE p_sync_key || ':%';
 $$;
@@ -172,9 +173,26 @@ RETURNS JSONB
 LANGUAGE sql
 SECURITY DEFINER
 AS $$
-  SELECT COALESCE(jsonb_agg(data ORDER BY updated_at DESC), '[]'::jsonb)
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('data', data) ORDER BY updated_at DESC), '[]'::jsonb)
   FROM user_settings
   WHERE id LIKE p_sync_key || ':generated_docs:%';
+$$;
+
+-- ══════════════════════════════════════════════════════════════
+-- v5 合并查询：一次拉取所有 user_settings 行，客户端按 ID 分流
+--   替代 settings / activation / instructions / generated_docs 四次分查
+-- ══════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION fetch_all_user_settings(p_sync_key TEXT)
+RETURNS JSONB
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT COALESCE(jsonb_agg(
+    jsonb_build_object('id', id, 'data', data)
+    ORDER BY updated_at DESC
+  ), '[]'::jsonb)
+  FROM user_settings
+  WHERE id LIKE p_sync_key || ':%';
 $$;
 
 -- ══════════════════════════════════════════════════════════════
@@ -186,3 +204,4 @@ GRANT EXECUTE ON FUNCTION push_generated_docs(TEXT, TEXT, JSONB) TO anon, authen
 GRANT EXECUTE ON FUNCTION pull_generated_docs(TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION fetch_doc_history(TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION fetch_generated_docs(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION fetch_all_user_settings(TEXT) TO anon, authenticated;

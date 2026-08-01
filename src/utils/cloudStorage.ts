@@ -94,21 +94,26 @@ function noClient(): SupabaseClient | null {
 
 /**
  * 合并多设备行：展开 → 去重（同 id 保留最新时间戳）→ 过滤删除标记 → 排序 → 截断
- * @param rows 原始行数组，每行的 data 字段是 JSON 数组
+ * @param rows RPC 返回的原始数组，每个元素是一个设备的 data 数组（JSONB 数组）
  * @param limit 最多保留条数
  */
-function mergeDeviceData(rows: { data: unknown }[], limit: number): Record<string, unknown>[] {
-  // 展开所有设备行
+function mergeDeviceData(rows: unknown[], limit: number): Record<string, unknown>[] {
+  // 展开所有设备行（兼容两种 RPC 格式：{data: [...]} 或直接数组 [...]）
   const allItems: Record<string, unknown>[] = [];
   for (const row of rows) {
-    if (Array.isArray(row.data)) {
-      for (const item of row.data) {
+    const items = (row && typeof row === 'object' && !Array.isArray(row) && 'data' in row)
+      ? (row as Record<string, unknown>).data
+      : row;
+    if (Array.isArray(items)) {
+      for (const item of items) {
         if (item && typeof item === 'object') {
           allItems.push(item as Record<string, unknown>);
         }
       }
     }
   }
+
+  if (allItems.length === 0) return [];
 
   // 收集删除标记
   const tombstoneIds = new Set<string>();
@@ -149,22 +154,25 @@ function mergeDeviceData(rows: { data: unknown }[], limit: number): Record<strin
 // doc_history：push（即时上推） + pull（客户端合并）
 // ══════════════════════════════════════════════════════════════
 
-/** 推历史记录到云端（只写自己设备的行，不影响其他设备） */
+/** 推历史记录到云端（直接 upsert，不走 RPC，避免冷启动超时） */
 export async function pushDocHistory(items: unknown[]): Promise<boolean> {
   if (noSyncKey()) return false;
   const client = noClient();
   if (!client) return false;
 
   try {
-    const { error } = await client.rpc('push_doc_history', {
-      p_sync_key: getSyncKey(),
-      p_device_id: getDeviceId(),
-      p_items: safeClone(items),
-    });
+    // 排序 + 截断（与旧 RPC push_doc_history 行为一致：≤50 条）
+    const sorted = [...items]
+      .sort((a: any, b: any) => (b.savedAt || b.timestamp || 0) - (a.savedAt || a.timestamp || 0))
+      .slice(0, 50);
+    const { error } = await client
+      .from('doc_history')
+      .upsert({ id: getSyncKey() + ':' + getDeviceId(), data: sorted, updated_at: new Date().toISOString() });
     if (error) {
       console.error('☁️ push_doc_history 失败:', error.message);
       return false;
     }
+    console.log('☁️ push_doc_history: ' + sorted.length + ' 条（直接 upsert）');
     return true;
   } catch (e) {
     console.warn('☁️ push_doc_history 异常:', e);
@@ -172,22 +180,22 @@ export async function pushDocHistory(items: unknown[]): Promise<boolean> {
   }
 }
 
-/** 从云端拉取历史记录（轻量 RPC 只查原始行 → 客户端 JS 合并去重） */
+/** 从云端拉取历史记录（直接查表 → 客户端 JS 合并去重，不走 RPC，避免冷启动超时） */
 export async function pullDocHistory(): Promise<unknown[] | null> {
   if (noSyncKey()) return null;
-  const client = noClient();
+  const client = getClient();
   if (!client) return null;
 
   try {
-    const { data: result, error } = await client.rpc('fetch_doc_history', {
-      p_sync_key: getSyncKey(),
-    });
+    const { data: rows, error } = await client
+      .from('doc_history')
+      .select('data')
+      .like('id', getSyncKey() + ':%');
     if (error) {
       console.error('☁️ pull_doc_history 失败:', error.message);
       return null;
     }
-    const rows = (result as { data: unknown[] }[]) || [];
-    const merged = mergeDeviceData(rows, 50);
+    const merged = mergeDeviceData((rows as unknown[]) || [], 50);
     console.log('☁️ pull_doc_history:', merged.length, '条（客户端合并）');
     return merged;
   } catch (e) {
@@ -200,22 +208,25 @@ export async function pullDocHistory(): Promise<unknown[] | null> {
 // generated_docs：push（即时上推） + pull（拉取合并）
 // ══════════════════════════════════════════════════════════════
 
-/** 推生成结果到云端（只写自己设备的行） */
+/** 推生成结果到云端（直接 upsert，不走 RPC，避免冷启动超时） */
 export async function pushGeneratedDocs(items: unknown[]): Promise<boolean> {
   if (noSyncKey()) return false;
   const client = noClient();
   if (!client) return false;
 
   try {
-    const { error } = await client.rpc('push_generated_docs', {
-      p_sync_key: getSyncKey(),
-      p_device_id: getDeviceId(),
-      p_items: safeClone(items),
-    });
+    // 排序 + 截断（与旧 RPC push_generated_docs 行为一致：≤20 条）
+    const sorted = [...items]
+      .sort((a: any, b: any) => (b.savedAt || b.timestamp || 0) - (a.savedAt || a.timestamp || 0))
+      .slice(0, 20);
+    const { error } = await client
+      .from('user_settings')
+      .upsert({ id: getSyncKey() + ':generated_docs:' + getDeviceId(), data: sorted, updated_at: new Date().toISOString() });
     if (error) {
       console.error('☁️ push_generated_docs 失败:', error.message);
       return false;
     }
+    console.log('☁️ push_generated_docs: ' + sorted.length + ' 条（直接 upsert）');
     return true;
   } catch (e) {
     console.warn('☁️ push_generated_docs 异常:', e);
@@ -237,13 +248,72 @@ export async function pullGeneratedDocs(): Promise<unknown[] | null> {
       console.error('☁️ pull_generated_docs 失败:', error.message);
       return null;
     }
-    const rows = (result as { data: unknown[] }[]) || [];
+    const rows = (result as unknown[]) || [];
     const merged = mergeDeviceData(rows, 20);
     console.log('☁️ pull_generated_docs:', merged.length, '条（客户端合并）');
     return merged;
   } catch (e) {
     console.warn('☁️ pull_generated_docs 异常:', e);
     return null;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// v5 合并拉取：直接查 user_settings 表一次，按 ID 后缀分流
+//   不走 RPC，与教材/模板同款路径，避免冷启动超时
+// ══════════════════════════════════════════════════════════════
+
+/** 一次查表拉取所有 user_settings 行，按 ID 后缀分流 */
+export async function pullAllSettings(): Promise<{
+  settings: Record<string, unknown> | null;
+  activationInfo: Record<string, unknown> | null;
+  instructions: unknown[] | null;
+  generatedDocs: unknown[] | null;
+}> {
+  if (noSyncKey()) return { settings: null, activationInfo: null, instructions: null, generatedDocs: null };
+  const client = getClient();
+  if (!client) return { settings: null, activationInfo: null, instructions: null, generatedDocs: null };
+
+  try {
+    const { data: rows, error } = await client
+      .from('user_settings')
+      .select('id, data')
+      .like('id', getSyncKey() + ':%');
+    if (error) {
+      console.error('☁️ pullAllSettings 失败:', error.message);
+      return { settings: null, activationInfo: null, instructions: null, generatedDocs: null };
+    }
+
+    // 按 ID 后缀分流
+    let settings: Record<string, unknown> | null = null;
+    let activationInfo: Record<string, unknown> | null = null;
+    let instructions: unknown[] | null = null;
+    const genDocRows: unknown[] = [];
+
+    const syncKey = getSyncKey() || '';
+    for (const row of (rows as { id: string; data: unknown }[]) || []) {
+      const suffix = row.id?.replace(syncKey + ':', '');
+      if (!suffix) continue;
+      if (suffix === 'settings') {
+        settings = row.data as Record<string, unknown>;
+      } else if (suffix === 'activation') {
+        activationInfo = row.data as Record<string, unknown>;
+      } else if (suffix === 'instructions') {
+        instructions = row.data as unknown[];
+      } else if (suffix.startsWith('generated_docs:')) {
+        genDocRows.push(row.data);
+      }
+    }
+
+    const generatedDocs = mergeDeviceData(genDocRows, 20);
+    console.log('☁️ pullAllSettings: 设置=' + (settings ? Object.keys(settings).length + '项' : '无') +
+      ' 激活=' + (activationInfo ? '有' : '无') +
+      ' 指令=' + (instructions?.length ?? 0) + '条' +
+      ' 生成=' + generatedDocs.length + '条（客户端合并）');
+    return { settings, activationInfo, instructions, generatedDocs };
+  } catch (e) {
+    console.warn('☁️ pullAllSettings 异常:', e);
+    return { settings: null, activationInfo: null, instructions: null, generatedDocs: null };
   }
 }
 
@@ -400,16 +470,23 @@ export async function pullFromCloud(): Promise<{
   templates: unknown[] | null;
 }> {
   const t0 = performance.now();
-  const [textbooks, docHistory, settings, activationInfo, generatedDocs, instructions, templates] = await Promise.all([
-    downloadTextbooks(),
-    pullDocHistory(),
-    downloadSettings(),
-    downloadActivationInfo(),
-    pullGeneratedDocs(),
-    downloadInstructions(),
-    downloadTemplates(),
+  // 🔧 分项计时：逐项标记，便于精确定位瓶颈
+  const timings: string[] = [];
+  const mark = (label: string) => {
+    const t = ((performance.now() - t0) / 1000).toFixed(2);
+    timings.push(label + t + 's');
+  };
+  // v5：user_settings 4 次查询合并为 1 次 RPC
+  const allSettingsP = pullAllSettings().then(r => { mark('全设置'); return r; });
+  const [textbooks, docHistory, allSettings, templates] = await Promise.all([
+    downloadTextbooks().then(r => { mark('教材'); return r; }),
+    pullDocHistory().then(r => { mark('历史'); return r; }),
+    allSettingsP,
+    downloadTemplates().then(r => { mark('模板'); return r; }),
   ]);
+  const { settings, activationInfo, generatedDocs, instructions } = allSettings;
   const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+  console.log('⏱️ pullFromCloud 分项耗时: ' + timings.join(' | '));
   const sizeParts: string[] = [];
   if (textbooks?.length) sizeParts.push('教材' + textbooks.length + '条');
   if (docHistory?.length) sizeParts.push('历史' + docHistory.length + '条');

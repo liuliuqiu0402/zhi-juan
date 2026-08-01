@@ -579,7 +579,7 @@ onMounted(async () => {
 
     // 🔄 同步按钮处理器（app-refresh 事件，来自 AppHeader ☁️ 按钮 / 手机端下拉刷新）
     let _syncInProgress = false;
-    window.addEventListener('app-refresh', async () => {
+    const _handleAppRefresh = async () => {
       if (_syncInProgress) { console.log('🔄 同步进行中，跳过重复请求'); return; }
       _syncInProgress = true;
       try {
@@ -603,10 +603,10 @@ onMounted(async () => {
             ); }
           } catch {}
           try {
-            const tmplRaw = localStorage.getItem('templates_lib');
-            if (tmplRaw) { const t = JSON.parse(tmplRaw); if (t.length > 0) pushTasks.push(
-              (async () => { const ok = await uploadTemplates(t); return { name: '模板', ok }; })()
-            ); }
+            const templates = await storage.getItem('templates');
+            if (templates && templates.length > 0) pushTasks.push(
+              (async () => { const ok = await uploadTemplates(templates); return { name: '模板', ok }; })()
+            );
           } catch {}
           try {
             const settings = JSON.parse(localStorage.getItem('apiConfig') || '{}');
@@ -754,7 +754,10 @@ onMounted(async () => {
       } finally {
         _syncInProgress = false;
       }
-    });
+    };
+    // 🔧 HMR 安全：先移除旧监听器再注册，避免热更新累积重复 handler
+    window.removeEventListener('app-refresh', _handleAppRefresh);
+    window.addEventListener('app-refresh', _handleAppRefresh);
   }
 
   setupMenuListeners();
@@ -812,7 +815,10 @@ onMounted(async () => {
     }
   });
   // 📤 手动上推：推送本地全量数据到云端（双向+单向，桌面端包含教材/模板/指令/设置/激活）
-  window.addEventListener('app-upload', async () => {
+  let _uploadInProgress = false;
+  const _handleAppUpload = async () => {
+    if (_uploadInProgress) { console.log('📤 上推进行中，跳过重复请求'); return; }
+    _uploadInProgress = true;
     console.log('📤 手动上推：推送本地数据到云端');
     if (isCloudConfigured()) {
       showToastMessage('📤 上推中…', 'info');
@@ -896,27 +902,37 @@ onMounted(async () => {
         showToastMessage('📤 上推失败', 'error');
       }
     }
-  });
+    _uploadInProgress = false;
+  };
+  // 🔧 HMR 安全：先移除旧监听器再注册，避免热更新累积重复 handler
+  window.removeEventListener('app-upload', _handleAppUpload);
+  window.addEventListener('app-upload', _handleAppUpload);
 
   // 🔄 任务重置：清空当前生成页状态，恢复初始界面（组件级软刷新）
   //    与数据同步(cloud sync)分离——同步只拉数据不销毁组件，重置才重建组件
   let resetDebounce = false;
-  window.addEventListener('reset-task', () => {
+  const _handleResetTask = () => {
     if (resetDebounce) return; // 🔧 防抖：双击/连点仅执行一次
     resetDebounce = true;
     console.log('🔄 任务重置：销毁重建当前组件');
     refreshKey.value++;
     showToastMessage('✅ 已重置', 'info');
     setTimeout(() => { resetDebounce = false; }, 500);
-  });
+  };
+  // 🔧 HMR 安全：先移除旧监听器再注册，避免热更新累积重复 handler
+  window.removeEventListener('reset-task', _handleResetTask);
+  window.addEventListener('reset-task', _handleResetTask);
 
   // 📱 签名倒计时重置：SettingsModule 中用户点击"已续签"后刷新顶部徽章
-  window.addEventListener('sign-countdown-reset', () => {
+  const _handleSignCountdownReset = () => {
     if (isCapacitorIOS.value) {
       signInfo.value = getSignCountdown();
       console.log('[App] 签名倒计时已重置:', signInfo.value.daysRemaining + '天');
     }
-  });
+  };
+  // 🔧 HMR 安全：先移除旧监听器再注册，避免热更新累积重复 handler
+  window.removeEventListener('sign-countdown-reset', _handleSignCountdownReset);
+  window.addEventListener('sign-countdown-reset', _handleSignCountdownReset);
 
   // 🔧 iOS PWA 专用：localStorage 降级备份到 sessionStorage
   //    iOS 存储压力大时可能静默清空 localStorage，sessionStorage 相对稳定
