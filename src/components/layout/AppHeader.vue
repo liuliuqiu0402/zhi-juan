@@ -20,14 +20,16 @@
       <button class="header-btn" @click="$router.push('/settings')">⚙️ 设置</button>
     </div>
 
-    <!-- 📱 移动端：签名到期 + 操作按钮 -->
+    <!-- 📱 移动端：签名到期（仅iOS） + 操作按钮 -->
     <div class="header-right" v-if="isMobile">
-      <span v-if="signInfo && signInfo.found && signInfo.daysRemaining >= 0" class="mobile-sign-badge" :class="{ warning: signInfo.daysRemaining <= 3 }">
-        📱 {{ signInfo.daysRemaining === 0 ? '今日到期!' : signInfo.daysRemaining + '天' }}
-      </span>
-      <span v-else-if="signInfo && !signInfo.found" class="mobile-sign-badge unknown">
-        📱 未签名
-      </span>
+      <template v-if="isCapacitorIOS">
+        <span v-if="signInfo && signInfo.found && signInfo.daysRemaining >= 0" class="mobile-sign-badge" :class="{ warning: signInfo.daysRemaining <= 3 }">
+          📱 {{ signInfo.daysRemaining === 0 ? '今日到期!' : signInfo.daysRemaining + '天' }}
+        </span>
+        <span v-else-if="signInfo && !signInfo.found" class="mobile-sign-badge unknown">
+          📱 未签名
+        </span>
+      </template>
       <button class="header-btn header-btn-sm" @click="resetTask" title="重置任务">🔄</button>
       <button class="header-btn header-btn-sm" @click="uploadToCloud" title="上推：桌面全量 | 手机仅双向2类（引擎独立）">📤</button>
       <button class="header-btn header-btn-sm" @click="refreshApp" title="同步：桌面拉双向2类→合并→推回 | 手机拉全量→合并双向→推回（引擎独立）">☁️</button>
