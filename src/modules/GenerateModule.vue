@@ -21,10 +21,10 @@
         <button class="ribbon-btn" @click="showDetailConfigModal = true">
           📝 详细配置
         </button>
-        <button class="ribbon-btn ribbon-btn-sync" @click="syncPage" title="同步云端数据：拉取其他设备的教材/模板/生成结果（不重置任务）">
+        <button class="ribbon-btn ribbon-btn-sync" @click="syncPage" title="同步：桌面拉双向2类→合并→推回 | 手机拉7类全量→合并双向→推回">
           ☁️
         </button>
-        <button class="ribbon-btn ribbon-btn-upload" @click="uploadPage" title="上推本地数据到云端">
+        <button class="ribbon-btn ribbon-btn-upload" @click="uploadPage" title="上推：桌面7类全量 | 手机仅双向2类">
           📤
         </button>
         <button class="ribbon-btn ribbon-btn-refresh" @click="refreshPage" title="重置任务：清空当前所有操作，恢复初始状态">

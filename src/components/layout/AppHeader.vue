@@ -29,8 +29,8 @@
         📱 未签名
       </span>
       <button class="header-btn header-btn-sm" @click="resetTask" title="重置任务">🔄</button>
-      <button class="header-btn header-btn-sm" @click="uploadToCloud" title="上推本地数据到云端">📤</button>
-      <button class="header-btn header-btn-sm" @click="refreshApp" title="同步云端数据">☁️</button>
+      <button class="header-btn header-btn-sm" @click="uploadToCloud" title="上推：桌面7类全量 | 手机仅双向2类">📤</button>
+      <button class="header-btn header-btn-sm" @click="refreshApp" title="同步：桌面拉双向2类→合并→推回 | 手机拉7类全量→合并双向→推回">☁️</button>
     </div>
   </header>
 </template>
