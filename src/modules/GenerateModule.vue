@@ -225,8 +225,8 @@
         </div>
 
         <div class="result-list">
-          <div v-if="generatedDocs.length === 0" class="empty-tip">暂无生成结果</div>
-          <div v-for="(doc, idx) in generatedDocs" :key="doc.id" class="result-item" :class="getQualityClass(doc.quality)">
+          <div v-if="displayedDocs.length === 0" class="empty-tip">暂无生成结果</div>
+          <div v-for="(doc, idx) in displayedDocs" :key="doc.id" class="result-item" :class="getQualityClass(doc.quality)">
             <div class="result-row">
               <input type="checkbox" v-model="doc.selected" />
               <div class="result-info" @click="previewDoc(doc)">
@@ -263,7 +263,7 @@
                 <button class="btn-small btn-save-history" @click.stop="saveToHistory(doc)" title="保存到历史">
                   <span class="icon-desktop">💾</span><span class="icon-mobile">✅</span> 保存
                 </button>
-                <button class="btn-small btn-delete-doc" @click.stop="deleteDoc(idx)" title="删除">🗑️ 删除</button>
+                <button class="btn-small btn-delete-doc" @click.stop="deleteDoc(doc)" title="删除">🗑️ 删除</button>
                 <button class="btn-small" @click.stop="previewDoc(doc)">👁️ 预览</button>
               </div>
             </div>
@@ -2750,6 +2750,9 @@ const loadGeneratedDocs = () => {
   return [];
 };
 const generatedDocs = ref(loadGeneratedDocs());
+
+// 显示用：反转数组，最新的在上面（存储保持升序以保证 slice(-20) 截断正确）
+const displayedDocs = computed(() => [...generatedDocs.value].reverse());
 const saveGeneratedDocs = async () => {
   try {
     if (generatedDocs.value.length > 20) {
@@ -6521,9 +6524,10 @@ const copyToEduRender = async () => {
   }
 };
 
-const deleteDoc = (idx) => {
+const deleteDoc = (doc) => {
   // 打 _deleted 标记，不立即移除（多端同步需要一条端删除即可）
-  generatedDocs.value[idx]._deleted = true;
+  const idx = generatedDocs.value.findIndex(d => d.id === doc.id);
+  if (idx !== -1) generatedDocs.value[idx]._deleted = true;
 };
 
 const batchDeleteDocs = async () => {

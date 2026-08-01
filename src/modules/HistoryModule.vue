@@ -91,7 +91,8 @@ const loadHistory = async () => {
     // 按时间升序排列（旧→新），保留最新 50 条，超限时最早被覆盖
     const sorted = [...saved].sort((a, b) => (a?.savedAt || a?.timestamp || a?.createdAt || 0) - (b?.savedAt || b?.timestamp || b?.createdAt || 0));
     historyList.value = sorted.length > 50 ? sorted.slice(-50) : sorted;
-    filteredHistoryList.value = historyList.value.filter(h => !h._deleted);
+    // 显示时反转：最新的在上面（存储保持升序以保证 slice(-50) 截断正确）
+    filteredHistoryList.value = historyList.value.filter(h => !h._deleted).reverse();
   }
 };
 
