@@ -235,28 +235,41 @@ export async function pushGeneratedDocs(items: unknown[]): Promise<boolean> {
   }
 }
 
-/** 从云端拉取生成结果（直接查表 → 客户端 JS 合并去重，与 pullDocHistory 同款路径） */
+/** 从云端拉取生成结果（新表优先 + 旧 user_settings 兼容，客户端 JS 合并去重） */
 export async function pullGeneratedDocs(): Promise<unknown[] | null> {
   if (noSyncKey()) return null;
   const client = getClient();
   if (!client) return null;
 
+  const allRows: unknown[] = [];
+
   try {
-    const { data: rows, error } = await client
+    // ① 新表 generated_docs（v6+）
+    const { data: newRows, error: newErr } = await client
       .from('generated_docs')
       .select('data')
       .like('id', getSyncKey() + ':%');
-    if (error) {
-      console.error('☁️ pull_generated_docs 失败:', error.message);
-      return null;
+    if (!newErr && newRows) allRows.push(...(newRows as unknown[]));
+  } catch { /* 表可能还未创建，忽略 */ }
+
+  try {
+    // ② 旧 user_settings 兼容（v5 及之前，generated_docs:* 行）
+    const { data: oldRows, error: oldErr } = await client
+      .from('user_settings')
+      .select('id, data')
+      .like('id', getSyncKey() + ':generated_docs:%');
+    if (!oldErr && oldRows) {
+      for (const row of (oldRows as { id: string; data: unknown }[])) {
+        allRows.push(row.data);
+      }
     }
-    const merged = mergeDeviceData((rows as unknown[]) || [], 20);
-    console.log('☁️ pull_generated_docs:', merged.length, '条（独立表直查 + 客户端合并）');
-    return merged;
-  } catch (e) {
-    console.warn('☁️ pull_generated_docs 异常:', e);
-    return null;
-  }
+  } catch { /* 兼容读取失败，忽略 */ }
+
+  const merged = mergeDeviceData(allRows, 20);
+  console.log('☁️ pull_generated_docs:', merged.length, '条（新表' +
+    (allRows.length > 0 && (allRows[0] as any)?.data ? '+旧兼容' : '') +
+    ' + 客户端合并）');
+  return merged;
 }
 
 // ══════════════════════════════════════════════════════════════
