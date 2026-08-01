@@ -776,6 +776,10 @@ onMounted(async () => {
           const merged = Array.from(map.values())
             .sort((a, b) => (a?.savedAt || a?.timestamp || a?.createdAt || 0) - (b?.savedAt || b?.timestamp || b?.createdAt || 0))
             .slice(-50);
+          // 向后兼容：为云端拉取的旧数据补填 savedAt
+          for (const item of merged) {
+            if (!item.savedAt) item.savedAt = item.createdAt || item.timestamp || Date.now();
+          }
           storedHistCount = merged.length;
           await storage.setItem('docHistory', merged).catch(() => {});
           pushDocHistory(merged).catch(() => {});
@@ -796,6 +800,14 @@ onMounted(async () => {
           const merged = Array.from(map.values())
             .sort((a, b) => (a?.savedAt || a?.timestamp || a?.createdAt || 0) - (b?.savedAt || b?.timestamp || b?.createdAt || 0))
             .slice(-20);
+          // 向后兼容：为云端拉取的旧数据补填 savedAt
+          for (const item of merged) {
+            if (!item.savedAt) {
+              // 尝试从 id 提取时间戳（id 格式: period_1735689600000_... 或 doc_1735689600000_...）
+              const m = item.id?.match(/(\d{13})/);
+              item.savedAt = item.createdAt || (m ? parseInt(m[1]) : null) || Date.now();
+            }
+          }
           storedGenCount = merged.length;
           localStorage.setItem('wisdom_generated_docs', JSON.stringify(merged));
           pushGeneratedDocs(merged).catch(() => {});

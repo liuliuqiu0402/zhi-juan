@@ -2717,12 +2717,34 @@ const previewHint = ref('');
 const analysisResult = ref(null);
 // 🔧 持久化存储：刷新不丢失
 const STORAGE_KEY = 'wisdom_generated_docs';
+
+// 从 id 中提取时间戳（id 格式: period_1735689600000_... 或 doc_1735689600000_...）
+const extractTimestampFromId = (id) => {
+  if (!id) return null;
+  const match = id.match(/(\d{13})/);
+  return match ? parseInt(match[1]) : null;
+};
+
 const loadGeneratedDocs = () => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        // 向后兼容：为旧数据补填 savedAt（修复前生成的结果缺少时间戳字段）
+        let needsSave = false;
+        for (const item of parsed) {
+          if (!item.savedAt) {
+            item.savedAt = item.createdAt || extractTimestampFromId(item.id) || Date.now();
+            needsSave = true;
+          }
+        }
+        if (needsSave) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+          console.log('🩹 已为 ' + parsed.length + ' 条旧生成结果补填 savedAt');
+        }
+        return parsed;
+      }
     }
   } catch (e) { console.warn('加载生成记录失败:', e.message); }
   return [];
