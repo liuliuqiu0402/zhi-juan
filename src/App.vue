@@ -759,6 +759,8 @@ onMounted(async () => {
         }
 
         // ③ 💾 写入本地：云端合并 + 本地兜底（防推送失败导致本地新数据被覆盖）
+        let storedGenCount = 0;
+        let storedHistCount = 0;
         // 历史记录
         {
           const localHistory = await storage.getItem('docHistory') || [];
@@ -774,6 +776,7 @@ onMounted(async () => {
           const merged = Array.from(map.values())
             .sort((a, b) => (b?.savedAt || b?.timestamp || 0) - (a?.savedAt || a?.timestamp || 0))
             .slice(0, 50);
+          storedHistCount = merged.length;
           await storage.setItem('docHistory', merged).catch(() => {});
           pushDocHistory(merged).catch(() => {});
         }
@@ -793,6 +796,7 @@ onMounted(async () => {
           const merged = Array.from(map.values())
             .sort((a, b) => (b?.savedAt || b?.timestamp || 0) - (a?.savedAt || a?.timestamp || 0))
             .slice(0, 20);
+          storedGenCount = merged.length;
           localStorage.setItem('wisdom_generated_docs', JSON.stringify(merged));
           pushGeneratedDocs(merged).catch(() => {});
         }
@@ -858,8 +862,8 @@ onMounted(async () => {
           }
         }
 
-        const genCount = cloudData.generatedDocs ? cloudData.generatedDocs.length : 0;
-        const histCount = cloudData.docHistory ? cloudData.docHistory.length : 0;
+        const genCount = storedGenCount;
+        const histCount = storedHistCount;
         console.log('🔄 同步完成', isWebMode.value ? '(手机端)' : '(桌面端)',
           '| 生成结果:', genCount, '条 | 历史:', histCount, '条');
         showToastMessage(

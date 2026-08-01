@@ -7046,7 +7046,10 @@ const onCloudSync = () => {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) generatedDocs.value = parsed;
+      if (Array.isArray(parsed)) {
+        // 兜底截断：上限 20 条，保留最新的
+        generatedDocs.value = parsed.length > 20 ? parsed.slice(-20) : parsed;
+      }
     } catch {}
   }
   // 清理 _deleted 项

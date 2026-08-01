@@ -76,7 +76,8 @@ const filteredHistoryList = ref([]);
 const loadHistory = async () => {
   const saved = await storage.getItem('docHistory');
   if (saved) {
-    historyList.value = saved;
+    // 兜底截断：上限 50 条，保留最新的
+    historyList.value = saved.length > 50 ? saved.slice(0, 50) : saved;
     filteredHistoryList.value = historyList.value.filter(h => !h._deleted);
   }
 };
