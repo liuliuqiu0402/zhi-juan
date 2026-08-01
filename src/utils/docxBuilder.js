@@ -88,7 +88,7 @@ const sanitizeFont = (raw) => {
 const defaultRunStyle = (el) => {
   const style = {
     size: readFontSizeHp(el),
-    color: readColor(el) || '333333',
+    color: readColor(el) || '000000',
     font: sanitizeFont(cs(el, 'font-family')),
   };
   const fw = cs(el, 'font-weight');
@@ -210,7 +210,7 @@ const extractGridContent = (el) => {
 // 叠加到上下文 ctx 上，文本节点使用当前 ctx 生成 TextRun。
 // 主题 CSS 命中的任意行内元素、工具栏设置的颜色/字号/字体由此进入 Word。
 
-const buildTextRuns = (node, _unusedCtx = {}) => {
+const buildTextRuns = (node, styleOverride = {}) => {
   const runs = [];
 
   const processChild = (child, ctxIn) => {
@@ -239,6 +239,17 @@ const buildTextRuns = (node, _unusedCtx = {}) => {
 
     // 继承上下文（父级样式）
     const ctx = mergeInlineStyle(child, ctxIn);
+
+    // === 田字格 / 米字格（最高优先级：避免被 emphasis-dot/blank-line 等误捕获）===
+    if (cls.contains('tian-zi-ge') || cls.contains('mi-zi-ge')) {
+      const { text: extractedText, hasVisible } = extractGridContent(child);
+      const gridChar = hasVisible ? (child.querySelector('span')?.textContent || extractedText) : ' ';
+      const sizeHp = ctx.size || readFontSizeHp(child) || 32;
+      const cellW = Math.round(sizeHp * 18);
+      const cellWEmu = Math.round(cellW * EMU_PER_DXA);
+      runs.push(new TextRun({ text: TZG_MARKER(gridChar, cellWEmu), size: sizeHp }));
+      return;
+    }
 
     // === 特殊 class 白名单（保持优先级，用最终 ctx 替代旧 defaults）===
     if (cls.contains('emphasis-dot')) {
@@ -362,16 +373,6 @@ const buildTextRuns = (node, _unusedCtx = {}) => {
       for (const c of child.childNodes) processChild(c, { ...ctx, font: 'Times New Roman' });
       return;
     }
-    // === 田字格 / 米字格（行内拆分）===
-    if (cls.contains('tian-zi-ge') || cls.contains('mi-zi-ge')) {
-      const { text: extractedText, hasVisible } = extractGridContent(child);
-      const gridChar = hasVisible ? (child.querySelector('span')?.textContent || extractedText) : ' ';
-      const sizeHp = ctx.size || readFontSizeHp(child) || 32;
-      const cellW = Math.round(sizeHp * 18); // 1.8em（与预览 CSS 一致，手写余量）
-      const cellWEmu = Math.round(cellW * EMU_PER_DXA);
-      runs.push(new TextRun({ text: TZG_MARKER(gridChar, cellWEmu), size: sizeHp }));
-      return;
-    }
     if (cls.contains('oral-box') || cls.contains('square-box') || cls.contains('score-box')) {
       runs.push(new TextRun({ text, border: { style: BorderStyle.SINGLE, size: 2, color: '333333' }, ...ctx }));
       return;
@@ -459,8 +460,9 @@ const buildTextRuns = (node, _unusedCtx = {}) => {
     for (const c of child.childNodes) processChild(c, ctx);
   };
 
-  // init ctx from node
-  const baseCtx = defaultRunStyle(node);
+  // init ctx from node（styleOverride 可覆盖 defaultRunStyle 计算的默认值，
+  //   用于 h4 等需强制禁用某些样式属性的场景）
+  const baseCtx = { ...defaultRunStyle(node), ...styleOverride };
   for (const child of node.childNodes) processChild(child, baseCtx);
   return runs;
 };
@@ -681,9 +683,19 @@ const splitGridAwareContent = (node, runDefaults, opts = {}) => {
   const { spacing: _spacingOverride, prefixRuns, indent: extraIndent, inheritedDeco = {} } = opts;
   const ownDeco = readBlockDecorations(node);
   const deco = { ...inheritedDeco };
-  // own takes precedence over inherited
-  for (const key of ['shading', 'border', 'spacing']) {
-    if (ownDeco[key]) deco[key] = ownDeco[key];
+  // own takes precedence, but spacing merges (max of both) to preserve container fallback
+  if (ownDeco.shading) deco.shading = ownDeco.shading;
+  if (ownDeco.border) deco.border = ownDeco.border;
+  if (ownDeco.spacing) {
+    const merged = { ...deco.spacing };
+    for (const sk of ['before', 'after', 'line', 'lineRule']) {
+      if (ownDeco.spacing[sk] !== undefined) {
+        merged[sk] = (sk === 'before' || sk === 'after')
+          ? Math.max(merged[sk] || 0, ownDeco.spacing[sk])
+          : ownDeco.spacing[sk];
+      }
+    }
+    deco.spacing = merged;
   }
   const spacing = deco.spacing || _spacingOverride || { before: 80, after: 80 };
   const baseIndent = readIndent(node) ? { firstLine: readIndent(node) } : undefined;
@@ -717,12 +729,11 @@ const splitGridAwareContent = (node, runDefaults, opts = {}) => {
       if (deco.border) paraOpts.border = deco.border;
       result.push(new Paragraph(paraOpts));
     } else {
-      console.warn('[docxBuilder] flushText #', textFlushCount, '→ buildTextRuns 返回空 runs，段落被丢弃！textBuffer 长度:', textBuffer.length);
+      // buildTextRuns 返回空 runs，段落被丢弃
     }
     textBuffer = [];
   };
 
-  // 🔧 快照子节点：避免 tempEl 挂到 node 时 childNodes 被遍历两次
   const snapChildren = [...node.childNodes];
   for (const child of snapChildren) {
     if (isGridNode(child)) {
@@ -984,8 +995,11 @@ const processBlockNode = (node, ctx = {}) => {
   }
   if (tag === 'h4' || cls.contains('heading3')) {
     const deco = readBlockDecorations(node);
+    // 🔧 h4 标题默认不斜体：Word 内置 Heading 4 样式自带斜体，
+    //    显式设置 italics: false 覆盖样式默认值（行内 <em>/<i> 仍会通过 mergeInlineStyle 获得斜体）
+    const runs = buildTextRuns(node, { italics: false });
     const paraOpts = {
-      children: buildTextRuns(node, runDefaults),
+      children: runs,
       heading: HeadingLevel.HEADING_4,
       spacing: deco.spacing || { before: 120, after: 60 },
       alignment: readAlignment(node),
@@ -1066,6 +1080,7 @@ const processBlockNode = (node, ctx = {}) => {
 
   // ===== 表格 =====
   if (tag === 'table') {
+    // 🔧 表格不继承底色，仅单元格自身有背景时才着色
     const rows = [];
     const allRows = [...node.querySelectorAll('tr')];
     // 计算列宽（首行所有单元格实际宽度占比）
@@ -1125,7 +1140,11 @@ const processBlockNode = (node, ctx = {}) => {
           verticalAlign: VerticalAlign.CENTER,
         };
         if (colWidths[idx]) cellOpts.width = { size: colWidths[idx], type: WidthType.DXA };
-        if (tdShading) cellOpts.shading = { fill: tdShading };
+        if (tdShading) {
+          cellOpts.shading = { fill: tdShading };
+        } else {
+          cellOpts.shading = { fill: 'ffffff' };
+        }
         if (cellBorders) cellOpts.borders = cellBorders;
         if (td.hasAttribute('colspan')) cellOpts.columnSpan = parseInt(td.getAttribute('colspan'));
         if (td.hasAttribute('rowspan')) cellOpts.rowSpan = parseInt(td.getAttribute('rowspan'));
@@ -1133,7 +1152,11 @@ const processBlockNode = (node, ctx = {}) => {
       });
       if (cells.length > 0) rows.push(new TableRow({ children: cells }));
     });
-    if (rows.length > 0) children.push(new Table({ rows, width: { size: 9000, type: WidthType.DXA } }));
+    if (rows.length > 0) {
+      const tableOpts = { rows, width: { size: 9000, type: WidthType.DXA } };
+      // 不设置 table-level shading（docx Table 不支持）
+      children.push(new Table(tableOpts));
+    }
     return children;
   }
 
@@ -1199,8 +1222,57 @@ const processBlockNode = (node, ctx = {}) => {
       children.push(new Paragraph(paraOpts));
       return children;
     }
+    // 🔧 块级底色：容器含表格时用单格表格包裹，确保段落与表格共享统一底色；
+    //    纯段落则各自独立着色保持块级独立性
+    const hasTableChild = node.querySelector?.('table');
+    if (deco.shading && hasTableChild) {
+      // 单格表格包裹：单元格承载底色，表格样式不污染内容结构
+      const wrappedChildren = [];
+      for (const child of childNodes) {
+        // 子元素不继承底色（包裹单元格统一提供），仅透传 ambientShading
+        const childCtx = {};
+        if (ctx.ambientShading) childCtx.ambientShading = ctx.ambientShading;
+        wrappedChildren.push(...processBlockNode(child, childCtx));
+      }
+      if (wrappedChildren.length > 0) {
+        const cellBorders = deco.border || {
+          top: { style: BorderStyle.NONE },
+          bottom: { style: BorderStyle.NONE },
+          left: { style: BorderStyle.NONE },
+          right: { style: BorderStyle.NONE },
+        };
+        children.push(new Table({
+          rows: [new TableRow({
+            children: [new TableCell({
+              children: wrappedChildren,
+              width: { size: 9000, type: WidthType.DXA },
+              shading: deco.shading,
+              borders: cellBorders,
+            })],
+          })],
+          width: { size: 9000, type: WidthType.DXA },
+        }));
+      }
+      return children;
+    }
+    // 无表格的底色容器 / 无底色容器：透明透传子节点 + 继承装饰
+    // 🔧 连续同色子元素分隔（防 wrapperTable 合并）
+    let prevChildHadShading = false;
     for (const child of childNodes) {
-      children.push(...processBlockNode(child, { deco }));
+      const childDeco = { ...deco };
+      const childCtx = { deco: childDeco };
+      if (ctx.ambientShading) childCtx.ambientShading = ctx.ambientShading;
+      const childResult = processBlockNode(child, childCtx);
+      const childOwnDeco = readBlockDecorations(child);
+      const childHasShading = !!childOwnDeco.shading;
+      if (prevChildHadShading && childHasShading && childResult.length > 0) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: ' ', size: 1, font: 'Times New Roman' })],
+          spacing: { before: 20, after: 20 },
+        }));
+      }
+      children.push(...childResult);
+      prevChildHadShading = childHasShading;
     }
     return children;
   }
@@ -1225,24 +1297,50 @@ export const buildDocxFromDom = (containerEl) => {
   const children = [];
   const allNodes = containerEl.childNodes;
   const elChildren = [];
-  let skippedTextNodes = 0;
   for (let i = 0; i < allNodes.length; i++) {
     const n = allNodes[i];
     if (n.nodeType === Node.ELEMENT_NODE) {
       elChildren.push(n);
-    } else if (n.nodeType === Node.TEXT_NODE) {
-      const txt = n.textContent?.trim();
-      if (txt) skippedTextNodes++;
     }
   }
-  if (skippedTextNodes > 0) {
-    console.warn('[docxBuilder] ⚠️ 容器有', skippedTextNodes, '个裸文本节点被 containerEl.children 跳过（未包裹在块元素中）');
-  }
 
+  // 🔧 顶层 ambient 底色：Tiptap 序列化可能将 table 挤出容器变兄弟，
+  //    记住最近底色块 → ctx.ambientShading → TABLE handler 读取，不污染其他元素
+  let ambientShading = null;
+  // 🔧 连续同色块分隔（Issue #1）：追踪上一个顶层元素是否有自身底色
+  //    同底色相邻元素在 Word 中会视觉合并（底纹覆盖段距），
+  //    解决方案：在两块之间插入无底色超薄分隔段落，用精确行高控制高度
+  let prevHadShading = false;
+  let prevResult = null;
   for (let i = 0; i < elChildren.length; i++) {
     const el = elChildren[i];
-    const result = processBlockNode(el);
+    const elDeco = readBlockDecorations(el);
+    const thisHasShading = !!elDeco.shading;
+    if (elDeco.shading) ambientShading = elDeco.shading;
+    const ctx = {};
+    if (ambientShading) ctx.ambientShading = { ...ambientShading };
+    const result = processBlockNode(el, ctx);
+    // 🔧 分隔段落分两条路径：
+    //    wrapperTable ↔ wrapperTable → 需要可见间距（before:20/after:20），段落无自带间距
+    //    普通块 ↔ 普通块 → 超薄 EXACT 分隔，段落自身的 before/after 已足够
+    if (prevHadShading && thisHasShading && result.length > 0) {
+      const prevIsWrapper = prevResult && prevResult.length === 1 && prevResult[0] instanceof Table;
+      const thisIsWrapper = result.length === 1 && result[0] instanceof Table;
+      if (prevIsWrapper && thisIsWrapper) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: ' ', size: 1, font: 'Times New Roman' })],
+          spacing: { before: 20, after: 20 },
+        }));
+      } else {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: ' ', size: 1, font: 'Times New Roman' })],
+          spacing: { before: 0, after: 0, line: 1, lineRule: LineRuleType.EXACT },
+        }));
+      }
+    }
     children.push(...result);
+    prevHadShading = thisHasShading;
+    prevResult = result;
   }
 
   return new Document({

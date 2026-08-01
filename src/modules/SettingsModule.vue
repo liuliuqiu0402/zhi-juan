@@ -317,17 +317,44 @@
           💡 PDF转图片、缩略图生成等功能需要以下 Python 包：PyMuPDF、Pillow、numpy、opencv-python
         </p>
       </div>
+
+      <!-- 📋 操作日志 -->
+      <div class="settings-section">
+        <h3>📋 操作日志 <span style="font-weight:normal;font-size:11px;color:#999;">({{ logStore.logs.length }})</span></h3>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
+          <select v-model="logFilter" style="width:auto;font-size:11px;padding:4px 6px;">
+            <option value="">全部级别</option>
+            <option value="error">🔴 错误</option>
+            <option value="warn">🟡 警告</option>
+            <option value="log">🔵 日志</option>
+          </select>
+          <button class="btn-small" @click="copyLogsToClipboard">📋 复制</button>
+          <button class="btn-small" @click="logStore.clearLogs()">🗑️ 清空</button>
+        </div>
+        <div class="log-viewer" v-if="filteredLogs.length > 0">
+          <div
+            v-for="entry in filteredLogs" :key="entry.id"
+            class="log-entry"
+            :class="'log-' + entry.level"
+          >
+            <span class="log-time">{{ entry.time }}</span>
+            <span class="log-msg">{{ entry.message }}</span>
+          </div>
+        </div>
+        <p v-else style="font-size:11px;color:#999;">暂无日志记录</p>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Capacitor } from '@capacitor/core';
 import { useActivation } from '@/composables/useActivation.js';
 import { useDialog } from '@/composables/useDialog.js';
 import { useBackup } from '@/composables/useBackup.js';
 import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
+import useLogger, { copyLogs } from '@/composables/useLogger.js';
 import { apiConfig, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
 import { uploadSettings, getSyncKey, setSyncKey } from '@/utils/cloudStorage';
@@ -404,6 +431,26 @@ const {
 
 const isCapacitorIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 const isWebMode = typeof window !== 'undefined' && !window.electronAPI;
+
+// 📋 操作日志
+const logStore = useLogger();
+const logFilter = ref('');
+const filteredLogs = computed(() => {
+  if (!logFilter.value) return [...logStore.logs].reverse();
+  return logStore.logs.filter(l => l.level === logFilter.value).reverse();
+});
+const copyLogsToClipboard = async () => {
+  const ok = await copyLogs();
+  if (ok) {
+    // 简单的视觉反馈
+    const btn = document.activeElement;
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✅ 已复制';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }
+  }
+};
 
 // 🔑 同步密钥
 const syncKeyInput = ref(getSyncKey() || '');
@@ -896,4 +943,34 @@ onUnmounted(() => {
     font-size: 10px;
   }
 }
+
+/* 📋 操作日志 */
+.log-viewer {
+  max-height: 300px;
+  overflow-y: auto;
+  background: #1e1e1e;
+  border-radius: 8px;
+  padding: 8px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.log-entry {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid #333;
+  word-break: break-all;
+}
+.log-entry:last-child { border-bottom: none; }
+.log-time {
+  flex-shrink: 0;
+  color: #888;
+  font-size: 10px;
+  min-width: 70px;
+}
+.log-msg { color: #ccc; }
+.log-error .log-msg { color: #f87171; }
+.log-warn .log-msg { color: #fbbf24; }
+.log-info .log-msg { color: #60a5fa; }
 </style>

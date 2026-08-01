@@ -266,7 +266,10 @@ const buildInlineTzg = (char, cellWEmu, idBase, rPrXml) => {
   const gridRPr = rPrXml || `<w:rPr><w:sz w:val="${sz}"/></w:rPr>`;
   // 🔧 字符由 DrawingML textbox 绘制（与 grid 同坐标系），段落只保留 pad 撑宽度
   //     尾 pad=1.75em（grid 延伸至 2.3em，文字总宽 2.5em → 不压盖）
-  return '<w:r>' + gridRPr + tzgShapeAnchors(S, hS, idBase, sizeHp, false, gapEmuOf(sizeHp), char, 'SimSun')
+  // 🔧 行内模式 behindDoc="0"：防止网格线被段落底纹（w:shd）遮挡
+  const anchors = tzgShapeAnchors(S, hS, idBase, sizeHp, false, gapEmuOf(sizeHp), char, 'SimSun')
+    .replace(/behindDoc="1"/g, 'behindDoc="0"');
+  return '<w:r>' + gridRPr + anchors
     + '<w:t xml:space="preserve">' + GAP_EN + EM4 + '</w:t></w:r>'
     + '<w:r><w:rPr><w:sz w:val="' + sz + '"/></w:rPr><w:t xml:space="preserve">' + EN + EN + EN + EM4 + '</w:t></w:r>';
 };
@@ -286,7 +289,10 @@ const buildInlineFlt = (letter, cellWEmu, sizeHp, idBase, rPrXml) => {
   const hasBold = src.includes('<w:b/>') || src.includes('<w:b ');
   const hasItalic = src.includes('<w:i/>') || src.includes('<w:i ');
   const EM4 = '&#x2005;';
-  return '<w:r>' + gridRPr + fltLineAnchors(lineWEmu, pts, idBase, false, gapEmuOf(sizeHp))
+  // 🔧 行内模式 behindDoc="0"：防止线条被段落底纹遮挡
+  const anchors = fltLineAnchors(lineWEmu, pts, idBase, false, gapEmuOf(sizeHp))
+    .replace(/behindDoc="1"/g, 'behindDoc="0"');
+  return '<w:r>' + gridRPr + anchors
     + '<w:t xml:space="preserve">' + GAP_EN + EM4 + '</w:t></w:r>'
     + '<w:r><w:rPr><w:rFonts w:ascii="' + font + '" w:hAnsi="' + font + '"/>' + (hasBold ? '<w:b/>' : '') + (hasItalic ? '<w:i/>' : '') + colorTag + '<w:sz w:val="' + sz + '"/><w:szCs w:val="' + sz + '"/></w:rPr><w:t xml:space="preserve">' + escXml(letter) + '</w:t></w:r>'
     + '<w:r>' + gridRPr + '<w:t xml:space="preserve">' + EM4 + '</w:t></w:r>';
@@ -302,7 +308,10 @@ const buildInlineFltBlank = (cellWEmu, sizeHp, idBase, rPrXml) => {
   const n = Math.max(1, Math.round((cellWEmu - halfEmEmu) / emEmu));
   const pad = GAP_EN + '&#x2005;' + '&#x2002;'.repeat(n * 2) + '&#x2005;';
   const gridRPr = rPrXml && rPrXml.trim() ? rPrXml : `<w:rPr><w:sz w:val="${sz}"/></w:rPr>`;
-  return '<w:r>' + gridRPr + fltLineAnchors(lineWEmu, pts, idBase, false, gapEmuOf(sizeHp))
+  // 🔧 行内模式 behindDoc="0"：防止线条被段落底纹遮挡
+  const anchors = fltLineAnchors(lineWEmu, pts, idBase, false, gapEmuOf(sizeHp))
+    .replace(/behindDoc="1"/g, 'behindDoc="0"');
+  return '<w:r>' + gridRPr + anchors
     + '<w:t xml:space="preserve">' + pad + '</w:t></w:r>';
 };
 
@@ -390,6 +399,9 @@ export const injectDrawingML = async (zipBuffer) => {
     const idBase = Math.floor(Math.random() * 90000) + 50000;
     return buildInlineFlt(letter, emu, sizeHp || 28, idBase, rPrXml);
   });
+
+  // 替换完成
+
 
   // --- 命名空间声明：文档根加 xmlns:wps + mc:Ignorable ---
   if (hasDml) {

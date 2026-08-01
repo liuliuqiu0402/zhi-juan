@@ -318,6 +318,38 @@ const PageBreak = Node.create({
   },
 });
 
+// 🔧 保留 AI 生成的 <div> 容器（底色、边框、圆角等样式）
+//    Tiptap 默认丢弃 <div>，导致 AI 的版面配色全部丢失
+const DivWrapper = Node.create({
+  name: 'divWrapper',
+  group: 'block',
+  content: 'block+',
+  defining: true,
+  parseHTML() {
+    return [{
+      tag: 'div',
+      getAttrs: el => {
+        const style = el.getAttribute('style');
+        const cls = el.getAttribute('class');
+        if (!style && !cls) return false;
+        return { divStyle: style || '', divClass: cls || '' };
+      },
+    }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    const attrs = {};
+    if (HTMLAttributes.divStyle) attrs.style = HTMLAttributes.divStyle;
+    if (HTMLAttributes.divClass) attrs.class = HTMLAttributes.divClass;
+    return ['div', attrs, 0];
+  },
+  addAttributes() {
+    return {
+      divStyle: { default: '' },
+      divClass: { default: '' },
+    };
+  },
+});
+
 import Paragraph from '@tiptap/extension-paragraph';
 import Heading from '@tiptap/extension-heading';
 
@@ -354,7 +386,30 @@ const CustomParagraph = Paragraph.extend({
         },
       },
       textIndent: textIndentAttr,
+      // 🔧 保留 AI 生成的原始内联样式（颜色、底色、边框等）
+      //    rendered: false → 不自动渲染，由 renderHTML 手动合并，避免多属性 style 合并冲突
+      nodeStyle: {
+        default: null,
+        parseHTML: el => el.getAttribute('style') || null,
+        rendered: false,
+      },
     };
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    // 🔧 手动合并 nodeStyle，确保与 textIndent/lineHeight 的 style 不冲突
+    const rawStyle = node.attrs.nodeStyle;
+    if (rawStyle) {
+      const cleaned = rawStyle
+        .replace(/text-indent\s*:\s*[^;]+;?\s*/gi, '')
+        .replace(/line-height\s*:\s*[^;]+;?\s*/gi, '')
+        .trim();
+      if (cleaned) {
+        HTMLAttributes.style = HTMLAttributes.style
+          ? HTMLAttributes.style + '; ' + cleaned
+          : cleaned;
+      }
+    }
+    return ['p', HTMLAttributes, 0];
   },
 });
 
@@ -375,7 +430,74 @@ const CustomHeading = Heading.extend({
           return { style: `line-height: ${attrs.lineHeight}` };
         },
       },
+      // 🔧 保留 AI 生成的原始内联样式（颜色、底色、边框等）
+      //    rendered: false → 不自动渲染，由 renderHTML 手动合并，避免多属性 style 合并冲突
+      nodeStyle: {
+        default: null,
+        parseHTML: el => el.getAttribute('style') || null,
+        rendered: false,
+      },
     };
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    // 🔧 手动合并 nodeStyle，确保与 textIndent/lineHeight 的 style 不冲突
+    const rawStyle = node.attrs.nodeStyle;
+    if (rawStyle) {
+      const cleaned = rawStyle
+        .replace(/text-indent\s*:\s*[^;]+;?\s*/gi, '')
+        .replace(/line-height\s*:\s*[^;]+;?\s*/gi, '')
+        .trim();
+      if (cleaned) {
+        HTMLAttributes.style = HTMLAttributes.style
+          ? HTMLAttributes.style + '; ' + cleaned
+          : cleaned;
+      }
+    }
+    return [`h${node.attrs.level}`, HTMLAttributes, 0];
+  },
+});
+
+// 🔧 保留表格单元格的内联样式（背景色、文字颜色、边框等）
+const CustomTableCell = TableCell.extend({
+  addAttributes() {
+    const parentAttrs = this.parent?.() || {};
+    return {
+      ...parentAttrs,
+      cellStyle: {
+        default: null,
+        parseHTML: el => el.getAttribute('style') || null,
+        rendered: false,
+      },
+    };
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    const rawStyle = node.attrs.cellStyle;
+    if (rawStyle) {
+      HTMLAttributes.style = rawStyle;
+    }
+    return ['td', HTMLAttributes, 0];
+  },
+});
+
+// 🔧 保留表格表头单元格的内联样式
+const CustomTableHeader = TableHeader.extend({
+  addAttributes() {
+    const parentAttrs = this.parent?.() || {};
+    return {
+      ...parentAttrs,
+      cellStyle: {
+        default: null,
+        parseHTML: el => el.getAttribute('style') || null,
+        rendered: false,
+      },
+    };
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    const rawStyle = node.attrs.cellStyle;
+    if (rawStyle) {
+      HTMLAttributes.style = rawStyle;
+    }
+    return ['th', HTMLAttributes, 0];
   },
 });
 
@@ -469,9 +591,10 @@ const editor = useEditor({
     PreserveSpan,
     Table.configure({ resizable: true }),
     TableRow,
-    TableCell,
-    TableHeader,
+    CustomTableCell,
+    CustomTableHeader,
     PageBreak,
+    DivWrapper,
   ],
   onUpdate: ({ editor }) => {
     isInternalUpdate = true;  // 🔧 标记内部更新，防止 watch 回弹 setContent

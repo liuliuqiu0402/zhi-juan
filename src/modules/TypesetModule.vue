@@ -748,9 +748,8 @@ const printFallback = (htmlContent) => {
 const exportDocument = async () => {
   // 🔧 导出前强制从 contentEditable 实时 DOM 刷新，确保最新编辑不丢失
   if (isHtmlContent.value && contentEditor.value?.editor?.view?.dom) {
-    const liveHtml = contentEditor.value.editor.view.dom.innerHTML;
-    pristineHtmlForExport.value = liveHtml;
-    rawHtmlContent.value = liveHtml;
+    pristineHtmlForExport.value = contentEditor.value.editor.view.dom.innerHTML;
+    rawHtmlContent.value = contentEditor.value.editor.view.dom.innerHTML;
   }
 
   // 🔧 导出时优先用原始 HTML（保留所有 class），无原始内容时降级用预览
@@ -818,7 +817,7 @@ const exportDocument = async () => {
         clone.style.fontFamily = theme.bodyFont;
         clone.style.fontSize = theme.bodySize + 'pt';
         clone.style.lineHeight = String(theme.lineHeight);
-        clone.style.color = theme.bodyColor || '#333333';
+        clone.style.color = theme.bodyColor || '#000000';
       }
       clone.innerHTML = sourceHtml;
 
@@ -839,6 +838,32 @@ const exportDocument = async () => {
           exportCSS = exportCSS.replace(/body\s*\{[^}]*\}/g, '');
           exportCSS = exportCSS.replace(/@page\s*\{[^}]*\}/g, '');
           exportCSS = exportCSS.replace(/@media\s+print\s*\{[^}]*\}/g, '');
+
+          // 🔧 补充通用块级边距规则，将主题的 class 选择器边距映射为元素级规则
+          //    确保导出时 getComputedStyle 能正确读取边距（不依赖 class 名）
+          if (theme?.styles) {
+            const classToTag = {
+              '.main-title': 'h1',
+              '.heading1': 'h1, h2',
+              '.heading2': 'h3, h4',
+              '.heading3': 'h5, h6',
+              '.normal-paragraph': 'p',
+            };
+            const genRules = [];
+            for (const [cls, tag] of Object.entries(classToTag)) {
+              const s = theme.styles[cls];
+              if (!s) continue;
+              const parts = [];
+              if (s.marginTop) parts.push(`margin-top: ${s.marginTop}`);
+              if (s.marginBottom) parts.push(`margin-bottom: ${s.marginBottom}`);
+              if (parts.length > 0) {
+                genRules.push(`${tag} { ${parts.join('; ')}; }`);
+              }
+            }
+            if (genRules.length > 0) {
+              exportCSS += '\n/* 通用块级边距（导出用）*/\n' + genRules.join('\n');
+            }
+          }
 
           const styleEl = document.createElement('style');
           styleEl.setAttribute('data-export-theme', 'true');

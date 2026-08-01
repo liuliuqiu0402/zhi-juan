@@ -1459,7 +1459,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, h } from 'vue';
+import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick, h } from 'vue';
 import { useDialog } from '../composables/useDialog.js';
 import { useMobile } from '../composables/useMobile.js';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced } from '../config/apiConfig.js';  // 🔧 新增：导入 apiConfig
@@ -2753,18 +2753,49 @@ const generatedDocs = ref(loadGeneratedDocs());
 
 // 显示用：反转数组，最新的在上面（存储保持升序以保证 slice(-20) 截断正确）
 const displayedDocs = computed(() => [...generatedDocs.value].reverse());
+// 🔧 防抖 + 防递归：避免 watcher 递归触发导致重复推送
+let _saveGenDebounce = null;
+let _saveGenPending = false;
 const saveGeneratedDocs = async () => {
   try {
-    if (generatedDocs.value.length > 20) {
-      generatedDocs.value = generatedDocs.value.slice(-20);
+    // 截断上限（不修改 ref，避免触发 watcher 递归）
+    const docs = generatedDocs.value.length > 20
+      ? generatedDocs.value.slice(-20)
+      : generatedDocs.value;
+
+    // 🔧 防御：如果 ref 为空但 localStorage 有数据，拒绝写入（防止意外清空）
+    if (docs.length === 0) {
+      try {
+        const existing = localStorage.getItem(STORAGE_KEY);
+        if (existing) {
+          const parsed = JSON.parse(existing);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            console.warn('⚠️ 拒绝写入空数组：localStorage 已有 ' + parsed.length + ' 条数据（可能是重置误触发）');
+            return;
+          }
+        }
+      } catch {}
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(generatedDocs.value));
-    if (isCloudConfigured()) {
-      const snapshot = [...generatedDocs.value];
-      pushGeneratedDocs(snapshot).catch(() => {});
-    } else {
-      console.warn('☁️ [saveGeneratedDocs] Supabase 未配置，跳过云端推送');
-    }
+
+    // 持久化到 localStorage
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
+
+    // ☁️ 推送到云端（防抖：200ms 内多次调用只推一次）
+    if (_saveGenDebounce) clearTimeout(_saveGenDebounce);
+    _saveGenDebounce = setTimeout(() => {
+      _saveGenDebounce = null;
+      if (_saveGenPending) return;
+      _saveGenPending = true;
+      const snapshot = [...docs];
+      if (isCloudConfigured()) {
+        pushGeneratedDocs(snapshot).then(ok => {
+          if (ok) console.log('☁️ 生成结果已自动推送云端 ' + snapshot.length + ' 条');
+        }).catch(e => console.warn('☁️ 生成结果自动推送异常', e))
+        .finally(() => { _saveGenPending = false; });
+      } else {
+        _saveGenPending = false;
+      }
+    }, 200);
   } catch (e) { console.warn('保存生成记录失败:', e?.message); }
 };
 const batchDownloadFormat = ref('word');
@@ -3002,10 +3033,11 @@ const handleMobileGenerate = (mode) => {
 // 🔄 重置任务：清空当前所有操作状态，恢复初始界面
 //    与数据同步(cloud sync)分离：同步只拉数据不破坏任务，重置才清空
 const refreshPage = () => {
-  // 先清空本模块的临时状态（避免组件重建后仍读取旧值）
+  // 清空本模块的临时表单状态（组件重建会从 localStorage 重新读数据）
   instructionDraft.value = '';
-  generatedDocs.value = [];
   showPreview.value = false;
+  // 🔧 不修改 generatedDocs.value：新组件实例会从 localStorage 加载
+  //    修改 ref 会触发 watcher → saveGeneratedDocs() → 把空数组写入 localStorage → 数据丢失
   // 通知 App 层做组件级软刷新
   window.dispatchEvent(new CustomEvent('reset-task'));
 };
@@ -6826,7 +6858,7 @@ const saveToHistory = async (doc) => {
   const localTrimmed = history.slice(0, 50);
   await storage.setItem('docHistory', localTrimmed);
   // ☁️ 即时上推（只写自己设备行，不影响其他设备）
-  pushDocHistory(localTrimmed).catch(() => {});
+  pushDocHistory(localTrimmed).then(ok => { if (!ok) console.warn('☁️ 保存历史推送失败'); }).catch(e => console.warn('☁️ 保存历史推送异常', e));
 };
 
 const collectGraph = async (doc, idx) => {
@@ -7011,8 +7043,11 @@ const closeDetailConfigModal = () => {
   showDetailConfigModal.value = false;
 };
 
-// 🔧 自动保存生成记录，刷新不丢失
-watch(generatedDocs, () => saveGeneratedDocs(), { deep: true });
+// 🔧 自动保存生成记录，刷新不丢失（同步期间跳过，避免与 app-refresh 的推送重复）
+watch(generatedDocs, () => {
+  if (typeof _skipCloudPush !== 'undefined' && _skipCloudPush) return;
+  saveGeneratedDocs();
+}, { deep: true });
 
 // 🎯 genTypes 变更时，若不再包含 special 则清空专项子类型选择
 watch(genTypes, (newTypes) => {
@@ -7069,27 +7104,38 @@ watch([() => selectedTextbooks.value?.[0]?.subject, () => selectedTextbooks.valu
 
 // 初始化
 // ☁️ 云端数据同步完成后：从 localStorage 重新加载 + 清理 _deleted 标记项
+// 🔧 _cloudSyncRunning 全局锁：KeepAlive 缓存多实例时，只允许一个实例执行
+let _skipCloudPush = false;
+let _cloudSyncRunning = false;
 const onCloudSync = () => {
   if (isGenerating.value) return;
-  // 从 localStorage 重新加载（同步已写入合并结果）
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
-        // 兜底截断：上限 20 条，保留最新的
-        generatedDocs.value = parsed.length > 20 ? parsed.slice(-20) : parsed;
-      }
-    } catch {}
+  if (_cloudSyncRunning) return; // 🔧 KeepAlive 多实例保护
+  _cloudSyncRunning = true;
+  _skipCloudPush = true;
+  try {
+    // 从 localStorage 重新加载（同步已写入合并结果）
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // 兜底截断：上限 20 条，保留最新的
+          generatedDocs.value = parsed.length > 20 ? parsed.slice(-20) : parsed;
+        }
+      } catch {}
+    }
+    // 清理 _deleted 项
+    const before = generatedDocs.value.length;
+    generatedDocs.value = generatedDocs.value.filter(d => !d._deleted);
+    if (generatedDocs.value.length < before) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(generatedDocs.value));
+      console.log('🧹 [GenerateModule] 同步后清理 ' + (before - generatedDocs.value.length) + ' 条已删除项');
+    }
+    console.log('☁️ [GenerateModule] 同步完成，当前 ' + generatedDocs.value.length + ' 条生成结果');
+  } finally {
+    // 🔧 延迟释放标记，让 watcher 跳过本次触发
+    setTimeout(() => { _skipCloudPush = false; _cloudSyncRunning = false; }, 500);
   }
-  // 清理 _deleted 项
-  const before = generatedDocs.value.length;
-  generatedDocs.value = generatedDocs.value.filter(d => !d._deleted);
-  if (generatedDocs.value.length < before) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(generatedDocs.value));
-    console.log('🧹 [GenerateModule] 同步后清理 ' + (before - generatedDocs.value.length) + ' 条已删除项');
-  }
-  console.log('☁️ [GenerateModule] 同步完成，当前 ' + generatedDocs.value.length + ' 条生成结果');
 };
 
 // 📱 下拉刷新处理器：仅重载数据（教材/模板），不重置任务状态
@@ -7099,6 +7145,20 @@ const onPullRefresh = () => {
   console.log('📱 下拉刷新：已重载教材和模板数据（保留当前任务）');
 };
 
+// 🔧 KeepAlive 感知：激活时注册监听，停用时移除，避免缓存实例泄漏
+const _setupListeners = () => {
+  window.addEventListener('pull-refresh', onPullRefresh);
+  window.addEventListener(APP_EVENTS.LOAD_INSTRUCTION, (e) => {
+    if (e.detail) instructionDraft.value = e.detail;
+  });
+  window.addEventListener('data-sync-complete', onCloudSync);
+};
+const _teardownListeners = () => {
+  window.removeEventListener('pull-refresh', onPullRefresh);
+  window.removeEventListener('data-sync-complete', onCloudSync);
+};
+
+// 首次挂载
 onMounted(async () => {
   await textbookStore.loadTextbooks();
   await templateStore.loadTemplates();
@@ -7107,24 +7167,17 @@ onMounted(async () => {
   await getCurrentEngineConfig();
   // 🌐 检测 DeepSeek API 真实就绪状态
   checkDeepSeekReady();
-
-  // 📱 下拉刷新（仅同步数据，不重置任务状态）
-  window.addEventListener('pull-refresh', onPullRefresh);
-
-  // 🔧 新增：监听来自指令库/历史记录的指令加载事件
-  window.addEventListener(APP_EVENTS.LOAD_INSTRUCTION, (e) => {
-    if (e.detail) {
-      instructionDraft.value = e.detail;
-    }
-  });
-
-  window.addEventListener('data-sync-complete', onCloudSync);
+  _setupListeners();
 });
 
-onUnmounted(() => {
-  window.removeEventListener('pull-refresh', onPullRefresh);
-  window.removeEventListener('data-sync-complete', onCloudSync);
-});
+// 🔧 KeepAlive 重新激活：重新注册事件监听（防止旧实例也收到）
+onActivated(() => { _setupListeners(); });
+
+// 🔧 KeepAlive 停用缓存：移除监听，避免不活跃实例收到事件
+onDeactivated(() => { _teardownListeners(); });
+
+// 真正销毁
+onUnmounted(() => { _teardownListeners(); });
 
 // 置信度检测函数
 const detectConfidenceIssues = (content, selectedBooks) => {

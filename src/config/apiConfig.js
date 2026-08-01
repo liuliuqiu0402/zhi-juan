@@ -798,6 +798,18 @@ export const getCurrentEngineConfigEnhanced = async (taskType = 'generation', re
     Object.assign(apiConfig, savedConfig);
   }
 
+  // 🔧 Web/手机端保护：Ollama 是本地模型，手机端无法运行
+  //    如果 currentEngine 回退到默认值 'ollama'（配置丢失/Cookie 桥接失败），
+  //    且存在 DeepSeek 配置，则自动切换到 DeepSeek 避免误用 deepseek-r1:14b 等本地模型名
+  if (isWebDevice() && apiConfig.currentEngine === 'ollama') {
+    if (apiConfig.deepseekApiKey) {
+      console.warn('⚠️ Web 设备检测到 Ollama 引擎（手机端无法运行本地模型），自动切换到 DeepSeek');
+      apiConfig.currentEngine = 'deepseek';
+    } else {
+      console.warn('⚠️ Web 设备使用 Ollama 引擎但未配置 DeepSeek API Key，请前往设置页配置');
+    }
+  }
+
   // 🔧 DeepSeek 引擎：自动发现云端最新可用模型（1 小时缓存，不阻塞）
   if (apiConfig.currentEngine === 'deepseek') {
     autoDiscoverDeepSeekModel(); // fire-and-forget，首次调用后缓存生效

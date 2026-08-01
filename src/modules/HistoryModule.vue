@@ -55,7 +55,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue';
 import { useRouter } from 'vue-router';
 import storage from '@/utils/storage';
 import { pushDocHistory } from '@/utils/cloudStorage';
@@ -105,7 +105,7 @@ const clearAllHistory = async () => {
     }
     filteredHistoryList.value = [];
     await storage.setItem('docHistory', historyList.value);
-    pushDocHistory(historyList.value).catch(() => {});
+    pushDocHistory(historyList.value).then(ok => { if (!ok) console.warn('☁️ 清空历史推送失败'); }).catch(e => console.warn('☁️ 清空历史推送异常', e));
   }
 };
 
@@ -115,7 +115,7 @@ const deleteHistoryItem = async (id) => {
     item._deleted = true;
     filteredHistoryList.value = filteredHistoryList.value.filter(h => h.id !== id);
     await storage.setItem('docHistory', historyList.value);
-    pushDocHistory(historyList.value).catch(() => {});
+    pushDocHistory(historyList.value).then(ok => { if (!ok) console.warn('☁️ 删除历史推送失败'); }).catch(e => console.warn('☁️ 删除历史推送异常', e));
   }
 };
 
@@ -177,18 +177,36 @@ const sendToTypeset = (item) => {
 };
 
 // ☁️ 云端数据同步完成后重新加载 + 清理 _deleted 项
+let _histSyncRunning = false; // 🔧 KeepAlive 多实例保护
 const onCloudSync = () => {
-  loadHistory();
-  console.log('☁️ [HistoryModule] 同步完成，已重新加载历史记录');
+  if (_histSyncRunning) return;
+  _histSyncRunning = true;
+  try {
+    loadHistory();
+    console.log('☁️ [HistoryModule] 同步完成，已重新加载历史记录');
+  } finally {
+    setTimeout(() => { _histSyncRunning = false; }, 500);
+  }
+};
+
+// 🔧 KeepAlive 感知的监听器管理
+const _hSetupListeners = () => {
+  window.addEventListener('data-sync-complete', onCloudSync);
+};
+const _hTeardownListeners = () => {
+  window.removeEventListener('data-sync-complete', onCloudSync);
 };
 
 onMounted(() => {
   loadHistory();
-  window.addEventListener('data-sync-complete', onCloudSync);
+  _hSetupListeners();
 });
 
+onActivated(() => { _hSetupListeners(); });
+onDeactivated(() => { _hTeardownListeners(); });
+
 onUnmounted(() => {
-  window.removeEventListener('data-sync-complete', onCloudSync);
+  _hTeardownListeners();
 });
 </script>
 

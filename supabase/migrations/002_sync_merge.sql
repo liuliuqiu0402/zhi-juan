@@ -66,8 +66,13 @@ BEGIN
     (item->>'savedAt')::bigint DESC NULLS LAST,
     (item->>'timestamp')::bigint DESC NULLS LAST
   ), '[]'::jsonb) INTO v_result
-  FROM merged
-  LIMIT 50;
+  FROM (
+    -- 🔧 LIMIT 必须在 jsonb_agg 之前作用到行（聚合后只产 1 行，LIMIT 无效）
+    SELECT item FROM merged
+    ORDER BY (item->>'savedAt')::bigint DESC NULLS LAST,
+             (item->>'timestamp')::bigint DESC NULLS LAST
+    LIMIT 50
+  ) limited;
 
   RETURN jsonb_build_object('ok', true, 'count', jsonb_array_length(v_result), 'data', v_result);
 END;
@@ -133,8 +138,13 @@ BEGIN
     (item->>'savedAt')::bigint DESC NULLS LAST,
     (item->>'timestamp')::bigint DESC NULLS LAST
   ), '[]'::jsonb) INTO v_result
-  FROM merged
-  LIMIT 20;
+  FROM (
+    -- 🔧 LIMIT 必须在 jsonb_agg 之前作用到行
+    SELECT item FROM merged
+    ORDER BY (item->>'savedAt')::bigint DESC NULLS LAST,
+             (item->>'timestamp')::bigint DESC NULLS LAST
+    LIMIT 20
+  ) limited;
 
   RETURN jsonb_build_object('ok', true, 'count', jsonb_array_length(v_result), 'data', v_result);
 END;
