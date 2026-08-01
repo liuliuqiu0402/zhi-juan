@@ -774,8 +774,8 @@ onMounted(async () => {
             }
           }
           const merged = Array.from(map.values())
-            .sort((a, b) => (b?.savedAt || b?.timestamp || b?.createdAt || 0) - (a?.savedAt || a?.timestamp || a?.createdAt || 0))
-            .slice(0, 50);
+            .sort((a, b) => (a?.savedAt || a?.timestamp || a?.createdAt || 0) - (b?.savedAt || b?.timestamp || b?.createdAt || 0))
+            .slice(-50);
           storedHistCount = merged.length;
           await storage.setItem('docHistory', merged).catch(() => {});
           pushDocHistory(merged).catch(() => {});
@@ -794,8 +794,8 @@ onMounted(async () => {
             }
           }
           const merged = Array.from(map.values())
-            .sort((a, b) => (b?.savedAt || b?.timestamp || b?.createdAt || 0) - (a?.savedAt || a?.timestamp || a?.createdAt || 0))
-            .slice(0, 20);
+            .sort((a, b) => (a?.savedAt || a?.timestamp || a?.createdAt || 0) - (b?.savedAt || b?.timestamp || b?.createdAt || 0))
+            .slice(-20);
           storedGenCount = merged.length;
           localStorage.setItem('wisdom_generated_docs', JSON.stringify(merged));
           pushGeneratedDocs(merged).catch(() => {});

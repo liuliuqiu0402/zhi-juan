@@ -76,8 +76,9 @@ const filteredHistoryList = ref([]);
 const loadHistory = async () => {
   const saved = await storage.getItem('docHistory');
   if (saved) {
-    // 兜底截断：上限 50 条，保留最新的
-    historyList.value = saved.length > 50 ? saved.slice(0, 50) : saved;
+    // 按时间升序排列（旧→新），保留最新 50 条，超限时最早被覆盖
+    const sorted = [...saved].sort((a, b) => (a?.savedAt || a?.timestamp || a?.createdAt || 0) - (b?.savedAt || b?.timestamp || b?.createdAt || 0));
+    historyList.value = sorted.length > 50 ? sorted.slice(-50) : sorted;
     filteredHistoryList.value = historyList.value.filter(h => !h._deleted);
   }
 };
