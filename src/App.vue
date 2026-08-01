@@ -769,12 +769,12 @@ onMounted(async () => {
           for (const item of localHistory) { if (item?.id) map.set(item.id, item); }
           for (const item of cloudHistory) {
             const exist = map.get(item?.id);
-            if (!exist || (item?.savedAt || item?.timestamp || 0) >= (exist?.savedAt || exist?.timestamp || 0)) {
+            if (!exist || (item?.savedAt || item?.timestamp || item?.createdAt || 0) >= (exist?.savedAt || exist?.timestamp || exist?.createdAt || 0)) {
               map.set(item?.id, item);
             }
           }
           const merged = Array.from(map.values())
-            .sort((a, b) => (b?.savedAt || b?.timestamp || 0) - (a?.savedAt || a?.timestamp || 0))
+            .sort((a, b) => (b?.savedAt || b?.timestamp || b?.createdAt || 0) - (a?.savedAt || a?.timestamp || a?.createdAt || 0))
             .slice(0, 50);
           storedHistCount = merged.length;
           await storage.setItem('docHistory', merged).catch(() => {});
@@ -789,12 +789,12 @@ onMounted(async () => {
           for (const item of localGen) { if (item?.id) map.set(item.id, item); }
           for (const item of cloudGen) {
             const exist = map.get(item?.id);
-            if (!exist || (item?.savedAt || item?.timestamp || 0) >= (exist?.savedAt || exist?.timestamp || 0)) {
+            if (!exist || (item?.savedAt || item?.timestamp || item?.createdAt || 0) >= (exist?.savedAt || exist?.timestamp || exist?.createdAt || 0)) {
               map.set(item?.id, item);
             }
           }
           const merged = Array.from(map.values())
-            .sort((a, b) => (b?.savedAt || b?.timestamp || 0) - (a?.savedAt || a?.timestamp || 0))
+            .sort((a, b) => (b?.savedAt || b?.timestamp || b?.createdAt || 0) - (a?.savedAt || a?.timestamp || a?.createdAt || 0))
             .slice(0, 20);
           storedGenCount = merged.length;
           localStorage.setItem('wisdom_generated_docs', JSON.stringify(merged));

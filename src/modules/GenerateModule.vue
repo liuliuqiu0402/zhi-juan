@@ -6051,6 +6051,7 @@ const confirmPeriodSplit = async () => {
             selected: false,
             quality: null,
             status: 'success',
+            savedAt: Date.now(),
             _isPeriod: true,
             _periodIndex: pi,
             graphInstructions: extractGraphs(safeContent),
@@ -6082,6 +6083,7 @@ const confirmPeriodSplit = async () => {
           selected: false,
           quality: null,
           status: 'success',
+          savedAt: Date.now(),
           _isPeriodCombined: true,
           _periodCount: result.periodCount,
           graphInstructions: extractGraphs(combinedContent),
@@ -6200,6 +6202,7 @@ const cancelPeriodSplit = async () => {
         selected: false,
         quality: null,
         status: 'success',
+        savedAt: Date.now(),
         graphInstructions: extractGraphs(safeContent),
         confidenceMarks: detectConfidenceIssues(safeContent, selectedBooks),
       });
@@ -6350,6 +6353,7 @@ const finalizeGeneration = async (result, genType) => {
       selected: false,
       quality: null,
       status: 'success',
+      savedAt: Date.now(),
       graphInstructions: extractGraphs(safeContent),
       confidenceMarks: detectConfidenceIssues(
         safeContent, 
