@@ -698,21 +698,8 @@ onMounted(async () => {
               } catch {}
             }
           }
-          if (unilateralData.settings && Object.keys(unilateralData.settings).length > 0) {
-            const engineFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
-              'deepseekGenerationModel', 'deepseekAnalysisModel'];
-            let needsApply = false;
-            for (const f of engineFields) {
-              if (unilateralData.settings[f] !== undefined && unilateralData.settings[f] !== apiConfig[f]) {
-                apiConfig[f] = unilateralData.settings[f];
-                needsApply = true;
-              }
-            }
-            if (needsApply) {
-              await saveConfig(Object.assign({}, apiConfig));
-              console.log('🔄 同步：已应用云端设置, currentEngine:', unilateralData.settings.currentEngine);
-            }
-          }
+          // 引擎设置不同步到手机端——各设备独立配置，用户手动管理
+
           if (unilateralData.activationInfo) {
             localStorage.setItem('activationInfo', JSON.stringify(unilateralData.activationInfo));
             try { await storage.setItem('activationInfo', unilateralData.activationInfo); } catch {}

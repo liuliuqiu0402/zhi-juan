@@ -21,15 +21,6 @@
         <button class="ribbon-btn" @click="showDetailConfigModal = true">
           📝 详细配置
         </button>
-        <button class="ribbon-btn ribbon-btn-sync" @click="syncPage" title="同步：桌面拉双向2类→合并→推回 | 手机拉7类全量→合并双向→推回">
-          ☁️
-        </button>
-        <button class="ribbon-btn ribbon-btn-upload" @click="uploadPage" title="上推：桌面7类全量 | 手机仅双向2类">
-          📤
-        </button>
-        <button class="ribbon-btn ribbon-btn-refresh" @click="refreshPage" title="重置任务：清空当前所有操作，恢复初始状态">
-          🔄
-        </button>
         <!-- 📱 移动端模型状态 -->
         <span v-if="isMobile" class="mobile-model-chip" :class="{ 'mobile-chip-error': deepseekStatus === 'error', 'mobile-chip-checking': deepseekStatus === 'checking' }" :title="deepseekStatus === 'error' ? '⚠️ ' + deepseekStatusMsg : (apiConfig.currentEngine === 'deepseek' ? `✅ 已就绪 | 生成:${currentModelSummary.heavy} / 分析:${currentModelSummary.light}` : currentModelSummary.heavy)">
           <span class="chip-dot" :class="apiConfig.currentEngine === 'deepseek' ? (deepseekStatus === 'ready' ? 'dot-ready' : deepseekStatus === 'checking' ? 'dot-checking' : 'dot-error') : 'dot-ollama'"></span>
