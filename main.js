@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { machineIdSync } = require('node-machine-id');
@@ -38,6 +38,17 @@ const ensureStorageDir = () => {
         if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
     });
 };
+
+// 自定义协议：用 app:// 替代 file://，保证 localStorage 持久化
+// file:// 在 Chromium 中属于 opaque origin，重启后可能丢失 localStorage 数据
+function registerCustomProtocol() {
+    protocol.handle('app', (request) => {
+        // 将 app://xxx 映射到 dist/xxx
+        const url = request.url.replace('app://', '');
+        const filePath = path.join(__dirname, 'dist', url);
+        return net.fetch('file:///' + filePath.replace(/\\/g, '/'));
+    });
+}
 
 // 创建窗口
 function createWindow() {
@@ -108,7 +119,8 @@ function createWindow() {
     if (isDev) {
         win.loadURL('http://localhost:5173');
     } else {
-        win.loadFile(path.join(__dirname, 'dist', 'index.html'));
+        // 用 app:// 自定义协议加载，保证 localStorage 可靠持久化
+        win.loadURL('app://index.html');
     }
 }
 
@@ -1005,6 +1017,8 @@ function handleOllamaNotRunning() {
 
 // ==================== 应用启动 ====================
 app.whenReady().then(async () => {
+    // 注册自定义协议（必须在 ready 后调用）
+    registerCustomProtocol();
     ensureStorageDir();
     
     // 🔧 新增：检测 Ollama 服务
