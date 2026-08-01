@@ -21,6 +21,12 @@
         <button class="ribbon-btn" @click="showDetailConfigModal = true">
           📝 详细配置
         </button>
+        <!-- 🖥️ 桌面端专用：同步/上推/重置（手机端走 AppHeader 全局按钮） -->
+        <template v-if="!isMobile">
+          <button class="ribbon-btn ribbon-btn-sync" @click="syncPage" title="同步：拉双向2类→合并→推回">☁️</button>
+          <button class="ribbon-btn ribbon-btn-upload" @click="uploadPage" title="上推：全量推送至云端">📤</button>
+          <button class="ribbon-btn ribbon-btn-refresh" @click="refreshPage" title="重置任务">🔄</button>
+        </template>
         <!-- 📱 移动端模型状态 -->
         <span v-if="isMobile" class="mobile-model-chip" :class="{ 'mobile-chip-error': deepseekStatus === 'error', 'mobile-chip-checking': deepseekStatus === 'checking' }" :title="deepseekStatus === 'error' ? '⚠️ ' + deepseekStatusMsg : (apiConfig.currentEngine === 'deepseek' ? `✅ 已就绪 | 生成:${currentModelSummary.heavy} / 分析:${currentModelSummary.light}` : currentModelSummary.heavy)">
           <span class="chip-dot" :class="apiConfig.currentEngine === 'deepseek' ? (deepseekStatus === 'ready' ? 'dot-ready' : deepseekStatus === 'checking' ? 'dot-checking' : 'dot-error') : 'dot-ollama'"></span>
@@ -3022,14 +3028,9 @@ const handleMobileGenerate = (mode) => {
 };
 
 // 🔄 重置任务：清空当前所有操作状态，恢复初始界面
-//    与数据同步(cloud sync)分离：同步只拉数据不破坏任务，重置才清空
 const refreshPage = () => {
-  // 清空本模块的临时表单状态（组件重建会从 localStorage 重新读数据）
   instructionDraft.value = '';
   showPreview.value = false;
-  // 🔧 不修改 generatedDocs.value：新组件实例会从 localStorage 加载
-  //    修改 ref 会触发 watcher → saveGeneratedDocs() → 把空数组写入 localStorage → 数据丢失
-  // 通知 App 层做组件级软刷新
   window.dispatchEvent(new CustomEvent('reset-task'));
 };
 
@@ -3038,7 +3039,7 @@ const syncPage = () => {
   window.dispatchEvent(new CustomEvent('app-refresh'));
 };
 
-// 📤 手动上推：推送本地全量数据到云端（生成结果 + 历史记录）
+// 📤 手动上推：推送本地全量数据到云端
 const uploadPage = () => {
   window.dispatchEvent(new CustomEvent('app-upload'));
 };
@@ -9308,11 +9309,6 @@ table.periodic-table .actinide { background: #e1bee7; }
     width: 100% !important;
   }
 
-  .ribbon-btn-refresh, .ribbon-btn-sync {
-    font-size: 16px !important;
-    padding: 6px 10px !important;
-    min-width: 36px;
-  }
   .generate-module {
     display: flex;
     flex-direction: column;
