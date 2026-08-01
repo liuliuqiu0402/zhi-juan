@@ -1,5 +1,8 @@
 import { reactive } from 'vue';
 
+// 环境检测：桌面端 (Electron) vs Web/手机端
+const isWebDevice = () => typeof window !== 'undefined' && !window.electronAPI;
+
 // ✨ 安全存储密钥的 key 前缀
 const SECRET_PREFIX = 'enc_';
 
