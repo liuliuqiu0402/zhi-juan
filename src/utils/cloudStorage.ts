@@ -1,9 +1,9 @@
 /**
- * ☁️ Supabase 云存储层（v3：按设备独立存储 + 拉取时动态合并）
+ * ☁️ Supabase 云存储层（v4：客户端合并，服务端只查原始行）
  *
- * 推：每个设备独立一行 (sync_key + device_id)，互不覆盖。本地数据变化即触发上推。
- * 拉：读取所有设备行 → RPC 内合并去重（同 id 取最新时间戳）→ 过滤 _deleted 标记。
- * 删除：客户端打 _deleted: true 标记保留在列表中，手动同步后消失。
+ * 推：每个设备独立一行 (sync_key + device_id)，互不覆盖。
+ * 拉：服务端只返回原始设备行 → 客户端 JS 合并去重（V8 处理 JSON 秒级完成）。
+ * 删除：客户端打 _deleted: true 标记，合并时自动过滤。
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -89,7 +89,64 @@ function noClient(): SupabaseClient | null {
 }
 
 // ══════════════════════════════════════════════════════════════
-// doc_history：push（即时上推） + pull（拉取合并）
+// 通用：客户端合并（V8 引擎处理 JSON 远快于 Supabase 免费实例）
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * 合并多设备行：展开 → 去重（同 id 保留最新时间戳）→ 过滤删除标记 → 排序 → 截断
+ * @param rows 原始行数组，每行的 data 字段是 JSON 数组
+ * @param limit 最多保留条数
+ */
+function mergeDeviceData(rows: { data: unknown }[], limit: number): Record<string, unknown>[] {
+  // 展开所有设备行
+  const allItems: Record<string, unknown>[] = [];
+  for (const row of rows) {
+    if (Array.isArray(row.data)) {
+      for (const item of row.data) {
+        if (item && typeof item === 'object') {
+          allItems.push(item as Record<string, unknown>);
+        }
+      }
+    }
+  }
+
+  // 收集删除标记
+  const tombstoneIds = new Set<string>();
+  for (const item of allItems) {
+    if (item._deleted && item.id) {
+      tombstoneIds.add(item.id as string);
+    }
+  }
+
+  // 去重：同 id 保留最新时间戳版本
+  const map = new Map<string, Record<string, unknown>>();
+  for (const item of allItems) {
+    const id = item.id as string;
+    if (!id || tombstoneIds.has(id)) continue;
+    const existing = map.get(id);
+    if (!existing) {
+      map.set(id, item);
+    } else {
+      const newTime = (item.savedAt as number) || (item.timestamp as number) || (item.createdAt as number) || 0;
+      const oldTime = (existing.savedAt as number) || (existing.timestamp as number) || (existing.createdAt as number) || 0;
+      if (newTime > oldTime) {
+        map.set(id, item);
+      }
+    }
+  }
+
+  // 按时间倒序排列，截断
+  return Array.from(map.values())
+    .sort((a, b) => {
+      const aTime = (a.savedAt as number) || (a.timestamp as number) || (a.createdAt as number) || 0;
+      const bTime = (b.savedAt as number) || (b.timestamp as number) || (b.createdAt as number) || 0;
+      return bTime - aTime;
+    })
+    .slice(0, limit);
+}
+
+// ══════════════════════════════════════════════════════════════
+// doc_history：push（即时上推） + pull（客户端合并）
 // ══════════════════════════════════════════════════════════════
 
 /** 推历史记录到云端（只写自己设备的行，不影响其他设备） */
@@ -115,23 +172,24 @@ export async function pushDocHistory(items: unknown[]): Promise<boolean> {
   }
 }
 
-/** 从云端拉取合并后的历史记录（读所有设备行 → RPC 合并去重） */
+/** 从云端拉取历史记录（轻量 RPC 只查原始行 → 客户端 JS 合并去重） */
 export async function pullDocHistory(): Promise<unknown[] | null> {
   if (noSyncKey()) return null;
   const client = noClient();
   if (!client) return null;
 
   try {
-    const { data: result, error } = await client.rpc('pull_doc_history', {
+    const { data: result, error } = await client.rpc('fetch_doc_history', {
       p_sync_key: getSyncKey(),
     });
     if (error) {
       console.error('☁️ pull_doc_history 失败:', error.message);
       return null;
     }
-    const r = result as { ok: boolean; count: number; data: unknown[] };
-    console.log('☁️ pull_doc_history:', r?.count, '条（已合并）');
-    return r?.data || [];
+    const rows = (result as { data: unknown[] }[]) || [];
+    const merged = mergeDeviceData(rows, 50);
+    console.log('☁️ pull_doc_history:', merged.length, '条（客户端合并）');
+    return merged;
   } catch (e) {
     console.warn('☁️ pull_doc_history 异常:', e);
     return null;
@@ -165,23 +223,24 @@ export async function pushGeneratedDocs(items: unknown[]): Promise<boolean> {
   }
 }
 
-/** 从云端拉取合并后的生成结果 */
+/** 从云端拉取生成结果（轻量 RPC 只查原始行 → 客户端 JS 合并去重） */
 export async function pullGeneratedDocs(): Promise<unknown[] | null> {
   if (noSyncKey()) return null;
   const client = noClient();
   if (!client) return null;
 
   try {
-    const { data: result, error } = await client.rpc('pull_generated_docs', {
+    const { data: result, error } = await client.rpc('fetch_generated_docs', {
       p_sync_key: getSyncKey(),
     });
     if (error) {
       console.error('☁️ pull_generated_docs 失败:', error.message);
       return null;
     }
-    const r = result as { ok: boolean; count: number; data: unknown[] };
-    console.log('☁️ pull_generated_docs:', r?.count, '条（已合并）');
-    return r?.data || [];
+    const rows = (result as { data: unknown[] }[]) || [];
+    const merged = mergeDeviceData(rows, 20);
+    console.log('☁️ pull_generated_docs:', merged.length, '条（客户端合并）');
+    return merged;
   } catch (e) {
     console.warn('☁️ pull_generated_docs 异常:', e);
     return null;
@@ -192,18 +251,20 @@ export async function pullGeneratedDocs(): Promise<unknown[] | null> {
 // 教材库（覆盖写入 — 桌面是唯一源头，单向推送）
 // ══════════════════════════════════════════════════════════════
 
-export async function uploadTextbooks(textbooks: unknown[]): Promise<void> {
-  if (noSyncKey()) return;
+export async function uploadTextbooks(textbooks: unknown[]): Promise<boolean> {
+  if (noSyncKey()) return false;
   const client = getClient();
-  if (!client) return;
+  if (!client) return false;
 
   try {
     const { error } = await client
       .from('textbooks')
       .upsert({ id: getSyncKey(), data: safeClone(textbooks), updated_at: new Date().toISOString() });
-    if (error) console.warn('☁️ 教材上传失败:', error.message);
+    if (error) { console.warn('☁️ 教材上传失败:', error.message); return false; }
+    return true;
   } catch (e) {
     console.warn('☁️ 教材上传异常:', e);
+    return false;
   }
 }
 
@@ -229,18 +290,20 @@ export async function downloadTextbooks(): Promise<unknown[] | null> {
 // 模板库（覆盖写入 — 桌面是唯一源头，单向推送）
 // ══════════════════════════════════════════════════════════════
 
-export async function uploadTemplates(templates: unknown[]): Promise<void> {
-  if (noSyncKey()) return;
+export async function uploadTemplates(templates: unknown[]): Promise<boolean> {
+  if (noSyncKey()) return false;
   const client = getClient();
-  if (!client) return;
+  if (!client) return false;
 
   try {
     const { error } = await client
       .from('templates')
       .upsert({ id: getSyncKey(), data: safeClone(templates), updated_at: new Date().toISOString() });
-    if (error) console.warn('☁️ 模板上传失败:', error.message);
+    if (error) { console.warn('☁️ 模板上传失败:', error.message); return false; }
+    return true;
   } catch (e) {
     console.warn('☁️ 模板上传异常:', e);
+    return false;
   }
 }
 
@@ -266,19 +329,21 @@ export async function downloadTemplates(): Promise<unknown[] | null> {
 // user_settings（激活/设置/指令 — 覆盖写入）
 // ══════════════════════════════════════════════════════════════
 
-/** user_settings 专用：上传 */
-async function upsertUserSetting(subKey: string, data: unknown): Promise<void> {
-  if (noSyncKey()) return;
+/** user_settings 专用：上传，返回是否成功 */
+async function upsertUserSetting(subKey: string, data: unknown): Promise<boolean> {
+  if (noSyncKey()) return false;
   const client = getClient();
-  if (!client) return;
+  if (!client) return false;
 
   try {
     const { error } = await client
       .from('user_settings')
       .upsert({ id: getSyncKey() + ':' + subKey, data: safeClone(data), updated_at: new Date().toISOString() });
-    if (error) console.warn('☁️ user_settings.' + subKey + ' 上传失败:', error.message);
+    if (error) { console.warn('☁️ user_settings.' + subKey + ' 上传失败:', error.message); return false; }
+    return true;
   } catch (e) {
     console.warn('☁️ user_settings.' + subKey + ' 上传异常:', e);
+    return false;
   }
 }
 
@@ -301,19 +366,19 @@ async function fetchUserSetting(subKey: string): Promise<unknown | null> {
   }
 }
 
-export function uploadSettings(settings: Record<string, unknown>): Promise<void> {
+export function uploadSettings(settings: Record<string, unknown>): Promise<boolean> {
   return upsertUserSetting('settings', settings);
 }
 export function downloadSettings(): Promise<Record<string, unknown> | null> {
   return fetchUserSetting('settings') as Promise<Record<string, unknown> | null>;
 }
-export function uploadActivationInfo(info: Record<string, unknown>): Promise<void> {
+export function uploadActivationInfo(info: Record<string, unknown>): Promise<boolean> {
   return upsertUserSetting('activation', info);
 }
 export function downloadActivationInfo(): Promise<Record<string, unknown> | null> {
   return fetchUserSetting('activation') as Promise<Record<string, unknown> | null>;
 }
-export function uploadInstructions(instructions: unknown[]): Promise<void> {
+export function uploadInstructions(instructions: unknown[]): Promise<boolean> {
   return upsertUserSetting('instructions', instructions);
 }
 export function downloadInstructions(): Promise<unknown[] | null> {
@@ -334,6 +399,7 @@ export async function pullFromCloud(): Promise<{
   instructions: unknown[] | null;
   templates: unknown[] | null;
 }> {
+  const t0 = performance.now();
   const [textbooks, docHistory, settings, activationInfo, generatedDocs, instructions, templates] = await Promise.all([
     downloadTextbooks(),
     pullDocHistory(),
@@ -343,6 +409,16 @@ export async function pullFromCloud(): Promise<{
     downloadInstructions(),
     downloadTemplates(),
   ]);
+  const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+  const sizeParts: string[] = [];
+  if (textbooks?.length) sizeParts.push('教材' + textbooks.length + '条');
+  if (docHistory?.length) sizeParts.push('历史' + docHistory.length + '条');
+  if (settings && Object.keys(settings).length > 0) sizeParts.push('设置' + Object.keys(settings).length + '条');
+  if (activationInfo) sizeParts.push('激活1条');
+  if (generatedDocs?.length) sizeParts.push('生成结果' + generatedDocs.length + '条');
+  if (instructions?.length) sizeParts.push('指令库' + instructions.length + '条');
+  if (templates?.length) sizeParts.push('模板' + templates.length + '条');
+  console.log('☁️ pullFromCloud 完成 (' + elapsed + 's): ' + (sizeParts.join(', ') || '无数据'));
   return { textbooks, docHistory, settings, activationInfo, generatedDocs, instructions, templates };
 }
 

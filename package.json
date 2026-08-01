@@ -18,6 +18,7 @@
     "dist": "electron-builder"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.2",
     "@supabase/supabase-js": "^2.110.9",
     "@tiptap/extension-color": "^3.23.4",
     "@tiptap/extension-font-family": "^3.23.4",

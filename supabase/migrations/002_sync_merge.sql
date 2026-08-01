@@ -151,9 +151,38 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ══════════════════════════════════════════════════════════════
+-- v4 轻量拉取：只查原始行，合并去重交给客户端 JS
+--   旧 RPC (pull_*) 保留兼容，新客户端走 fetch_*
+-- ══════════════════════════════════════════════════════════════
+
+-- doc_history：纯查询，不做任何处理
+CREATE OR REPLACE FUNCTION fetch_doc_history(p_sync_key TEXT)
+RETURNS JSONB
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT COALESCE(jsonb_agg(data ORDER BY updated_at DESC), '[]'::jsonb)
+  FROM doc_history
+  WHERE id LIKE p_sync_key || ':%';
+$$;
+
+-- generated_docs：纯查询，不做任何处理
+CREATE OR REPLACE FUNCTION fetch_generated_docs(p_sync_key TEXT)
+RETURNS JSONB
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT COALESCE(jsonb_agg(data ORDER BY updated_at DESC), '[]'::jsonb)
+  FROM user_settings
+  WHERE id LIKE p_sync_key || ':generated_docs:%';
+$$;
+
+-- ══════════════════════════════════════════════════════════════
 -- GRANT
 -- ══════════════════════════════════════════════════════════════
 GRANT EXECUTE ON FUNCTION push_doc_history(TEXT, TEXT, JSONB) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION pull_doc_history(TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION push_generated_docs(TEXT, TEXT, JSONB) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION pull_generated_docs(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION fetch_doc_history(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION fetch_generated_docs(TEXT) TO anon, authenticated;

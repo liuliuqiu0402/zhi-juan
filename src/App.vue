@@ -587,32 +587,53 @@ onMounted(async () => {
         // ① 从云端拉取
         const data = await pullFromCloud();
 
-        // ② 🖥️ 桌面端单向推送（并行）
+        // ② 🖥️ 桌面端单向推送（并行，带名称追踪）
         if (!isWebMode.value) {
           const pushTasks = [];
           try {
             const textbooks = await storage.getItem('textbooks');
-            if (textbooks && textbooks.length > 0) pushTasks.push(uploadTextbooks(textbooks));
+            if (textbooks && textbooks.length > 0) pushTasks.push(
+              (async () => { const ok = await uploadTextbooks(textbooks); return { name: '教材', ok }; })()
+            );
           } catch {}
           try {
             const instRaw = localStorage.getItem('instructionLib');
-            if (instRaw) { const p = JSON.parse(instRaw); if (p.length > 0) pushTasks.push(uploadInstructions(p)); }
+            if (instRaw) { const p = JSON.parse(instRaw); if (p.length > 0) pushTasks.push(
+              (async () => { const ok = await uploadInstructions(p); return { name: '指令库', ok }; })()
+            ); }
           } catch {}
           try {
             const tmplRaw = localStorage.getItem('templates_lib');
-            if (tmplRaw) { const t = JSON.parse(tmplRaw); if (t.length > 0) pushTasks.push(uploadTemplates(t)); }
+            if (tmplRaw) { const t = JSON.parse(tmplRaw); if (t.length > 0) pushTasks.push(
+              (async () => { const ok = await uploadTemplates(t); return { name: '模板', ok }; })()
+            ); }
           } catch {}
           try {
             const settings = JSON.parse(localStorage.getItem('apiConfig') || '{}');
-            if (Object.keys(settings).length > 0) pushTasks.push(uploadSettings(settings));
+            if (Object.keys(settings).length > 0) pushTasks.push(
+              (async () => { const ok = await uploadSettings(settings); return { name: '设置', ok }; })()
+            );
           } catch {}
           try {
             const actRaw = localStorage.getItem('activationInfo');
-            if (actRaw) pushTasks.push(uploadActivationInfo(JSON.parse(actRaw)));
+            if (actRaw) pushTasks.push(
+              (async () => { const ok = await uploadActivationInfo(JSON.parse(actRaw)); return { name: '激活', ok }; })()
+            );
           } catch {}
           if (pushTasks.length > 0) {
-            await Promise.allSettled(pushTasks);
-            console.log('🔄 刷新：桌面端已推送单向数据: 教材、激活、指令库、模板、设置');
+            const results = await Promise.allSettled(pushTasks);
+            const succeeded = results
+              .filter(r => r.status === 'fulfilled' && r.value?.ok)
+              .map(r => r.value.name);
+            const failed = results.filter(r =>
+              r.status === 'rejected' || (r.status === 'fulfilled' && r.value && !r.value.ok)
+            ).map(r => r.status === 'rejected' ? '?' : r.value?.name);
+            if (succeeded.length > 0) {
+              console.log('🔄 桌面端已上推成功: ' + succeeded.join('、'));
+            }
+            if (failed.length > 0) {
+              console.warn('🔄 桌面端上推失败: ' + failed.join('、'));
+            }
           }
         }
 
@@ -668,7 +689,65 @@ onMounted(async () => {
 
         console.log('🔄 同步完成 (桌面端) | 生成结果: ' + mergedGen.length + ' 条 | 历史: ' + mergedHist.length + ' 条');
 
-        // ⑤ 通知子组件重新加载
+        // ⑤ 写入云端数据到本地（教材/指令/模板/设置/激活）
+        if (data.textbooks && data.textbooks.length > 0) {
+          const localTextbooks = await storage.getItem('textbooks');
+          if (!localTextbooks || localTextbooks.length === 0 || data.textbooks.length >= localTextbooks.length) {
+            await storage.setItem('textbooks', data.textbooks).catch(() => {});
+            try {
+              const { useTextbookStore } = await import('@/stores/textbookStore');
+              await useTextbookStore().loadTextbooks();
+            } catch {}
+          }
+        }
+        if (data.instructions && data.instructions.length > 0) {
+          const localRaw = localStorage.getItem('instructionLib');
+          let localCount = 0;
+          if (localRaw) { try { const p = JSON.parse(localRaw); localCount = p.length || 0; } catch {} }
+          if (localCount === 0 || data.instructions.length >= localCount) {
+            localStorage.setItem('instructionLib', JSON.stringify(data.instructions));
+            localStorage.setItem('instructionLib_version', '12');
+            try {
+              const { useInstructionStore } = await import('@/stores/instructionStore');
+              useInstructionStore().reload();
+            } catch {}
+          }
+        }
+        if (data.templates && data.templates.length > 0) {
+          const localTemplates = await storage.getItem('templates');
+          if (!localTemplates || localTemplates.length === 0 || data.templates.length >= localTemplates.length) {
+            await storage.setItem('templates', data.templates).catch(() => {});
+            try {
+              const { useTemplateStore } = await import('@/stores/templateStore');
+              await useTemplateStore().loadTemplates();
+            } catch {}
+          }
+        }
+        if (data.settings && Object.keys(data.settings).length > 0) {
+          const engineFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
+            'deepseekGenerationModel', 'deepseekAnalysisModel'];
+          let needsApply = false;
+          for (const f of engineFields) {
+            if (data.settings[f] !== undefined && data.settings[f] !== apiConfig[f]) {
+              apiConfig[f] = data.settings[f];
+              needsApply = true;
+            }
+          }
+          if (needsApply) {
+            await saveConfig(Object.assign({}, apiConfig));
+            console.log('🔄 同步：已应用云端设置, currentEngine:', data.settings.currentEngine);
+          }
+        }
+        if (data.activationInfo) {
+          localStorage.setItem('activationInfo', JSON.stringify(data.activationInfo));
+          try { await storage.setItem('activationInfo', data.activationInfo); } catch {}
+          if (isWebMode.value) {
+            licenseInfo.value = { ...data.activationInfo, isActive: true };
+            activationStatus.value = 'active';
+          }
+        }
+
+        // ⑥ 通知子组件重新加载
         window.dispatchEvent(new CustomEvent('data-sync-complete'));
       } catch (e) {
         console.error('🔄 同步异常', e);
@@ -732,218 +811,6 @@ onMounted(async () => {
       console.log('📱 页面从 bfcache 恢复，保留原界面');
     }
   });
-  // 🔄 手动同步按钮：从云端拉取合并后的数据，写回本地
-  //    双向数据（历史+生成结果）已在 RPC 内合并去重，直接覆盖本地即可
-  let _syncInProgress = false; // 🔧 防并发：同一时刻只允许一个同步在进行
-  window.addEventListener('app-refresh', async () => {
-    if (_syncInProgress) { console.log('🔄 同步进行中，跳过重复请求'); return; }
-    _syncInProgress = true;
-    console.log('🔄 手动同步：从云端拉取');
-    if (isCloudConfigured()) {
-      showToastMessage('☁️ 同步中…', 'info');
-      try {
-        // ① 🔽 从云端拉取（RPC 已合并所有设备行 + 过滤 _deleted）
-        const cloudData = await pullFromCloud();
-        if (!isWebMode.value) {
-          const pushTasks = [];
-          // 教材
-          pushTasks.push((async () => {
-            try {
-              const localTextbooks = await storage.getItem('textbooks');
-              if (localTextbooks && localTextbooks.length > 0) {
-                await uploadTextbooks(localTextbooks);
-                return '教材';
-              }
-            } catch {}
-          })());
-          // 激活
-          pushTasks.push((async () => {
-            try {
-              const rawAct = localStorage.getItem('activationInfo');
-              if (rawAct) {
-                const act = JSON.parse(rawAct);
-                if (act && act.version && act.version !== 'basic') {
-                  const { _sign, ...clean } = act;
-                  await uploadActivationInfo(clean);
-                  return '激活';
-                }
-              }
-            } catch {}
-          })());
-          // 指令库
-          pushTasks.push((async () => {
-            try {
-              const rawIns = localStorage.getItem('instructionLib');
-              if (rawIns) {
-                const parsed = JSON.parse(rawIns);
-                if (parsed && parsed.length > 0) {
-                  await uploadInstructions(parsed);
-                  return '指令库';
-                }
-              }
-            } catch {}
-          })());
-          // 模板
-          pushTasks.push((async () => {
-            try {
-              const localTemplates = await storage.getItem('templates');
-              if (localTemplates && localTemplates.length > 0) {
-                await uploadTemplates(localTemplates);
-                return '模板';
-              }
-            } catch {}
-          })());
-          // 设置
-          pushTasks.push((async () => {
-            try {
-              const dsFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
-                'deepseekGenerationModel', 'deepseekAnalysisModel'];
-              const sp = {};
-              for (const f of dsFields) { if (apiConfig[f]) sp[f] = apiConfig[f]; }
-              if (Object.keys(sp).length > 0) {
-                await uploadSettings(sp);
-                return '设置';
-              }
-            } catch {}
-          })());
-          const desktopPushResults = (await Promise.allSettled(pushTasks))
-            .filter(r => r.status === 'fulfilled' && r.value)
-            .map(r => r.value);
-          if (desktopPushResults.length > 0) {
-            console.log('🔄 刷新：桌面端已推送单向数据:', desktopPushResults.join('、'));
-          }
-        }
-
-        // ③ 💾 写入本地：云端合并 + 本地兜底（防推送失败导致本地新数据被覆盖）
-        let storedGenCount = 0;
-        let storedHistCount = 0;
-        // 历史记录
-        {
-          const localHistory = await storage.getItem('docHistory') || [];
-          const cloudHistory = cloudData.docHistory || [];
-          const map = new Map();
-          for (const item of localHistory) { if (item?.id) map.set(item.id, item); }
-          for (const item of cloudHistory) {
-            const exist = map.get(item?.id);
-            if (!exist || (item?.savedAt || item?.timestamp || item?.createdAt || 0) >= (exist?.savedAt || exist?.timestamp || exist?.createdAt || 0)) {
-              map.set(item?.id, item);
-            }
-          }
-          const merged = Array.from(map.values())
-            .sort((a, b) => (a?.savedAt || a?.timestamp || a?.createdAt || 0) - (b?.savedAt || b?.timestamp || b?.createdAt || 0))
-            .slice(-50);
-          // 向后兼容：为云端拉取的旧数据补填 savedAt
-          for (const item of merged) {
-            if (!item.savedAt) item.savedAt = item.createdAt || item.timestamp || Date.now();
-          }
-          storedHistCount = merged.length;
-          await storage.setItem('docHistory', merged).catch(() => {});
-          pushDocHistory(merged).then(ok => { if (!ok) console.warn('☁️ sync: 合并后历史回推失败'); }).catch(e => console.warn('☁️ sync: 合并后历史回推异常', e));
-        }
-        // 生成结果
-        {
-          const localGenRaw = localStorage.getItem('wisdom_generated_docs');
-          const localGen = localGenRaw ? JSON.parse(localGenRaw) : [];
-          const cloudGen = cloudData.generatedDocs || [];
-          const map = new Map();
-          for (const item of localGen) { if (item?.id) map.set(item.id, item); }
-          for (const item of cloudGen) {
-            const exist = map.get(item?.id);
-            if (!exist || (item?.savedAt || item?.timestamp || item?.createdAt || 0) >= (exist?.savedAt || exist?.timestamp || exist?.createdAt || 0)) {
-              map.set(item?.id, item);
-            }
-          }
-          const merged = Array.from(map.values())
-            .sort((a, b) => (a?.savedAt || a?.timestamp || a?.createdAt || 0) - (b?.savedAt || b?.timestamp || b?.createdAt || 0))
-            .slice(-20);
-          // 向后兼容：为云端拉取的旧数据补填 savedAt
-          for (const item of merged) {
-            if (!item.savedAt) {
-              // 尝试从 id 提取时间戳（id 格式: period_1735689600000_... 或 doc_1735689600000_...）
-              const m = item.id?.match(/(\d{13})/);
-              item.savedAt = item.createdAt || (m ? parseInt(m[1]) : null) || Date.now();
-            }
-          }
-          storedGenCount = merged.length;
-          localStorage.setItem('wisdom_generated_docs', JSON.stringify(merged));
-          pushGeneratedDocs(merged).then(ok => { if (!ok) console.warn('☁️ sync: 合并后生成结果回推失败'); }).catch(e => console.warn('☁️ sync: 合并后生成结果回推异常', e));
-        }
-        // 教材
-        if (cloudData.textbooks && cloudData.textbooks.length > 0) {
-          const localTextbooks = await storage.getItem('textbooks');
-          if (!localTextbooks || localTextbooks.length === 0 || cloudData.textbooks.length >= localTextbooks.length) {
-            await storage.setItem('textbooks', cloudData.textbooks).catch(() => {});
-            try {
-              const { useTextbookStore } = await import('@/stores/textbookStore');
-              await useTextbookStore().loadTextbooks();
-            } catch {}
-          }
-        }
-        // 指令
-        if (cloudData.instructions && cloudData.instructions.length > 0) {
-          const localRaw = localStorage.getItem('instructionLib');
-          let localCount = 0;
-          if (localRaw) { try { const p = JSON.parse(localRaw); localCount = p.length || 0; } catch {} }
-          if (localCount === 0 || cloudData.instructions.length >= localCount) {
-            localStorage.setItem('instructionLib', JSON.stringify(cloudData.instructions));
-            localStorage.setItem('instructionLib_version', '12');
-            try {
-              const { useInstructionStore } = await import('@/stores/instructionStore');
-              useInstructionStore().reload();
-            } catch {}
-          }
-        }
-        // 设置
-        if (cloudData.settings && Object.keys(cloudData.settings).length > 0) {
-          const engineFields = ['currentEngine', 'deepseekBaseUrl', 'deepseekApiKey',
-            'deepseekGenerationModel', 'deepseekAnalysisModel'];
-          let needsApply = false;
-          for (const f of engineFields) {
-            if (cloudData.settings[f] !== undefined && cloudData.settings[f] !== apiConfig[f]) {
-              apiConfig[f] = cloudData.settings[f];
-              needsApply = true;
-            }
-          }
-          if (needsApply) {
-            await saveConfig(Object.assign({}, apiConfig));
-            console.log('🔄 刷新：已应用云端设置, currentEngine:', cloudData.settings.currentEngine);
-          }
-        }
-        // 激活
-        if (cloudData.activationInfo) {
-          localStorage.setItem('activationInfo', JSON.stringify(cloudData.activationInfo));
-          try { await storage.setItem('activationInfo', cloudData.activationInfo); } catch {}
-          if (isWebMode.value) {
-            licenseInfo.value = { ...cloudData.activationInfo, isActive: true };
-            activationStatus.value = 'active';
-          }
-        }
-        // 模板
-        if (cloudData.templates && cloudData.templates.length > 0) {
-          const localTemplates = await storage.getItem('templates');
-          if (!localTemplates || localTemplates.length === 0 || cloudData.templates.length >= localTemplates.length) {
-            await storage.setItem('templates', cloudData.templates).catch(() => {});
-            try {
-              const { useTemplateStore } = await import('@/stores/templateStore');
-              await useTemplateStore().loadTemplates();
-            } catch {}
-          }
-        }
-
-        const genCount = storedGenCount;
-        const histCount = storedHistCount;
-        console.log('🔄 同步完成', isWebMode.value ? '(手机端)' : '(桌面端)',
-          '| 生成结果:', genCount, '条 | 历史:', histCount, '条');
-        showToastMessage(
-          '✅ 同步完成 · 生成' + genCount + '条 历史' + histCount + '条',
-          'info'
-        );
-        window.dispatchEvent(new CustomEvent('data-sync-complete'));
-      } catch (e) { console.warn('🔄 同步失败:', e); }
-    }
-    _syncInProgress = false; // 🔧 释放锁
-  });
-
   // 📤 手动上推：推送本地全量数据到云端（双向+单向，桌面端包含教材/模板/指令/设置/激活）
   window.addEventListener('app-upload', async () => {
     console.log('📤 手动上推：推送本地数据到云端');
