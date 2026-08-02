@@ -751,7 +751,7 @@ function buildDeviceLabels(allIds: string[], selfId: string, cloudNames: Map<str
 let _probePending = false;
 
 /** 启动时探测云端状态，暖机后输出数据摘要，用户据此决定何时同步 */
-export async function probeCloud(): Promise<void> {
+export async function probeCloud(showReadyHint = true): Promise<void> {
   // 🔒 并发守卫：避免启动时多处触发导致重复探测
   if (_probePending) return;
   _probePending = true;
@@ -885,7 +885,9 @@ export async function probeCloud(): Promise<void> {
   const estStr = estKB > 999 ? (estKB / 1024).toFixed(1) + 'MB' : estKB + 'KB';
   console.log('💾 预估占用 ≈ ' + estStr + ' / 500MB（免费额度，足够）');
 
-  console.log('💡 数据已就绪，可以点击 ☁️ 同步了');
+  if (showReadyHint) {
+    console.log('💡 数据已就绪，可以点击 ☁️ 同步了');
+  }
   } finally {
     _probePending = false;
   }

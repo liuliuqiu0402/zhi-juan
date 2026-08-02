@@ -699,8 +699,6 @@ onMounted(async () => {
           pushDocHistory(mergedHist).then(ok => { if (ok) console.log('☁️ 历史记录已推送云端（合并）' + mergedHist.length + ' 条'); return ok; }).catch(() => false),
         ]);
 
-        console.log('🔄 同步完成 (' + (isMobile ? '手机端' : '桌面端') + ') | 生成结果: ' + mergedGen.length + ' 条 | 历史: ' + mergedHist.length + ' 条');
-
         // ⑤ 写入云端单向数据到本地（仅手机端；云端是权威源，无条件覆盖本地）
         if (isMobile && unilateralData) {
           // 教材
@@ -764,9 +762,8 @@ onMounted(async () => {
         window.dispatchEvent(new CustomEvent('data-sync-complete'));
         const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
         showToastMessage('✅ 同步完成 (' + elapsed + 's) | 生成: ' + mergedGen.length + '条 | 历史: ' + mergedHist.length + '条', 'info');
-        console.log('🔄 同步完成 (' + elapsed + 's, ' + (isMobile ? '手机端' : '桌面端') + ') | 生成: ' + mergedGen.length + '条 | 历史: ' + mergedHist.length + '条');
-        // 🔧 同步后：刷新云端摘要 + 清理残留设备行（无名UUID、空数据设备）
-        probeCloud().catch(() => {});
+        console.log('✅ 同步完成 (' + elapsed + 's, ' + (isMobile ? '手机端' : '桌面端') + ') | 历史: ' + mergedHist.length + '条 | 生成: ' + mergedGen.length + '条');
+        // 🧹 清理残留设备行（无名UUID、空数据设备）
         cleanupStaleDeviceRows().then(n => { if (n > 0) console.log('🧹 同步后清理 ' + n + ' 台残留设备'); }).catch(() => {});
       } catch (e) {
         console.error('🔄 同步异常', e);
@@ -829,7 +826,7 @@ onMounted(async () => {
         if (results.length > 0) {
           console.log('📤 上推完成 (' + elapsed + 's): ' + results.join('、'));
           showToastMessage('✅ 上推完成: ' + results.join('、'), 'info');
-          probeCloud().catch(() => {});
+          probeCloud(false).catch(() => {});
           // 上推后清理残留设备行（无名UUID、空数据设备）
           cleanupStaleDeviceRows().then(n => { if (n > 0) console.log('🧹 上推后清理 ' + n + ' 台残留设备'); }).catch(() => {});
         } else {
