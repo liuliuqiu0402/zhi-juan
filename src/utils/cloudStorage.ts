@@ -14,13 +14,22 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 let _client: SupabaseClient | null = null;
 
+// 🔧 自定义 fetch：15 秒超时，避免 Supabase 冷启动时无限等待
+const fetchWithTimeout = (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000): Promise<Response> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+};
+
 function getClient(): SupabaseClient | null {
   if (_client) return _client;
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.warn('☁️ Supabase 未配置，跳过云端同步');
     return null;
   }
-  _client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  _client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { fetch: fetchWithTimeout as typeof fetch },
+  });
   return _client;
 }
 

@@ -442,13 +442,9 @@ const filteredLogs = computed(() => {
 const copyLogsToClipboard = async () => {
   const ok = await copyLogs();
   if (ok) {
-    // 简单的视觉反馈
-    const btn = document.activeElement;
-    if (btn) {
-      const orig = btn.textContent;
-      btn.textContent = '✅ 已复制';
-      setTimeout(() => { btn.textContent = orig; }, 1500);
-    }
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '✅ 日志已复制到剪贴板', type: 'info' } }));
+  } else {
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '❌ 复制失败，请检查浏览器权限', type: 'warning' } }));
   }
 };
 

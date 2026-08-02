@@ -75,22 +75,14 @@ export const exportLogs = () => {
   return text;
 };
 
-// 复制日志到剪贴板
+// 复制日志到剪贴板（仅 clipboard API，不做 textarea 降级——移动端 textarea select() 会触发系统菜单覆盖全屏）
 export const copyLogs = async () => {
   const text = exportLogs();
   try {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    // 降级方案
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.cssText = 'position:fixed;left:-9999px';
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    return true;
+    return false;
   }
 };
 
