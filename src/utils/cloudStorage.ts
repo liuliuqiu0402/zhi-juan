@@ -14,11 +14,38 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 let _client: SupabaseClient | null = null;
 
-// 🔧 自定义 fetch：15 秒超时，避免 Supabase 冷启动时无限等待
-const fetchWithTimeout = (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 60000): Promise<Response> => {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+// 🔧 自定义 fetch：60s 超时 + 网络错误自动重试（QUIC 协议错误等瞬时故障最多重试 3 次，指数退避）
+const fetchWithRetry = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const maxRetries = 3;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => {
+          controller.abort();
+          reject(new DOMException('Timeout after 60s', 'TimeoutError'));
+        }, 60000)
+      );
+      const resp = await Promise.race([
+        fetch(input, { ...init, signal: controller.signal }),
+        timeoutPromise,
+      ]);
+      return resp;
+    } catch (e: any) {
+      // 判断是否值得重试的网络错误（QUIC、DNS、连接重置等瞬时故障）
+      const isNetErr = e?.name === 'TypeError' ||
+                       e?.name === 'TimeoutError' ||
+                       /fetch failed|QUIC|network|ETIMEDOUT|ECONNRESET/i.test(e?.message || '');
+      if (attempt < maxRetries && isNetErr) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+        console.warn('⚠️ 网络瞬时故障，' + (delay / 1000).toFixed(0) + 's 后重试 (' + (attempt + 1) + '/' + maxRetries + ')');
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error('fetchWithRetry: max retries exceeded');
 };
 
 function getClient(): SupabaseClient | null {
@@ -28,7 +55,7 @@ function getClient(): SupabaseClient | null {
     return null;
   }
   _client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { fetch: fetchWithTimeout as typeof fetch },
+    global: { fetch: fetchWithRetry as typeof fetch },
   });
   return _client;
 }
@@ -589,94 +616,102 @@ export async function probeCloud(): Promise<void> {
   const warmupLabel = Number(warmupS) > 30 ? '冷启动 ' + warmupS + 's' : warmupS + 's';
   console.log('✅ 云端已就绪（耗时 ' + warmupLabel + '）');
 
-  // ② 拉取数据摘要（并行查询 5 张表）
+  // ② 拉取数据摘要（5 路独立查询，各自容错，一个失败不影响其他）
   const syncKey = getSyncKey() || '';
   const selfId = getDeviceId();
-  const parts: string[] = [];
 
-  try {
-    const [textbookRow, templateRow, settingsRows, histRows, genRows] = await Promise.all([
-      client.from('textbooks').select('data').eq('id', syncKey).single(),
-      client.from('templates').select('data').eq('id', syncKey).single(),
-      client.from('user_settings').select('id, data').like('id', syncKey + ':%'),
-      client.from('doc_history').select('id, data').like('id', syncKey + ':%'),
-      client.from('generated_docs').select('id, data').like('id', syncKey + ':%'),
-    ]);
+  const safeQuery = async (fn: () => any) => { try { const r = await fn(); return [r, null]; } catch (e) { return [null, e]; } };
 
-    // 教材
-    const tbData = textbookRow?.data?.data;
-    parts.push('教材' + (Array.isArray(tbData) && tbData.length > 0 ? '✓' : '-'));
+  const [textbookRow, tbErr] = await safeQuery(() => client.from('textbooks').select('data').eq('id', syncKey).single());
+  const [templateRow, tpErr] = await safeQuery(() => client.from('templates').select('data').eq('id', syncKey).single());
+  const [settingsRows, stErr] = await safeQuery(() => client.from('user_settings').select('id, data').like('id', syncKey + ':%'));
+  const [histRows, hiErr]    = await safeQuery(() => client.from('doc_history').select('id, data').like('id', syncKey + ':%'));
+  const [genRows, geErr]     = await safeQuery(() => client.from('generated_docs').select('id, data').like('id', syncKey + ':%'));
 
-    // 模板
-    const tpData = templateRow?.data?.data;
-    parts.push('模板' + (Array.isArray(tpData) && tpData.length > 0 ? '✓' : '-'));
+  // ── 共享数据（全设备共用一份：教材/模板/设置/激活/指令）──
+  const tbOk = !tbErr && textbookRow?.data?.data;
+  const tbCount = tbOk && Array.isArray(textbookRow.data.data) ? textbookRow.data.data.length : 0;
+  const tpOk = !tpErr && templateRow?.data?.data;
+  const tpCount = tpOk && Array.isArray(templateRow.data.data) ? templateRow.data.data.length : 0;
 
-    // 设置 / 激活 / 指令（从 user_settings 分流）
-    let hasSettings = false, hasActivation = false, hasInstructions = false;
-    if (!settingsRows.error && settingsRows.data) {
-      for (const row of settingsRows.data as { id: string; data: unknown }[]) {
-        const suffix = row.id?.replace(syncKey + ':', '');
-        if (suffix === 'settings') hasSettings = true;
-        else if (suffix === 'activation') hasActivation = true;
-        else if (suffix === 'instructions') hasInstructions = true;
-      }
+  let hasSettings = false, hasActivation = false, hasInstructions = false;
+  const stFailed = !!stErr;
+  if (!stErr && settingsRows?.data) {
+    for (const row of settingsRows.data as { id: string; data: unknown }[]) {
+      const suffix = row.id?.replace(syncKey + ':', '');
+      if (suffix === 'settings') hasSettings = true;
+      else if (suffix === 'activation') hasActivation = true;
+      else if (suffix === 'instructions') hasInstructions = true;
     }
-    parts.push('设置' + (hasSettings ? '✓' : '-'));
-    parts.push('激活' + (hasActivation ? '✓' : '-'));
-    parts.push('指令' + (hasInstructions ? '✓' : '-'));
-
-    // 历史记录（多设备）
-    const histDevices: string[] = [];
-    let histTotal = 0;
-    const histIds: string[] = [];
-    if (!histRows.error && histRows.data) {
-      for (const row of histRows.data as { id: string; data: unknown }[]) {
-        const did = row.id?.replace(syncKey + ':', '') || '?';
-        const items = (row as any)?.data;
-        const count = Array.isArray(items) ? items.length : 0;
-        histTotal += count;
-        if (count > 0) histIds.push(did);
-      }
-    }
-
-    // 生成结果（多设备）
-    const genDevices: string[] = [];
-    let genTotal = 0;
-    const genIds: string[] = [];
-    if (!genRows.error && genRows.data) {
-      for (const row of genRows.data as { id: string; data: unknown }[]) {
-        const did = row.id?.replace(syncKey + ':', '') || '?';
-        const items = (row as any)?.data;
-        const count = Array.isArray(items) ? items.length : 0;
-        genTotal += count;
-        if (count > 0) genIds.push(did);
-      }
-    }
-
-    // 🏷️ 统一生成设备标签（按 UUID 字母序分配 A/B/C…）
-    const allDevIds = [...histIds, ...genIds];
-    const deviceLabels = buildDeviceLabels(allDevIds, selfId);
-
-    // 回填标签 + 组装输出
-    for (const did of histIds) {
-      const label = deviceLabels.get(did) || '设备-?';
-      const row = (histRows.data as { id: string; data: unknown }[]).find(r => (r.id?.replace(syncKey + ':', '') || '?') === did);
-      const count = Array.isArray((row as any)?.data) ? (row as any).data.length : 0;
-      histDevices.push(label + '(' + count + '条)');
-    }
-    for (const did of genIds) {
-      const label = deviceLabels.get(did) || '设备-?';
-      const row = (genRows.data as { id: string; data: unknown }[]).find(r => (r.id?.replace(syncKey + ':', '') || '?') === did);
-      const count = Array.isArray((row as any)?.data) ? (row as any).data.length : 0;
-      genDevices.push(label + '(' + count + '条)');
-    }
-    parts.push('历史' + histTotal + '条' + (histDevices.length > 0 ? '[' + histDevices.join(' ') + ']' : ''));
-    parts.push('生成' + genTotal + '条' + (genDevices.length > 0 ? '[' + genDevices.join(' ') + ']' : ''));
-
-    console.log('☁️ 云端数据：' + parts.join(' | '));
-  } catch (e) {
-    console.warn('⚠️ 云端数据摘要获取失败:', (e as Error)?.message || e);
   }
+
+  // ── 按设备汇总（仅 history / generated 每设备独立一行）──
+  const devMap = new Map<string, { hist: number; gen: number }>();
+  const ensureDev = (did: string) => {
+    if (!devMap.has(did)) devMap.set(did, { hist: 0, gen: 0 });
+    return devMap.get(did)!;
+  };
+
+  const hiFailed = !!hiErr;
+  let histTotal = 0;
+  if (!hiErr && histRows?.data) {
+    for (const row of histRows.data as { id: string; data: unknown }[]) {
+      const did = row.id?.replace(syncKey + ':', '') || '?';
+      const count = Array.isArray((row as any)?.data) ? (row as any).data.length : 0;
+      ensureDev(did).hist = count;
+      histTotal += count;
+    }
+  }
+
+  const geFailed = !!geErr;
+  let genTotal = 0;
+  if (!geErr && genRows?.data) {
+    for (const row of genRows.data as { id: string; data: unknown }[]) {
+      const did = row.id?.replace(syncKey + ':', '') || '?';
+      const count = Array.isArray((row as any)?.data) ? (row as any).data.length : 0;
+      ensureDev(did).gen = count;
+      genTotal += count;
+    }
+  }
+
+  // 🏷️ 设备标签
+  const allDevIds = [...devMap.keys()];
+  const deviceLabels = buildDeviceLabels(allDevIds, selfId);
+
+  // ── 输出 ──
+  // 共享数据行
+  const tbStr = !!tbErr ? '❌' : (tbCount > 0 ? tbCount + '本' : '-');
+  const tpStr = !!tpErr ? '❌' : (tpCount > 0 ? tpCount + '个' : '-');
+  const stStr = stFailed ? '❌' : (hasSettings ? '✓' : '-');
+  const acStr = stFailed ? '❌' : (hasActivation ? '✓' : '-');
+  const inStr = stFailed ? '❌' : (hasInstructions ? '✓' : '-');
+  console.log('☁️ 共享：教材' + tbStr + '  模板' + tpStr + '  设置' + stStr + '  激活' + acStr + '  指令' + inStr);
+
+  // 各设备数据
+  if (devMap.size === 0) {
+    console.log('☁️ 各设备：（无数据）');
+  } else {
+    console.log('☁️ 各设备（' + devMap.size + '台）：');
+    const entries = [...devMap.entries()];
+    entries.sort(([a], [b]) => {
+      if (a === selfId) return -1;
+      if (b === selfId) return 1;
+      return (deviceLabels.get(a) || '').localeCompare(deviceLabels.get(b) || '');
+    });
+    for (const [did, d] of entries) {
+      const label = deviceLabels.get(did) || did.slice(0, 8);
+      const hStr = hiFailed ? '❌' : d.hist + '条';
+      const gStr = geFailed ? '❌' : d.gen + '条';
+      console.log('  ' + label + ': 历史' + hStr + '  生成' + gStr);
+    }
+  }
+
+  // 💾 空间预估
+  const estKB = Math.ceil(tbCount * 15 + tpCount * 8 + histTotal * 3 + genTotal * 6 + devMap.size * 5);
+  const estStr = estKB > 999 ? (estKB / 1024).toFixed(1) + 'MB' : estKB + 'KB';
+  console.log('💾 预估占用 ≈ ' + estStr + ' / 500MB（免费额度，足够）');
+
+  console.log('💡 数据已就绪，可以点击 ☁️ 同步了');
 }
 
 // ── 保留旧导出名兼容（后续逐步迁移） ──

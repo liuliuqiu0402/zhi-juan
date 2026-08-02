@@ -562,7 +562,6 @@ onMounted(async () => {
       const { useInstructionStore } = await import('@/stores/instructionStore');
       useInstructionStore().syncToCloudIfNeeded();
     } catch {}
-    console.log((isWarmStart ? '🔥 热启动' : '❄️ 冷启动') + ' — 请手动点击 ☁️ 按钮同步云端数据');
 
     // 🔑 同步密钥：首次使用自动生成
     if (!hasSyncKey()) {
@@ -598,6 +597,7 @@ onMounted(async () => {
         let cloudGen = [];
         let cloudHist = [];
         let unilateralData = null; // 单向数据（仅手机端需要；桌面端自己生产，无需拉取）
+        const fmtPull = (val, label) => val === null ? label + '❌' : label + ((Array.isArray(val) ? val.length : (val ? '✓' : '0')));
 
         if (isMobile) {
           // 📱 手机端：拉 7 类全量
@@ -612,11 +612,13 @@ onMounted(async () => {
             settings: data.settings,
             activationInfo: data.activationInfo,
           };
-          console.log('🔄 [拉取] 完成 | 历史' + cloudHist.length + '条 生成' + cloudGen.length + '条' +
-            (unilateralData.textbooks ? ' 教材' + (unilateralData.textbooks?.length || 0) + '本' : '') +
-            (unilateralData.templates ? ' 模板' + (unilateralData.templates?.length || 0) + '个' : '') +
-            (unilateralData.instructions ? ' 指令' + (unilateralData.instructions?.length || 0) + '条' : '') +
-            (unilateralData.activationInfo ? ' 激活✓' : ''));
+          console.log('🔄 [拉取] 完成 | ' +
+            fmtPull(data.docHistory, '历史') + '条 ' +
+            fmtPull(data.generatedDocs, '生成') + '条' +
+            (unilateralData.textbooks !== undefined ? ' ' + fmtPull(unilateralData.textbooks, '教材') + '本' : '') +
+            (unilateralData.templates !== undefined ? ' ' + fmtPull(unilateralData.templates, '模板') + '个' : '') +
+            (unilateralData.instructions !== undefined ? ' ' + fmtPull(unilateralData.instructions, '指令') + '条' : '') +
+            (unilateralData.activationInfo !== undefined ? ' ' + (unilateralData.activationInfo === null ? '激活❌' : '激活✓') : ''));
         } else {
           // 🖥️ 桌面端：只拉双向 2 类（单向数据是桌面自己产的，云端就是自己推的，无需拉取）
           const [gen, hist] = await Promise.all([
@@ -625,7 +627,7 @@ onMounted(async () => {
           ]);
           cloudGen = gen || [];
           cloudHist = hist || [];
-          console.log('🔄 [拉取] 完成 | 历史' + cloudHist.length + '条 生成' + cloudGen.length + '条（桌面端仅双向2类）');
+          console.log('🔄 [拉取] 完成 | ' + fmtPull(hist, '历史') + '条 ' + fmtPull(gen, '生成') + '条（桌面端仅双向2类）');
         }
 
         // ② 合并生成结果（双向，两端都做）
@@ -897,6 +899,7 @@ onMounted(async () => {
         if (results.length > 0) {
           console.log('📤 上推完成:', results.join('、'));
           showToastMessage('📤 已上推 ' + results.join('、'), 'info');
+          probeCloud(); // 上推后刷新云端数据视图
         } else {
           showToastMessage('📤 无数据需上推', 'info');
         }

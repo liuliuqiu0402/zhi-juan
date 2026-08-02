@@ -373,7 +373,7 @@ import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
 import useLogger, { copyLogs } from '@/composables/useLogger.js';
 import { apiConfig, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
-import { uploadSettings, getSyncKey, setSyncKey, getDeviceLabel, getDeviceId } from '@/utils/cloudStorage';
+import { uploadSettings, getSyncKey, setSyncKey, getDeviceLabel, getDeviceId, probeCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
 
 const { showAlertDialogFn } = useDialog();
@@ -471,6 +471,8 @@ const onSyncKeyChange = () => {
   if (trimmed) {
     setSyncKey(trimmed);
     console.log('🔑 同步密钥已更新:', trimmed);
+    // 密钥变更后重新探测云端数据
+    probeCloud();
   }
 };
 
