@@ -745,9 +745,14 @@ onMounted(async () => {
                   localCfg[key] = unilateralData.settings[key];
                 }
               }
+              // 🔧 手机端无法运行本地 Ollama，有 DeepSeek 密钥就自动切引擎
+              if (isWebMode.value && localCfg.deepseekApiKey) {
+                localCfg.currentEngine = 'deepseek';
+              }
               localStorage.setItem('apiConfig', JSON.stringify(localCfg));
               Object.assign(apiConfig, localCfg);
-              console.log('🔄 [写入] DeepSeek云端配置 ' + Object.keys(unilateralData.settings).length + '项 ✅ (本地Ollama不变)');
+              const suffix = isWebMode.value && localCfg.deepseekApiKey ? ' (已自动切换到DeepSeek引擎)' : ' (本地Ollama不变)';
+              console.log('🔄 [写入] DeepSeek云端配置 ' + Object.keys(unilateralData.settings).length + '项 ✅' + suffix);
             } catch { console.warn('🔄 [写入] 引擎设置 ❌ 失败'); }
           }
 
