@@ -6,20 +6,13 @@
  * @returns {string} 默认存储路径
  */
 export const getDefaultStoragePath = () => {
-  // 优先使用 Electron API（如果有）
-  if (window.electronAPI?.getDefaultStoragePath) {
-    return window.electronAPI.getDefaultStoragePath();
+  // 优先使用 Electron 注入的同步默认路径（preload 中计算好）
+  if (window.electronAPI?.defaultStoragePath) {
+    return window.electronAPI.defaultStoragePath;
   }
   
-  // 降级：使用用户文档目录
-  try {
-    // 在浏览器环境中，我们无法直接访问文件系统
-    // 返回一个合理的默认值
-    return '智卷工坊数据';
-  } catch (e) {
-    console.warn('无法获取默认存储路径:', e.message);
-    return '智卷工坊数据';
-  }
+  // 降级：Web 模式返回相对路径
+  return '智卷工坊数据';
 };
 
 /**
@@ -73,4 +66,21 @@ export const validateStoragePath = () => {
   }
   
   return true;
+};
+
+/**
+ * 修复旧数据中存储的相对路径（补全为基于当前存储路径的绝对路径）
+ * 旧版 fallback 返回 "智卷工坊数据" 这个裸相对路径，导致教材/模板的 pdfPath 存成了相对路径
+ * 当用户移动文件夹后，这些相对路径就找不到文件了
+ * @param {string} storedPath - 数据库中存储的路径
+ * @returns {string} 补全后的绝对路径
+ */
+export const resolveStoredPath = (storedPath) => {
+  if (!storedPath) return '';
+  // 已是绝对路径（含盘符）→ 直接返回
+  if (/^[A-Za-z]:[\\/]/.test(storedPath)) return storedPath;
+  // 相对路径 → 去掉旧的 "智卷工坊数据/" 前缀，拼上当前存储路径
+  const base = getStoragePath();
+  const clean = storedPath.replace(/^智卷工坊数据[/\\]/, '');
+  return base + '/' + clean;
 };

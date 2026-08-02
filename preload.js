@@ -1,5 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// 默认存储路径（同步值，使用环境变量避免依赖 sandbox 中可能被禁的 Node 模块）
+const homedir = process.env.USERPROFILE || process.env.HOME || '';
+const defaultStoragePath = homedir ? homedir + '\\Documents\\智卷工坊数据' : '智卷工坊数据';
+
 contextBridge.exposeInMainWorld('electronAPI', {
     // 文件操作
     selectFiles: () => ipcRenderer.invoke('select-files'),
@@ -46,4 +50,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // options.mode: 'pipeline'（文档解析/OCR）| 'chat'（VLM 对话）
     // options.maxTokens: chat 模式最大 token 数
     paddleOcrVLChat: (prompt, imageBase64List, options) => ipcRenderer.invoke('paddleocr-vl-chat', { prompt, imageBase64List, options }),
+
+    // 保存应用配置到文件（同步 storagePath 等给主进程）
+    saveAppConfig: (config) => ipcRenderer.invoke('save-app-config', config),
+
+    // 获取默认存储路径（同步值，不是函数）
+    defaultStoragePath,
+
+    // 读取应用配置文件（恢复丢失的配置）
+    getAppConfig: () => ipcRenderer.invoke('get-app-config'),
 });

@@ -279,6 +279,11 @@ export const saveConfig = async (config) => {
     // 🔧 新增：清除内存缓存，下次调用时自动重新加载
     _configCache = null;
     _configCacheTime = 0;
+
+    // 🔧 同步 storagePath 到主进程配置文件（防止每次启动在文档目录重建空文件夹）
+    if (window.electronAPI?.saveAppConfig && toSave.storagePath) {
+      window.electronAPI.saveAppConfig({ storagePath: toSave.storagePath }).catch(() => {});
+    }
   } catch (e) {
     console.error('保存API配置失败:', e);
   }

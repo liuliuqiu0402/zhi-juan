@@ -206,6 +206,30 @@ const router = useRouter();
   } catch { /* ignore */ }
 })();
 
+// 🔧 同步 storagePath 到主进程配置文件 + 从配置文件恢复丢失的路径
+//    场景1: localStorage 有值 → 同步到配置文件（防 Documents 空文件夹重建）
+//    场景2: localStorage 丢失（系统修复/缓存清理） → 从配置文件恢复
+(function bootstrapStoragePath() {
+  try {
+    const sp = localStorage.getItem('storagePath');
+    if (sp) {
+      // 场景1: 现有路径 → 同步到配置文件
+      if (window.electronAPI?.saveAppConfig) {
+        window.electronAPI.saveAppConfig({ storagePath: sp }).catch(() => {});
+      }
+    } else if (window.electronAPI?.getAppConfig) {
+      // 场景2: localStorage 丢失 → 从配置文件恢复
+      window.electronAPI.getAppConfig().then(config => {
+        if (config?.storagePath) {
+          localStorage.setItem('storagePath', config.storagePath);
+          console.log('🔧 从配置文件恢复了 storagePath:', config.storagePath);
+        }
+      }).catch(() => {});
+    }
+    // 场景3: 都为空 → getStoragePath() 会通过 IPC 获取默认绝对路径（不再返回相对路径）
+  } catch { /* ignore */ }
+})();
+
 // 📱 移动端检测
 const { isMobile, pwaScaleStyle } = useMobile();
 

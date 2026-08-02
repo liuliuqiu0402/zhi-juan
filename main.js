@@ -295,6 +295,22 @@ ipcMain.handle('get-machine-id', () => {
     return machineIdSync();
 });
 
+// 获取默认存储路径（供渲染进程降级使用）
+ipcMain.handle('get-default-storage-path', () => {
+    return path.join(app.getPath('documents'), '智卷工坊数据');
+});
+
+// 读取应用配置文件（供渲染进程恢复丢失的 localStorage 配置）
+ipcMain.handle('get-app-config', () => {
+    try {
+        const configPath = path.join(app.getPath('userData'), 'apiConfig.json');
+        if (fs.existsSync(configPath)) {
+            return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        }
+    } catch { /* ignore */ }
+    return null;
+});
+
 // 🔧 新增：加密/解密（用于安全存储 API Key）
 ipcMain.handle('encrypt-text', async (event, text) => {
   try {
@@ -320,6 +336,29 @@ ipcMain.handle('decrypt-text', async (event, encryptedBase64) => {
   } catch (e) {
     return Buffer.from(encryptedBase64, 'base64').toString('utf-8');
   }
+});
+
+// 保存应用配置到文件（供主进程读取 storagePath 等）
+ipcMain.handle('save-app-config', async (event, config) => {
+    try {
+        const configPath = path.join(app.getPath('userData'), 'apiConfig.json');
+        let existing = {};
+        try {
+            if (fs.existsSync(configPath)) {
+                existing = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+            }
+        } catch { /* ignore */ }
+        const merged = { ...existing, ...config };
+        fs.writeFileSync(configPath, JSON.stringify(merged, null, 2), 'utf-8');
+        // 如果 storagePath 变了，确保新目录存在
+        if (config.storagePath && !fs.existsSync(config.storagePath)) {
+            fs.mkdirSync(config.storagePath, { recursive: true });
+        }
+        return true;
+    } catch (e) {
+        console.error('保存配置失败:', e);
+        return false;
+    }
 });
 
 // ==================== 保存文件对话框 ====================

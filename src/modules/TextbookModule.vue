@@ -564,7 +564,7 @@
 import { ref, computed, onMounted, onUnmounted, shallowRef, nextTick, h, watch } from 'vue';
 import { useDialog } from '../composables/useDialog.js';
 import ExcelJS from 'exceljs';
-import { getStoragePath } from '../utils/pathHelper.js';  // ✨ 存储路径工具
+import { getStoragePath, resolveStoredPath } from '../utils/pathHelper.js';  // ✨ 存储路径工具
 import { useTextbookStore } from '../stores/textbookStore';
 import { useFileHandler } from '../composables/useFileHandler.js';
 import { convertFormulasInHtml } from '../utils/wordExporter.js';
@@ -988,10 +988,10 @@ const pdfPath = computed(() => {
     const ext = tempFilePath.value.split('.').pop().toLowerCase();
     if (ext === 'pdf') return tempFilePath.value;
   }
-  // 已保存的教材用存储路径
+  // 已保存的教材用存储路径（🔧 修复旧数据中可能存的相对路径）
   if (!previewData.value) return '';
   const book = textbookStore.textbooks.find(b => b.imagesDir === previewData.value.imagesDir);
-  return book?.pdfPath || '';
+  return resolveStoredPath(book?.pdfPath || '');
 });
 
 // 图片自适应相关
