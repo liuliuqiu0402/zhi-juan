@@ -671,9 +671,6 @@ onMounted(async () => {
 
           localStorage.setItem(GEN_KEY, JSON.stringify(mergedGen));
           console.log('🔄 [合并] 生成结果 ' + local.length + '→' + mergedGen.length + '条（本地' + local.length + ' + 云端' + cloudGen.length + '）');
-          pushGeneratedDocs(mergedGen).then(ok => {
-            if (ok) console.log('☁️ 生成结果已自动推送云端（合并）' + mergedGen.length + ' 条');
-          }).catch(() => {});
         } catch (e) { console.warn('合并生成结果异常', e); }
 
         // ③ 合并历史记录（双向，两端都做）
@@ -694,14 +691,17 @@ onMounted(async () => {
 
           await storage.setItem('docHistory', mergedHist).catch(() => {});
           console.log('🔄 [合并] 历史记录 ' + localHist.length + '→' + mergedHist.length + '条（本地' + localHist.length + ' + 云端' + cloudHist.length + '）');
-          pushDocHistory(mergedHist).then(ok => {
-            if (ok) console.log('☁️ 历史记录已自动推送云端（合并）' + mergedHist.length + ' 条');
-          }).catch(() => {});
         } catch (e) { console.warn('合并历史记录异常', e); }
+
+        // ④ 推送合并后的双向数据回云端（await 确保 probe 看到最新数据）
+        const [genPushOk, histPushOk] = await Promise.all([
+          pushGeneratedDocs(mergedGen).then(ok => { if (ok) console.log('☁️ 生成结果已推送云端（合并）' + mergedGen.length + ' 条'); return ok; }).catch(() => false),
+          pushDocHistory(mergedHist).then(ok => { if (ok) console.log('☁️ 历史记录已推送云端（合并）' + mergedHist.length + ' 条'); return ok; }).catch(() => false),
+        ]);
 
         console.log('🔄 同步完成 (' + (isMobile ? '手机端' : '桌面端') + ') | 生成结果: ' + mergedGen.length + ' 条 | 历史: ' + mergedHist.length + ' 条');
 
-        // ④ 写入云端单向数据到本地（仅手机端；云端是权威源，无条件覆盖本地）
+        // ⑤ 写入云端单向数据到本地（仅手机端；云端是权威源，无条件覆盖本地）
         if (isMobile && unilateralData) {
           // 教材
           if (unilateralData.textbooks !== null && unilateralData.textbooks !== undefined) {
@@ -731,7 +731,22 @@ onMounted(async () => {
               await useTemplateStore().loadTemplates();
             } catch {}
           }
-          // 引擎设置不同步到手机端——各设备独立配置，用户手动管理
+          // 引擎设置：仅同步 DeepSeek 云端路径字段，保留本地 Ollama 等独立配置（各设备手动管理本地引擎）
+          if (unilateralData.settings && typeof unilateralData.settings === 'object') {
+            try {
+              const rawCfg = localStorage.getItem('apiConfig');
+              const localCfg = rawCfg ? JSON.parse(rawCfg) : {};
+              const dsFields = ['deepseekBaseUrl', 'deepseekApiKey', 'deepseekGenerationModel', 'deepseekAnalysisModel'];
+              for (const key of dsFields) {
+                if (key in unilateralData.settings) {
+                  localCfg[key] = unilateralData.settings[key];
+                }
+              }
+              localStorage.setItem('apiConfig', JSON.stringify(localCfg));
+              Object.assign(apiConfig, localCfg);
+              console.log('🔄 [写入] 引擎设置 ' + Object.keys(unilateralData.settings).length + '项 ✅');
+            } catch { console.warn('🔄 [写入] 引擎设置 ❌ 失败'); }
+          }
 
           // 激活信息
           if (unilateralData.activationInfo) {
@@ -745,7 +760,7 @@ onMounted(async () => {
           }
         }
 
-        // ⑤ 通知子组件重新加载
+        // ⑥ 通知子组件重新加载
         window.dispatchEvent(new CustomEvent('data-sync-complete'));
         const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
         showToastMessage('✅ 同步完成 (' + elapsed + 's) | 生成: ' + mergedGen.length + '条 | 历史: ' + mergedHist.length + '条', 'info');
