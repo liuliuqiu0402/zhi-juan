@@ -184,7 +184,7 @@ import { useMobile } from '@/composables/useMobile.js';
 import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
-import { pullFromCloud, isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey } from '@/utils/cloudStorage';
+import { pullFromCloud, isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey, probeCloud } from '@/utils/cloudStorage';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
 import { apiConfig, getCurrentEngineConfig, loadConfigSync } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
@@ -577,12 +577,19 @@ onMounted(async () => {
       }
     }
 
+    // 🔍 后台探测云端：暖机 + 数据摘要（用户看到日志后可决定何时同步）
+    probeCloud();
+
     // 🔄 同步按钮处理器（app-refresh 事件，来自 AppHeader ☁️ 按钮 / 手机端下拉刷新）
     let _syncInProgress = false;
     const _handleAppRefresh = async () => {
       if (_syncInProgress) { console.log('🔄 同步进行中，跳过重复请求'); return; }
       _syncInProgress = true;
-      showToastMessage('☁️ 同步中…', 'info');
+      showToastMessage('☁️ 同步中…（首次冷启动约需1-2分钟）', 'info');
+      // ⏳ 30 秒后仍未完成则追加提醒
+      let _syncSlowTimer = setTimeout(() => {
+        showToastMessage('⏳ 云端仍在响应中，请继续等待…', 'info');
+      }, 30000);
       try {
         console.log('🔄 开始同步…');
         const isMobile = isWebMode.value;
@@ -594,6 +601,7 @@ onMounted(async () => {
 
         if (isMobile) {
           // 📱 手机端：拉 7 类全量
+          console.log('🔄 [拉取] 正在从云端拉取全量数据…');
           const data = await pullFromCloud();
           cloudGen = data.generatedDocs || [];
           cloudHist = data.docHistory || [];
@@ -604,6 +612,11 @@ onMounted(async () => {
             settings: data.settings,
             activationInfo: data.activationInfo,
           };
+          console.log('🔄 [拉取] 完成 | 历史' + cloudHist.length + '条 生成' + cloudGen.length + '条' +
+            (unilateralData.textbooks ? ' 教材' + (unilateralData.textbooks?.length || 0) + '本' : '') +
+            (unilateralData.templates ? ' 模板' + (unilateralData.templates?.length || 0) + '个' : '') +
+            (unilateralData.instructions ? ' 指令' + (unilateralData.instructions?.length || 0) + '条' : '') +
+            (unilateralData.activationInfo ? ' 激活✓' : ''));
         } else {
           // 🖥️ 桌面端：只拉双向 2 类（单向数据是桌面自己产的，云端就是自己推的，无需拉取）
           const [gen, hist] = await Promise.all([
@@ -612,6 +625,7 @@ onMounted(async () => {
           ]);
           cloudGen = gen || [];
           cloudHist = hist || [];
+          console.log('🔄 [拉取] 完成 | 历史' + cloudHist.length + '条 生成' + cloudGen.length + '条（桌面端仅双向2类）');
         }
 
         // ② 合并生成结果（双向，两端都做）
@@ -635,6 +649,7 @@ onMounted(async () => {
           if (mergedGen.length > 20) mergedGen = mergedGen.slice(-20);
 
           localStorage.setItem(GEN_KEY, JSON.stringify(mergedGen));
+          console.log('🔄 [合并] 生成结果 ' + local.length + '→' + mergedGen.length + '条（本地' + local.length + ' + 云端' + cloudGen.length + '）');
           pushGeneratedDocs(mergedGen).then(ok => {
             if (ok) console.log('☁️ 生成结果已自动推送云端（合并）' + mergedGen.length + ' 条');
           }).catch(() => {});
@@ -657,6 +672,7 @@ onMounted(async () => {
           if (mergedHist.length > 50) mergedHist = mergedHist.slice(-50);
 
           await storage.setItem('docHistory', mergedHist).catch(() => {});
+          console.log('🔄 [合并] 历史记录 ' + localHist.length + '→' + mergedHist.length + '条（本地' + localHist.length + ' + 云端' + cloudHist.length + '）');
           pushDocHistory(mergedHist).then(ok => {
             if (ok) console.log('☁️ 历史记录已自动推送云端（合并）' + mergedHist.length + ' 条');
           }).catch(() => {});
@@ -670,6 +686,7 @@ onMounted(async () => {
             const localTextbooks = await storage.getItem('textbooks');
             if (!localTextbooks || localTextbooks.length === 0 || unilateralData.textbooks.length >= localTextbooks.length) {
               await storage.setItem('textbooks', unilateralData.textbooks).catch(() => {});
+              console.log('🔄 [写入] 教材 ' + unilateralData.textbooks.length + '本 ✅');
               try {
                 const { useTextbookStore } = await import('@/stores/textbookStore');
                 await useTextbookStore().loadTextbooks();
@@ -683,6 +700,7 @@ onMounted(async () => {
             if (localCount === 0 || unilateralData.instructions.length >= localCount) {
               localStorage.setItem('instructionLib', JSON.stringify(unilateralData.instructions));
               localStorage.setItem('instructionLib_version', '12');
+              console.log('🔄 [写入] 指令库 ' + unilateralData.instructions.length + '条 ✅');
               try {
                 const { useInstructionStore } = await import('@/stores/instructionStore');
                 useInstructionStore().reload();
@@ -693,6 +711,7 @@ onMounted(async () => {
             const localTemplates = await storage.getItem('templates');
             if (!localTemplates || localTemplates.length === 0 || unilateralData.templates.length >= localTemplates.length) {
               await storage.setItem('templates', unilateralData.templates).catch(() => {});
+              console.log('🔄 [写入] 模板 ' + unilateralData.templates.length + '个 ✅');
               try {
                 const { useTemplateStore } = await import('@/stores/templateStore');
                 await useTemplateStore().loadTemplates();
@@ -704,6 +723,7 @@ onMounted(async () => {
           if (unilateralData.activationInfo) {
             localStorage.setItem('activationInfo', JSON.stringify(unilateralData.activationInfo));
             try { await storage.setItem('activationInfo', unilateralData.activationInfo); } catch {}
+            console.log('🔄 [写入] 激活信息 ✅');
             if (isWebMode.value) {
               licenseInfo.value = { ...unilateralData.activationInfo, isActive: true };
               activationStatus.value = 'active';
@@ -718,6 +738,7 @@ onMounted(async () => {
         console.error('🔄 同步异常', e);
         showToastMessage('❌ 同步失败，请检查网络后重试', 'warning');
       } finally {
+        clearTimeout(_syncSlowTimer);
         _syncInProgress = false;
       }
     };
@@ -795,9 +816,10 @@ onMounted(async () => {
           const localHistory = await storage.getItem('docHistory') || [];
           if (localHistory.length > 0) {
             await pushDocHistory(localHistory);
+            console.log('📤 [历史] ' + localHistory.length + '条 ✅');
             results.push('历史' + localHistory.length + '条');
           }
-        } catch {}
+        } catch { console.warn('📤 [历史] ❌ 失败'); }
         // 双向数据：生成结果
         try {
           const localGenRaw = localStorage.getItem('wisdom_generated_docs');
@@ -805,36 +827,40 @@ onMounted(async () => {
             const localGen = JSON.parse(localGenRaw);
             if (localGen && localGen.length > 0) {
               await pushGeneratedDocs(localGen);
+              console.log('📤 [生成] ' + localGen.length + '条 ✅');
               results.push('生成' + localGen.length + '条');
             }
           }
-        } catch {}
+        } catch { console.warn('📤 [生成] ❌ 失败'); }
         // 单向数据：仅桌面端推送（教材/模板/指令/设置/激活 → 手机端只拉不推）
         if (!isWebMode.value) {
           try {
             const localTextbooks = await storage.getItem('textbooks');
             if (localTextbooks && localTextbooks.length > 0) {
               await uploadTextbooks(localTextbooks);
+              console.log('📤 [教材] ' + localTextbooks.length + '本 ✅');
               results.push('教材');
             }
-          } catch {}
+          } catch { console.warn('📤 [教材] ❌ 失败'); }
           try {
             const localTemplates = await storage.getItem('templates');
             if (localTemplates && localTemplates.length > 0) {
               await uploadTemplates(localTemplates);
+              console.log('📤 [模板] ' + localTemplates.length + '个 ✅');
               results.push('模板');
             }
-          } catch {}
+          } catch { console.warn('📤 [模板] ❌ 失败'); }
           try {
             const rawIns = localStorage.getItem('instructionLib');
             if (rawIns) {
               const parsed = JSON.parse(rawIns);
               if (parsed && parsed.length > 0) {
                 await uploadInstructions(parsed);
+                console.log('📤 [指令] ' + parsed.length + '条 ✅');
                 results.push('指令库');
               }
             }
-          } catch {}
+          } catch { console.warn('📤 [指令] ❌ 失败'); }
           try {
             // 📤 上推完整 apiConfig（不仅是 DeepSeek 字段）
             const rawCfg = localStorage.getItem('apiConfig');
@@ -842,6 +868,7 @@ onMounted(async () => {
               const allCfg = JSON.parse(rawCfg);
               if (Object.keys(allCfg).length > 0) {
                 await uploadSettings(allCfg);
+                console.log('📤 [设置] ' + Object.keys(allCfg).length + '项 ✅');
                 results.push('设置');
               }
             } else {
@@ -849,10 +876,11 @@ onMounted(async () => {
               const memCfg = { ...apiConfig };
               if (Object.keys(memCfg).length > 0) {
                 await uploadSettings(memCfg);
+                console.log('📤 [设置] ' + Object.keys(memCfg).length + '项(内存) ✅');
                 results.push('设置(内存)');
               }
             }
-          } catch {}
+          } catch { console.warn('📤 [设置] ❌ 失败'); }
           try {
             const rawAct = localStorage.getItem('activationInfo');
             if (rawAct) {
@@ -860,10 +888,11 @@ onMounted(async () => {
               if (act && act.version && act.version !== 'basic') {
                 const { _sign, ...clean } = act;
                 await uploadActivationInfo(clean);
+                console.log('📤 [激活] ✅');
                 results.push('激活');
               }
             }
-          } catch {}
+          } catch { console.warn('📤 [激活] ❌ 失败'); }
         }
         if (results.length > 0) {
           console.log('📤 上推完成:', results.join('、'));

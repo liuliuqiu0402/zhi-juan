@@ -15,7 +15,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 let _client: SupabaseClient | null = null;
 
 // 🔧 自定义 fetch：15 秒超时，避免 Supabase 冷启动时无限等待
-const fetchWithTimeout = (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 15000): Promise<Response> => {
+const fetchWithTimeout = (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 60000): Promise<Response> => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
@@ -538,6 +538,145 @@ export async function pushToCloud(data: {
 /** 检查云端是否已配置 */
 export function isCloudConfigured(): boolean {
   return !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+}
+
+// ══════════════════════════════════════════════════════════════
+// 🔍 云端探测：启动时后台暖机 + 数据摘要
+// ══════════════════════════════════════════════════════════════
+
+/** 获取当前设备的人类可辨识标签（平台+简短ID） */
+export function getDeviceLabel(): string {
+  const did = getDeviceId();
+  const shortId = did.slice(0, 4);
+  try {
+    if (typeof window !== 'undefined' && (window as any).electronAPI) return '🖥️ 电脑·' + shortId;
+    const ua = navigator.userAgent || '';
+    if (/电容|Capacitor/i.test(ua)) {
+      if (/iPhone|iPad/i.test(ua)) return '📱 iPhone·' + shortId;
+      if (/Android/i.test(ua)) return '📱 安卓·' + shortId;
+    }
+    if (/Mobile|Android|iPhone/i.test(ua)) return '📱 手机·' + shortId;
+    return '💻 网页·' + shortId;
+  } catch { return '设备·' + shortId; }
+}
+
+/** 根据设备 UUID 列表生成稳定标签（按字母序分配 A/B/C…，附带短ID） */
+function buildDeviceLabels(allIds: string[], selfId: string): Map<string, string> {
+  const others = [...new Set(allIds.filter(id => id && id !== selfId && id !== '?'))].sort();
+  const map = new Map<string, string>();
+  map.set(selfId, '本机');
+  others.forEach((id, i) => map.set(id, '设备-' + String.fromCharCode(65 + i) + '·' + id.slice(0, 4)));
+  return map;
+}
+
+/** 启动时探测云端状态，暖机后输出数据摘要，用户据此决定何时同步 */
+export async function probeCloud(): Promise<void> {
+  const client = getClient();
+  if (!client || noSyncKey()) return;
+
+  const t0 = performance.now();
+  console.log('⏳ 正在连接云端…');
+
+  // ① 暖机 ping：任意轻量查询触发冷启动
+  try {
+    await client.from('user_settings').select('id').limit(1);
+  } catch (e) {
+    console.warn('⚠️ 云端连接失败:', (e as Error)?.message || e);
+    return;
+  }
+
+  const warmupS = ((performance.now() - t0) / 1000).toFixed(1);
+  const warmupLabel = Number(warmupS) > 30 ? '冷启动 ' + warmupS + 's' : warmupS + 's';
+  console.log('✅ 云端已就绪（耗时 ' + warmupLabel + '）');
+
+  // ② 拉取数据摘要（并行查询 5 张表）
+  const syncKey = getSyncKey() || '';
+  const selfId = getDeviceId();
+  const parts: string[] = [];
+
+  try {
+    const [textbookRow, templateRow, settingsRows, histRows, genRows] = await Promise.all([
+      client.from('textbooks').select('data').eq('id', syncKey).single(),
+      client.from('templates').select('data').eq('id', syncKey).single(),
+      client.from('user_settings').select('id, data').like('id', syncKey + ':%'),
+      client.from('doc_history').select('id, data').like('id', syncKey + ':%'),
+      client.from('generated_docs').select('id, data').like('id', syncKey + ':%'),
+    ]);
+
+    // 教材
+    const tbData = textbookRow?.data?.data;
+    parts.push('教材' + (Array.isArray(tbData) && tbData.length > 0 ? '✓' : '-'));
+
+    // 模板
+    const tpData = templateRow?.data?.data;
+    parts.push('模板' + (Array.isArray(tpData) && tpData.length > 0 ? '✓' : '-'));
+
+    // 设置 / 激活 / 指令（从 user_settings 分流）
+    let hasSettings = false, hasActivation = false, hasInstructions = false;
+    if (!settingsRows.error && settingsRows.data) {
+      for (const row of settingsRows.data as { id: string; data: unknown }[]) {
+        const suffix = row.id?.replace(syncKey + ':', '');
+        if (suffix === 'settings') hasSettings = true;
+        else if (suffix === 'activation') hasActivation = true;
+        else if (suffix === 'instructions') hasInstructions = true;
+      }
+    }
+    parts.push('设置' + (hasSettings ? '✓' : '-'));
+    parts.push('激活' + (hasActivation ? '✓' : '-'));
+    parts.push('指令' + (hasInstructions ? '✓' : '-'));
+
+    // 历史记录（多设备）
+    const histDevices: string[] = [];
+    let histTotal = 0;
+    const histIds: string[] = [];
+    if (!histRows.error && histRows.data) {
+      for (const row of histRows.data as { id: string; data: unknown }[]) {
+        const did = row.id?.replace(syncKey + ':', '') || '?';
+        const items = (row as any)?.data;
+        const count = Array.isArray(items) ? items.length : 0;
+        histTotal += count;
+        if (count > 0) histIds.push(did);
+      }
+    }
+
+    // 生成结果（多设备）
+    const genDevices: string[] = [];
+    let genTotal = 0;
+    const genIds: string[] = [];
+    if (!genRows.error && genRows.data) {
+      for (const row of genRows.data as { id: string; data: unknown }[]) {
+        const did = row.id?.replace(syncKey + ':', '') || '?';
+        const items = (row as any)?.data;
+        const count = Array.isArray(items) ? items.length : 0;
+        genTotal += count;
+        if (count > 0) genIds.push(did);
+      }
+    }
+
+    // 🏷️ 统一生成设备标签（按 UUID 字母序分配 A/B/C…）
+    const allDevIds = [...histIds, ...genIds];
+    const deviceLabels = buildDeviceLabels(allDevIds, selfId);
+
+    // 回填标签 + 组装输出
+    for (const did of histIds) {
+      const label = deviceLabels.get(did) || '设备-?';
+      const row = (histRows.data as { id: string; data: unknown }[]).find(r => (r.id?.replace(syncKey + ':', '') || '?') === did);
+      const count = Array.isArray((row as any)?.data) ? (row as any).data.length : 0;
+      histDevices.push(label + '(' + count + '条)');
+    }
+    for (const did of genIds) {
+      const label = deviceLabels.get(did) || '设备-?';
+      const row = (genRows.data as { id: string; data: unknown }[]).find(r => (r.id?.replace(syncKey + ':', '') || '?') === did);
+      const count = Array.isArray((row as any)?.data) ? (row as any).data.length : 0;
+      genDevices.push(label + '(' + count + '条)');
+    }
+    parts.push('历史' + histTotal + '条' + (histDevices.length > 0 ? '[' + histDevices.join(' ') + ']' : ''));
+    parts.push('生成' + genTotal + '条' + (genDevices.length > 0 ? '[' + genDevices.join(' ') + ']' : ''));
+
+    console.log('☁️ 云端数据：' + parts.join(' | '));
+  } catch (e) {
+    console.warn('⚠️ 云端数据摘要获取失败:', (e as Error)?.message || e);
+  }
 }
 
 // ── 保留旧导出名兼容（后续逐步迁移） ──

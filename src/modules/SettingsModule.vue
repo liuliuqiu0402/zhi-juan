@@ -44,6 +44,22 @@
         />
       </div>
 
+      <!-- 🔧 本设备标识 -->
+      <div class="settings-section">
+        <h3>🔧 本设备标识</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:8px;">
+          云端日志中的「本机」即此设备。其他设备显示为「设备-A」「设备-B」，可对照各自的设置页确认。
+        </p>
+        <div class="info-row">
+          <span>设备标签：</span>
+          <span class="info-value" style="font-family: monospace;">{{ deviceInfo.label }}</span>
+        </div>
+        <div class="info-row">
+          <span>设备ID：</span>
+          <span class="info-value" style="font-family: monospace; font-size: 11px;">{{ deviceInfo.shortId }}</span>
+        </div>
+      </div>
+
       <!-- 📱 iOS 签名倒计时（仅手机端显示） -->
       <div class="settings-section" v-if="isCapacitorIOS">
         <h3>📱 签名倒计时</h3>
@@ -357,7 +373,7 @@ import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
 import useLogger, { copyLogs } from '@/composables/useLogger.js';
 import { apiConfig, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
-import { uploadSettings, getSyncKey, setSyncKey } from '@/utils/cloudStorage';
+import { uploadSettings, getSyncKey, setSyncKey, getDeviceLabel, getDeviceId } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
 
 const { showAlertDialogFn } = useDialog();
@@ -457,6 +473,12 @@ const onSyncKeyChange = () => {
     console.log('🔑 同步密钥已更新:', trimmed);
   }
 };
+
+// 🔧 设备信息
+const deviceInfo = ref({
+  label: getDeviceLabel(),
+  shortId: getDeviceId().slice(0, 8),
+});
 
 // 📱 签名倒计时
 const signInfo = ref(getSignCountdown());
