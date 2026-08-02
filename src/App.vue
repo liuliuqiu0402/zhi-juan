@@ -582,6 +582,7 @@ onMounted(async () => {
     const _handleAppRefresh = async () => {
       if (_syncInProgress) { console.log('🔄 同步进行中，跳过重复请求'); return; }
       _syncInProgress = true;
+      showToastMessage('☁️ 同步中…', 'info');
       try {
         console.log('🔄 开始同步…');
         const isMobile = isWebMode.value;
