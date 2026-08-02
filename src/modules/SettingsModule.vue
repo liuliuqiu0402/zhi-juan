@@ -367,7 +367,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { Capacitor } from '@capacitor/core';
 import { useActivation } from '@/composables/useActivation.js';
 import { useDialog } from '@/composables/useDialog.js';
@@ -789,6 +789,13 @@ onMounted(async () => {
     } catch { /* 发现失败用兜底列表 */ }
   }
   // 引擎设置不同步——各设备独立配置，用户手动管理
+});
+
+// 🔧 同步后 apiConfig 变化时，实时更新设置页 UI（否则同步切了 DeepSeek，设置页仍显示 Ollama）
+watch(() => apiConfig.currentEngine, (newVal) => {
+  if (settings.value.currentEngine !== newVal) {
+    settings.value.currentEngine = newVal;
+  }
 });
 
 onUnmounted(() => {

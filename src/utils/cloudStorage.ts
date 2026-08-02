@@ -931,7 +931,10 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
   const namedEntries = [...devMap.entries()].filter(([did]) => {
     if (did === selfId) return true; // 本机始终显示
     const label = deviceLabels.get(did) || '';
-    return label && !uuidRe.test(label) && label !== did.slice(0, 8);
+    // 过滤：空标签 / 标签本身是裸UUID / 标签是UUID截断的兜底（无名设备）
+    if (!label || uuidRe.test(label)) return false;
+    if (uuidRe.test(did) && label === did.slice(0, 8)) return false; // 仅UUID设备才用截断判断
+    return true;
   });
 
   if (namedEntries.length === 0) {
