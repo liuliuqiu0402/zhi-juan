@@ -184,7 +184,7 @@ import { useMobile } from '@/composables/useMobile.js';
 import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
-import { pullFromCloud, isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey, probeCloud } from '@/utils/cloudStorage';
+import { pullFromCloud, isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey, probeCloud, cleanupStaleDeviceRows, uploadDeviceName } from '@/utils/cloudStorage';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
 import { apiConfig, getCurrentEngineConfig, loadConfigSync } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
@@ -600,15 +600,16 @@ onMounted(async () => {
       }
     }
 
-    // 🔍 后台探测云端：暖机 + 数据摘要（用户看到日志后可决定何时同步）
-    probeCloud();
+    // 🔍 后台探测云端：暖机 + 数据摘要（延迟 3s 让 GenerateModule auto-push 先完成，
+    //    避免 probe 在 push 之前执行导致显示"生成0条"的过时快照）
+    setTimeout(() => probeCloud(), 3000);
 
     // 🔄 同步按钮处理器（app-refresh 事件，来自 AppHeader ☁️ 按钮 / 手机端下拉刷新）
     let _syncInProgress = false;
     const _handleAppRefresh = async () => {
       if (_syncInProgress) { console.log('🔄 同步进行中，跳过重复请求'); return; }
       _syncInProgress = true;
-      showToastMessage('☁️ 同步中…（首次冷启动约需1-2分钟）', 'info');
+      showToastMessage('☁️ 同步中…', 'info');
       // ⏳ 30 秒后仍未完成则追加提醒
       let _syncSlowTimer = setTimeout(() => {
         showToastMessage('⏳ 云端仍在响应中，请继续等待…', 'info');
@@ -760,6 +761,8 @@ onMounted(async () => {
         // ⑤ 通知子组件重新加载
         window.dispatchEvent(new CustomEvent('data-sync-complete'));
         showToastMessage('✅ 同步完成 | 生成结果: ' + mergedGen.length + ' 条 | 历史: ' + mergedHist.length + ' 条', 'info');
+        // 🔧 同步后刷新云端数据摘要，确认最新状态
+        probeCloud().catch(() => {});
       } catch (e) {
         console.error('🔄 同步异常', e);
         showToastMessage('❌ 同步失败，请检查网络后重试', 'warning');
@@ -922,8 +925,15 @@ onMounted(async () => {
         }
         if (results.length > 0) {
           console.log('📤 上推完成:', results.join('、'));
+          // 🧹 清理重装残留：删除数据已被当前设备完全覆盖的旧设备行
+          cleanupStaleDeviceRows().then(n => {
+            if (n > 0) console.log('🧹 残留清理完成，移除 ' + n + ' 台');
+          }).catch(() => {});
+          // 🏷️ 同步设备名到云端（供 probe 显示真实名称 + cleanup 同名检测）
+          uploadDeviceName().catch(() => {});
           showToastMessage('📤 已上推 ' + results.join('、'), 'info');
-          probeCloud(); // 上推后刷新云端数据视图
+          // 🔧 等待 probe 完成再返回，确保云端数据摘要完整输出
+          await probeCloud();
         } else {
           showToastMessage('📤 无数据需上推', 'info');
         }

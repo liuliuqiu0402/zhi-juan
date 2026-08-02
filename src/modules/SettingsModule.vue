@@ -32,7 +32,7 @@
       <div class="settings-section">
         <h3>🔑 同步密钥</h3>
         <p style="font-size:12px;color:#666;margin-bottom:8px;">
-          同一同步密钥的设备共享数据。桌面端首次启动自动生成，手机端需手动输入桌面端的密钥。
+          多设备间共享数据的唯一凭证。请在各设备上输入相同的密钥。留空则不同步。
         </p>
         <input
           type="text"
@@ -48,15 +48,18 @@
       <div class="settings-section">
         <h3>🔧 本设备标识</h3>
         <p style="font-size:12px;color:#666;margin-bottom:8px;">
-          云端日志中的「本机」即此设备。其他设备显示为「设备-A」「设备-B」，可对照各自的设置页确认。
+          设备名即云端标识。重装后输入同名即可自动恢复数据，不同设备请用不同名称。
         </p>
         <div class="info-row">
-          <span>设备标签：</span>
-          <span class="info-value" style="font-family: monospace;">{{ deviceInfo.label }}</span>
-        </div>
-        <div class="info-row">
-          <span>设备ID：</span>
-          <span class="info-value" style="font-family: monospace; font-size: 11px;">{{ deviceInfo.shortId }}</span>
+          <span>设备名称：</span>
+          <input
+            v-model="deviceNameInput"
+            @blur="onDeviceNameChange"
+            @keyup.enter="onDeviceNameEnter"
+            class="device-name-input"
+            placeholder="输入设备名称"
+            maxlength="30"
+          />
         </div>
       </div>
 
@@ -373,7 +376,7 @@ import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
 import useLogger, { copyLogs } from '@/composables/useLogger.js';
 import { apiConfig, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
-import { uploadSettings, getSyncKey, setSyncKey, getDeviceLabel, getDeviceId, probeCloud } from '@/utils/cloudStorage';
+import { uploadSettings, getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
 
 const { showAlertDialogFn } = useDialog();
@@ -476,11 +479,23 @@ const onSyncKeyChange = () => {
   }
 };
 
-// 🔧 设备信息
-const deviceInfo = ref({
-  label: getDeviceLabel(),
-  shortId: getDeviceId().slice(0, 8),
-});
+// 🔧 设备名称（可编辑，即设备标识，重装后输入同名可恢复数据）
+const deviceName = ref(getDeviceName());
+const deviceNameInput = ref(deviceName.value);
+
+const onDeviceNameChange = () => {
+  const trimmed = deviceNameInput.value.trim();
+  if (trimmed && trimmed !== deviceName.value) {
+    setDeviceName(trimmed);
+    deviceName.value = trimmed;
+    console.log('🏷️ 设备名已更新:', trimmed);
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '✅ 设备名已更新，下次上推时生效', type: 'info' } }));
+  }
+};
+
+const onDeviceNameEnter = (e) => {
+  e.target.blur();
+};
 
 // 📱 签名倒计时
 const signInfo = ref(getSignCountdown());
@@ -854,6 +869,23 @@ onUnmounted(() => {
 .info-value {
   font-weight: 500;
   color: var(--primary);
+}
+
+.device-name-input {
+  flex: 1;
+  max-width: 260px;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #333;
+  background: #fafafa;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.device-name-input:focus {
+  border-color: var(--primary);
+  background: #fff;
 }
 
 .model-hint {

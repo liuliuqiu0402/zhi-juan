@@ -14,7 +14,9 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 let _client: SupabaseClient | null = null;
 
-// 🔧 自定义 fetch：60s 超时 + 网络错误自动重试（QUIC 协议错误等瞬时故障最多重试 3 次，指数退避）
+// 🔧 自定义 fetch：120s 超时（Supabase 免费版冷启动可达 30-120s）+
+//    网络错误自动重试（QUIC 协议错误等瞬时故障最多重试 3 次，指数退避）
+const FETCH_TIMEOUT = 120000; // 120s
 const fetchWithRetry = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   const maxRetries = 3;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -23,8 +25,8 @@ const fetchWithRetry = async (input: RequestInfo | URL, init?: RequestInit): Pro
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => {
           controller.abort();
-          reject(new DOMException('Timeout after 60s', 'TimeoutError'));
-        }, 60000)
+          reject(new DOMException('Timeout after ' + (FETCH_TIMEOUT / 1000) + 's', 'TimeoutError'));
+        }, FETCH_TIMEOUT)
       );
       const resp = await Promise.race([
         fetch(input, { ...init, signal: controller.signal }),
@@ -32,10 +34,11 @@ const fetchWithRetry = async (input: RequestInfo | URL, init?: RequestInit): Pro
       ]);
       return resp;
     } catch (e: any) {
-      // 判断是否值得重试的网络错误（QUIC、DNS、连接重置等瞬时故障）
+      // 判断是否值得重试的网络错误（含 AbortError——Controller.abort() 触发的超时终止）
       const isNetErr = e?.name === 'TypeError' ||
                        e?.name === 'TimeoutError' ||
-                       /fetch failed|QUIC|network|ETIMEDOUT|ECONNRESET/i.test(e?.message || '');
+                       e?.name === 'AbortError' ||
+                       /fetch failed|QUIC|network|ETIMEDOUT|ECONNRESET|abort/i.test(e?.message || '');
       if (attempt < maxRetries && isNetErr) {
         const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
         console.warn('⚠️ 网络瞬时故障，' + (delay / 1000).toFixed(0) + 's 后重试 (' + (attempt + 1) + '/' + maxRetries + ')');
@@ -85,23 +88,68 @@ export function hasSyncKey(): boolean {
   return !!getSyncKey();
 }
 
-// ── device_id 管理 ──
+// ── device_name 管理（设备名即设备ID，不再用随机UUID）──
 
-const DEVICE_ID_KEY = 'wisdom_device_id';
+const DEVICE_NAME_KEY = 'wisdom_device_name';
 
-/** 获取当前设备唯一标识（首次自动生成 UUID，永不改变） */
-export function getDeviceId(): string {
+/** 自动检测设备名（兜底用，用户可在设置页改名） */
+function detectDeviceName(): string {
   try {
-    let did = localStorage.getItem(DEVICE_ID_KEY);
-    if (!did) {
-      did = crypto.randomUUID();
-      localStorage.setItem(DEVICE_ID_KEY, did);
-      console.log('🆔 已生成设备标识:', did.slice(0, 8));
+    if (typeof window !== 'undefined' && (window as any).electronAPI) return '🖥️ 电脑';
+    const ua = navigator.userAgent || '';
+    if (/电容|Capacitor/i.test(ua)) {
+      if (/iPhone|iPad/i.test(ua)) return '📱 iPhone';
+      if (/Android/i.test(ua)) return '📱 安卓手机';
     }
-    return did;
-  } catch {
-    return 'fallback_' + Math.random().toString(36).slice(2, 10);
-  }
+    if (/Mobile|Android|iPhone/i.test(ua)) return '📱 手机浏览器';
+    return '💻 电脑浏览器';
+  } catch { return '设备'; }
+}
+
+/** 获取当前设备名称（即设备标识，重装后输同名可恢复） */
+export function getDeviceName(): string {
+  try {
+    const stored = localStorage.getItem(DEVICE_NAME_KEY);
+    if (stored) return stored;
+  } catch {}
+  const name = detectDeviceName();
+  try { localStorage.setItem(DEVICE_NAME_KEY, name); } catch {}
+  return name;
+}
+
+/** 用户自定义设备名称（修改后下次上推生效，同名设备按时间合并） */
+export function setDeviceName(name: string): void {
+  try {
+    const old = localStorage.getItem(DEVICE_NAME_KEY);
+    localStorage.setItem(DEVICE_NAME_KEY, name);
+    if (old && old !== name) {
+      console.log('🏷️ 设备名已更改: ' + old + ' → ' + name + '（下次上推时新名称生效）');
+    }
+  } catch {}
+}
+
+// ── device_id 管理（设备名即ID，不再用随机UUID）──
+
+/** 获取当前设备唯一标识（= 设备名称，重装后同名可自动恢复数据） */
+export function getDeviceId(): string {
+  return getDeviceName();
+}
+
+/** @deprecated 迁移用：检测是否存在旧版随机UUID，若有则返回 */
+export function getLegacyDeviceId(): string | null {
+  try {
+    const legacy = localStorage.getItem('wisdom_device_id_legacy');
+    if (legacy) return legacy;
+    // 首次升级：检查旧 key 是否存在
+    const old = localStorage.getItem('wisdom_device_id');
+    if (old && old !== getDeviceName()) {
+      // 这是旧版随机UUID，保存到 legacy key，后续 cleanup 处理
+      localStorage.setItem('wisdom_device_id_legacy', old);
+      localStorage.removeItem('wisdom_device_id');
+      return old;
+    }
+  } catch {}
+  return null;
 }
 
 // ── 工具 ──
@@ -279,27 +327,23 @@ export async function pullGeneratedDocs(): Promise<unknown[] | null> {
 
   const allRows: unknown[] = [];
 
-  try {
-    // ① 新表 generated_docs（v6+）
-    const { data: newRows, error: newErr } = await client
-      .from('generated_docs')
-      .select('data')
-      .like('id', getSyncKey() + ':%');
-    if (!newErr && newRows) allRows.push(...(newRows as unknown[]));
-  } catch { /* 表可能还未创建，忽略 */ }
+  // 🔧 新旧表并行查询（之前串行导致冷启动时 60s+60s=120s 超时）
+  const safeQuery = async (fn: () => any) => { try { const r = await fn(); return [r, null]; } catch (e) { return [null, e]; } };
 
-  try {
-    // ② 旧 user_settings 兼容（v5 及之前，generated_docs:* 行）
-    const { data: oldRows, error: oldErr } = await client
-      .from('user_settings')
-      .select('id, data')
-      .like('id', getSyncKey() + ':generated_docs:%');
-    if (!oldErr && oldRows) {
-      for (const row of (oldRows as { id: string; data: unknown }[])) {
-        allRows.push(row.data);
-      }
+  const [[newRows, newErr], [oldRows, oldErr]] = await Promise.all([
+    safeQuery(() => client.from('generated_docs').select('data').like('id', getSyncKey() + ':%')),
+    safeQuery(() => client.from('user_settings').select('id, data').like('id', getSyncKey() + ':generated_docs:%')),
+  ]);
+
+  // ① 新表 generated_docs（v6+）
+  if (!newErr && newRows) allRows.push(...(newRows as unknown[]));
+
+  // ② 旧 user_settings 兼容（v5 及之前，generated_docs:* 行）
+  if (!oldErr && oldRows) {
+    for (const row of (oldRows as { id: string; data: unknown }[])) {
+      allRows.push(row.data);
     }
-  } catch { /* 兼容读取失败，忽略 */ }
+  }
 
   const merged = mergeDeviceData(allRows, 20);
   console.log('☁️ pull_generated_docs:', merged.length, '条（新表' +
@@ -499,6 +543,36 @@ export function downloadInstructions(): Promise<unknown[] | null> {
   return fetchUserSetting('instructions') as Promise<unknown[] | null>;
 }
 
+/** 上传设备名到云端（供 probe 显示，设备名即ID无需额外映射） */
+export async function uploadDeviceName(): Promise<void> {
+  // 设备名即行键，不需要单独的 dname: 行存储
+  // 保留此函数兼容旧调用，实际无需操作
+}
+
+/** 下载所有设备名，返回 device_id → 名称 的映射
+ *  新版：device_id 即设备名，直接从行键提取
+ *  旧版兼容：读取 dname:* 行获取旧UUID对应的设备名 */
+export async function downloadDeviceNames(): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (noSyncKey()) return map;
+  const client = getClient();
+  if (!client) return map;
+  try {
+    // 读取旧版 dname:* 行（兼容升级前数据）
+    const { data: rows } = await client
+      .from('user_settings')
+      .select('id, data')
+      .like('id', getSyncKey() + ':dname:%');
+    if (rows) {
+      for (const row of rows as { id: string; data: any }[]) {
+        const did = row.id?.replace(getSyncKey() + ':dname:', '');
+        if (did && row.data?.name) map.set(did, row.data.name);
+      }
+    }
+  } catch { /* ignore */ }
+  return map;
+}
+
 // ══════════════════════════════════════════════════════════════
 // 一键同步
 // ══════════════════════════════════════════════════════════════
@@ -520,6 +594,17 @@ export async function pullFromCloud(): Promise<{
     const t = ((performance.now() - t0) / 1000).toFixed(2);
     timings.push(label + t + 's');
   };
+
+  // 🔧 暖机：先用轻量查询唤醒 Supabase 数据库（免费版冷启动可达 30-120s），
+  //    暖机完成后再并行拉取，避免所有查询同时撞上冷启动全部超时
+  const client = getClient();
+  if (client && !noSyncKey()) {
+    try {
+      await client.from('user_settings').select('id').limit(1);
+      mark('暖机');
+    } catch { /* 暖机失败不阻塞，后续拉取各自容错 */ }
+  }
+
   // v6：5 路并行直查（generated_docs 独立建表）
   const [textbooks, docHistory, generatedDocs, allSettings, templates] = await Promise.all([
     downloadTextbooks().then(r => { mark('教材'); return r; }),
@@ -568,31 +653,134 @@ export function isCloudConfigured(): boolean {
 }
 
 // ══════════════════════════════════════════════════════════════
+// 🧹 清理残留设备行（重装产生的旧 device_id 行，数据已合并至当前设备）
+// ══════════════════════════════════════════════════════════════
+
+/** 同名设备按时间保留最新、删除较早的（重装残留 / 旧版UUID迁移） */
+export async function cleanupStaleDeviceRows(): Promise<number> {
+  if (noSyncKey()) return 0;
+  const client = getClient();
+  if (!client) return 0;
+
+  const syncKey = getSyncKey();
+  const selfId = getDeviceId();
+  let deleted = 0;
+
+  // ① 拉取云端设备名映射（兼容旧版UUID→名称）
+  const deviceNameMap = await downloadDeviceNames();
+  // 新版：设备名即ID，无需额外映射
+  deviceNameMap.set(selfId, getDeviceName());
+
+  // ② 查询某表的所有设备行
+  const getDeviceInfo = async (table: string): Promise<Map<string, { count: number; updatedAt: number }>> => {
+    const map = new Map<string, { count: number; updatedAt: number }>();
+    try {
+      const { data: rows } = await client!
+        .from(table)
+        .select('id, data, updated_at')
+        .like('id', syncKey + ':%');
+      if (rows) {
+        for (const row of rows as { id: string; data: unknown; updated_at: string }[]) {
+          const did = row.id?.replace(syncKey + ':', '');
+          if (!did) continue;
+          const existing = map.get(did) || { count: 0, updatedAt: 0 };
+          map.set(did, {
+            count: existing.count + (Array.isArray(row.data) ? row.data.length : 0),
+            updatedAt: Math.max(existing.updatedAt, new Date(row.updated_at).getTime() || 0),
+          });
+        }
+      }
+    } catch { /* ignore */ }
+    return map;
+  };
+
+  const [histInfo, genInfo] = await Promise.all([
+    getDeviceInfo('doc_history'),
+    getDeviceInfo('generated_docs'),
+  ]);
+
+  // ③ 收集所有出现过 device_id 的行
+  const allIds = new Set<string>();
+  for (const id of histInfo.keys()) allIds.add(id);
+  for (const id of genInfo.keys()) allIds.add(id);
+
+  // ④ 按设备名分组（新版：ID即名称；旧版UUID：从云端映射获取名称）
+  const nameGroups = new Map<string, string[]>();
+  for (const id of allIds) {
+    const name = deviceNameMap.get(id) || id; // 新版直接用ID；旧版UUID从映射取
+    if (!nameGroups.has(name)) nameGroups.set(name, []);
+    nameGroups.get(name)!.push(id);
+  }
+
+  // ⑤ 同名多设备 → 按 updated_at 降序，保留最新的，删除较早的
+  for (const [name, ids] of nameGroups) {
+    if (ids.length <= 1) continue;
+
+    ids.sort((a, b) => {
+      if (a === selfId) return -1;
+      if (b === selfId) return 1;
+      const aTime = Math.max(histInfo.get(a)?.updatedAt || 0, genInfo.get(a)?.updatedAt || 0);
+      const bTime = Math.max(histInfo.get(b)?.updatedAt || 0, genInfo.get(b)?.updatedAt || 0);
+      return bTime - aTime;
+    });
+    const keep = ids[0];
+
+    for (const id of ids.slice(1)) {
+      for (const table of ['doc_history', 'generated_docs']) {
+        try {
+          await client!.from(table).delete().eq('id', syncKey + ':' + id);
+        } catch { /* ignore */ }
+      }
+      deleted++;
+    }
+
+    if (ids.length > 2) {
+      const keepLabel = keep === selfId ? '本机' : (deviceNameMap.get(keep) || keep);
+      console.log('🧹 清理「' + name + '」的 ' + (ids.length - 1) + ' 个旧设备，保留 ' + keepLabel);
+    }
+  }
+
+  if (deleted > 0) console.log('🧹 已清理 ' + deleted + ' 台残留设备');
+
+  // ⑥ 清理废弃的 user_settings 行：dname:*（名称映射已废弃） + generated_docs:*（v5格式已迁移）
+  try {
+    const [dnameRows, oldGenRows] = await Promise.all([
+      client.from('user_settings').select('id').like('id', syncKey + ':dname:%'),
+      client.from('user_settings').select('id').like('id', syncKey + ':generated_docs:%'),
+    ]);
+    const staleIds: string[] = [];
+    if (dnameRows?.data) staleIds.push(...(dnameRows.data as { id: string }[]).map(r => r.id));
+    if (oldGenRows?.data) staleIds.push(...(oldGenRows.data as { id: string }[]).map(r => r.id));
+    if (staleIds.length > 0) {
+      for (const id of staleIds) {
+        try { await client.from('user_settings').delete().eq('id', id); } catch {}
+      }
+      console.log('🧹 清理 ' + staleIds.length + ' 条废弃映射（dname:* / generated_docs:*）');
+    }
+  } catch { /* ignore */ }
+
+  return deleted;
+}
+
+// ══════════════════════════════════════════════════════════════
 // 🔍 云端探测：启动时后台暖机 + 数据摘要
 // ══════════════════════════════════════════════════════════════
 
-/** 获取当前设备的人类可辨识标签（平台+简短ID） */
+/** 获取当前设备的显示标签（= 设备名） */
 export function getDeviceLabel(): string {
-  const did = getDeviceId();
-  const shortId = did.slice(0, 4);
-  try {
-    if (typeof window !== 'undefined' && (window as any).electronAPI) return '🖥️ 电脑·' + shortId;
-    const ua = navigator.userAgent || '';
-    if (/电容|Capacitor/i.test(ua)) {
-      if (/iPhone|iPad/i.test(ua)) return '📱 iPhone·' + shortId;
-      if (/Android/i.test(ua)) return '📱 安卓·' + shortId;
-    }
-    if (/Mobile|Android|iPhone/i.test(ua)) return '📱 手机·' + shortId;
-    return '💻 网页·' + shortId;
-  } catch { return '设备·' + shortId; }
+  return getDeviceName();
 }
 
-/** 根据设备 UUID 列表生成稳定标签（按字母序分配 A/B/C…，附带短ID） */
-function buildDeviceLabels(allIds: string[], selfId: string): Map<string, string> {
-  const others = [...new Set(allIds.filter(id => id && id !== selfId && id !== '?'))].sort();
+/** 根据设备ID列表生成标签（新版：ID即名称，直接使用；旧版UUID：从云端设备名映射获取） */
+function buildDeviceLabels(allIds: string[], selfId: string, cloudNames: Map<string, string>): Map<string, string> {
   const map = new Map<string, string>();
   map.set(selfId, '本机');
-  others.forEach((id, i) => map.set(id, '设备-' + String.fromCharCode(65 + i) + '·' + id.slice(0, 4)));
+  const others = [...new Set(allIds.filter(id => id && id !== selfId && id !== '?'))].sort();
+  others.forEach((id) => {
+    // 优先用云端存储的名称（兼容旧UUID），其次直接用ID本身（新版设备名即ID）
+    const cloudName = cloudNames.get(id);
+    map.set(id, cloudName || id);
+  });
   return map;
 }
 
@@ -616,17 +804,25 @@ export async function probeCloud(): Promise<void> {
   const warmupLabel = Number(warmupS) > 30 ? '冷启动 ' + warmupS + 's' : warmupS + 's';
   console.log('✅ 云端已就绪（耗时 ' + warmupLabel + '）');
 
-  // ② 拉取数据摘要（5 路独立查询，各自容错，一个失败不影响其他）
+  // ② 拉取数据摘要（5 路并行查询，各自容错，一个失败不影响其他）
   const syncKey = getSyncKey() || '';
   const selfId = getDeviceId();
 
   const safeQuery = async (fn: () => any) => { try { const r = await fn(); return [r, null]; } catch (e) { return [null, e]; } };
 
-  const [textbookRow, tbErr] = await safeQuery(() => client.from('textbooks').select('data').eq('id', syncKey).single());
-  const [templateRow, tpErr] = await safeQuery(() => client.from('templates').select('data').eq('id', syncKey).single());
-  const [settingsRows, stErr] = await safeQuery(() => client.from('user_settings').select('id, data').like('id', syncKey + ':%'));
-  const [histRows, hiErr]    = await safeQuery(() => client.from('doc_history').select('id, data').like('id', syncKey + ':%'));
-  const [genRows, geErr]     = await safeQuery(() => client.from('generated_docs').select('id, data').like('id', syncKey + ':%'));
+  const [
+    [textbookRow, tbErr],
+    [templateRow, tpErr],
+    [settingsRows, stErr],
+    [histRows, hiErr],
+    [genRows, geErr],
+  ] = await Promise.all([
+    safeQuery(() => client.from('textbooks').select('data').eq('id', syncKey).single()),
+    safeQuery(() => client.from('templates').select('data').eq('id', syncKey).single()),
+    safeQuery(() => client.from('user_settings').select('id, data').like('id', syncKey + ':%')),
+    safeQuery(() => client.from('doc_history').select('id, data').like('id', syncKey + ':%')),
+    safeQuery(() => client.from('generated_docs').select('id, data').like('id', syncKey + ':%')),
+  ]);
 
   // ── 共享数据（全设备共用一份：教材/模板/设置/激活/指令）──
   const tbOk = !tbErr && textbookRow?.data?.data;
@@ -674,9 +870,10 @@ export async function probeCloud(): Promise<void> {
     }
   }
 
-  // 🏷️ 设备标签
+  // 🏷️ 设备标签（新版：设备名即ID；旧版UUID：从云端设备名映射获取）
   const allDevIds = [...devMap.keys()];
-  const deviceLabels = buildDeviceLabels(allDevIds, selfId);
+  const deviceNameMap = await downloadDeviceNames();
+  const deviceLabels = buildDeviceLabels(allDevIds, selfId, deviceNameMap);
 
   // ── 输出 ──
   // 共享数据行

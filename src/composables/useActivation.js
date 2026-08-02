@@ -74,14 +74,22 @@ export function useActivation() {
     return requiredVersions.includes(version);
   };
 
-  // 获取机器码
+  // 获取机器码（Electron: 硬件指纹，确定性；Web/手机: localStorage 持久化，不随机）
   const getMachineId = async () => {
     try {
       if (window.electronAPI?.getMachineId) {
         machineId.value = await window.electronAPI.getMachineId();
       } else {
-        // 降级方案
-        machineId.value = 'LOCAL-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+        // Web/手机端：持久化存储，首次生成后不再变化（重装后同名设备可保持一致）
+        const STORED_KEY = 'wisdom_machine_id';
+        let stored = null;
+        try { stored = localStorage.getItem(STORED_KEY); } catch {}
+        if (stored) {
+          machineId.value = stored;
+        } else {
+          machineId.value = 'WEB-' + crypto.randomUUID().substring(0, 8).toUpperCase();
+          try { localStorage.setItem(STORED_KEY, machineId.value); } catch {}
+        }
       }
     } catch (e) {
       console.error('获取机器码失败:', e);
