@@ -376,7 +376,7 @@ import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
 import useLogger, { copyLogs } from '@/composables/useLogger.js';
 import { apiConfig, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
-import { uploadSettings, getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud } from '@/utils/cloudStorage';
+import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
 
 const { showAlertDialogFn } = useDialog();
@@ -625,8 +625,6 @@ const saveSettings = async () => {
   apiConfig.generationSettings = { ...settings.value.generationSettings };
   await saveConfig(settings.value);
   await refreshConfigCache();
-  // ☁️ 同步设置到云端
-  uploadSettings(settings.value).catch(() => {});
 
   let qualityEstimate = '设置已保存';
   if (settings.value.currentEngine === 'ollama') {

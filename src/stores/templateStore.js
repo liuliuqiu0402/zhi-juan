@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia';
 import storage from '../utils/storage';
-import { uploadTemplates } from '../utils/cloudStorage';
 
 export const useTemplateStore = defineStore('template', {
   state: () => ({
@@ -87,8 +86,6 @@ export const useTemplateStore = defineStore('template', {
         if (tpl.outline) updateParentAnalyzed(tpl.outline);
       });
       await storage.setItem('templates', this.templates);
-      // ☁️ 同步到云端（fire-and-forget，不阻塞本地操作）
-      uploadTemplates(this.templates).catch(() => {});
     },
 
     addTemplate(tpl) {

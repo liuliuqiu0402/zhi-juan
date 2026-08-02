@@ -1476,7 +1476,6 @@ import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml, par
 import { buildTianZiGeMarker, htmlToDocxBlob } from '../utils/docxBuilder.js';
 import { injectDrawingML, TZG_MARKER, FLT_MARKER } from '../utils/drawingMLShapes.js';
 import storage from '../utils/storage';
-import { pushDocHistory, pushGeneratedDocs, isCloudConfigured } from '../utils/cloudStorage';
 import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
 import { useInstructionStore } from '../stores/instructionStore.js';
@@ -2750,9 +2749,6 @@ const generatedDocs = ref(loadGeneratedDocs());
 
 // 显示用：反转数组，最新的在上面（存储保持升序以保证 slice(-20) 截断正确）
 const displayedDocs = computed(() => [...generatedDocs.value].reverse());
-// 🔧 防抖 + 防递归：避免 watcher 递归触发导致重复推送
-let _saveGenDebounce = null;
-let _saveGenPending = false;
 const saveGeneratedDocs = async () => {
   try {
     // 截断上限（不修改 ref，避免触发 watcher 递归）
@@ -2776,23 +2772,6 @@ const saveGeneratedDocs = async () => {
 
     // 持久化到 localStorage
     localStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
-
-    // ☁️ 推送到云端（防抖：200ms 内多次调用只推一次）
-    if (_saveGenDebounce) clearTimeout(_saveGenDebounce);
-    _saveGenDebounce = setTimeout(() => {
-      _saveGenDebounce = null;
-      if (_saveGenPending) return;
-      _saveGenPending = true;
-      const snapshot = [...docs];
-      if (isCloudConfigured()) {
-        pushGeneratedDocs(snapshot).then(ok => {
-          if (ok) console.log('☁️ 生成结果已自动推送云端 ' + snapshot.length + ' 条');
-        }).catch(e => console.warn('☁️ 生成结果自动推送异常', e))
-        .finally(() => { _saveGenPending = false; });
-      } else {
-        _saveGenPending = false;
-      }
-    }, 200);
   } catch (e) { console.warn('保存生成记录失败:', e?.message); }
 };
 const batchDownloadFormat = ref('word');
@@ -6849,8 +6828,6 @@ const saveToHistory = async (doc) => {
   history.unshift({ ...doc, savedAt: Date.now() });
   const localTrimmed = history.slice(0, 50);
   await storage.setItem('docHistory', localTrimmed);
-  // ☁️ 即时上推（只写自己设备行，不影响其他设备）
-  pushDocHistory(localTrimmed).then(ok => { if (!ok) console.warn('☁️ 保存历史推送失败'); }).catch(e => console.warn('☁️ 保存历史推送异常', e));
 };
 
 const collectGraph = async (doc, idx) => {

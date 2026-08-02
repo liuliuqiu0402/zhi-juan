@@ -6,7 +6,6 @@ import {
   updateCustomInstruction as updateCustom,
   deleteCustomInstruction as deleteCustom
 } from '../config/instructionLib.js';
-import { uploadInstructions, isCloudConfigured } from '../utils/cloudStorage';
 
 export const useInstructionStore = defineStore('instruction', {
   state: () => ({
@@ -46,22 +45,15 @@ export const useInstructionStore = defineStore('instruction', {
       this.list = loadInstructionLib();
     },
 
-    // 🔧 启动时自动同步：将本地已有的自定义指令上传到云端
+    // 🔧 启动时不再自动同步（改为手动上推按钮）
     syncToCloudIfNeeded() {
-      const custom = this.list.filter(i => !i.builtin && !i._deleted);
-      if (custom.length > 0 && isCloudConfigured()) {
-        uploadInstructions(custom).catch(() => {});
-      }
+      // no-op：单向数据由用户通过 📤 按钮手动推送
     },
 
-    // 保存自定义指令到 localStorage + 云端
+    // 保存自定义指令到 localStorage
     _save() {
       const custom = this.list.filter(i => !i.builtin && !i._deleted);
       saveInstructionLib(custom);
-      // ☁️ 同步到云端
-      if (isCloudConfigured()) {
-        uploadInstructions(custom).catch(() => {});
-      }
     },
 
     // 添加指令

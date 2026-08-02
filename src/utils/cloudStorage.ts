@@ -135,23 +135,6 @@ export function getDeviceId(): string {
   return getDeviceName();
 }
 
-/** @deprecated 迁移用：检测是否存在旧版随机UUID，若有则返回 */
-export function getLegacyDeviceId(): string | null {
-  try {
-    const legacy = localStorage.getItem('wisdom_device_id_legacy');
-    if (legacy) return legacy;
-    // 首次升级：检查旧 key 是否存在
-    const old = localStorage.getItem('wisdom_device_id');
-    if (old && old !== getDeviceName()) {
-      // 这是旧版随机UUID，保存到 legacy key，后续 cleanup 处理
-      localStorage.setItem('wisdom_device_id_legacy', old);
-      localStorage.removeItem('wisdom_device_id');
-      return old;
-    }
-  } catch {}
-  return null;
-}
-
 // ── 工具 ──
 
 function safeClone<T>(value: T): T {
@@ -336,11 +319,12 @@ export async function pullGeneratedDocs(): Promise<unknown[] | null> {
   ]);
 
   // ① 新表 generated_docs（v6+）
-  if (!newErr && newRows) allRows.push(...(newRows as unknown[]));
+  // 🔧 safeQuery 返回原始 Supabase 响应 { data, error }，须解包 .data 后再展开
+  if (!newErr && newRows?.data) allRows.push(...(newRows.data as unknown[]));
 
   // ② 旧 user_settings 兼容（v5 及之前，generated_docs:* 行）
-  if (!oldErr && oldRows) {
-    for (const row of (oldRows as { id: string; data: unknown }[])) {
+  if (!oldErr && oldRows?.data) {
+    for (const row of (oldRows.data as { id: string; data: unknown }[])) {
       allRows.push(row.data);
     }
   }
@@ -527,26 +511,11 @@ async function fetchUserSetting(subKey: string): Promise<unknown | null> {
 export function uploadSettings(settings: Record<string, unknown>): Promise<boolean> {
   return upsertUserSetting('settings', settings);
 }
-export function downloadSettings(): Promise<Record<string, unknown> | null> {
-  return fetchUserSetting('settings') as Promise<Record<string, unknown> | null>;
-}
 export function uploadActivationInfo(info: Record<string, unknown>): Promise<boolean> {
   return upsertUserSetting('activation', info);
 }
-export function downloadActivationInfo(): Promise<Record<string, unknown> | null> {
-  return fetchUserSetting('activation') as Promise<Record<string, unknown> | null>;
-}
 export function uploadInstructions(instructions: unknown[]): Promise<boolean> {
   return upsertUserSetting('instructions', instructions);
-}
-export function downloadInstructions(): Promise<unknown[] | null> {
-  return fetchUserSetting('instructions') as Promise<unknown[] | null>;
-}
-
-/** 上传设备名到云端（供 probe 显示，设备名即ID无需额外映射） */
-export async function uploadDeviceName(): Promise<void> {
-  // 设备名即行键，不需要单独的 dname: 行存储
-  // 保留此函数兼容旧调用，实际无需操作
 }
 
 /** 下载所有设备名，返回 device_id → 名称 的映射
@@ -628,25 +597,6 @@ export async function pullFromCloud(): Promise<{
   return { textbooks, docHistory, settings, activationInfo, generatedDocs, instructions, templates };
 }
 
-/** 推送单向数据到云端 + 即时上推双向数据 */
-export async function pushToCloud(data: {
-  textbooks?: unknown[];
-  docHistory?: unknown[];
-  settings?: Record<string, unknown>;
-  generatedDocs?: unknown[];
-  instructions?: unknown[];
-  templates?: unknown[];
-}): Promise<void> {
-  const tasks: Promise<unknown>[] = [];
-  if (data.textbooks) tasks.push(uploadTextbooks(data.textbooks));
-  if (data.docHistory) tasks.push(pushDocHistory(data.docHistory));
-  if (data.settings) tasks.push(uploadSettings(data.settings));
-  if (data.generatedDocs) tasks.push(pushGeneratedDocs(data.generatedDocs));
-  if (data.instructions) tasks.push(uploadInstructions(data.instructions));
-  if (data.templates) tasks.push(uploadTemplates(data.templates));
-  await Promise.all(tasks);
-}
-
 /** 检查云端是否已配置 */
 export function isCloudConfigured(): boolean {
   return !!(SUPABASE_URL && SUPABASE_ANON_KEY);
@@ -705,9 +655,15 @@ export async function cleanupStaleDeviceRows(): Promise<number> {
   for (const id of genInfo.keys()) allIds.add(id);
 
   // ④ 按设备名分组（新版：ID即名称；旧版UUID：从云端映射获取名称）
+  //    UUID格式的无名设备统一归并到 __legacy__ 组，只保留最新一台
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const nameGroups = new Map<string, string[]>();
   for (const id of allIds) {
-    const name = deviceNameMap.get(id) || id; // 新版直接用ID；旧版UUID从映射取
+    let name = deviceNameMap.get(id);
+    if (!name) {
+      // 旧版 UUID 且无名称映射 → 统一归并到 __legacy__
+      name = uuidRe.test(id) ? '__legacy__' : id;
+    }
     if (!nameGroups.has(name)) nameGroups.set(name, []);
     nameGroups.get(name)!.push(id);
   }
@@ -740,6 +696,19 @@ export async function cleanupStaleDeviceRows(): Promise<number> {
     }
   }
 
+  // ⑤½ 清理空数据设备（历史0 + 生成0），非本机且无有效数据的设备行直接删除
+  for (const [id, histEntry] of histInfo) {
+    if (id === selfId) continue;
+    const genEntry = genInfo.get(id);
+    if (histEntry.count === 0 && (!genEntry || genEntry.count === 0)) {
+      for (const table of ['doc_history', 'generated_docs']) {
+        try { await client!.from(table).delete().eq('id', syncKey + ':' + id); } catch { /* ignore */ }
+      }
+      deleted++;
+      console.log('🧹 清理空数据设备: ' + (deviceNameMap.get(id) || id.slice(0, 8)));
+    }
+  }
+
   if (deleted > 0) console.log('🧹 已清理 ' + deleted + ' 台残留设备');
 
   // ⑥ 清理废弃的 user_settings 行：dname:*（名称映射已废弃） + generated_docs:*（v5格式已迁移）
@@ -766,11 +735,6 @@ export async function cleanupStaleDeviceRows(): Promise<number> {
 // 🔍 云端探测：启动时后台暖机 + 数据摘要
 // ══════════════════════════════════════════════════════════════
 
-/** 获取当前设备的显示标签（= 设备名） */
-export function getDeviceLabel(): string {
-  return getDeviceName();
-}
-
 /** 根据设备ID列表生成标签（新版：ID即名称，直接使用；旧版UUID：从云端设备名映射获取） */
 function buildDeviceLabels(allIds: string[], selfId: string, cloudNames: Map<string, string>): Map<string, string> {
   const map = new Map<string, string>();
@@ -784,8 +748,14 @@ function buildDeviceLabels(allIds: string[], selfId: string, cloudNames: Map<str
   return map;
 }
 
+let _probePending = false;
+
 /** 启动时探测云端状态，暖机后输出数据摘要，用户据此决定何时同步 */
 export async function probeCloud(): Promise<void> {
+  // 🔒 并发守卫：避免启动时多处触发导致重复探测
+  if (_probePending) return;
+  _probePending = true;
+  try {
   const client = getClient();
   if (!client || noSyncKey()) return;
 
@@ -885,17 +855,24 @@ export async function probeCloud(): Promise<void> {
   console.log('☁️ 共享：教材' + tbStr + '  模板' + tpStr + '  设置' + stStr + '  激活' + acStr + '  指令' + inStr);
 
   // 各设备数据
-  if (devMap.size === 0) {
+  // 🧹 过滤：只显示"本机"+有自定义名称的设备，裸 UUID 设备不展示
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const namedEntries = [...devMap.entries()].filter(([did]) => {
+    if (did === selfId) return true; // 本机始终显示
+    const label = deviceLabels.get(did) || '';
+    return label && !uuidRe.test(label) && label !== did.slice(0, 8);
+  });
+
+  if (namedEntries.length === 0) {
     console.log('☁️ 各设备：（无数据）');
   } else {
-    console.log('☁️ 各设备（' + devMap.size + '台）：');
-    const entries = [...devMap.entries()];
-    entries.sort(([a], [b]) => {
+    console.log('☁️ 各设备（' + namedEntries.length + '台）：');
+    namedEntries.sort(([a], [b]) => {
       if (a === selfId) return -1;
       if (b === selfId) return 1;
       return (deviceLabels.get(a) || '').localeCompare(deviceLabels.get(b) || '');
     });
-    for (const [did, d] of entries) {
+    for (const [did, d] of namedEntries) {
       const label = deviceLabels.get(did) || did.slice(0, 8);
       const hStr = hiFailed ? '❌' : d.hist + '条';
       const gStr = geFailed ? '❌' : d.gen + '条';
@@ -909,10 +886,7 @@ export async function probeCloud(): Promise<void> {
   console.log('💾 预估占用 ≈ ' + estStr + ' / 500MB（免费额度，足够）');
 
   console.log('💡 数据已就绪，可以点击 ☁️ 同步了');
+  } finally {
+    _probePending = false;
+  }
 }
-
-// ── 保留旧导出名兼容（后续逐步迁移） ──
-export { pushDocHistory as mergeDocHistory };
-export { pushDocHistory as safeUploadDocHistory };
-export { pushGeneratedDocs as mergeGeneratedDocs };
-export { pushGeneratedDocs as safeUploadGeneratedDocs };

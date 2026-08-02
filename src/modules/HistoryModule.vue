@@ -58,7 +58,6 @@
 import { ref, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue';
 import { useRouter } from 'vue-router';
 import storage from '@/utils/storage';
-import { pushDocHistory } from '@/utils/cloudStorage';
 import { formatTime } from '@/utils/helpers';
 import { useDialog } from '@/composables/useDialog.js';
 import { useMobile } from '@/composables/useMobile.js';
@@ -105,7 +104,6 @@ const clearAllHistory = async () => {
     }
     filteredHistoryList.value = [];
     await storage.setItem('docHistory', historyList.value);
-    pushDocHistory(historyList.value).then(ok => { if (!ok) console.warn('☁️ 清空历史推送失败'); }).catch(e => console.warn('☁️ 清空历史推送异常', e));
   }
 };
 
@@ -115,7 +113,6 @@ const deleteHistoryItem = async (id) => {
     item._deleted = true;
     filteredHistoryList.value = filteredHistoryList.value.filter(h => h.id !== id);
     await storage.setItem('docHistory', historyList.value);
-    pushDocHistory(historyList.value).then(ok => { if (!ok) console.warn('☁️ 删除历史推送失败'); }).catch(e => console.warn('☁️ 删除历史推送异常', e));
   }
 };
 

@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia';
 import storage from '../utils/storage';
-import { uploadTextbooks } from '../utils/cloudStorage';
 
 interface ChapterNode {
   id?: string;
@@ -160,8 +159,6 @@ export const useTextbookStore = defineStore('textbook', {
         if (book.outline) applyAnalyzedSync(book.outline);
       });
       await storage.setItem('textbooks', this.textbooks);
-      // ☁️ 同步到云端（fire-and-forget，不阻塞本地操作）
-      uploadTextbooks(this.textbooks).catch(() => {});
     },
 
     addTextbook(book: Textbook) {
