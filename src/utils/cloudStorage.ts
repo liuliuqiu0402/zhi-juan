@@ -156,6 +156,33 @@ function noClient(): SupabaseClient | null {
 }
 
 // ══════════════════════════════════════════════════════════════
+// 暖机：触发 Supabase 冷启动，避免后续数据查询超时
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * 暖机 ping：打一发轻量查询唤醒 Supabase 免费实例。
+ * 冷启动时第1次尝试可能超时（fetchWithRetry 会自动重试，重试时 DB 已热 ≈ 秒级），
+ * 之后所有数据查询都无需再经历冷启动延迟。
+ *
+ * 注意：此函数可能耗时 30-120s（取决于 Supabase 休眠深度），同步 handler 会在 Toast 中提示用户等待。
+ */
+export async function warmupCloud(): Promise<boolean> {
+  if (!getSyncKey()) return false;
+  const client = getClient();
+  if (!client) return false;
+  try {
+    const t0 = performance.now();
+    await client.from('user_settings').select('id').limit(1);
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+    console.log('🔥 暖机完成 (' + elapsed + 's)');
+    return true;
+  } catch (e) {
+    console.warn('⚠️ 暖机超时:', (e as Error)?.message || e);
+    return false;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
 // 通用：客户端合并（V8 引擎处理 JSON 远快于 Supabase 免费实例）
 // ══════════════════════════════════════════════════════════════
 
@@ -239,7 +266,6 @@ export async function pushDocHistory(items: unknown[]): Promise<boolean> {
       console.error('☁️ push_doc_history 失败:', error.message);
       return false;
     }
-    console.log('☁️ push_doc_history: ' + sorted.length + ' 条（直接 upsert）');
     return true;
   } catch (e) {
     console.warn('☁️ push_doc_history 异常:', e);
@@ -294,7 +320,6 @@ export async function pushGeneratedDocs(items: unknown[]): Promise<boolean> {
       console.error('☁️ push_generated_docs 失败:', error.message);
       return false;
     }
-    console.log('☁️ push_generated_docs: ' + sorted.length + ' 条（独立表直接 upsert）');
     return true;
   } catch (e) {
     console.warn('☁️ push_generated_docs 异常:', e);
@@ -311,28 +336,48 @@ export async function pullGeneratedDocs(): Promise<unknown[] | null> {
   const allRows: unknown[] = [];
 
   // 🔧 新旧表并行查询（之前串行导致冷启动时 60s+60s=120s 超时）
+  //    注意：Supabase 返回 { data, error } 而不抛异常，safeQuery 只捕获网络级 throw
   const safeQuery = async (fn: () => any) => { try { const r = await fn(); return [r, null]; } catch (e) { return [null, e]; } };
 
-  const [[newRows, newErr], [oldRows, oldErr]] = await Promise.all([
+  const [[newRows, newNetErr], [oldRows, oldNetErr]] = await Promise.all([
     safeQuery(() => client.from('generated_docs').select('data').like('id', getSyncKey() + ':%')),
     safeQuery(() => client.from('user_settings').select('id, data').like('id', getSyncKey() + ':generated_docs:%')),
   ]);
 
+  // 🔧 两类错误都要检查：网络级（throw→safeQuery捕获） + Supabase级（response.error）
+  const newSupErr = newRows?.error;
+  const oldSupErr = oldRows?.error;
+  const newOk = !newNetErr && !newSupErr && newRows?.data;
+  const oldOk = !oldNetErr && !oldSupErr && oldRows?.data;
+
+  // 记录错误（让用户知道为什么拉不到数据）
+  if (newNetErr) console.warn('☁️ pull_generated_docs 新表网络异常:', (newNetErr as Error)?.message || newNetErr);
+  if (newSupErr) console.warn('☁️ pull_generated_docs 新表查询失败:', newSupErr?.message || newSupErr);
+  if (oldNetErr) console.warn('☁️ pull_generated_docs 旧表网络异常:', (oldNetErr as Error)?.message || oldNetErr);
+  if (oldSupErr) console.warn('☁️ pull_generated_docs 旧表查询失败:', oldSupErr?.message || oldSupErr);
+
   // ① 新表 generated_docs（v6+）
-  // 🔧 safeQuery 返回原始 Supabase 响应 { data, error }，须解包 .data 后再展开
-  if (!newErr && newRows?.data) allRows.push(...(newRows.data as unknown[]));
+  if (newOk) allRows.push(...(newRows!.data as unknown[]));
 
   // ② 旧 user_settings 兼容（v5 及之前，generated_docs:* 行）
-  if (!oldErr && oldRows?.data) {
-    for (const row of (oldRows.data as { id: string; data: unknown }[])) {
+  if (oldOk) {
+    for (const row of (oldRows!.data as { id: string; data: unknown }[])) {
       allRows.push(row.data);
     }
   }
 
   const merged = mergeDeviceData(allRows, 20);
-  console.log('☁️ pull_generated_docs:', merged.length, '条（新表' +
-    (allRows.length > 0 && (allRows[0] as any)?.data ? '+旧兼容' : '') +
-    ' + 客户端合并）');
+
+  // 有错误且无数据 → 报告失败（null 让同步 handler 显示 ❌）
+  const hasAnyErr = !!(newNetErr || newSupErr || oldNetErr || oldSupErr);
+  if (hasAnyErr && merged.length === 0) {
+    console.warn('☁️ pull_generated_docs: 查询异常，无可合并数据');
+    return null;
+  }
+
+  const sourceTag = newOk && oldOk ? '新表+旧兼容' : newOk ? '新表' : '旧兼容';
+  const warnTag = hasAnyErr ? ' ⚠️部分查询失败' : '';
+  console.log('☁️ pull_generated_docs:', merged.length, '条（' + sourceTag + ' + 客户端合并）' + warnTag);
   return merged;
 }
 
@@ -655,33 +700,51 @@ export async function cleanupStaleDeviceRows(): Promise<number> {
   for (const id of genInfo.keys()) allIds.add(id);
 
   // ④ 按设备名分组（新版：ID即名称；旧版UUID：从云端映射获取名称）
-  //    UUID格式的无名设备统一归并到 __legacy__ 组，只保留最新一台
+  //    UUID格式的无名设备统一归并到 __legacy__ 组，全部清理（用户不再使用自动UUID设备）
+  //    🔧 名称归一化：trim + 合并连续空格，避免 "iPhone 1" vs "iPhone 1 " 被当作两台设备
+  const normalize = (s: string) => (s || '').trim().replace(/\s+/g, ' ');
+  const normalizedSelf = normalize(selfId);
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const nameGroups = new Map<string, string[]>();
   for (const id of allIds) {
     let name = deviceNameMap.get(id);
     if (!name) {
-      // 旧版 UUID 且无名称映射 → 统一归并到 __legacy__
+      // 旧版 UUID 且无名称映射 → 统一归并到 __legacy__（全部废弃，不留）
       name = uuidRe.test(id) ? '__legacy__' : id;
     }
-    if (!nameGroups.has(name)) nameGroups.set(name, []);
-    nameGroups.get(name)!.push(id);
+    // 归一化后分组（__legacy__ 不归一化以免被改掉）
+    const groupKey = name === '__legacy__' ? name : normalize(name);
+    if (!nameGroups.has(groupKey)) nameGroups.set(groupKey, []);
+    nameGroups.get(groupKey)!.push(id);
   }
 
   // ⑤ 同名多设备 → 按 updated_at 降序，保留最新的，删除较早的
+  //    ⚠️ __legacy__ 例外：全部删除（用户不使用自动UUID设备，除非 selfId 恰好在其中）
   for (const [name, ids] of nameGroups) {
-    if (ids.length <= 1) continue;
+    if (ids.length <= 1 && name !== '__legacy__') continue;
 
     ids.sort((a, b) => {
-      if (a === selfId) return -1;
-      if (b === selfId) return 1;
+      if (normalize(a) === normalizedSelf) return -1;
+      if (normalize(b) === normalizedSelf) return 1;
       const aTime = Math.max(histInfo.get(a)?.updatedAt || 0, genInfo.get(a)?.updatedAt || 0);
       const bTime = Math.max(histInfo.get(b)?.updatedAt || 0, genInfo.get(b)?.updatedAt || 0);
       return bTime - aTime;
     });
-    const keep = ids[0];
 
-    for (const id of ids.slice(1)) {
+    const toDelete: string[] = [];
+    if (name === '__legacy__') {
+      // 旧版UUID设备：全清（除非 selfId）
+      for (const id of ids) {
+        if (id !== selfId) toDelete.push(id);
+      }
+    } else {
+      // 正常设备：只保留最新一台
+      for (const id of ids.slice(1)) {
+        toDelete.push(id);
+      }
+    }
+
+    for (const id of toDelete) {
       for (const table of ['doc_history', 'generated_docs']) {
         try {
           await client!.from(table).delete().eq('id', syncKey + ':' + id);
@@ -690,13 +753,14 @@ export async function cleanupStaleDeviceRows(): Promise<number> {
       deleted++;
     }
 
-    if (ids.length > 2) {
-      const keepLabel = keep === selfId ? '本机' : (deviceNameMap.get(keep) || keep);
-      console.log('🧹 清理「' + name + '」的 ' + (ids.length - 1) + ' 个旧设备，保留 ' + keepLabel);
+    if (toDelete.length > 0) {
+      const keepLabel = name === '__legacy__' ? '（全部废弃）' : (normalize(ids[0]) === normalizedSelf ? '本机' : (deviceNameMap.get(ids[0]) || ids[0]));
+      console.log('🧹 清理「' + name + '」的 ' + toDelete.length + ' 台残留设备，保留 ' + keepLabel);
     }
   }
 
   // ⑤½ 清理空数据设备（历史0 + 生成0），非本机且无有效数据的设备行直接删除
+  let emptyCount = 0;
   for (const [id, histEntry] of histInfo) {
     if (id === selfId) continue;
     const genEntry = genInfo.get(id);
@@ -704,10 +768,11 @@ export async function cleanupStaleDeviceRows(): Promise<number> {
       for (const table of ['doc_history', 'generated_docs']) {
         try { await client!.from(table).delete().eq('id', syncKey + ':' + id); } catch { /* ignore */ }
       }
-      deleted++;
-      console.log('🧹 清理空数据设备: ' + (deviceNameMap.get(id) || id.slice(0, 8)));
+      emptyCount++;
     }
   }
+  deleted += emptyCount;
+  if (emptyCount > 0) console.log('🧹 清理 ' + emptyCount + ' 台空数据设备');
 
   if (deleted > 0) console.log('🧹 已清理 ' + deleted + ' 台残留设备');
 
@@ -801,11 +866,16 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
   const tpCount = tpOk && Array.isArray(templateRow.data.data) ? templateRow.data.data.length : 0;
 
   let hasSettings = false, hasActivation = false, hasInstructions = false;
+  let hasDeepseekConfig = false;
   const stFailed = !!stErr;
   if (!stErr && settingsRows?.data) {
     for (const row of settingsRows.data as { id: string; data: unknown }[]) {
       const suffix = row.id?.replace(syncKey + ':', '');
-      if (suffix === 'settings') hasSettings = true;
+      if (suffix === 'settings') {
+        hasSettings = true;
+        const sData = (row.data as Record<string, unknown>) || {};
+        hasDeepseekConfig = Object.keys(sData).some(k => k.startsWith('deepseek'));
+      }
       else if (suffix === 'activation') hasActivation = true;
       else if (suffix === 'instructions') hasInstructions = true;
     }
@@ -849,7 +919,8 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
   // 共享数据行
   const tbStr = !!tbErr ? '❌' : (tbCount > 0 ? tbCount + '本' : '-');
   const tpStr = !!tpErr ? '❌' : (tpCount > 0 ? tpCount + '个' : '-');
-  const stStr = stFailed ? '❌' : (hasSettings ? '✓' : '-');
+  const stLabel = hasSettings ? (hasDeepseekConfig ? '✓(DeepSeek)' : '✓') : '-';
+  const stStr = stFailed ? '❌' : stLabel;
   const acStr = stFailed ? '❌' : (hasActivation ? '✓' : '-');
   const inStr = stFailed ? '❌' : (hasInstructions ? '✓' : '-');
   console.log('☁️ 共享：教材' + tbStr + '  模板' + tpStr + '  设置' + stStr + '  激活' + acStr + '  指令' + inStr);

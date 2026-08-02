@@ -184,7 +184,7 @@ import { useMobile } from '@/composables/useMobile.js';
 import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
-import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings } from '@/utils/cloudStorage';
+import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
 import { apiConfig, getCurrentEngineConfig, loadConfigSync } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
@@ -606,7 +606,12 @@ onMounted(async () => {
       }, 30000);
       try {
         console.log('🔄 开始同步…');
+
+        // ⓪ 暖机：触发 Supabase 冷启动，确保后续查询不被冷启动超时截断
         const isMobile = isWebMode.value;
+        if (isMobile) showToastMessage('🔥 正在唤醒云端…', 'info');
+        await warmupCloud();
+        if (isMobile) showToastMessage('☁️ 同步中…', 'info');
 
         // ① 从云端拉取
         let cloudGen = [];
@@ -742,7 +747,7 @@ onMounted(async () => {
               }
               localStorage.setItem('apiConfig', JSON.stringify(localCfg));
               Object.assign(apiConfig, localCfg);
-              console.log('🔄 [写入] 引擎设置 ' + Object.keys(unilateralData.settings).length + '项 ✅');
+              console.log('🔄 [写入] DeepSeek云端配置 ' + Object.keys(unilateralData.settings).length + '项 ✅ (本地Ollama不变)');
             } catch { console.warn('🔄 [写入] 引擎设置 ❌ 失败'); }
           }
 
@@ -826,8 +831,7 @@ onMounted(async () => {
         if (results.length > 0) {
           console.log('📤 上推完成 (' + elapsed + 's): ' + results.join('、'));
           showToastMessage('✅ 上推完成: ' + results.join('、'), 'info');
-          probeCloud(false).catch(() => {});
-          // 上推后清理残留设备行（无名UUID、空数据设备）
+          // 上推后清理残留设备（旧UUID、空数据等），不做 probe（上推日志已列全数据）
           cleanupStaleDeviceRows().then(n => { if (n > 0) console.log('🧹 上推后清理 ' + n + ' 台残留设备'); }).catch(() => {});
         } else {
           console.log('📤 上推：无本地数据可推送');
