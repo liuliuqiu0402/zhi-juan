@@ -202,7 +202,7 @@ onMounted(() => {
   _hSetupListeners();
 });
 
-onActivated(() => { _hSetupListeners(); });
+onActivated(() => { _hSetupListeners(); loadHistory(); });
 onDeactivated(() => { _hTeardownListeners(); });
 
 onUnmounted(() => {

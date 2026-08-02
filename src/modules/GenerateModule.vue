@@ -7162,8 +7162,8 @@ onMounted(async () => {
   _setupListeners();
 });
 
-// 🔧 KeepAlive 重新激活：重新注册事件监听（防止旧实例也收到）
-onActivated(() => { _setupListeners(); });
+// 🔧 KeepAlive 重新激活：重新注册事件监听 + 重载数据（同步可能在此期间发生）
+onActivated(() => { _setupListeners(); const docs = loadGeneratedDocs(); if (docs.length > 0) generatedDocs.value = docs; });
 
 // 🔧 KeepAlive 停用缓存：移除监听，避免不活跃实例收到事件
 onDeactivated(() => { _teardownListeners(); });

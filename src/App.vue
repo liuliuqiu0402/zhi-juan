@@ -712,8 +712,10 @@ onMounted(async () => {
 
         // ⑤ 通知子组件重新加载
         window.dispatchEvent(new CustomEvent('data-sync-complete'));
+        showToastMessage('✅ 同步完成 | 生成结果: ' + mergedGen.length + ' 条 | 历史: ' + mergedHist.length + ' 条', 'info');
       } catch (e) {
         console.error('🔄 同步异常', e);
+        showToastMessage('❌ 同步失败，请检查网络后重试', 'warning');
       } finally {
         _syncInProgress = false;
       }
