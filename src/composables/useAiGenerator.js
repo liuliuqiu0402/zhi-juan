@@ -6230,14 +6230,16 @@ ${cardAnalysisText.substring(0, 1000)}
         }
         if (questionMatches.length === 0) {
           // 策略B：匹配所有含题号前缀的 <p> 标签（兜底模型不遵守 class="question" 的情况）
-          questionMatches = content.match(/<p[^>]*>\s*(?:\d+|[一二三四五六七八九十]+)[\.、．)）]\s*[^<]*<\/p>/g) || [];
+          // 🔧 [\s\S]*? 替代 [^<]*：容忍题目内的 <strong>/<u>/<em> 等内联格式标签
+          questionMatches = content.match(/<p[^>]*>\s*(?:\d+|[一二三四五六七八九十]+)[\.、．)）]\s*[\s\S]*?<\/p>/g) || [];
           if (questionMatches.length > 0) {
             console.warn(`⚠️ 题目解析降级：未匹配到 <p class="question">，改用题号模式匹配到 ${questionMatches.length} 题`);
           }
         }
         if (questionMatches.length === 0) {
           // 策略B.5：放宽到 <div>/<li> 标签的题号模式（DeepSeek 可能用非标准标签）
-          questionMatches = content.match(/<(?:div|li|p)[^>]*>\s*(?:\d+|[一二三四五六七八九十]+)[\.、．)）]\s*[^<]*<\/(?:div|li|p)>/g) || [];
+          // 🔧 [\s\S]*? 替代 [^<]*：容忍题目内的内联格式标签
+          questionMatches = content.match(/<(?:div|li|p)[^>]*>\s*(?:\d+|[一二三四五六七八九十]+)[\.、．)）]\s*[\s\S]*?<\/(?:div|li|p)>/g) || [];
           if (questionMatches.length > 0) {
             console.warn(`⚠️ 题目解析降级：未匹配到 <p> 题号标签，改用泛化题号模式匹配到 ${questionMatches.length} 题`);
           }
