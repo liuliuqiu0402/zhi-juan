@@ -16,12 +16,6 @@
 <body>
   <div id="app"></div>
   <noscript style="display:block;padding:40px;text-align:center;font-family:sans-serif;color:#e53935;">⚠️ 请启用 JavaScript 以运行此应用</noscript>
-  <script>
-    // 全局错误捕获 — 在 Vue 模块加载之前注册，捕获模块导入失败等早期错误
-    window.__showError=function(msg){var el=document.getElementById('app');if(el)el.innerHTML='<div style="padding:40px 20px;font-family:sans-serif;color:#e53935;text-align:center;"><h2>⚠️ 启动异常</h2><pre style="text-align:left;background:#fff3f3;padding:16px;border-radius:8px;overflow:auto;max-height:80vh;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-all;">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre><p style="margin-top:16px;color:#999;font-size:13px;">请截图发给开发者</p></div>'};
-    window.addEventListener('error',function(e){if(e.target===window)window.__showError((e.message||'JS Error')+'\n\n文件: '+(e.filename||'?')+':'+(e.lineno||'?'));});
-    window.addEventListener('unhandledrejection',function(e){window.__showError('Promise 异常: '+(e.reason?.message||e.reason?.stack||String(e.reason)));});
-  </script>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
