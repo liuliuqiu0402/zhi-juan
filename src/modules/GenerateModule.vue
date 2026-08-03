@@ -1459,6 +1459,7 @@
 import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick, h } from 'vue';
 import { useDialog } from '../composables/useDialog.js';
 import { useMobile } from '../composables/useMobile.js';
+import { useWakeLock } from '../composables/useWakeLock.js';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced } from '../config/apiConfig.js';  // 🔧 新增：导入 apiConfig
 import { getStoragePath } from '../utils/pathHelper.js';  // ✨ 存储路径工具
 import { 
@@ -2810,6 +2811,16 @@ const editingKnowledge = ref('');
 
 // AI生成器
 const { isGenerating, progress: generateProgress, statusText: generateStatus, buildGenerationInstruction, getTypeDistribution, generate: callGenerate, executeGenerationWithBlueprint, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel } = useAiGenerator();
+
+// 🔒 屏幕唤醒锁：生成期间防止自动息屏导致 API 请求中断
+const wakeLock = useWakeLock();
+watch(isGenerating, async (val) => {
+  if (val) {
+    await wakeLock.request();
+  } else {
+    wakeLock.release();
+  }
+});
 
 // 🔧 修复：导入 getMultimodalConfig 用于多栏切割预热
 import { getMultimodalConfig } from '../config/apiConfig.js';
@@ -7146,7 +7157,7 @@ onActivated(() => { _setupListeners(); const docs = loadGeneratedDocs(); if (doc
 onDeactivated(() => { _teardownListeners(); });
 
 // 真正销毁
-onUnmounted(() => { _teardownListeners(); });
+onUnmounted(() => { _teardownListeners(); wakeLock.cleanup(); });
 
 // 置信度检测函数
 const detectConfidenceIssues = (content, selectedBooks) => {
