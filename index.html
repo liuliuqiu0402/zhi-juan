@@ -20,7 +20,13 @@
     // 全局错误捕获 — 在 Vue 模块加载之前注册，捕获模块导入失败等早期错误
     window.__showError=function(msg){var el=document.getElementById('app');if(el)el.innerHTML='<div style="padding:40px 20px;font-family:sans-serif;color:#e53935;text-align:center;"><h2>⚠️ 启动异常</h2><pre style="text-align:left;background:#fff3f3;padding:16px;border-radius:8px;overflow:auto;max-height:80vh;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-all;">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre><p style="margin-top:16px;color:#999;font-size:13px;">请截图发给开发者</p></div>'};
     var __t0=Date.now();
-    window.addEventListener('error',function(e){if(e instanceof ErrorEvent)window.__showError((e.message||'JS Error')+'\n\n'+(e.filename||'?')+':'+(e.lineno||'?'));else if(e.target&&e.target.tagName==='SCRIPT')window.__showError('脚本加载失败: '+(e.target.src||e.target.getAttribute('src')||'?'));},true);
+    // 使用 capturing 阶段捕获所有错误，不做任何类型过滤
+    window.addEventListener('error',function(e){
+      var info='[error事件]\ntype='+e.type+'\nmessage='+(e.message||'(无)')+'\nfilename='+(e.filename||'(无)')+'\nlineno='+(e.lineno||'?')+'\ncolno='+(e.colno||'?')+'\nisErrorEvent='+(e instanceof ErrorEvent)+'\ntarget='+((e.target&&e.target.tagName)||e.target||'window');
+      if(e.target&&e.target.tagName==='SCRIPT')info+='\nsrc='+(e.target.src||e.target.getAttribute('src')||'?');
+      if(e.error&&e.error.stack)info+='\nstack='+e.error.stack.slice(0,500);
+      window.__showError(info);
+    },true);
     window.addEventListener('unhandledrejection',function(e){window.__showError('Promise 异常: '+(e.reason?.message||e.reason?.stack||String(e.reason)));});
     // 15 秒超时诊断：Vue 还没挂载就说明卡死了
     setTimeout(function(){if(document.getElementById('app')&&document.getElementById('app').children.length===0)window.__showError('⏱ 超时('+((Date.now()-__t0)/1000).toFixed(1)+'s): Vue 未挂载\n\n可能原因: 模块加载失败 / 路由卡死\n检查: 打开 Chrome DevTools 远程调试');},15000);
