@@ -2,17 +2,14 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { VitePWA } from 'vite-plugin-pwa';
 import { fileURLToPath, URL } from 'node:url';
-import fs from 'node:fs';
 
 // 部署路径：Capacitor 默认 './'，Vercel 设 BASE_URL=/，GitHub Pages 设 BASE_URL=/zhi-juan/
 const BASE = process.env.BASE_URL || './';
-const IS_CAPACITOR = BASE === './';
 
 export default defineConfig({
   plugins: [
     vue(),
-    // PWA：Capacitor 构建时跳过（WebView 不需要 PWA，SW 会干扰本地加载）
-    ...(IS_CAPACITOR ? [] : [VitePWA({
+    VitePWA({
       registerType: 'prompt',
       includeAssets: ['icon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'],
       manifest: {
@@ -44,23 +41,21 @@ export default defineConfig({
           },
         ],
       },
-    })]),
-    // 🔧 Capacitor 构建后处理：移除 crossorigin（Vite 在插件之后添加）并清理 PWA 残留
+    }),
+    // 🔧 移除构建产物中 script 和 link 的 crossorigin 属性
+    //    Capacitor 本地 HTTP 服务器可能不返回 CORS 头，crossorigin 会导致模块脚本被拒
+    //    base==='./' 为 Capacitor 构建（Vercel 构建时 BASE_URL='/'）
     {
-      name: 'capacitor-postprocess',
-      apply: 'build',
-      closeBundle() {
-        if (!IS_CAPACITOR) return;
-        const htmlPath = fileURLToPath(new URL('./dist/index.html', import.meta.url));
-        if (!fs.existsSync(htmlPath)) return;
-        let html = fs.readFileSync(htmlPath, 'utf-8');
-        // 移除 Vite 在最终阶段添加的 crossorigin 属性
-        html = html.replace(/\s*crossorigin(?:="[^"]*")?/g, '');
-        // 清理 PWA 残留（如果 PWA 插件被跳过但仍生成了文件）
-        html = html.replace(/<link[^>]*manifest[^>]*>/g, '');
-        html = html.replace(/<script[^>]*registerSW[^>]*><\/script>/g, '');
-        fs.writeFileSync(htmlPath, html, 'utf-8');
-        console.log('🔧 [capacitor-postprocess] 已移除 crossorigin + PWA 残留');
+      name: 'strip-crossorigin-for-capacitor',
+      enforce: 'post',
+      transformIndexHtml(html) {
+        let result = html.replace(/\s*crossorigin(?:="[^"]*")?/g, '');
+        // Capacitor 构建：移除 PWA service worker（WebView 不支持且会干扰加载）
+        if (BASE === './') {
+          result = result.replace(/<script[^>]*registerSW[^>]*><\/script>/g, '');
+          result = result.replace(/<link[^>]*manifest[^>]*>/g, '');
+        }
+        return result;
       },
     },
   ],
