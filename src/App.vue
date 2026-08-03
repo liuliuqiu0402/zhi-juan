@@ -186,7 +186,7 @@ import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
 import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
-import { apiConfig, getCurrentEngineConfig, loadConfigSync } from '@/config/apiConfig.js';
+import { apiConfig, getCurrentEngineConfig, loadConfigSync, decrypt } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
 import { saveConfig } from '@/config/apiConfig.js';
 // 📱 iOS 签名倒计时（基于安装时间计算 7 天有效期）
@@ -742,7 +742,17 @@ onMounted(async () => {
               const dsFields = ['deepseekBaseUrl', 'deepseekApiKey', 'deepseekGenerationModel', 'deepseekAnalysisModel'];
               for (const key of dsFields) {
                 if (key in unilateralData.settings) {
-                  localCfg[key] = unilateralData.settings[key];
+                  if (key === 'deepseekApiKey' && isWebMode.value) {
+                    // 🔧 手机端：云端 API Key 来自桌面 Electron 加密，手机无法解密
+                    //    尝试解密 → 成功才使用云端值，失败则保留本地值（用户手动输入的）
+                    const decrypted = await decrypt(unilateralData.settings[key]);
+                    if (decrypted && !decrypted.startsWith('enc_')) {
+                      localCfg[key] = unilateralData.settings[key]; // WebCrypto 加密值，手机可解密
+                    }
+                    // else: 保留 localCfg[key]（本地值），不被云端覆盖
+                  } else {
+                    localCfg[key] = unilateralData.settings[key];
+                  }
                 }
               }
               // 🔧 手机端无法运行本地 Ollama，有 DeepSeek 密钥就自动切引擎
