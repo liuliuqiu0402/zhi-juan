@@ -42,6 +42,22 @@ export default defineConfig({
         ],
       },
     }),
+    // 🔧 移除构建产物中 script 和 link 的 crossorigin 属性
+    //    Capacitor 本地 HTTP 服务器可能不返回 CORS 头，crossorigin 会导致模块脚本被拒
+    //    base==='./' 为 Capacitor 构建（Vercel 构建时 BASE_URL='/'）
+    {
+      name: 'strip-crossorigin-for-capacitor',
+      enforce: 'post',
+      transformIndexHtml(html) {
+        let result = html.replace(/\s*crossorigin(?:="[^"]*")?/g, '');
+        // Capacitor 构建：移除 PWA service worker（WebView 不支持且会干扰加载）
+        if (BASE === './') {
+          result = result.replace(/<script[^>]*registerSW[^>]*><\/script>/g, '');
+          result = result.replace(/<link[^>]*manifest[^>]*>/g, '');
+        }
+        return result;
+      },
+    },
   ],
   base: BASE,
   resolve: {
