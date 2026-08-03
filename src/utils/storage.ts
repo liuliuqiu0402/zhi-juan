@@ -5,10 +5,21 @@ const DB_VERSION = 1;
 
 let db: IDBDatabase | null = null;
 
+// iOS Safari 切后台时会关闭 IndexedDB 连接，监听 close 事件及时重置缓存
+const resetDb = () => { db = null; };
+
 // 打开数据库
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
-    if (db) return resolve(db);
+    // 🔧 iOS 修复：缓存的连接可能已被浏览器关闭，使用前校验有效性
+    if (db) {
+      try {
+        db.transaction('store', 'readonly'); // 已关闭的连接会立即抛异常
+        return resolve(db);
+      } catch {
+        db = null; // 连接已失效，重新打开
+      }
+    }
 
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -21,6 +32,8 @@ const openDB = (): Promise<IDBDatabase> => {
 
     request.onsuccess = (event) => {
       db = (event.target as IDBOpenDBRequest).result;
+      // 监听 close 事件（浏览器主动关闭连接时触发）
+      db.addEventListener('close', resetDb);
       resolve(db);
     };
 
