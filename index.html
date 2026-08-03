@@ -20,10 +20,20 @@
     // 全局错误捕获 — 在 Vue 模块加载之前注册，捕获模块导入失败等早期错误
     window.__showError=function(msg){var el=document.getElementById('app');if(el)el.innerHTML='<div style="padding:40px 20px;font-family:sans-serif;color:#e53935;text-align:center;"><h2>⚠️ 启动异常</h2><pre style="text-align:left;background:#fff3f3;padding:16px;border-radius:8px;overflow:auto;max-height:80vh;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-all;">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre><p style="margin-top:16px;color:#999;font-size:13px;">请截图发给开发者</p></div>'};
     var __t0=Date.now();
-    // 使用 capturing 阶段捕获所有错误，不做任何类型过滤
+    // 使用 capturing 阶段捕获错误
+    // 只对 JS 报错 / 脚本加载失败弹出全屏诊断；图片等资源加载失败只记 console
     window.addEventListener('error',function(e){
-      var info='[error事件]\ntype='+e.type+'\nmessage='+(e.message||'(无)')+'\nfilename='+(e.filename||'(无)')+'\nlineno='+(e.lineno||'?')+'\ncolno='+(e.colno||'?')+'\nisErrorEvent='+(e instanceof ErrorEvent)+'\ntarget='+((e.target&&e.target.tagName)||e.target||'window');
-      if(e.target&&e.target.tagName==='SCRIPT')info+='\nsrc='+(e.target.src||e.target.getAttribute('src')||'?');
+      var isJsError = e instanceof ErrorEvent;
+      var isScript = e.target && e.target.tagName === 'SCRIPT';
+      if (!isJsError && !isScript) {
+        // 非致命错误（如图片 404）：只记日志，不弹窗
+        var tag = (e.target && e.target.tagName) || '?';
+        var src = (e.target && (e.target.src || e.target.href)) || '';
+        console.warn('[资源加载失败]', tag, src || e.target);
+        return;
+      }
+      var info='[error事件]\ntype='+e.type+'\nmessage='+(e.message||'(无)')+'\nfilename='+(e.filename||'(无)')+'\nlineno='+(e.lineno||'?')+'\ncolno='+(e.colno||'?')+'\nisErrorEvent='+isJsError+'\ntarget='+((e.target&&e.target.tagName)||e.target||'window');
+      if(isScript)info+='\nsrc='+(e.target.src||e.target.getAttribute('src')||'?');
       if(e.error&&e.error.stack)info+='\nstack='+e.error.stack.slice(0,500);
       window.__showError(info);
     },true);
