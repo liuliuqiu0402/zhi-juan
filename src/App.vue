@@ -184,7 +184,7 @@ import { useMobile } from '@/composables/useMobile.js';
 import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
-import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
+import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, pullDeletedDocIds, pushDeletedDocIds, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
 import { apiConfig, getCurrentEngineConfig, loadConfigSync, decrypt } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
@@ -654,6 +654,31 @@ onMounted(async () => {
           console.log('🔄 [拉取] 完成 | ' + fmtPull(hist, '历史') + '条 ' + fmtPull(gen, '生成') + '条（桌面端仅双向2类）');
         }
 
+        // ①.⑤ 拉取墓碑集（已删除文档 ID，独立通道，不受 Top-N 截断影响，7天自动过期）
+        let mergedDeletedGen = {};
+        let mergedDeletedHist = {};
+        {
+          const [delGen, delHist] = await Promise.all([
+            pullDeletedDocIds('generated_docs'),
+            pullDeletedDocIds('doc_history'),
+          ]);
+          // 合并本地墓碑（取并集，保留最新时间戳）
+          const loadLocal = (key) => { try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch { return {}; } };
+          const localDelGen = loadLocal('wisdom_deleted_gen_doc_ids');
+          const localDelHist = loadLocal('wisdom_deleted_hist_doc_ids');
+          mergedDeletedGen = { ...delGen };
+          for (const [id, ts] of Object.entries(localDelGen)) {
+            if (!mergedDeletedGen[id] || ts > mergedDeletedGen[id]) mergedDeletedGen[id] = ts;
+          }
+          mergedDeletedHist = { ...delHist };
+          for (const [id, ts] of Object.entries(localDelHist)) {
+            if (!mergedDeletedHist[id] || ts > mergedDeletedHist[id]) mergedDeletedHist[id] = ts;
+          }
+          // 更新本地墓碑缓存
+          localStorage.setItem('wisdom_deleted_gen_doc_ids', JSON.stringify(mergedDeletedGen));
+          localStorage.setItem('wisdom_deleted_hist_doc_ids', JSON.stringify(mergedDeletedHist));
+        }
+
         // ② 合并生成结果（双向，两端都做）
         const GEN_KEY = 'wisdom_generated_docs';
         let mergedGen = [];
@@ -669,7 +694,7 @@ onMounted(async () => {
             }
           }
           mergedGen = [...map.values()]
-            .filter(d => !d._deleted)
+            .filter(d => !d._deleted && !mergedDeletedGen[d.id])
             .sort((a, b) => (a.savedAt || a.timestamp || 0) - (b.savedAt || b.timestamp || 0));
           // 截断 20
           if (mergedGen.length > 20) mergedGen = mergedGen.slice(-20);
@@ -690,7 +715,7 @@ onMounted(async () => {
             }
           }
           mergedHist = [...map2.values()]
-            .filter(d => !d._deleted)
+            .filter(d => !d._deleted && !mergedDeletedHist[d.id])
             .sort((a, b) => (a.savedAt || a.timestamp || 0) - (b.savedAt || b.timestamp || 0));
           if (mergedHist.length > 50) mergedHist = mergedHist.slice(-50);
 
@@ -703,6 +728,10 @@ onMounted(async () => {
           pushGeneratedDocs(mergedGen).then(ok => { if (ok) console.log('☁️ 生成结果已推送云端（合并）' + mergedGen.length + ' 条'); return ok; }).catch(() => false),
           pushDocHistory(mergedHist).then(ok => { if (ok) console.log('☁️ 历史记录已推送云端（合并）' + mergedHist.length + ' 条'); return ok; }).catch(() => false),
         ]);
+
+        // ④.⑤ 推送墓碑集（独立通道，不阻塞主流程）
+        pushDeletedDocIds('generated_docs', mergedDeletedGen).catch(() => {});
+        pushDeletedDocIds('doc_history', mergedDeletedHist).catch(() => {});
 
         // ⑤ 写入云端单向数据到本地（仅手机端；云端是权威源，无条件覆盖本地）
         if (isMobile && unilateralData) {

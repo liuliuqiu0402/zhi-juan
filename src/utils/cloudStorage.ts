@@ -187,7 +187,8 @@ export async function warmupCloud(): Promise<boolean> {
 // ══════════════════════════════════════════════════════════════
 
 /**
- * 合并多设备行：展开 → 去重（同 id 保留最新时间戳）→ 过滤删除标记 → 排序 → 截断
+ * 合并多设备行：展开 → 去重（同 id 保留最新时间戳）→ 排序 → 截断
+ * 注：_deleted 墓碑由独立的 deleted_docs 通道处理，此处仅做纯数据合并
  * @param rows RPC 返回的原始数组，每个元素是一个设备的 data 数组（JSONB 数组）
  * @param limit 最多保留条数
  */
@@ -209,19 +210,11 @@ function mergeDeviceData(rows: unknown[], limit: number): Record<string, unknown
 
   if (allItems.length === 0) return [];
 
-  // 收集删除标记
-  const tombstoneIds = new Set<string>();
-  for (const item of allItems) {
-    if (item._deleted && item.id) {
-      tombstoneIds.add(item.id as string);
-    }
-  }
-
   // 去重：同 id 保留最新时间戳版本
   const map = new Map<string, Record<string, unknown>>();
   for (const item of allItems) {
     const id = item.id as string;
-    if (!id || tombstoneIds.has(id)) continue;
+    if (!id) continue;
     const existing = map.get(id);
     if (!existing) {
       map.set(id, item);
@@ -379,6 +372,80 @@ export async function pullGeneratedDocs(): Promise<unknown[] | null> {
   const warnTag = hasAnyErr ? ' ⚠️部分查询失败' : '';
   console.log('☁️ pull_generated_docs:', merged.length, '条（' + sourceTag + ' + 客户端合并）' + warnTag);
   return merged;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 墓碑通道：已删除文档 ID 独立存储（不参与 Top-N 截断，7 天自动过期）
+// ══════════════════════════════════════════════════════════════
+
+const TOMBSTONE_TTL = 7 * 24 * 60 * 60 * 1000;
+
+export async function pullDeletedDocIds(table: string): Promise<Record<string, number>> {
+  if (noSyncKey()) return {};
+  const client = getClient();
+  if (!client) return {};
+
+  try {
+    const { data, error } = await client
+      .from(table)
+      .select('data')
+      .eq('id', getSyncKey() + ':deleted')
+      .maybeSingle();
+    if (error) {
+      if (!error.message?.includes('contains 0 rows')) {
+        console.warn('☁️ pull_deleted_docs 查询失败:', error.message);
+      }
+      return {};
+    }
+    const raw: Record<string, number> = data?.data?.ids || {};
+    const cutoff = Date.now() - TOMBSTONE_TTL;
+    const filtered: Record<string, number> = {};
+    let pruned = 0;
+    for (const [id, ts] of Object.entries(raw)) {
+      if (ts >= cutoff) { filtered[id] = ts; } else { pruned++; }
+    }
+    if (pruned > 0) {
+      console.log('☁️ pull_deleted_docs(' + table + '): 清理 ' + pruned + ' 条过期墓碑');
+    }
+    return filtered;
+  } catch (e) {
+    console.warn('☁️ pull_deleted_docs 异常:', e);
+    return {};
+  }
+}
+
+export async function pushDeletedDocIds(table: string, localDeletedIds: Record<string, number>): Promise<boolean> {
+  if (noSyncKey()) return false;
+  const client = noClient();
+  if (!client) return false;
+
+  try {
+    const cloudDeleted = await pullDeletedDocIds(table);
+    const merged: Record<string, number> = { ...cloudDeleted };
+    for (const [id, ts] of Object.entries(localDeletedIds)) {
+      if (!merged[id] || ts > merged[id]) merged[id] = ts;
+    }
+    const cutoff = Date.now() - TOMBSTONE_TTL;
+    for (const id of Object.keys(merged)) {
+      if (merged[id] < cutoff) delete merged[id];
+    }
+
+    const { error } = await client
+      .from(table)
+      .upsert({
+        id: getSyncKey() + ':deleted',
+        data: { ids: merged },
+        updated_at: new Date().toISOString(),
+      });
+    if (error) {
+      console.error('☁️ push_deleted_docs(' + table + ') 失败:', error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn('☁️ push_deleted_docs 异常:', e);
+    return false;
+  }
 }
 
 // ══════════════════════════════════════════════════════════════

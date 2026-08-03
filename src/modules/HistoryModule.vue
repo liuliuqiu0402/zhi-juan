@@ -99,9 +99,19 @@ const clearAllHistory = async () => {
   const confirmed = await showConfirmDialogFn('确定清空所有历史记录吗？');
   if (confirmed) {
     // 打 _deleted 标记（同步后自动清理）
+    const now = Date.now();
+    const deletedIds = {};
     for (const h of historyList.value) {
       h._deleted = true;
+      h.savedAt = now; // 🔧 更新时间戳，确保删除标记进入推送 Top 50
+      deletedIds[h.id] = now;
     }
+    // 🔧 写入独立墓碑通道
+    try {
+      const existing = JSON.parse(localStorage.getItem('wisdom_deleted_hist_doc_ids') || '{}');
+      Object.assign(existing, deletedIds);
+      localStorage.setItem('wisdom_deleted_hist_doc_ids', JSON.stringify(existing));
+    } catch {}
     filteredHistoryList.value = [];
     await storage.setItem('docHistory', historyList.value);
   }
@@ -111,6 +121,13 @@ const deleteHistoryItem = async (id) => {
   const item = historyList.value.find(h => h.id === id);
   if (item) {
     item._deleted = true;
+    item.savedAt = Date.now(); // 🔧 更新时间戳
+    // 🔧 写入独立墓碑通道
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('wisdom_deleted_hist_doc_ids') || '{}');
+      deletedIds[id] = Date.now();
+      localStorage.setItem('wisdom_deleted_hist_doc_ids', JSON.stringify(deletedIds));
+    } catch {}
     filteredHistoryList.value = filteredHistoryList.value.filter(h => h.id !== id);
     await storage.setItem('docHistory', historyList.value);
   }

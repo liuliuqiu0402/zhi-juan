@@ -6541,7 +6541,16 @@ const copyToEduRender = async () => {
 const deleteDoc = (doc) => {
   // 打 _deleted 标记，不立即移除（多端同步需要一条端删除即可）
   const idx = generatedDocs.value.findIndex(d => d.id === doc.id);
-  if (idx !== -1) generatedDocs.value[idx]._deleted = true;
+  if (idx !== -1) {
+    generatedDocs.value[idx]._deleted = true;
+    generatedDocs.value[idx].savedAt = Date.now(); // 🔧 更新时间戳，确保删除标记进入推送 Top 20
+    // 🔧 写入独立墓碑通道（不依赖 _deleted 字段，7 天自动过期）
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('wisdom_deleted_gen_doc_ids') || '{}');
+      deletedIds[doc.id] = Date.now();
+      localStorage.setItem('wisdom_deleted_gen_doc_ids', JSON.stringify(deletedIds));
+    } catch {}
+  }
 };
 
 const batchDeleteDocs = async () => {
@@ -6561,6 +6570,13 @@ const batchDeleteDocs = async () => {
   for (const d of selected) {
     d._deleted = true;
     d.selected = false;
+    d.savedAt = Date.now(); // 🔧 更新时间戳，确保删除标记进入推送 Top 20
+    // 🔧 写入独立墓碑通道
+    try {
+      const deletedIds = JSON.parse(localStorage.getItem('wisdom_deleted_gen_doc_ids') || '{}');
+      deletedIds[d.id] = Date.now();
+      localStorage.setItem('wisdom_deleted_gen_doc_ids', JSON.stringify(deletedIds));
+    } catch {}
   }
   
   await showAlertDialogFn(`已标记 ${selected.length} 个资料为待删除（同步后自动清理）`);
