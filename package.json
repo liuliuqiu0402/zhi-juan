@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:cap": "vite build && npx cap sync",
+    "build:cap": "vite build && npx cap sync && node scripts/verify-cap-build.cjs",
     "build:vercel": "cross-env BASE_URL=/ vite build",
     "preview": "vite preview",
     "electron": "electron .",

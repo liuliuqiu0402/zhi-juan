@@ -34,15 +34,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build web & sync to Android
+      - name: Build web & sync to Android (含验证)
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-        # android/ 已纳入仓库管理，无需 cap add；cap sync 仅更新 web 资源
+        # build:cap = vite build → cap sync → verify-cap-build（验证关键配置防白屏）
         run: npm run build:cap
-
-      - name: Copy web assets to Android
-        run: npx cap sync android
 
       - name: Build Android APK (debug)
         working-directory: android
