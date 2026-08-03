@@ -4,14 +4,6 @@ on:
   workflow_dispatch:  # 手动触发
   push:
     branches: [main, master]
-    paths:
-      - 'src/**'
-      - 'ios/**'
-      - 'index.html'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'capacitor.config.ts'
-      - 'vite.config.js'
 
 jobs:
   build-ios:

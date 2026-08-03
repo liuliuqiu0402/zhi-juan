@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import storage from '../utils/storage';
+import { resolveStoredPath } from '../utils/pathHelper';
 
 export const useTemplateStore = defineStore('template', {
   state: () => ({
@@ -57,6 +58,11 @@ export const useTemplateStore = defineStore('template', {
             else if (t.name.includes('下册')) { t.semester = '下册'; hasChange = true; }
             else if (!t.semester) { t.semester = ''; }
           }
+          // 🔧 存储目录合并后，修复旧数据中的相对路径 → 绝对路径
+          if (t.coverPath) { t.coverPath = resolveStoredPath(t.coverPath); hasChange = true; }
+          if (t.pdfPath) { t.pdfPath = resolveStoredPath(t.pdfPath); hasChange = true; }
+          if (t.filePath) { t.filePath = resolveStoredPath(t.filePath); hasChange = true; }
+          if (t.imagesDir) { t.imagesDir = resolveStoredPath(t.imagesDir); hasChange = true; }
         }
         this.templates = saved;
         if (hasChange) await storage.setItem('templates', saved);

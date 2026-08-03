@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia';
 import storage from '../utils/storage';
+// @ts-ignore - pathHelper.js 无类型声明
+import { resolveStoredPath } from '../utils/pathHelper';
 
 interface ChapterNode {
   id?: string;
@@ -144,6 +146,10 @@ export const useTextbookStore = defineStore('textbook', {
             else if (bName.includes('下册')) { b.semester = '下册'; hasChange = true; }
             else if (!b.semester) { b.semester = ''; }
           }
+          // 🔧 存储目录合并后，修复旧数据中的相对路径 → 绝对路径
+          if (b.coverPath) { b.coverPath = resolveStoredPath(b.coverPath as string); hasChange = true; }
+          if (b.pdfPath) { b.pdfPath = resolveStoredPath(b.pdfPath as string); hasChange = true; }
+          if (b.imagesDir) { b.imagesDir = resolveStoredPath(b.imagesDir as string); hasChange = true; }
         }
         // 🔧 加载时同步联动：修复旧数据中父已分析但子未打钩的情况
         for (const b of saved) {
