@@ -4,9 +4,9 @@ const config: CapacitorConfig = {
   appId: 'com.wisdom.zhijuan',
   appName: '智卷工坊',
   webDir: 'dist',
-  // 禁用 Capacitor 内置服务器，使用本地文件直读模式
+  // Capacitor 本地 HTTP 服务器（Android 使用 http 避免自签名 SSL 证书导致 WebView 白屏）
   server: {
-    androidScheme: 'https',
+    androidScheme: 'http',
     iosScheme: 'capacitor',
   },
   ios: {
