@@ -30,21 +30,6 @@
     window.addEventListener('unhandledrejection',function(e){window.__showError('Promise 异常: '+(e.reason?.message||e.reason?.stack||String(e.reason)));});
     // 15 秒超时诊断：Vue 还没挂载就说明卡死了
     setTimeout(function(){if(document.getElementById('app')&&document.getElementById('app').children.length===0)window.__showError('⏱ 超时('+((Date.now()-__t0)/1000).toFixed(1)+'s): Vue 未挂载\n\n可能原因: 模块加载失败 / 路由卡死\n检查: 打开 Chrome DevTools 远程调试');},15000);
-    // 🔧 模块脚本加载失败检测（error 事件不冒泡，需直接监听 script 元素）
-    setTimeout(function(){
-      var scripts=document.querySelectorAll('script[type="module"]');
-      for(var i=0;i<scripts.length;i++){
-        scripts[i].addEventListener('error',function(){window.__showError('❌ ES模块加载失败: '+((this&&this.src)||'未知脚本')+'\n请检查文件是否存在及网络连接');});
-        scripts[i].addEventListener('load',function(){console.log('[诊断] 模块脚本已加载:',(this&&this.src)||'');});
-      }
-      // 3 秒速诊：比 15 秒超时更快发现问题
-      setTimeout(function(){
-        var app=document.getElementById('app');
-        if(app&&app.children.length===0&&app.innerHTML.trim()===''){
-          window.__showError('⚠️ 模块已加载但 Vue 未挂载 (3s)\nsrc='+(scripts[0]&&scripts[0].src||'?'));
-        }
-      },3000);
-    },0);
   </script>
   <script type="module" src="/src/main.js"></script>
 </body>
