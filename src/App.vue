@@ -1170,12 +1170,15 @@ onMounted(async () => {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  /* 显式计算：内容 56px + 设备底部安全区，避免 box-sizing:border-box 下 env() 被压缩 */
-  height: calc(56px + env(safe-area-inset-bottom, 0px));
-  background: white;
-  border-top: 1px solid var(--border-light);
+  height: 56px;
+  background: #ffffff;
+  border-top: 2px solid #e0e0e0;
   flex-shrink: 0;
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* 确保在 Capacitor WebView 中始终可见 */
+  min-height: 56px;
+  z-index: 100;
 }
 .mobile-bottom-nav .nav-tab {
   display: flex;
@@ -1183,17 +1186,20 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 2px;
-  padding: 6px 16px;
+  padding: 6px 12px;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s;
-  color: var(--text-muted);
+  color: #666666;
   font-size: 12px;
   -webkit-tap-highlight-color: transparent;
+  /* 确保文字可见 */
+  min-width: 44px;
+  text-align: center;
 }
 .mobile-bottom-nav .nav-tab.active {
-  color: var(--primary);
-  background: var(--primary-bg);
+  color: #1e3a6f;
+  background: #eef3fa;
 }
 .mobile-bottom-nav .nav-icon {
   font-size: 22px;
@@ -1202,6 +1208,7 @@ onMounted(async () => {
 .mobile-bottom-nav .nav-label {
   font-size: 10px;
   font-weight: 500;
+  color: #666666;
 }
 
 /* 📱 移动端全局微调 */
