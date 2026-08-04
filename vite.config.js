@@ -45,15 +45,18 @@ export default defineConfig({
         ],
       },
     })]),
-    // 🔧 Capacitor: 诊断模式——移除所有模块脚本，测试内联JS能否独立运行
+    // 🔧 Capacitor: 模块脚本移到 body 末尾（内存联脚本之后加载）
     {
-      name: 'capacitor-no-module-diag',
+      name: 'capacitor-module-to-body',
       enforce: 'post',
       apply: 'build',
       transformIndexHtml(html) {
         if (!IS_CAPACITOR) return html;
-        // 完全移除模块脚本
-        html = html.replace(/<script\s+type="module"[^>]*><\/script>/g, '');
+        const scripts = [];
+        html = html.replace(/<script\s+type="module"[^>]*><\/script>/g, (m) => { scripts.push(m); return ''; });
+        if (scripts.length > 0) {
+          html = html.replace('</body>', '  ' + scripts.join('\n  ') + '\n</body>');
+        }
         return html;
       }
     },
