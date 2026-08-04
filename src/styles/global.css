@@ -39,10 +39,10 @@
   --radius-xl: 24px;
 
   /* 🔤 字体大小基准（桌面端默认兜底值，移动端 @media 覆写为 clamp() 等比缩放） */
-  --fs-xs: 11px;
-  --fs-sm: 12px;
-  --fs-md: 13px;
-  --fs-body: 14px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 14px;
+  --fs-body: 15px;
   --fs-lg: 16px;
   --fs-xl: 18px;
 }
@@ -401,10 +401,10 @@ span.blank-8 { min-width: 8em; } span.blank-10 { min-width: 10em; }
 @media (max-width: 767px) {
   /* 🔤 移动端字号等比缩放——屏幕越宽字越大（320px~430px 各自得到合适尺寸） */
   :root {
-    --fs-xs:   clamp(11px, 3vw,   13px);
-    --fs-sm:   clamp(12px, 3.2vw, 14px);
-    --fs-md:   clamp(13px, 3.5vw, 15px);
-    --fs-body: clamp(15px, 4vw,   17px);
+    --fs-xs:   clamp(12px, 3.5vw, 14px);
+    --fs-sm:   clamp(13px, 3.8vw, 15px);
+    --fs-md:   clamp(14px, 4vw,   16px);
+    --fs-body: clamp(15px, 4.2vw, 17px);
     --fs-lg:   clamp(16px, 4.5vw, 19px);
     --fs-xl:   clamp(18px, 5vw,   22px);
   }

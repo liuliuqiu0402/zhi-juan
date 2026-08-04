@@ -661,8 +661,8 @@
         </div>
             
         <div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center;">
-          <span style="font-size: 13px; color: #666;">ℹ️ 直接粘贴图文混排内容，图片会自动提取</span>
-          <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+          <span style="font-size: var(--fs-md); color: #666;">ℹ️ 直接粘贴图文混排内容，图片会自动提取</span>
+          <label style="display: flex; align-items: center; gap: 6px; font-size: var(--fs-md); cursor: pointer;">
             <input type="checkbox" v-model="rawTextEditorData.analyzeCharts" @change="onAnalyzeChartsChange" />
             <span>🖼️ 分析图片内容（自动调用多模态模型描述）</span>
           </label>
@@ -672,10 +672,10 @@
         <div v-if="rawTextEditorData.analyzeCharts && rawTextEditorData.detectedImages && rawTextEditorData.detectedImages.length > 0" 
              style="margin-bottom: 12px; padding: 12px; background: #f8f9fa; border-radius: 6px; max-height: 200px; overflow-y: auto;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <strong style="font-size: 13px;">📸 检测到 {{ rawTextEditorData.detectedImages.length }} 张图片</strong>
+            <strong style="font-size: var(--fs-md);">📸 检测到 {{ rawTextEditorData.detectedImages.length }} 张图片</strong>
             <div style="display: flex; gap: 8px;">
-              <button @click="selectAllDetectedImages(true)" style="font-size: 12px; padding: 4px 8px; cursor: pointer;">全选</button>
-              <button @click="selectAllDetectedImages(false)" style="font-size: 12px; padding: 4px 8px; cursor: pointer;">全不选</button>
+              <button @click="selectAllDetectedImages(true)" style="font-size: var(--fs-sm); padding: 4px 8px; cursor: pointer;">全选</button>
+              <button @click="selectAllDetectedImages(false)" style="font-size: var(--fs-sm); padding: 4px 8px; cursor: pointer;">全不选</button>
             </div>
           </div>
           <div v-for="(img, idx) in rawTextEditorData.detectedImages" :key="idx" 
@@ -683,7 +683,7 @@
             <input type="checkbox" v-model="img.selected" :id="'img-' + idx" />
             <label :for="'img-' + idx" style="flex: 1; cursor: pointer; display: flex; align-items: center; gap: 8px;">
               <img :src="img.src" style="max-width: 60px; max-height: 60px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px;" />
-              <span style="font-size: 12px; color: #666;">图片 {{ idx + 1 }}</span>
+              <span style="font-size: var(--fs-sm); color: #666;">图片 {{ idx + 1 }}</span>
             </label>
           </div>
         </div>
@@ -699,7 +699,7 @@
           />
         </div>
             
-        <div style="margin-top: 12px; padding: 10px; background: #f8f9fa; border-radius: 6px; font-size: 12px; color: #666;">
+        <div style="margin-top: 12px; padding: 10px; background: #f8f9fa; border-radius: 6px; font-size: var(--fs-sm); color: #666;">
           <strong>💡 提示：</strong>
           <ul style="margin: 6px 0 0 20px; padding: 0;">
             <li>支持直接粘贴图文混排内容（Word、网页、PDF等）</li>
@@ -780,11 +780,11 @@
                 <div class="template-left-column">
                   <label style="display:block;font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:3px;">📖 原文提取</label>
                   <div v-if="item.rawText && item.rawText.includes('【？】')" 
-                    style="display:flex;align-items:center;gap:4px;margin-bottom:3px;padding:3px 6px;background:#fffbf0;border:1px solid #f0c78e;border-radius:3px;font-size:10px;">
+                    style="display:flex;align-items:center;gap:4px;margin-bottom:3px;padding:3px 6px;background:#fffbf0;border:1px solid #f0c78e;border-radius:3px;font-size:var(--fs-xs);">
                     <span style="color:var(--warning);font-weight:600;">⚠️ {{ (item.rawText.match(/【？】/g) || []).length }} 处</span>
-                    <button class="btn-small" @click="jumpToUncertainInItem(item, 'prev')" style="color:var(--primary-light);padding:1px 4px;font-size:10px;">◀</button>
-                    <button class="btn-small" @click="jumpToUncertainInItem(item, 'next')" style="color:var(--primary-light);padding:1px 4px;font-size:10px;">▶</button>
-                    <button class="btn-small" @click="item.rawText = item.rawText.replace(/【？】/g, '')" style="color:var(--success);margin-left:auto;padding:1px 6px;font-size:10px;">✅ 清除</button>
+                    <button class="btn-small" @click="jumpToUncertainInItem(item, 'prev')" style="color:var(--primary-light);padding:1px 4px;font-size:var(--fs-xs);">◀</button>
+                    <button class="btn-small" @click="jumpToUncertainInItem(item, 'next')" style="color:var(--primary-light);padding:1px 4px;font-size:var(--fs-xs);">▶</button>
+                    <button class="btn-small" @click="item.rawText = item.rawText.replace(/【？】/g, '')" style="color:var(--success);margin-left:auto;padding:1px 6px;font-size:var(--fs-xs);">✅ 清除</button>
                   </div>
                   <!-- 🔧 保留原文格式：有 _rawTextHtml 用富文本编辑器，否则用纯文本框 -->
                   <RichTextEditor 
@@ -858,10 +858,10 @@
                 <div v-if="analysisResultData.rawText && analysisResultData.rawText.includes('【？】')" 
                   style="display:flex;align-items:center;gap:4px;margin-bottom:4px;padding:4px 8px;background:#fffbf0;border:1px solid #f0c78e;border-radius:4px;font-size:var(--fs-xs);">
                   <span style="color:var(--warning);font-weight:600;">⚠️ {{ uncertainCount }} 处不确定</span>
-                  <button class="btn-small" @click="jumpToUncertain('prev')" style="color:var(--primary-light);font-size:10px;">◀ 上一个</button>
-                  <button class="btn-small" @click="jumpToUncertain('next')" style="color:var(--primary-light);font-size:10px;">下一个 ▶</button>
-                  <span style="color:var(--text-muted);margin:0 4px;font-size:10px;">{{ uncertainCurrentIndex > 0 ? uncertainCurrentIndex : '?' }}/{{ uncertainCount }}</span>
-                  <button class="btn-small" @click="clearAllUncertainMarks" style="color:var(--success);margin-left:auto;font-size:10px;">✅ 一键清除</button>
+                  <button class="btn-small" @click="jumpToUncertain('prev')" style="color:var(--primary-light);font-size:var(--fs-xs);">◀ 上一个</button>
+                  <button class="btn-small" @click="jumpToUncertain('next')" style="color:var(--primary-light);font-size:var(--fs-xs);">下一个 ▶</button>
+                  <span style="color:var(--text-muted);margin:0 4px;font-size:var(--fs-xs);">{{ uncertainCurrentIndex > 0 ? uncertainCurrentIndex : '?' }}/{{ uncertainCount }}</span>
+                  <button class="btn-small" @click="clearAllUncertainMarks" style="color:var(--success);margin-left:auto;font-size:var(--fs-xs);">✅ 一键清除</button>
                 </div>
                 <!-- 🔧 保留原文格式：有 _rawTextHtml 用富文本编辑器，否则用纯文本框 -->
                 <RichTextEditor 
@@ -886,9 +886,9 @@
                 <div class="confirm-item-header">
                   <strong style="font-size:var(--fs-md);">📊 结构分析</strong>
                   <div style="display:flex;gap:4px;">
-                    <span v-if="analysisResultData.ocrQuality === 'poor'" style="color:var(--danger);font-weight:bold;font-size:10px;background:#fde8e8;padding:2px 6px;border-radius:3px;">OCR质量差</span>
-                    <span v-else-if="analysisResultData.ocrQuality === 'warning'" style="color:var(--warning);font-weight:bold;font-size:10px;background:#fef3e2;padding:2px 6px;border-radius:3px;">OCR有误</span>
-                    <button class="btn-small" @click="clearTemplateAnalysisFields" title="清空所有分析字段" style="color:var(--warning);border-color:#f0c78e;font-size:10px;">🗑️ 重填</button>
+                    <span v-if="analysisResultData.ocrQuality === 'poor'" style="color:var(--danger);font-weight:bold;font-size:var(--fs-xs);background:#fde8e8;padding:2px 6px;border-radius:3px;">OCR质量差</span>
+                    <span v-else-if="analysisResultData.ocrQuality === 'warning'" style="color:var(--warning);font-weight:bold;font-size:var(--fs-xs);background:#fef3e2;padding:2px 6px;border-radius:3px;">OCR有误</span>
+                    <button class="btn-small" @click="clearTemplateAnalysisFields" title="清空所有分析字段" style="color:var(--warning);border-color:#f0c78e;font-size:var(--fs-xs);">🗑️ 重填</button>
                   </div>
                 </div>
 
@@ -898,7 +898,7 @@
                     <div style="display:flex;gap:4px;margin-bottom:3px;">
                       <input type="text" v-model="section.大题" placeholder="大题（如一、看拼音写词语）" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:var(--fs-xs);" />
                       <input type="text" v-model="section.题型" placeholder="题型" style="width:100px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:var(--fs-xs);" />
-                      <button class="btn-small" @click="analysisResultData.结构分析.splice(si, 1)" style="color:var(--danger);flex-shrink:0;padding:2px 4px;font-size:10px;">🗑️</button>
+                      <button class="btn-small" @click="analysisResultData.结构分析.splice(si, 1)" style="color:var(--danger);flex-shrink:0;padding:2px 4px;font-size:var(--fs-xs);">🗑️</button>
                     </div>
                     <div style="display:flex;gap:4px;">
                       <input type="number" v-model.number="section.小题数量" placeholder="小题数" style="width:60px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:var(--fs-xs);" />
@@ -908,7 +908,7 @@
                     </div>
                     <input type="text" v-model="section.设问风格" placeholder="设问风格" style="width:100%;margin-top:3px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:var(--fs-xs);" />
                   </div>
-                  <button class="btn-small" @click="analysisResultData.结构分析.push({大题:'',题型:'',小题数量:0,大题分值:0,每小题分值:0,设问风格:'',难度:'基础'})" style="margin-top:3px;font-size:10px;">➕ 添加大题</button>
+                  <button class="btn-small" @click="analysisResultData.结构分析.push({大题:'',题型:'',小题数量:0,大题分值:0,每小题分值:0,设问风格:'',难度:'基础'})" style="margin-top:3px;font-size:var(--fs-xs);">➕ 添加大题</button>
                 </div>
                 <div style="display:flex;gap:10px;">
                   <div class="confirm-field" style="flex:1;">
@@ -926,7 +926,7 @@
                   <label @click="showLanguageStyleDetail = !showLanguageStyleDetail" style="cursor:pointer;font-size:var(--fs-xs);">
                     🔍 语言风格指纹 {{ showLanguageStyleDetail ? '▼' : '▶' }}
                   </label>
-                  <div v-if="showLanguageStyleDetail" style="font-size:10px;color:#555;background:var(--bg-card);padding:6px;border-radius:4px;margin-top:3px;">
+                  <div v-if="showLanguageStyleDetail" style="font-size:var(--fs-xs);color:#555;background:var(--bg-card);padding:6px;border-radius:4px;margin-top:3px;">
                     <div v-if="analysisResultData.languageStyle.avgSentenceLength">平均句长：{{ analysisResultData.languageStyle.avgSentenceLength }}字</div>
                     <div v-if="analysisResultData.languageStyle.commonPatterns?.length">高频句式：{{ analysisResultData.languageStyle.commonPatterns.join('、') }}</div>
                     <div v-if="analysisResultData.languageStyle.connectors?.length">连接词：{{ analysisResultData.languageStyle.connectors.join('、') }}</div>
@@ -1220,7 +1220,7 @@
                         style="margin-left:16px;margin-bottom:6px;">
                         <div style="font-size:var(--fs-sm);font-weight:600;color:#34495e;">
                           {{ ckIdx + 1 }}. {{ ck.name || ck.coreConcept || '未命名核心知识' }}
-                          <span v-if="ck.level" style="margin-left:8px;padding:2px 6px;background:#3498db;color:white;border-radius:3px;font-size:10px;">{{ ck.level }}</span>
+                          <span v-if="ck.level" style="margin-left:8px;padding:2px 6px;background:#3498db;color:white;border-radius:3px;font-size:var(--fs-xs);">{{ ck.level }}</span>
                         </div>
                         <div v-if="ck.specificConcepts && ck.specificConcepts.length > 0" 
                           style="font-size:var(--fs-xs);color:#666;margin-left:16px;margin-top:2px;">
@@ -7431,12 +7431,12 @@ const addBlueprintQuestion = () => {
   border-radius: 14px;
   background: linear-gradient(135deg, #f0f4ff, #e8f0fe);
   border: 1px solid #c5d5f7;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   white-space: nowrap;
   user-select: none;
 }
 .model-recommend-badge .badge-icon {
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 .model-recommend-badge .badge-model {
   font-weight: 600;
@@ -7444,7 +7444,7 @@ const addBlueprintQuestion = () => {
 }
 .model-recommend-badge .badge-tip {
   color: #888;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 /* 当前模型配置芯片 */
 .model-config-chip {
@@ -7455,7 +7455,7 @@ const addBlueprintQuestion = () => {
   border-radius: 12px;
   background: #f5f5f5;
   border: 1px solid #e0e0e0;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   white-space: nowrap;
   user-select: none;
   cursor: default;
@@ -7475,13 +7475,13 @@ const addBlueprintQuestion = () => {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
-.chip-status-err { font-size: 12px; margin-left: 2px; }
+.chip-status-err { font-size: var(--fs-sm); margin-left: 2px; }
 .model-config-chip .chip-label { color: #888; }
 .model-config-chip .chip-sep { color: #ccc; }
 .model-config-chip .chip-model { color: #444; font-weight: 500; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
 /* 分析按钮模型提示 */
 .analyze-model-hint {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--primary-light);
   background: #e8f0fe;
   padding: 2px 8px;
@@ -7498,7 +7498,7 @@ const addBlueprintQuestion = () => {
   border: 1px solid var(--border);
   background: white;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-md);
   transition: all 0.2s;
 }
 
@@ -7544,7 +7544,7 @@ const addBlueprintQuestion = () => {
 
 .selected-count {
   margin-left: auto;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--primary-light);
 }
 
@@ -7553,7 +7553,7 @@ const addBlueprintQuestion = () => {
 }
 
 .item-badge {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   padding: 2px 8px;
   background: var(--primary-lighter);
   border-radius: 12px;
@@ -7565,7 +7565,7 @@ const addBlueprintQuestion = () => {
 }
 
 .page-range {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
 }
 
@@ -7602,7 +7602,7 @@ const addBlueprintQuestion = () => {
   border: 1px solid var(--border-light);
   border-radius: 12px;
   font-family: 'Consolas', monospace;
-  font-size: 13px;
+  font-size: var(--fs-md);
   line-height: 1.6;
   resize: none;
   background: var(--bg-card);
@@ -7614,7 +7614,7 @@ const addBlueprintQuestion = () => {
   background: var(--success-light);
   border-radius: 8px;
   color: #2e7d32;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .analysis-result {
@@ -7727,7 +7727,7 @@ const addBlueprintQuestion = () => {
   align-items: center;
   gap: 4px;
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   border: 1px solid var(--border-light);
   border-radius: 6px;
   background: #fff;
@@ -7756,7 +7756,7 @@ const addBlueprintQuestion = () => {
 }
 
 .period-tab-kp {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 1px 5px;
   background: rgba(0,0,0,0.08);
   border-radius: 4px;
@@ -7778,13 +7778,13 @@ const addBlueprintQuestion = () => {
 .select-all {
   cursor: pointer;
   color: var(--primary-light);
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .batch-delete {
   cursor: pointer;
   color: var(--danger);
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .result-list {
@@ -7831,7 +7831,7 @@ const addBlueprintQuestion = () => {
 }
 
 .result-meta {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
   display: flex;
   align-items: center;
@@ -7839,7 +7839,7 @@ const addBlueprintQuestion = () => {
 }
 
 .difficulty-tag {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   padding: 2px 6px;
   background: #f0f7ff;
   border-radius: 4px;
@@ -7870,7 +7870,7 @@ const addBlueprintQuestion = () => {
 
 .graph-collect {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--primary-light);
   cursor: pointer;
 }
@@ -7878,7 +7878,7 @@ const addBlueprintQuestion = () => {
 .failed-tip {
   margin-top: 8px;
   color: var(--danger);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .batch-download {
@@ -7965,7 +7965,7 @@ const addBlueprintQuestion = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
   cursor: move;
   border-radius: 16px 16px 0 0;
@@ -8022,7 +8022,7 @@ const addBlueprintQuestion = () => {
 
 .option-desc {
   color: #666;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .modal-actions {
@@ -8090,7 +8090,7 @@ const addBlueprintQuestion = () => {
   border-radius: 6px;
   border: 1px solid #ddd;
   background: white;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   cursor: pointer;
 }
 
@@ -8132,7 +8132,7 @@ const addBlueprintQuestion = () => {
 }
 
 .hint {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
   margin-top: 8px;
 }
@@ -8251,7 +8251,7 @@ const addBlueprintQuestion = () => {
   border: 1px solid #a5d6a7;
   border-radius: 6px;
   color: #2e7d32;
-  font-size: 13px;
+  font-size: var(--fs-md);
   text-align: center;
 }
 
@@ -8261,7 +8261,7 @@ const addBlueprintQuestion = () => {
   border: 1px solid #ddd;
   border-radius: 8px;
   font-family: 'Consolas', monospace;
-  font-size: 13px;
+  font-size: var(--fs-md);
   line-height: 1.6;
   resize: vertical;
 }
@@ -8290,7 +8290,7 @@ const addBlueprintQuestion = () => {
 }
 
 .lib-category {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   padding: 2px 8px;
   background: var(--primary-lighter);
   border-radius: 12px;
@@ -8306,7 +8306,7 @@ const addBlueprintQuestion = () => {
   padding: 16px;
   text-align: center;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-md);
   background: var(--bg-card);
   border-radius: 8px;
   margin-bottom: 12px;
@@ -8317,7 +8317,7 @@ const addBlueprintQuestion = () => {
   padding: 6px 10px;
   background: #fef9e7;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: #b85c00;
   display: flex;
   flex-wrap: wrap;
@@ -8348,7 +8348,7 @@ const addBlueprintQuestion = () => {
 .summary-book-name {
   font-weight: 600;
   color: var(--primary);
-  font-size: 13px;
+  font-size: var(--fs-md);
   margin-bottom: 4px;
   display: flex;
   justify-content: space-between;
@@ -8362,13 +8362,13 @@ const addBlueprintQuestion = () => {
   align-items: center;
   justify-content: space-between;
   padding: 3px 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: #555;
 }
 .remove-btn {
   cursor: pointer;
   color: #ccc;
-  font-size: 14px;
+  font-size: var(--fs-body);
   margin-left: 4px;
   flex-shrink: 0;
   transition: color 0.2s;
@@ -8397,7 +8397,7 @@ const addBlueprintQuestion = () => {
   align-items: center;
   justify-content: space-between;
   padding: 6px 0;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .analysis-status {
@@ -8412,7 +8412,7 @@ const addBlueprintQuestion = () => {
   display: flex;
   justify-content: space-between;
   padding: 6px 0;
-  font-size: 13px;
+  font-size: var(--fs-md);
   border-bottom: 1px dashed var(--border-light);
 }
 .summary-ins {
@@ -8420,7 +8420,7 @@ const addBlueprintQuestion = () => {
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   background: var(--bg-card);
   border-radius: 6px;
   margin-bottom: 4px;
@@ -8434,7 +8434,7 @@ const addBlueprintQuestion = () => {
 
 .status-book-name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-body);
   color: var(--primary);
   margin-bottom: 4px;
 }
@@ -8443,7 +8443,7 @@ const addBlueprintQuestion = () => {
   margin-bottom: 4px;
 }
 .status-chapter {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: #555;
   padding: 2px 0;
   display: flex;
@@ -8451,7 +8451,7 @@ const addBlueprintQuestion = () => {
 }
 .status-summary {
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--text-muted);
 }
 
@@ -8478,7 +8478,7 @@ const addBlueprintQuestion = () => {
 }
 .confirm-field label {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
   margin-bottom: 4px;
 }
@@ -8489,7 +8489,7 @@ const addBlueprintQuestion = () => {
   padding: 8px 10px;
   border: 1px solid #ddd;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   box-sizing: border-box;
 }
 .confirm-field textarea {
@@ -8506,7 +8506,7 @@ const addBlueprintQuestion = () => {
 }
 .detail-item strong {
   display: block;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--primary);
   margin-bottom: 4px;
 }
@@ -8515,13 +8515,13 @@ const addBlueprintQuestion = () => {
   padding-left: 20px;
 }
 .detail-item li {
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: #555;
   line-height: 1.8;
 }
 .empty-text {
   color: #ccc;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 /* ✨ 质量报告摘要样式 */
@@ -8533,7 +8533,7 @@ const addBlueprintQuestion = () => {
 }
 
 .quality-item {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   padding: 1px 6px;
   background: var(--success-light);
   border-radius: 10px;
@@ -8554,7 +8554,7 @@ const addBlueprintQuestion = () => {
 }
 
 .issue-tag {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 1px 6px;
   background: #fdebd0;
   border-radius: 10px;
@@ -8576,7 +8576,7 @@ const addBlueprintQuestion = () => {
 }
 
 .issue-more {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
 }
 
@@ -8594,7 +8594,7 @@ const addBlueprintQuestion = () => {
 
 /* 🔧 新增：快捷填充标签样式 */
 .quick-fill-tag {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   padding: 2px 10px;
   background: var(--primary-lighter);
   border: 1px solid var(--border);
@@ -8644,7 +8644,7 @@ const addBlueprintQuestion = () => {
   padding: 8px 10px;
   border: 1px solid #ddd;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   box-sizing: border-box;
 }
 
@@ -8721,13 +8721,13 @@ const addBlueprintQuestion = () => {
   color: white;
   padding: 4px 10px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   pointer-events: none;
 }
 
 .split-line-x {
   display: block;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   opacity: 0.8;
 }
 
@@ -8742,7 +8742,7 @@ const addBlueprintQuestion = () => {
   border-radius: 50%;
   width: 26px;
   height: 26px;
-  font-size: 14px;
+  font-size: var(--fs-body);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -8775,7 +8775,7 @@ const addBlueprintQuestion = () => {
   color: white;
   padding: 4px 12px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
 }
 
@@ -8790,7 +8790,7 @@ const addBlueprintQuestion = () => {
   border: none;
   border-radius: 20px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-md);
   z-index: 20;
 }
 
@@ -8840,7 +8840,7 @@ const addBlueprintQuestion = () => {
   bottom: -8px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: #d32f2f;
   line-height: 1;
 }
@@ -9086,7 +9086,7 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   border-right: 1.5px dashed var(--text-muted);
   background: #f9f9f9;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.5em;
   z-index: 1;
 }
@@ -9171,7 +9171,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   background: var(--bg);
   border: 2px dashed var(--border-light);
   border-radius: 10px;
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--primary);
   cursor: pointer;
@@ -9227,13 +9227,13 @@ table.periodic-table .actinide { background: #e1bee7; }
   background: var(--bg);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .cs-expand-icon { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
 .cs-book-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cs-book-badge {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   background: #eef2ff;
   color: var(--primary);
   padding: 2px 8px;
@@ -9249,7 +9249,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   align-items: center;
   gap: 4px;
   padding: 6px 12px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   min-height: 36px;
@@ -9259,7 +9259,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   width: 16px;
   text-align: center;
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
 }
 .cs-node-row input[type="checkbox"] {
@@ -9275,7 +9275,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   white-space: nowrap;
 }
 .cs-node-pages {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -9333,7 +9333,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   }
   .config-ribbon::-webkit-scrollbar { display: none; }
   .config-ribbon .ribbon-btn {
-    font-size: 10px !important;
+    font-size: var(--fs-xs) !important;
     padding: 4px 8px !important;
     min-height: 28px !important;
     white-space: nowrap;
@@ -9351,7 +9351,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     border-radius: 16px;
     background: #f0f4ff;
     border: 1px solid #c5d5f7;
-    font-size: 10px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     color: #4a6cf7;
     white-space: nowrap;
@@ -9383,7 +9383,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     flex: 1;
     text-align: center;
     padding: 8px 6px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 600;
     color: var(--text-muted);
     cursor: pointer;
@@ -9409,7 +9409,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     margin-left: 4px;
     background: var(--primary);
     color: white;
-    font-size: 10px;
+    font-size: var(--fs-xs);
     padding: 1px 6px;
     border-radius: 10px;
     vertical-align: middle;
@@ -9452,7 +9452,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     margin-bottom: 4px;
   }
   .mobile-workspace .instruction-panel .panel-header h3 {
-    font-size: 13px;
+    font-size: var(--fs-md);
     width: 100%;
     margin: 0 0 2px 0;
   }
@@ -9462,7 +9462,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   }
   .mobile-workspace .instruction-panel .header-actions .btn-primary,
   .mobile-workspace .instruction-panel .header-actions .btn {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     padding: 4px 8px;
     min-height: 28px;
   }
@@ -9519,17 +9519,17 @@ table.periodic-table .actinide { background: #e1bee7; }
   }
   .selection-panel .section-header {
     padding: 6px 8px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
   }
   .summary-book { padding: 4px 0; }
   .summary-book-name { font-size: 11px; }
   .summary-chapter {
     padding: 3px 6px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .summary-chapter-list { max-height: none; }
   .chapter-select-btn {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     padding: 8px;
   }
   .analysis-checkbox {
@@ -9541,7 +9541,7 @@ table.periodic-table .actinide { background: #e1bee7; }
 
   /* Instruction panel: compact (header already handled above) */
   .instruction-textarea {
-    font-size: 14px;
+    font-size: var(--fs-body);
     min-height: 120px;
     padding: 8px;
   }
@@ -9550,7 +9550,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   /* Result panel: compact list */
   .result-header {
     padding: 6px 8px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
   }
   .result-item {
     padding: 8px 8px;
@@ -9568,11 +9568,11 @@ table.periodic-table .actinide { background: #e1bee7; }
     flex-shrink: 0;
   }
   .result-title {
-    font-size: 13px;
+    font-size: var(--fs-md);
     max-width: 100%;
   }
   .result-meta {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     flex-wrap: wrap;
   }
   .result-actions {
@@ -9585,7 +9585,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     flex-shrink: 0;
   }
   .result-actions-col .btn-small {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     padding: 3px 8px;
     min-height: 22px;
     border-radius: 5px;
@@ -9602,7 +9602,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     background: #fef2f2;
   }
   .quality-marks span {
-    font-size: 15px;
+    font-size: var(--fs-lg);
     padding: 1px 3px;
   }
   .result-list {
@@ -9613,7 +9613,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     -webkit-overflow-scrolling: touch;
   }
   .period-tab {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     padding: 5px 8px;
     white-space: nowrap;
   }
@@ -9637,7 +9637,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     padding: 6px 4px;
     border: none;
     border-radius: 8px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 600;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
@@ -9668,13 +9668,13 @@ table.periodic-table .actinide { background: #e1bee7; }
   /* Empty tip */
   .empty-tip-small {
     padding: 12px 8px !important;
-    font-size: 12px;
+    font-size: var(--fs-sm);
   }
 
   /* Generating progress */
   .generating-tip {
     padding: 6px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
   }
   .progress-bar {
     height: 5px;
@@ -9697,7 +9697,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     border-radius: 10px 10px 0 0 !important;
   }
   .modal.large-modal h3 {
-    font-size: 15px !important;
+    font-size: var(--fs-lg) !important;
     margin-bottom: 10px !important;
     padding-bottom: 10px !important;
     flex-shrink: 0 !important;
@@ -9717,15 +9717,15 @@ table.periodic-table .actinide { background: #e1bee7; }
   }
   .preview-content {
     max-height: 55vh;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     padding: 8px;
   }
   .copy-hint {
-    font-size: 11px !important;
+    font-size: var(--fs-xs) !important;
     padding: 6px 8px !important;
   }
   .editor-textarea {
-    font-size: 12px !important;
+    font-size: var(--fs-sm) !important;
     max-height: 55vh !important;
     padding: 8px !important;
     flex: 1;
@@ -9742,7 +9742,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   .modal.large-modal .modal-actions .btn-primary,
   .modal.large-modal .modal-actions .btn-edurender {
     flex: 1;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     padding: 8px 4px;
     text-align: center;
     min-height: 36px;
@@ -9773,7 +9773,7 @@ table.periodic-table .actinide { background: #e1bee7; }
     max-height: calc(100% - 16px) !important;
   }
   .modal.draggable-modal h3 {
-    font-size: 14px;
+    font-size: var(--fs-body);
     margin-bottom: 8px;
     flex-shrink: 0 !important;
   }
@@ -9790,7 +9790,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   }
   .modal.draggable-modal .analysis-footer .modal-actions .btn {
     flex: 1;
-    font-size: 14px;
+    font-size: var(--fs-body);
     padding: 10px 0;
     text-align: center;
     min-height: 40px;
@@ -9812,11 +9812,11 @@ table.periodic-table .actinide { background: #e1bee7; }
   }
   .chapter-analysis-left textarea,
   .chapter-analysis-left .rich-text-editor {
-    font-size: 11px !important;
+    font-size: var(--fs-xs) !important;
   }
   /* 覆盖编辑器内部内容区字号 */
   .chapter-analysis-left :deep(.ProseMirror) {
-    font-size: 11px !important;
+    font-size: var(--fs-xs) !important;
   }
   /* 移动端隐藏原文编辑器的工具栏（:deep 穿透子组件） */
   .chapter-analysis-left :deep(.editor-toolbar-wrapper) {
@@ -9831,11 +9831,11 @@ table.periodic-table .actinide { background: #e1bee7; }
     gap: 8px !important;
   }
   .chapter-analysis-right .detail-item strong {
-    font-size: 12px;
+    font-size: var(--fs-sm);
   }
   .chapter-analysis-right .detail-item input,
   .chapter-analysis-right .detail-item textarea {
-    font-size: 13px !important;
+    font-size: var(--fs-md) !important;
     padding: 8px 10px !important;
   }
   .modal-actions {
@@ -9847,7 +9847,7 @@ table.periodic-table .actinide { background: #e1bee7; }
   .modal-actions .btn,
   .modal-actions .btn-primary {
     flex: 1;
-    font-size: 14px;
+    font-size: var(--fs-body);
     padding: 10px 0;
     text-align: center;
     min-height: 40px;
@@ -9867,11 +9867,11 @@ table.periodic-table .actinide { background: #e1bee7; }
   }
   .template-left-column textarea,
   .template-left-column .rich-text-editor {
-    font-size: 11px !important;
+    font-size: var(--fs-xs) !important;
   }
   /* 覆盖编辑器内部内容区字号 */
   .template-left-column :deep(.ProseMirror) {
-    font-size: 11px !important;
+    font-size: var(--fs-xs) !important;
   }
   /* 移动端隐藏分析结果弹窗原文编辑器的工具栏（:deep 穿透子组件） */
   .template-left-column :deep(.editor-toolbar-wrapper) {
@@ -9896,31 +9896,31 @@ table.periodic-table .actinide { background: #e1bee7; }
     border-radius: 10px 10px 0 0 !important;
   }
   .modal:not(.large-modal):not(.draggable-modal) h3 {
-    font-size: 15px !important;
+    font-size: var(--fs-lg) !important;
     margin-bottom: 10px !important;
     padding-bottom: 10px !important;
   }
   /* 选项列表字体 */
   .option-list .option-item {
     padding: 8px 10px !important;
-    font-size: 13px !important;
+    font-size: var(--fs-md) !important;
   }
   .option-list .option-label {
-    font-size: 13px !important;
+    font-size: var(--fs-md) !important;
   }
   .option-list .option-desc {
-    font-size: 11px !important;
+    font-size: var(--fs-xs) !important;
   }
   /* 详细配置弹窗 - 移动端行内紧凑布局 */
   .config-section h4 {
-    font-size: 13px !important;
+    font-size: var(--fs-md) !important;
   }
   .config-section input[type="number"] {
-    font-size: 13px !important;
+    font-size: var(--fs-md) !important;
     padding: 7px 6px !important;
   }
   .config-row {
-    font-size: 12px !important;
+    font-size: var(--fs-sm) !important;
     gap: 3px !important;
     flex-wrap: wrap;
     align-items: center;
@@ -9928,48 +9928,48 @@ table.periodic-table .actinide { background: #e1bee7; }
   }
   .config-row .qt-name,
   .config-row .dl-name {
-    font-size: 12px !important;
+    font-size: var(--fs-sm) !important;
     min-width: 40px;
     flex-shrink: 0;
   }
   .config-row input[type="number"] {
     width: 52px !important;
     padding: 5px 4px !important;
-    font-size: 12px !important;
+    font-size: var(--fs-sm) !important;
   }
   .config-section .hint {
-    font-size: 11px !important;
+    font-size: var(--fs-xs) !important;
   }
   .config-section .btn-small {
-    font-size: 11px !important;
+    font-size: var(--fs-xs) !important;
     padding: 4px 8px !important;
   }
   /* 分析确认弹窗内文字缩小 */
   .chapter-analysis-left strong {
-    font-size: 13px !important;
+    font-size: var(--fs-md) !important;
   }
   .chapter-analysis-left > div > div {
     padding: 8px !important;
   }
   .chapter-analysis-left [style*="font-size:var(--fs-md)"] {
-    font-size: 12px !important;
+    font-size: var(--fs-sm) !important;
   }
   .chapter-analysis-left [style*="font-size:var(--fs-xs)"] {
-    font-size: 10px !important;
+    font-size: var(--fs-xs) !important;
   }
   /* 分析确认弹窗右栏 */
   .chapter-analysis-right label {
-    font-size: 12px !important;
+    font-size: var(--fs-sm) !important;
     flex-wrap: wrap;
   }
   .chapter-analysis-right label span {
-    font-size: 11px !important;
+    font-size: var(--fs-xs) !important;
   }
   .chapter-analysis-right [style*="font-size:var(--fs-md)"] {
-    font-size: 12px !important;
+    font-size: var(--fs-sm) !important;
   }
   .chapter-analysis-right [style*="font-size:var(--fs-sm)"] {
-    font-size: 11px !important;
+    font-size: var(--fs-xs) !important;
   }
   /* 分析确认弹窗按钮 */
   .chapter-analysis-right .modal-actions[style] {
@@ -9978,28 +9978,28 @@ table.periodic-table .actinide { background: #e1bee7; }
   .chapter-analysis-right .modal-actions .btn,
   .chapter-analysis-right .modal-actions .btn-primary {
     padding: 10px 6px !important;
-    font-size: 13px !important;
+    font-size: var(--fs-md) !important;
   }
   /* 编辑弹窗 textarea */
   .editor-textarea {
-    font-size: 13px !important;
+    font-size: var(--fs-md) !important;
     min-height: 40vh !important;
   }
   /* 指令库弹窗列表 */
   .instruction-lib-list .lib-item {
-    font-size: 12px !important;
+    font-size: var(--fs-sm) !important;
     padding: 8px !important;
   }
   .instruction-lib-list .lib-name {
-    font-size: 13px !important;
+    font-size: var(--fs-md) !important;
   }
   .lib-actions .btn-small {
-    font-size: 11px !important;
+    font-size: var(--fs-xs) !important;
     padding: 4px 8px !important;
   }
   /* 分析确认弹窗 */
   .modal p.hint {
-    font-size: 11px !important;
+    font-size: var(--fs-xs) !important;
   }
 
   /* 章节选择弹窗 */
@@ -10011,17 +10011,17 @@ table.periodic-table .actinide { background: #e1bee7; }
     padding: 0 !important;
   }
   .cs-header h3 {
-    font-size: 15px !important;
+    font-size: var(--fs-lg) !important;
   }
   .cs-body {
-    font-size: 13px !important;
+    font-size: var(--fs-md) !important;
     padding: 10px !important;
   }
   .cs-book-name {
-    font-size: 13px !important;
+    font-size: var(--fs-md) !important;
   }
   .cs-footer .btn-primary {
-    font-size: 14px !important;
+    font-size: var(--fs-body) !important;
     padding: 10px !important;
   }
 }
