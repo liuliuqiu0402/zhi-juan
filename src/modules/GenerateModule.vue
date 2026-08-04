@@ -3230,7 +3230,8 @@ const loadCachedConfig = async () => {
     totalScore.value = cached.totalScore || '';
     allowOriginalQuestions.value = cached.allowOriginalQuestions ?? true;
   } else if (cached && cached._cacheVersion !== DETAIL_CONFIG_CACHE_VERSION) {
-    console.log(`[GenerateModule] 检测到缓存版本变更 (${cached._cacheVersion || 0} → ${DETAIL_CONFIG_CACHE_VERSION})，已清除旧配置`);
+    // 旧版缓存不兼容，自动重建（正常行为，非错误）
+    if (import.meta.env.DEV) console.log(`[GenerateModule] 缓存版本升级 (${cached._cacheVersion || 0} → ${DETAIL_CONFIG_CACHE_VERSION})，已重建`);
   }
 };
 

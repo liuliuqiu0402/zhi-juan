@@ -53,13 +53,27 @@ const fetchWithRetry = async (input: RequestInfo | URL, init?: RequestInit): Pro
 
 function getClient(): SupabaseClient | null {
   if (_client) return _client;
+
+  // 防 Vite 代码分割/动态 import 导致模块多次加载产生多个 GoTrueClient 实例
+  const w = typeof window !== 'undefined' ? (window as any) : null;
+  if (w?.__wisdom_supabase) {
+    _client = w.__wisdom_supabase;
+    return _client;
+  }
+
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.warn('☁️ Supabase 未配置，跳过云端同步');
     return null;
   }
   _client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { fetch: fetchWithRetry as typeof fetch },
+    auth: {
+      persistSession: false,       // 不用 auth，避免 GoTrueClient 注册 localStorage 监听
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
   });
+  if (w) w.__wisdom_supabase = _client;
   return _client;
 }
 
