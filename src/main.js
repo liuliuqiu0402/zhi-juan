@@ -3,6 +3,7 @@ import { createPinia } from 'pinia';
 import App from '@/App.vue';
 import router from '@/router';
 import '@/styles/global.css';
+import '@fortawesome/fontawesome-free/css/all.min.css';
 import '@/composables/useLogger.js'; // 📋 全局日志劫持——必须在最早加载
 
 const app = createApp(App);
