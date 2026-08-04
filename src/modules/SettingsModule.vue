@@ -31,7 +31,7 @@
       <!-- 🔑 同步密钥 -->
       <div class="settings-section">
         <h3>🔑 同步密钥</h3>
-        <p style="font-size:12px;color:#666;margin-bottom:8px;">
+        <p style="font-size:var(--fs-sm);color:#666;margin-bottom:8px;">
           多设备间共享数据的唯一凭证。请在各设备上输入相同的密钥。留空则不同步。
         </p>
         <input
@@ -47,7 +47,7 @@
       <!-- 🔧 本设备标识 -->
       <div class="settings-section">
         <h3>🔧 本设备标识</h3>
-        <p style="font-size:12px;color:#666;margin-bottom:8px;">
+        <p style="font-size:var(--fs-sm);color:#666;margin-bottom:8px;">
           设备名即云端标识。重装后输入同名即可自动恢复数据，不同设备请用不同名称。
         </p>
         <div class="info-row">
@@ -61,35 +61,6 @@
             maxlength="30"
           />
         </div>
-      </div>
-
-      <!-- 🔤 字体大小（全局等比缩放，两端统一） -->
-      <div class="settings-section">
-        <h3>🔤 字体大小</h3>
-        <p style="font-size:12px;color:#666;margin-bottom:8px;">
-          全局等比缩放文字大小，不影响按钮尺寸和布局。当前：<b>{{ fontScalePercent }}</b>
-        </p>
-        <div class="font-scale-controls">
-          <button class="btn btn-small font-scale-btn" @click="fontScaleDown" :disabled="fontScaleVal <= fontScaleMin">A−</button>
-          <div class="font-scale-slider-wrap">
-            <span class="font-scale-label-sm">{{ fontScaleMinPercent }}</span>
-            <input
-              type="range"
-              :min="fontScaleMin"
-              :max="fontScaleMax"
-              :step="fontScaleStep"
-              v-model.number="fontScaleVal"
-              @input="onFontScaleChange"
-              class="font-scale-slider"
-            />
-            <span class="font-scale-label-sm">{{ fontScaleMaxPercent }}</span>
-          </div>
-          <button class="btn btn-small font-scale-btn" @click="fontScaleUp" :disabled="fontScaleVal >= fontScaleMax">A+</button>
-          <button class="btn-small" @click="fontScaleReset" style="margin-left:4px;">↺</button>
-        </div>
-        <p style="font-size:11px;color:#999;margin-top:6px;">
-          💡 预览：<span :style="{ fontSize: (fontScaleVal * 100).toFixed(0) + '%' }">这段文字会随滑块缩放</span>
-        </p>
       </div>
 
       <!-- 📱 iOS 签名倒计时（仅手机端显示） -->
@@ -106,13 +77,13 @@
               {{ signDaysInfo.text }}
             </span>
           </div>
-          <div v-if="signDaysInfo.warning" style="margin-top:8px;padding:8px 12px;background:#fff5f5;border:1px solid #feb2b2;border-radius:8px;font-size:12px;color:#c53030;">
+          <div v-if="signDaysInfo.warning" style="margin-top:8px;padding:8px 12px;background:#fff5f5;border:1px solid #feb2b2;border-radius:8px;font-size:var(--fs-sm);color:#c53030;">
             ⚠️ 签名即将到期！请在电脑上打开爱思助手 → 连接手机 → 重新签名安装。
           </div>
           <button class="btn" @click="handleResetCountdown" style="margin-top:8px;">
             🔄 已续签，重置倒计时
           </button>
-          <p style="font-size:11px;color:#999;margin-top:4px;">
+          <p style="font-size:var(--fs-xs);color:#999;margin-top:4px;">
             💡 每次用爱思助手重新签名安装后，点这里重置 7 天倒计时。
           </p>
         </template>
@@ -125,7 +96,7 @@
           <option value="ollama">💻 Ollama (本地)</option>
           <option value="deepseek">🌐 DeepSeek (云端)</option>
         </select>
-        <p style="font-size:12px;color:#666;margin-top:8px;">
+        <p style="font-size:var(--fs-sm);color:#666;margin-top:8px;">
           💡 文本生成、分析、审查等任务根据此处选择
         </p>
       </div>
@@ -137,7 +108,7 @@
         <input type="text" v-model="settings.deepseekBaseUrl" placeholder="API 地址" />
 
         <h3 style="margin-top: 16px;">🧠 DeepSeek 模型分配</h3>
-        <p style="font-size:12px;color:#666;margin-bottom:12px;">
+        <p style="font-size:var(--fs-sm);color:#666;margin-bottom:12px;">
           💡 系统共两处调用 DeepSeek，分开配置：Pro=推理强·慢&nbsp;&nbsp;|&nbsp;&nbsp;Flash=快速
         </p>
 
@@ -159,7 +130,7 @@
       <!-- 多模态引擎 -->
       <div class="settings-section">
         <h3>🖼️ 多模态引擎（图片识别/OCR）</h3>
-        <p style="font-size:12px;color:#666;margin-top:4px;margin-bottom:12px;">
+        <p style="font-size:var(--fs-sm);color:#666;margin-top:4px;margin-bottom:12px;">
           PaddleOCR-VL —— 本地运行不占 Ollama 显存，支持 pipeline 文档解析 + VLM 视觉理解，用完自动释放 GPU
         </p>
 
@@ -220,7 +191,7 @@
         <h3>💾 存储路径</h3>
         <div style="display: flex; gap: 8px; align-items: center;">
           <input type="text" v-model="settings.storagePath" placeholder="例如：D:\\智卷工坊数据"
-            style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;" />
+            style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: var(--fs-body);" />
           <button class="btn-small" @click="selectStoragePath" style="white-space: nowrap; padding: 8px 16px;">📁 选择文件夹</button>
         </div>
       </div>
@@ -229,7 +200,7 @@
       <div class="settings-section">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <h3 style="margin:0;">🎲 生成设置（温度：控制输出随机性）</h3>
-          <button class="btn-small" @click="resetTemperatureDefaults" style="font-size:11px;padding:4px 10px;">🔄 恢复默认</button>
+          <button class="btn-small" @click="resetTemperatureDefaults" style="font-size:var(--fs-xs);padding:4px 10px;">🔄 恢复默认</button>
         </div>
 
         <!-- 分析/提取 -->
@@ -238,15 +209,15 @@
             <span>📊 分析 / 提取</span>
           </label>
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10px;color:#999;min-width:14px;">0</span>
+            <span style="font-size:var(--fs-xs);color:#999;min-width:14px;">0</span>
             <div style="position:relative;flex:1;">
               <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.analysisTemperature ?? 0.1) / 1.0 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.analysisTemperature ?? 0.1) / 1.0 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.analysisTemperature ?? 0.1).toFixed(1) }}</span>
               <input type="range" v-model.number="settings.generationSettings.analysisTemperature" min="0" max="1.0" step="0.1" list="ticks-1_0" style="width:100%;" />
             </div>
-            <span style="font-size:10px;color:#999;min-width:22px;">1.0</span>
+            <span style="font-size:var(--fs-xs);color:#999;min-width:22px;">1.0</span>
           </div>
           <datalist id="ticks-1_0"><option value="0"></option><option value="0.5"></option><option value="1.0"></option></datalist>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">知识点提取、内容分析、格式化——低温确保准确</p>
+          <p style="font-size:var(--fs-xs);color:#888;margin:2px 0 0;">知识点提取、内容分析、格式化——低温确保准确</p>
         </div>
 
         <!-- 蓝图生成 -->
@@ -255,14 +226,14 @@
             <span>🗺️ 蓝图生成</span>
           </label>
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10px;color:#999;min-width:14px;">0</span>
+            <span style="font-size:var(--fs-xs);color:#999;min-width:14px;">0</span>
             <div style="position:relative;flex:1;">
               <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.blueprintTemperature ?? 0.3) / 1.0 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.blueprintTemperature ?? 0.3) / 1.0 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.blueprintTemperature ?? 0.3).toFixed(1) }}</span>
               <input type="range" v-model.number="settings.generationSettings.blueprintTemperature" min="0" max="1.0" step="0.1" list="ticks-1_0" style="width:100%;" />
             </div>
-            <span style="font-size:10px;color:#999;min-width:22px;">1.0</span>
+            <span style="font-size:var(--fs-xs);color:#999;min-width:22px;">1.0</span>
           </div>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">命题蓝图、题型规划——有结构约束，中低温</p>
+          <p style="font-size:var(--fs-xs);color:#888;margin:2px 0 0;">命题蓝图、题型规划——有结构约束，中低温</p>
         </div>
 
         <!-- 题目生成 -->
@@ -271,15 +242,15 @@
             <span>✏️ 题目生成</span>
           </label>
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10px;color:#999;min-width:14px;">0</span>
+            <span style="font-size:var(--fs-xs);color:#999;min-width:14px;">0</span>
             <div style="position:relative;flex:1;">
               <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.questionTemperature ?? 0.5) / 1.5 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.questionTemperature ?? 0.5) / 1.5 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.questionTemperature ?? 0.5).toFixed(1) }}</span>
               <input type="range" v-model.number="settings.generationSettings.questionTemperature" min="0" max="1.5" step="0.1" list="ticks-1_5" style="width:100%;" />
             </div>
-            <span style="font-size:10px;color:#999;min-width:22px;">1.5</span>
+            <span style="font-size:var(--fs-xs);color:#999;min-width:22px;">1.5</span>
           </div>
           <datalist id="ticks-1_5"><option value="0"></option><option value="0.5"></option><option value="1.0"></option><option value="1.5"></option></datalist>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">逐题生成、整卷生成——平衡准确性与创造性</p>
+          <p style="font-size:var(--fs-xs);color:#888;margin:2px 0 0;">逐题生成、整卷生成——平衡准确性与创造性</p>
         </div>
 
         <!-- 质量审查 -->
@@ -288,22 +259,22 @@
             <span>🔍 质量审查 / 验算</span>
           </label>
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10px;color:#999;min-width:14px;">0</span>
+            <span style="font-size:var(--fs-xs);color:#999;min-width:14px;">0</span>
             <div style="position:relative;flex:1;">
               <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.reviewTemperature ?? 0.1) / 1.0 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.reviewTemperature ?? 0.1) / 1.0 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.reviewTemperature ?? 0.1).toFixed(1) }}</span>
               <input type="range" v-model.number="settings.generationSettings.reviewTemperature" min="0" max="1.0" step="0.1" list="ticks-1_0" style="width:100%;" />
             </div>
-            <span style="font-size:10px;color:#999;min-width:22px;">1.0</span>
+            <span style="font-size:var(--fs-xs);color:#999;min-width:22px;">1.0</span>
           </div>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">审查、验证、评分——最低温确保客观</p>
+          <p style="font-size:var(--fs-xs);color:#888;margin:2px 0 0;">审查、验证、评分——最低温确保客观</p>
         </div>
 
-        <p style="font-size:12px;color:#666;margin-top:8px;border-top:1px solid #eee;padding-top:8px;">
+        <p style="font-size:var(--fs-sm);color:#666;margin-top:8px;border-top:1px solid #eee;padding-top:8px;">
           💡 <b>0=完全确定</b>（每次输出相同），<b>0.3=低随机</b>，<b>0.5=平衡</b>，<b>1.0+=高创意</b>
         </p>
-        <div style="margin-top:10px;background:#f8f9fa;border-radius:8px;padding:10px 12px;font-size:11px;line-height:1.6;color:#555;">
+        <div style="margin-top:10px;background:#f8f9fa;border-radius:8px;padding:10px 12px;font-size:var(--fs-xs);line-height:1.6;color:#555;">
           <div style="font-weight:600;margin-bottom:6px;color:#333;">📖 温度使用指南</div>
-          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <table style="width:100%;border-collapse:collapse;font-size:var(--fs-xs);">
             <tr style="border-bottom:1px solid #e0e0e0;">
               <td style="padding:3px 4px;font-weight:600;white-space:nowrap;">📊 分析/提取</td>
               <td style="padding:3px 4px;"><b>0–0.2</b> 精准稳定 · <b>0.3+</b> 可能产生幻觉，不推荐</td>
@@ -336,10 +307,10 @@
             {{ isImporting ? '导入中...' : '📤 导入恢复' }}
           </button>
         </div>
-        <p v-if="backupStatus" style="margin-top: 10px; font-size: 13px; color: var(--primary-light);">
+        <p v-if="backupStatus" style="margin-top: 10px; font-size: var(--fs-md); color: var(--primary-light);">
           {{ backupStatus }}
         </p>
-        <p style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+        <p style="margin-top: 8px; font-size: var(--fs-sm); color: var(--text-muted);">
           💡 导出备份可保存教材库、模板库、指令库、设置等全部数据。导入时已存在的数据不会被覆盖。
         </p>
       </div>
@@ -355,22 +326,22 @@
             {{ isInstallingDeps ? '安装中...' : '⚡ 一键安装缺失依赖' }}
           </button>
         </div>
-        <p v-if="pythonDepsStatus" style="margin-top: 10px; font-size: 13px; color: var(--primary-light);">
+        <p v-if="pythonDepsStatus" style="margin-top: 10px; font-size: var(--fs-md); color: var(--primary-light);">
           {{ pythonDepsStatus }}
         </p>
-        <p v-if="missingDeps.length > 0" style="margin-top: 8px; font-size: 12px; color: var(--warning);">
+        <p v-if="missingDeps.length > 0" style="margin-top: 8px; font-size: var(--fs-sm); color: var(--warning);">
           ⚠️ 缺失：{{ missingDeps.join(', ') }}
         </p>
-        <p style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+        <p style="margin-top: 8px; font-size: var(--fs-sm); color: var(--text-muted);">
           💡 PDF转图片、缩略图生成等功能需要以下 Python 包：PyMuPDF、Pillow、numpy、opencv-python
         </p>
       </div>
 
       <!-- 📋 操作日志 -->
       <div class="settings-section">
-        <h3>📋 操作日志 <span style="font-weight:normal;font-size:11px;color:#999;">({{ logStore.logs.length }})</span></h3>
+        <h3>📋 操作日志 <span style="font-weight:normal;font-size:var(--fs-xs);color:#999;">({{ logStore.logs.length }})</span></h3>
         <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
-          <select v-model="logFilter" style="width:auto;font-size:11px;padding:4px 6px;">
+          <select v-model="logFilter" style="width:auto;font-size:var(--fs-xs);padding:4px 6px;">
             <option value="">全部级别</option>
             <option value="error">🔴 错误</option>
             <option value="warn">🟡 警告</option>
@@ -389,7 +360,7 @@
             <span class="log-msg">{{ entry.message }}</span>
           </div>
         </div>
-        <p v-else style="font-size:11px;color:#999;">暂无日志记录</p>
+        <p v-else style="font-size:var(--fs-xs);color:#999;">暂无日志记录</p>
       </div>
     </div>
   </div>
@@ -407,7 +378,6 @@ import { apiConfig, getAvailableModels, refreshConfigCache, saveConfig, decrypt,
 import { cancelAllRequests } from '@/utils/requestManager.js';
 import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
-import { useFontScale } from '@/composables/useFontScale.js';
 
 const { showAlertDialogFn } = useDialog();
 const {
@@ -480,32 +450,6 @@ const {
 
 const isCapacitorIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 const isWebMode = typeof window !== 'undefined' && !window.electronAPI;
-
-// 🔤 字体缩放
-const { scale, setScale, resetScale, scalePercent, currentScale, MIN_SCALE, MAX_SCALE, STEP } = useFontScale();
-const fontScaleVal = ref(currentScale());
-const fontScaleMin = MIN_SCALE;
-const fontScaleMax = MAX_SCALE;
-const fontScaleStep = STEP;
-const fontScalePercent = computed(() => scalePercent());
-const fontScaleMinPercent = `${Math.round(MIN_SCALE * 100)}%`;
-const fontScaleMaxPercent = `${Math.round(MAX_SCALE * 100)}%`;
-
-function onFontScaleChange() {
-  setScale(fontScaleVal.value);
-}
-function fontScaleDown() {
-  fontScaleVal.value = Math.max(fontScaleMin, fontScaleVal.value - fontScaleStep);
-  setScale(fontScaleVal.value);
-}
-function fontScaleUp() {
-  fontScaleVal.value = Math.min(fontScaleMax, fontScaleVal.value + fontScaleStep);
-  setScale(fontScaleVal.value);
-}
-function fontScaleReset() {
-  resetScale();
-  fontScaleVal.value = currentScale();
-}
 
 // 📋 操作日志
 const logStore = useLogger();
@@ -957,50 +901,6 @@ onUnmounted(() => {
   padding-left: 4px;
 }
 
-/* 🔤 字体缩放控件 */
-.font-scale-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.font-scale-slider-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.font-scale-slider {
-  flex: 1;
-  -webkit-appearance: none;
-  appearance: none;
-  height: 6px;
-  border-radius: 3px;
-  background: #ddd;
-  outline: none;
-  cursor: pointer;
-}
-.font-scale-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--primary-light);
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-.font-scale-btn {
-  min-width: 32px;
-  text-align: center;
-  font-weight: bold;
-}
-.font-scale-label-sm {
-  font-size: 10px;
-  color: #999;
-  min-width: 28px;
-  text-align: center;
-}
-
 /* 📱 移动端适配 */
 @media (max-width: 767px) {
   .embedded-page {
@@ -1019,10 +919,10 @@ onUnmounted(() => {
     background: white;
     border-bottom: 1px solid var(--border-light);
   }
-  .page-header h2 { font-size: 13px; margin: 0; }
+  .page-header h2 { font-size: var(--fs-sm); margin: 0; }
   .page-header .btn-primary {
     flex-shrink: 0;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     padding: 5px 10px;
     min-height: auto;
   }
@@ -1042,16 +942,16 @@ onUnmounted(() => {
     padding-bottom: 8px;
   }
   .settings-section h3 {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     margin-bottom: 6px;
   }
   .settings-section label {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .settings-section input,
   .settings-section select {
     padding: 6px 7px;
-    font-size: 12px !important;
+    font-size: var(--fs-sm) !important;
     min-height: auto;
   }
   .info-row {
@@ -1060,20 +960,20 @@ onUnmounted(() => {
   .info-row span:first-child {
     width: 55px;
     flex-shrink: 0;
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
-  .info-value { font-size: 11px; }
+  .info-value { font-size: var(--fs-xs); }
   .btn, .btn-primary, .btn-small {
     min-height: auto;
     padding: 5px 8px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .btn-small {
     padding: 3px 6px;
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .model-hint {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
 }
 

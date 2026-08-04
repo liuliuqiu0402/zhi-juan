@@ -92,8 +92,8 @@
                     <input type="checkbox" v-model="chapter._selectedForAnalysis" :checked="chapter._selectedForAnalysis !== false" class="analysis-checkbox" title="勾选要分析的章节" />
                     <span class="chapter-title" @click="isLeafChapter(chapter) && viewChapterAnalysis(book, chapter)" :style="{ cursor: isLeafChapter(chapter) ? 'pointer' : 'default', textDecoration: isLeafChapter(chapter) ? 'underline' : 'none', color: isLeafChapter(chapter) ? 'var(--primary-light)' : '#555' }">
                       {{ chapter.title }}
-                      <span v-if="chapter.analyzed" style="color:var(--success);font-size:11px;"title="已分析">✅</span>
-                      <span v-else style="color:#ccc;font-size:11px;"title="未分析">⬜</span>
+                      <span v-if="chapter.analyzed" style="color:var(--success);font-size:var(--fs-xs);"title="已分析">✅</span>
+                      <span v-else style="color:#ccc;font-size:var(--fs-xs);"title="未分析">⬜</span>
                     </span>
                     <span class="page-range">第{{ chapter.start }}-{{ chapter.end }}页</span>
                     <span class="remove-btn" @click="removeSelectedChapter(book, chapter)" title="取消选择">✕</span>
@@ -126,8 +126,8 @@
                   <input type="checkbox" v-model="chapter._selectedForAnalysis" :checked="chapter._selectedForAnalysis !== false" class="analysis-checkbox" title="勾选要分析的章节" />
                   <span class="chapter-title" @click="isLeafChapter(chapter) && viewChapterAnalysis(tpl, chapter)" :style="{ cursor: isLeafChapter(chapter) ? 'pointer' : 'default', textDecoration: isLeafChapter(chapter) ? 'underline' : 'none', color: isLeafChapter(chapter) ? 'var(--primary-light)' : '#555' }">
                     {{ chapter.title }}
-                    <span v-if="chapter.analyzed" style="color:var(--success);font-size:11px;"title="已分析">✅</span>
-                    <span v-else style="color:#ccc;font-size:11px;"title="未分析">⬜</span>
+                    <span v-if="chapter.analyzed" style="color:var(--success);font-size:var(--fs-xs);"title="已分析">✅</span>
+                    <span v-else style="color:#ccc;font-size:var(--fs-xs);"title="未分析">⬜</span>
                   </span>
                   <span class="page-range">第{{ chapter.start }}-{{ chapter.end }}页</span>
                   <span class="remove-btn" @click="removeSelectedChapter(tpl, chapter)" title="取消选择">✕</span>
@@ -292,7 +292,7 @@
             <option value="pdf">📕 仅 PDF</option>
             <option value="both">📦 Word + PDF</option>
           </select>
-          <select v-model="teacherVersion" style="width:auto;padding:6px 10px;border-radius:6px;border:1px solid #ddd;font-size:12px;">
+          <select v-model="teacherVersion" style="width:auto;padding:6px 10px;border-radius:6px;border:1px solid #ddd;font-size:var(--fs-sm);">
             <option :value="true">👩‍🏫 教师版（含答案）</option>
             <option :value="false">👩‍🎓 学生版（无答案）</option>
           </select>
@@ -564,7 +564,7 @@
     <div v-if="showAnalysisModal" class="modal-mask" @click.self="showAnalysisModal = false">
       <div class="modal large-modal" style="max-width: 900px; width: 90%;">
         <h3>📊 素材分析状态</h3>
-        <p style="color:var(--text-muted);font-size:13px;margin-bottom:8px;flex-shrink:0;">
+        <p style="color:var(--text-muted);font-size:var(--fs-md);margin-bottom:8px;flex-shrink:0;">
           {{ analysisType === 'textbook' ? '以下是将要分析的教材章节，请确认后选择分析方式' : '以下是将要分析的模板，请确认后选择分析方式' }}
         </p>
         <div class="modal-scroll-area">
@@ -577,26 +577,26 @@
             <div v-if="analysisType === 'textbook'">
               <div v-for="book in analysisBooks" :key="book.id" style="margin-bottom:14px;border:1px solid var(--border-light);border-radius:8px;padding:12px;">
                 <div style="font-weight:600;color:var(--primary);margin-bottom:8px;">{{ book.name }}</div>
-                <div v-for="ch in book.selectedChapters" :key="ch.title" style="padding:6px 0;font-size:13px;border-bottom:1px dashed #f0f0f0;">
+                <div v-for="ch in book.selectedChapters" :key="ch.title" style="padding:6px 0;font-size:var(--fs-md);border-bottom:1px dashed #f0f0f0;">
                   <div style="display:flex;justify-content:space-between;align-items:center;">
                     <span style="font-weight:500;">{{ ch.title }}</span>
                     <span v-if="ch.analyzed" style="color:var(--success);">✅ 已分析</span>
                     <span v-else style="color:var(--warning);">⚠️ 未分析</span>
                   </div>
-                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">分析范围：第{{ ch._analysisStart ?? ch.start }}-{{ ch._analysisEnd ?? ch.end }}页</div>
+                  <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:4px;">分析范围：第{{ ch._analysisStart ?? ch.start }}-{{ ch._analysisEnd ?? ch.end }}页</div>
                 </div>
-                <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">{{ book.cached }}个已缓存 / {{ book.new }}个未分析</div>
+                <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:6px;">{{ book.cached }}个已缓存 / {{ book.new }}个未分析</div>
               </div>
             </div>
             <div v-else>
               <div v-for="tpl in analysisTpls" :key="tpl.id" style="margin-bottom:14px;border:1px solid var(--border-light);border-radius:8px;padding:12px;">
                 <div style="font-weight:600;color:var(--primary);margin-bottom:8px;">{{ tpl.name }}</div>
-                <div v-for="ch in tpl.selectedChapters" :key="ch.title" style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:13px;border-bottom:1px dashed #f0f0f0;">
+                <div v-for="ch in tpl.selectedChapters" :key="ch.title" style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:var(--fs-md);border-bottom:1px dashed #f0f0f0;">
                   <span>{{ ch.title }}</span>
                   <span v-if="ch.analyzed" style="color:var(--success);">✅ 已分析</span>
                   <span v-else style="color:var(--warning);">⚠️ 未分析</span>
                 </div>
-                <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">{{ tpl.cached }}个已缓存 / {{ tpl.new }}个未分析</div>
+                <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:6px;">{{ tpl.cached }}个已缓存 / {{ tpl.new }}个未分析</div>
               </div>
             </div>
           </div>
@@ -605,27 +605,27 @@
           <div class="chapter-analysis-right" style="display:flex;flex-direction:column;gap:12px;">
             <div style="text-align:center;padding:12px;background:#f0f7ff;border-radius:8px;">
               <div style="font-size:24px;font-weight:700;color:var(--primary-light);">{{ totalNewCount }}</div>
-              <div style="font-size:12px;color:var(--text-muted);">个章节待分析</div>
+              <div style="font-size:var(--fs-sm);color:var(--text-muted);">个章节待分析</div>
             </div>
             
             <!-- 🔧 新增：原文获取方式选择 -->
             <div style="margin-bottom: 15px; padding: 12px; background: #f8f9fa; border-radius: 8px;">
-              <div style="font-size: 12px; color: #555; margin-bottom: 8px;"><strong>📥 原文获取方式：</strong></div>
-              <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer; font-size: 13px;">
+              <div style="font-size: var(--fs-sm); color: #555; margin-bottom: 8px;"><strong>📥 原文获取方式：</strong></div>
+              <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer; font-size: var(--fs-md);">
                 <input type="radio" v-model="analysisInputMode" value="ocr" />
-                <span>📷 自动OCR提取 <span style="color:var(--text-muted);font-size:11px;">（PaddleOCR-VL 引擎，本地识别图片文字，无需联网）</span></span>
+                <span>📷 自动OCR提取 <span style="color:var(--text-muted);font-size:var(--fs-xs);">（PaddleOCR-VL 引擎，本地识别图片文字，无需联网）</span></span>
               </label>
-              <label v-if="analysisInputMode === 'ocr'" style="display: flex; align-items: center; gap: 8px; margin-left: 24px; margin-bottom: 8px; cursor: pointer; font-size: 12px;">
+              <label v-if="analysisInputMode === 'ocr'" style="display: flex; align-items: center; gap: 8px; margin-left: 24px; margin-bottom: 8px; cursor: pointer; font-size: var(--fs-sm);">
                 <input type="checkbox" v-model="enableColumnSplit" />
-                <span>📐 启用多栏切割 <span style="color:var(--text-muted);font-size:11px;">（分栏排版文档勾选，逐栏识别后合并）</span></span>
+                <span>📐 启用多栏切割 <span style="color:var(--text-muted);font-size:var(--fs-xs);">（分栏排版文档勾选，逐栏识别后合并）</span></span>
               </label>
-              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px;">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: var(--fs-md);">
                 <input type="radio" v-model="analysisInputMode" value="manual" />
-                <span>✍️ 手动输入原文 <span style="color:var(--text-muted);font-size:11px;">（粘贴或手动输入文字）</span></span>
+                <span>✍️ 手动输入原文 <span style="color:var(--text-muted);font-size:var(--fs-xs);">（粘贴或手动输入文字）</span></span>
               </label>
             </div>
             
-            <div style="font-size:12px;color:var(--text-muted);line-height:1.8;">
+            <div style="font-size:var(--fs-sm);color:var(--text-muted);line-height:1.8;">
               <p><strong>📌 说明：</strong></p>
               <p>• 分析会调用 AI 模型提取教材/模板中的文字和知识点</p>
               <p>• 已分析的章节会缓存结果，下次无需重复分析</p>
@@ -751,10 +751,10 @@
         <div style="flex-shrink: 0;">
           <div class="modal-drag-handle" @mousedown="startAnalysisResultDrag($event)">📊 分析结果确认（可拖动）</div>
           <h3 style="margin: 8px 0 4px 0;">📊 分析结果确认</h3>
-          <p style="color:var(--text-muted);font-size:12px;margin-bottom:6px;">
+          <p style="color:var(--text-muted);font-size:var(--fs-sm);margin-bottom:6px;">
             {{ analysisResultType === 'textbook' ? '教材' : '模板' }}分析完成，请确认以下结果后保存
           </p>
-          <p style="color:var(--warning);font-size:11px;margin-bottom:8px;background:#fef9e7;padding:6px 10px;border-radius:4px;">
+          <p style="color:var(--warning);font-size:var(--fs-xs);margin-bottom:8px;background:#fef9e7;padding:6px 10px;border-radius:4px;">
             ⚠️ 请仔细核对分析结果，修改确认后点击「💾 确认保存」，否则分析数据不会保存
           </p>
         </div>
@@ -765,10 +765,10 @@
           <div v-if="analysisResultType === 'textbook' && analysisResultData">
             <div v-for="(item, idx) in analysisResultData" :key="idx" style="border:1px solid var(--border-light);border-radius:8px;padding:10px;margin-bottom:10px;">
               <div class="confirm-item-header">
-                <strong style="font-size:13px;">{{ item.bookName }} - {{ item.chapterTitle }}</strong>
+                <strong style="font-size:var(--fs-md);">{{ item.bookName }} - {{ item.chapterTitle }}</strong>
                 <div style="display:flex;gap:6px;align-items:center;">
-                  <span v-if="item.ocrQuality === 'poor'" style="color:var(--danger);font-weight:bold;font-size:11px;background:#fde8e8;padding:2px 6px;border-radius:3px;">❌ 质量差·必须修正</span>
-                  <span v-else-if="item.ocrQuality === 'warning'" style="color:var(--warning);font-size:11px;background:#fef3e2;padding:2px 6px;border-radius:3px;">️ 可能有误·建议核对</span>
+                  <span v-if="item.ocrQuality === 'poor'" style="color:var(--danger);font-weight:bold;font-size:var(--fs-xs);background:#fde8e8;padding:2px 6px;border-radius:3px;">❌ 质量差·必须修正</span>
+                  <span v-else-if="item.ocrQuality === 'warning'" style="color:var(--warning);font-size:var(--fs-xs);background:#fef3e2;padding:2px 6px;border-radius:3px;">️ 可能有误·建议核对</span>
                   <button class="icon-btn" @click="saveSingleAnalysisItem(idx)" title="单独保存" style="padding:2px 4px;color:var(--success);">💾</button>
                   <button class="icon-btn" @click="removeAnalysisItem(idx)" title="删除" style="padding:2px 4px;">🗑️</button>
                 </div>
@@ -778,7 +778,7 @@
               <div class="template-two-columns">
                 <!-- 左栏：原文 -->
                 <div class="template-left-column">
-                  <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;">📖 原文提取</label>
+                  <label style="display:block;font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:3px;">📖 原文提取</label>
                   <div v-if="item.rawText && item.rawText.includes('【？】')" 
                     style="display:flex;align-items:center;gap:4px;margin-bottom:3px;padding:3px 6px;background:#fffbf0;border:1px solid #f0c78e;border-radius:3px;font-size:10px;">
                     <span style="color:var(--warning);font-weight:600;">⚠️ {{ (item.rawText.match(/【？】/g) || []).length }} 处</span>
@@ -792,7 +792,7 @@
                     v-model="item._rawTextHtml"
                     placeholder="逐段原文..."
                     :min-height="'240px'"
-                    style="width:100%;font-size:11px;max-height:420px;"
+                    style="width:100%;font-size:var(--fs-xs);max-height:420px;"
                   />
                   <textarea v-else v-model="item.rawText" rows="16" placeholder="逐段原文..."
                     :style="{ borderColor: item.ocrQuality === 'poor' ? 'var(--danger)' : '#ddd', width:'100%',fontSize:'11px',padding:'6px',borderRadius:'4px',resize:'vertical',fontFamily:'inherit',boxSizing:'border-box' }"
@@ -803,32 +803,32 @@
                 <!-- 右栏：分析字段 -->
                 <div class="template-right-column">
                   <div class="confirm-field">
-                    <label style="font-size:11px;">️ 图表描述</label>
-                    <input type="text" v-model="item.visualDescription" placeholder="图表描述..." style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;" />
+                    <label style="font-size:var(--fs-xs);">️ 图表描述</label>
+                    <input type="text" v-model="item.visualDescription" placeholder="图表描述..." style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:var(--fs-xs);box-sizing:border-box;" />
                   </div>
                   <div class="confirm-field">
-                    <label style="font-size:11px;"> 公式描述</label>
-                    <input type="text" v-model="item.formulasText" placeholder="公式..." style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;" />
+                    <label style="font-size:var(--fs-xs);"> 公式描述</label>
+                    <input type="text" v-model="item.formulasText" placeholder="公式..." style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:var(--fs-xs);box-sizing:border-box;" />
                   </div>
                   <div class="confirm-field">
-                    <label style="font-size:11px;">️ 核心主题词（逗号分隔）</label>
-                    <input type="text" v-model="item.coreTopics" placeholder="主题词..." style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;" />
+                    <label style="font-size:var(--fs-xs);">️ 核心主题词（逗号分隔）</label>
+                    <input type="text" v-model="item.coreTopics" placeholder="主题词..." style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:var(--fs-xs);box-sizing:border-box;" />
                   </div>
                   <div class="confirm-field">
-                    <label style="font-size:11px;">📍 知识点（每行一个）</label>
-                    <textarea v-model="item.knowledgePointsText" rows="4" placeholder="每行一个知识点..." style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;resize:vertical;font-family:inherit;"></textarea>
+                    <label style="font-size:var(--fs-xs);">📍 知识点（每行一个）</label>
+                    <textarea v-model="item.knowledgePointsText" rows="4" placeholder="每行一个知识点..." style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:var(--fs-xs);box-sizing:border-box;resize:vertical;font-family:inherit;"></textarea>
                   </div>
                   <div class="confirm-field">
-                    <label style="font-size:11px;"> 能力层次</label>
-                    <select v-model="item.competency" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;">
+                    <label style="font-size:var(--fs-xs);"> 能力层次</label>
+                    <select v-model="item.competency" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:var(--fs-xs);box-sizing:border-box;">
                       <option value="识记与理解">识记与理解</option>
                       <option value="应用与分析">应用与分析</option>
                       <option value="综合与评价">综合与评价</option>
                     </select>
                   </div>
                   <div class="confirm-field">
-                    <label style="font-size:11px;">🎨 风格</label>
-                    <select v-model="item.style" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;">
+                    <label style="font-size:var(--fs-xs);">🎨 风格</label>
+                    <select v-model="item.style" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:var(--fs-xs);box-sizing:border-box;">
                       <option value="传统">传统</option>
                       <option value="创新">创新</option>
                       <option value="情境化">情境化</option>
@@ -843,7 +843,7 @@
           <div v-if="analysisResultType === 'template' && analysisResultData" class="template-review-layout">
             <!-- 顶部提示条 -->
             <div style="background:#fff9e6;border:2px solid #f39c12;border-radius:6px;padding:8px 12px;margin-bottom:10px;">
-              <p style="margin:0;color:#b85c00;font-weight:600;font-size:12px;">⚠️ 模板对标是生成高质量资料的关键，请逐项核对</p>
+              <p style="margin:0;color:#b85c00;font-weight:600;font-size:var(--fs-sm);">⚠️ 模板对标是生成高质量资料的关键，请逐项核对</p>
             </div>
 
             <!-- 左右两栏 -->
@@ -851,12 +851,12 @@
               <!-- ========== 左栏：原文 ========== -->
               <div class="template-left-column">
                 <div class="confirm-item-header">
-                  <strong style="font-size:13px;">{{ analysisResultData.tplName }} · 原文</strong>
-                  <span style="font-size:11px;color:var(--text-muted);">{{ (analysisResultData.rawText || '').length }}字</span>
+                  <strong style="font-size:var(--fs-md);">{{ analysisResultData.tplName }} · 原文</strong>
+                  <span style="font-size:var(--fs-xs);color:var(--text-muted);">{{ (analysisResultData.rawText || '').length }}字</span>
                 </div>
                 <!-- 🔧 不确定文字导航条 -->
                 <div v-if="analysisResultData.rawText && analysisResultData.rawText.includes('【？】')" 
-                  style="display:flex;align-items:center;gap:4px;margin-bottom:4px;padding:4px 8px;background:#fffbf0;border:1px solid #f0c78e;border-radius:4px;font-size:11px;">
+                  style="display:flex;align-items:center;gap:4px;margin-bottom:4px;padding:4px 8px;background:#fffbf0;border:1px solid #f0c78e;border-radius:4px;font-size:var(--fs-xs);">
                   <span style="color:var(--warning);font-weight:600;">⚠️ {{ uncertainCount }} 处不确定</span>
                   <button class="btn-small" @click="jumpToUncertain('prev')" style="color:var(--primary-light);font-size:10px;">◀ 上一个</button>
                   <button class="btn-small" @click="jumpToUncertain('next')" style="color:var(--primary-light);font-size:10px;">下一个 ▶</button>
@@ -869,7 +869,7 @@
                   v-model="analysisResultData._rawTextHtml"
                   placeholder="逐段原文...（请对照原始模板PDF逐字核对）"
                   :min-height="'400px'"
-                  style="width:100%;font-size:12px;max-height:500px;"
+                  style="width:100%;font-size:var(--fs-sm);max-height:500px;"
                 />
                 <textarea v-else v-model="analysisResultData.rawText" rows="26" 
                   ref="rawTextTextarea"
@@ -884,7 +884,7 @@
               <!-- ========== 右栏：分析字段 ========== -->
               <div class="template-right-column">
                 <div class="confirm-item-header">
-                  <strong style="font-size:13px;">📊 结构分析</strong>
+                  <strong style="font-size:var(--fs-md);">📊 结构分析</strong>
                   <div style="display:flex;gap:4px;">
                     <span v-if="analysisResultData.ocrQuality === 'poor'" style="color:var(--danger);font-weight:bold;font-size:10px;background:#fde8e8;padding:2px 6px;border-radius:3px;">OCR质量差</span>
                     <span v-else-if="analysisResultData.ocrQuality === 'warning'" style="color:var(--warning);font-weight:bold;font-size:10px;background:#fef3e2;padding:2px 6px;border-radius:3px;">OCR有误</span>
@@ -893,37 +893,37 @@
                 </div>
 
                 <div class="confirm-field">
-                  <label style="font-size:11px;">📋 结构分析 <span style="color:var(--danger);">*必填</span></label>
+                  <label style="font-size:var(--fs-xs);">📋 结构分析 <span style="color:var(--danger);">*必填</span></label>
                   <div v-for="(section, si) in (analysisResultData.结构分析 || [])" :key="si" style="margin-bottom:6px;border:1px solid var(--border-light);border-radius:4px;padding:6px;">
                     <div style="display:flex;gap:4px;margin-bottom:3px;">
-                      <input type="text" v-model="section.大题" placeholder="大题（如一、看拼音写词语）" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
-                      <input type="text" v-model="section.题型" placeholder="题型" style="width:100px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
+                      <input type="text" v-model="section.大题" placeholder="大题（如一、看拼音写词语）" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:var(--fs-xs);" />
+                      <input type="text" v-model="section.题型" placeholder="题型" style="width:100px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:var(--fs-xs);" />
                       <button class="btn-small" @click="analysisResultData.结构分析.splice(si, 1)" style="color:var(--danger);flex-shrink:0;padding:2px 4px;font-size:10px;">🗑️</button>
                     </div>
                     <div style="display:flex;gap:4px;">
-                      <input type="number" v-model.number="section.小题数量" placeholder="小题数" style="width:60px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
-                      <input type="number" v-model.number="section.大题分值" placeholder="分值" style="width:60px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
-                      <input type="number" v-model.number="section.每小题分值" placeholder="每小题分" style="width:70px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
-                      <input type="text" v-model="section.难度" placeholder="难度" style="width:60px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
+                      <input type="number" v-model.number="section.小题数量" placeholder="小题数" style="width:60px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:var(--fs-xs);" />
+                      <input type="number" v-model.number="section.大题分值" placeholder="分值" style="width:60px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:var(--fs-xs);" />
+                      <input type="number" v-model.number="section.每小题分值" placeholder="每小题分" style="width:70px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:var(--fs-xs);" />
+                      <input type="text" v-model="section.难度" placeholder="难度" style="width:60px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:var(--fs-xs);" />
                     </div>
-                    <input type="text" v-model="section.设问风格" placeholder="设问风格" style="width:100%;margin-top:3px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
+                    <input type="text" v-model="section.设问风格" placeholder="设问风格" style="width:100%;margin-top:3px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:var(--fs-xs);" />
                   </div>
                   <button class="btn-small" @click="analysisResultData.结构分析.push({大题:'',题型:'',小题数量:0,大题分值:0,每小题分值:0,设问风格:'',难度:'基础'})" style="margin-top:3px;font-size:10px;">➕ 添加大题</button>
                 </div>
                 <div style="display:flex;gap:10px;">
                   <div class="confirm-field" style="flex:1;">
-                    <label style="font-size:11px;">总分</label>
-                    <input type="number" v-model.number="analysisResultData.总分" placeholder="100" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;" />
+                    <label style="font-size:var(--fs-xs);">总分</label>
+                    <input type="number" v-model.number="analysisResultData.总分" placeholder="100" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:var(--fs-xs);" />
                   </div>
                   <div class="confirm-field" style="flex:1;">
-                    <label style="font-size:11px;">总题数</label>
-                    <input type="number" v-model.number="analysisResultData.总题数" placeholder="20" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;" />
+                    <label style="font-size:var(--fs-xs);">总题数</label>
+                    <input type="number" v-model.number="analysisResultData.总题数" placeholder="20" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:var(--fs-xs);" />
                   </div>
                 </div>
 
                 <!-- 🔧 语言风格指纹（可折叠查看） -->
                 <div class="confirm-field" v-if="analysisResultData.languageStyle">
-                  <label @click="showLanguageStyleDetail = !showLanguageStyleDetail" style="cursor:pointer;font-size:11px;">
+                  <label @click="showLanguageStyleDetail = !showLanguageStyleDetail" style="cursor:pointer;font-size:var(--fs-xs);">
                     🔍 语言风格指纹 {{ showLanguageStyleDetail ? '▼' : '▶' }}
                   </label>
                   <div v-if="showLanguageStyleDetail" style="font-size:10px;color:#555;background:var(--bg-card);padding:6px;border-radius:4px;margin-top:3px;">
@@ -944,7 +944,7 @@
         <!-- ✅ 固定底部：操作按钮 -->
         <div style="flex-shrink: 0; margin-top:10px; padding-top:10px; border-top:1px solid var(--border-light);">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <button class="btn btn-delete" @click="discardAnalysisResult" style="font-size:11px;padding:4px 10px;">🗑️ 丢弃分析结果</button>
+            <button class="btn btn-delete" @click="discardAnalysisResult" style="font-size:var(--fs-xs);padding:4px 10px;">🗑️ 丢弃分析结果</button>
             <div class="modal-actions" style="display:flex;gap:8px;">
               <button class="btn" @click="openAnalysisPDFPreview">📄 打开PDF对照</button>
               <button class="btn" @click="showAnalysisResultModal = false">稍后处理</button>
@@ -986,11 +986,11 @@
       <div 
         @mousedown="startAnalysisPDFDrag" 
         style="display:flex; justify-content:space-between; align-items:center; padding:6px 12px; background:var(--primary); color:white; cursor:move; user-select:none; flex-shrink:0;">
-        <span style="font-size:13px;">📖 PDF 对照</span>
+        <span style="font-size:var(--fs-md);">📖 PDF 对照</span>
         <div style="display:flex; gap:6px; align-items:center;">
-          <button @click="analysisPDFPage = Math.max(1, analysisPDFPage - 1)" style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer; padding:3px 8px; border-radius:4px; font-size:12px;">◀</button>
-          <span style="font-size:12px;">第 {{ analysisPDFPage }} 页</span>
-          <button @click="analysisPDFPage = analysisPDFPage + 1" style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer; padding:3px 8px; border-radius:4px; font-size:12px;">▶</button>
+          <button @click="analysisPDFPage = Math.max(1, analysisPDFPage - 1)" style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer; padding:3px 8px; border-radius:4px; font-size:var(--fs-sm);">◀</button>
+          <span style="font-size:var(--fs-sm);">第 {{ analysisPDFPage }} 页</span>
+          <button @click="analysisPDFPage = analysisPDFPage + 1" style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer; padding:3px 8px; border-radius:4px; font-size:var(--fs-sm);">▶</button>
           <button @click="showAnalysisPDF = false" style="background:none; border:none; color:white; cursor:pointer; font-size:18px; margin-left:4px;">✕</button>
         </div>
       </div>
@@ -1015,7 +1015,7 @@
           <!-- 🔧 新增：翻页导航 -->
           <div v-if="columnSplitAllPages && columnSplitAllPages.length > 1" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#f0f7ff;border-radius:8px;">
             <button class="btn-small" @click="goToSplitPage(columnSplitCurrentPage - 1)" :disabled="columnSplitCurrentPage <= 0">◀ 上一页</button>
-            <span style="font-size:13px;font-weight:600;color:var(--primary);">
+            <span style="font-size:var(--fs-md);font-weight:600;color:var(--primary);">
               第 {{ columnSplitCurrentPage + 1 }} / {{ columnSplitAllPages.length }} 页
             </span>
             <button class="btn-small" @click="goToSplitPage(columnSplitCurrentPage + 1)" :disabled="columnSplitCurrentPage >= columnSplitAllPages.length - 1">下一页 ▶</button>
@@ -1035,15 +1035,15 @@
               ></span>
             </div>
             
-            <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">
+            <span style="font-size:var(--fs-xs);color:var(--text-muted);margin-left:auto;">
               ✅ {{ columnSplitAllPages.filter(p => p._confirmed).length }}/{{ columnSplitAllPages.length }} 页已确认
             </span>
           </div>
           
-          <p style="color:var(--text-muted);font-size:13px;margin-bottom:8px;">
+          <p style="color:var(--text-muted);font-size:var(--fs-md);margin-bottom:8px;">
             第 {{ columnSplitAllPages ? columnSplitAllPages[columnSplitCurrentPage]?.page : '?' }} 页，检测到 {{ columnSplitResult?.columns || 0 }} 栏排版。拖动切割线调整位置，点击「👁️ 预览切割效果」查看结果。
           </p>
-          <p style="color:var(--warning);font-size:12px;margin-bottom:12px;background:#fef9e7;padding:8px 12px;border-radius:6px;">
+          <p style="color:var(--warning);font-size:var(--fs-sm);margin-bottom:12px;background:#fef9e7;padding:8px 12px;border-radius:6px;">
             ⚠️ 请确认切割线位置正确后再点击「✅ 确认并提取原文」。切割线应在两栏之间的空白区域。
           </p>
         </div>
@@ -1106,7 +1106,7 @@
                 :key="'sub-preview-' + idx"
                 style="flex-shrink:0;text-align:center;border:1px solid var(--border-light);border-radius:8px;padding:8px;background:var(--bg-card);"
               >
-                <div style="font-weight:600;font-size:12px;color:var(--primary);margin-bottom:4px;">第{{ idx + 1 }}栏</div>
+                <div style="font-weight:600;font-size:var(--fs-sm);color:var(--primary);margin-bottom:4px;">第{{ idx + 1 }}栏</div>
                 <img 
                   v-if="col.subBase64" 
                   :src="'data:image/jpeg;base64,' + col.subBase64" 
@@ -1115,7 +1115,7 @@
                 <div v-else style="width:200px;height:150px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;color:#ccc;">
                   {{ columnSplitConfirmed ? '加载中...' : '待切割' }}
                 </div>
-                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">{{ col.xRange }}</div>
+                <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:4px;">{{ col.xRange }}</div>
               </div>
             </div>
           </div>
@@ -1154,10 +1154,10 @@
                 :model-value="viewingChapter._rawTextHtml"
                 :editable="false"
                 :min-height="'280px'"
-                style="width:100%;font-size:12px;max-height:none;"
+                style="width:100%;font-size:var(--fs-sm);max-height:none;"
               />
               <textarea v-else v-model="viewingChapter.rawText" rows="18" 
-                style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;overflow:auto;font-family:inherit;box-sizing:border-box;">
+                style="width:100%;font-size:var(--fs-sm);padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;overflow:auto;font-family:inherit;box-sizing:border-box;">
               </textarea>
             </div>
             <!-- 右栏：分析字段 -->
@@ -1166,7 +1166,7 @@
                 <!-- ✅ 模板分析结果 - 只读显示 -->
                 <div class="detail-item">
                   <strong>📋 结构分析：</strong>
-                  <div v-for="(section, si) in (viewingChapter._tplAnalysis.结构分析 || viewingChapter._tplAnalysis.structure || [])" :key="si" style="font-size:12px;color:#555;line-height:1.8;margin-bottom:6px;border-bottom:1px dashed var(--border-light);padding-bottom:4px;">
+                  <div v-for="(section, si) in (viewingChapter._tplAnalysis.结构分析 || viewingChapter._tplAnalysis.structure || [])" :key="si" style="font-size:var(--fs-sm);color:#555;line-height:1.8;margin-bottom:6px;border-bottom:1px dashed var(--border-light);padding-bottom:4px;">
                     <div><strong>{{ section.大题 }}</strong>（{{ section.题型 }}）</div>
                     <div>小题：{{ section.小题数量 }}道 × {{ section.每小题分值 }}分 = {{ section.大题分值 }}分</div>
                     <div>设问：{{ section.设问风格 }} | 难度：{{ section.难度 }}</div>
@@ -1174,11 +1174,11 @@
                 </div>
                 <div class="detail-item">
                   <strong>📊 总题数：</strong>
-                  <span style="font-size:13px;color:#555;">{{ viewingChapter._tplAnalysis.总题数 || viewingChapter._tplAnalysis.questionCount || 0 }} 道</span>
+                  <span style="font-size:var(--fs-md);color:#555;">{{ viewingChapter._tplAnalysis.总题数 || viewingChapter._tplAnalysis.questionCount || 0 }} 道</span>
                 </div>
                 <div class="detail-item">
                   <strong>💯 总分：</strong>
-                  <span style="font-size:13px;color:#555;">{{ viewingChapter._tplAnalysis.总分 || viewingChapter._tplAnalysis.totalScore || 0 }} 分</span>
+                  <span style="font-size:var(--fs-md);color:#555;">{{ viewingChapter._tplAnalysis.总分 || viewingChapter._tplAnalysis.totalScore || 0 }} 分</span>
                 </div>
               </template>
               <template v-else>
@@ -1186,23 +1186,23 @@
                 <div class="detail-item">
                   <strong>🏷️ 核心主题：</strong>
                   <input type="text" v-model="viewingChapter.coreTopics" 
-                    style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;" />
+                    style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:var(--fs-md);box-sizing:border-box;" />
                 </div>
                 <div class="detail-item" v-if="viewingChapter.visualDescription">
                   <strong>🖼️ 图表描述：</strong>
                   <input type="text" v-model="viewingChapter.visualDescription" 
-                    style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;" />
+                    style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:var(--fs-md);box-sizing:border-box;" />
                 </div>
                 <div class="detail-item" v-if="viewingChapter.formulas && viewingChapter.formulas.length > 0">
                   <strong>📐 公式：</strong>
                   <textarea v-model="viewingChapter.formulasText" rows="3"
-                    style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box;"
+                    style="width:100%;font-size:var(--fs-sm);padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box;"
                     placeholder="每行一个公式"></textarea>
                 </div>
                 <div class="detail-item" v-if="viewingChapter.knowledgePoints && viewingChapter.knowledgePoints.length > 0">
                   <strong>📍 知识点：</strong>
                   <textarea v-model="viewingChapter.knowledgePointsText" rows="4"
-                    style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box;"
+                    style="width:100%;font-size:var(--fs-sm);padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box;"
                     placeholder="每行一个知识点"></textarea>
                 </div>
                 
@@ -1212,22 +1212,22 @@
                   <div style="margin-top:8px;background:#f8f9fa;padding:10px;border-radius:6px;max-height:200px;overflow-y:auto;">
                     <div v-for="(bc, bcIdx) in viewingChapter.knowledgeHierarchy" :key="bcIdx" 
                       style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border-light);">
-                      <div style="font-size:13px;color:var(--primary-light);font-weight:600;margin-bottom:6px;">
+                      <div style="font-size:var(--fs-md);color:var(--primary-light);font-weight:600;margin-bottom:6px;">
                         {{ bcIdx + 1 }}. {{ bc.bigConcept || '未命名大概念' }}
                       </div>
                       
                       <div v-for="(ck, ckIdx) in (bc.coreKnowledge || [])" :key="ckIdx" 
                         style="margin-left:16px;margin-bottom:6px;">
-                        <div style="font-size:12px;font-weight:600;color:#34495e;">
+                        <div style="font-size:var(--fs-sm);font-weight:600;color:#34495e;">
                           {{ ckIdx + 1 }}. {{ ck.name || ck.coreConcept || '未命名核心知识' }}
                           <span v-if="ck.level" style="margin-left:8px;padding:2px 6px;background:#3498db;color:white;border-radius:3px;font-size:10px;">{{ ck.level }}</span>
                         </div>
                         <div v-if="ck.specificConcepts && ck.specificConcepts.length > 0" 
-                          style="font-size:11px;color:#666;margin-left:16px;margin-top:2px;">
+                          style="font-size:var(--fs-xs);color:#666;margin-left:16px;margin-top:2px;">
                           具体概念：{{ ck.specificConcepts.join('、') }}
                         </div>
                         <div v-if="ck.suggestedQuestionTypes && ck.suggestedQuestionTypes.length > 0" 
-                          style="font-size:11px;color:var(--text-muted);margin-left:16px;margin-top:2px;">
+                          style="font-size:var(--fs-xs);color:var(--text-muted);margin-left:16px;margin-top:2px;">
                           建议题型：{{ ck.suggestedQuestionTypes.join('、') }}
                         </div>
                       </div>
@@ -1237,14 +1237,14 @@
                 
                 <div class="detail-item" v-if="viewingChapter.competency">
                   <strong>🎓 能力层次：</strong>
-                  <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:13px;color:#555;">
+                  <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:var(--fs-md);color:#555;">
                     {{ viewingChapter.competency }}
                   </div>
                 </div>
                 
                 <div class="detail-item" v-if="viewingChapter.style">
                   <strong>🎨 风格：</strong>
-                  <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:13px;color:#555;">
+                  <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:var(--fs-md);color:#555;">
                     {{ viewingChapter.style }}
                   </div>
                 </div>
@@ -1253,7 +1253,7 @@
           </div>
         </div>
         <div class="analysis-footer" style="flex-shrink: 0; display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
-          <button class="btn btn-delete hide-on-mobile" @click="discardSingleChapterAnalysis" style="font-size:11px;padding:4px 10px;">🗑️ 丢弃分析</button>
+          <button class="btn btn-delete hide-on-mobile" @click="discardSingleChapterAnalysis" style="font-size:var(--fs-xs);padding:4px 10px;">🗑️ 丢弃分析</button>
           <div class="modal-actions">
             <button class="btn" @click="showChapterAnalysisModal = false">取消</button>
             <button class="btn-primary" @click="saveChapterAnalysis"><span class="icon-desktop">💾</span><span class="icon-mobile">✅</span> 保存</button>
@@ -1266,7 +1266,7 @@
     <div v-if="showPeriodConfirmModal" class="modal-mask" @click.self="showPeriodConfirmModal = false">
       <div class="modal large-modal" style="max-width: 600px;">
         <h3>📚 课时切分确认</h3>
-        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px;">
+        <p style="color:var(--text-muted);font-size:var(--fs-md);margin-bottom:12px;">
           系统检测到该单元包含 <strong>{{ pendingPeriods.length }} 个课时</strong>，建议拆分为独立课时练习。
           每个课时只覆盖对应知识点的内容，题量和难度更合理。
         </p>
@@ -1275,7 +1275,7 @@
             style="display:flex;align-items:center;padding:8px 12px;margin:4px 0;background:var(--bg-card);border:1px solid var(--border-light);border-radius:6px;">
             <span style="font-weight:600;min-width:60px;color:var(--accent);">课时{{ i + 1 }}</span>
             <span style="flex:1;">{{ p.periodName }}</span>
-            <span style="color:var(--text-muted);font-size:12px;margin-left:8px;">{{ p.kpCount }} 个知识点</span>
+            <span style="color:var(--text-muted);font-size:var(--fs-sm);margin-left:8px;">{{ p.kpCount }} 个知识点</span>
           </div>
         </div>
         <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
@@ -1289,30 +1289,30 @@
     <div v-if="showBlueprintConfirmModal" class="modal-mask" @click.self="showBlueprintConfirmModal = false">
       <div class="modal large-modal" style="max-width: 900px;">
         <h3>{{ blueprintModalConfig.title }}</h3>
-        <p style="color:var(--text-muted);font-size:13px;margin-bottom:8px;">
+        <p style="color:var(--text-muted);font-size:var(--fs-md);margin-bottom:8px;">
           {{ blueprintModalConfig.subtitle }}
         </p>
-        <p style="color:var(--warning);font-size:12px;margin-bottom:16px;background:#fef9e7;padding:8px 12px;border-radius:6px;">
+        <p style="color:var(--warning);font-size:var(--fs-sm);margin-bottom:16px;background:#fef9e7;padding:8px 12px;border-radius:6px;">
           {{ blueprintModalConfig.checkHint }}
         </p>
         
         <!-- 蓝图统计信息 -->
         <div v-if="pendingBlueprintStats" style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
-          <div style="padding:10px 16px;background:var(--info-light);border-radius:8px;font-size:13px;">
+          <div style="padding:10px 16px;background:var(--info-light);border-radius:8px;font-size:var(--fs-md);">
             <span v-if="pendingGenType === 'dictation'">📝 词汇数：</span>
             <span v-else>📚 知识点：</span>
             <strong>{{ pendingBlueprintStats.knowledgePointCount }}</strong>个
           </div>
           <template v-if="isExamTypeForModal">
-            <div style="padding:10px 16px;background:var(--success-light);border-radius:8px;font-size:13px;">
+            <div style="padding:10px 16px;background:var(--success-light);border-radius:8px;font-size:var(--fs-md);">
               📝 总题数：<strong>{{ pendingBlueprintStats.totalQuestions }}</strong>
             </div>
-            <div style="padding:10px 16px;background:var(--warning-light);border-radius:8px;font-size:13px;">
+            <div style="padding:10px 16px;background:var(--warning-light);border-radius:8px;font-size:var(--fs-md);">
               🟢 基础：<strong>{{ pendingBlueprintStats.easyPercent }}%</strong>
               🟡 中等：<strong>{{ pendingBlueprintStats.mediumPercent }}%</strong>
               🔴 较难：<strong>{{ pendingBlueprintStats.hardPercent }}%</strong>
             </div>
-            <div style="padding:10px 16px;background:#fce4ec;border-radius:8px;font-size:13px;">
+            <div style="padding:10px 16px;background:#fce4ec;border-radius:8px;font-size:var(--fs-md);">
               💯 总分：<strong>{{ pendingBlueprintStats.totalScore }}</strong>
             </div>
           </template>
@@ -1320,7 +1320,7 @@
 
         <!-- 🔧 操作按钮行 -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-          <span style="font-size:13px;color:#666;">
+          <span style="font-size:var(--fs-md);color:#666;">
             共 <strong>{{ parsedBlueprintForPreview.length }}</strong> {{ isExamTypeForModal ? '题' : '项' }}，可直接在表格中修改
           </span>
           <div style="display:flex;gap:6px;">
@@ -1334,14 +1334,14 @@
           <textarea 
             v-model="editedBlueprintText" 
             rows="20" 
-            style="width:100%;font-family:'Consolas',monospace;font-size:12px;padding:12px;border:1px solid #ddd;border-radius:8px;resize:vertical;"
+            style="width:100%;font-family:'Consolas',monospace;font-size:var(--fs-sm);padding:12px;border:1px solid #ddd;border-radius:8px;resize:vertical;"
             placeholder="编辑蓝图..."
           ></textarea>
         </div>
         
         <!-- 逐项预览表格 -->
         <div v-if="parsedBlueprintForPreview.length > 0" style="max-height:300px;overflow-y:auto;margin-bottom:16px;border:1px solid var(--border-light);border-radius:8px;">
-          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm);">
             <thead>
               <tr style="background:var(--bg);position:sticky;top:0;">
                 <th style="padding:8px;border-bottom:1px solid var(--border-light);text-align:left;">序号</th>
@@ -1359,7 +1359,7 @@
                 <td v-if="isExamTypeForModal" style="padding:4px 6px;">
                   <select 
                     v-model="q.type" 
-                    style="width:100%;padding:4px;font-size:12px;border:1px solid #ddd;border-radius:4px;"
+                    style="width:100%;padding:4px;font-size:var(--fs-sm);border:1px solid #ddd;border-radius:4px;"
                     @change="onBlueprintCellChange(qIdx)"
                   >
                     <optgroup v-if="recommendedQuestionTypes.length > 0" label="📋 推荐题型">
@@ -1375,14 +1375,14 @@
                   <input 
                     type="text" 
                     v-model="q.knowledgePoint" 
-                    style="width:100%;padding:4px;font-size:12px;border:1px solid #ddd;border-radius:4px;"
+                    style="width:100%;padding:4px;font-size:var(--fs-sm);border:1px solid #ddd;border-radius:4px;"
                     @change="onBlueprintCellChange(qIdx)"
                   />
                 </td>
                 <td v-if="isExamTypeForModal" style="padding:4px 6px;">
                   <select 
                     v-model="q.difficulty" 
-                    style="width:100%;padding:4px;font-size:12px;border:1px solid #ddd;border-radius:4px;"
+                    style="width:100%;padding:4px;font-size:var(--fs-sm);border:1px solid #ddd;border-radius:4px;"
                     :style="{color: q.difficulty === '基础' ? 'var(--success)' : q.difficulty === '中等' ? '#f39c12' : 'var(--danger)'}"
                     @change="onBlueprintCellChange(qIdx)"
                   >
@@ -1397,7 +1397,7 @@
                     v-model.number="q.score" 
                     min="1" 
                     max="50"
-                    style="width:50px;padding:4px;font-size:12px;border:1px solid #ddd;border-radius:4px;"
+                    style="width:50px;padding:4px;font-size:var(--fs-sm);border:1px solid #ddd;border-radius:4px;"
                     @change="onBlueprintCellChange(qIdx)"
                   />
                 </td>
@@ -1405,7 +1405,7 @@
                   <input 
                     type="text" 
                     v-model="q.sourceChapter" 
-                    style="width:100%;padding:4px;font-size:12px;border:1px solid #ddd;border-radius:4px;color:var(--text-muted);"
+                    style="width:100%;padding:4px;font-size:var(--fs-sm);border:1px solid #ddd;border-radius:4px;color:var(--text-muted);"
                     @change="onBlueprintCellChange(qIdx)"
                   />
                 </td>
@@ -4234,7 +4234,7 @@ const ocrMarkdownToHtml = (md) => {
       return match.replace(/<img\b/, '<img style="max-width:100%;border-radius:4px;" ');
     }
     const filename = src.split('/').pop() || src;
-    return `\n<div class="ocr-image-placeholder" style="text-align:center;padding:8px;margin:12px 0;background:#f0f4ff;border:1px dashed #90a4d0;border-radius:6px;color:#5c6bc0;font-size:13px;">\n  🖼️ <em>图片：${filename}</em>\n</div>\n`;
+    return `\n<div class="ocr-image-placeholder" style="text-align:center;padding:8px;margin:12px 0;background:#f0f4ff;border:1px dashed #90a4d0;border-radius:6px;color:#5c6bc0;font-size:var(--fs-md);">\n  🖼️ <em>图片：${filename}</em>\n</div>\n`;
   });
   
   // 2. 标题：## → h2, ### → h3
@@ -4272,7 +4272,7 @@ const ocrMarkdownToHtml = (md) => {
   // 6. 恢复占位符
   html = html.replace(/%%TABLE_(\d+)%%/g, (m, idx) => {
     const tbl = tablePlaceholders[parseInt(idx)];
-    return tbl ? `<pre class="ocr-table" style="background:#f8f8f8;padding:12px;border-radius:6px;border:1px solid #ddd;font-family:Consolas,monospace;font-size:13px;white-space:pre-wrap;line-height:1.6;">${tbl}</pre>` : m;
+    return tbl ? `<pre class="ocr-table" style="background:#f8f8f8;padding:12px;border-radius:6px;border:1px solid #ddd;font-family:Consolas,monospace;font-size:var(--fs-md);white-space:pre-wrap;line-height:1.6;">${tbl}</pre>` : m;
   });
   html = html.replace(/%%LATEX_(\d+)%%/g, (m, idx) => {
     return latexPlaceholders[parseInt(idx)] || m;
@@ -9951,10 +9951,10 @@ table.periodic-table .actinide { background: #e1bee7; }
   .chapter-analysis-left > div > div {
     padding: 8px !important;
   }
-  .chapter-analysis-left [style*="font-size:13px"] {
+  .chapter-analysis-left [style*="font-size:var(--fs-md)"] {
     font-size: 12px !important;
   }
-  .chapter-analysis-left [style*="font-size:11px"] {
+  .chapter-analysis-left [style*="font-size:var(--fs-xs)"] {
     font-size: 10px !important;
   }
   /* 分析确认弹窗右栏 */
@@ -9965,10 +9965,10 @@ table.periodic-table .actinide { background: #e1bee7; }
   .chapter-analysis-right label span {
     font-size: 11px !important;
   }
-  .chapter-analysis-right [style*="font-size:13px"] {
+  .chapter-analysis-right [style*="font-size:var(--fs-md)"] {
     font-size: 12px !important;
   }
-  .chapter-analysis-right [style*="font-size:12px"] {
+  .chapter-analysis-right [style*="font-size:var(--fs-sm)"] {
     font-size: 11px !important;
   }
   /* 分析确认弹窗按钮 */

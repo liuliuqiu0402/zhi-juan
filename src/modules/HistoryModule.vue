@@ -10,7 +10,7 @@
           class="search-input"
           @input="filterHistory"
         />
-        <select v-model="historyFilterType" @change="filterHistory" class="filter-select" style="width:auto;padding:6px 10px;border-radius:20px;border:1px solid #ddd;font-size:13px;">
+        <select v-model="historyFilterType" @change="filterHistory" class="filter-select" style="width:auto;padding:6px 10px;border-radius:20px;border:1px solid #ddd;font-size:var(--fs-md);">
           <option value="">全部类型</option>
           <option value="📝 考卷">📝 考卷</option>
           <option value="📚 课时练">📚 课时练</option>
@@ -333,26 +333,26 @@ onUnmounted(() => {
     background: white;
     border-bottom: 1px solid var(--border-light);
   }
-  .page-header h2 { font-size: 13px; margin: 0; }
+  .page-header h2 { font-size: var(--fs-sm); margin: 0; }
   .history-search {
     flex-wrap: wrap;
     gap: 4px;
   }
   .history-search .search-input {
     width: 100%;
-    font-size: 12px !important;
+    font-size: var(--fs-sm) !important;
     padding: 5px 8px;
   }
   .history-search .filter-select {
     flex: 1;
     min-width: 0;
-    font-size: 11px !important;
+    font-size: var(--fs-xs) !important;
     padding: 5px 3px;
     min-height: auto;
   }
   .history-search .btn {
     flex-shrink: 0;
-    font-size: 10px;
+    font-size: var(--fs-xs);
     padding: 5px 6px;
     min-height: auto;
   }
@@ -380,14 +380,14 @@ onUnmounted(() => {
     gap: 4px;
   }
   .history-title {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     width: 100%;
   }
   .history-time {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .history-type {
-    font-size: 9px;
+    font-size: var(--fs-xs);
     padding: 2px 6px;
   }
   .history-actions {
@@ -395,7 +395,7 @@ onUnmounted(() => {
     gap: 3px;
   }
   .history-actions .btn-small {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     padding: 4px 6px;
     min-height: 26px;
   }
@@ -404,7 +404,7 @@ onUnmounted(() => {
 
   .empty-tip {
     padding: 28px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
   }
 }
 
@@ -508,7 +508,7 @@ onUnmounted(() => {
     margin: auto !important;
   }
   .large-modal h3 {
-    font-size: 15px !important;
+    font-size: var(--fs-lg) !important;
     margin-bottom: 10px !important;
     padding-bottom: 10px !important;
     flex-shrink: 0 !important;
@@ -517,7 +517,7 @@ onUnmounted(() => {
     flex: 1 !important;
     min-height: 0 !important;
     max-height: none !important;
-    font-size: 13px !important;
+    font-size: var(--fs-md) !important;
     overflow-y: auto !important;
   }
   .modal-actions {
