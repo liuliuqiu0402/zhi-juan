@@ -1170,15 +1170,11 @@ onMounted(async () => {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  height: 56px;
+  height: calc(56px + env(safe-area-inset-bottom, 0px));
   background: #ffffff;
-  border-top: 2px solid #e0e0e0;
+  border-top: 1px solid #e9edf2;
   flex-shrink: 0;
-  padding-bottom: 0;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  /* 确保在 Capacitor WebView 中始终可见 */
-  min-height: 56px;
-  z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 .mobile-bottom-nav .nav-tab {
   display: flex;
@@ -1186,16 +1182,13 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 2px;
-  padding: 6px 12px;
+  padding: 6px 16px;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s;
   color: #666666;
   font-size: 12px;
   -webkit-tap-highlight-color: transparent;
-  /* 确保文字可见 */
-  min-width: 44px;
-  text-align: center;
 }
 .mobile-bottom-nav .nav-tab.active {
   color: #1e3a6f;
