@@ -9,13 +9,30 @@
   <meta name="theme-color" content="#4f46e5">
   <meta name="description" content="AI 驱动的教学资料生成工具">
   <title>智卷工坊</title>
-  <style>html,body{background:#f5f7fc;}</style>
+  <style>html,body{background:#f5f7fc;}#app:empty::after{content:'⏳ 正在加载…';display:block;padding:40px 20px;text-align:center;color:#999;font-family:sans-serif;font-size:14px;}</style>
   <link rel="icon" href="./icon.svg">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
   <div id="app"></div>
+  <script>
+    var __t0=Date.now();
+    window.__showError=function(msg){var el=document.getElementById('app');if(el)el.innerHTML='<div style="padding:40px 20px;font-family:sans-serif;color:#e53935;text-align:center;"><h2>⚠️ 启动异常</h2><pre style="text-align:left;background:#fff3f3;padding:16px;border-radius:8px;overflow:auto;max-height:70vh;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-all;">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre></div>'};
+    // 全局错误捕获：只对 JS 报错 / 脚本加载失败弹诊断；图片等资源失败仅 console.warn
+    window.addEventListener('error',function(e){
+      var isJsError=e instanceof ErrorEvent;
+      var isScript=e.target&&e.target.tagName==='SCRIPT';
+      if(!isJsError&&!isScript){console.warn('[资源加载失败]',(e.target&&e.target.tagName)||'?',(e.target&&(e.target.src||e.target.href))||'');return;}
+      var info='[error]\ntype='+e.type+'\nmessage='+(e.message||'(无)')+'\nfilename='+(e.filename||'(无)')+'\nlineno='+(e.lineno||'?')+'\ncolno='+(e.colno||'?')+'\nisErrorEvent='+isJsError+'\ntarget='+((e.target&&e.target.tagName)||e.target||'window');
+      if(isScript)info+='\nsrc='+(e.target.src||e.target.getAttribute('src')||'?');
+      if(e.error&&e.error.stack)info+='\nstack='+e.error.stack.slice(0,500);
+      window.__showError(info);
+    },true);
+    window.addEventListener('unhandledrejection',function(e){window.__showError('Promise 异常: '+(e.reason?.message||e.reason?.stack||String(e.reason)));});
+    // 15 秒超时诊断
+    setTimeout(function(){var app=document.getElementById('app');if(app&&app.children.length===0)window.__showError('⏱ 超时('+((Date.now()-__t0)/1000).toFixed(1)+'s): Vue 未挂载\n\n可能原因: 模块加载失败 / CDN 阻塞 / JS 报错')},15000);
+  </script>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
