@@ -7,7 +7,7 @@
  * 在不同设备上视觉比例不一致。通过对根容器做整体 transform:scale()
  * 基于设计基准宽度等比缩放，确保所有手机屏幕视觉体验一致。
  * 
- * 缩放公式：scale = clamp(viewportWidth / DESIGN_WIDTH, 0.85, 1.35)
+ * 缩放公式：scale = clamp(viewportWidth / DESIGN_WIDTH, 0.85, 1.40)
  * 
  * 覆盖平台：
  *  - Capacitor 原生 Android APK
@@ -19,8 +19,8 @@
  */
 import { ref, computed } from 'vue';
 
-/** 设计基准宽度：UI 的 px 值按 390px 宽屏幕设计 */
-const DESIGN_WIDTH = 390;
+/** 设计基准宽度：值越小整体缩放越大（类似浏览器 Ctrl+滚轮 效果） */
+const DESIGN_WIDTH = 340;
 /** 桌面端设计基准宽度：UI 按 1920px 宽屏幕设计（主流桌面分辨率） */
 const DESKTOP_DESIGN_WIDTH = 1920;
 
@@ -92,13 +92,13 @@ export function useMobile() {
    * 统一移动端自适应缩放样式
    * 
    * 对所有移动平台（Capacitor 原生 / Safari / PWA）提供一致的视觉体验：
-   * 以 390px（iPhone 14）为设计基准宽度，实际宽度偏离时等比缩放。
+   * 以 340px 为设计基准宽度，实际宽度偏离时等比缩放。
    * 
    * 分两段计算：
    *   1) 设计宽度缩放：baseScale = viewportWidth / DESIGN_WIDTH
    *   2) PWA 工具栏补偿（仅 PWA standalone）：额外 × (1 / safariRatio)
    * 
-   * scale 最终 clamp 在 [0.85, 1.40] 防止极端设备异常。
+   * scale 最终 clamp 在 [0.88, 1.40] 防止极端设备异常。
    */
   const mobileScaleStyle = computed(() => {
     // 桌面端（>=768px）不缩放
@@ -128,7 +128,7 @@ export function useMobile() {
     }
 
     // ── 安全钳位 ──
-    scale = Math.max(0.85, Math.min(scale, 1.40));
+    scale = Math.max(0.88, Math.min(scale, 1.40));
 
     if (Math.abs(scale - 1) < 0.008) return {};
 

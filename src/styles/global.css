@@ -49,13 +49,6 @@ html, body, #app {
   font-size: 18px;
 }
 
-/* 📱 移动端根字号放大，补偿小屏视觉偏小 */
-@media (max-width: 767px) {
-  html, body, #app {
-    font-size: 20px;
-  }
-}
-
 /* OPPO 软渲染下 position:fixed 失效时的兜底——仅在 JS 检测到异常时生效
    .app-container 已改用 height:100% 替代 position:fixed，默认不受影响。
    此兜底仅保护其他依赖 fixed 的元素（弹窗、浮层等）。 */
