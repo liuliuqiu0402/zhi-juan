@@ -396,29 +396,29 @@ span.blank-8 { min-width: 8em; } span.blank-10 { min-width: 10em; }
     /* 禁止页面级滚动条，滚动由 .mobile-content（overflow-y:auto）和各模块面板内部管理 */
     overflow: hidden;
   }
-
-  /* 防止水平溢出（不限制 max-width，避免影响滚动计算） */
+  /* 🔤 手机端基础字号从浏览器默认上调，未设 font-size 的文本继承此值 */
   body {
+    font-size: 15px;
     max-width: 100vw;
     overflow-x: hidden;
   }
 
-  /* 移动端更大的点击区域（但保持紧凑） */
+  /* 移动端更大的点击区域 */
   .btn, .btn-primary, .btn-small {
     min-height: 32px;
     padding: 6px 12px;
-    font-size: 0.75rem;   /* 12px @100%，随字体缩放等比变化 */
+    font-size: 13px;
   }
 
   .btn-small {
     padding: 4px 8px;
     min-height: 28px;
-    font-size: 0.6875rem; /* 11px @100% */
+    font-size: 12px;
   }
 
-  /* 移动端输入框字体统一（compact 布局，主编辑区单独设置） */
+  /* 移动端输入框字体（compact 布局，主编辑区单独设置） */
   input, select, textarea {
-    font-size: 0.875rem !important; /* 14px @100% */
+    font-size: 15px !important;
   }
 
   /* 表格在小屏可横向滚动 */
@@ -457,7 +457,7 @@ span.blank-8 { min-width: 8em; } span.blank-10 { min-width: 10em; }
     padding: 8px !important;
   }
   .config-ribbon .ribbon-btn {
-    font-size: 0.75rem !important; /* 12px @100% */
+    font-size: 13px !important;
     padding: 8px 10px !important;
     min-height: 36px !important;
   }
@@ -471,7 +471,7 @@ span.blank-8 { min-width: 8em; } span.blank-10 { min-width: 10em; }
   .ProseMirror {
     max-width: 100% !important;
     padding: 12px !important;
-    font-size: 0.9375rem !important; /* 15px @100%，随字体缩放等比变化 */
+    font-size: 16px !important;
   }
 
   /* 弹窗 */
