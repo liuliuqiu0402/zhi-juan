@@ -63,6 +63,35 @@
         </div>
       </div>
 
+      <!-- 🔤 字体大小（全局等比缩放，两端统一） -->
+      <div class="settings-section">
+        <h3>🔤 字体大小</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:8px;">
+          全局等比缩放文字大小，不影响按钮尺寸和布局。当前：<b>{{ fontScalePercent }}</b>
+        </p>
+        <div class="font-scale-controls">
+          <button class="btn btn-small font-scale-btn" @click="fontScaleDown" :disabled="fontScaleVal <= fontScaleMin">A−</button>
+          <div class="font-scale-slider-wrap">
+            <span class="font-scale-label-sm">{{ fontScaleMinPercent }}</span>
+            <input
+              type="range"
+              :min="fontScaleMin"
+              :max="fontScaleMax"
+              :step="fontScaleStep"
+              v-model.number="fontScaleVal"
+              @input="onFontScaleChange"
+              class="font-scale-slider"
+            />
+            <span class="font-scale-label-sm">{{ fontScaleMaxPercent }}</span>
+          </div>
+          <button class="btn btn-small font-scale-btn" @click="fontScaleUp" :disabled="fontScaleVal >= fontScaleMax">A+</button>
+          <button class="btn-small" @click="fontScaleReset" style="margin-left:4px;">↺</button>
+        </div>
+        <p style="font-size:11px;color:#999;margin-top:6px;">
+          💡 预览：<span :style="{ fontSize: (fontScaleVal * 100).toFixed(0) + '%' }">这段文字会随滑块缩放</span>
+        </p>
+      </div>
+
       <!-- 📱 iOS 签名倒计时（仅手机端显示） -->
       <div class="settings-section" v-if="isCapacitorIOS">
         <h3>📱 签名倒计时</h3>
@@ -378,6 +407,7 @@ import { apiConfig, getAvailableModels, refreshConfigCache, saveConfig, decrypt,
 import { cancelAllRequests } from '@/utils/requestManager.js';
 import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
+import { useFontScale } from '@/composables/useFontScale.js';
 
 const { showAlertDialogFn } = useDialog();
 const {
@@ -450,6 +480,32 @@ const {
 
 const isCapacitorIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 const isWebMode = typeof window !== 'undefined' && !window.electronAPI;
+
+// 🔤 字体缩放
+const { scale, setScale, resetScale, scalePercent, currentScale, MIN_SCALE, MAX_SCALE, STEP } = useFontScale();
+const fontScaleVal = ref(currentScale());
+const fontScaleMin = MIN_SCALE;
+const fontScaleMax = MAX_SCALE;
+const fontScaleStep = STEP;
+const fontScalePercent = computed(() => scalePercent());
+const fontScaleMinPercent = `${Math.round(MIN_SCALE * 100)}%`;
+const fontScaleMaxPercent = `${Math.round(MAX_SCALE * 100)}%`;
+
+function onFontScaleChange() {
+  setScale(fontScaleVal.value);
+}
+function fontScaleDown() {
+  fontScaleVal.value = Math.max(fontScaleMin, fontScaleVal.value - fontScaleStep);
+  setScale(fontScaleVal.value);
+}
+function fontScaleUp() {
+  fontScaleVal.value = Math.min(fontScaleMax, fontScaleVal.value + fontScaleStep);
+  setScale(fontScaleVal.value);
+}
+function fontScaleReset() {
+  resetScale();
+  fontScaleVal.value = currentScale();
+}
 
 // 📋 操作日志
 const logStore = useLogger();
@@ -899,6 +955,50 @@ onUnmounted(() => {
   margin-top: -8px;
   margin-bottom: 12px;
   padding-left: 4px;
+}
+
+/* 🔤 字体缩放控件 */
+.font-scale-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.font-scale-slider-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.font-scale-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: #ddd;
+  outline: none;
+  cursor: pointer;
+}
+.font-scale-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.font-scale-btn {
+  min-width: 32px;
+  text-align: center;
+  font-weight: bold;
+}
+.font-scale-label-sm {
+  font-size: 10px;
+  color: #999;
+  min-width: 28px;
+  text-align: center;
 }
 
 /* 📱 移动端适配 */

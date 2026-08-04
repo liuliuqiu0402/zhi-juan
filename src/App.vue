@@ -190,6 +190,8 @@ import AppDialogs from '@/components/common/AppDialogs.vue';
 import { useActivation } from '@/composables/useActivation.js';
 import { useDialog } from '@/composables/useDialog.js';
 import { useMobile } from '@/composables/useMobile.js';
+// 🔤 字体缩放：模块加载即初始化，确保首屏文字已按保存的比例缩放
+import '@/composables/useFontScale.js';
 import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
