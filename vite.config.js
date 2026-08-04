@@ -45,18 +45,15 @@ export default defineConfig({
         ],
       },
     })]),
-    // 🔧 Capacitor: 模块脚本移到 body 末尾（某些 Android WebView head中模块脚本报错会阻塞所有JS）
+    // 🔧 Capacitor: 诊断模式——移除所有模块脚本，测试内联JS能否独立运行
     {
-      name: 'capacitor-module-to-body',
+      name: 'capacitor-no-module-diag',
       enforce: 'post',
       apply: 'build',
       transformIndexHtml(html) {
         if (!IS_CAPACITOR) return html;
-        const scripts = [];
-        html = html.replace(/<script\s+type="module"[^>]*><\/script>/g, (m) => { scripts.push(m); return ''; });
-        if (scripts.length > 0) {
-          html = html.replace('</body>', '  ' + scripts.join('\n  ') + '\n</body>');
-        }
+        // 完全移除模块脚本
+        html = html.replace(/<script\s+type="module"[^>]*><\/script>/g, '');
         return html;
       }
     },
