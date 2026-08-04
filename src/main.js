@@ -8,6 +8,23 @@ import '@/composables/useLogger.js'; // 📋 全局日志劫持——必须在�
 
 console.log('[main] 模块开始执行...');
 
+// 🔧 OPPO 软渲染检测：position:fixed 在软件渲染下失效
+//    在 Vue 挂载前检测，通过 <html> 标记让 CSS 兜底生效
+(function detectFixedBug() {
+  try {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;pointer-events:none;';
+    document.body.appendChild(el);
+    const rect = el.getBoundingClientRect();
+    const broken = rect.top !== 0 || rect.left !== 0;
+    document.body.removeChild(el);
+    if (broken) {
+      document.documentElement.setAttribute('data-fixed-broken', '');
+      console.warn('[main] 检测到 position:fixed 渲染异常，已启用 CSS 兜底');
+    }
+  } catch { /* 非浏览器环境，跳过 */ }
+})();
+
 const app = createApp(App);
 app.use(createPinia());
 app.use(router);

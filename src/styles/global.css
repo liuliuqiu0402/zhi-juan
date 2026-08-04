@@ -47,6 +47,13 @@ html, body, #app {
   background: #f5f7fc;
 }
 
+/* OPPO 软渲染下 position:fixed 失效时的兜底——仅在 JS 检测到异常时生效 */
+html[data-fixed-broken] .app-container {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
 /* 滚动条美化 */
 ::-webkit-scrollbar {
   width: 6px;
