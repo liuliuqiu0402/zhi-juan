@@ -19,62 +19,7 @@
 
   <div id="app"></div>
 
-  <script>
-    // ═══ 第0步：立即确认JS引擎活着 ═══
-    var __t0=Date.now();
-    var __dl=document.getElementById('diag-layer');
-    if(__dl){__dl.textContent='🟢 L2-JS:'+__t0+'ms';__dl.style.background='#2e7d32';}
-
-    // ═══ 第1步：注册错误捕获 ═══
-    window.__showError=function(msg){
-      if(__dl){__dl.textContent='🔴 ERROR';__dl.style.background='#b71c1c';}
-      var el=document.getElementById('app');
-      if(el)el.innerHTML='<div style="padding:40px 20px;font-family:sans-serif;color:#e53935;text-align:center;"><h2>⚠️ 启动异常</h2><pre style="text-align:left;background:#fff3f3;padding:16px;border-radius:8px;overflow:auto;max-height:70vh;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-all;">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre></div>';
-    };
-    window.addEventListener('error',function(e){
-      var isJsError=e instanceof ErrorEvent;
-      var isScript=e.target&&e.target.tagName==='SCRIPT';
-      if(!isJsError&&!isScript){return;}
-      var msg=e.message||'(无)';
-      if(msg.indexOf('MIME type')!==-1||msg.indexOf('module script')!==-1)msg+='\n\n🔍 MIME类型错误: WebView可能不支持ES模块';
-      var info='[error]\ntype='+e.type+'\nmessage='+msg+'\nfilename='+(e.filename||'(无)')+'\ntarget='+((e.target&&e.target.tagName)||e.target||'window');
-      if(isScript)info+='\nsrc='+(e.target.src||e.target.getAttribute('src')||'?');
-      if(e.error&&e.error.stack)info+='\nstack='+e.error.stack.slice(0,500);
-      window.__showError(info);
-    },true);
-    window.addEventListener('unhandledrejection',function(e){window.__showError('Promise异常: '+(e.reason?.message||e.reason?.stack||String(e.reason)));});
-
-    // ═══ 第2步：安全DOM操作 ═══
-    try{document.body.style.backgroundColor='#e8f5e9';}catch(e){}
-
-    // 更新状态条（复用 diag-layer）
-    if(__dl){
-      __dl.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;padding:2px 8px;font-size:10px;font-family:monospace;background:#c8e6c9;color:#1b5e20;text-align:center;pointer-events:none;';
-      __dl.textContent='JS✓ | t=0ms | online='+navigator.onLine;
-    }
-
-    // ═══ 第3步：MutationObserver + ES模块测试 + 超时诊断 ═══
-    var __appEl=document.getElementById('app');
-    if(__appEl&&typeof MutationObserver!=='undefined'){
-      try{var __mo=new MutationObserver(function(){var n=__appEl.childNodes.length;if(__dl)__dl.textContent+=' | #app:'+n;if(n>0){if(__dl)__dl.textContent+=' ✓';__mo.disconnect();}});__mo.observe(__appEl,{childList:true,subtree:true});}catch(e){}
-    }
-    try{var tm=document.createElement('script');tm.type='module';tm.textContent='window.__esModuleOk=!0;';document.head.appendChild(tm);}catch(e){}
-    setTimeout(function(){
-      var ss=document.querySelectorAll('script[type="module"]');
-      for(var i=0;i<ss.length;i++){
-        ss[i].addEventListener('load',function(){if(__dl)__dl.textContent+=' | 模块✓';});
-        ss[i].addEventListener('error',function(){window.__showError('❌ 模块脚本加载失败: '+(this.src||'未知'));});
-      }
-    },0);
-    setTimeout(function(){
-      if(__dl){
-        if(window.__esModuleOk)__dl.textContent+=' | ES✓';
-        else{__dl.textContent+=' | ES✗!';__dl.style.background='#ffcdd2';__dl.style.color='#b71c1c';}
-      }
-    },200);
-    setTimeout(function(){var app=document.getElementById('app');if(app&&app.children.length===0)window.__showError('⚠️ 3s: Vue未挂载\n\n可能: 模块脚本加载失败 / 路由懒加载组件超时 / JS报错导致Vue初始化失败')},3000);
-    setTimeout(function(){var app=document.getElementById('app');if(app&&app.children.length===0)window.__showError('⏱ 超时('+((Date.now()-__t0)/1000).toFixed(1)+'s): Vue未挂载')},15000);
-  </script>
+  <script src="./diag.js"></script>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
