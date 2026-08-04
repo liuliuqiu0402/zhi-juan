@@ -24,11 +24,14 @@ let _listening = false;
 // ── PWA / Capacitor 原生 App 主屏幕检测 ──
 function detectPwa() {
   if (typeof navigator === 'undefined') return false;
+  // 🔌 Capacitor Android 使用 http:// 协议，不是 PWA standalone 模式
+  //    必须排除，否则 pwaScaleStyle 会错误地对原生 App 应用 transform:scale()
+  if (typeof window !== 'undefined' && window.location?.protocol === 'http:' && /Android/.test(navigator.userAgent || '')) return false;
   // iOS: 添加到主屏幕后 navigator.standalone === true
   if (navigator.standalone) return true;
   // Android / 通用: display-mode: standalone
   if (typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches) return true;
-  // Capacitor 原生 App（iOS/Android 打包运行）
+  // Capacitor iOS（capacitor:// 协议）
   if (typeof window !== 'undefined' && window.location?.protocol === 'capacitor:') return true;
   return false;
 }
