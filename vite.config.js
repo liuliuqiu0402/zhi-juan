@@ -86,6 +86,7 @@ export default defineConfig({
     }
   },
   build: {
+    target: IS_CAPACITOR ? 'es2015' : 'modules',
     outDir: 'dist',
     assetsDir: 'assets',
     emptyOutDir: true
