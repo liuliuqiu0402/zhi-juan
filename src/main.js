@@ -6,6 +6,8 @@ import '@/styles/global.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import '@/composables/useLogger.js'; // 📋 全局日志劫持——必须在最早加载
 
+console.log('[main] 模块开始执行, router.isReady 即将调用...');
+
 const app = createApp(App);
 app.use(createPinia());
 app.use(router);

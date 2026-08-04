@@ -16,9 +16,12 @@
 <body>
   <div id="app"></div>
   <script>
+    console.log('[diag] inline 启动 t=0ms, online='+navigator.onLine);
     var __t0=Date.now();
+    var __appEl=document.getElementById('app');
+    // MutationObserver: 监控 #app 何时被填充（Vue 挂载 或 错误注入）
+    if(typeof MutationObserver!=='undefined'){var __mo=new MutationObserver(function(ms){console.log('[diag] #app 变化, childNodes='+__appEl.childNodes.length);if(__appEl.childNodes.length>0){console.log('[diag] #app 已非空, html长度='+__appEl.innerHTML.length);__mo.disconnect();}});__mo.observe(__appEl,{childList:true,subtree:true});}
     window.__showError=function(msg){var el=document.getElementById('app');if(el)el.innerHTML='<div style="padding:40px 20px;font-family:sans-serif;color:#e53935;text-align:center;"><h2>⚠️ 启动异常</h2><pre style="text-align:left;background:#fff3f3;padding:16px;border-radius:8px;overflow:auto;max-height:70vh;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-all;">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre></div>'};
-    // 全局错误捕获：只对 JS 报错 / 脚本加载失败弹诊断；图片等资源失败仅 console.warn
     window.addEventListener('error',function(e){
       var isJsError=e instanceof ErrorEvent;
       var isScript=e.target&&e.target.tagName==='SCRIPT';
@@ -29,8 +32,12 @@
       window.__showError(info);
     },true);
     window.addEventListener('unhandledrejection',function(e){window.__showError('Promise 异常: '+(e.reason?.message||e.reason?.stack||String(e.reason)));});
+    // 监听模块脚本加载结果
+    setTimeout(function(){var ss=document.querySelectorAll('script[type="module"]');for(var i=0;i<ss.length;i++){ss[i].addEventListener('load',function(){console.log('[diag] 模块脚本已加载: '+(this.src||''));});ss[i].addEventListener('error',function(){window.__showError('❌ 模块脚本加载失败: '+(this.src||'未知'));});}},0);
+    // 3 秒快速诊断
+    setTimeout(function(){var app=document.getElementById('app');if(app&&app.children.length===0)window.__showError('⚠️ 3s 诊断: 模块已加载但 Vue 未挂载\n\n可能: router.isReady 卡死 / 路由组件加载失败\n请连接 Chrome DevTools 远程调试')},3000);
     // 15 秒超时诊断
-    setTimeout(function(){var app=document.getElementById('app');if(app&&app.children.length===0)window.__showError('⏱ 超时('+((Date.now()-__t0)/1000).toFixed(1)+'s): Vue 未挂载\n\n可能原因: 模块加载失败 / CDN 阻塞 / JS 报错')},15000);
+    setTimeout(function(){var app=document.getElementById('app');if(app&&app.children.length===0)window.__showError('⏱ 超时('+((Date.now()-__t0)/1000).toFixed(1)+'s): Vue 未挂载\n\n可能原因: 模块加载失败 / 路由卡死 / JS 报错')},15000);
   </script>
   <script type="module" src="/src/main.js"></script>
 </body>
