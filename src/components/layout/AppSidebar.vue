@@ -77,13 +77,13 @@ const goIfAllowed = (path, feature) => {
 }
 
 .nav-category {
-  padding: 12px 20px 8px; font-size: 11px; font-weight: 600;
+  padding: 12px 20px 10px; font-size: 13px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.5px; color: #8ba3c7;
 }
 
 .nav-item {
-  padding: 12px 20px; cursor: pointer; display: flex; align-items: center;
-  gap: 12px; transition: background 0.2s; font-size: 14px; color: #d0def0;
+  padding: 14px 20px; cursor: pointer; display: flex; align-items: center;
+  gap: 12px; transition: background 0.2s; font-size: 16px; color: #d0def0;
 }
 .nav-item:hover { background: var(--primary-light); color: white; }
 .nav-item.active { background: var(--primary-light); border-left: 4px solid #f5b042; color: white; }

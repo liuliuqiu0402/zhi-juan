@@ -2535,6 +2535,7 @@ const saveTemplate = async () => {
   gap: 12px;
 }
 .panel-header { display: flex; justify-content: space-between; align-items: center; }
+.panel-header h3 { font-size: 16px; color: var(--primary); margin: 0; }
 .filter-row { display: flex; gap: 8px; }
 .filter-row select { flex: 1; padding: 6px; border-radius: 8px; border: 1px solid #ccc; background: white; }
 .search-row { display: flex; gap: 8px; }
@@ -2572,7 +2573,7 @@ const saveTemplate = async () => {
 .template-cover-placeholder { width: 32px; height: 40px; display: flex; align-items: center; justify-content: center; background: var(--primary-bg); border-radius: 4px; font-size: 1.2rem; }
 .item-info { flex: 1; display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .expand-icon { width: 16px; color: #666; }
-.template-name { font-weight: 500; font-size: 0.85rem; }
+.template-name { font-weight: 500; font-size: 13px; }
 .chapter-count { font-size: 0.75rem; color: #666; margin-left: 8px; }
 .item-actions { display: flex; gap: 4px; }
 .icon-btn { background: none; border: none; cursor: pointer; padding: 4px; font-size: 1rem; }
@@ -3164,16 +3165,17 @@ tr.row-focused td input.cell-input { background: #eef6ff; }
 }
 .filter-selects {
   display: flex;
-  gap: 4px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 .filter-select {
-  flex: 1 1 0;
+  flex: 1 1 calc(33.333% - 6px);
   min-width: 0;
-  padding: 4px 2px;
+  padding: 4px 4px;
   border-radius: 5px;
   border: 1px solid #ddd;
   background: white;
-  font-size: 10px;
+  font-size: 12px;
   color: #333;
   cursor: pointer;
 }
@@ -3449,8 +3451,8 @@ kbd {
   .filter-selects .filter-select {
     flex: 1 1 0;
     min-width: 0;
-    font-size: 8px !important;
-    padding: 4px 1px;
+    font-size: 10px !important;
+    padding: 4px 2px;
     width: auto;
     background: #f8f9fa;
     border: 1px solid #d0d0d0;
@@ -3460,7 +3462,7 @@ kbd {
   .filter-selects .sort-select {
     flex: 0 0 auto;
     min-width: 42px;
-    font-size: 7px !important;
+    font-size: 10px !important;
   }
   .library-panel > .batch-row {
     flex-shrink: 0;
@@ -3496,7 +3498,7 @@ kbd {
     flex: 1;
     min-width: 0;
   }
-  .book-name {
+  .template-name {
     font-size: 13px;
     line-height: 1.4;
     word-break: break-all;

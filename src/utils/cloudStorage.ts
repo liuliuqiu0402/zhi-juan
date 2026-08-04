@@ -904,6 +904,16 @@ function buildDeviceLabels(allIds: string[], selfId: string, cloudNames: Map<str
 
 let _probePending = false;
 
+/** 云端设备信息（probeCloud 填充，fetchCloudDevices 消费） */
+export interface CloudDeviceInfo {
+  deviceId: string;
+  label: string;
+  histCount: number;
+  genCount: number;
+  isSelf: boolean;
+}
+let _lastCloudDevices: CloudDeviceInfo[] = [];
+
 /** 启动时探测云端状态，暖机后输出数据摘要，用户据此决定何时同步 */
 export async function probeCloud(showReadyHint = true): Promise<void> {
   // 🔒 并发守卫：避免启动时多处触发导致重复探测
@@ -1001,6 +1011,8 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
   if (!hiErr && histRows?.data) {
     for (const row of histRows.data as { id: string; data: unknown }[]) {
       const did = row.id?.replace(syncKey + ':', '') || '?';
+      // 🧹 过滤：跳过 deleted 墓碑行和空 ID
+      if (did === 'deleted' || did === '?') continue;
       const arr = Array.isArray((row as any)?.data) ? (row as any).data as any[] : [];
       // 🔧 扣除墓碑：已删除条目不计入统计
       const count = arr.filter((d: any) => d?.id && !tombstoneIds.hist.has(d.id) && !d._deleted).length;
@@ -1014,6 +1026,8 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
   if (!geErr && genRows?.data) {
     for (const row of genRows.data as { id: string; data: unknown }[]) {
       const did = row.id?.replace(syncKey + ':', '') || '?';
+      // 🧹 过滤：跳过 deleted 墓碑行和空 ID
+      if (did === 'deleted' || did === '?') continue;
       const arr = Array.isArray((row as any)?.data) ? (row as any).data as any[] : [];
       // 🔧 扣除墓碑
       const count = arr.filter((d: any) => d?.id && !tombstoneIds.gen.has(d.id) && !d._deleted).length;
@@ -1039,13 +1053,20 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
 
   // 各设备数据
   // 🧹 过滤：只显示"本机"+有自定义名称的设备，裸 UUID 设备不展示
+  //    自动生成的设备名（📱开头等）也不展示，除非是本机
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  // 🔧 自动生成的设备名模式：detectDeviceName() 会产出这些兜底名
+  const autoNamePatterns = ['📱 手机浏览器', '📱 安卓手机', '📱 iPhone', '💻 电脑浏览器', '🖥️ 电脑'];
   const namedEntries = [...devMap.entries()].filter(([did]) => {
     if (did === selfId) return true; // 本机始终显示
+    // 🧹 跳过 deleted 墓碑（双重保险，数据聚合阶段已过滤）
+    if (did === 'deleted') return false;
     const label = deviceLabels.get(did) || '';
     // 过滤：空标签 / 标签本身是裸UUID / 标签是UUID截断的兜底（无名设备）
     if (!label || uuidRe.test(label)) return false;
     if (uuidRe.test(did) && label === did.slice(0, 8)) return false; // 仅UUID设备才用截断判断
+    // 🧹 过滤自动生成的兜底名（📱 手机浏览器 / 💻 电脑浏览器 等测试废数据）
+    if (autoNamePatterns.includes(label)) return false;
     return true;
   });
 
@@ -1066,6 +1087,20 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
     }
   }
 
+  // 🔄 存入共享变量，供 fetchCloudDevices() 消费
+  _lastCloudDevices = namedEntries.map(([did, d]) => ({
+    deviceId: did,
+    label: deviceLabels.get(did) || did.slice(0, 8),
+    histCount: d.hist,
+    genCount: d.gen,
+    isSelf: did === selfId,
+  }));
+  _lastCloudDevices.sort((a, b) => {
+    if (a.isSelf) return -1;
+    if (b.isSelf) return 1;
+    return a.label.localeCompare(b.label);
+  });
+
   // 💾 空间预估
   const estKB = Math.ceil(tbCount * 15 + tpCount * 8 + histTotal * 3 + genTotal * 6 + devMap.size * 5);
   const estStr = estKB > 999 ? (estKB / 1024).toFixed(1) + 'MB' : estKB + 'KB';
@@ -1077,4 +1112,48 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
   } finally {
     _probePending = false;
   }
+}
+
+/**
+ * 获取云端设备列表（复用 probeCloud 已拉取的数据，无额外网络请求）
+ * 如需最新数据，先保证 probeCloud() 已执行完成
+ */
+export async function fetchCloudDevices(): Promise<CloudDeviceInfo[]> {
+  // 如果还没有探测过，先执行一次
+  if (_lastCloudDevices.length === 0) {
+    await probeCloud(false);
+  }
+  return [..._lastCloudDevices];
+}
+
+/**
+ * 手动移除指定设备的所有云端数据
+ * 删除 doc_history + generated_docs 表中该设备的行
+ */
+export async function deleteDeviceFromCloud(deviceId: string): Promise<boolean> {
+  const client = getClient();
+  if (!client || noSyncKey()) return false;
+  const syncKey = getSyncKey() || '';
+
+  console.log('🗑️ 正在移除云端设备: ' + deviceId);
+  let deleted = 0;
+  for (const table of ['doc_history', 'generated_docs']) {
+    try {
+      const { error } = await client.from(table).delete().eq('id', syncKey + ':' + deviceId);
+      if (error) {
+        console.warn('⚠️ 删除 ' + table + ' 失败:', error.message);
+      } else {
+        deleted++;
+      }
+    } catch (e) {
+      console.warn('⚠️ 删除 ' + table + ' 异常:', e);
+    }
+  }
+
+  if (deleted > 0) {
+    console.log('✅ 已移除云端设备数据: ' + deviceId);
+    _lastCloudDevices = []; // 清空缓存，下次加载时重新探测
+    return true;
+  }
+  return false;
 }

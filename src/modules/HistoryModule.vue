@@ -288,6 +288,7 @@ onUnmounted(() => {
 .history-title {
   font-weight: 500;
   color: var(--primary);
+  font-size: 14px;
 }
 
 .history-time {

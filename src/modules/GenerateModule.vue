@@ -90,7 +90,7 @@
                 <div class="summary-chapter-list">
                   <div v-for="chapter in getSelectedChapters(book.outline)" :key="chapter.title" class="summary-chapter">
                     <input type="checkbox" v-model="chapter._selectedForAnalysis" :checked="chapter._selectedForAnalysis !== false" class="analysis-checkbox" title="勾选要分析的章节" />
-                    <span class="chapter-title" @click="isLeafChapter(chapter) && viewChapterAnalysis(book, chapter)" :style="{ cursor: isLeafChapter(chapter) ? 'pointer' : 'default', textDecoration: isLeafChapter(chapter) ? 'underline' : 'none', color: isLeafChapter(chapter) ? 'var(--primary-light)' : '#555' }">
+                    <span class="chapter-title" @click="isLeafChapter(chapter) && viewChapterAnalysis(book, chapter)" :style="{ cursor: isLeafChapter(chapter) ? 'pointer' : 'default', textDecoration: isLeafChapter(chapter) ? 'underline' : 'none', color: isLeafChapter(chapter) ? 'var(--primary-light)' : '#1a1a1a' }">
                       {{ chapter.title }}
                       <span v-if="chapter.analyzed" style="color:var(--success);font-size:11px;"title="已分析">✅</span>
                       <span v-else style="color:#ccc;font-size:11px;"title="未分析">⬜</span>
@@ -124,7 +124,7 @@
               <div class="summary-chapter-list">
                 <div v-for="chapter in getSelectedChapters(tpl?.outline || [])" :key="chapter.title" class="summary-chapter">
                   <input type="checkbox" v-model="chapter._selectedForAnalysis" :checked="chapter._selectedForAnalysis !== false" class="analysis-checkbox" title="勾选要分析的章节" />
-                  <span class="chapter-title" @click="isLeafChapter(chapter) && viewChapterAnalysis(tpl, chapter)" :style="{ cursor: isLeafChapter(chapter) ? 'pointer' : 'default', textDecoration: isLeafChapter(chapter) ? 'underline' : 'none', color: isLeafChapter(chapter) ? 'var(--primary-light)' : '#555' }">
+                  <span class="chapter-title" @click="isLeafChapter(chapter) && viewChapterAnalysis(tpl, chapter)" :style="{ cursor: isLeafChapter(chapter) ? 'pointer' : 'default', textDecoration: isLeafChapter(chapter) ? 'underline' : 'none', color: isLeafChapter(chapter) ? 'var(--primary-light)' : '#1a1a1a' }">
                     {{ chapter.title }}
                     <span v-if="chapter.analyzed" style="color:var(--success);font-size:11px;"title="已分析">✅</span>
                     <span v-else style="color:#ccc;font-size:11px;"title="未分析">⬜</span>
@@ -577,7 +577,7 @@
             <div v-if="analysisType === 'textbook'">
               <div v-for="book in analysisBooks" :key="book.id" style="margin-bottom:14px;border:1px solid var(--border-light);border-radius:8px;padding:12px;">
                 <div style="font-weight:600;color:var(--primary);margin-bottom:8px;">{{ book.name }}</div>
-                <div v-for="ch in book.selectedChapters" :key="ch.title" style="padding:6px 0;font-size:13px;border-bottom:1px dashed #f0f0f0;">
+                <div v-for="ch in book.selectedChapters" :key="ch.title" style="padding:6px 0;font-size:14px;border-bottom:1px dashed #f0f0f0;">
                   <div style="display:flex;justify-content:space-between;align-items:center;">
                     <span style="font-weight:500;">{{ ch.title }}</span>
                     <span v-if="ch.analyzed" style="color:var(--success);">✅ 已分析</span>
@@ -591,7 +591,7 @@
             <div v-else>
               <div v-for="tpl in analysisTpls" :key="tpl.id" style="margin-bottom:14px;border:1px solid var(--border-light);border-radius:8px;padding:12px;">
                 <div style="font-weight:600;color:var(--primary);margin-bottom:8px;">{{ tpl.name }}</div>
-                <div v-for="ch in tpl.selectedChapters" :key="ch.title" style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:13px;border-bottom:1px dashed #f0f0f0;">
+                <div v-for="ch in tpl.selectedChapters" :key="ch.title" style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:14px;border-bottom:1px dashed #f0f0f0;">
                   <span>{{ ch.title }}</span>
                   <span v-if="ch.analyzed" style="color:var(--success);">✅ 已分析</span>
                   <span v-else style="color:var(--warning);">⚠️ 未分析</span>
@@ -7534,6 +7534,7 @@ const addBlueprintQuestion = () => {
   gap: 8px;
   cursor: pointer;
   font-weight: 600;
+  font-size: 14px;
   color: var(--primary);
   background: var(--bg-card);
 }
@@ -7562,6 +7563,7 @@ const addBlueprintQuestion = () => {
 
 .chapter-title {
   flex: 1;
+  font-weight: 500;
 }
 
 .page-range {
@@ -7828,6 +7830,7 @@ const addBlueprintQuestion = () => {
 .result-title {
   font-weight: 500;
   margin-bottom: 4px;
+  font-size: 14px;
 }
 
 .result-meta {
@@ -8348,8 +8351,8 @@ const addBlueprintQuestion = () => {
 .summary-book-name {
   font-weight: 600;
   color: var(--primary);
-  font-size: 13px;
-  margin-bottom: 4px;
+  font-size: 14px;
+  margin-bottom: 6px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -8362,8 +8365,9 @@ const addBlueprintQuestion = () => {
   align-items: center;
   justify-content: space-between;
   padding: 3px 0;
-  font-size: 12px;
-  color: #555;
+  font-size: 13px;
+  color: #1a1a1a;
+  line-height: 1.6;
 }
 .remove-btn {
   cursor: pointer;

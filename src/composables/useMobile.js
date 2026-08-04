@@ -21,6 +21,8 @@ import { ref, computed } from 'vue';
 
 /** 设计基准宽度：UI 的 px 值按 390px 宽屏幕设计 */
 const DESIGN_WIDTH = 390;
+/** 桌面端设计基准宽度：UI 按 1920px 宽屏幕设计（主流桌面分辨率） */
+const DESKTOP_DESIGN_WIDTH = 1920;
 
 const _width = ref(typeof window !== 'undefined' ? window.innerWidth : 1024);
 const _height = ref(typeof window !== 'undefined' ? window.innerHeight : 768);
@@ -143,6 +145,32 @@ export function useMobile() {
   /** @deprecated 使用 mobileScaleStyle 替代，保留别名用于向后兼容 */
   const pwaScaleStyle = mobileScaleStyle;
 
+  /**
+   * 桌面端自适应缩放样式
+   * 以 1920px 为设计基准宽度，轻量适配 1366px~2560px 各种桌面屏幕。
+   * scale = clamp(viewportWidth / 1920, 0.94, 1.08)
+   * ⚠️ 桌面缩放非常轻量（±8%），避免字体过大或过小。
+   */
+  const desktopScaleStyle = computed(() => {
+    if (!isDesktop.value) return {};
+    let scale = _width.value / DESKTOP_DESIGN_WIDTH;
+    scale = Math.max(0.94, Math.min(scale, 1.08));
+    if (Math.abs(scale - 1) < 0.006) return {};
+    return {
+      width: `${Math.ceil(_width.value / scale)}px`,
+      height: `${Math.ceil(_height.value / scale)}px`,
+      transform: `scale(${scale.toFixed(4)})`,
+      transformOrigin: 'top left',
+    };
+  });
+
+  /** 统一自适应缩放：移动端 + 桌面端自动适配（互斥） */
+  const adaptiveScaleStyle = computed(() => {
+    if (isMobile.value) return mobileScaleStyle.value;
+    if (isDesktop.value) return desktopScaleStyle.value;
+    return {}; // 平板不缩放
+  });
+
   /** 当前是否运行在 PWA standalone 模式（主屏幕打开） */
   const isPwa = computed(() => _isPwa.value);
 
@@ -154,9 +182,11 @@ export function useMobile() {
     isSmallScreen,
     isTouchDevice,
     deviceType,
-    // 统一移动端缩放
+    // 统一缩放
     isPwa,
     mobileScaleStyle,
     pwaScaleStyle,  // 向后兼容别名
+    desktopScaleStyle,
+    adaptiveScaleStyle,
   };
 }

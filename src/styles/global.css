@@ -45,6 +45,8 @@ html, body, #app {
   overflow: hidden;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif;
   background: #f5f7fc;
+  /* 🔤 全局字体基准：18px（桌面/移动共用，rem 单位以此为准） */
+  font-size: 18px;
 }
 
 /* OPPO 软渲染下 position:fixed 失效时的兜底——仅在 JS 检测到异常时生效
@@ -437,7 +439,7 @@ span.blank-8 { min-width: 8em; } span.blank-10 { min-width: 10em; }
 
   /* 模块容器 */
   .generate-module {
-    max-width: 100vw !important;
+    max-width: 100% !important;
     overflow: hidden !important;
     padding: 0 !important;
   }
@@ -445,7 +447,7 @@ span.blank-8 { min-width: 8em; } span.blank-10 { min-width: 10em; }
   .settings-module,
   .template-module,
   .textbook-module {
-    max-width: 100vw !important;
+    max-width: 100% !important;
     overflow-x: hidden !important;
     padding: 8px !important;
   }

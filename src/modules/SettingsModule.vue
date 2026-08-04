@@ -63,6 +63,41 @@
         </div>
       </div>
 
+      <!-- ☁️ 云端设备管理 -->
+      <div class="settings-section">
+        <h3>☁️ 云端设备管理</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:8px;">
+          查看并管理已同步到云端的设备。移除操作仅删除云端的设备数据，不影响其他设备和本机。
+        </p>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <button class="btn-small" @click="loadCloudDevices" :disabled="cloudDevicesLoading">
+            {{ cloudDevicesLoading ? '⏳ 加载中…' : '🔄 加载设备列表' }}
+          </button>
+        </div>
+        <div v-if="cloudDevices.length > 0" class="cloud-device-list">
+          <div v-for="dev in cloudDevices" :key="dev.deviceId" class="cloud-device-row">
+            <div class="cloud-device-info">
+              <span class="cloud-device-name">{{ dev.label }}</span>
+              <span v-if="dev.isSelf" class="cloud-device-self">（本机）</span>
+              <span class="cloud-device-stats">
+                历史 {{ dev.histCount }} 条 · 生成 {{ dev.genCount }} 条
+              </span>
+            </div>
+            <button
+              v-if="!dev.isSelf"
+              class="btn-small btn-danger-outline"
+              @click="confirmRemoveDevice(dev)"
+              :disabled="removingDeviceId === dev.deviceId"
+            >
+              {{ removingDeviceId === dev.deviceId ? '⏳ 移除中…' : '🗑️ 移除' }}
+            </button>
+          </div>
+        </div>
+        <div v-else-if="!cloudDevicesLoading && cloudDevicesFetched" style="font-size:13px;color:var(--text-muted);padding:8px 0;">
+          暂无云端设备数据，或尚未配置同步密钥。
+        </div>
+      </div>
+
       <!-- 📱 iOS 签名倒计时（仅手机端显示） -->
       <div class="settings-section" v-if="isCapacitorIOS">
         <h3>📱 签名倒计时</h3>
@@ -376,10 +411,10 @@ import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
 import useLogger, { copyLogs } from '@/composables/useLogger.js';
 import { apiConfig, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
-import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud } from '@/utils/cloudStorage';
+import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud, fetchCloudDevices, deleteDeviceFromCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
 
-const { showAlertDialogFn } = useDialog();
+const { showAlertDialogFn, showConfirmDialogFn } = useDialog();
 const {
   isExporting,
   isImporting,
@@ -495,6 +530,58 @@ const onDeviceNameChange = () => {
 
 const onDeviceNameEnter = (e) => {
   e.target.blur();
+};
+
+// ☁️ 云端设备管理
+const cloudDevices = ref([]);
+const cloudDevicesLoading = ref(false);
+const cloudDevicesFetched = ref(false);
+const removingDeviceId = ref(null);
+
+const loadCloudDevices = async () => {
+  cloudDevicesLoading.value = true;
+  cloudDevicesFetched.value = false;
+  try {
+    // 强制重新探测云端（showReadyHint=false 避免多余日志）
+    await probeCloud(false);
+    cloudDevices.value = await fetchCloudDevices();
+    cloudDevicesFetched.value = true;
+    if (cloudDevices.value.length === 0) {
+      console.log('ℹ️ 云端设备列表为空（已按显示规则过滤，查看控制台日志获取完整列表）');
+    }
+  } catch (e) {
+    console.warn('加载云端设备列表失败:', e);
+    cloudDevices.value = [];
+    cloudDevicesFetched.value = true;
+  } finally {
+    cloudDevicesLoading.value = false;
+  }
+};
+
+const confirmRemoveDevice = async (dev) => {
+  const confirmed = await showConfirmDialogFn(
+    `⚠️ 确定要移除「${dev.label}」的云端数据吗？\n\n` +
+    `该设备有 ${dev.histCount} 条历史记录和 ${dev.genCount} 条生成结果。\n\n` +
+    `此操作不可撤销，仅删除云端数据，不影响其他设备。`
+  );
+
+  if (!confirmed) return;
+
+  removingDeviceId.value = dev.deviceId;
+  try {
+    const success = await deleteDeviceFromCloud(dev.deviceId);
+    if (success) {
+      cloudDevices.value = cloudDevices.value.filter(d => d.deviceId !== dev.deviceId);
+      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `✅ 已移除「${dev.label}」的云端数据`, type: 'info' } }));
+    } else {
+      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '⚠️ 移除失败，请稍后重试', type: 'warning' } }));
+    }
+  } catch (e) {
+    console.warn('移除设备失败:', e);
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '❌ 移除异常，请稍后重试', type: 'warning' } }));
+  } finally {
+    removingDeviceId.value = null;
+  }
 };
 
 // 📱 签名倒计时
@@ -847,7 +934,7 @@ onUnmounted(() => {
   margin-bottom: 6px;
   font-size: 13px;
   font-weight: 500;
-  color: #555;
+  color: #444;
 }
 
 .settings-section input,
@@ -864,16 +951,18 @@ onUnmounted(() => {
   display: flex;
   padding: 8px 0;
   border-bottom: 1px dashed var(--border-light);
+  font-size: 14px;
 }
 
 .info-row span:first-child {
   width: 100px;
-  color: #666;
+  color: #555;
 }
 
 .info-value {
   font-weight: 500;
   color: var(--primary);
+  font-size: 14px;
 }
 
 .device-name-input {
@@ -899,6 +988,65 @@ onUnmounted(() => {
   margin-top: -8px;
   margin-bottom: 12px;
   padding-left: 4px;
+}
+
+/* ☁️ 云端设备列表 */
+.cloud-device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cloud-device-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+}
+.cloud-device-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+.cloud-device-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--primary);
+}
+.cloud-device-self {
+  font-size: 11px;
+  color: var(--success);
+  font-weight: 500;
+}
+.cloud-device-stats {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+.btn-danger-outline {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border: 1px solid #e53e3e;
+  border-radius: 6px;
+  background: white;
+  color: #e53e3e;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.btn-danger-outline:hover {
+  background: #e53e3e;
+  color: white;
+}
+.btn-danger-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* 📱 移动端适配 */

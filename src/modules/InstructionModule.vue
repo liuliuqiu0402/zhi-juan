@@ -362,7 +362,7 @@ const viewInstruction = (ins) => {
   border-bottom: 1px solid #f0f0f0;
   vertical-align: middle;
   text-align: center;
-  font-size: inherit;
+  font-size: 14px;
 }
 .ins-table td:nth-child(3) {
   text-align: left;
@@ -395,6 +395,7 @@ const viewInstruction = (ins) => {
 .instruction-name {
   font-weight: 500;
   color: var(--primary);
+  font-size: 14px;
 }
 
 .instruction-category {
