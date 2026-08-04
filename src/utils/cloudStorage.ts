@@ -248,8 +248,10 @@ export async function pushDocHistory(items: unknown[]): Promise<boolean> {
   if (!client) return false;
 
   try {
+    // 过滤 _deleted 条目，防止墓碑数据被推到云端污染其他设备
+    const clean = (items as any[]).filter((d: any) => !d._deleted);
     // 排序 + 截断（与旧 RPC push_doc_history 行为一致：≤50 条）
-    const sorted = [...items]
+    const sorted = [...clean]
       .sort((a: any, b: any) => (b.savedAt || b.timestamp || 0) - (a.savedAt || a.timestamp || 0))
       .slice(0, 50);
     const { error } = await client
@@ -259,6 +261,8 @@ export async function pushDocHistory(items: unknown[]): Promise<boolean> {
       console.error('☁️ push_doc_history 失败:', error.message);
       return false;
     }
+    const filtered = items.length - clean.length;
+    if (filtered > 0) console.log('☁️ push_doc_history: 过滤 ' + filtered + ' 条已删除，推送 ' + sorted.length + ' 条');
     return true;
   } catch (e) {
     console.warn('☁️ push_doc_history 异常:', e);
@@ -302,8 +306,10 @@ export async function pushGeneratedDocs(items: unknown[]): Promise<boolean> {
   if (!client) return false;
 
   try {
+    // 过滤 _deleted 条目
+    const clean = (items as any[]).filter((d: any) => !d._deleted);
     // 排序 + 截断（≤20 条）
-    const sorted = [...items]
+    const sorted = [...clean]
       .sort((a: any, b: any) => (b.savedAt || b.timestamp || 0) - (a.savedAt || a.timestamp || 0))
       .slice(0, 20);
     const { error } = await client
@@ -313,6 +319,8 @@ export async function pushGeneratedDocs(items: unknown[]): Promise<boolean> {
       console.error('☁️ push_generated_docs 失败:', error.message);
       return false;
     }
+    const filtered = items.length - clean.length;
+    if (filtered > 0) console.log('☁️ push_generated_docs: 过滤 ' + filtered + ' 条已删除，推送 ' + sorted.length + ' 条');
     return true;
   } catch (e) {
     console.warn('☁️ push_generated_docs 异常:', e);
@@ -906,7 +914,7 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
   const warmupLabel = Number(warmupS) > 30 ? '冷启动 ' + warmupS + 's' : warmupS + 's';
   console.log('✅ 云端已就绪（耗时 ' + warmupLabel + '）');
 
-  // ② 拉取数据摘要（5 路并行查询，各自容错，一个失败不影响其他）
+  // ② 拉取数据摘要（7 路并行：5路数据 + 2路墓碑）
   const syncKey = getSyncKey() || '';
   const selfId = getDeviceId();
 
@@ -918,13 +926,32 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
     [settingsRows, stErr],
     [histRows, hiErr],
     [genRows, geErr],
+    [deletedHistRow],   // 墓碑：doc_history
+    [deletedGenRow],    // 墓碑：generated_docs
   ] = await Promise.all([
     safeQuery(() => client.from('textbooks').select('data').eq('id', syncKey).single()),
     safeQuery(() => client.from('templates').select('data').eq('id', syncKey).single()),
     safeQuery(() => client.from('user_settings').select('id, data').like('id', syncKey + ':%')),
     safeQuery(() => client.from('doc_history').select('id, data').like('id', syncKey + ':%')),
     safeQuery(() => client.from('generated_docs').select('id, data').like('id', syncKey + ':%')),
+    safeQuery(() => client.from('doc_history').select('data').eq('id', syncKey + ':deleted').maybeSingle()),
+    safeQuery(() => client.from('generated_docs').select('data').eq('id', syncKey + ':deleted').maybeSingle()),
   ]);
+
+  // ── 解析墓碑 ID 集合 ──
+  const tombstoneIds = { hist: new Set<string>(), gen: new Set<string>() };
+  const TOMBSTONE_TTL_LOCAL = 7 * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - TOMBSTONE_TTL_LOCAL;
+  const parseTombstones = (row: any): Set<string> => {
+    const s = new Set<string>();
+    if (!row?.data?.data?.ids) return s;
+    for (const [id, ts] of Object.entries(row.data.data.ids as Record<string, number>)) {
+      if (ts >= cutoff) s.add(id);
+    }
+    return s;
+  };
+  tombstoneIds.hist = parseTombstones(deletedHistRow?.[0]);
+  tombstoneIds.gen = parseTombstones(deletedGenRow?.[0]);
 
   // ── 共享数据（全设备共用一份：教材/模板/设置/激活/指令）──
   const tbOk = !tbErr && textbookRow?.data?.data;
@@ -960,7 +987,9 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
   if (!hiErr && histRows?.data) {
     for (const row of histRows.data as { id: string; data: unknown }[]) {
       const did = row.id?.replace(syncKey + ':', '') || '?';
-      const count = Array.isArray((row as any)?.data) ? (row as any).data.length : 0;
+      const arr = Array.isArray((row as any)?.data) ? (row as any).data as any[] : [];
+      // 🔧 扣除墓碑：已删除条目不计入统计
+      const count = arr.filter((d: any) => d?.id && !tombstoneIds.hist.has(d.id) && !d._deleted).length;
       ensureDev(did).hist = count;
       histTotal += count;
     }
@@ -971,7 +1000,9 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
   if (!geErr && genRows?.data) {
     for (const row of genRows.data as { id: string; data: unknown }[]) {
       const did = row.id?.replace(syncKey + ':', '') || '?';
-      const count = Array.isArray((row as any)?.data) ? (row as any).data.length : 0;
+      const arr = Array.isArray((row as any)?.data) ? (row as any).data as any[] : [];
+      // 🔧 扣除墓碑
+      const count = arr.filter((d: any) => d?.id && !tombstoneIds.gen.has(d.id) && !d._deleted).length;
       ensureDev(did).gen = count;
       genTotal += count;
     }
