@@ -20,6 +20,14 @@
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <!-- 启动背景与 App 背景一致，消除白屏闪烁 -->
+        <item name="windowSplashScreenBackground">#f5f7fc</item>
+        <!-- 透明图标：隐藏默认安卓机器人 -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/transparent_splash_icon</item>
+        <!-- 启动结束后无缝切换到主主题 -->
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+        <!-- 跳过图标动画，更快消失 -->
+        <item name="windowSplashScreenAnimationDuration">0</item>
         <item name="android:statusBarColor">#ffffff</item>
         <item name="android:navigationBarColor">#ffffff</item>
     </style>
