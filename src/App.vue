@@ -1044,12 +1044,13 @@ onMounted(async () => {
 
 <style scoped>
 .app-container {
-  /* 用 fixed 填满物理屏幕——top/bottom/left/right 拉伸到屏幕物理边缘 */
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  /* ✅ 改用 height:100% 替代 position:fixed
+     项目经验：position:fixed 在移动端会导致 flex 子元素高度计算异常，
+     中间内容区可能越界覆盖底部导航。父链 html→body→#app 已设置
+     height:100%;overflow:hidden，100% 可可靠继承视口高度。
+     Capacitor 原生 App 已不触发 PWA scale，统一用此方案跨平台一致。 */
+  height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
   background: var(--bg);
@@ -1130,8 +1131,11 @@ onMounted(async () => {
 .mobile-content {
   flex: 1;
   min-height: 0;
-  /* 外框禁止滚动，各面板内部自行 overflow-y:auto */
-  overflow: hidden;
+  /* ✅ overflow-y:auto 作为兜底：各面板内部自行 overflow-y:auto 时，
+     面板撑满高度 → 外层不滚动。若面板内部滚动失效，外层仍可滚动查看内容。
+     避免因 overflow:hidden 导致内容被裁剪、页面完全不能滚动的硬故障。 */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding-bottom: 0;
   /* 阻止浏览器原生下拉刷新 */
   overscroll-behavior-y: contain;
