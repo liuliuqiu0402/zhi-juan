@@ -1044,18 +1044,20 @@ onMounted(async () => {
 
 <style scoped>
 .app-container {
-  /* 用 fixed 填满物理屏幕，比 100dvh 可靠（iOS PWA 下 100dvh 可能大于可见区域） */
+  /* 用 fixed 填满物理屏幕——top/bottom/left/right 拉伸到屏幕物理边缘 */
+  /* 不可加 height:100%——iOS 上会覆盖 bottom 拉伸，导致安全区内缩 */
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--bg);
   overflow: hidden;
+  /* OPPO 软渲染下 position:fixed 失效时的兜底 */
+  min-height: 100%;
+  min-width: 100%;
 }
 
 /* 激活页面 */
