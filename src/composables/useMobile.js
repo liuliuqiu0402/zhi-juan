@@ -1,14 +1,26 @@
 /**
- * 📱 移动端检测 + 响应式适配 + PWA 主屏幕自适应缩放
+ * 📱 移动端检测 + 响应式适配 + 统一自适应缩放
  * 检测当前设备是否为手机/平板，提供响应式断点判断
  * 
- * 🖥️ PWA 主屏幕整体缩放策略：
- * 手机 Safari 浏览器有工具栏占空间、PWA 主屏幕是全屏。
- * 在 PWA standalone 模式下，对根容器做整体 transform:scale()
- * 等比放大以填满屏幕，使 PWA 与 Safari 的视觉比例一致。
- * 桌面端、移动端 Safari 均不受影响。
+ * 🖥️ 统一缩放策略（根治版）：
+ * 不同手机 CSS 像素宽度差异大（360px~430px），固定 px 值的 UI
+ * 在不同设备上视觉比例不一致。通过对根容器做整体 transform:scale()
+ * 基于设计基准宽度等比缩放，确保所有手机屏幕视觉体验一致。
+ * 
+ * 缩放公式：scale = clamp(viewportWidth / DESIGN_WIDTH, 0.85, 1.35)
+ * 
+ * 覆盖平台：
+ *  - Capacitor 原生 Android APK
+ *  - Capacitor 原生 iOS App
+ *  - Safari 移动浏览器
+ *  - PWA standalone（在主屏打开，额外叠加工具栏补偿）
+ * 
+ * 桌面端（>=768px）不受影响。
  */
 import { ref, computed } from 'vue';
+
+/** 设计基准宽度：UI 的 px 值按 390px 宽屏幕设计 */
+const DESIGN_WIDTH = 390;
 
 const _width = ref(typeof window !== 'undefined' ? window.innerWidth : 1024);
 const _height = ref(typeof window !== 'undefined' ? window.innerHeight : 768);
@@ -21,13 +33,15 @@ const onResize = () => {
 
 let _listening = false;
 
-// ── PWA / Capacitor 原生 App 主屏幕检测 ──
+// ── PWA 主屏幕检测 ──
+//    仅用于判断是否运行在 PWA standalone 模式下（主屏幕打开）。
+//    即使不是 PWA（Capacitor 原生 / Safari），mobileScaleStyle 仍会提供
+//    基于设计宽度的统一缩放——detectPwa 只决定是否叠加工具栏补偿。
 function detectPwa() {
   if (typeof navigator === 'undefined') return false;
   // 🔌 Capacitor 原生 App（Android http:// 或 iOS capacitor://）
-  //    已原生全屏，不需要 PWA scale 补偿。必须排除，
-  //    否则 pwaScaleStyle 会错误地对原生 App 应用 transform:scale()，
-  //    导致 iOS 不自适应 + Android flex 布局计算异常。
+  //    已原生全屏，不需要 PWA 工具栏补偿。detectPwa 返回 false
+  //    表示不叠加 PWA 补偿，但 mobileScaleStyle 仍会提供设计宽度缩放。
   if (typeof window !== 'undefined') {
     const proto = window.location?.protocol;
     if (proto === 'capacitor:') return false;        // Capacitor iOS
@@ -72,45 +86,52 @@ export function useMobile() {
     return 'desktop';
   });
 
-  /** 当前是否运行在 PWA standalone 模式（主屏幕打开） */
-  const isPwa = computed(() => _isPwa.value);
-
   /**
-   * PWA 主屏幕整体缩放样式
-   * 仅在 PWA standalone 模式下生效。
+   * 统一移动端自适应缩放样式
    * 
-   * 原理：Safari 有地址栏/工具栏，实际可视区域约为屏幕高度的 78%~82%；
-   * PWA 主屏幕全屏无工具栏，可视区域更大。用 transform:scale()
-   * 等比放大整个应用，使 PWA 的视觉比例与 Safari 保持一致。
+   * 对所有移动平台（Capacitor 原生 / Safari / PWA）提供一致的视觉体验：
+   * 以 390px（iPhone 14）为设计基准宽度，实际宽度偏离时等比缩放。
    * 
-   * scale = 当前PWA视口比例 / Safari中保存的视口比例
-   * 例如：Safari ratio=0.78，PWA ratio≈1.0 → scale≈1.28
+   * 分两段计算：
+   *   1) 设计宽度缩放：baseScale = viewportWidth / DESIGN_WIDTH
+   *   2) PWA 工具栏补偿（仅 PWA standalone）：额外 × (1 / safariRatio)
+   * 
+   * scale 最终 clamp 在 [0.85, 1.40] 防止极端设备异常。
    */
-  const pwaScaleStyle = computed(() => {
-    if (!isPwa.value) return {};
+  const mobileScaleStyle = computed(() => {
+    // 桌面端（>=768px）不缩放
+    if (!isMobile.value) return {};
 
-    // 从 localStorage 读取 Safari 中保存的视口比例
-    let safariRatio = 0.8; // 默认：Safari 视口约占屏幕 80%
-    try {
-      const saved = localStorage.getItem('pwa_safari_vp_ratio');
-      if (saved) {
-        const parsed = parseFloat(saved);
-        if (parsed > 0.5 && parsed < 1.0) safariRatio = parsed; // 合理性校验
+    // ── 第1段：设计宽度缩放 ──
+    let scale = _width.value / DESIGN_WIDTH;
+
+    // ── 第2段：PWA 工具栏补偿（仅 PWA standalone） ──
+    if (isPwa.value) {
+      let safariRatio = 0.8;
+      try {
+        const saved = localStorage.getItem('pwa_safari_vp_ratio');
+        if (saved) {
+          const parsed = parseFloat(saved);
+          if (parsed > 0.5 && parsed < 1.0) safariRatio = parsed;
+        }
+      } catch { /* ignore */ }
+      // PWA 全屏无工具栏，视口比 Safari 更大，等比放大以补偿视觉密度
+      const screenH = window.screen?.height || _height.value;
+      const currentRatio = screenH > 0 ? _height.value / screenH : 1;
+      const pwaCompensation = currentRatio / safariRatio;
+      // 仅当补偿显著（>2%）且合理（0.9~1.35）时才叠加
+      if (pwaCompensation > 1.02 && pwaCompensation < 1.35) {
+        scale *= pwaCompensation;
       }
-    } catch { /* ignore */ }
+    }
 
-    // 当前 PWA 视口比例（全屏，ratio 接近 1.0）
-    const screenH = window.screen?.height || _height.value;
-    const currentRatio = screenH > 0 ? _height.value / screenH : 1;
+    // ── 安全钳位 ──
+    scale = Math.max(0.85, Math.min(scale, 1.40));
 
-    // 缩放系数
-    let scale = currentRatio / safariRatio;
-    scale = Math.max(0.85, Math.min(scale, 1.45)); // 限制极端值
+    if (Math.abs(scale - 1) < 0.008) return {};
 
-    if (Math.abs(scale - 1) < 0.015) return {}; // 差距可忽略
-
-    // position:fixed 容器在缩放时需同步放大宽高，
-    // 避免因 fixed + left/right 约束导致内容被裁剪
+    // width/height 补偿：容器被 scale 缩小后视觉尺寸不变，
+    // 防止 flex 布局因容器缩小导致内容被裁剪
     return {
       width: `${Math.ceil(_width.value / scale)}px`,
       height: `${Math.ceil(_height.value / scale)}px`,
@@ -118,6 +139,12 @@ export function useMobile() {
       transformOrigin: 'top left',
     };
   });
+
+  /** @deprecated 使用 mobileScaleStyle 替代，保留别名用于向后兼容 */
+  const pwaScaleStyle = mobileScaleStyle;
+
+  /** 当前是否运行在 PWA standalone 模式（主屏幕打开） */
+  const isPwa = computed(() => _isPwa.value);
 
   return {
     width: _width,
@@ -127,8 +154,9 @@ export function useMobile() {
     isSmallScreen,
     isTouchDevice,
     deviceType,
-    // PWA 主屏幕缩放
+    // 统一移动端缩放
     isPwa,
-    pwaScaleStyle,
+    mobileScaleStyle,
+    pwaScaleStyle,  // 向后兼容别名
   };
 }

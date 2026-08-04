@@ -1,5 +1,5 @@
 <template>
-  <div class="app-container" :style="pwaScaleStyle">
+  <div class="app-container" :style="mobileScaleStyle">
     <!-- ==================== 激活验证 ==================== -->
     <div v-if="activationStatus === 'checking' && !isWebMode" class="activation-overlay">
       <div class="activation-loading">
@@ -240,7 +240,7 @@ const router = useRouter();
 })();
 
 // 📱 移动端检测
-const { isMobile, pwaScaleStyle } = useMobile();
+const { isMobile, mobileScaleStyle } = useMobile();
 
 // 📱 iOS 签名状态（Capacitor 原生插件）
 const signInfo = ref(null);

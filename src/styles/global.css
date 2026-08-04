@@ -37,14 +37,6 @@
   --radius-md: 12px;
   --radius-lg: 20px;
   --radius-xl: 24px;
-
-  /* 🔤 字体大小基准（桌面端默认兜底值，移动端 @media 覆写为 clamp() 等比缩放） */
-  --fs-xs: 12px;
-  --fs-sm: 13px;
-  --fs-md: 14px;
-  --fs-body: 15px;
-  --fs-lg: 16px;
-  --fs-xl: 18px;
 }
 
 html, body, #app {
@@ -399,16 +391,6 @@ span.blank-8 { min-width: 8em; } span.blank-10 { min-width: 10em; }
 /* ═══════ 📱 移动端响应式全局样式 ═══════ */
 
 @media (max-width: 767px) {
-  /* 🔤 移动端字号等比缩放——屏幕越宽字越大（320px~430px 各自得到合适尺寸） */
-  :root {
-    --fs-xs:   clamp(12px, 3.5vw, 14px);
-    --fs-sm:   clamp(13px, 3.8vw, 15px);
-    --fs-md:   clamp(14px, 4vw,   16px);
-    --fs-body: clamp(15px, 4.2vw, 17px);
-    --fs-lg:   clamp(16px, 4.5vw, 19px);
-    --fs-xl:   clamp(18px, 5vw,   22px);
-  }
-
   html, body, #app {
     -webkit-text-size-adjust: 100%;
     /* 禁止页面级滚动条，滚动由 .mobile-content（overflow-y:auto）和各模块面板内部管理 */
@@ -425,18 +407,18 @@ span.blank-8 { min-width: 8em; } span.blank-10 { min-width: 10em; }
   .btn, .btn-primary, .btn-small {
     min-height: 32px;
     padding: 6px 12px;
-    font-size: var(--fs-sm);
+    font-size: 12px;
   }
 
   .btn-small {
     padding: 4px 8px;
     min-height: 28px;
-    font-size: var(--fs-xs);
+    font-size: 11px;
   }
 
   /* 移动端输入框字体统一 14px（compact 布局，主编辑区单独设置 16px） */
   input, select, textarea {
-    font-size: var(--fs-body) !important;
+    font-size: 14px !important;
   }
 
   /* 表格在小屏可横向滚动 */
@@ -475,7 +457,7 @@ span.blank-8 { min-width: 8em; } span.blank-10 { min-width: 10em; }
     padding: 8px !important;
   }
   .config-ribbon .ribbon-btn {
-    font-size: var(--fs-sm) !important;
+    font-size: 12px !important;
     padding: 8px 10px !important;
     min-height: 36px !important;
   }
@@ -489,7 +471,7 @@ span.blank-8 { min-width: 8em; } span.blank-10 { min-width: 10em; }
   .ProseMirror {
     max-width: 100% !important;
     padding: 12px !important;
-    font-size: var(--fs-lg) !important;
+    font-size: 15px !important;
   }
 
   /* 弹窗 */
