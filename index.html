@@ -16,28 +16,41 @@
 <body>
   <div id="app"></div>
   <script>
-    console.log('[diag] inline 启动 t=0ms, online='+navigator.onLine);
+    // === 可见状态条: 无需远程调试即可确认 JS 是否执行 ===
+    var __status=document.createElement('div');
+    __status.id='__diag_status';
+    __status.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;padding:2px 8px;font-size:10px;font-family:monospace;background:#e8f5e9;color:#2e7d32;text-align:center;pointer-events:none;';
+    __status.textContent='✓ JS引擎正常 | t=0ms | online='+navigator.onLine+' | UA='+navigator.userAgent.slice(0,60);
+    document.body.appendChild(__status);
+    // === 错误处理 ===
     var __t0=Date.now();
     var __appEl=document.getElementById('app');
-    // MutationObserver: 监控 #app 何时被填充（Vue 挂载 或 错误注入）
-    if(typeof MutationObserver!=='undefined'){var __mo=new MutationObserver(function(ms){console.log('[diag] #app 变化, childNodes='+__appEl.childNodes.length);if(__appEl.childNodes.length>0){console.log('[diag] #app 已非空, html长度='+__appEl.innerHTML.length);__mo.disconnect();}});__mo.observe(__appEl,{childList:true,subtree:true});}
-    window.__showError=function(msg){var el=document.getElementById('app');if(el)el.innerHTML='<div style="padding:40px 20px;font-family:sans-serif;color:#e53935;text-align:center;"><h2>⚠️ 启动异常</h2><pre style="text-align:left;background:#fff3f3;padding:16px;border-radius:8px;overflow:auto;max-height:70vh;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-all;">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre></div>'};
+    // MutationObserver: 监控 #app 何时被填充
+    if(typeof MutationObserver!=='undefined'){var __mo=new MutationObserver(function(ms){var n=__appEl.childNodes.length;if(__status)__status.textContent+=' | #app变化(childNodes='+n+')';if(n>0){if(__status)__status.textContent+=' | 已非空';__mo.disconnect();}});__mo.observe(__appEl,{childList:true,subtree:true});}
+    window.__showError=function(msg){if(__status){__status.style.background='#ffebee';__status.style.color='#c62828';__status.textContent='✗ 启动异常';}var el=document.getElementById('app');if(el)el.innerHTML='<div style="padding:40px 20px;font-family:sans-serif;color:#e53935;text-align:center;"><h2>⚠️ 启动异常</h2><pre style="text-align:left;background:#fff3f3;padding:16px;border-radius:8px;overflow:auto;max-height:70vh;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-all;">'+msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre></div>'};
     window.addEventListener('error',function(e){
       var isJsError=e instanceof ErrorEvent;
       var isScript=e.target&&e.target.tagName==='SCRIPT';
       if(!isJsError&&!isScript){console.warn('[资源加载失败]',(e.target&&e.target.tagName)||'?',(e.target&&(e.target.src||e.target.href))||'');return;}
-      var info='[error]\ntype='+e.type+'\nmessage='+(e.message||'(无)')+'\nfilename='+(e.filename||'(无)')+'\nlineno='+(e.lineno||'?')+'\ncolno='+(e.colno||'?')+'\nisErrorEvent='+isJsError+'\ntarget='+((e.target&&e.target.tagName)||e.target||'window');
+      var msg=e.message||'(无)';
+      // 检测 MIME type 错误（ES模块最常见原因）
+      if(msg.indexOf('MIME type')!==-1||msg.indexOf('module script')!==-1)msg+='\n\n🔍 这是 MIME 类型错误！Capacitor HTTP 服务器可能未正确设置 .js 文件的 Content-Type 头。\n预期: application/javascript 或 text/javascript';
+      var info='[error]\ntype='+e.type+'\nmessage='+msg+'\nfilename='+(e.filename||'(无)')+'\nlineno='+(e.lineno||'?')+'\ncolno='+(e.colno||'?')+'\nisErrorEvent='+isJsError+'\ntarget='+((e.target&&e.target.tagName)||e.target||'window');
       if(isScript)info+='\nsrc='+(e.target.src||e.target.getAttribute('src')||'?');
       if(e.error&&e.error.stack)info+='\nstack='+e.error.stack.slice(0,500);
       window.__showError(info);
     },true);
     window.addEventListener('unhandledrejection',function(e){window.__showError('Promise 异常: '+(e.reason?.message||e.reason?.stack||String(e.reason)));});
-    // 监听模块脚本加载结果
-    setTimeout(function(){var ss=document.querySelectorAll('script[type="module"]');for(var i=0;i<ss.length;i++){ss[i].addEventListener('load',function(){console.log('[diag] 模块脚本已加载: '+(this.src||''));});ss[i].addEventListener('error',function(){window.__showError('❌ 模块脚本加载失败: '+(this.src||'未知'));});}},0);
+    // 测试 ES 模块是否可执行（内联模块，不受 MIME 限制）
+    (function(){var tm=document.createElement('script');tm.type='module';tm.textContent='window.__esModuleOk=!0;';document.head.appendChild(tm);})();
+    // 监听外部模块脚本加载结果
+    setTimeout(function(){var ss=document.querySelectorAll('script[type="module"]:not([data-test])');for(var i=0;i<ss.length;i++){ss[i].addEventListener('load',function(){if(__status)__status.textContent+=' | 模块加载✓';});ss[i].addEventListener('error',function(){window.__showError('❌ 模块脚本加载失败: '+(this.src||'未知')+'\n\n可能原因: 文件不存在 / MIME类型错误 / 网络问题');});}},0);
+    // 检查 ES 模块内联测试结果
+    setTimeout(function(){if(__status){if(window.__esModuleOk){__status.textContent+=' | ES模块✓';}else{__status.textContent+=' | ES模块✗(浏览器不支持!)';__status.style.background='#ffebee';__status.style.color='#c62828';}}},200);
     // 3 秒快速诊断
-    setTimeout(function(){var app=document.getElementById('app');if(app&&app.children.length===0)window.__showError('⚠️ 3s 诊断: 模块已加载但 Vue 未挂载\n\n可能: router.isReady 卡死 / 路由组件加载失败\n请连接 Chrome DevTools 远程调试')},3000);
+    setTimeout(function(){var app=document.getElementById('app');if(app&&app.children.length===0)window.__showError('⚠️ 3s 诊断: 模块已加载但 Vue 未挂载\n\n可能: router.isReady 卡死 / 路由组件懒加载失败\n\n请连接 Chrome DevTools (chrome://inspect) 查看 console')},3000);
     // 15 秒超时诊断
-    setTimeout(function(){var app=document.getElementById('app');if(app&&app.children.length===0)window.__showError('⏱ 超时('+((Date.now()-__t0)/1000).toFixed(1)+'s): Vue 未挂载\n\n可能原因: 模块加载失败 / 路由卡死 / JS 报错')},15000);
+    setTimeout(function(){var app=document.getElementById('app');if(app&&app.children.length===0)window.__showError('⏱ 超时('+((Date.now()-__t0)/1000).toFixed(1)+'s): Vue 未挂载\n\n可能原因: 模块加载失败 / 路由卡死 / JS 报错\n\n请连接 Chrome DevTools 远程调试')},15000);
   </script>
   <script type="module" src="/src/main.js"></script>
 </body>
