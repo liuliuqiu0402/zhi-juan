@@ -71,7 +71,7 @@
       }
     },200);
     // 3秒诊断
-    setTimeout(function(){var app=document.getElementById('app');if(app&&app.children.length===0)window.__showError('⚠️ 3s: 模块已加载但Vue未挂载\n\n可能: router.isReady卡死 / 路由组件懒加载失败\n\n连接 chrome://inspect 查看console')},3000);
+    setTimeout(function(){var app=document.getElementById('app');if(app&&app.children.length===0)window.__showError('⚠️ 3s: Vue未挂载\n\n可能: 模块脚本加载失败 / 路由懒加载组件超时 / JS报错导致Vue初始化失败\n\n连接 chrome://inspect 查看console')},3000);
     // 15秒超时
     setTimeout(function(){var app=document.getElementById('app');if(app&&app.children.length===0)window.__showError('⏱ 超时('+((Date.now()-__t0)/1000).toFixed(1)+'s): Vue未挂载\n\n可能: 模块加载失败 / 路由卡死 / JS报错')},15000);
   </script>

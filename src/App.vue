@@ -166,6 +166,15 @@
       </nav>
     </template>
 
+    <!-- ==================== 🔧 兜底：任何未覆盖状态均显示加载指示器（确保 #app 永不为空） ==================== -->
+    <div v-if="activationStatus === 'checking' && (isWebMode || isCapacitorNative)" class="activation-overlay">
+      <div class="activation-loading">
+        <div class="loading-spinner"></div>
+        <p>正在加载智卷工坊...</p>
+        <p style="font-size:11px;color:#999;margin-top:8px;">{{ isCapacitorNative ? 'Capacitor 原生环境' : 'Web 环境' }}</p>
+      </div>
+    </div>
+
     <ToastProvider ref="toastRef" />
     <AppDialogs ref="dialogsRef" />
   </div>
@@ -270,10 +279,30 @@ watch(isMobile, (mobile) => {
 // 🔐 Web 端访问码鉴权
 const { needsAuth, verify: verifyWebCode, setCode: setWebCode, hasPresetCode } = useWebAuth();
 const isWebMode = ref(typeof window !== 'undefined' && !window.electronAPI);
+// 🔌 Capacitor 原生 App（Android/iOS 打包）— 独立的启动路径
+//    检测策略：iOS 用 capacitor:// 协议；Android 用 http:// + Android UA
+const isCapacitorNative = ref((() => {
+  if (typeof window === 'undefined') return false;
+  // iOS Capacitor: capacitor:// 协议
+  if (window.location?.protocol === 'capacitor:') return true;
+  // Android Capacitor: Capacitor HTTP 服务器 (http://) + Android WebView
+  if (window.location?.protocol === 'http:' && /Android/.test(navigator.userAgent || '')) return true;
+  // 异步确认：加载 @capacitor/core (fire-and-forget，不阻塞渲染)
+  import('@capacitor/core').then(({ Capacitor }) => {
+    if (Capacitor.isNativePlatform()) {
+      isCapacitorNative.value = true;
+      activationStatus.value = 'active';
+      showWebAuth.value = false;
+    }
+  }).catch(() => {});
+  return false;
+})());
+console.log('[App] isCapacitorNative:', isCapacitorNative.value, 'isWebMode:', isWebMode.value);
 const showWebAuth = ref(false);
 
 // 🔥 Web 端需鉴权时：首帧即显示鉴权界面（避免冷启动白屏闪烁）
-if (isWebMode.value && needsAuth.value) {
+//    Capacitor 原生 App 跳过鉴权——APK 安装即代表授权
+if (isWebMode.value && needsAuth.value && !isCapacitorNative.value) {
   showWebAuth.value = true;
 }
 const webAccessCode = ref('');
@@ -394,8 +423,8 @@ const {
   changeActivationCode
 } = useActivation();
 
-// 🔥 Web 端：跳过激活检查，首帧即显示主界面（避免冷启动白屏闪烁）
-if (isWebMode.value) {
+// 🔥 Web 端 / Capacitor 原生：跳过激活检查，首帧即显示主界面（避免冷启动白屏闪烁）
+if (isWebMode.value || isCapacitorNative.value) {
   activationStatus.value = 'active';
 }
 
@@ -534,16 +563,22 @@ onMounted(async () => {
   // 🔧 异步解密 API Key 并同步到 apiConfig（敏感字段，需异步解密）
   getCurrentEngineConfig().catch(() => {});
 
-  // 🔐 Web 端：显示访问码验证，跳过机器码激活
-  if (isWebMode.value) {
+  // 🔐 激活/鉴权：桌面 Electron 走完整激活，Capacitor 原生 + 浏览器跳过
+  if (isCapacitorNative.value) {
+    // 🔌 Capacitor 原生 App：APK 安装即授权，直接进入主界面
+    console.log('[App] Capacitor 原生环境，跳过鉴权');
+    activationStatus.value = 'active';
+    showWebAuth.value = false;
+  } else if (isWebMode.value) {
+    // 🌐 浏览器 PWA：显示访问码验证
     if (needsAuth.value) {
       showWebAuth.value = true;
-      activationStatus.value = 'active'; // 先假激活，等访问码通过
+      activationStatus.value = 'active';
     } else {
       activationStatus.value = 'active';
     }
   } else {
-    // 桌面端：走现有激活流程
+    // 🖥️ 桌面端：走现有激活流程
     try {
       await checkActivationStatus();
     } catch (e) {
