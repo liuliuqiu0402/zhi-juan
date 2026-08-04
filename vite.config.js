@@ -45,6 +45,21 @@ export default defineConfig({
         ],
       },
     })]),
+    // 🔧 Capacitor: 模块脚本移到 body 末尾（某些 Android WebView head中模块脚本报错会阻塞所有JS）
+    {
+      name: 'capacitor-module-to-body',
+      enforce: 'post',
+      apply: 'build',
+      transformIndexHtml(html) {
+        if (!IS_CAPACITOR) return html;
+        const scripts = [];
+        html = html.replace(/<script\s+type="module"[^>]*><\/script>/g, (m) => { scripts.push(m); return ''; });
+        if (scripts.length > 0) {
+          html = html.replace('</body>', '  ' + scripts.join('\n  ') + '\n</body>');
+        }
+        return html;
+      }
+    },
     // 🔧 Capacitor 构建后处理：移除 crossorigin（Vite 在插件之后添加）并清理 PWA 残留
     {
       name: 'capacitor-postprocess',
