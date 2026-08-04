@@ -75,12 +75,26 @@ export const exportLogs = () => {
   return text;
 };
 
-// 复制日志到剪贴板（仅 clipboard API，不做 textarea 降级——移动端 textarea select() 会触发系统菜单覆盖全屏）
+// 复制日志到剪贴板（优先 Clipboard API，失败则 textarea 降级）
 export const copyLogs = async () => {
   const text = exportLogs();
+  // 方案1: Clipboard API（需安全上下文）
   try {
-    await navigator.clipboard.writeText(text);
-    return true;
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch { /* 降级到方案2 */ }
+  // 方案2: textarea + execCommand 降级（兼容旧 Android WebView）
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none;';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
   } catch {
     return false;
   }

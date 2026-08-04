@@ -87,7 +87,14 @@ export function useActivation() {
         if (stored) {
           machineId.value = stored;
         } else {
-          machineId.value = 'WEB-' + crypto.randomUUID().substring(0, 8).toUpperCase();
+          // crypto.randomUUID() 在旧版 Android WebView 上可能不存在，降级到 Math.random
+          let uuid = '';
+          try {
+            uuid = crypto.randomUUID().substring(0, 8).toUpperCase();
+          } catch {
+            uuid = Math.random().toString(36).substring(2, 10).toUpperCase();
+          }
+          machineId.value = 'WEB-' + uuid;
           try { localStorage.setItem(STORED_KEY, machineId.value); } catch {}
         }
       }
