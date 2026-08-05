@@ -314,7 +314,7 @@ export const builtinInstructions = [
   {
     id: 'topconst_summary', name: '【顶层约束】知识点总结', category: '生成-顶层约束', type: 'fragment',
     subject: '', stage: '', genType: 'summary', prompt_order: 4,
-    content: '【生成要求】\n1. 内容详实不空洞：覆盖所选章节全部核心知识，不遗漏任何知识点。不以固定篇幅为限，以"内容完整"为唯一衡量标准。\n2. 结构层次分明：按照上方【结构大纲】组织内容，层级清晰、逻辑连贯。\n3. 易错点辨析准确：每个易错点需给出错误原因和正确理解。\n4. 典型例题要有完整解析过程，包含解题思路和关键步骤。\n5. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
+    content: '【生成要求】\n1. 内容详实不空洞：覆盖所选章节全部核心知识，不遗漏任何知识点。内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。\n2. 结构层次分明：按照上方【结构大纲】组织内容，层级清晰、逻辑连贯。\n3. 易错点辨析准确：每个易错点需给出错误原因和正确理解。\n4. 典型例题要有完整答案与解析过程，包含解题思路→分步解答→易错提示。\n5. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
     builtin: true
   },
   {
@@ -326,7 +326,7 @@ export const builtinInstructions = [
   {
     id: 'topconst_preview', name: '【顶层约束】课前预习', category: '生成-顶层约束', type: 'fragment',
     subject: '', stage: '', genType: 'preview', prompt_order: 4,
-    content: '【生成要求】\n1. ⚠️ 预习内容充实饱满：不以固定篇幅为限——以"完整覆盖每一条核心知识点并配有预习任务"为唯一衡量标准。知识点越多、章节内容越丰富，预习内容相应越充实，不设上限。\n2. 每个核心知识点至少对应一项预习任务（读一读/圈一圈/填一填/想一想/查一查等），任务形式多样化，有读有写有思考。\n3. ⚠️ 填空格式（最高优先级——违反将导致排版失效）：\n   - 横线：必须完整写成 <u class="blank-N">&emsp;</u>（&emsp; 是标签内容，不是占位符！N按答案字数：1字→2, 2字→4, 3-4字→6, 5-6字→8, 7字以上→10）\n   - 题末括号：必须完整写成 <span class="blank-N">&emsp;</span>（&emsp; 是标签内容，不是占位符！N按答案字数：1-2字→4, 3-4字→6, 5-6字→8, 7字以上→10）\n   - ⛔ 横线与括号互斥，二选一不可叠加！\n   - ⛔ 严禁写出 <u class="blank-N"></u> 这种空标签——必须有 &emsp; 内容！\n   - ⛔ 严禁使用 ___ 下划线字符代替！\n   - ⛔ 括号内必须有 <span class="blank-N">&emsp;</span>，不得写空的 （）！\n4. 预习检测题答案需标注教材原文定位（如"参见教材第X页第Y段"），方便学生自查。\n5. 🚫 不要在题目或标题中标注任何分值（不要出现"(共X分)""(X分)""每题X分""满分X分"等），预习不是考试。\n6. 如需配图（如"看图选词""看图连线""看图写话"等），使用标准 [IMAGE] 标记格式描述所需图片——格式：[IMAGE]\n类型：插画/照片/示意图\n描述：[详细画面描述]\n位置：[题干上方/下方/居中]\n[/IMAGE]。不要只写"看图"而不配 [IMAGE] 标记。⚠️ 配图题不宜过多——仅在看图确实为题目必需时才配图，能用文字描述清楚的题不要强行配图。\n7. ⚠️ 文末必须包含完整的答案与解析区域（<div class="answer-section">），所有题目都要有答案，预习检测题要有解析。\n8. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
+    content: '【生成要求】\n1. ⚠️ 预习内容充实饱满：内容完整覆盖每一条核心知识点并配有预习任务，篇幅精炼，控制在标准页数附近，不堆砌冗余展开。\n2. 每个核心知识点至少对应一项预习任务（读一读/圈一圈/填一填/想一想/查一查等），任务形式多样化，有读有写有思考。\n3. ⚠️ 填空格式（最高优先级——违反将导致排版失效）：\n   - 横线：必须完整写成 <u class="blank-N">&emsp;</u>（&emsp; 是标签内容，不是占位符！N按答案字数：1字→2, 2字→4, 3-4字→6, 5-6字→8, 7字以上→10）\n   - 题末括号：必须完整写成 <span class="blank-N">&emsp;</span>（&emsp; 是标签内容，不是占位符！N按答案字数：1-2字→4, 3-4字→6, 5-6字→8, 7字以上→10）\n   - ⛔ 横线与括号互斥，二选一不可叠加！\n   - ⛔ 严禁写出 <u class="blank-N"></u> 这种空标签——必须有 &emsp; 内容！\n   - ⛔ 严禁使用 ___ 下划线字符代替！\n   - ⛔ 括号内必须有 <span class="blank-N">&emsp;</span>，不得写空的 （）！\n4. 预习检测题答案需标注教材原文定位（如"参见教材第X页第Y段"），方便学生自查。\n5. 🚫 不要在题目或标题中标注任何分值（不要出现"(共X分)""(X分)""每题X分""满分X分"等），预习不是考试。\n6. 如需配图（如"看图选词""看图连线""看图写话"等），使用标准 [IMAGE] 标记格式描述所需图片——格式：[IMAGE]\n类型：插画/照片/示意图\n描述：[详细画面描述]\n位置：[题干上方/下方/居中]\n[/IMAGE]。不要只写"看图"而不配 [IMAGE] 标记。⚠️ 配图题不宜过多——仅在看图确实为题目必需时才配图，能用文字描述清楚的题不要强行配图。\n7. ⚠️ 文末必须包含完整的答案与解析区域（<div class="answer-section">），所有题目都要有答案，预习检测题要有解析。\n8. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
     builtin: true
   },
   {
@@ -877,7 +877,7 @@ export const builtinInstructions = [
     id: 'block_example_summary', name: '【质量范例】知识点总结', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '', stage: '', genType: 'summary', specialSubType: 'new_standard',
-    content: '知识结构示例：每个知识点独立成块，用<div class="knowledge-block">包裹——①概念定义（一句话说清楚）；②核心要点（2-3个bullet point，每点≤20字）；③典型例题（1道，配完整解析）；④易错提醒（1-2个常见错误及正确理解）。\n表格示例：知识辨析用左右两列表格——左列"易错概念"（如"质量=重量"），右列"正确理解"（如"质量是物体所含物质的多少，单位kg；重量是地球引力，单位N，二者概念不同"）。\n趣味练习题示例：题干保持课堂练习风格，留空作答，难度控制在基础巩固水平（"下列物质中，属于纯净物的是<u class="blank-8">&emsp;</u>"），不设难题。答案统一放文末<div class="answer-section">中。',
+    content: '知识结构示例：每个知识点独立成块，用<div class="knowledge-block">包裹——①概念定义（一句话说清楚）；②核心要点（2-3个bullet point，每点≤20字）；③典型例题（1道，配完整答案与解析）；④易错提醒（1-2个常见错误及正确理解）。\n表格示例：知识辨析用左右两列表格——左列"易错概念"（如"质量=重量"），右列"正确理解"（如"质量是物体所含物质的多少，单位kg；重量是地球引力，单位N，二者概念不同"）。',
     builtin: true
   },
   {
@@ -2314,7 +2314,7 @@ export const builtinInstructions = [
   { id: 'answer_exam_chinese', name: '【答案规范】考卷-语文', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '语文', stage: '', genType: 'exam', content: '语文考卷答案补充：\n- 作文/习作题：附简要写作提纲或范文片段 + 评分维度（内容/语言/结构/书写各占比例）', builtin: true },
   { id: 'answer_exam_english', name: '【答案规范】考卷-英语', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '英语', stage: '', genType: 'exam', content: '英语考卷答案补充：\n- 书面表达：附参考范文 + 内容/语言/结构/书写评分维度', builtin: true },
   { id: 'answer_practice', name: '【答案规范】课时练', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'practice', content: '课时练答案规范：\n1. 客观题（选择/判断/填空）：答案明确唯一，附1-2句简要解析说明对错原因或解题关键\n2. 解答题/简答题：给出完整参考答案要点（不标注分值、不标注得分点）\n3. 所有解析标注"易错提示"——指出该题最常见的错误类型及原因\n4. 每道题答案用<div class="answer-item">分隔，标注题号\n5. ⚠️ 禁止标注分值/得分点/评分维度——课时练是课堂练习，不涉及评分', builtin: true },
-  { id: 'answer_summary', name: '【答案规范】知识点总结', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'summary', content: '知识点总结答案规范：\n1. 每个知识点后的"典型例题"必须配完整解析（解题思路→分步解答→易错提示）\n2. "知识辨析"表格中，每个"易错点"必须配对应的"正确理解"，形成左右对比\n3. "重难点星级标注"中的高频考点必须配详细解法和变式练习', builtin: true },
+  { id: 'answer_summary', name: '【答案规范】知识点总结', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'summary', content: '知识点总结答案规范：\n1. 每个知识点后的"典型例题"必须配完整答案与解析（解题思路→分步解答→易错提示）\n2. "知识辨析"表格中，每个"易错点"必须配对应的"正确理解"，形成左右对比\n3. "重难点星级标注"中的高频考点必须配详细解法和变式练习', builtin: true },
   { id: 'answer_reading', name: '【答案规范】阅读理解', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'reading', content: '阅读理解答案规范：\n1. 每道阅读理解题配"答题模板"+"参考答案"+"评分要点"三项\n2. 开放性题目配2-3种不同角度的示例答案，标注"角度一/二/三"\n3. 简答题答案标注"采分点"——每个得分关键词用【】括出', builtin: true },
   { id: 'answer_errorbook', name: '【答案规范】错题本', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'errorbook', content: '错题本答案规范：\n1. "错误归因与素养反思"必须具体到知识点层面（如"混淆了「比喻」和「拟人」的修辞手法"），禁止笼统描述（如"粗心""不会"）\n2. "正确解法"给出完整分步思路，标注"解题关键"\n3. "变式巩固"题目必须与错题考查同一知识点但变换题型或情境，确保真正巩固', builtin: true },
   { id: 'answer_preview', name: '【答案规范】课前预习', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'preview', content: '课前预习答案规范：\n1. 预习问题必须明确具体、可直接作答（如"光合作用发生在细胞的哪个结构中？"），避免笼统含糊的提问（如"想一想光合作用""了解一下XX"）\n2. 每个预习问题均需配参考答案，答案标注"教材原文定位"（可在教材第X页/第X段找到依据），方便学生自查\n3. 答案简洁明了——目标是帮助学生确认预习完成度，而非给出完整知识讲解', builtin: true },
