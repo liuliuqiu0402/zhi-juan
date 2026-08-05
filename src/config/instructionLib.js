@@ -50,7 +50,7 @@ export const builtinInstructions = [
   {
     id: 'full_summary_primary', name: '📖 小学知识点总结', category: '知识点总结', type: 'full',
     subject: '', stage: 'primary',
-    content: '小学知识点总结补充：知识卡片图文并茂，每卡一个知识点；核心知识清单用`<table>`表格，知识点/核心内容两列，每格≤15字；易混点用两栏对比；趣味小练习适量留空作答（答案直接跟在题目后面）；语言简洁有趣，多用比喻和插图，避免抽象术语',
+    content: '小学知识点总结补充：知识卡片图文并茂，每卡一个知识点；核心知识清单用`<table>`表格，知识点/核心内容两列，每格≤15字；易混点用两栏对比；语言简洁有趣，多用比喻和插图，避免抽象术语',
     builtin: true
   },
   {
@@ -3235,8 +3235,16 @@ export const builtinInstructions = [
     content: '语文补充禁止：① 阅读篇目不得超出初中课标阅读量标准（现代文≤1000字，古诗文按课标推荐篇目）② 古诗文和文言文默写不得超纲篇目（按初中课标推荐篇目为准）③ 作文题目不得偏离初中写作要求（记叙文、说明文、议论文）④ 不得使用生僻字和冷僻文言词汇作为考点。', builtin: true },
   { id: 'ban_supplement_chinese_high', name: '【学科禁止-语文-高中】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '语文', stage: 'high', genType: '',
     content: '语文补充禁止：① 阅读篇目不得超出高中课标阅读量标准（论述类、文学类、实用类文本按高考标准）② 古诗文默写不得超纲篇目（按高中课标推荐篇目为准）③ 作文题目不得偏离高中写作要求（论述文、文学评论、实用文体）④ 不得使用不规范的古汉语或生僻词汇作为考点。', builtin: true },
-  { id: 'ban_supplement_math', name: '【学科禁止-数学】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '数学', stage: '', genType: '',
-    content: '数学补充禁止：① 不得超纲使用未学过的运算（如小学出现负数运算、初中出现微积分）② 应用题情境必须真实合理（不得出现违反常识的数据）③ 几何题图形必须按比例准确绘制或标注"示意图"④ 不得出现大量纯计算题堆砌（应穿插情境题和探究题）。', builtin: true },
+  { id: 'ban_supplement_math_primary_low', name: '【学科禁止-数学-小学低段】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '数学', stage: 'primary_low', genType: '',
+    content: '数学补充禁止：① 不得超纲使用未学过的运算（如100以内加减法阶段出现乘除法或分数运算）② 应用题情境必须真实合理（不得出现违反常识的数据）③ 几何题图形必须按比例准确绘制或标注"示意图"④ 不得出现大量纯计算题堆砌（应穿插情境题和探究题）。', builtin: true },
+  { id: 'ban_supplement_math_primary_mid', name: '【学科禁止-数学-小学中段】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '数学', stage: 'primary_mid', genType: '',
+    content: '数学补充禁止：① 不得超纲使用未学过的运算（如整数四则运算阶段出现负数或方程）② 应用题情境必须真实合理（不得出现违反常识的数据）③ 几何题图形必须按比例准确绘制或标注"示意图"④ 不得出现大量纯计算题堆砌（应穿插情境题和探究题）。', builtin: true },
+  { id: 'ban_supplement_math_primary_high', name: '【学科禁止-数学-小学高段】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '数学', stage: 'primary_high', genType: '',
+    content: '数学补充禁止：① 不得超纲使用未学过的运算（如小学阶段出现负数运算或有理数混合运算）② 应用题情境必须真实合理（不得出现违反常识的数据）③ 几何题图形必须按比例准确绘制或标注"示意图"④ 不得出现大量纯计算题堆砌（应穿插情境题和探究题）。', builtin: true },
+  { id: 'ban_supplement_math_middle', name: '【学科禁止-数学-初中】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '数学', stage: 'middle', genType: '',
+    content: '数学补充禁止：① 不得超纲使用未学过的运算和方法（如初中阶段出现微积分或大学数学内容）② 应用题情境必须真实合理（不得出现违反常识的数据）③ 几何题图形必须按比例准确绘制或标注"示意图"④ 不得出现大量纯计算题堆砌（应穿插情境题和探究题）。', builtin: true },
+  { id: 'ban_supplement_math_high', name: '【学科禁止-数学-高中】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '数学', stage: 'high', genType: '',
+    content: '数学补充禁止：① 不得超纲使用未学过的运算和方法（如高中阶段出现大学数学内容）② 应用题情境必须真实合理（不得出现违反常识的数据）③ 几何题图形必须按比例准确绘制或标注"示意图"④ 不得出现大量纯计算题堆砌（应穿插情境题和探究题）。', builtin: true },
   { id: 'ban_supplement_english', name: '【学科禁止-英语】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '英语', stage: '', genType: '',
     content: '英语补充禁止：① 阅读篇目词汇量不得超出学段课标词汇范围（生词比例不超过3%）② 不得出现未学语法时态（严格按学段进度）③ 不得使用全英文非学段词汇的题干。', builtin: true },
   { id: 'ban_supplement_science', name: '【学科禁止-理科通用】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '物理,化学,生物,科学', stage: '', genType: '',
