@@ -3498,7 +3498,7 @@ export const builtinInstructions = [
 // ==================== 指令库存储Key与版本号 ====================
 const STORAGE_KEY = 'instructionLib';
 const VERSION_KEY = 'instructionLib_version';
-const BUILTIN_VERSION = 14; // 🔧 v14: 版本升级改为精准清理（仅移除失效_override），不再全量清空用户自定义数据
+export const BUILTIN_VERSION = 14; // 🔧 v14: 版本升级改为精准清理（仅移除失效_override），不再全量清空用户自定义数据
 
 // ==================== 加载指令库 ====================
 export const loadInstructionLib = () => {

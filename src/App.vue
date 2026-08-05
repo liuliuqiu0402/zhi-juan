@@ -194,6 +194,7 @@ import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
 import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, pullDeletedDocIds, pushDeletedDocIds, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
+import { BUILTIN_VERSION } from '@/config/instructionLib';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
 import { apiConfig, getCurrentEngineConfig, loadConfigSync, decrypt } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
@@ -782,7 +783,8 @@ onMounted(async () => {
           // 指令库
           if (unilateralData.instructions !== null && unilateralData.instructions !== undefined) {
             localStorage.setItem('instructionLib', JSON.stringify(unilateralData.instructions));
-            localStorage.setItem('instructionLib_version', '12');
+            // 🔧 版本号跟随当前内置版本（不再硬编码 '12'），loadInstructionLib 内部会自行处理升级
+            localStorage.setItem('instructionLib_version', String(BUILTIN_VERSION));
             console.log('🔄 [写入] 指令库 ' + (Array.isArray(unilateralData.instructions) ? unilateralData.instructions.length : 0) + '条 ✅');
             try {
               const { useInstructionStore } = await import('@/stores/instructionStore');
@@ -894,9 +896,10 @@ onMounted(async () => {
         if (Array.isArray(hist) && hist.length > 0) addTask(pushDocHistory(hist), '历史', hist.length + '条');
         if (Array.isArray(gen) && gen.length > 0) addTask(pushGeneratedDocs(gen), '生成', gen.length + '条');
         if (!isMobile) {
-          if (tbs && Array.isArray(tbs) && tbs.length > 0) addTask(uploadTextbooks(tbs), '教材', tbs.length + '本');
-          if (tps && Array.isArray(tps) && tps.length > 0) addTask(uploadTemplates(tps), '模板', tps.length + '个');
-          if (ins && Array.isArray(ins) && ins.length > 0) addTask(uploadInstructions(ins), '指令', ins.length + '条');
+          // 🔧 单向数据始终推送（含空数据）：桌面是唯一权威源，必须覆盖云端防止旧数据残留
+          if (tbs !== null && tbs !== undefined && Array.isArray(tbs)) addTask(uploadTextbooks(tbs), '教材', tbs.length + '本');
+          if (tps !== null && tps !== undefined && Array.isArray(tps)) addTask(uploadTemplates(tps), '模板', tps.length + '个');
+          if (ins !== null && ins !== undefined && Array.isArray(ins)) addTask(uploadInstructions(ins), '指令', ins.length + '条');
           if (cfg && typeof cfg === 'object') {
             const dsCfg = { deepseekBaseUrl: cfg.deepseekBaseUrl, deepseekApiKey: cfg.deepseekApiKey, deepseekGenerationModel: cfg.deepseekGenerationModel, deepseekAnalysisModel: cfg.deepseekAnalysisModel };
             addTask(uploadSettings(dsCfg), '设置');

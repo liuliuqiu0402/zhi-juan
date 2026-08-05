@@ -174,9 +174,12 @@ function noClient(): SupabaseClient | null {
 // ══════════════════════════════════════════════════════════════
 
 /**
- * 暖机 ping：打一发轻量查询唤醒 Supabase 免费实例。
+ * 暖机 ping：打轻量查询唤醒 Supabase 免费实例的所有表。
  * 冷启动时第1次尝试可能超时（fetchWithRetry 会自动重试，重试时 DB 已热 ≈ 秒级），
  * 之后所有数据查询都无需再经历冷启动延迟。
+ *
+ * 🔧 v2：user_settings + generated_docs 两张表都要暖，
+ *    否则 generated_docs 首次查询可能 120s 超时导致拉取失败。
  *
  * 注意：此函数可能耗时 30-120s（取决于 Supabase 休眠深度），同步 handler 会在 Toast 中提示用户等待。
  */
@@ -186,7 +189,11 @@ export async function warmupCloud(): Promise<boolean> {
   if (!client) return false;
   try {
     const t0 = performance.now();
-    await client.from('user_settings').select('id').limit(1);
+    // 🔧 两张表并行暖机：user_settings（设置/激活/指令） + generated_docs（生成结果）
+    await Promise.all([
+      client.from('user_settings').select('id').limit(1),
+      client.from('generated_docs').select('id').limit(1),
+    ]);
     const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
     console.log('🔥 暖机完成 (' + elapsed + 's)');
     return true;
@@ -342,58 +349,28 @@ export async function pushGeneratedDocs(items: unknown[]): Promise<boolean> {
   }
 }
 
-/** 从云端拉取生成结果（新表优先 + 旧 user_settings 兼容，客户端 JS 合并去重） */
+/** 从云端拉取生成结果（generated_docs 表，客户端 JS 合并去重） */
 export async function pullGeneratedDocs(): Promise<unknown[] | null> {
   if (noSyncKey()) return null;
   const client = getClient();
   if (!client) return null;
 
-  const allRows: unknown[] = [];
-
-  // 🔧 新旧表并行查询（之前串行导致冷启动时 60s+60s=120s 超时）
-  //    注意：Supabase 返回 { data, error } 而不抛异常，safeQuery 只捕获网络级 throw
-  const safeQuery = async (fn: () => any) => { try { const r = await fn(); return [r, null]; } catch (e) { return [null, e]; } };
-
-  const [[newRows, newNetErr], [oldRows, oldNetErr]] = await Promise.all([
-    safeQuery(() => client.from('generated_docs').select('data').like('id', getSyncKey() + ':%')),
-    safeQuery(() => client.from('user_settings').select('id, data').like('id', getSyncKey() + ':generated_docs:%')),
-  ]);
-
-  // 🔧 两类错误都要检查：网络级（throw→safeQuery捕获） + Supabase级（response.error）
-  const newSupErr = newRows?.error;
-  const oldSupErr = oldRows?.error;
-  const newOk = !newNetErr && !newSupErr && newRows?.data;
-  const oldOk = !oldNetErr && !oldSupErr && oldRows?.data;
-
-  // 记录错误（让用户知道为什么拉不到数据）
-  if (newNetErr) console.warn('☁️ pull_generated_docs 新表网络异常:', (newNetErr as Error)?.message || newNetErr);
-  if (newSupErr) console.warn('☁️ pull_generated_docs 新表查询失败:', newSupErr?.message || newSupErr);
-  if (oldNetErr) console.warn('☁️ pull_generated_docs 旧表网络异常:', (oldNetErr as Error)?.message || oldNetErr);
-  if (oldSupErr) console.warn('☁️ pull_generated_docs 旧表查询失败:', oldSupErr?.message || oldSupErr);
-
-  // ① 新表 generated_docs（v6+）
-  if (newOk) allRows.push(...(newRows!.data as unknown[]));
-
-  // ② 旧 user_settings 兼容（v5 及之前，generated_docs:* 行）
-  if (oldOk) {
-    for (const row of (oldRows!.data as { id: string; data: unknown }[])) {
-      allRows.push(row.data);
+  try {
+    const { data: rows, error } = await client
+      .from('generated_docs')
+      .select('data')
+      .like('id', getSyncKey() + ':%');
+    if (error) {
+      console.error('☁️ pull_generated_docs 失败:', error.message);
+      return null;
     }
-  }
-
-  const merged = mergeDeviceData(allRows, 20);
-
-  // 有错误且无数据 → 报告失败（null 让同步 handler 显示 ❌）
-  const hasAnyErr = !!(newNetErr || newSupErr || oldNetErr || oldSupErr);
-  if (hasAnyErr && merged.length === 0) {
-    console.warn('☁️ pull_generated_docs: 查询异常，无可合并数据');
+    const merged = mergeDeviceData((rows as unknown[]) || [], 20);
+    console.log('☁️ pull_generated_docs:', merged.length, '条（客户端合并）');
+    return merged;
+  } catch (e) {
+    console.warn('☁️ pull_generated_docs 异常:', e);
     return null;
   }
-
-  const sourceTag = newOk && oldOk ? '新表+旧兼容' : newOk ? '新表' : '旧兼容';
-  const warnTag = hasAnyErr ? ' ⚠️部分查询失败' : '';
-  console.log('☁️ pull_generated_docs:', merged.length, '条（' + sourceTag + ' + 客户端合并）' + warnTag);
-  return merged;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -698,12 +675,14 @@ export async function pullFromCloud(): Promise<{
     timings.push(label + t + 's');
   };
 
-  // 🔧 暖机：先用轻量查询唤醒 Supabase 数据库（免费版冷启动可达 30-120s），
-  //    暖机完成后再并行拉取，避免所有查询同时撞上冷启动全部超时
+  // 🔧 暖机：两张表并行唤醒（user_settings + generated_docs），避免冷启动超时
   const client = getClient();
   if (client && !noSyncKey()) {
     try {
-      await client.from('user_settings').select('id').limit(1);
+      await Promise.all([
+        client.from('user_settings').select('id').limit(1),
+        client.from('generated_docs').select('id').limit(1),
+      ]);
       mark('暖机');
     } catch { /* 暖机失败不阻塞，后续拉取各自容错 */ }
   }
