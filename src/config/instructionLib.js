@@ -50,7 +50,7 @@ export const builtinInstructions = [
   {
     id: 'full_summary_primary', name: '📖 小学知识点总结', category: '知识点总结', type: 'full',
     subject: '', stage: 'primary',
-    content: '小学知识点总结补充：知识卡片图文并茂，每卡一个知识点；核心知识清单用`<table>`表格，知识点/核心内容两列，每格≤15字；易混点用两栏对比；趣味小练习适量留空作答，答案放文末；语言简洁有趣，多用比喻和插图，避免抽象术语',
+    content: '小学知识点总结补充：知识卡片图文并茂，每卡一个知识点；核心知识清单用`<table>`表格，知识点/核心内容两列，每格≤15字；易混点用两栏对比；趣味小练习适量留空作答（答案直接跟在题目后面）；语言简洁有趣，多用比喻和插图，避免抽象术语',
     builtin: true
   },
   {
@@ -2430,15 +2430,15 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   { id: 'core_task_exam', name: '【核心任务】考卷', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'exam', content: '生成一份完整考试卷。🔴 题量以完整覆盖全部知识点为准，每题考查内容不重复，覆盖全部教材内容。严格按下方结构参考和难度配置执行，试题需原创改编（同资料内不同题目考查角度、情境、数据不得雷同，经典题型可保留但同一知识点不重复出现）（可变换教材原题的数据/情境/问法）。正文只含题目，参考答案与解析统一放文末。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
   { id: 'core_task_practice', name: '【核心任务】课时练', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'practice', content: '生成一份课堂同步练习。🔴 题量以完整覆盖全部知识点为准，每题考查内容不重复，覆盖全部教材内容。遵循"基础→能力→拓展"三层递进结构，题目紧扣本节核心知识，之间有层次和关联性。基础题配简要解析，提升/拓展题配详细解析。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
-  { id: 'core_task_summary', name: '【核心任务】知识点总结', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'summary', content: '生成一份知识点归纳总结。🔴 内容充实详实，完整覆盖所选知识点的全部要点（概念/公式/方法/应用），不得遗漏。以知识要点整理为核心，按下方结构参考组织内容。语言精炼规范，便于打印复习，不掺杂无关内容。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
+  { id: 'core_task_summary', name: '【核心任务】知识点总结', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'summary', content: '生成一份知识点归纳总结。🔴 内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖所选知识点的全部要点（概念/公式/方法/应用），不得遗漏。以知识要点整理为核心，按下方结构参考组织内容。语言精炼规范，便于打印复习，不掺杂无关内容。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
   { id: 'core_task_special', name: '【核心任务】专项突破', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'special', content: '生成一份专项突破训练。🔴 题量以完整覆盖全部知识点为准，每题考查内容不重复，覆盖全部教材内容。围绕指定专项能力，按下方结构参考进行"方法指导→典例剖析→阶梯训练→真题检验"的系统训练，帮助学生从"模仿"到"迁移"再到"创新"。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
   { id: 'core_task_errorbook', name: '【核心任务】错题本', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'errorbook', content: '生成一份错题整理。🔴 完整覆盖各类典型错误，每个错误类型配至少一道变式巩固练习，确保举一反三。遵循"典型错题→精准归因→正确解法→变式巩固→方法归纳"的深度学习流程，帮助学生真正吃透错题而非简单抄答案。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
-  { id: 'core_task_preview', name: '【核心任务】课前预习', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'preview', content: '生成一份课前预习资料。🔴 预习内容充实饱满，完整覆盖新课全部核心知识点，每个知识点均有对应的预习任务或检测题。按下方结构参考组织，帮助学生对新课内容有初步感知、带着问题进课堂。预习任务可操作可检查，预习检测答案需标注教材原文定位以便自查。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
+  { id: 'core_task_preview', name: '【核心任务】课前预习', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'preview', content: '生成一份课前预习资料。🔴 预习内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖新课全部核心知识点，每个知识点均有对应的预习任务或检测题。按下方结构参考组织，帮助学生对新课内容有初步感知、带着问题进课堂。预习任务可操作可检查，预习检测答案需标注教材原文定位以便自查。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
   { id: 'core_task_dictation_chinese', name: '【核心任务】默写-语文', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '语文', stage: '', genType: 'dictation', content: '生成一份可直接打印使用的默写练习纸。🔴 覆盖本课全部要求掌握的生字/词语，不遗漏任何一个。练习区只显示提示信息+空白书写区（不给答案），标准答案统一放文末。生字用田字格留空，附带字典式信息（部首/笔画/结构）。', builtin: true },
   { id: 'core_task_dictation_english', name: '【核心任务】默写-英语', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '英语', stage: '', genType: 'dictation', content: '生成一份可直接打印使用的默写练习纸。🔴 覆盖本课全部要求掌握的单词/短语，不遗漏任何一个。练习区只显示提示信息+空白书写区（不给答案），标准答案统一放文末。写英文用四线三格/单线，写中文用普通横线，每个单词标注词性和音标。', builtin: true },
   { id: 'core_task_dictation', name: '【核心任务】默写（通用）', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'dictation', content: '生成一份可直接打印使用的默写练习纸。🔴 覆盖所选内容全部要求掌握的词汇/知识点，不遗漏任何一个。练习区只显示提示信息+空白书写区（不给答案），标准答案统一放文末。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
   { id: 'core_task_reading', name: '【核心任务】阅读训练', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'reading', content: '生成一份阅读理解训练。🔴 题量以完整覆盖全部知识点为准，每题考查内容不重复，覆盖全部教材内容。覆盖"信息提取→词句理解→推理判断→表达技巧→整体把握"全部能力层级。选文文质兼美、难度匹配学段，题目按五层递进设计。每题配答题模板+参考答案+评分要点。非连续性文本阅读（新课标要求）也需覆盖。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
-  { id: 'core_task_review', name: '【核心任务】单元/期末复习', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'review', content: '生成一份单元/期末系统复习资料。🔴 内容充实详实，完整覆盖所选范围的考点和易错点，不仅是知识罗列，更要帮助学生构建知识关联和解题策略。按下方结构参考组织，知识梳理+典型题析+易错聚焦+综合自测四位一体。典型题必须配完整解析过程，自测题需覆盖全部核心考点。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
+  { id: 'core_task_review', name: '【核心任务】单元/期末复习', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'review', content: '生成一份单元/期末系统复习资料。🔴 内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖所选范围的考点和易错点，不仅是知识罗列，更要帮助学生构建知识关联和解题策略。按下方结构参考组织，知识梳理+典型题析+易错聚焦+综合自测四位一体。典型题必须配完整解析过程，自测题需覆盖全部核心考点。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
 
   // ═══════════════════════════════════════
   // 【生成-核心任务】按学段拆分 — 精准适配年级特征
@@ -2480,19 +2480,19 @@ export const builtinInstructions = [
   // ── summary 知识点总结（按学段拆分）──
   { id: 'core_task_summary_primary_low', name: '【核心任务-总结-小学低段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'primary_low', genType: 'summary', specialSubType: 'new_standard',
-    content: '生成一份适合小学低段（1-2年级）的知识点总结。🔴 内容充实详实，完整覆盖所选知识点的全部要点。知识呈现生动有趣，用符号和编号区分重点。语言亲切活泼，多用口诀和儿歌帮助记忆，减少抽象概念描述。按下方结构参考组织，便于打印复习。', builtin: true },
+    content: '生成一份适合小学低段（1-2年级）的知识点总结。🔴 内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖所选知识点的全部要点。知识呈现生动有趣，用符号和编号区分重点。语言亲切活泼，多用口诀和儿歌帮助记忆，减少抽象概念描述。按下方结构参考组织，便于打印复习。', builtin: true },
   { id: 'core_task_summary_primary_mid', name: '【核心任务-总结-小学中段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'primary_mid', genType: 'summary', specialSubType: 'new_standard',
-    content: '生成一份适合小学中段（3-4年级）的知识点总结。🔴 内容充实详实，完整覆盖所选知识点的全部要点。知识呈现开始引入表格、思维导图等结构化工具，逐步培养归纳整理能力。语言清晰规范，重点内容用颜色和符号标注。按下方结构参考组织，便于打印复习。', builtin: true },
+    content: '生成一份适合小学中段（3-4年级）的知识点总结。🔴 内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖所选知识点的全部要点。知识呈现开始引入表格、思维导图等结构化工具，逐步培养归纳整理能力。语言清晰规范，重点内容用颜色和符号标注。按下方结构参考组织，便于打印复习。', builtin: true },
   { id: 'core_task_summary_primary_high', name: '【核心任务-总结-小学高段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'primary_high', genType: 'summary', specialSubType: 'new_standard',
-    content: '生成一份适合小学高段（5-6年级）的知识点总结。🔴 内容充实详实，完整覆盖所选知识点的全部要点。知识呈现以结构化梳理为主（思维导图/表格/层级图），注重知识点之间的联系和对比。语言精炼规范，标注重难点星级和考查频率。按下方结构参考组织，便于打印复习。', builtin: true },
+    content: '生成一份适合小学高段（5-6年级）的知识点总结。🔴 内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖所选知识点的全部要点。知识呈现以结构化梳理为主（思维导图/表格/层级图），注重知识点之间的联系和对比。语言精炼规范，标注重难点星级和考查频率。按下方结构参考组织，便于打印复习。', builtin: true },
   { id: 'core_task_summary_middle', name: '【核心任务-总结-初中】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'middle', genType: 'summary', specialSubType: 'new_standard',
-    content: '生成一份初中知识点总结。🔴 内容充实详实，完整覆盖所选知识点的全部要点。知识梳理系统深入，注重知识网络构建和跨章节联系。标注中考考查频率和常见题型，渗透学科思维方法。语言精炼规范，不掺杂无关内容。按下方结构参考组织，便于打印复习和备考。', builtin: true },
+    content: '生成一份初中知识点总结。🔴 内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖所选知识点的全部要点。知识梳理系统深入，注重知识网络构建和跨章节联系。标注中考考查频率和常见题型，渗透学科思维方法。语言精炼规范，不掺杂无关内容。按下方结构参考组织，便于打印复习和备考。', builtin: true },
   { id: 'core_task_summary_high', name: '【核心任务-总结-高中】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'high', genType: 'summary', specialSubType: 'new_standard',
-    content: '生成一份高中知识点总结。🔴 内容充实详实，完整覆盖所选知识点的全部要点。知识梳理深度系统，注重概念原理的深层理解和跨模块整合。标注高考考查要求和命题趋势，渗透学科思想方法和解题策略。语言精炼规范。按下方结构参考组织，便于打印复习和高考备考。', builtin: true },
+    content: '生成一份高中知识点总结。🔴 内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖所选知识点的全部要点。知识梳理深度系统，注重概念原理的深层理解和跨模块整合。标注高考考查要求和命题趋势，渗透学科思想方法和解题策略。语言精炼规范。按下方结构参考组织，便于打印复习和高考备考。', builtin: true },
 
   // ── reading 阅读训练（按学段拆分）──
   { id: 'core_task_reading_primary_low', name: '【核心任务-阅读-小学低段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
@@ -2514,36 +2514,36 @@ export const builtinInstructions = [
   // ── preview 课前预习（按学段拆分）──
   { id: 'core_task_preview_primary_low', name: '【核心任务-预习-小学低段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'primary_low', genType: 'preview', specialSubType: 'new_standard',
-    content: '生成一份适合小学低段（1-2年级）的课前预习单。🔴 预习内容充实活泼，完整覆盖新课核心知识点，每个知识点均有对应的趣味预习任务。用"我能..."句式呈现学习目标，预习检测2-3道基础题。注重趣味性和亲子共读引导，帮助学生对新课有初步感知、带着兴趣进课堂。', builtin: true },
+    content: '生成一份适合小学低段（1-2年级）的课前预习单。🔴 预习内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖新课核心知识点，每个知识点均有对应的趣味预习任务。用"我能..."句式呈现学习目标，预习检测2-3道基础题。注重趣味性和亲子共读引导，帮助学生对新课有初步感知、带着兴趣进课堂。', builtin: true },
   { id: 'core_task_preview_primary_mid', name: '【核心任务-预习-小学中段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'primary_mid', genType: 'preview', specialSubType: 'new_standard',
-    content: '生成一份适合小学中段（3-4年级）的课前预习单。🔴 预习内容丰富充实，完整覆盖新课核心知识点，每个知识点均有对应的预习任务或检测题。增加自主学习和简单批注任务，预习检测3-4道基础题，引导学生带着问题进课堂。预习任务可操作可检查，检测答案标注教材原文定位。', builtin: true },
+    content: '生成一份适合小学中段（3-4年级）的课前预习单。🔴 预习内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖新课核心知识点，每个知识点均有对应的预习任务或检测题。增加自主学习和简单批注任务，预习检测3-4道基础题，引导学生带着问题进课堂。预习任务可操作可检查，检测答案标注教材原文定位。', builtin: true },
   { id: 'core_task_preview_primary_high', name: '【核心任务-预习-小学高段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'primary_high', genType: 'preview', specialSubType: 'new_standard',
-    content: '生成一份适合小学高段（5-6年级）的课前预习单。🔴 预习内容充实饱满，完整覆盖新课核心知识点，每个知识点均有对应的预习任务或检测。侧重自主学习和探究，增加资料搜集、批注思考、提出疑问等任务。预习检测4-5道题（基础、理解），帮助学生对新课有系统感知、带着思考进课堂。', builtin: true },
+    content: '生成一份适合小学高段（5-6年级）的课前预习单。🔴 预习内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖新课核心知识点，每个知识点均有对应的预习任务或检测。侧重自主学习和探究，增加资料搜集、批注思考、提出疑问等任务。预习检测4-5道题（基础、理解），帮助学生对新课有系统感知、带着思考进课堂。', builtin: true },
   { id: 'core_task_preview_middle', name: '【核心任务-预习-初中】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'middle', genType: 'preview', specialSubType: 'new_standard',
-    content: '生成一份初中课前预习资料。🔴 预习内容充实详实，完整覆盖新课全部核心知识点，每个知识点均有对应的预习任务或检测。预习任务强调自主研读教材、梳理知识框架、标注疑难问题。预习检测适当增加理解性和应用性题目。帮助学生对新课有深度感知、带着问题和思考进课堂。', builtin: true },
+    content: '生成一份初中课前预习资料。🔴 预习内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖新课全部核心知识点，每个知识点均有对应的预习任务或检测。预习任务强调自主研读教材、梳理知识框架、标注疑难问题。预习检测适当增加理解性和应用性题目。帮助学生对新课有深度感知、带着问题和思考进课堂。', builtin: true },
   { id: 'core_task_preview_high', name: '【核心任务-预习-高中】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'high', genType: 'preview', specialSubType: 'new_standard',
-    content: '生成一份高中课前预习资料。🔴 预习内容充实深入，完整覆盖新课全部核心知识点，每个知识点均有对应的预习任务或检测。预习任务强调自主构建知识框架、关联已有知识、提出批判性问题。预习检测增加综合性和探究性题目。帮助学生对新课有系统深度理解、带着思考和独到见解进课堂。', builtin: true },
+    content: '生成一份高中课前预习资料。🔴 预习内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖新课全部核心知识点，每个知识点均有对应的预习任务或检测。预习任务强调自主构建知识框架、关联已有知识、提出批判性问题。预习检测增加综合性和探究性题目。帮助学生对新课有系统深度理解、带着思考和独到见解进课堂。', builtin: true },
 
   // ── review 单元/期末复习（按学段拆分）──
   { id: 'core_task_review_primary_low', name: '【核心任务-复习-小学低段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'primary_low', genType: 'review', specialSubType: 'new_standard',
-    content: '生成一份适合小学低段（1-2年级）的单元/期末复习资料。🔴 内容充实活泼，完整覆盖所选范围的考点和易错点。知识梳理以趣味表格和图片配对为主，典型题析每题配完整图解式解析，自测题以选择+填空+连线为主（题量适中），帮助学生轻松回顾、快乐巩固。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
+    content: '生成一份适合小学低段（1-2年级）的单元/期末复习资料。🔴 内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖所选范围的考点和易错点。知识梳理以趣味表格和图片配对为主，典型题析每题配完整图解式解析，自测题以选择+填空+连线为主（题量适中），帮助学生轻松回顾、快乐巩固。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
   { id: 'core_task_review_primary_mid', name: '【核心任务-复习-小学中段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'primary_mid', genType: 'review', specialSubType: 'new_standard',
-    content: '生成一份适合小学中段（3-4年级）的单元/期末复习资料。🔴 内容充实详实，完整覆盖所选范围的考点和易错点。知识梳理用对比表格和知识树，典型题析每题配完整解析过程，易错聚焦整理3-5个高频错误，综合自测覆盖全部核心考点。帮助学生构建知识关联，系统查漏补缺。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
+    content: '生成一份适合小学中段（3-4年级）的单元/期末复习资料。🔴 内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖所选范围的考点和易错点。知识梳理用对比表格和知识树，典型题析每题配完整解析过程，易错聚焦整理3-5个高频错误，综合自测覆盖全部核心考点。帮助学生构建知识关联，系统查漏补缺。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
   { id: 'core_task_review_primary_high', name: '【核心任务-复习-小学高段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'primary_high', genType: 'review', specialSubType: 'new_standard',
-    content: '生成一份适合小学高段（5-6年级）的单元/期末复习资料。🔴 内容充实深入，完整覆盖所选范围的考点和易错点。知识梳理注重知识体系构建和方法归纳，典型题析选涵盖全部核心考点的经典题并配详细解析，易错聚焦深入分析错误根源，综合自测题型丰富、难度梯度合理。帮助学生从"学会"到"会学"，系统提升应试能力。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
+    content: '生成一份适合小学高段（5-6年级）的单元/期末复习资料。🔴 内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖所选范围的考点和易错点。知识梳理注重知识体系构建和方法归纳，典型题析选涵盖全部核心考点的经典题并配详细解析，易错聚焦深入分析错误根源，综合自测题型丰富、难度梯度合理。帮助学生从"学会"到"会学"，系统提升应试能力。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
   { id: 'core_task_review_middle', name: '【核心任务-复习-初中】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'middle', genType: 'review', specialSubType: 'new_standard',
-    content: '生成一份初中单元/期末复习资料。🔴 内容充实深入，完整覆盖所选范围的考点、易错点和中考高频考点。知识梳理以思维导图+专题对比为主，典型题析选近3年中考同类题并配详细解析+评分标准，易错聚焦深入分析错误根源并配变式练习，综合自测对标中考题型和难度。帮助学生系统构建知识网络、精准攻克薄弱环节。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
+    content: '生成一份初中单元/期末复习资料。🔴 内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖所选范围的考点、易错点和中考高频考点。知识梳理以思维导图+专题对比为主，典型题析选近3年中考同类题并配详细解析+评分标准，易错聚焦深入分析错误根源并配变式练习，综合自测对标中考题型和难度。帮助学生系统构建知识网络、精准攻克薄弱环节。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
   { id: 'core_task_review_high', name: '【核心任务-复习-高中】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'high', genType: 'review', specialSubType: 'new_standard',
-    content: '生成一份高中单元/期末复习资料。🔴 内容充实深入，完整覆盖所选范围的考点、易错点和高考高频考点。知识梳理以知识框架+专题整合为主，典型题析选近3年高考同类题并配详细解析+评分细则，易错聚焦注重思维层面和解题策略分析，综合自测严格参照高考命题趋势和难度。帮助学生从知识梳理到综合运用，系统提升学科核心素养和应试能力。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
+    content: '生成一份高中单元/期末复习资料。🔴 内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。完整覆盖所选范围的考点、易错点和高考高频考点。知识梳理以知识框架+专题整合为主，典型题析选近3年高考同类题并配详细解析+评分细则，易错聚焦注重思维层面和解题策略分析，综合自测严格参照高考命题趋势和难度。帮助学生从知识梳理到综合运用，系统提升学科核心素养和应试能力。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
 
   // ── errorbook 错题本（按学段拆分）──
   { id: 'core_task_errorbook_primary', name: '【核心任务-错题本-小学】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
@@ -3225,8 +3225,16 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   // 【生成-学科禁止项】块级指令 — 按学科精准匹配（补建 D）
   // ═══════════════════════════════════════
-  { id: 'ban_supplement_chinese', name: '【学科禁止-语文】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '语文', stage: '', genType: '',
-    content: '语文补充禁止：① 阅读篇目不得超出学段阅读量标准（小学低段不超300字，中段不超500字，高段不超800字）② 古诗文默写不得超纲篇目（按学段课标推荐篇目为准）③ 作文题目不得偏离学段写作要求（低段看图写话，中段片段习作，高段完整作文）④ 不得使用生僻字作为考点。', builtin: true },
+  { id: 'ban_supplement_chinese_primary_low', name: '【学科禁止-语文-小学低段】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '语文', stage: 'primary_low', genType: '',
+    content: '语文补充禁止：① 阅读篇目不得超出学段阅读量标准（不超300字）② 古诗文默写不得超纲篇目（按低段课标推荐篇目为准）③ 作文题目不得偏离学段写作要求（看图写话）④ 不得使用生僻字作为考点。', builtin: true },
+  { id: 'ban_supplement_chinese_primary_mid', name: '【学科禁止-语文-小学中段】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '语文', stage: 'primary_mid', genType: '',
+    content: '语文补充禁止：① 阅读篇目不得超出学段阅读量标准（不超500字）② 古诗文默写不得超纲篇目（按中段课标推荐篇目为准）③ 作文题目不得偏离学段写作要求（片段习作）④ 不得使用生僻字作为考点。', builtin: true },
+  { id: 'ban_supplement_chinese_primary_high', name: '【学科禁止-语文-小学高段】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '语文', stage: 'primary_high', genType: '',
+    content: '语文补充禁止：① 阅读篇目不得超出学段阅读量标准（不超800字）② 古诗文默写不得超纲篇目（按高段课标推荐篇目为准）③ 作文题目不得偏离学段写作要求（完整作文）④ 不得使用生僻字作为考点。', builtin: true },
+  { id: 'ban_supplement_chinese_middle', name: '【学科禁止-语文-初中】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '语文', stage: 'middle', genType: '',
+    content: '语文补充禁止：① 阅读篇目不得超出初中课标阅读量标准（现代文≤1000字，古诗文按课标推荐篇目）② 古诗文和文言文默写不得超纲篇目（按初中课标推荐篇目为准）③ 作文题目不得偏离初中写作要求（记叙文、说明文、议论文）④ 不得使用生僻字和冷僻文言词汇作为考点。', builtin: true },
+  { id: 'ban_supplement_chinese_high', name: '【学科禁止-语文-高中】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '语文', stage: 'high', genType: '',
+    content: '语文补充禁止：① 阅读篇目不得超出高中课标阅读量标准（论述类、文学类、实用类文本按高考标准）② 古诗文默写不得超纲篇目（按高中课标推荐篇目为准）③ 作文题目不得偏离高中写作要求（论述文、文学评论、实用文体）④ 不得使用不规范的古汉语或生僻词汇作为考点。', builtin: true },
   { id: 'ban_supplement_math', name: '【学科禁止-数学】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '数学', stage: '', genType: '',
     content: '数学补充禁止：① 不得超纲使用未学过的运算（如小学出现负数运算、初中出现微积分）② 应用题情境必须真实合理（不得出现违反常识的数据）③ 几何题图形必须按比例准确绘制或标注"示意图"④ 不得出现大量纯计算题堆砌（应穿插情境题和探究题）。', builtin: true },
   { id: 'ban_supplement_english', name: '【学科禁止-英语】', category: '生成-学科禁止项', prompt_order: 56, type: 'fragment', subject: '英语', stage: '', genType: '',
