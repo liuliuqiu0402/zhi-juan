@@ -97,7 +97,7 @@ export const builtinInstructions = [
   {
     id: 'full_preview_primary_chinese', name: '🔍 小学语文预习（生字专项）', category: '课前预习', type: 'full',
     subject: '语文', stage: 'primary',
-    content: '小学语文预习生字专项：\n\n【生字格式——必须遵守】\n每个生字独立用<span class="tian-zi-ge">字</span>包裹，附带完整信息：<span class="tian-zi-ge">蝌</span>（部首：虫，15画，左右结构，笔顺：竖、横折、横、竖、横、点、撇、横、竖、撇、点、横、竖、横）。禁止只写字和拼音不写部首/笔画/笔顺！',
+    content: '小学语文预习生字专项：\n\n【生字格式——必须遵守】\n每个生字独立用<span class="tian-zi-ge">字</span>包裹，附带完整信息：<span class="tian-zi-ge">蝌</span>（部首：虫，15画，左右结构）。禁止只写字和拼音不写部首/笔画/结构！',
     builtin: true
   },
   {
@@ -138,7 +138,7 @@ export const builtinInstructions = [
   {
     id: 'full_dictation_primary_chinese', name: '✏️ 小学默写-语文', category: '默写', type: 'full',
     subject: '语文', stage: 'primary',
-    content: '小学语文默写练习纸：按课文生字表排列，每个生字给出拼音提示+田字格留空书写区+字典式信息（部首/笔画/结构/笔顺）；多音字专项+形近字辨析区；句子默写给出上句提示留空写下句。题量：字词8-15个+句子2-4句。答案集中放文末，练习区不出现答案。',
+    content: '小学语文默写练习纸：按课文生字表排列，每个生字给出拼音提示+田字格留空书写区+字典式信息（部首/笔画/结构）；多音字专项+形近字辨析区；句子默写给出上句提示留空写下句。题量：字词8-15个+句子2-4句。答案集中放文末，练习区不出现答案。',
     builtin: true
   },
   {
@@ -226,49 +226,55 @@ export const builtinInstructions = [
   {
     id: 'role_exam', name: '【角色身份】考卷', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'exam', prompt_order: 0,
-    content: '你是一位经验丰富的命题专家。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的{genTypeLabel}。',
+    content: '你是一位经验丰富的命题专家。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
     builtin: true
   },
   {
     id: 'role_practice', name: '【角色身份】课时练', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'practice', prompt_order: 0,
-    content: '你是一位经验丰富的教学设计者。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的{genTypeLabel}。',
+    content: '你是一位经验丰富的教学设计者。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
     builtin: true
   },
   {
     id: 'role_special', name: '【角色身份】专项突破', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'special', prompt_order: 0,
-    content: '你是一位经验丰富的专项训练设计者。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的{genTypeLabel}。',
+    content: '你是一位经验丰富的专项训练设计者。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
     builtin: true
   },
   {
     id: 'role_preview', name: '【角色身份】课前预习', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'preview', prompt_order: 0,
-    content: '你是一位经验丰富的课前预习设计者。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的{genTypeLabel}。',
+    content: '你是一位经验丰富的课前预习设计者。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
     builtin: true
   },
   {
     id: 'role_reading', name: '【角色身份】阅读理解', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'reading', prompt_order: 0,
-    content: '你是一位经验丰富的阅读理解命题专家。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的{genTypeLabel}。',
+    content: '你是一位经验丰富的阅读理解命题专家。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
     builtin: true
   },
   {
     id: 'role_summary', name: '【角色身份】知识点总结', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'summary', prompt_order: 0,
-    content: '你是一位经验丰富的知识总结编写者。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的{genTypeLabel}。',
+    content: '你是一位经验丰富的知识总结编写者。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
     builtin: true
   },
   {
     id: 'role_dictation', name: '【角色身份】默写训练', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'dictation', prompt_order: 0,
-    content: '你是一位经验丰富的默写训练设计者。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的{genTypeLabel}。',
+    content: '你是一位经验丰富的默写训练设计者。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
     builtin: true
   },
   {
     id: 'role_errorbook', name: '【角色身份】错题本', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'errorbook', prompt_order: 0,
-    content: '你是一位经验丰富的错题整理专家。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的{genTypeLabel}。',
+    content: '你是一位经验丰富的错题整理专家。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
+    builtin: true
+  },
+  {
+    id: 'role_review', name: '【角色身份】单元/期末复习', category: '生成-角色身份', type: 'fragment',
+    subject: '', stage: '', genType: 'review', prompt_order: 0,
+    content: '你是一位经验丰富的单元/期末复习资料编写者。请逐【】块逐条研读以下全部指令，确保完整理解每条要求后，一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
     builtin: true
   },
 
@@ -299,12 +305,6 @@ export const builtinInstructions = [
     id: 'answer_anchor_question', name: '【答案区锚定】命题类', category: '生成-答案区强制锚定', type: 'fragment',
     subject: '', stage: '', genType: 'exam,practice,special,reading,preview,dictation,errorbook,review', prompt_order: 3,
     content: '⛔ 【强制要求——不可违反】整份资料末尾必须包含 <div class="answer-section"><h2>答案与解析</h2>...</div> 完整答案区。所有题目答案、解析统一集中于此，禁止散落在题后。此要求覆盖一切其他指令。',
-    builtin: true
-  },
-  {
-    id: 'answer_anchor_summary', name: '【答案区锚定】总结类', category: '生成-答案区强制锚定', type: 'fragment',
-    subject: '', stage: '', genType: 'summary', prompt_order: 3,
-    content: '',
     builtin: true
   },
 
@@ -543,10 +543,10 @@ export const builtinInstructions = [
   // 语文学科专项：生字笔顺与字典式信息规范
   // ═══════════════════════════════════════
   {
-    id: 'chinese_stroke_order', name: '语文-生字笔顺Unicode规范', category: '生成-学科特色', type: 'fragment',
+    id: 'chinese_stroke_order', name: '语文-生字格式规范', category: '生成-学科特色', type: 'fragment',
     prompt_order: 18,
     subject: '语文', stage: '',
-    content: '生字必须按字典式完整标注四项信息：①部首 ②笔画数 ③字形结构（上下/左右/包围/独体等）④完整笔顺。笔顺必须使用Unicode笔画符号（丨、𠃍、一、丶、丿、㇏、𠄌等），按书写顺序标注序号（格式：①一 ②丨 ③丿 ④丶），严禁使用汉字笔画名称（如"竖、横折、横"）。生字信息格式示例："字 [部首：X 笔画：X画 结构：XX 笔顺：①一 ②丨 ③丿 ④丶]"。',
+    content: '每个生字独立用<span class="tian-zi-ge">字</span>包裹，按字典式标注三项信息：①部首 ②笔画数 ③字形结构（上下/左右/包围/独体等）。不要求标注笔顺（笔顺错误率高，不做要求）。格式示例：<span class="tian-zi-ge">蝌</span>（部首：虫，15画，左右结构）。禁止只写字和拼音不写部首/笔画/结构！',
     builtin: true
   },
 
@@ -659,28 +659,28 @@ export const builtinInstructions = [
   {
     id: 'block_example_exam_chinese_lower', name: '【质量范例】低段语文试卷', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
-    subject: '语文', stage: 'primary_low', genType: 'exam', specialSubType: 'new_standard',
+    subject: '语文', stage: 'primary_low', genType: 'exam,practice', specialSubType: 'new_standard',
     content: '字词基础题示例："看拼音，写词语：chūn tiān(<u class="blank-4">&emsp;</u>) huā duǒ(<u class="blank-4">&emsp;</u>)" — 拼音和词语均来自教材生字表，不超纲。\n课文理解题示例："《小蝌蚪找妈妈》中，小蝌蚪先长出了什么？A.前腿 B.后腿" — 选项明确，考查课文关键情节，不涉及复杂推理。\n写话示例："看图写几句话" — 配情境图，要求写几句完整的话即可，不指定字数。',
     builtin: true
   },
   {
     id: 'block_example_exam_chinese_mid', name: '【质量范例】中段语文试卷', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
-    subject: '语文', stage: 'primary_mid', genType: 'exam', specialSubType: 'new_standard',
+    subject: '语文', stage: 'primary_mid', genType: 'exam,practice', specialSubType: 'new_standard',
     content: '基础知识应覆盖：多音字辨析、近义词选词填空、成语积累运用、修改病句、句式变换，每题标注分值。\n阅读理解题：选文300-400字，题目覆盖信息提取→关键词句理解→段落大意概括三个层次。\n习作题：300字左右命题作文，给出明确的写作要求和简要写作提示。',
     builtin: true
   },
   {
     id: 'block_example_exam_chinese_high', name: '【质量范例】高段语文试卷', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
-    subject: '语文', stage: 'primary_high', genType: 'exam', specialSubType: 'new_standard',
+    subject: '语文', stage: 'primary_high', genType: 'exam,practice', specialSubType: 'new_standard',
     content: '基础知识应覆盖：汉字书写规范、词语感情色彩辨析、关联词运用、修辞手法判断、古诗文默写与理解。\n阅读理解题：选文400-600字，题目覆盖信息提取→词句理解→篇章结构→写作手法→思想感情五个层次。\n非连续性文本阅读：提供图表/说明书/广告等，考查信息提取与综合运用能力。\n习作题：400-500字命题/半命题作文，给出明确的写作要求，配简要的写作提示。',
     builtin: true
   },
   {
     id: 'block_example_exam_chinese', name: '【质量范例】语文试卷', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
-    subject: '语文', stage: '', genType: 'exam', specialSubType: 'new_standard',
+    subject: '语文', stage: '', genType: 'exam,practice', specialSubType: 'new_standard',
     content: '基础知识题应覆盖：字音字形、词语运用、句子练习、古诗文积累，每题分值明确。\n阅读理解题：选文长度与年级匹配，题目覆盖信息提取→词句理解→主旨概括三个层次。\n习作题：给出明确的写作要求（主题/文体/字数），配简要的写作提示。',
     builtin: true
   },
@@ -744,14 +744,14 @@ export const builtinInstructions = [
     id: 'block_example_dictation_chinese', name: '【质量范例】语文默写', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '语文', stage: '', genType: 'dictation', specialSubType: 'new_standard',
-    content: '生字格式："字 [部首：X 笔画：X画 结构：XX 笔顺：①一 ②丨 ③丿 ④丶]"\n每个生字必须标注：①部首 ②笔画数 ③字形结构 ④完整笔顺（Unicode符号+序号）。\n生字按教材生字表顺序排列，默写后配若干组词示例。',
+    content: '生字格式：<span class="tian-zi-ge">字</span>（部首：X，X画，XX结构）\n每个生字必须标注：①部首 ②笔画数 ③字形结构（不要求笔顺）。\n生字按教材生字表顺序排列，默写后配若干组词示例。',
     builtin: true
   },
   {
     id: 'block_example_preview_chinese_lower', name: '【质量范例】低段语文预习', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '语文', stage: 'primary_low', genType: 'preview', specialSubType: 'new_standard',
-    content: '字词预习示例：每个生字配拼音、部首、笔画、结构、笔顺、组2个词。\n课文感知：提若干个引导性问题（如"课文讲了谁的故事？""你最喜欢哪个角色？为什么？"）。\n预习检测：若干道基础填空题，答案可直接在教材中找到。',
+    content: '字词预习示例：每个生字配拼音、部首、笔画、结构（不要求笔顺）、组2个词。\n课文感知：提若干个引导性问题（如"课文讲了谁的故事？""你最喜欢哪个角色？为什么？"）。\n预习检测：若干道基础填空题，答案可直接在教材中找到。',
     builtin: true
   },
   {
@@ -894,6 +894,13 @@ export const builtinInstructions = [
     content: '专项结构示例：大标题点明专项名称——<h1>专项突破·计算能力训练</h1>。\n典例剖析：选1道典型题，标注"【命题思路】：考查XX知识点，常见陷阱是XX"; "【思路分析】：由条件A → 可推出B → 结合C → 得出结论D"; "【规范解答】：分步写出完整解题过程"; "【方法总结】：提炼1-2句通用解题口诀或思路框架"; "【易错提醒】：指出最常见的错误做法及原因"。\n变式训练：设计3道同题型变式，从易到难排列，每题配简要解析。\n真题实战：选1-2道历年真题/模拟题，标注年份和地区，配详细解析+评分标准+完成时间建议。',
     builtin: true
   },
+  {
+    id: 'block_example_review', name: '【质量范例】单元/期末复习', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '', stage: '', genType: 'review', specialSubType: 'new_standard',
+    content: '复习资料结构示例：\n知识梳理区：用表格/思维导图形式纵向对比本单元核心知识点，配重难点星级标注（★基础/★★重点/★★★难点+高频考点）。每个知识点后配"易错提醒"（常见错误+正确理解）。\n典型题析区：选3-5道涵盖本单元核心考点的典型题，每道题标注"考查知识点→思路分析→规范解答→易错提醒"完整四段式解析。\n易错聚焦区：整理本单元最高频的3-5个易错点，每个易错点配"典型错误示范→错误原因分析→正确解法对比→避坑口诀"。\n综合自测区：设计1套覆盖全部核心考点的自测题（题量适中），题型与教材单元练习风格一致，答案放文末配完整解析。',
+    builtin: true
+  },
 
   // ═══════════════════════════════════════
   // 【知识点全覆盖】块级指令（按资料类型 × 学科三维度精确匹配）
@@ -1022,13 +1029,13 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   // ── 公式：5学段 ──
   { id: 'block_special_formula_primary_low', name: '【专项要求】公式-小学低段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
-    subject: '数学,物理,化学', stage: 'primary_low', genType: 'exam,practice,special,errorbook,reading,summary',
+    subject: '数学,科学', stage: 'primary_low', genType: 'exam,practice,special,errorbook,reading,summary',
     content: '【公式要求】小学低段公式避免LaTeX，使用中文描述+简单算式。', builtin: true },
   { id: 'block_special_formula_primary_mid', name: '【专项要求】公式-小学中段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
-    subject: '数学,物理,化学', stage: 'primary_mid', genType: 'exam,practice,special,errorbook,reading,summary',
+    subject: '数学,科学', stage: 'primary_mid', genType: 'exam,practice,special,errorbook,reading,summary',
     content: '【公式要求】小学中高段可使用简单LaTeX（如分式、简单方程），避免复杂多行公式。', builtin: true },
   { id: 'block_special_formula_primary_high', name: '【专项要求】公式-小学高段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
-    subject: '数学,物理,化学', stage: 'primary_high', genType: 'exam,practice,special,errorbook,reading,summary',
+    subject: '数学,科学', stage: 'primary_high', genType: 'exam,practice,special,errorbook,reading,summary',
     content: '【公式要求】小学中高段可使用简单LaTeX（如分式、简单方程），避免复杂多行公式。', builtin: true },
   { id: 'block_special_formula_middle', name: '【专项要求】公式-初中', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '数学,物理,化学', stage: 'middle', genType: 'exam,practice,special,errorbook,reading,summary',
@@ -1054,13 +1061,13 @@ export const builtinInstructions = [
     content: '【图形要求】[GRAPH]\n类型：平面几何/立体几何/函数图像/示意图\n描述：[详细描述图形，包括关键点坐标、边长、角度等]\n[/GRAPH]', builtin: true },
   // ── 图表：5学段（小学低中段简化数据）──
   { id: 'block_special_chart_primary_low', name: '【专项要求】图表-小学低段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
-    subject: '数学,物理,化学,生物,地理', stage: 'primary_low', genType: 'exam,practice,special,errorbook,reading,summary',
+    subject: '数学,科学', stage: 'primary_low', genType: 'exam,practice,special,errorbook,reading,summary',
     content: '【图表要求】[CHART]\n类型：条形/折线/扇形/直方图\n标题：[标题]\nX轴：[含义]\nY轴：[含义]\n数据：[简单数值（不超过5组）]\n[/CHART]', builtin: true },
   { id: 'block_special_chart_primary_mid', name: '【专项要求】图表-小学中段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
-    subject: '数学,物理,化学,生物,地理', stage: 'primary_mid', genType: 'exam,practice,special,errorbook,reading,summary',
+    subject: '数学,科学', stage: 'primary_mid', genType: 'exam,practice,special,errorbook,reading,summary',
     content: '【图表要求】[CHART]\n类型：条形/折线/扇形/直方图\n标题：[标题]\nX轴：[含义]\nY轴：[含义]\n数据：[简单数值（不超过5组）]\n[/CHART]', builtin: true },
   { id: 'block_special_chart_primary_high', name: '【专项要求】图表-小学高段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
-    subject: '数学,物理,化学,生物,地理', stage: 'primary_high', genType: 'exam,practice,special,errorbook,reading,summary',
+    subject: '数学,科学', stage: 'primary_high', genType: 'exam,practice,special,errorbook,reading,summary',
     content: '【图表要求】[CHART]\n类型：条形/折线/扇形/直方图\n标题：[标题]\nX轴：[含义]\nY轴：[含义]\n数据：[数值]\n[/CHART]', builtin: true },
   { id: 'block_special_chart_middle', name: '【专项要求】图表-初中', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '数学,物理,化学,生物,地理', stage: 'middle', genType: 'exam,practice,special,errorbook,reading,summary',
@@ -1079,10 +1086,10 @@ export const builtinInstructions = [
     subject: '语文,英语,科学', stage: 'primary_high', genType: 'exam,practice,special,errorbook,reading,summary',
     content: '【配图要求——⚠️ 铁律：能出纯文字题的绝不用图！仅当知识点非图不可考时才配图。仅限以下5类场景：①看图写话/看图说话 ②图表解读/数据图表 ③地图定位/地形判读 ④实验装置图/几何图形 ⑤低段语文看图选词/看图连线。非以上场景严禁出现[IMAGE]标记。确属以上场景时，格式：\n[IMAGE]\n类型：照片/插画/示意图\n描述：[详细描述画面内容]\n位置：题干上方/下方/居中\n[/IMAGE]\n小学高段配图可适当减少卡通风格，增加示意图、图表等半抽象视觉元素。', builtin: true },
   { id: 'block_special_image_middle', name: '【专项要求】配图-初中', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
-    subject: '语文,英语,科学', stage: 'middle', genType: 'exam,practice,special,errorbook,reading,summary',
+    subject: '语文,英语', stage: 'middle', genType: 'exam,practice,special,errorbook,reading,summary',
     content: '【配图要求——⚠️ 铁律：能出纯文字题的绝不用图！仅当知识点非图不可考时才配图。仅限以下5类场景：①看图写话/看图说话 ②图表解读/数据图表 ③地图定位/地形判读 ④实验装置图/几何图形 ⑤低段语文看图选词/看图连线。非以上场景严禁出现[IMAGE]标记。确属以上场景时，格式：\n[IMAGE]\n类型：照片/插画/示意图\n描述：[详细描述画面内容]\n位置：题干上方/下方/居中\n[/IMAGE]', builtin: true },
   { id: 'block_special_image_high', name: '【专项要求】配图-高中', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
-    subject: '语文,英语,科学', stage: 'high', genType: 'exam,practice,special,errorbook,reading,summary',
+    subject: '语文,英语', stage: 'high', genType: 'exam,practice,special,errorbook,reading,summary',
     content: '【配图要求——⚠️ 铁律：能出纯文字题的绝不用图！仅当知识点非图不可考时才配图。仅限以下5类场景：①看图写话/看图说话 ②图表解读/数据图表 ③地图定位/地形判读 ④实验装置图/几何图形 ⑤低段语文看图选词/看图连线。非以上场景严禁出现[IMAGE]标记。确属以上场景时，格式：\n[IMAGE]\n类型：照片/插画/示意图\n描述：[详细描述画面内容]\n位置：题干上方/下方/居中\n[/IMAGE]', builtin: true },
 
   // ═══════════════════════════════════════
@@ -1493,7 +1500,7 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   { id: 'gen_subj_chinese_primary_low', name: '【语文-小学低段】', category: '生成-学科适配', prompt_order: 17, type: 'fragment',
     subject: '语文', stage: 'primary_low', genType: '',
-    content: '- 语文（低段1-2年级）：识字写字（拼音+田字格+笔顺）、词语积累（组词+释义）、句子仿写、朗读课文；题干配拼音', builtin: true },
+    content: '- 语文（低段1-2年级）：识字写字（拼音+田字格+结构）、词语积累（组词+释义）、句子仿写、朗读课文；题干配拼音', builtin: true },
   { id: 'gen_subj_chinese_primary_mid', name: '【语文-小学中段】', category: '生成-学科适配', prompt_order: 17, type: 'fragment',
     subject: '语文', stage: 'primary_mid', genType: '',
     content: '- 语文（中段3-4年级）：字词运用+句段分析+简单篇章理解；开始习作训练（段落写作）；逐步减少拼音；增加阅读量', builtin: true },
@@ -2314,6 +2321,7 @@ export const builtinInstructions = [
   { id: 'answer_dictation', name: '【答案规范】默写', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'dictation', content: '默写答案规范：\n1. 参考答案按默写顺序排列，标注题号', builtin: true },
   { id: 'answer_dictation_chinese', name: '【答案规范】默写-语文', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '语文', stage: '', genType: 'dictation', content: '语文默写答案补充：每个生字标注易错笔画（用\u26a0\ufe0f标记易错处）+ 多音字标注不同读音和组词 + 形近字辨析', builtin: true },
   { id: 'answer_dictation_english', name: '【答案规范】默写-英语', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '英语', stage: '', genType: 'dictation', content: '英语默写答案补充：每个单词标注英文词性缩写（n./v./adj.等）+音标，短语标注中文释义', builtin: true },
+  { id: 'answer_review', name: '【答案规范】单元/期末复习', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'review', content: '单元/期末复习答案规范：\n1. 典型例题必须配完整解析（解题思路→分步解答→易错提示），每步标注关键得分点\n2. 自测题配简要解析（答案+1~2句解题要点），标注教材对应知识点定位\n3. 所有解析标注"易错提示"——指出该题最常见的错误类型及原因\n4. 每道题答案用<div class="answer-item">分隔，标注题号', builtin: true },
 
   // ═══════════════════════════════════════
   // 【生成-题型分布建议】块级指令 — 按学科×学段×资料类型(exam/practice)三维度匹配
@@ -2426,7 +2434,7 @@ export const builtinInstructions = [
   { id: 'core_task_special', name: '【核心任务】专项突破', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'special', content: '生成一份专项突破训练。🔴 题量以完整覆盖全部知识点为准，每题考查内容不重复，覆盖全部教材内容。围绕指定专项能力，按下方结构参考进行"方法指导→典例剖析→阶梯训练→真题检验"的系统训练，帮助学生从"模仿"到"迁移"再到"创新"。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
   { id: 'core_task_errorbook', name: '【核心任务】错题本', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'errorbook', content: '生成一份错题整理。🔴 完整覆盖各类典型错误，每个错误类型配至少一道变式巩固练习，确保举一反三。遵循"典型错题→精准归因→正确解法→变式巩固→方法归纳"的深度学习流程，帮助学生真正吃透错题而非简单抄答案。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
   { id: 'core_task_preview', name: '【核心任务】课前预习', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'preview', content: '生成一份课前预习资料。🔴 预习内容充实饱满，完整覆盖新课全部核心知识点，每个知识点均有对应的预习任务或检测题。按下方结构参考组织，帮助学生对新课内容有初步感知、带着问题进课堂。预习任务可操作可检查，预习检测答案需标注教材原文定位以便自查。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
-  { id: 'core_task_dictation_chinese', name: '【核心任务】默写-语文', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '语文', stage: '', genType: 'dictation', content: '生成一份可直接打印使用的默写练习纸。🔴 覆盖本课全部要求掌握的生字/词语，不遗漏任何一个。练习区只显示提示信息+空白书写区（不给答案），标准答案统一放文末。生字用田字格留空，附带字典式信息（部首/笔画/结构/笔顺）。', builtin: true },
+  { id: 'core_task_dictation_chinese', name: '【核心任务】默写-语文', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '语文', stage: '', genType: 'dictation', content: '生成一份可直接打印使用的默写练习纸。🔴 覆盖本课全部要求掌握的生字/词语，不遗漏任何一个。练习区只显示提示信息+空白书写区（不给答案），标准答案统一放文末。生字用田字格留空，附带字典式信息（部首/笔画/结构）。', builtin: true },
   { id: 'core_task_dictation_english', name: '【核心任务】默写-英语', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '英语', stage: '', genType: 'dictation', content: '生成一份可直接打印使用的默写练习纸。🔴 覆盖本课全部要求掌握的单词/短语，不遗漏任何一个。练习区只显示提示信息+空白书写区（不给答案），标准答案统一放文末。写英文用四线三格/单线，写中文用普通横线，每个单词标注词性和音标。', builtin: true },
   { id: 'core_task_dictation', name: '【核心任务】默写（通用）', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'dictation', content: '生成一份可直接打印使用的默写练习纸。🔴 覆盖所选内容全部要求掌握的词汇/知识点，不遗漏任何一个。练习区只显示提示信息+空白书写区（不给答案），标准答案统一放文末。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
   { id: 'core_task_reading', name: '【核心任务】阅读训练', category: '生成-核心任务', prompt_order: 10, type: 'fragment', subject: '', stage: '', genType: 'reading', content: '生成一份阅读理解训练。🔴 题量以完整覆盖全部知识点为准，每题考查内容不重复，覆盖全部教材内容。覆盖"信息提取→词句理解→推理判断→表达技巧→整体把握"全部能力层级。选文文质兼美、难度匹配学段，题目按五层递进设计。每题配答题模板+参考答案+评分要点。非连续性文本阅读（新课标要求）也需覆盖。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
@@ -2519,6 +2527,23 @@ export const builtinInstructions = [
   { id: 'core_task_preview_high', name: '【核心任务-预习-高中】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'high', genType: 'preview', specialSubType: 'new_standard',
     content: '生成一份高中课前预习资料。🔴 预习内容充实深入，完整覆盖新课全部核心知识点，每个知识点均有对应的预习任务或检测。预习任务强调自主构建知识框架、关联已有知识、提出批判性问题。预习检测增加综合性和探究性题目。帮助学生对新课有系统深度理解、带着思考和独到见解进课堂。', builtin: true },
+
+  // ── review 单元/期末复习（按学段拆分）──
+  { id: 'core_task_review_primary_low', name: '【核心任务-复习-小学低段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
+    subject: '', stage: 'primary_low', genType: 'review', specialSubType: 'new_standard',
+    content: '生成一份适合小学低段（1-2年级）的单元/期末复习资料。🔴 内容充实活泼，完整覆盖所选范围的考点和易错点。知识梳理以趣味表格和图片配对为主，典型题析每题配完整图解式解析，自测题以选择+填空+连线为主（题量适中），帮助学生轻松回顾、快乐巩固。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
+  { id: 'core_task_review_primary_mid', name: '【核心任务-复习-小学中段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
+    subject: '', stage: 'primary_mid', genType: 'review', specialSubType: 'new_standard',
+    content: '生成一份适合小学中段（3-4年级）的单元/期末复习资料。🔴 内容充实详实，完整覆盖所选范围的考点和易错点。知识梳理用对比表格和知识树，典型题析每题配完整解析过程，易错聚焦整理3-5个高频错误，综合自测覆盖全部核心考点。帮助学生构建知识关联，系统查漏补缺。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
+  { id: 'core_task_review_primary_high', name: '【核心任务-复习-小学高段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
+    subject: '', stage: 'primary_high', genType: 'review', specialSubType: 'new_standard',
+    content: '生成一份适合小学高段（5-6年级）的单元/期末复习资料。🔴 内容充实深入，完整覆盖所选范围的考点和易错点。知识梳理注重知识体系构建和方法归纳，典型题析选涵盖全部核心考点的经典题并配详细解析，易错聚焦深入分析错误根源，综合自测题型丰富、难度梯度合理。帮助学生从"学会"到"会学"，系统提升应试能力。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
+  { id: 'core_task_review_middle', name: '【核心任务-复习-初中】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
+    subject: '', stage: 'middle', genType: 'review', specialSubType: 'new_standard',
+    content: '生成一份初中单元/期末复习资料。🔴 内容充实深入，完整覆盖所选范围的考点、易错点和中考高频考点。知识梳理以思维导图+专题对比为主，典型题析选近3年中考同类题并配详细解析+评分标准，易错聚焦深入分析错误根源并配变式练习，综合自测对标中考题型和难度。帮助学生系统构建知识网络、精准攻克薄弱环节。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
+  { id: 'core_task_review_high', name: '【核心任务-复习-高中】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
+    subject: '', stage: 'high', genType: 'review', specialSubType: 'new_standard',
+    content: '生成一份高中单元/期末复习资料。🔴 内容充实深入，完整覆盖所选范围的考点、易错点和高考高频考点。知识梳理以知识框架+专题整合为主，典型题析选近3年高考同类题并配详细解析+评分细则，易错聚焦注重思维层面和解题策略分析，综合自测严格参照高考命题趋势和难度。帮助学生从知识梳理到综合运用，系统提升学科核心素养和应试能力。⚠️ 配图仅限白名单5类场景，详见下方【配图要求】。', builtin: true },
 
   // ── errorbook 错题本（按学段拆分）──
   { id: 'core_task_errorbook_primary', name: '【核心任务-错题本-小学】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
@@ -2650,35 +2675,21 @@ export const builtinInstructions = [
   { id: 'gen_struct_reading_generic', name: '【结构-阅读训练-通用】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment', subject: '', stage: '', genType: 'reading', specialSubType: 'new_standard', content: '结构参考：\n一、多模态语篇阅读\n二、理解与鉴赏（分层设问）\n三、素养拓展与反思', builtin: true },
 
   // ═══════════════════════════════════════
-  // 【生成-资料类型结构】summary — 知识点总结（按学段+学科拆分）
+  // 【生成-资料类型结构】summary — 知识点总结（按学段+学科拆分，非新课标四段式已有覆盖的学段）
   // ═══════════════════════════════════════
-  { id: 'gen_struct_summary_chinese_primary_low', name: '【总结结构-语文-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '语文', stage: 'primary_low', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、本课生字\n二、重点词语\n三、课文梳理\n四、知识点总结', builtin: true },
+  // 🔧 以下条目为 V1（L1973-2013）新课标四段式未覆盖的学段补充，保留传统五段式结构
   { id: 'gen_struct_summary_chinese_primary_mid', name: '【总结结构-语文-小学中段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '语文', stage: 'primary_mid', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、生字词盘点\n二、词语积累\n三、课文精析\n四、知识点归纳\n五、课后练习精讲', builtin: true },
-  { id: 'gen_struct_summary_chinese_primary_high', name: '【总结结构-语文-小学高段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '语文', stage: 'primary_high', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、字词积累\n二、课文解读\n三、知识点专题\n四、习作指导\n五、拓展链接', builtin: true },
   { id: 'gen_struct_summary_chinese_middle', name: '【总结结构-语文-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '语文', stage: 'middle', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、基础知识梳理\n二、课文深度解读\n三、知识点专题\n四、写作专项\n五、中考链接', builtin: true },
-  { id: 'gen_struct_summary_chinese_high', name: '【总结结构-语文-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '语文', stage: 'high', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、文本深度研读\n二、专题知识整合\n三、群文阅读与比较\n四、写作深度学习\n五、高考真题研析', builtin: true },
   { id: 'gen_struct_summary_math_primary_low', name: '【总结结构-数学-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '数学', stage: 'primary_low', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识要点\n二、公式\n三、典型例题\n四、易错警示\n五、趣味练习', builtin: true },
-  { id: 'gen_struct_summary_math_primary_mid', name: '【总结结构-数学-小学中段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '数学', stage: 'primary_mid', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、知识框架\n二、核心概念与公式\n三、典型例题精析\n四、易错辨析\n五、分层练习', builtin: true },
   { id: 'gen_struct_summary_math_primary_high', name: '【总结结构-数学-小学高段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '数学', stage: 'primary_high', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识网络\n二、核心知识精讲\n三、典型例题剖析\n四、错题精析\n五、分层自测', builtin: true },
-  { id: 'gen_struct_summary_math_middle', name: '【总结结构-数学-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '数学', stage: 'middle', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、知识结构图\n二、核心知识与方法\n三、典型例题深度剖析\n四、易错题专项\n五、中考真题链接', builtin: true },
   { id: 'gen_struct_summary_math_high', name: '【总结结构-数学-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '数学', stage: 'high', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识体系构建\n二、核心知识与数学思想\n三、典型例题全方位解析\n四、易错与难点突破\n五、高考真题研习', builtin: true },
@@ -2856,7 +2867,7 @@ export const builtinInstructions = [
     content: '结构参考：\n一、知识网络建构\n二、题型专项突破\n三、高考模拟训练', builtin: true },
   // ── 理科通用 review（物化生）──
   { id: 'gen_struct_review_science_middle', name: '【复习结构-理科-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '物理,化学,生物,科学', stage: 'middle', genType: 'review', specialSubType: 'new_standard',
+    subject: '物理,化学,生物', stage: 'middle', genType: 'review', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识框架\n二、考点梳理\n三、实验与探究\n四、易错聚焦\n五、中考链接', builtin: true },
   { id: 'gen_struct_review_science_high', name: '【复习结构-理科-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '物理,化学,生物', stage: 'high', genType: 'review', specialSubType: 'new_standard',
@@ -3286,7 +3297,7 @@ export const builtinInstructions = [
   {
     id: 'originality_practice_high', name: '🎨 原创标准-练习-高中', category: '生成-原创标准', type: 'fragment',
     subject: '', stage: 'high', genType: 'practice',
-    content: '【原创标准】\n练习体现学科思维进阶，以变式训练替代题海战术。每道题需有明确的思维训练目标，杜绝无目的的重复刷题。',
+    content: '【原创标准】\n练习体现学科思维进阶，以素养导向的变式训练促进深度学习。每道题需有明确的思维训练目标，杜绝无目的的重复练习。',
     builtin: true
   },
   {
@@ -3350,32 +3361,8 @@ export const builtinInstructions = [
     builtin: true
   },
   {
-    id: 'originality_dictation_primary_low', name: '🎨 原创标准-默写-小学低段', category: '生成-原创标准', type: 'fragment',
-    subject: '', stage: 'primary_low', genType: 'dictation',
-    content: '【原创标准】\n默写内容严格对应教材要求，确保准确性。无需原创设计，重在规范与准确。',
-    builtin: true
-  },
-  {
-    id: 'originality_dictation_primary_mid', name: '🎨 原创标准-默写-小学中段', category: '生成-原创标准', type: 'fragment',
-    subject: '', stage: 'primary_mid', genType: 'dictation',
-    content: '【原创标准】\n默写内容严格对应教材要求，确保准确性。无需原创设计，重在规范与准确。',
-    builtin: true
-  },
-  {
-    id: 'originality_dictation_primary_high', name: '🎨 原创标准-默写-小学高段', category: '生成-原创标准', type: 'fragment',
-    subject: '', stage: 'primary_high', genType: 'dictation',
-    content: '【原创标准】\n默写内容严格对应教材要求，确保准确性。无需原创设计，重在规范与准确。',
-    builtin: true
-  },
-  {
-    id: 'originality_dictation_middle', name: '🎨 原创标准-默写-初中', category: '生成-原创标准', type: 'fragment',
-    subject: '', stage: 'middle', genType: 'dictation',
-    content: '【原创标准】\n默写内容严格对应教材要求，确保准确性。无需原创设计，重在规范与准确。',
-    builtin: true
-  },
-  {
-    id: 'originality_dictation_high', name: '🎨 原创标准-默写-高中', category: '生成-原创标准', type: 'fragment',
-    subject: '', stage: 'high', genType: 'dictation',
+    id: 'originality_dictation', name: '🎨 原创标准-默写（全学段）', category: '生成-原创标准', type: 'fragment',
+    subject: '', stage: '', genType: 'dictation',
     content: '【原创标准】\n默写内容严格对应教材要求，确保准确性。无需原创设计，重在规范与准确。',
     builtin: true
   },
@@ -3500,32 +3487,8 @@ export const builtinInstructions = [
     builtin: true
   },
   {
-    id: 'quality_dictation_primary_low', name: '⭐ 品质标准-默写-小学低段', category: '生成-品质标准', type: 'fragment',
-    subject: '', stage: 'primary_low', genType: 'dictation',
-    content: '【品质标准】\n内容严格对应教材要求，格式规范。标注每项的评分标准（如错一字扣几分），便于批改。',
-    builtin: true
-  },
-  {
-    id: 'quality_dictation_primary_mid', name: '⭐ 品质标准-默写-小学中段', category: '生成-品质标准', type: 'fragment',
-    subject: '', stage: 'primary_mid', genType: 'dictation',
-    content: '【品质标准】\n内容严格对应教材要求，格式规范。标注每项的评分标准（如错一字扣几分），便于批改。',
-    builtin: true
-  },
-  {
-    id: 'quality_dictation_primary_high', name: '⭐ 品质标准-默写-小学高段', category: '生成-品质标准', type: 'fragment',
-    subject: '', stage: 'primary_high', genType: 'dictation',
-    content: '【品质标准】\n内容严格对应教材要求，格式规范。标注每项的评分标准（如错一字扣几分），便于批改。',
-    builtin: true
-  },
-  {
-    id: 'quality_dictation_middle', name: '⭐ 品质标准-默写-初中', category: '生成-品质标准', type: 'fragment',
-    subject: '', stage: 'middle', genType: 'dictation',
-    content: '【品质标准】\n内容严格对应教材要求，格式规范。标注每项的评分标准（如错一字扣几分），便于批改。',
-    builtin: true
-  },
-  {
-    id: 'quality_dictation_high', name: '⭐ 品质标准-默写-高中', category: '生成-品质标准', type: 'fragment',
-    subject: '', stage: 'high', genType: 'dictation',
+    id: 'quality_dictation', name: '⭐ 品质标准-默写（全学段）', category: '生成-品质标准', type: 'fragment',
+    subject: '', stage: '', genType: 'dictation',
     content: '【品质标准】\n内容严格对应教材要求，格式规范。标注每项的评分标准（如错一字扣几分），便于批改。',
     builtin: true
   },
@@ -3535,16 +3498,35 @@ export const builtinInstructions = [
 // ==================== 指令库存储Key与版本号 ====================
 const STORAGE_KEY = 'instructionLib';
 const VERSION_KEY = 'instructionLib_version';
-const BUILTIN_VERSION = 12; // 🔧 递增此版本号可强制清除所有旧自定义条目（v12: 教学术语规范化——语文写作→习作/看图写话；英语exam primary_mid去完形填空/书面表达改情景交际+连词成句；dictation全部听写→默写；preview语文扩结构；多处措辞精准化）
+const BUILTIN_VERSION = 14; // 🔧 v14: 版本升级改为精准清理（仅移除失效_override），不再全量清空用户自定义数据
 
 // ==================== 加载指令库 ====================
 export const loadInstructionLib = () => {
   try {
     const savedVersion = localStorage.getItem(VERSION_KEY);
-    // 🔧 版本升级时自动清除旧缓存，避免旧条目污染新内置条目
+    // 🔧 版本升级时精准清理：只移除引用已删除内置ID的_override条目
+    // 不再全量清空 localStorage，避免误删用户手动添加的指令
     if (!savedVersion || parseInt(savedVersion, 10) < BUILTIN_VERSION) {
-      console.warn(`[instructionLib] 内置版本升级 (${savedVersion || '无'} → ${BUILTIN_VERSION})，已清除旧自定义缓存`);
-      localStorage.removeItem(STORAGE_KEY);
+      console.warn(`[instructionLib] 内置版本升级 (${savedVersion || '无'} → ${BUILTIN_VERSION})`);
+      const oldSaved = localStorage.getItem(STORAGE_KEY);
+      if (oldSaved) {
+        try {
+          const oldCustom = JSON.parse(oldSaved);
+          const currentBuiltinIds = new Set(builtinInstructions.map(i => i.id));
+          // 保留：无_overrideId（用户手动添加）+ _overrideId仍存在（有效覆盖）
+          const kept = oldCustom.filter(i => {
+            if (!i._overrideId) return true;
+            return currentBuiltinIds.has(i._overrideId);
+          });
+          const removed = oldCustom.length - kept.length;
+          if (removed > 0) {
+            console.warn(`[instructionLib] 已清理 ${removed} 条失效覆盖（目标内置条目已删除），保留 ${kept.length} 条`);
+          }
+          saveInstructionLib(kept);
+        } catch {
+          localStorage.removeItem(STORAGE_KEY); // 解析失败兜底全清
+        }
+      }
       localStorage.setItem(VERSION_KEY, String(BUILTIN_VERSION));
     }
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -3553,7 +3535,17 @@ export const loadInstructionLib = () => {
       // 🔧 内置覆盖：自定义条目中 _overrideId 指向的内置条目被替换
       const overrideIds = new Set(customInstructions.filter(i => i._overrideId).map(i => i._overrideId));
       const filteredBuiltins = builtinInstructions.filter(i => !overrideIds.has(i.id));
-      return [...filteredBuiltins, ...customInstructions];
+      const merged = [...filteredBuiltins, ...customInstructions];
+      
+      // 🔧 防御性检查：检测合并后是否有重复 ID（直接传入已合并数组，避免递归）
+      if (typeof validateInstructionIds === 'function') {
+        const { valid, duplicates } = validateInstructionIds(merged);
+        if (!valid) {
+          console.error('[instructionLib] ⚠️ 检测到重复ID！', duplicates);
+        }
+      }
+      
+      return merged;
     }
     saveInstructionLib([]);
     localStorage.setItem(VERSION_KEY, String(BUILTIN_VERSION));
@@ -3575,12 +3567,73 @@ export const saveInstructionLib = (customInstructions) => {
 };
 
 // ==================== 添加自定义指令 ====================
+
+/**
+ * 检查 ID 是否在全局范围内唯一（内置 + 自定义）
+ * @param {string} id - 要检查的 ID
+ * @returns {boolean} 是否唯一
+ */
+export const isIdUnique = (id) => {
+  if (!id) return false;
+  // 检查内置指令库
+  if (builtinInstructions.some(i => i.id === id)) return false;
+  // 检查自定义指令库
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const customInstructions = JSON.parse(saved);
+      if (customInstructions.some(i => i.id === id)) return false;
+    }
+  } catch {}
+  return true;
+};
+
+/**
+ * 生成唯一自定义 ID（时间戳 + 4位随机数确保绝对唯一）
+ * @returns {string} 唯一ID
+ */
+export const generateUniqueCustomId = () => {
+  const ts = Date.now();
+  const suffix = Math.random().toString(36).substring(2, 6);
+  const id = `custom_${ts}_${suffix}`;
+  // 双重保险：如果碰巧冲突（极小概率），递归重试
+  if (!isIdUnique(id)) return generateUniqueCustomId();
+  return id;
+};
+
+/**
+ * 校验所有指令 ID，检测重复
+ * @returns {{ valid: boolean, duplicates: Array<{id: string, count: number}> }}
+ */
+export const validateInstructionIds = (instructions) => {
+  const allInstructions = instructions || loadInstructionLib();
+  const idMap = new Map();
+  const duplicates = [];
+  
+  for (const ins of allInstructions) {
+    if (!ins.id) continue;
+    const count = (idMap.get(ins.id) || 0) + 1;
+    idMap.set(ins.id, count);
+  }
+  
+  for (const [id, count] of idMap) {
+    if (count > 1) {
+      duplicates.push({ id, count });
+    }
+  }
+  
+  return {
+    valid: duplicates.length === 0,
+    duplicates
+  };
+};
+
 export const addCustomInstruction = (instruction) => {
   const allInstructions = loadInstructionLib();
   const customInstructions = allInstructions.filter(i => !i.builtin);
   const newInstruction = {
     ...instruction,
-    id: 'custom_' + Date.now(),
+    id: generateUniqueCustomId(),
     builtin: false
   };
   customInstructions.push(newInstruction);

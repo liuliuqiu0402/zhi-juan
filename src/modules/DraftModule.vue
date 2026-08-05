@@ -113,7 +113,12 @@ const selectFiles = async () => {
   if (files?.length) selectedFiles.value = [...selectedFiles.value, ...files];
 };
 const removeFile = (i) => { selectedFiles.value.splice(i, 1); };
-const clearFiles = () => { selectedFiles.value = []; };
+const clearFiles = async () => {
+  if (selectedFiles.value.length === 0) return;
+  const confirmed = await showConfirmDialogFn(`确定清空已选的 ${selectedFiles.value.length} 个文件吗？`);
+  if (!confirmed) return;
+  selectedFiles.value = [];
+};
 
 const confirmUpload = () => {
   for (const f of selectedFiles.value) {
@@ -165,7 +170,9 @@ const retryDraft = (draft) => {
 };
 
 // 删除单个
-const deleteDraft = (draft) => {
+const deleteDraft = async (draft) => {
+  const confirmed = await showConfirmDialogFn(`确定删除草稿「${draft.name}」吗？`);
+  if (!confirmed) return;
   drafts.value = drafts.value.filter(d => d.id !== draft.id);
   saveDrafts();
 };

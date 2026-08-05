@@ -1874,8 +1874,11 @@ const jumpToUncertainInItem = (item, direction) => {
   }, 50);
 };
 
-const clearAllUncertainMarks = () => {
+const clearAllUncertainMarks = async () => {
   if (!analysisResultData.value?.rawText) return;
+  if (!uncertainPositions.value.length) return;
+  const confirmed = await showConfirmDialogFn(`确定要清除全部 ${uncertainPositions.value.length} 个不确定标记吗？`);
+  if (!confirmed) return;
   analysisResultData.value.rawText = analysisResultData.value.rawText.replace(/【？】/g, '');
   uncertainPositions.value = [];
   uncertainCurrentIndex.value = 0;
@@ -3913,6 +3916,8 @@ const buildInstruction = async () => {
     '生成-难度控制',         // diff_control_* 系列：基础:中等:提高比例
     '生成-学科核心素养',     // core_literacy_* 系列：课标核心素养关键词
     '生成-学科禁止项',       // ban_supplement_* 系列：学科专属红线（与通用禁止项互补）
+    '生成-品质标准',         // quality_* 系列：按 genType × stage 注入品质标准
+    '生成-原创标准',         // originality_* 系列：按 genType × stage 注入原创标准
     // 非生成用途（分析用）
     '分析-文本分析规范', '分析-分析模板示例', '分析-分析提取要求', '分析-知识图谱构建',
   ]);
@@ -3953,7 +3958,7 @@ const buildInstruction = async () => {
   const genTypeCategoryMap = {
     'exam': '试卷', 'practice': '课时练', 'summary': '知识点总结',
     'special': '专项突破', 'errorbook': '错题本', 'preview': '课前预习',
-    'dictation': '听写/默写', 'reading': '阅读训练'
+    'dictation': '听写/默写', 'reading': '阅读训练', 'review': '单元/期末复习'
   };
   const autoFullInstructions = instructionStore.list.filter(i => {
     if (i.type !== 'full') return false;
@@ -3975,9 +3980,13 @@ const buildInstruction = async () => {
     return true;
   });
 
-  // 🔍 诊断日志：输出匹配到的 auto fragments 和 full instructions
-  console.log('[buildInstruction] autoFragments 匹配数:', autoFragments.length, '→', autoFragments.map(f => ({ id: f.id, name: f.name, subject: f.subject, category: f.category })));
-  console.log('[buildInstruction] autoFullInstructions 匹配数:', autoFullInstructions.length, '→', autoFullInstructions.map(f => ({ id: f.id, name: f.name, subject: f.subject, category: f.category })));
+  // 诊断日志：仅在异常时输出（autoFragments>0=覆盖缺口，autoFullInstructions=0=无匹配自定义指令）
+  if (autoFragments.length > 0) {
+    console.warn('[buildInstruction] ⚠️ autoFragments 覆盖缺口:', autoFragments.length, '条 →', autoFragments.map(f => ({ id: f.id, category: f.category })));
+  }
+  if (autoFullInstructions.length === 0) {
+    console.log('[buildInstruction] autoFullInstructions 匹配数: 0（当前资料类型无匹配的自定义full指令，非异常）');
+  }
   
   // 🔧 智能去重：有学科专属 full 指令时，排除同 category+stage 的通用指令
   // 避免"按单元词汇表排列"（英语专属）和"按教材内容排列"（通用）同时注入
@@ -4010,7 +4019,11 @@ const buildInstruction = async () => {
   previewHint.value = `基于 ${selectedBooksWithChapters.length} 本教材、${selectedTpls.length} 个模板构建`;
 };
 
-const clearInstruction = () => {
+const clearInstruction = async () => {
+  if (instructionDraft.value.trim()) {
+    const confirmed = await showConfirmDialogFn('确定要清空生成指令吗？未保存的内容将丢失。');
+    if (!confirmed) return;
+  }
   instructionDraft.value = '';
   previewHint.value = '';
 };
@@ -4389,11 +4402,13 @@ const selectAllImages = (selected) => {
 };
 
 // 重置为原始 OCR 结果
-const resetRawText = () => {
-  if (rawTextEditorData.value) {
-    rawTextEditorData.value.rawText = ocrMarkdownToHtml(rawTextEditorData.value.originalRawText || '');
-    console.log('🔄 已重置为原始 OCR 结果');
-  }
+const resetRawText = async () => {
+  if (!rawTextEditorData.value) return;
+  if (rawTextEditorData.value.rawText === ocrMarkdownToHtml(rawTextEditorData.value.originalRawText || '')) return;
+  const confirmed = await showConfirmDialogFn('确定要重置为原始 OCR 结果吗？所有修改将丢失。');
+  if (!confirmed) return;
+  rawTextEditorData.value.rawText = ocrMarkdownToHtml(rawTextEditorData.value.originalRawText || '');
+  console.log('🔄 已重置为原始 OCR 结果');
 };
 
 // 🔧 新增：当勾选“分析图片”时，自动检测所有图片
@@ -6539,7 +6554,9 @@ const copyToEduRender = async () => {
   }
 };
 
-const deleteDoc = (doc) => {
+const deleteDoc = async (doc) => {
+  const confirmed = await showConfirmDialogFn(`确定要删除「${doc.title}」吗？`);
+  if (!confirmed) return;
   // 打 _deleted 标记，不立即移除（多端同步需要一条端删除即可）
   const idx = generatedDocs.value.findIndex(d => d.id === doc.id);
   if (idx !== -1) {
@@ -7025,7 +7042,10 @@ const appendInstruction = (ins) => {
   showInstructionLibModal.value = false;
 };
 
-const deleteInstructionFromLib = (id) => {
+const deleteInstructionFromLib = async (id) => {
+  const ins = instructionStore.list.find(i => i.id === id);
+  const confirmed = await showConfirmDialogFn(`确定要删除指令「${ins?.name || id}」吗？`);
+  if (!confirmed) return;
   instructionStore.removeInstruction(id);
 };
 
@@ -7312,6 +7332,9 @@ const removeBlueprintQuestion = async (qIdx) => {
     await showAlertDialogFn('至少保留一道题');
     return;
   }
+  const qLabel = parsedBlueprintForPreview.value[qIdx]?.type || `第${qIdx + 1}题`;
+  const confirmed = await showConfirmDialogFn(`确定删除「${qLabel}」吗？可通过"撤销删除"恢复。`);
+  if (!confirmed) return;
   // 保存删除前的数据用于撤销
   lastDeletedQuestion.value = {
     index: qIdx,

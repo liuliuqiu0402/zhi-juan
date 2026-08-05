@@ -1,4 +1,4 @@
-﻿import { ref } from 'vue';
+import { ref } from 'vue';
 import axios from 'axios';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig } from '../config/apiConfig.js';
 import { getStoragePath } from '../utils/pathHelper.js';
@@ -1558,14 +1558,16 @@ ${JSON.stringify(cardsSummary, null, 2)}
  * @param {string} subject - 学科
  * @param {string} stage - 学段
  * @param {string} [stylePreference] - 命题风格偏好（big_unit/project_based），优先匹配新课标风格结构
+ * @param {string} [specialSubType] - 专项子类型（如'阅读理解''计算'），仅 genType=special 时使用
  * @returns {string} 结构文本（不含"结构参考："前缀）
  */
-const getStructureForBlueprint = (genType, subject, stage, stylePreference) => {
-  // 🔧 三维度 + specialSubType：当 propositionStyle 为 big_unit/project_based 时，
-  //    把风格标记作为 specialSubType 传入 → 风格专属条目 +5 分自动置顶，
-  //    同时不含 specialSubType 的常规条目也会返回（降级兜底）
+const getStructureForBlueprint = (genType, subject, stage, stylePreference, specialSubType = '') => {
+  // 🔧 三维度 + specialSubType：genType=special 时传入专项子类型（如'阅读理解''计算'）优先匹配；
+  //    big_unit/project_based 时传入风格标记；其他情况默认 new_standard
   const queryOpts = { category: '生成-资料类型结构', subject, stage, genType };
-  if (stylePreference && (stylePreference === 'big_unit' || stylePreference === 'project_based')) {
+  if (specialSubType) {
+    queryOpts.specialSubType = specialSubType;
+  } else if (stylePreference && (stylePreference === 'big_unit' || stylePreference === 'project_based')) {
     queryOpts.specialSubType = stylePreference;
   } else {
     queryOpts.specialSubType = 'new_standard';
@@ -4474,8 +4476,15 @@ ${cardAnalysisText.substring(0, 1000)}
   // 返回该学科在指定学段+年级的提示信息，若该年级尚未开设则返回空字符串
   // 🔑 提示文本从指令库获取，年级边界条件在代码中判断
   const getSubjectGradeHint = (subject, stage, gradeNum) => {
+    // 仅物化生地四科有"从某年级开始/结束"的边界，其他学科从1年级起始终开设，无需查询指令库
+    const boundarySubjects = ['物理', '化学', '生物', '地理'];
+    if (!boundarySubjects.includes(subject)) return '';
+    // 🔧 primary 需按年级精确到 primary_low/mid/high，否则匹配不到指令库条目
+    const preciseStage = stage === 'primary'
+      ? (gradeNum <= 2 ? 'primary_low' : gradeNum <= 4 ? 'primary_mid' : 'primary_high')
+      : stage;
     // 从指令库查询该学科的年级边界提示
-    const blocks = getMatchingBlockInstructions({ category: '生成-年级边界提示', subject, stage });
+    const blocks = getMatchingBlockInstructions({ category: '生成-年级边界提示', subject, stage: preciseStage });
     if (blocks.length === 0) return '';
     
     // 🔧 从指令库 content 中解析年级边界元数据（type/startGrade/endGrade），消除硬编码 gradeRules
@@ -4510,11 +4519,8 @@ ${cardAnalysisText.substring(0, 1000)}
     const gradeSegment = stage === 'primary'
       ? (isLowerPrimary ? 'primary_low' : isMiddlePrimary ? 'primary_mid' : 'primary_high')
       : stage || 'middle';
-    // 优先按当前 genType 匹配，兜底回 'exam'（指令库目前仅 exam 有难度配置）
-    let blocks = getMatchingBlockInstructions({ category: '生成-难度配置', stage: gradeSegment, genType });
-    if (blocks.length === 0 && genType !== 'exam') {
-      blocks = getMatchingBlockInstructions({ category: '生成-难度配置', stage: gradeSegment, genType: 'exam' });
-    }
+    // 指令库目前仅 exam 类型有难度配置，其他 genType 统一兜底 exam（避免 [instruction-miss] 噪音）
+    const blocks = getMatchingBlockInstructions({ category: '生成-难度配置', stage: gradeSegment, genType: 'exam' });
     if (blocks.length > 0) {
       const content = blocks[0].content;
       const basicMatch = content.match(/basic=(\d+)/);
@@ -4531,6 +4537,18 @@ ${cardAnalysisText.substring(0, 1000)}
     // 指令库无匹配时返回 null，不使用硬编码兜底
     console.warn(`[instructionLib] 未找到匹配的难度配置: gradeSegment=${gradeSegment}`);
     return null;
+  };
+
+  // 🔧 页数指导：按学段区分，试卷单独加量（DeepSeek 输出更完整）
+  //    小学 6页（试卷10页）/ 初中 8页（试卷12页）/ 高中 10页（试卷14页）
+  const getPageCount = (genType, stage) => {
+    const PAGE_MAP = {
+      primary: { exam: 10, default: 6 },
+      middle:  { exam: 12, default: 8 },
+      high:    { exam: 14, default: 10 },
+    };
+    const entry = PAGE_MAP[stage] || PAGE_MAP.primary;
+    return entry[genType] || entry.default;
   };
 
   // 🔧 智能默认总分：对标现行考试标准
@@ -4587,8 +4605,11 @@ ${cardAnalysisText.substring(0, 1000)}
   // 🔧 教辅质量对标辅助函数（Q1-Q4）
   // ═══════════════════════════════════════
 
-  // Q2: 知识点穷尽覆盖约束（优先从指令库读取）
+  // Q2: 知识点穷尽覆盖约束（优先从指令库读取；仅 summary/preview/special 有覆盖条目，其他 genType 静默返回空）
   const getCoverageConstraint = (genType, subject, stage, specialSubType = '') => {
+    // 仅 summary/preview/special 有知识点全覆盖条目，其他类型（exam/practice/dictation/errorbook/reading）无需覆盖约束
+    const coverageGenTypes = ['summary', 'preview', 'special'];
+    if (!genType || !coverageGenTypes.includes(genType)) return '';
     const coverageBlocks = getMatchingBlockInstructions({ category: '生成-知识点全覆盖', subject, stage, genType, specialSubType: genType === 'special' ? specialSubType : '' });
     if (coverageBlocks.length > 0) {
       const _covTitleBlocks = getMatchingBlockInstructions({ category: '生成-指令块标题', subject: '', stage: '', genType: 'coverage_constraint' });
@@ -4646,7 +4667,7 @@ ${cardAnalysisText.substring(0, 1000)}
     if (subject !== '语文') return '';
     const applicableGenTypes = ['exam', 'practice', 'special', 'reading'];
     if (genType && !applicableGenTypes.includes(genType)) return '';
-    const templateBlocks = getMatchingBlockInstructions({ category: '生成-答题模板', subject: '语文', stage: '' });
+    const templateBlocks = getMatchingBlockInstructions({ category: '生成-答题模板', subject: '语文', stage: '', genType });
     if (templateBlocks.length > 0) {
       return `\n【语文阅读理解答题模板——严格按此框架作答】\n` + templateBlocks[0].content;
     }
@@ -4936,7 +4957,21 @@ ${cardAnalysisText.substring(0, 1000)}
               adaptedStructure = adaptedStructure.replace(/短文阅读（[\d-]+篇/, `短文阅读（${readingCount}`);
             }
             
-            instruction += `\n---\n【结构大纲】（以下为各部分组织顺序和考查内容，具体题量根据文本内容灵活决定）：\n ${adaptedStructure}\n`;
+            // 🔧 genType 自适应措辞：替换全局统一的"考查"和"题量"
+            // 🔧 括号非穷举：明确告知 DeepSeek 括号内为方向提示，避免"checklist 思维"
+            //     flexNote 按资料类型差异化：考查/练习/训练/梳理/预习/默写/阅读维度
+            const structurePreambles = {
+              exam: '以下为各部分组织顺序和考查内容，具体题量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整考查维度',
+              practice: '以下为各部分组织顺序和练习内容，具体题量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整练习维度',
+              special: '以下为各部分组织顺序和训练内容，具体题量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整训练维度',
+              summary: '以下为各部分组织顺序和梳理内容，具体覆盖范围根据知识体系灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整梳理维度',
+              errorbook: '以下为各部分组织顺序，具体题量与分类根据错题情况灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整训练维度',
+              preview: '以下为各部分组织顺序和预习流程，预习题量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整预习维度',
+              dictation: '以下为各部分组织顺序和默写框架，具体词句数量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整默写维度',
+              reading: '以下为各部分组织顺序和阅读框架，具体题量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整阅读维度',
+            };
+            const preamble = structurePreambles[gt] || ('以下为各部分组织顺序，具体内容根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整内容维度');
+            instruction += `\n---\n【结构大纲】（${preamble}）：\n ${adaptedStructure}\n`;
           }
         }
       }
@@ -5935,6 +5970,8 @@ ${cardAnalysisText.substring(0, 1000)}
       '生成-题目质量标准', '生成-答案与解析规范', '生成-质量范例', '生成-知识点全覆盖',
       '生成-主观题评分标准', '生成-术语规范', '生成-答题模板', '生成-特殊要求',
       '生成-知识边界', '生成-时间分配', '生成-格式尾约束',
+      // 🔧 补漏：品质标准/原创标准有专属 Section，但此前未被列入防线
+      '生成-品质标准', '生成-原创标准',
       // 生成-元数据（指令块标题本身）
       '生成-指令块标题',
       // 🔧 补漏：以下 category 在 buildGenerationInstruction 中有专属 Section，但此前被遗漏
@@ -6164,10 +6201,12 @@ ${cardAnalysisText.substring(0, 1000)}
     ).join('|').slice(0, 120) || Date.now().toString(36);
     const cacheBuster = `<!-- ctx:${chapterFingerprint}|${Math.random().toString(36).slice(2, 6)} -->\n`;
     
-    // 🔧 变量替换：指令中的占位符 → 运行时实际值（role/title/top 中的 {genTypeLabel}/{diffRatio}）
+    // 🔧 变量替换：指令中的占位符 → 运行时实际值（role/title/top 中的 {genTypeLabel}/{diffRatio}/{pageCount}）
+    const pageCount = getPageCount(genType, stage);
     let finalInstruction = instruction
       .replace(/\{genTypeLabel\}/g, genTypeLabel)
-      .replace(/\{diffRatio\}/g, diffRatio);
+      .replace(/\{diffRatio\}/g, diffRatio)
+      .replace(/\{pageCount\}/g, pageCount);
 
     // 直接生成：完整指令 + 教材原文 + 知识图谱 → 一次性产出整卷
     statusText.value = `步骤 3/4：开始生成整卷...`;
@@ -9510,7 +9549,7 @@ ${(() => { const fmtBlocks = getMatchingBlockInstructions({ category: '生成-�
 - 选择题选项用 <p class="option">
 - 参考答案统一放文末 <div class="answer-section">
 - ⛔ 严禁所有内容挤在一个段落
-${GEN_TYPE_FORMAT_SPEC.reading()}
+${GEN_TYPE_FORMAT_SPEC.reading(subject, stage)}
 
 【强制输出格式——最后一条指令】
 你必须输出标准HTML代码。不允许纯文本输出。

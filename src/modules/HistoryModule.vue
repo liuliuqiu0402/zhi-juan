@@ -119,18 +119,19 @@ const clearAllHistory = async () => {
 
 const deleteHistoryItem = async (id) => {
   const item = historyList.value.find(h => h.id === id);
-  if (item) {
-    item._deleted = true;
-    item.savedAt = Date.now(); // 🔧 更新时间戳
-    // 🔧 写入独立墓碑通道
-    try {
-      const deletedIds = JSON.parse(localStorage.getItem('wisdom_deleted_hist_doc_ids') || '{}');
-      deletedIds[id] = Date.now();
-      localStorage.setItem('wisdom_deleted_hist_doc_ids', JSON.stringify(deletedIds));
-    } catch {}
-    filteredHistoryList.value = filteredHistoryList.value.filter(h => h.id !== id);
-    await storage.setItem('docHistory', historyList.value);
-  }
+  if (!item) return;
+  const confirmed = await showConfirmDialogFn(`确定删除「${item.title || '未命名'}」吗？`);
+  if (!confirmed) return;
+  item._deleted = true;
+  item.savedAt = Date.now(); // 🔧 更新时间戳
+  // 🔧 写入独立墓碑通道
+  try {
+    const deletedIds = JSON.parse(localStorage.getItem('wisdom_deleted_hist_doc_ids') || '{}');
+    deletedIds[id] = Date.now();
+    localStorage.setItem('wisdom_deleted_hist_doc_ids', JSON.stringify(deletedIds));
+  } catch {}
+  filteredHistoryList.value = filteredHistoryList.value.filter(h => h.id !== id);
+  await storage.setItem('docHistory', historyList.value);
 };
 
 const loadFromHistory = (item) => {

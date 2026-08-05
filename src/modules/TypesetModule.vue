@@ -556,7 +556,10 @@ const deleteCustomThemeHandler = async () => {
 };
 
 // ==================== 内容编辑 ====================
-const clearContent = () => {
+const clearContent = async () => {
+  if (!currentContent.value.trim()) return;
+  const confirmed = await showConfirmDialogFn('确定要清空排版内容吗？未保存的修改将丢失。');
+  if (!confirmed) return;
   currentContent.value = '';
   previewContent.value = '';
   isHtmlContent.value = false;
