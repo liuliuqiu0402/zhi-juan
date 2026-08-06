@@ -189,10 +189,13 @@ export async function warmupCloud(): Promise<boolean> {
   if (!client) return false;
   try {
     const t0 = performance.now();
-    // 🔧 两张表并行暖机：user_settings（设置/激活/指令） + generated_docs（生成结果）
+    // 🔧 v3：使用真实 LIKE 查询模式预热，而非简单的 limit(1)
+    //    limit(1) 只唤醒实例，不预热 LIKE 执行计划 → 实际数据查询仍可能 120s 超时
+    //    用实际查询模式（LIKE + limit 1）同时唤醒实例 + 预热执行计划缓存
+    const syncKey = getSyncKey() || '';
     await Promise.all([
-      client.from('user_settings').select('id').limit(1),
-      client.from('generated_docs').select('id').limit(1),
+      client.from('user_settings').select('id').like('id', syncKey + ':%').limit(1),
+      client.from('generated_docs').select('id').like('id', syncKey + ':%').limit(1),
     ]);
     const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
     console.log('🔥 暖机完成 (' + elapsed + 's)');
@@ -675,26 +678,44 @@ export async function pullFromCloud(): Promise<{
     timings.push(label + t + 's');
   };
 
-  // 🔧 暖机：两张表并行唤醒（user_settings + generated_docs），避免冷启动超时
+  // 🔧 暖机：两张表并行唤醒，使用真实 LIKE 查询模式预热执行计划
   const client = getClient();
   if (client && !noSyncKey()) {
     try {
+      const syncKey = getSyncKey() || '';
       await Promise.all([
-        client.from('user_settings').select('id').limit(1),
-        client.from('generated_docs').select('id').limit(1),
+        client.from('user_settings').select('id').like('id', syncKey + ':%').limit(1),
+        client.from('generated_docs').select('id').like('id', syncKey + ':%').limit(1),
       ]);
       mark('暖机');
     } catch { /* 暖机失败不阻塞，后续拉取各自容错 */ }
   }
 
   // v6：5 路并行直查（generated_docs 独立建表）
-  const [textbooks, docHistory, generatedDocs, allSettings, templates] = await Promise.all([
+  let [textbooks, docHistory, generatedDocs, allSettings, templates] = await Promise.all([
     downloadTextbooks().then(r => { mark('教材'); return r; }),
     pullDocHistory().then(r => { mark('历史'); return r; }),
     pullGeneratedDocs().then(r => { mark('生成结果'); return r; }),
     pullAllSettings().then(r => { mark('全设置'); return r; }),
     downloadTemplates().then(r => { mark('模板'); return r; }),
   ]);
+
+  // 🔧 冷启动重试：generated_docs 查询可能因执行计划未预热而超时
+  //    暖机后其他查询已跑通，此时重试单表大概率秒级成功
+  if (generatedDocs === null) {
+    console.log('🔄 generated_docs 首次拉取超时，暖机后重试…');
+    try {
+      generatedDocs = await pullGeneratedDocs();
+      mark('生成结果(重试)');
+    } catch { /* 重试仍失败则放弃 */ }
+  }
+  if (docHistory === null) {
+    console.log('🔄 doc_history 首次拉取超时，暖机后重试…');
+    try {
+      docHistory = await pullDocHistory();
+      mark('历史(重试)');
+    } catch { /* 重试仍失败则放弃 */ }
+  }
   const { settings, activationInfo, instructions } = allSettings;
   const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
   console.log('⏱️ pullFromCloud 分项耗时: ' + timings.join(' | '));

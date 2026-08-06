@@ -658,13 +658,16 @@ onMounted(async () => {
         if (isMobile) {
           // 📱 手机端：全量并行拉取（双向2类+单向3查询 = 5路Promise.all，耗时取决于最慢那路）
           console.log('🔄 [拉取] 全量并行拉取中…');
-          const [gen, hist, data, tps, allSett] = await Promise.all([
+          let [gen, hist, data, tps, allSett] = await Promise.all([
             pullGeneratedDocs(),
             pullDocHistory(),
             downloadTextbooks(),
             downloadTemplates(),
             pullAllSettings(),
           ]);
+          // 🔧 冷启动重试：generated_docs/doc_history 单路超时后单独重试
+          if (gen === null) { console.log('🔄 generated_docs 超时，暖机后重试…'); try { gen = await pullGeneratedDocs(); } catch {} }
+          if (hist === null) { console.log('🔄 doc_history 超时，暖机后重试…'); try { hist = await pullDocHistory(); } catch {} }
           cloudGen = gen || [];
           cloudHist = hist || [];
           unilateralData = {
@@ -681,10 +684,12 @@ onMounted(async () => {
             (allSett?.activationInfo ? '激活✓' : '激活-'));
         } else {
           // 🖥️ 桌面端：只拉双向 2 类（单向数据是桌面自己产的，云端就是自己推的，无需拉取）
-          const [gen, hist] = await Promise.all([
+          let [gen, hist] = await Promise.all([
             pullGeneratedDocs(),
             pullDocHistory(),
           ]);
+          if (gen === null) { console.log('🔄 generated_docs 超时，暖机后重试…'); try { gen = await pullGeneratedDocs(); } catch {} }
+          if (hist === null) { console.log('🔄 doc_history 超时，暖机后重试…'); try { hist = await pullDocHistory(); } catch {} }
           cloudGen = gen || [];
           cloudHist = hist || [];
           console.log('🔄 [拉取] 完成 | ' + fmtPull(hist, '历史') + '条 ' + fmtPull(gen, '生成') + '条（桌面端仅双向2类）');
