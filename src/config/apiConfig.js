@@ -31,18 +31,12 @@ const writeCookie = (name, value) => {
   } catch { /* ignore */ }
 };
 
-// 🔧 增强：多层级加密（Electron safeStorage > WebCrypto > base64混淆）
-const encrypt = async (text) => {
+// 🔧 增强：多层级加密（WebCrypto 跨平台优先 > Electron safeStorage 桌面增强 > base64混淆）
+//   WebCrypto AES-GCM 自包含密钥，所有平台（桌面/手机/浏览器）均可解密，确保云同步兼容
+export const encrypt = async (text) => {
   if (!text) return '';
   
-  // 第一优先：Electron safeStorage
-  try {
-    if (window.electronAPI?.encrypt) {
-      return window.electronAPI.encrypt(text);
-    }
-  } catch (e) { /* 降级 */ }
-  
-  // 第二优先：WebCrypto API（浏览器环境真加密）
+  // 第一优先：WebCrypto API（自包含密钥，跨平台兼容，云同步必备）
   try {
     const encoder = new TextEncoder();
     const data = encoder.encode(text);
@@ -65,10 +59,17 @@ const encrypt = async (text) => {
     // 格式：enc_wc_key.iv.data
     return SECRET_PREFIX + 'wc_' + keyBase64 + '.' + ivBase64 + '.' + dataBase64;
   } catch (e) {
-    console.warn('WebCrypto 加密失败，降级使用 base64 混淆:', e.message);
+    console.warn('WebCrypto 加密失败，尝试 Electron safeStorage:', e.message);
   }
   
-  // 第三降级：base64 混淆（比明文好）
+  // 第二降级：Electron safeStorage（桌面端 OS 钥匙串，仅桌面可解密）
+  try {
+    if (window.electronAPI?.encrypt) {
+      return window.electronAPI.encrypt(text);
+    }
+  } catch (e) { /* 降级 */ }
+  
+  // 第三降级：base64 混淆（比明文好，仅当前设备兼容）
   return SECRET_PREFIX + btoa(text);
 };
 
@@ -88,9 +89,16 @@ export const decrypt = async (encrypted) => {
   }
   
   if (!encrypted.startsWith(SECRET_PREFIX)) {
-    // 兼容旧版明文数据
-    console.log('📝 检测到明文 API Key');
-    return encrypted;
+    // 🔧 保护：非 enc_ 前缀的值可能是 Electron safeStorage 加密的二进制垃圾
+    //   （桌面加密 → 云同步 → 手机端无 safeStorage 无法解密）
+    //   只包含可打印 ASCII 字符才视为旧版明文 API Key，否则返回 '' 让用户重填
+    const isPrintable = /^[\x20-\x7E]+$/.test(encrypted);
+    if (isPrintable) {
+      console.log('📝 检测到明文 API Key');
+      return encrypted;
+    }
+    console.warn('⚠️ 值不含 enc_ 前缀且非可打印字符，疑似跨设备不可解密的加密值，返回空');
+    return '';
   }
   
   const stripped = encrypted.replace(SECRET_PREFIX, '').trim();
@@ -138,9 +146,11 @@ export const decrypt = async (encrypted) => {
     console.warn('⚠️ Base64 解码失败:', e.message);
   }
   
-  // 🔧 关键修复：如果所有方法都失败，返回原始加密值（带前缀），而不是空字符串
-  console.error('❌ 所有解密方法都失败，返回原始加密值');
-  return encrypted; // 返回原始值，让上层知道这是加密的
+  // 🔧 关键修复：所有解密方法都失败 → 返回空字符串，不伪造假 Key 去调 API
+  //   场景：桌面 Electron 加密值同步到手机 → 手机无 safeStorage → 不可解密
+  //   返回 '' 让上层检测到 Key 不可用，提示用户重新填写，而非用二进制垃圾发 401
+  console.error('❌ 所有解密方法都失败，返回空字符串（需用户重新填写 API Key）');
+  return '';
 };
 
 // ✨ 从存储加载配置（localStorage → Cookie 兜底）

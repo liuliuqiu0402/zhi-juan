@@ -196,7 +196,7 @@ import storage from '@/utils/storage';
 import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, pullDeletedDocIds, pushDeletedDocIds, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
 import { BUILTIN_VERSION } from '@/config/instructionLib';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
-import { apiConfig, getCurrentEngineConfig, loadConfigSync, decrypt } from '@/config/apiConfig.js';
+import { apiConfig, getCurrentEngineConfig, loadConfigSync, decrypt, encrypt } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
 import { saveConfig } from '@/config/apiConfig.js';
 // 📱 iOS 签名倒计时（基于安装时间计算 7 天有效期）
@@ -901,7 +901,20 @@ onMounted(async () => {
           if (tps !== null && tps !== undefined && Array.isArray(tps)) addTask(uploadTemplates(tps), '模板', tps.length + '个');
           if (ins !== null && ins !== undefined && Array.isArray(ins)) addTask(uploadInstructions(ins), '指令', ins.length + '条');
           if (cfg && typeof cfg === 'object') {
-            const dsCfg = { deepseekBaseUrl: cfg.deepseekBaseUrl, deepseekApiKey: cfg.deepseekApiKey, deepseekGenerationModel: cfg.deepseekGenerationModel, deepseekAnalysisModel: cfg.deepseekAnalysisModel };
+            // 🔧 确保云端值为 WebCrypto 加密（跨平台兼容）：
+            //    桌面端旧数据可能为 Electron safeStorage 加密 → 手机无法解密
+            //    先解密 → 再以 WebCrypto 重新加密 → 推送到云端
+            let dsApiKey = cfg.deepseekApiKey || '';
+            if (dsApiKey && !dsApiKey.startsWith('enc_wc_')) {
+              try {
+                const decrypted = await decrypt(dsApiKey);
+                if (decrypted && !decrypted.startsWith('enc_')) {
+                  dsApiKey = await encrypt(decrypted);
+                  console.log('🔐 上推前已将 API Key 转为 WebCrypto 加密（跨平台兼容）');
+                }
+              } catch { /* 解密/重加密失败，用原值（手机端会走空值兜底） */ }
+            }
+            const dsCfg = { deepseekBaseUrl: cfg.deepseekBaseUrl, deepseekApiKey: dsApiKey, deepseekGenerationModel: cfg.deepseekGenerationModel, deepseekAnalysisModel: cfg.deepseekAnalysisModel };
             addTask(uploadSettings(dsCfg), '设置');
           }
           if (act && typeof act === 'object') addTask(uploadActivationInfo(act), '激活');
