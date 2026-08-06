@@ -884,6 +884,27 @@ watch(() => apiConfig.currentEngine, (newVal) => {
     settings.value.currentEngine = newVal;
   }
 });
+// 🔧 云端同步后 DeepSeek 字段自动填充到设置页输入框
+watch(() => apiConfig.deepseekApiKey, (newVal) => {
+  if (settings.value.deepseekApiKey !== newVal) {
+    settings.value.deepseekApiKey = newVal;
+  }
+});
+watch(() => apiConfig.deepseekBaseUrl, (newVal) => {
+  if (settings.value.deepseekBaseUrl !== newVal) {
+    settings.value.deepseekBaseUrl = newVal;
+  }
+});
+watch(() => apiConfig.deepseekGenerationModel, (newVal) => {
+  if (settings.value.deepseekGenerationModel !== newVal) {
+    settings.value.deepseekGenerationModel = newVal;
+  }
+});
+watch(() => apiConfig.deepseekAnalysisModel, (newVal) => {
+  if (settings.value.deepseekAnalysisModel !== newVal) {
+    settings.value.deepseekAnalysisModel = newVal;
+  }
+});
 
 onUnmounted(() => {
 });

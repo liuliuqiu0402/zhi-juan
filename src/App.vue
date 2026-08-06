@@ -826,7 +826,18 @@ onMounted(async () => {
                 localCfg.currentEngine = 'deepseek';
               }
               localStorage.setItem('apiConfig', JSON.stringify(localCfg));
-              Object.assign(apiConfig, localCfg);
+              // 🔧 内存中 apiConfig 需要解密后的明文值（localStorage 存加密值是正确的）
+              //    否则设置页输入框会显示加密串、生成时 API 调用也会失败
+              const memCfg = { ...localCfg };
+              if (memCfg.deepseekApiKey && memCfg.deepseekApiKey.startsWith('enc_')) {
+                try {
+                  const decryptedForMem = await decrypt(memCfg.deepseekApiKey);
+                  if (decryptedForMem && !decryptedForMem.startsWith('enc_')) {
+                    memCfg.deepseekApiKey = decryptedForMem;
+                  }
+                } catch { /* 解密失败保留原值 */ }
+              }
+              Object.assign(apiConfig, memCfg);
               const suffix = isWebMode.value && localCfg.deepseekApiKey ? ' (已自动切换到DeepSeek引擎)' : ' (本地Ollama不变)';
               console.log('🔄 [写入] DeepSeek云端配置 ' + Object.keys(unilateralData.settings).length + '项 ✅' + suffix);
             } catch { console.warn('🔄 [写入] 引擎设置 ❌ 失败'); }
