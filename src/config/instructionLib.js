@@ -468,7 +468,7 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   // 学科特色（按学科自动匹配注入）
   // ═══════════════════════════════════════
-  { id: 'subject_chinese', name: '[语文] 读写结合+文化浸润', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '语文', stage: '', content: '语文资料应体现读写结合理念，阅读后设微写作任务；小学阶段注意拼音标注、田字格生字和朗读/背诵题型；适当融入传统文化元素（经典诗文、书法赏析、传统节日）。\n- 阅读理解题答案不可在原文中直接摘抄，需经过归纳转换\n- 习作题须有明确写作要求和字数限制\n- 古诗词默写题不考非课标推荐篇目\n', builtin: true },
+  { id: 'subject_chinese', name: '[语文] 读写结合+文化浸润', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '语文', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '语文资料应体现读写结合理念，阅读后设微写作任务；小学阶段注意拼音标注、田字格生字和朗读/背诵题型；适当融入传统文化元素（经典诗文、书法赏析、传统节日）。\n- 阅读理解题答案不可在原文中直接摘抄，需经过归纳转换\n- 习作题须有明确写作要求和字数限制\n- 古诗词默写题不考非课标推荐篇目\n', builtin: true },
   { id: 'subject_math_primary', name: '[数学] 口算竖式+生活建模', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '数学', stage: 'primary', genType: 'exam,practice,special,errorbook,reading', content: '数学资料应联系生活实际，考查从现实情境抽象数学模型的能力；计算题注意口算和竖式格式规范。\n- 答案必须精确（除非题目要求保留小数位）；单位统一不可遗漏\n- 几何题必须给出完整已知条件\n- 选择题四个选项不可"一个明显正确+三个明显错误"\n- 计算题要求完整解题过程（解、列式、计算、答）\n', builtin: true },
   { id: 'subject_math_secondary', name: '[数学] 完整解题+抽象建模', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '数学', stage: 'middle', genType: 'exam,practice,special,errorbook,reading', content: '数学资料应联系生活实际，考查从现实情境抽象数学模型的能力；计算题要求完整解题过程（解、列式、计算、答）。\n- 答案必须精确（除非题目要求保留小数位）；单位统一不可遗漏\n- 几何题必须给出完整已知条件\n- 选择题四个选项不可"一个明显正确+三个明显错误"\n- 计算题要求完整解题过程（解、列式、计算、答）\n', builtin: true },
   { id: 'subject_math_high', name: '[数学] 严谨推理+高考规范', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '数学', stage: 'high', genType: 'exam,practice,special,errorbook,reading', content: '数学资料应联系生活实际，考查从现实情境抽象数学模型的能力；计算题要求严谨的完整解题过程，对标高考答题规范。\n- 答案必须精确（除非题目要求保留小数位）；单位统一不可遗漏\n- 几何题必须给出完整已知条件\n- 选择题四个选项不可"一个明显正确+三个明显错误"\n- 计算题要求完整解题过程（解、列式、计算、答）\n', builtin: true },
@@ -545,7 +545,7 @@ export const builtinInstructions = [
   {
     id: 'chinese_stroke_order', name: '语文-生字格式规范', category: '生成-学科特色', type: 'fragment',
     prompt_order: 18,
-    subject: '语文', stage: '',
+    subject: '语文', stage: 'primary', genType: 'preview,dictation,summary,review',
     content: '每个生字独立用<span class="tian-zi-ge">字</span>包裹，按字典式标注三项信息：①部首 ②笔画数 ③字形结构（上下/左右/包围/独体等）。不要求标注笔顺（笔顺错误率高，不做要求）。格式示例：<span class="tian-zi-ge">蝌</span>（部首：虫，15画，左右结构）。禁止只写字和拼音不写部首/笔画/结构！',
     builtin: true
   },
@@ -3514,7 +3514,7 @@ export const builtinInstructions = [
 // ==================== 指令库存储Key与版本号 ====================
 const STORAGE_KEY = 'instructionLib';
 const VERSION_KEY = 'instructionLib_version';
-export const BUILTIN_VERSION = 14; // 🔧 v14: 版本升级改为精准清理（仅移除失效_override），不再全量清空用户自定义数据
+export const BUILTIN_VERSION = 15; // 🔧 v15: 修复 subject_chinese/chinese_stroke_order 缺失 genType 字段导致跨资料类型污染
 
 // ==================== 加载指令库 ====================
 export const loadInstructionLib = () => {
