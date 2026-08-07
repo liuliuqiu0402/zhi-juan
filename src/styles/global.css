@@ -239,7 +239,8 @@ u[class*="blank-"] {
 u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }
 u.blank-3 { min-width: 3em; } u.blank-4 { min-width: 4em; }
 u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; }
-u.blank-8 { min-width: 8em; } u.blank-10 { min-width: 10em; }
+u.blank-7 { min-width: 7em; } u.blank-8 { min-width: 8em; }
+u.blank-9 { min-width: 9em; } u.blank-10 { min-width: 10em; }
 
 /* 括号内留空（纯括号+空白，无下划线；CSS 伪元素画括号，宽度自适应答案长度） */
 span[class*="blank-"] {
@@ -258,7 +259,8 @@ span[class*="blank-"]::after {
 span.blank-1 { min-width: 1em; } span.blank-2 { min-width: 2em; }
 span.blank-3 { min-width: 3em; } span.blank-4 { min-width: 4em; }
 span.blank-5 { min-width: 5em; } span.blank-6 { min-width: 6em; }
-span.blank-8 { min-width: 8em; } span.blank-10 { min-width: 10em; }
+span.blank-7 { min-width: 7em; } span.blank-8 { min-width: 8em; }
+span.blank-9 { min-width: 9em; } span.blank-10 { min-width: 10em; }
 
 /* 普通横线（英译汉等中文书写区） */
 .blank-line {

@@ -124,59 +124,23 @@
         </template>
       </div>
 
-      <!-- AI引擎 -->
+      <!-- 🤖 AI 引擎选择 -->
       <div class="settings-section">
-        <h3>🤖 AI 引擎（文本任务）</h3>
+        <h3>🤖 AI 引擎</h3>
+        <label>选择引擎</label>
         <select v-model="settings.currentEngine">
-          <option value="ollama">💻 Ollama (本地)</option>
-          <option value="deepseek">🌐 DeepSeek (云端)</option>
+          <option value="ollama">🦙 Ollama 本地 —— 免费 · 需自备硬件（≥16GB显存）</option>
+          <option value="deepseek">🌐 DeepSeek —— ¥1起/百万Token · 峰谷定价（高峰×2）</option>
+          <option value="volcano">🔥 火山引擎（豆包）—— 每日免费200万Token · 国产中文第一</option>
+          <option value="alibaba">☁️ 阿里百炼（通义千问）—— 新用户送7000万Token · ¥0.8起</option>
+          <option value="zhipu">🧠 智谱 GLM —— GLM-4.7-Flash永久免费 · 兜底首选</option>
         </select>
-        <p style="font-size:12px;color:#666;margin-top:8px;">
-          💡 文本生成、分析、审查等任务根据此处选择
+        <p style="font-size:11px;color:#888;margin-top:6px;">
+          💡 切换引擎无需重新填写 API Key。选择哪个引擎就用哪个引擎工作。错误会直接提示，不会自动切换。
         </p>
       </div>
 
-      <!-- DeepSeek配置 -->
-      <div v-if="settings.currentEngine === 'deepseek'" class="settings-section">
-        <h3>🔑 DeepSeek API Key</h3>
-        <input type="password" v-model="settings.deepseekApiKey" placeholder="输入 API Key" />
-        <input type="text" v-model="settings.deepseekBaseUrl" placeholder="API 地址" />
-
-        <h3 style="margin-top: 16px;">🧠 DeepSeek 模型分配</h3>
-        <p style="font-size:12px;color:#666;margin-bottom:12px;">
-          💡 系统共两处调用 DeepSeek，分开配置：Pro=推理强·慢&nbsp;&nbsp;|&nbsp;&nbsp;Flash=快速
-        </p>
-
-        <label>📝 资料生成模型</label>
-        <p class="model-hint" style="margin-bottom: 4px;">调用时机：点击生成按钮 → 出题/组卷/预习单等（频繁调用，建议 Flash）</p>
-        <select v-model="settings.deepseekGenerationModel">
-          <option v-for="m in deepseekModelOptions" :key="'gen_' + m" :value="m">{{ formatDeepSeekModel(m) }}</option>
-        </select>
-        <p class="model-hint">涵盖：整卷生成 / 蓝图规划 / 答案格式化</p>
-
-        <label style="margin-top: 12px;">📋 教材分析模型</label>
-        <p class="model-hint" style="margin-bottom: 4px;">调用时机：导入教材 → 分析知识点/认知层次（每章一次，缓存复用，建议 Pro）</p>
-        <select v-model="settings.deepseekAnalysisModel">
-          <option v-for="m in deepseekModelOptions" :key="'ana_' + m" :value="m">{{ formatDeepSeekModel(m) }}</option>
-        </select>
-        <p class="model-hint">涵盖：知识提取 / 认知分类 / 质量审查</p>
-      </div>
-
-      <!-- 多模态引擎 -->
-      <div class="settings-section">
-        <h3>🖼️ 多模态引擎（图片识别/OCR）</h3>
-        <p style="font-size:12px;color:#666;margin-top:4px;margin-bottom:12px;">
-          PaddleOCR-VL —— 本地运行不占 Ollama 显存，支持 pipeline 文档解析 + VLM 视觉理解，用完自动释放 GPU
-        </p>
-
-        <label style="margin-top: 8px;">理科图表处理</label>
-        <select v-model="settings.analyzeCharts">
-          <option :value="false">跳过（仅提取文字）</option>
-          <option :value="true">分析（用 AI 描述图表）</option>
-        </select>
-      </div>
-
-      <!-- Ollama配置 -->
+      <!-- 🦙 Ollama 配置 -->
       <div v-if="settings.currentEngine === 'ollama'" class="settings-section">
         <h3>🦙 Ollama 配置（文本任务）</h3>
         <label>服务地址</label>
@@ -219,6 +183,115 @@
         <div v-if="saveStatus" class="model-hint" style="margin-top:8px;color:var(--primary-light);">
           {{ saveStatus }}
         </div>
+      </div>
+
+      <!-- 🌐 DeepSeek 配置 -->
+      <div v-if="settings.currentEngine === 'deepseek'" class="settings-section">
+        <h3>🌐 DeepSeek 配置</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:8px;">
+          💰 输入 ¥1.01/百万 · 输出 ¥2.02/百万 · 缓存命中 ¥0.02/百万 · 高峰(9-12/14-18工作日)×2
+        </p>
+        <label>API Key</label>
+        <input type="password" v-model="settings.deepseekApiKey" placeholder="sk-..." />
+        <input type="text" v-model="settings.deepseekBaseUrl" placeholder="https://api.deepseek.com/v1" />
+        <label>📝 资料生成模型</label>
+        <select v-model="settings.deepseekGenerationModel">
+          <option v-for="m in deepseekModelOptions" :key="'dsg_' + m" :value="m">{{ formatDeepSeekModel(m) }}</option>
+        </select>
+        <label>📋 教材分析模型</label>
+        <select v-model="settings.deepseekAnalysisModel">
+          <option v-for="m in deepseekModelOptions" :key="'dsa_' + m" :value="m">{{ formatDeepSeekModel(m) }}</option>
+        </select>
+      </div>
+
+      <!-- 🔥 火山引擎（豆包）配置 -->
+      <div v-if="settings.currentEngine === 'volcano'" class="settings-section">
+        <h3>🔥 火山引擎（豆包）</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:8px;">
+          💰 每日免费200万Token · 无峰谷定价 · 豆包Lite ¥0.1/百万 · 国产中文能力第一
+        </p>
+        <label>API Key</label>
+        <input type="password" v-model="settings.volcanoApiKey" placeholder="火山引擎 API Key" />
+        <input type="text" v-model="settings.volcanoBaseUrl" placeholder="https://ark.cn-beijing.volces.com/api/v3" />
+        <label>📝 资料生成模型</label>
+        <input type="text" v-model="settings.volcanoGenerationModel" placeholder="doubao-seed-2-0-mini-250715" />
+        <label>📋 教材分析模型</label>
+        <input type="text" v-model="settings.volcanoAnalysisModel" placeholder="doubao-pro-256k-250428" />
+      </div>
+
+      <!-- ☁️ 阿里百炼（通义千问）配置 -->
+      <div v-if="settings.currentEngine === 'alibaba'" class="settings-section">
+        <h3>☁️ 阿里百炼（通义千问）</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:8px;">
+          💰 新用户送7000万Token · qwen-plus ¥0.8/百万 · qwen3-max ¥2/百万 · 中文能力第一梯队
+        </p>
+        <label>API Key</label>
+        <input type="password" v-model="settings.alibabaApiKey" placeholder="sk-..." />
+        <input type="text" v-model="settings.alibabaBaseUrl" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+        <label>📝 资料生成模型</label>
+        <input type="text" v-model="settings.alibabaGenerationModel" placeholder="qwen-plus" />
+        <label>📋 教材分析模型</label>
+        <input type="text" v-model="settings.alibabaAnalysisModel" placeholder="qwen3-max" />
+      </div>
+
+      <!-- 🧠 智谱 GLM 配置 -->
+      <div v-if="settings.currentEngine === 'zhipu'" class="settings-section">
+        <h3>🧠 智谱 GLM</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:8px;">
+          💰 GLM-4.7-Flash 永久免费 · 200K上下文 · GLM-4.5 ¥1/百万 · 适合兜底
+        </p>
+        <label>API Key</label>
+        <input type="password" v-model="settings.zhipuApiKey" placeholder="智谱 API Key" />
+        <input type="text" v-model="settings.zhipuBaseUrl" placeholder="https://open.bigmodel.cn/api/paas/v4" />
+        <label>📝 资料生成模型</label>
+        <input type="text" v-model="settings.zhipuGenerationModel" placeholder="GLM-4.7-Flash" />
+        <label>📋 教材分析模型</label>
+        <input type="text" v-model="settings.zhipuAnalysisModel" placeholder="GLM-4.7-Flash" />
+      </div>
+
+      <!-- 📖 API 申请指南 -->
+      <div class="settings-section">
+        <h3>📖 API 申请指南 <button class="btn-small" @click="showGuide = !showGuide" style="margin-left:8px;">{{ showGuide ? '收起' : '展开' }}</button></h3>
+        <div v-if="showGuide" class="api-guide">
+          <div class="guide-item">
+            <strong>🔥 火山引擎（豆包）</strong>
+            <p>1. 访问 <a href="https://console.volcengine.com/ark" target="_blank">火山引擎 Ark 控制台</a></p>
+            <p>2. 注册/登录 → 开通模型推理服务 → 创建 API Key</p>
+            <p>3. 在"推理接入点"创建 endpoint，选择 doubao-seed-2-0-mini 模型</p>
+            <p>4. 每日免费 200万 Token，自动刷新</p>
+          </div>
+          <div class="guide-item">
+            <strong>☁️ 阿里百炼（通义千问）</strong>
+            <p>1. 访问 <a href="https://bailian.console.aliyun.com" target="_blank">阿里百炼控制台</a></p>
+            <p>2. 注册/登录 → 开通百炼服务 → 创建 API Key</p>
+            <p>3. 新用户送 7000万 Token，qwen-plus 性价比极高（¥0.8/百万）</p>
+          </div>
+          <div class="guide-item">
+            <strong>🧠 智谱 GLM</strong>
+            <p>1. 访问 <a href="https://open.bigmodel.cn" target="_blank">智谱开放平台</a></p>
+            <p>2. 注册/登录 → 创建 API Key</p>
+            <p>3. GLM-4.7-Flash 永久免费无限制，适合兜底</p>
+          </div>
+          <div class="guide-item">
+            <strong>💰 缓存命中提示</strong>
+            <p>相同章节多次生成时，DeepSeek/火山引擎会自动命中 KV Cache，输入价格降至 ¥0.02/百万Token（节省98%）</p>
+            <p>建议保持教材章节不变时批量生成，最大化缓存命中率。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 多模态引擎 -->
+      <div class="settings-section">
+        <h3>🖼️ 多模态引擎（图片识别/OCR）</h3>
+        <p style="font-size:12px;color:#666;margin-top:4px;margin-bottom:12px;">
+          PaddleOCR-VL —— 本地运行不占 Ollama 显存，支持 pipeline 文档解析 + VLM 视觉理解，用完自动释放 GPU
+        </p>
+
+        <label style="margin-top: 8px;">理科图表处理</label>
+        <select v-model="settings.analyzeCharts">
+          <option :value="false">跳过（仅提取文字）</option>
+          <option :value="true">分析（用 AI 描述图表）</option>
+        </select>
       </div>
 
       <!-- 存储路径 -->
@@ -613,6 +686,9 @@ const handleChangeActivation = async () => {
   window.location.reload();
 };
 
+// API 申请指南展开/收起
+const showGuide = ref(false);
+
 const settings = ref({
   currentEngine: apiConfig.currentEngine,
   ollamaBaseUrl: apiConfig.ollamaBaseUrl,
@@ -627,6 +703,19 @@ const settings = ref({
   deepseekApiKey: apiConfig.deepseekApiKey,
   deepseekGenerationModel: apiConfig.deepseekGenerationModel || 'deepseek-v4-flash',
   deepseekAnalysisModel: apiConfig.deepseekAnalysisModel || 'deepseek-v4-pro',
+  enginePriority: [...(apiConfig.enginePriority || [])],
+  volcanoApiKey: apiConfig.volcanoApiKey || '',
+  volcanoBaseUrl: apiConfig.volcanoBaseUrl || 'https://ark.cn-beijing.volces.com/api/v3',
+  volcanoGenerationModel: apiConfig.volcanoGenerationModel || 'doubao-seed-2-0-mini-250715',
+  volcanoAnalysisModel: apiConfig.volcanoAnalysisModel || 'doubao-pro-256k-250428',
+  alibabaApiKey: apiConfig.alibabaApiKey || '',
+  alibabaBaseUrl: apiConfig.alibabaBaseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  alibabaGenerationModel: apiConfig.alibabaGenerationModel || 'qwen-plus',
+  alibabaAnalysisModel: apiConfig.alibabaAnalysisModel || 'qwen3-max',
+  zhipuApiKey: apiConfig.zhipuApiKey || '',
+  zhipuBaseUrl: apiConfig.zhipuBaseUrl || 'https://open.bigmodel.cn/api/paas/v4',
+  zhipuGenerationModel: apiConfig.zhipuGenerationModel || 'GLM-4.7-Flash',
+  zhipuAnalysisModel: apiConfig.zhipuAnalysisModel || 'GLM-4.7-Flash',
   analyzeCharts: true,
   storagePath: localStorage.getItem('storagePath') || '智卷工坊数据',
   generationSettings: { ...apiConfig.generationSettings }
@@ -707,6 +796,18 @@ const saveSettings = async () => {
   apiConfig.deepseekApiKey = settings.value.deepseekApiKey;
   apiConfig.deepseekGenerationModel = settings.value.deepseekGenerationModel;
   apiConfig.deepseekAnalysisModel = settings.value.deepseekAnalysisModel;
+  apiConfig.volcanoApiKey = settings.value.volcanoApiKey;
+  apiConfig.volcanoBaseUrl = settings.value.volcanoBaseUrl;
+  apiConfig.volcanoGenerationModel = settings.value.volcanoGenerationModel;
+  apiConfig.volcanoAnalysisModel = settings.value.volcanoAnalysisModel;
+  apiConfig.alibabaApiKey = settings.value.alibabaApiKey;
+  apiConfig.alibabaBaseUrl = settings.value.alibabaBaseUrl;
+  apiConfig.alibabaGenerationModel = settings.value.alibabaGenerationModel;
+  apiConfig.alibabaAnalysisModel = settings.value.alibabaAnalysisModel;
+  apiConfig.zhipuApiKey = settings.value.zhipuApiKey;
+  apiConfig.zhipuBaseUrl = settings.value.zhipuBaseUrl;
+  apiConfig.zhipuGenerationModel = settings.value.zhipuGenerationModel;
+  apiConfig.zhipuAnalysisModel = settings.value.zhipuAnalysisModel;
   apiConfig.analyzeCharts = settings.value.analyzeCharts;
   apiConfig.multimodalEngine = settings.value.multimodalEngine || 'paddleocr_vl';
   apiConfig.generationSettings = { ...settings.value.generationSettings };
@@ -737,7 +838,17 @@ const saveSettings = async () => {
       qualityEstimate += '\n📋 轻量模型：deepseek-r1（推理兼顾速度）';
     }
   } else if (settings.value.currentEngine === 'deepseek') {
-    qualityEstimate += '\n\n📊 质量预估：云端最高质量（DeepSeek）';
+    qualityEstimate += '\n\n📊 质量预估：云端高质量（DeepSeek V4）';
+    qualityEstimate += '\n💰 费用参考：输入¥1.01/百万 · 输出¥2.02/百万 · 缓存命中¥0.02/百万';
+  } else if (settings.value.currentEngine === 'volcano') {
+    qualityEstimate += '\n\n📊 质量预估：云端高质量（豆包 Seed）';
+    qualityEstimate += '\n💰 每日免费200万Token · 超出后¥0.1/百万起';
+  } else if (settings.value.currentEngine === 'alibaba') {
+    qualityEstimate += '\n\n📊 质量预估：云端高质量（通义千问 Qwen）';
+    qualityEstimate += '\n💰 qwen-plus ¥0.8/百万 · 新用户送7000万Token';
+  } else if (settings.value.currentEngine === 'zhipu') {
+    qualityEstimate += '\n\n📊 质量预估：云端标准质量（智谱 GLM）';
+    qualityEstimate += '\n💰 GLM-4.7-Flash 永久免费 · 兜底首选';
   }
   saveStatus.value = qualityEstimate;
   setTimeout(() => { saveStatus.value = ''; }, 5000);
@@ -857,6 +968,15 @@ onMounted(async () => {
       if (parsed.deepseekApiKey) {
         parsed.deepseekApiKey = await decrypt(parsed.deepseekApiKey);
       }
+      if (parsed.volcanoApiKey) {
+        parsed.volcanoApiKey = await decrypt(parsed.volcanoApiKey);
+      }
+      if (parsed.alibabaApiKey) {
+        parsed.alibabaApiKey = await decrypt(parsed.alibabaApiKey);
+      }
+      if (parsed.zhipuApiKey) {
+        parsed.zhipuApiKey = await decrypt(parsed.zhipuApiKey);
+      }
       Object.assign(settings.value, parsed);
     } catch { /* ignore */ }
   }
@@ -903,6 +1023,69 @@ watch(() => apiConfig.deepseekGenerationModel, (newVal) => {
 watch(() => apiConfig.deepseekAnalysisModel, (newVal) => {
   if (settings.value.deepseekAnalysisModel !== newVal) {
     settings.value.deepseekAnalysisModel = newVal;
+  }
+});
+// 🔧 云端同步后火山引擎字段自动填充到设置页输入框
+watch(() => apiConfig.volcanoApiKey, (newVal) => {
+  if (settings.value.volcanoApiKey !== newVal) {
+    settings.value.volcanoApiKey = newVal;
+  }
+});
+watch(() => apiConfig.volcanoBaseUrl, (newVal) => {
+  if (settings.value.volcanoBaseUrl !== newVal) {
+    settings.value.volcanoBaseUrl = newVal;
+  }
+});
+watch(() => apiConfig.volcanoGenerationModel, (newVal) => {
+  if (settings.value.volcanoGenerationModel !== newVal) {
+    settings.value.volcanoGenerationModel = newVal;
+  }
+});
+watch(() => apiConfig.volcanoAnalysisModel, (newVal) => {
+  if (settings.value.volcanoAnalysisModel !== newVal) {
+    settings.value.volcanoAnalysisModel = newVal;
+  }
+});
+// 🔧 云端同步后阿里百炼字段自动填充到设置页输入框
+watch(() => apiConfig.alibabaApiKey, (newVal) => {
+  if (settings.value.alibabaApiKey !== newVal) {
+    settings.value.alibabaApiKey = newVal;
+  }
+});
+watch(() => apiConfig.alibabaBaseUrl, (newVal) => {
+  if (settings.value.alibabaBaseUrl !== newVal) {
+    settings.value.alibabaBaseUrl = newVal;
+  }
+});
+watch(() => apiConfig.alibabaGenerationModel, (newVal) => {
+  if (settings.value.alibabaGenerationModel !== newVal) {
+    settings.value.alibabaGenerationModel = newVal;
+  }
+});
+watch(() => apiConfig.alibabaAnalysisModel, (newVal) => {
+  if (settings.value.alibabaAnalysisModel !== newVal) {
+    settings.value.alibabaAnalysisModel = newVal;
+  }
+});
+// 🔧 云端同步后智谱字段自动填充到设置页输入框
+watch(() => apiConfig.zhipuApiKey, (newVal) => {
+  if (settings.value.zhipuApiKey !== newVal) {
+    settings.value.zhipuApiKey = newVal;
+  }
+});
+watch(() => apiConfig.zhipuBaseUrl, (newVal) => {
+  if (settings.value.zhipuBaseUrl !== newVal) {
+    settings.value.zhipuBaseUrl = newVal;
+  }
+});
+watch(() => apiConfig.zhipuGenerationModel, (newVal) => {
+  if (settings.value.zhipuGenerationModel !== newVal) {
+    settings.value.zhipuGenerationModel = newVal;
+  }
+});
+watch(() => apiConfig.zhipuAnalysisModel, (newVal) => {
+  if (settings.value.zhipuAnalysisModel !== newVal) {
+    settings.value.zhipuAnalysisModel = newVal;
   }
 });
 
@@ -1068,6 +1251,35 @@ onUnmounted(() => {
 .btn-danger-outline:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* 📖 API 申请指南 */
+.api-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+.guide-item {
+  padding: 10px 14px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  font-size: 12px;
+  line-height: 1.6;
+  color: #555;
+}
+.guide-item strong {
+  color: var(--primary);
+  font-size: 13px;
+}
+.guide-item p {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+.guide-item a {
+  color: var(--primary);
+  text-decoration: underline;
 }
 
 /* 📱 移动端适配 */

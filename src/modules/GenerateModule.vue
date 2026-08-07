@@ -511,31 +511,35 @@
       </div>
     </div>
 
-    <!-- 预览弹窗 -->
-    <div v-if="showPreview" class="modal-mask" @click.self="showPreview = false">
-      <div class="modal large-modal">
-        <h3><span class="hide-on-mobile">👁️</span> 内容预览</h3>
-        <div v-if="previewHint" class="copy-hint">{{ previewHint }}</div>
-        <div class="preview-content" v-html="previewContent"></div>
-        <div class="modal-actions">
-          <button class="btn" @click="showPreview = false">关闭</button>
-          <button class="btn-edurender hide-on-mobile" @click="copyToEduRender">📋 复制到EduRender</button>
-          <button class="btn-primary hide-on-mobile" @click="editDoc">✏️ 编辑</button>
+    <!-- 预览弹窗（Teleport 到 body 脱离缩放容器，避免 transform:scale 导致缩小溢出） -->
+    <Teleport to="body">
+      <div v-if="showPreview" class="modal-mask" @click.self="showPreview = false">
+        <div class="modal large-modal">
+          <h3><span class="hide-on-mobile">👁️</span> 内容预览</h3>
+          <div v-if="previewHint" class="copy-hint">{{ previewHint }}</div>
+          <div class="preview-content" v-html="previewContent"></div>
+          <div class="modal-actions">
+            <button class="btn" @click="showPreview = false">关闭</button>
+            <button class="btn-edurender hide-on-mobile" @click="copyToEduRender">📋 复制到EduRender</button>
+            <button class="btn-primary hide-on-mobile" @click="editDoc">✏️ 编辑</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
-    <!-- 编辑弹窗 -->
-    <div v-if="showEditor" class="modal-mask" @click.self="showEditor = false">
-      <div class="modal large-modal">
-        <h3>✏️ 编辑文档</h3>
-        <textarea v-model="editingContent" rows="20" class="editor-textarea"></textarea>
-        <div class="modal-actions">
-          <button class="btn" @click="showEditor = false">取消</button>
-          <button class="btn-primary" @click="saveEdit">💾 保存</button>
+    <!-- 编辑弹窗（Teleport 到 body 脱离缩放容器） -->
+    <Teleport to="body">
+      <div v-if="showEditor" class="modal-mask" @click.self="showEditor = false">
+        <div class="modal large-modal">
+          <h3>✏️ 编辑文档</h3>
+          <textarea v-model="editingContent" rows="20" class="editor-textarea"></textarea>
+          <div class="modal-actions">
+            <button class="btn" @click="showEditor = false">取消</button>
+            <button class="btn-primary" @click="saveEdit">💾 保存</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <!-- 指令库弹窗 -->
     <div v-if="showInstructionLibModal" class="modal-mask" @click.self="showInstructionLibModal = false">
@@ -2789,6 +2793,7 @@ const editingDoc = ref(null);
 
 // 🔥 预览弹窗状态持久化：切APP/杀进程后恢复（热启动窗口 10 分钟内有效）
 watch([showPreview, previewingDoc], () => {
+  console.log('[preview-popup] 👁️ watch 触发', { showPreview: showPreview.value, hasDoc: !!previewingDoc.value, docId: previewingDoc.value?.id });
   try {
     if (showPreview.value && previewingDoc.value) {
       localStorage.setItem('__preview_state', JSON.stringify({
@@ -6194,8 +6199,10 @@ const cancelPeriodSplit = async () => {
     const result = await callGenerate(instructionDraft.value, genType, selectedBooks, selectedTpls, 0, false);
     
     if (result.success && result.content) {
+      console.log('[preview-popup] 🔄 cancelPeriodSplit 路径：直接设置预览', { contentLen: result.content?.length, contentPreview: result.content?.substring(0, 100) });
       previewContent.value = result.content;
       showPreview.value = true;
+      console.log('[preview-popup] ✅ cancelPeriodSplit 路径 showPreview=true', { showPreview: showPreview.value });
       previewHint.value = '✅ 整体生成完成';
       
       // 添加到生成记录（统一格式对 standardizeGeneration 路径）
@@ -6286,8 +6293,10 @@ const switchPeriodTab = (index) => {
   }
   
   if (contentToShow) {
+    console.log('[preview-popup] 📑 switchPeriodTab 路径：直接设置预览', { contentLen: contentToShow?.length, periodIndex: index });
     previewContent.value = contentToShow;
     showPreview.value = true;
+    console.log('[preview-popup] ✅ switchPeriodTab 路径 showPreview=true', { showPreview: showPreview.value });
   }
 };
 
@@ -6480,6 +6489,14 @@ const cancelGeneration = () => {
 
 // 结果处理
 const previewDoc = (doc) => {
+  console.log('[preview-popup] 🔍 previewDoc 被调用', {
+    docId: doc?.id,
+    docTitle: doc?.title?.substring(0, 50),
+    genType: doc?.genType,
+    contentLen: doc?.content?.length,
+    contentPreview: doc?.content?.substring(0, 100),
+    caller: new Error().stack?.split('\n')[2]?.trim()
+  });
   previewingDoc.value = doc;
   
   // 如果有置信度标记，在预览内容中高亮显示
@@ -6494,7 +6511,9 @@ const previewDoc = (doc) => {
   }
   
   previewContent.value = content;
+  console.log('[preview-popup] 📺 即将设置 showPreview=true', { contentLen: content?.length });
   showPreview.value = true;
+  console.log('[preview-popup] ✅ showPreview 已设为 true', { showPreview: showPreview.value, previewContentLen: previewContent.value?.length });
 };
 
 // 🔥 同步恢复预览弹窗（setup 阶段、首帧即显示，调用 previewDoc 保证逻辑一致）
@@ -7936,12 +7955,11 @@ const addBlueprintQuestion = () => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: transparent;
+  background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 3500;
-  pointer-events: none;
 }
 
 .modal {

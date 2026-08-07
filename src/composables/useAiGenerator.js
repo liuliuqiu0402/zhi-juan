@@ -433,85 +433,6 @@ const extractGradeNum = (gradeStr) => {
   return 0;
 };
 
-/**
- * genType 格式规范常量：每种资料类型的固定格式要求，不依赖 Step1 的大段 instruction
- */
-const GEN_TYPE_FORMAT_SPEC = {
-  preview: (subject, stage, grade) => {
-    const gNum = extractGradeNum(grade);
-    const isLower = stage === 'primary' && gNum <= 2;
-    // 🔧 从指令库获取课前预习输出格式（含学科专属补充）
-    const formatBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject, stage, genType: 'preview' });
-    const baseFormat = formatBlocks.length > 0 ? formatBlocks.map(b => b.content).join('\n') : [
-      '- 大标题用<h1>，学习目标用<h2>',
-      '- 预习检测题目留空，答案统一放文末<div class="answer-section">中',
-      '- 直接返回HTML片段，不要用<html>、<head>、<body>或```html包裹'
-    ].join('\n');
-    return baseFormat;
-  },
-  dictation: (subject, stage) => {
-    // 🔧 从指令库获取听写输出格式（含学科专属补充）
-    const formatBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject, stage, genType: 'dictation' });
-    const baseFormat = formatBlocks.length > 0 ? formatBlocks.map(b => b.content).join('\n') : [
-      '- 大标题用<h1>，按字词/句子/段落分节用<h2>',
-      '- 每个听写项用<div class="dictation-item">包裹',
-      '- 练习区：序号+提示+留空书写区（不写答案！）',
-      '- 答案区：标准答案集中放文末<div class="answer-section">中',
-      '- 留空宽度要足够学生手写，至少2-3个全角字符宽',
-      '- 直接返回HTML片段，不要用<html>、<head>、<body>或```html包裹'
-    ].join('\n');
-    return baseFormat;
-  },
-  reading: () => {
-    // 🔧 从指令库获取阅读训练输出格式（优先），兜底保留硬编码
-    const formatBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', genType: 'reading' });
-    if (formatBlocks.length > 0) return formatBlocks[0].content;
-    return [
-      '- 大标题用<h1>，短文用<div class="reading-passage">包裹',
-      '- 题目用<ol>有序列表，选择题选项用<p class="option">',
-      '- 参考答案统一放文末<div class="answer-section">中',
-      '- 直接返回HTML片段，不要用<html>、<head>、<body>或```html包裹'
-    ].join('\n');
-  },
-  summary: () => {
-    // 🔧 从指令库获取知识点总结输出格式（优先），兜底保留硬编码
-    const formatBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', genType: 'summary' });
-    if (formatBlocks.length > 0) return formatBlocks[0].content;
-    return [
-      '- 大标题用<h1>，小节用<h2>，子标题用<h3>',
-      '- 表格用<table>，关键词用<strong>',
-      '- 趣味小练习题目标题留空，答案放文末<div class="answer-section">中',
-      '- 直接返回HTML片段，不要用<html>、<head>、<body>或```html包裹'
-    ].join('\n');
-  },
-  exam: () => {
-    // 🔧 从指令库获取试卷输出格式（优先），兜底保留硬编码
-    const formatBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', genType: 'exam' });
-    if (formatBlocks.length > 0) return formatBlocks[0].content;
-    return [
-      '- 大标题用<h1>，题型标题用<h2>，题干用<p class="question">',
-      '- 题号三级体系（强制性——逐级定义，无歧义）：\n        【板块标题】h2标签内的题型板块名用"一、二、三、"（中文数字+顿号），如<h2>一、选择题</h2>\n        【独立题目】p.question标签内的每道题用"1. 2. 3."（阿拉伯数字+英文句点），所有题目跨板块连续编号不重置\n        【综合题子题】多子题的综合题内部子题用"(1)(2)(3)"（阿拉伯数字+半角圆括号），禁用"①②③"（带圈数字在部分字体中显示异常）\n        严禁仅靠缩进区分层级——各级编号格式必须不同且保持稳定，禁止同级混搭',
-      '- ⛔ 禁止：<p style="margin-left:20px;font-size:14px;">1. 小题</p>（编号重复+缩进+小字号——导出Word后缩进消失导致层级混乱！）',
-      '- ✅ 正确示例：题型板块<h2>一、选择题</h2>，下设<p class="question">1. 题目</p>、<p class="question">2. 题目</p>。含子题的综合题：<p class="question">3. 综合题题干，下设：(1) 子题一 (2) 子题二</p>（仅靠编号格式区分层级，统一字号，无缩进）',
-      '- ⛔ 严禁使用不带 class 属性的 <p> 标签作为题目容器！所有题目必须用 <p class="question">，禁止用 <p>（无class）、<div> 或其他标签代替题目行',
-      '- 所有题目正文（题干/选项/填空）使用统一字号，禁止因子题嵌套缩小字体',
-      '- 选择题选项用<p class="option">，句中填空横线：<u class="blank-N">&emsp;</u>，题末/句末独立括号：<span class="blank-N">&emsp;</span>。横线与括号互斥，同一空位二选一不可叠加，严禁用___下划线代替',
-      '- 答案和解析统一放文末<div class="answer-section">中',
-      '- 直接返回HTML片段，不要用<html>、<head>、<body>或```html包裹'
-    ].join('\n');
-  },
-  errorbook: () => {
-    // 🔧 从指令库获取错题本输出格式（优先），兜底保留硬编码
-    const formatBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', genType: 'errorbook' });
-    if (formatBlocks.length > 0) return formatBlocks[0].content;
-    return [
-      '- 错题用<div class="error-item">包裹，题号用<h3>',
-      '- 错误归因用<div class="error-reason">，正解用<div class="correct-solution">',
-      '- 变式巩固用<div class="variant-practice">',
-      '- 直接返回HTML片段，不要用<html>、<head>、<body>或```html包裹'
-    ].join('\n');
-  }
-};
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
 
@@ -549,7 +470,7 @@ const checkKnowledgeCoverage = (blueprint, km) => {
 // DeepSeek-R1 等推理模型会在输出前附加思考过程，格式为  思考内容  或 <think>思考内容</think>
 // ===== 🔧 填空格式智能转换：下划线→blank-N横线 + 括号空白→blank-N括号 =====
 // 将 AI 输出的合法填空标记（___、括号内空白）按规范转换为 <u class="blank-N">&emsp;</u> / <span class="blank-N">&emsp;</span>
-// N 值按答案字数映射：1字→2, 2字→4, 3-4字→6, 5-6字→8, 7字以上→10（括号最小N=4）
+// N 值按空白宽度保守映射（偏小，精确宽度由 AI 显式 blank-N 控制）：≤1em→2, ≤1.5em→3, ≤2em→4, ≤3em→5, ≤4em→6, ≤6em→8, >6em→10
 const convertBlankFormat = (html) => {
   if (!html || html.length < 3) return html;
 
@@ -589,12 +510,20 @@ const convertBlankFormat = (html) => {
     const totalWidth = emspCount + nbspCount * 0.25;
     if (totalWidth <= 0) return match; // 无有效空白，保持原样
     let n;
-    if (totalWidth <= 1) n = 4;
-    else if (totalWidth <= 2) n = 6;
-    else if (totalWidth <= 3) n = 8;
+    if (totalWidth <= 1) n = 2;
+    else if (totalWidth <= 1.5) n = 3;
+    else if (totalWidth <= 2) n = 4;
+    else if (totalWidth <= 3) n = 5;
+    else if (totalWidth <= 4) n = 6;
+    else if (totalWidth <= 6) n = 8;
     else n = 10;
     return `<span class="blank-${n}">&emsp;</span>`;
   });
+
+  // ── 步骤3.5：剥离已保护 blank-N 标签外侧的括号 ──
+  // 场景：AI 输出 (<span class="blank-N">&emsp;</span>) / （<span class="blank-N">&emsp;</span>）
+  // 括号由 CSS ::before/::after 统一渲染，HTML 中重复会导致双重括号 (())
+  result = result.replace(/(?:[（(])\s*(__PPKS\d+__)\s*(?:[）)])/g, (m, placeholder) => placeholder);
 
   // ── 步骤4：还原保护的 blank-N 标签 ──
   result = result.replace(/__PPKU(\d+)__/g, (m, idx) => preserved[parseInt(idx)] || '');
@@ -805,11 +734,11 @@ const buildOutputFormatBlock = (genType, subject, stage, grade) => {
     dictation: `<h1>听写默写标题</h1>
 
 <h2>一、字词听写</h2>
-<div class="dictation-item"><p>1. 拼音提示 <u class="blank-2">&emsp;</u>（横线书写区）</p></div>
-<div class="dictation-item"><p>2. 拼音提示 <u class="blank-2">&emsp;</u></p></div>
+<div class="dictation-item"><p>1. 拼音提示 <span class="blank-line">&emsp;&emsp;&emsp;&emsp;</span>（横线书写区）</p></div>
+<div class="dictation-item"><p>2. 拼音提示 <span class="blank-line">&emsp;&emsp;&emsp;&emsp;</span></p></div>
 
 <h2>二、句子默写</h2>
-<div class="dictation-item"><p>1. 给出上句/标题，下句用 <u class="blank-8">&emsp;</u> 书写区</p></div>
+<div class="dictation-item"><p>1. 给出上句/标题，下句书写区 <span class="blank-line">&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;</span></p></div>
 
 <div class="answer-section">
 <h2>答案</h2>
@@ -1039,7 +968,7 @@ ${diversitySeed ? '\n' + diversitySeed + '\n' : ''}
 ${situationAnchor}
 ${contextSummary}
 ${styleConsistencyHint}
-⚠️ 【反雷同指令——每题必须有不同的"面孔"】你的设问方式、场景选择、句式结构必须追求多样性。不要重复使用相同的题干开头句式（如"Read and choose""Look and write"等套话），每道题都应有独特的命题风格和语言表达。
+⚠️ 【反雷同指令——每题必须有不同的"面孔"】你的设问方式、场景选择、句式结构必须追求多样性。不要重复使用相同的非标准题干开头句式，每道题都应有独特的命题风格和语言表达（英语标准指令句如 Read/Choose/Fill 等祈使句除外）。
 【题目要求】
 - 题号：${questionPlan.number}
 - 题型：${questionPlan.type}
@@ -1088,11 +1017,12 @@ ${compactInst}
   * 5-6字→ <u class="blank-8">&emsp;</u>
   * 7-10字→ <u class="blank-10">&emsp;</u>
   * 10字以上→ <u class="blank-10">&emsp;</u>
-- ⛔ **括号内留空（仅选择题/判断题题末）**：必须用 <span class="blank-N">&emsp;</span>，严禁在括号内用 <u>！横线与括号二选一，不可叠加！
-  * N按答案字数严格计算（最小取4）：1-2字→4, 3-4字→6, 5-6字→8, 7-10字→10, 10字以上→10
-  * ✅ 正确：(<span class="blank-2">&emsp;</span>)  ❌ 错误：(<u class="blank-2">&emsp;</u>) ← 严禁括号内出现下划线！
+- ⛔ **括号填空**：必须用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号），严禁在括号内用 <u>！横线与括号二选一，不可叠加！
+  * N按答案字数精确映射：1字→2, 2字→3, 3字→4, 4字→5, 5-6字→6, 7-8字→8, 9-10字→10, 10字以上→10
+  * ✅ 正确：<span class="blank-2">&emsp;</span>  ❌ 错误：<u class="blank-2">&emsp;</u> ← 严禁括号内出现下划线！
+  * 🔴 括号由CSS ::before/::after自动渲染，HTML中切勿添加 ( ) 或 （ ）包围 blank-N 标签！
 - 方框：<span class="square-box">&emsp;</span>
-- 如果是解答题，留出解答区域
+- 如果是解答题，用 \u003cbr\u003e 换行或 \u003cdiv style=\"min-height:80px\"\u003e\u003c/div\u003e 留出书写空间，⛔ 严禁用 blank-N 或 blank-line 做解答区
 - 🎯 **特殊标记规范**（重要！）：
   * 需要强调的文字用 <strong>加粗</strong>
   * 需要下划线的文字用 <u>下划线</u>
@@ -5959,7 +5889,7 @@ ${cardAnalysisText.substring(0, 1000)}
       '生成-学段适配', '生成-学科适配', '生成-资料类型结构',
       '生成-情境方向',
       '生成-学科特色', '生成-情境要求',
-      '生成-年级边界提示', '生成-快捷学段提示', '生成-难度配置',
+      '生成-年级边界提示', '生成-难度配置',
       // 生成-核心任务与题型
       '生成-核心任务', '生成-题型分布建议', '生成-命题风格',
       // 生成-模板约束
@@ -6062,7 +5992,6 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔧 块间间距归一化：确保每个 --- 分隔线前恰好一个空行，消除不规则间距
     instruction = instruction.replace(/\n+---\n/g, '\n\n---\n');
     instruction = instruction.replace(/^\n+/, '');
-
     return instruction;
     } catch (e) {
       console.error('[buildGenerationInstruction] :', e);
@@ -9176,7 +9105,7 @@ ${subject === '语文' ? `
 - 竖式计算用 <div class="vertical-calc">，例题必须给出完整解题步骤
 ${['物理', '化学', '生物', '科学'].includes(subject) ? '- 实验步骤用 <div class="experiment-steps"><ol><li>步骤</li></ol></div>，实验现象用 <strong>加粗</strong> 标注\n' : ''}` : ''}
 - 🔴 填空题格式：<p>题干<u class="blank-2">&emsp;</u>题干</p>（横线留空不填答案！）
-- 🔴 括号留空格式：题末括号根据答案字数动态计算宽度！<span class="blank-N">&emsp;</span>（N按答案字数：1-2字→4, 3-4字→6, 5-6字→8, 7-10字→10，⛔严禁括号内用 <u> 标签）
+- 🔴 括号填空格式：<span class="blank-N">&emsp;</span>（N按答案字数：1字→2, 2字→3, 3字→4, 4字→5, 5-6字→6, 7-8字→8, 9-10字→10，⛔严禁括号内用 <u> 标签）
 - 答案统一放文末 <div class="answer-section"><h2>答案与提示</h2>...</div>
 - ⛔ 严禁：题目中直接写答案、所有内容挤在一个段落、用空格代替换行
 ${(() => { const gn = extractGradeNum(grade); return stage === 'primary' && gn <= 2 ? '- 低段配插图：[IMAGE]\nTYPE:SD\nPROMPT:描述\nSTYLE:cartoon\n[/IMAGE]\n' : ''; })()}
@@ -9374,7 +9303,6 @@ ${(() => { const fmtBlocks = getMatchingBlockInstructions({ category: '生成-�
 - 大标题用 <h1>，分节用 <h2>
 - 参考答案统一放文末 <div class="answer-section">
 - ⛔ 严禁所有内容挤在一个段落
-${GEN_TYPE_FORMAT_SPEC.dictation(subject, stage)}
 ${subject === '语文' && stage === 'primary' ? '【语文学科格式】\n生字用<span class="tian-zi-ge">字</span>（HTML），情境图[IMAGE]单独成行\n' : ''}${isEnglish ? `【英语学科格式】
 - 写英文用：${stage === 'primary' && extractGradeNum(grade) <= 4 ? '<span class="four-line-three english-line">word</span> 四线三格' : '<span class="english-line">word</span> 单线'}
 - 写中文用：<span class="blank-line">&emsp;&emsp;</span> 普通横线（禁止四线格/田字格）
@@ -9551,7 +9479,6 @@ ${(() => { const fmtBlocks = getMatchingBlockInstructions({ category: '生成-�
 - 选择题选项用 <p class="option">
 - 参考答案统一放文末 <div class="answer-section">
 - ⛔ 严禁所有内容挤在一个段落
-${GEN_TYPE_FORMAT_SPEC.reading(subject, stage)}
 
 【强制输出格式——最后一条指令】
 你必须输出标准HTML代码。不允许纯文本输出。
@@ -10532,7 +10459,7 @@ ${instruction}
   <p class="question">(2) 小题</p>
 
 - 🔴 填空横线：<u class="blank-N">&emsp;</u>（N按答案字数：1字→2, 2字→4, 3-4字→6, 5-6字→8, 7-10字→10）
-- 🔴 括号留空：选择题/判断题题末括号用 <span class="blank-N">&emsp;</span>（N必须按答案字数动态计算！1-2字→4, 3-4字→6, 5-6字→8, 7-10字→10，⛔严禁括号内用 <u> 标签）
+- 🔴 括号填空：用 <span class="blank-N">&emsp;</span>（N必须按答案字数动态计算！1字→2, 2字→3, 3字→4, 4字→5, 5-6字→6, 7-8字→8, 9-10字→10，⛔严禁括号内用 <u> 标签）
 
 【强制约束】
 1. 每道题前标注题号，与蓝图的题号一一对应
