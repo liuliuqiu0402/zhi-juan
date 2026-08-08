@@ -252,6 +252,7 @@ import {
 } from '../themeConfig.js';
 import { APP_EVENTS } from '../constants/events.js';
 import RichTextEditor from '../components/RichTextEditor.vue';
+import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 
 defineOptions({ name: 'TypesetModule' });
 
@@ -421,6 +422,15 @@ const themeCSS = computed(() => {
       }
     );
 
+    // 🔑 标题的 color 不加 !important，允许 AI 生成的内联颜色覆盖主题颜色
+    //    字号/字体等仍保留 !important，确保主题排版结构不被打乱
+    css = css.replace(
+      /(h[1-6]\b[^{]*\{)([^}]+)(\})/g,
+      (match, selectorOpen, body, close) => {
+        return selectorOpen + body.replace(/(color\s*:\s*[^;]+)\s*!important/g, '$1') + close;
+      }
+    );
+
     // 🔑 田字格/米字格：彻底移除 CSS 规则，仅靠 Tiptap renderHTML 内联样式（与无样式模式一致）
     //    无样式时田字格能正常居中，说明内联样式已足够；注入的 CSS 规则无论有无 !important 都有干扰风险
     css = css.replace(/[^\}]*\btian-zi-ge\b[^\{]*\{[^\}]*\}/g, '');
@@ -434,6 +444,9 @@ const themeCSS = computed(() => {
     const theme = getThemeById(selectedThemeId.value);
     if (theme) {
       css += `\n.ProseMirror { font-family: ${theme.bodyFont}; font-size: ${theme.bodySize}pt; line-height: ${theme.lineHeight}; color: ${theme.bodyColor}; }\n`;
+      // 🔑 统一正文字号：AI 可能给 .option/.answer-item 等设 15px 内联样式，强制继承主题正文字号
+      //    排除 h1-h6（标题有自己的主题字号），排除 sup/sub/superscript/subscript（上/下标需缩小）
+      css += `.ProseMirror .answer-item,.ProseMirror .notice,.ProseMirror .card,.ProseMirror p,.ProseMirror li,.ProseMirror td p,.ProseMirror th p{font-size:inherit!important}\n`;
       // 🔧 特殊主题布局 CSS（Tiptap 编辑区用 .ProseMirror，保留原名）
       const specialCSS = getSpecialThemeEditorCSS(selectedThemeId.value);
       if (specialCSS) css += specialCSS;
@@ -557,7 +570,10 @@ const deleteCustomThemeHandler = async () => {
 
 // ==================== 内容编辑 ====================
 const clearContent = async () => {
-  if (!currentContent.value.trim()) return;
+  const hasContent = isHtmlContent.value
+    ? (rawHtmlContent.value && rawHtmlContent.value.length > 20)
+    : currentContent.value.trim();
+  if (!hasContent) return;
   const confirmed = await showConfirmDialogFn('确定要清空排版内容吗？未保存的修改将丢失。');
   if (!confirmed) return;
   currentContent.value = '';
@@ -799,10 +815,12 @@ const exportDocument = async () => {
       exportStatus.value = '正在生成Word文档...';
 
       // ✅ 导出前已从 contentEditable 实时 DOM 刷新 pristineHtmlForExport，直接使用
-      const sourceHtml = pristineHtmlForExport.value || rawHtmlContent.value;
+      let sourceHtml = pristineHtmlForExport.value || rawHtmlContent.value;
       if (!sourceHtml || sourceHtml.length < 20) {
         throw new Error('编辑器内容为空');
       }
+      // 🔧 导出前预处理：ruby 标签 → ruby-char span（拆分多字注音为逐字独立单元）
+      sourceHtml = normalizeRubyTags(sourceHtml);
 
       // 🔧 懒加载 docxBuilder（避免 chunk 加载时序导致整个组件挂掉）
       const { htmlToDocxBlob } = await import('../utils/docxBuilder.js');
@@ -841,6 +859,10 @@ const exportDocument = async () => {
           exportCSS = exportCSS.replace(/body\s*\{[^}]*\}/g, '');
           exportCSS = exportCSS.replace(/@page\s*\{[^}]*\}/g, '');
           exportCSS = exportCSS.replace(/@media\s+print\s*\{[^}]*\}/g, '');
+
+          // 🔑 统一正文字号：覆盖 AI 给 .answer-item/.notice/.card 等设的内联字号
+          //    强制所有正文元素继承克隆根节点的主题字号（与编辑器 CSS 策略一致）
+          exportCSS += '\n.answer-item,.notice,.card,p,li,td p,th p{font-size:inherit!important}\n';
 
           // 🔧 补充通用块级边距规则，将主题的 class 选择器边距映射为元素级规则
           //    确保导出时 getComputedStyle 能正确读取边距（不依赖 class 名）
@@ -1031,6 +1053,29 @@ watch(selectedThemeId, async () => {
 // 🔧 HTML 模式下编辑器已实时显示主题样式，仅导出时生成完整预览 HTML
 
 // ==================== 初始化 ====================
+// 🔧 调试入口：在控制台执行 window.__debugBlanks() 查看编辑区中所有 blank 相关 span 的 class 和伪元素
+window.__debugBlanks = () => {
+  const editor = contentEditor.value;
+  if (!editor?.editor?.view?.dom) { console.log('编辑器未就绪'); return; }
+  const dom = editor.editor.view.dom;
+  const blanks = dom.querySelectorAll('[class*="blank-"]');
+  console.log(`=== 编辑区 blank span 共 ${blanks.length} 个 ===`);
+  const summary = {};
+  blanks.forEach(el => {
+    const cls = el.className?.toString() || '';
+    const beforeContent = getComputedStyle(el, '::before').content;
+    const afterContent = getComputedStyle(el, '::after').content;
+    summary[cls] = (summary[cls] || 0) + 1;
+    console.log(
+      `  [${el.tagName}] class="${cls}"`,
+      `::before="${beforeContent}"`,
+      `::after="${afterContent}"`,
+      `text="${el.textContent?.substring(0,20)}"`
+    );
+  });
+  console.log('=== 汇总 ===', summary);
+};
+console.log('💡 调试已就绪：在控制台输入 __debugBlanks() 回车即可查看编辑区 blank span 详情');
 // 🔧 keep-alive 支持：首次挂载和每次激活都检查待处理内容
 const consumePendingContent = () => {
   if (window.__pendingTypesetContent) {

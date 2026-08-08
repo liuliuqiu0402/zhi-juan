@@ -164,11 +164,19 @@ import Highlight from '@tiptap/extension-highlight';
 import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import TextAlign from '@tiptap/extension-text-align';
+
+// 🔧 禁用 TextAlign 内置快捷键（Ctrl+Shift+R/L/E/J），避免与浏览器强制刷新等系统快捷键冲突
+const CustomTextAlign = TextAlign.extend({
+  addKeyboardShortcuts() {
+    return {};
+  },
+});
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import { FontFamily } from '@tiptap/extension-font-family';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { Extension, Mark, Node } from '@tiptap/core';
+import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 
 // ══════════════════════════════════════════
 // 自定义扩展
@@ -281,24 +289,32 @@ const PRESERVE_CLASSES = [
   'stroke-order', 'underline-sentence', 'wavy-underline', 'double-line', 'single-line',
   'oral-box', 'square-box', 'score-box', 'chem-condition', 'wb-item',
   'superscript', 'subscript', 'dashed-line',
+  'ruby-char',  // 注音/拼音（由 transformPastedHTML / trySetContent 入口预处理 ruby → span.ruby-char）
 ];
+
 const PreserveSpan = Mark.create({
   name: 'preserveSpan',
   parseHTML() {
     return PRESERVE_CLASSES.map(cls => ({
       tag: `span.${cls}`,
-      getAttrs: el => ({ preservedClass: cls, strokes: el.getAttribute('data-strokes') || null }),
+      getAttrs: el => ({
+        preservedClass: cls,
+        strokes: el.getAttribute('data-strokes') || null,
+        pinyin: el.getAttribute('data-pinyin') || null,  // ruby-char 注音数据
+      }),
     }));
   },
   renderHTML({ mark }) {
     const attrs = { class: mark.attrs.preservedClass || '' };
     if (mark.attrs.strokes) attrs['data-strokes'] = mark.attrs.strokes;
+    if (mark.attrs.pinyin) attrs['data-pinyin'] = mark.attrs.pinyin;
     return ['span', attrs, 0];
   },
   addAttributes() {
     return {
       preservedClass: { default: '' },
       strokes: { default: null },
+      pinyin: { default: null },
     };
   },
 });
@@ -393,21 +409,34 @@ const CustomParagraph = Paragraph.extend({
         parseHTML: el => el.getAttribute('style') || null,
         rendered: false,
       },
+      // 🔧 保留 AI 生成的 class（如 tip/note/warning 等语义类名）
+      nodeClass: {
+        default: null,
+        parseHTML: el => el.getAttribute('class') || null,
+        rendered: false,
+      },
     };
   },
   renderHTML({ node, HTMLAttributes }) {
-    // 🔧 手动合并 nodeStyle，确保与 textIndent/lineHeight 的 style 不冲突
+    // 🔧 手动合并 nodeStyle，确保与 textIndent/lineHeight/textAlign 的 style 不冲突
+    //    textAlign 由 TextAlign 扩展统一管理，nodeStyle 中的旧值必须剔除，否则 CSS 后者覆盖前者
+    //    导致用户通过工具栏设置的对齐方式被 AI 原始内联样式覆盖，表现为"有的段落有用有的没用"
     const rawStyle = node.attrs.nodeStyle;
     if (rawStyle) {
       const cleaned = rawStyle
         .replace(/text-indent\s*:\s*[^;]+;?\s*/gi, '')
         .replace(/line-height\s*:\s*[^;]+;?\s*/gi, '')
+        .replace(/text-align\s*:\s*[^;]+;?\s*/gi, '')
         .trim();
       if (cleaned) {
         HTMLAttributes.style = HTMLAttributes.style
           ? HTMLAttributes.style + '; ' + cleaned
           : cleaned;
       }
+    }
+    // 🔧 手动合并 nodeClass
+    if (node.attrs.nodeClass) {
+      HTMLAttributes.class = node.attrs.nodeClass;
     }
     return ['p', HTMLAttributes, 0];
   },
@@ -437,21 +466,32 @@ const CustomHeading = Heading.extend({
         parseHTML: el => el.getAttribute('style') || null,
         rendered: false,
       },
+      // 🔧 保留 AI 生成的 class（如 tip/note/warning 等语义类名）
+      nodeClass: {
+        default: null,
+        parseHTML: el => el.getAttribute('class') || null,
+        rendered: false,
+      },
     };
   },
   renderHTML({ node, HTMLAttributes }) {
-    // 🔧 手动合并 nodeStyle，确保与 textIndent/lineHeight 的 style 不冲突
+    // 🔧 手动合并 nodeStyle，确保与 textIndent/lineHeight/textAlign 的 style 不冲突
     const rawStyle = node.attrs.nodeStyle;
     if (rawStyle) {
       const cleaned = rawStyle
         .replace(/text-indent\s*:\s*[^;]+;?\s*/gi, '')
         .replace(/line-height\s*:\s*[^;]+;?\s*/gi, '')
+        .replace(/text-align\s*:\s*[^;]+;?\s*/gi, '')
         .trim();
       if (cleaned) {
         HTMLAttributes.style = HTMLAttributes.style
           ? HTMLAttributes.style + '; ' + cleaned
           : cleaned;
       }
+    }
+    // 🔧 手动合并 nodeClass
+    if (node.attrs.nodeClass) {
+      HTMLAttributes.class = node.attrs.nodeClass;
     }
     return [`h${node.attrs.level}`, HTMLAttributes, 0];
   },
@@ -578,7 +618,7 @@ const editor = useEditor({
     Highlight.configure({ multicolor: true }),
     TextStyle,
     Color,
-    TextAlign.configure({ types: ['heading', 'paragraph'] }), // 🔧 不设 defaultAlignment，让主题 CSS 控制对齐
+    CustomTextAlign.configure({ types: ['heading', 'paragraph'] }), // 🔧 不设 defaultAlignment，让主题 CSS 控制对齐
     Subscript,
     Superscript,
     FontFamily,
@@ -670,6 +710,11 @@ const editor = useEditor({
     attributes: {
       // 🔧 移除 Tailwind Typography 的 prose/prose-sm 类 — 它们硬编码了字号阻碍主题 CSS 生效
       class: 'focus:outline-none p-6'
+    },
+    // 🔧 粘贴 HTML 预处理：拦截所有 pasted/dropped HTML，在 ProseMirror 解析前转换 ruby 标签
+    transformPastedHTML(html) {
+      if (!html) return html;
+      return normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(html)));
     },
     handleKeyDown: (view, event) => {
       // Escape 退出格式刷连刷模式
@@ -1017,6 +1062,117 @@ const toggleFormatPainter = () => {
   }
 };
 
+// ═══════════════ 注音/拼音预处理：<ruby> 标签转 span.ruby-char ═══════════════
+// 策略：所有 HTML 进入 Tiptap/ProseMirror 前，将 <ruby>字<rt>pinyin</rt></ruby>
+//       统一转为 <span class="ruby-char" data-pinyin="pinyin">字</span>
+//       由 PreserveSpan 保留 class + data-pinyin，CSS ::before 绘制上方拼音
+// ═══════════════ class 样式 → 内联 style：将 <style> 块中的 CSS 规则展开到匹配元素上 ═══════════════
+// 背景：AI 生成的内容包含 <style>.tip{color:red}</style> + <p class="tip">，但编辑器不解析 <style> 块
+//       导致 class 颜色丢失。nodeClass 修复保留了 class 属性，但 CSS 规则仍需转为内联才能生效
+// 方案：DOM 预处理 → 解析 <style> 块 → 对每个规则 querySelectorAll → 合并到元素内联 style
+const convertClassStylesToInline = (html) => {
+  if (!html) return html;
+  if (!/<style[^>]*>/i.test(html)) return html;
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const styleElements = doc.querySelectorAll('style');
+  if (styleElements.length === 0) return html;
+
+  let allCSS = '';
+  styleElements.forEach(el => {
+    allCSS += el.textContent + '\n';
+    el.remove();
+  });
+  if (!allCSS.trim()) return html;
+
+  // 解析 CSS 规则：selector { properties }
+  const ruleRegex = /([^{]+)\{([^}]+)\}/g;
+  let match;
+  let modified = false;
+
+  while ((match = ruleRegex.exec(allCSS)) !== null) {
+    const rawSelector = match[1].trim();
+    const rawProperties = match[2].trim();
+    if (!rawSelector || !rawProperties) continue;
+
+    // 跳过 @-规则和伪类/伪元素（无法转为内联）
+    if (rawSelector.startsWith('@') || /::?[a-z-]+/i.test(rawSelector)) continue;
+    // 跳过 html/body/* 等全局选择器
+    if (/^(html|body|\*)$/i.test(rawSelector)) continue;
+
+    try {
+      const elements = doc.querySelectorAll(rawSelector);
+      if (elements.length === 0) continue;
+
+      const newDecls = rawProperties.split(';').map(d => d.trim()).filter(Boolean);
+
+      elements.forEach(el => {
+        modified = true;
+        const existing = el.getAttribute('style') || '';
+        const existingDecls = existing.split(';').map(d => d.trim()).filter(Boolean);
+
+        // 合并：新声明覆盖同名旧声明
+        const merged = new Map();
+        existingDecls.forEach(d => {
+          const colonIdx = d.indexOf(':');
+          if (colonIdx > 0) merged.set(d.substring(0, colonIdx).trim().toLowerCase(), d.trim());
+        });
+        newDecls.forEach(d => {
+          const colonIdx = d.indexOf(':');
+          if (colonIdx > 0) merged.set(d.substring(0, colonIdx).trim().toLowerCase(), d.trim());
+        });
+
+        el.setAttribute('style', [...merged.values()].join('; '));
+      });
+    } catch (e) {
+      // 跳过无效选择器（querySelectorAll 可能抛出异常）
+    }
+  }
+
+  return modified ? doc.body.innerHTML : html;
+};
+
+// ═══════════════ 颜色样式归一化：将 strong/em/u/s 上的 color 移植到内部 span ═══════════════
+// 背景：TipTap TextStyle mark 只匹配 <span> 元素，不匹配 <strong>/<em>/<u>/<s>
+//       Color 扩展作为 textStyle 的 global attribute 无法从非 span 元素提取颜色
+//       导致 <strong style="color:red">text</strong> 的颜色在进入编辑器后丢失
+// 方案：DOM 预处理 → 提取 color 从非 span 元素上，注入内层 <span style="color:...">
+const normalizeColorStyles = (html) => {
+  if (!html) return html;
+  // 需要处理的语义标签（TipTap 有对应 Mark 但不支持 style 属性上的 color）
+  const COLOR_SEMANTIC_TAGS = ['strong', 'b', 'em', 'i', 'u', 'ins', 's', 'del', 'strike'];
+  const selector = COLOR_SEMANTIC_TAGS.map(t => `${t}[style]`).join(',');
+  if (!new RegExp(`<(${COLOR_SEMANTIC_TAGS.join('|')})\\b[^>]*\\bcolor\\s*:`, 'i').test(html)) return html;
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const elements = Array.from(doc.querySelectorAll(selector));
+  let modified = false;
+
+  for (const el of elements) {
+    // 读取计算样式中的 color（支持 rgb/rgba/hex 等格式）
+    const colorVal = el.style.color;
+    if (!colorVal) continue;
+
+    modified = true;
+    // 从原元素上移除 color 属性
+    el.style.color = '';
+    // 如果 style 已清空，移除 style 属性
+    if (!el.getAttribute('style')?.trim()) el.removeAttribute('style');
+
+    // 创建内层 span 承载颜色
+    const span = doc.createElement('span');
+    span.style.color = colorVal;
+    // 将原元素的所有子节点移入 span
+    while (el.firstChild) span.appendChild(el.firstChild);
+    // 将 span 放回原元素
+    el.appendChild(span);
+  }
+
+  return modified ? doc.body.innerHTML : html;
+};
+
 // ═══════════════ 序号去重：<ol> 自动编号 vs 文本编号 叠杀 ═══════════════
 // 场景：AI 生成 <ol><li>14. 某某标题</li></ol> 时，浏览器 + 文本双重编号 → "14. 14. xxx"
 // 策略：检测 <ol> 中多数 <li> 是否已自带文本序号，若是则剥离 <ol> 转为 <p> 段落
@@ -1058,14 +1214,17 @@ const normalizeDoubleNumberedLists = (html) => {
 
 // ═══════════════ Watchers ═══════════════
 // 🔧 修复时序竞态：modelValue 变化 + editor 就绪 → 都要尝试 setContent
-let pendingContent = null;
+//    初始值设为 modelValue，让 editor 就绪时也能触发 ruby 预处理（首次渲染时会绕过 watch）
+let pendingContent = props.modelValue || null;
 
 const trySetContent = () => {
   if (!editor.value || pendingContent === null) return;
+  // 🔧 载入前预处理：class 样式 → 内联 → ruby 标签 → span.ruby-char
+  let processed = normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(pendingContent)));
   // 🔧 载入前预处理：<ol> 双编号去重
-  const normalized = normalizeDoubleNumberedLists(pendingContent);
-  if (normalized !== editor.value.getHTML()) {
-    editor.value.commands.setContent(normalized, false);
+  processed = normalizeDoubleNumberedLists(processed);
+  if (processed !== editor.value.getHTML()) {
+    editor.value.commands.setContent(processed, false);
   }
   pendingContent = null;
 };
@@ -1074,7 +1233,7 @@ watch(() => props.modelValue, (newVal) => {
   pendingContent = newVal;  // 🔧 始终更新，防止外部变更在内部编辑期间丢失
   if (isInternalUpdate) return;  // 🔧 内部编辑操作触发的回弹，跳过 setContent
   trySetContent();
-});
+}, { immediate: true });
 
 // 🔧 editor 就绪后补调（解决 editor 未就绪时 modelValue 已到达的时序问题）
 watch(editor, (val) => {
@@ -1216,7 +1375,7 @@ defineExpose({
       }
     });
   },
-  setContent: (html) => { editor.value?.commands.setContent(normalizeDoubleNumberedLists(html), false); },
+  setContent: (html) => { editor.value?.commands.setContent(normalizeDoubleNumberedLists(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(html)))), false); },
 });
 </script>
 
@@ -1449,6 +1608,12 @@ defineExpose({
 .rich-text-editor :deep(table.periodic-table .nonmetal) { background: #c8e6c9; }
 .rich-text-editor :deep(table.periodic-table .metal) { background: #ffcdd2; }
 .rich-text-editor :deep(table.periodic-table .transition) { background: #ffe0b2; }
+
+/* ===== AI 生成语义提示样式（class 保留后生效）===== */
+.rich-text-editor :deep(.tip) { color: #e67e22; background: #fff8f0; border-left: 3px solid #e67e22; padding: 6px 12px; margin: 8px 0; border-radius: 0 4px 4px 0; }
+.rich-text-editor :deep(.note) { color: #2c3e50; background: #f0f7ff; border-left: 3px solid #3498db; padding: 6px 12px; margin: 8px 0; border-radius: 0 4px 4px 0; }
+.rich-text-editor :deep(.warning) { color: #c0392b; background: #fff5f5; border-left: 3px solid #e74c3c; padding: 6px 12px; margin: 8px 0; border-radius: 0 4px 4px 0; }
+.rich-text-editor :deep(.summary) { color: #1a6e5c; background: #f0faf7; border-left: 3px solid #1abc9c; padding: 6px 12px; margin: 8px 0; border-radius: 0 4px 4px 0; }
 .rich-text-editor :deep(table.periodic-table .noble-gas) { background: #b3e5fc; }
 .rich-text-editor :deep(table.periodic-table .lanthanide) { background: #f8bbd0; }
 .rich-text-editor :deep(table.periodic-table .actinide) { background: #e1bee7; }

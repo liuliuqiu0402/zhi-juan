@@ -322,6 +322,34 @@ export const TZG_MARKER = (char, cellWEmu) => `__TZG_${char}_${cellWEmu}__`;
 export const FLT_MARKER = (letter, cellWEmu, sizeHp) => `__FLT_${letter}_${cellWEmu}_${sizeHp}__`;
 /** 空白四线三格标记：仅绘制四条线，不渲染字母（听写/默写留空场景） */
 export const FLT_BLANK_MARKER = (cellWEmu, sizeHp) => `__FLT_BLANK_${cellWEmu}_${sizeHp}__`;
+/** 注音/拼音标记：后处理替换为 Word 原生 w:ruby 注音元素 */
+export const RUBY_MARKER = (baseText, pinyin, baseSizeHp) => `__RUBY_${baseText}_${pinyin}_${baseSizeHp}__`;
+
+// ============ Ruby 注音注入 ============
+
+const buildRubyRun = (baseText, pinyin, baseSizeHp, rPrXml) => {
+  // 🔧 拼音注音字号：用基础字号的 65%（CSS 中 rt 为 0.6em），最低 9pt
+  //    原 0.5 比例导致拼音在正文 14pt 时仅 7pt，Word 渲染几乎不可见
+  const rubySizeHp = Math.max(18, Math.round(baseSizeHp * 0.65));
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const rPr = rPrXml && rPrXml.trim() ? rPrXml : `<w:rPr><w:sz w:val="${baseSizeHp}"/></w:rPr>`;
+  return `<w:r>${rPr}<w:ruby>` +
+    `<w:rubyPr><w:rubyAlign w:val="center"/><w:hps w:val="${rubySizeHp}"/><w:hpsBaseText w:val="${baseSizeHp}"/></w:rubyPr>` +
+    `<w:rt><w:r><w:rPr><w:sz w:val="${rubySizeHp}"/></w:rPr><w:t xml:space="preserve">${esc(pinyin)}</w:t></w:r></w:rt>` +
+    `<w:rubyBase><w:r><w:rPr><w:sz w:val="${baseSizeHp}"/></w:rPr><w:t xml:space="preserve">${esc(baseText)}</w:t></w:r></w:rubyBase>` +
+    `</w:ruby></w:r>`;
+};
+
+/** 后处理：将 __RUBY_...__ 标记替换为 Word 原生 w:ruby 注音元素 */
+const injectRubyAnnotations = (docXml) => {
+  // 行内 ruby 标记：匹配 <w:r>...<w:t>__RUBY_{base}_{pinyin}_{size}__</w:t>...</w:r>
+  // ⚠️ base 用 [^_]+?（非贪婪），pinyin 用 [^_]+?，size 用 \d+
+  const rubyRegex = /<w:r\b[^>]*>(\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?)\s*<w:t[^>]*>__RUBY_([^_]+?)_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>/gi;
+  return docXml.replace(rubyRegex, (match, rPrXml, baseText, pinyin, sizeStr) => {
+    const baseSizeHp = parseInt(sizeStr) || 24;
+    return buildRubyRun(baseText, pinyin, baseSizeHp, rPrXml);
+  });
+};
 
 // ============ 后处理管线 ============
 
@@ -402,6 +430,8 @@ export const injectDrawingML = async (zipBuffer) => {
 
   // 替换完成
 
+  // ==== Ruby 注音标记替换 ====
+  docXml = injectRubyAnnotations(docXml);
 
   // --- 命名空间声明：文档根加 xmlns:wps + mc:Ignorable ---
   if (hasDml) {

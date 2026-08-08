@@ -116,7 +116,7 @@ export const themes = [
     heading2Color: '#2b5ea7',
     heading3Color: '#3a7bd5',
     bodyColor: '#000000',
-    bodySize: 14,
+    bodySize: 12,
     lineHeight: 1.8,
     pageMargin: '20px',
     tableHeaderBg: '#1e3a6f',
@@ -148,7 +148,7 @@ export const themes = [
     heading2Color: '#43a047',
     heading3Color: '#66bb6a',
     bodyColor: '#000000',
-    bodySize: 14,
+    bodySize: 12,
     lineHeight: 1.8,
     pageMargin: '20px',
     tableHeaderBg: '#2e7d32',
@@ -180,7 +180,7 @@ export const themes = [
     heading2Color: '#d47a00',
     heading3Color: '#e89a00',
     bodyColor: '#000000',
-    bodySize: 14,
+    bodySize: 12,
     lineHeight: 1.8,
     pageMargin: '20px',
     tableHeaderBg: '#b85c00',
@@ -895,7 +895,7 @@ export const addCustomTheme = (themeData) => {
     group: '自定义',
     titleFont: themeData.titleFont || 'SimHei, Microsoft YaHei, sans-serif',
     bodyFont: themeData.bodyFont || 'SimSun, Microsoft YaHei, sans-serif',
-    bodySize: themeData.bodySize || 12,
+    bodySize: themeData.bodySize || 14,
     lineHeight: themeData.lineHeight || 1.6,
     pageMargin: themeData.pageMargin || '20px',
     styles: themeData.styles || {}
@@ -918,7 +918,7 @@ export const addCustomTheme = (themeData) => {
   newTheme.tableOddRowBg = colors.tableOdd;
   newTheme.tableHeaderColor = '#ffffff';
   newTheme.tableEvenRowBg = '#ffffff';
-  newTheme.bodyColor = '#333333';
+  newTheme.bodyColor = '#000000';
   
   customThemes.push(newTheme);
   saveCustomThemes(customThemes);

@@ -475,20 +475,61 @@ const convertBlankFormat = (html) => {
   if (!html || html.length < 3) return html;
 
   // ── 步骤1：保护已有的 blank-N 标签，避免重复转换 ──
+  // 🔧 使用 \uE000/\uE001 私有区字符替代 __ 作为占位符分隔符，
+  //    避免步骤2的 _{3,} 正则误匹配相邻占位符间的连续下划线导致占位符被破坏
   const preserved = [];
   let result = html;
   // 保护 <u class="blank-...">...</u> （注意：不捕获换行属性避免栈溢出）
   result = result.replace(/<u\s+class="blank-\d+"[^>]*>[\s\S]*?<\/u>/gi, (m) => {
     preserved.push(m);
-    return `__PPKU${preserved.length - 1}__`;
+    return `\uE000PPKU${preserved.length - 1}\uE001`;
   });
   // 保护 <span class="blank-...">...</span>
   result = result.replace(/<span\s+class="blank-\d+"[^>]*>[\s\S]*?<\/span>/gi, (m) => {
     preserved.push(m);
-    return `__PPKS${preserved.length - 1}__`;
+    return `\uE000PPKS${preserved.length - 1}\uE001`;
   });
 
-  // ── 步骤2：下划线 → <u class="blank-N">&emsp;</u> ──
+  // ── 步骤1.7a：单边左括号 + 下划线（无右括号）→ <span> ──
+  // 先于步骤1.8执行；用负向前瞻排除完整括号对，避免与1.8冲突
+  result = result.replace(/(?:[（(])\s*(_{3,})(?!\s*[）)])/g, (match, underscores) => {
+    const len = underscores.length;
+    let n;
+    if (len <= 3) n = 2;
+    else if (len <= 4) n = 4;
+    else if (len <= 6) n = 6;
+    else if (len <= 8) n = 8;
+    else n = 10;
+    return `<span class="blank-${n}">&emsp;</span>`;
+  });
+
+  // ── 步骤1.7b：下划线 + 单边右括号（无左括号）→ <span> ──
+  // 负向后瞻排除(..._)完整对；先于1.8执行，已匹配的完整对不受影响
+  result = result.replace(/(?<![（(])(_{3,})\s*(?:[）)])/g, (match, underscores) => {
+    const len = underscores.length;
+    let n;
+    if (len <= 3) n = 2;
+    else if (len <= 4) n = 4;
+    else if (len <= 6) n = 6;
+    else if (len <= 8) n = 8;
+    else n = 10;
+    return `<span class="blank-${n}">&emsp;</span>`;
+  });
+
+  // ── 步骤1.8：括号包裹下划线 → <span class="blank-N">&emsp;</span>（谁在外保留谁：括号在外 → 括号填空）──
+  // 必须先于步骤2执行，避免内层下划线先被转成 <u> 导致误判
+  result = result.replace(/(?:[（(])\s*(_{3,})\s*(?:[）)])/g, (match, underscores) => {
+    const len = underscores.length;
+    let n;
+    if (len <= 3) n = 2;
+    else if (len <= 4) n = 4;
+    else if (len <= 6) n = 6;
+    else if (len <= 8) n = 8;
+    else n = 10;
+    return `<span class="blank-${n}">&emsp;</span>`;
+  });
+
+  // ── 步骤2：裸露下划线 → <u class="blank-N">&emsp;</u>（无外壳包裹 → 横线书写区）──
   result = result.replace(/_{3,}/g, (match) => {
     const len = match.length;
     let n;
@@ -500,12 +541,11 @@ const convertBlankFormat = (html) => {
     return `<u class="blank-${n}">&emsp;</u>`;
   });
 
-  // ── 步骤3：括号内纯空白 → <span class="blank-N">&emsp;</span> ──
-  // 匹配中文括号（）或英文括号()，内部仅含空白字符/实体（无 HTML 标签）
-  // 括号由 CSS span::before/::after 伪元素统一渲染，此处只生成 span 标签
+
+  // ── 步骤3：括号内纯空白 → <span class="blank-N">&emsp;</span>（谁在外保留谁：括号在外 → 括号填空）──
   result = result.replace(/(?:[（(])((?:\s|&emsp;|\u2003|&nbsp;| )+)(?:[）)])/g, (match, inner) => {
-    // 统计空白宽度：&emsp;/\u2003 每字符=1em，&nbsp;/  每字符≈0.25em
-    const emspCount = (inner.match(/&emsp;/gi) || []).length + (inner.match(/\u2003/g) || []).length;
+    // 统计空白宽度：&emsp;/\u2003/\u3000 每字符≈1em，&nbsp;/  每字符≈0.25em
+    const emspCount = (inner.match(/&emsp;/gi) || []).length + (inner.match(/\u2003/g) || []).length + (inner.match(/\u3000/g) || []).length;
     const nbspCount = (inner.match(/&nbsp;| /gi) || []).length;
     const totalWidth = emspCount + nbspCount * 0.25;
     if (totalWidth <= 0) return match; // 无有效空白，保持原样
@@ -521,13 +561,13 @@ const convertBlankFormat = (html) => {
   });
 
   // ── 步骤3.5：剥离已保护 blank-N 标签外侧的括号 ──
-  // 场景：AI 输出 (<span class="blank-N">&emsp;</span>) / （<span class="blank-N">&emsp;</span>）
-  // 括号由 CSS ::before/::after 统一渲染，HTML 中重复会导致双重括号 (())
-  result = result.replace(/(?:[（(])\s*(__PPKS\d+__)\s*(?:[）)])/g, (m, placeholder) => placeholder);
+  // 场景：AI 输出 (<span class="blank-N">&emsp;</span>) / (<u class="blank-N">&emsp;</u>)
+  // 括号由 CSS ::before/::after 统一渲染（span）或下划线（u），HTML 中重复会导致双重括号
+  result = result.replace(/(?:[（(])\s*(PPK[US]\d+)\s*(?:[）)])/g, (m, placeholder) => placeholder);
 
   // ── 步骤4：还原保护的 blank-N 标签 ──
-  result = result.replace(/__PPKU(\d+)__/g, (m, idx) => preserved[parseInt(idx)] || '');
-  result = result.replace(/__PPKS(\d+)__/g, (m, idx) => preserved[parseInt(idx)] || '');
+  result = result.replace(/PPKU(\d+)/g, (m, idx) => preserved[parseInt(idx)] || '');
+  result = result.replace(/PPKS(\d+)/g, (m, idx) => preserved[parseInt(idx)] || '');
 
   return result;
 };
@@ -695,7 +735,7 @@ const buildOutputFormatBlock = (genType, subject, stage, grade) => {
 <p>另一个独立条目</p>
 
 <h2>三、预习检测</h2>
-<p>题目1的题干内容<u class="blank-2">&emsp;</u>（填空用 &lt;u class="blank-N"&gt; 标签）</p>
+<p>题目1的题干内容<u class="blank-2">&emsp;</u>（词语填空用 &lt;u class="blank-N"&gt; 横线标签，选择填空用 &lt;span class="blank-N"&gt; 括号标签）</p>
 <p>题目2的题干内容<u class="blank-4">&emsp;</u>（N按答案字数：1/2/4/6/8/10）</p>
 
 <div class="answer-section">
@@ -774,7 +814,7 @@ const buildOutputFormatBlock = (genType, subject, stage, grade) => {
 <div class="exam-info"><p>考试信息</p></div>
 
 <h2>一、选择题</h2>
-<p class="question">1. 题干内容</p>
+<p class="question">1. 题干内容<span class="blank-2">&emsp;</span></p>
 <p class="option">A. 选项A</p>
 <p class="option">B. 选项B</p>
 <p class="option">C. 选项C</p>
@@ -796,8 +836,8 @@ const buildOutputFormatBlock = (genType, subject, stage, grade) => {
 <div class="practice-info"><p>年级 学科 课时练习</p></div>
 
 <h2>一、基础巩固</h2>
-<p class="question">1. 题干内容<u class="blank-2">&emsp;</u>（填空用 &lt;u class="blank-N"&gt; 标签）</p>
-<p class="question">2. 题干内容</p>
+<p class="question">1. 题干内容<u class="blank-2">&emsp;</u>（词语填空用 &lt;u class="blank-N"&gt; 横线标签，选择填空用 &lt;span class="blank-N"&gt; 括号标签）</p>
+<p class="question">2. 题干内容<span class="blank-2">&emsp;</span></p>
 <p class="option">A. 选项A</p>
 <p class="option">B. 选项B</p>
 <p class="option">C. 选项C</p>
@@ -827,7 +867,7 @@ const buildOutputFormatBlock = (genType, subject, stage, grade) => {
 <p class="analysis">解题步骤与思路分析</p>
 
 <h2>三、阶梯训练</h2>
-<p class="question">2. 基础题题干<u class="blank-2">&emsp;</u>（填空用 &lt;u class="blank-N"&gt; 标签）</p>
+<p class="question">2. 基础题题干<u class="blank-2">&emsp;</u>（词语填空用 &lt;u class="blank-N"&gt; 横线标签，选择填空用 &lt;span class="blank-N"&gt; 括号标签）</p>
 <p class="question">3. 拔高题题干</p>
 <p class="question">4. 综合题题干（含子题）：</p>
 <p class="question">(1) 子题一</p>
@@ -968,7 +1008,7 @@ ${diversitySeed ? '\n' + diversitySeed + '\n' : ''}
 ${situationAnchor}
 ${contextSummary}
 ${styleConsistencyHint}
-⚠️ 【反雷同指令——每题必须有不同的"面孔"】你的设问方式、场景选择、句式结构必须追求多样性。不要重复使用相同的非标准题干开头句式，每道题都应有独特的命题风格和语言表达（英语标准指令句如 Read/Choose/Fill 等祈使句除外）。
+⚠️ 【反雷同指令——每题保持适度的多样性】你的设问方式、场景选择应自然丰富，避免与前面题目使用完全相同的非标准题干开头句式。但排版格式（标题层级、选项排列、括号位置等）必须与整体保持一致，不得因追求多样性而随意改变排版规范。
 【题目要求】
 - 题号：${questionPlan.number}
 - 题型：${questionPlan.type}
@@ -1009,7 +1049,7 @@ ${compactInst}
           <p class="question">(2) 小题</p>
 - 题号用 <span class="question-number">${questionPlan.number}.</span>
 - 题干用 <p class="question">
-- 选择题选项用 <p class="option">
+- 选择题选项用 <p class="option">，题干末尾必须附带答案括号 <span class="blank-2">&emsp;</span>（CSS自动渲染括号）
 - 🎯 **填空题标记智能选择**（含手写余量，已上调一档）：根据答案类型和长度选择：
   * 1字→ <u class="blank-2">&emsp;</u>
   * 2字→ <u class="blank-4">&emsp;</u>
@@ -1018,7 +1058,7 @@ ${compactInst}
   * 7-10字→ <u class="blank-10">&emsp;</u>
   * 10字以上→ <u class="blank-10">&emsp;</u>
 - ⛔ **括号填空**：必须用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号），严禁在括号内用 <u>！横线与括号二选一，不可叠加！
-  * N按答案字数精确映射：1字→2, 2字→3, 3字→4, 4字→5, 5-6字→6, 7-8字→8, 9-10字→10, 10字以上→10
+  * N按答案字数精确映射：1字→3, 2字→4, 3-4字→6, 5-6字→8, 7+字→10
   * ✅ 正确：<span class="blank-2">&emsp;</span>  ❌ 错误：<u class="blank-2">&emsp;</u> ← 严禁括号内出现下划线！
   * 🔴 括号由CSS ::before/::after自动渲染，HTML中切勿添加 ( ) 或 （ ）包围 blank-N 标签！
 - 方框：<span class="square-box">&emsp;</span>
@@ -1054,7 +1094,12 @@ ${compactInst}
     - 无穷大：∞
     - 根号：√ (如 √2, √(a+b))
 - 保留原文的空白缩进和换行
-${annotationLine}只返回这一道题的HTML代码，不要添加\`\`\`html标记。`;
+${annotationLine}【输出格式确认——生成前最后检查】
+- ✅ 选择题：题干末尾必须有答案括号 <span class="blank-2">&emsp;</span>（CSS自动渲染括号），选项用 <p class="option">
+- ✅ 填空题：下划线用 <u class="blank-N">，括号用 <span class="blank-N">
+- ✅ 字号：所有正文统一字号，层级仅通过编号格式区分，不通过字号区分
+- ✅ 禁止：Markdown 语法、前言/确认语、解释性文字
+只返回这一道题的HTML代码，不要添加\`\`\`html标记。`;
 };
 
 const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updateStatus) => {
@@ -1571,6 +1616,27 @@ const buildHierarchyText = (knowledgeMap, contentCards, maxDisplay = 30) => {
   return hierarchyText;
 };
 
+// 🔧 模块级：资料类型名称轮换计数器，localStorage 持久化保证硬刷新不丢
+const LABEL_COUNTERS_KEY = 'ww_label_counters_v1';
+let _labelCounters = {};
+let _scopeLabelCounters = {};
+(function _restoreLabelCounters() {
+  try {
+    const raw = localStorage.getItem(LABEL_COUNTERS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.label) _labelCounters = parsed.label;
+        if (parsed.scope) _scopeLabelCounters = parsed.scope;
+      }
+    }
+  } catch { /* ignore */ }
+})();
+const _persistLabelCounters = () => {
+  try { localStorage.setItem(LABEL_COUNTERS_KEY, JSON.stringify({ label: _labelCounters, scope: _scopeLabelCounters })); } catch {}
+};
+
+
 export function useAiGenerator() {
   const isGenerating = ref(false);
   const progress = ref(0);
@@ -1596,10 +1662,6 @@ export function useAiGenerator() {
   let _perChapterChapterTitle = null;
   // 🔧 整体生成跳过检测标志：cancelPeriodSplit 设置，阻止 generate() 清空 _cachedKnowledgeMap
   let _preservePeriodCache = false;
-  // 🔧 资料类型名称轮换计数器，每次生成递进
-  const _labelCounters = {};
-  // 🔧 scopeType 名称轮换计数器（期中/期末/专题标签多样化）
-  const _scopeLabelCounters = {};
 
   // 🔧 资料类型名称池——轮换使用，避免标题千篇一律
   const GEN_TYPE_LABEL_POOLS = {
@@ -1623,7 +1685,9 @@ export function useAiGenerator() {
     const pool = GEN_TYPE_LABEL_POOLS[genType] || ['练习题'];
     const key = `${genType}__${chapterKey}`;
     _labelCounters[key] = (_labelCounters[key] || 0) % pool.length;
-    return pool[_labelCounters[key]++];
+    const label = pool[_labelCounters[key]++];
+    _persistLabelCounters();
+    return label;
   };
 
   /**
@@ -5973,9 +6037,10 @@ ${cardAnalysisText.substring(0, 1000)}
     }
     
     // ========== N+1.【尾约束】 ==========
-    // 🔧 DeepSeek 跳过：尾约束中的填空互斥/空标签规则已前置合并至【输出格式】，答案区确认已由【答案区强制锚定】覆盖。全部冗余。
+    // 尾约束中的填空互斥/空标签规则是最关键的语义区分（词语填空→<u>，独立括号→<span>），
+    // 对 DeepSeek 与 Ollama 同等重要——recency 效应叠加语义区分，不能再跳过
     const tailConstraintBlocks = getMatchingBlockInstructions({ category: '生成-尾约束', subject: '', stage: '', genType: primaryGenType });
-    if (tailConstraintBlocks.length > 0 && !_isDeepSeekInstruction) {
+    if (tailConstraintBlocks.length > 0) {
       instruction += `\n---\n【${_title('tail_constraint', '尾约束')}】\n${tailConstraintBlocks[0].content}\n\n`;
     }
 
@@ -7000,7 +7065,8 @@ ${(() => { const hasTpl = selectedTemplates && selectedTemplates.length > 0; if 
               }
             }
             
-            if (sentenceStarts.length >= 2) {
+            if (sentenceStarts.length >= 4) {
+              // 🔧 序列约束管控：累积4题后才做句式雷同检测（原2题过早触发）
               const allSame = sentenceStarts.every(s => 
                 sentenceStarts[0].substring(0, 2) === s.substring(0, 2)
               );
@@ -7009,7 +7075,8 @@ ${(() => { const hasTpl = selectedTemplates && selectedTemplates.length > 0; if 
               }
             }
             
-            if (optionCounts.length >= 2) {
+            if (optionCounts.length >= 4) {
+              // 🔧 序列约束管控：累积4题后才做选项结构雷同检测（原2题过松）
               const avgOptions = Math.round(optionCounts.reduce((a, b) => a + b, 0) / optionCounts.length);
               if (optionCounts.every(c => c === optionCounts[0])) {
                 styleConsistencyHint += `\n⚠️ 【选项结构雷同警告】前几题选择题全部是${optionCounts[0]}个选项，本题必须打破此模式——改变选项数量或改用非选择题型！`;

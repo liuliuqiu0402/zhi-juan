@@ -242,6 +242,30 @@ u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; }
 u.blank-7 { min-width: 7em; } u.blank-8 { min-width: 8em; }
 u.blank-9 { min-width: 9em; } u.blank-10 { min-width: 10em; }
 
+/* 注音/拼音上方标注（ruby-char）—— 低年级识字材料用 */
+/* 绝对定位拼音在字上方，不影响行高（pinyin overflows above） */
+.ruby-char {
+  display: inline-block;
+  position: relative;
+  vertical-align: baseline;
+  line-height: 1;
+  text-align: center;
+  margin: 0 0.08em;
+}
+.ruby-char::before {
+  content: attr(data-pinyin);
+  position: absolute;
+  bottom: calc(100% + 0.05em);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.45em;
+  line-height: 1;
+  white-space: nowrap;
+  color: #666;
+  font-weight: normal;
+  pointer-events: none;
+}
+
 /* 括号内留空（纯括号+空白，无下划线；CSS 伪元素画括号，宽度自适应答案长度） */
 span[class*="blank-"] {
   display: inline-block;
@@ -263,6 +287,11 @@ span.blank-7 { min-width: 7em; } span.blank-8 { min-width: 8em; }
 span.blank-9 { min-width: 9em; } span.blank-10 { min-width: 10em; }
 
 /* 普通横线（英译汉等中文书写区） */
+/* 整行横线书写区（勿加括号，覆盖上方 span[class*="blank-"] 的 ::before/::after） */
+span.blank-line::before,
+span.blank-line::after {
+  content: none !important;
+}
 .blank-line {
   display: inline-block;
   min-width: 3em;

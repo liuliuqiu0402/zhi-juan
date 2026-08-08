@@ -1488,6 +1488,7 @@ import { getMatchingBlockInstructions } from '../config/instructionLib.js';
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
+import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 
 defineOptions({ name: 'GenerateModule' });
 
@@ -6785,11 +6786,13 @@ const downloadDoc = async (doc, format) => {
   
   // Word 使用 docxBuilder 管线生成原生 .docx（保真预览效果）
   if (format === 'docx') {
+    // 🔧 导出前预处理：ruby 标签 → ruby-char span（拆分多字注音为逐字独立单元）
+    const exportContent = normalizeRubyTags(content);
     // 🔧 关键修复：docxBuilder 依赖 getComputedStyle 读取字体/颜色/字号等样式，
     //    容器必须挂载到 DOM 中才能正确计算样式，否则所有样式丢失导致乱码
     const container = document.createElement('div');
     container.style.cssText = 'position:absolute;visibility:hidden;width:210mm;left:-9999px;font-family:SimSun;';
-    container.innerHTML = content;
+    container.innerHTML = exportContent;
     document.body.appendChild(container);
     
     try {

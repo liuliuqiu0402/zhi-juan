@@ -3,7 +3,7 @@
 // 输出：docx 库的 Document 对象 → Packer.toBlob()
 
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType } from 'docx';
-import { TZG_MARKER, FLT_MARKER, FLT_BLANK_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
+import { TZG_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 
 // ============ 工具函数 ============
 
@@ -381,13 +381,36 @@ const buildTextRuns = (node, styleOverride = {}) => {
       runs.push(new TextRun({ text, border: { style: BorderStyle.SINGLE, size: 1, color: '999999' }, ...ctx }));
       return;
     }
-    // === 拼音 ===
+    // === 拼音/注音（ruby-char）—— 用 marker 后处理注入 Word 原生 w:ruby ===
+    if (cls.contains('ruby-char')) {
+      const pinyin = child.getAttribute('data-pinyin') || '';
+      const baseText = child.textContent || '';
+      if (!baseText) return;
+      const baseSizeHp = ctx.size || readFontSizeHp(child) || 24;
+      if (pinyin) {
+        // 有拼音：用 marker（类似 TZG/FLT），后处理替换为 w:ruby 元素
+        runs.push(new TextRun({
+          text: RUBY_MARKER(baseText, pinyin, baseSizeHp),
+          size: baseSizeHp,
+          font: ctx.font,
+        }));
+      } else {
+        // 无拼音：当作普通文字
+        runs.push(new TextRun({ text: baseText, size: ctx.size, color: ctx.color, font: ctx.font }));
+      }
+      return;
+    }
+    // === 拼音（原生 ruby 标签——GenerateModule 预览直传场景的兜底）===
     if (tag === 'ruby') {
       const rt = child.querySelector('rt');
       const rb = child.querySelector('rb') || child;
       const baseText = rb.textContent?.replace(rt?.textContent || '', '').trim() || text;
       const rtText = rt ? rt.textContent.trim() : '';
-      runs.push(new TextRun({ text: rtText ? `${baseText}(${rtText})` : baseText, ...ctx }));
+      if (rtText) {
+        const rubySize = Math.round((ctx.size || 24) * 0.5);
+        runs.push(new TextRun({ text: rtText, superScript: true, size: rubySize, font: ctx.font, color: ctx.color || '333333' }));
+      }
+      runs.push(new TextRun({ text: baseText, ...ctx }));
       return;
     }
     if (cls.contains('stroke-order')) {
