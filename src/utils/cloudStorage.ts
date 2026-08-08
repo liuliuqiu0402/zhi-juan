@@ -382,7 +382,7 @@ export async function pullGeneratedDocs(): Promise<unknown[] | null> {
 
 const TOMBSTONE_TTL = 7 * 24 * 60 * 60 * 1000;
 
-export async function pullDeletedDocIds(table: string): Promise<Record<string, number>> {
+export async function pullDeletedDocIds(table: string): Promise<Record<string, number> | null> {
   if (noSyncKey()) return {};
   const client = getClient();
   if (!client) return {};
@@ -394,10 +394,13 @@ export async function pullDeletedDocIds(table: string): Promise<Record<string, n
       .eq('id', getSyncKey() + ':deleted')
       .maybeSingle();
     if (error) {
-      if (!error.message?.includes('contains 0 rows')) {
-        console.warn('☁️ pull_deleted_docs 查询失败:', error.message);
+      // 'contains 0 rows' 是 .maybeSingle() 的正常空结果，不是错误
+      if (error.message?.includes('contains 0 rows')) {
+        return {};
       }
-      return {};
+      // 真实查询错误 → 返回 null，调用方应中止（避免用空数据覆盖云端已有墓碑）
+      console.warn('☁️ pull_deleted_docs 查询失败:', error.message);
+      return null;
     }
     const raw: Record<string, number> = data?.data?.ids || {};
     const cutoff = Date.now() - TOMBSTONE_TTL;
@@ -412,7 +415,7 @@ export async function pullDeletedDocIds(table: string): Promise<Record<string, n
     return filtered;
   } catch (e) {
     console.warn('☁️ pull_deleted_docs 异常:', e);
-    return {};
+    return null;
   }
 }
 
@@ -423,6 +426,11 @@ export async function pushDeletedDocIds(table: string, localDeletedIds: Record<s
 
   try {
     const cloudDeleted = await pullDeletedDocIds(table);
+    // 🔧 拉取失败 → 中止，避免用空数据覆盖云端已有墓碑
+    if (cloudDeleted === null) {
+      console.warn('☁️ push_deleted_docs(' + table + ') 中止：无法拉取云端墓碑，保留现有数据');
+      return false;
+    }
     const merged: Record<string, number> = { ...cloudDeleted };
     for (const [id, ts] of Object.entries(localDeletedIds)) {
       if (!merged[id] || ts > merged[id]) merged[id] = ts;
