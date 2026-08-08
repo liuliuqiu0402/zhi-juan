@@ -61,6 +61,7 @@ import { formatTime } from '@/utils/helpers';
 import { useDialog } from '@/composables/useDialog.js';
 import { useMobile } from '@/composables/useMobile.js';
 import { APP_EVENTS } from '@/constants/events.js';
+import { pushDeletedDocIds } from '@/utils/cloudStorage';
 
 const router = useRouter();
 const { showConfirmDialogFn } = useDialog();
@@ -138,6 +139,8 @@ const clearAllHistory = async () => {
       localStorage.setItem('wisdom_deleted_hist_doc_ids', JSON.stringify(existing));
     } catch {}
     await storage.setItem('docHistory', historyList.value);
+    // 🔧 立即推送墓碑到云端（fire-and-forget），不等待同步流程
+    pushDeletedDocIds('doc_history', deletedIds).catch(e => console.error('清空后墓碑推送失败:', e?.message || e));
   }
 };
 
@@ -155,6 +158,8 @@ const deleteHistoryItem = async (id) => {
     localStorage.setItem('wisdom_deleted_hist_doc_ids', JSON.stringify(deletedIds));
   } catch {}
   await storage.setItem('docHistory', historyList.value);
+  // 🔧 立即推送墓碑到云端（fire-and-forget），不等待同步流程
+  pushDeletedDocIds('doc_history', { [id]: Date.now() }).catch(e => console.error('删除后墓碑推送失败:', e?.message || e));
 };
 
 const loadFromHistory = (item) => {

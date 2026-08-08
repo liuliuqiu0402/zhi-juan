@@ -768,13 +768,7 @@ onMounted(async () => {
           console.log('🔄 [合并] 历史记录 ' + localHist.length + '→' + mergedHist.length + '条（本地' + localHist.length + ' + 云端' + cloudHist.length + ', 剔除已删除' + (localHist.length - cleanLocalHist.length) + '/' + (cloudHist.length - cleanCloudHist.length) + '）');
         } catch (e) { console.warn('合并历史记录异常', e); }
 
-        // ④ 推送合并后的双向数据回云端（await 确保 probe 看到最新数据）
-        const [genPushOk, histPushOk] = await Promise.all([
-          pushGeneratedDocs(mergedGen).then(ok => { if (ok) console.log('☁️ 生成结果已推送云端（合并）' + mergedGen.length + ' 条'); return ok; }).catch(() => false),
-          pushDocHistory(mergedHist).then(ok => { if (ok) console.log('☁️ 历史记录已推送云端（合并）' + mergedHist.length + ' 条'); return ok; }).catch(() => false),
-        ]);
-
-        // ④.⑤ 推送墓碑集（独立通道，失败重试一次）
+        // ④ 先推送墓碑集（确保墓碑先于数据到达，其他端拉取时已存在）
         const pushTombstone = async (table, ids) => {
           try {
             await pushDeletedDocIds(table, ids);
@@ -786,8 +780,16 @@ onMounted(async () => {
             }
           }
         };
-        pushTombstone('generated_docs', mergedDeletedGen);
-        pushTombstone('doc_history', mergedDeletedHist);
+        await Promise.all([
+          pushTombstone('generated_docs', mergedDeletedGen),
+          pushTombstone('doc_history', mergedDeletedHist),
+        ]);
+
+        // ④.⑤ 再推送合并后的双向数据回云端
+        const [genPushOk, histPushOk] = await Promise.all([
+          pushGeneratedDocs(mergedGen).then(ok => { if (ok) console.log('☁️ 生成结果已推送云端（合并）' + mergedGen.length + ' 条'); return ok; }).catch(() => false),
+          pushDocHistory(mergedHist).then(ok => { if (ok) console.log('☁️ 历史记录已推送云端（合并）' + mergedHist.length + ' 条'); return ok; }).catch(() => false),
+        ]);
 
         // ⑤ 写入云端单向数据到本地（仅手机端；云端是权威源，无条件覆盖本地）
         if (isMobile && unilateralData) {

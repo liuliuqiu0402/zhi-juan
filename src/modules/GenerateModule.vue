@@ -1481,6 +1481,7 @@ import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml, par
 import { buildTianZiGeMarker, htmlToDocxBlob } from '../utils/docxBuilder.js';
 import { injectDrawingML, TZG_MARKER, FLT_MARKER } from '../utils/drawingMLShapes.js';
 import storage from '../utils/storage';
+import { pushDeletedDocIds } from '../utils/cloudStorage';
 import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
 import { useInstructionStore } from '../stores/instructionStore.js';
@@ -6588,6 +6589,8 @@ const deleteDoc = async (doc) => {
       deletedIds[doc.id] = Date.now();
       localStorage.setItem('wisdom_deleted_gen_doc_ids', JSON.stringify(deletedIds));
     } catch {}
+    // 🔧 立即推送墓碑到云端（fire-and-forget），不等待同步流程
+    pushDeletedDocIds('generated_docs', { [doc.id]: Date.now() }).catch(e => console.error('删除生成结果后墓碑推送失败:', e?.message || e));
   }
 };
 
@@ -6616,6 +6619,10 @@ const batchDeleteDocs = async () => {
       localStorage.setItem('wisdom_deleted_gen_doc_ids', JSON.stringify(deletedIds));
     } catch {}
   }
+  // 🔧 批量删除后立即推送墓碑到云端（fire-and-forget）
+  const batchIds = {};
+  for (const d of selected) batchIds[d.id] = Date.now();
+  pushDeletedDocIds('generated_docs', batchIds).catch(e => console.error('批量删除后墓碑推送失败:', e?.message || e));
   
   await showAlertDialogFn(`已标记 ${selected.length} 个资料为待删除（同步后自动清理）`);
 };
