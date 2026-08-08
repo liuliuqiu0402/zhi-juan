@@ -726,42 +726,46 @@ onMounted(async () => {
         try {
           const localRaw = localStorage.getItem(GEN_KEY);
           const local = localRaw ? JSON.parse(localRaw) : [];
+          // 🔧 先剔除已删除条目（_deleted标记 + 墓碑通道），防止删除操作在合并时被覆盖
+          const cleanLocal = local.filter(d => !d._deleted && !mergedDeletedGen[d.id]);
+          const cleanCloud = cloudGen.filter(d => !d._deleted && !mergedDeletedGen[d.id]);
           // 合并：同 id 保留时间戳最新的
           const map = new Map();
-          for (const d of [...local, ...cloudGen]) {
+          for (const d of [...cleanLocal, ...cleanCloud]) {
             const existing = map.get(d.id);
             if (!existing || ((d.savedAt || d.timestamp || 0) > (existing.savedAt || existing.timestamp || 0))) {
               map.set(d.id, d);
             }
           }
           mergedGen = [...map.values()]
-            .filter(d => !d._deleted && !mergedDeletedGen[d.id])
             .sort((a, b) => (a.savedAt || a.timestamp || 0) - (b.savedAt || b.timestamp || 0));
           // 截断 20
           if (mergedGen.length > 20) mergedGen = mergedGen.slice(-20);
 
           localStorage.setItem(GEN_KEY, JSON.stringify(mergedGen));
-          console.log('🔄 [合并] 生成结果 ' + local.length + '→' + mergedGen.length + '条（本地' + local.length + ' + 云端' + cloudGen.length + '）');
+          console.log('🔄 [合并] 生成结果 ' + local.length + '→' + mergedGen.length + '条（本地' + local.length + ' + 云端' + cloudGen.length + ', 剔除已删除' + (local.length - cleanLocal.length) + '/' + (cloudGen.length - cleanCloud.length) + '）');
         } catch (e) { console.warn('合并生成结果异常', e); }
 
         // ③ 合并历史记录（双向，两端都做）
         let mergedHist = [];
         try {
           const localHist = await storage.getItem('docHistory') || [];
+          // 🔧 先剔除已删除条目（_deleted标记 + 墓碑通道），防止删除操作在合并时被覆盖
+          const cleanLocalHist = localHist.filter(d => !d._deleted && !mergedDeletedHist[d.id]);
+          const cleanCloudHist = cloudHist.filter(d => !d._deleted && !mergedDeletedHist[d.id]);
           const map2 = new Map();
-          for (const d of [...localHist, ...cloudHist]) {
+          for (const d of [...cleanLocalHist, ...cleanCloudHist]) {
             const existing = map2.get(d.id);
             if (!existing || ((d.savedAt || d.timestamp || 0) > (existing.savedAt || existing.timestamp || 0))) {
               map2.set(d.id, d);
             }
           }
           mergedHist = [...map2.values()]
-            .filter(d => !d._deleted && !mergedDeletedHist[d.id])
             .sort((a, b) => (a.savedAt || a.timestamp || 0) - (b.savedAt || b.timestamp || 0));
           if (mergedHist.length > 50) mergedHist = mergedHist.slice(-50);
 
           await storage.setItem('docHistory', mergedHist).catch(() => {});
-          console.log('🔄 [合并] 历史记录 ' + localHist.length + '→' + mergedHist.length + '条（本地' + localHist.length + ' + 云端' + cloudHist.length + '）');
+          console.log('🔄 [合并] 历史记录 ' + localHist.length + '→' + mergedHist.length + '条（本地' + localHist.length + ' + 云端' + cloudHist.length + ', 剔除已删除' + (localHist.length - cleanLocalHist.length) + '/' + (cloudHist.length - cleanCloudHist.length) + '）');
         } catch (e) { console.warn('合并历史记录异常', e); }
 
         // ④ 推送合并后的双向数据回云端（await 确保 probe 看到最新数据）
@@ -770,9 +774,20 @@ onMounted(async () => {
           pushDocHistory(mergedHist).then(ok => { if (ok) console.log('☁️ 历史记录已推送云端（合并）' + mergedHist.length + ' 条'); return ok; }).catch(() => false),
         ]);
 
-        // ④.⑤ 推送墓碑集（独立通道，不阻塞主流程）
-        pushDeletedDocIds('generated_docs', mergedDeletedGen).catch(() => {});
-        pushDeletedDocIds('doc_history', mergedDeletedHist).catch(() => {});
+        // ④.⑤ 推送墓碑集（独立通道，失败重试一次）
+        const pushTombstone = async (table, ids) => {
+          try {
+            await pushDeletedDocIds(table, ids);
+          } catch (e) {
+            console.error('☁️ 墓碑推送失败(' + table + ')，500ms后重试:', e?.message || e);
+            await new Promise(r => setTimeout(r, 500));
+            try { await pushDeletedDocIds(table, ids); } catch (e2) {
+              console.error('☁️ 墓碑推送重试仍失败(' + table + '):', e2?.message || e2);
+            }
+          }
+        };
+        pushTombstone('generated_docs', mergedDeletedGen);
+        pushTombstone('doc_history', mergedDeletedHist);
 
         // ⑤ 写入云端单向数据到本地（仅手机端；云端是权威源，无条件覆盖本地）
         if (isMobile && unilateralData) {

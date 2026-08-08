@@ -8,9 +8,8 @@
           v-model="historySearchKeyword"
           placeholder="🔍 搜索标题或内容..."
           class="search-input"
-          @input="filterHistory"
         />
-        <select v-model="historyFilterType" @change="filterHistory" class="filter-select" style="width:auto;padding:6px 10px;border-radius:20px;border:1px solid #ddd;font-size:13px;">
+        <select v-model="historyFilterType" class="filter-select" style="width:auto;padding:6px 10px;border-radius:20px;border:1px solid #ddd;font-size:13px;">
           <option value="">全部类型</option>
           <option value="📝 考卷">📝 考卷</option>
           <option value="📚 课时练">📚 课时练</option>
@@ -55,7 +54,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue';
+import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue';
 import { useRouter } from 'vue-router';
 import storage from '@/utils/storage';
 import { formatTime } from '@/utils/helpers';
@@ -70,7 +69,24 @@ const { isMobile } = useMobile();
 const historyList = ref([]);
 const historySearchKeyword = ref('');
 const historyFilterType = ref('');
-const filteredHistoryList = ref([]);
+const filteredHistoryList = computed(() => {
+  let result = historyList.value.filter(h => !h._deleted);
+
+  if (historyFilterType.value) {
+    result = result.filter(item => item.genType === historyFilterType.value);
+  }
+
+  const keyword = historySearchKeyword.value.toLowerCase().trim();
+  if (keyword) {
+    result = result.filter(item => {
+      if (item.title?.toLowerCase().includes(keyword)) return true;
+      if (item.content?.toLowerCase().includes(keyword)) return true;
+      return false;
+    });
+  }
+
+  return result.reverse(); // 最新在上面
+});
 
 const loadHistory = async () => {
   const saved = await storage.getItem('docHistory');
@@ -90,8 +106,6 @@ const loadHistory = async () => {
     // 按时间升序排列（旧→新），保留最新 50 条，超限时最早被覆盖
     const sorted = [...saved].sort((a, b) => (a?.savedAt || a?.timestamp || a?.createdAt || 0) - (b?.savedAt || b?.timestamp || b?.createdAt || 0));
     historyList.value = sorted.length > 50 ? sorted.slice(-50) : sorted;
-    // 显示时反转：最新的在上面（存储保持升序以保证 slice(-50) 截断正确）
-    filteredHistoryList.value = historyList.value.filter(h => !h._deleted).reverse();
   }
 };
 
@@ -112,7 +126,6 @@ const clearAllHistory = async () => {
       Object.assign(existing, deletedIds);
       localStorage.setItem('wisdom_deleted_hist_doc_ids', JSON.stringify(existing));
     } catch {}
-    filteredHistoryList.value = [];
     await storage.setItem('docHistory', historyList.value);
   }
 };
@@ -130,7 +143,6 @@ const deleteHistoryItem = async (id) => {
     deletedIds[id] = Date.now();
     localStorage.setItem('wisdom_deleted_hist_doc_ids', JSON.stringify(deletedIds));
   } catch {}
-  filteredHistoryList.value = filteredHistoryList.value.filter(h => h.id !== id);
   await storage.setItem('docHistory', historyList.value);
 };
 
@@ -147,25 +159,6 @@ const downloadFromHistory = (item) => {
   a.href = URL.createObjectURL(blob);
   a.download = `${item.title}.docx`;
   a.click();
-};
-
-const filterHistory = () => {
-  let result = historyList.value;
-
-  if (historyFilterType.value) {
-    result = result.filter(item => item.genType === historyFilterType.value);
-  }
-
-  const keyword = historySearchKeyword.value.toLowerCase().trim();
-  if (keyword) {
-    result = result.filter(item => {
-      if (item.title.toLowerCase().includes(keyword)) return true;
-      if (item.content && item.content.toLowerCase().includes(keyword)) return true;
-      return false;
-    });
-  }
-
-  filteredHistoryList.value = result;
 };
 
 // 👁️ 预览弹窗
