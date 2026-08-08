@@ -216,7 +216,7 @@
         </div>
 
         <div class="result-header">
-          <span>📋 结果 ({{ generatedDocs.length }})</span>
+          <span>📋 结果 ({{ displayedDocs.length }})</span>
           <span class="select-all" @click="toggleSelectAll">{{ allSelected ? '取消全选' : '全选' }}</span>
           <span class="batch-delete" @click="batchDeleteDocs" v-if="selectedCount > 0">🗑️ 批量删除</span>
         </div>

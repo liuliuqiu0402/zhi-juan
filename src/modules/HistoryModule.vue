@@ -207,7 +207,11 @@ const onCloudSync = () => {
   _histSyncRunning = true;
   try {
     loadHistory();
-    console.log('☁️ [HistoryModule] 同步完成，已重新加载历史记录');
+    // 延迟统计，等 loadHistory 异步完成
+    setTimeout(() => {
+      const deleted = historyList.value.filter(h => h._deleted).length;
+      console.log('☁️ [HistoryModule] 同步完成，当前 ' + historyList.value.length + ' 条（有效 ' + (historyList.value.length - deleted) + '，软删除 ' + deleted + '）');
+    }, 200);
   } finally {
     setTimeout(() => { _histSyncRunning = false; }, 500);
   }
