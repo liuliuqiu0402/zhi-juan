@@ -877,8 +877,12 @@ onMounted(async () => {
         // ⑥ 通知子组件重新加载
         window.dispatchEvent(new CustomEvent('data-sync-complete'));
         const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
-        showToastMessage('✅ 同步完成 (' + elapsed + 's) | 生成: ' + mergedGen.length + '条 | 历史: ' + mergedHist.length + '条', 'info');
-        console.log('✅ 同步完成 (' + elapsed + 's, ' + (isMobile ? '手机端' : '桌面端') + ') | 历史: ' + mergedHist.length + '条 | 生成: ' + mergedGen.length + '条');
+        const genDel = mergedGen.filter(d => d._deleted).length;
+        const histDel = mergedHist.filter(d => d._deleted).length;
+        const genEff = mergedGen.length - genDel;
+        const histEff = mergedHist.length - histDel;
+        showToastMessage('✅ 同步完成 (' + elapsed + 's) | 生成: 有效' + genEff + '+删除' + genDel + ' | 历史: 有效' + histEff + '+删除' + histDel, 'info');
+        console.log('✅ 同步完成 (' + elapsed + 's, ' + (isMobile ? '手机端' : '桌面端') + ') | 历史: ' + mergedHist.length + '条（有效 ' + histEff + '，软删除 ' + histDel + '）| 生成: ' + mergedGen.length + '条（有效 ' + genEff + '，软删除 ' + genDel + '）');
         // 🧹 清理残留设备行（无名UUID、空数据设备）
         cleanupStaleDeviceRows().then(n => { if (n > 0) console.log('🧹 同步后清理 ' + n + ' 台残留设备'); }).catch(() => {});
       } catch (e) {
