@@ -61,7 +61,7 @@
         📝 指令
       </div>
       <div class="gen-tab" :class="{ active: mobileGenTab === 'result' }" @click="mobileGenTab = 'result'">
-        📄 结果<span v-if="generatedDocs.length" class="gen-tab-badge">{{ generatedDocs.length }}</span>
+        📄 结果<span v-if="displayedDocs.length" class="gen-tab-badge">{{ displayedDocs.length }}</span>
       </div>
     </div>
 
