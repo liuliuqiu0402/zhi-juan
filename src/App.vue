@@ -740,7 +740,8 @@ onMounted(async () => {
           if (mergedGen.length > 20) mergedGen = mergedGen.slice(-20);
 
           localStorage.setItem(GEN_KEY, JSON.stringify(mergedGen));
-          console.log('🔄 [合并] 生成结果 ' + local.length + '→' + mergedGen.length + '条（本地' + local.length + ' + 云端' + cloudGen.length + '）');
+          const genDeleted = mergedGen.filter(d => d._deleted).length;
+          console.log('🔄 [合并] 生成结果 ' + mergedGen.length + ' 条（有效 ' + (mergedGen.length - genDeleted) + '，软删除 ' + genDeleted + '）← 本地' + local.length + ' + 云端' + cloudGen.length);
         } catch (e) { console.warn('合并生成结果异常', e); }
 
         // ③ 合并历史记录（双向，两端都做）
@@ -760,7 +761,8 @@ onMounted(async () => {
           if (mergedHist.length > 50) mergedHist = mergedHist.slice(-50);
 
           await storage.setItem('docHistory', mergedHist).catch(() => {});
-          console.log('🔄 [合并] 历史记录 ' + localHist.length + '→' + mergedHist.length + '条（本地' + localHist.length + ' + 云端' + cloudHist.length + '）');
+          const histDeleted = mergedHist.filter(d => d._deleted).length;
+          console.log('🔄 [合并] 历史记录 ' + mergedHist.length + ' 条（有效 ' + (mergedHist.length - histDeleted) + '，软删除 ' + histDeleted + '）← 本地' + localHist.length + ' + 云端' + cloudHist.length);
         } catch (e) { console.warn('合并历史记录异常', e); }
 
         // ④ 先推送墓碑集（确保墓碑先于数据到达，其他端拉取时已存在）

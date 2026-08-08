@@ -7172,10 +7172,7 @@ const onCloudSync = () => {
     }
     // 软删除：_deleted 标记保留在数组中传播，UI 由 displayedDocs 过滤
     const deletedCount = generatedDocs.value.filter(d => d._deleted).length;
-    if (deletedCount > 0) {
-      console.log('🧹 [GenerateModule] 当前 ' + deletedCount + ' 条软删除标记（同步中传播）');
-    }
-    console.log('☁️ [GenerateModule] 同步完成，当前 ' + generatedDocs.value.length + ' 条生成结果');
+    console.log('☁️ [GenerateModule] 同步完成，当前 ' + generatedDocs.value.length + ' 条（有效 ' + (generatedDocs.value.length - deletedCount) + '，软删除 ' + deletedCount + '）');
   } finally {
     // 🔧 延迟释放标记，让 watcher 跳过本次触发
     setTimeout(() => { _skipCloudPush = false; _cloudSyncRunning = false; }, 500);

@@ -283,7 +283,9 @@ export async function pushDocHistory(items: unknown[]): Promise<boolean> {
       console.error('☁️ push_doc_history 失败:', error.message);
       return false;
     }
-    console.log('☁️ push_doc_history: 推送 ' + sorted.length + ' 条（含软删除标记）');
+    const deletedCount = sorted.filter((d: any) => d._deleted).length;
+    const aliveCount = sorted.length - deletedCount;
+    console.log('☁️ push_doc_history: 推送 ' + sorted.length + ' 条（有效 ' + aliveCount + '，软删除 ' + deletedCount + '）');
     return true;
   } catch (e) {
     console.warn('☁️ push_doc_history 异常:', e);
@@ -307,7 +309,8 @@ export async function pullDocHistory(): Promise<unknown[] | null> {
       return null;
     }
     const merged = mergeDeviceData((rows as unknown[]) || [], 50);
-    console.log('☁️ pull_doc_history:', merged.length, '条（客户端合并）');
+    const deletedCount = (merged as any[]).filter((d: any) => d._deleted).length;
+    console.log('☁️ pull_doc_history: ' + merged.length + ' 条（有效 ' + (merged.length - deletedCount) + '，软删除 ' + deletedCount + '）');
     return merged;
   } catch (e) {
     console.warn('☁️ pull_doc_history 异常:', e);
@@ -338,7 +341,9 @@ export async function pushGeneratedDocs(items: unknown[]): Promise<boolean> {
       console.error('☁️ push_generated_docs 失败:', error.message);
       return false;
     }
-    console.log('☁️ push_generated_docs: 推送 ' + sorted.length + ' 条（含软删除标记）');
+    const deletedCount = sorted.filter((d: any) => d._deleted).length;
+    const aliveCount = sorted.length - deletedCount;
+    console.log('☁️ push_generated_docs: 推送 ' + sorted.length + ' 条（有效 ' + aliveCount + '，软删除 ' + deletedCount + '）');
     return true;
   } catch (e) {
     console.warn('☁️ push_generated_docs 异常:', e);
@@ -362,7 +367,8 @@ export async function pullGeneratedDocs(): Promise<unknown[] | null> {
       return null;
     }
     const merged = mergeDeviceData((rows as unknown[]) || [], 20);
-    console.log('☁️ pull_generated_docs:', merged.length, '条（客户端合并）');
+    const deletedCount = (merged as any[]).filter((d: any) => d._deleted).length;
+    console.log('☁️ pull_generated_docs: ' + merged.length + ' 条（有效 ' + (merged.length - deletedCount) + '，软删除 ' + deletedCount + '）');
     return merged;
   } catch (e) {
     console.warn('☁️ pull_generated_docs 异常:', e);
