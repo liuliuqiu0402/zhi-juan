@@ -726,12 +726,9 @@ onMounted(async () => {
         try {
           const localRaw = localStorage.getItem(GEN_KEY);
           const local = localRaw ? JSON.parse(localRaw) : [];
-          // 🔧 先剔除已删除条目（_deleted标记 + 墓碑通道），防止删除操作在合并时被覆盖
-          const cleanLocal = local.filter(d => !d._deleted && !mergedDeletedGen[d.id]);
-          const cleanCloud = cloudGen.filter(d => !d._deleted && !mergedDeletedGen[d.id]);
-          // 合并：同 id 保留时间戳最新的
+          // 软删除：_deleted 标记随数据参与合并，时间戳最新的版本自然胜出
           const map = new Map();
-          for (const d of [...cleanLocal, ...cleanCloud]) {
+          for (const d of [...local, ...cloudGen]) {
             const existing = map.get(d.id);
             if (!existing || ((d.savedAt || d.timestamp || 0) > (existing.savedAt || existing.timestamp || 0))) {
               map.set(d.id, d);
@@ -743,18 +740,16 @@ onMounted(async () => {
           if (mergedGen.length > 20) mergedGen = mergedGen.slice(-20);
 
           localStorage.setItem(GEN_KEY, JSON.stringify(mergedGen));
-          console.log('🔄 [合并] 生成结果 ' + local.length + '→' + mergedGen.length + '条（本地' + local.length + ' + 云端' + cloudGen.length + ', 剔除已删除' + (local.length - cleanLocal.length) + '/' + (cloudGen.length - cleanCloud.length) + '）');
+          console.log('🔄 [合并] 生成结果 ' + local.length + '→' + mergedGen.length + '条（本地' + local.length + ' + 云端' + cloudGen.length + '）');
         } catch (e) { console.warn('合并生成结果异常', e); }
 
         // ③ 合并历史记录（双向，两端都做）
         let mergedHist = [];
         try {
           const localHist = await storage.getItem('docHistory') || [];
-          // 🔧 先剔除已删除条目（_deleted标记 + 墓碑通道），防止删除操作在合并时被覆盖
-          const cleanLocalHist = localHist.filter(d => !d._deleted && !mergedDeletedHist[d.id]);
-          const cleanCloudHist = cloudHist.filter(d => !d._deleted && !mergedDeletedHist[d.id]);
+          // 软删除：_deleted 标记随数据参与合并，时间戳最新的版本自然胜出
           const map2 = new Map();
-          for (const d of [...cleanLocalHist, ...cleanCloudHist]) {
+          for (const d of [...localHist, ...cloudHist]) {
             const existing = map2.get(d.id);
             if (!existing || ((d.savedAt || d.timestamp || 0) > (existing.savedAt || existing.timestamp || 0))) {
               map2.set(d.id, d);
@@ -765,7 +760,7 @@ onMounted(async () => {
           if (mergedHist.length > 50) mergedHist = mergedHist.slice(-50);
 
           await storage.setItem('docHistory', mergedHist).catch(() => {});
-          console.log('🔄 [合并] 历史记录 ' + localHist.length + '→' + mergedHist.length + '条（本地' + localHist.length + ' + 云端' + cloudHist.length + ', 剔除已删除' + (localHist.length - cleanLocalHist.length) + '/' + (cloudHist.length - cleanCloudHist.length) + '）');
+          console.log('🔄 [合并] 历史记录 ' + localHist.length + '→' + mergedHist.length + '条（本地' + localHist.length + ' + 云端' + cloudHist.length + '）');
         } catch (e) { console.warn('合并历史记录异常', e); }
 
         // ④ 先推送墓碑集（确保墓碑先于数据到达，其他端拉取时已存在）

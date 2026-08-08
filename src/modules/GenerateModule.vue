@@ -2757,8 +2757,8 @@ const loadGeneratedDocs = () => {
 };
 const generatedDocs = ref(loadGeneratedDocs());
 
-// 显示用：反转数组，最新的在上面（存储保持升序以保证 slice(-20) 截断正确）
-const displayedDocs = computed(() => [...generatedDocs.value].reverse());
+// 显示用：反转数组，过滤 _deleted 标记，最新的在上面（存储保持升序以保证 slice(-20) 截断正确）
+const displayedDocs = computed(() => [...generatedDocs.value].filter(d => !d._deleted).reverse());
 const saveGeneratedDocs = async () => {
   try {
     // 截断上限（不修改 ref，避免触发 watcher 递归）
@@ -7170,12 +7170,10 @@ const onCloudSync = () => {
         }
       } catch {}
     }
-    // 清理 _deleted 项
-    const before = generatedDocs.value.length;
-    generatedDocs.value = generatedDocs.value.filter(d => !d._deleted);
-    if (generatedDocs.value.length < before) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(generatedDocs.value));
-      console.log('🧹 [GenerateModule] 同步后清理 ' + (before - generatedDocs.value.length) + ' 条已删除项');
+    // 软删除：_deleted 标记保留在数组中传播，UI 由 displayedDocs 过滤
+    const deletedCount = generatedDocs.value.filter(d => d._deleted).length;
+    if (deletedCount > 0) {
+      console.log('🧹 [GenerateModule] 当前 ' + deletedCount + ' 条软删除标记（同步中传播）');
     }
     console.log('☁️ [GenerateModule] 同步完成，当前 ' + generatedDocs.value.length + ' 条生成结果');
   } finally {

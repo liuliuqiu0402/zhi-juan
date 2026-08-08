@@ -272,10 +272,8 @@ export async function pushDocHistory(items: unknown[]): Promise<boolean> {
   if (!client) return false;
 
   try {
-    // 过滤 _deleted 条目，防止墓碑数据被推到云端污染其他设备
-    const clean = (items as any[]).filter((d: any) => !d._deleted);
-    // 排序 + 截断（与旧 RPC push_doc_history 行为一致：≤50 条）
-    const sorted = [...clean]
+    // 软删除：_deleted 标记随数据一起推送，其他端合并时看到标记自动隐藏
+    const sorted = [...(items as any[])]
       .sort((a: any, b: any) => (b.savedAt || b.timestamp || 0) - (a.savedAt || a.timestamp || 0))
       .slice(0, 50);
     const { error } = await client
@@ -285,8 +283,7 @@ export async function pushDocHistory(items: unknown[]): Promise<boolean> {
       console.error('☁️ push_doc_history 失败:', error.message);
       return false;
     }
-    const filtered = items.length - clean.length;
-    if (filtered > 0) console.log('☁️ push_doc_history: 过滤 ' + filtered + ' 条已删除，推送 ' + sorted.length + ' 条');
+    console.log('☁️ push_doc_history: 推送 ' + sorted.length + ' 条（含软删除标记）');
     return true;
   } catch (e) {
     console.warn('☁️ push_doc_history 异常:', e);
@@ -330,10 +327,8 @@ export async function pushGeneratedDocs(items: unknown[]): Promise<boolean> {
   if (!client) return false;
 
   try {
-    // 过滤 _deleted 条目
-    const clean = (items as any[]).filter((d: any) => !d._deleted);
-    // 排序 + 截断（≤20 条）
-    const sorted = [...clean]
+    // 软删除：_deleted 标记随数据一起推送，其他端合并时看到标记自动隐藏
+    const sorted = [...(items as any[])]
       .sort((a: any, b: any) => (b.savedAt || b.timestamp || 0) - (a.savedAt || a.timestamp || 0))
       .slice(0, 20);
     const { error } = await client
@@ -343,8 +338,7 @@ export async function pushGeneratedDocs(items: unknown[]): Promise<boolean> {
       console.error('☁️ push_generated_docs 失败:', error.message);
       return false;
     }
-    const filtered = items.length - clean.length;
-    if (filtered > 0) console.log('☁️ push_generated_docs: 过滤 ' + filtered + ' 条已删除，推送 ' + sorted.length + ' 条');
+    console.log('☁️ push_generated_docs: 推送 ' + sorted.length + ' 条（含软删除标记）');
     return true;
   } catch (e) {
     console.warn('☁️ push_generated_docs 异常:', e);
