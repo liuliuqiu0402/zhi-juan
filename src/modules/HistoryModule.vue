@@ -91,6 +91,9 @@ const filteredHistoryList = computed(() => {
 const loadHistory = async () => {
   const saved = await storage.getItem('docHistory');
   if (saved) {
+    // 🔧 加载本地墓碑，作为加载时的最后一道兜底过滤
+    let tombstoneIds = {};
+    try { tombstoneIds = JSON.parse(localStorage.getItem('wisdom_deleted_hist_doc_ids') || '{}'); } catch {}
     // 向后兼容：为旧数据补填 savedAt
     let needsSave = false;
     for (const item of saved) {
@@ -103,9 +106,17 @@ const loadHistory = async () => {
       await storage.setItem('docHistory', saved).catch(() => {});
       console.log('🩹 已为历史记录补填 savedAt');
     }
+    // 🔧 兜底过滤：排除_deleted标记 + 本地墓碑中的条目
+    const cleanSaved = saved.filter(item => !item._deleted && !tombstoneIds[item.id]);
+    const tombstoneCount = saved.length - cleanSaved.length;
+    if (tombstoneCount > 0) console.log('🧹 加载时过滤 ' + tombstoneCount + ' 条已删除（墓碑兜底）');
     // 按时间升序排列（旧→新），保留最新 50 条，超限时最早被覆盖
-    const sorted = [...saved].sort((a, b) => (a?.savedAt || a?.timestamp || a?.createdAt || 0) - (b?.savedAt || b?.timestamp || b?.createdAt || 0));
+    const sorted = [...cleanSaved].sort((a, b) => (a?.savedAt || a?.timestamp || a?.createdAt || 0) - (b?.savedAt || b?.timestamp || b?.createdAt || 0));
     historyList.value = sorted.length > 50 ? sorted.slice(-50) : sorted;
+    // 🔧 如果过滤了条目，回写干净数据到 storage
+    if (tombstoneCount > 0) {
+      await storage.setItem('docHistory', cleanSaved).catch(() => {});
+    }
   }
 };
 
