@@ -1993,10 +1993,14 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   styleTag += '</style>';
   
   // 🔧 强制 !important：覆盖 AI 生成内容中的内联样式
+  //    ⚠️ color 除外：AI 标注的颜色（如红色重点、蓝色标题）必须优先于主题色
   if (forceImportant) {
     styleTag = styleTag.replace(
       /([-\w]+)\s*:\s*([^;{}!]+)(?=\s*[;}])/g,
-      '$1: $2 !important'
+      (match, prop, value) => {
+        if (/^\s*color\s*$/i.test(prop)) return match;
+        return `${prop}: ${value} !important`;
+      }
     );
   }
   
