@@ -177,6 +177,7 @@ import { FontFamily } from '@tiptap/extension-font-family';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { Extension, Mark, Node } from '@tiptap/core';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
+import { convertClassStylesToInline, normalizeColorStyles } from '../utils/htmlPreprocessor.js';
 
 // ══════════════════════════════════════════
 // 自定义扩展
@@ -1066,112 +1067,7 @@ const toggleFormatPainter = () => {
 // 策略：所有 HTML 进入 Tiptap/ProseMirror 前，将 <ruby>字<rt>pinyin</rt></ruby>
 //       统一转为 <span class="ruby-char" data-pinyin="pinyin">字</span>
 //       由 PreserveSpan 保留 class + data-pinyin，CSS ::before 绘制上方拼音
-// ═══════════════ class 样式 → 内联 style：将 <style> 块中的 CSS 规则展开到匹配元素上 ═══════════════
-// 背景：AI 生成的内容包含 <style>.tip{color:red}</style> + <p class="tip">，但编辑器不解析 <style> 块
-//       导致 class 颜色丢失。nodeClass 修复保留了 class 属性，但 CSS 规则仍需转为内联才能生效
-// 方案：DOM 预处理 → 解析 <style> 块 → 对每个规则 querySelectorAll → 合并到元素内联 style
-const convertClassStylesToInline = (html) => {
-  if (!html) return html;
-  if (!/<style[^>]*>/i.test(html)) return html;
-
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const styleElements = doc.querySelectorAll('style');
-  if (styleElements.length === 0) return html;
-
-  let allCSS = '';
-  styleElements.forEach(el => {
-    allCSS += el.textContent + '\n';
-    el.remove();
-  });
-  if (!allCSS.trim()) return html;
-
-  // 解析 CSS 规则：selector { properties }
-  const ruleRegex = /([^{]+)\{([^}]+)\}/g;
-  let match;
-  let modified = false;
-
-  while ((match = ruleRegex.exec(allCSS)) !== null) {
-    const rawSelector = match[1].trim();
-    const rawProperties = match[2].trim();
-    if (!rawSelector || !rawProperties) continue;
-
-    // 跳过 @-规则和伪类/伪元素（无法转为内联）
-    if (rawSelector.startsWith('@') || /::?[a-z-]+/i.test(rawSelector)) continue;
-    // 跳过 html/body/* 等全局选择器
-    if (/^(html|body|\*)$/i.test(rawSelector)) continue;
-
-    try {
-      const elements = doc.querySelectorAll(rawSelector);
-      if (elements.length === 0) continue;
-
-      const newDecls = rawProperties.split(';').map(d => d.trim()).filter(Boolean);
-
-      elements.forEach(el => {
-        modified = true;
-        const existing = el.getAttribute('style') || '';
-        const existingDecls = existing.split(';').map(d => d.trim()).filter(Boolean);
-
-        // 合并：新声明覆盖同名旧声明
-        const merged = new Map();
-        existingDecls.forEach(d => {
-          const colonIdx = d.indexOf(':');
-          if (colonIdx > 0) merged.set(d.substring(0, colonIdx).trim().toLowerCase(), d.trim());
-        });
-        newDecls.forEach(d => {
-          const colonIdx = d.indexOf(':');
-          if (colonIdx > 0) merged.set(d.substring(0, colonIdx).trim().toLowerCase(), d.trim());
-        });
-
-        el.setAttribute('style', [...merged.values()].join('; '));
-      });
-    } catch (e) {
-      // 跳过无效选择器（querySelectorAll 可能抛出异常）
-    }
-  }
-
-  return modified ? doc.body.innerHTML : html;
-};
-
-// ═══════════════ 颜色样式归一化：将 strong/em/u/s 上的 color 移植到内部 span ═══════════════
-// 背景：TipTap TextStyle mark 只匹配 <span> 元素，不匹配 <strong>/<em>/<u>/<s>
-//       Color 扩展作为 textStyle 的 global attribute 无法从非 span 元素提取颜色
-//       导致 <strong style="color:red">text</strong> 的颜色在进入编辑器后丢失
-// 方案：DOM 预处理 → 提取 color 从非 span 元素上，注入内层 <span style="color:...">
-const normalizeColorStyles = (html) => {
-  if (!html) return html;
-  // 需要处理的语义标签（TipTap 有对应 Mark 但不支持 style 属性上的 color）
-  const COLOR_SEMANTIC_TAGS = ['strong', 'b', 'em', 'i', 'u', 'ins', 's', 'del', 'strike'];
-  const selector = COLOR_SEMANTIC_TAGS.map(t => `${t}[style]`).join(',');
-  if (!new RegExp(`<(${COLOR_SEMANTIC_TAGS.join('|')})\\b[^>]*\\bcolor\\s*:`, 'i').test(html)) return html;
-
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const elements = Array.from(doc.querySelectorAll(selector));
-  let modified = false;
-
-  for (const el of elements) {
-    // 读取计算样式中的 color（支持 rgb/rgba/hex 等格式）
-    const colorVal = el.style.color;
-    if (!colorVal) continue;
-
-    modified = true;
-    // 从原元素上移除 color 属性
-    el.style.color = '';
-    // 如果 style 已清空，移除 style 属性
-    if (!el.getAttribute('style')?.trim()) el.removeAttribute('style');
-
-    // 创建内层 span 承载颜色
-    const span = doc.createElement('span');
-    span.style.color = colorVal;
-    // 将原元素的所有子节点移入 span
-    while (el.firstChild) span.appendChild(el.firstChild);
-    // 将 span 放回原元素
-    el.appendChild(span);
-  }
-
-  return modified ? doc.body.innerHTML : html;
-};
+// （convertClassStylesToInline / normalizeColorStyles 已抽到 ../utils/htmlPreprocessor.js）
 
 // ═══════════════ 序号去重：<ol> 自动编号 vs 文本编号 叠杀 ═══════════════
 // 场景：AI 生成 <ol><li>14. 某某标题</li></ol> 时，浏览器 + 文本双重编号 → "14. 14. xxx"

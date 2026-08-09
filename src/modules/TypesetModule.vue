@@ -253,6 +253,7 @@ import {
 import { APP_EVENTS } from '../constants/events.js';
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
+import { preprocessHtml } from '../utils/htmlPreprocessor.js';
 
 defineOptions({ name: 'TypesetModule' });
 
@@ -682,9 +683,10 @@ const applyThemeAndPreview = async () => {
   try {
     let htmlContent;
     if (isHtmlContent.value && rawHtmlContent.value) {
-      htmlContent = wrapContentForTheme(rawHtmlContent.value, selectedThemeId.value);
+      // 🔧 预览前兜底：class→inline 预处理
+      htmlContent = wrapContentForTheme(preprocessHtml(rawHtmlContent.value), selectedThemeId.value);
     } else if (isHtmlContent.value && pristineHtmlForExport.value) {
-      htmlContent = wrapContentForTheme(pristineHtmlForExport.value, selectedThemeId.value);
+      htmlContent = wrapContentForTheme(preprocessHtml(pristineHtmlForExport.value), selectedThemeId.value);
     } else {
       // 手动输入的 Markdown/纯文本：先转为 HTML
       htmlContent = markdownToHtml(currentContent.value);
@@ -784,9 +786,11 @@ const exportDocument = async () => {
   }
 
   // 🔧 用原始 HTML 直接包装主题（不走 Tiptap 的 applyThemeAndPreview，避免丢失 class）
+  //    🔧 导出前兜底：class→inline 预处理，确保 <style> 块中的颜色转为内联样式
   let previewContentForExport;
   if (isHtmlContent.value && pristineHtmlForExport.value) {
-    const wrapped = wrapContentForTheme(pristineHtmlForExport.value, selectedThemeId.value);
+    const preprocessed = preprocessHtml(pristineHtmlForExport.value);
+    const wrapped = wrapContentForTheme(preprocessed, selectedThemeId.value);
     previewContentForExport = applyThemeToContent(wrapped, selectedThemeId.value, {
       isHtmlContent: true,
       forceImportant: true
@@ -1002,8 +1006,8 @@ const loadFromGenerate = async (payload) => {
   const meta = (typeof payload === 'object' && payload.meta) ? payload.meta : {};
   if (!content || typeof content !== 'string') return;
   
-  // 🔧 直接保存原始 HTML（不再走 Tiptap 预处理，contentEditable 原样保留所有 class）
-  pristineHtmlForExport.value = content;
+  // 🔧 保存原始 HTML（含 class→inline 预处理，确保导出颜色不丢失）
+  pristineHtmlForExport.value = preprocessHtml(content);
   
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
   
