@@ -328,7 +328,8 @@ const currentGenRecordId = ref(null);  // 🔧 跟踪当前加载的生成记录
 const refreshGenRecords = () => {
   try {
     const saved = localStorage.getItem(GEN_STORAGE_KEY);
-    genRecords.value = saved ? JSON.parse(saved) : [];
+    const all = saved ? JSON.parse(saved) : [];
+    genRecords.value = all.filter(r => !r._deleted);
   } catch (e) { genRecords.value = []; }
 };
 const loadGenRecord = (rec) => {
@@ -349,7 +350,7 @@ const persistCurrentEdits = (content) => {
       records[idx].content = content;
       localStorage.setItem(GEN_STORAGE_KEY, JSON.stringify(records));
       // 同步更新内存缓存
-      genRecords.value = records;
+      genRecords.value = records.filter(r => !r._deleted);
     }
   } catch (e) { /* ignore */ }
 };
@@ -1092,6 +1093,8 @@ onMounted(() => {
       loadFromGenerate(e.detail);
     }
   });
+  // ☁️ 云端同步完成后刷新记录列表（排除软删除）
+  window.addEventListener('data-sync-complete', refreshGenRecords);
 });
 
 onActivated(() => {
