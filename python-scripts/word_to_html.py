@@ -105,7 +105,7 @@ def looks_like_heading(para, body_size=12):
     has_body_structure = text_len > 35 and any(w in text for w in ['的', '是', '在', '了', '着'])
 
     # ── 日志：视觉检测决策过程 ──
-    reason_parts = [f'bold ✓', f'size={font_size}pt(body={body_size},diff={size_diff:+d}pt)']
+    reason_parts = [f'bold ✓', f'size={font_size}pt(body={body_size},diff={size_diff:+.1f}pt)']
     if is_centered:
         reason_parts.append('居中 ✓')
     if ends_like_body:

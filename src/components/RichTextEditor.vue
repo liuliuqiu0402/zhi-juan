@@ -714,7 +714,7 @@ const editor = useEditor({
     // 🔧 粘贴 HTML 预处理：拦截所有 pasted/dropped HTML，在 ProseMirror 解析前转换 ruby 标签
     transformPastedHTML(html) {
       if (!html) return html;
-      return normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(html)));
+      return normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(html))));
     },
     handleKeyDown: (view, event) => {
       // Escape 退出格式刷连刷模式
@@ -1133,6 +1133,18 @@ const convertClassStylesToInline = (html) => {
   return modified ? doc.body.innerHTML : html;
 };
 
+// ═══════════════ 短十六进制颜色归一化：#abc → #aabbcc ═══════════════
+// 背景：CSS 允许 3 位简写（如 #555），但浏览器 DOM 属性的 color 要求完整 6 位格式
+//       不处理会导致 Vue patchDOMProp 警告：The specified value "#555" does not conform...
+const normalizeShortHexColors = (html) => {
+  if (!html) return html;
+  // 匹配 style 属性值中出现的 3 位 hex 颜色（不匹配已经是 6 位的）
+  // 模式：#[0-9a-fA-F]{3}(?![0-9a-fA-F])  — 3 位 hex 后面不紧跟另一个 hex 数字
+  return html.replace(/#([0-9a-fA-F]{3})(?![0-9a-fA-F])/g, (_, short) => {
+    return '#' + short[0] + short[0] + short[1] + short[1] + short[2] + short[2];
+  });
+};
+
 // ═══════════════ 颜色样式归一化：将 strong/em/u/s 上的 color 移植到内部 span ═══════════════
 // 背景：TipTap TextStyle mark 只匹配 <span> 元素，不匹配 <strong>/<em>/<u>/<s>
 //       Color 扩展作为 textStyle 的 global attribute 无法从非 span 元素提取颜色
@@ -1220,7 +1232,7 @@ let pendingContent = props.modelValue || null;
 const trySetContent = () => {
   if (!editor.value || pendingContent === null) return;
   // 🔧 载入前预处理：class 样式 → 内联 → ruby 标签 → span.ruby-char
-  let processed = normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(pendingContent)));
+  let processed = normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(pendingContent))));
   // 🔧 载入前预处理：<ol> 双编号去重
   processed = normalizeDoubleNumberedLists(processed);
   if (processed !== editor.value.getHTML()) {
@@ -1375,7 +1387,7 @@ defineExpose({
       }
     });
   },
-  setContent: (html) => { editor.value?.commands.setContent(normalizeDoubleNumberedLists(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(html)))), false); },
+  setContent: (html) => { editor.value?.commands.setContent(normalizeShortHexColors(normalizeDoubleNumberedLists(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(html))))), false); },
 });
 </script>
 

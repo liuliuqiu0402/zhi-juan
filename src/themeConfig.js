@@ -479,7 +479,7 @@ export const themes = [
         height: '28px',
         borderRadius: '50%',
         background: '#5e35b1',
-        color: '#fff',
+        color: '#ffffff',
         fontWeight: 'bold',
         fontSize: '11pt',
         flexShrink: '0'
@@ -515,7 +515,7 @@ export const themes = [
         marginTop: '12px',
         fontSize: '11pt',
         fontStyle: 'italic',
-        color: '#555'
+        color: '#555555'
       }
     }
   },
@@ -555,7 +555,7 @@ export const themes = [
         borderRadius: '6px',
         padding: '12px 16px',
         marginBottom: '16px',
-        background: '#fff',
+        background: '#ffffff',
         boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
         borderLeft: '4px solid #c62828'
       },
@@ -795,7 +795,7 @@ export const themes = [
         textOrientation: 'upright',
         letterSpacing: '0.5em',
         fontSize: '10pt',
-        color: '#999',
+        color: '#999999',
         padding: '20px 0',
         zIndex: '1'
       },

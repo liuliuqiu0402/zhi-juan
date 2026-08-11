@@ -181,11 +181,15 @@ export const tianZiGeOOXML = (char, sizeHp, fontFamily = 'SimSun') => {
   const EN = '&#x2002;';   // EN SPACE = 0.5em（宋体安全，&#x2003; 会显示为可见符号）
 
   // 🔧 字符由 DrawingML textbox 绘制（与 grid 同坐标系 → 精确居中），段落只保留 pad 撑宽度
+  // 🔧 块级模式 behindDoc="0"：防止网格线被表格单元格底纹（w:shd）遮挡
+  // 🔧 显式指定 Times New Roman 字体，防止 &#x2005;/&#x2002; Unicode 空格在缺字时渲染为可见点
+  const blockAnchors = tzgShapeAnchors(S, hS, idBase, sizeHp, true, 0, char, fontFamily)
+    .replace(/behindDoc="1"/g, 'behindDoc="0"');
   return `<w:p>
   <w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="120" w:line="400" w:lineRule="auto"/></w:pPr>
   <w:r>
-    <w:rPr><w:sz w:val="${sz}"/></w:rPr>
-    ${tzgShapeAnchors(S, hS, idBase, sizeHp, true, 0, char, fontFamily)}
+    <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/></w:rPr>
+    ${blockAnchors}
     <w:t xml:space="preserve">${EM4}${EN}${EN}${EM4}</w:t>
   </w:r>
 </w:p>`;
@@ -204,11 +208,15 @@ export const fourLineOOXML = (letter, sizeHp, cellWEmuIn) => {
   const idBase = Math.floor(Math.random() * 90000) + 20000;
   const EM4 = '&#x2005;';
 
+  // 🔧 块级模式 behindDoc="0"：防止线条被表格单元格底纹遮挡
+  // 🔧 显式指定 Times New Roman 字体，防止 &#x2005; Unicode 空格在缺字时渲染为可见点
+  const blockFltAnchors = fltLineAnchors(lineWEmu, pts, idBase, true)
+    .replace(/behindDoc="1"/g, 'behindDoc="0"');
   return `<w:p>
   <w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="120" w:line="440" w:lineRule="auto"/></w:pPr>
   <w:r>
-    <w:rPr><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
-    ${fltLineAnchors(lineWEmu, pts, idBase, true)}
+    <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
+    ${blockFltAnchors}
     <w:t xml:space="preserve">${EM4}</w:t>
   </w:r>
   <w:r>
@@ -216,7 +224,7 @@ export const fourLineOOXML = (letter, sizeHp, cellWEmuIn) => {
     <w:t xml:space="preserve">${escXml(letter)}</w:t>
   </w:r>
   <w:r>
-    <w:rPr><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
+    <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
     <w:t xml:space="preserve">${EM4}</w:t>
   </w:r>
 </w:p>`;
@@ -237,11 +245,15 @@ export const fourLineBlankOOXML = (sizeHp, cellWEmuIn) => {
   const pad = '&#x2005;' + '&#x2002;'.repeat(n * 2) + '&#x2005;'; // EN SPACE×2=1em，宋体安全（&#x2003;会fallback为可见点）
   const idBase = Math.floor(Math.random() * 90000) + 20000;
 
+  // 🔧 块级模式 behindDoc="0"：防止线条被表格单元格底纹遮挡
+  // 🔧 显式指定 Times New Roman 字体，防止 &#x2005;/&#x2002; Unicode 空格在缺字时渲染为可见点
+  const blockFltBlankAnchors = fltLineAnchors(lineWEmu, pts, idBase, true)
+    .replace(/behindDoc="1"/g, 'behindDoc="0"');
   return `<w:p>
   <w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="120" w:line="440" w:lineRule="auto"/></w:pPr>
   <w:r>
-    <w:rPr><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
-    ${fltLineAnchors(lineWEmu, pts, idBase, true)}
+    <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
+    ${blockFltBlankAnchors}
     <w:t xml:space="preserve">${pad}</w:t>
   </w:r>
 </w:p>`;
@@ -263,15 +275,17 @@ const buildInlineTzg = (char, cellWEmu, idBase, rPrXml) => {
   const sz = String(sizeHp || 28);
   const EM4 = '&#x2005;';
   const EN = '&#x2002;';   // EN SPACE = 0.5em（宋体安全，&#x2003; 会显示为可见符号）
-  const gridRPr = rPrXml || `<w:rPr><w:sz w:val="${sz}"/></w:rPr>`;
+  // 🔧 显式指定 Times New Roman 字体，防止 &#x2005;/&#x2002; Unicode 空格在缺字时渲染为可见点
+  const gridRPr = rPrXml || `<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/></w:rPr>`;
   // 🔧 字符由 DrawingML textbox 绘制（与 grid 同坐标系），段落只保留 pad 撑宽度
   //     尾 pad=1.75em（grid 延伸至 2.3em，文字总宽 2.5em → 不压盖）
   // 🔧 行内模式 behindDoc="0"：防止网格线被段落底纹（w:shd）遮挡
   const anchors = tzgShapeAnchors(S, hS, idBase, sizeHp, false, gapEmuOf(sizeHp), char, 'SimSun')
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
+  // 🔧 两个 pad run 均显式指定 Times New Roman，确保 Unicode 空格不可见
   return '<w:r>' + gridRPr + anchors
     + '<w:t xml:space="preserve">' + GAP_EN + EM4 + '</w:t></w:r>'
-    + '<w:r><w:rPr><w:sz w:val="' + sz + '"/></w:rPr><w:t xml:space="preserve">' + EN + EN + EN + EM4 + '</w:t></w:r>';
+    + '<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="' + sz + '"/></w:rPr><w:t xml:space="preserve">' + EN + EN + EN + EM4 + '</w:t></w:r>';
 };
 
 /** 行内四线三格：anchor 在 text 前，前置 0.5em 间隔 → ¼em pad + letter + ¼em pad */
@@ -279,7 +293,8 @@ const buildInlineFlt = (letter, cellWEmu, sizeHp, idBase, rPrXml) => {
   const pts = sizeHp / 2;
   const sz = String(sizeHp || 28);
   const lineWEmu = cellWEmu; // 线条全宽（与预览 ::before left:0;right:0 一致）
-  const gridRPr = rPrXml && rPrXml.trim() ? rPrXml : `<w:rPr><w:sz w:val="${sz}"/></w:rPr>`;
+  // 🔧 显式指定 Times New Roman 字体 fallback，防止 &#x2005; Unicode 空格在缺字时渲染为可见点
+  const gridRPr = rPrXml && rPrXml.trim() ? rPrXml : `<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/></w:rPr>`;
   // 从标记 run 的 rPr 提取字体/颜色/粗斜体 → 注入字母 run，原汁原味复现预览样式
   const src = rPrXml || '';
   const fontMatch = src.match(/w:ascii="([^"]*)"/);
@@ -307,7 +322,8 @@ const buildInlineFltBlank = (cellWEmu, sizeHp, idBase, rPrXml) => {
   const halfEmEmu = Math.round(emEmu / 2);
   const n = Math.max(1, Math.round((cellWEmu - halfEmEmu) / emEmu));
   const pad = GAP_EN + '&#x2005;' + '&#x2002;'.repeat(n * 2) + '&#x2005;';
-  const gridRPr = rPrXml && rPrXml.trim() ? rPrXml : `<w:rPr><w:sz w:val="${sz}"/></w:rPr>`;
+  // 🔧 显式指定 Times New Roman 字体 fallback，防止 &#x2005;/&#x2002; Unicode 空格在缺字时渲染为可见点
+  const gridRPr = rPrXml && rPrXml.trim() ? rPrXml : `<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/></w:rPr>`;
   // 🔧 行内模式 behindDoc="0"：防止线条被段落底纹遮挡
   const anchors = fltLineAnchors(lineWEmu, pts, idBase, false, gapEmuOf(sizeHp))
     .replace(/behindDoc="1"/g, 'behindDoc="0"');

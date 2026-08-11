@@ -154,6 +154,7 @@
           v-else-if="!isHtmlContent"
           ref="contentEditor"
           v-model="currentContent"
+          @paste="onTextareaPaste"
           placeholder="在此粘贴或编辑你的教辅内容...
           
 支持 Markdown 基础语法：
@@ -618,6 +619,34 @@ const pasteFromClipboard = async () => {
   }
 };
 
+// 🔧 纯文本 textarea 粘贴拦截：检测富文本 HTML 并自动切换到富文本编辑器
+//    场景：用户在纯文本模式下 Ctrl+V 从 Word/网页复制的内容，
+//    浏览器默认会剥离 HTML 只保留纯文本。这里拦截 paste 事件，
+//    优先读取剪贴板的 HTML 版本，有富文本则切换编辑器模式。
+const onTextareaPaste = async (e) => {
+  try {
+    const clipboardItems = await navigator.clipboard.read();
+    for (const item of clipboardItems) {
+      if (item.types.includes('text/html')) {
+        const blob = await item.getType('text/html');
+        const html = await blob.text();
+        if (html && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(html)) {
+          e.preventDefault();
+          isHtmlContent.value = true;
+          rawHtmlContent.value = html;
+          currentContent.value = '';
+          pristineHtmlForExport.value = html;
+          return;
+        }
+      }
+    }
+  } catch (err) {
+    // clipboard.read() 可能因权限被拒（非 HTTPS/localhost），回退到默认纯文本粘贴
+    console.warn('textarea paste HTML 读取失败，使用默认粘贴:', err.message);
+  }
+  // 无富文本或读取失败 → 走浏览器默认纯文本粘贴行为
+};
+
 // 🔧 contentEditable 输入事件 → 同步到 rawHtmlContent
 const onHtmlEditorInput = () => {
   // Tiptap 通过 v-model + content-change 事件管理，此函数保留以兼容旧逻辑
@@ -713,9 +742,14 @@ const uploadCustomWord = async () => {
     
     // 解析Word
     const result = await parseWord(filePath);
-    if (result && result.html) {
+    if (result && result.success && result.html) {
       // 🔧 Word 解析结果是 HTML，走 loadFromGenerate 统一处理
       loadFromGenerate(result.html);
+    } else {
+      // 🔧 parseWord 返回失败（如 Python 脚本崩溃）时提示用户
+      const errMsg = result?.error || '未知解析错误';
+      console.error('上传Word失败:', errMsg);
+      await showAlertDialogFn('Word 解析失败: ' + errMsg);
     }
   } catch (e) {
     console.error('上传Word失败:', e);
