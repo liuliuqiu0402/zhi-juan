@@ -4859,13 +4859,13 @@ ${cardAnalysisText.substring(0, 1000)}
             }
           }
           instruction += `请生成一份「${displayName}」。${coreInstruction}\n`;
-          // 🔧 品质标准：从指令库按 genType × stage 三维度查询注入
-          const qualityBlocks = getMatchingBlockInstructions({ category: '生成-品质标准', stage: gradeSegment, genType: gt });
+          // 🔧 品质标准：从指令库按 subject × stage × genType 三维度查询注入（学科专属反套路块需 subject 维度才能命中）
+          const qualityBlocks = getMatchingBlockInstructions({ category: '生成-品质标准', matchSubject, stage: gradeSegment, genType: gt });
           if (qualityBlocks.length > 0) {
             instruction += qualityBlocks.map(b => b.content).join('\n') + '\n';
           }
-          // 🔧 原创标准：从指令库按 genType × stage 三维度查询注入
-          const originalityBlocks = getMatchingBlockInstructions({ category: '生成-原创标准', stage: gradeSegment, genType: gt });
+          // 🔧 原创标准：从指令库按 subject × stage × genType 三维度查询注入
+          const originalityBlocks = getMatchingBlockInstructions({ category: '生成-原创标准', matchSubject, stage: gradeSegment, genType: gt });
           if (originalityBlocks.length > 0) {
             instruction += originalityBlocks.map(b => b.content).join('\n') + '\n';
           }
@@ -6056,7 +6056,7 @@ ${cardAnalysisText.substring(0, 1000)}
 
     // 🔧 块间间距归一化：确保每个 --- 分隔线前恰好一个空行，消除不规则间距
     instruction = instruction.replace(/\n+---\n/g, '\n\n---\n');
-    instruction = instruction.replace(/^\n+/, '');
+    instruction = instruction.replace(/^\\n+/, '');
     return instruction;
     } catch (e) {
       console.error('[buildGenerationInstruction] :', e);
