@@ -14,9 +14,10 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 let _client: SupabaseClient | null = null;
 
-// 🔧 自定义 fetch：120s 超时（Supabase 免费版冷启动可达 30-120s）+
+// 🔧 自定义 fetch：240s 超时（Supabase 免费版冷启动可达 30-120s，
+//    手机端拉取多设备大 JSON payload 可达 60-180s）+ 
 //    网络错误自动重试（QUIC 协议错误等瞬时故障最多重试 3 次，指数退避）
-const FETCH_TIMEOUT = 120000; // 120s
+const FETCH_TIMEOUT = 240000; // 240s
 const fetchWithRetry = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   const maxRetries = 3;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -351,17 +352,37 @@ export async function pushGeneratedDocs(items: unknown[]): Promise<boolean> {
   }
 }
 
-/** 从云端拉取生成结果（generated_docs 表，客户端 JS 合并去重） */
-export async function pullGeneratedDocs(): Promise<unknown[] | null> {
+/** 从云端拉取生成结果（generated_docs 表，客户端 JS 合并去重）
+ *  @param excludeSelf 是否排除本机行（默认 true，避免重复下载本地已有的数据） */
+export async function pullGeneratedDocs(excludeSelf = true): Promise<unknown[] | null> {
   if (noSyncKey()) return null;
   const client = getClient();
   if (!client) return null;
 
   try {
-    const { data: rows, error } = await client
+    // 🔧 预暖：先发轻量查询（仅 id）触发 PostgreSQL 将匹配行的 TOAST 数据读入缓存，
+    //    后续 select('data') 查询即可秒级完成，避免首次冷读取超时
+    const syncKey = getSyncKey() || '';
+    try {
+      await client
+        .from('generated_docs')
+        .select('id')
+        .like('id', syncKey + ':%')
+        .limit(1);
+    } catch { /* 预暖失败不阻塞，主查询自行容错 */ }
+
+    let query = client
       .from('generated_docs')
       .select('data')
-      .like('id', getSyncKey() + ':%');
+      .like('id', syncKey + ':%')
+      .limit(5); // 🔧 限制最多拉5台设备行，避免超大 JSON payload（单行可达 3.4MB）导致 240s 超时
+
+    // 🔧 排除本机：本地已有完全相同的副本，无需重复下载
+    if (excludeSelf) {
+      query = query.neq('id', syncKey + ':' + getDeviceId());
+    }
+
+    const { data: rows, error } = await query;
     if (error) {
       console.error('☁️ pull_generated_docs 失败:', error.message);
       return null;
@@ -763,21 +784,22 @@ export async function cleanupStaleDeviceRows(): Promise<number> {
   // 新版：设备名即ID，无需额外映射
   deviceNameMap.set(selfId, getDeviceName());
 
-  // ② 查询某表的所有设备行
+  // ② 查询某表的所有设备行（🔧 不选 data 列，避免 TOAST 大字段读取超时导致清理失效）
   const getDeviceInfo = async (table: string): Promise<Map<string, { count: number; updatedAt: number }>> => {
     const map = new Map<string, { count: number; updatedAt: number }>();
     try {
       const { data: rows } = await client!
         .from(table)
-        .select('id, data, updated_at')
+        .select('id, updated_at')
         .like('id', syncKey + ':%');
       if (rows) {
-        for (const row of rows as { id: string; data: unknown; updated_at: string }[]) {
+        for (const row of rows as { id: string; updated_at: string }[]) {
           const did = row.id?.replace(syncKey + ':', '');
           if (!did) continue;
+          // 🔧 每设备在此表仅一行（id = syncKey:deviceId），count 标记为 1 表示有数据
           const existing = map.get(did) || { count: 0, updatedAt: 0 };
           map.set(did, {
-            count: existing.count + (Array.isArray(row.data) ? row.data.length : 0),
+            count: existing.count + 1,
             updatedAt: Math.max(existing.updatedAt, new Date(row.updated_at).getTime() || 0),
           });
         }
@@ -910,7 +932,7 @@ function buildDeviceLabels(allIds: string[], selfId: string, cloudNames: Map<str
   return map;
 }
 
-let _probePending = false;
+let _probePromise: Promise<void> | null = null;
 
 /** 云端设备信息（probeCloud 填充，fetchCloudDevices 消费） */
 export interface CloudDeviceInfo {
@@ -924,9 +946,10 @@ let _lastCloudDevices: CloudDeviceInfo[] = [];
 
 /** 启动时探测云端状态，暖机后输出数据摘要，用户据此决定何时同步 */
 export async function probeCloud(showReadyHint = true): Promise<void> {
-  // 🔒 并发守卫：避免启动时多处触发导致重复探测
-  if (_probePending) return;
-  _probePending = true;
+  // 🔒 并发守卫：如果已有探测在进行，等待它完成（复用结果），而非放弃
+  if (_probePromise) return _probePromise;
+
+  _probePromise = (async () => {
   try {
   const client = getClient();
   if (!client || noSyncKey()) return;
@@ -965,7 +988,8 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
     safeQuery(() => client.from('templates').select('data').eq('id', syncKey).single()),
     safeQuery(() => client.from('user_settings').select('id, data').like('id', syncKey + ':%')),
     safeQuery(() => client.from('doc_history').select('id, data').like('id', syncKey + ':%')),
-    safeQuery(() => client.from('generated_docs').select('id, data').like('id', syncKey + ':%')),
+    // 🔧 只选 id（不选 data）：probe 仅需知道哪些设备有行，无需读 TOAST 大字段
+    safeQuery(() => client.from('generated_docs').select('id').like('id', syncKey + ':%')),
     safeQuery(() => client.from('doc_history').select('data').eq('id', syncKey + ':deleted').maybeSingle()),
     safeQuery(() => client.from('generated_docs').select('data').eq('id', syncKey + ':deleted').maybeSingle()),
   ]);
@@ -1060,11 +1084,8 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
   console.log('☁️ 共享：教材' + tbStr + '  模板' + tpStr + '  设置' + stStr + '  激活' + acStr + '  指令' + inStr);
 
   // 各设备数据
-  // 🧹 过滤：只显示"本机"+有自定义名称的设备，裸 UUID 设备不展示
-  //    自动生成的设备名（📱开头等）也不展示，除非是本机
+  // 🔧 过滤：只显示"本机"+有有效名称的设备，裸 UUID 设备不展示
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  // 🔧 自动生成的设备名模式：detectDeviceName() 会产出这些兜底名
-  const autoNamePatterns = ['📱 手机浏览器', '📱 安卓手机', '📱 iPhone', '💻 电脑浏览器', '🖥️ 电脑'];
   const namedEntries = [...devMap.entries()].filter(([did]) => {
     if (did === selfId) return true; // 本机始终显示
     // 🧹 跳过 deleted 墓碑（双重保险，数据聚合阶段已过滤）
@@ -1073,8 +1094,6 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
     // 过滤：空标签 / 标签本身是裸UUID / 标签是UUID截断的兜底（无名设备）
     if (!label || uuidRe.test(label)) return false;
     if (uuidRe.test(did) && label === did.slice(0, 8)) return false; // 仅UUID设备才用截断判断
-    // 🧹 过滤自动生成的兜底名（📱 手机浏览器 / 💻 电脑浏览器 等测试废数据）
-    if (autoNamePatterns.includes(label)) return false;
     return true;
   });
 
@@ -1090,8 +1109,8 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
     for (const [did, d] of namedEntries) {
       const label = deviceLabels.get(did) || did.slice(0, 8);
       const hStr = hiFailed ? '❌' : d.hist + '条';
-      const gStr = geFailed ? '❌' : d.gen + '条';
-      console.log('  ' + label + ': 历史' + hStr + '  生成' + gStr);
+      // 🔧 生成的条数不展示：probe 只选 id（不选 data）以加速加载，genCount 恒为 0 无参考价值
+      console.log('  ' + label + ': 历史' + hStr);
     }
   }
 
@@ -1118,8 +1137,11 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
     console.log('💡 数据已就绪，可以点击 ☁️ 同步了');
   }
   } finally {
-    _probePending = false;
+    _probePromise = null;
   }
+  })();
+
+  return _probePromise;
 }
 
 /**

@@ -627,7 +627,8 @@ onMounted(async () => {
     //    不自动生成，避免各设备随机分配到不同数据池导致数据不可见
 
     // 🔍 启动后延迟探测云端：暖机 + 数据摘要，供用户查看云端数据概况
-    setTimeout(() => probeCloud(), 3000);
+    //    延迟 10s 避免与用户立即点击同步/加载设备列表撞车
+    setTimeout(() => probeCloud(), 10000);
 
     // 🔄 同步按钮处理器（app-refresh 事件，来自 AppHeader ☁️ 按钮 / 手机端下拉刷新）
     let _syncInProgress = false;

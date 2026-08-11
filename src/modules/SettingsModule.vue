@@ -80,7 +80,8 @@
               <span class="cloud-device-name">{{ dev.label }}</span>
               <span v-if="dev.isSelf" class="cloud-device-self">（本机）</span>
               <span class="cloud-device-stats">
-                历史 {{ dev.histCount }} 条 · 生成 {{ dev.genCount }} 条
+                历史 {{ dev.histCount }} 条
+                <span v-if="dev.genCount > 0"> · 生成 {{ dev.genCount }} 条</span>
               </span>
             </div>
             <button
