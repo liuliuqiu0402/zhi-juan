@@ -14,7 +14,7 @@ import {
 } from '../config/expertKnowledge.js';
 import { getMatchingBlockInstructions } from '../config/instructionLib.js';
 import { getContextsForSubject } from '../config/subjectContextLibrary.js';
-import { HardRuleChecker } from '../utils/qualityChecker';
+import { HardRuleChecker, AISemanticReviewer } from '../utils/qualityChecker';
 import { runHardValidators, applyAutoFixes } from '../utils/subjectValidators.js';
 import { registerController, unregisterController } from '../utils/requestManager.js';
 
@@ -1658,6 +1658,8 @@ export function useAiGenerator() {
   let _perPeriodKnowledgeMap = null;
   let _perPeriodSelectedBooks = null;
   let _perPeriodSelectedTemplates = null;
+  // 🔧 AI修复防循环守卫：确保每次生成最多触发一次AI修复（防止无限调用API）
+  let _repairActive = false;
   // 🔧 逐章生成模式：设置此 chapterTitle 后，generate() 从缓存中过滤出单章数据
   let _perChapterChapterTitle = null;
   // 🔧 整体生成跳过检测标志：cancelPeriodSplit 设置，阻止 generate() 清空 _cachedKnowledgeMap
@@ -1876,11 +1878,34 @@ export function useAiGenerator() {
     const temperature = options.temperature ?? config.temperature ?? 0.7;
     
     let finalPrompt = prompt;
-    const estimatedTokens = estimateTokens(prompt);
-    // 🔧 输入限制：DeepSeek 128K 上下文用 100K 安全线，Ollama 维持原逻辑
-    const maxInputTokens = config.engine === 'deepseek' 
+    
+const maxInputTokens = config.engine === 'deepseek' 
       ? 100000  // DeepSeek 有 128K 上下文，100K 足够容纳任何蓝图 prompt
       : Math.floor(maxTokens * 0.7);  // Ollama 本地模型上下文小，按输出 token 反推
+    
+    // 🔧 生成自审机制：在生成类任务的 prompt 末尾追加自审指令
+    if (['generation', 'review'].includes(taskType) && !options.skipSelfReview) {
+      const selfReviewInstruction = `
+
+【🔍 生成后自审要求 —— 请在输出完内容后，用 <div class="self-review" style="display:none">...</div> 完成以下自审（此块对用户不可见）】
+请逐条检查刚生成的内容：
+1. 知识点准确性：所有概念、公式、史实是否准确无误？若有误请指出。
+2. 课标对齐：内容是否体现了新课标核心素养要求（如语文的语言运用/思维能力、数学的运算能力/推理能力等）？
+3. 学段适配：难度和深度是否适合该学段学生？有无超纲或过于浅显的内容？
+4. 无歧义表述：题干是否清晰明确？答案是否唯一确定？有无"略"等敷衍表述？
+5. 结构完整：是否按照结构大纲要求组织？各板块内容是否充实不空洞？
+请在自审块中如实记录检查结果，如发现问题请同时修正正文内容。`;
+      
+      // 仅在 prompt 足够容纳时才追加（预留 500 tokens 空间）
+      const selfReviewTokens = estimateTokens(selfReviewInstruction);
+      const currentTokens = estimateTokens(finalPrompt);
+      if (currentTokens + selfReviewTokens < maxInputTokens - 500) {
+        finalPrompt += selfReviewInstruction;
+      }
+    }
+    
+    const estimatedTokens = estimateTokens(prompt);
+    // 🔧 输入限制：DeepSeek 128K 上下文用 100K 安全线，Ollama 维持原逻辑
     
     if (estimatedTokens > maxInputTokens) {
       console.warn(`⚠️ Prompt过长(${estimatedTokens} tokens)，正在智能压缩...`);
@@ -4533,13 +4558,13 @@ ${cardAnalysisText.substring(0, 1000)}
     return null;
   };
 
-  // 🔧 页数指导：按学段区分，试卷单独加量（DeepSeek 输出更完整）
-  //    小学 6页（试卷10页）/ 初中 8页（试卷12页）/ 高中 10页（试卷14页）
+  // 🔧 页数指导：按学段区分，试卷/复习单独加量（DeepSeek 输出更完整）
+  //    小学 6页（试卷10页/复习8页）/ 初中 8页（试卷12页/复习10页）/ 高中 10页（试卷14页/复习12页）
   const getPageCount = (genType, stage) => {
     const PAGE_MAP = {
-      primary: { exam: 10, default: 6 },
-      middle:  { exam: 12, default: 8 },
-      high:    { exam: 14, default: 10 },
+      primary: { exam: 10, review: 8, default: 6 },
+      middle:  { exam: 12, review: 10, default: 8 },
+      high:    { exam: 14, review: 12, default: 10 },
     };
     const entry = PAGE_MAP[stage] || PAGE_MAP.primary;
     return entry[genType] || entry.default;
@@ -6056,7 +6081,7 @@ ${cardAnalysisText.substring(0, 1000)}
 
     // 🔧 块间间距归一化：确保每个 --- 分隔线前恰好一个空行，消除不规则间距
     instruction = instruction.replace(/\n+---\n/g, '\n\n---\n');
-    instruction = instruction.replace(/^\\n+/, '');
+    instruction = instruction.replace(/^\n+/, '');
     return instruction;
     } catch (e) {
       console.error('[buildGenerationInstruction] :', e);
@@ -6064,7 +6089,161 @@ ${cardAnalysisText.substring(0, 1000)}
     }
   };
 
-  // ==================== 🔧 整卷生成（DeepSeek 云端主路径）====================
+  
+  /**
+   * 🔧 AI语义审查（调用DeepSeek通读全文，抓语病/错字/逻辑矛盾）
+   */
+  const performSemanticReview = async (content, context) => {
+    const { genType, subject, stage, grade } = context;
+    const genTypeLabel = pickLabelFromPool(genType, '_all_');
+    const reviewPrompt = AISemanticReviewer.buildReviewPrompt(content, {
+      genType, genTypeLabel, subject, stage, grade
+    });
+    
+    console.log('🔍 发起AI语义审查...');
+    try {
+      const result = await callAI(reviewPrompt, {
+        taskType: 'review',
+        temperature: 0.2,
+        skipSelfReview: true,
+        skipAbortCheck: true,
+        timeout: 60000,
+      });
+      
+      if (result && result.content) {
+        const parsed = AISemanticReviewer.parseReviewResult(result.content);
+        console.log(parsed.summary);
+        return parsed;
+      }
+      return { hasIssues: false, issues: [], summary: '审查无响应' };
+    } catch (e) {
+      console.warn('AI语义审查失败（不阻断流程）:', e.message);
+      return { hasIssues: false, issues: [], summary: '审查调用失败' };
+    }
+  };
+
+  /**
+   * 🔧 AI语义修复 —— 将语义审查发现的问题发给AI修复
+   * 独立于 attemptContentRepair，有自己的防循环守卫
+   */
+  let _semanticRepairActive = false;
+  const repairSemanticIssues = async (content, semanticIssues, context) => {
+    if (_semanticRepairActive) {
+      console.log('⏭️ 语义修复已执行过，跳过（防循环）');
+      return { content, repaired: false };
+    }
+    if (!semanticIssues || semanticIssues.length === 0) {
+      return { content, repaired: false };
+    }
+
+    _semanticRepairActive = true;
+    const { genType, subject, stage, grade } = context;
+    const genTypeLabel = pickLabelFromPool(genType, '_all_');
+
+    const issuesText = semanticIssues.map((s, i) => `${i + 1}. ${s}`).join('\n');
+    const repairPrompt = `【语义修复任务】
+以下是一份${genTypeLabel || '资料'}（${[subject, grade, stage].filter(Boolean).join('·')}），AI语义审查发现了以下问题，请逐一修复：
+
+【需修复的问题】
+${issuesText}
+
+【修复要求】
+1. 逐一修复上述每个问题，确保修复后语句通顺、无错字、逻辑自洽
+2. 严格保留原有HTML结构、CSS类名、填空格式（<u class="blank-N">）不变
+3. 只修改有问题的部分，其他内容原封不动
+4. 直接返回修复后的完整HTML，不要加任何解释说明
+
+【原始内容】
+${content}`;
+
+    console.log('🔧 发起AI语义修复...');
+    try {
+      const result = await callAI(repairPrompt, {
+        taskType: 'quality-repair',
+        temperature: 0.2,
+        skipSelfReview: true,
+        skipAbortCheck: true,
+        timeout: 120000,
+      });
+
+      if (result && result.content && result.content.length > 100) {
+        console.log('✅ AI语义修复完成');
+        return { content: result.content, repaired: true };
+      }
+      console.log('⚠️ 语义修复返回内容异常，保留原始内容');
+      return { content, repaired: false };
+    } catch (e) {
+      console.warn('AI语义修复失败（不阻断流程）:', e.message);
+      return { content, repaired: false };
+    } finally {
+      _semanticRepairActive = false;
+    }
+  };
+
+  /**
+   * 🔧 AI内容修复（单次，防循环）
+   * 质检发现问题 → 构建修复prompt → 调用AI → 再质检 → 返回最终结果
+   * 最多执行1次，由 _repairActive 标志守卫
+   */
+  const attemptContentRepair = async (content, hardIssues, context) => {
+    const { genType, genTypeLabel, subject, stage, grade, parsedBlueprint, materialText } = context;
+    
+    // 筛选需要AI修复的问题
+    const repairableIssues = HardRuleChecker.getRepairableIssues(hardIssues, genType);
+    if (repairableIssues.length === 0) return { content, repaired: false, repairIssues: [] };
+    
+    // 防循环守卫
+    if (_repairActive) {
+      console.log('⏭️ AI修复已执行过，跳过（防循环）');
+      return { content, repaired: false, repairIssues: [] };
+    }
+    
+    _repairActive = true;
+    const issueTypes = repairableIssues.map(i => i.type).join(', ');
+    console.log('\n🔧 检测到 ' + repairableIssues.length + ' 个需修复问题：' + issueTypes + '，发起AI修复...');
+    
+    try {
+      // 构建修复prompt
+      const repairPrompt = HardRuleChecker.buildRepairPrompt(content, repairableIssues, {
+        genType, genTypeLabel, subject, stage, grade, materialText
+      });
+      
+      // 调用AI修复（低温度，精确修复）
+      const repairResult = await callAI(repairPrompt, {
+        taskType: 'quality-repair',
+        temperature: 0.3,
+        skipSelfReview: true,
+        skipAbortCheck: true,
+      });
+      
+      if (repairResult && repairResult.content && repairResult.content.length > 100) {
+        const repairedContent = repairResult.content;
+        
+        // 修复后再次质检
+        const recheckIssues = HardRuleChecker.check(
+          repairedContent, parsedBlueprint || [], subject, stage, grade, genType, materialText
+        );
+        
+        const autoFixed = HardRuleChecker.autoFix(repairedContent, recheckIssues);
+        
+        const remainingErrors = recheckIssues.filter(i => i.severity === 'error').length;
+        console.log('✅ AI修复完成，修复后再检：' + recheckIssues.length + ' 个问题（' + remainingErrors + ' 个错误）');
+        
+        return { content: autoFixed, repaired: true, repairIssues: recheckIssues };
+      }
+      
+      console.log('⚠️ AI修复返回内容异常，保留原始内容');
+      return { content, repaired: false, repairIssues: [] };
+      
+    } catch (repairError) {
+      console.error('❌ AI修复失败:', repairError.message);
+      return { content, repaired: false, repairIssues: [] };
+    } finally {
+      _repairActive = false;
+    }
+  };
+
+// ==================== 🔧 整卷生成（DeepSeek 云端主路径）====================
   // 核心任务 + 结构大纲 + 知识图谱 + 教材原文 + 格式约束 → 一次性产出整份 HTML
   // 取代原 Step3（蓝图规划）+ Step4（逐题生成），让 DeepSeek 云端模型充分发挥原生能力
   const generateFullPaper = async (params) => {
@@ -6178,6 +6357,7 @@ ${cardAnalysisText.substring(0, 1000)}
       summary: '从基础概念到综合应用，知识归纳由简到繁',
       dictation: '从常用字词到重点词汇，按教材出现顺序由易到难排列',
       errorbook: '从高频错题到易混淆知识点，按错误类型分类整理',
+      review: '知识梳理→易错辨析→综合自测三层递进，自测题基础约50%+中档约30%+提高约20%',
     };
     const diffRatio = diffRatioMap[genType] || '题目从易到难排列';
 
@@ -7809,14 +7989,61 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
         content = HardRuleChecker.autoFix(content, hardIssues);
       }
 
+      // ========== 🔧 新增：AI语义审查（第二级——通读全文抓语病/错字/逻辑） ==========
+      const semanticCtx = {
+        genType,
+        subject: book?.subject || '',
+        stage: stageRaw,
+        grade: book?.grade || '',
+      };
+      const semanticResult = await performSemanticReview(content, semanticCtx);
+      if (semanticResult.hasIssues) {
+        semanticResult.issues.forEach(issue => {
+          issues.push('🔍 ' + issue);
+        });
+        // 发现问题 → 自动修复
+        const semanticFix = await repairSemanticIssues(content, semanticResult.issues, semanticCtx);
+        if (semanticFix.repaired) {
+          content = semanticFix.content;
+          console.log('✅ 语义问题已自动修复');
+        }
+      }
+
+      // ========== 🔧 AI内容修复（单次） ==========
+      const repairContext = {
+        genType, 
+        subject: book?.subject || '', 
+        stage: stageRaw,
+        grade: book?.grade || '',
+        parsedBlueprint,
+      };
+      const repairResult = await attemptContentRepair(content, hardIssues, repairContext);
+      if (repairResult.repaired) {
+        content = repairResult.content;
+        // 合并修复后新检出的问题
+        if (repairResult.repairIssues && repairResult.repairIssues.length > 0) {
+          repairResult.repairIssues.forEach(issue => {
+            hardIssues.push(issue);
+            issues.push((issue.severity === 'error' ? '❌' : '⚠️') + ' ' + issue.detail);
+          });
+        }
+      }
+
       // 初始化质量报告（必须在所有使用之前定义）
       const qualityReport = {
         formatCheck: { passed: true, details: [] },
         coverageCheck: { passed: true, details: [] },
         difficultyCheck: { passed: true, details: [] },
         knowledgeCheck: { passed: true, details: [] },
-        templateMatch: { passed: true, details: [] }
+        templateMatch: { passed: true, details: [] },
+        semanticCheck: { passed: true, details: [] }
       };
+
+      // 记录AI语义审查结果
+      if (semanticResult && semanticResult.hasIssues) {
+        qualityReport.semanticCheck.passed = false;
+        qualityReport.semanticCheck.details.push(semanticResult.summary);
+      }
 
       // 记录硬性检查结果
       const hardIssueSummary = HardRuleChecker.getIssueSummary(hardIssues);
@@ -10258,6 +10485,27 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 800)}
         }
         
         console.log('📋 超纲检测完成:', boundaryCheck.summary);
+      }
+
+
+      // ========== 🔧 AI内容修复（单次） ==========
+      const repairContext = {
+        genType, 
+        genTypeLabel: genTypeLabel || genType,
+        subject: book?.subject || '', 
+        stage: stageRaw,
+        grade: book?.grade || '',
+        parsedBlueprint,
+      };
+      const repairResult = await attemptContentRepair(content, hardIssues, repairContext);
+      if (repairResult.repaired) {
+        content = repairResult.content;
+        if (repairResult.repairIssues && repairResult.repairIssues.length > 0) {
+          repairResult.repairIssues.forEach(issue => {
+            hardIssues.push(issue);
+            issues.push((issue.severity === 'error' ? '❌' : '⚠️') + ' ' + issue.detail);
+          });
+        }
       }
 
       // 初始化质量报告（必须在所有使用之前定义）
