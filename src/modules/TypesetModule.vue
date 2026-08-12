@@ -254,6 +254,7 @@ import {
 import { APP_EVENTS } from '../constants/events.js';
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
+import storage from '../utils/storage';
 
 defineOptions({ name: 'TypesetModule' });
 
@@ -326,10 +327,10 @@ const documents = ref([]);
 const GEN_STORAGE_KEY = 'wisdom_generated_docs';
 const genRecords = ref([]);
 const currentGenRecordId = ref(null);  // 🔧 跟踪当前加载的生成记录，编辑后回写
-const refreshGenRecords = () => {
+const refreshGenRecords = async () => {
   try {
-    const saved = localStorage.getItem(GEN_STORAGE_KEY);
-    const all = saved ? JSON.parse(saved) : [];
+    const saved = await storage.getItem(GEN_STORAGE_KEY).catch(() => null);
+    const all = saved && Array.isArray(saved) ? saved : [];
     genRecords.value = all.filter(r => !r._deleted);
   } catch (e) { genRecords.value = []; }
 };
@@ -340,16 +341,16 @@ const loadGenRecord = (rec) => {
   loadFromGenerate({ content, meta: { title: rec.title || '未命名', genType: rec.genType || '' } });
 };
 // 🔧 将当前编辑内容回写到 localStorage 生成记录，刷新后不丢
-const persistCurrentEdits = (content) => {
+const persistCurrentEdits = async (content) => {
   if (!content || !currentGenRecordId.value) return;
   try {
-    const saved = localStorage.getItem(GEN_STORAGE_KEY);
-    if (!saved) return;
-    const records = JSON.parse(saved);
+    const saved = await storage.getItem(GEN_STORAGE_KEY).catch(() => null);
+    if (!saved || !Array.isArray(saved)) return;
+    const records = saved;
     const idx = records.findIndex(r => r.id === currentGenRecordId.value);
     if (idx >= 0) {
       records[idx].content = content;
-      localStorage.setItem(GEN_STORAGE_KEY, JSON.stringify(records));
+      await storage.setItem(GEN_STORAGE_KEY, records).catch(() => {});
       // 同步更新内存缓存
       genRecords.value = records.filter(r => !r._deleted);
     }

@@ -721,12 +721,11 @@ onMounted(async () => {
           localStorage.setItem('wisdom_deleted_hist_doc_ids', JSON.stringify(mergedDeletedHist));
         }
 
-        // ② 合并生成结果（双向，两端都做）
+        // ② 合并生成结果（双向，两端都做）— 使用 IndexedDB 避免 localStorage 配额溢出
         const GEN_KEY = 'wisdom_generated_docs';
         let mergedGen = [];
         try {
-          const localRaw = localStorage.getItem(GEN_KEY);
-          const local = localRaw ? JSON.parse(localRaw) : [];
+          const local = await storage.getItem(GEN_KEY).catch(() => null) || [];
           // 软删除：_deleted 标记随数据参与合并，时间戳最新的版本自然胜出
           const map = new Map();
           for (const d of [...local, ...cloudGen]) {
@@ -740,10 +739,12 @@ onMounted(async () => {
           // 截断 20
           if (mergedGen.length > 20) mergedGen = mergedGen.slice(-20);
 
-          localStorage.setItem(GEN_KEY, JSON.stringify(mergedGen));
+          await storage.setItem(GEN_KEY, mergedGen).catch(() => {});
+          // 🧹 迁移后清理 localStorage 旧 key，释放配额空间（老数据已由 storage.getItem 自动迁移至 IndexedDB）
+          try { localStorage.removeItem(GEN_KEY); } catch {}
           const genDeleted = mergedGen.filter(d => d._deleted).length;
           console.log('🔄 [合并] 生成结果 ' + mergedGen.length + ' 条（有效 ' + (mergedGen.length - genDeleted) + '，软删除 ' + genDeleted + '）← 本地' + local.length + ' + 云端' + cloudGen.length);
-        } catch (e) { console.warn('合并生成结果异常', e); }
+        } catch (e) { console.warn('合并生成结果异常', e?.message || e); }
 
         // ③ 合并历史记录（双向，两端都做）
         let mergedHist = [];
@@ -913,7 +914,7 @@ onMounted(async () => {
         // ① 并行读取全部本地数据
         const [hist, gen, tbs, tps, ins, cfg, act] = await Promise.all([
           storage.getItem('docHistory').catch(() => null),
-          Promise.resolve().then(() => { const r = localStorage.getItem('wisdom_generated_docs'); return r ? JSON.parse(r) : null; }),
+          storage.getItem('wisdom_generated_docs').catch(() => null),
           !isMobile ? storage.getItem('textbooks').catch(() => null) : Promise.resolve(null),
           !isMobile ? storage.getItem('templates').catch(() => null) : Promise.resolve(null),
           !isMobile ? Promise.resolve().then(() => { const r = localStorage.getItem('instructionLib'); return r ? JSON.parse(r) : null; }) : Promise.resolve(null),

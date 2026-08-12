@@ -2731,31 +2731,31 @@ const extractTimestampFromId = (id) => {
   return match ? parseInt(match[1]) : null;
 };
 
-const loadGeneratedDocs = () => {
+// 🔧 使用 IndexedDB（非 localStorage）避免手机端配额溢出
+const loadGeneratedDocs = async () => {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
-        // 向后兼容：为旧数据补填 savedAt（修复前生成的结果缺少时间戳字段）
-        let needsSave = false;
-        for (const item of parsed) {
-          if (!item.savedAt) {
-            item.savedAt = item.createdAt || extractTimestampFromId(item.id) || Date.now();
-            needsSave = true;
-          }
+    const saved = await storage.getItem(STORAGE_KEY).catch(() => null);
+    if (saved && Array.isArray(saved)) {
+      // 向后兼容：为旧数据补填 savedAt（修复前生成的结果缺少时间戳字段）
+      let needsSave = false;
+      for (const item of saved) {
+        if (!item.savedAt) {
+          item.savedAt = item.createdAt || extractTimestampFromId(item.id) || Date.now();
+          needsSave = true;
         }
-        if (needsSave) {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-          console.log('🩹 已为 ' + parsed.length + ' 条旧生成结果补填 savedAt');
-        }
-        return parsed;
       }
+      if (needsSave) {
+        await storage.setItem(STORAGE_KEY, saved).catch(() => {});
+        console.log('🩹 已为 ' + saved.length + ' 条旧生成结果补填 savedAt');
+      }
+      return saved;
     }
-  } catch (e) { console.warn('加载生成记录失败:', e.message); }
+  } catch (e) { console.warn('加载生成记录失败:', e?.message || e); }
   return [];
 };
-const generatedDocs = ref(loadGeneratedDocs());
+const generatedDocs = ref([]);
+// 🔧 异步加载：初始化完成前 UI 显示空列表，加载后自动更新
+loadGeneratedDocs().then(docs => { if (docs.length > 0) generatedDocs.value = docs; });
 
 // 显示用：反转数组，过滤 _deleted 标记，最新的在上面（存储保持升序以保证 slice(-20) 截断正确）
 const displayedDocs = computed(() => [...generatedDocs.value].filter(d => !d._deleted).reverse());
@@ -2766,22 +2766,21 @@ const saveGeneratedDocs = async () => {
       ? generatedDocs.value.slice(-20)
       : generatedDocs.value;
 
-    // 🔧 防御：如果 ref 为空但 localStorage 有数据，拒绝写入（防止意外清空）
+    // 🔧 防御：如果 ref 为空但存储中已有数据，拒绝写入（防止意外清空）
     if (docs.length === 0) {
       try {
-        const existing = localStorage.getItem(STORAGE_KEY);
-        if (existing) {
-          const parsed = JSON.parse(existing);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            console.warn('⚠️ 拒绝写入空数组：localStorage 已有 ' + parsed.length + ' 条数据（可能是重置误触发）');
-            return;
-          }
+        const existing = await storage.getItem(STORAGE_KEY).catch(() => null);
+        if (existing && Array.isArray(existing) && existing.length > 0) {
+          console.warn('⚠️ 拒绝写入空数组：已有 ' + existing.length + ' 条数据（可能是重置误触发）');
+          return;
         }
       } catch {}
     }
 
-    // 持久化到 localStorage
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
+    // 持久化到 IndexedDB（避免 localStorage 配额溢出）
+    await storage.setItem(STORAGE_KEY, docs).catch(() => {});
+    // 🧹 迁移后清理 localStorage 旧 key，释放配额空间
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
   } catch (e) { console.warn('保存生成记录失败:', e?.message); }
 };
 const batchDownloadFormat = ref('word');
@@ -7153,22 +7152,17 @@ watch([() => selectedTextbooks.value?.[0]?.subject, () => selectedTextbooks.valu
 // 🔧 _cloudSyncRunning 全局锁：KeepAlive 缓存多实例时，只允许一个实例执行
 let _skipCloudPush = false;
 let _cloudSyncRunning = false;
-const onCloudSync = () => {
+const onCloudSync = async () => {
   if (isGenerating.value) return;
   if (_cloudSyncRunning) return; // 🔧 KeepAlive 多实例保护
   _cloudSyncRunning = true;
   _skipCloudPush = true;
   try {
-    // 从 localStorage 重新加载（同步已写入合并结果）
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          // 兜底截断：上限 20 条，保留最新的
-          generatedDocs.value = parsed.length > 20 ? parsed.slice(-20) : parsed;
-        }
-      } catch {}
+    // 从 IndexedDB 重新加载（同步已写入合并结果）
+    const saved = await storage.getItem(STORAGE_KEY).catch(() => null);
+    if (saved && Array.isArray(saved)) {
+      // 兜底截断：上限 20 条，保留最新的
+      generatedDocs.value = saved.length > 20 ? saved.slice(-20) : saved;
     }
     // 软删除：_deleted 标记保留在数组中传播，UI 由 displayedDocs 过滤
     const deletedCount = generatedDocs.value.filter(d => d._deleted).length;
@@ -7212,7 +7206,7 @@ onMounted(async () => {
 });
 
 // 🔧 KeepAlive 重新激活：重新注册事件监听 + 重载数据（同步可能在此期间发生）
-onActivated(() => { _setupListeners(); const docs = loadGeneratedDocs(); if (docs.length > 0) generatedDocs.value = docs; });
+onActivated(async () => { _setupListeners(); const docs = await loadGeneratedDocs(); if (docs.length > 0) generatedDocs.value = docs; });
 
 // 🔧 KeepAlive 停用缓存：移除监听，避免不活跃实例收到事件
 onDeactivated(() => { _teardownListeners(); });
