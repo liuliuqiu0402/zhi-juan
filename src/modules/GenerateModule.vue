@@ -1482,6 +1482,7 @@ import { buildTianZiGeMarker, htmlToDocxBlob } from '../utils/docxBuilder.js';
 import { injectDrawingML, TZG_MARKER, FLT_MARKER } from '../utils/drawingMLShapes.js';
 import storage from '../utils/storage';
 import { pushDeletedDocIds } from '../utils/cloudStorage';
+import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
 import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
 import { useInstructionStore } from '../stores/instructionStore.js';
@@ -2731,24 +2732,26 @@ const extractTimestampFromId = (id) => {
   return match ? parseInt(match[1]) : null;
 };
 
-// 🔧 使用 IndexedDB（非 localStorage）避免手机端配额溢出
+// 🔧 使用 IndexedDB + content 压缩避免手机端配额溢出
 const loadGeneratedDocs = async () => {
   try {
     const saved = await storage.getItem(STORAGE_KEY).catch(() => null);
     if (saved && Array.isArray(saved)) {
+      // 📦 解压 content 字段（存量未压缩数据透传）
+      const decompressed = decompressDocArray(saved);
       // 向后兼容：为旧数据补填 savedAt（修复前生成的结果缺少时间戳字段）
       let needsSave = false;
-      for (const item of saved) {
+      for (const item of decompressed) {
         if (!item.savedAt) {
           item.savedAt = item.createdAt || extractTimestampFromId(item.id) || Date.now();
           needsSave = true;
         }
       }
       if (needsSave) {
-        await storage.setItem(STORAGE_KEY, saved).catch(() => {});
-        console.log('🩹 已为 ' + saved.length + ' 条旧生成结果补填 savedAt');
+        await storage.setItem(STORAGE_KEY, compressDocArray(decompressed)).catch(() => {});
+        console.log('🩹 已为 ' + decompressed.length + ' 条旧生成结果补填 savedAt');
       }
-      return saved;
+      return decompressed;
     }
   } catch (e) { console.warn('加载生成记录失败:', e?.message || e); }
   return [];
@@ -2777,8 +2780,8 @@ const saveGeneratedDocs = async () => {
       } catch {}
     }
 
-    // 持久化到 IndexedDB（避免 localStorage 配额溢出）
-    await storage.setItem(STORAGE_KEY, docs).catch(() => {});
+    // 持久化到 IndexedDB（压缩 content 减少 80% 体积）
+    await storage.setItem(STORAGE_KEY, compressDocArray(docs)).catch(() => {});
     // 🧹 迁移后清理 localStorage 旧 key，释放配额空间
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
   } catch (e) { console.warn('保存生成记录失败:', e?.message); }
@@ -7158,11 +7161,12 @@ const onCloudSync = async () => {
   _cloudSyncRunning = true;
   _skipCloudPush = true;
   try {
-    // 从 IndexedDB 重新加载（同步已写入合并结果）
+    // 从 IndexedDB 重新加载（同步已写入合并结果，解压 content）
     const saved = await storage.getItem(STORAGE_KEY).catch(() => null);
     if (saved && Array.isArray(saved)) {
+      const decompressed = decompressDocArray(saved);
       // 兜底截断：上限 20 条，保留最新的
-      generatedDocs.value = saved.length > 20 ? saved.slice(-20) : saved;
+      generatedDocs.value = decompressed.length > 20 ? decompressed.slice(-20) : decompressed;
     }
     // 软删除：_deleted 标记保留在数组中传播，UI 由 displayedDocs 过滤
     const deletedCount = generatedDocs.value.filter(d => d._deleted).length;

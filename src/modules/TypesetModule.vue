@@ -255,6 +255,7 @@ import { APP_EVENTS } from '../constants/events.js';
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import storage from '../utils/storage';
+import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
 
 defineOptions({ name: 'TypesetModule' });
 
@@ -330,7 +331,7 @@ const currentGenRecordId = ref(null);  // 🔧 跟踪当前加载的生成记录
 const refreshGenRecords = async () => {
   try {
     const saved = await storage.getItem(GEN_STORAGE_KEY).catch(() => null);
-    const all = saved && Array.isArray(saved) ? saved : [];
+    const all = saved && Array.isArray(saved) ? decompressDocArray(saved) : [];
     genRecords.value = all.filter(r => !r._deleted);
   } catch (e) { genRecords.value = []; }
 };
@@ -340,18 +341,19 @@ const loadGenRecord = (rec) => {
   currentGenRecordId.value = rec.id || null;  // 🔧 记住加载的记录 ID
   loadFromGenerate({ content, meta: { title: rec.title || '未命名', genType: rec.genType || '' } });
 };
-// 🔧 将当前编辑内容回写到 localStorage 生成记录，刷新后不丢
+// 🔧 将当前编辑内容回写到生成记录，刷新后不丢
 const persistCurrentEdits = async (content) => {
   if (!content || !currentGenRecordId.value) return;
   try {
     const saved = await storage.getItem(GEN_STORAGE_KEY).catch(() => null);
     if (!saved || !Array.isArray(saved)) return;
-    const records = saved;
+    // 📦 解压 → 修改 → 压缩写回
+    const records = decompressDocArray(saved);
     const idx = records.findIndex(r => r.id === currentGenRecordId.value);
     if (idx >= 0) {
       records[idx].content = content;
-      await storage.setItem(GEN_STORAGE_KEY, records).catch(() => {});
-      // 同步更新内存缓存
+      await storage.setItem(GEN_STORAGE_KEY, compressDocArray(records)).catch(() => {});
+      // 同步更新内存缓存（保持解压态）
       genRecords.value = records.filter(r => !r._deleted);
     }
   } catch (e) { /* ignore */ }

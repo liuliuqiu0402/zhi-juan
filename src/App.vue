@@ -193,6 +193,7 @@ import { useMobile } from '@/composables/useMobile.js';
 import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
+import { compressDocArray, decompressDocArray } from '@/utils/contentCompress.js';
 import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, pullDeletedDocIds, pushDeletedDocIds, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
 import { BUILTIN_VERSION } from '@/config/instructionLib';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
@@ -725,7 +726,9 @@ onMounted(async () => {
         const GEN_KEY = 'wisdom_generated_docs';
         let mergedGen = [];
         try {
-          const local = await storage.getItem(GEN_KEY).catch(() => null) || [];
+          const localRaw = await storage.getItem(GEN_KEY).catch(() => null) || [];
+          // 📦 解压 content 字段（存量未压缩数据透传）
+          const local = decompressDocArray(localRaw);
           // 软删除：_deleted 标记随数据参与合并，时间戳最新的版本自然胜出
           const map = new Map();
           for (const d of [...local, ...cloudGen]) {
@@ -739,7 +742,7 @@ onMounted(async () => {
           // 截断 20
           if (mergedGen.length > 20) mergedGen = mergedGen.slice(-20);
 
-          await storage.setItem(GEN_KEY, mergedGen).catch(() => {});
+          await storage.setItem(GEN_KEY, compressDocArray(mergedGen)).catch(() => {});
           // 🧹 迁移后清理 localStorage 旧 key，释放配额空间（老数据已由 storage.getItem 自动迁移至 IndexedDB）
           try { localStorage.removeItem(GEN_KEY); } catch {}
           const genDeleted = mergedGen.filter(d => d._deleted).length;
@@ -914,7 +917,7 @@ onMounted(async () => {
         // ① 并行读取全部本地数据
         const [hist, gen, tbs, tps, ins, cfg, act] = await Promise.all([
           storage.getItem('docHistory').catch(() => null),
-          storage.getItem('wisdom_generated_docs').catch(() => null),
+          storage.getItem('wisdom_generated_docs').then(r => r ? decompressDocArray(r) : null).catch(() => null),
           !isMobile ? storage.getItem('textbooks').catch(() => null) : Promise.resolve(null),
           !isMobile ? storage.getItem('templates').catch(() => null) : Promise.resolve(null),
           !isMobile ? Promise.resolve().then(() => { const r = localStorage.getItem('instructionLib'); return r ? JSON.parse(r) : null; }) : Promise.resolve(null),
