@@ -1675,7 +1675,11 @@ export function useAiGenerator() {
     summary: ['知识梳理', '学习总结', '知识归纳'],
     dictation: ['默写训练', '默写练习', '默写检测'],
     errorbook: ['错题整理', '错题集', '纠错练习'],
+    review: ['复习巩固', '复习检测', '综合复习'],
   };
+
+  // 🔧 名称样式手动选择（方案二）：按资料类型覆盖轮换名称，未设置=自动轮换
+  const _labelOverrides = {};
 
   /**
    * 从名称池中轮换选取标签
@@ -1684,6 +1688,7 @@ export function useAiGenerator() {
    * @returns {string} 轮换后的标签
    */
   const pickLabelFromPool = (genType, chapterKey = '_all_') => {
+    if (_labelOverrides[genType]) return _labelOverrides[genType]; // 手动选择优先
     const pool = GEN_TYPE_LABEL_POOLS[genType] || ['练习题'];
     const key = `${genType}__${chapterKey}`;
     _labelCounters[key] = (_labelCounters[key] || 0) % pool.length;
@@ -1691,6 +1696,19 @@ export function useAiGenerator() {
     _persistLabelCounters();
     return label;
   };
+
+  /**
+   * 🔧 设置资料类型名称的手动选择（名称样式下拉，方案二）
+   * @param {string} genType - 资料类型
+   * @param {string|null} label - 选中的名称；null/空 = 恢复自动轮换
+   */
+  const setLabelOverride = (genType, label) => {
+    if (label) _labelOverrides[genType] = label;
+    else delete _labelOverrides[genType];
+  };
+
+  /** 🔧 获取某资料类型的名称池（供下拉选项展示） */
+  const getLabelPool = (genType) => GEN_TYPE_LABEL_POOLS[genType] || ['练习题'];
 
   /**
    * 🔧 后处理：将 AI 生成的内联拼音（如"蓬péng"）转换为 <ruby> 标签
@@ -11101,6 +11119,8 @@ ${questionPlan.score ? `- 标注：【知识点：${questionPlan.knowledgePoint}
     analyzeTemplateImageFull,
     extractKnowledgePoints,
     buildGenerationInstruction,
+    setLabelOverride,      // ✏️ 名称样式手动选择（方案二）
+    getLabelPool,          // ✏️ 名称池查询（供下拉选项）
     generate,
     executeGenerationWithBlueprint,
     generatePracticeByPeriods,

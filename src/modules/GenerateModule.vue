@@ -12,6 +12,9 @@
         <button class="ribbon-btn" @click="showGenTypeModal = true">
           📂 {{ genTypeLabel }}
         </button>
+        <button class="ribbon-btn" @click="showLabelStyleModal = true" :title="'名称样式：决定生成资料标题中的名称（当前：' + labelStyleLabel + '）'">
+          ✏️ {{ labelStyleLabel }}
+        </button>
         <button v-if="showSpecialSubType" class="ribbon-btn ribbon-btn-special" @click="showSpecialSubTypeModal = true">
           🎯 {{ specialSubTypeLabel || '选择专项领域' }}
         </button>
@@ -403,6 +406,26 @@
         <div class="modal-actions">
           <button class="btn" @click="showGenTypeModal = false">取消</button>
           <button class="btn-primary" @click="showGenTypeModal = false">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ✏️ 名称样式弹窗（单选：自动轮换/固定名称） -->
+    <div v-if="showLabelStyleModal" class="modal-mask" @click.self="showLabelStyleModal = false">
+      <div class="modal">
+        <h3>✏️ 名称样式（{{ genTypes[0] ? genTypeOptions.find(o => o.value === genTypes[0])?.label : '未选类型' }}）</h3>
+        <p style="color:var(--text-secondary);margin-bottom:12px;">决定生成资料标题中的名称（如"单元测试卷""课堂练习"）。默认自动轮换避免标题重复。</p>
+        <div class="option-list">
+          <label v-for="opt in labelStyleOptions" :key="opt.value" class="option-item">
+            <input type="radio" v-model="labelStyle" :value="opt.value" name="labelStyle" />
+            <span class="option-label">{{ opt.label }}</span>
+            <span class="option-desc">{{ opt.desc }}</span>
+          </label>
+        </div>
+        <p class="hint">💡 多类型复生成时，此处只设置第一个类型的名称，其余类型仍自动轮换</p>
+        <div class="modal-actions">
+          <button class="btn" @click="showLabelStyleModal = false">取消</button>
+          <button class="btn-primary" @click="showLabelStyleModal = false">确定</button>
         </div>
       </div>
     </div>
@@ -1554,6 +1577,24 @@ const pickScopeLabel = (scopeTypeVal, chapters) => {
   _scopeLabelCounters[key] = (_scopeLabelCounters[key] || 0) % pool.length;
   return pool[_scopeLabelCounters[key]++];
 };
+
+// ✏️ 名称样式选择（方案二）：默认自动轮换，可选池中固定名称（用户记不住池子里的名称，下拉直接展示）
+const showLabelStyleModal = ref(false);
+const labelStyle = ref('');  // ''=自动轮换，否则为池中固定名称
+const LABEL_STYLE_STORAGE_KEY = 'ww_label_style_v1';
+const loadLabelStyle = (genType) => {
+  try {
+    const map = JSON.parse(localStorage.getItem(LABEL_STYLE_STORAGE_KEY) || '{}');
+    return map[genType] || '';
+  } catch { return ''; }
+};
+const labelStyleOptions = computed(() => {
+  const type = genTypes.value[0];
+  const autoOpt = { value: '', label: '🔄 自动轮换（推荐）', desc: '按名称池轮流使用，标题不重复' };
+  if (!type) return [autoOpt];
+  return [autoOpt, ...(getLabelPool(type) || []).map(n => ({ value: n, label: n, desc: '固定使用该名称作为标题' }))];
+});
+const labelStyleLabel = computed(() => labelStyle.value || '自动轮换');
 
 // 弹窗状态
 const showScopeModal = ref(false);
@@ -2822,7 +2863,23 @@ const currentChapter = ref(null);
 const editingKnowledge = ref('');
 
 // AI生成器
-const { isGenerating, progress: generateProgress, statusText: generateStatus, buildGenerationInstruction, getTypeDistribution, generate: callGenerate, executeGenerationWithBlueprint, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel } = useAiGenerator();
+const { isGenerating, progress: generateProgress, statusText: generateStatus, buildGenerationInstruction, getTypeDistribution, generate: callGenerate, executeGenerationWithBlueprint, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool } = useAiGenerator();
+
+// ✏️ 名称样式：类型切换恢复上次选择 + 当前选择同步到生成器（在 useAiGenerator 解构之后，避免 TDZ）
+watch(genTypes, () => {
+  const type = genTypes.value[0];
+  labelStyle.value = type ? loadLabelStyle(type) : '';
+});
+watch(labelStyle, () => {
+  const type = genTypes.value[0];
+  if (!type) return;
+  setLabelOverride(type, labelStyle.value || null);
+  try {
+    const map = JSON.parse(localStorage.getItem(LABEL_STYLE_STORAGE_KEY) || '{}');
+    map[type] = labelStyle.value || '';
+    localStorage.setItem(LABEL_STYLE_STORAGE_KEY, JSON.stringify(map));
+  } catch { /* 忽略存储异常 */ }
+}, { immediate: true });
 
 // 🔒 屏幕唤醒锁：生成期间防止自动息屏导致 API 请求中断
 const wakeLock = useWakeLock();

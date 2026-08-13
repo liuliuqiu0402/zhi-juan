@@ -177,12 +177,12 @@ export const tianZiGeOOXML = (char, sizeHp, fontFamily = 'SimSun') => {
   const hS = Math.round(S / 2);
   const sz = String(sizeHp);
   const idBase = Math.floor(Math.random() * 90000) + 10000;
-  const EM4 = '&#x2005;'; // FOUR-PER-EM SPACE = 0.25em
-  const EN = '&#x2002;';   // EN SPACE = 0.5em（宋体安全，&#x2003; 会显示为可见符号）
+  const EM4 = '&#xa0;';   // 不断行空格 NBSP = 0.25em（全字体必覆盖，永不显示为可见点）
+  const EN = '&#xa0;&#xa0;';   // 2×NBSP = 0.5em（全字体必覆盖）
 
   // 🔧 字符由 DrawingML textbox 绘制（与 grid 同坐标系 → 精确居中），段落只保留 pad 撑宽度
   // 🔧 块级模式 behindDoc="0"：防止网格线被表格单元格底纹（w:shd）遮挡
-  // 🔧 显式指定 Times New Roman 字体，防止 &#x2005;/&#x2002; Unicode 空格在缺字时渲染为可见点
+  // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
   const blockAnchors = tzgShapeAnchors(S, hS, idBase, sizeHp, true, 0, char, fontFamily)
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
   return `<w:p>
@@ -206,10 +206,10 @@ export const fourLineOOXML = (letter, sizeHp, cellWEmuIn) => {
   const cellWEmu = cellWEmuIn || Math.round(sizeHp * 20 * EMU_PER_DXA);
   const lineWEmu = cellWEmu; // 线条全宽 = 格子宽（与预览 left:0;right:0 一致）
   const idBase = Math.floor(Math.random() * 90000) + 20000;
-  const EM4 = '&#x2005;';
+  const EM4 = '&#xa0;';
 
   // 🔧 块级模式 behindDoc="0"：防止线条被表格单元格底纹遮挡
-  // 🔧 显式指定 Times New Roman 字体，防止 &#x2005; Unicode 空格在缺字时渲染为可见点
+  // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
   const blockFltAnchors = fltLineAnchors(lineWEmu, pts, idBase, true)
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
   return `<w:p>
@@ -242,11 +242,11 @@ export const fourLineBlankOOXML = (sizeHp, cellWEmuIn) => {
   const emEmu = sizeHp * 10 * EMU_PER_DXA;      // 1em EMU
   const halfEmEmu = Math.round(emEmu / 2);       // 两侧 ¼em pad 合计 0.5em
   const n = Math.max(1, Math.round((cellWEmu - halfEmEmu) / emEmu));
-  const pad = '&#x2005;' + '&#x2002;'.repeat(n * 2) + '&#x2005;'; // EN SPACE×2=1em，宋体安全（&#x2003;会fallback为可见点）
+  const pad = '&#xa0;' + '&#xa0;'.repeat(n * 4) + '&#xa0;'; // NBSP×4=1em，全字体必覆盖
   const idBase = Math.floor(Math.random() * 90000) + 20000;
 
   // 🔧 块级模式 behindDoc="0"：防止线条被表格单元格底纹遮挡
-  // 🔧 显式指定 Times New Roman 字体，防止 &#x2005;/&#x2002; Unicode 空格在缺字时渲染为可见点
+  // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
   const blockFltBlankAnchors = fltLineAnchors(lineWEmu, pts, idBase, true)
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
   return `<w:p>
@@ -262,20 +262,20 @@ export const fourLineBlankOOXML = (sizeHp, cellWEmuIn) => {
 // ============ 行内包裹函数 ============
 
 // 行内格子与前文的间隔：0.5em（≈一个字母位，与预览观感一致，不紧贴）
-// 实现：anchor posOffset 右移 gapEmu + pad 文本前置 &#x2002;(EN SPACE=0.5em) 撑出布局宽度
-const GAP_EN = '&#x2002;';
+// 实现：anchor posOffset 右移 gapEmu + pad 文本前置 2×NBSP(0.5em) 撑出布局宽度
+const GAP_EN = '&#xa0;&#xa0;';
 const gapEmuOf = (sizeHp) => Math.round((sizeHp || 28) * 5 * EMU_PER_DXA); // 0.5em
 
-/** 行内田字格：anchor 在 text 前 + 0.5em 前置间隔 + &#x2005; 天然比例留白 */
+/** 行内田字格：anchor 在 text 前 + 0.5em 前置间隔 + NBSP 天然比例留白 */
 const buildInlineTzg = (char, cellWEmu, idBase, rPrXml) => {
   const S = Math.round(cellWEmu);
   const hS = Math.round(S / 2);
   const cellW = Math.round(cellWEmu / EMU_PER_DXA);
   const sizeHp = Math.round(cellW / 18); // 1.8em 反推字号
   const sz = String(sizeHp || 28);
-  const EM4 = '&#x2005;';
-  const EN = '&#x2002;';   // EN SPACE = 0.5em（宋体安全，&#x2003; 会显示为可见符号）
-  // 🔧 显式指定 Times New Roman 字体，防止 &#x2005;/&#x2002; Unicode 空格在缺字时渲染为可见点
+  const EM4 = '&#xa0;';
+  const EN = '&#xa0;&#xa0;';   // 2×NBSP = 0.5em（全字体必覆盖）
+  // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
   const gridRPr = rPrXml || `<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/></w:rPr>`;
   // 🔧 字符由 DrawingML textbox 绘制（与 grid 同坐标系），段落只保留 pad 撑宽度
   //     尾 pad=1.75em（grid 延伸至 2.3em，文字总宽 2.5em → 不压盖）
@@ -293,7 +293,7 @@ const buildInlineFlt = (letter, cellWEmu, sizeHp, idBase, rPrXml) => {
   const pts = sizeHp / 2;
   const sz = String(sizeHp || 28);
   const lineWEmu = cellWEmu; // 线条全宽（与预览 ::before left:0;right:0 一致）
-  // 🔧 显式指定 Times New Roman 字体 fallback，防止 &#x2005; Unicode 空格在缺字时渲染为可见点
+  // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
   const gridRPr = rPrXml && rPrXml.trim() ? rPrXml : `<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/></w:rPr>`;
   // 从标记 run 的 rPr 提取字体/颜色/粗斜体 → 注入字母 run，原汁原味复现预览样式
   const src = rPrXml || '';
@@ -303,7 +303,7 @@ const buildInlineFlt = (letter, cellWEmu, sizeHp, idBase, rPrXml) => {
   const colorTag = colorMatch ? `<w:color w:val="${colorMatch[1]}"/>` : '';
   const hasBold = src.includes('<w:b/>') || src.includes('<w:b ');
   const hasItalic = src.includes('<w:i/>') || src.includes('<w:i ');
-  const EM4 = '&#x2005;';
+  const EM4 = '&#xa0;';
   // 🔧 行内模式 behindDoc="0"：防止线条被段落底纹遮挡
   const anchors = fltLineAnchors(lineWEmu, pts, idBase, false, gapEmuOf(sizeHp))
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
@@ -321,8 +321,8 @@ const buildInlineFltBlank = (cellWEmu, sizeHp, idBase, rPrXml) => {
   const emEmu = sizeHp * 10 * EMU_PER_DXA;
   const halfEmEmu = Math.round(emEmu / 2);
   const n = Math.max(1, Math.round((cellWEmu - halfEmEmu) / emEmu));
-  const pad = GAP_EN + '&#x2005;' + '&#x2002;'.repeat(n * 2) + '&#x2005;';
-  // 🔧 显式指定 Times New Roman 字体 fallback，防止 &#x2005;/&#x2002; Unicode 空格在缺字时渲染为可见点
+  const pad = GAP_EN + '&#xa0;' + '&#xa0;'.repeat(n * 4) + '&#xa0;';
+  // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
   const gridRPr = rPrXml && rPrXml.trim() ? rPrXml : `<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/></w:rPr>`;
   // 🔧 行内模式 behindDoc="0"：防止线条被段落底纹遮挡
   const anchors = fltLineAnchors(lineWEmu, pts, idBase, false, gapEmuOf(sizeHp))

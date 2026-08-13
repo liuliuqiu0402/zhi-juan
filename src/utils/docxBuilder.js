@@ -507,7 +507,7 @@ const EMU_PER_DXA = _EMU_PER_DXA; // 635 EMU/DXA
 const fltCellWidthDxa = (contentLen, sizeHp) => {
   if (!sizeHp || !contentLen) return Math.round(sizeHp * 20) || 560;
   const perCharDxa = Math.round(sizeHp * 5);      // 0.5em per Latin letter
-  const padEachSide = Math.round(sizeHp * 2.5);   // ¼em/侧（与导出 pad 文本 &#x2005; 精确对齐）
+  const padEachSide = Math.round(sizeHp * 2.5);   // ¼em/侧（与导出 pad 文本 NBSP &#xa0; 对齐）
   return contentLen * perCharDxa + padEachSide * 2;
 };
 
