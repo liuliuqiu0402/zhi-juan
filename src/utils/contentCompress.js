@@ -1,18 +1,40 @@
 /**
  * Generated docs content 压缩/解压工具
  * 对 content 字段做 deflate 压缩，base64 编码，以 __Z__ 为魔数前缀
- * 仅作用于 IndexedDB 读写边界，云端始终保持未压缩（兼容多版本设备）
+ * 压缩前剥离超大头（AI 生成偶发嵌入数MB的 base64 图，撑爆云端行导致拉取超时）
  */
 import pako from 'pako';
 
 const MAGIC = '__Z__';
 
-/** 压缩单段文本，已压缩则透传 */
+// 单张内联图片上限（base64 字符数 ≈ 150KB 原图）。AI 生成的 content 偶发嵌入
+// 2MB+ 的 data:image（base64 几乎不可压缩），一条就撑爆整台设备的云端行
+const MAX_INLINE_IMAGE = 200 * 1024;
+const IMAGE_OMITTED_PLACEHOLDER = '<p style="text-align:center;color:#999;padding:8px 0;">〔图片过大，已省略〕</p>';
+
+/** 剥离超大头：data:image base64 超过阈值的 <img> 替换为占位符 */
+export function sanitizeContent(html) {
+  if (!html || typeof html !== 'string') return html;
+  let changed = false;
+  const cleaned = html.replace(/<img[^>]*src=["']data:image[^>]*>/gi, (tag) => {
+    const src = tag.match(/src=["'](data:image[^"']*)["']/i)?.[1] || '';
+    if (src.length > MAX_INLINE_IMAGE) {
+      changed = true;
+      return IMAGE_OMITTED_PLACEHOLDER;
+    }
+    return tag;
+  });
+  if (!changed) return html;
+  return cleaned;
+}
+
+/** 压缩单段文本，已压缩则透传（压缩前先剥离超大头） */
 export function compressContent(text) {
   if (!text || typeof text !== 'string') return text;
   if (text.startsWith(MAGIC)) return text;
   try {
-    const compressed = pako.deflate(text);
+    const cleaned = sanitizeContent(text);
+    const compressed = pako.deflate(cleaned);
     let binary = '';
     for (let i = 0; i < compressed.length; i++) {
       binary += String.fromCharCode(compressed[i]);

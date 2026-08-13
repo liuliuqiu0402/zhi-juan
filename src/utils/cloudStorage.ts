@@ -7,6 +7,7 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { compressDocArray, decompressDocArray } from './contentCompress.js';
 
 // ── 配置 ──
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -332,9 +333,12 @@ export async function pushGeneratedDocs(items: unknown[]): Promise<boolean> {
 
   try {
     // 软删除：_deleted 标记随数据一起推送，其他端合并时看到标记自动隐藏
-    const sorted = [...(items as any[])]
-      .sort((a: any, b: any) => (b.savedAt || b.timestamp || 0) - (a.savedAt || a.timestamp || 0))
-      .slice(0, 20);
+    // 📦 推送前压缩 content（云端存压缩数据，拉取体积减 50-80%，避免 TOAST 大字段超时）
+    const sorted = compressDocArray(
+      [...(items as any[])]
+        .sort((a: any, b: any) => (b.savedAt || b.timestamp || 0) - (a.savedAt || a.timestamp || 0))
+        .slice(0, 20)
+    );
     const { error } = await client
       .from('generated_docs')
       .upsert({ id: getSyncKey() + ':' + getDeviceId(), data: sorted, updated_at: new Date().toISOString() });
@@ -388,9 +392,11 @@ export async function pullGeneratedDocs(excludeSelf = true): Promise<unknown[] |
       return null;
     }
     const merged = mergeDeviceData((rows as unknown[]) || [], 20);
-    const deletedCount = (merged as any[]).filter((d: any) => d._deleted).length;
-    console.log('☁️ pull_generated_docs: ' + merged.length + ' 条（有效 ' + (merged.length - deletedCount) + '，软删除 ' + deletedCount + '）');
-    return merged;
+    // 📦 解压 content（存量未压缩数据透传；云端自 v2 起均为压缩存储）
+    const decompressed = decompressDocArray(merged);
+    const deletedCount = (decompressed as any[]).filter((d: any) => d._deleted).length;
+    console.log('☁️ pull_generated_docs: ' + decompressed.length + ' 条（有效 ' + (decompressed.length - deletedCount) + '，软删除 ' + deletedCount + '）');
+    return decompressed;
   } catch (e) {
     console.warn('☁️ pull_generated_docs 异常:', e);
     return null;

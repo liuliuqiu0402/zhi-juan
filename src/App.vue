@@ -917,7 +917,7 @@ onMounted(async () => {
         // ① 并行读取全部本地数据
         const [hist, gen, tbs, tps, ins, cfg, act] = await Promise.all([
           storage.getItem('docHistory').catch(() => null),
-          storage.getItem('wisdom_generated_docs').then(r => r ? decompressDocArray(r) : null).catch(() => null),
+          storage.getItem('wisdom_generated_docs').catch(() => null),
           !isMobile ? storage.getItem('textbooks').catch(() => null) : Promise.resolve(null),
           !isMobile ? storage.getItem('templates').catch(() => null) : Promise.resolve(null),
           !isMobile ? Promise.resolve().then(() => { const r = localStorage.getItem('instructionLib'); return r ? JSON.parse(r) : null; }) : Promise.resolve(null),
