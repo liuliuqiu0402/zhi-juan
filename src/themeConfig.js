@@ -1960,17 +1960,20 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       h2 { ${toCss(heading1Style)} }
       h3 { ${toCss(heading2Style)} }
       h4 { ${toCss(heading3Style)} }
-      p { ${normalParaCSS}; margin: 0.3em 0 ${pMarginBottom}; text-indent: 2em; }
+      /* 段距标准配置：段前 0、段后 6pt（教辅惯例，段距统一由段后控制） */
+      p { ${normalParaCSS}; margin: 0 0 ${pMarginBottom}; text-indent: 2em; }
       /* 居中/右对齐/两端对齐段落不缩进 */
       p[style*="text-align: center"],
       p[style*="text-align: right"],
       p[style*="text-align: justify"] { text-indent: 0; }
       li { ${normalParaCSS}; }
       table { border-collapse: collapse; width: 100%; margin: 8px 0; }
-      table td, table th { border: 1px solid #999; padding: 4px 8px; font-size: ${normalParaFull.fontSize}; line-height: 1.3; }
+      /* 🔧 表格内容左缩进 0.3 字符：避免文字紧贴单元格左边框（与导出 tcMar left 对应）
+         行高 2.08em：Word 多倍行距 1.6 的等价行盒（25pt），CSS 行距上下均分、文字在行盒内垂直居中（导出用 atLeast 行距对齐此行为） */
+      table td, table th { border: 1px solid #999; padding: 4px 8px; padding-left: calc(8px + 0.3em); font-size: ${normalParaFull.fontSize}; line-height: 2.08; }
       /* 🔧 表格单元格内段落：取消正文段距/首行缩进/大行距，保持表格紧凑
          否则被上面的 p 规则撑高（line-height 1.6~1.8 + margin 0.3em + 缩进 2em 全进表格） */
-      table td p, table th p { margin: 0; text-indent: 0; line-height: 1.3; }
+      table td p, table th p { margin: 0; text-indent: 0; line-height: 2.08; }
       img { max-width: 100%; height: auto; }
       ul, ol { margin: 0.3em 0 0.3em 2em; }
       /* 🔧 语义标签（Tiptap 保留元素标签，这些选择器生效） */

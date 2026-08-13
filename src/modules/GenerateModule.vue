@@ -6418,8 +6418,10 @@ const regenerateBlueprint = async () => {
 // ✨ 新增：完成最终生成（保存到 generatedDocs）
 const finalizeGeneration = async (result, genType) => {
   if (result.success) {
-    // 🔧 防御：确保 content 是有效字符串
-    const safeContent = (result.content && typeof result.content === 'string') ? result.content : '';
+    // 🔧 防御：确保 content 是有效字符串；生成入库时清理 AI 残留的成串 <br>（2+ 压成 1 个），
+    //    保证排版编辑预览与导出所见即所得（预览看不到成串空行，导出也不会有）
+    const safeContent = ((result.content && typeof result.content === 'string') ? result.content : '')
+      .replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br>');
     
     const genTypeName = genTypeTemplates[genType]?.name || genType;
     const ctxBooks = pendingGenerateContext.value?.selectedBooks;
@@ -6791,6 +6793,15 @@ const printPdfFallback = (htmlContent) => {
 const downloadDoc = async (doc, format) => {
   // 学生版：移除答案区域
   let content = doc.content;
+  // 🔧 所见即所得：排版编辑的修改回写在 localStorage，导出前取该记录最新内容
+  //    （内存 generatedDocs 可能滞后于排版编辑中的删除/修改，避免导出旧换行）
+  try {
+    const saved = await storage.getItem(STORAGE_KEY).catch(() => null);
+    if (saved && Array.isArray(saved)) {
+      const rec = decompressDocArray(saved).find(r => r.id === doc.id);
+      if (rec?.content && typeof rec.content === 'string') content = rec.content;
+    }
+  } catch { /* 读取失败用内存值 */ }
   
   // 🔧 第二道防线：清洗 AI 响应中可能残留的 markdown 代码块标记和对话文本
   //    虽然 callAI 中已有 cleanReasoningOutput，但部分模型（如 Qwen）仍可能绕过
@@ -6809,6 +6820,9 @@ const downloadDoc = async (doc, format) => {
       content = content.substring(htmlStartIdx);
     }
   }
+  
+  // 🔧 所见即所得：换行不做导出阶段清理（AI 残留的成串 br 已在生成入库时清理，
+  //    排版编辑里保留的换行原样导出、删除的换行不会导出）
   
   if (!teacherVersion.value) {
     content = content.replace(/<div class="answer-section">[\s\S]*?<\/div>/gi, '<div class="answer-section"><p>（答案略，请独立完成）</p></div>');

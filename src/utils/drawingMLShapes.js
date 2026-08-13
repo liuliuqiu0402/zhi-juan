@@ -44,9 +44,9 @@ const textboxTzg = (id, char, gridSizeHp, fontFamily, S) => {
   const charSzHp = Math.round(gridSizeHp * 1.3);
   const sz = String(charSzHp);
   const font = fontFamily || 'SimSun';
-  // gridCenter = gridSizeHp × 9 twips（grid = 1.8em = 18 × sizeHp DXA，半高 = 9 × sizeHp twips）
-  // charVisualCenter ≈ charSzHp × 6.2 twips（汉字视觉中心约在 em-square 62% 处）
-  const beforeTwips = Math.max(0, Math.round(gridSizeHp * 9 - charSzHp * 6.2));
+  // 🔧 垂直居中改用 wps:bodyPr anchor="ctr"：文本框内容相对 textbox 整体垂直居中，
+  //    与字体无关（旧方案 w:before 按宋体视觉中心 62% 调校，换微软雅黑后字面率/基线不同会偏上）
+  const beforeTwips = 0;
   return `<wps:wsp>
     <wps:cNvPr id="${id}" name="TZG-Char"/>
     <wps:cNvSpPr txBox="1"/>
@@ -74,7 +74,7 @@ const textboxTzg = (id, char, gridSizeHp, fontFamily, S) => {
         </w:p>
       </w:txbxContent>
     </wps:txbx>
-    <wps:bodyPr lIns="0" rIns="0" tIns="0" bIns="0"/>
+    <wps:bodyPr lIns="0" rIns="0" tIns="0" bIns="0" anchor="ctr"/>
   </wps:wsp>`;
 };
 
@@ -154,7 +154,8 @@ const tzgShapeAnchors = (S, hS, idBase, sizeHp, centerAlign = false, gapEmu = 0,
     cx: S,
     cy: S,
     shapesXml,
-    vertOffEmu: 0,
+    // 🔧 行内模式下移 3pt：格子在格行行盒（1.8em+6pt，exact 居中渲染）内上下各 3pt 严格对称，块级保持 0
+    vertOffEmu: centerAlign ? 0 : Math.round(3 * EMU_PER_PT),
   });
   const sizePt = sizeHp / 2; // half-points → points
   const font = fontFamily || 'SimSun';
@@ -177,8 +178,7 @@ export const tianZiGeOOXML = (char, sizeHp, fontFamily = 'SimSun') => {
   const hS = Math.round(S / 2);
   const sz = String(sizeHp);
   const idBase = Math.floor(Math.random() * 90000) + 10000;
-  const EM4 = '&#xa0;';   // 不断行空格 NBSP = 0.25em（全字体必覆盖，永不显示为可见点）
-  const EN = '&#xa0;&#xa0;';   // 2×NBSP = 0.5em（全字体必覆盖）
+  const HALF = '&#xa0;';   // NBSP 按宋体渲染宽 0.5em（WPS 会把 TNR 替换为宋体 → 按 TNR 0.25em 配比会宽度翻倍导致换行）
 
   // 🔧 字符由 DrawingML textbox 绘制（与 grid 同坐标系 → 精确居中），段落只保留 pad 撑宽度
   // 🔧 块级模式 behindDoc="0"：防止网格线被表格单元格底纹（w:shd）遮挡
@@ -188,9 +188,9 @@ export const tianZiGeOOXML = (char, sizeHp, fontFamily = 'SimSun') => {
   return `<w:p>
   <w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="120" w:line="400" w:lineRule="auto"/></w:pPr>
   <w:r>
-    <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/></w:rPr>
+    <w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/></w:rPr>
     ${blockAnchors}
-    <w:t xml:space="preserve">${EM4}${EN}${EN}${EM4}</w:t>
+    <w:t xml:space="preserve">${HALF}${HALF}${HALF}</w:t>
   </w:r>
 </w:p>`;
 };
@@ -206,7 +206,7 @@ export const fourLineOOXML = (letter, sizeHp, cellWEmuIn) => {
   const cellWEmu = cellWEmuIn || Math.round(sizeHp * 20 * EMU_PER_DXA);
   const lineWEmu = cellWEmu; // 线条全宽 = 格子宽（与预览 left:0;right:0 一致）
   const idBase = Math.floor(Math.random() * 90000) + 20000;
-  const EM4 = '&#xa0;';
+  const HALF = '&#xa0;';   // NBSP 按宋体渲染宽 0.5em
 
   // 🔧 块级模式 behindDoc="0"：防止线条被表格单元格底纹遮挡
   // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
@@ -215,17 +215,17 @@ export const fourLineOOXML = (letter, sizeHp, cellWEmuIn) => {
   return `<w:p>
   <w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="120" w:line="440" w:lineRule="auto"/></w:pPr>
   <w:r>
-    <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
+    <w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
     ${blockFltAnchors}
-    <w:t xml:space="preserve">${EM4}</w:t>
+    <w:t xml:space="preserve">${HALF}</w:t>
   </w:r>
   <w:r>
-    <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
+    <w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
     <w:t xml:space="preserve">${escXml(letter)}</w:t>
   </w:r>
   <w:r>
-    <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
-    <w:t xml:space="preserve">${EM4}</w:t>
+    <w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
+    <w:t xml:space="preserve">${HALF}</w:t>
   </w:r>
 </w:p>`;
 };
@@ -242,7 +242,7 @@ export const fourLineBlankOOXML = (sizeHp, cellWEmuIn) => {
   const emEmu = sizeHp * 10 * EMU_PER_DXA;      // 1em EMU
   const halfEmEmu = Math.round(emEmu / 2);       // 两侧 ¼em pad 合计 0.5em
   const n = Math.max(1, Math.round((cellWEmu - halfEmEmu) / emEmu));
-  const pad = '&#xa0;' + '&#xa0;'.repeat(n * 4) + '&#xa0;'; // NBSP×4=1em，全字体必覆盖
+  const pad = '&#xa0;'.repeat(n * 2 + 1); // NBSP×2=1em（宋体渲染 0.5em/NBSP），总宽=(n+0.5)em 与 cellW 精确等宽
   const idBase = Math.floor(Math.random() * 90000) + 20000;
 
   // 🔧 块级模式 behindDoc="0"：防止线条被表格单元格底纹遮挡
@@ -252,7 +252,7 @@ export const fourLineBlankOOXML = (sizeHp, cellWEmuIn) => {
   return `<w:p>
   <w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="120" w:line="440" w:lineRule="auto"/></w:pPr>
   <w:r>
-    <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
+    <w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
     ${blockFltBlankAnchors}
     <w:t xml:space="preserve">${pad}</w:t>
   </w:r>
@@ -262,8 +262,8 @@ export const fourLineBlankOOXML = (sizeHp, cellWEmuIn) => {
 // ============ 行内包裹函数 ============
 
 // 行内格子与前文的间隔：0.5em（≈一个字母位，与预览观感一致，不紧贴）
-// 实现：anchor posOffset 右移 gapEmu + pad 文本前置 2×NBSP(0.5em) 撑出布局宽度
-const GAP_EN = '&#xa0;&#xa0;';
+// 实现：anchor posOffset 右移 gapEmu + pad 文本前置 NBSP(0.5em) 撑出布局宽度
+const GAP_EN = '&#xa0;';   // NBSP 按宋体渲染 = 0.5em
 const gapEmuOf = (sizeHp) => Math.round((sizeHp || 28) * 5 * EMU_PER_DXA); // 0.5em
 
 /** 行内田字格：anchor 在 text 前 + 0.5em 前置间隔 + NBSP 天然比例留白 */
@@ -273,19 +273,18 @@ const buildInlineTzg = (char, cellWEmu, idBase, rPrXml) => {
   const cellW = Math.round(cellWEmu / EMU_PER_DXA);
   const sizeHp = Math.round(cellW / 18); // 1.8em 反推字号
   const sz = String(sizeHp || 28);
-  const EM4 = '&#xa0;';
-  const EN = '&#xa0;&#xa0;';   // 2×NBSP = 0.5em（全字体必覆盖）
+  const HALF = '&#xa0;';   // NBSP 按宋体渲染宽 0.5em
   // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
-  const gridRPr = rPrXml || `<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/></w:rPr>`;
+  const padRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>`;
   // 🔧 字符由 DrawingML textbox 绘制（与 grid 同坐标系），段落只保留 pad 撑宽度
-  //     尾 pad=1.75em（grid 延伸至 2.3em，文字总宽 2.5em → 不压盖）
+  //     前置 1em + 尾 1.5em = 2.5em（grid 延伸至 2.3em → 不压盖）
   // 🔧 行内模式 behindDoc="0"：防止网格线被段落底纹（w:shd）遮挡
   const anchors = tzgShapeAnchors(S, hS, idBase, sizeHp, false, gapEmuOf(sizeHp), char, 'SimSun')
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
-  // 🔧 两个 pad run 均显式指定 Times New Roman，确保 Unicode 空格不可见
-  return '<w:r>' + gridRPr + anchors
-    + '<w:t xml:space="preserve">' + GAP_EN + EM4 + '</w:t></w:r>'
-    + '<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="' + sz + '"/></w:rPr><w:t xml:space="preserve">' + EN + EN + EN + EM4 + '</w:t></w:r>';
+  // 🔧 pad run 显式宋体 + hint=eastAsia：NBSP 按宋体 0.5em 渲染，Word/WPS 宽度一致
+  return '<w:r>' + padRPr + anchors
+    + '<w:t xml:space="preserve">' + GAP_EN + HALF + '</w:t></w:r>'
+    + '<w:r>' + padRPr + '<w:t xml:space="preserve">' + HALF + HALF + HALF + '</w:t></w:r>';
 };
 
 /** 行内四线三格：anchor 在 text 前，前置 0.5em 间隔 → ¼em pad + letter + ¼em pad */
@@ -294,7 +293,7 @@ const buildInlineFlt = (letter, cellWEmu, sizeHp, idBase, rPrXml) => {
   const sz = String(sizeHp || 28);
   const lineWEmu = cellWEmu; // 线条全宽（与预览 ::before left:0;right:0 一致）
   // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
-  const gridRPr = rPrXml && rPrXml.trim() ? rPrXml : `<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/></w:rPr>`;
+  const padRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>`;
   // 从标记 run 的 rPr 提取字体/颜色/粗斜体 → 注入字母 run，原汁原味复现预览样式
   const src = rPrXml || '';
   const fontMatch = src.match(/w:ascii="([^"]*)"/);
@@ -303,14 +302,14 @@ const buildInlineFlt = (letter, cellWEmu, sizeHp, idBase, rPrXml) => {
   const colorTag = colorMatch ? `<w:color w:val="${colorMatch[1]}"/>` : '';
   const hasBold = src.includes('<w:b/>') || src.includes('<w:b ');
   const hasItalic = src.includes('<w:i/>') || src.includes('<w:i ');
-  const EM4 = '&#xa0;';
+  const HALF = '&#xa0;';   // NBSP 按宋体渲染宽 0.5em
   // 🔧 行内模式 behindDoc="0"：防止线条被段落底纹遮挡
   const anchors = fltLineAnchors(lineWEmu, pts, idBase, false, gapEmuOf(sizeHp))
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
-  return '<w:r>' + gridRPr + anchors
-    + '<w:t xml:space="preserve">' + GAP_EN + EM4 + '</w:t></w:r>'
+  return '<w:r>' + padRPr + anchors
+    + '<w:t xml:space="preserve">' + GAP_EN + HALF + '</w:t></w:r>'
     + '<w:r><w:rPr><w:rFonts w:ascii="' + font + '" w:hAnsi="' + font + '"/>' + (hasBold ? '<w:b/>' : '') + (hasItalic ? '<w:i/>' : '') + colorTag + '<w:sz w:val="' + sz + '"/><w:szCs w:val="' + sz + '"/></w:rPr><w:t xml:space="preserve">' + escXml(letter) + '</w:t></w:r>'
-    + '<w:r>' + gridRPr + '<w:t xml:space="preserve">' + EM4 + '</w:t></w:r>';
+    + '<w:r>' + padRPr + '<w:t xml:space="preserve">' + HALF + '</w:t></w:r>';
 };
 
 /** 行内空白四线三格：anchor 在 text 前，前置 0.5em 间隔，pad(¼em+N×em+¼em) 与 cellW 精确等宽 */
@@ -321,13 +320,13 @@ const buildInlineFltBlank = (cellWEmu, sizeHp, idBase, rPrXml) => {
   const emEmu = sizeHp * 10 * EMU_PER_DXA;
   const halfEmEmu = Math.round(emEmu / 2);
   const n = Math.max(1, Math.round((cellWEmu - halfEmEmu) / emEmu));
-  const pad = GAP_EN + '&#xa0;' + '&#xa0;'.repeat(n * 4) + '&#xa0;';
+  const pad = GAP_EN + '&#xa0;'.repeat(n * 2 + 1); // 前置0.5em + (n+0.5)em = (n+1)em（NBSP 宋体 0.5em/NBSP）
   // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
-  const gridRPr = rPrXml && rPrXml.trim() ? rPrXml : `<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="${sz}"/></w:rPr>`;
+  const padRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>`;
   // 🔧 行内模式 behindDoc="0"：防止线条被段落底纹遮挡
   const anchors = fltLineAnchors(lineWEmu, pts, idBase, false, gapEmuOf(sizeHp))
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
-  return '<w:r>' + gridRPr + anchors
+  return '<w:r>' + padRPr + anchors
     + '<w:t xml:space="preserve">' + pad + '</w:t></w:r>';
 };
 
@@ -385,7 +384,9 @@ export const injectDrawingML = async (zipBuffer) => {
   //    否则 __FLT_BLANK_xxx__ 会被普通 FLT 正则的 [^_]+? 误匹配，"BLANK" 被当成字母渲染
   // 🔧 rPr/pPr 内的 [\s\S]*? 改为 (?:(?!<\/w:r>)[\s\S])*? 防跨 <w:r> 边界回溯，
   //    避免段落内同时存在文字 run 和标记 run 时，整个段落被误替换导致文字丢失
-  const blockTzg = /<w:p[^>]*>\s*(?:<w:pPr[^>]*>(?:(?!<w:r>)[\s\S])*?<\/w:pPr>)?\s*<w:r[^>]*>\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?\s*<w:t[^>]*>__TZG_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>\s*<\/w:p>/g;
+  // 🔧 块级 marker 段落特征：pPr 必须含 w:before="40"（buildTianZiGeMarker 固定 spacing），
+  //    行内单段落（表格格单元格，spacing 为 exact before=0）不含该特征，不会被误匹配为块级
+  const blockTzg = /<w:p[^>]*>\s*<w:pPr[^>]*>(?:(?!<w:r>)[\s\S])*?w:before="40"(?:(?!<w:r>)[\s\S])*?<\/w:pPr>\s*<w:r[^>]*>\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?\s*<w:t[^>]*>__TZG_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>\s*<\/w:p>/g;
   docXml = docXml.replace(blockTzg, (match, char, cellWEmuStr) => {
     hasDml = true;
     const cellWEmu = parseInt(cellWEmuStr);
@@ -448,6 +449,20 @@ export const injectDrawingML = async (zipBuffer) => {
 
   // ==== Ruby 注音标记替换 ====
   docXml = injectRubyAnnotations(docXml);
+
+  // ==== 表格单元格段落：中文版式文本对齐居中（w:textAlignment center）====
+  // 默认 auto（基线对齐）下，exact 行盒的多余空间全部堆在文字上方（文字贴行盒底→视觉靠下），
+  // 改为 center → 文字相对行盒垂直居中，单元格上下留白对称
+  docXml = docXml.replace(/(<w:tc>)[\s\S]*?(?=<\/w:tc>)/g, (tcOpen) => {
+    // 🔧 含田字格/米字格（图形）的单元格跳过注入：图形单元格无可见文字，
+    //    且 textAlignment 会干扰 wp:anchor posOffset 的行锚点解析，导致格子上方留白丢失
+    if (tcOpen.includes('TianZiGrid') || tcOpen.includes('MiZiGrid')) return tcOpen;
+    // 给该 tc 内所有段落 pPr 注入 textAlignment center（已含则跳过）
+    return tcOpen.replace(/<w:pPr>((?:(?!<\/w:pPr>)[\s\S])*?)<\/w:pPr>/g, (m, inner) => {
+      if (inner.includes('w:textAlignment')) return m;
+      return `<w:pPr>${inner}<w:textAlignment w:val="center"/></w:pPr>`;
+    }).replace(/<w:pPr\s*\/>/g, '<w:pPr><w:textAlignment w:val="center"/></w:pPr>');
+  });
 
   // --- 命名空间声明：文档根加 xmlns:wps + mc:Ignorable ---
   if (hasDml) {

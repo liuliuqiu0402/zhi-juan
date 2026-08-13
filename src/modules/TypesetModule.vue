@@ -784,6 +784,8 @@ const sanitizeExportContent = (html) => {
       cleaned = cleaned.substring(htmlStartIdx);
     }
   }
+  // 🔧 换行不做任何导出阶段清理：所见即所得（AI 残留的成串 br 已在生成入库时清理，
+  //    编辑器里保留的换行原样导出、删除的换行不会导出）
   return cleaned;
 };
 
@@ -804,9 +806,20 @@ const printFallback = (htmlContent) => {
 // ==================== 导出 ====================
 const exportDocument = async () => {
   // 🔧 导出前强制从 contentEditable 实时 DOM 刷新，确保最新编辑不丢失
-  if (isHtmlContent.value && contentEditor.value?.editor?.view?.dom) {
-    pristineHtmlForExport.value = contentEditor.value.editor.view.dom.innerHTML;
-    rawHtmlContent.value = contentEditor.value.editor.view.dom.innerHTML;
+  //    ⚠️ 只刷新 pristineHtmlForExport（导出专用缓存），不写回 rawHtmlContent——
+  //       写回会触发 RichTextEditor 的 watch → setContent 重建编辑器视图，
+  //       导致用户在排版编辑中手动删除的内容（空行/换行）被“还原”
+  if (isHtmlContent.value) {
+    // 🔧 优先直接读 editor.view.dom；读不到时用组件暴露的 getDomHTML（组件内部解包 editor，更可靠）
+    const dom = contentEditor.value?.editor?.view?.dom;
+    const domHtml = dom?.innerHTML || contentEditor.value?.getDomHTML?.() || '';
+    if (domHtml) pristineHtmlForExport.value = domHtml;
+  }
+  // 🔧 导出前立即 flush 编辑内容到生成记录（防抖 500ms 未触发时，切回生成模块导出也能拿到最新内容）
+  if (persistDebounceTimer) {
+    clearTimeout(persistDebounceTimer);
+    persistDebounceTimer = null;
+    await persistCurrentEdits(pristineHtmlForExport.value || rawHtmlContent.value);
   }
 
   // 🔧 导出时优先用原始 HTML（保留所有 class），无原始内容时降级用预览
@@ -852,11 +865,28 @@ const exportDocument = async () => {
     } else if (exportFormat.value === 'docx') {
       exportStatus.value = '正在生成Word文档...';
 
-      // ✅ 导出前已从 contentEditable 实时 DOM 刷新 pristineHtmlForExport，直接使用
-      let sourceHtml = pristineHtmlForExport.value || rawHtmlContent.value;
+      // 🔧 所见即所得：优先从编辑器实时 DOM 读取最新内容（用户刚删除的空行立即生效，
+      //    不受 content-change 150ms 防抖/缓存时序影响），读不到才降级 v-model/缓存
+      //    （降级源为 AI 原始 HTML：td 无 p → 行内田字格形态，docxBuilder 已跳过格子后残留 br）
+      const liveDom = contentEditor.value?.editor?.view?.dom;
+      let sourceHtml = liveDom?.innerHTML || rawHtmlContent.value || pristineHtmlForExport.value;
+      // 🔍 临时诊断日志（定位田字格单元格导出多出换行的来源，验证后删除）
+      console.log('[导出诊断]', JSON.stringify({
+        isHtmlContent: isHtmlContent.value,
+        showSource: showSource.value,
+        refBound: !!contentEditor.value,
+        editorReady: !!contentEditor.value?.editor,
+        liveDomReady: !!liveDom,
+        liveLen: liveDom?.innerHTML?.length || 0,
+        srcFrom: (liveDom?.innerHTML ? 'liveDom' : (rawHtmlContent.value ? 'rawHtmlContent' : 'pristine')),
+        tdHasP: /<td[^>]*>\s*<p[\s>]/.test(sourceHtml || ''),
+        gridThenBr: /tian-zi-ge[\s\S]{0,300}<br/.test(sourceHtml || ''),
+      }));
       if (!sourceHtml || sourceHtml.length < 20) {
         throw new Error('编辑器内容为空');
       }
+      // 🔧 所见即所得：编辑器里有的换行原样导出，删除的换行已不在 DOM 中，不会导出。
+      //    AI 残留的成串 br 已在生成入库时清理，导出阶段不再改动换行
       // 🔧 导出前预处理：ruby 标签 → ruby-char span（拆分多字注音为逐字独立单元）
       sourceHtml = normalizeRubyTags(sourceHtml);
 

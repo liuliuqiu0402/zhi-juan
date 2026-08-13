@@ -1365,6 +1365,9 @@ watch(editor, (val) => {
 defineExpose({
   editor,
   getHTML: () => editor.value?.getHTML() || '',
+  // 🔧 导出专用：组件内部直接解包 editor（绕开父组件对 expose 中 ShallowRef 的解包不确定性），
+  //    返回编辑器实时 DOM 的 HTML（td 含 p、用户删除的内容已消失）
+  getDomHTML: () => editor.value?.view?.dom?.innerHTML || '',
   getText: () => editor.value?.getText() || '',
   getImages: () => {
     const images = [];

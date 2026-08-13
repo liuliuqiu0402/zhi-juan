@@ -9395,6 +9395,7 @@ ${(() => { const fmtBlocks = getMatchingBlockInstructions({ category: '生成-�
 ${subject === '语文' ? `
 【语文学科格式】
 - 生字展示：每个生字独立一个 <span class="tian-zi-ge">字</span>，多字示例 <span class="tian-zi-ge">蝌</span><span class="tian-zi-ge">蚪</span>，⚠️ 严禁多个字共用一个 tian-zi-ge
+- ⛔ 禁止在田字格/米字格/四线三格 span 之后添加 <br> 或空行留白（尤其表格单元格内）——格子单元格高度由格子本身撑起，多余 <br> 会导致单元格多行换行、格子顶格
 - 🔴 生字必须附带部首、笔画数、结构、笔顺，格式示例：
   <p><span class="tian-zi-ge">蝌</span>（部首：虫，15画，左右结构，笔顺：竖、横折、横、竖、横、点、撇、横、竖、撇、点、横、竖、横）</p>
 - ⛔ 禁止只写字和拼音不写部首/笔画/笔顺！每个生字都要有完整的部首、笔画数、结构和笔顺信息

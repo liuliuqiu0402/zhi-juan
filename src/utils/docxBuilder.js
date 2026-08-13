@@ -212,6 +212,9 @@ const extractGridContent = (el) => {
 
 const buildTextRuns = (node, styleOverride = {}) => {
   const runs = [];
+  // 🔧 跟踪最后一个田字格 marker 在 runs 中的索引（docx 库 TextRun 无 .text 属性可读，
+  //    用索引比对判断“上一个 run 是否刚 push 的网格 marker”）
+  let lastGridMarkerIdx = -1;
 
   const processChild = (child, ctxIn) => {
     if (child.nodeType === Node.TEXT_NODE) {
@@ -248,6 +251,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
       const cellW = Math.round(sizeHp * 18);
       const cellWEmu = Math.round(cellW * EMU_PER_DXA);
       runs.push(new TextRun({ text: TZG_MARKER(gridChar, cellWEmu), size: sizeHp }));
+      lastGridMarkerIdx = runs.length - 1;
       return;
     }
 
@@ -476,6 +480,12 @@ const buildTextRuns = (node, styleOverride = {}) => {
     }
     // === 换行符 ===
     if (tag === 'br') {
+      // 🔧 田字格 marker 后紧跟的末尾 br：AI 原始内容残留（<td><span class="tian-zi-ge">X</span><br></td>），
+      //    Tiptap 预览加载时已规范化丢弃（预览看不到该换行），导出跳过以对齐预览所见即所得。
+      //    仅跳过“marker 后、且到末尾无其他可见内容”的 br；格子后有文字/内容的 br 照常导出。
+      const isTailOnly = !child.nextElementSibling && !(child.nextSibling?.textContent || '').trim();
+      if (lastGridMarkerIdx === runs.length - 1 && isTailOnly) return;  // 跳过格子后残留 br（预览中不存在）
+      // 🔧 所见即所得：编辑器里的换行原样导出（用户删除的换行在 DOM 中已消失，不会导出）
       runs.push(new TextRun({ break: 1 }));
       return;
     }
@@ -702,8 +712,24 @@ const isGridNode = (el) => {
   return c?.contains('tian-zi-ge') || c?.contains('mi-zi-ge');
 };
 
+/** 表格单元格段落行距：固定值行距（exact）+ 段前段后 0
+ *  🔧 用 exact：文字在行盒内垂直居中（auto 多倍行距贴顶→偏上；atLeast 文字贴行盒底→偏下），
+ *     且行盒 ≥ 内容高度时不裁切（格行 27.6pt > 田字格 21.6pt、普通行 25pt > 文字 12pt）；
+ *  🔧 普通行 = 2.08×字号（≈Word 多倍行距 1.6 的等价行盒，25pt 不拥挤，居中后上下各 6.5pt）；
+ *  🔧 含田字格/米字格行：行盒 = 格子 1.8em + 上下各 3pt 间距，
+ *     配合格子 anchor 下移 3pt → 格子中心与文字中心重合（同为行盒中心）、上下留白严格对称 */
+const tableCellLineSpacing = (el) => {
+  const fsPx = parseFloat(cs(el, 'font-size'));
+  const sizePt = fsPx ? fsPx * 0.75 : 12; // px → pt（96dpi，16px=12pt）
+  const hasGrid = el.querySelector?.('.tian-zi-ge, .mi-zi-ge');
+  const line = hasGrid
+    ? Math.round((1.8 * sizePt + 6) * 20)  // 格行：1.8em 格高 + 上下各 3pt 间距
+    : Math.round(2.08 * sizePt * 20);       // 普通行：2.08×字号 ≈ Word 多倍行距 1.6 的等价行盒（25pt，不拥挤）
+  return { line, lineRule: LineRuleType.EXACT, before: 0, after: 0 };
+};
+
 const splitGridAwareContent = (node, runDefaults, opts = {}) => {
-  const { spacing: _spacingOverride, prefixRuns, indent: extraIndent, inheritedDeco = {} } = opts;
+  const { spacing: _spacingOverride, prefixRuns, indent: extraIndent, inheritedDeco = {}, exactLine = false } = opts;
   const ownDeco = readBlockDecorations(node);
   const deco = { ...inheritedDeco };
   // own takes precedence, but spacing merges (max of both) to preserve container fallback
@@ -721,6 +747,10 @@ const splitGridAwareContent = (node, runDefaults, opts = {}) => {
     deco.spacing = merged;
   }
   const spacing = deco.spacing || _spacingOverride || { before: 80, after: 80 };
+  // 🔧 表格单元格段落：精确行高 1.6 倍字号 + 段前段后 0（覆盖 CSS 读到的倍数行距）
+  if (exactLine) {
+    Object.assign(spacing, tableCellLineSpacing(node));
+  }
   const baseIndent = readIndent(node) ? { firstLine: readIndent(node) } : undefined;
   const paraIndent = extraIndent || baseIndent;
   const baseCtx = { ...defaultRunStyle(node), ...(runDefaults && typeof runDefaults === 'object' ? runDefaults : {}) };
@@ -992,7 +1022,7 @@ const processBlockNode = (node, ctx = {}) => {
     const paraOpts = {
       children: buildTextRuns(node, runDefaults),
       heading: HeadingLevel.HEADING_1,
-      spacing: deco.spacing || { before: 200, after: 120 },
+      spacing: ctx.exactLine ? tableCellLineSpacing(node) : (deco.spacing || { before: 200, after: 120 }),
       alignment: readAlignment(node),
     };
     if (deco.shading) paraOpts.shading = deco.shading;
@@ -1005,7 +1035,7 @@ const processBlockNode = (node, ctx = {}) => {
     const paraOpts = {
       children: buildTextRuns(node, runDefaults),
       heading: HeadingLevel.HEADING_2,
-      spacing: deco.spacing || { before: 160, after: 100 },
+      spacing: ctx.exactLine ? tableCellLineSpacing(node) : (deco.spacing || { before: 160, after: 100 }),
       alignment: readAlignment(node),
     };
     if (deco.shading) paraOpts.shading = deco.shading;
@@ -1018,7 +1048,7 @@ const processBlockNode = (node, ctx = {}) => {
     const paraOpts = {
       children: buildTextRuns(node, runDefaults),
       heading: HeadingLevel.HEADING_3,
-      spacing: deco.spacing || { before: 140, after: 80 },
+      spacing: ctx.exactLine ? tableCellLineSpacing(node) : (deco.spacing || { before: 140, after: 80 }),
       alignment: readAlignment(node),
     };
     if (deco.shading) paraOpts.shading = deco.shading;
@@ -1034,7 +1064,7 @@ const processBlockNode = (node, ctx = {}) => {
     const paraOpts = {
       children: runs,
       heading: HeadingLevel.HEADING_4,
-      spacing: deco.spacing || { before: 120, after: 60 },
+      spacing: ctx.exactLine ? tableCellLineSpacing(node) : (deco.spacing || { before: 120, after: 60 }),
       alignment: readAlignment(node),
     };
     if (deco.shading) paraOpts.shading = deco.shading;
@@ -1048,7 +1078,7 @@ const processBlockNode = (node, ctx = {}) => {
     const paraOpts = {
       children: buildTextRuns(node, runDefaults),
       heading: HeadingLevel.HEADING_5,
-      spacing: deco.spacing || { before: 100, after: 50 },
+      spacing: ctx.exactLine ? tableCellLineSpacing(node) : (deco.spacing || { before: 100, after: 50 }),
       alignment: readAlignment(node),
     };
     if (deco.shading) paraOpts.shading = deco.shading;
@@ -1061,7 +1091,7 @@ const processBlockNode = (node, ctx = {}) => {
     const paraOpts = {
       children: buildTextRuns(node, runDefaults),
       heading: HeadingLevel.HEADING_5,
-      spacing: deco.spacing || { before: 80, after: 40 },
+      spacing: ctx.exactLine ? tableCellLineSpacing(node) : (deco.spacing || { before: 80, after: 40 }),
       alignment: readAlignment(node),
     };
     if (deco.shading) paraOpts.shading = deco.shading;
@@ -1136,6 +1166,8 @@ const processBlockNode = (node, ctx = {}) => {
       const tds = [...tr.querySelectorAll('td, th')];
       tds.forEach((td, idx) => {
         const tdRunStyle = defaultRunStyle(td);
+        // 🔧 表头单元格 th：语义加粗兜底（导出容器无主题 CSS，th 的 font-weight 规则读不到，显式补偿）
+        if (td.tagName?.toLowerCase() === 'th') tdRunStyle.bold = true;
         // 单元格背景
         const tdShading = readBgColor(td);
         // 单元格边框
@@ -1154,23 +1186,42 @@ const processBlockNode = (node, ctx = {}) => {
         const cellBorders = Object.keys(tdBorders).length ? tdBorders : undefined;
         // 单元格内可能含多个块级元素（Tiptap 表格支持）
         const blockChildren = [...td.childNodes];
-        const hasBlocks = blockChildren.some(c => {
+        // 🔧 纯田字格单元格：Tiptap 规范化后 td 内为 <p><span class="tian-zi-ge">X</span></p>，
+        //    若按块级处理会生成 posOffset=0 + line=400auto 的块级田字格段落，格子上方留白丢失（不对称）；
+        //    行内形态（anchor 下移 3pt + exact 格行距 1.8em+6pt）才是已验证的上下各 3pt 对称留白。
+        //    故仅含单个纯田字格/米字格 p 的单元格按行内处理，等价于 AI 原始 <td><span class="tian-zi-ge">X</span></td>。
+        const isPureGridCell = (() => {
+          const blocks = blockChildren.filter(c => c.nodeType === Node.ELEMENT_NODE);
+          if (blocks.length !== 1) return false;  // 多段内容保持块级（用户分段不可丢）
+          const p = blocks[0];
+          if (p.tagName?.toLowerCase() !== 'p') return false;
+          // p 内不得有直接可见文本（仅 span 内的格子字符）
+          const hasDirectText = [...p.childNodes].some(c => c.nodeType === Node.TEXT_NODE && (c.textContent || '').trim());
+          if (hasDirectText) return false;
+          const spans = [...p.children];
+          return spans.length > 0 && spans.every(c => c.tagName?.toLowerCase() === 'span'
+            && (c.classList?.contains('tian-zi-ge') || c.classList?.contains('mi-zi-ge')));
+        })();
+        const hasBlocks = !isPureGridCell && blockChildren.some(c => {
           const t = c.nodeType === Node.ELEMENT_NODE ? c.tagName?.toLowerCase() : '';
           return ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'ul', 'ol', 'table', 'blockquote'].includes(t);
         });
         const cellContent = [];
         if (hasBlocks) {
-          // 递归处理内部块级元素
-          blockChildren.forEach(c => cellContent.push(...processBlockNode(c)));
+          // 递归处理内部块级元素（表格单元格段落：精确行高 1.6 倍 + 段前段后 0）
+          blockChildren.forEach(c => cellContent.push(...processBlockNode(c, { ...ctx, exactLine: true, runDefaults: tdRunStyle })));
         } else {
           // 文本+行内：单段落
           const runs = buildTextRuns(td, tdRunStyle);
-          if (runs.length > 0) cellContent.push(new Paragraph({ children: runs }));
+          if (runs.length > 0) cellContent.push(new Paragraph({ children: runs, spacing: tableCellLineSpacing(td) }));
         }
-        if (cellContent.length === 0) cellContent.push(new Paragraph({ text: ' ' }));
+        if (cellContent.length === 0) cellContent.push(new Paragraph({ text: ' ', spacing: tableCellLineSpacing(td) }));
+        // 🔧 表格内容左缩进 0.3 字符：tcMar left = Word 默认 108 twip + 0.3em（与预览 padding-left: calc(8px + 0.3em) 对应）
+        const cellLeftMarTwip = 108 + Math.round(0.3 * (tdRunStyle.size || 24) * 10);
         const cellOpts = {
           children: cellContent,
           verticalAlign: VerticalAlign.CENTER,
+          margins: { left: cellLeftMarTwip },
         };
         if (colWidths[idx]) cellOpts.width = { size: colWidths[idx], type: WidthType.DXA };
         if (tdShading) {
@@ -1210,11 +1261,12 @@ const processBlockNode = (node, ctx = {}) => {
       const prefix = isOrdered && !hasTextNumber ? `${itemIndex++}. ` : (isOrdered ? '' : '• ');
       const prefixRuns = prefix ? [new TextRun({ text: prefix })] : [];
       if (isOrdered) itemIndex++; // 即使跳过前缀，索引仍需递增以保持后续编号正确
-      const liBlocks = splitGridAwareContent(li, runDefaults, {
+      const liBlocks = splitGridAwareContent(li, { ...runDefaults, ...(ctx.runDefaults || {}) }, {
         spacing: { before: 40, after: 40 },
         prefixRuns,
         indent: { left: 720 },
         inheritedDeco,
+        exactLine: ctx.exactLine,
       });
       children.push(...liBlocks);
       // 嵌套列表
@@ -1226,7 +1278,7 @@ const processBlockNode = (node, ctx = {}) => {
 
   // ===== 段落 =====
   if (tag === 'p' || cls.contains('normal-paragraph')) {
-    children.push(...splitGridAwareContent(node, runDefaults, { inheritedDeco }));
+    children.push(...splitGridAwareContent(node, { ...runDefaults, ...(ctx.runDefaults || {}) }, { inheritedDeco, exactLine: ctx.exactLine }));
     return children;
   }
 
@@ -1265,6 +1317,8 @@ const processBlockNode = (node, ctx = {}) => {
         // 子元素不继承底色（包裹单元格统一提供），仅透传 ambientShading
         const childCtx = {};
         if (ctx.ambientShading) childCtx.ambientShading = ctx.ambientShading;
+        if (ctx.exactLine) childCtx.exactLine = ctx.exactLine;
+        if (ctx.runDefaults) childCtx.runDefaults = ctx.runDefaults;
         wrappedChildren.push(...processBlockNode(child, childCtx));
       }
       if (wrappedChildren.length > 0) {
@@ -1295,6 +1349,8 @@ const processBlockNode = (node, ctx = {}) => {
       const childDeco = { ...deco };
       const childCtx = { deco: childDeco };
       if (ctx.ambientShading) childCtx.ambientShading = ctx.ambientShading;
+      if (ctx.exactLine) childCtx.exactLine = ctx.exactLine;
+      if (ctx.runDefaults) childCtx.runDefaults = ctx.runDefaults;
       const childResult = processBlockNode(child, childCtx);
       const childOwnDeco = readBlockDecorations(child);
       const childHasShading = !!childOwnDeco.shading;
