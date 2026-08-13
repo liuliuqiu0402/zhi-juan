@@ -1967,7 +1967,10 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       p[style*="text-align: justify"] { text-indent: 0; }
       li { ${normalParaCSS}; }
       table { border-collapse: collapse; width: 100%; margin: 8px 0; }
-      table td, table th { border: 1px solid #999; padding: 4px 8px; font-size: ${normalParaFull.fontSize}; }
+      table td, table th { border: 1px solid #999; padding: 4px 8px; font-size: ${normalParaFull.fontSize}; line-height: 1.3; }
+      /* 🔧 表格单元格内段落：取消正文段距/首行缩进/大行距，保持表格紧凑
+         否则被上面的 p 规则撑高（line-height 1.6~1.8 + margin 0.3em + 缩进 2em 全进表格） */
+      table td p, table th p { margin: 0; text-indent: 0; line-height: 1.3; }
       img { max-width: 100%; height: auto; }
       ul, ol { margin: 0.3em 0 0.3em 2em; }
       /* 🔧 语义标签（Tiptap 保留元素标签，这些选择器生效） */

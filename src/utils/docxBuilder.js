@@ -947,6 +947,16 @@ const processBlockNode = (node, ctx = {}) => {
 
   // ===== 评分栏 =====
   if (cls.contains('score-board')) {
+    // 🔧 兼容真实结构：指令仅要求"表格形式"，AI 实际输出 <div class="score-board"><table>…</table></div>
+    //    （云端 44 份评分栏文档均为真实 table，无 sb-row 结构）
+    //    旧 sb-row 结构继续兼容；真实 table 结构直接按表格导出，避免内容被丢成空方框
+    const innerTable = node.querySelector('table');
+    if (innerTable) {
+      for (const c of node.childNodes) {
+        children.push(...processBlockNode(c));
+      }
+      return children;
+    }
     const items = node.querySelectorAll('.sb-row');
     const texts = [];
     items.forEach(item => {
