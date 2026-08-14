@@ -1,7 +1,7 @@
 // ==================== 指令库 ====================
 
 /** 指令版本号 —— 每次修改指令库内容后递增，使客户端缓存自动失效 */
-export const INSTRUCTION_VERSION = 18;
+export const INSTRUCTION_VERSION = 20;
 
 // 内置指令库
 export const builtinInstructions = [
@@ -13,13 +13,13 @@ export const builtinInstructions = [
   {
     id: 'full_exam_primary', name: '📝 小学试卷', category: '试卷', type: 'full',
     subject: '', stage: 'primary',
-    content: '小学试卷补充：按实际分值设计（通常满分100分，低段60-80分）；题目语言简洁明了，避免复杂句式；留足书写空间',
+    content: '小学试卷补充：按实际分值设计（满分100分）；题目语言简洁明了，避免复杂句式；留足书写空间',
     builtin: true
   },
   {
     id: 'full_exam_middle', name: '📝 初中试卷', category: '试卷', type: 'full',
     subject: '', stage: 'middle',
-    content: '初中试卷补充：按实际分值设计（通常满分100-120分，中考按当地标准）；题目应覆盖识记、理解、应用、分析四个层次；毕业年级可融入跨章节综合题和中考题型',
+    content: '初中试卷补充：按注入的总分执行（语文/数学/英语120分，其他学科100分）；题目应覆盖识记、理解、应用、分析四个层次；毕业年级可融入跨章节综合题和中考题型',
     builtin: true
   },
   {
@@ -207,7 +207,7 @@ export const builtinInstructions = [
   {
     id: 'full_reading_primary', name: '📖 小学阅读训练', category: '阅读训练', type: 'full',
     subject: '', stage: 'primary',
-    content: '小学阅读训练补充：选文200-400字，童话/寓言/记叙文为主；题目覆盖信息提取/词句理解/主旨概括；选择题40%+简答题60%；文末附参考答案和答题要点',
+    content: '小学阅读训练补充：选文字数按年级分档（低段200-300字、中段250-350字、高段350-450字），童话/寓言/记叙文为主；题目覆盖信息提取/词句理解/主旨概括；选择题40%+简答题60%；文末附参考答案和答题要点',
     builtin: true
   },
   {
@@ -444,21 +444,21 @@ export const builtinInstructions = [
   {
     id: 'frag_cognitive_low', name: '认知层级-小学低段', category: '生成-通用约束', type: 'fragment',
     prompt_order: 32,
-    subject: '', stage: 'primary', genType: 'exam,practice,special,errorbook,reading',
+    subject: '', stage: 'primary_low', genType: 'exam,practice,special,errorbook,reading',
     content: '每道题后标注认知层级，并按以下比例分布：识记层≤30%（基础字词/古诗默写）、理解层≥35%（词义辨析/文意理解）、简单应用层≥25%（语境造句/仿写/知识迁移）。仅标注层级标签，不要在题目中输出百分比数字。',
     builtin: true
   },
   {
     id: 'frag_cognitive_mid', name: '认知层级-小学中段', category: '生成-通用约束', type: 'fragment',
     prompt_order: 32,
-    subject: '', stage: 'primary', genType: 'exam,practice,special,errorbook,reading',
+    subject: '', stage: 'primary_mid', genType: 'exam,practice,special,errorbook,reading',
     content: '每道题后标注认知层级，并按以下比例分布：识记层≤20%、理解层≥30%、应用层≥25%、简单分析层≥15%。仅标注层级标签，不要在题目中输出百分比数字。',
     builtin: true
   },
   {
     id: 'frag_cognitive_high', name: '认知层级-小学高段', category: '生成-通用约束', type: 'fragment',
     prompt_order: 32,
-    subject: '', stage: 'primary', genType: 'exam,practice,special,errorbook,reading',
+    subject: '', stage: 'primary_high', genType: 'exam,practice,special,errorbook,reading',
     content: '每道题后标注认知层级，并按以下比例分布：理解层≥25%、应用层≥25%、分析层≥20%、简单评价层≥15%。仅标注层级标签，不要在题目中输出百分比数字。',
     builtin: true
   },
@@ -489,12 +489,35 @@ export const builtinInstructions = [
 2. 情境应贯穿整卷——开篇主题情境与后续题目形成连贯叙事，而非各自独立。
 3. 题型示例（传统→情境化）：
    × 传统："看拼音写词语：nǎ lǐ → _____"
-   √ 情境化："小蝌蚪迷路了，它给妈妈写留言条。请帮它把拼音转成汉字：'妈妈，你在 nǎ lǐ _____？'"
-4. 不同资料类型的情境化深度：
-   - 试卷/课时练：整卷主题情境（如"探秘大自然"）+ 单题微型情境
-   - 阅读训练：选文情境 + 问题情境双重嵌套，问题须引导学生在情境中思考
-   - 专项训练：用一个连贯大任务串联所有小题（如"帮小明完成生字挑战赛"）
-   - 错题本：以"纠错小侦探""错题诊疗室"等角色化视角组织`, 
+   √ 情境化："小蝌蚪迷路了，它给妈妈写留言条。请帮它把拼音转成汉字：'妈妈，你在 nǎ lǐ _____？'"`, 
+    builtin: true
+  },
+  {
+    id: 'frag_context_design_exam_practice', name: '情境化深度-试卷/课时练', category: '生成-通用约束', type: 'fragment',
+    prompt_order: 33,
+    subject: '', stage: '', genType: 'exam,practice',
+    content: '情境化深度（试卷/课时练）：整卷主题情境（如"探秘大自然"）+ 单题微型情境。',
+    builtin: true
+  },
+  {
+    id: 'frag_context_design_reading', name: '情境化深度-阅读训练', category: '生成-通用约束', type: 'fragment',
+    prompt_order: 33,
+    subject: '', stage: '', genType: 'reading',
+    content: '情境化深度（阅读训练）：选文情境 + 问题情境双重嵌套，问题须引导学生在情境中思考。',
+    builtin: true
+  },
+  {
+    id: 'frag_context_design_special', name: '情境化深度-专项训练', category: '生成-通用约束', type: 'fragment',
+    prompt_order: 33,
+    subject: '', stage: '', genType: 'special',
+    content: '情境化深度（专项训练）：用一个连贯大任务串联所有小题（如"帮小明完成生字挑战赛"）。',
+    builtin: true
+  },
+  {
+    id: 'frag_context_design_errorbook', name: '情境化深度-错题本', category: '生成-通用约束', type: 'fragment',
+    prompt_order: 33,
+    subject: '', stage: '', genType: 'errorbook',
+    content: '情境化深度（错题本）：以"纠错小侦探""错题诊疗室"等角色化视角组织。',
     builtin: true
   },
 
@@ -502,14 +525,41 @@ export const builtinInstructions = [
   // 题目充实度（反"一句话题目"，按学段分档）
   // ═══════════════════════════════════════
   {
-    id: 'frag_question_substance_primary', name: '题目充实度-小学', category: '生成-通用约束', type: 'fragment',
+    id: 'frag_question_substance_primary_low', name: '题目充实度-小学低段', category: '生成-通用约束', type: 'fragment',
     prompt_order: 34,
-    subject: '', stage: 'primary', genType: 'exam,practice,special,reading',
+    subject: '', stage: 'primary_low', genType: 'exam,practice,special,reading',
     content: `【题目充实度要求——小学】
-1. 阅读短文最低长度（课内和课外阅读通用）：
-   - 低段（1-2年级）：≥150字
-   - 中段（3-4年级）：≥250字
-   - 高段（5-6年级）：≥350字
+1. 阅读短文最低长度：≥150字
+   ⚠️ 严禁用2-3句话的"迷你短文"配6道题——文比题短是硬伤。
+2. 单道题目题干充实度：
+   - 选择题/判断题：一至两句完整的话，包含明确的问题语境
+   - 简答题：题干中给出回答指引（如"从文中找出至少两个理由"）
+   - 填空题：可接受简短，但每个语境句独立完整
+3. 选项设计：4个选项长度相近，干扰项须"看起来有道理但实际不对"
+4. 主观题引导：开放题给思考方向提示，写话题提供词语支架`, 
+    builtin: true
+  },
+  {
+    id: 'frag_question_substance_primary_mid', name: '题目充实度-小学中段', category: '生成-通用约束', type: 'fragment',
+    prompt_order: 34,
+    subject: '', stage: 'primary_mid', genType: 'exam,practice,special,reading',
+    content: `【题目充实度要求——小学】
+1. 阅读短文最低长度：≥250字
+   ⚠️ 严禁用2-3句话的"迷你短文"配6道题——文比题短是硬伤。
+2. 单道题目题干充实度：
+   - 选择题/判断题：一至两句完整的话，包含明确的问题语境
+   - 简答题：题干中给出回答指引（如"从文中找出至少两个理由"）
+   - 填空题：可接受简短，但每个语境句独立完整
+3. 选项设计：4个选项长度相近，干扰项须"看起来有道理但实际不对"
+4. 主观题引导：开放题给思考方向提示，写话题提供词语支架`, 
+    builtin: true
+  },
+  {
+    id: 'frag_question_substance_primary_high', name: '题目充实度-小学高段', category: '生成-通用约束', type: 'fragment',
+    prompt_order: 34,
+    subject: '', stage: 'primary_high', genType: 'exam,practice,special,reading',
+    content: `【题目充实度要求——小学】
+1. 阅读短文最低长度：≥350字
    ⚠️ 严禁用2-3句话的"迷你短文"配6道题——文比题短是硬伤。
 2. 单道题目题干充实度：
    - 选择题/判断题：一至两句完整的话，包含明确的问题语境
@@ -1170,9 +1220,17 @@ export const builtinInstructions = [
   },
 
   // ── 教材锚定 × genType 专属强化（三维度精准匹配）──
-  { id: 'block_content_norm_exam', name: '【内容规范】考卷-教材锚定', category: '生成-内容规范', type: 'fragment',
-    prompt_order: 40, subject: '', stage: '', genType: 'exam',
-    content: '🔴 【考卷教材锚定】\n✅ 知识点100%覆盖所选教材章节，每个小题对应教材具体章节，不超纲不遗漏\n✅ 阅读至少1篇为课内课文片段，文末标注出处：【选自教材X年级第X课《XX》】\n⚠️ 可配1篇同主题课外语段（可选）：主题/难度/篇幅匹配本单元教材水平，文末标注作者/来源；低段(1-2年级)以课内为主\n✅ 古诗文默写篇目须全部来自教材必背篇目（全学段）\n⚠️ 文言文阅读：小学古诗来自教材；初中可配课外短篇文言文对比阅读；高中课外文言文为主（对标高考）\n✅ 选择题干扰项来源须可追溯（学生常见错误/教材易混点）',
+  { id: 'block_content_norm_exam_primary', name: '【内容规范】考卷-教材锚定（小学）', category: '生成-内容规范', type: 'fragment',
+    prompt_order: 40, subject: '', stage: 'primary', genType: 'exam',
+    content: '🔴 【考卷教材锚定】\n✅ 知识点100%覆盖所选教材章节，每个小题对应教材具体章节，不超纲不遗漏\n✅ 阅读至少1篇为课内课文片段，文末标注出处：【选自教材X年级第X课《XX》】\n⚠️ 可配1篇同主题课外语段（可选）：主题/难度/篇幅匹配本单元教材水平，文末标注作者/来源；低段(1-2年级)以课内为主\n✅ 古诗文默写篇目须全部来自教材必背篇目，古诗阅读篇目须全部来自教材\n✅ 选择题干扰项来源须可追溯（学生常见错误/教材易混点）',
+    builtin: true },
+  { id: 'block_content_norm_exam_middle', name: '【内容规范】考卷-教材锚定（初中）', category: '生成-内容规范', type: 'fragment',
+    prompt_order: 40, subject: '', stage: 'middle', genType: 'exam',
+    content: '🔴 【考卷教材锚定】\n✅ 知识点100%覆盖所选教材章节，每个小题对应教材具体章节，不超纲不遗漏\n✅ 阅读至少1篇为课内课文片段，文末标注出处：【选自教材X年级第X课《XX》】\n⚠️ 可配1篇同主题课外语段（可选）：主题/难度/篇幅匹配本单元教材水平，文末标注作者/来源\n✅ 古诗文默写篇目须全部来自教材必背篇目\n⚠️ 文言文阅读：可配课外短篇文言文对比阅读\n✅ 选择题干扰项来源须可追溯（学生常见错误/教材易混点）',
+    builtin: true },
+  { id: 'block_content_norm_exam_high', name: '【内容规范】考卷-教材锚定（高中）', category: '生成-内容规范', type: 'fragment',
+    prompt_order: 40, subject: '', stage: 'high', genType: 'exam',
+    content: '🔴 【考卷教材锚定】\n✅ 知识点100%覆盖所选教材章节，每个小题对应教材具体章节，不超纲不遗漏\n✅ 阅读至少1篇为课内课文片段，文末标注出处：【选自教材X年级第X课《XX》】\n⚠️ 可配1篇同主题课外语段（可选）：主题/难度/篇幅匹配本单元教材水平，文末标注作者/来源\n✅ 古诗文默写篇目须全部来自教材必背篇目\n⚠️ 文言文阅读：课外文言文为主（对标高考）\n✅ 选择题干扰项来源须可追溯（学生常见错误/教材易混点）',
     builtin: true },
   { id: 'block_content_norm_practice', name: '【内容规范】课时练-教材锚定', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: '', genType: 'practice',
@@ -2539,7 +2597,9 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   // 【时间分配】块级指令 — 考卷用时建议
   // ═══════════════════════════════════════
-  { id: 'time_exam_primary', name: '【时间分配】小学考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary', genType: 'exam', content: '建议用时：根据题量和学段确定一个具体数字（低段约40-50、中段约50-60、高段约70-80），输出时只写一个数字如"60分钟"，禁止写范围', builtin: true },
+    { id: 'time_exam_primary_low', name: '【时间分配】小学低段考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary_low', genType: 'exam', content: '建议用时：根据题量确定40或50分钟，输出时只写一个数字如"40分钟"，禁止写范围', builtin: true },
+    { id: 'time_exam_primary_mid', name: '【时间分配】小学中段考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary_mid', genType: 'exam', content: '建议用时：根据题量确定50或60分钟，输出时只写一个数字如"60分钟"，禁止写范围', builtin: true },
+    { id: 'time_exam_primary_high', name: '【时间分配】小学高段考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary_high', genType: 'exam', content: '建议用时：根据题量确定70或80分钟，输出时只写一个数字如"80分钟"，禁止写范围', builtin: true },
   { id: 'time_exam_middle', name: '【时间分配】初中考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'middle', genType: 'exam', content: '建议用时：根据题量确定90或100分钟，输出时只写一个数字如"90分钟"，禁止写范围', builtin: true },
   { id: 'time_exam_high', name: '【时间分配】高中考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'high', genType: 'exam', content: '建议用时：根据题量确定120或150分钟，输出时只写一个数字如"120分钟"，禁止写范围', builtin: true },
 
@@ -4097,7 +4157,7 @@ export const builtinInstructions = [
 // ==================== 指令库存储Key与版本号 ====================
 const STORAGE_KEY = 'instructionLib';
 const VERSION_KEY = 'instructionLib_version';
-export const BUILTIN_VERSION = 18; // 🔧 v17: 完整三维度(学段×学科×资料类型)新课标品质修复 - 45条逐学段标准+19条逐学科反套路
+export const BUILTIN_VERSION = 20; // 🔧 v20: 初中试卷分值表述精确化+小学阅读选文字数按年级分档（消除与总分/充实度块的冲突）
 
 // ==================== 加载指令库 ====================
 export const loadInstructionLib = () => {

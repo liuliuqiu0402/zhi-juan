@@ -5325,7 +5325,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
       
       // 🔧 Gap2: 时间分配建议（对标市面考卷）
-      const timeAlloc = getTimeAllocation(primaryGenType, subject, stage);
+      const timeAlloc = getTimeAllocation(primaryGenType, subject, gradeSegment);
       if (timeAlloc) {
         instruction += `${timeAlloc}。\n`;
       }
@@ -5878,19 +5878,14 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     }
 
-    // 🔧 通用约束：从指令库匹配标注出处、避免照搬、认知层级等通用要求（传 genType 以启用指令库中的 genType 过滤）
-    const generalConstraintBlocks = getMatchingBlockInstructions({ category: '生成-通用约束', subject: '', stage, genType: primaryGenType });
-    // 🔧 年级段精确过滤：认知层级条目需按低/中/高段细分，避免跨段误注入
-    // 🔧 DeepSeek 精简：filter out frag_avoid_direct_copy（"避免照搬教材原题"DeepSeek 训练数据已知），保留项目自定义标注格式（frag_question_source + frag_cognitive_*）
+    // 🔧 通用约束：gradeSegment 精确匹配（低/中/高段细分块）+ 粗粒度 stage 兜底（跨学段通用条目）
+    const generalConstraintBlocks = [
+      ...getMatchingBlockInstructions({ category: '生成-通用约束', subject: '', stage: gradeSegment, genType: primaryGenType }),
+      ...getMatchingBlockInstructions({ category: '生成-通用约束', subject: '', stage, genType: primaryGenType })
+    ].filter((block, idx, arr) => arr.findIndex(x => x.id === block.id) === idx);
+    // 🔧 DeepSeek 精简：filter out frag_avoid_direct_copy（"避免照搬教材原题"DeepSeek 训练数据已知）
     const filteredConstraints = generalConstraintBlocks.filter(block => {
       if (_isDeepSeekInstruction && block.id === 'frag_avoid_direct_copy') return false;
-      if (block.id.startsWith('frag_cognitive')) {
-        if (stage === 'primary') {
-          if (isLowerPrimary && !block.content.includes('低段（1-2年级）')) return false;
-          if (isMiddlePrimary && !block.content.includes('中段（3-4年级）')) return false;
-          if (isUpperPrimary && !block.content.includes('高段（5-6年级）')) return false;
-        }
-      }
       return true;
     });
     if (filteredConstraints.length > 0) {
@@ -5978,7 +5973,7 @@ ${cardAnalysisText.substring(0, 1000)}
     }
 
     // 🔧 合并：内容规范 + 特殊要求 → 一个块
-    const contentNormBlocks = getMatchingBlockInstructions({ category: '生成-内容规范', subject: '', stage: '', genType: primaryGenType });
+    const contentNormBlocks = getMatchingBlockInstructions({ category: '生成-内容规范', subject: '', stage, genType: primaryGenType });
     const _sr_specialReqBlocks = getMatchingBlockInstructions({ category: '生成-特殊要求', subject: '', stage: '', genType: primaryGenType });
 
     const supplementParts = [];
