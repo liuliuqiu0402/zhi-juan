@@ -6066,8 +6066,10 @@ ${cardAnalysisText.substring(0, 1000)}
     //    （题型多样化→题型设计、填空格式→输出格式+尾约束、配图→配图要求、
     //     分值→禁止项、答案分离→答案区强制锚定、HTML格式→buildOutputPreamble…）
     //    此复述版在近因位置会覆盖精准版，DeepSeek 不需要这种重复强调
+    // 🔧 review 例外：复习资料的“板块标题强制字样”（质量检测对齐）仅在本块声明，前方无承载节，
+    //    DeepSeek 跳过会导致检测器字面匹配失败（典型题/知识框架 0 处），故 review 时保留注入
     const topConstraintBlocks = getMatchingBlockInstructions({ category: '生成-顶层约束', subject: '', stage: '', genType: primaryGenType });
-    if (topConstraintBlocks.length > 0 && !_isDeepSeekInstruction) {
+    if (topConstraintBlocks.length > 0 && (!_isDeepSeekInstruction || primaryGenType === 'review')) {
       instruction += `\n---\n【${_title('top_constraint', '顶层约束')}】\n${topConstraintBlocks[0].content}\n\n`;
     }
     

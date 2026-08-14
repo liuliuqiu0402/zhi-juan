@@ -1204,7 +1204,7 @@ export const builtinInstructions = [
     builtin: true },
   { id: 'block_content_norm_review', name: '【内容规范】复习-教材锚定', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: '', genType: 'review',
-    content: '复习教材锚定：知识清单逐条对应教材原文，典型例题优先改编教材原题，拓展延伸标注与教材的关联。',
+    content: '复习教材锚定：知识清单逐条对应教材原文，典型例题优先改编教材原题，拓展延伸标注与教材的关联。⚠️ 板块标题强制字样（质量检测依据）：知识体系板块标题须直接含“知识框架/思维导图/知识树/知识地图”等字样，禁止用“知识回顾”“重点闯关”等替代词；题目板块标题须含“典型题”或“例题”字样，趣味包装（如“第一关·典型题”）也必须保留这些字面。',
     builtin: true },
 
   // ═══════════════════════════════════════
