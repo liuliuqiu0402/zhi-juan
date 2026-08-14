@@ -224,7 +224,7 @@
       <div v-if="settings.currentEngine === 'alibaba'" class="settings-section">
         <h3>☁️ 阿里百炼（通义千问）</h3>
         <p style="font-size:12px;color:#666;margin-bottom:8px;">
-          💰 新用户送7000万Token · qwen-plus ¥0.8/百万 · qwen3-max ¥2/百万 · 中文能力第一梯队
+          💰 qwen-plus ¥0.8/百万（生成性价比） · qwen3.8-max ¥12/百万输入·¥36/百万输出（中文综合第一）
         </p>
         <label>API Key</label>
         <input type="password" v-model="settings.alibabaApiKey" placeholder="sk-..." />
@@ -232,7 +232,7 @@
         <label>📝 资料生成模型</label>
         <input type="text" v-model="settings.alibabaGenerationModel" placeholder="qwen-plus" />
         <label>📋 教材分析模型</label>
-        <input type="text" v-model="settings.alibabaAnalysisModel" placeholder="qwen3-max" />
+        <input type="text" v-model="settings.alibabaAnalysisModel" placeholder="qwen3.8-max" />
       </div>
 
       <!-- 🧠 智谱 GLM 配置 -->
@@ -712,7 +712,7 @@ const settings = ref({
   alibabaApiKey: apiConfig.alibabaApiKey || '',
   alibabaBaseUrl: apiConfig.alibabaBaseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   alibabaGenerationModel: apiConfig.alibabaGenerationModel || 'qwen-plus',
-  alibabaAnalysisModel: apiConfig.alibabaAnalysisModel || 'qwen3-max',
+  alibabaAnalysisModel: apiConfig.alibabaAnalysisModel || 'qwen3.8-max',
   zhipuApiKey: apiConfig.zhipuApiKey || '',
   zhipuBaseUrl: apiConfig.zhipuBaseUrl || 'https://open.bigmodel.cn/api/paas/v4',
   zhipuGenerationModel: apiConfig.zhipuGenerationModel || 'GLM-4.7-Flash',

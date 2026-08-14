@@ -347,7 +347,7 @@ export const apiConfig = reactive({
   alibabaApiKey: '',
   alibabaBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   alibabaGenerationModel: 'qwen-plus',       // 生成用：性价比之王
-  alibabaAnalysisModel: 'qwen3-max',         // 分析用：准确度高
+  alibabaAnalysisModel: 'qwen3.8-max',       // 分析用：中文综合第一（SuperCLUE 2026-07 榜首），幻觉控制断层领先
   
   // ========== 智谱 GLM 配置 ==========
   zhipuEnabled: true,

@@ -2174,7 +2174,10 @@ const maxInputTokens = config.engine === 'deepseek'
             top_p: apiConfig.generationSettings.topP || 0.9,
             stream: true,
             // stream_options: { include_usage: true } — 部分兼容端点支持，先不加
-            ...(options.forceJson ? { response_format: { type: 'json_object' } } : {})
+            ...(options.forceJson ? { response_format: { type: 'json_object' } } : {}),
+            // 🔧 阿里百炼思考模型（qwen3.8-max/qwen3-max/qwq 系）：默认关闭思考链——
+            //    教辅结构化输出不需要推理链，思考 tokens 按输出价计费（¥36/百万）且耗时 3-5 倍
+            ...(config.provider === 'alibaba' && /qwen3.*max|qwq/i.test(config.model || '') ? { enable_thinking: false } : {})
           };
 
           let streamResponse;
@@ -2239,7 +2242,8 @@ const maxInputTokens = config.engine === 'deepseek'
                   temperature: Math.max(0, temperature - 0.2),
                   max_tokens: Math.floor(maxTokens * 0.5),
                   top_p: 0.9,
-                  stream: false  // 续写不流式（短内容）
+                  stream: false,  // 续写不流式（短内容）
+                  ...(config.provider === 'alibaba' && /qwen3.*max|qwq/i.test(config.model || '') ? { enable_thinking: false } : {})
                 }),
                 signal: abortController.value?.signal
               });
