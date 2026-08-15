@@ -109,8 +109,8 @@ jobs:
           ls -lh "zhijuan.ipa"
 
       - name: Upload IPA artifact
-        # 🔧 v5 运行时为 node24
-        uses: actions/upload-artifact@v5
+        # 🔧 v7 运行时为 node24（v5 仍是 node20）
+        uses: actions/upload-artifact@v7
         with:
           name: zhijuan-iOS
           path: ios/App/zhijuan.ipa
