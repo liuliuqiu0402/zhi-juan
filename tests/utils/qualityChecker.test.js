@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { HardRuleChecker } from '@/utils/qualityChecker';
+import { HardRuleChecker, AISemanticReviewer } from '@/utils/qualityChecker';
 
 describe('HardRuleChecker', () => {
   describe('checkFullwidthChars', () => {
@@ -68,6 +68,54 @@ describe('HardRuleChecker', () => {
       expect(summary.errors).toBe(1);
       expect(summary.warnings).toBe(2);
       expect(summary.hasErrors).toBe(true);
+    });
+  });
+
+  describe('AISemanticReviewer.parseReviewResult', () => {
+    it('简短通过回复判为通过', () => {
+      const r = AISemanticReviewer.parseReviewResult('✅ 未发现语义问题');
+      expect(r.hasIssues).toBe(false);
+    });
+
+    it('🔧 回归："虽然没有大问题，但…"不能误判为通过', () => {
+      const raw = '虽然没有大问题，但发现一处问题：\n【位置】"……说明文，……" → 【问题类型】错别字 → 【问题描述】"说明"和"文"错误拼接';
+      const r = AISemanticReviewer.parseReviewResult(raw);
+      expect(r.hasIssues).toBe(true);
+      expect(r.issues.length).toBeGreaterThan(0);
+    });
+
+    it('标准问题列表能解析出问题', () => {
+      const raw = '【位置】"可以能" → 【问题类型】通顺性 → 【问题描述】词语拼接错误';
+      const r = AISemanticReviewer.parseReviewResult(raw);
+      expect(r.hasIssues).toBe(true);
+      expect(r.issues[0]).toContain('可以能');
+    });
+
+    it('空响应不报问题', () => {
+      const r = AISemanticReviewer.parseReviewResult('');
+      expect(r.hasIssues).toBe(false);
+    });
+  });
+
+  describe('AISemanticReviewer.buildReviewPrompt', () => {
+    it('🔧 超 6000 字不再截断（12000 截断线）', () => {
+      const long = '<p>' + '语文测试内容。'.repeat(900) + '</p>'; // 纯文本约 6300 字
+      const prompt = AISemanticReviewer.buildReviewPrompt(long, { genType: 'exam', subject: '语文' });
+      // 6300 字 < 12000 截断线 → 完整保留，不出现截断提示
+      expect(prompt).not.toContain('后续内容已截断');
+      expect(prompt).toContain('语文测试内容。');
+    });
+
+    it('超 12000 字才截断', () => {
+      const long = '<p>' + '语文测试内容。'.repeat(2000) + '</p>'; // 纯文本约 14000 字
+      const prompt = AISemanticReviewer.buildReviewPrompt(long, { genType: 'exam', subject: '语文' });
+      expect(prompt).toContain('后续内容已截断');
+      expect(prompt).toContain('仅审查以上部分');
+    });
+
+    it('短内容不截断', () => {
+      const prompt = AISemanticReviewer.buildReviewPrompt('<p>短文内容</p>', { genType: 'exam' });
+      expect(prompt).not.toContain('后续内容已截断');
     });
   });
 });

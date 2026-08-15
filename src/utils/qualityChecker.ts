@@ -645,14 +645,16 @@ export class AISemanticReviewer {
   static buildReviewPrompt(content: string, context: {
     genType?: string; genTypeLabel?: string; subject?: string; stage?: string; grade?: string;
   }): string {
-    // 去 HTML 标签取纯文本，截断到 6000 字控制 token 消耗
+    // 去 HTML 标签取纯文本，截断到 12000 字控制 token 消耗
+    // 🔧 2026-08 从 6000 提到 12000：长试卷纯文本常超 6000 字，
+    //    后半段的错字/拼接错误（如"说明→说明文"）因截断从未进入审查视野
     const cleanText = content
       .replace(/<[^>]+>/g, '')
       .replace(/&[a-z]+;/gi, ' ')
       .replace(/\s{2,}/g, '\n')
       .trim();
-    const truncated = cleanText.length > 6000
-      ? cleanText.slice(0, 6000) + '\n\n[... 后续内容已截断，仅审查以上部分 ...]'
+    const truncated = cleanText.length > 12000
+      ? cleanText.slice(0, 12000) + '\n\n[... 后续内容已截断，仅审查以上部分 ...]'
       : cleanText;
 
     const label = context.genTypeLabel || context.genType || '资料';
@@ -663,6 +665,7 @@ export class AISemanticReviewer {
 
 1. **语句通顺性**：是否有读不通的句子、词语搭配不当、AI生成的文字拼接错误？
    特别注意：两个正确汉字错误拼接的情况——如"说明"+"文中的"→"说明文"，"可以"+"能"→"可能以"等。
+   排查方法：逐句朗读，若某个词在上下文中语义不通（如该处应为动词"说明"却出现文体名词"说明文"），即使该词本身是合法词汇也必须报告。
    
 2. **错别字/冗余字**：是否有明显的错别字、多余字、漏字？
    排查重点：同音错字（在/再、的/地/得、哪/那）、形近错字、AI幻觉造词。
@@ -679,6 +682,7 @@ export class AISemanticReviewer {
    - 是否存在"说了等于没说"的空洞表述？
 
 【审查要求】
+- 通读全文每一句，不得跳读；即使内容很长也必须完整读到底
 - 只报告确实有问题的条目，若内容整体良好则回复"✅ 未发现语义问题"
 - 每个问题格式：【位置】引用原文片段 → 【问题类型】通顺性/错别字/逻辑/歧义 → 【问题描述】一句话说明
 - 不要修改内容，不要给出修复建议
@@ -701,8 +705,16 @@ ${truncated}`;
       return { hasIssues: false, issues: [], summary: '审查无响应' };
     }
 
-    // 通过标记
-    if (/未发现.*问题|无.*问题|没有.*问题|内容.*良好|无明显.*问题|^✅/.test(rawResponse.trim())) {
+    // 🔧 通过判定收紧（2026-08）：仅当回复简短且明确表达"无问题"时才判通过。
+    //    旧正则 /没有.*问题|无.*问题/ 过宽——AI 回复"虽然没有大问题，但发现…"
+    //    也会命中"没有.*问题"被误判通过，导致其后列出的问题被整体丢弃。
+    const trimmed = rawResponse.trim();
+    const isShortPassReply = trimmed.length <= 40 && (
+      /^✅/.test(trimmed) ||
+      /^(未发现|没有|无|无明显)(任何)?(语义)?问题/.test(trimmed) ||
+      /^内容.*(良好|没有问题)/.test(trimmed)
+    );
+    if (isShortPassReply) {
       return { hasIssues: false, issues: [], summary: '✅ AI语义审查通过' };
     }
 
