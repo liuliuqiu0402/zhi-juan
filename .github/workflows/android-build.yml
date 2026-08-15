@@ -29,11 +29,22 @@ jobs:
           java-version: '21'
 
       - name: Setup Android SDK
-        # 🔧 弃用 android-actions/setup-android@v3（第三方 action 仍是 node20 运行时，无 node24 版本），
-        #    改用 ubuntu runner 预装 SDK 的 sdkmanager 直接补装所需组件
+        # 🔧 ubuntu-24.04 镜像已移除预装 Android SDK（sdkmanager 不存在），
+        #    自行下载官方 cmdline-tools 安装 android-34 + build-tools 34.0.0
         run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+          SDK_ROOT="$HOME/android-sdk"
+          echo "Installing Android SDK to $SDK_ROOT"
+          curl -fsSL -o /tmp/cmdline-tools.zip \
+            https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          mkdir -p "$SDK_ROOT/cmdline-tools"
+          unzip -q /tmp/cmdline-tools.zip -d "$SDK_ROOT/cmdline-tools"
+          mv "$SDK_ROOT/cmdline-tools/cmdline-tools" "$SDK_ROOT/cmdline-tools/latest"
+          yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0"
+          # 写 local.properties 让 gradle 找到 SDK（runner 残留的 ANDROID_HOME 指向已不存在的旧路径）
+          echo "sdk.dir=$SDK_ROOT" > android/local.properties
+          echo "Android SDK ready"
+          ls "$SDK_ROOT"
 
       - name: Install dependencies
         env:
