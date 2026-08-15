@@ -12,10 +12,11 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        # 🔧 v6 起底层运行时为 node24（v4 的 node20 将于 2026-09-16 被 GitHub 移除）
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -28,9 +29,11 @@ jobs:
           java-version: '21'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platforms;android-34 build-tools;34.0.0'
+        # 🔧 弃用 android-actions/setup-android@v3（第三方 action 仍是 node20 运行时，无 node24 版本），
+        #    改用 ubuntu runner 预装 SDK 的 sdkmanager 直接补装所需组件
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
       - name: Install dependencies
         env:
@@ -59,31 +62,36 @@ jobs:
           ls -lh "$APK_PATH"
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        # 🔧 v5 运行时为 node24
+        uses: actions/upload-artifact@v5
         with:
           name: zhijuan-Android
           path: ${{ steps.apk.outputs.path }}
           retention-days: 7
 
       - name: Publish to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: android-build-${{ github.run_number }}
-          name: "🤖 Android Build #${{ github.run_number }}"
-          body: |
-            ## 智卷工坊 Android APK
-
-            - 构建时间: ${{ github.event.head_commit.timestamp || 'now' }}
-            - 提交: ${{ github.event.head_commit.message || 'manual' }}
-            - 运行编号: #${{ github.run_number }}
-
-            ### 📥 使用方法
-            1. 下载 `zhijuan.apk`
-            2. 传到手机直接安装
-            3. 如提示"未知来源"，在设置中允许即可
-
-            > ✅ Android APK 无需签名，永久有效
-          files: ${{ steps.apk.outputs.path }}
-          draft: false
-          prerelease: false
-          make_latest: true
+        # 🔧 弃用 softprops/action-gh-release（第三方 action 仍是 node20 运行时），
+        #    改用 runner 预装的 gh CLI 创建 Release，不再依赖第三方 action
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BODY=$(cat <<'EOF'
+          ## 智卷工坊 Android APK
+          
+          - 构建时间: ${{ github.event.head_commit.timestamp || 'now' }}
+          - 提交: ${{ github.event.head_commit.message || 'manual' }}
+          - 运行编号: #${{ github.run_number }}
+          
+          ### 📥 使用方法
+          1. 下载 `zhijuan.apk`
+          2. 传到手机直接安装
+          3. 如提示"未知来源"，在设置中允许即可
+          
+          > ✅ Android APK 无需签名，永久有效
+          EOF
+          )
+          gh release create "android-build-${{ github.run_number }}" \
+            "${{ steps.apk.outputs.path }}" \
+            --title "🤖 Android Build #${{ github.run_number }}" \
+            --notes "$BODY" \
+            --latest

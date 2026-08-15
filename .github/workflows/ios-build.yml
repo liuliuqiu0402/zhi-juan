@@ -12,10 +12,11 @@ jobs:
       contents: write  # 允许创建 Release
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        # 🔧 v6 起底层运行时为 node24（v4 的 node20 将于 2026-09-16 被 GitHub 移除）
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -32,7 +33,8 @@ jobs:
         run: npm run build:cap
 
       - name: Cache SPM dependencies
-        uses: actions/cache@v4
+        # 🔧 v5 运行时为 node24（v4 的 node20 将于 2026-09-16 被移除）
+        uses: actions/cache@v5
         with:
           path: |
             ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
@@ -107,31 +109,36 @@ jobs:
           ls -lh "zhijuan.ipa"
 
       - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
+        # 🔧 v5 运行时为 node24
+        uses: actions/upload-artifact@v5
         with:
           name: zhijuan-iOS
           path: ios/App/zhijuan.ipa
           retention-days: 7
 
       - name: Publish to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ios-build-${{ github.run_number }}
-          name: "📱 iOS Build #${{ github.run_number }}"
-          body: |
-            ## 智卷工坊 iOS IPA
-            
-            - 构建时间: ${{ github.event.head_commit.timestamp || 'now' }}
-            - 提交: ${{ github.event.head_commit.message || 'manual' }}
-            - 运行编号: #${{ github.run_number }}
-            
-            ### 📥 使用方法
-            1. 下载 `zhijuan.ipa`
-            2. 用**爱思助手**签名安装（推荐）
-            3. 或运行 `scripts/renew-ios.ps1` 一键续签
-            
-            > ⚠️ 免费 Apple ID 签名 7 天后到期，需重新安装
-          files: ios/App/zhijuan.ipa
-          draft: false
-          prerelease: false
-          make_latest: true
+        # 🔧 弃用 softprops/action-gh-release（第三方 action 仍是 node20 运行时），
+        #    改用 runner 预装的 gh CLI 创建 Release，不再依赖第三方 action
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BODY=$(cat <<'EOF'
+          ## 智卷工坊 iOS IPA
+          
+          - 构建时间: ${{ github.event.head_commit.timestamp || 'now' }}
+          - 提交: ${{ github.event.head_commit.message || 'manual' }}
+          - 运行编号: #${{ github.run_number }}
+          
+          ### 📥 使用方法
+          1. 下载 `zhijuan.ipa`
+          2. 用**爱思助手**签名安装（推荐）
+          3. 或运行 `scripts/renew-ios.ps1` 一键续签
+          
+          > ⚠️ 免费 Apple ID 签名 7 天后到期，需重新安装
+          EOF
+          )
+          gh release create "ios-build-${{ github.run_number }}" \
+            ios/App/zhijuan.ipa \
+            --title "📱 iOS Build #${{ github.run_number }}" \
+            --notes "$BODY" \
+            --latest
