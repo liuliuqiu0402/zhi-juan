@@ -94,7 +94,8 @@ export const parseMarkdownToTextRuns = (markdown, defaultStyle = null) => {
     // ===== 着重号（加点字） =====
     const emphasisDotMatch = remaining.match(/^<span class="emphasis-dot">(.+?)<\/span>/);
     if (emphasisDotMatch) {
-      runs.push(new TextRun({ text: emphasisDotMatch[1], bold: true, color: 'D32F2F' }));
+      // 🔧 补着重号格式（此前仅加粗红色，点丢失）；用标准值 dot 保证 WPS/手机端兼容
+      runs.push(new TextRun({ text: emphasisDotMatch[1], bold: true, color: 'D32F2F', emphasisMark: { type: 'dot' } }));
       remaining = remaining.slice(emphasisDotMatch[0].length);
       continue;
     }

@@ -257,7 +257,8 @@ const buildTextRuns = (node, styleOverride = {}) => {
 
     // === 特殊 class 白名单（保持优先级，用最终 ctx 替代旧 defaults）===
     if (cls.contains('emphasis-dot')) {
-      runs.push(new TextRun({ text, emphasisMark: { type: 'underDot' }, color: 'D32F2F', ...ctx }));
+      // 🔧 用标准值 dot（<w:em w:val="dot"/>）：Word/WPS/手机端全部支持；underDot 仅 Microsoft Word 渲染，WPS 等会丢失着重号
+      runs.push(new TextRun({ text, emphasisMark: { type: 'dot' }, color: 'D32F2F', ...ctx }));
       return;
     }
     if (cls.contains('wavy-underline')) {
