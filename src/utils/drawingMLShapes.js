@@ -13,8 +13,12 @@ const EMU_PER_PT  = 12700; // 1 pt = 12700 EMU
 
 // ============ mc:AlternateContent 包裹 ============
 
-const mcWrap = (choiceXml, fallbackXml) =>
-  `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="wpg">${choiceXml}</mc:Choice><mc:Fallback>${fallbackXml}</mc:Fallback></mc:AlternateContent>`;
+// 🔧 不再用 mc:AlternateContent 包裹：实测 Word 打开时遇 wpg 在 mc:Ignorable 中会跳过
+//    Choice 分支改用 VML Fallback，且 Word 的 PDF 导出器（ExportAsFixedFormat）不处理
+//    mc:AlternateContent 内容 → 田字格在 Word 导出 PDF 中整体丢失。
+//    Word 2010+/WPS 均原生支持 wpg（wordprocessingGroup），直接输出 w:drawing 即可，
+//    VML Fallback 仅为旧版 Word 提供降级，此处弃用（旧版 Word 无田字格但文字不丢）。
+const mcWrap = (choiceXml, fallbackXml) => choiceXml;
 
 // ============ 群组 anchor 生成器 ============
 
@@ -36,8 +40,10 @@ const childShape = (s) => {
  * 田字格字符 Textbox 形状：全网格尺寸、透明背景、字符水平居中
  * 与 grid 线同在 wpg 群组坐标系 → 精确复现 CSS position:absolute + top:50% + left:50% + translate(-50%,-50%)
  * 🔧 Word DrawingML textbox 渲染字号偏小（与浏览器 CSS 不一致），放大 30% 补偿
- * 🔧 垂直居中：w:spacing w:before = gridCenter(twips) − charVisualCenter(twips)
+ * 🔧 垂直居中：wps:bodyPr anchor="ctr"，文本框内容相对 textbox 整体垂直居中
  * 🔧 水平微调：w:ind w:left 补偿 CJK 字符侧边距不对称导致的视觉偏左
+ * 🔧 CT_WordprocessingShape 顺序（ISO 29500）：cNvPr → cNvSpPr → spPr → txbx → bodyPr，
+ *    txbx 必须在 bodyPr 前——实测顺序颠倒时 Word 静默忽略 txbx（格子字不显示），WPS 宽容不报错
  */
 const textboxTzg = (id, char, gridSizeHp, fontFamily, S) => {
   // Word textbox 渲染字号偏小 → 放大 30% 使视觉比例与预览 CSS（1.8em 格 / 1em 字）一致
@@ -85,7 +91,9 @@ const textboxTzg = (id, char, gridSizeHp, fontFamily, S) => {
 const groupAnchor = (o) => {
   const shapesXml = o.shapesXml || (o.shapes || []).map(childShape).join('');
   const vertOff = o.vertOffEmu || 0;  // 🔧 垂直偏移：负值上移以对齐字符视觉中心
-  return `<w:drawing xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wp:anchor distT="0" distB="0" distL="0" distR="0" relativeHeight="251659264" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1">${o.posHXml}<wp:positionV relativeFrom="line"><wp:posOffset>${vertOff}</wp:posOffset></wp:positionV><wp:extent cx="${Math.max(1, o.cx)}" cy="${Math.max(1, o.cy)}"/><wp:effectExtent l="0" t="0" r="9525" b="9525"/><wp:wrapNone/><wp:docPr id="${o.id}" name="${o.name}"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"><wpg:wgp><wpg:cNvGrpSpPr/><wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.max(1, o.cx)}" cy="${Math.max(1, o.cy)}"/><a:chOff x="0" y="0"/><a:chExt cx="${Math.max(1, o.cx)}" cy="${Math.max(1, o.cy)}"/></a:xfrm></wpg:grpSpPr>${shapesXml}</wpg:wgp></a:graphicData></a:graphic></wp:anchor></w:drawing>`;
+  // 🔧 simplePos 元素与 simplePos="0" 属性为 CT_Anchor 必选（ISO 29500）：缺失时 WPS 宽容可开，
+  //    Word 严格校验直接拒绝打开（“Word 在试图打开文件时遇到错误”）→ 两处必须同时存在
+  return `<w:drawing xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wp:anchor distT="0" distB="0" distL="0" distR="0" relativeHeight="251659264" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1" simplePos="0"><wp:simplePos x="0" y="0"/>${o.posHXml}<wp:positionV relativeFrom="line"><wp:posOffset>${vertOff}</wp:posOffset></wp:positionV><wp:extent cx="${Math.max(1, o.cx)}" cy="${Math.max(1, o.cy)}"/><wp:effectExtent l="0" t="0" r="9525" b="9525"/><wp:wrapNone/><wp:docPr id="${o.id}" name="${o.name}"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"><wpg:wgp><wpg:cNvGrpSpPr/><wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.max(1, o.cx)}" cy="${Math.max(1, o.cy)}"/><a:chOff x="0" y="0"/><a:chExt cx="${Math.max(1, o.cx)}" cy="${Math.max(1, o.cy)}"/></a:xfrm></wpg:grpSpPr>${shapesXml}</wpg:wgp></a:graphicData></a:graphic></wp:anchor></w:drawing>`;
 };
 
 // ============ 四线三格：1 个群组 = 4 条水平线 ============
@@ -266,25 +274,41 @@ export const fourLineBlankOOXML = (sizeHp, cellWEmuIn) => {
 const GAP_EN = '&#xa0;';   // NBSP 按宋体渲染 = 0.5em
 const gapEmuOf = (sizeHp) => Math.round((sizeHp || 28) * 5 * EMU_PER_DXA); // 0.5em
 
-/** 行内田字格：anchor 在 text 前 + 0.5em 前置间隔 + NBSP 天然比例留白 */
+/** 行内田字格：anchor 在 text 前 + 0.5em 前置间隔 + w:spacing 撑宽 */
 const buildInlineTzg = (char, cellWEmu, idBase, rPrXml) => {
   const S = Math.round(cellWEmu);
   const hS = Math.round(S / 2);
   const cellW = Math.round(cellWEmu / EMU_PER_DXA);
   const sizeHp = Math.round(cellW / 18); // 1.8em 反推字号
   const sz = String(sizeHp || 28);
-  const HALF = '&#xa0;';   // NBSP 按宋体渲染宽 0.5em
-  // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
-  const padRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>`;
+  // 🔧 pad 撑宽改用 w:spacing 字符间距：WPS 中宋体 NBSP 宽度为 1em（Word 为 0.5em），
+  //    旧 NBSP pad 在 WPS 中宽度翻倍 → 格子后大空白不协调；w:spacing 按 twip 精确撑宽。
+  //    pad 总宽 2.5em = 普通空格 0.5em + spacing 2em
+  // 🔧 前置零宽占位 run（U+200C ZWNJ）：实测 WPS 的 anchor 字符锚点取“前一个字符”（Word 取
+  //    本 run 首字符），旧结构锚定到前字左边缘 → 格子左移 1 字宽压住前字；插入零宽
+  //    字符后 WPS 锚点 = 零宽字符左边缘 = 前字右缘，与 Word 锚点位置重合（表格行首
+  //    无前字时锚点即段落起点，天然不压字，与实测“表格不压、行中压”吻合）。
+  //    注意选 U+200C 而非 U+200B：实测 WPS 中 U+200B 布局宽 1em（Word 零宽）→ 两引擎
+  //    锚点再次分叉且 pad 多 1em 空白；U+200C 两引擎均零宽
+  const padSpacing = Math.round(sizeHp * 20); // 2em in twip
+  // 🔧 CT_RPr 顺序：spacing 必须在 sz/szCs 之前、noBreak 最后——Word 对 rPr 子元素顺序
+  //    严格，乱序元素会被静默丢弃（此前 spacing 在 noBreak 后 → Word 中 w:spacing 不生效）
+  const fontRPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/>`;
+  const zeroRPr = `<w:rPr>${fontRPr}</w:rPr>`;
+  const anchorRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:spacing w:val="${padSpacing}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/></w:rPr>`;
   // 🔧 字符由 DrawingML textbox 绘制（与 grid 同坐标系），段落只保留 pad 撑宽度
   //     前置 1em + 尾 1.5em = 2.5em（grid 延伸至 2.3em → 不压盖）
   // 🔧 行内模式 behindDoc="0"：防止网格线被段落底纹（w:shd）遮挡
   const anchors = tzgShapeAnchors(S, hS, idBase, sizeHp, false, gapEmuOf(sizeHp), char, 'SimSun')
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
-  // 🔧 pad run 显式宋体 + hint=eastAsia：NBSP 按宋体 0.5em 渲染，Word/WPS 宽度一致
-  return '<w:r>' + padRPr + anchors
-    + '<w:t xml:space="preserve">' + GAP_EN + HALF + '</w:t></w:r>'
-    + '<w:r>' + padRPr + '<w:t xml:space="preserve">' + HALF + HALF + HALF + '</w:t></w:r>';
+  // 🔧 三 run 结构（实测 Word/WPS 差异，逐个验证过）：
+  //    run1 = U+200C 零宽占位（WPS 锚点取前一个字符 → 锚点落前字右缘）
+  //    run2 = 纯 drawing（Word 对含 drawing 的 run 忽略 w:spacing → spacing 必须独立）
+  //    run3 = 普通空格 + spacing 撑宽（实测 Word 对 U+2002 en space 不应用 w:spacing，
+  //          普通空格 0.5em 两引擎一致 + spacing 2em = pad 精确 2.5em）
+  return '<w:r>' + zeroRPr + '<w:t xml:space="preserve">\u200C</w:t></w:r>'
+    + '<w:r>' + zeroRPr + anchors + '</w:r>'
+    + '<w:r>' + anchorRPr + '<w:t xml:space="preserve"> </w:t></w:r>';
 };
 
 /** 行内四线三格：anchor 在 text 前，前置 0.5em 间隔 → ¼em pad + letter + ¼em pad */
@@ -466,12 +490,16 @@ export const injectDrawingML = async (zipBuffer) => {
 
   // --- 命名空间声明：文档根加 xmlns:wps + mc:Ignorable ---
   if (hasDml) {
-    const ensureNs = (xml, ns, uri) => {
+    // 🔧 a 前缀（DrawingML 主命名空间）必须声明：docx 库的 document.xml 根元素未声明 xmlns:a，
+    //    而田字格 DML 使用 a:graphic 等 → Word 严格校验前缀导致“无法打开”（WPS 宽容不报）；
+    //    且 a 绝不能进 mc:Ignorable（否则 Word 忽略全部图形）→ 增加 ignorable 参数区分
+    const ensureNs = (xml, ns, uri, ignorable = false) => {
       let r = xml;
       const decl = `xmlns:${ns}="${uri}"`;
       if (!r.includes(decl)) {
         r = r.replace(/(<w:document[^>]*)/, `$1 ${decl}`);
       }
+      if (!ignorable) return r;
       if (!r.includes('mc:Ignorable')) {
         r = r.replace(/(<w:document[^>]*)/, `$1 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="${ns}"`);
       } else {
@@ -482,8 +510,12 @@ export const injectDrawingML = async (zipBuffer) => {
       }
       return r;
     };
-    docXml = ensureNs(docXml, 'wpg', 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup');
-    docXml = ensureNs(docXml, 'wps', 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape');
+    docXml = ensureNs(docXml, 'a', 'http://schemas.openxmlformats.org/drawingml/2006/main');
+    // 🔧 wpg/wps 绝不能进 mc:Ignorable：MCE 规范规定 mc:Choice 的 Requires 命名空间若在
+    //    mc:Ignorable 中，Word 会跳过该 Choice 分支 → 田字格退化为 VML Fallback（转 PDF
+    //    丢失、pad 撑宽失效）。docx 库根元素已声明 wpg/wps，这里只确保声明存在即可。
+    docXml = ensureNs(docXml, 'wpg', 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup', false);
+    docXml = ensureNs(docXml, 'wps', 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape', false);
   }
 
   zip.file(docPath, docXml);

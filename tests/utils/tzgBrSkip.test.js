@@ -41,7 +41,7 @@ describe('田字格后残留 br 跳过（行内路径）', () => {
   });
 });
 
-describe('纯田字格单元格行内化（td>p>span.tian-zi-ge 保持行内对称形态）', () => {
+describe('表格单元格田字格行内化（td>p>span.tian-zi-ge 保持行内对称形态）', () => {
   // 提取含 __TZG_ marker 的段落 XML
   const markerPara = (xml) => xml.match(/<w:p\b[^>]*>[\s\S]*?__TZG_[\s\S]*?<\/w:p>/)?.[0] || '';
 
@@ -53,16 +53,22 @@ describe('纯田字格单元格行内化（td>p>span.tian-zi-ge 保持行内对�
     expect(para).not.toContain('w:before="40"');
   });
 
-  it('td>p 含格子+直接文本 → 块级保持（before=40 marker 段落）', async () => {
+  it('td>p 含格子+直接文本 → 行内同段（exact 格行距，非块级 before=40）', async () => {
     const xml = await buildDoc('<table><tr><td><p><span class="tian-zi-ge">蝌</span>加文本</p></td><td>x</td></tr></table>');
-    expect(markerPara(xml)).toContain('w:before="40"');
+    const para = markerPara(xml);
+    expect(para).toContain('w:lineRule="exact"');
+    expect(para).toContain('加文本');
+    expect(para).not.toContain('w:before="40"');
   });
 
-  it('td 内多个 p → 块级保持（每 p 一个 marker 段落）', async () => {
+  it('td 内多个 p → 各自行内（每 p 一个 marker 段落，exact 格行距）', async () => {
     const xml = await buildDoc('<table><tr><td><p><span class="tian-zi-ge">蝌</span></p><p><span class="tian-zi-ge">蚪</span></p></td><td>x</td></tr></table>');
     const paras = xml.match(/<w:p\b[^>]*>[\s\S]*?__TZG_[\s\S]*?<\/w:p>/g) || [];
     expect(paras.length).toBe(2);
-    paras.forEach(p => expect(p).toContain('w:before="40"'));
+    paras.forEach(p => {
+      expect(p).toContain('w:lineRule="exact"');
+      expect(p).not.toContain('w:before="40"');
+    });
   });
 
   it('AI 原始 td>span.tian-zi-ge（无 p）→ 行内路径保持（exact 格行距）', async () => {
@@ -88,5 +94,39 @@ describe('纯田字格单元格行内化（td>p>span.tian-zi-ge 保持行内对�
     expect(xml).not.toContain('w:line="400"');
     // 无 br 残留
     expect(xml).not.toContain('<w:br');
+  });
+});
+
+describe('普通段落行内田字格（文字+格子同行，不再块级拆段）', () => {
+  it('<p>文字+田字格+文字 → 单段落 marker 与文字同段（exact 格行距）', async () => {
+    const xml = await buildDoc('<p>今天学习<span class="tian-zi-ge">田</span>这个字</p>');
+    const paras = xml.match(/<w:p\b[^>]*>[\s\S]*?__TZG_[\s\S]*?<\/w:p>/g) || [];
+    expect(paras.length).toBe(1);
+    expect(paras[0]).toContain('今天学习');
+    expect(paras[0]).toContain('这个字');
+    expect(paras[0]).toContain('w:lineRule="exact"');
+    expect(paras[0]).toContain('w:line="552"');
+    expect(paras[0]).not.toContain('w:before="40"');
+  });
+
+  it('端到端：injectDrawingML 后行内 anchor + 文字保留', async () => {
+    const container = document.createElement('div');
+    container.style.fontSize = '16px';
+    container.innerHTML = '<p>今天学习<span class="tian-zi-ge">田</span>这个字</p>';
+    document.body.appendChild(container);
+    const doc = buildDocxFromDom(container);
+    container.remove();
+    const buf = await Packer.toBuffer(doc);
+    const processed = await injectDrawingML(buf);
+    const xml = await extractXml(processed);
+    // 行内形态：anchor positionV 下移 3pt（38100 EMU）
+    expect(xml).toContain('<wp:posOffset>38100</wp:posOffset>');
+    expect(xml).toContain('TianZiGrid');
+    expect(xml).toContain('今天学习');
+    expect(xml).toContain('这个字');
+    // 无块级田字格段落特征（line=400 auto 仅块级段落用）
+    expect(xml).not.toContain('w:line="400"');
+    // 🔧 pad 单 run + noBreak：行尾放不下时整个格子单元整体换行，避免形状压住行尾前后字
+    expect(xml).toContain('<w:noBreak/>');
   });
 });

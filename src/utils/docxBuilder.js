@@ -481,10 +481,15 @@ const buildTextRuns = (node, styleOverride = {}) => {
     }
     // === 换行符 ===
     if (tag === 'br') {
-      // 🔧 田字格 marker 后紧跟的末尾 br：AI 原始内容残留（<td><span class="tian-zi-ge">X</span><br></td>），
-      //    Tiptap 预览加载时已规范化丢弃（预览看不到该换行），导出跳过以对齐预览所见即所得。
-      //    仅跳过“marker 后、且到末尾无其他可见内容”的 br；格子后有文字/内容的 br 照常导出。
-      const isTailOnly = !child.nextElementSibling && !(child.nextSibling?.textContent || '').trim();
+      // 🔧 田字格 marker 后紧跟的末尾 br：AI 原始内容残留，可连续多个
+      //    （<td><span class="tian-zi-ge">X</span><br><br></td>），Tiptap 预览加载时
+      //    已规范化丢弃（预览看不到该换行），导出跳过以对齐预览所见即所得。
+      //    仅跳过“marker 后、且到末尾只有 br/空白”的 br（含连续 br）；格子后有可见内容的 br 照常导出。
+      const sibs = Array.from(child.parentNode.childNodes);
+      const isTailOnly = !sibs.slice(sibs.indexOf(child) + 1).some(
+        (s) => (s.nodeType === Node.TEXT_NODE && s.textContent.trim())
+          || (s.nodeType === Node.ELEMENT_NODE && s.tagName !== 'BR')
+      );
       if (lastGridMarkerIdx === runs.length - 1 && isTailOnly) return;  // 跳过格子后残留 br（预览中不存在）
       // 🔧 所见即所得：编辑器里的换行原样导出（用户删除的换行在 DOM 中已消失，不会导出）
       runs.push(new TextRun({ break: 1 }));
@@ -699,20 +704,6 @@ export const buildFourLineTable = (letter, sizeHp) => {
   });
 };
 
-// ============ 段落级网格拆分：把 <p> 内的田字格/四线三格拆成 [Paragraph, Table, Paragraph] ============
-// 遵循 Word 规则：Table 必须独立成块，不能嵌入 Paragraph
-
-const isGridNode = (el) => {
-  if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
-  const c = el.classList;
-  // ⚠️ 排除同时带 blank-line 的元素（AI 可能因指令冲突同时输出四线三格+横线，优先按横线处理）
-  if (c?.contains('blank-line')) return false;
-  // 🔧 四线三格 / 六线格走行内渲染（buildTextRuns→FLT_BLANK_MARKER→injectDrawingML），
-  //    不走块级拆分，避免文字与格子被拆成两个独立段落。
-  //    仅田字格/米字格保留块级拆分（每个格子独立占一整行）。
-  return c?.contains('tian-zi-ge') || c?.contains('mi-zi-ge');
-};
-
 /** 表格单元格段落行距：固定值行距（exact）+ 段前段后 0
  *  🔧 用 exact：文字在行盒内垂直居中（auto 多倍行距贴顶→偏上；atLeast 文字贴行盒底→偏下），
  *     且行盒 ≥ 内容高度时不裁切（格行 27.6pt > 田字格 21.6pt、普通行 25pt > 文字 12pt）；
@@ -747,14 +738,21 @@ const splitGridAwareContent = (node, runDefaults, opts = {}) => {
     }
     deco.spacing = merged;
   }
-  const spacing = deco.spacing || _spacingOverride || { before: 80, after: 80 };
+  const baseCtx = { ...defaultRunStyle(node), ...(runDefaults && typeof runDefaults === 'object' ? runDefaults : {}) };
+  let spacing = deco.spacing || _spacingOverride || { before: 80, after: 80 };
   // 🔧 表格单元格段落：精确行高 1.6 倍字号 + 段前段后 0（覆盖 CSS 读到的倍数行距）
   if (exactLine) {
-    Object.assign(spacing, tableCellLineSpacing(node));
+    spacing = { ...spacing, ...tableCellLineSpacing(node) };
+  } else if (node.querySelector?.('.tian-zi-ge, .mi-zi-ge')) {
+    // 🔧 含田字格/米字格的普通段落：行盒 = 格子 1.8em + 上下各 3pt（EXACT 固定行高）。
+    //    anchor 形状不占行高，若不预留行盒，1.8em 的格子会与上下行文字重叠；
+    //    EXACT 行盒内文字垂直居中，配合行内 anchor 下移 3pt → 格子中心与文字中心重合、
+    //    上下留白严格对称（与表格单元格格行同一公式，单元格已调优验证）
+    const sizePt = ((baseCtx.size && baseCtx.size > 0) ? baseCtx.size : (readFontSizeHp(node) || 32)) / 2;
+    spacing = { ...spacing, line: Math.round((1.8 * sizePt + 6) * 20), lineRule: LineRuleType.EXACT };
   }
   const baseIndent = readIndent(node) ? { firstLine: readIndent(node) } : undefined;
   const paraIndent = extraIndent || baseIndent;
-  const baseCtx = { ...defaultRunStyle(node), ...(runDefaults && typeof runDefaults === 'object' ? runDefaults : {}) };
   const result = [];
   let textBuffer = [];
   let isFirstFlush = true;
@@ -788,33 +786,14 @@ const splitGridAwareContent = (node, runDefaults, opts = {}) => {
     textBuffer = [];
   };
 
-  const snapChildren = [...node.childNodes];
-  for (const child of snapChildren) {
-    if (isGridNode(child)) {
-      flushText();
-      const sizeHp = baseCtx.size || readFontSizeHp(child) || 32;
-      const cls = child.classList;
-      const { text: visibleText, hasVisible, raw } = extractGridContent(child);
-
-      if (cls.contains('tian-zi-ge') || cls.contains('mi-zi-ge')) {
-        const gridChar = hasVisible
-          ? (child.querySelector('span')?.textContent || visibleText)
-          : ' ';
-        result.push(buildTianZiGeMarker(gridChar, sizeHp, runDefaults.font || 'SimSun'));
-      } else {
-        if (hasVisible) {
-          result.push(buildFourLineMarker(visibleText, sizeHp));
-        } else {
-          result.push(buildFourLineBlankMarker(sizeHp, raw));
-        }
-      }
-    } else {
-      textBuffer.push(child);
-    }
-  }
+  // 🔧 田字格/米字格与文字同行（不再块级拆段）：旧行为把段落拆成 文字/格子/文字 三个
+  //    独立段落，导出后格子独占一行、与预览 inline-block 行内形态不符。
+  //    格子节点直接进 textBuffer，由 buildTextRuns 输出 TZG_MARKER（与文字同段），
+  //    后处理 injectDrawingML 的行内正则将其替换为行内 anchor 形状（anchor 下移 3pt）
+  textBuffer.push(...[...node.childNodes]);
   flushText();
 
-  // fallback：如果没有网格元素，按普通段落处理
+  // fallback：节点无子节点时防御兜底（空 <p> 不产生段落）
   if (result.length === 0) {
     const runs = buildTextRuns(node, baseCtx);
     const allRuns = (prefixRuns && prefixRuns.length > 0)
