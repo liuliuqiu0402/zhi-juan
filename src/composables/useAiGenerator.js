@@ -633,20 +633,18 @@ const cleanReasoningOutput = (text) => {
   // ===== 格式D：对话前缀 + HTML 内容（没被代码块包裹的）=====
   // 检测到对话式开头（"这是为""以下是""Here is" 等）且后面跟着 HTML 标签
   const htmlStartIdx = text.search(/<(!DOCTYPE|html|head|body|h[1-6]|p\b|div|table|ul|ol|span|u\b|a\b|img|br)\b/i);
-  if (htmlStartIdx > 0 && htmlStartIdx < 500) {
+  if (htmlStartIdx > 0 && htmlStartIdx < 2000) {
     // 从第一个 HTML 标签开始截取
     text = text.substring(htmlStartIdx);
   }
-  // 去除末尾的多余对话文本（在最后一个 > 之后如果有非标签内容）
+  // 🔧 去除末尾多余文本：最后一个 > 之后的纯文字（AI 附加的"已修复…"等说明/质检记录）一律剥离，
+  //    不再要求必须以 ``` 结尾——只要不含 HTML 标签且非纯空白就截掉
   const lastCloseTag = text.lastIndexOf('>');
   if (lastCloseTag > 0 && lastCloseTag < text.length - 1) {
     const afterLastTag = text.substring(lastCloseTag + 1);
     // 如果末尾剩余内容不含 < 且是纯对话文本（没有 HTML）
     if (!/<[a-zA-Z/]/.test(afterLastTag) && afterLastTag.trim().length > 0) {
-      const trimmedAfter = afterLastTag.replace(/```\s*$/g, '').trim();
-      if (trimmedAfter.length < afterLastTag.length) {
-        text = text.substring(0, lastCloseTag + 1) + (afterLastTag.includes('\n') ? '\n' : '');
-      }
+      text = text.substring(0, lastCloseTag + 1) + (afterLastTag.includes('\n') ? '\n' : '');
     }
   }
   
@@ -6187,8 +6185,14 @@ ${content}`;
       });
 
       if (result && result.content && result.content.length > 100) {
-        console.log('✅ AI语义修复完成');
-        return { content: result.content, repaired: true };
+        // 🔧 清洗修复返回：剥离 AI 附加的解释/质检记录文字（如“已修复以下问题：…”），只保留 HTML 正文
+        const cleaned = cleanReasoningOutput(result.content);
+        if (cleaned && cleaned.length > 100) {
+          console.log('✅ AI语义修复完成');
+          return { content: cleaned, repaired: true };
+        }
+        console.log('⚠️ 语义修复返回清洗后异常，保留原始内容');
+        return { content, repaired: false };
       }
       console.log('⚠️ 语义修复返回内容异常，保留原始内容');
       return { content, repaired: false };
@@ -6237,7 +6241,13 @@ ${content}`;
       });
       
       if (repairResult && repairResult.content && repairResult.content.length > 100) {
-        const repairedContent = repairResult.content;
+        // 🔧 清洗修复返回：剥离 AI 附加的解释/质检记录文字（如“已修复以下问题：…”），只保留 HTML 正文
+        const cleanedRepair = cleanReasoningOutput(repairResult.content);
+        if (!cleanedRepair || cleanedRepair.length < 100) {
+          console.log('⚠️ AI修复返回内容清洗后异常，保留原始内容');
+          return { content, repaired: false, repairIssues: [] };
+        }
+        const repairedContent = cleanedRepair;
         
         // 修复后再次质检
         const recheckIssues = HardRuleChecker.check(

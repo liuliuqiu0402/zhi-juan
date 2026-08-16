@@ -1241,6 +1241,13 @@ const processBlockNode = (node, ctx = {}) => {
       const tableOpts = { rows, width: { size: 9000, type: WidthType.DXA } };
       // 不设置 table-level shading（docx Table 不支持）
       children.push(new Table(tableOpts));
+      // 🔧 表格下方间距：预览靠 CSS table{margin:8px 0} 留空隙，但 Word 表格无“外边距”概念，
+      //    后续段落段前又=0（规范“段距统一由段后控制”），导出后文字会紧贴表格底边框。
+      //    插入超薄间隔段（EXACT 行距≈0 不占行），用段前/段后距在表格下方补 6pt 空隙（=预览 8px）
+      children.push(new Paragraph({
+        children: [new TextRun({ text: ' ', size: 1, font: 'Times New Roman' })],
+        spacing: { before: 120, after: 120, line: 1, lineRule: LineRuleType.EXACT },
+      }));
     }
     return children;
   }
