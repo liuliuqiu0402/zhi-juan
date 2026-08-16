@@ -1238,7 +1238,14 @@ const processBlockNode = (node, ctx = {}) => {
       if (cells.length > 0) rows.push(new TableRow({ children: cells }));
     });
     if (rows.length > 0) {
-      const tableOpts = { rows, width: { size: 9000, type: WidthType.DXA } };
+      // 🔧 表格左缩进对齐正文首行（.indent-2 = 2em = 480 twip），与预览 CSS margin-left:2em 一致；
+      //    单元格内嵌套表格（ctx.exactLine）保持全宽不缩进，避免超出单元格宽度
+      const tableIndentTwip = ctx.exactLine ? 0 : 480;
+      const tableOpts = {
+        rows,
+        width: { size: 9000 - tableIndentTwip, type: WidthType.DXA },
+      };
+      if (tableIndentTwip > 0) tableOpts.indent = { size: tableIndentTwip, type: WidthType.DXA };
       // 不设置 table-level shading（docx Table 不支持）
       children.push(new Table(tableOpts));
       // 🔧 表格下方间距：预览靠 CSS table{margin:8px 0} 留空隙，但 Word 表格无“外边距”概念，

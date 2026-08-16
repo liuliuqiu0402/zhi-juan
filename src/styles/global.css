@@ -204,9 +204,19 @@ input:focus, select:focus, textarea:focus {
 .preview-content table,
 .generated-content table,
 .source-content table {
-  width: 100%;
+  width: calc(100% - 2em);
   border-collapse: collapse;
-  margin: 8px 0;
+  /* 🔧 左缩进 2em：对齐正文首行缩进（.indent-2），与导出端 w:tblInd 480 twip 一致，
+        避免表格左边缘顶到版心左侧、比正文文字更靠左的错位 */
+  margin: 8px 0 8px 2em;
+}
+
+/* 单元格内嵌套表格保持全宽不缩进（与导出逻辑 ctx.exactLine 一致） */
+.preview-content td table,
+.generated-content td table,
+.source-content td table {
+  width: 100%;
+  margin-left: 0;
 }
 
 .preview-content td,
