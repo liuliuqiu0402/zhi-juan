@@ -83,26 +83,23 @@ jobs:
       - name: Publish to GitHub Release
         # 🔧 弃用 softprops/action-gh-release（第三方 action 仍是 node20 运行时），
         #    改用 runner 预装的 gh CLI 创建 Release，不再依赖第三方 action
+        #    ⚠️ 勿用 heredoc/反引号（macOS runner 的 bash 3.2 对 `$()` 内 heredoc
+        #    不兼容报 unexpected EOF），notes 用双引号字符串直接传
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          BODY=$(cat <<'EOF'
-          ## 智卷工坊 Android APK
-          
-          - 构建时间: ${{ github.event.head_commit.timestamp || 'now' }}
-          - 提交: ${{ github.event.head_commit.message || 'manual' }}
-          - 运行编号: #${{ github.run_number }}
-          
-          ### 📥 使用方法
-          1. 下载 `zhijuan.apk`
-          2. 传到手机直接安装
-          3. 如提示"未知来源"，在设置中允许即可
-          
-          > ✅ Android APK 无需签名，永久有效
-          EOF
-          )
           gh release create "android-build-${{ github.run_number }}" \
             "${{ steps.apk.outputs.path }}" \
             --title "🤖 Android Build #${{ github.run_number }}" \
-            --notes "$BODY" \
+            --notes "## 智卷工坊 Android APK
+
+          - 构建时间: ${{ github.event.head_commit.timestamp || 'now' }}
+          - 运行编号: #${{ github.run_number }}
+
+          ### 📥 使用方法
+          1. 下载 zhijuan.apk
+          2. 传到手机直接安装
+          3. 如提示未知来源，在设置中允许即可
+
+          > ✅ Android APK 无需签名，永久有效" \
             --latest
