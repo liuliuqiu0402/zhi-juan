@@ -93,8 +93,20 @@
       <div class="toolbar-divider"></div>
 
       <!-- 列表 -->
-      <button @click="toggleBulletListKeepMarkers" :class="{ 'is-active': editor.isActive('bulletList') }" title="项目符号">•≡</button>
-      <button @click="toggleOrderedListKeepMarkers" :class="{ 'is-active': editor.isActive('orderedList') }" title="编号">1.</button>
+      <button @click="toggleBulletListKeepMarkers" :class="{ 'is-active': editor.isActive('bulletList') }" title="项目符号（再点一次转文本）">•≡</button>
+      <select class="toolbar-select toolbar-select--sm" v-model="bulletMarker" title="项目符号形式" style="width:42px">
+        <option value="• ">•</option>
+        <option value="○ ">○</option>
+        <option value="▪ ">▪</option>
+        <option value="✎ ">✎</option>
+        <option value="√ ">√</option>
+      </select>
+      <button @click="toggleOrderedListKeepMarkers" :class="{ 'is-active': editor.isActive('orderedList') && !isAlphaOrderedList }" title="数字编号（再点一次转文本）">1.</button>
+      <button @click="convertAlphaListToText" :class="{ 'is-active': isAlphaOrderedList }" title="字母编号转文本（a. b. c.）">{{ alphaCase }}.</button>
+      <select class="toolbar-select toolbar-select--sm" v-model="alphaCase" title="字母编号大小写" style="width:44px">
+        <option value="a">a.</option>
+        <option value="A">A.</option>
+      </select>
       <div class="toolbar-divider"></div>
 
       <!-- 缩进微调 -->
@@ -145,6 +157,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
+import OrderedList from '@tiptap/extension-ordered-list';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
@@ -156,6 +169,25 @@ const CustomUnderline = Underline.extend({
       class: {
         default: null,
         parseHTML: element => element.getAttribute('class') || null,
+      },
+    };
+  },
+});
+
+// 🔧 自定义 OrderedList：保留 ol 的 type 属性（a/A/i/I）——
+//    Tiptap 默认只保留 start，type 被丢弃导致 AI 生成内容中的字母/罗马编号
+//    在编辑器里退化为数字编号、工具栏无法联动。保留后：
+//    1) 编辑器按 list-style-type 正确显示 a. b. c. / A. B. C. 等
+//    2) 导出链路（docxBuilder）读取 type 输出对应字母/罗马文本前缀
+//    3) 工具栏字母按钮可通过 isActive('orderedList', { type }) 联动高亮
+const CustomOrderedList = OrderedList.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      type: {
+        default: null,
+        parseHTML: element => element.getAttribute('type') || null,
+        renderHTML: attributes => (attributes.type ? { type: attributes.type } : {}),
       },
     };
   },
@@ -600,6 +632,11 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'content-change']);
 
+// 🔧 字母编号大小写：'a' 小写 / 'A' 大写（转文本时按所选大小写生成序号；
+//    光标进入 type="a"/"A" 列表时自动同步）。
+//    定义在 useEditor 之前：onSelectionUpdate 回调会引用它，避免 TDZ 报错
+const alphaCase = ref('a');
+
 const editor = useEditor({
   content: props.modelValue,
   editable: props.editable,
@@ -609,7 +646,9 @@ const editor = useEditor({
       paragraph: false,
       heading: false,   // 用自定义标题替换
       underline: false, // 排除内置 underline，改用 CustomUnderline（需保留 class 属性）
+      orderedList: false, // 排除内置 OrderedList，改用 CustomOrderedList（保留 ol type 属性）
     }),
+    CustomOrderedList,
     CustomParagraph,
     CustomHeading,
     Image.configure({ inline: false, allowBase64: true }),
@@ -652,6 +691,10 @@ const editor = useEditor({
     }, 150);
   },
   onSelectionUpdate: ({ editor }) => {
+    // 🔧 字母编号列表联动：光标进入 type="a"/"A" 列表时，大小写下拉自动同步
+    const olType = editor.getAttributes('orderedList').type;
+    if (olType === 'a' || olType === 'A') alphaCase.value = olType;
+
     // 格式刷应用模式：选区变化时自动应用存储的格式（支持连刷，不自动关闭）
     if (formatPainterActive.value && editor.state.selection.from !== editor.state.selection.to) {
       const { from, to } = editor.state.selection;
@@ -918,6 +961,9 @@ const onImageUpload = (e) => {
 // ═══════════════ 列表切换（切回文本时保留标记符号） ═══════════════
 // 🔧 改用 DOM 层面直接转换：getHTML → 解析 DOM → <li>→<p>+标记 → setContent
 //    避开 ProseMirror 事务系统对 insertText+liftListItem 组合的不可靠行为
+// 🔧 项目符号形式可切换：•圆点 / ○空心圆 / ▪方块 / ✎铅笔 / √对勾（转文本时用所选符号）
+const bulletMarker = ref('• ');
+
 const toggleBulletListKeepMarkers = () => {
   if (!editor.value) return;
 
@@ -927,8 +973,15 @@ const toggleBulletListKeepMarkers = () => {
     return;
   }
 
-  convertListToMarkedParagraphs('ul', '• ');
+  convertListToMarkedParagraphs('ul', bulletMarker.value);
 };
+
+/** 当前光标是否位于字母编号列表（type="a"/"A"）——用于工具栏联动高亮 */
+const isAlphaOrderedList = computed(() => {
+  const e = editor.value;
+  if (!e) return false;
+  return e.isActive('orderedList', { type: 'a' }) || e.isActive('orderedList', { type: 'A' });
+});
 
 const toggleOrderedListKeepMarkers = () => {
   if (!editor.value) return;
@@ -941,10 +994,28 @@ const toggleOrderedListKeepMarkers = () => {
   convertListToMarkedParagraphs('ol', null); // null = 自动序号
 };
 
+/** 字母编号转文本：把编辑器中的 <ol> 全部转成 a. b. c. 文本段落（无激活态，点击即转） */
+const convertAlphaListToText = () => {
+  if (!editor.value) return;
+  convertListToMarkedParagraphs('ol', alphaCase.value);
+};
+
+/**
+ * 生成列表标记前缀
+ * @param {string|null} marker null=自动序号 / 'a'='A'=字母 / 其他=固定字符串
+ * @param {number} idx 0 基序号
+ */
+const buildListPrefix = (marker, idx) => {
+  if (marker === null) return `${idx + 1}. `;
+  if (marker === 'a') return `${String.fromCharCode(97 + (idx % 26))}. `;
+  if (marker === 'A') return `${String.fromCharCode(65 + (idx % 26))}. `;
+  return marker;
+};
+
 /**
  * 将编辑器中的 <ul>/<ol> 列表整体转换为带标记的 <p> 段落
  * @param {'ul'|'ol'} listTag
- * @param {string|null} marker 无序列表固定标记（如 '• '），有序列表传 null 自动编号
+ * @param {string|null} marker 无序列表固定标记（如 '• '），有序列表 null 自动编号，'a'/'A' 字母编号
  */
 const convertListToMarkedParagraphs = (listTag, marker) => {
   const fullHtml = editor.value.getHTML();
@@ -962,7 +1033,7 @@ const convertListToMarkedParagraphs = (listTag, marker) => {
   for (const list of lists) {
     const lis = Array.from(list.querySelectorAll(':scope > li'));
     lis.forEach((li, idx) => {
-      const prefix = marker !== null ? marker : `${idx + 1}. `;
+      const prefix = buildListPrefix(marker, idx);
       prependMarkerToLI(li, prefix);
       // 将 <li> 的子节点搬到父级，然后移除 <li>
       const children = Array.from(li.childNodes);
@@ -1555,6 +1626,12 @@ defineExpose({
 
 .rich-text-editor :deep(blockquote) { border-left: 3px solid #3b82f6; padding-left: 12px; color: #555; margin: 8px 0; }
 .rich-text-editor :deep(ol), .rich-text-editor :deep(ul) { padding-left: 1.8em; }
+
+/* 🔧 列表 type 显示：ol type 属性对应的字母/罗马编号样式（与导出前缀一致） */
+.rich-text-editor :deep(ol[type="a"]) { list-style-type: lower-alpha; }
+.rich-text-editor :deep(ol[type="A"]) { list-style-type: upper-alpha; }
+.rich-text-editor :deep(ol[type="i"]) { list-style-type: lower-roman; }
+.rich-text-editor :deep(ol[type="I"]) { list-style-type: upper-roman; }
 
 /* ===== 特殊排版样式 ===== */
 .rich-text-editor :deep(.emphasis-dot) { text-emphasis: dot #d32f2f; -webkit-text-emphasis: dot #d32f2f; text-emphasis-position: under; }

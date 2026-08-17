@@ -7,6 +7,15 @@ import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKE
 
 // ============ 工具函数 ============
 
+/** 阿拉伯数字 → 罗马数字（列表 type="i"/"I" 导出用） */
+const romanize = (n) => {
+  const table = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+  let r = '';
+  let v = n;
+  for (const [val, sym] of table) { while (v >= val) { r += sym; v -= val; } }
+  return r;
+};
+
 /** px → pt（docx 原生单位） */
 const px2pt = (px) => Math.round(parseFloat(px) * 0.75) || 12;
 
@@ -1289,6 +1298,9 @@ const processBlockNode = (node, ctx = {}) => {
   if (tag === 'ul' || tag === 'ol') {
     const isOrdered = tag === 'ol';
     const startIdx = parseInt(node.getAttribute('start')) || 1;
+    // 🔧 列表 type 支持：ol type="a"/"A"/"i"/"I"（字母/罗马数字），ul type="circle"/"square"（空心圆/方块）
+    const listType = node.getAttribute('type') || '';
+    const listTypeLc = listType.toLowerCase();
     let itemIndex = startIdx;
     const listChildren = [...node.children]; // 只有直接子级，避免拍平嵌套列表
     listChildren.forEach(li => {
@@ -1296,12 +1308,33 @@ const processBlockNode = (node, ctx = {}) => {
         children.push(...processBlockNode(li));
         return;
       }
-     // 🔧 自动编号去重：检测 <li> 文本是否已包含序号，避免导出时出现 "14. 14. xxx" 双编号
+      // 🔧 自动编号去重：检测 <li> 文本是否已包含序号，避免导出时出现 "1. 1. xxx" 双编号
       const liFirstText = (li.textContent || '').trimStart();
-      const hasTextNumber = /^\d+[.)、]\s/.test(liFirstText);
-      const prefix = isOrdered && !hasTextNumber ? `${itemIndex++}. ` : (isOrdered ? '' : '• ');
-      const prefixRuns = prefix ? [new TextRun({ text: prefix })] : [];
-      if (isOrdered) itemIndex++; // 即使跳过前缀，索引仍需递增以保持后续编号正确
+      const hasTextNumber = /^\d+[.)、]\s/.test(liFirstText) || /^[a-zA-Z][.)、]\s/.test(liFirstText);
+      let prefix = '';
+      if (isOrdered) {
+        if (!hasTextNumber) {
+          const idx0 = itemIndex - startIdx; // 0 基序号（支持 start 起始值）
+          if (listType === 'a') prefix = `${String.fromCharCode(97 + (idx0 % 26))}. `;
+          else if (listType === 'A') prefix = `${String.fromCharCode(65 + (idx0 % 26))}. `;
+          else if (listType === 'i') prefix = `${romanize(itemIndex).toLowerCase()}. `;
+          else if (listType === 'I') prefix = `${romanize(itemIndex)}. `;
+          else prefix = `${itemIndex}. `;
+        }
+        itemIndex++; // 🔧 只在此处递增：旧实现前缀里 itemIndex++ 后又自增一次 → 编号 1,3,5 跳号
+      } else {
+        // 无序列表符号：默认圆点，支持 circle/square 形式
+        prefix = listTypeLc === 'circle' ? '○ ' : listTypeLc === 'square' ? '▪ ' : '• ';
+      }
+      // 🔧 编号前缀继承正文字号/字体/颜色：旧实现未传 size，落到 docx 默认 11pt，
+      //    导致导出时编号比正文明显缩小
+      const effCtx = ctx.runDefaults || {};
+      const prefixRuns = prefix ? [new TextRun({
+        text: prefix,
+        size: effCtx.size || runDefaults.size,
+        font: effCtx.font || runDefaults.font,
+        color: effCtx.color || runDefaults.color,
+      })] : [];
       const liBlocks = splitGridAwareContent(li, { ...runDefaults, ...(ctx.runDefaults || {}) }, {
         spacing: { before: 40, after: 40 },
         prefixRuns,
