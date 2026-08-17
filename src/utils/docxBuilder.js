@@ -3,7 +3,7 @@
 // 输出：docx 库的 Document 对象 → Packer.toBlob()
 
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType } from 'docx';
-import { TZG_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
+import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 
 // ============ 工具函数 ============
 
@@ -246,10 +246,21 @@ const buildTextRuns = (node, styleOverride = {}) => {
     // === 田字格 / 米字格（最高优先级：避免被 emphasis-dot/blank-line 等误捕获）===
     if (cls.contains('tian-zi-ge') || cls.contains('mi-zi-ge')) {
       const { text: extractedText, hasVisible } = extractGridContent(child);
-      const gridChar = hasVisible ? (child.querySelector('span')?.textContent || extractedText) : ' ';
       const sizeHp = ctx.size || readFontSizeHp(child) || 32;
       const cellW = Math.round(sizeHp * 18);
       const cellWEmu = Math.round(cellW * EMU_PER_DXA);
+      // 🔧 注音田字格：内部含 ruby-char → 拼音画进格子群组（格内带字，拼音浮在字上方）
+      const innerRuby = child.querySelector('.ruby-char[data-pinyin]');
+      if (innerRuby) {
+        const pinyin = innerRuby.getAttribute('data-pinyin') || '';
+        const baseText = innerRuby.textContent || extractedText;
+        if (pinyin && baseText) {
+          runs.push(new TextRun({ text: TZG_PINYIN_MARKER(baseText, pinyin, cellWEmu), size: sizeHp }));
+          lastGridMarkerIdx = runs.length - 1;
+          return;
+        }
+      }
+      const gridChar = hasVisible ? (child.querySelector('span')?.textContent || extractedText) : ' ';
       runs.push(new TextRun({ text: TZG_MARKER(gridChar, cellWEmu), size: sizeHp }));
       lastGridMarkerIdx = runs.length - 1;
       return;
@@ -392,6 +403,22 @@ const buildTextRuns = (node, styleOverride = {}) => {
       const baseText = child.textContent || '';
       if (!baseText) return;
       const baseSizeHp = ctx.size || readFontSizeHp(child) || 24;
+      // 🔧 注音田字格：ruby-char 包田字格/米字格 → 每格一个注音田字格（拼音浮在格内字上方）
+      //    （旧逻辑直接 return 吞掉内部田字格，导出只剩注音字）
+      const innerGrids = child.querySelectorAll('.tian-zi-ge, .mi-zi-ge');
+      if (pinyin && innerGrids.length > 0) {
+        const cellW = Math.round(baseSizeHp * 18);
+        const cellWEmu = Math.round(cellW * EMU_PER_DXA);
+        // 拼音按空格拆成逐字音节，与格子一一对应（数量不符时仅首格带整串）
+        const pinyinParts = pinyin.split(/\s+/).filter(Boolean);
+        for (let i = 0; i < innerGrids.length; i++) {
+          const gridChar = innerGrids[i].querySelector('span')?.textContent || innerGrids[i].textContent.trim() || ' ';
+          const p = pinyinParts.length === innerGrids.length ? (pinyinParts[i] || '') : (i === 0 ? pinyin : '');
+          runs.push(new TextRun({ text: TZG_PINYIN_MARKER(gridChar, p, cellWEmu), size: baseSizeHp }));
+        }
+        lastGridMarkerIdx = runs.length - 1;
+        return;
+      }
       if (pinyin) {
         // 有拼音：用 marker（类似 TZG/FLT），后处理替换为 w:ruby 元素
         runs.push(new TextRun({
@@ -556,6 +583,16 @@ export const buildTianZiGeMarker = (gridChar, sizeHp, _fontFamily) => {
   const cellWEmu = Math.round(cellW * EMU_PER_DXA);
   return new Paragraph({
     children: [new TextRun({ text: TZG_MARKER(gridChar, cellWEmu), size: sizeHp })],
+    spacing: { before: 40, after: 40 },
+  });
+};
+
+/** 注音田字格 → 标记 Paragraph（格内带字，拼音浮在格内字上方） */
+export const buildTianZiGePinyinMarker = (gridChar, pinyin, sizeHp, _fontFamily) => {
+  const cellW = Math.round(sizeHp * 18);
+  const cellWEmu = Math.round(cellW * EMU_PER_DXA);
+  return new Paragraph({
+    children: [new TextRun({ text: TZG_PINYIN_MARKER(gridChar, pinyin, cellWEmu), size: sizeHp })],
     spacing: { before: 40, after: 40 },
   });
 };
@@ -842,8 +879,18 @@ const processBlockNode = (node, ctx = {}) => {
   // ===== 田字格 / 米字格（独立块）=====
   if (cls.contains('tian-zi-ge') || cls.contains('mi-zi-ge')) {
     const { text: extractedText, hasVisible } = extractGridContent(node);
-    const gridChar = hasVisible ? (node.querySelector('span')?.textContent || extractedText) : ' ';
     const sizeHp = runDefaults.size || readFontSizeHp(node) || 32;
+    // 🔧 注音田字格（块级）：单段 TZGP marker——拼音画进格子群组，格内带字
+    const innerRuby = node.querySelector('.ruby-char[data-pinyin]');
+    if (innerRuby) {
+      const pinyin = innerRuby.getAttribute('data-pinyin') || '';
+      const baseText = innerRuby.textContent || extractedText;
+      if (pinyin && baseText) {
+        children.push(buildTianZiGePinyinMarker(baseText, pinyin, sizeHp, runDefaults.font || 'SimSun'));
+        return children;
+      }
+    }
+    const gridChar = hasVisible ? (node.querySelector('span')?.textContent || extractedText) : ' ';
     children.push(buildTianZiGeMarker(gridChar, sizeHp, runDefaults.font || 'SimSun'));
     return children;
   }

@@ -45,7 +45,7 @@ const childShape = (s) => {
  * 🔧 CT_WordprocessingShape 顺序（ISO 29500）：cNvPr → cNvSpPr → spPr → txbx → bodyPr，
  *    txbx 必须在 bodyPr 前——实测顺序颠倒时 Word 静默忽略 txbx（格子字不显示），WPS 宽容不报错
  */
-const textboxTzg = (id, char, gridSizeHp, fontFamily, S) => {
+const textboxTzg = (id, char, gridSizeHp, fontFamily, S, yOff = 0, cyOverride = 0) => {
   // Word textbox 渲染字号偏小 → 放大 30% 使视觉比例与预览 CSS（1.8em 格 / 1em 字）一致
   const charSzHp = Math.round(gridSizeHp * 1.3);
   const sz = String(charSzHp);
@@ -53,11 +53,13 @@ const textboxTzg = (id, char, gridSizeHp, fontFamily, S) => {
   // 🔧 垂直居中改用 wps:bodyPr anchor="ctr"：文本框内容相对 textbox 整体垂直居中，
   //    与字体无关（旧方案 w:before 按宋体视觉中心 62% 调校，换微软雅黑后字面率/基线不同会偏上）
   const beforeTwips = 0;
+  const y = yOff || 0;
+  const cy = cyOverride || S;
   return `<wps:wsp>
     <wps:cNvPr id="${id}" name="TZG-Char"/>
     <wps:cNvSpPr txBox="1"/>
     <wps:spPr>
-      <a:xfrm><a:off x="0" y="0"/><a:ext cx="${S}" cy="${S}"/></a:xfrm>
+      <a:xfrm><a:off x="0" y="${y}"/><a:ext cx="${S}" cy="${cy}"/></a:xfrm>
       <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
       <a:noFill/>
     </wps:spPr>
@@ -76,6 +78,49 @@ const textboxTzg = (id, char, gridSizeHp, fontFamily, S) => {
               <w:szCs w:val="${sz}"/>
             </w:rPr>
             <w:t>${escXml(char)}</w:t>
+          </w:r>
+        </w:p>
+      </w:txbxContent>
+    </wps:txbx>
+    <wps:bodyPr lIns="0" rIns="0" tIns="0" bIns="0" anchor="ctr"/>
+  </wps:wsp>`;
+};
+
+/**
+ * 拼音 Textbox：格内上部拼音条（预览 .ruby-char::before：0.45em / #666 居中）
+ * 与格子线同群组坐标系 → 拼音浮在格内字上方，字仍留在格子中央偏下
+ */
+const pinyinTextbox = (id, pinyin, sizeHp, fontFamily, S, ph) => {
+  const sz = String(Math.max(9, Math.round(sizeHp * 0.7))); // 0.7em（清晰可读）
+  const font = 'Times New Roman'; // 拼音专用：教材拼音排版标准衬线体（全平台内置，避免缺字体回退）
+  // 🔧 宽度自适应：长拼音（如 "zhuāng"）超出格子宽时向两侧对称溢出，
+  //    与预览 .ruby-char::before（white-space:nowrap 无宽度限制）一致，不被截断
+  const len = [...pinyin].length;
+  const wEmu = Math.max(S, Math.round(len * sizeHp * 5.5 * EMU_PER_DXA)); // 每字符约 0.55em
+  const offX = Math.round((S - wEmu) / 2); // 负数 → 拼音条中心与格子中心对齐
+  return `<wps:wsp>
+    <wps:cNvPr id="${id}" name="TZG-Pinyin"/>
+    <wps:cNvSpPr txBox="1"/>
+    <wps:spPr>
+      <a:xfrm><a:off x="${offX}" y="0"/><a:ext cx="${wEmu}" cy="${ph}"/></a:xfrm>
+      <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+      <a:noFill/>
+    </wps:spPr>
+    <wps:txbx>
+      <w:txbxContent>
+        <w:p>
+          <w:pPr>
+            <w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:eastAsia="SimSun"/><w:color w:val="666666"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
+            <w:jc w:val="center"/>
+          </w:pPr>
+          <w:r>
+            <w:rPr>
+              <w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:eastAsia="SimSun"/>
+              <w:color w:val="666666"/>
+              <w:sz w:val="${sz}"/>
+              <w:szCs w:val="${sz}"/>
+            </w:rPr>
+            <w:t>${escXml(pinyin)}</w:t>
           </w:r>
         </w:p>
       </w:txbxContent>
@@ -141,29 +186,34 @@ const fltLineAnchors = (lineWEmu, pts, idBase, centerAlign = false, gapEmu = 0) 
 
 // ============ 田字格：1 个群组 = 矩形 + 2 条虚线 ============
 
-const tzgShapeAnchors = (S, hS, idBase, sizeHp, centerAlign = false, gapEmu = 0, char = '', fontFamily = 'SimSun') => {
+const tzgShapeAnchors = (S, hS, idBase, sizeHp, centerAlign = false, gapEmu = 0, char = '', pinyin = '', fontFamily = 'SimSun') => {
   const sPt = Math.round(S / EMU_PER_PT);
   const hPt = Math.round(hS / EMU_PER_PT);
+  // 🔧 注音田字格：拼音条浮在格子外上方（预览 .ruby-char::before 的形态），
+  //    格子线/字符 textbox 整体下移 phEmu，群组高度 = 拼音条 phEmu + 格子 S
+  const phEmu = pinyin ? Math.round(sizeHp * 8 * EMU_PER_DXA) : 0; // 0.8em（拼音 0.7em + 上下各 0.05em 间隙）
   const shapes = [
     // 外框矩形（教材蓝 #5B9BD5，0.75pt）
-    { id: idBase + 1, name: 'TZG-Box', x: 0, y: 0, cx: S, cy: S, geom: 'rect', color: '5B9BD5', wEmu: 9525, dash: false },
+    { id: idBase + 1, name: 'TZG-Box', x: 0, y: phEmu, cx: S, cy: S, geom: 'rect', color: '5B9BD5', wEmu: 9525, dash: false },
     // 水平虚线（中线，细短虚线 sysDash，0.5pt）
-    { id: idBase + 2, name: 'TZG-HLine', x: 0, y: hS, cx: S, cy: 0, geom: 'line', color: '5B9BD5', wEmu: 6350, dash: true, dashStyle: 'sysDash' },
+    { id: idBase + 2, name: 'TZG-HLine', x: 0, y: phEmu + hS, cx: S, cy: 0, geom: 'line', color: '5B9BD5', wEmu: 6350, dash: true, dashStyle: 'sysDash' },
     // 垂直虚线（中线，细短虚线 sysDash，0.5pt）
-    { id: idBase + 3, name: 'TZG-VLine', x: hS, y: 0, cx: 0, cy: S, geom: 'line', color: '5B9BD5', wEmu: 6350, dash: true, dashStyle: 'sysDash' },
+    { id: idBase + 3, name: 'TZG-VLine', x: hS, y: phEmu, cx: 0, cy: S, geom: 'line', color: '5B9BD5', wEmu: 6350, dash: true, dashStyle: 'sysDash' },
   ];
   // 🔧 字符 Textbox：跟三条线同在 wpg 群组坐标系 → Word 原生居中（等价 CSS top:50% left:50% translate(-50%,-50%)）
-  const tboxXml = char ? textboxTzg(idBase + 4, char, sizeHp, fontFamily, S) : '';
-  const shapesXml = shapes.map(childShape).join('') + tboxXml;
+  const tboxXml = char ? textboxTzg(idBase + 4, char, sizeHp, fontFamily, S, phEmu, S) : '';
+  const pinyinXml = pinyin ? pinyinTextbox(idBase + 5, pinyin, sizeHp, fontFamily, S, phEmu) : '';
+  const shapesXml = shapes.map(childShape).join('') + tboxXml + pinyinXml;
   const choice = groupAnchor({
     id: idBase,
     name: 'TianZiGrid',
     posHXml: centerAlign ? CENTER_POS_H : CHAR_POS_H(gapEmu),
     cx: S,
-    cy: S,
+    cy: S + phEmu,
     shapesXml,
     // 🔧 行内模式下移 3pt：格子在格行行盒（1.8em+6pt，exact 居中渲染）内上下各 3pt 严格对称，块级保持 0
-    vertOffEmu: centerAlign ? 0 : Math.round(3 * EMU_PER_PT),
+    //    注音群组加高后整体上移 phEmu，格子本体位置与无注音时完全一致（拼音侵占格子正上方空间，与预览 CSS 一致）
+    vertOffEmu: (centerAlign ? 0 : Math.round(3 * EMU_PER_PT)) - phEmu,
   });
   const sizePt = sizeHp / 2; // half-points → points
   const font = fontFamily || 'SimSun';
@@ -179,7 +229,7 @@ const tzgShapeAnchors = (S, hS, idBase, sizeHp, centerAlign = false, gapEmu = 0,
  * 田字格块级 OOXML（居中独立段落）
  * anchor 放 <w:t> 之前：形状从字符锚点起绘制，pad 文本随后撑出布局宽度
  */
-export const tianZiGeOOXML = (char, sizeHp, fontFamily = 'SimSun') => {
+export const tianZiGeOOXML = (char, sizeHp, fontFamily = 'SimSun', pinyin = '') => {
   const cellW = Math.round(sizeHp * 18); // 1.8em（与预览 CSS width:1.8em 一致，手写余量）
   const cellWEmu = Math.round(cellW * EMU_PER_DXA);
   const S = Math.round(cellWEmu);
@@ -191,7 +241,7 @@ export const tianZiGeOOXML = (char, sizeHp, fontFamily = 'SimSun') => {
   // 🔧 字符由 DrawingML textbox 绘制（与 grid 同坐标系 → 精确居中），段落只保留 pad 撑宽度
   // 🔧 块级模式 behindDoc="0"：防止网格线被表格单元格底纹（w:shd）遮挡
   // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
-  const blockAnchors = tzgShapeAnchors(S, hS, idBase, sizeHp, true, 0, char, fontFamily)
+  const blockAnchors = tzgShapeAnchors(S, hS, idBase, sizeHp, true, 0, char, pinyin, fontFamily)
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
   return `<w:p>
   <w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="120" w:line="400" w:lineRule="auto"/></w:pPr>
@@ -275,7 +325,7 @@ const GAP_EN = '&#xa0;';   // NBSP 按宋体渲染 = 0.5em
 const gapEmuOf = (sizeHp) => Math.round((sizeHp || 28) * 5 * EMU_PER_DXA); // 0.5em
 
 /** 行内田字格：anchor 在 text 前 + 0.5em 前置间隔 + w:spacing 撑宽 */
-const buildInlineTzg = (char, cellWEmu, idBase, rPrXml) => {
+const buildInlineTzg = (char, cellWEmu, idBase, rPrXml, pinyin = '') => {
   const S = Math.round(cellWEmu);
   const hS = Math.round(S / 2);
   const cellW = Math.round(cellWEmu / EMU_PER_DXA);
@@ -299,7 +349,7 @@ const buildInlineTzg = (char, cellWEmu, idBase, rPrXml) => {
   // 🔧 字符由 DrawingML textbox 绘制（与 grid 同坐标系），段落只保留 pad 撑宽度
   //     前置 1em + 尾 1.5em = 2.5em（grid 延伸至 2.3em → 不压盖）
   // 🔧 行内模式 behindDoc="0"：防止网格线被段落底纹（w:shd）遮挡
-  const anchors = tzgShapeAnchors(S, hS, idBase, sizeHp, false, gapEmuOf(sizeHp), char, 'SimSun')
+  const anchors = tzgShapeAnchors(S, hS, idBase, sizeHp, false, gapEmuOf(sizeHp), char, pinyin, 'SimSun')
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
   // 🔧 三 run 结构（实测 Word/WPS 差异，逐个验证过）：
   //    run1 = U+200C 零宽占位（WPS 锚点取前一个字符 → 锚点落前字右缘）
@@ -357,6 +407,8 @@ const buildInlineFltBlank = (cellWEmu, sizeHp, idBase, rPrXml) => {
 // ============ 标记格式 ============
 
 export const TZG_MARKER = (char, cellWEmu) => `__TZG_${char}_${cellWEmu}__`;
+/** 注音田字格标记：格内带字 + 拼音浮在格内字上方（后处理替换为含拼音 textbox 的田字格群组） */
+export const TZG_PINYIN_MARKER = (char, pinyin, cellWEmu) => `__TZGP_${char}_${pinyin}_${cellWEmu}__`;
 // FLT 标记显式携带 sizeHp：cellW 已改为内容自适应，不能再从 cellW/20 反推字号
 export const FLT_MARKER = (letter, cellWEmu, sizeHp) => `__FLT_${letter}_${cellWEmu}_${sizeHp}__`;
 /** 空白四线三格标记：仅绘制四条线，不渲染字母（听写/默写留空场景） */
@@ -410,6 +462,16 @@ export const injectDrawingML = async (zipBuffer) => {
   //    避免段落内同时存在文字 run 和标记 run 时，整个段落被误替换导致文字丢失
   // 🔧 块级 marker 段落特征：pPr 必须含 w:before="40"（buildTianZiGeMarker 固定 spacing），
   //    行内单段落（表格格单元格，spacing 为 exact before=0）不含该特征，不会被误匹配为块级
+  // 🔧 注音田字格（TZGP）必须先于普通 TZG 处理（虽然 __TZGP_ 不会匹配 __TZG_ 正则，但顺序仍保持保险）
+  const blockTzgPinyin = /<w:p[^>]*>\s*<w:pPr[^>]*>(?:(?!<w:r>)[\s\S])*?w:before="40"(?:(?!<w:r>)[\s\S])*?<\/w:pPr>\s*<w:r[^>]*>\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?\s*<w:t[^>]*>__TZGP_([^_]+?)_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>\s*<\/w:p>/g;
+  docXml = docXml.replace(blockTzgPinyin, (match, char, pinyin, cellWEmuStr) => {
+    hasDml = true;
+    const cellWEmu = parseInt(cellWEmuStr);
+    const cellW = Math.round(cellWEmu / EMU_PER_DXA);
+    const sizeHp = Math.round(cellW / 18);
+    return tianZiGeOOXML(char, sizeHp || 28, 'SimSun', pinyin);
+  });
+
   const blockTzg = /<w:p[^>]*>\s*<w:pPr[^>]*>(?:(?!<w:r>)[\s\S])*?w:before="40"(?:(?!<w:r>)[\s\S])*?<\/w:pPr>\s*<w:r[^>]*>\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?\s*<w:t[^>]*>__TZG_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>\s*<\/w:p>/g;
   docXml = docXml.replace(blockTzg, (match, char, cellWEmuStr) => {
     hasDml = true;
@@ -440,6 +502,15 @@ export const injectDrawingML = async (zipBuffer) => {
   // ==== 第二遍：行内标记 ====
   // ⚠️ 顺序关键：空白标记必须在普通标记之前处理
   // ⚠️ rPr 捕获必须防跨 <w:r> 边界回溯——(?!<\/w:r>) 确保 [\s\S]*? 不会跨到下一个 run
+  // 🔧 注音田字格（TZGP）必须先于普通 TZG 处理
+  const inlineTzgPinyinRegex = /<w:r\b[^>]*>(\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?)\s*<w:t[^>]*>__TZGP_([^_]+?)_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>/gi;
+  docXml = docXml.replace(inlineTzgPinyinRegex, (match, rPrXml, char, pinyin, emuStr) => {
+    hasDml = true;
+    const emu = parseInt(emuStr);
+    const idBase = Math.floor(Math.random() * 90000) + 40000;
+    return buildInlineTzg(char, emu, idBase, rPrXml, pinyin);
+  });
+
   const inlineTzgRegex = /<w:r\b[^>]*>(\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?)\s*<w:t[^>]*>__TZG_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>/gi;
   docXml = docXml.replace(inlineTzgRegex, (match, rPrXml, char, emuStr) => {
     hasDml = true;

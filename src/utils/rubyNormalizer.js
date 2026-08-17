@@ -87,6 +87,9 @@ export const normalizeRubyTags = (html) => {
     const pinyinRaw = (span.getAttribute('data-pinyin') || '').trim();
     if (!baseText || !pinyinRaw) continue;
 
+    // 🔧 内含元素子节点（如田字格 span）时跳过拆分：逐字重建会丢失子元素结构
+    if ([...span.childNodes].some((n) => n.nodeType === Node.ELEMENT_NODE)) continue;
+
     // 去空格后的纯字符
     const baseChars = [...baseText.replace(/\s+/g, '')];
     const pinyinParts = pinyinRaw.split(/\s+/).filter(Boolean);
