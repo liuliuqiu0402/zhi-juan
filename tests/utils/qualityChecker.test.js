@@ -56,6 +56,39 @@ describe('HardRuleChecker', () => {
     });
   });
 
+  describe('传统题嫌疑占比（v29 情境化硬指标）', () => {
+    const buildExam = (questions) =>
+      `<h3>一、基础题（10分）</h3>${questions.map((q, i) => `<p class="question">${i + 1}. ${q}</p>`).join('\n')}<div class="answer-section">参考答案</div>`;
+
+    it('传统题嫌疑占比>30% 时报警', () => {
+      const traditional = [
+        '长方形的特点是（　　）', '正方形的特点是（　　）', '平行四边形的特点是（　　）',
+        '三角形的特点是（　　）', '梯形的特点是（　　）',
+        '小明去超市买铅笔', '小红测量操场长度', '计算花坛面积', '统计班级人数', '观察钟表时间',
+      ];
+      const issues = HardRuleChecker.checkGenTypeSpecific(buildExam(traditional), 'exam', []);
+      expect(issues.some(i => i.type === '传统题嫌疑占比过高')).toBe(true);
+    });
+
+    it('素养卷（无回忆式设问）不报警', () => {
+      const contextual = [
+        '小明买3支铅笔每支2元，付了10元应找回多少？', '教室长8米宽6米，面积是多少？',
+        '统计小组调查了20名同学最喜欢的运动，请补充统计表', '钟面上显示3时，分针和时针成什么角？',
+        '一根绳子对折两次后长3米，原来长多少米？', '学校组织春游，三年级去了128人，四年级比三年级多25人',
+        '把24块糖平均分给6个小朋友，每人分几块？', '超市酸奶每盒6元，买4盒需要多少钱？',
+        '一段路全长200米，已修80米，还剩多少米？', '李华从家到学校需要15分钟，8:00出发几点到校？',
+      ];
+      const issues = HardRuleChecker.checkGenTypeSpecific(buildExam(contextual), 'exam', []);
+      expect(issues.some(i => i.type === '传统题嫌疑占比过高')).toBe(false);
+    });
+
+    it('题量不足5题时不误报', () => {
+      const few = ['长方形的特点是（　　）', '正方形的特点是（　　）', '三角形的特点是（　　）', '梯形的特点是（　　）'];
+      const issues = HardRuleChecker.checkGenTypeSpecific(buildExam(few), 'exam', []);
+      expect(issues.some(i => i.type === '传统题嫌疑占比过高')).toBe(false);
+    });
+  });
+
   describe('getIssueSummary', () => {
     it('正确统计错误和警告', () => {
       const issues = [

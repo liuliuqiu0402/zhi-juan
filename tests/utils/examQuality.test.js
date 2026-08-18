@@ -559,3 +559,75 @@ describe('exam 正式考试标准——质检闭环（AI 修复链路）', () =>
     expect(prompt).toContain('题材/情境/数据/设问角度相似');
   });
 });
+
+describe('素养立意命题范式——全学段全学科覆盖（v29）', () => {
+  const cases = [
+    ['语文', 'middle', 'block_example_exam_chinese_middle'],
+    ['语文', 'high', 'block_example_exam_chinese_senior'],
+    ['数学', 'middle', 'block_example_exam_math_middle'],
+    ['数学', 'high', 'block_example_exam_math_senior'],
+    ['英语', 'middle', 'block_example_exam_english_middle'],
+    ['英语', 'high', 'block_example_exam_english_senior'],
+    ['物理', 'middle', 'block_example_exam_science_middle'],
+    ['化学', 'high', 'block_example_exam_science_senior'],
+    ['生物', 'middle', 'block_example_exam_science_middle'],
+    ['历史', 'middle', 'block_example_exam_humanities_middle'],
+    ['地理', 'high', 'block_example_exam_humanities_senior'],
+    ['道德与法治', 'middle', 'block_example_exam_humanities_middle'],
+    ['政治', 'high', 'block_example_exam_humanities_senior'],
+  ];
+  for (const [subject, stage, expectedId] of cases) {
+    it(`${subject}${stage} 命中素养范式块（${expectedId}）`, () => {
+      const blocks = getMatchingBlockInstructions({ category: '生成-质量范例', subject, stage, genType: 'exam' });
+      expect(blocks.length).toBeGreaterThan(0);
+      expect(blocks[0].id).toBe(expectedId);
+      expect(blocks[0].content).toContain('素养立意命题范式');
+      expect(blocks[0].content).toContain('🚫 禁止书本挖空');
+    });
+  }
+
+  it('小学英语3段块均含素养范式（v29 升级）', () => {
+    for (const stage of ['primary_low', 'primary_mid', 'primary_high']) {
+      const blocks = getMatchingBlockInstructions({ category: '生成-质量范例', subject: '英语', stage, genType: 'exam' });
+      expect(blocks[0].content).toContain('素养立意命题范式');
+    }
+  });
+
+  it('通用范例块不被学段块遮蔽双注入（getGenTypeExample 只取首个最精确块）', () => {
+    // stage 匹配时通用块（stage=''）也在数组中但排序靠后，注入端 stageMatch[0] 只取学段块
+    const blocks = getMatchingBlockInstructions({ category: '生成-质量范例', subject: '物理', stage: 'middle', genType: 'exam' });
+    expect(blocks[0].id).toBe('block_example_exam_science_middle');
+  });
+});
+
+describe('全学段全学科全类型覆盖审计修复（v30）', () => {
+  it('英语学科特色块覆盖全部9种资料类型（补 dictation/summary/review）', () => {
+    for (const gt of ['exam', 'practice', 'special', 'errorbook', 'reading', 'preview', 'dictation', 'summary', 'review']) {
+      const blocks = getMatchingBlockInstructions({ category: '生成-学科特色', subject: '英语', stage: 'primary_mid', genType: gt });
+      expect(blocks.some(b => b.id === 'subject_english')).toBe(true);
+    }
+  });
+
+  it('尾约束覆盖全部9种资料类型（新增 tailconst_review）', () => {
+    for (const gt of ['exam', 'practice', 'special', 'errorbook', 'reading', 'preview', 'dictation', 'summary', 'review']) {
+      const blocks = getMatchingBlockInstructions({ category: '生成-尾约束', subject: '', stage: '', genType: gt });
+      expect(blocks.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('情境化设计要求覆盖预习/默写/复习（frag_context_design 扩展）', () => {
+    for (const gt of ['preview', 'dictation', 'review']) {
+      const blocks = getMatchingBlockInstructions({ category: '生成-通用约束', subject: '', stage: 'primary_mid', genType: gt });
+      expect(blocks.some(b => b.id === 'frag_context_design')).toBe(true);
+    }
+  });
+
+  it('阅读训练范例覆盖理科与人文（新增 math_science/humanities 块）', () => {
+    const math = getMatchingBlockInstructions({ category: '生成-质量范例', subject: '数学', stage: '', genType: 'reading' });
+    expect(math[0].id).toBe('block_example_reading_math_science');
+    expect(math[0].content).toContain('禁止书本挖空');
+    const hist = getMatchingBlockInstructions({ category: '生成-质量范例', subject: '历史', stage: '', genType: 'reading' });
+    expect(hist[0].id).toBe('block_example_reading_humanities');
+    expect(hist[0].content).toContain('禁止书本挖空');
+  });
+});

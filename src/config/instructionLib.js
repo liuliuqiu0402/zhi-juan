@@ -384,7 +384,13 @@ export const builtinInstructions = [
   {
     id: 'tailconst_dictation', name: '【尾约束】默写训练', category: '生成-尾约束', type: 'fragment',
     subject: '', stage: '', genType: 'dictation', prompt_order: 90,
-    content: '⚠️ 【文末确认】务必包含完整 <div class=\"answer-section\"><h2>答案</h2>...</div> 区域。所有默写内容均须提供标准答案。\n🔴 【填空格式确认】行内文字填空 → 用 <u class=\"blank-N\">&emsp;</u>；独立括号填空 → 用 <span class=\"blank-N\">&emsp;</span>。横线与括号互斥、不可叠加。严禁空标签！严禁 ___ 下划线！',
+    content: '⚠️ 【文末确认】务必包含完整 <div class="answer-section"><h2>答案</h2>...</div> 区域。所有默写内容均须提供标准答案。\n🔴 【填空格式确认】行内文字填空 → 用 <u class="blank-N">&emsp;</u>；独立括号填空 → 用 <span class="blank-N">&emsp;</span>。横线与括号互斥、不可叠加。严禁空标签！严禁 ___ 下划线！',
+    builtin: true
+  },
+  {
+    id: 'tailconst_review', name: '【尾约束】单元/期末复习', category: '生成-尾约束', type: 'fragment',
+    subject: '', stage: '', genType: 'review', prompt_order: 90,
+    content: '⚠️ 【文末确认】务必包含完整 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域。所有复习题均须提供答案和解析。\n🔴 【填空格式确认】行内文字填空 → 用 <u class="blank-N">&emsp;</u>；独立括号填空 → 用 <span class="blank-N">&emsp;</span>。横线与括号互斥、不可叠加。严禁空标签！严禁 ___ 下划线！\n🔴 【复习完整性】知识点梳理与练习须一一对应：每个梳理出的核心知识点至少配1道对应练习，练习不得考查梳理区之外的知识点。',
     builtin: true
   },
   {
@@ -483,7 +489,7 @@ export const builtinInstructions = [
   {
     id: 'frag_context_design', name: '情境化设计要求', category: '生成-通用约束', type: 'fragment',
     prompt_order: 33,
-    subject: '', stage: '', genType: 'exam,practice,special,reading,errorbook',
+    subject: '', stage: '', genType: 'exam,practice,special,reading,errorbook,preview,dictation,review',
     content: `【情境化设计要求】
 1. 非试卷类资料≥60%的题目须嵌入真实或拟真情境（生活场景/故事情境/探究任务），反对"戴帽子"式假情境（仅在题干前加一句无关导语）；试卷类一律以【真题卷结构蓝本】学段条款为准（低段≥40%、中高段≥60%）。
 2. 情境应贯穿整卷——开篇主题情境与后续题目形成连贯叙事，而非各自独立。
@@ -600,7 +606,7 @@ export const builtinInstructions = [
   { id: 'subject_math_primary', name: '[数学] 口算竖式+生活建模', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '数学', stage: 'primary', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '数学资料应联系生活实际，考查从现实情境抽象数学模型的能力；计算题注意口算和竖式格式规范。\n- 答案必须精确（除非题目要求保留小数位）；单位统一不可遗漏\n- 几何题必须给出完整已知条件\n- 选择题四个选项不可"一个明显正确+三个明显错误"\n- 计算题要求完整解题过程（解、列式、计算、答）\n', builtin: true },
   { id: 'subject_math_secondary', name: '[数学] 完整解题+抽象建模', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '数学', stage: 'middle', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '数学资料应联系生活实际，考查从现实情境抽象数学模型的能力；计算题要求完整解题过程（解、列式、计算、答）。\n- 答案必须精确（除非题目要求保留小数位）；单位统一不可遗漏\n- 几何题必须给出完整已知条件\n- 选择题四个选项不可"一个明显正确+三个明显错误"\n- 计算题要求完整解题过程（解、列式、计算、答）\n', builtin: true },
   { id: 'subject_math_high', name: '[数学] 严谨推理+高考规范', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '数学', stage: 'high', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '数学资料应联系生活实际，考查从现实情境抽象数学模型的能力；计算题要求严谨的完整解题过程，对标高考答题规范。\n- 答案必须精确（除非题目要求保留小数位）；单位统一不可遗漏\n- 几何题必须给出完整已知条件\n- 选择题四个选项不可"一个明显正确+三个明显错误"\n- 计算题要求完整解题过程（解、列式、计算、答）\n', builtin: true },
-  { id: 'subject_english', name: '[英语] 语篇驱动+四线三格', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '英语', stage: '', genType: 'exam,practice,special,errorbook,reading,preview', content: '英语资料应以语篇为单位，避免孤立考查语法词汇；小学阶段英文书写（汉译英/单词默写）用四线三格格式，中文翻译（英译汉）用普通横线格式；英语资料注重读写综合训练。\n- 题干本身禁止出现语法错误；选项禁止出现不存在的单词或搭配\n- 阅读理解取材不超出本学段词汇量范围\n- 🔴 听力题规则（按资料类型执行）：试卷（exam）允许按【真题卷结构蓝本】保留听力大题——听力原文集中放文末答案页（标注"听力材料"，供教师朗读），卷面只呈现听力题目与作答区；非试卷类资料（课时练/专项/预习等）一律严禁出现任何听力题\n- 🔴 口语交际规则：一律以纸面形式考查——情景交际/情景对话采用补全对话、选句填空等形式，严禁要求学生口头作答或现场对话\n', builtin: true },
+  { id: 'subject_english', name: '[英语] 语篇驱动+四线三格', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '英语', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '英语资料应以语篇为单位，避免孤立考查语法词汇；小学阶段英文书写（汉译英/单词默写）用四线三格格式，中文翻译（英译汉）用普通横线格式；英语资料注重读写综合训练。\n- 题干本身禁止出现语法错误；选项禁止出现不存在的单词或搭配\n- 阅读理解取材不超出本学段词汇量范围\n- 🔴 听力题规则（按资料类型执行）：试卷（exam）允许按【真题卷结构蓝本】保留听力大题——听力原文集中放文末答案页（标注"听力材料"，供教师朗读），卷面只呈现听力题目与作答区；非试卷类资料（课时练/专项/预习等）一律严禁出现任何听力题\n- 🔴 口语交际规则：一律以纸面形式考查——情景交际/情景对话采用补全对话、选句填空等形式，严禁要求学生口头作答或现场对话\n', builtin: true },
   { id: 'subject_physics', name: '[物理] 实验探究+公式规范', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '物理', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '物理资料应设置实验探究题，考查实验设计、数据处理、结论推导能力；计算题须写公式→代入→结果三步；作图题标注清晰。\n- 禁止混淆物理量和单位\n- 禁止实验题中要求"观察"微观现象（如分子、原子运动）\n- 禁止力分析图中遗漏关键力\n- 计算题须写公式→代入→结果三步\n', builtin: true },
   { id: 'subject_chemistry', name: '[化学] 实验安全+方程式', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '化学', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '化学资料应包括化学方程式书写、实验装置图识别、物质推断题；涉及浓硫酸稀释、加热易燃气体等操作须明确安全提示；离子和化合价用上标/下标格式标注。\n- 禁止化学方程式未配平或缺少反应条件\n- 禁止实验操作违反安全规范\n- 禁止混淆化学式、电子式、结构式\n', builtin: true },
   { id: 'subject_biology', name: '[生物] 图表分析+实验设计', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '生物', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '生物资料应包含图表数据分析题（曲线图/柱状图/表格）、实验设计题（对照/变量/结论）；注重结构与功能相适应的生命观念。\n- 禁止生物学概念使用俗称而非规范术语\n- 禁止实验设计未明确控制变量（对照/变量/结论须完整）\n- 禁止混淆结构与功能的关系\n', builtin: true },
@@ -849,21 +855,21 @@ export const builtinInstructions = [
     id: 'block_example_exam_english_lower', name: '【质量范例】低段英语试卷/课时练', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '英语', stage: 'primary_low', genType: 'exam,practice',
-    content: '词汇选择题示例："I have a ___. A. apple B. banana C. cat D. dog" — 选项词性一致（均为名词），干扰项与正确项属同一语义场，不混入不同词性。\n看图选词/连线示例：配教材单元主题图，词汇标注格式 <strong>apple</strong> <span class="phonetic">/ˈæpəl/</span> <em>n.</em>，词性用英文缩写（n./v./adj./adv./prep./pron.等），禁止用中文"名词""动词"。\n句型题示例："— ___ is your name? — My name is Tom." 选项 A. What B. How C. Who — 考查疑问词辨析，每个选项都是同一词类。\n情境对话示例：给出简短对话（若干来回），留一个空选择/填写，语境清晰、选项不引入新词。\n🚫 禁止书本挖空：禁止"apple的中文意思是（）"式单词表机械互译、禁止课文原句直接挖空——词汇必须在语境/交际情境中考查。',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 生活交际："早上在校园遇见老师，该说 A. Good morning! B. Goodbye! C. Thank you! 选一选并说说为什么。" — 真实交际+选择说理。\n② 图文任务："看图（一只猫在盒子上）：The cat is ___ the box. A. on B. in C. under" — 图文结合+语境理解。\n③ 趣味运用："你的书包是什么颜色？用 I have a ___ bag. 说一说，再写下来。" — 语言运用+生活联结。\n词汇选择题示例："I have a ___. A. apple B. banana C. cat D. dog" — 选项词性一致（均为名词），干扰项与正确项属同一语义场，不混入不同词性。\n看图选词/连线示例：配教材单元主题图，词汇标注格式 <strong>apple</strong> <span class="phonetic">/ˈæpəl/</span> <em>n.</em>，词性用英文缩写（n./v./adj./adv./prep./pron.等），禁止用中文"名词""动词"。\n句型题示例："— ___ is your name? — My name is Tom." 选项 A. What B. How C. Who — 考查疑问词辨析，每个选项都是同一词类。\n情境对话示例：给出简短对话（若干来回），留一个空选择/填写，语境清晰、选项不引入新词。\n🚫 禁止书本挖空：禁止"apple的中文意思是（）"式单词表机械互译、禁止课文原句直接挖空——词汇必须在语境/交际情境中考查。',
     builtin: true
   },
   {
     id: 'block_example_exam_english_mid', name: '【质量范例】中段英语试卷/课时练', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '英语', stage: 'primary_mid', genType: 'exam,practice',
-    content: '词汇题词性标注必须用英文缩写（n./v./adj./adv./prep./pron.），严禁中文词性。\n语法选择题示例："My mother ___ in a hospital. A. work B. works C. working D. to work" — 考查一般现在时第三人称单数，所有选项为同一动词的不同形式。\n情景对话示例：给出4-5句话的简短对话，留若干空选择/填写，语境清晰、选项不超纲。\n阅读理解：选文60-80词，配若干道单选题（信息提取、简单推断），文中生词配中文注释。\n🚫 禁止书本挖空：禁止单词表机械互译与课文句子挖空，词汇/语法放进语境与交际情境考查。',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 真实交际："今天是周末，你想邀请同学去公园，怎么说？从 A/B/C 中选并说理由。" — 真实交际+说理。\n② 情境语法："看图（妈妈在医院工作）：My mother ___ in a hospital. A. work B. works C. working" — 图文情境+语法运用。\n③ 生活联结："用 What do you do on Sundays? 采访一位同学，把回答写成2句话。" — 语言运用+生活联结。\n词汇题词性标注必须用英文缩写（n./v./adj./adv./prep./pron.），严禁中文词性。\n语法选择题示例："My mother ___ in a hospital. A. work B. works C. working D. to work" — 考查一般现在时第三人称单数，所有选项为同一动词的不同形式。\n情景对话示例：给出4-5句话的简短对话，留若干空选择/填写，语境清晰、选项不超纲。\n阅读理解：选文60-80词，配若干道单选题（信息提取、简单推断），文中生词配中文注释。\n🚫 禁止书本挖空：禁止单词表机械互译与课文句子挖空，词汇/语法放进语境与交际情境考查。',
     builtin: true
   },
   {
     id: 'block_example_exam_english_high', name: '【质量范例】高段英语试卷/课时练', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '英语', stage: 'primary_high', genType: 'exam,practice',
-    content: '词汇题词性标注用英文缩写，首次出现生词配中文注释（括号内）。\n语法选择题示例："She ___ to Beijing last summer. A. go B. goes C. went D. will go" — 选项覆盖不同时态制造干扰，考查一般过去时。\n完形填空：选文80-150词，留若干空，每空4个选项（1正确、3干扰：近义干扰、语法干扰、逻辑干扰），首尾句不挖空。\n阅读理解：选文100-120词，配若干道题（2细节、1推断、1词义猜测、1主旨），体裁多样（对话/记叙/说明/应用文）。\n书面表达：短文，明确写作目的、词数要求，配若干参考词汇/句型提示。\n🚫 禁止书本挖空：禁止单词表机械互译与课文原句挖空，词汇/语法放进语境与交际情境考查。',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 真实交际："你的笔友要来中国，用英语给他写3条出行建议（天气/交通/饮食）。" — 真实交际+信息组织。\n② 情境语法："班级活动照片：She ___ to Beijing last summer. A. go B. goes C. went D. will go" — 照片情境+时态运用。\n③ 探究对比："比较 went 与 will go 表达的时间不同，各写一个生活场景句子。" — 语义辨析+语境迁移。\n词汇题词性标注用英文缩写，首次出现生词配中文注释（括号内）。\n语法选择题示例："She ___ to Beijing last summer. A. go B. goes C. went D. will go" — 选项覆盖不同时态制造干扰，考查一般过去时。\n完形填空：选文80-150词，留若干空，每空4个选项（1正确、3干扰：近义干扰、语法干扰、逻辑干扰），首尾句不挖空。\n阅读理解：选文100-120词，配若干道题（2细节、1推断、1词义猜测、1主旨），体裁多样（对话/记叙/说明/应用文）。\n书面表达：短文，明确写作目的、词数要求，配若干参考词汇/句型提示。\n🚫 禁止书本挖空：禁止单词表机械互译与课文原句挖空，词汇/语法放进语境与交际情境考查。',
     builtin: true
   },
   {
@@ -985,6 +991,77 @@ export const builtinInstructions = [
     content: '材料分析题示例：给出1段史料/地图/时政材料，设2-3问，第1问考查材料信息提取（"根据材料，指出..."），第2问考查知识链接（"结合所学，分析..."），第3问考查综合评价（"谈谈你的认识/启示"）。\n选择题示例："我国根本政治制度是（ ）A. 人民代表大会制度 B. 政治协商制度 C. 民族区域自治制度 D. 基层群众自治制度" — 四个选项均为我国政治制度，考查对"根本"这一限定词的理解。\n填空题示例："明朝时期，郑和<u class="blank-1">&emsp;</u>次下西洋，最远到达<u class="blank-8">&emsp;</u>。" — 空格填核心史实（数字/地名/人名/事件），不填描述性词语。\n地图读图题：给出区域轮廓简图，标注经纬度/山脉/河流/城市，设问从"位置描述→特征分析→区域比较→人地关系"四个层次。',
     builtin: true
   },
+  // ── 素养立意命题范式：初中/高中（v29 补齐学段正面示范，小学语文/数学已有）──
+  {
+    id: 'block_example_exam_chinese_middle', name: '【质量范例】初中语文试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '语文', stage: 'middle', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 情境默写："学校读书节展板需要一句勉励惜时的诗句，你推荐“____，____”，并说明推荐理由。" — 理解性默写+运用说理，禁止机械单句默写。\n② 语境运用："从“酝酿”“贮蓄”中任选一词，写一句描写雨后校园的话，并说说这个词的表达效果。" — 词语在语境中运用+赏析。\n③ 探究发现："《背影》中“他用两手攀着上面，两脚再向上缩”删去“攀”“缩”会怎样？对比品析动词的作用。" — 文本细读+比较辨析，设问不得直接复述原文。\n④ 微写作："为班级公众号写一段“我的家乡”推介语（120字左右），至少运用两种修辞。" — 生活实践+创意表达。\n🚫 禁止书本挖空：文言文默写必须理解性默写（给情境默诗句）；名著题禁止考“XX是哪国人”“XX字什么”式纯记忆，改考情节关联/人物评价；课内阅读禁止挖原句填空。',
+    builtin: true
+  },
+  {
+    id: 'block_example_exam_chinese_senior', name: '【质量范例】高中语文试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '语文', stage: 'high', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 情境默写："毕业纪念册上想引用一句表达青年担当的古诗文，写下它并说明选用理由。" — 理解性默写+阐释运用。\n② 比较探究："同样写秋，《故都的秋》与《沁园春·长沙》的情感基调有何不同？从意象选择角度分析。" — 比较鉴赏+文本依据。\n③ 任务驱动写作："针对“碎片化阅读不利于深度思考”写一段驳论文段（150字左右），先树靶子再反驳。" — 思辨写作+真实任务。\n④ 综合探究：非连续性文本（图表+文段）设信息提取→整合→评价三层设问，考查信息综合运用。\n🚫 禁止书本挖空：默写一律理解性默写；文言实词考查必须放回原文语境；作文题须给明确任务情境与读者对象，禁止孤零零的命题；选择题干扰项须来自文本误读。',
+    builtin: true
+  },
+  {
+    id: 'block_example_exam_math_middle', name: '【质量范例】初中数学试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '数学', stage: 'middle', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 情境计算："超市促销：满100减20。妈妈买了一件85元的外套和一双49元的鞋，实际应付多少？有更划算的凑单方案吗？" — 真实购物情境+策略思维。\n② 说理题："判断：“两个三角形面积相等，底一定相等。”对吗？画图或举反例说明。" — 概念辨析+反例思维，思维可见。\n③ 探究发现："观察：1³=1²；1³+2³=3²；1³+2³+3³=6²……猜想 1³+2³+3³+4³ 等于几的平方？并计算验证。" — 归纳猜想+验证。\n④ 建模应用："学校到家3km，骑车速度为v km/h，写出所用时间的代数式；若v=12，到校需要几分钟？" — 代数建模+生活应用。\n🚫 禁止书本挖空：“全等三角形的判定定理是（）”“二次函数的定义是（）”类定义/定理直接挖空；计算题放进情境（购物/运动/测量），禁止纯算式罗列；选择题干扰项须来自常见错误。',
+    builtin: true
+  },
+  {
+    id: 'block_example_exam_math_senior', name: '【质量范例】高中数学试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '数学', stage: 'high', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 建模应用："水库泄洪，水位 h(t)=-t²+4t+3（0≤t≤4，t单位小时），何时水位最高？最高是多少？" — 函数建模+真实情境。\n② 探究发现："研究 f(x)=x+1/x（x>0）的最小值：先列表计算几个特殊值，再画图验证，最后用基本不等式证明。" — 多路径探究（数值→图象→证明）。\n③ 说理辨析："判断：“若函数在某区间单调递增，则其导数在该区间恒大于0”。说明理由并举反例。" — 概念边界+反例思维。\n④ 情境应用："话费套餐：A套餐月租30元含200分钟，超出0.2元/分钟；B套餐无月租0.3元/分钟。画两种费用函数图像，讨论何时选A更划算。" — 分段函数建模+决策。\n🚫 禁止书本挖空：“导数的定义是（）”类定义/定理直接挖空；禁止脱离情境的纯符号计算堆砌；压轴题设问要有梯度（基础问→进阶问），第一问让多数学生能入手。',
+    builtin: true
+  },
+  {
+    id: 'block_example_exam_english_middle', name: '【质量范例】初中英语试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '英语', stage: 'middle', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 语境语法："班级春游报名：Lucy ___ (join) the hiking club last week. 用所给词适当形式填空并说明理由。" — 语境语法+说理。\n② 真实语用："给外国笔友写一封60词左右的邮件，介绍你的一日校园生活（按时间顺序，用一般现在时）。" — 真实交际+时态运用。\n③ 语义探究："比较 “He stopped to talk.” 与 “He stopped talking.” 的意思差别，各造一个生活场景句子。" — 语义辨析+语境迁移。\n④ 阅读思维：选文80-150词，设细节理解→推断→词义猜测→主旨四层问，体裁多样（对话/记叙/说明/应用文），设问不得直接复述原文原句。\n🚫 禁止书本挖空：禁止孤立单词拼写默写（改为句子/对话语境中考查）；语法题必须配语境句，禁止“go/went/gone 选一个”式无语境选项题；书面表达须给真实交际目的。',
+    builtin: true
+  },
+  {
+    id: 'block_example_exam_english_senior', name: '【质量范例】高中英语试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '英语', stage: 'high', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 语境语法："科技新闻：The new satellite ___ (launch) into orbit next month. 用所给词适当形式填空并说明理由。" — 语境语法+说理。\n② 思辨写作："以“Should students use AI tools for homework?”为题写120词短文，先陈述双方观点，再表明立场并论证。" — 思辨+真实议题。\n③ 语篇探究：阅读议论文/说明文，设主旨归纳→观点态度→论证手法→词义猜测四层问，答案须经归纳转换、禁止原文照抄。\n④ 真实语用：为校刊写活动通知/邀请函等应用文，含称呼/正文/落款格式要素，任务真实具体（对象/目的/时间地点明确）。\n🚫 禁止书本挖空：禁止无语境单选（“The book is on ___ desk. A. a B. an C. the”式）；完形填空首尾句不挖空，选项须有干扰逻辑；写作题须给具体读者对象与交际目的。',
+    builtin: true
+  },
+  {
+    id: 'block_example_exam_science_middle', name: '【质量范例】初中物理/化学/生物试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '物理,化学,生物', stage: 'middle', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 情境解释（物理）："汽车急刹车时乘客为何向前倾？用牛顿第一定律解释，并设计一个小实验验证。" — 情境解释+实验设计。\n② 实验探究（化学）："探究铁生锈的条件：设计对比实验（控制变量），预测现象并解释。" — 控制变量+预测解释。\n③ 生活应用（生物）："为什么流感流行时要勤洗手、戴口罩？从传染病传播环节分析，并提出两条校园防控建议。" — 知识迁移+方案建议。\n④ 科学阅读：给一段科技材料（如“碳达峰碳中和”），设信息提取→原理解释→联系生活三问。\n🚫 禁止书本挖空：“光合作用的场所是（）”式纯记忆题；实验题须经历探究流程（假设→设计→结论），禁止只考结论记忆；实验步骤须含安全提示；计算题必须“已知→求→解→答”格式。',
+    builtin: true
+  },
+  {
+    id: 'block_example_exam_science_senior', name: '【质量范例】高中物理/化学/生物试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '物理,化学,生物', stage: 'high', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 情境建模（物理）："滑雪者从高h的斜坡顶端无摩擦滑下，求到达底端的速度；若考虑摩擦，定性分析速度如何变化。" — 建模计算+对比分析。\n② 探究设计（化学）："设计实验检验市售加碘盐中的碘元素（给出部分试剂），写出步骤、预期现象与结论。" — 开放性实验设计。\n③ 数据分析（生物）："给出某湖泊浮游植物数量随时间变化的曲线，分析数量变化的原因并提出保护建议。" — 图表分析+推理建议。\n④ 综合应用：结合科技前沿情境（新能源/基因工程/碳中和）设问，考查原理+应用+评价三层。\n🚫 禁止书本挖空：方程式/定义直接挖空；实验探究禁止只考“现象是什么”（须考分析/设计/误差讨论）；禁止无情境的纯套公式计算；选择题干扰项须来自常见迷思概念。',
+    builtin: true
+  },
+  {
+    id: 'block_example_exam_humanities_middle', name: '【质量范例】初中历史/地理/道法试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '历史,地理,道德与法治,政治,思想政治', stage: 'middle', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 材料分析（历史）：给一段史料，设信息提取（“根据材料，指出…”）→知识链接（“结合所学，分析…”）→认识启示（“谈谈你的认识”）三问 — 史料实证。\n② 图表应用（地理）：给某城市气温降水柱状图，判断气候类型并分析该气候对当地农业的影响 — 图表判读+综合运用。\n③ 情境辨析（道法）："校门口流动摊贩多，有人建议“城管严查”，有人建议“设疏导点”。从依法行政与民生保障角度评析两种方案，并提出你的建议。" — 情境辨析+方案论证。\n④ 综合探究：给社会热点材料，设信息提取→多角度分析→联系自身三问。\n🚫 禁止书本挖空：“我国根本政治制度是（）”式纯记忆选择（改考制度在生活中的体现）；历史禁止考“XX生于哪一年”式时间记忆（改考时代背景）；地理禁止孤立考地名记忆（改考区域特征分析）。',
+    builtin: true
+  },
+  {
+    id: 'block_example_exam_humanities_senior', name: '【质量范例】高中历史/地理/政治试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '历史,地理,道德与法治,政治,思想政治', stage: 'high', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 材料论证（历史）：给两则观点相异的史料，概括各自观点，结合所学支持其中一种并说明理由 — 史料实证+论证。\n② 区域综合（地理）：给区域地图+数据材料，分析某区域产业转移的原因与影响，并提出可持续发展建议 — 区域综合+评价。\n③ 议题评析（政治）："就“直播带货乱象”从政府/企业/消费者三主体角度提出治理建议，并说明依据。" — 多主体分析+政策论证。\n④ 思维拓展：开放性设问（“如何理解…”），要求结合材料+所学+自身体验多角度作答。\n🚫 禁止书本挖空：政治禁止考“XX的本质是（）”式背诵（改考时政情境分析）；历史禁止孤立时间/事件记忆；地理禁止无情境的区位因素罗列（改考具体区域情境）。',
+    builtin: true
+  },
   {
     id: 'block_example_preview_humanities', name: '【质量范例】历史/地理/道法预习', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
@@ -1004,6 +1081,20 @@ export const builtinInstructions = [
     prompt_order: 70,
     subject: '语文,英语', stage: '', genType: 'reading', specialSubType: 'new_standard',
     content: `选文示例：短文长度与年级匹配——小学低段80-150字/高段150-300字；初中300-600字；高中600-1000字。选文标注体裁（记叙/说明/议论/古诗/文言）和出处（教材课文片段/课外名家选段）。\n题目示例（参考结构，题数按实际灵活决定）：第1题考查信息提取——"根据短文，XX的主要特点是什么？"；第2题考查词句理解——"文中画线词'XX'的意思是<u class="blank-8">&emsp;</u>"；第3题考查推断——"从文中可以推断出<u class="blank-8">&emsp;</u>"；第4题考查表达技巧——"文中运用了什么修辞手法？有什么作用？"；第5题考查整体把握——"给短文加一个合适的标题/用一句话概括短文大意"。\n开放性题目示例："你同意文中的观点吗？请结合生活实际谈谈你的看法。（50字以上）"——开放性题目配2-3个角度的示例答案和评分维度。`,
+    builtin: true
+  },
+  {
+    id: 'block_example_reading_math_science', name: '【质量范例】数学/科学阅读', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '数学,物理,化学,生物,科学', stage: '', genType: 'reading', specialSubType: 'new_standard',
+    content: `选材示例：数学文化短文（如"七桥问题""黄金分割的由来"）、科学发现故事（如"青霉素的发现""指南针与地磁场"）、生活科技短文（如"高铁为什么跑得快"）。长度与年级匹配：小学150-300字；初中300-600字；高中600-1000字。\n题目示例（设问递进，不孤立考记忆）：第1题信息提取——"根据短文，XX最早用于什么场合？"；第2题原理解释——"结合短文与所学，解释为什么XX会出现这种现象。"；第3题计算/数据应用——"按短文中给的数据，算出XX需要多少时间。"；第4题迁移联系——"生活中还有哪些地方用到了短文中提到的原理？举一例说明。"\n🚫 禁止书本挖空：不得考"XX定理的内容是（　　）"式纯记忆设空；不得将短文中现成句子直接挖空作为填空题。`,
+    builtin: true
+  },
+  {
+    id: 'block_example_reading_humanities', name: '【质量范例】历史/地理/道法阅读', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '历史,地理,道德与法治,政治,思想政治', stage: '', genType: 'reading', specialSubType: 'new_standard',
+    content: `选材示例：史料选段（如"郑和下西洋的史料记载"）、地图与文字组合材料（区域气候/地形图文）、时政与社会生活材料（如"社区垃圾分类新规"）。长度与年级匹配：小学150-300字；初中300-600字；高中600-1000字，材料须标注出处与背景。\n题目示例（材料解读递进）：第1题信息提取——"根据材料，指出XX发生了什么。"；第2题知识链接——"结合所学，分析XX的原因。"；第3题图表判读——"根据材料中的地图/表格，说出XX的分布特点。"；第4题评价启示——"谈谈这件事给你的启示。"\n🚫 禁止书本挖空：不得考"XX事件发生在哪一年"式孤立时间记忆；不得脱离材料考课本原文默写；材料设问必须基于材料信息，答案从材料与所学结合得出。`,
     builtin: true
   },
   {
@@ -4107,7 +4198,7 @@ export const builtinInstructions = [
 // ==================== 指令库存储Key与版本号 ====================
 const STORAGE_KEY = 'instructionLib';
 const VERSION_KEY = 'instructionLib_version';
-export const BUILTIN_VERSION = 28; // 🔧 v28: 内容级去冗余——专项要求chart/image块删除内联[GRAPH]/[IMAGE]格式（指向EduRender模板，消除与模板块双注入重复）；信息技术学科特色块与学科适配块去重；删除quality_dictation_type（与quality_dictation重复90%+）
+export const BUILTIN_VERSION = 30; // 🔧 v30: 覆盖审计收官——英语学科特色补dictation/summary/review；新增tailconst_review尾约束；情境化设计要求扩展preview/dictation/review；新增数学理科/史地政阅读范例块
 
 // ==================== 加载指令库 ====================
 export const loadInstructionLib = () => {

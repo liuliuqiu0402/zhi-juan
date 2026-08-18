@@ -457,9 +457,22 @@ export class HardRuleChecker {
         issues.push({ severity: 'warning', type: '卷面标注残留', detail: '试卷正文检测到〔知识点：×｜层级：×〕标注，正式考试卷面不应出现知识点/层级标注，请移除', autoFix: false });
       }
       // 🔧 素养立意检测：回忆式设问/书本挖空过多（新课标考查素养运用而非背诵）
-      const recallMatches = examPlainText.match(/的特点是（|的反义词是（|的近义词是（|先长出了什么|的读音是（|公式是（|的定义是（|的内容是（|的中文意思是（|的英文意思是（|读了《|《[^《]{1,20}》中|'里|"里|”里|’里|被称为|又叫做|指的是（|是因为它们（/g);
+      const recallPatternSrc = `的特点是（|的反义词是（|的近义词是（|先长出了什么|的读音是（|公式是（|的定义是（|的内容是（|的中文意思是（|的英文意思是（|读了《|《[^《]{1,20}》中|'里|"里|”里|’里|被称为|又叫做|指的是（|是因为它们（`;
+      const recallMatches = examPlainText.match(new RegExp(recallPatternSrc, 'g'));
       if (recallMatches && recallMatches.length >= 3) {
         issues.push({ severity: 'warning', type: '回忆式设问过多', detail: `检测到${recallMatches.length}处单点回忆式设问/书本挖空（如"XX的特点是""XX的公式是""XX被称为""XX的中文意思是"），新课标考查素养运用而非背诵，请改为情境化/探究式设问`, autoFix: false });
+      }
+      // 🔧 v29 传统题嫌疑占比统计（情境化硬指标：正文传统题嫌疑占比>30% 即情境化<70%，新课标红线）
+      const bodyPlainText = examPlainText.split(/参考答案|答案与解析/)[0];
+      const bodyRecall = bodyPlainText.match(new RegExp(recallPatternSrc, 'g')) || [];
+      const isolatedDictation = bodyPlainText.match(/看拼音写(词语|汉字|生字)[：:]\s*(?:（|$)/g) || [];
+      const questionStarts = bodyPlainText.match(/^\s*\d+[.、．)）]\s*/gm) || [];
+      if (questionStarts.length >= 5) {
+        const traditionalCount = bodyRecall.length + isolatedDictation.length;
+        const traditionalRatio = traditionalCount / questionStarts.length;
+        if (traditionalRatio > 0.3) {
+          issues.push({ severity: 'warning', type: '传统题嫌疑占比过高', detail: `正文检测到传统式题目嫌疑${traditionalCount}处/共${questionStarts.length}题（占比${Math.round(traditionalRatio * 100)}%），新课标要求情境化试题占比≥70%，回忆式设问/孤立看拼音须改为情境化/探究式设问`, autoFix: false });
+        }
       }
       // 🔴 测量科学：选择题正确答案分布检测（真卷答案随机均匀分布）
       const answerSection = content.match(/<div[^>]*class="answer-section"[^>]*>([\s\S]*)$/i);
