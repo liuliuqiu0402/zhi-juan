@@ -95,8 +95,8 @@
                     <input type="checkbox" v-model="chapter._selectedForAnalysis" :checked="chapter._selectedForAnalysis !== false" class="analysis-checkbox" title="勾选要分析的章节" />
                     <span class="chapter-title" @click="isLeafChapter(chapter) && viewChapterAnalysis(book, chapter)" :style="{ cursor: isLeafChapter(chapter) ? 'pointer' : 'default', textDecoration: isLeafChapter(chapter) ? 'underline' : 'none', color: isLeafChapter(chapter) ? 'var(--primary-light)' : '#1a1a1a' }">
                       {{ chapter.title }}
-                      <span v-if="chapter.analyzed" style="color:var(--success);font-size:11px;"title="已分析">✅</span>
-                      <span v-else style="color:#ccc;font-size:11px;"title="未分析">⬜</span>
+                      <span v-if="chapter.analyzed" style="color:var(--success);font-size:11px;" title="已分析">✅</span>
+                      <span v-else style="color:#ccc;font-size:11px;" title="未分析">⬜</span>
                     </span>
                     <span class="page-range">第{{ chapter.start }}-{{ chapter.end }}页</span>
                     <span class="remove-btn" @click="removeSelectedChapter(book, chapter)" title="取消选择">✕</span>
@@ -129,8 +129,8 @@
                   <input type="checkbox" v-model="chapter._selectedForAnalysis" :checked="chapter._selectedForAnalysis !== false" class="analysis-checkbox" title="勾选要分析的章节" />
                   <span class="chapter-title" @click="isLeafChapter(chapter) && viewChapterAnalysis(tpl, chapter)" :style="{ cursor: isLeafChapter(chapter) ? 'pointer' : 'default', textDecoration: isLeafChapter(chapter) ? 'underline' : 'none', color: isLeafChapter(chapter) ? 'var(--primary-light)' : '#1a1a1a' }">
                     {{ chapter.title }}
-                    <span v-if="chapter.analyzed" style="color:var(--success);font-size:11px;"title="已分析">✅</span>
-                    <span v-else style="color:#ccc;font-size:11px;"title="未分析">⬜</span>
+                    <span v-if="chapter.analyzed" style="color:var(--success);font-size:11px;" title="已分析">✅</span>
+                    <span v-else style="color:#ccc;font-size:11px;" title="未分析">⬜</span>
                   </span>
                   <span class="page-range">第{{ chapter.start }}-{{ chapter.end }}页</span>
                   <span class="remove-btn" @click="removeSelectedChapter(tpl, chapter)" title="取消选择">✕</span>
@@ -2832,6 +2832,62 @@ const teacherVersion = ref(true); // true=教师版（含答案）, false=学生
 
 // 预览和编辑
 const previewContent = ref('');
+
+// 🖼️ [IMAGE] 标记 → 可视化配图占位框：AI 输出图形描述（PROMPT/描述），用户用生图工具生成后替换此框插入图片
+//    避用正则与转义字符（历史教训：构建链路曾破坏转义序列），全部用 indexOf/split 处理
+const renderImagePlaceholders = (html) => {
+  if (!html || typeof html !== 'string') return html;
+  const NL = String.fromCharCode(10);
+  const esc = (s) => String(s == null ? '' : s)
+    .split('&').join('&amp;')
+    .split('<').join('&lt;')
+    .split('>').join('&gt;');
+  // 提取字段标记后的第一行值（如 TYPE:SD / STYLE:line_art）
+  const fieldVal = (body, name) => {
+    const idx = body.indexOf(name);
+    if (idx === -1) return '';
+    let v = body.slice(idx + name.length).split(NL)[0].trim();
+    if (v.charAt(0) === ':' || v.charAt(0) === '：') v = v.slice(1).trim();
+    return v;
+  };
+  const out = [];
+  let rest = html;
+  while (true) {
+    const s = rest.indexOf('[IMAGE]');
+    if (s === -1) { out.push(rest); break; }
+    out.push(rest.slice(0, s));
+    const bodyStart = s + 7;
+    const e = rest.indexOf('[/IMAGE]', bodyStart);
+    if (e === -1) { out.push(rest.slice(s)); break; }
+    const body = rest.slice(bodyStart, e);
+    let prompt = fieldVal(body, 'PROMPT');
+    if (!prompt) {
+      const dIdx = body.indexOf('描述');
+      if (dIdx !== -1) { prompt = body.slice(dIdx + 2).split(NL)[0].trim(); }
+    }
+    if (!prompt) {
+      const lines = body.split(NL).filter(Boolean);
+      prompt = lines.length ? lines[lines.length - 1].trim() : '';
+    }
+    if (prompt.charAt(0) === ':' || prompt.charAt(0) === '：') prompt = prompt.slice(1).trim();
+    const imgType = fieldVal(body, 'TYPE') || 'SD';
+    const style = fieldVal(body, 'STYLE') || 'line_art';
+    const width = fieldVal(body, 'WIDTH');
+    const height = fieldVal(body, 'HEIGHT');
+    const negative = fieldVal(body, 'NEGATIVE');
+    // 结构化生图参数占位框：保留 TYPE/尺寸/风格/PROMPT 参数，方便复制到生图工具（导出 DOCX 后文本同样可复制）
+    let box = '<div class="image-placeholder" style="text-align:left;padding:12px 14px;margin:12px 0;background:#f7f9fc;border:1px dashed #a0b4d0;border-radius:6px;color:#44608a;font-size:13px;line-height:1.7;">'
+      + '<strong>[插图占位]</strong><br>'
+      + 'TYPE: ' + esc(imgType) + '　STYLE: ' + esc(style)
+      + (width || height ? '　WIDTH: ' + esc(width || '800') + '　HEIGHT: ' + esc(height || '600') : '')
+      + '<br>PROMPT: <span style="color:#5c6bc0;">' + esc(prompt) + '</span>';
+    if (negative) box += '<br>NEGATIVE: ' + esc(negative);
+    box += '<br><span style="font-size:12px;color:#8899b0;">复制 PROMPT 到生图工具生成图片后插入此处</span></div>';
+    out.push(box);
+    rest = rest.slice(e + 8);
+  }
+  return out.join('');
+};
 const previewingDoc = ref(null);
 const editingContent = ref('');
 const editingDoc = ref(null);
@@ -3943,7 +3999,7 @@ const buildInstruction = async () => {
   // 确保每条规则都是独立的【】块，通过年级/学科/资料类型三维智能匹配后自动注入
   const HANDLED_BY_DEDICATED_SECTION = new Set([
     // 生成专用分类（Section 1.5~10 中已通过 getMatchingBlockInstructions 精确匹配）—— dash 格式（内置 fragment）
-    '生成-学段适配', '生成-学科适配', '生成-资料类型结构', '生成-情境方向',
+    '生成-学科适配', '生成-资料类型结构', '生成-情境方向',
     '生成-题目质量标准', '生成-禁止项',
     '生成-通用约束', '生成-原题引用',
     '生成-答案与解析规范', '生成-主观题评分标准', '生成-答题模板',
@@ -3971,7 +4027,7 @@ const buildInstruction = async () => {
     '生成-难度配置',         // diff_* 系列
     '生成-范围标签',         // scope_label_* 系列
     '生成-模板禁止项',       // tpl_ban_* 系列
-    '生成-快捷学段提示',     // quick_stage_* 系列
+    
     '生成-指令块标题',       // section_title_* 系列
     '生成-范围扩展',         // scope_cross_* 系列（Section: 跨章综合语义 + chapterCount 替换）
     '生成-格式尾约束',       // format_tail_* 系列（recency 锚点，所有引擎通用）
@@ -3979,11 +4035,12 @@ const buildInstruction = async () => {
     // 🔧 补建（2026）：5个新类别，在 buildGenerationInstruction 中有专属 Section
     '生成-学段控制',         // stage_* 系列：题量/难度/时长按学段建议
     '生成-题量控制',         // layout_* 系列：建议总题量范围
-    '生成-难度控制',         // diff_control_* 系列：基础:中等:提高比例
+    '生成-难度控制',         // diff_* 系列：基础:中等:提高比例
     '生成-学科核心素养',     // core_literacy_* 系列：课标核心素养关键词
-    '生成-学科禁止项',       // ban_supplement_* 系列：学科专属红线（与通用禁止项互补）
+    
     '生成-品质标准',         // quality_* 系列：按 genType × stage 注入品质标准
     '生成-原创标准',         // originality_* 系列：按 genType × stage 注入原创标准
+    '生成-红线约束',         // quality_redlines_* 系列：最高优先级红线清单（前置注入）
     // 非生成用途（分析用）
     '分析-文本分析规范', '分析-分析模板示例', '分析-分析提取要求', '分析-知识图谱构建',
   ]);
@@ -6165,7 +6222,7 @@ const confirmPeriodSplit = async () => {
           generatedDocs.value.push({
             id: 'period_' + Date.now() + '_' + pi + '_' + Math.random().toString(36).slice(2, 8),
             title: periodTitle,
-            content: safeContent,
+            content: renderImagePlaceholders(safeContent),
             rawContent: safeContent,
             genType: genTypeName,
             style: propositionStyle.value,
@@ -6197,7 +6254,7 @@ const confirmPeriodSplit = async () => {
         generatedDocs.value.push({
           id: 'period_combined_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
           title: combinedTitle,
-          content: combinedContent,
+          content: renderImagePlaceholders(combinedContent),
           rawContent: combinedContent,
           genType: genTypeName,
           style: propositionStyle.value,
@@ -6261,7 +6318,7 @@ const cancelPeriodSplit = async () => {
     
     if (result.success && result.content) {
       console.log('[preview-popup] 🔄 cancelPeriodSplit 路径：直接设置预览', { contentLen: result.content?.length, contentPreview: result.content?.substring(0, 100) });
-      previewContent.value = result.content;
+      previewContent.value = renderImagePlaceholders(result.content);
       showPreview.value = true;
       console.log('[preview-popup] ✅ cancelPeriodSplit 路径 showPreview=true', { showPreview: showPreview.value });
       previewHint.value = '✅ 整体生成完成';
@@ -6318,7 +6375,7 @@ const cancelPeriodSplit = async () => {
       generatedDocs.value.push({
         id: 'doc_' + Date.now() + '_' + Math.random().toString(36),
         title,
-        content: safeContent,
+        content: renderImagePlaceholders(safeContent),
         rawContent: safeContent,
         genType: genTypeName,
         style: propositionStyle.value,
@@ -6355,7 +6412,7 @@ const switchPeriodTab = (index) => {
   
   if (contentToShow) {
     console.log('[preview-popup] 📑 switchPeriodTab 路径：直接设置预览', { contentLen: contentToShow?.length, periodIndex: index });
-    previewContent.value = contentToShow;
+    previewContent.value = renderImagePlaceholders(contentToShow);
     showPreview.value = true;
     console.log('[preview-popup] ✅ switchPeriodTab 路径 showPreview=true', { showPreview: showPreview.value });
   }
@@ -6473,7 +6530,7 @@ const finalizeGeneration = async (result, genType) => {
     generatedDocs.value.push({
       id: 'doc_' + Date.now() + '_' + Math.random().toString(36),
       title,
-      content: safeContent,
+      content: renderImagePlaceholders(safeContent),
       rawContent: safeContent,
       genType: genTypeName,
       style: propositionStyle.value,
@@ -6573,7 +6630,7 @@ const previewDoc = (doc) => {
     });
   }
   
-  previewContent.value = content;
+  previewContent.value = renderImagePlaceholders(content);
   console.log('[preview-popup] 📺 即将设置 showPreview=true', { contentLen: content?.length });
   showPreview.value = true;
   console.log('[preview-popup] ✅ showPreview 已设为 true', { showPreview: showPreview.value, previewContentLen: previewContent.value?.length });
@@ -7126,11 +7183,6 @@ const loadInstruction = (ins) => {
     const grade = book?.grade || '';
     if (stage || subject) {
       content += '\n\n【学段·学科精准适配】\n';
-      // 🔧 从指令库获取学段提示（三维度智能匹配）
-      const stageHintBlocks = getMatchingBlockInstructions({ category: '生成-快捷学段提示', stage });
-      if (stageHintBlocks.length > 0) {
-        content += stageHintBlocks[0].content + '\n';
-      }
       if (grade) content += `- 当前年级：${grade}\n`;
       content += '\n⚠️ 以上学段和学科要求优先级高于通用模板，如有冲突以本条为准。\n';
     }

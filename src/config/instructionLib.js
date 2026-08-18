@@ -1,7 +1,7 @@
 // ==================== 指令库 ====================
 
 /** 指令版本号 —— 每次修改指令库内容后递增，使客户端缓存自动失效 */
-export const INSTRUCTION_VERSION = 20;
+export const INSTRUCTION_VERSION = 24;
 
 // 内置指令库
 export const builtinInstructions = [
@@ -353,7 +353,7 @@ export const builtinInstructions = [
   {
     id: 'topconst_exam', name: '【顶层约束】考卷', category: '生成-顶层约束', type: 'fragment',
     subject: '', stage: '', genType: 'exam', prompt_order: 4,
-    content: '【生成要求】\n1. ⚠️ 题型必须多样化：至少使用3种不同题型（如填空、选择、判断、连线、简答、补全对话、仿写、造句等），严禁全部或绝大多数使用选择题。\n2. 难度分布：{diffRatio}，题目从易到难排列。\n3. 知识点覆盖：每个知识点均考查，重难点可多角度考查。\n4. ⚠️ 填空格式：句内文字填空用 <u class="blank-N">&emsp;</u>（横线N按字数：1字→2/2字→4/3-4字→6/5-6字→8/7字+→10），独立括号填空用 <span class="blank-N">&emsp;</span>（括号N同上）。横线与括号互斥不可叠加，严禁空标签和下划线字符。详见【输出格式-填空留空】规范。5. 禁止使用"下列说法正确的是""以下哪个选项是正确的""以上都是""以上都不对"等低质量设问。\n6. 每道题的题干必须有具体情境或明确任务，不得空洞、抽象或与其他题雷同。\n7. ⚠️ 文末必须包含完整的答案与解析区域（<div class="answer-section">），所有题目（含选择题）都要有答案和解析。\n8. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
+    content: '【生成要求】\n1. ⚠️ 大题序列以【真题卷结构蓝本】为唯一依据（蓝本大题不足3类时以蓝本为准，不得自行增删题型）；大题内部小题形式保持多样（填空、选择、判断、连线、简答、补全对话、仿写、造句等轮换），严禁全部或绝大多数使用选择题。\n2. 难度分布：{diffRatio}，题目从易到难排列。\n3. ⚠️ 知识点考查去重：每个知识点全卷考查≤2次（重难点可2次，但必须角度不同——如概念理解+应用），一般知识点仅考1次，禁止无意义重复考查。\n4. ⚠️ 大题结构：以【真题卷结构蓝本】为唯一依据——大题序列、大题名称、分值、顺序与蓝本完全一致，不得增删大题、不得另行包装为"基础/能力/综合"等板块（蓝本即真题卷通行结构）。知识点与认知层级仅用于内部组卷设计（分层与去重），🚫 严禁在试卷正文输出任何知识点/层级标注——正式考试卷面不出现此类信息。\n5. ⚠️ 填空格式：句内文字填空用 <u class="blank-N">&emsp;</u>（横线N按字数：1字→2/2字→4/3-4字→6/5-6字→8/7字+→10），独立括号填空用 <span class="blank-N">&emsp;</span>（括号N同上）。横线与括号互斥不可叠加，严禁空标签和下划线字符。详见【输出格式-填空留空】规范。6. 禁止使用"下列说法正确的是""以下哪个选项是正确的""以上都是""以上都不对"等低质量设问。\n7. 每道题的题干必须有具体情境或明确任务，不得空洞、抽象或与其他题雷同。\n8. ⚠️ 文末必须包含完整的答案与解析区域（<div class="answer-section">），所有题目（含选择题）都要有答案和解析。\n9. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
     builtin: true
   },
   {
@@ -425,7 +425,7 @@ export const builtinInstructions = [
   },
 
   // ═══════════════════════════════════════
-  // 通用约束（原 生成-学段控制 已删除，学段控制已并入 生成-学段适配）
+  // 通用约束（认知层级比例/题目充实度/情境化设计等，与学段控制互补）
   // ═══════════════════════════════════════
   {
     id: 'frag_question_source', name: '标注题目出处', category: '生成-通用约束', type: 'fragment',
@@ -445,35 +445,35 @@ export const builtinInstructions = [
     id: 'frag_cognitive_low', name: '认知层级-小学低段', category: '生成-通用约束', type: 'fragment',
     prompt_order: 32,
     subject: '', stage: 'primary_low', genType: 'exam,practice,special,errorbook,reading',
-    content: '每道题后标注认知层级，并按以下比例分布：识记层≤30%（基础字词/古诗默写）、理解层≥35%（词义辨析/文意理解）、简单应用层≥25%（语境造句/仿写/知识迁移）。仅标注层级标签，不要在题目中输出百分比数字。',
+    content: '认知层级仅用于内部组卷设计（🚫 不在试卷正文标注），并按以下比例分布：识记层≤30%（基础字词/古诗默写）、理解层≥35%（词义辨析/文意理解）、简单应用层≥25%（语境造句/仿写/知识迁移）。仅标注层级标签，不要在题目中输出百分比数字。',
     builtin: true
   },
   {
     id: 'frag_cognitive_mid', name: '认知层级-小学中段', category: '生成-通用约束', type: 'fragment',
     prompt_order: 32,
     subject: '', stage: 'primary_mid', genType: 'exam,practice,special,errorbook,reading',
-    content: '每道题后标注认知层级，并按以下比例分布：识记层≤20%、理解层≥30%、应用层≥25%、简单分析层≥15%。仅标注层级标签，不要在题目中输出百分比数字。',
+    content: '认知层级仅用于内部组卷设计（🚫 不在试卷正文标注），并按以下比例分布：识记层≤20%、理解层≥30%、应用层≥25%、简单分析层≥15%。仅标注层级标签，不要在题目中输出百分比数字。',
     builtin: true
   },
   {
     id: 'frag_cognitive_high', name: '认知层级-小学高段', category: '生成-通用约束', type: 'fragment',
     prompt_order: 32,
     subject: '', stage: 'primary_high', genType: 'exam,practice,special,errorbook,reading',
-    content: '每道题后标注认知层级，并按以下比例分布：理解层≥25%、应用层≥25%、分析层≥20%、简单评价层≥15%。仅标注层级标签，不要在题目中输出百分比数字。',
+    content: '认知层级仅用于内部组卷设计（🚫 不在试卷正文标注），并按以下比例分布：理解层≥25%、应用层≥25%、分析层≥20%、简单评价层≥15%。仅标注层级标签，不要在题目中输出百分比数字。',
     builtin: true
   },
   {
     id: 'frag_cognitive_middle', name: '认知层级-初中', category: '生成-通用约束', type: 'fragment',
     prompt_order: 32,
     subject: '', stage: 'middle', genType: 'exam,practice,special,errorbook,reading',
-    content: '每道题后标注认知层级，并按以下比例分布：理解层≥20%、应用层≥25%、分析层≥25%、评价层≥15%。仅标注层级标签，不要在题目中输出百分比数字。',
+    content: '认知层级仅用于内部组卷设计（🚫 不在试卷正文标注），并按以下比例分布：理解层≥20%、应用层≥25%、分析层≥25%、评价层≥15%。仅标注层级标签，不要在题目中输出百分比数字。',
     builtin: true
   },
   {
     id: 'frag_cognitive_high_sch', name: '认知层级-高中', category: '生成-通用约束', type: 'fragment',
     prompt_order: 32,
     subject: '', stage: 'high', genType: 'exam,practice,special,errorbook,reading',
-    content: '每道题后标注认知层级，并按以下比例分布：理解层≥15%、应用层≥20%、分析层≥25%、评价层≥20%、创造层≥10%。仅标注层级标签，不要在题目中输出百分比数字。',
+    content: '认知层级仅用于内部组卷设计（🚫 不在试卷正文标注），并按以下比例分布：理解层≥15%、应用层≥20%、分析层≥25%、评价层≥20%、创造层≥10%。仅标注层级标签，不要在题目中输出百分比数字。',
     builtin: true
   },
 
@@ -485,18 +485,11 @@ export const builtinInstructions = [
     prompt_order: 33,
     subject: '', stage: '', genType: 'exam,practice,special,reading,errorbook',
     content: `【情境化设计要求】
-1. 整份资料≥70%的题目须嵌入真实或拟真情境（生活场景/故事情境/探究任务），反对"戴帽子"式假情境（仅在题干前加一句无关导语）。
+1. 非试卷类资料≥60%的题目须嵌入真实或拟真情境（生活场景/故事情境/探究任务），反对"戴帽子"式假情境（仅在题干前加一句无关导语）；试卷类一律以【真题卷结构蓝本】学段条款为准（低段≥40%、中高段≥60%）。
 2. 情境应贯穿整卷——开篇主题情境与后续题目形成连贯叙事，而非各自独立。
 3. 题型示例（传统→情境化）：
    × 传统："看拼音写词语：nǎ lǐ → _____"
    √ 情境化："小蝌蚪迷路了，它给妈妈写留言条。请帮它把拼音转成汉字：'妈妈，你在 nǎ lǐ _____？'"`, 
-    builtin: true
-  },
-  {
-    id: 'frag_context_design_exam_practice', name: '情境化深度-试卷/课时练', category: '生成-通用约束', type: 'fragment',
-    prompt_order: 33,
-    subject: '', stage: '', genType: 'exam,practice',
-    content: '情境化深度（试卷/课时练）：整卷主题情境（如"探秘大自然"）+ 单题微型情境。',
     builtin: true
   },
   {
@@ -529,13 +522,13 @@ export const builtinInstructions = [
     prompt_order: 34,
     subject: '', stage: 'primary_low', genType: 'exam,practice,special,reading',
     content: `【题目充实度要求——小学】
-1. 阅读短文最低长度：≥150字
+1. 阅读短文最低长度：课外短文120-180字（低段课内选文以教材原文为准，不受此限）
    ⚠️ 严禁用2-3句话的"迷你短文"配6道题——文比题短是硬伤。
 2. 单道题目题干充实度：
    - 选择题/判断题：一至两句完整的话，包含明确的问题语境
    - 简答题：题干中给出回答指引（如"从文中找出至少两个理由"）
    - 填空题：可接受简短，但每个语境句独立完整
-3. 选项设计：4个选项长度相近，干扰项须"看起来有道理但实际不对"
+3. 选项设计：低段3个选项（中高段4个），长度相近，干扰项须"看起来有道理但实际不对"
 4. 主观题引导：开放题给思考方向提示，写话题提供词语支架`, 
     builtin: true
   },
@@ -603,11 +596,11 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   // 学科特色（按学科自动匹配注入）
   // ═══════════════════════════════════════
-  { id: 'subject_chinese', name: '[语文] 读写结合+文化浸润', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '语文', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '语文资料应体现读写结合理念，阅读后设微写作任务（每份资料至少1个）；小学阶段：拼音标注用括号紧跟生字，田字格生字每个独立渲染，朗读/背诵题型明确标注篇目；融入2-3处传统文化元素（经典诗文、书法赏析、传统节日）。\n- 阅读理解题答案不可在原文中直接摘抄，需经过归纳转换\n- 习作题须有明确写作要求和字数限制\n- 古诗词默写题不考非课标推荐篇目\n', builtin: true },
+  { id: 'subject_chinese', name: '[语文] 读写结合+文化浸润', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '语文', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '语文资料应体现读写结合理念，阅读后设微写作任务（每份资料至少1个）；小学阶段：拼音标注用<ruby>标签紧跟生字，田字格生字每个独立渲染，朗读/背诵题型明确标注篇目；融入2-3处传统文化元素（经典诗文、书法赏析、传统节日）。\n- 阅读理解题答案不可在原文中直接摘抄，需经过归纳转换\n- 习作题须有明确写作要求和字数限制\n- 古诗词默写题不考非课标推荐篇目\n', builtin: true },
   { id: 'subject_math_primary', name: '[数学] 口算竖式+生活建模', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '数学', stage: 'primary', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '数学资料应联系生活实际，考查从现实情境抽象数学模型的能力；计算题注意口算和竖式格式规范。\n- 答案必须精确（除非题目要求保留小数位）；单位统一不可遗漏\n- 几何题必须给出完整已知条件\n- 选择题四个选项不可"一个明显正确+三个明显错误"\n- 计算题要求完整解题过程（解、列式、计算、答）\n', builtin: true },
   { id: 'subject_math_secondary', name: '[数学] 完整解题+抽象建模', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '数学', stage: 'middle', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '数学资料应联系生活实际，考查从现实情境抽象数学模型的能力；计算题要求完整解题过程（解、列式、计算、答）。\n- 答案必须精确（除非题目要求保留小数位）；单位统一不可遗漏\n- 几何题必须给出完整已知条件\n- 选择题四个选项不可"一个明显正确+三个明显错误"\n- 计算题要求完整解题过程（解、列式、计算、答）\n', builtin: true },
   { id: 'subject_math_high', name: '[数学] 严谨推理+高考规范', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '数学', stage: 'high', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '数学资料应联系生活实际，考查从现实情境抽象数学模型的能力；计算题要求严谨的完整解题过程，对标高考答题规范。\n- 答案必须精确（除非题目要求保留小数位）；单位统一不可遗漏\n- 几何题必须给出完整已知条件\n- 选择题四个选项不可"一个明显正确+三个明显错误"\n- 计算题要求完整解题过程（解、列式、计算、答）\n', builtin: true },
-  { id: 'subject_english', name: '[英语] 语篇驱动+四线三格', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '英语', stage: '', genType: 'exam,practice,special,errorbook,reading,preview', content: '英语资料应以语篇为单位，避免孤立考查语法词汇；小学阶段英文书写（汉译英/单词默写）用四线三格格式，中文翻译（英译汉）用普通横线格式；英语资料全部为笔试内容，注重读写综合训练。\n- 题干本身禁止出现语法错误；选项禁止出现不存在的单词或搭配\n- 阅读理解取材不超出本学段词汇量范围\n- 🚫 严禁出现任何听力题（听音选图/听对话/听短文/听独白/听力填空等）或口语题（情景对话/角色扮演/口头报告等）——英语资料全部为笔试内容\n', builtin: true },
+  { id: 'subject_english', name: '[英语] 语篇驱动+四线三格', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '英语', stage: '', genType: 'exam,practice,special,errorbook,reading,preview', content: '英语资料应以语篇为单位，避免孤立考查语法词汇；小学阶段英文书写（汉译英/单词默写）用四线三格格式，中文翻译（英译汉）用普通横线格式；英语资料注重读写综合训练。\n- 题干本身禁止出现语法错误；选项禁止出现不存在的单词或搭配\n- 阅读理解取材不超出本学段词汇量范围\n- 🔴 听力题规则（按资料类型执行）：试卷（exam）允许按【真题卷结构蓝本】保留听力大题——听力原文集中放文末答案页（标注"听力材料"，供教师朗读），卷面只呈现听力题目与作答区；非试卷类资料（课时练/专项/预习等）一律严禁出现任何听力题\n- 🔴 口语交际规则：一律以纸面形式考查——情景交际/情景对话采用补全对话、选句填空等形式，严禁要求学生口头作答或现场对话\n', builtin: true },
   { id: 'subject_physics', name: '[物理] 实验探究+公式规范', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '物理', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '物理资料应设置实验探究题，考查实验设计、数据处理、结论推导能力；计算题须写公式→代入→结果三步；作图题标注清晰。\n- 禁止混淆物理量和单位\n- 禁止实验题中要求"观察"微观现象（如分子、原子运动）\n- 禁止力分析图中遗漏关键力\n- 计算题须写公式→代入→结果三步\n', builtin: true },
   { id: 'subject_chemistry', name: '[化学] 实验安全+方程式', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '化学', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '化学资料应包括化学方程式书写、实验装置图识别、物质推断题；涉及浓硫酸稀释、加热易燃气体等操作须明确安全提示；离子和化合价用上标/下标格式标注。\n- 禁止化学方程式未配平或缺少反应条件\n- 禁止实验操作违反安全规范\n- 禁止混淆化学式、电子式、结构式\n', builtin: true },
   { id: 'subject_biology', name: '[生物] 图表分析+实验设计', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '生物', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '生物资料应包含图表数据分析题（曲线图/柱状图/表格）、实验设计题（对照/变量/结论）；注重结构与功能相适应的生命观念。\n- 禁止生物学概念使用俗称而非规范术语\n- 禁止实验设计未明确控制变量（对照/变量/结论须完整）\n- 禁止混淆结构与功能的关系\n', builtin: true },
@@ -618,7 +611,7 @@ export const builtinInstructions = [
   { id: 'subject_science', name: '[科学] 观察探究+实验记录', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '科学', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '科学资料应从生活现象出发，考查观察、实验、推理能力；包含实验设计题（明确变量/步骤/结论）、观察记录题（图表/文字）、科学阅读题；小学阶段配实物图和实验示意图。\n- 禁止科学概念使用非规范表述\n- 禁止实验步骤缺少安全提示\n- 禁止观察记录题缺少明确的观察指标\n- 从生活现象出发，考查观察、实验、推理能力\n', builtin: true },
   { id: 'subject_it_primary', name: '[信息技术] 信息意识-小学', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '信息技术,信息科技', stage: 'primary', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息技术资料应结合实际应用场景；小学侧重信息意识和数字化学习，题目生活化、操作化。\n- 禁止操作步骤顺序错误或遗漏关键步骤\n- 禁止编程题代码存在语法错误\n- 禁止使用已淘汰的技术术语\n- 操作步骤和代码示例必须实际可执行\n', builtin: true },
   { id: 'subject_it_middle', name: '[信息技术] 算法思维-初中', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '信息技术,信息科技', stage: 'middle', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息技术资料应结合实际应用场景；初中侧重算法思维和数据处理，可考查简单流程图和伪代码。\n- 禁止操作步骤顺序错误或遗漏关键步骤\n- 禁止编程题代码存在语法错误\n- 禁止使用已淘汰的技术术语\n- 操作步骤和代码示例必须实际可执行\n', builtin: true },
-  { id: 'subject_it_high', name: '[信息技术] Python编程-高中', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '信息技术,信息科技', stage: 'high', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息技术资料应结合实际应用场景；高中侧重Python编程和算法设计，对标学业水平考试要求。', builtin: true },
+  { id: 'subject_it_high', name: '[信息技术] Python编程-高中', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '信息技术,信息科技', stage: 'high', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息技术资料应结合实际应用场景；高中侧重项目实践与信息素养综合提升。', builtin: true },
 
   // ═══════════════════════════════════════
   // 特殊要求（考试/练习类专用）  （原 生成-题量控制/难度控制 已删除，题量/难度控制已并入 生成-资料类型结构 和 生成-难度配置）
@@ -627,7 +620,7 @@ export const builtinInstructions = [
     id: 'special_analysis', name: '答案含详细解析', category: '生成-特殊要求', type: 'fragment',
     prompt_order: 41,
     subject: '', stage: '', genType: 'exam,practice,special,errorbook',
-    content: '请为每道题目提供详细的解析和解题思路，包括易错点提示和方法归纳。',
+    content: '请为每道题目提供答案要点和简要解析（正式考试答案册样式：客观题附简析、主观题附评分要点，禁止"易错提示""命题思路"等教辅栏目）。',
     builtin: true
   },
 
@@ -692,7 +685,7 @@ export const builtinInstructions = [
     id: 'block_quality_base', name: '【题目质量标准】通用', category: '生成-题目质量标准', type: 'fragment',
     prompt_order: 25,
     subject: '', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review',
-    content: '题目质量标准：\\n1. 题干精炼无歧义，一题一事\\n2. 选择题选项等长、风格一致，错误选项有迷惑性，正确答案随机分布\\n3. 不设"以下哪个选项正确"等无信息量设问（英语祈使句Choose/Read/Write除外）\\n4. 填空在关键位置设空（计算结果/概念名称），答案唯一确定\\n5. 计算题数据符合实际，同难度题目区分度相近',
+    content: '题目质量标准：\n1. 题干精炼无歧义，一题一事\n2. 选择题选项等长、风格一致，错误选项有迷惑性，正确答案随机分布\n3. 不设"以下哪个选项正确"等无信息量设问（英语祈使句Choose/Read/Write除外）\n4. 填空在关键位置设空（计算结果/概念名称），答案唯一确定\n5. 计算题数据符合实际，同难度题目区分度相近',
     builtin: true
   },
   {
@@ -734,7 +727,7 @@ export const builtinInstructions = [
   { id: 'block_quality_math', name: '【题目质量标准】数学', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '数学', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '数学：答案精确（除要求保留小数位外），单位统一；几何题完整已知条件。', builtin: true },
   { id: 'block_quality_physics', name: '【题目质量标准】物理', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '物理', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '物理：计算题写出公式→代入→结果→单位四步；实验题控制变量明确。', builtin: true },
   { id: 'block_quality_chemistry', name: '【题目质量标准】化学', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '化学', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '化学：化学式/方程式书写规范；实验题注明操作步骤和现象。', builtin: true },
-  { id: 'block_quality_chinese', name: '【题目质量标准】语文', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '语文', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '语文：阅读理解答案不可直接摘抄原文原句；作文明确字数和文体要求。', builtin: true },
+  { id: 'block_quality_chinese', name: '【题目质量标准】语文', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '语文', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '语文：阅读理解答案不可直接摘抄原文原句；作文明确字数和文体要求；填空规范：空格设置在题干中自然空位处，每个空考查一个独立的知识点，答案唯一确定。', builtin: true },
   { id: 'block_quality_english', name: '【题目质量标准】英语', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '英语', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '英语：选项语法全部正确（不以语法错误制干扰项）；题干以标点（.?!）结尾。', builtin: true },
   { id: 'block_quality_biology', name: '【题目质量标准】生物', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '生物', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '生物：术语使用规范；图表标注准确；实验设计变量明确。', builtin: true },
   { id: 'block_quality_history', name: '【题目质量标准】历史', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '历史', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '历史：史实/年代/人名准确；史料分析标注出处。', builtin: true },
@@ -755,7 +748,7 @@ export const builtinInstructions = [
     id: 'block_ban_general', name: '【禁止项-通用】母本参考', category: '生成-禁止项', type: 'fragment',
     prompt_order: 31,
     subject: '', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,review,dictation,summary',
-    content: '🔴 硬性红线（违反任一条为不合格）：\\n1. 不超纲——严格按所属学段课标，不确定时默认不纳入\\n2. 无科学性错误——概念/计算/拼写/史实/公式/单位等不得有误\\n3. 不出偏题怪题——不考冷门知识、不设特殊解法\\n4. 不出现政治敏感、歧视性表述（性别/地域/民族等）\\n5. 同卷内同一知识点不重复考查',
+    content: '🔴 硬性红线（违反任一条为不合格）：\n1. 不超纲——严格按所属学段课标，不确定时默认不纳入\n2. 无科学性错误——概念/计算/拼写/史实/公式/单位等不得有误\n3. 不出偏题怪题——不考冷门知识、不设特殊解法\n4. 不出现政治敏感、歧视性表述（性别/地域/民族等）\n5. 同卷内同一知识点不重复考查',
     builtin: true
   },
   { id: 'block_ban_math', name: '【禁止项】数学', category: '生成-禁止项', prompt_order: 31, type: 'fragment', subject: '数学', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '数学学科补充红线：① 确保计算/公式/单位无错误 ② 应用题数据符合实际、不反常识 ③ 几何图按比例或标注"示意图" ④ 不堆砌纯计算题（穿插情境题和探究题）', builtin: true },
@@ -800,84 +793,84 @@ export const builtinInstructions = [
     id: 'block_example_exam_chinese_lower', name: '【质量范例】低段语文试卷', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '语文', stage: 'primary_low', genType: 'exam,practice', specialSubType: 'new_standard',
-    content: '字词基础题示例："看拼音，写词语：chūn tiān(<u class="blank-4">&emsp;</u>) huā duǒ(<u class="blank-4">&emsp;</u>)" — 拼音和词语均来自教材生字表，不超纲。\n课文理解题示例："《小蝌蚪找妈妈》中，小蝌蚪先长出了什么？A.前腿 B.后腿" — 选项明确，考查课文关键情节，不涉及复杂推理。\n写话示例："看图写几句话" — 配情境图，要求写几句完整的话即可，不指定字数。',
+    content: '低段语文素养立意命题范式（对标新课标真题风格，范例示范的是命题思路，不是让你直接复制这些题）：\n① 情境识字："校园标语牌上写着：\u201c十年树木，百年树人。\u201d这里的\u2018树\u2019是（ ）A.树木 B.培养、种植" — 字词放在真实语境中考查理解运用。\n② 字理归类："松、柏、桂、枫都是木字旁，它们都和什么有关？你还认识哪些木字旁的字？" — 发现规律，考查思维能力。\n③ 语境填空："菜市场里，妈妈买了（ ）豆角，又买了（ ）葡萄。A.一把 B.一串" — 量词在生活情境中运用。\n④ 生活联结："你最喜欢哪种小动物？它有什么特点？用一两句话写下来（不会写的字用拼音）。" — 联结生活经验+开放表达。\n⑤ 探究发现："读了《拍手歌》，说说你从课文中学到了什么，为什么说\u2018人和动物是朋友\u2019。" — 说说理由，思维可见。\n🚫 禁止回忆式设问：不要出"杨树的特点是（ ）""小蝌蚪先长出了什么""XX的反义词是（ ）"这类直接从课文挖原句的单点回忆题——新课标考查素养运用，不是背课文。',
     builtin: true
   },
   {
     id: 'block_example_exam_chinese_mid', name: '【质量范例】中段语文试卷', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '语文', stage: 'primary_mid', genType: 'exam,practice', specialSubType: 'new_standard',
-    content: '基础知识应覆盖：多音字辨析、近义词选词填空、成语积累运用、修改病句、句式变换，每题标注分值。\n阅读理解题：选文300-400字，题目覆盖信息提取→关键词句理解→段落大意概括三个层次。\n习作题：300字左右命题作文，给出明确的写作要求和简要写作提示。',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 语境运用："秋天到了，果园里（果实累累／春华秋实）。选词填空，并说说你为什么这样选。" — 词语在语境中运用+说理由。\n② 探究发现："下面句子中加点的词语可以互换吗？为什么？" — 比较辨析+说理。\n③ 生活联结："学校要举行读书节，请你为班级设计一条读书标语。" — 生活实践+创意表达。\n④ 阅读理解：课内以课文原文节选为准，课外短文200-350字；题目从信息提取→关键词句理解→段落大意概括，设问不直接复述选文原句。\n🚫 禁止书本挖空：不要出"课文《秋天的雨》中，\u2018五彩缤纷\u2019的意思是（）"这类从课文中直接挖原句/原词的回忆题；多音字、近义词必须放进语境考查。',
     builtin: true
   },
   {
     id: 'block_example_exam_chinese_high', name: '【质量范例】高段语文试卷', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '语文', stage: 'primary_high', genType: 'exam,practice', specialSubType: 'new_standard',
-    content: '基础知识应覆盖：汉字书写规范、词语感情色彩辨析、关联词运用、修辞手法判断、古诗文默写与理解。\n阅读理解题：选文400-600字，题目覆盖信息提取→词句理解→篇章结构→写作手法→思想感情五个层次。\n非连续性文本阅读：提供图表/说明书/广告等，考查信息提取与综合运用能力。\n习作题：400-500字命题/半命题作文，给出明确的写作要求，配简要的写作提示。',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 语境运用："读句子，体会加点词语的表达效果，并仿写一句。" — 词句在语境中品味+迁移运用。\n② 探究发现："《白鹭》一文为什么说\u2018白鹭是一首精巧的诗\u2019？从文中找依据，说说你的理解。" — 有理有据+深度思维。\n③ 生活联结："为学校广播站拟写一则招募通知。" — 生活实践+应用文写作。\n④ 非连续性文本：提供图表/说明书/广告，考查信息提取与综合运用。\n⑤ 阅读理解：课内以课文原文节选为准，课外短文350-500字；设问从信息提取→词句理解→篇章结构→写作手法→思想感情，禁止设问直接复述选文原句。\n🚫 禁止书本挖空：古诗文默写必须理解性默写（给情境默诗句），禁止机械单句默写；课内阅读禁止挖原句填空。',
     builtin: true
   },
   {
     id: 'block_example_exam_chinese', name: '【质量范例】语文试卷', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '语文', stage: '', genType: 'exam,practice', specialSubType: 'new_standard',
-    content: '基础知识题应覆盖：字音字形、词语运用、句子练习、古诗文积累，每题分值明确。\n阅读理解题：选文长度与年级匹配，题目覆盖信息提取→词句理解→主旨概括三个层次。\n习作题：给出明确的写作要求（主题/文体/字数），配简要的写作提示。',
+    content: '基础知识题应覆盖：字音字形、词语运用、句子练习、古诗文积累，分值按【真题卷结构蓝本】大题分值体系拆分（大题标分值、小题不标分值）。\n阅读理解题：选文长度与年级匹配，题目覆盖信息提取→词句理解→主旨概括三个层次。\n习作题：给出明确的写作要求（主题/文体/字数），配简要的写作提示。\n🔴 禁止书本挖空：课文原句/原词不得直接挖空考查，古诗文默写以理解性默写为主，知识点放进语境考查运用。',
     builtin: true
   },
   {
     id: 'block_example_exam_math_lower', name: '【质量范例】低段数学考试/课时练', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '数学', stage: 'primary_low', genType: 'exam,practice',
-    content: '口算题示例："3+5=□  8-2=□" — 数字在20以内，考查基本加减法。\n应用题示例："树上有7只小鸟，飞走了3只，还剩几只？" — 一步计算，情境贴近生活。\n数字不超100。',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 情境计算："小明买3支铅笔，每支2元，付给售货员10元，应找回几元？" — 购物情境+两步思维。\n② 说理题："15+8，你是怎么算的？先算什么，再算什么？把你的想法写下来。" — 说算理，思维可见。\n③ 探究发现："观察：1+2=3，2+3=5，3+4=7，你发现了什么？照样子再写两组。" — 找规律+迁移。\n④ 生活联结："数一数，你家里有几扇门？几个窗户？门多还是窗户多？多几个？" — 真实生活+统计意识。\n🚫 禁止书本挖空：不要出"长方形的面积公式是（）""加法的含义是（）"这类定义/公式直接挖空题；计算题放进情境（购物、分物、游戏），禁止纯算式罗列。',
     builtin: true
   },
   {
     id: 'block_example_exam_math_mid', name: '【质量范例】中段数学考试/课时练', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '数学', stage: 'primary_mid', genType: 'exam,practice',
-    content: '计算题应有层次：口算（万以内加减、两位数乘一位数）→竖式计算（三位数加减、一位数乘除两位数）→脱式计算（两步混合运算）。\n应用题示例："一本书有240页，小明每天看35页，看了一个星期（7天）后还剩多少页？" — 两步计算：先乘后减，数据合理、中间结果易算。\n所有题目数据不超万位，分数/小数仅限初步认识阶段（分母不超过10，一位小数）。',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 真实情境多步应用："学校图书室有360本书，分给6个年级，每个年级3个班，平均每班分到几本？" — 两步连除，数据真实。\n② 估算与验证："妈妈带了200元，买3件衣服，每件58元，够吗？先估一估，再算一算。" — 估算意识+验证。\n③ 说理题："两位数乘一位数，积可能是几位数？举例说明你的判断。" — 说理+举例，思维可见。\n④ 探究发现："用12个边长1厘米的小正方形拼长方形，有几种拼法？它们的周长一样吗？你发现了什么？" — 动手操作+发现规律。\n🚫 禁止书本挖空：不要出"正方形的周长公式是（）""分数的定义是（）"这类公式/定义挖空题；课本例题只作知识点来源，题目必须换情境换数据重新设计。',
     builtin: true
   },
   {
     id: 'block_example_exam_math_high', name: '【质量范例】高段数学考试/课时练', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '数学', stage: 'primary_high', genType: 'exam,practice',
-    content: '计算题分层次：口算→小数乘除法竖式→分数四则运算→简便计算（运用运算律）。\n应用题示例："一个三角形花坛，底边长12.5米，高8米。如果每平方米种9株花，一共可以种多少株？" — 多步计算：先求面积再求总数，中间步骤有实际意义。\n综合题：融入几何（周长/面积/体积）、统计图表（提取信息计算）、方程思想等跨知识点考查。\n所有计算数据结果应为整数或有限小数，避免除不尽的情况。',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 真实情境综合应用："小区花园是平行四边形，底16.8米，高9.5米，铺草坪每平方米35元，一共要多少元？（得数保留整数）" — 面积+估算+实际问题。\n② 开放题："一个长方体的体积是48立方厘米，它的长、宽、高可能是多少？写出3种可能。" — 多解开放+逆向思维。\n③ 说理题："为什么除以一个不为0的数，等于乘这个数的倒数？用具体例子说明。" — 说算理+推理。\n④ 探究发现："看折线统计图，某月气温上升最快，你判断的依据是什么？你还能提出什么数学问题？" — 数据解读+提问。\n🚫 禁止书本挖空：不要出"圆的面积公式是（）""比例的基本性质是（）"这类公式/性质直接挖空题；课本例题原题照搬属严重问题——必须换情境、换数据重新设计。',
     builtin: true
   },
   {
     id: 'block_example_exam_math', name: '【质量范例】数学考试/课时练', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '数学', stage: '', genType: 'exam,practice',
-    content: '计算题应有层次：基础口算→竖式计算→脱式计算/简算，逐步增加复杂度。\n应用题情境真实、数据合理，每道题考查一个核心知识点，多步计算的中间结果应为整数或简单小数。',
+    content: '计算题应有层次：基础口算→竖式计算→脱式计算/简算，逐步增加复杂度。\n应用题情境真实、数据合理，每道题考查一个核心知识点，多步计算的中间结果应为整数或简单小数。\n🔴 禁止书本挖空：公式/定义/性质不得直接挖空（"××的公式是（）"），课本例题不得原题照搬；计算题放进真实情境（购物/测量/游戏），每道题基于知识点重新设计。',
     builtin: true
   },
   {
     id: 'block_example_exam_english_lower', name: '【质量范例】低段英语试卷/课时练', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '英语', stage: 'primary_low', genType: 'exam,practice',
-    content: '词汇选择题示例："I have a ___. A. apple B. banana C. cat D. dog" — 选项词性一致（均为名词），干扰项与正确项属同一语义场，不混入不同词性。\n看图选词/连线示例：配教材单元主题图，词汇标注格式 <strong>apple</strong> <span class="phonetic">/ˈæpəl/</span> <em>n.</em>，词性用英文缩写（n./v./adj./adv./prep./pron.等），禁止用中文"名词""动词"。\n句型题示例："— ___ is your name? — My name is Tom." 选项 A. What B. How C. Who — 考查疑问词辨析，每个选项都是同一词类。\n情境对话示例：给出简短对话（若干来回），留一个空选择/填写，语境清晰、选项不引入新词。',
+    content: '词汇选择题示例："I have a ___. A. apple B. banana C. cat D. dog" — 选项词性一致（均为名词），干扰项与正确项属同一语义场，不混入不同词性。\n看图选词/连线示例：配教材单元主题图，词汇标注格式 <strong>apple</strong> <span class="phonetic">/ˈæpəl/</span> <em>n.</em>，词性用英文缩写（n./v./adj./adv./prep./pron.等），禁止用中文"名词""动词"。\n句型题示例："— ___ is your name? — My name is Tom." 选项 A. What B. How C. Who — 考查疑问词辨析，每个选项都是同一词类。\n情境对话示例：给出简短对话（若干来回），留一个空选择/填写，语境清晰、选项不引入新词。\n🚫 禁止书本挖空：禁止"apple的中文意思是（）"式单词表机械互译、禁止课文原句直接挖空——词汇必须在语境/交际情境中考查。',
     builtin: true
   },
   {
     id: 'block_example_exam_english_mid', name: '【质量范例】中段英语试卷/课时练', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '英语', stage: 'primary_mid', genType: 'exam,practice',
-    content: '词汇题词性标注必须用英文缩写（n./v./adj./adv./prep./pron.），严禁中文词性。\n语法选择题示例："My mother ___ in a hospital. A. work B. works C. working D. to work" — 考查一般现在时第三人称单数，所有选项为同一动词的不同形式。\n情景对话示例：给出4-5句话的简短对话，留若干空选择/填写，语境清晰、选项不超纲。\n阅读理解：选文60-80词，配若干道单选题（信息提取、简单推断），文中生词配中文注释。',
+    content: '词汇题词性标注必须用英文缩写（n./v./adj./adv./prep./pron.），严禁中文词性。\n语法选择题示例："My mother ___ in a hospital. A. work B. works C. working D. to work" — 考查一般现在时第三人称单数，所有选项为同一动词的不同形式。\n情景对话示例：给出4-5句话的简短对话，留若干空选择/填写，语境清晰、选项不超纲。\n阅读理解：选文60-80词，配若干道单选题（信息提取、简单推断），文中生词配中文注释。\n🚫 禁止书本挖空：禁止单词表机械互译与课文句子挖空，词汇/语法放进语境与交际情境考查。',
     builtin: true
   },
   {
     id: 'block_example_exam_english_high', name: '【质量范例】高段英语试卷/课时练', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '英语', stage: 'primary_high', genType: 'exam,practice',
-    content: '词汇题词性标注用英文缩写，首次出现生词配中文注释（括号内）。\n语法选择题示例："She ___ to Beijing last summer. A. go B. goes C. went D. will go" — 选项覆盖不同时态制造干扰，考查一般过去时。\n完形填空：选文80-150词，留若干空，每空4个选项（1正确、3干扰：近义干扰、语法干扰、逻辑干扰），首尾句不挖空。\n阅读理解：选文100-120词，配若干道题（2细节、1推断、1词义猜测、1主旨），体裁多样（对话/记叙/说明/应用文）。\n书面表达：短文，明确写作目的、词数要求，配若干参考词汇/句型提示。',
+    content: '词汇题词性标注用英文缩写，首次出现生词配中文注释（括号内）。\n语法选择题示例："She ___ to Beijing last summer. A. go B. goes C. went D. will go" — 选项覆盖不同时态制造干扰，考查一般过去时。\n完形填空：选文80-150词，留若干空，每空4个选项（1正确、3干扰：近义干扰、语法干扰、逻辑干扰），首尾句不挖空。\n阅读理解：选文100-120词，配若干道题（2细节、1推断、1词义猜测、1主旨），体裁多样（对话/记叙/说明/应用文）。\n书面表达：短文，明确写作目的、词数要求，配若干参考词汇/句型提示。\n🚫 禁止书本挖空：禁止单词表机械互译与课文原句挖空，词汇/语法放进语境与交际情境考查。',
     builtin: true
   },
   {
     id: 'block_example_exam_english', name: '【质量范例】英语试卷/课时练', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '英语', stage: '', genType: 'exam,practice',
-    content: '词汇题词性标注必须用英文缩写：n.（名词）/ v.（动词）/ adj.（形容词）/ adv.（副词）/ prep.（介词）/ pron.（代词）/ conj.（连词）/ num.（数词）/ art.（冠词），严禁出现"名词""动词"等中文词性。题干中首次出现生词需配中文注释（括号内）。\n语法选择题示例："She ___ to school every day. A. go B. goes C. going D. gone" — 所有选项为同一动词的不同形式，通过时态/主谓一致制造干扰，不混入无关词。\n完形填空：选文长度与年级匹配（小学≤100词/初中≤200词/高中≤300词），挖空间距至少4词。首尾句不挖空。每空4个选项：1个正确+3个干扰（1个近义/同形干扰、1个语法干扰、1个逻辑干扰）。\n阅读理解：选文体裁多样（对话/记叙/说明/应用文），题量若干道（覆盖细节、推断、词义、主旨各层次），禁止出现"Which of the following is NOT true"以外的全否定题干。\n书面表达：给出明确的写作目的、读者对象、词数要求，配若干参考词汇/句型提示。',
+    content: '词汇题词性标注必须用英文缩写：n.（名词）/ v.（动词）/ adj.（形容词）/ adv.（副词）/ prep.（介词）/ pron.（代词）/ conj.（连词）/ num.（数词）/ art.（冠词），严禁出现"名词""动词"等中文词性。题干中首次出现生词需配中文注释（括号内）。\n语法选择题示例："She ___ to school every day. A. go B. goes C. going D. gone" — 所有选项为同一动词的不同形式，通过时态/主谓一致制造干扰，不混入无关词。\n完形填空：选文长度与年级匹配（小学≤100词/初中≤200词/高中≤300词），挖空间距至少4词。首尾句不挖空。每空4个选项：1个正确+3个干扰（1个近义/同形干扰、1个语法干扰、1个逻辑干扰）。\n阅读理解：选文体裁多样（对话/记叙/说明/应用文），题量若干道（覆盖细节、推断、词义、主旨各层次），禁止出现"Which of the following is NOT true"以外的全否定题干。\n书面表达：给出明确的写作目的、读者对象、词数要求，配若干参考词汇/句型提示。\n🔴 禁止书本挖空：禁止"apple的中文意思是（）"式单词表机械互译、禁止课文原句直接挖空——词汇在语境/交际情境中考查，语法在语境中考查（如对话填空），不孤立考查语法定义。',
     builtin: true
   },
   {
@@ -1211,15 +1204,8 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   // 【内容规范】块级指令
   // ═══════════════════════════════════════
-  {
-    id: 'block_content_norm', name: '【内容规范】通用（教材锚定+禁emoji+充实度）', category: '生成-内容规范', type: 'fragment',
-    prompt_order: 40,
-    subject: '', stage: '', genType: '',
-    content: '教材锚定原则：内容紧贴教材原文，知识点覆盖完整，杜绝脱离教材凭空编造。',
-    builtin: true
-  },
 
-  // ── 教材锚定 × genType 专属强化（三维度精准匹配）──
+  // ── 教材锚定 × genType 专属强化（三维度精准匹配，无通用兑底条目）──
   { id: 'block_content_norm_exam_primary', name: '【内容规范】考卷-教材锚定（小学）', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: 'primary', genType: 'exam',
     content: '🔴 【考卷教材锚定】\n✅ 知识点100%覆盖所选教材章节，每个小题对应教材具体章节，不超纲不遗漏\n✅ 阅读至少1篇为课内课文片段，文末标注出处：【选自教材X年级第X课《XX》】\n⚠️ 可配1篇同主题课外语段（可选）：主题/难度/篇幅匹配本单元教材水平，文末标注作者/来源；低段(1-2年级)以课内为主\n✅ 古诗文默写篇目须全部来自教材必背篇目，古诗阅读篇目须全部来自教材\n✅ 选择题干扰项来源须可追溯（学生常见错误/教材易混点）',
@@ -1288,51 +1274,51 @@ export const builtinInstructions = [
   // ── 图形：5学段（小学低中段简化描述）──
   { id: 'block_special_graph_primary_low', name: '【专项要求】图形-小学低段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '数学', stage: 'primary_low', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【图形要求】[GRAPH]\n类型：平面几何/立体几何/函数图像/示意图\n描述：[简单描述图形]\n[/GRAPH]', builtin: true },
+    content: '【图形要求】数学图形一律按 EduRender 结构化格式输出（禁止纯文字描述图形）——数轴用 [GRAPH] TYPE:COORDINATE、简单图形（点/线/三角形/长方形/圆）用 [GRAPH] TYPE:SHAPES（POINT/LINE/POLYGON/CIRCLE），格式模板详见【EduRender模板】；低段图形保持简单（坐标为整数、图形不复杂）。', builtin: true },
   { id: 'block_special_graph_primary_mid', name: '【专项要求】图形-小学中段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '数学', stage: 'primary_mid', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【图形要求】[GRAPH]\n类型：平面几何/立体几何/函数图像/示意图\n描述：[简单描述图形]\n[/GRAPH]', builtin: true },
+    content: '【图形要求】数学图形一律按 EduRender 结构化格式输出（禁止纯文字描述图形）——数轴用 [GRAPH] TYPE:COORDINATE、简单图形（点/线/三角形/长方形/圆）用 [GRAPH] TYPE:SHAPES（POINT/LINE/POLYGON/CIRCLE），格式模板详见【EduRender模板】；低段图形保持简单（坐标为整数、图形不复杂）。', builtin: true },
   { id: 'block_special_graph_primary_high', name: '【专项要求】图形-小学高段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '数学', stage: 'primary_high', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【图形要求】[GRAPH]\n类型：平面几何/立体几何/函数图像/示意图\n描述：[详细描述图形，包括关键点坐标、边长、角度等]\n[/GRAPH]', builtin: true },
+    content: '【图形要求】数学图形一律按 EduRender 结构化格式输出（禁止纯文字描述图形）——数轴用 [GRAPH] TYPE:COORDINATE、几何与函数图像用 [GRAPH] TYPE:SHAPES（POINT/LINE/POLYGON/CIRCLE/FUNCTION/ANGLE），并标注关键点坐标、边长、角度；格式模板详见【EduRender模板】。', builtin: true },
   { id: 'block_special_graph_middle', name: '【专项要求】图形-初中', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '数学', stage: 'middle', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【图形要求】[GRAPH]\n类型：平面几何/立体几何/函数图像/示意图\n描述：[详细描述图形，包括关键点坐标、边长、角度等]\n[/GRAPH]', builtin: true },
+    content: '【图形要求】数学图形一律按 EduRender 结构化格式输出（禁止纯文字描述图形）——数轴用 [GRAPH] TYPE:COORDINATE、几何与函数图像用 [GRAPH] TYPE:SHAPES（POINT/LINE/POLYGON/CIRCLE/FUNCTION/ANGLE），并标注关键点坐标、边长、角度；格式模板详见【EduRender模板】。', builtin: true },
   { id: 'block_special_graph_high', name: '【专项要求】图形-高中', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '数学', stage: 'high', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【图形要求】[GRAPH]\n类型：平面几何/立体几何/函数图像/示意图\n描述：[详细描述图形，包括关键点坐标、边长、角度等]\n[/GRAPH]', builtin: true },
+    content: '【图形要求】数学图形一律按 EduRender 结构化格式输出（禁止纯文字描述图形）——数轴用 [GRAPH] TYPE:COORDINATE、几何与函数图像用 [GRAPH] TYPE:SHAPES（POINT/LINE/POLYGON/CIRCLE/FUNCTION/ANGLE），并标注关键点坐标、边长、角度；格式模板详见【EduRender模板】。', builtin: true },
   // ── 图表：5学段（小学低中段简化数据）──
   { id: 'block_special_chart_primary_low', name: '【专项要求】图表-小学低段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '数学,科学', stage: 'primary_low', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【图表要求】[CHART]\n类型：条形/折线/扇形/直方图\n标题：[标题]\nX轴：[含义]\nY轴：[含义]\n数据：[简单数值（不超过5组）]\n[/CHART]', builtin: true },
+    content: '【图表要求】统计图一律按 EduRender 结构化格式输出（格式模板详见【EduRender模板】）；数据不超过5组、优先柱状图。', builtin: true },
   { id: 'block_special_chart_primary_mid', name: '【专项要求】图表-小学中段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '数学,科学', stage: 'primary_mid', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【图表要求】[CHART]\n类型：条形/折线/扇形/直方图\n标题：[标题]\nX轴：[含义]\nY轴：[含义]\n数据：[简单数值（不超过5组）]\n[/CHART]', builtin: true },
+    content: '【图表要求】统计图一律按 EduRender 结构化格式输出（格式模板详见【EduRender模板】）；数据不超过5组、优先柱状图。', builtin: true },
   { id: 'block_special_chart_primary_high', name: '【专项要求】图表-小学高段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '数学,科学', stage: 'primary_high', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【图表要求】[CHART]\n类型：条形/折线/扇形/直方图\n标题：[标题]\nX轴：[含义]\nY轴：[含义]\n数据：[数值]\n[/CHART]', builtin: true },
+    content: '【图表要求】统计图一律按 EduRender 结构化格式输出（格式模板详见【EduRender模板】）。', builtin: true },
   { id: 'block_special_chart_middle', name: '【专项要求】图表-初中', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '数学,物理,化学,生物,地理', stage: 'middle', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【图表要求】[CHART]\n类型：条形/折线/扇形/直方图\n标题：[标题]\nX轴：[含义]\nY轴：[含义]\n数据：[数值]\n[/CHART]', builtin: true },
+    content: '【图表要求】统计图一律按 EduRender 结构化格式输出（格式模板详见【EduRender模板】）。', builtin: true },
   { id: 'block_special_chart_high', name: '【专项要求】图表-高中', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '数学,物理,化学,生物,地理', stage: 'high', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【图表要求】[CHART]\n类型：条形/折线/扇形/直方图\n标题：[标题]\nX轴：[含义]\nY轴：[含义]\n数据：[数值]\n[/CHART]', builtin: true },
+    content: '【图表要求】统计图一律按 EduRender 结构化格式输出（格式模板详见【EduRender模板】）。', builtin: true },
   // ── 配图：5学段（⚠️ 前置门禁——非白名单场景一律禁用，格式仅在确需配图时作为参考）──
   { id: 'block_special_image_primary_low', name: '【专项要求】配图-小学低段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '语文,英语,科学', stage: 'primary_low', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【配图要求——⚠️ 铁律：能出纯文字题的绝不用图！仅当知识点非图不可考时才配图。仅限以下5类场景：①看图写话/看图说话 ②图表解读/数据图表 ③地图定位/地形判读 ④实验装置图/几何图形 ⑤低段语文看图选词/看图连线。非以上场景严禁出现[IMAGE]标记。确属以上场景时，格式：\n[IMAGE]\n类型：照片/插画/示意图\n描述：[详细描述画面内容]\n位置：题干上方/下方/居中\n[/IMAGE]\n小学低中段配图应卡通化、色彩鲜明、贴近儿童生活。', builtin: true },
+    content: '【配图要求——⚠️ 铁律：能出纯文字题的绝不用图！仅当知识点非图不可考时才配图。仅限以下7类场景：①看图写话/看图说话 ②图表解读/数据图表 ③地图定位/地形判读 ④实验装置图/几何图形 ⑤低段语文/英语看图选词、看图连线 ⑥英语听力配图题（听音选图/听音判断/听音排序/词图匹配/涂色任务）⑦数学看图列式、图文应用题、方格纸操作图。非以上场景严禁出现[IMAGE]标记。确属以上场景时，必须按 EduRender 结构化格式输出配图指令（TYPE:SD 文生图 / TYPE:ICON 图标检索，格式模板详见【EduRender模板】）。\n小学低中段配图应卡通化、线条简洁、贴近儿童生活；试卷类资料用黑白线稿风格（真题卷黑白印刷），练习类资料可用彩色。', builtin: true },
   { id: 'block_special_image_primary_mid', name: '【专项要求】配图-小学中段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '语文,英语,科学', stage: 'primary_mid', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【配图要求——⚠️ 铁律：能出纯文字题的绝不用图！仅当知识点非图不可考时才配图。仅限以下5类场景：①看图写话/看图说话 ②图表解读/数据图表 ③地图定位/地形判读 ④实验装置图/几何图形 ⑤低段语文看图选词/看图连线。非以上场景严禁出现[IMAGE]标记。确属以上场景时，格式：\n[IMAGE]\n类型：照片/插画/示意图\n描述：[详细描述画面内容]\n位置：题干上方/下方/居中\n[/IMAGE]\n小学低中段配图应卡通化、色彩鲜明、贴近儿童生活。', builtin: true },
+    content: '【配图要求——⚠️ 铁律：能出纯文字题的绝不用图！仅当知识点非图不可考时才配图。仅限以下7类场景：①看图写话/看图说话 ②图表解读/数据图表 ③地图定位/地形判读 ④实验装置图/几何图形 ⑤低段语文/英语看图选词、看图连线 ⑥英语听力配图题（听音选图/听音判断/听音排序/词图匹配/涂色任务）⑦数学看图列式、图文应用题、方格纸操作图。非以上场景严禁出现[IMAGE]标记。确属以上场景时，必须按 EduRender 结构化格式输出配图指令（TYPE:SD 文生图 / TYPE:ICON 图标检索，格式模板详见【EduRender模板】）。\n小学低中段配图应卡通化、线条简洁、贴近儿童生活；试卷类资料用黑白线稿风格（真题卷黑白印刷），练习类资料可用彩色。', builtin: true },
   { id: 'block_special_image_primary_high', name: '【专项要求】配图-小学高段', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '语文,英语,科学', stage: 'primary_high', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【配图要求——⚠️ 铁律：能出纯文字题的绝不用图！仅当知识点非图不可考时才配图。仅限以下5类场景：①看图写话/看图说话 ②图表解读/数据图表 ③地图定位/地形判读 ④实验装置图/几何图形 ⑤低段语文看图选词/看图连线。非以上场景严禁出现[IMAGE]标记。确属以上场景时，格式：\n[IMAGE]\n类型：照片/插画/示意图\n描述：[详细描述画面内容]\n位置：题干上方/下方/居中\n[/IMAGE]\n小学高段配图可减少卡通风格，增加示意图、图表等半抽象视觉元素。', builtin: true },
+    content: '【配图要求——⚠️ 铁律：能出纯文字题的绝不用图！仅当知识点非图不可考时才配图。仅限以下7类场景：①看图写话/看图说话 ②图表解读/数据图表 ③地图定位/地形判读 ④实验装置图/几何图形 ⑤低段语文/英语看图选词、看图连线 ⑥英语听力配图题（听音选图/听音判断/听音排序/词图匹配/涂色任务）⑦数学看图列式、图文应用题、方格纸操作图。非以上场景严禁出现[IMAGE]标记。确属以上场景时，必须按 EduRender 结构化格式输出配图指令（TYPE:SD 文生图 / TYPE:ICON 图标检索，格式模板详见【EduRender模板】）。\n小学高段配图可减少卡通风格，增加示意图、图表等半抽象视觉元素。', builtin: true },
   { id: 'block_special_image_middle', name: '【专项要求】配图-初中', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '语文,英语', stage: 'middle', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【配图要求——⚠️ 铁律：能出纯文字题的绝不用图！仅当知识点非图不可考时才配图。仅限以下5类场景：①看图写话/看图说话 ②图表解读/数据图表 ③地图定位/地形判读 ④实验装置图/几何图形 ⑤低段语文看图选词/看图连线。非以上场景严禁出现[IMAGE]标记。确属以上场景时，格式：\n[IMAGE]\n类型：照片/插画/示意图\n描述：[详细描述画面内容]\n位置：题干上方/下方/居中\n[/IMAGE]', builtin: true },
+    content: '【配图要求——⚠️ 铁律：能出纯文字题的绝不用图！仅当知识点非图不可考时才配图。仅限以下7类场景：①看图写话/看图说话 ②图表解读/数据图表 ③地图定位/地形判读 ④实验装置图/几何图形 ⑤低段语文/英语看图选词、看图连线 ⑥英语听力配图题（听音选图/听音判断/听音排序/词图匹配/涂色任务）⑦数学看图列式、图文应用题、方格纸操作图。非以上场景严禁出现[IMAGE]标记。确属以上场景时，必须按 EduRender 结构化格式输出配图指令（TYPE:SD 文生图 / TYPE:ICON 图标检索，格式模板详见【EduRender模板】）。', builtin: true },
   { id: 'block_special_image_high', name: '【专项要求】配图-高中', category: '生成-专项要求', prompt_order: 20, type: 'fragment',
     subject: '语文,英语', stage: 'high', genType: 'exam,practice,special,errorbook,reading,summary',
-    content: '【配图要求——⚠️ 铁律：能出纯文字题的绝不用图！仅当知识点非图不可考时才配图。仅限以下5类场景：①看图写话/看图说话 ②图表解读/数据图表 ③地图定位/地形判读 ④实验装置图/几何图形 ⑤低段语文看图选词/看图连线。非以上场景严禁出现[IMAGE]标记。确属以上场景时，格式：\n[IMAGE]\n类型：照片/插画/示意图\n描述：[详细描述画面内容]\n位置：题干上方/下方/居中\n[/IMAGE]', builtin: true },
+    content: '【配图要求——⚠️ 铁律：能出纯文字题的绝不用图！仅当知识点非图不可考时才配图。仅限以下7类场景：①看图写话/看图说话 ②图表解读/数据图表 ③地图定位/地形判读 ④实验装置图/几何图形 ⑤低段语文/英语看图选词、看图连线 ⑥英语听力配图题（听音选图/听音判断/听音排序/词图匹配/涂色任务）⑦数学看图列式、图文应用题、方格纸操作图。非以上场景严禁出现[IMAGE]标记。确属以上场景时，必须按 EduRender 结构化格式输出配图指令（TYPE:SD 文生图 / TYPE:ICON 图标检索，格式模板详见【EduRender模板】）。', builtin: true },
 
   // ═══════════════════════════════════════
   // 【题型专项要求】块级指令 — 按 genType（choice/fill/truefalse/calc/answer/word_problem/experiment）精确匹配
@@ -1455,14 +1441,14 @@ export const builtinInstructions = [
     id: 'block_format_numbering', name: '【输出格式】题号体系', category: '生成-输出格式', type: 'fragment',
     prompt_order: 23,
     subject: '', stage: '', genType: 'exam,practice,special,review',
-    content: '- 题号三级体系（强制性）：【板块标题】h2标签内用"一、二、三、"（中文数字、顿号），如<h2>一、选择题</h2>。【独立题目】p.question标签内用"1. 2. 3."（阿拉伯数字、英文句点），跨板块连续编号不重置。【综合题子题】内部用"(1)(2)(3)"（半角圆括号），禁用"①②③"。禁止同级混搭编号格式、禁止仅靠缩进区分层级。⛔ 严禁：<p style="margin-left:20px;font-size:14px;">（缩进、小字号导出Word后层级消失）。✅ 正确：h2板块下所有题目用p.question统一字号无缩进。⛔ 所有题目必须用<p class="question">标签，严禁不带class属性的<p>做题目容器。',
+    content: '- 题号三级体系（强制性）：【板块标题】h2标签内用"一、二、三、"（中文数字、顿号），如<h2>一、选择题</h2>。【独立题目】p.question标签内用"1. 2. 3."（阿拉伯数字、英文句点），各大题内小题从"1."重新编号、不得全卷连续编号（与真题蓝本一致）。【综合题子题】内部用"(1)(2)(3)"（半角圆括号），禁用"①②③"。禁止同级混搭编号格式、禁止仅靠缩进区分层级。⛔ 严禁：<p style="margin-left:20px;font-size:14px;">（缩进、小字号导出Word后层级消失）。✅ 正确：h2板块下所有题目用p.question统一字号无缩进。⛔ 所有题目必须用<p class="question">标签，严禁不带class属性的<p>做题目容器。',
     builtin: true
   },
   {
     id: 'block_format_base', name: '【输出格式】基础格式', category: '生成-输出格式', type: 'fragment',
     prompt_order: 23,
     subject: '', stage: '', genType: 'exam,practice,special,review',
-    content: '- 大标题用<h1>，单元标题用<h2>，小节标题用<h3>。⚠️ 禁止使用<h4>/<h5>/<h6>缩小字号制造层级感——正文统一字号（<p>默认大小），层级区分仅靠编号格式。\n- 正文用<p>，选项用<p class="option">。所有题目正文（题干/选项/填空/答案）统一字号，禁止给 .option、.question、.answer-item、.notice、.card 等设置内联 font-size 样式。选项和答案的缩进层级仅靠 margin-left 区分，不得逐级缩小字号。\n- 选择题用<ol>有序列表，每题用<li>包裹题干+选项/作答区。',
+    content: '- 大标题用<h1>，单元标题用<h2>，小节标题用<h3>。⚠️ 禁止使用<h4>/<h5>/<h6>缩小字号制造层级感——正文统一字号（<p>默认大小），层级区分仅靠编号格式。\n- 正文用<p>，选项用<p class="option">。所有题目正文（题干/选项/填空/答案）统一字号，禁止给 .option、.question、.answer-item、.notice、.card 等设置内联 font-size 样式。选项和答案的缩进层级仅靠 margin-left 区分，不得逐级缩小字号。\n- 选择题题目用<p class="question">包裹题干+作答区，选项逐行用<p class="option">排列。',
     builtin: true
   },
   {
@@ -1548,7 +1534,7 @@ export const builtinInstructions = [
     id: 'block_edurender_axis', name: '【EduRender模板】数轴模板', category: '生成-EduRender模板', type: 'fragment',
     prompt_order: 21,
     subject: '数学', stage: '', genType: '',
-    content: '题目涉及数轴时使用：[GRAPH]\nTYPE:COORDINATE\nXLIM:min,max\nYLIM:-1,1\nGRID:FALSE\nNUMBER_POSITION:top\nTICK_DIRECTION:up\nLEFT_ARROW:false\nRIGHT_ARROW:true\nAXIS_COLOR:black\nLINE_WIDTH:2\nTICK_LENGTH:6\nLABEL_FONT_SIZE:14\nMARKERS:...\n[/GRAPH]',
+    content: '题目涉及数轴时使用：[GRAPH]\nTYPE:COORDINATE\nXLIM:min,max\nYLIM:-1,1\nGRID:FALSE\nNUMBER_POSITION:top\nTICK_DIRECTION:up\nLEFT_ARROW:false\nRIGHT_ARROW:true\nAXIS_COLOR:black\nLINE_WIDTH:2\nTICK_LENGTH:6\nFONT_SIZE:10\nTICK_STEP:1\nARROW_STYLE:>\nARROW_SCALE:1.0\nPADDING:0.15\n[/GRAPH]',
     builtin: true
   },
   {
@@ -1698,44 +1684,8 @@ export const builtinInstructions = [
     builtin: true
   },
 
-  // ═══════════════════════════════════════
-  // 【生成_学段适配】块级指令 — 根据年级自动注入
-  // ═══════════════════════════════════════
-  {
-    id: 'gen_stage_primary_low', name: '【小学低段1-2年级】', category: '生成-学段适配', type: 'fragment',
-    prompt_order: 16,
-    subject: '', stage: 'primary_low', genType: '',
-    content: '小学低段（1-2年级）：语言简洁口语化，多用具体形象表述；选择题≤3选项。',
-    builtin: true
-  },
-  {
-    id: 'gen_stage_primary_mid', name: '【小学中段3-4年级】', category: '生成-学段适配', type: 'fragment',
-    prompt_order: 16,
-    subject: '', stage: 'primary_mid', genType: '',
-    content: '小学中段（3-4年级）：增加段落阅读量；引入简单应用题和阅读理解。',
-    builtin: true
-  },
-  {
-    id: 'gen_stage_primary_high', name: '【小学高段5-6年级】', category: '生成-学段适配', type: 'fragment',
-    prompt_order: 16,
-    subject: '', stage: 'primary_high', genType: '',
-    content: '小学高段（5-6年级）：增加阅读量和思维深度；为初中衔接做准备。',
-    builtin: true
-  },
-  {
-    id: 'gen_stage_middle', name: '【初中】', category: '生成-学段适配', type: 'fragment',
-    prompt_order: 16,
-    subject: '', stage: 'middle', genType: '',
-    content: '- 📙 初中学段：逐步增加抽象思维和多步推理；可引入跨章节综合；对标中考题型',
-    builtin: true
-  },
-  {
-    id: 'gen_stage_high', name: '【高中】', category: '生成-学段适配', type: 'fragment',
-    prompt_order: 16,
-    subject: '', stage: 'high', genType: '',
-    content: '- 📕 高中学段：参考高考题型和分值方向；注重核心素养和跨模块综合；可设压轴题',
-    builtin: true
-  },
+  // （已删除 gen_stage_* 学段适配 5 块——与「生成-学段控制」双轨重复，学段控制为详细版并已吸收其独特点，v27）
+
 
   // ═══════════════════════════════════════
   // 【生成_学科适配】块级指令 — 根据学科+学段自动注入（subjectMap 拆分）
@@ -1859,106 +1809,6 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   // 【生成_资料类型结构】块级指令 — 根据学科+资料类型自动注入
   // ═══════════════════════════════════════
-  // ── 试卷 exam ──
-  { id: 'gen_struct_exam_chinese_primary_low', name: '【试卷结构-语文-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '语文', stage: 'primary_low', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、识字与写字（语境中考查，勿孤立出题）\n二、阅读与鉴赏（短文/绘本，含信息提取与推理）\n三、表达与交流（写话/口语交际）', builtin: true },
-  { id: 'gen_struct_exam_chinese_primary_mid', name: '【试卷结构-语文-小学中段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '语文', stage: 'primary_mid', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、识字与写字（语境中考查字词句段，勿孤立出题）\n二、阅读与鉴赏（文学类/实用类文本，含批注与推理）\n三、表达与交流（习作，含支架引导）', builtin: true },
-  { id: 'gen_struct_exam_chinese_primary_high', name: '【试卷结构-语文-小学高段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '语文', stage: 'primary_high', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、识字与写字（语境中综合运用）\n二、阅读与鉴赏（文学类、实用类文本）\n三、表达与交流（习作）\n四、梳理与探究', builtin: true },
-  { id: 'gen_struct_exam_chinese_middle', name: '【试卷结构-语文-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '语文', stage: 'middle', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、语言积累与梳理\n二、阅读与鉴赏（文学类、实用类、整本书阅读）\n三、表达与交流（写作、口语交际）\n四、梳理与探究', builtin: true },
-  { id: 'gen_struct_exam_chinese_high', name: '【试卷结构-语文-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '语文', stage: 'high', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、阅读与鉴赏（现代文、古代诗文）\n二、表达与交流（写作）\n三、梳理与探究（语言运用、整本书阅读）', builtin: true },
-  { id: 'gen_struct_exam_math_primary_low', name: '【试卷结构-数学-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '数学', stage: 'primary_low', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、基础素养检测（数感/量感/运算能力核心）\n二、问题解决（生活情境中的简单应用）\n三、动手操作与探究（实物操作/图形认识）', builtin: true },
-  { id: 'gen_struct_exam_math_primary_mid', name: '【试卷结构-数学-小学中段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '数学', stage: 'primary_mid', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、基础素养检测（算理/概念/运算能力核心）\n二、问题解决与建模（真实情境中的数学应用）\n三、探究与创新（开放题初探/跨学科启蒙）', builtin: true },
-  { id: 'gen_struct_exam_math_primary_high', name: '【试卷结构-数学-小学高段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '数学', stage: 'primary_high', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、基础素养检测（算理/概念/算力核心）\n二、问题解决与建模（真实情境中的数学应用）\n三、探究与创新（开放题/跨学科融合）\n四、反思与评价', builtin: true },
-  { id: 'gen_struct_exam_math_middle', name: '【试卷结构-数学-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '数学', stage: 'middle', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、基础素养检测（概念/公式/算力核心）\n二、问题解决与建模（真实情境中的数学应用）\n三、探究与创新（开放题/跨学科融合）\n四、反思与评价', builtin: true },
-  { id: 'gen_struct_exam_math_high', name: '【试卷结构-数学-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '数学', stage: 'high', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、基础素养检测（概念深化/逻辑推理核心）\n二、问题解决与建模（真实情境中的数学应用）\n三、探究与创新（开放题/跨学科融合/压轴题）\n四、反思与评价', builtin: true },
-  // ── 英语 exam（按学段拆分：小学低/中/高段 + 初中 + 高中）──
-  { id: 'gen_struct_exam_english_primary_low', name: '【试卷结构-英语-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '英语', stage: 'primary_low', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、语篇感知与理解（字母词汇在语篇中认读，勿孤立考查）\n二、阅读与理解（图片与简单语篇）\n三、表达与交际（日常交际用语）\n四、文化感知', builtin: true },
-  { id: 'gen_struct_exam_english_primary_mid', name: '【试卷结构-英语-小学中段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '英语', stage: 'primary_mid', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、语言知识运用（语篇中的词汇与句型活用）\n二、阅读与理解（多模态语篇）\n三、表达与交际（真实语境中的表达）\n四、文化理解与跨学科', builtin: true },
-  { id: 'gen_struct_exam_english_primary_high', name: '【试卷结构-英语-小学高段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '英语', stage: 'primary_high', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、语言知识运用（语篇中的词汇与语法活用）\n二、阅读与理解（多模态语篇）\n三、表达与交际（真实语境中的表达）\n四、文化理解与跨学科', builtin: true },
-  { id: 'gen_struct_exam_english_middle', name: '【试卷结构-英语-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '英语', stage: 'middle', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、语言知识运用（语篇中活用语法词汇）\n二、阅读与理解（多模态语篇、任务型阅读）\n三、表达与交际（真实语境中的写作与交际）\n四、文化理解与跨学科', builtin: true },
-  { id: 'gen_struct_exam_english_high', name: '【试卷结构-英语-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '英语', stage: 'high', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、语言知识运用（语篇中活用语法词汇）\n二、阅读与理解（多模态语篇、思辨阅读、读写结合）\n三、表达与交际（真实语境中的写作与交际）\n四、文化理解与跨学科', builtin: true },
-  // ── 物理 exam（按初/高中拆分）──
-  { id: 'gen_struct_exam_physics_middle', name: '【试卷结构-物理-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '物理', stage: 'middle', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、科学思维·选择（概念辨析、情境判断）\n二、科学探究·填空（现象分析、原理应用）\n三、科学探究·作图（模型建构、图示表达）\n四、科学探究·实验（方案设计、数据分析）\n五、科学应用·计算（建模、推演）', builtin: true },
-  { id: 'gen_struct_exam_physics_high', name: '【试卷结构-物理-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '物理', stage: 'high', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、科学思维·选择（概念辨析、多选判断）\n二、科学探究·实验（方案设计、数据分析、误差评价）\n三、科学论证·计算（建模、推演、综合应用）', builtin: true },
-  // ── 化学 exam（按初/高中拆分）──
-  { id: 'gen_struct_exam_chemistry_middle', name: '【试卷结构-化学-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '化学', stage: 'middle', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、科学思维·选择（概念辨析、情境判断）\n二、科学探究·填空（化学用语、原理分析）\n三、科学探究·推断与流程（物质转化、工业流程）\n四、科学探究·实验（方案设计、数据分析）\n五、科学应用·计算（定量分析、综合运用）', builtin: true },
-  { id: 'gen_struct_exam_chemistry_high', name: '【试卷结构-化学-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '化学', stage: 'high', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、科学思维·选择（概念辨析、不定项选择）\n二、科学探究·填空（原理应用、综合分析）\n三、科学探究·实验（方案设计、数据分析、评价）\n四、科学应用·计算（定量分析、综合运用）', builtin: true },
-  // ── 生物 exam（按初/高中拆分）──
-  { id: 'gen_struct_exam_biology_middle', name: '【试卷结构-生物-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '生物', stage: 'middle', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、科学思维·选择（概念辨析、情境判断）\n二、科学探究·填空（结构功能、过程分析）\n三、科学探究·识图分析（模式图、数据图表）\n四、科学探究·实验（方案设计、结果分析）', builtin: true },
-  { id: 'gen_struct_exam_biology_high', name: '【试卷结构-生物-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '生物', stage: 'high', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、科学思维·选择（概念辨析、不定项选择）\n二、科学探究·填空（过程分析、综合应用）\n三、科学探究·识图分析（模式图、数据图表、遗传分析）\n四、科学探究·实验（方案设计、结果评价、探究创新）', builtin: true },
- // ── 历史 exam（按初/高中拆分）──
-  { id: 'gen_struct_exam_history_middle', name: '【试卷结构-历史-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '历史', stage: 'middle', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、唯物史观·选择（基础史实、概念辨析）\n二、史料实证·材料解析（史料解读、信息提取、论证）\n三、历史解释·简答（因果分析、评价阐释）', builtin: true },
-  { id: 'gen_struct_exam_history_high', name: '【试卷结构-历史-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '历史', stage: 'high', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、唯物史观·选择（概念辨析、情境判断）\n二、史料实证·材料解析（多则史料、比较分析、论证）\n三、历史解释·论述（观点、史料、论证）', builtin: true },
-  // ── 地理 exam（按初/高中拆分）──
-  { id: 'gen_struct_exam_geo_middle', name: '【试卷结构-地理-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '地理', stage: 'middle', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、区域认知·选择（地理概念、空间定位）\n二、综合思维·读图分析（图表判读、信息提取、推理）\n三、地理实践力·综合（真实情境、问题解决）', builtin: true },
-  { id: 'gen_struct_exam_geo_high', name: '【试卷结构-地理-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '地理', stage: 'high', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、区域认知·选择（概念辨析、空间思维）\n二、综合思维·综合（多要素分析、区域比较）\n三、人地协调观·选做（可持续发展、实践探究）', builtin: true },
-  // ── 道德与法治/思想政治 exam（按初/高中拆分）──
-  { id: 'gen_struct_exam_moral_middle', name: '【试卷结构-道德与法治-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '道德与法治,政治', stage: 'middle', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、政治认同·选择（基础知识、价值判断）\n二、法治观念·简答（案例分析、法理阐释）\n三、责任意识·材料分析（情境探究、实践应用）', builtin: true },
-  { id: 'gen_struct_exam_moral_high', name: '【试卷结构-思想政治-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '思想政治', stage: 'high', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、政治认同·选择（基础理论、时政判断）\n二、科学精神·简答（原理阐释、逻辑分析）\n三、法治意识·材料分析（案例、法理、论证）\n四、公共参与·综合探究（实践方案、评价反思）', builtin: true },
-  // ── 科学 exam（按小学低/中/高段拆分）──
-  { id: 'gen_struct_exam_science_primary_low', name: '【试卷结构-科学-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '科学', stage: 'primary_low', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、科学思维·选择（现象辨识、概念判断）\n二、科学探究·判断（事实辨析、因果推理）\n三、科学探究·连线（概念关联、分类匹配）\n四、科学探究·观察记录（现象描述、数据记录）', builtin: true },
-  { id: 'gen_struct_exam_science_primary_mid', name: '【试卷结构-科学-小学中段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '科学', stage: 'primary_mid', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、科学思维·选择（概念辨析、情境判断）\n二、科学探究·填空（知识应用、现象解释）\n三、科学探究·判断（事实辨析、推理评价）\n四、科学探究·实验探究（方案设计、数据分析）\n五、科学态度·简答（问题解决、社会责任）', builtin: true },
-  { id: 'gen_struct_exam_science_primary_high', name: '【试卷结构-科学-小学高段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '科学', stage: 'primary_high', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、科学思维·选择（概念辨析、情境判断）\n二、科学探究·填空（原理应用、综合推理）\n三、科学探究·实验探究（方案设计、数据分析、评价）\n四、科学应用·综合（真实问题、跨学科融合）', builtin: true },
-
   // ── 语文 practice（按学段拆分：小学低/中/高段 + 初中 + 高中）──
   { id: 'gen_struct_practice_chinese_primary_low', name: '【课时练结构-语文-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '语文', stage: 'primary_low', genType: 'practice', specialSubType: 'new_standard',
@@ -2006,7 +1856,7 @@ export const builtinInstructions = [
     content: '结构参考：\n一、语言感知·基础建构（词汇语法、语篇感知）\n二、任务驱动·能力进阶（多模态阅读、交际训练）\n三、文化体验·素养提升（跨文化、跨学科）', builtin: true },
   { id: 'gen_struct_practice_english_high', name: '【课时练结构-英语-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '英语', stage: 'high', genType: 'practice', specialSubType: 'new_standard',
-    content: '结构参考：\n一、语言感知·基础建构（词汇搭配、语法精练）\n二、任务驱动·能力进阶（多模态阅读、思辨训练）\n三、文化体验·素养提升（跨文化、跨学科）', builtin: true },
+    content: '结构参考：\n一、语言感知·基础建构（词汇搭配、语言规律运用）\n二、任务驱动·能力进阶（多模态阅读、思辨训练）\n三、文化体验·素养提升（跨文化、跨学科）', builtin: true },
   // ── 科学 practice（按小学低/中/高段拆分）──
   { id: 'gen_struct_practice_science_primary_low', name: '【课时练结构-科学-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '科学', stage: 'primary_low', genType: 'practice', specialSubType: 'new_standard',
@@ -2059,6 +1909,20 @@ export const builtinInstructions = [
   { id: 'gen_struct_practice_moral_high', name: '【课时练结构-思想政治-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '思想政治', stage: 'high', genType: 'practice', specialSubType: 'new_standard',
     content: '结构参考：\n一、基础建构（核心概念、理论理解）\n二、材料分析·能力进阶（时政分析、辩证思维）\n三、综合探究·素养提升（社会实践、公共参与）', builtin: true },
+  // ── 道德与法治/思想政治 practice（小学段，2022 课标：生活情境、行为辨析、知行合一）──
+  { id: 'gen_struct_practice_moral_primary', name: '【课时练结构-道德与法治-小学】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '道德与法治,政治', stage: 'primary_low,primary_mid,primary_high', genType: 'practice', specialSubType: 'new_standard',
+    content: '结构参考：\n一、情境感知·基础建构（生活情境、规则认知）\n二、行为辨析·能力进阶（情境判断、价值辨析）\n三、实践行动·素养提升（知行合一、习惯养成）', builtin: true },
+  // ── 音乐/美术/体育 practice（2022 艺术/体育课标，全学段通用）──
+  { id: 'gen_struct_practice_music', name: '【课时练结构-音乐】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '音乐', stage: '', genType: 'practice', specialSubType: 'new_standard',
+    content: '结构参考：\n一、基础建构（聆听感知、节奏模仿）\n二、表现实践·能力进阶（演唱演奏、合作表现）\n三、创意实践·素养提升（即兴创编、文化理解）', builtin: true },
+  { id: 'gen_struct_practice_art', name: '【课时练结构-美术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '美术', stage: '', genType: 'practice', specialSubType: 'new_standard',
+    content: '结构参考：\n一、基础建构（观察感知、造型基础）\n二、创作实践·能力进阶（表现练习、合作创作）\n三、创意实践·素养提升（创意表达、审美判断）', builtin: true },
+  { id: 'gen_struct_practice_pe', name: '【课时练结构-体育】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '体育', stage: '', genType: 'practice', specialSubType: 'new_standard',
+    content: '结构参考：\n一、基础建构（动作要领、规则认知）\n二、学练实践·能力进阶（技能练习、合作学练）\n三、拓展应用·素养提升（运动应用、健康行为）', builtin: true },
 
   // ── 专项突破 special（按学科×学段×专项领域拆分，聚焦单一技能）──
   // 语文 — 阅读理解专项
@@ -2216,6 +2080,20 @@ export const builtinInstructions = [
   { id: 'gen_struct_preview_it', name: '【预习结构-信息技术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '信息技术,信息科技', stage: '', genType: 'preview', specialSubType: 'new_standard',
     content: '结构参考：\n一、学习目标\n二、任务认知与工具初识\n三、预习检测', builtin: true },
+  // ── 道德与法治 preview（小学段）──
+  { id: 'gen_struct_preview_moral_primary', name: '【预习结构-道德与法治-小学】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '道德与法治,政治', stage: 'primary_low,primary_mid,primary_high', genType: 'preview', specialSubType: 'new_standard',
+    content: '结构参考：\n一、学习目标\n二、生活情境导入\n三、价值观念预读\n四、预习检测', builtin: true },
+  // ── 音乐/美术/体育 preview（2022 艺术/体育课标，全学段通用）──
+  { id: 'gen_struct_preview_music', name: '【预习结构-音乐】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '音乐', stage: '', genType: 'preview', specialSubType: 'new_standard',
+    content: '结构参考：\n一、学习目标\n二、聆听导入\n三、乐理与作品预读\n四、预习检测', builtin: true },
+  { id: 'gen_struct_preview_art', name: '【预习结构-美术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '美术', stage: '', genType: 'preview', specialSubType: 'new_standard',
+    content: '结构参考：\n一、学习目标\n二、图像观察导入\n三、造型语言预读\n四、预习检测', builtin: true },
+  { id: 'gen_struct_preview_pe', name: '【预习结构-体育】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '体育', stage: '', genType: 'preview', specialSubType: 'new_standard',
+    content: '结构参考：\n一、学习目标\n二、运动情境导入\n三、动作要领预读\n四、安全提示\n五、预习检测', builtin: true },
 
   // ── 知识点总结 summary ──
 
@@ -2224,7 +2102,7 @@ export const builtinInstructions = [
     content: '结构参考：\n一、知识结构化梳理（识字写字·词句积累·课文感知）\n二、核心能力聚焦（识字与写字、阅读与鉴赏）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（文化启蒙、趣味阅读）', builtin: true },
   { id: 'gen_struct_summary_chinese_primary_mid', name: '【总结结构-语文-小学中段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '语文', stage: 'primary_mid', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、知识结构化梳理（词句积累·课文梳理·阅读感知）\n二、核心能力聚焦（阅读策略起步、习作入门）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（文化感知、整本书阅读启蒙）', builtin: true },
+    content: '结构参考：\n一、字词积累与梳理（语境中归纳，勿孤立罗列）\n二、词语运用（情境中积累）\n三、课文精读与鉴赏\n四、知识点归纳与典型题精讲（结构化呈现）\n五、素养拓展与反思（文化感知、整本书阅读启蒙）', builtin: true },
 
   { id: 'gen_struct_summary_chinese_primary_high', name: '【总结结构-语文-小学高段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '语文', stage: 'primary_high', genType: 'summary', specialSubType: 'new_standard',
@@ -2234,21 +2112,21 @@ export const builtinInstructions = [
     content: '结构参考：\n一、知识结构化梳理（字词句篇·知识网络）\n二、核心能力聚焦（思辨阅读、学术写作）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（文化传承、专题探究、跨学科）', builtin: true },
   { id: 'gen_struct_summary_math_primary_low', name: '【总结结构-数学-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '数学', stage: 'primary_low', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、知识结构化梳理（数感·运算·图形认识·知识串）\n二、核心能力聚焦（运算能力、空间观念、数据意识）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（生活应用、趣味探究）', builtin: true },
+    content: '结构参考：\n一、知识要点与核心概念（结合生活情境理解，聚焦数感·运算·图形认识）\n二、典型例题（情境嵌入，训练运算能力、空间观念、数据意识）\n三、易错辨析（归因+正解、变式训练）\n四、素养拓展与反思（生活应用、趣味探究）', builtin: true },
 
   { id: 'gen_struct_summary_math_primary_mid', name: '【总结结构-数学-小学中段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '数学', stage: 'primary_mid', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识结构化梳理（概念·计算·图形与测量）\n二、核心能力聚焦（运算能力、空间观念、数据意识）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（生活应用、趣味探究）', builtin: true },
   { id: 'gen_struct_summary_math_primary_high', name: '【总结结构-数学-小学高段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '数学', stage: 'primary_high', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、知识结构化梳理（概念·公式·图形几何·知识网络）\n二、核心能力聚焦（抽象能力、推理意识、模型意识）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（跨学科应用、反思评价）', builtin: true },
+    content: '结构参考：\n一、知识网络（概念·公式·图形几何）\n二、核心知识精讲（抽象能力、推理意识、模型意识）\n三、典型例题剖析（变式训练、易错辨析）\n四、错题精析与分层自测\n五、素养拓展与反思（跨学科应用、反思评价）', builtin: true },
 
   { id: 'gen_struct_summary_math_middle', name: '【总结结构-数学-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '数学', stage: 'middle', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识结构化梳理（概念·公式·定理·知识网络）\n二、核心能力聚焦（抽象能力、推理能力、模型观念）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（跨学科、自我评价）', builtin: true },
   { id: 'gen_struct_summary_math_high', name: '【总结结构-数学-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '数学', stage: 'high', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、知识结构化梳理（概念·公式·定理·知识网络）\n二、核心能力聚焦（逻辑推理、数学建模、数据分析）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（跨学科融合、创新思维、高考对标）', builtin: true },
+    content: '结构参考：\n一、知识体系构建（概念·公式·定理·知识网络）\n二、核心知识与数学思想（逻辑推理、数学建模、数据分析）\n三、典型例题全方位解析（变式训练、易错辨析）\n四、易错与难点突破\n五、高考真题研习\n六、素养拓展与反思（跨学科融合、创新思维）', builtin: true },
   { id: 'gen_struct_summary_science_primary_low', name: '【总结结构-科学-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '科学', stage: 'primary_low', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识结构化梳理（现象观察·概念启蒙·知识卡片）\n二、核心能力聚焦（观察能力、简单探究）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（科学兴趣、生活链接）', builtin: true },
@@ -2271,10 +2149,7 @@ export const builtinInstructions = [
   { id: 'gen_struct_summary_english_high', name: '【总结结构-英语-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '英语', stage: 'high', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识结构化梳理（词汇·语法·语篇·知识网络）\n二、核心能力聚焦（听说读写融通）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（跨文化、深度思维、学术素养）', builtin: true },
-  // ── 英语小学段 summary（2022 课标要求小学以听说为主、读写跟进，注重文化意识启蒙）──
-  { id: 'gen_struct_summary_english_primary', name: '【总结结构-英语-小学】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '英语', stage: 'primary_low,primary_mid,primary_high', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、知识结构化梳理（话题词汇·核心句型·语音规律）\n二、核心能力聚焦（听说领先、读写跟进）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（文化意识启蒙、跨学科趣味活动）', builtin: true },
+  // ── 英语小学段 summary（2022 课标要求小学以听说为主、读写跟进，注重文化意识启蒙，按 low/mid/high 学段细分条目生效）──
 
   // ── 专项突破 special（按学段拆分：通用 new_standard 模板，subType 未命中时兜底）──
   // 语文 special — 五学段
@@ -2367,11 +2242,18 @@ export const builtinInstructions = [
   { id: 'gen_struct_errorbook_it', name: '【错题本结构-信息技术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '信息技术,信息科技', stage: '', genType: 'errorbook', specialSubType: 'new_standard',
     content: '结构参考：\n一、错题整理\n二、错误归因与素养反思\n三、正确操作\n四、变式巩固', builtin: true },
+  // ── 音乐/美术/体育 errorbook（2022 艺术/体育课标，全学段通用）──
+  { id: 'gen_struct_errorbook_music', name: '【错题本结构-音乐】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '音乐', stage: '', genType: 'errorbook', specialSubType: 'new_standard',
+    content: '结构参考：\n一、错题整理\n二、错误归因与素养反思\n三、正确示范\n四、变式巩固', builtin: true },
+  { id: 'gen_struct_errorbook_art', name: '【错题本结构-美术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '美术', stage: '', genType: 'errorbook', specialSubType: 'new_standard',
+    content: '结构参考：\n一、错题整理\n二、错误归因与素养反思\n三、正确示范\n四、变式巩固', builtin: true },
+  { id: 'gen_struct_errorbook_pe', name: '【错题本结构-体育】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '体育', stage: '', genType: 'errorbook', specialSubType: 'new_standard',
+    content: '结构参考：\n一、错题整理\n二、错误归因与素养反思\n三、正确示范\n四、变式巩固', builtin: true },
 
   // ── 信息技术 genTypes ──
-  { id: 'gen_struct_exam_it', name: '【试卷结构-信息技术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '信息技术,信息科技', stage: '', genType: 'exam', specialSubType: 'new_standard',
-    content: '结构参考：\n一、科学思维·选择（信息意识、概念辨析）\n二、科学探究·填空（技术原理、应用分析）\n三、数字化学习·操作（实践任务、创新应用）', builtin: true },
   { id: 'gen_struct_practice_it', name: '【课时练结构-信息技术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '信息技术,信息科技', stage: '', genType: 'practice', specialSubType: 'new_standard',
     content: '结构参考：\n一、基础建构（概念理解、技能初识）\n二、实验探究·能力进阶（任务驱动、实践操作）\n三、科学应用·素养提升（真实情境、创新应用）', builtin: true },
@@ -2447,6 +2329,19 @@ export const builtinInstructions = [
   { id: 'gen_struct_summary_moral_high', name: '【总结结构-思想政治-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '思想政治', stage: 'high', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识结构化梳理（概念·原理·知识网络）\n二、核心能力聚焦（科学精神、公共参与）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（时政分析、社会责任）', builtin: true },
+  { id: 'gen_struct_summary_moral_primary', name: '【总结结构-道德与法治-小学】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '道德与法治,政治', stage: 'primary_low,primary_mid,primary_high', genType: 'summary', specialSubType: 'new_standard',
+    content: '结构参考：\n一、知识结构化梳理（规则认知·价值观念·知识网络）\n二、核心能力聚焦（行为辨析、法治启蒙）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（知行合一、习惯养成）', builtin: true },
+  // ── 音乐/美术/体育 summary（2022 艺术/体育课标，全学段通用）──
+  { id: 'gen_struct_summary_music', name: '【总结结构-音乐】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '音乐', stage: '', genType: 'summary', specialSubType: 'new_standard',
+    content: '结构参考：\n一、知识结构化梳理（乐理常识·名曲听赏·知识网络）\n二、核心能力聚焦（审美感知、艺术表现）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（创意实践、文化理解）', builtin: true },
+  { id: 'gen_struct_summary_art', name: '【总结结构-美术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '美术', stage: '', genType: 'summary', specialSubType: 'new_standard',
+    content: '结构参考：\n一、知识结构化梳理（造型语言·名家名作·知识网络）\n二、核心能力聚焦（图像识读、美术表现）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（创意实践、文化理解）', builtin: true },
+  { id: 'gen_struct_summary_pe', name: '【总结结构-体育】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '体育', stage: '', genType: 'summary', specialSubType: 'new_standard',
+    content: '结构参考：\n一、知识结构化梳理（动作要领·规则知识·知识网络）\n二、核心能力聚焦（运动能力、健康行为）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（体育品德、安全防护）', builtin: true },
 
   // ── 文科 special ──
   { id: 'gen_struct_special_history_middle', name: '【专项结构-历史-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
@@ -2467,6 +2362,19 @@ export const builtinInstructions = [
   { id: 'gen_struct_special_moral_high', name: '【专项结构-思想政治-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '思想政治', stage: 'high', genType: 'special', specialSubType: 'new_standard',
     content: '结构参考：\n一、方法指导\n二、时政专题\n三、论述训练\n四、高考实战', builtin: true },
+  { id: 'gen_struct_special_moral_primary', name: '【专项结构-道德与法治-小学】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '道德与法治,政治', stage: 'primary_low,primary_mid,primary_high', genType: 'special', specialSubType: 'new_standard',
+    content: '结构参考：\n一、核心素养方法（行为辨析方法）\n二、情境典例（校园与家庭生活）\n三、分层变式（基础巩固→情境迁移）\n四、综合实践（行动践行、习惯养成）', builtin: true },
+  // ── 音乐/美术/体育 special（2022 艺术/体育课标，全学段通用）──
+  { id: 'gen_struct_special_music', name: '【专项结构-音乐】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '音乐', stage: '', genType: 'special', specialSubType: 'new_standard',
+    content: '结构参考：\n一、核心素养方法（听赏策略、表现方法）\n二、情境典例（经典作品赏析）\n三、分层变式（基础巩固→创意表现）\n四、综合实践（合作创编、文化体验）', builtin: true },
+  { id: 'gen_struct_special_art', name: '【专项结构-美术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '美术', stage: '', genType: 'special', specialSubType: 'new_standard',
+    content: '结构参考：\n一、核心素养方法（观察方法、表现技法）\n二、情境典例（经典作品赏析）\n三、分层变式（基础巩固→创意表达）\n四、综合实践（主题创作、文化体验）', builtin: true },
+  { id: 'gen_struct_special_pe', name: '【专项结构-体育】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '体育', stage: '', genType: 'special', specialSubType: 'new_standard',
+    content: '结构参考：\n一、核心素养方法（动作要领、练习方法）\n二、情境典例（运动情境分析）\n三、分层变式（基础巩固→技能提升）\n四、综合实践（合作竞赛、健康生活）', builtin: true },
 
   // ═══════════════════════════════════════
   // 【生成-资料类型结构】新课标默认结构 — specialSubType: 'new_standard'
@@ -2555,11 +2463,6 @@ export const builtinInstructions = [
     content: '建议情境方向：Python编程应用、数据处理、人工智能伦理、信息系统设计', builtin: true },
 
   // ═══════════════════════════════════════
-  { id: 'gen_quality_fill_lang', name: '【题目质量-填空句位-语英】', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment',
-    subject: '语文,英语', stage: '', genType: 'exam,practice,special,errorbook,reading,dictation,preview',
-    content: '填空规范补充：空格设置在题干中自然空位处，每个空考查一个独立的知识点，答案唯一确定', builtin: true },
-
-  // ═══════════════════════════════════════
   // 【知识边界】块级指令 — 明确告诉AI什么不考
   // ═══════════════════════════════════════
   { id: 'kb_chinese_primary_low', name: '【知识边界】语文-小学低段', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '语文', stage: 'primary_low', genType: '', content: '语文低段知识边界：\n- 不要求辨析修辞手法（比喻、拟人等仅作感性认识）\n- 不考概括段落大意或文章主旨\n- 不涉及文言文和古诗词鉴赏\n- 写话题目不要求分段、不指定字数下限\n- 生字不超出教材生字表范围\n- 阅读文章长度不超过200字', builtin: true },
@@ -2597,16 +2500,16 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   // 【时间分配】块级指令 — 考卷用时建议
   // ═══════════════════════════════════════
-    { id: 'time_exam_primary_low', name: '【时间分配】小学低段考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary_low', genType: 'exam', content: '建议用时：根据题量确定40或50分钟，输出时只写一个数字如"40分钟"，禁止写范围', builtin: true },
+    { id: 'time_exam_primary_low', name: '【时间分配】小学低段考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary_low', genType: 'exam', content: '建议用时：以【真题卷结构蓝本】标注的考试时间为准，输出时只写一个数字，禁止写范围', builtin: true },
     { id: 'time_exam_primary_mid', name: '【时间分配】小学中段考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary_mid', genType: 'exam', content: '建议用时：根据题量确定50或60分钟，输出时只写一个数字如"60分钟"，禁止写范围', builtin: true },
     { id: 'time_exam_primary_high', name: '【时间分配】小学高段考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary_high', genType: 'exam', content: '建议用时：根据题量确定70或80分钟，输出时只写一个数字如"80分钟"，禁止写范围', builtin: true },
   { id: 'time_exam_middle', name: '【时间分配】初中考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'middle', genType: 'exam', content: '建议用时：根据题量确定90或100分钟，输出时只写一个数字如"90分钟"，禁止写范围', builtin: true },
-  { id: 'time_exam_high', name: '【时间分配】高中考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'high', genType: 'exam', content: '建议用时：根据题量确定120或150分钟，输出时只写一个数字如"120分钟"，禁止写范围', builtin: true },
+  { id: 'time_exam_high', name: '【时间分配】高中考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'high', genType: 'exam', content: '建议用时：以【真题卷结构蓝本】标注的考试时间为准，输出时只写一个数字，禁止写范围', builtin: true },
 
   // ═══════════════════════════════════════
   // 【答案与解析规范】块级指令 — 按资料类型+学科
   // ═══════════════════════════════════════
-  { id: 'answer_exam', name: '【答案规范】考卷/课时练', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'exam', content: '考卷答案规范：\n1. 客观题（选择/判断/填空）：答案明确唯一，附1-2句简要解析说明对错原因或解题关键\n2. 解答题/简答题：给出参考答案要点 + 分步给分说明（标注每个要点的分值比重）\n3. 所有解析必须标注"易错提示"——指出该题最常见的错误类型及原因\n4. 每道题答案用<div class="answer-item">分隔，标注题号', builtin: true },
+  { id: 'answer_exam', name: '【答案规范】考卷/课时练', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'exam', content: '考卷答案规范：考卷答案规范（对齐正式考试参考答案册样式）：\n1. 客观题（选择/判断/填空）：答案明确唯一，附1-2句简要解析说明对错原因或解题关键\n2. 解答题/简答题：给出参考答案要点 + 分步给分说明（标注每个要点的分值比重）\n3. 主观题（作文/习作/写话/书面表达）：给出评分标准（内容/语言/结构/书写四维度各占比例）+ 1篇参考范文\n4. 每道题答案用<div class=\"answer-item\">分隔，标注题号\n5. 🔴 禁止出现\"易错提示\"\"命题思路\"\"拓展延伸\"等教辅栏目——正式考试答案册只有答案、解析与评分标准\n6. 🔴 禁止出现任何质检、自审、生成说明文字（如\"知识点准确性\"\"课标对齐\"等检查条目）——正式试卷无此类内容', builtin: true },
   { id: 'answer_exam_math', name: '【答案规范】考卷-数理化', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '数学,物理,化学', stage: '', genType: 'exam', content: '考卷答案补充（计算与解答类）：\n- 计算题/应用题：给出完整分步解答（解→公式→代入→计算→答），每步标注得分点', builtin: true },
   { id: 'answer_exam_chinese', name: '【答案规范】考卷-语文', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '语文', stage: '', genType: 'exam', content: '语文考卷答案补充：\n- 作文/习作题：附简要写作提纲或范文片段 + 评分维度（内容/语言/结构/书写各占比例）', builtin: true },
   { id: 'answer_exam_english', name: '【答案规范】考卷-英语', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '英语', stage: '', genType: 'exam', content: '英语考卷答案补充：\n- 书面表达：附参考范文 + 内容/语言/结构/书写评分维度', builtin: true },
@@ -2886,14 +2789,60 @@ export const builtinInstructions = [
     content: '生成一份高中专项突破训练。🔴 不少于{pageCount}页A4纸。每个训练阶梯至少含3-6题，禁止一个阶梯只放1题凑数。覆盖专项能力的全部训练维度。围绕指定专项能力，按下方结构参考进行"方法指导→典例剖析→阶梯训练→真题检验"的系统训练。方法指导注重思维建模和解题通法，训练题对标高考难度和题型，帮助学生从"模仿"到"迁移"再到"创新"。质量对标市面一流教辅水准（如《53天天练》《黄冈小状元》《教材帮》等），不可生成粗制滥造的凑数内容。', builtin: true },
 
   // ═══════════════════════════════════════
-  // 🔴 新课标品质标准路径注入（通用底线 + 资料类型差异化专属块，所有匹配块均注入）
+  // 🔴 新课标品质标准路径注入（资料类型差异化专属块，所有匹配块均注入）
   // ═══════════════════════════════════════
-  { id: 'quality_new_standard', name: '【品质基准】新课标通用底线', category: '生成-品质标准', type: 'fragment', subject: '', stage: '', genType: '',
-    content: '新课标品质底线：\\n1. 教材为本——内容紧贴教材，知识点完整覆盖\\n2. 去机械化——知识点在语境中考查，减少孤立操练\\n3. 思维可见——设计"说说理由""从文中找依据"等活动\\n4. 不标题套壳——不以"任务一/二/三"包装传统题型', builtin: true },
+  // —— 资料类型差异化品质标准（genType 精确匹配）——
+  { id: 'quality_redlines_exam', name: '【红线】考卷最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'exam',
+    content: '🔴🔴 【红线清单——最高优先级，任何一条违反即视为不合格，所有其他要求不得与之冲突】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬，杜绝陈题套路与教材例题翻版。\n② 题型结构以【真题卷结构蓝本】为唯一依据：大题序列、大题名称、分值、顺序与蓝本完全一致，不得增删大题、不得自行另起板块名（蓝本即新课标真题卷通行结构），知识点与层级仅用于内部组卷设计，卷面严禁出现。', builtin: true },
+  { id: 'quality_redlines_practice', name: '【红线】课堂练习最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'practice',
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 结构以【结构大纲】为准，不得自行另起骨架。', builtin: true },
+  { id: 'quality_redlines_special', name: '【红线】专项突破最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'special',
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 结构以【结构大纲】为准，不得自行另起骨架。', builtin: true },
+  { id: 'quality_redlines_summary', name: '【红线】知识点总结最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'summary',
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 知识点必须完整覆盖所选章节，不得只写部分章节。', builtin: true },
+  { id: 'quality_redlines_preview', name: '【红线】课前预习最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'preview',
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 预习检测必须紧扣教材原文，不得脱离教材自拟内容。', builtin: true },
+  { id: 'quality_redlines_reading', name: '【红线】阅读训练最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'reading',
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 选文必须原创编写，不得复制教材课文或网络文章。', builtin: true },
+  { id: 'quality_redlines_review', name: '【红线】复习总结最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'review',
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 考点梳理必须覆盖所选章节全部知识点。', builtin: true },
+  { id: 'quality_redlines_errorbook', name: '【红线】错题本最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'errorbook',
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 错题必须为典型错例，不得编造无意义的低级错误。', builtin: true },
+  { id: 'quality_redlines_dictation', name: '【红线】默写训练最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'dictation',
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 练习区不得出现答案，答案统一放文末。', builtin: true },
+  { id: 'quality_exam_formal', name: '【品质】考卷·正式考试命题标准', category: '生成-品质标准', type: 'fragment',
+    subject: '', stage: '', genType: 'exam',
+    content: '🔴 【正式考试命题标准——必须遵守】\n1. 效度与信度：每道题明确指向具体考点、考查意图与分值匹配；题干无歧义、条件充分、答案唯一确定（开放性题除外），主观题必须配评分要点。\n2. 知识点去重：重难点考点全卷考查≤2次且必须角度不同（如概念理解+应用），一般考点仅考1次；同一大题组内禁止题材/情境/数据/设问角度相似的两道题。\n3. 时间配比：全卷题量使中等水平学生能在规定时长的75%-85%内完成；选择/填空/判断每题1-2分钟，计算/简答每题5-8分钟，解答题每题8-12分钟，作文留足35分钟以上（低段看图写话留足15-20分钟）。\n4. 小题规范：填空题一处设空只考一个知识点、答案唯一确定、设空位置科学（不挖句首、不挖关键提示词）；判断题命题表述精确、错误点有明确依据。\n5. 形式多样：图文结合、表格信息题、信息检索题；小学低段（1-2年级）操作型小题（连线/圈画/排序/涂色）可融入蓝本大题内，全卷选择题小题数不超过总小题数的50%。\n6. 不标题套壳：不以"任务一/二/三"等标题包装传统题型，大题名称以蓝本为准。', builtin: true },
 
-  // —— 资料类型差异化品质标准（与上方通用底线同时注入，genType 精确匹配）——
-  { id: 'quality_exam', name: '【品质】考卷专属', category: '生成-品质标准', type: 'fragment', genType: 'exam',
-    content: '考卷品质：\\n1. 情境化≥70%——以统一主题线索组织，知识点在真实语境中考查，杜绝零散拼题\\n2. 基础识记≤30%（情境化呈现），开放性答案~15%（附评分要点）\\n3. 题型≥4种，体现不同能力层级', builtin: true },
+
+  // ── 学科专属命题技法（按 subject + genType 精确匹配，与通用命题技法块同时注入）──
+  { id: 'quality_exam_prop_chinese', name: '【品质】考卷命题技法-语文', category: '生成-品质标准', type: 'fragment',
+    subject: '语文', stage: '', genType: 'exam',
+    content: '🔴 【语文考卷题型规范】\n1. 文言文（初中/高中）：断句、实词虚词、句子翻译（直译为主）、文意理解；选文课内优先，不考课外超纲篇目。\n2. 古诗鉴赏：围绕炼字/意象/情感/手法四类设问，避免套话式提问。\n3. 作文：命题/半命题/材料/话题四种形式轮换；明确字数与文体；评分要点=内容+语言+结构+书写。\n4. 综合性学习（初中/高中）：活动设计类题（拟标语/写开场白/设计活动流程），设问贴近中考/高考真题形式。', builtin: true },
+  { id: 'quality_exam_prop_math', name: '【品质】考卷命题技法-数学', category: '生成-品质标准', type: 'fragment',
+    subject: '数学', stage: '', genType: 'exam',
+    content: '🔴 【数学考卷题型规范】\n1. 计算题格式：竖式/脱式/简便运算格式规范，验算要求明确。\n2. 作图题：尺规作图要求明确，图例与标注规范。\n3. 证明题（初中/高中）：步骤严谨、逻辑链条完整，不考偏题怪题。\n4. 统计与概率题：图表数据真实，设问指向数据分析能力。', builtin: true },
+  { id: 'quality_exam_prop_english', name: '【品质】考卷命题技法-英语', category: '生成-品质标准', type: 'fragment',
+    subject: '英语', stage: '', genType: 'exam',
+    content: '🔴 【英语考卷题型规范】\n1. 词汇题：低段看图选词/连线，中高段按首字母/中文提示填空（置于语境中）。\n2. 选择题：考查语法/词汇辨析，选项语法全部正确（不以语法错误制干扰项）。\n3. 连词成句/句型转换：考查目标句式，答案唯一。\n4. 完形填空（初中）：上下文线索明确，无争议答案。\n5. 补全对话/情景交际：情境真实，交际用语地道；设空位置合理，答案唯一。', builtin: true },
+  { id: 'quality_exam_prop_physics', name: '【品质】考卷命题技法-物理', category: '生成-品质标准', type: 'fragment',
+    subject: '物理', stage: '', genType: 'exam',
+    content: '🔴 【物理考卷题型规范】\n1. 实验题：器材、步骤、现象、结论四要素完整；控制变量明确。\n2. 作图题：光路图/受力分析图规范（箭头、标号、虚实线）。', builtin: true },
+  { id: 'quality_exam_prop_chemistry', name: '【品质】考卷命题技法-化学', category: '生成-品质标准', type: 'fragment',
+    subject: '化学', stage: '', genType: 'exam',
+    content: '🔴 【化学考卷题型规范】\n1. 化学式/方程式书写规范（配平、反应条件、气体/沉淀箭头）。\n2. 实验题：操作步骤、现象描述、结论分析三要素。\n3. 推断题：物质转化关系清晰、题眼明确、无多解歧义。', builtin: true },
+  { id: 'quality_exam_prop_biology', name: '【品质】考卷命题技法-生物', category: '生成-品质标准', type: 'fragment',
+    subject: '生物', stage: '', genType: 'exam',
+    content: '🔴 【生物考卷题型规范】\n1. 实验设计：变量控制、对照实验、结论表述规范。\n2. 图表题：结构图、曲线图、柱状图标注准确。\n3. 术语使用规范（如写"液泡"不写"泡"，写"细胞膜"不写"膜"）。', builtin: true },
+  { id: 'quality_exam_prop_politics', name: '【品质】考卷命题技法-道法/政治', category: '生成-品质标准', type: 'fragment',
+    subject: '道德与法治,政治,思想政治', stage: '', genType: 'exam',
+    content: '🔴 【道法/政治考卷题型规范】\n1. 材料分析题：结合具体情境与法条/观点，采用"观点+材料+分析"三段式作答。\n2. 主观题：设问指向明确（是什么/为什么/怎么做三类型）。', builtin: true },
+  { id: 'quality_exam_prop_history', name: '【品质】考卷命题技法-历史', category: '生成-品质标准', type: 'fragment',
+    subject: '历史', stage: '', genType: 'exam',
+    content: '🔴 【历史考卷题型规范】\n1. 年代/人物/事件准确无误，不出现史实错误。\n2. 论述题：史实+观点+论证结构完整，按"是什么-为什么-怎么样"展开。', builtin: true },
+  { id: 'quality_exam_prop_geography', name: '【品质】考卷命题技法-地理', category: '生成-品质标准', type: 'fragment',
+    subject: '地理', stage: '', genType: 'exam',
+    content: '🔴 【地理考卷题型规范】\n1. 读图题：地图/示意图图例规范，设问指向读图能力。\n2. 地名/数据准确，区域定位无错误。', builtin: true },
 
   // ── 学科专属考卷反套路（按 subject + genType 精确匹配，只注入当前学科的）──
   { id: 'quality_exam_antipattern_chinese', name: '【品质-考卷-语文】反套路', category: '生成-品质标准', type: 'fragment', subject: '语文', stage: '', genType: 'exam',
@@ -2949,8 +2898,7 @@ export const builtinInstructions = [
     content: '语文默写禁止：孤立看拼音写汉字（改在语境中默写）、无上下文的词语填空。', builtin: true },
   { id: 'quality_dictation_antipattern_english', name: '【品质-默写-英语】格式', category: '生成-品质标准', type: 'fragment', subject: '英语', stage: '', genType: 'dictation',
     content: '英语默写禁止：孤立单词拼写（改在句子中默写）、不标音标词性的单词表。', builtin: true },
-  { id: 'quality_dictation_type', name: '【品质】默写专属', category: '生成-品质标准', type: 'fragment', genType: 'dictation',
-    content: '默写格式：生字/单词在语境中呈现（如看拼音写词语含语境提示、单词在句子中默写），语文含田字格+字典式信息（部首/笔画/结构），英语按年级使用四线三格或单线。', builtin: true },
+  // （已删除 quality_dictation_type——与 quality_dictation 内容重复 90%+，同 category 同 genType 双注入，v28 去冗余）
   { id: 'quality_review', name: '【品质】复习专属', category: '生成-品质标准', type: 'fragment', genType: 'review',
     content: '复习资料品质：知识整合+易错梳理+变式训练三合一。知识整合以结构化方式呈现（表格/对比/思维导图），易错点标注典型错误和正确解法，变式题不少于3道。', builtin: true },
 
@@ -2977,7 +2925,7 @@ export const builtinInstructions = [
   { id: 'diff_primary_low_exam', name: '【难度配置】小学低段-考卷', category: '生成-难度配置', prompt_order: 51, type: 'fragment', subject: '', stage: 'primary_low', genType: 'exam', content: 'basic=70,medium=20,advanced=10\ntotalScore=100', builtin: true },
   { id: 'diff_primary_mid_exam', name: '【难度配置】小学中段-考卷', category: '生成-难度配置', prompt_order: 51, type: 'fragment', subject: '', stage: 'primary_mid', genType: 'exam', content: 'basic=60,medium=30,advanced=10\ntotalScore=100', builtin: true },
   { id: 'diff_primary_high_exam', name: '【难度配置】小学高段-考卷', category: '生成-难度配置', prompt_order: 51, type: 'fragment', subject: '', stage: 'primary_high', genType: 'exam', content: 'basic=50,medium=30,advanced=20\ntotalScore=100', builtin: true },
-  { id: 'diff_middle_exam', name: '【难度配置】初中-考卷', category: '生成-难度配置', prompt_order: 51, type: 'fragment', subject: '', stage: 'middle', genType: 'exam', content: 'basic=50,medium=30,advanced=20\ntotalScore_main=120,totalScore_other=100', builtin: true },
+  { id: 'diff_middle_exam', name: '【难度配置】初中-考卷', category: '生成-难度配置', prompt_order: 51, type: 'fragment', subject: '', stage: 'middle', genType: 'exam', content: 'basic=60,medium=30,advanced=10\ntotalScore_main=120,totalScore_other=100', builtin: true },
   { id: 'diff_high_exam', name: '【难度配置】高中-考卷', category: '生成-难度配置', prompt_order: 51, type: 'fragment', subject: '', stage: 'high', genType: 'exam', content: 'basic=40,medium=40,advanced=20\ntotalScore_main=150,totalScore_other=100', builtin: true },
 
   // ═══════════════════════════════════════
@@ -3065,27 +3013,15 @@ export const builtinInstructions = [
   // 【生成-资料类型结构】summary — 知识点总结（按学段+学科拆分，非新课标四段式已有覆盖的学段）
   // ═══════════════════════════════════════
   // 🔧 以下条目为 V1（L1973-2013）新课标四段式未覆盖的学段补充，保留传统五段式结构
-  { id: 'gen_struct_summary_chinese_primary_mid_v2', name: '【总结结构-语文-小学中段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '语文', stage: 'primary_mid', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、字词积累与梳理（语境中归纳，勿孤立罗列）\n二、词语运用（情境中积累）\n三、课文精读与鉴赏\n四、知识点归纳（结构化呈现）\n五、典型题精讲', builtin: true },
   { id: 'gen_struct_summary_chinese_middle', name: '【总结结构-语文-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '语文', stage: 'middle', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识结构化梳理\n二、课文深度解读\n三、知识点专题\n四、写作专项\n五、中考链接', builtin: true },
-  { id: 'gen_struct_summary_math_primary_low_v2', name: '【总结结构-数学-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '数学', stage: 'primary_low', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、知识要点与核心概念（结合生活情境理解）\n二、典型例题（情境嵌入）\n三、易错辨析（归因+正解）\n四、趣味练习（生活应用）', builtin: true },
-  { id: 'gen_struct_summary_math_primary_high_v2', name: '【总结结构-数学-小学高段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '数学', stage: 'primary_high', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、知识网络\n二、核心知识精讲\n三、典型例题剖析\n四、错题精析\n五、分层自测', builtin: true },
-  { id: 'gen_struct_summary_math_high_v2', name: '【总结结构-数学-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '数学', stage: 'high', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、知识体系构建\n二、核心知识与数学思想\n三、典型例题全方位解析\n四、易错与难点突破\n五、高考真题研习', builtin: true },
   { id: 'gen_struct_summary_english_primary_low', name: '【总结结构-英语-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '英语', stage: 'primary_low', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、核心词汇（在语篇中积累，勿孤立罗列）\n二、重点句型（语境中运用）\n三、字母与语音\n四、歌谣\n五、趣味闯关', builtin: true },
+    content: '结构参考：\n一、核心词汇（在语篇中积累，勿孤立罗列）\n二、重点句型（语境中运用）\n三、字母与语音\n四、歌谣\n五、趣味突破', builtin: true },
   { id: 'gen_struct_summary_english_primary_mid', name: '【总结结构-英语-小学中段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '英语', stage: 'primary_mid', genType: 'summary', specialSubType: 'new_standard',
-    content: '结构参考：\n一、词汇银行\n二、句型工坊\n三、语法点睛\n四、语音\n五、自我检测', builtin: true },
+    content: '结构参考：\n一、词汇银行\n二、句型工坊\n三、语言规律感知\n四、语音\n五、自我检测', builtin: true },
   { id: 'gen_struct_summary_english_primary_high', name: '【总结结构-英语-小学高段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '英语', stage: 'primary_high', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、词汇拓展\n二、句型与语法\n三、语篇分析\n四、写作指导\n五、综合自测', builtin: true },
@@ -3213,7 +3149,7 @@ export const builtinInstructions = [
   // ── 语文 review ──
   { id: 'gen_struct_review_chinese_primary_low', name: '【复习结构-语文-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '语文', stage: 'primary_low', genType: 'review', specialSubType: 'new_standard',
-    content: '结构参考：\n一、知识回顾\n二、重点闯关\n三、易错门诊\n四、成长档案', builtin: true },
+    content: '结构参考：\n一、知识框架\n二、重点突破\n三、易错辨析\n四、成长档案', builtin: true },
   { id: 'gen_struct_review_chinese_primary_mid', name: '【复习结构-语文-小学中段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '语文', stage: 'primary_mid', genType: 'review', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识框架\n二、核心突破\n三、易错专练\n四、综合自测', builtin: true },
@@ -3229,7 +3165,7 @@ export const builtinInstructions = [
   // ── 数学 review ──
   { id: 'gen_struct_review_math_primary_low', name: '【复习结构-数学-小学低段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '数学', stage: 'primary_low', genType: 'review', specialSubType: 'new_standard',
-    content: '结构参考：\n一、知识回顾\n二、重点闯关\n三、易错门诊\n四、成长档案', builtin: true },
+    content: '结构参考：\n一、知识框架\n二、重点突破\n三、易错辨析\n四、成长档案', builtin: true },
   { id: 'gen_struct_review_math_primary_mid', name: '【复习结构-数学-小学中段】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '数学', stage: 'primary_mid', genType: 'review', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识框架\n二、核心突破\n三、易错专练\n四、综合自测', builtin: true },
@@ -3245,7 +3181,7 @@ export const builtinInstructions = [
   // ── 英语 review ──
   { id: 'gen_struct_review_english_primary', name: '【复习结构-英语-小学】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '英语', stage: 'primary_low,primary_mid,primary_high', genType: 'review', specialSubType: 'new_standard',
-    content: '结构参考：\n一、词汇银行\n二、句型工坊\n三、语法点睛\n四、综合闯关', builtin: true },
+    content: '结构参考：\n一、词汇银行\n二、句型工坊\n三、语言规律感知\n四、综合突破', builtin: true },
   { id: 'gen_struct_review_english_middle', name: '【复习结构-英语-初中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '英语', stage: 'middle', genType: 'review', specialSubType: 'new_standard',
     content: '结构参考：\n一、词汇与语法梳理\n二、语篇复习\n三、易错聚焦\n四、中考模拟', builtin: true },
@@ -3278,6 +3214,20 @@ export const builtinInstructions = [
   { id: 'gen_struct_review_generic', name: '【复习结构-通用】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '', stage: '', genType: 'review', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识框架\n二、考点梳理\n三、典型题析\n四、易错聚焦\n五、综合自测', builtin: true },
+  // ── 道德与法治 review（小学段）──
+  { id: 'gen_struct_review_moral_primary', name: '【复习结构-道德与法治-小学】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '道德与法治,政治', stage: 'primary_low,primary_mid,primary_high', genType: 'review', specialSubType: 'new_standard',
+    content: '结构参考：\n一、知识框架\n二、核心观念回顾\n三、行为辨析\n四、易错聚焦\n五、综合自测', builtin: true },
+  // ── 音乐/美术/体育 review（2022 艺术/体育课标，全学段通用）──
+  { id: 'gen_struct_review_music', name: '【复习结构-音乐】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '音乐', stage: '', genType: 'review', specialSubType: 'new_standard',
+    content: '结构参考：\n一、知识框架\n二、核心作品回顾\n三、表现实践\n四、易错聚焦\n五、综合自测', builtin: true },
+  { id: 'gen_struct_review_art', name: '【复习结构-美术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '美术', stage: '', genType: 'review', specialSubType: 'new_standard',
+    content: '结构参考：\n一、知识框架\n二、核心作品回顾\n三、创作实践\n四、易错聚焦\n五、综合自测', builtin: true },
+  { id: 'gen_struct_review_pe', name: '【复习结构-体育】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '体育', stage: '', genType: 'review', specialSubType: 'new_standard',
+    content: '结构参考：\n一、知识框架\n二、核心技能回顾\n三、实践演练\n四、易错聚焦\n五、综合自测', builtin: true },
 
   // ═══════════════════════════════════════
   // 【生成-范围标签】块级指令 — 按 scopeType 匹配
@@ -3309,7 +3259,7 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   // 【生成-输出格式】通用基础行 — 所有 genType 的基础输出格式要求
   // ═══════════════════════════════════════
-  { id: 'output_fmt_base', name: '【输出格式】通用基础', category: '生成-输出格式', prompt_order: 23, type: 'fragment', subject: '', stage: '', genType: '', content: '必须返回HTML片段（从<h1>/<div>/<p>等标签开始），禁止使用<html><head><body>等文档级标签包裹，禁止使用```html代码块标记。\n⛔ 【括号铁律——全资料类型统一】所有括号一律使用英文半角 ( ) ，严禁使用中文全角括号 （ ） ！包括：题号用 (1)(2)(3) 而非 （1）（2）（3），填空若使用括号格式必须用英文半角 ( ) 而非中文全角 （ ），选项标记、注释括号等一切括号场景均用英文半角。全篇不得出现任何一个中文全角括号 （ ） ！', builtin: true },
+  { id: 'output_fmt_base', name: '【输出格式】通用基础', category: '生成-输出格式', prompt_order: 23, type: 'fragment', subject: '', stage: '', genType: '', content: '必须返回HTML片段（从<h1>/<div>/<p>等标签开始），禁止使用<html><head><body>等文档级标签包裹，禁止使用```html代码块标记。', builtin: true },
 
   // ═══════════════════════════════════════
   // 【生成-格式尾约束】recency 锚点 — 指令末尾最后一次格式强化，所有引擎通用
@@ -3535,11 +3485,11 @@ export const builtinInstructions = [
   { id: 'stage_primary_mid', name: '【学段控制】小学中段', category: '生成-学段控制', prompt_order: 52, type: 'fragment', subject: '', stage: 'primary', genType: '',
     content: '当前为小学中段（3-4年级）：识字量2500+字，可设简单阅读题；数学含万以内加减乘除、分数初步；认知层次以识记、理解、应用为主，可含简单分析；选项≤4个，可设简短简答题。', builtin: true },
   { id: 'stage_primary_high', name: '【学段控制】小学高段', category: '生成-学段控制', prompt_order: 52, type: 'fragment', subject: '', stage: 'primary', genType: '',
-    content: '当前为小学高段（5-6年级）：识字量3000+字，阅读量较中段增加；数学含小数/分数运算、方程初步；认知层次以理解、应用为主，可含分析和简单评价；增加综合性、应用性题目。', builtin: true },
+    content: '当前为小学高段（5-6年级）：识字量3000+字，阅读量较中段增加；数学含小数/分数运算、方程初步；认知层次以理解、应用为主，可含分析和简单评价；增加综合性、应用性题目，为初中衔接做准备。', builtin: true },
   { id: 'stage_middle', name: '【学段控制】初中', category: '生成-学段控制', prompt_order: 52, type: 'fragment', subject: '', stage: 'middle', genType: '',
     content: '当前为初中阶段：知识体系结构化，抽象思维发展期；认知层次以理解、应用、分析为主，可含评价；考查知识的系统性和迁移能力，对标中考题型和难度。', builtin: true },
   { id: 'stage_high', name: '【学段控制】高中', category: '生成-学段控制', prompt_order: 52, type: 'fragment', subject: '', stage: 'high', genType: '',
-    content: '当前为高中阶段：知识模块化，思辨能力成熟；认知层次应用、分析、评价、创造均允许；考查深度理解、创新思维和综合运用，对标高考题型和难度。', builtin: true },
+    content: '当前为高中阶段：知识模块化，思辨能力成熟；认知层次应用、分析、评价、创造均允许；考查深度理解、创新思维和综合运用，对标高考题型和难度，可设压轴题。', builtin: true },
 
   // 【生成-题量控制】块级指令 — 按学段精准匹配（补建 D）
   // ═══════════════════════════════════════
@@ -3587,7 +3537,7 @@ export const builtinInstructions = [
   { id: 'diff_primary_high', name: '【难度控制】小学高段', category: '生成-难度控制', prompt_order: 54, type: 'fragment', subject: '', stage: 'primary_high', genType: 'exam,practice,special,errorbook',
     content: '难度配比：基础题50%、中等题30%、提高题20%；题目从易到难排列，提高题侧重综合应用和思维拓展，但不超过小学课标上限。', builtin: true },
   { id: 'diff_middle', name: '【难度控制】初中', category: '生成-难度控制', prompt_order: 54, type: 'fragment', subject: '', stage: 'middle', genType: 'exam,practice,special,errorbook',
-    content: '难度配比：基础题50%、中等题30%、提高题20%；题目从易到难排列，提高题对标中考中档及以上难度，考查知识综合与迁移。', builtin: true },
+    content: '难度配比：基础题60%、中等题30%、提高题10%；题目从易到难排列，提高题对标中考中档及以上难度，考查知识综合与迁移。', builtin: true },
   { id: 'diff_high', name: '【难度控制】高中', category: '生成-难度控制', prompt_order: 54, type: 'fragment', subject: '', stage: 'high', genType: 'exam,practice,special,errorbook',
     content: '难度配比：基础题40%、中等题40%、提高题20%；题目从易到难排列，提高题对标高考中档及以上难度，考查深度思维和创新意识。', builtin: true },
 
@@ -3867,31 +3817,31 @@ export const builtinInstructions = [
   {
     id: 'quality_exam_primary_low', name: '⭐ 品质标准-试卷-小学低段', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: 'primary_low', genType: 'exam',
-    content: '小学低段（1-2年级）：情境化≥60%，以趣味主题贯穿。题干简短（≤15字），选择题≤3选项。字词在句段语境中考查，阅读图文结合（≤150字），写话配词语支架。',
+    content: '小学低段（1-2年级）：情境化≥40%（与真题蓝本学段条款一致），以趣味主题贯穿。题干简短（≤15字），选择题≤3选项。字词在句段语境中考查，阅读以课内原文为准；如配课外短文120-180字。写话配词语支架。',
     builtin: true
   },
   {
     id: 'quality_exam_primary_mid', name: '⭐ 品质标准-试卷-小学中段', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: 'primary_mid', genType: 'exam',
-    content: '小学中段（3-4年级）：情境化≥65%，基础60:能力30:拓展10。单篇阅读200-400字，选择题≤4选项。所有题型嵌入情境，杜绝孤立默写填空。',
+    content: '小学中段（3-4年级）：情境化≥60%（与真题蓝本学段条款一致），基础60:能力30:拓展10。单篇阅读200-400字，选择题≤4选项。所有题型嵌入情境，杜绝孤立默写填空。',
     builtin: true
   },
   {
     id: 'quality_exam_primary_high', name: '⭐ 品质标准-试卷-小学高段', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: 'primary_high', genType: 'exam',
-    content: '小学高段（5-6年级）：情境化≥65%，以小初衔接为导向。基础50:综合35:拓展15。含非连续性文本阅读（图表/说明书），开放性试题附评分要点。',
+    content: '小学高段（5-6年级）：情境化≥60%（与真题蓝本学段条款一致），以小初衔接为导向。难度按基础约50%、中档约30%、提高约20%（与难度配比一致）。含非连续性文本阅读（图表/说明书），开放性试题附评分要点。',
     builtin: true
   },
   {
     id: 'quality_exam_middle', name: '⭐ 品质标准-试卷-初中', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: 'middle', genType: 'exam',
-    content: '初中：情境化≥60%，基础40:综合40:拓展20。重视实验探究、材料分析、综合运用能力，答案需完整解题思路。',
+    content: '初中：情境化≥60%，难度按基础约60%、中档约30%、提高约10%（与难度配比一致）。重视实验探究、材料分析、综合运用能力，答案需完整解题思路。',
     builtin: true
   },
   {
     id: 'quality_exam_high', name: '⭐ 品质标准-试卷-高中', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: 'high', genType: 'exam',
-    content: '高中：情境化≥55%，基础30:综合40:拓展30。重视学科思维深度、创新能力和高考衔接，答案严谨规范。',
+    content: '高中：全卷无情境不成题（对标新高考命题原则，与真题蓝本学段条款一致），难度按基础约40%、中档约40%、提高约20%（与难度配比一致）。重视学科思维深度、创新能力和高考衔接，答案严谨规范。',
     builtin: true
   },
   {
@@ -4157,7 +4107,7 @@ export const builtinInstructions = [
 // ==================== 指令库存储Key与版本号 ====================
 const STORAGE_KEY = 'instructionLib';
 const VERSION_KEY = 'instructionLib_version';
-export const BUILTIN_VERSION = 20; // 🔧 v20: 初中试卷分值表述精确化+小学阅读选文字数按年级分档（消除与总分/充实度块的冲突）
+export const BUILTIN_VERSION = 28; // 🔧 v28: 内容级去冗余——专项要求chart/image块删除内联[GRAPH]/[IMAGE]格式（指向EduRender模板，消除与模板块双注入重复）；信息技术学科特色块与学科适配块去重；删除quality_dictation_type（与quality_dictation重复90%+）
 
 // ==================== 加载指令库 ====================
 export const loadInstructionLib = () => {

@@ -14,6 +14,7 @@ import {
 } from '../config/expertKnowledge.js';
 import { getMatchingBlockInstructions } from '../config/instructionLib.js';
 import { getContextsForSubject } from '../config/subjectContextLibrary.js';
+import { getExamBlueprint, buildExamBlueprintText } from '../config/examPaperBlueprints.js';
 import { HardRuleChecker, AISemanticReviewer } from '../utils/qualityChecker';
 import { runHardValidators, applyAutoFixes } from '../utils/subjectValidators.js';
 import { registerController, unregisterController } from '../utils/requestManager.js';
@@ -682,6 +683,39 @@ const cleanReasoningOutput = (text) => {
 };
 
 // ===== 🔧 输出排版兜底：检测 AI 输出是否挤在一个段落 =====
+// ═══════════════════════════════════
+// 🔴 多单元组卷规范（exam 专用：勾选多个单元时注入）
+// ═══════════════════════════════════
+export const MULTI_UNIT_EXAM_RULES = [
+  '单元权重分配：各单元的考查题量与分值按知识点密度与重难点占比分配，重点单元（知识点多/含重难点）多考，边缘单元少考',
+  '单元覆盖均衡：每个单元至少考查其核心知识点，不得整单元只考1题，更不得完全跳过某单元',
+  '跨单元综合题：设计1-2道综合题，考查2-3个关联知识点（可跨单元），体现单元间的知识衔接',
+  '多单元情境统筹：试卷统一情境/主题线索时，各单元知识点在情境中自然衔接，不得出现明显的拼接感',
+];
+
+/**
+ * 统计知识图谱中的单元知识点分布，生成多单元组卷约束文本。
+ * 仅 exam 且单元数>1 时返回非空；单单元/无图谱返回 ''。
+ */
+export const buildMultiUnitExamConstraint = (knowledgeMap, isExam) => {
+  if (!isExam) return '';
+  const graph = knowledgeMap?.knowledgeGraph || [];
+  if (!Array.isArray(graph) || graph.length <= 1) return '';
+  const unitStats = graph.map(unit => {
+    const kpNames = (unit.bigConcepts || []).flatMap(bc => (bc.coreKnowledge || []).map(ck => ck.name)).filter(Boolean);
+    return { unit: unit.unit || '未命名单元', kpCount: kpNames.length, kpNames };
+  }).filter(u => u.kpCount > 0);
+  if (unitStats.length <= 1) return '';
+  const totalKps = unitStats.reduce((s, u) => s + u.kpCount, 0);
+  let text = `\n---\n【多单元组卷规范——本次覆盖${unitStats.length}个单元，必须遵守】\n`;
+  text += `【单元知识点统计】（共${totalKps}个核心知识点，组卷权重按知识点密度分配）\n`;
+  unitStats.forEach(u => {
+    text += `  - ${u.unit}：${u.kpCount}个知识点（${u.kpNames.slice(0, 6).join('、')}${u.kpNames.length > 6 ? '…' : ''}）\n`;
+  });
+  MULTI_UNIT_EXAM_RULES.forEach(r => { text += `- ${r}\n`; });
+  return text;
+};
+
 const detectSquishedOutput = (html, genType = '') => {
   if (!html || html.length < 100) return { squished: false, blockCount: 0 };
   // 统计块级标签数量
@@ -4702,8 +4736,10 @@ ${cardAnalysisText.substring(0, 1000)}
   };
 
   // Q4: 语文阅读理解答题模板（完全从指令库读取；仅 exam/practice/special/reading 需要，dictation/summary/preview/errorbook 不适用）
-  const getChineseReadingTemplates = (subject, genType) => {
+  const getChineseReadingTemplates = (subject, genType, stage) => {
     if (subject !== '语文') return '';
+    // 🔴 真题卷根治：低段（1-2年级）不适用初高中答题模板（主旨概括/人物分析等），避免超学段要求
+    if (stage && String(stage).startsWith('primary_low')) return '';
     const applicableGenTypes = ['exam', 'practice', 'special', 'reading'];
     if (genType && !applicableGenTypes.includes(genType)) return '';
     const templateBlocks = getMatchingBlockInstructions({ category: '生成-答题模板', subject: '语文', stage: '', genType });
@@ -4904,6 +4940,11 @@ ${cardAnalysisText.substring(0, 1000)}
             }
           }
           instruction += `请生成一份「${displayName}」。${coreInstruction}\n`;
+          // 🔴 红线约束前置（最高优先级）：在所有其他约束之前集中注入，防止关键红线被几十条约束稀释
+          const redlineBlocks = getMatchingBlockInstructions({ category: '生成-红线约束', matchSubject, stage: gradeSegment, genType: gt });
+          if (redlineBlocks.length > 0) {
+            instruction += '\n' + redlineBlocks.map(b => b.content).join('\n') + '\n';
+          }
           // 🔧 品质标准：从指令库按 subject × stage × genType 三维度查询注入（学科专属反套路块需 subject 维度才能命中）
           const qualityBlocks = getMatchingBlockInstructions({ category: '生成-品质标准', matchSubject, stage: gradeSegment, genType: gt });
           if (qualityBlocks.length > 0) {
@@ -4935,14 +4976,30 @@ ${cardAnalysisText.substring(0, 1000)}
               return bScore - aScore; // 高优先级在前
             });
           }
-          if (structBlocks_a2.length > 0) {
+          // 🔴 真题卷根治：exam 类型强制注入「真题卷结构蓝本」（学科×学段，新课标真题通行规范），
+          //    题型骨架/大题名称/分值/卷面规范由蓝本锁定，AI 不得自由发挥；
+          //    结构大纲降级为辅助参考，冲突时一律以蓝本为准。
+          //    ⚠️ 蓝本注入独立于结构大纲匹配：信息科技/音乐/美术/体育等无结构大纲条目的学科同样注入
+          let examBlueprint = null;
+          if (gt === 'exam') {
+            examBlueprint = getExamBlueprint(subject, gradeSegment);
+            if (examBlueprint) {
+              instruction += `\n---\n${buildExamBlueprintText(examBlueprint)}\n`;
+            } else {
+              console.warn(`[exam-blueprint] 未找到真题蓝本且无结构大纲，需人工干预: subject=${subject}, stage=${gradeSegment}`);
+            }
+          }
+          // 🔴 新课标单一骨架：exam 有蓝本时跳过结构大纲注入（蓝本为唯一骨架权威，避免新旧结构打架）
+          if (structBlocks_a2.length > 0 && !(gt === 'exam' && examBlueprint)) {
+            // 结构大纲存在时作为辅助参考注入（蓝本优先）
             let adaptedStructure = structBlocks_a2[0].content.replace('结构参考：\n', '');
             
             // 🔧 从指令库获取学科专属结构模板（按 gradeSegment+subject+genType 三维度精确匹配，小学分低/中/高段）
 
-            // 🔴 消除题量冲突：对 exam/practice/special 类型，gen_struct 中的数字（如"8-12道""3-4题"）与 typedist 矛盾
+            // 🔴 消除题量冲突：对 practice/special 类型，gen_struct 中的数字（如"8-12道""3-4题"）与 typedist 矛盾
             // 在注入时正则抹掉所有题量数字，只保留结构名和内容描述。preview/reading 等无 typedist 的类型不处理
-            const stripTypes = ['exam', 'practice', 'special'];
+            // 🔴 exam 已排除：真题卷蓝本中的分值/题量数字是硬性规范，必须原样保留（见上方 exam blueprint 注入）
+            const stripTypes = ['practice', 'special'];
             if (stripTypes.includes(gt)) {
               // 1. 去掉 "N-M量词"（含后续可选逗号）：8-12道、3-5题、2-4篇、5-6空、1-2个
               adaptedStructure = adaptedStructure.replace(/\d+[～\-—]\d+\s*[道题空篇个][，、]?/g, '');
@@ -4982,7 +5039,8 @@ ${cardAnalysisText.substring(0, 1000)}
             }
 
             // 🔧 DeepSeek 路径：裁掉破折号后面的题型限制（保留板块目的描述，让 DeepSeek 自主决定具体题型）
-            if (_isDeepSeekInstruction) {
+            // 🔴 exam 除外：真题蓝本已锁定题型骨架，结构大纲仅作辅助，不参与题型决策
+            if (_isDeepSeekInstruction && gt !== 'exam') {
               adaptedStructure = adaptedStructure.replace(/——[^\n]*/g, '');
             }
 
@@ -5009,7 +5067,7 @@ ${cardAnalysisText.substring(0, 1000)}
               dictation: '以下为各部分组织顺序和默写框架，具体词句数量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整默写维度',
               reading: '以下为各部分组织顺序和阅读框架，具体题量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整阅读维度',
             };
-            const preamble = structurePreambles[gt] || ('以下为各部分组织顺序，具体内容根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整内容维度');
+            let preamble = structurePreambles[gt] || ('以下为各部分组织顺序，具体内容根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整内容维度');
             instruction += `\n---\n【结构大纲】（${preamble}）：\n ${adaptedStructure}\n`;
           }
         }
@@ -5152,13 +5210,7 @@ ${cardAnalysisText.substring(0, 1000)}
       if (!_isDeepSeekInstruction) {
         instruction += `\n---\n【${_title('stage_subject_adapt', '学段·学科精准适配')}】\n`;
       
-        // 🔧 从指令库获取学段适配块（按 gradeSegment+genType 匹配）
-        const stageBlocks = getMatchingBlockInstructions({ category: '生成-学段适配', stage: gradeSegment, genType: primaryGenType });
-        if (stageBlocks.length > 0) {
-          instruction += stageBlocks[0].content + '\n';
-        } else {
-          console.warn(`[instructionLib] 未找到学段适配: gradeSegment=${gradeSegment}`);
-        }
+        // （已停用「生成-学段适配」查询——与「生成-学段控制」双轨重复，学段控制为详细版并已吸收独特点，v27）
         
         // 🔧 从指令库获取学科适配块（优先 gradeSegment+genType 精确匹配，兜底 stage+subject）
         const subjectBlocks = getMatchingBlockInstructions({ category: '生成-学科适配', matchSubject, stage: gradeSegment, genType: primaryGenType });
@@ -5316,16 +5368,19 @@ ${cardAnalysisText.substring(0, 1000)}
         instruction += `总分：${effectiveTotalScore}分`;
         if (!totalScore) {
           const stageLabel = stage === 'primary' ? '小学' : stage === 'middle' ? '初中' : '高中';
-          instruction += `（${stageLabel}${subject}考试标准自动设置，可手动调整）`;
+          instruction += `（${stageLabel}${subject}考试标准自动设置，与真题蓝本一致）`;
         }
         instruction += `。\n`;
         // 🔧 exam 分值验算已在题型结构原则块中统一处理
       }
       
       // 🔧 Gap2: 时间分配建议（对标市面考卷）
-      const timeAlloc = getTimeAllocation(primaryGenType, subject, gradeSegment);
-      if (timeAlloc) {
-        instruction += `${timeAlloc}。\n`;
+      // 🔴 真题卷根治：exam 考试时长以真题蓝本 duration 为准，跳过通用时间分配建议（避免与蓝本 60/100/120 分钟冲突）
+      if (primaryGenType !== 'exam') {
+        const timeAlloc = getTimeAllocation(primaryGenType, subject, gradeSegment);
+        if (timeAlloc) {
+          instruction += `${timeAlloc}。\n`;
+        }
       }
 
       // 🔧 题量控制（按 gradeSegment 从指令库注入建议总题量范围）
@@ -5352,7 +5407,7 @@ ${cardAnalysisText.substring(0, 1000)}
         instruction += `- 分值对应考查量：1-2分→简单识记/判断/选择，3-4分→理解应用/填空/简答，5-6分→综合运用/多步计算，8分以上→深层探究/论述/写作\n`;
         instruction += `- 同题型等分：同一大题下各小题分值必须一致（如选择题统一2分/题、填空题统一3分/题），禁止同一题型内混搭不同分值\n`;
         instruction += `- 常见整数值：分值取2/3/4/5/6/8/10等常见整数，严禁出现0.5/1.5/2.5等小数，严禁7/11/13等冷僻分值\n`;
-        instruction += `- 分值标注（必须遵守）：每个小题题号后必须标注分值，如"(1) ……（2分）"；同一大题内各小题分值相同的也要逐题标注，禁止只标大题总分不标小题分值；大题总分标注在题组标题后，如"一、看拼音写词语（8分）"\n`;
+        instruction += `- 分值标注（必须遵守）：只在大题标题标注总分值——大题分值严格按真题蓝本、不得改动；同一大题内各小题分值一致；小题一律不标分值\n`;
         instruction += `- 验算：所有题目分数合计必须严格等于${effectiveTotalScore}分，偏差为0\n`;
       }
       
@@ -5797,7 +5852,7 @@ ${cardAnalysisText.substring(0, 1000)}
     if (matchSubject) {
       const answerSpec = getAnswerQualitySpec(primaryGenType, matchSubject, stage, specialSubType);
       const scoringRubric = getScoringRubric(primaryGenType, matchSubject, stage);
-      const chineseTemplates = getChineseReadingTemplates(matchSubject, primaryGenType);
+      const chineseTemplates = getChineseReadingTemplates(matchSubject, primaryGenType, gradeSegment);
       if (answerSpec || scoringRubric || chineseTemplates) {
         const answerSpecBlocks = getMatchingBlockInstructions({ category: '生成-答案与解析规范', subject: '', stage: '' });
         const _ansTitle = _title('answer_spec', '答案与解析规范');
@@ -5865,17 +5920,6 @@ ${cardAnalysisText.substring(0, 1000)}
       console.warn('[instructionLib] 未找到匹配的禁止项（学科/学段/类型无匹配）');
     }
     instruction += '\n';
-
-    // 🔧 学科禁止项补充（学科专属红线，如科学错误/偏题怪题，按 subject 精准匹配，与通用禁止项互补）
-    if (matchSubject) {
-      const banSupplementAll = getMatchingBlockInstructions({ category: '生成-学科禁止项', subject: matchSubject, stage: '' });
-      if (banSupplementAll.length > 0) {
-        instruction += `\n---\n【${_title('ban_subject', '禁止项-学科补充')}】\n`;
-        for (const block of banSupplementAll) {
-          instruction += block.content + '\n';
-        }
-      }
-    }
 
     // 🔧 通用约束：gradeSegment 精确匹配（低/中/高段细分块）+ 粗粒度 stage 兜底（跨学段通用条目）
     const generalConstraintBlocks = [
@@ -5991,7 +6035,7 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔧 排除分析专用类别（文本分析规范/分析模板示例/分析提取要求/知识图谱构建）
     const _ui_handledCategories = new Set([
       // 生成-学段与学科
-      '生成-学段适配', '生成-学科适配', '生成-资料类型结构',
+      '生成-学科适配', '生成-资料类型结构',
       '生成-情境方向',
       '生成-学科特色', '生成-情境要求',
       '生成-年级边界提示', '生成-难度配置',
@@ -6020,10 +6064,10 @@ ${cardAnalysisText.substring(0, 1000)}
       '生成-多章节标题',     // Section: 多章节降级标题格式 + {titles} 替换
       // 🔧 补建（2026）：5个新类别专属 Section
       '生成-学段控制',       // Section: 学段控制（题量/难度/时长按学段建议）
+      '生成-红线约束',       // Section: 红线清单（最高优先级前置注入）
       '生成-题量控制',       // Section: 题量控制（建议总题量范围）
       '生成-难度控制',       // Section: 难度控制（基础:中等:提高比例）
       '生成-学科核心素养',   // Section: 学科核心素养（课标核心素养关键词）
-      '生成-学科禁止项',     // Section: 禁止项-学科补充（学科专属红线）
       // 分析-文本分析专用
       '分析-文本分析规范', '分析-分析模板示例', '分析-分析提取要求', '分析-知识图谱构建'
     ]);
@@ -6098,7 +6142,7 @@ ${cardAnalysisText.substring(0, 1000)}
     //
 
     // 🔧 块间间距归一化：确保每个 --- 分隔线前恰好一个空行，消除不规则间距
-    instruction = instruction.replace(/\n+---\n/g, '\n\n---\n');
+    instruction = instruction.replace(new RegExp(String.fromCharCode(10) + '+---' + String.fromCharCode(10), 'g'), String.fromCharCode(10) + String.fromCharCode(10) + '---' + String.fromCharCode(10));
     instruction = instruction.replace(/^\n+/, '');
     return instruction;
     } catch (e) {
@@ -6389,7 +6433,19 @@ ${content}`;
       errorbook: '从高频错题到易混淆知识点，按错误类型分类整理',
       review: '知识框架→典型题析→易错辨析→综合自测，自测题基础约50%+中档约30%+提高约20%',
     };
-    const diffRatio = diffRatioMap[genType] || '题目从易到难排列';
+    let diffRatio = diffRatioMap[genType] || '题目从易到难排列';
+    // 🔴 考卷难度比例与真题蓝本对齐：按学段动态取值（与「生成-难度配置」块、蓝图命题约束第3条同源），
+    //    避免固定 5:3:2 与蓝本打架（如初中蓝本 6:3:1、低段 7:2:1）
+    if (genType === 'exam') {
+      const diffBook = selectedBooks?.[0];
+      if (diffBook) {
+        const stageMap3 = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
+        const ds = stageMap3[diffBook.stage] || diffBook.stage;
+        const dg = extractGradeNum(diffBook.grade || '');
+        const dr = getStageDifficultyRatio(ds, dg > 0 && dg <= 2, dg >= 3 && dg <= 4, dg >= 5, 'exam');
+        if (dr) diffRatio = `基础约${dr.basic}%，中档约${dr.medium}%，提高约${dr.advanced}%`;
+      }
+    }
 
     // 🔧 资料类型名称池——轮换使用，避免标题千篇一律（使用模块级池）
     const selectedChapters = book?.selectedChapters || [];
@@ -6420,6 +6476,9 @@ ${content}`;
     fullPrompt += finalInstruction;
     fullPrompt += '\n\n⚠️ 以上为完整指令，请严格遵循每一个细节要求，生成完整 HTML 资料。\n\n';
     fullPrompt += kmText;
+    // 🔴 多单元组卷规范（exam 且勾选多个单元时注入，含单元知识点统计）
+    const multiUnitText = buildMultiUnitExamConstraint(knowledgeMap, isExam);
+    if (multiUnitText) fullPrompt += multiUnitText;
     fullPrompt += '\n\n【教材原文】\n';
     fullPrompt += materialText;
     fullPrompt += '\n';
@@ -6465,6 +6524,18 @@ ${content}`;
         const bodyMatch = content.match(/<body[^>]*>([\s\S]*)<\/body>/i);
         if (bodyMatch) content = bodyMatch[1];
 
+        // 🔴 真题卷根治：剥除生成后自审块（<div class="self-review">），质检记录不得泄漏到成品
+        content = content.replace(/<div[^>]*class=["'][^"']*self-review[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '');
+        // 🔴 兜底：模型未包进 div 时，从尾部质检特征句（"1.知识点准确性"）截断，仅当该句到文末的纯文本很短（<400字）才执行，防止误伤正文
+        const _qcIdx = content.search(/(?:<[^>]+>\s*)*1[\.、．]\s*知识点准确性/);
+        if (_qcIdx > 0) {
+          const _qcTail = content.substring(_qcIdx).replace(/<[^>]+>/g, '').replace(/\s/g, '');
+          if (_qcTail.length < 400) {
+            content = content.substring(0, _qcIdx);
+            console.log('🧹 已剥除泄漏到成品的质检报告文字');
+          }
+        }
+
         // 提取题目列表（多策略降级：regex → 题号模式 → 自由题号 → 块级标签兜底）
         let questionMatches = content.match(/<p class="question"[^>]*>[\s\S]*?<\/p>/g) || [];
         if (questionMatches.length === 0) {
@@ -6497,14 +6568,51 @@ ${content}`;
         const generatedQuestions = questionMatches;
 
         // 构建伪蓝图（用于后续质量校验）
+        // 🔧 修复：原实现硬编码 difficulty:'基础'，导致质量报告误报"规划：基础100% 中档0% 提高0%"
+        //    与结果区难度条失真（难度配比已由指令按学段自动注入，卷面真实难度并非全基础）。
+        //    - difficulty：沿题目顺序按配比近似分配——卷面按"从易到难"排列，前段基础、中段中档、尾段提高；
+        //      exam 用学段配比（与注入 prompt 的 diffRatio 同源，如低段 7:2:1），其余类型用 5:3:2
+        //    - type：从题干文本推断常见题型关键词，替代"未知"，提升模板对标报告可读性
+        const pbTotal = questionMatches.length;
+        let pbRatio = { basic: 50, medium: 30, advanced: 20 };
+        if (isExam) {
+          const pbBook = selectedBooks?.[0];
+          const pbStageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
+          const pbStage = pbBook ? (pbStageMap[pbBook.stage] || pbBook.stage) : stage;
+          const pbGradeNum = pbBook ? extractGradeNum(pbBook.grade || '') : 0;
+          const pbDr = getStageDifficultyRatio(pbStage, pbGradeNum > 0 && pbGradeNum <= 2, pbGradeNum >= 3 && pbGradeNum <= 4, pbGradeNum >= 5, 'exam');
+          if (pbDr) pbRatio = pbDr;
+        }
+        const pbEasyCount = pbTotal > 0 ? Math.round(pbTotal * pbRatio.basic / 100) : 0;
+        const pbMediumCount = pbTotal > 0 ? Math.round(pbTotal * pbRatio.medium / 100) : 0;
+        // 题型关键词推断（常见题型按命中优先级排列）
+        const pbTypeHints = [
+          ['看图写话', '看图写话'], ['口语交际', '口语交际'], ['阅读理解', '阅读理解'],
+          ['看拼音', '看拼音，写词语'], ['读音', '给加点字选择正确的读音'],
+          ['组词', '比一比，再组词'], ['照样子', '照样子，写一写'],
+          ['完形填空', '完形填空题'], ['填空', '填空题'], ['默写', '默写题'],
+          ['判断', '判断题'], ['选择', '选择题'], ['连线', '连线题'],
+          ['应用', '应用题'], ['计算', '计算题'], ['解答', '解答题'],
+          ['简答', '简答题'], ['听力', '听力题'], ['写作', '写作题'], ['作文', '写作题'],
+        ];
         const parsedBlueprint = questionMatches.map((match, i) => {
           const plainText = match.replace(/<[^>]+>/g, '').trim();
           const numMatch = plainText.match(/^(\d+)[\.、．]/);
+          // 难度沿卷面顺序分配（从易到难）
+          let difficulty = '基础';
+          if (pbTotal > 0) {
+            if (i >= pbEasyCount + pbMediumCount) difficulty = '提高';
+            else if (i >= pbEasyCount) difficulty = '中档';
+          }
+          let inferredType = '';
+          for (const hint of pbTypeHints) {
+            if (plainText.includes(hint[0])) { inferredType = hint[1]; break; }
+          }
           return {
             number: numMatch ? parseInt(numMatch[1]) : (i + 1),
-            type: '未知',
+            type: inferredType || '未知',
             knowledgePoint: '',
-            difficulty: '基础',
+            difficulty,
             score: isExam && questionMatches.length > 0 ? Math.round(totalScore / questionMatches.length) : 0,
             sourceChapter: '',
           };
@@ -7010,6 +7118,8 @@ ${(() => {
 【跨章节关联】
 ${JSON.stringify(knowledgeMap.crossChapterLinks?.slice(0, 5) || [], null, 2)}
 
+${(() => { const _muText = buildMultiUnitExamConstraint(knowledgeMap, genType === 'exam'); return _muText || ''; })()}
+
 ${templateInfo}
 ${contextFramework}
 
@@ -7020,7 +7130,7 @@ ${instruction}
 
 【命题约束】
 ${(() => { const kpCount = knowledgeMap.knowledgePoints?.length || 10; const minQ = Math.min(kpCount, 30); return `0. 🔧 题量硬性约束：必须生成至少${minQ}道题（知识点清单共${kpCount}个）。每个知识点至少考查1次，不可遗漏任何知识点。如需控制题量，可将1-2个关联度高的边缘知识点合并为综合题，但不得跳过任何知识点。\n`; })()}1. 每个知识点至少考查1次，重点知识可从不同角度考查2次
-2. 同一知识点不得以相同题型重复考查超过2次
+2. 🔴 知识点考查去重（正式考试标准）：一般知识点全卷仅考查1次；重难点知识点最多考查2次且必须角度不同（如概念理解+应用），禁止同一知识点无意义重复考查
 3. 难度分布按学段动态（从指令中已注入的学段适配要求为准）：
 ${(() => { const book = selectedBooks?.[0]; if (!book) return '  基础约50%，中档约30%，提高约20%'; const stageMap2 = { '小学': 'primary', '初中': 'middle', '高中': 'high' }; const s = stageMap2[book.stage] || book.stage; const g = extractGradeNum(book.grade || ''); const ratio = getStageDifficultyRatio(s, g > 0 && g <= 2, g >= 3 && g <= 4, g >= 5); return ratio ? `  基础约${ratio.basic}%，中档约${ratio.medium}%，提高约${ratio.advanced}%` : '  基础约50%，中档约30%，提高约20%'; })()}
 4. ⚠️ 题型多样性（强制执行）：同一份资料中至少使用3种不同题型，严禁全部或绝大多数使用选择题——尤其英语/语文科目，必须搭配填空、判断、简答、连线、仿写、补全对话等多样性题型
@@ -7029,7 +7139,7 @@ ${(() => { const book = selectedBooks?.[0]; if (!book) return '  基础约50%，
 7. 🔧 新增：允许2-3道综合题（题量超过15题时），可考查2-3个关联知识点
 8. 🔧 新增：综合题的 knowledgePoint 填写 "综合：知识点A、知识点B"
 9. 🔧 新增：综合题应放在${(() => { const labelMap = { exam: '试卷', practice: '练习', special: '训练', preview: '预习材料', reading: '阅读训练', summary: '知识总结', dictation: '听写训练', errorbook: '错题本', review: '复习资料' }; return labelMap[genType] || '资料'; })()}后半部分，cognitiveLevel 至少为"应用"
-${genType === 'exam' ? '10. 🔧 新增：综合题分值应高于单一知识点题，建议8-15分\n' : ''}${genType === 'exam' ? '11. 🔧 分值校验：所有题目的 score 之和必须严格等于指令中标注的「总分」，不得超出或不足。请逐题分配分值后自验：sum(score) === 总分' : ''}
+${genType === 'exam' ? '10. 🔧 新增：综合题分值应高于单一知识点题（按【真题卷结构蓝本】大题分值拆分，低段小题1-2分）\n' : ''}${genType === 'exam' ? '11. 🔧 分值校验：所有题目的 score 之和必须严格等于指令中标注的「总分」，不得超出或不足。请逐题分配分值后自验：sum(score) === 总分\n' : ''}${genType === 'exam' ? '13. 🔴 相似题禁令：同一大题组内不得出现题材/情境/数据/设问角度相似的两道题\n' : ''}
 ${(() => { const qualityMap = { exam: '12. 【考试卷质量要求】试题需有合理区分度，基础题确保大多数学生能做对，提高题能区分优秀学生；答案必须无争议。', practice: '12. 【课时练质量要求】题目必须与教材内容高度一致，不超纲不偏题；基础巩固→能力提升→拓展探究三层递进，单题解答时间约2-5分钟。', special: '12. 【专项训练质量要求】题目围绕专项知识点展开，覆盖各种考查角度；从最简单到最难形成清晰训练梯度，典型方法覆盖完整。', preview: '12. 【课前预习质量要求】预习任务可操作、可检查；预习检测紧扣教材原文，难度不宜过高，侧重基础感知。', reading: '12. 【阅读训练质量要求】选文贴近学段水平；题目涵盖信息提取、词句理解、主旨概括、推理判断、评价鉴赏五个层级。', summary: '12. 【知识总结质量要求】知识结构完整无遗漏；易错点辨析准确到位；典型例题有完整解析过程。', dictation: '12. 【听写/默写质量要求】练习区只留提示不留答案；按教材顺序排列；书写空间充足。', errorbook: '12. 【错题本质量要求】错题归因准确；正确解法步骤完整；变式巩固题与错题知识点一一对应。', review: '12. 【复习资料质量要求】知识框架层次分明，考点梳理完整不漏；典型题析覆盖全部考查角度；易错辨析精确到位；综合自测难度梯度合理，能真实检验复习效果。' }; return (qualityMap[genType] || qualityMap.exam) + '\n'; })()}
 
 ${(() => { const hasTpl = selectedTemplates && selectedTemplates.length > 0; if (!hasTpl) return ''; return '【模板反例约束——模板中不会出现的模式，禁止使用】\n' + (() => { const tpl = selectedTemplates?.[0]; let antiExamples = ''; if (tpl?.analysis?.questionCards?.length) { const cards = tpl.analysis.questionCards; const stems = cards.filter(c => c.stem).map(c => c.stem || ''); const hasGenericQuestion = stems.some(s => s.includes('下列说法正确的是') || s.includes('以下哪个选项是正确的')); if (!hasGenericQuestion) { antiExamples += '- ⛔ 模板从未使用"下列说法正确的是"这类无信息量设问，生成时严禁使用\n'; } const hasAllAbove = cards.some(c => c.options?.some(o => o.trim() === '以上都是' || o.trim() === '以上都不对')); if (!hasAllAbove) { antiExamples += '- ⛔ 模板选项从未出现"以上都是""以上都不对"，生成时严禁使用\n'; } const stemLengths = stems.map(s => s.length).filter(l => l > 5); if (stemLengths.length > 0) { const minLen = Math.min(...stemLengths); const maxLen = Math.max(...stemLengths); antiExamples += `- 参考题干长度范围：${minLen}~${maxLen}字（可根据知识点需要适当调整）\n`; } } return antiExamples; })() + '\n'; })()}
@@ -7057,7 +7167,7 @@ ${(() => { const hasTpl = selectedTemplates && selectedTemplates.length > 0; if 
     "type": "选择题",
     "knowledgePoint": "分数加减法（同分母）",
     "cognitiveLevel": "理解",
-    "difficulty": "基础",${genType === 'exam' ? '\n    "score": 3,' : ''}
+    "difficulty": "基础",${genType === 'exam' ? '\n    "score": 3,\n    "section": "填空",' : ''}
     "sourceChapter": "第3章第1节",
     "contextScene": "场景名称（如使用统一情境则必填）"
   },
@@ -7066,16 +7176,16 @@ ${(() => { const hasTpl = selectedTemplates && selectedTemplates.length > 0; if 
     "type": "填空题",
     "knowledgePoint": "分数加减法（异分母）",
     "cognitiveLevel": "应用",
-    "difficulty": "中档",${genType === 'exam' ? '\n    "score": 4,' : ''}
+    "difficulty": "中档",${genType === 'exam' ? '\n    "score": 4,\n    "section": "解答题",' : ''}
     "sourceChapter": "第3章第2节"
   }
 ]
 
 【强制规则】
-- "type" 从以下选：选择题、填空题、判断题、计算题、解答题、应用题、简答题、作图题、实验题
+- "type" 从以下选：选择题、填空题、判断题、计算题、解答题、应用题、简答题、作图题、实验题、连线题、排序题、听力题、写话题、默写题、完形填空题
 - "cognitiveLevel" 从以下选：识记、理解、应用、分析、评价、创造
 - "difficulty" 从以下选：基础、中档、提高
-- "knowledgePoint" 必须写具体的概念名称，不得写"综合考查"
+- "knowledgePoint" 必须写具体的概念名称，不得写"综合考查"${genType === 'exam' ? '\n- "section" 为题目所属板块，取值严格使用【真题卷结构蓝本】中的大题名（如语文"看拼音，写词语""阅读理解"、数学"填空""解答题"），同一大题的题目 section 必须相同' : ''}
 - "sourceChapter" 写对应章节名称${genType === 'exam' ? '\n- "score" 为本题分值，所有题目 score 之和必须严格等于总分' : `\n- 不需要 "score" 字段（${genTypeLabel}不需要标注每题分值）`}
 - 只返回 JSON 数组，不要用 Markdown 代码块包裹，不要任何解释文字
 - JSON 必须合法可解析，键名用双引号`;
@@ -7906,7 +8016,17 @@ ${generatedQuestions.map((q, i) => `题${i+1}：${q.replace(/<[^>]+>/g, '').subs
       年级：${grade}
       总分：${totalScore || 100}分
       题型分布：${parsedBlueprint.map(q => `${q.type}×${parsedBlueprint.filter(p => p.type === q.type).length}题`).filter((v, i, a) => a.indexOf(v) === i).join('，')}
-
+            大题结构（严格按【真题卷结构蓝本】大题序列与分值，禁止改名/增删/重组）:
+      ${(() => {
+        const secCount = {};
+        for (const q of parsedBlueprint) {
+          const sec = (q.section || '').trim();
+          if (!sec) continue;
+          secCount[sec] = (secCount[sec] || 0) + 1;
+        }
+        const lines = Object.keys(secCount).map(k => k + '（' + secCount[k] + '题）');
+        return lines.length > 0 ? lines.join('；') : '按【真题卷结构蓝本】大题序列组织，禁止用"基础/能力/综合"板块包装';
+      })()}
       返回HTML格式的试卷头部，用<h1>标题，用<div class="exam-info">包裱考试信息。`;
 
           try {

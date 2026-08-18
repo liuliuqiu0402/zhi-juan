@@ -1,3 +1,5 @@
+import { getExamBlueprint } from '../config/examPaperBlueprints';
+
 type IssueSeverity = 'error' | 'warning';
 interface Issue {
   severity: IssueSeverity;
@@ -26,6 +28,20 @@ const GRADE_VOCABULARY: Record<string, Record<string, { safe: string[]; warn: st
   }
 };
 
+/** 🔴 三重硬核扫描维度归类表：issue type → 查重/查错/查规范（未列入的 type 默认归查规范） */
+const TRIPLE_SCAN_CLASSIFY: Record<string, 'duplication' | 'error' | 'standard'> = {
+  // ── 查重：重复内容/相似题/知识点重复 ──
+  '存在重复题目': 'duplication', '知识点重复考查': 'duplication', '内容高度重复': 'duplication', '疑似相似题': 'duplication',
+  // ── 查错：内容错误/格式错误/事实性错误 ──
+  '格式错误': 'error', '答案不完整': 'error', '超纲词汇': 'error', 'HTML标签不平衡': 'error',
+  '答案泄露': 'error', '标点配对异常': 'error', '拼音未标调': 'error', '分值体系异常': 'error',
+  '学段内容超纲': 'error', '教材相关性极低': 'error', '教材相关性偏低': 'error', '教材专有名词缺失': 'error',
+  '内容深度不足': 'error', '答案可能泄露': 'error', '归因过于笼统': 'error',
+};
+
+/** 🔴 含题目的资料类型：语义审查"题目质量专项"适用（summary 等纯知识类除外） */
+const QUESTION_GEN_TYPES = ['exam', 'practice', 'special', 'review', 'dictation', 'preview', 'reading', 'errorbook'];
+
 export class HardRuleChecker {
   static check(content: string, parsedBlueprint: unknown[], subject: string, stage: string, grade: string, genType?: string, materialText?: string): Issue[] {
     // 🔧 防御：content 必须是非空字符串
@@ -34,6 +50,8 @@ export class HardRuleChecker {
     issues.push(...this.checkVocabulary(content, subject, stage, grade));
     issues.push(...this.checkFullwidthChars(content));
     issues.push(...this.checkAnswerCompleteness(content));
+    // 🔴 三重硬核扫描·查错：标点配对检测
+    issues.push(...this.checkBracketBalance(content));
     if (parsedBlueprint && parsedBlueprint.length > 0) {
       issues.push(...this.checkQuestionCount(content, parsedBlueprint));
     }
@@ -45,9 +63,27 @@ export class HardRuleChecker {
     // 🔧 新增：内容质量深度检查
     issues.push(...this.checkContentSubstance(content, genType || ''));
     // 🔧 新增：新课标核心素养术语命中率检查
-    issues.push(...this.checkCurriculumCompetency(content, subject, stage));
+    //    exam 豁免：正式考卷卷面不印素养术语（低段分题型卷/中高段板块卷均不出现），
+    //    素养导向体现在题目情境化设计与设问层级，术语命中率对考卷是误报
+    if (genType !== 'exam') {
+      issues.push(...this.checkCurriculumCompetency(content, subject, stage));
+    }
     // 🔧 新增：学段适配内容深度检查
     issues.push(...this.checkStageDepth(content, stage, genType || ''));
+    // 🔴 三重硬核扫描·查错：答案泄露检测（组词题/看拼音题，练习/听写/复习等全类型适用）
+    issues.push(...this.checkAnswerLeak(content));
+    // 🔴 真题卷根治：exam 成品卷面结构校验（蓝本对齐）
+    if (genType === 'exam') {
+      // 学段规范化：stage 可能是中文（小学/初中/高中）或英文；小学需按年级细分低/中/高段
+      const stageKey = ({ '小学': 'primary', '初中': 'middle', '高中': 'high' } as Record<string, string>)[stage] || stage;
+      const gradeNum = parseInt(String(grade || '').match(/\d+/)?.[0] || '0', 10);
+      let stageSeg = stageKey;
+      if (stageKey === 'primary') {
+        stageSeg = gradeNum <= 2 ? 'primary_low' : gradeNum <= 4 ? 'primary_mid' : 'primary_high';
+      }
+      const examBlueprint = getExamBlueprint(subject, stageSeg);
+      issues.push(...this.checkExamPaperStandard(content, examBlueprint));
+    }
     if (materialText) {
       issues.push(...this.checkContentRelevance(content, materialText, subject));
     }
@@ -93,6 +129,211 @@ export class HardRuleChecker {
     return [];
   }
 
+  /**
+   * 🔴 三重硬核扫描·查错：标点配对检测
+   * 全角圆括号/书名号/中文双引号必须成对闭合，奇偶校验全卷（含答案区）
+   */
+  static checkBracketBalance(content: string): Issue[] {
+    const issues: Issue[] = [];
+    const pairs: Array<[RegExp, RegExp, string]> = [
+      [/（/g, /）/g, '全角圆括号（ ）'],
+      [/《/g, /》/g, '书名号《 》'],
+      [/“/g, /”/g, '中文双引号“ ”'],
+    ];
+    for (const [open, close, name] of pairs) {
+      const o = (content.match(open) || []).length;
+      const c = (content.match(close) || []).length;
+      if (o !== c) {
+        issues.push({ severity: 'error', type: '标点配对异常', detail: `${name}不成对：左${o}个、右${c}个，正式试卷不得出现未闭合标点`, autoFix: false });
+      }
+    }
+    return issues;
+  }
+
+  /**
+   * 🔴 真题卷根治：exam 成品卷面结构校验（对齐真题蓝本）
+   * 检测：分值总和、卷首信息栏、密封线信息栏、创意题型名、质检报告泄漏
+   * 全部为 error 级（触发 AI 自动修复），autoFix=false（需 AI 理解语义修复）
+   */
+  static checkExamPaperStandard(content: string, blueprint: { fullScore: number; duration?: string; sections?: Array<{ name: string; score: number; note?: string }> } | null): Issue[] {
+    const issues: Issue[] = [];
+    if (!blueprint) return issues;
+
+    // 1. 总分校验：收集大题分值标注（如"。（16分）""(16分)"），求和与蓝本满分比对。
+    //    🔧 只统计正文：答案区（answer-section）评分细则中的"每空2分""（3分）"标注是真题卷
+    //    答案页的正常做法，不参与卷面分值闭合校验，否则会误报"分值之和超标"与"小题标分"。
+    const answerDiv = content.match(/<div[^>]*class="answer-section"[^>]*>/i);
+    const bodyContent = answerDiv && answerDiv.index ? content.slice(0, answerDiv.index) : content;
+    const scoreLabels = bodyContent.match(/[（(]\s*\d{1,3}\s*分\s*[)）]/g) || [];
+    const sum = scoreLabels.reduce((s, m) => s + parseInt(m.replace(/\D/g, ''), 10), 0);
+    if (scoreLabels.length > 0 && Math.abs(sum - blueprint.fullScore) > 2) {
+      issues.push({
+        severity: 'error', type: '分值体系异常',
+        detail: '大题分值之和=' + sum + '分，卷面满分应为' + blueprint.fullScore + '分。检查大题分值是否遗漏或重复计算（小题不应单独标注分值）',
+        autoFix: false,
+      });
+    }
+    // 小题分值标注检测：分值标注数量明显超过大题数（>12处）说明小题被标了分值，不符合真题卷惯例
+    if (scoreLabels.length > 12) {
+      issues.push({
+        severity: 'error', type: '分值标注不规范',
+        detail: '检测到大量分值标注（' + scoreLabels.length + '处），真题卷只在大题标题标注总分值，小题一律不标分值',
+        autoFix: false,
+      });
+    }
+
+    // 2. 卷首信息栏：满分 + 考试时间（含数值与蓝本一致性）
+    const fullScoreMatch = content.match(/满分\s*[:：]?\s*(\d{1,3})\s*分/);
+    if (!fullScoreMatch) {
+      issues.push({ severity: 'error', type: '卷面缺漏', detail: '卷首缺少"满分"标注（真题卷卷首须标注满分）', autoFix: false });
+    } else if (parseInt(fullScoreMatch[1], 10) !== blueprint.fullScore) {
+      issues.push({ severity: 'error', type: '分值体系异常', detail: '卷首标注满分' + fullScoreMatch[1] + '分，与真题蓝本满分' + blueprint.fullScore + '分不一致', autoFix: false });
+    }
+    if (!/(考试时间|考试时长|时间\s*[:：])/.test(content)) {
+      issues.push({ severity: 'error', type: '卷面缺漏', detail: '卷首缺少"考试时间"标注', autoFix: false });
+    } else if (blueprint.duration) {
+      const durMatch = content.match(/(?:考试时间|考试时长)\s*[:：]?\s*(\d+)\s*分钟/);
+      if (durMatch && parseInt(durMatch[1], 10) !== parseInt(blueprint.duration, 10)) {
+        issues.push({ severity: 'error', type: '分值体系异常', detail: '卷首标注考试时间' + durMatch[1] + '分钟，与真题蓝本' + blueprint.duration + '不一致', autoFix: false });
+      }
+    }
+
+    // 3. 密封线信息栏：姓名 + 班级
+    if (!/姓名/.test(content) || !/班级/.test(content)) {
+      issues.push({ severity: 'error', type: '卷面缺漏', detail: '缺少密封线信息栏（学校/班级/姓名/学号，附\"密封线内不要答题\"）', autoFix: false });
+    }
+
+    // 4. 创意题型名检测（真题卷禁用花哨命名）
+    const creativeMatch = content.match(/[\u4e00-\u9fa5]{0,4}(小达人|对对碰|大转盘|小侦探|闯关|乐园|达人)[\u4e00-\u9fa5]?/);
+    if (creativeMatch) {
+      issues.push({
+        severity: 'error', type: '题型命名不规范',
+        detail: '出现非真题规范题型名\"' + creativeMatch[0] + '\"，应使用真题规范题型名（如\"看拼音，写词语\"\"按课文内容填空\"）',
+        autoFix: false,
+      });
+    }
+
+    // 5. 质检报告泄漏检测
+    if (/知识点准确性/.test(content) && /课标对齐|学段适配/.test(content)) {
+      issues.push({
+        severity: 'error', type: '质检报告泄漏',
+        detail: '正文或答案中混入质检自审文字（"知识点准确性/课标对齐"等检查条目），正式试卷不得出现',
+        autoFix: false,
+      });
+    }
+  
+    // 6. 大题骨架匹配：蓝本大题名称在成品中的命中率（防删题/改名题）
+    if (blueprint.sections && blueprint.sections.length > 0) {
+      const names = blueprint.sections.map((s) => s.name);
+      const hit = names.filter((n) => content.includes(n)).length;
+      const minHit = Math.max(1, Math.ceil(names.length * 0.6));
+      if (hit < minHit) {
+        issues.push({
+          severity: 'error', type: '大题骨架不符',
+          detail: '真题蓝本要求' + names.length + '道大题，成品仅命中' + hit + '道大题名称（至少需' + minHit + '道），存在删题或改题，应按蓝本题型骨架执行',
+          autoFix: false,
+        });
+      }
+    }
+  
+    // 7. 配图描述缺失：蓝本 note 要求 [IMAGE] 的看图/配图类题型，成品必须输出 [IMAGE] 标记
+    if (blueprint.sections && blueprint.sections.length > 0) {
+      const imageRequired = blueprint.sections.filter((s) => (s.note || '').includes('[IMAGE]'));
+      if (imageRequired.length > 0 && !content.includes('[IMAGE]')) {
+        issues.push({
+          severity: 'error', type: '配图描述缺失',
+          detail: '蓝本要求"' + imageRequired.map((s) => s.name).join('、') + '"等看图/配图类题必须用 [IMAGE] 标记输出配图描述（供用户生图后插入），成品未检测到任何 [IMAGE] 标记',
+          autoFix: false,
+        });
+      }
+    }
+    // 7b. 配图参数完整性：有 [IMAGE] 标记但缺少 PROMPT 字段时提醒（生图工具需要结构化参数便于复制）
+    if (content.includes('[IMAGE]') && !content.includes('PROMPT')) {
+      issues.push({
+        severity: 'warning', type: '配图参数不完整',
+        detail: '检测到 [IMAGE] 标记但缺少 PROMPT 字段，应按结构化格式输出（TYPE:SD / PROMPT:画面描述 / STYLE:line_art），方便复制到生图工具生成图片',
+        autoFix: false,
+      });
+    }
+  
+    // 8. 听力材料缺失：蓝本听力题要求听力原文集中放答案页供教师朗读
+    if (blueprint.sections && blueprint.sections.length > 0) {
+      const listeningRequired = blueprint.sections.filter((s) => (s.note || '').includes('听力原文'));
+      if (listeningRequired.length > 0 && !/听力材料|听力原文|听力文本/.test(content)) {
+        issues.push({
+          severity: 'error', type: '听力材料缺失',
+          detail: '蓝本要求听力题将听力原文集中放答案页（标注"听力材料"供教师朗读），成品未检测到听力材料',
+          autoFix: false,
+        });
+      }
+    }
+  
+    return issues;
+  }
+  
+  /**
+   * 🔴 真题卷根治：exam 答案泄露检测
+   * 组词等题型的题干/例句/示例中不得直接出现该题答案（防答案照抄）
+   */
+  static checkAnswerLeak(content: string): Issue[] {
+    const issues: Issue[] = [];
+    // 拆出答案区纯文本（answer-section 至文末）与正文
+    let body = content;
+    let answerText = '';
+    const answerMatch = content.match(/<div[^>]*class="answer-section"[^>]*>([\s\S]*)$/i);
+    if (answerMatch) {
+      body = content.slice(0, answerMatch.index || 0);
+      answerText = answerMatch[1] || '';
+    }
+    if (!answerText) return issues;
+  
+    // ── 检测1：组词题（标题含"组词"）——题干/例句不得出现答案组词 ──
+    const zuci = body.match(/<h[2-4][^>]*>[^<]*组词[^<]*<\/h[2-4]>([\s\S]*?)(?=<h[2-4][^>]*>|$)/i);
+    if (zuci) {
+      const zuciText = zuci[1].replace(/<[^>]+>/g, '');
+      // 答案组词：答案区全角括号内 2-4 字中文词（如"园（公园）"）
+      const answerWords = Array.from(answerText.matchAll(/（([\u4e00-\u9fff]{2,4})）/g), (m) => m[1]);
+      const leaked: string[] = [];
+      for (const w of new Set(answerWords)) {
+        if (w.length >= 2 && zuciText.includes(w)) leaked.push(w);
+      }
+      if (leaked.length > 0) {
+        issues.push({
+          severity: 'error', type: '答案泄露',
+          detail: '组词题题干/例句中出现答案组词：' + leaked.slice(0, 5).join('、') + (leaked.length > 5 ? '等' : '') + '，题干只应给出形近字对，禁止出现含该字的词语或例句（防答案照抄）',
+          autoFix: false,
+        });
+      }
+    }
+  
+    // ── 检测2：看拼音写词语（标题含"看拼音"）——题干句子不得直接写出目标词 ──
+    const kpy = body.match(/<h[2-4][^>]*>[^<]*看拼音[^<]*<\/h[2-4]>([\s\S]*?)(?=<h[2-4][^>]*>|$)/i);
+    if (kpy) {
+      const kpyText = kpy[1].replace(/<[^>]+>/g, '');
+      // 答案区对应分区：从"看拼音"标题到下一道大题序号标题（如"二、"）为止
+      const kpyAnsMatch = answerText.match(/看拼音[^一二三四五六七八九十\n]{0,8}([\s\S]{0,400}?)(?=[一二三四五六七八九十]、|$)/);
+      if (kpyAnsMatch) {
+        // 每项：序号开头，取首个连续2-6字中文词作为答案词
+        const items = (kpyAnsMatch[1] || '').split(/\d+[.、．]\s*/).filter(Boolean);
+        const leaked: string[] = [];
+        for (const item of items) {
+          const wm = item.match(/[\u4e00-\u9fff]{2,6}/);
+          const w = wm ? wm[0] : '';
+          if (w && kpyText.includes(w) && !leaked.includes(w)) leaked.push(w);
+        }
+        if (leaked.length > 0) {
+          issues.push({
+            severity: 'error', type: '答案泄露',
+            detail: '看拼音写词语的题干句子中出现目标词：' + leaked.slice(0, 5).join('、') + (leaked.length > 5 ? '等' : '') + '，目标词应挖空填在横线上，题干句子不得直接写出目标词（防答案照抄）',
+            autoFix: false,
+          });
+        }
+      }
+    }
+  
+    return issues;
+  }
+
   static checkQuestionCount(content: string, parsedBlueprint: unknown[]): Issue[] {
     const issues: Issue[] = [];
     // 🔧 放宽匹配：DeepSeek 云端输出的 HTML 结构不可控，匹配任意包含 question 的 class
@@ -126,11 +367,130 @@ export class HardRuleChecker {
 
   static checkGenTypeSpecific(content: string, genType: string, parsedBlueprint: unknown[]): Issue[] {
     const issues: Issue[] = [];
+    // ═══ 🔴 三重硬核扫描·全类型通用层（所有资料类型均适用）═══
+    const qBlocks = content.match(/<(?:p|div|li)\s+class="[^"]*question[^"]*"[^>]*>[\s\S]*?<\/(?:p|div|li)>/gi) || [];
+    // 查重·存在重复题目：去标签归一化后完全相同
+    if (qBlocks.length > 1) {
+      const normalized = qBlocks.map(b => b.replace(/<[^>]+>/g, '').replace(/\s+/g, '').trim()).filter(t => t.length > 10);
+      const dupCount = normalized.filter((t, i) => normalized.indexOf(t) !== i).length;
+      if (dupCount > 0) {
+        issues.push({ severity: 'warning', type: '存在重复题目', detail: `检测到${dupCount}处完全相同的题目，重复题是生成事故，请改写其一`, autoFix: false });
+      }
+    }
+    // 查重·相似题指纹检测：题干归一化后前12字重合即疑似相似题
+    if (qBlocks.length > 1) {
+      const fingerprints = qBlocks
+        .map((b) => b.replace(/<[^>]+>/g, '').replace(/\s+/g, '').replace(/^\d+[.、．）)]/, '').slice(0, 12))
+        .filter((f) => f.length >= 10);
+      const seen = new Map<string, number>();
+      const similar = new Set<string>();
+      for (const f of fingerprints) {
+        if (seen.has(f)) similar.add(f);
+        else seen.set(f, 1);
+      }
+      if (similar.size > 0) {
+        issues.push({ severity: 'warning', type: '疑似相似题', detail: `检测到${similar.size}组题干高度相似的题目（如"${[...similar][0]}…"），组题大忌：题材/情境/设问角度相似的题须改写其一`, autoFix: false });
+      }
+    }
+    // 查规范·绝对化选项滥用："以上都对/以上都不对"类选项会降低区分度
+    const absoluteOpts = (content.match(/以上都对|以上都不对|以上全对|全部正确|都不正确|以上都不正确/g) || []).length;
+    if (absoluteOpts >= 2) {
+      issues.push({ severity: 'warning', type: '绝对化选项滥用', detail: `检测到${absoluteOpts}处"以上都对/以上都不对"类绝对化选项（建议不超过1处），这类选项会降低区分度`, autoFix: false });
+    }
+    // 查错·读音题拼音标调粗检测：拼音串出现但无任何声调字符
+    const duyin = content.match(/<h[2-4][^>]*>[^<]*(读音|加点字)[^<]*<\/h[2-4]>([\s\S]*?)(?=<h[2-4][^>]*>|<div[^>]*class="answer-section"|$)/i);
+    if (duyin) {
+      const duyinText = duyin[2].replace(/<[^>]+>/g, '');
+      const plainPinyin = (duyinText.match(/[a-z]{3,}/gi) || []).length;
+      const hasTone = /[āáǎàōóǒòēéěèīíǐìūúǔùǖǘǚǜ]/.test(duyinText);
+      if (plainPinyin >= 2 && !hasTone) {
+        issues.push({ severity: 'warning', type: '拼音未标调', detail: `读音题区域检测到${plainPinyin}处拼音串但未发现任何声调字符，读音题选项拼音必须全部标注声调（含干扰项）`, autoFix: false });
+      }
+    }
     if (genType === 'exam') {
       // 考试卷：检查是否有分值标注
       const scoreMatches = content.match(/\(\d+分\)|（\d+分）/g);
       if (!scoreMatches || scoreMatches.length === 0) {
-        issues.push({ severity: 'warning', type: '缺少分值', detail: '试卷未检测到分值标注，建议每道题标注分数', autoFix: false });
+        issues.push({ severity: 'warning', type: '缺少分值', detail: '试卷未检测到大题分值标注（如"一、看拼音，写词语。（16分）"），真题卷只在大题标题标注总分值、小题不标分', autoFix: false });
+      }
+      // 🔧 正式考试标准：分类分层结构检测（板块标题须含层级定位词）
+      const sectionTitles = (content.match(/<h[2-4][^>]*>[\s\S]*?<\/h[2-4]>/gi) || [])
+        .map(h => h.replace(/<[^>]+>/g, '').trim())
+        .filter(t => t.length > 0);
+      const hasLayeredSection = sectionTitles.some(t => /基础|能力|综合|识记|积累|理解|运用|表达|创造|看拼音|组词|填空|阅读|写话|选择|判断|解答|应用|听力|书面/.test(t));
+      if (!hasLayeredSection) {
+        issues.push({ severity: 'warning', type: '缺少分类分层', detail: '试卷未检测到规范大题标题（能力层级板块或真题规范题型名），大题结构须按【真题卷结构蓝本】执行', autoFix: false });
+      }
+      // 🔧 蓝图知识点重复检测（DeepSeek 伪蓝图 knowledgePoint 为空时自动跳过）
+      if (Array.isArray(parsedBlueprint) && parsedBlueprint.length > 0) {
+        const kpCountMap = new Map<string, number>();
+        for (const q of parsedBlueprint) {
+          const qq = q as { knowledgePoint?: string };
+          const kp = (qq.knowledgePoint || '').trim();
+          if (!kp || kp === '未知') continue;
+          kpCountMap.set(kp, (kpCountMap.get(kp) || 0) + 1);
+        }
+        const overKps = Array.from(kpCountMap.entries()).filter(([, c]) => c > 2).map(([k, c]) => `${k}×${c}`);
+        if (overKps.length > 0) {
+          issues.push({ severity: 'warning', type: '知识点重复考查', detail: `蓝图中有${overKps.length}个知识点考查超过2次（${overKps.slice(0, 3).join('、')}${overKps.length > 3 ? '等' : ''}），正式考试应避免无意义重复考查`, autoFix: false });
+        }
+      }
+      // 🔧 相似题/重复题检测：题目去标签归一化后完全相同
+      // ⬆ 已上移全类型通用层，此处保留题型多样性（复用通用 qBlocks）
+      // 🔧 题型多样性：选择题占比过高检测（正式考试禁止大量选择题；低段以连线/圈画等操作型题为主）
+      if (qBlocks.length >= 10) {
+        const choiceCount = qBlocks.filter(b => /[AＡ]\s*[.．、]/.test(b) && /[BＢ]\s*[.．、]/.test(b)).length;
+        if (choiceCount / qBlocks.length >= 0.6) {
+          issues.push({ severity: 'warning', type: '题型单一', detail: `检测到${choiceCount}/${qBlocks.length}道题含选项特征，选择题占比过高，正式考试应搭配填空/简答/操作等多样题型`, autoFix: false });
+        }
+      }
+      // 🔧 表达类大题数量检测（真题每卷仅1道写作题）
+      const expressTitles = (content.match(/<h[2-4][^>]*>[\s\S]*?<\/h[2-4]>/gi) || [])
+        .map(h => h.replace(/<[^>]+>/g, '').trim())
+        .filter(t => /看图写话|习作|作文|书面表达/.test(t));
+      if (expressTitles.length >= 2) {
+        issues.push({ severity: 'warning', type: '表达题过多', detail: `检测到${expressTitles.length}道表达类大题（${expressTitles.join('、')}），真题每卷仅1道写作题，其余表达类题应并入其他大题作为小题`, autoFix: false });
+      }
+      // 🔧 卷面标注残留检测（正式考试卷面不显示知识点/层级标注）
+      const examPlainText = content.replace(/<[^>]+>/g, '');
+      if (/〔知识点[：:｜|]/.test(examPlainText)) {
+        issues.push({ severity: 'warning', type: '卷面标注残留', detail: '试卷正文检测到〔知识点：×｜层级：×〕标注，正式考试卷面不应出现知识点/层级标注，请移除', autoFix: false });
+      }
+      // 🔧 素养立意检测：回忆式设问/书本挖空过多（新课标考查素养运用而非背诵）
+      const recallMatches = examPlainText.match(/的特点是（|的反义词是（|的近义词是（|先长出了什么|的读音是（|公式是（|的定义是（|的内容是（|的中文意思是（|的英文意思是（|读了《|《[^《]{1,20}》中|'里|"里|”里|’里|被称为|又叫做|指的是（|是因为它们（/g);
+      if (recallMatches && recallMatches.length >= 3) {
+        issues.push({ severity: 'warning', type: '回忆式设问过多', detail: `检测到${recallMatches.length}处单点回忆式设问/书本挖空（如"XX的特点是""XX的公式是""XX被称为""XX的中文意思是"），新课标考查素养运用而非背诵，请改为情境化/探究式设问`, autoFix: false });
+      }
+      // 🔴 测量科学：选择题正确答案分布检测（真卷答案随机均匀分布）
+      const answerSection = content.match(/<div[^>]*class="answer-section"[^>]*>([\s\S]*)$/i);
+      if (answerSection) {
+        const ansText = answerSection[1].replace(/<[^>]+>/g, '');
+        const letterAnswers = Array.from(ansText.matchAll(/^\s*\d+[.、．)）]\s*([A-Da-d])\b/gm), (m) => m[1].toUpperCase());
+        if (letterAnswers.length >= 8) {
+          const total = letterAnswers.length;
+          const counts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0 };
+          for (const a of letterAnswers) counts[a] = (counts[a] || 0) + 1;
+          const missing = ['A', 'B', 'C', 'D'].filter((k) => counts[k] === 0);
+          const maxRatio = Math.max(counts.A, counts.B, counts.C, counts.D) / total;
+          let maxRun = 0; let run = 0; let prev = '';
+          for (const a of letterAnswers) { run = a === prev ? run + 1 : 1; maxRun = Math.max(maxRun, run); prev = a; }
+          if (missing.length > 0 && total >= 10) {
+            issues.push({ severity: 'error', type: '答案分布异常', detail: `全卷${total}道选择题的正确答案从未出现选项${missing.join('、')}，真卷答案须随机均匀分布（每个选项至少出现一次）`, autoFix: false });
+          }
+          if (maxRatio >= 0.5) {
+            issues.push({ severity: 'error', type: '答案分布异常', detail: `全卷${total}道选择题中单一选项占比达${Math.round(maxRatio * 100)}%，答案分布严重偏斜，应随机均匀分布`, autoFix: false });
+          }
+          if (maxRun >= 4) {
+            issues.push({ severity: 'error', type: '答案分布异常', detail: `检测到连续${maxRun}道选择题答案相同，真卷同一选项连续出现不超过3次`, autoFix: false });
+          }
+        }
+      }
+      // 🔴 三重硬核扫描·查规范：页码与得分栏检测（试卷专属卷面规范）
+      if (!/第\d+页/.test(content)) {
+        issues.push({ severity: 'warning', type: '缺少页码', detail: '试卷未检测到页码标注（真题卷每页页脚标注"第X页　共X页"）', autoFix: false });
+      }
+      if (!/得分/.test(content)) {
+        issues.push({ severity: 'warning', type: '缺少得分栏', detail: '试卷未检测到得分栏（真题卷每大题标题行右端设"得分：＿＿"栏，低段可省略）', autoFix: false });
       }
     }
     if (genType === 'practice') {
@@ -507,6 +867,27 @@ export class HardRuleChecker {
     return issues;
   }
 
+  /**
+   * 🔴 三重硬核扫描：查重 + 查错 + 查规范
+   * 将全量机检结果按三维归类返回，供生成管线/测试/日志统一调用
+   */
+  static tripleScan(
+    content: string, parsedBlueprint: unknown[], subject: string, stage: string, grade: string,
+    genType?: string, materialText?: string,
+  ): { duplication: Issue[]; error: Issue[]; standard: Issue[] } {
+    const issues = this.check(content, parsedBlueprint, subject, stage, grade, genType, materialText);
+    const duplication: Issue[] = [];
+    const error: Issue[] = [];
+    const standard: Issue[] = [];
+    for (const issue of issues) {
+      const dim = TRIPLE_SCAN_CLASSIFY[issue.type] || 'standard';
+      if (dim === 'duplication') duplication.push(issue);
+      else if (dim === 'error') error.push(issue);
+      else standard.push(issue);
+    }
+    return { duplication, error, standard };
+  }
+
   static autoFix(content: string, issues: Issue[]): string {
     let fixed = content;
     for (const issue of issues) {
@@ -564,6 +945,61 @@ export class HardRuleChecker {
         repairable.push({ ...issue, severity: 'error' });
         continue;
       }
+      // 关键 warning：缺少分类分层（exam 正式考试标准——退稿主因，必须AI修复）
+      if (issue.type === '缺少分类分层' && genType === 'exam') {
+        repairable.push({ ...issue, severity: 'error' });
+        continue;
+      }
+      // 关键 warning：知识点重复考查（exam 正式考试标准）
+      if (issue.type === '知识点重复考查' && genType === 'exam') {
+        repairable.push({ ...issue, severity: 'error' });
+        continue;
+      }
+      // 关键 warning：存在重复题目（exam 正式考试标准）
+      if (issue.type === '存在重复题目' && genType === 'exam') {
+        repairable.push({ ...issue, severity: 'error' });
+        continue;
+      }
+      // 关键 warning：题型单一（exam 正式考试标准——选择题占比过高）
+      if (issue.type === '题型单一' && genType === 'exam') {
+        repairable.push({ ...issue, severity: 'error' });
+        continue;
+      }
+      // 关键 warning：表达题过多（exam 真题每卷仅1道写作题）
+      if (issue.type === '表达题过多' && genType === 'exam') {
+        repairable.push({ ...issue, severity: 'error' });
+        continue;
+      }
+      // 关键 warning：卷面标注残留（正式考试卷面不显示知识点/层级标注）
+      if (issue.type === '卷面标注残留' && genType === 'exam') {
+        repairable.push({ ...issue, severity: 'error' });
+        continue;
+      }
+      // 关键 warning：回忆式设问过多（exam 新课标素养立意）
+      if (issue.type === '回忆式设问过多' && genType === 'exam') {
+        repairable.push({ ...issue, severity: 'error' });
+        continue;
+      }
+      // 关键 warning：存在重复题目 / 疑似相似题（全类型组题大忌）
+      if (issue.type === '存在重复题目' || issue.type === '疑似相似题') {
+        repairable.push({ ...issue, severity: 'error' });
+        continue;
+      }
+      // 关键 warning：绝对化选项滥用（全类型选择题质量）
+      if (issue.type === '绝对化选项滥用') {
+        repairable.push({ ...issue, severity: 'error' });
+        continue;
+      }
+      // 关键 warning：拼音未标调（全类型读音题）
+      if (issue.type === '拼音未标调') {
+        repairable.push({ ...issue, severity: 'error' });
+        continue;
+      }
+      // 关键 warning：缺少页码 / 缺少得分栏（exam 真题卷面规范）
+      if ((issue.type === '缺少页码' || issue.type === '缺少得分栏') && genType === 'exam') {
+        repairable.push({ ...issue, severity: 'error' });
+        continue;
+      }
       // 关键 warning：缺少结构化呈现（summary/review 知识类）
       if (issue.type === '缺少结构化呈现' && ['summary', 'review'].includes(genType)) {
         repairable.push({ ...issue, severity: 'error' });
@@ -600,6 +1036,54 @@ export class HardRuleChecker {
     }
     if (issueTypes.includes('内容高度重复')) {
       prompt += `→ 存在大量重复句子，请逐题重新组织语言，确保每题表述独立、不套用模板句式。\n`;
+    }
+    if (issueTypes.includes('缺少分类分层')) {
+      prompt += `→ 试卷大题结构不符合规范：大题序列与名称必须严格按【真题卷结构蓝本】（如"一、看拼音，写词语。（16分）"），禁止自创板块或创意题型名，禁止在卷面输出知识点/层级标注。\n`;
+    }
+    if (issueTypes.includes('知识点重复考查')) {
+      prompt += `→ 同一知识点被考查超过2次，请删除或改写重复考查的题目：重难点最多2次且必须角度不同（如概念理解+应用），一般知识点仅考1次。\n`;
+    }
+    if (issueTypes.includes('存在重复题目')) {
+      prompt += `→ 存在完全相同的重复题目，请改写重复题：更换题材/情境/数据/设问角度，确保题目间有实质差异。\n`;
+    }
+    if (issueTypes.includes('题型单一')) {
+      prompt += `→ 选择题占比过高，请将部分选择题改写成填空/判断/简答/操作等多样题型，同一知识点改用其他题型从不同角度考查。\n`;
+    }
+    if (issueTypes.includes('表达题过多')) {
+      prompt += `→ 检测到多道表达类大题，请仅保留1道写作题（分值最高者），其余口语交际/表达类题并入其他大题作为小题。\n`;
+    }
+    if (issueTypes.includes('卷面标注残留')) {
+      prompt += `→ 试卷正文含有〔知识点：×｜层级：×〕标注，请全部移除——正式考试卷面不显示知识点与层级信息。\n`;
+    }
+    if (issueTypes.includes('回忆式设问过多')) {
+      prompt += `→ 检测到多处单点回忆式设问（如"XX的特点是""XX的读音是""XX的反义词是""XX被称为"），请改写为情境化/探究式设问：知识点放进真实语境考查"会不会用"，并加入归类/比较/找规律/说理由类题目，至少1道生活联结题和1道开放性表达题。\n`;
+    }
+    if (issueTypes.includes('配图描述缺失')) {
+      prompt += `→ 看图/配图类题缺少 [IMAGE] 配图描述标记，请为所有看图类题（看图写话/看图列式/听音选图/看图连线等）逐题补上 [IMAGE]...[/IMAGE] 标记，描述详细画面（场景/景物/人物/动作），风格为黑白线稿简笔画、图内无文字、不得暗示答案。\n`;
+    }
+    if (issueTypes.includes('听力材料缺失')) {
+      prompt += `→ 听力题缺少听力材料，请在答案页补充"听力材料"板块（完整听力原文，供教师朗读使用），卷面只保留听力题目与作答区。\n`;
+    }
+    if (issueTypes.includes('答案泄露')) {
+      prompt += `→ 题干/例句/示例中泄露了答案，请改写：组词题题干只给形近字对（不得出现含该字的词语或例句）；看拼音写词语的题干句子不得出现目标词；示例题的示例不得与任何小题答案相同。\n`;
+    }
+    if (issueTypes.includes('答案分布异常')) {
+      prompt += `→ 选择题正确答案选项分布异常，请保持题目内容与正确选项不变，仅调整部分题目的选项排列顺序（移动正确项位置），使答案 A/B/C/D 随机均匀分布、每个选项至少出现一次、无连续3个以上相同。\n`;
+    }
+    if (issueTypes.includes('绝对化选项滥用')) {
+      prompt += `→ "以上都对/以上都不对"类绝对化选项超过1处，请将多余处改写为具体干扰项（来自学生常见错误），全卷仅保留至多1处。\n`;
+    }
+    if (issueTypes.includes('疑似相似题')) {
+      prompt += `→ 检测到题干高度相似的题目，请改写其一：更换题材/情境/数据/设问角度，确保两道题有实质差异（同情境多题也是组卷大忌）。\n`;
+    }
+    if (issueTypes.includes('拼音未标调')) {
+      prompt += `→ 读音题选项拼音未标注声调，请为所有拼音选项（含干扰项）补上声调（如 zhī、cāo）。\n`;
+    }
+    if (issueTypes.includes('标点配对异常')) {
+      prompt += `→ 存在未闭合的括号/书名号/引号，请补齐或删除多余标点，确保全卷标点成对。\n`;
+    }
+    if (issueTypes.includes('缺少页码') || issueTypes.includes('缺少得分栏')) {
+      prompt += `→ 卷面缺页码/得分栏，请补充：每页页脚"第X页　共X页"；每大题标题行右端"得分：＿＿"栏（低段可省略得分栏）。\n`;
     }
     if (issueTypes.includes('教材相关性极低') || issueTypes.includes('教材相关性偏低')) {
       prompt += `→ 内容与教材脱节，请重新生成时紧密围绕教材知识点，使用教材中的核心术语和概念。\n`;
@@ -661,7 +1145,7 @@ export class AISemanticReviewer {
     const meta = [context.subject, context.grade, context.stage].filter(Boolean).join('·');
 
     return `【语义审查任务】
-请通读以下${label}内容（${meta}），从四个维度逐一检查：
+请通读以下${label}内容（${meta}），从以下维度逐一检查：
 
 1. **语句通顺性**：是否有读不通的句子、词语搭配不当、AI生成的文字拼接错误？
    特别注意：两个正确汉字错误拼接的情况——如"说明"+"文中的"→"说明文"，"可以"+"能"→"可能以"等。
@@ -675,16 +1159,18 @@ export class AISemanticReviewer {
    - 答案和解析是否自相矛盾？
    - 题目分值加总是否正确？
    - 阅读理解题的答案是否确实能在原文中找到依据？
+   - 答案正确性：抽查2-3道题的答案是否确实正确（计算题重算一遍、选择题核对选项、填空题确认用词）？
 
 4. **表述清晰度**：
    - 题目问法是否有歧义？
    - 学生能否准确理解题意？
    - 是否存在"说了等于没说"的空洞表述？
+${context.genType === 'exam' ? '\n5. **正式考试专项**（考试卷专属）：\n   - 大题结构：是否严格按【真题卷结构蓝本】呈现（大题序列/名称/分值/顺序与蓝本一致）？是否出现自创板块/创意题型名或知识点/层级标注？\n   - 分值规范：每题是否标分？所有分值加总是否等于卷面总分？\n   - 题型丰富度：是否存在题型单一（如绝大多数为选择题）、设问句式模板化（连续多题同一句式）？\n   - 表达类大题：是否存在2道及以上写作/表达类大题（真题每卷仅1道写作题）？\n   - 卷面标注：正文是否出现知识点/层级等教学性标注（正式试卷不应出现）？\n   - 素养立意：是否存在大量直接挖教材原句的单点回忆题（如"XX的特点是""XX先长出了什么"）？是否有探究发现类、生活联结类、开放性题目？\n' : ''}${QUESTION_GEN_TYPES.includes(context.genType || '') ? '\n6. **题目质量专项**（所有含题目的资料类型）：\n   - 相似题：是否存在题材/情境/数据/设问角度相似的两道题（相似题是组题大忌）？\n   - 重复考查：同一知识点是否被多次考查且考查角度重复（无意义重复）？\n   - 拼音标调：读音题（给加点字选择读音）选项中的拼音是否全部标注声调（含干扰项）？\n   - 答案泄露：组词题题干/例句是否出现目标组词？示例题（照样子写一写）的示例是否与小题答案相同？\n   - 干扰项科学性：选择题干扰项是否具有合理迷惑性（来自学生常见错误思路）？是否存在明显荒谬的干扰项？\n   - 题目独立性：各题是否独立设问？是否存在一题题干暗示另一题答案的连锁提示？\n   - 数据自洽：数学计算类题的题干数据与答案运算结果是否一致（总量=各部分之和、比例合理、单位一致）？条件是否充分（能推出唯一答案）？\n' : ''}
 
 【审查要求】
 - 通读全文每一句，不得跳读；即使内容很长也必须完整读到底
 - 只报告确实有问题的条目，若内容整体良好则回复"✅ 未发现语义问题"
-- 每个问题格式：【位置】引用原文片段 → 【问题类型】通顺性/错别字/逻辑/歧义 → 【问题描述】一句话说明
+- 每个问题格式：【位置】引用原文片段 → 【问题类型】通顺性/错别字/逻辑/歧义/相似题/重复考查/大题结构 → 【问题描述】一句话说明
 - 不要修改内容，不要给出修复建议
 - 不要报告格式/排版/HTML标签问题（另有机检处理）
 - 最多报告10处问题，按严重程度排序

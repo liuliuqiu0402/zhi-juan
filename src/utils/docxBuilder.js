@@ -2,7 +2,7 @@
 // 数据源：contentEditable 实时 DOM（预览看到什么就导出什么）
 // 输出：docx 库的 Document 对象 → Packer.toBlob()
 
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType } from 'docx';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, PageNumber } from 'docx';
 import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 
 // ============ 工具函数 ============
@@ -1513,6 +1513,17 @@ export const buildDocxFromDom = (containerEl) => {
           size: { width: 11906, height: 16838 },
           margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 },
         },
+      },
+      // 🔧 页码页脚：落地蓝本卷面规范"每页页脚居中标注'第X页　共X页'"（Word 字段自动计算，AI 无法预知总页数）
+      footers: {
+        default: new Footer({
+          children: [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [new TextRun({ children: ['第 ', PageNumber.CURRENT, ' 页　共 ', PageNumber.TOTAL_PAGES, ' 页'], size: 18 })],
+            }),
+          ],
+        }),
       },
       children,
     }],
