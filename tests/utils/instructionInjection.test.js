@@ -138,18 +138,19 @@ describe('指令注入审计：新课标合规与注入正确性', () => {
     });
   });
 
-  describe('7. 品质标准注入上限：每学科 × 学段 × exam ≤ 4 条', () => {
-    it('精简后品质标准查询结果不超过 4 条且非空', () => {
+  describe('7. 品质标准注入上限：每学科 × 学段 × exam ≤ 5 条', () => {
+    it('精简后品质标准查询结果不超过 5 条且非空、必含教辅品质基线块', () => {
       const over = [];
       for (const subject of SUBJECTS) {
         const stages = STAGE_RESTRICTED[subject] || STAGES;
         for (const stage of stages) {
           const blocks = getMatchingBlockInstructions({ category: '生成-品质标准', subject, stage, genType: 'exam' });
           expect(blocks.length, `${subject}|${stage} 品质标准为空`).toBeGreaterThan(0);
-          if (blocks.length > 4) over.push(`${subject}|${stage}=${blocks.length}[${blocks.map(b => b.id).join(',')}]`);
+          expect(blocks.some(b => b.id === 'quality_industry_benchmark'), `${subject}|${stage} 缺教辅品质基线块`).toBe(true);
+          if (blocks.length > 5) over.push(`${subject}|${stage}=${blocks.length}[${blocks.map(b => b.id).join(',')}]`);
         }
       }
-      expect(over, `以下组合品质标准超过 4 条:\n${over.join('\n')}`).toEqual([]);
+      expect(over, `以下组合品质标准超过 5 条:\n${over.join('\n')}`).toEqual([]);
     });
   });
 
@@ -193,11 +194,11 @@ describe('指令注入审计：新课标合规与注入正确性', () => {
       expect(EXAM_NEW_STANDARD).toContain('开放题留思维空间');
     });
 
-    it('认知层级块按学段递进思维深度（识记递减、分析/评价/创造递增）', () => {
-      const low = builtinInstructions.find(i => i.id === 'frag_cognitive_low');
-      const mid = builtinInstructions.find(i => i.id === 'frag_cognitive_mid');
-      const high = builtinInstructions.find(i => i.id === 'frag_cognitive_high');
-      const highSch = builtinInstructions.find(i => i.id === 'frag_cognitive_high_sch');
+    it('认知层级块按学段递进思维深度（识记递减、分析/评价/创造递增，已并入 diff_* 难度控制块）', () => {
+      const low = builtinInstructions.find(i => i.id === 'diff_primary_low');
+      const mid = builtinInstructions.find(i => i.id === 'diff_primary_mid');
+      const high = builtinInstructions.find(i => i.id === 'diff_primary_high');
+      const highSch = builtinInstructions.find(i => i.id === 'diff_high');
       expect(low.content).toContain('识记层≤30%');
       expect(mid.content).toContain('简单分析层≥15%');
       expect(high.content).toContain('简单评价层≥15%');
@@ -396,5 +397,211 @@ describe('指令注入审计：无并存双轨与冗余残留（需求 3/4）', 
     const pHigh = builtinInstructions.find(i => i.id === 'stage_primary_high');
     expect(high.content).toContain('可设压轴题');
     expect(pHigh.content).toContain('为初中衔接做准备');
+  });
+});
+
+// ============ 精简固化（7→3 合并后三层底线）：规则唯一性 / 注入总量 / 红线非空 / 新课标底线 / 骨架矩阵 ============
+describe('指令注入审计：精简固化（规则唯一性/注入总量/红线非空/新课标底线/骨架矩阵）', () => {
+  // —— 1. 跨类别规则唯一性：每主题全库仅一处权威表述 ——
+  describe('1. 跨类别规则唯一性（合并去重成果固化）', () => {
+    const RULE_KEYWORDS = [
+      ['答案唯一确定', /答案唯一确定/],
+      ['知识点不重复', /知识点不重复/],
+      ['选择题≤3选项', /选择题≤3选项/],
+      ['作文字数与文体', /字数.{0,6}文体/],
+      ['阅读答案不摘抄原文', /摘抄原文/],
+      ['不超纲', /不超纲/],
+    ];
+    it('六大规则主题全库各仅 1 处权威表述', () => {
+      const frags = builtinInstructions.filter(i => i.type === 'fragment');
+      for (const [name, re] of RULE_KEYWORDS) {
+        const hits = frags.filter(i => re.test(i.content || ''));
+        expect(hits.length, `规则「${name}」应仅 1 处，实际 ${hits.length} 处: ${hits.map(b => b.id).join(', ')}`).toBeLessThanOrEqual(1);
+      }
+    });
+
+    // 阶段六抽查复核：不同措辞的同主题复述已删除（权威唯一，复述归零）
+    const DEDUPED_PHRASES = [
+      ['顶层约束复述「知识点考查去重」', /知识点考查去重/],
+      ['核心任务/学段控制复述「选项不超过3个/≤3个」', /选项不超过3个|选项≤3个/],
+      ['核心任务/学段控制复述「选项不超过4个/≤4个」', /选项不超过4个|选项≤4个/],
+      ['学科特色复述「在原文中直接摘抄」', /在原文中直接摘抄/],
+    ];
+    it('抽查复核：四处同主题复述已在指令库归零（权威仍在题目质量标准/品质标准）', () => {
+      const frags = builtinInstructions.filter(i => i.type === 'fragment');
+      for (const [name, re] of DEDUPED_PHRASES) {
+        const hits = frags.filter(i => re.test(i.content || ''));
+        expect(hits.length, `复述「${name}」应已删除，实际 ${hits.length} 处: ${hits.map(b => b.id).join(', ')}`).toBe(0);
+      }
+      // 权威表述仍存在
+      expect(builtinInstructions.find(i => i.id === 'block_quality_primary_low').content).toContain('选择题≤3选项');
+      expect(builtinInstructions.find(i => i.id === 'quality_exam_formal').content).toContain('知识点去重');
+      expect(builtinInstructions.find(i => i.id === 'block_quality_chinese').content).toContain('摘抄原文');
+    });
+
+    // 本轮新增：教辅品质基线句（原核心任务 64 处重复）收敛到品质标准唯一承载
+    it('教辅品质基线句：核心任务归零、品质标准唯一承载', () => {
+      const coreTasks = builtinInstructions.filter(i => i.type === 'fragment' && i.category === '生成-核心任务');
+      const leak = coreTasks.filter(i => /质量对标市面一流教辅水准|粗制滥造的凑数内容/.test(i.content || ''));
+      expect(leak.map(b => b.id), '核心任务块不应再含教辅品质基线句').toEqual([]);
+      const carrier = builtinInstructions.find(i => i.id === 'quality_industry_benchmark');
+      expect(carrier, '缺少品质标准承载块').toBeTruthy();
+      expect(carrier.content).toContain('质量对标市面一流教辅水准');
+      expect(carrier.content).toContain('不可生成粗制滥造的凑数内容');
+    });
+  });
+
+  // —— 2. 注入链路模拟：复刻 buildGenerationInstruction 关键质量层查询序列 ——
+  const simulateQualityLayers = ({ subject, stage, gradeSegment, gt }) => {
+    const m = (o) => getMatchingBlockInstructions(o);
+    const out = [];
+    const add = (b) => out.push(b);
+    // 红线（最高优先级前置，全量）
+    m({ category: '生成-红线约束', matchSubject: subject, stage: gradeSegment, genType: gt }).forEach(add);
+    // 品质标准（全量）
+    m({ category: '生成-品质标准', matchSubject: subject, stage: gradeSegment, genType: gt }).forEach(add);
+    // 题目质量标准（base + 学段全量 + 学科 top1）
+    const base = m({ category: '生成-题目质量标准', subject: '', stage: '', genType: gt });
+    if (base.length) add(base[0]);
+    for (const b of m({ category: '生成-题目质量标准', subject: '', stage: gradeSegment, genType: gt })) {
+      if (!b.stage || b.stage === '' || b.subject) continue;
+      if (!base.length || b.content !== base[0].content) add(b);
+    }
+    if (subject) {
+      const subjOnly = m({ category: '生成-题目质量标准', matchSubject: subject, stage: '', genType: gt }).filter(b => b.subject && b.subject !== '');
+      if (subjOnly.length) add(subjOnly[0]);
+    }
+    // 情境要求（通用层全量 + 学科层过滤，gen_ctx 仅统一情境模式注入）
+    m({ category: '生成-情境要求', subject: '', stage, genType: gt }).forEach(add);
+    if (subject) {
+      m({ category: '生成-情境要求', matchSubject: subject, stage: gradeSegment, genType: gt })
+        .filter(b => b.subject && b.subject.trim() !== '' && !(b.id && b.id.startsWith('gen_ctx_')))
+        .forEach(add);
+    }
+    // 难度控制（top1，认知层级已并入 diff_* 块）
+    const diff = m({ category: '生成-难度控制', subject: '', stage: gradeSegment, genType: gt });
+    if (diff.length) add(diff[0]);
+    // 特殊要求（全量）
+    m({ category: '生成-特殊要求', subject: '', stage: '', genType: gt }).forEach(add);
+    return out;
+  };
+
+  const TYPICAL_COMBOS = [
+    { name: '语文低段exam', subject: '语文', stage: 'primary', gradeSegment: 'primary_low', gt: 'exam' },
+    { name: '语文中段exam', subject: '语文', stage: 'primary', gradeSegment: 'primary_mid', gt: 'exam' },
+    { name: '语文初中exam', subject: '语文', stage: 'middle', gradeSegment: 'middle', gt: 'exam' },
+    { name: '英语高段exam', subject: '英语', stage: 'primary', gradeSegment: 'primary_high', gt: 'exam' },
+    { name: '物理初中exam', subject: '物理', stage: 'middle', gradeSegment: 'middle', gt: 'exam' },
+    { name: '数学中段practice', subject: '数学', stage: 'primary', gradeSegment: 'primary_mid', gt: 'practice' },
+    { name: '数学初中practice', subject: '数学', stage: 'middle', gradeSegment: 'middle', gt: 'practice' },
+    { name: '数学初中special', subject: '数学', stage: 'middle', gradeSegment: 'middle', gt: 'special' },
+    { name: '英语初中errorbook', subject: '英语', stage: 'middle', gradeSegment: 'middle', gt: 'errorbook' },
+    { name: '语文高段reading', subject: '语文', stage: 'primary', gradeSegment: 'primary_high', gt: 'reading' },
+    { name: '语文低段dictation', subject: '语文', stage: 'primary', gradeSegment: 'primary_low', gt: 'dictation' },
+    { name: '数学高中review', subject: '数学', stage: 'high', gradeSegment: 'high', gt: 'review' },
+  ];
+
+  describe('2. 注入总量上限 / 红线非空 / 新课标底线（12 组典型组合）', () => {
+    it('关键质量层注入总量 ≤ 上限（exam≤3000、非 exam≤2200 字符）', () => {
+      for (const c of TYPICAL_COMBOS) {
+        const blocks = simulateQualityLayers(c);
+        const total = blocks.reduce((s, b) => s + (b.content || '').length, 0);
+        const cap = c.gt === 'exam' ? 3000 : 2200;
+        expect(total, `${c.name} 注入 ${total} 字符，超过上限 ${cap}`).toBeLessThanOrEqual(cap);
+      }
+    });
+
+    it('每组合红线块注入非空', () => {
+      for (const c of TYPICAL_COMBOS) {
+        const blocks = simulateQualityLayers(c);
+        const redlines = blocks.filter(b => b.category === '生成-红线约束');
+        expect(redlines.length, `${c.name} 红线块为空`).toBeGreaterThan(0);
+      }
+    });
+
+    it('每组合含情境化条款', () => {
+      for (const c of TYPICAL_COMBOS) {
+        const joined = simulateQualityLayers(c).map(b => b.content).join('\n');
+        expect(joined, `${c.name} 缺情境化条款`).toContain('情境');
+      }
+    });
+
+    it('命题型组合（exam/practice/special/errorbook/reading）含认知层级/思维深度关键词', () => {
+      const THINKING_TYPES = ['exam', 'practice', 'special', 'errorbook', 'reading'];
+      for (const c of TYPICAL_COMBOS) {
+        if (!THINKING_TYPES.includes(c.gt)) continue;
+        const joined = simulateQualityLayers(c).map(b => b.content).join('\n');
+        expect(joined, `${c.name} 缺认知层级/思维深度要求`).toMatch(/认知层级|素养立意|思维深度|分析层|评价层/);
+      }
+    });
+
+    it('exam 组合含正式考卷标准五要素（效度信度/知识点去重/时间配比/小题规范/不标题套壳）', () => {
+      for (const c of TYPICAL_COMBOS) {
+        if (c.gt !== 'exam') continue;
+        const joined = simulateQualityLayers(c).map(b => b.content).join('\n');
+        expect(joined).toContain('效度与信度');
+        expect(joined).toContain('知识点去重');
+        expect(joined).toContain('时间配比');
+        expect(joined).toContain('小题规范');
+        expect(joined).toContain('不标题套壳');
+      }
+    });
+  });
+
+  // —— 3. 骨架矩阵固化：全学科×学段×资料类型穷举 ——
+  describe('3. 骨架矩阵固化：全学科×学段×资料类型穷举', () => {
+    const GENTYPES = ['exam', 'practice', 'special', 'summary', 'errorbook', 'preview', 'dictation', 'reading', 'review'];
+    const blockScore = (item, q) => {
+      let s = 0;
+      if (item.subject && item.subject.trim() && q.subject) s += 2;
+      if (item.stage && item.stage.trim() && q.stage) s += 1;
+      if (item.genType && item.genType.trim() && q.genType) s += 1;
+      if (item.specialSubType && q.specialSubType && item.specialSubType === q.specialSubType) s += 5;
+      return s;
+    };
+
+    it('exam：16 学科 × 5 学段（科学限小学）全部命中真题蓝本', () => {
+      const missing = [];
+      for (const subject of SUBJECTS) {
+        const stages = STAGE_RESTRICTED[subject] || STAGES;
+        for (const stage of stages) {
+          if (!getExamBlueprint(subject, stage)) missing.push(`${subject}|${stage}`);
+        }
+      }
+      expect(missing).toEqual([]);
+    });
+
+    it('非 exam：资料类型结构 top1 存在且评分 > top2（无同分遮蔽）', () => {
+      const misses = [];
+      const ties = [];
+      for (const subject of SUBJECTS) {
+        const stages = STAGE_RESTRICTED[subject] || STAGES;
+        for (const stage of stages) {
+          for (const gt of GENTYPES) {
+            if (gt === 'exam') continue;
+            const q = { category: '生成-资料类型结构', subject, stage, genType: gt, specialSubType: 'new_standard' };
+            const m = getMatchingBlockInstructions(q);
+            if (m.length === 0) { misses.push(`${subject}|${stage}|${gt}`); continue; }
+            if (m.length > 1 && blockScore(m[1], q) === blockScore(m[0], q)) {
+              ties.push(`${subject}|${stage}|${gt}: ${m[0].id} vs ${m[1].id}`);
+            }
+          }
+        }
+      }
+      expect(misses, `骨架缺失组合:\n${misses.join('\n')}`).toEqual([]);
+      expect(ties, `同分遮蔽组合:\n${ties.join('\n')}`).toEqual([]);
+    });
+
+    it('资料类型结构无跨 genType 完全同内容复制条目（无需多值合并）', () => {
+      const struct = builtinInstructions.filter(i => i.category === '生成-资料类型结构' && i.type === 'fragment');
+      const byKey = new Map();
+      for (const b of struct) {
+        const key = `${b.subject}|${b.stage}|${b.specialSubType}|${b.content}`;
+        if (!byKey.has(key)) byKey.set(key, []);
+        byKey.get(key).push(b.id);
+      }
+      const dups = [...byKey.entries()].filter(([, ids]) => ids.length > 1);
+      expect(dups, `同内容多类型复制条目:\n${dups.map(([k, ids]) => `${k.slice(0, 50)} => ${ids.join('+')}`).join('\n')}`).toEqual([]);
+    });
   });
 });

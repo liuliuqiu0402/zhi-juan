@@ -2876,7 +2876,9 @@ const renderImagePlaceholders = (html) => {
     const height = fieldVal(body, 'HEIGHT');
     const negative = fieldVal(body, 'NEGATIVE');
     // 结构化生图参数占位框：保留 TYPE/尺寸/风格/PROMPT 参数，方便复制到生图工具（导出 DOCX 后文本同样可复制）
-    let box = '<div class="image-placeholder" style="text-align:left;padding:12px 14px;margin:12px 0;background:#f7f9fc;border:1px dashed #a0b4d0;border-radius:6px;color:#44608a;font-size:13px;line-height:1.7;">'
+    // 🔧 data-image-raw 保存原始 [IMAGE]…[/IMAGE] 标记：导出 DOCX 时还原为标准生图格式，避免字段散架
+    const rawMark = esc('[IMAGE]' + NL + body + '[/IMAGE]').split('"').join('&quot;');
+    let box = '<div class="image-placeholder" data-image-raw="' + rawMark + '" style="text-align:left;padding:12px 14px;margin:12px 0;background:#f7f9fc;border:1px dashed #a0b4d0;border-radius:6px;color:#44608a;font-size:13px;line-height:1.7;">'
       + '<strong>[插图占位]</strong><br>'
       + 'TYPE: ' + esc(imgType) + '　STYLE: ' + esc(style)
       + (width || height ? '　WIDTH: ' + esc(width || '800') + '　HEIGHT: ' + esc(height || '600') : '')
@@ -3999,9 +4001,9 @@ const buildInstruction = async () => {
   // 确保每条规则都是独立的【】块，通过年级/学科/资料类型三维智能匹配后自动注入
   const HANDLED_BY_DEDICATED_SECTION = new Set([
     // 生成专用分类（Section 1.5~10 中已通过 getMatchingBlockInstructions 精确匹配）—— dash 格式（内置 fragment）
-    '生成-学科适配', '生成-资料类型结构', '生成-情境方向',
-    '生成-题目质量标准', '生成-禁止项',
-    '生成-通用约束', '生成-原题引用',
+    '生成-学科适配', '生成-资料类型结构',
+    '生成-题目质量标准',
+    '生成-原题引用',
     '生成-答案与解析规范', '生成-主观题评分标准', '生成-答题模板',
     '生成-内容规范', '生成-输出格式',
     '生成-专项要求', '生成-EduRender模板',
@@ -4039,7 +4041,6 @@ const buildInstruction = async () => {
     '生成-学科核心素养',     // core_literacy_* 系列：课标核心素养关键词
     
     '生成-品质标准',         // quality_* 系列：按 genType × stage 注入品质标准
-    '生成-原创标准',         // originality_* 系列：按 genType × stage 注入原创标准
     '生成-红线约束',         // quality_redlines_* 系列：最高优先级红线清单（前置注入）
     // 非生成用途（分析用）
     '分析-文本分析规范', '分析-分析模板示例', '分析-分析提取要求', '分析-知识图谱构建',

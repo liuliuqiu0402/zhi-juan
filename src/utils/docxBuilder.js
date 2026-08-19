@@ -1052,6 +1052,23 @@ const processBlockNode = (node, ctx = {}) => {
     return children;
   }
 
+  // ===== 配图占位框：导出还原为原始 [IMAGE]…[/IMAGE] 结构化标记（复制即用，避免占位文本散架）=====
+  if (cls.contains('image-placeholder')) {
+    const raw = node.getAttribute('data-image-raw');
+    if (raw) {
+      const decoded = raw
+        .split('&amp;').join('&')
+        .split('&lt;').join('<')
+        .split('&gt;').join('>')
+        .split('&quot;').join('"');
+      decoded.split('\n').filter(l => l.trim()).forEach(line => {
+        children.push(new Paragraph({ text: line, spacing: { before: 40, after: 40 } }));
+      });
+      return children;
+    }
+    // 无 data-image-raw 的旧数据：走下方通用 div 路径按占位框文本导出
+  }
+
   // ===== 标题 =====
   if (tag === 'h1' || cls.contains('main-title')) {
     const deco = readBlockDecorations(node);

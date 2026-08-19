@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { getMatchingBlockInstructions } from '@/config/instructionLib.js';
-import { EXAM_NEW_STANDARD, EXAM_STAGE_STANDARDS, EXAM_BLUEPRINTS, EXAM_PAPER_LAYOUT } from '@/config/examPaperBlueprints';
+import { EXAM_NEW_STANDARD, EXAM_STAGE_STANDARDS, EXAM_BLUEPRINTS, EXAM_PAPER_LAYOUT, buildExamBlueprintText } from '@/config/examPaperBlueprints';
 import { buildMultiUnitExamConstraint } from '@/composables/useAiGenerator.js';
 import { HardRuleChecker, AISemanticReviewer } from '@/utils/qualityChecker';
 
@@ -118,6 +118,28 @@ describe('exam 正式考试标准——指令注入', () => {
     expect(cnLow.sections.find(s => s.name === '积累与运用').note).toContain('"我们要____动物"');
     expect(cnLow.sections.find(s => s.name === '阅读与鉴赏').note).toContain('选文末标注出处');
     expect(cnLow.sections.find(s => s.name === '表达与交流').note).toContain('严禁用"（看图写话）"等文字占位');
+    // 🔧 v31 蓝本 note 情境化改造：题型配方→情境任务框架（真实有意义的学习情境，不再锁死传统题型）
+    expect(cnLow.sections.find(s => s.name === '识字与写字').note).toContain('板块任务');
+    expect(cnLow.sections.find(s => s.name === '识字与写字').note).toContain('单元情境任务');
+    expect(cnLow.sections.find(s => s.name === '积累与运用').note).toContain('挂在情境中考查');
+    expect(cnLow.sections.find(s => s.name === '表达与交流').note).toContain('真实生活情境任务');
+    // 灵活性边界（全学段全学科通用）：note 锁定优先 + 未锁定可自主设计 + 全卷情境主线 + 素养立意
+    const cnLowText = buildExamBlueprintText(cnLow);
+    expect(cnLowText).toContain('note 已锁定的题型、题量、分值分配从其锁定');
+    expect(cnLowText).toContain('note 未锁定的板块，具体题型与任务情境可自主设计');
+    expect(cnLowText).toContain('全卷以单元人文主题为情境主线');
+    expect(cnLowText).toContain('禁止与主线无关的"贴标签"式假情境');
+    expect(cnLowText).toContain('素养立意与思维深度');
+    // 锁定保留验证：数学等蓝本 note 锁定的题量（口算20题）在灵活性边界下仍为权威
+    const mathMidText = buildExamBlueprintText(EXAM_BLUEPRINTS['数学|primary_mid']);
+    expect(mathMidText).toContain('直接写得数20题');
+    // 顶层约束补卷首时间/满分以蓝本为准
+    const topBlocks = getMatchingBlockInstructions({
+      category: '生成-顶层约束', subject: '语文', stage: 'primary_low', genType: 'exam',
+    });
+    const topExam = topBlocks.find(b => b.id === 'topconst_exam');
+    expect(topExam).toBeTruthy();
+    expect(topExam.content).toContain('卷首"（考试时间：X分钟　满分：X分）"必须与【真题卷结构蓝本】的考试时间、满分完全一致');
     // 全局修复（全学段全学科）：卷面规范层配图占位禁令 + 课内选文出处 + 语文中高段判据引用
     expect(EXAM_PAPER_LAYOUT).toContain('严禁用"（看图写话）""（配图）""（插图）"等文字占位');
     expect(EXAM_PAPER_LAYOUT).toContain('课内选文末标注出处');
@@ -245,23 +267,23 @@ describe('exam 正式考试标准——指令注入', () => {
     expect(redlineIdx).toBeLessThan(qualityIdx);
   });
 
-  it('topconst_exam 含知识点考查去重与大题结构蓝本（标注仅限内部设计）', () => {
+  it('topconst_exam 不再复述知识点去重（权威归 formal），保留大题结构蓝本（标注仅限内部设计）', () => {
     const blocks = getMatchingBlockInstructions({
       category: '生成-顶层约束', subject: '', stage: '', genType: 'exam',
     });
     const tc = blocks.find(b => b.id === 'topconst_exam');
     expect(tc).toBeTruthy();
-    expect(tc.content).toContain('知识点考查去重');
+    expect(tc.content).not.toContain('知识点考查去重'); // 🔧 阶段六复核：与 quality_exam_formal 逐字重复的复述已删
     expect(tc.content).toContain('真题卷结构蓝本');
     expect(tc.content).toContain('严禁在试卷正文输出任何知识点/层级标注');
     expect(tc.content).not.toContain('基础·识记积累');
   });
 
-  it('认知层级块不再要求卷面标注', () => {
+  it('认知层级块不再要求卷面标注（已并入难度控制 diff_* 块）', () => {
     const blocks = getMatchingBlockInstructions({
-      category: '生成-通用约束', subject: '', stage: 'middle', genType: 'exam',
+      category: '生成-难度控制', subject: '', stage: 'middle', genType: 'exam',
     });
-    const cog = blocks.filter(b => b.id && b.id.startsWith('frag_cognitive'));
+    const cog = blocks.filter(b => b.id && b.id.startsWith('diff_'));
     expect(cog.length).toBeGreaterThan(0);
     for (const c of cog) {
       expect(c.content).toContain('不在试卷正文标注');
@@ -315,13 +337,23 @@ describe('exam 正式考试标准——蓝图 prompt 模板', () => {
     expect(useAiGeneratorSrc).toContain('取值严格使用【真题卷结构蓝本】中的大题名');
   });
 
-  it('命题约束含知识点考查次数上限', () => {
-    expect(useAiGeneratorSrc).toContain('知识点考查去重（正式考试标准）');
-    expect(useAiGeneratorSrc).toContain('重难点知识点最多考查2次且必须角度不同');
+  it('命题约束不再复述知识点考查去重（权威在同 prompt 的【用户指令摘要】formal 细则）', () => {
+    expect(useAiGeneratorSrc).not.toContain('知识点考查去重（正式考试标准）');
+    expect(useAiGeneratorSrc).not.toContain('重难点知识点最多考查2次且必须角度不同');
+    // 权威链路仍在：蓝图 prompt 注入完整生成指令（含 formal 细则）
+    expect(useAiGeneratorSrc).toContain('【用户指令摘要】');
+    expect(useAiGeneratorSrc).toContain('${instruction}');
   });
 
-  it('命题约束含相似题禁令', () => {
-    expect(useAiGeneratorSrc).toContain('相似题禁令：同一大题组内不得出现题材');
+  it('命题约束不再复述相似题禁令（权威在同 prompt 的【用户指令摘要】formal 细则）', () => {
+    expect(useAiGeneratorSrc).not.toContain('相似题禁令：同一大题组内不得出现题材');
+  });
+
+  it('覆盖率数值唯一：100% 目标与 ≥90% 容差关系明确（无并存冲突数值）', () => {
+    expect(useAiGeneratorSrc).toContain('知识点覆盖率容差');
+    expect(useAiGeneratorSrc).toContain('目标为【命题约束】的100%全覆盖');
+    expect(useAiGeneratorSrc).toContain('≥90%为执行下限');
+    expect(useAiGeneratorSrc).not.toContain('知识点覆盖率目标：【知识点清单】中的知识点≥90%需覆盖');
   });
 });
 
@@ -615,9 +647,9 @@ describe('全学段全学科全类型覆盖审计修复（v30）', () => {
     }
   });
 
-  it('情境化设计要求覆盖预习/默写/复习（frag_context_design 扩展）', () => {
+  it('情境化设计要求覆盖预习/默写/复习（frag_context_design 已并入情境要求类别）', () => {
     for (const gt of ['preview', 'dictation', 'review']) {
-      const blocks = getMatchingBlockInstructions({ category: '生成-通用约束', subject: '', stage: 'primary_mid', genType: gt });
+      const blocks = getMatchingBlockInstructions({ category: '生成-情境要求', subject: '', stage: 'primary_mid', genType: gt });
       expect(blocks.some(b => b.id === 'frag_context_design')).toBe(true);
     }
   });
