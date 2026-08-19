@@ -560,6 +560,7 @@ describe('exam 正式考试标准——质检闭环（AI 修复链路）', () =>
       { severity: 'error', type: '回忆式设问过多', detail: 'x', autoFix: false },
     ], { genType: 'exam' });
     expect(prompt).toContain('真题卷结构蓝本');
+    expect(prompt).toContain('知识点颗粒度以课标条目为最小单位');
     expect(prompt).toContain('重难点最多2次且必须角度不同');
     expect(prompt).toContain('更换题材/情境/数据/设问角度');
     expect(prompt).toContain('改写成填空/判断/简答/操作等多样题型');
@@ -573,12 +574,14 @@ describe('exam 正式考试标准——质检闭环（AI 修复链路）', () =>
     expect(prompt).toContain('正式考试专项');
     expect(prompt).toContain('题材/情境/数据/设问角度相似');
     expect(prompt).toContain('真题卷结构蓝本');
-    expect(prompt).toContain('相似题/重复考查/大题结构');
+    expect(prompt).toContain('相似题/重复考查/假情境/大题结构');
     expect(prompt).toContain('题型丰富度');
     expect(prompt).toContain('设问句式模板化');
     expect(prompt).toContain('真题每卷仅1道写作题');
     expect(prompt).toContain('知识点/层级等教学性标注');
     expect(prompt).toContain('素养立意');
+    expect(prompt).toContain('贴标签式假情境');
+    expect(prompt).toContain('情境真实性');
   });
 
   it('语义审查 prompt：非 exam 含题目质量专项、不含试卷专属维度', () => {
@@ -589,6 +592,7 @@ describe('exam 正式考试标准——质检闭环（AI 修复链路）', () =>
     // 题目质量专项：含（练习类同样有相似题/干扰项/答案泄露风险）
     expect(prompt).toContain('题目质量专项');
     expect(prompt).toContain('题材/情境/数据/设问角度相似');
+    expect(prompt).toContain('情境真实性');
   });
 });
 

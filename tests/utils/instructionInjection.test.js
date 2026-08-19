@@ -511,11 +511,13 @@ describe('指令注入审计：精简固化（规则唯一性/注入总量/红�
       }
     });
 
-    it('每组合红线块注入非空', () => {
+    it('每组合红线块注入非空且含知识点颗粒度判据', () => {
       for (const c of TYPICAL_COMBOS) {
         const blocks = simulateQualityLayers(c);
         const redlines = blocks.filter(b => b.category === '生成-红线约束');
         expect(redlines.length, `${c.name} 红线块为空`).toBeGreaterThan(0);
+        const redlineText = redlines.map(b => b.content).join('\n');
+        expect(redlineText, `${c.name} 红线缺知识点颗粒度判据`).toContain('知识点颗粒度以课标条目为最小单位');
       }
     });
 

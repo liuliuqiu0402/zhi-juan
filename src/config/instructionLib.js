@@ -1,7 +1,7 @@
 // ==================== 指令库 ====================
 
 /** 指令版本号 —— 每次修改指令库内容后递增，使客户端缓存自动失效 */
-export const INSTRUCTION_VERSION = 28;
+export const INSTRUCTION_VERSION = 29;
 
 // 内置指令库
 export const builtinInstructions = [
@@ -718,7 +718,7 @@ export const builtinInstructions = [
     id: 'block_ban_general', name: '【禁止项-通用】母本参考', category: '生成-红线约束', type: 'fragment',
     prompt_order: 31,
     subject: '', stage: '', genType: '',
-    content: '🔴 硬性红线（违反任一条为不合格）：\n1. 不超纲——严格按所属学段课标，不确定时默认不纳入\n2. 无科学性错误——概念/计算/拼写/史实/公式/单位等不得有误\n3. 不出偏题怪题——不考冷门知识、不设特殊解法\n4. 不出现政治敏感、歧视性表述（性别/地域/民族等）\n5. 同卷内同一知识点不重复考查',
+    content: '🔴 硬性红线（违反任一条为不合格）：\n1. 不超纲——严格按所属学段课标，不确定时默认不纳入\n2. 无科学性错误——概念/计算/拼写/史实/公式/单位等不得有误\n3. 不出偏题怪题——不考冷门知识、不设特殊解法\n4. 不出现政治敏感、歧视性表述（性别/地域/民族等）\n5. 同卷内同一知识点不重复考查——知识点颗粒度以课标条目为最小单位：上位概念与下位概念不并列计（如"汉字"与"木字旁的字"），同一条目下的细分考查算同一知识点（如"杨""柏""松"同属"木字旁的字"）；重难点最多2次且角度不同（概念理解+应用），一般知识点仅考1次',
     builtin: true
   },
   { id: 'block_ban_math', name: '【禁止项】数学', category: '生成-红线约束', prompt_order: 31, type: 'fragment', subject: '数学', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '数学学科补充红线：① 确保计算/公式/单位无错误 ② 应用题数据符合实际、不反常识 ③ 几何图按比例或标注"示意图" ④ 不堆砌纯计算题（穿插情境题和探究题）', builtin: true },
@@ -3925,7 +3925,7 @@ export const builtinInstructions = [
 // ==================== 指令库存储Key与版本号 ====================
 const STORAGE_KEY = 'instructionLib';
 const VERSION_KEY = 'instructionLib_version';
-export const BUILTIN_VERSION = 33; // 🔧 v33: 阶段六抽查复核去重——顶层约束删知识点考查去重复述（归 formal）、核心任务/学段控制删选项数复述（归题目质量标准）、学科特色删摘抄原文复述（归 block_quality_chinese）
+export const BUILTIN_VERSION = 34; // 🔧 v34: 红线补知识点颗粒度判据（课标条目为最小单位）+语义审查补假情境/情境真实性审查项
 
 // ==================== 加载指令库 ====================
 export const loadInstructionLib = () => {
