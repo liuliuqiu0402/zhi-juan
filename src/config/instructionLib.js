@@ -1,7 +1,7 @@
 // ==================== 指令库 ====================
 
 /** 指令版本号 —— 每次修改指令库内容后递增，使客户端缓存自动失效 */
-export const INSTRUCTION_VERSION = 29;
+export const INSTRUCTION_VERSION = 30;
 
 // 内置指令库
 export const builtinInstructions = [
@@ -655,7 +655,7 @@ export const builtinInstructions = [
     id: 'block_quality_base', name: '【题目质量标准】通用', category: '生成-题目质量标准', type: 'fragment',
     prompt_order: 25,
     subject: '', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review',
-    content: '题目质量标准：\n1. 题干精炼无歧义，一题一事\n2. 选择题选项等长、风格一致，错误选项有迷惑性，正确答案随机分布\n3. 不设"以下哪个选项正确"等无信息量设问（英语祈使句Choose/Read/Write除外）\n4. 填空在关键位置设空（计算结果/概念名称），一处设空只考一个知识点\n5. 计算题数据符合实际，同难度题目区分度相近',
+    content: '题目质量标准：\n1. 题干精炼无歧义，一题一事\n2. 选择题选项等长、风格一致，错误选项有迷惑性，正确答案随机分布\n3. 不设"以下哪个选项正确"等无信息量设问（英语祈使句Choose/Read/Write除外）\n4. 填空在关键位置设空（计算结果/概念名称），一处设空只考一个知识点\n5. 计算题数据符合实际，同难度题目区分度相近\n6. 每道题须嵌入真实或拟真情境（生活场景/学习任务/探究情境），基础考点也须置于情境中考查运用；🔴 禁止单点回忆式设问与教材原句挖空（如"XX的定义是____""1米=____厘米"式）',
     builtin: true
   },
   {
@@ -751,8 +751,8 @@ export const builtinInstructions = [
   {
     id: 'block_original_quote', name: '【原题引用】允许适量引用', category: '生成-原题引用', type: 'fragment',
     prompt_order: 30,
-    subject: '', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,summary',
-    content: '允许引用少量教材原题（不超过总题量的30%），但必须经过改编或拓展，不得照抄。',
+    subject: '', stage: '', genType: 'practice,special,errorbook,reading,preview,summary',
+    content: '🔴 试卷（exam）严格禁止引用教材原题（须遵循【真题卷结构蓝本】新课标命题要求第2条"禁止照搬教材原题"），本条不适用于 exam。\n其他资料类型：允许引用少量教材原题（不超过总题量的30%），但必须经过改编或拓展（变换数据/情境/问法），不得照抄。',
     builtin: true
   },
 
@@ -854,7 +854,7 @@ export const builtinInstructions = [
     id: 'block_example_preview_chinese_lower', name: '【质量范例】低段语文预习', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '语文', stage: 'primary_low', genType: 'preview', specialSubType: 'new_standard',
-    content: '字词预习示例：每个生字配拼音、部首、笔画、结构（不要求笔顺）、组2个词。\n课文感知：提若干个引导性问题（如"课文讲了谁的故事？""你最喜欢哪个角色？为什么？"）。\n预习检测：若干道基础填空题，答案可直接在教材中找到。',
+    content: '字词预习示例：每个生字配拼音、部首、笔画、结构（不要求笔顺）、组2个词。\n课文感知：提若干个引导性问题（如"课文讲了谁的故事？""你最喜欢哪个角色？为什么？"）。\n预习检测：若干道引导回读式设问（如"从第X自然段找出说明XX的句子画下来""用自己的话说说为什么XX"），鼓励学生回读教材后用自己的话表达，🔴 禁止单点原句挖空题（如"我们要____动物"式《拍手歌》原句挖空）。',
     builtin: true
   },
   {
@@ -1279,31 +1279,31 @@ export const builtinInstructions = [
     builtin: true },
   { id: 'block_content_norm_summary', name: '【内容规范】知识点总结-教材锚定', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: '', genType: 'summary',
-    content: '🔴 【总结教材锚定强化】\n✅ 知识清单必须逐条对应教材原文，每条标注教材出处（章节/页码）。\n⛔ 严禁归纳教材中未出现的"拓展知识""补充概念""延伸阅读"。\n✅ 典型例题优先改编教材原题（变换数据/情境/问法），严禁使用教材之外的题目。',
+    content: '🔴 【总结教材锚定强化·知识边界约束（限定素材范围），非考法约束——锚定素材不等于允许原句挖空考法】\n✅ 知识清单必须逐条对应教材原文，每条标注教材出处（章节/页码）。\n⛔ 严禁归纳教材中未出现的"拓展知识""补充概念""延伸阅读"。\n✅ 典型例题优先改编教材原题（变换数据/情境/问法），严禁使用教材之外的题目。',
     builtin: true },
   { id: 'block_content_norm_special', name: '【内容规范】专项突破-教材锚定', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: '', genType: 'special',
-    content: '🔴 【专项教材锚定强化】\n✅ 方法指导中的技巧/策略必须基于教材中的示例和方法提炼。\n⛔ 严禁引入教材未涉及的解题技巧、公式、定理。\n✅ 典例剖析的例题优先改编教材原题，阶梯训练题的知识点严格限于教材范围。',
+    content: '🔴 【专项教材锚定强化·知识边界约束（限定素材范围），非考法约束——锚定素材不等于允许原句挖空考法】\n✅ 方法指导中的技巧/策略必须基于教材中的示例和方法提炼。\n⛔ 严禁引入教材未涉及的解题技巧、公式、定理。\n✅ 典例剖析的例题优先改编教材原题，阶梯训练题的知识点严格限于教材范围。',
     builtin: true },
   { id: 'block_content_norm_errorbook', name: '【内容规范】错题本-教材锚定', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: '', genType: 'errorbook',
-    content: '🔴 【错题本教材锚定强化】\n✅ 错题来源必须是教材中的典型题目或基于教材知识点的常见错误，不得使用教材之外的题目作为错题案例。\n✅ 错误归因中的"常见错误"描述必须基于教材知识点和学生真实易错点，不得臆造。',
+    content: '🔴 【错题本教材锚定强化·知识边界约束（限定素材范围），非考法约束——锚定素材不等于允许原句挖空考法】\n✅ 错题来源必须是教材中的典型题目或基于教材知识点的常见错误，不得使用教材之外的题目作为错题案例。\n✅ 错误归因中的"常见错误"描述必须基于教材知识点和学生真实易错点，不得臆造。',
     builtin: true },
   { id: 'block_content_norm_preview', name: '【内容规范】课前预习-教材锚定', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: '', genType: 'preview',
-    content: '🔴 【预习教材锚定强化】\n✅ 预习任务必须直接指向教材原文（"阅读教材第X页第Y段""在教材中圈出X个字"）。\n⛔ 严禁设置与教材内容无关的预习活动。\n✅ 预习检测题答案必须标注教材原文定位（"参见教材第X页第Y段"），方便学生自查。',
+    content: '🔴 【预习教材锚定强化·知识边界约束（限定素材范围），非考法约束——锚定素材不等于允许原句挖空考法】\n✅ 预习任务必须直接指向教材原文（"阅读教材第X页第Y段""在教材中圈出X个字"）。\n⛔ 严禁设置与教材内容无关的预习活动。\n✅ 预习检测题答案必须标注教材原文定位（"参见教材第X页第Y段"），方便学生自查。',
     builtin: true },
   { id: 'block_content_norm_dictation', name: '【内容规范】默写-教材锚定', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: '', genType: 'dictation',
-    content: '🔴 【默写教材锚定强化】\n✅ 字词/单词/句子必须全部来自教材生字表/单词表/背诵篇目，一个不能多、一个不能少。\n⛔ 严禁添加教材生字表之外的生字、教材单词表之外的单词。\n✅ 拼音/释义提示必须与教材一致，不得自行修改。',
+    content: '🔴 【默写教材锚定强化·知识边界约束（限定素材范围），非考法约束——锚定素材不等于允许原句挖空考法；默写场景本身即要求字词原样复现】\n✅ 字词/单词/句子必须全部来自教材生字表/单词表/背诵篇目，一个不能多、一个不能少。\n⛔ 严禁添加教材生字表之外的生字、教材单词表之外的单词。\n✅ 拼音/释义提示必须与教材一致，不得自行修改。',
     builtin: true },
   { id: 'block_content_norm_reading', name: '【内容规范】阅读训练-教材锚定', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: '', genType: 'reading',
-    content: '🔴 【阅读教材锚定】\n✅ 阅读选文优先教材课文片段或教材推荐阅读篇目，课外选文难度和主题必须匹配本学段教材水平\n✅ 课内选文文末标注出处：【选自教材X年级第X课《XX》】；课外选文标注作者/来源\n⛔ 严禁使用超出学段阅读能力的篇目（生词量/篇幅/主题复杂度超出教材同类选文）\n✅ 题目考查的能力层级严格限于本学段课标要求',
+    content: '🔴 【阅读教材锚定·知识边界约束（限定素材范围），非考法约束——锚定素材不等于允许原句挖空考法】\n✅ 阅读选文优先教材课文片段或教材推荐阅读篇目，课外选文难度和主题必须匹配本学段教材水平\n✅ 课内选文文末标注出处：【选自教材X年级第X课《XX》】；课外选文标注作者/来源\n⛔ 严禁使用超出学段阅读能力的篇目（生词量/篇幅/主题复杂度超出教材同类选文）\n✅ 题目考查的能力层级严格限于本学段课标要求',
     builtin: true },
   { id: 'block_content_norm_review', name: '【内容规范】复习-教材锚定', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: '', genType: 'review',
-    content: '复习教材锚定：知识清单逐条对应教材原文，典型例题优先改编教材原题，拓展延伸标注与教材的关联。⚠️ 板块标题强制字样（质量检测依据）：知识体系板块标题须直接含“知识框架/思维导图/知识树/知识地图”等字样，禁止用“知识回顾”“重点闯关”等替代词；题目板块标题须含“典型题”或“例题”字样，趣味包装（如“第一关·典型题”）也必须保留这些字面。',
+    content: '复习教材锚定（知识边界约束，限定素材范围，非考法约束——锚定素材不等于允许原句挖空考法）：知识清单逐条对应教材原文，典型例题优先改编教材原题，拓展延伸标注与教材的关联。⚠️ 板块标题强制字样（质量检测依据）：知识体系板块标题须直接含“知识框架/思维导图/知识树/知识地图”等字样，禁止用“知识回顾”“重点闯关”等替代词；题目板块标题须含“典型题”或“例题”字样，趣味包装（如“第一关·典型题”）也必须保留这些字面。',
     builtin: true },
 
   // ═══════════════════════════════════════
@@ -1838,7 +1838,7 @@ export const builtinInstructions = [
     subject: '道德与法治', stage: 'middle', genType: '',
     content: '- 道德与法治（初中）：政治认同+法治观念+责任意识；时政分析+情境探究；价值判断', builtin: true },
   { id: 'gen_subj_politics_high', name: '【思想政治-高中】', category: '生成-学科适配', prompt_order: 17, type: 'fragment',
-    subject: '思想政治', stage: 'high', genType: '',
+    subject: '道德与法治,政治,思想政治', stage: 'high', genType: '',
     content: '- 政治（高中思想政治）：时政分析+辨析论述+开放试题；对标高考政治；学科核心素养', builtin: true },
 
   { id: 'gen_subj_science_primary_low', name: '【科学-小学低段】', category: '生成-学科适配', prompt_order: 17, type: 'fragment',
@@ -1852,14 +1852,14 @@ export const builtinInstructions = [
     content: '- 科学（高段5-6年级）：实验设计与变量控制；数据图表分析；探究推理+科学解释；物质/生命/地球科学三大领域；为初中理综衔接', builtin: true },
 
   { id: 'gen_subj_it_primary', name: '【信息科技-小学】', category: '生成-学科适配', prompt_order: 17, type: 'fragment',
-    subject: '信息技术', stage: 'primary', genType: '',
+    subject: '信息技术,信息科技', stage: 'primary', genType: '',
     content: '- 信息科技：侧重信息意识和数字化学习；题目生活化、操作化；不考查编程语法', builtin: true },
   { id: 'gen_subj_it_middle', name: '【信息科技-初中】', category: '生成-学科适配', prompt_order: 17, type: 'fragment',
-    subject: '信息技术', stage: 'middle', genType: '',
-    content: '- 信息技术：含算法思维、数据处理、网络应用；可考查简单流程图和伪代码', builtin: true },
+    subject: '信息技术,信息科技', stage: 'middle', genType: '',
+    content: '- 信息科技：含算法思维、数据处理、网络应用；可考查简单流程图和伪代码', builtin: true },
   { id: 'gen_subj_it_high', name: '【信息科技-高中】', category: '生成-学科适配', prompt_order: 17, type: 'fragment',
-    subject: '信息技术', stage: 'high', genType: '',
-    content: '- 信息技术：含计算思维、算法设计、Python编程；对标学业水平考试要求', builtin: true },
+    subject: '信息技术,信息科技', stage: 'high', genType: '',
+    content: '- 信息科技：含计算思维、算法设计、Python编程；对标学业水平考试要求', builtin: true },
 
   // ═══════════════════════════════════════
   // 【生成_资料类型结构】块级指令 — 根据学科+资料类型自动注入
@@ -1962,7 +1962,7 @@ export const builtinInstructions = [
     subject: '道德与法治,政治', stage: 'middle', genType: 'practice', specialSubType: 'new_standard',
     content: '结构参考：\n一、基础建构（核心概念、价值认知）\n二、材料分析·能力进阶（情境辨析、法治思维）\n三、综合探究·素养提升（社会实践、公共参与）', builtin: true },
   { id: 'gen_struct_practice_moral_high', name: '【课时练结构-思想政治-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '思想政治', stage: 'high', genType: 'practice', specialSubType: 'new_standard',
+    subject: '道德与法治,政治,思想政治', stage: 'high', genType: 'practice', specialSubType: 'new_standard',
     content: '结构参考：\n一、基础建构（核心概念、理论理解）\n二、材料分析·能力进阶（时政分析、辩证思维）\n三、综合探究·素养提升（社会实践、公共参与）', builtin: true },
   // ── 道德与法治/思想政治 practice（小学段，2022 课标：生活情境、行为辨析、知行合一）──
   { id: 'gen_struct_practice_moral_primary', name: '【课时练结构-道德与法治-小学】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
@@ -2129,7 +2129,7 @@ export const builtinInstructions = [
     subject: '道德与法治,政治', stage: 'middle', genType: 'preview', specialSubType: 'new_standard',
     content: '结构参考：\n一、学习目标\n二、情境导入\n三、概念预读\n四、价值辨析\n五、预习检测', builtin: true },
   { id: 'gen_struct_preview_moral_high', name: '【预习结构-思想政治-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '思想政治', stage: 'high', genType: 'preview', specialSubType: 'new_standard',
+    subject: '道德与法治,政治,思想政治', stage: 'high', genType: 'preview', specialSubType: 'new_standard',
     content: '结构参考：\n一、学习目标\n二、时政导入\n三、理论预读\n四、议题探究\n五、预习检测', builtin: true },
   // 信息技术预习
   { id: 'gen_struct_preview_it', name: '【预习结构-信息技术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
@@ -2382,7 +2382,7 @@ export const builtinInstructions = [
     subject: '道德与法治,政治', stage: 'middle', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识结构化梳理（概念·原理·知识网络）\n二、核心能力聚焦（法治意识、辩证思维）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（公共参与、社会责任）', builtin: true },
   { id: 'gen_struct_summary_moral_high', name: '【总结结构-思想政治-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '思想政治', stage: 'high', genType: 'summary', specialSubType: 'new_standard',
+    subject: '道德与法治,政治,思想政治', stage: 'high', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识结构化梳理（概念·原理·知识网络）\n二、核心能力聚焦（科学精神、公共参与）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（时政分析、社会责任）', builtin: true },
   { id: 'gen_struct_summary_moral_primary', name: '【总结结构-道德与法治-小学】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '道德与法治,政治', stage: 'primary_low,primary_mid,primary_high', genType: 'summary', specialSubType: 'new_standard',
@@ -2415,7 +2415,7 @@ export const builtinInstructions = [
     subject: '道德与法治,政治', stage: 'middle', genType: 'special', specialSubType: 'new_standard',
     content: '结构参考：\n一、方法指导\n二、案例分析\n三、专题训练\n四、中考实战', builtin: true },
   { id: 'gen_struct_special_moral_high', name: '【专项结构-思想政治-高中】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '思想政治', stage: 'high', genType: 'special', specialSubType: 'new_standard',
+    subject: '道德与法治,政治,思想政治', stage: 'high', genType: 'special', specialSubType: 'new_standard',
     content: '结构参考：\n一、方法指导\n二、时政专题\n三、论述训练\n四、高考实战', builtin: true },
   { id: 'gen_struct_special_moral_primary', name: '【专项结构-道德与法治-小学】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
     subject: '道德与法治,政治', stage: 'primary_low,primary_mid,primary_high', genType: 'special', specialSubType: 'new_standard',
@@ -4182,10 +4182,17 @@ export const getMatchingBlockInstructions = (options = {}) => {
       if (!insSubjects.includes(subject)) return false;
     }
     // 学段匹配（🔧 支持逗号分隔多值，如 'primary_low,primary_mid,primary_high'）
+    // 🔧 P0 修复：传入 stage='primary'（调用方未细分小学段时）也允许命中
+    //   'primary_low,primary_mid,primary_high' 组合条目，避免小学段专属块漏匹配
     if (i.stage && i.stage.trim() !== '') {
       if (!stage) return false;
       const insStages = i.stage.split(',').map(s => s.trim());
-      if (!insStages.includes(stage)) return false;
+      // primary 兜底：传入 primary 时，等价于任一小学子段
+      const stageAliases = stage === 'primary'
+        ? ['primary', 'primary_low', 'primary_mid', 'primary_high']
+        : [stage];
+      const hit = stageAliases.some(s => insStages.includes(s));
+      if (!hit) return false;
     }
     // 资料类型匹配
     if (i.genType && i.genType.trim() !== '') {
