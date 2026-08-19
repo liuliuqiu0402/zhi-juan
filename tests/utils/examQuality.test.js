@@ -130,6 +130,10 @@ describe('exam 正式考试标准——指令注入', () => {
     expect(cnLowText).toContain('全卷以单元人文主题为情境主线');
     expect(cnLowText).toContain('禁止与主线无关的"贴标签"式假情境');
     expect(cnLowText).toContain('素养立意与思维深度');
+    // 本轮新增：低段蓝本题量底线与情境任务锁定
+    expect(cnLowText).toContain('题量底线');
+    expect(cnLowText).toContain('禁止孤立裸连线');
+    expect(cnLowText).toContain('做成选择题同样违规');
     // 锁定保留验证：数学等蓝本 note 锁定的题量（口算20题）在灵活性边界下仍为权威
     const mathMidText = buildExamBlueprintText(EXAM_BLUEPRINTS['数学|primary_mid']);
     expect(mathMidText).toContain('直接写得数20题');
@@ -358,6 +362,13 @@ describe('exam 正式考试标准——蓝图 prompt 模板', () => {
 });
 
 describe('exam 正式考试标准——qualityChecker 质检', () => {
+  it('文字拼接机检："说明文松柏"触发、「说明文是一种文体」不误报', () => {
+    const bad = HardRuleChecker.checkStitchedWords('"松柏四季披绿装"说明文松柏一年四季叶子都是绿色的。"枫树秋天叶儿红"说明文枫树的叶子秋天会变红。');
+    expect(bad.filter(i => i.type === '文字拼接错误').length).toBe(2);
+    const ok = HardRuleChecker.checkStitchedWords('说明文是一种常见文体。这篇说明文写得很清楚，说明文教学要注重方法。');
+    expect(ok.filter(i => i.type === '文字拼接错误')).toEqual([]);
+  });
+
   it('无层级标题 → 触发「缺少分类分层」', () => {
     const content = '<div class="question">1. 3+5=？（2分）</div>';
     const issues = HardRuleChecker.checkGenTypeSpecific(content, 'exam', []);
@@ -580,6 +591,7 @@ describe('exam 正式考试标准——质检闭环（AI 修复链路）', () =>
     expect(prompt).toContain('真题每卷仅1道写作题');
     expect(prompt).toContain('知识点/层级等教学性标注');
     expect(prompt).toContain('素养立意');
+    expect(prompt).toContain('换皮挖空');
     expect(prompt).toContain('贴标签式假情境');
     expect(prompt).toContain('情境真实性');
   });
