@@ -4,7 +4,10 @@ import {
   saveInstructionLib,
   addCustomInstruction as addCustom,
   updateCustomInstruction as updateCustom,
-  deleteCustomInstruction as deleteCustom
+  deleteCustomInstruction as deleteCustom,
+  resetAllOverrides as resetOverrides,
+  getOverriddenBlocks as getOverrides,
+  exportOverridesAsText as exportOverrides
 } from '../config/instructionLib.js';
 
 export const useInstructionStore = defineStore('instruction', {
@@ -97,7 +100,7 @@ export const useInstructionStore = defineStore('instruction', {
       const selectedIds = this.list.filter(i => i.selected).map(i => i.id);
       const customToDelete = [];
       const builtinToMark = [];
-      
+
       for (const id of selectedIds) {
         const ins = this.list.find(i => i.id === id);
         if (!ins) continue;
@@ -108,15 +111,32 @@ export const useInstructionStore = defineStore('instruction', {
           customToDelete.push(id);
         }
       }
-      
+
       // 删除自定义指令
       for (const id of customToDelete) {
         deleteCustom(id);
       }
-      
+
       // 更新列表：过滤掉已删除的
       this.list = this.list.filter(i => !i._deleted && !customToDelete.includes(i.id));
       this._save();
+    },
+
+    // 获取所有覆盖条目（编辑过 builtin 的）
+    getOverrides() {
+      return getOverrides();
+    },
+
+    // 重置所有覆盖，恢复 builtin 源码版本
+    resetAllOverrides() {
+      const result = resetOverrides();
+      this.list = loadInstructionLib();
+      return result;
+    },
+
+    // 导出所有覆盖为文本（供复制给开发者分析）
+    exportOverrides() {
+      return exportOverrides();
     }
   }
 });

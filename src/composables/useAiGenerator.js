@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import axios from 'axios';
-import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig } from '../config/apiConfig.js';
+import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, MAX_TOKENS_BY_TASK } from '../config/apiConfig.js';
 import { getStoragePath } from '../utils/pathHelper.js';
 import { 
   subjectGradeSystem, 
@@ -18,6 +18,7 @@ import { getExamBlueprint, buildExamBlueprintText } from '../config/examPaperBlu
 import { HardRuleChecker, AISemanticReviewer } from '../utils/qualityChecker';
 import { runHardValidators, applyAutoFixes } from '../utils/subjectValidators.js';
 import { registerController, unregisterController } from '../utils/requestManager.js';
+import { generatePromptCacheKey, getCachedPromptResult, setCachedPromptResult } from '../utils/generationCache';
 
 // ===== 提取的独立工具模块 =====
 import { getModelDisplayName, robustJsonParse } from '../utils/jsonParser.js';
@@ -92,6 +93,7 @@ const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000) => {
   let chunkCount = 0;
   let reasoningChunkCount = 0;  // 🔧 推理模型：思考链 chunk 计数
   let lastChunkTime = Date.now();
+  let consecutiveParseFailures = 0;  // 🔧 SSE 连续解析失败计数器
 
   try {
     while (true) {
@@ -140,6 +142,7 @@ const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000) => {
 
           try {
             const parsed = JSON.parse(jsonStr);
+            consecutiveParseFailures = 0;  // 🔧 成功解析，重置计数器
             const delta = parsed.choices?.[0]?.delta?.content;
             const reasoningDelta = parsed.choices?.[0]?.delta?.reasoning_content;  // 🔧 推理模型思考链
             if (delta) {
@@ -153,8 +156,11 @@ const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000) => {
               finishReason = parsed.choices[0].finish_reason;
             }
           } catch (parseErr) {
-            // 个别 chunk JSON 解析失败不影响整体
-            if (jsonStr.length > 10) {
+            // 🔧 连续失败计数器：超过5次告警（可能流已损坏）
+            consecutiveParseFailures++;
+            if (consecutiveParseFailures >= 5) {
+              console.error(`🔴 SSE 流连续 ${consecutiveParseFailures} 次解析失败，流可能已损坏（最近: ${jsonStr.slice(0, 80)}）`);
+            } else if (jsonStr.length > 10) {
               console.warn('⚠️ SSE chunk JSON 解析失败:', jsonStr.slice(0, 80));
             }
           }
@@ -445,6 +451,79 @@ const _robustJsonParse = robustJsonParse;
 const _addTemplateStructureMarkers = addTemplateStructureMarkers;
 
 //  知识点覆盖率校验（两个调用点共享）
+/**
+ * 🔧 蓝本-生成结果结构化对比
+ * 验证 AI 生成的试卷是否对齐蓝本定义的题型骨架
+ * @param {string} content - 生成的 HTML 内容
+ * @param {Array} parsedBlueprint - 蓝图数组（含题型/分值等）
+ * @param {object} ctx - { genType, subject, stage, grade }
+ * @returns {{ hasIssues: boolean, issues: string[] }}
+ */
+const compareBlueprintToGenerated = (content, parsedBlueprint, ctx) => {
+  const issues = [];
+  if (!content || !parsedBlueprint || !Array.isArray(parsedBlueprint) || parsedBlueprint.length === 0) {
+    return { hasIssues: false, issues };
+  }
+  const { genType, subject, stage } = ctx || {};
+
+  // 仅 exam 类型做蓝本对比（其他类型无蓝本骨架约束）
+  if (genType !== 'exam') return { hasIssues: false, issues };
+
+  // 获取蓝本定义
+  const examBlueprint = getExamBlueprint(subject, stage);
+  if (!examBlueprint || !examBlueprint.sections) return { hasIssues: false, issues };
+
+  // 从生成内容中提取大题标题（匹配 "一、" "二、" 等开头的标题行，或 <h2> 标签内容）
+  const sectionHeaders = [];
+  // 匹配中文数字序号开头的标题：一、二、三、...
+  const chineseNumMatch = content.match(/[一二三四五六七八九十]{1,3}、[^\n<]{2,30}/g);
+  if (chineseNumMatch) sectionHeaders.push(...chineseNumMatch);
+  // 匹配 <h2> 标签内容
+  const h2Match = content.match(/<h2[^>]*>([^<]{2,30})<\/h2>/gi);
+  if (h2Match) {
+    h2Match.forEach(h => {
+      const text = h.replace(/<[^>]+>/g, '').trim();
+      if (text) sectionHeaders.push(text);
+    });
+  }
+
+  // 对比：蓝本中的每个 section name 是否在生成内容中出现
+  const missingSections = [];
+  for (const section of examBlueprint.sections) {
+    const sectionName = section.name;
+    // 检查 sectionName 是否在生成的大题标题中出现
+    const found = sectionHeaders.some(header => {
+      // 去掉序号前缀，比较核心文字
+      const headerCore = header.replace(/^[一二三四五六七八九十]{1,3}、\s*/, '').trim();
+      return headerCore.includes(sectionName) || sectionName.includes(headerCore);
+    });
+    if (!found) {
+      missingSections.push(`${sectionName}（${section.score}分）`);
+    }
+  }
+
+  if (missingSections.length > 0) {
+    issues.push(`蓝本大题缺失：${missingSections.join('、')}——生成结果未对齐蓝本骨架，请检查`);
+  }
+
+  // 对比总分
+  if (examBlueprint.fullScore) {
+    // 从生成内容中提取分值标注（如"（36分）""(36分)"）
+    const scoreMatches = content.match(/[（(](\d+)分[）)]/g);
+    if (scoreMatches) {
+      const totalGenerated = scoreMatches.reduce((sum, m) => {
+        const num = parseInt(m.match(/\d+/)[0]);
+        return sum + num;
+      }, 0);
+      if (totalGenerated > 0 && Math.abs(totalGenerated - examBlueprint.fullScore) > 2) {
+        issues.push(`分值不匹配：蓝本总分${examBlueprint.fullScore}分，生成卷面总分约${totalGenerated}分（差${Math.abs(totalGenerated - examBlueprint.fullScore)}分）`);
+      }
+    }
+  }
+
+  return { hasIssues: issues.length > 0, issues };
+};
+
 const checkKnowledgeCoverage = (blueprint, km) => {
   if (!Array.isArray(blueprint)) {
     return { covered: 0, total: 0, rate: 0, uncovered: [], duplicatedKPs: [] };
@@ -680,6 +759,53 @@ const cleanReasoningOutput = (text) => {
   }
   
   return sanitize(text);
+};
+
+/**
+ * 🔧 共用 prompt 构建器——统一 HTML 生成 prompt 的外壳
+ * 各特殊路径（preview/dictation/reading 等）调用此函数，只需传入任务特定的中间部分
+ * @param {object} opts
+ * @param {string} opts.taskDesc - 【任务】段内容（不含"【任务】"前缀）
+ * @param {string} opts.blueprintSection - 蓝图/知识点段（含标题、结构、知识点等）
+ * @param {string} opts.textbookSection - 教材原文段
+ * @param {string} opts.subjectReqs - 【学科要求】段内容
+ * @param {string} opts.genType - 资料类型（用于获取格式块）
+ * @param {string} opts.subject - 学科
+ * @param {string} opts.stage - 学段
+ * @param {string} opts.grade - 年级
+ * @param {string} opts.closing - 结尾指令（如"现在请直接输出完整的XX HTML："），不传则用默认
+ * @returns {string} 完整 prompt
+ */
+const buildHtmlGenerationPrompt = (opts) => {
+  const { taskDesc, blueprintSection, textbookSection, subjectReqs, genType, subject, stage, grade, closing } = opts;
+  const preamble = buildOutputPreamble();
+  const formatBlock = buildOutputFormatBlock(genType, subject, stage, grade);
+  const instructionBlock = (() => {
+    const blocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject, stage, genType });
+    return blocks.length > 0 ? blocks.map(b => b.content).join('\n') + '\n' : '';
+  })();
+  const closeText = closing || `现在请直接输出完整的${genTypeTemplates[genType]?.name || genType}HTML：`;
+  return `${preamble}
+
+【任务】${taskDesc}
+
+${blueprintSection}
+
+【教材原文片段——⚠️仅供核对知识点准确性，严禁复制原文段落】
+${textbookSection || '（基于蓝图知识点生成）'}
+
+【学科要求】
+${subjectReqs}
+
+${instructionBlock}
+
+【格式规范——必须严格遵守】
+${formatBlock}
+
+【强制输出格式——最后一条指令】
+你必须输出标准HTML代码。不允许纯文本输出。
+
+${closeText}`;
 };
 
 // ===== 🔧 输出排版兜底：检测 AI 输出是否挤在一个段落 =====
@@ -1590,7 +1716,8 @@ const getStructureForBlueprint = (genType, subject, stage, stylePreference, spec
     // 去掉 "结构参考：\n" 前缀，提取纯结构内容
     return raw.replace(/^结构参考[：:]\s*\n?/i, '').trim();
   }
-  // 降级：genTypeTemplates 中的结构（仅作为最后兜底）
+  // 🔴 兜底告警：指令库三维度匹配全部落空，genTypeTemplates.structure 已清空，AI 将无结构指导
+  console.error(`[structure-miss] ⚠️ 指令库无匹配的资料类型结构！genType="${genType}" subject="${subject}" stage="${stage}" specialSubType="${specialSubType || 'new_standard'}"——请检查 instructionLib.js 是否缺少对应的「生成-资料类型结构」块。AI 将在无结构骨架下自由生成，质量不可控。`);
   return genTypeTemplates[genType]?.structure || '';
 };
 
@@ -1891,13 +2018,31 @@ export function useAiGenerator() {
     if (!options.skipAbortCheck && isGenerating.value && abortController.value?.signal.aborted) {
       throw new Error('生成已取消');
     }
-    // 🔧 修改：使用增强版配置（支持独立审查模型强制选择）
-    const config = await getCurrentEngineConfigEnhanced(taskType, {
-      promptLength: prompt?.length || 0,
-      requiresChinese: true,
-      requiresReasoning: ['blueprint', 'generation', 'review', 'questionValidation'].includes(taskType),
-      requiresCreativity: taskType === 'generation'
-    });
+    // 🔧 获取引擎配置：支持 providerOverride（降级调用时直接指定提供商）
+    let config;
+    if (options.providerOverride) {
+      // 降级路径：直接用指定提供商，不走默认引擎选择
+      config = resolveProviderConfig(options.providerOverride, taskType);
+      if (!config) throw new Error(`降级提供商 "${options.providerOverride}" 不可用，请检查 API Key 配置`);
+      const temperatureMap = {
+        'extraction': apiConfig.generationSettings.analysisTemperature,
+        'analysis': apiConfig.generationSettings.analysisTemperature,
+        'blueprint': apiConfig.generationSettings.blueprintTemperature,
+        'generation': apiConfig.generationSettings.questionTemperature,
+        'review': apiConfig.generationSettings.reviewTemperature,
+        'questionValidation': 0,
+        'formatting': apiConfig.generationSettings.analysisTemperature
+      };
+      config.temperature = temperatureMap[taskType] ?? apiConfig.generationSettings.questionTemperature;
+      config.maxTokens = MAX_TOKENS_BY_TASK[taskType] || apiConfig.generationSettings.maxTokens;
+    } else {
+      config = await getCurrentEngineConfigEnhanced(taskType, {
+        promptLength: prompt?.length || 0,
+        requiresChinese: true,
+        requiresReasoning: ['blueprint', 'generation', 'review', 'questionValidation'].includes(taskType),
+        requiresCreativity: taskType === 'generation'
+      });
+    }
     const modelName = config.textModel || config.model || 'AI';
     const modelDisplayName = getModelDisplayName(modelName);
     const maxTokens = options.maxTokens || config.maxTokens || 4096;
@@ -2010,6 +2155,24 @@ const maxInputTokens = config.engine === 'deepseek'
       }
     }
     
+    // 🔧 L1 客户端缓存：仅缓存确定性中间任务（analysis/blueprint/extraction）
+    //    跳过 generation/review 保证每次生成的创意多样性和审查新鲜度
+    const CACHEABLE_TASKS = ['analysis', 'blueprint', 'extraction'];
+    const cacheable = CACHEABLE_TASKS.includes(taskType) && !options.skipCache;
+    if (cacheable) {
+      const cacheKey = generatePromptCacheKey(taskType, modelName, finalPrompt);
+      const cached = await getCachedPromptResult(cacheKey);
+      if (cached) {
+        console.log(`✅ [L1缓存] ${taskType} 命中，跳过 API 调用`);
+        return cached;
+      }
+      // 缓存未命中 → 继续 API 调用，成功后写入
+      callAI._pendingCacheKey = cacheKey;
+      callAI._pendingCacheMeta = { taskType, model: modelName };
+    } else {
+      callAI._pendingCacheKey = null;
+    }
+
     // ✨ 带超时和重试的调用
     let lastError = null;
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -2159,7 +2322,12 @@ const maxInputTokens = config.engine === 'deepseek'
           
           // 🔧 R1/推理模型输出清洗：去掉 <｜end▁of▁thinking｜>标签
           responseText = cleanReasoningOutput(responseText);
-          
+
+          // 🔧 L1 缓存写入（仅 analysis/blueprint/extraction 任务）
+          if (callAI._pendingCacheKey) {
+            await setCachedPromptResult(callAI._pendingCacheKey, responseText, callAI._pendingCacheMeta);
+          }
+
           return responseText;
         } else {
           // 🔧 DeepSeek API 调用：智能构建 URL，避免重复拼接
@@ -2334,6 +2502,12 @@ const maxInputTokens = config.engine === 'deepseek'
 
           // 🔧 R1/推理模型输出清洗
           content = cleanReasoningOutput(content);
+
+          // 🔧 L1 缓存写入（仅 analysis/blueprint/extraction 任务）
+          if (callAI._pendingCacheKey) {
+            await setCachedPromptResult(callAI._pendingCacheKey, content, callAI._pendingCacheMeta);
+          }
+
           return content;
         }
       } catch (e) {
@@ -2405,6 +2579,27 @@ const maxInputTokens = config.engine === 'deepseek'
         if (attempt >= retries) throw e;
       }
     }
+
+    // 🔧 提供商降级：仅 extraction/formatting（简单任务）失败后尝试免费 GLM 兜底
+    //    generation/blueprint/review/analysis 不降级——保证资料生成质量
+    const FALLBACK_ALLOWED_TASKS = ['extraction', 'formatting'];
+    if (FALLBACK_ALLOWED_TASKS.includes(taskType) && !options.providerOverride) {
+      const glmConfig = resolveProviderConfig('zhipu', taskType);
+      if (glmConfig && glmConfig.apiKey) {
+        console.warn(`🔄 [降级] ${taskType} 主引擎失败，尝试免费 GLM-4.7-Flash 兜底...`);
+        try {
+          return await callAI(prompt, {
+            ...options,
+            providerOverride: 'zhipu',
+            retries: 0,
+            skipCache: true  // 降级结果不写缓存（避免缓存降级质量的结果）
+          });
+        } catch (fallbackErr) {
+          console.error(`❌ [降级] GLM 兜底也失败: ${fallbackErr.message}`);
+        }
+      }
+    }
+
     throw lastError;
   };
 
@@ -3406,7 +3601,7 @@ const maxInputTokens = config.engine === 'deepseek'
           imageBase64,
           { 
             taskType: 'extraction',
-            timeout: 600000,  // 🔧 显式设置10分钟超时
+            timeout: 300000,  // 🔧 显式设置5分钟超时（配合重试机制）
             maxRetries: 1,
             think: false,      // 🔧 强制关闭思考模式，提高响应速度
             imagePath: imagePath  // 🔧 新增：供 PaddleOCR 路由使用
@@ -4614,13 +4809,32 @@ ${cardAnalysisText.substring(0, 1000)}
 
   // 🔧 页数指导：按学段区分，试卷/复习单独加量（DeepSeek 输出更完整）
   //    小学 6页（试卷10页/复习8页）/ 初中 8页（试卷12页/复习10页）/ 高中 10页（试卷14页/复习12页）
+  // 🔧 页数配置：从指令库「生成-页数配置」读取，兜底保留硬编码
+  //    数值含义为纯题目正文页数（不含答案页），在指令库 UI 可直接维护
   const getPageCount = (genType, stage) => {
+    // 学段归一化：primary_low/mid/high → primary
+    const normalizedStage = stage?.startsWith('primary') ? 'primary'
+      : stage === 'middle' ? 'middle'
+      : stage === 'high' ? 'high' : 'primary';
+    try {
+      const blocks = getMatchingBlockInstructions({ category: '生成-页数配置', stage: normalizedStage, genType: '' });
+      if (blocks.length > 0) {
+        const content = blocks[0].content;
+        const genTypeMatch = content.match(new RegExp(`${genType}=(\\d+)`, 'm'));
+        if (genTypeMatch) return parseInt(genTypeMatch[1]);
+        const defaultMatch = content.match(/default=(\d+)/, 'm');
+        if (defaultMatch) return parseInt(defaultMatch[1]);
+      }
+    } catch (e) {
+      console.warn('[getPageCount] 指令库读取失败，使用硬编码兜底:', e.message);
+    }
+    // 硬编码兜底
     const PAGE_MAP = {
-      primary: { exam: 10, review: 8, default: 6 },
-      middle:  { exam: 12, review: 10, default: 8 },
-      high:    { exam: 14, review: 12, default: 10 },
+      primary: { exam: 6, review: 8, default: 6 },
+      middle:  { exam: 8, review: 10, default: 8 },
+      high:    { exam: 10, review: 12, default: 10 },
     };
-    const entry = PAGE_MAP[stage] || PAGE_MAP.primary;
+    const entry = PAGE_MAP[normalizedStage] || PAGE_MAP.primary;
     return entry[genType] || entry.default;
   };
 
@@ -6028,6 +6242,7 @@ ${cardAnalysisText.substring(0, 1000)}
       '生成-题量控制',       // Section: 题量控制（建议总题量范围）
       '生成-难度控制',       // Section: 难度控制（基础:中等:提高比例）
       '生成-学科核心素养',   // Section: 学科核心素养（课标核心素养关键词）
+      '生成-页数配置',       // getPageCount() 读取，不注入 prompt
       // 分析-文本分析专用
       '分析-文本分析规范', '分析-分析模板示例', '分析-分析提取要求', '分析-知识图谱构建'
     ]);
@@ -6413,14 +6628,11 @@ ${content}`;
     const genTypeLabel = pickLabelFromPool(genType, chapterKey);
 
     // ── 组装整卷生成 prompt ──
-    // 🔧 KV Cache 破坏标记：章节指纹 + 随机盐，确保每次请求前缀天然差异化，
-    //    阻止 DeepSeek 云端前缀匹配复用上一轮 KV Cache。
-    //    纯随机数不够——random 注释后相同的前缀仍被缓存命中，章节指纹让前缀天然不同。
-    const chapterFingerprint = selectedBooks?.flatMap(b => 
-      (b.selectedChapters || []).map(c => c.title?.slice(0, 30) || '')
-    ).join('|').slice(0, 120) || Date.now().toString(36);
-    const cacheBuster = `<!-- ctx:${chapterFingerprint}|${Math.random().toString(36).slice(2, 6)} -->\n`;
-    
+    // 🔧 保留 DeepSeek Context Caching（KV Cache）折扣：不向前缀注入随机盐。
+    //    KV Cache 仅缓存输入前缀用于加速推理+降价（输入 token 约 98% 折扣），
+    //    不影响输出多样性——输出随机性由 temperature 参数控制，与前缀无关。
+    //    曾在此处注入 cacheBuster 随机盐破坏前缀匹配，导致每次全价计费，已移除。
+
     // 🔧 变量替换：指令中的占位符 → 运行时实际值（role/title/top 中的 {genTypeLabel}/{diffRatio}/{pageCount}）
     const pageCount = getPageCount(genType, stage);
     let finalInstruction = instruction
@@ -6432,7 +6644,7 @@ ${content}`;
     statusText.value = `步骤 3/4：开始生成整卷...`;
     progress.value = 42;
 
-    let fullPrompt = cacheBuster + buildOutputPreamble() + '\n';
+    let fullPrompt = buildOutputPreamble() + '\n';
     fullPrompt += finalInstruction;
     fullPrompt += '\n\n⚠️ 以上为完整指令，请严格遵循每一个细节要求，生成完整 HTML 资料。\n\n';
     fullPrompt += kmText;
@@ -7693,7 +7905,7 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 500)}
 
               const validateResult = await callAI(validatePrompt, { 
                 taskType: 'questionValidation',  // 🔧 使用独立验证策略
-                temperature: 0,                  // 🔧 降到0，确保客观
+                temperature: 0.01,                // 🔧 降到最低值，确保客观（0.01 兼容所有引擎，0 可能被部分引擎拒绝）
                 timeout: 30000 
               });
               try {
@@ -7792,7 +8004,7 @@ ${plainText.substring(0, 600)}
                           body: JSON.stringify({
                             model: apiConfig.deepseekModel,
                             messages: [{ role: 'user', content: mathVerifyPrompt }],
-                            temperature: 0,
+                            temperature: 0.01,
                             max_tokens: 1024
                           })
                         });
@@ -7809,7 +8021,7 @@ ${plainText.substring(0, 600)}
                         console.warn('DeepSeek 验算失败，降级使用 Ollama:', e.message);
                         independentAnswer = await callAI(mathVerifyPrompt, {
                           taskType: 'questionValidation',
-                          temperature: 0,
+                          temperature: 0.01,
                           timeout: 30000,
                           retries: 0
                         });
@@ -7818,7 +8030,7 @@ ${plainText.substring(0, 600)}
                       // 用 Ollama 验算（但用轻量模型以节约资源）
                       independentAnswer = await callAI(mathVerifyPrompt, {
                         taskType: 'questionValidation',  // 🔧 使用独立验证策略
-                        temperature: 0,                  // 🔧 降到0，确保客观
+                        temperature: 0.01,                // 🔧 降到最低值，确保客观（0.01 兼容所有引擎，0 可能被部分引擎拒绝）
                         timeout: 30000,
                         retries: 0
                       });
@@ -7826,7 +8038,7 @@ ${plainText.substring(0, 600)}
                       // 同一引擎验算（降级方案），但用 temperature=0 提高确定性
                       independentAnswer = await callAI(mathVerifyPrompt, {
                         taskType: 'questionValidation',
-                        temperature: 0,
+                        temperature: 0.01,
                         timeout: 30000,
                         retries: 0
                       });
@@ -8203,8 +8415,15 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
         }
       }
 
-      // 🔧 蓝图-生成结果结构化对比（暂未实现，跳过）
-      // TODO: 实现 compareBlueprintToGenerated 函数后启用
+      // 🔧 蓝本-生成结果结构化对比（验证 AI 是否按蓝本骨架出题）
+      const blueprintComparison = compareBlueprintToGenerated(content, parsedBlueprint, { genType, subject: book?.subject || '', stage: stageRaw, grade: book?.grade || '' });
+      if (blueprintComparison.hasIssues) {
+        blueprintComparison.issues.forEach(issue => {
+          issues.push('📐 ' + issue);
+        });
+        qualityReport.templateMatch.passed = false;
+        qualityReport.templateMatch.details.push(...blueprintComparison.issues);
+      }
 
       // 5.3：科学性错误初检（全角数字、格式异常）
       const commonErrors = [
@@ -10404,7 +10623,7 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 500)}
 
               const validateResult = await callAI(validatePrompt, { 
                 taskType: 'questionValidation',  // 🔧 使用独立验证策略
-                temperature: 0,                  // 🔧 降到0，确保客观
+                temperature: 0.01,                // 🔧 降到最低值，确保客观（0.01 兼容所有引擎，0 可能被部分引擎拒绝）
                 timeout: 30000 
               });
               try {
@@ -10431,7 +10650,7 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 800)}
                     
                     const independentAnswer = await callAI(mathVerifyPrompt, {
                       taskType: 'questionValidation',
-                      temperature: 0,
+                      temperature: 0.01,
                       timeout: 30000,
                       retries: 0
                     });

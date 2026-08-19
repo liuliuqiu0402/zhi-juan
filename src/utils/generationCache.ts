@@ -12,6 +12,7 @@
 import storage from './storage';
 
 const CACHE_PREFIX = 'gen_cache_';
+const PROMPT_CACHE_PREFIX = 'gen_cache_p_'; // prompt 级缓存（中间任务）
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 天
 const MAX_CACHE_ENTRIES = 50; // 上限防存储膨胀
 
@@ -184,3 +185,63 @@ export async function getCacheStats(): Promise<{ count: number; totalSizeMB: num
     return { count: 0, totalSizeMB: 0 };
   }
 }
+
+// ==================== Prompt 级缓存（中间任务） ====================
+// 仅缓存确定性任务（analysis/blueprint/extraction），跳过 generation/review 保证创意多样性
+
+interface PromptCacheEntry {
+  content: string;
+  timestamp: number;
+  taskType: string;
+  model: string;
+}
+
+/**
+ * 生成 prompt 级缓存键（确定性：相同 taskType+model+prompt → 相同键）
+ */
+export function generatePromptCacheKey(taskType: string, model: string, prompt: string): string {
+  const raw = `${taskType}|${model}|${prompt}`;
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw.charCodeAt(i);
+    hash = ((hash << 5) - hash) + ch;
+    hash |= 0;
+  }
+  return PROMPT_CACHE_PREFIX + Math.abs(hash).toString(36);
+}
+
+/** 读取 prompt 级缓存 */
+export async function getCachedPromptResult(cacheKey: string): Promise<string | null> {
+  try {
+    const entry = await storage.getItem<PromptCacheEntry>(cacheKey);
+    if (!entry || !entry.content) return null;
+    if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+      await storage.removeItem(cacheKey);
+      return null;
+    }
+    console.log(`✅ [Prompt缓存命中] ${entry.taskType} 任务零API调用 → 节省100%成本 (key:${cacheKey.slice(0, 24)}...)`);
+    return entry.content;
+  } catch {
+    return null;
+  }
+}
+
+/** 写入 prompt 级缓存 */
+export async function setCachedPromptResult(
+  cacheKey: string,
+  content: string,
+  meta: { taskType: string; model: string }
+): Promise<void> {
+  try {
+    const entry: PromptCacheEntry = {
+      content,
+      timestamp: Date.now(),
+      ...meta,
+    };
+    await storage.setItem(cacheKey, entry);
+    await pruneCache();
+  } catch {
+    // 静默失败，不影响主流程
+  }
+}
+

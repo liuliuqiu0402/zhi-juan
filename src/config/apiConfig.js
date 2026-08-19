@@ -846,7 +846,7 @@ export const selectBestModel = (taskType, requirements = {}) => {
  * - blueprint: 32768（知识图谱 JSON，中等复杂度）
  * - extraction/review/formatting: 2048（短输出）
  */
-const MAX_TOKENS_BY_TASK = Object.freeze({
+export const MAX_TOKENS_BY_TASK = Object.freeze({
   'extraction': 2048,
   'analysis': 65536,
   'blueprint': 32768,
@@ -1099,6 +1099,66 @@ export const sanitizeFilePath = (text) => {
   cleaned = cleaned.replace(/\/[a-zA-Z]+\/[^\s\n,，。]{3,}/g, '[路径已移除]');
   // 应用数据目录名
   cleaned = cleaned.replace(/智卷工坊数据/g, '应用数据');
-  
+
   return cleaned;
+};
+
+// ==================== DeepSeek 峰谷时段检测 ====================
+// DeepSeek 2026-08-16 起实行峰谷定价（UTC 时间）：
+//   高峰段1: 01:00-04:00 UTC  → 北京时间 09:00-12:00
+//   高峰段2: 06:00-10:00 UTC → 北京时间 14:00-18:00
+//   谷时:     其余时段（北京 00:00-09:00 / 12:00-14:00 / 18:00-24:00）
+// 谷时费用约为高峰的 50%
+
+/** DeepSeek 高峰时段（UTC 小时，含起点不含终点） */
+const DEEPSEEK_PEAK_HOURS_UTC = [
+  { start: 1, end: 4,  label: '09:00-12:00' },  // 北京时间
+  { start: 6, end: 10, label: '14:00-18:00' },  // 北京时间
+];
+
+/**
+ * 获取当前 DeepSeek 定价时段
+ * @returns {{ isPeak: boolean, periodLabel: string, nextOffPeakLabel: string, discount: string }}
+ */
+export const getDeepSeekPricingPeriod = () => {
+  const now = new Date();
+  const utcHour = now.getUTCHours();
+  const beijingHour = (utcHour + 8) % 24;
+
+  // 检查当前是否在高峰段
+  const inPeak = DEEPSEEK_PEAK_HOURS_UTC.some(h => utcHour >= h.start && utcHour < h.end);
+
+  if (inPeak) {
+    // 找到下一个谷时开始时间
+    let nextLabel = '';
+    if (utcHour >= 1 && utcHour < 4) {
+      // 在高峰1（09-12），下一个谷时是 12:00
+      nextLabel = '12:00';
+    } else if (utcHour >= 6 && utcHour < 10) {
+      // 在高峰2（14-18），下一个谷时是 18:00
+      nextLabel = '18:00';
+    }
+    return {
+      isPeak: true,
+      periodLabel: '高峰',
+      nextOffPeakLabel: nextLabel,
+      discount: '谷时约为高峰的50%',
+    };
+  } else {
+    // 当前是谷时
+    let nextPeakLabel = '';
+    if (beijingHour < 9) {
+      nextPeakLabel = '09:00';
+    } else if (beijingHour >= 12 && beijingHour < 14) {
+      nextPeakLabel = '14:00';
+    } else {
+      nextPeakLabel = '明日09:00';
+    }
+    return {
+      isPeak: false,
+      periodLabel: '谷时',
+      nextOffPeakLabel: '',
+      discount: '当前为谷时，费用约为高峰的50%',
+    };
+  }
 };

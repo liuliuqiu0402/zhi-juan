@@ -181,6 +181,19 @@
 
       <!-- 右侧：生成和结果区 -->
       <div class="result-panel" v-show="!isMobile || mobileGenTab === 'result'">
+        <!-- 💰 DeepSeek 峰谷时段提示 -->
+        <div v-if="showPricingTip" class="pricing-tip" :class="pricingPeriod.isPeak ? 'pricing-peak' : 'pricing-offpeak'" @click="showPeakDetail = !showPeakDetail">
+          <span class="pricing-badge">{{ pricingPeriod.isPeak ? '⚠️ 高峰时段' : '✅ 谷时优惠' }}</span>
+          <span class="pricing-text" v-if="pricingPeriod.isPeak">当前为 DeepSeek 高峰时段，费用较高。{{ pricingPeriod.nextOffPeakLabel ? `谷时（约${pricingPeriod.discount}）将在 ${pricingPeriod.nextOffPeakLabel} 开始` : '' }}</span>
+          <span class="pricing-text" v-else>当前为 DeepSeek 谷时，{{ pricingPeriod.discount }}</span>
+          <span class="pricing-detail-toggle">{{ showPeakDetail ? '▲' : '▼ 时段表' }}</span>
+          <div v-if="showPeakDetail" class="pricing-detail-box">
+            <div class="pricing-detail-title">DeepSeek 峰谷时段表（北京时间）</div>
+            <div class="pricing-detail-row pricing-detail-peak">🔴 高峰：09:00-12:00 / 14:00-18:00</div>
+            <div class="pricing-detail-row pricing-detail-offpeak">🟢 谷时：00:00-09:00 / 12:00-14:00 / 18:00-24:00</div>
+            <div class="pricing-detail-note">谷时费用约为高峰的 50%，建议非紧急生成安排在谷时</div>
+          </div>
+        </div>
         <div class="generate-actions" v-if="!isMobile">
           <button class="btn-success" @click="generate('single')" :disabled="!instructionDraft || isGenerating">📄 单生成</button>
           <button class="btn-success" @click="generate('multiple')" :disabled="!instructionDraft || isGenerating || genTypes.length < 2">📚 复生成 ({{ genTypes.length }}个)</button>
@@ -302,6 +315,13 @@
           <button class="btn-warning" @click="batchDownload" :disabled="selectedCount === 0">📦 下载 ({{ selectedCount }})</button>
         </div>
       </div>
+    </div>
+
+    <!-- 💰 移动端 DeepSeek 峰谷提示 -->
+    <div v-if="isMobile && showPricingTip" class="pricing-tip" :class="pricingPeriod.isPeak ? 'pricing-peak' : 'pricing-offpeak'" style="margin: 8px 12px;" @click="showPeakDetail = !showPeakDetail">
+      <span class="pricing-badge">{{ pricingPeriod.isPeak ? '⚠️ 高峰' : '✅ 谷时' }}</span>
+      <span class="pricing-text" v-if="pricingPeriod.isPeak">费用较高，谷时{{ pricingPeriod.nextOffPeakLabel ? ` ${pricingPeriod.nextOffPeakLabel} 开始` : '约省50%' }}</span>
+      <span class="pricing-text" v-else>费用约为高峰50%</span>
     </div>
 
     <!-- 📱 移动端固定底部操作栏 -->
@@ -1487,7 +1507,7 @@ import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated, watc
 import { useDialog } from '../composables/useDialog.js';
 import { useMobile } from '../composables/useMobile.js';
 import { useWakeLock } from '../composables/useWakeLock.js';
-import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced } from '../config/apiConfig.js';  // 🔧 新增：导入 apiConfig
+import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getDeepSeekPricingPeriod } from '../config/apiConfig.js';  // 🔧 新增：导入 apiConfig
 import { getStoragePath } from '../utils/pathHelper.js';  // ✨ 存储路径工具
 import { 
   styleOptions,
@@ -3164,6 +3184,14 @@ const uploadPage = () => {
 // 🌐 DeepSeek API 真实就绪检测
 const deepseekStatus = ref('checking'); // 'checking' | 'ready' | 'error'
 const deepseekStatusMsg = ref('');
+
+// 💰 DeepSeek 峰谷时段提示
+const pricingPeriod = ref(getDeepSeekPricingPeriod());
+let pricingTimer = null;
+const updatePricingPeriod = () => { pricingPeriod.value = getDeepSeekPricingPeriod(); };
+const showPeakDetail = ref(false);
+// 仅当引擎为 deepseek 时才显示峰谷提示
+const showPricingTip = computed(() => apiConfig.currentEngine === 'deepseek');
 const checkDeepSeekReady = async () => {
   if (apiConfig.currentEngine !== 'deepseek') {
     deepseekStatus.value = 'ready'; // 非 DeepSeek 不检测
@@ -4042,6 +4070,7 @@ const buildInstruction = async () => {
     
     '生成-品质标准',         // quality_* 系列：按 genType × stage 注入品质标准
     '生成-红线约束',         // quality_redlines_* 系列：最高优先级红线清单（前置注入）
+    '生成-页数配置',         // page_* 系列：getPageCount() 读取，不注入 prompt
     // 非生成用途（分析用）
     '分析-文本分析规范', '分析-分析模板示例', '分析-分析提取要求', '分析-知识图谱构建',
   ]);
@@ -7331,6 +7360,9 @@ onMounted(async () => {
   // 🌐 检测 DeepSeek API 真实就绪状态
   checkDeepSeekReady();
   _setupListeners();
+  // 💰 峰谷时段定时刷新（每分钟）
+  updatePricingPeriod();
+  pricingTimer = setInterval(updatePricingPeriod, 60000);
 });
 
 // 🔧 KeepAlive 重新激活：重新注册事件监听 + 重载数据（同步可能在此期间发生）
@@ -7340,7 +7372,7 @@ onActivated(async () => { _setupListeners(); const docs = await loadGeneratedDoc
 onDeactivated(() => { _teardownListeners(); });
 
 // 真正销毁
-onUnmounted(() => { _teardownListeners(); wakeLock.cleanup(); });
+onUnmounted(() => { _teardownListeners(); wakeLock.cleanup(); if (pricingTimer) clearInterval(pricingTimer); });
 
 // 置信度检测函数
 const detectConfidenceIssues = (content, selectedBooks) => {
@@ -7812,6 +7844,59 @@ const addBlueprintQuestion = () => {
   flex-direction: column;
   padding: 16px;
 }
+
+/* 💰 DeepSeek 峰谷时段提示 */
+.pricing-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  flex-wrap: wrap;
+  transition: all 0.2s;
+}
+.pricing-peak {
+  background: rgba(255, 152, 0, 0.12);
+  border: 1px solid rgba(255, 152, 0, 0.4);
+  color: #e65100;
+}
+.pricing-offpeak {
+  background: rgba(76, 175, 80, 0.12);
+  border: 1px solid rgba(76, 175, 80, 0.4);
+  color: #2e7d32;
+}
+.pricing-badge {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pricing-text {
+  flex: 1;
+  min-width: 0;
+}
+.pricing-detail-toggle {
+  font-size: 11px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+.pricing-detail-box {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.pricing-detail-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.pricing-detail-peak { color: #c62828; }
+.pricing-detail-offpeak { color: #2e7d32; }
+.pricing-detail-note { margin-top: 4px; opacity: 0.7; font-size: 11px; }
 
 .generate-actions {
   display: flex;

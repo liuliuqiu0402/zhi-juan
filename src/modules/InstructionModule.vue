@@ -8,6 +8,8 @@
         <button class="btn-small" @click="insFontSize = Math.min(18, insFontSize + 1)">A+</button>
         <button class="btn" @click="instructionStore.toggleSelectAll()">{{ instructionStore.allSelected ? '取消全选' : '全选' }}</button>
         <button class="btn btn-delete" v-if="instructionStore.selectedCount > 0" @click="instructionStore.batchDelete()">🗑️ 批量删除</button>
+        <button class="btn" @click="handleResetOverrides" title="删除所有对内置指令的编辑覆盖，恢复源码版本（手动新增的指令不受影响）">↺ 重置覆盖</button>
+        <button class="btn" @click="handleExportOverrides" title="导出所有覆盖内容到剪贴板，供开发者分析实际运行版本">📋 导出覆盖</button>
         <button class="btn-primary" @click="addInstruction">➕ 新增指令</button>
       </div>
     </div>
@@ -209,6 +211,39 @@ const addInstruction = () => {
   insFormSubject.value = '';
   insFormContent.value = '';
   showInsEditor.value = true;
+};
+
+const handleResetOverrides = () => {
+  const overrides = instructionStore.getOverrides();
+  if (overrides.length === 0) {
+    alert('没有需要重置的覆盖（未编辑过任何内置指令）');
+    return;
+  }
+  const names = overrides.map(o => o.name).join('\n  ');
+  if (!confirm(`将恢复以下 ${overrides.length} 条内置指令为源码版本（手动新增的指令不受影响）：\n  ${names}\n\n确定继续？`)) return;
+  const result = instructionStore.resetAllOverrides();
+  alert(`已重置 ${result.resetCount} 条覆盖，内置指令已恢复源码版本`);
+};
+
+const handleExportOverrides = async () => {
+  const text = instructionStore.exportOverrides();
+  try {
+    await navigator.clipboard.writeText(text);
+    if (text.startsWith('【无覆盖】')) {
+      alert('未编辑过任何内置指令，当前运行版本 = builtin 源码版本。');
+    } else {
+      alert('覆盖内容已复制到剪贴板，请粘贴给开发者分析。');
+    }
+  } catch {
+    // 剪贴板不可用时弹窗展示
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(`<pre style="white-space:pre-wrap;word-break:break-all;font-size:13px;">${text.replace(/</g, '&lt;')}</pre>`);
+    } else {
+      alert('剪贴板不可用，请手动复制。');
+      console.log(text);
+    }
+  }
 };
 
 const editInstruction = (ins) => {

@@ -229,8 +229,8 @@ export const builtinInstructions = [
   {
     id: 'role_exam', name: '【角色身份】考卷', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'exam', prompt_order: 0,
-    content: '你是一位经验丰富的命题专家。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
-    builtin: true
+    content: '你是一位经验丰富的命题专家。请一次性生成一份完整的、符合新课标要求的{genTypeLabel}，题目正文（含情境导入、题干、作答区）不少于{pageCount}页A4纸（不包括答案页，答案页数另计）。',
+    builtin: true, ver: 1
   },
   {
     id: 'role_practice', name: '【角色身份】课时练', category: '生成-角色身份', type: 'fragment',
@@ -579,9 +579,9 @@ export const builtinInstructions = [
   { id: 'subject_politics', name: '[政治] 时政分析+价值引领', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '道德与法治,政治,思想政治', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '政治/道法资料应包含时政材料分析题、情境判断题、开放性论述题；注重社会主义核心价值观引领和法治意识培养。\n- 禁止法律条文引用不准确或自行编造\n- 禁止案例分析脱离学生认知水平和生活经验\n- 禁止时政材料数据来源不明或编造\n- 禁止辨析题立场模糊或价值导向错误\n', builtin: true },
   // 🔧 新增：K12全学科覆盖
   { id: 'subject_science', name: '[科学] 观察探究+实验记录', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '科学', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '科学资料应从生活现象出发，考查观察、实验、推理能力；包含实验设计题（明确变量/步骤/结论）、观察记录题（图表/文字）、科学阅读题；小学阶段配实物图和实验示意图。\n- 禁止科学概念使用非规范表述\n- 禁止实验步骤缺少安全提示\n- 禁止观察记录题缺少明确的观察指标\n- 从生活现象出发，考查观察、实验、推理能力\n', builtin: true },
-  { id: 'subject_it_primary', name: '[信息技术] 信息意识-小学', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '信息技术,信息科技', stage: 'primary', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息技术资料应结合实际应用场景；小学侧重信息意识和数字化学习，题目生活化、操作化。\n- 禁止操作步骤顺序错误或遗漏关键步骤\n- 禁止编程题代码存在语法错误\n- 禁止使用已淘汰的技术术语\n- 操作步骤和代码示例必须实际可执行\n', builtin: true },
-  { id: 'subject_it_middle', name: '[信息技术] 算法思维-初中', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '信息技术,信息科技', stage: 'middle', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息技术资料应结合实际应用场景；初中侧重算法思维和数据处理，可考查简单流程图和伪代码。\n- 禁止操作步骤顺序错误或遗漏关键步骤\n- 禁止编程题代码存在语法错误\n- 禁止使用已淘汰的技术术语\n- 操作步骤和代码示例必须实际可执行\n', builtin: true },
-  { id: 'subject_it_high', name: '[信息技术] Python编程-高中', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '信息技术,信息科技', stage: 'high', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息技术资料应结合实际应用场景；高中侧重项目实践与信息素养综合提升。', builtin: true },
+  { id: 'subject_it_primary', name: '[信息科技] 信息意识-小学', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '信息科技,信息技术', stage: 'primary', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息科技资料应结合实际应用场景；小学侧重信息意识和数字化学习，题目生活化、操作化。\n- 禁止操作步骤顺序错误或遗漏关键步骤\n- 禁止编程题代码存在语法错误\n- 禁止使用已淘汰的技术术语\n- 操作步骤和代码示例必须实际可执行\n', builtin: true },
+  { id: 'subject_it_middle', name: '[信息科技] 算法思维-初中', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '信息科技,信息技术', stage: 'middle', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息科技资料应结合实际应用场景；初中侧重算法思维和数据处理，可考查简单流程图和伪代码。\n- 禁止操作步骤顺序错误或遗漏关键步骤\n- 禁止编程题代码存在语法错误\n- 禁止使用已淘汰的技术术语\n- 操作步骤和代码示例必须实际可执行\n', builtin: true },
+  { id: 'subject_it_high', name: '[信息科技] Python编程-高中', category: '生成-学科特色', prompt_order: 18, type: 'fragment', subject: '信息科技,信息技术', stage: 'high', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息科技资料应结合实际应用场景；高中侧重项目实践与信息素养综合提升。', builtin: true },
 
   // ═══════════════════════════════════════
   // 特殊要求（考试/练习类专用）  （原 生成-题量控制/难度控制 已删除，题量/难度控制已并入 生成-资料类型结构 和 生成-难度配置）
@@ -706,7 +706,7 @@ export const builtinInstructions = [
   { id: 'block_quality_science', name: '【题目质量标准】科学', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '科学', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '科学：概念术语使用规范名称；实验设计变量明确。', builtin: true },
   // 通用格式风格约束
   { id: 'block_quality_formatting', name: '【格式标准】黑白印刷风格', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '', stage: '', genType: 'exam,practice,summary,special,errorbook,preview,dictation,reading,review', content: '教辅/试卷素材必须采用黑白印刷友好风格：正文默认黑色，标题层级用h1~h3+加粗区分，禁止使用装饰性CSS文字颜色（color属性）和border-left装饰竖条。重点内容用★标注或<strong>加粗突出，不用彩色文字。数学几何图形中的线条颜色标注除外——图形内可以用不同颜色区分线段、辅助线、标记点。整体风格对标纸质教辅黑白印刷标准，不使用网页式彩色装饰。', builtin: true },
-  { id: 'block_quality_it', name: '【题目质量标准】信息技术', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '信息技术,信息科技', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息技术：代码/命令语法正确；操作步骤清晰可复现。', builtin: true },
+  { id: 'block_quality_it', name: '【题目质量标准】信息技术', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '信息科技,信息技术', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息技术：代码/命令语法正确；操作步骤清晰可复现。', builtin: true },
   { id: 'block_quality_music', name: '【题目质量标准】音乐', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '音乐', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '音乐：乐谱/音名准确。', builtin: true },
   { id: 'block_quality_art', name: '【题目质量标准】美术', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '美术', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '美术：作品/技法名称准确。', builtin: true },
   { id: 'block_quality_pe', name: '【题目质量标准】体育', category: '生成-题目质量标准', prompt_order: 25, type: 'fragment', subject: '体育', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '体育：动作要领描述准确、安全提示完整。', builtin: true },
@@ -732,7 +732,7 @@ export const builtinInstructions = [
   { id: 'block_ban_geography', name: '【禁止项】地理', category: '生成-红线约束', prompt_order: 31, type: 'fragment', subject: '地理', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '地理学科补充红线：① 地名/数据/图表准确 ② 地图绘制规范（国界线/比例尺/方向标） ③ 区域特征描述客观', builtin: true },
   { id: 'block_ban_politics', name: '【禁止项】道法/政治', category: '生成-红线约束', prompt_order: 31, type: 'fragment', subject: '道德与法治,政治,思想政治', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '道法/政治学科补充红线：① 法律条文引用准确、不自行编造 ② 时政材料注明来源 ③ 价值判断符合社会主义核心价值观', builtin: true },
   { id: 'block_ban_science', name: '【禁止项】科学', category: '生成-红线约束', prompt_order: 31, type: 'fragment', subject: '科学', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '科学学科补充红线：① 科学概念和术语使用规范名称 ② 实验设计变量明确 ③ 观察/测量数据真实合理', builtin: true },
-  { id: 'block_ban_it', name: '【禁止项】信息技术', category: '生成-红线约束', prompt_order: 31, type: 'fragment', subject: '信息技术,信息科技', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息技术学科补充红线：① 代码/命令语法正确 ② 操作步骤可复现 ③ 不涉及未经授权的网络操作', builtin: true },
+  { id: 'block_ban_it', name: '【禁止项】信息技术', category: '生成-红线约束', prompt_order: 31, type: 'fragment', subject: '信息科技,信息技术', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,dictation,summary,review', content: '信息技术学科补充红线：① 代码/命令语法正确 ② 操作步骤可复现 ③ 不涉及未经授权的网络操作', builtin: true },
 
   // ═══════════════════════════════════════
   // 【答案与解析规范】块级指令  （原 生成-学科核心素养 已删除，核心素养已内化至 生成-资料类型结构 新课标块）
@@ -1852,13 +1852,13 @@ export const builtinInstructions = [
     content: '- 科学（高段5-6年级）：实验设计与变量控制；数据图表分析；探究推理+科学解释；物质/生命/地球科学三大领域；为初中理综衔接', builtin: true },
 
   { id: 'gen_subj_it_primary', name: '【信息科技-小学】', category: '生成-学科适配', prompt_order: 17, type: 'fragment',
-    subject: '信息技术,信息科技', stage: 'primary', genType: '',
+    subject: '信息科技,信息技术', stage: 'primary', genType: '',
     content: '- 信息科技：侧重信息意识和数字化学习；题目生活化、操作化；不考查编程语法', builtin: true },
   { id: 'gen_subj_it_middle', name: '【信息科技-初中】', category: '生成-学科适配', prompt_order: 17, type: 'fragment',
-    subject: '信息技术,信息科技', stage: 'middle', genType: '',
+    subject: '信息科技,信息技术', stage: 'middle', genType: '',
     content: '- 信息科技：含算法思维、数据处理、网络应用；可考查简单流程图和伪代码', builtin: true },
   { id: 'gen_subj_it_high', name: '【信息科技-高中】', category: '生成-学科适配', prompt_order: 17, type: 'fragment',
-    subject: '信息技术,信息科技', stage: 'high', genType: '',
+    subject: '信息科技,信息技术', stage: 'high', genType: '',
     content: '- 信息科技：含计算思维、算法设计、Python编程；对标学业水平考试要求', builtin: true },
 
   // ═══════════════════════════════════════
@@ -2133,7 +2133,7 @@ export const builtinInstructions = [
     content: '结构参考：\n一、学习目标\n二、时政导入\n三、理论预读\n四、议题探究\n五、预习检测', builtin: true },
   // 信息技术预习
   { id: 'gen_struct_preview_it', name: '【预习结构-信息技术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '信息技术,信息科技', stage: '', genType: 'preview', specialSubType: 'new_standard',
+    subject: '信息科技,信息技术', stage: '', genType: 'preview', specialSubType: 'new_standard',
     content: '结构参考：\n一、学习目标\n二、任务认知与工具初识\n三、预习检测', builtin: true },
   // ── 道德与法治 preview（小学段）──
   { id: 'gen_struct_preview_moral_primary', name: '【预习结构-道德与法治-小学】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
@@ -2295,7 +2295,7 @@ export const builtinInstructions = [
     subject: '道德与法治,政治,思想政治', stage: '', genType: 'errorbook', specialSubType: 'new_standard',
     content: '结构参考：\n一、错题整理\n二、错误归因与素养反思\n三、正确解法\n四、变式巩固', builtin: true },
   { id: 'gen_struct_errorbook_it', name: '【错题本结构-信息技术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '信息技术,信息科技', stage: '', genType: 'errorbook', specialSubType: 'new_standard',
+    subject: '信息科技,信息技术', stage: '', genType: 'errorbook', specialSubType: 'new_standard',
     content: '结构参考：\n一、错题整理\n二、错误归因与素养反思\n三、正确操作\n四、变式巩固', builtin: true },
   // ── 音乐/美术/体育 errorbook（2022 艺术/体育课标，全学段通用）──
   { id: 'gen_struct_errorbook_music', name: '【错题本结构-音乐】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
@@ -2308,15 +2308,15 @@ export const builtinInstructions = [
     subject: '体育', stage: '', genType: 'errorbook', specialSubType: 'new_standard',
     content: '结构参考：\n一、错题整理\n二、错误归因与素养反思\n三、正确示范\n四、变式巩固', builtin: true },
 
-  // ── 信息技术 genTypes ──
-  { id: 'gen_struct_practice_it', name: '【课时练结构-信息技术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '信息技术,信息科技', stage: '', genType: 'practice', specialSubType: 'new_standard',
+  // ── 信息科技 genTypes ──
+  { id: 'gen_struct_practice_it', name: '【课时练结构-信息科技】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '信息科技,信息技术', stage: '', genType: 'practice', specialSubType: 'new_standard',
     content: '结构参考：\n一、基础建构（概念理解、技能初识）\n二、实验探究·能力进阶（任务驱动、实践操作）\n三、科学应用·素养提升（真实情境、创新应用）', builtin: true },
-  { id: 'gen_struct_summary_it', name: '【总结结构-信息技术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '信息技术,信息科技', stage: '', genType: 'summary', specialSubType: 'new_standard',
+  { id: 'gen_struct_summary_it', name: '【总结结构-信息科技】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '信息科技,信息技术', stage: '', genType: 'summary', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识结构化梳理（概念·技能·知识网络）\n二、核心能力聚焦（信息意识、计算思维）\n三、典型题型解析（变式训练、易错辨析）\n四、素养拓展与反思（数字化学习、创新）', builtin: true },
-  { id: 'gen_struct_special_it', name: '【专项结构-信息技术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '信息技术,信息科技', stage: '', genType: 'special', specialSubType: 'new_standard',
+  { id: 'gen_struct_special_it', name: '【专项结构-信息科技】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
+    subject: '信息科技,信息技术', stage: '', genType: 'special', specialSubType: 'new_standard',
     content: '结构参考：\n一、核心素养方法\n二、情境典例\n三、分层变式\n四、综合实践', builtin: true },
 
   // ── 理科 summary ──
@@ -2508,13 +2508,13 @@ export const builtinInstructions = [
     subject: '思想政治,政治', stage: 'high', genType: '',
     content: '建议情境方向：时政热点、经济现象、文化自信、哲学思辨', builtin: true },
   { id: 'gen_ctx_primary_it', name: '【情境-小学-信息科技】', category: '生成-情境要求', prompt_order: 37, type: 'fragment',
-    subject: '信息技术,信息科技', stage: 'primary', genType: '',
+    subject: '信息科技,信息技术', stage: 'primary', genType: '',
     content: '建议情境方向：数字绘画、文档制作、网络文明、智能设备认知', builtin: true },
   { id: 'gen_ctx_middle_it', name: '【情境-初中-信息技术】', category: '生成-情境要求', prompt_order: 37, type: 'fragment',
-    subject: '信息技术,信息科技', stage: 'middle', genType: '',
+    subject: '信息科技,信息技术', stage: 'middle', genType: '',
     content: '建议情境方向：数据分析、算法应用、网络安全、人工智能初探', builtin: true },
   { id: 'gen_ctx_high_it', name: '【情境-高中-信息技术】', category: '生成-情境要求', prompt_order: 37, type: 'fragment',
-    subject: '信息技术,信息科技', stage: 'high', genType: '',
+    subject: '信息科技,信息技术', stage: 'high', genType: '',
     content: '建议情境方向：Python编程应用、数据处理、人工智能伦理、信息系统设计', builtin: true },
 
   // ═══════════════════════════════════════
@@ -2548,9 +2548,9 @@ export const builtinInstructions = [
   { id: 'kb_geo_high', name: '【知识边界】地理-高中', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '地理', stage: 'high', genType: '', content: '地理高中知识边界：\n- 严格对标高考地理考试说明\n- 自然地理+人文地理+区域发展\n- 不涉及大学经济地理和地理信息系统技术', builtin: true },
   { id: 'kb_moral_middle', name: '【知识边界】道德与法治-初中', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '道德与法治', stage: 'middle', genType: '', content: '道法初中知识边界：\n- 仅涉及道德修养+法治观念+国情教育基础\n- 法律条文仅涉及宪法和与学生相关的法律（未成年人保护法等）\n- 时政材料数据来源须真实可查\n- 不涉及政治理论和经济学深度分析', builtin: true },
   { id: 'kb_politics_high', name: '【知识边界】思想政治-高中', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '思想政治,政治', stage: 'high', genType: '', content: '思想政治高中知识边界：\n- 严格对标高考政治考试说明\n- 经济/政治/文化/哲学四个模块\n- 时政材料数据来源须真实可查\n- 不涉及大学政治学和经济学理论', builtin: true },
-  { id: 'kb_it_primary', name: '【知识边界】信息技术-小学', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '信息技术,信息科技', stage: 'primary_low,primary_mid,primary_high', genType: '', content: '信息科技小学知识边界：\n- 侧重信息意识和数字化学习习惯培养\n- 不考查编程语法和算法\n- 操作题限于基础软件使用（画图/文字处理等）', builtin: true },
-  { id: 'kb_it_middle', name: '【知识边界】信息技术-初中', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '信息技术,信息科技', stage: 'middle', genType: '', content: '信息技术初中知识边界：\n- 算法思维仅涉及流程图和伪代码\n- 不考查具体编程语言语法\n- 数据处理限于电子表格基础操作\n- 网络应用限于基础概念和安全', builtin: true },
-  { id: 'kb_it_high', name: '【知识边界】信息技术-高中', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '信息技术,信息科技', stage: 'high', genType: '', content: '信息技术高中知识边界：\n- 严格对标学业水平考试要求\n- Python编程限于基础语法和简单算法\n- 不涉及数据结构、面向对象等进阶内容', builtin: true },
+  { id: 'kb_it_primary', name: '【知识边界】信息技术-小学', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '信息科技,信息技术', stage: 'primary_low,primary_mid,primary_high', genType: '', content: '信息科技小学知识边界：\n- 侧重信息意识和数字化学习习惯培养\n- 不考查编程语法和算法\n- 操作题限于基础软件使用（画图/文字处理等）', builtin: true },
+  { id: 'kb_it_middle', name: '【知识边界】信息技术-初中', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '信息科技,信息技术', stage: 'middle', genType: '', content: '信息技术初中知识边界：\n- 算法思维仅涉及流程图和伪代码\n- 不考查具体编程语言语法\n- 数据处理限于电子表格基础操作\n- 网络应用限于基础概念和安全', builtin: true },
+  { id: 'kb_it_high', name: '【知识边界】信息技术-高中', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '信息科技,信息技术', stage: 'high', genType: '', content: '信息技术高中知识边界：\n- 严格对标学业水平考试要求\n- Python编程限于基础语法和简单算法\n- 不涉及数据结构、面向对象等进阶内容', builtin: true },
 
   // ═══════════════════════════════════════
   // 【时间分配】块级指令 — 考卷用时建议
@@ -2580,6 +2580,8 @@ export const builtinInstructions = [
 
   // ═══════════════════════════════════════
   // 【生成-题型分布建议】块级指令 — 按学科×学段×资料类型(exam/practice)三维度匹配
+  // ⚠️ 本组 block 的 content 字段供历史参考保留，buildGenerationInstruction 不注入；
+  //    UI 通过 getTypeDistribution() 读取 typeDist 字段做题型自动填充（见 useAiGenerator.js）
   // ═══════════════════════════════════════
   // ── 语文 exam ──
   { id: 'typedist_exam_chinese_primary_low', name: '【题型分布】语文试卷-小学低段', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '语文', stage: 'primary_low', genType: 'exam', content: '题型分布由DeepSeek根据所选教材内容的知识点密度和覆盖需求灵活决定，不设固定数字上限。遵循"基础→能力→拓展"递进逻辑，各层级题型和题量由你根据文本实际内容自主决定。题量充足，以完整覆盖所选章节全部核心知识点为唯一衡量标准。', typeDist: '拼音与字词基础:4-6,句子运用:3-4,课文理解:2-3,写话/看图写话:1-1', builtin: true },
@@ -2626,8 +2628,8 @@ export const builtinInstructions = [
   { id: 'typedist_exam_politics_high', name: '【题型分布】政治试卷-高中', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '政治,思想政治', stage: 'high', genType: 'exam', content: '题型分布由DeepSeek根据所选教材内容的知识点密度和覆盖需求灵活决定，不设固定数字上限。遵循"基础→能力→拓展"递进逻辑，各层级题型和题量由你根据文本实际内容自主决定。题量充足，以完整覆盖所选章节全部核心知识点为唯一衡量标准。', typeDist: '选择题:12-16,简答题/辨析题:2-3,材料分析题:2-3,论述题:1-2', builtin: true },
 
   // ── 信息技术 exam 补充 ──
-  { id: 'typedist_exam_it_middle', name: '【题型分布】信息技术试卷-初中', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息技术,信息科技', stage: 'middle', genType: 'exam', content: '题型分布由DeepSeek根据所选教材内容的知识点密度和覆盖需求灵活决定，不设固定数字上限。遵循"基础→能力→拓展"递进逻辑，各层级题型和题量由你根据文本实际内容自主决定。题量充足，以完整覆盖所选章节全部核心知识点为唯一衡量标准。', typeDist: '单选题:8-10,判断题:4-6,操作描述题:2-3,程序设计题:1-2', builtin: true },
-  { id: 'typedist_exam_it_high', name: '【题型分布】信息技术试卷-高中', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息技术,信息科技', stage: 'high', genType: 'exam', content: '题型分布由DeepSeek根据所选教材内容的知识点密度和覆盖需求灵活决定，不设固定数字上限。遵循"基础→能力→拓展"递进逻辑，各层级题型和题量由你根据文本实际内容自主决定。题量充足，以完整覆盖所选章节全部核心知识点为唯一衡量标准。', typeDist: '单选题:8-12,判断题:4-6,操作描述/案例分析题:2-3,程序设计题:1-2', builtin: true },
+  { id: 'typedist_exam_it_middle', name: '【题型分布】信息技术试卷-初中', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息科技,信息技术', stage: 'middle', genType: 'exam', content: '题型分布由DeepSeek根据所选教材内容的知识点密度和覆盖需求灵活决定，不设固定数字上限。遵循"基础→能力→拓展"递进逻辑，各层级题型和题量由你根据文本实际内容自主决定。题量充足，以完整覆盖所选章节全部核心知识点为唯一衡量标准。', typeDist: '单选题:8-10,判断题:4-6,操作描述题:2-3,程序设计题:1-2', builtin: true },
+  { id: 'typedist_exam_it_high', name: '【题型分布】信息技术试卷-高中', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息科技,信息技术', stage: 'high', genType: 'exam', content: '题型分布由DeepSeek根据所选教材内容的知识点密度和覆盖需求灵活决定，不设固定数字上限。遵循"基础→能力→拓展"递进逻辑，各层级题型和题量由你根据文本实际内容自主决定。题量充足，以完整覆盖所选章节全部核心知识点为唯一衡量标准。', typeDist: '单选题:8-12,判断题:4-6,操作描述/案例分析题:2-3,程序设计题:1-2', builtin: true },
 
   // ── practice (课时练) ──
   { id: 'typedist_practice_chinese_primary_low', name: '【题型分布】语文课时练-小学低段', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '语文', stage: 'primary_low', genType: 'practice', content: '总任务数控制在12-18个任务。课时练任务分布建议如下（如上方已手动配置任务数量，以手动配置为准；此建议仅作参考）：\n- 基础过关（字词句运用）：6-9个任务\n- 能力提升（阅读理解）：4-6个任务\n- 拓展探究（小练笔）：2-3个任务\n', typeDist: '基础建构任务:6-9,探究进阶任务:4-6,迁移创新任务:2-3', builtin: true },
@@ -2673,11 +2675,11 @@ export const builtinInstructions = [
   { id: 'typedist_practice_english_high', name: '【题型分布】英语课时练-高中', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '英语', stage: 'high', genType: 'practice', content: '总任务数控制在20-30个任务。课时练任务分布建议如下（如上方已手动配置任务数量，以手动配置为准；此建议仅作参考）：\n- 基础过关（词汇、语法单项）：10-15个任务\n- 能力提升（完形、阅读、七选五）：7-10个任务\n- 拓展探究（写作、语法填空）：3-5个任务\n', typeDist: '基础建构任务:10-15,探究进阶任务:7-10,迁移创新任务:3-5', builtin: true },
 
   // ── 信息技术 practice 补充 ──
-  { id: 'typedist_practice_it_primary_low', name: '【题型分布】信息技术课时练-小学低段', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息技术,信息科技', stage: 'primary_low', genType: 'practice', content: '总任务数控制在10-15个任务。课时练任务分布建议如下（如上方已手动配置任务数量，以手动配置为准；此建议仅作参考）：\n- 基础过关（概念填空与术语匹配）：5-7个任务\n- 能力提升（操作描述与流程图）：3-5个任务\n- 拓展探究（综合任务与创意设计）：2-3个任务\n', typeDist: '基础建构任务:5-7,探究进阶任务:3-5,迁移创新任务:2-3', builtin: true },
-  { id: 'typedist_practice_it_primary_mid', name: '【题型分布】信息技术课时练-小学中段', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息技术,信息科技', stage: 'primary_mid', genType: 'practice', content: '总任务数控制在12-18个任务。课时练任务分布建议如下（如上方已手动配置任务数量，以手动配置为准；此建议仅作参考）：\n- 基础过关（概念填空与术语匹配）：6-9个任务\n- 能力提升（操作描述与流程图）：4-6个任务\n- 拓展探究（综合任务与创意设计）：2-3个任务\n', typeDist: '基础建构任务:6-9,探究进阶任务:4-6,迁移创新任务:2-3', builtin: true },
-  { id: 'typedist_practice_it_primary_high', name: '【题型分布】信息技术课时练-小学高段', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息技术,信息科技', stage: 'primary_high', genType: 'practice', content: '总任务数控制在16-22个任务。课时练任务分布建议如下（如上方已手动配置任务数量，以手动配置为准；此建议仅作参考）：\n- 基础过关（概念填空与术语匹配）：8-11个任务\n- 能力提升（操作描述与流程图）：5-7个任务\n- 拓展探究（综合任务与创意设计）：3-4个任务\n', typeDist: '基础建构任务:8-11,探究进阶任务:5-7,迁移创新任务:3-4', builtin: true },
-  { id: 'typedist_practice_it_middle', name: '【题型分布】信息技术课时练-初中', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息技术,信息科技', stage: 'middle', genType: 'practice', content: '总任务数控制在16-24个任务。课时练任务分布建议如下（如上方已手动配置任务数量，以手动配置为准；此建议仅作参考）：\n- 基础过关（概念填空与术语匹配）：8-12个任务\n- 能力提升（操作描述与流程图）：5-8个任务\n- 拓展探究（综合任务与创意设计）：3-4个任务\n', typeDist: '基础建构任务:8-12,探究进阶任务:5-8,迁移创新任务:3-4', builtin: true },
-  { id: 'typedist_practice_it_high', name: '【题型分布】信息技术课时练-高中', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息技术,信息科技', stage: 'high', genType: 'practice', content: '总任务数控制在20-30个任务。课时练任务分布建议如下（如上方已手动配置任务数量，以手动配置为准；此建议仅作参考）：\n- 基础过关（概念填空与术语匹配）：10-15个任务\n- 能力提升（操作描述与流程图）：7-10个任务\n- 拓展探究（综合任务与创意设计）：3-5个任务\n', typeDist: '基础建构任务:10-15,探究进阶任务:7-10,迁移创新任务:3-5', builtin: true },
+  { id: 'typedist_practice_it_primary_low', name: '【题型分布】信息技术课时练-小学低段', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息科技,信息技术', stage: 'primary_low', genType: 'practice', content: '总任务数控制在10-15个任务。课时练任务分布建议如下（如上方已手动配置任务数量，以手动配置为准；此建议仅作参考）：\n- 基础过关（概念填空与术语匹配）：5-7个任务\n- 能力提升（操作描述与流程图）：3-5个任务\n- 拓展探究（综合任务与创意设计）：2-3个任务\n', typeDist: '基础建构任务:5-7,探究进阶任务:3-5,迁移创新任务:2-3', builtin: true },
+  { id: 'typedist_practice_it_primary_mid', name: '【题型分布】信息技术课时练-小学中段', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息科技,信息技术', stage: 'primary_mid', genType: 'practice', content: '总任务数控制在12-18个任务。课时练任务分布建议如下（如上方已手动配置任务数量，以手动配置为准；此建议仅作参考）：\n- 基础过关（概念填空与术语匹配）：6-9个任务\n- 能力提升（操作描述与流程图）：4-6个任务\n- 拓展探究（综合任务与创意设计）：2-3个任务\n', typeDist: '基础建构任务:6-9,探究进阶任务:4-6,迁移创新任务:2-3', builtin: true },
+  { id: 'typedist_practice_it_primary_high', name: '【题型分布】信息技术课时练-小学高段', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息科技,信息技术', stage: 'primary_high', genType: 'practice', content: '总任务数控制在16-22个任务。课时练任务分布建议如下（如上方已手动配置任务数量，以手动配置为准；此建议仅作参考）：\n- 基础过关（概念填空与术语匹配）：8-11个任务\n- 能力提升（操作描述与流程图）：5-7个任务\n- 拓展探究（综合任务与创意设计）：3-4个任务\n', typeDist: '基础建构任务:8-11,探究进阶任务:5-7,迁移创新任务:3-4', builtin: true },
+  { id: 'typedist_practice_it_middle', name: '【题型分布】信息技术课时练-初中', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息科技,信息技术', stage: 'middle', genType: 'practice', content: '总任务数控制在16-24个任务。课时练任务分布建议如下（如上方已手动配置任务数量，以手动配置为准；此建议仅作参考）：\n- 基础过关（概念填空与术语匹配）：8-12个任务\n- 能力提升（操作描述与流程图）：5-8个任务\n- 拓展探究（综合任务与创意设计）：3-4个任务\n', typeDist: '基础建构任务:8-12,探究进阶任务:5-8,迁移创新任务:3-4', builtin: true },
+  { id: 'typedist_practice_it_high', name: '【题型分布】信息技术课时练-高中', category: '生成-题型分布建议', prompt_order: 52, type: 'fragment', subject: '信息科技,信息技术', stage: 'high', genType: 'practice', content: '总任务数控制在20-30个任务。课时练任务分布建议如下（如上方已手动配置任务数量，以手动配置为准；此建议仅作参考）：\n- 基础过关（概念填空与术语匹配）：10-15个任务\n- 能力提升（操作描述与流程图）：7-10个任务\n- 拓展探究（综合任务与创意设计）：3-5个任务\n', typeDist: '基础建构任务:10-15,探究进阶任务:7-10,迁移创新任务:3-5', builtin: true },
 
   // ═══════════════════════════════════════
  // 【生成-核心任务】块级指令 — 按资料类型(genType)匹配
@@ -2923,7 +2925,7 @@ export const builtinInstructions = [
     content: '地理考卷禁止：纯地名/数据填空、无图表/地图的识记题、脱离区域实际的综合题。', builtin: true },
   { id: 'quality_exam_antipattern_politics', name: '【品质-考卷-道法/政治】反套路', category: '生成-品质标准', type: 'fragment', subject: '道德与法治,政治,思想政治', stage: '', genType: 'exam',
     content: '⛔ 【道法/政治学科·考卷反套路】\n❌ 反例：纯概念填空 —— "我国的基本经济制度是(    )" ← 严禁！必须结合案例/时政材料分析。\n⚠️ 所有道法/政治知识考查必须嵌入真实案例或时政材料分析情境，杜绝纯概念默写。', builtin: true },
-  { id: 'quality_exam_antipattern_it', name: '【品质-考卷-信息技术】反套路', category: '生成-品质标准', type: 'fragment', subject: '信息技术,信息科技', stage: '', genType: 'exam',
+  { id: 'quality_exam_antipattern_it', name: '【品质-考卷-信息技术】反套路', category: '生成-品质标准', type: 'fragment', subject: '信息科技,信息技术', stage: '', genType: 'exam',
     content: '⛔ 【信息技术学科·考卷反套路】\n❌ 反例：纯概念默写 —— "算法的三个基本结构是：(    )、(    )、(    )" ← 严禁！必须融入实践任务。\n⚠️ 所有信息技术知识考查必须嵌入实践任务或应用场景，杜绝纯概念默写。', builtin: true },
   { id: 'quality_exam_antipattern_music', name: '【品质-考卷-音乐】反套路', category: '生成-品质标准', type: 'fragment', subject: '音乐', stage: '', genType: 'exam',
     content: '音乐考卷禁止：纯乐理知识填空、脱离听觉体验的判断题。', builtin: true },
@@ -2985,6 +2987,19 @@ export const builtinInstructions = [
   { id: 'diff_primary_high_exam', name: '【难度配置】小学高段-考卷', category: '生成-难度配置', prompt_order: 51, type: 'fragment', subject: '', stage: 'primary_high', genType: 'exam', content: 'basic=50,medium=30,advanced=20\ntotalScore=100', builtin: true },
   { id: 'diff_middle_exam', name: '【难度配置】初中-考卷', category: '生成-难度配置', prompt_order: 51, type: 'fragment', subject: '', stage: 'middle', genType: 'exam', content: 'basic=60,medium=30,advanced=10\ntotalScore_main=120,totalScore_other=100', builtin: true },
   { id: 'diff_high_exam', name: '【难度配置】高中-考卷', category: '生成-难度配置', prompt_order: 51, type: 'fragment', subject: '', stage: 'high', genType: 'exam', content: 'basic=40,medium=40,advanced=20\ntotalScore_main=150,totalScore_other=100', builtin: true },
+
+  // ═══════════════════════════════════════
+  // 【生成-页数配置】—— 按学段匹配，getPageCount() 读取，buildGenerationInstruction 不注入 prompt
+  // ⚠️ 本组 block 的 content 字段供 getPageCount() 解析读取，不注入生成指令。
+  //    数值含义：纯题目正文页数（不含答案页），修改此处即可调整生成内容的页数。
+  //    primary 行供 primary_low/primary_mid/primary_high 共用。
+  // ═══════════════════════════════════════
+  { id: 'page_primary', name: '【页数配置】小学', category: '生成-页数配置', prompt_order: 51, type: 'fragment', subject: '', stage: 'primary', genType: '',
+    content: '# 小学各资料类型A4页数（纯题目正文页，不含答案页）\nexam=6\nreview=8\ndefault=6', builtin: true, ver: 2 },
+  { id: 'page_middle', name: '【页数配置】初中', category: '生成-页数配置', prompt_order: 51, type: 'fragment', subject: '', stage: 'middle', genType: '',
+    content: '# 初中各资料类型A4页数（纯题目正文页，不含答案页）\nexam=8\nreview=10\ndefault=8', builtin: true, ver: 2 },
+  { id: 'page_high', name: '【页数配置】高中', category: '生成-页数配置', prompt_order: 51, type: 'fragment', subject: '', stage: 'high', genType: '',
+    content: '# 高中各资料类型A4页数（纯题目正文页，不含答案页）\nexam=10\nreview=12\ndefault=10', builtin: true, ver: 2 },
 
   // ═══════════════════════════════════════
   // 【生成-资料类型结构】dictation — 默写（按学段+学科拆分）
@@ -3266,7 +3281,7 @@ export const builtinInstructions = [
     content: '结构参考：\n一、知识框架\n二、核心概念回顾\n三、实验与探究\n四、易错聚焦\n五、综合自测', builtin: true },
   // ── 信息技术 review ──
   { id: 'gen_struct_review_it', name: '【复习结构-信息技术】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
-    subject: '信息技术,信息科技', stage: '', genType: 'review', specialSubType: 'new_standard',
+    subject: '信息科技,信息技术', stage: '', genType: 'review', specialSubType: 'new_standard',
     content: '结构参考：\n一、知识框架\n二、核心概念与技能回顾\n三、操作实践\n四、易错聚焦\n五、综合自测', builtin: true },
   // ── review 通用兜底 ──
   { id: 'gen_struct_review_generic', name: '【复习结构-通用】', category: '生成-资料类型结构', prompt_order: 11, type: 'fragment',
@@ -3622,8 +3637,14 @@ export const builtinInstructions = [
     content: '请在命题中体现思政核心素养：政治认同、道德修养、法治观念、健全人格、责任意识。在真实社会情境中考查价值判断和行为选择。', builtin: true },
   { id: 'core_science', name: '【核心素养】科学', category: '生成-学科核心素养', prompt_order: 55, type: 'fragment', subject: '科学', stage: '', genType: '',
     content: '请在命题中体现科学核心素养：科学观念、科学思维、探究实践、态度责任。从生活中的科学现象出发，考查观察、实验、推理能力。', builtin: true },
-  { id: 'core_it', name: '【核心素养】信息技术', category: '生成-学科核心素养', prompt_order: 55, type: 'fragment', subject: '信息技术,信息科技', stage: '', genType: '',
+  { id: 'core_it', name: '【核心素养】信息科技', category: '生成-学科核心素养', prompt_order: 55, type: 'fragment', subject: '信息科技,信息技术', stage: '', genType: '',
     content: '请在命题中体现信息科技核心素养：信息意识、计算思维、数字化学习与创新、信息社会责任。', builtin: true },
+  { id: 'core_music', name: '【核心素养】音乐', category: '生成-学科核心素养', prompt_order: 55, type: 'fragment', subject: '音乐', stage: '', genType: '',
+    content: '请在命题中体现音乐核心素养：审美感知、艺术表现、文化理解、创意实践。从音乐作品与生活情境中出发，考查听辨、表现与赏析能力。', builtin: true },
+  { id: 'core_art', name: '【核心素养】美术', category: '生成-学科核心素养', prompt_order: 55, type: 'fragment', subject: '美术', stage: '', genType: '',
+    content: '请在命题中体现美术核心素养：审美感知、艺术表现、创意实践、文化理解。从视觉作品与生活情境中出发，考查观察、表现与赏析能力。', builtin: true },
+  { id: 'core_pe', name: '【核心素养】体育与健康', category: '生成-学科核心素养', prompt_order: 55, type: 'fragment', subject: '体育,体育与健康', stage: '', genType: '',
+    content: '请在命题中体现体育与健康核心素养：运动能力、健康行为、体育品德。从运动情境与健康生活出发，考查运动技能、健康认知与体育精神。', builtin: true },
   // 通用框架（按学段）
   { id: 'core_framework_primary', name: '【核心素养框架】小学', category: '生成-学科核心素养', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary', genType: '',
     content: '小学阶段核心素养考查侧重：在真实情境中感知和体验学科核心素养，以兴趣激发和习惯养成为主要目标，不要求抽象层面的素养论述，通过具体题目设计自然渗透。', builtin: true },
@@ -3925,7 +3946,7 @@ export const builtinInstructions = [
 // ==================== 指令库存储Key与版本号 ====================
 const STORAGE_KEY = 'instructionLib';
 const VERSION_KEY = 'instructionLib_version';
-export const BUILTIN_VERSION = 34; // 🔧 v34: 红线补知识点颗粒度判据（课标条目为最小单位）+语义审查补假情境/情境真实性审查项
+export const BUILTIN_VERSION = 37; // 🔧 v37: 内容快照比对（主）+ 版本号比对（辅）双保险自动丢弃过期覆盖
 
 // ==================== 加载指令库 ====================
 export const loadInstructionLib = () => {
@@ -3958,12 +3979,42 @@ export const loadInstructionLib = () => {
     }
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      const customInstructions = JSON.parse(saved);
+      let customInstructions = JSON.parse(saved);
+
+      // 🔧 自动丢弃过期覆盖：内容快照比对 + 版本号比对（双保险）
+      //    规则：谁改得晚谁生效——builtin 内容变更后，用户基于旧内容的覆盖自动让位
+      //    1. 内容比对（主）：_baseContent !== builtin.content → builtin 已改 → 丢弃
+      //    2. 版本比对（辅）：builtin.ver > _baseVer → builtin 已升级 → 丢弃
+      //    3. 无 _baseContent 且无 ver：旧覆盖无法判定，保留（向后兼容）
+      const builtinMap = new Map(builtinInstructions.map(i => [i.id, i]));
+      const staleOverrides = customInstructions.filter(i => {
+        if (!i._overrideId) return false;
+        const builtin = builtinMap.get(i._overrideId);
+        if (!builtin) return false; // builtin 不存在（已删除），交给后面的清理逻辑
+        // 主判定：内容快照比对
+        if (i._baseContent !== undefined && builtin.content !== i._baseContent) {
+          return true; // builtin 内容已变更 → 覆盖过期
+        }
+        // 辅判定：版本号比对
+        const currentVer = builtin.ver || 0;
+        if (currentVer > 0) {
+          const baseVer = i._baseVer !== undefined ? i._baseVer : 0;
+          if (currentVer > baseVer) return true;
+        }
+        return false;
+      });
+      if (staleOverrides.length > 0) {
+        const staleIds = staleOverrides.map(i => i._overrideId);
+        console.warn(`[instructionLib] 自动丢弃 ${staleOverrides.length} 条过期覆盖（builtin 已升级）：`, staleIds);
+        customInstructions = customInstructions.filter(i => !staleIds.includes(i._overrideId) || i._overrideId === undefined);
+        saveInstructionLib(customInstructions);
+      }
+
       // 🔧 内置覆盖：自定义条目中 _overrideId 指向的内置条目被替换
       const overrideIds = new Set(customInstructions.filter(i => i._overrideId).map(i => i._overrideId));
       const filteredBuiltins = builtinInstructions.filter(i => !overrideIds.has(i.id));
       const merged = [...filteredBuiltins, ...customInstructions];
-      
+
       // 🔧 防御性检查：检测合并后是否有重复 ID（直接传入已合并数组，避免递归）
       if (typeof validateInstructionIds === 'function') {
         const { valid, duplicates } = validateInstructionIds(merged);
@@ -3971,7 +4022,7 @@ export const loadInstructionLib = () => {
           console.error('[instructionLib] ⚠️ 检测到重复ID！', duplicates);
         }
       }
-      
+
       return merged;
     }
     saveInstructionLib([]);
@@ -4071,7 +4122,7 @@ export const addCustomInstruction = (instruction) => {
 // ==================== 更新指令（支持内置→自定义自动升级） ====================
 export const updateCustomInstruction = (id, updates) => {
   const allInstructions = loadInstructionLib();
-  
+
   // 先查找是否为内置条目
   const builtin = builtinInstructions.find(i => i.id === id);
   if (builtin) {
@@ -4080,6 +4131,9 @@ export const updateCustomInstruction = (id, updates) => {
     const existing = customInstructions.find(i => i._overrideId === id);
     if (existing) {
       Object.assign(existing, updates);
+      // 🔧 记录本次编辑时基于的 builtin 内容快照，后续 builtin 内容变更时自动判定过期
+      existing._baseContent = builtin.content;
+      existing._baseVer = builtin.ver || 0;
     } else {
       customInstructions.push({
         ...builtin,
@@ -4087,6 +4141,9 @@ export const updateCustomInstruction = (id, updates) => {
         // 🔧 保留原始内置 ID（不重新生成 custom_xxx），编辑前后ID不变
         builtin: false,
         _overrideId: id,
+        // 🔧 记录本次编辑时基于的 builtin 内容快照 + 版本号
+        _baseContent: builtin.content,
+        _baseVer: builtin.ver || 0,
       });
     }
     saveInstructionLib(customInstructions);
@@ -4111,6 +4168,71 @@ export const deleteCustomInstruction = (id) => {
   const filtered = customInstructions.filter(i => i.id !== id);
   saveInstructionLib(filtered);
   return true;
+};
+
+// ==================== 重置所有覆盖（恢复 builtin） ====================
+/**
+ * 删除所有 _overrideId 条目，让 builtin 回归源码版本。
+ * 用户手动添加的自定义块（无 _overrideId）不受影响。
+ * @returns {{ resetCount: number, resetIds: string[] }} 被重置的条目信息
+ */
+export const resetAllOverrides = () => {
+  const allInstructions = loadInstructionLib();
+  const customInstructions = allInstructions.filter(i => !i.builtin);
+  // 覆盖条目（编辑过 builtin 的）—— 有 _overrideId
+  const overrides = customInstructions.filter(i => i._overrideId);
+  // 手动添加的自定义块 —— 无 _overrideId，保留
+  const userAdded = customInstructions.filter(i => !i._overrideId);
+  saveInstructionLib(userAdded);
+  return {
+    resetCount: overrides.length,
+    resetIds: overrides.map(i => i._overrideId),
+  };
+};
+
+// ==================== 获取所有覆盖条目列表 ====================
+/**
+ * 返回所有被用户覆盖的 builtin 块 ID 及其名称，供 UI 展示。
+ * @returns {Array<{ id: string, name: string, category: string }>}
+ */
+export const getOverriddenBlocks = () => {
+  const allInstructions = loadInstructionLib();
+  const customInstructions = allInstructions.filter(i => !i.builtin);
+  return customInstructions
+    .filter(i => i._overrideId)
+    .map(i => ({ id: i._overrideId, name: i.name, category: i.category }));
+};
+
+// ==================== 导出所有覆盖（供分析用） ====================
+/**
+ * 导出所有覆盖条目的完整内容，格式化为可读文本，供用户复制给开发者分析。
+ * @returns {string} 格式化的覆盖内容文本
+ */
+export const exportOverridesAsText = () => {
+  const allInstructions = loadInstructionLib();
+  const customInstructions = allInstructions.filter(i => !i.builtin);
+  const overrides = customInstructions.filter(i => i._overrideId);
+  if (overrides.length === 0) {
+    return '【无覆盖】未编辑过任何内置指令，当前运行版本 = builtin 源码版本。';
+  }
+  let result = `【覆盖导出】共 ${overrides.length} 条覆盖\n\n`;
+  overrides.forEach((o, idx) => {
+    const builtin = builtinInstructions.find(b => b.id === o._overrideId);
+    result += `════════════════════════════════════════\n`;
+    result += `【覆盖 ${idx + 1}】${o.name}\n`;
+    result += `ID: ${o._overrideId} | 类别: ${o.category}\n`;
+    result += `学科: ${o.subject || '(通用)'} | 学段: ${o.stage || '(全学段)'} | 资料类型: ${o.genType || '(全类型)'}\n`;
+    result += `── 用户当前内容 ──\n${o.content}\n`;
+    if (builtin) {
+      result += `── builtin 源码内容 ──\n${builtin.content}\n`;
+      const changed = builtin.content !== o.content;
+      result += `── 差异: ${changed ? '⚠️ 内容不一致' : '✅ 内容一致（覆盖无实质差异）'} ──\n`;
+    } else {
+      result += `── builtin 源码内容 ──\n(该 builtin 已从源码中删除)\n`;
+    }
+    result += `\n`;
+  });
+  return result;
 };
 
 // ==================== 获取指令库统计 ====================
@@ -4233,6 +4355,9 @@ export default {
   addCustomInstruction,
   updateCustomInstruction,
   deleteCustomInstruction,
+  resetAllOverrides,
+  getOverriddenBlocks,
+  exportOverridesAsText,
   getInstructionLibStats,
   getInstructionsByCategory,
   getAllCategories,
