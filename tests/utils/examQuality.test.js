@@ -125,7 +125,8 @@ describe('exam 正式考试标准——指令注入', () => {
     expect(cnLow.sections.find(s => s.name === '表达与交流').note).toContain('真实生活情境任务');
     // 灵活性边界（全学段全学科通用）：note 锁定优先 + 未锁定可自主设计 + 全卷情境主线 + 素养立意
     const cnLowText = buildExamBlueprintText(cnLow);
-    expect(cnLowText).toContain('note 已锁定的题型、题量、分值分配从其锁定');
+    expect(cnLowText).toContain('note 中的题型与分值分配从其指引');
+    expect(cnLowText).toContain('题量为最低参考下限');
     expect(cnLowText).toContain('note 未锁定的板块，具体题型与任务情境可自主设计');
     expect(cnLowText).toContain('全卷以单元人文主题为情境主线');
     expect(cnLowText).toContain('禁止与主线无关的"贴标签"式假情境');

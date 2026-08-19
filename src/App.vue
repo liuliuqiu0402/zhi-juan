@@ -194,14 +194,13 @@ import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
 import { compressDocArray, decompressDocArray } from '@/utils/contentCompress.js';
-import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, pullDeletedDocIds, pushDeletedDocIds, uploadInstructions, uploadTemplates, uploadSettings, getSyncKey, setSyncKey, hasSyncKey, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
+import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, pullDeletedDocIds, pushDeletedDocIds, uploadInstructions, uploadTemplates, uploadSettings, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
 import { BUILTIN_VERSION } from '@/config/instructionLib';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
 import { apiConfig, getCurrentEngineConfig, loadConfigSync, decrypt, encrypt } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
-import { saveConfig } from '@/config/apiConfig.js';
 // 📱 iOS 签名倒计时（基于安装时间计算 7 天有效期）
-import { getSignCountdown, resetInstallTime } from '@/utils/signatureCheck';
+import { getSignCountdown } from '@/utils/signatureCheck';
 
 const router = useRouter();
 
@@ -253,7 +252,7 @@ const isCapacitorIOS = ref(false);
 //    原理：pagehide 时写时间戳 + 路由 → onMounted 时检测是否在窗口期内重启
 const WARM_START_KEY = '__app_last_pagehide';
 const WARM_START_WINDOW = 600000; // 10 分钟内重启视为热启动（切微信回消息/看抖音再回来）
-const isWarmStart = (() => {
+const _isWarmStart = (() => {
   try {
     const lastHide = localStorage.getItem(WARM_START_KEY);
     if (lastHide) {
@@ -415,14 +414,12 @@ const {
   machineId,
   licenseInfo,
   versionLabel,
-  expireDateLabel,
   remainingDays,
   isExpiringSoon,
   canAccessFeature,
   checkActivationStatus,
   activate: doActivate,
   copyMachineId,
-  changeActivationCode
 } = useActivation();
 
 // 🔥 Web 端 / Capacitor 原生：跳过激活检查，首帧即显示主界面（避免冷启动白屏闪烁）
@@ -788,7 +785,7 @@ onMounted(async () => {
         ]);
 
         // ④.⑤ 再推送合并后的双向数据回云端
-        const [genPushOk, histPushOk] = await Promise.all([
+        await Promise.all([
           pushGeneratedDocs(mergedGen).then(ok => { if (ok) console.log('☁️ 生成结果已推送云端（合并）' + mergedGen.length + ' 条'); return ok; }).catch(() => false),
           pushDocHistory(mergedHist).then(ok => { if (ok) console.log('☁️ 历史记录已推送云端（合并）' + mergedHist.length + ' 条'); return ok; }).catch(() => false),
         ]);
