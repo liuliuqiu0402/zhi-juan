@@ -2077,37 +2077,26 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   line-height: 1;
 }
 
-/* 密封线：标准试卷样式——左侧边距内一条竖虚线 + 文字逆时针旋转 90°（字头朝左）：
-   wrapper 相对定位，sealed-line 绝对定位于左侧页边距内（正文区域之外，随纸张自动适配），
+/* 密封线：标准试卷样式——左侧一条竖虚线 + 文字逆时针旋转 90°（字头朝左）：
+   预览为所见即所得：sealed-line 以窄列形式内嵌文档流左侧（任何上下文均可见），
    仅左边框 dashed（一条虚线）；.sl-text 逆时针旋转 90°（字头朝左），深灰 #333 防发虚，
-   与导出端「虚线/文字交替段落」（单左边框 + lrTb）一致 */
+   与导出端「虚线/文字各自文本框交替锚定」（单左边框虚线 + wordArtVert）一致 */
 .seal-line,
 .sealed-line {
+  flex: 0 0 auto;
+  width: 36px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-height: 100%;
   color: #333;
   font-size: 10pt;
-}
-.sealed-line {
-  /* 新结构：绝对定位到左侧页边距内（正文区域之外） */
-  position: absolute;
-  left: -12mm;
-  top: 0;
-  bottom: 0;
-  width: 12mm;
   /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
   border-left: 1.5px dashed #333;
-  pointer-events: none;
 }
 .seal-line {
-  /* 无 wrapper 的旧结构：独立窄条，保持文档流 */
-  flex: 0 0 auto;
-  width: 36px;
-  min-height: 100%;
   padding-right: 4px;
-  border-left: 1.5px dashed #333;
 }
 .sealed-line .sl-dash {
   /* 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供 */
@@ -2127,13 +2116,18 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   transform: rotate(-90deg);
 }
 .sealed-wrapper {
-  position: relative;
-  display: block;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
+.sealed-wrapper > :not(.seal-line),
 .sealed-wrapper > :not(.sealed-line) {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: 8px;
   box-sizing: border-box;
 }
 

@@ -9421,7 +9421,8 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   color: #555;
   line-height: 1;
 }
-.seal-line {
+.seal-line,
+.sealed-line {
   flex: 0 0 auto;
   width: 36px;
   box-sizing: border-box;
@@ -9429,27 +9430,13 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   flex-direction: column;
   align-items: center;
   min-height: 100%;
-  padding-right: 4px;
   color: #333;
   font-size: 10pt;
   /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
   border-left: 1.5px dashed #333;
 }
-.sealed-line {
-  position: absolute;
-  left: -14mm;
-  top: 0;
-  bottom: 0;
-  width: 12mm;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  color: #333;
-  font-size: 10pt;
-  /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
-  border-left: 1.5px dashed #333;
-  pointer-events: none;
+.seal-line {
+  padding-right: 4px;
 }
 .sealed-line .sl-dash {
   /* 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供 */
@@ -9469,13 +9456,18 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   transform: rotate(-90deg);
 }
 .sealed-wrapper {
-  position: relative;
-  display: block;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
+.sealed-wrapper > :not(.seal-line),
 .sealed-wrapper > :not(.sealed-line) {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: 8px;
   box-sizing: border-box;
 }
 /* 评分栏 - 表格形式（横竖线全有） */

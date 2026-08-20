@@ -445,11 +445,17 @@ const buildRubyRun = (baseText, pinyin, baseSizeHp, rPrXml) => {
 };
 
 /**
- * 密封线浮动文本框 OOXML：wp:anchor 绝对定位锚定页面左侧边距内，不占文档流 → 不撑高正文
- * - 内容为段落序列：[虚线段落][文字段落]…交替（虚线 = 段落单左边框 dashed，一条竖虚线；文字竖排字段）
- * - 文字段落 w:textDirection="lrTb" → 每个字逆时针旋转 90°（字头朝左、自上而下阅读，标准试卷密封线朝向）
- * - 虚线在文字处断开（文字嵌入单条竖虚线之间）；虚线段落行高弹性 → 虚线上下填满整页
+ * 密封线浮动文本框 OOXML：多个 wp:anchor 绝对定位锚定页面左侧边距内，不占文档流 → 不撑高正文
+ * 结构（虚线/文字各自独立文本框，交替锚定堆叠，虚线在文字处断开）：
+ *   - 虚线文本框（无旋转）：段落仅左边框 dashed（一条竖虚线），exact 行高 = 虚线段高
+ *   - 文字文本框（bodyPr vert="wordArtVert"）：字段整列竖排，每个字逆时针旋转 90°
+ *     （字头朝左、自上而下阅读，标准试卷密封线朝向）
+ * - ⚠️ 段落级 w:textDirection="lrTb" 在文本框中 Word/WPS/LibreOffice 均不可靠
+ *   （实测 Word 导出 PDF 文字不旋转、横向换行）→ 必须用文本框级 vert="wordArtVert"
  * - 文字与虚线均用深灰 #333333（浅灰在打印/预览中发虚模糊）
+ * - ⚠️ a:graphicData uri 必须为 wordprocessingShape（wps:wsp 的直接子元素命名空间）：
+ *   曾用 openxmlformats/wordprocessingDrawing URI，Word 严格校验直接拒绝打开
+ *   （"Word 在试图打开文件时遇到错误"），WPS 宽容可开但内容丢失 → 必须修正
  * - 随纸张几何 PAGE_GEOMETRY 自动适配（页面/边距变化时密封线同步伸缩）
  */
 const sealLineFloatingOOXML = (text, sizeHp) => {
@@ -457,11 +463,11 @@ const sealLineFloatingOOXML = (text, sizeHp) => {
   const fields = String(text || '密封线').split('\u0001').map((f) => f.trim()).filter(Boolean);
   const n = Math.max(1, fields.length);
   const PG = PAGE_GEOMETRY;
-  // 文本框 = 整页文本区高度（页高 - 上下边距）：虚线上下填满整页
+  // 整页文本区高度（页高 - 上下边距）：虚线上下填满整页
   const availTwips = PG.heightTwips - PG.marginTopTwips - PG.marginBottomTwips;
-  // 单字符行高 = 字号 × 1.3（竖排每字占一“行”，字高 1em × 1.3 行距）
-  const charH = Math.max(200, Math.round(sz * 13));
-  // 文字总高 = 各字段字数 × charH（竖排字段整列堆叠）
+  // 单字符行高 = 字号（wordArtVert 逐字单列，实测 12pt 字间距 ≈ 字号）
+  const charH = Math.max(160, Math.round(sz * 10));
+  // 文字总高 = 各字段字数 × charH
   const textTotal = fields.reduce((acc, f) => acc + Math.max(1, [...f].length) * charH, 0);
   // 虚线段高 = 剩余高度均分（首尾 + 字间共 n+1 段）
   let dashRow = Math.max(60, Math.floor((availTwips - textTotal) / (n + 1)));
@@ -471,26 +477,55 @@ const sealLineFloatingOOXML = (text, sizeHp) => {
     const k = availTwips / total;
     dashRow = Math.max(40, Math.floor(dashRow * k));
   }
-  // 列宽 = 单字符宽（竖排，字宽 ≈ sz half-point × 10 twips）+ 左右留白；封顶避免横铺
-  const colTwips = Math.min(1100, Math.max(500, sz * 10 + 240));
-  const cyEmu = availTwips * EMU_PER_DXA;
-  const cxEmu = colTwips * EMU_PER_DXA;
-  // 锚定页面左侧边距内：文本框水平居中于左边距（(margin - col)/2），从顶部 margin 开始
-  const posXEmu = Math.round((PG.marginLeftTwips - colTwips) / 2) * EMU_PER_DXA;
-  const posYEmu = PG.marginTopTwips * EMU_PER_DXA;
-  const id = Math.floor(Math.random() * 90000) + 40000;
+  // 文本框宽度：单字符宽（字宽 ≈ sz half-point × 10 twips）
+  const colTwips = Math.max(240, sz * 10);
+  // 虚线文本框与文字文本框水平错开：虚线框左边缘 = 左边距中心偏左；文字框居中于左边距
+  const dashPosXEmu = Math.round((PG.marginLeftTwips - colTwips) / 2) * EMU_PER_DXA;
+  const textPosXEmu = Math.round((PG.marginLeftTwips - colTwips) / 2) * EMU_PER_DXA;
   const rPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun"/><w:color w:val="333333"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/>`;
-  // 一条竖虚线：虚线段落仅左边框 dashed；文字段落无边框（虚线在文字处断开）
-  // ⚠️ pPr 顺序：pBdr → spacing → jc → textDirection → rPr（CT_PPrBase 要求，顺序错误 Word 可能拒开/降级）
-  const dashP = (h) => `<w:p><w:pPr><w:pBdr><w:left w:val="dashed" w:sz="8" w:space="4" w:color="333333"/></w:pBdr><w:spacing w:before="0" w:after="0" w:line="${h}" w:lineRule="exact"/></w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve"> </w:t></w:r></w:p>`;
-  const textP = (txt) => `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="${charH}" w:lineRule="exact"/><w:jc w:val="center"/><w:textDirection w:val="lrTb"/><w:rPr>${rPr}</w:rPr></w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">${escXml(txt)}</w:t></w:r></w:p>`;
-  const ps = [dashP(dashRow)];
+  // 虚线文本框（无旋转）：单左边框 dashed，exact 行高 = 虚线段高
+  const dashTextbox = (h, yEmu, idn) => {
+    const p = `<w:p><w:pPr><w:pBdr><w:left w:val="dashed" w:sz="8" w:space="4" w:color="333333"/></w:pBdr><w:spacing w:before="0" w:after="0" w:line="${h}" w:lineRule="exact"/></w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve"> </w:t></w:r></w:p>`;
+    return sealAnchor(p, colTwips, h, dashPosXEmu, yEmu, idn, 'noFill');
+  };
+  // 文字文本框（wordArtVert）：字段整列竖排，字头朝左；无边框（虚线在文字处断开）
+  const textTextbox = (txt, yEmu, idn) => {
+    const chars = Math.max(1, [...txt].length);
+    const p = `<w:p><w:pPr><w:jc w:val="center"/><w:rPr>${rPr}</w:rPr></w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">${escXml(txt)}</w:t></w:r></w:p>`;
+    return sealAnchor(p, colTwips, chars * charH, textPosXEmu, yEmu, idn, 'FFFFFF', true);
+  };
+  // 逐段锚定：虚线、字段、虚线、字段…（首尾虚线），Y 累计下移
+  const paras = [];
+  let yOff = 0;
+  let idn = Math.floor(Math.random() * 90000) + 40000;
+  const pushDash = () => {
+    paras.push(`<w:p>${dashTextbox(dashRow, PG.marginTopTwips * EMU_PER_DXA + yOff * EMU_PER_DXA, idn++)}</w:p>`);
+    yOff += dashRow;
+  };
+  pushDash();
   fields.forEach((f) => {
-    ps.push(textP(f));
-    ps.push(dashP(dashRow));
+    const ch = Math.max(1, [...f].length);
+    paras.push(`<w:p>${textTextbox(f, PG.marginTopTwips * EMU_PER_DXA + yOff * EMU_PER_DXA, idn++)}</w:p>`);
+    yOff += ch * charH;
+    pushDash();
   });
-  const contentXml = ps.join('');
-  return `<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="251658240" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>${posXEmu}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>${posYEmu}</wp:posOffset></wp:positionV><wp:extent cx="${cxEmu}" cy="${cyEmu}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${id}" name="SealLine"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wps:wsp><wps:cNvPr id="${id}" name="SealLine"/><wps:cNvSpPr txBox="1"/><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cxEmu}" cy="${cyEmu}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln w="0"/></wps:spPr><wps:txbx><w:txbxContent>${contentXml}</w:txbxContent></wps:txbx><wps:bodyPr lIns="0" rIns="0" tIns="0" bIns="0" anchor="t"/></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>`;
+  return paras.join('');
+};
+
+/** 密封线锚定文本框模板：wp:anchor 绝对定位（page 相对） */
+const sealAnchor = (contentP, cxTwips, cyTwips, posXEmu, posYEmu, id, fill, wordArtVert = false) => {
+  const cxEmu = Math.max(1, cxTwips * EMU_PER_DXA);
+  const cyEmu = Math.max(1, cyTwips * EMU_PER_DXA);
+  // ⚠️ graphicData uri = wordprocessingShape（wps:wsp 直接子元素的命名空间）：
+  //    Word 严格校验 uri 与子元素匹配，用 openxmlformats/wordprocessingDrawing 会拒绝打开整个文档
+  // ⚠️ xmlns:a 声明在 <a:graphic> 元素上（与 Word 自身输出一致），不依赖文档根声明
+  // ⚠️ vert="wordArtVert"：文字逐字逆时针旋转 90°（字头朝左）单列竖排，
+  //    实测 Word 以旋转矩阵渲染；段落级 textDirection 在文本框中无效
+  const fillXml = fill === 'noFill' ? '<a:noFill/>' : `<a:solidFill><a:srgbClr val="${fill}"/></a:solidFill>`;
+  const bodyPr = wordArtVert
+    ? '<wps:bodyPr rot="0" spcFirstLastPara="0" vertOverflow="overflow" horzOverflow="overflow" vert="wordArtVert" wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" numCol="1" spcCol="0" rtlCol="0" fromWordArt="0" anchor="t" anchorCtr="0" forceAA="0" compatLnSpc="1"><a:noAutofit/></wps:bodyPr>'
+    : '<wps:bodyPr lIns="0" rIns="0" tIns="0" bIns="0" anchor="t"/>';
+  return `<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="251658240" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>${posXEmu}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>${posYEmu}</wp:posOffset></wp:positionV><wp:extent cx="${cxEmu}" cy="${cyEmu}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${id}" name="SealLine"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:wsp><wps:cNvPr id="${id}" name="SealLine"/><wps:cNvSpPr txBox="1"/><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cxEmu}" cy="${cyEmu}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${fillXml}<a:ln w="0"/></wps:spPr><wps:txbx><w:txbxContent>${contentP}</w:txbxContent></wps:txbx>${bodyPr}</wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>`;
 };
 
 /** 后处理：将 __RUBY_...__ 标记替换为 Word 原生 w:ruby 注音元素 */
@@ -516,7 +551,9 @@ const replaceSealMarkers = (xml) => {
     let text = '密封线';
     try { text = decodeURIComponent(encText); } catch { /* 解码失败用默认 */ }
     const sizeHp = parseInt(sizeStr) || 20;
-    return `<w:p>${sealLineFloatingOOXML(text, sizeHp)}</w:p>`;
+    // ⚠️ sealLineFloatingOOXML 已返回多个完整 <w:p> 段落（各锚一个），
+    //    此处不可再套 <w:p> 包裹，否则产生嵌套段落 → Word 严格校验拒绝打开整个文档
+    return sealLineFloatingOOXML(text, sizeHp);
   });
   return { xml: out, changed };
 };

@@ -769,32 +769,30 @@ export const themes = [
       '.normal-paragraph': { fontSize: '12pt', lineHeight: '1.5', marginBottom: '6pt' },
       '.indent-2': { textIndent: '2em' },
       // 📜 密封线试卷专属样式
-      // 标准试卷样式：左侧边距内一条竖虚线 + 文字逆时针旋转 90°（字头朝左、自上而下阅读）：
-      // wrapper 相对定位，sealed-line 绝对定位于左侧页边距内（正文区域之外，随纸张自动适配），
+      // 标准试卷样式：左侧一条竖虚线 + 文字逆时针旋转 90°（字头朝左、自上而下阅读）：
+      // 预览为所见即所得：sealed-line 以窄列形式内嵌文档流左侧（任何上下文均可见），
       // 仅左边框 dashed（一条虚线）；.sl-text 逆时针旋转 90°（字头朝左），深灰 #333333 防发虚
-      // 与导出端「虚线/文字交替段落」（单左边框 + lrTb）一致
+      // 与导出端「虚线/文字各自文本框交替锚定」（单左边框虚线 + wordArtVert）一致
       '.sealed-wrapper': {
-        position: 'relative',
-        display: 'block',
+        display: 'flex',
+        flexDirection: 'row',
+        alignItems: 'stretch',
         width: '100%',
         maxWidth: '100%',
         boxSizing: 'border-box'
       },
       '.sealed-line': {
-        position: 'absolute',
-        left: '-12mm',
-        top: '0',
-        bottom: '0',
-        width: '12mm',
+        flex: '0 0 auto',
+        width: '36px',
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
+        minHeight: '100%',
         color: '#333333',
         fontSize: '10pt',
         // 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧）
-        borderLeft: '1.5px dashed #333333',
-        pointerEvents: 'none'
+        borderLeft: '1.5px dashed #333333'
       },
       '.seal-line': {
         flex: '0 0 auto',
@@ -833,7 +831,10 @@ export const themes = [
       '.sealed-line p': {
         margin: '0'
       },
-      '.sealed-wrapper > :not(.sealed-line)': {
+      '.sealed-wrapper > :not(.seal-line), .sealed-wrapper > :not(.sealed-line)': {
+        flex: '1 1 auto',
+        minWidth: '0',
+        paddingLeft: '8px',
         boxSizing: 'border-box'
       },
       '.exam-info': {
@@ -1797,32 +1798,30 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       line-height: 1;
     }
 
-    /* ⭐ 密封线/装订线：标准试卷样式——左侧边距内一条竖虚线 + 文字逆时针旋转 90°（字头朝左）：
-       wrapper 相对定位，sealed-line 绝对定位于左侧页边距内（正文区域之外，随纸张自动适配），
-       仅左边框 dashed（一条虚线）；.sl-text 逆时针旋转 90°（字头朝左），深灰 #333333 防发虚
-       与导出端「虚线/文字交替段落」（单左边框 + lrTb）一致 */
+    /* ⭐ 密封线/装订线：标准试卷样式——左侧一条竖虚线 + 文字逆时针旋转 90°（字头朝左）：
+       预览为所见即所得：sealed-line 以窄列形式内嵌文档流左侧（任何上下文均可见），
+       仅左边框 dashed（一条虚线）；.sl-text 逆时针旋转 90°（字头朝左），深灰 #333 防发虚
+       与导出端「虚线/文字各自文本框交替锚定」（单左边框虚线 + wordArtVert）一致 */
     .sealed-wrapper {
-      position: relative;
-      display: block;
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
       width: 100%;
       max-width: 100%;
       box-sizing: border-box;
     }
     .sealed-line {
-      position: absolute;
-      left: -12mm;
-      top: 0;
-      bottom: 0;
-      width: 12mm;
+      flex: 0 0 auto;
+      width: 36px;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
       align-items: center;
+      min-height: 100%;
       color: #333;
       font-size: 10pt;
       /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
       border-left: 1.5px dashed #333;
-      pointer-events: none;
     }
     .seal-line {
       flex: 0 0 auto;
@@ -1857,6 +1856,9 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
     }
     .sealed-wrapper > :not(.seal-line),
     .sealed-wrapper > :not(.sealed-line) {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding-left: 8px;
       box-sizing: border-box;
     }
     .sealed-line p {
