@@ -398,6 +398,96 @@ const DivWrapper = Node.create({
   },
 });
 
+// ═══════════════ 密封线结构保留（sealed-wrapper / sealed-line / sl-dash / sl-text）═══════════════
+// ⚠️ priority 必须高于 DivWrapper（默认 100）：否则 sealed-line 被 DivWrapper(block+) 捕获后，
+//    其 inline 内容（sl-text/sl-dash）会被 ProseMirror 提升拆散成段落——
+//    预览变成“顶端一行文本”，导出（editor.view.dom.innerHTML）丢失虚线结构。
+//    （曾实测：仅 StarterKit 解析 sealed-wrapper HTML → 全部拆成 <p>，sl-dash 空 span 直接丢弃）
+const SealedWrapper = Node.create({
+  name: 'sealedWrapper',
+  priority: 150,
+  group: 'block',
+  content: 'block+',
+  defining: true,
+  parseHTML() { return [{ tag: 'div.sealed-wrapper' }]; },
+  renderHTML({ HTMLAttributes }) {
+    const attrs = { class: 'sealed-wrapper' };
+    if (HTMLAttributes.sealedStyle) attrs.style = HTMLAttributes.sealedStyle;
+    return ['div', attrs, 0];
+  },
+  addAttributes() {
+    return {
+      sealedStyle: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('style') || null,
+        renderHTML: (a) => (a.sealedStyle ? { style: a.sealedStyle } : {}),
+      },
+    };
+  },
+});
+
+const SealedLine = Node.create({
+  name: 'sealedLine',
+  priority: 150,
+  group: 'block',
+  // inline 内容：sl-text（横排文字字段）+ sl-dash（空虚线段）+ 裸文本兜底
+  content: '(text | slText | slDash)*',
+  defining: true,
+  parseHTML() { return [{ tag: 'div.sealed-line' }, { tag: 'div.seal-line' }]; },
+  renderHTML({ HTMLAttributes }) {
+    const attrs = { class: 'sealed-line' };
+    if (HTMLAttributes.sealedStyle) attrs.style = HTMLAttributes.sealedStyle;
+    return ['div', attrs, 0];
+  },
+  addAttributes() {
+    return {
+      sealedStyle: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('style') || null,
+        renderHTML: (a) => (a.sealedStyle ? { style: a.sealedStyle } : {}),
+      },
+    };
+  },
+  // 🔧 密封线字段为单行布局：阻止 Enter 拆分行（inline 内容 split 会破坏虚线/文字交替结构）
+  addKeyboardShortcuts() {
+    return { Enter: () => true };
+  },
+});
+
+// sl-dash：空 span（atom 不可编辑）——竖向虚线段，CSS repeating-linear-gradient 渲染
+const SlDash = Node.create({
+  name: 'slDash',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: false,
+  parseHTML() { return [{ tag: 'span.sl-dash' }]; },
+  renderHTML() { return ['span', { class: 'sl-dash' }]; },
+});
+
+// sl-text：横排文字字段（可编辑文本，class 保留）
+const SlText = Node.create({
+  name: 'slText',
+  group: 'inline',
+  inline: true,
+  content: 'text*',
+  parseHTML() { return [{ tag: 'span.sl-text' }]; },
+  renderHTML({ HTMLAttributes }) {
+    const attrs = { class: 'sl-text' };
+    if (HTMLAttributes.slStyle) attrs.style = HTMLAttributes.slStyle;
+    return ['span', attrs, 0];
+  },
+  addAttributes() {
+    return {
+      slStyle: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('style') || null,
+        renderHTML: (a) => (a.slStyle ? { style: a.slStyle } : {}),
+      },
+    };
+  },
+});
+
 import Paragraph from '@tiptap/extension-paragraph';
 import Heading from '@tiptap/extension-heading';
 
@@ -673,6 +763,11 @@ const editor = useEditor({
     CustomTableCell,
     CustomTableHeader,
     PageBreak,
+    // 🔧 密封线结构保留（priority 150 > DivWrapper 100，避免 sealed-line 被 DivWrapper 拆散）
+    SealedWrapper,
+    SealedLine,
+    SlDash,
+    SlText,
     DivWrapper,
   ],
   onUpdate: ({ editor }) => {
@@ -1673,6 +1768,10 @@ defineExpose({
 .rich-text-editor :deep(span.blank-8) { min-width: 8em; } .rich-text-editor :deep(span.blank-10) { min-width: 10em; }
 /* 普通横线（英译汉等中文书写区） */
 .rich-text-editor :deep(.blank-line) { display: inline-block; min-width: 3em; border-bottom: 1.5px solid var(--text-secondary); margin: 0 2px; vertical-align: baseline; }
+/* ⭐ 行尾自动延伸：blank-line / u.blank-N 为段落最后元素时，段落变 flex、横线弹性撑满剩余行宽
+   （与导出端 <w:ptab/> 自动画到右边距行为一致，所见即所得） */
+.rich-text-editor :deep(p:has(> .blank-line:last-child)), .rich-text-editor :deep(p:has(> u[class*="blank-"]:last-child)) { display: flex; align-items: baseline; }
+.rich-text-editor :deep(p:has(> .blank-line:last-child) .blank-line), .rich-text-editor :deep(p:has(> u[class*="blank-"]:last-child) u[class*="blank-"]) { flex: 1 1 auto; min-width: 3em; }
 .rich-text-editor :deep(.oral-box.blank) { min-width: 50px; border-style: dashed; color: var(--text-muted); }
 .rich-text-editor :deep(.vertical-calculation) { display: inline-block; margin: 8px 16px; font-family: 'Courier New', monospace; }
 .rich-text-editor :deep(.vertical-calculation .vc-row) { text-align: right; padding: 1px 8px; letter-spacing: 0.2em; }
@@ -1686,7 +1785,13 @@ defineExpose({
 .rich-text-editor :deep(.word-bank) { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border: 1.5px solid #666; border-radius: 4px; margin: 4px 0; background: #fafafa; }
 .rich-text-editor :deep(.word-bank .wb-item) { display: inline-block; padding: 2px 10px; font-family: 'Times New Roman', serif; font-size: 0.9em; color: #333; }
 .rich-text-editor :deep(.chem-condition) { font-size: 0.7em; vertical-align: super; color: #555; line-height: 1; }
-.rich-text-editor :deep(.seal-line) { writing-mode: vertical-lr; text-orientation: upright; position: absolute; left: 8px; top: 0; bottom: 0; width: 2em; display: flex; align-items: center; justify-content: center; border-left: 1.5px dashed var(--text-muted); border-right: 1.5px dashed var(--text-muted); background: #f9f9f9; color: var(--text-muted); font-size: 10px; letter-spacing: 0.5em; z-index: 1; }
+.rich-text-editor :deep(.seal-line) { flex: 0 0 auto; width: 36px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; min-height: 100%; padding-right: 4px; color: var(--text-muted); font-size: 10pt; border-left: 1.5px dashed var(--text-muted); }
+.rich-text-editor :deep(.sealed-line) { position: absolute; left: -14mm; top: 0; bottom: 0; width: 12mm; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; color: var(--text-muted); font-size: 10pt; border-left: 1.5px dashed var(--text-muted); pointer-events: none; }
+.rich-text-editor :deep(.sealed-line .sl-dash) { flex: 1 1 auto; min-height: 8px; }
+.rich-text-editor :deep(.sealed-line .sl-text) { flex: 0 0 auto; color: var(--text-muted); font-size: 10pt; line-height: 1.3; writing-mode: vertical-rl; text-orientation: upright; }
+.rich-text-editor :deep(.sealed-wrapper) { position: relative; display: block; width: 100%; max-width: 100%; box-sizing: border-box; }
+.rich-text-editor :deep(.sealed-line p) { margin: 0; }
+.rich-text-editor :deep(.sealed-wrapper > :not(.sealed-line)) { box-sizing: border-box; }
 .rich-text-editor :deep(.score-board) { display: inline-table; border-collapse: collapse; margin: 4px 0; }
 .rich-text-editor :deep(.score-board .sb-row) { display: table-row; }
 .rich-text-editor :deep(.score-board .sb-label), .rich-text-editor :deep(.score-board .sb-value) { display: table-cell; padding: 4px 16px; border: 1px solid var(--text-muted); text-align: center; }

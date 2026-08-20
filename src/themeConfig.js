@@ -769,38 +769,69 @@ export const themes = [
       '.normal-paragraph': { fontSize: '12pt', lineHeight: '1.5', marginBottom: '6pt' },
       '.indent-2': { textIndent: '2em' },
       // 📜 密封线试卷专属样式
+      // 标准试卷样式：左侧边距内一条竖虚线 + 竖排正立文字（字头朝上、自上而下阅读）：
+      // wrapper 相对定位，sealed-line 绝对定位于左侧页边距内（正文区域之外，随纸张自动适配），
+      // 仅左边框 dashed（一条虚线）；.sl-text 竖排正立（writing-mode: vertical-rl），
+      // 与导出端「虚线/文字交替段落」（单左边框 + tbRl）一致
       '.sealed-wrapper': {
         position: 'relative',
-        paddingLeft: '40px',
-        minHeight: '200px',
-        overflow: 'hidden',
+        display: 'block',
         width: '100%',
         maxWidth: '100%',
         boxSizing: 'border-box'
       },
       '.sealed-line': {
         position: 'absolute',
-        left: '8px',
+        left: '-12mm',
         top: '0',
         bottom: '0',
-        width: '28px',
+        width: '12mm',
+        boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        borderLeft: '2px dashed #999',
-        borderRight: '2px dashed #999',
-        background: '#fafafa',
-        writingMode: 'vertical-lr',
-        textOrientation: 'upright',
-        letterSpacing: '0.5em',
-        fontSize: '10pt',
         color: '#999999',
-        padding: '20px 0',
-        zIndex: '1'
+        fontSize: '10pt',
+        // 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧）
+        borderLeft: '1.5px dashed #999999',
+        pointerEvents: 'none'
+      },
+      '.seal-line': {
+        flex: '0 0 auto',
+        width: '36px',
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        minHeight: '100%',
+        paddingRight: '4px',
+        color: '#999999',
+        fontSize: '10pt',
+        // 一条竖虚线：仅左边框 dashed
+        borderLeft: '1.5px dashed #999999'
+      },
+      '.sealed-line .sl-dash': {
+        // 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供
+        flex: '1 1 auto',
+        minHeight: '8px'
+      },
+      '.sealed-line .sl-text': {
+        flex: '0 0 auto',
+        color: '#999999',
+        fontSize: '10pt',
+        lineHeight: '1.3',
+        // 竖排正立：字头朝上、自上而下阅读（标准试卷密封线文字朝向，不旋转）
+        writingMode: 'vertical-rl',
+        textOrientation: 'upright'
       },
       '.sealed-line span': {
-        margin: '4px 0'
+        margin: '0'
+      },
+      '.sealed-line p': {
+        margin: '0'
+      },
+      '.sealed-wrapper > :not(.sealed-line)': {
+        boxSizing: 'border-box'
       },
       '.exam-info': {
         display: 'flex',
@@ -1763,25 +1794,67 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       line-height: 1;
     }
 
-    /* ⭐ 密封线/装订线 */
-    .seal-line {
-      writing-mode: vertical-lr;
-      text-orientation: upright;
+    /* ⭐ 密封线/装订线：标准试卷样式——左侧边距内一条竖虚线 + 竖排正立文字（字头朝上）：
+       wrapper 相对定位，sealed-line 绝对定位于左侧页边距内（正文区域之外，随纸张自动适配），
+       仅左边框 dashed（一条虚线）；.sl-text 竖排正立（writing-mode: vertical-rl），
+       与导出端「虚线/文字交替段落」（单左边框 + tbRl）一致 */
+    .sealed-wrapper {
+      position: relative;
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    .sealed-line {
       position: absolute;
-      left: 8px;
+      left: -12mm;
       top: 0;
       bottom: 0;
-      width: 2em;
+      width: 12mm;
+      box-sizing: border-box;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      border-left: 1.5px dashed #999;
-      border-right: 1.5px dashed #999;
-      background: #f9f9f9;
       color: #999;
-      font-size: 10px;
-      letter-spacing: 0.5em;
-      z-index: 1;
+      font-size: 10pt;
+      /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
+      border-left: 1.5px dashed #999;
+      pointer-events: none;
+    }
+    .seal-line {
+      flex: 0 0 auto;
+      width: 36px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100%;
+      padding-right: 4px;
+      color: #999;
+      font-size: 10pt;
+      /* 一条竖虚线：仅左边框 dashed */
+      border-left: 1.5px dashed #999;
+    }
+    .sealed-line .sl-dash {
+      /* 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供 */
+      flex: 1 1 auto;
+      min-height: 8px;
+    }
+    .sealed-line .sl-text {
+      flex: 0 0 auto;
+      color: #999;
+      font-size: 10pt;
+      line-height: 1.3;
+      /* 竖排正立：字头朝上、自上而下阅读（标准试卷密封线文字朝向，不旋转） */
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+    }
+    .sealed-wrapper > :not(.seal-line),
+    .sealed-wrapper > :not(.sealed-line) {
+      box-sizing: border-box;
+    }
+    .sealed-line p {
+      margin: 0;
     }
 
     /* ⭐ 评分栏 - 表格形式（横竖线全有） */
@@ -2036,11 +2109,124 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
 
 // ==================== 主题内容自动包装 ====================
 /**
+ * 密封线文本 → 字段序列（用于新结构“竖虚线 + 横排文字嵌入”排版）
+ * 旧文本为空格分隔的整条（如“密封线　学校：＿＿＿　班级：＿＿＿　姓名：＿＿＿　学号：＿＿＿　密封线内不要答题”）：
+ *   拆分为：信息字段（学校/班级/姓名/学号…）→ 提示（…不要答题）→ 密封线三字（密/封/线 逐字，字间虚线）
+ */
+export const splitSealText = (text) => {
+  if (!text) return ['密封线'];
+  // 🔧 无空格粘连拆断：旧内容可能形如「密封线学校：＿＿＿班级：＿＿＿密封线内不要答题」
+  // 在字段前缀 / 提示语前插入全角空格分隔，避免整串作为一个超长字段（导出端文本框横铺整页）
+  const separated = String(text).replace(/(?<=[^\s　])(?=(?:学校|班级|姓名|学号|考生|考号)[:：]|密封线内)/g, '　');
+  const tokens = separated.split(/[\s　]+/).map((t) => t.trim()).filter(Boolean);
+  const info = [];
+  let tip = null;
+  const sealChars = [];
+  for (const tk of tokens) {
+    if (/不要答题|^密封线内/.test(tk)) {
+      tip = tk;
+    } else if (tk === '密封线') {
+      sealChars.push('密', '封', '线');
+    } else if (tk === '密' || tk === '封' || tk === '线') {
+      sealChars.push(tk);
+    } else {
+      info.push(tk);
+    }
+  }
+  const fields = [...info];
+  if (tip) fields.push(tip);
+  fields.push(...sealChars);
+  return fields.length ? fields : ['密封线'];
+};
+
+/**
+ * 密封线后续页字段：多页试卷仅第一页需要填写考生信息（学校/班级/姓名/学号），
+ * 后续页密封线只保留"密/封/线"三字（或整条"密封线"），虚线照常填满整页。
+ */
+export const splitSealContinuation = (fields) => {
+  const arr = Array.isArray(fields) ? fields : splitSealText(fields || '');
+  const sealOnly = arr.filter((f) => f === '密' || f === '封' || f === '线' || f === '密封线');
+  return sealOnly.length ? sealOnly : ['密封线'];
+};
+
+/** 密封线新结构辅助：虚线单元（竖向虚线，弹性高度）与文字单元（横排正立） */
+const sealDashSpan = () => {
+  const s = document.createElement('span');
+  s.className = 'sl-dash';
+  return s;
+};
+const sealTextSpan = (txt) => {
+  const s = document.createElement('span');
+  s.className = 'sl-text';
+  s.textContent = txt;
+  return s;
+};
+
+/**
+ * 密封线结构归一化：
+ * 1. 旧结构（sealed-line 仅"密封线"/逐字 span + 信息栏/提示为横向 <p>）→ 新结构：
+ *    sealed-line 内 [.sl-dash][.sl-text 字段][.sl-dash][.sl-text 字段]… 交替（虚线弹性、文字横排嵌入）
+ * 2. 新结构（已含 .sl-text）原样保留（若 wrapper 内仍有密封特征 p 则并入末尾）
+ * 幂等；正文 p（不以密封特征开头，如主题包装的正文）不受影响。
+ * 注：导出端 docxBuilder 解析 .sl-text 序列构建“虚线单元格+文字单元格”表格，本函数服务预览/编辑区所见即所得。
+ */
+export const normalizeSealStructure = (html) => {
+  if (!html || typeof html !== 'string' || !html.includes('sealed-wrapper')) return html;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const wrappers = tpl.content.querySelectorAll('.sealed-wrapper');
+  wrappers.forEach((w) => {
+    // 🔧 清理 wrapper 内纯空白文本节点（旧结构 <p> 之间的换行残留，避免污染序列化输出）
+    Array.from(w.childNodes)
+      .filter((n) => n.nodeType === 3 && !(n.textContent || '').trim())
+      .forEach((n) => n.remove());
+    let sealLine = null;
+    const extras = [];
+    for (const c of Array.from(w.children)) {
+      const cCls = c.classList || [];
+      const cText = (c.textContent || '').trim();
+      if (cCls.contains('sealed-line') || cCls.contains('seal-line')) {
+        sealLine = c;
+      } else if (/^(密封线内|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：])/.test(cText)) {
+        extras.push(c);
+      }
+    }
+    if (!sealLine) return;
+    // 已含 .sl-text → 新结构：仅把外部密封特征 p 并入末尾（保底），不动内部
+    if (sealLine.querySelector('.sl-text')) {
+      extras.forEach((e) => {
+        sealLine.appendChild(sealTextSpan((e.textContent || '').trim()));
+        sealLine.appendChild(sealDashSpan());
+        e.remove();
+      });
+      return;
+    }
+    // 旧结构：合并文本 → 拆字段 → 重建为 [虚线][文字]…[虚线]
+    let raw = sealLine.textContent || '';
+    if (extras.length) {
+      raw += '　' + extras.map((e) => (e.textContent || '').trim()).join('　');
+      extras.forEach((e) => e.remove());
+    }
+    const fields = splitSealText(raw);
+    sealLine.innerHTML = '';
+    sealLine.appendChild(sealDashSpan());
+    fields.forEach((f, i) => {
+      sealLine.appendChild(sealTextSpan(f));
+      sealLine.appendChild(sealDashSpan());
+    });
+  });
+  return tpl.innerHTML;
+};
+
+/**
  * 根据主题 ID，给 HTML 内容包上结构化外壳
  * 解决 Word/AI 生成内容不含主题 class 导致特殊布局不生效的问题
  */
 export const wrapContentForTheme = (html, themeId) => {
   if (!html || typeof html !== 'string') return html || '';
+
+  // 🔧 密封线结构归一化（旧结构信息栏横向 p → 并入 sealed-line 整体竖排），幂等
+  html = normalizeSealStructure(html);
   
   // 🔧 无样式：不需要包装
   if (!themeId) return html;
@@ -2049,13 +2235,16 @@ export const wrapContentForTheme = (html, themeId) => {
   if (!theme) return html;
   
   switch (theme.id) {
-    case 'sealed_exam':
-      return `<div class="sealed-wrapper">
+    case 'sealed_exam': {
+      // 🔧 包装后再次归一化：输入若不含 sealed-wrapper（如 AI 生成的横排信息栏 p）会在包装时被吞入，需在包装完成后合并进 sealed-line
+      const wrapped = `<div class="sealed-wrapper">
         <div class="sealed-line">
           <span>密</span><span>封</span><span>线</span>
         </div>
         ${html}
       </div>`;
+      return normalizeSealStructure(wrapped);
+    }
     
     case 'error_book':
       return `<div class="correction-layout">
@@ -2088,50 +2277,16 @@ export const getSpecialThemeEditorCSS = (themeId) => {
 
   switch (theme.id) {
     case 'sealed_exam':
+      // 📜 密封线由真实 DOM 结构承载（SealedWrapper/SealedLine 节点保留 div/class，
+      //    主题 CSS 的 .sealed-wrapper/.sealed-line 规则直接生效），
+      //    不再用 ::before/::after 伪元素覆盖渲染（曾导致预览出现两条虚线、文字重叠）。
+      //    仅保证编辑器不裁切绝对定位于左侧边距内的密封线条。
       return `
-        /* 📜 密封线 — 两道虚线 + 竖排文字（正式考卷布局） */
         .ProseMirror {
+          overflow: visible !important;
+        }
+        .ProseMirror .sealed-wrapper {
           position: relative !important;
-          padding-left: 100px !important;
-          min-height: 320px !important;
-        }
-        /* 左虚线（远离正文）— 学号/班级/姓名 + 填空线 */
-        .ProseMirror::before {
-          content: "学号\\A ______\\A \\A \\A \\A \\A \\A \\A 班级\\A ______\\A \\A \\A \\A \\A \\A \\A 姓名\\A ______" !important;
-          white-space: pre !important;
-          position: absolute !important;
-          left: 8px !important;
-          top: 8px !important;
-          bottom: 8px !important;
-          width: 26px !important;
-          border-right: 2px dashed #999 !important;
-          writing-mode: vertical-lr !important;
-          text-orientation: upright !important;
-          font-size: 10pt !important;
-          color: #555 !important;
-          padding: 2px 1px !important;
-          z-index: 1 !important;
-          pointer-events: none !important;
-          line-height: 2 !important;
-        }
-        /* 右虚线（靠近正文）— "密封线"三字均匀分布 */
-        .ProseMirror::after {
-          content: "密封线" !important;
-          position: absolute !important;
-          left: 52px !important;
-          top: 8px !important;
-          bottom: 8px !important;
-          width: 30px !important;
-          border-right: 2px dashed #999 !important;
-          writing-mode: vertical-lr !important;
-          text-orientation: upright !important;
-          font-size: 10pt !important;
-          color: #999 !important;
-          padding: 2px 1px !important;
-          z-index: 1 !important;
-          pointer-events: none !important;
-          line-height: 1 !important;
-          letter-spacing: 7em !important;
         }
       `;
 

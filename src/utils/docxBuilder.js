@@ -2,8 +2,9 @@
 // 数据源：contentEditable 实时 DOM（预览看到什么就导出什么）
 // 输出：docx 库的 Document 对象 → Packer.toBlob()
 
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, PageNumber } from 'docx';
-import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader } from 'docx';
+import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
+import { splitSealText, splitSealContinuation } from '../themeConfig.js';
 
 // ============ 工具函数 ============
 
@@ -322,21 +323,13 @@ const buildTextRuns = (node, styleOverride = {}) => {
     // ⚠️ NBSP 宽度依赖字体：Times New Roman ≈ 0.25em（与预览 em 对齐），宋体 ≈ 0.5em（2 倍偏差）
     //    必须显式指定 font: 'Times New Roman' 确保宽度与预览 min-width: N em 精确一致
     if (cls.contains('blank-line')) {
-      // 🔧 用 extractGridContent（innerHTML）替代 textContent，保留 &emsp; 实体
-      const { raw, hasVisible } = extractGridContent(child);
-      const src = hasVisible ? raw : (child.textContent || raw);
-      let emWidth = 0;
-      for (const ch of src) {
-        if (ch === '\u2003') emWidth += 1;
-        else if (ch === '\u2002') emWidth += 0.5;
-        else if (ch === '\u00A0') emWidth += 0.5;
-        else if (ch === ' ') emWidth += 0.25;
-        else if (/\s/.test(ch)) emWidth += 1;
-      }
-      if (emWidth < 1) emWidth = 2;
-      const nbspCount = Math.max(8, Math.round(emWidth * 4));
-      const finalText = '\u00A0'.repeat(nbspCount);
-      runs.push(new TextRun({ text: finalText, underline: { type: 'single', color: '666666' }, font: 'Times New Roman', size: ctx.size || readFontSizeHp(child) }));
+      // 🔧 行尾自动延伸：输出 ptab 占位标记（buildTextRuns 末尾后处理决定最终形态）——
+      //    若 blank-line 是段落最后一个内容 → 替换为 PositionalTab（<w:ptab/>），
+      //    Word 自动从当前位置画下划线到右边距（引导线 leader=underscore），
+      //    横线不再依赖 AI 估算的 &emsp; 数量，自动顶满行尾；
+      //    若后面还有内容（非末尾）→ 退回原 NBSP 固定宽度逻辑，避免破坏后续文字排版。
+      const { raw } = extractGridContent(child);
+      runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw, color: '666666' });
       return;
     }
     // === 括号内留空（span.blank-N）——无下划线，仅占位 ===
@@ -371,21 +364,22 @@ const buildTextRuns = (node, styleOverride = {}) => {
       const nFromClass = parseInt(anyBlankMatch.split('-')[1]) || 2;
       // 读实际内容宽度（同 blank-line 逻辑）
       const { raw } = extractGridContent(child);
-      let emWidth = 0;
-      for (const ch of raw) {
-        if (ch === '\u2003') emWidth += 1;
-        else if (ch === '\u2002') emWidth += 0.5;
-        else if (ch === '\u00A0') emWidth += 0.5;
-        else if (ch === ' ') emWidth += 0.25;
-        else if (/\s/.test(ch)) emWidth += 1;
-      }
-      const effectiveN = Math.max(nFromClass, Math.round(emWidth), 2);
-      const innerText = '\u00A0'.repeat(effectiveN * 4);
       if (tag === 'u') {
-        // 填空横线：下划线 + NBSP
-        runs.push(new TextRun({ text: innerText, underline: { type: 'single', color: '333333' }, font: 'Times New Roman', size: ctx.size || readFontSizeHp(child) }));
+        // 填空横线：段落末尾 → 占位标记（后处理转 ptab 自动延伸到行尾，颜色 333333），
+        //   非末尾 → 后处理退回 NBSP 固定宽度 + 下划线
+        runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw, nFromClass, color: '333333' });
       } else {
         // 非标标签：统一按括号处理
+        let emWidth = 0;
+        for (const ch of raw) {
+          if (ch === '\u2003') emWidth += 1;
+          else if (ch === '\u2002') emWidth += 0.5;
+          else if (ch === '\u00A0') emWidth += 0.5;
+          else if (ch === ' ') emWidth += 0.25;
+          else if (/\s/.test(ch)) emWidth += 1;
+        }
+        const effectiveN = Math.max(nFromClass, Math.round(emWidth), 2);
+        const innerText = '\u00A0'.repeat(effectiveN * 4);
         runs.push(new TextRun({ text: `(${innerText})`, font: 'Times New Roman', size: ctx.size || readFontSizeHp(child) }));
       }
       return;
@@ -539,6 +533,47 @@ const buildTextRuns = (node, styleOverride = {}) => {
   //   用于 h4 等需强制禁用某些样式属性的场景）
   const baseCtx = { ...defaultRunStyle(node), ...styleOverride };
   for (const child of node.childNodes) processChild(child, baseCtx);
+
+  // 🔧 blank-line / u.blank-N 末尾后处理：倒序扫描，真正的段落末尾横线 → PositionalTab（行尾自动延伸），
+  //    其余（非末尾）→ 退回 NBSP 固定宽度（原逻辑），避免 ptab 破坏后续文字排版。
+  let tailTabDone = false;
+  for (let i = runs.length - 1; i >= 0; i--) {
+    const r = runs[i];
+    if (!r || !r.__blankLineTab) continue;
+    if (i === runs.length - 1 && !tailTabDone) {
+      // 段落末尾：<w:ptab alignment=right relativeTo=margin leader=underscore/>
+      //    Word 自动从当前位置画下划线到右边距——横线自动顶满行尾，无需依赖 AI 估算 &emsp; 数量
+      runs[i] = new TextRun({
+        children: [new PositionalTab({
+          alignment: PositionalTabAlignment.RIGHT,
+          relativeTo: PositionalTabRelativeTo.MARGIN,
+          leader: PositionalTabLeader.UNDERSCORE,
+        })],
+        size: r.size,
+        font: 'Times New Roman',
+        color: r.color || '666666',  // 引导线颜色：blank-line #666 / u.blank-N #333，与预览一致
+      });
+      tailTabDone = true;
+    } else {
+      // 非末尾：退回原 NBSP 固定宽度逻辑（宽度取 class N 值与内部 &emsp; 等空白实体中较大者）
+      let emWidth = 0;
+      for (const ch of (r.raw || '')) {
+        if (ch === '\u2003') emWidth += 1;
+        else if (ch === '\u2002') emWidth += 0.5;
+        else if (ch === '\u00A0') emWidth += 0.5;
+        else if (ch === ' ') emWidth += 0.25;
+        else if (/\s/.test(ch)) emWidth += 1;
+      }
+      const effectiveN = r.nFromClass ? Math.max(r.nFromClass, Math.round(emWidth), 2) : Math.max(2, Math.round(emWidth));
+      const nbspCount = Math.max(8, effectiveN * 4);
+      runs[i] = new TextRun({
+        text: '\u00A0'.repeat(nbspCount),
+        underline: { type: 'single', color: r.color || '666666' },
+        font: 'Times New Roman',
+        size: r.size,
+      });
+    }
+  }
   return runs;
 };
 
@@ -857,6 +892,16 @@ const splitGridAwareContent = (node, runDefaults, opts = {}) => {
 
 // ============ Block 元素 → docx Paragraph/Table ============
 // ctx.deco: 继承装饰（父 div/blockquote 的 shading/border 透传子级）
+
+// 🔧 密封线收集器：密封线改由「页眉浮动文本框」承载（每页自动重复渲染，第一页含考生信息栏），
+//    正文流不再输出密封线 marker 段落。buildDocxFromDom 启动时重置，processBlockNode 命中时写入。
+let __sealCollector = null;
+
+/** 密封线 marker 段落（放页眉，后处理替换为浮动文本框） */
+const sealMarkerParagraph = (fields, sizeHp) => new Paragraph({
+  children: [new TextRun({ text: SEAL_MARKER(fields.join('\u0001'), sizeHp), size: sizeHp, color: '999999', font: 'SimSun' })],
+});
+
 const processBlockNode = (node, ctx = {}) => {
   const inheritedDeco = ctx.deco || {};
   const children = [];
@@ -972,16 +1017,93 @@ const processBlockNode = (node, ctx = {}) => {
     if (cols.length >= 2) {
       const leftItems = [...cols[0].querySelectorAll('.match-item')];
       const rightItems = [...cols[1].querySelectorAll('.match-item')];
-      const rows = [];
-      for (let i = 0; i < Math.max(leftItems.length, rightItems.length); i++) {
-        rows.push(new TableRow({
-          children: [
-            new TableCell({ children: [new Paragraph({ text: leftItems[i]?.textContent.trim() || ' ' })] }),
-            new TableCell({ children: [new Paragraph({ text: rightItems[i]?.textContent.trim() || ' ' })] }),
-          ]
+      // 🔧 独立方框导出：预览中每个 .match-item 是独立方框（border:1px solid #ccc，列间 gap 40px、列内项间距 10px）。
+      //    旧实现输出 4行×2列 单表格——docx Table 自带 tblBorders 网格线（insideH/insideV），
+      //    行间/列间全部有线连通，视觉是"一张连成片的表格"而非"左右两组独立方框"。
+      //    改为：每个左右配对 = 一个独立 1行×3列 小表格（左框 | 无边框空隙列 | 右框），
+      //    行间插入空段落（同时阻止 Word 合并相邻表格 + 还原 10px 项间距），实现完全独立方框。
+      const itemBorders = {
+        top: { style: BorderStyle.SINGLE, size: 4 },
+        bottom: { style: BorderStyle.SINGLE, size: 4 },
+        left: { style: BorderStyle.SINGLE, size: 4 },
+        right: { style: BorderStyle.SINGLE, size: 4 },
+      };
+      const noneBorders = {
+        top: { style: BorderStyle.NONE, size: 0 },
+        bottom: { style: BorderStyle.NONE, size: 0 },
+        left: { style: BorderStyle.NONE, size: 0 },
+        right: { style: BorderStyle.NONE, size: 0 },
+      };
+      const buildItemCell = (text, width) => new TableCell({
+        children: [new Paragraph({
+          // 🔧 方框内文字与正文同字号/同字体：用 defaultRunStyle 带出计算样式（16px→12pt），
+          //    裸 Paragraph 会退回 docx 默认字号导致与正文字号不一
+          children: [new TextRun({ text: text || ' ', ...defaultRunStyle(node) })],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 60, after: 60 },  // 框内上下留白（预览 padding 4px）
+        })],
+        borders: itemBorders,
+        margins: { top: 60, bottom: 60, left: 240, right: 240 },  // 预览 padding 4px 16px
+        width: { size: width, type: WidthType.DXA },
+      });
+      // 🔧 空隙列：无边框单元格撑出列间距（预览 gap 40px；连线留白加宽至 2000 DXA ≈ 133px，保证学生充足连线空间）
+      const GAP_COL_W = 2000;
+      const gapCell = () => new TableCell({
+        children: [new Paragraph({
+          children: [new TextRun({ text: ' ', size: 2 })],
+          spacing: { before: 0, after: 0 },
+        })],
+        borders: noneBorders,
+        width: { size: GAP_COL_W, type: WidthType.DXA },
+      });
+      // 🔧 行间空段落：模拟列内项间距 gap 10px，同时防止 Word 将相邻表格合并成一张大表；
+      //    每个表格后都插入（含最后一行）——保证末行方框与后续正文之间也有间距
+      const rowGap = () => new Paragraph({
+        children: [new TextRun({ text: ' ', size: 2 })],
+        spacing: { before: 75, after: 75 },
+      });
+      // 🔧 框宽自适应：按列内最长项估算宽度（中文按 1em、半角按 0.5em，字号取计算样式），
+      //    加左右框内留白（margins 240×2）后按 20 DXA 取整——避免固定列宽导致单字项框过宽
+      const itemFontPt = px2pt(cs(node, 'font-size'));
+      const measureTextWidth = (t) => {
+        let w = 0;
+        for (const ch of t) {
+          w += /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef\u3000-\u303f]/.test(ch) ? itemFontPt * 20 : itemFontPt * 10;
+        }
+        return w;
+      };
+      const calcColWidth = (items) => {
+        const maxContent = items.reduce((m, it) => Math.max(m, measureTextWidth(it.textContent.trim() || ' ')), 0);
+        return Math.ceil((maxContent + 480) / 20) * 20;  // 内容宽 + 左右 margins，20 DXA 取整
+      };
+      const leftColW = calcColWidth(leftItems);
+      const rightColW = calcColWidth(rightItems);
+      // 🔧 表格缩进与正文对齐：排版模块注入 p{text-indent:2em} 使正文段落首行缩进，
+      //    match-question 是 div 不缩进 → 导出表格相对正文段落首行"突出"。
+      //    取本节点与前一个段落兄弟的 text-indent 较大值，再往里推一个 Tab 位
+      //    （Word 默认制表位 720 DXA），使连线内容比题目首行再深一级
+      const TAB_DXA = 720;
+      const ownIndent = readIndent(node) || 0;
+      const prevIndent = node.previousElementSibling ? readIndent(node.previousElementSibling) || 0 : 0;
+      const tableIndent = Math.max(ownIndent, prevIndent) + TAB_DXA;
+      const maxRows = Math.max(leftItems.length, rightItems.length);
+      for (let i = 0; i < maxRows; i++) {
+        children.push(new Table({
+          rows: [new TableRow({
+            children: [
+              buildItemCell(leftItems[i]?.textContent.trim(), leftColW),
+              gapCell(),
+              buildItemCell(rightItems[i]?.textContent.trim(), rightColW),
+            ]
+          })],
+          // 🔧 FIXED 布局 + 按列宽求和的总宽：锁定自适应后的列宽，防止 Word autofit 拉伸方框
+          width: { size: leftColW + GAP_COL_W + rightColW, type: WidthType.DXA },
+          layout: TableLayoutType.FIXED,
+          columnWidths: [leftColW, GAP_COL_W, rightColW],
+          ...(tableIndent > 0 ? { indent: { size: tableIndent, type: WidthType.DXA } } : {}),
         }));
+        children.push(rowGap());
       }
-      children.push(new Table({ rows, width: { size: 9000, type: WidthType.DXA } }));
     }
     return children;
   }
@@ -1000,14 +1122,51 @@ const processBlockNode = (node, ctx = {}) => {
     return children;
   }
 
-  // ===== 密封线 =====
-  if (cls.contains('seal-line')) {
-    children.push(new Paragraph({
-      text: text || '密 封 线',
-      spacing: { before: 40, after: 40 },
-      border: { left: { style: BorderStyle.DASHED, size: 1 }, right: { style: BorderStyle.DASHED, size: 1 } },
-      indent: { left: 360, right: 360 },
-    }));
+  // ===== 密封线（页眉浮动文本框承载：第一页考生信息栏 + 后续页仅"密封线"，虚线随纸张自动适配）=====
+  // 结构兼容：新结构 sealed-wrapper + sealed-line（.sl-text 字段序列）；旧版 seal-line / 旧结构自动拆字段。
+  // 字段收集后写入 __sealCollector，由 buildDocxFromDom 构建 first/default 页眉；正文不输出任何段落。
+  /**
+   * 记录密封线字段：密封线 → 页眉浮动文本框（后处理注入 wp:anchor + 单条竖虚线/竖排文字交替段落）
+   * fields 经 \u0001 分隔编码进 marker，后处理按分隔符还原字段序列
+   */
+  const recordSealFields = (fields, node) => {
+    if (!__sealCollector || __sealCollector.first) return;
+    const fsPx = parseFloat(cs(node, 'font-size')) || 10;
+    const sizeHp = Math.max(8, Math.round(fsPx * 0.75 * 2));
+    __sealCollector.first = { fields: [...fields], sizeHp };
+  };
+  if (cls.contains('sealed-wrapper')) {
+    // 容器：收集 sealed-line 内 .sl-text 字段序列（新结构）；旧结构（sealed-line 文本 + 横向密封特征 p）合并后拆字段；
+    //   其他子元素（如主题包装的正文）正常处理。
+    let sealLineEl = null;
+    const extras = [];
+    for (const c of node.childNodes) {
+      if (!c || c.nodeType !== Node.ELEMENT_NODE) continue;
+      const cCls = c.classList || [];
+      const cText = (c.textContent || '').replace(/[\r\n]+/g, '').trim();
+      if (cCls.contains('seal-line') || cCls.contains('sealed-line')) {
+        sealLineEl = c;
+      } else if (/^(密封线内|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：])/.test(cText)) {
+        // 旧结构：信息栏/提示横向 p → 并入字段序列
+        extras.push(cText);
+      } else {
+        children.push(...processBlockNode(c));
+      }
+    }
+    if (sealLineEl) {
+      // 新结构：.sl-text 序列
+      const slTexts = Array.from(sealLineEl.querySelectorAll('.sl-text')).map((el) => (el.textContent || '').trim()).filter(Boolean);
+      const fields = slTexts.length
+        ? [...slTexts, ...extras]
+        : splitSealText(((sealLineEl.textContent || '') + (extras.length ? '　' + extras.join('　') : '')).replace(/[\r\n]+/g, '　'));
+      recordSealFields(fields, sealLineEl);
+    }
+    return children;
+  }
+  if (cls.contains('seal-line') || cls.contains('sealed-line')) {
+    const slTexts = Array.from(node.querySelectorAll('.sl-text')).map((el) => (el.textContent || '').trim()).filter(Boolean);
+    const fields = slTexts.length ? slTexts : splitSealText((text || '密封线').replace(/[\r\n]+/g, '　'));
+    recordSealFields(fields, node);
     return children;
   }
 
@@ -1052,7 +1211,7 @@ const processBlockNode = (node, ctx = {}) => {
     return children;
   }
 
-  // ===== 配图占位框：导出还原为原始 [IMAGE]…[/IMAGE] 结构化标记（复制即用，避免占位文本散架）=====
+  // ===== 配图占位框：导出为干净占位文本（不再暴露 [IMAGE]/TYPE/PROMPT 等指令代码）=====
   if (cls.contains('image-placeholder')) {
     const raw = node.getAttribute('data-image-raw');
     if (raw) {
@@ -1061,9 +1220,14 @@ const processBlockNode = (node, ctx = {}) => {
         .split('&lt;').join('<')
         .split('&gt;').join('>')
         .split('&quot;').join('"');
-      decoded.split('\n').filter(l => l.trim()).forEach(line => {
-        children.push(new Paragraph({ text: line, spacing: { before: 40, after: 40 } }));
-      });
+      // 从 [IMAGE]...[/IMAGE] 中提取 PROMPT 描述，输出为人类可读占位符
+      const promptMatch = decoded.match(/PROMPT:\s*(.+)/);
+      const promptText = promptMatch ? promptMatch[1].trim() : '配图';
+      children.push(new Paragraph({
+        children: [new TextRun({ text: `〔配图位置：${promptText}〕`, italics: true, color: '888888', size: 20 })],
+        spacing: { before: 80, after: 80 },
+        alignment: AlignmentType.CENTER,
+      }));
       return children;
     }
     // 无 data-image-raw 的旧数据：走下方通用 div 路径按占位框文本导出
@@ -1484,6 +1648,9 @@ export const buildDocxFromDom = (containerEl) => {
     }
   }
 
+  // 🔧 重置密封线收集器（本次构建从正文重新收集字段）
+  __sealCollector = { first: null };
+
   // 🔧 顶层 ambient 底色：Tiptap 序列化可能将 table 挤出容器变兄弟，
   //    记住最近底色块 → ctx.ambientShading → TABLE handler 读取，不污染其他元素
   let ambientShading = null;
@@ -1523,14 +1690,30 @@ export const buildDocxFromDom = (containerEl) => {
     prevResult = result;
   }
 
+  // 🔧 密封线改由页眉承载：浮动文本框锚定页面左侧边距内（不占正文流），随纸张自动适配；
+  //    第一页页眉含考生信息栏，后续页页眉仅"密封线"（titlePage 区分首页页眉）。
+  //    检测到密封线时正文左 margin 加大 600 DXA（正文从虚线右侧开始，与预览一致）
+  const hasSealLine = !!(__sealCollector?.first || (containerEl.querySelector && containerEl.querySelector('.sealed-wrapper, .sealed-line, .seal-line')));
+
+  // 页眉密封线：first = 完整字段（学校/班级/姓名/学号…），default = 仅"密/封/线"
+  const sealFirst = __sealCollector?.first;
+  const sealHeaders = {};
+  if (sealFirst) {
+    sealHeaders.first = new Header({ children: [sealMarkerParagraph(sealFirst.fields, sealFirst.sizeHp)] });
+    const contFields = splitSealContinuation(sealFirst.fields);
+    sealHeaders.default = new Header({ children: [sealMarkerParagraph(contFields, sealFirst.sizeHp)] });
+  }
+
   return new Document({
     sections: [{
       properties: {
+        titlePage: !!sealFirst, // 首页使用独立页眉（含考生信息），后续页使用 default 页眉（仅"密封线"）
         page: {
           size: { width: 11906, height: 16838 },
-          margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 },
+          margin: { top: 1134, bottom: 1134, left: hasSealLine ? 1734 : 1134, right: 1134 },
         },
       },
+      headers: sealHeaders,
       // 🔧 页码页脚：落地蓝本卷面规范"每页页脚居中标注'第X页　共X页'"（Word 字段自动计算，AI 无法预知总页数）
       footers: {
         default: new Footer({

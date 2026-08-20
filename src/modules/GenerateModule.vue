@@ -399,12 +399,14 @@
         <h3>🎨 选择命题风格</h3>
         <div class="option-list">
           <label v-for="opt in styleOptions" :key="opt.value" class="option-item">
-            <input type="radio" v-model="propositionStyle" :value="opt.value" />
+            <input type="radio" v-model="propositionStyle" :value="opt.value" @change="styleManuallySet = true" />
             <span class="option-label">{{ opt.label }}</span>
             <span class="option-desc">{{ opt.desc }}</span>
           </label>
         </div>
+        <p class="hint">💡 选择资料类型时，系统已按新课标推荐自动匹配命题风格（考试→统一情境，练习/专项→情境融合）。统一情境要求整份资料围绕一个核心情境展开；情境融合要求每个模块设置独立小情境。两者均确保所有题目置于真实学习情境中考查。大单元教学和项目式学习适用于特殊教学场景，需手动选择。如需恢复自动匹配，点击下方"恢复自动"。</p>
         <div class="modal-actions">
+          <button class="btn" @click="restoreAutoStyle" v-if="styleManuallySet">↻ 恢复自动</button>
           <button class="btn" @click="showStyleModal = false">取消</button>
           <button class="btn-primary" @click="showStyleModal = false">确定</button>
         </div>
@@ -422,7 +424,7 @@
             <span class="option-desc">{{ opt.desc }}</span>
           </label>
         </div>
-        <p class="hint">💡 复生成时将按顺序生成选中的多个类型</p>
+        <p class="hint">💡 选择资料类型后，系统将按新课标推荐自动匹配命题风格（考试→统一情境，其他→情境融合）。复生成时将按顺序生成选中的多个类型。命题风格可在上方"🎨"按钮中手动调整。</p>
         <div class="modal-actions">
           <button class="btn" @click="showGenTypeModal = false">取消</button>
           <button class="btn-primary" @click="showGenTypeModal = false">确定</button>
@@ -1524,6 +1526,7 @@ import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml, par
 import { buildTianZiGeMarker, htmlToDocxBlob } from '../utils/docxBuilder.js';
 import { injectDrawingML, TZG_MARKER, FLT_MARKER } from '../utils/drawingMLShapes.js';
 import storage from '../utils/storage';
+import { normalizeSealStructure } from '../themeConfig.js';  // 🔧 密封线结构归一化（旧结构信息栏 p → 并入竖排）
 import { pushDeletedDocIds } from '../utils/cloudStorage';
 import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
 import { useTextbookStore } from '../stores/textbookStore';
@@ -1567,6 +1570,7 @@ const getSelectedBookSubject = () => {
 const scopeType = ref('');
 const mergeChapters = ref(true);  // 🔧 多章节合并出卷开关（默认合并；false=逐章拆分）
 const propositionStyle = ref('');
+const styleManuallySet = ref(false);  // 🔴 追踪用户是否手动选过命题风格——false 时切换 genType 自动覆盖
 const genTypes = ref([]);
 const specialSubType = ref('');  // 🎯 专项子类型（仅 genType=special 时生效）
 const generateGranularity = ref('');
@@ -2947,6 +2951,17 @@ const { isGenerating, progress: generateProgress, statusText: generateStatus, bu
 watch(genTypes, () => {
   const type = genTypes.value[0];
   labelStyle.value = type ? loadLabelStyle(type) : '';
+  // 🔴 生成端默认：用户选 genType 后若未手动选过命题风格，自动设默认值——
+  //    exam → unified_context（整卷一个核心情境，新课标推荐），
+  //    非 exam → context_fusion（每个模块独立小情境）
+  //    用户手动选过风格后（styleManuallySet=true），切换 genType 不再覆盖
+  if (type && !styleManuallySet.value) {
+    const autoStyle = type === 'exam' ? 'unified_context' : 'context_fusion';
+    if (propositionStyle.value !== autoStyle) {
+      propositionStyle.value = autoStyle;
+      console.log(`[propositionStyle] 自动设置默认命题风格: ${autoStyle} (genType=${type})`);
+    }
+  }
 });
 watch(labelStyle, () => {
   const type = genTypes.value[0];
@@ -2997,7 +3012,21 @@ const {
 
 // 计算属性
 const scopeTypeLabel = computed(() => '命题范围');
-const styleLabel = computed(() => '命题风格');
+const styleLabel = computed(() => {
+  if (!propositionStyle.value) return '命题风格';
+  const opt = styleOptions.find(o => o.value === propositionStyle.value);
+  if (!opt) return '命题风格';
+  return styleManuallySet.value ? opt.label : `${opt.label}(自动)`;
+});
+const restoreAutoStyle = () => {
+  styleManuallySet.value = false;
+  const type = genTypes.value[0];
+  if (type) {
+    propositionStyle.value = type === 'exam' ? 'unified_context' : 'context_fusion';
+    console.log(`[propositionStyle] 恢复自动匹配: ${propositionStyle.value} (genType=${type})`);
+  }
+  showStyleModal.value = false;
+};
 const genTypeLabel = computed(() => '资料类型');
 const specialSubTypeLabel = computed(() => {
   if (!specialSubType.value) return '';
@@ -6348,7 +6377,7 @@ const cancelPeriodSplit = async () => {
     
     if (result.success && result.content) {
       console.log('[preview-popup] 🔄 cancelPeriodSplit 路径：直接设置预览', { contentLen: result.content?.length, contentPreview: result.content?.substring(0, 100) });
-      previewContent.value = renderImagePlaceholders(result.content);
+      previewContent.value = normalizeSealStructure(renderImagePlaceholders(result.content));
       showPreview.value = true;
       console.log('[preview-popup] ✅ cancelPeriodSplit 路径 showPreview=true', { showPreview: showPreview.value });
       previewHint.value = '✅ 整体生成完成';
@@ -6442,7 +6471,7 @@ const switchPeriodTab = (index) => {
   
   if (contentToShow) {
     console.log('[preview-popup] 📑 switchPeriodTab 路径：直接设置预览', { contentLen: contentToShow?.length, periodIndex: index });
-    previewContent.value = renderImagePlaceholders(contentToShow);
+    previewContent.value = normalizeSealStructure(renderImagePlaceholders(contentToShow));
     showPreview.value = true;
     console.log('[preview-popup] ✅ switchPeriodTab 路径 showPreview=true', { showPreview: showPreview.value });
   }
@@ -6660,7 +6689,7 @@ const previewDoc = (doc) => {
     });
   }
   
-  previewContent.value = renderImagePlaceholders(content);
+  previewContent.value = normalizeSealStructure(renderImagePlaceholders(content));
   console.log('[preview-popup] 📺 即将设置 showPreview=true', { contentLen: content?.length });
   showPreview.value = true;
   console.log('[preview-popup] ✅ showPreview 已设为 true', { showPreview: showPreview.value, previewContentLen: previewContent.value?.length });
@@ -8459,12 +8488,73 @@ const addBlueprintQuestion = () => {
   pointer-events: none;
 }
 /* 🔧 预览区横线防御样式 */
+/* 🔧 密封线防御：sealed-wrapper + sealed-line（主题注入的 sealed 样式可能未启用，此处兜底）
+   标准试卷样式：左侧一条竖虚线 + 竖排正立文字（字头朝上、自上而下阅读）：
+   预览弹窗无纸张上下文，密封条以窄列形式内嵌文档流（左侧），仅左边框 dashed（一条虚线），
+   .sl-text 竖排正立（writing-mode: vertical-rl），与导出端「单左边框虚线 + tbRl」一致 */
+.preview-content :deep(.sealed-wrapper) {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.preview-content :deep(.seal-line),
+.preview-content :deep(.sealed-line) {
+  flex: 0 0 auto;
+  width: 36px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-right: 4px;
+  color: var(--text-muted);
+  font-size: 10pt;
+  /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
+  border-left: 1.5px dashed var(--text-muted);
+}
+.preview-content :deep(.sealed-line .sl-dash) {
+  /* 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供 */
+  flex: 1 1 auto;
+  min-height: 8px;
+}
+.preview-content :deep(.sealed-line .sl-text) {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 10pt;
+  line-height: 1.3;
+  /* 竖排正立：字头朝上、自上而下阅读（标准试卷密封线文字朝向，不旋转） */
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+}
+.preview-content :deep(.sealed-line p) { margin: 0; }
+.preview-content :deep(.sealed-wrapper > :not(.sealed-line)) {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: 8px;
+  box-sizing: border-box;
+}
+
 .preview-content :deep(.blank-line) {
   display: inline-block;
   min-width: 3em;
   border-bottom: 1.5px solid #666;
   margin: 0 2px;
   vertical-align: baseline;
+}
+
+/* 🔧 行尾自动延伸：blank-line / u.blank-N 为段落最后元素时，段落变 flex、横线弹性撑满剩余行宽
+   （与导出端 <w:ptab/> 自动画到右边距行为一致，所见即所得） */
+.preview-content :deep(p:has(> .blank-line:last-child)),
+.preview-content :deep(p:has(> u[class*="blank-"]:last-child)) {
+  display: flex;
+  align-items: baseline;
+}
+.preview-content :deep(p:has(> .blank-line:last-child) .blank-line),
+.preview-content :deep(p:has(> u[class*="blank-"]:last-child) u[class*="blank-"]) {
+  flex: 1 1 auto;
+  min-width: 3em;
 }
 
 /* 🔧 预览区填空横线 blank-N 防御样式 */
@@ -9329,23 +9419,58 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   line-height: 1;
 }
 .seal-line {
-  writing-mode: vertical-lr;
-  text-orientation: upright;
+  flex: 0 0 auto;
+  width: 36px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100%;
+  padding-right: 4px;
+  color: var(--text-muted);
+  font-size: 10pt;
+  /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
+  border-left: 1.5px dashed var(--text-muted);
+}
+.sealed-line {
   position: absolute;
-  left: 8px;
+  left: -14mm;
   top: 0;
   bottom: 0;
-  width: 2em;
+  width: 12mm;
+  box-sizing: border-box;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  border-left: 1.5px dashed var(--text-muted);
-  border-right: 1.5px dashed var(--text-muted);
-  background: #f9f9f9;
   color: var(--text-muted);
-  font-size: 10px;
-  letter-spacing: 0.5em;
-  z-index: 1;
+  font-size: 10pt;
+  /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
+  border-left: 1.5px dashed var(--text-muted);
+  pointer-events: none;
+}
+.sealed-line .sl-dash {
+  /* 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供 */
+  flex: 1 1 auto;
+  min-height: 8px;
+}
+.sealed-line .sl-text {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 10pt;
+  line-height: 1.3;
+  /* 竖排正立：字头朝上、自上而下阅读（标准试卷密封线文字朝向，不旋转） */
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+}
+.sealed-wrapper {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.sealed-wrapper > :not(.sealed-line) {
+  box-sizing: border-box;
 }
 /* 评分栏 - 表格形式（横竖线全有） */
 .score-board {

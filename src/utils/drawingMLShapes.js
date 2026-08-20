@@ -11,6 +11,17 @@ const EMU_PER_DXA = 635;  // 1 DXA = 635 EMU
 export { EMU_PER_DXA };
 const EMU_PER_PT  = 12700; // 1 pt = 12700 EMU
 
+// ═══════════ 纸张几何（单一事实来源，供密封线等浮动对象与正文分节共用）═══════════
+// A4 竖版：210mm × 297mm，标准页边距 2cm（1134 DXA）。密封线随纸张/边距自动适配。
+export const PAGE_GEOMETRY = {
+  widthTwips: 11906,   // A4 宽 210mm
+  heightTwips: 16838,  // A4 高 297mm
+  marginTopTwips: 1134,    // 2cm
+  marginBottomTwips: 1134, // 2cm
+  marginLeftTwips: 1134,   // 2cm
+  marginRightTwips: 1134,  // 2cm
+};
+
 // ============ mc:AlternateContent 包裹 ============
 
 // 🔧 不再用 mc:AlternateContent 包裹：实测 Word 打开时遇 wpg 在 mc:Ignorable 中会跳过
@@ -415,6 +426,8 @@ export const FLT_MARKER = (letter, cellWEmu, sizeHp) => `__FLT_${letter}_${cellW
 export const FLT_BLANK_MARKER = (cellWEmu, sizeHp) => `__FLT_BLANK_${cellWEmu}_${sizeHp}__`;
 /** 注音/拼音标记：后处理替换为 Word 原生 w:ruby 注音元素 */
 export const RUBY_MARKER = (baseText, pinyin, baseSizeHp) => `__RUBY_${baseText}_${pinyin}_${baseSizeHp}__`;
+/** 密封线标记：内容经 encodeURIComponent（避免下划线/特殊字符破坏正则），后处理替换为页面左侧浮动竖排文本框 */
+export const SEAL_MARKER = (text, sizeHp) => `__SEAL_${encodeURIComponent(text)}_${sizeHp}__`;
 
 // ============ Ruby 注音注入 ============
 
@@ -431,6 +444,54 @@ const buildRubyRun = (baseText, pinyin, baseSizeHp, rPrXml) => {
     `</w:ruby></w:r>`;
 };
 
+/**
+ * 密封线浮动文本框 OOXML：wp:anchor 绝对定位锚定页面左侧边距内，不占文档流 → 不撑高正文
+ * - 内容为段落序列：[虚线段落][文字段落]…交替（虚线 = 段落单左边框 dashed，一条竖虚线；文字竖排字段）
+ * - 文字段落 w:textDirection="tbRl" → 汉字正立竖排（字头朝上、自上而下阅读，标准试卷密封线朝向）
+ * - 虚线在文字处断开（文字嵌入单条竖虚线之间）；虚线段落行高弹性 → 虚线上下填满整页
+ * - 随纸张几何 PAGE_GEOMETRY 自动适配（页面/边距变化时密封线同步伸缩）
+ */
+const sealLineFloatingOOXML = (text, sizeHp) => {
+  const sz = sizeHp || 20; // half-point（默认 10pt）
+  const fields = String(text || '密封线').split('\u0001').map((f) => f.trim()).filter(Boolean);
+  const n = Math.max(1, fields.length);
+  const PG = PAGE_GEOMETRY;
+  // 文本框 = 整页文本区高度（页高 - 上下边距）：虚线上下填满整页
+  const availTwips = PG.heightTwips - PG.marginTopTwips - PG.marginBottomTwips;
+  // 单字符行高 = 字号 × 1.3（竖排每字占一“行”，字高 1em × 1.3 行距）
+  const charH = Math.max(200, Math.round(sz * 13));
+  // 文字总高 = 各字段字数 × charH（竖排字段整列堆叠）
+  const textTotal = fields.reduce((acc, f) => acc + Math.max(1, [...f].length) * charH, 0);
+  // 虚线段高 = 剩余高度均分（首尾 + 字间共 n+1 段）
+  let dashRow = Math.max(60, Math.floor((availTwips - textTotal) / (n + 1)));
+  // 保险：总高超出可用高 → 等比收缩（极端多字段场景）
+  const total = textTotal + (n + 1) * dashRow;
+  if (total > availTwips) {
+    const k = availTwips / total;
+    dashRow = Math.max(40, Math.floor(dashRow * k));
+  }
+  // 列宽 = 单字符宽（竖排，字宽 ≈ sz half-point × 10 twips）+ 左右留白；封顶避免横铺
+  const colTwips = Math.min(1100, Math.max(500, sz * 10 + 240));
+  const cyEmu = availTwips * EMU_PER_DXA;
+  const cxEmu = colTwips * EMU_PER_DXA;
+  // 锚定页面左侧边距内：文本框水平居中于左边距（(margin - col)/2），从顶部 margin 开始
+  const posXEmu = Math.round((PG.marginLeftTwips - colTwips) / 2) * EMU_PER_DXA;
+  const posYEmu = PG.marginTopTwips * EMU_PER_DXA;
+  const id = Math.floor(Math.random() * 90000) + 40000;
+  const rPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun"/><w:color w:val="999999"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/>`;
+  // 一条竖虚线：虚线段落仅左边框 dashed；文字段落无边框（虚线在文字处断开）
+  // ⚠️ pPr 顺序：pBdr → spacing → jc → textDirection → rPr（CT_PPrBase 要求，顺序错误 Word 可能拒开/降级）
+  const dashP = (h) => `<w:p><w:pPr><w:pBdr><w:left w:val="dashed" w:sz="8" w:space="4" w:color="999999"/></w:pBdr><w:spacing w:before="0" w:after="0" w:line="${h}" w:lineRule="exact"/></w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve"> </w:t></w:r></w:p>`;
+  const textP = (txt) => `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="${charH}" w:lineRule="exact"/><w:jc w:val="center"/><w:textDirection w:val="tbRl"/><w:rPr>${rPr}</w:rPr></w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">${escXml(txt)}</w:t></w:r></w:p>`;
+  const ps = [dashP(dashRow)];
+  fields.forEach((f) => {
+    ps.push(textP(f));
+    ps.push(dashP(dashRow));
+  });
+  const contentXml = ps.join('');
+  return `<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="251658240" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>${posXEmu}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>${posYEmu}</wp:posOffset></wp:positionV><wp:extent cx="${cxEmu}" cy="${cyEmu}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${id}" name="SealLine"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wps:wsp><wps:cNvPr id="${id}" name="SealLine"/><wps:cNvSpPr txBox="1"/><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cxEmu}" cy="${cyEmu}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln w="0"/></wps:spPr><wps:txbx><w:txbxContent>${contentXml}</w:txbxContent></wps:txbx><wps:bodyPr lIns="0" rIns="0" tIns="0" bIns="0" anchor="t"/></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>`;
+};
+
 /** 后处理：将 __RUBY_...__ 标记替换为 Word 原生 w:ruby 注音元素 */
 const injectRubyAnnotations = (docXml) => {
   // 行内 ruby 标记：匹配 <w:r>...<w:t>__RUBY_{base}_{pinyin}_{size}__</w:t>...</w:r>
@@ -440,6 +501,46 @@ const injectRubyAnnotations = (docXml) => {
     const baseSizeHp = parseInt(sizeStr) || 24;
     return buildRubyRun(baseText, pinyin, baseSizeHp, rPrXml);
   });
+};
+
+// ============ 密封线标记替换 + 命名空间注入（正文与页眉共用）============
+
+// 块级密封线 marker：独立段落 → 含浮动 drawing 的空段落（不占文档流）
+const blockSealRegex = /<w:p[^>]*>\s*(?:<w:pPr[^>]*>(?:(?!<w:r>)[\s\S])*?<\/w:pPr>)?\s*<w:r[^>]*>\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?\s*<w:t[^>]*>__SEAL_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>\s*<\/w:p>/g;
+
+const replaceSealMarkers = (xml) => {
+  let changed = false;
+  const out = xml.replace(blockSealRegex, (match, encText, sizeStr) => {
+    changed = true;
+    let text = '密封线';
+    try { text = decodeURIComponent(encText); } catch { /* 解码失败用默认 */ }
+    const sizeHp = parseInt(sizeStr) || 20;
+    return `<w:p>${sealLineFloatingOOXML(text, sizeHp)}</w:p>`;
+  });
+  return { xml: out, changed };
+};
+
+/**
+ * 给 XML 根元素注入命名空间（正文根为 w:document，页眉根为 w:hdr）
+ * ignorable=true 时补 mc:Ignorable（仅 a 前缀需要；wpg/wps 绝不能进 mc:Ignorable）
+ */
+const ensureXmlNamespace = (xml, rootTag, ns, uri, ignorable = false) => {
+  let r = xml;
+  const decl = `xmlns:${ns}="${uri}"`;
+  if (!r.includes(decl)) {
+    r = r.replace(new RegExp(`(<${rootTag}[^>]*)`), `$1 ${decl}`);
+  }
+  if (!ignorable) return r;
+  const mcUri = 'http://schemas.openxmlformats.org/markup-compatibility/2006';
+  if (!r.includes('mc:Ignorable')) {
+    r = r.replace(new RegExp(`(<${rootTag}[^>]*)`), `$1 xmlns:mc="${mcUri}" mc:Ignorable="${ns}"`);
+  } else {
+    const m = r.match(/mc:Ignorable="([^"]*)"/);
+    if (m && !m[1].split(/\s+/).includes(ns)) {
+      r = r.replace(/mc:Ignorable="([^"]*)"/, `mc:Ignorable="$1 ${ns}"`);
+    }
+  }
+  return r;
 };
 
 // ============ 后处理管线 ============
@@ -542,6 +643,13 @@ export const injectDrawingML = async (zipBuffer) => {
 
   // 替换完成
 
+  // ==== 密封线标记替换（块级：marker 独立段落 → 含浮动 drawing 的空段落，不占文档流）====
+  {
+    const sealResult = replaceSealMarkers(docXml);
+    docXml = sealResult.xml;
+    if (sealResult.changed) hasDml = true;
+  }
+
   // ==== Ruby 注音标记替换 ====
   docXml = injectRubyAnnotations(docXml);
 
@@ -560,36 +668,36 @@ export const injectDrawingML = async (zipBuffer) => {
   });
 
   // --- 命名空间声明：文档根加 xmlns:wps + mc:Ignorable ---
-  if (hasDml) {
-    // 🔧 a 前缀（DrawingML 主命名空间）必须声明：docx 库的 document.xml 根元素未声明 xmlns:a，
-    //    而田字格 DML 使用 a:graphic 等 → Word 严格校验前缀导致“无法打开”（WPS 宽容不报）；
+  const applyDocNamespaces = (xml, rootTag) => {
+    // 🔧 a 前缀（DrawingML 主命名空间）必须声明：docx 库的根元素未声明 xmlns:a，
+    //    而田字格/密封线 DML 使用 a:graphic 等 → Word 严格校验前缀导致“无法打开”；
     //    且 a 绝不能进 mc:Ignorable（否则 Word 忽略全部图形）→ 增加 ignorable 参数区分
-    const ensureNs = (xml, ns, uri, ignorable = false) => {
-      let r = xml;
-      const decl = `xmlns:${ns}="${uri}"`;
-      if (!r.includes(decl)) {
-        r = r.replace(/(<w:document[^>]*)/, `$1 ${decl}`);
-      }
-      if (!ignorable) return r;
-      if (!r.includes('mc:Ignorable')) {
-        r = r.replace(/(<w:document[^>]*)/, `$1 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="${ns}"`);
-      } else {
-        const m = r.match(/mc:Ignorable="([^"]*)"/);
-        if (m && !m[1].split(/\s+/).includes(ns)) {
-          r = r.replace(/mc:Ignorable="([^"]*)"/, `mc:Ignorable="$1 ${ns}"`);
-        }
-      }
-      return r;
-    };
-    docXml = ensureNs(docXml, 'a', 'http://schemas.openxmlformats.org/drawingml/2006/main');
+    let r = ensureXmlNamespace(xml, rootTag, 'a', 'http://schemas.openxmlformats.org/drawingml/2006/main');
     // 🔧 wpg/wps 绝不能进 mc:Ignorable：MCE 规范规定 mc:Choice 的 Requires 命名空间若在
-    //    mc:Ignorable 中，Word 会跳过该 Choice 分支 → 田字格退化为 VML Fallback（转 PDF
-    //    丢失、pad 撑宽失效）。docx 库根元素已声明 wpg/wps，这里只确保声明存在即可。
-    docXml = ensureNs(docXml, 'wpg', 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup', false);
-    docXml = ensureNs(docXml, 'wps', 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape', false);
+    //    mc:Ignorable 中，Word 会跳过该 Choice 分支 → 图形退化为 VML Fallback（转 PDF 丢失）。
+    r = ensureXmlNamespace(r, rootTag, 'wpg', 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup', false);
+    r = ensureXmlNamespace(r, rootTag, 'wps', 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape', false);
+    return r;
+  };
+  if (hasDml) {
+    docXml = applyDocNamespaces(docXml, 'w:document');
   }
 
   zip.file(docPath, docXml);
+
+  // ==== 页眉密封线后处理：header*.xml 内 SEAL marker → 浮动文本框（每页重复渲染）====
+  // 密封线放在页眉（含首页 different-first-page），使每页都渲染；正文流不再携带 seal marker。
+  const headerPaths = Object.keys(zip.files).filter((p) => /^word\/header\d*\.xml$/.test(p) && !zip.files[p].dir);
+  for (const hPath of headerPaths) {
+    let hXml = await zip.file(hPath)?.async('string');
+    if (!hXml) continue;
+    const sealResult = replaceSealMarkers(hXml);
+    if (sealResult.changed) {
+      hXml = sealResult.xml;
+      hXml = applyDocNamespaces(hXml, 'w:hdr');
+      zip.file(hPath, hXml);
+    }
+  }
 
   return await zip.generateAsync({
     type: 'uint8array',

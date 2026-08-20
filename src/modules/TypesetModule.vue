@@ -249,7 +249,8 @@ import { getStoragePath } from '../utils/pathHelper.js';
 import { useFileHandler } from '../composables/useFileHandler.js';
 import {
   getAllThemes, getThemeById, addCustomTheme, updateCustomTheme, deleteCustomTheme,
-  applyThemeToContent, wrapContentForTheme, getSpecialThemeEditorCSS, markdownToHtml, defaultThemeId, themeOptions
+  applyThemeToContent, wrapContentForTheme, getSpecialThemeEditorCSS, markdownToHtml, defaultThemeId, themeOptions,
+  normalizeSealStructure
 } from '../themeConfig.js';
 import { APP_EVENTS } from '../constants/events.js';
 import RichTextEditor from '../components/RichTextEditor.vue';
@@ -1070,6 +1071,8 @@ const loadFromGenerate = async (payload) => {
   if (!content || typeof content !== 'string') return;
   
   // 🔧 直接保存原始 HTML（不再走 Tiptap 预处理，contentEditable 原样保留所有 class）
+  // 🔧 密封线结构归一化：旧结构信息栏横向 p → 并入 sealed-line 整体竖排（编辑区所见即所得，幂等）
+  content = normalizeSealStructure(content);
   pristineHtmlForExport.value = content;
   
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
@@ -2074,25 +2077,61 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   line-height: 1;
 }
 
-/* 密封线 */
-.seal-line {
-  writing-mode: vertical-lr;
-  text-orientation: upright;
+/* 密封线：标准试卷样式——左侧边距内一条竖虚线 + 竖排正立文字（字头朝上）：
+   wrapper 相对定位，sealed-line 绝对定位于左侧页边距内（正文区域之外，随纸张自动适配），
+   仅左边框 dashed（一条虚线）；.sl-text 竖排正立（writing-mode: vertical-rl），
+   与导出端「虚线/文字交替段落」（单左边框 + tbRl）一致 */
+.seal-line,
+.sealed-line {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 10pt;
+}
+.sealed-line {
+  /* 新结构：绝对定位到左侧页边距内（正文区域之外） */
   position: absolute;
-  left: 8px;
+  left: -12mm;
   top: 0;
   bottom: 0;
-  width: 2em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 12mm;
+  /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
   border-left: 1.5px dashed var(--text-muted);
-  border-right: 1.5px dashed var(--text-muted);
-  background: #f9f9f9;
+  pointer-events: none;
+}
+.seal-line {
+  /* 无 wrapper 的旧结构：独立窄条，保持文档流 */
+  flex: 0 0 auto;
+  width: 36px;
+  min-height: 100%;
+  padding-right: 4px;
+  border-left: 1.5px dashed var(--text-muted);
+}
+.sealed-line .sl-dash {
+  /* 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供 */
+  flex: 1 1 auto;
+  min-height: 8px;
+}
+.sealed-line .sl-text {
+  flex: 0 0 auto;
   color: var(--text-muted);
-  font-size: 10px;
-  letter-spacing: 0.5em;
-  z-index: 1;
+  font-size: 10pt;
+  line-height: 1.3;
+  /* 竖排正立：字头朝上、自上而下阅读（标准试卷密封线文字朝向，不旋转） */
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+}
+.sealed-wrapper {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.sealed-wrapper > :not(.sealed-line) {
+  box-sizing: border-box;
 }
 
 /* 评分栏 - 表格形式（横竖线全有） */
