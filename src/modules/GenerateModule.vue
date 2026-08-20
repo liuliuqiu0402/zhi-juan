@@ -8489,9 +8489,9 @@ const addBlueprintQuestion = () => {
 }
 /* 🔧 预览区横线防御样式 */
 /* 🔧 密封线防御：sealed-wrapper + sealed-line（主题注入的 sealed 样式可能未启用，此处兜底）
-   标准试卷样式：左侧一条竖虚线 + 竖排正立文字（字头朝上、自上而下阅读）：
+   标准试卷样式：左侧一条竖虚线 + 文字逆时针旋转 90°（字头朝左、自上而下阅读）：
    预览弹窗无纸张上下文，密封条以窄列形式内嵌文档流（左侧），仅左边框 dashed（一条虚线），
-   .sl-text 竖排正立（writing-mode: vertical-rl），与导出端「单左边框虚线 + tbRl」一致 */
+   .sl-text 逆时针旋转 90°（字头朝左），深灰 #333 防发虚，与导出端「单左边框虚线 + lrTb」一致 */
 .preview-content :deep(.sealed-wrapper) {
   display: flex;
   flex-direction: row;
@@ -8509,10 +8509,10 @@ const addBlueprintQuestion = () => {
   flex-direction: column;
   align-items: center;
   padding-right: 4px;
-  color: var(--text-muted);
+  color: #333;
   font-size: 10pt;
   /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
-  border-left: 1.5px dashed var(--text-muted);
+  border-left: 1.5px dashed #333;
 }
 .preview-content :deep(.sealed-line .sl-dash) {
   /* 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供 */
@@ -8521,12 +8521,15 @@ const addBlueprintQuestion = () => {
 }
 .preview-content :deep(.sealed-line .sl-text) {
   flex: 0 0 auto;
-  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  color: #333;
   font-size: 10pt;
   line-height: 1.3;
-  /* 竖排正立：字头朝上、自上而下阅读（标准试卷密封线文字朝向，不旋转） */
-  writing-mode: vertical-rl;
-  text-orientation: upright;
+  /* 逆时针旋转 90°：字头朝左、自上而下阅读（标准试卷密封线文字朝向） */
+  transform: rotate(-90deg);
 }
 .preview-content :deep(.sealed-line p) { margin: 0; }
 .preview-content :deep(.sealed-wrapper > :not(.sealed-line)) {
@@ -9427,10 +9430,10 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   align-items: center;
   min-height: 100%;
   padding-right: 4px;
-  color: var(--text-muted);
+  color: #333;
   font-size: 10pt;
   /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
-  border-left: 1.5px dashed var(--text-muted);
+  border-left: 1.5px dashed #333;
 }
 .sealed-line {
   position: absolute;
@@ -9442,10 +9445,10 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   display: flex;
   flex-direction: column;
   align-items: center;
-  color: var(--text-muted);
+  color: #333;
   font-size: 10pt;
   /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
-  border-left: 1.5px dashed var(--text-muted);
+  border-left: 1.5px dashed #333;
   pointer-events: none;
 }
 .sealed-line .sl-dash {
@@ -9455,12 +9458,15 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
 }
 .sealed-line .sl-text {
   flex: 0 0 auto;
-  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  color: #333;
   font-size: 10pt;
   line-height: 1.3;
-  /* 竖排正立：字头朝上、自上而下阅读（标准试卷密封线文字朝向，不旋转） */
-  writing-mode: vertical-rl;
-  text-orientation: upright;
+  /* 逆时针旋转 90°：字头朝左、自上而下阅读（标准试卷密封线文字朝向） */
+  transform: rotate(-90deg);
 }
 .sealed-wrapper {
   position: relative;

@@ -2077,17 +2077,17 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   line-height: 1;
 }
 
-/* 密封线：标准试卷样式——左侧边距内一条竖虚线 + 竖排正立文字（字头朝上）：
+/* 密封线：标准试卷样式——左侧边距内一条竖虚线 + 文字逆时针旋转 90°（字头朝左）：
    wrapper 相对定位，sealed-line 绝对定位于左侧页边距内（正文区域之外，随纸张自动适配），
-   仅左边框 dashed（一条虚线）；.sl-text 竖排正立（writing-mode: vertical-rl），
-   与导出端「虚线/文字交替段落」（单左边框 + tbRl）一致 */
+   仅左边框 dashed（一条虚线）；.sl-text 逆时针旋转 90°（字头朝左），深灰 #333 防发虚，
+   与导出端「虚线/文字交替段落」（单左边框 + lrTb）一致 */
 .seal-line,
 .sealed-line {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  color: var(--text-muted);
+  color: #333;
   font-size: 10pt;
 }
 .sealed-line {
@@ -2098,7 +2098,7 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   bottom: 0;
   width: 12mm;
   /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
-  border-left: 1.5px dashed var(--text-muted);
+  border-left: 1.5px dashed #333;
   pointer-events: none;
 }
 .seal-line {
@@ -2107,7 +2107,7 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   width: 36px;
   min-height: 100%;
   padding-right: 4px;
-  border-left: 1.5px dashed var(--text-muted);
+  border-left: 1.5px dashed #333;
 }
 .sealed-line .sl-dash {
   /* 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供 */
@@ -2116,12 +2116,15 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
 }
 .sealed-line .sl-text {
   flex: 0 0 auto;
-  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  color: #333;
   font-size: 10pt;
   line-height: 1.3;
-  /* 竖排正立：字头朝上、自上而下阅读（标准试卷密封线文字朝向，不旋转） */
-  writing-mode: vertical-rl;
-  text-orientation: upright;
+  /* 逆时针旋转 90°：字头朝左、自上而下阅读（标准试卷密封线文字朝向） */
+  transform: rotate(-90deg);
 }
 .sealed-wrapper {
   position: relative;

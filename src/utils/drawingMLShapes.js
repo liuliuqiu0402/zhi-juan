@@ -447,8 +447,9 @@ const buildRubyRun = (baseText, pinyin, baseSizeHp, rPrXml) => {
 /**
  * 密封线浮动文本框 OOXML：wp:anchor 绝对定位锚定页面左侧边距内，不占文档流 → 不撑高正文
  * - 内容为段落序列：[虚线段落][文字段落]…交替（虚线 = 段落单左边框 dashed，一条竖虚线；文字竖排字段）
- * - 文字段落 w:textDirection="tbRl" → 汉字正立竖排（字头朝上、自上而下阅读，标准试卷密封线朝向）
+ * - 文字段落 w:textDirection="lrTb" → 每个字逆时针旋转 90°（字头朝左、自上而下阅读，标准试卷密封线朝向）
  * - 虚线在文字处断开（文字嵌入单条竖虚线之间）；虚线段落行高弹性 → 虚线上下填满整页
+ * - 文字与虚线均用深灰 #333333（浅灰在打印/预览中发虚模糊）
  * - 随纸张几何 PAGE_GEOMETRY 自动适配（页面/边距变化时密封线同步伸缩）
  */
 const sealLineFloatingOOXML = (text, sizeHp) => {
@@ -478,11 +479,11 @@ const sealLineFloatingOOXML = (text, sizeHp) => {
   const posXEmu = Math.round((PG.marginLeftTwips - colTwips) / 2) * EMU_PER_DXA;
   const posYEmu = PG.marginTopTwips * EMU_PER_DXA;
   const id = Math.floor(Math.random() * 90000) + 40000;
-  const rPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun"/><w:color w:val="999999"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/>`;
+  const rPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun"/><w:color w:val="333333"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/>`;
   // 一条竖虚线：虚线段落仅左边框 dashed；文字段落无边框（虚线在文字处断开）
   // ⚠️ pPr 顺序：pBdr → spacing → jc → textDirection → rPr（CT_PPrBase 要求，顺序错误 Word 可能拒开/降级）
-  const dashP = (h) => `<w:p><w:pPr><w:pBdr><w:left w:val="dashed" w:sz="8" w:space="4" w:color="999999"/></w:pBdr><w:spacing w:before="0" w:after="0" w:line="${h}" w:lineRule="exact"/></w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve"> </w:t></w:r></w:p>`;
-  const textP = (txt) => `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="${charH}" w:lineRule="exact"/><w:jc w:val="center"/><w:textDirection w:val="tbRl"/><w:rPr>${rPr}</w:rPr></w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">${escXml(txt)}</w:t></w:r></w:p>`;
+  const dashP = (h) => `<w:p><w:pPr><w:pBdr><w:left w:val="dashed" w:sz="8" w:space="4" w:color="333333"/></w:pBdr><w:spacing w:before="0" w:after="0" w:line="${h}" w:lineRule="exact"/></w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve"> </w:t></w:r></w:p>`;
+  const textP = (txt) => `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="${charH}" w:lineRule="exact"/><w:jc w:val="center"/><w:textDirection w:val="lrTb"/><w:rPr>${rPr}</w:rPr></w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">${escXml(txt)}</w:t></w:r></w:p>`;
   const ps = [dashP(dashRow)];
   fields.forEach((f) => {
     ps.push(textP(f));

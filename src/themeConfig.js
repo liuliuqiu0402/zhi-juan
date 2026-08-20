@@ -769,10 +769,10 @@ export const themes = [
       '.normal-paragraph': { fontSize: '12pt', lineHeight: '1.5', marginBottom: '6pt' },
       '.indent-2': { textIndent: '2em' },
       // 📜 密封线试卷专属样式
-      // 标准试卷样式：左侧边距内一条竖虚线 + 竖排正立文字（字头朝上、自上而下阅读）：
+      // 标准试卷样式：左侧边距内一条竖虚线 + 文字逆时针旋转 90°（字头朝左、自上而下阅读）：
       // wrapper 相对定位，sealed-line 绝对定位于左侧页边距内（正文区域之外，随纸张自动适配），
-      // 仅左边框 dashed（一条虚线）；.sl-text 竖排正立（writing-mode: vertical-rl），
-      // 与导出端「虚线/文字交替段落」（单左边框 + tbRl）一致
+      // 仅左边框 dashed（一条虚线）；.sl-text 逆时针旋转 90°（字头朝左），深灰 #333333 防发虚
+      // 与导出端「虚线/文字交替段落」（单左边框 + lrTb）一致
       '.sealed-wrapper': {
         position: 'relative',
         display: 'block',
@@ -790,10 +790,10 @@ export const themes = [
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        color: '#999999',
+        color: '#333333',
         fontSize: '10pt',
         // 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧）
-        borderLeft: '1.5px dashed #999999',
+        borderLeft: '1.5px dashed #333333',
         pointerEvents: 'none'
       },
       '.seal-line': {
@@ -805,10 +805,10 @@ export const themes = [
         alignItems: 'center',
         minHeight: '100%',
         paddingRight: '4px',
-        color: '#999999',
+        color: '#333333',
         fontSize: '10pt',
         // 一条竖虚线：仅左边框 dashed
-        borderLeft: '1.5px dashed #999999'
+        borderLeft: '1.5px dashed #333333'
       },
       '.sealed-line .sl-dash': {
         // 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供
@@ -817,12 +817,15 @@ export const themes = [
       },
       '.sealed-line .sl-text': {
         flex: '0 0 auto',
-        color: '#999999',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        whiteSpace: 'nowrap',
+        color: '#333333',
         fontSize: '10pt',
         lineHeight: '1.3',
-        // 竖排正立：字头朝上、自上而下阅读（标准试卷密封线文字朝向，不旋转）
-        writingMode: 'vertical-rl',
-        textOrientation: 'upright'
+        // 逆时针旋转 90°：字头朝左、自上而下阅读（标准试卷密封线文字朝向）
+        transform: 'rotate(-90deg)'
       },
       '.sealed-line span': {
         margin: '0'
@@ -1794,10 +1797,10 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       line-height: 1;
     }
 
-    /* ⭐ 密封线/装订线：标准试卷样式——左侧边距内一条竖虚线 + 竖排正立文字（字头朝上）：
+    /* ⭐ 密封线/装订线：标准试卷样式——左侧边距内一条竖虚线 + 文字逆时针旋转 90°（字头朝左）：
        wrapper 相对定位，sealed-line 绝对定位于左侧页边距内（正文区域之外，随纸张自动适配），
-       仅左边框 dashed（一条虚线）；.sl-text 竖排正立（writing-mode: vertical-rl），
-       与导出端「虚线/文字交替段落」（单左边框 + tbRl）一致 */
+       仅左边框 dashed（一条虚线）；.sl-text 逆时针旋转 90°（字头朝左），深灰 #333333 防发虚
+       与导出端「虚线/文字交替段落」（单左边框 + lrTb）一致 */
     .sealed-wrapper {
       position: relative;
       display: block;
@@ -1815,10 +1818,10 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       display: flex;
       flex-direction: column;
       align-items: center;
-      color: #999;
+      color: #333;
       font-size: 10pt;
       /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
-      border-left: 1.5px dashed #999;
+      border-left: 1.5px dashed #333;
       pointer-events: none;
     }
     .seal-line {
@@ -1830,10 +1833,10 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       align-items: center;
       min-height: 100%;
       padding-right: 4px;
-      color: #999;
+      color: #333;
       font-size: 10pt;
       /* 一条竖虚线：仅左边框 dashed */
-      border-left: 1.5px dashed #999;
+      border-left: 1.5px dashed #333;
     }
     .sealed-line .sl-dash {
       /* 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供 */
@@ -1842,12 +1845,15 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
     }
     .sealed-line .sl-text {
       flex: 0 0 auto;
-      color: #999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      color: #333;
       font-size: 10pt;
       line-height: 1.3;
-      /* 竖排正立：字头朝上、自上而下阅读（标准试卷密封线文字朝向，不旋转） */
-      writing-mode: vertical-rl;
-      text-orientation: upright;
+      /* 逆时针旋转 90°：字头朝左、自上而下阅读（标准试卷密封线文字朝向） */
+      transform: rotate(-90deg);
     }
     .sealed-wrapper > :not(.seal-line),
     .sealed-wrapper > :not(.sealed-line) {
@@ -2149,7 +2155,7 @@ export const splitSealContinuation = (fields) => {
   return sealOnly.length ? sealOnly : ['密封线'];
 };
 
-/** 密封线新结构辅助：虚线单元（竖向虚线，弹性高度）与文字单元（横排正立） */
+/** 密封线新结构辅助：虚线单元（竖向虚线，弹性高度）与文字单元（横排字段，逆时针旋转 90° 竖排） */
 const sealDashSpan = () => {
   const s = document.createElement('span');
   s.className = 'sl-dash';
@@ -2159,6 +2165,10 @@ const sealTextSpan = (txt) => {
   const s = document.createElement('span');
   s.className = 'sl-text';
   s.textContent = txt;
+  // 🔧 字段旋转 -90° 后视觉高度 = 字数 × 1.3em；必须把布局高度撑到同样尺寸，
+  //    否则 flex 列中相邻字段的旋转文字会互相重叠（与导出端 charH = 字号×1.3 对齐）
+  const len = Math.max(1, [...txt].length);
+  s.style.height = `calc(${len} * 1.3em)`;
   return s;
 };
 

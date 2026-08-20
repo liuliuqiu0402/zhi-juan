@@ -1785,10 +1785,10 @@ defineExpose({
 .rich-text-editor :deep(.word-bank) { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border: 1.5px solid #666; border-radius: 4px; margin: 4px 0; background: #fafafa; }
 .rich-text-editor :deep(.word-bank .wb-item) { display: inline-block; padding: 2px 10px; font-family: 'Times New Roman', serif; font-size: 0.9em; color: #333; }
 .rich-text-editor :deep(.chem-condition) { font-size: 0.7em; vertical-align: super; color: #555; line-height: 1; }
-.rich-text-editor :deep(.seal-line) { flex: 0 0 auto; width: 36px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; min-height: 100%; padding-right: 4px; color: var(--text-muted); font-size: 10pt; border-left: 1.5px dashed var(--text-muted); }
-.rich-text-editor :deep(.sealed-line) { position: absolute; left: -14mm; top: 0; bottom: 0; width: 12mm; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; color: var(--text-muted); font-size: 10pt; border-left: 1.5px dashed var(--text-muted); pointer-events: none; }
+.rich-text-editor :deep(.seal-line) { flex: 0 0 auto; width: 36px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; min-height: 100%; padding-right: 4px; color: #333; font-size: 10pt; border-left: 1.5px dashed #333; }
+.rich-text-editor :deep(.sealed-line) { position: absolute; left: -14mm; top: 0; bottom: 0; width: 12mm; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; color: #333; font-size: 10pt; border-left: 1.5px dashed #333; pointer-events: none; }
 .rich-text-editor :deep(.sealed-line .sl-dash) { flex: 1 1 auto; min-height: 8px; }
-.rich-text-editor :deep(.sealed-line .sl-text) { flex: 0 0 auto; color: var(--text-muted); font-size: 10pt; line-height: 1.3; writing-mode: vertical-rl; text-orientation: upright; }
+.rich-text-editor :deep(.sealed-line .sl-text) { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; white-space: nowrap; color: #333; font-size: 10pt; line-height: 1.3; transform: rotate(-90deg); }
 .rich-text-editor :deep(.sealed-wrapper) { position: relative; display: block; width: 100%; max-width: 100%; box-sizing: border-box; }
 .rich-text-editor :deep(.sealed-line p) { margin: 0; }
 .rich-text-editor :deep(.sealed-wrapper > :not(.sealed-line)) { box-sizing: border-box; }

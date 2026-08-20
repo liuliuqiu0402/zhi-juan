@@ -2,8 +2,8 @@
 // - first 页眉：完整字段（学校/班级/姓名/学号… + 密/封/线），仅第一页显示（titlePage 区分）
 // - default 页眉：仅"密/封/线"，后续页显示（考生信息栏只在第一页出现）
 // - 正文不输出密封线段落/图形；分节开启 titlePage + headerReference
-// - 样式：一条竖虚线（段落仅左边框 dashed，虚线在文字处断开）+ 文字正立竖排（w:textDirection="tbRl"，字头朝上）
-// - 随纸张几何自动适配：锚定页面左侧边距内，cy = 文本区高，虚线上下填满整页
+// - 样式：一条竖虚线（段落仅左边框 dashed，虚线在文字处断开）+ 文字逆时针旋转 90°（w:textDirection="lrTb"，字头朝左）
+// - 深灰 #333333 防发虚模糊；随纸张几何自动适配：锚定页面左侧边距内，cy = 文本区高，虚线上下填满整页
 import { describe, it, expect } from 'vitest';
 import { buildDocxFromDom } from '@/utils/docxBuilder.js';
 import { injectDrawingML } from '@/utils/drawingMLShapes.js';
@@ -41,7 +41,7 @@ const getHeaders = async (zip) => {
 const SEAL_TEXT = '密封线　学校：＿＿＿　班级：＿＿＿　姓名：＿＿＿　学号：＿＿＿　密封线内不要答题';
 const SEAL_HTML = `<div class="seal-line" style="font-size:16px">${SEAL_TEXT}</div>`;
 // 段落版单虚线边框（pBdr left dashed）——一条竖虚线的实现载体
-const DASH_PBDR_LEFT = '<w:pBdr><w:left w:val="dashed" w:sz="8" w:space="4" w:color="999999"/></w:pBdr>';
+const DASH_PBDR_LEFT = '<w:pBdr><w:left w:val="dashed" w:sz="8" w:space="4" w:color="333333"/></w:pBdr>';
 
 describe('密封线导出：页眉浮动文本框（first=考生信息栏 / default=仅密封锁，每页重复渲染）', () => {
   it('正文无密封线图形；分节开启 titlePg + first/default 页眉引用', async () => {
@@ -83,7 +83,7 @@ describe('密封线导出：页眉浮动文本框（first=考生信息栏 / defa
     expect(contHeader).not.toContain('密封线内不要答题');
   });
 
-  it('单条竖虚线（段落仅左边框 dashed）+ 文字正立竖排 tbRl（字头朝上，不旋转）', async () => {
+  it('单条竖虚线（段落仅左边框 dashed）+ 文字逆时针旋转 90° lrTb（字头朝左）', async () => {
     const zip = await buildZip(SEAL_HTML);
     const fullHeader = (await getHeaders(zip)).find((h) => h.includes('学校：＿＿＿'));
     // 浮动 drawing + 文本框
@@ -93,9 +93,12 @@ describe('密封线导出：页眉浮动文本框（first=考生信息栏 / defa
     // 仅一条竖虚线：dashed 边框只有 left，无 right
     expect(fullHeader).toContain(DASH_PBDR_LEFT);
     expect(fullHeader).not.toContain('w:right w:val="dashed"');
-    // 文字段落正立竖排 tbRl（字头朝上），无文字方向段落不旋转
-    expect(fullHeader).toContain('<w:textDirection w:val="tbRl"/>');
-    expect(fullHeader).not.toContain('w:textDirection w:val="lrTb"');
+    // 文字段落逆时针旋转 90°（lrTb，字头朝左），无正立竖排 tbRl
+    expect(fullHeader).toContain('<w:textDirection w:val="lrTb"/>');
+    expect(fullHeader).not.toContain('w:textDirection w:val="tbRl"');
+    // 深灰 #333333：文字与虚线均清晰不发虚
+    expect(fullHeader).toContain('<w:color w:val="333333"/>');
+    expect(fullHeader).not.toContain('w:color w:val="999999"');
   });
 
   it('字段顺序：信息 → 提示 → 密/封/线（first 页眉）', async () => {
