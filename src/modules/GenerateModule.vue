@@ -2826,7 +2826,13 @@ const generatedDocs = ref([]);
 loadGeneratedDocs().then(docs => { if (docs.length > 0) generatedDocs.value = docs; });
 
 // 显示用：反转数组，过滤 _deleted 标记，最新的在上面（存储保持升序以保证 slice(-20) 截断正确）
-const displayedDocs = computed(() => [...generatedDocs.value].filter(d => !d._deleted).reverse());
+const displayedDocs = computed(() => {
+  // 🔧 双通道口径一致：_deleted 标记 + deleted_docs 墓碑双重过滤（与 HistoryModule 加载一致，
+  //    覆盖同步尚未清理墓碑记录前的展示窗口）
+  let tombstoneIds = {};
+  try { tombstoneIds = JSON.parse(localStorage.getItem('wisdom_deleted_gen_doc_ids') || '{}'); } catch {}
+  return [...generatedDocs.value].filter(d => !d._deleted && !tombstoneIds[d.id]).reverse();
+});
 const saveGeneratedDocs = async () => {
   try {
     // 截断上限（不修改 ref，避免触发 watcher 递归）

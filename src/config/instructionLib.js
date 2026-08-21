@@ -299,6 +299,16 @@ export const builtinInstructions = [
     content: '🔴 h1标题格式：章节名 · {genTypeLabel}（必须包含资料类型标签「{genTypeLabel}」，不可只有章节名）',
     builtin: true
   },
+  {
+    id: 'title_format_exam', name: '【标题格式】试卷-正式卷首标题', category: '生成-标题格式', type: 'fragment',
+    subject: '', stage: '', genType: 'exam', prompt_order: 1,
+    content: `🔴 卷首大标题（h1）按正式考试卷标题书写，结构：{academicTitle}＋学段年级＋学科＋考试类型＋试卷。
+- 学年学期由系统按当前日期自动生成（如「2025—2026学年第二学期」），直接使用，不得自行改动。
+- 考试类型用正式名称：期末（期末考试/期末质量检测）、期中（期中考试）、月考（注明第几次，如"第一次月考"）、单元检测等；本次考试类型由命题范围或章节范围决定。
+- 示例：{academicTitle}小学三年级语文期末试卷、{academicTitle}初中七年级数学期中测试卷、{academicTitle}八年级物理第一次月考试卷。
+- 🚫 禁止用"XX学业测评""XX综合测试""第一单元测试"等非正式标题充当卷首大标题；标题居中，标题下一行居中写"（考试时间：X分钟　满分：X分）"。`,
+    builtin: true
+  },
 
   // ═══════════════════════════════════════
   // 输出前置指令（prompt_order: 2，通用）

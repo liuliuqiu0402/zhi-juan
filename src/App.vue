@@ -722,6 +722,7 @@ onMounted(async () => {
         // ② 合并生成结果（双向，两端都做）— 使用 IndexedDB 避免 localStorage 配额溢出
         const GEN_KEY = 'wisdom_generated_docs';
         let mergedGen = [];
+        let genDeletedTotal = 0; // 软删除计数（_deleted 标记 + 墓碑），供同步完成日志使用
         try {
           const localRaw = await storage.getItem(GEN_KEY).catch(() => null) || [];
           // 📦 解压 content 字段（存量未压缩数据透传）
@@ -739,15 +740,21 @@ onMounted(async () => {
           // 截断 20
           if (mergedGen.length > 20) mergedGen = mergedGen.slice(-20);
 
+          // 🔧 修复统计/数据不一致：统一应用删除态（_deleted 标记 + deleted_docs 墓碑双重过滤），
+          //    与 HistoryModule 加载、probeCloud 统计口径一致；软删除记录不再驻留数组，
+          //    删除传播由墓碑通道（步骤④先推送墓碑）承担，避免"有效/软删除"虚高
+          genDeletedTotal = mergedGen.filter(d => d._deleted || mergedDeletedGen[d.id]).length;
+          mergedGen = mergedGen.filter(d => !d._deleted && !mergedDeletedGen[d.id]);
+
           await storage.setItem(GEN_KEY, compressDocArray(mergedGen)).catch(() => {});
           // 🧹 迁移后清理 localStorage 旧 key，释放配额空间（老数据已由 storage.getItem 自动迁移至 IndexedDB）
           try { localStorage.removeItem(GEN_KEY); } catch {}
-          const genDeleted = mergedGen.filter(d => d._deleted).length;
-          console.log('🔄 [合并] 生成结果 ' + mergedGen.length + ' 条（有效 ' + (mergedGen.length - genDeleted) + '，软删除 ' + genDeleted + '）← 本地' + local.length + ' + 云端' + cloudGen.length);
+          console.log('🔄 [合并] 生成结果 ' + mergedGen.length + ' 条（有效 ' + mergedGen.length + '，软删除 ' + genDeletedTotal + '）← 本地' + local.length + ' + 云端' + cloudGen.length);
         } catch (e) { console.warn('合并生成结果异常', e?.message || e); }
 
         // ③ 合并历史记录（双向，两端都做）
         let mergedHist = [];
+        let histDeletedTotal = 0; // 软删除计数（_deleted 标记 + 墓碑），供同步完成日志使用
         try {
           const localHist = await storage.getItem('docHistory') || [];
           // 软删除：_deleted 标记随数据参与合并，时间戳最新的版本自然胜出
@@ -762,9 +769,14 @@ onMounted(async () => {
             .sort((a, b) => (a.savedAt || a.timestamp || 0) - (b.savedAt || b.timestamp || 0));
           if (mergedHist.length > 50) mergedHist = mergedHist.slice(-50);
 
+          // 🔧 修复统计/数据不一致：统一应用删除态（_deleted 标记 + deleted_docs 墓碑双重过滤），
+          //    与 HistoryModule 加载、probeCloud 统计口径一致；软删除记录不再驻留数组，
+          //    删除传播由墓碑通道（步骤④先推送墓碑）承担，避免"有效/软删除"虚高
+          histDeletedTotal = mergedHist.filter(d => d._deleted || mergedDeletedHist[d.id]).length;
+          mergedHist = mergedHist.filter(d => !d._deleted && !mergedDeletedHist[d.id]);
+
           await storage.setItem('docHistory', mergedHist).catch(() => {});
-          const histDeleted = mergedHist.filter(d => d._deleted).length;
-          console.log('🔄 [合并] 历史记录 ' + mergedHist.length + ' 条（有效 ' + (mergedHist.length - histDeleted) + '，软删除 ' + histDeleted + '）← 本地' + localHist.length + ' + 云端' + cloudHist.length);
+          console.log('🔄 [合并] 历史记录 ' + mergedHist.length + ' 条（有效 ' + mergedHist.length + '，软删除 ' + histDeletedTotal + '）← 本地' + localHist.length + ' + 云端' + cloudHist.length);
         } catch (e) { console.warn('合并历史记录异常', e); }
 
         // ④ 先推送墓碑集（确保墓碑先于数据到达，其他端拉取时已存在）
@@ -879,10 +891,11 @@ onMounted(async () => {
         // ⑥ 通知子组件重新加载
         window.dispatchEvent(new CustomEvent('data-sync-complete'));
         const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
-        const genDel = mergedGen.filter(d => d._deleted).length;
-        const histDel = mergedHist.filter(d => d._deleted).length;
-        const genEff = mergedGen.length - genDel;
-        const histEff = mergedHist.length - histDel;
+        // 🔧 软删除计数：合并阶段已按"_deleted 标记 + 墓碑"双重统计（mergedGen/mergedHist 已过滤删除记录，不可再回数）
+        const genDel = genDeletedTotal;
+        const histDel = histDeletedTotal;
+        const genEff = mergedGen.length;
+        const histEff = mergedHist.length;
         showToastMessage('✅ 同步完成 (' + elapsed + 's) | 生成: 有效' + genEff + '+删除' + genDel + ' | 历史: 有效' + histEff + '+删除' + histDel, 'info');
         console.log('✅ 同步完成 (' + elapsed + 's, ' + (isMobile ? '手机端' : '桌面端') + ') | 历史: ' + mergedHist.length + '条（有效 ' + histEff + '，软删除 ' + histDel + '）| 生成: ' + mergedGen.length + '条（有效 ' + genEff + '，软删除 ' + genDel + '）');
         // 🧹 清理残留设备行（无名UUID、空数据设备）

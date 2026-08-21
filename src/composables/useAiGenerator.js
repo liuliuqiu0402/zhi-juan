@@ -5202,7 +5202,9 @@ ${cardAnalysisText.substring(0, 1000)}
     }
     
     // ========== 0.5.【标题格式】 ==========
-    const titleBlocks = getMatchingBlockInstructions({ category: '生成-标题格式', subject: '', stage: '', genType: '' });
+    // 🔧 三维度精准：按资料类型匹配（exam 命中正式卷首标题块 title_format_exam，
+    //    其他类型命中通用块 title_format）；学段年级信息由 AI 从注入的年级/学段字段自行组织
+    const titleBlocks = getMatchingBlockInstructions({ category: '生成-标题格式', subject: '', stage: '', genType: primaryGenType });
     if (titleBlocks.length > 0) {
       instruction += `\n---\n【${_title('title_format', '标题格式')}】\n${titleBlocks[0].content}\n\n`;
     }
@@ -6877,10 +6879,18 @@ ${content}`;
 
     // 🔧 变量替换：指令中的占位符 → 运行时实际值（role/title/top 中的 {genTypeLabel}/{diffRatio}/{pageCount}）
     const pageCount = getPageCount(genType, stage);
+    // 🔧 正式卷首标题：按当前日期推算学年学期（9月—次年1月为第一学期，2—8月为第二学期）
+    const _now = new Date();
+    const _y = _now.getFullYear();
+    const _m = _now.getMonth() + 1;
+    const _schoolYear = _m >= 9 ? `${_y}—${_y + 1}学年` : `${_y - 1}—${_y}学年`;
+    const _semester = (_m >= 9 || _m <= 1) ? '第一学期' : '第二学期';
+    const academicTitle = `${_schoolYear}${_semester}`;
     const applyVars = (t) => (t || '')
       .replace(/\{genTypeLabel\}/g, genTypeLabel)
       .replace(/\{diffRatio\}/g, diffRatio)
-      .replace(/\{pageCount\}/g, pageCount);
+      .replace(/\{pageCount\}/g, pageCount)
+      .replace(/\{academicTitle\}/g, academicTitle);
     const finalInstruction = applyVars(instruction);
 
     const { systemMessage: splitSystem, userInstruction } = splitSystemAndUser(finalInstruction);

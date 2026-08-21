@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { builtinInstructions, getMatchingBlockInstructions } from '@/config/instructionLib';
-import { EXAM_STAGE_STANDARDS, EXAM_NEW_STANDARD, getExamBlueprint } from '@/config/examPaperBlueprints';
+import { EXAM_STAGE_STANDARDS, EXAM_NEW_STANDARD, EXAM_PAPER_LAYOUT, getExamBlueprint } from '@/config/examPaperBlueprints';
 
 // 蓝本覆盖的学科与学段组合（与 getExamBlueprint 的 SUBJECT_ALIAS/STAGE_FALLBACK/all 通配对应）
 const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '道德与法治', '思想政治', '科学', '信息技术', '信息科技', '音乐', '美术', '体育'];
@@ -735,6 +735,39 @@ describe('指令注入审计：课标骨架对齐/教辅编辑标准/注入精�
       expect(exam.content).toContain('真实、富有意义的情境');
       expect(exam.content).toContain('戴帽子');
       expect(exam.content).toContain('情境信息须支撑作答');
+    });
+  });
+
+  describe('5. 正式卷首标题（期末/期中/月考）：生成端按类型精准注入', () => {
+    it('exam 命中正式标题块 title_format_exam，其他类型命中通用块 title_format', () => {
+      const ALL = ['exam', 'practice', 'special', 'summary', 'errorbook', 'preview', 'dictation', 'reading', 'review'];
+      for (const gt of ALL) {
+        const blocks = getMatchingBlockInstructions({ category: '生成-标题格式', subject: '', stage: '', genType: gt });
+        expect(blocks.length, `${gt} 标题格式块为空`).toBeGreaterThan(0);
+        const top = blocks[0].id;
+        if (gt === 'exam') {
+          expect(top, 'exam 应优先注入正式标题块').toBe('title_format_exam');
+        } else {
+          expect(top, `${gt} 不应注入试卷标题块`).toBe('title_format');
+        }
+      }
+    });
+
+    it('正式标题块内容含学年学期占位符与正式结构（学年+学段年级+学科+考试类型+试卷）', () => {
+      const exam = builtinInstructions.find(i => i.id === 'title_format_exam');
+      expect(exam.content).toContain('{academicTitle}');
+      expect(exam.content).toContain('期末');
+      expect(exam.content).toContain('月考');
+      expect(exam.content).toContain('禁止用"XX学业测评"');
+    });
+
+    it('蓝本卷面规范第2条为正式标题格式（含 {academicTitle} 占位，旧非正式示例已移除）', () => {
+      expect(EXAM_PAPER_LAYOUT).toContain('{academicTitle}');
+      expect(EXAM_PAPER_LAYOUT).toContain('期末试卷');
+      expect(EXAM_PAPER_LAYOUT).toContain('期中测试卷');
+      expect(EXAM_PAPER_LAYOUT).not.toContain('第一单元学业测评');
+      // 蓝本文本随整卷指令注入，{academicTitle} 由 applyVars 在运行时替换为当前学年学期
+      expect(EXAM_PAPER_LAYOUT).toMatch(/由系统按当前日期自动生成/);
     });
   });
 });
