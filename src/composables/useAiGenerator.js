@@ -2495,7 +2495,12 @@ const maxInputTokens = config.engine === 'deepseek'
             ...(options.forceJson ? { response_format: { type: 'json_object' } } : {}),
             // 🔧 阿里百炼思考模型（qwen3.8-max/qwen3-max/qwq 系）：默认关闭思考链——
             //    教辅结构化输出不需要推理链，思考 tokens 按输出价计费（¥36/百万）且耗时 3-5 倍
-            ...(config.provider === 'alibaba' && /qwen3.*max|qwq/i.test(config.model || '') ? { enable_thinking: false } : {})
+            ...(config.provider === 'alibaba' && /qwen3.*max|qwq/i.test(config.model || '') ? { enable_thinking: false } : {}),
+            // 🔧 DeepSeek 思考模式控制：格式化/提取/审查类任务关闭思考链——
+            //    reasoning_content 按输出价计费（v4-pro 高峰 ¥27/百万），清单式/机械任务非思考模式足够；
+            //    生成/分析/蓝图等质量核心任务保留思考（thinking 默认 enabled，无需显式传）
+            ...(config.provider === 'deepseek' && ['formatting', 'extraction', 'review'].includes(taskType)
+              ? { thinking: { type: 'disabled' } } : {})
           };
 
           let streamResponse;
