@@ -436,6 +436,10 @@ export const apiConfig = reactive({
     blueprintTemperature: 0.3,          // 蓝图生成（中低温，有结构约束）
     questionTemperature: 0.5,           // 🔧 题目生成：从0.7降到0.5，平衡准确性和创造性
     reviewTemperature: 0.1,             // 质量审查（低温，需客观）
+    // 🔧 DeepSeek 深度思考开关：仅整卷生成（generation）任务生效——
+    //    开启后生成前先推理再作答（提升质量，推理 token 按输出价计费、耗时数倍）；
+    //    分析/审查/格式化/验算等其他任务始终关闭思考（清单式/机械任务非思考模式足够）
+    deepseekGenerationThinking: false,
     maxTokens: 4096,                    // 默认输出限制
     
     // 🔧 注意：maxTokensByTask 的实际生效值由下方的 MAX_TOKENS_BY_TASK 常量定义，

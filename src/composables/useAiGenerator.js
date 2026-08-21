@@ -2496,11 +2496,10 @@ const maxInputTokens = config.engine === 'deepseek'
             // 🔧 阿里百炼思考模型（qwen3.8-max/qwen3-max/qwq 系）：默认关闭思考链——
             //    教辅结构化输出不需要推理链，思考 tokens 按输出价计费（¥36/百万）且耗时 3-5 倍
             ...(config.provider === 'alibaba' && /qwen3.*max|qwq/i.test(config.model || '') ? { enable_thinking: false } : {}),
-            // 🔧 DeepSeek 思考模式控制：两个模型（v4-pro/v4-flash）全部关闭思考链——
-            //    reasoning_content 按输出价计费（v4-pro 高峰 ¥27/百万）且耗时数倍；
-            //    教辅生成/分析/审查/格式化均为结构化任务，非思考模式足够，
-            //    关闭后输出只剩 content（无推理 token），费用与延迟显著下降、无输出截断风险
-            ...(config.provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {})
+            // 🔧 DeepSeek 思考模式控制：分析/审查/格式化/提取/验算等任务全部关闭思考链——
+            //    reasoning_content 按输出价计费（v4-pro 高峰 ¥27/百万）且耗时数倍，清单式/机械任务非思考模式足够；
+            //    仅整卷生成（generation）可经设置项「deepseekGenerationThinking」单独开启深度思考（提升质量）
+            ...(config.provider === 'deepseek' ? { thinking: { type: (taskType === 'generation' && apiConfig.generationSettings?.deepseekGenerationThinking) ? 'enabled' : 'disabled' } } : {})
           };
 
           let streamResponse;
@@ -2567,7 +2566,7 @@ const maxInputTokens = config.engine === 'deepseek'
                   top_p: 0.9,
                   stream: false,  // 续写不流式（短内容）
                   ...(config.provider === 'alibaba' && /qwen3.*max|qwq/i.test(config.model || '') ? { enable_thinking: false } : {}),
-                  ...(config.provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {})
+                  ...(config.provider === 'deepseek' ? { thinking: { type: (taskType === 'generation' && apiConfig.generationSettings?.deepseekGenerationThinking) ? 'enabled' : 'disabled' } } : {})
                 }),
                 signal: abortController.value?.signal
               });
@@ -3009,7 +3008,8 @@ const maxInputTokens = config.engine === 'deepseek'
                   ],
                   temperature: 0.1,
                   max_tokens: 256,  // 🔧 推理模型思考链+回复共享配额，200+才够输出content+reasoning
-                  stream: false     // 🔧 显式指定，与生成调用的 stream:true 对齐 API 规范
+                  stream: false,     // 🔧 显式指定，与生成调用的 stream:true 对齐 API 规范
+                  ...(textConfig.provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {})  // 🔧 连通检测：关闭思考，快速返回
                 }),
                 signal: controller.signal
               });
@@ -8402,7 +8402,8 @@ ${plainText.substring(0, 600)}
                             model: apiConfig.deepseekModel,
                             messages: [{ role: 'user', content: mathVerifyPrompt }],
                             temperature: 0.01,
-                            max_tokens: 1024
+                            max_tokens: 1024,
+                            thinking: { type: 'disabled' }  // 🔧 数学验算：关闭思考，直接输出验算结果
                           })
                         });
 

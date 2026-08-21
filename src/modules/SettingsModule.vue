@@ -378,6 +378,19 @@
           <p style="font-size:11px;color:#888;margin:2px 0 0;">逐题生成、整卷生成——平衡准确性与创造性</p>
         </div>
 
+        <!-- DeepSeek 深度思考开关（仅整卷生成生效） -->
+        <div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;padding:8px 12px;">
+          <div style="flex:1;margin-right:10px;">
+            <div style="font-size:12px;font-weight:600;color:#333;">🧠 整卷生成启用深度思考（DeepSeek）</div>
+            <div style="font-size:11px;color:#888;margin-top:2px;line-height:1.5;">开启后整卷生成前先推理再作答，可提升生成质量；推理 token 按输出价计费、耗时更长。<br/>仅影响整卷生成——分析/审查/格式化/验算始终关闭思考。</div>
+          </div>
+          <label style="position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0;cursor:pointer;">
+            <input type="checkbox" v-model="settings.generationSettings.deepseekGenerationThinking" style="opacity:0;width:0;height:0;" />
+            <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'22px',transition:'0.3s',background:settings.generationSettings.deepseekGenerationThinking ? '#4a90d9' : '#ccc'}"></span>
+            <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.deepseekGenerationThinking ? '20px' : '2px',width:'18px',height:'18px',borderRadius:'50%',background:'#fff',transition:'0.3s'}"></span>
+          </label>
+        </div>
+
         <!-- 质量审查 -->
         <div style="margin-bottom:0;">
           <label style="display:flex;justify-content:space-between;">
