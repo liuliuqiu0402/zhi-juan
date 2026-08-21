@@ -6486,7 +6486,8 @@ ${cardAnalysisText.substring(0, 1000)}
     //    中部弹性块（题型设计/质量标准/模板对标等动态内容）按剩余预算填充，
     //    超预算的中间块直接丢弃并告警——callAI 不再需要被动压缩。
     // ═══════════════════════════════════════
-    const MAX_INSTRUCTION_TOKENS = 12000; // 整卷路径安全预算（预留余量给教材原文+知识图谱）
+    const MAX_INSTRUCTION_TOKENS = 13200; // 整卷路径安全预算（预留余量给教材原文+知识图谱；DeepSeek 128K 上下文远未触顶，
+    //    放宽可确保核心质量块全保留——原 12000 曾导致"试卷/练习格式规范"等大块在预算不足时被丢弃）
     const totalTokens = estimateTokens(instruction);
     if (totalTokens > MAX_INSTRUCTION_TOKENS) {
       console.warn(`⚠️ [源头预算分配] 指令过长(${totalTokens} tokens)，按优先级三桶分配...`);
@@ -6509,9 +6510,9 @@ ${cardAnalysisText.substring(0, 1000)}
       const headTokens = headCore.reduce((s, sec) => s + estimateTokens(sec), 0);
       const tailTokens = tailCore.reduce((s, sec) => s + estimateTokens(sec), 0);
       const midBudget = Math.max(2000, MAX_INSTRUCTION_TOKENS - headTokens - tailTokens);
-      // 🔧 中部块按质量优先级排序：核心质量约束（情境要求/教辅编辑标准/答案与解析规范/内容规范/命题范围与风格/资料类型补充约束/课标骨架等）优先保留，
+      // 🔧 中部块按质量优先级排序：核心质量约束（情境要求/教辅编辑标准/答案与解析规范/内容规范/命题范围与风格/资料类型补充约束/课标骨架/格式规范/红线等）优先保留，
       //    装饰性参考块（质量范例/模板对标等）最后填充——预算不足时优先丢弃低价值块，避免"该省的没省、该保的丢了"
-      const MID_HIGH_RE = /情境|编辑标准|答案与解析规范|内容规范|命题|资料类型|课标骨架|红线/;
+      const MID_HIGH_RE = /情境|编辑标准|答案与解析规范|内容规范|命题|资料类型|课标骨架|红线|格式规范/;
       const MID_LOW_RE = /质量范例|模板对标|参考示例/;
       const scoredMid = midFlex.map((s) => {
         const tm = s.match(/【([^】]+)】/);

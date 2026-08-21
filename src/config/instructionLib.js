@@ -236,56 +236,56 @@ export const builtinInstructions = [
   {
     id: 'role_practice', name: '【角色身份】课时练', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'practice', prompt_order: 0,
-    content: '你是一位经验丰富的教学设计者。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
+    content: '你是一位经验丰富的教学设计者。请一次性生成一份完整的不少于{pageCount}页A4纸（不含答案页）的{genTypeLabel}。',
     builtin: true,
     guarantee: true
   },
   {
     id: 'role_special', name: '【角色身份】专项突破', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'special', prompt_order: 0,
-    content: '你是一位经验丰富的专项训练设计者。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
+    content: '你是一位经验丰富的专项训练设计者。请一次性生成一份完整的不少于{pageCount}页A4纸（不含答案页）的{genTypeLabel}。',
     builtin: true,
     guarantee: true
   },
   {
     id: 'role_preview', name: '【角色身份】课前预习', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'preview', prompt_order: 0,
-    content: '你是一位经验丰富的课前预习设计者。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
+    content: '你是一位经验丰富的课前预习设计者。请一次性生成一份完整的不少于{pageCount}页A4纸（不含答案页）的{genTypeLabel}。',
     builtin: true,
     guarantee: true
   },
   {
     id: 'role_reading', name: '【角色身份】阅读理解', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'reading', prompt_order: 0,
-    content: '你是一位经验丰富的阅读理解命题专家。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
+    content: '你是一位经验丰富的阅读理解命题专家。请一次性生成一份完整的不少于{pageCount}页A4纸（不含答案页）的{genTypeLabel}。',
     builtin: true,
     guarantee: true
   },
   {
     id: 'role_summary', name: '【角色身份】知识点总结', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'summary', prompt_order: 0,
-    content: '你是一位经验丰富的知识总结编写者。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
+    content: '你是一位经验丰富的知识总结编写者。请一次性生成一份完整的不少于{pageCount}页A4纸（不含答案页）的{genTypeLabel}。',
     builtin: true,
     guarantee: true
   },
   {
     id: 'role_dictation', name: '【角色身份】默写训练', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'dictation', prompt_order: 0,
-    content: '你是一位经验丰富的默写训练设计者。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
+    content: '你是一位经验丰富的默写训练设计者。请一次性生成一份完整的不少于{pageCount}页A4纸（不含答案页）的{genTypeLabel}。',
     builtin: true,
     guarantee: true
   },
   {
     id: 'role_errorbook', name: '【角色身份】错题本', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'errorbook', prompt_order: 0,
-    content: '你是一位经验丰富的错题整理专家。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
+    content: '你是一位经验丰富的错题整理专家。请一次性生成一份完整的不少于{pageCount}页A4纸（不含答案页）的{genTypeLabel}。',
     builtin: true,
     guarantee: true
   },
   {
     id: 'role_review', name: '【角色身份】单元/期末复习', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'review', prompt_order: 0,
-    content: '你是一位经验丰富的单元/期末复习资料编写者。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
+    content: '你是一位经验丰富的单元/期末复习资料编写者。请一次性生成一份完整的不少于{pageCount}页A4纸（不含答案页）的{genTypeLabel}。',
     builtin: true,
     guarantee: true
   },
