@@ -241,7 +241,6 @@ describe('C. 合格真题卷样本：0 error', () => {
     .map((s, i) => `${CN[i]}、${s.name}。（共${Math.max(2, Math.round(s.score / 4))}题，共${s.score}分）`)
     .join('\n');
   const goodContent = [
-    `第1页　共2页`,
     `学校：＿＿＿＿　班级：＿＿＿＿　姓名：＿＿＿＿　学号：＿＿＿＿`,
     `密封线内不要答题`,
     `《第二单元 · 学业测评》`,
@@ -406,9 +405,19 @@ describe('F. 三重硬核扫描', () => {
     expect(result.duplication.map((i) => i.type)).toContain('疑似相似题');
     // 查错：未闭合标点
     expect(result.error.map((i) => i.type)).toContain('标点配对异常');
-    // 查规范：缺卷首/页码/得分栏等（至少含卷面类）
+    // 查规范：缺卷首/得分栏等（至少含卷面类）
     expect(result.standard.map((i) => i.type)).toContain('卷面缺漏');
-    expect(result.standard.map((i) => i.type)).toContain('缺少页码');
+  });
+
+  it('生成内容含静态页码（第X页/共X页）→ 检出"正文含静态页码"', () => {
+    const content = [
+      '<h2>一、识字与写字（32分）</h2>',
+      '<p class="question">1. 看拼音写词语。</p>',
+      '<p>第1页　共8页</p>',
+      '<div class="answer-section">1. 花园</div>',
+    ].join('\n');
+    const issues = HardRuleChecker.check(content, [], '语文', '小学', '二年级', 'exam');
+    expect(issues.map((i) => i.type)).toContain('正文含静态页码');
   });
 
   it('全类型适用·课时练组词题答案泄露同样检出', () => {
@@ -436,7 +445,7 @@ describe('F. 三重硬核扫描', () => {
     const issues = HardRuleChecker.check(content, [], '数学', '小学', '三年级', 'practice');
     const types = issues.map((i) => i.type);
     // 试卷专属项不应出现在课时练中
-    expect(types).not.toContain('缺少页码');
+    expect(types).not.toContain('正文含静态页码');
     expect(types).not.toContain('缺少得分栏');
     expect(types).not.toContain('卷面缺漏');
   });

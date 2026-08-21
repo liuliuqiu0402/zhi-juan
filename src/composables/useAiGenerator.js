@@ -889,7 +889,8 @@ const buildOutputPreamble = () => {
 `   ❌ 禁止 ### 标题 | **加粗** | |表格| | ---分隔线 | -列表项\n` +
 `   ✅ 必须 <h1>-<h6> | <strong> | <p> | <br> | <u class="blank-N"> | <span class="blank-N">\n` +
 `   ⚠️ <table> 仅用于数据对比/矩阵型内容，禁止用于日常题目排版或页面布局\n` +
-`⛔ 4. 直接返回完整 HTML 代码，不要用 \`\`\`html 标记包裹`;
+`⛔ 4. 直接返回完整 HTML 代码，不要用 \`\`\`html 标记包裹\n` +
+`⛔ 5. 正文严禁出现任何页码文字或分页标注（"第X页""共X页""第X页　共X页"等）——页数由导出时自动生成（Word 页脚/PDF 页脚动态计算），生成内容不得标注页数`;
 };
 
 // ===== 🔧 统一输出排版格式块：从指令库查询格式规范，保留结构模板作参考示例 =====
@@ -6508,16 +6509,26 @@ ${cardAnalysisText.substring(0, 1000)}
       const headTokens = headCore.reduce((s, sec) => s + estimateTokens(sec), 0);
       const tailTokens = tailCore.reduce((s, sec) => s + estimateTokens(sec), 0);
       const midBudget = Math.max(2000, MAX_INSTRUCTION_TOKENS - headTokens - tailTokens);
+      // 🔧 中部块按质量优先级排序：核心质量约束（情境要求/教辅编辑标准/答案与解析规范/内容规范/命题范围与风格/资料类型补充约束/课标骨架等）优先保留，
+      //    装饰性参考块（质量范例/模板对标等）最后填充——预算不足时优先丢弃低价值块，避免"该省的没省、该保的丢了"
+      const MID_HIGH_RE = /情境|编辑标准|答案与解析规范|内容规范|命题|资料类型|课标骨架|红线/;
+      const MID_LOW_RE = /质量范例|模板对标|参考示例/;
+      const scoredMid = midFlex.map((s) => {
+        const tm = s.match(/【([^】]+)】/);
+        const title = tm ? tm[1] : '';
+        const score = MID_HIGH_RE.test(title) ? 3 : MID_LOW_RE.test(title) ? 1 : 2;
+        return { s, title, score };
+      });
+      scoredMid.sort((a, b) => b.score - a.score); // 稳定排序：同优先级保持原有顺序
       const keptMid = [];
       let usedMid = 0;
-      for (const section of midFlex) {
-        const t = estimateTokens(section);
+      for (const { s, title } of scoredMid) {
+        const t = estimateTokens(s);
         if (usedMid + t <= midBudget) {
-          keptMid.push(section);
+          keptMid.push(s);
           usedMid += t;
         } else {
-          const tm = section.match(/【([^】]+)】/);
-          console.warn(`[budget-control] 预算不足，跳过中部块: 【${tm ? tm[1] : '?'}】(${t} tokens)`);
+          console.warn(`[budget-control] 预算不足，跳过中部块: 【${title}】(${t} tokens)`);
         }
       }
       // 🔧 注意力工程：关键约束放前 20%（核心头）与后 20%（核心尾），动态内容放中间
@@ -7069,6 +7080,19 @@ ${content}`;
             sourceChapter: '',
           };
         });
+
+        // 🔧 双保险：移除生成内容中的静态页码文字（页码由导出端动态生成，生成内容不得标注页数）
+        //    "第X页　共X页"整段直接移除；"本试卷共X页"（AI写死数字）→ 还原为"本试卷共＿页"占位，导出时转 NUMPAGES 域自动填充
+        {
+          const beforeLen = content.length;
+          content = content.replace(/<p[^>]*>\s*第\s*\d+\s*页[\s\S]{0,12}?共\s*\d+\s*页\s*<\/p>/gi, '');
+          content = content.replace(/第\s*\d+\s*页\s*[　 ]*\s*共\s*\d+\s*页/gi, '');
+          content = content.replace(/<p[^>]*>\s*第\s*\d+\s*页\s*<\/p>/gi, '');
+          content = content.replace(/本试卷共\s*\d+\s*页/gi, '本试卷共＿页');
+          if (content.length !== beforeLen) {
+            console.log(`🔧 双保险：已移除生成内容中的静态页码标注（${beforeLen - content.length} 字符）`);
+          }
+        }
 
         console.log(`✅ 整卷生成成功：${questionMatches.length} 道题，${content.length} 字符`);
         if (questionMatches.length === 0 && content.length > 5000) {

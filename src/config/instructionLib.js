@@ -316,7 +316,7 @@ export const builtinInstructions = [
   {
     id: 'output_preamble', name: '【输出前置指令】通用', category: '生成-输出前置指令', type: 'fragment',
     subject: '', stage: '', genType: '', prompt_order: 2,
-    content: '逐【】块研读以下指令，确保完整理解每条要求后，一次性生成完整资料。',
+    content: '逐【】块研读以下指令，确保完整理解每条要求后，一次性生成完整资料。\n🚫 正文严禁出现任何页码文字或分页标注（如"第X页""共X页""本试卷共X页""第X页　共X页"等）——页数由导出时自动生成（Word 页脚/PDF 页脚动态计算），生成内容不得标注页数。',
     builtin: true
   },
 

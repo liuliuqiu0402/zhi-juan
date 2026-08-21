@@ -445,8 +445,9 @@ export const apiConfig = reactive({
       'analysis': 65536,
       'blueprint': 32768,
       'generation': 65536,
-      'review': 2048,
-      'formatting': 2048
+      'review': 8192,
+      'formatting': 8192,
+      'quality-repair': 65536
     },
     
     topP: 0.9,
@@ -867,8 +868,12 @@ export const MAX_TOKENS_BY_TASK = Object.freeze({
   'analysis': 65536,
   'blueprint': 32768,
   'generation': 65536,
-  'review': 2048,
-  'formatting': 2048
+  // 🔧 review/formatting 从 2048 提升到 8192：语义审查与自动修复使用深度思考模型，
+  //    推理链与输出共享 max_tokens 配额——2048 时模型推理耗尽配额导致 0 内容输出/修复截断（finish_reason=length）
+  'review': 8192,
+  'formatting': 8192,
+  // 🔧 quality-repair 需重输出整份修复后的 HTML（数千字），与 generation 同级预算，否则必然截断
+  'quality-repair': 65536
 });
 
 

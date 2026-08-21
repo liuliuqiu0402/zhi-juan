@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>密封线预览校验（当前 App 预览同构）</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { background: #e9e9e9; font-family: "SimSun", "宋体", serif; color: #000; }
+body { padding: 12px 0 30px; }
+
+/* ============ 与 App 渲染预览同构（TypesetModule .render-page） ============ */
+.paper-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  background: #fff;
+  box-shadow: 0 2px 14px rgba(0,0,0,.18);
+  overflow: hidden;
+}
+/* 🔧 密封线：标准试卷样式（A4 + 上下 2cm、左右 2.35cm 页边距）——
+   页面壳 .sealed-wrapper 自带边距（正文不被挤压，虚线不贴正文）；
+   密封区 .seal-zone 绝对定位于左侧页边距内（纸边 0~20mm），在正文内边距外侧；
+   虚线在 19mm、与上下边距对齐（20~277mm）；线(上1/4=84mm)/封(中=148mm)/密(下1/4=213mm) 均匀嵌在虚线上；
+   提示语/信息栏向密封线靠拢（x=8mm）并垂直居中于上下边距中间（两组间留 6mm 间距）；
+   .seal-note/.seal-info/.seal-char 逆时针旋转 90°（字头朝左、从下往上读） */
+.sealed-wrapper {
+  position: relative;
+  padding: 20mm 25mm;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+.sealed-wrapper > .seal-zone {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 20mm;
+  box-sizing: border-box;
+}
+.seal-zone > .seal-line {
+  position: absolute;
+  top: 20mm;
+  bottom: 20mm;
+  right: 1mm;
+  border-left: 1.4px dashed #000;
+}
+.seal-zone > .seal-note {
+  position: absolute;
+  left: 8mm;
+  top: 76.2mm;
+  transform-origin: left top;
+  transform: rotate(-90deg);
+  white-space: nowrap;
+  font-size: 12pt;
+  font-weight: bold;
+  line-height: 1;
+}
+.seal-zone > .seal-info {
+  position: absolute;
+  left: 8mm;
+  top: 254.7mm;
+  transform-origin: left top;
+  transform: rotate(-90deg);
+  white-space: nowrap;
+  font-size: 12pt;
+  line-height: 1;
+}
+.seal-zone > .seal-char {
+  position: absolute;
+  right: 1mm;
+  font-size: 10.5pt;
+  font-weight: bold;
+  line-height: 1;
+  transform-origin: center;
+  transform: rotate(-90deg);
+}
+.seal-zone > .seal-char.s-top { top: 82.4mm; }
+.seal-zone > .seal-char.s-mid { top: 146.6mm; }
+.seal-zone > .seal-char.s-bot { top: 210.9mm; }
+.seal-zone p { margin: 0; }
+.sealed-wrapper > .sealed-content {
+  margin-left: 0;
+  box-sizing: border-box;
+}
+
+/* 正文 */
+.sealed-content { font-size: 12pt; line-height: 1.9; }
+.exam-title { text-align: center; font-size: 16pt; font-weight: bold; margin: 6mm 0 3mm; }
+.exam-sub { text-align: center; margin-bottom: 4mm; }
+.notice { font-size: 10.5pt; line-height: 1.8; margin-bottom: 4mm; }
+.score-table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; font-size: 11pt; }
+.score-table th, .score-table td { border: 1px solid #000; text-align: center; padding: 1.2mm 0; }
+.question { margin-top: 3mm; }
+.q-title { font-size: 12pt; font-weight: bold; margin-bottom: 2mm; }
+.q-line { height: 7mm; border-bottom: 0.6px solid #bbb; }
+
+@media print {
+  body { background: #fff; padding: 0; }
+  .paper-page { box-shadow: none; margin: 0; }
+  @page { size: A4; margin: 0; }
+}
+</style>
+</head>
+<body>
+
+<div class="paper-page">
+  <div class="sealed-wrapper">
+    <!-- 密封区：20mm 起、宽 24mm（至 44mm），正文内边距外侧 -->
+    <div class="seal-zone">
+      <div class="seal-note">密封线内不要答题</div>
+      <div class="seal-info">学校：＿＿＿＿＿＿＿＿　班级：＿＿＿＿＿＿＿＿　姓名：＿＿＿＿＿＿＿＿　学号：＿＿＿＿＿＿＿＿</div>
+      <div class="seal-line"></div>
+      <div class="seal-char s-top">线</div>
+      <div class="seal-char s-mid">封</div>
+      <div class="seal-char s-bot">密</div>
+    </div>
+
+    <!-- 正文（54mm 起） -->
+    <div class="sealed-content">
+      <div class="exam-title">＿＿＿＿＿＿学年＿＿＿＿学年度第＿＿学期期末考试试卷</div>
+      <div class="exam-sub">满分：＿＿＿＿分　考试时间：＿＿＿＿分钟</div>
+      <div class="notice">
+        注意事项：<br>
+        1．答题前，请将密封线内的学校、班级、姓名、学号填写清楚。<br>
+        2．请在各题目的答题区域内作答，超出答题区域书写的答案无效。<br>
+        3．本试卷共＿＿页。
+      </div>
+      <table class="score-table">
+        <tr><th style="width:14%">题号</th><th>一</th><th>二</th><th>三</th><th style="width:16%">总分</th></tr>
+        <tr><td>得分</td><td></td><td></td><td></td><td></td></tr>
+      </table>
+      <div class="question">
+        <div class="q-title">一、单项选择题（共＿＿题，每题＿＿分，共＿＿分）</div>
+        <div class="q-line"></div><div class="q-line"></div><div class="q-line"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

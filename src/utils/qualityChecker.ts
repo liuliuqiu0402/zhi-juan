@@ -321,8 +321,17 @@ export class HardRuleChecker {
       issues.push({ severity: 'error', type: '卷面缺漏', detail: '缺少密封线信息栏（学校/班级/姓名/学号，附\"密封线内不要答题\"）', autoFix: false });
     }
 
-    // 4. 创意题型名检测（真题卷禁用花哨命名）
-    const creativeMatch = content.match(/[\u4e00-\u9fa5]{0,4}(小达人|对对碰|大转盘|小侦探|闯关|乐园|达人)[\u4e00-\u9fa5]?/);
+    // 4. 创意题型名检测（真题卷禁用花哨命名）——只扫描大题标题区（h1-h4 标签 + 汉字序号开头的大题标题行），
+    //    避免把卷首语情境名（如"大自然乐园""游园会"）、正文中的词语误判为题型名
+    const titleOnlyText = (content.match(/<h[1-4][^>]*>[\s\S]*?<\/h[1-4]>/gi) || [])
+      .map((h) => h.replace(/<[^>]+>/g, '').trim())
+      .filter((t) => t.length > 0)
+      .join('\n');
+    const sectionTitleLines = content.replace(/<[^>]+>/g, '\n').split('\n')
+      .map((l) => l.trim())
+      .filter((l) => /^[一二三四五六七八九十]+、/.test(l))
+      .join('\n');
+    const creativeMatch = (titleOnlyText + '\n' + sectionTitleLines).match(/[\u4e00-\u9fa5]{0,4}(小达人|对对碰|大转盘|小侦探|闯关|乐园|达人)[\u4e00-\u9fa5]?/);
     if (creativeMatch) {
       issues.push({
         severity: 'error', type: '题型命名不规范',
@@ -556,7 +565,13 @@ export class HardRuleChecker {
       if (recallCount >= 3) {
         issues.push({ severity: 'warning', type: '思维深度不足', detail: `检测到${recallCount}处低认知层级设问（定义背诵/事实回忆/原文挖空），须改为分析判断/迁移应用型设问`, autoFix: false });
       }
-      const higherOrderPatterns = [/比较.*异同/g, /分析.*原因/g, /评价.*是否/g, /设计.*方案/g, /说明.*理由/g, /判断.*哪个/g, /归纳.*特点/g, /提出.*建议/g];
+      const higherOrderPatterns = [
+        /比较[\s\S]{0,8}异同/g, /分析[\s\S]{0,10}原因/g, /评价[\s\S]{0,10}是否/g,
+        /设计[\s\S]{0,8}方案/g, /说明[\s\S]{0,10}理由/g, /判断[\s\S]{0,10}哪个/g,
+        /归纳[\s\S]{0,8}特点/g, /提出[\s\S]{0,8}建议/g,
+        // 开放表达/说理类高阶设问（低段口语化）：为什么/你喜欢……为什么/说说你的想法/谈谈你的看法等
+        /为什么/gi, /你喜欢/gi, /你的想法/gi, /你的看法/gi, /谈谈/gi,
+      ];
       const higherCount = higherOrderPatterns.reduce((sum, p) => sum + (plainText2.match(p) || []).length, 0);
       if (qBlocks.length >= 10 && higherCount === 0) {
         issues.push({ severity: 'warning', type: '缺乏高阶思维题', detail: '未检测到分析/评价/创造层级设问，须至少包含2道高阶思维题（比较分析/评价判断/设计方案等）', autoFix: false });
@@ -645,9 +660,10 @@ export class HardRuleChecker {
           }
         }
       }
-      // 🔴 三重硬核扫描·查规范：页码与得分栏检测（试卷专属卷面规范）
-      if (!/第\d+页/.test(content)) {
-        issues.push({ severity: 'warning', type: '缺少页码', detail: '试卷未检测到页码标注（真题卷每页页脚标注"第X页　共X页"）', autoFix: false });
+      // 🔴 三重硬核扫描·查规范：静态页码与得分栏检测（试卷专属卷面规范）
+      //    页码由导出端自动生成（Word 页脚 PAGE/NUMPAGES 域、PDF 页脚动态计算），生成内容严禁含静态页码文字
+      if (/第\s*\d+\s*页|共\s*\d+\s*页/.test(content)) {
+        issues.push({ severity: 'error', type: '正文含静态页码', detail: '生成内容中不应标注页数（检测到"第X页/共X页"静态页码），页码由导出时动态生成（Word页脚/PDF页脚），请移除正文中的页码文字', autoFix: true });
       }
       if (!/得分/.test(content)) {
         issues.push({ severity: 'warning', type: '缺少得分栏', detail: '试卷未检测到得分栏（真题卷每大题标题行右端设"得分：＿＿"栏，低段可省略）', autoFix: false });
@@ -1232,8 +1248,8 @@ export class HardRuleChecker {
         repairable.push({ ...issue, severity: 'error' });
         continue;
       }
-      // 关键 warning：缺少页码 / 缺少得分栏（exam 真题卷面规范）
-      if ((issue.type === '缺少页码' || issue.type === '缺少得分栏') && genType === 'exam') {
+      // 关键 warning：缺少得分栏（exam 真题卷面规范；静态页码为 error 级，直接可修复）
+      if (issue.type === '缺少得分栏' && genType === 'exam') {
         repairable.push({ ...issue, severity: 'error' });
         continue;
       }
@@ -1328,8 +1344,11 @@ export class HardRuleChecker {
     if (issueTypes.includes('标点配对异常')) {
       prompt += `→ 存在未闭合的括号/书名号/引号，请补齐或删除多余标点，确保全卷标点成对。\n`;
     }
-    if (issueTypes.includes('缺少页码') || issueTypes.includes('缺少得分栏')) {
-      prompt += `→ 卷面缺页码/得分栏，请补充：每页页脚"第X页　共X页"；每大题标题行右端"得分：＿＿"栏（低段可省略得分栏）。\n`;
+    if (issueTypes.includes('正文含静态页码')) {
+      prompt += `→ 正文中出现了静态页码文字（"第X页""共X页"等），请全部移除——页码由导出时自动生成（Word/PDF 页脚动态计算），生成内容中不得出现任何页码文字。\n`;
+    }
+    if (issueTypes.includes('缺少得分栏')) {
+      prompt += `→ 每大题标题行右端补充"得分：＿＿"栏（低段可省略得分栏）。\n`;
     }
     if (issueTypes.includes('教材相关性极低') || issueTypes.includes('教材相关性偏低')) {
       prompt += `→ 内容与教材脱节，请重新生成时紧密围绕教材知识点，使用教材中的核心术语和概念。\n`;
