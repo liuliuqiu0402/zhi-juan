@@ -310,6 +310,19 @@ span.blank-line::after {
   vertical-align: baseline;
 }
 
+/* ⭐ 行尾自动延伸：blank-line / u.blank-N 为段落最后元素时，段落变 flex、横线弹性撑满剩余行宽
+   （与导出端 <w:ptab/> 自动画到右边距行为一致，所见即所得） */
+p:has(> .blank-line:last-child),
+p:has(> u[class*="blank-"]:last-child) {
+  display: flex;
+  align-items: baseline;
+}
+p:has(> .blank-line:last-child) .blank-line,
+p:has(> u[class*="blank-"]:last-child) u[class*="blank-"] {
+  flex: 1 1 auto;
+  min-width: 3em;
+}
+
 /* 四线三格（英语书写） */
 .four-line-three {
   display: inline-block;

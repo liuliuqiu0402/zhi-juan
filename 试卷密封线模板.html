@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>试卷密封线模板（A4）</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  background: #e9e9e9;
+  font-family: "SimSun", "宋体", "NSimSun", serif;
+  color: #000;
+}
+body { padding: 12px 0 30px; }
+
+/* ============ 试卷页面（A4 210×297mm） ============ */
+.paper {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  background: #fff;
+  position: relative;
+  padding: 14mm 16mm 20mm 12mm;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, .18);
+  overflow: hidden;
+}
+
+/* ---------- 左侧密封区（装订区） ---------- */
+.seal-zone {
+  position: absolute;
+  left: 12mm;
+  top: 14mm;
+  bottom: 20mm;
+  width: 32mm;
+}
+/* 贯穿整页的虚线密封线（装订折线） */
+.seal-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  border-left: 1.4px dashed #000;
+}
+/* 密封线内提示语：逆时针旋转 90°（与信息行同向），密封区上部、与信息行同轴 */
+.seal-note {
+  position: absolute;
+  left: 13.5mm;
+  top: 62mm;
+  transform-origin: left top;
+  transform: rotate(-90deg);
+  white-space: nowrap;
+  font-size: 14pt;
+  font-weight: bold;
+  letter-spacing: 2mm;
+  line-height: 1;
+}
+/* 考生信息：单行横排，整体逆时针旋转 90°（从下往上读），密封区底部居中 */
+.seal-info {
+  position: absolute;
+  left: 18.5mm;
+  bottom: 8mm;
+  transform-origin: left bottom;
+  transform: rotate(-90deg);
+  white-space: nowrap;
+  font-size: 12pt;   /* 宋体小四 */
+  line-height: 1;
+}
+/* 密封线字符（写在折线上，逆时针旋转 90° 与信息行同向） */
+.seal-char {
+  position: absolute;
+  right: -2.5mm;
+  font-size: 13pt;
+  font-weight: bold;
+  transform-origin: center;
+  transform: rotate(-90deg);
+}
+.seal-char.s-top { top: 2mm; }
+.seal-char.s-mid { top: 50%; margin-top: -3mm; }
+.seal-char.s-bot { bottom: 2mm; }
+
+/* ---------- 内容区（密封线右侧，与密封线之间留内边距） ---------- */
+.content { margin-left: 42mm; }
+
+.paper-title {
+  text-align: center;
+  font-size: 18pt;
+  font-weight: bold;
+  letter-spacing: 1mm;
+  padding: 4mm 0 2mm;
+}
+.paper-sub {
+  text-align: center;
+  font-size: 12pt;
+  margin-bottom: 4mm;
+}
+
+.notice {
+  font-size: 12pt;
+  line-height: 1.9;
+  margin-bottom: 4mm;
+}
+
+.score-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 5mm;
+  font-size: 12pt;
+}
+.score-table th,
+.score-table td {
+  border: 1px solid #000;
+  text-align: center;
+  padding: 1.5mm 0;
+}
+.score-table th { font-weight: bold; }
+.score-table td { font-weight: normal; }
+
+.question { margin-top: 3mm; }
+.q-title {
+  font-size: 13pt;
+  font-weight: bold;
+  margin-bottom: 2mm;
+}
+.q-line {
+  height: 8.5mm;
+  border-bottom: 0.6px solid #bbb;
+}
+
+.page-footer {
+  position: absolute;
+  bottom: 7mm;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12pt;
+}
+
+/* ---------- 打印 ---------- */
+@media print {
+  body { background: #fff; padding: 0; }
+  .paper { box-shadow: none; margin: 0; }
+  @page { size: A4; margin: 0; }
+}
+</style>
+</head>
+<body>
+
+<div class="paper">
+  <!-- 左侧密封区：信息单行、逆时针旋转 90° 写在密封线内 -->
+  <div class="seal-zone">
+    <div class="seal-note">密封线内不要答题</div>
+    <div class="seal-info">学校：＿＿＿＿＿＿　班级：＿＿＿＿＿＿　姓名：＿＿＿＿＿　学号：＿＿＿＿＿＿＿＿</div>
+    <div class="seal-line"></div>
+    <div class="seal-char s-top">线</div>
+    <div class="seal-char s-mid">封</div>
+    <div class="seal-char s-bot">密</div>
+  </div>
+
+  <!-- 内容区（密封线右侧） -->
+  <div class="content">
+    <div class="paper-title">＿＿＿＿＿＿学年＿＿＿＿学年度第＿＿学期期末考试试卷</div>
+    <div class="paper-sub">满分：＿＿＿＿分　&nbsp;&nbsp;考试时间：＿＿＿＿分钟</div>
+
+    <div class="notice">
+      注意事项：<br>
+      1．答题前，请将密封线内的学校、班级、姓名、学号填写清楚。<br>
+      2．请在各题目的答题区域内作答，超出答题区域书写的答案无效。<br>
+      3．本试卷共＿＿页。
+    </div>
+
+    <table class="score-table">
+      <tr>
+        <th style="width:14%">题号</th>
+        <th>一</th>
+        <th>二</th>
+        <th>三</th>
+        <th style="width:16%">总分</th>
+      </tr>
+      <tr>
+        <td>得分</td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+      </tr>
+    </table>
+
+    <div class="question">
+      <div class="q-title">一、单项选择题（共＿＿题，每题＿＿分，共＿＿分）</div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+    </div>
+
+    <div class="question">
+      <div class="q-title">二、填空题（共＿＿题，每题＿＿分，共＿＿分）</div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+    </div>
+
+    <div class="question">
+      <div class="q-title">三、解答题（共＿＿题，每题＿＿分，共＿＿分）</div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+      <div class="q-line"></div>
+    </div>
+  </div>
+
+  <div class="page-footer">第 1 页　共 1 页</div>
+</div>
+
+</body>
+</html>

@@ -502,11 +502,11 @@ describe('指令注入审计：精简固化（规则唯一性/注入总量/红�
   ];
 
   describe('2. 注入总量上限 / 红线非空 / 新课标底线（12 组典型组合）', () => {
-    it('关键质量层注入总量 ≤ 上限（exam≤3000、非 exam≤2200 字符）', () => {
+    it('关键质量层注入总量 ≤ 上限（exam≤3800、非 exam≤2600 字符）', () => {
       for (const c of TYPICAL_COMBOS) {
         const blocks = simulateQualityLayers(c);
         const total = blocks.reduce((s, b) => s + (b.content || '').length, 0);
-        const cap = c.gt === 'exam' ? 3000 : 2200;
+        const cap = c.gt === 'exam' ? 3800 : 2600;
         expect(total, `${c.name} 注入 ${total} 字符，超过上限 ${cap}`).toBeLessThanOrEqual(cap);
       }
     });
@@ -604,6 +604,137 @@ describe('指令注入审计：精简固化（规则唯一性/注入总量/红�
       }
       const dups = [...byKey.entries()].filter(([, ids]) => ids.length > 1);
       expect(dups, `同内容多类型复制条目:\n${dups.map(([k, ids]) => `${k.slice(0, 50)} => ${ids.join('+')}`).join('\n')}`).toEqual([]);
+    });
+  });
+});
+
+// ============ 课标骨架对齐 + 教辅编辑标准（R1/R2/R6 生成端落地）与注入精准性（R4） ============
+describe('指令注入审计：课标骨架对齐/教辅编辑标准/注入精准性（需求 1/2/4/6）', () => {
+  const ALL_TYPES = ['exam', 'practice', 'special', 'summary', 'errorbook', 'preview', 'dictation', 'reading', 'review'];
+
+  describe('1. 课标骨架对齐（R1/R2）：按「学段 × 资料类型」精准注入 + exam 专属叠加', () => {
+    const STAGE_IDS = {
+      primary_low: 'skeleton_align_primary_low',
+      primary_mid: 'skeleton_align_primary_mid',
+      primary_high: 'skeleton_align_primary_high',
+      middle: 'skeleton_align_middle',
+      high: 'skeleton_align_high',
+    };
+    it('9 种资料类型 × 5 学段均命中对应学段骨架块（三维度精准）', () => {
+      for (const gt of ALL_TYPES) {
+        for (const [stage, id] of Object.entries(STAGE_IDS)) {
+          const blocks = getMatchingBlockInstructions({ category: '生成-课标骨架', subject: '', stage, genType: gt });
+          expect(blocks.some(b => b.id === id), `${gt}|${stage} 未命中 ${id}`).toBe(true);
+        }
+      }
+    });
+
+    it('学段精准：低段查询不注入中/高段块（不交叉）', () => {
+      const low = getMatchingBlockInstructions({ category: '生成-课标骨架', subject: '', stage: 'primary_low', genType: 'practice' });
+      const ids = low.map(b => b.id);
+      expect(ids).toContain('skeleton_align_primary_low');
+      expect(ids).not.toContain('skeleton_align_primary_mid');
+      expect(ids).not.toContain('skeleton_align_primary_high');
+      expect(ids).not.toContain('skeleton_align_middle');
+      expect(ids).not.toContain('skeleton_align_high');
+    });
+
+    it('仅 exam 额外注入试卷专属块（skeleton_align_exam），其余类型不交叉', () => {
+      for (const gt of ALL_TYPES) {
+        const blocks = getMatchingBlockInstructions({ category: '生成-课标骨架', subject: '', stage: 'middle', genType: gt });
+        const hasExam = blocks.some(b => b.id === 'skeleton_align_exam');
+        if (gt === 'exam') {
+          expect(hasExam, 'exam 应含 skeleton_align_exam').toBe(true);
+        } else {
+          expect(hasExam, `${gt} 不应注入试卷专属骨架块（交叉泄漏）`).toBe(false);
+        }
+      }
+    });
+
+    it('骨架块内容含「板块内容不交叉」硬约束 + 学段课标锚点差异化（R2 核心）', () => {
+      const low = builtinInstructions.find(i => i.id === 'skeleton_align_primary_low');
+      const mid = builtinInstructions.find(i => i.id === 'skeleton_align_primary_mid');
+      const high = builtinInstructions.find(i => i.id === 'skeleton_align_high');
+      for (const b of [low, mid, high]) {
+        expect(b.content).toContain('禁止板块间内容交叉');
+        expect(b.content).toContain('考查维度');
+      }
+      // 学段锚点差异化：低段=基础性趣味性、高中=学业质量水平分级
+      expect(low.content).toContain('基础性、趣味性与生活化');
+      expect(high.content).toContain('学业质量分四级');
+      const exam = builtinInstructions.find(i => i.id === 'skeleton_align_exam');
+      expect(exam.content).toContain('真题卷结构蓝本');
+      expect(exam.content).toContain('考查维度与所属大题目标一致');
+    });
+  });
+
+  describe('2. 教辅编辑标准（R6）：全类型注入且内容覆盖五维编辑质量', () => {
+    it('9 种资料类型均命中教辅编辑标准块（edit_std_common）', () => {
+      for (const gt of ALL_TYPES) {
+        const blocks = getMatchingBlockInstructions({ category: '生成-编辑标准', subject: '', stage: '', genType: gt });
+        expect(blocks.some(b => b.id === 'edit_std_common'), `${gt} 未命中 edit_std_common`).toBe(true);
+      }
+    });
+
+    it('编辑标准内容覆盖文字/数据/表述/结构四维（对标市面教辅出版水准）', () => {
+      const block = builtinInstructions.find(i => i.id === 'edit_std_common');
+      expect(block.content).toContain('错别字');
+      expect(block.content).toContain('数据与答案完全自洽');
+      expect(block.content).toContain('题干指向唯一');
+      expect(block.content).toContain('市面正式教辅出版水准');
+    });
+  });
+
+  describe('3. 注入精准性（R4）：三维度匹配不交叉', () => {
+    it('顶层约束按 genType 精准匹配：topconst_exam 仅 exam、topconst_review 仅 review', () => {
+      for (const gt of ALL_TYPES) {
+        const blocks = getMatchingBlockInstructions({ category: '生成-顶层约束', subject: '', stage: '', genType: gt });
+        const ids = blocks.map(b => b.id);
+        if (gt === 'exam') {
+          expect(ids).toContain('topconst_exam');
+          expect(ids).not.toContain('topconst_review');
+          expect(ids).not.toContain('topconst_practice');
+        } else if (gt === 'review') {
+          expect(ids).toContain('topconst_review');
+          expect(ids).not.toContain('topconst_exam');
+        } else if (gt === 'practice') {
+          expect(ids).toContain('topconst_practice');
+          expect(ids).not.toContain('topconst_exam');
+        } else if (gt === 'special') {
+          expect(ids).toContain('topconst_special');
+          expect(ids).not.toContain('topconst_exam');
+        }
+      }
+    });
+
+    it('试卷专属情境深度块不注入其他类型（frag_context_design_special 仅 special）', () => {
+      for (const gt of ALL_TYPES) {
+        const blocks = getMatchingBlockInstructions({ category: '生成-情境要求', subject: '', stage: 'middle', genType: gt });
+        const hasSpecialDepth = blocks.some(b => b.id === 'frag_context_design_special');
+        if (gt === 'special') {
+          expect(hasSpecialDepth).toBe(true);
+        } else {
+          expect(hasSpecialDepth, `${gt} 泄漏专项情境块`).toBe(false);
+        }
+      }
+    });
+
+    it('双防线含新类别（课标骨架/编辑标准），且防线无死名', () => {
+      const gmSet = extractDefenseSet(generateModuleSrc, 'HANDLED_BY_DEDICATED_SECTION');
+      const uiSet = extractDefenseSet(useAiGeneratorSrc, '_ui_handledCategories');
+      expect(gmSet.has('生成-课标骨架')).toBe(true);
+      expect(gmSet.has('生成-编辑标准')).toBe(true);
+      expect(uiSet.has('生成-课标骨架')).toBe(true);
+      expect(uiSet.has('生成-编辑标准')).toBe(true);
+    });
+  });
+
+  describe('4. 试卷情境措辞强化（R5）：topconst_exam 含真实/有意义情境要求', () => {
+    it('topconst_exam 第6条要求真实、富有意义的情境，禁止"戴帽子"假情境', () => {
+      const exam = builtinInstructions.find(i => i.id === 'topconst_exam');
+      expect(exam.content).toContain('真实、富有意义的情境');
+      expect(exam.content).toContain('戴帽子');
+      expect(exam.content).toContain('情境信息须支撑作答');
     });
   });
 });

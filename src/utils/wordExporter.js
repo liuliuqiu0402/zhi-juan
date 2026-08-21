@@ -456,15 +456,17 @@ export const createDefaultSectionProperties = () => ({
 /**
  * 打印专用CSS样式
  * 用于非Electron环境的浏览器打印降级
+ * @param {boolean} [sealLike=false] 密封线试卷：@page 边距归零、body 不留白，
+ *   由页面壳 .sealed-wrapper 的 2cm 内边距提供页边距（避免 @page 20mm 与之叠加成 40mm）
  */
-export const getPrintCss = () => `
+export const getPrintCss = (sealLike = false) => `
   @page {
     size: A4;
-    margin: 20mm;
+    margin: ${sealLike ? 0 : '20mm'};
   }
   body {
     margin: 0;
-    padding: 20px;
+    padding: ${sealLike ? 0 : '20px'};
     font-family: SimSun, 'Microsoft YaHei', serif;
     font-size: 12pt;
     line-height: 1.6;
@@ -473,6 +475,8 @@ export const getPrintCss = () => `
   @media print {
     h1, h2, h3, h4 { page-break-after: avoid; }
     table, figure, pre, blockquote { page-break-inside: avoid; }
+    /* 🔧 卷面规范：答案区另起一页（浏览器打印降级同样生效） */
+    .answer-section { page-break-before: always; }
     .no-print { display: none !important; }
   }
 `;

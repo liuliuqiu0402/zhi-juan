@@ -1526,7 +1526,7 @@ import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml, par
 import { buildTianZiGeMarker, htmlToDocxBlob } from '../utils/docxBuilder.js';
 import { injectDrawingML, TZG_MARKER, FLT_MARKER } from '../utils/drawingMLShapes.js';
 import storage from '../utils/storage';
-import { normalizeSealStructure } from '../themeConfig.js';  // 🔧 密封线结构归一化（旧结构信息栏 p → 并入竖排）
+import { normalizeSealStructure, wrapContentForTheme, applyThemeToContent } from '../themeConfig.js';  // 🔧 密封线结构归一化 + 试卷主题包装（导出与排版模块一致）
 import { pushDeletedDocIds } from '../utils/cloudStorage';
 import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
 import { useTextbookStore } from '../stores/textbookStore';
@@ -4100,6 +4100,9 @@ const buildInstruction = async () => {
     '生成-品质标准',         // quality_* 系列：按 genType × stage 注入品质标准
     '生成-红线约束',         // quality_redlines_* 系列：最高优先级红线清单（前置注入）
     '生成-页数配置',         // page_* 系列：getPageCount() 读取，不注入 prompt
+    // 🔧 补漏（2026-08）：课标骨架对齐 + 教辅编辑标准，在 buildGenerationInstruction 中有专属 Section
+    '生成-课标骨架',         // skeleton_* 系列：骨架锚定新课标学业要求 + 板块内容不交叉
+    '生成-编辑标准',         // edit_std_* 系列：对标市面正式教辅出版水准
     // 非生成用途（分析用）
     '分析-文本分析规范', '分析-分析模板示例', '分析-分析提取要求', '分析-知识图谱构建',
   ]);
@@ -6865,7 +6868,8 @@ const getQualityClass = (q) => {
 
 // ==================== PDF 打印降级（与 TypesetModule 一致的健壮实现） ====================
 const printPdfFallback = (htmlContent) => {
-  const printCss = getPrintCss();
+  // 🔧 密封线试卷：@page 边距归零、body 不留白（页面壳 .sealed-wrapper 提供 2cm 边距）
+  const printCss = getPrintCss(/sealed-wrapper/.test(htmlContent));
   // 🔧 包装完整 HTML 结构（含打印样式）
   let printContent;
   if (htmlContent.includes('<!DOCTYPE html>') || htmlContent.includes('<html')) {
@@ -6943,9 +6947,21 @@ const downloadDoc = async (doc, format) => {
   if (!teacherVersion.value) {
     content = content.replace(/<div class="answer-section">[\s\S]*?<\/div>/gi, '<div class="answer-section"><p>（答案略，请独立完成）</p></div>');
   }
+  // 🔧 密封线结构归一化 + 试卷主题包装（与排版模块 TypesetModule 导出一致）：
+  //    内容含密封特征时自动按 sealed_exam 包装（模板 seal-zone 密封区 + 注意事项 + 题号得分表），
+  //    旧结构（sealed-line/sl-text/横向 p）统一归一化为模板结构——否则导出的 Word/PDF 密封线
+  //    会退化为普通横排段落（无虚线、无旋转、无考生信息栏）。
+  const sealLike = /密封线|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：]/.test(content);
+  if (sealLike) content = wrapContentForTheme(content, 'sealed_exam');
   if (format === 'pdf') {
     // 转换 $...$ 公式标记为可读文本
-    const pdfContent = convertFormulasInHtml(content);
+    let pdfContent = convertFormulasInHtml(content);
+    // 🔧 应用主题 CSS（与排版模块 TypesetModule 的 PDF 导出一致）：
+    //    密封内容自动按 sealed_exam 注入主题样式，PDF 才有密封区/虚线/旋转文字效果；
+    //    否则 puppeteer 渲染的是无样式 HTML（密封线退化为普通横排文字）。
+    if (sealLike) {
+      pdfContent = applyThemeToContent(pdfContent, 'sealed_exam', { isHtmlContent: true, forceImportant: true });
+    }
     
     // 🔧 优先使用 Electron 原生 PDF 导出
     if (window.electronAPI?.exportPdf) {
@@ -6956,7 +6972,7 @@ const downloadDoc = async (doc, format) => {
         await window.electronAPI.createDirectory(pdfDir);
       } catch {}
       try {
-        const result = await window.electronAPI.exportPdf(pdfContent, outputPath);
+        const result = await window.electronAPI.exportPdf(pdfContent, outputPath, { margin: sealLike ? 0 : undefined });
         if (result.success) {
           await showAlertDialogFn(`PDF已保存至：${result.path}`);
         } else {
@@ -6986,13 +7002,40 @@ const downloadDoc = async (doc, format) => {
     const exportContent = normalizeRubyTags(content);
     // 🔧 关键修复：docxBuilder 依赖 getComputedStyle 读取字体/颜色/字号等样式，
     //    容器必须挂载到 DOM 中才能正确计算样式，否则所有样式丢失导致乱码
-    const container = document.createElement('div');
-    container.style.cssText = 'position:absolute;visibility:hidden;width:210mm;left:-9999px;font-family:SimSun;';
-    container.innerHTML = exportContent;
-    document.body.appendChild(container);
-    
+    // 🔧 卷面规范（与排版模块 TypesetModule 导出一致）：wrapper 隔离主题 CSS <style>，
+    //    密封试卷按 sealed_exam 注入主题样式，正文字号/标题/密封区样式通过文档级联生效；
+    //    docxBuilder 只处理 clone，style 标签不会被当作正文
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:absolute;visibility:hidden;width:210mm;left:-9999px;';
+    const clone = document.createElement('div');
+    clone.style.fontFamily = 'SimSun';
+    clone.style.fontSize = '12pt';
+    clone.innerHTML = exportContent;
+    if (sealLike) {
+      try {
+        const fullHtml = applyThemeToContent('<div></div>', 'sealed_exam', { isHtmlContent: true, forceImportant: false });
+        const cssMatch = fullHtml.match(/<style>([\s\S]*?)<\/style>/i);
+        if (cssMatch) {
+          let exportCSS = cssMatch[1].trim()
+            .replace(/\*\s*\{[^}]*\}/g, '')
+            .replace(/body\s*\{[^}]*\}/g, '')
+            .replace(/@page\s*\{[^}]*\}/g, '')
+            .replace(/@media\s+print\s*\{[^}]*\}/g, '');
+          exportCSS += '\n.answer-item,.notice,.card,p,li,td p,th p{font-size:inherit!important}\n';
+          const styleEl = document.createElement('style');
+          styleEl.setAttribute('data-export-theme', 'true');
+          styleEl.textContent = exportCSS;
+          wrapper.appendChild(styleEl);
+        }
+      } catch (cssErr) {
+        console.error('主题样式注入失败，使用默认样式:', cssErr);
+      }
+    }
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
+
     try {
-      const blob = await htmlToDocxBlob(container);
+      const blob = await htmlToDocxBlob(clone);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `${doc.title}.docx`;
@@ -7008,7 +7051,7 @@ const downloadDoc = async (doc, format) => {
       URL.revokeObjectURL(af.href);
     } finally {
       // 🔧 清理：导出完成后从 DOM 移除容器
-      if (container.parentNode) container.parentNode.removeChild(container);
+      if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
     }
     return;
   }
@@ -8488,54 +8531,68 @@ const addBlueprintQuestion = () => {
   pointer-events: none;
 }
 /* 🔧 预览区横线防御样式 */
-/* 🔧 密封线防御：sealed-wrapper + sealed-line（主题注入的 sealed 样式可能未启用，此处兜底）
-   标准试卷样式：左侧一条竖虚线 + 文字逆时针旋转 90°（字头朝左、自上而下阅读）：
-   预览弹窗无纸张上下文，密封条以窄列形式内嵌文档流（左侧），仅左边框 dashed（一条虚线），
-   .sl-text 逆时针旋转 90°（字头朝左），深灰 #333 防发虚，与导出端「单左边框虚线 + lrTb」一致 */
+/* 🔧 密封线防御：sealed-wrapper + seal-zone（主题注入的 sealed 样式可能未启用，此处兜底）
+   标准试卷样式（A4 + 上下 2cm、左右 2.35cm 页边距）：
+   页面壳自带边距（正文不被挤压，虚线不贴正文）；密封区绝对定位于左侧页边距内（纸边 0~20mm，正文内边距外侧）；
+   虚线在 19mm、与上下边距对齐（20~277mm）；线(26mm)/封(148mm)/密(271mm) 均匀嵌在虚线上；
+   文字逆时针旋转 90°（字头朝左、从下往上读）；字号分级：提示语 12pt bold / 信息栏 12pt / 密·封·线 12pt bold */
 .preview-content :deep(.sealed-wrapper) {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  width: 100%;
-  max-width: 100%;
+  position: relative;
+  padding: 20mm 25mm;
+  min-height: 100%;
   box-sizing: border-box;
 }
-.preview-content :deep(.seal-line),
-.preview-content :deep(.sealed-line) {
-  flex: 0 0 auto;
-  width: 36px;
+.preview-content :deep(.sealed-wrapper > .seal-zone) {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 20mm;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-right: 4px;
-  color: #333;
-  font-size: 10pt;
-  /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
-  border-left: 1.5px dashed #333;
 }
-.preview-content :deep(.sealed-line .sl-dash) {
-  /* 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供 */
-  flex: 1 1 auto;
-  min-height: 8px;
+.preview-content :deep(.seal-zone > .seal-line) {
+  position: absolute;
+  top: 20mm;
+  bottom: 20mm;
+  right: 1mm;
+  border-left: 1.4px dashed #000;
 }
-.preview-content :deep(.sealed-line .sl-text) {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.preview-content :deep(.seal-zone > .seal-note) {
+  position: absolute;
+  left: 8mm;
+  top: 76.2mm;
+  transform-origin: left top;
+  transform: rotate(-90deg);
   white-space: nowrap;
-  color: #333;
-  font-size: 10pt;
-  line-height: 1.3;
-  /* 逆时针旋转 90°：字头朝左、自上而下阅读（标准试卷密封线文字朝向） */
+  font-size: 12pt;
+  font-weight: bold;
+  line-height: 1;
+}
+.preview-content :deep(.seal-zone > .seal-info) {
+  position: absolute;
+  left: 8mm;
+  top: 254.7mm;
+  transform-origin: left top;
+  transform: rotate(-90deg);
+  white-space: nowrap;
+  font-size: 12pt;
+  line-height: 1;
+}
+.preview-content :deep(.seal-zone > .seal-char) {
+  position: absolute;
+  right: 1mm;
+  font-size: 10.5pt;
+  font-weight: bold;
+  line-height: 1;
+  transform-origin: center;
   transform: rotate(-90deg);
 }
-.preview-content :deep(.sealed-line p) { margin: 0; }
-.preview-content :deep(.sealed-wrapper > :not(.sealed-line)) {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding-left: 8px;
+.preview-content :deep(.seal-zone > .seal-char.s-top) { top: 82.4mm; }
+.preview-content :deep(.seal-zone > .seal-char.s-mid) { top: 146.6mm; }
+.preview-content :deep(.seal-zone > .seal-char.s-bot) { top: 210.9mm; }
+.preview-content :deep(.seal-zone p) { margin: 0; }
+.preview-content :deep(.sealed-wrapper > .sealed-content) {
+  margin-left: 0;
   box-sizing: border-box;
 }
 
@@ -9421,53 +9478,67 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   color: #555;
   line-height: 1;
 }
-.seal-line,
-.sealed-line {
-  flex: 0 0 auto;
-  width: 36px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+/* 🔧 密封线：标准试卷样式（A4 + 上下 2cm、左右 2.35cm 页边距）——
+   页面壳自带边距（正文不被挤压，虚线不贴正文）；密封区绝对定位于左侧页边距内（纸边 0~20mm，正文内边距外侧）；
+   虚线在 19mm、与上下边距对齐（20~277mm）；线(26mm)/封(148mm)/密(271mm) 均匀嵌在虚线上；
+   文字逆时针旋转 90°（字头朝左、从下往上读）；字号分级：提示语 12pt bold / 信息栏 12pt / 密·封·线 12pt bold */
+.sealed-wrapper {
+  position: relative;
+  padding: 20mm 25mm;
   min-height: 100%;
-  color: #333;
-  font-size: 10pt;
-  /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
-  border-left: 1.5px dashed #333;
+  box-sizing: border-box;
 }
-.seal-line {
-  padding-right: 4px;
+.sealed-wrapper > .seal-zone {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 20mm;
+  box-sizing: border-box;
 }
-.sealed-line .sl-dash {
-  /* 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供 */
-  flex: 1 1 auto;
-  min-height: 8px;
+.seal-zone > .seal-line {
+  position: absolute;
+  top: 20mm;
+  bottom: 20mm;
+  right: 1mm;
+  border-left: 1.4px dashed #000;
 }
-.sealed-line .sl-text {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.seal-zone > .seal-note {
+  position: absolute;
+  left: 8mm;
+  top: 76.2mm;
+  transform-origin: left top;
+  transform: rotate(-90deg);
   white-space: nowrap;
-  color: #333;
-  font-size: 10pt;
-  line-height: 1.3;
-  /* 逆时针旋转 90°：字头朝左、自上而下阅读（标准试卷密封线文字朝向） */
+  font-size: 12pt;
+  font-weight: bold;
+  line-height: 1;
+}
+.seal-zone > .seal-info {
+  position: absolute;
+  left: 8mm;
+  top: 254.7mm;
+  transform-origin: left top;
+  transform: rotate(-90deg);
+  white-space: nowrap;
+  font-size: 12pt;
+  line-height: 1;
+}
+.seal-zone > .seal-char {
+  position: absolute;
+  right: 1mm;
+  font-size: 10.5pt;
+  font-weight: bold;
+  line-height: 1;
+  transform-origin: center;
   transform: rotate(-90deg);
 }
-.sealed-wrapper {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-.sealed-wrapper > :not(.seal-line),
-.sealed-wrapper > :not(.sealed-line) {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding-left: 8px;
+.seal-zone > .seal-char.s-top { top: 82.4mm; }
+.seal-zone > .seal-char.s-mid { top: 146.6mm; }
+.seal-zone > .seal-char.s-bot { top: 210.9mm; }
+.seal-zone p { margin: 0; }
+.sealed-wrapper > .sealed-content {
+  margin-left: 0;
   box-sizing: border-box;
 }
 /* 评分栏 - 表格形式（横竖线全有） */

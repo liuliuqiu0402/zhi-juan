@@ -217,6 +217,18 @@ describe('B. 卷面标准校验（checkExamPaperStandard）', () => {
     const issues = HardRuleChecker.checkExamPaperStandard(content, bp);
     expect(detailTypes(issues)).toContain('分值体系异常');
   });
+
+  it('检出分数标记不合规（大题标题未用"共X题…共X分"明细式）', () => {
+    const content = '满分100分 考试时间60分钟 姓名：＿ 班级：＿\n一、看拼音，写词语。（16分）\n二、组词。（8分）';
+    const issues = HardRuleChecker.checkExamPaperStandard(content, bp);
+    expect(detailTypes(issues)).toContain('分值标记不规范');
+  });
+
+  it('检出明细式分值自相矛盾（每题分×题数 ≠ 共分）', () => {
+    const content = '满分100分 考试时间60分钟 姓名：＿ 班级：＿\n一、看拼音，写词语。（共6题，每题2分，共16分）\n二、组词。（共10题，共84分）';
+    const issues = HardRuleChecker.checkExamPaperStandard(content, bp);
+    expect(detailTypes(issues)).toContain('分值体系异常');
+  });
 });
 
 // ========== C 组：合格真题卷零误报 ==========
@@ -226,7 +238,7 @@ describe('C. 合格真题卷样本：0 error', () => {
   const bpRaw = EXAM_BLUEPRINTS[key];
   const CN = '一二三四五六七八九十';
   const sectionsText = bpRaw.sections
-    .map((s, i) => `${CN[i]}、${s.name}。（${s.score}分）`)
+    .map((s, i) => `${CN[i]}、${s.name}。（共${Math.max(2, Math.round(s.score / 4))}题，共${s.score}分）`)
     .join('\n');
   const goodContent = [
     `第1页　共2页`,

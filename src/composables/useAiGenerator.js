@@ -243,6 +243,11 @@ const buildCompactAIInstruction = (fullInstruction, genType, subject, stage, gra
     '【用户补充指令】', '【综合指令】', '【情境要求】'
   ];
   
+  // 需要保护的段落：不截断，无论多长
+  const protectPrefixes = [
+    '【顶层约束', '【尾约束', '【格式尾约束', '【红线',
+  ];
+
   for (const section of sections) {
     const trimmed = section.trim();
     if (!trimmed) continue;
@@ -250,17 +255,18 @@ const buildCompactAIInstruction = (fullInstruction, genType, subject, stage, gra
     if (dropPrefixes.some(p => trimmed.startsWith(p))) continue;
     // 保留核心块，但限制长度
     let content = trimmed;
-    if (content.length > 800) {
+    const isProtected = protectPrefixes.some(p => trimmed.startsWith(p));
+    if (content.length > 800 && !isProtected) {
       // 截断长段，只保留前 700 字 + "...(省略)"
       content = content.substring(0, 700) + '...(已精简)';
     }
     keepSections.push(content);
   }
-  
+
   let compact = keepSections.join('\n');
-  // 如果仍然超长，二轮截断（预算从1000提升到2500，确保题量/分值/格式等关键规则不被裁掉）
-  if (compact.length > 2500) {
-    compact = compact.substring(0, 2500) + '\n...(后续指令已精简)';
+  // 如果仍然超长，二轮截断（提升到4000，确保红线/格式/尾约束等关键规则不被裁掉）
+  if (compact.length > 4000) {
+    compact = compact.substring(0, 4000) + '\n...(后续指令已精简)';
   }
   
   return compact ? `【关键指令摘要】\n${compact}\n` : '';
@@ -504,6 +510,15 @@ const compareBlueprintToGenerated = (content, parsedBlueprint, ctx) => {
 
   if (missingSections.length > 0) {
     issues.push(`蓝本大题缺失：${missingSections.join('、')}——生成结果未对齐蓝本骨架，请检查`);
+  }
+
+  // 检查题目总数是否合理——至少每个板块1道题
+  const allQTags = content.match(/class="question"/gi) || [];
+  const allNumItems = content.match(/>\s*\d+[.．、]\s/g) || [];
+  const totalQuestions = Math.max(allQTags.length, allNumItems.length);
+  const sectionCount = examBlueprint.sections.length;
+  if (totalQuestions > 0 && totalQuestions < sectionCount) {
+    issues.push(`题目数量不足：蓝本有${sectionCount}个大题板块，但生成内容仅检测到约${totalQuestions}道小题——每板块至少需1道题`);
   }
 
   // 对比总分
@@ -979,30 +994,62 @@ const buildOutputFormatBlock = (genType, subject, stage, grade) => {
 <p class="option">D. 选项D</p>
 
 <h2>二、填空题</h2>
-<p class="question">2. 题干<u class="blank-2">&emsp;</u>内容</p>
+<p class="question">2. 选字填空（备选字：园 圆 丛 从）：花<span class="blank-2">&emsp;</span>里开满了鲜花。</p>
+<p class="question">3. 题干<u class="blank-2">&emsp;</u>内容</p>
 
-<h2>三、综合题（多级编号示例）</h2>
-<p class="question">3. 综合题题干（含子题）：</p>
+<h2>三、连线题</h2>
+<p class="question">4. 请把左右两组词语连起来。</p>
+<div class="match-question">
+  <div class="match-col">
+    <div class="match-item">高大的</div>
+    <div class="match-item">火红的</div>
+  </div>
+  <div class="match-col">
+    <div class="match-item">杨树</div>
+    <div class="match-item">枫叶</div>
+  </div>
+</div>
+
+<h2>四、综合题（多级编号示例）</h2>
+<p class="question">5. 综合题题干（含子题）：</p>
 <p class="question">(1) 子题一的题干内容</p>
 <p class="question">(2) 子题二的题干内容</p>
 
+<h2>五、看图写话</h2>
+<p class="question">6. 仔细看图，写几句话。</p>
+[IMAGE]
+TYPE:SD
+PROMPT:画面描述...
+STYLE:line_art
+[/IMAGE]
+<div class="zuo-wen-ge">
+  <div><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span></div>
+  <div><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span></div>
+</div>
+
 <div class="answer-section">
 <h2>答案与解析</h2>
-<p>1. 答案 | 2. 答案 | 3.(1) 答案 | 3.(2) 答案</p>
+<p>1. 答案 | 2. 答案 | 3. 答案 | 4. 答案 | 5.(1) 答案 | 5.(2) 答案 | 6. 参考范文</p>
 </div>`,
     practice: `<h1>课时练习标题</h1>
 <div class="practice-info"><p>年级 学科 课时练习</p></div>
 
 <h2>一、基础巩固</h2>
-<p class="question">1. 题干内容<u class="blank-2">&emsp;</u>（词语填空用 &lt;u class="blank-N"&gt; 横线标签，选择填空用 &lt;span class="blank-N"&gt; 括号标签）</p>
-<p class="question">2. 题干内容<span class="blank-2">&emsp;</span></p>
-<p class="option">A. 选项A</p>
-<p class="option">B. 选项B</p>
-<p class="option">C. 选项C</p>
-<p class="option">D. 选项D</p>
+<p class="question">1. 选字填空（备选字：园 圆 丛 从）：花<span class="blank-2">&emsp;</span>里开满了鲜花。</p>
+<p class="question">2. 题干内容<u class="blank-2">&emsp;</u>（词语填空用 &lt;u class="blank-N"&gt; 横线标签，选择填空用 &lt;span class="blank-N"&gt; 括号标签）</p>
 
 <h2>二、能力提升</h2>
-<p class="question">3. 题干内容</p>
+<p class="question">3. 请把左右两组词语连起来。</p>
+<div class="match-question">
+  <div class="match-col">
+    <div class="match-item">项A</div>
+    <div class="match-item">项B</div>
+  </div>
+  <div class="match-col">
+    <div class="match-item">项1</div>
+    <div class="match-item">项2</div>
+  </div>
+</div>
 <p class="question">4. 综合题题干（含子题）：</p>
 <p class="question">(1) 子题一的题干内容</p>
 <p class="question">(2) 子题二的题干内容</p>
@@ -1025,11 +1072,54 @@ const buildOutputFormatBlock = (genType, subject, stage, grade) => {
 <p class="analysis">解题步骤与思路分析</p>
 
 <h2>三、阶梯训练</h2>
-<p class="question">2. 基础题题干<u class="blank-2">&emsp;</u>（词语填空用 &lt;u class="blank-N"&gt; 横线标签，选择填空用 &lt;span class="blank-N"&gt; 括号标签）</p>
-<p class="question">3. 拔高题题干</p>
+<p class="question">2. 选字填空（备选字：A B C D）：题干<span class="blank-2">&emsp;</span>内容</p>
+<p class="question">3. 请把左右两组内容连起来。</p>
+<div class="match-question">
+  <div class="match-col">
+    <div class="match-item">项A</div>
+    <div class="match-item">项B</div>
+  </div>
+  <div class="match-col">
+    <div class="match-item">项1</div>
+    <div class="match-item">项2</div>
+  </div>
+</div>
 <p class="question">4. 综合题题干（含子题）：</p>
 <p class="question">(1) 子题一</p>
 <p class="question">(2) 子题二</p>
+
+<div class="answer-section">
+<h2>答案与解析</h2>
+<p>1. 答案 | 2. 答案 | 3. 答案 | 4.(1) 答案 | 4.(2) 答案</p>
+</div>`,
+    review: `<h1>复习总结标题</h1>
+<div class="practice-info"><p>年级 学科 单元/期末复习</p></div>
+
+<h2>一、知识梳理</h2>
+<p>知识点1：概念阐释与核心要点</p>
+<p>知识点2：概念阐释与核心要点</p>
+
+<h2>二、基础巩固</h2>
+<p class="question">1. 选字填空（备选字：园 圆 丛 从）：花<span class="blank-2">&emsp;</span>里开满了鲜花。</p>
+<p class="question">2. 题干内容<u class="blank-2">&emsp;</u></p>
+
+<h2>三、连线归类</h2>
+<p class="question">3. 请把左右两组词语连起来。</p>
+<div class="match-question">
+  <div class="match-col">
+    <div class="match-item">项A</div>
+    <div class="match-item">项B</div>
+  </div>
+  <div class="match-col">
+    <div class="match-item">项1</div>
+    <div class="match-item">项2</div>
+  </div>
+</div>
+
+<h2>四、综合运用</h2>
+<p class="question">4. 综合题题干（含子题）：</p>
+<p class="question">(1) 子题一的题干内容</p>
+<p class="question">(2) 子题二的题干内容</p>
 
 <div class="answer-section">
 <h2>答案与解析</h2>
@@ -2103,56 +2193,81 @@ const maxInputTokens = config.engine === 'deepseek'
     // 🔧 输入限制：DeepSeek 128K 上下文用 100K 安全线，Ollama 维持原逻辑
     
     if (estimatedTokens > maxInputTokens) {
-      console.warn(`⚠️ Prompt过长(${estimatedTokens} tokens)，正在智能压缩...`);
-      
-      // 🔧 策略：优先保留「指令要求」和「题目要求」部分，压缩「原文参考」
-      // 按标记分段
+      console.warn(`⚠️ Prompt过长(${estimatedTokens} tokens)，正在智能压缩并保留关键指令块...`);
+
+      // 分段：按 【 开头分段（保留块级边界）
       const sections = finalPrompt.split(/\n(?=【)/);
-      let instructionParts = [];
-      let materialParts = [];
-      
+      const instructionParts = [];
+      const materialParts = [];
+      const guaranteeParts = [];
+
+      // 简单规则识别 guarantee（必须保留）的段落关键词
+      const guaranteeRegex = /角色身份|顶层约束|尾约束|答案区|强制要求|真题卷结构蓝本|骨架|真题蓝本|答案与解析/;
+
       for (const section of sections) {
-        if (section.startsWith('【教材原文') || section.startsWith('【模板参考') || section.startsWith('【教材参考')) {
-          materialParts.push(section);
+        const s = section.trim();
+        if (/^【教材原文|^【模板参考|^【教材参考/.test(s)) {
+          materialParts.push(s);
+        } else if (guaranteeRegex.test(s) || s.length < 200 && /你是一位|请一次性生成|必须/.test(s)) {
+          // 识别为 guarantee 的关键指令块（尽量保留）
+          guaranteeParts.push(s);
         } else {
-          instructionParts.push(section);
+          instructionParts.push(s);
         }
       }
-      
-      // 先确保指令部分完整
-      let instructionText = instructionParts.join('\n');
+
+      // 优先保留 guaranteeParts 与 instructionParts；只压缩 materialParts
+      let instructionText = [...guaranteeParts, ...instructionParts].join('\n');
       let instructionTokens = estimateTokens(instructionText);
-      
-      // 剩余预算全部分配给原文
-      const remainingBudget = maxInputTokens - instructionTokens - 200; // 留 200 缓冲
-      
-      if (remainingBudget > 500) {
-        let materialText = '';
-        let usedTokens = 0;
-        
+
+      // 如果指令本身就超预算，尝试把 guaranteeParts 放到 systemMessage 路径（由上层调用传给模型的 system），
+      // 这里我们简化为截断非 guarantee instruction 内容并记录告警
+      if (instructionTokens > maxInputTokens - 500) {
+        console.warn('⚠️ 指令部分（含必须保留块）已超出输入上限，尝试优先保留 guarantee 块并截断其他指令');
+        // 保留 guaranteeParts，截断 instructionParts
+        instructionText = guaranteeParts.join('\n');
+        instructionTokens = estimateTokens(instructionText);
+        if (instructionTokens > maxInputTokens - 200) {
+          // 极端：连 guarantee 都超出预算，硬截断并记录
+          instructionText = instructionText.substring(0, Math.floor((maxInputTokens - 200) * 1.5));
+          console.error('🔥 关键指令块超预算，被迫截断（记录详单以便人工介入）');
+        }
+      }
+
+      const remainingBudget = maxInputTokens - instructionTokens - 200; // 留 200 tokens 缓冲
+      let materialText = '';
+      let usedTokens = 0;
+      const omittedSections = [];
+
+      if (remainingBudget > 300) {
         for (const part of materialParts) {
           const sentences = part.split(/(?<=[。！？\n])/);
           let compressedPart = '';
-          
           for (const sent of sentences) {
             const sentTokens = estimateTokens(sent);
             if (usedTokens + sentTokens > remainingBudget) break;
             compressedPart += sent;
             usedTokens += sentTokens;
           }
-          
           if (compressedPart) {
             materialText += compressedPart + '\n';
+          } else {
+            omittedSections.push(part.slice(0, 120));
           }
         }
-        
-        finalPrompt = instructionText + '\n' + materialText;
-        console.log(`📦 智能压缩完成：指令${instructionTokens}tokens + 原文${usedTokens}tokens = ${instructionTokens + usedTokens}tokens`);
       } else {
-        // 极端情况：指令本身太长，只能压缩指令中的原文部分
-        finalPrompt = instructionText.substring(0, Math.floor(maxInputTokens * 1.5));
-        console.warn(`⚠️ 指令部分已占${instructionTokens}tokens，无法容纳原文，仅保留指令`);
+        // 预算不足，全部省略 materialParts
+        for (const part of materialParts) omittedSections.push(part.slice(0, 120));
       }
+
+      finalPrompt = instructionText + '\n' + materialText;
+      if (omittedSections.length > 0) {
+        console.warn('⚠️ 已省略/压缩以下参考段落（示例）:', omittedSections.slice(0,5));
+        // 将省略信息附加为显式告警，便于模型和日志追踪
+        finalPrompt += '\n\n【系统提示：以下若干参考段落因输入长度受限已被压缩或省略，生成时优先遵循前文关键指令块；如需完整参考请分段生成或增加上下文窗口】\n';
+      }
+
+      console.log(`📦 智能压缩完成：指令${instructionTokens}tokens + 原文${usedTokens}tokens (buffered)`);
     }
     
     // 🔧 L1 客户端缓存：仅缓存确定性中间任务（analysis/blueprint/extraction）
@@ -2214,6 +2329,8 @@ const maxInputTokens = config.engine === 'deepseek'
               prompt: finalPrompt,
               stream: false,
               keep_alive: 600,  // 🔧 保持 10 分钟，避免频繁重新加载
+              // 🔧 System 分离：规则/格式/蓝本入 system（Ollama /api/generate 原生支持 system 字段）
+              ...(options.systemMessage ? { system: options.systemMessage } : {}),
               // ✅ forceJson：仅对非推理模型启用（r1/deepseek 思考链会破坏 JSON 格式）
               ...(options.forceJson && !config.textModel?.includes('r1') && !config.textModel?.includes('deepseek') ? { format: 'json' } : {}),
               options: {
@@ -5155,14 +5272,17 @@ ${cardAnalysisText.substring(0, 1000)}
           }
           instruction += `请生成一份「${displayName}」。${coreInstruction}\n`;
           // 🔴 红线约束前置（最高优先级）：在所有其他约束之前集中注入，防止关键红线被几十条约束稀释
+          // 🔧 独立【】节标题：供 generateFullPaper 的 System 分离提取——红线是模型的"永久记忆"，不放 user 中淹没
           const redlineBlocks = getMatchingBlockInstructions({ category: '生成-红线约束', matchSubject, stage: gradeSegment, genType: gt });
           if (redlineBlocks.length > 0) {
-            instruction += '\n' + redlineBlocks.map(b => b.content).join('\n') + '\n';
+            instruction += `\n---\n【${_title('redline_constraint', '红线约束')}】\n` + redlineBlocks.map(b => b.content).join('\n') + '\n';
           }
           // 🔧 品质标准：从指令库按 subject × stage × genType 三维度查询注入（学科专属反套路块需 subject 维度才能命中）
           const qualityBlocks = getMatchingBlockInstructions({ category: '生成-品质标准', matchSubject, stage: gradeSegment, genType: gt });
           if (qualityBlocks.length > 0) {
             instruction += qualityBlocks.map(b => b.content).join('\n') + '\n';
+          } else {
+            console.warn(`[quality-miss] ⚠️ 品质标准无匹配块: genType="${gt}" subject="${matchSubject}" stage="${gradeSegment}"——AI将在无品质标准约束下生成，质量可能不可控`);
           }
           // 🔧 专项突破：根据用户选择的专项子类型精确匹配结构（如阅读理解 vs 古诗词 vs 计算）
           const structQueryOpts = { category: '生成-资料类型结构', subject, stage: gradeSegment, genType: gt };
@@ -5283,6 +5403,19 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     } else {
       instruction += `⚠️ 请在顶部配置栏选择资料类型（考卷/课时练/专项突破/知识点总结），未选择时系统将按默认考卷格式生成。\n`;
+    }
+    
+    // ========== 1.4.【课标骨架对齐】（R1/R2：骨架锚定新课标学业要求 + 骨架下内容不交叉） ==========
+    // 🔧 生成端强制：所有引擎均注入（紧跟在结构大纲之后，锚定"骨架→板块内容"全链）。
+    //    三维度精准：按 学段(gradeSegment) × 资料类型(genType) 匹配对应学段的课标学业要求块；
+    //    学科维度由【学科核心素养】块承载（避免与学科核心素养块重复注入）。
+    const skeletonBlocks = getMatchingBlockInstructions({ category: '生成-课标骨架', subject: '', stage: gradeSegment || stage || '', genType: primaryGenType });
+    if (skeletonBlocks.length > 0) {
+      instruction += `\n---\n【${_title('skeleton_align', '课标骨架对齐')}】\n`;
+      for (const sk of skeletonBlocks) {
+        instruction += `- ${sk.content}\n`;
+      }
+      instruction += `\n`;
     }
     
     // ========== 1.5.【答案区强制锚定】 ==========
@@ -6026,8 +6159,11 @@ ${cardAnalysisText.substring(0, 1000)}
     instruction += `\n`;
 
     // ========== 14.【题目质量标准】（从指令库按stage+subject+genType三维度匹配，无硬编码兜底）==========
-    // 🔧 DeepSeek 跳过：题目质量标准（题干无歧义、选项长度一致等）DeepSeek 训练数据已知
-    if (!_isDeepSeekInstruction) {
+    // 🔴 生成端强制：非 exam 类型在 DeepSeek 路径下也注入题目质量标准——
+    //    exam 由 quality_exam_formal 品质块承载（含小题规范/干扰项/填空设空等），
+    //    但 practice/special/review 等非 exam 类型的品质块较短，不含上述具体命题规范，
+    //    跳过后 AI 无"填空一处只考一个知识点""选择题≤3选项"等落地约束
+    if (!_isDeepSeekInstruction || primaryGenType !== 'exam') {
     // 🔧 基础规则（所有阶段通用，仅取 subject='' 且 stage='' 的纯通用条目；传 genType 以启用资料类型过滤——听写/默写/总结/预习不注入题目质量标准）
     const qualityBase = getMatchingBlockInstructions({ category: '生成-题目质量标准', subject: '', stage: '', genType: primaryGenType });
     // 🔧 学段专属规则（filter 排除 subject 非空的学科条目，仅取纯学段条目，且按 gradeSegment 精确匹配）
@@ -6056,7 +6192,7 @@ ${cardAnalysisText.substring(0, 1000)}
       console.warn(`[instructionLib] 未找到题目质量标准: stage=${stage}, subject=${subject}`);
     }
     instruction += '\n';
-    }// _isDeepSeekInstruction guard end (题目质量标准)
+    }// !_isDeepSeekInstruction || primaryGenType !== 'exam' guard end (题目质量标准)
 
     // ========== 15.【答案与解析规范】教辅级答案质量（优先从指令库读取）==========
     // 🔧 Q1+Q3+Q4: 对标市面教辅的答案与解析标准
@@ -6137,7 +6273,10 @@ ${cardAnalysisText.substring(0, 1000)}
       // 🔧 从指令库获取命题风格指令（纯三维度查询，无硬编码兜底）
       const styleBlocks = getMatchingBlockInstructions({ category: '生成-命题风格', genType: propositionStyle });
       if (styleBlocks.length > 0) {
-        instruction += `命题风格：${styleBlocks[0].content}`;
+        // 🔴 关键修复：同时注入风格标识符（unified_context/context_fusion），
+        //    供后续 contextFramework 生成逻辑用正则匹配检测——
+        //    仅注入中文描述时，正则 /unified_context/ 永远不匹配，情境框架从不生成
+        instruction += `命题风格：${propositionStyle}（${styleBlocks[0].content}）`;
       } else {
         console.warn(`[instructionLib] 未找到命题风格: propositionStyle=${propositionStyle}`);
       }
@@ -6147,9 +6286,10 @@ ${cardAnalysisText.substring(0, 1000)}
     }
 
     // 🔧 情境要求（按 stage+subject+genType 从指令库注入情境化命题要求；传 genType 排除 dictation/summary/errorbook 等非命题类型）
-    // 🔧 DeepSeek 精简：仅在用户显式选择统一情境模式时才注入情境方向，否则让 DeepSeek 自由发挥情境创造力
-    const _shouldInjectContextReq = !_isDeepSeekInstruction
-      || (propositionStyle && ['context_fusion', 'unified_context'].includes(propositionStyle));
+    // 🔴 生成端强制：所有引擎均注入情境化设计要求（含传统→情境化对比示例、基础题情境化全覆盖），
+    //    不再按 DeepSeek/情境模式跳过——这些块是新课标"题目要有真实学习情境"的生成端唯一载体，
+    //    跳过后仅靠 EXAM_NEW_STANDARD 的高层原则无法指导 AI 落地具体情境化手法
+    const _shouldInjectContextReq = true;
     if (_shouldInjectContextReq && (stage || subject)) {
       // 通用层：frag_context_design（情境化比例底线）+ context_real_*（真实情境）+ genType 专属深度块，按 stage 全量注入
       const stageCtxBlocks = getMatchingBlockInstructions({ category: '生成-情境要求', subject: '', stage, genType: primaryGenType });
@@ -6173,6 +6313,8 @@ ${cardAnalysisText.substring(0, 1000)}
           instruction += `- ${block.content}\n`;
         }
         instruction += `\n`;
+      } else {
+        console.warn(`[context-miss] ⚠️ 情境要求无匹配块: genType="${primaryGenType}" subject="${matchSubject || ''}" stage="${stage}"——AI将在无情境要求约束下生成`);
       }
     }
 
@@ -6202,6 +6344,17 @@ ${cardAnalysisText.substring(0, 1000)}
       instruction += `\n---\n【${_title('content_norm', '内容与特殊要求')}】\n${supplementParts.join('\n')}\n\n`;
     }
 
+    // ========== 8.5.【教辅编辑标准】（R6：对标市面正式教辅出版水准，生成端强制） ==========
+    // 🔧 所有引擎均注入：文字/标点/数据/表述/结构五维编辑质量，先于输出格式重申保证近因生效
+    const editStdBlocks = getMatchingBlockInstructions({ category: '生成-编辑标准', subject: '', stage: '', genType: primaryGenType });
+    if (editStdBlocks.length > 0) {
+      instruction += `\n---\n【${_title('edit_std', '教辅编辑标准')}】\n`;
+      for (const es of editStdBlocks) {
+        instruction += `- ${es.content}\n`;
+      }
+      instruction += `\n`;
+    }
+
     // 🔧 最终输出规则已由 buildOutputPreamble() 在 prompt 最前端注入（查询指令库「生成-输出前置指令」），
     //    此处不再重复注入，避免同一语义出现两次导致模型困惑。
 
@@ -6225,6 +6378,9 @@ ${cardAnalysisText.substring(0, 1000)}
       '生成-知识边界', '生成-时间分配', '生成-格式尾约束',
       // 🔧 补漏：品质标准有专属 Section，但此前未被列入防线
       '生成-品质标准',
+      // 🔧 补漏（2026-08）：课标骨架对齐 + 教辅编辑标准 有专属 Section
+      '生成-课标骨架',   // Section 1.4.【课标骨架对齐】
+      '生成-编辑标准',   // Section 8.5.【教辅编辑标准】
       // 生成-元数据（指令块标题本身）
       '生成-指令块标题',
       // 🔧 补漏：以下 category 在 buildGenerationInstruction 中有专属 Section，但此前被遗漏
@@ -6319,6 +6475,54 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔧 块间间距归一化：确保每个 --- 分隔线前恰好一个空行，消除不规则间距
     instruction = instruction.replace(new RegExp(String.fromCharCode(10) + '+---' + String.fromCharCode(10), 'g'), String.fromCharCode(10) + String.fromCharCode(10) + '---' + String.fromCharCode(10));
     instruction = instruction.replace(/^\n+/, '');
+
+    // ═══════════════════════════════════════
+    // 🔧 源头预算分配（生成时就按预算分配，而非等 callAI 被动截断）：
+    //    三桶重排实现注意力工程——核心头（角色/红线/蓝本/核心任务）必保拼在最前，
+    //    核心尾（顶层约束/尾约束/格式尾约束）必保拼在最后（近因效应），
+    //    中部弹性块（题型设计/质量标准/模板对标等动态内容）按剩余预算填充，
+    //    超预算的中间块直接丢弃并告警——callAI 不再需要被动压缩。
+    // ═══════════════════════════════════════
+    const MAX_INSTRUCTION_TOKENS = 12000; // 整卷路径安全预算（预留余量给教材原文+知识图谱）
+    const totalTokens = estimateTokens(instruction);
+    if (totalTokens > MAX_INSTRUCTION_TOKENS) {
+      console.warn(`⚠️ [源头预算分配] 指令过长(${totalTokens} tokens)，按优先级三桶分配...`);
+      const sections = instruction.split(/\n(?=【)/);
+      const headCore = [];  // 核心头（必保，首因位置）
+      const tailCore = [];  // 核心尾（必保，近因位置）
+      const midFlex = [];   // 中部弹性（按剩余预算填充）
+      // 🔧 核心头：角色/标题/核心任务/红线/答案锚定——模型开工前必须看到的身份与底线
+      const HEAD_CORE_RE = /角色身份|标题格式|核心任务|红线约束|答案区强制锚定/;
+      // 🔧 核心尾：顶层约束/尾约束/格式重申——recency 效应下最后一次强调格式与底线
+      const TAIL_CORE_RE = /顶层约束|输出格式重申|尾约束|格式尾约束/;
+      for (const section of sections) {
+        const titleMatch = section.match(/【([^】]+)】/);
+        const title = titleMatch ? titleMatch[1] : '';
+        if (HEAD_CORE_RE.test(title)) headCore.push(section);
+        else if (TAIL_CORE_RE.test(title)) tailCore.push(section);
+        else midFlex.push(section);
+      }
+      // 核心头+核心尾必保，中部弹性按剩余预算填充
+      const headTokens = headCore.reduce((s, sec) => s + estimateTokens(sec), 0);
+      const tailTokens = tailCore.reduce((s, sec) => s + estimateTokens(sec), 0);
+      const midBudget = Math.max(2000, MAX_INSTRUCTION_TOKENS - headTokens - tailTokens);
+      const keptMid = [];
+      let usedMid = 0;
+      for (const section of midFlex) {
+        const t = estimateTokens(section);
+        if (usedMid + t <= midBudget) {
+          keptMid.push(section);
+          usedMid += t;
+        } else {
+          const tm = section.match(/【([^】]+)】/);
+          console.warn(`[budget-control] 预算不足，跳过中部块: 【${tm ? tm[1] : '?'}】(${t} tokens)`);
+        }
+      }
+      // 🔧 注意力工程：关键约束放前 20%（核心头）与后 20%（核心尾），动态内容放中间
+      instruction = [...headCore, ...keptMid, ...tailCore].join('\n');
+      console.log(`[budget-control] 源头预算分配完成: 核心头${headCore.length}块(${headTokens}t) + 中部${keptMid.length}/${midFlex.length}块(${usedMid}t) + 核心尾${tailCore.length}块(${tailTokens}t) = ${estimateTokens(instruction)} tokens`);
+    }
+
     return instruction;
     } catch (e) {
       console.error('[buildGenerationInstruction] :', e);
@@ -6633,20 +6837,75 @@ ${content}`;
     //    不影响输出多样性——输出随机性由 temperature 参数控制，与前缀无关。
     //    曾在此处注入 cacheBuster 随机盐破坏前缀匹配，导致每次全价计费，已移除。
 
+    // ═══════════════════════════════════════
+    // 🔧 System 分离：把不变规则（角色身份/红线约束/新课标蓝本/格式规范/尾约束）
+    //    放入 system role，成为模型的"永久记忆"——system 注意力权重高于 user，
+    //    且不再淹没在 user prompt 的动态内容汪洋中（缓解 Lost in the Middle）。
+    // ═══════════════════════════════════════
+    const splitSystemAndUser = (instr) => {
+      const sections = instr.split(/\n(?=【)/);
+      const systemTitles = [
+        '角色身份',           // 身份与任务基调
+        '红线约束',           // 原创底线（独立节，红线是永久记忆）
+        '真题卷结构蓝本',     // 新课标蓝本（exam 骨架唯一权威）
+        '格式规范',           // 输出格式类（试卷/练习格式规范等动态标题）
+        '输出格式重申',       // 格式重申（Ollama 路径）
+        '顶层约束',           // 顶层底线
+        '尾约束',             // 填空互斥/空标签语义
+        '格式尾约束',         // 题目标签包裹（随尾约束节黏附，兼容匹配）
+        '标题格式',           // 标题命名规范
+        '答案区强制锚定',     // 答案分离
+        '答案与解析规范',     // 教辅级答案质量
+        '学科核心素养',       // 新课标核心素养关键词
+      ];
+      const systemSections = [];
+      const userSections = [];
+      for (const section of sections) {
+        const titleMatch = section.match(/【([^】]+)】/);
+        const title = titleMatch ? titleMatch[1] : '';
+        if (systemTitles.some(st => title.includes(st))) {
+          systemSections.push(section);
+        } else {
+          userSections.push(section);
+        }
+      }
+      return {
+        systemMessage: systemSections.join('\n').trim(),
+        userInstruction: userSections.join('\n').trim()
+      };
+    };
+
     // 🔧 变量替换：指令中的占位符 → 运行时实际值（role/title/top 中的 {genTypeLabel}/{diffRatio}/{pageCount}）
     const pageCount = getPageCount(genType, stage);
-    let finalInstruction = instruction
+    const applyVars = (t) => (t || '')
       .replace(/\{genTypeLabel\}/g, genTypeLabel)
       .replace(/\{diffRatio\}/g, diffRatio)
       .replace(/\{pageCount\}/g, pageCount);
+    const finalInstruction = applyVars(instruction);
+
+    const { systemMessage: splitSystem, userInstruction } = splitSystemAndUser(finalInstruction);
+    // 🔧 输出纪律（禁止前言/Markdown 等）前置到 system 最前——它是最高优先级永久规则
+    const systemMessage = (buildOutputPreamble() + '\n' + applyVars(splitSystem)).trim();
+    const finalUserInstruction = applyVars(userInstruction);
+
+    if (systemMessage) {
+      console.log(`🧠 System 分离: system=${estimateTokens(systemMessage)} tokens, user=${estimateTokens(finalUserInstruction)} tokens`);
+    }
 
     // 直接生成：完整指令 + 教材原文 + 知识图谱 → 一次性产出整卷
     statusText.value = `步骤 3/4：开始生成整卷...`;
     progress.value = 42;
 
-    let fullPrompt = buildOutputPreamble() + '\n';
-    fullPrompt += finalInstruction;
+    // ═══════════════════════════════════════
+    // 🔧 注意力工程（接受 Lost in the Middle 限制）：
+    //    前 ~20%：核心任务等关键约束（user 开头即核心任务，system 中另有输出纪律）
+    //    中间 ~60%：动态内容（知识图谱/多单元约束/教材原文/情境框架/模板参考）
+    //    后 ~20%：近因检查块（生成前最后一次关键约束重申，recency 效应）
+    // ═══════════════════════════════════════
+    let fullPrompt = finalUserInstruction;
     fullPrompt += '\n\n⚠️ 以上为完整指令，请严格遵循每一个细节要求，生成完整 HTML 资料。\n\n';
+
+    // ── 中部动态区 ──
     fullPrompt += kmText;
     // 🔴 多单元组卷规范（exam 且勾选多个单元时注入，含单元知识点统计）
     const multiUnitText = buildMultiUnitExamConstraint(knowledgeMap, isExam);
@@ -6665,6 +6924,15 @@ ${content}`;
     if (templateInfo) {
       fullPrompt += templateInfo + '\n';
     }
+
+    // ── 近因区：生成前最后检查（关键约束重申，recency 效应）──
+    fullPrompt += `
+【开始生成前——最后检查清单（优先级最高）】
+在输出前，请逐条对照 system 指令中的红线约束、骨架与格式规范执行以下检查：
+1. 卷面结构、分值体系与题型命名以 system 中锁定的规范为准，不得自由发挥；
+2. 严格遵守 system 中的格式规范与尾约束（填空/选择标签、题目包裹等），不得用 Markdown 替代；
+3. 知识点表述以【教材原文】为准，禁止杜撰原文没有的内容；
+4. 直接输出完整 HTML 正文，禁止任何前言、解释、Markdown 代码块。`;
 
     // ── 指数退避重试（DeepSeek 必须通，不降级到逐题生成）──
     const MAX_RETRIES = 3;
@@ -6688,6 +6956,8 @@ ${content}`;
           timeout: 300000,
           allowContinuation: true,
           retries: 0,
+          // 🔧 System 分离：规则/格式/蓝本入 system role（永久记忆），动态内容留在 user
+          systemMessage: systemMessage || undefined,
         });
 
         // 提取 HTML 内容
@@ -7042,13 +7312,16 @@ ${content}`;
         }
       }
       
-      // ✨ 新增：统一情境/情境融合 → 优先使用学科情境库，降级为AI生成
+      // ✨ 命题风格 → 情境框架生成
+      //    unified_context：整卷统一情境框架（预设情境库 → AI生成 → 兜底文本）
+      //    context_fusion：每个模块独立小情境（提供多个情境建议 + 模块独立设计要求）
       let contextFramework = '';
-      const contextStyles = ['unified_context', 'context_fusion'];
       // 从指令中解析命题风格
       const instructionStyleMatch = instruction.match(/命题风格[：:]\s*([^\n]+)/);
       const instructionStyleText = instructionStyleMatch ? instructionStyleMatch[1] : '';
-      const isContextStyle = contextStyles.some(s => instructionStyleText.includes(s));
+      const isUnifiedContext = instructionStyleText.includes('unified_context');
+      const isContextFusion = instructionStyleText.includes('context_fusion');
+      const isContextStyle = isUnifiedContext || isContextFusion;
       
       if (isContextStyle) {
         statusText.value = '步骤 3/5：构建情境框架...';
@@ -7060,15 +7333,16 @@ ${content}`;
           const stage = book?.stage || '';
           const subject = normalizeSubjectName(rawSubject, stage);
           const grade = book?.grade || '';
-          
+
           // 🔧 优先：从学科情境库中获取预设情境
           const presetContexts = getContextsForSubject(subject, stage, 3);
-          
-          if (presetContexts.length > 0) {
-            // 使用预设情境
-            const selectedContext = presetContexts[0]; // 取第一个（已随机打乱）
-            
-            contextFramework = `
+
+          if (isUnifiedContext) {
+            // ── 统一情境：整卷一个核心情境，所有题目在此情境下展开 ──
+            if (presetContexts.length > 0) {
+              const selectedContext = presetContexts[0];
+
+              contextFramework = `
 【统一情境框架——所有命题必须在此情境下展开】
 
 📖 情境名称：${selectedContext.name}
@@ -7087,12 +7361,11 @@ ${selectedContext.scenes.map((s, i) => `  场景${i + 1}「${s}」`).join('\n')}
 3. 场景顺序应从简单到复杂，与难度递进匹配
 4. 知识点的考查应均匀分布在不同场景中
 `;
-            console.log(`✅ 使用学科情境库：${subject}·${stage}·${selectedContext.name}`);
-          } else {
-            // 降级：AI动态生成情境
-            console.log('⚠️ 学科情境库无匹配，AI动态生成...');
-            
-            const contextPrompt = `你是一位${stage}${grade}${subject}教学专家。请为一份教辅资料设计一个贯穿全卷的统一情境/主题故事。
+              console.log(`✅ 使用学科情境库：${subject}·${stage}·${selectedContext.name}`);
+            } else {
+              console.log('⚠️ 学科情境库无匹配，AI动态生成统一情境...');
+
+              const contextPrompt = `你是一位${stage}${grade}${subject}教学专家。请为一份教辅资料设计一个贯穿全卷的统一情境/主题故事。
 
 【要求】
 1. 情境必须与学科内容和学生生活紧密相关
@@ -7117,21 +7390,21 @@ ${selectedContext.scenes.map((s, i) => `  场景${i + 1}「${s}」`).join('\n')}
 
 要求 scenes 至少3个场景，最多5个。场景之间要有逻辑递进关系。只返回 JSON。`;
 
-            const contextResult = await callAI(contextPrompt, { 
-              taskType: 'blueprint',
-              temperature: 0.5,
-              timeout: 60000
-            });
-            
-            try {
-              const contextJson = await robustJsonParse(
-                contextResult, 
-                (retryPrompt) => callAI(retryPrompt, { temperature: 0.3, taskType: 'generation' }),
-                '情境框架',
-                'generation'
-              );
-              
-              contextFramework = `
+              const contextResult = await callAI(contextPrompt, {
+                taskType: 'blueprint',
+                temperature: 0.5,
+                timeout: 60000
+              });
+
+              try {
+                const contextJson = await robustJsonParse(
+                  contextResult,
+                  (retryPrompt) => callAI(retryPrompt, { temperature: 0.3, taskType: 'generation' }),
+                  '情境框架',
+                  'generation'
+                );
+
+                contextFramework = `
 【统一情境框架——所有命题必须在此情境下展开】
 
 📖 情境名称：${contextJson.name}
@@ -7139,7 +7412,7 @@ ${selectedContext.scenes.map((s, i) => `  场景${i + 1}「${s}」`).join('\n')}
 🎯 核心任务：${contextJson.mainTask}
 
 📋 可用场景（每个场景可容纳多道题）：
-${(contextJson.scenes || []).map((s, i) => 
+${(contextJson.scenes || []).map((s, i) =>
   `  场景${i + 1}「${s.name}」：${s.description}
      → 适合题型：${(s.suitableTypes || []).join('、')}
      → 适合知识点：${(s.suitableTopics || []).join('、')}`
@@ -7153,15 +7426,98 @@ ${(contextJson.scenes || []).map((s, i) =>
 3. 场景顺序应从简单到复杂，与难度递进匹配
 4. 知识点的考查应均匀分布在不同场景中
 `;
-              console.log('✅ AI情境框架生成成功:', contextJson.name);
-            } catch (e) {
-              console.warn('情境框架解析失败，跳过情境融入:', e.message);
-              contextFramework = '';
+                console.log('✅ AI情境框架生成成功:', contextJson.name);
+              } catch (e) {
+                console.warn('情境框架解析失败，使用基础情境约束:', e.message);
+                contextFramework = `\n【情境框架——自主设计统一情境】\n请自主设计一个贯穿全卷的统一情境/主题故事，所有题目在此情境下展开。情境须与学科内容和学生生活紧密相关，要有故事性或任务性，非简单背景装饰。同一情境内的题目要有逻辑连贯性。\n`;
+              }
+            }
+          } else if (isContextFusion) {
+            // ── 情境融合：每个模块/题型独立小情境，不强制统一故事 ──
+            if (presetContexts.length > 0) {
+              const moduleContexts = presetContexts.slice(0, 3);
+
+              contextFramework = `
+【情境融合框架——每个模块独立设计情境】
+
+📋 可用情境（每个题型/模块选择一个独立情境）：
+${moduleContexts.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
+     → 适合知识点：${(c.suitableTopics || []).join('、') || '教材核心知识点'}`).join('\n')}
+
+⚠️ 【关键约束】
+1. 每个题型/模块使用一个独立情境，不同模块情境不要求关联
+2. 情境与题目高度融合，考查知识迁移能力
+3. 每个模块内的题目围绕该模块的情境展开
+4. 情境须与学科内容和学生生活紧密相关，要有真实性和任务性
+`;
+              console.log(`✅ 情境融合：使用${moduleContexts.length}个学科情境库情境`);
+            } else {
+              console.log('⚠️ 学科情境库无匹配，AI动态生成模块情境...');
+
+              const fusionPrompt = `你是一位${stage}${grade}${subject}教学专家。请为一份教辅资料设计3个独立的小情境，每个情境对应一个题型/模块。
+
+【要求】
+1. 每个情境独立，不要求关联
+2. 情境必须与学科内容和学生生活紧密相关
+3. 情境要有真实性和任务性，考查知识迁移能力
+
+【输出格式】必须返回严格 JSON：
+{
+  "contexts": [
+    {
+      "name": "情境名称（15字以内）",
+      "description": "情境描述（40字以内）",
+      "suitableTopics": ["适合考查的知识点1", "知识点2"],
+      "suitableTypes": ["适合的题型1", "题型2"]
+    }
+  ]
+}
+
+要求 contexts 恰好3个，每个对应不同题型。只返回 JSON。`;
+
+              const fusionResult = await callAI(fusionPrompt, {
+                taskType: 'blueprint',
+                temperature: 0.5,
+                timeout: 60000
+              });
+
+              try {
+                const fusionJson = await robustJsonParse(
+                  fusionResult,
+                  (retryPrompt) => callAI(retryPrompt, { temperature: 0.3, taskType: 'generation' }),
+                  '情境融合框架',
+                  'generation'
+                );
+
+                const ctxList = fusionJson.contexts || [];
+                contextFramework = `
+【情境融合框架——每个模块独立设计情境】
+
+📋 可用情境（每个题型/模块选择一个独立情境）：
+${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
+     → 适合题型：${(c.suitableTypes || []).join('、')}
+     → 适合知识点：${(c.suitableTopics || []).join('、')}`).join('\n')}
+
+⚠️ 【关键约束】
+1. 每个题型/模块使用一个独立情境，不同模块情境不要求关联
+2. 情境与题目高度融合，考查知识迁移能力
+3. 每个模块内的题目围绕该模块的情境展开
+4. 情境须与学科内容和学生生活紧密相关，要有真实性和任务性
+`;
+                console.log('✅ AI情境融合框架生成成功:', ctxList.length, '个情境');
+              } catch (e) {
+                console.warn('情境融合框架解析失败，使用基础约束:', e.message);
+                contextFramework = `\n【情境融合框架——每个模块独立设计情境】\n请为每个题型/模块设计一个独立的小情境，情境与题目高度融合。不同模块的情境可以完全不同，但每个模块内的题目应围绕该模块的情境展开。情境须与学科内容和学生生活紧密相关，要有真实性和任务性。\n`;
+              }
             }
           }
         } catch (e) {
-          console.warn('情境框架生成失败，跳过情境融入:', e.message);
-          contextFramework = '';
+          console.warn('情境框架生成失败，使用基础情境约束:', e.message);
+          if (isUnifiedContext) {
+            contextFramework = `\n【情境框架——自主设计统一情境】\n请自主设计一个贯穿全卷的统一情境/主题故事，所有题目在此情境下展开。情境须与学科内容和学生生活紧密相关，要有故事性或任务性，非简单背景装饰。同一情境内的题目要有逻辑连贯性。\n`;
+          } else {
+            contextFramework = `\n【情境融合框架——每个模块独立设计情境】\n请为每个题型/模块设计一个独立的小情境，情境与题目高度融合。不同模块的情境可以完全不同，但每个模块内的题目应围绕该模块的情境展开。情境须与学科内容和学生生活紧密相关，要有真实性和任务性。\n`;
+          }
         }
       }
       
@@ -7494,7 +7850,7 @@ ${(() => { const hasTpl = selectedTemplates && selectedTemplates.length > 0; if 
         let situationAnchor = '';
         const styleMatch = instruction.match(/命题风格[：:]\s*([^\n]+)/);
         const styleText = styleMatch ? styleMatch[1] : '';
-        if (styleText.includes('统一情境') || styleText.includes('情境融合') || styleText.includes('unified_context') || styleText.includes('context_fusion')) {
+        if (styleText.includes('unified_context')) {
           try {
             const anchorPrompt = `请为以下试卷设计一个贯穿全卷的统一情境/主题故事。
 学科：${selectedBooks?.[0]?.subject || ''}
@@ -10225,7 +10581,7 @@ ${buildOutputFormatBlock('reading', subject, stage, grade)}
         let situationAnchor = '';
         const styleMatch = instruction.match(/命题风格[：:]\s*([^\n]+)/);
         const styleText = styleMatch ? styleMatch[1] : '';
-        if (styleText.includes('统一情境') || styleText.includes('情境融合') || styleText.includes('unified_context') || styleText.includes('context_fusion')) {
+        if (styleText.includes('unified_context')) {
           try {
             const anchorPrompt = `请为以下试卷设计一个贯穿全卷的统一情境/主题故事。
 学科：${selectedBooks?.[0]?.subject || ''}

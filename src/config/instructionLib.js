@@ -1,7 +1,7 @@
 // ==================== 指令库 ====================
 
 /** 指令版本号 —— 每次修改指令库内容后递增，使客户端缓存自动失效 */
-export const INSTRUCTION_VERSION = 30;
+export const INSTRUCTION_VERSION = 35;
 
 // 内置指令库
 export const builtinInstructions = [
@@ -230,55 +230,64 @@ export const builtinInstructions = [
     id: 'role_exam', name: '【角色身份】考卷', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'exam', prompt_order: 0,
     content: '你是一位经验丰富的命题专家。请一次性生成一份完整的、符合新课标要求的{genTypeLabel}，题目正文（含情境导入、题干、作答区）不少于{pageCount}页A4纸（不包括答案页，答案页数另计）。',
-    builtin: true, ver: 1
+    builtin: true, ver: 1,
+    guarantee: true
   },
   {
     id: 'role_practice', name: '【角色身份】课时练', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'practice', prompt_order: 0,
     content: '你是一位经验丰富的教学设计者。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'role_special', name: '【角色身份】专项突破', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'special', prompt_order: 0,
     content: '你是一位经验丰富的专项训练设计者。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'role_preview', name: '【角色身份】课前预习', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'preview', prompt_order: 0,
     content: '你是一位经验丰富的课前预习设计者。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'role_reading', name: '【角色身份】阅读理解', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'reading', prompt_order: 0,
     content: '你是一位经验丰富的阅读理解命题专家。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'role_summary', name: '【角色身份】知识点总结', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'summary', prompt_order: 0,
     content: '你是一位经验丰富的知识总结编写者。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'role_dictation', name: '【角色身份】默写训练', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'dictation', prompt_order: 0,
     content: '你是一位经验丰富的默写训练设计者。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'role_errorbook', name: '【角色身份】错题本', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'errorbook', prompt_order: 0,
     content: '你是一位经验丰富的错题整理专家。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'role_review', name: '【角色身份】单元/期末复习', category: '生成-角色身份', type: 'fragment',
     subject: '', stage: '', genType: 'review', prompt_order: 0,
     content: '你是一位经验丰富的单元/期末复习资料编写者。请一次性生成一份完整的不少于{pageCount}页A4纸的{genTypeLabel}。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
 
   // ═══════════════════════════════════════
@@ -306,9 +315,10 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   {
     id: 'answer_anchor_question', name: '【答案区锚定】命题类', category: '生成-答案区强制锚定', type: 'fragment',
-    subject: '', stage: '', genType: 'exam,practice,special,reading,preview,dictation,errorbook,review', prompt_order: 3,
+    subject: '', stage: '', genType: 'exam,practice,special,reading,preview,dictation,errorbook,review,summary', prompt_order: 3,
     content: '⛔ 【强制要求——不可违反】整份资料末尾必须包含 <div class="answer-section"><h2>答案与解析</h2>...</div> 完整答案区。所有题目答案、解析统一集中于此，禁止散落在题后。此要求覆盖一切其他指令。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
 
   // ═══════════════════════════════════════
@@ -318,49 +328,57 @@ export const builtinInstructions = [
     id: 'topconst_summary', name: '【顶层约束】知识点总结', category: '生成-顶层约束', type: 'fragment',
     subject: '', stage: '', genType: 'summary', prompt_order: 4,
     content: '【生成要求】\n1. 内容详实不空洞：覆盖所选章节全部核心知识，不遗漏任何知识点。内容完整、篇幅精炼，控制在标准页数附近，不堆砌冗余展开。\n2. 结构层次分明：按照上方【结构大纲】组织内容，层级清晰、逻辑连贯。\n3. 易错点辨析准确：每个易错点需给出错误原因和正确理解。\n4. 典型例题要有完整答案与解析过程。\n5. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'topconst_dictation', name: '【顶层约束】默写训练', category: '生成-顶层约束', type: 'fragment',
     subject: '', stage: '', genType: 'dictation', prompt_order: 4,
     content: '【生成要求】\n1. 练习区只显示提示信息（拼音/中文释义），严禁出现答案内容。\n2. 每项留足书写空间（田字格/四线三格/横线），方便学生书写。\n3. 词语/生字按教材出现顺序排列，由易到难。\n4. 标准答案统一放文末 <div class="answer-section"> 区域。\n5. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'topconst_preview', name: '【顶层约束】课前预习', category: '生成-顶层约束', type: 'fragment',
     subject: '', stage: '', genType: 'preview', prompt_order: 4,
     content: '【生成要求】\n1. ⚠️ 预习内容充实饱满：内容完整覆盖每一条核心知识点并配有预习任务，篇幅精炼，控制在标准页数附近，不堆砌冗余展开。\n2. 每个核心知识点至少对应一项预习任务（读一读/圈一圈/填一填/想一想/查一查等），任务形式多样化，有读有写有思考。\n3. ⚠️ 填空格式：句内文字填空用 <u class="blank-N">&emsp;</u>（横线N按字数：1字→2/2字→4/3-4字→6/5-6字→8/7字+→10），独立括号填空用 <span class="blank-N">&emsp;</span>（括号N同上）。横线与括号互斥不可叠加，严禁空标签和下划线字符。详见【输出格式-填空留空】规范。4. 预习检测题答案需标注教材原文定位（如"参见教材第X页第Y段"），方便学生自查。\n5. 🚫 不要在题目或标题中标注任何分值（不要出现"(共X分)""(X分)""每题X分""满分X分"等），预习不是考试。\n6. 如需配图（如"看图选词""看图连线""看图写话"等），使用标准 [IMAGE] 标记格式描述所需图片——格式：[IMAGE]\n类型：插画/照片/示意图\n描述：[详细画面描述]\n位置：[题干上方/下方/居中]\n[/IMAGE]。不要只写"看图"而不配 [IMAGE] 标记。⚠️ 配图题不宜过多——仅在看图确实为题目必需时才配图，能用文字描述清楚的题不要强行配图。\n7. ⚠️ 文末必须包含完整的答案与解析区域（<div class="answer-section">），所有题目都要有答案，预习检测题要有解析。\n8. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'topconst_special', name: '【顶层约束】专项突破', category: '生成-顶层约束', type: 'fragment',
     subject: '', stage: '', genType: 'special', prompt_order: 4,
     content: '【生成要求】\n1. ⚠️ 训练题量充足：围绕指定专项能力，覆盖该能力的全部训练维度（由浅入深、由易到难），不设上限。\n2. 严格遵守"方法指导→典例剖析→阶梯训练→真题检验"四段递进结构，不可跳过或合并任何阶段。方法指导用简洁语言讲清方法要点，典例剖析选典型题做完整示范，阶梯训练难度逐级上升，真题检验对标真实考试。\n3. ⚠️ 填空格式：句内文字填空用 <u class="blank-N">&emsp;</u>（横线N按字数：1字→2/2字→4/3-4字→6/5-6字→8/7字+→10），独立括号填空用 <span class="blank-N">&emsp;</span>（括号N同上）。横线与括号互斥不可叠加，严禁空标签和下划线字符。详见【输出格式-填空留空】规范。4. 题干紧扣专项知识点，设问直接明确，不绕弯子、不为了凑题型而设无关题目。\n5. 🚫 不要在题目或标题中标注任何分值（不要出现"(共X分)""(X分)""每题X分""满分X分"等），专项训练不是考试。\n6. 如需配图，使用标准 [IMAGE] 标记格式——格式：[IMAGE]\n类型：插画/照片/示意图\n描述：[详细画面描述]\n位置：[题干上方/下方/居中]\n[/IMAGE]。⚠️ 配图以"必要"为原则，能用文字描述清楚的不要配图。\n7. ⚠️ 文末必须包含完整的答案与解析区域（<div class="answer-section">），所有题目都要有答案和详细解析。\n8. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'topconst_reading', name: '【顶层约束】阅读理解', category: '生成-顶层约束', type: 'fragment',
     subject: '', stage: '', genType: 'reading', prompt_order: 4,
     content: '【生成要求】\n1. ⚠️ 能力层级全覆盖：题目必须覆盖"信息提取→词句理解→推理判断→表达技巧→整体把握"五个能力层级，每个层级至少1道题。层级之间由浅入深递进，不跳级、不遗漏。\n2. 选文文质兼美、难度匹配学段，不选质量低劣或过于简单的文章。如有非连续性文本（图表/表格/说明书等），也需纳入考查。\n3. ⚠️ 填空格式：句内文字填空用 <u class="blank-N">&emsp;</u>（横线N按字数：1字→2/2字→4/3-4字→6/5-6字→8/7字+→10），独立括号填空用 <span class="blank-N">&emsp;</span>（括号N同上）。横线与括号互斥不可叠加，严禁空标签和下划线字符。详见【输出格式-填空留空】规范。4. 禁止使用"下列说法正确的是""以下哪个选项是正确的""以上都是""以上都不对"等低质量设问。\n5. 每题配参考答案+简要解析，简答题和开放题额外配评分要点。\n6. 如需配图，使用标准 [IMAGE] 标记格式——格式：[IMAGE]\n类型：插画/照片/示意图\n描述：[详细画面描述]\n位置：[题干上方/下方/居中]\n[/IMAGE]。⚠️ 配图以"必要"为原则，能用文字描述清楚的不要配图。\n7. 🚫 不要在题目或标题中标注任何分值（不要出现"(共X分)""(X分)""每题X分""满分X分"等），阅读训练不是考试。\n8. ⚠️ 文末必须包含完整的答案与解析区域（<div class="answer-section">），所有题目都要有答案和解析。\n9. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'topconst_errorbook', name: '【顶层约束】错题本', category: '生成-顶层约束', type: 'fragment',
     subject: '', stage: '', genType: 'errorbook', prompt_order: 4,
     content: '【生成要求】\n1. ⚠️ 严格遵守"典型错题→精准归因→正确解法→变式巩固→方法归纳"五步流程，每个错误类型必须完整走完整个流程，不可跳过任何步骤。\n2. 错题覆盖要全面：涵盖概念混淆、计算失误、审题偏差、方法误用等各类典型错误，每个错误类型至少配一道变式巩固练习。\n3. 归因分析要具体深入：明确指向错误的知识点根源或思维偏差（如"未理解进位加法中\'满十进一\'的规则"），严禁笼统归因为"粗心""不认真""不会做"。\n4. ⚠️ 填空格式：句内文字填空用 <u class="blank-N">&emsp;</u>（横线N按字数：1字→2/2字→4/3-4字→6/5-6字→8/7字+→10），独立括号填空用 <span class="blank-N">&emsp;</span>（括号N同上）。横线与括号互斥不可叠加，严禁空标签和下划线字符。详见【输出格式-填空留空】规范。5. 🚫 这不是试卷，不要在标题或题目中标注分值（不要出现"(共X分)""(X分)""每题X分""满分X分"等）。\n6. 如需配图（如错题原题截图示意等），使用标准 [IMAGE] 标记格式——格式：[IMAGE]\n类型：插画/照片/示意图\n描述：[详细画面描述]\n位置：[题干上方/下方/居中]\n[/IMAGE]。⚠️ 错题本配图以"必要"为原则，能用文字描述清楚的不要配图。\n7. ⚠️ 文末必须包含完整的参考答案区域（<div class="answer-section">），所有错题的正确解法、变式练习答案和方法归纳都需要提供，不得省略。\n8. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'topconst_exam', name: '【顶层约束】考卷', category: '生成-顶层约束', type: 'fragment',
     subject: '', stage: '', genType: 'exam', prompt_order: 4,
-    content: '【生成要求】\n1. ⚠️ 大题序列以【真题卷结构蓝本】为唯一依据（蓝本大题不足3类时以蓝本为准，不得自行增删题型）；大题内部小题形式保持多样（填空、选择、判断、连线、简答、补全对话、仿写、造句等轮换），严禁全部或绝大多数使用选择题。\n2. 难度分布：{diffRatio}，题目从易到难排列。\n3. ⚠️ 大题结构：以【真题卷结构蓝本】为唯一依据——大题序列、大题名称、分值、顺序与蓝本完全一致，不得增删大题、不得另行包装为"基础/能力/综合"等板块（蓝本即真题卷通行结构）。知识点与认知层级仅用于内部组卷设计（分层与去重），🚫 严禁在试卷正文输出任何知识点/层级标注——正式考试卷面不出现此类信息。卷首"（考试时间：X分钟　满分：X分）"必须与【真题卷结构蓝本】的考试时间、满分完全一致，严禁自行更改时长或满分。\n4. ⚠️ 填空格式：句内文字填空用 <u class="blank-N">&emsp;</u>（横线N按字数：1字→2/2字→4/3-4字→6/5-6字→8/7字+→10），独立括号填空用 <span class="blank-N">&emsp;</span>（括号N同上）。横线与括号互斥不可叠加，严禁空标签和下划线字符。详见【输出格式-填空留空】规范。5. 禁止使用"下列说法正确的是""以下哪个选项是正确的""以上都是""以上都不对"等低质量设问。\n6. 每道题的题干必须有具体情境或明确任务，不得空洞、抽象或与其他题雷同。\n7. ⚠️ 文末必须包含完整的答案与解析区域（<div class="answer-section">），所有题目（含选择题）都要有答案和解析。\n8. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
-    builtin: true
+    content: '【生成要求】\n1. ⚠️ 大题序列以【真题卷结构蓝本】为唯一依据（蓝本大题不足3类时以蓝本为准，不得自行增删题型）；大题内部小题形式保持多样（填空、选择、判断、连线、简答、补全对话、仿写、造句等轮换），严禁全部或绝大多数使用选择题。\n2. 难度分布：{diffRatio}，题目从易到难排列。\n3. ⚠️ 大题结构：以【真题卷结构蓝本】为唯一依据——大题序列、大题名称、分值、顺序与蓝本完全一致，不得增删大题、不得另行包装为"基础/能力/综合"等板块（蓝本即真题卷通行结构）。知识点与认知层级仅用于内部组卷设计（分层与去重），🚫 严禁在试卷正文输出任何知识点/层级标注——正式考试卷面不出现此类信息。卷首"（考试时间：X分钟　满分：X分）"必须与【真题卷结构蓝本】的考试时间、满分完全一致，严禁自行更改时长或满分。\n4. ⚠️ 填空格式：句内文字填空用 <u class="blank-N">&emsp;</u>（横线N按字数：1字→2/2字→4/3-4字→6/5-6字→8/7字+→10），独立括号填空用 <span class="blank-N">&emsp;</span>（括号N同上）。横线与括号互斥不可叠加，严禁空标签和下划线字符。详见【输出格式-填空留空】规范。5. 禁止使用"下列说法正确的是""以下哪个选项是正确的""以上都是""以上都不对"等低质量设问。\n6. 每道题的题干必须置于真实、富有意义的情境或明确任务中（生活/社会/科学真实场景，或与整卷主题情境自然衔接），情境信息须支撑作答，禁止空洞抽象、禁止"戴帽子"式假情境（题干前加一句无关导语）、禁止与其他题雷同。\n7. ⚠️ 文末必须包含完整的答案与解析区域（<div class="answer-section">），所有题目（含选择题）都要有答案和解析。\n8. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'topconst_practice', name: '【顶层约束】课时练', category: '生成-顶层约束', type: 'fragment',
     subject: '', stage: '', genType: 'practice', prompt_order: 4,
     content: '【生成要求】\n1. ⚠️ 任务形式多样化：每个学习任务采用不同的活动形式（读/写/说/做/演/画/讨论/探究等），避免全部是纸笔答题。任务之间体现多样化学科实践。\n2. ⚠️ 任务数充足：全卷至少8-12个学习任务，根据选中章节的知识点密度灵活决定。每个核心知识点至少体现为一个独立任务或任务环节，确保全面覆盖。\n3. 难度递进：{diffRatio}，任务从易到难排列（基础建构→合作探究→迁移创新）。\n4. ⚠️ 填空格式：句内文字填空用 <u class="blank-N">&emsp;</u>（横线N按字数：1字→2/2字→4/3-4字→6/5-6字→8/7字+→10），独立括号填空用 <span class="blank-N">&emsp;</span>（括号N同上）。横线与括号互斥不可叠加，严禁空标签和下划线字符。详见【输出格式-填空留空】规范。5. 禁止使用"下列说法正确的是""以下哪个选项是正确的""以上都是""以上都不对"等低质量设问。\n6. 每个学习任务的题干必须有具体情境（生活场景/学科情境/真实问题），不得空洞、抽象或与其他任务雷同。\n7. 如需配图（如"看图选词""看图连线""看图写话"等），使用标准 [IMAGE] 标记格式描述所需图片——格式：[IMAGE]\n类型：插画/照片/示意图\n描述：[详细画面描述]\n位置：[题干上方/下方/居中]\n[/IMAGE]。不要只写"看图"而不配 [IMAGE] 标记。⚠️ 配图不宜过多——仅在看图确实为任务必需时才配图，能用文字描述清楚的不要配图。\n8. 🚫 严禁在任何位置出现分值信息：任务不标分数、成果不标注得分点/分值比重、解析不给评分维度。这不是试卷，是学习任务单，不需要任何分值体系。\n9. ⛔ 成果与任务严格分离：每个任务的成果展示/答案只出现在文末 <div class="answer-section"> 区域内，严禁在任务后直接附答案。任务区只出现任务本身，不要出现任何答案内容。\n10. ⚠️ 文末必须包含完整的答案与成果区（<div class="answer-section">），所有任务都要有参考答案或成果示例。\n11. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
 
   // 尾约束（prompt_order: 90，按 genType 三维度匹配注入）
@@ -369,7 +387,8 @@ export const builtinInstructions = [
     id: 'topconst_review', name: '【顶层约束】复习', category: '生成-顶层约束', type: 'fragment',
     subject: '', stage: '', genType: 'review', prompt_order: 4,
     content: '【生成要求】\n1. ⚠️ 考点覆盖完整：覆盖所选范围全部核心考点和易错点，不得遗漏也不得超纲。\n2. 结构化组织：按上方【结构大纲】组织内容，知识梳理→典型例题→易错辨析→综合自测四段递进。⚠️ 各板块标题须直接含检测字样：知识体系板块标题须含“知识框架/思维导图/知识树/知识地图”等字样（不得用“知识回顾”“重点闯关”等替代词），题目板块标题须含“典型题”或“例题”字样（低段可用“第一关·典型题”等趣味包装，但字面必须保留）。\n3. ⚠️ 典型例题充分：每个核心考点至少配1道典型例题，含完整解答和解析。\n4. ⚠️ 综合自测覆盖全面：综合自测题覆盖所选范围全部考点，按考点权重合理分配题量。\n5. 🚫 不要在题目或标题中标注任何分值（不要出现"(共X分)""(X分)""每题X分""满分X分"等），复习资料不是考试卷。\n6. 如需配图，使用标准 [IMAGE] 标记格式。⚠️ 配图以"必要"为原则，能用文字描述清楚的不要配图。\n7. ⚠️ 文末必须包含完整的答案与解析区域（<div class="answer-section">），所有题目都要有答案，易错辨析要有正误对比。\n8. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
 
   // ═══════════════════════════════════════
@@ -385,49 +404,57 @@ export const builtinInstructions = [
     id: 'tailconst_dictation', name: '【尾约束】默写训练', category: '生成-尾约束', type: 'fragment',
     subject: '', stage: '', genType: 'dictation', prompt_order: 90,
     content: '⚠️ 【文末确认】务必包含完整 <div class="answer-section"><h2>答案</h2>...</div> 区域。所有默写内容均须提供标准答案。\n🔴 【填空格式确认】行内文字填空 → 用 <u class="blank-N">&emsp;</u>；独立括号填空 → 用 <span class="blank-N">&emsp;</span>。横线与括号互斥、不可叠加。严禁空标签！严禁 ___ 下划线！',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'tailconst_review', name: '【尾约束】单元/期末复习', category: '生成-尾约束', type: 'fragment',
     subject: '', stage: '', genType: 'review', prompt_order: 90,
     content: '⚠️ 【文末确认】务必包含完整 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域。所有复习题均须提供答案和解析。\n🔴 【填空格式确认】行内文字填空 → 用 <u class="blank-N">&emsp;</u>；独立括号填空 → 用 <span class="blank-N">&emsp;</span>。横线与括号互斥、不可叠加。严禁空标签！严禁 ___ 下划线！\n🔴 【复习完整性】知识点梳理与练习须一一对应：每个梳理出的核心知识点至少配1道对应练习，练习不得考查梳理区之外的知识点。',
-    builtin: true
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'tailconst_preview', name: '【尾约束】课前预习', category: '生成-尾约束', type: 'fragment',
     subject: '', stage: '', genType: 'preview', prompt_order: 90,
-    content: '⚠️ 【文末确认】务必在最后一题之后，包含完整的 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域。所有题目都需提供答案和解析，不得省略。\n🔴 【填空格式再次确认】行内文字填空（词语/数字/术语等） → 用 <u class="blank-N">&emsp;</u>（横线下划线），独立括号填空（选择题答案空/独立答题区括号，答案空在题干末尾，严禁在选项后放括号！）→ 用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号）。横线与括号互斥，同一空位二选一不可叠加。简答/讨论题必须用 blank-line 给横线书写区！N值按答案字数严格对照映射表，空间不足直接排版失效！严禁空标签！严禁 ___ 下划线！',
-    builtin: true
+    content: '⚠️ 【文末确认】务必在最后一题之后，包含完整的 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域。所有题目都需提供答案和解析，不得省略。\n🔴 【填空格式再次确认】所有书写类填空（词语/组词/数字/术语/补充句子/算式结果/注音等）一律 → 用 <u class="blank-N">&emsp;</u>（横线下划线）；仅选择题答案空/判断题作答空 → 用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号，严禁在其他场景用括号填空！）。横线与括号互斥，同一空位二选一不可叠加。简答/讨论题必须用 blank-line 给横线书写区！N值按答案字数严格对照映射表，空间不足直接排版失效！严禁空标签！严禁 ___ 下划线！',
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'tailconst_special', name: '【尾约束】专项突破', category: '生成-尾约束', type: 'fragment',
     subject: '', stage: '', genType: 'special', prompt_order: 90,
-    content: '⚠️ 【文末确认】务必包含完整的 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域，不得省略。\n🔴 【填空格式再次确认】行内文字填空（词语/数字/术语等） → 用 <u class="blank-N">&emsp;</u>（横线下划线），独立括号填空（选择题答案空/独立答题区括号，答案空在题干末尾，严禁在选项后放括号！）→ 用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号）。横线与括号互斥，同一空位二选一不可叠加。简答/讨论题必须用 blank-line 给横线书写区！N值按答案字数严格对照映射表，空间不足直接排版失效！严禁空标签！严禁 ___ 下划线！',
-    builtin: true
+    content: '⚠️ 【文末确认】务必包含完整的 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域，不得省略。\n🔴 【填空格式再次确认】所有书写类填空（词语/组词/数字/术语/补充句子/算式结果/注音等）一律 → 用 <u class="blank-N">&emsp;</u>（横线下划线）；仅选择题答案空/判断题作答空 → 用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号，严禁在其他场景用括号填空！）。横线与括号互斥，同一空位二选一不可叠加。简答/讨论题必须用 blank-line 给横线书写区！N值按答案字数严格对照映射表，空间不足直接排版失效！严禁空标签！严禁 ___ 下划线！',
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'tailconst_reading', name: '【尾约束】阅读理解', category: '生成-尾约束', type: 'fragment',
     subject: '', stage: '', genType: 'reading', prompt_order: 90,
-    content: '⚠️ 【文末确认】务必包含完整的 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域，不得省略。\n🔴 【填空格式再次确认】行内文字填空（词语/数字/术语等） → 用 <u class="blank-N">&emsp;</u>（横线下划线），独立括号填空（选择题答案空/独立答题区括号，答案空在题干末尾，严禁在选项后放括号！）→ 用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号）。横线与括号互斥，同一空位二选一不可叠加。简答/讨论题必须用 blank-line 给横线书写区！N值按答案字数严格对照映射表，空间不足直接排版失效！严禁空标签！严禁 ___ 下划线！',
-    builtin: true
+    content: '⚠️ 【文末确认】务必包含完整的 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域，不得省略。\n🔴 【填空格式再次确认】所有书写类填空（词语/组词/数字/术语/补充句子/算式结果/注音等）一律 → 用 <u class="blank-N">&emsp;</u>（横线下划线）；仅选择题答案空/判断题作答空 → 用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号，严禁在其他场景用括号填空！）。横线与括号互斥，同一空位二选一不可叠加。简答/讨论题必须用 blank-line 给横线书写区！N值按答案字数严格对照映射表，空间不足直接排版失效！严禁空标签！严禁 ___ 下划线！',
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'tailconst_errorbook', name: '【尾约束】错题本', category: '生成-尾约束', type: 'fragment',
     subject: '', stage: '', genType: 'errorbook', prompt_order: 90,
-    content: '⚠️ 【文末确认】务必包含完整的 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域，所有错题的正确解法、变式练习答案和方法归纳都需要提供，不得省略。\n🔴 【填空格式再次确认】行内文字填空（词语/数字/术语等） → 用 <u class="blank-N">&emsp;</u>（横线下划线），独立括号填空（选择题答案空/独立答题区括号，答案空在题干末尾，严禁在选项后放括号！）→ 用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号）。横线与括号互斥，同一空位二选一不可叠加。简答/讨论题必须用 blank-line 给横线书写区！N值按答案字数严格对照映射表，空间不足直接排版失效！严禁空标签！严禁 ___ 下划线！',
-    builtin: true
+    content: '⚠️ 【文末确认】务必包含完整的 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域，所有错题的正确解法、变式练习答案和方法归纳都需要提供，不得省略。\n🔴 【填空格式再次确认】所有书写类填空（词语/组词/数字/术语/补充句子/算式结果/注音等）一律 → 用 <u class="blank-N">&emsp;</u>（横线下划线）；仅选择题答案空/判断题作答空 → 用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号，严禁在其他场景用括号填空！）。横线与括号互斥，同一空位二选一不可叠加。简答/讨论题必须用 blank-line 给横线书写区！N值按答案字数严格对照映射表，空间不足直接排版失效！严禁空标签！严禁 ___ 下划线！',
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'tailconst_exam', name: '【尾约束】考卷', category: '生成-尾约束', type: 'fragment',
     subject: '', stage: '', genType: 'exam', prompt_order: 90,
-    content: '⚠️ 【文末确认】务必在最后一题之后，包含完整的 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域。不得省略。\n🔴 【填空格式再次确认】行内文字填空（词语/数字/术语等） → 用 <u class="blank-N">&emsp;</u>（横线下划线），独立括号填空（选择题答案空/独立答题区括号，答案空在题干末尾，严禁在选项后放括号！）→ 用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号）。横线与括号互斥，同一空位二选一不可叠加。简答/讨论题必须用 blank-line 给横线书写区！N值按答案字数严格对照映射表，空间不足直接排版失效！严禁空标签！严禁 ___ 下划线！',
-    builtin: true
+    content: '⚠️ 【文末确认】务必在最后一题之后，包含完整的 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域。不得省略。\n🔴 【填空格式再次确认】所有书写类填空（词语/组词/数字/术语/补充句子/算式结果/注音等）一律 → 用 <u class="blank-N">&emsp;</u>（横线下划线）；仅选择题答案空/判断题作答空 → 用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号，严禁在其他场景用括号填空！）。横线与括号互斥，同一空位二选一不可叠加。简答/讨论题必须用 blank-line 给横线书写区！N值按答案字数严格对照映射表，空间不足直接排版失效！严禁空标签！严禁 ___ 下划线！',
+    builtin: true,
+    guarantee: true
   },
   {
     id: 'tailconst_practice', name: '【尾约束】课时练', category: '生成-尾约束', type: 'fragment',
     subject: '', stage: '', genType: 'practice', prompt_order: 90,
-    content: '⚠️ 【文末确认】务必在最后一题之后，包含完整的 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域。所有题目（含选择题）都需提供答案和解析，不得省略。\n🔴 【填空格式再次确认】行内文字填空（词语/数字/术语等） → 用 <u class="blank-N">&emsp;</u>（横线下划线），独立括号填空（选择题答案空/独立答题区括号，答案空在题干末尾，严禁在选项后放括号！）→ 用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号）。横线与括号互斥，同一空位二选一不可叠加。简答/讨论题必须用 blank-line 给横线书写区！N值按答案字数严格对照映射表，空间不足直接排版失效！严禁空标签！严禁 ___ 下划线！',
-    builtin: true
+    content: '⚠️ 【文末确认】务必在最后一题之后，包含完整的 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域。所有题目（含选择题）都需提供答案和解析，不得省略。\n🔴 【填空格式再次确认】所有书写类填空（词语/组词/数字/术语/补充句子/算式结果/注音等）一律 → 用 <u class="blank-N">&emsp;</u>（横线下划线）；仅选择题答案空/判断题作答空 → 用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号，严禁在其他场景用括号填空！）。横线与括号互斥，同一空位二选一不可叠加。简答/讨论题必须用 blank-line 给横线书写区！N值按答案字数严格对照映射表，空间不足直接排版失效！严禁空标签！严禁 ___ 下划线！',
+    builtin: true,
+    guarantee: true
   },
 
   // ═══════════════════════════════════════
@@ -453,13 +480,16 @@ export const builtinInstructions = [
   {
     id: 'frag_context_design', name: '情境化设计要求', category: '生成-情境要求', type: 'fragment',
     prompt_order: 33,
-    subject: '', stage: '', genType: 'exam,practice,special,reading,errorbook,preview,dictation,review',
+    subject: '', stage: '', genType: 'exam,practice,special,reading,errorbook,preview,dictation,review,summary',
     content: `【情境化设计要求】
-1. 非试卷类资料≥60%的题目须嵌入真实或拟真情境（生活场景/故事情境/探究任务），反对"戴帽子"式假情境（仅在题干前加一句无关导语）；试卷类一律以【真题卷结构蓝本】学段条款为准（低段≥40%、中高段≥60%）。
+1. 非试卷类资料≥60%的题目须嵌入真实或拟真情境（生活场景/故事情境/探究任务），反对"戴帽子"式假情境（仅在题干前加一句无关导语）；试卷类一律以【真题卷结构蓝本】学段条款为准（低段≥40%、中高段≥60%）。知识点总结类资料须将知识置于真实问题情境中呈现，避免孤立罗列。
 2. 情境应贯穿整卷——开篇主题情境与后续题目形成连贯叙事，而非各自独立。
-3. 题型示例（传统→情境化）：
+3. 🔴 试卷类情境化全覆盖：试卷中所有基础题（拼音写词、选字填空、量词填空、加偏旁、组词等）也必须置于情境中考查，禁止出现无情境的孤立裸题堆砌。具体要求——同一大题内连续2道以上裸题（无情境包装）即不合格。
+4. 题型示例（传统→情境化）：
    × 传统："看拼音写词语：nǎ lǐ → _____"
-   √ 情境化："小蝌蚪迷路了，它给妈妈写留言条。请帮它把拼音转成汉字：'妈妈，你在 nǎ lǐ _____？'"`, 
+   √ 情境化："小蝌蚪迷路了，它给妈妈写留言条。请帮它把拼音转成汉字：'妈妈，你在 nǎ lǐ _____？'"
+   × 传统（裸题）："选一选，把正确的字填在括号里：花( )里开满了鲜花。"（无情境，无选项）
+   √ 情境化："秋游来到了花园，请你帮小朋友选字填空：花( )里开满了鲜花。备选字：园 圆 丛 从"`, 
     builtin: true
   },
   {
@@ -482,6 +512,94 @@ export const builtinInstructions = [
     subject: '', stage: '', genType: 'errorbook',
     content: '情境化深度（错题本）：以"纠错小侦探""错题诊疗室"等角色化视角组织。',
     builtin: true
+  },
+
+  // ═══════════════════════════════════════
+  // 课标骨架对齐（R1/R2：骨架锚定新课标学业要求 + 骨架下内容不交叉）
+  // 生成端强制注入，按「学段 × 资料类型」三维度精准匹配（学科维度由"生成-学科核心素养"块承载，不重复注入）：
+  // 骨架板块必须锚定对应学段的课标学业要求，板块内容与骨架一一对应、考查维度不交叉
+  // ═══════════════════════════════════════
+  {
+    id: 'skeleton_align_primary_low', name: '课标骨架对齐-小学低段', category: '生成-课标骨架', type: 'fragment',
+    prompt_order: 34,
+    subject: '', stage: 'primary_low', genType: 'exam,practice,special,reading,errorbook,preview,dictation,review,summary',
+    content: `【课标骨架对齐-小学低段】
+1. 骨架锚定课标学业要求：低段课标强调基础性、趣味性与生活化——板块目标显式对应基础读写算的达成（如"基础巩固"对应基础掌握、"拓展"对应生活化简单运用），严禁为凑结构而生造与课标无关的板块。
+2. 板块内容与骨架一一对应：每个板块只承载该板块的课标目标内容，禁止板块间内容交叉——"基础巩固"不出现方法迁移题、"能力提升"不重复基础考点。
+3. 相邻板块的考查维度不得重叠（低段以识记与简单理解为界，不越入抽象迁移）。`,
+    builtin: true,
+    guarantee: true
+  },
+  {
+    id: 'skeleton_align_primary_mid', name: '课标骨架对齐-小学中段', category: '生成-课标骨架', type: 'fragment',
+    prompt_order: 34,
+    subject: '', stage: 'primary_mid', genType: 'exam,practice,special,reading,errorbook,preview,dictation,review,summary',
+    content: `【课标骨架对齐-小学中段】
+1. 骨架锚定课标学业要求：中段课标强调从识记走向理解与初步运用——板块目标显式对应（"基础巩固"对应基础达成、"能力提升"对应理解运用、"拓展"对应情境化综合），严禁为凑结构而生造与课标无关的板块。
+2. 板块内容与骨架一一对应：每个板块只承载该板块的课标目标内容，禁止板块间内容交叉——"基础巩固"不出现方法迁移题、"能力提升"不重复基础考点。
+3. 相邻板块的考查维度不得重叠（中段以理解、运用为界，不越入抽象迁移）。`,
+    builtin: true,
+    guarantee: true
+  },
+  {
+    id: 'skeleton_align_primary_high', name: '课标骨架对齐-小学高段', category: '生成-课标骨架', type: 'fragment',
+    prompt_order: 34,
+    subject: '', stage: 'primary_high', genType: 'exam,practice,special,reading,errorbook,preview,dictation,review,summary',
+    content: `【课标骨架对齐-小学高段】
+1. 骨架锚定课标学业要求：高段课标强调综合运用与初小衔接——板块目标显式对应（"基础巩固"对应基础达成、"能力提升"对应方法迁移、"拓展"对应综合情境任务），严禁为凑结构而生造与课标无关的板块。
+2. 板块内容与骨架一一对应：每个板块只承载该板块的课标目标内容，禁止板块间内容交叉——"基础巩固"不出现方法迁移题、"能力提升"不重复基础考点。
+3. 相邻板块的考查维度不得重叠（高段可至综合运用，为初中衔接预留边界）。`,
+    builtin: true,
+    guarantee: true
+  },
+  {
+    id: 'skeleton_align_middle', name: '课标骨架对齐-初中', category: '生成-课标骨架', type: 'fragment',
+    prompt_order: 34,
+    subject: '', stage: 'middle', genType: 'exam,practice,special,reading,errorbook,preview,dictation,review,summary',
+    content: `【课标骨架对齐-初中】
+1. 骨架锚定课标学业质量要求：初中课标以核心素养为纲（语言运用/科学思维/实践探究等学科素养）——板块目标显式对应学业质量水平描述（如"基础巩固"对应水平一达成、"探究拓展"对应水平二应用），严禁为凑结构而生造与课标无关的板块。
+2. 板块内容与骨架一一对应：每个板块只承载该板块的课标目标内容，禁止板块间内容交叉——"基础巩固"不出现方法迁移题、"能力提升"不重复基础考点。
+3. 相邻板块的考查维度不得重叠（初中以理解、应用、分析为界，不越入纯学术迁移）。`,
+    builtin: true,
+    guarantee: true
+  },
+  {
+    id: 'skeleton_align_high', name: '课标骨架对齐-高中', category: '生成-课标骨架', type: 'fragment',
+    prompt_order: 34,
+    subject: '', stage: 'high', genType: 'exam,practice,special,reading,errorbook,preview,dictation,review,summary',
+    content: `【课标骨架对齐-高中】
+1. 骨架锚定课标学业质量水平要求：高中课标学业质量分四级——板块目标显式对标对应水平（如"基础巩固"对应水平1-2达成、"综合应用"对应水平3-4），严禁为凑结构而生造与课标无关的板块。
+2. 板块内容与骨架一一对应：每个板块只承载该板块的课标目标内容，禁止板块间内容交叉——"基础巩固"不出现方法迁移题、"能力提升"不重复基础考点。
+3. 相邻板块的考查维度不得重叠（高中允许迁移、综合、创新，但各板块仍守住自身维度边界，不越界混考）。`,
+    builtin: true,
+    guarantee: true
+  },
+  {
+    id: 'skeleton_align_exam', name: '课标骨架对齐-试卷', category: '生成-课标骨架', type: 'fragment',
+    prompt_order: 34,
+    subject: '', stage: '', genType: 'exam',
+    content: `【课标骨架对齐-试卷】
+1. 大题骨架以【真题卷结构蓝本】为唯一依据，每个大题须锚定课标学业质量要求（如"积累与运用"对应语言积累与梳理的学业要求、"阅读"对应阅读与鉴赏能力），不得无依据自创大题或改换大题名称。
+2. 小题考查维度与所属大题目标一致：积累类大题只出积累与运用题、阅读类大题只出基于文本的理解与鉴赏题，禁止跨大题混搭（如阅读大题内嵌入脱离文本的字词填空）。
+3. 同一知识点不得跨大题重复考查（如"近义词"已在积累题考查，阅读题不再重复设问）；全卷考查维度不交叉、不遗漏。`,
+    builtin: true,
+    guarantee: true
+  },
+
+  // ═══════════════════════════════════════
+  // 教辅编辑标准（R6：对标市面正式教辅出版水准，生成端强制）
+  // ═══════════════════════════════════════
+  {
+    id: 'edit_std_common', name: '教辅编辑标准', category: '生成-编辑标准', type: 'fragment',
+    prompt_order: 34,
+    subject: '', stage: '', genType: 'exam,practice,special,reading,errorbook,preview,dictation,review,summary',
+    content: `【教辅编辑标准】（对标市面正式教辅出版水准，生成时逐项自查）
+1. 文字质量：全文无错别字、无病句、无语病表述；标点符号规范（中文语境用全角标点，数字与字母用半角）。
+2. 数据严谨：题干数据与答案完全自洽（总量=分项和、比例正确、单位统一），答案与解析结论一致，不得出现"题干3个空、答案2个空"等错位。
+3. 表述规范：学科术语准确、符合该学段语言水平；题干指向唯一、无歧义；不出现口语化冗余、不出现"AI味"套话与空话。
+4. 结构完整：标题层级清晰、板块命名与结构大纲一致、答案与解析完整且与题目一一对应。`,
+    builtin: true,
+    guarantee: true
   },
 
   // ═══════════════════════════════════════
@@ -611,21 +729,21 @@ export const builtinInstructions = [
   {
     id: 'context_real_primary', name: '真实情境-小学', category: '生成-情境要求', type: 'fragment',
     prompt_order: 38,
-    subject: '', stage: 'primary', genType: 'exam,practice,special,reading',
+    subject: '', stage: 'primary', genType: 'exam,practice,special,reading,summary',
     content: '命题应创设真实生活情境，考查知识迁移能力。小学阶段用校园/家庭/游戏场景。',
     builtin: true
   },
   {
     id: 'context_real_middle', name: '真实情境-初中', category: '生成-情境要求', type: 'fragment',
     prompt_order: 38,
-    subject: '', stage: 'middle', genType: 'exam,practice,special,reading',
+    subject: '', stage: 'middle', genType: 'exam,practice,special,reading,summary',
     content: '命题应创设真实生活情境，考查知识迁移能力。初中阶段用社会/科技/环保场景。',
     builtin: true
   },
   {
     id: 'context_real_high', name: '真实情境-高中', category: '生成-情境要求', type: 'fragment',
     prompt_order: 38,
-    subject: '', stage: 'high', genType: 'exam,practice,special,reading',
+    subject: '', stage: 'high', genType: 'exam,practice,special,reading,summary',
     content: '命题应创设真实生活情境，考查知识迁移能力。高中阶段用学术/职业/前沿场景。',
     builtin: true
   },
@@ -1027,6 +1145,41 @@ export const builtinInstructions = [
     builtin: true
   },
   {
+    id: 'block_example_exam_it', name: '【质量范例】信息科技试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '信息科技,信息技术', stage: '', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 算法思维（情境）：学校图书馆有5000本书，要按编号排序——分析不同排序算法（冒泡/插入/快速）在该场景下的效率，并说明选择理由 — 计算思维+算法分析。\n② 数据安全（案例）：小明在社交平台分享了含个人信息的照片，分析存在的隐私风险并给出3条防护建议 — 信息意识+信息社会责任。\n③ 数字化实践（操作）：设计一个"用表格软件统计班级图书角借阅数据"的方案，描述操作步骤和数据处理逻辑 — 数字化学习+实践应用。\n④ 开放探究：讨论"人工智能是否会取代人类工作"，结合具体案例从正反两方面分析 — 计算思维+批判性思维。\n🚫 禁止纯概念背诵：禁止考"CPU的全称是（）""RAM的中文意思是（）"式挖空，改考真实场景中的技术选择和问题解决。',
+    builtin: true
+  },
+  {
+    id: 'block_example_exam_music', name: '【质量范例】音乐试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '音乐', stage: '', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 审美感知（聆听）：播放/描述一段乐曲片段（如《春节序曲》），要求辨别乐器音色、速度力度变化，并描述音乐情绪 — 审美感知+艺术表现。\n② 文化理解（对比）：对比中国民歌（如《茉莉花》）与西方古典音乐片段，从调式、节奏、文化背景分析异同 — 文化理解+审美感知。\n③ 艺术表现（创编）：给定一个节奏型，要求在此基础上创编2小节旋律并标注力度记号 — 创意实践+艺术表现。\n④ 开放赏析："为什么说音乐是跨越文化的语言？"结合至少两个国家的音乐作品说明理由 — 文化理解+批判性思维。\n🚫 禁止纯记忆考查：禁止考"XX的作曲家是（）""XX是几分之几拍"式孤立知识点考查，改考在聆听/演唱/创编情境中的综合审美判断。',
+    builtin: true
+  },
+  {
+    id: 'block_example_exam_art', name: '【质量范例】美术试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '美术', stage: '', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 图像识读（赏析）：展示一幅名画（如《清明上河图》局部），从构图、色彩、细节三个角度分析画家如何表现市井繁华 — 审美感知+图像识读。\n② 创意实践（设计）：为学校运动会设计海报，描述设计思路（色彩选择/构图布局/视觉中心），说明设计理念 — 创意实践+艺术表现。\n③ 文化理解（比较）：比较中国画"留白"与西方油画"满构图"的空间处理方式，分析各自审美追求 — 文化理解+审美感知。\n④ 开放评价：有人说"抽象画就是乱画"，你是否同意？结合一幅抽象画作品阐述观点 — 审美感知+批判性思维。\n🚫 禁止纯知识背诵：禁止考"三原色是（）""透视的分类有（）"式概念填空，改考在真实赏析/创作情境中的审美判断与表达。',
+    builtin: true
+  },
+  {
+    id: 'block_example_exam_pe', name: '【质量范例】体育试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '体育,体育与健康', stage: '', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 运动能力（情境）：校运会100米比赛中，小明起跑慢了0.3秒——分析起跑技术要点和改进方法，并设计3个针对性练习 — 运动能力+健康行为。\n② 健康行为（案例）：小李每天久坐8小时，设计一份包含运动、拉伸、放松的课间微运动方案，说明每项动作的健身原理 — 健康行为+运动技能。\n③ 体育品德（辨析）：足球比赛中对方球员摔倒受伤，你方球员选择踢球出界而非进攻——分析此行为体现的体育精神，并结合规则说明依据 — 体育品德+运动能力。\n④ 综合实践：制定一份"每周运动计划"，要求覆盖有氧、力量、柔韧性三类，标注每项运动的时长、心率和恢复方式 — 运动能力+健康行为+体育品德。\n🚫 禁止纯规则条文背诵：禁止考"篮球场长宽是（）""马拉松全程多少米"式记忆题，改考在运动实践情境中的技术分析、方案设计和品德辨析。',
+    builtin: true
+  },
+  {
+    id: 'block_example_exam_politics_high', name: '【质量范例】高中思想政治试卷', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70,
+    subject: '思想政治,政治', stage: 'high', genType: 'exam,practice', specialSubType: 'new_standard',
+    content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 议题辨析（经济）：给定"直播带货带动农产品销售"的案例，从政府监管、企业责任、消费者权益三主体角度提出治理建议并说明理论依据 — 政治认同+科学精神。\n② 辩证分析（政治）：用矛盾分析法分析"发展与安全"的关系，结合"芯片产业自主创新"案例说明如何把握主要矛盾 — 科学精神+辩证思维。\n③ 法治实践（法律）：分析一起消费维权案例，说明消费者依法维权的途径和程序，评价经营者的法律责任 — 法治意识+公共参与。\n④ 开放论述："中国式现代化是物质文明和精神文明相协调的现代化"，结合材料和生活观察阐述理解 — 政治认同+科学精神+辩证思维。\n🚫 禁止纯概念背诵：禁止考"XX的本质是（）""XX的特征有（）"式挖空，改考时政情境中的多角度分析和政策论证。',
+    builtin: true
+  },
+  {
     id: 'block_example_preview_humanities', name: '【质量范例】历史/地理/道法预习', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
     subject: '历史,地理,道德与法治,政治,思想政治', stage: '', genType: 'preview', specialSubType: 'new_standard',
@@ -1263,16 +1416,13 @@ export const builtinInstructions = [
   // ── 教材锚定 × genType 专属强化（三维度精准匹配，无通用兑底条目）──
   { id: 'block_content_norm_exam_primary', name: '【内容规范】考卷-教材锚定（小学）', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: 'primary', genType: 'exam',
-    content: '🔴 【考卷教材锚定】\n✅ 知识点100%覆盖所选教材章节，每个小题对应教材具体章节，不遗漏\n✅ 阅读至少1篇为课内课文片段，文末标注出处：【选自教材X年级第X课《XX》】\n⚠️ 可配1篇同主题课外语段（可选）：主题/难度/篇幅匹配本单元教材水平，文末标注作者/来源；低段(1-2年级)以课内为主\n✅ 古诗文默写篇目须全部来自教材必背篇目，古诗阅读篇目须全部来自教材\n✅ 选择题干扰项来源须可追溯（学生常见错误/教材易混点）',
-    builtin: true },
+    content: '🔴 【考卷教材锚定】\n✅ 知识点100%覆盖所选教材章节，每个小题对应教材具体章节，不遗漏\n✅ 单元课文全覆盖（详见红线③）：每篇课文至少1处考点涉及\n✅ 阅读至少1篇为课内课文片段，文末标注出处：【选自教材X年级第X课《XX》】；🔴 即使使用课内课文，设问必须原创——禁止照搬教材课后练习题，须变换角度设问（信息提取→理解→推断递进），避免学生凭记忆作答\n⚠️ 可配1篇同主题课外语段（可选）：主题/难度/篇幅匹配本单元教材水平，文末标注作者/来源；低段(1-2年级)以课内为主\n✅ 古诗文默写篇目须全部来自教材必背篇目，古诗阅读篇目须全部来自教材\n✅ 选择题干扰项来源须可追溯（学生常见错误/教材易混点）', builtin: true },
   { id: 'block_content_norm_exam_middle', name: '【内容规范】考卷-教材锚定（初中）', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: 'middle', genType: 'exam',
-    content: '🔴 【考卷教材锚定】\n✅ 知识点100%覆盖所选教材章节，每个小题对应教材具体章节，不遗漏\n✅ 阅读至少1篇为课内课文片段，文末标注出处：【选自教材X年级第X课《XX》】\n⚠️ 可配1篇同主题课外语段（可选）：主题/难度/篇幅匹配本单元教材水平，文末标注作者/来源\n✅ 古诗文默写篇目须全部来自教材必背篇目\n⚠️ 文言文阅读：可配课外短篇文言文对比阅读\n✅ 选择题干扰项来源须可追溯（学生常见错误/教材易混点）',
-    builtin: true },
+    content: '🔴 【考卷教材锚定】\n✅ 知识点100%覆盖所选教材章节，每个小题对应教材具体章节，不遗漏\n✅ 单元课文全覆盖（详见红线③）：每篇课文至少1处考点涉及\n✅ 阅读至少1篇为课内课文片段，文末标注出处：【选自教材X年级第X课《XX》】；🔴 即使使用课内课文，设问必须原创——禁止照搬教材课后练习题\n⚠️ 可配1篇同主题课外语段（可选）：主题/难度/篇幅匹配本单元教材水平，文末标注作者/来源\n✅ 古诗文默写篇目须全部来自教材必背篇目\n⚠️ 文言文阅读：可配课外短篇文言文对比阅读\n✅ 选择题干扰项来源须可追溯（学生常见错误/教材易混点）', builtin: true },
   { id: 'block_content_norm_exam_high', name: '【内容规范】考卷-教材锚定（高中）', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: 'high', genType: 'exam',
-    content: '🔴 【考卷教材锚定】\n✅ 知识点100%覆盖所选教材章节，每个小题对应教材具体章节，不遗漏\n✅ 阅读至少1篇为课内课文片段，文末标注出处：【选自教材X年级第X课《XX》】\n⚠️ 可配1篇同主题课外语段（可选）：主题/难度/篇幅匹配本单元教材水平，文末标注作者/来源\n✅ 古诗文默写篇目须全部来自教材必背篇目\n⚠️ 文言文阅读：课外文言文为主（对标高考）\n✅ 选择题干扰项来源须可追溯（学生常见错误/教材易混点）',
-    builtin: true },
+    content: '🔴 【考卷教材锚定】\n✅ 知识点100%覆盖所选教材章节，每个小题对应教材具体章节，不遗漏\n✅ 单元课文全覆盖（详见红线③）：每篇课文至少1处考点涉及\n✅ 阅读至少1篇为课内课文片段，文末标注出处：【选自教材X年级第X课《XX》】；🔴 即使使用课内课文，设问必须原创——禁止照搬教材课后练习题\n⚠️ 可配1篇同主题课外语段（可选）：主题/难度/篇幅匹配本单元教材水平，文末标注作者/来源\n✅ 古诗文默写篇目须全部来自教材必背篇目\n⚠️ 文言文阅读：课外文言文为主（对标高考）\n✅ 选择题干扰项来源须可追溯（学生常见错误/教材易混点）', builtin: true },
   { id: 'block_content_norm_practice', name: '【内容规范】课时练-教材锚定', category: '生成-内容规范', type: 'fragment',
     prompt_order: 40, subject: '', stage: '', genType: 'practice',
     content: '🔴 【课时练教材锚定强化】\n✅ 每个学习任务的情境必须基于教材原文（课文内容/单元主题/教材插图/课后习题场景），不得凭空创设与教材无关的情境。\n⛔ 严禁引入教材未涉及的话题、人物、事件作为任务情境。\n✅ 任务中的字词、句式、知识点严格限于本课教材范围。',
@@ -1381,10 +1531,10 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   { id: 'block_type_choice', name: '【题型专项要求】选择题', category: '生成-题型专项要求', prompt_order: 39, type: 'fragment',
     subject: '', stage: '', genType: 'choice',
-    content: '- 选项数按学段要求（低段不超过3个，中高段及以上4个），各选项长度尽量一致、风格统一\n- 正确选项随机分布，不固定在某一位置\n- 错误选项应来自学生常见错误，有迷惑性但非明显错误\n- 不得使用"以上都是""以上都不对"', builtin: true },
+    content: '- 🔴 选项必须完整列出：凡题干含"选一选""选词填空""选出正确答案"等选择指令的题目，必须在题干中或题干后完整列出所有供选择的选项/字词，严禁只写"选一选"而不给选项——学生无选项可选即为废题。\n- 选项数按学段要求（低段不超过3个，中高段及以上4个），各选项长度尽量一致、风格统一\n- 正确选项随机分布，不固定在某一位置\n- 错误选项应来自学生常见错误，有迷惑性但非明显错误\n- 不得使用"以上都是""以上都不对"', builtin: true },
   { id: 'block_type_fill', name: '【题型专项要求】填空题', category: '生成-题型专项要求', prompt_order: 39, type: 'fragment',
     subject: '', stage: '', genType: 'fill',
-    content: '- 每空考查一个独立的知识点\n- 空格设置在题干中自然出现的空位处（题干任意位置均可）\n- 答案必须唯一确定\n- 🎯 填空横线精确留空（含手写余量，已上调一档保证书写空间）：按答案字数使用CSS类\n  1字→ <u class="blank-2">&emsp;</u>\n  2字→ <u class="blank-4">&emsp;</u>\n  3-4字→ <u class="blank-6">&emsp;</u>\n  5-6字→ <u class="blank-8">&emsp;</u>\n  7-10字→ <u class="blank-10">&emsp;</u>\n  10字以上→ <u class="blank-10">&emsp;</u>\n- 括号（与横线互斥，二选一不可叠加）：用 <span class="blank-N">&emsp;</span>（勿加括号，CSS自动渲染——按答案字数精确映射：1字→2, 2字→3, 3字→4, 4字→5, 5-6字→6, 7-8字→8, 9-10字→10, 10字以上→10）\n- 方框：<span class="square-box">&emsp;</span>\n- ⛔ 严禁使用下划线字符：禁止使用 ___、____、______ 等连续下划线表示填空位置，只能使用上述 <u class="blank-N"> 或 <span class="blank-N"> 格式', builtin: true },
+    content: '- 🔴 选字/选词填空必须给出备选字/词：凡题干含"选一选""选字填空""选词填空""选出正确的字/词填空"等指令的题目，必须在题干中或题干后完整列出所有备选字/词（如"备选字：园 圆 丛 从"），严禁只写"选一选"而不给选项——学生无选项可选即为废题。注意：此类题目虽含"填空"二字，但本质是选择题型，备选项是题目不可或缺的组成部分。\n- 每空考查一个独立的知识点\n- 空格设置在题干中自然出现的空位处（题干任意位置均可）\n- 答案必须唯一确定\n- 🎯 填空横线精确留空（含手写余量，已上调一档保证书写空间）：按答案字数使用CSS类\n  1字→ <u class="blank-2">&emsp;</u>\n  2字→ <u class="blank-4">&emsp;</u>\n  3-4字→ <u class="blank-6">&emsp;</u>\n  5-6字→ <u class="blank-8">&emsp;</u>\n  7-10字→ <u class="blank-10">&emsp;</u>\n  10字以上→ <u class="blank-10">&emsp;</u>\n- 括号（与横线互斥，二选一不可叠加）：用 <span class="blank-N">&emsp;</span>（勿加括号，CSS自动渲染——按答案字数精确映射：1字→2, 2字→3, 3字→4, 4字→5, 5-6字→6, 7-8字→8, 9-10字→10, 10字以上→10）\n- 方框：<span class="square-box">&emsp;</span>\n- ⛔ 严禁使用下划线字符：禁止使用 ___、____、______ 等连续下划线表示填空位置，只能使用上述 <u class="blank-N"> 或 <span class="blank-N"> 格式', builtin: true },
   { id: 'block_type_truefalse', name: '【题型专项要求】判断题', category: '生成-题型专项要求', prompt_order: 39, type: 'fragment',
     subject: '', stage: '', genType: 'truefalse',
     content: '- 正确和错误的比例接近1:1\n- 错误说法应来自学生常见误区\n- 不得使用双重否定来制造难度', builtin: true },
@@ -1510,7 +1660,7 @@ export const builtinInstructions = [
     id: 'block_format_blanks', name: '【输出格式】填空留空', category: '生成-输出格式', type: 'fragment',
     prompt_order: 23,
     subject: '', stage: '', genType: 'exam,practice,special,review',
-    content: '- 填空精确留空（含手写余量，已上调一档）：\n  ⛔ 所有括号必须使用英文半角 ( ) ，严禁使用中文全角括号 （ ） ！题号、空白、选项标记一律用英文 ( ) ，不得出现 （ ） 。\n  🎯 【填空标签选择——根据题目特征自主判断，两者互斥不可叠加】：\n    * 空格嵌入题干句子中、文字自然流入空位（如"___是光合作用的场所"） → 用 <u class="blank-N">&emsp;</u>（横线下划线）\n    * 空格独立于题干之外（如选择题答案空、独立答题区括号、算式结果空） → 用 <span class="blank-N">&emsp;</span>（CSS ::before/::after 自动渲染括号外壳，HTML中不要额外加括号字符）\n    * 判断标准：读题时前后文字是否连成一句话 → 连通用横线、自然断开用括号\n  N值映射——<u>横线：1字→<u class="blank-2">&emsp;</u>，2字→<u class="blank-4">&emsp;</u>，3-4字→<u class="blank-6">&emsp;</u>，5-6字→<u class="blank-8">&emsp;</u>，7+字→<u class="blank-10">&emsp;</u>\n  <span>独立括号：<span class="blank-N">&emsp;</span>（N：1字→3，2字→4，3-4字→6，5-6字→8，7+字→10）\n  ⛔ 横线与括号互斥！同一空位二选一不可叠加！例：句子中填空→"光合作用的场所是<u class=\"blank-2\">&emsp;</u>"（横线），独立空位→"选出正确读音<span class=\"blank-4\">&emsp;</span>"（括号，CSS自动渲染，HTML不额外写括号字符），严禁"（<u class=\"blank-4\">&emsp;</u>）"括号内嵌横线，严禁中文括号嵌套。\n  ⛔ 标签内必须有&emsp;内容，严禁空标签！\n  ⛔ 严禁用___下划线字符代替！\n  ⛔ 【选择题答案空铁律】仅限选择题：答案空（括号）必须放在题干末尾，严禁放在每个选项后面！正确："下列哪项是正确的<span class=\"blank-3\">&emsp;</span>"——括号在题末。错误："A. 选项内容(   )"——选项后放括号是大忌！非选择题中，独立括号填空可根据空格位置灵活放在开头、中间或末尾（如"照样子写词语：绿<span class=\"blank-3\">&emsp;</span>、红<span class=\"blank-3\">&emsp;</span>"括号在中间完全正确），不受题末限制。\n  ✒️ 【简答/讨论/开放题书写区】主观题必须给出横线书写区，三种模式——严禁引导语和横线分两个\u003cp\u003e！\n    \u003cp\u003e我的想法：\u003cspan class=\"blank-line\"\u003e\u0026emsp;\u0026emsp;\u0026emsp;\u0026emsp;\u0026emsp;\u0026emsp;\u003c/span\u003e\u003c/p\u003e ← ✅ 同行，引导语+短横线在同一\u003cp\u003e内\n    \u003cp\u003e我的想法：\u003c/p\u003e\u003cp\u003e\u003cspan class=\"blank-line\"\u003e...\u003c/span\u003e\u003c/p\u003e ← ❌ 引导语和横线分两个\u003cp\u003e，大忌！\n    ① 有提示语：引导语+短横线同行在一个\u003cp\u003e内，下方另起若干\u003cp\u003e\u003cspan class=\"blank-line\"\u003e满行\u0026emsp;\u003c/span\u003e\u003c/p\u003e\n    ② 完整问句无提示语：问句\u003cp\u003e...\u003c/p\u003e 独立成段后，另起若干满行 blank-line\n    ③ "答："：\u003cp\u003e答：\u003cspan class=\"blank-line\"\u003e短\u0026emsp;\u003c/span\u003e\u003c/p\u003e 同行，下方另起整行\n    严禁只写题目不留线！严禁把主观题写成填空题格式！\n  🔢 【N值严格按答案字数——空间不足则排版失效】blank-N 的 N 值必须按答案实际字数严格对照下表，宁可偏大不可偏小：横线 1字→blank-2, 2字→blank-4, 3-4字→blank-6, 5-6字→blank-8, 7+字→blank-10；括号 1字→blank-3, 2字→blank-4, 3-4字→blank-6, 5-6字→blank-8, 7+字→blank-10。先数答案字数再选 N 值，严禁随意估小！\n  ⛔ 题号格式：子题用 (1)(2)(3) 英文半角括号，严禁用 （1）（2）（3） 中文全角括号！',
+    content: '- 填空精确留空（含手写余量，已上调一档）：\n  ⛔ 所有括号必须使用英文半角 ( ) ，严禁使用中文全角括号 （ ） ！题号、空白、选项标记一律用英文 ( ) ，不得出现 （ ） 。\n  🎯 【填空标签选择——默认横线，括号仅限选择/判断题答案空，两者互斥不可叠加】：\n    * ⛔ 凡需要学生书写答案的填空一律用 <u class="blank-N">&emsp;</u>（横线下划线）——组词（如"绿<u class=\"blank-3\">&emsp;</u>、红<u class=\"blank-3\">&emsp;</u>"）、补充句子、默写、算式结果、字词注音等全部用横线，严禁用括号！\n    * 仅两类独立于题干、学生不书写文字的场合 → 用 <span class="blank-N">&emsp;</span>（CSS ::before/::after 自动渲染括号外壳，HTML中不要额外加括号字符）：① 选择题答案空（题干末尾）；② 判断题作答空（题干末尾）\n    * 判断标准：学生需要往空里写答案 → 横线；只是打√/打×/写选项 → 括号\n  N值映射——<u>横线：1字→<u class="blank-2">&emsp;</u>，2字→<u class="blank-4">&emsp;</u>，3-4字→<u class="blank-6">&emsp;</u>，5-6字→<u class="blank-8">&emsp;</u>，7+字→<u class="blank-10">&emsp;</u>\n  <span>独立括号：<span class="blank-N">&emsp;</span>（N：1字→3，2字→4，3-4字→6，5-6字→8，7+字→10）\n  ⛔ 横线与括号互斥！同一空位二选一不可叠加！例：句子中填空→"光合作用的场所是<u class=\"blank-2\">&emsp;</u>"（横线），独立空位→"选出正确读音<span class=\"blank-4\">&emsp;</span>"（括号，CSS自动渲染，HTML不额外写括号字符），严禁"（<u class=\"blank-4\">&emsp;</u>）"括号内嵌横线，严禁中文括号嵌套。\n  ⛔ 标签内必须有&emsp;内容，严禁空标签！\n  ⛔ 严禁用___下划线字符代替！\n  ⛔ 【选择题答案空铁律】仅限选择题：答案空（括号）必须放在题干末尾，严禁放在每个选项后面！正确："下列哪项是正确的<span class=\"blank-3\">&emsp;</span>"——括号在题末。错误："A. 选项内容(   )"——选项后放括号是大忌！非选择题填空一律用横线（见上方标签选择），严禁用括号。\n  ✒️ 【简答/讨论/开放题书写区】主观题必须给出横线书写区，三种模式——严禁引导语和横线分两个\u003cp\u003e！\n    \u003cp\u003e我的想法：\u003cspan class=\"blank-line\"\u003e\u0026emsp;\u0026emsp;\u0026emsp;\u0026emsp;\u0026emsp;\u0026emsp;\u003c/span\u003e\u003c/p\u003e ← ✅ 同行，引导语+短横线在同一\u003cp\u003e内\n    \u003cp\u003e我的想法：\u003c/p\u003e\u003cp\u003e\u003cspan class=\"blank-line\"\u003e...\u003c/span\u003e\u003c/p\u003e ← ❌ 引导语和横线分两个\u003cp\u003e，大忌！\n    ① 有提示语：引导语+短横线同行在一个\u003cp\u003e内，下方另起若干\u003cp\u003e\u003cspan class=\"blank-line\"\u003e满行\u0026emsp;\u003c/span\u003e\u003c/p\u003e\n    ② 完整问句无提示语：问句\u003cp\u003e...\u003c/p\u003e 独立成段后，另起若干满行 blank-line\n    ③ "答："：\u003cp\u003e答：\u003cspan class=\"blank-line\"\u003e短\u0026emsp;\u003c/span\u003e\u003c/p\u003e 同行，下方另起整行\n    严禁只写题目不留线！严禁把主观题写成填空题格式！\n  🔢 【N值严格按答案字数——空间不足则排版失效】blank-N 的 N 值必须按答案实际字数严格对照下表，宁可偏大不可偏小：横线 1字→blank-2, 2字→blank-4, 3-4字→blank-6, 5-6字→blank-8, 7+字→blank-10；括号 1字→blank-3, 2字→blank-4, 3-4字→blank-6, 5-6字→blank-8, 7+字→blank-10。先数答案字数再选 N 值，严禁随意估小！\n  ⛔ 题号格式：子题用 (1)(2)(3) 英文半角括号，严禁用 （1）（2）（3） 中文全角括号！',
     builtin: true
   },
   {
@@ -1524,7 +1674,7 @@ export const builtinInstructions = [
     id: 'block_format_exam_elements', name: '【输出格式】试卷特殊元素', category: '生成-输出格式', type: 'fragment',
     prompt_order: 23,
     subject: '', stage: '', genType: 'exam',
-    content: '- 得分框：用<span class="score-box">分数</span>标记（带外框）。\n- 评分栏：用<div class="score-board">...标记（表格形式，标签|分值）。\n- 密封线/装订线：用<div class="sealed-wrapper"><div class="sealed-line"><span>密</span><span>封</span><span>线</span></div>...内容...</div>包裹整份试卷。',
+    content: '- 得分框：用<span class="score-box">分数</span>标记（带外框）。\n- 评分栏：用<div class="score-board">...标记（表格形式，标签|分值）。\n- 密封线/装订线：卷首放<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-note">密封线内不要答题</div><div class="seal-info">学校：＿＿＿　班级：＿＿＿　姓名：＿＿＿　学号：＿＿＿</div><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div></div>。⚠️密封区全部内容必须写在同一个 seal-zone 内（提示语 seal-note、信息栏 seal-info、密/封/线 seal-char 按模板结构），密封区位于左侧页边距内（正文内边距外侧），正文在左侧竖虚线右侧并留内边距；严禁把密封区内容拆成多个横向 <p> 或输出旧版 sealed-line 结构。',
     builtin: true
   },
 
@@ -1536,21 +1686,21 @@ export const builtinInstructions = [
     id: 'block_markup_chinese', name: '【学科标记】语文专用', category: '生成-学科标记', type: 'fragment',
     prompt_order: 22,
     subject: '语文', stage: '', genType: '',
-    content: '【语文学科专用标记——严格按以下规则使用】\n- 加点字：用 <span class="emphasis-dot">字</span> 标记，CSS会自动在字下方显示红点(·)\n- 画线句子：用 <u class="underline-sentence">完整句子</u> 标记，CSS会显示连续实线下划线\n- 拼音标注：用 <ruby>汉字<rt>拼音</rt></ruby> 标记\n- 波浪线（病句修改）：用 <span class="wavy-underline">病句文字</span> 标记，CSS显示红色波浪下划线\n- 双线格/单线格：强调文字用 <span class="double-line">文字</span>（双线）或 <span class="single-line">文字</span>（单线）\n- 部首标注：用 <ruby class="radical"><rb>字</rb><rt>部首</rt></ruby> 标记\n- 笔画笔顺：用 <span class="stroke-order" data-strokes="笔画数">字</span> 标记\n- 田字格：每个生字独立用 <span class="tian-zi-ge">字</span> 标记\n- 米字格：用 <span class="mi-zi-ge">字</span> 标记\n- 四线三格（拼音格）：用 <span class="four-line-three pinyin-line">拼音</span> 标记\n- 作文格：用 <div class="zuo-wen-ge"><span>字1</span><span>字2</span>...</div> 包裹',
+    content: '【语文学科专用标记——严格按以下规则使用】\n- 加点字：用 <span class="emphasis-dot">字</span> 标记，CSS会自动在字下方显示红点(·)\n- 画线句子：用 <u class="underline-sentence">完整句子</u> 标记，CSS会显示连续实线下划线\n- 拼音标注：用 <ruby>汉字<rt>拼音</rt></ruby> 标记\n- 波浪线（病句修改）：用 <span class="wavy-underline">病句文字</span> 标记，CSS显示红色波浪下划线\n- 双线格/单线格：强调文字用 <span class="double-line">文字</span>（双线）或 <span class="single-line">文字</span>（单线）\n- 部首标注：用 <ruby class="radical"><rb>字</rb><rt>部首</rt></ruby> 标记\n- 笔画笔顺：用 <span class="stroke-order" data-strokes="笔画数">字</span> 标记\n- 田字格：每个生字独立用 <span class="tian-zi-ge">字</span> 标记\n- 米字格：用 <span class="mi-zi-ge">字</span> 标记\n- 四线三格（拼音格）：用 <span class="four-line-three pinyin-line">拼音</span> 标记\n- 作文格/写话区：用 <div class="zuo-wen-ge"> 包裹，内部每个格子用 <span>&emsp;</span>（空格占位，⛔严禁写字1、字2等文字占位符），按所需行数×列数排列；每行用一个<div>包裹，行内<span>数量=每行字数\n  示例（2行×10列）：<div class="zuo-wen-ge"><div><span>&emsp;</span><span>&emsp;</span>...(10个)</div><div><span>&emsp;</span>...(10个)</div></div>\n- 连线题：用 <div class="match-question"> 包裹，内含两个 <div class="match-col">（左列和右列），每列内用 <div class="match-item">词语</div> 排列；⛔严禁用文本"------"或"词语1 ------ 词语2"格式表示连线',
     builtin: true
   },
   {
     id: 'block_markup_science', name: '【学科标记】理科专用', category: '生成-学科标记', type: 'fragment',
     prompt_order: 22,
     subject: '数学,物理,化学', stage: '', genType: '',
-    content: '学科标记补充（上标/下标/离子符号/数学符号）\n- 上标：用 <sup class="superscript">内容</sup> 或 <span class="superscript">内容</span>\n- 下标：用 <sub class="subscript">内容</sub> 或 <span class="subscript">内容</span>\n- 离子上标：用 <sup class="superscript">内容</sup>\n- 特殊数学符号：直接使用Unicode字符，禁止LaTeX或图片 — ° ≈ ≠ ≤ ≥ ± × ÷ △ ∠ ∥ ⊥ π ∞ √',
+    content: '学科标记补充（上标/下标/离子符号/数学符号）\n- 上标：用 <sup class="superscript">内容</sup> 或 <span class="superscript">内容</span>\n- 下标：用 <sub class="subscript">内容</sub> 或 <span class="subscript">内容</span>\n- 离子上标：用 <sup class="superscript">内容</sup>\n- 特殊数学符号：直接使用Unicode字符，禁止LaTeX或图片 — ° ≈ ≠ ≤ ≥ ± × ÷ △ ∠ ∥ ⊥ π ∞ √\n- 连线题：用 <div class="match-question"> 包裹，内含两个 <div class="match-col">（左列和右列），每列内用 <div class="match-item">词语</div> 排列；⛔严禁用文本"------"格式表示连线',
     builtin: true
   },
   {
     id: 'block_markup_math', name: '【学科标记】数学专用', category: '生成-学科标记', type: 'fragment',
     prompt_order: 22,
     subject: '数学', stage: '', genType: '',
-    content: '【数学专用标记】\n- 口算框：用 <span class="oral-box">算式</span> 标记，CSS显示方框\n- 方框填空：用 <span class="square-box">&nbsp;</span> 标记空缺方框\n- 竖式计算：用 <div class="vertical-calculation"> 包裹，内部行用 .vc-row，运算符用 data-op 属性，结果行用 .vc-result，横线用 .vc-line\n- 脱式计算等号对齐：用 <div class="off-formula"> 包裹，每一步用 <div class="of-line">= 计算过程</div>\n- 辅助线虚线：用 <span class="dashed-line"></span> 表示答题划线/虚线',
+    content: '【数学专用标记】\n- 口算框：用 <span class="oral-box">算式</span> 标记，CSS显示方框\n- 方框填空：用 <span class="square-box">&nbsp;</span> 标记空缺方框\n- 竖式计算：用 <div class="vertical-calculation"> 包裹，内部行用 .vc-row，运算符用 data-op 属性，结果行用 .vc-result，横线用 .vc-line\n- 脱式计算等号对齐：用 <div class="off-formula"> 包裹，每一步用 <div class="of-line">= 计算过程</div>\n- 辅助线虚线：用 <span class="dashed-line"></span> 表示答题划线/虚线\n- 连线题：用 <div class="match-question"> 包裹，内含两个 <div class="match-col">（左列和右列），每列内用 <div class="match-item">词语/算式</div> 排列；⛔严禁用文本"------"格式表示连线',
     builtin: true
   },
   {
@@ -1561,10 +1711,17 @@ export const builtinInstructions = [
     builtin: true
   },
   {
+    id: 'block_markup_general', name: '【学科标记】通用（连线/配对题格式）', category: '生成-学科标记', type: 'fragment',
+    prompt_order: 21,
+    subject: '', stage: '', genType: '',
+    content: '【通用学科标记——连线/配对题格式（全学科适用）】\n- 连线题/配对题：必须用 <div class="match-question"> 包裹，内含两个 <div class="match-col">（左列和右列），每列内用 <div class="match-item">内容</div> 逐项排列；左右项数对等。\n  示例：<div class="match-question"><div class="match-col"><div class="match-item">项A</div><div class="match-item">项B</div></div><div class="match-col"><div class="match-item">项1</div><div class="match-item">项2</div></div></div>\n- ⛔ 严禁用文本"------"或"A ------ B"等纯文本格式表示连线，必须使用上述HTML结构。',
+    builtin: true
+  },
+  {
     id: 'block_markup_english', name: '【学科标记】英语专用', category: '生成-学科标记', type: 'fragment',
     prompt_order: 22,
-    subject: '英语', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,summary',
-    content: '【英语学科专用标记——严格按以下规则使用】\n- 音标注记：用 /音标/ 格式标注（如：apple /ˈæp.əl/）\n- 重难点单词：用 <strong>加粗</strong> 标注\n- 短语/句型（默写除外）：用 <u>下划线</u> 标注\n- 连线题：用 <div class="match-question"> 左右两列对应连线\n- 完形填空词库：用 <span class="word-bank"> 标记，CSS显示带边框的词库框',
+    subject: '英语', stage: '', genType: 'exam,practice,special,errorbook,reading,preview,summary,dictation,review',
+    content: '【英语学科专用标记——严格按以下规则使用】\n- 音标注记：用 /音标/ 格式标注（如：apple /ˈæp.əl/）\n- 重难点单词：用 <strong>加粗</strong> 标注\n- 短语/句型（默写除外）：用 <u>下划线</u> 标注\n- 连线题：用 <div class="match-question"> 包裹，内含两个 <div class="match-col">（左列和右列），每列内用 <div class="match-item">词语</div> 排列；⛔严禁用文本"------"格式表示连线\n- 完形填空词库：用 <span class="word-bank"> 标记，CSS显示带边框的词库框',
     builtin: true
   },
   {
@@ -2850,29 +3007,29 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   // —— 资料类型差异化品质标准（genType 精确匹配）——
   { id: 'quality_redlines_exam', name: '【红线】考卷最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'exam',
-    content: '🔴🔴 【红线清单——最高优先级，任何一条违反即视为不合格，所有其他要求不得与之冲突】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬，杜绝陈题套路与教材例题翻版。\n② 题型结构以【真题卷结构蓝本】为唯一依据：大题序列、大题名称、分值、顺序与蓝本完全一致，不得增删大题、不得自行另起板块名（蓝本即新课标真题卷通行结构），知识点与层级仅用于内部组卷设计，卷面严禁出现。', builtin: true },
+    content: '🔴🔴 【红线清单——最高优先级，任何一条违反即视为不合格，所有其他要求不得与之冲突】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬，杜绝陈题套路与教材例题翻版。\n② 题型结构以【真题卷结构蓝本】为唯一依据：大题序列、大题名称、分值、顺序与蓝本完全一致，不得增删大题、不得自行另起板块名（蓝本即新课标真题卷通行结构），知识点与层级仅用于内部组卷设计，卷面严禁出现。\n③ 单元课文全覆盖：所选教材范围内的每一篇课文/每一节都必须在试卷中有至少1处考点涉及，遗漏任何一篇课文即不合格。\n④ 口语交际/综合性学习须与教材单元话题匹配：须先查阅教材确认该单元的口语交际/综合性学习主题，再围绕该主题命题，禁止自行替换话题。', builtin: true },
   { id: 'quality_redlines_practice', name: '【红线】课堂练习最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'practice',
-    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 结构以【结构大纲】为准，不得自行另起骨架。', builtin: true },
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 结构以【结构大纲】为准，不得自行另起骨架。\n③ 设问兼顾基础理解与简单应用，禁止全卷纯默写/纯计算等单一认知层次。\n④ 🔴 题型多样：同一练习板块内禁止连续2道以上使用完全相同的题型和设问方式，应变换考查角度（填空→选择→判断→连线→应用轮换）。\n⑤ 🔴 自校纠错：生成完成后必须通读全文自查，重点检查——①错别字/多字/漏字；②选项是否完整给出；③题干是否自洽；④格式是否规范（连线题用match-question而非------，作文格用zuo-wen-ge空格而非字1/字2）。发现错误立即修正。', builtin: true },
   { id: 'quality_redlines_special', name: '【红线】专项突破最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'special',
-    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 结构以【结构大纲】为准，不得自行另起骨架。', builtin: true },
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 结构以【结构大纲】为准，不得自行另起骨架。\n③ 🔴 题型多样：同一专项内禁止连续2道以上使用完全相同的题型和设问方式，应变换考查角度。\n④ 设问层级覆盖理解/应用，每板块至少1题考查应用层次。\n⑤ 🔴 自校纠错：生成完成后必须通读全文自查，重点检查——①错别字/多字/漏字；②选项是否完整给出；③题干是否自洽；④格式是否规范。发现错误立即修正。', builtin: true },
   { id: 'quality_redlines_summary', name: '【红线】知识点总结最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'summary',
-    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 知识点必须完整覆盖所选章节，不得只写部分章节。', builtin: true },
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 知识点必须完整覆盖所选章节，不得只写部分章节。\n③ 知识梳理应展示思维结构（概念图/比较表/分类框架），不止罗列知识点。\n④ 🔴 自校纠错：生成完成后必须通读全文自查，重点检查——①错别字/多字/漏字；②知识点是否有遗漏；③格式是否规范。发现错误立即修正。', builtin: true },
   { id: 'quality_redlines_preview', name: '【红线】课前预习最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'preview',
-    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 预习检测必须紧扣教材原文，不得脱离教材自拟内容。', builtin: true },
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 预习检测必须紧扣教材原文，不得脱离教材自拟内容。\n③ 🔴 自校纠错：生成完成后必须通读全文自查，重点检查——①错别字/多字/漏字；②拼音/笔画/部首是否正确；③格式是否规范。发现错误立即修正。', builtin: true },
   { id: 'quality_redlines_reading', name: '【红线】阅读训练最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'reading',
-    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 选文必须原创编写，不得复制教材课文或网络文章。', builtin: true },
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 选文必须原创编写，不得复制教材课文或网络文章。\n③ 🔴 自校纠错：生成完成后必须通读全文自查，重点检查——①错别字/多字/漏字；②选文是否有语病/逻辑不通；③设问是否自洽（题干信息与答案是否匹配）；④格式是否规范。发现错误立即修正。', builtin: true },
   { id: 'quality_redlines_review', name: '【红线】复习总结最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'review',
-    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 考点梳理必须覆盖所选章节全部知识点。', builtin: true },
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 考点梳理必须覆盖所选章节全部知识点。\n③ 🔴 题型多样：同一复习板块内禁止连续2道以上使用完全相同的题型和设问方式，应变换考查角度。\n④ 设问层级兼顾识记/理解/应用/分析，每板块至少1题考查理解或以上层次。\n⑤ 🔴 自校纠错：生成完成后必须通读全文自查，重点检查——①错别字/多字/漏字；②知识点是否有遗漏；③格式是否规范。发现错误立即修正。', builtin: true },
   { id: 'quality_redlines_errorbook', name: '【红线】错题本最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'errorbook',
-    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 错题必须为典型错例，不得编造无意义的低级错误。', builtin: true },
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 错题必须为典型错例，不得编造无意义的低级错误。\n③ 🔴 自校纠错：生成完成后必须通读全文自查，重点检查——①错别字/多字/漏字；②错因分析是否正确；③答案是否准确；④格式是否规范。发现错误立即修正。', builtin: true },
   { id: 'quality_redlines_dictation', name: '【红线】默写训练最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'dictation',
-    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 练习区不得出现答案，答案统一放文末。', builtin: true },
+    content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 练习区不得出现答案，答案统一放文末。\n③ 🔴 自校纠错：生成完成后必须通读全文自查，重点检查——①错别字/多字/漏字；②拼音是否正确；③练习区是否泄露答案；④格式是否规范（田字格/四线三格/横线是否正确使用）。发现错误立即修正。', builtin: true },
   { id: 'quality_exam_formal', name: '【品质】考卷·正式考试命题标准', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: '', genType: 'exam',
-    content: '🔴 【正式考试命题标准——必须遵守】\n1. 效度与信度：每道题明确指向具体考点、考查意图与分值匹配；题干无歧义、条件充分、答案唯一确定（开放性题除外），主观题必须配评分要点。\n2. 知识点去重：重难点考点全卷考查≤2次且必须角度不同（如概念理解+应用），一般考点仅考1次；同一大题组内禁止题材/情境/数据/设问角度相似的两道题。\n3. 时间配比：全卷题量使中等水平学生能在规定时长的75%-85%内完成；选择/填空/判断每题1-2分钟，计算/简答每题5-8分钟，解答题每题8-12分钟，作文留足35分钟以上（低段看图写话留足15-20分钟）。\n4. 小题规范：填空题一处设空只考一个知识点、答案唯一确定、设空位置科学（不挖句首、不挖关键提示词）；判断题命题表述精确、错误点有明确依据。\n5. 形式多样：图文结合、表格信息题、信息检索题；小学低段（1-2年级）操作型小题（连线/圈画/排序/涂色）可融入蓝本大题内，全卷选择题小题数不超过总小题数的50%。\n6. 不标题套壳：不以"任务一/二/三"等标题包装传统题型，大题名称以蓝本为准。', builtin: true },
+    content: '🔴 【正式考试命题标准——必须遵守】\n1. 效度与信度：每道题明确指向具体考点、考查意图与分值匹配；题干无歧义、条件充分、答案唯一确定（开放性题除外），主观题必须配评分要点。\n2. 知识点去重：重难点考点全卷考查≤2次且必须角度不同（如概念理解+应用），一般考点仅考1次；同一大题组内禁止题材/情境/数据/设问角度相似的两道题。\n3. 时间配比：全卷题量使中等水平学生能在规定时长的75%-85%内完成；选择/填空/判断每题1-2分钟，计算/简答每题5-8分钟，解答题每题8-12分钟，作文留足35分钟以上（低段看图写话留足15-20分钟）。\n4. 小题规范：填空题一处设空只考一个知识点、答案唯一确定、设空位置科学（不挖句首、不挖关键提示词）；判断题命题表述精确、错误点有明确依据。\n5. 形式多样：图文结合、表格信息题、信息检索题；小学低段（1-2年级）操作型小题（连线/圈画/排序/涂色）可融入蓝本大题内，全卷选择题小题数不超过总小题数的50%。\n6. 不标题套壳：不以"任务一/二/三"等标题包装传统题型，大题名称以蓝本为准。\n7. 🔴 题型多样性：同一大题内禁止连续2道以上使用完全相同的题型和设问方式（如禁止连续两道"读拼音写词语"且格式一模一样），应在板块分值内灵活变换考查方式（填空→选择→连线→圈画→判断轮换）。\n8. 🔴 单元课文全覆盖：每篇课文至少1处考点涉及（详见红线③），生成后须自查。\n9. 🔴 口语交际/综合性学习主题匹配：试卷中口语交际/综合性学习板块的主题必须与教材对应单元的口语交际/综合性学习话题一致，不得自行替换为其他话题。须先确认教材该单元的口语交际主题，再围绕该主题命题。\n10. 🔴 自校纠错：生成完成后必须通读全文自查，重点检查——①错别字/多字/漏字（如"说明文农民伯伯"应为"说明农民伯伯"）；②选项是否完整给出；③题干是否自洽（题干信息与答案是否匹配）；④分值加总是否等于满分。发现错误立即修正，禁止输出未经校对的内容。\n11. 🔴 格式规范（源头约束）：连线题/配对题必须使用<div class="match-question"> HTML格式（内含match-col和match-item），⛔严禁使用------文本格式；写话区/作文格必须使用<div class="zuo-wen-ge"><span>&emsp;</span></div>格式，⛔严禁使用--横线或"字1""字2"文字占位符。', builtin: true },
   { id: 'quality_industry_benchmark', name: '【品质】教辅品质基线', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: '', genType: '',
-    content: '质量对标市面一流教辅水准（如《53天天练》《黄冈小状元》《教材帮》等），不可生成粗制滥造的凑数内容。', builtin: true },
+    content: '质量对标市面一流教辅水准（如《53天天练》《黄冈小状元》《教材帮》等），不可生成粗制滥造的凑数内容。🔴思维深度：须涵盖≥3认知层级（识记/理解/应用/分析/评价/创造），高阶思维（分析/评价/创造）占比≥20%（试卷≥25%）；禁止"XX的特点是___""被称为___"等定义背诵挖空，须含≥2道比较/评价/设计类高阶思维题；情境须与设问实质关联（去掉情境后不应仍可作答）；非试卷类知识总结须含"为什么""怎么用"维度，不得仅罗列"是什么"。', builtin: true },
 
 
   // ── 学科专属命题技法（按 subject + genType 精确匹配，与通用命题技法块同时注入）──
@@ -2965,7 +3122,7 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   // 【生成-命题风格】块级指令 — 按命题风格值匹配
   // ═══════════════════════════════════════
-  { id: 'style_traditional', name: '【命题风格】传统命题', category: '生成-命题风格', prompt_order: 36, type: 'fragment', subject: '', stage: '', genType: 'traditional', content: '题型结构清晰，设问直接，知识点考查明确，不设置复杂情境。', builtin: true },
+  { id: 'style_traditional', name: '【命题风格】传统命题', category: '生成-命题风格', prompt_order: 36, type: 'fragment', subject: '', stage: '', genType: 'traditional', content: '题型结构清晰，设问直接，知识点考查明确。每道题须有简短真实情境或明确任务载体（一句话场景即可），确保符合新课标情境化要求，但不需要跨题统一故事线。', builtin: true },
   { id: 'style_unified_context', name: '【命题风格】统一情境', category: '生成-命题风格', prompt_order: 36, type: 'fragment', subject: '', stage: '', genType: 'unified_context', content: '整份资料围绕一个核心主题/故事情境展开，所有题目均在此情境下进行设问。', builtin: true },
   { id: 'style_context_fusion', name: '【命题风格】情境融合', category: '生成-命题风格', prompt_order: 36, type: 'fragment', subject: '', stage: '', genType: 'context_fusion', content: '每个题型/模块设置一个独立的小情境，情境与题目高度融合，考查知识迁移能力。', builtin: true },
   { id: 'style_big_unit', name: '【命题风格】大单元教学', category: '生成-命题风格', prompt_order: 36, type: 'fragment', subject: '', stage: '', genType: 'big_unit', content: '打破课时界限，围绕大概念/大任务进行整体设计，题目体现知识间的关联与递进。', builtin: true },
@@ -3348,6 +3505,7 @@ export const builtinInstructions = [
   { id: 'section_title_template', name: '【模板精准对标】', category: '生成-指令块标题', prompt_order: 60, type: 'fragment', subject: '', stage: '', genType: 'template', content: '模板精准对标', builtin: true },
   { id: 'section_title_user_supplement', name: '【用户补充指令】', category: '生成-指令块标题', prompt_order: 60, type: 'fragment', subject: '', stage: '', genType: 'user_supplement', content: '用户补充指令', builtin: true },
   { id: 'section_title_core_task', name: '【核心任务】', category: '生成-指令块标题', prompt_order: 60, type: 'fragment', subject: '', stage: '', genType: 'core_task', content: '核心任务', builtin: true },
+  { id: 'section_title_redline_constraint', name: '【红线约束】', category: '生成-指令块标题', prompt_order: 60, type: 'fragment', subject: '', stage: '', genType: 'redline_constraint', content: '红线约束', builtin: true },
   { id: 'section_title_core_literacy', name: '【学科核心素养】', category: '生成-指令块标题', prompt_order: 60, type: 'fragment', subject: '', stage: '', genType: 'core_literacy', content: '学科核心素养', builtin: true },
   { id: 'section_title_stage_subject_adapt', name: '【学段·学科精准适配】', category: '生成-指令块标题', prompt_order: 60, type: 'fragment', subject: '', stage: '', genType: 'stage_subject_adapt', content: '学段·学科精准适配', builtin: true },
   { id: 'section_title_stage_control', name: '【学段控制】', category: '生成-指令块标题', prompt_order: 60, type: 'fragment', subject: '', stage: '', genType: 'stage_control', content: '学段控制', builtin: true },
@@ -3656,25 +3814,25 @@ export const builtinInstructions = [
   {
     id: 'quality_exam_primary_low', name: '⭐ 品质标准-试卷-小学低段', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: 'primary_low', genType: 'exam',
-    content: '小学低段（1-2年级）：情境化≥40%（与真题蓝本学段条款一致），以趣味主题贯穿，情境贴近低龄学生生活（校园/家庭/游戏），避免成人化。题干简短（≤15字）。字词在句段语境中考查，阅读以课内原文为准；如配课外短文120-180字。写话配词语支架。',
+    content: '小学低段（1-2年级）：情境化≥40%（与真题蓝本学段条款一致），以趣味主题贯穿，情境贴近低龄学生生活（校园/家庭/游戏），避免成人化。题干简短（≤15字）。字词在句段语境中考查，阅读以课内原文为准；如配课外短文120-180字。写话配词语支架。设问兼顾识记与简单理解，每大题至少1题需简单推理后作答（非直接默写）。',
     builtin: true
   },
   {
     id: 'quality_exam_primary_mid', name: '⭐ 品质标准-试卷-小学中段', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: 'primary_mid', genType: 'exam',
-    content: '小学中段（3-4年级）：情境化≥60%（与真题蓝本学段条款一致），基础60:能力30:拓展10。单篇阅读200-400字。所有题型嵌入情境，情境源于学生可感知的真实世界（社区/自然/日常），同知识点变换角度考查，杜绝孤立默写填空。',
+    content: '小学中段（3-4年级）：情境化≥60%（与真题蓝本学段条款一致），基础60:能力30:拓展10。单篇阅读200-400字。所有题型嵌入情境，情境源于学生可感知的真实世界（社区/自然/日常），同知识点变换角度考查，杜绝孤立默写填空。设问层级兼顾识记/理解/应用，每大题至少1题考查理解或应用层次。',
     builtin: true
   },
   {
     id: 'quality_exam_primary_high', name: '⭐ 品质标准-试卷-小学高段', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: 'primary_high', genType: 'exam',
-    content: '小学高段（5-6年级）：情境化≥60%（与真题蓝本学段条款一致），以小初衔接为导向。难度按基础约50%、中档约30%、提高约20%（与难度配比一致）。含非连续性文本阅读（图表/说明书），开放性试题附评分要点。设问角度新颖，考查知识综合运用与迁移，杜绝陈题套路。',
+    content: '小学高段（5-6年级）：情境化≥60%（与真题蓝本学段条款一致），以小初衔接为导向。难度按基础约50%、中档约30%、提高约20%（与难度配比一致）。含非连续性文本阅读（图表/说明书），开放性试题附评分要点。设问角度新颖，考查知识综合运用与迁移，杜绝陈题套路。设问层级覆盖理解/应用/分析，每板块至少1题考查分析层级。',
     builtin: true
   },
   {
     id: 'quality_exam_middle', name: '⭐ 品质标准-试卷-初中', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: 'middle', genType: 'exam',
-    content: '初中：情境化≥60%，难度按基础约60%、中档约30%、提高约10%（与难度配比一致）。情境真实有社会性（科技/环保/社会），重视实验探究、材料分析、综合运用能力，答案需完整解题思路。',
+    content: '初中：情境化≥60%，难度按基础约60%、中档约30%、提高约10%（与难度配比一致）。情境真实有社会性（科技/环保/社会），重视实验探究、材料分析、综合运用能力，答案需完整解题思路。设问层级覆盖理解/应用/分析/综合，每板块至少1题考查分析或综合层级。',
     builtin: true
   },
   {
@@ -3943,10 +4101,19 @@ export const builtinInstructions = [
 
 
 ];;
+// 自动为明显关键条目标注 guarantee:true，便于后续复核和持久化
+builtinInstructions.forEach(item => {
+  const id = (item.id || '').toString();
+  const cat = (item.category || '').toString();
+  if (/^(role_|topconst_|tailconst_)/.test(id) || id === 'answer_anchor_question' || cat === '生成-答案区强制锚定' || cat === '生成-顶层约束' || cat === '生成-角色身份') {
+    item.guarantee = true;
+  }
+});
+
 // ==================== 指令库存储Key与版本号 ====================
 const STORAGE_KEY = 'instructionLib';
 const VERSION_KEY = 'instructionLib_version';
-export const BUILTIN_VERSION = 37; // 🔧 v37: 内容快照比对（主）+ 版本号比对（辅）双保险自动丢弃过期覆盖
+export const BUILTIN_VERSION = 45; // 🔧 v45: 思维深度化合并入教辅品质基线块（避免超注入上限）、summary移出题目质量专项（纯知识类不含题目质量）、题型多样性阈值统一为10
 
 // ==================== 加载指令库 ====================
 export const loadInstructionLib = () => {
@@ -4306,10 +4473,17 @@ export const getMatchingBlockInstructions = (options = {}) => {
     // 学段匹配（🔧 支持逗号分隔多值，如 'primary_low,primary_mid,primary_high'）
     // 🔧 P0 修复：传入 stage='primary'（调用方未细分小学段时）也允许命中
     //   'primary_low,primary_mid,primary_high' 组合条目，避免小学段专属块漏匹配
+    // 🔧 P0 修复：块侧 stage='primary'（通用小学）也等价于任一小学子段
+    //   之前仅查询侧 'primary' 做展开，块侧用 'primary' 的条目（如 gen_ctx_primary_it、
+    //   stage_primary_low/mid/high 等）在 gradeSegment='primary_low' 查询时失配
     if (i.stage && i.stage.trim() !== '') {
       if (!stage) return false;
-      const insStages = i.stage.split(',').map(s => s.trim());
-      // primary 兜底：传入 primary 时，等价于任一小学子段
+      let insStages = i.stage.split(',').map(s => s.trim());
+      // 块侧 primary 兜底：条目 stage='primary' 也等价于任一小学子段
+      if (insStages.includes('primary')) {
+        insStages = [...insStages, 'primary_low', 'primary_mid', 'primary_high'];
+      }
+      // 查询侧 primary 兜底：传入 primary 时，等价于任一小学子段
       const stageAliases = stage === 'primary'
         ? ['primary', 'primary_low', 'primary_mid', 'primary_high']
         : [stage];
@@ -4331,16 +4505,24 @@ export const getMatchingBlockInstructions = (options = {}) => {
   // 解决自定义条目被 append 到数组末尾后，被通用内置条目"影子遮蔽"的问题
   // 优先级：专项子类型(5) > 学科(2) > 学段(1) > 资料类型(1) > 通用(0)
   if (matches.length > 1) {
+    // 先为每个匹配项计算显式保留与特异性分数，便于后续按保证/特异性排序
+    matches.forEach(item => {
+      // 自动判断 guarantee（必须保留的关键块）：仅基于明确的 id 前缀或类别，避免误判
+      const id = (item.id || '').toString();
+      const cat = (item.category || '').toString();
+      item._guarantee = /^(role_|topconst_|tailconst_)/.test(id) || id === 'answer_anchor_question' || cat === '生成-答案区强制锚定' || cat === '生成-顶层约束' || cat === '生成-角色身份';
+      let s = 0;
+      if (item.subject && item.subject.trim() && subject) s += 2;
+      if (item.stage && item.stage.trim() && stage) s += 1;
+      if (item.genType && item.genType.trim() && genType) s += 1;
+      if (item.specialSubType && specialSubType && item.specialSubType === specialSubType) s += 5;
+      item._matchScore = s;
+    });
+
+    // 保证项优先，然后按匹配分降序
     matches.sort((a, b) => {
-      const score = (item) => {
-        let s = 0;
-        if (item.subject && item.subject.trim() && subject) s += 2;
-        if (item.stage && item.stage.trim() && stage) s += 1;
-        if (item.genType && item.genType.trim() && genType) s += 1;
-        if (item.specialSubType && specialSubType && item.specialSubType === specialSubType) s += 5;
-        return s;
-      };
-      return score(b) - score(a);
+      if ((b._guarantee ? 1 : 0) !== (a._guarantee ? 1 : 0)) return (b._guarantee ? 1 : 0) - (a._guarantee ? 1 : 0);
+      return (b._matchScore || 0) - (a._matchScore || 0);
     });
   }
 

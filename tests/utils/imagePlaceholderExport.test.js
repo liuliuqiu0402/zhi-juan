@@ -1,6 +1,6 @@
-// 配图占位框导出回归测试：DOCX 导出时还原原始 [IMAGE]…[/IMAGE] 结构化标记
-// 背景：前端将 AI 输出的 [IMAGE] 标记渲染为可视化占位框，旧导出链路输出散架文本
-//      （TYPE: SD STYLE: ... PROMPT: ... 字段粘连），v31 起 data-image-raw 还原标准格式
+// 配图占位框导出回归测试：DOCX 导出时转换为干净占位文本（不再暴露 [IMAGE]/TYPE/PROMPT 等指令代码）
+// 背景：前端将 AI 输出的 [IMAGE] 标记渲染为可视化占位框，DOCX 导出时应输出人类可读占位符
+//      v43 起：不再还原原始 [IMAGE] 标记，改为输出 〔配图位置：描述〕 格式
 import { describe, it, expect } from 'vitest';
 import { buildDocxFromDom } from '@/utils/docxBuilder.js';
 import { Packer } from 'docx';
@@ -22,17 +22,19 @@ const buildText = async (html) => {
   return extractText(await Packer.toBuffer(doc));
 };
 
-describe('配图占位框导出：还原 [IMAGE] 结构化标记', () => {
-  it('data-image-raw 存在时导出原始标记（[IMAGE]/TYPE/PROMPT/[/IMAGE] 完整保留）', async () => {
+describe('配图占位框导出：输出干净占位文本', () => {
+  it('data-image-raw 存在时输出 〔配图位置：描述〕，不暴露 [IMAGE]/TYPE/PROMPT 等指令代码', async () => {
     const raw = '[IMAGE]\nTYPE:SD\nSTYLE:line_art\nWIDTH:800\nHEIGHT:600\nPROMPT:秋天的果园，红红的苹果挂满枝头\nNEGATIVE:文字,水印\n[/IMAGE]';
     const html = `<div class="image-placeholder" data-image-raw="${raw.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('"').join('&quot;')}"><strong>[插图占位]</strong><br>TYPE: SD　STYLE: line_art<br>PROMPT: <span>秋天的果园</span></div>`;
     const t = await buildText(html);
-    expect(t).toContain('[IMAGE]');
-    expect(t).toContain('TYPE:SD');
-    expect(t).toContain('PROMPT:秋天的果园，红红的苹果挂满枝头');
-    expect(t).toContain('NEGATIVE:文字,水印');
-    expect(t).toContain('[/IMAGE]');
-    // 占位框渲染文本不应再出现在导出中（避免两套格式并存）
+    // 应输出干净的占位文本
+    expect(t).toContain('配图位置');
+    expect(t).toContain('秋天的果园，红红的苹果挂满枝头');
+    // 不应暴露原始指令代码
+    expect(t).not.toContain('[IMAGE]');
+    expect(t).not.toContain('TYPE:SD');
+    expect(t).not.toContain('NEGATIVE:文字,水印');
+    expect(t).not.toContain('[/IMAGE]');
     expect(t).not.toContain('复制 PROMPT 到生图工具');
   });
 
@@ -40,7 +42,6 @@ describe('配图占位框导出：还原 [IMAGE] 结构化标记', () => {
     const html = '<div class="image-placeholder"><strong>[插图占位]</strong><br>TYPE: SD　STYLE: line_art<br>PROMPT: <span>秋天的果园</span></div>';
     const t = await buildText(html);
     expect(t).toContain('[插图占位]');
-    expect(t).toContain('TYPE: SD');
     expect(t).toContain('秋天的果园');
   });
 });

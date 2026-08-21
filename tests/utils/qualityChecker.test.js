@@ -56,6 +56,51 @@ describe('HardRuleChecker', () => {
     });
   });
 
+  describe('得分栏缺失检查（卷面规范 A4）', () => {
+    it('带分值大题但缺"得分：＿＿"栏 → 警告', () => {
+      const content = '<h1>期末试卷</h1>\n一、看拼音写词语（10分）\n题目\n二、阅读理解（20分）\n题目';
+      const issues = HardRuleChecker.checkScoreColumns(content, 'primary_high');
+      expect(issues.some(i => i.type === '得分栏缺失')).toBe(true);
+    });
+
+    it('每个大题都有得分栏 → 不警告', () => {
+      const content = '<h1>期末试卷</h1>\n一、看拼音写词语（10分）　得分：＿＿\n题目\n二、阅读理解（20分）　得分：＿＿\n题目';
+      const issues = HardRuleChecker.checkScoreColumns(content, 'primary_high');
+      expect(issues.some(i => i.type === '得分栏缺失')).toBe(false);
+    });
+
+    it('小学低段（primary_low）豁免（低段可省略）', () => {
+      const content = '一、看拼音写词语（10分）\n题目';
+      const issues = HardRuleChecker.checkScoreColumns(content, 'primary_low');
+      expect(issues.length).toBe(0);
+    });
+  });
+
+  describe('卷首标题缺失检查（非考卷轻量质检 B5）', () => {
+    it('无 h1/h2 且首行是编号 → 警告', () => {
+      const content = '1. 计算下列各题\n2. 填空'.padEnd(300, '题目内容');
+      const issues = HardRuleChecker.checkDocTitle(content);
+      expect(issues.some(i => i.type === '卷首标题缺失')).toBe(true);
+    });
+
+    it('有 h1 标题 → 不警告', () => {
+      const content = '<h1>第1课时 课时练</h1>' + '题目'.repeat(200);
+      const issues = HardRuleChecker.checkDocTitle(content);
+      expect(issues.some(i => i.type === '卷首标题缺失')).toBe(false);
+    });
+
+    it('首行短标题（无标签）→ 不警告', () => {
+      const content = '第1课时 课时练\n题目'.padEnd(300, '内容');
+      const issues = HardRuleChecker.checkDocTitle(content);
+      expect(issues.some(i => i.type === '卷首标题缺失')).toBe(false);
+    });
+
+    it('内容过短不判定', () => {
+      const issues = HardRuleChecker.checkDocTitle('简短内容');
+      expect(issues.length).toBe(0);
+    });
+  });
+
   describe('传统题嫌疑占比（v29 情境化硬指标）', () => {
     const buildExam = (questions) =>
       `<h3>一、基础题（10分）</h3>${questions.map((q, i) => `<p class="question">${i + 1}. ${q}</p>`).join('\n')}<div class="answer-section">参考答案</div>`;

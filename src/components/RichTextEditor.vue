@@ -398,11 +398,12 @@ const DivWrapper = Node.create({
   },
 });
 
-// ═══════════════ 密封线结构保留（sealed-wrapper / sealed-line / sl-dash / sl-text）═══════════════
-// ⚠️ priority 必须高于 DivWrapper（默认 100）：否则 sealed-line 被 DivWrapper(block+) 捕获后，
-//    其 inline 内容（sl-text/sl-dash）会被 ProseMirror 提升拆散成段落——
-//    预览变成“顶端一行文本”，导出（editor.view.dom.innerHTML）丢失虚线结构。
-//    （曾实测：仅 StarterKit 解析 sealed-wrapper HTML → 全部拆成 <p>，sl-dash 空 span 直接丢弃）
+// ═══════════════ 密封线结构保留（sealed-wrapper / seal-zone / seal-note / seal-info / seal-line / seal-char）═══════════════
+// 标准结构严格对齐「试卷密封线模板.html」：
+//   div.sealed-wrapper（A4 页面壳，padding 即页边距）> [ div.seal-zone（密封区，绝对定位） + div.sealed-content（正文）]
+//   seal-zone 内：div.seal-note（提示语）/ div.seal-info（信息栏）/ div.seal-line（空 div，虚线）/ div.seal-char×3（密·封·线）
+// ⚠️ seal-line 为空元素，ProseMirror 会丢弃空块 → 必须用 atom 节点保留；
+//    seal-zone/seal-note/seal-info/seal-char 有 class，DivWrapper（priority 100）即可保留。
 const SealedWrapper = Node.create({
   name: 'sealedWrapper',
   priority: 150,
@@ -426,66 +427,26 @@ const SealedWrapper = Node.create({
   },
 });
 
-const SealedLine = Node.create({
-  name: 'sealedLine',
+// 密封区容器：绝对定位于左侧页边距带（正文内边距外侧），priority 150 > DivWrapper 100
+const SealZone = Node.create({
+  name: 'sealZone',
   priority: 150,
   group: 'block',
-  // inline 内容：sl-text（横排文字字段）+ sl-dash（空虚线段）+ 裸文本兜底
-  content: '(text | slText | slDash)*',
+  content: 'block+',
   defining: true,
-  parseHTML() { return [{ tag: 'div.sealed-line' }, { tag: 'div.seal-line' }]; },
-  renderHTML({ HTMLAttributes }) {
-    const attrs = { class: 'sealed-line' };
-    if (HTMLAttributes.sealedStyle) attrs.style = HTMLAttributes.sealedStyle;
-    return ['div', attrs, 0];
-  },
-  addAttributes() {
-    return {
-      sealedStyle: {
-        default: null,
-        parseHTML: (el) => el.getAttribute('style') || null,
-        renderHTML: (a) => (a.sealedStyle ? { style: a.sealedStyle } : {}),
-      },
-    };
-  },
-  // 🔧 密封线字段为单行布局：阻止 Enter 拆分行（inline 内容 split 会破坏虚线/文字交替结构）
-  addKeyboardShortcuts() {
-    return { Enter: () => true };
-  },
+  parseHTML() { return [{ tag: 'div.seal-zone' }]; },
+  renderHTML() { return ['div', { class: 'seal-zone' }, 0]; },
 });
 
-// sl-dash：空 span（atom 不可编辑）——竖向虚线段，CSS repeating-linear-gradient 渲染
-const SlDash = Node.create({
-  name: 'slDash',
-  group: 'inline',
-  inline: true,
+// seal-line：空 div（atom 不可编辑）——虚线由 CSS border-left 绘制，必须保留空元素
+const SealLineDiv = Node.create({
+  name: 'sealLineDiv',
+  priority: 150,
+  group: 'block',
   atom: true,
   selectable: false,
-  parseHTML() { return [{ tag: 'span.sl-dash' }]; },
-  renderHTML() { return ['span', { class: 'sl-dash' }]; },
-});
-
-// sl-text：横排文字字段（可编辑文本，class 保留）
-const SlText = Node.create({
-  name: 'slText',
-  group: 'inline',
-  inline: true,
-  content: 'text*',
-  parseHTML() { return [{ tag: 'span.sl-text' }]; },
-  renderHTML({ HTMLAttributes }) {
-    const attrs = { class: 'sl-text' };
-    if (HTMLAttributes.slStyle) attrs.style = HTMLAttributes.slStyle;
-    return ['span', attrs, 0];
-  },
-  addAttributes() {
-    return {
-      slStyle: {
-        default: null,
-        parseHTML: (el) => el.getAttribute('style') || null,
-        renderHTML: (a) => (a.slStyle ? { style: a.slStyle } : {}),
-      },
-    };
-  },
+  parseHTML() { return [{ tag: 'div.seal-line' }]; },
+  renderHTML() { return ['div', { class: 'seal-line' }]; },
 });
 
 import Paragraph from '@tiptap/extension-paragraph';
@@ -763,11 +724,10 @@ const editor = useEditor({
     CustomTableCell,
     CustomTableHeader,
     PageBreak,
-    // 🔧 密封线结构保留（priority 150 > DivWrapper 100，避免 sealed-line 被 DivWrapper 拆散）
+    // 🔧 密封线结构保留（priority 150 > DivWrapper 100）：sealed-wrapper 页面壳 + seal-zone 密封区 + seal-line 虚线原子
     SealedWrapper,
-    SealedLine,
-    SlDash,
-    SlText,
+    SealZone,
+    SealLineDiv,
     DivWrapper,
   ],
   onUpdate: ({ editor }) => {
@@ -1785,12 +1745,22 @@ defineExpose({
 .rich-text-editor :deep(.word-bank) { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border: 1.5px solid #666; border-radius: 4px; margin: 4px 0; background: #fafafa; }
 .rich-text-editor :deep(.word-bank .wb-item) { display: inline-block; padding: 2px 10px; font-family: 'Times New Roman', serif; font-size: 0.9em; color: #333; }
 .rich-text-editor :deep(.chem-condition) { font-size: 0.7em; vertical-align: super; color: #555; line-height: 1; }
-.rich-text-editor :deep(.seal-line), .rich-text-editor :deep(.sealed-line) { flex: 0 0 auto; width: 36px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; min-height: 100%; color: #333; font-size: 10pt; border-left: 1.5px dashed #333; }
-.rich-text-editor :deep(.sealed-line .sl-dash) { flex: 1 1 auto; min-height: 8px; }
-.rich-text-editor :deep(.sealed-line .sl-text) { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; white-space: nowrap; color: #333; font-size: 10pt; line-height: 1.3; transform: rotate(-90deg); }
-.rich-text-editor :deep(.sealed-wrapper) { display: flex; flex-direction: row; align-items: stretch; width: 100%; max-width: 100%; box-sizing: border-box; }
-.rich-text-editor :deep(.sealed-line p) { margin: 0; }
-.rich-text-editor :deep(.sealed-wrapper > :not(.seal-line)), .rich-text-editor :deep(.sealed-wrapper > :not(.sealed-line)) { flex: 1 1 auto; min-width: 0; padding-left: 8px; box-sizing: border-box; }
+/* 🔧 密封线样式由主题 CSS（sealed_exam）统一提供（模板结构 seal-zone/seal-note/seal-info/seal-line/seal-char，
+   绝对定位于左侧页边距带，正文内边距外侧）；编辑器只需保证页壳与密封区不裁切 */
+.rich-text-editor :deep(.sealed-wrapper) { position: relative; overflow: visible; }
+.rich-text-editor :deep(.seal-zone) { z-index: 1; }
+.rich-text-editor :deep(.seal-note),
+.rich-text-editor :deep(.seal-info),
+.rich-text-editor :deep(.seal-char) { pointer-events: none; }
+.rich-text-editor :deep(.seal-note p),
+.rich-text-editor :deep(.seal-info p),
+.rich-text-editor :deep(.seal-char p) { margin: 0; }
+.rich-text-editor :deep(.exam-notice) { font-size: 12pt; line-height: 1.9; margin: 4pt 0 8pt; }
+.rich-text-editor :deep(.exam-notice .notice-title) { font-weight: bold; margin: 0; }
+.rich-text-editor :deep(.exam-notice .notice-item) { margin: 0; }
+.rich-text-editor :deep(.exam-score-table) { width: 100%; border-collapse: collapse; margin-bottom: 10pt; font-size: 12pt; }
+.rich-text-editor :deep(.exam-score-table th), .rich-text-editor :deep(.exam-score-table td) { border: 1px solid #000; text-align: center; padding: 4px 0; }
+.rich-text-editor :deep(.exam-score-table th) { font-weight: bold; font-family: '黑体', 'SimHei', sans-serif; }
 .rich-text-editor :deep(.score-board) { display: inline-table; border-collapse: collapse; margin: 4px 0; }
 .rich-text-editor :deep(.score-board .sb-row) { display: table-row; }
 .rich-text-editor :deep(.score-board .sb-label), .rich-text-editor :deep(.score-board .sb-value) { display: table-cell; padding: 4px 16px; border: 1px solid var(--text-muted); text-align: center; }

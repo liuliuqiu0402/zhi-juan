@@ -167,7 +167,7 @@ const loadConfig = async () => {
           console.log('🔑 从 Cookie 补全缺失的 API Key');
           config.deepseekApiKey = cookieConfig.deepseekApiKey;
           // 合并其他可能缺失的字段
-          for (const f of ['currentEngine', 'deepseekGenerationModel', 'deepseekAnalysisModel', 'deepseekBaseUrl']) {
+          for (const f of ['currentEngine', 'deepseekGenerationModel', 'deepseekAnalysisModel', 'deepseekReviewModel', 'deepseekRepairModel', 'deepseekBaseUrl']) {
             if (!config[f] && cookieConfig[f] !== undefined) config[f] = cookieConfig[f];
           }
         }
@@ -288,6 +288,8 @@ export const saveConfig = async (config) => {
       deepseekApiKey: toSave.deepseekApiKey,
       deepseekGenerationModel: toSave.deepseekGenerationModel,
       deepseekAnalysisModel: toSave.deepseekAnalysisModel,
+      deepseekReviewModel: toSave.deepseekReviewModel,           // 🔧 新增
+      deepseekRepairModel: toSave.deepseekRepairModel,            // 🔧 新增
       // 火山引擎
       volcanoEnabled: toSave.volcanoEnabled,
       volcanoApiKey: toSave.volcanoApiKey,
@@ -380,9 +382,15 @@ export const apiConfig = reactive({
   deepseekBaseUrl: 'https://api.deepseek.com/v1',  // 🔧 修复：不要包含 /chat/completions
   deepseekApiKey: '',
   deepseekModel: 'deepseek-v4-pro',  // 🔧 保留兼容旧数据
-  // 🔧 按任务分模型：生成用 Flash（快），分析用 Pro（准）
+  // 🔧 按任务分模型（4档独立配置）：
+  //   生成模型（generation/blueprint/formatting）→ Flash 快速便宜
+  //   分析模型（analysis/extraction）→ Pro 决策性步骤，不能省
+  //   审查模型（review）→ Flash 可省，质检规则本地兜底
+  //   修复模型（quality-repair）→ Pro 质量兜底
   deepseekGenerationModel: 'deepseek-v4-flash',
   deepseekAnalysisModel: 'deepseek-v4-pro',
+  deepseekReviewModel: 'deepseek-v4-flash',      // 🔧 新增：审查独立配置
+  deepseekRepairModel: 'deepseek-v4-pro',          // 🔧 新增：修复独立配置
   
   // 🔧 新增：是否分析理科图表（默认启用）
   analyzeCharts: true,
@@ -636,16 +644,24 @@ export const getCurrentEngineConfig = async (taskType = 'generation') => {
       maxTokens: MAX_TOKENS_BY_TASK[taskType] || apiConfig.generationSettings.maxTokens
     };
   } else {
-    // 🔧 按任务类型选择 DeepSeek 模型
-    //    生成类（generation/blueprint/formatting）→ Flash 快速
-    //    分析类（analysis/extraction/review）→ Pro 准确
+    // 🔧 按任务类型选择 DeepSeek 模型（4档独立配置）
+    //   生成类（generation/blueprint/formatting）→ 生成模型
+    //   分析类（analysis/extraction）→ 分析模型
+    //   审查类（review）→ 审查模型
+    //   修复类（quality-repair）→ 修复模型
     const generationTasks = ['generation', 'blueprint', 'formatting'];
-    const analysisTasks = ['analysis', 'extraction', 'review', 'questionValidation'];
+    const analysisTasks = ['analysis', 'extraction', 'questionValidation'];
+    const reviewTasks = ['review'];
+    const repairTasks = ['quality-repair', 'quality_repair'];
     let deepseekModel;
     if (generationTasks.includes(taskType)) {
       deepseekModel = apiConfig.deepseekGenerationModel || apiConfig.deepseekModel;
     } else if (analysisTasks.includes(taskType)) {
       deepseekModel = apiConfig.deepseekAnalysisModel || apiConfig.deepseekModel;
+    } else if (reviewTasks.includes(taskType)) {
+      deepseekModel = apiConfig.deepseekReviewModel || apiConfig.deepseekAnalysisModel || apiConfig.deepseekModel;
+    } else if (repairTasks.includes(taskType)) {
+      deepseekModel = apiConfig.deepseekRepairModel || apiConfig.deepseekAnalysisModel || apiConfig.deepseekModel;
     } else {
       deepseekModel = apiConfig.deepseekModel;  // 兜底
     }
@@ -1033,9 +1049,25 @@ export const resolveProviderConfig = (provider, taskType = 'generation') => {
   if (provider !== 'deepseek' && !apiKey) return null; // 非 DeepSeek 必须配置 Key
   if (provider === 'deepseek' && !apiKey && !apiConfig.deepseekApiKey) return null;
   
-  const model = isGeneration
-    ? (apiConfig[meta.genModel] || apiConfig.deepseekModel)
-    : (apiConfig[meta.anaModel] || apiConfig.deepseekModel);
+  // 🔧 4档模型路由：DeepSeek 支持独立的审查/修复模型，其他引擎走 genModel/anaModel 二分
+  let model;
+  if (provider === 'deepseek') {
+    // DeepSeek 4档独立配置
+    if (taskType === 'review') {
+      model = apiConfig.deepseekReviewModel || apiConfig[meta.anaModel] || apiConfig.deepseekModel;
+    } else if (taskType === 'quality-repair' || taskType === 'quality_repair') {
+      model = apiConfig.deepseekRepairModel || apiConfig[meta.anaModel] || apiConfig.deepseekModel;
+    } else if (isGeneration) {
+      model = apiConfig[meta.genModel] || apiConfig.deepseekModel;
+    } else {
+      model = apiConfig[meta.anaModel] || apiConfig.deepseekModel;
+    }
+  } else {
+    // 其他引擎：genModel/anaModel 二分
+    model = isGeneration
+      ? (apiConfig[meta.genModel] || apiConfig.deepseekModel)
+      : (apiConfig[meta.anaModel] || apiConfig.deepseekModel);
+  }
   
   const baseUrl = apiConfig[meta.baseUrl];
   

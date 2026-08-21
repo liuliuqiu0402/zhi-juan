@@ -3,8 +3,8 @@
 // 输出：docx 库的 Document 对象 → Packer.toBlob()
 
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader } from 'docx';
-import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
-import { splitSealText, splitSealContinuation } from '../themeConfig.js';
+import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
+import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
 
 // ============ 工具函数 ============
 
@@ -234,6 +234,22 @@ const buildTextRuns = (node, styleOverride = {}) => {
         lines.forEach((line, i) => {
           if (i > 0) runs.push(new TextRun({ break: 1 }));
           if (line) {
+            // 🔧 卷面规范：注意事项"本试卷共＿页" → NUMPAGES 域（Word 按实际总页数自动填充，
+            //    与页脚"共X页"联动；预览/HTML 保持占位由人工填写）
+            if (line.includes('本试卷共＿页')) {
+              const segs = line.split('本试卷共＿页');
+              const ctxRun = (base) => {
+                const o = { ...base };
+                ['size', 'color', 'font', 'bold', 'italics', 'underline', 'strike', 'shading', 'superScript', 'subScript']
+                  .forEach(k => { if (ctxIn[k] !== undefined) o[k] = ctxIn[k]; });
+                return o;
+              };
+              segs.forEach((seg, j) => {
+                if (j > 0) runs.push(new TextRun(ctxRun({ children: ['本试卷共', PageNumber.TOTAL_PAGES, '页'] })));
+                if (seg) runs.push(new TextRun(ctxRun({ text: seg })));
+              });
+              return;
+            }
             const pure = { text: line };
             // 只保留 ctx 中有值的键（避免 undefined 覆盖 docx 默认值）
             const keys = ['size', 'color', 'font', 'bold', 'italics', 'underline', 'strike', 'shading', 'superScript', 'subScript'];
@@ -893,13 +909,19 @@ const splitGridAwareContent = (node, runDefaults, opts = {}) => {
 // ============ Block 元素 → docx Paragraph/Table ============
 // ctx.deco: 继承装饰（父 div/blockquote 的 shading/border 透传子级）
 
-// 🔧 密封线收集器：密封线改由「页眉浮动文本框」承载（每页自动重复渲染，第一页含考生信息栏），
+// 🔧 密封线收集器：密封线改由「wpg 浮动群组」承载（页面锚定、不占文档流、不挤压正文），
 //    正文流不再输出密封线 marker 段落。buildDocxFromDom 启动时重置，processBlockNode 命中时写入。
 let __sealCollector = null;
 
-/** 密封线 marker 段落（放页眉，后处理替换为浮动文本框） */
-const sealMarkerParagraph = (fields, sizeHp) => new Paragraph({
-  children: [new TextRun({ text: SEAL_MARKER(fields.join('\u0001'), sizeHp), size: sizeHp, color: '999999', font: 'SimSun' })],
+/** 密封线 marker 段落（放页眉，后处理替换为浮动文本框；lineOnly 时仅 虚线+密/封/线） */
+const sealMarkerParagraph = (fields, sizeHp, lineOnly = false) => new Paragraph({
+  children: [new TextRun({ text: (lineOnly ? SEAL_MARKER_LINE : SEAL_MARKER)(fields.join('\u0001'), sizeHp), size: sizeHp, color: '999999', font: 'SimSun' })],
+});
+
+/** 页码页脚段落："第X页　共X页"（PAGE/NUMPAGES 域，显式纯黑） */
+const pageNumberParagraph = () => new Paragraph({
+  alignment: AlignmentType.CENTER,
+  children: [new TextRun({ children: ['第 ', PageNumber.CURRENT, ' 页　共 ', PageNumber.TOTAL_PAGES, ' 页'], size: 18, color: '000000' })],
 });
 
 const processBlockNode = (node, ctx = {}) => {
@@ -1135,17 +1157,55 @@ const processBlockNode = (node, ctx = {}) => {
     const sizeHp = Math.max(8, Math.round(fsPx * 0.75 * 2));
     __sealCollector.first = { fields: [...fields], sizeHp };
   };
+  /**
+   * 收集密封线字段（模板结构 seal-zone > seal-note/seal-info/seal-char；旧结构 sealed-line/.sl-text 兜底）
+   * 模板结构字段顺序按密封区纵向位置（自上而下）：线(顶) → 提示语 → 封(中) → 信息栏 → 密(底)，
+   * 与预览/参照模板一致；旧结构经标准分类归并后按同一版式排序。
+   */
+  const collectSealFields = (el, extras) => {
+    const charEls = Array.from(el.querySelectorAll('.seal-char'));
+    const byPos = (cls) => charEls.find((c) => c.classList.contains(cls))?.textContent?.trim() || '';
+    // 保留全角空格分隔（\s 会吃掉 　），仅清换行
+    const note = (el.querySelector('.seal-note')?.textContent || '').replace(/[\r\n]+/g, '').trim();
+    const info = (el.querySelector('.seal-info')?.textContent || '').replace(/[\r\n]+/g, '').trim();
+    const top = byPos('s-top'), mid = byPos('s-mid'), bot = byPos('s-bot');
+    if (note || info || charEls.length) {
+      const fields = [];
+      if (top) fields.push(top);
+      if (note) fields.push(note);
+      if (mid) fields.push(mid);
+      if (info) fields.push(info);
+      if (bot) fields.push(bot);
+      return fields.length ? fields : ['密封线'];
+    }
+    // 旧结构：.sl-text 序列 / 整段文本 + 横向密封特征 p
+    const slTexts = Array.from(el.querySelectorAll('.sl-text')).map((s) => (s.textContent || '').trim()).filter(Boolean);
+    const raw = (slTexts.length ? slTexts.join('　') : (el.textContent || '')) + (extras.length ? '　' + extras.join('　') : '');
+    const parsed = classifySealTokens(tokenizeSealText(raw || '密封线'));
+    // 标准版式顺序：线(顶) → 提示语 → 封(中) → 信息栏 → 密(底)；旧文本未显式给出密/封/线时补全（标准必备）
+    const tipF = parsed.find((f) => /不要答题|^密封线内/.test(f));
+    const infoF = parsed.find((f) => /^(学校|班级|姓名|学号|考生|考号)[:：]/.test(f));
+    let chars = ['线', '封', '密'].filter((c) => parsed.includes(c));
+    if (!chars.length) chars = ['线', '封', '密'];
+    const ordered = [];
+    if (chars.includes('线')) ordered.push('线');
+    if (tipF) ordered.push(tipF);
+    if (chars.includes('封')) ordered.push('封');
+    if (infoF) ordered.push(infoF);
+    if (chars.includes('密')) ordered.push('密');
+    parsed.forEach((f) => { if (!ordered.includes(f)) ordered.push(f); });
+    return ordered.length ? ordered : ['密封线'];
+  };
   if (cls.contains('sealed-wrapper')) {
-    // 容器：收集 sealed-line 内 .sl-text 字段序列（新结构）；旧结构（sealed-line 文本 + 横向密封特征 p）合并后拆字段；
-    //   其他子元素（如主题包装的正文）正常处理。
-    let sealLineEl = null;
+    // 容器：收集密封区字段（seal-zone / 旧 sealed-line），其他子元素（正文）正常处理
+    let sealEl = null;
     const extras = [];
     for (const c of node.childNodes) {
       if (!c || c.nodeType !== Node.ELEMENT_NODE) continue;
       const cCls = c.classList || [];
       const cText = (c.textContent || '').replace(/[\r\n]+/g, '').trim();
-      if (cCls.contains('seal-line') || cCls.contains('sealed-line')) {
-        sealLineEl = c;
+      if (cCls.contains('seal-zone') || cCls.contains('sealed-line') || cCls.contains('seal-line')) {
+        sealEl = c;
       } else if (/^(密封线内|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：])/.test(cText)) {
         // 旧结构：信息栏/提示横向 p → 并入字段序列
         extras.push(cText);
@@ -1153,20 +1213,11 @@ const processBlockNode = (node, ctx = {}) => {
         children.push(...processBlockNode(c));
       }
     }
-    if (sealLineEl) {
-      // 新结构：.sl-text 序列
-      const slTexts = Array.from(sealLineEl.querySelectorAll('.sl-text')).map((el) => (el.textContent || '').trim()).filter(Boolean);
-      const fields = slTexts.length
-        ? [...slTexts, ...extras]
-        : splitSealText(((sealLineEl.textContent || '') + (extras.length ? '　' + extras.join('　') : '')).replace(/[\r\n]+/g, '　'));
-      recordSealFields(fields, sealLineEl);
-    }
+    if (sealEl) recordSealFields(collectSealFields(sealEl, extras), sealEl);
     return children;
   }
-  if (cls.contains('seal-line') || cls.contains('sealed-line')) {
-    const slTexts = Array.from(node.querySelectorAll('.sl-text')).map((el) => (el.textContent || '').trim()).filter(Boolean);
-    const fields = slTexts.length ? slTexts : splitSealText((text || '密封线').replace(/[\r\n]+/g, '　'));
-    recordSealFields(fields, node);
+  if (cls.contains('seal-zone') || cls.contains('seal-line') || cls.contains('sealed-line')) {
+    recordSealFields(collectSealFields(node, []), node);
     return children;
   }
 
@@ -1363,11 +1414,11 @@ const processBlockNode = (node, ctx = {}) => {
     // 🔧 表格不继承底色，仅单元格自身有背景时才着色
     const rows = [];
     const allRows = [...node.querySelectorAll('tr')];
-    // 计算列宽（首行所有单元格实际宽度占比）
+    // 计算列宽（首行所有单元格实际宽度占比）；正文表格不再嵌套（密封线已改浮动群组方案），按整页宽 9000 DXA
+    const totalW = 9000;
     const colWidths = [];
     if (allRows.length > 0) {
       const firstRowCells = allRows[0].querySelectorAll('td, th');
-      const totalW = 9000;
       const cellRects = [];
       let sumPx = 0;
       firstRowCells.forEach(td => {
@@ -1384,7 +1435,11 @@ const processBlockNode = (node, ctx = {}) => {
       tds.forEach((td, idx) => {
         const tdRunStyle = defaultRunStyle(td);
         // 🔧 表头单元格 th：语义加粗兜底（导出容器无主题 CSS，th 的 font-weight 规则读不到，显式补偿）
-        if (td.tagName?.toLowerCase() === 'th') tdRunStyle.bold = true;
+        //    SimSun 无真粗体（一/二/三等简单笔画假粗不可见）→ 表头改用黑体 SimHei，加粗一目了然
+        if (td.tagName?.toLowerCase() === 'th') {
+          tdRunStyle.bold = true;
+          tdRunStyle.font = 'SimHei';
+        }
         // 单元格背景
         const tdShading = readBgColor(td);
         // 单元格边框
@@ -1459,8 +1514,11 @@ const processBlockNode = (node, ctx = {}) => {
       const tableIndentTwip = ctx.exactLine ? 0 : 480;
       const tableOpts = {
         rows,
-        width: { size: 9000 - tableIndentTwip, type: WidthType.DXA },
+        width: { size: totalW - tableIndentTwip, type: WidthType.DXA },
       };
+      // ⚠️ 必须显式设置 columnWidths：docx 库不传时 gridCol 默认 100（极小），
+      //    Word 会按 grid 挤列宽（"列宽挤在一起很小"）；传了才按比例生成正确 gridCol
+      if (colWidths.length) tableOpts.columnWidths = colWidths;
       if (tableIndentTwip > 0) tableOpts.indent = { size: tableIndentTwip, type: WidthType.DXA };
       // 不设置 table-level shading（docx Table 不支持）
       children.push(new Table(tableOpts));
@@ -1539,6 +1597,10 @@ const processBlockNode = (node, ctx = {}) => {
 
   // ===== 装饰容器 div / blockquote / section / figcaption → 透传子节点 + 继承装饰 =====
   if (['div', 'section', 'figure', 'figcaption', 'article'].includes(tag)) {
+    // 🔧 卷面规范：答案区另起一页（蓝本"参考答案与评分标准另起一页"，Word 中强制分页）
+    if (cls.contains('answer-section')) {
+      children.push(new Paragraph({ children: [new PageBreak()] }));
+    }
     const ownDeco = readBlockDecorations(node);
     const deco = { ...inheritedDeco };
     if (ownDeco.shading) deco.shading = ownDeco.shading;
@@ -1690,42 +1752,53 @@ export const buildDocxFromDom = (containerEl) => {
     prevResult = result;
   }
 
-  // 🔧 密封线改由页眉承载：浮动文本框锚定页面左侧边距内（不占正文流），随纸张自动适配；
-  //    第一页页眉含考生信息栏，后续页页眉仅"密封线"（titlePage 区分首页页眉）。
-  //    检测到密封线时正文左 margin 加大 600 DXA（正文从虚线右侧开始，与预览一致）
-  const hasSealLine = !!(__sealCollector?.first || (containerEl.querySelector && containerEl.querySelector('.sealed-wrapper, .sealed-line, .seal-line')));
-
-  // 页眉密封线：first = 完整字段（学校/班级/姓名/学号…），default = 仅"密/封/线"
+  // 🔧 密封线改由「页眉浮动 wpg 群组」方案承载（不再用表格、不再放正文流）：
+  //    - 正文保持普通段落流、2cm 页边距，密封区绘制在左侧页边距内（纸边 0~20mm），不占文档流、不挤压正文；
+  //    - marker 段落放页眉（首页 different-first-page 全量：虚线+密/封/线+提示语+信息栏；
+  //      其余页默认页眉仅 虚线+密/封/线），后处理（injectDrawingML 处理 header*.xml）替换为页面锚定 wpg 群组，
+  //      page 锚定 → 每一页的同一位置都渲染密封线；
+  //    - 字符旋转：整框 a:xfrm rot=16200000（字头朝左），文字正常序从下往上读。
+  const hasSealLine = !!(__sealCollector?.first || (containerEl.querySelector && containerEl.querySelector('.sealed-wrapper, .sealed-line, .seal-line, .seal-zone')));
   const sealFirst = __sealCollector?.first;
-  const sealHeaders = {};
-  if (sealFirst) {
-    sealHeaders.first = new Header({ children: [sealMarkerParagraph(sealFirst.fields, sealFirst.sizeHp)] });
-    const contFields = splitSealContinuation(sealFirst.fields);
-    sealHeaders.default = new Header({ children: [sealMarkerParagraph(contFields, sealFirst.sizeHp)] });
+
+  let bodyChildren = children;
+  let leftMargin = 1134;
+  let rightMargin = 1134;
+  let sealHeaders = null;
+  if (hasSealLine) {
+    const fields = sealFirst?.fields?.length ? sealFirst.fields : ['密封线'];
+    const sizeHp = sealFirst?.sizeHp || 20;
+    // 🔧 密封线随页眉渲染：首页页眉全量（线/封/密 + 提示语 + 信息栏），后续页默认页眉仅 虚线+密/封/线
+    sealHeaders = {
+      first: new Header({ children: [sealMarkerParagraph(fields, sizeHp)] }),
+      default: new Header({ children: [sealMarkerParagraph(fields, sizeHp, true)] }),
+    };
+    // 🔧 左右边距 2.5cm（1417 DXA）：左侧给密封区留呼吸空间（虚线 19mm + 6mm 不贴正文），右侧对称
+    leftMargin = 1417;
+    rightMargin = 1417;
   }
 
   return new Document({
     sections: [{
       properties: {
-        titlePage: !!sealFirst, // 首页使用独立页眉（含考生信息），后续页使用 default 页眉（仅"密封线"）
+        // 🔧 密封文档：different-first-page（首页页眉全量密封区，后续页仅 虚线+密/封/线）；仅 true 时输出 w:titlePg
+        ...(hasSealLine ? { titlePage: true } : {}),
         page: {
           size: { width: 11906, height: 16838 },
-          margin: { top: 1134, bottom: 1134, left: hasSealLine ? 1734 : 1134, right: 1134 },
+          // 🔧 上下 2cm；密封文档左右 2.5cm（1417 DXA，虚线 19mm + 6mm 不贴正文），普通文档左右 2cm
+          margin: { top: 1134, bottom: 1134, left: leftMargin, right: rightMargin },
         },
       },
-      headers: sealHeaders,
+      // 🔧 密封线页眉（每页重复渲染；无密封文档不设页眉）
+      ...(sealHeaders ? { headers: sealHeaders } : {}),
       // 🔧 页码页脚：落地蓝本卷面规范"每页页脚居中标注'第X页　共X页'"（Word 字段自动计算，AI 无法预知总页数）
+      //    ⚠️ 密封文档开启 different-first-page 后必须同时提供 first 页脚，否则 Word 首页不显示页码
+      //    ⚠️ 显式黑色：页码为 PAGE/NUMPAGES 域，Word 默认给域加浅灰底纹（显示设置），文字本身保持纯黑
       footers: {
-        default: new Footer({
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [new TextRun({ children: ['第 ', PageNumber.CURRENT, ' 页　共 ', PageNumber.TOTAL_PAGES, ' 页'], size: 18 })],
-            }),
-          ],
-        }),
+        ...(hasSealLine ? { first: new Footer({ children: [pageNumberParagraph()] }) } : {}),
+        default: new Footer({ children: [pageNumberParagraph()] }),
       },
-      children,
+      children: bodyChildren,
     }],
   });
 };

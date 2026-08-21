@@ -195,13 +195,29 @@
         <label>API Key</label>
         <input type="password" v-model="settings.deepseekApiKey" placeholder="sk-..." />
         <input type="text" v-model="settings.deepseekBaseUrl" placeholder="https://api.deepseek.com/v1" />
-        <label>📝 资料生成模型</label>
+
+        <!-- 🔧 成本预设按钮 -->
+        <div style="display:flex;gap:6px;margin:10px 0;flex-wrap:wrap;">
+          <button @click="applyModelPreset('economy')" style="padding:5px 10px;font-size:12px;border:1px solid #4caf50;border-radius:4px;background:#e8f5e9;cursor:pointer;">💰 经济模式</button>
+          <button @click="applyModelPreset('balanced')" style="padding:5px 10px;font-size:12px;border:1px solid #2196f3;border-radius:4px;background:#e3f2fd;cursor:pointer;">⚖️ 均衡模式（推荐）</button>
+          <button @click="applyModelPreset('flagship')" style="padding:5px 10px;font-size:12px;border:1px solid #ff9800;border-radius:4px;background:#fff3e0;cursor:pointer;">👑 旗舰模式</button>
+        </div>
+
+        <label>📝 资料生成模型（generation/blueprint）</label>
         <select v-model="settings.deepseekGenerationModel">
           <option v-for="m in deepseekModelOptions" :key="'dsg_' + m" :value="m">{{ formatDeepSeekModel(m) }}</option>
         </select>
-        <label>📋 教材分析模型</label>
+        <label>📋 教材分析模型（analysis/extraction · 决策性步骤）</label>
         <select v-model="settings.deepseekAnalysisModel">
           <option v-for="m in deepseekModelOptions" :key="'dsa_' + m" :value="m">{{ formatDeepSeekModel(m) }}</option>
+        </select>
+        <label>🔍 语义审查模型（review · 可省）</label>
+        <select v-model="settings.deepseekReviewModel">
+          <option v-for="m in deepseekModelOptions" :key="'dsr_' + m" :value="m">{{ formatDeepSeekModel(m) }}</option>
+        </select>
+        <label>🔧 语义修复模型（quality-repair · 质量兜底）</label>
+        <select v-model="settings.deepseekRepairModel">
+          <option v-for="m in deepseekModelOptions" :key="'dsrp_' + m" :value="m">{{ formatDeepSeekModel(m) }}</option>
         </select>
       </div>
 
@@ -704,6 +720,8 @@ const settings = ref({
   deepseekApiKey: apiConfig.deepseekApiKey,
   deepseekGenerationModel: apiConfig.deepseekGenerationModel || 'deepseek-v4-flash',
   deepseekAnalysisModel: apiConfig.deepseekAnalysisModel || 'deepseek-v4-pro',
+  deepseekReviewModel: apiConfig.deepseekReviewModel || 'deepseek-v4-flash',     // 🔧 新增
+  deepseekRepairModel: apiConfig.deepseekRepairModel || 'deepseek-v4-pro',        // 🔧 新增
   enginePriority: [...(apiConfig.enginePriority || [])],
   volcanoApiKey: apiConfig.volcanoApiKey || '',
   volcanoBaseUrl: apiConfig.volcanoBaseUrl || 'https://ark.cn-beijing.volces.com/api/v3',
@@ -735,6 +753,44 @@ const formatDeepSeekModel = (model) => {
     'deepseek-reasoner': '🧠 deepseek-reasoner（推理）',
   };
   return nameMap[model] || model;
+};
+
+// 🔧 成本预设：一键切换4档模型配置
+//   economy（经济）：全 Flash，约 ¥0.10/次，质量略降
+//   balanced（均衡）：分析+修复用 Pro，生成+审查用 Flash，约 ¥0.25/次（推荐）
+//   flagship（旗舰）：全 Pro，约 ¥0.60/次，质量最高
+const applyModelPreset = (preset) => {
+  const presets = {
+    economy: {
+      generation: 'deepseek-v4-flash',
+      analysis: 'deepseek-v4-flash',
+      review: 'deepseek-v4-flash',
+      repair: 'deepseek-v4-flash',
+      label: '💰 经济模式：全 Flash · 约 ¥0.10/次 · 质量略降',
+    },
+    balanced: {
+      generation: 'deepseek-v4-flash',
+      analysis: 'deepseek-v4-pro',
+      review: 'deepseek-v4-flash',
+      repair: 'deepseek-v4-pro',
+      label: '⚖️ 均衡模式：分析+修复 Pro · 约 ¥0.25/次 · 推荐',
+    },
+    flagship: {
+      generation: 'deepseek-v4-pro',
+      analysis: 'deepseek-v4-pro',
+      review: 'deepseek-v4-pro',
+      repair: 'deepseek-v4-pro',
+      label: '👑 旗舰模式：全 Pro · 约 ¥0.60/次 · 质量最高',
+    },
+  };
+  const p = presets[preset];
+  if (!p) return;
+  settings.value.deepseekGenerationModel = p.generation;
+  settings.value.deepseekAnalysisModel = p.analysis;
+  settings.value.deepseekReviewModel = p.review;
+  settings.value.deepseekRepairModel = p.repair;
+  saveStatus.value = p.label;
+  setTimeout(() => { saveStatus.value = ''; }, 4000);
 };
 
 const saveStatus = ref('');
@@ -797,6 +853,8 @@ const saveSettings = async () => {
   apiConfig.deepseekApiKey = settings.value.deepseekApiKey;
   apiConfig.deepseekGenerationModel = settings.value.deepseekGenerationModel;
   apiConfig.deepseekAnalysisModel = settings.value.deepseekAnalysisModel;
+  apiConfig.deepseekReviewModel = settings.value.deepseekReviewModel;       // 🔧 新增
+  apiConfig.deepseekRepairModel = settings.value.deepseekRepairModel;       // 🔧 新增
   apiConfig.volcanoApiKey = settings.value.volcanoApiKey;
   apiConfig.volcanoBaseUrl = settings.value.volcanoBaseUrl;
   apiConfig.volcanoGenerationModel = settings.value.volcanoGenerationModel;
@@ -1024,6 +1082,17 @@ watch(() => apiConfig.deepseekGenerationModel, (newVal) => {
 watch(() => apiConfig.deepseekAnalysisModel, (newVal) => {
   if (settings.value.deepseekAnalysisModel !== newVal) {
     settings.value.deepseekAnalysisModel = newVal;
+  }
+});
+// 🔧 新增：审查/修复模型 watch 同步
+watch(() => apiConfig.deepseekReviewModel, (newVal) => {
+  if (settings.value.deepseekReviewModel !== newVal) {
+    settings.value.deepseekReviewModel = newVal;
+  }
+});
+watch(() => apiConfig.deepseekRepairModel, (newVal) => {
+  if (settings.value.deepseekRepairModel !== newVal) {
+    settings.value.deepseekRepairModel = newVal;
   }
 });
 // 🔧 云端同步后火山引擎字段自动填充到设置页输入框

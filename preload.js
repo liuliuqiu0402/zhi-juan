@@ -30,7 +30,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onMenuEvent: (callback) => ipcRenderer.on('menu-event', callback),
 
     // 新增：静默导出 PDF
-    exportPdf: (htmlContent, outputPath) => ipcRenderer.invoke('export-pdf', htmlContent, outputPath),
+    exportPdf: (htmlContent, outputPath, options = {}) => ipcRenderer.invoke('export-pdf', htmlContent, outputPath, options),
     showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
 
     // Word COM 后处理：将标记 .docx 转换为原生表格/形状（田字格、四线三格）

@@ -111,12 +111,12 @@ export const themes = [
     colorTheme: 'original',
     titleFont: 'SimHei, Microsoft YaHei, sans-serif',
     bodyFont: 'SimSun, Microsoft YaHei, sans-serif',
-    titleColor: '#1e3a6f',
-    heading1Color: '#1e3a6f',
-    heading2Color: '#2b5ea7',
-    heading3Color: '#3a7bd5',
+    titleColor: '#000000',
+    heading1Color: '#000000',
+    heading2Color: '#000000',
+    heading3Color: '#000000',
     bodyColor: '#000000',
-    bodySize: 12,
+    bodySize: 14, // 🔧 学段适配：小学大字（四号）
     lineHeight: 1.8,
     pageMargin: '20px',
     tableHeaderBg: '#1e3a6f',
@@ -124,10 +124,10 @@ export const themes = [
     tableOddRowBg: '#f5f9ff',
     tableEvenRowBg: '#ffffff',
     styles: {
-      '.main-title': { textAlign: 'center', fontSize: '20pt', fontWeight: 'bold', marginBottom: '14pt', color: '#1e3a6f' },
-      '.heading1': { fontSize: '16pt', fontWeight: 'bold', marginTop: '12pt', marginBottom: '8pt', color: '#1e3a6f' },
-      '.heading2': { fontSize: '14pt', fontWeight: 'bold', marginTop: '10pt', marginBottom: '6pt', color: '#2b5ea7' },
-      '.heading3': { fontSize: '13pt', fontWeight: 'bold', marginTop: '8pt', marginBottom: '4pt', color: '#3a7bd5' },
+      '.main-title': { textAlign: 'center', fontSize: '20pt', fontWeight: 'bold', marginBottom: '14pt', color: '#000000' },
+      '.heading1': { fontSize: '16pt', fontWeight: 'bold', marginTop: '12pt', marginBottom: '8pt', color: '#000000' },
+      '.heading2': { fontSize: '14pt', fontWeight: 'bold', marginTop: '10pt', marginBottom: '6pt', color: '#000000' },
+      '.heading3': { fontSize: '13pt', fontWeight: 'bold', marginTop: '8pt', marginBottom: '4pt', color: '#000000' },
       '.normal-paragraph': { fontSize: '14pt', lineHeight: '1.8', marginBottom: '8pt' },
       '.indent-2': { textIndent: '2em' }
     }
@@ -208,10 +208,10 @@ export const themes = [
     colorTheme: 'original',
     titleFont: 'SimHei, Microsoft YaHei, sans-serif',
     bodyFont: 'SimSun, Microsoft YaHei, sans-serif',
-    titleColor: '#1e3a6f',
-    heading1Color: '#1e3a6f',
-    heading2Color: '#2b5ea7',
-    heading3Color: '#3a7bd5',
+    titleColor: '#000000',
+    heading1Color: '#000000',
+    heading2Color: '#000000',
+    heading3Color: '#000000',
     bodyColor: '#000000',
     bodySize: 12,
     lineHeight: 1.6,
@@ -221,10 +221,10 @@ export const themes = [
     tableOddRowBg: '#f5f9ff',
     tableEvenRowBg: '#ffffff',
     styles: {
-      '.main-title': { textAlign: 'center', fontSize: '18pt', fontWeight: 'bold', marginBottom: '12pt', color: '#1e3a6f' },
-      '.heading1': { fontSize: '14pt', fontWeight: 'bold', marginTop: '10pt', marginBottom: '6pt', color: '#1e3a6f' },
-      '.heading2': { fontSize: '13pt', fontWeight: 'bold', marginTop: '8pt', marginBottom: '4pt', color: '#2b5ea7' },
-      '.heading3': { fontSize: '12pt', fontWeight: 'bold', marginTop: '6pt', marginBottom: '3pt', color: '#3a7bd5' },
+      '.main-title': { textAlign: 'center', fontSize: '18pt', fontWeight: 'bold', marginBottom: '12pt', color: '#000000' },
+      '.heading1': { fontSize: '14pt', fontWeight: 'bold', marginTop: '10pt', marginBottom: '6pt', color: '#000000' },
+      '.heading2': { fontSize: '13pt', fontWeight: 'bold', marginTop: '8pt', marginBottom: '4pt', color: '#000000' },
+      '.heading3': { fontSize: '12pt', fontWeight: 'bold', marginTop: '6pt', marginBottom: '3pt', color: '#000000' },
       '.normal-paragraph': { fontSize: '12pt', lineHeight: '1.6', marginBottom: '6pt' },
       '.indent-2': { textIndent: '2em' }
     }
@@ -305,24 +305,24 @@ export const themes = [
     colorTheme: 'original',
     titleFont: 'SimHei, Microsoft YaHei, sans-serif',
     bodyFont: 'SimSun, Microsoft YaHei, sans-serif',
-    titleColor: '#1e3a6f',
-    heading1Color: '#1e3a6f',
-    heading2Color: '#2b5ea7',
-    heading3Color: '#3a7bd5',
+    titleColor: '#000000',
+    heading1Color: '#000000',
+    heading2Color: '#000000',
+    heading3Color: '#000000',
     bodyColor: '#000000',
-    bodySize: 12,
-    lineHeight: 1.5,
+    bodySize: 10.5, // 🔧 学段适配：高中五号，更接近真题卷面
+    lineHeight: 1.4,
     pageMargin: '20px',
     tableHeaderBg: '#1e3a6f',
     tableHeaderColor: '#ffffff',
     tableOddRowBg: '#f5f9ff',
     tableEvenRowBg: '#ffffff',
     styles: {
-      '.main-title': { textAlign: 'center', fontSize: '18pt', fontWeight: 'bold', marginBottom: '12pt', color: '#1e3a6f' },
-      '.heading1': { fontSize: '14pt', fontWeight: 'bold', marginTop: '10pt', marginBottom: '6pt', color: '#1e3a6f' },
-      '.heading2': { fontSize: '13pt', fontWeight: 'bold', marginTop: '8pt', marginBottom: '4pt', color: '#2b5ea7' },
-      '.heading3': { fontSize: '12pt', fontWeight: 'bold', marginTop: '6pt', marginBottom: '3pt', color: '#3a7bd5' },
-      '.normal-paragraph': { fontSize: '12pt', lineHeight: '1.5', marginBottom: '6pt' },
+      '.main-title': { textAlign: 'center', fontSize: '18pt', fontWeight: 'bold', marginBottom: '12pt', color: '#000000' },
+      '.heading1': { fontSize: '14pt', fontWeight: 'bold', marginTop: '10pt', marginBottom: '6pt', color: '#000000' },
+      '.heading2': { fontSize: '13pt', fontWeight: 'bold', marginTop: '8pt', marginBottom: '4pt', color: '#000000' },
+      '.heading3': { fontSize: '12pt', fontWeight: 'bold', marginTop: '6pt', marginBottom: '3pt', color: '#000000' },
+      '.normal-paragraph': { fontSize: '10.5pt', lineHeight: '1.4', marginBottom: '5pt' },
       '.indent-2': { textIndent: '2em' }
     }
   },
@@ -769,73 +769,107 @@ export const themes = [
       '.normal-paragraph': { fontSize: '12pt', lineHeight: '1.5', marginBottom: '6pt' },
       '.indent-2': { textIndent: '2em' },
       // 📜 密封线试卷专属样式
-      // 标准试卷样式：左侧一条竖虚线 + 文字逆时针旋转 90°（字头朝左、自上而下阅读）：
-      // 预览为所见即所得：sealed-line 以窄列形式内嵌文档流左侧（任何上下文均可见），
-      // 仅左边框 dashed（一条虚线）；.sl-text 逆时针旋转 90°（字头朝左），深灰 #333333 防发虚
-      // 与导出端「虚线/文字各自文本框交替锚定」（单左边框虚线 + wordArtVert）一致
+      // 标准试卷样式（A4 + 上下 2cm、左右 2.35cm 页边距）：
+      //   .sealed-wrapper = A4 页面壳（上下 2cm、左右 2.35cm 边距，正文不被挤压，虚线不贴正文）；
+      //   .seal-zone 绝对定位于左侧页边距内（纸边 0~20mm，正文内边距外侧）；
+      //   虚线在 19mm、与上下边距对齐（20~277mm）；线(上1/4=84mm)/封(中=148mm)/密(下1/4=213mm) 均匀嵌在虚线上（右缘贴线）；
+      //   提示语/信息栏向密封线靠拢（x=8mm）并垂直居中于上下边距中间（两组间留 6mm 间距）；
+      //   .seal-note/.seal-info/.seal-char 逆时针旋转 90°（字头朝左、从下往上读）；
+      //   字号分级：提示语 12pt bold、信息栏 12pt、密/封/线 10.5pt bold（与导出端一致）
       '.sealed-wrapper': {
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'stretch',
-        width: '100%',
-        maxWidth: '100%',
+        position: 'relative',
+        padding: '20mm 25mm',
+        minHeight: '100%',
         boxSizing: 'border-box'
       },
-      '.sealed-line': {
-        flex: '0 0 auto',
-        width: '36px',
-        boxSizing: 'border-box',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        minHeight: '100%',
-        color: '#333333',
-        fontSize: '10pt',
-        // 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧）
-        borderLeft: '1.5px dashed #333333'
+      '.sealed-wrapper > .seal-zone': {
+        position: 'absolute',
+        left: '0',
+        top: '0',
+        bottom: '0',
+        width: '20mm',
+        boxSizing: 'border-box'
       },
-      '.seal-line': {
-        flex: '0 0 auto',
-        width: '36px',
-        boxSizing: 'border-box',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        minHeight: '100%',
-        paddingRight: '4px',
-        color: '#333333',
-        fontSize: '10pt',
-        // 一条竖虚线：仅左边框 dashed
-        borderLeft: '1.5px dashed #333333'
+      '.seal-zone > .seal-line': {
+        position: 'absolute',
+        top: '20mm',
+        bottom: '20mm',
+        right: '1mm',
+        borderLeft: '1.4px dashed #000'
       },
-      '.sealed-line .sl-dash': {
-        // 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供
-        flex: '1 1 auto',
-        minHeight: '8px'
-      },
-      '.sealed-line .sl-text': {
-        flex: '0 0 auto',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+      '.seal-zone > .seal-note': {
+        position: 'absolute',
+        left: '8mm',
+        top: '76.2mm',
+        transformOrigin: 'left top',
+        transform: 'rotate(-90deg)',
         whiteSpace: 'nowrap',
-        color: '#333333',
-        fontSize: '10pt',
-        lineHeight: '1.3',
-        // 逆时针旋转 90°：字头朝左、自上而下阅读（标准试卷密封线文字朝向）
+        fontSize: '12pt',
+        fontWeight: 'bold',
+        lineHeight: '1'
+      },
+      '.seal-zone > .seal-info': {
+        position: 'absolute',
+        left: '8mm',
+        top: '254.7mm',
+        transformOrigin: 'left top',
+        transform: 'rotate(-90deg)',
+        whiteSpace: 'nowrap',
+        fontSize: '12pt',
+        lineHeight: '1'
+      },
+      '.seal-zone > .seal-char': {
+        position: 'absolute',
+        right: '1mm',
+        fontSize: '10.5pt',
+        fontWeight: 'bold',
+        lineHeight: '1',
+        transformOrigin: 'center',
         transform: 'rotate(-90deg)'
       },
-      '.sealed-line span': {
+      '.seal-zone > .seal-char.s-top': {
+        top: '82.4mm'
+      },
+      '.seal-zone > .seal-char.s-mid': {
+        top: '146.6mm'
+      },
+      '.seal-zone > .seal-char.s-bot': {
+        top: '210.9mm'
+      },
+      '.seal-zone p': {
         margin: '0'
       },
-      '.sealed-line p': {
-        margin: '0'
-      },
-      '.sealed-wrapper > :not(.seal-line), .sealed-wrapper > :not(.sealed-line)': {
-        flex: '1 1 auto',
-        minWidth: '0',
-        paddingLeft: '8px',
+      '.sealed-wrapper > .sealed-content': {
+        marginLeft: '0',
         boxSizing: 'border-box'
+      },
+      // 📜 卷面固定件：注意事项 + 题号得分表（排版模块统一注入，字号对齐模板 12pt）
+      '.exam-notice': {
+        fontSize: '12pt',
+        lineHeight: '1.9',
+        margin: '4pt 0 8pt'
+      },
+      '.exam-notice .notice-title': {
+        fontWeight: 'bold',
+        margin: '0'
+      },
+      '.exam-notice .notice-item': {
+        margin: '0'
+      },
+      '.exam-score-table': {
+        width: '100%',
+        borderCollapse: 'collapse',
+        marginBottom: '10pt',
+        fontSize: '12pt'
+      },
+      '.exam-score-table th, .exam-score-table td': {
+        border: '1px solid #000',
+        textAlign: 'center',
+        padding: '4px 0'
+      },
+      '.exam-score-table th': {
+        fontWeight: 'bold',
+        fontFamily: "'黑体','SimHei',sans-serif"
       },
       '.exam-info': {
         display: 'flex',
@@ -1798,71 +1832,102 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       line-height: 1;
     }
 
-    /* ⭐ 密封线/装订线：标准试卷样式——左侧一条竖虚线 + 文字逆时针旋转 90°（字头朝左）：
-       预览为所见即所得：sealed-line 以窄列形式内嵌文档流左侧（任何上下文均可见），
-       仅左边框 dashed（一条虚线）；.sl-text 逆时针旋转 90°（字头朝左），深灰 #333 防发虚
-       与导出端「虚线/文字各自文本框交替锚定」（单左边框虚线 + wordArtVert）一致 */
+    /* ⭐ 密封线/装订线：标准试卷样式（A4 + 上下 2cm、左右 2.35cm 页边距）——
+       页面壳 .sealed-wrapper 自带边距（正文不被挤压，虚线不贴正文）；
+       密封区 .seal-zone 绝对定位于左侧页边距内（纸边 0~20mm），在正文内边距外侧；
+       虚线在 19mm、与上下边距对齐（20~277mm）；线(上1/4=84mm)/封(中=148mm)/密(下1/4=213mm) 均匀嵌在虚线上（右缘贴线）；
+       提示语/信息栏向密封线靠拢（x=8mm）并垂直居中于上下边距中间（两组间留 6mm 间距）；
+       .seal-note/.seal-info/.seal-char 逆时针旋转 90°（字头朝左、从下往上读）；
+      字号分级：提示语 12pt bold、信息栏 12pt、密/封/线 10.5pt bold */
     .sealed-wrapper {
-      display: flex;
-      flex-direction: row;
-      align-items: stretch;
-      width: 100%;
-      max-width: 100%;
-      box-sizing: border-box;
-    }
-    .sealed-line {
-      flex: 0 0 auto;
-      width: 36px;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      position: relative;
+      padding: 20mm 25mm;
       min-height: 100%;
-      color: #333;
-      font-size: 10pt;
-      /* 一条竖虚线：仅左边框 dashed（虚线在文字处断开，文字嵌于虚线右侧） */
-      border-left: 1.5px dashed #333;
-    }
-    .seal-line {
-      flex: 0 0 auto;
-      width: 36px;
       box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100%;
-      padding-right: 4px;
-      color: #333;
-      font-size: 10pt;
-      /* 一条竖虚线：仅左边框 dashed */
-      border-left: 1.5px dashed #333;
     }
-    .sealed-line .sl-dash {
-      /* 弹性空白：均匀分布文字字段，虚线由 sealed-line 左边框提供 */
-      flex: 1 1 auto;
-      min-height: 8px;
+    .sealed-wrapper > .seal-zone {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 20mm;
+      box-sizing: border-box;
     }
-    .sealed-line .sl-text {
-      flex: 0 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .seal-zone > .seal-line {
+      position: absolute;
+      top: 20mm;
+      bottom: 20mm;
+      right: 1mm;
+      border-left: 1.4px dashed #000;
+    }
+    .seal-zone > .seal-note {
+      position: absolute;
+      left: 8mm;
+      top: 76.2mm;
+      transform-origin: left top;
+      transform: rotate(-90deg);
       white-space: nowrap;
-      color: #333;
-      font-size: 10pt;
-      line-height: 1.3;
-      /* 逆时针旋转 90°：字头朝左、自上而下阅读（标准试卷密封线文字朝向） */
+      font-size: 12pt;
+      font-weight: bold;
+      line-height: 1;
+    }
+    .seal-zone > .seal-info {
+      position: absolute;
+      left: 8mm;
+      top: 254.7mm;
+      transform-origin: left top;
+      transform: rotate(-90deg);
+      white-space: nowrap;
+      font-size: 12pt;
+      line-height: 1;
+    }
+    .seal-zone > .seal-char {
+      position: absolute;
+      right: 1mm;
+      font-size: 10.5pt;
+      font-weight: bold;
+      line-height: 1;
+      transform-origin: center;
       transform: rotate(-90deg);
     }
-    .sealed-wrapper > :not(.seal-line),
-    .sealed-wrapper > :not(.sealed-line) {
-      flex: 1 1 auto;
-      min-width: 0;
-      padding-left: 8px;
+    .seal-zone > .seal-char.s-top { top: 82.4mm; }
+    .seal-zone > .seal-char.s-mid { top: 146.6mm; }
+    .seal-zone > .seal-char.s-bot { top: 210.9mm; }
+    .sealed-wrapper > .sealed-content {
+      margin-left: 0;
       box-sizing: border-box;
     }
-    .sealed-line p {
+    .seal-zone p {
       margin: 0;
+    }
+    /* 📜 卷面固定件：注意事项 + 题号得分表（字号对齐模板 12pt） */
+    .exam-notice {
+      font-size: 12pt;
+      line-height: 1.9;
+      margin: 4pt 0 8pt;
+    }
+    .exam-notice .notice-title {
+      font-weight: bold;
+      margin: 0;
+    }
+    .exam-notice .notice-item {
+      margin: 0;
+    }
+    .exam-score-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10pt;
+      font-size: 12pt;
+    }
+    .exam-score-table th,
+    .exam-score-table td {
+      border: 1px solid #000;
+      text-align: center;
+      padding: 4px 0;
+    }
+    .exam-score-table th {
+      font-weight: bold;
+      font-family: '黑体', 'SimHei', sans-serif; /* 黑体真粗体：一/二/三等加粗肉眼可见（SimSun 假粗不可见） */
     }
 
     /* ⭐ 评分栏 - 表格形式（横竖线全有） */
@@ -1967,7 +2032,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
     /* 公式 */
     .formula { text-align: center; padding: 8px; margin: 8px 0; font-family: 'Times New Roman', serif; font-style: italic; }
     /* 答案区域 */
-    .answer-section { margin-top: 24px; padding: 16px; border-top: 2px solid #333; background: #fafafa; }
+    .answer-section { margin-top: 24px; padding: 16px; border-top: 2px solid #333; background: #fafafa; page-break-before: always; }
     /* 记忆技巧 */
     .memory-tips { padding: 12px 16px; background: #fff3e0; border: 1px solid #ffb74d; border-radius: 6px; margin: 12px 0; }
     /* 趣味练习 */
@@ -1991,15 +2056,24 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   `;
   
   // ========== 打印专用CSS ==========
+  // 🔧 密封线试卷（sealed_exam）：页面壳 .sealed-wrapper 自带 2cm 页边距 →
+  //    @page 边距必须为 0，否则 20mm + 20mm 叠加成 40mm（正文被推得太深）
+  const sealTheme = themeId === 'sealed_exam';
   styleTag += `
     @page {
       size: A4;
-      margin: 20mm;
+      margin: ${sealTheme ? 0 : '20mm'};
     }
     @media print {
       body {
         margin: 0;
         padding: 10mm;
+      }
+      /* 🔧 密封线试卷：页面壳 .sealed-wrapper 自带 A4 页边距（上下左右统一 2cm），
+         打印/PDF 时取消 body 兜底留白，密封区才能落在纸边 20mm（正文内边距外侧，对齐模板布局） */
+      body:has(.sealed-wrapper) {
+        margin: 0 !important;
+        padding: 0 !important;
       }
       h1, h2, h3, h4 { page-break-after: avoid; }
       table, figure, pre, blockquote { page-break-inside: avoid; }
@@ -2117,33 +2191,54 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
 
 // ==================== 主题内容自动包装 ====================
 /**
- * 密封线文本 → 字段序列（用于新结构“竖虚线 + 横排文字嵌入”排版）
+ * 密封线文本 → 标准字段序列（用于新结构“竖虚线 + 横排文字嵌入”排版）
+ * 标准版式（与预览/导出一致；逆时针旋转 90°、从下往上读）：
+ *   1. 提示语“密封线内不要答题”在最上（顶部）
+ *   2. 考生信息（学校/班级/姓名/学号…）合并为一行，居下
+ *   3. “密/封/线”三字在最下，固定按“线 上 → 密 下”输出 → 从下往上读正好是“密封线”
+ * 幂等：已归一化的字段序列再次分类结果不变。
+ */
+export const classifySealTokens = (tokens) => {
+  const tip = [];
+  const info = [];
+  const seal = [];
+  const other = [];
+  for (const tk of tokens) {
+    if (!tk) continue;
+    if (/不要答题|^密封线内/.test(tk)) tip.push(tk);
+    else if (tk === '密' || tk === '封' || tk === '线') seal.push(tk);
+    else if (tk === '密封线') seal.push('密', '封', '线');
+    else if (/^(学校|班级|姓名|学号|考生|考号)[:：]/.test(tk)) info.push(tk);
+    else other.push(tk);
+  }
+  const fields = [];
+  if (tip.length) fields.push(tip.join('　'));
+  if (info.length) fields.push(info.join('　'));
+  ['线', '封', '密'].forEach((c) => {
+    if (seal.includes(c)) fields.push(c);
+  });
+  fields.push(...other);
+  return fields;
+};
+
+/**
+ * 密封线原始文本 → 字段 token 数组
+ * 🔧 无空格粘连拆断：旧内容可能形如「密封线学校：＿＿＿班级：＿＿＿密封线内不要答题」
+ * 在字段前缀 / 提示语前插入全角空格分隔，避免整串作为一个超长字段（导出端文本框横铺整页）
+ */
+export const tokenizeSealText = (text) => {
+  const separated = String(text || '').replace(/(?<=[^\s　])(?=(?:学校|班级|姓名|学号|考生|考号)[:：]|密封线内)/g, '　');
+  return separated.replace(/[\r\n]+/g, '　').split(/[\s　]+/).map((t) => t.trim()).filter(Boolean);
+};
+
+/**
+ * 密封线文本 → 字段序列（标准版式，见 classifySealTokens）
  * 旧文本为空格分隔的整条（如“密封线　学校：＿＿＿　班级：＿＿＿　姓名：＿＿＿　学号：＿＿＿　密封线内不要答题”）：
- *   拆分为：信息字段（学校/班级/姓名/学号…）→ 提示（…不要答题）→ 密封线三字（密/封/线 逐字，字间虚线）
+ *   拆分为：提示（…不要答题）→ 信息字段（学校/班级/姓名/学号…，合并一行）→ 密封线三字（线上密下）
  */
 export const splitSealText = (text) => {
   if (!text) return ['密封线'];
-  // 🔧 无空格粘连拆断：旧内容可能形如「密封线学校：＿＿＿班级：＿＿＿密封线内不要答题」
-  // 在字段前缀 / 提示语前插入全角空格分隔，避免整串作为一个超长字段（导出端文本框横铺整页）
-  const separated = String(text).replace(/(?<=[^\s　])(?=(?:学校|班级|姓名|学号|考生|考号)[:：]|密封线内)/g, '　');
-  const tokens = separated.split(/[\s　]+/).map((t) => t.trim()).filter(Boolean);
-  const info = [];
-  let tip = null;
-  const sealChars = [];
-  for (const tk of tokens) {
-    if (/不要答题|^密封线内/.test(tk)) {
-      tip = tk;
-    } else if (tk === '密封线') {
-      sealChars.push('密', '封', '线');
-    } else if (tk === '密' || tk === '封' || tk === '线') {
-      sealChars.push(tk);
-    } else {
-      info.push(tk);
-    }
-  }
-  const fields = [...info];
-  if (tip) fields.push(tip);
-  fields.push(...sealChars);
+  const fields = classifySealTokens(tokenizeSealText(text));
   return fields.length ? fields : ['密封线'];
 };
 
@@ -2157,76 +2252,277 @@ export const splitSealContinuation = (fields) => {
   return sealOnly.length ? sealOnly : ['密封线'];
 };
 
-/** 密封线新结构辅助：虚线单元（竖向虚线，弹性高度）与文字单元（横排字段，逆时针旋转 90° 竖排） */
-const sealDashSpan = () => {
-  const s = document.createElement('span');
-  s.className = 'sl-dash';
-  return s;
-};
-const sealTextSpan = (txt) => {
-  const s = document.createElement('span');
-  s.className = 'sl-text';
-  s.textContent = txt;
-  // 🔧 字段旋转 -90° 后视觉高度 = 字数 × 1.3em；必须把布局高度撑到同样尺寸，
-  //    否则 flex 列中相邻字段的旋转文字会互相重叠（与导出端 charH = 字号×1.3 对齐）
-  const len = Math.max(1, [...txt].length);
-  s.style.height = `calc(${len} * 1.3em)`;
-  return s;
+/** HTML 转义（密封线字段文本） */
+const escHtml = (s) => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/**
+ * 密封线字段序列 → 模板结构 seal-zone HTML（严格对齐「试卷密封线模板.html」）：
+ *   密封区绝对定位于左侧页边距带（12mm 起、宽 32mm 至 44mm），正文内边距外侧；
+ *   提示语（seal-note）上中部、信息栏（seal-info）底部、密/封/线（seal-char）写在折线上（线上密下），
+ *   全部逆时针旋转 90°（从下往上读）；虚线由 seal-line 提供（右缘 dashed）。
+ */
+export const buildSealZoneHTML = (fields) => {
+  const list = Array.isArray(fields) ? fields : splitSealText(fields || '');
+  // ⚠️ 多字字段可能粘有密封线字符（如"密封线内不要答题封""学号：＿密"），剥离尾部密/封/线
+  const stripSealSuffix = (s) => String(s || '').replace(/[密封线]+$/g, '');
+  // 🔧 学校/班级/姓名/学号 后的下划线统一为 8 个全角 ＿（"再长一些且一致"），预览与导出一致
+  const normalizeBlanks = (s) => String(s || '').replace(/＿+/g, '＿＿＿＿＿＿＿＿');
+  const tip = stripSealSuffix(list.find((f) => /不要答题|^密封线内/.test(f)) || '密封线内不要答题');
+  const info = normalizeBlanks(stripSealSuffix(list.find((f) => /^(学校|班级|姓名|学号|考生|考号)[:：]/.test(f)) || ''));
+  // 标准试卷密封线必含"密/封/线"三字（写在折线上，线上密下）；源文本未显式给出时补全
+  const chars = ['线', '封', '密'].filter((c) => list.includes(c));
+  const effChars = chars.length ? chars : ['线', '封', '密'];
+  const infoHtml = info ? `\n    <div class="seal-info">${escHtml(info)}</div>` : '';
+  const topChar = effChars.includes('线') ? '<div class="seal-char s-top">线</div>' : '';
+  const midChar = effChars.includes('封') ? '<div class="seal-char s-mid">封</div>' : '';
+  const botChar = effChars.includes('密') ? '<div class="seal-char s-bot">密</div>' : '';
+  return `<div class="seal-zone">
+    <div class="seal-note">${escHtml(tip)}</div>${infoHtml}
+    <div class="seal-line"></div>
+    ${topChar}${midChar}${botChar}
+  </div>`;
 };
 
 /**
- * 密封线结构归一化：
- * 1. 旧结构（sealed-line 仅"密封线"/逐字 span + 信息栏/提示为横向 <p>）→ 新结构：
- *    sealed-line 内 [.sl-dash][.sl-text 字段][.sl-dash][.sl-text 字段]… 交替（虚线弹性、文字横排嵌入）
- * 2. 新结构（已含 .sl-text）原样保留（若 wrapper 内仍有密封特征 p 则并入末尾）
- * 幂等；正文 p（不以密封特征开头，如主题包装的正文）不受影响。
- * 注：导出端 docxBuilder 解析 .sl-text 序列构建“虚线单元格+文字单元格”表格，本函数服务预览/编辑区所见即所得。
+ * 旧密封线结构 → 标准模板结构（.sealed-wrapper > [.seal-zone + .sealed-content]）
+ * 输入兼容：
+ *   a. 旧 flex 结构：.sealed-wrapper > [.sealed-line/.seal-line（.sl-text/.sl-dash 交替）+ 正文兄弟]
+ *   b. 旧横向结构：.sealed-line 文本 + 信息栏/提示横向 <p>（以密封特征开头）
+ *   c. 顶层裸 .sealed-line/.seal-line（无 wrapper）
+ * 输出统一为模板结构（严格对齐「试卷密封线模板.html」）；已是 seal-zone 结构的部分幂等跳过。
  */
-export const normalizeSealStructure = (html) => {
-  if (!html || typeof html !== 'string' || !html.includes('sealed-wrapper')) return html;
+const convertLegacySealToTemplate = (html) => {
   const tpl = document.createElement('template');
   tpl.innerHTML = html;
-  const wrappers = tpl.content.querySelectorAll('.sealed-wrapper');
+  // c. 顶层裸 .sealed-line/.seal-line → 包进 sealed-wrapper
+  const bareLines = Array.from(tpl.content.querySelectorAll(':scope > .sealed-line, :scope > .seal-line'));
+  if (bareLines.length) {
+    const w = document.createElement('div');
+    w.className = 'sealed-wrapper';
+    const box = document.createElement('div');
+    box.className = 'sealed-content';
+    let moved = 0;
+    for (const c of Array.from(tpl.content.children)) {
+      if (bareLines.includes(c)) continue;
+      box.appendChild(c);
+      moved += 1;
+    }
+    bareLines.forEach((b) => w.appendChild(b));
+    if (moved) w.appendChild(box);
+    tpl.content.replaceChildren(w);
+  }
+  // a/b. wrapper 内的旧结构 → seal-zone + sealed-content
+  const wrappers = Array.from(tpl.content.querySelectorAll('.sealed-wrapper'));
   wrappers.forEach((w) => {
-    // 🔧 清理 wrapper 内纯空白文本节点（旧结构 <p> 之间的换行残留，避免污染序列化输出）
-    Array.from(w.childNodes)
-      .filter((n) => n.nodeType === 3 && !(n.textContent || '').trim())
-      .forEach((n) => n.remove());
-    let sealLine = null;
+    if (w.querySelector(':scope > .seal-zone')) return; // 已是模板结构，幂等跳过
+    let sealEl = null;
     const extras = [];
     for (const c of Array.from(w.children)) {
       const cCls = c.classList || [];
-      const cText = (c.textContent || '').trim();
-      if (cCls.contains('sealed-line') || cCls.contains('seal-line')) {
-        sealLine = c;
-      } else if (/^(密封线内|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：])/.test(cText)) {
-        extras.push(c);
+      const cText = (c.textContent || '').replace(/[\r\n]+/g, '').trim();
+      if (cCls.contains('sealed-line') || cCls.contains('seal-line')) sealEl = c;
+      else if (/^(密封线内|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：])/.test(cText)) extras.push(c);
+    }
+    if (!sealEl && !extras.length) return;
+    // 收集字段：.sl-text 序列（新 flex）或整段文本（旧横向）+ 外部密封特征 p
+    const slTexts = sealEl
+      ? Array.from(sealEl.querySelectorAll('.sl-text')).map((el) => (el.textContent || '').trim()).filter(Boolean)
+      : [];
+    const raw = (slTexts.length ? slTexts.join('　') : (sealEl ? (sealEl.textContent || '') : ''))
+      + (extras.length ? '　' + extras.map((e) => (e.textContent || '').trim()).join('　') : '');
+    extras.forEach((e) => e.remove());
+    if (sealEl) sealEl.remove();
+    const fields = classifySealTokens(tokenizeSealText(raw || '密封线'));
+    const zone = document.createElement('div');
+    zone.innerHTML = buildSealZoneHTML(fields);
+    const zoneEl = zone.firstElementChild;
+    // 内容容器：已有 .sealed-content 保留，其余兄弟收进容器
+    let contentBox = w.querySelector(':scope > .sealed-content');
+    if (!contentBox) {
+      contentBox = document.createElement('div');
+      contentBox.className = 'sealed-content';
+      let moved = 0;
+      for (const c of Array.from(w.children)) {
+        contentBox.appendChild(c);
+        moved += 1;
+      }
+      if (moved) w.appendChild(contentBox);
+    } else {
+      for (const c of Array.from(w.children)) {
+        if (c === contentBox) continue;
+        contentBox.appendChild(c);
       }
     }
-    if (!sealLine) return;
-    // 已含 .sl-text → 新结构：仅把外部密封特征 p 并入末尾（保底），不动内部
-    if (sealLine.querySelector('.sl-text')) {
-      extras.forEach((e) => {
-        sealLine.appendChild(sealTextSpan((e.textContent || '').trim()));
-        sealLine.appendChild(sealDashSpan());
-        e.remove();
-      });
-      return;
-    }
-    // 旧结构：合并文本 → 拆字段 → 重建为 [虚线][文字]…[虚线]
-    let raw = sealLine.textContent || '';
-    if (extras.length) {
-      raw += '　' + extras.map((e) => (e.textContent || '').trim()).join('　');
-      extras.forEach((e) => e.remove());
-    }
-    const fields = splitSealText(raw);
-    sealLine.innerHTML = '';
-    sealLine.appendChild(sealDashSpan());
-    fields.forEach((f, i) => {
-      sealLine.appendChild(sealTextSpan(f));
-      sealLine.appendChild(sealDashSpan());
-    });
+    w.prepend(zoneEl);
   });
+  return tpl.innerHTML;
+};
+
+/**
+ * 模板 .paper 页面结构 → 标准 sealed-wrapper 页面壳
+ * 输入为「试卷密封线模板.html」整页：.paper > [.seal-zone + .content(正文) + 页脚…]
+ * 输出：.sealed-wrapper > [.seal-zone + .sealed-content(正文)]
+ * 幂等：已在 .sealed-wrapper 内的 .seal-zone 跳过。
+ */
+const wrapTemplateSealPaper = (html) => {
+  if (!/seal-zone/.test(html)) return html;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const zones = Array.from(tpl.content.querySelectorAll('.seal-zone'));
+  zones.forEach((zone) => {
+    if (zone.closest('.sealed-wrapper')) return; // 幂等
+    const wrapper = document.createElement('div');
+    wrapper.className = 'sealed-wrapper';
+    const paper = zone.closest('.paper');
+    // parentNode 兼容 DocumentFragment（模板顶层 seal-zone 时 parentElement 为 null）
+    const host = paper || zone.parentNode;
+    const contentEl = host && host.children
+      ? Array.from(host.children).find((c) => c.classList && c.classList.contains('content'))
+      : null;
+    const siblings = host ? Array.from(host.children || []).filter((c) => c !== zone) : [];
+    zone.remove();
+    wrapper.appendChild(zone);
+    if (contentEl) {
+      contentEl.classList.remove('content');
+      contentEl.classList.add('sealed-content');
+      wrapper.appendChild(contentEl);
+    } else {
+      const contentBox = document.createElement('div');
+      contentBox.className = 'sealed-content';
+      let moved = 0;
+      siblings.forEach((c) => {
+        if (c === contentEl) return;
+        if (c.nodeType === 1 || (c.nodeType === 3 && (c.textContent || '').trim())) { contentBox.appendChild(c); moved += 1; }
+      });
+      if (moved) wrapper.appendChild(contentBox);
+    }
+    if (paper) {
+      paper.replaceWith(wrapper);
+    } else if (host) {
+      host.insertBefore(wrapper, host.firstChild);
+    }
+  });
+  return tpl.innerHTML;
+};
+
+/**
+ * 密封线结构归一化 → 标准模板结构（.sealed-wrapper > [.seal-zone + .sealed-content]）：
+ * 0. 旧 flex 结构（sealed-wrapper + sealed-line/.sl-text/.sl-dash）→ seal-zone 模板结构
+ * 1. 模板 .paper 页面结构（.paper > .seal-zone + .content）→ sealed-wrapper 页面壳
+ * 2. 已是模板结构 → 幂等返回
+ * 幂等；正文 p（不以密封特征开头）不受影响。
+ * 注：模板结构 = 密封区绝对定位于左侧页边距带（正文内边距外侧），提示语/信息栏/密·封·线
+ *     按「试卷密封线模板.html」绝对定位，预览、编辑、导出（docxBuilder 表格方案）共用同一结构。
+ */
+export const normalizeSealStructure = (html) => {
+  if (!html || typeof html !== 'string') return html;
+  // 无密封特征 → 原样返回
+  if (!/(sealed-wrapper|sealed-line|seal-line|seal-zone|seal-note|seal-info|seal-char|密封线|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：])/.test(html)) return html;
+  // 旧 flex 结构（sealed-wrapper + sealed-line/seal-line + sl-text/sl-dash）→ 模板结构（seal-zone）
+  html = convertLegacySealToTemplate(html);
+  // 模板 .paper 页面结构（.paper > .seal-zone + .content）→ sealed-wrapper 页面壳（幂等）
+  html = wrapTemplateSealPaper(html);
+  return html;
+};
+
+
+/**
+ * 大题标题分值提取：明细式"（共X题，每题X分，共X分）"或兜底总分式"（X分）"
+ */
+const parseSectionScore = (text) => {
+  // ① 规范格式："（共6题，每题2分，共12分）" —— 共X题…共Y分
+  const detail = text.match(/[（(]\s*共\s*\d{1,3}\s*题[^）)]*?共\s*(\d{1,3})\s*分[)）]/);
+  if (detail) return parseInt(detail[1], 10);
+  // ② 括号内"共N分"（覆盖 AI 常见写法："（每空2分，共20分）""（每题2分，共20分）""（共20分）""（满分20分）"）
+  const total = text.match(/[（(][^）)]*?共\s*(\d{1,3})\s*分\s*[)）]/);
+  if (total) return parseInt(total[1], 10);
+  // ③ 括号内最末分值："（10分）""（每题2分，共8分）" → 取括号内最后一个"X分"
+  const last = text.match(/[（(][^）)]*?(\d{1,3})\s*分\s*[)）]/);
+  return last ? parseInt(last[1], 10) : null;
+};
+
+/**
+ * 解析正文大题标题（一、二、三…）→ [{ num:'一', name:'…', score:N }]
+ * 仅识别"汉字序号＋、"开头且带分值标注的行；跳过答案区（answer-section）内的标题
+ */
+export const parseExamSections = (html) => {
+  if (!html || typeof html !== 'string') return [];
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const sections = [];
+  for (const el of Array.from(tpl.content.querySelectorAll('p, h1, h2, h3, h4'))) {
+    if (el.closest('.answer-section')) continue;
+    const text = (el.textContent || '').trim();
+    const numMatch = text.match(/^([一二三四五六七八九十]+)、/);
+    if (!numMatch) continue;
+    const score = parseSectionScore(text);
+    if (score == null) continue; // 无分值标注不视为大题（如答案页标题/正文短句）
+    sections.push({ num: numMatch[1], name: text.replace(/[（(].*?分[)）]$/, '').trim(), score });
+  }
+  return sections;
+};
+
+/**
+ * 卷面固定件：注意事项 + 题号得分表（由排版模块统一生成，全学段全学科 exam 生效）
+ * 注意事项为通用卷面规范（不依赖学科内容）；"本试卷共＿页"由人工/导出补填
+ * stage='primary' 时得分表单元格行高更高（低年级填分空间大）
+ */
+export const buildExamShell = (sections, stage) => {
+  // 🔧 小学得分表行高更高（padding 7px vs 默认 4px），方便填写
+  const cellPad = stage === 'primary' ? ' style="padding:7px 0;"' : '';
+  const headCells = sections.map((s) => `<th${cellPad}>${s.num}</th>`).join('');
+  const scoreCells = sections.map(() => `<td${cellPad}></td>`).join('');
+  return `<div class="exam-shell">
+  <div class="exam-notice">
+    <p class="notice-title">注意事项：</p>
+    <p class="notice-item">1．答题前，请将密封线内的学校、班级、姓名、学号填写清楚。</p>
+    <p class="notice-item">2．请在各题目的答题区域内作答，超出答题区域书写的答案无效。</p>
+    <p class="notice-item">3．本试卷共＿页。</p>
+  </div>
+  <table class="exam-score-table">
+    <tr><th${cellPad}>题号</th>${headCells}<th${cellPad}>总分</th></tr>
+    <tr><td${cellPad}>得分</td>${scoreCells}<td${cellPad}></td></tr>
+  </table>
+</div>`;
+};
+
+/**
+ * 注入/重排卷面固定件（注意事项 + 题号得分表），对齐正规试卷顺序：
+ *   卷首信息（标题/副标题/卷首导入语） → 注意事项 → 题号得分表 → 正文大题
+ *   - 无固定件：在第一个大题标题之前新建注入（卷首语自然留在卷首区，不夹在得分框与正文之间）；
+ *   - 已有固定件（旧版烘焙在内容里位置不对）：自动重排到第一个大题之前（幂等）；
+ *   无大题结构的普通文档不注入
+ */
+export const injectExamShell = (html, stage) => {
+  if (!html || typeof html !== 'string') return html || '';
+  const sections = parseExamSections(html);
+  if (!sections.length) return html;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  let shellNode = tpl.content.querySelector('.exam-shell');
+  const isNew = !shellNode;
+  if (!shellNode) {
+    const holder = document.createElement('div');
+    holder.innerHTML = buildExamShell(sections, stage);
+    shellNode = holder.firstElementChild;
+  }
+  let anchor = null;
+  for (const el of Array.from(tpl.content.querySelectorAll('p, h1, h2, h3, h4'))) {
+    if (el.closest('.answer-section')) continue;
+    const text = (el.textContent || '').trim();
+    if (/^[一二三四五六七八九十]+、/.test(text) && parseSectionScore(text) != null) {
+      anchor = el;
+      break;
+    }
+  }
+  if (!anchor) {
+    if (isNew) tpl.content.appendChild(shellNode);
+    return tpl.innerHTML;
+  }
+  // 🔧 正规试卷顺序：固定件（注意事项+得分表）紧贴第一个大题之前；
+  //    标题/副标题/卷首语等卷首内容自然在其上方（insertBefore 已就位时幂等无变化）
+  anchor.parentElement.insertBefore(shellNode, anchor);
   return tpl.innerHTML;
 };
 
@@ -2247,15 +2543,68 @@ export const wrapContentForTheme = (html, themeId) => {
   if (!theme) return html;
   
   switch (theme.id) {
-    case 'sealed_exam': {
-      // 🔧 包装后再次归一化：输入若不含 sealed-wrapper（如 AI 生成的横排信息栏 p）会在包装时被吞入，需在包装完成后合并进 sealed-line
-      const wrapped = `<div class="sealed-wrapper">
-        <div class="sealed-line">
-          <span>密</span><span>封</span><span>线</span>
-        </div>
-        ${html}
-      </div>`;
-      return normalizeSealStructure(wrapped);
+    // 📜 试卷类主题（密封线试卷 + 小初高三个试卷主题）统一应用密封线包装与卷面固定件
+    case 'sealed_exam':
+    case 'primary_exam':
+    case 'middle_exam':
+    case 'high_exam': {
+      // 🔧 重构为标准试卷结构：sealed-wrapper > [seal-zone（模板密封区）+ sealed-content（正文）]。
+      //    AI 可能只输出"孤儿 sealed-line（仅含密封线）"并把标题/正文放在其外，
+      //    若不重构，密封线会独立显示在页面顶部、标题出现在其下方（排版固定内容下方）。
+      //    幂等：已标准化的结构（sealed-wrapper + seal-zone）重构后结果一致，不嵌套包装。
+      const tpl = document.createElement('template');
+      tpl.innerHTML = html;
+      let zoneEl = tpl.content.querySelector('.seal-zone');
+      if (!zoneEl) {
+        // 无密封区：收集旧密封线字段（.sealed-line/.seal-line/.sl-text 或密封特征 p）构建默认区
+        const legacyLine = tpl.content.querySelector('.sealed-line, .seal-line');
+        const extraTexts = Array.from(tpl.content.querySelectorAll('p, div'))
+          .map((el) => (el.textContent || '').trim())
+          .filter((t) => /^(密封线内|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：])/.test(t));
+        const slTexts = legacyLine
+          ? Array.from(legacyLine.querySelectorAll('.sl-text')).map((el) => (el.textContent || '').trim()).filter(Boolean)
+          : [];
+        const raw = (slTexts.length ? slTexts.join('　') : (legacyLine ? (legacyLine.textContent || '') : ''))
+          + (extraTexts.length ? '　' + extraTexts.join('　') : '');
+        const zone = document.createElement('div');
+        zone.innerHTML = buildSealZoneHTML(splitSealText(raw || '密封线'));
+        zoneEl = zone.firstElementChild;
+      }
+      const contentNodes = [];
+      for (const n of Array.from(tpl.content.childNodes)) {
+        if (n.nodeType === 3) {
+          if ((n.textContent || '').trim()) contentNodes.push(n);
+          continue;
+        }
+        if (n.nodeType !== Node.ELEMENT_NODE) continue;
+        if (n.classList.contains('sealed-wrapper')) {
+          // 展开已有 wrapper：跳过其中的 seal-zone，其余内容按文档顺序收进新 wrapper
+          for (const c of Array.from(n.children)) {
+            if (c.classList.contains('seal-zone')) continue;
+            contentNodes.push(c);
+          }
+          continue;
+        }
+        if (n === zoneEl || n.classList.contains('seal-zone')) continue;
+        // 密封特征段落（学校/班级/姓名/学号/密封线内…）已并入密封区字段，不进入正文
+        const nText = (n.textContent || '').replace(/[\r\n]+/g, '').trim();
+        if (/^(密封线内|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：])/.test(nText)) continue;
+        contentNodes.push(n);
+      }
+      const wrapper = document.createElement('div');
+      wrapper.className = 'sealed-wrapper';
+      const contentBox = document.createElement('div');
+      contentBox.className = 'sealed-content';
+      contentNodes.forEach((node) => contentBox.appendChild(node));
+      wrapper.appendChild(zoneEl);
+      wrapper.appendChild(contentBox);
+      // 🔧 replaceChildren：清空 fragment 全部子节点（含残留的旧 wrapper 空壳）并放入新 wrapper
+      tpl.content.replaceChildren(wrapper);
+      let out = tpl.innerHTML;
+      // 🔧 密封线结构归一化（幂等）+ 卷面固定件（注意事项 + 题号得分表，幂等注入；旧内容重新打开自动补齐）
+      out = normalizeSealStructure(out);
+      out = injectExamShell(out, theme.stage);
+      return out;
     }
     
     case 'error_book':
@@ -2395,6 +2744,10 @@ export default {
   deleteCustomTheme,
   applyThemeToContent,
   wrapContentForTheme,
+  normalizeSealStructure,
+  parseExamSections,
+  buildExamShell,
+  injectExamShell,
   getSpecialThemeEditorCSS,
   markdownToHtml,
   applyIntelligentHeadings,

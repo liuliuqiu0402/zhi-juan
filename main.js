@@ -372,7 +372,7 @@ ipcMain.handle('show-save-dialog', async (event, options) => {
 });
 
 // ==================== 静默生成 PDF ====================
-ipcMain.handle('export-pdf', async (event, htmlContent, outputPath) => {
+ipcMain.handle('export-pdf', async (event, htmlContent, outputPath, options = {}) => {
   let puppeteer = null;
   try {
     puppeteer = require('puppeteer');
@@ -390,11 +390,21 @@ ipcMain.handle('export-pdf', async (event, htmlContent, outputPath) => {
     browser = await puppeteer.launch({ headless: true });
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    // 🔧 密封线试卷（页面壳自带 A4 页边距）传 margin=0，避免与 Puppeteer 边距双重留白；
+    //    普通文档保持默认 20mm。
+    const mm = Number(options.margin);
+    const margin = Number.isFinite(mm) ? mm : 20;
+    // 🔧 卷面规范：PDF 页脚页码（与 docx 页脚"第X页　共X页"一致）；
+    //    底部边距不足 10mm 时页脚无渲染空间，强制抬到 10mm
+    const bottom = Math.max(margin, 10);
     await page.pdf({
       path: outputPath,
       format: 'A4',
       printBackground: true,
-      margin: { top: '20mm', bottom: '20mm', left: '20mm', right: '20mm' }
+      displayHeaderFooter: true,
+      headerTemplate: '<span></span>',
+      footerTemplate: '<div style="width:100%;text-align:center;font-size:9px;color:#000000;font-family:SimSun,serif;">第 <span class="pageNumber"></span> 页　共 <span class="totalPages"></span> 页</div>',
+      margin: { top: `${margin}mm`, bottom: `${bottom}mm`, left: `${margin}mm`, right: `${margin}mm` }
     });
     return { success: true, path: outputPath };
   } catch (error) {

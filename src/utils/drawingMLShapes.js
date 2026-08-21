@@ -12,14 +12,14 @@ export { EMU_PER_DXA };
 const EMU_PER_PT  = 12700; // 1 pt = 12700 EMU
 
 // ═══════════ 纸张几何（单一事实来源，供密封线等浮动对象与正文分节共用）═══════════
-// A4 竖版：210mm × 297mm，标准页边距 2cm（1134 DXA）。密封线随纸张/边距自动适配。
+// A4 竖版：210mm × 297mm；上下边距 2cm（1134 DXA），左右边距 2.35cm（1332 DXA，避免虚线贴正文）。
 export const PAGE_GEOMETRY = {
   widthTwips: 11906,   // A4 宽 210mm
   heightTwips: 16838,  // A4 高 297mm
   marginTopTwips: 1134,    // 2cm
   marginBottomTwips: 1134, // 2cm
-  marginLeftTwips: 1134,   // 2cm
-  marginRightTwips: 1134,  // 2cm
+  marginLeftTwips: 1332,   // 2.35cm（虚线 19mm + 4.5mm 呼吸空间，不贴正文）
+  marginRightTwips: 1332,  // 2.35cm
 };
 
 // ============ mc:AlternateContent 包裹 ============
@@ -428,6 +428,8 @@ export const FLT_BLANK_MARKER = (cellWEmu, sizeHp) => `__FLT_BLANK_${cellWEmu}_$
 export const RUBY_MARKER = (baseText, pinyin, baseSizeHp) => `__RUBY_${baseText}_${pinyin}_${baseSizeHp}__`;
 /** 密封线标记：内容经 encodeURIComponent（避免下划线/特殊字符破坏正则），后处理替换为页面左侧浮动竖排文本框 */
 export const SEAL_MARKER = (text, sizeHp) => `__SEAL_${encodeURIComponent(text)}_${sizeHp}__`;
+// 🔧 后续页专用 marker：仅虚线 + 密/封/线 三字（无提示语/信息栏），随默认页眉每页渲染
+export const SEAL_MARKER_LINE = (text, sizeHp) => `__SEALLINE_${encodeURIComponent(text)}_${sizeHp}__`;
 
 // ============ Ruby 注音注入 ============
 
@@ -444,89 +446,13 @@ const buildRubyRun = (baseText, pinyin, baseSizeHp, rPrXml) => {
     `</w:ruby></w:r>`;
 };
 
-/**
- * 密封线浮动文本框 OOXML：多个 wp:anchor 绝对定位锚定页面左侧边距内，不占文档流 → 不撑高正文
- * 结构（虚线/文字各自独立文本框，交替锚定堆叠，虚线在文字处断开）：
- *   - 虚线文本框（无旋转）：段落仅左边框 dashed（一条竖虚线），exact 行高 = 虚线段高
- *   - 文字文本框（bodyPr vert="wordArtVert"）：字段整列竖排，每个字逆时针旋转 90°
- *     （字头朝左、自上而下阅读，标准试卷密封线朝向）
- * - ⚠️ 段落级 w:textDirection="lrTb" 在文本框中 Word/WPS/LibreOffice 均不可靠
- *   （实测 Word 导出 PDF 文字不旋转、横向换行）→ 必须用文本框级 vert="wordArtVert"
- * - 文字与虚线均用深灰 #333333（浅灰在打印/预览中发虚模糊）
- * - ⚠️ a:graphicData uri 必须为 wordprocessingShape（wps:wsp 的直接子元素命名空间）：
- *   曾用 openxmlformats/wordprocessingDrawing URI，Word 严格校验直接拒绝打开
- *   （"Word 在试图打开文件时遇到错误"），WPS 宽容可开但内容丢失 → 必须修正
- * - 随纸张几何 PAGE_GEOMETRY 自动适配（页面/边距变化时密封线同步伸缩）
- */
-const sealLineFloatingOOXML = (text, sizeHp) => {
-  const sz = sizeHp || 20; // half-point（默认 10pt）
-  const fields = String(text || '密封线').split('\u0001').map((f) => f.trim()).filter(Boolean);
-  const n = Math.max(1, fields.length);
-  const PG = PAGE_GEOMETRY;
-  // 整页文本区高度（页高 - 上下边距）：虚线上下填满整页
-  const availTwips = PG.heightTwips - PG.marginTopTwips - PG.marginBottomTwips;
-  // 单字符行高 = 字号（wordArtVert 逐字单列，实测 12pt 字间距 ≈ 字号）
-  const charH = Math.max(160, Math.round(sz * 10));
-  // 文字总高 = 各字段字数 × charH
-  const textTotal = fields.reduce((acc, f) => acc + Math.max(1, [...f].length) * charH, 0);
-  // 虚线段高 = 剩余高度均分（首尾 + 字间共 n+1 段）
-  let dashRow = Math.max(60, Math.floor((availTwips - textTotal) / (n + 1)));
-  // 保险：总高超出可用高 → 等比收缩（极端多字段场景）
-  const total = textTotal + (n + 1) * dashRow;
-  if (total > availTwips) {
-    const k = availTwips / total;
-    dashRow = Math.max(40, Math.floor(dashRow * k));
-  }
-  // 文本框宽度：单字符宽（字宽 ≈ sz half-point × 10 twips）
-  const colTwips = Math.max(240, sz * 10);
-  // 虚线文本框与文字文本框水平错开：虚线框左边缘 = 左边距中心偏左；文字框居中于左边距
-  const dashPosXEmu = Math.round((PG.marginLeftTwips - colTwips) / 2) * EMU_PER_DXA;
-  const textPosXEmu = Math.round((PG.marginLeftTwips - colTwips) / 2) * EMU_PER_DXA;
-  const rPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun"/><w:color w:val="333333"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/>`;
-  // 虚线文本框（无旋转）：单左边框 dashed，exact 行高 = 虚线段高
-  const dashTextbox = (h, yEmu, idn) => {
-    const p = `<w:p><w:pPr><w:pBdr><w:left w:val="dashed" w:sz="8" w:space="4" w:color="333333"/></w:pBdr><w:spacing w:before="0" w:after="0" w:line="${h}" w:lineRule="exact"/></w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve"> </w:t></w:r></w:p>`;
-    return sealAnchor(p, colTwips, h, dashPosXEmu, yEmu, idn, 'noFill');
-  };
-  // 文字文本框（wordArtVert）：字段整列竖排，字头朝左；无边框（虚线在文字处断开）
-  const textTextbox = (txt, yEmu, idn) => {
-    const chars = Math.max(1, [...txt].length);
-    const p = `<w:p><w:pPr><w:jc w:val="center"/><w:rPr>${rPr}</w:rPr></w:pPr><w:r><w:rPr>${rPr}</w:rPr><w:t xml:space="preserve">${escXml(txt)}</w:t></w:r></w:p>`;
-    return sealAnchor(p, colTwips, chars * charH, textPosXEmu, yEmu, idn, 'FFFFFF', true);
-  };
-  // 逐段锚定：虚线、字段、虚线、字段…（首尾虚线），Y 累计下移
-  const paras = [];
-  let yOff = 0;
-  let idn = Math.floor(Math.random() * 90000) + 40000;
-  const pushDash = () => {
-    paras.push(`<w:p>${dashTextbox(dashRow, PG.marginTopTwips * EMU_PER_DXA + yOff * EMU_PER_DXA, idn++)}</w:p>`);
-    yOff += dashRow;
-  };
-  pushDash();
-  fields.forEach((f) => {
-    const ch = Math.max(1, [...f].length);
-    paras.push(`<w:p>${textTextbox(f, PG.marginTopTwips * EMU_PER_DXA + yOff * EMU_PER_DXA, idn++)}</w:p>`);
-    yOff += ch * charH;
-    pushDash();
-  });
-  return paras.join('');
-};
-
-/** 密封线锚定文本框模板：wp:anchor 绝对定位（page 相对） */
-const sealAnchor = (contentP, cxTwips, cyTwips, posXEmu, posYEmu, id, fill, wordArtVert = false) => {
-  const cxEmu = Math.max(1, cxTwips * EMU_PER_DXA);
-  const cyEmu = Math.max(1, cyTwips * EMU_PER_DXA);
-  // ⚠️ graphicData uri = wordprocessingShape（wps:wsp 直接子元素的命名空间）：
-  //    Word 严格校验 uri 与子元素匹配，用 openxmlformats/wordprocessingDrawing 会拒绝打开整个文档
-  // ⚠️ xmlns:a 声明在 <a:graphic> 元素上（与 Word 自身输出一致），不依赖文档根声明
-  // ⚠️ vert="wordArtVert"：文字逐字逆时针旋转 90°（字头朝左）单列竖排，
-  //    实测 Word 以旋转矩阵渲染；段落级 textDirection 在文本框中无效
-  const fillXml = fill === 'noFill' ? '<a:noFill/>' : `<a:solidFill><a:srgbClr val="${fill}"/></a:solidFill>`;
-  const bodyPr = wordArtVert
-    ? '<wps:bodyPr rot="0" spcFirstLastPara="0" vertOverflow="overflow" horzOverflow="overflow" vert="wordArtVert" wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" numCol="1" spcCol="0" rtlCol="0" fromWordArt="0" anchor="t" anchorCtr="0" forceAA="0" compatLnSpc="1"><a:noAutofit/></wps:bodyPr>'
-    : '<wps:bodyPr lIns="0" rIns="0" tIns="0" bIns="0" anchor="t"/>';
-  return `<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="251658240" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>${posXEmu}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>${posYEmu}</wp:posOffset></wp:positionV><wp:extent cx="${cxEmu}" cy="${cyEmu}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${id}" name="SealLine"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wps:wsp><wps:cNvPr id="${id}" name="SealLine"/><wps:cNvSpPr txBox="1"/><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cxEmu}" cy="${cyEmu}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${fillXml}<a:ln w="0"/></wps:spPr><wps:txbx><w:txbxContent>${contentP}</w:txbxContent></wps:txbx>${bodyPr}</wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>`;
-};
+// ============ 密封线 ============
+// 🔧 密封线由「wpg 浮动群组」承载（不再用表格）：
+//    - 一个 page 锚定浮动群组 = 虚线 + 线/封/密三字 + 提示语 + 考生信息栏，绘制在左侧页边距内
+//      （纸边 0~20mm），不占文档流、不挤压正文；正文保持普通段落流 + 2cm 页边距。
+//    - 字符旋转用整框 a:xfrm rot=16200000（字头朝左，对应 HTML rotate(-90deg)），从下往上读。
+//    - 三字均匀嵌在虚线内：线(上1/4=84mm)、封(中=148mm)、密(下1/4=213mm)，字符右缘贴线（19mm），字号 10.5pt。
+//    - 曾用"页眉浮动文本框"（wordArtVert / rot）与表格方案，均有兼容/挤压正文问题，已废弃。
 
 /** 后处理：将 __RUBY_...__ 标记替换为 Word 原生 w:ruby 注音元素 */
 const injectRubyAnnotations = (docXml) => {
@@ -541,19 +467,153 @@ const injectRubyAnnotations = (docXml) => {
 
 // ============ 密封线标记替换 + 命名空间注入（正文与页眉共用）============
 
-// 块级密封线 marker：独立段落 → 含浮动 drawing 的空段落（不占文档流）
+// 块级密封线 marker：独立段落 → 密封区浮动群组（wpg，页面锚定）
 const blockSealRegex = /<w:p[^>]*>\s*(?:<w:pPr[^>]*>(?:(?!<w:r>)[\s\S])*?<\/w:pPr>)?\s*<w:r[^>]*>\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?\s*<w:t[^>]*>__SEAL_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>\s*<\/w:p>/g;
+// 后续页 marker（仅 虚线+密/封/线）：__SEALLINE_…__ 先于 __SEAL_ 替换
+const blockSealLineRegex = /<w:p[^>]*>\s*(?:<w:pPr[^>]*>(?:(?!<w:r>)[\s\S])*?<\/w:pPr>)?\s*<w:r[^>]*>\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?\s*<w:t[^>]*>__SEALLINE_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>\s*<\/w:p>/g;
+
+// EMU 常量：1mm = 36000 EMU；1pt 线宽 = 12700 EMU
+const EMU_PER_MM = 36000;
+const EMU_LINE_1PT = 12700;
+
+/**
+ * 密封线浮动群组（wpg）：左侧页边距内 0~20mm，正文保持 2.35cm 边距、不被挤压。
+ * 群组坐标系 = 页面坐标（210×297mm），锚定在页面 (0,0)：
+ *   - 虚线：x=19mm，y=20mm（上边距）贯穿至 y=277mm（下边距），与上下边距对齐
+ *   - 线(上1/4=84mm)/封(中=148mm)/密(下1/4=213mm)：右缘贴虚线，10.5pt bold，间距均匀
+ *   - 提示语：x=8mm、垂直居中成组上半部，12pt bold；考生信息栏：x=8mm、下半部，12pt
+ * 字符旋转：整框旋转 90°（a:xfrm rot=16200000 = 270°= 逆时针90°）→ 字头朝左、从下往上读。
+ *   ⚠️ 不用 run 级 w:vert（部分软件不渲染 → 字头朝上）；整框旋转是 DrawingML 最通用机制。
+ *   文字按正常顺序横排（不倒序），旋转后左端落底 → 从下往上读为正常内容。
+ *   文本框两端留白 1.5mm（文字居中）：防旋转后首/尾字符贴边被裁剪。
+ *   behindDoc=0（置于文字层之上）：密封区位于页边距空白区，不与正文重叠；
+ *   可被鼠标选中 → 在页眉编辑状态下点击即可出现文本框编辑文字。
+ * ⚠️ 多字字段可能粘有密封线字符（如"密封线内不要答题封""学号：＿密"），提取时剥离尾部密/封/线
+ */
+const sealGroupOOXML = (text, idBase, lineOnly = false) => {
+  const fields = String(text || '密封线').split('\u0001').map((f) => f.trim()).filter(Boolean);
+  const stripSealSuffix = (s) => String(s || '').replace(/[密封线]+$/g, '');
+  // 🔧 学校/班级/姓名/学号 后的下划线统一为 8 个全角 ＿（"再长一些且一致"）
+  const normalizeBlanks = (s) => String(s || '').replace(/＿+/g, '＿＿＿＿＿＿＿＿');
+  const tip = stripSealSuffix(fields.find((f) => /密封线内/.test(f)) || '密封线内不要答题');
+  const info = normalizeBlanks(stripSealSuffix(fields.find((f) => /^(学校|班级|姓名|学号|考生|考号)/.test(f)) || ''));
+  const charOf = (name, def) => fields.find((f) => f.length === 1 && f === name) || def;
+  const topChar = charOf('线', '线');
+  const midChar = charOf('封', '封');
+  const botChar = charOf('密', '密');
+
+  // 文字框：整框旋转 90° CCW（字头朝左）。visualBox = 旋转后视觉框 {x,y,w,h}
+  //  - 旋转后框宽 w ≈ 行高（≈1.35×字号），高 h = 文本长度 L（每字 ≈ 字号宽）+ 两端留白 pad
+  //  - 文本正常顺序横排居中；旋转后左端（首字）落底 → 从下往上读
+  //  - pad=1.5mm 两端留白：防整框旋转后首/尾字符贴边被裁剪（Word/WPS 均完整可见）
+  const pad = 1.5;
+  const txbx = (id, name, xMm, yMm, t, szPt, bold) => {
+    const sz = Math.round(szPt * 2); // 半磅
+    const Lmm = [...t].length * szPt * 0.353;   // 文本长度：每字 ≈ 字号(pt)→mm
+    const HlineMm = szPt * 0.353 * 1.35;        // 行高 ≈ 1.35em
+    const wVis = Math.max(HlineMm, 4);          // 旋转后视觉宽（行高方向）
+    const hVis = Math.max(Lmm, 4) + 2 * pad;    // 旋转后视觉高（文本长度 + 两端留白）
+    const cx = xMm + wVis / 2;
+    const cy = yMm + hVis / 2;
+    // 未旋转文本框：宽 Lmm+2pad、高 HlineMm，中心同视觉框；rot=16200000（270°= 逆时针 90°）
+    const offX = cx - (Lmm + 2 * pad) / 2;
+    const offY = cy - HlineMm / 2;
+    const rot = 16200000;
+    return `<wps:wsp>
+      <wps:cNvPr id="${id}" name="${name}"/>
+      <wps:cNvSpPr txBox="1"/>
+      <wps:spPr>
+        <a:xfrm rot="${rot}"><a:off x="${Math.round(offX * EMU_PER_MM)}" y="${Math.round(offY * EMU_PER_MM)}"/><a:ext cx="${Math.round((Lmm + 2 * pad) * EMU_PER_MM)}" cy="${Math.round(HlineMm * EMU_PER_MM)}"/></a:xfrm>
+        <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+        <a:noFill/>
+      </wps:spPr>
+      <wps:txbx>
+        <w:txbxContent>
+          <w:p>
+            <w:pPr>
+              <w:jc w:val="center"/>
+              <w:rPr><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun"/>
+                <w:color w:val="000000"/>
+                <w:sz w:val="${sz}"/>
+                <w:szCs w:val="${sz}"/>
+                ${bold ? '<w:b/><w:bCs/>' : ''}
+              </w:rPr>
+              <w:t xml:space="preserve">${escXml(t)}</w:t>
+            </w:r>
+          </w:p>
+        </w:txbxContent>
+      </wps:txbx>
+      <wps:bodyPr lIns="0" rIns="0" tIns="0" bIns="0" anchor="ctr"/>
+    </wps:wsp>`;
+  };
+
+  // 密/封/线三字：右缘贴虚线（虚线 19mm），字号 10.5pt（略小于提示语/信息栏 12pt）；
+  // 纵向 1/4、1/2、3/4 均匀分布（间距 64.25mm）
+  const CHAR_SZ = 10.5;
+  const CHAR_CENTER_Y = { top: 84.25, mid: 148.5, bot: 212.75 }; // 线(上1/4)/封(中)/密(下1/4)
+  const charBox = (id, name, cyMm, ch) => {
+    const charW = [...ch].length * CHAR_SZ * 0.353;      // 字符宽
+    const wVis = Math.max(CHAR_SZ * 0.353 * 1.35, 4);    // 旋转后视觉宽（行高方向）
+    const h = Math.max(charW, 4) + 2 * pad;              // 旋转后视觉高
+    const xMm = 19 - wVis / 2 - charW / 2;               // 字符右缘贴虚线（19mm）
+    return txbx(id, name, xMm, cyMm - h / 2, ch, CHAR_SZ, true);
+  };
+
+  // 提示语 + 信息栏：向密封线靠拢（x=8mm）；两组垂直居中于上下边距（20~277mm）中间，框间距 6mm
+  const tipBoxH = [...tip].length * 12 * 0.353 + 2 * pad;
+  const infoBoxH = info ? [...info].length * 12 * 0.353 + 2 * pad : 0;
+  const BOX_GAP = 6;
+  const groupTop = 148.5 - (tipBoxH + BOX_GAP + infoBoxH) / 2;
+  const tipY = groupTop;
+  const infoY = groupTop + tipBoxH + BOX_GAP;
+
+  // 竖虚线（x=19mm，从上边距 20mm 到 下边距 277mm，与上下边距对齐）
+  const lineShape = `<wps:wsp>
+    <wps:cNvPr id="${idBase + 1}" name="SealLine"/>
+    <wps:cNvSpPr/>
+    <wps:spPr>
+      <a:xfrm><a:off x="${Math.round(19 * EMU_PER_MM)}" y="${Math.round(20 * EMU_PER_MM)}"/><a:ext cx="${EMU_LINE_1PT}" cy="${Math.round(257 * EMU_PER_MM)}"/></a:xfrm>
+      <a:prstGeom prst="line"><a:avLst/></a:prstGeom>
+      <a:noFill/>
+      <a:ln w="9525"><a:solidFill><a:srgbClr val="000000"/></a:solidFill><a:prstDash val="dash"/></a:ln>
+    </wps:spPr>
+    <wps:bodyPr/>
+  </wps:wsp>`;
+
+  const shapes = [
+    lineShape,
+    charBox(idBase + 2, 'SealTop', CHAR_CENTER_Y.top, topChar),
+    ...(lineOnly ? [] : [txbx(idBase + 3, 'SealTip', 8, tipY, tip, 12, true)]),
+    charBox(idBase + 4, 'SealMid', CHAR_CENTER_Y.mid, midChar),
+    ...(info && !lineOnly ? [txbx(idBase + 5, 'SealInfo', 8, infoY, info, 12, false)] : []),
+    charBox(idBase + 6, 'SealBot', CHAR_CENTER_Y.bot, botChar),
+  ].join('');
+
+  const cx = Math.round(210 * EMU_PER_MM);
+  const cy = Math.round(297 * EMU_PER_MM);
+  return `<w:drawing xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wp:anchor distT="0" distB="0" distL="0" distR="0" relativeHeight="251659264" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1" simplePos="0"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${idBase}" name="SealGroup"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"><wpg:wgp><wpg:cNvGrpSpPr/><wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/><a:chOff x="0" y="0"/><a:chExt cx="${cx}" cy="${cy}"/></a:xfrm></wpg:grpSpPr>${shapes}</wpg:wgp></a:graphicData></a:graphic></wp:anchor></w:drawing>`;
+};
 
 const replaceSealMarkers = (xml) => {
   let changed = false;
-  const out = xml.replace(blockSealRegex, (match, encText, sizeStr) => {
+  // ⚠️ 浮动群组 anchor 放在段落 run 中；段落行距压到 1pt（w:line=20 exact）→ 锚点不占文档流
+  const toPara = (ooxml) => `<w:p><w:pPr><w:spacing w:line="20" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/></w:rPr></w:pPr><w:r><w:rPr><w:sz w:val="2"/></w:rPr>${ooxml}</w:r></w:p>`;
+  const decode = (encText) => {
+    try { return decodeURIComponent(encText); } catch { return '密封线'; }
+  };
+  let out = xml.replace(blockSealLineRegex, (match, encText) => {
     changed = true;
-    let text = '密封线';
-    try { text = decodeURIComponent(encText); } catch { /* 解码失败用默认 */ }
-    const sizeHp = parseInt(sizeStr) || 20;
-    // ⚠️ sealLineFloatingOOXML 已返回多个完整 <w:p> 段落（各锚一个），
-    //    此处不可再套 <w:p> 包裹，否则产生嵌套段落 → Word 严格校验拒绝打开整个文档
-    return sealLineFloatingOOXML(text, sizeHp);
+    const idBase = Math.floor(Math.random() * 90000) + 50000;
+    return toPara(sealGroupOOXML(decode(encText), idBase, true));
+  });
+  out = out.replace(blockSealRegex, (match, encText) => {
+    changed = true;
+    const idBase = Math.floor(Math.random() * 90000) + 50000;
+    return toPara(sealGroupOOXML(decode(encText), idBase));
   });
   return { xml: out, changed };
 };
