@@ -865,7 +865,8 @@ export const themes = [
       '.exam-score-table th, .exam-score-table td': {
         border: '1px solid #000',
         textAlign: 'center',
-        padding: '4px 0'
+        padding: '2px 0',
+        lineHeight: '1.15'
       },
       '.exam-score-table th': {
         fontWeight: 'bold',
@@ -1923,7 +1924,8 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
     .exam-score-table td {
       border: 1px solid #000;
       text-align: center;
-      padding: 4px 0;
+      padding: 2px 0;
+      line-height: 1.15;
     }
     .exam-score-table th {
       font-weight: bold;
@@ -2466,13 +2468,12 @@ export const parseExamSections = (html) => {
 /**
  * 卷面固定件：注意事项 + 题号得分表（由排版模块统一生成，全学段全学科 exam 生效）
  * 注意事项为通用卷面规范（不依赖学科内容）；"本试卷共＿页"由人工/导出补填
- * stage='primary' 时得分表单元格行高更高（低年级填分空间大）
+ * 行高统一由 CSS（.exam-score-table padding:2px + line-height:1.15）控制——
+ * 内联 padding 在编辑/预览注入 CSS 时会覆盖主题规则导致行高偏高，且与 Word 导出不一致
  */
 export const buildExamShell = (sections, stage) => {
-  // 🔧 小学得分表行高更高（padding 7px vs 默认 4px），方便填写
-  const cellPad = stage === 'primary' ? ' style="padding:7px 0;"' : '';
-  const headCells = sections.map((s) => `<th${cellPad}>${s.num}</th>`).join('');
-  const scoreCells = sections.map(() => `<td${cellPad}></td>`).join('');
+  const headCells = sections.map((s) => `<th>${s.num}</th>`).join('');
+  const scoreCells = sections.map(() => `<td></td>`).join('');
   return `<div class="exam-shell">
   <div class="exam-notice">
     <p class="notice-title">注意事项：</p>
@@ -2481,8 +2482,8 @@ export const buildExamShell = (sections, stage) => {
     <p class="notice-item">3．本试卷共＿页。</p>
   </div>
   <table class="exam-score-table">
-    <tr><th${cellPad}>题号</th>${headCells}<th${cellPad}>总分</th></tr>
-    <tr><td${cellPad}>得分</td>${scoreCells}<td${cellPad}></td></tr>
+    <tr><th>题号</th>${headCells}<th>总分</th></tr>
+    <tr><td>得分</td>${scoreCells}<td></td></tr>
   </table>
 </div>`;
 };

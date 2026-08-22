@@ -146,15 +146,13 @@ describe('卷面固定件：注意事项 + 题号得分表（排版模块统一�
     }
   });
 
-  it('小学（primary）得分表单元格行高更高（padding 7px），初中/高中为默认', () => {
+  it('得分表行高统一由 CSS 控制：单元格无内联 padding（预览与 Word 导出一致紧凑）', () => {
     const sections = [{ num: '一', name: '识字与写字', score: 30 }];
-    const shellPrimary = buildExamShell(sections, 'primary');
-    expect(shellPrimary).toContain('padding:7px 0');
-    expect(shellPrimary).toContain('<th style="padding:7px 0;">题号</th>');
-    expect(shellPrimary).toContain('<td style="padding:7px 0;">得分</td>');
-    for (const stage of ['middle', 'high', undefined]) {
+    for (const stage of ['primary', 'middle', 'high', undefined]) {
       const shell = buildExamShell(sections, stage);
-      expect(shell, `stage=${stage} 不应加高`).not.toContain('padding:7px 0');
+      expect(shell, `stage=${stage} 不应带内联 padding`).not.toContain('padding:');
+      expect(shell).toContain('<th>题号</th>');
+      expect(shell).toContain('<td>得分</td>');
     }
   });
 

@@ -999,7 +999,19 @@ const processBlockNode = (node, ctx = {}) => {
 
   // ===== 作文格 =====
   if (cls.contains('zuo-wen-ge')) {
-    const spans = [...node.querySelectorAll('span')];
+    let spans = [...node.querySelectorAll('span')];
+    // 🔧 兜底：AI 可能输出直接 &emsp; 文本（无 span 格子）或空方框，导致导出空白——
+    //    按内容中的空白字符数生成格子；完全无内容时默认 20×10 行，保证答题区不空白
+    if (spans.length === 0) {
+      const text = node.textContent || '';
+      const emCount = (text.match(/\u2003|　| /g) || []).length;
+      const n = Math.max(emCount, 200);
+      spans = Array.from({ length: n }, () => {
+        const s = document.createElement('span');
+        s.textContent = ' ';
+        return s;
+      });
+    }
     if (spans.length > 0) {
       const perRow = 20;
       const rows = [];

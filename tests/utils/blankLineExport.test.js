@@ -18,6 +18,30 @@ const getDocumentXml = async (html) => {
   return zip.file('word/document.xml').async('string');
 };
 
+describe('作文格（zuo-wen-ge）导出', () => {
+  it('标准 span 格子结构 → 导出为格子表格', async () => {
+    const xml = await getDocumentXml(
+      '<div class="zuo-wen-ge"><div><span>&emsp;</span><span>&emsp;</span></div><div><span>&emsp;</span><span>&emsp;</span></div></div>'
+    );
+    expect(xml).toContain('<w:tbl>');
+    expect(xml).toContain('<w:tc>'); // 格子单元格
+  });
+
+  it('AI 输出直接 &emsp; 文本（无 span 格子）→ 兜底生成格子，不导出空白', async () => {
+    const xml = await getDocumentXml(
+      '<div class="zuo-wen-ge">&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;</div>'
+    );
+    expect(xml).toContain('<w:tbl>');
+    expect(xml).toContain('<w:tc>');
+  });
+
+  it('完全空方框（无内容）→ 兜底生成默认 20×10 格子，不导出空白', async () => {
+    const xml = await getDocumentXml('<div class="zuo-wen-ge"></div>');
+    expect(xml).toContain('<w:tbl>');
+    expect(xml).toContain('<w:tc>');
+  });
+});
+
 describe('填空横线导出：段落末尾 blank-line 自动延伸到行尾', () => {
   it('引导语 + blank-line 同行（段落末尾）→ 文本后输出 PositionalTab 引导线', async () => {
     const xml = await getDocumentXml('<p>我的想法：<span class="blank-line">&emsp;&emsp;&emsp;</span></p>');
