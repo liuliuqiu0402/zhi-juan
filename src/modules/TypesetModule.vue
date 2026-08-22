@@ -426,8 +426,19 @@ const themeCSS = computed(() => {
     const match = fullHtml.match(/<style>([\s\S]*?)<\/style>/i);
     let css = match ? match[1].trim() : '';
 
-    // 🔧 过滤掉仅适用于独立预览页面的全局重置规则
-    css = css.replace(/\*\s*\{[^}]*\}/g, '');
+    // 🔧 编辑器即导出视觉（所见即所得 = Word 导出效果）：
+    //    - 导出页面的全局重置（*）范围化到编辑内容区（.ProseMirror 内），不污染编辑器工具栏
+    //    - body 基础样式（字体/字号/行距/颜色）映射到 .ProseMirror 继承链；
+    //      margin/padding/background 丢弃——纸张与内容边距由 .paper-page 壳提供，避免双重留白
+    const bodyMatch = css.match(/body\s*\{([^}]*)\}/);
+    if (bodyMatch) {
+      const keepDecls = bodyMatch[1]
+        .split(';')
+        .map((s) => s.trim())
+        .filter((s) => s && !/^(margin|padding|background|width|min-width|max-width|height)/i.test(s));
+      if (keepDecls.length) css += `\n.ProseMirror { ${keepDecls.join('; ')} }\n`;
+    }
+    css = css.replace(/^\s*\*\s*\{/, '.ProseMirror * {');
     css = css.replace(/body\s*\{[^}]*\}/g, '');
 
     // 🔑 只保留 h1-h6 标题的 !important，其余全部移除
