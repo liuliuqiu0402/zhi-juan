@@ -5757,9 +5757,9 @@ ${cardAnalysisText.substring(0, 1000)}
         instruction += `\n🔴 分值分配原则（防止凑分——必须遵守）：\n`;
         instruction += `- 先定分后出题：先根据每个知识点的考查权重确定分值，再按分值设计题目深度。严禁"先出完题再凑分数"\n`;
         instruction += `- 分值对应考查量：1-2分→简单识记/判断/选择，3-4分→理解应用/填空/简答，5-6分→综合运用/多步计算，8分以上→深层探究/论述/写作\n`;
-        instruction += `- 同题型等分：同一大题下各小题分值必须一致（如选择题统一2分/题、填空题统一3分/题），禁止同一题型内混搭不同分值\n`;
+        instruction += `- 同题型等分：客观题大题内各小题分值必须一致（如选择题统一2分/题、填空题统一3分/题），禁止同一题型内混搭不同分值；主观题大题（阅读/表达/简答）各小题分值可不同，题号后各标"（X分）"\n`;
         instruction += `- 常见整数值：分值取2/3/4/5/6/8/10等常见整数，严禁出现0.5/1.5/2.5等小数，严禁7/11/13等冷僻分值\n`;
-        instruction += `- 分值标注（必须遵守）：只在大题标题标注总分值——大题分值严格按真题蓝本、不得改动；同一大题内各小题分值一致；小题一律不标分值\n`;
+        instruction += `- 分值标注（必须遵守）：大题标题按明细式标"共X题，每题X分，共X分"；客观题小题不逐题标（标题已注明）；主观题小题在题号后标"（X分）"；多空题题干注"（每空X分）"且空数×每空分=小题分\n`;
         instruction += `- 验算：所有题目分数合计必须严格等于${effectiveTotalScore}分，偏差为0\n`;
       }
       
@@ -6445,15 +6445,13 @@ ${cardAnalysisText.substring(0, 1000)}
     }
 
     // ========== N.【顶层约束】 ==========
-    // 🔧 DeepSeek 跳过：顶层约束的 11 条全部在前方更精准的节中有单独注入
-    //    （题型多样化→题型设计、填空格式→输出格式+尾约束、配图→配图要求、
-    //     分值→禁止项、答案分离→答案区强制锚定、HTML格式→buildOutputPreamble…）
-    //    此复述版在近因位置会覆盖精准版，DeepSeek 不需要这种重复强调
-    // 🔧 review 例外：复习资料的“板块标题强制字样”（质量检测对齐）仅在本块声明，前方无承载节，
-    //    DeepSeek 跳过会导致检测器字面匹配失败（典型题/知识框架 0 处），故 review 时保留注入
+    // 🔧 顶层约束必须全模型注入（含 DeepSeek）：其中 9-11 条（分数标注规范/多空小题分值/
+    //    答案分布强化）为新增关键规范，前方各节无对应承载——旧注释"分值→禁止项"只覆盖旧版
+    //    "小题一律不标分值"规则，DeepSeek 跳过会导致新分数规范完全不生效（阅读小题漏标分、
+    //    多空题分值无法整除、答案分布偏斜的根源）。宁可与其他节少量重复，不可缺失。
     const topConstraintBlocks = getMatchingBlockInstructions({ category: '生成-顶层约束', subject: '', stage: '', genType: primaryGenType });
-    if (topConstraintBlocks.length > 0 && (!_isDeepSeekInstruction || primaryGenType === 'review')) {
-      instruction += `\n---\n【${_title('top_constraint', '顶层约束')}】\n${topConstraintBlocks[0].content}\n\n`;
+    if (topConstraintBlocks.length > 0) {
+      instruction += `\n---\n【${_title('top_constraint', '顶层约束')}】\n${topConstraintBlocks.map(b => b.content).join('\n')}\n\n`;
     }
     
     // 🔧 格式重申锚点：利用近因效应，在生成前最后一次强调输出格式

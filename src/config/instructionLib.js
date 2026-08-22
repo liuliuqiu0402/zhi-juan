@@ -1679,7 +1679,7 @@ export const builtinInstructions = [
     id: 'block_format_exam_elements', name: '【输出格式】试卷特殊元素', category: '生成-输出格式', type: 'fragment',
     prompt_order: 23,
     subject: '', stage: '', genType: 'exam',
-    content: '- 得分框：用<span class="score-box">分数</span>标记（带外框）。\n- 评分栏：用<div class="score-board">...标记（表格形式，标签|分值）。\n- 密封线/装订线：卷首放<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-note">密封线内不要答题</div><div class="seal-info">学校：＿＿＿　班级：＿＿＿　姓名：＿＿＿　学号：＿＿＿</div><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div></div>。⚠️密封区全部内容必须在同一个 seal-zone 内（seal-note/seal-info/seal-char 按模板结构），位于左侧页边距内（正文内边距外侧），正文在左侧竖虚线右侧留内边距；严禁拆成多个横向 <p> 或输出旧版 sealed-line。',
+    content: '- 得分框：用<span class="score-box">分数</span>标记（带外框）。\n- 评分栏：用<div class="score-board">...标记（表格形式，标签|分值）。\n- 密封线/装订线：结构严格按【真题卷结构蓝本】卷面规范第 1 条（sealed-wrapper/seal-zone 模板与竖向排版要求），此处不再重复；核心要点：密封区全部内容必须在同一个 seal-zone 内、严禁拆成多个横向 <p> 或输出旧版 sealed-line。',
     builtin: true
   },
 
@@ -2898,7 +2898,7 @@ export const builtinInstructions = [
   // ── exam 考卷（按学段拆分）──
   { id: 'core_task_exam_primary_low', name: '【核心任务-考卷-小学低段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'primary_low', genType: 'exam', specialSubType: 'new_standard',
-    content: '生成一份适合小学低段（1-2年级）的考试卷，不少于{pageCount}页A4纸。🔴 题量以完整覆盖全部知识点为准——每个大题组至少含3-6小题，每题独立考查不同角度，禁止大题只含1小题凑数。题干简短明了。试题需原创改编（同资料内不同题目考查角度、情境、数据不得雷同）。正文只含题目，参考答案与解析统一放文末。', builtin: true },
+    content: '生成一份适合小学低段（1-2年级）的考试卷（页数要求见角色身份，不重复声明）。🔴 题量以完整覆盖全部知识点为准——每个大题组至少含3-6小题，每题独立考查不同角度，禁止大题只含1小题凑数。题干简短明了。试题需原创改编（同资料内不同题目考查角度、情境、数据不得雷同）。正文只含题目，参考答案与解析统一放文末。', builtin: true },
   { id: 'core_task_exam_primary_mid', name: '【核心任务-考卷-小学中段】', category: '生成-核心任务', prompt_order: 10, type: 'fragment',
     subject: '', stage: 'primary_mid', genType: 'exam', specialSubType: 'new_standard',
     content: '生成一份适合小学中段（3-4年级）的考试卷，不少于{pageCount}页A4纸。🔴 题量以完整覆盖全部知识点为准——每个大题组至少含3-6小题，每题独立考查不同角度。题干清晰。增加2-3道情境题和图表题，注重知识运用而非机械记忆。试题需原创改编（同资料内不同题目考查角度、情境、数据不得雷同）。正文只含题目，参考答案与解析统一放文末。', builtin: true },
