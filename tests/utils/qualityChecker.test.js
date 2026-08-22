@@ -260,6 +260,21 @@ describe('HardRuleChecker', () => {
     });
   });
 
+  describe('checkMultipleChoiceBoundary（多选题型越界）', () => {
+    it('小学语文出现多选题 → 报越界', () => {
+      const issues = HardRuleChecker.checkMultipleChoiceBoundary('一、多项选择题 1. 选出全部正确选项', '语文', 'primary');
+      expect(issues.some(i => i.type === '多选题型越界')).toBe(true);
+    });
+    it('高中物理出现多选题 → 不报（理科中高段合法）', () => {
+      const issues = HardRuleChecker.checkMultipleChoiceBoundary('一、多项选择题 1. 下列说法正确的是', '物理', 'high');
+      expect(issues.filter(i => i.type === '多选题型越界').length).toBe(0);
+    });
+    it('小学无多选字样 → 不报', () => {
+      const issues = HardRuleChecker.checkMultipleChoiceBoundary('一、单选题 1. 选一选', '数学', 'primary');
+      expect(issues.filter(i => i.type === '多选题型越界').length).toBe(0);
+    });
+  });
+
   describe('checkChoiceOptionsMissing（选择题缺选项）', () => {
     it('选择题无选项报错', () => {
       const content = '<p class="question">1. 下列说法正确的是（　　）</p><div class="answer-section">A</div>';

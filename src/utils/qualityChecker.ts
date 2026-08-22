@@ -72,6 +72,8 @@ export class HardRuleChecker {
     if (genType === 'exam') {
       issues.push(...this.checkScoreConsistency(content));
     }
+    // 🔧 多选题型越界（全类型）：非中学理科出现多选题 → 程序化兜底提示
+    issues.push(...this.checkMultipleChoiceBoundary(content, subject, stage));
     // 🔧 新增：内容质量深度检查
     issues.push(...this.checkContentSubstance(content, genType || ''));
     // 🔧 新增：新课标核心素养术语命中率检查
@@ -625,6 +627,20 @@ export class HardRuleChecker {
       if (sum !== full) {
         issues.push({ severity: 'warning', type: '分值汇总不一致', detail: `卷首满分${full}分，各大题总分合计${sum}分（${totals.join('+')}），不一致——各大题之和必须=满分`, autoFix: false });
       }
+    }
+    return issues;
+  }
+
+  /**
+   * 🔧 多选题型越界校验：非中学理科（数学/物理/化学/生物）的试卷不得出现多选题
+   * prompt 侧不注入否定式"不设多选"（避免干扰模型），由本校验程序化兜底
+   */
+  static checkMultipleChoiceBoundary(content: string, subject?: string, stage?: string): Issue[] {
+    const issues: Issue[] = [];
+    const isScience = !!subject && /数学|物理|化学|生物/.test(subject);
+    const isMidHigh = !!stage && /middle|high/.test(stage);
+    if (!(isScience && isMidHigh) && /多选题|多项选择|多项选择题|选出全部正确选项/.test(content)) {
+      issues.push({ severity: 'warning', type: '多选题型越界', detail: '该学段/学科试卷不应设置多选题（多选题仅限中学理科/高考数学卷，且单选:多选≈7:3~2:1），请将多选题改为单选题', autoFix: false });
     }
     return issues;
   }
