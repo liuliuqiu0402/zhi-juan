@@ -177,8 +177,9 @@ export class HardRuleChecker {
   }
 
   /**
-   * 🔴 三重硬核扫描·查错：填空空标签检测（零误报，全类型适用）
-   * 指令要求"标签内必须有&emsp;"——<u class="blank-N"></u> / <span class="blank-N"></span> 空标签导出后是空洞
+   * 🔴 三重硬核扫描·查错：填空空标签检测（全类型适用）
+   * 指令要求"标签内必须有&emsp;"——空标签宽度不足。⚠️ 导出端已按 class N 兜底横线/括号
+   * 宽度（不会空洞），故此项为 warning（规范建议），不再触发自动修复/人工处理
    */
   static checkBlankEmptyTags(content: string): Issue[] {
     const issues: Issue[] = [];
@@ -187,8 +188,8 @@ export class HardRuleChecker {
     while ((m = re.exec(content)) !== null) {
       const ctx = content.slice(Math.max(0, m.index - 18), m.index + 28).replace(/\s+/g, ' ');
       issues.push({
-        severity: 'error', type: '填空空标签',
-        detail: '检测到空白填空标签（标签内无&emsp;，导出后为空洞）：…' + ctx + '…。请在标签内填入 &emsp;，数量按答案字数映射表（1字→2个、2字→4个、3-4字→6个、5-6字→8个、7+字→10个）',
+        severity: 'warning', type: '填空空标签',
+        detail: '检测到填空标签内为空白（无&emsp;）：导出端已按 class N 兜底横线/括号宽度（不会空洞），但规范要求按答案字数填入 &emsp; 精确控宽（1字→2个、2字→4个、3-4字→6个、5-6字→8个、7+字→10个）：…' + ctx + '…',
         autoFix: false,
       });
     }

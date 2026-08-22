@@ -198,11 +198,12 @@ describe('HardRuleChecker', () => {
   });
 
   describe('checkBlankEmptyTags（填空空标签，全类型）', () => {
-    it('空标签报错', () => {
+    it('真空标签报规范建议（warning，非error——导出端按 class N 兜底宽度）', () => {
       const issues = HardRuleChecker.checkBlankEmptyTags('<p>光合作用的场所是<u class="blank-2"></u></p>');
-      expect(issues.some(i => i.type === '填空空标签' && i.severity === 'error')).toBe(true);
+      expect(issues.some(i => i.type === '填空空标签' && i.severity === 'warning')).toBe(true);
+      expect(issues.some(i => i.type === '填空空标签' && i.severity === 'error')).toBe(false);
     });
-    it('span 空标签也报错', () => {
+    it('仅空白的标签同样报规范建议', () => {
       const issues = HardRuleChecker.checkBlankEmptyTags('<p>选出正确读音<span class="blank-4"> </span></p>');
       expect(issues.some(i => i.type === '填空空标签')).toBe(true);
     });
