@@ -414,7 +414,11 @@ const buildTextRuns = (node, styleOverride = {}) => {
       return;
     }
     if (cls.contains('oral-box') || cls.contains('square-box') || cls.contains('score-box')) {
-      runs.push(new TextRun({ text, border: { style: BorderStyle.SINGLE, size: 2, color: '333333' }, ...ctx }));
+      // 🔧 方框/口算框/得分框：加 NBSP 撑出最小宽度（预览 min-width 2~3em，导出贴合文字不成框）
+      //    square-box 2em → 前后各 1 NBSP(0.5em)=1em + 字 1em ≈2em；oral-box/score-box 3em → 前后各 2 NBSP
+      const padN = cls.contains('square-box') ? 1 : 2;
+      const pad = '\u00A0'.repeat(padN);
+      runs.push(new TextRun({ text: pad + text + pad, border: { style: BorderStyle.SINGLE, size: 2, color: '333333' }, ...ctx }));
       return;
     }
     if (cls.contains('wb-item')) {
@@ -1048,7 +1052,11 @@ const processBlockNode = (node, ctx = {}) => {
           currentRow = [];
         }
       });
-      children.push(new Table({ rows, width: { size: perRow * zwgCellDxa, type: WidthType.DXA } }));
+      children.push(new Table({
+        rows,
+        width: { size: perRow * zwgCellDxa, type: WidthType.DXA },
+        layout: TableLayoutType.FIXED, // 固定布局：按声明宽度排布，防 Word 自动布局+单元格边距撑宽超页
+      }));
     }
     return children;
   }
@@ -1111,8 +1119,9 @@ const processBlockNode = (node, ctx = {}) => {
     const innerBorders = {
       top: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
       bottom: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
-      left: { style: BorderStyle.NONE, size: 0 },
-      right: { style: BorderStyle.NONE, size: 0 },
+      // 🔧 中间行左右保留细线：左右粗线在 3 行上连续（预览 bracket-grid 是整体框，左右边框不断开）
+      left: { style: BorderStyle.SINGLE, size: 2, color: '000000' },
+      right: { style: BorderStyle.SINGLE, size: 2, color: '000000' },
     };
     const rows = [];
     for (let r = 0; r < rowCount; r++) {
@@ -1270,7 +1279,23 @@ const processBlockNode = (node, ctx = {}) => {
     const byPos = (cls) => charEls.find((c) => c.classList.contains(cls))?.textContent?.trim() || '';
     // 保留全角空格分隔（\s 会吃掉 　），仅清换行
     const note = (el.querySelector('.seal-note')?.textContent || '').replace(/[\r\n]+/g, '').trim();
-    const info = (el.querySelector('.seal-info')?.textContent || '').replace(/[\r\n]+/g, '').trim();
+    let info = (el.querySelector('.seal-info')?.textContent || '').replace(/[\r\n]+/g, '').trim();
+    // 🔧 兜底：编辑器粘贴/序列化可能拆散 .seal-info（<br> 变独立块/文本），此时按密封特征文本重组信息栏
+    //    （学校/班级/姓名/学号/考生/考号 + 全角下划线 ＿＿ 等占位），避免导出页眉缺信息栏
+    if (!info) {
+      const infoTokens = [];
+      for (const t of Array.from(el.querySelectorAll('*')) ) {
+        const txt = (t.textContent || '').trim();
+        if (/^(学校|班级|姓名|学号|考生|考号)\s*[:：]?\s*[＿_＿\s]+/.test(txt)) infoTokens.push(txt);
+      }
+      if (infoTokens.length === 0) {
+        // 单个容器内含多字段（如"学校：＿＿ 班级：＿＿"）或纯文本节点
+        const raw = (el.textContent || '').replace(/[\r\n]+/g, '　');
+        const segs = raw.split(/[　 ]+/).filter((s) => /^(学校|班级|姓名|学号|考生|考号)[:：]?/.test(s));
+        if (segs.length) infoTokens.push(...segs);
+      }
+      info = infoTokens.join('　');
+    }
     const top = byPos('s-top'), mid = byPos('s-mid'), bot = byPos('s-bot');
     if (note || info || charEls.length) {
       const fields = [];
@@ -1806,6 +1831,14 @@ const processBlockNode = (node, ctx = {}) => {
 export const buildDocxFromDom = (containerEl, stage = 'middle') => {
   // 🔧 作文格学段（正式试卷规格：小学 8mm / 初中 7mm / 高中 6mm）
   __zwgStage = stage || 'middle';
+  // 🔧 作文格每行格子数按 A4 可用宽度自动排满——必须在 processBlockNode 之前计算
+  //    （作文格导出时读取 __zwgPerRow；旧实现在 children 构建后才算，导致默认 20 列超宽）
+  {
+    const hasSealDetect = !!(containerEl.querySelector && containerEl.querySelector('.sealed-wrapper, .sealed-line, .seal-line, .seal-zone'));
+    const zwgCellW = __zwgStage === 'primary' ? 680 : __zwgStage === 'middle' ? 567 : 425;
+    const zwgMargin = (hasSealDetect ? 1417 : 1134) * 2;
+    __zwgPerRow = Math.max(8, Math.floor((11906 - zwgMargin - 284) / zwgCellW));
+  }
   const children = [];
   const allNodes = containerEl.childNodes;
   const elChildren = [];
@@ -1866,15 +1899,6 @@ export const buildDocxFromDom = (containerEl, stage = 'middle') => {
   //    - 字符旋转：整框 a:xfrm rot=16200000（字头朝左），文字正常序从下往上读。
   const hasSealLine = !!(__sealCollector?.first || (containerEl.querySelector && containerEl.querySelector('.sealed-wrapper, .sealed-line, .seal-line, .seal-zone')));
   const sealFirst = __sealCollector?.first;
-
-  // 🔧 作文格每行格子数按 A4 可用宽度自动排满（用户需求：不固定列数，考虑边距与缩进后排满）：
-  //    A4 宽 11906 DXA；密封文档左右 2.5cm(1417×2) / 普通文档 2cm(1134×2)；再减 5mm(284) 缩进余量
-  //    小学 12mm(680) / 中考 10mm(567) / 高考 宽 7.5mm(425)
-  {
-    const zwgCellW = __zwgStage === 'primary' ? 680 : __zwgStage === 'middle' ? 567 : 425;
-    const zwgMargin = (hasSealLine ? 1417 : 1134) * 2;
-    __zwgPerRow = Math.max(8, Math.floor((11906 - zwgMargin - 284) / zwgCellW));
-  }
 
   // 🔧 答案区独立分节：将扁平 children 在答案拆分哨兵处切分为正文/答案两段。
   //    答案分节页码从 1 重新开始（w:pgNumType w:start="1"）；正文页脚"共X页"用 SECTIONPAGES 只计正文、不含答案页。
