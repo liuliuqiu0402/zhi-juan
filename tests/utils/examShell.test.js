@@ -146,6 +146,36 @@ describe('卷面固定件：注意事项 + 题号得分表（排版模块统一�
     }
   });
 
+  it('旧资料自带固定件（无 exam-shell class）→ 去重后仅保留一份，不双份', () => {
+    // 模拟固定件功能上线前 AI 生成的旧资料：自带注意事项 + 题号得分表（无 .exam-shell 包装）
+    const oldContent = `<h2 class="main-title">旧版期末试卷</h2>
+<p>注意事项：1．答题前填清密封线内信息。2．本试卷共＿页。</p>
+<table><tr><th>题号</th><th>一</th><th>二</th><th>总分</th></tr><tr><td>得分</td><td></td><td></td><td></td></tr></table>
+<h3 class="heading1">一、识字与写字。（共6题，每题5分，共30分）</h3>
+<p>1. 读拼音，写词语。</p>
+<h3 class="heading1">二、积累与运用。（共4题，共24分）</h3>
+<p>1. 组词。</p>`;
+    const wrapped = wrapContentForTheme(oldContent, 'sealed_exam');
+    // 去重：全文只有一份注意事项 + 一份题号得分表（排版模块注入的新版）
+    expect((wrapped.match(/注意事项/g) || []).length).toBe(1);
+    expect((wrapped.match(/exam-score-table/g) || []).length).toBe(1);
+    expect((wrapped.match(/<th>题号<\/th>/g) || []).length).toBe(1);
+    // 新版固定件位置正确（第一个大题前）
+    expect(wrapped.indexOf('class="exam-notice"')).toBeLessThan(wrapped.indexOf('一、识字与写字。'));
+  });
+
+  it('正文评分栏（score-board 多行表格）不被误删', () => {
+    const withScoreBoard = `<h3 class="heading1">一、选择题。（共4题，每题5分，共20分）</h3>
+<p>1. 选择正确答案。</p>
+<div class="score-board"><table><tr><th>题号</th><th>分值</th><th>得分</th></tr><tr><td>1</td><td>5</td><td></td></tr><tr><td>2</td><td>5</td><td></td></tr><tr><td>3</td><td>5</td><td></td></tr><tr><td>4</td><td>5</td><td></td></tr></table></div>`;
+    const wrapped = wrapContentForTheme(withScoreBoard, 'sealed_exam');
+    // 评分栏（4 行数据行，位于大题后）保留；固定件只注入一份
+    expect(wrapped).toContain('class="score-board"');
+    expect((wrapped.match(/exam-score-table/g) || []).length).toBe(1);
+    // 题号表头 = 评分栏自身 1 个 + 固定件 1 个（评分栏未被误删）
+    expect((wrapped.match(/<th>题号<\/th>/g) || []).length).toBe(2);
+  });
+
   it('得分表行高统一由 CSS 控制：单元格无内联 padding（预览与 Word 导出一致紧凑）', () => {
     const sections = [{ num: '一', name: '识字与写字', score: 30 }];
     for (const stage of ['primary', 'middle', 'high', undefined]) {

@@ -920,8 +920,10 @@ let __sealCollector = null;
 //    拆分为两个 Word 分节（答案页独立编号从 1 起；正文页脚"共X页"只计正文、不含答案页）。
 const ANSWER_SPLIT_MARKER = Symbol('answer-section-split');
 
-// 🔧 作文格学段（正式试卷规格：primary 8mm / middle 7mm / high 6mm），buildDocxFromDom 启动时设置
+// 🔧 作文格学段（用户规格：primary 12mm / middle 10mm / high 宽7.5×高8mm），buildDocxFromDom 启动时设置；
+//    __zwgPerRow 每行格子数按 A4 可用宽度自动排满（不固定列数，用户需求）
 let __zwgStage = 'middle';
+let __zwgPerRow = 20;
 
 /** 密封线 marker 段落（放页眉，后处理替换为浮动文本框；lineOnly 时仅 虚线+密/封/线；mirror 时偶页镜像到右侧靠书脊） */
 const sealMarkerParagraph = (fields, sizeHp, lineOnly = false, mirror = false) => {
@@ -1016,16 +1018,19 @@ const processBlockNode = (node, ctx = {}) => {
       });
     }
     if (spans.length > 0) {
-      // 🔧 格子尺寸按学段（正式试卷规格，1mm ≈ 56.69 DXA）：
-      //    primary 8mm≈454 / middle 7mm≈397 / high 6mm≈340
-      const zwgCellDxa = __zwgStage === 'primary' ? 454 : __zwgStage === 'middle' ? 397 : 340;
-      const perRow = 20;
+      // 🔧 格子尺寸按学段（用户规格，1mm ≈ 56.69 DXA）：
+      //    primary 12mm≈680 / middle 10mm≈567 / high 宽0.75cm≈425（格高 8mm≈454，非正方形）
+      const zwgCellDxa = __zwgStage === 'primary' ? 680 : __zwgStage === 'middle' ? 567 : 425;
+      const zwgCellH = __zwgStage === 'high' ? 454 : zwgCellDxa;
+      // 🔧 每行格子数不固定：按 A4 可用宽度自动排满（__zwgPerRow 由 buildDocxFromDom 计算）
+      const perRow = Math.max(8, __zwgPerRow || 20);
       const rows = [];
       let currentRow = [];
       spans.forEach((span, idx) => {
         currentRow.push(new TableCell({
           children: [new Paragraph({ text: span.textContent.trim() || ' ', alignment: AlignmentType.CENTER })],
           width: { size: zwgCellDxa, type: WidthType.DXA },
+          height: { size: zwgCellH, rule: HeightRule.ATLEAST },
           borders: { top: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, bottom: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, left: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, right: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' } },
         }));
         if (currentRow.length >= perRow || idx === spans.length - 1) {
@@ -1033,6 +1038,7 @@ const processBlockNode = (node, ctx = {}) => {
             currentRow.push(new TableCell({
               children: [new Paragraph({ text: ' ' })],
               width: { size: zwgCellDxa, type: WidthType.DXA },
+              height: { size: zwgCellH, rule: HeightRule.ATLEAST },
               borders: { top: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, bottom: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, left: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, right: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' } },
             }));
           }
@@ -1858,6 +1864,15 @@ export const buildDocxFromDom = (containerEl, stage = 'middle') => {
   //    - 字符旋转：整框 a:xfrm rot=16200000（字头朝左），文字正常序从下往上读。
   const hasSealLine = !!(__sealCollector?.first || (containerEl.querySelector && containerEl.querySelector('.sealed-wrapper, .sealed-line, .seal-line, .seal-zone')));
   const sealFirst = __sealCollector?.first;
+
+  // 🔧 作文格每行格子数按 A4 可用宽度自动排满（用户需求：不固定列数，考虑边距与缩进后排满）：
+  //    A4 宽 11906 DXA；密封文档左右 2.5cm(1417×2) / 普通文档 2cm(1134×2)；再减 5mm(284) 缩进余量
+  //    小学 12mm(680) / 中考 10mm(567) / 高考 宽 7.5mm(425)
+  {
+    const zwgCellW = __zwgStage === 'primary' ? 680 : __zwgStage === 'middle' ? 567 : 425;
+    const zwgMargin = (hasSealLine ? 1417 : 1134) * 2;
+    __zwgPerRow = Math.max(8, Math.floor((11906 - zwgMargin - 284) / zwgCellW));
+  }
 
   // 🔧 答案区独立分节：将扁平 children 在答案拆分哨兵处切分为正文/答案两段。
   //    答案分节页码从 1 重新开始（w:pgNumType w:start="1"）；正文页脚"共X页"用 SECTIONPAGES 只计正文、不含答案页。

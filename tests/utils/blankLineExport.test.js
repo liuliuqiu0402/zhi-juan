@@ -59,7 +59,7 @@ describe('作文格（zuo-wen-ge）导出', () => {
     expect(xml).toContain('<w:tc>');
   });
 
-  it('格子尺寸按学段：小学 8mm≈454 / 初中 7mm≈397 / 高中 6mm≈340 DXA', async () => {
+  it('格子尺寸按学段：小学 12mm≈680 / 初中 10mm≈567 / 高中 宽0.75cm≈425 DXA', async () => {
     const html = '<div class="zuo-wen-ge"><span>&emsp;</span><span>&emsp;</span></div>';
     const run = async (stage) => {
       const container = document.createElement('div');
@@ -74,10 +74,27 @@ describe('作文格（zuo-wen-ge）导出', () => {
       const m = xml.match(/<w:tcW[^>]*w:w="(\d+)"/);
       return m ? parseInt(m[1], 10) : 0;
     };
-    expect(await run('primary')).toBe(454);
-    expect(await run('middle')).toBe(397);
-    expect(await run('high')).toBe(340);
-    expect(await run()).toBe(397); // 默认 middle
+    expect(await run('primary')).toBe(680);
+    expect(await run('middle')).toBe(567);
+    expect(await run('high')).toBe(425);
+    expect(await run()).toBe(567); // 默认 middle
+  });
+
+  it('每行格子数按 A4 可用宽度自动排满（普通文档：初中 16 列）', async () => {
+    // 普通文档（左右 2cm=1134×2）：floor((11906-2268-284)/567) = floor(9354/567) = 16 列
+    const html = '<div class="zuo-wen-ge">' + Array.from({ length: 45 }, () => '<span>&emsp;</span>').join('') + '</div>';
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    document.body.appendChild(container);
+    const doc = buildDocxFromDom(container, 'middle');
+    container.remove();
+    const buf = await Packer.toBuffer(doc);
+    const zip = await JSZip.loadAsync(buf);
+    const xml = await zip.file('word/document.xml').async('string');
+    // 表格总宽 = 每行格数 × 567
+    const tblW = xml.match(/<w:tblW[^>]*w:w="(\d+)"/);
+    expect(tblW).toBeTruthy();
+    expect(parseInt(tblW[1], 10)).toBe(16 * 567);
   });
 });
 

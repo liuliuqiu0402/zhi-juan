@@ -1387,10 +1387,11 @@ export const getThemeHeadingStyle = (theme, level) => {
 export const applyThemeToContent = (content, themeId, options = {}) => {
   const { isHtmlContent = false, forceImportant = false, stage: stageOpt } = options;
   const theme = getThemeById(themeId);
-  // 🔧 作文格尺寸按学段（正式试卷规格：小学格大、高学段格小）
-  //    primary 8mm / middle 7mm / high 6mm（20 列 × 8mm = 160mm 恰好 A4 正文宽）
+  // 🔧 作文格尺寸按学段（用户规格：小学 1.0-1.5cm→取12mm / 中考 1.0cm→10mm / 高考 0.75×0.8cm→宽7.5×高8mm）
+  //    每行格子数不固定：CSS grid auto-fill 按容器宽度自动排满，与导出端按 A4 可用宽度排满一致
   const stage = theme?.stage || stageOpt || 'middle';
-  const zwgMm = stage === 'primary' ? 8 : stage === 'middle' ? 7 : 6;
+  const zwgMm = stage === 'primary' ? 12 : stage === 'middle' ? 10 : 8;
+  const zwgMmW = stage === 'high' ? 7.5 : zwgMm;
   
   // 🔧 无样式：不应用任何主题 CSS，仅返回纯净 HTML 包装
   if (!theme) {
@@ -1414,8 +1415,8 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       .mi-zi-ge>span { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); line-height: 1; white-space: nowrap; }
       .oral-box { display: inline-block; border: 1.5px solid #999; padding: 2px 6px; min-width: 3em; text-align: center; font-size: inherit !important; }
       .square-box { display: inline-block; border: 2px solid #333; padding: 2px 8px; min-width: 2em; text-align: center; font-size: inherit !important; }
-      .zuo-wen-ge { display: grid; grid-template-columns: repeat(20, ${zwgMm}mm); gap: 0; border: 1.5px solid #999; margin: 8px 0; width: fit-content; }
-      .zuo-wen-ge span { display: inline-flex; align-items: center; justify-content: center; width: ${zwgMm}mm; height: ${zwgMm}mm; border: 0.5px solid #e0e0e0; font-size: inherit !important; }
+      .zuo-wen-ge { display: grid; grid-template-columns: repeat(auto-fill, ${zwgMmW}mm); gap: 0; border: 1.5px solid #999; margin: 8px 0; width: 100%; }
+      .zuo-wen-ge span { display: inline-flex; align-items: center; justify-content: center; width: ${zwgMmW}mm; height: ${zwgMm}mm; border: 0.5px solid #e0e0e0; font-size: inherit !important; }
       .square-grid { width: 84mm; height: 56mm; border: 1.5px solid #999; margin: 8px 0; background: linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm, linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm; }
       .bracket-grid { display: grid; grid-template-rows: repeat(3, 10mm); width: 52mm; margin: 8px 0; border-left: 3px solid #333; border-right: 3px solid #333; }
       .bracket-grid > div { border-bottom: 0.5px solid #ccc; }
@@ -1715,20 +1716,20 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       font-family: 'Times New Roman', 'Georgia', serif;
     }
 
-    /* ⭐ 作文格（尺寸按学段：primary 8mm / middle 7mm / high 6mm，正式试卷规格） */
+    /* ⭐ 作文格（尺寸按学段：小学 12mm / 中考 10mm / 高考 宽7.5×高8mm；每行格数按容器宽度自动排满） */
     .zuo-wen-ge {
       display: grid;
-      grid-template-columns: repeat(20, ${zwgMm}mm);
+      grid-template-columns: repeat(auto-fill, ${zwgMmW}mm);
       gap: 0;
       border: 1.5px solid #999;
       margin: 8px 0;
-      width: fit-content;
+      width: 100%;
     }
     .zuo-wen-ge span {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: ${zwgMm}mm;
+      width: ${zwgMmW}mm;
       height: ${zwgMm}mm;
       border: 0.5px solid #ccc;
       font-family: 'SimSun', 'KaiTi', serif;
@@ -2555,6 +2556,42 @@ export const injectExamShell = (html, stage) => {
   if (!anchor) {
     if (isNew) tpl.content.appendChild(shellNode);
     return tpl.innerHTML;
+  }
+  // 🔧 防重复（旧资料/旧版 AI 自带固定件）：移除无 .exam-shell class 的旧注意事项 + 题号得分表残片，
+  //    使旧资料重新打开排版预览时不再出现双份固定件（无需重新生成资料）。
+  //    识别特征（低误删）：① .exam-notice/.notice-title/.notice-item 类节点（不在 shell 内）；② 两行结构的"题号+得分"表；
+  //    ③ anchor 之前、文本以"注意事项"开头或以"答题前/请在各题/本试卷共/答案无效"开头的段落（旧 AI 无 class 输出）
+  //    ⛔ 排除 .score-board（每大题评分栏，不是固定件）与 .exam-shell 内部节点
+  const NOTICE_RE = /^注意事项[:：]?/;
+  const NOTICE_ITEM_RE = /^[1-4][．.、]\s*(答题前|请在各题|本试卷共|考试结束|答案无效|超出答题区域)/;
+  const beforeAnchor = (el) => {
+    if (!anchor) return true;
+    // DOCUMENT_POSITION_FOLLOWING：el 位于 anchor 之后 → 跳过（只处理第一个大题之前的旧固定件）
+    return !(anchor.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+  };
+  for (const el of Array.from(tpl.content.querySelectorAll('.exam-notice, .notice-title, .notice-item, .exam-score-table, table, p, h1, h2, h3, h4'))) {
+    if (el.closest('.exam-shell')) continue;
+    if (el.closest('.score-board')) continue;
+    if (!beforeAnchor(el)) continue;
+    const cls = el.classList;
+    if (cls.contains('exam-notice') || cls.contains('notice-title') || cls.contains('notice-item') || cls.contains('exam-score-table')) {
+      el.remove();
+      continue;
+    }
+    if (el.tagName === 'TABLE') {
+      const rows = Array.from(el.querySelectorAll('tr')).filter((r) => (r.textContent || '').trim());
+      if (rows.length <= 2) {
+        const head = rows[0] ? rows[0].textContent : '';
+        const body = rows[1] ? rows[1].textContent : '';
+        if (head.includes('题号') && (head.includes('得分') || body.includes('得分'))) el.remove();
+      }
+      continue;
+    }
+    // 旧 AI 注意事项段落（无 class）：仅删小段落（p/h），不删可能含正文的 div 容器
+    if (el.tagName === 'P' || /^H[1-4]$/.test(el.tagName)) {
+      const text = (el.textContent || '').trim();
+      if (NOTICE_RE.test(text) || NOTICE_ITEM_RE.test(text)) el.remove();
+    }
   }
   // 🔧 正规试卷顺序：固定件（注意事项+得分表）紧贴第一个大题之前；
   //    标题/副标题/卷首语等卷首内容自然在其上方（insertBefore 已就位时幂等无变化）
