@@ -73,8 +73,11 @@ describe('A. 蓝本库结构完整性', () => {
     }
   });
 
-  it('合理缺失与联合别名兑底：高中无科学课→null；小学误标思想政治→兑底到道法蓝本', () => {
-    expect(getExamBlueprint('科学', 'high')).toBeNull();
+  it('联合别名兑底：高中科学→通配蓝本；小学误标思想政治→兑底到道法蓝本', () => {
+    // 🔧 v45：新增 科学|all 通配蓝本——初中/高中如遇综合"科学"课教材时兜底，消除"需人工干预"缺口
+    const sciHigh = getExamBlueprint('科学', 'high');
+    expect(sciHigh).not.toBeNull();
+    expect(sciHigh.key).toBe('科学|all');
     const zwPrimary = getExamBlueprint('思想政治', 'primary_low');
     expect(zwPrimary).not.toBeNull();
     expect(zwPrimary.key).toBe('道德与法治|primary_low');
