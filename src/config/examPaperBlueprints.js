@@ -5,6 +5,7 @@
 //
 // 使用：buildGenerationInstruction 对 genType=exam 强制注入本蓝本（优先级高于指令库结构大纲）；
 //      HardRuleChecker.checkExamPaperStandard 依据本蓝本对成品做卷面质检。
+import { EXAM_REGION_CONFIG } from './examRegionConfig.js';
 
 /** 卷面规范 —— 所有学科通用，真题卷通行样式 */
 export const EXAM_PAPER_LAYOUT = `1. 密封线：正文左侧设密封区（位于页边距内、正文内边距外侧，与正文之间留内边距），密封线与正文之间为一条竖向虚线。密封区内文字竖向排版（逆时针旋转90°、从下往上读）：考生信息"学校：＿＿＿　班级：＿＿＿　姓名：＿＿＿　学号：＿＿＿"合并为一行、写在密封区下部，"密封线内不要答题"在其上方，"密/封/线"标注于虚线折线处（线在上、密在下，从下往上读为"密封线"）。输出结构：卷首放<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-note">密封线内不要答题</div><div class="seal-info">学校：＿＿＿　班级：＿＿＿　姓名：＿＿＿　学号：＿＿＿</div><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div></div>——密封区全部内容（提示语＋信息栏＋"密/封/线"）必须整体写在同一个 seal-zone 内，严禁拆成多个横向 <p> 或输出旧版 sealed-line 结构。🔴 对开版式（正式试卷双面装订）：导出 Word 时密封线按奇偶页镜像——奇数页在左侧、偶数页（反面）在右侧，始终靠装订侧（书脊）；生成内容仅需输出左侧密封区结构，镜像由导出端自动处理。
@@ -573,24 +574,47 @@ const STAGE_SUBJECT_ALIAS = {
  * @param {string} stage primary_low/primary_mid/primary_high/middle/high
  * @returns {{label:string, fullScore:number, duration:string, sections:Array, key:string}|null}
  */
-export function getExamBlueprint(subject, stage) {
+export function getExamBlueprint(subject, stage, region) {
   if (!subject || !stage) return null;
   const stdSubject = SUBJECT_ALIAS[subject] || subject;
   // 学段联合别名（同一课程跨学段名称转换，如高中道法→思想政治）
   const joint = STAGE_SUBJECT_ALIAS[`${stdSubject}|${stage}`] || `${stdSubject}|${stage}`;
   const [bpSubject, bpStage] = joint.split('|');
+  let bp = null;
   const direct = EXAM_BLUEPRINTS[`${bpSubject}|${bpStage}`];
-  if (direct) return { ...direct, key: `${bpSubject}|${bpStage}`, subject: bpSubject, stage: bpStage };
-  // 学段降级链
-  const chain = STAGE_FALLBACK[bpStage] || [];
-  for (const st of chain) {
-    const bp = EXAM_BLUEPRINTS[`${bpSubject}|${st}`];
-    if (bp) return { ...bp, key: `${bpSubject}|${st}`, subject: bpSubject, stage: bpStage };
+  if (direct) {
+    bp = { ...direct, key: `${bpSubject}|${bpStage}`, subject: bpSubject, stage: bpStage };
+  } else {
+    // 学段降级链
+    const chain = STAGE_FALLBACK[bpStage] || [];
+    for (const st of chain) {
+      const b = EXAM_BLUEPRINTS[`${bpSubject}|${st}`];
+      if (b) { bp = { ...b, key: `${bpSubject}|${st}`, subject: bpSubject, stage: bpStage }; break; }
+    }
+    // 全学段通配蓝本（如信息科技跨学段通用）
+    if (!bp) {
+      const all = EXAM_BLUEPRINTS[`${bpSubject}|all`];
+      if (all) bp = { ...all, key: `${bpSubject}|all`, subject: bpSubject, stage: bpStage };
+    }
   }
-  // 全学段通配蓝本（如信息科技跨学段通用）
-  const all = EXAM_BLUEPRINTS[`${bpSubject}|all`];
-  if (all) return { ...all, key: `${bpSubject}|all`, subject: bpSubject, stage: bpStage };
-  return null;
+  // 省市差异化：命中省市配置则覆盖时长/总分，并按比例缩放题型骨架分值（末板块修正保证各板块之和=新总分）
+  if (bp && region) {
+    const regMap = EXAM_REGION_CONFIG[region] && EXAM_REGION_CONFIG[region][bpStage];
+    const rc = regMap && (regMap[bpSubject] || regMap[stdSubject] || regMap[subject]);
+    if (rc) {
+      if (rc.fullScore && rc.fullScore !== bp.fullScore) {
+        const defaultTotal = bp.fullScore || 100;
+        const newTotal = rc.fullScore;
+        const scaled = bp.sections.map(s => ({ ...s, score: Math.max(1, Math.round((s.score * newTotal) / defaultTotal)) }));
+        const sum = scaled.reduce((a, c) => a + c.score, 0);
+        scaled[scaled.length - 1].score += newTotal - sum; // 末板块修正
+        bp = { ...bp, fullScore: newTotal, duration: rc.duration || bp.duration, sections: scaled };
+      } else if (rc.duration) {
+        bp = { ...bp, duration: rc.duration };
+      }
+    }
+  }
+  return bp;
 }
 
 /**

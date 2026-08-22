@@ -471,13 +471,13 @@ const compareBlueprintToGenerated = (content, parsedBlueprint, ctx) => {
   if (!content || !parsedBlueprint || !Array.isArray(parsedBlueprint) || parsedBlueprint.length === 0) {
     return { hasIssues: false, issues };
   }
-  const { genType, subject, stage } = ctx || {};
+  const { genType, subject, stage, region } = ctx || {};
 
   // 仅 exam 类型做蓝本对比（其他类型无蓝本骨架约束）
   if (genType !== 'exam') return { hasIssues: false, issues };
 
-  // 获取蓝本定义
-  const examBlueprint = getExamBlueprint(subject, stage);
+  // 获取蓝本定义（省市差异化：命中省市配置时按该省市时长/总分/板块分值比对）
+  const examBlueprint = getExamBlueprint(subject, stage, region);
   if (!examBlueprint || !examBlueprint.sections) return { hasIssues: false, issues };
 
   // 从生成内容中提取大题标题（匹配 "一、" "二、" 等开头的标题行，或 <h2> 标签内容）
@@ -5182,6 +5182,8 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔧 多学科：指令匹配用学科（多学科时不限定，匹配通用条目；专科指令由 GenerateModule.vue 的 auto fragment 处理）
     const matchSubject = allSubjects.length > 1 ? '' : subject;
     const grade = book?.grade || '';
+    // 🔧 省市差异化：优先取 options.region（前端生成设置），回退 book.region（教材勾选时保存）
+    const region = options.region || book?.region || '';
 
     // 动态年级适配：根据实际年级提取数字，供后续所有【】块使用
     // 🔑 grade 可能是中文（"三年级"）或数字，统一提取数字
@@ -5321,7 +5323,7 @@ ${cardAnalysisText.substring(0, 1000)}
           //    ⚠️ 蓝本注入独立于结构大纲匹配：信息科技/音乐/美术/体育等无结构大纲条目的学科同样注入
           let examBlueprint = null;
           if (gt === 'exam') {
-            examBlueprint = getExamBlueprint(subject, gradeSegment);
+            examBlueprint = getExamBlueprint(subject, gradeSegment, region);
             if (examBlueprint) {
               instruction += `\n---\n${buildExamBlueprintText(examBlueprint)}\n`;
             } else {
@@ -8837,7 +8839,7 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
       }
 
       // 🔧 蓝本-生成结果结构化对比（验证 AI 是否按蓝本骨架出题）
-      const blueprintComparison = compareBlueprintToGenerated(content, parsedBlueprint, { genType, subject: book?.subject || '', stage: stageRaw, grade: book?.grade || '' });
+      const blueprintComparison = compareBlueprintToGenerated(content, parsedBlueprint, { genType, subject: book?.subject || '', stage: stageRaw, grade: book?.grade || '', region: book?.region || '' });
       if (blueprintComparison.hasIssues) {
         blueprintComparison.issues.forEach(issue => {
           issues.push('📐 ' + issue);

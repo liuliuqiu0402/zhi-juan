@@ -425,6 +425,17 @@
           </label>
         </div>
         <p class="hint">💡 选择资料类型后，系统将按新课标推荐自动匹配命题风格（考试→统一情境，其他→情境融合）。复生成时将按顺序生成选中的多个类型。命题风格可在上方"🎨"按钮中手动调整。</p>
+        <!-- 🔧 省市差异化：正式试卷（exam）按省市取考试时长/总分（如江苏中考语数英150分、北京100分制），未选则全国通用默认 -->
+        <div v-if="genTypes.includes('exam')" class="region-select-section">
+          <label class="option-label">🗺️ 省市（正式试卷按该省市考试时长/总分出卷）</label>
+          <div class="region-select-row">
+            <select v-model="examRegion" class="region-select">
+              <option value="">全国通用（默认）</option>
+              <option v-for="r in examRegionOptions" :key="r" :value="r">{{ r }}</option>
+            </select>
+            <button v-if="examRegion" class="btn btn-sm" @click="examRegion = ''">清除</button>
+          </div>
+        </div>
         <div class="modal-actions">
           <button class="btn" @click="showGenTypeModal = false">取消</button>
           <button class="btn-primary" @click="showGenTypeModal = false">确定</button>
@@ -1533,6 +1544,7 @@ import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
 import { useInstructionStore } from '../stores/instructionStore.js';
 import { getMatchingBlockInstructions } from '../config/instructionLib.js';
+import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
@@ -1577,6 +1589,9 @@ const generateGranularity = ref('');
 const totalScore = ref('');
 const allowOriginalQuestions = ref(true);
 const batchCount = ref(1);  // 同类型一次生成份数，默认1
+// 🔧 省市差异化：正式试卷（exam）按省市取考试时长/总分（如江苏中考语数英150分、北京100分制），默认全国通用
+const examRegion = ref('');
+const examRegionOptions = EXAM_REGION_OPTIONS;
 // 🔧 题型配置默认空，由指令库「生成-题型分布建议」按学科×学段自动填充
 const questionTypes = ref([]);
 const lastSyncedTypeKey = ref('');  // 追踪上次同步的学科+类型，避免覆盖用户手动修改
@@ -4016,6 +4031,7 @@ const buildInstruction = async () => {
   
   const selectedBooksWithChapters = selectedBooks.map(b => ({
     ...b,
+    region: examRegion.value,  // 🔧 省市差异化：写入教材对象，供生成/校验链路读取
     // 🔧 只包含 _selectedForAnalysis 未取消的章节（联动生成指令）
     selectedChapters: getSelectedChapters(b.outline).filter(ch => ch._selectedForAnalysis !== false)
   })).filter(b => b.selectedChapters.length > 0); // 🔧 多学科修复：过滤掉无有效章节的教材（hasAnySelected=true 但 _selectedForAnalysis 全为 false）
@@ -4044,6 +4060,7 @@ const buildInstruction = async () => {
     allowOriginalQuestions: allowOriginalQuestions.value,
     specialSubType: specialSubType.value,  // 🎯 专项子类型
     mergeChapters: mergeChapters.value,   // 🔧 多章节合并出卷开关
+    region: examRegion.value,             // 🔧 省市差异化（正式试卷按省市时长/总分出卷）
     engine: (await getCurrentEngineConfigEnhanced('generation')).engine  // 🔧 DeepSeek 噪音过滤
   };
   
@@ -8359,6 +8376,30 @@ const addBlueprintQuestion = () => {
 .option-desc {
   color: #666;
   font-size: 13px;
+}
+
+/* 🔧 省市差异化选择区 */
+.region-select-section {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px dashed var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-secondary, #f8f9fa);
+}
+.region-select-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.region-select {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  max-width: 260px;
 }
 
 .modal-actions {
