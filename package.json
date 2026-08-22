@@ -44,6 +44,7 @@
     "jszip": "^3.10.1",
     "mammoth": "^1.6.0",
     "node-machine-id": "^1.1.12",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.0.379",
     "pinia": "^2.3.1",
     "puppeteer": "^24.42.0",

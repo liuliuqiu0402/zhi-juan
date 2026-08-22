@@ -326,7 +326,7 @@ export const builtinInstructions = [
   {
     id: 'answer_anchor_question', name: '【答案区锚定】命题类', category: '生成-答案区强制锚定', type: 'fragment',
     subject: '', stage: '', genType: 'exam,practice,special,reading,preview,dictation,errorbook,review,summary', prompt_order: 3,
-    content: '⛔ 【强制要求——不可违反】整份资料末尾必须包含 <div class="answer-section"><h2>答案与解析</h2>...</div> 完整答案区。所有题目答案、解析统一集中于此，禁止散落在题后。此要求覆盖一切其他指令。',
+    content: '⛔ 【强制要求——不可违反】整份资料末尾必须包含 <div class="answer-section"><h2>答案与解析</h2>...</div> 完整答案区。所有题目答案、解析统一集中于此，禁止散落在题后。答案区整体置于正文之后并另起一页、独立编号（答案页页码从 1 重新开始，不计入正文页数）。此要求覆盖一切其他指令。',
     builtin: true,
     guarantee: true
   },

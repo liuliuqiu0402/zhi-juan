@@ -381,15 +381,33 @@ ipcMain.handle('export-pdf', async (event, htmlContent, outputPath, options = {}
     return { success: false, error: 'PDF 导出依赖 Puppeteer（Chromium），当前环境未找到。请运行 npm install puppeteer 或在浏览器中使用「打印→另存为PDF」功能。' };
   }
   let browser = null;
-  
+
+  // 🔧 答案区独立编号：将含 answer-section 的文档拆为「正文」「答案」两份 PDF 分别渲染，
+  //    puppeteer 页脚"共X页"只统计各自段内页数（正文不含答案页、答案页从 1 重新编号），
+  //    最后用 pdf-lib 按正文→答案顺序合并为一个 PDF。
+  //    无答案区（学生版）保持单次渲染原逻辑。
+  const splitAnswerSection = (html) => {
+    const bodyOpen = html.match(/<body[^>]*>/i);
+    const bodyClose = html.match(/<\/body>/i);
+    const answerRe = /<div\s+class="[^"]*answer-section[^"]*"[^>]*>/i;
+    if (!bodyOpen || !bodyClose) return null;
+    const headPrefix = html.slice(0, bodyOpen.index + bodyOpen[0].length);
+    const bodyInner = html.slice(bodyOpen.index + bodyOpen[0].length, bodyClose.index);
+    const bodySuffix = html.slice(bodyClose.index);
+    const answerMatch = bodyInner.match(answerRe);
+    if (!answerMatch) return null;
+    return {
+      bodyHtml: headPrefix + bodyInner.slice(0, answerMatch.index) + bodySuffix,
+      answerHtml: headPrefix + bodyInner.slice(answerMatch.index) + bodySuffix,
+    };
+  };
+
   try {
     // 确保输出目录存在
     const outDir = path.dirname(outputPath);
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-    
+
     browser = await puppeteer.launch({ headless: true });
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
     // 🔧 密封线试卷（页面壳自带 A4 页边距）传 margin=0，避免与 Puppeteer 边距双重留白；
     //    普通文档保持默认 20mm。
     const mm = Number(options.margin);
@@ -397,15 +415,58 @@ ipcMain.handle('export-pdf', async (event, htmlContent, outputPath, options = {}
     // 🔧 卷面规范：PDF 页脚页码（与 docx 页脚"第X页　共X页"一致）；
     //    底部边距不足 10mm 时页脚无渲染空间，强制抬到 10mm
     const bottom = Math.max(margin, 10);
-    await page.pdf({
-      path: outputPath,
+    const pdfOptions = {
       format: 'A4',
       printBackground: true,
       displayHeaderFooter: true,
       headerTemplate: '<span></span>',
       footerTemplate: '<div style="width:100%;text-align:center;font-size:9px;color:#000000;font-family:SimSun,serif;">第 <span class="pageNumber"></span> 页　共 <span class="totalPages"></span> 页</div>',
       margin: { top: `${margin}mm`, bottom: `${bottom}mm`, left: `${margin}mm`, right: `${margin}mm` }
-    });
+    };
+
+    const renderToPdf = async (page, content, outPath) => {
+      await page.setContent(content, { waitUntil: 'networkidle0' });
+      await page.pdf({ ...pdfOptions, path: outPath });
+    };
+
+    const parts = splitAnswerSection(htmlContent);
+    if (!parts) {
+      // 无答案区：单次渲染（原逻辑）
+      const page = await browser.newPage();
+      await renderToPdf(page, htmlContent, outputPath);
+    } else {
+      // 有答案区：正文/答案分次渲染，合并为一个 PDF
+      const tmpDir = path.join(__dirname, '.temp_pdf');
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+      const bodyPath = path.join(tmpDir, `body_${Date.now()}.pdf`);
+      const answerPath = path.join(tmpDir, `answer_${Date.now()}.pdf`);
+      const page = await browser.newPage();
+      await renderToPdf(page, parts.bodyHtml, bodyPath);
+      await renderToPdf(page, parts.answerHtml, answerPath);
+
+      let pdfLib = null;
+      try {
+        pdfLib = require('pdf-lib');
+      } catch (e) {
+        console.error('pdf-lib 模块加载失败，回退单文件导出:', e.message);
+        // 回退：合并失败时直接输出正文 PDF（保留原导出能力）
+        fs.copyFileSync(bodyPath, outputPath);
+      }
+      if (pdfLib) {
+        const bodyPdf = await pdfLib.PDFDocument.load(await fs.promises.readFile(bodyPath));
+        const answerPdf = await pdfLib.PDFDocument.load(await fs.promises.readFile(answerPath));
+        const merged = await pdfLib.PDFDocument.create();
+        const bodyPages = await merged.copyPages(bodyPdf, bodyPdf.getPageIndices());
+        bodyPages.forEach((p) => merged.addPage(p));
+        const answerPages = await merged.copyPages(answerPdf, answerPdf.getPageIndices());
+        answerPages.forEach((p) => merged.addPage(p));
+        await fs.promises.writeFile(outputPath, await merged.save());
+      }
+      // 清理临时文件
+      try { fs.unlinkSync(bodyPath); } catch {}
+      try { fs.unlinkSync(answerPath); } catch {}
+      try { fs.rmdirSync(tmpDir); } catch {}
+    }
     return { success: true, path: outputPath };
   } catch (error) {
     console.error('PDF生成失败:', error);

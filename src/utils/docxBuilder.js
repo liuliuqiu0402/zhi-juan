@@ -234,8 +234,8 @@ const buildTextRuns = (node, styleOverride = {}) => {
         lines.forEach((line, i) => {
           if (i > 0) runs.push(new TextRun({ break: 1 }));
           if (line) {
-            // 🔧 卷面规范：注意事项"本试卷共＿页" → NUMPAGES 域（Word 按实际总页数自动填充，
-            //    与页脚"共X页"联动；预览/HTML 保持占位由人工填写）
+            // 🔧 卷面规范：注意事项"本试卷共＿页" → SECTIONPAGES 域（Word 按正文分节实际页数自动填充，
+            //    不含答案页；与正文页脚"共X页"联动。预览/HTML 保持占位由人工填写）
             if (line.includes('本试卷共＿页')) {
               const segs = line.split('本试卷共＿页');
               const ctxRun = (base) => {
@@ -245,7 +245,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
                 return o;
               };
               segs.forEach((seg, j) => {
-                if (j > 0) runs.push(new TextRun(ctxRun({ children: ['本试卷共', PageNumber.TOTAL_PAGES, '页'] })));
+                if (j > 0) runs.push(new TextRun(ctxRun({ children: ['本试卷共', PageNumber.TOTAL_PAGES_IN_SECTION, '页'] })));
                 if (seg) runs.push(new TextRun(ctxRun({ text: seg })));
               });
               return;
@@ -913,15 +913,20 @@ const splitGridAwareContent = (node, runDefaults, opts = {}) => {
 //    正文流不再输出密封线 marker 段落。buildDocxFromDom 启动时重置，processBlockNode 命中时写入。
 let __sealCollector = null;
 
+// 🔧 答案区拆分标记：processBlockNode 命中答案区时插入该哨兵，buildDocxFromDom 据此把正文与答案
+//    拆分为两个 Word 分节（答案页独立编号从 1 起；正文页脚"共X页"只计正文、不含答案页）。
+const ANSWER_SPLIT_MARKER = Symbol('answer-section-split');
+
 /** 密封线 marker 段落（放页眉，后处理替换为浮动文本框；lineOnly 时仅 虚线+密/封/线） */
 const sealMarkerParagraph = (fields, sizeHp, lineOnly = false) => new Paragraph({
   children: [new TextRun({ text: (lineOnly ? SEAL_MARKER_LINE : SEAL_MARKER)(fields.join('\u0001'), sizeHp), size: sizeHp, color: '999999', font: 'SimSun' })],
 });
 
-/** 页码页脚段落："第X页　共X页"（PAGE/NUMPAGES 域，显式纯黑） */
-const pageNumberParagraph = () => new Paragraph({
+/** 页码页脚段落："第X页　共X页"（PAGE + 域，显式纯黑）
+ *  totalField 默认 SECTIONPAGES：正文分节"共X页"只计正文（不含答案页），答案分节"共X页"只计答案页自身。 */
+const pageNumberParagraph = (totalField = PageNumber.TOTAL_PAGES_IN_SECTION) => new Paragraph({
   alignment: AlignmentType.CENTER,
-  children: [new TextRun({ children: ['第 ', PageNumber.CURRENT, ' 页　共 ', PageNumber.TOTAL_PAGES, ' 页'], size: 18, color: '000000' })],
+  children: [new TextRun({ children: ['第 ', PageNumber.CURRENT, ' 页　共 ', totalField, ' 页'], size: 18, color: '000000' })],
 });
 
 const processBlockNode = (node, ctx = {}) => {
@@ -1597,9 +1602,10 @@ const processBlockNode = (node, ctx = {}) => {
 
   // ===== 装饰容器 div / blockquote / section / figcaption → 透传子节点 + 继承装饰 =====
   if (['div', 'section', 'figure', 'figcaption', 'article'].includes(tag)) {
-    // 🔧 卷面规范：答案区另起一页（蓝本"参考答案与评分标准另起一页"，Word 中强制分页）
+    // 🔧 卷面规范：答案区独立分节（Word 导出时正文与答案区拆分为两个分节，答案页独立编号从 1 起）。
+    //    这里仅插入拆分哨兵交由 buildDocxFromDom 拆分；分节自然新起一页，无需再插 PageBreak。
     if (cls.contains('answer-section')) {
-      children.push(new Paragraph({ children: [new PageBreak()] }));
+      children.push(ANSWER_SPLIT_MARKER);
     }
     const ownDeco = readBlockDecorations(node);
     const deco = { ...inheritedDeco };
@@ -1761,7 +1767,14 @@ export const buildDocxFromDom = (containerEl) => {
   const hasSealLine = !!(__sealCollector?.first || (containerEl.querySelector && containerEl.querySelector('.sealed-wrapper, .sealed-line, .seal-line, .seal-zone')));
   const sealFirst = __sealCollector?.first;
 
-  let bodyChildren = children;
+  // 🔧 答案区独立分节：将扁平 children 在答案拆分哨兵处切分为正文/答案两段。
+  //    答案分节页码从 1 重新开始（w:pgNumType w:start="1"）；正文页脚"共X页"用 SECTIONPAGES 只计正文、不含答案页。
+  const splitIdx = children.indexOf(ANSWER_SPLIT_MARKER);
+  const hasAnswerSection = splitIdx >= 0;
+  const bodyChildren = hasAnswerSection ? children.slice(0, splitIdx) : children;
+  // 🔧 过滤残留哨兵：嵌套/重复答案区可能产生多余标记，避免 Symbol 进入 docx 子元素数组
+  const answerChildren = hasAnswerSection ? children.slice(splitIdx + 1).filter((c) => c !== ANSWER_SPLIT_MARKER) : [];
+
   let leftMargin = 1134;
   let rightMargin = 1134;
   let sealHeaders = null;
@@ -1778,29 +1791,49 @@ export const buildDocxFromDom = (containerEl) => {
     rightMargin = 1417;
   }
 
-  return new Document({
-    sections: [{
+  const pageProps = {
+    size: { width: 11906, height: 16838 },
+    // 🔧 上下 2cm；密封文档左右 2.5cm（1417 DXA，虚线 19mm + 6mm 不贴正文），普通文档左右 2cm
+    margin: { top: 1134, bottom: 1134, left: leftMargin, right: rightMargin },
+  };
+
+  const sections = [{
+    properties: {
+      // 🔧 密封文档：different-first-page（首页页眉全量密封区，后续页仅 虚线+密/封/线）；仅 true 时输出 w:titlePg
+      ...(hasSealLine ? { titlePage: true } : {}),
+      page: pageProps,
+    },
+    // 🔧 密封线页眉（每页重复渲染；无密封文档不设页眉）
+    ...(sealHeaders ? { headers: sealHeaders } : {}),
+    // 🔧 页码页脚：落地蓝本卷面规范"每页页脚居中标注'第X页　共X页'"（Word 字段自动计算，AI 无法预知总页数）
+    //    ⚠️ 密封文档开启 different-first-page 后必须同时提供 first 页脚，否则 Word 首页不显示页码
+    //    ⚠️ 显式黑色：页码为 PAGE/SECTIONPAGES 域，Word 默认给域加浅灰底纹（显示设置），文字本身保持纯黑
+    footers: {
+      ...(hasSealLine ? { first: new Footer({ children: [pageNumberParagraph()] }) } : {}),
+      default: new Footer({ children: [pageNumberParagraph()] }),
+    },
+    children: bodyChildren,
+  }];
+
+  // 🔧 答案区独立分节：页码从 1 重新开始，页脚"第X页　共X页"只计答案页自身。
+  //    答案页不继承密封线页眉（显式空页眉打断 links-to-previous，避免密封线出现在答案页）。
+  if (hasAnswerSection) {
+    sections.push({
       properties: {
-        // 🔧 密封文档：different-first-page（首页页眉全量密封区，后续页仅 虚线+密/封/线）；仅 true 时输出 w:titlePg
-        ...(hasSealLine ? { titlePage: true } : {}),
         page: {
-          size: { width: 11906, height: 16838 },
-          // 🔧 上下 2cm；密封文档左右 2.5cm（1417 DXA，虚线 19mm + 6mm 不贴正文），普通文档左右 2cm
-          margin: { top: 1134, bottom: 1134, left: leftMargin, right: rightMargin },
+          ...pageProps,
+          pageNumbers: { start: 1 },
         },
       },
-      // 🔧 密封线页眉（每页重复渲染；无密封文档不设页眉）
-      ...(sealHeaders ? { headers: sealHeaders } : {}),
-      // 🔧 页码页脚：落地蓝本卷面规范"每页页脚居中标注'第X页　共X页'"（Word 字段自动计算，AI 无法预知总页数）
-      //    ⚠️ 密封文档开启 different-first-page 后必须同时提供 first 页脚，否则 Word 首页不显示页码
-      //    ⚠️ 显式黑色：页码为 PAGE/NUMPAGES 域，Word 默认给域加浅灰底纹（显示设置），文字本身保持纯黑
+      ...(sealHeaders ? { headers: { default: new Header({ children: [] }) } } : {}),
       footers: {
-        ...(hasSealLine ? { first: new Footer({ children: [pageNumberParagraph()] }) } : {}),
         default: new Footer({ children: [pageNumberParagraph()] }),
       },
-      children: bodyChildren,
-    }],
-  });
+      children: answerChildren,
+    });
+  }
+
+  return new Document({ sections });
 };
 
 
