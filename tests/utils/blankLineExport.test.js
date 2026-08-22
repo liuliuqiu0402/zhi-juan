@@ -36,6 +36,25 @@ describe('数学答题区导出', () => {
   });
 });
 
+describe('特殊下划线导出（double-line/wavy-underline 不被 ctx 覆盖为 single）', () => {
+  it('double-line → w:u w:val="double"（非 single）', async () => {
+    const xml = await getDocumentXml('<p>重点词：<span class="double-line">栩栩如生</span></p>');
+    // 双线下划线必须出现，且不得退化为 single
+    expect(xml).toMatch(/<w:u w:val="double"\/>/);
+    expect(xml).not.toMatch(/<w:u w:val="single"\/>/);
+  });
+
+  it('wavy-underline → w:u w:val="wave"（docx 枚举 wave，非 wavy）', async () => {
+    const xml = await getDocumentXml('<p>病句：<span class="wavy-underline">我们要养成认真听课</span>的好习惯。</p>');
+    expect(xml).toMatch(/<w:u w:val="wave"/);
+  });
+
+  it('emphasis-dot → w:em 着重号', async () => {
+    const xml = await getDocumentXml('<p>加点字：<span class="emphasis-dot">尽</span>力</p>');
+    expect(xml).toMatch(/<w:em w:val="dot"\/>/);
+  });
+});
+
 describe('作文格（zuo-wen-ge）导出', () => {
   it('标准 span 格子结构 → 导出为格子表格', async () => {
     const xml = await getDocumentXml(

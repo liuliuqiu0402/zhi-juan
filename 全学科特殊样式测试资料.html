@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>智卷工坊 · 全学科特殊样式测试资料</title>
+<style>
+  body { font-family: SimSun, 'Microsoft YaHei', serif; background: #e8e8e8; margin: 0; padding: 20px; color: #333; }
+  .page { width: 210mm; min-height: 297mm; background: white; margin: 0 auto 24px; padding: 20mm 25mm; box-sizing: border-box; box-shadow: 0 2px 12px rgba(0,0,0,.15); font-size: 12pt; line-height: 1.6; }
+  .guide { width: 210mm; margin: 0 auto 24px; background: #fff8e6; border: 2px dashed #e6a817; padding: 16px 20px; border-radius: 8px; }
+  .guide h1 { margin: 0 0 8px; font-size: 18px; }
+  .guide p { margin: 4px 0; font-size: 13px; }
+  .guide code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+  .copy-box { width: 210mm; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,.15); overflow: hidden; }
+  .copy-box .bar { background: #2b5ea7; color: white; padding: 10px 20px; font-weight: bold; }
+  .copy-box textarea { width: 100%; height: 480px; border: none; padding: 16px 20px; box-sizing: border-box; font-family: Consolas, monospace; font-size: 12px; line-height: 1.5; resize: vertical; outline: none; }
+  /* ⭐ 主题样式（sealed_exam 预览用，与系统排版模块一致） */
+  .sealed-wrapper { position: relative; padding: 20mm 25mm; min-height: 257mm; box-sizing: border-box; }
+  .seal-zone { position: absolute; left: 0; top: 20mm; bottom: 20mm; width: 19mm; border-left: 2px dashed #333; }
+  .seal-note { position: absolute; left: 3mm; bottom: 55mm; width: 14mm; text-align: center; font-size: 10.5pt; letter-spacing: 2px; }
+  .seal-info { position: absolute; left: 1mm; bottom: 14mm; width: 14mm; text-align: center; font-size: 9pt; line-height: 2.2; }
+  .seal-char { position: absolute; right: -4mm; font-size: 10.5pt; }
+  .seal-char.s-top { top: 25%; } .seal-char.s-mid { top: 50%; } .seal-char.s-bot { top: 75%; }
+  .sealed-content { margin-left: 25mm; }
+  h1.main-title { text-align: center; font-size: 16pt; margin: 6px 0; }
+  .subtitle { text-align: center; margin: 2px 0 12px; }
+  .exam-notice { border: 1px solid #999; padding: 6px 12px; margin: 8px 0; font-size: 10.5pt; }
+  .notice-title { font-weight: bold; margin: 2px 0; }
+  .notice-item { margin: 2px 0; }
+  .exam-score-table { border-collapse: collapse; width: 100%; margin: 6px 0 12px; }
+  .exam-score-table th, .exam-score-table td { border: 1px solid #999; padding: 2px 6px; text-align: center; font-size: 10.5pt; }
+  h2.heading1, h3.heading1, h4.heading2 { margin: 14px 0 6px; }
+  p.question { margin: 6px 0; }
+  .option { margin: 2px 0; }
+  /* ⭐ 语文学科标记 */
+  .emphasis-dot { border-bottom: 2px dotted #c00; }
+  u.underline-sentence { text-decoration: underline; }
+  .wavy-underline { text-decoration: underline wavy red; }
+  .double-line { text-decoration: underline double; }
+  .single-line { text-decoration: underline; }
+  ruby { ruby-align: center; }
+  ruby.radical rt { color: #888; font-size: 0.6em; }
+  .stroke-order { border-bottom: 1px dashed #999; }
+  .tian-zi-ge, .mi-zi-ge { display: inline-block; position: relative; width: 1.8em; height: 1.8em; border: 1.5px solid #5B9BD5; vertical-align: middle; margin: 0 2px; text-align: center; line-height: 1.8em; box-sizing: border-box; }
+  .tian-zi-ge { background: repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 1px,transparent 1px,transparent 50%) center/100% 100% no-repeat, repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 1px,transparent 1px,transparent 50%) center/100% 100% no-repeat; }
+  .mi-zi-ge { background: linear-gradient(45deg, transparent calc(50% - .5px), #5B9BD5 calc(50% - .5px), #5B9BD5 calc(50% + .5px), transparent calc(50% + .5px)), linear-gradient(-45deg, transparent calc(50% - .5px), #5B9BD5 calc(50% - .5px), #5B9BD5 calc(50% + .5px), transparent calc(50% + .5px)); }
+  .tian-zi-ge > span, .mi-zi-ge > span { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); line-height: 1; }
+  .four-line-three { display: inline-block; position: relative; padding: 2px 4px; min-width: 16px; text-align: center; vertical-align: middle; }
+  .four-line-three::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1.6em; background: linear-gradient(#999,#999) 0 0.15em/100% 1px no-repeat, linear-gradient(#999,#999) 0 0.7em/100% 1px no-repeat, linear-gradient(#666,#666) 0 1.25em/100% 1px no-repeat, linear-gradient(#999,#999) 0 1.55em/100% 1px no-repeat; pointer-events: none; }
+  /* ⭐ 数学标记 */
+  .oral-box { display: inline-block; border: 1.5px solid #999; padding: 1px 6px; min-width: 3em; text-align: center; }
+  .square-box { display: inline-block; border: 2px solid #333; padding: 1px 8px; min-width: 2em; text-align: center; }
+  .vertical-calculation { margin: 6px 0; font-family: 'Times New Roman', serif; }
+  .vertical-calculation .vc-row { text-align: right; }
+  .vertical-calculation .vc-row.op::before { content: '+'; float: left; margin-right: 4px; }
+  .vertical-calculation .vc-line { border-top: 1.5px solid #333; height: 0; }
+  .vertical-calculation .vc-result { text-align: right; font-weight: bold; }
+  .off-formula .of-line { text-align: left; }
+  .dashed-line { border-top: 2px dashed #333; display: inline-block; width: 60px; vertical-align: middle; }
+  .square-grid { width: 84mm; height: 42mm; border: 1.5px solid #999; background: linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm, linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm; }
+  .bracket-grid { display: grid; grid-template-rows: repeat(3, 10mm); width: 52mm; border-left: 3px solid #333; border-right: 3px solid #333; }
+  .bracket-grid > div { border-bottom: .5px solid #ccc; }
+  .bracket-grid > div:last-child { border-bottom: none; }
+  .superscript { vertical-align: super; font-size: 0.7em; }
+  .subscript { vertical-align: sub; font-size: 0.7em; }
+  /* ⭐ 通用 */
+  .match-question { display: flex; gap: 40px; margin: 6px 0; }
+  .match-col { display: flex; flex-direction: column; gap: 6px; }
+  .match-item { padding: 2px 10px; border: 1px solid #999; border-radius: 4px; }
+  .word-bank { display: inline-block; border: 1.5px solid #2b5ea7; padding: 2px 8px; margin: 2px; border-radius: 4px; background: #f2f7ff; }
+  .blank-line { border-bottom: 1px solid #333; display: inline-block; min-width: 120px; }
+  u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; } u.blank-3 { min-width: 3em; } u.blank-4 { min-width: 4em; } u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; } u.blank-8 { min-width: 8em; } u.blank-10 { min-width: 10em; }
+  .score-box { display: inline-block; border: 1.5px solid #333; padding: 0 6px; }
+  .score-board { border: 1px solid #999; margin: 6px 0; }
+  .score-board table { border-collapse: collapse; width: 100%; }
+  .score-board th, .score-board td { border: 1px solid #999; padding: 2px 6px; text-align: center; }
+  .reading-passage { padding: 10px 14px; background: #fafafa; border-left: 3px solid #2b5ea7; margin: 8px 0; text-indent: 2em; }
+  .extended-thinking { padding: 8px 12px; background: #fef9e7; border: 1px solid #f0c78e; border-radius: 4px; margin: 8px 0; }
+  .answer-section { margin-top: 20px; padding: 12px; border-top: 2px solid #333; background: #fafafa; page-break-before: always; }
+  .chem-condition { display: inline-block; border: 1px solid #999; border-radius: 3px; padding: 0 4px; font-size: 0.75em; vertical-align: middle; }
+  table.periodic-table { border-collapse: collapse; margin: 4px 0; font-size: 9pt; }
+  table.periodic-table td { border: 1px solid #999; padding: 2px 5px; text-align: center; width: 24px; }
+  .zuo-wen-ge { display: grid; grid-template-columns: repeat(auto-fill, 12mm); gap: 0; border: 1.5px solid #999; margin: 8px 0; width: 100%; }
+  .zuo-wen-ge span { display: inline-flex; align-items: center; justify-content: center; width: 12mm; height: 12mm; border: .5px solid #ccc; }
+  .marker { background: #eaf3ff; border: 1px solid #9cc3e5; border-radius: 4px; padding: 0 6px; font-size: 11px; color: #1a5a9c; font-family: Consolas, monospace; }
+</style>
+</head>
+<body>
+
+<div class="guide">
+  <h1>📋 使用说明</h1>
+  <p>1. 本文件为「智卷工坊 · 全学科特殊样式测试资料」，用于验证 <b>排版模块预览</b> 与 <b>Word 导出</b> 是否正常。</p>
+  <p>2. 页面下方是<b>可直接复制到编辑器</b>的 HTML 片段（模拟 AI 生成端输出，无 html/body 包裹）。在系统中粘贴/导入后检查：田字格、四线三格、作文格、竖式计算、连线题等样式是否与下方预览一致，再导出 Word 核对。</p>
+  <p>3. 试卷类型加载后会由排版模块自动注入密封线与卷面固定件（注意事项+题号得分表），与真实生成流程一致。</p>
+  <p>4. 覆盖清单：田字格（带字/空）/米字格/四线三格（拼音格/英语格）/加点字/画线句/波浪线/双线单线/拼音与部首注音/笔画笔顺/作文格/填空横线与括号/连线题/口算框/方框填空/竖式计算/脱式计算/作图网格/竖式格/辅助线/上标下标/化学条件/周期表/词库框/得分框/评分栏/阅读短文/拓展思考/主观题书写区/配图标记/公式/答案区/密封线。</p>
+</div>
+
+<div class="page">
+<div class="sealed-wrapper">
+  <div class="seal-zone">
+    <div class="seal-note">密封线内不要答题</div>
+    <div class="seal-info">学校：＿＿＿＿<br>班级：＿＿＿＿<br>姓名：＿＿＿＿<br>学号：＿＿＿＿</div>
+    <div class="seal-char s-top">线</div>
+    <div class="seal-char s-mid">封</div>
+    <div class="seal-char s-bot">密</div>
+  </div>
+  <div class="sealed-content">
+
+    <h1 class="main-title">2025—2026学年第二学期小学三年级语文期末试卷</h1>
+    <p class="subtitle">（考试时间：90分钟　满分：100分）</p>
+
+    <div class="exam-notice">
+      <p class="notice-title">注意事项：</p>
+      <p class="notice-item">1．答题前，请将密封线内的学校、班级、姓名、学号填写清楚。</p>
+      <p class="notice-item">2．请在各题目的答题区域内作答，超出答题区域书写的答案无效。</p>
+      <p class="notice-item">3．本试卷共＿页。</p>
+    </div>
+    <table class="exam-score-table">
+      <tr><th>题号</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>总分</th></tr>
+      <tr><td>得分</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    </table>
+
+    <h3 class="heading1">一、识字与写字。（共6题，每题3分，共18分）</h3>
+    <p class="question">1. 把下列生字端正地写在田字格中。</p>
+    <p class="question"><span class="tian-zi-ge">春</span> <span class="tian-zi-ge">夏</span> <span class="tian-zi-ge">秋</span> <span class="tian-zi-ge">冬</span></p>
+    <p class="question">2. 在米字格中书写：<span class="mi-zi-ge">雪</span> <span class="mi-zi-ge">雨</span></p>
+    <p class="question">3. 按笔顺书空并标注笔画数：<span class="stroke-order" data-strokes="9">秋</span>（9画）</p>
+    <p class="question">4. 在拼音格中写出音节：<span class="four-line-three pinyin-line">chūn tiān</span>　<span class="four-line-three pinyin-line">fēng</span></p>
+    <p class="question">5. 给加点字注音并写出部首：<ruby class="radical"><rb>树</rb><rt>木</rt></ruby>　<ruby>好<rt>hǎo</rt></ruby></p>
+
+    <h3 class="heading1">二、积累与运用。（共4题，每题4分，共16分）</h3>
+    <p class="question">1. 给加点字选择正确读音：<span class="emphasis-dot">尽</span>力（jìn jǐn）</p>
+    <p class="question">2. 用横线画出描写春天的句子：<u class="underline-sentence">小草从地里探出头来。</u></p>
+    <p class="question">3. 修改病句（用波浪线标出）：<span class="wavy-underline">我们要养成认真听课</span>的好习惯。</p>
+    <p class="question">4. 重点词用双线标注，易错词用单线标注：<span class="double-line">栩栩如生</span>、<span class="single-line">川流不息</span></p>
+    <p class="question">5. 把下面的词语和对应的特点连起来。</p>
+    <div class="match-question">
+      <div class="match-col"><div class="match-item">圆圆的</div><div class="match-item">弯弯的</div><div class="match-item">闪闪的</div></div>
+      <div class="match-col"><div class="match-item">月亮</div><div class="match-item">星星</div><div class="match-item">太阳</div></div>
+    </div>
+    <p class="question">6. 在括号里填上合适的量词：一<u class="blank-2">&emsp;</u>大树　一<u class="blank-2">&emsp;</u>小鸟</p>
+
+    <h3 class="heading1">三、表达与交流。（共2题，共30分）</h3>
+    <p class="question">1. 仔细观察图画（<span class="marker">[IMAGE]</span> 配图位），写一段话，注意语句通顺。</p>
+    <div class="zuo-wen-ge"><div><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span></div><div><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span></div></div>
+    <p class="question">2. 我的想法：<span class="blank-line">&emsp;&emsp;&emsp;&emsp;</span></p>
+
+    <h3 class="heading1">四、数学·口算与填空。（共4题，每题2分，共8分）</h3>
+    <p class="question">1. 口算：<span class="oral-box">25 + 18 = 43</span>　<span class="oral-box">7 × 6 = 42</span></p>
+    <p class="question">2. 在方框里填上合适的数：<span class="square-box">4</span> × 6 = 24</p>
+    <p class="question">3. 计算面积：边长为5厘米的正方形，面积 = <u class="blank-4">&emsp;</u> 平方厘米</p>
+    <p class="question">4. 竖式计算：</p>
+    <div class="vertical-calculation">
+      <div class="vc-row op">37</div>
+      <div class="vc-row">＋25</div>
+      <div class="vc-line"></div>
+      <div class="vc-result">62</div>
+    </div>
+
+    <h3 class="heading1">五、数学·运算与几何。（共3题，共12分）</h3>
+    <p class="question">1. 脱式计算：</p>
+    <div class="off-formula">
+      <div class="of-line">36 ÷ 4 × 3</div>
+      <div class="of-line">= 9 × 3</div>
+      <div class="of-line">= 27</div>
+    </div>
+    <p class="question">2. 请在方格纸上画出边长为3厘米的正方形（<span class="marker">[GRAPH]</span> 作图网格，也可用下方方格作答）：</p>
+    <div class="square-grid"></div>
+    <p class="question">3. 先写出竖式（<span class="marker">[竖式格]</span>）：</p>
+    <div class="bracket-grid"><div>&nbsp;</div><div>&nbsp;</div><div>&nbsp;</div></div>
+    <p class="question">4. 在虚线上画出对称轴：<span class="dashed-line"></span></p>
+    <p class="question">5. 写出下列数的平方：3² = <u class="blank-2">&emsp;</u>（<span class="superscript">2</span> 为上标示例）　水分子：H<sub class="subscript">2</sub>O</p>
+
+    <h3 class="heading1">六、英语。（共4题，每题2分，共8分）</h3>
+    <p class="question">1. 在四线三格中抄写单词：<span class="four-line-three english-line">cat</span> <span class="four-line-three english-line">dog</span></p>
+    <p class="question">2. 给单词标注音标：apple /ˈæp.əl/，banana /bəˈnɑː.nə/</p>
+    <p class="question">3. 从方框中选择合适的词填空：<span class="word-bank">apple</span> <span class="word-bank">banana</span> <span class="word-bank">orange</span></p>
+    <p class="question">I like the red <u class="blank-3">&emsp;</u>.</p>
+    <p class="question">4. 用 <strong>加粗</strong> 标出重难点单词：<strong>beautiful</strong>，<u>下划线</u> 标出短语：<u>get up</u></p>
+
+    <h3 class="heading1">七、科学·化学。（共3题，共8分）</h3>
+    <p class="question">1. 写出反应条件：铁丝在<span class="chem-condition">点燃</span>条件下与氧气反应生成四氧化三铁。</p>
+    <p class="question">2. 离子符号：钠离子 Na<sup class="superscript">+</sup>，硫酸根 SO<sub class="subscript">4</sub><sup class="superscript">2−</sup></p>
+    <p class="question">3. 元素周期表片段：</p>
+    <table class="periodic-table">
+      <tr><td>H</td><td></td><td></td><td>He</td></tr>
+      <tr><td>Li</td><td>Be</td><td>B</td><td>C</td></tr>
+    </table>
+
+    <h3 class="heading1">八、阅读与拓展。（共2题，共6分）</h3>
+    <div class="reading-passage">
+      春天来了，桃花红了，柳树绿了。小河里的水哗哗地流着，好像在唱歌。小朋友们在公园里放风筝，风筝飞得又高又远。
+    </div>
+    <p class="question">1. 短文共有几句话？用横线画出描写颜色的句子。</p>
+    <div class="extended-thinking">
+      <p><b>拓展思考：</b>如果你是小燕子，你会对春天说些什么？把你的想法写下来，并与同桌说一说。</p>
+      <p>我的想法：<span class="blank-line">&emsp;&emsp;&emsp;&emsp;&emsp;</span></p>
+    </div>
+    <p class="question">2. 本题得分框示例：<span class="score-box">得分：＿＿</span></p>
+
+    <div class="answer-section">
+      <h3>答案与解析</h3>
+      <p>一、1. 春、夏、秋、冬（书写端正，笔顺正确）。</p>
+      <p>二、1. jìn（尽力的"尽"读 jìn）。</p>
+      <p>四、1. 43；42。　2. 4。　3. 25。</p>
+      <p>五、1. 27。　5. 9。</p>
+      <p>六、3. apple。</p>
+      <p>七、2. Na⁺；SO₄²⁻。</p>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<div class="copy-box">
+  <div class="bar">📄 可复制 HTML 片段（模拟生成端输出，无 html/body 包裹 → 粘贴/导入编辑器测试）</div>
+  <textarea readonly id="copyArea"></textarea>
+</div>
+
+<script>
+  const content = `<h1 class="main-title">2025—2026学年第二学期小学三年级语文期末试卷</h1>
+<p class="subtitle">（考试时间：90分钟　满分：100分）</p>
+<h3 class="heading1">一、识字与写字。（共6题，每题3分，共18分）</h3>
+<p class="question">1. 把下列生字端正地写在田字格中。</p>
+<p class="question"><span class="tian-zi-ge">春</span> <span class="tian-zi-ge">夏</span> <span class="tian-zi-ge">秋</span> <span class="tian-zi-ge">冬</span>　（带字田字格）</p>
+<p class="question"><span class="tian-zi-ge"><span>花</span></span> <span class="tian-zi-ge"><span>草</span></span>　（内层span居中带字）</p>
+<p class="question">2. 米字格：<span class="mi-zi-ge">雪</span> <span class="mi-zi-ge">雨</span></p>
+<p class="question">3. 笔画笔顺：<span class="stroke-order" data-strokes="9">秋</span>（9画）</p>
+<p class="question">4. 四线三格（拼音格）：<span class="four-line-three pinyin-line">chūn tiān</span> <span class="four-line-three pinyin-line">fēng</span></p>
+<p class="question">5. 部首标注：<ruby class="radical"><rb>树</rb><rt>木</rt></ruby>；拼音注音：<ruby>好<rt>hǎo</rt></ruby></p>
+<h3 class="heading1">二、积累与运用。（共4题，每题4分，共16分）</h3>
+<p class="question">1. 加点字：<span class="emphasis-dot">尽</span>力</p>
+<p class="question">2. 画线句子：<u class="underline-sentence">小草从地里探出头来。</u></p>
+<p class="question">3. 波浪线（病句）：<span class="wavy-underline">我们要养成认真听课</span>的好习惯。</p>
+<p class="question">4. 双线/单线：<span class="double-line">栩栩如生</span>、<span class="single-line">川流不息</span></p>
+<p class="question">5. 连线题：</p>
+<div class="match-question"><div class="match-col"><div class="match-item">圆圆的</div><div class="match-item">弯弯的</div><div class="match-item">闪闪的</div></div><div class="match-col"><div class="match-item">月亮</div><div class="match-item">星星</div><div class="match-item">太阳</div></div></div>
+<p class="question">6. 填空横线：一<u class="blank-2">&emsp;</u>大树；填空括号：<span class="blank-4">&emsp;</span></p>
+<h3 class="heading1">三、表达与交流。（共2题，共30分）</h3>
+<p class="question">1. 看图写话（配图位 <span class="marker">[IMAGE]</span>）：</p>
+<div class="zuo-wen-ge"><div><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span></div><div><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span></div></div>
+<p class="question">2. 主观题书写区：我的想法：<span class="blank-line">&emsp;&emsp;&emsp;&emsp;</span></p>
+<h3 class="heading1">四、数学·口算与填空。（共4题，每题2分，共8分）</h3>
+<p class="question">1. 口算框：<span class="oral-box">25 + 18 = 43</span> <span class="oral-box">7 × 6 = 42</span></p>
+<p class="question">2. 方框填空：<span class="square-box">4</span> × 6 = 24</p>
+<p class="question">3. 面积：边长5厘米正方形，面积 = <u class="blank-4">&emsp;</u> 平方厘米</p>
+<p class="question">4. 竖式计算：</p>
+<div class="vertical-calculation"><div class="vc-row op">37</div><div class="vc-row">＋25</div><div class="vc-line"></div><div class="vc-result">62</div></div>
+<h3 class="heading1">五、数学·运算与几何。（共3题，共12分）</h3>
+<p class="question">1. 脱式计算：</p>
+<div class="off-formula"><div class="of-line">36 ÷ 4 × 3</div><div class="of-line">= 9 × 3</div><div class="of-line">= 27</div></div>
+<p class="question">2. 作图网格（方格纸作答）：</p>
+<div class="square-grid"></div>
+<p class="question">3. 竖式格：</p>
+<div class="bracket-grid"><div>&nbsp;</div><div>&nbsp;</div><div>&nbsp;</div></div>
+<p class="question">4. 辅助线虚线：<span class="dashed-line"></span></p>
+<p class="question">5. 上标下标：3<span class="superscript">2</span> = <u class="blank-2">&emsp;</u>；H<sub class="subscript">2</sub>O</p>
+<h3 class="heading1">六、英语。（共4题，每题2分，共8分）</h3>
+<p class="question">1. 四线三格（英语格）：<span class="four-line-three english-line">cat</span> <span class="four-line-three english-line">dog</span></p>
+<p class="question">2. 音标：apple /ˈæp.əl/</p>
+<p class="question">3. 词库框：<span class="word-bank">apple</span> <span class="word-bank">banana</span> <span class="word-bank">orange</span>；I like the red <u class="blank-3">&emsp;</u>.</p>
+<p class="question">4. 重难点加粗 <strong>beautiful</strong>；短语下划线 <u>get up</u></p>
+<h3 class="heading1">七、科学·化学。（共3题，共8分）</h3>
+<p class="question">1. 反应条件：铁丝在<span class="chem-condition">点燃</span>条件下与氧气反应。</p>
+<p class="question">2. 离子符号：Na<sup class="superscript">+</sup>，SO<sub class="subscript">4</sub><sup class="superscript">2−</sup></p>
+<p class="question">3. 元素周期表片段：</p>
+<table class="periodic-table"><tr><td>H</td><td></td><td></td><td>He</td></tr><tr><td>Li</td><td>Be</td><td>B</td><td>C</td></tr></table>
+<h3 class="heading1">八、阅读与拓展。（共2题，共6分）</h3>
+<div class="reading-passage">春天来了，桃花红了，柳树绿了。小河里的水哗哗地流着，好像在唱歌。小朋友们在公园里放风筝，风筝飞得又高又远。</div>
+<p class="question">1. 短文共有几句话？用横线画出描写颜色的句子。</p>
+<div class="extended-thinking"><p><b>拓展思考：</b>如果你是小燕子，你会对春天说些什么？</p><p>我的想法：<span class="blank-line">&emsp;&emsp;&emsp;&emsp;&emsp;</span></p></div>
+<p class="question">2. 得分框：<span class="score-box">得分：＿＿</span></p>
+<div class="answer-section"><h3>答案与解析</h3><p>一、1. 春、夏、秋、冬。　二、1. jìn。　四、1. 43；42。　五、1. 27。　七、2. Na⁺。</p></div>`;
+  document.getElementById('copyArea').value = content;
+</script>
+
+</body>
+</html>

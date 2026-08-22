@@ -302,15 +302,17 @@ const buildTextRuns = (node, styleOverride = {}) => {
       return;
     }
     if (cls.contains('wavy-underline')) {
-      runs.push(new TextRun({ text, underline: { type: 'wavy', color: 'D32F2F' }, ...ctx }));
+      // 🔧 type 用 docx 枚举 'wave'（'wavy' 无效会被忽略）；...ctx 先展开，underline 后置覆盖继承的 single
+      runs.push(new TextRun({ ...ctx, text, underline: { type: 'wave', color: 'D32F2F' } }));
       return;
     }
     if (cls.contains('double-line')) {
-      runs.push(new TextRun({ text, underline: { type: 'double' }, ...ctx }));
+      // 🔧 修复：原 ...ctx 在后导致 ctx.underline(single) 覆盖 double——underline 必须后置
+      runs.push(new TextRun({ ...ctx, text, underline: { type: 'double' } }));
       return;
     }
     if (cls.contains('single-line')) {
-      runs.push(new TextRun({ text, underline: { type: 'single' }, ...ctx }));
+      runs.push(new TextRun({ ...ctx, text, underline: { type: 'single' } }));
       return;
     }
     // === 四线三格 / 四线格 ===
