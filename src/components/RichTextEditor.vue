@@ -1396,9 +1396,16 @@ let pendingContent = props.modelValue || null;
 const trySetContent = () => {
   if (!editor.value || pendingContent === null) return;
   // 🔧 载入前预处理：class 样式 → 内联 → ruby 标签 → span.ruby-char
-  let processed = normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(pendingContent))));
-  // 🔧 载入前预处理：<ol> 双编号去重
-  processed = normalizeDoubleNumberedLists(processed);
+  let processed;
+  try {
+    processed = normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(pendingContent))));
+    // 🔧 载入前预处理：<ol> 双编号去重
+    processed = normalizeDoubleNumberedLists(processed);
+  } catch (e) {
+    // 🔧 防御：预处理异常时回退原始内容，确保内容始终可加载（不因单点异常导致空白）
+    console.warn('编辑器内容预处理失败，使用原始内容:', e);
+    processed = pendingContent;
+  }
   if (processed !== editor.value.getHTML()) {
     editor.value.commands.setContent(processed, false);
   }

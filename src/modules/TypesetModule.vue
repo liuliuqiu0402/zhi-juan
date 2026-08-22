@@ -1095,7 +1095,13 @@ const effectiveThemeFor = (src) => (src && sealMarkRegex.test(src) ? 'sealed_exa
 //    固定件在编辑区完整可见；保存回写时剥离（由导出端重新注入）
 const withExamShell = (html, stage) => {
   if (!html || typeof html !== 'string') return html || '';
-  return injectExamShell(normalizeSealStructure(html), stage || 'primary');
+  try {
+    return injectExamShell(normalizeSealStructure(html), stage || 'primary');
+  } catch (e) {
+    // 🔧 防御：固定件注入失败时回退原始内容，确保编辑器始终可加载
+    console.warn('卷面固定件注入失败，使用原始内容:', e);
+    return html;
+  }
 };
 
 const loadContentSilent = (content) => {
