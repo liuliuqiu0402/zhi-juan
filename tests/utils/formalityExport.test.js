@@ -91,9 +91,8 @@ describe('卷面规范 A3："本试卷共＿页" → SECTIONPAGES 域（正文�
     expect(xml).toContain('本试卷共 4 页');
   });
 
-  it('settings.xml 声明打开时更新域（w:updateFields）：Word/WPS 打开即刷新页码为真实页数', async () => {
+  it('settings.xml 声明打开时更新域（显式 w:updateFields w:val="true"）：Word/WPS 打开即刷新页码为真实页数', async () => {
     const settingsXml = await getSettingsXml('<p class="notice-item">3．本试卷共＿页。</p>');
-    // docx 库对 true 省略 w:val（<w:updateFields/> 即开启）
-    expect(settingsXml).toMatch(/<w:updateFields(?:\s*\/>|\s+w:val="true"\/>)/);
+    expect(settingsXml).toContain('<w:updateFields w:val="true"/>');
   });
 });

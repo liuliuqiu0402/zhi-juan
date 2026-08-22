@@ -836,12 +836,19 @@ export const injectDrawingML = async (zipBuffer) => {
   if (hasSealHeader) {
     docXml = docXml.replace(/<w:pgMar\b([^>]*?)\/>/g, '<w:pgMar$1 w:mirrorMargins="1"/>');
     zip.file(docPath, docXml);
-    const settingsPath = 'word/settings.xml';
-    let settingsXml = await zip.file(settingsPath)?.async('string');
-    if (settingsXml && !settingsXml.includes('<w:evenAndOddHeaders/>')) {
+  }
+
+  // 🔧 settings.xml：evenAndOddHeaders（密封文档）+ updateFields 显式化（所有文档）
+  //    docx 库生成 <w:updateFields/>（省略 w:val），部分查看器（WPS 等）要求显式
+  //    w:val="true" 才在打开时更新域——否则 PAGE/SECTIONPAGES 显示缓存值（如"共1页"）。
+  const settingsPath = 'word/settings.xml';
+  let settingsXml = await zip.file(settingsPath)?.async('string');
+  if (settingsXml) {
+    if (hasSealHeader && !settingsXml.includes('<w:evenAndOddHeaders/>')) {
       settingsXml = settingsXml.replace(/<\/w:settings>/i, '<w:evenAndOddHeaders/></w:settings>');
-      zip.file(settingsPath, settingsXml);
     }
+    settingsXml = settingsXml.replace(/<w:updateFields\s*\/>/g, '<w:updateFields w:val="true"/>');
+    zip.file(settingsPath, settingsXml);
   }
 
   return await zip.generateAsync({
