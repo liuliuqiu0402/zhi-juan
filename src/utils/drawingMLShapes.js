@@ -163,19 +163,18 @@ const groupAnchor = (o) => {
  * @param {number} gapEmu 行内模式与前文的间隔（EMU，默认0）
  */
 /**
- * 四线三格字符 Textbox：与 4 条线同在 wpg 群组坐标系 → Word 原生水平/垂直居中
- * 垂直位置：预览 ::before 第 2 线(0.55em)与第 3 线(1.0em)之间，textbox 覆盖 0.4~1.2em，anchor=ctr 居中
- * （修复：旧实现字母为流式 <w:t>，与绝对定位线条靠 NBSP 撑宽对齐，字体/宽度偏差导致文字右移出格）
+ * 四线三格字符 Textbox：与 4 条线同在 wpg 群组坐标系 → Word 原生水平居中
+ * 垂直：textbox 覆盖 0~groupCy（第 1 线至第 4 线下方），anchor="ctr" → 文字中心≈0.75em
+ * （第 2 线 0.55em 与第 3 线 1.0em 之间，符合四线格书写规范）；
+ * 段落单倍行高（w:line=240 auto）防行高膨胀把文字挤到第 3 线下（修复导出文字偏下）
  */
-const textboxFlt = (id, letter, sizeHp, font, W, pts, colorTag = '', bold = false, italic = false) => {
+const textboxFlt = (id, letter, sizeHp, font, W, cy, pts, colorTag = '', bold = false, italic = false) => {
   const sz = String(sizeHp || 28);
-  const y = Math.round(0.4 * pts * EMU_PER_PT);
-  const cy = Math.round(0.8 * pts * EMU_PER_PT);
   return `<wps:wsp>
     <wps:cNvPr id="${id}" name="FLT-Char"/>
     <wps:cNvSpPr txBox="1"/>
     <wps:spPr>
-      <a:xfrm><a:off x="0" y="${y}"/><a:ext cx="${W}" cy="${cy}"/></a:xfrm>
+      <a:xfrm><a:off x="0" y="0"/><a:ext cx="${W}" cy="${cy}"/></a:xfrm>
       <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
       <a:noFill/>
     </wps:spPr>
@@ -184,6 +183,7 @@ const textboxFlt = (id, letter, sizeHp, font, W, pts, colorTag = '', bold = fals
         <w:p>
           <w:pPr>
             <w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>
+            <w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>
             <w:jc w:val="center"/>
           </w:pPr>
           <w:r>
@@ -216,7 +216,7 @@ const fltLineAnchors = (lineWEmu, pts, idBase, centerAlign = false, gapEmu = 0, 
     dash: false,
   }));
   const shapesXml = shapes.map(childShape).join('')
-    + (letter ? textboxFlt(idBase + 10, letter, sizeHp, font, lineWEmu, pts, colorTag, bold, italic) : '');
+    + (letter ? textboxFlt(idBase + 10, letter, sizeHp, font, lineWEmu, groupCy, pts, colorTag, bold, italic) : '');
   const choice = groupAnchor({
     id: idBase,
     name: 'FourLineGrid',
@@ -402,13 +402,11 @@ const buildInlineTzg = (char, cellWEmu, idBase, rPrXml, pinyin = '') => {
     + '<w:r>' + anchorRPr + '<w:t xml:space="preserve"> </w:t></w:r>';
 };
 
-/** 行内四线三格：anchor 在 text 前，前置 0.5em 间隔，字母进群组 Textbox（Word 原生居中） */
+/** 行内四线三格（带字）：三 run 结构（仿田字格，锚点稳定 + spacing 精确撑宽） */
 const buildInlineFlt = (letter, cellWEmu, sizeHp, idBase, rPrXml) => {
   const pts = sizeHp / 2;
   const sz = String(sizeHp || 28);
   const lineWEmu = cellWEmu; // 线条全宽（与预览 ::before left:0;right:0 一致）
-  // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
-  const padRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>`;
   // 从标记 run 的 rPr 提取字体/颜色/粗斜体 → 注入字母 textbox，原汁原味复现预览样式
   const src = rPrXml || '';
   const fontMatch = src.match(/w:ascii="([^"]*)"/);
@@ -417,32 +415,41 @@ const buildInlineFlt = (letter, cellWEmu, sizeHp, idBase, rPrXml) => {
   const colorTag = colorMatch ? `<w:color w:val="${colorMatch[1]}"/>` : '';
   const hasBold = src.includes('<w:b/>') || src.includes('<w:b ');
   const hasItalic = src.includes('<w:i/>') || src.includes('<w:i ');
-  const HALF = '&#xa0;';   // NBSP 按宋体渲染宽 0.5em
+  // 🔧 pad 撑宽改用 w:spacing 字符间距（WPS 中宋体 NBSP 为 1em、Word 为 0.5em，旧 NBSP pad 宽度翻倍偏差）：
+  //    run3 = 普通空格(0.5em 两引擎一致) + spacing = 总宽 gapEmu(0.5em) + cellW，线条右缘后不留空白
+  const emEmu = sizeHp * 10 * EMU_PER_DXA;
+  const cellWEm = Math.max(1, cellWEmu / emEmu);
+  const padSpacing = Math.round(cellWEm * sizeHp * 20); // cellW em → twip
+  // 🔧 前置零宽占位 run（U+200C）：WPS 锚点取前字符 → 与 Word 锚点位置重合（防多格连续时锚点重叠/丢格）
+  const fontRPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/>`;
+  const zeroRPr = `<w:rPr>${fontRPr}</w:rPr>`;
+  const anchorRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:spacing w:val="${padSpacing}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/></w:rPr>`;
   // 🔧 行内模式 behindDoc="0"：防止线条被段落底纹遮挡
-  // 🔧 字母传入 fltLineAnchors → 作为 textbox 加入群组坐标系（Word 原生居中，
-  //    修复旧流式 <w:t> 字母与绝对定位线条靠 NBSP 撑宽对齐导致的文字右移出格）
+  // 🔧 字母传入 fltLineAnchors → 作为 textbox 加入群组坐标系（Word 原生居中，文字右移/下移出格均修复）
   const anchors = fltLineAnchors(lineWEmu, pts, idBase, false, gapEmuOf(sizeHp), letter, sizeHp, font, colorTag, hasBold, hasItalic)
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
-  return '<w:r>' + padRPr + anchors
-    + '<w:t xml:space="preserve">' + GAP_EN + HALF + '</w:t></w:r>';
+  return '<w:r>' + zeroRPr + '<w:t xml:space="preserve">\u200C</w:t></w:r>'
+    + '<w:r>' + zeroRPr + anchors + '</w:r>'
+    + '<w:r>' + anchorRPr + '<w:t xml:space="preserve"> </w:t></w:r>';
 };
 
-/** 行内空白四线三格：anchor 在 text 前，前置 0.5em 间隔，pad(¼em+N×em+¼em) 与 cellW 精确等宽 */
+/** 行内空白四线三格（默写留空）：同三 run 结构，run3 撑宽 = gap(0.5em) + cellW */
 const buildInlineFltBlank = (cellWEmu, sizeHp, idBase, rPrXml) => {
   const pts = sizeHp / 2;
   const sz = String(sizeHp || 28);
   const lineWEmu = cellWEmu;
   const emEmu = sizeHp * 10 * EMU_PER_DXA;
-  const halfEmEmu = Math.round(emEmu / 2);
-  const n = Math.max(1, Math.round((cellWEmu - halfEmEmu) / emEmu));
-  const pad = GAP_EN + '&#xa0;'.repeat(n * 2 + 1); // 前置0.5em + (n+0.5)em = (n+1)em（NBSP 宋体 0.5em/NBSP）
-  // 🔧 pad 空格统一用 NBSP（&#xa0;）：全字体必覆盖，杜绝 WPS/缺字环境渲染为可见点
-  const padRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>`;
+  const cellWEm = Math.max(1, cellWEmu / emEmu);
+  const padSpacing = Math.round(cellWEm * sizeHp * 20);
+  const fontRPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/>`;
+  const zeroRPr = `<w:rPr>${fontRPr}</w:rPr>`;
+  const anchorRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:spacing w:val="${padSpacing}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/></w:rPr>`;
   // 🔧 行内模式 behindDoc="0"：防止线条被段落底纹遮挡
   const anchors = fltLineAnchors(lineWEmu, pts, idBase, false, gapEmuOf(sizeHp))
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
-  return '<w:r>' + padRPr + anchors
-    + '<w:t xml:space="preserve">' + pad + '</w:t></w:r>';
+  return '<w:r>' + zeroRPr + '<w:t xml:space="preserve">\u200C</w:t></w:r>'
+    + '<w:r>' + zeroRPr + anchors + '</w:r>'
+    + '<w:r>' + anchorRPr + '<w:t xml:space="preserve"> </w:t></w:r>';
 };
 
 // ============ 标记格式 ============
