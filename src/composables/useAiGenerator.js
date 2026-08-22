@@ -8959,7 +8959,7 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
       // ========== 第三级：蓝图vs生成的结构化对比 ✨新增 ==========
       if (parsedBlueprint.length > 0) {
         const generatedCount = (content.match(/class="[^"]*question[^"]*"/gi) || []).length;
-        qualityReport.coverageCheck.details.push(`蓝图规划${parsedBlueprint.length}题，实际生成${generatedCount}题`);
+        qualityReport.coverageCheck.details.push(`蓝图规划${parsedBlueprint.length}题，实际生成${generatedCount}题（页数优先，实际可超出规划）`);
         
         // 题型对比
         const blueprintTypes = [...new Set(parsedBlueprint.map(q => q.type))];
@@ -11326,7 +11326,7 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 800)}
       }
 
         qualityReport.difficultyCheck.details.push(
-          `蓝图规划${parsedBlueprint.length}题，实际生成${questionCount}题`
+          `蓝图规划${parsedBlueprint.length}题，实际生成${questionCount}题（页数优先，实际可超出规划）`
         );
 
       // ========== 第三级：模板对标量化 ==========

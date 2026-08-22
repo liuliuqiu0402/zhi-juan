@@ -542,8 +542,10 @@ export class HardRuleChecker {
       // 🔧 降级为 warning：DeepSeek 输出可能使用不同的 CSS class（如 question-item / exam-question）
       // 不应因 class 名不匹配而阻断正常流程，真正的缺失会在后续答案检查中暴露
       issues.push({ severity: 'warning', type: '题目标记缺失', detail: '未检测到 class="question" 标记（DeepSeek输出可能使用其他class名），已跳过题目数量校验', autoFix: false });
-    } else if (Math.abs(actualCount - expectedCount) > 2) {
-      issues.push({ severity: 'warning', type: '题目数量不一致', detail: `蓝图规划${expectedCount}题，实际检测到${actualCount}题`, autoFix: false });
+    } else if (actualCount < expectedCount - 2) {
+      // 🔧 页数优先（蓝图条款13）：蓝图题量为参考下限，按页数要求可增加题量（实际>蓝图=正常加题，不提示），
+      //    仅当实际题量明显不足（少于规划2题以上）才提示，避免"页数优先加题"被误报为数量不一致
+      issues.push({ severity: 'warning', type: '题目数量不足', detail: `蓝图规划${expectedCount}题，实际仅${actualCount}题，题量偏少可能不满足页数要求`, autoFix: false });
     }
     return issues;
   }
