@@ -3,7 +3,7 @@
 // 输出：docx 库的 Document 对象 → Packer.toBlob()
 
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader } from 'docx';
-import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
+import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
 
 // ============ 工具函数 ============
@@ -917,10 +917,15 @@ let __sealCollector = null;
 //    拆分为两个 Word 分节（答案页独立编号从 1 起；正文页脚"共X页"只计正文、不含答案页）。
 const ANSWER_SPLIT_MARKER = Symbol('answer-section-split');
 
-/** 密封线 marker 段落（放页眉，后处理替换为浮动文本框；lineOnly 时仅 虚线+密/封/线） */
-const sealMarkerParagraph = (fields, sizeHp, lineOnly = false) => new Paragraph({
-  children: [new TextRun({ text: (lineOnly ? SEAL_MARKER_LINE : SEAL_MARKER)(fields.join('\u0001'), sizeHp), size: sizeHp, color: '999999', font: 'SimSun' })],
-});
+/** 密封线 marker 段落（放页眉，后处理替换为浮动文本框；lineOnly 时仅 虚线+密/封/线；mirror 时偶页镜像到右侧靠书脊） */
+const sealMarkerParagraph = (fields, sizeHp, lineOnly = false, mirror = false) => {
+  const mk = mirror
+    ? (lineOnly ? SEAL_MARKER_LINE_RIGHT : SEAL_MARKER_RIGHT)
+    : (lineOnly ? SEAL_MARKER_LINE : SEAL_MARKER);
+  return new Paragraph({
+    children: [new TextRun({ text: mk(fields.join('\u0001'), sizeHp), size: sizeHp, color: '999999', font: 'SimSun' })],
+  });
+};
 
 /** 页码页脚段落："第X页　共X页"（PAGE + 域，显式纯黑）
  *  totalField 默认 SECTIONPAGES：正文分节"共X页"只计正文（不含答案页），答案分节"共X页"只计答案页自身。 */
@@ -1781,10 +1786,12 @@ export const buildDocxFromDom = (containerEl) => {
   if (hasSealLine) {
     const fields = sealFirst?.fields?.length ? sealFirst.fields : ['密封线'];
     const sizeHp = sealFirst?.sizeHp || 20;
-    // 🔧 密封线随页眉渲染：首页页眉全量（线/封/密 + 提示语 + 信息栏），后续页默认页眉仅 虚线+密/封/线
+    // 🔧 密封线随页眉渲染：首页页眉全量（线/封/密 + 提示语 + 信息栏），后续页默认页眉仅 虚线+密/封/线；
+    //    even 页眉：正式试卷对开版式，偶页（反面）密封线镜像到右侧靠书脊
     sealHeaders = {
       first: new Header({ children: [sealMarkerParagraph(fields, sizeHp)] }),
       default: new Header({ children: [sealMarkerParagraph(fields, sizeHp, true)] }),
+      even: new Header({ children: [sealMarkerParagraph(fields, sizeHp, true, true)] }),
     };
     // 🔧 左右边距 2.5cm（1417 DXA）：左侧给密封区留呼吸空间（虚线 19mm + 6mm 不贴正文），右侧对称
     leftMargin = 1417;
@@ -1809,7 +1816,7 @@ export const buildDocxFromDom = (containerEl) => {
     //    ⚠️ 密封文档开启 different-first-page 后必须同时提供 first 页脚，否则 Word 首页不显示页码
     //    ⚠️ 显式黑色：页码为 PAGE/SECTIONPAGES 域，Word 默认给域加浅灰底纹（显示设置），文字本身保持纯黑
     footers: {
-      ...(hasSealLine ? { first: new Footer({ children: [pageNumberParagraph()] }) } : {}),
+      ...(hasSealLine ? { first: new Footer({ children: [pageNumberParagraph()] }), even: new Footer({ children: [pageNumberParagraph()] }) } : {}),
       default: new Footer({ children: [pageNumberParagraph()] }),
     },
     children: bodyChildren,
@@ -1825,15 +1832,21 @@ export const buildDocxFromDom = (containerEl) => {
           pageNumbers: { start: 1 },
         },
       },
-      ...(sealHeaders ? { headers: { default: new Header({ children: [] }) } } : {}),
+      ...(sealHeaders ? { headers: { default: new Header({ children: [] }), even: new Header({ children: [] }) } } : {}),
       footers: {
         default: new Footer({ children: [pageNumberParagraph()] }),
+        even: new Footer({ children: [pageNumberParagraph()] }),
       },
       children: answerChildren,
     });
   }
 
-  return new Document({ sections });
+  return new Document({
+    sections,
+    // 🔧 正式试卷对开版式：启用「奇偶页不同页眉/页脚」（settings.xml 写 w:evenAndOddHeaders），
+    //    配合 even 页眉的右侧镜像密封线，装订后每页密封线都靠书脊
+    evenAndOddHeaderAndFooters: hasSealLine,
+  });
 };
 
 

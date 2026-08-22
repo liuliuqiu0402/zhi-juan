@@ -430,6 +430,9 @@ export const RUBY_MARKER = (baseText, pinyin, baseSizeHp) => `__RUBY_${baseText}
 export const SEAL_MARKER = (text, sizeHp) => `__SEAL_${encodeURIComponent(text)}_${sizeHp}__`;
 // 🔧 后续页专用 marker：仅虚线 + 密/封/线 三字（无提示语/信息栏），随默认页眉每页渲染
 export const SEAL_MARKER_LINE = (text, sizeHp) => `__SEALLINE_${encodeURIComponent(text)}_${sizeHp}__`;
+// 🔧 偶数页（反面）镜像 marker：正式试卷对开版式，密封线靠书脊（右侧），由 even 页眉承载
+export const SEAL_MARKER_RIGHT = (text, sizeHp) => `__SEALR_${encodeURIComponent(text)}_${sizeHp}__`;
+export const SEAL_MARKER_LINE_RIGHT = (text, sizeHp) => `__SEALLINER_${encodeURIComponent(text)}_${sizeHp}__`;
 
 // ============ Ruby 注音注入 ============
 
@@ -471,6 +474,9 @@ const injectRubyAnnotations = (docXml) => {
 const blockSealRegex = /<w:p[^>]*>\s*(?:<w:pPr[^>]*>(?:(?!<w:r>)[\s\S])*?<\/w:pPr>)?\s*<w:r[^>]*>\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?\s*<w:t[^>]*>__SEAL_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>\s*<\/w:p>/g;
 // 后续页 marker（仅 虚线+密/封/线）：__SEALLINE_…__ 先于 __SEAL_ 替换
 const blockSealLineRegex = /<w:p[^>]*>\s*(?:<w:pPr[^>]*>(?:(?!<w:r>)[\s\S])*?<\/w:pPr>)?\s*<w:r[^>]*>\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?\s*<w:t[^>]*>__SEALLINE_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>\s*<\/w:p>/g;
+// 🔧 偶页镜像 marker（右侧、靠书脊）：__SEALLINER_/__SEALR_ 先于普通 marker 替换（避免前缀误匹配）
+const blockSealLineRegexR = /<w:p[^>]*>\s*(?:<w:pPr[^>]*>(?:(?!<w:r>)[\s\S])*?<\/w:pPr>)?\s*<w:r[^>]*>\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?\s*<w:t[^>]*>__SEALLINER_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>\s*<\/w:p>/g;
+const blockSealRegexR = /<w:p[^>]*>\s*(?:<w:pPr[^>]*>(?:(?!<w:r>)[\s\S])*?<\/w:pPr>)?\s*<w:r[^>]*>\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?\s*<w:t[^>]*>__SEALR_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>\s*<\/w:p>/g;
 
 // EMU 常量：1mm = 36000 EMU；1pt 线宽 = 12700 EMU
 const EMU_PER_MM = 36000;
@@ -490,7 +496,7 @@ const EMU_LINE_1PT = 12700;
  *   可被鼠标选中 → 在页眉编辑状态下点击即可出现文本框编辑文字。
  * ⚠️ 多字字段可能粘有密封线字符（如"密封线内不要答题封""学号：＿密"），提取时剥离尾部密/封/线
  */
-const sealGroupOOXML = (text, idBase, lineOnly = false) => {
+const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false) => {
   const fields = String(text || '密封线').split('\u0001').map((f) => f.trim()).filter(Boolean);
   const stripSealSuffix = (s) => String(s || '').replace(/[密封线]+$/g, '');
   // 🔧 学校/班级/姓名/学号 后的下划线统一为 8 个全角 ＿（"再长一些且一致"）
@@ -502,11 +508,13 @@ const sealGroupOOXML = (text, idBase, lineOnly = false) => {
   const midChar = charOf('封', '封');
   const botChar = charOf('密', '密');
 
-  // 文字框：整框旋转 90° CCW（字头朝左）。visualBox = 旋转后视觉框 {x,y,w,h}
+  // 文字框：整框旋转（左版 270°=字头朝左；镜像版 90°=字头朝右）。visualBox = 旋转后视觉框 {x,y,w,h}
   //  - 旋转后框宽 w ≈ 行高（≈1.35×字号），高 h = 文本长度 L（每字 ≈ 字号宽）+ 两端留白 pad
   //  - 文本正常顺序横排居中；旋转后左端（首字）落底 → 从下往上读
   //  - pad=1.5mm 两端留白：防整框旋转后首/尾字符贴边被裁剪（Word/WPS 均完整可见）
+  //  - mirror：偶页对开镜像——offX 关于页面中线（210mm）水平翻转、字头朝右（靠书脊）
   const pad = 1.5;
+  const ROT = mirror ? 9000000 : 16200000;
   const txbx = (id, name, xMm, yMm, t, szPt, bold) => {
     const sz = Math.round(szPt * 2); // 半磅
     const Lmm = [...t].length * szPt * 0.353;   // 文本长度：每字 ≈ 字号(pt)→mm
@@ -516,14 +524,14 @@ const sealGroupOOXML = (text, idBase, lineOnly = false) => {
     const cx = xMm + wVis / 2;
     const cy = yMm + hVis / 2;
     // 未旋转文本框：宽 Lmm+2pad、高 HlineMm，中心同视觉框；rot=16200000（270°= 逆时针 90°）
-    const offX = cx - (Lmm + 2 * pad) / 2;
+    let offX = cx - (Lmm + 2 * pad) / 2;
     const offY = cy - HlineMm / 2;
-    const rot = 16200000;
+    if (mirror) offX = 210 - offX - (Lmm + 2 * pad); // 水平镜像到右侧（虚线 191mm、文字贴右纸边）
     return `<wps:wsp>
       <wps:cNvPr id="${id}" name="${name}"/>
       <wps:cNvSpPr txBox="1"/>
       <wps:spPr>
-        <a:xfrm rot="${rot}"><a:off x="${Math.round(offX * EMU_PER_MM)}" y="${Math.round(offY * EMU_PER_MM)}"/><a:ext cx="${Math.round((Lmm + 2 * pad) * EMU_PER_MM)}" cy="${Math.round(HlineMm * EMU_PER_MM)}"/></a:xfrm>
+        <a:xfrm rot="${ROT}"><a:off x="${Math.round(offX * EMU_PER_MM)}" y="${Math.round(offY * EMU_PER_MM)}"/><a:ext cx="${Math.round((Lmm + 2 * pad) * EMU_PER_MM)}" cy="${Math.round(HlineMm * EMU_PER_MM)}"/></a:xfrm>
         <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
         <a:noFill/>
       </wps:spPr>
@@ -571,12 +579,13 @@ const sealGroupOOXML = (text, idBase, lineOnly = false) => {
   const tipY = groupTop;
   const infoY = groupTop + tipBoxH + BOX_GAP;
 
-  // 竖虚线（x=19mm，从上边距 20mm 到 下边距 277mm，与上下边距对齐）
+  // 竖虚线（左版 x=19mm，镜像版 x=191mm；从上边距 20mm 到 下边距 277mm，与上下边距对齐）
+  const lineX = mirror ? 191 : 19;
   const lineShape = `<wps:wsp>
     <wps:cNvPr id="${idBase + 1}" name="SealLine"/>
     <wps:cNvSpPr/>
     <wps:spPr>
-      <a:xfrm><a:off x="${Math.round(19 * EMU_PER_MM)}" y="${Math.round(20 * EMU_PER_MM)}"/><a:ext cx="${EMU_LINE_1PT}" cy="${Math.round(257 * EMU_PER_MM)}"/></a:xfrm>
+      <a:xfrm><a:off x="${Math.round(lineX * EMU_PER_MM)}" y="${Math.round(20 * EMU_PER_MM)}"/><a:ext cx="${EMU_LINE_1PT}" cy="${Math.round(257 * EMU_PER_MM)}"/></a:xfrm>
       <a:prstGeom prst="line"><a:avLst/></a:prstGeom>
       <a:noFill/>
       <a:ln w="9525"><a:solidFill><a:srgbClr val="000000"/></a:solidFill><a:prstDash val="dash"/></a:ln>
@@ -605,7 +614,18 @@ const replaceSealMarkers = (xml) => {
   const decode = (encText) => {
     try { return decodeURIComponent(encText); } catch { return '密封线'; }
   };
-  let out = xml.replace(blockSealLineRegex, (match, encText) => {
+  // 🔧 镜像 marker（even 页眉，右侧靠书脊）先替换，避免普通 marker 前缀误匹配
+  let out = xml.replace(blockSealLineRegexR, (match, encText) => {
+    changed = true;
+    const idBase = Math.floor(Math.random() * 90000) + 50000;
+    return toPara(sealGroupOOXML(decode(encText), idBase, true, true));
+  });
+  out = out.replace(blockSealRegexR, (match, encText) => {
+    changed = true;
+    const idBase = Math.floor(Math.random() * 90000) + 50000;
+    return toPara(sealGroupOOXML(decode(encText), idBase, false, true));
+  });
+  out = out.replace(blockSealLineRegex, (match, encText) => {
     changed = true;
     const idBase = Math.floor(Math.random() * 90000) + 50000;
     return toPara(sealGroupOOXML(decode(encText), idBase, true));
@@ -786,14 +806,30 @@ export const injectDrawingML = async (zipBuffer) => {
   // ==== 页眉密封线后处理：header*.xml 内 SEAL marker → 浮动文本框（每页重复渲染）====
   // 密封线放在页眉（含首页 different-first-page），使每页都渲染；正文流不再携带 seal marker。
   const headerPaths = Object.keys(zip.files).filter((p) => /^word\/header\d*\.xml$/.test(p) && !zip.files[p].dir);
+  let hasSealHeader = false;
   for (const hPath of headerPaths) {
     let hXml = await zip.file(hPath)?.async('string');
     if (!hXml) continue;
     const sealResult = replaceSealMarkers(hXml);
     if (sealResult.changed) {
+      hasSealHeader = true;
       hXml = sealResult.xml;
       hXml = applyDocNamespaces(hXml, 'w:hdr');
       zip.file(hPath, hXml);
+    }
+  }
+
+  // 🔧 正式试卷对开版式：密封文档启用「对称页边距」+「奇偶页不同页眉/页脚」
+  //    - w:mirrorMargins 注入每个 pgMar（偶页 left/right 互换；当前左右对称无视觉影响，规范标注）
+  //    - w:evenAndOddHeaders 注入 settings.xml（docx 库由 evenAndOddHeaderAndFooters 生成，兜底再注入）
+  if (hasSealHeader) {
+    docXml = docXml.replace(/<w:pgMar\b([^>]*?)\/>/g, '<w:pgMar$1 w:mirrorMargins="1"/>');
+    zip.file(docPath, docXml);
+    const settingsPath = 'word/settings.xml';
+    let settingsXml = await zip.file(settingsPath)?.async('string');
+    if (settingsXml && !settingsXml.includes('<w:evenAndOddHeaders/>')) {
+      settingsXml = settingsXml.replace(/<\/w:settings>/i, '<w:evenAndOddHeaders/></w:settings>');
+      zip.file(settingsPath, settingsXml);
     }
   }
 

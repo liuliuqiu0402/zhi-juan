@@ -51,11 +51,28 @@ const getPart = async (zip, name) => {
 };
 
 // 🔧 密封线随页眉渲染：读取含/不含 SealTip 的页眉部件（首页全量 / 后续页仅 虚线+密/封/线）
+//    lineOnly 时优先返回左侧（非镜像）版本，偶页镜像 header 由 sealEvenHeaderXml 单独读取
 const sealHeaderXml = async (zip, withTip = true) => {
   const names = Object.keys(zip.files).filter((p) => /^word\/header\d+\.xml$/.test(p));
   for (const n of names) {
     const x = await getPart(zip, n);
+    if (!x || x.includes('SealTip') !== withTip) continue;
+    if (withTip || x.includes(`x="${19 * 36000}"`)) return x;
+  }
+  // 兜底：未命中左侧版时退回任意匹配项
+  for (const n of names) {
+    const x = await getPart(zip, n);
     if (x && x.includes('SealTip') === withTip) return x;
+  }
+  return null;
+};
+
+// 🔧 偶页（even）页眉：镜像密封线特征为虚线在右侧 x=191mm（6876000 EMU）
+const sealEvenHeaderXml = async (zip) => {
+  const names = Object.keys(zip.files).filter((p) => /^word\/header\d+\.xml$/.test(p));
+  for (const n of names) {
+    const x = await getPart(zip, n);
+    if (x && x.includes(`x="${191 * 36000}"`)) return x;
   }
   return null;
 };
@@ -303,18 +320,59 @@ describe('密封线导出：wpg 浮动群组（左侧页边距内 0~20mm，不�
     expect(fXml).toContain('PAGE'); // Word 页码字段（第X页　共X页）
   });
 
-  it('密封文档：首页与后续页均显示页码（first+default 页脚，显式纯黑 000000）', async () => {
+  it('密封文档：首页与后续页均显示页码（first+default+even 页脚，显式纯黑 000000）', async () => {
     const zip = await buildZip(TEMPLATE_HTML);
     const docXml = await getPart(zip, 'word/document.xml');
     expect(docXml).toMatch(/w:footerReference w:type="first"/);
     expect(docXml).toMatch(/w:footerReference w:type="default"/);
+    expect(docXml).toMatch(/w:footerReference w:type="even"/);
     const footers = Object.keys(zip.files).filter((p) => /^word\/footer\d+\.xml$/.test(p));
-    expect(footers.length).toBe(2);
+    expect(footers.length).toBe(3); // first + default + even（奇偶页均有页码）
     for (const fp of footers) {
       const fXml = await getPart(zip, fp);
       expect(fXml).toContain('第');
       expect(fXml).toContain('PAGE');
       expect(fXml).toContain('<w:color w:val="000000"/>'); // 页码纯黑（灰感来自 Word 域底纹显示，非文档颜色）
     }
+  });
+
+  it('正式试卷对开版式：even 页眉镜像密封线靠书脊（右侧 191mm），启用奇偶页+对称页边距', async () => {
+    const zip = await buildZip(TEMPLATE_HTML);
+    const docXml = await getPart(zip, 'word/document.xml');
+    // 奇偶页不同页眉/页脚引用
+    expect(docXml).toMatch(/w:headerReference w:type="even"/);
+    expect(docXml).toMatch(/w:footerReference w:type="even"/);
+    // 对称页边距（w:mirrorMargins 注入 pgMar，规范标注）
+    expect(docXml).toMatch(/w:mirrorMargins="1"/);
+    // settings.xml 启用「奇偶页不同」
+    const settingsXml = await getPart(zip, 'word/settings.xml');
+    expect(settingsXml).toContain('<w:evenAndOddHeaders/>');
+    // even 页眉：密封线水平镜像到右侧（虚线 x=191mm=6876000 EMU，y=20mm 与上边距对齐）
+    const evenHdr = await sealEvenHeaderXml(zip);
+    expect(evenHdr).not.toBeNull();
+    expect(evenHdr).toContain(`<a:off x="${191 * 36000}" y="${20 * 36000}"/>`);
+    expect(evenHdr).toContain(`cy="${257 * 36000}"`);
+    expect(evenHdr).toContain('<a:prstDash val="dash"/>');
+    // 镜像版文字整框旋转 90° CW（字头朝右），与左侧版 270° 关于页面中线对称
+    expect(evenHdr).toContain('a:xfrm rot="9000000"');
+    expect(evenHdr).not.toContain('a:xfrm rot="16200000"');
+    // even 页眉为后续页样式：仅 虚线+密/封/线，无提示语/信息栏
+    expect(evenHdr).not.toContain('SealTip');
+    expect(evenHdr).not.toContain('SealInfo');
+    expect(evenHdr).toContain('>线</w:t>');
+    expect(evenHdr).toContain('>封</w:t>');
+    expect(evenHdr).toContain('>密</w:t>');
+    // 左侧版页眉不受影响（虚线仍在 19mm）
+    const leftHdr = await sealHeaderXml(zip, false);
+    expect(leftHdr).toContain(`<a:off x="${19 * 36000}" y="${20 * 36000}"/>`);
+  });
+
+  it('无密封线的普通文档：不启用奇偶页/对称页边距', async () => {
+    const zip = await buildZip('<p>普通资料正文</p>');
+    const docXml = await getPart(zip, 'word/document.xml');
+    expect(docXml).not.toContain('w:headerReference w:type="even"');
+    expect(docXml).not.toMatch(/w:mirrorMargins="1"/);
+    const settingsXml = await getPart(zip, 'word/settings.xml');
+    expect(settingsXml).not.toContain('<w:evenAndOddHeaders/>');
   });
 });
