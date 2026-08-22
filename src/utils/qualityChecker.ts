@@ -45,7 +45,7 @@ const TRIPLE_SCAN_CLASSIFY: Record<string, 'duplication' | 'error' | 'standard'>
 const QUESTION_GEN_TYPES = ['exam', 'practice', 'special', 'review', 'dictation', 'preview', 'reading', 'errorbook'];
 
 export class HardRuleChecker {
-  static check(content: string, parsedBlueprint: unknown[], subject: string, stage: string, grade: string, genType?: string, materialText?: string): Issue[] {
+  static check(content: string, parsedBlueprint: unknown[], subject: string, stage: string, grade: string, genType?: string, materialText?: string, region?: string): Issue[] {
     // 🔧 防御：content 必须是非空字符串
     if (!content || typeof content !== 'string' || !content.trim()) return [];
     const issues: Issue[] = [];
@@ -95,7 +95,8 @@ export class HardRuleChecker {
       if (stageKey === 'primary') {
         stageSeg = gradeNum <= 2 ? 'primary_low' : gradeNum <= 4 ? 'primary_mid' : 'primary_high';
       }
-      const examBlueprint = getExamBlueprint(subject, stageSeg);
+      // 🔧 省市差异化：生成时按省市取时长/总分（如江苏150分制），校验须用同一省市蓝本比对，否则误报分值不符
+      const examBlueprint = getExamBlueprint(subject, stageSeg, region);
       issues.push(...this.checkExamPaperStandard(content, examBlueprint));
       // 🔧 卷面规范：每大题"得分：＿＿"栏缺失检查（低段分题型卷可省略）
       issues.push(...this.checkScoreColumns(content, stageSeg));

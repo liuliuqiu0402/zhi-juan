@@ -6655,7 +6655,7 @@ ${content}`;
    * 最多执行1次，由 _repairActive 标志守卫
    */
   const attemptContentRepair = async (content, hardIssues, context) => {
-    const { genType, genTypeLabel, subject, stage, grade, parsedBlueprint, materialText } = context;
+    const { genType, genTypeLabel, subject, stage, grade, parsedBlueprint, materialText, region } = context;
     
     // 筛选需要AI修复的问题
     const repairableIssues = HardRuleChecker.getRepairableIssues(hardIssues, genType);
@@ -6694,9 +6694,9 @@ ${content}`;
         }
         const repairedContent = cleanedRepair;
         
-        // 修复后再次质检
+        // 修复后再次质检（省市差异化：同一省市蓝本比对）
         const recheckIssues = HardRuleChecker.check(
-          repairedContent, parsedBlueprint || [], subject, stage, grade, genType, materialText
+          repairedContent, parsedBlueprint || [], subject, stage, grade, genType, materialText, region
         );
         
         const autoFixed = HardRuleChecker.autoFix(repairedContent, recheckIssues);
@@ -8709,7 +8709,9 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
         book?.subject || '', 
         stageMap[stageRaw] || stageRaw,
         book?.grade || '',
-        genType
+        genType,
+        undefined,
+        book?.region || ''  // 🔧 省市差异化：校验用同一省市蓝本（江苏150分制等）
       );
       
       // 合并硬性检查问题（按层级分组：❌需处理 → ⚠️优化建议，避免建议与错误混淆）
@@ -8753,6 +8755,7 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
         stage: stageRaw,
         grade: book?.grade || '',
         parsedBlueprint,
+        region: book?.region || '',  // 🔧 省市差异化：修复重检用同一省市蓝本
       };
       const repairResult = await attemptContentRepair(content, hardIssues, repairContext);
       if (repairResult.repaired) {
@@ -9178,7 +9181,9 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
           const hardIssues = HardRuleChecker.check(
             batchContent, batchBlueprint,
             book?.subject || '', stageMap[stageRaw] || stageRaw, book?.grade || '',
-            genType
+            genType,
+            undefined,
+            book?.region || ''  // 🔧 省市差异化：批量生成校验同省市蓝本
           );
           hardIssues.forEach(issue => {
             batchIssues.push(`${issue.severity === 'error' ? '❌' : '⚠️'} ${issue.detail}`);
@@ -9438,7 +9443,9 @@ ${(() => { let mt = ''; if (ctxSubject) { const mg = getMatchingBlockInstruction
       const qualityIssues = HardRuleChecker.check(
         finalContent, [], book?.subject || '', 
         stageMapLocal[stageRaw] || stageRaw, book?.grade || '',
-        genType
+        genType,
+        undefined,
+        book?.region || ''  // 🔧 省市差异化
       );
       const qualityReport = {
         formatCheck: { passed: finalContent.includes('<table') && finalContent.includes('<h2'),
@@ -9872,7 +9879,9 @@ ${(() => {
     const qualityIssues = HardRuleChecker.check(
       finalContent, [], bookSubject, 
       stageMapLocal[stageRawHere] || stageRawHere, bookGrade,
-      genType
+      genType,
+      undefined,
+      book?.region || ''  // 🔧 省市差异化
     );
     const qualityReport = {
       formatCheck: { passed: finalContent.includes('<div class="error-item">'),
@@ -10177,7 +10186,9 @@ ${buildOutputFormatBlock('preview', subject, stage, grade)}
       const qualityIssues = HardRuleChecker.check(
         result, [], subject,
         stageMap[stageRaw] || stageRaw, grade,
-        genType
+        genType,
+        undefined,
+        book?.region || ''  // 🔧 省市差异化
       );
       const qualityReport = {
         formatCheck: { passed: result.length > 200, details: result.length <= 200 ? ['内容过短'] : [] },
@@ -10376,7 +10387,9 @@ ${buildOutputFormatBlock('dictation', subject, stage, grade)}
       const qualityIssues = HardRuleChecker.check(
         result, [], subject,
         stageMap[stageRaw] || stageRaw, grade,
-        genType
+        genType,
+        undefined,
+        book?.region || ''  // 🔧 省市差异化
       );
       const qualityReport = {
         formatCheck: { passed: result.length > 100, details: result.length <= 100 ? ['内容过短'] : [] },
@@ -10547,7 +10560,9 @@ ${buildOutputFormatBlock('reading', subject, stage, grade)}
       const qualityIssues = HardRuleChecker.check(
         result, [], subject,
         stageMap[stageRaw] || stageRaw, grade,
-        genType
+        genType,
+        undefined,
+        book?.region || ''  // 🔧 省市差异化
       );
       const qualityReport = {
         formatCheck: { passed: result.length > 300, details: result.length <= 300 ? ['内容过短'] : [] },
@@ -11207,7 +11222,9 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 800)}
         book?.subject || '', 
         stageMap[stageRaw] || stageRaw,
         book?.grade || '',
-        genType
+        genType,
+        undefined,
+        book?.region || ''  // 🔧 省市差异化
       );
       
       // 合并硬性检查问题
@@ -11248,6 +11265,7 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 800)}
         stage: stageRaw,
         grade: book?.grade || '',
         parsedBlueprint,
+        region: book?.region || '',  // 🔧 省市差异化：修复重检用同一省市蓝本
       };
       const repairResult = await attemptContentRepair(content, hardIssues, repairContext);
       if (repairResult.repaired) {
