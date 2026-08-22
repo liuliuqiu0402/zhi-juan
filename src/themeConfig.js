@@ -2641,13 +2641,23 @@ export const getSpecialThemeEditorCSS = (themeId) => {
       // 📜 密封线由真实 DOM 结构承载（SealedWrapper/SealedLine 节点保留 div/class，
       //    主题 CSS 的 .sealed-wrapper/.sealed-line 规则直接生效），
       //    不再用 ::before/::after 伪元素覆盖渲染（曾导致预览出现两条虚线、文字重叠）。
-      //    仅保证编辑器不裁切绝对定位于左侧边距内的密封线条。
+      //    编辑区 Word 式页面感：页壳至少一页高（密封线贯穿首页 20~277mm）、
+      //    左右边距 2.5cm 由 .sealed-wrapper padding 提供、密封区绝对定位于边距外侧。
       return `
         .ProseMirror {
           overflow: visible !important;
         }
         .ProseMirror .sealed-wrapper {
           position: relative !important;
+          min-height: 257mm !important;
+        }
+        .ProseMirror .seal-zone {
+          z-index: 1;
+        }
+        .ProseMirror .seal-zone > .seal-line {
+          top: 20mm !important;
+          bottom: auto !important;
+          height: 257mm !important;
         }
       `;
 

@@ -1371,7 +1371,7 @@ onActivated(() => {
 }
 
 /* ═══════ A4 纸张预览区 ═══════ */
-/* 模拟 Word A4 纸张：宽 210mm，上下左右边距 2cm，连续滚动 */
+/* 模拟 Word A4 纸张：宽 210mm、至少一页高、页面阴影（Word 页面视图质感），连续滚动 */
 .paper-preview-area {
   flex: 1;
   min-height: 0;
@@ -1381,13 +1381,15 @@ onActivated(() => {
   display: flex;
   justify-content: center;
   align-items: flex-start;
+  padding: 16px 0;
 }
 
 .paper-page {
   width: 210mm;
-  min-height: 100%;
+  min-height: 297mm;
   background: #fff;
   flex-shrink: 0;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.18);
 }
 
 /* A4 纸张内：剥除编辑器外框，2cm 页边距 */
