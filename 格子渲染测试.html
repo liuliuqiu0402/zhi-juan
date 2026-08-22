@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>格子渲染测试 · 作文格 + 作图网格</title>
+<style>
+  body { font-family: SimSun, 'Microsoft YaHei', serif; background: #e8e8e8; margin: 0; padding: 20px; }
+  .page { width: 210mm; min-height: 297mm; background: white; margin: 0 auto 24px; padding: 20mm 25mm; box-sizing: border-box; box-shadow: 0 2px 12px rgba(0,0,0,.15); font-size: 12pt; line-height: 1.6; }
+  .guide { width: 210mm; margin: 0 auto 20px; background: #fff8e6; border: 2px dashed #e6a817; padding: 14px 18px; border-radius: 8px; font-size: 13px; }
+  .guide code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; }
+  h1.main-title { text-align: center; font-size: 16pt; }
+  .copy-box { width: 210mm; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+  .copy-box .bar { background: #2b5ea7; color: white; padding: 10px 20px; font-weight: bold; }
+  .copy-box textarea { width: 100%; height: 200px; border: none; padding: 14px 20px; box-sizing: border-box; font-family: Consolas, monospace; font-size: 12px; resize: vertical; outline: none; }
+  /* ⭐ 作文格（小学 12mm；每行格子数按容器宽度自动排满） */
+  .zuo-wen-ge { display: grid; grid-template-columns: repeat(auto-fill, 12mm); gap: 0; border: 1.5px solid #999; margin: 8px 0; width: 100%; }
+  .zuo-wen-ge span { display: inline-flex; align-items: center; justify-content: center; width: 12mm; height: 12mm; border: 0.5px solid #ccc; box-sizing: border-box; }
+  /* ⭐ 作图网格（12列×8行，格 7mm） */
+  .square-grid { width: 84mm; height: 56mm; border: 1.5px solid #999; margin: 8px 0; background: linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm, linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm; }
+  /* ⭐ 竖式格（3 行括号书写区） */
+  .bracket-grid { display: grid; grid-template-rows: repeat(3, 10mm); width: 52mm; margin: 8px 0; border-left: 3px solid #333; border-right: 3px solid #333; }
+  .bracket-grid > div { border-bottom: .5px solid #ccc; }
+  .bracket-grid > div:last-child { border-bottom: none; }
+</style>
+</head>
+<body>
+
+<div class="guide">
+  <b>使用说明：</b>上半部分为 <b>渲染预览</b>（浏览器直接看，模拟排版模块效果）；页面底部为<b>可复制 HTML 片段</b>（导入系统编辑器测试）。系统已导出同名 <code>格子渲染测试.docx</code>，可直接打开对比导出效果。
+</div>
+
+<div class="page">
+  <h1 class="main-title">格子渲染测试</h1>
+
+  <h3>一、作文格（看图写话/作文答题区）</h3>
+  <p>格子按 A4 可用宽度自动排满，不固定列数；此处 3 行 × 每行 12 格（共 36 格）：</p>
+  <div class="zuo-wen-ge"><div><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span></div><div><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span></div><div><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span></div></div>
+
+  <h3>二、作图网格（数学作图/方格纸作答区）</h3>
+  <p>12 列 × 8 行，每格 7mm 正方形：</p>
+  <div class="square-grid"></div>
+
+  <h3>三、竖式格（低段竖式计算书写区）</h3>
+  <p>3 行括号书写区，左右粗线连续：</p>
+  <div class="bracket-grid"><div>&nbsp;</div><div>&nbsp;</div><div>&nbsp;</div></div>
+</div>
+
+<div class="copy-box">
+  <div class="bar">📄 可复制 HTML 片段（模拟生成端输出，粘贴/导入编辑器测试）</div>
+  <textarea readonly id="copyArea"></textarea>
+</div>
+
+<script>
+  const content = `<h1 class="main-title">格子渲染测试</h1>
+<h3 class="heading1">一、作文格（看图写话/作文答题区）</h3>
+<p class="question">格子按 A4 可用宽度自动排满；此处 3 行 × 每行 12 格（共 36 格）：</p>
+<div class="zuo-wen-ge"><div><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span></div><div><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span></div><div><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span><span>&emsp;</span></div></div>
+<h3 class="heading1">二、作图网格（数学作图/方格纸作答区）</h3>
+<p class="question">12 列 × 8 行，每格 7mm 正方形：</p>
+<div class="square-grid"></div>
+<h3 class="heading1">三、竖式格（低段竖式计算书写区）</h3>
+<p class="question">3 行括号书写区，左右粗线连续：</p>
+<div class="bracket-grid"><div>&nbsp;</div><div>&nbsp;</div><div>&nbsp;</div></div>`;
+  document.getElementById('copyArea').value = content;
+</script>
+
+</body>
+</html>

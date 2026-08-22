@@ -1055,6 +1055,9 @@ const processBlockNode = (node, ctx = {}) => {
       children.push(new Table({
         rows,
         width: { size: perRow * zwgCellDxa, type: WidthType.DXA },
+        // 🔧 columnWidths：docx 库默认 gridCol=100 且 FIXED 布局下 Word 以 tblGrid 为准 → 格子挤压成细条；
+        //    显式指定列宽数组生成正确 gridCol（每格 zwgCellDxa 宽）
+        columnWidths: Array(perRow).fill(zwgCellDxa),
         layout: TableLayoutType.FIXED, // 固定布局：按声明宽度排布，防 Word 自动布局+单元格边距撑宽超页
       }));
     }
@@ -1107,6 +1110,7 @@ const processBlockNode = (node, ctx = {}) => {
     children.push(new Table({
       rows: gridRows,
       width: { size: cols * cellW, type: WidthType.DXA },
+      columnWidths: Array(cols).fill(cellW), // gridCol 显式列宽（docx 库默认 100，FIXED 下会挤压）
       layout: TableLayoutType.FIXED, // 固定布局：12 列 × 7mm 精确等宽方格
     }));
     return children;
@@ -1138,7 +1142,7 @@ const processBlockNode = (node, ctx = {}) => {
         })],
       }));
     }
-    children.push(new Table({ rows, width: { size: 2945, type: WidthType.DXA } }));
+    children.push(new Table({ rows, width: { size: 2945, type: WidthType.DXA }, columnWidths: [2945] }));
     return children;
   }
 
