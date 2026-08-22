@@ -6493,8 +6493,9 @@ ${cardAnalysisText.substring(0, 1000)}
     //    中部弹性块（题型设计/质量标准/模板对标等动态内容）按剩余预算填充，
     //    超预算的中间块直接丢弃并告警——callAI 不再需要被动压缩。
     // ═══════════════════════════════════════
-    const MAX_INSTRUCTION_TOKENS = 13200; // 整卷路径安全预算（预留余量给教材原文+知识图谱；DeepSeek 128K 上下文远未触顶，
-    //    放宽可确保核心质量块全保留——原 12000 曾导致"试卷/练习格式规范"等大块在预算不足时被丢弃）
+    const MAX_INSTRUCTION_TOKENS = 18000; // 整卷路径安全预算（预留余量给教材原文+知识图谱；DeepSeek 128K 上下文远未触顶，
+    //    放宽可确保核心质量块全保留——原 12000 曾导致"试卷/练习格式规范"等大块在预算不足时被丢弃，
+    //    13200 仍裁掉【质量范例】【知识边界】等核心块（约 13.5k 指令仅占 128K 上下文 12%，裁切纯属保守预算适得其反）
     const totalTokens = estimateTokens(instruction);
     if (totalTokens > MAX_INSTRUCTION_TOKENS) {
       console.warn(`⚠️ [源头预算分配] 指令过长(${totalTokens} tokens)，按优先级三桶分配...`);
