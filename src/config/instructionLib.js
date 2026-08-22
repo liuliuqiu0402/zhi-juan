@@ -1185,6 +1185,16 @@ export const builtinInstructions = [
     content: '素养立意命题范式（新课标真题风格，范例示范命题思路，不是让你复制这些题）：\n① 议题辨析（经济）：给定"直播带货带动农产品销售"的案例，从政府监管、企业责任、消费者权益三主体角度提出治理建议并说明理论依据 — 政治认同+科学精神。\n② 辩证分析（政治）：用矛盾分析法分析"发展与安全"的关系，结合"芯片产业自主创新"案例说明如何把握主要矛盾 — 科学精神+辩证思维。\n③ 法治实践（法律）：分析一起消费维权案例，说明消费者依法维权的途径和程序，评价经营者的法律责任 — 法治意识+公共参与。\n④ 开放论述："中国式现代化是物质文明和精神文明相协调的现代化"，结合材料和生活观察阐述理解 — 政治认同+科学精神+辩证思维。\n🚫 禁止纯概念背诵：禁止考"XX的本质是（）""XX的特征有（）"式挖空，改考时政情境中的多角度分析和政策论证。',
     builtin: true
   },
+  // ── 质量范例·通用兜底（非语数英学科 reading/preview/dictation 无专属范例时使用）──
+  { id: 'block_example_reading_general', name: '【质量范例】阅读训练（通用）', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70, subject: '', stage: '', genType: 'reading',
+    content: '阅读训练格式范式（示范结构，题量与选文数按学段灵活）：\n- 选文：1-2篇与学段匹配的短文，文末标注出处（教材篇目/课外读物）；有非连续性文本（图表/说明）时纳入考查\n- 题目：3-5道分层设问（信息提取→词句理解→推断评价），题型多样（选择/填空/简答/批注）\n- 格式：短文用<div class="reading-passage">，题目用<ol>，选项用<p class="option">逐行，留空用<u class="blank-N">&emsp;</u>\n- 答案：文末<div class="answer-section">统一给出，简答/开放题配评分要点\n- 🚫 题目不可直接在原文找到原句答案，须变换角度设问', builtin: true },
+  { id: 'block_example_preview_general', name: '【质量范例】课前预习（通用）', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70, subject: '', stage: '', genType: 'preview',
+    content: '预习单格式范式（示范结构，任务数按课时灵活）：\n- 板块顺序："我会读"（圈画生字/新词）→"我会想"（问题导学）→"我会查"（资料查找/生活观察）→"我的疑问"（记录预习问题）\n- 预习任务可操作可检查（圈一圈/读一读/查一查/写一写），每任务标注教材定位\n- 检测题：3-5道紧扣预习重点的小题，答案标注"参见教材第X页第X段"便于自查\n- 文末<div class="answer-section">给出全部答案；🚫 不标注分值（预习不是考试）', builtin: true },
+  { id: 'block_example_dictation_general', name: '【质量范例】默写训练（通用）', category: '生成-质量范例', type: 'fragment',
+    prompt_order: 70, subject: '', stage: '', genType: 'dictation',
+    content: '默写格式范式（示范结构，词句数量按学段灵活）：\n- 练习区只给提示（拼音/中文释义/首字母/句子挖空），🚫 严禁出现答案内容\n- 书写区用对应格线：汉字用田字格<span class="tian-zi-ge">，拼音/英语用四线三格<span class="four-line-three">，其他用横线留空\n- 内容按教材出现顺序排列、由易到难，每5-8项设休息分隔线\n- 答案统一放文末<div class="answer-section">，标注题号', builtin: true },
   {
     id: 'block_example_preview_humanities', name: '【质量范例】历史/地理/道法预习', category: '生成-质量范例', type: 'fragment',
     prompt_order: 70,
@@ -2700,6 +2710,10 @@ export const builtinInstructions = [
   { id: 'kb_it_primary', name: '【知识边界】信息技术-小学', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '信息科技,信息技术', stage: 'primary_low,primary_mid,primary_high', genType: '', content: '信息科技小学知识边界：\n- 侧重信息意识和数字化学习习惯培养\n- 不考查编程语法和算法\n- 操作题限于基础软件使用（画图/文字处理等）', builtin: true },
   { id: 'kb_it_middle', name: '【知识边界】信息技术-初中', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '信息科技,信息技术', stage: 'middle', genType: '', content: '信息技术初中知识边界：\n- 算法思维仅涉及流程图和伪代码\n- 不考查具体编程语言语法\n- 数据处理限于电子表格基础操作\n- 网络应用限于基础概念和安全', builtin: true },
   { id: 'kb_it_high', name: '【知识边界】信息技术-高中', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '信息科技,信息技术', stage: 'high', genType: '', content: '信息技术高中知识边界：\n- 严格对标学业水平考试要求\n- Python编程限于基础语法和简单算法\n- 不涉及数据结构、面向对象等进阶内容', builtin: true },
+  // ── 小学知识边界补充（道德与法治/音体美为小学真实开设课程；历史/地理/思想政治小学不单设）──
+  { id: 'kb_moral_primary', name: '【知识边界】道德与法治-小学', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '道德与法治,政治', stage: 'primary_low,primary_mid,primary_high', genType: '', content: '道法小学知识边界：\n- 严格限于教材单元话题（自我/家庭/学校/社区/自然/国情启蒙）\n- 法律常识仅限学生相关生活规则（交通/校园/未成年人保护常识）\n- 时政材料须真实可查，价值判断符合社会主义核心价值观\n- 不涉及政治理论、法律条文深析、经济学概念', builtin: true },
+  { id: 'kb_arts_primary', name: '【知识边界】音乐/美术/体育-小学', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '音乐,美术,体育,体育与健康', stage: 'primary_low,primary_mid,primary_high', genType: '', content: '音体美小学知识边界：\n- 严格限于教材内容（音乐：歌曲/节奏/简单乐理；美术：绘画/手工/欣赏；体育：运动技能/健康常识/规则）\n- 不考查专业术语深析、不涉及竞技训练内容\n- 题目以体验、识别、欣赏、判断类为主，避免过度理论化', builtin: true },
+  { id: 'kb_humanities_primary', name: '【知识边界】历史/地理/思想政治-小学', category: '生成-知识边界', prompt_order: 80, type: 'fragment', subject: '历史,地理,思想政治', stage: 'primary_low,primary_mid,primary_high', genType: '', content: '历史/地理/思想政治小学知识边界：\n- 小学阶段不单独开设本学科课程（相关内容融入道德与法治/科学），如遇教材请严格以教材实际内容为准\n- 不考查超出教材范围的历史事件、地理术语、政治概念', builtin: true },
 
   // ═══════════════════════════════════════
   // 【时间分配】块级指令 — 考卷用时建议
@@ -2719,6 +2733,7 @@ export const builtinInstructions = [
   { id: 'answer_exam_english', name: '【答案规范】考卷-英语', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '英语', stage: '', genType: 'exam', content: '英语考卷答案补充：\n- 书面表达：附参考范文 + 内容/语言/结构/书写评分维度', builtin: true },
   { id: 'answer_practice', name: '【答案规范】课时练', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'practice', content: '课时练答案规范：\n1. 客观题（选择/判断/填空）：答案明确唯一，附1-2句简要解析说明对错原因或解题关键\n2. 解答题/简答题：给出完整参考答案要点（不标注分值、不标注得分点）\n3. 所有解析标注"易错提示"——指出该题最常见的错误类型及原因\n4. 每道题答案用<div class="answer-item">分隔，标注题号\n5. ⚠️ 禁止标注分值/得分点/评分维度——课时练是课堂练习，不涉及评分', builtin: true },
   { id: 'answer_summary', name: '【答案规范】知识点总结', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'summary', content: '知识点总结答案规范：\n1. 每个知识点后的"典型例题"必须配完整答案与解析（解题思路→分步解答→易错提示）\n2. "知识辨析"表格中，每个"易错点"必须配对应的"正确理解"，形成左右对比\n3. "重难点星级标注"中的高频考点必须配详细解法和变式练习', builtin: true },
+  { id: 'answer_special_general', name: '【答案规范】专项突破（全学科兜底）', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'special', content: '专项突破答案规范（全学科通用）：\n1. 客观题（选择/填空/判断）：答案明确唯一，逐题解析——正确项为什么对、干扰项为什么错\n2. 解答/简答/计算/操作题：给出完整分步答案（解题思路→过程→结论），标注"易错提示"（该题最常见错误类型及原因）\n3. 开放性/表达题：给出2-3个角度的示例答案，标注"言之有理即可"\n4. 每道题答案用<div class="answer-item">分隔，标注题号\n5. ⚠️ 禁止标注分值/得分点——专项训练不是考试，不涉及评分', builtin: true },
   { id: 'answer_reading', name: '【答案规范】阅读理解', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'reading', content: '阅读理解答案规范：\n1. 每道阅读理解题配"答题模板"+"参考答案"+"评分要点"三项\n2. 开放性题目配2-3种不同角度的示例答案，标注"角度一/二/三"\n3. 简答题答案标注"采分点"——每个得分关键词用【】括出', builtin: true },
   { id: 'answer_errorbook', name: '【答案规范】错题本', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'errorbook', content: '错题本答案规范：\n1. "错误归因与素养反思"必须具体到知识点层面（如"混淆了「比喻」和「拟人」的修辞手法"），禁止笼统描述（如"粗心""不会"）\n2. "正确解法"给出完整分步思路，标注"解题关键"\n3. "变式巩固"题目必须与错题考查同一知识点但变换题型或情境，确保真正巩固', builtin: true },
   { id: 'answer_preview', name: '【答案规范】课前预习', category: '生成-答案与解析规范', prompt_order: 26, type: 'fragment', subject: '', stage: '', genType: 'preview', content: '课前预习答案规范：\n1. 预习问题必须明确具体、可直接作答（如"光合作用发生在细胞的哪个结构中？"），避免笼统含糊的提问（如"想一想光合作用""了解一下XX"）\n2. 每个预习问题均需配参考答案，答案标注"教材原文定位"（可在教材第X页/第X段找到依据），方便学生自查\n3. 答案简洁明了——目标是帮助学生确认预习完成度，而非给出完整知识讲解', builtin: true },
