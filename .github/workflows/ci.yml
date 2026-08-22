@@ -1,22 +1,33 @@
+# 🔴 防回归 CI：push/PR 自动跑全量测试 + 构建，失败即阻断
+# 守卫：instructionCoverage（765组合零缺口）/ examQuality / instructionInjection / qualityChecker / 导出链路 等 387 测试
 name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [master, main]
   pull_request:
-    branches: [main, master]
+    branches: [master, main]
 
 jobs:
-  build-and-test:
+  test:
+    name: Test & Build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v6
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run lint -- --max-warnings 99
-        continue-on-error: true
-      - run: npm test
-      - run: npm run build
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full test suite
+        run: npm run test
+
+      - name: Build
+        run: npm run build
