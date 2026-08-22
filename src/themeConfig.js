@@ -1385,8 +1385,12 @@ export const getThemeHeadingStyle = (theme, level) => {
 
 // ==================== 应用主题到HTML内容 ====================
 export const applyThemeToContent = (content, themeId, options = {}) => {
-  const { isHtmlContent = false, forceImportant = false } = options;
+  const { isHtmlContent = false, forceImportant = false, stage: stageOpt } = options;
   const theme = getThemeById(themeId);
+  // 🔧 作文格尺寸按学段（正式试卷规格：小学格大、高学段格小）
+  //    primary 8mm / middle 7mm / high 6mm（20 列 × 8mm = 160mm 恰好 A4 正文宽）
+  const stage = theme?.stage || stageOpt || 'middle';
+  const zwgMm = stage === 'primary' ? 8 : stage === 'middle' ? 7 : 6;
   
   // 🔧 无样式：不应用任何主题 CSS，仅返回纯净 HTML 包装
   if (!theme) {
@@ -1410,8 +1414,8 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       .mi-zi-ge>span { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); line-height: 1; white-space: nowrap; }
       .oral-box { display: inline-block; border: 1.5px solid #999; padding: 2px 6px; min-width: 3em; text-align: center; font-size: inherit !important; }
       .square-box { display: inline-block; border: 2px solid #333; padding: 2px 8px; min-width: 2em; text-align: center; font-size: inherit !important; }
-      .zuo-wen-ge { display: grid; grid-template-columns: repeat(20, 1.3em); gap: 0; border: 1.5px solid #999; margin: 8px 0; width: fit-content; }
-      .zuo-wen-ge span { display: inline-flex; align-items: center; justify-content: center; width: 1.3em; height: 1.3em; border: 0.5px solid #e0e0e0; font-size: inherit !important; }
+      .zuo-wen-ge { display: grid; grid-template-columns: repeat(20, ${zwgMm}mm); gap: 0; border: 1.5px solid #999; margin: 8px 0; width: fit-content; }
+      .zuo-wen-ge span { display: inline-flex; align-items: center; justify-content: center; width: ${zwgMm}mm; height: ${zwgMm}mm; border: 0.5px solid #e0e0e0; font-size: inherit !important; }
       /* 填空横线 */
       u[class*="blank-"] { display: inline-block; text-align: center; text-decoration: none; border-bottom: 1.5px solid #333; padding: 0 2px; font-size: inherit !important; min-width: 1em; }
       u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }
@@ -1707,10 +1711,10 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       font-family: 'Times New Roman', 'Georgia', serif;
     }
 
-    /* ⭐ 作文格 */
+    /* ⭐ 作文格（尺寸按学段：primary 8mm / middle 7mm / high 6mm，正式试卷规格） */
     .zuo-wen-ge {
       display: grid;
-      grid-template-columns: repeat(20, 1.3em);
+      grid-template-columns: repeat(20, ${zwgMm}mm);
       gap: 0;
       border: 1.5px solid #999;
       margin: 8px 0;
@@ -1720,12 +1724,12 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 1.3em;
-      height: 1.3em;
+      width: ${zwgMm}mm;
+      height: ${zwgMm}mm;
       border: 0.5px solid #ccc;
       font-family: 'SimSun', 'KaiTi', serif;
       font-size: inherit !important;
-      line-height: 1.3em;
+      line-height: ${zwgMm}mm;
       text-align: center;
     }
 

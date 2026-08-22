@@ -920,6 +920,9 @@ let __sealCollector = null;
 //    拆分为两个 Word 分节（答案页独立编号从 1 起；正文页脚"共X页"只计正文、不含答案页）。
 const ANSWER_SPLIT_MARKER = Symbol('answer-section-split');
 
+// 🔧 作文格学段（正式试卷规格：primary 8mm / middle 7mm / high 6mm），buildDocxFromDom 启动时设置
+let __zwgStage = 'middle';
+
 /** 密封线 marker 段落（放页眉，后处理替换为浮动文本框；lineOnly 时仅 虚线+密/封/线；mirror 时偶页镜像到右侧靠书脊） */
 const sealMarkerParagraph = (fields, sizeHp, lineOnly = false, mirror = false) => {
   const mk = mirror
@@ -1013,19 +1016,23 @@ const processBlockNode = (node, ctx = {}) => {
       });
     }
     if (spans.length > 0) {
+      // 🔧 格子尺寸按学段（正式试卷规格，1mm ≈ 56.69 DXA）：
+      //    primary 8mm≈454 / middle 7mm≈397 / high 6mm≈340
+      const zwgCellDxa = __zwgStage === 'primary' ? 454 : __zwgStage === 'middle' ? 397 : 340;
       const perRow = 20;
       const rows = [];
       let currentRow = [];
       spans.forEach((span, idx) => {
         currentRow.push(new TableCell({
           children: [new Paragraph({ text: span.textContent.trim() || ' ', alignment: AlignmentType.CENTER })],
-          width: { size: 300, type: WidthType.DXA },
+          width: { size: zwgCellDxa, type: WidthType.DXA },
           borders: { top: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, bottom: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, left: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, right: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' } },
         }));
         if (currentRow.length >= perRow || idx === spans.length - 1) {
           while (currentRow.length < perRow) {
             currentRow.push(new TableCell({
               children: [new Paragraph({ text: ' ' })],
+              width: { size: zwgCellDxa, type: WidthType.DXA },
               borders: { top: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, bottom: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, left: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, right: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' } },
             }));
           }
@@ -1033,7 +1040,7 @@ const processBlockNode = (node, ctx = {}) => {
           currentRow = [];
         }
       });
-      children.push(new Table({ rows, width: { size: 9000, type: WidthType.DXA } }));
+      children.push(new Table({ rows, width: { size: perRow * zwgCellDxa, type: WidthType.DXA } }));
     }
     return children;
   }
@@ -1725,7 +1732,9 @@ const processBlockNode = (node, ctx = {}) => {
 // ============ 公开 API ============
 
 /** 从 contentEditable DOM 构建 docx Document */
-export const buildDocxFromDom = (containerEl) => {
+export const buildDocxFromDom = (containerEl, stage = 'middle') => {
+  // 🔧 作文格学段（正式试卷规格：小学 8mm / 初中 7mm / 高中 6mm）
+  __zwgStage = stage || 'middle';
   const children = [];
   const allNodes = containerEl.childNodes;
   const elChildren = [];
@@ -1869,11 +1878,12 @@ export const buildDocxFromDom = (containerEl) => {
 };
 
 
-/** HTML DOM → docx Blob（含 DrawingML 后处理 + 图片预内联） */
-export const htmlToDocxBlob = async (containerEl) => {
+/** HTML DOM → docx Blob（含 DrawingML 后处理 + 图片预内联）
+ *  stage: primary/middle/high —— 作文格格子尺寸按学段（小学 8mm / 初中 7mm / 高中 6mm） */
+export const htmlToDocxBlob = async (containerEl, stage = 'middle') => {
   // 🔧 预内联外部图片：fetch → dataURL 写入 _inlined 属性
   await inlineImagesForExport(containerEl);
-  const doc = buildDocxFromDom(containerEl);
+  const doc = buildDocxFromDom(containerEl, stage);
   const blob = await Packer.toBlob(doc);
   const buffer = await blob.arrayBuffer();
   const processed = await injectDrawingML(buffer);

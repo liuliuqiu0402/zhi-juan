@@ -40,6 +40,27 @@ describe('作文格（zuo-wen-ge）导出', () => {
     expect(xml).toContain('<w:tbl>');
     expect(xml).toContain('<w:tc>');
   });
+
+  it('格子尺寸按学段：小学 8mm≈454 / 初中 7mm≈397 / 高中 6mm≈340 DXA', async () => {
+    const html = '<div class="zuo-wen-ge"><span>&emsp;</span><span>&emsp;</span></div>';
+    const run = async (stage) => {
+      const container = document.createElement('div');
+      container.style.fontSize = '16px';
+      container.innerHTML = html;
+      document.body.appendChild(container);
+      const doc = buildDocxFromDom(container, stage);
+      container.remove();
+      const buf = await Packer.toBuffer(doc);
+      const zip = await JSZip.loadAsync(buf);
+      const xml = await zip.file('word/document.xml').async('string');
+      const m = xml.match(/<w:tcW[^>]*w:w="(\d+)"/);
+      return m ? parseInt(m[1], 10) : 0;
+    };
+    expect(await run('primary')).toBe(454);
+    expect(await run('middle')).toBe(397);
+    expect(await run('high')).toBe(340);
+    expect(await run()).toBe(397); // 默认 middle
+  });
 });
 
 describe('填空横线导出：段落末尾 blank-line 自动延伸到行尾', () => {

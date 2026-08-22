@@ -993,7 +993,8 @@ const exportDocument = async () => {
 
       try {
         // 只传 clone（不含 style 标签），避免 CSS 被当成正文
-        const blob = await htmlToDocxBlob(clone);
+        // 🔧 作文格格子按学段尺寸（小学 8mm / 初中 7mm / 高中 6mm）
+        const blob = await htmlToDocxBlob(clone, selectedTheme.value?.stage || 'middle');
         document.body.removeChild(wrapper);
         downloadBlob(blob, `${exportBaseName.value}.docx`);
       } finally {

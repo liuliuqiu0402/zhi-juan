@@ -6446,6 +6446,7 @@ const cancelPeriodSplit = async () => {
         content: renderImagePlaceholders(safeContent),
         rawContent: safeContent,
         genType: genTypeName,
+        stage: book?.stage || selectedBooks?.[0]?.stage || '',
         style: propositionStyle.value,
         selected: false,
         quality: null,
@@ -7041,7 +7042,8 @@ const downloadDoc = async (doc, format) => {
     document.body.appendChild(wrapper);
 
     try {
-      const blob = await htmlToDocxBlob(clone);
+      // 🔧 作文格格子按学段尺寸（小学 8mm / 初中 7mm / 高中 6mm），学段取自生成参数
+      const blob = await htmlToDocxBlob(clone, doc?.meta?.stage || doc?.stage || 'middle');
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `${doc.title}.docx`;
