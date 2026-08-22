@@ -414,7 +414,11 @@ const filteredThemes = computed(() => {
 // 🔧 提取当前主题的 CSS（用于注入富文本编辑器，实现编辑即预览）
 const themeCSS = computed(() => {
   try {
-    const fullHtml = applyThemeToContent('<div></div>', selectedThemeId.value, { 
+    // 🔧 内容含密封线特征但未选主题时，回退用 sealed_exam 提供密封线样式——
+    //    否则编辑器走无样式 fallback，密封线丢失左右 2.5cm 边距与边距外侧布局
+    const cssThemeId = selectedThemeId.value
+      || (rawHtmlContent.value && sealMarkRegex.test(rawHtmlContent.value) ? 'sealed_exam' : null);
+    const fullHtml = applyThemeToContent('<div></div>', cssThemeId, { 
       isHtmlContent: true, 
       forceImportant: true  // 确保标题/字体等主题样式不被覆盖
     });
@@ -426,7 +430,7 @@ const themeCSS = computed(() => {
     css = css.replace(/body\s*\{[^}]*\}/g, '');
 
     // 🔑 只保留 h1-h6 标题的 !important，其余全部移除
-    const preserveImportant = /(\bh[1-6]\b|four-line-three|sixian-ge|oral-box|square-box|zuo-wen-ge|pinyin-line|english-line|blank-\d)/;
+    const preserveImportant = /(\bh[1-6]\b|four-line-three|sixian-ge|oral-box|square-box|zuo-wen-ge|pinyin-line|english-line|blank-\d|sealed-wrapper|seal-zone|seal-line|seal-note|seal-info|seal-char)/;
     css = css.replace(
       /([^{}]+)\{([^{}]+)\}/g,
       (full, selector, body) => {
