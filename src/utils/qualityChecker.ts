@@ -182,8 +182,8 @@ export class HardRuleChecker {
 
   /**
    * 🔴 三重硬核扫描·查错：填空空标签检测（全类型适用）
-   * 指令要求"标签内必须有&emsp;"——空标签宽度不足。⚠️ 导出端已按 class N 兜底横线/括号
-   * 宽度（不会空洞），故此项为 warning（规范建议），不再触发自动修复/人工处理
+   * 指令要求"标签内必须有&emsp;"。🔧 已支持自动修复：检测到空白标签自动补 &emsp;
+   *（按 class N 映射宽度），无需人工处理；修复后 warning 不再出现
    */
   static checkBlankEmptyTags(content: string): Issue[] {
     const issues: Issue[] = [];
@@ -193,8 +193,12 @@ export class HardRuleChecker {
       const ctx = content.slice(Math.max(0, m.index - 18), m.index + 28).replace(/\s+/g, ' ');
       issues.push({
         severity: 'warning', type: '填空空标签',
-        detail: '检测到填空标签内为空白（无&emsp;）：导出端已按 class N 兜底横线/括号宽度（不会空洞），但规范要求按答案字数填入 &emsp; 精确控宽（1字→2个、2字→4个、3-4字→6个、5-6字→8个、7+字→10个）：…' + ctx + '…',
-        autoFix: false,
+        detail: '检测到填空标签内为空白（无&emsp;），已自动补入 &emsp;：…' + ctx + '…',
+        autoFix: true,
+        fixFn: (c: string) => c.replace(/<(u|span)\s+class="blank-(\d+)"[^>]*>\s*<\/(?:u|span)>/g, (_, tag, n) => {
+          const cnt = Math.max(1, Math.ceil((parseInt(n) || 2) / 2));
+          return `<${tag} class="blank-${n}">${'&emsp;'.repeat(cnt)}</${tag}>`;
+        }),
       });
     }
     return issues;
@@ -556,23 +560,30 @@ export class HardRuleChecker {
 
   static checkScoreConsistency(content: string): Issue[] {
     const issues: Issue[] = [];
+    // 🔧 只统计答案区之前的题目正文：答案区可能重复大题标题，避免重复计数造成误报
+    const body = content.replace(/<div[^>]*class="answer-section"[^>]*>[\s\S]*$/i, '');
     // 1) 同分大题算术：本大题共N小题，每题/每小题P分，共T分 → N×P 必须= T
     const sameScoreRe = /本大题共(\d+)(?:小题|题)[，,]\s*每(?:小)?题(\d+)分[，,]\s*共(\d+)分/g;
     let m;
-    while ((m = sameScoreRe.exec(content)) !== null) {
+    while ((m = sameScoreRe.exec(body)) !== null) {
       const n = parseInt(m[1]), per = parseInt(m[2]), total = parseInt(m[3]);
       if (n * per !== total) {
         issues.push({ severity: 'warning', type: '分值计算不一致', detail: `大题标注"本大题共${n}小题，每小题${per}分，共${total}分"，但 ${n}×${per}=${n * per}≠${total}，请修正题数或分值`, autoFix: false });
       }
     }
-    // 2) 层级汇总：卷首满分 = 各大题"共X分"之和（只统计大题标题，不含小题"每空X分，共X分"）
-    const fullMatch = content.match(/满分[:：]\s*(\d+)/);
+    // 2) 层级汇总：卷首满分 = 各大题"共X分"之和（只统计大题标题，同一标题重复出现只计一次）
+    const fullMatch = body.match(/满分[:：]\s*(\d+)/);
     if (fullMatch) {
       const full = parseInt(fullMatch[1]);
       const bigRe = /本大题共\d+(?:小题|题)[，,]\s*(?:每(?:小)?题\d+分[，,]\s*)?共(\d+)分/g;
-      const bigTotals = [];
+      const bigTotals: number[] = [];
+      const seen = new Set<string>();
       let bm;
-      while ((bm = bigRe.exec(content)) !== null) bigTotals.push(parseInt(bm[1]));
+      while ((bm = bigRe.exec(body)) !== null) {
+        if (seen.has(bm[0])) continue; // 同一标题文本（正文/答案区重复）只计一次
+        seen.add(bm[0]);
+        bigTotals.push(parseInt(bm[1]));
+      }
       const bigSum = bigTotals.reduce((a, b) => a + b, 0);
       if (bigTotals.length > 0 && bigSum !== full) {
         issues.push({ severity: 'warning', type: '分值汇总不一致', detail: `卷首满分${full}分，各大题"共X分"合计${bigSum}分（${bigTotals.join('+')}），不一致——请调整各大题总分，使大题之和=满分`, autoFix: false });

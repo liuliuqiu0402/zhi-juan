@@ -211,6 +211,14 @@ describe('HardRuleChecker', () => {
       const issues = HardRuleChecker.checkBlankEmptyTags('<p><u class="blank-2">&emsp;</u><span class="blank-4">&emsp;</span></p>');
       expect(issues.filter(i => i.type === '填空空标签').length).toBe(0);
     });
+    it('填空空标签可自动修复（autoFix 自动补 &emsp;，修复后不再检出）', () => {
+      const content = '<p>1. 春联：<u class="blank-4"> </u>（hú dié）飞。</p><p>2. <span class="blank-6"></span></p>';
+      const issues = HardRuleChecker.checkBlankEmptyTags(content);
+      const fixed = HardRuleChecker.autoFix(content, issues);
+      expect(fixed).toContain('&emsp;');
+      expect(fixed).not.toMatch(/<(u|span)\s+class="blank-\d+"[^>]*>\s*<\/(?:u|span)>/);
+      expect(HardRuleChecker.checkBlankEmptyTags(fixed).length).toBe(0);
+    });
   });
 
   describe('checkScoreConsistency（分数层级一致性）', () => {
@@ -229,6 +237,14 @@ describe('HardRuleChecker', () => {
     it('大题之和≠满分报错', () => {
       const issues = HardRuleChecker.checkScoreConsistency('满分：100分。一、识字（本大题共8题，每题4分，共32分）。二、阅读（本大题共4题，共14分）。三、表达（本大题共2题，共40分）');
       expect(issues.some(i => i.type === '分值汇总不一致')).toBe(true);
+    });
+    it('答案区重复大题标题不重复计数（去重防误报）', () => {
+      const issues = HardRuleChecker.checkScoreConsistency('满分：32分。一、识字（本大题共8题，每题4分，共32分）。<div class="answer-section">一、识字（本大题共8题，每题4分，共32分）</div>');
+      expect(issues.filter(i => i.type === '分值汇总不一致').length).toBe(0);
+    });
+    it('小题"每空X分，共X分"不误算入大题合计', () => {
+      const issues = HardRuleChecker.checkScoreConsistency('满分：10分。一、默写（本大题共1题，共10分）。默写。（每空1分，共10分）');
+      expect(issues.filter(i => i.type === '分值汇总不一致').length).toBe(0);
     });
   });
 
