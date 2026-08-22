@@ -196,4 +196,48 @@ describe('HardRuleChecker', () => {
       expect(prompt).not.toContain('后续内容已截断');
     });
   });
+
+  describe('checkBlankEmptyTags（填空空标签，全类型）', () => {
+    it('空标签报错', () => {
+      const issues = HardRuleChecker.checkBlankEmptyTags('<p>光合作用的场所是<u class="blank-2"></u></p>');
+      expect(issues.some(i => i.type === '填空空标签' && i.severity === 'error')).toBe(true);
+    });
+    it('span 空标签也报错', () => {
+      const issues = HardRuleChecker.checkBlankEmptyTags('<p>选出正确读音<span class="blank-4"> </span></p>');
+      expect(issues.some(i => i.type === '填空空标签')).toBe(true);
+    });
+    it('含 &emsp; 的标签不报错', () => {
+      const issues = HardRuleChecker.checkBlankEmptyTags('<p><u class="blank-2">&emsp;</u><span class="blank-4">&emsp;</span></p>');
+      expect(issues.filter(i => i.type === '填空空标签').length).toBe(0);
+    });
+  });
+
+  describe('checkChoiceOptionsMissing（选择题缺选项）', () => {
+    it('选择题无选项报错', () => {
+      const content = '<p class="question">1. 下列说法正确的是（　　）</p><div class="answer-section">A</div>';
+      const issues = HardRuleChecker.checkChoiceOptionsMissing(content);
+      expect(issues.some(i => i.type === '选择题缺少选项')).toBe(true);
+    });
+    it('选择题有选项不报错', () => {
+      const content = '<p class="question">1. 下列说法正确的是</p><p class="option">A. 太阳从东边升起</p><p class="option">B. 太阳从西边升起</p><div class="answer-section">A</div>';
+      const issues = HardRuleChecker.checkChoiceOptionsMissing(content);
+      expect(issues.filter(i => i.type === '选择题缺少选项').length).toBe(0);
+    });
+    it('非选择题不误报', () => {
+      const content = '<p class="question">1. 选择正确的读音并抄写：chūn tiān</p><div class="answer-section">春天</div>';
+      const issues = HardRuleChecker.checkChoiceOptionsMissing(content);
+      expect(issues.filter(i => i.type === '选择题缺少选项').length).toBe(0);
+    });
+  });
+
+  describe('checkAnswerSectionEmpty（答案区空内容）', () => {
+    it('答案区为空报错', () => {
+      const issues = HardRuleChecker.checkAnswerSectionEmpty('<p>题目</p><div class="answer-section"><p>　</p></div>');
+      expect(issues.some(i => i.type === '答案区空内容')).toBe(true);
+    });
+    it('答案区有内容不报错', () => {
+      const issues = HardRuleChecker.checkAnswerSectionEmpty('<p>题目</p><div class="answer-section"><p>答案：春天来了，小鸟在树上唱歌。</p></div>');
+      expect(issues.filter(i => i.type === '答案区空内容').length).toBe(0);
+    });
+  });
 });

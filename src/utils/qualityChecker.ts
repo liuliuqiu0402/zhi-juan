@@ -60,6 +60,10 @@ export class HardRuleChecker {
     issues.push(...this.checkHTMLTags(content));
     // 🔧 文字拼接错误机检（"说明"误写为"说明文"等合法词汇错用，AI语义审查漏网的兜底）
     issues.push(...this.checkStitchedWords(content));
+    // 🔴 三重硬核扫描·查错：填空空标签 / 选择题缺选项 / 答案区空内容（全类型，零/低误报）
+    issues.push(...this.checkBlankEmptyTags(content));
+    issues.push(...this.checkChoiceOptionsMissing(content));
+    issues.push(...this.checkAnswerSectionEmpty(content));
     // 🔧 genType 感知检查
     if (genType) {
       issues.push(...this.checkGenTypeSpecific(content, genType, parsedBlueprint));
@@ -168,6 +172,72 @@ export class HardRuleChecker {
           autoFix: false,
         });
       }
+    }
+    return issues;
+  }
+
+  /**
+   * 🔴 三重硬核扫描·查错：填空空标签检测（零误报，全类型适用）
+   * 指令要求"标签内必须有&emsp;"——<u class="blank-N"></u> / <span class="blank-N"></span> 空标签导出后是空洞
+   */
+  static checkBlankEmptyTags(content: string): Issue[] {
+    const issues: Issue[] = [];
+    const re = /<(u|span)\s+class="blank-\d+"[^>]*>\s*<\/(?:u|span)>/g;
+    let m;
+    while ((m = re.exec(content)) !== null) {
+      const ctx = content.slice(Math.max(0, m.index - 18), m.index + 28).replace(/\s+/g, ' ');
+      issues.push({
+        severity: 'error', type: '填空空标签',
+        detail: '检测到空白填空标签（标签内无&emsp;，导出后为空洞）：…' + ctx + '…。请在标签内填入 &emsp;，数量按答案字数映射表（1字→2个、2字→4个、3-4字→6个、5-6字→8个、7+字→10个）',
+        autoFix: false,
+      });
+    }
+    return issues;
+  }
+
+  /**
+   * 🔴 三重硬核扫描·查错：选择题选项缺失检测（全类型适用）
+   * 按 <p class="question"> 逐题切块：题干含选择题典型措辞但题后无 ≥2 个选项行 → 退稿
+   */
+  static checkChoiceOptionsMissing(content: string): Issue[] {
+    const issues: Issue[] = [];
+    const body = content.replace(/<div[^>]*class="answer-section"[^>]*>[\s\S]*$/i, '');
+    const questionBlocks = body.split(/<p class="question">/i).slice(1);
+    if (questionBlocks.length === 0) return issues;
+    const CHOICE_RE = /正确的一项是|正确的是|恰当的一项是|不正确的一项|不恰当的一项是|错误的一项|下列说法(正确|错误)|哪一[项个](正确|错误)|选择正确的(?:答案|选项)/;
+    for (let i = 0; i < questionBlocks.length; i++) {
+      const block = questionBlocks[i];
+      const qText = block.split(/<\/p>/)[0].replace(/<[^>]+>/g, '').trim();
+      if (!CHOICE_RE.test(qText)) continue;
+      // 选项区 = 本题块 + 下一题块开头（选项通常紧跟题干之后、下一题之前）
+      const next = i + 1 < questionBlocks.length ? questionBlocks[i + 1].split(/<p class="question">/)[0] : '';
+      const optCount = (block + next).match(/<p class="option">|<span class="option">/gi) || [];
+      if (optCount.length < 2) {
+        issues.push({
+          severity: 'error', type: '选择题缺少选项',
+          detail: `选择题缺少选项（题干："${qText.slice(0, 40)}…"），每道选择题必须输出 ≥2 个 <p class="option"> 选项行（A./B./C./D. 逐行排列，禁止空选项）`,
+          autoFix: false,
+        });
+      }
+    }
+    return issues;
+  }
+
+  /**
+   * 🔴 三重硬核扫描·查错：答案区空内容检测（全类型适用）
+   * answer-section 存在但内部无实际答案文本（去标签后 <20 字）→ 退稿
+   */
+  static checkAnswerSectionEmpty(content: string): Issue[] {
+    const issues: Issue[] = [];
+    const m = content.match(/<div[^>]*class="answer-section"[^>]*>([\s\S]*?)<\/div>/i);
+    if (!m) return issues;
+    const inner = m[1].replace(/<[^>]+>/g, '').replace(/&[a-zA-Z]+;/g, ' ').trim();
+    if (inner.length < 10) {
+      issues.push({
+        severity: 'error', type: '答案区空内容',
+        detail: '答案与解析区域内容为空或过短（仅' + inner.length + '字），请为所有题目补全完整答案与解析（含选择题，每道题都要有答案）',
+        autoFix: false,
+      });
     }
     return issues;
   }
@@ -1343,6 +1413,15 @@ export class HardRuleChecker {
     }
     if (issueTypes.includes('标点配对异常')) {
       prompt += `→ 存在未闭合的括号/书名号/引号，请补齐或删除多余标点，确保全卷标点成对。\n`;
+    }
+    if (issueTypes.includes('填空空标签')) {
+      prompt += `→ 存在空白填空标签 <u class="blank-N"></u> / <span class="blank-N"></span>（标签内无&emsp;），请为每个空标签填入 &emsp;，数量按答案字数映射：1字→2个、2字→4个、3-4字→6个、5-6字→8个、7+字→10个（横线标签），独立括号标签 N 值按括号映射表。\n`;
+    }
+    if (issueTypes.includes('选择题缺少选项')) {
+      prompt += `→ 选择题缺少选项，请为每道选择题补全 ≥2 个 <p class="option"> 选项行（A./B./C./D. 逐行排列，选项来自学生常见错误思路，长度结构相近，禁止"以上都对/以上都不对"类选项）。\n`;
+    }
+    if (issueTypes.includes('答案区空内容')) {
+      prompt += `→ 答案与解析区域为空或过短，请为所有题目（含选择题）补全完整答案与解析，主观题含思路/步骤/要点，确保文末答案区内容充实。\n`;
     }
     if (issueTypes.includes('正文含静态页码')) {
       prompt += `→ 正文中出现了静态页码文字（"第X页""共X页"等），请全部移除——页码由导出时自动生成（Word/PDF 页脚动态计算），生成内容中不得出现任何页码文字。\n`;
