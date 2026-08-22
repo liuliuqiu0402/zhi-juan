@@ -1,20 +1,24 @@
-// 填空横线行尾自动延伸回归测试：blank-line 在段落末尾 → PositionalTab（<w:ptab/>）自动画到右边距
+﻿// 填空横线行尾自动延伸回归测试：blank-line 在段落末尾 → PositionalTab（<w:ptab/>）自动画到右边距
 // 背景：旧实现按内部 &emsp; 数量估算宽度，AI 无法预知行宽 → 横线画到一半就断，需手动补齐；
 //       Word 位置制表符（ptab alignment=right relativeTo=margin leader=underscore）可自动延伸到行尾。
 import { describe, it, expect } from 'vitest';
 import { buildDocxFromDom } from '@/utils/docxBuilder.js';
+import { injectDrawingML } from '@/utils/drawingMLShapes.js';
 import { Packer } from 'docx';
 import JSZip from 'jszip';
 
-const getDocumentXml = async (html) => {
+// 完整导出链路：buildDocxFromDom → Packer.toBuffer → injectDrawingML
+// （jsdom Blob 缺 arrayBuffer，故手动串联而非 htmlToDocxBlob）
+const getDocumentXml = async (html, stage) => {
   const container = document.createElement('div');
   container.style.fontSize = '16px';
   container.innerHTML = html;
   document.body.appendChild(container);
-  const doc = buildDocxFromDom(container);
+  const doc = buildDocxFromDom(container, stage);
   container.remove();
   const buf = await Packer.toBuffer(doc);
-  const zip = await JSZip.loadAsync(buf);
+  const processed = await injectDrawingML(buf);
+  const zip = await JSZip.loadAsync(processed);
   return zip.file('word/document.xml').async('string');
 };
 
@@ -55,6 +59,24 @@ describe('特殊下划线导出（double-line/wavy-underline 不被 ctx 覆盖�
   });
 });
 
+describe('四线三格文字居中导出（字母进群组 Textbox，不右移出格）', () => {
+  it('行内四线格：字母在 w:txbxContent 内（与线条同群组坐标系，Word 原生居中）', async () => {
+    const xml = await getDocumentXml('<p>拼音：<span class="four-line-three pinyin-line">cat</span></p>');
+    // FLT-Char textbox 存在，字母 cat 在 txbx 内
+    expect(xml).toContain('name="FLT-Char"');
+    expect(xml).toMatch(/<w:txbxContent>[\s\S]*?<w:t[^>]*>cat<\/w:t>[\s\S]*?<\/w:txbxContent>/);
+    // 四线格线条存在
+    expect(xml).toContain('name="FourLineGrid"');
+    expect(xml).toContain('FLT-Line-4');
+  });
+
+  it('块级四线格（独立段落）：字母同样在群组 textbox 内', async () => {
+    const xml = await getDocumentXml('<p class="question">1. 抄写单词。</p><div class="four-line-three">dog</div>');
+    expect(xml).toContain('name="FLT-Char"');
+    expect(xml).toMatch(/<w:txbxContent>[\s\S]*?<w:t[^>]*>dog<\/w:t>[\s\S]*?<\/w:txbxContent>/);
+  });
+});
+
 describe('作文格（zuo-wen-ge）导出', () => {
   it('标准 span 格子结构 → 导出为格子表格', async () => {
     const xml = await getDocumentXml(
@@ -81,15 +103,7 @@ describe('作文格（zuo-wen-ge）导出', () => {
   it('格子尺寸按学段：小学 12mm≈680 / 初中 10mm≈567 / 高中 宽0.75cm≈425 DXA', async () => {
     const html = '<div class="zuo-wen-ge"><span>&emsp;</span><span>&emsp;</span></div>';
     const run = async (stage) => {
-      const container = document.createElement('div');
-      container.style.fontSize = '16px';
-      container.innerHTML = html;
-      document.body.appendChild(container);
-      const doc = buildDocxFromDom(container, stage);
-      container.remove();
-      const buf = await Packer.toBuffer(doc);
-      const zip = await JSZip.loadAsync(buf);
-      const xml = await zip.file('word/document.xml').async('string');
+      const xml = await getDocumentXml(html, stage);
       const m = xml.match(/<w:tcW[^>]*w:w="(\d+)"/);
       return m ? parseInt(m[1], 10) : 0;
     };
@@ -102,14 +116,7 @@ describe('作文格（zuo-wen-ge）导出', () => {
   it('每行格子数按 A4 可用宽度自动排满（普通文档：初中 16 列）', async () => {
     // 普通文档（左右 2cm=1134×2）：floor((11906-2268-284)/567) = floor(9354/567) = 16 列
     const html = '<div class="zuo-wen-ge">' + Array.from({ length: 45 }, () => '<span>&emsp;</span>').join('') + '</div>';
-    const container = document.createElement('div');
-    container.innerHTML = html;
-    document.body.appendChild(container);
-    const doc = buildDocxFromDom(container, 'middle');
-    container.remove();
-    const buf = await Packer.toBuffer(doc);
-    const zip = await JSZip.loadAsync(buf);
-    const xml = await zip.file('word/document.xml').async('string');
+    const xml = await getDocumentXml(html, 'middle');
     // 表格总宽 = 每行格数 × 567
     const tblW = xml.match(/<w:tblW[^>]*w:w="(\d+)"/);
     expect(tblW).toBeTruthy();
@@ -171,3 +178,4 @@ describe('填空横线导出：段落末尾 blank-line 自动延伸到行尾', (
     expect(xml).toMatch(/>\(/); // 括号 + NBSP 占位
   });
 });
+
