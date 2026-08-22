@@ -413,10 +413,12 @@ const filteredThemes = computed(() => {
 // 🔧 提取当前主题的 CSS（用于注入富文本编辑器，实现编辑即预览）
 const themeCSS = computed(() => {
   try {
-    // 🔧 内容含密封线特征但未选主题时，回退用 sealed_exam 提供密封线样式——
-    //    否则编辑器走无样式 fallback，密封线丢失左右 2.5cm 边距与边距外侧布局
+    // 🔧 内容含密封线特征（关键词 或 sealed-wrapper/seal-zone 结构）但未选主题时，
+    //    回退用 sealed_exam 提供密封线样式——否则编辑器走无样式 fallback，
+    //    密封线丢失左右 2.5cm 边距与边距外侧布局
+    const raw = rawHtmlContent.value || '';
     const cssThemeId = selectedThemeId.value
-      || (rawHtmlContent.value && sealMarkRegex.test(rawHtmlContent.value) ? 'sealed_exam' : null);
+      || (raw && (sealMarkRegex.test(raw) || /sealed-wrapper|seal-zone|seal-note/.test(raw)) ? 'sealed_exam' : null);
     const fullHtml = applyThemeToContent('<div></div>', cssThemeId, { 
       isHtmlContent: true, 
       forceImportant: true  // 确保标题/字体等主题样式不被覆盖

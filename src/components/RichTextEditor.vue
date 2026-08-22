@@ -1799,6 +1799,8 @@ defineExpose({
 /* 🔧 密封线样式由主题 CSS（sealed_exam）统一提供（模板结构 seal-zone/seal-note/seal-info/seal-line/seal-char，
    绝对定位于左侧页边距带，正文内边距外侧）；编辑器只需保证页壳与密封区不裁切 */
 .rich-text-editor :deep(.sealed-wrapper) { position: relative; overflow: visible; }
+/* 🔧 密封试卷页壳边距兜底：不依赖主题 CSS 注入时序/关键词命中，编辑器内始终左右 2.5cm、上下 2cm */
+.rich-text-editor :deep(.sealed-wrapper) { padding: 20mm 25mm !important; box-sizing: border-box !important; }
 .rich-text-editor :deep(.seal-zone) { z-index: 1; }
 .rich-text-editor :deep(.seal-note),
 .rich-text-editor :deep(.seal-info),
