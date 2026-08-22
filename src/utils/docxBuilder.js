@@ -1045,22 +1045,36 @@ const processBlockNode = (node, ctx = {}) => {
         alignment: AlignmentType.CENTER,
         spacing: { line: 240, lineRule: LineRuleType.AUTO },
       });
+      // 🔧 正规作文纸字数标注（格子内小字下标，不占行、不影响书写）：累计 50/100/150…
+      //    字所在的那个格子内部底部用浅灰小字标数字（如"50"），学生书写在格子中央，
+      //    打印后标注不干扰；间隔按学段：小学 50 字、中学（中考/高考）100 字（试卷规范）
+      const MARK_STEP = __zwgStage === 'primary' ? 50 : 100;
+      const MARK_MAX = 800;
+      const MARK_STEPS = [];
+      for (let m = MARK_STEP; m <= MARK_MAX; m += MARK_STEP) MARK_STEPS.push(m);
+      const gridBorders = { top: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, bottom: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, left: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, right: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' } };
+      // mark：该格累计第 N 字 → 格子内底部印小字"N"（N≤800 时）；否则普通空格格
+      const gridCell = (txt, mark) => new TableCell({
+        children: mark
+          ? [new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 0, after: 0, line: 240, lineRule: LineRuleType.AUTO },
+              children: [new TextRun({ text: String(mark), size: 10, color: '999999' })],
+            })]
+          : [cellPara(txt)],
+        width: { size: zwgCellDxa, type: WidthType.DXA },
+        borders: gridBorders,
+        verticalAlign: mark ? VerticalAlign.BOTTOM : VerticalAlign.CENTER,
+      });
       const rows = [];
       let currentRow = [];
+      let cum = 0; // 已输出格子累计数（自动按实际格数计数，标注随格子数量自适应）
       spans.forEach((span, idx) => {
-        currentRow.push(new TableCell({
-          children: [cellPara(span.textContent.trim() || ' ')],
-          width: { size: zwgCellDxa, type: WidthType.DXA },
-          borders: { top: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, bottom: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, left: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, right: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' } },
-        }));
+        cum++;
+        const mark = MARK_STEPS.includes(cum) ? cum : null;
+        currentRow.push(gridCell(span.textContent.trim() || ' ', mark));
         if (currentRow.length >= perRow || idx === spans.length - 1) {
-          while (currentRow.length < perRow) {
-            currentRow.push(new TableCell({
-              children: [cellPara(' ')],
-              width: { size: zwgCellDxa, type: WidthType.DXA },
-              borders: { top: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, bottom: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, left: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, right: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' } },
-            }));
-          }
+          while (currentRow.length < perRow) currentRow.push(gridCell(' '));
           rows.push(new TableRow({ children: currentRow, height: { value: zwgCellH, rule: HeightRule.EXACT } }));
           currentRow = [];
         }
@@ -1072,6 +1086,11 @@ const processBlockNode = (node, ctx = {}) => {
         //    显式指定列宽数组生成正确 gridCol（每格 zwgCellDxa 宽）
         columnWidths: Array(perRow).fill(zwgCellDxa),
         layout: TableLayoutType.FIXED, // 固定布局：按声明宽度排布，防 Word 自动布局+单元格边距撑宽超页
+      }));
+      // 🔧 表格后间距：保证下一行内容不顶住格子下边框（Word 表格后无段落会粘连）
+      children.push(new Paragraph({
+        spacing: { after: 220 },
+        children: [new TextRun({ text: '', size: 2 })],
       }));
     }
     return children;
@@ -1125,6 +1144,11 @@ const processBlockNode = (node, ctx = {}) => {
       width: { size: cols * cellW, type: WidthType.DXA },
       columnWidths: Array(cols).fill(cellW), // gridCol 显式列宽（docx 库默认 100，FIXED 下会挤压）
       layout: TableLayoutType.FIXED, // 固定布局：12 列 × 7mm 精确等宽方格
+    }));
+    // 🔧 表格后显式间距段：防下一行内容顶住格子下边框（Word 表格后无段落会与后续内容粘连）
+    children.push(new Paragraph({
+      spacing: { after: 240 },
+      children: [new TextRun({ text: '', size: 2 })],
     }));
     return children;
   }
@@ -1859,6 +1883,7 @@ export const buildDocxFromDom = (containerEl, stage = 'middle') => {
     const hasSealDetect = !!(containerEl.querySelector && containerEl.querySelector('.sealed-wrapper, .sealed-line, .seal-line, .seal-zone'));
     const zwgCellW = __zwgStage === 'primary' ? 680 : __zwgStage === 'middle' ? 567 : 425;
     const zwgMargin = (hasSealDetect ? 1417 : 1134) * 2;
+    // 🔧 每行格子数按 A4 可用宽度排满（无独立标注列，字数标注走行间"下标"方案）
     __zwgPerRow = Math.max(8, Math.floor((11906 - zwgMargin - 284) / zwgCellW));
   }
   const children = [];

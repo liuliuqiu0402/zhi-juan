@@ -147,9 +147,12 @@ const pinyinTextbox = (id, pinyin, sizeHp, fontFamily, S, ph) => {
 const groupAnchor = (o) => {
   const shapesXml = o.shapesXml || (o.shapes || []).map(childShape).join('');
   const vertOff = o.vertOffEmu || 0;  // 🔧 垂直偏移：负值上移以对齐字符视觉中心
+  // 🔧 posVFrom：垂直锚定基准（仅可用 OOXML 合法枚举：line/paragraph/text/character…；
+  //    "baseline" 非法，Word 严格校验拒绝打开。line=随行锚定，田字格/四线格/方框填空通用）
+  const posVFrom = o.posVFrom || 'line';
   // 🔧 simplePos 元素与 simplePos="0" 属性为 CT_Anchor 必选（ISO 29500）：缺失时 WPS 宽容可开，
   //    Word 严格校验直接拒绝打开（“Word 在试图打开文件时遇到错误”）→ 两处必须同时存在
-  return `<w:drawing xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wp:anchor distT="0" distB="0" distL="0" distR="0" relativeHeight="251659264" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1" simplePos="0"><wp:simplePos x="0" y="0"/>${o.posHXml}<wp:positionV relativeFrom="line"><wp:posOffset>${vertOff}</wp:posOffset></wp:positionV><wp:extent cx="${Math.max(1, o.cx)}" cy="${Math.max(1, o.cy)}"/><wp:effectExtent l="0" t="0" r="9525" b="9525"/><wp:wrapNone/><wp:docPr id="${o.id}" name="${o.name}"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"><wpg:wgp><wpg:cNvGrpSpPr/><wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.max(1, o.cx)}" cy="${Math.max(1, o.cy)}"/><a:chOff x="0" y="0"/><a:chExt cx="${Math.max(1, o.cx)}" cy="${Math.max(1, o.cy)}"/></a:xfrm></wpg:grpSpPr>${shapesXml}</wpg:wgp></a:graphicData></a:graphic></wp:anchor></w:drawing>`;
+  return `<w:drawing xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wp:anchor distT="0" distB="0" distL="0" distR="0" relativeHeight="251659264" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1" simplePos="0"><wp:simplePos x="0" y="0"/>${o.posHXml}<wp:positionV relativeFrom="${posVFrom}"><wp:posOffset>${vertOff}</wp:posOffset></wp:positionV><wp:extent cx="${Math.max(1, o.cx)}" cy="${Math.max(1, o.cy)}"/><wp:effectExtent l="0" t="0" r="9525" b="9525"/><wp:wrapNone/><wp:docPr id="${o.id}" name="${o.name}"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"><wpg:wgp><wpg:cNvGrpSpPr/><wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.max(1, o.cx)}" cy="${Math.max(1, o.cy)}"/><a:chOff x="0" y="0"/><a:chExt cx="${Math.max(1, o.cx)}" cy="${Math.max(1, o.cy)}"/></a:xfrm></wpg:grpSpPr>${shapesXml}</wpg:wgp></a:graphicData></a:graphic></wp:anchor></w:drawing>`;
 };
 
 // ============ 四线三格：1 个群组 = 4 条水平线 ============
@@ -403,7 +406,7 @@ const buildInlineTzg = (char, cellWEmu, idBase, rPrXml, pinyin = '') => {
 };
 
 /** 方框填空行内方格：单个矩形 + 文字 textbox（与田字格同技术，真正正方形、可嵌算式行内） */
-const squareBoxShapeAnchors = (S, idBase, sizeHp, gapEmu, char, fontFamily = 'SimSun') => {
+const squareBoxShapeAnchors = (S, idBase, sizeHp, gapEmu, char, fontFamily = 'SimSun', posVFrom = 'line', vertOffEmu = 0) => {
   const sPt = Math.round(S / EMU_PER_PT);
   const shapes = [
     // 外框矩形（深灰 2pt，与预览 border:2px solid #333 一致）
@@ -419,13 +422,18 @@ const squareBoxShapeAnchors = (S, idBase, sizeHp, gapEmu, char, fontFamily = 'Si
     cx: S,
     cy: S,
     shapesXml,
-    vertOffEmu: Math.round(3 * EMU_PER_PT), // 行内下移 3pt（同田字格行内对称）
+    posVFrom,
+    vertOffEmu,
   });
   const fallback = `<w:pict><v:rect style="width:${sPt}pt;height:${sPt}pt" strokecolor="#333333" strokeweight="2pt" filled="f"><v:textbox inset="0,0,0,0"><div style="font-family:${fontFamily};font-size:${sizeHp / 2}pt;text-align:center;line-height:${sPt}pt;">${escXml(char)}</div></v:textbox></v:rect></w:pict>`;
   return mcWrap(choice, fallback);
 };
 
-/** 行内方框填空：三 run 结构（零宽占位 + drawing + spacing 撑宽，同田字格） */
+/** 行内方框填空：三 run 结构（零宽占位 + drawing + spacing 撑宽，同田字格）。
+ *  🔧 垂直锚定必须用合法枚举 relativeFrom="line"（"baseline" 非 OOXML 的
+ *     ST_VerticalRelativeFrom 合法值，Word 严格校验直接拒绝打开整个文档，
+ *     LibreOffice 宽容忽略 → 导出在 Word 中打不开/位置错乱）。
+ *     与田字格同用 line 锚定 + 负偏移上移，使方框中心对齐相邻文字视觉中心 */
 const buildInlineSquareBox = (char, cellWEmu, idBase, rPrXml) => {
   const S = Math.round(cellWEmu);
   const cellW = Math.round(cellWEmu / EMU_PER_DXA);
@@ -435,7 +443,12 @@ const buildInlineSquareBox = (char, cellWEmu, idBase, rPrXml) => {
   const fontRPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/>`;
   const zeroRPr = `<w:rPr>${fontRPr}</w:rPr>`;
   const anchorRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:spacing w:val="${padSpacing}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/></w:rPr>`;
-  const anchors = squareBoxShapeAnchors(S, idBase, sizeHp, gapEmuOf(sizeHp), char, 'SimSun')
+  // 方框高 1.8em：line 锚定下对象顶≈行顶，中心=顶+0.9em；文字视觉中心≈行顶+0.65em
+  // → 上移 0.25em 使方框中心对齐相邻文字视觉中心（Word 渲染实测线性：
+  //    0em 时中心偏下 2.9pt，-0.25em 时与行文字 bbox 中心重合，-0.35em 偏上 1.3pt）
+  const sizePt = (sizeHp || 28) / 2;
+  const vertOffEmu = -Math.round(0.25 * sizePt * EMU_PER_PT);
+  const anchors = squareBoxShapeAnchors(S, idBase, sizeHp, gapEmuOf(sizeHp), char, 'SimSun', 'line', vertOffEmu)
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
   return '<w:r>' + zeroRPr + '<w:t xml:space="preserve">\u200C</w:t></w:r>'
     + '<w:r>' + zeroRPr + anchors + '</w:r>'
