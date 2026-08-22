@@ -50,6 +50,19 @@ describe('省市差异化配置', () => {
     expect(bp.fullScore).toBe(120);
   });
 
+  it('小学不受省市影响：仍用蓝本默认（primary 未配置省市）', () => {
+    const bp = getExamBlueprint('语文', 'primary_high', '江苏');
+    expect(bp.fullScore).toBe(100); // 小学语文高段蓝本默认 100 分
+    const bpMath = getExamBlueprint('数学', 'primary_high', '北京');
+    expect(bpMath.fullScore).toBe(100);
+  });
+
+  it('高中不受省市影响：全国统一 3+1+2（high 未配置省市）', () => {
+    const bp = getExamBlueprint('物理', 'high', '江苏');
+    expect(bp.fullScore).toBe(100); // 选考单科 100 分/75 分钟全国统一
+    expect(bp.duration).toBe('75分钟');
+  });
+
   it('蓝本文本含省市时长/总分', () => {
     const bp = getExamBlueprint('语文', 'middle', '江苏');
     const text = buildExamBlueprintText(bp);
