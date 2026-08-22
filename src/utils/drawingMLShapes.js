@@ -514,7 +514,7 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false) => {
   //  - pad=1.5mm 两端留白：防整框旋转后首/尾字符贴边被裁剪（Word/WPS 均完整可见）
   //  - mirror：偶页对开镜像——offX 关于页面中线（210mm）水平翻转、字头朝右（靠书脊）
   const pad = 1.5;
-  const ROT = mirror ? 9000000 : 16200000;
+  const ROT = mirror ? 5400000 : 16200000; // 镜像版 90°CW（字头朝右）/ 左版 270°（字头朝左）
   const txbx = (id, name, xMm, yMm, t, szPt, bold) => {
     const sz = Math.round(szPt * 2); // 半磅
     const Lmm = [...t].length * szPt * 0.353;   // 文本长度：每字 ≈ 字号(pt)→mm

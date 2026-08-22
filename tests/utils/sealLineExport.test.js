@@ -354,7 +354,7 @@ describe('密封线导出：wpg 浮动群组（左侧页边距内 0~20mm，不�
     expect(evenHdr).toContain(`cy="${257 * 36000}"`);
     expect(evenHdr).toContain('<a:prstDash val="dash"/>');
     // 镜像版文字整框旋转 90° CW（字头朝右），与左侧版 270° 关于页面中线对称
-    expect(evenHdr).toContain('a:xfrm rot="9000000"');
+    expect(evenHdr).toContain('a:xfrm rot="5400000"');
     expect(evenHdr).not.toContain('a:xfrm rot="16200000"');
     // even 页眉为后续页样式：仅 虚线+密/封/线，无提示语/信息栏
     expect(evenHdr).not.toContain('SealTip');
