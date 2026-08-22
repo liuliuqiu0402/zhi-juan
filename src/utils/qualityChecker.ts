@@ -558,35 +558,72 @@ export class HardRuleChecker {
     return issues;
   }
 
+  /**
+   * 🔧 分数层级一致性校验（exam 专用）：按层级逐级验算，杜绝重复/错位
+   *  卷级：卷首满分 = 各大题"共X分"之和（同一标题去重，只统计答案区前正文）
+   *  大题级（同分）：题数×每题分 = 大题总分
+   *  大题级（主观）：块内小题标注"（N分）"之和 = 大题总分
+   *  空级（多空）：空数×每空分 = 小题分（块内恰一个多空小题时）
+   */
   static checkScoreConsistency(content: string): Issue[] {
     const issues: Issue[] = [];
-    // 🔧 只统计答案区之前的题目正文：答案区可能重复大题标题，避免重复计数造成误报
+    // 只统计答案区之前的题目正文（答案区可能重复大题标题）
     const body = content.replace(/<div[^>]*class="answer-section"[^>]*>[\s\S]*$/i, '');
-    // 1) 同分大题算术：本大题共N小题，每题/每小题P分，共T分 → N×P 必须= T
-    const sameScoreRe = /本大题共(\d+)(?:小题|题)[，,]\s*每(?:小)?题(\d+)分[，,]\s*共(\d+)分/g;
-    let m;
-    while ((m = sameScoreRe.exec(body)) !== null) {
-      const n = parseInt(m[1]), per = parseInt(m[2]), total = parseInt(m[3]);
-      if (n * per !== total) {
-        issues.push({ severity: 'warning', type: '分值计算不一致', detail: `大题标注"本大题共${n}小题，每小题${per}分，共${total}分"，但 ${n}×${per}=${n * per}≠${total}，请修正题数或分值`, autoFix: false });
+    // 按大题标题切块（标题含"本大题共…共X分"）
+    const titleRe = /([一二三四五六七八九十]+[、.][^\n<]*?（[^）]*本大题共\d+(?:小题|题)[^）]*?共(\d+)分[^）]*）)/g;
+    const pos: { title: string; total: number; start: number; end: number }[] = [];
+    let tm: RegExpExecArray | null;
+    while ((tm = titleRe.exec(body)) !== null) {
+      pos.push({ title: tm[1], total: parseInt(tm[2]), start: tm.index, end: tm.index + tm[0].length });
+    }
+    const blocks = pos.map((p, i) => ({
+      title: p.title, total: p.total,
+      seg: body.slice(p.end, i + 1 < pos.length ? pos[i + 1].start : body.length),
+    }));
+    for (const b of blocks) {
+      // 大题级·同分：本大题共N题，每题P分，共T分 → N×P=T
+      const same = b.title.match(/本大题共(\d+)(?:小题|题)[，,]\s*每(?:小)?题(\d+)分[，,]\s*共(\d+)分/);
+      if (same) {
+        const n = +same[1], per = +same[2], total = +same[3];
+        if (n * per !== total) {
+          issues.push({ severity: 'warning', type: '分值计算不一致', detail: `大题"${b.title.slice(0, 12)}…"标注本大题共${n}题，每题${per}分，共${total}分，但 ${n}×${per}=${n * per}≠${total}，请修正题数或分值`, autoFix: false });
+        }
+      } else {
+        // 大题级·主观：块内小题标注（N分）之和 = 大题总分（≥2 处标注才校验，防误报）
+        const subScores = [...b.seg.matchAll(/[（(]\s*(\d+)\s*分\s*[)）]/g)].map(x => +x[1]);
+        if (subScores.length >= 2) {
+          const sum = subScores.reduce((a, c) => a + c, 0);
+          if (sum !== b.total) {
+            issues.push({ severity: 'warning', type: '分值汇总不一致', detail: `大题"${b.title.slice(0, 12)}…"内小题标注分值 ${subScores.join('+')}=${sum}分，但大题总分${b.total}分，不一致——各小题分之和必须=大题总分`, autoFix: false });
+          }
+        }
+        // 空级·多空：每空分×空数 应= 小题分（块内恰一个小题分标注时）或= 大题总分（无小题分标注、整大题同分多空时）
+        const perBlanks = [...b.seg.matchAll(/每空(\d+)分/g)].map(x => +x[1]);
+        const blankCnt = (b.seg.match(/<(?:u|span)\s+class="blank-\d+"/g) || []).length;
+        if (perBlanks.length > 0 && blankCnt > 0 && new Set(perBlanks).size === 1) {
+          const calc = blankCnt * perBlanks[0];
+          if (subScores.length === 1 && calc !== subScores[0]) {
+            issues.push({ severity: 'warning', type: '分值计算不一致', detail: `多空题共${blankCnt}空×每空${perBlanks[0]}分=${calc}分，但小题标注${subScores[0]}分，不一致——空数×每空分必须=小题分`, autoFix: false });
+          } else if (subScores.length === 0 && calc !== b.total) {
+            issues.push({ severity: 'warning', type: '分值计算不一致', detail: `多空题共${blankCnt}空×每空${perBlanks[0]}分=${calc}分，但大题总分${b.total}分，不一致——空数×每空分必须=大题总分`, autoFix: false });
+          }
+        }
       }
     }
-    // 2) 层级汇总：卷首满分 = 各大题"共X分"之和（只统计大题标题，同一标题重复出现只计一次）
+    // 卷级：卷首满分 = 各大题"共X分"之和（同一标题文本只计一次）
     const fullMatch = body.match(/满分[:：]\s*(\d+)/);
-    if (fullMatch) {
-      const full = parseInt(fullMatch[1]);
-      const bigRe = /本大题共\d+(?:小题|题)[，,]\s*(?:每(?:小)?题\d+分[，,]\s*)?共(\d+)分/g;
-      const bigTotals: number[] = [];
+    if (fullMatch && pos.length > 0) {
+      const full = +fullMatch[1];
       const seen = new Set<string>();
-      let bm;
-      while ((bm = bigRe.exec(body)) !== null) {
-        if (seen.has(bm[0])) continue; // 同一标题文本（正文/答案区重复）只计一次
-        seen.add(bm[0]);
-        bigTotals.push(parseInt(bm[1]));
+      const totals: number[] = [];
+      for (const p of pos) {
+        if (seen.has(p.title)) continue;
+        seen.add(p.title);
+        totals.push(p.total);
       }
-      const bigSum = bigTotals.reduce((a, b) => a + b, 0);
-      if (bigTotals.length > 0 && bigSum !== full) {
-        issues.push({ severity: 'warning', type: '分值汇总不一致', detail: `卷首满分${full}分，各大题"共X分"合计${bigSum}分（${bigTotals.join('+')}），不一致——请调整各大题总分，使大题之和=满分`, autoFix: false });
+      const sum = totals.reduce((a, c) => a + c, 0);
+      if (sum !== full) {
+        issues.push({ severity: 'warning', type: '分值汇总不一致', detail: `卷首满分${full}分，各大题总分合计${sum}分（${totals.join('+')}），不一致——各大题之和必须=满分`, autoFix: false });
       }
     }
     return issues;

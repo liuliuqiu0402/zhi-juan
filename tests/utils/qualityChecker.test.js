@@ -246,6 +246,18 @@ describe('HardRuleChecker', () => {
       const issues = HardRuleChecker.checkScoreConsistency('满分：10分。一、默写（本大题共1题，共10分）。默写。（每空1分，共10分）');
       expect(issues.filter(i => i.type === '分值汇总不一致').length).toBe(0);
     });
+    it('主观题大题：小题分之和≠大题总分报错（层级验算）', () => {
+      const issues = HardRuleChecker.checkScoreConsistency('满分：14分。三、阅读（本大题共4题，共14分）。1. 圈一圈（3分）。2. 选一选（3分）。3. 画一画（5分）。4. 说一说（2分）');
+      expect(issues.some(i => i.type === '分值汇总不一致' && i.detail.includes('小题标注分值 3+3+5+2=13'))).toBe(true);
+    });
+    it('主观题大题：小题分之和=大题总分不报', () => {
+      const issues = HardRuleChecker.checkScoreConsistency('满分：14分。三、阅读（本大题共4题，共14分）。1. 圈一圈（3分）。2. 选一选（3分）。3. 画一画（5分）。4. 说一说（3分）');
+      expect(issues.filter(i => i.type === '分值汇总不一致').length).toBe(0);
+    });
+    it('多空题：空数×每空分≠大题总分报错（3空×1分=3≠4分）', () => {
+      const issues = HardRuleChecker.checkScoreConsistency('满分：4分。一、写字（本大题共1题，共4分）。春联：<u class="blank-4"> </u>（hú dié）飞。<u class="blank-4"> </u>（nóng jiā）忙。<u class="blank-4"> </u>（sì jì）平安。（每空1分，共4分）');
+      expect(issues.some(i => i.type === '分值计算不一致' && i.detail.includes('3空×每空1分=3分，但大题总分4分'))).toBe(true);
+    });
   });
 
   describe('checkChoiceOptionsMissing（选择题缺选项）', () => {
