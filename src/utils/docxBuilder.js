@@ -3,7 +3,7 @@
 // 输出：docx 库的 Document 对象 → Packer.toBlob()
 
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader } from 'docx';
-import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
+import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
 
 // ============ 工具函数 ============
@@ -413,10 +413,18 @@ const buildTextRuns = (node, styleOverride = {}) => {
       for (const c of child.childNodes) processChild(c, { ...ctx, font: 'Times New Roman' });
       return;
     }
-    if (cls.contains('oral-box') || cls.contains('square-box') || cls.contains('score-box')) {
-      // 🔧 方框/口算框/得分框：加 NBSP 撑出最小宽度（预览 min-width 2~3em，导出贴合文字不成框）
-      //    square-box 2em → 前后各 1 NBSP(0.5em)=1em + 字 1em ≈2em；oral-box/score-box 3em → 前后各 2 NBSP
-      const padN = cls.contains('square-box') ? 1 : 2;
+    if (cls.contains('square-box')) {
+      // 🔧 方框填空 → 行内正方形方格（DrawingML 矩形 + 文字 textbox，与田字格同技术）：
+      //    run 边框方案宽=2em/高=行高，非正方形；方格 1.8em×1.8em 真正正方、可嵌算式行内
+      const sbSizeHp = ctx.size || readFontSizeHp(child) || 28;
+      const sbCellW = Math.round(sbSizeHp * 18); // 1.8em（同田字格）
+      const sbCellWEmu = Math.round(sbCellW * EMU_PER_DXA);
+      runs.push(new TextRun({ ...ctx, text: SQUARE_BOX_MARKER((text.trim() || ' '), sbCellWEmu), size: sbSizeHp }));
+      return;
+    }
+    if (cls.contains('oral-box') || cls.contains('score-box')) {
+      // 🔧 口算框/得分框保持 run 边框 + NBSP 撑宽（横向长框，不要求正方形）
+      const padN = 2;
       const pad = '\u00A0'.repeat(padN);
       runs.push(new TextRun({ text: pad + text + pad, border: { style: BorderStyle.SINGLE, size: 2, color: '333333' }, ...ctx }));
       return;
@@ -1030,25 +1038,30 @@ const processBlockNode = (node, ctx = {}) => {
       const zwgCellH = __zwgStage === 'high' ? 454 : zwgCellDxa;
       // 🔧 每行格子数不固定：按 A4 可用宽度自动排满（__zwgPerRow 由 buildDocxFromDom 计算）
       const perRow = Math.max(8, __zwgPerRow || 20);
+      // 🔧 单元格段落单倍行高（防默认行高撑高格子）；行高由 TableRow 的 EXACT=格宽 强制 →
+      //    正方形方格（docx 库 TableCell.height 不输出 w:tcH，行高完全取决于 trHeight）
+      const cellPara = (txt) => new Paragraph({
+        text: txt,
+        alignment: AlignmentType.CENTER,
+        spacing: { line: 240, lineRule: LineRuleType.AUTO },
+      });
       const rows = [];
       let currentRow = [];
       spans.forEach((span, idx) => {
         currentRow.push(new TableCell({
-          children: [new Paragraph({ text: span.textContent.trim() || ' ', alignment: AlignmentType.CENTER })],
+          children: [cellPara(span.textContent.trim() || ' ')],
           width: { size: zwgCellDxa, type: WidthType.DXA },
-          height: { size: zwgCellH, rule: HeightRule.ATLEAST },
           borders: { top: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, bottom: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, left: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, right: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' } },
         }));
         if (currentRow.length >= perRow || idx === spans.length - 1) {
           while (currentRow.length < perRow) {
             currentRow.push(new TableCell({
-              children: [new Paragraph({ text: ' ' })],
+              children: [cellPara(' ')],
               width: { size: zwgCellDxa, type: WidthType.DXA },
-              height: { size: zwgCellH, rule: HeightRule.ATLEAST },
               borders: { top: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, bottom: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, left: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' }, right: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' } },
             }));
           }
-          rows.push(new TableRow({ children: currentRow }));
+          rows.push(new TableRow({ children: currentRow, height: { value: zwgCellH, rule: HeightRule.EXACT } }));
           currentRow = [];
         }
       });

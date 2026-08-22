@@ -402,6 +402,46 @@ const buildInlineTzg = (char, cellWEmu, idBase, rPrXml, pinyin = '') => {
     + '<w:r>' + anchorRPr + '<w:t xml:space="preserve"> </w:t></w:r>';
 };
 
+/** 方框填空行内方格：单个矩形 + 文字 textbox（与田字格同技术，真正正方形、可嵌算式行内） */
+const squareBoxShapeAnchors = (S, idBase, sizeHp, gapEmu, char, fontFamily = 'SimSun') => {
+  const sPt = Math.round(S / EMU_PER_PT);
+  const shapes = [
+    // 外框矩形（深灰 2pt，与预览 border:2px solid #333 一致）
+    { id: idBase + 1, name: 'SQBX-Box', x: 0, y: 0, cx: S, cy: S, geom: 'rect', color: '333333', wEmu: 12700, dash: false },
+  ];
+  // 字符 Textbox（同田字格 textboxTzg：全尺寸、anchor=ctr、字号放大 30% 补偿）
+  const tboxXml = char ? textboxTzg(idBase + 2, char, sizeHp, fontFamily, S, 0, S) : '';
+  const shapesXml = shapes.map(childShape).join('') + tboxXml;
+  const choice = groupAnchor({
+    id: idBase,
+    name: 'SquareBoxGrid',
+    posHXml: CHAR_POS_H(gapEmu),
+    cx: S,
+    cy: S,
+    shapesXml,
+    vertOffEmu: Math.round(3 * EMU_PER_PT), // 行内下移 3pt（同田字格行内对称）
+  });
+  const fallback = `<w:pict><v:rect style="width:${sPt}pt;height:${sPt}pt" strokecolor="#333333" strokeweight="2pt" filled="f"><v:textbox inset="0,0,0,0"><div style="font-family:${fontFamily};font-size:${sizeHp / 2}pt;text-align:center;line-height:${sPt}pt;">${escXml(char)}</div></v:textbox></v:rect></w:pict>`;
+  return mcWrap(choice, fallback);
+};
+
+/** 行内方框填空：三 run 结构（零宽占位 + drawing + spacing 撑宽，同田字格） */
+const buildInlineSquareBox = (char, cellWEmu, idBase, rPrXml) => {
+  const S = Math.round(cellWEmu);
+  const cellW = Math.round(cellWEmu / EMU_PER_DXA);
+  const sizeHp = Math.round(cellW / 18); // 1.8em 反推字号（与田字格一致）
+  const sz = String(sizeHp || 28);
+  const padSpacing = Math.round(sizeHp * 20); // 2em twip（同田字格 pad 2.5em：空格0.5+spacing2）
+  const fontRPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/>`;
+  const zeroRPr = `<w:rPr>${fontRPr}</w:rPr>`;
+  const anchorRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:spacing w:val="${padSpacing}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/></w:rPr>`;
+  const anchors = squareBoxShapeAnchors(S, idBase, sizeHp, gapEmuOf(sizeHp), char, 'SimSun')
+    .replace(/behindDoc="1"/g, 'behindDoc="0"');
+  return '<w:r>' + zeroRPr + '<w:t xml:space="preserve">\u200C</w:t></w:r>'
+    + '<w:r>' + zeroRPr + anchors + '</w:r>'
+    + '<w:r>' + anchorRPr + '<w:t xml:space="preserve"> </w:t></w:r>';
+};
+
 /** 行内四线三格（带字）：三 run 结构（仿田字格，锚点稳定 + spacing 精确撑宽） */
 const buildInlineFlt = (letter, cellWEmu, sizeHp, idBase, rPrXml) => {
   const pts = sizeHp / 2;
@@ -457,6 +497,8 @@ const buildInlineFltBlank = (cellWEmu, sizeHp, idBase, rPrXml) => {
 export const TZG_MARKER = (char, cellWEmu) => `__TZG_${char}_${cellWEmu}__`;
 /** 注音田字格标记：格内带字 + 拼音浮在格内字上方（后处理替换为含拼音 textbox 的田字格群组） */
 export const TZG_PINYIN_MARKER = (char, pinyin, cellWEmu) => `__TZGP_${char}_${pinyin}_${cellWEmu}__`;
+/** 方框填空标记：后处理替换为行内正方形方格（矩形 + 文字 textbox，同田字格技术） */
+export const SQUARE_BOX_MARKER = (char, cellWEmu) => `__SQBX_${char}_${cellWEmu}__`;
 // FLT 标记显式携带 sizeHp：cellW 已改为内容自适应，不能再从 cellW/20 反推字号
 export const FLT_MARKER = (letter, cellWEmu, sizeHp) => `__FLT_${letter}_${cellWEmu}_${sizeHp}__`;
 /** 空白四线三格标记：仅绘制四条线，不渲染字母（听写/默写留空场景） */
@@ -805,6 +847,15 @@ export const injectDrawingML = async (zipBuffer) => {
     const sizeHp = parseInt(sizeHpStr);
     const idBase = Math.floor(Math.random() * 90000) + 50000;
     return buildInlineFlt(letter, emu, sizeHp || 28, idBase, rPrXml);
+  });
+
+  // 方框填空标记：__SQBX_{char}_{cellWEmu}__ → 行内正方形方格（矩形 + 文字 textbox）
+  const inlineSquareBoxRegex = /<w:r\b[^>]*>(\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?)\s*<w:t[^>]*>__SQBX_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>/gi;
+  docXml = docXml.replace(inlineSquareBoxRegex, (match, rPrXml, char, emuStr) => {
+    hasDml = true;
+    const emu = parseInt(emuStr);
+    const idBase = Math.floor(Math.random() * 90000) + 60000;
+    return buildInlineSquareBox(char, emu, idBase, rPrXml);
   });
 
   // 替换完成
