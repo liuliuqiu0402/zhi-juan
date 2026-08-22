@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import axios from 'axios';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, MAX_TOKENS_BY_TASK } from '../config/apiConfig.js';
 import { getStoragePath } from '../utils/pathHelper.js';
+import { fixExamFormats } from '../utils/examFixer.js';
 import { 
   subjectGradeSystem, 
   genTypeTemplates,
@@ -7099,6 +7100,17 @@ ${content}`;
           content = content.replace(/本试卷共\s*[＿_]{1,}\s*页/gi, '本试卷共＿页');
           if (content.length !== beforeLen) {
             console.log(`🔧 双保险：已移除生成内容中的静态页码标注（${beforeLen - content.length} 字符）`);
+          }
+        }
+
+        // 🔧 程序化修正（不依赖 AI 的根治兜底，确保一次成功）：
+        //    1) 移除题干前"【场景：xx】"标签前缀（卷面干净）
+        //    2) 大题标题旧式"（X分）"→ 自动补全明细式"（共N题，每题X分，共X分）"
+        {
+          const fixed = fixExamFormats(content);
+          if (fixed !== content) {
+            console.log(`🔧 程序化修正：已清理场景标签/补全大题明细式标题（${content.length - fixed.length > 0 ? '移除' : '调整'}内容）`);
+            content = fixed;
           }
         }
 
