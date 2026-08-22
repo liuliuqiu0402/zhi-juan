@@ -20,7 +20,7 @@ describe('exam 正式考试标准——指令注入', () => {
     const formal = blocks.find(b => b.id === 'quality_exam_formal');
     expect(formal).toBeTruthy();
     expect(formal.content).toContain('正式考试命题标准');
-    expect(formal.content).toContain('效度与信度');
+    expect(formal.content).toContain('效度信度');
     expect(formal.content).toContain('知识点去重');
     expect(formal.content).toContain('时间配比');
     expect(formal.content).toContain('不标题套壳');
@@ -123,14 +123,16 @@ describe('exam 正式考试标准——指令注入', () => {
     expect(cnLow.sections.find(s => s.name === '识字与写字').note).toContain('单元情境任务');
     expect(cnLow.sections.find(s => s.name === '积累与运用').note).toContain('挂在情境中考查');
     expect(cnLow.sections.find(s => s.name === '表达与交流').note).toContain('真实生活情境任务');
-    // 灵活性边界（全学段全学科通用）：note 锁定优先 + 未锁定可自主设计 + 全卷情境主线 + 素养立意
+    // 灵活性边界已收敛到 EXAM_NEW_STANDARD 第12/13条（瘦身去重：删除蓝本尾部重复段），
+    // 原"note 从指引/题量下限/可自主设计/情境主线"语义由 NEW_STANDARD 承载
     const cnLowText = buildExamBlueprintText(cnLow);
-    expect(cnLowText).toContain('note 中的题型与分值分配从其指引');
-    expect(cnLowText).toContain('题量为最低参考下限');
-    expect(cnLowText).toContain('note 未锁定的板块，具体题型与任务情境可自主设计');
-    expect(cnLowText).toContain('全卷以单元人文主题为情境主线');
-    expect(cnLowText).toContain('禁止与主线无关的"贴标签"式假情境');
-    expect(cnLowText).toContain('素养立意与思维深度');
+    expect(cnLowText).toContain('题量底线');
+    expect(cnLowText).toContain('禁止孤立裸连线');
+    expect(cnLowText).toContain('做成选择题同样违规');
+    expect(EXAM_NEW_STANDARD).toContain('题量为命题参考下限而非上限');
+    expect(EXAM_NEW_STANDARD).toContain('整卷主题情境');
+    expect(EXAM_NEW_STANDARD).toContain('素养立意设问');
+    expect(EXAM_NEW_STANDARD).toContain('不重复贴标签');
     // 本轮新增：低段蓝本题量底线与情境任务锁定
     expect(cnLowText).toContain('题量底线');
     expect(cnLowText).toContain('禁止孤立裸连线');
@@ -144,7 +146,7 @@ describe('exam 正式考试标准——指令注入', () => {
     });
     const topExam = topBlocks.find(b => b.id === 'topconst_exam');
     expect(topExam).toBeTruthy();
-    expect(topExam.content).toContain('卷首"（考试时间：X分钟　满分：X分）"必须与【真题卷结构蓝本】的考试时间、满分完全一致');
+    expect(topExam.content).toContain('卷首"（考试时间：X分钟　满分：X分）"必须与蓝本一致');
     // 全局修复（全学段全学科）：卷面规范层配图占位禁令 + 课内选文出处 + 语文中高段判据引用
     expect(EXAM_PAPER_LAYOUT).toContain('严禁用"（看图写话）""（配图）""（插图）"等文字占位');
     expect(EXAM_PAPER_LAYOUT).toContain('课内选文末标注出处');
@@ -158,7 +160,7 @@ describe('exam 正式考试标准——指令注入', () => {
       const rl = blocks.find(b => b.id === 'quality_redlines_exam');
       expect(rl, `${subject} 应匹配红线块`).toBeTruthy();
       expect(rl.content).toContain('独立原创设计');
-      expect(rl.content).toContain('【真题卷结构蓝本】为唯一依据');
+      expect(rl.content).toContain('严格遵循【真题卷结构蓝本】');
     }
   });
 
@@ -172,7 +174,7 @@ describe('exam 正式考试标准——指令注入', () => {
       expect(rl.content).toContain('最高优先级');
       expect(rl.content).toContain('独立原创设计');
       expect(rl.content).toContain('禁止课本例题/习题原题照搬');
-      expect(rl.content).toContain('【真题卷结构蓝本】为唯一依据');
+      expect(rl.content).toContain('严格遵循【真题卷结构蓝本】');
     }
   });
 
@@ -280,7 +282,7 @@ describe('exam 正式考试标准——指令注入', () => {
     expect(tc).toBeTruthy();
     expect(tc.content).not.toContain('知识点考查去重'); // 🔧 阶段六复核：与 quality_exam_formal 逐字重复的复述已删
     expect(tc.content).toContain('真题卷结构蓝本');
-    expect(tc.content).toContain('严禁在试卷正文输出任何知识点/层级标注');
+    expect(tc.content).toContain('卷面严禁输出任何知识点/层级标注');
     expect(tc.content).not.toContain('基础·识记积累');
   });
 

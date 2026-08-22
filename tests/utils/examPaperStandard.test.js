@@ -109,7 +109,7 @@ describe('A. 蓝本库结构完整性', () => {
       expect(text).toContain('卷面规范');
       expect(text).toContain('题型骨架');
       expect(text).toContain('新课标命题要求');
-      expect(text).toContain('灵活性边界');
+      expect(text).toContain('大题分值之和=');
       expect(text).not.toMatch(/\{duration\}|\{fullScore\}/);
       expect(text).toContain(String(bp.fullScore));
       // 蓝本第一条大题名称必须出现在注入文本中

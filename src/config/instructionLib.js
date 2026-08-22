@@ -379,7 +379,7 @@ export const builtinInstructions = [
   {
     id: 'topconst_exam', name: '【顶层约束】考卷', category: '生成-顶层约束', type: 'fragment',
     subject: '', stage: '', genType: 'exam', prompt_order: 4,
-    content: '【生成要求】\n1. ⚠️ 大题序列以【真题卷结构蓝本】为唯一依据（蓝本大题不足3类时以蓝本为准，不得自行增删题型）；大题内部小题形式保持多样（填空、选择、判断、连线、简答、补全对话、仿写、造句等轮换），严禁全部或绝大多数使用选择题。\n2. 难度分布：{diffRatio}，题目从易到难排列。\n3. ⚠️ 大题结构：以【真题卷结构蓝本】为唯一依据——大题序列、大题名称、分值、顺序与蓝本完全一致，不得增删大题、不得另行包装为"基础/能力/综合"等板块（蓝本即真题卷通行结构）。知识点与认知层级仅用于内部组卷设计（分层与去重），🚫 严禁在试卷正文输出任何知识点/层级标注——正式考试卷面不出现此类信息。卷首"（考试时间：X分钟　满分：X分）"必须与【真题卷结构蓝本】的考试时间、满分完全一致，严禁自行更改时长或满分。\n4. ⚠️ 填空格式：句内文字填空用 <u class="blank-N">&emsp;</u>（横线N按字数：1字→2/2字→4/3-4字→6/5-6字→8/7字+→10），独立括号填空用 <span class="blank-N">&emsp;</span>（括号N同上）。横线与括号互斥不可叠加，严禁空标签和下划线字符。详见【输出格式-填空留空】规范。5. 禁止使用"下列说法正确的是""以下哪个选项是正确的""以上都是""以上都不对"等低质量设问。\n6. 每道题的题干必须置于真实、富有意义的情境或明确任务中（生活/社会/科学真实场景，或与整卷主题情境自然衔接），情境信息须支撑作答，禁止空洞抽象、禁止"戴帽子"式假情境（题干前加一句无关导语）、禁止与其他题雷同。\n7. ⚠️ 文末必须包含完整的答案与解析区域（<div class="answer-section">），所有题目（含选择题）都要有答案和解析。\n8. 直接返回完整HTML片段，严禁用```html或<html>/<body>包裹。',
+    content: '【生成要求】\n1. ⚠️ 大题结构以【真题卷结构蓝本】为唯一依据：大题序列、名称、分值、顺序完全一致，不得增删大题、不得另行包装为"基础/能力/综合"板块（蓝本即真题卷通行结构）；卷首"（考试时间：X分钟　满分：X分）"必须与蓝本一致，严禁更改时长或满分。知识点与认知层级仅用于内部组卷设计，🚫 卷面严禁输出任何知识点/层级标注。\n2. 难度分布：{diffRatio}，题目从易到难排列。\n3. ⚠️ 大题内部小题形式保持多样（填空/选择/判断/连线/简答/补全对话/仿写/造句轮换），严禁全部或绝大多数使用选择题。\n4. ⚠️ 填空格式见【输出格式-填空留空】规范（句内横线<u class="blank-N">&emsp;</u>、独立括号<span class="blank-N">&emsp;</span>，互斥不可叠加，严禁空标签与下划线）。\n5. 禁止"下列说法正确的是""以下哪个选项是正确的""以上都是/都不对"等低质量设问。\n6. 题干必须置于真实情境或明确任务中（生活/社会/科学场景，或与整卷主题情境衔接），情境须支撑作答；禁止空洞抽象、"戴帽子"假情境（题干前加无关导语）、与其他题雷同。\n7. ⚠️ 文末必须含完整 <div class="answer-section"> 答案与解析区，所有题目（含选择题）都有答案和解析。\n8. 直接返回完整HTML片段，严禁```html或<html>/<body>包裹。',
     builtin: true,
     guarantee: true
   },
@@ -455,7 +455,7 @@ export const builtinInstructions = [
   {
     id: 'tailconst_exam', name: '【尾约束】考卷', category: '生成-尾约束', type: 'fragment',
     subject: '', stage: '', genType: 'exam', prompt_order: 90,
-    content: '⚠️ 【文末确认】务必在最后一题之后，包含完整的 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域。不得省略。\n🔴 【填空格式再次确认】所有书写类填空（词语/组词/数字/术语/补充句子/算式结果/注音等）一律 → 用 <u class="blank-N">&emsp;</u>（横线下划线）；仅选择题答案空/判断题作答空 → 用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号，严禁在其他场景用括号填空！）。横线与括号互斥，同一空位二选一不可叠加。简答/讨论题必须用 blank-line 给横线书写区！N值按答案字数严格对照映射表，空间不足直接排版失效！严禁空标签！严禁 ___ 下划线！',
+    content: '⚠️ 【文末确认】最后一题之后必须包含完整 <div class="answer-section"><h2>答案与解析</h2>...</div> 区域，不得省略。\n🔴 【填空格式确认】书写类填空一律 <u class="blank-N">&emsp;</u>（横线）；仅选择/判断题答案空用 <span class="blank-N">&emsp;</span>（CSS渲染括号）。横线括号互斥、严禁空标签与___下划线；简答/讨论题必须用 blank-line 书写区！N值按答案字数严格对照映射表。',
     builtin: true,
     guarantee: true
   },
@@ -492,14 +492,10 @@ export const builtinInstructions = [
     prompt_order: 33,
     subject: '', stage: '', genType: 'exam,practice,special,reading,errorbook,preview,dictation,review,summary',
     content: `【情境化设计要求】
-1. 非试卷类资料≥60%的题目须嵌入真实或拟真情境（生活场景/故事情境/探究任务），反对"戴帽子"式假情境（仅在题干前加一句无关导语）；试卷类一律以【真题卷结构蓝本】学段条款为准（低段≥40%、中高段≥60%）。知识点总结类资料须将知识置于真实问题情境中呈现，避免孤立罗列。
-2. 情境应贯穿整卷——开篇主题情境与后续题目形成连贯叙事，而非各自独立。
-3. 🔴 试卷类情境化全覆盖：试卷中所有基础题（拼音写词、选字填空、量词填空、加偏旁、组词等）也必须置于情境中考查，禁止出现无情境的孤立裸题堆砌。具体要求——同一大题内连续2道以上裸题（无情境包装）即不合格。
-4. 题型示例（传统→情境化）：
-   × 传统："看拼音写词语：nǎ lǐ → _____"
-   √ 情境化："小蝌蚪迷路了，它给妈妈写留言条。请帮它把拼音转成汉字：'妈妈，你在 nǎ lǐ _____？'"
-   × 传统（裸题）："选一选，把正确的字填在括号里：花( )里开满了鲜花。"（无情境，无选项）
-   √ 情境化："秋游来到了花园，请你帮小朋友选字填空：花( )里开满了鲜花。备选字：园 圆 丛 从"`, 
+1. 非试卷类≥60%题目嵌入真实/拟真情境（生活/故事/探究任务），反对"戴帽子"假情境（题干前加无关导语）；试卷类以【真题卷结构蓝本】学段条款为准（低段≥40%、中高段≥60%）；总结类资料须将知识置于真实问题情境呈现。
+2. 情境贯穿整卷：开篇主题情境与后续题目形成连贯叙事，而非各自独立。
+3. 🔴 试卷基础题（拼音写词、选字填空、量词、加偏旁、组词等）也必须置于情境中，禁止无情境孤立裸题堆砌——同一大题内连续2道以上裸题即不合格。
+4. 情境化示例：裸题"看拼音写词语：nǎ lǐ → _____"→情境化"小蝌蚪迷路了，请帮它把拼音转成汉字：'妈妈，你在 nǎ lǐ _____？'"；裸题"花( )里开满了鲜花"→情境化"秋游来到花园，请帮小朋友选字：花( )里开满了鲜花。备选字：园 圆 丛 从"`, 
     builtin: true
   },
   {
@@ -729,7 +725,7 @@ export const builtinInstructions = [
     id: 'format_table', name: '题目排版（禁止滥用表格）', category: '生成-输出格式', type: 'fragment',
     prompt_order: 23,
     subject: '', stage: '', genType: 'exam,practice',
-    content: '选择题选项用<p class="option">逐行排列，每题选项间空行分隔，自然纵向对齐。仅当选项含多列对比数据或需严格行列对齐（如矩阵选择题、知识清单对比表、星级标注表）时可用<table>辅助。填空/简答/解答类题目用<p>包裹题干。⚠️ 禁止用<table>包裹整道大题或整份试卷用于排版布局；禁止用<table>替代选项列表。<table>仅用于数据呈现（多列对比/矩阵/清单），不用于视觉排版。',
+    content: '- 表格仅用于数据呈现（多列对比/矩阵/清单/星级标注），禁止用<table>包裹整道大题或整份试卷做排版布局、禁止替代选项列表（选项用<p class="option">逐行）。表格必须加 style="border-collapse:collapse;width:100%"，每个<td>/<th>加 style="border:1px solid #ddd;padding:6px 10px;text-align:left;vertical-align:middle"，禁止单元格内容紧贴边框。\n- 配图用[IMAGE]TYPE:SD|ICON ... [/IMAGE]标记（格式详见【EduRender模板】）。\n- ❌ 禁止文档级标签包裹（<html>/<head>/<body>/<!DOCTYPE>）及```html等markdown代码块标记。\n- ✅ 直接返回HTML片段，从第一个可见标签开始。',
     builtin: true
   },
 
@@ -1653,38 +1649,24 @@ export const builtinInstructions = [
     builtin: true
   },
   {
-    id: 'block_format_numbering', name: '【输出格式】题号体系', category: '生成-输出格式', type: 'fragment',
+    id: 'block_format_numbering', name: '【输出格式】题号与层级', category: '生成-输出格式', type: 'fragment',
     prompt_order: 23,
     subject: '', stage: '', genType: 'exam,practice,special,review',
-    content: '- 题号三级体系（强制性）：【板块标题】h2标签内用"一、二、三、"（中文数字、顿号），如<h2>一、选择题</h2>。【独立题目】p.question标签内用"1. 2. 3."（阿拉伯数字、英文句点），各大题内小题从"1."重新编号、不得全卷连续编号（与真题蓝本一致）。【综合题子题】内部用"(1)(2)(3)"（半角圆括号），禁用"①②③"。禁止同级混搭编号格式、禁止仅靠缩进区分层级。⛔ 严禁：<p style="margin-left:20px;font-size:14px;">（缩进、小字号导出Word后层级消失）。✅ 正确：h2板块下所有题目用p.question统一字号无缩进。⛔ 所有题目必须用<p class="question">标签，严禁不带class属性的<p>做题目容器。',
-    builtin: true
-  },
-  {
-    id: 'block_format_base', name: '【输出格式】基础格式', category: '生成-输出格式', type: 'fragment',
-    prompt_order: 23,
-    subject: '', stage: '', genType: 'exam,practice,special,review',
-    content: '- 大标题用<h1>，单元标题用<h2>，小节标题用<h3>。⚠️ 禁止使用<h4>/<h5>/<h6>缩小字号制造层级感——正文统一字号（<p>默认大小），层级区分仅靠编号格式。\n- 正文用<p>，选项用<p class="option">。所有题目正文（题干/选项/填空/答案）统一字号，禁止给 .option、.question、.answer-item、.notice、.card 等设置内联 font-size 样式。选项和答案的缩进层级仅靠 margin-left 区分，不得逐级缩小字号。\n- 选择题题目用<p class="question">包裹题干+作答区，选项逐行用<p class="option">排列。',
+    content: '- 标题层级：大标题用<h1>，单元/板块标题用<h2>，小节用<h3>。⛔ 禁止用<h4>/<h5>/<h6>缩小字号制造层级感；正文统一字号（<p>默认大小），层级区分仅靠编号格式；⛔ 禁止给 .option/.question/.answer-item 等设置内联 font-size，缩进仅靠 margin-left。\n- 题号三级体系（强制性）：【板块标题】h2内用"一、二、三、"（中文数字、顿号），如<h2>一、选择题</h2>。【独立题目】p.question内用"1. 2. 3."（阿拉伯数字、英文句点），各大题内小题从"1."重新编号、不得全卷连续编号。【综合题子题】内部用"(1)(2)(3)"（半角圆括号），禁用"①②③"。禁止同级混搭编号、禁止仅靠缩进区分层级。\n- ⛔ 所有题目必须用<p class="question">标签承载，严禁不带class的<p>做题目容器；⛔ 严禁<p style="margin-left:20px;font-size:14px;">（缩进+小字号导出Word后层级消失），板块下所有题目统一字号无缩进。\n- 选择题：题干用<p class="question">，选项逐行用<p class="option">排列（禁止用<table>做选项布局）。',
     builtin: true
   },
   {
     id: 'block_format_blanks', name: '【输出格式】填空留空', category: '生成-输出格式', type: 'fragment',
     prompt_order: 23,
     subject: '', stage: '', genType: 'exam,practice,special,review',
-    content: '- 填空精确留空（含手写余量，已上调一档）：\n  ⛔ 所有括号必须使用英文半角 ( ) ，严禁使用中文全角括号 （ ） ！题号、空白、选项标记一律用英文 ( ) ，不得出现 （ ） 。\n  🎯 【填空标签选择——默认横线，括号仅限选择/判断题答案空，两者互斥不可叠加】：\n    * ⛔ 凡需要学生书写答案的填空一律用 <u class="blank-N">&emsp;</u>（横线下划线）——组词（如"绿<u class=\"blank-3\">&emsp;</u>、红<u class=\"blank-3\">&emsp;</u>"）、补充句子、默写、算式结果、字词注音等全部用横线，严禁用括号！\n    * 仅两类独立于题干、学生不书写文字的场合 → 用 <span class="blank-N">&emsp;</span>（CSS ::before/::after 自动渲染括号外壳，HTML中不要额外加括号字符）：① 选择题答案空（题干末尾）；② 判断题作答空（题干末尾）\n    * 判断标准：学生需要往空里写答案 → 横线；只是打√/打×/写选项 → 括号\n  N值映射——<u>横线：1字→<u class="blank-2">&emsp;</u>，2字→<u class="blank-4">&emsp;</u>，3-4字→<u class="blank-6">&emsp;</u>，5-6字→<u class="blank-8">&emsp;</u>，7+字→<u class="blank-10">&emsp;</u>\n  <span>独立括号：<span class="blank-N">&emsp;</span>（N：1字→3，2字→4，3-4字→6，5-6字→8，7+字→10）\n  ⛔ 横线与括号互斥！同一空位二选一不可叠加！例：句子中填空→"光合作用的场所是<u class=\"blank-2\">&emsp;</u>"（横线），独立空位→"选出正确读音<span class=\"blank-4\">&emsp;</span>"（括号，CSS自动渲染，HTML不额外写括号字符），严禁"（<u class=\"blank-4\">&emsp;</u>）"括号内嵌横线，严禁中文括号嵌套。\n  ⛔ 标签内必须有&emsp;内容，严禁空标签！\n  ⛔ 严禁用___下划线字符代替！\n  ⛔ 【选择题答案空铁律】仅限选择题：答案空（括号）必须放在题干末尾，严禁放在每个选项后面！正确："下列哪项是正确的<span class=\"blank-3\">&emsp;</span>"——括号在题末。错误："A. 选项内容(   )"——选项后放括号是大忌！非选择题填空一律用横线（见上方标签选择），严禁用括号。\n  ✒️ 【简答/讨论/开放题书写区】主观题必须给出横线书写区，三种模式——严禁引导语和横线分两个\u003cp\u003e！\n    \u003cp\u003e我的想法：\u003cspan class=\"blank-line\"\u003e\u0026emsp;\u0026emsp;\u0026emsp;\u0026emsp;\u0026emsp;\u0026emsp;\u003c/span\u003e\u003c/p\u003e ← ✅ 同行，引导语+短横线在同一\u003cp\u003e内\n    \u003cp\u003e我的想法：\u003c/p\u003e\u003cp\u003e\u003cspan class=\"blank-line\"\u003e...\u003c/span\u003e\u003c/p\u003e ← ❌ 引导语和横线分两个\u003cp\u003e，大忌！\n    ① 有提示语：引导语+短横线同行在一个\u003cp\u003e内，下方另起若干\u003cp\u003e\u003cspan class=\"blank-line\"\u003e满行\u0026emsp;\u003c/span\u003e\u003c/p\u003e\n    ② 完整问句无提示语：问句\u003cp\u003e...\u003c/p\u003e 独立成段后，另起若干满行 blank-line\n    ③ "答："：\u003cp\u003e答：\u003cspan class=\"blank-line\"\u003e短\u0026emsp;\u003c/span\u003e\u003c/p\u003e 同行，下方另起整行\n    严禁只写题目不留线！严禁把主观题写成填空题格式！\n  🔢 【N值严格按答案字数——空间不足则排版失效】blank-N 的 N 值必须按答案实际字数严格对照下表，宁可偏大不可偏小：横线 1字→blank-2, 2字→blank-4, 3-4字→blank-6, 5-6字→blank-8, 7+字→blank-10；括号 1字→blank-3, 2字→blank-4, 3-4字→blank-6, 5-6字→blank-8, 7+字→blank-10。先数答案字数再选 N 值，严禁随意估小！\n  ⛔ 题号格式：子题用 (1)(2)(3) 英文半角括号，严禁用 （1）（2）（3） 中文全角括号！',
-    builtin: true
-  },
-  {
-    id: 'block_format_misc', name: '【输出格式】表格/配图/返回', category: '生成-输出格式', type: 'fragment',
-    prompt_order: 23,
-    subject: '', stage: '', genType: 'exam,practice,special,review',
-    content: '- 表格用<table>，必须加 style="border-collapse:collapse;width:100%"，每个<td>/<th>必须加 style="border:1px solid #ddd;padding:6px 10px;text-align:left;vertical-align:middle"，禁止单元格内容紧贴边框。\n- 配图用[IMAGE]TYPE:SD|ICON ... [/IMAGE]标记。\n- ❌ 禁止使用<html>、<head>、<body>、<!DOCTYPE>等文档级标签包裹内容。禁止使用```html等markdown代码块标记。\n- ✅ 直接返回HTML片段，从第一个可见标签开始。',
+    content: '填空留空（含手写余量，已上调一档）：\n⛔ 括号一律英文半角 ( )，严禁中文全角（）！题号/空白/选项标记同此。\n🎯 标签选择——默认横线，括号仅限选择/判断题答案空，二者互斥不可叠加：\n  · 学生需书写答案的填空一律 <u class="blank-N">&emsp;</u>（横线）：组词、补充句子、默写、算式结果、注音等，严禁括号！\n  · 仅两类"独立于题干、学生不书写文字"的空位用 <span class="blank-N">&emsp;</span>（CSS自动渲染括号外壳，HTML中勿额外加括号字符）：①选择题答案空（题干末尾）②判断题作答空（题干末尾）\n  · 判断标准：往空里写答案→横线；只打√/×/写选项→括号\n📏 N值映射（N按答案字数，宁大勿小）：横线 1字→blank-2，2字→blank-4，3-4字→blank-6，5-6字→blank-8，7+字→blank-10；独立括号 1字→blank-3，2字→blank-4，3-4字→blank-6，5-6字→blank-8，7+字→blank-10。先数答案字数再选N，严禁估小！\n⛔ 横线括号互斥：同一空位二选一；句内填空→"光合作用的场所是<u class="blank-2">&emsp;</u>"；独立空位→"选出正确读音<span class="blank-4">&emsp;</span>"；严禁"（<u class="blank-4">&emsp;</u>）"括号内嵌横线。\n⛔ 标签内必须有&emsp;，严禁空标签、严禁___下划线字符！\n⛔ 选择题答案空铁律：答案空（括号）只能放题干末尾，严禁放选项后面！正确"下列哪项是正确的<span class="blank-3">&emsp;</span>"；错误"A. 选项(   )"。非选择题填空一律横线。\n✒️ 简答/开放题书写区（三模式，严禁只写题不留线、严禁写成填空格式）：①有提示语：引导语+短横线同行同一<p>内（如<p>我的想法：<span class="blank-line">&emsp;&emsp;&emsp;</span></p>），下方另起若干满行 blank-line 的<p>；②完整问句无提示语：问句<p>独立成段，下方另起满行 blank-line；③"答："：<p>答：<span class="blank-line">短&emsp;</span></p>同行，下方另起整行。严禁引导语与横线分两个<p>！\n⛔ 题号：子题用 (1)(2)(3) 英文半角括号，严禁中文全角（1）（2）（3）！',
     builtin: true
   },
   {
     id: 'block_format_exam_elements', name: '【输出格式】试卷特殊元素', category: '生成-输出格式', type: 'fragment',
     prompt_order: 23,
     subject: '', stage: '', genType: 'exam',
-    content: '- 得分框：用<span class="score-box">分数</span>标记（带外框）。\n- 评分栏：用<div class="score-board">...标记（表格形式，标签|分值）。\n- 密封线/装订线：卷首放<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-note">密封线内不要答题</div><div class="seal-info">学校：＿＿＿　班级：＿＿＿　姓名：＿＿＿　学号：＿＿＿</div><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div></div>。⚠️密封区全部内容必须写在同一个 seal-zone 内（提示语 seal-note、信息栏 seal-info、密/封/线 seal-char 按模板结构），密封区位于左侧页边距内（正文内边距外侧），正文在左侧竖虚线右侧并留内边距；严禁把密封区内容拆成多个横向 <p> 或输出旧版 sealed-line 结构。',
+    content: '- 得分框：用<span class="score-box">分数</span>标记（带外框）。\n- 评分栏：用<div class="score-board">...标记（表格形式，标签|分值）。\n- 密封线/装订线：卷首放<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-note">密封线内不要答题</div><div class="seal-info">学校：＿＿＿　班级：＿＿＿　姓名：＿＿＿　学号：＿＿＿</div><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div></div>。⚠️密封区全部内容必须在同一个 seal-zone 内（seal-note/seal-info/seal-char 按模板结构），位于左侧页边距内（正文内边距外侧），正文在左侧竖虚线右侧留内边距；严禁拆成多个横向 <p> 或输出旧版 sealed-line。',
     builtin: true
   },
 
@@ -1696,7 +1678,7 @@ export const builtinInstructions = [
     id: 'block_markup_chinese', name: '【学科标记】语文专用', category: '生成-学科标记', type: 'fragment',
     prompt_order: 22,
     subject: '语文', stage: '', genType: '',
-    content: '【语文学科专用标记——严格按以下规则使用】\n- 加点字：用 <span class="emphasis-dot">字</span> 标记，CSS会自动在字下方显示红点(·)\n- 画线句子：用 <u class="underline-sentence">完整句子</u> 标记，CSS会显示连续实线下划线\n- 拼音标注：用 <ruby>汉字<rt>拼音</rt></ruby> 标记\n- 波浪线（病句修改）：用 <span class="wavy-underline">病句文字</span> 标记，CSS显示红色波浪下划线\n- 双线格/单线格：强调文字用 <span class="double-line">文字</span>（双线）或 <span class="single-line">文字</span>（单线）\n- 部首标注：用 <ruby class="radical"><rb>字</rb><rt>部首</rt></ruby> 标记\n- 笔画笔顺：用 <span class="stroke-order" data-strokes="笔画数">字</span> 标记\n- 田字格：每个生字独立用 <span class="tian-zi-ge">字</span> 标记\n- 米字格：用 <span class="mi-zi-ge">字</span> 标记\n- 四线三格（拼音格）：用 <span class="four-line-three pinyin-line">拼音</span> 标记\n- 作文格/写话区：用 <div class="zuo-wen-ge"> 包裹，内部每个格子用 <span>&emsp;</span>（空格占位，⛔严禁写字1、字2等文字占位符），按所需行数×列数排列；每行用一个<div>包裹，行内<span>数量=每行字数\n  示例（2行×10列）：<div class="zuo-wen-ge"><div><span>&emsp;</span><span>&emsp;</span>...(10个)</div><div><span>&emsp;</span>...(10个)</div></div>\n- 连线题：用 <div class="match-question"> 包裹，内含两个 <div class="match-col">（左列和右列），每列内用 <div class="match-item">词语</div> 排列；⛔严禁用文本"------"或"词语1 ------ 词语2"格式表示连线',
+    content: '【语文学科专用标记——严格按以下规则使用】\n- 加点字：<span class="emphasis-dot">字</span>（CSS在字下显示红点·）\n- 画线句子：<u class="underline-sentence">句子</u>（连续实线）\n- 波浪线（病句修改）：<span class="wavy-underline">文字</span>（红色波浪线）\n- 双线/单线格：<span class="double-line">文字</span>（双线）/ <span class="single-line">文字</span>（单线）\n- 拼音标注：<ruby>汉字<rt>拼音</rt></ruby>；部首标注：<ruby class="radical"><rb>字</rb><rt>部首</rt></ruby>\n- 笔画笔顺：<span class="stroke-order" data-strokes="笔画数">字</span>\n- 田字格：<span class="tian-zi-ge">字</span>（每生字独立一个）；米字格：<span class="mi-zi-ge">字</span>\n- 四线三格（拼音格）：<span class="four-line-three pinyin-line">拼音</span>\n- 作文格/写话区：<div class="zuo-wen-ge"> 包裹，每行一个<div>，格内<span>&emsp;</span>占位（⛔严禁"字1/字2"文字占位符），行内<span>数=每行字数。示例（2行×10列）：<div class="zuo-wen-ge"><div><span>&emsp;</span>…10个</div><div><span>&emsp;</span>…10个</div></div>\n- 连线题：见下方【通用学科标记】（match-question/match-col/match-item 结构）',
     builtin: true
   },
   {
@@ -3017,7 +2999,7 @@ export const builtinInstructions = [
   // ═══════════════════════════════════════
   // —— 资料类型差异化品质标准（genType 精确匹配）——
   { id: 'quality_redlines_exam', name: '【红线】考卷最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'exam',
-    content: '🔴🔴 【红线清单——最高优先级，任何一条违反即视为不合格，所有其他要求不得与之冲突】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬，杜绝陈题套路与教材例题翻版。\n② 题型结构以【真题卷结构蓝本】为唯一依据：大题序列、大题名称、分值、顺序与蓝本完全一致，不得增删大题、不得自行另起板块名（蓝本即新课标真题卷通行结构），知识点与层级仅用于内部组卷设计，卷面严禁出现。\n③ 单元课文全覆盖：所选教材范围内的每一篇课文/每一节都必须在试卷中有至少1处考点涉及，遗漏任何一篇课文即不合格。\n④ 口语交际/综合性学习须与教材单元话题匹配：须先查阅教材确认该单元的口语交际/综合性学习主题，再围绕该主题命题，禁止自行替换话题。', builtin: true },
+    content: '🔴🔴 【红线清单——最高优先级，任何一条违反即视为不合格，所有其他要求不得与之冲突】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬，杜绝陈题套路与教材例题翻版。\n② 大题结构严格遵循【真题卷结构蓝本】（大题序列/名称/分值/顺序完全一致），知识点与层级仅用于内部组卷设计，卷面严禁出现。\n③ 单元课文全覆盖：所选教材范围内每一篇课文/每一节都必须在试卷中有至少1处考点涉及，遗漏即不合格。\n④ 口语交际/综合性学习须与教材单元话题匹配，禁止自行替换话题。', builtin: true },
   { id: 'quality_redlines_practice', name: '【红线】课堂练习最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'practice',
     content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 结构以【结构大纲】为准，不得自行另起骨架。\n③ 设问兼顾基础理解与简单应用，禁止全卷纯默写/纯计算等单一认知层次。\n④ 🔴 题型多样：同一练习板块内禁止连续2道以上使用完全相同的题型和设问方式，应变换考查角度（填空→选择→判断→连线→应用轮换）。\n⑤ 🔴 自校纠错：生成完成后必须通读全文自查，重点检查——①错别字/多字/漏字；②选项是否完整给出；③题干是否自洽；④格式是否规范（连线题用match-question而非------，作文格用zuo-wen-ge空格而非字1/字2）。发现错误立即修正。', builtin: true },
   { id: 'quality_redlines_special', name: '【红线】专项突破最高优先级约束', category: '生成-红线约束', type: 'fragment', subject: '', stage: '', genType: 'special',
@@ -3036,7 +3018,7 @@ export const builtinInstructions = [
     content: '🔴🔴 【红线清单——最高优先级，违反即不合格】\n① 每道题必须独立原创设计：换情境、换数据、换设问角度，禁止课本例题/习题原题照搬。\n② 练习区不得出现答案，答案统一放文末。\n③ 🔴 自校纠错：生成完成后必须通读全文自查，重点检查——①错别字/多字/漏字；②拼音是否正确；③练习区是否泄露答案；④格式是否规范（田字格/四线三格/横线是否正确使用）。发现错误立即修正。', builtin: true },
   { id: 'quality_exam_formal', name: '【品质】考卷·正式考试命题标准', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: '', genType: 'exam',
-    content: '🔴 【正式考试命题标准——必须遵守】\n1. 效度与信度：每道题明确指向具体考点、考查意图与分值匹配；题干无歧义、条件充分、答案唯一确定（开放性题除外），主观题必须配评分要点。\n2. 知识点去重：重难点考点全卷考查≤2次且必须角度不同（如概念理解+应用），一般考点仅考1次；同一大题组内禁止题材/情境/数据/设问角度相似的两道题。\n3. 时间配比：全卷题量使中等水平学生能在规定时长的75%-85%内完成；选择/填空/判断每题1-2分钟，计算/简答每题5-8分钟，解答题每题8-12分钟，作文留足35分钟以上（低段看图写话留足15-20分钟）。\n4. 小题规范：填空题一处设空只考一个知识点、答案唯一确定、设空位置科学（不挖句首、不挖关键提示词）；判断题命题表述精确、错误点有明确依据。\n5. 形式多样：图文结合、表格信息题、信息检索题；小学低段（1-2年级）操作型小题（连线/圈画/排序/涂色）可融入蓝本大题内，全卷选择题小题数不超过总小题数的50%。\n6. 不标题套壳：不以"任务一/二/三"等标题包装传统题型，大题名称以蓝本为准。\n7. 🔴 题型多样性：同一大题内禁止连续2道以上使用完全相同的题型和设问方式（如禁止连续两道"读拼音写词语"且格式一模一样），应在板块分值内灵活变换考查方式（填空→选择→连线→圈画→判断轮换）。\n8. 🔴 单元课文全覆盖：每篇课文至少1处考点涉及（详见红线③），生成后须自查。\n9. 🔴 口语交际/综合性学习主题匹配：试卷中口语交际/综合性学习板块的主题必须与教材对应单元的口语交际/综合性学习话题一致，不得自行替换为其他话题。须先确认教材该单元的口语交际主题，再围绕该主题命题。\n10. 🔴 自校纠错：生成完成后必须通读全文自查，重点检查——①错别字/多字/漏字（如"说明文农民伯伯"应为"说明农民伯伯"）；②选项是否完整给出；③题干是否自洽（题干信息与答案是否匹配）；④分值加总是否等于满分。发现错误立即修正，禁止输出未经校对的内容。\n11. 🔴 格式规范（源头约束）：连线题/配对题必须使用<div class="match-question"> HTML格式（内含match-col和match-item），⛔严禁使用------文本格式；写话区/作文格必须使用<div class="zuo-wen-ge"><span>&emsp;</span></div>格式，⛔严禁使用--横线或"字1""字2"文字占位符。', builtin: true },
+    content: '🔴 【正式考试命题标准】\n1. 效度信度：每道题指向具体考点、考查意图与分值匹配；题干无歧义、条件充分、答案唯一（开放题除外），主观题必配评分要点。\n2. 知识点去重：重难点全卷考查≤2次且角度不同（概念理解+应用），一般考点仅1次；同一大题组内禁止情境/数据/设问角度相似的题。\n3. 时间配比：题量使中等生能在规定时长的75%-85%内完成；选择/填空/判断每题1-2分钟，计算/简答5-8分钟，解答8-12分钟，作文留35分钟以上（低段看图写话15-20分钟）。\n4. 小题规范：填空一处设空只考一个知识点、答案唯一、设空位置科学（不挖句首/关键提示词）；判断题表述精确、错误点有明确依据。\n5. 形式多样：图文结合/表格/信息检索题；低段操作型小题（连线/圈画/排序/涂色）可融入大题内，全卷选择题小题数≤总小题数50%。\n6. 不标题套壳：禁止"任务一/二/三"包装传统题型，大题名称以蓝本为准。\n7. 题型多样：同一大题内禁止连续2道以上完全相同题型与设问方式，在板块分值内轮换考查方式（填空→选择→连线→判断）。\n8. 口语交际/综合性学习主题必须与教材对应单元话题一致，不得自行替换。\n9. 🔴 自校纠错：生成后通读自查——错别字/漏字、选项完整、题干自洽（题干信息与答案匹配）、分值加总=满分，发现即改，禁止输出未校对内容。\n10. 格式源头：连线题用<div class="match-question">（match-col/match-item），作文格用<div class="zuo-wen-ge"><span>&emsp;</span></div>，⛔严禁------文本连线、--横线、"字1/字2"占位符（详见输出格式）。', builtin: true },
   { id: 'quality_industry_benchmark', name: '【品质】教辅品质基线', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: '', genType: '',
     content: '质量对标市面一流教辅水准（如《53天天练》《黄冈小状元》《教材帮》等），不可生成粗制滥造的凑数内容。🔴思维深度：须涵盖≥3认知层级（识记/理解/应用/分析/评价/创造），高阶思维（分析/评价/创造）占比≥20%（试卷≥25%）；禁止"XX的特点是___""被称为___"等定义背诵挖空，须含≥2道比较/评价/设计类高阶思维题；情境须与设问实质关联（去掉情境后不应仍可作答）；非试卷类知识总结须含"为什么""怎么用"维度，不得仅罗列"是什么"。', builtin: true },

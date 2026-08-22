@@ -36,8 +36,8 @@ describe('指令注入审计：新课标合规与注入正确性', () => {
     it('通用情境约束块对试卷类只引用蓝本权威、不双重报数值', () => {
       const ctx = builtinInstructions.find(i => i.id === 'frag_context_design');
       expect(ctx).toBeTruthy();
-      expect(ctx.content).toContain('非试卷类资料≥60%');
-      expect(ctx.content).toContain('试卷类一律以【真题卷结构蓝本】学段条款为准');
+      expect(ctx.content).toContain('非试卷类≥60%');
+      expect(ctx.content).toContain('试卷类以【真题卷结构蓝本】学段条款为准');
     });
   });
 
@@ -114,7 +114,7 @@ describe('指令注入审计：新课标合规与注入正确性', () => {
       expect(redlines).toBeTruthy();
       expect(redlines.content).not.toContain('禁止书本挖空');
       expect(redlines.content).toContain('独立原创设计');
-      expect(redlines.content).toContain('【真题卷结构蓝本】为唯一依据');
+      expect(redlines.content).toContain('严格遵循【真题卷结构蓝本】');
     });
   });
 
@@ -541,7 +541,7 @@ describe('指令注入审计：精简固化（规则唯一性/注入总量/红�
       for (const c of TYPICAL_COMBOS) {
         if (c.gt !== 'exam') continue;
         const joined = simulateQualityLayers(c).map(b => b.content).join('\n');
-        expect(joined).toContain('效度与信度');
+        expect(joined).toContain('效度信度');
         expect(joined).toContain('知识点去重');
         expect(joined).toContain('时间配比');
         expect(joined).toContain('小题规范');
@@ -732,9 +732,9 @@ describe('指令注入审计：课标骨架对齐/教辅编辑标准/注入精�
   describe('4. 试卷情境措辞强化（R5）：topconst_exam 含真实/有意义情境要求', () => {
     it('topconst_exam 第6条要求真实、富有意义的情境，禁止"戴帽子"假情境', () => {
       const exam = builtinInstructions.find(i => i.id === 'topconst_exam');
-      expect(exam.content).toContain('真实、富有意义的情境');
+      expect(exam.content).toContain('真实情境或明确任务中');
       expect(exam.content).toContain('戴帽子');
-      expect(exam.content).toContain('情境信息须支撑作答');
+      expect(exam.content).toContain('情境须支撑作答');
     });
   });
 
