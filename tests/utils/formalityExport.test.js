@@ -22,6 +22,20 @@ const getDocumentXml = async (html) => {
   return zip.file('word/document.xml').async('string');
 };
 
+const getSettingsXml = async (html) => {
+  const container = document.createElement('div');
+  container.style.fontSize = '16px';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  const doc = buildDocxFromDom(container);
+  container.remove();
+  const buf = await Packer.toBuffer(doc);
+  const processed = await injectDrawingML(buf);
+  const zip = await JSZip.loadAsync(processed);
+  const f = zip.file('word/settings.xml');
+  return f ? f.async('string') : null;
+};
+
 describe('卷面规范 A1：答案区独立分节（另起一页、页码从1重编号）', () => {
   it('.answer-section 拆分为独立分节：正文/答案两个 sectPr，答案节 pgNumType start=1', async () => {
     const xml = await getDocumentXml(
@@ -75,5 +89,11 @@ describe('卷面规范 A3："本试卷共＿页" → SECTIONPAGES 域（正文�
   it('普通正文不含该占位时不受影响', async () => {
     const xml = await getDocumentXml('<p>本试卷共 4 页。</p>');
     expect(xml).toContain('本试卷共 4 页');
+  });
+
+  it('settings.xml 声明打开时更新域（w:updateFields）：Word/WPS 打开即刷新页码为真实页数', async () => {
+    const settingsXml = await getSettingsXml('<p class="notice-item">3．本试卷共＿页。</p>');
+    // docx 库对 true 省略 w:val（<w:updateFields/> 即开启）
+    expect(settingsXml).toMatch(/<w:updateFields(?:\s*\/>|\s+w:val="true"\/>)/);
   });
 });

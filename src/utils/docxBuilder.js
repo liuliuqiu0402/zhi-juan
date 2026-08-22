@@ -1849,6 +1849,10 @@ export const buildDocxFromDom = (containerEl) => {
     // 🔧 正式试卷对开版式：启用「奇偶页不同页眉/页脚」（settings.xml 写 w:evenAndOddHeaders），
     //    配合 even 页眉的右侧镜像密封线，装订后每页密封线都靠书脊
     evenAndOddHeaderAndFooters: hasSealLine,
+    // 🔧 打开时更新域（settings.xml 写 w:updateFields）：页码为 PAGE/SECTIONPAGES 域，
+    //    声明后 Word/WPS 打开文档即自动刷新为真实页数（而非显示缓存值），
+    //    "本试卷共X页"与页脚"第X页　共X页"都正确联动
+    features: { updateFields: true },
   });
 };
 
