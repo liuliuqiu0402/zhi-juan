@@ -19,7 +19,7 @@ const KEY_CATS = {
   '生成-答案区强制锚定': { all: true },
 };
 const STALE_WORDS = ['小题一律不标分值', '不逐题标', '小题不标分值'];
-const AGG_CATS = ['生成-顶层约束', '生成-红线约束', '生成-尾约束', '生成-资料类型结构', '生成-输出格式', '生成-答案区强制锚定', '生成-核心任务'];
+const AGG_CATS = ['生成-顶层约束', '生成-红线约束', '生成-尾约束', '生成-资料类型结构', '生成-输出格式', '生成-答案区强制锚定', '生成-核心任务', '生成-角色身份'];
 
 describe('指令注入全面审计（408 组合）', () => {
   it('执行正确性无缺口 + 内容一致性无矛盾残留', () => {
@@ -43,6 +43,10 @@ describe('指令注入全面审计（408 组合）', () => {
           for (const stale of STALE_WORDS) {
             if (joined.includes(stale)) staleHits.push(`${stale} @ ${gt}|${stage}|${subject}`);
           }
+          // 维度3 重复检测：页数要求句子在同一组合注入文本中只允许出现 1 次（角色身份权威），
+          //    跨块重复（核心任务/专项/结构块再带页数）即视为冗余 → 报错
+          const pageCnt = (joined.match(/不少于\{pageCount\}页A4纸/g) || []).length;
+          if (pageCnt > 1) staleHits.push(`页数要求重复 ${pageCnt} 处 @ ${gt}|${stage}|${subject}`);
           if (gt === 'exam') {
             const top = getMatchingBlockInstructions({ category: '生成-顶层约束', subject: '', stage: '', genType: 'exam' });
             if (top.length > 0 && !top[0].content.includes('所有小题')) {
