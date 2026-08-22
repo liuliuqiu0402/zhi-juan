@@ -7096,6 +7096,7 @@ ${content}`;
           content = content.replace(/第\s*\d+\s*页\s*[　 ]*\s*共\s*\d+\s*页/gi, '');
           content = content.replace(/<p[^>]*>\s*第\s*\d+\s*页\s*<\/p>/gi, '');
           content = content.replace(/本试卷共\s*\d+\s*页/gi, '本试卷共＿页');
+          content = content.replace(/本试卷共\s*[＿_]{1,}\s*页/gi, '本试卷共＿页');
           if (content.length !== beforeLen) {
             console.log(`🔧 双保险：已移除生成内容中的静态页码标注（${beforeLen - content.length} 字符）`);
           }

@@ -236,8 +236,11 @@ const buildTextRuns = (node, styleOverride = {}) => {
           if (line) {
             // 🔧 卷面规范：注意事项"本试卷共＿页" → SECTIONPAGES 域（Word 按正文分节实际页数自动填充，
             //    不含答案页；与正文页脚"共X页"联动。预览/HTML 保持占位由人工填写）
-            if (line.includes('本试卷共＿页')) {
-              const segs = line.split('本试卷共＿页');
+            //    正则兼容下划线变体：半角 _ / 全角 ＿ / 多个（AI 输出不稳定）
+            const pageCountRe = /本试卷共\s*[＿_]{1,}\s*页/;
+            const pageCountMatch = line.match(pageCountRe);
+            if (pageCountMatch) {
+              const segs = line.split(pageCountMatch[0]);
               const ctxRun = (base) => {
                 const o = { ...base };
                 ['size', 'color', 'font', 'bold', 'italics', 'underline', 'strike', 'shading', 'superScript', 'subScript']

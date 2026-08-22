@@ -4,6 +4,7 @@
 // - A3：注意事项"3．本试卷共＿页。"中的"＿页"替换为 SECTIONPAGES 域（Word 自动填正文分节页数，与页脚联动）
 import { describe, it, expect } from 'vitest';
 import { buildDocxFromDom } from '@/utils/docxBuilder.js';
+import { injectDrawingML } from '@/utils/drawingMLShapes.js';
 import { Packer } from 'docx';
 import JSZip from 'jszip';
 
@@ -15,7 +16,9 @@ const getDocumentXml = async (html) => {
   const doc = buildDocxFromDom(container);
   container.remove();
   const buf = await Packer.toBuffer(doc);
-  const zip = await JSZip.loadAsync(buf);
+  // 🔧 与真实导出链路一致（htmlToDocxBlob → injectDrawingML 后处理）
+  const processed = await injectDrawingML(buf);
+  const zip = await JSZip.loadAsync(processed);
   return zip.file('word/document.xml').async('string');
 };
 
@@ -54,8 +57,19 @@ describe('卷面规范 A3："本试卷共＿页" → SECTIONPAGES 域（正文�
     expect(xml).toContain('本试卷共');
     expect(xml).toContain('SECTIONPAGES'); // Word 正文分节页数字段（不含答案页）
     expect(xml).not.toContain('NUMPAGES'); // 不再用全文档总页数（会把答案页计入）
+    // 域带缓存结果：WPS/在线预览等不自动刷新域的查看器也能显示数字（Word 打开后刷新为真实页数）
+    expect(xml).toContain('<w:t xml:space="preserve">1</w:t>');
     // 不再输出静态"＿页"占位（由域自动填充）
     expect(xml).not.toContain('本试卷共＿页');
+  });
+
+  it('下划线变体（半角 _ / 多个 ＿）同样转为 SECTIONPAGES 域（AI 输出不稳定）', async () => {
+    const xmlA = await getDocumentXml('<p class="notice-item">3．本试卷共___页。</p>');
+    expect(xmlA).toContain('SECTIONPAGES');
+    expect(xmlA).not.toContain('本试卷共___页');
+    const xmlB = await getDocumentXml('<p class="notice-item">3．本试卷共＿＿＿页。</p>');
+    expect(xmlB).toContain('SECTIONPAGES');
+    expect(xmlB).not.toContain('本试卷共＿＿＿页');
   });
 
   it('普通正文不含该占位时不受影响', async () => {

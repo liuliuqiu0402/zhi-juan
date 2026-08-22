@@ -674,6 +674,17 @@ export const injectDrawingML = async (zipBuffer) => {
 
   let hasDml = false;
 
+  // 🔧 域缓存结果：docx 库生成的 PAGE/NUMPAGES/SECTIONPAGES 域在 separate/end 之间无缓存文本，
+  //    Word 打开会自动刷新为真实值，但 WPS/在线预览等不自动更新域的查看器会显示空白
+  //    （"第 页　共 页"）。注入缓存"1"，保证各查看器至少显示数字，Word 打开后刷新为正确值。
+  docXml = docXml.replace(
+    /<w:instrText[^>]*>\s*(PAGE|NUMPAGES|SECTIONPAGES)\s*<\/w:instrText>\s*<w:fldChar w:fldCharType="separate"\/>\s*<w:fldChar w:fldCharType="end"\/>/g,
+    (m, instr) => {
+      hasDml = true;
+      return `<w:instrText xml:space="preserve"> ${instr} </w:instrText><w:fldChar w:fldCharType="separate"/><w:t xml:space="preserve">1</w:t><w:fldChar w:fldCharType="end"/>`;
+    }
+  );
+
   // ==== 第一遍：独立段落标记 ====
   // ⚠️ 顺序关键：空白标记必须在普通标记之前处理，
   //    否则 __FLT_BLANK_xxx__ 会被普通 FLT 正则的 [^_]+? 误匹配，"BLANK" 被当成字母渲染
