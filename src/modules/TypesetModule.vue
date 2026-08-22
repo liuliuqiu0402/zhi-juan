@@ -1104,15 +1104,22 @@ const closeDoc = (docId) => {
 // 编辑区所见即所得（含密封线/注意事项/得分表），导出时 wrapContentForTheme 幂等复用。
 const sealMarkRegex = /密封线|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：]/;
 const effectiveThemeFor = (src) => (src && sealMarkRegex.test(src) ? 'sealed_exam' : selectedThemeId.value);
-// 🔧 编辑内容注入卷面固定件（注意事项 + 得分表）：Tiptap 已支持 div/p/table class 保真，
-//    固定件在编辑区完整可见；保存回写时剥离（由导出端重新注入）
+// 🔧 编辑内容注入卷面固定件 + 密封线包装：与导出（wrapContentForTheme）同路径，
+//    内容含密封特征时按 sealed_exam 完整包装（密封线 + 注意事项 + 得分表），
+//    编辑区所见即所得 = 导出 Word 效果；保存回写时剥离固定件（由导出端重新注入）
 const withExamShell = (html, stage) => {
   if (!html || typeof html !== 'string') return html || '';
   try {
-    return injectExamShell(normalizeSealStructure(html), stage || 'primary');
+    const normalized = normalizeSealStructure(html);
+    if (sealMarkRegex.test(normalized) || /sealed-wrapper|seal-zone|seal-note/.test(normalized)) {
+      // 含密封特征：完整包装（内部含 normalizeSealStructure + injectExamShell，幂等）
+      return wrapContentForTheme(normalized, 'sealed_exam');
+    }
+    // 无密封特征：仍注入题号得分表（若有正式大题结构）
+    return injectExamShell(normalized, stage || 'primary');
   } catch (e) {
-    // 🔧 防御：固定件注入失败时回退原始内容，确保编辑器始终可加载
-    console.warn('卷面固定件注入失败，使用原始内容:', e);
+    // 🔧 防御：包装失败时回退原始内容，确保编辑器始终可加载
+    console.warn('卷面包装失败，使用原始内容:', e);
     return html;
   }
 };

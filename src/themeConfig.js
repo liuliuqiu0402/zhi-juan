@@ -2558,7 +2558,9 @@ export const injectExamShell = (html, stage) => {
   }
   // 🔧 正规试卷顺序：固定件（注意事项+得分表）紧贴第一个大题之前；
   //    标题/副标题/卷首语等卷首内容自然在其上方（insertBefore 已就位时幂等无变化）
-  anchor.parentElement.insertBefore(shellNode, anchor);
+  //    ⚠️ parentNode 兼容 DocumentFragment（template.content 顶层元素 parentElement 为 null，会抛 TypeError）
+  const parent = anchor.parentNode || tpl.content;
+  parent.insertBefore(shellNode, anchor);
   return tpl.innerHTML;
 };
 
