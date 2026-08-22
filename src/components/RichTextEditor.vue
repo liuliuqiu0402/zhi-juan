@@ -449,6 +449,28 @@ const SealLineDiv = Node.create({
   renderHTML() { return ['div', { class: 'seal-line' }]; },
 });
 
+// 作图网格区：空 div（atom 不可编辑）——方格纸由 CSS 绘制，必须保留空元素（编辑区所见即所得）
+const SquareGrid = Node.create({
+  name: 'squareGrid',
+  priority: 150,
+  group: 'block',
+  atom: true,
+  selectable: false,
+  parseHTML() { return [{ tag: 'div.square-grid' }]; },
+  renderHTML() { return ['div', { class: 'square-grid' }]; },
+});
+
+// 花式竖式格：空 div（atom 不可编辑）——括号格由 CSS 绘制，保留空元素（编辑区所见即所得）
+const BracketGrid = Node.create({
+  name: 'bracketGrid',
+  priority: 150,
+  group: 'block',
+  atom: true,
+  selectable: false,
+  parseHTML() { return [{ tag: 'div.bracket-grid' }]; },
+  renderHTML() { return ['div', { class: 'bracket-grid' }]; },
+});
+
 import Paragraph from '@tiptap/extension-paragraph';
 import Heading from '@tiptap/extension-heading';
 
@@ -624,6 +646,20 @@ const CustomTableHeader = TableHeader.extend({
   },
 });
 
+// 🔧 表格保留 class（如 exam-score-table 得分表），编辑器所见即所得完整还原
+const CustomTable = Table.extend({
+  addAttributes() {
+    return {
+      ...(this.parent?.() || {}),
+      tableClass: {
+        default: null,
+        parseHTML: el => el.getAttribute('class') || null,
+        renderHTML: attrs => (attrs.tableClass ? { class: attrs.tableClass } : {}),
+      },
+    };
+  },
+});
+
 // ══════════════════════════════════════════
 // 字号常量
 // ══════════════════════════════════════════
@@ -719,7 +755,7 @@ const editor = useEditor({
     TianZiGe,
     MiZiGe,
     PreserveSpan,
-    Table.configure({ resizable: true }),
+    CustomTable.configure({ resizable: true }),
     TableRow,
     CustomTableCell,
     CustomTableHeader,
@@ -728,6 +764,8 @@ const editor = useEditor({
     SealedWrapper,
     SealZone,
     SealLineDiv,
+    SquareGrid,
+    BracketGrid,
     DivWrapper,
   ],
   onUpdate: ({ editor }) => {
@@ -1687,6 +1725,12 @@ defineExpose({
 .rich-text-editor :deep(ol[type="A"]) { list-style-type: upper-alpha; }
 .rich-text-editor :deep(ol[type="i"]) { list-style-type: lower-roman; }
 .rich-text-editor :deep(ol[type="I"]) { list-style-type: upper-roman; }
+
+/* 🔧 作图网格区 / 花式竖式格兜底（主题 CSS 注入后由带 !important 的规则覆盖） */
+.rich-text-editor :deep(.square-grid) { width: 84mm; height: 56mm; border: 1.5px solid #999; margin: 8px 0; background: linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm, linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm; }
+.rich-text-editor :deep(.bracket-grid) { display: grid; grid-template-rows: repeat(3, 10mm); width: 52mm; margin: 8px 0; border-left: 3px solid #333; border-right: 3px solid #333; }
+.rich-text-editor :deep(.bracket-grid > div) { border-bottom: 0.5px solid #ccc; }
+.rich-text-editor :deep(.bracket-grid > div:last-child) { border-bottom: none; }
 
 /* ===== 特殊排版样式 ===== */
 .rich-text-editor :deep(.emphasis-dot) { text-emphasis: dot #d32f2f; -webkit-text-emphasis: dot #d32f2f; text-emphasis-position: under; }

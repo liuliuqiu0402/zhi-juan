@@ -18,6 +18,24 @@ const getDocumentXml = async (html) => {
   return zip.file('word/document.xml').async('string');
 };
 
+describe('数学答题区导出', () => {
+  it('作图网格区（square-grid）→ 导出 12列×8行 网格表格', async () => {
+    const xml = await getDocumentXml('<p>2. 画出三角形向右平移3格后的图形。</p><div class="square-grid"></div>');
+    expect(xml).toContain('<w:tbl>');
+    const gridCols = (xml.match(/<w:gridCol/g) || []).length;
+    expect(gridCols).toBe(12);
+    const rows = (xml.match(/<w:tr\b/g) || []).length;
+    expect(rows).toBe(8);
+  });
+
+  it('花式竖式格（bracket-grid）→ 导出 3 行括号书写表格', async () => {
+    const xml = await getDocumentXml('<p>1. 用竖式计算：46＋28＝</p><div class="bracket-grid"><div></div><div></div><div></div></div>');
+    expect(xml).toContain('<w:tbl>');
+    const rows = (xml.match(/<w:tr\b/g) || []).length;
+    expect(rows).toBe(3);
+  });
+});
+
 describe('作文格（zuo-wen-ge）导出', () => {
   it('标准 span 格子结构 → 导出为格子表格', async () => {
     const xml = await getDocumentXml(

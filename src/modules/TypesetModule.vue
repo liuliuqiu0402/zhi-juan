@@ -131,13 +131,9 @@
           </div>
         </div>
         
-        <!-- 🔧 A4 纸张预览区（上下左右边距 2cm） -->
+        <!-- 🔧 A4 纸张预览区（单一编辑视图：所见即所得 = 预览效果，含密封线/注意事项/得分表） -->
         <div v-if="isHtmlContent && !showSource" class="paper-preview-area">
-          <div class="view-switch">
-            <button class="btn" :class="{ 'btn-active': viewMode === 'edit' }" @click="viewMode = 'edit'" title="内容编辑（所见即所得）">✏️ 编辑</button>
-            <button class="btn" :class="{ 'btn-active': viewMode === 'render' }" @click="switchToRender" title="完整渲染预览（含密封线、注意事项、题号得分表，与导出/HTML 模板一致）">👁 试卷预览</button>
-          </div>
-          <div v-if="viewMode === 'edit'" class="paper-page">
+          <div class="paper-page">
             <RichTextEditor
               ref="contentEditor"
               v-model="rawHtmlContent"
@@ -146,7 +142,6 @@
               @content-change="onRichEditorChange"
             />
           </div>
-          <div v-else class="paper-page render-page" v-html="renderPreviewHtml"></div>
         </div>
         <textarea
           v-if="isHtmlContent && showSource"
@@ -255,7 +250,7 @@ import { useFileHandler } from '../composables/useFileHandler.js';
 import {
   getAllThemes, getThemeById, addCustomTheme, updateCustomTheme, deleteCustomTheme,
   applyThemeToContent, wrapContentForTheme, getSpecialThemeEditorCSS, markdownToHtml, defaultThemeId, themeOptions,
-  normalizeSealStructure
+  normalizeSealStructure, injectExamShell
 } from '../themeConfig.js';
 import { APP_EVENTS } from '../constants/events.js';
 import RichTextEditor from '../components/RichTextEditor.vue';
@@ -354,6 +349,10 @@ const loadGenRecord = (rec) => {
 // 🔧 将当前编辑内容回写到生成记录，刷新后不丢
 const persistCurrentEdits = async (content) => {
   if (!content || !currentGenRecordId.value) return;
+  // 🔧 剥离卷面固定件（注意事项/得分表）：固定件为渲染层注入，不写回生成记录，
+  //    重新打开/导出时由 withExamShell/wrapContentForTheme 幂等重建
+  content = String(content || '').replace(/<div class="exam-shell">[\s\S]*?<\/div>/gi, '');
+  if (!content) return;
   try {
     const saved = await storage.getItem(GEN_STORAGE_KEY).catch(() => null);
     if (!saved || !Array.isArray(saved)) return;
@@ -430,7 +429,7 @@ const themeCSS = computed(() => {
     css = css.replace(/body\s*\{[^}]*\}/g, '');
 
     // 🔑 只保留 h1-h6 标题的 !important，其余全部移除
-    const preserveImportant = /(\bh[1-6]\b|four-line-three|sixian-ge|oral-box|square-box|zuo-wen-ge|pinyin-line|english-line|blank-\d|sealed-wrapper|seal-zone|seal-line|seal-note|seal-info|seal-char)/;
+    const preserveImportant = /(\bh[1-6]\b|four-line-three|sixian-ge|oral-box|square-box|zuo-wen-ge|square-grid|bracket-grid|pinyin-line|english-line|blank-\d|sealed-wrapper|seal-zone|seal-line|seal-note|seal-info|seal-char)/;
     css = css.replace(
       /([^{}]+)\{([^{}]+)\}/g,
       (full, selector, body) => {
@@ -1087,34 +1086,23 @@ const closeDoc = (docId) => {
     else { rawHtmlContent.value = ''; currentContent.value = ''; isHtmlContent.value = false; }
   }
 };
-// ==================== 渲染预览（完整包装效果，不经 Tiptap） ====================
-// 与内容结构无关：直接对编辑器内容应用主题包装（密封线 + 注意事项 + 题号得分表），
-// 用 v-html 渲染（不经过 Tiptap 解析，避免复杂结构变形），样式复用下方非 scoped 的 .render-page 规则。
-// 内容含密封线特征（密封线/学校/班级/姓名/学号…）时自动按 sealed_exam 包装——
-// 保证"有密封线内容 → 预览/导出必有完整密封线效果"，不依赖用户手动选主题。
+// ==================== 渲染预览（已并入编辑视图，所见即所得） ====================
+// 编辑器即为完整预览：内容加载时注入卷面固定件（注意事项 + 题号得分表），
+// 编辑区所见即所得（含密封线/注意事项/得分表），导出时 wrapContentForTheme 幂等复用。
 const sealMarkRegex = /密封线|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：]/;
 const effectiveThemeFor = (src) => (src && sealMarkRegex.test(src) ? 'sealed_exam' : selectedThemeId.value);
-const viewMode = ref('edit');
-const renderPreviewHtml = ref('');
-const switchToRender = () => {
-  const src = (isHtmlContent.value && (pristineHtmlForExport.value || rawHtmlContent.value)) || '';
-  renderPreviewHtml.value = src ? wrapContentForTheme(src, effectiveThemeFor(src)) : '';
-  viewMode.value = 'render';
-};
-// 内容含密封线特征时，默认切到渲染预览（所见即所得 HTML 模板效果）
-const maybeAutoRender = (src) => {
-  if (src && sealMarkRegex.test(src) && isHtmlContent.value) {
-    renderPreviewHtml.value = wrapContentForTheme(pristineHtmlForExport.value || src, effectiveThemeFor(src));
-    viewMode.value = 'render';
-  }
+// 🔧 编辑内容注入卷面固定件（注意事项 + 得分表）：Tiptap 已支持 div/p/table class 保真，
+//    固定件在编辑区完整可见；保存回写时剥离（由导出端重新注入）
+const withExamShell = (html, stage) => {
+  if (!html || typeof html !== 'string') return html || '';
+  return injectExamShell(normalizeSealStructure(html), stage || 'primary');
 };
 
 const loadContentSilent = (content) => {
   if (!content || typeof content !== 'string') return;
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
-  // 🔧 HTML 内容统一做密封线结构归一化（旧结构信息栏/提示横向 p → 并入 sealed-line 整体竖排），
-  //    编辑区所见即所得（密封线文字旋转显示），幂等
-  if (isHtml) { isHtmlContent.value = true; rawHtmlContent.value = normalizeSealStructure(content); currentContent.value = ''; maybeAutoRender(content); }
+  // 🔧 HTML 内容统一做密封线结构归一化 + 注入卷面固定件（编辑区所见即所得），幂等
+  if (isHtml) { isHtmlContent.value = true; rawHtmlContent.value = withExamShell(content); currentContent.value = ''; }
   else { isHtmlContent.value = false; rawHtmlContent.value = ''; currentContent.value = content; }
 };
 
@@ -1124,13 +1112,9 @@ const loadFromGenerate = async (payload) => {
   if (!content || typeof content !== 'string') return;
   
   // 🔧 直接保存原始 HTML（不再走 Tiptap 预处理，contentEditable 原样保留所有 class）
-  // 🔧 密封线结构归一化：旧结构信息栏横向 p → 并入 sealed-line 整体竖排（编辑区所见即所得，幂等）
-  //    注意：不在编辑区注入主题包装（注意事项/题号得分表等复杂结构会被 Tiptap 解析变形），
-  //    完整包装效果由导出与打印预览承载（导出前 wrapContentForTheme 统一注入）
-  content = normalizeSealStructure(content);
+  // 🔧 密封线结构归一化 + 注入卷面固定件（编辑区所见即所得，幂等）
+  content = withExamShell(content, meta.stage);
   pristineHtmlForExport.value = content;
-  // 🔧 内容含密封线特征时自动切到渲染预览（所见即所得 HTML 模板效果）
-  maybeAutoRender(content);
   
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
   

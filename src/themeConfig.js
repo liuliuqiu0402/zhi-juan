@@ -1416,6 +1416,10 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       .square-box { display: inline-block; border: 2px solid #333; padding: 2px 8px; min-width: 2em; text-align: center; font-size: inherit !important; }
       .zuo-wen-ge { display: grid; grid-template-columns: repeat(20, ${zwgMm}mm); gap: 0; border: 1.5px solid #999; margin: 8px 0; width: fit-content; }
       .zuo-wen-ge span { display: inline-flex; align-items: center; justify-content: center; width: ${zwgMm}mm; height: ${zwgMm}mm; border: 0.5px solid #e0e0e0; font-size: inherit !important; }
+      .square-grid { width: 84mm; height: 56mm; border: 1.5px solid #999; margin: 8px 0; background: linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm, linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm; }
+      .bracket-grid { display: grid; grid-template-rows: repeat(3, 10mm); width: 52mm; margin: 8px 0; border-left: 3px solid #333; border-right: 3px solid #333; }
+      .bracket-grid > div { border-bottom: 0.5px solid #ccc; }
+      .bracket-grid > div:last-child { border-bottom: none; }
       /* 填空横线 */
       u[class*="blank-"] { display: inline-block; text-align: center; text-decoration: none; border-bottom: 1.5px solid #333; padding: 0 2px; font-size: inherit !important; min-width: 1em; }
       u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }
@@ -1731,6 +1735,33 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       font-size: inherit !important;
       line-height: ${zwgMm}mm;
       text-align: center;
+    }
+
+    /* ⭐ 作图网格区（数学操作题作答方格纸：12列×8行，格 7mm） */
+    .square-grid {
+      width: 84mm;
+      height: 56mm;
+      border: 1.5px solid #999;
+      margin: 8px 0;
+      background:
+        linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm,
+        linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm;
+    }
+
+    /* ⭐ 花式竖式格（低段数学竖式计算括号格：3 行竖式书写区，左右开口括号） */
+    .bracket-grid {
+      display: grid;
+      grid-template-rows: repeat(3, 10mm);
+      width: 52mm;
+      margin: 8px 0;
+      border-left: 3px solid #333;
+      border-right: 3px solid #333;
+    }
+    .bracket-grid > div {
+      border-bottom: 0.5px solid #ccc;
+    }
+    .bracket-grid > div:last-child {
+      border-bottom: none;
     }
 
     /* ⭐ 口算框 - 小学数学 */

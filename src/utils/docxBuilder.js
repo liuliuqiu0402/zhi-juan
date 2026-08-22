@@ -1057,6 +1057,69 @@ const processBlockNode = (node, ctx = {}) => {
     return children;
   }
 
+  // ===== 作图网格区（数学操作题方格纸作答区：12列×8行细线网格） =====
+  if (cls.contains('square-grid')) {
+    const gridBorders = {
+      top: { style: BorderStyle.SINGLE, size: 2, color: '999999' },
+      bottom: { style: BorderStyle.SINGLE, size: 2, color: '999999' },
+      left: { style: BorderStyle.SINGLE, size: 2, color: '999999' },
+      right: { style: BorderStyle.SINGLE, size: 2, color: '999999' },
+    };
+    const cellBorders = {
+      top: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
+      bottom: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
+      left: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
+      right: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
+    };
+    const cols = 12;
+    const rows = 8;
+    const cellW = 397; // 7mm ≈ 397 DXA
+    const gridRows = [];
+    for (let r = 0; r < rows; r++) {
+      const cells = [];
+      for (let c = 0; c < cols; c++) {
+        const isEdge = r === 0 || r === rows - 1 || c === 0 || c === cols - 1;
+        cells.push(new TableCell({
+          children: [new Paragraph({ text: ' ' })],
+          width: { size: cellW, type: WidthType.DXA },
+          borders: isEdge ? gridBorders : cellBorders,
+        }));
+      }
+      gridRows.push(new TableRow({ children: cells }));
+    }
+    children.push(new Table({ rows: gridRows, width: { size: cols * cellW, type: WidthType.DXA } }));
+    return children;
+  }
+
+  // ===== 花式竖式格（低段数学竖式计算括号格：3 行书写区，左右加粗竖线） =====
+  if (cls.contains('bracket-grid')) {
+    const rowCount = Math.max(1, node.querySelectorAll(':scope > div').length || 3);
+    const sideBorders = {
+      top: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+      bottom: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
+      left: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
+      right: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
+    };
+    const innerBorders = {
+      top: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
+      bottom: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
+      left: { style: BorderStyle.NONE, size: 0 },
+      right: { style: BorderStyle.NONE, size: 0 },
+    };
+    const rows = [];
+    for (let r = 0; r < rowCount; r++) {
+      rows.push(new TableRow({
+        children: [new TableCell({
+          children: [new Paragraph({ text: ' ', spacing: { line: 567, lineRule: LineRuleType.EXACT } })],
+          width: { size: 2945, type: WidthType.DXA }, // 52mm ≈ 2945 DXA
+          borders: r === 0 || r === rowCount - 1 ? sideBorders : innerBorders,
+        })],
+      }));
+    }
+    children.push(new Table({ rows, width: { size: 2945, type: WidthType.DXA } }));
+    return children;
+  }
+
   // ===== 脱式计算 =====
   if (cls.contains('off-formula')) {
     node.querySelectorAll('.of-line').forEach(line => {
