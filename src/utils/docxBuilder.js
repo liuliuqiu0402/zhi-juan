@@ -1096,14 +1096,19 @@ const processBlockNode = (node, ctx = {}) => {
       for (let c = 0; c < cols; c++) {
         const isEdge = r === 0 || r === rows - 1 || c === 0 || c === cols - 1;
         cells.push(new TableCell({
-          children: [new Paragraph({ text: ' ' })],
+          children: [new Paragraph({ text: ' ', spacing: { line: 1, lineRule: LineRuleType.EXACT } })],
           width: { size: cellW, type: WidthType.DXA },
+          height: { size: cellW, rule: HeightRule.EXACT }, // 强制行高=列宽 → 正方形方格
           borders: isEdge ? gridBorders : cellBorders,
         }));
       }
-      gridRows.push(new TableRow({ children: cells }));
+      gridRows.push(new TableRow({ children: cells, height: { value: cellW, rule: HeightRule.EXACT } }));
     }
-    children.push(new Table({ rows: gridRows, width: { size: cols * cellW, type: WidthType.DXA } }));
+    children.push(new Table({
+      rows: gridRows,
+      width: { size: cols * cellW, type: WidthType.DXA },
+      layout: TableLayoutType.FIXED, // 固定布局：12 列 × 7mm 精确等宽方格
+    }));
     return children;
   }
 
