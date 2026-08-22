@@ -8712,10 +8712,14 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
         genType
       );
       
-      // 合并硬性检查问题
-      hardIssues.forEach(issue => {
-        issues.push(`${issue.severity === 'error' ? '❌' : '⚠️'} ${issue.detail}`);
-      });
+      // 合并硬性检查问题（按层级分组：❌需处理 → ⚠️优化建议，避免建议与错误混淆）
+      const errIssues = hardIssues.filter(i => i.severity === 'error');
+      const warnIssues = hardIssues.filter(i => i.severity === 'warning');
+      errIssues.forEach(issue => { issues.push(`❌ ${issue.detail}`); });
+      if (warnIssues.length > 0) {
+        issues.push('— 优化建议（⚠️ 不影响使用，可忽略或下次改进） —');
+        warnIssues.forEach(issue => { issues.push(`⚠️ ${issue.detail}`); });
+      }
 
       // 自动修复可修复的问题
       if (hardIssues.some(i => i.autoFix)) {

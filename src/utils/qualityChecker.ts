@@ -68,6 +68,10 @@ export class HardRuleChecker {
     if (genType) {
       issues.push(...this.checkGenTypeSpecific(content, genType, parsedBlueprint));
     }
+    // 🔧 分数层级一致性（exam 卷面规范）：同分大题算术 + 大题之和=满分
+    if (genType === 'exam') {
+      issues.push(...this.checkScoreConsistency(content));
+    }
     // 🔧 新增：内容质量深度检查
     issues.push(...this.checkContentSubstance(content, genType || ''));
     // 🔧 新增：新课标核心素养术语命中率检查
@@ -546,6 +550,33 @@ export class HardRuleChecker {
       // 🔧 页数优先（蓝图条款13）：蓝图题量为参考下限，按页数要求可增加题量（实际>蓝图=正常加题，不提示），
       //    仅当实际题量明显不足（少于规划2题以上）才提示，避免"页数优先加题"被误报为数量不一致
       issues.push({ severity: 'warning', type: '题目数量不足', detail: `蓝图规划${expectedCount}题，实际仅${actualCount}题，题量偏少可能不满足页数要求`, autoFix: false });
+    }
+    return issues;
+  }
+
+  static checkScoreConsistency(content: string): Issue[] {
+    const issues: Issue[] = [];
+    // 1) 同分大题算术：本大题共N小题，每题/每小题P分，共T分 → N×P 必须= T
+    const sameScoreRe = /本大题共(\d+)(?:小题|题)[，,]\s*每(?:小)?题(\d+)分[，,]\s*共(\d+)分/g;
+    let m;
+    while ((m = sameScoreRe.exec(content)) !== null) {
+      const n = parseInt(m[1]), per = parseInt(m[2]), total = parseInt(m[3]);
+      if (n * per !== total) {
+        issues.push({ severity: 'warning', type: '分值计算不一致', detail: `大题标注"本大题共${n}小题，每小题${per}分，共${total}分"，但 ${n}×${per}=${n * per}≠${total}，请修正题数或分值`, autoFix: false });
+      }
+    }
+    // 2) 层级汇总：卷首满分 = 各大题"共X分"之和（只统计大题标题，不含小题"每空X分，共X分"）
+    const fullMatch = content.match(/满分[:：]\s*(\d+)/);
+    if (fullMatch) {
+      const full = parseInt(fullMatch[1]);
+      const bigRe = /本大题共\d+(?:小题|题)[，,]\s*(?:每(?:小)?题\d+分[，,]\s*)?共(\d+)分/g;
+      const bigTotals = [];
+      let bm;
+      while ((bm = bigRe.exec(content)) !== null) bigTotals.push(parseInt(bm[1]));
+      const bigSum = bigTotals.reduce((a, b) => a + b, 0);
+      if (bigTotals.length > 0 && bigSum !== full) {
+        issues.push({ severity: 'warning', type: '分值汇总不一致', detail: `卷首满分${full}分，各大题"共X分"合计${bigSum}分（${bigTotals.join('+')}），不一致——请调整各大题总分，使大题之和=满分`, autoFix: false });
+      }
     }
     return issues;
   }

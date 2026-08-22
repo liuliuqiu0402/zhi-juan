@@ -213,6 +213,25 @@ describe('HardRuleChecker', () => {
     });
   });
 
+  describe('checkScoreConsistency（分数层级一致性）', () => {
+    it('同分大题算术正确不报', () => {
+      const issues = HardRuleChecker.checkScoreConsistency('一、选择题（本大题共8小题，每小题4分，共32分）满分：100分');
+      expect(issues.filter(i => i.type === '分值计算不一致').length).toBe(0);
+    });
+    it('同分大题算术错误报错（题数×每题分≠总分）', () => {
+      const issues = HardRuleChecker.checkScoreConsistency('一、选择题（本大题共3小题，每小题4分，共9分）');
+      expect(issues.some(i => i.type === '分值计算不一致')).toBe(true);
+    });
+    it('大题之和=满分不报', () => {
+      const issues = HardRuleChecker.checkScoreConsistency('满分：100分。一、识字（本大题共8题，每题4分，共32分）。二、阅读（本大题共4题，共14分）。三、表达（本大题共2题，共30分）四、积累（本大题共8题，每题3分，共24分）');
+      expect(issues.filter(i => i.type === '分值汇总不一致').length).toBe(0);
+    });
+    it('大题之和≠满分报错', () => {
+      const issues = HardRuleChecker.checkScoreConsistency('满分：100分。一、识字（本大题共8题，每题4分，共32分）。二、阅读（本大题共4题，共14分）。三、表达（本大题共2题，共40分）');
+      expect(issues.some(i => i.type === '分值汇总不一致')).toBe(true);
+    });
+  });
+
   describe('checkChoiceOptionsMissing（选择题缺选项）', () => {
     it('选择题无选项报错', () => {
       const content = '<p class="question">1. 下列说法正确的是（　　）</p><div class="answer-section">A</div>';
