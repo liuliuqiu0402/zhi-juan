@@ -6690,7 +6690,7 @@ ${content}`;
         const cleanedRepair = cleanReasoningOutput(repairResult.content);
         if (!cleanedRepair || cleanedRepair.length < 100) {
           console.log('⚠️ AI修复返回内容清洗后异常，保留原始内容');
-          return { content, repaired: false, repairIssues: [] };
+          return { content, repaired: false, repairIssues: repairableIssues };
         }
         const repairedContent = cleanedRepair;
         
@@ -6708,11 +6708,11 @@ ${content}`;
       }
       
       console.log('⚠️ AI修复返回内容异常，保留原始内容');
-      return { content, repaired: false, repairIssues: [] };
+      return { content, repaired: false, repairIssues: repairableIssues };
       
     } catch (repairError) {
       console.error('❌ AI修复失败:', repairError.message);
-      return { content, repaired: false, repairIssues: [] };
+      return { content, repaired: false, repairIssues: repairableIssues };
     } finally {
       _repairActive = false;
     }
@@ -8760,6 +8760,13 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
             issues.push((issue.severity === 'error' ? '❌' : '⚠️') + ' ' + issue.detail);
           });
         }
+      } else if (repairResult.repairIssues && repairResult.repairIssues.length > 0) {
+        // 🔧 修复失败降级提示：不静默——把未能自动修复的问题显式标记到结果区，
+        //    用户可据此手动修改或重新生成（此前静默保留导致"生成了但不合格"无感知）
+        const unfixed = repairResult.repairIssues.map(i => i.type).join('、');
+        console.warn(`⚠️ AI修复未成功，以下问题需人工处理：${unfixed}`);
+        issues.push(`❌ 自动修复未成功（以下问题需手动处理或重新生成）：${unfixed}`);
+        repairResult.repairIssues.forEach(issue => { hardIssues.push(issue); });
       }
 
       // 初始化质量报告（必须在所有使用之前定义）
@@ -11247,6 +11254,12 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 800)}
             issues.push((issue.severity === 'error' ? '❌' : '⚠️') + ' ' + issue.detail);
           });
         }
+      } else if (repairResult.repairIssues && repairResult.repairIssues.length > 0) {
+        // 🔧 修复失败降级提示（与整卷路径一致）：未修复问题显式标记，不静默
+        const unfixed = repairResult.repairIssues.map(i => i.type).join('、');
+        console.warn(`⚠️ AI修复未成功，以下问题需人工处理：${unfixed}`);
+        issues.push(`❌ 自动修复未成功（以下问题需手动处理或重新生成）：${unfixed}`);
+        repairResult.repairIssues.forEach(issue => { hardIssues.push(issue); });
       }
 
       // 初始化质量报告（必须在所有使用之前定义）
