@@ -372,14 +372,8 @@ export class HardRuleChecker {
         });
       }
     }
-    // 小题分值标注检测：分值标注数量明显超过大题数（>12处）说明小题被标了分值，不符合真题卷惯例
-    if (scoreLabels.length > 12) {
-      issues.push({
-        severity: 'error', type: '分值标注不规范',
-        detail: '检测到大量分值标注（' + scoreLabels.length + '处），真题卷只在大题标题标注总分值，小题一律不标分值',
-        autoFix: false,
-      });
-    }
+    // （🔧 已移除"小题分值标注>12处即报错"的旧校验：新规范要求所有小题都标"（X分）"，
+    //    小题分值标注是正常行为，不再视为"不符合真题卷惯例"）
 
     // 2. 卷首信息栏：满分 + 考试时间（含数值与蓝本一致性）
     const fullScoreMatch = content.match(/满分\s*[:：]?\s*(\d{1,3})\s*分/);
