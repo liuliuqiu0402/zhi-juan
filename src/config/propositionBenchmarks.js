@@ -64,7 +64,7 @@ export const PROPOSITION_BENCHMARKS = {
         '写话/看图写话给出情境支架（提示词/问题引导/图片），禁止只给题目',
       ],
       samples: ['写话示例：看图写话配图描述"春天公园放风筝"，支架问题：图中有什么？他们在做什么？心情怎样？——供模仿情境创设与支架方式'],
-      checkers: { minPassage: 80, maxPassage: 300, requireDepth: true, banMechanical: ['填空：', '看拼音，写词语：'] },
+      checkers: { minPassage: 80, maxPassage: 300, requireDepth: true, banMechanical: ['根据课文内容填空：', '看拼音，写词语：___（背诵默写）'] },
     },
     'middle': {
       quality: [
@@ -99,7 +99,7 @@ export const PROPOSITION_BENCHMARKS = {
         '计算题合理覆盖口算/笔算/估算，禁止整卷全是机械计算',
       ],
       samples: ['应用题示例：妈妈买3千克苹果每千克5元，付给售货员20元，应找回多少元？——供模仿情境与步骤'],
-      checkers: { requireDepth: true, banMechanical: ['填空', '口算'] },
+      checkers: { requireDepth: true },
     },
     'middle': {
       quality: [

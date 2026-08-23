@@ -450,6 +450,7 @@ const extractGradeNum = (gradeStr) => {
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
 import { buildBenchmarkText } from '../config/propositionBenchmarks.js';
+import { buildSampleText } from '../config/examSampleLibrary.js';
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -5337,6 +5338,12 @@ ${cardAnalysisText.substring(0, 1000)}
           const benchText = buildBenchmarkText(subject, gradeSegment, !(gt === 'exam' && examBlueprint));
           if (benchText) {
             instruction += `\n---\n${benchText}\n`;
+          }
+          // 🔴 真题内容样例（内容为王）：按学科×学段注入真题级设问/情境/措辞范式，
+          //    供模型模仿内容质量水准（严禁照抄），解决"只有骨架没有血肉"的问题
+          const sampleText = buildSampleText(subject, gradeSegment);
+          if (sampleText) {
+            instruction += `\n---\n${sampleText}\n`;
           }
           // 🔴 新课标单一骨架：exam 有蓝本时跳过结构大纲注入（蓝本为唯一骨架权威，避免新旧结构打架）
           if (structBlocks_a2.length > 0 && !(gt === 'exam' && examBlueprint)) {

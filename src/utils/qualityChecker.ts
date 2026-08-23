@@ -1,4 +1,5 @@
 import { getExamBlueprint } from '../config/examPaperBlueprints';
+import { getPropositionBenchmark, QUESTION_DEPTH_LEVELS } from '../config/propositionBenchmarks';
 
 type IssueSeverity = 'error' | 'warning';
 interface Issue {
@@ -76,6 +77,17 @@ export class HardRuleChecker {
     issues.push(...this.checkMultipleChoiceBoundary(content, subject, stage));
     // 🔧 英语听力硬规范（全类型）：含听力板块必须附完整听力原文（答案页），否则退稿
     issues.push(...this.checkEnglishListening(content, subject));
+    // 🔧 命题内容质量基准 checkers 落地（全学科×学段）：机械记忆词/语篇长度/设问层次程序化质检
+    {
+      // 学段规范化：stage 可能是中文（小学/初中/高中）或英文；小学按年级细分低/中/高段
+      const benchStageKey = ({ '小学': 'primary', '初中': 'middle', '高中': 'high' } as Record<string, string>)[stage] || stage;
+      const benchGradeNum = parseInt(String(grade || '').match(/\d+/)?.[0] || '0', 10);
+      let benchStageSeg = benchStageKey;
+      if (benchStageKey === 'primary') {
+        benchStageSeg = benchGradeNum <= 2 ? 'primary_low' : benchGradeNum <= 4 ? 'primary_mid' : 'primary_high';
+      }
+      issues.push(...this.checkBenchmarkContent(content, subject, benchStageSeg, genType || ''));
+    }
     // 🔧 新增：内容质量深度检查
     issues.push(...this.checkContentSubstance(content, genType || ''));
     // 🔧 新增：新课标核心素养术语命中率检查
@@ -225,6 +237,74 @@ export class HardRuleChecker {
         detail: '英语试卷含听力板块，但答案区未提供完整"听力原文"（供教师朗读）。听力题必须逐句写出对话/独白原文（语速每分钟90-110词、每段读两遍），禁止只给题干不给原文——无原文的听力题不算听力题。',
       });
     }
+    return issues;
+  }
+
+  /**
+   * 🔧 命题内容质量基准 checkers 落地（全学科×学段，生成后程序化质检）
+   * 数据来源：propositionBenchmarks.js 每学科×学段的 checkers 参数：
+   *   - banMechanical  机械记忆型设问句式（出现即提示改写）
+   *   - minPassage/maxPassage  语篇长度分档（超长/过短提示）
+   *   - requireDepth   设问层次要求（缺推理/评价层设问提示）
+   * ⚠️ 全部为 warning（不阻断生成），避免误报；只有明确硬伤（如听力原文缺失）才 error 退稿
+   */
+  static checkBenchmarkContent(content: string, subject: string, stageSeg: string, genType: string): Issue[] {
+    const issues: Issue[] = [];
+    const bench = getPropositionBenchmark(subject, stageSeg);
+    if (!bench || !bench.checkers) return issues;
+    const { banMechanical, minPassage, maxPassage, requireDepth } = bench.checkers;
+    const body = content.replace(/<div[^>]*class="answer-section"[^>]*>[\s\S]*$/i, '');
+    const clean = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+    // 1. 机械记忆型设问句式检测（如"根据课文内容填空：""___（背诵默写）"）
+    if (banMechanical && banMechanical.length) {
+      const hits = banMechanical.filter(w => w && clean.includes(w));
+      if (hits.length) {
+        issues.push({
+          severity: 'warning', type: '机械记忆题',
+          detail: `检测到机械记忆型设问句式：${hits.join('、')}。新课标要求减少记忆性试题、增加情境化与理解运用型设问，请改写为语境/情境中考查。`,
+          autoFix: false,
+        });
+      }
+    }
+
+    // 2. 语篇长度分档（minPassage/maxPassage）：统计题目正文中长段落数量与最长段落
+    if (minPassage || maxPassage) {
+      const paragraphs = body
+        .replace(/<[^>]+>/g, ' ')
+        .split(/\n+/)
+        .map(p => p.replace(/\s+/g, ' ').trim())
+        .filter(p => p.length > 0);
+      const longParas = maxPassage ? paragraphs.filter(p => p.length > maxPassage) : [];
+      if (longParas.length) {
+        issues.push({
+          severity: 'warning', type: '语篇超长',
+          detail: `检测到 ${longParas.length} 段语篇超过本学段分档上限（${maxPassage}字），最长达 ${Math.max(...longParas.map(p => p.length))} 字。请压缩至学段匹配的篇幅（${minPassage || '-'}~${maxPassage}字）。`,
+          autoFix: false,
+        });
+      } else if (minPassage && paragraphs.length && Math.max(...paragraphs.map(p => p.length)) < minPassage) {
+        issues.push({
+          severity: 'warning', type: '语篇过短',
+          detail: `最长语篇仅 ${Math.max(...paragraphs.map(p => p.length))} 字，低于本学段分档下限（${minPassage}字）。阅读/听力材料过短无法支撑设问梯度，请补充完整语篇。`,
+          autoFix: false,
+        });
+      }
+    }
+
+    // 3. 设问层次检测（requireDepth）：正文应含"提取→理解→推理"多层设问词
+    if (requireDepth) {
+      const hasExtract = QUESTION_DEPTH_LEVELS['提取'].some(w => clean.includes(w));
+      const hasInfer = QUESTION_DEPTH_LEVELS['推理'].some(w => clean.includes(w));
+      const hasQuestions = /(?:[1-9]\d*[.、．)）]|第[一二三四五六七八九十]+题|(?:[一-龥]){1,3}、)/.test(clean) && clean.length > 300;
+      if (hasQuestions && !hasInfer) {
+        issues.push({
+          severity: 'warning', type: '设问层次单一',
+          detail: `检测到设问缺少"推理/评价"层级（如"为什么/你认为/推断/结合全文分析"）${hasExtract ? '，仅有信息提取类设问' : ''}。新课标要求设问沿"信息提取→理解分析→推理评价"递进，请补充至少1道思维层级设问。`,
+          autoFix: false,
+        });
+      }
+    }
+
     return issues;
   }
 

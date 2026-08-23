@@ -9,7 +9,58 @@
  */
 export const EXAM_REGION_CONFIG = {
   // ══════════ 中考（初中） ══════════
-  // 150 分制省市（语数英）
+  // ── 江苏：13 市各自命题，语数英分值不一（省厅"2024起全省统一命题"截至2026未落地），
+  //    按 2026 官方方案拆分为主要城市；'江苏' 键保留为兼容回退（取南通 150 分制代表口径）
+  '江苏·南京': {
+    'middle': {
+      '语文': { fullScore: 120, duration: '120分钟' },
+      '数学': { fullScore: 120, duration: '120分钟' },
+      '英语': { fullScore: 120, duration: '90分钟' },
+      '物理': { fullScore: 100, duration: '90分钟' },
+      '化学': { fullScore: 80, duration: '60分钟' },
+      '道德与法治': { fullScore: 60, duration: '100分钟' },
+      '历史': { fullScore: 60, duration: '100分钟' },
+      '生物': { fullScore: 60, duration: '60分钟' },
+      '地理': { fullScore: 60, duration: '60分钟' },
+    },
+  },
+  '江苏·苏州': {
+    'middle': {
+      '语文': { fullScore: 130, duration: '150分钟' },
+      '数学': { fullScore: 130, duration: '120分钟' },
+      '英语': { fullScore: 130, duration: '100分钟' },
+      '物理': { fullScore: 100, duration: '100分钟' },
+      '化学': { fullScore: 100, duration: '100分钟' },
+      '道德与法治': { fullScore: 50, duration: '50分钟' },
+      '历史': { fullScore: 50, duration: '50分钟' },
+      '生物': { fullScore: 30, duration: '60分钟' },
+      '地理': { fullScore: 30, duration: '60分钟' },
+    },
+  },
+  '江苏·无锡': {
+    'middle': {
+      '语文': { fullScore: 150, duration: '150分钟' },
+      '数学': { fullScore: 150, duration: '120分钟' },
+      '英语': { fullScore: 130, duration: '100分钟' },
+      '物理': { fullScore: 100, duration: '100分钟' },
+      '化学': { fullScore: 80, duration: '100分钟' },
+      '道德与法治': { fullScore: 50, duration: '120分钟' },
+      '历史': { fullScore: 50, duration: '120分钟' },
+    },
+  },
+  '江苏·南通': {
+    'middle': {
+      '语文': { fullScore: 150, duration: '150分钟' },
+      '数学': { fullScore: 150, duration: '120分钟' },
+      '英语': { fullScore: 150, duration: '120分钟' },
+      '物理': { fullScore: 90, duration: '150分钟' },
+      '化学': { fullScore: 60, duration: '150分钟' },
+      '道德与法治': { fullScore: 50, duration: '100分钟' },
+      '历史': { fullScore: 50, duration: '100分钟' },
+      '生物': { fullScore: 30, duration: '60分钟' },
+      '地理': { fullScore: 30, duration: '60分钟' },
+    },
+  },
   '江苏': {
     'middle': {
       '语文': { fullScore: 150, duration: '150分钟' },
@@ -178,7 +229,7 @@ export const EXAM_REGION_CONFIG = {
   },
 };
 
-/** 省市下拉选项（生成设置用） */
-export const EXAM_REGION_OPTIONS = ['江苏', '浙江', '广东', '山东', '北京', '上海', '河南', '四川', '重庆', '福建', '安徽', '湖北', '湖南', '河北', '辽宁', '天津', '陕西'];
+/** 省市下拉选项（生成设置用）——江苏按市拆分（13市各自命题，取代表性城市） */
+export const EXAM_REGION_OPTIONS = ['江苏·南京', '江苏·苏州', '江苏·无锡', '江苏·南通', '浙江', '广东', '山东', '北京', '上海', '河南', '四川', '重庆', '福建', '安徽', '湖北', '湖南', '河北', '辽宁', '天津', '陕西'];
 
 export default { EXAM_REGION_CONFIG, EXAM_REGION_OPTIONS };

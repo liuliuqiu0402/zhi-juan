@@ -18,11 +18,32 @@ describe('省市差异化配置', () => {
     expect(bp.sections.reduce((a, c) => a + c.score, 0)).toBe(150);
   });
 
-  it('江苏中考数学 150 分/120 分钟', () => {
-    const bp = getExamBlueprint('数学', 'middle', '江苏');
-    expect(bp.fullScore).toBe(150);
+  it('江苏按市拆分：南京 120/苏州 130/无锡 150/南通 150（2026 官方方案）', () => {
+    const cases = [
+      ['江苏·南京', 120, '120分钟'],
+      ['江苏·苏州', 130, '150分钟'],
+      ['江苏·无锡', 150, '150分钟'],
+      ['江苏·南通', 150, '150分钟'],
+    ];
+    for (const [region, score, duration] of cases) {
+      const bp = getExamBlueprint('语文', 'middle', region);
+      expect(bp.fullScore, `${region} 语文总分`).toBe(score);
+      expect(bp.duration, `${region} 语文时长`).toBe(duration);
+      expect(bp.sections.reduce((a, c) => a + c.score, 0), `${region} 板块和`).toBe(score);
+    }
+  });
+
+  it('江苏·苏州英语 130 分（书面100+听说30）', () => {
+    const bp = getExamBlueprint('英语', 'middle', '江苏·苏州');
+    expect(bp.fullScore).toBe(130);
+    expect(bp.sections.reduce((a, c) => a + c.score, 0)).toBe(130);
+  });
+
+  it('江苏·南京数学 120 分/120 分钟', () => {
+    const bp = getExamBlueprint('数学', 'middle', '江苏·南京');
+    expect(bp.fullScore).toBe(120);
     expect(bp.duration).toBe('120分钟');
-    expect(bp.sections.reduce((a, c) => a + c.score, 0)).toBe(150);
+    expect(bp.sections.reduce((a, c) => a + c.score, 0)).toBe(120);
   });
 
   it('北京中考语文 100 分/150 分钟（100 分制）', () => {
