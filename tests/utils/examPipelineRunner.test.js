@@ -1,6 +1,6 @@
 // 分步流水线 Runner：依赖注入编排器（可 mock 单测）
 import { describe, it, expect } from 'vitest';
-import { runExamPipeline } from '@/config/examPipelineRunner';
+import { runExamPipeline, filterSystemByMode } from '@/config/examPipelineRunner';
 import { getExamBlueprint } from '@/config/examPaperBlueprints';
 
 const EXAM = getExamBlueprint('语文', 'middle', '江苏·南京'); // 120分制
@@ -138,5 +138,53 @@ describe('分步流水线 Runner（依赖注入编排器）', () => {
     await expect(
       runExamPipeline(baseOpts({ examBlueprint: null, instruction: '没有结构大纲' }), deps)
     ).rejects.toThrow('板块');
+  });
+
+  it('板块指令注入命题内容质量基准（学科×学段硬规范）', async () => {
+    const { deps, calls } = makeDeps();
+    await runExamPipeline(baseOpts(), deps);
+    const firstPrompt = calls[0].prompt;
+    expect(firstPrompt).toContain('命题内容质量基准');
+    expect(firstPrompt).toContain('硬性要求');
+  });
+});
+
+describe('systemMessage 场景化裁剪（根治每次调用携带整段长指令）', () => {
+  const FULL_SYSTEM = '输出纪律前言\n'
+    + '【角色身份】你是命题专家\n'
+    + '【红线约束】禁止超纲\n'
+    + '【真题卷结构蓝本】全卷所有板块分值明细...（很长）\n'
+    + '【格式规范】题目用p标签\n'
+    + '【尾约束】填空用blank标签\n'
+    + '【答案区强制锚定】答案放答案页\n'
+    + '【答案与解析规范】每题为解析\n'
+    + '【学科核心素养】素养立意';
+
+  it('section 模式：保留角色/红线/格式/尾约束/素养，剔除蓝本全文/答案规范', () => {
+    const s = filterSystemByMode(FULL_SYSTEM, 'section');
+    expect(s).toContain('角色身份');
+    expect(s).toContain('红线约束');
+    expect(s).toContain('格式规范');
+    expect(s).toContain('尾约束');
+    expect(s).toContain('学科核心素养');
+    expect(s).not.toContain('真题卷结构蓝本');
+    expect(s).not.toContain('答案区强制锚定');
+    expect(s).not.toContain('答案与解析规范');
+    expect(s).toContain('输出纪律前言'); // preamble 保留
+  });
+
+  it('answer 模式：保留角色/红线/答案锚定/答案规范，剔除蓝本全文/格式尾约束', () => {
+    const s = filterSystemByMode(FULL_SYSTEM, 'answer');
+    expect(s).toContain('答案区强制锚定');
+    expect(s).toContain('答案与解析规范');
+    expect(s).toContain('红线约束');
+    expect(s).not.toContain('真题卷结构蓝本');
+    expect(s).not.toContain('格式规范');
+    expect(s).not.toContain('尾约束');
+  });
+
+  it('空 system 返回空串', () => {
+    expect(filterSystemByMode('', 'section')).toBe('');
+    expect(filterSystemByMode(null, 'answer')).toBe('');
   });
 });

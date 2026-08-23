@@ -17,6 +17,7 @@
  */
 import { getExamBlueprint } from './examPaperBlueprints';
 import { buildSampleText } from './examSampleLibrary';
+import { buildBenchmarkText } from './propositionBenchmarks';
 
 /** 从蓝本 note 解析题量：优先匹配"（N小题/N题/N空）"或"共N题"，兜底按分值推算 */
 export function parseQuestionCount(note = '', score = 0) {
@@ -176,10 +177,13 @@ export function buildSectionInstruction(plan, ctx) {
     sectionNo = plan.index + 1,
     totalScore = examBlueprint?.fullScore || 0,
     stage = '', // 学段键（primary_low/middle/high），用于样例库匹配
+    isExamPlan = !!examBlueprint,
   } = ctx || {};
   const cn = '一二三四五六七八九十'[plan.index] || String(plan.index + 1);
   const kpText = plan.kps.length ? plan.kps.join('、') : '（按教材覆盖合理分配考点）';
   const sampleText = buildSampleText(subject, stage); // 样例库按 学科×学段 匹配
+  // 🔴 命题内容质量基准（学科×学段硬规范）：exam 且已注入蓝本时跳过通用底线（EXAM_NEW_STANDARD 已含）
+  const benchmarkText = buildBenchmarkText(subject, stage, !(ctx.isExamPlan));
   // 非 exam（课时练等）无硬性分值/满分约束 → 简化标题表述，避免"满分0分"等误导
   const isScored = totalScore > 0 && plan.score > 0;
   const countText = plan.questionCount ? `${plan.questionCount}题` : (isScored ? '' : '若干题');
@@ -193,6 +197,10 @@ export function buildSectionInstruction(plan, ctx) {
 2. 考查内容：本板块覆盖以下考点——${kpText}。所有考点必须与教材内容一致，禁止超纲、禁止编造教材没有的知识点。
 3. 内容质量：遵循新课标素养立意——情境真实适切、设问有层次（信息提取→理解分析→推理评价递进）、杜绝机械记忆与偏题怪题。
 4. 命题规范：${plan.note || '题型与分值按规范执行'}`;
+
+  if (benchmarkText) {
+    instruction += `\n\n${benchmarkText}`;
+  }
 
   if (sampleText) {
     instruction += `\n\n【真题级样例（供模仿设问方式与内容质量，严禁照抄原题）】

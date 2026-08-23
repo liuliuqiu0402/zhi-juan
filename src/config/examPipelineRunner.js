@@ -45,6 +45,44 @@ const cleanSectionHtml = (raw) => {
 };
 
 /**
+ * 🔴 systemMessage 场景化裁剪（根治"每次调用仍携带整段长指令"）
+ * 完整 systemMessage 含：角色/红线/蓝本全文/格式规范/尾约束/答案规范/素养等。
+ * 对"单板块生成"而言，蓝本全文（其他板块的分值）、答案区锚定、答案与解析规范是冗余的；
+ * 对"答案页生成"而言，格式规范/尾约束/标题格式等板块约束是冗余的。
+ * 按调用场景只保留必要节，使每次实际发给模型的指令都短。
+ * @param {string} systemMessage 完整 system
+ * @param {'section'|'answer'} mode 调用场景
+ * @returns {string} 裁剪后的 system
+ */
+export function filterSystemByMode(systemMessage = '', mode = 'section') {
+  if (!systemMessage) return '';
+  // 按【节标题】切分（保留节首的前缀即输出纪律 preamble）
+  const sections = systemMessage.split(/\n(?=【)/);
+  const preamble = []; // 非【】开头的头部（buildOutputPreamble 等）
+  const keep = [];
+  for (const sec of sections) {
+    const titleMatch = sec.match(/^【([^】]+)】/);
+    if (!titleMatch) { preamble.push(sec); continue; }
+    const title = titleMatch[1];
+    if (mode === 'section') {
+      // 板块生成需要：角色/红线/格式/顶层/尾约束/素养；蓝本分板块 note 已在板块指令中
+      const SECTION_KEEP = [
+        '角色身份', '红线约束', '格式规范', '输出格式重申', '顶层约束',
+        '尾约束', '格式尾约束', '标题格式', '学科核心素养',
+      ];
+      if (SECTION_KEEP.some(k => title.includes(k))) keep.push(sec);
+    } else {
+      // 答案页需要：角色/红线/答案区锚定/答案与解析规范/蓝本总分（答案标注用）
+      const ANSWER_KEEP = [
+        '角色身份', '红线约束', '答案区强制锚定', '答案与解析规范',
+      ];
+      if (ANSWER_KEEP.some(k => title.includes(k))) keep.push(sec);
+    }
+  }
+  return [...preamble, ...keep].join('\n').trim();
+}
+
+/**
  * 执行分步生成流水线
  * @param {object} opts 流水线输入
  * @param {object} deps 依赖注入（可 mock）
@@ -133,17 +171,19 @@ export async function runExamPipeline(opts, deps = {}) {
     const secInstruction = buildSectionInstruction(plan, {
       subject, stage, stageLabel, examBlueprint,
       materialText: [sectionMaterial, sectionContext].filter(Boolean).join('\n\n'),
-      region, sectionNo: i + 1, totalScore,
+      region, sectionNo: i + 1, totalScore, isExamPlan,
     });
 
     // 板块生成重试：单板块最多 2 次
     let sectionHtml = '';
     let secLastError = null;
+    // 🔴 板块调用只携带必要的 system 节（角色/红线/格式/尾约束），蓝本全文/答案规范等不注入
+    const sectionSystem = filterSystemByMode(systemMessage, 'section');
     for (let secTry = 0; secTry < 2; secTry++) {
       try {
         const resp = await callAI(secInstruction, {
           taskType: 'generation', timeout: 180000, retries: 0,
-          systemMessage: systemMessage || undefined,
+          systemMessage: sectionSystem || undefined,
         });
         const html = cleanSectionHtml(resp);
         if (html && html.length > 120) { sectionHtml = html; break; }
@@ -172,9 +212,11 @@ export async function runExamPipeline(opts, deps = {}) {
   let ansError = null;
   try {
     const ansInstruction = buildAnswerInstruction(subject, stageLabel, paperContent, examBlueprint);
+    // 🔴 答案页调用只携带答案相关 system 节（角色/红线/答案锚定/答案规范），板块格式/尾约束不注入
+    const answerSystem = filterSystemByMode(systemMessage, 'answer');
     const ansResp = await callAI(ansInstruction, {
       taskType: 'generation', timeout: 240000, retries: 1,
-      systemMessage: systemMessage ? `${systemMessage}\n此调用仅输出答案区，勿重复输出题目正文。` : undefined,
+      systemMessage: answerSystem || undefined,
     });
     let aHtml = cleanSectionHtml(ansResp);
     if (!/<div[^>]*class=["'][^"']*answer-section/i.test(aHtml)) {
@@ -198,4 +240,4 @@ export async function runExamPipeline(opts, deps = {}) {
   };
 }
 
-export default { runExamPipeline, cleanSectionHtml, STAGE_LABEL_MAP };
+export default { runExamPipeline, filterSystemByMode, cleanSectionHtml, STAGE_LABEL_MAP };
