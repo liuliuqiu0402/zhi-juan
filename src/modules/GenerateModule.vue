@@ -6888,6 +6888,19 @@ const showQualityReport = async (doc) => {
         text += `  ${d.passed ? '✅' : '❌'} ${d.name}（${d.score}分）: ${d.detail}\n`;
       });
     }
+    // 🔴 达标自处理结果
+    if (cc.autoFixPlan) {
+      const ap = cc.autoFixPlan;
+      if (ap.actions?.length) {
+        text += `\n  【自处理方案】${ap.planSummary}\n`;
+        ap.actions.forEach(a => {
+          const tag = a.type === 'fix' ? '🔧已自动修复' : '⚙️待定向重生成';
+          text += `  ${tag} [${a.dim}] ${a.detail}\n`;
+        });
+      } else {
+        text += '\n  【自处理】全部维度达标，无需处理\n';
+      }
+    }
   }
   
   // issues

@@ -454,6 +454,7 @@ import { buildSampleText } from '../config/examSampleLibrary.js';
 import { parseStructureBlocks } from '../config/examPipeline.js';
 import { runExamPipeline } from '../config/examPipelineRunner.js';
 import { assessCompliance } from '../utils/curriculumCompliance.ts';
+import { buildAutoFixPlan, applyProgrammaticFixes } from '../utils/complianceAutoFix.ts';
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -9171,8 +9172,32 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
         if (qualityReport.curriculumCheck.overall !== '通过') {
           summaryParts.push(`📋新课标:${qualityReport.curriculumCheck.overall}`);
         }
+
+        // 🔴 达标自处理（评估→自动修复→闭环）：未达标时自动执行程序化修复（超纲词替换等），
+        //    需 AI 定向重生成的维度生成修复计划（记录到报告，供一键重生成，避免无限循环）
+        const fixPlan = buildAutoFixPlan(qualityReport.curriculumCheck, {
+          subject: normalizeSubjectName(book?.subject || '', stageRaw),
+          stageLabel: ({ '小学': '小学', '初中': '初中', '高中': '高中' })[stageRaw] || '',
+          genType,
+        });
+        qualityReport.curriculumCheck.autoFixPlan = fixPlan;
+        const fixActions = fixPlan.actions.filter(a => a.type === 'fix');
+        if (fixActions.length) {
+          const before = content.length;
+          content = applyProgrammaticFixes(content, fixActions);
+          if (content !== before || content.length !== before) {
+            console.log(`🔧 达标自处理·程序化修复完成：${fixActions.map(a => `[${a.dim}]${a.detail}`).join('；')}`);
+            summaryParts.push('🔧已自动修复');
+          }
+          // 程序化修复后复检
+          qualityReport.curriculumCheck = assessCompliance(content, normalizeSubjectName(book?.subject || '', stageRaw), stageSegForCheck, genType);
+        }
+        const regenCount = fixPlan.actions.filter(a => a.type === 'regenerate').length;
+        if (regenCount) {
+          console.log(`📋 达标自处理·待定向重生成：${regenCount} 项（${fixPlan.actions.filter(a => a.type === 'regenerate').map(a => a.dim).join(',')}），已记录修复计划`);
+        }
       } catch (complianceError) {
-        console.warn('⚠️ 新课标达标评估失败:', complianceError.message);
+        console.warn('⚠️ 新课标达标评估/自处理失败:', complianceError.message);
       }
 
       if (qualityReport.knowledgeCheck?.details?.length) {
