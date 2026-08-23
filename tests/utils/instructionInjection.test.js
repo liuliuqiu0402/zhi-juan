@@ -146,7 +146,7 @@ describe('指令注入审计：新课标合规与注入正确性', () => {
         for (const stage of stages) {
           const blocks = getMatchingBlockInstructions({ category: '生成-品质标准', subject, stage, genType: 'exam' });
           expect(blocks.length, `${subject}|${stage} 品质标准为空`).toBeGreaterThan(0);
-          expect(blocks.some(b => b.id === 'quality_industry_benchmark'), `${subject}|${stage} 缺教辅品质基线块`).toBe(true);
+          expect(blocks.some(b => b.id === 'quality_industry_benchmark_exam'), `${subject}|${stage} 缺正式命题基准块`).toBe(true);
           if (blocks.length > 5) over.push(`${subject}|${stage}=${blocks.length}[${blocks.map(b => b.id).join(',')}]`);
         }
       }
@@ -440,14 +440,19 @@ describe('指令注入审计：精简固化（规则唯一性/注入总量/红�
     });
 
     // 本轮新增：教辅品质基线句（原核心任务 64 处重复）收敛到品质标准唯一承载
-    it('教辅品质基线句：核心任务归零、品质标准唯一承载', () => {
+    // 🔧 角色分流：exam 用"正式命题基准"块（不含教辅话术）；非 exam 用"教辅品质基线"块
+    it('教辅品质基线句：核心任务归零、品质标准按角色分流承载', () => {
       const coreTasks = builtinInstructions.filter(i => i.type === 'fragment' && i.category === '生成-核心任务');
       const leak = coreTasks.filter(i => /质量对标市面一流教辅水准|粗制滥造的凑数内容/.test(i.content || ''));
       expect(leak.map(b => b.id), '核心任务块不应再含教辅品质基线句').toEqual([]);
-      const carrier = builtinInstructions.find(i => i.id === 'quality_industry_benchmark');
-      expect(carrier, '缺少品质标准承载块').toBeTruthy();
-      expect(carrier.content).toContain('质量对标市面一流教辅水准');
-      expect(carrier.content).toContain('不可生成粗制滥造的凑数内容');
+      const carrierExam = builtinInstructions.find(i => i.id === 'quality_industry_benchmark_exam');
+      expect(carrierExam, '缺少正式命题基准承载块（exam）').toBeTruthy();
+      expect(carrierExam.content).toContain('真题卷');
+      expect(carrierExam.content).not.toContain('53天天练');
+      const carrierNonExam = builtinInstructions.find(i => i.id === 'quality_industry_benchmark_non_exam');
+      expect(carrierNonExam, '缺少教辅品质基线承载块（非 exam）').toBeTruthy();
+      expect(carrierNonExam.content).toContain('质量对标市面一流教辅水准');
+      expect(carrierNonExam.content).toContain('不可生成粗制滥造的凑数内容');
     });
   });
 
@@ -676,12 +681,12 @@ describe('指令注入审计：课标骨架对齐/教辅编辑标准/注入精�
       }
     });
 
-    it('编辑标准内容覆盖文字/数据/表述/结构四维（对标市面教辅出版水准）', () => {
+    it('编辑标准内容覆盖文字/数据/表述/结构四维（对标真题卷/正式出版物水准）', () => {
       const block = builtinInstructions.find(i => i.id === 'edit_std_common');
       expect(block.content).toContain('错别字');
       expect(block.content).toContain('数据与答案完全自洽');
       expect(block.content).toContain('题干指向唯一');
-      expect(block.content).toContain('市面正式教辅出版水准');
+      expect(block.content).toContain('真题卷/正式出版物');
     });
   });
 

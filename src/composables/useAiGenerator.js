@@ -6376,11 +6376,11 @@ ${cardAnalysisText.substring(0, 1000)}
       instruction += `\n---\n【${_title('content_norm', '内容与特殊要求')}】\n${supplementParts.join('\n')}\n\n`;
     }
 
-    // ========== 8.5.【教辅编辑标准】（R6：对标市面正式教辅出版水准，生成端强制） ==========
+    // ========== 8.5.【编辑质量标准】（R6：对标真题卷/正式出版物出版水准，生成端强制） ==========
     // 🔧 所有引擎均注入：文字/标点/数据/表述/结构五维编辑质量，先于输出格式重申保证近因生效
     const editStdBlocks = getMatchingBlockInstructions({ category: '生成-编辑标准', subject: '', stage: '', genType: primaryGenType });
     if (editStdBlocks.length > 0) {
-      instruction += `\n---\n【${_title('edit_std', '教辅编辑标准')}】\n`;
+      instruction += `\n---\n【${_title('edit_std', '编辑质量标准')}】\n`;
       for (const es of editStdBlocks) {
         instruction += `- ${es.content}\n`;
       }

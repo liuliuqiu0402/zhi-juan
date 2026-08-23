@@ -593,13 +593,13 @@ export const builtinInstructions = [
   },
 
   // ═══════════════════════════════════════
-  // 教辅编辑标准（R6：对标市面正式教辅出版水准，生成端强制）
+  // 编辑质量标准（R6：对标真题卷/正式出版物出版水准，生成端强制）
   // ═══════════════════════════════════════
   {
-    id: 'edit_std_common', name: '教辅编辑标准', category: '生成-编辑标准', type: 'fragment',
+    id: 'edit_std_common', name: '编辑质量标准', category: '生成-编辑标准', type: 'fragment',
     prompt_order: 34,
     subject: '', stage: '', genType: 'exam,practice,special,reading,errorbook,preview,dictation,review,summary',
-    content: `【教辅编辑标准】（对标市面正式教辅出版水准，生成时逐项自查）
+    content: `【编辑质量标准】（对标真题卷/正式出版物出版水准，生成时逐项自查）
 1. 文字质量：全文无错别字、无病句、无语病表述；标点符号规范（中文语境用全角标点，数字与字母用半角）。
 2. 数据严谨：题干数据与答案完全自洽（总量=分项和、比例正确、单位统一），答案与解析结论一致，不得出现"题干3个空、答案2个空"等错位。
 3. 表述规范：学科术语准确、符合该学段语言水平；题干指向唯一、无歧义；不出现口语化冗余、不出现"AI味"套话与空话。
@@ -865,7 +865,7 @@ export const builtinInstructions = [
     id: 'block_answer_spec', name: '【答案与解析规范】通用', category: '生成-答案与解析规范', type: 'fragment',
     prompt_order: 26,
     subject: '', stage: '', genType: '',
-    content: '以下为教辅级答案质量标准，请严格遵守以确保输出质量对标市面教辅。',
+    content: '以下为正式考试/出版物级答案质量标准，请严格遵守以确保输出质量对标真题卷与市面正式出版物。',
     builtin: true
   },
 
@@ -2729,9 +2729,9 @@ export const builtinInstructions = [
   // 【时间分配】块级指令 — 考卷用时建议
   // ═══════════════════════════════════════
     { id: 'time_exam_primary_low', name: '【时间分配】小学低段考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary_low', genType: 'exam', content: '建议用时：以【真题卷结构蓝本】标注的考试时间为准，输出时只写一个数字，禁止写范围', builtin: true },
-    { id: 'time_exam_primary_mid', name: '【时间分配】小学中段考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary_mid', genType: 'exam', content: '建议用时：根据题量确定50或60分钟，输出时只写一个数字如"60分钟"，禁止写范围', builtin: true },
-    { id: 'time_exam_primary_high', name: '【时间分配】小学高段考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary_high', genType: 'exam', content: '建议用时：根据题量确定70或80分钟，输出时只写一个数字如"80分钟"，禁止写范围', builtin: true },
-  { id: 'time_exam_middle', name: '【时间分配】初中考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'middle', genType: 'exam', content: '建议用时：根据题量确定90或100分钟，输出时只写一个数字如"90分钟"，禁止写范围', builtin: true },
+    { id: 'time_exam_primary_mid', name: '【时间分配】小学中段考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary_mid', genType: 'exam', content: '建议用时：以【真题卷结构蓝本】标注的考试时间为准，输出时只写一个数字，禁止写范围', builtin: true },
+    { id: 'time_exam_primary_high', name: '【时间分配】小学高段考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'primary_high', genType: 'exam', content: '建议用时：以【真题卷结构蓝本】标注的考试时间为准，输出时只写一个数字，禁止写范围', builtin: true },
+  { id: 'time_exam_middle', name: '【时间分配】初中考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'middle', genType: 'exam', content: '建议用时：以【真题卷结构蓝本】标注的考试时间为准，输出时只写一个数字，禁止写范围', builtin: true },
   { id: 'time_exam_high', name: '【时间分配】高中考卷', category: '生成-时间分配', prompt_order: 55, type: 'fragment', subject: '', stage: 'high', genType: 'exam', content: '建议用时：以【真题卷结构蓝本】标注的考试时间为准，输出时只写一个数字，禁止写范围', builtin: true },
 
   // ═══════════════════════════════════════
@@ -3044,8 +3044,11 @@ export const builtinInstructions = [
   { id: 'quality_exam_formal', name: '【品质】考卷·正式考试命题标准', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: '', genType: 'exam',
     content: '🔴 【正式考试命题标准】\n1. 效度信度：每道题指向具体考点、考查意图与分值匹配；题干无歧义、条件充分、答案唯一（开放题除外），主观题必配评分要点。\n2. 知识点去重：重难点全卷考查≤2次且角度不同（概念理解+应用），一般考点仅1次；同一大题组内禁止情境/数据/设问角度相似的题。\n3. 时间配比：题量使中等生能在规定时长的75%-85%内完成；选择/填空/判断每题1-2分钟，计算/简答5-8分钟，解答8-12分钟，作文留35分钟以上（低段看图写话15-20分钟）。\n4. 小题规范：填空一处设空只考一个知识点、答案唯一、设空位置科学（不挖句首/关键提示词）；判断题表述精确、错误点有明确依据。\n5. 形式多样：图文结合/表格/信息检索题；低段操作型小题（连线/圈画/排序/涂色）可融入大题内，全卷选择题小题数≤总小题数50%。\n6. 不标题套壳：禁止"任务一/二/三"包装传统题型，大题名称以蓝本为准。\n7. 题型多样：同一大题内禁止连续2道以上完全相同题型与设问方式，在板块分值内轮换考查方式（填空→选择→连线→判断）。\n8. 口语交际/综合性学习主题必须与教材对应单元话题一致，不得自行替换。\n9. 🔴 自校纠错：生成后通读自查——错别字/漏字、选项完整、题干自洽（题干信息与答案匹配）、分值加总=满分，发现即改，禁止输出未校对内容。\n10. 格式源头：连线题用<div class="match-question">（match-col/match-item），作文格用<div class="zuo-wen-ge"><span>&emsp;</span></div>，⛔严禁------文本连线、--横线、"字1/字2"占位符（详见输出格式）。', builtin: true },
-  { id: 'quality_industry_benchmark', name: '【品质】教辅品质基线', category: '生成-品质标准', type: 'fragment',
-    subject: '', stage: '', genType: '',
+  { id: 'quality_industry_benchmark_exam', name: '【品质】考卷命题基准·正式命题水准', category: '生成-品质标准', type: 'fragment',
+    subject: '', stage: '', genType: 'exam',
+    content: '质量对标市面真题卷/正式命题水准（如各地真题卷、权威调研卷），不可生成粗制滥造的凑数内容。🔴思维深度：须涵盖≥3认知层级（识记/理解/应用/分析/评价/创造），高阶思维（分析/评价/创造）占比≥20%（试卷≥25%）；禁止"XX的特点是___""被称为___"等定义背诵挖空，须含≥2道比较/评价/设计类高阶思维题；情境须与设问实质关联（去掉情境后不应仍可作答）。', builtin: true },
+  { id: 'quality_industry_benchmark_non_exam', name: '【品质】教辅品质基线', category: '生成-品质标准', type: 'fragment',
+    subject: '', stage: '', genType: 'practice,special,reading,preview,dictation,errorbook,review,summary',
     content: '质量对标市面一流教辅水准（如《53天天练》《黄冈小状元》《教材帮》等），不可生成粗制滥造的凑数内容。🔴思维深度：须涵盖≥3认知层级（识记/理解/应用/分析/评价/创造），高阶思维（分析/评价/创造）占比≥20%（试卷≥25%）；禁止"XX的特点是___""被称为___"等定义背诵挖空，须含≥2道比较/评价/设计类高阶思维题；情境须与设问实质关联（去掉情境后不应仍可作答）；非试卷类知识总结须含"为什么""怎么用"维度，不得仅罗列"是什么"。', builtin: true },
   { id: 'quality_textbook_std', name: '【品质】教辅编辑标准·全类型', category: '生成-品质标准', type: 'fragment',
     subject: '', stage: '', genType: 'special,reading,preview,dictation,errorbook,review,summary',
