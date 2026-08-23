@@ -111,4 +111,53 @@ describe('新课标内容达标评估器', () => {
     expect(r.summary).toContain('达标评估');
     expect(r.avgScore).toBeGreaterThan(0);
   });
+
+  it('🔴 小学英语听力占比按小学区间（28-42%）判定，不再误用初中18-26%', () => {
+    // 小学低段蓝本听力 40/100=40%，应在小学区间内通过
+    const lowContent = `<h1>英语试卷</h1><p>（满分：100分）</p>
+<h2>一、听力。（共20题，共40分）</h2>
+<p class="question">1. 听录音，选出你所听到的图片。（2分）</p>
+<div class="answer-section"><h2>答案</h2><p>听力原文：W: Good morning.</p></div>`;
+    const r1 = assessCompliance(lowContent, '英语', 'primary', 'exam');
+    const d1 = r1.dimensions.find(d => d.id === 'D5b');
+    expect(d1).toBeTruthy();
+    expect(d1.detail).toContain('28-42');
+    expect(d1.passed).toBe(true); // 40% 在小学区间内
+
+    // 听力 70/100=70%，超出小学区间，应未通过
+    const highContent = `<h1>英语试卷</h1><p>（满分：100分）</p>
+<h2>一、听力。（共35题，共70分）</h2>
+<p class="question">1. 听录音，选出你所听到的图片。（2分）</p>
+<div class="answer-section"><h2>答案</h2><p>听力原文：W: Good morning.</p></div>`;
+    const r2 = assessCompliance(highContent, '英语', 'primary', 'exam');
+    const d2 = r2.dimensions.find(d => d.id === 'D5b');
+    expect(d2).toBeTruthy();
+    expect(d2.passed).toBe(false);
+    expect(d2.detail).toContain('70');
+  });
+
+  it('🔴 小学低段口语化高阶设问（你会/想一想/怎么做）命中 D2 推理层', () => {
+    const content = `<h1>道德与法治试卷</h1><p>（满分：100分）</p>
+<h2>一、情景辨析。（共3题，共30分）</h2>
+<p class="question">1. 图中都有哪些人？他们分别在做什么？（10分）</p>
+<p class="question">2. 放学路上看到同学摔倒了，你会怎么做？（10分）</p>
+<p class="question">3. 想一想，为什么不能在马路上踢球？（10分）</p>
+<div class="answer-section"><h2>答案</h2></div>`;
+    const r = assessCompliance(content, '道德与法治', 'primary');
+    const d2 = r.dimensions.find(d => d.id === 'D2');
+    expect(d2).toBeTruthy();
+    expect(d2.passed).toBe(true);
+  });
+
+  it('🔴 D8 素养词表覆盖全学科×全学段（科学小学有词可评估，不再跳过）', () => {
+    const content = `<h1>科学试卷</h1><p>（满分：100分）</p>
+<h2>一、实验探究。（共3题，共60分）</h2>
+<p class="question">1. 在科学探究中，我们通过观察与记录得出结论。（20分）</p>
+<p class="question">2. 结合物质科学知识，解释冰块融化现象。（20分）</p>
+<div class="answer-section"><h2>答案</h2></div>`;
+    const r = assessCompliance(content, '科学', 'primary', 'practice');
+    const d8 = r.dimensions.find(d => d.id === 'D8');
+    expect(d8).toBeTruthy();
+    expect(d8.detail).not.toContain('无素养术语映射');
+  });
 });
