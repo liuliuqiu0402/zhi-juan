@@ -74,6 +74,8 @@ export class HardRuleChecker {
     }
     // 🔧 多选题型越界（全类型）：非中学理科出现多选题 → 程序化兜底提示
     issues.push(...this.checkMultipleChoiceBoundary(content, subject, stage));
+    // 🔧 英语听力硬规范（全类型）：含听力板块必须附完整听力原文（答案页），否则退稿
+    issues.push(...this.checkEnglishListening(content, subject));
     // 🔧 新增：内容质量深度检查
     issues.push(...this.checkContentSubstance(content, genType || ''));
     // 🔧 新增：新课标核心素养术语命中率检查
@@ -202,6 +204,25 @@ export class HardRuleChecker {
           const cnt = Math.max(1, Math.ceil((parseInt(n) || 2) / 2));
           return `<${tag} class="blank-${n}">${'&emsp;'.repeat(cnt)}</${tag}>`;
         }),
+      });
+    }
+    return issues;
+  }
+
+  /**
+   * 🔧 英语听力硬规范：含听力板块必须附完整"听力原文"（答案页，供教师朗读）
+   * 模型默认偷懒：只给题干与选项、不写听力原文 → 听力题退化成书面阅读题
+   */
+  static checkEnglishListening(content: string, subject: string): Issue[] {
+    const issues: Issue[] = [];
+    if (!['英语', 'English'].includes(subject)) return issues;
+    if (!/听力|Listening/i.test(content)) return issues;
+    const answerPart = content.split(/答案|参考答案/).slice(1).join('');
+    const hasScript = /听力原文|听力材料|录音原文|Tapescript|Listening Script/i.test(answerPart || content);
+    if (!hasScript) {
+      issues.push({
+        severity: 'error', type: '听力原文缺失',
+        detail: '英语试卷含听力板块，但答案区未提供完整"听力原文"（供教师朗读）。听力题必须逐句写出对话/独白原文（语速每分钟90-110词、每段读两遍），禁止只给题干不给原文——无原文的听力题不算听力题。',
       });
     }
     return issues;
