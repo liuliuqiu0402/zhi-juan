@@ -7025,6 +7025,8 @@ ${content}`;
     //    杜绝"整卷长指令 → 模型偏离蓝本结构（删题/改分值/写错时长/漏密封线）"。
     //    非 exam 保持原触发条件（需内容卡片或结构大纲）。
     let pipedContent = null;
+    let pipelineUsed = false; // 🔴 是否实际采用了分步流水线结果（供上层提示，避免"绕过分步"静默发生）
+    let pipelineReason = '';  // 未走流水线的原因（exam 无蓝本/无卡片/流水线失败回退）
     const stageKeyP = { '小学': 'primary', '初中': 'middle', '高中': 'high' }[stageRaw] || stageRaw;
     const gradeNumP = extractGradeNum(book?.grade || '');
     let stageSegP = stageKeyP;
@@ -7035,6 +7037,11 @@ ${content}`;
     const canTryPipeline = isExam
       ? !!examBlueprintP
       : (contentCards?.length > 0 || parseStructureBlocks(finalUserInstruction).length > 0);
+    if (!canTryPipeline) {
+      pipelineReason = isExam
+        ? '未找到该学科/学段/地区的真题卷蓝本，无法分步（应检查教材学段与地区配置）'
+        : '无教材卡片且指令无结构大纲，无法分步（应确认教材已切分）';
+    }
     if (canTryPipeline) {
       try {
         const useBlueprint = examBlueprintP;
@@ -7056,9 +7063,12 @@ ${content}`;
             isExam,
             totalScore,
           });
+          pipelineUsed = true;
           console.log(`✅ 分步流水线生成成功：${pipedContent?.content?.length || 0} 字符，${pipedContent?.sections?.length || 0} 个板块`);
         }
       } catch (pipelineError) {
+        pipelineUsed = false;
+        pipelineReason = '分步流水线执行失败，已回退整卷生成：' + (pipelineError?.message || '未知错误');
         console.warn('⚠️ 分步流水线失败，回退整卷生成:', pipelineError.message);
         pipedContent = null;
       }
@@ -7228,6 +7238,9 @@ ${content}`;
           generatedQuestions,
           parsedBlueprint,
           blueprint: '',
+          // 🔴 分步流水线执行状态（供上层提示：exam 是否真正走了分步，避免"绕过"静默发生）
+          pipelineUsed,
+          pipelineReason,
         };
 
       } catch (error) {
@@ -7275,6 +7288,8 @@ ${content}`;
     registerController(abortController.value);
     isGenerating.value = true;
     progress.value = 0;
+    // 🔴 记录本次生成是否走了分步流水线（供质量校验处显式提示，避免"绕过分步"静默发生）
+    let lastPipelineInfo = null;
     
     try {
       // ✅ 防御检查
@@ -7701,7 +7716,8 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
           generatedQuestions = fpResult.generatedQuestions;
           parsedBlueprint = fpResult.parsedBlueprint;
           blueprint = '';
-          console.log(`✅ 整卷生成完成：${generatedQuestions.length} 道题，${content.length} 字符`);
+          lastPipelineInfo = { used: !!fpResult.pipelineUsed, reason: fpResult.pipelineReason || '' };
+          console.log(`✅ 整卷生成完成：${generatedQuestions.length} 道题，${content.length} 字符${fpResult.pipelineUsed ? '（分步流水线）' : '（整卷长指令）'}`);
         } catch (fpError) {
           console.error('整卷生成失败:', fpError.message);
           throw fpError; // 上抛给外层 generate 的 catch 处理（重试逻辑）
@@ -8799,6 +8815,13 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
       progress.value = 85;
 
       const issues = [];
+      
+      // 🔴 分步流水线状态显式化：exam 未走分步流水线时告知用户（卷面结构/时长/密封线由模型自由书写，
+      //    结构约束弱，可能偏离真题蓝本）。此前"静默回退"导致用户不知道生成方案未被实施。
+      if (genType === 'exam' && (!lastPipelineInfo || !lastPipelineInfo.used)) {
+        const reason = lastPipelineInfo?.reason || '当前引擎/路由未接入分步流水线（建议使用 DeepSeek 云端引擎）';
+        issues.push(`⚠️ 本次试卷未走分步流水线生成：${reason}——卷面结构/时长/密封线由模型自由书写，可能偏离真题蓝本，建议修正后重新生成`);
+      }
       
       // ========== 🔧 新增：硬性规则检查（第一级） ==========
       const book = selectedBooks?.[0];
