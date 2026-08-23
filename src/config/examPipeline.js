@@ -19,7 +19,7 @@ import { getExamBlueprint } from './examPaperBlueprints';
 import { buildSampleText } from './examSampleLibrary';
 import { buildBenchmarkText } from './propositionBenchmarks';
 import { buildStandardQuestionText } from './standardQuestionBank';
-import { buildTeachingMaterialText } from './teachingMaterialBank';
+import { buildTeachingMaterialText, TEACHING_MATERIAL_BANK } from './teachingMaterialBank';
 
 /** 从蓝本 note 解析题量：优先匹配"（N小题/N题/N空）"或"共N题"，兜底按分值推算 */
 export function parseQuestionCount(note = '', score = 0) {
@@ -132,6 +132,27 @@ export function buildNonExamPlans(instruction, kps, totalScore = 0) {
     plans[plans.length - 1].kps.push(...unmatched);
   }
   return plans;
+}
+
+/**
+ * 从教辅编辑知识库的栏目构建分步规划（非 exam 兜底：无结构大纲时也强制分步）
+ * 栏目即板块（【情境任务】【基础型任务】…），分值均分、考点留空由板块指令兜底
+ */
+export function buildTeachingMaterialPlans(genType, totalScore = 0) {
+  const bank = TEACHING_MATERIAL_BANK[genType];
+  if (!bank?.columns?.length) return [];
+  const perScore = bank.columns.length > 0 && totalScore > 0 ? Math.round(totalScore / bank.columns.length) : 0;
+  return bank.columns.map((col, i) => {
+    const m = String(col || '').match(/^【(.+?)】\s*([\s\S]*)$/);
+    return {
+      index: i,
+      name: m ? m[1].trim() : `栏目${i + 1}`,
+      note: m && m[2] ? m[2].trim() : col,
+      score: perScore,
+      questionCount: 0,
+      kps: [],
+    };
+  });
 }
 
 /** 把知识点按板块 note 关键词匹配分配（纯数据驱动，无 AI 规划漂移） */
@@ -296,6 +317,7 @@ export default {
   extractKnowledgePoints,
   parseStructureBlocks,
   buildNonExamPlans,
+  buildTeachingMaterialPlans,
   assignKpsToSections,
   buildSectionInstruction,
   buildAnswerInstruction,

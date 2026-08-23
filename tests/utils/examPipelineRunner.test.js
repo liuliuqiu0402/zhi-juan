@@ -164,6 +164,22 @@ describe('分步流水线 Runner（依赖注入编排器）', () => {
     // 无卡片时素材回退不阻断：板块指令仍含基准与骨架
     expect(calls[0].prompt).toContain('命题内容质量基准');
   });
+
+  it('🔴 非 exam 无结构大纲、无教材卡片时，用教辅库栏目兜底分步（全局强制分步，不回退整卷）', async () => {
+    const { deps, calls } = makeDeps();
+    const result = await runExamPipeline(
+      baseOpts({ examBlueprint: null, genType: 'practice', contentCards: [], instruction: '无结构大纲', totalScore: 0 }),
+      deps
+    );
+    // practice 栏目（情境任务/基础型/发展型/拓展型/答案解析 ≥4）+ 答案页
+    expect(result.sections.length).toBeGreaterThanOrEqual(4);
+    expect(calls.length).toBe(result.sections.length + 1);
+    // 板块指令走教辅编辑角色知识库（双角色分流）
+    expect(calls[0].prompt).toContain('教辅编辑');
+    expect(calls[0].prompt).toContain('情境任务');
+    // 非 exam 卷首不写"满分"
+    expect(result.content).not.toContain('满分');
+  });
 });
 
 describe('systemMessage 场景化裁剪（根治每次调用携带整段长指令）', () => {

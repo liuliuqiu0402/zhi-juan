@@ -22,6 +22,7 @@ import {
   extractKnowledgePoints,
   assignKpsToSections,
   buildNonExamPlans,
+  buildTeachingMaterialPlans,
   buildSectionInstruction,
   buildAnswerInstruction,
   assemblePaperHeader,
@@ -121,7 +122,11 @@ export async function runExamPipeline(opts, deps = {}) {
     if (!planCheck.ok) throw new Error('板块规划校验失败: ' + planCheck.errors.join('; '));
   } else {
     plans = buildNonExamPlans(instruction, allKps, totalScore);
-    if (!plans.length) throw new Error('未从结构大纲解析到板块，无法分步');
+    // 🔴 全局落地：非 exam 无结构大纲时，用教辅编辑库栏目兜底（栏目即板块），强制分步不再回退整卷
+    if (!plans.length) {
+      plans = buildTeachingMaterialPlans(genType, totalScore);
+    }
+    if (!plans.length) throw new Error('无结构大纲且无教辅栏目，无法分步生成板块');
   }
 
   const stageLabel = STAGE_LABEL_MAP[stage] || stage || '';

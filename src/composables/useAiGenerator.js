@@ -453,6 +453,7 @@ import { buildBenchmarkText } from '../config/propositionBenchmarks.js';
 import { buildSampleText } from '../config/examSampleLibrary.js';
 import { parseStructureBlocks } from '../config/examPipeline.js';
 import { runExamPipeline } from '../config/examPipelineRunner.js';
+import { TEACHING_TYPES } from '../config/teachingMaterialBank.js';
 import { assessCompliance } from '../utils/curriculumCompliance.ts';
 import { buildAutoFixPlan, applyProgrammaticFixes } from '../utils/complianceAutoFix.ts';
 
@@ -7036,11 +7037,12 @@ ${content}`;
     const examBlueprintP = isExam ? getExamBlueprint(subject, stageSegP, book?.region || '') : null;
     const canTryPipeline = isExam
       ? !!examBlueprintP
-      : (contentCards?.length > 0 || parseStructureBlocks(finalUserInstruction).length > 0);
+      // 🔴 全局落地：非 exam 也强制分步（结构大纲优先；无大纲时教辅库栏目兜底，栏目即板块）
+      : (contentCards?.length > 0 || parseStructureBlocks(finalUserInstruction).length > 0 || TEACHING_TYPES.includes(genType));
     if (!canTryPipeline) {
       pipelineReason = isExam
         ? '未找到该学科/学段/地区的真题卷蓝本，无法分步（应检查教材学段与地区配置）'
-        : '无教材卡片且指令无结构大纲，无法分步（应确认教材已切分）';
+        : '无教材卡片、无结构大纲且该资料类型无教辅栏目，无法分步';
     }
     if (canTryPipeline) {
       try {
