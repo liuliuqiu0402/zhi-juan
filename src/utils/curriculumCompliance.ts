@@ -186,6 +186,35 @@ export function assessCompliance(content, subject, stageSeg, genType = '') {
     evidence: [],
   });
 
+  // D5b 听力占比（仅英语，与蓝图守卫 blueprintGuard.LISTENING_RATIO 同源同区间）
+  if (subject === '英语' && /听力|听音|Listening/i.test(clean)) {
+    const listenRatioMap = {
+      primary_low: [0.38, 0.42], primary_mid: [0.28, 0.36], primary_high: [0.28, 0.32],
+      middle: [0.18, 0.26], high: [0.18, 0.22],
+    };
+    const range = listenRatioMap[stageKey] || listenRatioMap['middle'];
+    // 从大题标题行提取听力板块分值：匹配"听力/听音"标题行内的"共X分"
+    const listenScore = (content.match(/<h[23][^>]*>[^<]*(?:听力|听音|Listening)[^<]*<\/h[23]>/gi) || [])
+      .map(h => { const v = h.match(/共\s*(\d+)\s*分/); return v ? parseInt(v[1]) : 0; })
+      .reduce((a, b) => a + b, 0);
+    const totalMatch = content.match(/满分[：:]\s*(\d+)/);
+    const fullScore = totalMatch ? parseInt(totalMatch[1]) : 0;
+    if (listenScore > 0 && fullScore > 0) {
+      const ratio = listenScore / fullScore;
+      const [min, max] = range;
+      const ok = ratio >= min - 0.01 && ratio <= max + 0.01;
+      dimensions.push({
+        id: 'D5b', name: '听力分值占比（学段区间）',
+        passed: ok,
+        score: ok ? 90 : 40,
+        detail: ok
+          ? `听力 ${listenScore}/${fullScore}分（${(ratio * 100).toFixed(0)}%），在${subject}${stageLabel}合理区间 ${(min * 100).toFixed(0)}-${(max * 100).toFixed(0)}% 内`
+          : `听力 ${listenScore}/${fullScore}分（${(ratio * 100).toFixed(0)}%），超出${subject}${stageLabel}合理区间 ${(min * 100).toFixed(0)}-${(max * 100).toFixed(0)}%（应调整听力与笔试板块分值）`,
+        evidence: [],
+      });
+    }
+  }
+
   // D6 超纲检测
   const warnWords = GRADE_VOCABULARY[stageLabel]?.[subject]?.warn || [];
   const overHits = warnWords.filter(w => clean.includes(w));

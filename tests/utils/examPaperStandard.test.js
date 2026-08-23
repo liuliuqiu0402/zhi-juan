@@ -8,11 +8,32 @@ import {
   buildExamBlueprintText,
 } from '../../src/config/examPaperBlueprints.js';
 import { HardRuleChecker, AISemanticReviewer } from '../../src/utils/qualityChecker.ts';
+import { validateAllBlueprints } from '../../src/config/blueprintGuard.js';
 
 // ========== A 组：蓝本库完整性 ==========
 describe('A. 蓝本库结构完整性', () => {
   const entries = Object.entries(EXAM_BLUEPRINTS);
   const ALL_STAGES = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
+
+  it('🔴 源头防错：全部蓝本通过结构合理性校验（分值闭合/听力占比/学段结构/卷面要素）', () => {
+    const result = validateAllBlueprints(EXAM_BLUEPRINTS);
+    expect(result.errors, `蓝本源头校验错误:\n${result.errors.map(e => '  ' + e.detail).join('\n')}`).toEqual([]);
+    expect(result.warnings, `蓝本校验警告（建议处理）:\n${result.warnings.map(w => '  ' + w.detail).join('\n')}`).toEqual([]);
+  });
+
+  it('🔴 源头防错：小学英语听力占比符合学段区间（低段≈40%/高段≈30%）', () => {
+    const listenRatio = (key) => {
+      const bp = EXAM_BLUEPRINTS[key];
+      const l = bp.sections.filter(s => /听力|听音|Listening/i.test(s.name)).reduce((a, c) => a + c.score, 0);
+      return l / bp.fullScore;
+    };
+    const low = listenRatio('英语|primary_low');
+    const high = listenRatio('英语|primary_high');
+    expect(low).toBeGreaterThanOrEqual(0.38);
+    expect(low).toBeLessThanOrEqual(0.42);
+    expect(high).toBeGreaterThanOrEqual(0.28);
+    expect(high).toBeLessThanOrEqual(0.32);
+  });
 
   it('蓝本条目数 ≥ 20（全学段全学科覆盖）', () => {
     expect(entries.length).toBeGreaterThanOrEqual(20);

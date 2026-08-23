@@ -78,9 +78,36 @@ describe('新课标内容达标评估器', () => {
     expect(r.questionCount).toBeGreaterThan(0);
   });
 
-  it('返回结构完整：8 个维度 + summary', () => {
+  it('英语听力占比越界（中段>36%）→ D5b 未通过', () => {
+    const engContent = `<h1>英语试卷</h1>
+<p>（满分：100分）</p>
+<h2>一、听力。（共10题，共40分）</h2>
+<p class="question">1. What does the man want to buy?（4分）</p>
+<p class="question">2. Where are the speakers?（4分）</p>
+<div class="answer-section"><h2>答案</h2><p>听力原文：W: Can I help you? M: Yes, I'd like some apples.</p></div>`;
+    const r = assessCompliance(engContent, '英语', 'middle');
+    const d5b = r.dimensions.find(d => d.id === 'D5b');
+    expect(d5b).toBeTruthy();
+    expect(d5b.passed).toBe(false);
+    expect(d5b.detail).toContain('40');
+  });
+
+  it('英语听力占比合规（中段 20/100=20%）→ D5b 通过', () => {
+    const engContent = `<h1>英语试卷</h1>
+<p>（满分：100分）</p>
+<h2>一、听力。（共10题，共20分）</h2>
+<p class="question">1. What does the man want to buy?（2分）</p>
+<p class="question">2. Where are the speakers?（2分）</p>
+<div class="answer-section"><h2>答案</h2><p>听力原文：W: Can I help you? M: Yes, I'd like some apples.</p></div>`;
+    const r = assessCompliance(engContent, '英语', 'middle');
+    const d5b = r.dimensions.find(d => d.id === 'D5b');
+    expect(d5b).toBeTruthy();
+    expect(d5b.passed).toBe(true);
+  });
+
+  it('返回结构完整：≥8 个维度 + summary', () => {
     const r = assessCompliance(GOOD_CONTENT, '语文', 'middle');
-    expect(r.dimensions.length).toBe(8);
+    expect(r.dimensions.length).toBeGreaterThanOrEqual(8);
     expect(r.summary).toContain('达标评估');
     expect(r.avgScore).toBeGreaterThan(0);
   });
