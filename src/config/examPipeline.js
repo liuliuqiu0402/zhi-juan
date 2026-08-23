@@ -19,6 +19,7 @@ import { getExamBlueprint } from './examPaperBlueprints';
 import { buildSampleText } from './examSampleLibrary';
 import { buildBenchmarkText } from './propositionBenchmarks';
 import { buildStandardQuestionText } from './standardQuestionBank';
+import { buildTeachingMaterialText } from './teachingMaterialBank';
 
 /** 从蓝本 note 解析题量：优先匹配"（N小题/N题/N空）"或"共N题"，兜底按分值推算 */
 export function parseQuestionCount(note = '', score = 0) {
@@ -180,6 +181,7 @@ export function buildSectionInstruction(plan, ctx) {
     stage = '', // 学段键（primary_low/middle/high），用于样例库匹配
     isExamPlan = !!examBlueprint,
     propositionMaterial = '', // 🔴 命题素材（教材可加工要素，非原文）
+    genType = isExamPlan ? 'exam' : 'practice', // 🔴 双角色分流：exam=命题老师，其他=教辅编辑
   } = ctx || {};
   const cn = '一二三四五六七八九十'[plan.index] || String(plan.index + 1);
   const kpText = plan.kps.length ? plan.kps.join('、') : '（按教材覆盖合理分配考点）';
@@ -187,8 +189,10 @@ export function buildSectionInstruction(plan, ctx) {
   const sampleText = buildSampleText(subject, stage, plan.name + (plan.note || ''));
   // 🔴 命题内容质量基准（学科×学段硬规范）：exam 且已注入蓝本时跳过通用底线（EXAM_NEW_STANDARD 已含）
   const benchmarkText = buildBenchmarkText(subject, stage, !(ctx.isExamPlan));
-  // 🔴 标准题型骨架：按板块名匹配标准题型，模型按骨架命题不另创结构
-  const standardText = buildStandardQuestionText(subject, stage, plan.name.replace(/^.*?·/, ''));
+  // 🔴 双角色知识库：exam=命题老师标准题型骨架；非 exam=教辅编辑栏目结构（讲练结合/梯度/引导）
+  const standardText = isExamPlan
+    ? buildStandardQuestionText(subject, stage, plan.name.replace(/^.*?·/, ''))
+    : buildTeachingMaterialText(genType);
   // 非 exam（课时练等）无硬性分值/满分约束 → 简化标题表述，避免"满分0分"等误导
   const isScored = totalScore > 0 && plan.score > 0;
   const countText = plan.questionCount ? `${plan.questionCount}题` : (isScored ? '' : '若干题');

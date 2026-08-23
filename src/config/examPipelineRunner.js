@@ -184,7 +184,7 @@ export async function runExamPipeline(opts, deps = {}) {
       subject, stage, stageLabel, examBlueprint,
       materialText: [sectionMaterial, sectionContext].filter(Boolean).join('\n\n'),
       propositionMaterial,
-      region, sectionNo: i + 1, totalScore, isExamPlan,
+      region, sectionNo: i + 1, totalScore, isExamPlan, genType,
     });
 
     // 板块生成重试：单板块最多 2 次
