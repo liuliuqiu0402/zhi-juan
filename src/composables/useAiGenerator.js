@@ -449,6 +449,7 @@ const extractGradeNum = (gradeStr) => {
 
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
+import { buildBenchmarkText } from '../config/propositionBenchmarks.js';
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -5329,6 +5330,13 @@ ${cardAnalysisText.substring(0, 1000)}
             } else {
               console.warn(`[exam-blueprint] 未找到真题蓝本且无结构大纲，需人工干预: subject=${subject}, stage=${gradeSegment}`);
             }
+          }
+          // 🔴 命题内容质量基准（全资料类型通用）：按学科×学段注入内容质量硬规范与真题级样例，
+          //    覆盖语篇真实/情境适切/设问层次/素养立意，杜绝模型自由发挥凑题。
+          //    exam 且已注入蓝本时跳过通用底线（EXAM_NEW_STANDARD 已含素养立意/情境/设问层次条款，避免重复注入）
+          const benchText = buildBenchmarkText(subject, gradeSegment, !(gt === 'exam' && examBlueprint));
+          if (benchText) {
+            instruction += `\n---\n${benchText}\n`;
           }
           // 🔴 新课标单一骨架：exam 有蓝本时跳过结构大纲注入（蓝本为唯一骨架权威，避免新旧结构打架）
           if (structBlocks_a2.length > 0 && !(gt === 'exam' && examBlueprint)) {
