@@ -170,9 +170,47 @@ export function getExamSamples(subject, stage) {
   return subj['middle'] || subj['high'] || [];
 }
 
-/** 构建注入生成 prompt 的「真题内容样例」文本 */
-export function buildSampleText(subject, stage) {
+/**
+ * 按板块筛选最相关样例（分步流水线瘦身用）
+ * 板块名/note 关键词 → 命中样例名/文本中相关词 → 返回最相关的 1-2 条；
+ * 无命中时返回前 1 条兜底（保证有样例可模仿）。
+ */
+const SECTION_KEYWORDS = {
+  '阅读': ['阅读', '语篇', '文章'],
+  '完形': ['完形', '填空'],
+  '听力': ['听力', '对话', '短对话'],
+  '写作': ['写作', '作文', '书面表达', '续写'],
+  '表达': ['书面表达', '写作', '表达'],
+  '填空': ['填空', '完形', '语法填空'],
+  '计算': ['计算', '应用题', '解答'],
+  '解答': ['解答', '应用', '计算'],
+  '应用': ['应用', '解答', '计算'],
+  '古诗文': ['古诗文', '文言', '诗词'],
+  '文言': ['文言', '古诗文'],
+  '探究': ['探究', '实验', '方案'],
+  '实验': ['实验', '探究', '方案'],
+  '选择': ['选择'],
+  '综合': ['综合', '实践', '探究'],
+};
+export function getSectionSamples(subject, stage, sectionName = '') {
   const samples = getExamSamples(subject, stage);
+  if (!samples.length) return samples;
+  const kw = (sectionName || '');
+  // 匹配板块类型关键词
+  let matched = [];
+  for (const [type, words] of Object.entries(SECTION_KEYWORDS)) {
+    if (words.some(w => kw.includes(w))) {
+      matched = samples.filter(s => words.some(w => (s.name || '').includes(w) || (s.text || '').includes(w)));
+      if (matched.length) break;
+    }
+  }
+  if (!matched.length) matched = samples;
+  return matched.slice(0, 2); // 每板块最多 2 条样例
+}
+
+/** 构建注入生成 prompt 的「真题内容样例」文本（支持按板块筛选） */
+export function buildSampleText(subject, stage, sectionName = '') {
+  const samples = sectionName ? getSectionSamples(subject, stage, sectionName) : getExamSamples(subject, stage);
   if (!samples.length) return '';
   const lines = ['【真题内容样例（供模仿设问方式与内容质量水准，严禁照抄原题）】'];
   samples.forEach((s) => {
@@ -183,4 +221,4 @@ export function buildSampleText(subject, stage) {
   return lines.join('\n');
 }
 
-export default { EXAM_SAMPLE_LIBRARY, getExamSamples, buildSampleText };
+export default { EXAM_SAMPLE_LIBRARY, getExamSamples, getSectionSamples, buildSampleText };

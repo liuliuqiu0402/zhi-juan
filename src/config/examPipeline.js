@@ -181,7 +181,8 @@ export function buildSectionInstruction(plan, ctx) {
   } = ctx || {};
   const cn = '一二三四五六七八九十'[plan.index] || String(plan.index + 1);
   const kpText = plan.kps.length ? plan.kps.join('、') : '（按教材覆盖合理分配考点）';
-  const sampleText = buildSampleText(subject, stage); // 样例库按 学科×学段 匹配
+  // 🔴 样例按板块名筛选最相关 1-2 条（瘦身：避免每板块重复注入全部样例）
+  const sampleText = buildSampleText(subject, stage, plan.name + (plan.note || ''));
   // 🔴 命题内容质量基准（学科×学段硬规范）：exam 且已注入蓝本时跳过通用底线（EXAM_NEW_STANDARD 已含）
   const benchmarkText = buildBenchmarkText(subject, stage, !(ctx.isExamPlan));
   // 非 exam（课时练等）无硬性分值/满分约束 → 简化标题表述，避免"满分0分"等误导

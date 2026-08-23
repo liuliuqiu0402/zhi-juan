@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   EXAM_SAMPLE_LIBRARY,
   getExamSamples,
+  getSectionSamples,
   buildSampleText,
 } from '@/config/examSampleLibrary';
 
@@ -82,5 +83,26 @@ describe('真题内容样例库（内容为王：设问/情境/措辞范式）',
     expect(text).toContain('词数100左右');
     expect(text).toContain('每段对话读两遍');
     expect(text).toContain('8秒钟的时间读题和答题');
+  });
+
+  it('按板块筛选样例：听力板块只命中听力相关样例（瘦身）', () => {
+    const samples = getSectionSamples('英语', 'middle', '听力');
+    expect(samples.length).toBeGreaterThan(0);
+    expect(samples.length).toBeLessThanOrEqual(2);
+    // 听力板块命中"听力原文"样例，而不是书面表达样例
+    const joined = samples.map(s => s.name + s.text).join('');
+    expect(joined).toContain('听力');
+  });
+
+  it('按板块筛选样例：阅读板块命中阅读相关样例', () => {
+    const samples = getSectionSamples('语文', 'middle', '阅读理解');
+    expect(samples.length).toBeGreaterThan(0);
+    const joined = samples.map(s => s.name + s.text).join('');
+    expect(joined).toContain('阅读');
+  });
+
+  it('按板块筛选样例：无匹配板块名时兜底返回样例（不丢模仿素材）', () => {
+    const samples = getSectionSamples('数学', 'middle', '未知板块XYZ');
+    expect(samples.length).toBeGreaterThan(0);
   });
 });
