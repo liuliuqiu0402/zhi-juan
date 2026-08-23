@@ -7017,24 +7017,33 @@ ${content}`;
     //    exam：蓝本板块（题型骨架/分值硬约束）；非 exam：结构大纲板块（分步单元）。
     //    数据驱动板块规划（零 AI 漂移）→ 逐板块短指令生成 → 拼接正文 → 统一生成答案页。
     //    成功则复用整卷后处理；失败（无板块来源/任意板块异常）静默回退整卷生成。
+    // 🔴 分步流水线（阶段3 根治长指令，全资料类型）：
+    //    exam：蓝本板块（题型骨架/分值硬约束）；非 exam：结构大纲板块（分步单元）。
+    //    数据驱动板块规划（零 AI 漂移）→ 逐板块短指令生成 → 拼接正文 → 统一生成答案页。
+    //    🔴 全局根治（2026-08）：exam 只要有蓝本就强制走分步流水线（不依赖教材卡片——
+    //    无卡片时考点兜底、素材缺失不阻塞）。卷首时长/满分/密封线/板块结构由代码拼装，
+    //    杜绝"整卷长指令 → 模型偏离蓝本结构（删题/改分值/写错时长/漏密封线）"。
+    //    非 exam 保持原触发条件（需内容卡片或结构大纲）。
     let pipedContent = null;
-    if (contentCards?.length) {
+    const stageKeyP = { '小学': 'primary', '初中': 'middle', '高中': 'high' }[stageRaw] || stageRaw;
+    const gradeNumP = extractGradeNum(book?.grade || '');
+    let stageSegP = stageKeyP;
+    if (stageKeyP === 'primary') {
+      stageSegP = gradeNumP <= 2 ? 'primary_low' : gradeNumP <= 4 ? 'primary_mid' : 'primary_high';
+    }
+    const examBlueprintP = isExam ? getExamBlueprint(subject, stageSegP, book?.region || '') : null;
+    const canTryPipeline = isExam
+      ? !!examBlueprintP
+      : (contentCards?.length > 0 || parseStructureBlocks(finalUserInstruction).length > 0);
+    if (canTryPipeline) {
       try {
-        const stageKeyP = { '小学': 'primary', '初中': 'middle', '高中': 'high' }[stageRaw] || stageRaw;
-        const gradeNumP = extractGradeNum(book?.grade || '');
-        let stageSegP = stageKeyP;
-        if (stageKeyP === 'primary') {
-          stageSegP = gradeNumP <= 2 ? 'primary_low' : gradeNumP <= 4 ? 'primary_mid' : 'primary_high';
-        }
-        const examBlueprint = isExam ? getExamBlueprint(subject, stageSegP, book?.region || '') : null;
-        // 触发条件：exam 有蓝本板块，或非 exam 有结构大纲板块（parseStructureBlocks 探测）
-        const canPipeline = examBlueprint
-          || parseStructureBlocks(finalUserInstruction).length > 0;
-        if (canPipeline) {
+        const useBlueprint = examBlueprintP;
+        const hasStruct = contentCards?.length > 0 || parseStructureBlocks(finalUserInstruction).length > 0;
+        if (useBlueprint || hasStruct) {
           pipedContent = await generatePaperBySections({
             instruction: finalUserInstruction,
             systemMessage,
-            examBlueprint,
+            examBlueprint: useBlueprint,
             genType,
             subject,
             stage: stageSegP,

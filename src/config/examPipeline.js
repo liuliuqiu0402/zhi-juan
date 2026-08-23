@@ -227,8 +227,16 @@ export function buildSectionInstruction(plan, ctx) {
 ${sampleText}`;
   }
 
+  // 🔴 明细式标题（蓝本第6条）："一、XX。（共X题，每题X分，共X分）"；小题分无法均分时省略"每题X分"
+  const perScore = isScored && plan.questionCount > 0 && plan.score % plan.questionCount === 0
+    ? Math.round(plan.score / plan.questionCount)
+    : 0;
+  const titleSuffix = isScored
+    ? `（共${plan.questionCount || 'X'}题${perScore ? `，每题${perScore}分` : ''}，共${plan.score}分）`
+    : '';
+
   instruction += `\n\n【输出格式】
-- 用 <h2>${cn}、${plan.name}。</h2> 作为本板块标题${isScored ? `（右侧标注共${plan.score}分）` : ''}；
+- 用 <h2>${cn}、${plan.name}。${titleSuffix}</h2> 作为本板块标题（标题必须原样保留此括号内的题数与分值标注）；
 - 每道小题用 <p class="question">...</p> 包裹，题号从 1 开始连续编号，题干末尾标注（X分）；
 - 选择题给 A/B/C/D 四个选项（用 <p class="option"> 包裹）；填空题用 <u class="blank-2">&emsp;</u> 标签；
 - 直接输出 HTML 片段，禁止 Markdown 代码块、禁止前言解释、禁止输出答案与评分标准。`;
@@ -240,9 +248,11 @@ export function assemblePaperHeader(examBlueprint, extra = {}) {
   const { academicTitle = '', gradeLabel = '', region = '', termLabel = '' } = extra;
   const subject = examBlueprint?.label || '';
   const title = academicTitle || `${subject}${gradeLabel}${termLabel}试卷`;
+  // 🔴 卷首时长/满分/密封线信息栏全部由代码拼装（模型无机会写错）：
+  //    密封线结构对齐蓝本 EXAM_PAPER_LAYOUT 第1条（seal-zone：提示语+信息栏+密/封/线竖向）
   return `<h1>${title}</h1>
 <p>（考试时间：${examBlueprint?.duration || '--'}　满分：${examBlueprint?.fullScore || '--'}分${region ? `　地区：${region}` : ''}）</p>
-<div class="sealed-wrapper"><p>密封线内不得答题</p></div>`;
+<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-note">密封线内不要答题</div><div class="seal-info">学校：＿＿＿　班级：＿＿＿　姓名：＿＿＿　学号：＿＿＿</div><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div></div>`;
 }
 
 /** 构建答案页生成指令（Pass 2.5：题目已定，统一生成答案+评分标准+听力原文） */
