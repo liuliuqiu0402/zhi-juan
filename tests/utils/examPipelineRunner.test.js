@@ -63,13 +63,13 @@ describe('分步流水线 Runner（依赖注入编排器）', () => {
     expect(result.answerGenerated).toBe(true);
   });
 
-  it('板块指令注入教材原文与语义例题（素材精准调用）', async () => {
+  it('板块指令注入命题素材（可加工要素非原文）与基准（素材精准调用）', async () => {
     const { deps, calls } = makeDeps();
     await runExamPipeline(baseOpts(), deps);
     const firstPrompt = calls[0].prompt;
-    expect(firstPrompt).toContain('教材原文依据');
-    expect(firstPrompt).toContain('教材例题/情境参照');
-    expect(firstPrompt).toContain('严禁照抄');
+    expect(firstPrompt).toContain('命题素材');
+    expect(firstPrompt).toContain('禁止照抄教材原文');
+    expect(firstPrompt).toContain('命题内容质量基准');
   });
 
   it('非 exam：从结构大纲解析板块（无蓝本时）', async () => {

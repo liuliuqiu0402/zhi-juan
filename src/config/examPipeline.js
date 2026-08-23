@@ -18,6 +18,7 @@
 import { getExamBlueprint } from './examPaperBlueprints';
 import { buildSampleText } from './examSampleLibrary';
 import { buildBenchmarkText } from './propositionBenchmarks';
+import { buildStandardQuestionText } from './standardQuestionBank';
 
 /** 从蓝本 note 解析题量：优先匹配"（N小题/N题/N空）"或"共N题"，兜底按分值推算 */
 export function parseQuestionCount(note = '', score = 0) {
@@ -178,6 +179,7 @@ export function buildSectionInstruction(plan, ctx) {
     totalScore = examBlueprint?.fullScore || 0,
     stage = '', // 学段键（primary_low/middle/high），用于样例库匹配
     isExamPlan = !!examBlueprint,
+    propositionMaterial = '', // 🔴 命题素材（教材可加工要素，非原文）
   } = ctx || {};
   const cn = '一二三四五六七八九十'[plan.index] || String(plan.index + 1);
   const kpText = plan.kps.length ? plan.kps.join('、') : '（按教材覆盖合理分配考点）';
@@ -185,6 +187,8 @@ export function buildSectionInstruction(plan, ctx) {
   const sampleText = buildSampleText(subject, stage, plan.name + (plan.note || ''));
   // 🔴 命题内容质量基准（学科×学段硬规范）：exam 且已注入蓝本时跳过通用底线（EXAM_NEW_STANDARD 已含）
   const benchmarkText = buildBenchmarkText(subject, stage, !(ctx.isExamPlan));
+  // 🔴 标准题型骨架：按板块名匹配标准题型，模型按骨架命题不另创结构
+  const standardText = buildStandardQuestionText(subject, stage, plan.name.replace(/^.*?·/, ''));
   // 非 exam（课时练等）无硬性分值/满分约束 → 简化标题表述，避免"满分0分"等误导
   const isScored = totalScore > 0 && plan.score > 0;
   const countText = plan.questionCount ? `${plan.questionCount}题` : (isScored ? '' : '若干题');
@@ -199,6 +203,17 @@ export function buildSectionInstruction(plan, ctx) {
 3. 内容质量：遵循新课标素养立意——情境真实适切、设问有层次（信息提取→理解分析→推理评价递进）、杜绝机械记忆与偏题怪题。
 4. 命题规范：${plan.note || '题型与分值按规范执行'}`;
 
+  if (standardText) {
+    instruction += `\n\n${standardText}`;
+  }
+
+  // 🔴 命题素材（可加工要素，非原文）优先；无素材时回退原文依据（明确标注禁照抄）
+  if (propositionMaterial) {
+    instruction += `\n\n${propositionMaterial}`;
+  } else if (materialText) {
+    instruction += `\n\n【教材原文依据（命题必须紧扣以下原文，不可脱离原文臆造知识点；但题目须重新组织情境与句式，禁止照搬原文段落）】\n${materialText}`;
+  }
+
   if (benchmarkText) {
     instruction += `\n\n${benchmarkText}`;
   }
@@ -206,11 +221,6 @@ export function buildSectionInstruction(plan, ctx) {
   if (sampleText) {
     instruction += `\n\n【真题级样例（供模仿设问方式与内容质量，严禁照抄原题）】
 ${sampleText}`;
-  }
-
-  if (materialText) {
-    instruction += `\n\n【教材原文依据（命题必须紧扣以下原文，不可脱离原文臆造知识点）】
-${materialText}`;
   }
 
   instruction += `\n\n【输出格式】

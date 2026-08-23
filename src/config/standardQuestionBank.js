@@ -1,0 +1,221 @@
+/**
+ * 标准题型骨架库（StandardQuestionBank）
+ * ============================================================
+ * 🔴 目的：生成端"从开始就是对的"——命题老师不发明题型，他按标准题型出题。
+ *    本库把公开的标准题型（课标+真题+命题规范调研）固化为数据：
+ *    学科×学段×题型 → 标准骨架（题干框架/设问句式/选项结构/答案模式/评分标准）。
+ *    生成时取骨架 + 注入命题素材（非原文）→ 模型只负责组合润色。
+ *
+ * 数据来源（非拍脑袋）：此前三轮真题调研——
+ *   - 语文：苏州2024阅读设问梯度、苏州/上海/北京作文题干结构
+ *   - 数学：云南/宿迁应用题与综合实践措辞范式
+ *   - 英语：深圳完形、浙江阅读、眉山书面表达、湖北/江西听力设问格式
+ *   - 通用：教育部2022命题通知（设问层次/情境/机械记忆底线）
+ * ============================================================
+ */
+
+/** 通用设问层次词（提取→理解→推理评价），所有题型注入 */
+const DEPTH_HINT = '设问沿"信息提取→理解分析→推理评价"递进，避免连续三题同一句式';
+
+/**
+ * 标准题型骨架库
+ * key: 学科 → 学段组 → 题型 → 骨架
+ * 骨架字段：
+ *   question  — 题干标准框架（含 {素材} 占位，由命题素材填充）
+ *   options   — 选项结构（客观题）
+ *   answer    — 答案模式
+ *   score     — 评分标准建议
+ *   rule      — 命题铁律（该题型禁做什么）
+ */
+export const STANDARD_QUESTION_BANK = {
+  '语文': {
+    'middle': {
+      '看拼音写词语': {
+        question: '看拼音，写词语。\n{pinyin_list}',
+        answer: '每个词语 1 分，书写规范、拼音对应正确',
+        score: '每词1分，共6-8词',
+        rule: '词语必须来自教材生字表，置于语境中考查，禁止孤立罗列课外生词',
+      },
+      '字音辨析': {
+        question: '下列词语中加点字的读音全都正确的一项是（　　）',
+        options: 'A. {a}  B. {b}  C. {c}  D. {d}',
+        answer: '给出正确选项并附1-2句解析（说明其他项错在哪）',
+        score: '每题2分',
+        rule: '考查字必须来自教材"识字表/写字表"，干扰项来自学生常见误读，禁止生僻字',
+      },
+      '古诗文默写': {
+        question: '根据语境，补写出下列句子中的空缺部分。\n（1）{context_hint1}，______________。\n（2）______________，{context_hint2}。',
+        answer: '每空1分，错字、漏字、添字均不得分',
+        score: '每空1分，共6-8空',
+        rule: '必须为教材要求背诵篇目，语境提示（用典/情感/主题）引导而非只给上句，禁止非课标篇目',
+      },
+      '文言文阅读': {
+        question: '阅读下面的文言文，完成后面题目。\n{passage}\n（1）解释下列句中加点词的意思。\n（2）用现代汉语翻译画线句子。\n（3）{depth_question}',
+        answer: '实词解释1分/个；翻译按关键词给分（每译对一词得1分）；深度题按要点给分',
+        score: '共8-12分：词义2-4分+翻译4-6分+深度题2-4分',
+        rule: '考查实词必须为课标常见文言实词，翻译句须含2-3个采分点关键词，深度题须"结合文本分析"',
+      },
+      '现代文阅读': {
+        question: '阅读下面的文章，完成后面题目。\n{passage}\n（1）文中描写了哪些景物？请简要概括。\n（2）{why_question}？请结合全文分析。\n（3）{infer_question}',
+        answer: '概括题按要点给分；分析题须结合文本具体内容；推断题须有理有据',
+        score: '共10-16分，分层设问：提取3-4分+理解4-6分+推理4-6分',
+        rule: '设问沿提取→理解→推理递进（见 DEPTH_HINT）；选文为完整语篇并标注出处；禁止照搬课文原文段落命题',
+      },
+      '写作': {
+        question: '阅读下面的材料，按要求作文。\n{material}\n任务一：根据你的见闻或经历，写一篇记叙性文章。\n任务二：联系生活现象，表达你的思考与看法，写一篇议论性文章。\n要求：（1）自拟标题；（2）不少于600字；（3）文中不要出现（或暗示）本人的姓名、校名。',
+        answer: '四维度评分：内容40%+语言30%+结构20%+书写10%，各维度给分档描述',
+        score: '共40-60分（按学段）',
+        rule: '材料须有思辨空间（诗句/现象/故事），任务驱动明确，禁止只给命题题目；范文不得照抄',
+      },
+    },
+    'high': {
+      '现代文阅读': {
+        question: '阅读下面的文字，完成后面题目。\n{passage}\n（1）下列对文本相关内容和艺术特色的分析鉴赏，不正确的一项是（　　）\n（2）{analyze_question}（3）{evaluate_question}',
+        options: 'A. {a}  B. {b}  C. {c}  D. {d}',
+        answer: '选择题附解析；简答题按"观点+文本依据+分析"三要素给分',
+        score: '共16-20分：选择6分+简答10-14分',
+        rule: '设问须含推断/评价层；选文为经典与时文结合；禁止孤立考手法术语',
+      },
+    },
+  },
+
+  '数学': {
+    'middle': {
+      '填空题': {
+        question: '填空。\n（1）{concept_blank}＝____\n（2）{application_blank}',
+        answer: '每空1-2分，答案唯一',
+        score: '每空1-2分，共6-10空',
+        rule: '须情境化设问（生活/几何/统计），禁止"1米=____厘米"式孤立单位换算',
+      },
+      '选择题': {
+        question: '下列选项中，{question_stem}的是（　　）',
+        options: 'A. {a}  B. {b}  C. {c}  D. {d}',
+        answer: '给出正确选项并附解析',
+        score: '每题3分',
+        rule: '干扰项来自学生常见错误思路；四个选项长度结构相近；禁止"以上都对/都不对"滥用',
+      },
+      '应用题': {
+        question: '{scenario}\n已知：{given}\n（1）求{ask1}；\n（2）{ask2}',
+        answer: '建模→列式→计算→作答，分步给分（列式正确得部分分）',
+        score: '共6-12分，分步设问',
+        rule: '情境真实（生活/科技/传统文化），数据自洽（总量=部分之和），"注"解释非常规概念，禁止伪情境',
+      },
+      '几何证明': {
+        question: '如图，{figure_desc}。\n已知：{given}。\n求证：{conclusion}。',
+        answer: '按逻辑步骤给分（关键推导步骤采分），结论正确但过程不完整扣分',
+        score: '共6-10分',
+        rule: '必须配图（[IMAGE]输出描述），条件充分可推出唯一结论，禁止超纲定理',
+      },
+      '综合与实践': {
+        question: '【操作判断】{op1}，得____°\n【探究证明】连接____，试判断____并证明\n【深入研究】若____，请求出____',
+        answer: '操作判断直接给结果；探究证明按步骤给分；深入研究按分层给分',
+        score: '共10-12分，三问递进',
+        rule: '以动手操作为情境，操作→判断→证明→拓展递进，体现综合与实践（新课标）',
+      },
+    },
+    'high': {
+      '解答题': {
+        question: '{scenario}\n（1）求{basic}；\n（2）{medium}；\n（3）{challenge}',
+        answer: '分层给分：基础结论→中等推理→综合探究，压轴题分3问递进',
+        score: '共13-17分（新高考解答题）',
+        rule: '情境真实（函数建模/概率统计/立体几何应用），三问递进，禁止超纲与偏怪',
+      },
+    },
+  },
+
+  '英语': {
+    'middle': {
+      '听力·短对话': {
+        question: '听下面5段对话，每段对话后有一个小题。从题中所给的A、B、C三个选项中选出最佳选项。\n1. {q1}\n2. {q2}\n（每段对话读两遍）',
+        options: 'A. {a}  B. {b}  C. {c}',
+        answer: '听力原文完整放答案页；答案附解析',
+        score: '每题1分，共5题',
+        rule: '短对话2句自然口语（邀请/询问/提醒等交际功能），材料读两遍，原文必须完整',
+      },
+      '听力·长对话': {
+        question: '听下面一段较长对话，回答第1至3小题。（对话读两遍）\n1. What does the man want to buy?\n2. Where are the speakers?\n3. When will they meet?',
+        options: 'A. {a}  B. {b}  C. {c}',
+        answer: '听力原文完整放答案页；设问覆盖What/Where/When/Who/How',
+        score: '每题2分',
+        rule: '围绕真实话题（购物/问路/计划/校园生活），含多轮信息交换，设问含细节与推断',
+      },
+      '完形填空': {
+        question: '阅读下面短文，从每题所给的A、B、C、D四个选项中选出可以填入空白处的最佳选项。\n{passage_with_blanks}',
+        options: 'A. {a}  B. {b}  C. {c}  D. {d}',
+        answer: '给出答案+1-2句解析（上下文线索说明）',
+        score: '每题1-1.5分，共10-15题',
+        rule: '选材为真实励志/生活叙事，首句不设空，考点分布均衡，干扰项有迷惑性非明显荒谬',
+      },
+      '阅读理解': {
+        question: '阅读下面短文，从每题所给的A、B、C、D四个选项中选出最佳选项。\n{passage}\n1. {detail_q}\n2. {infer_q}\n3. {main_idea_q}',
+        options: 'A. {a}  B. {b}  C. {c}  D. {d}',
+        answer: '答案+解析；细节题定位原文，推断题给推理链',
+        score: '每题2分',
+        rule: '设问含细节理解、推理判断、主旨概括；选文200-350词（中学段）',
+      },
+      '书面表达': {
+        question: '假定你是李华，打算在即将到来的暑假中前往____旅行，请根据以下提示给你的英国笔友David写一封邮件，分享你的旅行计划。\n提示：1. {tip1} 2. {tip2} 3. {tip3}\n注意：1. 词数100左右；2. 可适当增加细节，以使行文连贯；3. 文中不能出现真实姓名、学校等信息。',
+        answer: '内容要点齐全+语言准确+结构连贯，按三档给分',
+        score: '共15-25分',
+        rule: '身份+情境+对象+任务+词数+注意事项齐全，要点提示型，禁止裸话题',
+      },
+      '听力·信息转换': {
+        question: '听下面一段短文，根据所听内容完成表格，每空仅填一词。\n{info_table}',
+        answer: '听力原文完整放答案页；答案拼写正确（大小写/名词单复数）',
+        score: '每空1分，共5空',
+        rule: '考查姓名/时间/地点/活动/原因等基本信息，每空一词，材料读两遍',
+      },
+    },
+    'high': {
+      '听力': {
+        question: '第一节：听下面5段对话，每段对话后有一个小题。第二节：听下面4段对话或独白，每段对话或独白后有几个小题。\n{questions}',
+        options: 'A. {a}  B. {b}  C. {c}',
+        answer: '听力原文完整放答案页；语速120-140词/分，每段读两遍（2026起全卷两遍）',
+        score: '共20题30分（短对话5×1.5+长对话/独白15×1.5）',
+        rule: '第一节5段短对话，第二节长对话/独白15题，语速按高中档，原文必须完整',
+      },
+    },
+  },
+
+  '物理': {
+    'middle': {
+      '实验探究': {
+        question: '在探究{topic}的实验中：\n（1）提出问题：{question}\n（2）猜想与假设：{hypothesis}\n（3）设计实验：{design}\n（4）进行实验并记录数据：{data_table}\n（5）分析与论证：{conclusion}',
+        answer: '方案设计/数据记录/结论表述分步给分',
+        score: '共6-8分',
+        rule: '探究七环节完整（提出问题→猜想→设计→实验→数据→结论→评估），禁止只有结论没有过程',
+      },
+    },
+  },
+};
+
+/** 按 学科×学段×题型 查询标准骨架；未命中返回 null */
+export function getStandardQuestion(subject, stage, questionType) {
+  const subj = STANDARD_QUESTION_BANK[subject];
+  if (!subj) return null;
+  const stageKey = String(stage || '');
+  const stageGroup = stageKey.startsWith('primary') ? 'primary' : stageKey;
+  const stageBank = subj[stageGroup] || subj['middle'] || subj['high'];
+  if (!stageBank) return null;
+  // 精确题型名 → 包含匹配（如"听力·短对话"查"短对话"）
+  if (stageBank[questionType]) return stageBank[questionType];
+  const key = Object.keys(stageBank).find(k => questionType && (questionType.includes(k) || k.includes(questionType)));
+  return key ? stageBank[key] : null;
+}
+
+/** 构建注入生成指令的标准题型骨架文本 */
+export function buildStandardQuestionText(subject, stage, sectionName = '') {
+  const q = getStandardQuestion(subject, stage, sectionName);
+  if (!q) return '';
+  const lines = ['【标准题型骨架（按此框架命题，禁止另创题型结构）】'];
+  lines.push(`题型：${sectionName}`);
+  lines.push(`题干框架：${q.question}`);
+  if (q.options) lines.push(`选项结构：${q.options}`);
+  lines.push(`答案模式：${q.answer}`);
+  lines.push(`评分标准：${q.score}`);
+  lines.push(`命题铁律：${q.rule}`);
+  lines.push(`设问层次：${DEPTH_HINT}`);
+  return lines.join('\n');
+}
+
+export default { STANDARD_QUESTION_BANK, getStandardQuestion, buildStandardQuestionText };

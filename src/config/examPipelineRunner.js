@@ -28,6 +28,7 @@ import {
   validateSectionPlans,
   parseStructureBlocks,
 } from './examPipeline.js';
+import { buildPropositionMaterialText } from './propositionMaterial.js';
 
 const STAGE_LABEL_MAP = {
   primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段',
@@ -140,9 +141,20 @@ export async function runExamPipeline(opts, deps = {}) {
     setStatus(`分步生成：第 ${i + 1}/${plans.length} 板块「${plan.name}」...`);
     setProgress(45 + Math.round((i / plans.length) * 35));
 
-    // 板块级素材检索（教材原文，聚焦本板块）
+    // 🔴 命题素材（教材可加工要素，非原文）：每板块用本板块考点提取
+    //    考点/语料词/情境元素/数据 → 模型据此重新组织新题目，禁止照抄原文
+    let propositionMaterial = '';
+    if (contentCards?.length) {
+      try {
+        propositionMaterial = buildPropositionMaterialText(contentCards, plan.kps || allKps, subject);
+      } catch (e) {
+        warn('⚠️ 命题素材提取失败:', e.message);
+      }
+    }
+
+    // 板块级素材检索（教材原文，聚焦本板块；命题素材存在时不注入原文避免诱导照抄）
     let sectionMaterial = '';
-    if (plan.kps?.length && contentCards?.length && retrieveSegments) {
+    if (!propositionMaterial && plan.kps?.length && contentCards?.length && retrieveSegments) {
       const segRetrieved = retrieveSegments(contentCards, plan.kps.map(kp => ({ knowledgePoint: kp })), 2000);
       if (segRetrieved) {
         sectionMaterial = '【🔴 本板块教材原文依据——命题必须紧扣以下原文】\n' + segRetrieved;
@@ -171,6 +183,7 @@ export async function runExamPipeline(opts, deps = {}) {
     const secInstruction = buildSectionInstruction(plan, {
       subject, stage, stageLabel, examBlueprint,
       materialText: [sectionMaterial, sectionContext].filter(Boolean).join('\n\n'),
+      propositionMaterial,
       region, sectionNo: i + 1, totalScore, isExamPlan,
     });
 
