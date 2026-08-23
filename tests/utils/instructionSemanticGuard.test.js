@@ -77,4 +77,38 @@ describe('🔴 指令语义合理性全面审计（9类型 × 15学科 × 5学�
     expect(blocks.length, `exam|语文|middle 注入块数 ${blocks.length} 超基线`).toBeLessThanOrEqual(110);
     expect(chars, `exam|语文|middle 注入字数 ${chars} 超基线`).toBeLessThanOrEqual(22000);
   });
+
+  it('组合注入画像：分析-* 类不得计入生成注入口径（双防线排除）；维度分布基线固化', () => {
+    // 与真实注入对齐：buildGenerationInstruction 的 _ui_handledCategories 双防线排除"分析-*"，
+    // 生成注入口径不含分析类块
+    const GENERATION_CATEGORIES = [
+      '生成-角色身份', '生成-红线约束', '生成-格式规范', '生成-输出格式', '生成-格式尾约束',
+      '生成-顶层约束', '生成-尾约束', '生成-品质标准', '生成-题目质量标准', '生成-情境要求',
+      '生成-答案与解析规范', '生成-主观题评分标准', '生成-编辑标准', '生成-内容规范', '生成-特殊要求',
+      '生成-学科适配', '生成-学科特色', '生成-学科核心素养', '生成-资料类型结构', '生成-核心任务',
+      '生成-题型分布建议', '生成-题量控制', '生成-难度控制', '生成-难度配置', '生成-时间分配',
+      '生成-页数配置', '生成-知识边界', '生成-课标骨架', '生成-答题模板', '生成-术语规范',
+      '生成-专项要求', '生成-题型专项要求', '生成-质量范例', '生成-知识点全覆盖', '生成-模板禁止项',
+      '生成-学段控制', '生成-标题格式', '生成-答案区强制锚定', '生成-输出前置指令', '生成-范围扩展',
+      '生成-多章节标题', '生成-指令块标题', '生成-学科标记', '生成-EduRender模板', '生成-原题引用',
+      '生成-命题风格', '生成-年级边界提示',
+    ];
+    const fragments = builtinInstructions.filter(i => i.type === 'fragment');
+    const analysisLike = fragments.filter(b => (b.category || '').startsWith('分析-'));
+    // 分析类块不得出现在生成注入 category 集合中
+    for (const a of analysisLike) {
+      expect(GENERATION_CATEGORIES.includes(a.category), `分析类 category ${a.category} 不得计入生成注入`).toBe(false);
+    }
+    // 注入画像（exam|语文|middle）：统计块数与维度分布，监控"专属化"进度
+    const blocks = fragments.filter(b => GENERATION_CATEGORIES.includes(b.category) && matchBlock(b, { category: b.category, subject: '语文', stage: 'middle', genType: 'exam' }));
+    const dims = b => [b.subject && b.subject.trim(), b.stage && b.stage.trim(), b.genType && b.genType.trim()].filter(Boolean).length;
+    const d0 = blocks.filter(b => dims(b) === 0).length;
+    const d1 = blocks.filter(b => dims(b) === 1).length;
+    expect(blocks.length, `生成注入口径块数 ${blocks.length} 超基线`).toBeLessThanOrEqual(95);
+    // 三维专属化进度基线：三维+二维标注块占比应逐步提升（当前基线：≥35%）
+    const highDim = blocks.filter(b => dims(b) >= 2).length;
+    expect(highDim / blocks.length, `高维(2-3维)标注块占比 ${(highDim / blocks.length * 100).toFixed(0)}% 低于基线`).toBeGreaterThanOrEqual(0.35);
+    // 记录画像（供开发者查看当前组合注入构成）
+    console.log(`[注入画像] exam|语文|middle: ${blocks.length}块（零维${d0}/一维${d1}/高维${highDim}）`);
+  });
 });
