@@ -6876,6 +6876,19 @@ const showQualityReport = async (doc) => {
       report.templateMatch.details.forEach(d => text += '  - ' + d + '\n');
     }
   }
+
+  // 🔴 新课标内容达标评估（逐题核查：情境化/设问层次/机械记忆/语篇/超纲/分值/素养）
+  if (report.curriculumCheck) {
+    const cc = report.curriculumCheck;
+    const emoji = cc.overall === '通过' ? '✅' : cc.overall === '基本通过' ? '⚠️' : '❌';
+    text += `\n【新课标内容达标】${emoji} ${cc.overall}（综合 ${cc.avgScore}/100，${cc.questionCount}题）\n`;
+    text += '  ' + cc.summary + '\n';
+    if (cc.dimensions?.length) {
+      cc.dimensions.forEach(d => {
+        text += `  ${d.passed ? '✅' : '❌'} ${d.name}（${d.score}分）: ${d.detail}\n`;
+      });
+    }
+  }
   
   // issues
   if (doc.issues && doc.issues.length > 0) {

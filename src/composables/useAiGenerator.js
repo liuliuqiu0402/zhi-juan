@@ -453,6 +453,7 @@ import { buildBenchmarkText } from '../config/propositionBenchmarks.js';
 import { buildSampleText } from '../config/examSampleLibrary.js';
 import { parseStructureBlocks } from '../config/examPipeline.js';
 import { runExamPipeline } from '../config/examPipelineRunner.js';
+import { assessCompliance } from '../utils/curriculumCompliance.ts';
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -9161,6 +9162,18 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
       
       // 🔧 生成质量摘要，显示在状态栏（仅即时检查，不触发 API 调用）
       let summaryParts = ['生成完成'];
+
+      // 🔴 新课标内容达标评估（生成后逐题核查：情境化/设问层次/机械记忆/语篇/超纲/分值/素养）
+      try {
+        const stageSegForCheck = ({ '小学': 'primary', '初中': 'middle', '高中': 'high' })[stageRaw] || stageRaw;
+        qualityReport.curriculumCheck = assessCompliance(content, normalizeSubjectName(book?.subject || '', stageRaw), stageSegForCheck, genType);
+        console.log(`📋 新课标达标评估: ${qualityReport.curriculumCheck.overall}（${qualityReport.curriculumCheck.avgScore}/100，${qualityReport.curriculumCheck.questionCount}题）`);
+        if (qualityReport.curriculumCheck.overall !== '通过') {
+          summaryParts.push(`📋新课标:${qualityReport.curriculumCheck.overall}`);
+        }
+      } catch (complianceError) {
+        console.warn('⚠️ 新课标达标评估失败:', complianceError.message);
+      }
 
       if (qualityReport.knowledgeCheck?.details?.length) {
         const kpDetail = qualityReport.knowledgeCheck.details.find(d => d.includes('超纲'));
