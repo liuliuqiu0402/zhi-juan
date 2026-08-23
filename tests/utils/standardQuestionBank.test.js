@@ -1,9 +1,9 @@
 // 标准题型骨架 + 命题素材提取（从源头达标的生成范式）
 import { describe, it, expect } from 'vitest';
-import { getStandardQuestion, buildStandardQuestionText } from '@/config/standardQuestionBank';
+import { getStandardQuestion, buildStandardQuestionText, STANDARD_QUESTION_BANK } from '@/config/standardQuestionBank';
 import { extractPropositionMaterial, buildPropositionMaterialText } from '@/config/propositionMaterial';
 import { buildSectionInstruction } from '@/config/examPipeline';
-import { getExamBlueprint } from '@/config/examPaperBlueprints';
+import { getExamBlueprint, EXAM_BLUEPRINTS } from '@/config/examPaperBlueprints';
 
 // 模拟教材分段（含原文与知识点标注）
 const FAKE_CARDS = [
@@ -155,5 +155,136 @@ describe('命题素材提取器（教材→可加工要素，非原文）', () =
     });
     expect(sec).toContain('教材原文依据');
     expect(sec).toContain('禁止照搬原文段落');
+  });
+});
+
+describe('🔴 全学科覆盖守卫（骨架库 × 蓝本全板块一一对齐，防止再次漏学科）', () => {
+  it('蓝本全部15学科×学段×板块都能命中标准骨架', () => {
+    const misses = [];
+    let total = 0;
+    for (const key of Object.keys(EXAM_BLUEPRINTS)) {
+      const [subject, stage] = key.split('|');
+      const bp = EXAM_BLUEPRINTS[key];
+      if (!bp.sections) continue;
+      for (const sec of bp.sections) {
+        total++;
+        const sectionName = sec.name.replace(/^.*?·/, '');
+        const text = buildStandardQuestionText(subject, stage, sectionName);
+        if (!text.includes('标准题型骨架')) misses.push(`${key} → ${sec.name}`);
+      }
+    }
+    expect(total).toBeGreaterThanOrEqual(170);
+    expect(misses).toEqual([]);
+  });
+
+  it('骨架库覆盖全学科15个（语数英物化生道法思政史地科学信息科技音乐美术体育）', () => {
+    const subjects = Object.keys(STANDARD_QUESTION_BANK);
+    expect(subjects).toHaveLength(15);
+    for (const s of ['语文', '数学', '英语', '物理', '化学', '生物', '道德与法治', '思想政治', '历史', '地理', '科学', '信息科技', '音乐', '美术', '体育']) {
+      expect(subjects).toContain(s);
+    }
+  });
+
+  it('全部150个骨架均含五要素（question/answer/score/competency/rule）', () => {
+    let count = 0;
+    for (const stages of Object.values(STANDARD_QUESTION_BANK)) {
+      for (const types of Object.values(stages)) {
+        for (const [type, sk] of Object.entries(types)) {
+          count++;
+          for (const f of ['question', 'answer', 'score', 'competency', 'rule']) {
+            expect(sk[f], `${type} 缺 ${f}`).toBeTruthy();
+          }
+          // competency 为人工编写的课标素养指向，须有实质内容（非占位）
+          expect(sk.competency.length, `${type} competency 无实质内容`).toBeGreaterThan(6);
+          expect(sk.rule.length, `${type} rule 无实质内容`).toBeGreaterThan(6);
+        }
+      }
+    }
+    expect(count).toBeGreaterThanOrEqual(140);
+  });
+
+  it('化学初中实验探究题：方案→现象→数据→结论→反思完整链', () => {
+    const q = getStandardQuestion('化学', 'middle', '实验探究题');
+    expect(q).toBeTruthy();
+    expect(q.question).toContain('猜想');
+    expect(q.question).toContain('现象');
+    expect(q.rule).toContain('禁止只问结论');
+  });
+
+  it('道德与法治初中材料分析题：情境探究+法理阐释+实践应用', () => {
+    const q = getStandardQuestion('道德与法治', 'middle', '材料分析题');
+    expect(q).toBeTruthy();
+    expect(q.question).toContain('结合所学知识分析');
+    expect(q.question).toContain('应该怎么做');
+    expect(q.rule).toContain('知行合一');
+  });
+
+  it('历史初中非选择题：论从史出（结合材料+所学）', () => {
+    const q = getStandardQuestion('历史', 'middle', '非选择题');
+    expect(q).toBeTruthy();
+    expect(q.question).toContain('结合材料和所学知识');
+    expect(q.rule).toContain('论从史出');
+    expect(q.rule).toContain('禁止捏造史料');
+  });
+
+  it('地理初中综合题：区域定位→要素分析→人地关系评价', () => {
+    const q = getStandardQuestion('地理', 'middle', '综合题');
+    expect(q).toBeTruthy();
+    expect(q.question).toContain('区域定位');
+    expect(q.question).toContain('人地关系评价');
+    expect(q.rule).toContain('禁止凭空捏造地图数据');
+  });
+
+  it('科学小学实验探究：观察→记录→分析→结论过程', () => {
+    const q = getStandardQuestion('科学', 'primary', '实验探究');
+    expect(q).toBeTruthy();
+    expect(q.question).toContain('猜想');
+    expect(q.rule).toContain('观察→记录→分析→结论');
+  });
+
+  it('信息科技操作题：流程图+书面步骤，情境化设问', () => {
+    const q = getStandardQuestion('信息科技', 'all', '操作题');
+    expect(q).toBeTruthy();
+    expect(q.question).toContain('流程图');
+    expect(q.rule).toContain('数字化');
+  });
+
+  it('音乐简答题：要素分析→情感体验→文化理解递进', () => {
+    const q = getStandardQuestion('音乐', 'all', '简答题');
+    expect(q).toBeTruthy();
+    expect(q.question).toContain('音乐要素分析');
+    expect(q.rule).toContain('递进');
+  });
+
+  it('美术赏析题：内容→形式→情感', () => {
+    const q = getStandardQuestion('美术', 'all', '赏析题');
+    expect(q).toBeTruthy();
+    expect(q.question).toContain('内容分析');
+    expect(q.question).toContain('形式分析');
+  });
+
+  it('体育简答题：动作要领+安全防护', () => {
+    const q = getStandardQuestion('体育', 'all', '简答题');
+    expect(q).toBeTruthy();
+    expect(q.question).toContain('动作要领');
+    expect(q.question).toContain('安全防护');
+  });
+
+  it('数学高中单选题：8题×5分40分结构（新高考）', () => {
+    const q = getStandardQuestion('数学', 'high', '单选题');
+    expect(q).toBeTruthy();
+    expect(q.score).toContain('40分');
+  });
+
+  it('语文小学识字与写字：语境化考查（防孤立拼音罗列）', () => {
+    const q = getStandardQuestion('语文', 'primary', '识字与写字');
+    expect(q).toBeTruthy();
+    expect(q.rule).toContain('禁止孤立罗列拼音写词');
+  });
+
+  it('英语小学听音选词/选图板块命中骨架', () => {
+    const q = getStandardQuestion('英语', 'primary', '听音选词/选图');
+    expect(q).toBeTruthy();
+    expect(q.rule).toContain('原文必须完整');
   });
 });
