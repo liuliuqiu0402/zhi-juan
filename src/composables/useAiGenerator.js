@@ -7694,7 +7694,10 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
       
       // ──────── 🔧 引擎路由：DeepSeek → 整卷生成 | Ollama → 传统逐题 ────────
       const _routeConfig = await getCurrentEngineConfigEnhanced('generation');
-      const _useFullPaper = _routeConfig.engine === 'deepseek'; // 所有 8 种资料类型，DeepSeek 始终走整卷生成，跳过蓝图确认
+      // 🔴 全局落地（2026-08）：exam 任何引擎都强制走整卷生成路径（该路径内部先走分步流水线，
+      //    卷首时长/满分/密封线/板块结构由代码拼装，模型无机会偏离蓝本结构）；
+      //    其余 7 种资料类型 DeepSeek 走整卷、Ollama 走传统逐题。
+      const _useFullPaper = _routeConfig.engine === 'deepseek' || genType === 'exam';
       
       // 整卷生成路径下声明的变量（供后续质量校验共享）
       let blueprint = '';

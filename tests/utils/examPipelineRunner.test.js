@@ -147,6 +147,23 @@ describe('分步流水线 Runner（依赖注入编排器）', () => {
     expect(firstPrompt).toContain('命题内容质量基准');
     expect(firstPrompt).toContain('硬性要求');
   });
+
+  it('🔴 教材卡片为空时 exam 流水线仍真正运行（不绕过）：板块数=蓝本、卷首/标题由代码拼装', async () => {
+    const { deps, calls } = makeDeps();
+    const result = await runExamPipeline(baseOpts({ contentCards: [] }), deps);
+    // 无卡片也逐板块生成：板块数 = 蓝本板块数 + 答案页
+    expect(calls.length).toBe(EXAM.sections.length + 1);
+    expect(result.sections.length).toBe(EXAM.sections.length);
+    // 卷首由代码拼装：时长/满分/密封线信息栏（模型无机会写错）
+    expect(result.content).toContain(`考试时间：${EXAM.duration}`);
+    expect(result.content).toContain(`满分：${EXAM.fullScore}分`);
+    expect(result.content).toContain('密封线内不要答题');
+    expect(result.content).toContain('学校：＿＿＿　班级：＿＿＿　姓名：＿＿＿　学号：＿＿＿');
+    // 板块指令含蓝本明细式标题模板（共X题，每题X分，共X分）
+    expect(calls[0].prompt).toMatch(/共\d+题[^）]*共\d+分/);
+    // 无卡片时素材回退不阻断：板块指令仍含基准与骨架
+    expect(calls[0].prompt).toContain('命题内容质量基准');
+  });
 });
 
 describe('systemMessage 场景化裁剪（根治每次调用携带整段长指令）', () => {
