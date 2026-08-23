@@ -46,13 +46,36 @@ describe('标准题型骨架库（生成端从源头达标）', () => {
     expect(getStandardQuestion('不存在的学科', 'middle', '阅读')).toBeNull();
   });
 
-  it('buildStandardQuestionText 输出含骨架、答案模式、评分标准', () => {
+  it('buildStandardQuestionText 输出含素养指向（2022课标）、骨架、答案模式、评分标准', () => {
     const t = buildStandardQuestionText('语文', 'middle', '写作');
     expect(t).toContain('标准题型骨架');
+    expect(t).toContain('素养指向（2022课标）');
     expect(t).toContain('题干框架');
     expect(t).toContain('答案模式');
     expect(t).toContain('评分标准');
-    expect(t).toContain('命题铁律');
+    expect(t).toContain('命题铁律（新课标）');
+  });
+
+  it('🔴 新课标素养指向：各学科骨架均含 competency（课标核心素养）', () => {
+    const cases = [
+      ['语文', 'middle', '现代文阅读'],
+      ['数学', 'middle', '应用题'],
+      ['英语', 'middle', '完形填空'],
+      ['物理', 'middle', '伏安法测电阻'],
+      ['物理', 'middle', '电学计算'],
+    ];
+    for (const [subj, stage, type] of cases) {
+      const q = getStandardQuestion(subj, stage, type);
+      expect(q.competency, `${subj}|${type} 缺素养指向`).toBeTruthy();
+      expect(q.competency).toMatch(/素养|任务群|观念|能力/);
+    }
+  });
+
+  it('🔴 新课标导向：完形填空禁止纯语法挖空，数学客观题<主观题', () => {
+    const cloze = getStandardQuestion('英语', 'middle', '完形填空');
+    expect(cloze.rule).toContain('禁止纯语法挖空');
+    const choice = getStandardQuestion('数学', 'middle', '选择题');
+    expect(choice.rule).toContain('客观题分值应低于主观题');
   });
 
   it('物理电学：伏安法测电阻骨架含标准设问链（连接→读数→计算→评估）', () => {

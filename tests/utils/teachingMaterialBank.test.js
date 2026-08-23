@@ -27,33 +27,54 @@ describe('教辅编辑知识库（非试卷资料类型的角色知识）', () =
     }
   });
 
-  it('课时练：含基础/提升/拓展三层梯度与讲练结合', () => {
+  it('课时练：含任务群栏目（情境任务/基础型/发展型/拓展型）而非传统题海', () => {
     const t = getTeachingMaterial('practice');
-    expect(t.logic).toContain('三层递进');
-    expect(t.columns.some(c => c.includes('基础巩固'))).toBe(true);
-    expect(t.columns.some(c => c.includes('能力提升'))).toBe(true);
-    expect(t.rules.some(r => r.includes('5:3:2'))).toBe(true);
+    expect(t.logic).toContain('学习任务群');
+    expect(t.columns.some(c => c.includes('情境任务'))).toBe(true);
+    expect(t.columns.some(c => c.includes('基础型任务'))).toBe(true);
+    expect(t.columns.some(c => c.includes('拓展型任务'))).toBe(true);
+    expect(t.rules.some(r => r.includes('机械任务'))).toBe(true);
   });
 
-  it('错题本：含错因分析/正解/同类巩固（反馈闭环）', () => {
+  it('听写训练：语境化积累（非传统孤立默写本）', () => {
+    const t = getTeachingMaterial('dictation');
+    expect(t.role).toContain('语境化');
+    expect(t.columns.some(c => c.includes('语境识记'))).toBe(true);
+    expect(t.rules.some(r => r.includes('禁止孤立听写本'))).toBe(true);
+  });
+
+  it('复习：大单元结构化（非传统题海）', () => {
+    const t = getTeachingMaterial('review');
+    expect(t.role).toContain('大单元');
+    expect(t.columns.some(c => c.includes('大概念网络'))).toBe(true);
+    expect(t.rules.some(r => r.includes('不是章节知识点罗列'))).toBe(true);
+  });
+
+  it('错题本：素养导向错因（非笼统粗心/章节流水账）', () => {
     const t = getTeachingMaterial('errorbook');
-    expect(t.columns.some(c => c.includes('错因分析'))).toBe(true);
-    expect(t.columns.some(c => c.includes('同类巩固'))).toBe(true);
-    expect(t.rules.some(r => r.includes('变情境'))).toBe(true);
+    expect(t.columns.some(c => c.includes('素养错因'))).toBe(true);
+    expect(t.rules.some(r => r.includes('禁止"粗心"式笼统归因'))).toBe(true);
   });
 
-  it('预习：引导性问题链而非知识点罗列', () => {
-    const t = getTeachingMaterial('preview');
-    expect(t.rules.some(r => r.includes('问题链'))).toBe(true);
-    expect(t.columns.some(c => c.includes('学习目标'))).toBe(true);
+  it('🔴 新课标导向校验：8 类型均无传统教辅痕迹（孤立抄写/默写本/题海/罗列/流水账）', () => {
+    const TRADITIONAL = ['抄写X遍', '孤立听写本', '知识点罗列', '题海', '流水账', '孤立默写'];
+    for (const [type, t] of Object.entries(TEACHING_MATERIAL_BANK)) {
+      const all = t.logic + t.columns.join('') + t.rules.join('');
+      for (const w of TRADITIONAL) {
+        // 规则中"禁止"传统行为是允许的（表示课标导向），但栏目/逻辑不得是传统做法
+        expect(t.columns.join(''), `${type} 栏目含传统痕迹"${w}"`).not.toContain(w);
+      }
+      // 逻辑必须体现课标导向词
+      expect(t.logic, `${type} logic 缺课标导向`).toMatch(/任务群|大单元|大概念|素养|语境化|结构化/);
+    }
   });
 
-  it('buildTeachingMaterialText 输出角色/栏目/铁律', () => {
+  it('buildTeachingMaterialText 输出角色/栏目/铁律（新课标）', () => {
     const text = buildTeachingMaterialText('practice');
     expect(text).toContain('教辅编辑角色');
     expect(text).toContain('编辑逻辑');
-    expect(text).toContain('标准栏目结构');
-    expect(text).toContain('编辑铁律');
+    expect(text).toContain('任务群导向栏目');
+    expect(text).toContain('编辑铁律（新课标）');
   });
 
   it('未支持类型返回空串', () => {
