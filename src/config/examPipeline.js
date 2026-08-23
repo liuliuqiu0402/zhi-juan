@@ -63,6 +63,74 @@ export function extractKnowledgePoints(knowledgeMap) {
   return [...new Set(kps)];
 }
 
+/**
+ * 从生成指令中解析"结构大纲"板块（非 exam 类型的分步单元来源）
+ * 指令中注入格式："结构参考：\n一、基础建构（字词积累）\n二、任务驱动（阅读）..."
+ * @returns {Array<{name:string, desc:string, index:number}>}
+ */
+export function parseStructureBlocks(instruction = '') {
+  if (!instruction) return [];
+  const lines = instruction.split('\n');
+  const blocks = [];
+  let inStruct = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (/^结构参考[：:]\s*$/i.test(trimmed) || /^【结构大纲】/.test(trimmed)) {
+      inStruct = true;
+      continue;
+    }
+    if (!inStruct) continue;
+    if (/^【/.test(trimmed) || /^---/.test(trimmed)) break; // 下一个节
+    const m = trimmed.match(/^[（(]?[一二三四五六七八九十]+[）)、．.]\s*(.+)$/);
+    if (m) {
+      const content = m[1].trim();
+      // 拆分"板块名（描述）"
+      const nameMatch = content.match(/^([^（(]+)/);
+      const descMatch = content.match(/[（(]([^）)]+)[）)]/);
+      blocks.push({
+        index: blocks.length,
+        name: (nameMatch ? nameMatch[1].trim() : content).replace(/[、，,]\s*$/, ''),
+        desc: descMatch ? descMatch[1] : content,
+      });
+    }
+  }
+  return blocks;
+}
+
+/** 构建非 exam 板块的分步规划（结构大纲板块 + 分值均分 + 考点分配） */
+export function buildNonExamPlans(instruction, kps, totalScore = 0) {
+  const structBlocks = parseStructureBlocks(instruction);
+  if (!structBlocks.length) return [];
+  // 分值均分到各板块（非 exam 无硬性分值，平均分配便于总量受控）
+  const perScore = structBlocks.length > 0 ? Math.round(totalScore / structBlocks.length) : 0;
+  const plans = structBlocks.map((b, i) => ({
+    index: i,
+    name: b.name,
+    note: b.desc || '',
+    score: perScore,
+    questionCount: 0,
+    kps: [],
+  }));
+  // 考点分配：按板块描述关键词匹配，未匹配兜底末板块
+  const unmatched = [];
+  for (const kp of kps) {
+    let placed = false;
+    for (const plan of plans) {
+      const kw = (plan.note || '') + (plan.name || '');
+      if (kp && (kw.includes(kp) || (kw.match(/[\u4e00-\u9fa5]{2,4}/g) || []).some(w => kp.includes(w) && w.length >= 2))) {
+        plan.kps.push(kp);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed && kp) unmatched.push(kp);
+  }
+  if (unmatched.length && plans.length) {
+    plans[plans.length - 1].kps.push(...unmatched);
+  }
+  return plans;
+}
+
 /** 把知识点按板块 note 关键词匹配分配（纯数据驱动，无 AI 规划漂移） */
 export function assignKpsToSections(sections, kps, subject = '') {
   const plans = sections.map((sec, i) => ({
@@ -112,13 +180,17 @@ export function buildSectionInstruction(plan, ctx) {
   const cn = '一二三四五六七八九十'[plan.index] || String(plan.index + 1);
   const kpText = plan.kps.length ? plan.kps.join('、') : '（按教材覆盖合理分配考点）';
   const sampleText = buildSampleText(subject, stage); // 样例库按 学科×学段 匹配
+  // 非 exam（课时练等）无硬性分值/满分约束 → 简化标题表述，避免"满分0分"等误导
+  const isScored = totalScore > 0 && plan.score > 0;
+  const countText = plan.questionCount ? `${plan.questionCount}题` : (isScored ? '' : '若干题');
 
-  let instruction = `【生成试卷第${cn}大题：${plan.name}（共${plan.questionCount || 'X'}题，共${plan.score}分，满分${totalScore}分）】
-你是命题专家，严格按下述要求生成【${plan.name}】这一个大题的完整题目与题干，输出 HTML 片段（不要输出整卷标题、不要输出其他大题、不要输出答案）。`;
+  let instruction = isScored
+    ? `【生成第${cn}板块：${plan.name}（${countText ? countText + '，' : ''}共${plan.score}分，满分${totalScore}分）】\n你是命题专家，严格按下述要求生成【${plan.name}】这一个板块的完整题目与题干，输出 HTML 片段（不要输出整卷标题、不要输出其他板块、不要输出答案）。`
+    : `【生成第${cn}板块：${plan.name}】\n你是命题专家，严格按下述要求生成【${plan.name}】这一个板块的完整题目与题干，输出 HTML 片段（不要输出整卷标题、不要输出其他板块、不要输出答案）。`;
 
-  instruction += `\n\n【本大题命题要求】
-1. 题量：${plan.questionCount ? `${plan.questionCount} 题` : '按分值合理分配题量'}；分值体系：小题分值之和必须等于大题总分 ${plan.score} 分，每道小题题干末尾标注（X分）。
-2. 考查内容：本大题覆盖以下考点——${kpText}。所有考点必须与教材内容一致，禁止超纲、禁止编造教材没有的知识点。
+  instruction += `\n\n【本板块命题要求】
+1. ${plan.questionCount ? `题量：${plan.questionCount} 题；` : (isScored ? '' : '题量：按内容覆盖需要合理设计；')}${isScored ? `分值体系：小题分值之和必须等于本板块总分 ${plan.score} 分，每道小题题干末尾标注（X分）。` : '每道小题题干末尾标注（X分），分值合理（按题型难度分配）。'}
+2. 考查内容：本板块覆盖以下考点——${kpText}。所有考点必须与教材内容一致，禁止超纲、禁止编造教材没有的知识点。
 3. 内容质量：遵循新课标素养立意——情境真实适切、设问有层次（信息提取→理解分析→推理评价递进）、杜绝机械记忆与偏题怪题。
 4. 命题规范：${plan.note || '题型与分值按规范执行'}`;
 
@@ -133,7 +205,7 @@ ${materialText}`;
   }
 
   instruction += `\n\n【输出格式】
-- 用 <h2>${cn}、${plan.name}。（共X题，共${plan.score}分）</h2> 作为本大题标题；
+- 用 <h2>${cn}、${plan.name}。</h2> 作为本板块标题${isScored ? `（右侧标注共${plan.score}分）` : ''}；
 - 每道小题用 <p class="question">...</p> 包裹，题号从 1 开始连续编号，题干末尾标注（X分）；
 - 选择题给 A/B/C/D 四个选项（用 <p class="option"> 包裹）；填空题用 <u class="blank-2">&emsp;</u> 标签；
 - 直接输出 HTML 片段，禁止 Markdown 代码块、禁止前言解释、禁止输出答案与评分标准。`;
@@ -189,6 +261,8 @@ export function validateSectionPlans(plans, examBlueprint) {
 export default {
   parseQuestionCount,
   extractKnowledgePoints,
+  parseStructureBlocks,
+  buildNonExamPlans,
   assignKpsToSections,
   buildSectionInstruction,
   buildAnswerInstruction,

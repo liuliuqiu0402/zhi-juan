@@ -3,6 +3,8 @@ import { describe, it, expect } from 'vitest';
 import {
   parseQuestionCount,
   extractKnowledgePoints,
+  parseStructureBlocks,
+  buildNonExamPlans,
   assignKpsToSections,
   buildSectionInstruction,
   buildAnswerInstruction,
@@ -154,6 +156,41 @@ describe('分步生成流水线（数据驱动板块规划 → 逐板块短指�
       const counts = m.sections.map(s => parseQuestionCount(s.note, s.score));
       expect(counts).toEqual([8, 3, 3, 5]);
       expect(m.sections.map(s => s.score)).toEqual([40, 18, 15, 77]);
+    });
+  });
+
+  describe('9. 非 exam 结构大纲解析（全资料类型分步）', () => {
+    it('解析"结构参考：\n一、XXX\n二、XXX"格式为板块', () => {
+      const instruction = '请生成一份课时练。\n---\n【结构大纲】\n结构参考：\n一、基础建构（字词积累、情境感知）\n二、任务驱动（阅读、表达）\n三、素养拓展（整本书、跨媒体）';
+      const blocks = parseStructureBlocks(instruction);
+      expect(blocks.length).toBe(3);
+      expect(blocks[0].name).toContain('基础建构');
+      expect(blocks[0].desc).toContain('字词');
+      expect(blocks[2].name).toContain('素养拓展');
+    });
+
+    it('无结构大纲返回空数组（不误触发分步）', () => {
+      expect(parseStructureBlocks('请生成一份资料。')).toEqual([]);
+      expect(parseStructureBlocks('')).toEqual([]);
+    });
+
+    it('buildNonExamPlans：板块数=结构大纲数、考点已分配、分值均分', () => {
+      const instruction = '结构参考：\n一、基础建构\n二、任务驱动';
+      const plans = buildNonExamPlans(instruction, ['字词积累', '阅读理解'], 100);
+      expect(plans.length).toBe(2);
+      expect(plans[0].score).toBe(50);
+      expect(plans[1].score).toBe(50);
+      const all = plans.flatMap(p => p.kps);
+      expect(all).toContain('字词积累');
+      expect(all).toContain('阅读理解');
+    });
+
+    it('practice 类型结构大纲（指令库真实内容）可解析出板块', () => {
+      // 模拟 gen_struct_practice_chinese_middle 注入后的指令
+      const instruction = '【核心任务】\n结构参考：\n一、基础建构（语言积累、梳理探究）\n二、任务驱动（文学阅读、实用阅读、表达交流）\n三、素养拓展（整本书、跨媒体、综合实践）';
+      const blocks = parseStructureBlocks(instruction);
+      expect(blocks.length).toBeGreaterThanOrEqual(2);
+      expect(blocks.some(b => b.name.includes('基础建构'))).toBe(true);
     });
   });
 });

@@ -458,6 +458,8 @@ import {
   buildAnswerInstruction,
   assemblePaperHeader,
   validateSectionPlans,
+  buildNonExamPlans,
+  parseStructureBlocks,
 } from '../config/examPipeline.js';
 
 // 别名：保持原有名称兼容
@@ -6749,22 +6751,37 @@ ${content}`;
   const generatePaperBySections = async (params) => {
     const {
       instruction, systemMessage, examBlueprint, subject, stage, region,
-      book, contentCards, knowledgeMap, materialText, kmText,
+      book, contentCards, knowledgeMap, materialText, kmText, genType = 'exam',
     } = params;
 
     // ── Pass 1：数据驱动板块规划（零 AI 漂移）──
+    //    exam：蓝本 sections（题型骨架/分值硬约束）；非 exam：结构大纲板块（分步单元）
     const allKps = extractKnowledgePoints(knowledgeMap);
-    const plans = assignKpsToSections(examBlueprint.sections || [], allKps, subject);
-    const planCheck = validateSectionPlans(plans, examBlueprint);
-    if (!planCheck.ok) {
-      throw new Error('板块规划校验失败: ' + planCheck.errors.join('; '));
+    const isExamPlan = !!examBlueprint;
+    let plans;
+    let planCheck;
+    if (isExamPlan) {
+      plans = assignKpsToSections(examBlueprint.sections || [], allKps, subject);
+      planCheck = validateSectionPlans(plans, examBlueprint);
+      if (!planCheck.ok) {
+        throw new Error('板块规划校验失败: ' + planCheck.errors.join('; '));
+      }
+    } else {
+      const totalScoreGuess = params.totalScore || 0;
+      plans = buildNonExamPlans(instruction, allKps, totalScoreGuess);
+      if (!plans.length) {
+        throw new Error('未从结构大纲解析到板块，无法分步');
+      }
+      planCheck = { ok: true, errors: [], planCount: plans.length };
     }
 
     const stageLabelMap = { primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中' };
     const stageLabel = stageLabelMap[stage] || stage || '';
     const gradeLabel = book?.grade || '';
     const termLabel = '';
-    const header = assemblePaperHeader(examBlueprint, { gradeLabel, region, termLabel });
+    const header = isExamPlan
+      ? assemblePaperHeader(examBlueprint, { gradeLabel, region, termLabel })
+      : `<h1>${book?.subject || subject}${gradeLabel}${genType === 'practice' ? '课时练' : '学习资料'}</h1>\n<p>（${stageLabel}·${genType === 'practice' ? '课时巩固练习' : '同步学习资料'}${region ? `　地区：${region}` : ''}）</p>`;
 
     // ── Pass 2：逐板块短指令生成 ──
     const sectionsHtml = [];
@@ -7141,11 +7158,12 @@ ${content}`;
     const MAX_RETRIES = 3;
     let lastError = null;
 
-    // 🔴 分步流水线（阶段3 根治长指令）：exam 且蓝本可获取时，
-    //    先数据驱动板块规划（零 AI 漂移）→ 逐板块短指令生成 → 拼接正文 → 统一生成答案页。
-    //    成功则复用整卷后处理；失败（任意板块超时/异常）静默回退整卷生成。
+    // 🔴 分步流水线（阶段3 根治长指令，全资料类型）：
+    //    exam：蓝本板块（题型骨架/分值硬约束）；非 exam：结构大纲板块（分步单元）。
+    //    数据驱动板块规划（零 AI 漂移）→ 逐板块短指令生成 → 拼接正文 → 统一生成答案页。
+    //    成功则复用整卷后处理；失败（无板块来源/任意板块异常）静默回退整卷生成。
     let pipedContent = null;
-    if (isExam) {
+    if (contentCards?.length) {
       try {
         const stageKeyP = { '小学': 'primary', '初中': 'middle', '高中': 'high' }[stageRaw] || stageRaw;
         const gradeNumP = extractGradeNum(book?.grade || '');
@@ -7153,12 +7171,16 @@ ${content}`;
         if (stageKeyP === 'primary') {
           stageSegP = gradeNumP <= 2 ? 'primary_low' : gradeNumP <= 4 ? 'primary_mid' : 'primary_high';
         }
-        const examBlueprint = getExamBlueprint(subject, stageSegP, book?.region || '');
-        if (examBlueprint && contentCards?.length) {
+        const examBlueprint = isExam ? getExamBlueprint(subject, stageSegP, book?.region || '') : null;
+        // 触发条件：exam 有蓝本板块，或非 exam 有结构大纲板块（parseStructureBlocks 探测）
+        const canPipeline = examBlueprint
+          || parseStructureBlocks(finalUserInstruction).length > 0;
+        if (canPipeline) {
           pipedContent = await generatePaperBySections({
             instruction: finalUserInstruction,
             systemMessage,
             examBlueprint,
+            genType,
             subject,
             stage: stageSegP,
             region: book?.region || '',
@@ -7168,6 +7190,7 @@ ${content}`;
             materialText,
             kmText,
             isExam,
+            totalScore,
           });
           console.log(`✅ 分步流水线生成成功：${pipedContent?.content?.length || 0} 字符，${pipedContent?.sections?.length || 0} 个板块`);
         }
