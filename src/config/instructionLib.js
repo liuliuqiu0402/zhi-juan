@@ -4136,7 +4136,7 @@ builtinInstructions.forEach(item => {
 // ==================== 指令库存储Key与版本号 ====================
 const STORAGE_KEY = 'instructionLib';
 const VERSION_KEY = 'instructionLib_version';
-export const BUILTIN_VERSION = 45; // 🔧 v45: 思维深度化合并入教辅品质基线块（避免超注入上限）、summary移出题目质量专项（纯知识类不含题目质量）、题型多样性阈值统一为10
+export const BUILTIN_VERSION = 46; // 🔧 v46: 角色话术分流（quality_industry_benchmark 拆为 exam 正式命题基准 + 非exam教辅基线，旧 id 覆盖自动清理）；exam 时间分配块统一以蓝本为准；编辑标准更名；黑白印刷风格句去"教辅"字样
 
 // ==================== 加载指令库 ====================
 export const loadInstructionLib = () => {

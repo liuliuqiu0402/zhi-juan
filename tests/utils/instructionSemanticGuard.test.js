@@ -62,4 +62,19 @@ describe('🔴 指令语义合理性全面审计（9类型 × 15学科 × 5学�
     expect(combos).toBe(675);
     expect(violations).toEqual([]);
   });
+
+  it('注入精准度基线：全通用块占比受控、单组合注入量不膨胀（防"一股脑注入"）', () => {
+    const fragments = builtinInstructions.filter(i => i.type === 'fragment');
+    const isGeneric = b => !(b.subject && b.subject.trim()) && !(b.stage && b.stage.trim()) && !(b.genType && b.genType.trim());
+    const genericCount = fragments.filter(isGeneric).length;
+    // 全通用块仅占少数（红线/格式等跨类型硬约束是有意设计）；绝大多数块须标注学科/学段/类型
+    expect(genericCount, `全通用块 ${genericCount} 过多`).toBeLessThanOrEqual(25);
+    expect(genericCount / fragments.length).toBeLessThanOrEqual(0.05);
+
+    // 单组合注入量上限（语文·middle 为代表性组合；防止冗余块持续累积）
+    const blocks = fragments.filter(b => matchBlock(b, { category: b.category, subject: '语文', stage: 'middle', genType: 'exam' }));
+    const chars = blocks.reduce((a, b) => a + (b.content || '').length, 0);
+    expect(blocks.length, `exam|语文|middle 注入块数 ${blocks.length} 超基线`).toBeLessThanOrEqual(110);
+    expect(chars, `exam|语文|middle 注入字数 ${chars} 超基线`).toBeLessThanOrEqual(22000);
+  });
 });
