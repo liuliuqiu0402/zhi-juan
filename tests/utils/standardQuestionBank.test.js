@@ -54,6 +54,39 @@ describe('标准题型骨架库（生成端从源头达标）', () => {
     expect(t).toContain('评分标准');
     expect(t).toContain('命题铁律');
   });
+
+  it('物理电学：伏安法测电阻骨架含标准设问链（连接→读数→计算→评估）', () => {
+    const q = getStandardQuestion('物理', 'middle', '伏安法测电阻');
+    expect(q).toBeTruthy();
+    expect(q.question).toContain('用笔画线代替导线');
+    expect(q.question).toContain('滑动变阻器的滑片移至最____端');
+    expect(q.question).toContain('保留一位小数');
+    expect(q.rule).toContain('设问链固定');
+  });
+
+  it('物理电学：测量小灯泡电功率骨架含额定功率取法规则', () => {
+    const q = getStandardQuestion('物理', 'middle', '测量小灯泡电功率');
+    expect(q).toBeTruthy();
+    expect(q.question).toContain('额定电压');
+    expect(q.question).toContain('正常发光');
+    expect(q.rule).toContain('不取平均');
+  });
+
+  it('物理电学：电学计算骨架含家用电器情境与分步设问', () => {
+    const q = getStandardQuestion('物理', 'middle', '电学计算');
+    expect(q).toBeTruthy();
+    expect(q.question).toContain('额定电压220V');
+    expect(q.question).toContain('求电热丝R₁的阻值');
+    expect(q.rule).toContain('禁止编造不合理数据');
+  });
+
+  it('物理电学：电能表计算骨架含转盘计算与热效应考查', () => {
+    const q = getStandardQuestion('物理', 'middle', '电能表计算');
+    expect(q).toBeTruthy();
+    expect(q.question).toContain('kW·h');
+    expect(q.question).toContain('____效应'); // 电流的"热"效应（填空考查）
+    expect(q.rule).toContain('3000r/kW·h');
+  });
 });
 
 describe('命题素材提取器（教材→可加工要素，非原文）', () => {
