@@ -1582,10 +1582,11 @@ defineExpose({
 }
 
 /* ===== 工具栏 ===== */
+/* 🔧 左右 padding 16px 与编辑区内容缩进对齐（用户反馈：工具可左右缩进更美观） */
 .editor-toolbar {
   display: flex;
   gap: 3px;
-  padding: 6px 8px;
+  padding: 8px 16px;
   background: #f3f4f6;
   border-bottom: 1px solid #d0d0d0;
   flex-wrap: wrap;
@@ -1763,10 +1764,11 @@ defineExpose({
 .rich-text-editor :deep(.english-line) { font-family: 'Times New Roman', 'Georgia', serif; }
 .rich-text-editor :deep(.sixian-ge) { display: inline-block; position: relative; padding: 4px 4px; font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; font-size: inherit !important; line-height: 1; min-width: 18px; text-align: center; vertical-align: middle; text-indent: 0; overflow: visible; }
 .rich-text-editor :deep(.sixian-ge)::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1.5em; background: linear-gradient(var(--text-muted), var(--text-muted)) 0 0.1em / 100% 1px no-repeat, linear-gradient(var(--text-muted), var(--text-muted)) 0 0.55em / 100% 1px no-repeat, linear-gradient(#666, #666) 0 1.0em / 100% 1px no-repeat, linear-gradient(var(--text-muted), var(--text-muted)) 0 1.45em / 100% 1px no-repeat; pointer-events: none; }
-/* 🔧 作文格：auto-fill 按 A4 可用宽度自动排满（小学 12mm），与 docx 导出 perRow 计算口径一致——
-   此前固定 repeat(20, 1.3em) 小格，导致预览 20 列、导出约 12-13 列，用户误以为"Word 里列数变了"去手动调列 */
-.rich-text-editor :deep(.zuo-wen-ge) { display: grid; grid-template-columns: repeat(auto-fill, 12mm); gap: 0; border: 1.5px solid var(--text-muted); margin: 8px 0; width: 100%; box-sizing: border-box; }
-.rich-text-editor :deep(.zuo-wen-ge span) { display: inline-flex; align-items: center; justify-content: center; width: 12mm; height: 12mm; border: 0.5px solid #ccc; font-family: 'SimSun', 'KaiTi', serif; font-size: inherit !important; line-height: 1; text-align: center; box-sizing: border-box; }
+/* 🔧 作文格：auto-fill 按容器宽度自动排满，格宽/格高由 CSS 变量 --zwg-cell-w/--zwg-cell-h 控制
+   （TypesetModule 按学段注入：小学 12mm / 初中 10mm / 高中 宽7.5×高8mm；默认 12mm），
+   与 docx 导出 perRow 计算口径一致——预览/导出行列一致，用户无需在 Word 中手动调列 */
+.rich-text-editor :deep(.zuo-wen-ge) { display: grid; grid-template-columns: repeat(auto-fill, var(--zwg-cell-w, 12mm)); gap: 0; border: 1.5px solid var(--text-muted); margin: 8px 0; width: 100%; box-sizing: border-box; }
+.rich-text-editor :deep(.zuo-wen-ge span) { display: inline-flex; align-items: center; justify-content: center; width: var(--zwg-cell-w, 12mm); height: var(--zwg-cell-h, 12mm); border: 0.5px solid #ccc; font-family: 'SimSun', 'KaiTi', serif; font-size: inherit !important; line-height: 1; text-align: center; box-sizing: border-box; }
 .rich-text-editor :deep(.oral-box) { display: inline-block; border: 1.5px solid #333; padding: 2px 8px; margin: 0 2px; min-width: 40px; text-align: center; vertical-align: middle; font-size: inherit !important; }
 /* ⭐ 填空横线 - 防御性CSS：确保 ThemeCSS 注入前/后均生效 */
 .rich-text-editor :deep(u[class*="blank-"]) { display: inline-block; text-align: center; font-size: inherit !important; min-width: 1em; }

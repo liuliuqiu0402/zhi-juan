@@ -133,7 +133,7 @@
         
         <!-- 🔧 A4 纸张预览区（单一编辑视图：所见即所得 = 预览效果，含密封线/注意事项/得分表） -->
         <div v-if="isHtmlContent && !showSource" class="paper-preview-area">
-          <div class="paper-page">
+          <div class="paper-page" :style="zwgCssVars">
             <RichTextEditor
               ref="contentEditor"
               v-model="rawHtmlContent"
@@ -396,6 +396,15 @@ const themeForm = ref({
 
 // ==================== 计算属性 ====================
 const selectedTheme = computed(() => getThemeById(selectedThemeId.value));
+
+// 🔧 作文格预览格宽/格高按学段（与导出端 buildDocxFromDom 口径完全一致）：
+//    primary 12mm / middle 10mm / high 宽7.5×高8mm —— 预览/导出行列一致，按 A4 可用宽度排满
+const zwgCssVars = computed(() => {
+  const s = selectedTheme.value?.stage || 'middle';
+  if (s === 'high') return { '--zwg-cell-w': '7.5mm', '--zwg-cell-h': '8mm' };
+  if (s === 'middle') return { '--zwg-cell-w': '10mm', '--zwg-cell-h': '10mm' };
+  return { '--zwg-cell-w': '12mm', '--zwg-cell-h': '12mm' };
+});
 
 const filteredThemes = computed(() => {
   let allThemes = getAllThemes();

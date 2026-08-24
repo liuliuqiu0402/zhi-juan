@@ -1883,9 +1883,12 @@ export const buildDocxFromDom = (containerEl, stage = 'middle') => {
   {
     const hasSealDetect = !!(containerEl.querySelector && containerEl.querySelector('.sealed-wrapper, .sealed-line, .seal-line, .seal-zone'));
     const zwgCellW = __zwgStage === 'primary' ? 680 : __zwgStage === 'middle' ? 567 : 425;
-    const zwgMargin = (hasSealDetect ? 1417 : 1134) * 2;
     // 🔧 每行格子数按 A4 可用宽度排满（无独立标注列，字数标注走行间"下标"方案）
-    __zwgPerRow = Math.max(8, Math.floor((11906 - zwgMargin - 284) / zwgCellW));
+    //    🔴 用 mm 口径与预览 CSS `repeat(auto-fill, Nmm)` 严格一致（DXA 换算有精度误差，会导致预览/导出行列差 1）：
+    //    可用宽 = A4 宽 210mm − 左右边距（普通 20mm×2 / 密封线卷 25mm×2）；格宽 = 学段格宽（12/10/7.5mm）
+    const zwgMarginMm = hasSealDetect ? 50 : 40;
+    const zwgCellMm = __zwgStage === 'primary' ? 12 : __zwgStage === 'middle' ? 10 : 7.5;
+    __zwgPerRow = Math.max(8, Math.floor((210 - zwgMarginMm) / zwgCellMm));
   }
   const children = [];
   const allNodes = containerEl.childNodes;

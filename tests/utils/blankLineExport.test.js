@@ -113,14 +113,14 @@ describe('作文格（zuo-wen-ge）导出', () => {
     expect(await run()).toBe(567); // 默认 middle
   });
 
-  it('每行格子数按 A4 可用宽度自动排满（普通文档：初中 16 列）', async () => {
-    // 普通文档（左右 2cm=1134×2）：floor((11906-2268-284)/567) = floor(9354/567) = 16 列
+  it('每行格子数按 A4 可用宽度自动排满（普通文档：初中 17 列，与预览 auto-fill 同口径）', async () => {
+    // 普通文档（左右边距 20mm×2）：floor((210-40)/10mm) = 17 列 —— 与预览 CSS repeat(auto-fill, 10mm) 严格一致
     const html = '<div class="zuo-wen-ge">' + Array.from({ length: 45 }, () => '<span>&emsp;</span>').join('') + '</div>';
     const xml = await getDocumentXml(html, 'middle');
     // 表格总宽 = 每行格数 × 567
     const tblW = xml.match(/<w:tblW[^>]*w:w="(\d+)"/);
     expect(tblW).toBeTruthy();
-    expect(parseInt(tblW[1], 10)).toBe(16 * 567);
+    expect(parseInt(tblW[1], 10)).toBe(17 * 567);
   });
 });
 
