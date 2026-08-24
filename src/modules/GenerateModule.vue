@@ -5832,6 +5832,7 @@ const generate = async (mode) => {
   }
   
   // 🔧 新增：检查教材是否已分析（增强警告，明确列出未分析章节）
+  //    逐章分开处理：已分析章节保留完整教材数据；未分析章节走"仅目录模式"降级，两者混合生成
   const unanalyzedChapters = selectedBooks.flatMap(b => 
     b.selectedChapters.filter(ch => !ch.analyzed || !ch.rawText || ch.rawText.trim().length < 10)
   );
@@ -5839,14 +5840,14 @@ const generate = async (mode) => {
     const chapterList = unanalyzedChapters.map(ch => `• ${ch.title}`).join('\n');
     
     const proceed = await showConfirmDialogFn(
-      `⚠️ 检测到 ${unanalyzedChapters.length} 个章节尚未分析教材内容（将走"仅目录模式"）\n\n` +
-      `未分析章节：\n${chapterList}\n\n` +
+      `⚠️ 检测到 ${unanalyzedChapters.length} 个章节尚未分析教材内容\n\n` +
+      `未分析章节（将走"仅目录模式"）：\n${chapterList}\n\n` +
       `【说明】\n` +
-      `• 这些章节将基于「章节标题 + 2022 版新课标规范」生成（降级模式）\n` +
-      `• 无法使用教材原文/知识点/公式等细节，题目由 AI 依据学科典型内容设计\n` +
-      `• 质量低于"已分析"章节，可能出现与教材版本不符的内容\n\n` +
+      `• 已分析章节：保留教材原文/知识点，正常高质量生成\n` +
+      `• 未分析章节：基于「章节标题 + 2022 版新课标规范」降级生成（无教材细节，题目由 AI 依据学科典型内容设计，可能与教材版本不符）\n` +
+      `• 两者在同一份资料中混合生成，不是全部丢弃\n\n` +
       `建议：先点击「🔍 分析教材」完成分析后再生成，获得以教材内容为依据的高质量结果\n\n` +
-      `是否仍要继续生成（仅目录模式）？`
+      `是否仍要继续生成？`
     );
     if (!proceed) return;
   }
