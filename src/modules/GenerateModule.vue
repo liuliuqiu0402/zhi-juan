@@ -2934,7 +2934,7 @@ const currentChapter = ref(null);
 const editingKnowledge = ref('');
 
 // AI生成器（新架构：不再使用 buildGenerationInstruction 长指令构建）
-const { isGenerating, progress: generateProgress, statusText: generateStatus, getTypeDistribution, generate: callGenerate, executeGenerationWithBlueprint, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool } = useAiGenerator();
+const { isGenerating, progress: generateProgress, statusText: generateStatus, getTypeDistribution, generate: callGenerate, executeGenerationWithBlueprint, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool, pickLabelFromPool } = useAiGenerator();
 
 // ✏️ 名称样式：类型切换恢复上次选择 + 当前选择同步到生成器（在 useAiGenerator 解构之后，避免 TDZ）
 watch(genTypes, () => {
@@ -4171,6 +4171,8 @@ const loadInstructionFromLibrary = async () => {
 
   // 组装注入指令（任务行 + 模板正文 + 用户附加）
   const genTypeLabel = genTypeTemplates[genType]?.name || genType;
+  // ✏️ 标题类型名：名称样式固定选择优先，否则从类型名称池轮换（避免标题千篇一律）
+  const label = labelStyle.value || pickLabelFromPool(genType, unit || '_all_');
   const gradeLabel = `${STAGE_LABEL_MAP[stageKey] || stageKey}${book.grade ? `·${book.grade}` : ''}`;
   instructionDraft.value = buildInjectionInstruction({
     template: tpl.template,
@@ -4178,6 +4180,7 @@ const loadInstructionFromLibrary = async () => {
     subject,
     unit,
     genTypeLabel,
+    label,
     structure,
     fullScore,
     duration,
@@ -4233,9 +4236,11 @@ const restoreDefaultInstruction = async () => {
     }
   } catch {}
   const genTypeLabel = genTypeTemplates[genType]?.name || genType;
+  // ✏️ 标题类型名：名称样式固定优先，否则轮换（restoreDefault 场景无 unit，用全量轮换键）
+  const label = labelStyle.value || pickLabelFromPool(genType, '_all_');
   const gradeLabel = `${STAGE_LABEL_MAP[stageKey] || stageKey}${book.grade ? `·${book.grade}` : ''}`;
   instructionDraft.value = buildInjectionInstruction({
-    template: builtinTemplate, grade: gradeLabel, subject, genTypeLabel, structure, fullScore, duration,
+    template: builtinTemplate, grade: gradeLabel, subject, genTypeLabel, label, structure, fullScore, duration,
     subjectFormat: buildSubjectFormatBlock(subject),
   });
   instructionDraft.value += buildRenderContract({

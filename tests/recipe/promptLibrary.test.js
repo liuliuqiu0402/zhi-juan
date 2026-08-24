@@ -88,6 +88,16 @@ describe('注入指令组装（拼接格式与顺序）', () => {
     const out = buildInjectionInstruction({ template: '你是专家。{subject}', subject: '语文' });
     expect(out).not.toContain('用户附加');
   });
+
+  it('{label} 占位符替换为标题类型名（名称样式轮换池注入）', () => {
+    const out = buildInjectionInstruction({
+      template: '标题格式"{grade}{subject}{scope}{label}"', grade: '小学低段', subject: '语文', unit: '第二单元', label: '综合检测',
+    });
+    expect(out).toContain('标题格式"小学低段语文第二单元综合检测"');
+    // 未传 label 时兜底 genTypeLabel
+    const out2 = buildInjectionInstruction({ template: '{label}', genTypeLabel: '正式考卷' });
+    expect(out2).toContain('正式考卷');
+  });
 });
 
 describe('卷面结构文本', () => {
