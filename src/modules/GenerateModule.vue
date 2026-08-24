@@ -8545,18 +8545,18 @@ const addBlueprintQuestion = () => {
 }
 
 /* ✏️ 名称样式弹窗：胶囊 chip 单选（资料类型名称 + 考试标签名称 统一视觉） */
-.name-style-label { font-size: 13px; font-weight: 600; color: var(--primary); margin: 4px 0 8px; }
-.name-chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
-.name-chip { padding: 5px 14px; border: 1px solid var(--border); border-radius: 20px; font-size: 12px; color: var(--text-primary); background: #fff; cursor: pointer; transition: all 0.15s; user-select: none; }
+.name-style-label { font-size: 14px; font-weight: 600; color: var(--primary); margin: 6px 0 10px; }
+.name-chip-group { display: flex; flex-wrap: wrap; gap: 10px; }
+.name-chip { padding: 7px 18px; border: 1px solid var(--border); border-radius: 22px; font-size: 14px; color: var(--text-primary); background: #fff; cursor: pointer; transition: all 0.15s; user-select: none; }
 .name-chip:hover { border-color: var(--primary-light); color: var(--primary-light); }
 .name-chip.active { background: linear-gradient(135deg, var(--primary-light), var(--primary)); color: #fff; border-color: transparent; box-shadow: 0 1px 4px rgba(30,58,111,0.25); }
 
 /* 📐 考试标签名称单选组（名称样式弹窗） */
-.scope-style-block { margin-top: 14px; padding: 12px; background: var(--primary-bg); border: 1px solid var(--border-light); border-radius: var(--radius-sm); }
-.scope-style-title { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.6; }
-.scope-dim { margin-bottom: 8px; }
+.scope-style-block { margin-top: 16px; padding: 14px; background: var(--primary-bg); border: 1px solid var(--border-light); border-radius: var(--radius-sm); }
+.scope-style-title { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.6; }
+.scope-dim { margin-bottom: 10px; }
 .scope-dim:last-child { margin-bottom: 0; }
-.scope-dim-head { font-weight: 600; color: var(--primary); font-size: 13px; margin-bottom: 6px; }
+.scope-dim-head { font-weight: 600; color: var(--primary); font-size: 14px; margin-bottom: 8px; }
 
 .form-group {
   margin-bottom: 16px;
