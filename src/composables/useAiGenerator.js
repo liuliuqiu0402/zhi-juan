@@ -5074,14 +5074,16 @@ ${cardAnalysisText.substring(0, 1000)}
           allowContinuation: false,
           temperature: 0.7,
         });
-        content = normalizeBlankMarkers(cleanSectionHtml(typeof resp === 'string' ? resp : (resp?.content || '')));
-        // 🔴 截断检测：输出尾部无闭合标签/结束标点且较长 → 疑似截断 → 续写一次
+        const respObj = typeof resp === 'string' ? { content: resp, finishReason: '' } : (resp || { content: '', finishReason: '' });
+        content = normalizeBlankMarkers(cleanSectionHtml(respObj.content || ''));
+        // 🔴 截断判定：优先用 API 的 finish_reason=length（可靠，不依赖尾部启发式）；启发式作兜底
+        const truncatedByReason = respObj.finishReason === 'length' && content.length > 200;
         const tail = content.slice(-120);
         const looksTruncated = content.length > 500
           && !/<\/[a-z]+>$/i.test(tail)
           && !/[。！？；」』）)\n]$/.test(tail.trim());
-        if (looksTruncated) {
-          console.warn('⚠️ 整卷输出疑似截断，自动续写一次...');
+        if (truncatedByReason || looksTruncated) {
+          console.warn(`⚠️ 整卷输出${truncatedByReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，自动续写一次...`);
           const contResp = await callAI(
             `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-200)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
             { taskType: 'generation', timeout: 300000, retries: 0, maxTokens: 8192, allowContinuation: false, temperature: 0.7 }

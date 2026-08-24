@@ -507,20 +507,24 @@ export const getAvailableModels = async () => {
 // 🔧 模型自动发现缓存（避免每次生成都调 /models）
 let _deepseekModelsCache = null;
 let _deepseekModelsCacheTime = 0;
+let _deepseekDiscoverPromise = null; // 🔧 并发去重：同一次发现共享一个进行中的请求
 const MODEL_DISCOVERY_TTL = 3600000; // 1 小时
 
 /**
  * 🔧 自动发现 DeepSeek 云端最新可用模型
  * 调用 GET /models 端点，优先选择 pro 模型，其次 flash
  * 降级：API 调用失败 / 无 API Key → 保持当前配置不变
- * 缓存：1 小时内不重复请求
+ * 缓存：1 小时内不重复请求；并发去重：同批次并发调用共享一次拉取
  */
 export const autoDiscoverDeepSeekModel = async () => {
   const now = Date.now();
   if (_deepseekModelsCache && (now - _deepseekModelsCacheTime) < MODEL_DISCOVERY_TTL) {
     return _deepseekModelsCache;
   }
-  
+  // 🔧 并发去重：生成前多个守卫并发调用时共享同一次拉取（避免重复请求与重复日志）
+  if (_deepseekDiscoverPromise) return _deepseekDiscoverPromise;
+
+  _deepseekDiscoverPromise = (async () => {
   // 无 API Key 时不调用（/models 可能需鉴权）
   if (!apiConfig.deepseekApiKey) {
     console.log('🔍 DeepSeek 未配置 API Key，跳过模型自动发现');
@@ -570,12 +574,17 @@ export const autoDiscoverDeepSeekModel = async () => {
     }
     
     _deepseekModelsCache = bestModel;
-    _deepseekModelsCacheTime = now;
+    _deepseekModelsCacheTime = Date.now();
     return bestModel;
   } catch (e) {
     console.warn('🔍 DeepSeek 模型自动发现失败，使用已配置的模型:', e.message);
     return apiConfig.deepseekModel;
   }
+  })().finally(() => {
+    _deepseekDiscoverPromise = null;
+  });
+
+  return _deepseekDiscoverPromise;
 };
 
 /**
