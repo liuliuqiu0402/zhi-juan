@@ -169,13 +169,12 @@ describe('inferPaperScope —— 范围推断（对应命题老师勾选行为�
 });
 
 describe('buildScopeCandidates —— 范围确认弹窗候选（按勾选内容提取）', () => {
-  it('单元勾选：候选首项为单元名（推荐），附综合类标签备选（不含期中/期末）', () => {
+  it('单元勾选：候选唯一为单元名（标题必须携带单元信息，不提供丢失范围的通用标签）', () => {
     const cs = buildScopeCandidates([kecheng1, kecheng2], outline, 'default');
+    expect(cs).toHaveLength(1);
     expect(cs[0].value).toBe('第一单元');
     expect(cs[0].hint).toContain('单元');
-    expect(cs.length).toBeGreaterThan(1); // 有备选标签
-    expect(cs.some(c => c.value === '综合检测')).toBe(true);
-    // 单单元场景不塞期中/期末类标签（避免无关候选）
+    expect(cs.some(c => c.value === '综合检测')).toBe(false);
     expect(cs.some(c => c.value === '期中综合测试')).toBe(false);
     expect(cs.some(c => c.value === '期末综合测试')).toBe(false);
   });
@@ -191,12 +190,11 @@ describe('buildScopeCandidates —— 范围确认弹窗候选（按勾选内容
     expect(cs.map(c => c.value)).toEqual(['期中综合测试', '阶段综合测评', '中期学业检测']);
   });
 
-  it('单课：候选含课名（推荐）与综合类标签备选（不含期中/期末）', () => {
+  it('单课：候选唯一为课名（不带标签备选）', () => {
     const cs = buildScopeCandidates([kecheng1], outline, 'default');
+    expect(cs).toHaveLength(1);
     expect(cs[0].value).toBe('第2课 观潮');
-    expect(cs.some(c => c.value === '综合检测')).toBe(true);
-    expect(cs.some(c => c.value === '期中综合测试')).toBe(false);
-    expect(cs.some(c => c.value === '期末综合测试')).toBe(false);
+    expect(cs.some(c => c.value === '综合检测')).toBe(false);
   });
 });
 

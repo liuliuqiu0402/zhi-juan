@@ -167,10 +167,9 @@ export function buildScopeCandidates(chapters = [], outline = [], scopeType = ''
     if (inferred.category !== 'midterm') pushPool('midterm');
     if (inferred.category !== 'final') pushPool('final');
   } else {
-    // 单元/课名：勾选范围名优先（推荐），附综合类标签备选——
-    //    期中/期末类标签仅在显式范围类型或跨单元场景出现，单单元/单课不塞无关标签
+    // 单元/课名：勾选范围名是唯一合理候选（标题必须携带单元/课信息），
+    //    不提供"综合检测"等丢失范围信息的通用标签——那是跨单元/显式类型才适用的命名
     push(inferred.name, inferred.name, inferred.category === 'unit' ? '勾选范围（单元）' : '勾选范围（课）');
-    pushPool('default', '备选标签（综合类）');
   }
   return list;
 }
