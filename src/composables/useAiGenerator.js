@@ -5068,12 +5068,21 @@ ${cardAnalysisText.substring(0, 1000)}
     if (diffKps?.length) {
       prompt += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}`;
     }
-    // 🔴 答案页由系统在正文生成后单独调用生成：强制约定本次只输出正文（题目与卷面），
-    //    覆盖模板里残留的"正文后再另起一部分输出答案"旧要求，防止模型把答案混入正文（正文+答案重复）
-    prompt += `\n\n【输出约定】本次只输出资料/试卷正文（题目、卷面与作答区）。严禁在正文中输出任何答案、解析、评分标准、听力原文——参考答案由系统在正文生成后单独调用生成。`;
+    // 🔧 整卷生成方式（设置页可选）：'once' 一次成型（正文+答案一次输出，上下文全程一致）；
+    //    'split'（默认）正文一次 + 答案页独立一次（温度/角色分层，推荐）
+    const generateMode = apiConfig.generationSettings.paperGenerateMode === 'once' ? 'once' : 'split';
+    if (generateMode === 'once') {
+      prompt += `\n\n【输出约定】本次输出完整试卷/资料正文，并在正文结束后另起一部分输出《参考答案与评分标准》/《参考答案与解析》：
+· 答案区大题用 <h2>（如 <h2>参考答案与评分标准</h2>），逐题对应、注明分值；评分标准/等级表用 <table>；听力题附完整听力原文
+· 严禁使用 ##、**、|表格 等 Markdown 语法；严禁 \`\`\` 代码块包裹；直接输出 HTML 内容`;
+    } else {
+      // 🔴 答案页由系统在正文生成后单独调用生成：强制约定本次只输出正文（题目与卷面），
+      //    覆盖模板里残留的"正文后再另起一部分输出答案"旧要求，防止模型把答案混入正文（正文+答案重复）
+      prompt += `\n\n【输出约定】本次只输出资料/试卷正文（题目、卷面与作答区）。严禁在正文中输出任何答案、解析、评分标准、听力原文——参考答案由系统在正文生成后单独调用生成。`;
+    }
 
-    // ── 段1：整卷正文一次生成 ──
-    statusText.value = '整卷生成：一次生成完整试卷正文...';
+    // ── 段1：整卷正文一次生成（once 模式正文+答案一次输出） ──
+    statusText.value = '整卷生成：一次生成完整试卷...';
     progress.value = 45;
     let content = '';
     let lastErr = null;
@@ -5081,11 +5090,12 @@ ${cardAnalysisText.substring(0, 1000)}
       try {
         const resp = await callAI(prompt, {
           taskType: 'generation', timeout: 300000, retries: 0,
-          // 🔴 整卷预算：32K tokens（≈9.6 万字符）。模型为 deepseek-v4-flash/pro（单次输出上限 384K、上下文 1M），
-          //    8192 是 V3.2 时代的保守值，会人为截断完整卷面；32K 对 60 分钟大卷与答案页外的正文绰绰有余
-          maxTokens: 32768,
+          // 🔴 整卷预算：split 32K（正文，≈9.6 万字符）/ once 49K（正文+答案，≈14.7 万字符）。
+          //    模型为 deepseek-v4-flash/pro（单次输出上限 384K、上下文 1M），8192 是 V3.2 时代的保守值，
+          //    会人为截断完整卷面；当前预算对 60 分钟大卷与答案页均绰绰有余
+          maxTokens: generateMode === 'once' ? 49152 : 32768,
           allowContinuation: false,
-          // 🔧 整卷正文温度走设置页（paperTemperature，默认 0.7，可调）
+          // 🔧 整卷正文温度走设置页（paperTemperature，默认 0.7，可调；once 模式答案部分共用此温度）
           temperature: apiConfig.generationSettings.paperTemperature ?? 0.7,
         });
         const respObj = typeof resp === 'string' ? { content: resp, finishReason: '' } : (resp || { content: '', finishReason: '' });
@@ -5100,7 +5110,7 @@ ${cardAnalysisText.substring(0, 1000)}
           console.warn(`⚠️ 整卷输出${truncatedByReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，自动续写一次...`);
           const contResp = await callAI(
             `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-200)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
-            { taskType: 'generation', timeout: 300000, retries: 0, maxTokens: 32768, allowContinuation: false, temperature: apiConfig.generationSettings.paperTemperature ?? 0.7 }
+            { taskType: 'generation', timeout: 300000, retries: 0, maxTokens: generateMode === 'once' ? 49152 : 32768, allowContinuation: false, temperature: apiConfig.generationSettings.paperTemperature ?? 0.7 }
           );
           const contHtml = normalizeIndents(normalizeBlankMarkers(cleanSectionHtml(typeof contResp === 'string' ? contResp : (contResp?.content || ''))));
           if (contHtml && contHtml.length > 100) content = content + '\n' + contHtml;
@@ -5120,41 +5130,51 @@ ${cardAnalysisText.substring(0, 1000)}
       throw new Error(`整卷生成失败: ${lastErr?.message || '未知错误'}`);
     }
 
-    // ── 段2：答案页（独立调用，防整卷+答案一次超长；上下文=整卷正文全文，
-    //         模型"看着实际题目作答"——杜绝摘要提取失败后凭记忆编造导致答案与正文不符） ──
-    statusText.value = genType === 'exam' ? '整卷生成：撰写参考答案与评分标准...' : '整卷生成：撰写参考答案与解析...';
-    progress.value = 85;
+    // ── 段2：答案页（split 模式独立调用：上下文=整卷正文全文，模型"看着实际题目作答"——
+    //         杜绝摘要提取失败后凭记忆编造导致答案与正文不符；
+    //         once 模式正文已含答案区则跳过，若模型漏输出答案区则降级补一次独立答案页） ──
     let answerHtml = '';
-    try {
-      // 类型差异化：exam 用阅卷专家+评分标准（作文评分/听力原文）；非 exam 用教辅编辑+参考答案与解析
-      const ansRole = genType === 'exam'
-        ? '你是阅卷专家。请为以下试卷逐题撰写完整《参考答案与评分标准》：每题给出答案与简要解析；选择题给正确选项；作文/写话给评分标准（等级描述+采分点）；听力题附完整听力原文。'
-        : '你是教辅编辑。请为以下资料逐题撰写完整《参考答案与解析》：选择题给正确选项；错题类附错误归因与正确解法；知识总结/预习类给出要点梳理与参考解答。';
-      // 🔧 上下文根治：整卷正文转纯文本作为输入（不依赖 class="question" 摘要——摘要提取失败/不全即凭记忆编造）
-      const paperPlain = htmlToPlainText(content, 24000);
-      // 🔧 格式根治：答案页注入与正文一致的 HTML 输出规范（此前无格式要求 → 模型直接输出 Markdown 源码）
-      const ansFormat = `【答案页输出格式】（HTML 规范，与正文一致，便于排版导出）
+    const ansInContent = /<h2[^>]*>参考答案|answer-section/.test(content);
+    if (generateMode !== 'once' || !ansInContent) {
+      statusText.value = genType === 'exam' ? '整卷生成：撰写参考答案与评分标准...' : '整卷生成：撰写参考答案与解析...';
+      progress.value = 85;
+      try {
+        // 类型差异化：exam 用阅卷专家+评分标准（作文评分/听力原文）；非 exam 用教辅编辑+参考答案与解析
+        const ansRole = genType === 'exam'
+          ? '你是阅卷专家。请为以下试卷逐题撰写完整《参考答案与评分标准》：每题给出答案与简要解析；选择题给正确选项；作文/写话给评分标准（等级描述+采分点）；听力题附完整听力原文。'
+          : '你是教辅编辑。请为以下资料逐题撰写完整《参考答案与解析》：选择题给正确选项；错题类附错误归因与正确解法；知识总结/预习类给出要点梳理与参考解答。';
+        // 🔧 上下文根治：整卷正文转纯文本作为输入（不依赖 class="question" 摘要——摘要提取失败/不全即凭记忆编造）
+        const paperPlain = htmlToPlainText(content, 24000);
+        // 🔧 格式根治：答案页注入与正文一致的 HTML 输出规范（此前无格式要求 → 模型直接输出 Markdown 源码）
+        const ansFormat = `【答案页输出格式】（HTML 规范，与正文一致，便于排版导出）
 · 大题用 <h2>（如 <h2>一、识字与写字</h2>）；每题先写题号（与试卷正文完全一致）再写答案与解析
 · 评分标准/等级表用 <table> 表格；听力题附完整听力原文
 · 严禁使用 ##、**、|表格 等 Markdown 语法；严禁 \`\`\` 代码块包裹；直接输出 HTML 内容`;
-      const ansPrompt = `${ansRole}题号与试卷正文完全一致，逐题作答，不要重复题目原文。
+        const ansPrompt = `${ansRole}题号与试卷正文完全一致，逐题作答，不要重复题目原文。
 ${ansFormat}
 
 【试卷正文】
 ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
-      const ansResp = await callAI(ansPrompt, {
-        taskType: 'generation', timeout: 240000, retries: 1,
-        // 🔴 答案页预算：16K tokens（≈4.8 万字符），覆盖完整答案+评分标准+听力原文；V4 输出上限 384K 下无截断风险
-        // 🔧 答案页温度走设置页（answerTemperature，默认 0.3，可调）
-        maxTokens: 16384, allowContinuation: false, temperature: apiConfig.generationSettings.answerTemperature ?? 0.3,
-      });
-      const aHtml = cleanSectionHtml(typeof ansResp === 'string' ? ansResp : (ansResp?.content || ''));
-      if (aHtml && aHtml.length > 100) {
-        const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
-        answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${aHtml}</div>`;
+        const ansResp = await callAI(ansPrompt, {
+          taskType: 'generation', timeout: 240000, retries: 1,
+          // 🔴 答案页预算：16K tokens（≈4.8 万字符），覆盖完整答案+评分标准+听力原文；V4 输出上限 384K 下无截断风险
+          // 🔧 答案页温度走设置页（answerTemperature，默认 0.3，可调）
+          maxTokens: 16384, allowContinuation: false, temperature: apiConfig.generationSettings.answerTemperature ?? 0.3,
+        });
+        const aHtml = cleanSectionHtml(typeof ansResp === 'string' ? ansResp : (ansResp?.content || ''));
+        if (aHtml && aHtml.length > 100) {
+          const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
+          answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${aHtml}</div>`;
+        }
+      } catch (e) {
+        console.warn('⚠️ 答案页生成失败（正文仍有效）:', e.message);
       }
-    } catch (e) {
-      console.warn('⚠️ 答案页生成失败（正文仍有效）:', e.message);
+    }
+
+    // 🔧 once 模式答案区包装：模型输出的 <h2>参考答案… 无 answer-section 包裹 → 补包，
+    //    docx 导出才能把答案区拆分为独立分节（页码独立、不计入正文页数）
+    if (generateMode === 'once' && ansInContent && !/<div[^>]*class="[^"]*answer-section"/.test(content)) {
+      content = content.replace(/(<h2[^>]*>\s*参考答案[\s\S]*?)$/i, (m, ansPart) => `<div class="answer-section">\n${ansPart}</div>`);
     }
 
     // 🔴 标题根治兜底：移除模型拼入 h1 的任务行类型词（如" 考卷"），标题只保留命名规范占位符组合
@@ -5165,7 +5185,8 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     if (genType === 'exam' && !/<div[^>]*class="[^"]*seal-zone[^"]*"/.test(finalContent)) {
       finalContent = `${buildSealLineHeader()}\n${finalContent}`;
     }
-    console.log(`✅ 整卷生成完成：${finalContent.length} 字符${answerHtml ? '（含答案页）' : '（答案页缺失）'}（指令库注入）`);
+    const modeLabel = generateMode === 'once' ? '一次成型' : '两次生成';
+    console.log(`✅ 整卷生成完成：${finalContent.length} 字符（${modeLabel}${answerHtml ? '，含独立答案页' : ''}）（指令库注入）`);
     return {
       success: true,
       content: finalContent,

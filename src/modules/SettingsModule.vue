@@ -423,6 +423,25 @@
           </label>
         </div>
 
+        <!-- 整卷生成方式：两次生成 / 一次成型 -->
+        <div style="margin-bottom:14px;background:#f0f7ff;border:1px solid #b3d4f5;border-radius:8px;padding:8px 12px;">
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:6px;">📜 整卷生成方式</div>
+          <div style="display:flex;gap:8px;margin-bottom:4px;">
+            <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:14px;cursor:pointer;font-size:12px;font-weight:500;border:1px solid #4a90d9;color:#4a90d9;background:#fff;" :style="(settings.generationSettings.paperGenerateMode ?? 'split') === 'split' ? { background:'#4a90d9', color:'#fff' } : {}">
+              <input type="radio" v-model="settings.generationSettings.paperGenerateMode" value="split" hidden />
+              两次生成
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:14px;cursor:pointer;font-size:12px;font-weight:500;border:1px solid #4a90d9;color:#4a90d9;background:#fff;" :style="(settings.generationSettings.paperGenerateMode ?? 'split') === 'once' ? { background:'#4a90d9', color:'#fff' } : {}">
+              <input type="radio" v-model="settings.generationSettings.paperGenerateMode" value="once" hidden />
+              一次成型
+            </label>
+          </div>
+          <div style="font-size:11px;color:#888;line-height:1.5;">
+            两次生成：正文一次 + 答案页独立一次（答案用阅卷专家角色 + 低温严谨，推荐）；<br/>
+            一次成型：正文与答案一次输出（上下文全程一致；答案部分与正文共用"整卷正文生成"温度，模型漏输出答案时自动补一次独立答案页）。
+          </div>
+        </div>
+
         <!-- 质量审查 -->
         <div style="margin-bottom:0;">
           <label style="display:flex;justify-content:space-between;">
