@@ -152,8 +152,9 @@ export function buildScopeCandidates(chapters = [], outline = [], scopeType = ''
     seen.add(value);
     list.push({ label, value, hint });
   };
-  const pushPool = (cat) => {
-    for (const w of (SCOPE_LABEL_POOLS[cat] || SCOPE_LABEL_POOLS.default)) push(w, w, '范围标签');
+  const pushPool = (cat, hint) => {
+    const h = hint || '范围标签';
+    for (const w of (SCOPE_LABEL_POOLS[cat] || SCOPE_LABEL_POOLS.default)) push(w, w, h);
   };
   if (EXPLICIT_SCOPE_TYPES.includes(scopeType)) {
     pushPool(scopeType);
@@ -166,11 +167,10 @@ export function buildScopeCandidates(chapters = [], outline = [], scopeType = ''
     if (inferred.category !== 'midterm') pushPool('midterm');
     if (inferred.category !== 'final') pushPool('final');
   } else {
-    // 单元/课名：勾选范围名优先，补充常用标签备选
+    // 单元/课名：勾选范围名优先（推荐），附综合类标签备选——
+    //    期中/期末类标签仅在显式范围类型或跨单元场景出现，单单元/单课不塞无关标签
     push(inferred.name, inferred.name, inferred.category === 'unit' ? '勾选范围（单元）' : '勾选范围（课）');
-    pushPool('default');
-    pushPool('midterm');
-    pushPool('final');
+    pushPool('default', '备选标签（综合类）');
   }
   return list;
 }
