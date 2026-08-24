@@ -46,7 +46,6 @@
         <p style="margin: 16px 0; white-space: pre-line; max-height: 300px; overflow-y: auto;">{{ retryDialogMessage }}</p>
         <div class="modal-actions" style="flex-wrap: wrap; gap: 8px;">
           <button class="btn" @click="cancelRetry">取消</button>
-          <button class="btn" style="background: #f0f0f0; color: #555;" @click="chooseBatch">📉 批量生成模式</button>
           <button class="btn-primary" @click="chooseRetry">🔄 原样重试</button>
         </div>
       </div>
@@ -111,7 +110,6 @@ const {
   showRetryDialog,
   retryDialogMessage,
   chooseRetry,
-  chooseBatch,
   cancelRetry,
   showRadioDialog,
   radioDialogMessage,

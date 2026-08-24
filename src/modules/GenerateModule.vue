@@ -49,9 +49,6 @@
           <span class="chip-model">{{ apiConfig.currentEngine === 'deepseek' ? currentModelSummary.heavy + ' + ' + currentModelSummary.light : currentModelSummary.heavy }}</span>
           <span v-if="deepseekStatus === 'error'" class="chip-status-err" :title="deepseekStatusMsg">⚠️</span>
         </div>
-        <button class="ribbon-btn" @click="saveToInstructionLib">
-          💾 保存到指令库
-        </button>
       </div>
     </div>
 
@@ -61,7 +58,7 @@
         📋 已选<span v-if="selectedTextbookCount" class="gen-tab-badge">{{ selectedTextbookCount }}</span>
       </div>
       <div class="gen-tab" :class="{ active: mobileGenTab === 'instruct' }" @click="mobileGenTab = 'instruct'">
-        📝 指令
+        📝 方案
       </div>
       <div class="gen-tab" :class="{ active: mobileGenTab === 'result' }" @click="mobileGenTab = 'result'">
         📄 结果<span v-if="displayedDocs.length" class="gen-tab-badge">{{ displayedDocs.length }}</span>
@@ -141,19 +138,30 @@
         </div>  
         </div>            
 
-      <!-- 中间：指令编辑区 -->
+      <!-- 中间：注入指令（指令库模板渲染，可见可编辑——改本次生效；长期修改去指令库面板） -->
       <div class="instruction-panel" v-show="!isMobile || mobileGenTab === 'instruct'">
         <div class="panel-header">
-          <h3>📝 生成指令</h3>
+          <h3>📝 注入指令</h3>
           <div class="header-actions">
-            <button class="btn-primary" @click="buildInstruction">🔧 生成指令</button>
+            <button class="btn-primary" @click="loadInstructionFromLibrary">🔧 生成指令</button>
+            <button class="btn" @click="restoreDefaultInstruction">↩️ 恢复默认</button>
             <button class="btn" @click="clearInstruction">🗑️ 清空</button>
             <button class="btn" @click="analyzeTextbook" v-if="!isMobile">🔍 分析教材</button>
             <button class="btn" @click="analyzeTemplate" v-if="!isMobile">🔍 分析模板</button>
             <span class="analyze-model-hint" title="知识点结构化分析推荐模型，在设置→分析提取模型中配置">📚 glm4:9b</span>
           </div>
         </div>
-        <textarea v-model="instructionDraft" placeholder="点击「生成指令」根据勾选内容自动构建，或直接手动输入..." class="instruction-textarea"></textarea>
+        <textarea
+          v-model="instructionDraft"
+          placeholder="点击「生成指令」，按 年级×学科×资料类型 从指令库匹配注入；可直接编辑（仅本次生成生效）。长期修改请在「指令库」面板编辑保存。"
+          class="instruction-textarea"
+        ></textarea>
+        <div v-if="instructionSource" class="instruction-source">
+          来源：{{ instructionSource.name }}（{{ instructionSource.source === 'user' ? '用户自定义' : '内置模板' }}）· 匹配维度：{{ instructionSource.key }}
+        </div>
+        <div class="inject-hint">
+          📎 生成时自动附加：教材原文（按知识点检索，分级限量）、{{ templateStore.templates.some(t => t.selected) ? '模板对标、' : '' }}{{ propositionStyle ? '情境框架、' : '' }}用户附加要求
+        </div>
         
         <div v-if="previewHint" class="preview-hint">
           <span>{{ previewHint }}</span>
@@ -195,8 +203,8 @@
           </div>
         </div>
         <div class="generate-actions" v-if="!isMobile">
-          <button class="btn-success" @click="generate('single')" :disabled="!instructionDraft || isGenerating">📄 单生成</button>
-          <button class="btn-success" @click="generate('multiple')" :disabled="!instructionDraft || isGenerating || genTypes.length < 2">📚 复生成 ({{ genTypes.length }}个)</button>
+          <button class="btn-success" @click="generate('single')" :disabled="!hasSelectedChapters || isGenerating">📄 单生成</button>
+          <button class="btn-success" @click="generate('multiple')" :disabled="!hasSelectedChapters || isGenerating || genTypes.length < 2">📚 复生成 ({{ genTypes.length }}个)</button>
           <button class="btn-cancel" @click="handleCancelOrRelease">
             {{ isGenerating ? '❌ 取消生成' : '🧹 释放显存' }}
           </button>
@@ -326,10 +334,10 @@
 
     <!-- 📱 移动端固定底部操作栏 -->
     <div v-if="isMobile" class="mobile-gen-fab">
-      <button class="fab-btn fab-primary" @click="handleMobileGenerate('single')" :disabled="!instructionDraft || isGenerating">
+      <button class="fab-btn fab-primary" @click="handleMobileGenerate('single')" :disabled="!hasSelectedChapters || isGenerating">
         📄 单生成
       </button>
-      <button class="fab-btn fab-secondary" @click="handleMobileGenerate('multiple')" :disabled="!instructionDraft || isGenerating || genTypes.length < 2">
+      <button class="fab-btn fab-secondary" @click="handleMobileGenerate('multiple')" :disabled="!hasSelectedChapters || isGenerating || genTypes.length < 2">
         📚 复生成({{ genTypes.length }})
       </button>
       <button class="fab-btn fab-cancel" @click="handleCancelOrRelease">
@@ -597,29 +605,6 @@
       </div>
     </Teleport>
 
-    <!-- 指令库弹窗 -->
-    <div v-if="showInstructionLibModal" class="modal-mask" @click.self="showInstructionLibModal = false">
-      <div class="modal large-modal">
-        <h3>📋 指令库</h3>
-        <div class="instruction-lib-list">
-          <div v-for="ins in instructionStore.list" :key="ins.id" class="lib-item">
-            <div class="lib-info">
-              <span class="lib-name">{{ ins.name }}</span>
-              <span class="lib-category">{{ ins.category }}</span>
-            </div>
-            <div class="lib-actions">
-              <button class="btn-small" @click="loadInstruction(ins)">加载</button>
-              <button class="btn-small" @click="appendInstruction(ins)">追加</button>
-              <button class="btn-small btn-delete" v-if="!ins.builtin" @click="deleteInstructionFromLib(ins.id)">🗑️</button>
-            </div>
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button class="btn" @click="showInstructionLibModal = false">关闭</button>
-        </div>
-      </div>
-    </div>
-
     <!-- 分析确认弹窗 -->
     <div v-if="showAnalysisModal" class="modal-mask" @click.self="showAnalysisModal = false">
       <div class="modal large-modal" style="max-width: 900px; width: 90%;">
@@ -776,30 +761,6 @@
           <button class="btn-primary" @click="confirmRawTextWithImages" :disabled="isAnalyzingImages" style="padding: 10px 20px;">
             {{ isAnalyzingImages ? '🔄 正在分析图片...' : '✅ 确认原文，继续分析' }}
           </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 保存到指令库弹窗 -->
-    <div v-if="showSaveToLibModal" class="modal-mask" @click.self="showSaveToLibModal = false">
-      <div class="modal">
-        <h3>💾 保存到指令库</h3>
-        <div class="form-group">
-          <label>指令名称</label>
-          <input type="text" v-model="newInstructionName" placeholder="例如：高中数学试卷模板" />
-        </div>
-        <div class="form-group">
-          <label>分类</label>
-          <select v-model="newInstructionCategory">
-            <option value="试卷">试卷</option>
-            <option value="课时练">课时练</option>
-            <option value="知识点总结">知识点总结</option>
-            <option value="自定义">自定义</option>
-          </select>
-        </div>
-        <div class="modal-actions">
-          <button class="btn" @click="showSaveToLibModal = false">取消</button>
-          <button class="btn-primary" @click="confirmSaveToLib">保存</button>
         </div>
       </div>
     </div>
@@ -1529,9 +1490,23 @@ import {
   genTypeTemplates,
   scopeOptions,
   granularityOptions,
-  subjectCoreCompetencies
+  subjectCoreCompetencies,
+  normalizeSubjectName
 } from '../config/expertKnowledge.js';
 import { useAiGenerator } from '../composables/useAiGenerator.js';
+import { inferPaperScope, buildScopeCandidates } from '../config/recipe/paperScope.js';
+
+// 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
+const SCOPE_TYPE_LABELS = { default: '默认', midterm: '期中', final: '期末', monthly: '月考', topic: '专题' };
+const SCOPE_BASIS = {
+  lesson: '单课',
+  unit: '整个单元（目录全勾选）',
+  midterm: '跨前段单元·自动判定为期中',
+  final: '跨至书末单元·自动判定为期末',
+  default: '跨单元中段·综合检测',
+  monthly: '月考',
+  topic: '专题',
+};
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, AlignmentType } from 'docx';
 import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml, parseMarkdownToTextRuns } from '../utils/wordExporter.js';
 import { buildTianZiGeMarker, htmlToDocxBlob } from '../utils/docxBuilder.js';
@@ -1542,9 +1517,11 @@ import { pushDeletedDocIds } from '../utils/cloudStorage';
 import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
 import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
-import { useInstructionStore } from '../stores/instructionStore.js';
-import { getMatchingBlockInstructions } from '../config/instructionLib.js';
 import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
+import { findBlueprint } from '../config/blueprintProvider.js';
+import { getPromptTemplate, buildInjectionInstruction, buildStructureText, OUTPUT_FORMAT_HINT } from '../config/promptLibrary.js';
+import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
+import { buildBlueprintInjection } from '../config/examPaperBlueprints.js';
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
@@ -1580,10 +1557,13 @@ const getSelectedBookSubject = () => {
 
 // 配置选项
 const scopeType = ref('');
+const scopeOverride = ref('');  // 🔧 范围确认弹窗后用户选定的范围名（优先于自动推断）
 const mergeChapters = ref(true);  // 🔧 多章节合并出卷开关（默认合并；false=逐章拆分）
 const propositionStyle = ref('');
 const styleManuallySet = ref(false);  // 🔴 追踪用户是否手动选过命题风格——false 时切换 genType 自动覆盖
 const genTypes = ref([]);
+// 🔴 新架构：生成前置条件 = 已选教材章节（不再依赖指令文本）
+const hasSelectedChapters = computed(() => textbookStore.selectedChapterCount > 0);
 const specialSubType = ref('');  // 🎯 专项子类型（仅 genType=special 时生效）
 const generateGranularity = ref('');
 const totalScore = ref('');
@@ -1601,21 +1581,7 @@ const difficultyLevels = ref([
   { name: '提高题', selected: true, percentage: null }
 ]);
 
-// 🔧 命题范围名称轮换池——避免标题千篇一律（如全是干巴巴的"期中"）
-const scopeLabelPools = {
-  midterm: ['期中综合测试', '阶段综合测评', '中期学业检测'],
-  final:   ['期末综合测试', '学期综合测评', '期末学业检测'],
-  topic:   ['专题复习', '专项复习', '专题训练'],
-};
-const _scopeLabelCounters = {};
-const pickScopeLabel = (scopeTypeVal, chapters) => {
-  const pool = scopeLabelPools[scopeTypeVal];
-  if (!pool || !chapters?.length) return null;
-  const chapterKey = chapters.map(c => c.title).join('|').slice(0, 80);
-  const key = `${scopeTypeVal}__${chapterKey}`;
-  _scopeLabelCounters[key] = (_scopeLabelCounters[key] || 0) % pool.length;
-  return pool[_scopeLabelCounters[key]++];
-};
+// 命题范围命名统一由 paperScope.inferPaperScope 处理（选课→课名、整单元→单元名、跨单元/期中/期末/月考/专题→标签词）
 
 // ✏️ 名称样式选择（方案二）：默认自动轮换，可选池中固定名称（用户记不住池子里的名称，下拉直接展示）
 const showLabelStyleModal = ref(false);
@@ -1644,8 +1610,6 @@ const showGranularityModal = ref(false);
 const showDetailConfigModal = ref(false);
 const showPreview = ref(false);
 const showEditor = ref(false);
-const showInstructionLibModal = ref(false);
-const showSaveToLibModal = ref(false);
 // ✨ 蓝图确认相关
 const showBlueprintConfirmModal = ref(false);
 const pendingBlueprint = ref('');          // 原始蓝图文本
@@ -2794,6 +2758,13 @@ const instructionDraft = ref(
     } catch { return ''; }
   })()
 );
+// 🔴 指令来源记录（注入框展示：来自指令库哪条模板、按什么维度匹配）
+const instructionSource = ref(null);
+// 🔴 学段显示名（原 planner 导出，planner 已删除，本地定义）
+const STAGE_LABEL_MAP = {
+  primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段',
+  middle: '初中', high: '高中',
+};
 watch(instructionDraft, (val) => {
   try {
     if (val) localStorage.setItem(DRAFT_STORAGE_KEY, val);
@@ -2954,9 +2925,6 @@ watch([showPreview, previewingDoc], () => {
   } catch {}
 });
 
-// 指令库
-const newInstructionName = ref('');
-const newInstructionCategory = ref('试卷');
 // 🔧 逐章生成：保存最近一次 buildInstruction 的 options，供逐章循环中为每个章节重建专属指令
 const lastInstructionOptions = ref(null);
 
@@ -2965,8 +2933,8 @@ const currentBook = ref(null);
 const currentChapter = ref(null);
 const editingKnowledge = ref('');
 
-// AI生成器
-const { isGenerating, progress: generateProgress, statusText: generateStatus, buildGenerationInstruction, getTypeDistribution, generate: callGenerate, executeGenerationWithBlueprint, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool } = useAiGenerator();
+// AI生成器（新架构：不再使用 buildGenerationInstruction 长指令构建）
+const { isGenerating, progress: generateProgress, statusText: generateStatus, getTypeDistribution, generate: callGenerate, executeGenerationWithBlueprint, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool } = useAiGenerator();
 
 // ✏️ 名称样式：类型切换恢复上次选择 + 当前选择同步到生成器（在 useAiGenerator 解构之后，避免 TDZ）
 watch(genTypes, () => {
@@ -3156,7 +3124,6 @@ const selectedTemplates = computed(() => templateStore.selectedTemplates);
 const selectedTextbookCount = computed(() => textbookStore.selectedChapterCount);
 
 const selectedTemplateCount = computed(() => templateStore.selectedCount);
-const selectedInstructionCount = computed(() => instructionStore.list.filter(i => i.selected && i.type === 'fragment').length);
 // 分析勾选相关
 const allTextbookSelectedForAnalysis = computed(() => {
   const all = [];
@@ -3195,7 +3162,6 @@ const selectedCount = computed(() => generatedDocs.value.filter(d => d.selected)
 const allSelected = computed(() => generatedDocs.value.length > 0 && generatedDocs.value.every(d => d.selected));
 
 // 数据加载
-const instructionStore = useInstructionStore();
 const textbookStore = useTextbookStore();
 const templateStore = useTemplateStore();
 const { isMobile } = useMobile();
@@ -4077,154 +4043,215 @@ const buildInstruction = async () => {
   const stageMapIns = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
   const currentStageEn = stageMapIns[currentStageRaw] || currentStageRaw;
   
-  // 🔧 已在 buildGenerationInstruction 中有专属 section 处理的类别，不再重复注入到 【自动注入指令】
-  // 确保每条规则都是独立的【】块，通过年级/学科/资料类型三维智能匹配后自动注入
-  const HANDLED_BY_DEDICATED_SECTION = new Set([
-    // 生成专用分类（Section 1.5~10 中已通过 getMatchingBlockInstructions 精确匹配）—— dash 格式（内置 fragment）
-    '生成-学科适配', '生成-资料类型结构',
-    '生成-题目质量标准',
-    '生成-原题引用',
-    '生成-答案与解析规范', '生成-主观题评分标准', '生成-答题模板',
-    '生成-内容规范', '生成-输出格式',
-    '生成-专项要求', '生成-EduRender模板',
-    '生成-题目质量标准',
-    '生成-质量范例', '生成-知识点全覆盖',
-    '生成-学科特色', '生成-情境要求',
-    '生成-学科标记', '生成-术语规范', '生成-特殊要求',
-    // 🔧 补漏：以下 category 有专属 Section 但此前被遗漏
-    '生成-角色身份',        // Section 0.【角色身份】
-    '生成-标题格式',        // Section 0.5.【标题格式】
-    '生成-答案区强制锚定',   // Section 1.5.【答案区强制锚定】
-    '生成-顶层约束',        // Section N.【顶层约束】
-    '生成-尾约束',          // Section N+1.【尾约束】
-    '生成-输出前置指令',     // buildOutputPreamble()
-    // 🔧 补漏（2026-07-24）：大量内置 fragment 因 category 遗漏而走自动注入→位置错误→指令失效
-    '生成-题型专项要求',     // block_type_* 系列
-    '生成-知识边界',         // kb_* 系列
-    '生成-时间分配',         // time_* 系列
-    '生成-题型分布建议',     // typedist_* 系列
-    '生成-核心任务',         // core_task_* 系列
-    '生成-命题风格',         // style_* 系列
-    '生成-年级边界提示',     // grade_hint_* 系列
-    '生成-难度配置',         // diff_* 系列
-    '生成-范围标签',         // scope_label_* 系列
-    '生成-模板禁止项',       // tpl_ban_* 系列
-    
-    '生成-指令块标题',       // section_title_* 系列
-    '生成-范围扩展',         // scope_cross_* 系列（Section: 跨章综合语义 + chapterCount 替换）
-    '生成-格式尾约束',       // format_tail_* 系列（recency 锚点，所有引擎通用）
-    '生成-多章节标题',       // multi_ch_title_* 系列（多章节降级标题格式 + {titles} 替换）
-    // 🔧 补建（2026）：5个新类别，在 buildGenerationInstruction 中有专属 Section
-    '生成-学段控制',         // stage_* 系列：题量/难度/时长按学段建议
-    '生成-题量控制',         // layout_* 系列：建议总题量范围
-    '生成-难度控制',         // diff_* 系列：基础:中等:提高比例
-    '生成-学科核心素养',     // core_literacy_* 系列：课标核心素养关键词
-    
-    '生成-品质标准',         // quality_* 系列：按 genType × stage 注入品质标准
-    '生成-红线约束',         // quality_redlines_* 系列：最高优先级红线清单（前置注入）
-    '生成-页数配置',         // page_* 系列：getPageCount() 读取，不注入 prompt
-    // 🔧 补漏（2026-08）：课标骨架对齐 + 教辅编辑标准，在 buildGenerationInstruction 中有专属 Section
-    '生成-课标骨架',         // skeleton_* 系列：骨架锚定新课标学业要求 + 板块内容不交叉
-    '生成-编辑标准',         // edit_std_* 系列：对标真题卷/正式出版物出版水准
-    // 非生成用途（分析用）
-    '分析-文本分析规范', '分析-分析模板示例', '分析-分析提取要求', '分析-知识图谱构建',
-  ]);
-
-  // 🔧 自动匹配 fragment 指令：统一走 getMatchingBlockInstructions 三维度匹配（不再手写筛选逻辑）
-  const matchedFragmentIds = new Set();
-  const allMatchedFragments = [];
-  const addUniqueFragments = (fragments) => {
-    for (const f of fragments) {
-      if (!matchedFragmentIds.has(f.id)) {
-        matchedFragmentIds.add(f.id);
-        allMatchedFragments.push(f);
-      }
-    }
-  };
-  // 按学科逐一匹配（多学科场景遍历各学科，单学科场景 getMatchingBlockInstructions 已包含通用条目）
-  const subjectsToMatch = currentSubjects.length > 0 ? currentSubjects : [''];
-  for (const subj of subjectsToMatch) {
-    addUniqueFragments(getMatchingBlockInstructions({
-      subject: subj,
-      stage: currentStageEn,
-      genType: genTypes.value?.[0]
-    }));
-  }
-  // 排除已在 buildGenerationInstruction 专属 section 中处理的类别
-  const autoFragments = allMatchedFragments.filter(f => !HANDLED_BY_DEDICATED_SECTION.has(f.category));
+  // 🔴 新架构：不再做 fragment/full 指令自动匹配（长指令注入已废弃）。
+  //    生成完全由配方流水线驱动（findRecipe 三维度匹配 + 规划器 + 派生器）。
+  //    此处仅保留 options 骨架供逐章模式复用（章节信息），不注入任何指令文本。
   
-  // 🔧 运行时守卫：防止内置 fragment 因 HANDLED_BY_DEDICATED_SECTION 遗漏而泄漏
-  if (autoFragments.length > 0) {
-    const leakedBuiltin = autoFragments.filter(f => f.builtin).map(f => f.category);
-    const leakedUnique = [...new Set(leakedBuiltin)];
-    if (leakedUnique.length > 0) {
-      console.warn('[buildInstruction] ⚠️ 内置 fragment 泄漏！以下 category 需要在 HANDLED_BY_DEDICATED_SECTION 中补加：', leakedUnique);
-    }
-  }
-  
-  // 自动匹配 full 指令：根据资料类型+学段自动注入完整指令内容
-  const genTypeCategoryMap = {
-    'exam': '试卷', 'practice': '课时练', 'summary': '知识点总结',
-    'special': '专项突破', 'errorbook': '错题本', 'preview': '课前预习',
-    'dictation': '听写/默写', 'reading': '阅读训练', 'review': '单元/期末复习'
-  };
-  const autoFullInstructions = instructionStore.list.filter(i => {
-    if (i.type !== 'full') return false;
-    // 类别匹配资料类型
-    const targetCategory = genTypeCategoryMap[genTypes.value[0]];
-    if (targetCategory && i.category !== targetCategory) return false;
-    // 学段匹配
-    if (i.stage && i.stage.trim() !== '' && i.stage !== currentStageEn) return false;
-    // 🔧 学科匹配：full 指令如果限定了学科，必须匹配当前学科
-    if (i.subject && i.subject.trim() !== '') {
-      const insSubjects = i.subject.split(',').map(s => s.trim());
-      // 🔧 多学科修复：多学科场景下任一匹配即通过
-      if (currentSubjects.length <= 1) {
-        if (!insSubjects.includes(currentSubject)) return false;
-      } else {
-        if (!insSubjects.some(s => currentSubjects.includes(s))) return false;
-      }
-    }
-    return true;
-  });
-
-  // 诊断日志：仅在异常时输出（autoFragments>0=覆盖缺口，autoFullInstructions=0=无匹配自定义指令）
-  if (autoFragments.length > 0) {
-    console.warn('[buildInstruction] ⚠️ autoFragments 覆盖缺口:', autoFragments.length, '条 →', autoFragments.map(f => ({ id: f.id, category: f.category })));
-  }
-  if (autoFullInstructions.length === 0) {
-    console.log('[buildInstruction] autoFullInstructions 匹配数: 0（当前资料类型无匹配的自定义full指令，非异常）');
-  }
-  
-  // 🔧 智能去重：有学科专属 full 指令时，排除同 category+stage 的通用指令
-  // 避免"按单元词汇表排列"（英语专属）和"按教材内容排列"（通用）同时注入
-  const subjectSpecificKeys = new Set();
-  for (const f of autoFullInstructions) {
-    if (f.subject && f.subject.trim() !== '') {
-      subjectSpecificKeys.add(`${f.category}||${f.stage || ''}`);
-    }
-  }
-  const dedupedFullInstructions = autoFullInstructions.filter(f => {
-    if (!f.subject || f.subject.trim() === '') {
-      const key = `${f.category}||${f.stage || ''}`;
-      if (subjectSpecificKeys.has(key)) return false; // 有学科专属，跳过通用
-    }
-    return true;
-  });
-  
-  options.injectedFragments = autoFragments;
-  options.autoFullInstructions = dedupedFullInstructions;
-  
-  // 🔧 保存 options 供逐章生成时重建专属指令
+  // 🔧 保存 options 供逐章生成时重建方案摘要
   lastInstructionOptions.value = options;
   
+  // 🔴 新架构：方案摘要展示"三维度匹配链路"——指令库匹配 + 蓝图大题结构 + 省市差异化，
+  //    不构建长指令（生成由整卷一次生成自动完成，摘要仅供确认参数）。
   try {
-    instructionDraft.value = buildGenerationInstruction(options);
+    const genTypeName = genTypeTemplates[genTypes.value?.[0]]?.name || genTypes.value?.[0] || '';
+    const bookSummary = selectedBooksWithChapters.map(b => `${b.subject || ''}${b.grade || ''}《${b.name || ''}》`).join('、');
+    const lines = [`【生成方案】资料类型：${genTypeName}`, `教材：${bookSummary || '未选择'}`];
+
+    // ── 📐 命题范围回显：让用户一眼确认"选中/自动推断"的是 课/单元/期中/期末/月考/专题
+    try {
+      const scopeSource = selectedBooksWithChapters.find(b => (b.selectedChapters || []).length > 0) || selectedBooksWithChapters[0];
+      if (scopeSource?.outline) {
+        const scopeInfo = inferPaperScope(scopeSource.selectedChapters || [], scopeSource.outline || [], scopeType.value || '');
+        const basis = scopeType.value && scopeType.value !== 'default'
+          ? `你选择：${SCOPE_TYPE_LABELS[scopeType.value] || scopeType.value}`
+          : (SCOPE_BASIS[scopeInfo.category] || `按勾选：${SCOPE_TYPE_LABELS[scopeType.value] || '默认'}`);
+        const scopeDesc = scopeInfo.name
+          ? (scopeInfo.isScopeLabel ? scopeInfo.name : `「${scopeInfo.name}」`)
+          : '未勾选章节';
+        lines.push(`命题范围：${scopeDesc}（${basis}）`);
+      }
+    } catch (e) {
+      console.warn('[方案预览] 命题范围回显失败（不影响生成）:', e.message);
+    }
+
+    // ── 蓝图匹配预览：学科规范化 + 学段细分 → 三维度匹配蓝图大题结构 ──
+    try {
+      const firstBook = selectedBooksWithChapters[0];
+      if (firstBook?.subject) {
+        const stageMapIns2 = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
+        const stageBase = stageMapIns2[firstBook.stage] || firstBook.stage;
+        const subject = normalizeSubjectName(firstBook.subject, stageBase);
+        const gradeNum = parseInt(firstBook.grade) || 0;
+        let stageKey = stageBase;
+        if (stageBase === 'primary') {
+          stageKey = gradeNum <= 2 ? 'primary_low' : gradeNum <= 4 ? 'primary_mid' : 'primary_high';
+        }
+        const region = examRegion.value || firstBook.region || '';
+        const genType = genTypes.value?.[0];
+        const stageLabel = STAGE_LABEL_MAP[stageKey] || stageKey;
+        lines.push(`学段：${stageLabel}（${stageKey}）${region ? `　地区：${region}` : ''}`);
+
+        const bp = findBlueprint({ genType, subject, stage: stageKey, region });
+        if (bp) {
+          lines.push(`匹配蓝图：${bp.fullScore ? `（总分${bp.fullScore}分 · ${bp.duration || '时长未定'}）` : ''}`);
+          // ── 大题结构预览（蓝图数据）──
+          if (bp.sections?.length) {
+            lines.push('');
+            lines.push('【大题结构】');
+            bp.sections.forEach((s, i) => {
+              lines.push(`${i + 1}. ${s.name}${s.score ? ` ${s.score}分` : ''}`);
+            });
+          }
+        } else {
+          lines.push('匹配蓝图：未找到（请检查学科/学段/资料类型组合）');
+        }
+      }
+    } catch (e) {
+      console.warn('[方案预览] 配方链路预览失败（不影响生成）:', e.message);
+    }
+
+    lines.push('');
+    lines.push('（考点分配、教材素材检索、学科规范注入将在生成时按整卷自动完成）');
+    instructionDraft.value = lines.join('\n');
   } catch (e) {
-    console.error('[buildInstructionFromSelection] 生成指令构建失败:', e);
+    console.error('[buildInstructionFromSelection] 生成方案构建失败:', e);
     throw e;
   }
   previewHint.value = `基于 ${selectedBooksWithChapters.length} 本教材、${selectedTpls.length} 个模板构建`;
+};
+
+// 🔴 生成指令：按三维度（年级×学科×资料类型）从指令库匹配模板并组装注入指令
+const loadInstructionFromLibrary = async () => {
+  const selectedBooks = textbookStore.textbooks.filter(b => hasAnySelected(b.outline));
+  if (selectedBooks.length === 0) {
+    await showAlertDialogFn('请先勾选教材章节');
+    return;
+  }
+  const book = selectedBooks[0];
+  const genType = genTypes.value?.[0];
+  if (!genType) {
+    await showAlertDialogFn('请先选择资料类型');
+    return;
+  }
+  // 三维度：学段键 + 规范学科名 + 资料类型
+  const stageMapLib = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
+  const stageBase = stageMapLib[book.stage] || book.stage;
+  const subject = normalizeSubjectName(book.subject, stageBase);
+  const gradeNum = parseInt(book.grade) || 0;
+  let stageKey = stageBase;
+  if (stageBase === 'primary') {
+    stageKey = gradeNum <= 2 ? 'primary_low' : gradeNum <= 4 ? 'primary_mid' : 'primary_high';
+  }
+  // 匹配指令库模板（用户自定义优先，内置兜底）
+  const tpl = getPromptTemplate({ grade: stageKey, subject, genType });
+
+  // 卷面结构（exam 从蓝图取大题/分值/时长；非 exam 无固定结构）
+  let structure = '';
+  let fullScore = '';
+  let duration = '';
+  let bp = null; // 🔧 蓝图对象（供蓝图注入块使用）
+  try {
+    bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value });
+    if (bp) {
+      structure = buildStructureText(bp);
+      fullScore = bp.fullScore || '';
+      duration = bp.duration || '';
+    }
+  } catch { /* 无蓝图不影响指令注入（模板兜底） */ }
+
+  // 命题范围（单元名：课/单元/期中/期末）
+  let unit = '';
+  try {
+    const scopeSource = selectedBooks.find(b => (b.selectedChapters || []).length > 0) || selectedBooks[0];
+    if (scopeSource?.outline) {
+      const scopeInfo = inferPaperScope(scopeSource.selectedChapters || [], scopeSource.outline || [], scopeType.value || '');
+      unit = scopeOverride.value || scopeInfo.name || '';
+    }
+  } catch { /* 范围推断失败不影响 */ }
+
+  // 组装注入指令（任务行 + 模板正文 + 用户附加）
+  const genTypeLabel = genTypeTemplates[genType]?.name || genType;
+  const gradeLabel = `${STAGE_LABEL_MAP[stageKey] || stageKey}${book.grade ? `·${book.grade}` : ''}`;
+  instructionDraft.value = buildInjectionInstruction({
+    template: tpl.template,
+    grade: gradeLabel,
+    subject,
+    unit,
+    genTypeLabel,
+    structure,
+    fullScore,
+    duration,
+  });
+  // 🔴 渲染指令契约（EduRender）按 学科×类型×是否配图 三维度注入——功能闭合：
+  //    图形学科给 [GRAPH]、数理化学科给公式、配图类题型给 [IMAGE]（EduRender 可渲染）
+  instructionDraft.value += buildRenderContract({
+    subject, genType,
+    needsImage: needsImageHint(`${structure} ${genTypeLabel} ${unit}`, genType),
+  });
+  // 🔴 蓝图注入：exam 附加真题蓝本（题型骨架 + 大题命题要求 + 学段/学科新课标条款）；
+  //    非 exam 模板正文已自带【输出格式】，用户自定义模板可能缺失 → 去重兜底追加
+  if (genType === 'exam') {
+    if (bp) instructionDraft.value += buildBlueprintInjection(bp);
+  } else if (!instructionDraft.value.includes('【输出格式】')) {
+    instructionDraft.value += OUTPUT_FORMAT_HINT;
+  }
+  instructionSource.value = {
+    name: tpl.name || tpl.id || genType,
+    source: tpl.source,
+    key: tpl.id || genType,
+  };
+  previewHint.value = `注入指令来自指令库「${instructionSource.value.name}」，按 ${stageKey} × ${subject} × ${genType} 匹配${tpl.source === 'user' ? '（用户自定义）' : '（内置模板）'}。长期修改请到「指令库」面板编辑保存。`;
+};
+
+// 恢复默认：直接用内置模板重新注入（不保存覆盖）
+const restoreDefaultInstruction = async () => {
+  const selectedBooks = textbookStore.textbooks.filter(b => hasAnySelected(b.outline));
+  if (selectedBooks.length === 0) return;
+  const book = selectedBooks[0];
+  const genType = genTypes.value?.[0];
+  if (!genType) return;
+  const stageMapLib = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
+  const stageBase = stageMapLib[book.stage] || book.stage;
+  const subject = normalizeSubjectName(book.subject, stageBase);
+  const gradeNum = parseInt(book.grade) || 0;
+  let stageKey = stageBase;
+  if (stageBase === 'primary') {
+    stageKey = gradeNum <= 2 ? 'primary_low' : gradeNum <= 4 ? 'primary_mid' : 'primary_high';
+  }
+  const tpl = getPromptTemplate({ grade: stageKey, subject, genType });
+  // 恢复默认：临时改为内置模板渲染（不写入指令库）
+  const builtinTemplate = tpl.source === 'user' ? getPromptTemplate({ grade: '', subject: '', genType }).template : tpl.template;
+  let structure = '';
+  let fullScore = '';
+  let duration = '';
+  try {
+    const bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value });
+    if (bp) {
+      structure = buildStructureText(bp);
+      fullScore = bp.fullScore || '';
+      duration = bp.duration || '';
+    }
+  } catch {}
+  const genTypeLabel = genTypeTemplates[genType]?.name || genType;
+  const gradeLabel = `${STAGE_LABEL_MAP[stageKey] || stageKey}${book.grade ? `·${book.grade}` : ''}`;
+  instructionDraft.value = buildInjectionInstruction({
+    template: builtinTemplate, grade: gradeLabel, subject, genTypeLabel, structure, fullScore, duration,
+    subjectFormat: buildSubjectFormatBlock(subject),
+  });
+  instructionDraft.value += buildRenderContract({
+    subject, genType,
+    needsImage: needsImageHint(`${structure} ${genTypeLabel} ${unit}`, genType),
+  });
+  instructionSource.value = { name: `内置默认·${genTypeLabel}`, source: 'builtin', key: genType };
+  previewHint.value = '已恢复内置默认指令（未改动你的自定义模板）。';
+};
+
+// 生成前确保注入指令非空（最小场景：选教材+类型后直接生成也能跑）
+const ensureInjectedInstruction = async () => {
+  if (!instructionDraft.value.trim()) {
+    await loadInstructionFromLibrary();
+  }
+  return instructionDraft.value.trim();
 };
 
 const clearInstruction = async () => {
@@ -5708,12 +5735,14 @@ const mergeTemplateResults = (results) => {
 
 // 生成
 const generate = async (mode) => {
-  if (!instructionDraft.value) {
-    await showAlertDialogFn('请先生成指令');
-    return;
-  } 
-  
+  // 🔴 新架构：用户只选教材 + 资料类型即可生成（指令库自动决定角色/大题结构/题型/难度）
+  // 不再要求先生成指令；指令文本仅作可选参考（传空串走指令库默认）
   const types = mode === 'single' ? [genTypes.value[0]] : genTypes.value;
+  
+  if (!types[0]) {
+    await showAlertDialogFn('请选择资料类型');
+    return;
+  }
   
   // ✨ 先获取选中的教材和模板数据
   const selectedBooks = textbookStore.textbooks.filter(b => hasAnySelected(b.outline)).map(b => ({
@@ -5739,15 +5768,14 @@ const generate = async (mode) => {
     const chapterList = unanalyzedChapters.map(ch => `• ${ch.title}`).join('\n');
     
     const proceed = await showConfirmDialogFn(
-      `⚠️ 检测到 ${unanalyzedChapters.length} 个章节尚未分析教材内容\n\n` +
-      `未分析的章节：\n${chapterList}\n\n` +
-      `【重要提醒】\n` +
-      `• 未分析的章节，AI 只能根据章节标题生成题目\n` +
-      `• 无法提取原文、知识点、公式等关键信息\n` +
-      `• 生成的题目质量会显著降低，可能出现超纲或编造内容\n` +
-      `• 这违背了"基于教材原文命题"的核心原则\n\n` +
-      `强烈建议：先点击「🔍 分析教材」按钮完成分析后再生成\n\n` +
-      `是否仍要继续生成？`
+      `⚠️ 检测到 ${unanalyzedChapters.length} 个章节尚未分析教材内容（将走"仅目录模式"）\n\n` +
+      `未分析章节：\n${chapterList}\n\n` +
+      `【说明】\n` +
+      `• 这些章节将基于「章节标题 + 2022 版新课标规范」生成（降级模式）\n` +
+      `• 无法使用教材原文/知识点/公式等细节，题目由 AI 依据学科典型内容设计\n` +
+      `• 质量低于"已分析"章节，可能出现与教材版本不符的内容\n\n` +
+      `建议：先点击「🔍 分析教材」完成分析后再生成，获得以教材内容为依据的高质量结果\n\n` +
+      `是否仍要继续生成（仅目录模式）？`
     );
     if (!proceed) return;
   }
@@ -5755,6 +5783,26 @@ const generate = async (mode) => {
   // 获取生成份数
   const batches = batchCount.value || 1;
   
+  // 🔧 范围确认弹窗：根据勾选内容提取候选，用户确认后定范围名（仅有多候选时弹出）
+  {
+    const scopeSource = selectedBooks.find(b => (b.selectedChapters || []).length > 0) || selectedBooks[0];
+    const chapters = scopeSource?.selectedChapters || [];
+    if (chapters.length > 0) {
+      const candidates = buildScopeCandidates(chapters, scopeSource.outline || [], scopeType.value || '');
+      if (candidates.length > 1) {
+        const chosen = await showRadioDialogFn(
+          `请确认本卷命题范围（已按勾选内容提取${candidates.length}个候选）`,
+          candidates.map(c => ({ label: `${c.label}${c.hint ? `（${c.hint}）` : ''}`, value: c.value })),
+          candidates[0].value
+        );
+        if (chosen === null) return; // 用户取消
+        scopeOverride.value = chosen;
+      } else {
+        scopeOverride.value = candidates[0]?.value || '';
+      }
+    }
+  }
+
   // ✨ 第一步：先生成蓝图（不直接生成最终内容）
   pendingGenerateMode.value = mode;
   
@@ -5791,7 +5839,7 @@ const generate = async (mode) => {
       previewHint.value = `逐章生成：${chapterTarget.title} (${chIdx + 1}/${chapterTargets.length})`;
       setPerChapterFilter(chapterTarget.title);
       
-      // 🔧 逐章专属指令：为当前章节重建指令，避免全量章节信息浪费 token + 章节名错乱
+      // 🔧 逐章专属指令：更新方案摘要（配方流水线按章节过滤自动匹配）
       if (lastInstructionOptions.value) {
         const perChapterOpts = { ...lastInstructionOptions.value };
         // 过滤 selectedBooks：只保留当前章节（title + start 双重匹配，避免同名章节混淆）
@@ -5802,11 +5850,15 @@ const generate = async (mode) => {
           )
         })).filter(b => b.selectedChapters.length > 0);
         try {
-          const perChapterInst = buildGenerationInstruction(perChapterOpts);
-          instructionDraft.value = perChapterInst;
-          console.log(`[逐章] 「${chapterTarget.title}」专属指令已重建 (${perChapterInst.length} 字符)`);
+          // 🔴 新架构：仅更新方案摘要（不构建长指令），章节信息由整卷生成按 _perChapterFilter 使用
+          instructionDraft.value = [
+            `【生成方案】逐章生成：${chapterTarget.title}`,
+            `教材：${perChapterOpts.selectedBooks.map(b => `${b.subject || ''}${b.grade || ''}《${b.name || ''}》`).join('、')}`,
+            `（系统将按指令库自动匹配大题结构、题型难度与新课标规范，无需手动编写指令）`,
+          ].join('\n');
+          console.log(`[逐章] 「${chapterTarget.title}」生成方案已更新`);
         } catch (e) {
-          console.warn('[逐章] 重建专属指令失败，回退到全量指令:', e);
+          console.warn('[逐章] 更新生成方案失败，回退到全量方案:', e);
         }
       }
     }
@@ -5840,14 +5892,16 @@ const generate = async (mode) => {
     }
     
     try {
-      // ✨ 使用差异化指令调用生成
+      // 🔴 整卷生成：注入指令（指令库渲染，用户可编辑）作为生成依据
+      const inj = await ensureInjectedInstruction();
       const result = await callGenerate(
-        typeIndex > 0 ? diffInstruction : instructionDraft.value, 
+        typeIndex > 0 ? diffInstruction : inj, 
         genType, 
         selectedBooks, 
         selectedTpls, 
         0, 
-        true
+        true,
+        scopeType.value || ''
       );
 
       // 🔧 课时切分：检测到多课时，弹出确认弹窗
@@ -5927,12 +5981,19 @@ const generate = async (mode) => {
   } // end chapterTargets loop
   if (chapterTargets.length > 1) {
     setPerChapterFilter(null); // 逐章模式结束，清除过滤器
-    // 🔧 恢复全量指令（逐章期间 instructionDraft 被临时覆盖为单章指令）
+    // 🔴 新架构：逐章结束后无需恢复长指令（配方自动派生），更新方案摘要即可
     if (lastInstructionOptions.value) {
       try {
-        instructionDraft.value = buildGenerationInstruction(lastInstructionOptions.value);
+        const genTypeName = genTypeTemplates[genTypes.value?.[0]]?.name || genTypes.value?.[0] || '';
+        const bookSummary = selectedBooks.map(b => `${b.subject || ''}${b.grade || ''}《${b.name || ''}》`).join('、');
+        instructionDraft.value = [
+          `【生成方案】资料类型：${genTypeName}`,
+          `教材：${bookSummary || '未选择'}`,
+          `学段：${currentStageEn || '未选择'}`,
+          `（系统将按指令库自动匹配大题结构、题型难度与新课标规范，无需手动编写指令）`,
+        ].join('\n');
       } catch (e) {
-        console.warn('[逐章] 恢复全量指令失败:', e);
+        console.warn('[逐章] 更新全量方案失败:', e);
       }
     }
   }
@@ -6115,17 +6176,19 @@ const confirmBlueprintAndGenerate = async () => {
       let result;
       // 🔧 非考试类（summary/errorbook/preview/dictation/reading）：重新调用全量生成（blueprintOnly=false）
       if (!isExamType) {
+        const inj = await ensureInjectedInstruction();
         result = await callGenerate(
-          instructionDraft.value,
+          inj,
           context.genType,
           context.selectedBooks,
           context.selectedTpls,
           0,
-          false  // blueprintOnly = false，生成完整内容
+          false,  // blueprintOnly = false，生成完整内容
+          scopeType.value || ''
         );
       } else {
         result = await executeGenerationWithBlueprint(
-          instructionDraft.value,
+          '',
           context.genType,
           context.selectedBooks,
           context.selectedTpls,
@@ -6175,13 +6238,15 @@ const confirmBlueprintAndGenerate = async () => {
     previewHint.value = `✅ 「${genTypeTemplates[context.genType]?.name || context.genType}」已生成，正在生成「${genTypeTemplates[nextGenType]?.name || nextGenType}」...`;
     
     try {
+      const inj = await ensureInjectedInstruction();
       const nextResult = await callGenerate(
-        diffInstruction, 
+        diffInstruction || inj, 
         nextGenType, 
         context.selectedBooks, 
         context.selectedTpls, 
         0, 
-        true
+        true,
+        scopeType.value || ''
       );
       
       if (nextResult.success && nextResult.blueprint) {
@@ -6255,40 +6320,11 @@ const confirmPeriodSplit = async () => {
       const gradeLabel = book?.grade || '';
       const subjectLabel = book?.subject || '';
       const bookPrefix = [gradeLabel, subjectLabel].filter(Boolean).join('');
-      // 提取章节/单元名：从 outline 树找最近公共祖先（多个章节取高一级）
+      // 提取范围名（单数据源）：选课→课名、整单元→单元名、跨单元/期中/期末/月考/专题→标签词
       const chapters = book?.selectedChapters || [];
-      let chapterName = '';
-      let isScopeChapterName = false;
-      if (chapters.length === 1) {
-        chapterName = chapters[0].title || '';
-      } else if (chapters.length > 1) {
-        const outline = book?.outline || [];
-        const paths = [];
-        const collectPaths = (nodes, ancestors) => {
-          for (const node of nodes) {
-            if (chapters.includes(node)) paths.push([...ancestors, node]);
-            if (node.children) collectPaths(node.children, [...ancestors, node]);
-          }
-        };
-        collectPaths(outline, []);
-        if (paths.length > 1) {
-          const first = paths[0];
-          let lcaIdx = first.length - 1;
-          for (let i = 0; i < first.length; i++) {
-            if (!paths.every(p => p.length > i && p[i] === first[i])) { lcaIdx = i - 1; break; }
-          }
-          if (lcaIdx >= 0) {
-            chapterName = first[lcaIdx].title;
-          } else {
-            // 无共同祖先（跨单元全选）：按 scopeType 命名（带轮换）
-            const scopeLabel = pickScopeLabel(scopeType.value, chapters);
-            if (scopeLabel) { chapterName = scopeLabel; isScopeChapterName = true; }
-            else { chapterName = chapters[0].title || ''; }
-          }
-        } else {
-          chapterName = chapters[0].title || '';
-        }
-      }
+      const scopeInfo = inferPaperScope(chapters, book?.outline || [], scopeType.value || '');
+      let chapterName = scopeInfo.name;
+      let isScopeChapterName = scopeInfo.isScopeLabel;
       const parts = [bookPrefix, chapterName, isScopeChapterName ? null : genTypeName].filter(Boolean);
       const now = new Date();
       const ts = now.toLocaleDateString('zh-CN') + ' ' + now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -6399,7 +6435,8 @@ const cancelPeriodSplit = async () => {
     }));
     
     // 直接全流程生成（blueprintOnly=false），跳过课时切分检测
-    const result = await callGenerate(instructionDraft.value, genType, selectedBooks, selectedTpls, 0, false);
+    const inj = await ensureInjectedInstruction();
+    const result = await callGenerate(inj, genType, selectedBooks, selectedTpls, 0, false, scopeType.value || '');
     
     if (result.success && result.content) {
       console.log('[preview-popup] 🔄 cancelPeriodSplit 路径：直接设置预览', { contentLen: result.content?.length, contentPreview: result.content?.substring(0, 100) });
@@ -6414,40 +6451,11 @@ const cancelPeriodSplit = async () => {
       const gradeLabel = book?.grade || '';
       const subjectLabel = book?.subject || '';
       const bookPrefix = [gradeLabel, subjectLabel].filter(Boolean).join('');
-      // 提取章节/单元名：从 outline 树找最近公共祖先（多个章节取高一级）
+      // 提取范围名（单数据源）：
       const chapters = book?.selectedChapters || [];
-      let chapterName = '';
-      let isScopeChapterName = false;
-      if (chapters.length === 1) {
-        chapterName = chapters[0].title || '';
-      } else if (chapters.length > 1) {
-        const outline = book?.outline || [];
-        const paths = [];
-        const collectPaths = (nodes, ancestors) => {
-          for (const node of nodes) {
-            if (chapters.includes(node)) paths.push([...ancestors, node]);
-            if (node.children) collectPaths(node.children, [...ancestors, node]);
-          }
-        };
-        collectPaths(outline, []);
-        if (paths.length > 1) {
-          const first = paths[0];
-          let lcaIdx = first.length - 1;
-          for (let i = 0; i < first.length; i++) {
-            if (!paths.every(p => p.length > i && p[i] === first[i])) { lcaIdx = i - 1; break; }
-          }
-          if (lcaIdx >= 0) {
-            chapterName = first[lcaIdx].title;
-          } else {
-            // 无共同祖先（跨单元全选）：按 scopeType 命名（带轮换）
-            const scopeLabel = pickScopeLabel(scopeType.value, chapters);
-            if (scopeLabel) { chapterName = scopeLabel; isScopeChapterName = true; }
-            else { chapterName = chapters[0].title || ''; }
-          }
-        } else {
-          chapterName = chapters[0].title || '';
-        }
-      }
+      const scopeInfo = inferPaperScope(chapters, book?.outline || [], scopeType.value || '');
+      let chapterName = scopeInfo.name;
+      let isScopeChapterName = scopeInfo.isScopeLabel;
       const parts = [bookPrefix, chapterName, isScopeChapterName ? null : genTypeName].filter(Boolean);
       const now = new Date();
       const ts = now.toLocaleDateString('zh-CN') + ' ' + now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -6520,13 +6528,15 @@ const regenerateBlueprint = async () => {
   // 重新调用生成
   try {
     // ✨ 重新生成也只生成蓝图
+    const inj = await ensureInjectedInstruction();
     const result = await callGenerate(
-      instructionDraft.value, 
+      inj, 
       context.genType, 
       context.selectedBooks, 
       context.selectedTpls,
       0,
-      true  // blueprintOnly
+      true,  // blueprintOnly
+      scopeType.value || ''
     );
     
     if (result.success && result.blueprint) {
@@ -6572,38 +6582,10 @@ const finalizeGeneration = async (result, genType) => {
     const gradeLabel = book?.grade || '';
     const subjectLabel = book?.subject || '';
     const bookPrefix = [gradeLabel, subjectLabel].filter(Boolean).join('');
-    // 提取章节/单元名：从 outline 树找最近公共祖先（多个章节取高一级）
+    // 提取范围名（单数据源）：
     const chapters = book?.selectedChapters || [];
-    let chapterName = '';
-    if (chapters.length === 1) {
-      chapterName = chapters[0].title || '';
-    } else if (chapters.length > 1) {
-      const outline = book?.outline || [];
-      const paths = [];
-      const collectPaths = (nodes, ancestors) => {
-        for (const node of nodes) {
-          if (chapters.includes(node)) paths.push([...ancestors, node]);
-          if (node.children) collectPaths(node.children, [...ancestors, node]);
-        }
-      };
-      collectPaths(outline, []);
-      if (paths.length > 1) {
-        const first = paths[0];
-        let lcaIdx = first.length - 1;
-        for (let i = 0; i < first.length; i++) {
-          if (!paths.every(p => p.length > i && p[i] === first[i])) { lcaIdx = i - 1; break; }
-        }
-        if (lcaIdx >= 0) {
-          chapterName = first[lcaIdx].title;
-        } else {
-          // 无共同祖先（跨单元全选）：按 scopeType 命名
-          const scopeLabels = { midterm: '期中', final: '期末', topic: '专题复习' };
-          chapterName = scopeLabels[scopeType.value] || (chapters[0].title || '');
-        }
-      } else {
-        chapterName = chapters[0].title || '';
-      }
-    }
+    const scopeInfo = inferPaperScope(chapters, book?.outline || [], scopeType.value || '');
+    const chapterName = scopeInfo.name;
     const parts = [bookPrefix, chapterName, genTypeName].filter(Boolean);
     const now = new Date();
     const ts = now.toLocaleDateString('zh-CN') + ' ' + now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -7290,70 +7272,6 @@ const generateVariantForDoc = async (doc) => {
     isGenerating.value = false;
     generateProgress.value = 0;
   }
-};
-
-// 指令库操作
-const loadFromInstructionLib = () => {
-  showInstructionLibModal.value = true;
-};
-
-const saveToInstructionLib = async () => {
-  if (!instructionDraft.value) {
-    await showAlertDialogFn('没有指令可保存');
-    return;
-  }
-  newInstructionName.value = '';
-  newInstructionCategory.value = '试卷';
-  showSaveToLibModal.value = true;
-};
-
-const confirmSaveToLib = async () => {
-  if (!newInstructionName.value.trim()) {
-    await showAlertDialogFn('请输入指令名称');
-    return;
-  }
-  
-  instructionStore.addInstruction({
-    name: newInstructionName.value,
-    category: newInstructionCategory.value,
-    content: instructionDraft.value
-  });
-  showSaveToLibModal.value = false;
-  await showAlertDialogFn('保存成功');
-};
-
-const loadInstruction = (ins) => {
-  let content = ins.content;
-  // 🔧 如果是完整指令，追加学段+学科精准适配（与 buildInstruction 一致）
-  if (ins.type === 'full') {
-    const selectedBooks = textbookStore.textbooks.filter(b => hasAnySelected(b.outline));
-    const book = selectedBooks[0];
-    const stageRaw = book?.stage || '';
-    // 🔧 映射为英文 key（教材库值是 "小学/初中/高中"）
-    const stageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-    const stage = stageMap[stageRaw] || stageRaw;
-    const subject = book?.subject || '';
-    const grade = book?.grade || '';
-    if (stage || subject) {
-      content += '\n\n【学段·学科精准适配】\n';
-      if (grade) content += `- 当前年级：${grade}\n`;
-      content += '\n⚠️ 以上学段和学科要求优先级高于通用模板，如有冲突以本条为准。\n';
-    }
-  }
-  instructionDraft.value = content;
-  showInstructionLibModal.value = false;
-};
-
-const appendInstruction = (ins) => {
-  instructionDraft.value += '\n\n' + ins.content;
-  showInstructionLibModal.value = false;
-};
-
-const deleteInstructionFromLib = async (id) => {
-  const ins = instructionStore.list.find(i => i.id === id);
-  const confirmed = await showConfirmDialogFn(`确定要删除指令「${ins?.name || id}」吗？`);
-  if (!confirmed) return;
-  instructionStore.removeInstruction(id);
 };
 
 // 题型管理

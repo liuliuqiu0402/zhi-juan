@@ -174,8 +174,8 @@ export const questionTypeLibrary = {
 // ==================== 资料类型模板 ====================
 /**
  * @deprecated genTypeTemplates.instruction 和 .structure 字段已废弃。
- * 所有【】块级指令内容已迁移至 instructionLib.js，通过 getMatchingBlockInstructions 三维度智能匹配。
- * 仅保留 .name 字段用于 UI 显示。structure/instruction 已清空，兜底时打 console.error 告警。
+ * 生成规范已迁移至配方体系（recipe/blocks 规范块 + 蓝本 + 教辅栏目）。
+ * 仅保留 .name 字段用于 UI 显示。
  */
 export const genTypeTemplates = {
   'exam': {
@@ -249,8 +249,7 @@ export const styleOptions = [
 
 // ==================== 命题风格指令 ====================
 /**
- * @deprecated 命题风格指令已迁移至 instructionLib.js 的 '生成-命题风格' 类别。
- * 所有风格描述通过 getMatchingBlockInstructions({ category: '生成-命题风格', genType: propositionStyle }) 获取。
+ * @deprecated 命题风格由配方体系的情境框架（contextFramework / 学科情境库）承载。
  */
 export const styleInstructions = {
   'traditional': '题型结构清晰，设问直接，知识点考查明确，不设置复杂情境。',
@@ -262,9 +261,10 @@ export const styleInstructions = {
 
 // ==================== 范围选项 ====================
 export const scopeOptions = [
-  { value: 'default', label: '默认', desc: '按章节默认范围' },
+  { value: 'default', label: '默认', desc: '按章节默认范围（选课→课名，整单元→单元名，跨单元→综合检测）' },
   { value: 'midterm', label: '期中', desc: '期中考试范围' },
   { value: 'final', label: '期末', desc: '期末考试范围' },
+  { value: 'monthly', label: '月考', desc: '月考范围' },
   { value: 'topic', label: '专题', desc: '专题复习范围' }
 ];
 

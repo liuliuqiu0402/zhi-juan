@@ -16,7 +16,6 @@
     <div class="header-right" v-if="!isMobile">
       <button class="header-btn" @click="$router.push('/history')">📚 历史</button>
       <button class="header-btn" @click="$router.push('/graph')" :disabled="!canAccessFeature('graph')">⭐ 图形库</button>
-      <button class="header-btn" @click="$router.push('/instruction')" :disabled="!canAccessFeature('instruction')">📋 指令库</button>
       <button class="header-btn" @click="$router.push('/settings')">⚙️ 设置</button>
     </div>
 

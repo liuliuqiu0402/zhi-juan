@@ -194,8 +194,7 @@ import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
 import { compressDocArray, decompressDocArray } from '@/utils/contentCompress.js';
-import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, pullDeletedDocIds, pushDeletedDocIds, uploadInstructions, uploadTemplates, uploadSettings, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
-import { BUILTIN_VERSION } from '@/config/instructionLib';
+import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, pullDeletedDocIds, pushDeletedDocIds, uploadTemplates, uploadSettings, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
 import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
 import { apiConfig, getCurrentEngineConfig, loadConfigSync, decrypt, encrypt } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
@@ -506,7 +505,6 @@ const setupMenuListeners = () => {
       switch (action) {
         case 'settings': router.push('/settings'); break;
         case 'graph': router.push('/graph'); break;
-        case 'instruction': router.push('/instruction'); break;
         case 'history': router.push('/history'); break;
         case 'guide': showGuide(); break;
       }
@@ -615,12 +613,6 @@ onMounted(async () => {
   //    手机端和桌面端均走手动 ☁️ 同步按钮（app-refresh 事件）
   if (isCloudConfigured()) {
     console.log('☁️ Supabase 已配置');
-    // 🔧 始终同步指令库到云端（确保已存在的自定义指令不会丢失）
-    try {
-      const { useInstructionStore } = await import('@/stores/instructionStore');
-      useInstructionStore().syncToCloudIfNeeded();
-    } catch {}
-
     // 🔑 同步密钥：留空，由用户在设置页手动输入以加入同一数据组
     //    不自动生成，避免各设备随机分配到不同数据池导致数据不可见
 
@@ -671,7 +663,6 @@ onMounted(async () => {
           cloudHist = hist || [];
           unilateralData = {
             textbooks: data,
-            instructions: allSett?.instructions ?? null,
             templates: tps,
             settings: allSett?.settings ?? null,
             activationInfo: allSett?.activationInfo ?? null,
@@ -679,7 +670,6 @@ onMounted(async () => {
           console.log('🔄 [拉取] 全量完成 | ' +
             fmtPull(hist, '历史') + '条 ' + fmtPull(gen, '生成') + '条 ' +
             fmtPull(data, '教材') + '本 ' + fmtPull(tps, '模板') + '个 ' +
-            fmtPull(allSett?.instructions, '指令') + '条 ' +
             (allSett?.activationInfo ? '激活✓' : '激活-'));
         } else {
           // 🖥️ 桌面端：只拉双向 2 类（单向数据是桌面自己产的，云端就是自己推的，无需拉取）
@@ -813,17 +803,6 @@ onMounted(async () => {
               await useTextbookStore().loadTextbooks();
             } catch {}
           }
-          // 指令库
-          if (unilateralData.instructions !== null && unilateralData.instructions !== undefined) {
-            localStorage.setItem('instructionLib', JSON.stringify(unilateralData.instructions));
-            // 🔧 版本号跟随当前内置版本（不再硬编码 '12'），loadInstructionLib 内部会自行处理升级
-            localStorage.setItem('instructionLib_version', String(BUILTIN_VERSION));
-            console.log('🔄 [写入] 指令库 ' + (Array.isArray(unilateralData.instructions) ? unilateralData.instructions.length : 0) + '条 ✅');
-            try {
-              const { useInstructionStore } = await import('@/stores/instructionStore');
-              useInstructionStore().reload();
-            } catch {}
-          }
           // 模板
           if (unilateralData.templates !== null && unilateralData.templates !== undefined) {
             await storage.setItem('templates', unilateralData.templates).catch(() => {});
@@ -925,12 +904,11 @@ onMounted(async () => {
         const isMobile = isWebMode.value;
 
         // ① 并行读取全部本地数据
-        const [hist, gen, tbs, tps, ins, cfg, act] = await Promise.all([
+        const [hist, gen, tbs, tps, cfg, act] = await Promise.all([
           storage.getItem('docHistory').catch(() => null),
           storage.getItem('wisdom_generated_docs').catch(() => null),
           !isMobile ? storage.getItem('textbooks').catch(() => null) : Promise.resolve(null),
           !isMobile ? storage.getItem('templates').catch(() => null) : Promise.resolve(null),
-          !isMobile ? Promise.resolve().then(() => { const r = localStorage.getItem('instructionLib'); return r ? JSON.parse(r) : null; }) : Promise.resolve(null),
           !isMobile ? Promise.resolve().then(() => { const r = localStorage.getItem('apiConfig'); return r ? JSON.parse(r) : null; }) : Promise.resolve(null),
           !isMobile ? storage.getItem('activationInfo').catch(() => null) : Promise.resolve(null),
         ]);
@@ -948,7 +926,6 @@ onMounted(async () => {
           // 🔧 单向数据始终推送（含空数据）：桌面是唯一权威源，必须覆盖云端防止旧数据残留
           if (tbs !== null && tbs !== undefined && Array.isArray(tbs)) addTask(uploadTextbooks(tbs), '教材', tbs.length + '本');
           if (tps !== null && tps !== undefined && Array.isArray(tps)) addTask(uploadTemplates(tps), '模板', tps.length + '个');
-          if (ins !== null && ins !== undefined && Array.isArray(ins)) addTask(uploadInstructions(ins), '指令', ins.length + '条');
           if (cfg && typeof cfg === 'object') {
             // 🔧 确保云端值为 WebCrypto 加密（跨平台兼容）：
             //    桌面端旧数据可能为 Electron safeStorage 加密 → 手机无法解密
@@ -1073,7 +1050,7 @@ onMounted(async () => {
 
   // 🔧 iOS PWA 专用：localStorage 降级备份到 sessionStorage
   //    iOS 存储压力大时可能静默清空 localStorage，sessionStorage 相对稳定
-  const BACKUP_KEYS = ['apiConfig', 'wisdom_generated_docs', 'instructionLib', 'instructionLib_version', 'activationInfo', 'textbooks', 'docHistory', 'templates'];
+  const BACKUP_KEYS = ['apiConfig', 'wisdom_generated_docs', 'activationInfo', 'textbooks', 'docHistory', 'templates'];
   const backupToSession = () => {
     for (const k of BACKUP_KEYS) {
       try {

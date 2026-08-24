@@ -2,7 +2,7 @@
  * 各省市中高考考试时长/总分配置（代表值，供出卷系统取值）
  * ── 取值规则 ──
  * 1. 生成时用户选择省市 → 查本表（region × stage × subject）→ 命中则覆盖蓝本默认 fullScore/duration
- * 2. 大题分值分配：按"新总分 ÷ 蓝本默认总分"等比例缩放题型骨架各板块分值，末板块修正保证各板块之和精确=新总分
+ * 2. 大题分值分配：按"新总分 ÷ 蓝本默认总分"等比例缩放题型骨架各大题分值，末大题修正保证各大题之和精确=新总分
  * 3. 未列出的省市/学段/学科 → 回退蓝本全国通行默认（中考语数英120分制等）
  * 4. 高考（高中）全国统一 3+1+2 结构（语数英150分、选考100分/75分钟），蓝本已精确对齐，无需省市覆盖
  * 5. 表中为各省代表值（省内各地市略有差异，此处取通行口径），数值可随政策调整
@@ -232,4 +232,70 @@ export const EXAM_REGION_CONFIG = {
 /** 省市下拉选项（生成设置用）——江苏按市拆分（13市各自命题，取代表性城市） */
 export const EXAM_REGION_OPTIONS = ['江苏·南京', '江苏·苏州', '江苏·无锡', '江苏·南通', '浙江', '广东', '山东', '北京', '上海', '河南', '四川', '重庆', '福建', '安徽', '湖北', '湖南', '河北', '辽宁', '天津', '陕西'];
 
-export default { EXAM_REGION_CONFIG, EXAM_REGION_OPTIONS };
+/* ══════════ 用户可维护覆盖（蓝图库面板"省市分值"维护，localStorage 持久化，用户版优先） ══════════ */
+const REGION_STORAGE_KEY = 'wisdom_region_config_v1';
+
+/** 读取用户省市覆盖（{ region: { stage: { subject: { fullScore, duration } } } }） */
+export function loadUserRegionConfig() {
+  try {
+    return JSON.parse(localStorage.getItem(REGION_STORAGE_KEY) || '{}');
+  } catch { return {}; }
+}
+
+function saveUserRegionConfig(lib) {
+  try { localStorage.setItem(REGION_STORAGE_KEY, JSON.stringify(lib)); } catch {}
+}
+
+/** 设置/新增单条省市覆盖（覆盖内置值；与内置相同则等价于覆盖） */
+export function setRegionOverride(region, stage, subject, { fullScore = 0, duration = '' } = {}) {
+  if (!region || !stage || !subject || !fullScore) return false;
+  const lib = loadUserRegionConfig();
+  if (!lib[region]) lib[region] = {};
+  if (!lib[region][stage]) lib[region][stage] = {};
+  lib[region][stage][subject] = { fullScore: Number(fullScore), duration: duration || undefined };
+  saveUserRegionConfig(lib);
+  return true;
+}
+
+/** 删除单条省市覆盖（回退内置） */
+export function removeRegionOverride(region, stage, subject) {
+  const lib = loadUserRegionConfig();
+  if (lib[region]?.[stage]?.[subject]) {
+    delete lib[region][stage][subject];
+    saveUserRegionConfig(lib);
+    return true;
+  }
+  return false;
+}
+
+/** 列出全部用户省市覆盖（供维护面板展示） */
+export function listRegionOverrides() {
+  const out = [];
+  const lib = loadUserRegionConfig();
+  for (const [region, stages] of Object.entries(lib)) {
+    for (const [stage, subs] of Object.entries(stages || {})) {
+      for (const [subject, cfg] of Object.entries(subs || {})) {
+        if (cfg?.fullScore) out.push({ region, stage, subject, fullScore: cfg.fullScore, duration: cfg.duration || '' });
+      }
+    }
+  }
+  return out;
+}
+
+/** 生效配置：内置 + 用户覆盖合并（用户优先）——getExamBlueprint 查询用 */
+export function getRegionConfig() {
+  const eff = JSON.parse(JSON.stringify(EXAM_REGION_CONFIG));
+  const user = loadUserRegionConfig();
+  for (const [region, stages] of Object.entries(user)) {
+    if (!eff[region]) eff[region] = {};
+    for (const [stage, subs] of Object.entries(stages || {})) {
+      if (!eff[region][stage]) eff[region][stage] = {};
+      for (const [subject, cfg] of Object.entries(subs || {})) {
+        if (cfg?.fullScore) eff[region][stage][subject] = { fullScore: Number(cfg.fullScore), duration: cfg.duration || eff[region][stage][subject]?.duration };
+      }
+    }
+  }
+  return eff;
+}
+
+export default { EXAM_REGION_CONFIG, EXAM_REGION_OPTIONS, loadUserRegionConfig, setRegionOverride, removeRegionOverride, listRegionOverrides, getRegionConfig };

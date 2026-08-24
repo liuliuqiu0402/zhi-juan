@@ -663,9 +663,6 @@ export function uploadSettings(settings: Record<string, unknown>): Promise<boole
 export function uploadActivationInfo(info: Record<string, unknown>): Promise<boolean> {
   return upsertUserSetting('activation', info);
 }
-export function uploadInstructions(instructions: unknown[]): Promise<boolean> {
-  return upsertUserSetting('instructions', instructions);
-}
 
 /** 下载所有设备名，返回 device_id → 名称 的映射
  *  新版：device_id 即设备名，直接从行键提取

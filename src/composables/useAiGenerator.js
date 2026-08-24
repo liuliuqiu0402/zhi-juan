@@ -13,10 +13,15 @@ import {
   getTerminologyHint,
   normalizeTerminology
 } from '../config/expertKnowledge.js';
-import { getMatchingBlockInstructions } from '../config/instructionLib.js';
+// 🔴 分析阶段 prompt 已从指令库迁出为独立配置（analysisPrompts.js），生成规范与教材分析规范解耦
+import { getAnalysisPrompts } from '../config/analysisPrompts.js';
+// 🔴 题型分布（UI 自动填充）与题型专项规则（兜底逐题路径）已迁出独立配置，指令库即将整体删除
+import { getTypeDistribution as getTypeDistributionFromConfig } from '../config/typeDistribution.js';
+import { getQuestionTypeRule } from '../config/questionTypeRules.js';
+import { SCOPE_LABEL_POOLS } from '../config/recipe/paperScope.js';
 import { getContextsForSubject } from '../config/subjectContextLibrary.js';
 import { getExamBlueprint, buildExamBlueprintText } from '../config/examPaperBlueprints.js';
-import { HardRuleChecker, AISemanticReviewer } from '../utils/qualityChecker';
+import { buildSealLineHeader } from '../config/promptLibrary.js';
 import { runHardValidators, applyAutoFixes } from '../utils/subjectValidators.js';
 import { registerController, unregisterController } from '../utils/requestManager.js';
 import { generatePromptCacheKey, getCachedPromptResult, setCachedPromptResult } from '../utils/generationCache';
@@ -449,13 +454,7 @@ const extractGradeNum = (gradeStr) => {
 
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
-import { buildBenchmarkText } from '../config/propositionBenchmarks.js';
-import { buildSampleText } from '../config/examSampleLibrary.js';
-import { parseStructureBlocks } from '../config/examPipeline.js';
-import { runExamPipeline } from '../config/examPipelineRunner.js';
-import { TEACHING_TYPES } from '../config/teachingMaterialBank.js';
-import { assessCompliance } from '../utils/curriculumCompliance.ts';
-import { buildAutoFixPlan, applyProgrammaticFixes } from '../utils/complianceAutoFix.ts';
+import { cleanSectionHtml, extractQuestionList, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers } from '../utils/contentCleaner.js';
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -483,7 +482,7 @@ const compareBlueprintToGenerated = (content, parsedBlueprint, ctx) => {
   // 仅 exam 类型做蓝本对比（其他类型无蓝本骨架约束）
   if (genType !== 'exam') return { hasIssues: false, issues };
 
-  // 获取蓝本定义（省市差异化：命中省市配置时按该省市时长/总分/板块分值比对）
+  // 获取蓝本定义（省市差异化：命中省市配置时按该省市时长/总分/大题分值比对）
   const examBlueprint = getExamBlueprint(subject, stage, region);
   if (!examBlueprint || !examBlueprint.sections) return { hasIssues: false, issues };
 
@@ -520,13 +519,13 @@ const compareBlueprintToGenerated = (content, parsedBlueprint, ctx) => {
     issues.push(`蓝本大题缺失：${missingSections.join('、')}——生成结果未对齐蓝本骨架，请检查`);
   }
 
-  // 检查题目总数是否合理——至少每个板块1道题
-  const allQTags = content.match(/class="question"/gi) || [];
+  // 检查题目总数是否合理——至少每个大题1道题（口径统一：countTopLevelQuestions 只数顶层题、占位不计）
+  const topCount = countTopLevelQuestions(content);
   const allNumItems = content.match(/>\s*\d+[.．、]\s/g) || [];
-  const totalQuestions = Math.max(allQTags.length, allNumItems.length);
+  const totalQuestions = Math.max(topCount, allNumItems.length);
   const sectionCount = examBlueprint.sections.length;
   if (totalQuestions > 0 && totalQuestions < sectionCount) {
-    issues.push(`题目数量不足：蓝本有${sectionCount}个大题板块，但生成内容仅检测到约${totalQuestions}道小题——每板块至少需1道题`);
+    issues.push(`题目数量不足：蓝本有${sectionCount}个大题，但生成内容仅检测到约${totalQuestions}道小题——每个大题至少需1道题`);
   }
 
   // 对比总分
@@ -803,10 +802,6 @@ const buildHtmlGenerationPrompt = (opts) => {
   const { taskDesc, blueprintSection, textbookSection, subjectReqs, genType, subject, stage, grade, closing } = opts;
   const preamble = buildOutputPreamble();
   const formatBlock = buildOutputFormatBlock(genType, subject, stage, grade);
-  const instructionBlock = (() => {
-    const blocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject, stage, genType });
-    return blocks.length > 0 ? blocks.map(b => b.content).join('\n') + '\n' : '';
-  })();
   const closeText = closing || `现在请直接输出完整的${genTypeTemplates[genType]?.name || genType}HTML：`;
   return `${preamble}
 
@@ -885,12 +880,8 @@ const detectSquishedOutput = (html, genType = '') => {
 };
 
 // ===== 🔧 统一输出前置指令：所有资料类型共享的「禁止前言+反Markdown」头 =====
-const buildOutputPreamble = () => {
-  // 🔧 从指令库三维度匹配注入（通用条目 genType='' 匹配所有类型）
-  const blocks = getMatchingBlockInstructions({ category: '生成-输出前置指令', subject: '', stage: '', genType: '' });
-  if (blocks.length > 0) return blocks[0].content;
-  // 兜底（理论上不会走到这里，指令库有通用条目）
-  return `【最终输出指令——优先级最高，覆盖一切其他要求】\n` +
+// 🔴 指令库已删除：内容直接内联（原「生成-输出前置指令」output_preamble 的唯一条目）
+const buildOutputPreamble = () => `【最终输出指令——优先级最高，覆盖一切其他要求】\n` +
 `⛔ 1. 禁止输出任何前言、确认语、解释性文字！严禁出现"好的""收到""我将""根据"等\n` +
 `⛔ 2. 直接输出纯 HTML 代码！你的回复第一个字符必须是 <\n` +
 `⛔ 3. 输出语言：必须是纯 HTML！严禁使用任何 Markdown 语法！\n` +
@@ -899,7 +890,6 @@ const buildOutputPreamble = () => {
 `   ⚠️ <table> 仅用于数据对比/矩阵型内容，禁止用于日常题目排版或页面布局\n` +
 `⛔ 4. 直接返回完整 HTML 代码，不要用 \`\`\`html 标记包裹\n` +
 `⛔ 5. 正文严禁出现任何页码文字或分页标注（"第X页""共X页""第X页　共X页"等）——页数由导出时自动生成（Word 页脚/PDF 页脚动态计算），生成内容不得标注页数。页数统计一律不含答案页，答案页另起编号、不计入正文页数`;
-};
 
 // ===== 🔧 统一输出排版格式块：从指令库查询格式规范，保留结构模板作参考示例 =====
 const buildOutputFormatBlock = (genType, subject, stage, grade) => {
@@ -1138,17 +1128,8 @@ STYLE:line_art
   // 🔧 根修复：逐题生成类 genType（exam/practice/special）默认 fallback 为 exam 模板
   const template = templates[genType] || templates.exam;
   
-  // 🔧 从指令库三维度查询格式规范，替代硬编码规则（避免与 buildCompactAIInstruction 注入的指令库内容冲突）
-  const formatBlocks = getMatchingBlockInstructions({ 
-    category: '生成-输出格式', 
-    subject: subject || '', 
-    stage: stage || '', 
-    genType 
-  });
-  
-  const formatSpecs = formatBlocks.length > 0 
-    ? '【输出格式规范】\n' + formatBlocks.map(b => b.content).join('\n')
-    : '';
+  // 🔴 格式规范已内联（分步规范块已删除）：核心格式契约
+  const formatSpecs = '【输出格式规范】\n· 每题 = <p class="question">题干</p>；选项逐行 <p class="option">A. …</p>；填空 = <u class="blank-N">&emsp;</u>；子题号 (1)(2) 用半角括号；不输出标题/题号/分值/答案（系统生成）。';
   
   return formatSpecs +
     (formatSpecs ? '\n\n' : '') +
@@ -1204,7 +1185,7 @@ const buildPerQuestionPrompt = (questionPlan, genType, ctx) => {
 - 从最简单考查方式开始，逐步增加难度，形成清晰的思维训练梯度
 - 典型方法和解题模型要覆盖完整，让学生通过训练掌握解题套路`,
     review: `【复习资料质量要求】
-- 必须设置“知识框架”板块（板块标题须含“知识框架/思维导图/知识树”字样），用表格或列表呈现单元知识体系/专题整合
+- 必须设置"知识框架"栏目（栏目标题须含"知识框架/思维导图/知识树"字样），用表格或列表呈现单元知识体系/专题整合
 - 必须包含至少3道“典型题”（题目小标题或题号前须标注“典型题”或“例题”字样），每道配完整解析，涵盖该知识点的常见考查角度和变式
 - 易错点辨析必须精确，给出错误原因和正确理解
 - 综合自测题难度梯度合理，能真实检验复习效果`,
@@ -1411,7 +1392,36 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
   for (const book of selectedBooks) {
     const chapters = book.selectedChapters || [];
     for (const chapter of chapters) {
-      if (!chapter.rawText && !chapter.coreTopics) continue;
+      if (!chapter.rawText && !chapter.coreTopics) {
+        // 🔴 目录模式（TOC-only）：章节无 OCR 原文且未分析时，用目录标题构建"目录卡片"。
+        //    目录（章节标题 + 子标题）本身就是考点线索，确保"仅勾选目录"也能生成：
+        //    Step2 知识图谱基于目录标题 + 学科课标知识补全考点，planner 正常分配，AI 无素材凭空生成。
+        const collectTitles = (node, depth = 0, out = []) => {
+          if (!node || depth >= 3) return out;
+          for (const child of (node.children || [])) {
+            if (child?.title) out.push('  '.repeat(depth) + child.title);
+            collectTitles(child, depth + 1, out);
+          }
+          return out;
+        };
+        const tocText = [chapter.title, ...collectTitles(chapter)].filter(Boolean).join('\n');
+        if (tocText.trim()) {
+          // 目录标题（章节 + 子标题）作为该卡片的检索关键词，供 retrieveSegments 命中
+          const tocKps = [chapter.title, ...collectTitles(chapter).map(t => t.trim())].filter(Boolean);
+          contentCards.push({
+            chapterTitle: chapter.title,
+            summary: `【仅目录模式】本课教材原文未提取（未 OCR/未分析），以下为该课目录结构。生成时请基于章节标题与该学科 2022 版新课标典型内容命题，题目情境/数据由你合理设计，禁止编造教材版本特有内容：\n${tocText}`,
+            knowledgePointsForTest: tocKps,
+            segments: [{ text: tocText, type: '正文', isKeyConcept: false, isExample: false, hasFormula: false, knowledgePoints: tocKps }],
+            totalSegments: 1,
+            tags: ['toc-only'],
+            isTocOnly: true,
+            source: 'toc',
+          });
+          console.log(`📑 [Step1·目录模式] ${chapter.title}: 无教材原文，已生成目录卡片`);
+        }
+        continue;
+      }
       let cleanRawText = chapter.rawText || '';
 
       // 🔧 检测原文是否被修改过（如用户粘贴了词汇表）
@@ -1526,7 +1536,7 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
         const batchSegments = segments.slice(batchStart, batchStart + 3);
         const batchText = batchSegments.map((seg, i) => `[段${batchStart + i + 1}] ${seg}`).join('\n\n---\n\n');
         // 🔧 从指令库获取候选知识点命名规范
-        const candidateKpNamesRule = getMatchingBlockInstructions({ category: '分析-知识图谱构建' }).find(b => b.id.includes('candidate_kp_names'));
+        const candidateKpNamesRule = getAnalysisPrompts({ category: '分析-知识图谱构建' }).find(b => b.id.includes('candidate_kp_names'));
         const candidateKpNote = candidateKpNamesRule ? candidateKpNamesRule.content : '⚠️ 知识点名称必须与以上列表一致的命名风格，不要自创不同名称指代同一概念';
         const candidateHint = uniqueCandidates.length > 0
           ? `【候选知识点名称——必须从以下列表中选择，或保持命名风格一致】\n${uniqueCandidates.join('、')}\n${candidateKpNote}\n` : '';
@@ -1732,7 +1742,7 @@ const buildKnowledgeMap = async (contentCards, selectedBooks, callAI, robustJson
     suggestedQuestionTypes: c.suggestedQuestionTypes || []
   }));
   // 🔧 从指令库获取输入数据说明
-  const inputDataDescRule = getMatchingBlockInstructions({ category: '分析-知识图谱构建' }).find(b => b.id.includes('input_data_desc'));
+  const inputDataDescRule = getAnalysisPrompts({ category: '分析-知识图谱构建' }).find(b => b.id.includes('input_data_desc'));
   const inputDataDescStr = inputDataDescRule ? inputDataDescRule.content : `- kpForTest：每个知识点对象，hasFormula=true表示涉及公式
 - suggestedQuestionTypes：该章节各知识点建议的考查题型`;
 
@@ -1749,6 +1759,8 @@ ${JSON.stringify(cardsSummary, null, 2)}
 2. 重难点判断（不超过8个）
 3. 层级知识图谱：单元→大概念(≤5)→核心知识点(≤6)→具体概念(≤4)，每个核心知识标注建议题型(suggestedQuestionTypes)
 4. 跨章节关联（不超过10条）
+
+🔴 目录模式说明：若某课 summary 标注"仅目录模式"（教材原文未提取），请基于该课章节标题与该学科 2022 版新课标典型内容推断知识点（如"分数的初步认识"→ 分数的含义/几分之一/几分之几），只推断标题明确指向的知识范畴，不得臆造超出该章节标题的内容。
 
 返回JSON：{"knowledgePoints":[""],"keyDifficulties":[""],"knowledgeGraph":[{"unit":"","bigConcepts":[{"name":"","coreKnowledge":[{"name":"","cognitiveLevel":"理解","isKeyPoint":true,"isDifficulty":false,"specificConcepts":[""],"suggestedQuestionTypes":[""],"relatedChapters":[""],"testPriority":1}]}]}],"crossChapterLinks":[{"from":"","to":"","relation":"前置|并列|拓展|应用"}]}`;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -1794,29 +1806,9 @@ ${JSON.stringify(cardsSummary, null, 2)}
  * @returns {string} 结构文本（不含"结构参考："前缀）
  */
 const getStructureForBlueprint = (genType, subject, stage, stylePreference, specialSubType = '') => {
-  // 🔧 三维度 + specialSubType：genType=special 时传入专项子类型（如'阅读理解''计算'）优先匹配；
-  //    big_unit/project_based 时传入风格标记；其他情况默认 new_standard
-  const queryOpts = { category: '生成-资料类型结构', subject, stage, genType };
-  if (specialSubType) {
-    queryOpts.specialSubType = specialSubType;
-  } else if (stylePreference && (stylePreference === 'big_unit' || stylePreference === 'project_based')) {
-    queryOpts.specialSubType = stylePreference;
-  } else {
-    queryOpts.specialSubType = 'new_standard';
-  }
-  const blocks = getMatchingBlockInstructions(queryOpts);
-  if (blocks.length > 0) {
-    const best = blocks[0];
-    // 🔧 兜底警告：当使用了通用条目（无学科/无学段）而非年级专属条目时，提示开发者补充
-    if (!best.subject && !best.stage && (subject || stage)) {
-      console.warn(`[structure-fallback] 「${genType}」资料类型结构使用了通用兜底（无学科/学段），建议为 subject="${subject}" stage="${stage}" 补充专属结构大纲条目。当前匹配: ${best.id}`, best);
-    }
-    const raw = best.content || '';
-    // 去掉 "结构参考：\n" 前缀，提取纯结构内容
-    return raw.replace(/^结构参考[：:]\s*\n?/i, '').trim();
-  }
-  // 🔴 兜底告警：指令库三维度匹配全部落空，genTypeTemplates.structure 已清空，AI 将无结构指导
-  console.error(`[structure-miss] ⚠️ 指令库无匹配的资料类型结构！genType="${genType}" subject="${subject}" stage="${stage}" specialSubType="${specialSubType || 'new_standard'}"——请检查 instructionLib.js 是否缺少对应的「生成-资料类型结构」块。AI 将在无结构骨架下自由生成，质量不可控。`);
+  // 🔴 已废弃：原「生成-资料类型结构」随指令库删除。非 exam 结构现由指令库模板承载：
+  //    exam → 蓝图 blueprint.sections；非 exam → 教辅栏目 TEACHING_MATERIAL_BANK / 结构大纲。
+  //    保留空实现兼容历史调用（无调用点）。
   return genTypeTemplates[genType]?.structure || '';
 };
 
@@ -1925,7 +1917,7 @@ export function useAiGenerator() {
 
   // 🔧 资料类型名称池——轮换使用，避免标题千篇一律
   const GEN_TYPE_LABEL_POOLS = {
-    exam: ['综合检测', '单元测试卷', '学业测评'],
+    exam: ['综合检测', '单元测试卷', '阶段测评'],
     practice: ['课堂练习', '随堂巩固', '课时训练'],
     special: ['专项突破', '专题训练', '强化练习'],
     preview: ['预习导航', '课前导学', '预习单'],
@@ -1967,6 +1959,15 @@ export function useAiGenerator() {
 
   /** 🔧 获取某资料类型的名称池（供下拉选项展示） */
   const getLabelPool = (genType) => GEN_TYPE_LABEL_POOLS[genType] || ['练习题'];
+
+  // 🔧 命题范围标签词轮换（期中/期末/月考/专题）：避免连续生成同类试卷时标题千篇一律
+  const _scopeLabelCounters = {};
+  const pickScopeFromPool = (scopeTypeVal = 'default') => {
+    const pool = SCOPE_LABEL_POOLS[scopeTypeVal] || SCOPE_LABEL_POOLS.default;
+    const key = `scope__${scopeTypeVal}`;
+    _scopeLabelCounters[key] = (_scopeLabelCounters[key] || 0) % pool.length;
+    return pool[_scopeLabelCounters[key]++];
+  };
 
   /**
    * 🔧 后处理：将 AI 生成的内联拼音（如"蓬péng"）转换为 <ruby> 标签
@@ -2187,7 +2188,7 @@ const maxInputTokens = config.engine === 'deepseek'
 2. 课标对齐：内容是否体现了新课标核心素养要求（如语文的语言运用/思维能力、数学的运算能力/推理能力等）？
 3. 学段适配：难度和深度是否适合该学段学生？有无超纲或过于浅显的内容？
 4. 无歧义表述：题干是否清晰明确？答案是否唯一确定？有无"略"等敷衍表述？
-5. 结构完整：是否按照结构大纲要求组织？各板块内容是否充实不空洞？
+5. 结构完整：是否按照结构大纲要求组织？各部分内容是否充实不空洞？
 请在自审块中如实记录检查结果，如发现问题请同时修正正文内容。`;
       
       // 仅在 prompt 足够容纳时才追加（预留 500 tokens 空间）
@@ -2560,6 +2561,7 @@ const maxInputTokens = config.engine === 'deepseek'
             ];
 
             try {
+              // 🔴 续写请求加 30s 超时保护（原无 timeout，API 无响应会永久挂起——实测"卡住不动"根因之一）
               const continuationResponse = await fetch(apiUrl, {
                 method: 'POST',
                 headers: {
@@ -2576,7 +2578,7 @@ const maxInputTokens = config.engine === 'deepseek'
                   ...(config.provider === 'alibaba' && /qwen3.*max|qwq/i.test(config.model || '') ? { enable_thinking: false } : {}),
                   ...(config.provider === 'deepseek' ? { thinking: { type: (taskType === 'generation' && apiConfig.generationSettings?.deepseekGenerationThinking) ? 'enabled' : 'disabled' } } : {})
                 }),
-                signal: abortController.value?.signal
+                signal: AbortSignal.timeout(30000)
               });
 
               if (continuationResponse.ok) {
@@ -4316,9 +4318,9 @@ ${isPrimary ? '- 🔧 小学：计算机基础操作、图形化编程、信息�
           console.log('📄 原文长度适中，单次分析');
           // 直接分析
           // 🔧 从指令库获取分析规范块，优先用库、硬编码兜底
-          const analysisRules = getMatchingBlockInstructions({ category: '分析-文本分析规范' });
-          const analysisExamples = getMatchingBlockInstructions({ category: '分析-分析模板示例' });
-          const analysisExtractReqs = getMatchingBlockInstructions({ category: '分析-分析提取要求' });
+          const analysisRules = getAnalysisPrompts({ category: '分析-文本分析规范' });
+          const analysisExamples = getAnalysisPrompts({ category: '分析-分析模板示例' });
+          const analysisExtractReqs = getAnalysisPrompts({ category: '分析-分析提取要求' });
           const fmtNote = analysisRules.find(b => b.id.includes('fmt_note'));
           const corePrinciple = analysisRules.find(b => b.id.includes('core_principle'));
           const mandRules = analysisRules.find(b => b.id.includes('mandatory_rules_full'));
@@ -4525,7 +4527,7 @@ ${analysisText.substring(0, 500)}
             }    
             
             // 🔧 从指令库获取分析规范块（分段分析用精简版），优先用库、硬编码兜底
-            const analysisRules = getMatchingBlockInstructions({ category: '分析-文本分析规范' });
+            const analysisRules = getAnalysisPrompts({ category: '分析-文本分析规范' });
             const fmtNote = analysisRules.find(b => b.id.includes('fmt_note'));
             const corePrinciple = analysisRules.find(b => b.id.includes('core_principle'));
             const mandRules = analysisRules.find(b => b.id.includes('mandatory_rules_compact'));
@@ -4875,122 +4877,19 @@ ${cardAnalysisText.substring(0, 1000)}
   // ==================== 年级-学科可用性感知 ====================
   // 返回该学科在指定学段+年级的提示信息，若该年级尚未开设则返回空字符串
   // 🔑 提示文本从指令库获取，年级边界条件在代码中判断
-  const getSubjectGradeHint = (subject, stage, gradeNum) => {
-    // 仅物化生地四科有"从某年级开始/结束"的边界，其他学科从1年级起始终开设，无需查询指令库
-    const boundarySubjects = ['物理', '化学', '生物', '地理'];
-    if (!boundarySubjects.includes(subject)) return '';
-    // 🔧 primary 需按年级精确到 primary_low/mid/high，否则匹配不到指令库条目
-    const preciseStage = stage === 'primary'
-      ? (gradeNum <= 2 ? 'primary_low' : gradeNum <= 4 ? 'primary_mid' : 'primary_high')
-      : stage;
-    // 从指令库查询该学科的年级边界提示
-    const blocks = getMatchingBlockInstructions({ category: '生成-年级边界提示', subject, stage: preciseStage });
-    if (blocks.length === 0) return '';
-    
-    // 🔧 从指令库 content 中解析年级边界元数据（type/startGrade/endGrade），消除硬编码 gradeRules
-    const content = blocks[0].content;
-    const typeMatch = content.match(/\[type=(\w+)\]/);
-    const startMatch = content.match(/\[startGrade=(\d+)\]/);
-    const endMatch = content.match(/\[endGrade=(\d+)\]/);
-    if (!typeMatch) return '';
-    
-    const ruleType = typeMatch[1];
-    const hintMatch = content.match(/提示词：(.+)/);
-    const hintText = hintMatch ? hintMatch[1] : '';
-    if (!hintText) return '';
-    
-    // 检查年级是否在范围内
-    if (ruleType === 'start' && startMatch && gradeNum > 0 && gradeNum < parseInt(startMatch[1])) {
-      return hintText;
-    }
-    if (ruleType === 'end' && endMatch && gradeNum > 0 && gradeNum > parseInt(endMatch[1])) {
-      return hintText;
-    }
-    
-    return '';
-  };
 
   // 🔧 试卷/课时练题型框架：原则导向，不注入硬编码题量数字
   // DeepSeek 根据文本内容自主决定各层级的具体题量和题型
   // 🔧 从 stageMap 推导权威难度比例（当用户未自定义时以此为准）
   // 🔧 值从指令库「生成-难度配置」解析，兜底保留硬编码
-  const getStageDifficultyRatio = (stage, isLowerPrimary, isMiddlePrimary, isUpperPrimary, genType = 'exam') => {
-    // 构造 gradeSegment 用于指令库匹配
-    const gradeSegment = stage === 'primary'
-      ? (isLowerPrimary ? 'primary_low' : isMiddlePrimary ? 'primary_mid' : 'primary_high')
-      : stage || 'middle';
-    // 指令库目前仅 exam 类型有难度配置，其他 genType 统一兜底 exam（避免 [instruction-miss] 噪音）
-    const blocks = getMatchingBlockInstructions({ category: '生成-难度配置', stage: gradeSegment, genType: 'exam' });
-    if (blocks.length > 0) {
-      const content = blocks[0].content;
-      const basicMatch = content.match(/basic=(\d+)/);
-      const mediumMatch = content.match(/medium=(\d+)/);
-      const advancedMatch = content.match(/advanced=(\d+)/);
-      if (basicMatch && mediumMatch && advancedMatch) {
-        return {
-          basic: parseInt(basicMatch[1]),
-          medium: parseInt(mediumMatch[1]),
-          advanced: parseInt(advancedMatch[1]),
-        };
-      }
-    }
-    // 指令库无匹配时返回 null，不使用硬编码兜底
-    console.warn(`[instructionLib] 未找到匹配的难度配置: gradeSegment=${gradeSegment}`);
-    return null;
-  };
 
   // 🔧 页数指导：按学段区分，试卷/复习单独加量（DeepSeek 输出更完整）
   //    小学 6页（试卷10页/复习8页）/ 初中 8页（试卷12页/复习10页）/ 高中 10页（试卷14页/复习12页）
   // 🔧 页数配置：从指令库「生成-页数配置」读取，兜底保留硬编码
   //    数值含义为纯题目正文页数（不含答案页），在指令库 UI 可直接维护
-  const getPageCount = (genType, stage) => {
-    // 学段归一化：primary_low/mid/high → primary
-    const normalizedStage = stage?.startsWith('primary') ? 'primary'
-      : stage === 'middle' ? 'middle'
-      : stage === 'high' ? 'high' : 'primary';
-    try {
-      const blocks = getMatchingBlockInstructions({ category: '生成-页数配置', stage: normalizedStage, genType: '' });
-      if (blocks.length > 0) {
-        const content = blocks[0].content;
-        const genTypeMatch = content.match(new RegExp(`${genType}=(\\d+)`, 'm'));
-        if (genTypeMatch) return parseInt(genTypeMatch[1]);
-        const defaultMatch = content.match(/default=(\d+)/, 'm');
-        if (defaultMatch) return parseInt(defaultMatch[1]);
-      }
-    } catch (e) {
-      console.warn('[getPageCount] 指令库读取失败，使用硬编码兜底:', e.message);
-    }
-    // 硬编码兜底
-    const PAGE_MAP = {
-      primary: { exam: 6, review: 8, default: 6 },
-      middle:  { exam: 8, review: 10, default: 8 },
-      high:    { exam: 10, review: 12, default: 10 },
-    };
-    const entry = PAGE_MAP[normalizedStage] || PAGE_MAP.primary;
-    return entry[genType] || entry.default;
-  };
 
   // 🔧 智能默认总分：对标现行考试标准
   // 🔧 值从指令库「生成-难度配置」解析，兜底保留硬编码
-  const getDefaultTotalScore = (genType, subject, stage) => {
-    if (genType !== 'exam') return 0;
-    const blocks = getMatchingBlockInstructions({ category: '生成-难度配置', stage, genType: 'exam' });
-    if (blocks.length > 0) {
-      const content = blocks[0].content;
-      const mainMatch = content.match(/totalScore_main=(\d+)/);
-      const otherMatch = content.match(/totalScore_other=(\d+)/);
-      const scoreMatch = content.match(/totalScore=(\d+)/);
-      const mainSubjects = ['语文', '数学', '英语'];
-      const isMain = mainSubjects.includes(subject);
-      
-      if (mainMatch && isMain) return parseInt(mainMatch[1]);
-      if (otherMatch && !isMain) return parseInt(otherMatch[1]);
-      if (scoreMatch) return parseInt(scoreMatch[1]);
-    }
-    // 指令库无匹配时返回 0，不使用硬编码兜底
-    console.warn(`[instructionLib] 未找到匹配的总分配置: stage=${stage}, genType=${genType}`);
-    return 0;
-  };
 
   // 🔧 检测 questionTypes 是否使用默认值（空数组或旧三件套）
   const isDefaultQuestionTypes = (questionTypes) => {
@@ -5000,10 +4899,10 @@ ${cardAnalysisText.substring(0, 1000)}
     return names === '填空题,解答题,选择题';
   };
 
-  // 🔧 从指令库获取题型分布结构化数据（用于 UI 自动填充）
+  // 🔧 从独立配置获取题型分布结构化数据（用于 UI 自动填充；指令库已删除）
   const getTypeDistribution = (genType, subject, gradeSegment) => {
     if (genType !== 'exam' && genType !== 'practice') return [];
-    const blocks = getMatchingBlockInstructions({ category: '生成-题型分布建议', subject, stage: gradeSegment, genType });
+    const blocks = getTypeDistributionFromConfig({ genType, subject, stage: gradeSegment });
     if (blocks.length === 0 || !blocks[0].typeDist) return [];
     const dist = blocks[0].typeDist;
     // 解析 "题型名:min-max,题型名:min-max,..."
@@ -5025,2246 +4924,223 @@ ${cardAnalysisText.substring(0, 1000)}
   // ═══════════════════════════════════════
 
   // Q2: 知识点穷尽覆盖约束（优先从指令库读取；仅 summary/preview/special 有覆盖条目，其他 genType 静默返回空）
-  const getCoverageConstraint = (genType, subject, stage, specialSubType = '') => {
-    // 仅 summary/preview/special 有知识点全覆盖条目，其他类型（exam/practice/dictation/errorbook/reading）无需覆盖约束
-    const coverageGenTypes = ['summary', 'preview', 'special'];
-    if (!genType || !coverageGenTypes.includes(genType)) return '';
-    const coverageBlocks = getMatchingBlockInstructions({ category: '生成-知识点全覆盖', subject, stage, genType, specialSubType: genType === 'special' ? specialSubType : '' });
-    if (coverageBlocks.length > 0) {
-      const _covTitleBlocks = getMatchingBlockInstructions({ category: '生成-指令块标题', subject: '', stage: '', genType: 'coverage_constraint' });
-      const _covTitle = _covTitleBlocks.length > 0 ? _covTitleBlocks[0].content : '知识点全覆盖';
-      return '\n⚠️ 【' + _covTitle + '】' + coverageBlocks[0].content;
-    }
-    // practice/exam 等逐题型不需要知识点全覆盖约束，静默返回空即可
-    return '';
-  };
 
   // Q1: 答案与解析质量规范（按 genType × 学科）
   // 🔧 Q7: 答案质量标准 — 完全从指令库读取，不再硬编码
-  const getAnswerQualitySpec = (genType, subject, stage, specialSubType = '') => {
-    // 🔧 优先从指令库查询：按 genType+subject 精确匹配
-    if (!genType) return '';
-    const answerBlocks = getMatchingBlockInstructions({ category: '生成-答案与解析规范', subject, genType, specialSubType: genType === 'special' ? specialSubType : '' });
-    if (answerBlocks.length > 0) {
-      // 🔧 收集：所有通用规范（subject为空且非标题文案）+ 学科专属规范
-      const generalBlocks = answerBlocks.filter(b =>
-        (!b.subject || b.subject === '') && !b.id.startsWith('block_answer_spec')
-      );
-      const subjectBlocks = answerBlocks.filter(b =>
-        b.subject && b.subject !== '' && b.subject.split(',').includes(subject)
-      );
-      // 去重合并：通用规范在前，学科补充在后
-      const merged = [...generalBlocks];
-      for (const sb of subjectBlocks) {
-        if (!merged.find(m => m.id === sb.id)) merged.push(sb);
-      }
-      if (merged.length > 0) return merged.map(b => b.content).join('\n');
-    }
-    // 🔧 无匹配时返回空（不允许硬编码兜底）
-    console.warn(`[instructionLib] 未找到匹配的答案与解析规范: genType=${genType}, subject=${subject}`);
-    return '';
-  };
 
   // Q3: 主观题评分标准（完全从指令库读取）
-  const getScoringRubric = (genType, subject, stage) => {
-    // 🔧 仅试卷(exam)需要评分标准，课时练(practice)无需分值/评分相关指令
-    if (genType !== 'exam') return '';
-    
-    // 🔧 从指令库读取匹配的评分标准
-    const rubricBlocks = subject ? getMatchingBlockInstructions({ category: '生成-主观题评分标准', subject, stage: '', genType }) : [];
-    if (rubricBlocks.length > 0) {
-      return '\n【主观题评分标准参考】\n' + rubricBlocks[0].content;
-    }
-    
-    // 无指令库匹配时返回空（不硬编码兜底）
-    console.warn(`[instructionLib] 未找到主观题评分标准: subject=${subject}`);
-    return '';
-  };
 
   // Q4: 语文阅读理解答题模板（完全从指令库读取；仅 exam/practice/special/reading 需要，dictation/summary/preview/errorbook 不适用）
-  const getChineseReadingTemplates = (subject, genType, stage) => {
-    if (subject !== '语文') return '';
-    // 🔴 真题卷根治：低段（1-2年级）不适用初高中答题模板（主旨概括/人物分析等），避免超学段要求
-    if (stage && String(stage).startsWith('primary_low')) return '';
-    const applicableGenTypes = ['exam', 'practice', 'special', 'reading'];
-    if (genType && !applicableGenTypes.includes(genType)) return '';
-    const templateBlocks = getMatchingBlockInstructions({ category: '生成-答题模板', subject: '语文', stage: '', genType });
-    if (templateBlocks.length > 0) {
-      return `\n【语文阅读理解答题模板——严格按此框架作答】\n` + templateBlocks[0].content;
-    }
-    // 无指令库匹配时返回空（不硬编码兜底）
-    console.warn('[instructionLib] 未找到语文阅读理解答题模板');
-    return '';
-  };
 
   // 🔧 Q7: 考卷时间分配 — 完全从指令库读取
-  const getTimeAllocation = (genType, subject, stage) => {
-    if (genType !== 'exam' || !stage) return '';
-    const timeBlocks = getMatchingBlockInstructions({ category: '生成-时间分配', genType, stage });
-    if (timeBlocks.length > 0) {
-      return `\n【时间分配建议】${timeBlocks[0].content}`;
-    }
-    console.warn(`[instructionLib] 未找到匹配的时间分配: stage=${stage}, genType=${genType}`);
-    return '';
-  };
 
   // ═══════════════════════════════════════
   // Fix A: Few-shot 质量范例（完全从指令库读取）
   // ═══════════════════════════════════════
-  const getGenTypeExample = (genType, subject, stage, isLowerPrimary, grade, gradeSegment, specialSubType = '') => {
-    // 🔧 从指令库查询匹配的质量范例
-    const tryInstructionLib = () => {
-      // 先尝试 gradeSegment 精确匹配（如低段专用范例）
-      const stageMatch = getMatchingBlockInstructions({ category: '生成-质量范例', subject, stage: gradeSegment, genType, specialSubType: genType === 'special' ? specialSubType : '' });
-      if (stageMatch.length > 0) return `\n【质量范例——${stageMatch[0].name.replace('【质量范例】', '')}】\n⚠️ 以下为格式示例，题量数字为示例仅供参考，实际题量由你根据文本内容灵活决定。\n${stageMatch[0].content}`;
-      // 再尝试不限定 stage（通用范例）
-      const generalMatch = getMatchingBlockInstructions({ category: '生成-质量范例', subject, stage: '', genType, specialSubType: genType === 'special' ? specialSubType : '' });
-      if (generalMatch.length > 0) return `\n【质量范例——${generalMatch[0].name.replace('【质量范例】', '')}】\n⚠️ 以下为格式示例，题量数字为示例仅供参考，实际题量由你根据文本内容灵活决定。\n${generalMatch[0].content}`;
-      return null;
-    };
-    
-    const result = tryInstructionLib();
-    if (result) return result;
-    
-    // 无指令库匹配时返回空（不硬编码兜底）
-    console.warn(`[instructionLib] 未找到质量范例: genType=${genType}, subject=${subject}, stage=${stage}`);
-    return '';
-  };
 
   // 🔧 Q7: 知识边界约束 — 完全从指令库读取
-  const getKnowledgeBoundaries = (subject, stage, isLowerPrimary, isMiddlePrimary, isUpperPrimary, grade) => {
-    if (!subject) return '';
-    // 🔧 计算 gradeSegment 用于指令库 genType 维度匹配
-    const gradeSegment = stage === 'primary'
-      ? (isLowerPrimary ? 'primary_low' : isMiddlePrimary ? 'primary_mid' : 'primary_high')
-      : stage || '';
-    // 🔧 用 gradeSegment 作为 stage 精确匹配 KB 块（KB 块已用 primary_low/mid/high/middle/high 做 stage）
-    let kbBlocks = getMatchingBlockInstructions({ category: '生成-知识边界', subject, stage: gradeSegment });
-    if (kbBlocks.length > 0) {
-      const boundaryList = kbBlocks[0].content.split('\n').filter(l => l.trim().startsWith('-'));
-      if (boundaryList.length > 0) {
-        const _kbTitleBlocks = getMatchingBlockInstructions({ category: '生成-指令块标题', subject: '', stage: '', genType: 'knowledge_boundary' });
-        const _kbTitle = _kbTitleBlocks.length > 0 ? _kbTitleBlocks[0].content : '年级知识边界——以下内容严禁出现';
-        return '\n【' + _kbTitle + '】\n' + boundaryList.map(b => `- 🚫 ${b.replace(/^-\s*/, '')}`).join('\n');
-      }
-    }
-    console.warn(`[instructionLib] 未找到匹配的知识边界: subject=${subject}, gradeSegment=${gradeSegment}`);
-    return '';
-  };
 
   // ==================== 指令构建 ====================
-  const buildGenerationInstruction = (options) => {
-    try {
-    const {
-      selectedBooks,
-      selectedTemplates,
-      scopeType,
-      propositionStyle,
-      genTypes = ['exam'],
-      granularity,
-      questionTypes,
-      difficultyLevels,
-      totalScore,
-      allowOriginalQuestions,
-      specialSubType = '',
-      injectedFragments = [],
-      autoFullInstructions = [],
-      mergeChapters = true,  // 🔧 多章节合并出卷开关（默认合并；false=逐章拆分）
-      engine = ''  // 🔧 DeepSeek 噪音过滤：跳过硬编码题型数量
-    } = options;
 
-    const _isDeepSeekInstruction = engine === 'deepseek';
 
-    let instruction = '';
-    // 🔧 多学科修复：收集所有选中教材的学科，用于指令匹配
-    const allSubjects = [...new Set((selectedBooks || []).map(b => b.subject).filter(Boolean))];
-    const book = selectedBooks?.find(b => b.subject) || selectedBooks?.[0];
-    // 🔧 修复：规范化学科名称（处理"政治"→"道德与法治"/"思想政治"等映射）
-    const rawSubject = book?.subject || '';
-    const stageRaw = book?.stage || '';
-    // 🔧 统一映射为英文 key（教材库 filterStage 值是 "小学/初中/高中"）
-    const stageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-    const stage = stageMap[stageRaw] || stageRaw;
-    const subject = normalizeSubjectName(rawSubject, stage);
-    // 🔧 多学科：指令匹配用学科（多学科时不限定，匹配通用条目；专科指令由 GenerateModule.vue 的 auto fragment 处理）
-    const matchSubject = allSubjects.length > 1 ? '' : subject;
-    const grade = book?.grade || '';
-    // 🔧 省市差异化：优先取 options.region（前端生成设置），回退 book.region（教材勾选时保存）
-    const region = options.region || book?.region || '';
+  // 🔴 死代码已删除：performSemanticReview / repairSemanticIssues / attemptContentRepair
+  //    （AI 语义审查 + AI 内容修复——"自产自评"质检残留，均不再被调用）
 
-    // 动态年级适配：根据实际年级提取数字，供后续所有【】块使用
-    // 🔑 grade 可能是中文（"三年级"）或数字，统一提取数字
-    const gradeNum = extractGradeNum(grade);
-    const isLowerPrimary = stage === 'primary' && gradeNum > 0 && gradeNum <= 2;   // 低段：1-2年级
-    const isMiddlePrimary = stage === 'primary' && gradeNum >= 3 && gradeNum <= 4; // 中段：3-4年级
-    const isUpperPrimary = stage === 'primary' && gradeNum >= 5;   // 高段：5-6年级
-    const primaryGenType = genTypes?.[0] || 'exam';  // 资料类型，供后续所有【】块使用
-    // 🔧 学段细分：用于 getMatchingBlockInstructions 的 genType 维度匹配
-    const gradeSegment = stage === 'primary'
-      ? (isLowerPrimary ? 'primary_low' : isMiddlePrimary ? 'primary_mid' : 'primary_high')
-      : stage || 'middle';
-
-    // 🔧 块标题辅助：从指令库三维度查询块级标题，无匹配时使用兜底
-    const _title = (genType, fallback) => {
-      const blocks = getMatchingBlockInstructions({ category: '生成-指令块标题', subject: '', stage: '', genType });
-      return blocks.length > 0 ? blocks[0].content : fallback;
-    };
-
-    // ========== 0.【角色身份】 ==========
-    const roleBlocks = getMatchingBlockInstructions({ category: '生成-角色身份', subject: '', stage: '', genType: primaryGenType });
-    if (roleBlocks.length > 0) {
-      instruction += `【${_title('role_identity', '角色身份')}】\n${roleBlocks[0].content}\n\n`;
-    } else {
-      console.warn(`[instructionLib] 未找到角色身份: genType=${primaryGenType}`);
-    }
-    
-    // ========== 0.5.【标题格式】 ==========
-    // 🔧 三维度精准：按资料类型匹配（exam 命中正式卷首标题块 title_format_exam，
-    //    其他类型命中通用块 title_format）；学段年级信息由 AI 从注入的年级/学段字段自行组织
-    const titleBlocks = getMatchingBlockInstructions({ category: '生成-标题格式', subject: '', stage: '', genType: primaryGenType });
-    if (titleBlocks.length > 0) {
-      instruction += `\n---\n【${_title('title_format', '标题格式')}】\n${titleBlocks[0].content}\n\n`;
-    }
-    
-    // ========== 1.【核心任务】 ==========
-    instruction += `\n---\n【${_title('core_task', '核心任务')}】\n`;
-    
-    // 🔧 从教材勾选章节获取任务名（scopeType优先 > 单课标题 > 多章节单元提取）
-    let taskName = '';
-    const bookChapters = book?.selectedChapters || [];
-    // 🔧 优先级1：scopeType 非默认值时使用其标签（带轮换，避免干巴巴的"期中"）
-    if (scopeType && scopeType !== 'default') {
-      const scopeLabelPools = {
-        midterm: ['期中综合测试', '阶段综合测评', '中期学业检测'],
-        final:   ['期末综合测试', '学期综合测评', '期末学业检测'],
-        topic:   ['专题复习', '专项复习', '专题训练'],
-      };
-      const pool = scopeLabelPools[scopeType];
-      if (pool) {
-        const chapterKey = bookChapters.map(c => c.title).join('|').slice(0, 80);
-        const key = `scope_${scopeType}__${chapterKey}`;
-        _scopeLabelCounters[key] = (_scopeLabelCounters[key] || 0) % pool.length;
-        taskName = pool[_scopeLabelCounters[key]++];
-      }
-    } else if (bookChapters.length === 1) {
-      // 优先级2：单课取课标题
-      taskName = bookChapters[0].title || '';
-    } else if (bookChapters.length > 1) {
-      // 优先级3：多章节，尝试提取单元信息（中文+英文格式全覆盖）
-      const firstTitle = bookChapters[0].title || '';
-      // 中文：第X单元
-      let unitMatch = firstTitle.match(/第([一二三四五六七八九十]+)单元/);
-      if (unitMatch) {
-        taskName = `第${unitMatch[1]}单元`;
-      } else {
-        // 英文：Unit N / Chapter N / Module N
-        unitMatch = firstTitle.match(/(Unit|Chapter|Module)\s*(\d+)/i);
-        if (unitMatch) {
-          taskName = `${unitMatch[1]} ${unitMatch[2]}`;
-        } else {
-          // 降级：多课综合 → 从指令库三维度查询标题格式模板
-          const chTitles = bookChapters.map(c => c.title).filter(Boolean);
-          const joined = chTitles.length <= 2
-            ? chTitles.join('·')
-            : chTitles.slice(0, 2).join('·') + '等';
-          const titleTplBlocks = getMatchingBlockInstructions({ category: '生成-多章节标题', subject: '', stage: '', genType: primaryGenType });
-          const titleTpl = titleTplBlocks.length > 0 ? titleTplBlocks[0].content : '{titles}';
-          taskName = titleTpl.replace('{titles}', joined);
-        }
-      }
-    }
-    
-    if (genTypes && genTypes.length > 0) {
-      for (const gt of genTypes) {
-        const typeInfo = genTypeTemplates[gt];
-        const displayName = taskName || (typeInfo?.name || '').replace(/[^\u4e00-\u9fa5]/g, '');
-        if (typeInfo) {
-          // 🔧 从指令库获取核心任务指令（四维度智能匹配：stage+genType+subject，学段专属>学科专属>通用）
-          const coreTaskBlocks = getMatchingBlockInstructions({ category: '生成-核心任务', matchSubject, stage: gradeSegment, genType: gt, specialSubType: gt === 'special' ? specialSubType : '' });
-          const coreInstruction = coreTaskBlocks.length > 0 ? coreTaskBlocks[0].content : "";
-          // 🔧 兜底警告：核心任务使用了通用条目（无学科/无学段）而非学段专属条目
-          if (coreTaskBlocks.length > 0) {
-            const ctBest = coreTaskBlocks[0];
-            if (!ctBest.subject && !ctBest.stage && (subject || gradeSegment)) {
-              console.warn(`[core-task-fallback] 「${gt}」核心任务使用了通用兜底（无学科/学段），建议为 subject="${subject}" stage="${gradeSegment}" 补充学段专属核心任务条目。当前匹配: ${ctBest.id}`, ctBest);
-            }
-          }
-          instruction += `请生成一份「${displayName}」。${coreInstruction}\n`;
-          // 🔴 红线约束前置（最高优先级）：在所有其他约束之前集中注入，防止关键红线被几十条约束稀释
-          // 🔧 独立【】节标题：供 generateFullPaper 的 System 分离提取——红线是模型的"永久记忆"，不放 user 中淹没
-          const redlineBlocks = getMatchingBlockInstructions({ category: '生成-红线约束', matchSubject, stage: gradeSegment, genType: gt });
-          if (redlineBlocks.length > 0) {
-            instruction += `\n---\n【${_title('redline_constraint', '红线约束')}】\n` + redlineBlocks.map(b => b.content).join('\n') + '\n';
-          }
-          // 🔧 品质标准：从指令库按 subject × stage × genType 三维度查询注入（学科专属反套路块需 subject 维度才能命中）
-          const qualityBlocks = getMatchingBlockInstructions({ category: '生成-品质标准', matchSubject, stage: gradeSegment, genType: gt });
-          if (qualityBlocks.length > 0) {
-            instruction += qualityBlocks.map(b => b.content).join('\n') + '\n';
-          } else {
-            console.warn(`[quality-miss] ⚠️ 品质标准无匹配块: genType="${gt}" subject="${matchSubject}" stage="${gradeSegment}"——AI将在无品质标准约束下生成，质量可能不可控`);
-          }
-          // 🔧 专项突破：根据用户选择的专项子类型精确匹配结构（如阅读理解 vs 古诗词 vs 计算）
-          const structQueryOpts = { category: '生成-资料类型结构', subject, stage: gradeSegment, genType: gt };
-          if (gt === 'special' && specialSubType) {
-            // 专项突破：精确子类型优先（如'阅读理解''古诗词'），specialSubType 命中 +5 分
-            structQueryOpts.specialSubType = specialSubType;
-          } else if (propositionStyle && (propositionStyle === 'big_unit' || propositionStyle === 'project_based')) {
-            // 🔧 新课标风格：将风格标记作为 specialSubType 传入 → 风格专属条目 +5 分自动置顶，常规条目兜底
-            structQueryOpts.specialSubType = propositionStyle;
-          } else {
-            // 🔧 新课标默认：全部 genType 走 new_standard → +5 分自动置顶，传统条目兜底
-            structQueryOpts.specialSubType = 'new_standard';
-          }
-          const structBlocks_a2 = getMatchingBlockInstructions(structQueryOpts);
-          // 🎯 专项突破：优先级排序 — 精确子类型 > 学科×学段专属 > 通用兜底
-          if (gt === 'special' && structBlocks_a2.length > 1) {
-            structBlocks_a2.sort((a, b) => {
-              const aScore = (a.specialSubType ? 2 : 0) + ((a.subject && a.stage) ? 1 : 0);
-              const bScore = (b.specialSubType ? 2 : 0) + ((b.subject && b.stage) ? 1 : 0);
-              return bScore - aScore; // 高优先级在前
-            });
-          }
-          // 🔴 真题卷根治：exam 类型强制注入「真题卷结构蓝本」（学科×学段，新课标真题通行规范），
-          //    题型骨架/大题名称/分值/卷面规范由蓝本锁定，AI 不得自由发挥；
-          //    结构大纲降级为辅助参考，冲突时一律以蓝本为准。
-          //    ⚠️ 蓝本注入独立于结构大纲匹配：信息科技/音乐/美术/体育等无结构大纲条目的学科同样注入
-          let examBlueprint = null;
-          if (gt === 'exam') {
-            examBlueprint = getExamBlueprint(subject, gradeSegment, region);
-            if (examBlueprint) {
-              instruction += `\n---\n${buildExamBlueprintText(examBlueprint)}\n`;
-            } else {
-              console.warn(`[exam-blueprint] 未找到真题蓝本且无结构大纲，需人工干预: subject=${subject}, stage=${gradeSegment}`);
-            }
-          }
-          // 🔴 命题内容质量基准（全资料类型通用）：按学科×学段注入内容质量硬规范与真题级样例，
-          //    覆盖语篇真实/情境适切/设问层次/素养立意，杜绝模型自由发挥凑题。
-          //    exam 且已注入蓝本时跳过通用底线（EXAM_NEW_STANDARD 已含素养立意/情境/设问层次条款，避免重复注入）
-          const benchText = buildBenchmarkText(subject, gradeSegment, !(gt === 'exam' && examBlueprint));
-          if (benchText) {
-            instruction += `\n---\n${benchText}\n`;
-          }
-          // 🔴 真题内容样例（内容为王）：按学科×学段注入真题级设问/情境/措辞范式，
-          //    供模型模仿内容质量水准（严禁照抄），解决"只有骨架没有血肉"的问题
-          const sampleText = buildSampleText(subject, gradeSegment);
-          if (sampleText) {
-            instruction += `\n---\n${sampleText}\n`;
-          }
-          // 🔴 新课标单一骨架：exam 有蓝本时跳过结构大纲注入（蓝本为唯一骨架权威，避免新旧结构打架）
-          if (structBlocks_a2.length > 0 && !(gt === 'exam' && examBlueprint)) {
-            // 结构大纲存在时作为辅助参考注入（蓝本优先）
-            let adaptedStructure = structBlocks_a2[0].content.replace('结构参考：\n', '');
-            
-            // 🔧 从指令库获取学科专属结构模板（按 gradeSegment+subject+genType 三维度精确匹配，小学分低/中/高段）
-
-            // 🔴 消除题量冲突：对 practice/special 类型，gen_struct 中的数字（如"8-12道""3-4题"）与 typedist 矛盾
-            // 在注入时正则抹掉所有题量数字，只保留结构名和内容描述。preview/reading 等无 typedist 的类型不处理
-            // 🔴 exam 已排除：真题卷蓝本中的分值/题量数字是硬性规范，必须原样保留（见上方 exam blueprint 注入）
-            const stripTypes = ['practice', 'special'];
-            if (stripTypes.includes(gt)) {
-              // 1. 去掉 "N-M量词"（含后续可选逗号）：8-12道、3-5题、2-4篇、5-6空、1-2个
-              adaptedStructure = adaptedStructure.replace(/\d+[～\-—]\d+\s*[道题空篇个][，、]?/g, '');
-              // 2. 去掉独立量词（括号内或逗号后）：（3-4题 / ，3-4题
-              adaptedStructure = adaptedStructure.replace(/[（，、]\s*\d+\s*[道题空篇个]/g, (m) => m[0] === '（' ? '（' : '');
-              // 3. 去掉"留N-M空""配N-M题"模式
-              adaptedStructure = adaptedStructure.replace(/(留|配)\s*\d+[～\-—]?\d*\s*[道题空篇个]/g, '$1');
-              // 4. 清理括号内残留标点: （，→（ / （、→（
-              adaptedStructure = adaptedStructure.replace(/（[，、]+/g, '（');
-              // 5. 清理尾部残留: ，）→）
-              adaptedStructure = adaptedStructure.replace(/[，、]+\s*）/g, '）');
-              // 6. 清理连续标点
-              adaptedStructure = adaptedStructure.replace(/[，、]{2,}/g, '，');
-              // 7. 清理"控制在，"→"控制："
-              adaptedStructure = adaptedStructure.replace(/控制在[，、]?(?!\d)/g, '控制：');
-              // 8. 清理句首残留标点
-              adaptedStructure = adaptedStructure.replace(/\n[，、]/g, '\n');
-              // 9. 去掉字数约束：200-300字/50-100字/不超过200字/不少于800字
-              adaptedStructure = adaptedStructure.replace(/\d+[～\-—]\d+\s*字[左右]?/g, '');
-              adaptedStructure = adaptedStructure.replace(/(不超过?|不少于?|至少|至多)\s*\d+\s*字[左右]?/g, '');
-              // 10. 去掉时间限制：限时3-5分钟/限时建议5分钟
-              adaptedStructure = adaptedStructure.replace(/限时(建议)?\s*\d+[～\-—]?\d*\s*(分钟|秒)/g, '');
-              // 11. 去掉百分比目标：≥90%/正确率目标≥90%
-              adaptedStructure = adaptedStructure.replace(/正确率目标[≥≤]\s*\d+%/g, '');
-              adaptedStructure = adaptedStructure.replace(/[≥≤]\s*\d+%/g, '');
-              // 12. 去掉页码约束：每页不超过X题
-              adaptedStructure = adaptedStructure.replace(/每页不(超过|多于)\s*\d+\s*题[，。]?/g, '');
-              // 13. 去掉选项数量约束：选项不超过3个/选项不超过4个
-              adaptedStructure = adaptedStructure.replace(/选项不超过\s*\d+\s*个/g, '');
-              // 14. 去掉选择格式约束：每题4选1/每空3选1/每空4选1
-              adaptedStructure = adaptedStructure.replace(/[每各][题空]\s*\d+\s*选\s*\d+/g, '');
-              // 15. 去掉词量/字量上限：50词以内/500字以内/控制在50词以内/词汇量控制在50词以内
-              adaptedStructure = adaptedStructure.replace(/(词汇量|文字量)?\s*控制在?\s*\d+\s*[词字]以内/g, '');
-              adaptedStructure = adaptedStructure.replace(/\d+\s*[词字]以内/g, '');
-              // 16. 去掉总字数约束：总字数≤150字/总字数≤200字
-              adaptedStructure = adaptedStructure.replace(/总字数\s*[≤]\s*\d+\s*字/g, '');
-            }
-
-            // 🔧 DeepSeek 路径：裁掉破折号后面的题型限制（保留板块目的描述，让 DeepSeek 自主决定具体题型）
-            // 🔴 exam 除外：真题蓝本已锁定题型骨架，结构大纲仅作辅助，不参与题型决策
-            if (_isDeepSeekInstruction && gt !== 'exam') {
-              adaptedStructure = adaptedStructure.replace(/——[^\n]*/g, '');
-            }
-
-            // 🔧 学段精细调整
-            if (gt === 'preview') {
-              const previewDetectCount = isLowerPrimary ? '2-3' : isMiddlePrimary ? '3-4' : '4-5';
-              adaptedStructure = adaptedStructure.replace(/\d+-\d+道基础题/, `${previewDetectCount}道基础题`);
-            }
-            if (gt === 'reading' && subject === '语文') {
-              const readingCount = isLowerPrimary ? '1篇' : '1-2篇';
-              adaptedStructure = adaptedStructure.replace(/短文阅读（[\d-]+篇/, `短文阅读（${readingCount}`);
-            }
-            
-            // 🔧 genType 自适应措辞：替换全局统一的"考查"和"题量"
-            // 🔧 括号非穷举：明确告知 DeepSeek 括号内为方向提示，避免"checklist 思维"
-            //     flexNote 按资料类型差异化：考查/练习/训练/梳理/预习/默写/阅读维度
-            const structurePreambles = {
-              exam: '以下为各部分组织顺序和考查内容，具体题量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整考查维度',
-              practice: '以下为各部分组织顺序和练习内容，具体题量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整练习维度',
-              special: '以下为各部分组织顺序和训练内容，具体题量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整训练维度',
-              summary: '以下为各部分组织顺序和梳理内容，具体覆盖范围根据知识体系灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整梳理维度',
-              errorbook: '以下为各部分组织顺序，具体题量与分类根据错题情况灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整训练维度',
-              preview: '以下为各部分组织顺序和预习流程，预习题量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整预习维度',
-              dictation: '以下为各部分组织顺序和默写框架，具体词句数量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整默写维度',
-              reading: '以下为各部分组织顺序和阅读框架，具体题量根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整阅读维度',
-            };
-            let preamble = structurePreambles[gt] || ('以下为各部分组织顺序，具体内容根据文本内容灵活决定，括号内为板块方向提示而非穷举清单，请根据教材实际内容自主决定完整内容维度');
-            instruction += `\n---\n【结构大纲】（${preamble}）：\n ${adaptedStructure}\n`;
-          }
-        }
-      }
-    } else {
-      instruction += `⚠️ 请在顶部配置栏选择资料类型（考卷/课时练/专项突破/知识点总结），未选择时系统将按默认考卷格式生成。\n`;
-    }
-    
-    // ========== 1.4.【课标骨架对齐】（R1/R2：骨架锚定新课标学业要求 + 骨架下内容不交叉） ==========
-    // 🔧 生成端强制：所有引擎均注入（紧跟在结构大纲之后，锚定"骨架→板块内容"全链）。
-    //    三维度精准：按 学段(gradeSegment) × 资料类型(genType) 匹配对应学段的课标学业要求块；
-    //    学科维度由【学科核心素养】块承载（避免与学科核心素养块重复注入）。
-    const skeletonBlocks = getMatchingBlockInstructions({ category: '生成-课标骨架', subject: '', stage: gradeSegment || stage || '', genType: primaryGenType });
-    if (skeletonBlocks.length > 0) {
-      instruction += `\n---\n【${_title('skeleton_align', '课标骨架对齐')}】\n`;
-      for (const sk of skeletonBlocks) {
-        instruction += `- ${sk.content}\n`;
-      }
-      instruction += `\n`;
-    }
-    
-    // ========== 1.5.【答案区强制锚定】 ==========
-    if (primaryGenType) {
-      const anchorBlocks = getMatchingBlockInstructions({ category: '生成-答案区强制锚定', subject: '', stage: '', genType: primaryGenType });
-      if (anchorBlocks.length > 0 && anchorBlocks[0].content) {
-        instruction += `\n---\n【${_title('answer_anchor', '答案区强制锚定')}】\n${anchorBlocks[0].content}\n\n`;
-      }
-    }
-    
-    if (granularity) {
-      instruction += `生成粒度：${granularity === 'unit' ? '按单元整体设计' : '按课时单独设计'}。\n`;
-    }
-
-    // ========== 2.【教材章节确认】仅提供章节名称和页码范围，原文由 Step4 精准检索注入 ==========
-    // 🔧 架构修复：Step 1 已全面提取知识点（含词汇表/生字表等），Step 4 通过 retrieveBlueprintSegments
-    //    精准检索原文片段注入到逐题生成。此处不再注入原文片段——避免期末资料整本教材被截断。
-    if (selectedBooks && selectedBooks.length > 0) {
-      // 🔧 学科感知的章节类型识别
-      const detectChapterLabel = (title, subj) => {
-        if (!title) return '';
-        const t = title.trim();
-        const s = (subj || '');
-        // 英语
-        if (s.includes('英语')) {
-          if (/unit\s*\d/i.test(t)) return '单元';
-          if (/lesson\s*\d/i.test(t)) return '课时';
-          if (/let.s\s*(learn|talk|spell|play|sing|do|check)/i.test(t)) return '板块';
-          if (/story\s*time|read\s*(and|&)\s*write/i.test(t)) return '板块';
-          if (/words|vocabulary|word\s*list/i.test(t)) return '📕词汇表';
-          if (/review|recycle|revision/i.test(t)) return '复习';
-          if (/project|task/i.test(t)) return '项目';
-          return '';
-        }
-        // 语文
-        if (s.includes('语文')) {
-          if (/第[一二三四五六七八九十\d]+课|课文[一二三四五六七八九十\d]*/.test(t)) return '课文';
-          if (/语文园地/.test(t)) return '语文园地';
-          if (/识字/.test(t)) return '识字';
-          if (/习作|写作|作文/.test(t)) return '写作';
-          if (/口语交际/.test(t)) return '口语交际';
-          if (/快乐读书吧|阅读链接|名著导读/.test(t)) return '阅读';
-          if (/综合性学习/.test(t)) return '综合';
-          if (/复习|回顾|总结/.test(t)) return '复习';
-          if (/古诗|诗词|文言文/.test(t)) return '古诗文';
-          return '';
-        }
-        // 数学
-        if (s.includes('数学')) {
-          if (/第[一二三四五六七八九十\d]+单元/.test(t)) return '单元';
-          if (/第[一二三四五六七八九十\d]+节/.test(t)) return '节';
-          if (/整理.*复习|复习.*整理|总复习/.test(t)) return '复习';
-          if (/数学广角|你知道吗/.test(t)) return '拓展';
-          if (/综合.*实践|实践.*活动/.test(t)) return '实践';
-          return '';
-        }
-        // 理科（物理/化学/生物/科学）
-        if (/物理|化学|生物|科学/.test(s)) {
-          if (/第[一二三四五六七八九十\d]+章/.test(t)) return '章';
-          if (/第[一二三四五六七八九十\d]+节/.test(t)) return '节';
-          if (/实验|探究|活动/.test(t)) return '实验';
-          if (/复习|小结|总结|回顾/.test(t)) return '复习';
-          return '';
-        }
-        // 文科（历史/地理/政治/道德与法治）
-        if (/历史|地理|政治|道德|思想/.test(s)) {
-          if (/第[一二三四五六七八九十\d]+[课章单元]/.test(t)) {
-            const m = t.match(/第[一二三四五六七八九十\d]+(课|章|单元)/);
-            return m ? m[1] : '';
-          }
-          if (/探究|活动|讨论/.test(t)) return '活动';
-          if (/复习|总结|回顾/.test(t)) return '复习';
-          return '';
-        }
-        // 通用：检测数字前缀
-        if (/^第[一二三四五六七八九十\d]+[课章节单元]/.test(t)) {
-          const m = t.match(/第[一二三四五六七八九十\d]+([课章节单元])/);
-          return m ? m[1] : '';
-        }
-        return '';
-      };
-      
-      instruction += `\n---\n【教材章节确认——以下章节的所有知识内容需全部覆盖】\n`;
-      for (const book of selectedBooks) {
-        const selectedChapters = book.selectedChapters || [];
-        if (selectedChapters.length > 0) {
-          // 🔧 学科感知：章节标题+类型标注+页码
-          const chapterInfo = selectedChapters.map(ch => {
-            const label = detectChapterLabel(ch.title, book.subject || '');
-            const labelStr = label ? `[${label}]` : '';
-            return `${labelStr}${ch.title}（第${ch.start}-${ch.end}页）`;
-          }).join('、');
-          instruction += `《${book.name}》已锁定：${chapterInfo}\n`;
-        } else {
-          instruction += `《${book.name}》（未勾选具体章节）\n`;
-        }
-        // 知识层级（大概念用数字编号，核心知识用 - 区分，避免层级混淆）
-        const hierarchyChapters = selectedChapters.filter(ch => ch.knowledgeHierarchy?.length);
-        if (hierarchyChapters.length > 0) {
-          instruction += `🎯 知识层级：\n`;
-          for (const chapter of hierarchyChapters) {
-            let bcIdx = 0;
-            for (const bigConcept of chapter.knowledgeHierarchy) {
-              bcIdx++;
-              instruction += `${bcIdx}. ${bigConcept.bigConcept}\n`;
-              for (const core of (bigConcept.coreKnowledge || [])) {
-                const level = core.level || core.cognitiveLevel || '';
-                instruction += `  - ${core.name}${level ? ' ' + level : ''}\n`;
-                if (core.specificConcepts?.length) {
-                  instruction += `    具体概念：${core.specificConcepts.join('、')}\n`;
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // 🔧 知识点全覆盖约束（提取自 getCoverageConstraint，与核心任务的"题量充足"互补）
-    if (genTypes && genTypes.length > 0) {
-      const coverageConstraint = getCoverageConstraint(genTypes[0], subject, stage, specialSubType);
-      if (coverageConstraint) {
-        const covContent = coverageConstraint
-          .replace(/^\n⚠️\s*【.*?】/, '')
-          .replace(/\n$/, '')
-          .trim();
-        if (covContent) instruction += `${covContent}\n`;
-      }
-    }
-
-    // ========== 7.【学段+学科精准适配】根据教材的年级/学科从指令库动态注入 ==========
-    if (stage || subject) {
-      // 🔧 DeepSeek 跳过：学段适配和学科适配指令 DeepSeek 训练数据已知，仅保留项目特有的学科特色
-      if (!_isDeepSeekInstruction) {
-        instruction += `\n---\n【${_title('stage_subject_adapt', '学段·学科精准适配')}】\n`;
-      
-        // （已停用「生成-学段适配」查询——与「生成-学段控制」双轨重复，学段控制为详细版并已吸收独特点，v27）
-        
-        // 🔧 从指令库获取学科适配块（优先 gradeSegment+genType 精确匹配，兜底 stage+subject）
-        const subjectBlocks = getMatchingBlockInstructions({ category: '生成-学科适配', matchSubject, stage: gradeSegment, genType: primaryGenType });
-        if (subjectBlocks.length > 0) {
-          for (const block of subjectBlocks) {
-            instruction += block.content + '\n';
-          }
-        } else {
-          // 尝试 stage 级别的兜底
-          const subjFallback = getMatchingBlockInstructions({ category: '生成-学科适配', matchSubject, stage });
-          if (subjFallback.length > 0) {
-            for (const block of subjFallback) {
-              instruction += block.content + '\n';
-            }
-          } else {
-            // 最后兜底：subject only
-            const subjOnly = getMatchingBlockInstructions({ category: '生成-学科适配', matchSubject });
-            if (subjOnly.length > 0) {
-              instruction += subjOnly[0].content + '\n';
-            } else {
-              console.warn(`[instructionLib] 未找到学科适配: subject=${subject}, gradeSegment=${gradeSegment}`);
-            }
-          }
-        }
-      }// _isDeepSeekInstruction guard end
-      
-      // 🔧 学科特色（按 subject+stage+genType 从指令库注入学科特点；传 genType 以排除听写/总结等非题类型）
-      const subjectFeatureBlocks = getMatchingBlockInstructions({ category: '生成-学科特色', matchSubject, stage, genType: primaryGenType });
-      if (subjectFeatureBlocks.length > 0) {
-        instruction += `\n---\n【${_title('subject_feature', '学科特色')}】\n`;
-        for (const block of subjectFeatureBlocks) {
-          instruction += `- ${block.content}\n`;
-        }
-      }
-
-      // 🔧 学科核心素养（按 subject+stage 注入课标核心素养关键词）
-      if (subject) {
-        const coreBlocks = getMatchingBlockInstructions({ category: '生成-学科核心素养', subject, stage });
-        if (coreBlocks.length > 0) {
-          instruction += `\n---\n【${_title('core_literacy', '学科核心素养')}】${coreBlocks[0].content}\n\n`;
-        }
-      }
-      
-      if (grade) instruction += `- 当前年级：${grade}\n`;
-      const gradeHint = getSubjectGradeHint(subject, stage, gradeNum);
-      if (gradeHint) instruction += `${gradeHint}\n`;
-      // 🔧 DeepSeek 跳过："学段约束"警告仅当学段/学科适配块注入时有效
-      if (!_isDeepSeekInstruction) {
-        instruction += `\n⚠️ 学段约束用于控制题目难度和认知深度（如低段避免抽象推理、高段增加综合分析），但考查的知识内容以教材实际覆盖范围为准——教材有短文阅读则考查阅读，有科学探究则考查探究，不因学段标签限制内容广度。\n`;
-      }
-
-      // 🔧 学段控制（按年级段精确匹配 primary_low/mid/high/middle/high，给出题量/难度/时长建议）
-      // 🔧 DeepSeek 跳过：课标对各学段的能力描述、识字量/计算范围等 DeepSeek 训练数据已知
-      if (!_isDeepSeekInstruction) {
-      const stageControlBlocks = getMatchingBlockInstructions({ category: '生成-学段控制', subject: '', stage });
-      if (stageControlBlocks.length > 0) {
-        let matchedStageBlock = null;
-        for (const block of stageControlBlocks) {
-          if (stage === 'primary') {
-            if (isLowerPrimary && block.id === 'stage_primary_low') { matchedStageBlock = block; break; }
-            if (isMiddlePrimary && block.id === 'stage_primary_mid') { matchedStageBlock = block; break; }
-            if (isUpperPrimary && block.id === 'stage_primary_high') { matchedStageBlock = block; break; }
-          } else {
-            matchedStageBlock = block;
-            break;
-          }
-        }
-        if (matchedStageBlock) {
-          instruction += `\n---\n【${_title('stage_control', '学段控制')}】${matchedStageBlock.content}\n`;
-        }
-      }
-      }// _isDeepSeekInstruction guard end (学段控制)
-    }
-
-    // ========== 13.【题型设计与难度配置】…
-    const hasTypeConfig = questionTypes && questionTypes.length > 0 && questionTypes.some(qt => qt.selected);
-    const hasDiffConfig = difficultyLevels && difficultyLevels.length > 0 && difficultyLevels.some(d => d.selected);
-    
-    // 🔧 检测用户是否手动设置了难度配比百分比（null=未设置 → 走指令库自动适配）
-    const hasCustomDiff = hasDiffConfig && difficultyLevels.every(d => d.percentage != null);
-    const usingDefaultTypes = isDefaultQuestionTypes(questionTypes);
-    // 🔧 根修复：拆解 exam/practice 捆绑，区分"仅 exam"和"逐题生成类"
-    const isExam = primaryGenType === 'exam';
-    const isQuestionBased = primaryGenType === 'exam' || primaryGenType === 'practice' || primaryGenType === 'special';
-    const stageRatio = stage && subject ? getStageDifficultyRatio(stage, isLowerPrimary, isMiddlePrimary, isUpperPrimary, primaryGenType) : null;
-    const effectiveTotalScore = totalScore || getDefaultTotalScore(primaryGenType, subject, gradeSegment);
-    
-    // 🔧 DeepSeek 整卷生成：跳过硬编码题型数量+自动难度百分比（结构大纲 diffRatioMap 为唯一权威源）
-    // 仅保留：用户手动设置的难度百分比(hasCustomDiff) + 总分/时间/验算(effectiveTotalScore)
-    const _enterTypeDesignBlock = _isDeepSeekInstruction
-      ? (hasCustomDiff || effectiveTotalScore)     // DeepSeek: 跳过 hasTypeConfig + hasDiffConfig(auto)
-      : (hasTypeConfig || hasDiffConfig || effectiveTotalScore);  // Ollama: 全部保留
-    
-    if (_enterTypeDesignBlock) {
-      // 🔧 从指令库获取块标题（三维度查询，无硬编码）
-      const _tdTitleBlocks = getMatchingBlockInstructions({ category: '生成-指令块标题', subject: '', stage: '', genType: 'type_design' });
-      const _tdTitle = _tdTitleBlocks.length > 0 ? _tdTitleBlocks[0].content : '题型设计与难度配置';
-      instruction += `\n---\n【${_tdTitle}】\n`;
-      
-      // 题型与数量分配（仅在用户手动配置时输出，DeepSeek 由结构大纲自主决定）
-      if (hasTypeConfig && !_isDeepSeekInstruction) {
-        const selectedTypes = questionTypes.filter(qt => qt.selected);
-        instruction += `题型与数量分配：\n`;
-        for (const qt of selectedTypes) {
-          instruction += `  - ${qt.name}：${qt.count}题`;
-          if (qt.score) instruction += `，每题${qt.score}分`;
-          instruction += `\n`;
-        }
-        if (usingDefaultTypes && !isQuestionBased) {
-          instruction += `（以上为默认题型配置，可根据需要在右侧面板调整）\n`;
-        }
-      }
-      
-      // 难度分布：🔧 指令库作为唯一权威源，null=自动走指令库，手动设置后才用用户值
-      if (hasDiffConfig) {
-        if (stageRatio && !hasCustomDiff) {
-          // 🎯 用户未手动设置百分比 → 以指令库为准（学段自动适配）
-          instruction += `难度分布（根据${grade || stage}学段自动适配）：\n`;
-          instruction += `  - 基础题约占${stageRatio.basic}%，主要考查教材基本概念和技能的掌握\n`;
-          instruction += `  - 中档题约占${stageRatio.medium}%，适当改编教材原题，增加思维含量\n`;
-          instruction += `  - 提高题约占${stageRatio.advanced}%，设计探究性或综合性任务\n`;
-        } else if (hasCustomDiff) {
-          // 用户手动设置了百分比 → 使用用户值
-          const selected = difficultyLevels.filter(d => d.selected);
-          instruction += `难度分布（手动配置）：\n`;
-          selected.forEach(d => {
-            if (d.name === '基础题') instruction += `  - 基础题约占${d.percentage}%，主要考查教材基本概念和技能的掌握\n`;
-            if (d.name === '中档题') instruction += `  - 中档题约占${d.percentage}%，适当改编教材原题，增加思维含量\n`;
-            if (d.name === '提高题') instruction += `  - 提高题约占${d.percentage}%，设计探究性或综合性任务\n`;
-          });
-          // 若与指令库推荐值不同，给出提示
-          if (stageRatio) {
-            const selBasic = difficultyLevels.find(d => d.name === '基础题');
-            const selMedium = difficultyLevels.find(d => d.name === '中档题');
-            const selAdv = difficultyLevels.find(d => d.name === '提高题');
-            if (selBasic && selMedium && selAdv &&
-                (selBasic.percentage !== stageRatio.basic ||
-                 selMedium.percentage !== stageRatio.medium ||
-                 selAdv.percentage !== stageRatio.advanced)) {
-              instruction += `（💡 指令库推荐配比：基础${stageRatio.basic}%/中档${stageRatio.medium}%/提高${stageRatio.advanced}%）\n`;
-            }
-          }
-        } else if (stageRatio) {
-          // 兜底：部分设置或 stageRatio 可用
-          instruction += `难度分布（学段自动适配）：\n`;
-          instruction += `  - 基础题约占${stageRatio.basic}%，主要考查教材基本概念和技能的掌握\n`;
-          instruction += `  - 中档题约占${stageRatio.medium}%，适当改编教材原题，增加思维含量\n`;
-          instruction += `  - 提高题约占${stageRatio.advanced}%，设计探究性或综合性任务\n`;
-        }
-        instruction += `难度应有梯度，从易到难排列。\n`;
-      }
-      
-      // 总分：🔧 D3修复 —— 智能默认对标现行考试标准（仅 exam）
-      if (effectiveTotalScore) {
-        instruction += `总分：${effectiveTotalScore}分`;
-        if (!totalScore) {
-          const stageLabel = stage === 'primary' ? '小学' : stage === 'middle' ? '初中' : '高中';
-          instruction += `（${stageLabel}${subject}考试标准自动设置，与真题蓝本一致）`;
-        }
-        instruction += `。\n`;
-        // 🔧 exam 分值验算已在题型结构原则块中统一处理
-      }
-      
-      // 🔧 Gap2: 时间分配建议（对标市面考卷）
-      // 🔴 真题卷根治：exam 考试时长以真题蓝本 duration 为准，跳过通用时间分配建议（避免与蓝本 60/100/120 分钟冲突）
-      if (primaryGenType !== 'exam') {
-        const timeAlloc = getTimeAllocation(primaryGenType, subject, gradeSegment);
-        if (timeAlloc) {
-          instruction += `${timeAlloc}。\n`;
-        }
-      }
-
-      // 🔧 题量控制（按 gradeSegment 从指令库注入建议总题量范围）
-      // 🔧 DeepSeek 跳过：合理题量设计 DeepSeek 训练数据充分覆盖
-      if (!_isDeepSeekInstruction) {
-      const layoutBlocks = getMatchingBlockInstructions({ category: '生成-题量控制', subject: '', stage: gradeSegment });
-      if (layoutBlocks.length > 0) {
-        instruction += `\n---\n【${_title('layout_control', '题量控制')}】${layoutBlocks[0].content}\n`;
-      }
-      }
-      // 🔧 难度控制（按 gradeSegment 从指令库注入基础:中等:提高比例）
-      // 🔧 DeepSeek 跳过：难度配比(5:3:2等) DeepSeek 训练数据已知
-      if (!_isDeepSeekInstruction) {
-      const diffControlBlocks = getMatchingBlockInstructions({ category: '生成-难度控制', subject: '', stage: gradeSegment, genType: primaryGenType });
-      if (diffControlBlocks.length > 0) {
-        instruction += `\n---\n【${_title('diff_control', '难度控制')}】${diffControlBlocks[0].content}\n`;
-      }
-      }
-      
-      // 🔴 分值分配原则 + 验算（防止凑分）：仅试卷类型
-      if (primaryGenType === 'exam' && effectiveTotalScore) {
-        instruction += `\n🔴 分值分配原则（防止凑分——必须遵守）：\n`;
-        instruction += `- 先定分后出题：先根据每个知识点的考查权重确定分值，再按分值设计题目深度。严禁"先出完题再凑分数"\n`;
-        instruction += `- 分值对应考查量：1-2分→简单识记/判断/选择，3-4分→理解应用/填空/简答，5-6分→综合运用/多步计算，8分以上→深层探究/论述/写作\n`;
-        instruction += `- 同题型等分：同一大题内各小题分值保持一致（如选择题统一2分/题、填空题统一3分/题），禁止同一题型内混搭不同分值；阅读等大题内小题分值可不同（题号后各标"（X分）"）\n`;
-        instruction += `- 常见整数值：分值取2/3/4/5/6/8/10等常见整数，严禁出现0.5/1.5/2.5等小数，严禁7/11/13等冷僻分值\n`;
-        instruction += `- 分值标注（必须遵守）：大题标题按明细式标"共X题，每题X分，共X分"；🔴 所有小题（不分题型）都必须在题号后或题干末尾标"（X分）"，严禁任何小题漏标；多空题题干再注"（每空X分）"且空数×每空分=小题分\n`;
-        instruction += `- 验算：所有题目分数合计必须严格等于${effectiveTotalScore}分，偏差为0\n`;
-      }
-      
-      instruction += `\n`;
-    }
-
-    // ==== 🎯 格式合力区：配图/学科标记/输出格式 —— 紧接结构指令，避免被长文稀释 ====
-
-    // ========== 10.【图形/图表/公式/配图专项指令】完全从指令库读取（专项要求+EduRender模板双源合并）==========
-    if (subject) {
-      const rules = [];
-      
-      // ① 专项要求（公式/图形/图表/配图格式要求）—— 按 gradeSegment+genType 学段精确匹配
-      const specBlocks = getMatchingBlockInstructions({ category: '生成-专项要求', matchSubject, stage: gradeSegment, genType: primaryGenType, specialSubType: genTypes && genTypes.includes('special') ? specialSubType : '' });
-      for (const block of specBlocks) {
-        rules.push(block.content);
-      }
-      
-      // ② EduRender 渲染模板（公式/数轴/几何/图表/力学/电路/光路/原子/配图）—— 按 subject 匹配，全学段通用
-      const allEduBlocks = getMatchingBlockInstructions({ category: '生成-EduRender模板', matchSubject, stage: '', genType: '' });
-      const genericEduBlocks = getMatchingBlockInstructions({ category: '生成-EduRender模板', subject: '', stage: '', genType: '' });
-      const eduBlocks = [...allEduBlocks];
-      for (const b of genericEduBlocks) {
-        if (!eduBlocks.find(e => e.id === b.id)) eduBlocks.push(b);
-      }
-      const eduOrder = ['formula', 'chart', 'axis', 'shapes', 'force', 'circuit', 'optics', 'atom', 'image'];
-      eduBlocks.sort((a, b) => {
-        const ai = eduOrder.findIndex(k => a.id.includes(k));
-        const bi = eduOrder.findIndex(k => b.id.includes(k));
-        return (ai >= 0 ? ai : 99) - (bi >= 0 ? bi : 99);
-      });
-      for (const block of eduBlocks) {
-        const label = block.name.replace('【EduRender模板】', '');
-        rules.push(`【EduRender Studio——${label}】\n${block.content}`);
-      }
-      
-      if (specBlocks.length === 0 && eduBlocks.length === 0) {
-        console.warn(`[instructionLib] 未找到专项要求+EduRender模板: subject=${subject}, gradeSegment=${gradeSegment}`);
-      }
-      
-      if (rules.length > 0) {
-        instruction += `\n---\n【${_title('graphic_formula', '图形/图表/公式/配图专项指令')}】\n`;
-        rules.forEach(r => { instruction += r + '\n'; });
-        instruction += `\n`;
-      }
-    }
-
-    // ========== 19.【学科标记】学科专用HTML标记规范（全部从指令库三维度匹配，无硬编码）==========
-    if (subject) {
-      // 🔧 Q3: 先查通用学科标记（stage=''），再查学段专属标记（如英语小学四线三格）
-      // 🔧 单资料类型时传入 genType 过滤，避免 dictation 注入冲突的 <u> 下划线标记
-      const singleGenType = (genTypes && genTypes.length === 1) ? genTypes[0] : undefined;
-      const markupGeneric = getMatchingBlockInstructions({ category: '生成-学科标记', matchSubject, stage: '', genType: singleGenType });
-      const markupStage = stage ? getMatchingBlockInstructions({ category: '生成-学科标记', matchSubject, stage, genType: singleGenType }) : [];
-      // 合并去重（学段条目优先追加，不覆盖通用条目）
-      const allMarkup = [...markupGeneric];
-      for (const b of markupStage) {
-        if (!allMarkup.find(m => m.id === b.id)) allMarkup.push(b);
-      }
-      if (allMarkup.length > 0) {
-        for (const block of allMarkup) {
-          instruction += `${block.content}\n`;
-        }
-        instruction += '\n';
-      }
-    }
-
-    // ========== 21.【输出格式】——按资料类型精准注入 ==========
-    
-    if (primaryGenType === 'summary') {
-      // 🔧 从指令库读取输出格式模板（含学科专属补充）
-      const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', matchSubject, stage, genType: 'summary' });
-      if (fmtBlocks.length > 0) {
-        const fmtContent = fmtBlocks.map(b => b.content).join('\n');
-        instruction += `\n---\n【${_title('format_summary', '知识点总结格式规范')}】\n${fmtContent}\n`;
-      } else {
-        console.warn('[instructionLib] 未找到输出格式: summary');
-      }
-    } else if (primaryGenType === 'errorbook') {
-      // 🔧 从指令库读取输出格式模板
-      const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', matchSubject, stage, genType: 'errorbook' });
-      if (fmtBlocks.length > 0) {
-        const fmtContent = fmtBlocks.map(b => b.content).join('\n');
-        instruction += `\n---\n【${_title('format_errorbook', '错题本格式规范')}】\n${fmtContent}\n`;
-      } else {
-        console.warn('[instructionLib] 未找到输出格式: errorbook');
-      }
-    } else if (primaryGenType === 'preview') {
-      // 🔧 从指令库读取输出格式模板
-      const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', matchSubject, stage, genType: 'preview' });
-      if (fmtBlocks.length > 0) {
-        const fmtContent = fmtBlocks.map(b => b.content).join('\n');
-        instruction += `\n---\n【${_title('format_preview', '课前预习格式规范')}】\n${fmtContent}\n`;
-      } else {
-        console.warn('[instructionLib] 未找到输出格式: preview');
-      }
-    } else if (primaryGenType === 'dictation') {
-      // 🔧 从指令库读取输出格式模板（含学科专属补充——语文/英语格式不同）
-      const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', matchSubject, stage, genType: 'dictation' });
-      if (fmtBlocks.length > 0) {
-        const fmtContent = fmtBlocks.map(b => b.content).join('\n');
-        instruction += `\n---\n【${_title('format_dictation', '听写/默写格式规范')}】\n${fmtContent}\n`;
-      } else {
-        console.warn('[instructionLib] 未找到输出格式: dictation');
-      }
-    } else if (primaryGenType === 'reading') {
-      // 🔧 从指令库读取输出格式模板
-      const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', matchSubject, stage, genType: 'reading' });
-      if (fmtBlocks.length > 0) {
-        const fmtContent = fmtBlocks.map(b => b.content).join('\n');
-        instruction += `\n---\n【${_title('format_reading', '阅读训练格式规范')}】\n${fmtContent}\n`;
-      } else {
-        console.warn('[instructionLib] 未找到输出格式: reading');
-      }
-    } else {
-      // 🔧 考卷/课时练/专项突破的格式（从指令库读取，含学科专属补充）
-      const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', matchSubject, stage, genType: primaryGenType, specialSubType: primaryGenType === 'special' ? specialSubType : '' });
-      if (fmtBlocks.length > 0) {
-        const fmtContent = fmtBlocks.map(b => b.content).join('\n');
-        instruction += `\n---\n【${_title('format_exam', '试卷/练习格式规范')}】\n${fmtContent}\n`;
-      } else {
-        console.warn(`[instructionLib] 未找到输出格式: genType=${primaryGenType}`);
-      }
-
-      // 🔧 Q3: 学科标记已统一在 section 19 从指令库三维度注入，此处不再重复硬编码
-
-      // 输出格式已在上方【输出格式】中统一注入，此处不再重复
-      instruction += `\n`;
-      
-      // 🔧 EduRender 模板已合入上方【图形/图表/公式/配图专项指令】dual-source（专项要求+EduRender模板），此处不再重复注入
-    }
-
-    // ========== 5.【质量范例】few-shot 示例（由 getGenTypeExample 提供块级标题）==========
-    if (genTypes && genTypes.length > 0 && matchSubject) {
-      const genTypeExample = getGenTypeExample(genTypes[0], matchSubject, stage, isLowerPrimary, grade, gradeSegment, specialSubType);
-      if (genTypeExample) {
-        instruction += `\n${genTypeExample}\n`;
-      }
-    }
-
-    // ========== 9.【模板精准对标】 ==========
-    if (selectedTemplates && selectedTemplates.length > 0) {
-      // 🔧 从指令库获取块标题（三维度查询，无硬编码）
-      const _tplTitleBlocks = getMatchingBlockInstructions({ category: '生成-指令块标题', subject: '', stage: '', genType: 'template' });
-      const _tplTitle = _tplTitleBlocks.length > 0 ? _tplTitleBlocks[0].content : '模板精准对标';
-      instruction += `\n---\n【${_tplTitle}】\n`;
-      instruction += `请深度对标以下模板的风格特征（题型结构、设问方式、语言表达、难度层次），作为本次生成的质量基准：\n`;
-      for (const tpl of selectedTemplates) {
-        const selectedChapters = tpl.selectedChapters || [];
-        instruction += `\n📋 《${tpl.name}》\n`;
-        if (selectedChapters.length > 0) {
-          for (const chapter of selectedChapters) {
-            instruction += `  - ${chapter.title}（第${chapter.start}-${chapter.end}页）\n`;
-          }
-        }
-        if (tpl.analysis) {
-          // 🔧 DeepSeek 整卷生成：跳过模板题数/分值/结构分析，仅保留章节信息作为语境参考
-          if (!_isDeepSeekInstruction) {
-          const tplStructure = tpl.analysis.结构分析 || tpl.analysis.structure || [];
-          if (tplStructure.length > 0) {
-            instruction += `  结构分析：\n`;
-            for (const section of tplStructure) {
-              instruction += `    - ${section.大题 || section.题型}：${section.小题数量 || 0}小题，共${section.大题分值 || 0}分`;
-              if (section.设问风格) instruction += `，设问：${section.设问风格}`;
-              if (section.难度) instruction += `，难度：${section.难度}`;
-              instruction += '\n';
-            }
-          }
-          const tplTotalScore = tpl.analysis.总分 || tpl.analysis.totalScore || 0;
-          const tplQuestionCount = tpl.analysis.总题数 || tpl.analysis.questionCount || 0;
-          if (tplTotalScore) {
-            instruction += `  总分：${tplTotalScore}分\n`;
-          }
-          if (tplQuestionCount) {
-            instruction += `  总题数：${tplQuestionCount}题\n`;
-          }
-          }
-
-          // 🔧 改进：提取典型题目作为风格参照（每种题型取2道）
-          // 🔧 DeepSeek 整卷生成跳过：真题示例+量化特征+语言风格指纹+格式排版指纹（过长不必要）
-          if (tpl.analysis.questionCards && tpl.analysis.questionCards.length > 0) {
-            if (!_isDeepSeekInstruction) {
-            const cards = tpl.analysis.questionCards;
-            instruction += `\n  【模板真题示例——以下为模板典型题目，供参考风格和结构，无需机械模仿】\n`;
-            // 优先取不同题型的题，每种题型取2道
-            const typeOrder = ['选择题', '填空题', '判断题', '解答题', '计算题', '应用题', '简答题'];
-            const samples = [];
-            for (const type of typeOrder) {
-              const typeCards = cards.filter(c => c.type === type);
-              const picked = typeCards.slice(0, 2); // 🔧 每种题型取2道
-              samples.push(...picked);
-              if (samples.length >= 5) break; // 🔧 最多5道
-            }
-            // 如果题型不足3种，补充其他题
-            if (samples.length < 3) {
-              for (const card of cards) {
-                if (!samples.find(s => s.number === card.number)) {
-                  samples.push(card);
-                  if (samples.length >= 3) break;
-                }
-              }
-            }
-            for (const s of samples) {
-              instruction += `  ▶ 第${s.number}题（${s.type}，${s.difficulty || '未知'}难度，${s.score || '?'}分）：\n`;
-              instruction += `    题干：${s.stem}\n`;
-              if (s.options && s.options.length > 0) {
-                instruction += `    选项：${s.options.map((o, i) => String.fromCharCode(65 + i) + '. ' + o).join('；')}\n`;
-              }
-              if (s.questionFeature) {
-                instruction += `    设问特征：${s.questionFeature}\n`;
-              }
-            }
-            // 统计题干长度特征
-            const stemLengths = cards.filter(c => c.stem).map(c => c.stem.length);
-            if (stemLengths.length > 0) {
-              const avgLength = Math.round(stemLengths.reduce((a, b) => a + b, 0) / stemLengths.length);
-              const minLength = Math.min(...stemLengths);
-              const maxLength = Math.max(...stemLengths);
-              instruction += `  题干长度参考：平均${avgLength}字（范围${minLength}~${maxLength}字），供参考，可根据知识点需要灵活调整。\n`;
-            }
-            
-            // ✨ 模板量化特征分析
-            const totalCards = cards.length;
-            if (totalCards > 0) {
-              // 题型分布统计
-              const typeCount = {};
-              cards.forEach(c => { typeCount[c.type] = (typeCount[c.type] || 0) + 1; });
-              const typeDist = Object.entries(typeCount)
-                .map(([t, n]) => `${t}占${Math.round(n/totalCards*100)}%`)
-                .join('，');
-              
-              // 难度分布统计
-              const diffCount = {};
-              cards.forEach(c => { diffCount[c.difficulty] = (diffCount[c.difficulty] || 0) + 1; });
-              const diffDist = Object.entries(diffCount)
-                .map(([d, n]) => `${d}占${Math.round(n/totalCards*100)}%`)
-                .join('，');
-              
-              // 选项数量统计（选择题）
-              const choiceCards = cards.filter(c => c.type === '选择题' && c.options?.length);
-              const optionCounts = choiceCards.map(c => c.options.length);
-              const avgOptions = optionCounts.length > 0 
-                ? Math.round(optionCounts.reduce((a, b) => a + b, 0) / optionCounts.length) 
-                : 4;
-              
-              // 情境融入比例
-              const contextCards = cards.filter(c => 
-                c.questionFeature?.includes('情境') || c.stem?.length > 50
-              );
-              const contextRatio = Math.round(contextCards.length / totalCards * 100);
-              
-              // 难度排序规律
-              const difficultyOrder = cards.map(c => c.difficulty);
-              const firstHardIndex = difficultyOrder.findIndex(d => d === '较难' || d === '提高');
-              const difficultyCurve = firstHardIndex > 0 
-                ? `前${firstHardIndex}题以基础为主，从第${firstHardIndex + 1}题开始出现较难题`
-                : '难度均匀分布';
-              
-              instruction += `\n  【模板量化特征——供参考】\n`;
-              instruction += `  - 题型分布：${typeDist}\n`;
-              instruction += `  - 难度分布：${diffDist}\n`;
-              instruction += `  - 难度递进：${difficultyCurve}\n`;
-              instruction += `  - 选择题选项数：${avgOptions}个\n`;
-              instruction += `  - 情境融入比例：约${contextRatio}%（${contextCards.length}/${totalCards}题有情境）\n`;
-              // 🔧 新增：注入语言指纹
-              if (tpl.analysis?.languageStyle) {
-                const ls = tpl.analysis.languageStyle;
-                instruction += `\n  【语言风格指纹——供参考】\n`;
-                if (ls.avgSentenceLength) {
-                  instruction += `  - 平均句长：${ls.avgSentenceLength}字（供参考，可根据知识点需要灵活调整）\n`;
-                }
-                if (ls.commonPatterns?.length) {
-                  instruction += `  - 高频句式：${ls.commonPatterns.join('、')}\n`;
-                }
-                if (ls.connectors?.length) {
-                  instruction += `  - 连接词偏好：${ls.connectors.join('、')}\n`;
-                }
-                if (ls.contextIntro) {
-                  instruction += `  - 情境引入方式：${ls.contextIntro}\n`;
-                }
-                if (ls.personReference) {
-                  instruction += `  - 指代方式：${ls.personReference}\n`;
-                }
-                if (ls.tone) {
-                  instruction += `  - 语气特征：${ls.tone}\n`;
-                }
-                if (ls.sampleSentence) {
-                  instruction += `  - 典型句式示例：「${ls.sampleSentence}」\n`;
-                }
-              }
-              
-              // 🔧 新增：注入格式排版特征
-              if (tpl.analysis?.formatStyle) {
-                const fs = tpl.analysis.formatStyle;
-                instruction += `\n  【格式排版指纹——供参考】\n`;
-                if (fs.spacingBetweenQuestions !== undefined) {
-                  instruction += `  - 题目间距：${fs.spacingBetweenQuestions ? '题间有空行' : '题间紧凑排列'}\n`;
-                }
-                if (fs.indentation) {
-                  instruction += `  - 缩进方式：${fs.indentation}\n`;
-                }
-                if (fs.scorePosition && primaryGenType !== 'practice') {
-                  instruction += `  - 分数标注位置：${fs.scorePosition}\n`;
-                }
-                if (fs.chartDescriptionFormat) {
-                  instruction += `  - 图表说明格式：${fs.chartDescriptionFormat}\n`;
-                }
-              }
-            }
-          }
-          } // _isDeepSeekInstruction guard end (verbose template analysis)
-        } else {
-          instruction += `  （请先点击「分析模板」获取模板特征）\n`;
-        }
-      }
-            // ✨ 语言风格特征分析 — 🔧 DeepSeek 跳过（过长统计信息，整卷生成不需要）
-      if (!_isDeepSeekInstruction) {
-      if (selectedTemplates && selectedTemplates.length > 0) {
-        const tpl = selectedTemplates[0];
-        if (tpl.analysis?.questionCards?.length > 0) {
-          const cards = tpl.analysis.questionCards;
-          // 分析语言风格
-          const allStems = cards.map(c => c.stem || '').filter(Boolean);
-          const avgStemLen = allStems.length > 0 
-            ? Math.round(allStems.reduce((a, b) => a + b.length, 0) / allStems.length) 
-            : 0;
-          const shortQuestions = allStems.filter(s => s.length < 30).length;
-          const longQuestions = allStems.filter(s => s.length > 80).length;
-          
-          // 分析设问模式
-          const directQuestions = cards.filter(c => 
-            c.questionFeature?.includes('直接设问') || 
-            (c.stem || '').match(/^(请|试|计算|求解|证明|判断|选择|填空)/)
-          ).length;
-          const contextQuestions = cards.filter(c => 
-            c.questionFeature?.includes('情境') || (c.stem || '').length > 60
-          ).length;
-          
-          instruction += `\n  【语言风格特征——供参考】\n`;
-          instruction += `  - 题干平均长度：${avgStemLen}字（短题干≤30字：${shortQuestions}题，长题干≥80字：${longQuestions}题）\n`;
-          instruction += `  - 设问方式：直接设问${directQuestions}题，情境设问${contextQuestions}题\n`;
-          
-          if (avgStemLen < 40) {
-            instruction += `  - 风格倾向：简洁精炼型，题干短小直接，适合低年级或基础训练\n`;
-          } else if (avgStemLen > 70) {
-            instruction += `  - 风格倾向：情境丰富型，题干包含完整情境描述，适合高年级或综合应用\n`;
-          } else {
-            instruction += `  - 风格倾向：均衡型，题干长度适中，兼顾情境与效率\n`;
-          }
-          
-          // 分析语言特征：是否使用"请""试""已知"等引导词
-          const hasPlease = allStems.filter(s => s.includes('请')).length;
-          const hasTry = allStems.filter(s => s.includes('试')).length;
-          const hasKnown = allStems.filter(s => s.includes('已知')).length;
-          if (hasPlease > 0 || hasTry > 0 || hasKnown > 0) {
-            instruction += `  - 语言习惯：`;
-            const habits = [];
-            if (hasPlease > 0) habits.push(`使用"请"引导（${hasPlease}题）`);
-            if (hasTry > 0) habits.push(`使用"试"引导（${hasTry}题）`);
-            if (hasKnown > 0) habits.push(`使用"已知"陈述（${hasKnown}题）`);
-            instruction += habits.join('，') + '\n';
-          }
-          
-          // 答案格式特征
-          const answerCards = cards.filter(c => c.answer);
-          if (answerCards.length > 0) {
-            const answerLengths = answerCards.map(c => (c.answer || '').length);
-            const avgAnsLen = Math.round(answerLengths.reduce((a, b) => a + b, 0) / answerLengths.length);
-            instruction += `  - 答案格式：平均${avgAnsLen}字，`;
-            if (avgAnsLen < 10) instruction += `简洁型（适合填空/选择）\n`;
-            else if (avgAnsLen < 50) instruction += `标准型（适合计算/简答）\n`;
-            else instruction += `详细型（适合解答/论述）\n`;
-          }
-        }
-      }
-      } // _isDeepSeekInstruction guard end (语言风格特征)
-      instruction += `\n请参考模板在以下维度的特征进行设计：题型结构、${primaryGenType !== 'practice' ? '分值分布、' : ''}设问风格、语言表达、难度层次。\n`;
-      instruction += `可适量引用模板中的优秀题目（不超过30%），但大部分题目需基于教材内容重新命题，鼓励在模板基础上进行创新设计。\n\n`;
-      
-      // 🔧 注入模板风格约束（供逐题生成时参考）— DeepSeek 整卷生成跳过
-      if (!_isDeepSeekInstruction) {
-      const _ts_firstTpl = selectedTemplates[0];
-      if (_ts_firstTpl?.analysis?.languageStyle) {
-        const _ts_ls = _ts_firstTpl.analysis.languageStyle;
-        instruction += `\n---\n【${_title('template_style', '模板风格参考——逐题生成时可参考')}】\n`;
-        if (_ts_ls.avgSentenceLength) instruction += `- 题干平均句长约${_ts_ls.avgSentenceLength}字\n`;
-        if (_ts_ls.commonPatterns?.length) instruction += `- 优先使用句式：${_ts_ls.commonPatterns.slice(0, 3).join('、')}\n`;
-        if (_ts_ls.tone) instruction += `- 语气：${_ts_ls.tone}\n`;
-        if (_ts_ls.sampleSentence) instruction += `- 风格参考：「${_ts_ls.sampleSentence}」\n`;
-      }
-      if (_ts_firstTpl?.analysis?.formatStyle) {
-        const _ts_fs = _ts_firstTpl.analysis.formatStyle;
-        if (_ts_fs.scorePosition && primaryGenType !== 'practice') instruction += `- 分值位置：${_ts_fs.scorePosition}\n`;
-        if (_ts_fs.spacingBetweenQuestions !== undefined) {
-          instruction += `- 题间距：${_ts_fs.spacingBetweenQuestions ? '题间空行' : '紧凑排列'}\n`;
-        }
-      }
-      } // _isDeepSeekInstruction guard end (模板风格参考)
-      // 🔧 按学段区分模板约束（从指令库三维度智能匹配）
-      const tplBanBlocks = getMatchingBlockInstructions({ category: '生成-模板禁止项', stage });
-      if (tplBanBlocks.length > 0) {
-        instruction += tplBanBlocks[0].content + '\n';
-      }
-      instruction += '\n';
-    }
-
-    instruction += `\n`;
-
-    // ========== 14.【题目质量标准】（从指令库按stage+subject+genType三维度匹配，无硬编码兜底）==========
-    // 🔴 生成端强制：非 exam 类型在 DeepSeek 路径下也注入题目质量标准——
-    //    exam 由 quality_exam_formal 品质块承载（含小题规范/干扰项/填空设空等），
-    //    但 practice/special/review 等非 exam 类型的品质块较短，不含上述具体命题规范，
-    //    跳过后 AI 无"填空一处只考一个知识点""选择题≤3选项"等落地约束
-    if (!_isDeepSeekInstruction || primaryGenType !== 'exam') {
-    // 🔧 基础规则（所有阶段通用，仅取 subject='' 且 stage='' 的纯通用条目；传 genType 以启用资料类型过滤——听写/默写/总结/预习不注入题目质量标准）
-    const qualityBase = getMatchingBlockInstructions({ category: '生成-题目质量标准', subject: '', stage: '', genType: primaryGenType });
-    // 🔧 学段专属规则（filter 排除 subject 非空的学科条目，仅取纯学段条目，且按 gradeSegment 精确匹配）
-    const qualityStageAll = getMatchingBlockInstructions({ category: '生成-题目质量标准', subject: '', stage: gradeSegment, genType: primaryGenType });
-    const qualityStageOnly = qualityStageAll.filter(b => {
-      if (!b.stage || b.stage === '' || b.subject !== '') return false;
-      return true;
-    });
-    // 🔧 学科专属规则（filter 排除 subject 为空的通用条目，避免 base 重复）
-    const qualitySubjAll = subject ? getMatchingBlockInstructions({ category: '生成-题目质量标准', matchSubject, stage: '', genType: primaryGenType }) : [];
-    const qualitySubjOnly = qualitySubjAll.filter(b => b.subject && b.subject !== '');
-    
-    if (qualityBase.length > 0) {
-      instruction += `\n---\n【${_title('quality_standard', '题目质量标准')}】${qualityBase[0].content}\n`;
-      // 学段补充（覆盖基础规则中的选项数、难度配比等；题干充实度 frag_question_substance_* 同类别同 stage，全量注入避免同分遮蔽）
-      for (const qStageBlock of qualityStageOnly) {
-        if (qStageBlock.content !== qualityBase[0].content) {
-          instruction += qStageBlock.content + '\n';
-        }
-      }
-      // 🔧 Q1: 学科专属补充 — 加分隔符与编号列表明确断开，避免被误解为延续编号
-      if (qualitySubjOnly.length > 0) {
-        instruction += `\n---\n【${_title('subject_supplement', '学科补充标准')}】\n${qualitySubjOnly[0].content}\n`;
-      }
-    } else {
-      console.warn(`[instructionLib] 未找到题目质量标准: stage=${stage}, subject=${subject}`);
-    }
-    instruction += '\n';
-    }// !_isDeepSeekInstruction || primaryGenType !== 'exam' guard end (题目质量标准)
-
-    // ========== 15.【答案与解析规范】教辅级答案质量（优先从指令库读取）==========
-    // 🔧 Q1+Q3+Q4: 对标市面教辅的答案与解析标准
-    if (matchSubject) {
-      const answerSpec = getAnswerQualitySpec(primaryGenType, matchSubject, stage, specialSubType);
-      const scoringRubric = getScoringRubric(primaryGenType, matchSubject, stage);
-      const chineseTemplates = getChineseReadingTemplates(matchSubject, primaryGenType, gradeSegment);
-      if (answerSpec || scoringRubric || chineseTemplates) {
-        const answerSpecBlocks = getMatchingBlockInstructions({ category: '生成-答案与解析规范', subject: '', stage: '' });
-        const _ansTitle = _title('answer_spec', '答案与解析规范');
-        const answerHeader = answerSpecBlocks.length > 0
-          ? `【${_ansTitle}】${answerSpecBlocks[0].content}`
-          : `【${_ansTitle}】以下为教辅级答案质量标准，请严格遵守以确保输出质量对标市面教辅：`;
-        instruction += answerHeader + '\n';
-        if (answerSpec) instruction += answerSpec + '\n';
-        if (scoringRubric) instruction += scoringRubric + '\n';
-        if (chineseTemplates) instruction += chineseTemplates + '\n';
-        instruction += '\n';
-      }
-    }
-
-    // ========== 16.【答题模板】学科答题规范（从指令库读取，传 genType 排除听写/总结等非答题类型）==========
-    // 🔧 DeepSeek 跳过：学科答题规范（解、答、步骤格式等）DeepSeek 训练数据充分覆盖
-    if (!_isDeepSeekInstruction && subject) {
-      const templateBlocks = getMatchingBlockInstructions({ category: '生成-答题模板', matchSubject, stage: '', genType: primaryGenType });
-      if (templateBlocks.length > 0) {
-        instruction += `\n---\n【${_title('answer_template', '答题模板')}】${templateBlocks[0].content}\n\n`;
-      }
-    }
-
-    // ========== 11.【术语规范】学科术语规范（优先从指令库读取，传 genType 排除听写）==========
-    // 🔧 DeepSeek 跳过：学科术语标准表述（通假字/单位换算/四则运算等）DeepSeek 训练数据充分覆盖
-    if (!_isDeepSeekInstruction && subject) {
-      const termBlocks = getMatchingBlockInstructions({ category: '生成-术语规范', matchSubject, stage: '', genType: primaryGenType });
-      if (termBlocks.length > 0) {
-        instruction += `\n---\n【${_title('terminology', '术语规范')}】${termBlocks[0].content}\n\n`;
-      }
-    }
-
-    // 🔧 DeepSeek 跳过：原题引用（允许适量改编教材题）是通用常识，无需显式告知
-    if (!_isDeepSeekInstruction && allowOriginalQuestions) {
-      const originalQuoteBlocks = getMatchingBlockInstructions({ category: '生成-原题引用', subject: '', stage: '', genType: primaryGenType });
-      if (originalQuoteBlocks.length > 0) {
-        instruction += `\n---\n【${_title('original_quote', '原题引用')}】${originalQuoteBlocks[0].content}\n`;
-      } else {
-        console.warn('[instructionLib] 未找到原题引用条目');
-      }
-    }
-    
-    // 🔧 原「禁止项」「通用约束」已并入红线约束（最高优先级前置 Section 全量注入）与题目质量标准/情境要求/难度控制，此处不再重复注入
-
-    // 🔧 Fix B: 知识边界约束（明确告诉 AI 什么不考、什么不涉及）
-    if (subject) {
-      const knowledgeBoundaries = getKnowledgeBoundaries(subject, stage, isLowerPrimary, isMiddlePrimary, isUpperPrimary, grade);
-      if (knowledgeBoundaries) {
-        instruction += knowledgeBoundaries + '\n\n';
-      }
-    }
-
-    // ========== 12.【命题范围与风格】 ==========
-    if (scopeType || propositionStyle) {
-      instruction += `\n---\n【${_title('scope_style', '命题范围与风格')}】\n`;
-    }
-    if (scopeType) {
-      const scopeBlocks = getMatchingBlockInstructions({ category: '生成-范围标签', genType: scopeType });
-      const scopeLabel = scopeBlocks.length > 0 ? scopeBlocks[0].content : '默认范围';
-      instruction += `范围类型：${scopeLabel}。\n`;
-      // 🔧 跨章综合语义：多章节合并出卷时，从指令库查询跨章约束（{chapterCount} 占位符运行时替换）
-      const totalChapters = selectedBooks.reduce((sum, b) => sum + (b.selectedChapters?.length || 0), 0);
-      if (mergeChapters && totalChapters > 1) {
-        const crossBlocks = getMatchingBlockInstructions({ category: '生成-范围扩展', genType: scopeType });
-        if (crossBlocks.length > 0) {
-          instruction += crossBlocks[0].content.replace('{chapterCount}', totalChapters) + '\n';
-        }
-      }
-    }
-    if (propositionStyle) {
-      // 🔧 从指令库获取命题风格指令（纯三维度查询，无硬编码兜底）
-      const styleBlocks = getMatchingBlockInstructions({ category: '生成-命题风格', genType: propositionStyle });
-      if (styleBlocks.length > 0) {
-        // 🔴 关键修复：同时注入风格标识符（unified_context/context_fusion），
-        //    供后续 contextFramework 生成逻辑用正则匹配检测——
-        //    仅注入中文描述时，正则 /unified_context/ 永远不匹配，情境框架从不生成
-        instruction += `命题风格：${propositionStyle}（${styleBlocks[0].content}）`;
-      } else {
-        console.warn(`[instructionLib] 未找到命题风格: propositionStyle=${propositionStyle}`);
-      }
-      
-      // 🔧 情境方向建议（原「生成-情境方向」类别已合并）统一在下方【情境要求】Section 注入
-      instruction += `\n\n`;
-    }
-
-    // 🔧 情境要求（按 stage+subject+genType 从指令库注入情境化命题要求；传 genType 排除 dictation/summary/errorbook 等非命题类型）
-    // 🔴 生成端强制：所有引擎均注入情境化设计要求（含传统→情境化对比示例、基础题情境化全覆盖），
-    //    不再按 DeepSeek/情境模式跳过——这些块是新课标"题目要有真实学习情境"的生成端唯一载体，
-    //    跳过后仅靠 EXAM_NEW_STANDARD 的高层原则无法指导 AI 落地具体情境化手法
-    const _shouldInjectContextReq = true;
-    if (_shouldInjectContextReq && (stage || subject)) {
-      // 通用层：frag_context_design（情境化比例底线）+ context_real_*（真实情境）+ genType 专属深度块，按 stage 全量注入
-      const stageCtxBlocks = getMatchingBlockInstructions({ category: '生成-情境要求', subject: '', stage, genType: primaryGenType });
-      // 学科层：context_tradition（传统文化）按 subject 匹配；gen_ctx_*（情境方向建议）沿用原 Section 门控（仅统一情境模式注入）；排除通用块防双注入
-      const subjCtxBlocks = [];
-      if (subject) {
-        const _ctxStyleChosen = propositionStyle === 'context_fusion' || propositionStyle === 'unified_context';
-        const subjAll = getMatchingBlockInstructions({ category: '生成-情境要求', matchSubject, stage: gradeSegment, genType: primaryGenType })
-          .filter(b => b.subject && b.subject.trim() !== '');
-        for (const b of subjAll) {
-          if (b.id && b.id.startsWith('gen_ctx_') && !_ctxStyleChosen) continue;
-          subjCtxBlocks.push(b);
-        }
-      }
-      if (stageCtxBlocks.length > 0 || subjCtxBlocks.length > 0) {
-        instruction += `\n---\n【${_title('context_req', '情境要求')}】\n`;
-        for (const block of stageCtxBlocks) {
-          instruction += `- ${block.content}\n`;
-        }
-        for (const block of subjCtxBlocks) {
-          instruction += `- ${block.content}\n`;
-        }
-        instruction += `\n`;
-      } else {
-        console.warn(`[context-miss] ⚠️ 情境要求无匹配块: genType="${primaryGenType}" subject="${matchSubject || ''}" stage="${stage}"——AI将在无情境要求约束下生成`);
-      }
-    }
-
-    // ========== 8.【资料类型补充约束】补充约束模式：提供格式/质量/内容补充，不与【核心任务】争指挥权 ==========
-    if (autoFullInstructions && autoFullInstructions.length > 0) {
-      // 🔧 从指令库获取块标题（三维度查询，无硬编码）
-      const _suppTitleBlocks = getMatchingBlockInstructions({ category: '生成-指令块标题', subject: '', stage: '', genType: 'supplement' });
-      const _suppTitle = _suppTitleBlocks.length > 0 ? _suppTitleBlocks[0].content : '资料类型补充约束';
-      instruction += `\n---\n【${_suppTitle}】\n`;
-      for (const fullIns of autoFullInstructions) {
-        instruction += `- ${fullIns.content}\n`;
-      }
-      instruction += `\n`;
-    }
-
-    // 🔧 合并：内容规范 + 特殊要求 → 一个块
-    const contentNormBlocks = getMatchingBlockInstructions({ category: '生成-内容规范', subject: '', stage, genType: primaryGenType });
-    const _sr_specialReqBlocks = getMatchingBlockInstructions({ category: '生成-特殊要求', subject: '', stage: '', genType: primaryGenType });
-
-    const supplementParts = [];
-    if (contentNormBlocks.length > 0) supplementParts.push(contentNormBlocks[0].content);
-    if (_sr_specialReqBlocks.length > 0) {
-      for (const srBlock of _sr_specialReqBlocks) supplementParts.push(srBlock.content);
-    }
-
-    if (supplementParts.length > 0) {
-      instruction += `\n---\n【${_title('content_norm', '内容与特殊要求')}】\n${supplementParts.join('\n')}\n\n`;
-    }
-
-    // ========== 8.5.【编辑质量标准】（R6：对标真题卷/正式出版物出版水准，生成端强制） ==========
-    // 🔧 所有引擎均注入：文字/标点/数据/表述/结构五维编辑质量，先于输出格式重申保证近因生效
-    const editStdBlocks = getMatchingBlockInstructions({ category: '生成-编辑标准', subject: '', stage: '', genType: primaryGenType });
-    if (editStdBlocks.length > 0) {
-      instruction += `\n---\n【${_title('edit_std', '编辑质量标准')}】\n`;
-      for (const es of editStdBlocks) {
-        instruction += `- ${es.content}\n`;
-      }
-      instruction += `\n`;
-    }
-
-    // 🔧 最终输出规则已由 buildOutputPreamble() 在 prompt 最前端注入（查询指令库「生成-输出前置指令」），
-    //    此处不再重复注入，避免同一语义出现两次导致模型困惑。
-
-    // ========== 3.【用户补充指令——仅注入未被其他【】块覆盖的补充类片段】==========
-    // 🔧 排除已在其他 section 中通过 getMatchingBlockInstructions 显式查询的类别
-    // 🔧 排除分析专用类别（文本分析规范/分析模板示例/分析提取要求/知识图谱构建）
-    const _ui_handledCategories = new Set([
-      // 生成-学段与学科
-      '生成-学科适配', '生成-资料类型结构',
-      '生成-学科特色', '生成-情境要求',
-      '生成-年级边界提示', '生成-难度配置',
-      // 生成-核心任务与题型
-      '生成-核心任务', '生成-题型分布建议', '生成-命题风格',
-      // 生成-模板约束
-      '生成-模板禁止项', '生成-范围标签',
-      // 生成-质量与约束
-      '生成-原题引用', '生成-内容规范',
-      '生成-输出格式', '生成-学科标记', '生成-EduRender模板', '生成-专项要求', '生成-题型专项要求',
-      '生成-题目质量标准', '生成-答案与解析规范', '生成-质量范例', '生成-知识点全覆盖',
-      '生成-主观题评分标准', '生成-术语规范', '生成-答题模板', '生成-特殊要求',
-      '生成-知识边界', '生成-时间分配', '生成-格式尾约束',
-      // 🔧 补漏：品质标准有专属 Section，但此前未被列入防线
-      '生成-品质标准',
-      // 🔧 补漏（2026-08）：课标骨架对齐 + 教辅编辑标准 有专属 Section
-      '生成-课标骨架',   // Section 1.4.【课标骨架对齐】
-      '生成-编辑标准',   // Section 8.5.【教辅编辑标准】
-      // 生成-元数据（指令块标题本身）
-      '生成-指令块标题',
-      // 🔧 补漏：以下 category 在 buildGenerationInstruction 中有专属 Section，但此前被遗漏
-      '生成-角色身份',       // Section 0.【角色身份】
-      '生成-标题格式',       // Section 0.5.【标题格式】
-      '生成-答案区强制锚定',  // Section 1.5.【答案区强制锚定】
-      '生成-顶层约束',       // Section N.【顶层约束】
-      '生成-尾约束',         // Section N+1.【尾约束】
-      '生成-输出前置指令',    // buildOutputPreamble()
-      '生成-范围扩展',       // Section: 跨章综合语义 + {chapterCount} 替换
-      '生成-多章节标题',     // Section: 多章节降级标题格式 + {titles} 替换
-      // 🔧 补建（2026）：5个新类别专属 Section
-      '生成-学段控制',       // Section: 学段控制（题量/难度/时长按学段建议）
-      '生成-红线约束',       // Section: 红线清单（最高优先级前置注入）
-      '生成-题量控制',       // Section: 题量控制（建议总题量范围）
-      '生成-难度控制',       // Section: 难度控制（基础:中等:提高比例）
-      '生成-学科核心素养',   // Section: 学科核心素养（课标核心素养关键词）
-      '生成-页数配置',       // getPageCount() 读取，不注入 prompt
-      // 分析-文本分析专用
-      '分析-文本分析规范', '分析-分析模板示例', '分析-分析提取要求', '分析-知识图谱构建'
-    ]);
-    const _ui_supplementaryFragments = (injectedFragments || []).filter(f => !_ui_handledCategories.has(f.category));
-    // 🔧 运行时守卫：若第一道防线（GenerateModule 的 HANDLED_BY_DEDICATED_SECTION）已正确过滤，
-    //    则此处不应再看到任何内置 fragment。若出现 warning，说明两处过滤器未同步。
-    if (_ui_supplementaryFragments.length > 0) {
-      const leakedBuiltin = _ui_supplementaryFragments.filter(f => f.builtin).map(f => f.category);
-      const leakedUnique = [...new Set(leakedBuiltin)];
-      if (leakedUnique.length > 0) {
-        console.warn('[buildGenerationInstruction] ⚠️ 内置 fragment 穿透双防线！以下 category 需加入 _ui_handledCategories：', leakedUnique);
-      }
-    }
-    if (_ui_supplementaryFragments.length > 0) {
-      // 按类别分组，避免重复内容
-      const _ui_grouped = {};
-      const _ui_seenContents = new Set();
-      for (const _ui_frag of _ui_supplementaryFragments) {
-        if (_ui_seenContents.has(_ui_frag.content)) continue;
-        _ui_seenContents.add(_ui_frag.content);
-        if (!_ui_grouped[_ui_frag.category]) _ui_grouped[_ui_frag.category] = [];
-        _ui_grouped[_ui_frag.category].push(_ui_frag);
-      }
-      // 🔧 从指令库获取块标题（三维度查询，无硬编码）
-      const _usTitleBlocks = getMatchingBlockInstructions({ category: '生成-指令块标题', subject: '', stage: '', genType: 'user_supplement' });
-      const _usTitle = _usTitleBlocks.length > 0 ? _usTitleBlocks[0].content : '用户补充指令';
-      instruction += `\n---\n【${_usTitle}】\n`;
-      for (const _ui_categoryFrags of Object.values(_ui_grouped)) {
-        for (const _ui_frag of _ui_categoryFrags) {
-          instruction += `- ${_ui_frag.content}\n`;
-        }
-      }
-      instruction += '\n';
-    }
-
-    // ========== N.【顶层约束】 ==========
-    // 🔧 顶层约束必须全模型注入（含 DeepSeek）：其中 9-11 条（分数标注规范/多空小题分值/
-    //    答案分布强化）为新增关键规范，前方各节无对应承载——旧注释"分值→禁止项"只覆盖旧版
-    //    "小题一律不标分值"规则，DeepSeek 跳过会导致新分数规范完全不生效（阅读小题漏标分、
-    //    多空题分值无法整除、答案分布偏斜的根源）。宁可与其他节少量重复，不可缺失。
-    const topConstraintBlocks = getMatchingBlockInstructions({ category: '生成-顶层约束', subject: '', stage: '', genType: primaryGenType });
-    if (topConstraintBlocks.length > 0) {
-      instruction += `\n---\n【${_title('top_constraint', '顶层约束')}】\n${topConstraintBlocks.map(b => b.content).join('\n')}\n\n`;
-    }
-    
-    // 🔧 格式重申锚点：利用近因效应，在生成前最后一次强调输出格式
-    //    上方【输出格式】在指令中部，长篇 prompt 中容易被"Lost in the Middle"吞掉
-    //    此处以最小干扰重申核心格式要求，与 buildOutputPreamble（首因）形成首尾呼应
-    //    DeepSeek 跳过：纯元指令（"严格遵循上方各节"）无增量信息，buildOutputPreamble 已在首因完成同样约束
-    if (!_isDeepSeekInstruction) {
-      instruction += `\n---\n【输出格式重申】请严格遵循上方各节中的输出格式规范与结构要求。输出完整 HTML 文档，禁止 Markdown、禁止前言。\n\n`;
-    }
-    
-    // ========== N+1.【尾约束】 ==========
-    // 尾约束中的填空互斥/空标签规则是最关键的语义区分（词语填空→<u>，独立括号→<span>），
-    // 对 DeepSeek 与 Ollama 同等重要——recency 效应叠加语义区分，不能再跳过
-    const tailConstraintBlocks = getMatchingBlockInstructions({ category: '生成-尾约束', subject: '', stage: '', genType: primaryGenType });
-    if (tailConstraintBlocks.length > 0) {
-      instruction += `\n---\n【${_title('tail_constraint', '尾约束')}】\n${tailConstraintBlocks[0].content}\n\n`;
-    }
-
-    // ========== 格式尾约束（recency 效应：所有引擎通用，三维度匹配 genType）==========
-    const formatTailBlocks = getMatchingBlockInstructions({ category: '生成-格式尾约束', subject: '', stage: '', genType: primaryGenType });
-    if (formatTailBlocks.length > 0) {
-      instruction += `\n${formatTailBlocks[0].content}\n`;
-    }
-
-    //
-    // buildOutputPreamble() 已在 generateFullPaper 最前注入，此处不再重复。
-    //
-
-    // 🔧 块间间距归一化：确保每个 --- 分隔线前恰好一个空行，消除不规则间距
-    instruction = instruction.replace(new RegExp(String.fromCharCode(10) + '+---' + String.fromCharCode(10), 'g'), String.fromCharCode(10) + String.fromCharCode(10) + '---' + String.fromCharCode(10));
-    instruction = instruction.replace(/^\n+/, '');
-
-    // ═══════════════════════════════════════
-    // 🔧 源头预算分配（生成时就按预算分配，而非等 callAI 被动截断）：
-    //    三桶重排实现注意力工程——核心头（角色/红线/蓝本/核心任务）必保拼在最前，
-    //    核心尾（顶层约束/尾约束/格式尾约束）必保拼在最后（近因效应），
-    //    中部弹性块（题型设计/质量标准/模板对标等动态内容）按剩余预算填充，
-    //    超预算的中间块直接丢弃并告警——callAI 不再需要被动压缩。
-    // ═══════════════════════════════════════
-    const MAX_INSTRUCTION_TOKENS = 18000; // 整卷路径安全预算（预留余量给教材原文+知识图谱；DeepSeek 128K 上下文远未触顶，
-    //    放宽可确保核心质量块全保留——原 12000 曾导致"试卷/练习格式规范"等大块在预算不足时被丢弃，
-    //    13200 仍裁掉【质量范例】【知识边界】等核心块（约 13.5k 指令仅占 128K 上下文 12%，裁切纯属保守预算适得其反）
-    const totalTokens = estimateTokens(instruction);
-    if (totalTokens > MAX_INSTRUCTION_TOKENS) {
-      console.warn(`⚠️ [源头预算分配] 指令过长(${totalTokens} tokens)，按优先级三桶分配...`);
-      const sections = instruction.split(/\n(?=【)/);
-      const headCore = [];  // 核心头（必保，首因位置）
-      const tailCore = [];  // 核心尾（必保，近因位置）
-      const midFlex = [];   // 中部弹性（按剩余预算填充）
-      // 🔧 核心头：角色/标题/核心任务/红线/答案锚定——模型开工前必须看到的身份与底线
-      const HEAD_CORE_RE = /角色身份|标题格式|核心任务|红线约束|答案区强制锚定/;
-      // 🔧 核心尾：顶层约束/尾约束/格式重申——recency 效应下最后一次强调格式与底线
-      const TAIL_CORE_RE = /顶层约束|输出格式重申|尾约束|格式尾约束/;
-      for (const section of sections) {
-        const titleMatch = section.match(/【([^】]+)】/);
-        const title = titleMatch ? titleMatch[1] : '';
-        if (HEAD_CORE_RE.test(title)) headCore.push(section);
-        else if (TAIL_CORE_RE.test(title)) tailCore.push(section);
-        else midFlex.push(section);
-      }
-      // 核心头+核心尾必保，中部弹性按剩余预算填充
-      const headTokens = headCore.reduce((s, sec) => s + estimateTokens(sec), 0);
-      const tailTokens = tailCore.reduce((s, sec) => s + estimateTokens(sec), 0);
-      const midBudget = Math.max(2000, MAX_INSTRUCTION_TOKENS - headTokens - tailTokens);
-      // 🔧 中部块按质量优先级排序：核心质量约束（情境要求/教辅编辑标准/答案与解析规范/内容规范/命题范围与风格/资料类型补充约束/课标骨架/格式规范/红线等）优先保留，
-      //    装饰性参考块（质量范例/模板对标等）最后填充——预算不足时优先丢弃低价值块，避免"该省的没省、该保的丢了"
-      const MID_HIGH_RE = /情境|编辑标准|答案与解析规范|内容规范|命题|资料类型|课标骨架|红线|格式规范/;
-      const MID_LOW_RE = /质量范例|模板对标|参考示例/;
-      const scoredMid = midFlex.map((s) => {
-        const tm = s.match(/【([^】]+)】/);
-        const title = tm ? tm[1] : '';
-        const score = MID_HIGH_RE.test(title) ? 3 : MID_LOW_RE.test(title) ? 1 : 2;
-        return { s, title, score };
-      });
-      scoredMid.sort((a, b) => b.score - a.score); // 稳定排序：同优先级保持原有顺序
-      const keptMid = [];
-      let usedMid = 0;
-      for (const { s, title } of scoredMid) {
-        const t = estimateTokens(s);
-        if (usedMid + t <= midBudget) {
-          keptMid.push(s);
-          usedMid += t;
-        } else {
-          console.warn(`[budget-control] 预算不足，跳过中部块: 【${title}】(${t} tokens)`);
-        }
-      }
-      // 🔧 注意力工程：关键约束放前 20%（核心头）与后 20%（核心尾），动态内容放中间
-      instruction = [...headCore, ...keptMid, ...tailCore].join('\n');
-      console.log(`[budget-control] 源头预算分配完成: 核心头${headCore.length}块(${headTokens}t) + 中部${keptMid.length}/${midFlex.length}块(${usedMid}t) + 核心尾${tailCore.length}块(${tailTokens}t) = ${estimateTokens(instruction)} tokens`);
-    }
-
-    return instruction;
-    } catch (e) {
-      console.error('[buildGenerationInstruction] :', e);
-      throw e;
-    }
-  };
-
-  
-  /**
-   * 🔧 AI语义审查（调用DeepSeek通读全文，抓语病/错字/逻辑矛盾）
-   */
-  const performSemanticReview = async (content, context) => {
-    const { genType, subject, stage, grade } = context;
-    const genTypeLabel = pickLabelFromPool(genType, '_all_');
-    const reviewPrompt = AISemanticReviewer.buildReviewPrompt(content, {
-      genType, genTypeLabel, subject, stage, grade
-    });
-    
-    console.log('🔍 发起AI语义审查...');
-    try {
-      const result = await callAI(reviewPrompt, {
-        taskType: 'review',
-        temperature: 0.2,
-        skipSelfReview: true,
-        skipAbortCheck: true,
-        timeout: 60000,
-      });
-      
-      if (result && result.content) {
-        const parsed = AISemanticReviewer.parseReviewResult(result.content);
-        console.log(parsed.summary);
-        return parsed;
-      }
-      return { hasIssues: false, issues: [], summary: '审查无响应' };
-    } catch (e) {
-      console.warn('AI语义审查失败（不阻断流程）:', e.message);
-      return { hasIssues: false, issues: [], summary: '审查调用失败' };
-    }
-  };
-
-  /**
-   * 🔧 AI语义修复 —— 将语义审查发现的问题发给AI修复
-   * 独立于 attemptContentRepair，有自己的防循环守卫
-   */
-  let _semanticRepairActive = false;
-  const repairSemanticIssues = async (content, semanticIssues, context) => {
-    if (_semanticRepairActive) {
-      console.log('⏭️ 语义修复已执行过，跳过（防循环）');
-      return { content, repaired: false };
-    }
-    if (!semanticIssues || semanticIssues.length === 0) {
-      return { content, repaired: false };
-    }
-
-    _semanticRepairActive = true;
-    const { genType, subject, stage, grade } = context;
-    const genTypeLabel = pickLabelFromPool(genType, '_all_');
-
-    const issuesText = semanticIssues.map((s, i) => `${i + 1}. ${s}`).join('\n');
-    const repairPrompt = `【语义修复任务】
-以下是一份${genTypeLabel || '资料'}（${[subject, grade, stage].filter(Boolean).join('·')}），AI语义审查发现了以下问题，请逐一修复：
-
-【需修复的问题】
-${issuesText}
-
-【修复要求】
-1. 逐一修复上述每个问题，确保修复后语句通顺、无错字、逻辑自洽
-2. 严格保留原有HTML结构、CSS类名、填空格式（<u class="blank-N">）不变
-3. 只修改有问题的部分，其他内容原封不动
-4. 直接返回修复后的完整HTML，不要加任何解释说明
-
-【原始内容】
-${content}`;
-
-    console.log('🔧 发起AI语义修复...');
-    try {
-      const result = await callAI(repairPrompt, {
-        taskType: 'quality-repair',
-        temperature: 0.2,
-        skipSelfReview: true,
-        skipAbortCheck: true,
-        timeout: 120000,
-      });
-
-      if (result && result.content && result.content.length > 100) {
-        // 🔧 清洗修复返回：剥离 AI 附加的解释/质检记录文字（如“已修复以下问题：…”），只保留 HTML 正文
-        const cleaned = cleanReasoningOutput(result.content);
-        if (cleaned && cleaned.length > 100) {
-          console.log('✅ AI语义修复完成');
-          return { content: cleaned, repaired: true };
-        }
-        console.log('⚠️ 语义修复返回清洗后异常，保留原始内容');
-        return { content, repaired: false };
-      }
-      console.log('⚠️ 语义修复返回内容异常，保留原始内容');
-      return { content, repaired: false };
-    } catch (e) {
-      console.warn('AI语义修复失败（不阻断流程）:', e.message);
-      return { content, repaired: false };
-    } finally {
-      _semanticRepairActive = false;
-    }
-  };
-
-  /**
-   * 🔧 AI内容修复（单次，防循环）
-   * 质检发现问题 → 构建修复prompt → 调用AI → 再质检 → 返回最终结果
-   * 最多执行1次，由 _repairActive 标志守卫
-   */
-  const attemptContentRepair = async (content, hardIssues, context) => {
-    const { genType, genTypeLabel, subject, stage, grade, parsedBlueprint, materialText, region } = context;
-    
-    // 筛选需要AI修复的问题
-    const repairableIssues = HardRuleChecker.getRepairableIssues(hardIssues, genType);
-    if (repairableIssues.length === 0) return { content, repaired: false, repairIssues: [] };
-    
-    // 防循环守卫
-    if (_repairActive) {
-      console.log('⏭️ AI修复已执行过，跳过（防循环）');
-      return { content, repaired: false, repairIssues: [] };
-    }
-    
-    _repairActive = true;
-    const issueTypes = repairableIssues.map(i => i.type).join(', ');
-    console.log('\n🔧 检测到 ' + repairableIssues.length + ' 个需修复问题：' + issueTypes + '，发起AI修复...');
-    
-    try {
-      // 构建修复prompt
-      const repairPrompt = HardRuleChecker.buildRepairPrompt(content, repairableIssues, {
-        genType, genTypeLabel, subject, stage, grade, materialText
-      });
-      
-      // 调用AI修复（低温度，精确修复）
-      const repairResult = await callAI(repairPrompt, {
-        taskType: 'quality-repair',
-        temperature: 0.3,
-        skipSelfReview: true,
-        skipAbortCheck: true,
-      });
-      
-      if (repairResult && repairResult.content && repairResult.content.length > 100) {
-        // 🔧 清洗修复返回：剥离 AI 附加的解释/质检记录文字（如“已修复以下问题：…”），只保留 HTML 正文
-        const cleanedRepair = cleanReasoningOutput(repairResult.content);
-        if (!cleanedRepair || cleanedRepair.length < 100) {
-          console.log('⚠️ AI修复返回内容清洗后异常，保留原始内容');
-          return { content, repaired: false, repairIssues: repairableIssues };
-        }
-        const repairedContent = cleanedRepair;
-        
-        // 修复后再次质检（省市差异化：同一省市蓝本比对）
-        const recheckIssues = HardRuleChecker.check(
-          repairedContent, parsedBlueprint || [], subject, stage, grade, genType, materialText, region
-        );
-        
-        const autoFixed = HardRuleChecker.autoFix(repairedContent, recheckIssues);
-        
-        const remainingErrors = recheckIssues.filter(i => i.severity === 'error').length;
-        console.log('✅ AI修复完成，修复后再检：' + recheckIssues.length + ' 个问题（' + remainingErrors + ' 个错误）');
-        
-        return { content: autoFixed, repaired: true, repairIssues: recheckIssues };
-      }
-      
-      console.log('⚠️ AI修复返回内容异常，保留原始内容');
-      return { content, repaired: false, repairIssues: repairableIssues };
-      
-    } catch (repairError) {
-      console.error('❌ AI修复失败:', repairError.message);
-      return { content, repaired: false, repairIssues: repairableIssues };
-    } finally {
-      _repairActive = false;
-    }
-  };
+  // 🔴 repairSemanticIssues / attemptContentRepair 已删除（自产自评质检残留）
 
 // ==================== 🔧 整卷生成（DeepSeek 云端主路径）====================
   // 核心任务 + 结构大纲 + 知识图谱 + 教材原文 + 格式约束 → 一次性产出整份 HTML
   // 取代原 Step3（蓝图规划）+ Step4（逐题生成），让 DeepSeek 云端模型充分发挥原生能力
   // 🔴 阶段3 分步流水线：薄壳编排——所有流水线逻辑在 examPipelineRunner（依赖注入、可单测），
   //    本层只负责组装依赖（callAI/素材检索/状态/取消），失败由调用方回退整卷。
-  const generatePaperBySections = async (params) => {
-    const {
-      instruction, systemMessage, examBlueprint, subject, stage, region,
-      book, contentCards, knowledgeMap, materialText, kmText, genType = 'exam', totalScore = 0,
-    } = params;
 
-    return runExamPipeline(
-      {
-        instruction, systemMessage, examBlueprint, subject, stage, region,
-        book, contentCards, knowledgeMap, materialText, genType, totalScore,
-      },
-      {
-        callAI,
-        retrieveSegments: (cards, kps, maxChars) => retrieveBlueprintSegments(cards, kps, maxChars),
-        semanticSearch: (kp, topK) => (semanticRetriever?.segments?.length ? semanticRetriever.findRelevant(kp, topK) : []),
-        isAborted: () => !!abortController.value?.signal.aborted,
-        setStatus: (text) => { statusText.value = text; },
-        setProgress: (n) => { progress.value = n; },
-        log: console.log.bind(console),
-        warn: console.warn.bind(console),
+  // 🔴 generateByRecipe（配方/分步流水线入口）已删除：生成入口切换为整卷一次生成
+  //    （generateFullPaperNatural，指令库驱动）。分步流水线相关文件（recipe/ 目录）同步删除。
+
+  /**
+   * 🔴 素材构建：按本资料覆盖的知识点检索教材原文片段（RAG 思路，非全量注入/硬截断）
+   * - 章节目录 + 知识点清单：让模型知道覆盖范围与考查点
+   * - 每知识点取语义检索 top 片段，按相关度排序；总量超上限时按相关度裁剪
+   *   （丢的是与命题无关的片段，不是硬截断原文——每个考点都有对应原文依据）
+   * @returns {string} 素材块文本（空串 = 无素材）
+   */
+  const buildMaterialBlock = ({ contentCards = [], knowledgeMap = null, maxChars = 8000 } = {}) => {
+    // 1. 章节目录
+    const titles = [];
+    for (const card of contentCards || []) {
+      if (card?.chapterTitle && !titles.includes(card.chapterTitle)) titles.push(card.chapterTitle);
+    }
+    const toc = titles.length ? `【本资料覆盖章节】${titles.join('、')}` : '';
+    // 2. 知识点清单（从知识图谱提取全部具体知识点，去重）
+    const kpSet = new Set();
+    for (const kp of (knowledgeMap?.knowledgePoints || [])) {
+      if (typeof kp === 'string') kpSet.add(kp);
+      else if (kp?.name) kpSet.add(kp.name);
+    }
+    for (const unit of (knowledgeMap?.knowledgeGraph || [])) {
+      for (const bc of (unit.bigConcepts || [])) {
+        if (bc?.bigConcept) kpSet.add(bc.bigConcept);
+        for (const ck of (bc.coreKnowledge || [])) {
+          if (ck?.name) kpSet.add(ck.name);
+          for (const sp of (ck.specificConcepts || [])) if (sp) kpSet.add(sp);
+        }
       }
-    );
+    }
+    const kpNames = [...kpSet].filter(Boolean);
+    const kpText = kpNames.length ? `【本资料考查知识点】${kpNames.join('、')}` : '';
+    // 3. 按知识点检索原文片段（语义检索 top 片段 + 去重）
+    const hits = [];
+    const seen = new Set();
+    for (const kp of kpNames.slice(0, 50)) {
+      const related = (semanticRetriever?.segments?.length ? (semanticRetriever.findRelevant(kp, 2) || []) : []);
+      for (const r of related) {
+        const t = String(r?.text || '').trim();
+        if (t && t.length >= 10 && !seen.has(t)) {
+          seen.add(t);
+          hits.push({ text: t, score: r?.score || 1, type: r?.type || '' });
+        }
+      }
+      if (hits.length > 30) break;
+    }
+    // 4. 按相关度排序 + 上限裁剪（丢无关片段，不丢考点原文）
+    hits.sort((a, b) => (b.score || 0) - (a.score || 0));
+    let body = '';
+    for (const h of hits) {
+      if (body.length + h.text.length > maxChars) break;
+      body += `· ${h.text}\n`;
+    }
+    // 5. 组装
+    const parts = [toc, kpText, body ? `【教材原文（按知识点检索，命题取材依据，可改编情境，禁止照搬原题）】\n${body}` : ''];
+    return parts.filter(Boolean).join('\n\n');
   };
 
-  const generateFullPaper = async (params) => {
+  /**
+   * 🔴 整卷一次生成（新架构主路径，指令库驱动）
+   * 注入指令来自指令库模板（UI"注入指令框"可见可编辑），一次生成整卷正文 + 独立生成答案页。
+   * 设计原则（与"分步流水线"的本质区别）：
+   *   - 指令 = 网页端级人话（角色 + 卷面结构 + 命题要求），模型按本能命题、全局自洽
+   *   - 素材 = 按知识点检索（RAG），分级限量，非全量注入
+   *   - 无分块、无 byCode 拼装、无事后质检——生成质量由指令与模型能力保证
+   *   - 长输出截断时自动续写一次（对应网页端手动点"继续"）
+   * @param {Object} params { instruction, genType, selectedBooks, contentCards, knowledgeMap, contextFramework, templateInfo, diffKps }
+   * @returns {Promise<{success, content, generatedQuestions, parsedBlueprint, pipelineUsed, pipelineReason}>}
+   */
+  const generateFullPaperNatural = async (params = {}) => {
     const {
-      instruction,
-      genType,
-      selectedBooks,
-      selectedTemplates,
-      contentCards,
-      knowledgeMap,
-      contextFramework,
-      templateInfo,
+      instruction = '', genType = '', selectedBooks = [], contentCards = [],
+      knowledgeMap = null, contextFramework = '', templateInfo = '', diffKps = [],
     } = params;
-
     const book = selectedBooks?.[0];
-    const rawSubject = book?.subject || '';
-    const stageRaw = book?.stage || '';
-    const stageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-    const stage = stageMap[stageRaw] || stageRaw;
-    const subject = normalizeSubjectName(rawSubject, stage);
-    const isExam = genType === 'exam';
-
-    // 从指令中提取总分
-    let totalScore = 0;
-    const scoreMatch = instruction.match(/总分[：:]\s*(\d+)/);
-    if (scoreMatch) totalScore = parseInt(scoreMatch[1]);
-
-    const genConfig = await getCurrentEngineConfigEnhanced('generation');
-    const modelName = getModelDisplayName(genConfig.textModel || genConfig.model);
-    statusText.value = `步骤 3/4：整卷生成 [${modelName}]...`;
-    progress.value = 40;
-
-    // ── 构建知识图谱文本 ──
-    let kmText = '【知识点清单】\n' + (knowledgeMap.knowledgePoints?.join('、') || '教材核心知识点') + '\n';
-    kmText += '\n【重难点】\n' + (knowledgeMap.keyDifficulties?.join('、') || '教材重难点') + '\n';
-    
-    const graph = knowledgeMap.knowledgeGraph || [];
-    if (graph.length > 0) {
-      const totalUnits = graph.length;
-      const totalKps = graph.reduce((sum, unit) => 
-        sum + (unit.bigConcepts?.reduce((s, bc) => 
-          s + (bc.coreKnowledge?.length || 0), 0
-        ) || 0), 0
-      );
-      kmText += '\n【层级知识图谱】（' + totalUnits + '个单元，' + totalKps + '个核心知识点）\n';
-      kmText += JSON.stringify(graph, null, 2) + '\n';
+    if (!instruction.trim()) {
+      return { success: false, error: '注入指令为空（请点击「生成指令」从指令库注入）' };
     }
 
-    // ── 🔧 精准原文检索：利用分析阶段 KP→segment 反向索引
-    //    从 knowledgeMap.knowledgePoints 提取知识点列表，通过 retrieveBlueprintSegments
-    //    O(1) 索引查表获取绑定原文片段，替代原来的全量无差别注入
-    //    预算 6K 字——保障指令可见性优先，覆盖核心知识点的原文出处为辅助
-    let materialText = '';
-    if (contentCards && contentCards.length > 0) {
-      // 从知识图谱中提取所有知识点作为检索查询
-      const allKps = [];
-      if (knowledgeMap?.knowledgePoints?.length) {
-        allKps.push(...knowledgeMap.knowledgePoints);
-      }
-      if (knowledgeMap?.knowledgeGraph?.length) {
-        for (const unit of knowledgeMap.knowledgeGraph) {
-          for (const bc of (unit.bigConcepts || [])) {
-            for (const ck of (bc.coreKnowledge || [])) {
-              if (ck.name) allKps.push(ck.name);
-              if (ck.specificConcepts?.length) allKps.push(...ck.specificConcepts);
-            }
-          }
-        }
-      }
-      const uniqueKps = [...new Set(allKps)];
-      if (uniqueKps.length > 0) {
-        const parsedBlueprint = uniqueKps.map(kp => ({ knowledgePoint: kp }));
-        materialText = retrieveBlueprintSegments(contentCards, parsedBlueprint, 6000);
-        if (materialText) {
-          // 🔧 优先级标注：对标 buildGradedMaterialContext 的 🔴/🟡 分层语义
-          //    告知 LLM 这些原文是命题的强制性依据，不是可略过的上下文
-          materialText = '【🔴 精准原文检索——以下片段为生成题目的强制性依据，命题必须紧扣原文定义与表述，不可脱离原文臆造知识点】\n' + materialText;
-        }
-        console.log(`📚 精准原文检索：${uniqueKps.length} 个 KP → 命中 ${(materialText.match(/【/g) || []).length} 个原文片段`);
-      }
-      // 兜底：无知识点或检索为空时，轮询采样各章节（覆盖期中/期末多章节场景）
-      if (!materialText) {
-        let fallback = '';
-        const chapterCount = contentCards.length;
-        const perChapterBudget = Math.max(400, Math.floor(4000 / Math.max(chapterCount, 1)));
-        const maxTotal = Math.max(3000, chapterCount * 400);
-        let totalUsed = 0;
-        for (const card of contentCards) {
-          if (!card.segments || card.segments.length === 0) continue;
-          let chapterUsed = 0;
-          for (const seg of card.segments) {
-            if (chapterUsed + seg.text.length > perChapterBudget) break;
-            if (totalUsed + seg.text.length > maxTotal) break;
-            fallback += `【${card.chapterTitle}】${seg.text}\n`;
-            chapterUsed += seg.text.length;
-            totalUsed += seg.text.length;
-          }
-          if (totalUsed >= maxTotal) break;
-        }
-        materialText = fallback || '(教材原文片段)';
-      }
-    }
-
-    // ── 难度分布（8 种资料类型全覆盖）──
-    const diffRatioMap = {
-      exam: '基础约50%，中档约30%，提高约20%',
-      practice: '基础巩固→能力提升→拓展探究三层递进',
-      special: '入门练→进阶练→挑战练三道阶梯',
-      preview: '从已学知识回顾到新课内容感知，难度以复习和预习为主，不设过度挑战',
-      reading: '从信息提取到深层理解，题目由浅入深层层递进',
-      summary: '从基础概念到综合应用，知识归纳由简到繁',
-      dictation: '从常用字词到重点词汇，按教材出现顺序由易到难排列',
-      errorbook: '从高频错题到易混淆知识点，按错误类型分类整理',
-      review: '知识框架→典型题析→易错辨析→综合自测，自测题基础约50%+中档约30%+提高约20%',
+    // ── 素材构建：按知识点检索（目录 + 知识点清单 + 相关片段，分级限量，非硬截断） ──
+    // 素材量按类型差异化（内容型资料需充分原文、引导型资料适量即可，避免信息过载）
+    const MATERIAL_CHARS = {
+      exam: 8000, practice: 6000, special: 5000, reading: 6000, summary: 6000, review: 6000,
+      preview: 3000, dictation: 3000, errorbook: 2000,
     };
-    let diffRatio = diffRatioMap[genType] || '题目从易到难排列';
-    // 🔴 考卷难度比例与真题蓝本对齐：按学段动态取值（与「生成-难度配置」块、蓝图命题约束第3条同源），
-    //    避免固定 5:3:2 与蓝本打架（如初中蓝本 6:3:1、低段 7:2:1）
-    if (genType === 'exam') {
-      const diffBook = selectedBooks?.[0];
-      if (diffBook) {
-        const stageMap3 = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-        const ds = stageMap3[diffBook.stage] || diffBook.stage;
-        const dg = extractGradeNum(diffBook.grade || '');
-        const dr = getStageDifficultyRatio(ds, dg > 0 && dg <= 2, dg >= 3 && dg <= 4, dg >= 5, 'exam');
-        if (dr) diffRatio = `基础约${dr.basic}%，中档约${dr.medium}%，提高约${dr.advanced}%`;
-      }
+    const materialBlock = buildMaterialBlock({ contentCards, knowledgeMap, maxChars: MATERIAL_CHARS[genType] || 5000 });
+
+    // ── 组装最终 prompt：注入指令 + 附加块（素材/模板对标/情境/差异化，用户配置了才加） ──
+    let prompt = instruction.trim();
+    if (materialBlock) prompt += `\n\n${materialBlock}`;
+    if (templateInfo?.trim()) prompt += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
+    if (contextFramework?.trim()) prompt += `\n\n${contextFramework.trim()}`;
+    if (diffKps?.length) {
+      prompt += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}`;
     }
 
-    // 🔧 资料类型名称池——轮换使用，避免标题千篇一律（使用模块级池）
-    const selectedChapters = book?.selectedChapters || [];
-    const chapterKey = selectedChapters.map(c => c.title).join('|') || '_all_';
-    const genTypeLabel = pickLabelFromPool(genType, chapterKey);
-
-    // ── 组装整卷生成 prompt ──
-    // 🔧 保留 DeepSeek Context Caching（KV Cache）折扣：不向前缀注入随机盐。
-    //    KV Cache 仅缓存输入前缀用于加速推理+降价（输入 token 约 98% 折扣），
-    //    不影响输出多样性——输出随机性由 temperature 参数控制，与前缀无关。
-    //    曾在此处注入 cacheBuster 随机盐破坏前缀匹配，导致每次全价计费，已移除。
-
-    // ═══════════════════════════════════════
-    // 🔧 System 分离：把不变规则（角色身份/红线约束/新课标蓝本/格式规范/尾约束）
-    //    放入 system role，成为模型的"永久记忆"——system 注意力权重高于 user，
-    //    且不再淹没在 user prompt 的动态内容汪洋中（缓解 Lost in the Middle）。
-    // ═══════════════════════════════════════
-    const splitSystemAndUser = (instr) => {
-      const sections = instr.split(/\n(?=【)/);
-      const systemTitles = [
-        '角色身份',           // 身份与任务基调
-        '红线约束',           // 原创底线（独立节，红线是永久记忆）
-        '真题卷结构蓝本',     // 新课标蓝本（exam 骨架唯一权威）
-        '格式规范',           // 输出格式类（试卷/练习格式规范等动态标题）
-        '输出格式重申',       // 格式重申（Ollama 路径）
-        '顶层约束',           // 顶层底线
-        '尾约束',             // 填空互斥/空标签语义
-        '格式尾约束',         // 题目标签包裹（随尾约束节黏附，兼容匹配）
-        '标题格式',           // 标题命名规范
-        '答案区强制锚定',     // 答案分离
-        '答案与解析规范',     // 教辅级答案质量
-        '学科核心素养',       // 新课标核心素养关键词
-      ];
-      const systemSections = [];
-      const userSections = [];
-      for (const section of sections) {
-        const titleMatch = section.match(/【([^】]+)】/);
-        const title = titleMatch ? titleMatch[1] : '';
-        if (systemTitles.some(st => title.includes(st))) {
-          systemSections.push(section);
-        } else {
-          userSections.push(section);
-        }
-      }
-      return {
-        systemMessage: systemSections.join('\n').trim(),
-        userInstruction: userSections.join('\n').trim()
-      };
-    };
-
-    // 🔧 变量替换：指令中的占位符 → 运行时实际值（role/title/top 中的 {genTypeLabel}/{diffRatio}/{pageCount}）
-    const pageCount = getPageCount(genType, stage);
-    // 🔧 正式卷首标题：按当前日期推算学年学期（9月—次年1月为第一学期，2—8月为第二学期）
-    const _now = new Date();
-    const _y = _now.getFullYear();
-    const _m = _now.getMonth() + 1;
-    const _schoolYear = _m >= 9 ? `${_y}—${_y + 1}学年` : `${_y - 1}—${_y}学年`;
-    const _semester = (_m >= 9 || _m <= 1) ? '第一学期' : '第二学期';
-    const academicTitle = `${_schoolYear}${_semester}`;
-    const applyVars = (t) => (t || '')
-      .replace(/\{genTypeLabel\}/g, genTypeLabel)
-      .replace(/\{diffRatio\}/g, diffRatio)
-      .replace(/\{pageCount\}/g, pageCount)
-      .replace(/\{academicTitle\}/g, academicTitle);
-    const finalInstruction = applyVars(instruction);
-
-    const { systemMessage: splitSystem, userInstruction } = splitSystemAndUser(finalInstruction);
-    // 🔧 输出纪律（禁止前言/Markdown 等）前置到 system 最前——它是最高优先级永久规则
-    const systemMessage = (buildOutputPreamble() + '\n' + applyVars(splitSystem)).trim();
-    const finalUserInstruction = applyVars(userInstruction);
-
-    if (systemMessage) {
-      console.log(`🧠 System 分离: system=${estimateTokens(systemMessage)} tokens, user=${estimateTokens(finalUserInstruction)} tokens`);
-    }
-
-    // 直接生成：完整指令 + 教材原文 + 知识图谱 → 一次性产出整卷
-    statusText.value = `步骤 3/4：开始生成整卷...`;
-    progress.value = 42;
-
-    // ═══════════════════════════════════════
-    // 🔧 注意力工程（接受 Lost in the Middle 限制）：
-    //    前 ~20%：核心任务等关键约束（user 开头即核心任务，system 中另有输出纪律）
-    //    中间 ~60%：动态内容（知识图谱/多单元约束/教材原文/情境框架/模板参考）
-    //    后 ~20%：近因检查块（生成前最后一次关键约束重申，recency 效应）
-    // ═══════════════════════════════════════
-    let fullPrompt = finalUserInstruction;
-    fullPrompt += '\n\n⚠️ 以上为完整指令，请严格遵循每一个细节要求，生成完整 HTML 资料。\n\n';
-
-    // ── 中部动态区 ──
-    fullPrompt += kmText;
-    // 🔴 多单元组卷规范（exam 且勾选多个单元时注入，含单元知识点统计）
-    const multiUnitText = buildMultiUnitExamConstraint(knowledgeMap, isExam);
-    if (multiUnitText) fullPrompt += multiUnitText;
-    fullPrompt += '\n\n【教材原文】\n';
-    fullPrompt += materialText;
-    fullPrompt += '\n';
-
-    if (contextFramework) {
-      const adaptedCF = contextFramework
-        .replace(/蓝图中的每道题/g, '整卷中的每道题')
-        .replace(/在 sourceChapter 字段中/g, '在题目中');
-      fullPrompt += adaptedCF + '\n';
-    }
-
-    if (templateInfo) {
-      fullPrompt += templateInfo + '\n';
-    }
-
-    // ── 近因区：生成前最后检查（关键约束重申，recency 效应）──
-    fullPrompt += `
-【开始生成前——最后检查清单（优先级最高）】
-在输出前，请逐条对照 system 指令中的红线约束、骨架与格式规范执行以下检查：
-1. 卷面结构、分值体系与题型命名以 system 中锁定的规范为准，不得自由发挥；
-2. 严格遵守 system 中的格式规范与尾约束（填空/选择标签、题目包裹等），不得用 Markdown 替代；
-3. 知识点表述以【教材原文】为准，禁止杜撰原文没有的内容；
-4. 直接输出完整 HTML 正文，禁止任何前言、解释、Markdown 代码块。`;
-
-    // ── 指数退避重试（DeepSeek 必须通，不降级到逐题生成）──
-    const MAX_RETRIES = 3;
-    let lastError = null;
-
-    // 🔴 分步流水线（阶段3 根治长指令，全资料类型）：
-    //    exam：蓝本板块（题型骨架/分值硬约束）；非 exam：结构大纲板块（分步单元）。
-    //    数据驱动板块规划（零 AI 漂移）→ 逐板块短指令生成 → 拼接正文 → 统一生成答案页。
-    //    成功则复用整卷后处理；失败（无板块来源/任意板块异常）静默回退整卷生成。
-    // 🔴 分步流水线（阶段3 根治长指令，全资料类型）：
-    //    exam：蓝本板块（题型骨架/分值硬约束）；非 exam：结构大纲板块（分步单元）。
-    //    数据驱动板块规划（零 AI 漂移）→ 逐板块短指令生成 → 拼接正文 → 统一生成答案页。
-    //    🔴 全局根治（2026-08）：exam 只要有蓝本就强制走分步流水线（不依赖教材卡片——
-    //    无卡片时考点兜底、素材缺失不阻塞）。卷首时长/满分/密封线/板块结构由代码拼装，
-    //    杜绝"整卷长指令 → 模型偏离蓝本结构（删题/改分值/写错时长/漏密封线）"。
-    //    非 exam 保持原触发条件（需内容卡片或结构大纲）。
-    let pipedContent = null;
-    let pipelineUsed = false; // 🔴 是否实际采用了分步流水线结果（供上层提示，避免"绕过分步"静默发生）
-    let pipelineReason = '';  // 未走流水线的原因（exam 无蓝本/无卡片/流水线失败回退）
-    const stageKeyP = { '小学': 'primary', '初中': 'middle', '高中': 'high' }[stageRaw] || stageRaw;
-    const gradeNumP = extractGradeNum(book?.grade || '');
-    let stageSegP = stageKeyP;
-    if (stageKeyP === 'primary') {
-      stageSegP = gradeNumP <= 2 ? 'primary_low' : gradeNumP <= 4 ? 'primary_mid' : 'primary_high';
-    }
-    const examBlueprintP = isExam ? getExamBlueprint(subject, stageSegP, book?.region || '') : null;
-    const canTryPipeline = isExam
-      ? !!examBlueprintP
-      // 🔴 全局落地：非 exam 也强制分步（结构大纲优先；无大纲时教辅库栏目兜底，栏目即板块）
-      : (contentCards?.length > 0 || parseStructureBlocks(finalUserInstruction).length > 0 || TEACHING_TYPES.includes(genType));
-    if (!canTryPipeline) {
-      pipelineReason = isExam
-        ? '未找到该学科/学段/地区的真题卷蓝本，无法分步（应检查教材学段与地区配置）'
-        : '无教材卡片、无结构大纲且该资料类型无教辅栏目，无法分步';
-    }
-    if (canTryPipeline) {
+    // ── 段1：整卷正文一次生成 ──
+    statusText.value = '整卷生成：一次生成完整试卷正文...';
+    progress.value = 45;
+    let content = '';
+    let lastErr = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const useBlueprint = examBlueprintP;
-        const hasStruct = contentCards?.length > 0 || parseStructureBlocks(finalUserInstruction).length > 0;
-        if (useBlueprint || hasStruct) {
-          pipedContent = await generatePaperBySections({
-            instruction: finalUserInstruction,
-            systemMessage,
-            examBlueprint: useBlueprint,
-            genType,
-            subject,
-            stage: stageSegP,
-            region: book?.region || '',
-            book,
-            contentCards,
-            knowledgeMap,
-            materialText,
-            kmText,
-            isExam,
-            totalScore,
-          });
-          pipelineUsed = true;
-          console.log(`✅ 分步流水线生成成功：${pipedContent?.content?.length || 0} 字符，${pipedContent?.sections?.length || 0} 个板块`);
-        }
-      } catch (pipelineError) {
-        pipelineUsed = false;
-        pipelineReason = '分步流水线执行失败，已回退整卷生成：' + (pipelineError?.message || '未知错误');
-        console.warn('⚠️ 分步流水线失败，回退整卷生成:', pipelineError.message);
-        pipedContent = null;
-      }
-    }
-
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      try {
-        if (attempt > 0) {
-          const waitTime = Math.min(3000 * Math.pow(2, attempt - 1), 15000);
-          console.log(`🔄 整卷生成第${attempt + 1}次尝试，等待${waitTime / 1000}秒...`);
-          await new Promise(r => setTimeout(r, waitTime));
-          statusText.value = `步骤 3/4：重试整卷生成 [${modelName}]...（第${attempt + 1}次）`;
-        }
-
-        if (abortController.value?.signal.aborted) {
-          throw new Error('生成已取消');
-        }
-
-        let content;
-        if (attempt === 0 && pipedContent?.content) {
-          // 分步流水线结果：跳过整卷 callAI，直接进入公共后处理
-          content = pipedContent.content;
-        } else {
-          const response = await callAI(fullPrompt, {
-            taskType: 'generation',
-            timeout: 300000,
-            allowContinuation: true,
-            retries: 0,
-            // 🔧 System 分离：规则/格式/蓝本入 system role（永久记忆），动态内容留在 user
-            systemMessage: systemMessage || undefined,
-          });
-          content = response;
-          // 提取 HTML 内容
-          content = content.replace(/^\`\`\`html?\s*\n?/i, '').replace(/\n?\`\`\`\s*$/i, '');
-          const bodyMatch = content.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-          if (bodyMatch) content = bodyMatch[1];
-
-          // 🔴 真题卷根治：剥除生成后自审块（<div class="self-review">），质检记录不得泄漏到成品
-          content = content.replace(/<div[^>]*class=["'][^"']*self-review[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '');
-          // 🔴 兜底：模型未包进 div 时，从尾部质检特征句（"1.知识点准确性"）截断，仅当该句到文末的纯文本很短（<400字）才执行，防止误伤正文
-          const _qcIdx = content.search(/(?:<[^>]+>\s*)*1[\.、．]\s*知识点准确性/);
-          if (_qcIdx > 0) {
-            const _qcTail = content.substring(_qcIdx).replace(/<[^>]+>/g, '').replace(/\s/g, '');
-            if (_qcTail.length < 400) {
-              content = content.substring(0, _qcIdx);
-              console.log('🧹 已剥除泄漏到成品的质检报告文字');
-            }
-          }
-        }
-
-        // 提取题目列表（多策略降级：regex → 题号模式 → 自由题号 → 块级标签兜底）
-        let questionMatches = content.match(/<p class="question"[^>]*>[\s\S]*?<\/p>/g) || [];
-        if (questionMatches.length === 0) {
-          // 策略A.5：兼容 <div class="question"> / <li class="question"> 等变体
-          questionMatches = content.match(/<(?:p|div|li)\s+class="[^"]*question[^"]*"[^>]*>[\s\S]*?<\/(?:p|div|li)>/g) || [];
-        }
-        if (questionMatches.length === 0) {
-          // 策略B：匹配所有含题号前缀的 <p> 标签（兜底模型不遵守 class="question" 的情况）
-          // 🔧 [\s\S]*? 替代 [^<]*：容忍题目内的 <strong>/<u>/<em> 等内联格式标签
-          questionMatches = content.match(/<p[^>]*>\s*(?:\d+|[一二三四五六七八九十]+)[\.、．)）]\s*[\s\S]*?<\/p>/g) || [];
-          if (questionMatches.length > 0) {
-            console.warn(`⚠️ 题目解析降级：未匹配到 <p class="question">，改用题号模式匹配到 ${questionMatches.length} 题`);
-          }
-        }
-        if (questionMatches.length === 0) {
-          // 策略B.5：放宽到 <div>/<li> 标签的题号模式（DeepSeek 可能用非标准标签）
-          // 🔧 [\s\S]*? 替代 [^<]*：容忍题目内的内联格式标签
-          questionMatches = content.match(/<(?:div|li|p)[^>]*>\s*(?:\d+|[一二三四五六七八九十]+)[\.、．)）]\s*[\s\S]*?<\/(?:div|li|p)>/g) || [];
-          if (questionMatches.length > 0) {
-            console.warn(`⚠️ 题目解析降级：未匹配到 <p> 题号标签，改用泛化题号模式匹配到 ${questionMatches.length} 题`);
-          }
-        }
-        if (questionMatches.length === 0 && content.length > 1000) {
-          // 策略C：块级标签粗略估计 + 告警
-          const blockCount = (content.match(/<(?:p|div|h\d|li)\b[^>]*>/g) || []).length;
-          console.warn(`⚠️ 题目解析完全失败：${content.length} 字符内容中未匹配到任何题目格式标签（块级标签=${blockCount}）。模型可能未遵守 <p class="question"> 格式规范，请检查生成结果`);
-          // 创建占位计数，不阻塞后续质量校验流程
-          questionMatches = Array(Math.max(1, Math.floor(blockCount * 0.4))).fill('<p>(解析失败，见原始内容)</p>');
-        }
-        const generatedQuestions = questionMatches;
-
-        // 构建伪蓝图（用于后续质量校验）
-        // 🔧 修复：原实现硬编码 difficulty:'基础'，导致质量报告误报"规划：基础100% 中档0% 提高0%"
-        //    与结果区难度条失真（难度配比已由指令按学段自动注入，卷面真实难度并非全基础）。
-        //    - difficulty：沿题目顺序按配比近似分配——卷面按"从易到难"排列，前段基础、中段中档、尾段提高；
-        //      exam 用学段配比（与注入 prompt 的 diffRatio 同源，如低段 7:2:1），其余类型用 5:3:2
-        //    - type：从题干文本推断常见题型关键词，替代"未知"，提升模板对标报告可读性
-        const pbTotal = questionMatches.length;
-        let pbRatio = { basic: 50, medium: 30, advanced: 20 };
-        if (isExam) {
-          const pbBook = selectedBooks?.[0];
-          const pbStageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-          const pbStage = pbBook ? (pbStageMap[pbBook.stage] || pbBook.stage) : stage;
-          const pbGradeNum = pbBook ? extractGradeNum(pbBook.grade || '') : 0;
-          const pbDr = getStageDifficultyRatio(pbStage, pbGradeNum > 0 && pbGradeNum <= 2, pbGradeNum >= 3 && pbGradeNum <= 4, pbGradeNum >= 5, 'exam');
-          if (pbDr) pbRatio = pbDr;
-        }
-        const pbEasyCount = pbTotal > 0 ? Math.round(pbTotal * pbRatio.basic / 100) : 0;
-        const pbMediumCount = pbTotal > 0 ? Math.round(pbTotal * pbRatio.medium / 100) : 0;
-        // 题型关键词推断（常见题型按命中优先级排列）
-        const pbTypeHints = [
-          ['看图写话', '看图写话'], ['口语交际', '口语交际'], ['阅读理解', '阅读理解'],
-          ['看拼音', '看拼音，写词语'], ['读音', '给加点字选择正确的读音'],
-          ['组词', '比一比，再组词'], ['照样子', '照样子，写一写'],
-          ['完形填空', '完形填空题'], ['填空', '填空题'], ['默写', '默写题'],
-          ['判断', '判断题'], ['选择', '选择题'], ['连线', '连线题'],
-          ['应用', '应用题'], ['计算', '计算题'], ['解答', '解答题'],
-          ['简答', '简答题'], ['听力', '听力题'], ['写作', '写作题'], ['作文', '写作题'],
-        ];
-        const parsedBlueprint = questionMatches.map((match, i) => {
-          const plainText = match.replace(/<[^>]+>/g, '').trim();
-          const numMatch = plainText.match(/^(\d+)[\.、．]/);
-          // 难度沿卷面顺序分配（从易到难）
-          let difficulty = '基础';
-          if (pbTotal > 0) {
-            if (i >= pbEasyCount + pbMediumCount) difficulty = '提高';
-            else if (i >= pbEasyCount) difficulty = '中档';
-          }
-          let inferredType = '';
-          for (const hint of pbTypeHints) {
-            if (plainText.includes(hint[0])) { inferredType = hint[1]; break; }
-          }
-          return {
-            number: numMatch ? parseInt(numMatch[1]) : (i + 1),
-            type: inferredType || '未知',
-            knowledgePoint: '',
-            difficulty,
-            score: isExam && questionMatches.length > 0 ? Math.round(totalScore / questionMatches.length) : 0,
-            sourceChapter: '',
-          };
+        const resp = await callAI(prompt, {
+          taskType: 'generation', timeout: 300000, retries: 0,
+          // 🔴 整卷预算：8192 tokens（≈2.4 万字符，够完整卷面正文）；答案页独立调用
+          maxTokens: 8192,
+          allowContinuation: false,
+          temperature: 0.7,
         });
-
-        // 🔧 双保险：移除生成内容中的静态页码文字（页码由导出端动态生成，生成内容不得标注页数）
-        //    "第X页　共X页"整段直接移除；"本试卷共X页"（AI写死数字）→ 还原为"本试卷共＿页"占位，导出时转 NUMPAGES 域自动填充
-        {
-          const beforeLen = content.length;
-          content = content.replace(/<p[^>]*>\s*第\s*\d+\s*页[\s\S]{0,12}?共\s*\d+\s*页\s*<\/p>/gi, '');
-          content = content.replace(/第\s*\d+\s*页\s*[　 ]*\s*共\s*\d+\s*页/gi, '');
-          content = content.replace(/<p[^>]*>\s*第\s*\d+\s*页\s*<\/p>/gi, '');
-          content = content.replace(/本试卷共\s*\d+\s*页/gi, '本试卷共＿页');
-          content = content.replace(/本试卷共\s*[＿_]{1,}\s*页/gi, '本试卷共＿页');
-          if (content.length !== beforeLen) {
-            console.log(`🔧 双保险：已移除生成内容中的静态页码标注（${beforeLen - content.length} 字符）`);
-          }
+        content = normalizeBlankMarkers(cleanSectionHtml(typeof resp === 'string' ? resp : (resp?.content || '')));
+        // 🔴 截断检测：输出尾部无闭合标签/结束标点且较长 → 疑似截断 → 续写一次
+        const tail = content.slice(-120);
+        const looksTruncated = content.length > 500
+          && !/<\/[a-z]+>$/i.test(tail)
+          && !/[。！？；」』）)\n]$/.test(tail.trim());
+        if (looksTruncated) {
+          console.warn('⚠️ 整卷输出疑似截断，自动续写一次...');
+          const contResp = await callAI(
+            `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-200)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
+            { taskType: 'generation', timeout: 300000, retries: 0, maxTokens: 8192, allowContinuation: false, temperature: 0.7 }
+          );
+          const contHtml = cleanSectionHtml(typeof contResp === 'string' ? contResp : (contResp?.content || ''));
+          if (contHtml && contHtml.length > 100) content = content + '\n' + contHtml;
         }
-
-        // 🔧 程序化修正（不依赖 AI 的根治兜底，确保一次成功）：
-        //    1) 移除题干前"【场景：xx】"标签前缀（卷面干净）
-        //    2) 大题标题旧式"（X分）"→ 自动补全明细式"（共N题，每题X分，共X分）"
-        {
-          const fixed = fixExamFormats(content);
-          if (fixed !== content) {
-            console.log(`🔧 程序化修正：已清理场景标签/补全大题明细式标题（${content.length - fixed.length > 0 ? '移除' : '调整'}内容）`);
-            content = fixed;
-          }
-        }
-
-        console.log(`✅ 整卷生成成功：${questionMatches.length} 道题，${content.length} 字符`);
-        if (questionMatches.length === 0 && content.length > 5000) {
-          console.warn(`⚠️ 题目计数为 0 但内容丰富（${content.length} 字符），HTML 格式可能偏离规范。生成内容本身可能正常，但后续题目统计/质量校验将跳过。`);
-        }
-        progress.value = 85;
-
-        return {
-          success: true,
-          content,
-          generatedQuestions,
-          parsedBlueprint,
-          blueprint: '',
-          // 🔴 分步流水线执行状态（供上层提示：exam 是否真正走了分步，避免"绕过"静默发生）
-          pipelineUsed,
-          pipelineReason,
-        };
-
-      } catch (error) {
-        console.error(`整卷生成失败 (attempt ${attempt + 1}/${MAX_RETRIES}):`, error.message);
-        lastError = error;
-
-        if (abortController.value?.signal.aborted) {
-          throw error;
-        }
-        // HTTP 4xx 客户端错误（非 429）不重试
-        if (error.response?.status && error.response.status >= 400 && error.response.status < 500 && error.response.status !== 429) {
-          throw error;
+        if (content && content.length > 200) break;
+        throw new Error('整卷输出过短/为空');
+      } catch (e) {
+        lastErr = e;
+        if (abortController.value?.signal?.aborted) throw e;
+        if (attempt === 0) {
+          await new Promise(r => setTimeout(r, 2000));
+          console.warn('⚠️ 整卷生成第1次失败，重试:', e.message);
         }
       }
     }
+    if (!content || content.length <= 200) {
+      throw new Error(`整卷生成失败: ${lastErr?.message || '未知错误'}`);
+    }
 
-    throw new Error(`整卷生成失败：已重试${MAX_RETRIES}次。最后一次错误：${lastError?.message || '未知错误'}\n请检查 DeepSeek API 配置或网络连接后重试。`);
+    // ── 段2：答案页（基于正文题目清单独立生成，防整卷+答案一次超长；按类型区分角色与标题） ──
+    statusText.value = genType === 'exam' ? '整卷生成：撰写参考答案与评分标准...' : '整卷生成：撰写参考答案与解析...';
+    progress.value = 85;
+    let answerHtml = '';
+    try {
+      const qList = extractQuestionList(content, 15000);
+      // 类型差异化：exam 用阅卷专家+评分标准（作文评分/听力原文）；非 exam 用教辅编辑+参考答案与解析（解析/归因/要点梳理）
+      const ansRole = genType === 'exam'
+        ? '你是阅卷专家。请为以下试卷题目撰写完整《参考答案与评分标准》：每题给出答案与简要解析；选择题给正确选项；作文/写话给评分标准；听力题附听力原文。'
+        : '你是教辅编辑。请为以下资料题目撰写完整《参考答案与解析》：逐题给出答案与解析（选择题给正确选项；错题类附错误归因与正确解法；知识总结/预习类给出要点梳理与参考解答）。';
+      const ansPrompt = `${ansRole}只输出答案与解析内容，不要重复题目原文。\n\n【题目清单】\n${qList || '（题目清单提取失败，请基于你生成的资料内容作答）'}`;
+      const ansResp = await callAI(ansPrompt, {
+        taskType: 'generation', timeout: 240000, retries: 1,
+        maxTokens: 8192, allowContinuation: false, temperature: 0.3,
+      });
+      const aHtml = cleanSectionHtml(typeof ansResp === 'string' ? ansResp : (ansResp?.content || ''));
+      if (aHtml && aHtml.length > 100) {
+        const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
+        answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${aHtml}</div>`;
+      }
+    } catch (e) {
+      console.warn('⚠️ 答案页生成失败（正文仍有效）:', e.message);
+    }
+
+    // 🔴 密封线兜底：正式试卷且 AI 未输出密封线 → 代码补（恢复原拼装器的密封线成果）
+    let finalContent = answerHtml ? `${content}\n\n${answerHtml}` : content;
+    if (genType === 'exam' && !/<div[^>]*class="[^"]*seal-zone[^"]*"/.test(finalContent)) {
+      finalContent = `${buildSealLineHeader()}\n${finalContent}`;
+    }
+    console.log(`✅ 整卷生成完成：${finalContent.length} 字符${answerHtml ? '（含答案页）' : '（答案页缺失）'}（指令库注入）`);
+    return {
+      success: true,
+      content: finalContent,
+      generatedQuestions: [],
+      parsedBlueprint: [],
+      blueprint: '',
+      pipelineUsed: true,
+      pipelineReason: `整卷一次生成（指令库注入，${genType}）`,
+    };
   };
+
 
   // 执行生成
   // ==================== 五步生成 ====================
-  const generate = async (instruction, genType, selectedBooks, selectedTemplates, retryCount = 0, blueprintOnly = false) => {
+  const generate = async (instruction, genType, selectedBooks, selectedTemplates, retryCount = 0, blueprintOnly = false, scopeType = '') => {
     const MAX_RETRIES = 2;
     // 🔧 缓存管理：
     // - 逐课时调用（_perPeriodKnowledgeMap 已设置）：保留 _cachedContentCards 供复用
@@ -7290,8 +5166,6 @@ ${content}`;
     registerController(abortController.value);
     isGenerating.value = true;
     progress.value = 0;
-    // 🔴 记录本次生成是否走了分步流水线（供质量校验处显式提示，避免"绕过分步"静默发生）
-    let lastPipelineInfo = null;
     
     try {
       // ✅ 防御检查
@@ -7300,35 +5174,8 @@ ${content}`;
         isGenerating.value = false;
         return { success: false, error: '未选择教材' };
       }
-      // ✅ 根据资料类型选择不同生成流程
-      // 🔧 DeepSeek 引擎：所有 8 种资料类型统一走整卷生成路径（跳过 genType 专有函数）
-      const _globalRouteConfig = await getCurrentEngineConfigEnhanced('generation');
-      const _isDeepSeekPath = _globalRouteConfig.engine === 'deepseek';
-      
-      if (!_isDeepSeekPath) {
-        // Ollama 本地引擎：各资料类型走各自专有生成函数
-      if (genType === 'summary') {
-        return await generateSummary(instruction, genType, selectedBooks, selectedTemplates, blueprintOnly);
-      }
-      
-      if (genType === 'errorbook') {
-        return await generateErrorbook(instruction, genType, selectedBooks, selectedTemplates, blueprintOnly);
-      }
-
-      if (genType === 'preview') {
-        return await generatePreview(instruction, genType, selectedBooks, selectedTemplates, blueprintOnly);
-      }
-
-      if (genType === 'dictation') {
-        return await generateDictation(instruction, genType, selectedBooks, selectedTemplates, blueprintOnly);
-      }
-
-      if (genType === 'reading') {
-        return await generateReading(instruction, genType, selectedBooks, selectedTemplates, blueprintOnly);
-      }
-      } // end Ollama genType routing
-      
-      // DeepSeek 整卷生成路径：所有 8 种资料类型统一走 Step1+Step2+generateFullPaper
+      // ✅ 统一生成路径：所有引擎、所有资料类型一律走配方流水线
+      // （exam=命题老师蓝本，其余 8 类=教辅编辑任务群；角色由配方自动分流）
       
       //  学段（函数级作用域，供后续模板使用）
       const stage = selectedBooks?.[0]?.stage || '';
@@ -7694,1122 +5541,55 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
         }
       }
       
-      // ──────── 🔧 引擎路由：DeepSeek → 整卷生成 | Ollama → 传统逐题 ────────
-      const _routeConfig = await getCurrentEngineConfigEnhanced('generation');
-      // 🔴 全局落地（2026-08）：exam 任何引擎都强制走整卷生成路径（该路径内部先走分步流水线，
-      //    卷首时长/满分/密封线/板块结构由代码拼装，模型无机会偏离蓝本结构）；
-      //    其余 7 种资料类型 DeepSeek 走整卷、Ollama 走传统逐题。
-      const _useFullPaper = _routeConfig.engine === 'deepseek' || genType === 'exam';
+      // ──────── 🔴 统一生成路径：所有引擎、所有资料类型一律走配方流水线 ────────
+      //    用户只选教材 + 资料类型：exam 自动用命题老师蓝本，其余 8 类自动用教辅编辑任务群。
+      const _useFullPaper = true;
       
       // 整卷生成路径下声明的变量（供后续质量校验共享）
       let blueprint = '';
       let parsedBlueprint = [];
       let content = '';
       let generatedQuestions = [];
+      // 🔴 整卷生成路径（指令库驱动）：无分步流水线，卷面结构由蓝图注入+密封线兜底保证
+      let sectionPlans = [];
+      // 🔴 PostPass 质量门/总题量防线问题（issues 声明后展示）
+      let postPassIssues = [];
 
       if (_useFullPaper) {
-        // ========== 🚀 DeepSeek 整卷生成路径 ==========
-        statusText.value = '步骤 3/4：整卷生成...';
+        // ========== 🔴 整卷一次生成（指令库驱动，主路径） ==========
+        // 注入指令 = 指令库模板（UI"注入指令框"可见可编辑），一次生成整卷正文 + 独立答案页。
+        // 无分块、无 byCode 拼装、无事后质检——生成质量由"人话指令 + 模型本能"保证。
+        // 分步流水线（generateByRecipe/runPipeline）已整体删除。
+        statusText.value = '步骤 3/4：整卷生成中...';
         progress.value = 40;
-        
+
         try {
-          const fpResult = await generateFullPaper({
+          // 🔴 差异化要求（复生成）：从注入指令解析"已覆盖知识点"清单 → 注入整卷生成
+          const diffMatch = String(instruction || '').match(/已覆盖知识点[：:]\s*([^\n]+)/);
+          const diffKps = diffMatch
+            ? diffMatch[1].split(/[、,，;；]/).map(s => s.trim()).filter(Boolean).slice(0, 20)
+            : [];
+          const fpResult = await generateFullPaperNatural({
             instruction, genType, selectedBooks, selectedTemplates,
             contentCards, knowledgeMap, contextFramework, templateInfo,
+            diffKps,
+            scopeType: scopeType || '',
           });
+          if (!fpResult.success) {
+            throw new Error(fpResult.error || '整卷生成失败');
+          }
           content = fpResult.content;
-          generatedQuestions = fpResult.generatedQuestions;
-          parsedBlueprint = fpResult.parsedBlueprint;
+          generatedQuestions = fpResult.generatedQuestions || [];
+          parsedBlueprint = fpResult.parsedBlueprint || [];
           blueprint = '';
-          lastPipelineInfo = { used: !!fpResult.pipelineUsed, reason: fpResult.pipelineReason || '' };
-          console.log(`✅ 整卷生成完成：${generatedQuestions.length} 道题，${content.length} 字符${fpResult.pipelineUsed ? '（分步流水线）' : '（整卷长指令）'}`);
+          sectionPlans = [];
+          postPassIssues = [];
+          console.log(`✅ 整卷生成完成：${content.length} 字符（指令库注入）`);
         } catch (fpError) {
           console.error('整卷生成失败:', fpError.message);
           throw fpError; // 上抛给外层 generate 的 catch 处理（重试逻辑）
         }
-      } else {
-        // ========== 传统五步法路径（Ollama / 非考试类资料）==========
-      const blueprintTitleMap = {
-        'exam': '结构化命题蓝图（双向细目表）',
-        'practice': '结构化课时练习蓝图',
-        'special': '结构化专项训练蓝图',
-        'preview': '课前预习内容规划',
-        'reading': '阅读理解训练蓝图',
-        'summary': '知识总结内容规划',
-        'dictation': '听写/默写内容规划',
-        'errorbook': '错题整理规划',
-      };
-      const blueprintTitle = blueprintTitleMap[genType] || '结构化命题蓝图';
-
-      const prompt3 = `${(() => { const roleMap = { exam: '你是一位命题专家', practice: '你是一位教学设计者', special: '你是一位专项训练设计者', preview: '你是一位课前预习设计者', reading: '你是一位阅读理解命题专家', summary: '你是一位知识总结编写者', dictation: '你是一位听写训练设计者', errorbook: '你是一位错题整理专家' }; const diffFrameMap = { exam: '基础/中档/提高——三道难度梯度确保考试区分度', practice: '基础巩固/能力提升/拓展探究——三道层级体现教学练评一致性', special: '入门练/进阶练/挑战练——三道阶梯实现专项能力突破', preview: '从已学回顾到新课感知——以复习和预习为主', reading: '信息提取→词句理解→主旨概括→推理判断→评价鉴赏', summary: '基础概念→综合应用，知识归纳由简到繁', dictation: '按教材出现顺序由易到难排列', errorbook: '高频错题→易混淆知识点，按类型分类整理' }; return (roleMap[genType] || roleMap.exam) + '。请根据以下信息，生成一份${blueprintTitle}。难度框架：' + (diffFrameMap[genType] || diffFrameMap.exam) + '。'; })()}
-
-【知识点清单】${(() => {
-  // 🔧 修复9：如果有认知修正记录，附加到知识点清单中
-  const corrections = selectedBooks?.[0]?.selectedChapters?.[0]?._cognitiveCorrections;
-  let kpText = knowledgeMap.knowledgePoints.join('、') || '教材核心知识点';
-  
-  if (corrections?.length) {
-    const correctionSummary = corrections.map(c => 
-      `"${c.knowledgeName}"应为${c.correctedLevel}（AI原始判断为${c.originalLevel}）`
-    ).slice(0, 5).join('；');
-    kpText += `\n\n⚠️ 以下知识点认知层次已由学科专家修正，请按修正后的层次规划：${correctionSummary}`;
-  }
-  return kpText;
-})()}
-
-【重难点】
-${knowledgeMap.keyDifficulties.join('、') || '教材重难点'}
-
-【层级知识图谱】
-${(() => {
-  // 🔧 修复：不再人为截断，完整传递用户勾选章节的知识图谱
-  // 原因：如果截断，AI会基于不完整的信息生成题目，导致遗漏重要知识点或超纲
-  const graph = knowledgeMap.knowledgeGraph || [];
-  
-  // ✅ 直接返回完整的知识图谱，不做任何截断
-  let result = JSON.stringify(graph, null, 2);
-  
-  // 添加说明：帮助AI理解这个结构
-  if (graph.length > 0) {
-    const totalUnits = graph.length;
-    const totalKps = graph.reduce((sum, unit) => 
-      sum + (unit.bigConcepts?.reduce((s, bc) => 
-        s + (bc.coreKnowledge?.length || 0), 0
-      ) || 0), 0
-    );
-    result += `\n\n【说明】以上包含${totalUnits}个单元，共${totalKps}个核心知识点。请基于此完整结构规划命题蓝图，不要遗漏任何单元。`;
-    
-    // 🔧 上下文窗口安全检查（根据引擎动态调整阈值）
-    const estimatedTokens = estimateTokens(result);
-    // DeepSeek 云端：128K 窗口，安全线 100K；Ollama 本地：32K 窗口，安全线 28K
-    const isDeepSeek = step3Config?.engine === 'deepseek';
-    const CONTEXT_WINDOW_LIMIT = isDeepSeek ? 100000 : 28000;
-    
-    if (estimatedTokens > CONTEXT_WINDOW_LIMIT) {
-      console.warn(`⚠️ 知识图谱过大（${estimatedTokens} tokens），可能超出模型上下文窗口`);
-      console.warn(`   建议：减少勾选的章节数量，或分多次生成`);
-      // 不强制截断，让模型自己处理（可能会报错或截断）
-      result += `\n\n⚠️ 警告：知识图谱较大（约${estimatedTokens} tokens），请确保模型上下文窗口足够。`;
-      
-      // 🔧 极端情况下的智能精简策略（DeepSeek 115K / Ollama 35K 触发）
-      const SIMPLIFY_THRESHOLD = isDeepSeek ? 115000 : 35000;
-      if (estimatedTokens > SIMPLIFY_THRESHOLD) {
-        console.warn(`⚠️ 知识图谱极大（${estimatedTokens} tokens），启用智能精简模式`);
-        
-        // 🔧 修复：保留单元名称、大概念名称和知识点名称，但保留更多关键字段
-        const simplifiedGraph = graph.map(unit => ({
-          unit: unit.unit,
-          bigConcepts: (unit.bigConcepts || []).map(bc => ({
-            name: bc.name,
-            coreKnowledge: (bc.coreKnowledge || []).map(ck => ({
-              name: ck.name,  // 保留名称
-              level: ck.level || ck.cognitiveLevel || '理解',  // 保留认知层次
-              suggestedQuestionTypes: ck.suggestedQuestionTypes || [],  // ✅ 保留建议题型
-              testPriority: ck.testPriority  // ✅ 保留测试优先级
-            }))
-          }))
-        }));
-        
-        result = JSON.stringify(simplifiedGraph, null, 2);
-        result += `\n\n【精简说明】由于知识图谱过大，已简化为单元+大概念+知识点名称结构。具体知识点的详细描述请参考上方的【知识点清单】字段。`;
-        result += `\n请基于此完整结构（含所有知识点名称），结合【知识点清单】中的详细信息来规划蓝图。`;
-      }
-    }
-  }
-  
-  return result;
-})()}
-
-【跨章节关联】
-${JSON.stringify(knowledgeMap.crossChapterLinks?.slice(0, 5) || [], null, 2)}
-
-${(() => { const _muText = buildMultiUnitExamConstraint(knowledgeMap, genType === 'exam'); return _muText || ''; })()}
-
-${templateInfo}
-${contextFramework}
-
-${(() => { const hasTpl = selectedTemplates && selectedTemplates.length > 0; if (!hasTpl) return ''; return '【模板语言风格参考——蓝图中的每道题可参考以下风格特征】\n' + (() => { let styleConstraints = ''; const tpl = selectedTemplates?.[0]; if (tpl?.analysis?.languageStyle) { const ls = tpl.analysis.languageStyle; if (ls.avgSentenceLength) { styleConstraints += `- 题干平均长度目标：${ls.avgSentenceLength}字（±20%）\n`; } if (ls.commonPatterns?.length) { styleConstraints += `- 推荐设问句式：${ls.commonPatterns.slice(0, 3).join('、')}\n`; } if (ls.connectors?.length) { styleConstraints += `- 推荐连接词：${ls.connectors.slice(0, 3).join('、')}\n`; } if (ls.contextIntro) { styleConstraints += `- 情境引入方式：${ls.contextIntro}\n`; } if (ls.tone) { styleConstraints += `- 语气特征：${ls.tone}\n`; } } if (tpl?.analysis?.questionCards?.length) { const cards = tpl.analysis.questionCards; const stemLengths = cards.filter(c => c.stem).map(c => c.stem.length); if (stemLengths.length > 0) { const avgStem = Math.round(stemLengths.reduce((a, b) => a + b, 0) / stemLengths.length); const minStem = Math.min(...stemLengths); const maxStem = Math.max(...stemLengths); styleConstraints += `- 题干字数范围：${minStem}~${maxStem}字（模板实际范围）\n`; } const optionCards = cards.filter(c => c.options?.length); if (optionCards.length > 0) { const avgOpts = Math.round(optionCards.reduce((s, c) => s + c.options.length, 0) / optionCards.length); styleConstraints += `- 选择题选项数：${avgOpts}个\n`; } } if (tpl?.analysis?.formatStyle) { const fs = tpl.analysis.formatStyle; if (fs.scorePosition && genType !== 'practice') { styleConstraints += `- 分值标注位置：${fs.scorePosition}\n`; } if (fs.spacingBetweenQuestions !== undefined) { styleConstraints += `- 题间距：${fs.spacingBetweenQuestions ? '有空行' : '紧凑'}\n`; } } styleConstraints += `- 禁止使用以下设问："下列说法正确的是""以下哪个选项是正确的"\n`; styleConstraints += `- 禁止选项中出现"以上都是""以上都不对"\n`; return styleConstraints; })() + '\n'; })()}
-
-【用户指令摘要】
-${instruction}
-
-【命题约束】
-${(() => { const kpCount = knowledgeMap.knowledgePoints?.length || 10; const minQ = Math.min(kpCount, 30); return `0. 🔧 题量硬性约束：必须生成至少${minQ}道题（知识点清单共${kpCount}个）。每个知识点至少考查1次，不可遗漏任何知识点。如需控制题量，可将1-2个关联度高的边缘知识点合并为综合题，但不得跳过任何知识点。\n`; })()}1. 每个知识点至少考查1次，重点知识可从不同角度考查2次
-3. 难度分布按学段动态（从指令中已注入的学段适配要求为准）：
-${(() => { const book = selectedBooks?.[0]; if (!book) return '  基础约50%，中档约30%，提高约20%'; const stageMap2 = { '小学': 'primary', '初中': 'middle', '高中': 'high' }; const s = stageMap2[book.stage] || book.stage; const g = extractGradeNum(book.grade || ''); const ratio = getStageDifficultyRatio(s, g > 0 && g <= 2, g >= 3 && g <= 4, g >= 5); return ratio ? `  基础约${ratio.basic}%，中档约${ratio.medium}%，提高约${ratio.advanced}%` : '  基础约50%，中档约30%，提高约20%'; })()}
-4. ⚠️ 题型多样性（强制执行）：同一份资料中至少使用3种不同题型
-5. 题目排序：同题型集中排列
-6. 知识点覆盖率目标：100%（每个知识点至少1题）
-7. 🔧 新增：允许2-3道综合题（题量超过15题时），可考查2-3个关联知识点
-8. 🔧 新增：综合题的 knowledgePoint 填写 "综合：知识点A、知识点B"
-9. 🔧 新增：综合题应放在${(() => { const labelMap = { exam: '试卷', practice: '练习', special: '训练', preview: '预习材料', reading: '阅读训练', summary: '知识总结', dictation: '听写训练', errorbook: '错题本', review: '复习资料' }; return labelMap[genType] || '资料'; })()}后半部分，cognitiveLevel 至少为"应用"
-${genType === 'exam' ? '10. 🔧 新增：综合题分值应高于单一知识点题（按【真题卷结构蓝本】大题分值拆分，低段小题1-2分）\n' : ''}${genType === 'exam' ? '11. 🔧 分值校验：所有题目的 score 之和必须严格等于指令中标注的「总分」，不得超出或不足。请逐题分配分值后自验：sum(score) === 总分\n' : ''}
-${(() => { const qualityMap = { exam: '12. 【考试卷质量要求】试题需有合理区分度，基础题确保大多数学生能做对，提高题能区分优秀学生；答案必须无争议。', practice: '12. 【课时练质量要求】题目必须与教材内容高度一致，不超纲不偏题；基础巩固→能力提升→拓展探究三层递进，单题解答时间约2-5分钟。', special: '12. 【专项训练质量要求】题目围绕专项知识点展开，覆盖各种考查角度；从最简单到最难形成清晰训练梯度，典型方法覆盖完整。', preview: '12. 【课前预习质量要求】预习任务可操作、可检查；预习检测紧扣教材原文，难度不宜过高，侧重基础感知。', reading: '12. 【阅读训练质量要求】选文贴近学段水平；题目涵盖信息提取、词句理解、主旨概括、推理判断、评价鉴赏五个层级。', summary: '12. 【知识总结质量要求】知识结构完整无遗漏；易错点辨析准确到位；典型例题有完整解析过程。', dictation: '12. 【听写/默写质量要求】练习区只留提示不留答案；按教材顺序排列；书写空间充足。', errorbook: '12. 【错题本质量要求】错题归因准确；正确解法步骤完整；变式巩固题与错题知识点一一对应。', review: '12. 【复习资料质量要求】知识框架层次分明，考点梳理完整不漏；典型题析覆盖全部考查角度；易错辨析精确到位；综合自测难度梯度合理，能真实检验复习效果。' }; return (qualityMap[genType] || qualityMap.exam) + '\n'; })()}
-
-${(() => { const hasTpl = selectedTemplates && selectedTemplates.length > 0; if (!hasTpl) return ''; return '【模板反例约束——模板中不会出现的模式，禁止使用】\n' + (() => { const tpl = selectedTemplates?.[0]; let antiExamples = ''; if (tpl?.analysis?.questionCards?.length) { const cards = tpl.analysis.questionCards; const stems = cards.filter(c => c.stem).map(c => c.stem || ''); const hasGenericQuestion = stems.some(s => s.includes('下列说法正确的是') || s.includes('以下哪个选项是正确的')); if (!hasGenericQuestion) { antiExamples += '- ⛔ 模板从未使用"下列说法正确的是"这类无信息量设问，生成时严禁使用\n'; } const hasAllAbove = cards.some(c => c.options?.some(o => o.trim() === '以上都是' || o.trim() === '以上都不对')); if (!hasAllAbove) { antiExamples += '- ⛔ 模板选项从未出现"以上都是""以上都不对"，生成时严禁使用\n'; } const stemLengths = stems.map(s => s.length).filter(l => l > 5); if (stemLengths.length > 0) { const minLen = Math.min(...stemLengths); const maxLen = Math.max(...stemLengths); antiExamples += `- 参考题干长度范围：${minLen}~${maxLen}字（可根据知识点需要适当调整）\n`; } } return antiExamples; })() + '\n'; })()}
-
-【防幻觉约束——请遵守以下规则，确保内容准确可靠】
-1. 知识点请从上方【知识点清单】中选取，确保与教材一致
-2. 🔧 补充规则：请对照上方【知识点清单】，检查是否遗漏了教材中明确要求掌握的必考内容。Step 1 已全面提取（含词汇表、生字表、课后练习等），如【知识点清单】不完整，可基于你的教材知识补充
-3. 🔧 以下内容如果在【知识点清单】中缺失，必须补充到蓝图中：
-   - 词汇表/Words（英语）
-   - 需掌握的生字/词语（语文）
-   - 课后练习明确考查的内容
-   - 教材中加粗/标红/框出的重点内容
-   - 用户锁定的必考知识点
-4. 🔧 补充的知识点 knowledgePoint 字段使用原文中的准确名称
-5. ⛔ 如果【知识点清单】中只有"同分母分数加减法"，不得生成"异分母分数加减法"或"分数乘除法"的题目
-6. ⛔ 知识点的学段范围必须符合教材设定，不得超纲
-7. 🔧 知识点覆盖率容差：目标为【命题约束】的100%全覆盖（每个知识点至少1题，题量受限时边缘知识点可合并为综合题但不得跳过）；【知识点清单】中的知识点≥90%为执行下限，补充的必考内容必须100%覆盖
-8. 🔧 综合题的 knowledgePoint 必须以"综合："开头，后面列出的知识点可来自【知识点清单】或上述补充的必考内容
-
-【输出格式】必须返回严格的 JSON 数组，每个元素代表一道题：
-
-[
-  {
-    "number": 1,
-    "type": "选择题",
-    "knowledgePoint": "分数加减法（同分母）",
-    "cognitiveLevel": "理解",
-    "difficulty": "基础",${genType === 'exam' ? '\n    "score": 3,\n    "section": "填空",' : ''}
-    "sourceChapter": "第3章第1节",
-    "contextScene": "场景名称（如使用统一情境则必填）"
-  },
-  {
-    "number": 2,
-    "type": "填空题",
-    "knowledgePoint": "分数加减法（异分母）",
-    "cognitiveLevel": "应用",
-    "difficulty": "中档",${genType === 'exam' ? '\n    "score": 4,\n    "section": "解答题",' : ''}
-    "sourceChapter": "第3章第2节"
-  }
-]
-
-【强制规则】
-- "type" 从以下选：选择题、填空题、判断题、计算题、解答题、应用题、简答题、作图题、实验题、连线题、排序题、听力题、写话题、默写题、完形填空题
-- "cognitiveLevel" 从以下选：识记、理解、应用、分析、评价、创造
-- "difficulty" 从以下选：基础、中档、提高
-- "knowledgePoint" 必须写具体的概念名称，不得写"综合考查"${genType === 'exam' ? '\n- "section" 为题目所属板块，取值严格使用【真题卷结构蓝本】中的大题名（如语文"看拼音，写词语""阅读理解"、数学"填空""解答题"），同一大题的题目 section 必须相同' : ''}
-- "sourceChapter" 写对应章节名称${genType === 'exam' ? '\n- "score" 为本题分值，所有题目 score 之和必须严格等于总分' : `\n- 不需要 "score" 字段（${genTypeLabel}不需要标注每题分值）`}
-- 只返回 JSON 数组，不要用 Markdown 代码块包裹，不要任何解释文字
-- JSON 必须合法可解析，键名用双引号`;
-      
-      blueprint = '';
-      try {
-        blueprint = await callAI(prompt3, { 
-          taskType: 'blueprint',        // ✅ 蓝图生成用重型模型
-          timeout: 180000,               // 蓝图生成给3分钟超时
-          forceJson: true                // ✅ 强制 JSON 输出
-        });
-      } catch (e) {
-        // 🔧 不再吞错误：HTTP 400/401/402/500 等硬错误直接上抛，让外层 generate() 重试/弹窗
-        console.error('第三步蓝图生成失败', e.message);
-        throw e;
-      }
-      
-      // 从指令中提取总分（课时练无总分，不硬编码兜底值）
-      let totalScore = 0;
-      const scoreMatch = instruction.match(/总分[：:]\s*(\d+)/);
-      if (scoreMatch) totalScore = parseInt(scoreMatch[1]);
-
-      // ✨ 蓝图模式：只生成蓝图，不执行第四步和第五步
-      if (blueprintOnly) {
-        // 尝试解析蓝图
-        parsedBlueprint = [];
-        try {
-          const parsePrompt = `请将以下命题蓝图解析为JSON数组，每个元素代表一道题：
-
-      ${blueprint}
-
-      返回格式：
-      [
-        {
-          "number": 1,
-          "type": "选择题|填空题|解答题|...",
-          "knowledgePoint": "考查的知识点",
-          "difficulty": "基础|中档|提高",
-          "score": 分值数字,
-          "sourceChapter": "对应的课文/章节"
-        }
-      ]
-
-      只返回JSON数组，不要其他内容。`;
-
-          const parseResult = await callAI(parsePrompt);
-          const jsonMatch = parseResult.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            parsedBlueprint = JSON.parse(jsonMatch[0]);
-            // 🔧 试卷蓝图总分一致性：按比例自动修正使明细合计 === 指令总分
-            if (genType === 'exam' && totalScore > 0 && parsedBlueprint.length > 0) {
-              const bpSum = parsedBlueprint.reduce((s, q) => s + (q.score || 0), 0);
-              if (Math.abs(bpSum - totalScore) > 2) {
-                console.warn(`[蓝图校验] 明细合计${bpSum}分 ≠ 指令总分${totalScore}分，按比例自动修正`);
-                const ratio = totalScore / (bpSum || 1);
-                parsedBlueprint.forEach(q => { q.score = Math.round((q.score || 0) * ratio); });
-                const adjustedSum = parsedBlueprint.reduce((s, q) => s + (q.score || 0), 0);
-                const diff = totalScore - adjustedSum;
-                if (diff !== 0 && parsedBlueprint.length > 0) {
-                  parsedBlueprint[parsedBlueprint.length - 1].score = (parsedBlueprint[parsedBlueprint.length - 1].score || 0) + diff;
-                }
-              }
-            }
-          }
-        } catch (e) {
-          console.warn('蓝图模式解析失败:', e.message);
-        }
-
-        progress.value = 80;
-        statusText.value = '蓝图已生成';
-        
-        // 立即释放 isGenerating，让用户可以操作弹窗
-        isGenerating.value = false;
-        
-        return {
-          success: true,
-          blueprint,
-          parsedBlueprint,
-          contentCards,
-          knowledgeMap,
-          content: '',
-          generatedQuestions: [],
-          issues: null,
-          qualityReport: null
-        };
-      }
-
-      // ========== 第四步：解析蓝图并逐题生成 ==========
-      statusText.value = '步骤 4/5：解析命题蓝图...';
-      progress.value = 60;
-
-      // ✨ 4.1：直接解析蓝图 JSON（prompt3 已要求返回 JSON）
-      parsedBlueprint = [];
-      try {
-        parsedBlueprint = await robustJsonParse(
-          blueprint,
-          async (retryPrompt) => {
-            // 如果首次解析失败，让 AI 修复格式
-            const fixed = await callAI(
-              `以下内容不是合法的 JSON 数组，请修复使其成为合法 JSON 后重新输出，只返回 JSON 数组：\n${blueprint.substring(0, 1000)}`,
-              { taskType: 'generation', temperature: 0.1, forceJson: true }  // ✅ 强制 JSON 输出
-            );
-            return fixed;
-          },
-          '蓝图解析'
-        );
-        console.log('✅ 蓝图解析成功，共', parsedBlueprint.length, '题');
-        // 🔧 试卷蓝图总分一致性：按比例自动修正使明细合计 === 指令总分
-        if (genType === 'exam' && totalScore > 0 && parsedBlueprint.length > 0) {
-          const bpSum = parsedBlueprint.reduce((s, q) => s + (q.score || 0), 0);
-          if (Math.abs(bpSum - totalScore) > 2) {
-            console.warn(`[蓝图校验] 明细合计${bpSum}分 ≠ 指令总分${totalScore}分，按比例自动修正`);
-            const ratio = totalScore / (bpSum || 1);
-            parsedBlueprint.forEach(q => { q.score = Math.round((q.score || 0) * ratio); });
-            const adjustedSum = parsedBlueprint.reduce((s, q) => s + (q.score || 0), 0);
-            const diff = totalScore - adjustedSum;
-            if (diff !== 0 && parsedBlueprint.length > 0) {
-              parsedBlueprint[parsedBlueprint.length - 1].score = (parsedBlueprint[parsedBlueprint.length - 1].score || 0) + diff;
-            }
-            console.log(`[蓝图校验] 修正后明细合计${parsedBlueprint.reduce((s, q) => s + (q.score || 0), 0)}分 === 指令总分${totalScore}分`);
-          }
-        }
-      } catch (e) {
-        console.warn('蓝图解析失败，将使用传统方式生成:', e.message);
-      }
-
-      // ✨ 4.2：如果蓝图解析成功，逐题生成
-      content = '';
-      generatedQuestions = [];
-
-      if (parsedBlueprint.length > 0) {
-        const totalQuestions = parsedBlueprint.length;
-
-        // ✨ 生成情境锚点（统一情境风格的基石）
-        let situationAnchor = '';
-        const styleMatch = instruction.match(/命题风格[：:]\s*([^\n]+)/);
-        const styleText = styleMatch ? styleMatch[1] : '';
-        if (styleText.includes('unified_context')) {
-          try {
-            const anchorPrompt = `请为以下试卷设计一个贯穿全卷的统一情境/主题故事。
-学科：${selectedBooks?.[0]?.subject || ''}
-年级：${selectedBooks?.[0]?.grade || ''}
-总题数：${totalQuestions}
-知识点：${parsedBlueprint.map(q => q.knowledgePoint).slice(0, 5).join('、')}
-
-要求：
-1. 取一个情境名称（15字以内）
-2. 描述情境背景（50字以内）
-3. 列出3-5个可用于不同题目的场景元素
-
-返回JSON：{"name":"情境名称","background":"情境背景","scenes":["场景1","场景2"]}`;
-
-            const anchorResult = await callAI(anchorPrompt, { temperature: 0.5 });
-            try {
-              const anchor = await robustJsonParse(anchorResult, null, '情境锚点');
-              situationAnchor = `【统一情境：${anchor.name}】背景：${anchor.background}。可用场景：${(anchor.scenes || []).join('、')}。请在此情境下命制本题，保持与前后题目的叙事连贯性。`;
-            } catch {
-              // 情境生成失败不阻塞
-            }
-          } catch (e) {
-            console.warn('情境锚点生成失败:', e.message);
-          }
-        }      
-  
-        // ✨ 收集已生成题目摘要，作为上下文传给后续题目
-        let generatedContext = [];
-
-        for (let i = 0; i < totalQuestions; i++) {
-          const questionPlan = parsedBlueprint[i];
-    
-          const genConfig = await getCurrentEngineConfigEnhanced('generation');
-          const genModelName = getModelDisplayName(genConfig.textModel || genConfig.model);
-          statusText.value = `步骤 4/5：生成第${i+1}/${totalQuestions}题 [${genModelName}]...`;
-          progress.value = 60 + Math.round((i / totalQuestions) * 25);
-
-          // ✨ 构建已生成题目的上下文摘要
-          let contextSummary = generatedContext.length > 0
-            ? `【已生成题目摘要，请避免知识点重复】\n${generatedContext.join('\n')}\n`
-            : '';
-
-          // 🔧 新增：统计已生成题目的句式特征，确保全局风格一致
-          let styleConsistencyHint = '';
-          if (generatedContext.length > 2) {
-            const recentQuestions = generatedQuestions.slice(-3);
-            const sentenceStarts = [];
-            const optionCounts = [];
-            
-            for (const q of recentQuestions) {
-              const plainText = q.replace(/<[^>]+>/g, '').trim();
-              const startMatch = plainText.match(/^\d+[\.、．]\s*(.{1,20})/);
-              if (startMatch) {
-                sentenceStarts.push(startMatch[1]);
-              }
-              const optionCount = (q.match(/<p class="option"/g) || []).length;
-              if (optionCount > 0) {
-                optionCounts.push(optionCount);
-              }
-            }
-            
-            if (sentenceStarts.length >= 4) {
-              // 🔧 序列约束管控：累积4题后才做句式雷同检测（原2题过早触发）
-              const allSame = sentenceStarts.every(s => 
-                sentenceStarts[0].substring(0, 2) === s.substring(0, 2)
-              );
-              if (allSame) {
-                styleConsistencyHint = `⚠️ 【句式雷同警告——你必须打破此模式】前几题的句式开头高度雷同（均以"${sentenceStarts[0].substring(0, 12)}"开头）。本题必须使用与前几题完全不同的设问方式和句式结构！禁止再用相同句式开头！`;
-              }
-            }
-            
-            if (optionCounts.length >= 4) {
-              // 🔧 序列约束管控：累积4题后才做选项结构雷同检测（原2题过松）
-              const avgOptions = Math.round(optionCounts.reduce((a, b) => a + b, 0) / optionCounts.length);
-              if (optionCounts.every(c => c === optionCounts[0])) {
-                styleConsistencyHint += `\n⚠️ 【选项结构雷同警告】前几题选择题全部是${optionCounts[0]}个选项，本题必须打破此模式——改变选项数量或改用非选择题型！`;
-              }
-            }
-          }
-    
-          // ========== 🔧 优化：动态上下文窗口管理 ==========
-          // 定义上下文预算（根据模型能力调整，qwen2.5:14b 建议预留 4000 tokens 给核心指令和输出）
-          const MAX_CONTEXT_TOKENS = 5000;
-          
-          // 为各模块分配预算
-          const MATERIAL_BUDGET = Math.floor(MAX_CONTEXT_TOKENS * 0.45);   // 教材原文最多45%
-          const TEMPLATE_BUDGET = Math.floor(MAX_CONTEXT_TOKENS * 0.30);   // 模板样本最多30%
-          const SUMMARY_BUDGET = Math.floor(MAX_CONTEXT_TOKENS * 0.15);    // 已生成摘要最多15%
-          // 剩余10%留给其他固定内容
-
-          // ========== 1. 教材原文：分级提供（优先保证核心段完整）==========
-          let materialContext = '';
-          
-          if (questionPlan.knowledgePoint) {
-            const relatedSegments = semanticRetriever.findRelevant(
-              questionPlan.knowledgePoint,
-              8  // 先多取几段，给分级函数更多选择
-            );
-            
-            if (relatedSegments.length > 0) {
-              // 🔧 使用分级构建函数，优先保证核心段完整性
-              const gradedMaterial = buildGradedMaterialContext(relatedSegments, MATERIAL_BUDGET);
-              materialContext = gradedMaterial.fullContext;
-              
-              if (materialContext) {
-                const coreCount = (gradedMaterial.coreText.match(/\n\[/g) || []).length;
-                const extCount = (gradedMaterial.extendedText.match(/\n\[/g) || []).length;
-                console.log(`📚 题${questionPlan.number} 教材上下文：核心${coreCount}段 + 扩展${extCount}段`);
-              } else {
-                materialContext = ''; // 没有有效内容，清空
-              }
-            }
-          }
-          
-          // 降级：如果语义检索没有结果，使用章节原文（交由 buildGradedMaterialContext 控制长度）
-          if (!materialContext && questionPlan.sourceChapter) {
-            const relatedCard = contentCards.find(c => c.chapterTitle === questionPlan.sourceChapter);
-            if (relatedCard && (relatedCard._fullChapterText || relatedCard.rawText || relatedCard.summary)) {
-              const sourceText = relatedCard._fullChapterText || relatedCard.rawText || relatedCard.summary;
-              // 对降级原文也做分段，让 buildGradedMaterialContext 按 token 预算动态截取
-              const fallbackSegments = splitTextIntoSegments(sourceText, 500).map(seg => ({
-                chapterTitle: relatedCard.chapterTitle,
-                text: seg,
-                type: '正文',
-                isKeyConcept: false,
-                isExample: false,
-                isExercise: false
-              }));
-              const gradedFallback = buildGradedMaterialContext(fallbackSegments, MATERIAL_BUDGET);
-              materialContext = gradedFallback.fullContext || `【教材参考】\n${sourceText.substring(0, Math.floor(MATERIAL_BUDGET * 1.5))}\n`;
-            }
-          }
-
-          // ========== 2. 模板样本：按预算截取 ==========
-          let templateContext = '';
-          let templateTokens = 0;
-          const templateCards = selectedTemplates?.[0]?.analysis?.questionCards || [];
-          
-          if (templateCards.length > 0) {
-            const MAX_SAMPLES = 2;
-            const templateSamples = findBestTemplateSamples(templateCards, questionPlan, MAX_SAMPLES);
-            
-            if (templateSamples.length > 0) {
-              templateContext = `\n【模板参考题——以下为模板典型题目，供参考风格和结构】\n`;
-              let sampleCount = 0;
-              
-              for (let si = 0; si < templateSamples.length; si++) {
-                const card = templateSamples[si];
-                
-                let cardText = `\n=== 模板真题${si + 1}（${card.type}，${card.difficulty || '?'}难度，${card.score || '?'}分）===\n`;
-                
-                // 🔧 修复：优先使用完整题干，不截断
-                // 原因：截断后AI无法看到完整的设问方式，影响风格对标
-                let stem = card.stem || '';
-                
-                // 如果题干过长，尝试智能截断（在自然断点处）
-                const maxStemChars = Math.floor((TEMPLATE_BUDGET / MAX_SAMPLES) * 0.8);
-                if (stem.length > maxStemChars) {
-                  // 尝试在句号、问号、感叹号处截断
-                  const naturalBreaks = ['。', '？', '！', '?', '!'];
-                  let breakIndex = -1;
-                  
-                  for (const mark of naturalBreaks) {
-                    const idx = stem.lastIndexOf(mark, maxStemChars);
-                    if (idx > maxStemChars * 0.6) {  // 至少在60%位置之后
-                      breakIndex = idx + 1;
-                      break;
-                    }
-                  }
-                  
-                  if (breakIndex > 0) {
-                    stem = stem.substring(0, breakIndex) + '...';
-                  } else {
-                    // 没有自然断点，直接截断但添加明确标记
-                    stem = stem.substring(0, maxStemChars) + '...（题干过长已截断）';
-                  }
-                }
-                cardText += `题干：${stem}\n`;
-                
-                // 选项（只保留前4个）
-                if (card.options?.length) {
-                  const options = card.options.slice(0, 4);
-                  cardText += `选项：${options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join(' | ')}\n`;
-                }
-                
-                // 关键特征
-                if (card.questionFeature) {
-                  cardText += `设问特征：${card.questionFeature.substring(0, 30)}\n`;
-                }
-                
-                const cardTokens = estimateTokens(cardText);
-                if (templateTokens + cardTokens > TEMPLATE_BUDGET) {
-                  if (sampleCount === 0) {
-                    templateContext += cardText;
-                    sampleCount++;
-                  }
-                  break;
-                }
-                
-                templateContext += cardText;
-                templateTokens += cardTokens;
-                sampleCount++;
-              }
-              
-              if (sampleCount > 0) {
-                templateContext += `\n【注意】以上真题仅作学段题型参考。本题请根据实际知识点和${genType === 'exam' ? '考试要求' : genType === 'practice' ? '练习目标' : '训练目标'}独立设计题干长度、句式结构和选项数量，无需机械模仿模板样本。`;
-              } else {
-                templateContext = '';
-              }
-            }
-          }
-
-          // ========== 3. 已生成题目摘要：附带显式排重指令，防止逐题雷同 ==========
-          contextSummary = '';
-          if (generatedContext.length > 0) {
-            const recentContext = generatedContext.slice(-3);
-            contextSummary = `【已生成题目——下面的题目已生成完毕，你本题必须与之有明显差异】
-${recentContext.join('\n')}
-
-⚠️ 排重要求——请确认本题与上面已生成题目的差异：
-1. 不使用上面已出现过的场景（如上面用了"分蛋糕"，你换"跳绳比赛"或"图书馆"等全新场景）
-2. 不使用上面已出现过的设问句式（如上面用了"XX有多少个"，你换"比较XX和YY的差异"或"如果ZZ发生变化，XX会怎样"）
-3. 不使用上面已出现过的数据组合（换一组全新数字，不雷同）
-`;
-            
-            const summaryTokens = estimateTokens(contextSummary);
-            if (summaryTokens > SUMMARY_BUDGET) {
-              const shorter = generatedContext.slice(-2);
-              contextSummary = `【已生成题目】${shorter.join('；')}\n⚠️ 请确保本题情境、设问方式与上面不同。`;
-              if (estimateTokens(contextSummary) > SUMMARY_BUDGET) {
-                contextSummary = `【上一题】${generatedContext[generatedContext.length - 1]}\n⚠️ 请确保本题情境、设问方式与上一题不同。`;
-              }
-            }
-          }
-
-          // ========== 4. 日志：输出各模块使用量（方便调试） ==========
-          const coreCount = materialContext ? (materialContext.match(/核心教材原文/g) || []).length : 0;
-          const extCount = materialContext ? (materialContext.match(/补充参考/g) || []).length : 0;
-          console.log(`📊 题${questionPlan.number} 上下文使用:
-  教材原文: 核心段 + 扩展段 (预算${MATERIAL_BUDGET} tokens)
-  模板样本: ${templateContext ? '已注入' : '无'} (预算${TEMPLATE_BUDGET} tokens)
-  已生成摘要: ${estimateTokens(contextSummary)} tokens (预算${SUMMARY_BUDGET})`);
-
-          // 🔧 按题型从指令库查询质量约束（替代硬编码 typeSpecificRules）
-          const TYPE_TO_GENTYPE = { '选择题': 'choice', '填空题': 'fill', '判断题': 'truefalse', '计算题': 'calc', '解答题': 'answer', '应用题': 'word_problem', '实验题': 'experiment' };
-          const typeGenType = TYPE_TO_GENTYPE[questionPlan.type];
-          const typeBlocks = typeGenType ? getMatchingBlockInstructions({ category: '生成-题型专项要求', genType: typeGenType }) : [];
-          const typeRule = typeBlocks.length > 0 ? typeBlocks[0].content : '';
-
-          // 🔧 新增：综合题额外上下文
-          let integratedContext = '';
-          if (questionPlan.knowledgePoint && questionPlan.knowledgePoint.startsWith('综合：')) {
-            const kps = questionPlan.knowledgePoint.replace('综合：', '').split(/[、，,]/).map(k => k.trim());
-            integratedContext = `\n⚠️ 这是一道综合题，需要融合以下知识点：${kps.join('、')}\n`;
-            integratedContext += `请创设一个真实情境，将上述知识点自然融合在一个问题中。\n`;
-            integratedContext += `各知识点的考查权重应大致均衡。\n`;
-            if (questionPlan.cognitiveLevel === '分析' || questionPlan.cognitiveLevel === '评价') {
-              integratedContext += `需要体现高阶思维（分析/评价），不止于简单应用。\n`;
-            }
-          }
-
-          // ========== 3.5：场景多样性种子（轮转注入，防止逐题雷同）==========
-          const diversitySeeds = [
-            '🎲 【场景引导：生活化】请创设贴近学生日常的场景（如购物、分食物、运动计分等），让题目有真实感和代入感。',
-            '🎲 【场景引导：校园课堂】请创设校园/课堂场景（如小组比赛、实验操作、课堂问答等），与学校生活关联。',
-            '🎲 【场景引导：故事游戏】请将题目包装成简短的小故事、闯关游戏或趣味挑战，增强可读性。',
-            '🎲 【场景引导：图表数据】请用表格、统计图、示意图等可视化方式呈现关键信息，考查数据解读能力。',
-            '🎲 【场景引导：探究思辨】请用"为什么...""如果...会怎样""你能发现什么规律"等开放式设问，考查深层理解。',
-            '🎲 【场景引导：对比辨析】请设计需要对比两个易混淆概念/方法的题目，考查辨析能力而非死记硬背。',
-            '🎲 【原创设计】创设全新的、有辨识度的题目情境与设问方式，让这道题独一无二、不撞脸任何已有题目。',
-            '🎲 【场景出新】选用新鲜有趣的真实场景（校园活动、生活实践、时事热点等），赋予角色有特色的名字，让题目有真实感和新鲜感。',
-'🎲 【独立原创】确保题目是全新的独立创作——情境、数据、设问角度均为原创设计，不参考任何已有题目。',
-'🎲 【自然表达】用自然的语言风格写题，像一位经验丰富的教师出题，语言精准、表述清晰，避免模板化套话。',
-          ];
-          const diversitySeed = diversitySeeds[i % diversitySeeds.length];
-
-          const questionPrompt = buildPerQuestionPrompt(questionPlan, genType, {
-            situationAnchor,
-            contextSummary,
-            styleConsistencyHint,
-            materialContext,
-            templateContext,
-            typeRule,
-            integratedContext,
-            selectedTemplates,
-            instruction,
-            selectedBooks,
-            stage,
-            diversitySeed,
-          });
-
-          try {
-            // 🔧 优化：第一题前检查模型状态，后续题之间等待2秒
-            if (i === 0) {
-              console.log('🔥 题目生成：检查模型状态...');
-              try {
-                const result = await checkModelReady(null, 3, 'text');
-                
-                if (!result.ready) {
-                  console.log(`⚠️ 模型未就绪，根据响应时间动态等待... (${result.responseTime}ms)`);
-                  const additionalWait = Math.max(2000, Math.min(4000, result.responseTime / 10));
-                  await new Promise(r => setTimeout(r, additionalWait));
-                } else {
-                  console.log(`✅ 文本生成模型已就绪，立即开始（响应时间: ${result.responseTime}ms, 尝试${result.attempts}次）`);
-                }
-              } catch (e) {
-                console.warn('⚠️ 模型检测失败，等待3秒后继续...', e.message);
-                await new Promise(r => setTimeout(r, 3000));
-              }
-            } else {
-              // 题之间等待2秒，让模型恢复
-              console.log(`⏰ 第${i+1}题之前等待2秒...`);
-              await new Promise(r => setTimeout(r, 2000));
-            }
-            
-            const questionContent = await callAI(questionPrompt, { 
-              taskType: 'generation',    // ✅ 题目生成用重型模型
-              timeout: 120000,           // 单题给2分钟
-              allowContinuation: true    // 🔧 允许题目生成时自动续写
-            });
-
-            generatedQuestions.push(questionContent);
-            
-            // ✨ 新增：逐题自检验证
-            let validationNote = '';
-            
-            // 🔧 增强：硬性规则验证（先于AI验证，成本低、速度快）
-            try {
-              const book = selectedBooks?.[0];
-              const rawSubject = book?.subject || '';
-              const stage = book?.stage || '';
-              const subject = normalizeSubjectName(rawSubject, stage);
-              
-              // 🔧 使用学科专用验证器
-              const hardResults = runHardValidators(questionContent, subject);
-              
-              if (hardResults.length > 0) {
-                const errors = [];
-                const warnings = [];
-                
-                for (const result of hardResults) {
-                  if (result.passed === false) {
-                    const prefix = result.severity === 'error' ? '❌' : '⚠️';
-                    const note = `${prefix} [${result.name}] ${result.message}`;
-                    
-                    if (result.severity === 'error') {
-                      errors.push(note);
-                    } else {
-                      warnings.push(note);
-                    }
-                    
-                    validationNote += `<!-- ${note} -->\n`;
-                    console.warn(`题${questionPlan.number}${note}`);
-                  }
-                }
-                
-                // 自动修复可修复的问题
-                const fixedContent = applyAutoFixes(questionContent, hardResults);
-                if (fixedContent !== questionContent) {
-                  const idx = generatedQuestions.indexOf(questionContent);
-                  if (idx >= 0) {
-                    generatedQuestions[idx] = fixedContent;
-                    console.log(`🔧 题${questionPlan.number} 自动修复完成`);
-                  }
-                }
-                
-                // 🔧 新增：如果存在严重错误（error级别），标记需要重试
-                if (errors.length > 0) {
-                  console.warn(`⚠️ 题${questionPlan.number} 存在 ${errors.length} 个严重错误，建议人工审查`);
-                  // 将错误信息写入 validationNote 供后续审查参考
-                  validationNote += `<!-- ⚠️⚠️⚠️ 本题存在严重规则违反，请人工审查 ⚠️⚠️⚠️ -->\n`;
-                  validationNote += `<!-- 错误列表：\n${errors.join('\n')}\n-->\n`;
-                  
-                  // 🔧 新增：对于严重错误，尝试重新生成
-                  if (errors.length >= 2 && i < totalQuestions) {
-                    console.log(`🔄 题${questionPlan.number} 存在多个严重错误，将在自动修复循环中处理`);
-                  }
-                }
-                
-                // 🔧 新增：记录警告数量
-                if (warnings.length > 0) {
-                  console.log(`📝 题${questionPlan.number} 存在 ${warnings.length} 个警告`);
-                }
-              }
-            } catch (e) {
-              console.warn('硬性规则验证失败:', e.message);
-            }
-            try {
-              const validatePrompt = `请审查这道题目，检查知识点匹配度和科学性：
-
-【题目内容】
-${questionContent.replace(/<[^>]+>/g, '').substring(0, 500)}
-
-【命题要求】
-知识点：${questionPlan.knowledgePoint}
-难度：${questionPlan.difficulty}
-题型：${questionPlan.type}
-
-请逐一检查并只返回JSON：
-{
-  "knowledgeMatch": true,
-  "knowledgeMatchReason": "题目确实考查了该知识点",
-  "hasScienceError": false,
-  "scienceErrorDetail": "",
-  "answerCorrect": true,
-  "suggestion": ""
-}`;
-
-              const validateResult = await callAI(validatePrompt, { 
-                taskType: 'questionValidation',  // 🔧 使用独立验证策略
-                temperature: 0.01,                // 🔧 降到最低值，确保客观（0.01 兼容所有引擎，0 可能被部分引擎拒绝）
-                timeout: 30000 
-              });
-              try {
-                const validation = await robustJsonParse(validateResult, null, '题目验证');
-                if (!validation.knowledgeMatch) {
-                  validationNote = `<!-- ⚠️ 知识点匹配问题：${validation.knowledgeMatchReason || '未知'} -->`;
-                  console.warn(`题${questionPlan.number}知识点匹配问题:`, validation.knowledgeMatchReason);
-                }
-                if (validation.hasScienceError) {
-                  validationNote += `<!-- ❌ 科学性错误：${validation.scienceErrorDetail || '未知'} -->`;
-                  console.error(`题${questionPlan.number}科学性错误:`, validation.scienceErrorDetail);
-                }
-                if (!validation.answerCorrect) {
-                  validationNote += `<!-- ⚠️ 答案可能有误 -->`;
-                  console.warn(`题${questionPlan.number}答案可能有误`);
-                }
-                
-                // 🔧 修复：交叉验证——用与生成引擎不同的引擎验算，避免自我确认偏差
-                const mathTypes = ['计算题', '解答题', '应用题', '选择题', '填空题'];
-                if (mathTypes.includes(questionPlan.type) && questionContent.length > 20) {
-                  try {
-                    // 提取题目中的原始答案（多种格式兼容）
-                    const answerPatterns = [
-                      /答案[：:]\s*(.+?)(?:<|$|\n)/,
-                      /【答案】\s*(.+?)(?:<|$|\n)/,
-                      /参考答案[：:]\s*(.+?)(?:<|$|\n)/,
-                      /正确[答案选项][：:]\s*(.+?)(?:<|$|\n)/
-                    ];
-                    let originalAnswer = '';
-                    for (const pattern of answerPatterns) {
-                      const match = questionContent.match(pattern);
-                      if (match) {
-                        originalAnswer = match[1].trim();
-                        break;
-                      }
-                    }
-
-                    // 提取纯文本题干用于验算
-                    const plainText = questionContent
-                      .replace(/<[^>]+>/g, '')
-                      .replace(/【答案】[\s\S]*$/, '')  // 去掉答案部分
-                      .trim();
-
-                    const mathVerifyPrompt = `请计算这道题，先写出关键步骤，然后给出最终答案。
-
-【题目】
-${plainText.substring(0, 600)}
-
-【输出格式】
-步骤：
-1. ...
-2. ...
-最终答案：[答案]
-
-如果题目本身有逻辑错误或条件不足导致无法计算，请说明具体问题。`;
-
-                    // 🔧 核心改动：根据当前引擎选择不同的验算引擎
-                    const currentConfig = await getCurrentEngineConfig('review');
-                    let verifyEngine = 'same';  // 默认同引擎
-                    let verifyApiKey = '';
-                    
-                    // 如果当前是 Ollama 且配置了 DeepSeek，用 DeepSeek 验算
-                    if (currentConfig.engine === 'ollama' && apiConfig.deepseekApiKey) {
-                      verifyEngine = 'deepseek';
-                      verifyApiKey = apiConfig.deepseekApiKey;
-                    }
-                    // 如果当前是 DeepSeek 且 Ollama 可用，用 Ollama 验算
-                    else if (currentConfig.engine === 'deepseek') {
-                      verifyEngine = 'ollama';
-                    }
-
-                    let independentAnswer = '';
-                    
-                    if (verifyEngine === 'deepseek') {
-                      // 用 DeepSeek 验算（短请求，不流式）
-                      try {
-                        // 🌡️ 熔断器检查
-                        if (deepseekBreaker.isOpen) {
-                          console.warn('⚠️ DeepSeek 熔断中，验算跳过');
-                          throw new Error('DeepSeek 熔断中');
-                        }
-
-                        let verifyUrl = apiConfig.deepseekBaseUrl || '';
-                        if (verifyUrl && !verifyUrl.includes('/chat/completions')) {
-                          verifyUrl = verifyUrl.endsWith('/v1')
-                            ? `${verifyUrl}/chat/completions`
-                            : `${verifyUrl.replace(/\/$/, '')}/v1/chat/completions`;
-                        }
-
-                        const verifyResponse = await fetch(verifyUrl, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${verifyApiKey}`
-                          },
-                          body: JSON.stringify({
-                            model: apiConfig.deepseekModel,
-                            messages: [{ role: 'user', content: mathVerifyPrompt }],
-                            temperature: 0.01,
-                            max_tokens: 1024,
-                            thinking: { type: 'disabled' }  // 🔧 数学验算：关闭思考，直接输出验算结果
-                          })
-                        });
-
-                        if (verifyResponse.ok) {
-                          const verifyData = await verifyResponse.json();
-                          independentAnswer = verifyData.choices?.[0]?.message?.content || '';
-                          deepseekBreaker.success();
-                        } else {
-                          if (verifyResponse.status >= 500) deepseekBreaker.fail();
-                          throw new Error(`DeepSeek 验算失败: HTTP ${verifyResponse.status}`);
-                        }
-                      } catch (e) {
-                        console.warn('DeepSeek 验算失败，降级使用 Ollama:', e.message);
-                        independentAnswer = await callAI(mathVerifyPrompt, {
-                          taskType: 'questionValidation',
-                          temperature: 0.01,
-                          timeout: 30000,
-                          retries: 0
-                        });
-                      }
-                    } else if (verifyEngine === 'ollama') {
-                      // 用 Ollama 验算（但用轻量模型以节约资源）
-                      independentAnswer = await callAI(mathVerifyPrompt, {
-                        taskType: 'questionValidation',  // 🔧 使用独立验证策略
-                        temperature: 0.01,                // 🔧 降到最低值，确保客观（0.01 兼容所有引擎，0 可能被部分引擎拒绝）
-                        timeout: 30000,
-                        retries: 0
-                      });
-                    } else {
-                      // 同一引擎验算（降级方案），但用 temperature=0 提高确定性
-                      independentAnswer = await callAI(mathVerifyPrompt, {
-                        taskType: 'questionValidation',
-                        temperature: 0.01,
-                        timeout: 30000,
-                        retries: 0
-                      });
-                    }
-
-                    // 从验算结果中提取最终答案
-                    const finalAnswerMatch = independentAnswer.match(/最终答案[：:]\s*(.+?)(?:\n|$)/);
-                    const verifyAnswer = finalAnswerMatch 
-                      ? finalAnswerMatch[1].trim() 
-                      : independentAnswer.split('\n').pop().trim();
-
-                    // 🔧 改进：更智能的答案对比
-                    if (verifyAnswer && originalAnswer) {
-                      const normalize = (s) => {
-                        return s
-                          .replace(/\s+/g, '')           // 去空格
-                          .replace(/[，,]/g, '')          // 去中文/英文逗号
-                          .replace(/[。.]/g, '')          // 去句号
-                          .replace(/（/g, '(')            // 统一括号
-                          .replace(/）/g, ')')
-                          .toLowerCase();
-                      };
-
-                      const normOriginal = normalize(originalAnswer);
-                      const normVerify = normalize(verifyAnswer);
-
-                      if (normOriginal !== normVerify) {
-                        // 🔧 改进：不一致时加醒目警告
-                        validationNote += `\n<!-- ⚠️⚠️⚠️ 交叉验算不一致（验算引擎：${verifyEngine}）⚠️⚠️⚠️
-  原答案：${originalAnswer}
-  验算结果：${verifyAnswer}
-  验算过程：
-  ${independentAnswer.split('\n').map(l => '  ' + l).join('\n')}
-  请务必人工核对！ -->`;
-                        console.warn(`题${questionPlan.number}交叉验算不一致 [${verifyEngine}]: 原="${originalAnswer}" 验="${verifyAnswer}"`);
-                        
-                        // 🔧 新增：如果是高置信度题目（如简单计算），标记为需要人工审查
-                        if (questionPlan.difficulty === '基础') {
-                          console.error(`基础题${questionPlan.number}答案可能错误，强烈建议人工审查`);
-                        }
-                      } else {
-                        console.log(`✅ 题${questionPlan.number}交叉验算一致 [${verifyEngine}]`);
-                      }
-                    }
-                  } catch (e) {
-                    console.warn('数学验算失败（非阻塞）:', e.message);
-                  }
-                }
-                
-                if (validationNote) {
-                  const idx = generatedQuestions.indexOf(questionContent);
-                  if (idx >= 0) {
-                    generatedQuestions[idx] = validationNote + '\n' + questionContent;
-                  }
-                }
-              } catch {
-                // 验证解析失败不阻塞
-              }
-            } catch {
-              // 验证调用失败不阻塞
-            }
-            
-            // ✨ 提取结构化摘要（情境+方式+特征），供后续题目排重用
-            try {
-              const summary = await callAI(
-                `用30字以内描述这道题的情境、设问方式和关键特征。格式：「情境：XX | 方式：XX | 特征：XX」\n${questionContent}`,
-                { taskType: 'generation', temperature: 0.1 }
-              );
-              generatedContext.push(`第${questionPlan.number}题(${questionPlan.type},${questionPlan.knowledgePoint}): ${summary.trim()}`);
-            } catch {
-              generatedContext.push(`第${questionPlan.number}题(${questionPlan.type},${questionPlan.knowledgePoint})`);
-            }
-          } catch (e) {
-            console.warn(`第${i+1}题生成失败:`, e.message);
-            generatedQuestions.push(`<p class="question"><span class="question-number">${questionPlan.number}.</span> 【生成失败，请重试】</p>`);
-            generatedContext.push(`第${questionPlan.number}题【生成失败】`);
-          }
-        }
-  
-        // ✨ 4.3：去重检查（跨题语义去重）
-        if (generatedQuestions.length > 2) {
-          statusText.value = '正在检查题目重复...';
-          progress.value = 85;
-          
-          try {
-            const dedupPrompt = `你是一位严谨的命题审核专家。请检查以下${generatedQuestions.length}道题是否存在真正意义上的考查点重复。
-
-⚠️ 判定标准（严格）：只有在两道题考查的核心知识点完全相同、解题方法完全一致时，才算重复。
-⚠️ 例："两位数加两位数"和"两位数加两位数进位"考查不同难度层次→不算重复
-⚠️ 例："阅读理解题A"和"阅读理解题B"即使同属阅读→只要文章不同就不算重复
-⚠️ 存疑时请判为不重复（宁可漏判，不可误判）。
-
-${generatedQuestions.map((q, i) => `题${i+1}：${q.replace(/<[^>]+>/g, '').substring(0, 150)}`).join('\n')}
-
-返回JSON：
-{
-  "hasDuplicates": true,
-  "duplicatePairs": [{"q1": 1, "q2": 3, "reason": "两题都考查分数加减法"}],
-  "suggestion": "建议合并或替换其中一题"
-}
-如果没有重复，返回 {"hasDuplicates": false}
-
-只返回JSON。`;
-
-            const dedupResult = await callAI(dedupPrompt, { 
-              taskType: 'review', temperature: 0.1 
-            });
-            try {
-              const dedup = await robustJsonParse(dedupResult, null, '去重检查');
-              if (dedup.hasDuplicates && dedup.duplicatePairs?.length > 0) {
-                console.warn('⚠️ 检测到重复题目:', dedup.duplicatePairs);
-                // 在内容前添加警告注释
-                const warningNote = `<!-- ⚠️ 去重警告：${dedup.suggestion || '以下题目可能存在重复'} -->\n`;
-                generatedQuestions.unshift(warningNote);
-              }
-            } catch {
-              // 去重失败不阻塞
-            }
-          } catch (e) {
-            console.warn('去重检查失败:', e.message);
-          }
-        }
-
-        // ✨ 4.4：组装完整内容
-        statusText.value = '正在组装...';
-        progress.value = 88;
-
-        const book = selectedBooks?.[0];
-        const subject = book?.subject || '';
-        const grade = book?.grade || '';
-
-        // 🔧 根修复：practice/special 用简洁标题，仅 exam 走 AI 生成含分值的头部
-        if (genType === 'practice' || genType === 'special') {
-          const chapters = book?.selectedChapters || [];
-          const chapterNames = chapters.map(c => c.title).filter(Boolean).join('、');
-          const unitName = book?.name || '';
-          const chapterKey = chapterNames || '_all_';
-          const genTypeLabel = pickLabelFromPool(genType, chapterKey);
-          const headerHtml = `<h1>${unitName}${chapterNames ? ' · ' + chapterNames : ''}</h1>
-<div class="practice-info"><p>${grade} ${subject} ${genTypeLabel}</p></div>`;
-          content = headerHtml + '\n\n' + generatedQuestions.join('\n\n');
-        } else {
-          // 🔧 试卷：生成带分值/考试信息的头部
-          const headerPrompt = `请根据以下信息生成试卷头部（标题、考试信息等）：
-      学科：${subject}
-      年级：${grade}
-      总分：${totalScore || 100}分
-      题型分布：${parsedBlueprint.map(q => `${q.type}×${parsedBlueprint.filter(p => p.type === q.type).length}题`).filter((v, i, a) => a.indexOf(v) === i).join('，')}
-            大题结构（严格按【真题卷结构蓝本】大题序列与分值，禁止改名/增删/重组）:
-      ${(() => {
-        const secCount = {};
-        for (const q of parsedBlueprint) {
-          const sec = (q.section || '').trim();
-          if (!sec) continue;
-          secCount[sec] = (secCount[sec] || 0) + 1;
-        }
-        const lines = Object.keys(secCount).map(k => k + '（' + secCount[k] + '题）');
-        return lines.length > 0 ? lines.join('；') : '按【真题卷结构蓝本】大题序列组织，禁止用"基础/能力/综合"板块包装';
-      })()}
-      返回HTML格式的试卷头部，用<h1>标题，用<div class="exam-info">包裱考试信息。`;
-
-          try {
-            const header = await callAI(headerPrompt, { 
-              taskType: 'generation', temperature: 0.3 
-            });
-            content = header + '\n\n' + generatedQuestions.join('\n\n');
-          } catch (e) {
-            content = generatedQuestions.join('\n\n');
-          }
-        }
-
-      } else {
-        // ❌ 蓝图解析失败：不降级，直接报错
-        throw new Error(
-          `内容生成失败：命题蓝图解析失败，无法逐题生成。\n` +
-          `可能原因：AI 返回的蓝图格式异常，无法提取有效的题目信息。\n` +
-          `建议：点击"重试"重新生成，或减少所选章节数量后重试。`
-        );
-      }
-
-      // ✨ 4.5：收集逐题答案，生成统一答案与解析区域
-      if (genType !== 'exam' && parsedBlueprint.length > 0) {
-        // 🔧 非试卷类型（课时练/预习/听写等）：从HTML注释中提取答案，构建统一 answer-section
-        const answerEntries = [];
-        const answerCommentRegex = /<!--\s*answer\s*:\s*(.+?)\s*(?:\|\s*解析\s*:\s*(.+?))?\s*-->/gi;
-        let commentMatch;
-        for (let qi = 0; qi < generatedQuestions.length; qi++) {
-          const qContent = generatedQuestions[qi];
-          // Reset regex state
-          answerCommentRegex.lastIndex = 0;
-          while ((commentMatch = answerCommentRegex.exec(qContent)) !== null) {
-            const answer = (commentMatch[1] || '').trim();
-            const explanation = (commentMatch[2] || '').trim();
-            answerEntries.push({ number: parsedBlueprint[qi]?.number || (qi + 1), answer, explanation });
-          }
-        }
-
-        if (answerEntries.length > 0) {
-          // 构建答案区域
-          let answerSection = '\n<div class="answer-section">\n<h2>答案与解析</h2>\n';
-          for (const entry of answerEntries) {
-            answerSection += `<p><strong>${entry.number}.</strong> ${entry.answer}`;
-            if (entry.explanation) {
-              answerSection += ` | <em>解析：${entry.explanation}</em>`;
-            }
-            answerSection += '</p>\n';
-          }
-          answerSection += '</div>';
-          content += answerSection;
-        } else {
-          // 提取失败：用 AI 补生成答案区域
-          console.warn('⚠️ 未提取到答案注释，尝试 AI 补生成答案区域...');
-          try {
-            const answerGenPrompt = `请根据以下题目内容，生成统一的答案与解析区域。
-
-${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').substring(0, 200)}`).join('\n\n')}
-
-返回格式：
-<div class="answer-section">
-<h2>答案与解析</h2>
-<p><strong>1.</strong> 答案 | <em>解析：解题思路</em></p>
-...
-</div>
-
-只返回HTML，不要markdown包裹。`;
-
-            const answerSection = await callAI(answerGenPrompt, {
-              taskType: 'generation', temperature: 0.1
-            });
-            content += '\n' + answerSection;
-          } catch (e) {
-            console.warn('答案区域生成失败:', e.message);
-          }
-        }
-      }
-      
-      } // ── 传统五步法路径结束 ──
+      } // ── 整卷生成分支结束（if _useFullPaper）──
       
       // ========== 第四步：多维度质量校验 ==========
       // 🔧 步骤编号适配：DeepSeek 整卷路径为步骤 4/4，Ollama 逐题路径为步骤 4/5
@@ -8820,436 +5600,43 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
       progress.value = 85;
 
       const issues = [];
-      
-      // 🔴 分步流水线状态显式化：exam 未走分步流水线时告知用户（卷面结构/时长/密封线由模型自由书写，
-      //    结构约束弱，可能偏离真题蓝本）。此前"静默回退"导致用户不知道生成方案未被实施。
-      if (genType === 'exam' && (!lastPipelineInfo || !lastPipelineInfo.used)) {
-        const reason = lastPipelineInfo?.reason || '当前引擎/路由未接入分步流水线（建议使用 DeepSeek 云端引擎）';
-        issues.push(`⚠️ 本次试卷未走分步流水线生成：${reason}——卷面结构/时长/密封线由模型自由书写，可能偏离真题蓝本，建议修正后重新生成`);
+      // 🔴 PostPass 质量门/总题量防线问题 → 展示到生成报告（issues 已声明）
+      if (postPassIssues?.length) {
+        postPassIssues.forEach(q => issues.push(`❌ ${q}`));
       }
-      
-      // ========== 🔧 新增：硬性规则检查（第一级） ==========
+
+      // ========== 🔧 质检已移除（生成端保障） ==========
+      // 生成质量由"生成端"保证：指令库注入（含蓝图题型骨架与新课标条款）+ 整卷一次生成 + 代码确定性兜底（空白规范化/密封线）。
+      // 不再做生成后质量检测/拦截/修复——"自产自评"无意义（同一模型检不出系统性错误），
+      // 质检误报还会中断整卷生成（实测空壳误判→两次重试→整卷失败）。
       const book = selectedBooks?.[0];
       const stageRaw = book?.stage || '';
-      const stageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-      const hardIssues = HardRuleChecker.check(
-        content, 
-        parsedBlueprint, 
-        book?.subject || '', 
-        stageMap[stageRaw] || stageRaw,
-        book?.grade || '',
-        genType,
-        undefined,
-        book?.region || ''  // 🔧 省市差异化：校验用同一省市蓝本（江苏150分制等）
-      );
-      
-      // 合并硬性检查问题（按层级分组：❌需处理 → ⚠️优化建议，避免建议与错误混淆）
-      const errIssues = hardIssues.filter(i => i.severity === 'error');
-      const warnIssues = hardIssues.filter(i => i.severity === 'warning');
-      errIssues.forEach(issue => { issues.push(`❌ ${issue.detail}`); });
-      if (warnIssues.length > 0) {
-        issues.push('— 优化建议（⚠️ 不影响使用，可忽略或下次改进） —');
-        warnIssues.forEach(issue => { issues.push(`⚠️ ${issue.detail}`); });
-      }
 
-      // 自动修复可修复的问题
-      if (hardIssues.some(i => i.autoFix)) {
-        content = HardRuleChecker.autoFix(content, hardIssues);
-      }
-
-      // ========== 🔧 新增：AI语义审查（第二级——通读全文抓语病/错字/逻辑） ==========
-      const semanticCtx = {
-        genType,
-        subject: book?.subject || '',
-        stage: stageRaw,
-        grade: book?.grade || '',
-      };
-      const semanticResult = await performSemanticReview(content, semanticCtx);
-      if (semanticResult.hasIssues) {
-        semanticResult.issues.forEach(issue => {
-          issues.push('🔍 ' + issue);
-        });
-        // 发现问题 → 自动修复
-        const semanticFix = await repairSemanticIssues(content, semanticResult.issues, semanticCtx);
-        if (semanticFix.repaired) {
-          content = semanticFix.content;
-          console.log('✅ 语义问题已自动修复');
-        }
-      }
-
-      // ========== 🔧 AI内容修复（单次） ==========
-      const repairContext = {
-        genType, 
-        subject: book?.subject || '', 
-        stage: stageRaw,
-        grade: book?.grade || '',
-        parsedBlueprint,
-        region: book?.region || '',  // 🔧 省市差异化：修复重检用同一省市蓝本
-      };
-      const repairResult = await attemptContentRepair(content, hardIssues, repairContext);
-      if (repairResult.repaired) {
-        content = repairResult.content;
-        // 合并修复后新检出的问题
-        if (repairResult.repairIssues && repairResult.repairIssues.length > 0) {
-          repairResult.repairIssues.forEach(issue => {
-            hardIssues.push(issue);
-            issues.push((issue.severity === 'error' ? '❌' : '⚠️') + ' ' + issue.detail);
-          });
-        }
-      } else if (repairResult.repairIssues && repairResult.repairIssues.length > 0) {
-        // 🔧 修复失败降级提示：不静默——把未能自动修复的问题显式标记到结果区，
-        //    用户可据此手动修改或重新生成（此前静默保留导致"生成了但不合格"无感知）
-        const unfixed = repairResult.repairIssues.map(i => i.type).join('、');
-        console.warn(`⚠️ AI修复未成功，以下问题需人工处理：${unfixed}`);
-        issues.push(`❌ 自动修复未成功（以下问题需手动处理或重新生成）：${unfixed}`);
-        repairResult.repairIssues.forEach(issue => { hardIssues.push(issue); });
-      }
-
-      // 初始化质量报告（必须在所有使用之前定义）
+      // 初始化质量报告（最小结构，兼容 UI 展示；无检查项）
       const qualityReport = {
         formatCheck: { passed: true, details: [] },
         coverageCheck: { passed: true, details: [] },
         difficultyCheck: { passed: true, details: [] },
         knowledgeCheck: { passed: true, details: [] },
         templateMatch: { passed: true, details: [] },
-        semanticCheck: { passed: true, details: [] }
+        semanticCheck: { passed: true, details: [] },
+        manualReview: []
       };
 
-      // 记录AI语义审查结果
-      if (semanticResult && semanticResult.hasIssues) {
-        qualityReport.semanticCheck.passed = false;
-        qualityReport.semanticCheck.details.push(semanticResult.summary);
-      }
-
-      // 记录硬性检查结果
-      const hardIssueSummary = HardRuleChecker.getIssueSummary(hardIssues);
-      if (hardIssueSummary.hasErrors) {
-        qualityReport.formatCheck.passed = false;
-        qualityReport.formatCheck.details.push(`硬性规则检查发现${hardIssueSummary.errors}个错误`);
-      }
-      if (hardIssueSummary.hasWarnings) {
-        qualityReport.formatCheck.details.push(`硬性规则检查发现${hardIssueSummary.warnings}个警告`);
-      }
-
-      // ========== 第一级：规则检查 ==========
-      // 5.1：格式完整性检查
-      if (!content.includes('<h') && !content.includes('<p') && !content.includes('<div')) {
-        issues.push('❌ 可能未返回HTML格式');
-        qualityReport.formatCheck.passed = false;
-        qualityReport.formatCheck.details.push('缺少HTML标签');
-      }
-      if (!content.includes('answer-section')) {
-        issues.push('⚠️ 缺少答案区域');
-        qualityReport.formatCheck.details.push('缺少答案区域');
-      }
-
-
-
-      // 格式检查（🔧 放宽：不要求精确 <p class="question">，只要有基本HTML结构即可）
-      if (!content.includes('<p') && !content.includes('<div') && !content.includes('<h')) {
-        issues.push('❌ 可能未返回HTML格式');
-        qualityReport.formatCheck.passed = false;
-      }
-
-      // 🔧 genType 感知：非题目型资料（summary/dictation）不使用 <p class="question"> 标签，跳过题目数量检查
-      const nonQuestionGenTypes = ['summary', 'dictation'];
-      const isQuestionOutput = !nonQuestionGenTypes.includes(genType);
+      // 生成完成（不再做生成后质检）——直接进入结果返回
       
-      if (isQuestionOutput) {
-        // 🔧 放宽匹配：DeepSeek 输出可能使用不同的 CSS class（如 question-item / exam-question）
-        const questionMatches = content.match(/class="[^"]*question[^"]*"/gi);
-        const questionCount = questionMatches ? questionMatches.length : 0;
-        if (questionCount === 0 && parsedBlueprint.length > 0) {
-          // 🔧 无 question class 不一定是错误，降级为 warning（不阻断流程）
-          issues.push('⚠️ 未检测到 class="question" 标记（AI输出可能使用其他class名），建议人工确认题目完整性');
-          qualityReport.formatCheck.details.push('未检测到题目class标记');
-        }
-        if (questionCount > 0 && questionCount < 5) {
-          issues.push(`⚠️ 题目数量偏少（${questionCount}题）`);
-          qualityReport.formatCheck.details.push(`题目数量：${questionCount}题`);
-        }
-      }
-
-      // 🔧 蓝本-生成结果结构化对比（验证 AI 是否按蓝本骨架出题）
-      const blueprintComparison = compareBlueprintToGenerated(content, parsedBlueprint, { genType, subject: book?.subject || '', stage: stageRaw, grade: book?.grade || '', region: book?.region || '' });
-      if (blueprintComparison.hasIssues) {
-        blueprintComparison.issues.forEach(issue => {
-          issues.push('📐 ' + issue);
-        });
-        qualityReport.templateMatch.passed = false;
-        qualityReport.templateMatch.details.push(...blueprintComparison.issues);
-      }
-
-      // 5.3：科学性错误初检（全角数字、格式异常）
-      const commonErrors = [
-        { pattern: /[０-９]/g, message: '包含全角数字' },
-        { pattern: /答案.{0,5}略/g, message: '答案标注为"略"' },
-      ];
-      commonErrors.forEach(({ pattern, message }) => {
-        if (pattern.test(content)) {
-          issues.push(`⚠️ ${message}`);
-        }
-      });
-
-      // 🔧 新增：LaTeX 公式语法基础校验
-      if (book && ['数学', '物理', '化学'].includes(book.subject || '')) {
-        // 检查行内公式 $...$ 是否闭合（奇数个 $ 表示有未闭合的公式）
-        const dollarCount = (content.match(/\$/g) || []).length;
-        if (dollarCount % 2 !== 0) {
-          issues.push('⚠️ 行内公式符号$未闭合（奇数个$）');
-          qualityReport.formatCheck.details.push('检测到未闭合的$公式符号');
-        }
-        
-        // 检查独立公式 $$...$$ 是否配对
-        const doubleDollarCount = (content.match(/\$\$/g) || []).length;
-        if (doubleDollarCount % 2 !== 0) {
-          issues.push('⚠️ 独立公式符号$$未配对');
-          qualityReport.formatCheck.details.push('检测到未配对的$$公式符号');
-        }
-        
-        // 检查常见 LaTeX 语法错误
-        const latexErrors = [
-          { pattern: /\\frac\{\}/, message: '\\frac{} 缺少参数' },
-          { pattern: /\\sqrt\{\}/, message: '\\sqrt{} 缺少参数' },
-          { pattern: /\{\\frac/, message: '括号位置错误（应在\\frac之后）' },
-          { pattern: /[^\\]_\{[^}]*$/, message: '下标{}可能未闭合' },
-          { pattern: /[^\\]\^\{[^}]*$/, message: '上标{}可能未闭合' }
-        ];
-        
-        for (const error of latexErrors) {
-          if (error.pattern.test(content)) {
-            issues.push(`⚠️ LaTeX语法问题：${error.message}`);
-          }
-        }
-      }
-
-            progress.value = 85;
-
-      // ========== 🔧 新增：超纲检测（基于课标知识边界）==========
-      const bookForBoundary = selectedBooks?.[0];
-      if (bookForBoundary && content.length > 100) {
-        const rawSubj = bookForBoundary?.subject || '';
-        const stg = bookForBoundary?.stage || '';
-        const grd = bookForBoundary?.grade || '';
-        const subj = normalizeSubjectName(rawSubj, stg);
-        
-        const boundaryCheck = checkKnowledgeBoundary(content, subj, stg, grd);
-        
-        if (boundaryCheck.hasViolations) {
-          boundaryCheck.violations.forEach(v => {
-            const prefix = v.severity === 'error' ? '❌' : '⚠️';
-            issues.push(`${prefix} 超纲检测：${v.message}`);
-          });
-          
-          if (boundaryCheck.summary.errorCount > 0) {
-            qualityReport.knowledgeCheck.passed = false;
-            qualityReport.knowledgeCheck.details.push(
-              `超纲检测发现${boundaryCheck.summary.errorCount}处明确超纲`
-            );
-          }
-        }
-        
-        // 模糊边界标记为提示
-        if (boundaryCheck.fuzzyItems.length > 0) {
-          const fuzzyWarnings = boundaryCheck.fuzzyItems.filter(f => f.severity === 'warning');
-          if (fuzzyWarnings.length > 0) {
-            qualityReport.knowledgeCheck.details.push(
-              `边界模糊检测：${fuzzyWarnings.map(f => `"${f.topic}"(${f.limit})`).join('；')}`
-            );
-          }
-        }
-        
-        console.log('📋 超纲检测完成:', boundaryCheck.summary);
-      }
-
-      // ========== 🔧 逐题质量检查（仅检查禁止句式，不惩罚创意发挥）==========
-      if (selectedTemplates?.length > 0) {
-        statusText.value = '逐题质量检查...';
-        
-        try {
-          // 提取每题题干
-          const generatedStems = content.match(/<p class="question"[^>]*>([\s\S]*?)<\/p>/g) || [];
-          
-          for (let i = 0; i < Math.min(generatedStems.length, parsedBlueprint.length); i++) {
-            const stemText = generatedStems[i].replace(/<[^>]+>/g, '').trim();
-            const plan = parsedBlueprint[i];
-            if (!plan) continue;
-            
-            // 仅检查禁止句式（真正的质量问题），不检查题干长度/选项数（会惩罚创意）
-            const bannedPatterns = [
-              '下列说法正确的是', '以下哪个选项是正确的',
-              '以上都是', '以上都不对', '下列选项中错误的是'
-            ];
-            for (const pattern of bannedPatterns) {
-              if (stemText.includes(pattern)) {
-                issues.push(`⚠️ 题${plan.number}使用了禁止句式："${pattern}"`);
-                break;
-              }
-            }
-          }
-        } catch (e) {
-          console.warn('逐题质量检查失败:', e.message);
-        }
-      }      
-
-      // ========== 第三级：蓝图vs生成的结构化对比 ✨新增 ==========
-      if (parsedBlueprint.length > 0) {
-        const generatedCount = (content.match(/class="[^"]*question[^"]*"/gi) || []).length;
-        qualityReport.coverageCheck.details.push(`蓝图规划${parsedBlueprint.length}题，实际生成${generatedCount}题（页数优先，实际可超出规划）`);
-        
-        // 题型对比
-        const blueprintTypes = [...new Set(parsedBlueprint.map(q => q.type))];
-        const generatedTypes = [...new Set(
-          (content.match(/<p class="question"[^>]*>([^<]*?)<\/p>/g) || [])
-            .map(m => m.replace(/<[^>]+>/g, '').substring(0, 5))
-        )];
-        qualityReport.templateMatch.details.push(`蓝图题型: ${blueprintTypes.join('、')}，生成检测到${generatedCount}题`);
-
-        // 难度分布对比
-        const difficultyCounts = { '基础': 0, '中档': 0, '提高': 0 };
-        parsedBlueprint.forEach(q => {
-          if (difficultyCounts.hasOwnProperty(q.difficulty)) difficultyCounts[q.difficulty]++;
-        });
-        const total = parsedBlueprint.length || 1;
-        qualityReport.difficultyCheck.details.push(
-          `规划：基础${Math.round(difficultyCounts['基础']/total*100)}% 中档${Math.round(difficultyCounts['中档']/total*100)}% 提高${Math.round(difficultyCounts['提高']/total*100)}%`
-        );
-
-
-      }
-
-      // ✨ 5.7：模板对标量化（新增）
-      if (selectedTemplates?.length > 0 && selectedTemplates[0]?.analysis?.questionCards?.length > 0) {
-        const templateCards = selectedTemplates[0].analysis.questionCards;
-        
-        // 题型分布对比
-        const templateTypeDist = {};
-        const generatedTypeDist = {};
-        templateCards.forEach(c => templateTypeDist[c.type] = (templateTypeDist[c.type] || 0) + 1);
-        parsedBlueprint.forEach(q => generatedTypeDist[q.type] = (generatedTypeDist[q.type] || 0) + 1);
-        
-        // 计算题型分布相似度
-        const allTypes = [...new Set([...Object.keys(templateTypeDist), ...Object.keys(generatedTypeDist)])];
-        let matchScore = 0;
-        allTypes.forEach(t => {
-          const tCount = templateTypeDist[t] || 0;
-          const gCount = generatedTypeDist[t] || 0;
-          if (tCount > 0 && gCount > 0) matchScore++;
-        });
-        const typeMatchRate = allTypes.length > 0 ? Math.round(matchScore / allTypes.length * 100) : 100;
-        
-        qualityReport.templateMatch.details.push(
-          `题型匹配度: ${typeMatchRate}%（${matchScore}/${allTypes.length}类题型）`
-        );
-        
-        // 🔧 新增：题干长度分布对比
-        const templateStemLengths = templateCards.filter(c => c.stem).map(c => c.stem.length);
-        const generatedStemTexts = content.match(/<p class="question"[^>]*>([^<]*)<\/p>/g) || [];
-        const generatedStemLengths = generatedStemTexts.map(s => s.replace(/<[^>]+>/g, '').length);
-        
-        if (templateStemLengths.length > 0 && generatedStemLengths.length > 0) {
-          const templateAvgStem = Math.round(templateStemLengths.reduce((a, b) => a + b, 0) / templateStemLengths.length);
-          const generatedAvgStem = Math.round(generatedStemLengths.reduce((a, b) => a + b, 0) / generatedStemLengths.length);
-          const stemDeviation = Math.abs(generatedAvgStem - templateAvgStem);
-          
-          qualityReport.templateMatch.details.push(
-            `模板题干平均${templateAvgStem}字，生成题干平均${generatedAvgStem}字，偏差${stemDeviation}字`
-          );
-          
-          if (stemDeviation > templateAvgStem * 0.5) {
-            issues.push(`⚠️ 题干长度与模板偏差较大（模板${templateAvgStem}字 vs 生成${generatedAvgStem}字）`);
-          }
-        }
-        
-        // 总分对比
-        const templateTotalScore = templateCards.reduce((sum, c) => sum + (c.score || 0), 0);
-        const generatedTotalScore = parsedBlueprint.reduce((sum, q) => sum + (q.score || 0), 0);
-        if (templateTotalScore > 0) {
-          const scoreDeviation = Math.abs(generatedTotalScore - templateTotalScore);
-          qualityReport.templateMatch.details.push(
-            `模板总分${templateTotalScore}，生成总分${generatedTotalScore}，偏差${scoreDeviation}分`
-          );
-          if (scoreDeviation > 10) {
-            issues.push(`⚠️ 总分与模板偏差${scoreDeviation}分`);
-          }
-        }
-        
-        // 题量对比
-        qualityReport.templateMatch.details.push(
-          `模板${templateCards.length}题，生成${parsedBlueprint.length}题`
-        );
-      }
-
-      // ========== 🔧 新增：术语统一后处理 ==========
-      if (book && book.subject) {
-        const rawSubj = book?.subject || '';
-        const stg = book?.stage || '';
-        const subj = normalizeSubjectName(rawSubj, stg);
-        const terminologyResult = normalizeTerminology(content, subj);
-        
-        if (terminologyResult.fixes.length > 0) {
-          content = terminologyResult.normalized;
-          console.log(`📝 术语统一完成：${terminologyResult.fixes.map(f => `"${f.original}"→"${f.corrected}"(${f.count}处)`).join('；')}`);
-          qualityReport.formatCheck.details.push(
-            `术语统一：${terminologyResult.fixes.length}种术语被标准化`
-          );
-        }
-      }
-
-      progress.value = 100;
-      
-      // 🔧 生成质量摘要，显示在状态栏（仅即时检查，不触发 API 调用）
-      let summaryParts = ['生成完成'];
-
-      // 🔴 新课标内容达标评估（生成后逐题核查：情境化/设问层次/机械记忆/语篇/超纲/分值/素养）
-      try {
-        const stageSegForCheck = ({ '小学': 'primary', '初中': 'middle', '高中': 'high' })[stageRaw] || stageRaw;
-        qualityReport.curriculumCheck = assessCompliance(content, normalizeSubjectName(book?.subject || '', stageRaw), stageSegForCheck, genType);
-        console.log(`📋 新课标达标评估: ${qualityReport.curriculumCheck.overall}（${qualityReport.curriculumCheck.avgScore}/100，${qualityReport.curriculumCheck.questionCount}题）`);
-        if (qualityReport.curriculumCheck.overall !== '通过') {
-          summaryParts.push(`📋新课标:${qualityReport.curriculumCheck.overall}`);
-        }
-
-        // 🔴 达标自处理（评估→自动修复→闭环）：未达标时自动执行程序化修复（超纲词替换等），
-        //    需 AI 定向重生成的维度生成修复计划（记录到报告，供一键重生成，避免无限循环）
-        const fixPlan = buildAutoFixPlan(qualityReport.curriculumCheck, {
-          subject: normalizeSubjectName(book?.subject || '', stageRaw),
-          stageLabel: ({ '小学': '小学', '初中': '初中', '高中': '高中' })[stageRaw] || '',
-          genType,
-        });
-        qualityReport.curriculumCheck.autoFixPlan = fixPlan;
-        const fixActions = fixPlan.actions.filter(a => a.type === 'fix');
-        if (fixActions.length) {
-          const before = content.length;
-          content = applyProgrammaticFixes(content, fixActions);
-          if (content !== before || content.length !== before) {
-            console.log(`🔧 达标自处理·程序化修复完成：${fixActions.map(a => `[${a.dim}]${a.detail}`).join('；')}`);
-            summaryParts.push('🔧已自动修复');
-          }
-          // 程序化修复后复检
-          qualityReport.curriculumCheck = assessCompliance(content, normalizeSubjectName(book?.subject || '', stageRaw), stageSegForCheck, genType);
-        }
-        const regenCount = fixPlan.actions.filter(a => a.type === 'regenerate').length;
-        if (regenCount) {
-          console.log(`📋 达标自处理·待定向重生成：${regenCount} 项（${fixPlan.actions.filter(a => a.type === 'regenerate').map(a => a.dim).join(',')}），已记录修复计划`);
-        }
-      } catch (complianceError) {
-        console.warn('⚠️ 新课标达标评估/自处理失败:', complianceError.message);
-      }
-
-      if (qualityReport.knowledgeCheck?.details?.length) {
-        const kpDetail = qualityReport.knowledgeCheck.details.find(d => d.includes('超纲'));
-        if (kpDetail) summaryParts.push(`⚠️超纲检测`);
-      }
+      // 🔧 生成摘要（仅过程信息，无质检结论）
+      const summaryParts = ['生成完成'];
       if (issues && issues.length > 0) {
         const errorCount = issues.filter(i => i.startsWith('❌')).length;
         const warnCount = issues.filter(i => i.startsWith('⚠️')).length;
         if (errorCount > 0) summaryParts.push(`❌${errorCount}个错误`);
         if (warnCount > 0) summaryParts.push(`⚠️${warnCount}个警告`);
       } else {
-        summaryParts.push('✅无问题');
+        summaryParts.push('✅生成完成');
       }
       statusText.value = summaryParts.join(' | ');
+      progress.value = 100;
 
       // ✨ 返回校验结果
       return { 
@@ -9266,7 +5653,8 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
 
     } catch (error) {
       console.error('生成失败:', error);
-      if (retryCount < MAX_RETRIES) {
+      // 🔴 出厂质检失败不整卷自动重试（成本高且不保证修复）——直接进入弹窗让用户选择重试/批量/取消
+      if (retryCount < MAX_RETRIES && !error.qualityGate) {
         await new Promise(resolve => setTimeout(resolve, 2000));
         return generate(instruction, genType, selectedBooks, selectedTemplates, retryCount + 1);
       }
@@ -9289,88 +5677,7 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
         return generate(instruction, genType, selectedBooks, selectedTemplates, 0);
       }
 
-      if (choice === 'batch') {
-        // 用户选择批量生成模式
-        try {
-          // 需要先确保有 blueprint 和 parsedBlueprint
-          // 如果用户从生成失败中恢复，blueprint 可能还在上下文中
-          // 但如果蓝图解析也失败了，这里需要特殊处理
-          
-          // 尝试重新执行 Step 1-3 获取 blueprint
-          statusText.value = '切换到批量生成模式...';
-          progress.value = 30;
-
-          // 重新提取 contentCards 和 knowledgeMap
-          const retryContentCards = await extractContentCards(
-            selectedBooks, callAI, robustJsonParse,
-            (text, prog) => { statusText.value = text; progress.value = prog; }
-          );
-          const retryKnowledgeMap = await buildKnowledgeMap(
-            retryContentCards, selectedBooks, callAI, robustJsonParse,
-            (text, prog) => { statusText.value = text; progress.value = prog; }
-          );
-
-          // 构建知识图谱上下文
-          const graph = Array.isArray(retryKnowledgeMap.knowledgeGraph) ? retryKnowledgeMap.knowledgeGraph : [];
-          const kpNames = Array.isArray(retryKnowledgeMap.knowledgePoints) ? retryKnowledgeMap.knowledgePoints : [];
-          const difficulties = Array.isArray(retryKnowledgeMap.keyDifficulties) ? retryKnowledgeMap.keyDifficulties : [];
-
-          // 重新生成 blueprint（精简版 prompt）
-          const batchBlueprintPrompt = `请为以下学科生成命题蓝图（JSON数组），每道题包含 number/type/knowledgePoint/difficulty/score/sourceChapter。
-
-学科：${selectedBooks?.[0]?.subject || ''}
-年级：${selectedBooks?.[0]?.grade || ''}
-知识点：${kpNames.join('、')}
-重难点：${difficulties.join('、')}
-
-请根据 ${instruction} 的要求规划题目。只返回JSON数组，不要其他内容。`;
-
-          const batchBlueprintRaw = await callAI(batchBlueprintPrompt, {
-            taskType: 'blueprint', timeout: 120000, forceJson: true
-          });
-          const batchBlueprint = await robustJsonParse(batchBlueprintRaw, null, 'batch-blueprint');
-
-          // 批量生成内容
-          const batchContent = await generateBatchWithBlueprint(
-            JSON.stringify(batchBlueprint),
-            instruction,
-            selectedBooks,
-            selectedTemplates
-          );
-
-          // 执行第五步：质量校验
-          const batchIssues = [];
-          const book = selectedBooks?.[0];
-          const stageRaw = book?.stage || '';
-          const stageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-          const hardIssues = HardRuleChecker.check(
-            batchContent, batchBlueprint,
-            book?.subject || '', stageMap[stageRaw] || stageRaw, book?.grade || '',
-            genType,
-            undefined,
-            book?.region || ''  // 🔧 省市差异化：批量生成校验同省市蓝本
-          );
-          hardIssues.forEach(issue => {
-            batchIssues.push(`${issue.severity === 'error' ? '❌' : '⚠️'} ${issue.detail}`);
-          });
-
-          return {
-            success: true,
-            content: batchContent,
-            blueprint: JSON.stringify(batchBlueprint),
-            parsedBlueprint: batchBlueprint,
-            contentCards: retryContentCards,
-            knowledgeMap: retryKnowledgeMap,
-            issues: batchIssues,
-            qualityReport: { formatCheck: { passed: true, details: [] } },
-            generatedQuestions: [batchContent],
-            batchMode: true  // 标记为批量模式生成
-          };
-        } catch (batchError) {
-          console.error('批量生成也失败:', batchError);
-          return { success: false, error: `批量生成失败：${batchError.message}`, retried: true };
-        }
-      }
+      // 🔴 分步流水线残留路径已移除：全类型一律走整卷一次生成（指令库驱动，结构由蓝图注入保证）
 
       // 用户选择取消
       return { success: false, error: error.message, retried: retryCount > 0 };
@@ -9382,696 +5689,8 @@ ${generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').su
   };
 
   // ==================== 知识点总结生成（两步流程） ====================
-  const generateSummary = async (instruction, genType, selectedBooks, selectedTemplates, blueprintOnly = false) => {
-    const sumConfig1 = await getCurrentEngineConfigEnhanced('analysis');
-    const sumModel1 = getModelDisplayName(sumConfig1.textModel || sumConfig1.model);
-    statusText.value = `构建知识图谱 [${sumModel1}]...`;
-    progress.value = 10;
-    
-    // 🔧 改进：复用 extractContentCards 和 buildKnowledgeMap
-    const contentCards = await extractContentCards(
-      selectedBooks, 
-      callAI, 
-      robustJsonParse,
-      (text, prog) => { statusText.value = text; progress.value = prog; }
-    );
-    
-    const knowledgeMap = await buildKnowledgeMap(
-      contentCards, 
-      selectedBooks, 
-      callAI, 
-      robustJsonParse,
-      (text, prog) => { statusText.value = text; progress.value = prog; }
-    );
-    
-    // 🔧 从 contentCards 中提取关键原文段落
-    let textbookContext = '';
-    const allSegments = [];
-    for (const card of contentCards) {
-      if (card.segments) {
-        for (const seg of card.segments) {
-          allSegments.push({
-            chapterTitle: card.chapterTitle,
-            text: seg.text,
-            isKey: seg.isKeyConcept
-          });
-        }
-      }
-    }
-    allSegments.sort((a, b) => (b.isKey ? 1 : 0) - (a.isKey ? 1 : 0));
-    let totalLength = 0;
-    const selectedForPrompt = [];
-    for (const seg of allSegments) {
-      if (totalLength + seg.text.length > 3000) break;
-      selectedForPrompt.push(seg);
-      totalLength += seg.text.length;
-    }
-    textbookContext = selectedForPrompt.map(s => `【${s.chapterTitle}】${s.text}`).join('\n\n');
-
-    // 收集模板原文
-    let templateRawText = '';
-    if (selectedTemplates && selectedTemplates.length > 0) {
-      const tpl = selectedTemplates[0];
-      const tplText = tpl.analysis?.rawText || '';
-      if (tplText) {
-        templateRawText = tplText.substring(0, 2000);
-      }
-    }
-    
-    // 🔧 从知识图谱构建知识结构文本
-    let knowledgeGraphText = '';
-    if (knowledgeMap.knowledgeGraph?.length > 0) {
-      knowledgeGraphText = knowledgeMap.knowledgeGraph.map(unit => {
-        let text = `📌 单元：${unit.unit || ''}\n`;
-        (unit.bigConcepts || []).forEach(bc => {
-          text += `  📌 ${bc.name}\n`;
-          (bc.coreKnowledge || []).forEach(ck => {
-            text += `    ├─ ${ck.name}【${ck.cognitiveLevel || '理解'}】\n`;
-            (ck.specificConcepts || []).forEach(sc => {
-              text += `    │  └─ ${sc}\n`;
-            });
-          });
-        });
-        return text;
-      }).join('\n');
-    } else {
-      knowledgeGraphText = (knowledgeMap.knowledgePoints || []).map(kp => `📌 ${kp}`).join('\n');
-    }
-    
-    // ✨ 第一步：构建知识图谱结构
-    statusText.value = '步骤 1/3：分析知识结构...';
-    progress.value = 30;
-
-    // 🔧 blueprintOnly 模式：仅返回知识图谱蓝图
-    if (blueprintOnly) {
-      progress.value = 50;
-      statusText.value = '知识总结蓝图已生成';
-      const bookForBp = selectedBooks?.[0];
-      const stageRawBp = bookForBp?.stage || '';
-      // 🔧 指令库使用英文 stage，需要映射：小学→primary, 初中→middle, 高中→high
-      const stageMapBp = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-      const stageBp = stageMapBp[stageRawBp] || stageRawBp;
-      const gradeBp = bookForBp?.grade || '';
-      const rawSubjBp = bookForBp?.subject || '';
-      const subjBp = normalizeSubjectName(rawSubjBp, stageRawBp);
-      const coreTopic = contentCards?.[0]?.summary || '';
-      const summaryStructure = getStructureForBlueprint('summary', subjBp, stageBp);
-      const blueprintText = [
-        `【知识点总结蓝图】`,
-        `学科：${subjBp}  |  年级：${gradeBp}  |  学段：${stageRawBp}`,
-        `${coreTopic ? '🎯 核心主题：' + coreTopic + '\n' : ''}生成结构：${summaryStructure}`,
-        ``,
-        `【知识结构】`,
-        knowledgeGraphText
-      ].join('\n');
-      isGenerating.value = false;
-      return {
-        success: true,
-        blueprint: blueprintText,
-        parsedBlueprint: (() => {
-          const kps = (knowledgeMap.knowledgePoints || []).slice(0, 15);
-          if (kps.length === 0) {
-            const chs = selectedBooks?.[0]?.selectedChapters || [];
-            const fallback = chs.map(c => c.title).filter(Boolean).slice(0, 10);
-            return fallback.map((t, i) => ({ number: i + 1, type: '知识点', knowledgePoint: t, difficulty: '基础', score: 0, sourceChapter: gradeBp }));
-          }
-          return kps.map((kp, i) => ({ number: i + 1, type: '知识点', knowledgePoint: kp, difficulty: '基础', score: 0, sourceChapter: gradeBp }));
-        })(),
-        contentCards,
-        knowledgeMap,
-        content: '',
-        generatedQuestions: [],
-        issues: null,
-        qualityReport: null
-      };
-    }
-
-    // ✨ 第二步：分块生成
-    statusText.value = '步骤 2/3：生成思维导图...';
-    progress.value = 50;
-    
-    const mindmapPrompt = `你是一位教辅编辑专家。请根据以下知识结构，生成一份思维导图。
-
-【知识结构】
-${knowledgeGraphText}
-
-【格式要求】
-- 用 HTML 嵌套列表表示思维导图（最多4层）
-- 用 <div class="mindmap"> 包裹
-- 外层用 <ul>，每个节点用 <li>
-- 重要概念用 <strong> 加粗
-- 不同层级用不同缩进表示
-- 直接返回 HTML 片段，不要用代码块包裹`;
-
-    let mindmapHtml = '';
-    try {
-      mindmapHtml = await callAI(mindmapPrompt, { taskType: 'generation', temperature: 0.3, timeout: 60000 });
-    } catch (e) {
-      console.warn('思维导图生成失败:', e.message);
-      mindmapHtml = '<div class="mindmap"><ul><li>知识结构</li></ul></div>';
-    }
-    
-    // ✨ 第三步：生成主体内容
-    statusText.value = '步骤 3/3：生成知识详解...';
-    progress.value = 65;
-    
-    // 🔧 提取学科/学段变量到函数作用域，供 prompt 模板中 IIFE 和 buildOutputFormatBlock 共用
-    const bookForCtx = selectedBooks?.[0];
-    const ctxSubject = normalizeSubjectName(bookForCtx?.subject || '', bookForCtx?.stage || '');
-    const ctxStage = bookForCtx?.stage || '';
-    
-    const summaryPrompt = buildOutputPreamble() +
-`\n` +
-`【参考资料——以下是生成所需的所有背景信息】\n` +
-`${instruction}\n` +
-`\n【知识图谱结构】\n${knowledgeGraphText}\n` +
-`\n【教材原文参考】\n${textbookContext.substring(0, 3000)}\n` +
-`${templateRawText ? '【模板风格参考】\n' + templateRawText.substring(0, 1500) + '\n' : ''}` +
-`【已生成的思维导图】\n${mindmapHtml}\n` +
-`\n【生成要求——请生成以下内容，每个板块必须输出具体内容，禁止写"略""见教材""自行查阅"等占位符】\n${(() => {
-  // 基础四部分
-  let sections = `1. <h2>学习目标</h2>：用学生能理解的语言写2-3条本课/本单元学习目标\n2. <h2>核心知识清单</h2>：用 <table> 列出核心知识点，包含三列：知识点 | 核心内容 | 考查方式\n3. <h2>知识辨析与易错提示</h2>：用对比表格，左右两列分别列出"常见错误"和"正确理解"，至少3组\n4. <h2>典型例题精析</h2>：至少3道例题，每题用 <div class="example"> 包裹题干，<div class="analysis"> 包裹解析（含完整解析：解题思路→分步解答→易错提示）`;
-  // 学科增强
-  if (ctxSubject === '语文') {
-    sections += `\n5. <h2>写作素材积累</h2>：从课文中提炼好词好句，按类别整理（写景/写人/状物/抒情等）`;
-  } else if (['数学', '物理', '化学'].includes(ctxSubject)) {
-    sections += `\n5. <h2>公式/定理速查</h2>：列出本章所有公式和定理，标注适用条件和典型用法`;
-  } else if (ctxSubject === '英语') {
-    // 🔧 学段感知：小学侧重自然拼读，初高中侧重国际音标/语调
-    const voiceSection = ctxStage === '小学'
-        ? `\n5. <h2>语音/发音规则归纳</h2>：归纳自然拼读规律和字母组合发音规则`
-        : `\n5. <h2>语音/发音规则归纳</h2>：归纳国际音标、重音、连读、语调等发音要点`;
-    sections += voiceSection;
-    sections += `\n6. <h2>词汇句型归纳</h2>：按词性和话题分类整理词汇，列出重点句型和语法点`;
-  } else if (['生物', '科学'].includes(ctxSubject)) {
-    sections += `\n5. <h2>实验/探究梳理</h2>：列出本章的实验名称、实验步骤、实验现象和结论（用表格呈现：实验名称 | 步骤 | 现象 | 结论）`;
-  } else if (['历史', '地理'].includes(ctxSubject)) {
-    sections += `\n5. <h2>图表/时间轴整理</h2>：历史学科整理时间轴（关键事件+时间+影响），地理学科整理地图/图表（区域特征+自然/人文要素对比表）`;
-  } else if (['道德与法治', '思想政治'].includes(ctxSubject)) {
-    sections += `\n5. <h2>案例分析归纳</h2>：列出教材中的典型案例，用"案例→知识点→启示"的格式呈现，至少2组`;
-  }
-  // 通用增强
-  sections += `\n<br>\n<h2>五、重难点星级标注</h2>：用 <table> 列出本章所有知识点，四列：知识点 | 难度(基础/重点/难点) | 星级与考点说明（⭐️低频 ⭐️⭐️中频 ⭐️⭐️⭐️高频必考，至少写半句话说明为什么是考点） | 高频考点（⭐️⭐️⭐️）必须配详细解法和变式练习\n<h2>六、记忆方法/学习技巧</h2>：用 <p> 逐条列出2-3个记忆口诀或学习方法建议，每条以序号+<strong>方法名</strong>开头`;
-  if (ctxStage === '小学') {
-    sections += `\n📝 <h2>趣味小练习</h2>：2-3道巩固题，用游戏化/生活化形式呈现（题目留空让学生做，答案和解析统一放文末<div class="answer-section">中）`;
-  }
-  // 参考答案规范：所有题目（典型例题+趣味练习+知识辨析中的填空）的答案统一放文末
-  sections += `\n<br>\n<h2>参考答案与解析</h2>：文末用<div class="answer-section">包裹，所有题目答案按题号顺序列出。典型例题答案必须包含完整解析（解题思路→分步解答→易错提示），趣味练习题答案附简要解析（至少点出解题关键），知识辨析填空题答案附知识点定位说明`;
-  return sections;
-})()}
-
-${(() => {
-  const stageMapLocal = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-  return buildCompactAIInstruction(instruction, genType, ctxSubject, stageMapLocal[ctxStage] || ctxStage, bookForCtx?.grade || '');
-})()}
-
-【格式补充】
-- 重要公式用 <div class="formula"> 包裹
-- 不要包含思维导图（已单独生成）
-
-${(() => { let mt = ''; if (ctxSubject) { const mg = getMatchingBlockInstructions({ category: '生成-学科标记', subject: ctxSubject, stage: '' }); const ms = ctxStage ? getMatchingBlockInstructions({ category: '生成-学科标记', subject: ctxSubject, stage: ctxStage }) : []; const am = [...mg]; for (const b of ms) { if (!am.find(m => m.id === b.id)) am.push(b); } if (am.length > 0) { mt = '【学科专用标记规范】\n' + am.map(b => b.content).join('\n') + '\n\n'; } } return mt; })()}${buildOutputFormatBlock('summary', ctxSubject, ctxStage, selectedBooks?.[0]?.grade || '')}`;
-
-    try {
-      const content = await callAI(summaryPrompt, {
-        taskType: 'generation',
-        timeout: 180000
-      });
-      detectSquishedOutput(content, 'summary');
-      
-      // ✨ 组装：思维导图 + 主体内容
-      const finalContent = mindmapHtml + '\n\n' + (content || '');
-      
-      // 🔧 基础质量校验
-      const book = selectedBooks?.[0];
-      const stageRaw = book?.stage || '';
-      const stageMapLocal = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-      const qualityIssues = HardRuleChecker.check(
-        finalContent, [], book?.subject || '', 
-        stageMapLocal[stageRaw] || stageRaw, book?.grade || '',
-        genType,
-        undefined,
-        book?.region || ''  // 🔧 省市差异化
-      );
-      const qualityReport = {
-        formatCheck: { passed: finalContent.includes('<table') && finalContent.includes('<h2'),
-          details: finalContent.includes('<table') ? [] : ['缺少表格'] },
-        coverageCheck: { passed: true, details: [] },
-        knowledgeCheck: { passed: finalContent.length > 500, details: [] },
-        aiReview: { passed: qualityIssues.filter(i => i.severity === 'error').length === 0,
-          details: qualityIssues.map(i => i.detail) }
-      };
-      
-      progress.value = 100;
-      statusText.value = '生成完成';
-      
-      return {
-        success: true,
-        content: finalContent,
-        blueprint: '',
-        contentCards: [],
-        knowledgeMap: {},
-        issues: qualityIssues.map(i => i.detail),
-        qualityReport,
-        generatedQuestions: [],
-        parsedBlueprint: []
-      };
-    } catch (e) {
-      console.error('知识点总结生成失败:', e);
-      return { success: false, error: e.message };
-    } finally {
-      isGenerating.value = false;
-    }
-  };
 
   // ==================== 错题本生成（三步流程） ====================
-  const generateErrorbook = async (instruction, genType, selectedBooks, selectedTemplates, blueprintOnly = false) => {
-    // 🔧 改进：复用 extractContentCards 和 buildKnowledgeMap
-    const contentCards = await extractContentCards(
-      selectedBooks, 
-      callAI, 
-      robustJsonParse,
-      (text, prog) => { statusText.value = text; progress.value = prog; }
-    );
-    
-    const knowledgeMap = await buildKnowledgeMap(
-      contentCards, 
-      selectedBooks, 
-      callAI, 
-      robustJsonParse,
-      (text, prog) => { statusText.value = text; progress.value = prog; }
-    );
-    
-    // 🔧 提取教材基本信息
-    const book = selectedBooks?.[0];
-    const bookSubject = book?.subject || '';
-    const bookStage = book?.stage || '';
-    const bookGrade = book?.grade || '';
-    // 🔧 指令库使用英文 stage，需要映射
-    const stageMapLocal = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-    
-    // 🔧 从 contentCards 和 knowledgeMap 中提取知识点
-    const knowledgePoints = knowledgeMap.knowledgePoints || [];
-    const knowledgeHierarchy = knowledgeMap.knowledgeGraph || [];
-    
-    // 🔧 空数据检测：知识点为空时的降级处理
-    // 🔧 三层聚合：knowledgeMap + contentCards tags + knowledgePointsForTest
-    let kpList = knowledgePoints.length > 0 
-      ? [...new Set(knowledgePoints)].slice(0, 30) 
-      : [];
-    if (kpList.length === 0) {
-      const fromTags = (contentCards || []).flatMap(c => c.tags || []);
-      const fromKpft = (contentCards || []).flatMap(c => (c.knowledgePointsForTest || []).map(k => typeof k === 'string' ? k : k.name));
-      kpList = [...new Set([...fromTags, ...fromKpft].filter(Boolean))].slice(0, 30);
-    }
-    let errorProneKps = [];
-    
-    if (kpList.length === 0) {
-      const bookForKp = selectedBooks?.[0];
-      const chapterTitles = (bookForKp?.selectedChapters || []).map(c => c.title).filter(Boolean);
-      if (chapterTitles.length === 0) {
-        console.warn('⚠️ 错题本：无可用知识点且无章节标题，无法生成');
-        const emptyContent = `<h1>错题本</h1><div class="errorbook-info"><p>⚠️ 未能提取到教材知识点，请先对教材进行「分析教材」操作后再生成错题本。</p></div>`;
-        isGenerating.value = false;
-        return {
-          success: true, content: emptyContent, blueprint: '', contentCards: [], knowledgeMap: {},
-          generatedQuestions: [], parsedBlueprint: [], issues: ['无法生成：教材未分析，缺少知识点'],
-          qualityReport: { formatCheck: { passed: false, details: ['缺少知识点'] }, coverageCheck: { passed: false, details: [] }, knowledgeCheck: { passed: false, details: ['无可用知识点'] }, aiReview: { passed: false, details: ['请先分析教材'] } }
-        };
-      }
-      // 🔧 降级：用章节标题代替知识点
-      console.warn('⚠️ 错题本：未提取到知识点，使用章节标题作为降级');
-      errorProneKps = chapterTitles.slice(0, 6).map(title => ({
-        knowledgePoint: title,
-        errorType: '概念混淆',
-        typicalError: '对该章节核心概念理解不清晰',
-        rootCause: '基础知识掌握不牢固',
-        frequency: '中频'
-      }));
-    }
-    
-    // 🔧 blueprintOnly 模式：仅返回易错知识点分析蓝图
-    if (blueprintOnly) {
-      progress.value = 50;
-      statusText.value = '错题本蓝图已生成';
-      const displayKps = kpList.length > 0 ? kpList : (book?.selectedChapters || []).map(c => c.title).filter(Boolean).slice(0, 15);
-      const errorbookStructure = getStructureForBlueprint('errorbook', bookSubject, stageMapLocal[bookStage] || bookStage);
-      // 🔧 共享层级构建（带智能截断）
-      const hierarchyText = buildHierarchyText(knowledgeMap, contentCards, 30);
-      const blueprintText = [
-        `【错题本蓝图】`,
-        `学科：${bookSubject}  |  年级：${bookGrade}  |  学段：${bookStage}`,
-        `结构：${errorbookStructure}`,
-        `候选易错知识点（${displayKps.length}个，非穷举）：${displayKps.join('、')}`,
-        `${hierarchyText ? '\n【知识覆盖层级】\n' + hierarchyText : ''}`,
-        `预计生成：${Math.min(displayKps.length, 8)}道错题分析`
-      ].join('\n');
-      isGenerating.value = false;
-      return {
-        success: true, blueprint: blueprintText,
-        parsedBlueprint: displayKps.slice(0, 8).map((kp, i) => ({ number: i + 1, type: '错题分析', knowledgePoint: kp, difficulty: '中等', score: 10, sourceChapter: bookGrade })),
-        contentCards, knowledgeMap, content: '', generatedQuestions: [], issues: null, qualityReport: null
-      };
-    }
-    
-    // 🔧 从 contentCards 和 knowledgeMap 中提取知识点（原逻辑——注意 kpList 已在上面定义）
-    
-    // 🔧 从 contentCards 中提取关键原文段落
-    let textbookContext = '';
-    const allSegments = [];
-    for (const card of contentCards) {
-      if (card.segments) {
-        for (const seg of card.segments) {
-          allSegments.push({
-            chapterTitle: card.chapterTitle,
-            text: seg.text,
-            isKey: seg.isKeyConcept,
-            isExample: seg.isExample
-          });
-        }
-      }
-    }
-    allSegments.sort((a, b) => (b.isKey ? 1 : 0) - (a.isKey ? 1 : 0));
-    let totalLength = 0;
-    const selectedForPrompt = [];
-    for (const seg of allSegments) {
-      if (totalLength + seg.text.length > 3000) break;
-      selectedForPrompt.push(seg);
-      totalLength += seg.text.length;
-    }
-    textbookContext = selectedForPrompt.map(s => `【${s.chapterTitle}】${s.text}`).join('\n\n');
-    
-    // 收集模板原文
-    let templateRawText = '';
-    if (selectedTemplates && selectedTemplates.length > 0) {
-      const tpl = selectedTemplates[0];
-      const tplText = tpl.analysis?.rawText || '';
-      if (tplText) {
-        templateRawText = tplText.substring(0, 2000);
-      }
-    }
-    
-    // ✨ 第一步：识别高频易错知识点
-    statusText.value = '步骤 1/3：识别易错知识点...';
-    progress.value = 25;
-    
-    // 🔧 kpList 和 errorProneKps 已在上面定义，此处复用
-    
-    if (kpList.length > 0) {
-      try {
-        const analyzePrompt = `你是一位教学经验丰富的学科老师。请从以下知识点中，识别出学生最容易出错的5-8个知识点，并分析错误类型。
-
-【知识点列表】
-${kpList.join('、')}
-
-【教材内容参考】
-${textbookContext.substring(0, 1500)}
-
-请分析每个易错知识点：
-1. 典型错误表现（学生常犯的具体错误）
-2. 错误类型（概念混淆 / 计算失误 / 审题不清 / 方法不当 / 知识遗漏）
-3. 错误根因（为什么学生会犯这个错误）
-4. 考查频率（高频 / 中频 / 低频）
-
-返回 JSON 数组：
-[
-  {
-    "knowledgePoint": "知识点名称",
-    "errorType": "概念混淆",
-    "typicalError": "学生的典型错误描述",
-    "rootCause": "错误根因分析",
-    "frequency": "高频"
-  }
-]
-
-只返回 JSON 数组。`;
-
-        const analyzeResult = await callAI(analyzePrompt, { 
-          taskType: 'analysis', 
-          temperature: 0.2, 
-          timeout: 60000 
-        });
-        try {
-          errorProneKps = await robustJsonParse(analyzeResult, null, '易错知识点分析');
-          console.log(`✅ 识别出 ${errorProneKps.length} 个易错知识点`);
-        } catch {
-          errorProneKps = kpList.slice(0, 6).map(kp => ({
-            knowledgePoint: kp,
-            errorType: '概念混淆',
-            typicalError: '对概念理解不清晰',
-            rootCause: '基础知识不扎实',
-            frequency: '中频'
-          }));
-        }
-      } catch (e) {
-        console.warn('易错分析失败:', e.message);
-        errorProneKps = kpList.slice(0, 6).map(kp => ({
-          knowledgePoint: kp,
-          errorType: '概念混淆',
-          typicalError: '理解偏差',
-          rootCause: '基础不牢',
-          frequency: '中频'
-        }));
-      }
-    }
-    
-    // ✨ 第二步：构建知识关联图（用于变式题推荐）
-    statusText.value = '步骤 2/3：构建知识关联...';
-    progress.value = 45;
-    
-    let knowledgeLinks = [];
-    if (errorProneKps.length > 1) {
-      try {
-        const linkPrompt = `请分析以下易错知识点之间的关联关系，用于推荐变式题。
-
-【易错知识点】
-${errorProneKps.map(kp => kp.knowledgePoint).join('、')}
-
-【知识层级】
-${JSON.stringify(knowledgeHierarchy.slice(0, 3) || [], null, 2)}
-
-请标注知识点之间的关联类型：
-- 前置依赖（A是B的前置知识）
-- 并列关系（A和B是同级知识点）
-- 易混淆（A和B容易混淆）
-
-返回 JSON 数组：
-[
-  {"from": "知识点A", "to": "知识点B", "relation": "前置依赖"},
-  ...
-]
-
-只返回 JSON 数组。`;
-
-        const linkResult = await callAI(linkPrompt, { 
-          taskType: 'analysis', 
-          temperature: 0.1, 
-          timeout: 60000 
-        });
-        try {
-          knowledgeLinks = await robustJsonParse(linkResult, null, '知识关联');
-        } catch {
-          knowledgeLinks = [];
-        }
-      } catch (e) {
-        console.warn('知识关联分析失败:', e.message);
-      }
-    }
-    
-    // ✨ 第三步：分题生成错题本
-    statusText.value = '步骤 3/3：逐题生成错题...';
-    progress.value = 55;
-    
-    const errorItems = [];
-    const maxItems = Math.min(errorProneKps.length, 8);
-    
-    // 🔧 预计算学科标记（语文画线句子等），逐题 prompt 共用
-    const ebMarkupText = (() => {
-      let mt = '';
-      if (bookSubject) {
-        const mg = getMatchingBlockInstructions({ category: '生成-学科标记', subject: bookSubject, stage: '' });
-        const ms = bookStage ? getMatchingBlockInstructions({ category: '生成-学科标记', subject: bookSubject, stage: bookStage }) : [];
-        const am = [...mg];
-        for (const b of ms) { if (!am.find(m => m.id === b.id)) am.push(b); }
-        if (am.length > 0) { mt = '\n【学科专用标记规范】\n' + am.map(b => b.content).join('\n'); }
-      }
-      return mt;
-    })();
-    
-    for (let i = 0; i < maxItems; i++) {
-      const kp = errorProneKps[i];
-      statusText.value = `生成错题 ${i + 1}/${maxItems}...`;
-      progress.value = 55 + Math.round((i / maxItems) * 30);
-      
-      // 找到关联知识点用于变式题
-      const relatedLinks = knowledgeLinks.filter(l => l.from === kp.knowledgePoint || l.to === kp.knowledgePoint);
-      const relatedKps = relatedLinks.map(l => l.from === kp.knowledgePoint ? l.to : l.from);
-      const uniqueRelated = [...new Set(relatedKps)].slice(0, 3);
-      
-      const itemPrompt = buildOutputPreamble() + `
-
-【任务】你是一位${bookStage || ''}${bookGrade || ''}${bookSubject || ''}老师。请为以下易错知识点生成一道错题分析。
-
-【知识点】${kp.knowledgePoint}
-【错误类型】${kp.errorType || '概念混淆'}
-【典型错误表现】${kp.typicalError || '理解偏差'}
-【错误根因】${kp.rootCause || '基础不牢'}
-【考查频率】${kp.frequency || '中频'}
-
-${uniqueRelated.length > 0 ? '【关联知识点（用于变式题）】' + uniqueRelated.join('、') : ''}
-
-【教材内容参考——⚠️仅供核对知识点准确性，严禁复制原文段落】
-${textbookContext.substring(0, 800)}
-
-${templateRawText ? '【错题本格式参考——⚠️仅供参考排版风格，严禁复制模板内容】\n' + templateRawText.substring(0, 500) : ''}
-
-【生成要求】只生成一道错题，包含以下结构：
-
-<div class="error-item">
-  <h3>错题 ${i + 1}：${kp.knowledgePoint}</h3>
-  
-  <div class="error-tags">
-    <span class="tag tag-error-type">${kp.errorType || '概念混淆'}</span>
-    <span class="tag tag-frequency">${kp.frequency || '中频'}</span>
-    <span class="tag tag-difficulty">中等</span>
-    <span class="tag tag-score-loss">常见失分：X分</span>
-  </div>
-  
-  <div class="original-question">
-    <h4>📝 典型错题</h4>
-    <!-- 具体题目（模仿真实考卷中的题） -->
-  </div>
-  
-  <div class="error-analysis">
-    <h4>🔍 错误分析</h4>
-    <p><strong>典型错误：</strong>${kp.typicalError || ''}（写出学生具体的错误答案或思路）</p>
-    <p><strong>错误根因：</strong>${kp.rootCause || ''}（分析为什么会犯这个错误）</p>
-    <p><strong>避错策略：</strong>（给出2-3条实用的避错方法或检查技巧）</p>
-  </div>
-  
-  <div class="correct-solution">
-    <h4>✅ 正确解法</h4>
-    <!-- 完整解题过程，分步骤展示，关键步骤标注得分点 -->
-  </div>
-  
-  <div class="variant-practice">
-    <h4>🔄 变式巩固</h4>
-    <!-- 一道考查同知识点但形式不同的变式题，附答案和解析 -->
-    ${uniqueRelated.length > 0 ? '<!-- 可结合关联知识点：' + uniqueRelated.join('、') + ' -->' : ''}
-  </div>
-</div>
-
-【质量约束——必须遵守】
-- ⛔ 典型错题必须模仿真实考卷中的题目，具体且有代表性
-- ⛔ 错误分析必须具体，写出学生实际的错误答案或思路，不得泛泛而谈
-- ⛔ 正确解法必须完整，分步骤展示，关键步骤标注得分点
-- ⛔ 变式巩固题必须与典型错题考查同一知识点但形式不同
-${(() => {
-  // 查询指令库通用红线（覆盖"禁止超纲""禁止政治敏感"等；原「生成-禁止项」已并入「生成-红线约束」）
-  const stageMapLocal = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-  const banBlocks = getMatchingBlockInstructions({ category: '生成-红线约束', subject: bookSubject || '', stage: stageMapLocal[bookStage] || bookStage || '', genType });
-  return banBlocks.length > 0 ? banBlocks.map(b => b.content).join('\n') : '';
-})()}
-
-【格式规范】
-${(() => {
-  const stageMapLocal = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-  const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject: bookSubject || '', stage: stageMapLocal[bookStage] || bookStage || '', genType });
-  return fmtBlocks.length > 0 ? fmtBlocks.map(b => b.content).join('\n') + '\n' : '';
-})()}
-- 用 HTML 格式
-- 题干用 <p class="question">，选项用 <p class="option">
-- 数学公式用 $...$ 或 $$...$$
-- 每个分析段落必须独立用 <p> 或 <div> 包裹，严禁多个分析点挤在同一段落
-${ebMarkupText}
-${(() => {
-  const stageMapLocal = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-  return buildCompactAIInstruction(instruction, genType, bookSubject, stageMapLocal[bookStage] || bookStage, bookGrade);
-})()}
-- 只返回上述结构的 HTML 代码，不要用代码块包裹`;
-
-      try {
-        const itemHtml = await callAI(itemPrompt, { 
-          taskType: 'generation', 
-          temperature: 0.5, 
-          timeout: 120000 
-        });
-        errorItems.push(itemHtml);
-      } catch (e) {
-        console.warn(`第${i + 1}道错题生成失败:`, e.message);
-        errorItems.push(`<div class="error-item"><h3>错题 ${i + 1}：${kp.knowledgePoint}</h3><p>生成失败</p></div>`);
-      }
-    }
-    
-    // ✨ 组装完整内容
-    statusText.value = '正在组装...';
-    progress.value = 90;
-    
-    // 生成头部
-    let header = '';
-    try {
-      const headerPrompt = `生成错题本头部 HTML：
-标题：错题本 - ${selectedBooks?.[0]?.name || '知识点'} 
-副标题：涵盖 ${errorProneKps.length} 个易错知识点
-包含生成日期 ${new Date().toLocaleDateString()}
-
-用 <h1> 标题，<div class="errorbook-info"> 包裹信息。只返回 HTML。`;
-
-      header = await callAI(headerPrompt, { taskType: 'generation', temperature: 0.3, timeout: 30000 });
-    } catch {
-      header = `<h1>错题本</h1><div class="errorbook-info"><p>易错知识点整理</p></div>`;
-    }
-    
-    // 生成错误类型统计
-    const errorTypeStats = {};
-    errorProneKps.forEach(kp => {
-      const type = kp.errorType || '概念混淆';
-      errorTypeStats[type] = (errorTypeStats[type] || 0) + 1;
-    });
-    const statsHtml = `<div class="error-stats">
-  <h2>📊 错误类型分布</h2>
-  <table>
-    <tr><th>错误类型</th><th>数量</th><th>占比</th></tr>
-    ${Object.entries(errorTypeStats).map(([type, count]) => 
-      `<tr><td>${type}</td><td>${count}</td><td>${Math.round(count/errorProneKps.length*100)}%</td></tr>`
-    ).join('\n')}
-  </table>
-</div>`;
-    
-    const finalContent = header + '\n' + statsHtml + '\n' + errorItems.join('\n');
-    
-    // 🔧 基础质量校验
-    const stageRawHere = bookStage || '';
-    const qualityIssues = HardRuleChecker.check(
-      finalContent, [], bookSubject, 
-      stageMapLocal[stageRawHere] || stageRawHere, bookGrade,
-      genType,
-      undefined,
-      book?.region || ''  // 🔧 省市差异化
-    );
-    const qualityReport = {
-      formatCheck: { passed: finalContent.includes('<div class="error-item">'),
-        details: finalContent.includes('<div class="error-item">') ? [] : ['缺少错题条目'] },
-      coverageCheck: { passed: true, details: [] },
-      knowledgeCheck: { passed: finalContent.length > 300, details: [] },
-      aiReview: { passed: qualityIssues.filter(i => i.severity === 'error').length === 0,
-        details: qualityIssues.map(i => i.detail) }
-    };
-    
-    progress.value = 100;
-    statusText.value = '生成完成';
-    
-    return {
-      success: true,
-      content: finalContent,
-      blueprint: '',
-      contentCards: [],
-      knowledgeMap: {},
-      issues: qualityIssues.map(i => i.detail),
-      qualityReport,
-      generatedQuestions: [],
-      parsedBlueprint: []
-    };
-  };
 
   const cancelGeneration = async () => {
     if (abortController.value) {
@@ -10148,622 +5767,10 @@ ${(() => {
   };
 
   // ==================== 课前预习专用生成 ====================
-  const generatePreview = async (instruction, genType, selectedBooks, selectedTemplates, blueprintOnly = false) => {
-    const book = selectedBooks?.[0];
-    const rawSubject = book?.subject || '';
-    const stageRaw = book?.stage || '';
-    const stageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-    const stage = stageMap[stageRaw] || stageRaw;
-    const subject = normalizeSubjectName(rawSubject, stage);
-    const grade = book?.grade || '';
-
-    statusText.value = '构建预习框架...';
-    progress.value = 15;
-
-    try {
-      // 提取知识点结构作为预习目标参考
-      const contentCards = await extractContentCards(
-        selectedBooks, callAI, robustJsonParse,
-        (text, prog) => { statusText.value = text; progress.value = 10 + prog * 0.2; }
-      );
-      const knowledgeMap = await buildKnowledgeMap(
-        contentCards, selectedBooks, callAI, robustJsonParse,
-        (text, prog) => { statusText.value = text; progress.value = 15 + prog * 0.3; }
-      );
-
-      // 🔧 提取 kpList（blueprint 和 Step4 共用）—— 三层数据聚合
-      let kpList = (knowledgeMap.knowledgePoints || []).slice(0, 30);
-      if (kpList.length === 0) {
-        // 降级：从 contentCards 聚合 tags + knowledgePointsForTest
-        const fromTags = (contentCards || []).flatMap(c => c.tags || []);
-        const fromKpft = (contentCards || []).flatMap(c => (c.knowledgePointsForTest || []).map(k => typeof k === 'string' ? k : k.name));
-        kpList = [...new Set([...fromTags, ...fromKpft].filter(Boolean))].slice(0, 30);
-      }
-      if (kpList.length === 0) {
-        const chs = selectedBooks?.[0]?.selectedChapters || [];
-        kpList = chs.map(c => c.title).filter(Boolean).slice(0, 15);
-      }
-
-      // 🔧 blueprintOnly 模式：仅生成预习框架摘要
-      if (blueprintOnly) {
-        progress.value = 50;
-        statusText.value = '预习蓝图已生成';
-        // 🔧 从三维度指令库查询预习结构，替代硬编码
-        const previewStructure = getStructureForBlueprint('preview', subject, stage);
-        // 🔧 共享层级构建（带智能截断，整本书场景下最多显示30个核心知识点）
-        const hierarchyText = buildHierarchyText(knowledgeMap, contentCards, 30);
-        // 🔧 提取核心主题
-        const coreTopic = contentCards?.[0]?.summary || '';
-        const blueprintText = [
-          `【课前预习蓝图】`,
-          `学科：${subject}  |  年级：${grade}  |  学段：${stageRaw}`,
-          `${coreTopic ? '🎯 核心主题：' + coreTopic + '\n' : ''}预习结构：${previewStructure}`,
-          `知识点抽样（${kpList.length}个，非穷举）：${kpList.join('、')}`,
-          `${hierarchyText ? '\n【知识层级】\n' + hierarchyText : ''}`,
-          `预计生成：学习目标2-3条 + 预习任务3-5个 + 预习检测3-5题`
-        ].join('\n');
-        isGenerating.value = false;
-        return {
-          success: true,
-          blueprint: blueprintText,
-          parsedBlueprint: kpList.map((kp, i) => ({ number: i + 1, type: '预习检测', knowledgePoint: kp, difficulty: '基础', score: 5, sourceChapter: grade })),
-          contentCards,
-          knowledgeMap,
-          content: '',
-          generatedQuestions: [],
-          issues: null,
-          qualityReport: null
-        };
-      }
-
-      // 🔧 四段式精简 Step4 prompt：蓝图驱动 + 精准检索 + 分层注入
-      // ① 精准检索原文（替代原来的全量排序截断）——基于蓝图知识点
-      const parsedBlueprint_ = kpList.map((kp, i) => ({ number: i + 1, type: '预习检测', knowledgePoint: kp }));
-      const textbookContext = retrieveBlueprintSegments(contentCards, parsedBlueprint_, 3000);
-
-      const genInfo = genTypeTemplates[genType];
-      const stageLabel = stageRaw || '小学';
-      const gradeLabel = grade || '';
-
-      // 🔧 构建资料标题：单课带课名，单元带"第X单元"
-      const chapters = book?.selectedChapters || [];
-      let titleHint = '';
-      if (chapters.length === 1) {
-        titleHint = `「${chapters[0].title}」`;
-      } else if (chapters.length > 1) {
-        const firstTitle = chapters[0].title || '';
-        const unitMatch = firstTitle.match(/第([一二三四五六七八九十]+)单元/);
-        titleHint = unitMatch ? `第${unitMatch[1]}单元` : `「${firstTitle}等」`;
-      }
-
-      statusText.value = '生成课前预习...';
-      progress.value = 50;
-
-      const prompt = buildOutputPreamble() + `
-
-【任务】你是一位${stageLabel}${gradeLabel}${subject}教师，请根据以下蓝图和原文，为学生设计一份课前预习资料。
-
-【预习蓝图——⚠️仅供参考，严禁直接复制蓝图数据到输出】
-标题：${titleHint ? titleHint + ' ' : ''}${genInfo?.name || '课前预习'}
-学科：${subject}  |  年级：${gradeLabel}  |  学段：${stageLabel}
-结构：${getStructureForBlueprint('preview', subject, stage)}
-知识点（非穷举，请结合教材原文覆盖全部内容）：${kpList.join('、')}
-
-【教材原文片段——⚠️仅供核对知识点准确性，严禁复制原文段落】
-${textbookContext || '（基于蓝图知识点生成）'}
-
-【学科要求】
-${genInfo?.instruction || '以引导学生自主预习为核心。'}
-${(() => {
-  if (subject === '语文') {
-    return `
-- 语文预习四层：识字写字（每个生字独立用<span class="tian-zi-ge">字</span>包裹 + 拼音 + 部首 + 笔画数 + 结构 + 笔顺，多字示例：<span class="tian-zi-ge">蝌</span><span class="tian-zi-ge">蚪</span>）→ 词语积累（释义+多音字+会认/会写区分）→ 句子理解（原文+修辞赏析）→ 段落感知（逐段概括）
-- ⚠️ 组词必须是日常常用标准词语，禁止生造（如"袋包""山袋"）
-- 课后思考只写问题不附答案
-${(() => { const gn = extractGradeNum(grade); return stage === 'primary' && gn <= 2 ? '- 低段：生字配<ruby>汉字<rt>拼音</rt></ruby>，配情境图 [IMAGE]' : ''; })()}`;
-  }
-  if (subject === '英语') {
-    return `
-- 英语预习四层：单词认知（从教材单词表中提取，每个单词标注音标+中文释义+词性，按词性分类排列）→ 短语积累（从课文中提取常用搭配，给出中文释义和例句）→ 句型理解（提炼核心句型，标注交际场景如"早上见面用""询问年龄用"，给出替换练习框架）→ 对话/段落感知（概括课文大意，标注关键信息点，引导学生关注上下文逻辑）
-- ⚠️ 单词必须来自教材原文单词表或课文中出现的词汇，禁止凭空编造单词
-- ⚠️ 中文释义必须准确，禁止逐字硬译（如"Good morning"释义应为"早上好"而非"好的早晨"）
-- 句型替换练习留空让学生填写，答案放文末
-${(() => { const gn = extractGradeNum(grade); return stage === 'primary' && gn <= 4 ? '- 中段：书写练习配四线三格，配情境图 [IMAGE]，单词配读音提示' : stage === 'primary' ? '- 高段：书写练习用单线，增加句子仿写' : ''; })()}`;
-  }
-  if (subject === '数学') {
-    return `
-- 数学预习四层：概念感知（从教材中提取本节核心概念，用生活化语言解释"是什么"，配简单图示说明）→ 算理初探（展示1-2道教材例题的计算过程，标注每一步的含义和依据，引导学生理解"为什么这样算"）→ 方法归纳（总结解题步骤/公式/口诀，用"第一步…第二步…"的形式呈现）→ 尝试练习（2-3道基础题，与例题同类型但数据不同，留空让学生试做）
-- ⚠️ 概念解释必须用学生能理解的语言，禁止照搬教材定义
-- ⚠️ 例题必须来自教材原文或教材同类题型，禁止超纲编造
-- 尝试练习题留空，答案放文末
-${(() => { const gn = extractGradeNum(grade); return stage === 'primary' && gn <= 2 ? '- 低段：配实物图/情境图 [IMAGE]，数字不超100，仅加减法' : stage === 'primary' ? '- 中高段：配线段图/示意图，增加估算和验算提示' : ''; })()}`;
-  }
-  if (['物理', '化学', '生物', '科学'].includes(subject)) {
-    return `
-- 理科预习四层：概念预读（从教材中提取核心概念/定义/公式，标注关键词，用通俗语言解释含义）→ 实验/现象观察（如教材有实验，描述实验步骤和预期现象，引导学生思考"为什么会这样"；如无实验则描述生活中的相关现象）→ 原理初探（解释概念背后的基本原理，用因果链"因为…所以…"的方式呈现）→ 预习自测（2-3道基础判断题或填空题，考查概念理解，留空让学生试做）
-- ⚠️ 概念/公式/定理必须与教材原文一致，禁止自行修改
-- ⚠️ 实验步骤必须来自教材，禁止编造
-- 预习自测留空，答案放文末`;
-  }
-  return '';
-})()}
-- 预习检测：${stage === 'primary' ? '5-8道' : '3-5道'}基础题，题目留空不写答案
-- 🔴 铁律：答案统一放文末<div class="answer-section">中，题目绝不出现答案
-- 语言适合${gradeLabel}学生，预习时间10-15分钟
-
-${buildCompactAIInstruction(instruction, genType, subject, stage, grade)}
-
-【格式规范——必须严格遵守】
-${(() => { const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject, stage, genType }); return fmtBlocks.length > 0 ? fmtBlocks.map(b => b.content).join('\n') + '\n' : ''; })()}- ⚠️ 输出必须是完整的HTML代码，每个板块、每个条目都要有独立的HTML标签包裹
-- 🔴 每个板块必须输出具体内容（含例句/例题/释义），禁止写"略""见教材""自行查阅"等占位符
-- 大标题用 <h1>，板块标题（一、二、三）用 <h2>
-- 每个条目用 <p> 或 <li> 包裹，禁止所有条目挤在一行！
-- 需要换行用 <br>，段落间用空行分隔
-${subject === '语文' ? `
-【语文学科格式】
-- 生字展示：每个生字独立一个 <span class="tian-zi-ge">字</span>，多字示例 <span class="tian-zi-ge">蝌</span><span class="tian-zi-ge">蚪</span>，⚠️ 严禁多个字共用一个 tian-zi-ge
-- ⛔ 禁止在田字格/米字格/四线三格 span 之后添加 <br> 或空行留白（尤其表格单元格内）——格子单元格高度由格子本身撑起，多余 <br> 会导致单元格多行换行、格子顶格
-- 🔴 生字必须附带部首、笔画数、结构、笔顺，格式示例：
-  <p><span class="tian-zi-ge">蝌</span>（部首：虫，15画，左右结构，笔顺：竖、横折、横、竖、横、点、撇、横、竖、撇、点、横、竖、横）</p>
-- ⛔ 禁止只写字和拼音不写部首/笔画/笔顺！每个生字都要有完整的部首、笔画数、结构和笔顺信息
-- 词语释义：<strong>词语</strong>：释义内容
-- 句子赏析：<div class="example"><p>原文句子</p><p>赏析：...</p></div>
-- 🔴 看拼音写词语格式：<p>kē dǒu <u class="blank-2">&emsp;</u> &emsp; dài shǔ <u class="blank-2">&emsp;</u></p>（只写拼音不写汉字！）
-- 课后思考只写问题不附答案
-` : ''}${subject === '英语' ? `
-【英语学科格式】
-- 🔤 第一层·单词认知：每个单词用 <p><strong>单词</strong> <span class="phonetic">/音标/</span> <em>词性</em> 中文释义</p>
-- 📝 第二层·短语积累：<div class="phrase-group"><p><strong>短语</strong>：中文释义</p><p class="example">例句</p></div>
-- 📐 第三层·句型理解：核心句型用 <div class="sentence-pattern"><p class="model">句型结构</p><p class="example">例句</p><p class="usage">交际场景：...</p><p class="drill">替换练习：<u class="blank-4">&emsp;</u>（留空）</p></div>
-- 📖 第四层·段落/对话感知：<div class="passage-summary"><p><strong>大意</strong>：...</p><p><strong>关键信息</strong>：...</p></div>
-- ${stage === 'primary' && extractGradeNum(grade) <= 4 ? '书写区用 <span class="four-line-three english-line">word</span> 四线三格' : '书写区用单线 <span class="english-line">word</span>'}
-- 单词必须从教材原文单词表提取，中文释义必须准确（禁止逐字硬译）
-- 句型交际场景必须具体（"早上见面"而非"问候"），替换练习留空` : ''}${['数学', '物理', '化学', '生物', '科学'].includes(subject) ? `
-【理科格式】
-- 概念定义用 <div class="definition">，公式用 <div class="formula">$...$</div>
-- 口算题用 <span class="oral-box">算式</span>
-- 竖式计算用 <div class="vertical-calc">，例题必须给出完整解题步骤
-${['物理', '化学', '生物', '科学'].includes(subject) ? '- 实验步骤用 <div class="experiment-steps"><ol><li>步骤</li></ol></div>，实验现象用 <strong>加粗</strong> 标注\n' : ''}` : ''}
-- 🔴 填空题格式：<p>题干<u class="blank-2">&emsp;</u>题干</p>（横线留空不填答案！）
-- 🔴 括号填空格式：<span class="blank-N">&emsp;</span>（N按答案字数：1字→2, 2字→3, 3字→4, 4字→5, 5-6字→6, 7-8字→8, 9-10字→10，⛔严禁括号内用 <u> 标签）
-- 答案统一放文末 <div class="answer-section"><h2>答案与提示</h2>...</div>
-- ⛔ 严禁：题目中直接写答案、所有内容挤在一个段落、用空格代替换行
-${(() => { const gn = extractGradeNum(grade); return stage === 'primary' && gn <= 2 ? '- 低段配插图：[IMAGE]\nTYPE:SD\nPROMPT:描述\nSTYLE:cartoon\n[/IMAGE]\n' : ''; })()}
-
-【强制输出格式——最后一条指令】
-你必须输出标准HTML代码。每个标题、每个段落、每个条目都必须用独立的HTML标签包裹。不允许纯文本输出。
-
-${buildOutputFormatBlock('preview', subject, stage, grade)}
-
-现在请直接输出完整的预习资料HTML：`;
-
-      const result = await callAI(prompt, {
-        taskType: 'generation',
-        temperature: 0.3,
-        timeout: 120000,
-        signal: abortController.value?.signal
-      });
-      detectSquishedOutput(result, 'preview');
-
-      // 🔧 质量校验
-      statusText.value = '校验预习资料质量...';
-      progress.value = 85;
-      const qualityIssues = HardRuleChecker.check(
-        result, [], subject,
-        stageMap[stageRaw] || stageRaw, grade,
-        genType,
-        undefined,
-        book?.region || ''  // 🔧 省市差异化
-      );
-      const qualityReport = {
-        formatCheck: { passed: result.length > 200, details: result.length <= 200 ? ['内容过短'] : [] },
-        coverageCheck: { passed: true, details: [`知识点参考：${(knowledgeMap.knowledgePoints || []).slice(0, 5).join('、')}`] },
-        knowledgeCheck: { passed: result.length > 500, details: qualityIssues.filter(i => i.severity === 'error').map(i => i.detail) },
-        aiReview: { passed: qualityIssues.filter(i => i.severity === 'error').length === 0, details: qualityIssues.map(i => i.detail) }
-      };
-
-      // 🔧 超纲检测
-      const boundaryCheck = checkKnowledgeBoundary(result, subject, stageRaw, grade);
-      if (boundaryCheck.hasViolations) {
-        qualityReport.knowledgeCheck.passed = false;
-        qualityReport.knowledgeCheck.details.push(`超纲检测发现${boundaryCheck.summary.errorCount}处问题`);
-      }
-
-      progress.value = 100;
-      statusText.value = '生成完成';
-      isGenerating.value = false;
-      return {
-        success: true,
-        content: result,
-        blueprint: '',
-        contentCards,
-        knowledgeMap,
-        generatedQuestions: [],
-        parsedBlueprint: [],
-        issues: qualityIssues.map(i => i.detail),
-        qualityReport
-      };
-    } catch (e) {
-      console.error('课前预习生成失败:', e);
-      return { success: false, error: e.message };
-    } finally {
-      isGenerating.value = false;
-    }
-  };
 
   // ==================== 听写默写专用生成 ====================
-  const generateDictation = async (instruction, genType, selectedBooks, selectedTemplates, blueprintOnly = false) => {
-    const book = selectedBooks?.[0];
-    const rawSubject = book?.subject || '';
-    const stageRaw = book?.stage || '';
-    const stageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-    const stage = stageMap[stageRaw] || stageRaw;
-    const subject = normalizeSubjectName(rawSubject, stage);
-    const grade = book?.grade || '';
-
-    statusText.value = '提取教材生字词...';
-    progress.value = 20;
-
-    try {
-      // 提取教材原文
-      const contentCards = await extractContentCards(
-        selectedBooks, callAI, robustJsonParse,
-        (text, prog) => { statusText.value = text; progress.value = 10 + prog * 0.2; }
-      );
-
-      // 🔧 提取 kpList（blueprint 和 Step4 共用）—— 三层数据聚合，覆盖课文全文
-      let kpList = [];
-      if (contentCards && contentCards.length > 0) {
-        const fromTags = contentCards.flatMap(c => c.tags || []);
-        const fromKpft = contentCards.flatMap(c => (c.knowledgePointsForTest || []).map(k => typeof k === 'string' ? k : k.name));
-        const fromSummary = contentCards.map(c => c.summary).filter(Boolean);
-        const chapterTitles = (book?.selectedChapters || []).map(c => c.title).filter(Boolean);
-        // 三层聚合 + 章节标题，去重后上限30（覆盖课文核心词汇+短语+句型）
-        kpList = [...new Set([...fromTags, ...fromKpft, ...fromSummary, ...chapterTitles].filter(Boolean))].slice(0, 30);
-      }
-      if (kpList.length === 0) {
-        const chapterTitles = (book?.selectedChapters || []).map(c => c.title).filter(Boolean);
-        kpList = chapterTitles.slice(0, 15);
-      }
-
-      // 🔧 blueprintOnly 模式：从 contentCards 提取词汇，走完整分析链路
-      if (blueprintOnly) {
-        progress.value = 50;
-        statusText.value = '听写蓝图已生成';
-        // 🔧 从三维度指令库查询听写结构，替代硬编码
-        const dictationStructure = getStructureForBlueprint('dictation', subject, stage);
-        const dictationTypeLabel = subject === '英语' ? '单词/短语听写' : (subject === '语文' ? '生字词默写' : '听写/默写');
-        // 🔧 共享层级构建（dictation 无 knowledgeGraph，自动降级用 contentCards）
-        const hierarchyText = buildHierarchyText({ knowledgeGraph: [] }, contentCards, 30);
-        const blueprintText = [
-          `【听写/默写蓝图】`,
-          `学科：${subject}  |  年级：${grade}  |  学段：${stageRaw}`,
-          `类型：${dictationTypeLabel}`,
-          `练习结构：${dictationStructure}`,
-          `词汇抽样（${kpList.length}个，非穷举）：${kpList.join('、')}`,
-          `${hierarchyText ? '\n【知识覆盖层级】\n' + hierarchyText : ''}`
-        ].join('\n');
-        isGenerating.value = false;
-        return {
-          success: true,
-          blueprint: blueprintText,
-          parsedBlueprint: kpList.map((kp, i) => ({ number: i + 1, type: '听写', knowledgePoint: kp, difficulty: '基础', score: 2, sourceChapter: grade })),
-          contentCards,
-          knowledgeMap: { knowledgePoints: kpList, keyDifficulties: [], knowledgeGraph: [], crossChapterLinks: [] },
-          content: '',
-          generatedQuestions: [],
-          issues: null,
-          qualityReport: null
-        };
-      }
-
-      // 🔧 精准检索原文（五步法：Step1已提取，Step4只需少量精确原文验证，上限1200字）
-      const parsedBlueprint_ = kpList?.map((kp, i) => ({ number: i + 1, type: '听写', knowledgePoint: kp })) || [];
-      const textbookContext = retrieveBlueprintSegments(contentCards, parsedBlueprint_, 1200);
-
-      const genInfo = genTypeTemplates[genType];
-      const stageLabel = stageRaw || '小学';
-      const gradeLabel = grade || '';
-      const isEnglish = subject === '英语';
-
-      // 🔧 构建资料标题
-      const chapters = book?.selectedChapters || [];
-      let titleHint = '';
-      if (chapters.length === 1) {
-        titleHint = `「${chapters[0].title}」`;
-      } else if (chapters.length > 1) {
-        const firstTitle = chapters[0].title || '';
-        const unitMatch = firstTitle.match(/第([一二三四五六七八九十]+)单元/);
-        titleHint = unitMatch ? `第${unitMatch[1]}单元` : `「${firstTitle}等」`;
-      }
-
-      statusText.value = '生成听写/默写内容...';
-      progress.value = 50;
-
-      const prompt = buildOutputPreamble() + `
-
-【任务】你是一位${stageLabel}${gradeLabel}${subject}教师，请设计一份学生可直接使用的听写/默写练习纸。必须包含多种题型，练习区只显示提示+留空（学生填写），答案统一放文末。
-
-🎯 关键原则：
-- 练习区 = 提示+留空（学生填写区），答案区 = 标准答案（文末）
-- 必须包含至少2种不同题型方向（如英译汉+汉译英、挖空+翻译等），不能全是一种形式
-- 每一题都是学生要动手写的，不能只是"听"
-
-【蓝图——⚠️仅供参考，严禁直接复制蓝图数据到输出】
-标题：${titleHint ? titleHint + ' ' : ''}${genInfo?.name || '听写默写'}
-结构：${getStructureForBlueprint('dictation', subject, stage)}
-词汇示例（非穷举，请覆盖课文全部词汇+短语+句型）：${kpList.join('、')}
-⚠️ 以上仅为知识点抽样示例，你必须结合【教材原文片段】覆盖课文出现的所有词汇、短语和句型，不限于上述示例
-
-【教材原文片段——⚠️仅供核对知识点准确性，严禁复制原文段落】
-${textbookContext || '（基于蓝图知识点生成）'}
-
-【学科要求】
-${isEnglish
-  ? `- 英语默写练习纸，必须包含以下多种题型（至少3种，分节清晰标注标题）：
-  ① 英译汉（看英文写中文）：给出英文单词/短语，学生写中文释义
-  ② 汉译英（看中文写英文）：给出中文释义+词性提示，学生写英文单词/短语
-  ③ 单词挖空默写：给出单词的部分字母提示（如 h_llo、_at、c_t），学生补全缺失字母；挖去关键字母（元音或易错辅音），保留首字母或部分字母作线索
-  ④ 句子默写（汉译英）：给出完整中文句子，学生写出对应英文句子
-  ⑤ 句子默写（英译汉）：给出英文句子，学生写出中文意思
-- ⛔ 关键防漏题规则：每个词汇/短语/句子只能出现在一种题型中，严禁同一内容在多个题型间重复出现（如 hello 出现在英译汉就不能再出现在汉译英或挖空中，否则学生能从其他题型直接抄答案）
-- 词汇按难度分配到不同题型：简单词→英译汉，中等词→汉译英，较难词→挖空默写
-- 书写区用${stage === 'primary' && extractGradeNum(grade) <= 4 ? '四线三格' : '单线'}留空，不写答案内容
-- 难度递增，同一题型内由易到难排列`
-  : subject === '语文'
-    ? `- 语文默写练习纸：每个生字给出拼音提示，书写区用田字格留空（学生填字）\n- 词语默写给出拼音，词语书写区留空\n- 句子/古诗文默写给出上句/标题提示，下句或全文留空\n- 每个生字附加部首、笔画、结构、笔顺信息（字典式标注，在字旁独立列出）`
-    : `- 学科默写练习纸：给出概念/公式/术语提示，答案区留空给学生填写`}
-- 题量：字词${stage === 'primary' ? '8-15' : '10-20'}个，句子${stage === 'primary' ? '2-4' : '3-5'}句
-- 答案集中放文末<div class="answer-section">中，练习区不出现答案
-- 适合${gradeLabel}水平
-
-${buildCompactAIInstruction(instruction, genType, subject, stage, grade)}
-
-【格式规范——必须严格遵守】
-${(() => { const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject, stage, genType }); return fmtBlocks.length > 0 ? fmtBlocks.map(b => b.content).join('\n') + '\n' : ''; })()}- 🔴 每个板块必须输出具体内容，禁止写"略""见教材""自行查阅"等占位符或空写"听录音写单词"而无具体单词列表
-- 输出必须是完整HTML，每个条目用 <p> 或 <div class="dictation-item"> 独立包裹
-- 大标题用 <h1>，分节用 <h2>
-- 参考答案统一放文末 <div class="answer-section">
-- ⛔ 严禁所有内容挤在一个段落
-${subject === '语文' && stage === 'primary' ? '【语文学科格式】\n生字用<span class="tian-zi-ge">字</span>（HTML），情境图[IMAGE]单独成行\n' : ''}${isEnglish ? `【英语学科格式】
-- 写英文用：${stage === 'primary' && extractGradeNum(grade) <= 4 ? '<span class="four-line-three english-line">word</span> 四线三格' : '<span class="english-line">word</span> 单线'}
-- 写中文用：<span class="blank-line">&emsp;&emsp;</span> 普通横线（禁止四线格/田字格）
-- 每个单词给出中文释义和词性
-` : ''}${['数学', '物理', '化学'].includes(subject) ? '【理科格式】\n- 算式书写工整，竖式计算用 <div class="vertical-calc">\n' : ''}
-
-【强制输出格式——最后一条指令】
-你必须输出标准HTML代码。不允许纯文本输出。
-
-${buildOutputFormatBlock('dictation', subject, stage, grade)}
-
-现在请直接输出完整的听写默写练习HTML：`;
-
-      const result = await callAI(prompt, {
-        taskType: 'generation',
-        temperature: 0.2,
-        timeout: 120000,
-        signal: abortController.value?.signal
-      });
-      detectSquishedOutput(result, 'dictation');
-
-      // 🔧 质量校验
-      statusText.value = '校验听写内容质量...';
-      progress.value = 85;
-      const qualityIssues = HardRuleChecker.check(
-        result, [], subject,
-        stageMap[stageRaw] || stageRaw, grade,
-        genType,
-        undefined,
-        book?.region || ''  // 🔧 省市差异化
-      );
-      const qualityReport = {
-        formatCheck: { passed: result.length > 100, details: result.length <= 100 ? ['内容过短'] : [] },
-        coverageCheck: { passed: true, details: [] },
-        knowledgeCheck: { passed: result.length > 300, details: qualityIssues.filter(i => i.severity === 'error').map(i => i.detail) },
-        aiReview: { passed: qualityIssues.filter(i => i.severity === 'error').length === 0, details: qualityIssues.map(i => i.detail) }
-      };
-
-      progress.value = 100;
-      statusText.value = '生成完成';
-      isGenerating.value = false;
-      return {
-        success: true,
-        content: result,
-        blueprint: '',
-        contentCards,
-        knowledgeMap: { knowledgePoints: [], keyDifficulties: [], knowledgeGraph: [], crossChapterLinks: [] },
-        generatedQuestions: [],
-        parsedBlueprint: [],
-        issues: qualityIssues.map(i => i.detail),
-        qualityReport
-      };
-    } catch (e) {
-      console.error('听写默写生成失败:', e);
-      return { success: false, error: e.message };
-    } finally {
-      isGenerating.value = false;
-    }
-  };
 
   // ==================== 阅读训练专用生成 ====================
-  const generateReading = async (instruction, genType, selectedBooks, selectedTemplates, blueprintOnly = false) => {
-    const book = selectedBooks?.[0];
-    const rawSubject = book?.subject || '';
-    const stageRaw = book?.stage || '';
-    const stageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-    const stage = stageMap[stageRaw] || stageRaw;
-    const subject = normalizeSubjectName(rawSubject, stage);
-    const grade = book?.grade || '';
-
-    statusText.value = '提取教材阅读素材...';
-    progress.value = 20;
-
-    try {
-      const contentCards = await extractContentCards(
-        selectedBooks, callAI, robustJsonParse,
-        (text, prog) => { statusText.value = text; progress.value = 10 + prog * 0.2; }
-      );
-      const knowledgeMap = await buildKnowledgeMap(
-        contentCards, selectedBooks, callAI, robustJsonParse,
-        (text, prog) => { statusText.value = text; progress.value = 15 + prog * 0.3; }
-      );
-
-      // 🔧 三层数据聚合（blueprint 和 Step4 共用），上限30
-      let kpList = (knowledgeMap.knowledgePoints || []).slice(0, 30);
-      if (kpList.length === 0) {
-        const fromTags = (contentCards || []).flatMap(c => c.tags || []);
-        const fromKpft = (contentCards || []).flatMap(c => (c.knowledgePointsForTest || []).map(k => typeof k === 'string' ? k : k.name));
-        kpList = [...new Set([...fromTags, ...fromKpft].filter(Boolean))].slice(0, 30);
-      }
-      if (kpList.length === 0) {
-        const chs = selectedBooks?.[0]?.selectedChapters || [];
-        kpList = chs.map(c => c.title).filter(Boolean).slice(0, 15);
-      }
-
-      // 🔧 blueprintOnly 模式：仅生成阅读训练框架摘要
-      if (blueprintOnly) {
-        progress.value = 50;
-        statusText.value = '阅读训练蓝图已生成';
-        // 🔧 共享层级构建（带智能截断）
-        const hierarchyText = buildHierarchyText(knowledgeMap, contentCards, 30);
-        const readingLength = stage === 'primary' ? '200-400字' : stage === 'middle' ? '400-800字' : '600-1200字';
-        const coreTopic = contentCards?.[0]?.summary || '';
-        // 🔧 从三维度指令库查询阅读结构，替代硬编码
-        const readingStructure = getStructureForBlueprint('reading', subject, stage);
-        const blueprintText = [
-          `【阅读训练蓝图】`,
-          `学科：${subject}  |  年级：${grade}  |  学段：${stageRaw}`,
-          `${coreTopic ? '🎯 核心主题：' + coreTopic + '\n' : ''}训练结构：${readingStructure}`,
-          `选文篇幅：${readingLength}  |  选文数：1-2篇`,
-          `知识点抽样（${kpList.length}个，非穷举）：${kpList.join('、')}`,
-          `${hierarchyText ? '\n【知识覆盖层级】\n' + hierarchyText : ''}`,
-          `题目类型：信息提取、词句理解、主旨概括、推理判断${stage !== 'primary' ? '、评价鉴赏' : ''}`
-        ].join('\n');
-        isGenerating.value = false;
-        return {
-          success: true,
-          blueprint: blueprintText,
-          parsedBlueprint: kpList.map((kp, i) => ({ number: i + 1, type: '阅读理解', knowledgePoint: kp, difficulty: '中等', score: 5, sourceChapter: grade })),
-          contentCards,
-          knowledgeMap,
-          content: '',
-          generatedQuestions: [],
-          issues: null,
-          qualityReport: null
-        };
-      }
-
-      // 🔧 精准检索原文
-      const kpListForRetrieval = (knowledgeMap.knowledgePoints || []).map(kp => ({ number: 0, knowledgePoint: kp }));
-      const textbookContext = retrieveBlueprintSegments(contentCards, kpListForRetrieval, 3000);
-
-      const genInfo = genTypeTemplates[genType];
-      const stageLabel = stageRaw || '小学';
-      const gradeLabel = grade || '';
-
-      // 🔧 构建资料标题
-      const chapters = book?.selectedChapters || [];
-      let titleHint = '';
-      if (chapters.length === 1) {
-        titleHint = `「${chapters[0].title}」`;
-      } else if (chapters.length > 1) {
-        const firstTitle = chapters[0].title || '';
-        const unitMatch = firstTitle.match(/第([一二三四五六七八九十]+)单元/);
-        titleHint = unitMatch ? `第${unitMatch[1]}单元` : `「${firstTitle}等」`;
-      }
-
-      statusText.value = '生成阅读训练...';
-      progress.value = 50;
-
-      const prompt = buildOutputPreamble() + `
-
-【任务】你是一位${stageLabel}${gradeLabel}${subject}教师，请根据以下蓝图和原文，设计一份阅读理解训练。
-
-【训练蓝图——⚠️仅供参考，严禁直接复制蓝图数据到输出】
-标题：${titleHint ? titleHint + ' ' : ''}${genInfo?.name || '阅读训练'}
-结构：${getStructureForBlueprint('reading', subject, stage)}
-知识点（非穷举，请结合教材原文覆盖全部内容）：${kpList.join('、')}
-
-【教材原文片段——⚠️仅供核对知识点准确性，严禁复制原文段落】
-${textbookContext || '（基于蓝图知识点编选短文）'}
-
-【学科要求】
-${genInfo?.instruction || '以阅读理解能力训练为核心。'}
-- 选文：${stage === 'primary' ? '200-400字' : stage === 'middle' ? '400-800字' : '600-1200字'}，主题贴近教材
-- 文体：${subject === '语文' ? '记叙文/说明文/童话/寓言/散文' : subject === '英语' ? '对话/短文/故事/书信' : '根据学科选择'}
-- 题目覆盖：信息提取、词句理解、主旨概括、推理判断${stage !== 'primary' ? '、评价鉴赏、写作手法分析' : ''}
-- 题型：选择题${stage === 'primary' ? '40%' : '30%'}+简答题${stage === 'primary' ? '60%' : '70%'}，${(() => { const gn = extractGradeNum(grade); const ratio = getStageDifficultyRatio(stage, gn > 0 && gn <= 2, gn >= 3 && gn <= 4, gn >= 5, genType); return ratio ? `基础${ratio.basic}%/提升${ratio.medium}%/拓展${ratio.advanced}%` : '基础50%/提升30%/拓展20%'; })()}
-${subject === '英语' ? '- 英语阅读：生词需给出中文释义，短文须是完整的独立英文文章（不能是\u201c请阅读教材第X页\u201d）\n' : ''}${stage === 'primary' && extractGradeNum(grade) <= 2 ? '- 低段：童话/寓言，配插图，语言通俗\n' : ''}- 答案统一放文末<div class="answer-section">中
-
-${buildCompactAIInstruction(instruction, genType, subject, stage, grade)}
-
-【格式规范——必须严格遵守】
-${(() => { const fmtBlocks = getMatchingBlockInstructions({ category: '生成-输出格式', subject, stage, genType }); return fmtBlocks.length > 0 ? fmtBlocks.map(b => b.content).join('\n') + '\n' : ''; })()}- 输出必须是完整HTML，短文用 <div class="reading-passage">，题目用 <ol><li>
-- 大标题用 <h1>，分节用 <h2>
-- 选择题选项用 <p class="option">
-- 参考答案统一放文末 <div class="answer-section">
-- ⛔ 严禁所有内容挤在一个段落
-
-【强制输出格式——最后一条指令】
-你必须输出标准HTML代码。不允许纯文本输出。
-
-${buildOutputFormatBlock('reading', subject, stage, grade)}
-
-现在请直接输出完整的阅读训练HTML：`;
-
-      const result = await callAI(prompt, {
-        taskType: 'generation',
-        temperature: 0.3,
-        timeout: 180000,
-        signal: abortController.value?.signal
-      });
-      detectSquishedOutput(result, 'reading');
-
-      // 🔧 质量校验
-      statusText.value = '校验阅读训练质量...';
-      progress.value = 85;
-      const qualityIssues = HardRuleChecker.check(
-        result, [], subject,
-        stageMap[stageRaw] || stageRaw, grade,
-        genType,
-        undefined,
-        book?.region || ''  // 🔧 省市差异化
-      );
-      const qualityReport = {
-        formatCheck: { passed: result.length > 300, details: result.length <= 300 ? ['内容过短'] : [] },
-        coverageCheck: { passed: true, details: [`知识点参考：${(knowledgeMap.knowledgePoints || []).slice(0, 5).join('、')}`] },
-        knowledgeCheck: { passed: result.length > 500, details: qualityIssues.filter(i => i.severity === 'error').map(i => i.detail) },
-        aiReview: { passed: qualityIssues.filter(i => i.severity === 'error').length === 0, details: qualityIssues.map(i => i.detail) }
-      };
-
-      // 🔧 超纲检测
-      const boundaryCheck = checkKnowledgeBoundary(result, subject, stageRaw, grade);
-      if (boundaryCheck.hasViolations) {
-        qualityReport.knowledgeCheck.passed = false;
-        qualityReport.knowledgeCheck.details.push(`超纲检测发现${boundaryCheck.summary.errorCount}处问题`);
-      }
-
-      progress.value = 100;
-      statusText.value = '生成完成';
-      isGenerating.value = false;
-      return {
-        success: true,
-        content: result,
-        blueprint: '',
-        contentCards,
-        knowledgeMap,
-        generatedQuestions: [],
-        parsedBlueprint: [],
-        issues: qualityIssues.map(i => i.detail),
-        qualityReport
-      };
-    } catch (e) {
-      console.error('阅读训练生成失败:', e);
-      return { success: false, error: e.message };
-    } finally {
-      isGenerating.value = false;
-    }
-  };
 
   // ✨ 新增：基于已有蓝图执行第四步和第五步
   const executeGenerationWithBlueprint = async (
@@ -11085,8 +6092,8 @@ ${recentContext.join('\n')}
           // 🔧 按题型从指令库查询质量约束（替代硬编码 typeSpecificRules）
           const TYPE_TO_GENTYPE = { '选择题': 'choice', '填空题': 'fill', '判断题': 'truefalse', '计算题': 'calc', '解答题': 'answer', '应用题': 'word_problem', '实验题': 'experiment' };
           const typeGenType = TYPE_TO_GENTYPE[questionPlan.type];
-          const typeBlocks = typeGenType ? getMatchingBlockInstructions({ category: '生成-题型专项要求', genType: typeGenType }) : [];
-          const typeRule = typeBlocks.length > 0 ? typeBlocks[0].content : '';
+          // 🔴 题型专项规则已迁出独立配置（指令库已删除）
+          const typeRule = typeGenType ? (getQuestionTypeRule({ genType: typeGenType, subject, stage })[0]?.content || '') : '';
 
           // 🔧 场景多样性种子（轮转注入，防止逐题雷同）
           const diversitySeeds = [
@@ -11365,7 +6372,7 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 800)}
           try {
             const prompts = generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').substring(0, 200)}`).join('\n\n');
             const answerGenPrompt = `请根据以下题目内容，生成统一的答案与解析区域。\n\n${prompts}\n\n返回格式：\n<div class="answer-section">\n<h2>答案与解析</h2>\n<p><strong>1.</strong> 答案 | <em>解析：解题思路</em></p>\n...</div>\n\n只返回HTML，不要markdown包裹。`;
-            const answerSection = await callAI(answerGenPrompt, { taskType: 'generation', temperature: 0.1 });
+            const answerSection = await callAI(answerGenPrompt, { taskType: 'generation', temperature: 0.1, maxTokens: 8192, allowContinuation: false });
             content += '\n' + answerSection;
           } catch (e) { console.warn('答案区域生成失败:', e.message); }
         }
@@ -11377,30 +6384,9 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 800)}
 
       const issues = [];
       
-      // ========== 🔧 新增：硬性规则检查（第一级） ==========
+      // 🔴 质检已移除（生成端保障）：质量由蓝图题型清单 + 逐题生成 + 代码拼装保证
       const book = selectedBooks?.[0];
       const stageRaw = book?.stage || '';
-      const stageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-      const hardIssues = HardRuleChecker.check(
-        content, 
-        parsedBlueprint, 
-        book?.subject || '', 
-        stageMap[stageRaw] || stageRaw,
-        book?.grade || '',
-        genType,
-        undefined,
-        book?.region || ''  // 🔧 省市差异化
-      );
-      
-      // 合并硬性检查问题
-      hardIssues.forEach(issue => {
-        issues.push(`${issue.severity === 'error' ? '❌' : '⚠️'} ${issue.detail}`);
-      });
-
-      // 自动修复可修复的问题
-      if (hardIssues.some(i => i.autoFix)) {
-        content = HardRuleChecker.autoFix(content, hardIssues);
-      }
 
       // ========== 🔧 新增：超纲检测（基于课标知识边界）==========
       if (book && content.length > 100) {
@@ -11422,32 +6408,7 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 800)}
       }
 
 
-      // ========== 🔧 AI内容修复（单次） ==========
-      const repairContext = {
-        genType, 
-        genTypeLabel: genTypeLabel || genType,
-        subject: book?.subject || '', 
-        stage: stageRaw,
-        grade: book?.grade || '',
-        parsedBlueprint,
-        region: book?.region || '',  // 🔧 省市差异化：修复重检用同一省市蓝本
-      };
-      const repairResult = await attemptContentRepair(content, hardIssues, repairContext);
-      if (repairResult.repaired) {
-        content = repairResult.content;
-        if (repairResult.repairIssues && repairResult.repairIssues.length > 0) {
-          repairResult.repairIssues.forEach(issue => {
-            hardIssues.push(issue);
-            issues.push((issue.severity === 'error' ? '❌' : '⚠️') + ' ' + issue.detail);
-          });
-        }
-      } else if (repairResult.repairIssues && repairResult.repairIssues.length > 0) {
-        // 🔧 修复失败降级提示（与整卷路径一致）：未修复问题显式标记，不静默
-        const unfixed = repairResult.repairIssues.map(i => i.type).join('、');
-        console.warn(`⚠️ AI修复未成功，以下问题需人工处理：${unfixed}`);
-        issues.push(`❌ 自动修复未成功（以下问题需手动处理或重新生成）：${unfixed}`);
-        repairResult.repairIssues.forEach(issue => { hardIssues.push(issue); });
-      }
+      // 🔴 AI 内容修复（attemptContentRepair）已移除：与主路径一致，不做生成后质检/修复
 
       // 初始化质量报告（必须在所有使用之前定义）
       const qualityReport = {
@@ -11458,24 +6419,13 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 800)}
         templateMatch: { passed: true, details: [] }
       };
 
-      // 记录硬性检查结果
-      const hardIssueSummary = HardRuleChecker.getIssueSummary(hardIssues);
-      if (hardIssueSummary.hasErrors) {
-        qualityReport.formatCheck.passed = false;
-        qualityReport.formatCheck.details.push(`硬性规则检查发现${hardIssueSummary.errors}个错误`);
-      }
-      if (hardIssueSummary.hasWarnings) {
-        qualityReport.formatCheck.details.push(`硬性规则检查发现${hardIssueSummary.warnings}个警告`);
-      }
-
       // 格式检查
       if (!content.includes('<p class="question"') && !content.includes('<h')) {
         issues.push('❌ 可能未返回HTML格式');
         qualityReport.formatCheck.passed = false;
       }
 
-      const questionMatches = content.match(/<p class="question"/g);
-      const questionCount = questionMatches ? questionMatches.length : 0;
+      const questionCount = countTopLevelQuestions(content);
       if (questionCount === 0) {
         issues.push('❌ 未检测到题目');
         qualityReport.formatCheck.passed = false;
@@ -11513,7 +6463,7 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 800)}
       }
 
         qualityReport.difficultyCheck.details.push(
-          `蓝图规划${parsedBlueprint.length}题，实际生成${questionCount}题（页数优先，实际可超出规划）`
+          `蓝图规划${parsedBlueprint.length}题，实际生成${questionCount}题${questionCount > Math.floor((parsedBlueprint.length || 1) * 2.5) ? '（超出规划2.5倍，疑似堆题）' : ''}`
         );
 
       // ========== 第三级：模板对标量化 ==========
@@ -11632,107 +6582,9 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 800)}
   };
 
   /**
-   * 批量生成模式（用户主动选择，非自动降级）
-   * 将蓝图 + 教材原文一次发给 AI，生成完整资料
-   * 精度低于逐题生成，但不易超时/失败
+   * 🔴 残留整卷路径 generateBatchWithBlueprint 已移除（2026-08）：
+   *    全类型一律走整卷一次生成（指令库驱动，蓝图注入卷面结构，无分步流水线）。
    */
-  const generateBatchWithBlueprint = async (blueprint, instruction, selectedBooks, selectedTemplates) => {
-    statusText.value = '批量生成中...';
-    progress.value = 70;
-
-    // 收集教材原文（头尾截断，最多 3000 字符）
-    let textbookRawText = '';
-    const MAX_TEXT_LENGTH = 3000;
-    if (selectedBooks && selectedBooks.length > 0) {
-      for (const book of selectedBooks) {
-        const chapters = book.selectedChapters || [];
-        for (const ch of chapters) {
-          if (ch.rawText) {
-            const chText = ch.rawText;
-            const headText = chText.substring(0, Math.floor(MAX_TEXT_LENGTH / 2));
-            const tailText = chText.length > MAX_TEXT_LENGTH
-              ? '\n...（中略）...\n' + chText.substring(chText.length - Math.floor(MAX_TEXT_LENGTH / 4))
-              : '';
-            textbookRawText += `【${ch.title}】\n${headText}${tailText}\n\n`;
-            if (textbookRawText.length > MAX_TEXT_LENGTH * 2) {
-              textbookRawText += '...（后续章节原文已省略）...\n';
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    // 收集模板原文
-    let templateRawText = '';
-    if (selectedTemplates && selectedTemplates.length > 0) {
-      const tpl = selectedTemplates[0];
-      const chapters = tpl.selectedChapters || [];
-      for (const ch of chapters) {
-        if (ch.rawText) templateRawText += ch.rawText + '\n';
-      }
-    }
-
-    const subject = selectedBooks?.[0]?.subject || '';
-    const stage = selectedBooks?.[0]?.stage || '';
-    const grade = selectedBooks?.[0]?.grade || '';
-
-    const batchPrompt = `请根据以下命题蓝图，生成完整的教辅资料。
-
-【命题蓝图】
-${blueprint}
-
-${textbookRawText ? '【教材参考原文】\n' + textbookRawText + '\n' : ''}
-${templateRawText ? '【模板参考原文】\n' + templateRawText : ''}
-
-【核心指令——以下规则从三维度精准注入系统中提取，必须严格遵守】
-${instruction}
-
-【防幻觉约束——生成阶段补充规则】
-1. ⛔ 每道题只能考查蓝图中标注的知识点，不得扩展
-2. ⛔ 题干中涉及的数据、公式、概念必须与教材原文一致
-3. ⛔ 答案必须唯一确定，不得模棱两可
-4. ⛔ 禁止使用"下列说法正确的是""以下哪个选项是正确的"等无信息量设问
-5. ⛔ 禁止选项中出现"以上都是""以上都不对"
-6. ⛔ 禁止出现科学性错误（数据/公式/概念/单位必须准确无误）
-7. ⛔ 禁止使用"略""见教材""自行查阅"等占位符代替具体内容
-8. ⛔ 选择题所有选项长度相近、风格一致，正确选项随机分布在A/B/C/D中
-
-【格式要求】
-- 返回HTML，题干用<p class="question">，选项用<p class="option">
-- 每道题必须独立用块级标签包裹，严禁多道题挤在同一段落
-- 🔴 题号层级（强制性）：大题用"一、二、三、"（中文数字），小题用"1. 2. 3."（阿拉伯数字），子小题用"(1)(2)(3)"或"①②③"。不同层级必须用不同编号格式，禁止仅靠缩进来区分层级
-- 🔴 字号铁律：所有正文（题干/选项/填空/解答区）使用统一字号（<p>标签默认大小），严禁因子题嵌套缩小字体
-
-⛔ 【禁止模式——以下写法会导致排版崩溃，严禁使用！】
-❌ 错误（编号重复+缩进+小字号，三个错误叠加）：
-  <p class="question">1. 大题题干</p>
-  <p style="margin-left:20px;font-size:14px;">1. 小题</p>  ← 编号重复无法区分层级！缩进导出Word丢失！
-  <p style="margin-left:20px;font-size:14px;">2. 小题</p>  ← 小字号破坏统一排版！禁止因子题嵌套缩小字体
-✅ 正确（编号格式区分层级，统一字号，无缩进）：
-  <p class="question">1. 大题题干</p>
-  <p class="question">(1) 小题</p>  ← 仅靠编号格式即可区分层级
-  <p class="question">(2) 小题</p>
-
-- 🔴 填空横线：<u class="blank-N">&emsp;</u>（N按答案字数：1字→2, 2字→4, 3-4字→6, 5-6字→8, 7-10字→10）
-- 🔴 括号填空：用 <span class="blank-N">&emsp;</span>（N必须按答案字数动态计算！1字→2, 2字→3, 3字→4, 4字→5, 5-6字→6, 7-8字→8, 9-10字→10，⛔严禁括号内用 <u> 标签）
-
-【强制约束】
-1. 每道题前标注题号，与蓝图的题号一一对应
-2. 每道题后标注【知识点：XXX】【对应课文：XXX】
-3. 题型、分值、难度严格按蓝图执行
-4. 必须返回标准HTML代码，首行不要用\`\`\`html包裹
-5. 答案和解析放在文末<div class="answer-section">中
-
-${buildOutputFormatBlock('exam', subject, stage, grade)}`;
-
-    const content = await callAI(batchPrompt, {
-      taskType: 'generation',
-      timeout: 180000
-    });
-    detectSquishedOutput(content, 'batch-mode');
-    return content;
-  };
 
   /**
    * 🔧 新增：为指定题目生成变体
@@ -11776,7 +6628,9 @@ ${questionPlan.score ? `- 标注：【知识点：${questionPlan.knowledgePoint}
     return await callAI(variantPrompt, {
       taskType: 'generation',
       temperature: 0.8,
-      timeout: 60000
+      timeout: 60000,
+      maxTokens: 4096, // 单题变体，预算封顶防异常
+      allowContinuation: false,
     });
   };
 
@@ -12041,12 +6895,12 @@ ${questionPlan.score ? `- 标注：【知识点：${questionPlan.knowledgePoint}
     analyzeTextbookWithText,  // 🔧 新增：纯文本 AI 分析
     analyzeTemplateImageFull,
     extractKnowledgePoints,
-    buildGenerationInstruction,
     setLabelOverride,      // ✏️ 名称样式手动选择（方案二）
     getLabelPool,          // ✏️ 名称池查询（供下拉选项）
     generate,
     executeGenerationWithBlueprint,
     generatePracticeByPeriods,
+    generateFullPaperNatural,  // 🔴 整卷一次生成入口（指令库驱动，当前主路径）
     clearPeriodCache,
     preserveCacheForNextGenerate,
     setPerChapterFilter,

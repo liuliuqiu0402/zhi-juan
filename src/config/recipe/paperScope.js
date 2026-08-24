@@ -1,0 +1,224 @@
+/**
+ * 命题范围推断 + 卷首标题拼装（纯函数，无 Vue/引擎依赖，可独立单测）
+ * ============================================================
+ * 角色语义（与命题老师勾选行为一一对应）：
+ *   · 课    —— 只勾选单个章节节点      → 范围名 = 该课标题
+ *   · 单元  —— 整个单元目录全部勾选    → 这些节点共享最近公共祖先（单元）→ 范围名 = 祖先标题
+ *   · 期中/期末/月考/专题 —— 跨多单元多选（无共同祖先）→ 范围名 = 范围标签词（可轮换）
+ *
+ * 该函数同时服务两类命名：
+ *   1) 文件名/文档列表命名（GenerateModule，统一消解多处重复实现）
+ *   2) 卷首大标题（assembler.assembleHeader），让"命题范围"进入正式标题
+ *
+ * 🔴 范围类型分流规则（本模块的唯一判定口径，新旧生成路径共用）：
+ *   - scopeType 显式指定为非默认（midterm/final/monthly/topic）→ 一律用该类型的标签词（可轮换 override），
+ *     即便勾选只是单课/单元也尊重用户显式意图（选"期中"就出"期中"）。
+ *   - scopeType 为 default/空      → 按勾选集合自动推断：
+ *       1 个节点            → 课名
+ *       多节点同属一个单元    → 单元标题（仅当公共祖先是"真容器"且处于目录层级1+，防误取书目名）
+ *       跨单元多选 / 无公共祖先 → 默认标签词（综合检测）
+ */
+
+/** 范围标签词池（显式范围类型使用）。词条自带类型语义（…测试/测评/卷） */
+export const SCOPE_LABEL_POOLS = {
+  default: ['综合检测', '综合达标', '全程测评'],
+  midterm: ['期中综合测试', '阶段综合测评', '中期学业检测'],
+  final: ['期末综合测试', '学期综合测评', '期末学业检测'],
+  monthly: ['月考检测', '月度综合测评', '月测卷'],
+  topic: ['专题过关', '专题训练', '专题测评'],
+};
+
+/** 🔴 显式范围类型：用户手动选择"期中/期末/月考/专题"时应始终以标签词呈现（override 自动推断） */
+export const EXPLICIT_SCOPE_TYPES = ['midterm', 'final', 'monthly', 'topic'];
+
+/**
+ * 计算勾选节点最近公共祖先（LCA）。
+ * @returns {{ lcaIdx:number, node:Object|null }} 无公共祖先返回 { lcaIdx:-1, node:null }
+ */
+export function findCommonAncestorIndex(chapters, outline) {
+  const arr = Array.isArray(chapters) ? chapters.filter(Boolean) : [];
+  if (arr.length < 2 || !Array.isArray(outline)) return { lcaIdx: -1, node: null };
+  const paths = [];
+  const collect = (nodes, anc) => {
+    for (const node of nodes || []) {
+      if (arr.includes(node)) paths.push([...anc, node]);
+      if (node.children) collect(node.children, [...anc, node]);
+    }
+  };
+  collect(outline, []);
+  const first = paths[0];
+  if (paths.length < 2 || !first) return { lcaIdx: -1, node: null };
+  let lcaIdx = first.length - 1;
+  for (let i = 0; i < first.length; i++) {
+    if (!paths.every(p => p.length > i && p[i] === first[i])) { lcaIdx = i - 1; break; }
+  }
+  if (lcaIdx < 0) return { lcaIdx: -1, node: null };
+  return { lcaIdx, node: first[lcaIdx] };
+}
+
+/**
+ * 推断命题范围名（单数据源，新旧路径共用）。
+ * @param {Array} chapters 选中的章节节点（来自 outline）
+ * @param {Array} outline 该教材的目录树根
+ * @param {string} [scopeType] 范围类型（default/midterm/final/monthly/topic）
+ * @param {Function} [pickScope] (scopeType)=>string 范围标签词（可带轮换持久化）；省略时用池内静态首词
+ * @returns {{ name:string, isScopeLabel:boolean, category:string }}
+ *   category ∈ lesson|unit|midterm|final|monthly|topic|default，用于"生成方案"摘要回显判定依据
+ */
+export function inferPaperScope(chapters = [], outline = [], scopeType = '', pickScope) {
+  const arr = (Array.isArray(chapters) ? chapters : []).filter(Boolean);
+
+  // 🔴 显式范围类型（期中/期末/月考/专题）：尊重用户意图，直接取标签词（可轮换 override）
+  if (EXPLICIT_SCOPE_TYPES.includes(scopeType)) {
+    const label = pickScope
+      ? pickScope(scopeType)
+      : (SCOPE_LABEL_POOLS[scopeType]?.[0] ?? SCOPE_LABEL_POOLS.default[0]);
+    return { name: label, isScopeLabel: true, category: scopeType };
+  }
+
+  // 单课：只勾选一个节点 → 课名；若勾选的是附属顶层节点（语文园地）→ 归并到前一个有效单元
+  if (arr.length === 1) {
+    const node = arr[0];
+    if (ATTACHED_TOP_RE.test(node.title || '')) {
+      const idx = effectiveUnitIndices([node], outline);
+      if (idx.length === 1 && outline[idx[0]]?.title) {
+        return { name: outline[idx[0]].title, isScopeLabel: false, category: 'unit' };
+      }
+    }
+    return { name: node.title || '', isScopeLabel: false, category: 'lesson' };
+  }
+
+  // 多节点：求最近公共祖先。目录顶层即单元，单单元内多选 → LCA 为该单元（index 0 也有效）
+  if (arr.length > 1) {
+    const lca = findCommonAncestorIndex(arr, outline);
+    if (lca && lca.node) return { name: lca.node.title || '', isScopeLabel: false, category: 'unit' };
+  }
+
+  // 🔴 多节点但 LCA 失败（常见于"语文园地"与单元平级、勾选单元课文+园地）：
+  //    把"园地/综合练习/单元小结"等附属顶层节点归并到前一个有效单元，
+  //    避免整单元勾选被误判为跨单元而丢单元名（用户勾"第二单元"应出"第二单元"）。
+  const effectiveIdx = effectiveUnitIndices(arr, outline);
+  if (effectiveIdx.length === 1) {
+    const u = outline[effectiveIdx[0]];
+    if (u?.title) return { name: u.title, isScopeLabel: false, category: 'unit' };
+  }
+
+  // 🔴 真正跨单元多选 → 按所选单元在整本的覆盖位置自动归 期中/期末/综合
+  const category = categorizeUnits(arr, outline);
+  const label = pickScope
+    ? pickScope(category)
+    : (SCOPE_LABEL_POOLS[category]?.[0] ?? SCOPE_LABEL_POOLS.default[0]);
+  if (label) return { name: label, isScopeLabel: true, category };
+  return { name: arr[0]?.title || '', isScopeLabel: false, category };
+}
+
+/** 附属顶层节点正则：语文园地/综合练习/单元小结/复习等（教材中随附前一个单元，不算独立单元） */
+const ATTACHED_TOP_RE = /园地|综合练习|单元小结|复习与|总复习|整理与复习/i;
+
+/**
+ * 计算所选章节归属的"有效单元"下标（园地等附属顶层节点归并到前一个有效单元）。
+ * @returns {number[]} 去重后的有效单元下标（可为空）
+ */
+export function effectiveUnitIndices(chapters, outline) {
+  const raw = topLevelGroupIndices(chapters, outline);
+  if (raw.length === 0) return [];
+  const effective = new Set();
+  for (const i of raw) {
+    if (ATTACHED_TOP_RE.test(outline[i]?.title || '')) {
+      for (let j = i - 1; j >= 0; j--) {
+        if (!ATTACHED_TOP_RE.test(outline[j]?.title || '')) { effective.add(j); break; }
+      }
+    } else {
+      effective.add(i);
+    }
+  }
+  return [...effective].sort((a, b) => a - b);
+}
+
+/**
+ * 命题范围候选（供"范围确认弹窗"使用——按勾选内容提取候选，用户确认后定范围名）。
+ * 候选规则：
+ *   · 显式范围类型（期中/期末/月考/专题）→ 该类型标签词池（轮换备选）
+ *   · 推断为单元/课名（无歧义）→ 该名（推荐）+ 常用标签词备选
+ *   · 推断为标签词（跨单元/空）→ 该词 + 其他常用标签词备选
+ * @returns {Array<{label:string, value:string, hint:string}>} 去重候选（首项为推荐）
+ */
+export function buildScopeCandidates(chapters = [], outline = [], scopeType = '') {
+  const inferred = inferPaperScope(chapters, outline, scopeType);
+  const seen = new Set();
+  const list = [];
+  const push = (label, value, hint) => {
+    if (seen.has(value)) return;
+    seen.add(value);
+    list.push({ label, value, hint });
+  };
+  const pushPool = (cat) => {
+    for (const w of (SCOPE_LABEL_POOLS[cat] || SCOPE_LABEL_POOLS.default)) push(w, w, '范围标签');
+  };
+  if (EXPLICIT_SCOPE_TYPES.includes(scopeType)) {
+    pushPool(scopeType);
+    return list;
+  }
+  if (inferred.isScopeLabel) {
+    // 跨单元/空：推断标签词优先，补充其他常用标签
+    pushPool(inferred.category === 'unit' ? 'default' : inferred.category);
+    pushPool('default');
+    if (inferred.category !== 'midterm') pushPool('midterm');
+    if (inferred.category !== 'final') pushPool('final');
+  } else {
+    // 单元/课名：勾选范围名优先，补充常用标签备选
+    push(inferred.name, inferred.name, inferred.category === 'unit' ? '勾选范围（单元）' : '勾选范围（课）');
+    pushPool('default');
+    pushPool('midterm');
+    pushPool('final');
+  }
+  return list;
+}
+
+/** 计算所选章节落在哪些顶层分组（单元）上，返回这些顶层单元的下标集合 */
+export function topLevelGroupIndices(chapters, outline) {
+  const leafSet = new Set((Array.isArray(chapters) ? chapters : []).filter(Boolean));
+  const hit = (node) => leafSet.has(node) || (node?.children || []).some(hit);
+  const idx = [];
+  (Array.isArray(outline) ? outline : []).forEach((root, i) => { if (hit(root)) idx.push(i); });
+  return idx;
+}
+
+/**
+ * 跨单元多选 → 按覆盖位置自动归类：
+ *   unit（单单元，实际由 LCA 分支处理）、final（覆盖到书末）、midterm（仅前半段）、default（综合）
+ * @returns {string} final | midterm | default | unit
+ */
+export function categorizeUnits(chapters, outline) {
+  const idx = topLevelGroupIndices(chapters, outline);
+  const G = (Array.isArray(outline) ? outline : []).length;
+  if (idx.length === 0) return 'default';
+  if (idx.length === 1) return 'unit';
+  const last = Math.max(...idx);
+  if (last === G - 1) return 'final';
+  if (last < Math.ceil(G / 2)) return 'midterm';
+  return 'default';
+}
+
+/**
+ * 避重：范围名含"单元"时，从资料类型名候选剔除含"单元"的词，
+ * 避免拼出"⋯第二单元单元测试卷"这类病句。
+ */
+export function filterTitleLabel(pool, scopeName) {
+  return /单元/.test(scopeName || '') ? (pool || []).filter(l => !/单元/.test(l)) : (pool || []);
+}
+
+/**
+ * 卷首标题拼装（纯函数）。
+ * 结构：学年学期 + 学段年级 + 学科 + 范围段 + 类型段
+ *   - scopeIsLabel 时范围名已含类型语义（"期中综合测试"），不再拼类型段，否则病句；
+ *   - 其余情况拼 范围名 + 类型名（调用方已通过 filterTitleLabel 避重）。
+ */
+export function buildPaperTitle({
+  academicTitle = '', stageLabel = '', gradeLabel = '', subject = '',
+  scopeName = '', scopeIsLabel = false, genTypeLabel = '',
+} = {}) {
+  const prefix = [academicTitle, stageLabel, gradeLabel, subject].filter(Boolean).join('');
+  if (scopeIsLabel) return prefix + (scopeName || '');
+  return prefix + (scopeName || '') + (genTypeLabel || '');
+}

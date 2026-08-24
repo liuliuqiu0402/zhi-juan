@@ -31,6 +31,16 @@ const routes = [
     component: () => import('@/modules/TemplateModule.vue')
   },
   {
+    path: '/instruction',
+    name: 'instruction',
+    component: () => import('@/modules/InstructionModule.vue')
+  },
+  {
+    path: '/blueprint',
+    name: 'blueprint',
+    component: () => import('@/modules/BlueprintModule.vue')
+  },
+  {
     path: '/draft',
     name: 'draft',
     component: () => import('@/modules/DraftModule.vue')
@@ -54,11 +64,6 @@ const routes = [
     path: '/graph',
     name: 'graph',
     component: () => import('@/modules/GraphModule.vue')
-  },
-  {
-    path: '/instruction',
-    name: 'instruction',
-    component: () => import('@/modules/InstructionModule.vue')
   },
   {
     path: '/settings',

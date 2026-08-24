@@ -136,14 +136,6 @@ export function useDialog() {
     }
   };
 
-  const chooseBatch = () => {
-    showRetryDialog.value = false;
-    if (retryDialogCallback.value) {
-      retryDialogCallback.value('batch');
-      retryDialogCallback.value = null;
-    }
-  };
-
   const cancelRetry = () => {
     showRetryDialog.value = false;
     if (retryDialogCallback.value) {
@@ -201,7 +193,6 @@ export function useDialog() {
     retryDialogMessage,
     showRetryDialogFn,
     chooseRetry,
-    chooseBatch,
     cancelRetry,
     // 单选对话框
     showRadioDialog,
