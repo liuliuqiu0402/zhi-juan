@@ -455,7 +455,7 @@
     <div v-if="showLabelStyleModal" class="modal-mask" @click.self="showLabelStyleModal = false">
       <div class="modal">
         <h3>✏️ 名称样式（{{ genTypes[0] ? genTypeOptions.find(o => o.value === genTypes[0])?.label : '未选类型' }}）</h3>
-        <p style="color:var(--text-secondary);margin-bottom:12px;">决定生成资料标题中的名称（如"单元测试卷""课堂练习"）。默认自动轮换避免标题重复。</p>
+        <p style="color:var(--text-secondary);margin-bottom:12px;">决定生成资料标题中的名称（如"测试卷""课堂练习"）。默认自动轮换避免标题重复；考试标签（期中/期末/月考）也可按维度固定。</p>
         <div class="option-list">
           <label v-for="opt in labelStyleOptions" :key="opt.value" class="option-item">
             <input type="radio" v-model="labelStyle" :value="opt.value" name="labelStyle" />
@@ -463,12 +463,19 @@
             <span class="option-desc">{{ opt.desc }}</span>
           </label>
         </div>
-        <!-- 📐 考试标签名称池（期中/期末/月考/综合）：由系统按名称池轮换组合到标题（弹窗只确认维度） -->
-        <div v-if="genTypes[0] === 'exam'" class="scope-pool-info">
-          <p class="scope-pool-title">📐 考试标签名称池（标题按维度自动轮换，如选"期中"时依次用 期中综合测试 → 期中素养检测 → 期中质量检测…）</p>
-          <div v-for="(pool, cat) in scopePoolDisplay" :key="cat" class="scope-pool-row">
-            <span class="pool-cat">{{ cat }}</span>
-            <span class="pool-words">{{ pool.join('、') }}</span>
+        <!-- 📐 考试标签名称（期中/期末/月考/综合）：每维度单选 自动轮换 / 固定名称，与资料类型名称样式同理 -->
+        <div v-if="genTypes[0] === 'exam'" class="scope-style-block">
+          <p class="scope-style-title">📐 考试标签名称（期中/期末/月考/综合：选"🔄 自动轮换"按名称池轮流用；选具体名称则固定）</p>
+          <div v-for="dim in scopeDims" :key="dim.type" class="scope-dim">
+            <div class="scope-dim-head">{{ dim.label }}</div>
+            <label class="option-item">
+              <input type="radio" v-model="scopeLabelStyle[dim.type]" value="" :name="'scope-' + dim.type" />
+              <span class="option-label">🔄 自动轮换</span>
+            </label>
+            <label v-for="w in dim.pool" :key="w" class="option-item">
+              <input type="radio" v-model="scopeLabelStyle[dim.type]" :value="w" :name="'scope-' + dim.type" />
+              <span class="option-label">{{ w }}</span>
+            </label>
           </div>
         </div>
         <p class="hint">💡 多类型复生成时，此处只设置第一个类型的名称，其余类型仍自动轮换</p>
@@ -1609,13 +1616,27 @@ const labelStyleOptions = computed(() => {
 });
 const labelStyleLabel = computed(() => labelStyle.value || '自动轮换');
 
-/** 📐 考试标签名称池展示（名称样式弹窗 exam 类型显示；标题按维度轮换组合，弹窗只确认维度） */
-const scopePoolDisplay = computed(() => ({
-  期中: SCOPE_LABEL_POOLS.midterm,
-  期末: SCOPE_LABEL_POOLS.final,
-  月考: SCOPE_LABEL_POOLS.monthly,
-  综合: SCOPE_LABEL_POOLS.default,
-}));
+/* 📐 考试标签维度固定选择（名称样式弹窗：每维度 自动轮换 / 固定某个名称；与资料类型名称样式同理） */
+const scopeLabelStyle = ref({ midterm: '', final: '', monthly: '', default: '', topic: '' }); // '' = 自动轮换
+const SCOPE_STYLE_KEY = 'wisdom_scope_label_style_v1';
+const scopeDims = computed(() => [
+  { type: 'midterm', label: '期中', pool: SCOPE_LABEL_POOLS.midterm },
+  { type: 'final', label: '期末', pool: SCOPE_LABEL_POOLS.final },
+  { type: 'monthly', label: '月考', pool: SCOPE_LABEL_POOLS.monthly },
+  { type: 'default', label: '综合', pool: SCOPE_LABEL_POOLS.default },
+]);
+const loadScopeLabelStyle = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SCOPE_STYLE_KEY) || '{}');
+    Object.assign(scopeLabelStyle.value, saved);
+  } catch {}
+  for (const [t, l] of Object.entries(scopeLabelStyle.value)) setScopeLabelOverride(t, l || null);
+};
+const syncScopeLabelStyle = () => {
+  for (const [t, l] of Object.entries(scopeLabelStyle.value)) setScopeLabelOverride(t, l || null);
+  try { localStorage.setItem(SCOPE_STYLE_KEY, JSON.stringify(scopeLabelStyle.value)); } catch {}
+};
+watch(scopeLabelStyle, syncScopeLabelStyle, { deep: true });
 
 // 弹窗状态
 const showScopeModal = ref(false);
@@ -2950,7 +2971,7 @@ const currentChapter = ref(null);
 const editingKnowledge = ref('');
 
 // AI生成器（新架构：不再使用 buildGenerationInstruction 长指令构建）
-const { isGenerating, progress: generateProgress, statusText: generateStatus, getTypeDistribution, generate: callGenerate, executeGenerationWithBlueprint, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool, pickLabelFromPool, pickScopeFromPool } = useAiGenerator();
+const { isGenerating, progress: generateProgress, statusText: generateStatus, getTypeDistribution, generate: callGenerate, executeGenerationWithBlueprint, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool, pickLabelFromPool, pickScopeFromPool, setScopeLabelOverride } = useAiGenerator();
 
 // ✏️ 名称样式：类型切换恢复上次选择 + 当前选择同步到生成器（在 useAiGenerator 解构之后，避免 TDZ）
 watch(genTypes, () => {
@@ -7450,6 +7471,7 @@ onMounted(async () => {
   await textbookStore.loadTextbooks();
   await templateStore.loadTemplates();
   await loadCachedConfig();
+  loadScopeLabelStyle(); // 📐 考试标签维度固定选择（恢复上次保存）
   // 🔧 同步已保存的 apiConfig 到响应式对象（否则模型芯片显示默认值而非实际配置）
   await getCurrentEngineConfig();
   // 🌐 检测 DeepSeek API 真实就绪状态
@@ -8512,12 +8534,13 @@ const addBlueprintQuestion = () => {
   margin-top: 8px;
 }
 
-/* 📐 考试标签名称池展示（名称样式弹窗） */
-.scope-pool-info { margin-top: 12px; padding: 10px 12px; background: var(--primary-bg); border: 1px solid var(--border-light); border-radius: var(--radius-sm); }
-.scope-pool-title { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; line-height: 1.6; }
-.scope-pool-row { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-size: 12px; }
-.pool-cat { flex-shrink: 0; font-weight: 600; color: var(--primary); width: 34px; }
-.pool-words { color: var(--text-secondary); line-height: 1.6; }
+/* 📐 考试标签名称单选组（名称样式弹窗） */
+.scope-style-block { margin-top: 12px; padding: 10px 12px; background: var(--primary-bg); border: 1px solid var(--border-light); border-radius: var(--radius-sm); }
+.scope-style-title { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.6; }
+.scope-dim { margin-bottom: 6px; padding: 6px 8px; background: #fff; border: 1px solid var(--border-light); border-radius: var(--radius-sm); }
+.scope-dim:last-child { margin-bottom: 0; }
+.scope-dim-head { font-weight: 600; color: var(--primary); font-size: 13px; margin-bottom: 4px; }
+.scope-dim .option-item { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; font-size: 12px; cursor: pointer; }
 
 .form-group {
   margin-bottom: 16px;

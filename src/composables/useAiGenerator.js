@@ -1962,11 +1962,19 @@ export function useAiGenerator() {
 
   // 🔧 命题范围标签词轮换（期中/期末/月考/专题）：避免连续生成同类试卷时标题千篇一律
   const _scopeLabelCounters = {};
+  // 🔧 考试标签维度固定选择（名称样式弹窗：维度 → 固定名称；未设置=自动轮换）
+  const _scopeLabelOverrides = {};
   const pickScopeFromPool = (scopeTypeVal = 'default') => {
+    if (_scopeLabelOverrides[scopeTypeVal]) return _scopeLabelOverrides[scopeTypeVal]; // 维度固定优先
     const pool = SCOPE_LABEL_POOLS[scopeTypeVal] || SCOPE_LABEL_POOLS.default;
     const key = `scope__${scopeTypeVal}`;
     _scopeLabelCounters[key] = (_scopeLabelCounters[key] || 0) % pool.length;
     return pool[_scopeLabelCounters[key]++];
+  };
+  /** 🔧 设置考试标签维度的固定名称（如 期末 → '期末素养检测'）；null/空 = 恢复自动轮换 */
+  const setScopeLabelOverride = (scopeTypeVal, label) => {
+    if (label) _scopeLabelOverrides[scopeTypeVal] = label;
+    else delete _scopeLabelOverrides[scopeTypeVal];
   };
 
   /**
@@ -6899,6 +6907,7 @@ ${questionPlan.score ? `- 标注：【知识点：${questionPlan.knowledgePoint}
     getLabelPool,          // ✏️ 名称池查询（供下拉选项）
     pickLabelFromPool,     // ✏️ 名称池轮换选取（标题类型名，labelStyle 固定优先）
     pickScopeFromPool,     // 📐 范围标签词轮换（期中/期末/月考/专题，避免标题千篇一律）
+    setScopeLabelOverride, // 📐 考试标签维度固定名称（名称样式弹窗，null=恢复轮换）
     generate,
     executeGenerationWithBlueprint,
     generatePracticeByPeriods,
