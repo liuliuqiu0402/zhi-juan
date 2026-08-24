@@ -480,8 +480,9 @@
             </div>
           </div>
         </div>
-        <p class="hint">💡 多类型复生成时，此处只设置第一个类型的名称，其余类型仍自动轮换</p>
+        <p class="hint">💡 多类型复生成时，此处只设置第一个类型的名称，其余类型仍自动轮换；选具体名称会持久化（刷新不丢失），可随时点回"🔄 自动轮换"或一键恢复</p>
         <div class="modal-actions">
+          <button class="btn" @click="resetNameStyles" title="资料类型名称 + 考试标签各维度全部恢复自动轮换">↩️ 全部恢复自动轮换</button>
           <button class="btn" @click="showLabelStyleModal = false">取消</button>
           <button class="btn-primary" @click="showLabelStyleModal = false">确定</button>
         </div>
@@ -1639,6 +1640,13 @@ const syncScopeLabelStyle = () => {
   try { localStorage.setItem(SCOPE_STYLE_KEY, JSON.stringify(scopeLabelStyle.value)); } catch {}
 };
 watch(scopeLabelStyle, syncScopeLabelStyle, { deep: true });
+
+/** ↩️ 一键清空所有名称固定选择（资料类型名称 + 考试标签各维度），全部恢复自动轮换 */
+const resetNameStyles = () => {
+  labelStyle.value = ''; // 资料类型名称 → 自动轮换（watch(labelStyle) 自动持久化并同步生成器）
+  for (const t of Object.keys(scopeLabelStyle.value)) scopeLabelStyle.value[t] = ''; // 考试标签各维度 → 自动轮换
+  syncScopeLabelStyle();
+};
 
 // 弹窗状态
 const showScopeModal = ref(false);
