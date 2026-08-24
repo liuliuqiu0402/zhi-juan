@@ -4115,7 +4115,7 @@ ${isPrimary ? '- 🔧 小学：计算机基础操作、图形化编程、信息�
         taskType: 'analysis',
         temperature: 0.1,
         timeout: 300000,
-        // 🔧 推理模型(R1)思考链+输出共享，不硬编码maxTokens，走config统一配置(8192)
+        // 🔧 推理模型思考链+输出共享，不硬编码maxTokens，走config统一配置（V4 上限 384K）
       });
       
       console.log(`✅ 教材特征分析完成，响应长度: ${response?.length || 0}字`);
@@ -5081,8 +5081,9 @@ ${cardAnalysisText.substring(0, 1000)}
       try {
         const resp = await callAI(prompt, {
           taskType: 'generation', timeout: 300000, retries: 0,
-          // 🔴 整卷预算：8192 tokens（≈2.4 万字符，够完整卷面正文）；答案页独立调用
-          maxTokens: 8192,
+          // 🔴 整卷预算：32K tokens（≈9.6 万字符）。模型为 deepseek-v4-flash/pro（单次输出上限 384K、上下文 1M），
+          //    8192 是 V3.2 时代的保守值，会人为截断完整卷面；32K 对 60 分钟大卷与答案页外的正文绰绰有余
+          maxTokens: 32768,
           allowContinuation: false,
           temperature: 0.7,
         });
@@ -5098,7 +5099,7 @@ ${cardAnalysisText.substring(0, 1000)}
           console.warn(`⚠️ 整卷输出${truncatedByReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，自动续写一次...`);
           const contResp = await callAI(
             `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-200)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
-            { taskType: 'generation', timeout: 300000, retries: 0, maxTokens: 8192, allowContinuation: false, temperature: 0.7 }
+            { taskType: 'generation', timeout: 300000, retries: 0, maxTokens: 32768, allowContinuation: false, temperature: 0.7 }
           );
           const contHtml = normalizeIndents(normalizeBlankMarkers(cleanSectionHtml(typeof contResp === 'string' ? contResp : (contResp?.content || ''))));
           if (contHtml && contHtml.length > 100) content = content + '\n' + contHtml;
@@ -5142,7 +5143,8 @@ ${ansFormat}
 ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       const ansResp = await callAI(ansPrompt, {
         taskType: 'generation', timeout: 240000, retries: 1,
-        maxTokens: 8192, allowContinuation: false, temperature: 0.3,
+        // 🔴 答案页预算：16K tokens（≈4.8 万字符），覆盖完整答案+评分标准+听力原文；V4 输出上限 384K 下无截断风险
+        maxTokens: 16384, allowContinuation: false, temperature: 0.3,
       });
       const aHtml = cleanSectionHtml(typeof ansResp === 'string' ? ansResp : (ansResp?.content || ''));
       if (aHtml && aHtml.length > 100) {
@@ -6408,7 +6410,7 @@ ${questionContent.replace(/<[^>]+>/g, '').substring(0, 800)}
           try {
             const prompts = generatedQuestions.map((q, i) => `题${i + 1}：${q.replace(/<[^>]+>/g, '').substring(0, 200)}`).join('\n\n');
             const answerGenPrompt = `请根据以下题目内容，生成统一的答案与解析区域。\n\n${prompts}\n\n返回格式：\n<div class="answer-section">\n<h2>答案与解析</h2>\n<p><strong>1.</strong> 答案 | <em>解析：解题思路</em></p>\n...</div>\n\n只返回HTML，不要markdown包裹。`;
-            const answerSection = await callAI(answerGenPrompt, { taskType: 'generation', temperature: 0.1, maxTokens: 8192, allowContinuation: false });
+            const answerSection = await callAI(answerGenPrompt, { taskType: 'generation', temperature: 0.1, maxTokens: 16384, allowContinuation: false });
             content += '\n' + answerSection;
           } catch (e) { console.warn('答案区域生成失败:', e.message); }
         }
