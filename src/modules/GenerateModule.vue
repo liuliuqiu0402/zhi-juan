@@ -456,26 +456,28 @@
       <div class="modal">
         <h3>✏️ 名称样式（{{ genTypes[0] ? genTypeOptions.find(o => o.value === genTypes[0])?.label : '未选类型' }}）</h3>
         <p style="color:var(--text-secondary);margin-bottom:12px;">决定生成资料标题中的名称（如"测试卷""课堂练习"）。默认自动轮换避免标题重复；考试标签（期中/期末/月考）也可按维度固定。</p>
-        <div class="option-list">
-          <label v-for="opt in labelStyleOptions" :key="opt.value" class="option-item">
-            <input type="radio" v-model="labelStyle" :value="opt.value" name="labelStyle" />
-            <span class="option-label">{{ opt.label }}</span>
-            <span class="option-desc">{{ opt.desc }}</span>
+        <p class="name-style-label">资料类型名称</p>
+        <div class="name-chip-group">
+          <label v-for="opt in labelStyleOptions" :key="opt.value" class="name-chip" :class="{ active: labelStyle === opt.value }" :title="opt.desc">
+            <input type="radio" v-model="labelStyle" :value="opt.value" name="labelStyle" hidden />
+            {{ opt.label }}
           </label>
         </div>
-        <!-- 📐 考试标签名称（期中/期末/月考/综合）：每维度单选 自动轮换 / 固定名称，与资料类型名称样式同理 -->
+        <!-- 📐 考试标签名称（期中/期末/月考/综合）：每维度单选 自动轮换 / 固定名称，与资料类型名称样式统一 -->
         <div v-if="genTypes[0] === 'exam'" class="scope-style-block">
-          <p class="scope-style-title">📐 考试标签名称（期中/期末/月考/综合：选"🔄 自动轮换"按名称池轮流用；选具体名称则固定）</p>
+          <p class="scope-style-title">📐 考试标签名称（选"🔄 自动轮换"按名称池轮流用；选具体名称则固定）</p>
           <div v-for="dim in scopeDims" :key="dim.type" class="scope-dim">
             <div class="scope-dim-head">{{ dim.label }}</div>
-            <label class="option-item">
-              <input type="radio" v-model="scopeLabelStyle[dim.type]" value="" :name="'scope-' + dim.type" />
-              <span class="option-label">🔄 自动轮换</span>
-            </label>
-            <label v-for="w in dim.pool" :key="w" class="option-item">
-              <input type="radio" v-model="scopeLabelStyle[dim.type]" :value="w" :name="'scope-' + dim.type" />
-              <span class="option-label">{{ w }}</span>
-            </label>
+            <div class="name-chip-group">
+              <label class="name-chip" :class="{ active: scopeLabelStyle[dim.type] === '' }">
+                <input type="radio" v-model="scopeLabelStyle[dim.type]" value="" :name="'scope-' + dim.type" hidden />
+                🔄 自动轮换
+              </label>
+              <label v-for="w in dim.pool" :key="w" class="name-chip" :class="{ active: scopeLabelStyle[dim.type] === w }">
+                <input type="radio" v-model="scopeLabelStyle[dim.type]" :value="w" :name="'scope-' + dim.type" hidden />
+                {{ w }}
+              </label>
+            </div>
           </div>
         </div>
         <p class="hint">💡 多类型复生成时，此处只设置第一个类型的名称，其余类型仍自动轮换</p>
@@ -8534,13 +8536,19 @@ const addBlueprintQuestion = () => {
   margin-top: 8px;
 }
 
+/* ✏️ 名称样式弹窗：胶囊 chip 单选（资料类型名称 + 考试标签名称 统一视觉） */
+.name-style-label { font-size: 13px; font-weight: 600; color: var(--primary); margin: 4px 0 8px; }
+.name-chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.name-chip { padding: 5px 14px; border: 1px solid var(--border); border-radius: 20px; font-size: 12px; color: var(--text-primary); background: #fff; cursor: pointer; transition: all 0.15s; user-select: none; }
+.name-chip:hover { border-color: var(--primary-light); color: var(--primary-light); }
+.name-chip.active { background: linear-gradient(135deg, var(--primary-light), var(--primary)); color: #fff; border-color: transparent; box-shadow: 0 1px 4px rgba(30,58,111,0.25); }
+
 /* 📐 考试标签名称单选组（名称样式弹窗） */
-.scope-style-block { margin-top: 12px; padding: 10px 12px; background: var(--primary-bg); border: 1px solid var(--border-light); border-radius: var(--radius-sm); }
-.scope-style-title { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.6; }
-.scope-dim { margin-bottom: 6px; padding: 6px 8px; background: #fff; border: 1px solid var(--border-light); border-radius: var(--radius-sm); }
+.scope-style-block { margin-top: 14px; padding: 12px; background: var(--primary-bg); border: 1px solid var(--border-light); border-radius: var(--radius-sm); }
+.scope-style-title { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.6; }
+.scope-dim { margin-bottom: 8px; }
 .scope-dim:last-child { margin-bottom: 0; }
-.scope-dim-head { font-weight: 600; color: var(--primary); font-size: 13px; margin-bottom: 4px; }
-.scope-dim .option-item { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; font-size: 12px; cursor: pointer; }
+.scope-dim-head { font-weight: 600; color: var(--primary); font-size: 13px; margin-bottom: 6px; }
 
 .form-group {
   margin-bottom: 16px;
