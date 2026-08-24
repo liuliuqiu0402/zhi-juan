@@ -131,7 +131,7 @@ describe('填空横线导出：段落末尾 blank-line 自动延伸到行尾', (
     // <w:ptab> 位置制表符：右对齐到页边距 + 下划线引导线
     expect(xml).toContain('<w:ptab');
     expect(xml).toContain('w:alignment="right"');
-    expect(xml).toContain('w:relativeTo="margin"');
+    expect(xml).toContain('w:relativeTo="indent"');
     expect(xml).toContain('w:leader="underscore"');
     // 不再输出 NBSP 填充串
     expect(xml).not.toContain('<w:u w:val="single"');

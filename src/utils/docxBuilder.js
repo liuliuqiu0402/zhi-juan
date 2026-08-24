@@ -574,12 +574,13 @@ const buildTextRuns = (node, styleOverride = {}) => {
     const r = runs[i];
     if (!r || !r.__blankLineTab) continue;
     if (i === runs.length - 1 && !tailTabDone) {
-      // 段落末尾：<w:ptab alignment=right relativeTo=margin leader=underscore/>
-      //    Word 自动从当前位置画下划线到右边距——横线自动顶满行尾，无需依赖 AI 估算 &emsp; 数量
+      // 段落末尾：<w:ptab alignment=right relativeTo=indent leader=underscore/>
+      //    🔴 relativeTo=indent：延伸到"段落文字区右边界"（非页面边距）——段落带右缩进（题号/列表段落）
+      //    时横线不会超出文字内边距；无缩进段落效果与 margin 一致
       runs[i] = new TextRun({
         children: [new PositionalTab({
           alignment: PositionalTabAlignment.RIGHT,
-          relativeTo: PositionalTabRelativeTo.MARGIN,
+          relativeTo: PositionalTabRelativeTo.INDENT,
           leader: PositionalTabLeader.UNDERSCORE,
         })],
         size: r.size,

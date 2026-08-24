@@ -77,6 +77,21 @@ export const extractQuestionList = (html = '', maxChars = 12000) => {
     if (isShell) continue; // 空壳题 → 不进入答案清单
     parts.push(text);
   }
+  // 🔧 兜底：模型未按 class="question" 输出时（整卷模板此前未硬性要求），按"<p> 带题号"提取
+  //    （题号正则：行首 1. 2. 3.… / （1）（2）子题；防把普通叙述段误当题目）
+  if (parts.filter(x => x.startsWith('【')).length === 0) {
+    const fallbackRe = /<p[^>]*>([\s\S]*?)<\/p>/g;
+    let fm;
+    while ((fm = fallbackRe.exec(body)) !== null) {
+      const inner = fm[1];
+      const text = inner.replace(/<[^>]+>/g, '').replace(/&emsp;/g, '＿＿').replace(/&nbsp;/g, ' ').trim();
+      if (!text) continue;
+      const stripped = text.replace(/^\s*[(（]?\s*\d+\s*[)）]?\s*[.、．]?\s*/, '');
+      const looksQuestion = /^\d+[.、．]/.test(text) || /^[(（]\d+[)）]/.test(text) || stripped.length >= 10;
+      if (!looksQuestion) continue;
+      parts.push(text);
+    }
+  }
   // 选择题选项
   const optRe = /<p[^>]*class=["'][^"']*option[^"']*["'][^>]*>([\s\S]*?)<\/p>/g;
   let om;
@@ -87,6 +102,51 @@ export const extractQuestionList = (html = '', maxChars = 12000) => {
   let out = parts.join('\n');
   if (out.length > maxChars) out = out.slice(0, maxChars) + '…(已裁剪)';
   return out;
+};
+
+/**
+ * HTML → 纯文本（答案页生成上下文用）：
+ * 保留整卷正文的题目顺序与结构（表格转文本、[IMAGE] 转占位、块级标签转换行），
+ * 供答案页独立调用时把完整正文作为输入上下文——模型"看着实际题目作答"，
+ * 杜绝摘要提取失败后凭记忆编造（曾导致二年级试卷配五年级《将相和》答案）。
+ * @param {string} html 完整 HTML
+ * @param {number} [maxChars] 上限（默认 24000）
+ * @returns {string} 纯文本正文
+ */
+export const htmlToPlainText = (html = '', maxChars = 24000) => {
+  if (!html) return '';
+  let body = String(html);
+  // 只取正文区（答案区之前的题目部分）
+  body = body.split(/<div[^>]*class=["'][^"']*answer-section/i)[0];
+  // 表格 → 逐行单元格文本（评分表/田字格等结构化内容不丢失）
+  body = body.replace(/<table[\s\S]*?<\/table>/gi, (t) => {
+    const rows = [];
+    const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let tm;
+    while ((tm = trRe.exec(t)) !== null) {
+      const cells = [];
+      const tdRe = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+      let cm;
+      while ((cm = tdRe.exec(tm[1])) !== null) {
+        const c = cm[1].replace(/<[^>]+>/g, '').replace(/&emsp;/g, '＿').replace(/&nbsp;/g, ' ').trim();
+        if (c) cells.push(c);
+      }
+      if (cells.length) rows.push(cells.join(' | '));
+    }
+    return '\n' + rows.join('\n');
+  });
+  // [IMAGE] 标记 → 占位（配图描述不是题目内容，避免干扰作答）
+  body = body.replace(/\[IMAGE\][\s\S]*?\[\/IMAGE\]/g, '（配图）').replace(/\[IMAGE\][^\n]*/g, '（配图）');
+  // 块级标签 → 换行
+  body = body.replace(/<\/(h[1-6]|p|div|li|tr)>/gi, '\n');
+  // 去其余标签
+  body = body.replace(/<[^>]+>/g, '');
+  // 实体解码
+  body = body.replace(/&emsp;/g, '＿').replace(/&ensp;/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  // 清理空行
+  body = body.split('\n').map(l => l.trim()).filter(Boolean).join('\n');
+  if (body.length > maxChars) body = body.slice(0, maxChars) + '\n…（正文过长已裁剪，请按已给出的题号继续作答）';
+  return body;
 };
 
 /**
@@ -147,17 +207,34 @@ export function countTopLevelQuestions(html = '') {
  */
 export function normalizeBlankMarkers(html = '') {
   let out = String(html || '');
+  // 🔴 宽度上限 16em（8 个汉字）：答案通常 ≤8 字；超长横线会超出页内边距，长答案用"行尾自动延伸"方案
+  const capN = (n) => Math.min(16, Math.max(2, n));
   out = out.replace(/<u>\s*＿+\s*<\/u>/gi, (m) => {
     const len = (m.match(/＿/g) || []).length;
-    const n = Math.min(24, Math.max(2, len * 2));
-    return `<u class="blank-${n}">&emsp;</u>`;
+    return `<u class="blank-${capN(len * 2)}">&emsp;</u>`;
   });
   out = out.replace(/＿{2,}/g, (m) => {
-    const n = Math.min(24, Math.max(2, m.length * 2));
+    const n = Math.min(16, Math.max(2, m.length * 2));
     return `<u class="blank-${n}">&emsp;</u>`;
   });
   out = out.replace(/<div class="zuo-wen-ge">\s*<\/div>/g, '<div class="zuo-wen-ge"><span>&emsp;</span><span>&emsp;</span></div>');
   return out;
 }
 
-export default { cleanSectionHtml, hasAnswerCarrier, extractQuestionList, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers };
+/**
+ * 缩进归一化（根治"排版缩进加倍"——AI 常用行首空格/内联 text-indent 模拟缩进，
+ * 与排版层 CSS `p { text-indent: 2em }` 叠加后视觉缩进翻倍）：
+ *   1) 去除元素内联 text-indent 声明（缩进统一由排版层 CSS 控制）
+ *   2) 去除段落行首的空白字符（全角/半角空格、NBSP/EMSP 等）
+ * 注意：只处理行首空白与内联缩进声明，不影响行中空格与代码块等需保留空白的场景。
+ */
+export function normalizeIndents(html = '') {
+  let out = String(html || '');
+  // 1) 内联 text-indent → 移除（排版层统一控制，避免叠加加倍）
+  out = out.replace(/(<[a-zA-Z][^>]*?)\s+text-indent\s*:\s*[^;"'>]+;?/gi, '$1');
+  // 2) 段落/块级元素行首空白字符 → 移除（AI 模拟缩进，与 CSS 缩进叠加会加倍）
+  out = out.replace(/<(p|div|li|h[1-6])([^>]*)>([\u3000\u00A0\u2003\u2002 　]+)/gi, '<$1$2>');
+  return out;
+}
+
+export default { cleanSectionHtml, hasAnswerCarrier, extractQuestionList, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeIndents };

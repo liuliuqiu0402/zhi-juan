@@ -1387,6 +1387,7 @@ onActivated(() => {
 
 /* ═══════ A4 纸张预览区 ═══════ */
 /* 模拟 Word A4 纸张：宽 210mm、至少一页高、页面阴影（Word 页面视图质感），连续滚动 */
+/* 🔧 padding-top=0：滚动时工具栏 sticky top:0 紧贴容器顶端（此前 16px 顶部内边距让工具栏上端悬空） */
 .paper-preview-area {
   flex: 1;
   min-height: 0;
@@ -1396,7 +1397,7 @@ onActivated(() => {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 16px 0;
+  padding: 0 0 16px;
 }
 
 .paper-page {
@@ -1405,6 +1406,7 @@ onActivated(() => {
   background: #fff;
   flex-shrink: 0;
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.18);
+  margin: 0 0 16px;
 }
 
 /* A4 纸张内：剥除编辑器外框，2cm 页边距 */

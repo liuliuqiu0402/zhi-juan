@@ -12,8 +12,8 @@ describe('normalizeBlankMarkers（后处理排版兜底）', () => {
     expect(normalizeBlankMarkers('＿＿＿＿')).toBe('<u class="blank-8">&emsp;</u>');
   });
 
-  it('超长横线上限 24 格', () => {
-    expect(normalizeBlankMarkers('＿'.repeat(20))).toBe('<u class="blank-24">&emsp;</u>');
+  it('超长横线上限 16 格（超出页内边距的横线禁用，长答案走行尾自动延伸）', () => {
+    expect(normalizeBlankMarkers('＿'.repeat(20))).toBe('<u class="blank-16">&emsp;</u>');
   });
 
   it('空作文格补默认格', () => {

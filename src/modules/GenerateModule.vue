@@ -2913,6 +2913,19 @@ const renderImagePlaceholders = (html) => {
     if (v.charAt(0) === ':' || v.charAt(0) === '：') v = v.slice(1).trim();
     return v;
   };
+  // 🔧 占位框构建（正常闭合与未闭合兜底共用）：data-image-raw 保存标准化 [IMAGE]…[/IMAGE] 标记，
+  //    导出 DOCX 时还原为标准生图格式，避免字段散架
+  const buildBox = (prompt, imgType, style, width, height, negative) => {
+    const rawMark = esc('[IMAGE]' + NL + 'TYPE:' + (imgType || 'SD') + NL + 'PROMPT:' + prompt + (negative ? NL + 'NEGATIVE:' + negative : '') + (width ? NL + 'WIDTH:' + width : '') + (height ? NL + 'HEIGHT:' + height : '') + NL + 'STYLE:' + (style || 'line_art') + NL + '[/IMAGE]').split('"').join('&quot;');
+    let box = '<div class="image-placeholder" data-image-raw="' + rawMark + '" style="text-align:left;padding:12px 14px;margin:12px 0;background:#f7f9fc;border:1px dashed #a0b4d0;border-radius:6px;color:#44608a;font-size:13px;line-height:1.7;">'
+      + '<strong>[插图占位]</strong><br>'
+      + 'TYPE: ' + esc(imgType || 'SD') + '　STYLE: ' + esc(style || 'line_art')
+      + (width || height ? '　WIDTH: ' + esc(width || '800') + '　HEIGHT: ' + esc(height || '600') : '')
+      + '<br>PROMPT: <span style="color:#5c6bc0;">' + esc(prompt) + '</span>';
+    if (negative) box += '<br>NEGATIVE: ' + esc(negative);
+    box += '<br><span style="font-size:12px;color:#8899b0;">复制 PROMPT 到生图工具生成图片后插入此处</span></div>';
+    return box;
+  };
   const out = [];
   let rest = html;
   while (true) {
@@ -2921,7 +2934,20 @@ const renderImagePlaceholders = (html) => {
     out.push(rest.slice(0, s));
     const bodyStart = s + 7;
     const e = rest.indexOf('[/IMAGE]', bodyStart);
-    if (e === -1) { out.push(rest.slice(s)); break; }
+    if (e === -1) {
+      // 🔴 未闭合兜底：模型漏写 [/IMAGE] 时，取标记后到行尾的内容作为画面描述，强制转占位框，
+      //    杜绝 [IMAGE] 指令原文泄漏进正文/导出（此前直接透传原文）
+      const nl = rest.indexOf(NL, bodyStart);
+      const partial = (nl === -1 ? rest.slice(bodyStart) : rest.slice(bodyStart, nl)).trim();
+      const prompt = partial
+        .replace(/^PROMPT[：:]?\s*/i, '')
+        .replace(/^描述[：:]\s*/, '')
+        .replace(/^TYPE:SD\s*/i, '')
+        .trim() || '画面描述缺失（未闭合）';
+      out.push(buildBox(prompt, 'SD', 'line_art', '', '', ''));
+      rest = nl === -1 ? '' : rest.slice(nl + 1);
+      continue;
+    }
     const body = rest.slice(bodyStart, e);
     let prompt = fieldVal(body, 'PROMPT');
     if (!prompt) {
@@ -2938,17 +2964,7 @@ const renderImagePlaceholders = (html) => {
     const width = fieldVal(body, 'WIDTH');
     const height = fieldVal(body, 'HEIGHT');
     const negative = fieldVal(body, 'NEGATIVE');
-    // 结构化生图参数占位框：保留 TYPE/尺寸/风格/PROMPT 参数，方便复制到生图工具（导出 DOCX 后文本同样可复制）
-    // 🔧 data-image-raw 保存原始 [IMAGE]…[/IMAGE] 标记：导出 DOCX 时还原为标准生图格式，避免字段散架
-    const rawMark = esc('[IMAGE]' + NL + body + '[/IMAGE]').split('"').join('&quot;');
-    let box = '<div class="image-placeholder" data-image-raw="' + rawMark + '" style="text-align:left;padding:12px 14px;margin:12px 0;background:#f7f9fc;border:1px dashed #a0b4d0;border-radius:6px;color:#44608a;font-size:13px;line-height:1.7;">'
-      + '<strong>[插图占位]</strong><br>'
-      + 'TYPE: ' + esc(imgType) + '　STYLE: ' + esc(style)
-      + (width || height ? '　WIDTH: ' + esc(width || '800') + '　HEIGHT: ' + esc(height || '600') : '')
-      + '<br>PROMPT: <span style="color:#5c6bc0;">' + esc(prompt) + '</span>';
-    if (negative) box += '<br>NEGATIVE: ' + esc(negative);
-    box += '<br><span style="font-size:12px;color:#8899b0;">复制 PROMPT 到生图工具生成图片后插入此处</span></div>';
-    out.push(box);
+    out.push(buildBox(prompt, imgType, style, width, height, negative));
     rest = rest.slice(e + 8);
   }
   return out.join('');

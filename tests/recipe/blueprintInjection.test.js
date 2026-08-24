@@ -123,27 +123,27 @@ describe('getExamBlueprint 地区覆盖（总分/时长/板块分值）', () => 
 });
 
 describe('OUTPUT_FORMAT_HINT（非 exam 统一输出格式）', () => {
-  it('含结构化排版要求与答案区要求', () => {
+  it('含结构化排版要求与正文边界要求', () => {
     expect(OUTPUT_FORMAT_HINT).toContain('【输出格式】');
     expect(OUTPUT_FORMAT_HINT).toContain('<h1>');
     expect(OUTPUT_FORMAT_HINT).toContain('<h2>');
-    expect(OUTPUT_FORMAT_HINT).toContain('参考答案与解析');
+    expect(OUTPUT_FORMAT_HINT).toContain('只输出资料正文');
     expect(OUTPUT_FORMAT_HINT).toContain('<u>＿＿＿</u>');
   });
 
   it('含禁止事项：代码块包裹 / 答案混入正文', () => {
     expect(OUTPUT_FORMAT_HINT).toContain('严禁代码块包裹输出');
-    expect(OUTPUT_FORMAT_HINT).toContain('答案不得混入正文');
+    expect(OUTPUT_FORMAT_HINT).toContain('严禁在正文中输出答案/解析');
   });
 });
 
 describe('非 exam 模板正文自带【输出格式】（指令库可见，无需代码拼接）', () => {
   const NON_EXAM_TYPES = ['practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
-  it('8 类非 exam 三维度模板均含【输出格式】与答案区要求', () => {
+  it('8 类非 exam 三维度模板均含【输出格式】与正文边界要求', () => {
     for (const g of NON_EXAM_TYPES) {
       const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: g });
       expect(t.template, `类型 ${g} 缺输出格式`).toContain('【输出格式】');
-      expect(t.template).toContain('<h2>参考答案与解析</h2>');
+      expect(t.template).toContain('只输出资料正文');
       expect(t.template).toContain('严禁代码块包裹输出');
     }
   });

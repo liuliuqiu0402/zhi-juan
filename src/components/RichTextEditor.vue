@@ -1584,24 +1584,25 @@ defineExpose({
 /* ===== 工具栏 ===== */
 .editor-toolbar {
   display: flex;
-  gap: 2px;
-  padding: 4px 6px;
+  gap: 3px;
+  padding: 6px 8px;
   background: #f3f4f6;
   border-bottom: 1px solid #d0d0d0;
   flex-wrap: wrap;
   align-items: center;
 }
 
+/* 🔧 工具尺寸调大（用户反馈：工具栏工具视觉太小，触屏/鼠标点击不便） */
 .editor-toolbar button {
-  padding: 3px 6px;
+  padding: 6px 10px;
   border: 1px solid transparent;
   background: transparent;
-  border-radius: 3px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 14px;
   transition: all 0.12s;
-  min-width: 26px;
-  height: 26px;
+  min-width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1615,30 +1616,30 @@ defineExpose({
 
 .toolbar-divider {
   width: 1px;
-  height: 20px;
+  height: 24px;
   background: #c8ccd4;
-  margin: 0 2px;
+  margin: 0 4px;
   flex-shrink: 0;
 }
 
 .toolbar-select {
-  padding: 2px 4px;
+  padding: 4px 6px;
   border: 1px solid #d0d0d0;
-  border-radius: 3px;
+  border-radius: 4px;
   background: #fff;
-  font-size: 11px;
-  height: 26px;
+  font-size: 14px;
+  height: 34px;
   cursor: pointer;
   outline: none;
   color: #333;
 }
 .toolbar-select:focus { border-color: #3b82f6; }
-.toolbar-select--sm { font-size: 10px; width: 52px; }
+.toolbar-select--sm { font-size: 13px; width: 64px; }
 
 /* ===== 颜色选择器 ===== */
 .color-picker-wrapper { position: relative; display: inline-flex; align-items: center; }
 .color-btn { cursor: pointer; position: relative; border-bottom: 2.5px solid #000 !important; }
-.color-letter { font-weight: bold; font-size: 13px; }
+.color-letter { font-weight: bold; font-size: 15px; }
 .color-input {
   position: absolute; top: 0; left: 0;
   width: 100%; height: 100%; opacity: 0; cursor: pointer;
@@ -1762,8 +1763,10 @@ defineExpose({
 .rich-text-editor :deep(.english-line) { font-family: 'Times New Roman', 'Georgia', serif; }
 .rich-text-editor :deep(.sixian-ge) { display: inline-block; position: relative; padding: 4px 4px; font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; font-size: inherit !important; line-height: 1; min-width: 18px; text-align: center; vertical-align: middle; text-indent: 0; overflow: visible; }
 .rich-text-editor :deep(.sixian-ge)::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1.5em; background: linear-gradient(var(--text-muted), var(--text-muted)) 0 0.1em / 100% 1px no-repeat, linear-gradient(var(--text-muted), var(--text-muted)) 0 0.55em / 100% 1px no-repeat, linear-gradient(#666, #666) 0 1.0em / 100% 1px no-repeat, linear-gradient(var(--text-muted), var(--text-muted)) 0 1.45em / 100% 1px no-repeat; pointer-events: none; }
-.rich-text-editor :deep(.zuo-wen-ge) { display: grid; grid-template-columns: repeat(20, 1.3em); gap: 0; border: 1.5px solid var(--text-muted); margin: 8px 0; width: fit-content; }
-.rich-text-editor :deep(.zuo-wen-ge span) { display: inline-flex; align-items: center; justify-content: center; width: 1.3em; height: 1.3em; border: 0.5px solid #ccc; font-family: 'SimSun', 'KaiTi', serif; font-size: inherit !important; line-height: 1.3em; text-align: center; }
+/* 🔧 作文格：auto-fill 按 A4 可用宽度自动排满（小学 12mm），与 docx 导出 perRow 计算口径一致——
+   此前固定 repeat(20, 1.3em) 小格，导致预览 20 列、导出约 12-13 列，用户误以为"Word 里列数变了"去手动调列 */
+.rich-text-editor :deep(.zuo-wen-ge) { display: grid; grid-template-columns: repeat(auto-fill, 12mm); gap: 0; border: 1.5px solid var(--text-muted); margin: 8px 0; width: 100%; box-sizing: border-box; }
+.rich-text-editor :deep(.zuo-wen-ge span) { display: inline-flex; align-items: center; justify-content: center; width: 12mm; height: 12mm; border: 0.5px solid #ccc; font-family: 'SimSun', 'KaiTi', serif; font-size: inherit !important; line-height: 1; text-align: center; box-sizing: border-box; }
 .rich-text-editor :deep(.oral-box) { display: inline-block; border: 1.5px solid #333; padding: 2px 8px; margin: 0 2px; min-width: 40px; text-align: center; vertical-align: middle; font-size: inherit !important; }
 /* ⭐ 填空横线 - 防御性CSS：确保 ThemeCSS 注入前/后均生效 */
 .rich-text-editor :deep(u[class*="blank-"]) { display: inline-block; text-align: center; font-size: inherit !important; min-width: 1em; }

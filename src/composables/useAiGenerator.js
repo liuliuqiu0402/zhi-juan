@@ -454,7 +454,7 @@ const extractGradeNum = (gradeStr) => {
 
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
-import { cleanSectionHtml, extractQuestionList, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, extractQuestionList, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeIndents } from '../utils/contentCleaner.js';
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -5051,6 +5051,15 @@ ${cardAnalysisText.substring(0, 1000)}
     };
     const materialBlock = buildMaterialBlock({ contentCards, knowledgeMap, maxChars: MATERIAL_CHARS[genType] || 5000 });
 
+    // 🔴 标题根治兜底：标题只由命名规范占位符组成——模型若把任务行类型名（如"考卷"）拼进 h1，
+    //    代码强制移除（仅移除"空格/分隔符+类型词"形态，不误伤名称池合法词如"测试卷"贴正文的情况）
+    const stripTypeWordFromTitle = (html) => String(html || '').replace(/<h1[^>]*>([\s\S]*?)<\/h1>/i, (m, t) => {
+      const cleaned = t
+        .replace(/[ 　·｜\-]\s*(考卷|试卷|测试卷|练习题)\s*(?=[<]|$)/g, '')
+        .replace(/\s*(考卷)\s*$/g, '');
+      return m.replace(t, cleaned);
+    });
+
     // ── 组装最终 prompt：注入指令 + 附加块（素材/模板对标/情境/差异化，用户配置了才加） ──
     let prompt = instruction.trim();
     if (materialBlock) prompt += `\n\n${materialBlock}`;
@@ -5059,6 +5068,9 @@ ${cardAnalysisText.substring(0, 1000)}
     if (diffKps?.length) {
       prompt += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}`;
     }
+    // 🔴 答案页由系统在正文生成后单独调用生成：强制约定本次只输出正文（题目与卷面），
+    //    覆盖模板里残留的"正文后再另起一部分输出答案"旧要求，防止模型把答案混入正文（正文+答案重复）
+    prompt += `\n\n【输出约定】本次只输出资料/试卷正文（题目、卷面与作答区）。严禁在正文中输出任何答案、解析、评分标准、听力原文——参考答案由系统在正文生成后单独调用生成。`;
 
     // ── 段1：整卷正文一次生成 ──
     statusText.value = '整卷生成：一次生成完整试卷正文...';
@@ -5075,7 +5087,7 @@ ${cardAnalysisText.substring(0, 1000)}
           temperature: 0.7,
         });
         const respObj = typeof resp === 'string' ? { content: resp, finishReason: '' } : (resp || { content: '', finishReason: '' });
-        content = normalizeBlankMarkers(cleanSectionHtml(respObj.content || ''));
+        content = normalizeIndents(normalizeBlankMarkers(cleanSectionHtml(respObj.content || '')));
         // 🔴 截断判定：优先用 API 的 finish_reason=length（可靠，不依赖尾部启发式）；启发式作兜底
         const truncatedByReason = respObj.finishReason === 'length' && content.length > 200;
         const tail = content.slice(-120);
@@ -5088,7 +5100,7 @@ ${cardAnalysisText.substring(0, 1000)}
             `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-200)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
             { taskType: 'generation', timeout: 300000, retries: 0, maxTokens: 8192, allowContinuation: false, temperature: 0.7 }
           );
-          const contHtml = cleanSectionHtml(typeof contResp === 'string' ? contResp : (contResp?.content || ''));
+          const contHtml = normalizeIndents(normalizeBlankMarkers(cleanSectionHtml(typeof contResp === 'string' ? contResp : (contResp?.content || ''))));
           if (contHtml && contHtml.length > 100) content = content + '\n' + contHtml;
         }
         if (content && content.length > 200) break;
@@ -5106,17 +5118,28 @@ ${cardAnalysisText.substring(0, 1000)}
       throw new Error(`整卷生成失败: ${lastErr?.message || '未知错误'}`);
     }
 
-    // ── 段2：答案页（基于正文题目清单独立生成，防整卷+答案一次超长；按类型区分角色与标题） ──
+    // ── 段2：答案页（独立调用，防整卷+答案一次超长；上下文=整卷正文全文，
+    //         模型"看着实际题目作答"——杜绝摘要提取失败后凭记忆编造导致答案与正文不符） ──
     statusText.value = genType === 'exam' ? '整卷生成：撰写参考答案与评分标准...' : '整卷生成：撰写参考答案与解析...';
     progress.value = 85;
     let answerHtml = '';
     try {
-      const qList = extractQuestionList(content, 15000);
-      // 类型差异化：exam 用阅卷专家+评分标准（作文评分/听力原文）；非 exam 用教辅编辑+参考答案与解析（解析/归因/要点梳理）
+      // 类型差异化：exam 用阅卷专家+评分标准（作文评分/听力原文）；非 exam 用教辅编辑+参考答案与解析
       const ansRole = genType === 'exam'
-        ? '你是阅卷专家。请为以下试卷题目撰写完整《参考答案与评分标准》：每题给出答案与简要解析；选择题给正确选项；作文/写话给评分标准；听力题附听力原文。'
-        : '你是教辅编辑。请为以下资料题目撰写完整《参考答案与解析》：逐题给出答案与解析（选择题给正确选项；错题类附错误归因与正确解法；知识总结/预习类给出要点梳理与参考解答）。';
-      const ansPrompt = `${ansRole}只输出答案与解析内容，不要重复题目原文。\n\n【题目清单】\n${qList || '（题目清单提取失败，请基于你生成的资料内容作答）'}`;
+        ? '你是阅卷专家。请为以下试卷逐题撰写完整《参考答案与评分标准》：每题给出答案与简要解析；选择题给正确选项；作文/写话给评分标准（等级描述+采分点）；听力题附完整听力原文。'
+        : '你是教辅编辑。请为以下资料逐题撰写完整《参考答案与解析》：选择题给正确选项；错题类附错误归因与正确解法；知识总结/预习类给出要点梳理与参考解答。';
+      // 🔧 上下文根治：整卷正文转纯文本作为输入（不依赖 class="question" 摘要——摘要提取失败/不全即凭记忆编造）
+      const paperPlain = htmlToPlainText(content, 24000);
+      // 🔧 格式根治：答案页注入与正文一致的 HTML 输出规范（此前无格式要求 → 模型直接输出 Markdown 源码）
+      const ansFormat = `【答案页输出格式】（HTML 规范，与正文一致，便于排版导出）
+· 大题用 <h2>（如 <h2>一、识字与写字</h2>）；每题先写题号（与试卷正文完全一致）再写答案与解析
+· 评分标准/等级表用 <table> 表格；听力题附完整听力原文
+· 严禁使用 ##、**、|表格 等 Markdown 语法；严禁 \`\`\` 代码块包裹；直接输出 HTML 内容`;
+      const ansPrompt = `${ansRole}题号与试卷正文完全一致，逐题作答，不要重复题目原文。
+${ansFormat}
+
+【试卷正文】
+${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       const ansResp = await callAI(ansPrompt, {
         taskType: 'generation', timeout: 240000, retries: 1,
         maxTokens: 8192, allowContinuation: false, temperature: 0.3,
@@ -5129,6 +5152,9 @@ ${cardAnalysisText.substring(0, 1000)}
     } catch (e) {
       console.warn('⚠️ 答案页生成失败（正文仍有效）:', e.message);
     }
+
+    // 🔴 标题根治兜底：移除模型拼入 h1 的任务行类型词（如" 考卷"），标题只保留命名规范占位符组合
+    content = stripTypeWordFromTitle(content);
 
     // 🔴 密封线兜底：正式试卷且 AI 未输出密封线 → 代码补（恢复原拼装器的密封线成果）
     let finalContent = answerHtml ? `${content}\n\n${answerHtml}` : content;
