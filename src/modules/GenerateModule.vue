@@ -5790,13 +5790,27 @@ const generate = async (mode) => {
     if (chapters.length > 0) {
       const candidates = buildScopeCandidates(chapters, scopeSource.outline || [], scopeType.value || '');
       if (candidates.length > 1) {
+        // 方案2：候选末尾追加"自定义名称"项——选中后弹输入框，支持自定义范围名（标题直接使用）
+        const withCustom = [
+          ...candidates.map(c => ({ label: `${c.label}${c.hint ? `（${c.hint}）` : ''}`, value: c.value })),
+          { label: '✏️ 自定义名称…', value: '__custom__' },
+        ];
         const chosen = await showRadioDialogFn(
-          `请确认本卷命题范围（已按勾选内容提取${candidates.length}个候选）`,
-          candidates.map(c => ({ label: `${c.label}${c.hint ? `（${c.hint}）` : ''}`, value: c.value })),
+          `请确认本卷命题范围（已按勾选内容提取${candidates.length}个候选；如都不合适可自定义）`,
+          withCustom,
           candidates[0].value
         );
         if (chosen === null) return; // 用户取消
-        scopeOverride.value = chosen;
+        if (chosen === '__custom__') {
+          const custom = await showInputDialogFn(
+            '请输入自定义范围名（将用于资料标题，如"第二单元·识字提升"）：',
+            candidates[0]?.value || ''
+          );
+          if (!custom || !custom.trim()) return; // 用户取消或未输入
+          scopeOverride.value = custom.trim();
+        } else {
+          scopeOverride.value = chosen;
+        }
       } else {
         scopeOverride.value = candidates[0]?.value || '';
       }
