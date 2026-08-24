@@ -1915,13 +1915,13 @@ export function useAiGenerator() {
   // 🔧 整体生成跳过检测标志：cancelPeriodSplit 设置，阻止 generate() 清空 _cachedKnowledgeMap
   let _preservePeriodCache = false;
 
-  // 🔧 资料类型名称池——轮换使用，避免标题千篇一律
+  // 🔧 资料类型名称池——轮换使用，避免标题千篇一律（词条不含"单元/课"等范围词，防与范围名重复）
   const GEN_TYPE_LABEL_POOLS = {
-    exam: ['综合检测', '单元测试卷', '阶段测评'],
+    exam: ['综合检测', '测试卷', '阶段测评'],
     practice: ['课堂练习', '随堂巩固', '课时训练'],
     special: ['专项突破', '专题训练', '强化练习'],
     preview: ['预习导航', '课前导学', '预习单'],
-    reading: ['阅读理解', '阅读训练', '阅读闯关'],
+    reading: ['阅读理解', '阅读素养训练', '阅读训练'],
     summary: ['知识梳理', '学习总结', '知识归纳'],
     dictation: ['默写训练', '默写练习', '默写检测'],
     errorbook: ['错题整理', '错题集', '纠错练习'],

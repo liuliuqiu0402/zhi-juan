@@ -4160,6 +4160,8 @@ const loadInstructionFromLibrary = async () => {
   } catch { /* 无蓝图不影响指令注入（模板兜底） */ }
 
   // 命题范围（单元名：课/单元/期中/期末）
+  // 🔧 范围维度 → 名称池类型（弹窗确认的是"维度"，具体标题名称由名称池轮换组合）
+  const DIM_TO_TYPE = { 期中: 'midterm', 期末: 'final', 月考: 'monthly', 专题: 'topic', 综合: 'default' };
   let unit = '';
   let scopeInfo = null;
   try {
@@ -4167,16 +4169,20 @@ const loadInstructionFromLibrary = async () => {
     if (scopeSource?.outline) {
       // 📐 范围标签词轮换：期中/期末/月考等考试标签逐次轮换（如 期中综合测试→期中素养检测），避免标题千篇一律
       scopeInfo = inferPaperScope(scopeSource.selectedChapters || [], scopeSource.outline || [], scopeType.value || '', pickScopeFromPool);
-      unit = scopeOverride.value || scopeInfo.name || '';
+      unit = scopeOverride.value
+        ? (DIM_TO_TYPE[scopeOverride.value] ? pickScopeFromPool(DIM_TO_TYPE[scopeOverride.value]) : scopeOverride.value)
+        : (scopeInfo.name || '');
     }
   } catch { /* 范围推断失败不影响 */ }
 
   // 组装注入指令（任务行 + 模板正文 + 用户附加）
   const genTypeLabel = genTypeTemplates[genType]?.name || genType;
   // ✏️ 标题组成（命名规范）：年级(去学段) + 学科 + 册别 + 范围名 + 类型名；
-  //    期中/期末/月考（范围名即考试标签）：前缀加学年度学期、不带册别（学期已隐含上下册）、不拼类型名（避免"期中综合测试综合检测"病句）
-  const isLabelScope = !!scopeInfo?.isScopeLabel && ['midterm', 'final', 'monthly', 'topic'].includes(scopeType.value || '');
-  // ✏️ 自定义范围名避重：范围名含"单元"时，类型名不用含"单元"的词（防"第二单元单元测试卷"病句）
+  //    期中/期末/月考（范围名即考试标签，含跨单元推断出的考试类）：前缀加学年度学期、不带册别（学期已隐含上下册）、不拼类型名
+  const examLabelCats = ['midterm', 'final', 'monthly', 'topic'];
+  const isLabelScope = !!scopeInfo?.isScopeLabel
+    && (examLabelCats.includes(scopeType.value || '') || examLabelCats.includes(scopeInfo.category || ''));
+  // ✏️ 自定义范围名避重：范围名含"单元"时，类型名不用含"单元"的词（防"第二单元单元测试卷"病句；名称池已无"单元"词，此为兜底）
   let label = scopeInfo?.isScopeLabel ? '' : (labelStyle.value || pickLabelFromPool(genType, unit || '_all_'));
   if (label && /单元/.test(label) && /单元/.test(unit || '')) {
     label = (getLabelPool(genType) || []).find(w => !/单元/.test(w)) || label;

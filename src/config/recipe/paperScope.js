@@ -28,6 +28,9 @@ export const SCOPE_LABEL_POOLS = {
   topic: ['专题过关', '专题训练', '专题测评'],
 };
 
+/** 范围维度 → 中文标签（弹窗候选用；确认的是"维度"，具体标题名称由名称池轮换组合） */
+export const SCOPE_DIMENSION_LABELS = { midterm: '期中', final: '期末', monthly: '月考', topic: '专题', default: '综合' };
+
 /** 🔴 显式范围类型：用户手动选择"期中/期末/月考/专题"时应始终以标签词呈现（override 自动推断） */
 export const EXPLICIT_SCOPE_TYPES = ['midterm', 'final', 'monthly', 'topic'];
 
@@ -151,10 +154,10 @@ export function effectiveUnitIndices(chapters, outline) {
 
 /**
  * 命题范围候选（供"范围确认弹窗"使用——按勾选内容提取候选，用户确认后定范围名）。
- * 候选规则：
- *   · 显式范围类型（期中/期末/月考/专题）→ 该类型标签词池（轮换备选）
- *   · 推断为单元/课名（无歧义）→ 该名（推荐）+ 常用标签词备选
- *   · 推断为标签词（跨单元/空）→ 该词 + 其他常用标签词备选
+ * 候选规则（确认的是"维度"，具体标题名称由名称池在组装时轮换组合）：
+ *   · 显式范围类型（期中/期末/月考/专题）→ 维度已由用户配置确定，无需弹窗（返回空，直接走名称池轮换）
+ *   · 推断为单元/课名（无歧义）→ 该名（唯一候选，标题携带单元/课信息）
+ *   · 跨单元/空（推断为标签）→ 维度词候选（期中/期末/月考/综合），确认维度后名称池组合具体名
  * @returns {Array<{label:string, value:string, hint:string}>} 去重候选（首项为推荐）
  */
 export function buildScopeCandidates(chapters = [], outline = [], scopeType = '') {
@@ -166,23 +169,20 @@ export function buildScopeCandidates(chapters = [], outline = [], scopeType = ''
     seen.add(value);
     list.push({ label, value, hint });
   };
-  const pushPool = (cat, hint) => {
-    const h = hint || '范围标签';
-    for (const w of (SCOPE_LABEL_POOLS[cat] || SCOPE_LABEL_POOLS.default)) push(w, w, h);
-  };
   if (EXPLICIT_SCOPE_TYPES.includes(scopeType)) {
-    pushPool(scopeType);
-    return list;
+    // 显式类型：维度已定（用户配置选了"期中"），具体名称由名称池组装时轮换（期中 → 期中综合测试/期中素养检测…）
+    return [];
   }
   if (inferred.isScopeLabel) {
-    // 跨单元/空：推断标签词优先，补充其他常用标签
-    pushPool(inferred.category === 'unit' ? 'default' : inferred.category);
-    pushPool('default');
-    if (inferred.category !== 'midterm') pushPool('midterm');
-    if (inferred.category !== 'final') pushPool('final');
+    // 跨单元/空：候选为"维度词"（确认维度，名称池组合具体名）；推断类别优先排序
+    const order = [inferred.category, 'midterm', 'final', 'monthly', 'default']
+      .filter((v, i, a) => a.indexOf(v) === i);
+    for (const cat of order) {
+      const dim = SCOPE_DIMENSION_LABELS[cat];
+      if (dim) push(dim, dim, '范围维度');
+    }
   } else {
-    // 单元/课名：勾选范围名是唯一合理候选（标题必须携带单元/课信息），
-    //    不提供"综合检测"等丢失范围信息的通用标签——那是跨单元/显式类型才适用的命名
+    // 单元/课名：勾选范围名是唯一合理候选（标题必须携带单元/课信息）
     push(inferred.name, inferred.name, inferred.category === 'unit' ? '勾选范围（单元）' : '勾选范围（课）');
   }
   return list;

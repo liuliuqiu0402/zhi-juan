@@ -179,20 +179,18 @@ describe('buildScopeCandidates —— 范围确认弹窗候选（按勾选内容
     expect(cs.some(c => c.value === '期末综合测试')).toBe(false);
   });
 
-  it('跨单元：候选为标签词（推断类别优先，无重复）', () => {
-    const cs = buildScopeCandidates([q[0], q[2]], outline4, 'default'); // 期中
-    expect(cs[0].value).toBe('期中综合测试');
+  it('跨单元：候选为维度词（确认维度，具体名称由名称池组合；无重复）', () => {
+    const cs = buildScopeCandidates([q[0], q[2]], outline4, 'default'); // 推断期中
+    expect(cs[0].value).toBe('期中'); // 推断类别优先
+    expect(cs.some(c => c.value === '期末')).toBe(true);
+    expect(cs.some(c => c.value === '综合')).toBe(true);
     expect(cs.every((c, i) => cs.findIndex(x => x.value === c.value) === i)).toBe(true); // 去重
   });
 
-  it('显式范围类型：候选为该类型标签词池（多种叫法轮换）', () => {
-    const cs = buildScopeCandidates([kecheng1], outline, 'midterm');
-    expect(cs.map(c => c.value)).toEqual(['期中综合测试', '期中素养检测', '期中质量检测', '阶段综合测评', '中期学业检测']);
-    // 期末/月考池同样含素养检测等正规叫法
-    const fin = buildScopeCandidates([kecheng1], outline, 'final');
-    expect(fin.some(c => c.value === '期末素养检测')).toBe(true);
-    const mon = buildScopeCandidates([kecheng1], outline, 'monthly');
-    expect(mon.some(c => c.value === '月度素养检测')).toBe(true);
+  it('显式范围类型：维度已定，无需弹窗（返回空，名称由名称池组装时轮换）', () => {
+    expect(buildScopeCandidates([kecheng1], outline, 'midterm')).toEqual([]);
+    expect(buildScopeCandidates([kecheng1], outline, 'final')).toEqual([]);
+    expect(buildScopeCandidates([kecheng1], outline, 'monthly')).toEqual([]);
   });
 
   it('单课：候选唯一为课名（不带标签备选）', () => {
