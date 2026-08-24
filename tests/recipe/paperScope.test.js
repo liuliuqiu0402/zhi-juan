@@ -185,9 +185,14 @@ describe('buildScopeCandidates —— 范围确认弹窗候选（按勾选内容
     expect(cs.every((c, i) => cs.findIndex(x => x.value === c.value) === i)).toBe(true); // 去重
   });
 
-  it('显式范围类型：候选为该类型标签词池', () => {
+  it('显式范围类型：候选为该类型标签词池（多种叫法轮换）', () => {
     const cs = buildScopeCandidates([kecheng1], outline, 'midterm');
-    expect(cs.map(c => c.value)).toEqual(['期中综合测试', '阶段综合测评', '中期学业检测']);
+    expect(cs.map(c => c.value)).toEqual(['期中综合测试', '期中素养检测', '期中质量检测', '阶段综合测评', '中期学业检测']);
+    // 期末/月考池同样含素养检测等正规叫法
+    const fin = buildScopeCandidates([kecheng1], outline, 'final');
+    expect(fin.some(c => c.value === '期末素养检测')).toBe(true);
+    const mon = buildScopeCandidates([kecheng1], outline, 'monthly');
+    expect(mon.some(c => c.value === '月度素养检测')).toBe(true);
   });
 
   it('单课：候选唯一为课名（不带标签备选）', () => {

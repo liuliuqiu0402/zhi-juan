@@ -2934,7 +2934,7 @@ const currentChapter = ref(null);
 const editingKnowledge = ref('');
 
 // AI生成器（新架构：不再使用 buildGenerationInstruction 长指令构建）
-const { isGenerating, progress: generateProgress, statusText: generateStatus, getTypeDistribution, generate: callGenerate, executeGenerationWithBlueprint, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool, pickLabelFromPool } = useAiGenerator();
+const { isGenerating, progress: generateProgress, statusText: generateStatus, getTypeDistribution, generate: callGenerate, executeGenerationWithBlueprint, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool, pickLabelFromPool, pickScopeFromPool } = useAiGenerator();
 
 // ✏️ 名称样式：类型切换恢复上次选择 + 当前选择同步到生成器（在 useAiGenerator 解构之后，避免 TDZ）
 watch(genTypes, () => {
@@ -4165,7 +4165,8 @@ const loadInstructionFromLibrary = async () => {
   try {
     const scopeSource = selectedBooks.find(b => (b.selectedChapters || []).length > 0) || selectedBooks[0];
     if (scopeSource?.outline) {
-      scopeInfo = inferPaperScope(scopeSource.selectedChapters || [], scopeSource.outline || [], scopeType.value || '');
+      // 📐 范围标签词轮换：期中/期末/月考等考试标签逐次轮换（如 期中综合测试→期中素养检测），避免标题千篇一律
+      scopeInfo = inferPaperScope(scopeSource.selectedChapters || [], scopeSource.outline || [], scopeType.value || '', pickScopeFromPool);
       unit = scopeOverride.value || scopeInfo.name || '';
     }
   } catch { /* 范围推断失败不影响 */ }
@@ -4173,11 +4174,15 @@ const loadInstructionFromLibrary = async () => {
   // 组装注入指令（任务行 + 模板正文 + 用户附加）
   const genTypeLabel = genTypeTemplates[genType]?.name || genType;
   // ✏️ 标题组成（命名规范）：年级(去学段) + 学科 + 册别 + 范围名 + 类型名；
-  //    期中/期末/月考（范围名即考试标签）前缀加学年度学期、不再拼类型名（避免"期中综合测试综合检测"病句）
+  //    期中/期末/月考（范围名即考试标签）：前缀加学年度学期、不带册别（学期已隐含上下册）、不拼类型名（避免"期中综合测试综合检测"病句）
   const isLabelScope = !!scopeInfo?.isScopeLabel && ['midterm', 'final', 'monthly', 'topic'].includes(scopeType.value || '');
-  const label = scopeInfo?.isScopeLabel ? '' : (labelStyle.value || pickLabelFromPool(genType, unit || '_all_'));
+  // ✏️ 自定义范围名避重：范围名含"单元"时，类型名不用含"单元"的词（防"第二单元单元测试卷"病句）
+  let label = scopeInfo?.isScopeLabel ? '' : (labelStyle.value || pickLabelFromPool(genType, unit || '_all_'));
+  if (label && /单元/.test(label) && /单元/.test(unit || '')) {
+    label = (getLabelPool(genType) || []).find(w => !/单元/.test(w)) || label;
+  }
   const academic = isLabelScope ? inferAcademicTerm() : '';
-  const semester = book.semester || '';
+  const semester = isLabelScope ? '' : (book.semester || '');
   const gradeLabel = book.grade || '';
   instructionDraft.value = buildInjectionInstruction({
     template: tpl.template,

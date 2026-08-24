@@ -6898,6 +6898,7 @@ ${questionPlan.score ? `- 标注：【知识点：${questionPlan.knowledgePoint}
     setLabelOverride,      // ✏️ 名称样式手动选择（方案二）
     getLabelPool,          // ✏️ 名称池查询（供下拉选项）
     pickLabelFromPool,     // ✏️ 名称池轮换选取（标题类型名，labelStyle 固定优先）
+    pickScopeFromPool,     // 📐 范围标签词轮换（期中/期末/月考/专题，避免标题千篇一律）
     generate,
     executeGenerationWithBlueprint,
     generatePracticeByPeriods,
