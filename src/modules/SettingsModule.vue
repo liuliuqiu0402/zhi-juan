@@ -375,7 +375,39 @@
             <span style="font-size:10px;color:#999;min-width:22px;">1.5</span>
           </div>
           <datalist id="ticks-1_5"><option value="0"></option><option value="0.5"></option><option value="1.0"></option><option value="1.5"></option></datalist>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">逐题生成、整卷生成——平衡准确性与创造性</p>
+          <p style="font-size:11px;color:#888;margin:2px 0 0;">逐题生成、答案补全——平衡准确性与创造性</p>
+        </div>
+
+        <!-- 整卷正文温度（一次生成整卷，创作性略高） -->
+        <div style="margin-bottom:14px;">
+          <label style="display:flex;justify-content:space-between;">
+            <span>📄 整卷正文生成</span>
+          </label>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:10px;color:#999;min-width:14px;">0</span>
+            <div style="position:relative;flex:1;">
+              <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.paperTemperature ?? 0.7) / 1.5 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.paperTemperature ?? 0.7) / 1.5 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.paperTemperature ?? 0.7).toFixed(1) }}</span>
+              <input type="range" v-model.number="settings.generationSettings.paperTemperature" min="0" max="1.5" step="0.1" list="ticks-1_5" style="width:100%;" />
+            </div>
+            <span style="font-size:10px;color:#999;min-width:22px;">1.5</span>
+          </div>
+          <p style="font-size:11px;color:#888;margin:2px 0 0;">整卷一次生成（正文）——需创作性：情境、题目、卷面，略高</p>
+        </div>
+
+        <!-- 答案页温度（阅卷专家视角，低温严谨） -->
+        <div style="margin-bottom:14px;">
+          <label style="display:flex;justify-content:space-between;">
+            <span>✅ 答案页生成</span>
+          </label>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:10px;color:#999;min-width:14px;">0</span>
+            <div style="position:relative;flex:1;">
+              <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.answerTemperature ?? 0.3) / 1.0 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.answerTemperature ?? 0.3) / 1.0 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.answerTemperature ?? 0.3).toFixed(1) }}</span>
+              <input type="range" v-model.number="settings.generationSettings.answerTemperature" min="0" max="1.0" step="0.1" list="ticks-1_0" style="width:100%;" />
+            </div>
+            <span style="font-size:10px;color:#999;min-width:22px;">1.0</span>
+          </div>
+          <p style="font-size:11px;color:#888;margin:2px 0 0;">参考答案与评分标准——阅卷专家视角，低温确保严谨准确</p>
         </div>
 
         <!-- DeepSeek 深度思考开关（仅整卷生成生效） -->
@@ -844,6 +876,8 @@ const resetTemperatureDefaults = () => {
   settings.value.generationSettings.blueprintTemperature = 0.3;
   settings.value.generationSettings.questionTemperature = 0.5;
   settings.value.generationSettings.reviewTemperature = 0.1;
+  settings.value.generationSettings.paperTemperature = 0.7;
+  settings.value.generationSettings.answerTemperature = 0.3;
 };
 
 const saveSettings = async () => {
@@ -1048,6 +1082,11 @@ onMounted(async () => {
       }
       if (parsed.zhipuApiKey) {
         parsed.zhipuApiKey = await decrypt(parsed.zhipuApiKey);
+      }
+      // 🔧 深合并 generationSettings：旧 localStorage 缺少新字段（paperTemperature/answerTemperature 等）时
+      //    以默认值补齐，避免被旧对象整体覆盖导致新字段丢失
+      if (parsed.generationSettings) {
+        parsed.generationSettings = { ...settings.value.generationSettings, ...parsed.generationSettings };
       }
       Object.assign(settings.value, parsed);
     } catch { /* ignore */ }

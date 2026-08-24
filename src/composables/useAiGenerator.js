@@ -5085,7 +5085,8 @@ ${cardAnalysisText.substring(0, 1000)}
           //    8192 是 V3.2 时代的保守值，会人为截断完整卷面；32K 对 60 分钟大卷与答案页外的正文绰绰有余
           maxTokens: 32768,
           allowContinuation: false,
-          temperature: 0.7,
+          // 🔧 整卷正文温度走设置页（paperTemperature，默认 0.7，可调）
+          temperature: apiConfig.generationSettings.paperTemperature ?? 0.7,
         });
         const respObj = typeof resp === 'string' ? { content: resp, finishReason: '' } : (resp || { content: '', finishReason: '' });
         content = normalizeIndents(normalizeBlankMarkers(cleanSectionHtml(respObj.content || '')));
@@ -5099,7 +5100,7 @@ ${cardAnalysisText.substring(0, 1000)}
           console.warn(`⚠️ 整卷输出${truncatedByReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，自动续写一次...`);
           const contResp = await callAI(
             `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-200)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
-            { taskType: 'generation', timeout: 300000, retries: 0, maxTokens: 32768, allowContinuation: false, temperature: 0.7 }
+            { taskType: 'generation', timeout: 300000, retries: 0, maxTokens: 32768, allowContinuation: false, temperature: apiConfig.generationSettings.paperTemperature ?? 0.7 }
           );
           const contHtml = normalizeIndents(normalizeBlankMarkers(cleanSectionHtml(typeof contResp === 'string' ? contResp : (contResp?.content || ''))));
           if (contHtml && contHtml.length > 100) content = content + '\n' + contHtml;
@@ -5144,7 +5145,8 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       const ansResp = await callAI(ansPrompt, {
         taskType: 'generation', timeout: 240000, retries: 1,
         // 🔴 答案页预算：16K tokens（≈4.8 万字符），覆盖完整答案+评分标准+听力原文；V4 输出上限 384K 下无截断风险
-        maxTokens: 16384, allowContinuation: false, temperature: 0.3,
+        // 🔧 答案页温度走设置页（answerTemperature，默认 0.3，可调）
+        maxTokens: 16384, allowContinuation: false, temperature: apiConfig.generationSettings.answerTemperature ?? 0.3,
       });
       const aHtml = cleanSectionHtml(typeof ansResp === 'string' ? ansResp : (ansResp?.content || ''));
       if (aHtml && aHtml.length > 100) {
