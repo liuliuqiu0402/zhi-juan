@@ -463,6 +463,14 @@
             <span class="option-desc">{{ opt.desc }}</span>
           </label>
         </div>
+        <!-- 📐 考试标签名称池（期中/期末/月考/综合）：由系统按名称池轮换组合到标题（弹窗只确认维度） -->
+        <div v-if="genTypes[0] === 'exam'" class="scope-pool-info">
+          <p class="scope-pool-title">📐 考试标签名称池（标题按维度自动轮换，如选"期中"时依次用 期中综合测试 → 期中素养检测 → 期中质量检测…）</p>
+          <div v-for="(pool, cat) in scopePoolDisplay" :key="cat" class="scope-pool-row">
+            <span class="pool-cat">{{ cat }}</span>
+            <span class="pool-words">{{ pool.join('、') }}</span>
+          </div>
+        </div>
         <p class="hint">💡 多类型复生成时，此处只设置第一个类型的名称，其余类型仍自动轮换</p>
         <div class="modal-actions">
           <button class="btn" @click="showLabelStyleModal = false">取消</button>
@@ -1494,7 +1502,7 @@ import {
   normalizeSubjectName
 } from '../config/expertKnowledge.js';
 import { useAiGenerator } from '../composables/useAiGenerator.js';
-import { inferPaperScope, buildScopeCandidates, inferAcademicTerm } from '../config/recipe/paperScope.js';
+import { inferPaperScope, buildScopeCandidates, inferAcademicTerm, SCOPE_LABEL_POOLS } from '../config/recipe/paperScope.js';
 
 // 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
 const SCOPE_TYPE_LABELS = { default: '默认', midterm: '期中', final: '期末', monthly: '月考', topic: '专题' };
@@ -1600,6 +1608,14 @@ const labelStyleOptions = computed(() => {
   return [autoOpt, ...(getLabelPool(type) || []).map(n => ({ value: n, label: n, desc: '固定使用该名称作为标题' }))];
 });
 const labelStyleLabel = computed(() => labelStyle.value || '自动轮换');
+
+/** 📐 考试标签名称池展示（名称样式弹窗 exam 类型显示；标题按维度轮换组合，弹窗只确认维度） */
+const scopePoolDisplay = computed(() => ({
+  期中: SCOPE_LABEL_POOLS.midterm,
+  期末: SCOPE_LABEL_POOLS.final,
+  月考: SCOPE_LABEL_POOLS.monthly,
+  综合: SCOPE_LABEL_POOLS.default,
+}));
 
 // 弹窗状态
 const showScopeModal = ref(false);
@@ -5760,6 +5776,7 @@ const mergeTemplateResults = (results) => {
 const generate = async (mode) => {
   // 🔴 新架构：用户只选教材 + 资料类型即可生成（指令库自动决定角色/大题结构/题型/难度）
   // 不再要求先生成指令；指令文本仅作可选参考（传空串走指令库默认）
+  scopeOverride.value = ''; // 🔧 每次生成前重置范围确认值，避免上次弹窗选择污染本次（单元/课不弹窗时用自动推断名）
   const types = mode === 'single' ? [genTypes.value[0]] : genTypes.value;
   
   if (!types[0]) {
@@ -8494,6 +8511,13 @@ const addBlueprintQuestion = () => {
   color: var(--text-muted);
   margin-top: 8px;
 }
+
+/* 📐 考试标签名称池展示（名称样式弹窗） */
+.scope-pool-info { margin-top: 12px; padding: 10px 12px; background: var(--primary-bg); border: 1px solid var(--border-light); border-radius: var(--radius-sm); }
+.scope-pool-title { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; line-height: 1.6; }
+.scope-pool-row { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-size: 12px; }
+.pool-cat { flex-shrink: 0; font-weight: 600; color: var(--primary); width: 34px; }
+.pool-words { color: var(--text-secondary); line-height: 1.6; }
 
 .form-group {
   margin-bottom: 16px;
