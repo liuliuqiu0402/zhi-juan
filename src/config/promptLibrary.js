@@ -33,7 +33,10 @@ const EXAM_BASE = (extra = '') => `你是资深命题专家。请为{grade}{subj
 6. 难度从易到难排列
 
 【卷面格式】（正式卷面必备）
-· 卷首：<h1>标题居中，格式"{grade}{subject}{scope}{label}"（如"小学低段·二年级语文第二单元·识字综合检测"；{label} 为资料类型标题名，由系统按名称样式轮换注入，如 综合检测/单元测试卷/阶段测评），下接一行（考试时间：{duration}　满分：{fullScore}分），再写密封线（左侧竖排"密封线内不要答题"，含学校/班级/姓名/学号填写栏）
+· 卷首：<h1>标题居中。标题由系统注入的占位符组成，命名规范：
+  ① 单元/课/综合类（范围名如"第二单元·识字"）："{grade}{subject}{semester}{scope}{label}"——如"二年级语文上册第二单元·识字综合检测"（{grade}年级 {subject}学科 {semester}册别 {scope}命题范围 {label}资料类型标题名，由系统按名称样式轮换注入）
+  ② 期中/期末/月考（范围名即考试标签，如"期中综合测试"）："{academic}{grade}{subject}{semester}{scope}"——如"2025-2026学年度第一学期二年级语文上册期中综合测试"（{academic}学年度学期由系统按当前日期推断注入）
+· 下接一行（考试时间：{duration}　满分：{fullScore}分），再写密封线（左侧竖排"密封线内不要答题"，含学校/班级/姓名/学号填写栏）
 · 填空用横线 <u>＿＿＿</u>，宽度按答案字数：1字≈2格（＿＿）、2字≈4格（＿＿＿＿）、3-4字≈6格、5-6字≈8格，答案每多1字加长2格
 · 选择/判断作答空用半角括号内全角空格 (　)，括号内空格数=答案字数：1字 (　)、2字 (　　)、3字 (　　　)…据此递增；禁止用中文全角括号（）作作答空
 · 简答/解答题题下留足空白作答区（不少于4行）；作文/写话用方格纸（不少于160格）
@@ -334,7 +337,7 @@ export function listPromptTemplates() {
 export function buildInjectionInstruction(opts = {}) {
   const {
     template = '', grade = '', subject = '', unit = '', genTypeLabel = '',
-    structure = '', fullScore = '', duration = '', extra = '', label = '',
+    structure = '', fullScore = '', duration = '', extra = '', label = '', semester = '', academic = '',
   } = opts;
   // 1) 任务定位行（系统生成，固定最前——模型第一眼知道要干什么）
   const taskLine = `【任务】生成${genTypeLabel || '资料'}：${subject}${grade}${unit ? `·${unit}` : ''}${fullScore ? `（满分${fullScore}分${duration ? `，时长${duration}` : ''}）` : ''}`;
@@ -342,7 +345,7 @@ export function buildInjectionInstruction(opts = {}) {
   let body = String(template || '');
   const map = {
     '{grade}': grade, '{subject}': subject, '{unit}': unit || '本单元', '{scope}': unit || '本单元',
-    '{label}': label || genTypeLabel || '试卷',
+    '{label}': label || genTypeLabel || '试卷', '{semester}': semester || '', '{academic}': academic || '',
     '{structure}': structure || '（按教材内容合理设计大题）',
     '{fullScore}': fullScore, '{duration}': duration,
     '{material}': '（教材原文由系统按本资料覆盖的知识点检索后，生成时自动附加在指令末尾）',

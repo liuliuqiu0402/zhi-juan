@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   inferPaperScope, buildPaperTitle, filterTitleLabel, findCommonAncestorIndex,
-  categorizeUnits, effectiveUnitIndices, buildScopeCandidates, EXPLICIT_SCOPE_TYPES,
+  categorizeUnits, effectiveUnitIndices, buildScopeCandidates, EXPLICIT_SCOPE_TYPES, inferAcademicTerm,
 } from '@/config/recipe/paperScope.js';
 
 // 仿真教材目录：top 单元 → 课（叶子）
@@ -195,6 +195,17 @@ describe('buildScopeCandidates —— 范围确认弹窗候选（按勾选内容
     expect(cs).toHaveLength(1);
     expect(cs[0].value).toBe('第2课 观潮');
     expect(cs.some(c => c.value === '综合检测')).toBe(false);
+  });
+});
+
+describe('inferAcademicTerm —— 学年度学期推断（期中/期末/月考卷首前缀）', () => {
+  it('9月-次年1月为第一学期（学年度从9月起算）', () => {
+    expect(inferAcademicTerm(new Date(2025, 8, 15))).toBe('2025-2026学年度第一学期'); // 2025-09-15
+    expect(inferAcademicTerm(new Date(2026, 0, 10))).toBe('2025-2026学年度第一学期'); // 2026-01-10
+  });
+  it('2月-8月为第二学期（8月暑假归第二学期末）', () => {
+    expect(inferAcademicTerm(new Date(2026, 3, 20))).toBe('2025-2026学年度第二学期'); // 2026-04-20
+    expect(inferAcademicTerm(new Date(2026, 7, 24))).toBe('2025-2026学年度第二学期'); // 2026-08-24
   });
 });
 

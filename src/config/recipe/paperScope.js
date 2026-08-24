@@ -116,6 +116,20 @@ export function inferPaperScope(chapters = [], outline = [], scopeType = '', pic
 const ATTACHED_TOP_RE = /园地|综合练习|单元小结|复习与|总复习|整理与复习/i;
 
 /**
+ * 学年度学期推断（正式考试（期中/期末/月考）卷首标题前缀用）。
+ * 规则：学年度 = 9月1日-次年8月31日；学期 = 9月-次年1月为第一学期、2月-8月为第二学期（8月视为第二学期末/暑假）。
+ * @param {Date} [now] 当前时间（测试可注入固定日期）
+ * @returns {string} 如 "2025-2026学年度第二学期"
+ */
+export function inferAcademicTerm(now = new Date()) {
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1; // 1-12
+  const startYear = m >= 9 ? y : y - 1;
+  const term = (m >= 9 || m <= 1) ? '第一学期' : '第二学期';
+  return `${startYear}-${startYear + 1}学年度${term}`;
+}
+
+/**
  * 计算所选章节归属的"有效单元"下标（园地等附属顶层节点归并到前一个有效单元）。
  * @returns {number[]} 去重后的有效单元下标（可为空）
  */

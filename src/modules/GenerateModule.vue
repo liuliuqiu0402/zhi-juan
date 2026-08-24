@@ -1494,7 +1494,7 @@ import {
   normalizeSubjectName
 } from '../config/expertKnowledge.js';
 import { useAiGenerator } from '../composables/useAiGenerator.js';
-import { inferPaperScope, buildScopeCandidates } from '../config/recipe/paperScope.js';
+import { inferPaperScope, buildScopeCandidates, inferAcademicTerm } from '../config/recipe/paperScope.js';
 
 // 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
 const SCOPE_TYPE_LABELS = { default: '默认', midterm: '期中', final: '期末', monthly: '月考', topic: '专题' };
@@ -4161,19 +4161,24 @@ const loadInstructionFromLibrary = async () => {
 
   // 命题范围（单元名：课/单元/期中/期末）
   let unit = '';
+  let scopeInfo = null;
   try {
     const scopeSource = selectedBooks.find(b => (b.selectedChapters || []).length > 0) || selectedBooks[0];
     if (scopeSource?.outline) {
-      const scopeInfo = inferPaperScope(scopeSource.selectedChapters || [], scopeSource.outline || [], scopeType.value || '');
+      scopeInfo = inferPaperScope(scopeSource.selectedChapters || [], scopeSource.outline || [], scopeType.value || '');
       unit = scopeOverride.value || scopeInfo.name || '';
     }
   } catch { /* 范围推断失败不影响 */ }
 
   // 组装注入指令（任务行 + 模板正文 + 用户附加）
   const genTypeLabel = genTypeTemplates[genType]?.name || genType;
-  // ✏️ 标题类型名：名称样式固定选择优先，否则从类型名称池轮换（避免标题千篇一律）
-  const label = labelStyle.value || pickLabelFromPool(genType, unit || '_all_');
-  const gradeLabel = `${STAGE_LABEL_MAP[stageKey] || stageKey}${book.grade ? `·${book.grade}` : ''}`;
+  // ✏️ 标题组成（命名规范）：年级(去学段) + 学科 + 册别 + 范围名 + 类型名；
+  //    期中/期末/月考（范围名即考试标签）前缀加学年度学期、不再拼类型名（避免"期中综合测试综合检测"病句）
+  const isLabelScope = !!scopeInfo?.isScopeLabel && ['midterm', 'final', 'monthly', 'topic'].includes(scopeType.value || '');
+  const label = scopeInfo?.isScopeLabel ? '' : (labelStyle.value || pickLabelFromPool(genType, unit || '_all_'));
+  const academic = isLabelScope ? inferAcademicTerm() : '';
+  const semester = book.semester || '';
+  const gradeLabel = book.grade || '';
   instructionDraft.value = buildInjectionInstruction({
     template: tpl.template,
     grade: gradeLabel,
@@ -4181,6 +4186,8 @@ const loadInstructionFromLibrary = async () => {
     unit,
     genTypeLabel,
     label,
+    semester,
+    academic,
     structure,
     fullScore,
     duration,
@@ -4238,9 +4245,9 @@ const restoreDefaultInstruction = async () => {
   const genTypeLabel = genTypeTemplates[genType]?.name || genType;
   // ✏️ 标题类型名：名称样式固定优先，否则轮换（restoreDefault 场景无 unit，用全量轮换键）
   const label = labelStyle.value || pickLabelFromPool(genType, '_all_');
-  const gradeLabel = `${STAGE_LABEL_MAP[stageKey] || stageKey}${book.grade ? `·${book.grade}` : ''}`;
+  const gradeLabel = book.grade || '';
   instructionDraft.value = buildInjectionInstruction({
-    template: builtinTemplate, grade: gradeLabel, subject, genTypeLabel, label, structure, fullScore, duration,
+    template: builtinTemplate, grade: gradeLabel, subject, genTypeLabel, label, semester: book.semester || '', structure, fullScore, duration,
     subjectFormat: buildSubjectFormatBlock(subject),
   });
   instructionDraft.value += buildRenderContract({
