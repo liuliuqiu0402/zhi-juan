@@ -20,6 +20,10 @@
     <div class="nav-item" :class="{ active: $route.path === '/blueprint' }" @click="$router.push('/blueprint')">
       <span>📐</span> 蓝图库
     </div>
+
+    <div class="nav-item" :class="{ active: $route.path === '/rules' }" @click="$router.push('/rules')">
+      <span>🧪</span> 质检规则
+    </div>
     
     <div class="nav-item" :class="{ disabled: !canAccessFeature('draft') }"
       @click="goIfAllowed('/draft', 'draft')"

@@ -41,6 +41,11 @@ const routes = [
     component: () => import('@/modules/BlueprintModule.vue')
   },
   {
+    path: '/rules',
+    name: 'rules',
+    component: () => import('@/modules/RulesModule.vue')
+  },
+  {
     path: '/draft',
     name: 'draft',
     component: () => import('@/modules/DraftModule.vue')

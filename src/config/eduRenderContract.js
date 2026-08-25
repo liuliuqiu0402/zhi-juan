@@ -215,21 +215,59 @@ const GRAPH_COMMON_PARAMS = '通用参数：XLIM:min,max 横轴范围、YLIM:min
 /** 公式规则 */
 const FORMULA_RULES = '· 公式：行内用 $...$、块级用 $$...$$（如 $$x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}$$），严禁用文本堆砌或图片代替公式。';
 
+// ==================== 学段维度门控（三维度对齐：学段 × 学科 × 类型） ====================
+
+/** 中学及以上（middle/high；stage 为空时视为全量，兼容旧调用） */
+const isMiddlePlus = (stage) => !stage || stage === 'middle' || stage === 'high';
+/** 小学低段 */
+const isPrimaryLow = (stage) => stage === 'primary_low';
+
 /**
- * 构建渲染指令契约段（三维度注入）
- * @param {Object} opts { subject(学科), genType(资料类型), needsImage(大题/资料是否配图) }
+ * 学科×学段 → [GRAPH] 注入内容（学段门控）：
+ *   - 物理/化学：仅初中及以上（小学无物理化学）
+ *   - 数学低段：只保留数轴与统计图（裁剪函数/几何 SHAPES 段）
+ *   - 其余学科：全量
+ * @returns {null | {parts: string[], types: string[]}}
+ */
+const getGraphParts = (subject, stage) => {
+  const base = SUBJECT_GRAPH_PARTS[subject];
+  if (!base) return null;
+  if ((subject === '物理' || subject === '化学') && !isMiddlePlus(stage)) return null;
+  if (subject === '数学' && isPrimaryLow(stage)) {
+    return {
+      parts: base.filter(p => !/SHAPES|函数|几何/.test(p)),
+      types: ['COORDINATE', 'BAR_CHART', 'LINE_CHART'],
+    };
+  }
+  return { parts: base, types: SUBJECT_GRAPH_TYPES[subject] || GRAPH_TYPES };
+};
+
+/**
+ * 学科×学段 → 是否注入公式（学段门控）：
+ *   - 数学：小学中段起（低段无 LaTeX 公式）
+ *   - 物理/化学：初中及以上（小学无物理化学）
+ */
+const getFormulaNeeded = (subject, stage) => {
+  if (subject === '数学') return !isPrimaryLow(stage);
+  if (subject === '物理' || subject === '化学') return isMiddlePlus(stage);
+  return false;
+};
+
+/**
+ * 构建渲染指令契约段（三维度注入：学段 × 学科 × 类型/配图）
+ * @param {Object} opts { subject(学科), genType(资料类型), needsImage(是否配图), stage(学段键) }
  * @returns {string} 空串 = 无需渲染指令
  */
-export function buildRenderContract({ subject = '', genType = '', needsImage = false } = {}) {
+export function buildRenderContract({ subject = '', genType = '', needsImage = false, stage = '' } = {}) {
   const parts = [];
-  const graphParts = SUBJECT_GRAPH_PARTS[subject];
-  const formulaNeeded = MATH_SUBJECTS.includes(subject);
-  if (!graphParts && !formulaNeeded && !needsImage) return '';
+  const graph = getGraphParts(subject, stage);
+  const formulaNeeded = getFormulaNeeded(subject, stage);
+  if (!graph && !formulaNeeded && !needsImage) return '';
 
   parts.push('【渲染指令（EduRender Studio 格式，渲染端可直接解析；仅需图/公式时输出，不计题量）】');
-  if (graphParts) {
-    parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${(SUBJECT_GRAPH_TYPES[subject] || GRAPH_TYPES).join('/')}；${GRAPH_COMMON_PARAMS}。图形数据必须与题干完全一致。`);
-    parts.push(...graphParts);
+  if (graph) {
+    parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${graph.types.join('/')}；${GRAPH_COMMON_PARAMS}。图形数据必须与题干完全一致。`);
+    parts.push(...graph.parts);
   }
   if (formulaNeeded) {
     parts.push(FORMULA_RULES);

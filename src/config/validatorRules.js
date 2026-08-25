@@ -183,20 +183,83 @@ export const VALIDATOR_RULES = [
   },
 ];
 
-/** 全量规则（维护/展示用） */
-export const listValidatorRules = () => VALIDATOR_RULES.map(r => ({ ...r }));
+/** 全量内置规则（维护/展示用） */
+export const listValidatorRules = () => getMergedRules().map(r => ({ ...r }));
 
-/** 查询单条规则 */
-export const getValidatorRule = (id) => VALIDATOR_RULES.find(r => r.id === id) || null;
+/** 查询单条规则（用户版优先） */
+export const getValidatorRule = (id) => getMergedRules().find(r => r.id === id) || null;
+
+// ==================== 用户自定义持久化（面板维护，用户版优先，对齐蓝图库/指令库机制） ====================
+
+/** localStorage 键：用户自定义规则库（覆盖/新增/删除标记） */
+export const RULES_STORAGE_KEY = 'wisdom_validator_rules_v1';
+
+/** 读取用户自定义规则库 */
+const loadUserRules = () => {
+  try {
+    return JSON.parse(localStorage.getItem(RULES_STORAGE_KEY) || 'null') || { overrides: {}, added: {}, deleted: [] };
+  } catch { return { overrides: {}, added: {}, deleted: [] }; }
+};
+
+/** 保存单条规则（内置 id → 覆盖；新 id → 新增） */
+export const saveUserRule = (rule = {}) => {
+  if (!rule.id) return false;
+  const lib = loadUserRules();
+  const isBuiltin = VALIDATOR_RULES.some(r => r.id === rule.id);
+  const target = isBuiltin ? lib.overrides : lib.added;
+  target[rule.id] = { ...rule, updatedAt: Date.now() };
+  if (!isBuiltin && lib.deleted.includes(rule.id)) lib.deleted = lib.deleted.filter(id => id !== rule.id);
+  try { localStorage.setItem(RULES_STORAGE_KEY, JSON.stringify(lib)); } catch { return false; }
+  return true;
+};
+
+/** 删除规则（内置 id → 标记删除回退；用户新增 id → 移除） */
+export const deleteUserRule = (id) => {
+  if (!id) return false;
+  const lib = loadUserRules();
+  const isBuiltin = VALIDATOR_RULES.some(r => r.id === id);
+  if (isBuiltin) {
+    delete lib.overrides[id];
+    if (!lib.deleted.includes(id)) lib.deleted.push(id);
+  } else {
+    delete lib.added[id];
+    lib.deleted = lib.deleted.filter(x => x !== id);
+  }
+  try { localStorage.setItem(RULES_STORAGE_KEY, JSON.stringify(lib)); } catch { return false; }
+  return true;
+};
+
+/** 恢复全部默认（清空用户自定义） */
+export const resetUserRules = () => {
+  try { localStorage.removeItem(RULES_STORAGE_KEY); } catch {}
+  return true;
+};
+
+/** 合并：内置（剔除 deleted）→ 应用 overrides → 追加用户新增 */
+const getMergedRules = () => {
+  const user = loadUserRules();
+  const deleted = new Set(user.deleted || []);
+  const out = [];
+  for (const rule of VALIDATOR_RULES) {
+    if (deleted.has(rule.id)) continue;
+    const override = user.overrides?.[rule.id];
+    out.push(override ? { ...rule, ...override, source: 'user' } : { ...rule, source: 'builtin' });
+  }
+  for (const [id, rule] of Object.entries(user.added || {})) {
+    out.push({ ...rule, id, source: 'user' });
+  }
+  return out;
+};
 
 /**
- * 按 学段×学科×资料类型 三维度匹配启用的规则 id 集合（与指令库/蓝图库匹配口径对齐）
+ * 按 学段×学科×资料类型 三维度匹配启用的规则 id 集合（与指令库/蓝图库匹配口径对齐；
+ * 基于合并后的规则（内置+用户自定义），用户面板维护即时生效）
  * @param {Object} opts { subject, stage, genType }
  * @returns {Set<string>} 启用的规则 id 集合
  */
 export const getValidatorRules = ({ subject = '', stage = '', genType = '' } = {}) => {
   const ids = new Set();
-  for (const rule of VALIDATOR_RULES) {
+  for (const rule of getMergedRules()) {
     if (!rule.enabled) continue;
     if (rule.genTypes && rule.genTypes.length && !rule.genTypes.includes(genType)) continue;
     if (rule.subjects && rule.subjects.length && !rule.subjects.includes('*') && !rule.subjects.includes(subject)) continue;
@@ -214,7 +277,7 @@ export const getValidatorRules = ({ subject = '', stage = '', genType = '' } = {
  */
 export const buildValidatorPrompt = ({ subject = '', stage = '', genType = '' } = {}) => {
   const hints = [];
-  for (const rule of VALIDATOR_RULES) {
+  for (const rule of getMergedRules()) {
     if (!rule.enabled || rule.category !== 'fix' || !rule.promptHint) continue;
     if (rule.genTypes && rule.genTypes.length && !rule.genTypes.includes(genType)) continue;
     if (rule.subjects && rule.subjects.length && !rule.subjects.includes('*') && !rule.subjects.includes(subject)) continue;
@@ -226,6 +289,7 @@ export const buildValidatorPrompt = ({ subject = '', stage = '', genType = '' } 
 };
 
 export default {
-  STAGE_KEYS, normalizeStage, VALIDATOR_RULES,
+  STAGE_KEYS, normalizeStage, VALIDATOR_RULES, RULES_STORAGE_KEY,
   listValidatorRules, getValidatorRule, getValidatorRules, buildValidatorPrompt,
+  saveUserRule, deleteUserRule, resetUserRules,
 };

@@ -4325,10 +4325,11 @@ const loadInstructionFromLibrary = async () => {
     fullScore,
     duration,
   });
-  // 🔴 渲染指令契约（EduRender）按 学科×类型×是否配图 三维度注入——功能闭合：
-  //    图形学科给 [GRAPH]、数理化学科给公式、配图类题型给 [IMAGE]（EduRender 可渲染）
+  // 🔴 渲染指令契约（EduRender）按 学段×学科×类型×是否配图 三维度+注入——功能闭合：
+  //    图形学科给 [GRAPH]（按学段裁剪：低段数学无函数/几何、物理化学仅中学）、
+  //    数理化学科按学段给公式、配图类题型给 [IMAGE]（EduRender 可渲染）
   instructionDraft.value += buildRenderContract({
-    subject, genType,
+    subject, genType, stage: stageKey,
     needsImage: needsImageHint(`${structure} ${genTypeLabel} ${unit}`, genType),
   });
   // 🔴 卷面质检规则（规则库）按 学段×学科×类型 注入生成前约束（fix 类规则提示，防患未然；
@@ -4387,7 +4388,7 @@ const restoreDefaultInstruction = async () => {
     subjectFormat: buildSubjectFormatBlock(subject),
   });
   instructionDraft.value += buildRenderContract({
-    subject, genType,
+    subject, genType, stage: stageKey,
     needsImage: needsImageHint(`${structure} ${genTypeLabel} ${unit}`, genType),
   });
   instructionDraft.value += buildValidatorPrompt({ subject, stage: stageKey, genType });

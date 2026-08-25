@@ -66,6 +66,35 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     expect(out).toContain('KEYWORDS:熊猫,竹子,卡通');
   });
 
+  it('学段门控：数学小学低段裁剪函数/几何（仅数轴+统计图），不注入公式', () => {
+    const out = buildRenderContract({ subject: '数学', genType: 'exam', stage: 'primary_low' });
+    expect(out).toContain('TYPE:COORDINATE');
+    expect(out).toContain('TYPE:BAR_CHART');
+    expect(out).not.toContain('TYPE:SHAPES');
+    expect(out).not.toContain('FUNCTION:');
+    expect(out).not.toContain('\\frac');
+  });
+
+  it('学段门控：数学初中注入函数/几何与公式', () => {
+    const out = buildRenderContract({ subject: '数学', genType: 'exam', stage: 'middle' });
+    expect(out).toContain('TYPE:SHAPES');
+    expect(out).toContain('FUNCTION:x**2 - 2*x - 3');
+    expect(out).toContain('\\frac');
+  });
+
+  it('学段门控：物理仅初中及以上注入（小学无物理）', () => {
+    expect(buildRenderContract({ subject: '物理', genType: 'exam', stage: 'primary_low' })).toBe('');
+    const out = buildRenderContract({ subject: '物理', genType: 'exam', stage: 'middle' });
+    expect(out).toContain('TYPE:FORCE');
+    expect(out).toContain('TYPE:CIRCUIT');
+    expect(out).toContain('TYPE:OPTICS');
+  });
+
+  it('学段门控：化学仅初中及以上注入 ATOM', () => {
+    expect(buildRenderContract({ subject: '化学', genType: 'exam', stage: 'primary_low' })).toBe('');
+    expect(buildRenderContract({ subject: '化学', genType: 'exam', stage: 'high' })).toContain('TYPE:ATOM');
+  });
+
   it('数理化学科（数学/物理/化学）注入公式说明', () => {
     expect(MATH_SUBJECTS).toContain('数学');
     expect(MATH_SUBJECTS).toContain('物理');
