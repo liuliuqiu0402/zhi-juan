@@ -153,6 +153,14 @@ describe('examValidator [IMAGE] 配图块标准化（image-block-fix）', () => 
     expect(out).toBe(std);
     expect(issues.some(i => i.type === 'image-block')).toBe(false);
   });
+
+  it('参数行间混入 HTML 残留（</p><p></p>）→ 全部字段清理（本案例：TYPE/STYLE/WIDTH/HEIGHT/NEGATIVE 都带标签）', () => {
+    const html = '[IMAGE]\nTYPE: SD</p>　STYLE: line_art<p></p>　WIDTH: 400<p></p>　HEIGHT: 300<p></p>\nPROMPT: 秋天公园里扫落叶。\nNEGATIVE: 文字、水印、彩色、写实照片<p></p>\n[/IMAGE]';
+    const { html: out } = auditExamPaper(html, OPTS);
+    expect(out).toContain('TYPE:SD\nPROMPT:秋天公园里扫落叶。\nNEGATIVE:文字、水印、彩色、写实照片\nWIDTH:400\nHEIGHT:300\nSTYLE:line_art\n[/IMAGE]');
+    expect(out).not.toContain('</p>');
+    expect(out).not.toContain('&lt;/p&gt;');
+  });
 });
 
 describe('examValidator 正文重复内容检测截断（duplicate-content-fix）', () => {
