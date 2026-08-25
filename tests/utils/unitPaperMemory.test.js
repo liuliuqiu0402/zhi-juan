@@ -36,11 +36,13 @@ describe('unitPaperMemory 题目摘要提取', () => {
       '<p>（1）我们一行（háng xíng）人走在乡间的小路上。</p>',
       '<p class="question">3. 连一连。</p>',
     ].join('\n');
-    const samples = extractQuestionSamples(html, 5, 25);
+    const samples = extractQuestionSamples(html, 5, 30);
     expect(samples.length).toBeGreaterThanOrEqual(2);
+    // 摘要含子题内容（区分具体字词，而非仅题型）
     expect(samples[0]).toContain('看拼音写词语');
-    // 每条不超过 25 字符
-    for (const s of samples) expect(s.length).toBeLessThanOrEqual(25);
+    expect(samples[0]).toContain('海边的沙滩上');
+    // 每条不超过 30 字符
+    for (const s of samples) expect(s.length).toBeLessThanOrEqual(30);
   });
 });
 
@@ -58,6 +60,18 @@ describe('unitPaperMemory 记录读写与容量', () => {
     const key = buildUnitKey({ bookId: 'b1', scope: '第二单元', genType: 'exam' });
     for (let i = 0; i < 8; i++) pushUnitPaperMemory(key, [`题${i}`]);
     expect(getUnitPaperMemory(key).length).toBeLessThanOrEqual(5);
+  });
+
+  it('全局总记录数上限：大量写入后总量受控（防 localStorage 膨胀）', () => {
+    // 写入大量桶记录（300 上限以内每桶 5 条 × 60 桶 = 300 条）
+    for (let b = 0; b < 80; b++) {
+      const key = buildUnitKey({ bookId: `b${b}`, scope: '第二单元', genType: 'exam' });
+      for (let i = 0; i < 5; i++) pushUnitPaperMemory(key, [`题${b}-${i}`]);
+    }
+    // 全局记录总数 ≤ 300（bucket 数 × 每桶条数）
+    const mem = JSON.parse(localStorage.getItem(MEMORY_STORAGE_KEY) || '{}');
+    const total = Object.values(mem).reduce((n, bk) => n + bk.length, 0);
+    expect(total).toBeLessThanOrEqual(300);
   });
 
   it('不同类型/范围互不影响', () => {

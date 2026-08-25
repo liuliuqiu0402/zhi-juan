@@ -18,10 +18,12 @@ export const MEMORY_STORAGE_KEY = 'wisdom_unit_paper_memory_v1';
 
 /** 每桶保留最近记录数 */
 const MAX_RECORDS_PER_BUCKET = 5;
+/** 全局总记录数上限（防 localStorage 膨胀：300 条 × 约 2KB ≈ 600KB，远低于 5MB 上限） */
+const MAX_TOTAL_RECORDS = 300;
 /** 单次记录保存的题目摘要条数 */
 const MAX_SAMPLES_PER_RECORD = 8;
 /** 单条摘要最大字符数 */
-const MAX_SAMPLE_LEN = 25;
+const MAX_SAMPLE_LEN = 30;
 
 /** 读取记忆库 */
 const loadMemory = () => {
@@ -58,16 +60,22 @@ export const extractQuestionSamples = (html = '', maxCount = MAX_SAMPLES_PER_REC
       const clean = part.replace(/^\s*\d+[.、．]\s*/, '').trim();
       if (!clean || clean.length < 4) continue;
       if (/^[一二三四五六七八九十]+、/.test(clean)) continue; // 大题标题段
-      // 取首句（到第一个句末标点），控制摘要长度
+      // 题干首句（到第一个句末标点）
       const firstSent = clean.split(/[。！？；\n]/)[0].trim();
-      const s = firstSent.length > maxLen ? firstSent.slice(0, maxLen) : firstSent;
+      // 🔧 拼入前 2 个子题首句（如"（1）海边的沙滩上，一只海鸥"），
+      //    使摘要能区分具体考查内容（看拼音写词语考了哪些字词），而非仅题型
+      const subMatches = clean.match(/[（(]\d+[)）][^（(]{1,14}/g) || [];
+      const subBits = subMatches.slice(0, 2).map(s => s.trim());
+      let s = firstSent;
+      if (subBits.length) s += '：' + subBits.join('、');
+      if (s.length > maxLen) s = s.slice(0, maxLen);
       if (s) out.push(s);
     }
     return out;
   } catch { return []; }
 };
 
-/** 记录一次生成（写入后按时间保留最近 MAX_RECORDS_PER_BUCKET 条） */
+/** 记录一次生成（写入后按时间保留最近 MAX_RECORDS_PER_BUCKET 条 + 全局总记录数上限） */
 export const pushUnitPaperMemory = (unitKey = '', samples = []) => {
   if (!unitKey || !Array.isArray(samples) || samples.length === 0) return false;
   const mem = loadMemory();
@@ -77,6 +85,19 @@ export const pushUnitPaperMemory = (unitKey = '', samples = []) => {
   bucket.unshift(record);
   bucket.sort((a, b) => (b.ts || 0) - (a.ts || 0));
   mem[unitKey] = bucket.slice(0, MAX_RECORDS_PER_BUCKET);
+  // 🔧 全局总记录数上限：超出删除最旧记录，防 localStorage 无限膨胀（记忆不上云、不占云端）
+  const flat = [];
+  for (const [k, bk] of Object.entries(mem)) {
+    for (let i = 0; i < bk.length; i++) flat.push({ k, idx: i, ts: bk[i].ts });
+  }
+  if (flat.length > MAX_TOTAL_RECORDS) {
+    flat.sort((a, b) => (b.ts || 0) - (a.ts || 0) || (b.idx - a.idx));
+    const keep = new Set(flat.slice(0, MAX_TOTAL_RECORDS).map(x => `${x.k}#${x.idx}`));
+    for (const k of Object.keys(mem)) {
+      mem[k] = mem[k].filter((r, i) => keep.has(`${k}#${i}`));
+      if (mem[k].length === 0) delete mem[k];
+    }
+  }
   try { localStorage.setItem(MEMORY_STORAGE_KEY, JSON.stringify(mem)); } catch { return false; }
   return true;
 };
