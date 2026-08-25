@@ -1539,6 +1539,7 @@ import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
 import { findBlueprint } from '../config/blueprintProvider.js';
 import { getPromptTemplate, buildInjectionInstruction, buildStructureText, OUTPUT_FORMAT_HINT } from '../config/promptLibrary.js';
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
+import { buildValidatorPrompt } from '../config/validatorRules.js';
 import { buildBlueprintInjection } from '../config/examPaperBlueprints.js';
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
@@ -4330,6 +4331,9 @@ const loadInstructionFromLibrary = async () => {
     subject, genType,
     needsImage: needsImageHint(`${structure} ${genTypeLabel} ${unit}`, genType),
   });
+  // 🔴 卷面质检规则（规则库）按 学段×学科×类型 注入生成前约束（fix 类规则提示，防患未然；
+  //    生成后由校验器静默自动修复，无需人工处理）
+  instructionDraft.value += buildValidatorPrompt({ subject, stage: stageKey, genType });
   // 🔴 蓝图注入：exam 附加真题蓝本（题型骨架 + 大题命题要求 + 学段/学科新课标条款）；
   //    非 exam 模板正文已自带【输出格式】，用户自定义模板可能缺失 → 去重兜底追加
   if (genType === 'exam') {
@@ -4386,6 +4390,7 @@ const restoreDefaultInstruction = async () => {
     subject, genType,
     needsImage: needsImageHint(`${structure} ${genTypeLabel} ${unit}`, genType),
   });
+  instructionDraft.value += buildValidatorPrompt({ subject, stage: stageKey, genType });
   instructionSource.value = { name: `内置默认·${genTypeLabel}`, source: 'builtin', key: genType };
   previewHint.value = '已恢复内置默认指令（未改动你的自定义模板）。';
 };

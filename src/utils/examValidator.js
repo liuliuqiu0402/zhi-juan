@@ -1,9 +1,12 @@
 // ==================== 整卷结构质量校验器（ExamPaperAuditor）====================
 // 🔴 定位：生成后程序化质检层（所有资料类型 × 所有学科 × 所有学段通用）。
 //    提示词规则（questionTypeRules/promptLibrary）约束 AI"应该怎么出题"，
-//    本校验器兜底"AI 没做到时怎么办"——能自动修复的修复，不能修复的记警告。
-//    规则全部基于卷面载体结构（空位/拼音/选项/连线/图片），与学科、学段、资料类型无关。
+//    本校验器兜底"AI 没做到时怎么办"——能自动修复的修复（fix），
+//    不能修复的静默计数（guard，不产生任何问题提示）。
+//    规则清单在 src/config/validatorRules.js（与指令库/蓝图库同级，分学科可维护），
+//    本文件只负责规则的执行逻辑。
 // ============================================================
+import { getValidatorRules } from '../config/validatorRules.js';
 
 // ---------- 通用正则 ----------
 // 全角拼音字符归一表（IPA 音标字符混入小学拼音、全角字母）
@@ -163,18 +166,24 @@ export const fixScoreLabel = (title, totalScore, carrierCount, subCount) => {
 };
 
 /**
- * 主入口：整卷质量校验与修复
+ * 主入口：整卷质量校验与修复（按 学段×学科×资料类型 三维度匹配规则库执行）
  * @param {string} html 整卷 HTML（含答案区）
- * @returns {{html: string, issues: Array<{severity:string,type:string,message:string}>, fixed: number}}
+ * @param {Object} opts { subject(学科), stage(学段键), genType(资料类型) }
+ * @returns {{html: string, issues: Array, fixed: number, silent: number}}
+ *   issues 仅含 fix 类的修复记录（info 级）；guard 类只计数进 silent（debug 日志，不产生问题提示）
  */
-export const auditExamPaper = (html) => {
-  if (!html || typeof html !== 'string') return { html: html || '', issues: [], fixed: 0 };
+export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } = {}) => {
+  if (!html || typeof html !== 'string') return { html: html || '', issues: [], fixed: 0, silent: 0 };
+  const rules = getValidatorRules({ subject, stage, genType });
+  const has = (id) => rules.has(id);
   let out = String(html);
   const issues = [];
   let fixed = 0;
+  let silent = 0;
+  const silentCount = (type, msg) => { silent += 1; console.debug(`🔍 [质检-${type}] ${msg}`); };
 
-  // ── 0. 拼音字符归一（全卷，防 ɡ/ŋ/ɑ 混入）──
-  {
+  // ── 0. 拼音字符归一（规则 pinyin-norm，全卷防 ɡ/ŋ/ɑ 混入）──
+  if (has('pinyin-norm')) {
     const { text, fixed: f } = normalizePinyinText(out);
     if (f > 0) {
       fixed += f;
@@ -182,42 +191,80 @@ export const auditExamPaper = (html) => {
     }
   }
 
-  // ── 1. 模板残留清理（非标准插图占位 / 转义标签 / 空条款）──
-  {
+  // ── 1. 模板残留清理（规则 template-cleanup）──
+  if (has('template-cleanup')) {
     // 1a. "【插图占位】…复制 PROMPT…"非标准块 → 整个移除（渲染链路只认 [IMAGE] 标准块）
     const phRe = /【\s*插图占位[\s\S]*?(?:复制\s*PROMPT|PROMPT)[\s\S]*?(?:插入此处|<\/div>|$)/gi;
-    const before1 = out;
     out = out.replace(phRe, (m) => {
-      issues.push({ severity: 'warning', type: 'image-placeholder', message: `发现非标准插图占位符残留，已移除（${m.length} 字符），请确保看图写话/配图题使用 [IMAGE] 标准块` });
+      issues.push({ severity: 'info', type: 'image-placeholder', message: `已移除非标准插图占位符残留（${m.length} 字符）` });
       fixed += 1;
       return '';
     });
     // 1b. 被转义的 HTML 标签实体残留（\</div\>、\</p>、</div\> 等形式）——
     //    🔴 反斜杠必须出现才匹配，绝不可误删正常闭合标签（否则 DOM 结构被破坏）
     const escRe = /\\<\/(div|p|span|u|h1|h2|h3|section|br)\s*\\?>|<\/(div|p|span|u|h1|h2|h3|section|br)\s*\\>/gi;
-    const before2 = out;
     out = out.replace(escRe, (m, tag) => {
       const t = tag || m.match(/\/(\w+)/)?.[1] || 'tag';
       if (t === 'br') { fixed += 1; return '<br>'; }
-      issues.push({ severity: 'warning', type: 'escaped-html', message: `移除被转义的闭合标签残留：${m.trim()}` });
+      issues.push({ severity: 'info', type: 'escaped-html', message: `已移除被转义的闭合标签残留：${m.trim()}` });
       fixed += 1;
       return '';
     });
     // 1c. 空条款（"3．。"——只有编号没有内容，可能是 <p> 包裹或裸文本）
     const emptyItemRe = /(?:^|\n|>)\s*\d+\s*[.、．]\s*。\s*(?:<|\n|$)/g;
-    const before3 = out;
     out = out.replace(emptyItemRe, (m) => {
-      issues.push({ severity: 'warning', type: 'empty-item', message: `移除空条款（仅有编号无内容）：${m.trim()}` });
+      issues.push({ severity: 'info', type: 'empty-item', message: `已移除空条款（仅有编号无内容）：${m.trim()}` });
       fixed += 1;
       return m.startsWith('>') ? '' : '\n';
     });
     // 1c-2. 整个 <p> 只有空条款 → 删除整段
     const emptyPRe = /<p[^>]*>\s*\d+\s*[.、．]\s*。\s*<\/p>/g;
     out = out.replace(emptyPRe, (m) => {
-      issues.push({ severity: 'warning', type: 'empty-item', message: `移除空条款段落：${stripTags(m).trim()}` });
+      issues.push({ severity: 'info', type: 'empty-item', message: `已移除空条款段落：${stripTags(m).trim()}` });
       fixed += 1;
       return '';
     });
+  }
+
+  // ── 1.5. 大题标题明细式（规则 title-detail-fix：旧式"（X分）"→"共N题，每题X分，共X分"）──
+  if (has('title-detail-fix')) {
+    try {
+      const tpl = document.createElement('template');
+      tpl.innerHTML = out;
+      const heads = Array.from(tpl.content.querySelectorAll('h2, h3, h4'));
+      heads.forEach((h, i) => {
+        const t = (h.textContent || '').trim();
+        if (!/^[一二三四五六七八九十]+、/.test(t) || !/[（(]\s*\d{1,3}\s*分\s*[)）]\s*$/.test(t) || /共\s*\d+\s*题/.test(t)) return;
+        const scoreMatch = t.match(/[（(]\s*(\d{1,3})\s*分\s*[)）]\s*$/);
+        if (!scoreMatch) return;
+        const totalScore = parseInt(scoreMatch[1], 10);
+        let count = 0;
+        let node = h.nextSibling;
+        const end = heads[i + 1] || null;
+        while (node && node !== end) {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const tag = node.tagName.toLowerCase();
+            if (tag === 'p' || tag === 'li' || tag === 'div') {
+              const tt = (node.textContent || '').trim();
+              if (/^\d+[.、．]/.test(tt)) count += 1;
+            }
+          }
+          node = node.nextSibling;
+        }
+        if (count <= 0) return;
+        const perScore = count > 1 && totalScore % count === 0 ? totalScore / count : null;
+        const detail = perScore != null ? `共${count}题，每题${perScore}分，共${totalScore}分` : `共${count}题，共${totalScore}分`;
+        const newT = t.replace(/[（(]\s*\d{1,3}\s*分\s*[)）]\s*$/, `（${detail}）`);
+        if (newT !== t) {
+          h.textContent = newT;
+          issues.push({ severity: 'info', type: 'title-detail', message: `大题标题已补全明细式：${newT}` });
+          fixed += 1;
+        }
+      });
+      out = tpl.innerHTML;
+    } catch (e) {
+      console.warn('⚠️ 大题标题明细化失败（不影响其他修复）:', e.message);
+    }
   }
 
   // ── 2. 大题级：分值账目 + 载体结构校验（DOM 内直接操作，避免字符串与 DOM 序列化差异）──
@@ -230,7 +277,10 @@ export const auditExamPaper = (html) => {
       heads.forEach((head, i) => {
         const title = (head.textContent || '').trim();
         if (!title) return;
-        const scoreMatch = title.match(/[（(]\s*(\d{1,3})\s*分/);
+        // 兼容明细式（"共X分"）与旧式（"（X分）"）两种标题取总分（title-detail-fix 可能已改写标题）
+        const cm = title.match(/共\s*(\d{1,3})\s*分/);
+        const sm = title.match(/[（(]\s*(\d{1,3})\s*分/);
+        const scoreMatch = cm || sm;
         if (!scoreMatch) return;
         const totalScore = parseInt(scoreMatch[1], 10);
         // 收集本大题 DOM 节点（下一个大题标题之前）
@@ -253,89 +303,93 @@ export const auditExamPaper = (html) => {
         const options = countOptions(secHtml);
         const matchSides = countMatchSides(secHtml);
 
-        // 2a. 看拼音写词语/拼音填空：拼音组数 vs 空位数——缺空自动补
-        if (pinyinGroups >= 2 && blanks >= 1 && pinyinGroups !== blanks) {
+        // 2a. 看拼音写词语/拼音填空缺空自动补（规则 pinyin-blank-fill）
+        if (has('pinyin-blank-fill') && pinyinGroups >= 2 && blanks >= 1 && pinyinGroups !== blanks) {
           if (pinyinGroups > blanks) {
             const missing = pinyinGroups - blanks;
             const { recovered } = fixMissingPinyinBlanksInDom(secNodes, missing);
             issues.push({
-              severity: recovered ? 'info' : 'warning',
+              severity: 'info',
               type: 'pinyin-blank-mismatch',
-              message: `大题「${title}」检测到拼音组数(${pinyinGroups})与空位数(${blanks})不一致，已自动补 ${missing} 个空位${recovered ? '' : '（部分补全失败，请人工复核）'}`,
+              message: `已自动补 ${missing} 个拼音空位（大题「${title}」拼音${pinyinGroups}组/空位${blanks}个）${recovered ? '' : '，部分补全失败请抽检'}`,
             });
             fixed += 1;
-          } else {
-            issues.push({
-              severity: 'warning',
-              type: 'pinyin-blank-mismatch',
-              message: `大题「${title}」空位数(${blanks})多于拼音组数(${pinyinGroups})，可能存在多余空位，请人工复核`,
-            });
+          } else if (has('blank-excess-guard')) {
+            silentCount('blank-excess', `大题「${title}」空位数(${blanks})多于拼音组数(${pinyinGroups})`);
           }
         }
 
-        // 2b. 同题组子题载体一致性（（1）（2）子题都有空/都有拼音选项）
-        const subConsistency = checkSubQuestionConsistency(secText);
-        if (subConsistency) {
-          issues.push({ severity: subConsistency.severity, type: 'sub-inconsistent', message: subConsistency.message });
+        // 2b. 同题组子题载体一致性（规则 sub-carrier-fix：提示性描述，不改内容）
+        if (has('sub-carrier-fix')) {
+          const subConsistency = checkSubQuestionConsistency(secText);
+          if (subConsistency) {
+            issues.push({ severity: 'info', type: 'sub-inconsistent', message: subConsistency.message });
+          }
         }
 
-        // 2c. 读音题（"读音/加点字"题干）：子题应含拼音选项
-        if (/读音|加点字/.test(title) || /读音|加点字/.test(secText.slice(0, 300))) {
+        // 2c. 读音题缺拼音选项（规则 pinyin-option-guard：静默）
+        if (has('pinyin-option-guard') && (/读音|加点字/.test(title) || /读音|加点字/.test(secText.slice(0, 300)))) {
           if (pinyinOpts === 0) {
-            issues.push({ severity: 'warning', type: 'pinyin-option-missing', message: `大题「${title}」未检测到拼音选项（如"（háng xíng）"），部分小题可能缺选项，请人工复核` });
+            silentCount('pinyin-option', `大题「${title}」未检测到拼音选项（如"（háng xíng）"），可能有小题缺选项`);
           }
         }
 
-        // 2d. 连线题：两侧项数对称性
-        if (matchSides && matchSides.total % 2 !== 0) {
-          issues.push({ severity: 'warning', type: 'match-asymmetric', message: `大题「${title}」连线题左右项数不对称（共 ${matchSides.total} 项），请人工复核` });
+        // 2d. 连线项不对称（规则 match-symmetric-guard：静默）
+        if (has('match-symmetric-guard') && matchSides && matchSides.total % 2 !== 0) {
+          silentCount('match-asymmetric', `大题「${title}」连线题左右项数不对称（共 ${matchSides.total} 项）`);
         }
 
-        // 2e. 选择题：子题应含选项（≥2）
-        if (/选一选|选择|选出/.test(secText.slice(0, 400)) && options > 0 && options < 2) {
-          issues.push({ severity: 'warning', type: 'option-missing', message: `大题「${title}」选项数过少(${options})，请人工复核` });
+        // 2e. 选择题选项过少（规则 option-count-guard：静默）
+        if (has('option-count-guard') && /选一选|选择|选出/.test(secText.slice(0, 400)) && options > 0 && options < 2) {
+          silentCount('option-missing', `大题「${title}」选项数过少(${options})`);
         }
 
-        // 2f. 分值标注修正（每空/每线/每题分标注与载体数对齐）
-        const carrierTotal = blanks || (matchSides ? matchSides.left : 0) || pinyinOpts || (/连/.test(title) ? countMatchLines(secText) : 0);
-        const newTitle = fixScoreLabel(title, totalScore, carrierTotal, countSubQuestions(secText));
-        if (newTitle !== title) {
-          head.textContent = newTitle;
-          issues.push({ severity: 'info', type: 'score-label', message: `大题「${title}」分值标注与空位数不匹配，已修正为「${newTitle}」` });
-          fixed += 1;
-        }
-
-        // 2g. 小题标题分值标注校验（p 级标题："4. 选一选。（8分，每空2分）"式——本卷第4/9题案例）
-        const subHeadPs = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p');
-        const subTitles = [];
-        for (const p of subHeadPs) {
-          const t = (p.textContent || '').trim();
-          if (!/^\s*(?:\d+[.、．]|[(（]\d+[)）])/.test(t)) continue;
-          if (!/[（(]\s*\d{1,3}\s*分/.test(t)) continue;
-          subTitles.push({ p, text: t });
-        }
-        subTitles.forEach((st, i) => {
-          const nodesBetween = [];
-          let n = st.p.nextSibling;
-          const endNode = subTitles[i + 1] ? subTitles[i + 1].p : null;
-          while (n && n !== endNode) { nodesBetween.push(n); n = n.nextSibling; }
-          let segHtml = st.p.outerHTML;
-          for (const nb of nodesBetween) segHtml += nb.outerHTML || nb.textContent || '';
-          const segText = st.text + nodesBetween.map(x => x.textContent || '').join('');
-          const sBlanks = countBlanks(segHtml);
-          const sMatch = countMatchSides(segHtml);
-          const sPinyin = countPinyinOptions(segHtml);
-          const carrier = sBlanks || (sMatch ? sMatch.left : 0) || sPinyin || (/连/.test(st.text) ? countMatchLines(segText) : 0);
-          const scoreM = st.text.match(/[（(]\s*(\d{1,3})\s*分/);
-          if (!scoreM || !carrier) return;
-          const sScore = parseInt(scoreM[1], 10);
-          const newT = fixScoreLabel(st.text, sScore, carrier, countSubNumbered(segText));
-          if (newT !== st.text) {
-            st.p.textContent = newT;
-            issues.push({ severity: 'info', type: 'score-label', message: `小题「${st.text}」分值标注与载体数不匹配，已修正为「${newT}」` });
+        // 2f. 分值标注修正（规则 score-label-fix：每空/每线/每题分标注与载体数对齐）
+        if (has('score-label-fix')) {
+          const carrierTotal = blanks || (matchSides ? matchSides.left : 0) || pinyinOpts || (/连/.test(title) ? countMatchLines(secText) : 0);
+          const newTitle = fixScoreLabel(title, totalScore, carrierTotal, countSubQuestions(secText));
+          if (newTitle !== title) {
+            head.textContent = newTitle;
+            issues.push({ severity: 'info', type: 'score-label', message: `分值标注已对齐：${newTitle}` });
             fixed += 1;
           }
-        });
+        }
+
+        // 2g. 小题标题分值标注校验（规则 score-label-fix，p 级标题）
+        if (has('score-label-fix')) {
+          const subHeadPs = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p');
+          const subTitles = [];
+          for (const p of subHeadPs) {
+            const t = (p.textContent || '').trim();
+            if (!/^\s*(?:\d+[.、．]|[(（]\d+[)）])/.test(t)) continue;
+            if (!/[（(]\s*\d{1,3}\s*分/.test(t)) continue;
+            subTitles.push({ p, text: t });
+          }
+          subTitles.forEach((st, i) => {
+            const nodesBetween = [];
+            let n = st.p.nextSibling;
+            const endNode = subTitles[i + 1] ? subTitles[i + 1].p : null;
+            while (n && n !== endNode) { nodesBetween.push(n); n = n.nextSibling; }
+            let segHtml = st.p.outerHTML;
+            for (const nb of nodesBetween) segHtml += nb.outerHTML || nb.textContent || '';
+            const segText = st.text + nodesBetween.map(x => x.textContent || '').join('');
+            const sBlanks = countBlanks(segHtml);
+            const sMatch = countMatchSides(segHtml);
+            const sPinyin = countPinyinOptions(segHtml);
+            const carrier = sBlanks || (sMatch ? sMatch.left : 0) || sPinyin || (/连/.test(st.text) ? countMatchLines(segText) : 0);
+            const cm2 = st.text.match(/共\s*(\d{1,3})\s*分/);
+            const sm2 = st.text.match(/[（(]\s*(\d{1,3})\s*分/);
+            const scoreM = cm2 || sm2;
+            if (!scoreM || !carrier) return;
+            const sScore = parseInt(scoreM[1], 10);
+            const newT = fixScoreLabel(st.text, sScore, carrier, countSubNumbered(segText));
+            if (newT !== st.text) {
+              st.p.textContent = newT;
+              issues.push({ severity: 'info', type: 'score-label', message: `小题分值标注已对齐：${newT}` });
+              fixed += 1;
+            }
+          });
+        }
       });
       out = tpl.innerHTML;
     } catch (e) {
@@ -343,34 +397,35 @@ export const auditExamPaper = (html) => {
     }
   }
 
-  // ── 3. 答案区一致性粗校验 ──
+  // ── 3. 答案区一致性（规则 answer-shell-guard / answer-coverage-guard：静默）──
   {
     const ansMatch = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>([\s\S]*)$/i);
     if (ansMatch) {
       const ansText = stripTags(ansMatch[1]);
-      // 3a. 空壳答案
-      if (/[（(]?\s*(略|见教材|自行查阅|答案略|详见教材)\s*[)）]?/.test(ansText)) {
-        issues.push({ severity: 'warning', type: 'answer-shell', message: '答案区检测到"略/见教材"等空壳答案，请人工复核' });
+      if (has('answer-shell-guard') && /[（(]?\s*(略|见教材|自行查阅|答案略|详见教材)\s*[)）]?/.test(ansText)) {
+        silentCount('answer-shell', '答案区检测到"略/见教材"等空壳答案');
       }
-      // 3b. 答案区题号覆盖粗检（答案区应有 ≥ 正文大题数 - 1 个题号）
-      const bodyText = stripTags(out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0]);
-      const bodyTopQ = (bodyText.match(/(?:^|\n)\s*\d+[.、．]/g) || []).length;
-      const ansTopQ = (ansText.match(/(?:^|\n)\s*\d+[.、．]/g) || []).length;
-      if (bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
-        issues.push({ severity: 'warning', type: 'answer-coverage', message: `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})，可能缺答案，请人工复核` });
+      if (has('answer-coverage-guard')) {
+        const bodyText = stripTags(out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0]);
+        const bodyTopQ = (bodyText.match(/(?:^|\n)\s*\d+[.、．]/g) || []).length;
+        const ansTopQ = (ansText.match(/(?:^|\n)\s*\d+[.、．]/g) || []).length;
+        if (bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
+          silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})`);
+        }
       }
     }
   }
 
-  // ── 4. 看图写话/作文：必须含配图块或插图标记 ──
-  {
-    const text = stripTags(out);
-    if (/看图|插图|图片/.test(text) && !/\[IMAGE\]/.test(out)) {
-      issues.push({ severity: 'warning', type: 'image-missing', message: '题目要求看图/配图但未检测到 [IMAGE] 配图块，图片缺失将导致题目无法作答' });
+  // ── 4. 阅读选文出处标注（规则 reading-source-guard：静默）──
+  if (has('reading-source-guard')) {
+    const secTexts = String(out).split(/<h[234][^>]*>/i).map(s => stripTags(s).trim()).filter(s => s.length > 200);
+    const hasSource = /【\s*选自|【\s*出自|【\s*节选|选自教材|节选自/.test(out);
+    if (!hasSource && secTexts.length > 0 && /(短文|选文|阅读|课内|课外阅读)/.test(out)) {
+      silentCount('reading-source', '阅读选文未检测到【选自…】出处标注');
     }
   }
 
-  return { html: out, issues, fixed };
+  return { html: out, issues, fixed, silent };
 };
 
 /** 统计大题内子题数（"1." 式小题编号） */

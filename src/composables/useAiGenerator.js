@@ -4,6 +4,7 @@ import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getM
 import { getStoragePath } from '../utils/pathHelper.js';
 import { fixExamFormats } from '../utils/examFixer.js';
 import { auditExamPaper } from '../utils/examValidator.js';
+import { normalizeStage } from '../config/validatorRules.js';
 import { 
   subjectGradeSystem, 
   genTypeTemplates,
@@ -5021,18 +5022,17 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       finalContent = `${buildSealLineHeader()}\n${finalContent}`;
     }
 
-    // 🔴 整卷结构质量校验（所有资料类型×学科×学段通用）：
-    //    自动修复：拼音字符归一（ɡ→g）、模板残留清理（插图占位/转义标签/空条款）、
-    //              看拼音写词语缺空自动补全、分值标注与空位数对齐
-    //    记警告：子题载体不一致（缺空/缺选项）、连线项不对称、看图写话缺图、答案空壳等
+    // 🔴 整卷结构质量校验（规则库三维度匹配：学段×学科×资料类型）：
+    //    fix 类自动修复（拼音归一/模板残留/缺空补全/分值对齐/标题明细式），
+    //    guard 类静默计数（debug 日志，不产生任何问题提示）
     try {
-      const audit = auditExamPaper(finalContent);
-      if (audit.fixed > 0 || audit.issues.length > 0) {
-        console.log(`🔍 整卷质检：修复 ${audit.fixed} 处，警告 ${audit.issues.filter(i => i.severity === 'warning').length} 条，提示 ${audit.issues.filter(i => i.severity === 'info').length} 条`);
-        audit.issues.forEach(i => {
-          if (i.severity === 'warning') console.warn(`🔍 [质检-${i.type}] ${i.message}`);
-          else console.log(`🔍 [质检-${i.type}] ${i.message}`);
-        });
+      const audit = auditExamPaper(finalContent, {
+        subject: book?.subject || '',
+        stage: normalizeStage(book?.stage, book?.grade),
+        genType,
+      });
+      if (audit.fixed > 0 || audit.silent > 0 || audit.issues.length > 0) {
+        console.log(`🔍 整卷质检：修复 ${audit.fixed} 处，静默防护 ${audit.silent} 项${audit.issues.length ? `，修复记录 ${audit.issues.length} 条` : ''}`);
       }
       finalContent = audit.html;
     } catch (e) {
