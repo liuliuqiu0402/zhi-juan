@@ -14,10 +14,10 @@ describe('buildBlueprintInjection（exam 蓝图精简注入块）', () => {
     const bp = getExamBlueprint('语文', 'primary_low');
     const inject = buildBlueprintInjection(bp);
     expect(inject).toContain('【卷面结构（真题蓝本，大题与分值固定，不得增删改）】');
-    expect(inject).toContain('一、识字与写字（32分）——');
-    expect(inject).toContain('二、积累与运用（24分）——');
-    expect(inject).toContain('三、阅读与鉴赏（14分）——');
-    expect(inject).toContain('四、表达与交流（30分）——');
+    expect(inject).toContain('一、识字与写字（共X题，共32分）——');
+    expect(inject).toContain('二、积累与运用（共X题，共24分）——');
+    expect(inject).toContain('三、阅读与鉴赏（共X题，共14分）——');
+    expect(inject).toContain('四、表达与交流（共X题，共30分）——');
     // 大题命题要求（note）被注入
     expect(inject).toContain('禁止连续2道以上使用完全相同的题型格式');
     // 顺序：大题序号随位置递增
@@ -70,11 +70,15 @@ describe('getExamBlueprint 学段降级正确性（防跨学段错配）', () =>
     expect(getExamBlueprint('科学', 'primary_high').key).toBe('科学|primary_high');
   });
 
-  it('信息科技/音乐/美术/体育各学段均命中 all 通用蓝本', () => {
+  it('信息科技/音乐/美术/体育按学段命中各自精确蓝本（5 档，非 all 通配）', () => {
+    const stages = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
     for (const subj of ['信息科技', '音乐', '美术', '体育']) {
-      for (const stage of ['primary_low', 'middle', 'high']) {
+      for (const stage of stages) {
         const bp = getExamBlueprint(subj, stage);
-        expect(bp.key, `${subj}|${stage}`).toBe(`${subj}|all`);
+        expect(bp.key, `${subj}|${stage}`).toBe(`${subj}|${stage}`);
+        // 学段差异化：低段与高中蓝本大题结构/分值分布不同（内容按课标学段递进）
+        const sum = bp.sections.reduce((a, c) => a + c.score, 0);
+        expect(sum).toBe(bp.fullScore);
       }
     }
   });

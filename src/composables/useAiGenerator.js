@@ -22,7 +22,7 @@ import { getTypeDistribution as getTypeDistributionFromConfig } from '../config/
 import { getQuestionTypeRule } from '../config/questionTypeRules.js';
 import { SCOPE_LABEL_POOLS } from '../config/recipe/paperScope.js';
 import { getContextsForSubject } from '../config/subjectContextLibrary.js';
-import { getExamBlueprint, buildExamBlueprintText } from '../config/examPaperBlueprints.js';
+import { getExamBlueprint } from '../config/examPaperBlueprints.js';
 import { buildSealLineHeader } from '../config/promptLibrary.js';
 import { runHardValidators, applyAutoFixes } from '../utils/subjectValidators.js';
 import { registerController, unregisterController } from '../utils/requestManager.js';
@@ -92,7 +92,7 @@ const deepseekBreaker = new CircuitBreaker(3, 30000);
  * @param {number} heartbeatMs - 心跳超时(ms)，默认 60 秒无新 chunk 则判定流已死
  * @returns {Promise<{content: string, finishReason: string}>}
  */
-const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000) => {
+const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000, maxReasoningChunks = Infinity) => {
   const reader = fetchResponse.body.getReader();
   const decoder = new TextDecoder();
   let content = '';
@@ -100,11 +100,13 @@ const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000) => {
   let buffer = '';
   let chunkCount = 0;
   let reasoningChunkCount = 0;  // 🔧 推理模型：思考链 chunk 计数
+  let capped = false;  // 🔧 思考预算上限触发（流式中止标志）
   let lastChunkTime = Date.now();
   let consecutiveParseFailures = 0;  // 🔧 SSE 连续解析失败计数器
 
   try {
     while (true) {
+      if (capped) break;
       if (signal?.aborted) {
         reader.cancel();
         throw new Error('aborted');
@@ -159,6 +161,14 @@ const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000) => {
             }
             if (reasoningDelta) {
               reasoningChunkCount++;
+              // 🔴 思考预算上限（流式中止止损）：推理 chunks 超过阈值（如 40K）立即中断——
+              //    防止思考失控耗尽输出预算白付费用；已接收的推理按实际计费，但不再等到 max_tokens 截断
+              if (reasoningChunkCount >= maxReasoningChunks) {
+                finishReason = 'reasoning_capped';
+                reader.cancel().catch(() => {});
+                capped = true;
+                break;
+              }
             }
             if (parsed.choices?.[0]?.finish_reason) {
               finishReason = parsed.choices[0].finish_reason;
@@ -192,7 +202,7 @@ const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000) => {
   }
 
   console.log(`📡 SSE 流式接收完成: ${chunkCount} 内容chunks + ${reasoningChunkCount} 推理chunks, ${content.length} 字符, finish_reason=${finishReason || '(无)'}`);
-  return { content, finishReason };
+  return { content, finishReason, reasoningChunkCount };
 };
 
 /**
@@ -821,7 +831,7 @@ const buildHtmlGenerationPrompt = (opts) => {
 
 ${blueprintSection}
 
-【教材原文片段——⚠️仅供核对知识点准确性，严禁复制原文段落】
+【教材原文片段——⚠️OCR识别可能有误，以学科知识纠错后再命题；仅供核对知识点准确性，严禁复制原文段落】
 ${textbookSection || '（基于蓝图知识点生成）'}
 
 【学科要求】
@@ -2015,18 +2025,18 @@ const maxInputTokens = config.engine === 'deepseek'
       ? 100000  // DeepSeek 有 128K 上下文，100K 足够容纳任何蓝图 prompt
       : Math.floor(maxTokens * 0.7);  // Ollama 本地模型上下文小，按输出 token 反推
     
-    // 🔧 生成自审机制：在生成类任务的 prompt 末尾追加自审指令
+    // 🔧 生成自审机制：在生成类任务的 prompt 末尾追加自审指令（静默内检，不输出任何自审内容；
+    //    注意：答案页独立调用（taskType=generation）也会携带本块，表述不得限定"只输出正文/试卷"，
+    //    否则会与答案页任务（输出《参考答案与评分标准》）冲突导致答案区缺失）
     if (['generation', 'review'].includes(taskType) && !options.skipSelfReview) {
       const selfReviewInstruction = `
 
-【🔍 生成后自审要求 —— 请在输出完内容后，用 <div class="self-review" style="display:none">...</div> 完成以下自审（此块对用户不可见）】
-请逐条检查刚生成的内容：
-1. 知识点准确性：所有概念、公式、史实是否准确无误？若有误请指出。
-2. 课标对齐：内容是否体现了新课标核心素养要求（如语文的语言运用/思维能力、数学的运算能力/推理能力等）？
-3. 学段适配：难度和深度是否适合该学段学生？有无超纲或过于浅显的内容？
-4. 无歧义表述：题干是否清晰明确？答案是否唯一确定？有无"略"等敷衍表述？
-5. 结构完整：是否按照结构大纲要求组织？各部分内容是否充实不空洞？
-请在自审块中如实记录检查结果，如发现问题请同时修正正文内容。`;
+【🔍 输出前自检（静默内检，严禁输出任何检查过程、检查块或自审说明，只输出任务要求的最终内容）】
+请逐题快速自检并直接在最终内容中修正：
+1. 知识点准确性：概念、公式、史实、字词、拼音、数据是否准确无误？
+2. 题目自洽：题干条件充分、设问与答案对应、无"略"等敷衍表述？
+3. 学段适配：知识点与能力要求不超出本学段课标学业质量要求？
+发现任何问题立即改正，然后只输出任务要求的最终内容（试卷/资料正文，或按要求输出的答案页）。`;
       
       // 仅在 prompt 足够容纳时才追加（预留 500 tokens 空间）
       const selfReviewTokens = estimateTokens(selfReviewInstruction);
@@ -2352,8 +2362,9 @@ const maxInputTokens = config.engine === 'deepseek'
             ...(config.provider === 'volcano' ? { thinking: { type: 'disabled' } } : {}),
             // 🔧 DeepSeek 思考模式控制：分析/审查/格式化/提取/验算等任务全部关闭思考链——
             //    reasoning_content 按输出价计费（v4-pro 高峰 ¥27/百万）且耗时数倍，清单式/机械任务非思考模式足够；
-            //    仅整卷生成（generation）可经设置项「deepseekGenerationThinking」单独开启深度思考（提升质量）
-            ...(config.provider === 'deepseek' ? { thinking: { type: (taskType === 'generation' && apiConfig.generationSettings?.deepseekGenerationThinking) ? 'enabled' : 'disabled' } } : {})
+            //    仅整卷生成（generation）可经设置项「deepseekGenerationThinking」单独开启深度思考（提升质量）；
+            //    options.thinking 显式传参时优先（整卷思考耗尽→降级重试需强制关闭思考）
+            ...(config.provider === 'deepseek' ? { thinking: { type: (options.thinking !== undefined ? options.thinking : (taskType === 'generation' && apiConfig.generationSettings?.deepseekGenerationThinking)) ? 'enabled' : 'disabled' } } : {})
           };
 
           let streamResponse;
@@ -2385,8 +2396,8 @@ const maxInputTokens = config.engine === 'deepseek'
           // 流式成功 → 熔断器复位
           deepseekBreaker.success();
 
-          const { content: streamedContent, finishReason: streamedFinishReason } =
-            await parseSSEStream(streamResponse, abortController.value?.signal);
+          const { content: streamedContent, finishReason: streamedFinishReason, reasoningChunkCount: streamedReasoning } =
+            await parseSSEStream(streamResponse, abortController.value?.signal, 60000, options.maxReasoningChunks);
 
           let content = streamedContent;
           let finishReason = streamedFinishReason;
@@ -2422,7 +2433,7 @@ const maxInputTokens = config.engine === 'deepseek'
                   stream: false,  // 续写不流式（短内容）
                   ...(config.provider === 'alibaba' && /qwen3.*max|qwq/i.test(config.model || '') ? { enable_thinking: false } : {}),
                   ...(config.provider === 'volcano' ? { thinking: { type: 'disabled' } } : {}),
-                  ...(config.provider === 'deepseek' ? { thinking: { type: (taskType === 'generation' && apiConfig.generationSettings?.deepseekGenerationThinking) ? 'enabled' : 'disabled' } } : {})
+                  ...(config.provider === 'deepseek' ? { thinking: { type: (options.thinking !== undefined ? options.thinking : (taskType === 'generation' && apiConfig.generationSettings?.deepseekGenerationThinking)) ? 'enabled' : 'disabled' } } : {})
                 }),
                 signal: AbortSignal.timeout(30000)
               });
@@ -2487,7 +2498,11 @@ const maxInputTokens = config.engine === 'deepseek'
             await setCachedPromptResult(callAI._pendingCacheKey, content, callAI._pendingCacheMeta);
           }
 
-          return content;
+          // 🔧 returnMeta 模式：返回 { content, finishReason, reasoningChunkCount } 供调用方做思考耗尽降级判断
+          //    （默认返回字符串，不破坏现有调用方）
+          return options.returnMeta
+            ? { content, finishReason, reasoningChunkCount: streamedReasoning }
+            : content;
         }
       } catch (e) {
         lastError = e;
@@ -4922,6 +4937,8 @@ ${cardAnalysisText.substring(0, 1000)}
     progress.value = 45;
     let content = '';
     let lastErr = null;
+    // 🔴 思考模式耗尽降级：推理 chunks 巨大且正文为空（finish_reason=length 截断在推理阶段）→ 重试强制关闭思考
+    let retryWithoutThinking = false;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const resp = await callAI(prompt, {
@@ -4929,13 +4946,27 @@ ${cardAnalysisText.substring(0, 1000)}
           // 🔴 整卷预算：split 32K（正文，≈9.6 万字符）/ once 49K（正文+答案，≈14.7 万字符）。
           //    模型为 deepseek-v4-flash/pro（单次输出上限 384K、上下文 1M），8192 是 V3.2 时代的保守值，
           //    会人为截断完整卷面；当前预算对 60 分钟大卷与答案页均绰绰有余
-          maxTokens: generateMode === 'once' ? 49152 : 32768,
+          // 🔴 思考模式预算翻倍：thinking 计入 max_tokens，32674 推理 tokens 曾吃满 32K 导致正文未及输出被截断——
+          //    思考开启时预算按"推理+正文"预留（split 64K / once 98K），保证思考后仍有余量输出正文
+          maxTokens: (generateMode === 'once' ? 49152 : 32768) * (retryWithoutThinking || !apiConfig.generationSettings?.deepseekGenerationThinking ? 1 : 2),
           allowContinuation: false,
           // 🔧 整卷正文温度走设置页（paperTemperature，默认 0.7，可调；once 模式答案部分共用此温度）
           temperature: apiConfig.generationSettings.paperTemperature ?? 0.7,
+          // 🔧 returnMeta：带出 finishReason / reasoningChunkCount（思考耗尽检测）
+          returnMeta: true,
+          // 🔧 thinking 显式覆盖：思考耗尽后重试强制关闭（options.thinking 优先于全局开关）
+          thinking: retryWithoutThinking ? false : undefined,
+          // 🔧 思考预算上限（流式中止止损）：思考模式推理超过 40K chunks 立即中断，防失控白付
+          maxReasoningChunks: (!retryWithoutThinking && apiConfig.generationSettings?.deepseekGenerationThinking) ? 40000 : undefined,
         });
         const respObj = typeof resp === 'string' ? { content: resp, finishReason: '' } : (resp || { content: '', finishReason: '' });
         content = normalizeIndents(normalizeBlankMarkers(cleanSectionHtml(respObj.content || '')));
+        // 🔴 思考耗尽检测：推理 chunks 大量（≥20000）或触发推理上限（reasoning_capped）且正文为空 → 判定思考占满输出预算
+        if (((respObj.reasoningChunkCount || 0) >= 20000 || respObj.finishReason === 'reasoning_capped') && !content.trim()) {
+          console.warn(`⚠️ 思考模式推理过长（${respObj.reasoningChunkCount || 0} chunks，finish_reason=${respObj.finishReason || 'length'}）且正文为空——本次重试将自动关闭思考`);
+          retryWithoutThinking = true;
+          throw new Error('思考模式推理耗尽输出预算，正文未输出——已自动降级为非思考重试');
+        }
         // 🔴 截断判定：优先用 API 的 finish_reason=length（可靠，不依赖尾部启发式）；启发式作兜底
         const truncatedByReason = respObj.finishReason === 'length' && content.length > 200;
         const tail = content.slice(-120);
@@ -4946,7 +4977,7 @@ ${cardAnalysisText.substring(0, 1000)}
           console.warn(`⚠️ 整卷输出${truncatedByReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，自动续写一次...`);
           const contResp = await callAI(
             `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-200)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
-            { taskType: 'generation', timeout: 300000, retries: 0, maxTokens: generateMode === 'once' ? 49152 : 32768, allowContinuation: false, temperature: apiConfig.generationSettings.paperTemperature ?? 0.7 }
+            { taskType: 'generation', timeout: 300000, retries: 0, maxTokens: (generateMode === 'once' ? 49152 : 32768) * (retryWithoutThinking || !apiConfig.generationSettings?.deepseekGenerationThinking ? 1 : 2), allowContinuation: false, temperature: apiConfig.generationSettings.paperTemperature ?? 0.7, thinking: retryWithoutThinking ? false : undefined }
           );
           const contHtml = normalizeIndents(normalizeBlankMarkers(cleanSectionHtml(typeof contResp === 'string' ? contResp : (contResp?.content || ''))));
           if (contHtml && contHtml.length > 100) content = content + '\n' + contHtml;
@@ -4991,16 +5022,34 @@ ${ansFormat}
 
 【试卷正文】
 ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
+        const ansThinking = !!(apiConfig.generationSettings?.deepseekGenerationThinking);
         const ansResp = await callAI(ansPrompt, {
           taskType: 'generation', timeout: 240000, retries: 1,
           // 🔴 答案页预算：16K tokens（≈4.8 万字符），覆盖完整答案+评分标准+听力原文；V4 输出上限 384K 下无截断风险
+          //    思考模式开启时翻倍（16K→32K：推理预留 + 答案输出），并设 20K 推理上限流式中止止损（答案页短输出，推理可控）
           // 🔧 答案页温度走设置页（answerTemperature，默认 0.3，可调）
-          maxTokens: 16384, allowContinuation: false, temperature: apiConfig.generationSettings.answerTemperature ?? 0.3,
+          maxTokens: ansThinking ? 32768 : 16384, allowContinuation: false, temperature: apiConfig.generationSettings.answerTemperature ?? 0.3,
+          maxReasoningChunks: ansThinking ? 20000 : undefined,
         });
         const aHtml = cleanSectionHtml(typeof ansResp === 'string' ? ansResp : (ansResp?.content || ''));
         if (aHtml && aHtml.length > 100) {
           const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
           answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${aHtml}</div>`;
+        } else {
+          // 🔧 答案页为空/过短 → 自动重试一次（模型偶发输出空或"略"式敷衍内容）
+          console.warn(`⚠️ 答案页内容过短（${aHtml?.length || 0} 字符），自动重试一次`);
+          const ansResp2 = await callAI(ansPrompt, {
+            taskType: 'generation', timeout: 240000, retries: 1,
+            maxTokens: ansThinking ? 32768 : 16384, allowContinuation: false, temperature: Math.min(apiConfig.generationSettings.answerTemperature ?? 0.3, 0.5),
+            maxReasoningChunks: ansThinking ? 20000 : undefined,
+          });
+          const aHtml2 = cleanSectionHtml(typeof ansResp2 === 'string' ? ansResp2 : (ansResp2?.content || ''));
+          if (aHtml2 && aHtml2.length > 100) {
+            const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
+            answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${aHtml2}</div>`;
+          } else {
+            console.warn('⚠️ 答案页重试仍为空/过短（正文仍有效）');
+          }
         }
       } catch (e) {
         console.warn('⚠️ 答案页生成失败（正文仍有效）:', e.message);
@@ -5023,8 +5072,9 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     }
 
     // 🔴 整卷结构质量校验（规则库三维度匹配：学段×学科×资料类型）：
-    //    fix 类自动修复（拼音归一/模板残留/缺空补全/分值对齐/标题明细式），
-    //    guard 类静默计数（debug 日志，不产生任何问题提示）
+    //    fix 类自动修复（拼音归一/模板残留/缺空补全/分值对齐/标题明细式/连线组装/作文格补格等），
+    //    guard 类静默计数 → 明细转"抽检提示"展示到生成报告【问题列表】（代码确定性规则，零 AI 调用）
+    let auditWarnings = [];
     try {
       const audit = auditExamPaper(finalContent, {
         subject: book?.subject || '',
@@ -5033,6 +5083,9 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       });
       if (audit.fixed > 0 || audit.silent > 0 || audit.issues.length > 0) {
         console.log(`🔍 整卷质检：修复 ${audit.fixed} 处，静默防护 ${audit.silent} 项${audit.issues.length ? `，修复记录 ${audit.issues.length} 条` : ''}`);
+      }
+      if (audit.silentDetails && audit.silentDetails.length > 0) {
+        auditWarnings = audit.silentDetails.map(d => `⚠️ ${d.message}`);
       }
       finalContent = audit.html;
     } catch (e) {
@@ -5049,6 +5102,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       blueprint: '',
       pipelineUsed: true,
       pipelineReason: `整卷一次生成（指令库注入，${genType}）`,
+      auditWarnings,
     };
   };
 
@@ -5057,6 +5111,8 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
   // ==================== 五步生成 ====================
   const generate = async (instruction, genType, selectedBooks, selectedTemplates, retryCount = 0, blueprintOnly = false, scopeType = '') => {
     const MAX_RETRIES = 2;
+    // 🔴 整卷质检静默明细缓存（代码确定性规则检测到的需抽检项，经 fpResult.auditWarnings 传递后展示到生成报告）
+    let auditWarningsFromPaper = [];
     // 🔧 缓存管理：
     // - 逐课时调用（_perPeriodKnowledgeMap 已设置）：保留 _cachedContentCards 供复用
     // - 整体生成跳过检测（_preservePeriodCache）：保留 _cachedKnowledgeMap 跳过课时切分
@@ -5499,6 +5555,10 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
           blueprint = '';
           sectionPlans = [];
           postPassIssues = [];
+          // 🔴 整卷质检静默明细 → 转"抽检提示"展示到生成报告【问题列表】（代码确定性规则，零 AI 调用）
+          if (fpResult.auditWarnings?.length) {
+            auditWarningsFromPaper = fpResult.auditWarnings;
+          }
           console.log(`✅ 整卷生成完成：${content.length} 字符（指令库注入）`);
         } catch (fpError) {
           console.error('整卷生成失败:', fpError.message);
@@ -5515,6 +5575,10 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
       progress.value = 85;
 
       const issues = [];
+      // 🔴 整卷质检静默明细（代码确定性规则检测到的需抽检项）→ 展示到生成报告【问题列表】
+      if (auditWarningsFromPaper?.length) {
+        auditWarningsFromPaper.forEach(w => issues.push(w));
+      }
       // 🔴 PostPass 质量门/总题量防线问题 → 展示到生成报告（issues 已声明）
       if (postPassIssues?.length) {
         postPassIssues.forEach(q => issues.push(`❌ ${q}`));

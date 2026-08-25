@@ -194,7 +194,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   const issues = [];
   let fixed = 0;
   let silent = 0;
-  const silentCount = (type, msg) => { silent += 1; console.debug(`🔍 [质检-${type}] ${msg}`); };
+  const silentDetails = [];
+  const silentCount = (type, msg) => { silent += 1; silentDetails.push({ type, message: msg }); console.debug(`🔍 [质检-${type}] ${msg}`); };
 
   // ── 0. 拼音字符归一（规则 pinyin-norm，全卷防 ɡ/ŋ/ɑ 混入）──
   if (has('pinyin-norm')) {
@@ -242,6 +243,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
 
   // ── 1.5. [IMAGE] 配图块标准化（规则 image-block-fix：AI 常漏 NEGATIVE/WIDTH/HEIGHT、写成一行式、参数间混入 HTML）──
   if (has('image-block-fix')) {
+    // 🔧 兼容 [IMAGE: 描述] 一行式（AI 常漏块结构）→ 先规范化为标准 [IMAGE] 块
+    out = out.replace(/\[IMAGE\s*[:：]\s*([^\]]+)\]/gi, (m, desc) => `[IMAGE]\nTYPE:SD\nPROMPT:${desc.trim()}\nNEGATIVE:写实,照片,复杂背景,文字,水印\nWIDTH:800\nHEIGHT:600\nSTYLE:line_art\n[/IMAGE]`);
     const imageBlockRe = /\[IMAGE\]([\s\S]*?)(\[\/IMAGE\]|$)/gi;
     const stripHtmlIn = (s) => String(s || '')
       .replace(/&lt;\/?[a-zA-Z][^&]*&gt;|<\/?[a-zA-Z][^>]*>|\\?<\/?[a-zA-Z]\s*\\?>/g, '')
@@ -327,9 +330,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 1.5.4. 连线题分隔符规范化（规则 match-line-clean：连字符易被误读为答案线）──
+  // ── 1.5.4. 连线题分隔符规范化（规则 match-line-clean：连字符易被误读为答案线；含 ─ 制表线）──
   if (has('match-line-clean')) {
-    out = out.replace(/^([^\n]{1,40}?)[\s]*[-—━]{2,}[\s]*([^\n]*)$/gm, (m, left, right) => {
+    out = out.replace(/^([^\n]{1,40}?)[\s]*[-—━─]{2,}[\s]*([^\n]*)$/gm, (m, left, right) => {
       // 仅处理"中文左侧 + 中文/圈号序号右侧"的连线题行，避免误伤其他内容
       const l = (left || '').trim();
       const r = (right || '').trim();
@@ -397,13 +400,98 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 1.5.6. 排版语义标记自洽检测（规则 text-format-fix：题干要求加点/画线但正文无 <u> 标记 → 静默计数）──
+  // ── 1.5.5b. 连线题两列文本 → 左右分栏结构（规则 match-format-fix 配套：
+  //     AI 只输出"左　　右"文本行（纯内容、无序号），代码组装为 match-question 结构，
+  //     docxBuilder 才能渲染成可连线的左右方框布局；右列带序号的行由 1.5.5 处理，不重复组装）──
+  if (has('match-format-fix')) {
+    try {
+      const isTwoColLine = (t) => {
+        if (!t || t.length > 80) return false;
+        const m = t.match(/^(.{1,20}?)\s{2,}(.{1,20})$/);
+        if (!m) return false;
+        const left = m[1].trim();
+        const right = m[2].trim();
+        if (!left || !right) return false;
+        if (/[（(]\s{1,12}[)）]/.test(t)) return false; // 括号作答空（空格在括号内）不是两列分隔
+        if (/[：:＿【】]/.test(t) || /分/.test(left) || /分/.test(right)) return false;
+        if (/[①②③④⑤⑥⑦⑧⑨⑩]/.test(right)) return false; // 右列带序号 → 留给 1.5.5 裸序号重组
+        return true;
+      };
+      const tpl = document.createElement('template');
+      tpl.innerHTML = out;
+      const ps = Array.from(tpl.content.querySelectorAll('p'));
+      let i = 0;
+      while (i < ps.length) {
+        const text = (ps[i].textContent || '').trim();
+        if (isTwoColLine(text)) {
+          const group = [ps[i]];
+          let j = i + 1;
+          while (j < ps.length && isTwoColLine((ps[j].textContent || '').trim())) {
+            group.push(ps[j]);
+            j += 1;
+          }
+          if (group.length >= 2) {
+            const leftItems = [];
+            const rightItems = [];
+            for (const g of group) {
+              const m = (g.textContent || '').trim().match(/^(.{1,20}?)\s{2,}(.{1,20})$/);
+              leftItems.push(m[1].trim());
+              rightItems.push(m[2].trim());
+            }
+            const div = document.createElement('div');
+            div.className = 'match-question';
+            const colL = document.createElement('div');
+            colL.className = 'match-col';
+            const colR = document.createElement('div');
+            colR.className = 'match-col';
+            group.forEach((_, idx) => {
+              const li = document.createElement('div');
+              li.className = 'match-item';
+              li.textContent = leftItems[idx];
+              const ri = document.createElement('div');
+              ri.className = 'match-item';
+              ri.textContent = rightItems[idx];
+              colL.appendChild(li);
+              colR.appendChild(ri);
+            });
+            div.appendChild(colL);
+            div.appendChild(colR);
+            const parent = group[0].parentNode;
+            const ref = group[group.length - 1].nextSibling;
+            for (const g of group) parent.removeChild(g);
+            parent.insertBefore(div, ref);
+            issues.push({ severity: 'info', type: 'match-structure', message: `连线题已组装为左右分栏结构（${group.length} 项配对）` });
+            fixed += 1;
+            i = j;
+            continue;
+          }
+        }
+        i += 1;
+      }
+      out = tpl.innerHTML;
+    } catch (e) {
+      console.warn('⚠️ 连线题结构组装失败（不影响其他修复）:', e.message);
+    }
+  }
+
+  // ── 1.5.6. 排版语义标记自洽检测（规则 text-format-fix：题干要求加点/画线但正文无对应标记 → 静默计数）──
   if (has('text-format-fix')) {
     const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
-    const uMarkCount = (out.match(/<u[ >]/gi) || []).length;
+    // 加点=emphasis-dot、画线=underline-sentence（加点严禁用 <u>，<u> 仅用于填空横线）
+    const markCount = (out.match(/<span[^>]*class=["'][^"']*emphasis-dot[^"']*["'][^>]*>|<u[^>]*class=["'][^"']*underline-sentence[^"']*["'][^>]*>/gi) || []).length;
     const claims = bodyText.match(/(圈出加点字|给加点字|加点字|画线(?:的)?(?:词语|句子|部分)|划(?:出|一划)|描出|用.{0,3}线(?:画出|划出))/g) || [];
-    if (claims.length > 0 && uMarkCount === 0) {
-      silentCount('text-format', `题干要求加点/画线（${claims[0]}）但正文无 <u> 标记——题目不自洽，请抽检`);
+    if (claims.length > 0 && markCount === 0) {
+      silentCount('text-format', `题干要求加点/画线（${claims[0]}）但正文无对应标记（emphasis-dot/underline-sentence）——题目不自洽，请抽检`);
+    }
+    // 🔧 加点字兜底：题干含"加点"时，AI 用无 class 的 <u>汉字</u>（下划线=错误表示）→ 自动转为 emphasis-dot 加点标记
+    //    （填空横线 <u>＿＿＿</u> 内容为下划线字符非汉字、带 class 的 <u> 均不受影响）
+    if (/加点/.test(bodyText)) {
+      const beforeDot = out;
+      out = out.replace(/<u>([\u4e00-\u9fa5]{1,6})<\/u>/g, '<span class="emphasis-dot">$1</span>');
+      if (out !== beforeDot) {
+        issues.push({ severity: 'info', type: 'emphasis-dot', message: '加点字已由 <u> 下划线自动转为 emphasis-dot 加点标记' });
+        fixed += 1;
+      }
     }
   }
 
@@ -425,6 +513,34 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       if (miss.length > 0) {
         silentCount('type-elements', `「${gt}」类型关键元素缺失（${miss.join('、')}）——请抽检`);
       }
+    }
+  }
+
+  // ── 1.5.7b. 教辅内容充足性（规则 teaching-volume-guard：静默）──
+  if (has('teaching-volume-guard') && genType && genType !== 'exam') {
+    const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
+    const pureLen = bodyText.replace(/\s+/g, '').length;
+    const GT_CHECKS = {
+      reading: { re: /短文|阅读|选文/, label: '选文（短文）', minLen: 80 },
+      summary: { re: null, label: '正文篇幅', minLen: 200 },
+    };
+    const c = GT_CHECKS[genType];
+    if (c) {
+      if (c.re && !c.re.test(bodyText)) silentCount('teaching-volume', `「${genType}」缺少${c.label}——内容可能单薄，请抽检`);
+      if (c.minLen && pureLen < c.minLen) silentCount('teaching-volume', `「${genType}」正文过短（${pureLen}字），内容单薄，请抽检`);
+    }
+    // 题集类题量兜底（题量底线由教辅结构蓝本注入，此处仅静默计数防单薄）
+    if (['practice', 'special', 'review', 'dictation'].includes(genType)) {
+      const qCount = (bodyText.match(/\d+[.、．]/g) || []).length;
+      if (qCount > 0 && qCount < 5) silentCount('teaching-volume', `「${genType}」题目数仅 ${qCount} 道，疑单薄，请抽检`);
+    }
+  }
+
+  // ── 1.5.7c. 教辅禁标分值（规则 teaching-score-guard：静默）──
+  if (has('teaching-score-guard') && genType && genType !== 'exam') {
+    const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+    if (/(每[空题词线]|每题|每空)\s*\d+(\.\d+)?\s*分|（\s*\d+(\.\d+)?\s*分\s*）|共\s*\d+\s*题[，,]\s*每题/.test(bodyText)) {
+      silentCount('teaching-score', '教辅资料正文出现分值标注（考试卷专属），应去掉');
     }
   }
 
@@ -656,6 +772,119 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
+  // ── 2i. 分值账目总和（规则 score-sum-guard：大题内小题分值之和=大题分、全卷各大题之和=满分 → 静默计数）──
+  if (has('score-sum-guard')) {
+    try {
+      const headText = out.slice(0, 400).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+      const fm = headText.match(/满分[:：]?\s*(\d+(?:\.\d+)?)\s*分/);
+      const fullScore = fm ? parseFloat(fm[1]) : null;
+      // 仅对带卷首满分标记的完整卷做账目校验（裁剪/片段输入不校验，防误报）
+      if (fullScore != null) {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = out;
+        const heads = Array.from(tpl.content.querySelectorAll('h2, h3, h4'));
+        let sectionTotal = 0;
+        let sectionCount = 0;
+        heads.forEach((h, i) => {
+          const title = (h.textContent || '').trim();
+          const cm = title.match(/共\s*(\d{1,3})\s*分/);
+          const sm = title.match(/[（(]\s*(\d{1,3})\s*分/);
+          const isDetail = !!cm; // 仅明细式"共X题，共X分"标题做小题和校验（短式标题信息不全，跳过防误报）
+          const secScore = cm ? parseFloat(cm[1]) : sm ? parseFloat(sm[1]) : null;
+          if (secScore == null) return;
+          sectionTotal += secScore;
+          sectionCount += 1;
+          // 大题内小题分值（题号行"（X分）"式）
+          let node = h.nextSibling;
+          const end = heads[i + 1] || null;
+          let subSum = 0;
+          let subCount = 0;
+          while (node && node !== end) {
+            if (node.nodeType === Node.ELEMENT_NODE && node.tagName.toLowerCase() === 'p') {
+              const t2 = (node.textContent || '').trim();
+              if (/^\s*\d+[.、．]/.test(t2)) {
+                const pm = t2.match(/[（(][^）)]*?(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
+                if (pm) { subSum += parseFloat(pm[1]); subCount += 1; }
+              }
+            }
+            node = node.nextSibling;
+          }
+          if (isDetail && subCount > 0 && Math.abs(subSum - secScore) > 0.01) {
+            silentCount('score-sum', `大题「${title.slice(0, 22)}」小题分值之和(${subSum})≠大题分(${secScore})`);
+          }
+        });
+        if (sectionCount > 1 && Math.abs(sectionTotal - fullScore) > 0.01) {
+          silentCount('score-sum', `全卷大题分值之和(${sectionTotal})≠满分(${fullScore})`);
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ 分值账目总和检查失败（不影响其他修复）:', e.message);
+    }
+  }
+
+  // ── 2j. 质量兜底检测（低段0.5分 / 连一连空壳 / 看图缺图 / 田字格载体 / 作文格，均静默计数）──
+  {
+    const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
+    // 2j-1 低段 0.5 分（规则 low-score-guard：小学卷一律整数分）
+    if (has('low-score-guard')) {
+      const dm = out.match(/[（(][^）)]*?(\d+\.\d+)\s*分/);
+      if (dm) silentCount('low-score', `小学卷出现小数分值（${dm[1]}分）——小学一律整数分，请抽检`);
+    }
+    // 2j-2 连一连空壳（规则 match-format-fix：有"连一连"题干但无配对内容）
+    if (has('match-format-fix') && /连一连|连起来/.test(bodyText)) {
+      const twoCol = (out.match(/[\u4e00-\u9fa5]{1,20}\u3000{2,}\S{1,20}/g) || []).length;
+      if (!/match-question/.test(out) && twoCol === 0) {
+        silentCount('match-empty', '检测到"连一连"题干但无配对内容（连一连题疑似空壳），请抽检');
+      }
+    }
+    // 2j-3 看图/写话缺配图标记（规则 image-block-fix）
+    if (has('image-block-fix') && /看图写话|写话|看图/.test(bodyText) && !/\[IMAGE\]/.test(out)) {
+      silentCount('image-missing', '含"看图/写话"的题无 [IMAGE] 配图标记块，请抽检');
+    }
+    // 2j-4 田字格载体缺失（规则 writing-grid-fix：题干要求田字格但无格子）
+    if (has('writing-grid-fix') && /田字格中写|在田字格|方格中写/.test(bodyText) && !/tian-zi-ge/.test(out)) {
+      silentCount('writing-grid', '题干要求"田字格中写"但正文无田字格格子——作答载体缺失，请抽检');
+    }
+    // 2j-5 写话/作文无作文格 → 自动补方格区（看图写话/写话/习作/作文/写作均适用）
+    if (has('writing-grid-fix') && /看图写话|写话|习作|作文|写作/.test(bodyText) && !/zuo-wen-ge/.test(out)) {
+      try {
+        const tpl2 = document.createElement('template');
+        tpl2.innerHTML = out;
+        const ps2 = Array.from(tpl2.content.querySelectorAll('p'));
+        const kwRe = /看图写话|写话|习作|作文|写作/;
+        const targetPs = ps2.filter(p => kwRe.test(p.textContent || '') && (p.textContent || '').length < 60);
+        if (targetPs.length > 0) {
+          const lastP = targetPs[targetPs.length - 1];
+          const zwg = document.createElement('div');
+          zwg.className = 'zuo-wen-ge';
+          for (let k = 0; k < 160; k++) {
+            const s = document.createElement('span');
+            s.innerHTML = '&emsp;';
+            zwg.appendChild(s);
+          }
+          lastP.parentNode.insertBefore(zwg, lastP.nextSibling);
+          out = tpl2.innerHTML;
+          issues.push({ severity: 'info', type: 'writing-grid', message: '写话/作文题已自动补作文格（zuo-wen-ge 160格）' });
+          fixed += 1;
+        } else {
+          silentCount('writing-grid', '含写话/作文题但无作文格且未找到可补位置（zuo-wen-ge），请抽检');
+        }
+      } catch (e) {
+        console.warn('⚠️ 作文格自动补齐失败:', e.message);
+        silentCount('writing-grid', '含写话/作文题但正文无作文格（zuo-wen-ge），请抽检');
+      }
+    }
+    // 2j-6 语文低段连线题数量超限（规则 match-format-fix：全卷连线≤2道，超限标记）
+    if (has('match-format-fix') && subject.includes('语文') && /^primary/.test(stage)) {
+      const mqCount = (out.match(/match-question/g) || []).length;
+      const twoColLines = (out.match(/[\u4e00-\u9fa5]{1,20}\u3000{2,}\S{1,20}/g) || []).length;
+      const total = mqCount + Math.ceil(twoColLines / 2);
+      if (total > 2) {
+        silentCount('match-empty', `语文低段连线题数量(${total})超过2道上限——题型重复，请抽检`);
+      }
+    }
+  }
+
   // ── 3. 答案区一致性（规则 answer-section-fix / answer-shell-guard / answer-coverage-guard）──
   {
     // 3a. 答案区容器补全（规则 answer-section-fix）：<h2>参考答案… 无 answer-section 包裹 → 补包
@@ -696,7 +925,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  return { html: out, issues, fixed, silent };
+  return { html: out, issues, fixed, silent, silentDetails };
 };
 
 /** 统计大题内子题数（"1." 式小题编号） */
@@ -770,7 +999,7 @@ const fixMissingPinyinBlanksInDom = (nodes, missing) => {
           // 该拼音组后紧跟汉字且后面没有空位 → 补（　　）
           const after = fixedText.slice(mm.index + mm[1].length);
           if (/[（(]\s*[　\s]{1,6}\s*[)）]/.test(after)) continue; // 已有空位
-          fixedText = fixedText.slice(0, mm.index + mm[1].length) + '（　　　　）' + fixedText.slice(mm.index + mm[1].length);
+          fixedText = fixedText.slice(0, mm.index + mm[1].length) + '(　　　　)' + fixedText.slice(mm.index + mm[1].length);
           recovered += 1;
           changed = true;
         }

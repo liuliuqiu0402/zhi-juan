@@ -46,7 +46,7 @@ describe('examValidator 看拼音写词语缺空自动补全（第1题案例）'
     const { html: out, issues } = auditExamPaper(html, OPTS);
     // 补空后空位数应为 4（原 3 空 + 补 tān 1 空）
     expect(countBlanks(out)).toBe(4);
-    expect(out).toContain('tān（　　　　）上');
+    expect(out).toContain('tān(　　　　)上');
     expect(issues.some(i => i.type === 'pinyin-blank-mismatch')).toBe(true);
   });
 });
@@ -261,7 +261,7 @@ describe('examValidator 连线题右列格式（match-format-fix：本案例 19:
     expect(out).not.toContain('③ 人一定要有远大的志向。'); // 对照行删除
   });
 
-  it('无对照行的正常连线题（右列直接内容）→ 不动', () => {
+  it('无对照行的正常连线题（右列直接内容）→ 组装为左右分栏结构（内容保留）', () => {
     const html = [
       '<h2>一、识字与写字（32分）</h2>',
       '<p class="question">3. 连一连。</p>',
@@ -271,8 +271,12 @@ describe('examValidator 连线题右列格式（match-format-fix：本案例 19:
       '<p>丛　　草丛</p>',
     ].join('\n');
     const { html: out, issues } = auditExamPaper(html, OPTS);
-    expect(out).toContain('园　　花园');
+    // 两列文本 → match-question 左右分栏结构（docx 渲染成可连线方框）；内容完整保留
+    expect(out).toContain('match-question');
+    expect(out).toContain('>园<');
+    expect(out).toContain('>花园<');
     expect(issues.some(i => i.type === 'match-format')).toBe(false);
+    expect(issues.some(i => i.type === 'match-structure')).toBe(true);
   });
 
   it('排版语义自洽：题干要求"圈出加点字"但正文无 <u> 标记 → 静默计数（不进问题列表）', () => {
@@ -287,15 +291,17 @@ describe('examValidator 连线题右列格式（match-format-fix：本案例 19:
     expect(silent).toBeGreaterThan(0);
   });
 
-  it('排版语义自洽：有 <u> 加点字标记 → 不触发', () => {
-    const html = [
+  it('排版语义自洽：加点用 emphasis-dot 标记 → 不触发；用 <u> 下划线（错误做法）→ 触发', () => {
+    const okHtml = [
       '<h2>一、识字与写字（32分）</h2>',
       '<p class="question">2. 圈出加点字正确的读音。（4分）</p>',
-      '<p>（1）<u>行</u>（háng xíng）白鹭飞上青天。</p>',
-      '<p>（2）小<u>号</u>（hào háo）手吹响了集合号。</p>',
+      '<p>（1）<span class="emphasis-dot">行</span>（háng xíng）白鹭飞上青天。</p>',
+      '<p>（2）小<span class="emphasis-dot">号</span>（hào háo）手吹响了集合号。</p>',
     ].join('\n');
-    const { silent } = auditExamPaper(html, OPTS);
-    expect(silent).toBe(0);
+    expect(auditExamPaper(okHtml, OPTS).silent).toBe(0);
+    // 🔴 <u> 表示加点是错误做法（下划线≠加点），应触发静默提示
+    const badHtml = okHtml.replace(/<span class="emphasis-dot">/g, '<u>').replace(/<\/span>/g, '</u>');
+    expect(auditExamPaper(badHtml, OPTS).silent).toBeGreaterThan(0);
   });
 });
 
@@ -328,7 +334,7 @@ describe('examValidator 教辅类资料关键元素（type-elements-guard）', (
   });
 
   it('阅读训练含"短文" → 不触发；考试类（exam）不检测', () => {
-    const html = '<h1>阅读训练</h1>\n<h2>一、阅读短文</h2>\n<p>春天来了，小草绿了。</p>';
+    const html = '<h1>阅读训练</h1>\n<h2>一、阅读短文</h2>\n<p>春天来了，小草从泥土里探出脑袋，柳树摇着绿色的长辫子。小河里的水哗哗地流着，几只小燕子从南方飞回来了，在屋檐下忙着筑巢。小朋友们脱下厚厚的棉衣，在草地上放风筝，笑声飘得很远很远。</p>';
     const { silent: s1 } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'reading' });
     expect(s1).toBe(0);
     const { silent: s2 } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'exam' });
@@ -436,12 +442,12 @@ describe('examValidator 子题载体一致性（第2题案例）', () => {
 });
 
 describe('examValidator 看图写话缺图（第11题案例）', () => {
-  it('题目含"看图"但无 [IMAGE] 块 → 不再产生任何提示（由生成前 [IMAGE] 指令强制保证）', () => {
+  it('题目含"看图"但无 [IMAGE] 块 → 静默计数（缺图标记，供抽检）', () => {
     const html = '<h2>四、表达与交流（30分）</h2>\n<p class="question">11. 看图写话。（20分）仔细观察下面的图片。</p>';
     const { issues, silent } = auditExamPaper(html, OPTS);
     expect(issues.some(i => i.type === 'image-missing')).toBe(false);
-    // 该案例不触发任何修复或静默计数（无拼音/分值/答案区问题）
-    expect(silent).toBe(0);
+    // 缺图 → 静默计数（image-missing 标记），供生成质检报告提示抽检
+    expect(silent).toBeGreaterThan(0);
   });
 });
 

@@ -38,18 +38,18 @@ describe('蓝图持久化与用户版优先', () => {
 
   it('listAllBlueprints 合并内置+用户覆盖+用户新建', () => {
     saveUserBlueprint('物理|middle', { label: '物理·初中自定义', fullScore: 90, duration: '90分钟', sections: [{ name: '选择', score: 90, note: '' }] });
-    saveUserBlueprint('体育|middle', { label: '体育·初中新建', fullScore: 100, duration: '60分钟', sections: [{ name: '填空', score: 100, note: '' }] });
+    saveUserBlueprint('综合实践|middle', { label: '综合实践·初中新建', fullScore: 100, duration: '60分钟', sections: [{ name: '填空', score: 100, note: '' }] });
     const all = listAllBlueprints();
     // 内置已有 key → 用户覆盖
     const phys = all.find(b => b.key === '物理|middle');
     expect(phys.source).toBe('user');
     expect(phys.fullScore).toBe(90);
     // 内置无此 key → 用户新建（额外条目）
-    const bio = all.find(b => b.key === '体育|middle');
+    const bio = all.find(b => b.key === '综合实践|middle');
     expect(bio.source).toBe('user');
     // 内置蓝本仍列出
     expect(all.find(b => b.key === '语文|primary_low').source).toBe('builtin');
-    expect(all.length).toBe(39); // 38 内置 + 1 新建
+    expect(all.length).toBe(55); // 54 内置（含音体美信 5 学段）+ 1 新建
   });
 
   it('非 exam 类型无蓝图', () => {

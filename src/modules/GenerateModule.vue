@@ -1542,6 +1542,7 @@ import { getPromptTemplate, buildInjectionInstruction, buildStructureText, OUTPU
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
 import { buildBlueprintInjection } from '../config/examPaperBlueprints.js';
+import { buildTeachingInjection } from '../config/teachingBlueprints.js';
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
@@ -4337,11 +4338,15 @@ const loadInstructionFromLibrary = async () => {
   //    生成后由校验器静默自动修复，无需人工处理）
   instructionDraft.value += buildValidatorPrompt({ subject, stage: stageKey, genType });
   // 🔴 蓝图注入：exam 附加真题蓝本（题型骨架 + 大题命题要求 + 学段/学科新课标条款）；
-  //    非 exam 模板正文已自带【输出格式】，用户自定义模板可能缺失 → 去重兜底追加
+  //    非 exam 附加教辅结构蓝本（栏目框架 + 题量/字数底线，按 学段×类型 三维度）；
+  //    模板正文已自带【输出格式】，用户自定义模板可能缺失 → 去重兜底追加
   if (genType === 'exam') {
     if (bp) instructionDraft.value += buildBlueprintInjection(bp);
-  } else if (!instructionDraft.value.includes('【输出格式】')) {
-    instructionDraft.value += OUTPUT_FORMAT_HINT;
+  } else {
+    instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey });
+    if (!instructionDraft.value.includes('【输出格式】')) {
+      instructionDraft.value += OUTPUT_FORMAT_HINT;
+    }
   }
   instructionSource.value = {
     name: tpl.name || tpl.id || genType,
@@ -4393,6 +4398,11 @@ const restoreDefaultInstruction = async () => {
     needsImage: needsImageHint(`${structure} ${genTypeLabel} ${unit}`, genType),
   });
   instructionDraft.value += buildValidatorPrompt({ subject, stage: stageKey, genType });
+  if (genType === 'exam') {
+    if (bp) instructionDraft.value += buildBlueprintInjection(bp);
+  } else {
+    instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey });
+  }
   instructionSource.value = { name: `内置默认·${genTypeLabel}`, source: 'builtin', key: genType };
   previewHint.value = '已恢复内置默认指令（未改动你的自定义模板）。';
 };

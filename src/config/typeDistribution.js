@@ -9,12 +9,12 @@
  */
 
 export const TYPE_DISTRIBUTIONS = [
-  { id: 'typedist_exam_chinese_primary_low', subject: '语文', stage: 'primary_low', genType: 'exam', typeDist: `拼音与字词基础:4-6,句子运用:3-4,课文理解:2-3,写话/看图写话:1-1` },
+  { id: 'typedist_exam_chinese_primary_low', subject: '语文', stage: 'primary_low', genType: 'exam', typeDist: `识字与写字:8-12,积累与运用:8-10,阅读与鉴赏:3-4,表达与交流:2-2` },
   { id: 'typedist_exam_chinese_primary_mid', subject: '语文', stage: 'primary_mid', genType: 'exam', typeDist: `基础知识与运用:5-7,阅读理解:3-4,习作:1-1` },
   { id: 'typedist_exam_chinese_primary_high', subject: '语文', stage: 'primary_high', genType: 'exam', typeDist: `基础知识与运用:5-7,阅读理解:4-5,习作:1-1` },
   { id: 'typedist_exam_chinese_middle', subject: '语文', stage: 'middle', genType: 'exam', typeDist: `基础知识:4-6,文言文阅读:2-3,现代文阅读:4-5,写作:1-1` },
   { id: 'typedist_exam_chinese_high', subject: '语文', stage: 'high', genType: 'exam', typeDist: `现代文阅读:5-6,文言文阅读:3-4,古代诗歌鉴赏:2-3,语言文字运用:3-5,写作:1-1` },
-  { id: 'typedist_exam_math_primary_low', subject: '数学', stage: 'primary_low', genType: 'exam', typeDist: `口算/直接写得数:5-6,填空题:4-5,选择题:3-4,计算题:2-3,解决问题:2-3` },
+  { id: 'typedist_exam_math_primary_low', subject: '数学', stage: 'primary_low', genType: 'exam', typeDist: `直接写得数:20-20,填空:5-7,选择:3-5,判断:4-6,操作题:2-3,看图列式计算:2-3,解决问题:3-4` },
   { id: 'typedist_exam_math_primary_mid', subject: '数学', stage: 'primary_mid', genType: 'exam', typeDist: `填空题:5-6,选择题:4-5,计算题:4-5,操作题:1-2,解决问题:3-4` },
   { id: 'typedist_exam_math_primary_high', subject: '数学', stage: 'primary_high', genType: 'exam', typeDist: `填空题:5-6,选择题:4-5,计算题:5-6,操作题:1-2,解决问题:4-5` },
   { id: 'typedist_exam_math_middle', subject: '数学', stage: 'middle', genType: 'exam', typeDist: `选择题:6-8,填空题:4-6,计算题:3-4,证明/作图题:2-3,应用题/综合题:4-5` },
@@ -22,7 +22,7 @@ export const TYPE_DISTRIBUTIONS = [
   { id: 'typedist_exam_english_primary_low', subject: '英语', stage: 'primary_low', genType: 'exam', typeDist: `看图选词/词汇连线:5-6,选择题:5-6,填空题:4-5,连线/匹配题:3-4` },
   { id: 'typedist_exam_english_primary_mid', subject: '英语', stage: 'primary_mid', genType: 'exam', typeDist: `选择题:6-8,填空题:4-5,阅读理解:4-6,连词成句/句型转换:3-4` },
   { id: 'typedist_exam_english_primary_high', subject: '英语', stage: 'primary_high', genType: 'exam', typeDist: `选择题:6-8,填空题:4-5,阅读理解:6-8,书面表达:1-1` },
-  { id: 'typedist_exam_english_middle', subject: '英语', stage: 'middle', genType: 'exam', typeDist: `单项选择:8-10,完形填空:10-10,阅读理解:10-15,任务型阅读:5-5,书面表达:1-1` },
+  { id: 'typedist_exam_english_middle', subject: '英语', stage: 'middle', genType: 'exam', typeDist: `听力:20-20,单项选择:8-10,完形填空:10-10,阅读理解:10-15,词汇运用:5-5,语法填空:10-10,任务型阅读:5-5,书面表达:1-1` },
   { id: 'typedist_exam_english_high', subject: '英语', stage: 'high', genType: 'exam', typeDist: `阅读理解:15-20,七选五/完形填空:10-15,语法填空:10-10,书面表达:1-1` },
   { id: 'typedist_exam_science_primary', subject: '科学', stage: 'primary', genType: 'exam', typeDist: `选择题:5-8,填空题:4-6,判断题:3-4,实验探究/简答题:2-3` },
   { id: 'typedist_exam_physics_middle', subject: '物理', stage: 'middle', genType: 'exam', typeDist: `选择题:6-8,填空题:4-6,作图题:2-3,实验探究题:2-3,计算题:3-4` },
