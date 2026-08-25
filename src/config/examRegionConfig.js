@@ -268,20 +268,6 @@ export function removeRegionOverride(region, stage, subject) {
   return false;
 }
 
-/** 列出全部用户省市覆盖（供维护面板展示） */
-export function listRegionOverrides() {
-  const out = [];
-  const lib = loadUserRegionConfig();
-  for (const [region, stages] of Object.entries(lib)) {
-    for (const [stage, subs] of Object.entries(stages || {})) {
-      for (const [subject, cfg] of Object.entries(subs || {})) {
-        if (cfg?.fullScore) out.push({ region, stage, subject, fullScore: cfg.fullScore, duration: cfg.duration || '' });
-      }
-    }
-  }
-  return out;
-}
-
 /** 生效配置：内置 + 用户覆盖合并（用户优先）——getExamBlueprint 查询用 */
 export function getRegionConfig() {
   const eff = JSON.parse(JSON.stringify(EXAM_REGION_CONFIG));
@@ -298,4 +284,4 @@ export function getRegionConfig() {
   return eff;
 }
 
-export default { EXAM_REGION_CONFIG, EXAM_REGION_OPTIONS, loadUserRegionConfig, setRegionOverride, removeRegionOverride, listRegionOverrides, getRegionConfig };
+export default { EXAM_REGION_CONFIG, EXAM_REGION_OPTIONS, loadUserRegionConfig, setRegionOverride, removeRegionOverride, getRegionConfig };

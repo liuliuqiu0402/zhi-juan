@@ -131,14 +131,27 @@
         <label>选择引擎</label>
         <select v-model="settings.currentEngine">
           <option value="ollama">🦙 Ollama 本地 —— 免费 · 需自备硬件（≥16GB显存）</option>
-          <option value="deepseek">🌐 DeepSeek —— ¥1起/百万Token · 峰谷定价（高峰×2）</option>
-          <option value="volcano">🔥 火山引擎（豆包）—— 每日免费200万Token · 国产中文第一</option>
-          <option value="alibaba">☁️ 阿里百炼（通义千问）—— 新用户送7000万Token · ¥0.8起</option>
-          <option value="zhipu">🧠 智谱 GLM —— GLM-4.7-Flash永久免费 · 兜底首选</option>
+          <option value="deepseek">🌐 DeepSeek —— 💰低 · 推荐 · ¥2.02/百万输出 · 峰谷价</option>
+          <option value="volcano">🔥 火山引擎 —— 💰免费额度大 · 每日200万Token · 超出¥0.1起</option>
+          <option value="alibaba">☁️ 阿里百炼 —— 💰中 · ¥12/百万输出起 · 新用户送7000万</option>
+          <option value="zhipu">🧠 智谱 GLM —— 💰高 · ¥28/百万输出 · ⚠️强制推理</option>
         </select>
         <p style="font-size:11px;color:#888;margin-top:6px;">
-          💡 切换引擎无需重新填写 API Key。选择哪个引擎就用哪个引擎工作。错误会直接提示，不会自动切换。
+          💡 费用档位：Ollama 免费（只要硬件）＜ DeepSeek 最低 ≈ 火山（免费额度大）＜ 阿里 ＜ 智谱（强制推理最贵）。<br/>
+          切换引擎无需重新填写 API Key。选择哪个引擎就用哪个引擎工作。错误会直接提示，不会自动切换。
         </p>
+
+        <label style="margin-top:14px;">📋 分析/提取引擎（可选）</label>
+        <select v-model="settings.analysisEngine">
+          <option value="">跟随主引擎（推荐）</option>
+          <option value="ollama">🦙 Ollama 本地（免费·分析提取用轻量模型）</option>
+          <option value="deepseek">🌐 DeepSeek（Pro 分析最强）</option>
+          <option value="volcano">🔥 火山引擎（豆包）</option>
+          <option value="alibaba">☁️ 阿里百炼（通义千问）</option>
+          <option value="zhipu">🧠 智谱 GLM</option>
+        </select>
+        <p class="model-hint">💡 单独指定分析/提取（教材解读、知识点分析）用的引擎，生成/蓝图仍走上方主引擎。<br/>
+          例：主引擎 DeepSeek 生成 + 分析提取用本地 Ollama（免费），需在 Ollama 区把"分析提取模型"设为 glm4:9b 等 8GB 可跑的模型。</p>
       </div>
 
       <!-- 🦙 Ollama 配置 -->
@@ -151,7 +164,7 @@
         <select v-model="settings.ollamaTextModel">
           <option v-for="m in availableTextModels" :key="m" :value="m">{{ formatModelName(m) }}</option>
         </select>
-        <p class="model-hint">💡 deepseek-r1:14b→考卷/命题推理最强 | glm4:9b→知识点总结最优 | qwen2.5:14b→全类型稳定</p>
+        <p class="model-hint">💡 14B 重型模型需 16GB+ 显存：当前配置不够可先选 8B/9B，电脑升级后再切回 14B 命题质量最高（推理已关闭，选大模型只为生成质量）</p>
 
         <label>轻量模型（分析、提取、格式化）</label>
         <select v-model="settings.ollamaLightModel">
@@ -164,14 +177,14 @@
           <option value="">跟随重型模型</option>
           <option v-for="m in availableTextModels" :key="'qgen_' + m" :value="m">{{ formatModelName(m) }}</option>
         </select>
-        <p class="model-hint">💡 deepseek-r1:14b→命题推理最准确 | 留空=跟随重型模型</p>
+        <p class="model-hint">💡 deepseek-r1:14b→命题最准（需16GB+显存）| 留空=跟随重型模型</p>
 
         <label>📊 质量审查模型（可选）</label>
         <select v-model="settings.ollamaReviewModel">
           <option value="">跟随重型模型</option>
           <option v-for="m in availableTextModels" :key="'rev_' + m" :value="m">{{ formatModelName(m) }}</option>
         </select>
-        <p class="model-hint">💡 deepseek-r1:8b 或 glm4:9b→审查需思维链推理 | 留空=跟随重型模型</p>
+        <p class="model-hint">💡 deepseek-r1:8b 或 glm4:9b→审查更稳 | 留空=跟随重型模型</p>
 
         <label>📋 分析提取模型（可选）</label>
         <select v-model="settings.ollamaAnalysisModel">
@@ -189,9 +202,10 @@
       <!-- 🌐 DeepSeek 配置 -->
       <div v-if="settings.currentEngine === 'deepseek'" class="settings-section">
         <h3>🌐 DeepSeek 配置</h3>
-        <p style="font-size:12px;color:#666;margin-bottom:8px;">
-          💰 输入 ¥1.01/百万 · 输出 ¥2.02/百万 · 缓存命中 ¥0.02/百万 · 高峰(9-12/14-18工作日)×2
+        <p style="font-size:12px;color:#666;margin-bottom:4px;">
+          💰 费用低 · 推荐首选：输入 ¥1.01/百万 · 输出 ¥2.02/百万 · 缓存命中 ¥0.02/百万 · 高峰(9-12/14-18工作日)×2
         </p>
+        <p class="model-hint">👍 性价比最优：生成用 Flash（快且便宜）、分析用 Pro（精准）· 推理已默认关闭</p>
         <label>API Key</label>
         <input type="password" v-model="settings.deepseekApiKey" placeholder="sk-..." />
         <input type="text" v-model="settings.deepseekBaseUrl" placeholder="https://api.deepseek.com/v1" />
@@ -211,42 +225,36 @@
         <select v-model="settings.deepseekAnalysisModel">
           <option v-for="m in deepseekModelOptions" :key="'dsa_' + m" :value="m">{{ formatDeepSeekModel(m) }}</option>
         </select>
-        <label>🔍 语义审查模型（review · 可省）</label>
-        <select v-model="settings.deepseekReviewModel">
-          <option v-for="m in deepseekModelOptions" :key="'dsr_' + m" :value="m">{{ formatDeepSeekModel(m) }}</option>
-        </select>
-        <label>🔧 语义修复模型（quality-repair · 质量兜底）</label>
-        <select v-model="settings.deepseekRepairModel">
-          <option v-for="m in deepseekModelOptions" :key="'dsrp_' + m" :value="m">{{ formatDeepSeekModel(m) }}</option>
-        </select>
       </div>
 
       <!-- 🔥 火山引擎（豆包）配置 -->
       <div v-if="settings.currentEngine === 'volcano'" class="settings-section">
         <h3>🔥 火山引擎（豆包）</h3>
-        <p style="font-size:12px;color:#666;margin-bottom:8px;">
-          💰 每日免费200万Token · 无峰谷定价 · 豆包Lite ¥0.1/百万 · 国产中文能力第一
+        <p style="font-size:12px;color:#666;margin-bottom:4px;">
+          💰 每日免费200万Token · 无峰谷定价 · 国产中文能力第一 · 深度思考已强制关闭（省时省钱）
         </p>
+        <p class="model-hint">👍 免费额度大：小量试用/白嫖首选，超额度后 doubao-seed-2-1-turbo 约 ¥3/百万输入</p>
         <label>API Key</label>
         <input type="password" v-model="settings.volcanoApiKey" placeholder="火山引擎 API Key" />
         <input type="text" v-model="settings.volcanoBaseUrl" placeholder="https://ark.cn-beijing.volces.com/api/v3" />
         <label>📝 资料生成模型</label>
-        <input type="text" v-model="settings.volcanoGenerationModel" placeholder="doubao-seed-2-0-mini-250715" />
+        <input type="text" v-model="settings.volcanoGenerationModel" placeholder="doubao-seed-2-1-turbo-260628" />
         <label>📋 教材分析模型</label>
-        <input type="text" v-model="settings.volcanoAnalysisModel" placeholder="doubao-pro-256k-250428" />
+        <input type="text" v-model="settings.volcanoAnalysisModel" placeholder="doubao-seed-2-1-pro-260628" />
       </div>
 
       <!-- ☁️ 阿里百炼（通义千问）配置 -->
       <div v-if="settings.currentEngine === 'alibaba'" class="settings-section">
         <h3>☁️ 阿里百炼（通义千问）</h3>
-        <p style="font-size:12px;color:#666;margin-bottom:8px;">
-          💰 qwen-plus ¥0.8/百万（生成性价比） · qwen3.8-max ¥12/百万输入·¥36/百万输出（中文综合第一）
+        <p style="font-size:12px;color:#666;margin-bottom:4px;">
+          💰 费用中：qwen3.8-27b ¥3/百万输入·¥12/百万输出（生成性价比） · qwen3.8-max ¥12/百万输入·¥36/百万输出（中文综合第一）
         </p>
+        <p class="model-hint">👍 中档选择：生成用 27b 性价比好、分析用 max 质量高 · 新用户送7000万Token · 推理已默认关闭</p>
         <label>API Key</label>
         <input type="password" v-model="settings.alibabaApiKey" placeholder="sk-..." />
         <input type="text" v-model="settings.alibabaBaseUrl" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
         <label>📝 资料生成模型</label>
-        <input type="text" v-model="settings.alibabaGenerationModel" placeholder="qwen-plus" />
+        <input type="text" v-model="settings.alibabaGenerationModel" placeholder="qwen3.8-27b" />
         <label>📋 教材分析模型</label>
         <input type="text" v-model="settings.alibabaAnalysisModel" placeholder="qwen3.8-max" />
       </div>
@@ -254,16 +262,17 @@
       <!-- 🧠 智谱 GLM 配置 -->
       <div v-if="settings.currentEngine === 'zhipu'" class="settings-section">
         <h3>🧠 智谱 GLM</h3>
-        <p style="font-size:12px;color:#666;margin-bottom:8px;">
-          💰 GLM-4.7-Flash 永久免费 · 200K上下文 · GLM-4.5 ¥1/百万 · 适合兜底
+        <p style="font-size:12px;color:#666;margin-bottom:4px;">
+          💰 费用高：glm-5.3 最新旗舰（2026-08）· 输入¥8/百万 · 输出¥28/百万 · ⚠️ 强制开启推理（不可关闭，成本较高）
         </p>
+        <p class="model-hint">⚠️ 性价比最低：强制推理 token 按输出价计费，仅当需要顶级质量且不在乎成本时选用</p>
         <label>API Key</label>
         <input type="password" v-model="settings.zhipuApiKey" placeholder="智谱 API Key" />
         <input type="text" v-model="settings.zhipuBaseUrl" placeholder="https://open.bigmodel.cn/api/paas/v4" />
         <label>📝 资料生成模型</label>
-        <input type="text" v-model="settings.zhipuGenerationModel" placeholder="GLM-4.7-Flash" />
+        <input type="text" v-model="settings.zhipuGenerationModel" placeholder="glm-5.3" />
         <label>📋 教材分析模型</label>
-        <input type="text" v-model="settings.zhipuAnalysisModel" placeholder="GLM-4.7-Flash" />
+        <input type="text" v-model="settings.zhipuAnalysisModel" placeholder="glm-5.3" />
       </div>
 
       <!-- 📖 API 申请指南 -->
@@ -274,20 +283,20 @@
             <strong>🔥 火山引擎（豆包）</strong>
             <p>1. 访问 <a href="https://console.volcengine.com/ark" target="_blank">火山引擎 Ark 控制台</a></p>
             <p>2. 注册/登录 → 开通模型推理服务 → 创建 API Key</p>
-            <p>3. 在"推理接入点"创建 endpoint，选择 doubao-seed-2-0-mini 模型</p>
+            <p>3. 在"推理接入点"创建 endpoint，选择 doubao-seed-2-1 系列模型</p>
             <p>4. 每日免费 200万 Token，自动刷新</p>
           </div>
           <div class="guide-item">
             <strong>☁️ 阿里百炼（通义千问）</strong>
             <p>1. 访问 <a href="https://bailian.console.aliyun.com" target="_blank">阿里百炼控制台</a></p>
             <p>2. 注册/登录 → 开通百炼服务 → 创建 API Key</p>
-            <p>3. 新用户送 7000万 Token，qwen-plus 性价比极高（¥0.8/百万）</p>
+            <p>3. 新用户送 7000万 Token，qwen3.8-27b 生成性价比高（¥3/百万输入）</p>
           </div>
           <div class="guide-item">
             <strong>🧠 智谱 GLM</strong>
             <p>1. 访问 <a href="https://open.bigmodel.cn" target="_blank">智谱开放平台</a></p>
             <p>2. 注册/登录 → 创建 API Key</p>
-            <p>3. GLM-4.7-Flash 永久免费无限制，适合兜底</p>
+            <p>3. glm-5.3 为最新旗舰模型（2026-08 发布），输入¥8/百万 · 输出¥28/百万</p>
           </div>
           <div class="guide-item">
             <strong>💰 缓存命中提示</strong>
@@ -345,40 +354,8 @@
           <p style="font-size:11px;color:#888;margin:2px 0 0;">知识点提取、内容分析、格式化——低温确保准确</p>
         </div>
 
-        <!-- 蓝图生成 -->
-        <div style="margin-bottom:14px;">
-          <label style="display:flex;justify-content:space-between;">
-            <span>🗺️ 蓝图生成</span>
-          </label>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10px;color:#999;min-width:14px;">0</span>
-            <div style="position:relative;flex:1;">
-              <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.blueprintTemperature ?? 0.3) / 1.0 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.blueprintTemperature ?? 0.3) / 1.0 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.blueprintTemperature ?? 0.3).toFixed(1) }}</span>
-              <input type="range" v-model.number="settings.generationSettings.blueprintTemperature" min="0" max="1.0" step="0.1" list="ticks-1_0" style="width:100%;" />
-            </div>
-            <span style="font-size:10px;color:#999;min-width:22px;">1.0</span>
-          </div>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">命题蓝图、题型规划——有结构约束，中低温</p>
-        </div>
-
-        <!-- 题目生成 -->
-        <div style="margin-bottom:14px;">
-          <label style="display:flex;justify-content:space-between;">
-            <span>✏️ 题目生成</span>
-          </label>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10px;color:#999;min-width:14px;">0</span>
-            <div style="position:relative;flex:1;">
-              <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.questionTemperature ?? 0.5) / 1.5 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.questionTemperature ?? 0.5) / 1.5 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.questionTemperature ?? 0.5).toFixed(1) }}</span>
-              <input type="range" v-model.number="settings.generationSettings.questionTemperature" min="0" max="1.5" step="0.1" list="ticks-1_5" style="width:100%;" />
-            </div>
-            <span style="font-size:10px;color:#999;min-width:22px;">1.5</span>
-          </div>
-          <datalist id="ticks-1_5"><option value="0"></option><option value="0.5"></option><option value="1.0"></option><option value="1.5"></option></datalist>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">逐题生成、答案补全——平衡准确性与创造性</p>
-        </div>
-
         <!-- 整卷正文温度（一次生成整卷，创作性略高） -->
+        <datalist id="ticks-1_5"><option value="0"></option><option value="0.5"></option><option value="1.0"></option><option value="1.5"></option></datalist>
         <div style="margin-bottom:14px;">
           <label style="display:flex;justify-content:space-between;">
             <span>📄 整卷正文生成</span>
@@ -394,20 +371,21 @@
           <p style="font-size:11px;color:#888;margin:2px 0 0;">整卷一次生成（正文）——需创作性：情境、题目、卷面，略高</p>
         </div>
 
-        <!-- 答案页温度（阅卷专家视角，低温严谨） -->
-        <div style="margin-bottom:14px;">
+        <!-- 答案页温度（阅卷专家视角，低温严谨；一次成型模式下答案与正文共用整卷正文温度，此滑块仅两次生成生效） -->
+        <div style="margin-bottom:14px;" :style="(settings.generationSettings.paperGenerateMode ?? 'split') === 'once' ? { opacity: 0.5 } : {}">
           <label style="display:flex;justify-content:space-between;">
             <span>✅ 答案页生成</span>
+            <span v-if="(settings.generationSettings.paperGenerateMode ?? 'split') === 'once'" style="font-size:10px;color:#999;font-weight:400;">一次成型下不生效</span>
           </label>
           <div style="display:flex;align-items:center;gap:6px;">
             <span style="font-size:10px;color:#999;min-width:14px;">0</span>
             <div style="position:relative;flex:1;">
               <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.answerTemperature ?? 0.3) / 1.0 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.answerTemperature ?? 0.3) / 1.0 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.answerTemperature ?? 0.3).toFixed(1) }}</span>
-              <input type="range" v-model.number="settings.generationSettings.answerTemperature" min="0" max="1.0" step="0.1" list="ticks-1_0" style="width:100%;" />
+              <input type="range" v-model.number="settings.generationSettings.answerTemperature" min="0" max="1.0" step="0.1" list="ticks-1_0" style="width:100%;" :disabled="(settings.generationSettings.paperGenerateMode ?? 'split') === 'once'" />
             </div>
             <span style="font-size:10px;color:#999;min-width:22px;">1.0</span>
           </div>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">参考答案与评分标准——阅卷专家视角，低温确保严谨准确</p>
+          <p style="font-size:11px;color:#888;margin:2px 0 0;">参考答案与评分标准——阅卷专家视角，低温确保严谨准确<span v-if="(settings.generationSettings.paperGenerateMode ?? 'split') === 'once'">（一次成型下答案与正文共用"整卷正文生成"温度，此滑块仅"两次生成"生效）</span></p>
         </div>
 
         <!-- DeepSeek 深度思考开关（仅整卷生成生效） -->
@@ -442,22 +420,6 @@
           </div>
         </div>
 
-        <!-- 质量审查 -->
-        <div style="margin-bottom:0;">
-          <label style="display:flex;justify-content:space-between;">
-            <span>🔍 质量审查 / 验算</span>
-          </label>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:10px;color:#999;min-width:14px;">0</span>
-            <div style="position:relative;flex:1;">
-              <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.reviewTemperature ?? 0.1) / 1.0 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.reviewTemperature ?? 0.1) / 1.0 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.reviewTemperature ?? 0.1).toFixed(1) }}</span>
-              <input type="range" v-model.number="settings.generationSettings.reviewTemperature" min="0" max="1.0" step="0.1" list="ticks-1_0" style="width:100%;" />
-            </div>
-            <span style="font-size:10px;color:#999;min-width:22px;">1.0</span>
-          </div>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">审查、验证、评分——最低温确保客观</p>
-        </div>
-
         <p style="font-size:12px;color:#666;margin-top:8px;border-top:1px solid #eee;padding-top:8px;">
           💡 <b>0=完全确定</b>（每次输出相同），<b>0.3=低随机</b>，<b>0.5=平衡</b>，<b>1.0+=高创意</b>
         </p>
@@ -469,16 +431,12 @@
               <td style="padding:3px 4px;"><b>0–0.2</b> 精准稳定 · <b>0.3+</b> 可能产生幻觉，不推荐</td>
             </tr>
             <tr style="border-bottom:1px solid #e0e0e0;">
-              <td style="padding:3px 4px;font-weight:600;white-space:nowrap;">🗺️ 蓝图生成</td>
-              <td style="padding:3px 4px;"><b>0.2–0.4</b> 结构清晰 · <b>0.5+</b> 题型搭配可能偏离</td>
-            </tr>
-            <tr style="border-bottom:1px solid #e0e0e0;">
-              <td style="padding:3px 4px;font-weight:600;white-space:nowrap;">✏️ 题目生成</td>
-              <td style="padding:3px 4px;"><b>0.3–0.5</b> 格式稳定 · <b>0.6–0.8</b> 题型多样 · <b>1.0+</b> 开放创意</td>
+              <td style="padding:3px 4px;font-weight:600;white-space:nowrap;">📄 整卷正文生成</td>
+              <td style="padding:3px 4px;"><b>0.5–0.8</b> 情境/题目/卷面创作性 · <b>1.0+</b> 高创意</td>
             </tr>
             <tr>
-              <td style="padding:3px 4px;font-weight:600;white-space:nowrap;">🔍 质量审查</td>
-              <td style="padding:3px 4px;"><b>0–0.2</b> 客观严格 · <b>0.3+</b> 审查标准可能漂移，不推荐</td>
+              <td style="padding:3px 4px;font-weight:600;white-space:nowrap;">✅ 答案页生成</td>
+              <td style="padding:3px 4px;"><b>0–0.3</b> 阅卷严谨准确 · <b>0.5+</b> 可能发散，不推荐</td>
             </tr>
           </table>
           <p style="margin:6px 0 0;color:#999;">⚡ 温度 0 不保证绝对一致（GPU 浮点运算有微小差异），但差异可忽略</p>
@@ -772,6 +730,7 @@ const showGuide = ref(false);
 
 const settings = ref({
   currentEngine: apiConfig.currentEngine,
+  analysisEngine: apiConfig.analysisEngine || '',
   ollamaBaseUrl: apiConfig.ollamaBaseUrl,
   ollamaTextModel: apiConfig.ollamaTextModel,
   ollamaLightModel: apiConfig.ollamaLightModel,
@@ -784,21 +743,18 @@ const settings = ref({
   deepseekApiKey: apiConfig.deepseekApiKey,
   deepseekGenerationModel: apiConfig.deepseekGenerationModel || 'deepseek-v4-flash',
   deepseekAnalysisModel: apiConfig.deepseekAnalysisModel || 'deepseek-v4-pro',
-  deepseekReviewModel: apiConfig.deepseekReviewModel || 'deepseek-v4-flash',     // 🔧 新增
-  deepseekRepairModel: apiConfig.deepseekRepairModel || 'deepseek-v4-pro',        // 🔧 新增
-  enginePriority: [...(apiConfig.enginePriority || [])],
   volcanoApiKey: apiConfig.volcanoApiKey || '',
   volcanoBaseUrl: apiConfig.volcanoBaseUrl || 'https://ark.cn-beijing.volces.com/api/v3',
-  volcanoGenerationModel: apiConfig.volcanoGenerationModel || 'doubao-seed-2-0-mini-250715',
-  volcanoAnalysisModel: apiConfig.volcanoAnalysisModel || 'doubao-pro-256k-250428',
+  volcanoGenerationModel: apiConfig.volcanoGenerationModel || 'doubao-seed-2-1-turbo-260628',
+  volcanoAnalysisModel: apiConfig.volcanoAnalysisModel || 'doubao-seed-2-1-pro-260628',
   alibabaApiKey: apiConfig.alibabaApiKey || '',
   alibabaBaseUrl: apiConfig.alibabaBaseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  alibabaGenerationModel: apiConfig.alibabaGenerationModel || 'qwen-plus',
+  alibabaGenerationModel: apiConfig.alibabaGenerationModel || 'qwen3.8-27b',
   alibabaAnalysisModel: apiConfig.alibabaAnalysisModel || 'qwen3.8-max',
   zhipuApiKey: apiConfig.zhipuApiKey || '',
   zhipuBaseUrl: apiConfig.zhipuBaseUrl || 'https://open.bigmodel.cn/api/paas/v4',
-  zhipuGenerationModel: apiConfig.zhipuGenerationModel || 'GLM-4.7-Flash',
-  zhipuAnalysisModel: apiConfig.zhipuAnalysisModel || 'GLM-4.7-Flash',
+  zhipuGenerationModel: apiConfig.zhipuGenerationModel || 'glm-5.3',
+  zhipuAnalysisModel: apiConfig.zhipuAnalysisModel || 'glm-5.3',
   analyzeCharts: true,
   storagePath: localStorage.getItem('storagePath') || '智卷工坊数据',
   generationSettings: { ...apiConfig.generationSettings }
@@ -811,8 +767,8 @@ const deepseekModelOptions = ref(['deepseek-v4-flash', 'deepseek-v4-pro']);
 
 const formatDeepSeekModel = (model) => {
   const nameMap = {
-    'deepseek-v4-pro': '🧠 deepseek-v4-pro（推理强·慢）',
-    'deepseek-v4-flash': '⚡ deepseek-v4-flash（快速）',
+    'deepseek-v4-pro': '🧠 deepseek-v4-pro（分析决策强·慢·思考已关）',
+    'deepseek-v4-flash': '⚡ deepseek-v4-flash（快速便宜·思考已关）',
     'deepseek-chat': '💬 deepseek-chat（通用）',
     'deepseek-reasoner': '🧠 deepseek-reasoner（推理）',
   };
@@ -851,8 +807,6 @@ const applyModelPreset = (preset) => {
   if (!p) return;
   settings.value.deepseekGenerationModel = p.generation;
   settings.value.deepseekAnalysisModel = p.analysis;
-  settings.value.deepseekReviewModel = p.review;
-  settings.value.deepseekRepairModel = p.repair;
   saveStatus.value = p.label;
   setTimeout(() => { saveStatus.value = ''; }, 4000);
 };
@@ -861,13 +815,13 @@ const saveStatus = ref('');
 
 const formatModelName = (modelName) => {
   const nameMap = {
-    'deepseek-r1:32b': '🧠 deepseek-r1:32b（推理最强·需大显存）',
-    'deepseek-r1:14b': '🧠 deepseek-r1:14b（考卷/命题最优）',
-    'deepseek-r1:8b': '🧠 deepseek-r1:8b（性价比之选）',
-    'glm4:9b': '📚 glm4:9b（总结/学术精准）',
-    'qwen2.5:14b': '🌟 qwen2.5:14b（全类型稳定）',
-    'qwen2.5:7b': '🌟 qwen2.5:7b（日常轻量）',
-    'qwen2.5:1.5b': '📘 qwen2.5:1.5b（极轻量）',
+    'deepseek-r1:32b': '🧠 deepseek-r1:32b（命题最强·需24GB+显存）',
+    'deepseek-r1:14b': '🧠 deepseek-r1:14b（命题最优·需16GB+显存·配置升级后推荐）',
+    'deepseek-r1:8b': '🧠 deepseek-r1:8b（性价比之选·8GB显存可跑）',
+    'glm4:9b': '📚 glm4:9b（总结/学术精准·8GB显存）',
+    'qwen2.5:14b': '🌟 qwen2.5:14b（全类型稳定·需12GB+显存）',
+    'qwen2.5:7b': '🌟 qwen2.5:7b（日常轻量·6GB显存）',
+    'qwen2.5:1.5b': '📘 qwen2.5:1.5b（极轻量·CPU可跑）',
     'qwen2:7b': '📘 qwen2:7b（旧版）',
     'qwen3-vl:8b': '👁️ qwen3-vl:8b（多模态OCR）',
     'llava:13b': '🔄 llava:13b（多模态）',
@@ -892,9 +846,6 @@ const selectStoragePath = async () => {
 
 const resetTemperatureDefaults = () => {
   settings.value.generationSettings.analysisTemperature = 0.1;
-  settings.value.generationSettings.blueprintTemperature = 0.3;
-  settings.value.generationSettings.questionTemperature = 0.5;
-  settings.value.generationSettings.reviewTemperature = 0.1;
   settings.value.generationSettings.paperTemperature = 0.7;
   settings.value.generationSettings.answerTemperature = 0.3;
 };
@@ -908,6 +859,7 @@ const saveSettings = async () => {
   }
 
   apiConfig.currentEngine = settings.value.currentEngine;
+  apiConfig.analysisEngine = settings.value.analysisEngine || '';
   apiConfig.ollamaBaseUrl = settings.value.ollamaBaseUrl;
   apiConfig.ollamaTextModel = settings.value.ollamaTextModel;
   apiConfig.ollamaLightModel = settings.value.ollamaLightModel;
@@ -919,8 +871,6 @@ const saveSettings = async () => {
   apiConfig.deepseekApiKey = settings.value.deepseekApiKey;
   apiConfig.deepseekGenerationModel = settings.value.deepseekGenerationModel;
   apiConfig.deepseekAnalysisModel = settings.value.deepseekAnalysisModel;
-  apiConfig.deepseekReviewModel = settings.value.deepseekReviewModel;       // 🔧 新增
-  apiConfig.deepseekRepairModel = settings.value.deepseekRepairModel;       // 🔧 新增
   apiConfig.volcanoApiKey = settings.value.volcanoApiKey;
   apiConfig.volcanoBaseUrl = settings.value.volcanoBaseUrl;
   apiConfig.volcanoGenerationModel = settings.value.volcanoGenerationModel;
@@ -965,15 +915,19 @@ const saveSettings = async () => {
   } else if (settings.value.currentEngine === 'deepseek') {
     qualityEstimate += '\n\n📊 质量预估：云端高质量（DeepSeek V4）';
     qualityEstimate += '\n💰 费用参考：输入¥1.01/百万 · 输出¥2.02/百万 · 缓存命中¥0.02/百万';
+    qualityEstimate += '\n👍 性价比最优：生成用 Flash、分析用 Pro · 推理已默认关闭';
   } else if (settings.value.currentEngine === 'volcano') {
     qualityEstimate += '\n\n📊 质量预估：云端高质量（豆包 Seed）';
     qualityEstimate += '\n💰 每日免费200万Token · 超出后¥0.1/百万起';
+    qualityEstimate += '\n👍 免费额度大：小量试用首选 · 深度思考已强制关闭';
   } else if (settings.value.currentEngine === 'alibaba') {
     qualityEstimate += '\n\n📊 质量预估：云端高质量（通义千问 Qwen）';
-    qualityEstimate += '\n💰 qwen-plus ¥0.8/百万 · 新用户送7000万Token';
+    qualityEstimate += '\n💰 qwen3.8-27b ¥3/百万输入·¥12/百万输出 · 新用户送7000万Token';
+    qualityEstimate += '\n👍 中档选择：生成用 27b、分析用 max · 推理已默认关闭';
   } else if (settings.value.currentEngine === 'zhipu') {
-    qualityEstimate += '\n\n📊 质量预估：云端标准质量（智谱 GLM）';
-    qualityEstimate += '\n💰 GLM-4.7-Flash 永久免费 · 兜底首选';
+    qualityEstimate += '\n\n📊 质量预估：云端高质量（智谱 GLM）';
+    qualityEstimate += '\n💰 glm-5.3 输入¥8/百万 · 输出¥28/百万 · 能力对标 V4';
+    qualityEstimate += '\n⚠️ 性价比最低：强制推理不可关闭，仅追求顶级质量时选用';
   }
   saveStatus.value = qualityEstimate;
   setTimeout(() => { saveStatus.value = ''; }, 5000);
@@ -1153,17 +1107,6 @@ watch(() => apiConfig.deepseekGenerationModel, (newVal) => {
 watch(() => apiConfig.deepseekAnalysisModel, (newVal) => {
   if (settings.value.deepseekAnalysisModel !== newVal) {
     settings.value.deepseekAnalysisModel = newVal;
-  }
-});
-// 🔧 新增：审查/修复模型 watch 同步
-watch(() => apiConfig.deepseekReviewModel, (newVal) => {
-  if (settings.value.deepseekReviewModel !== newVal) {
-    settings.value.deepseekReviewModel = newVal;
-  }
-});
-watch(() => apiConfig.deepseekRepairModel, (newVal) => {
-  if (settings.value.deepseekRepairModel !== newVal) {
-    settings.value.deepseekRepairModel = newVal;
   }
 });
 // 🔧 云端同步后火山引擎字段自动填充到设置页输入框

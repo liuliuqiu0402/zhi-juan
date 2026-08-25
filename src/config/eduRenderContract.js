@@ -39,7 +39,7 @@ export function buildRenderContract({ subject = '', genType = '', needsImage = f
 
   parts.push('【渲染指令（EduRender 标记，供 EduRender Studio 渲染；仅需图/公式时使用，不计题量）】');
   if (graphNeeded) {
-    parts.push('· 图形题用 [GRAPH]...[/GRAPH]，TYPE ∈ COORDINATE/SHAPES/BAR_CHART/LINE_CHART/PIE_CHART/FORCE/CIRCUIT/OPTICS/ATOM，含 XLIM/YLIM 坐标与真实数据（须与题干一致）。例：'
+    parts.push(`· 图形题用 [GRAPH]...[/GRAPH]，TYPE ∈ ${GRAPH_TYPES.join('/')}，含 XLIM/YLIM 坐标与真实数据（须与题干一致）。例：`
       + '\n[GRAPH]\nTYPE:BAR_CHART\nDATA:15,22,18,30,25\nLABELS:语文,数学,英语,科学,社会\nTITLE:期末考试成绩\n[/GRAPH]');
   }
   if (formulaNeeded) {

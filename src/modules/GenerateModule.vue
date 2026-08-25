@@ -3101,16 +3101,28 @@ const genTypeModelHint = computed(() => {
     }
     return { icon: '📚', model: analysisModel, tip: '分析用Pro·精准提取' };
   }
-  // 🦙 本地 Ollama
+  // 🔥 火山 / ☁️ 阿里 / 🧠 智谱：生成/分析双模型提示
+  if (apiConfig.currentEngine === 'volcano' || apiConfig.currentEngine === 'alibaba' || apiConfig.currentEngine === 'zhipu') {
+    const cfg = apiConfig;
+    const genModel = cfg[`${apiConfig.currentEngine}GenerationModel`] || '';
+    const analysisModel = cfg[`${apiConfig.currentEngine}AnalysisModel`] || '';
+    const heavyTasks = ['exam', 'practice', 'special', 'reading', 'errorbook'];
+    const m = heavyTasks.includes(type) ? genModel : analysisModel;
+    const tip = apiConfig.currentEngine === 'zhipu'
+      ? (heavyTasks.includes(type) ? '生成/分析同模型·强制推理' : '生成/分析同模型·强制推理')
+      : (heavyTasks.includes(type) ? '生成用Turbo/27b·便宜快' : '分析用Pro/Max·精准');
+    return { icon: '🧠', model: m, tip };
+  }
+  // 🦙 本地 Ollama（推理已全局关闭，选大模型只为生成质量）
   const hints = {
-    'exam':      { icon: '🧠', model: apiConfig.ollamaTextModel || 'deepseek-r1:14b', tip: '考卷命题推理最强' },
+    'exam':      { icon: '🧠', model: apiConfig.ollamaTextModel || 'deepseek-r1:14b', tip: '14B命题最优·推理已关' },
     'practice':  { icon: '🧠', model: apiConfig.ollamaTextModel || 'deepseek-r1:14b', tip: '课时练命题生成最优' },
     'summary':   { icon: '📚', model: apiConfig.ollamaLightModel || 'glm4:9b', tip: '知识点总结/学术精准' },
-    'special':   { icon: '🧠', model: apiConfig.ollamaTextModel || 'deepseek-r1:14b', tip: '专项突破/推理能力强' },
+    'special':   { icon: '🧠', model: apiConfig.ollamaTextModel || 'deepseek-r1:14b', tip: '专项突破·大模型更稳' },
     'errorbook': { icon: '📚', model: apiConfig.ollamaLightModel || 'glm4:9b', tip: '错题分析/归因精准' },
     'preview':   { icon: '🌟', model: 'glm4:9b / qwen2.5:14b', tip: '预习资料格式驱动' },
     'dictation': { icon: '🌟', model: 'glm4:9b / qwen2.5:14b', tip: '听写格式要求高' },
-    'reading':   { icon: '🧠', model: apiConfig.ollamaTextModel || 'deepseek-r1:14b', tip: '阅读理解需推理链' },
+    'reading':   { icon: '🧠', model: apiConfig.ollamaTextModel || 'deepseek-r1:14b', tip: '阅读理解·大模型更稳' },
   };
   return hints[type] || null;
 });
@@ -3152,6 +3164,14 @@ const currentModelSummary = computed(() => {
     const analysis = apiConfig.ollamaAnalysisModel || light;
     const review = apiConfig.ollamaReviewModel || '';
     return { engine: '🦙 Ollama', heavy, light, analysis, review };
+  }
+  // 🔥 火山 / ☁️ 阿里 / 🧠 智谱：按引擎显示生成/分析双模型
+  if (apiConfig.currentEngine === 'volcano' || apiConfig.currentEngine === 'alibaba' || apiConfig.currentEngine === 'zhipu') {
+    const eng = apiConfig.currentEngine;
+    const genModel = apiConfig[`${eng}GenerationModel`] || '未设置';
+    const analysisModel = apiConfig[`${eng}AnalysisModel`] || genModel;
+    const engineLabel = { volcano: '🔥 火山', alibaba: '☁️ 阿里', zhipu: '🧠 智谱' }[eng] || eng;
+    return { engine: engineLabel, heavy: genModel, light: analysisModel };
   }
   // 🌐 DeepSeek 云端：显示双模型配置（生成 + 分析）
   const genModel = apiConfig.deepseekGenerationModel || apiConfig.deepseekModel || 'deepseek-v4-flash';

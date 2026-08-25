@@ -7,7 +7,7 @@
 // ============================================================
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  setRegionOverride, removeRegionOverride, getRegionConfig, listRegionOverrides,
+  setRegionOverride, removeRegionOverride, getRegionConfig,
 } from '@/config/examRegionConfig.js';
 import { getExamBlueprint } from '@/config/examPaperBlueprints.js';
 
@@ -33,13 +33,5 @@ describe('省市分值维护（用户覆盖优先）', () => {
     setRegionOverride('江苏·南通', 'middle', '语文', { fullScore: 140 });
     expect(removeRegionOverride('江苏·南通', 'middle', '语文')).toBe(true);
     expect(getExamBlueprint('语文', 'middle', '江苏·南通').fullScore).toBe(150);
-    expect(listRegionOverrides()).toEqual([]);
-  });
-
-  it('listRegionOverrides 列出全部用户覆盖', () => {
-    setRegionOverride('江苏·苏州', 'middle', '数学', { fullScore: 135, duration: '120分钟' });
-    const list = listRegionOverrides();
-    expect(list).toHaveLength(1);
-    expect(list[0]).toMatchObject({ region: '江苏·苏州', stage: 'middle', subject: '数学', fullScore: 135, duration: '120分钟' });
   });
 });

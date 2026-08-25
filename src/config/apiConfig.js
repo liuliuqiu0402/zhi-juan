@@ -167,7 +167,7 @@ const loadConfig = async () => {
           console.log('🔑 从 Cookie 补全缺失的 API Key');
           config.deepseekApiKey = cookieConfig.deepseekApiKey;
           // 合并其他可能缺失的字段
-          for (const f of ['currentEngine', 'deepseekGenerationModel', 'deepseekAnalysisModel', 'deepseekReviewModel', 'deepseekRepairModel', 'deepseekBaseUrl']) {
+          for (const f of ['currentEngine', 'analysisEngine', 'deepseekGenerationModel', 'deepseekAnalysisModel', 'deepseekBaseUrl']) {
             if (!config[f] && cookieConfig[f] !== undefined) config[f] = cookieConfig[f];
           }
         }
@@ -282,14 +282,12 @@ export const saveConfig = async (config) => {
     //    iOS Safari↔PWA 通过此机制共享 API 配置
     const cookieCore = {
       currentEngine: toSave.currentEngine,
-      enginePriority: toSave.enginePriority,
+      analysisEngine: toSave.analysisEngine || '',
       // DeepSeek
       deepseekBaseUrl: toSave.deepseekBaseUrl,
       deepseekApiKey: toSave.deepseekApiKey,
       deepseekGenerationModel: toSave.deepseekGenerationModel,
       deepseekAnalysisModel: toSave.deepseekAnalysisModel,
-      deepseekReviewModel: toSave.deepseekReviewModel,           // 🔧 新增
-      deepseekRepairModel: toSave.deepseekRepairModel,            // 🔧 新增
       // 火山引擎
       volcanoEnabled: toSave.volcanoEnabled,
       volcanoApiKey: toSave.volcanoApiKey,
@@ -331,38 +329,39 @@ export const saveConfig = async (config) => {
 };
 
 export const apiConfig = reactive({
-  // 当前引擎: 'ollama' 或 'deepseek'（兼容旧版，新逻辑见 enginePriority）
+  // 当前引擎: 'ollama' / 'deepseek' / 'volcano' / 'alibaba' / 'zhipu'
   currentEngine: 'ollama',
-  
-  // 用户选择的引擎直接工作，不做自动降级。错误直接报错。
-  enginePriority: [],
+  // 🔧 分析/提取任务独立引擎（空 = 跟随主引擎）
+  //    场景：主引擎用云端 DeepSeek 做生成，分析提取走本地 Ollama（免费）或反之
+  analysisEngine: '',
   
   // ========== 火山引擎（豆包）配置 ==========
   volcanoEnabled: true,
   volcanoApiKey: '',
   volcanoBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-  volcanoGenerationModel: 'doubao-seed-2-0-mini-250715',  // 生成用：性价比极高
-  volcanoAnalysisModel: 'doubao-pro-256k-250428',          // 分析用：质量高
+  volcanoGenerationModel: 'doubao-seed-2-1-turbo-260628',  // 生成用：量产高吞吐，对标 V4-flash
+  volcanoAnalysisModel: 'doubao-seed-2-1-pro-260628',      // 分析用：旗舰深度推理，对标 V4-pro
   
   // ========== 阿里百炼（通义千问）配置 ==========
   alibabaEnabled: true,
   alibabaApiKey: '',
   alibabaBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  alibabaGenerationModel: 'qwen-plus',       // 生成用：性价比之王
-  alibabaAnalysisModel: 'qwen3.8-max',       // 分析用：中文综合第一（SuperCLUE 2026-07 榜首），幻觉控制断层领先
+  alibabaGenerationModel: 'qwen3.8-27b',       // 生成用：27B 轻量旗舰，对标 V4-flash
+  alibabaAnalysisModel: 'qwen3.8-max',         // 分析用：SuperCLUE 2026-07 榜首，对标 V4-pro
   
   // ========== 智谱 GLM 配置 ==========
   zhipuEnabled: true,
   zhipuApiKey: '',
   zhipuBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-  zhipuGenerationModel: 'GLM-4.7-Flash',     // 生成用：永久免费兜底
-  zhipuAnalysisModel: 'GLM-4.7-Flash',       // 分析用：永久免费兜底
+  zhipuGenerationModel: 'glm-5.3',             // 生成用：最新旗舰（2026-08）
+  zhipuAnalysisModel: 'glm-5.3',               // 分析用：最新旗舰（2026-08）
   
   // ========== Ollama 本地配置 ==========
   ollamaBaseUrl: 'http://localhost:11434',
   
   // 重型文本模型（命题生成、蓝图规划）
-  // 💡 推荐：deepseek-r1:14b（考卷/命题推理最优）| glm4:9b（知识点总结最优）| qwen2.5:14b（全类型稳定）
+  // 💡 推荐：deepseek-r1:14b（命题最优，需 16GB+ 显存，配置升级后使用）| glm4:9b（知识点总结最优）| qwen2.5:14b（全类型稳定）
+  // 🔧 推理已全局关闭（think:false）：14B 保留给高配机器，选大模型只为生成质量而非推理
   ollamaTextModel: 'deepseek-r1:14b',
   
   // 轻量文本模型（分析、提取、格式化）
@@ -382,15 +381,11 @@ export const apiConfig = reactive({
   deepseekBaseUrl: 'https://api.deepseek.com/v1',  // 🔧 修复：不要包含 /chat/completions
   deepseekApiKey: '',
   deepseekModel: 'deepseek-v4-pro',  // 🔧 保留兼容旧数据
-  // 🔧 按任务分模型（4档独立配置）：
+  // 🔧 按任务分模型（2档独立配置）：
   //   生成模型（generation/blueprint/formatting）→ Flash 快速便宜
   //   分析模型（analysis/extraction）→ Pro 决策性步骤，不能省
-  //   审查模型（review）→ Flash 可省，质检规则本地兜底
-  //   修复模型（quality-repair）→ Pro 质量兜底
   deepseekGenerationModel: 'deepseek-v4-flash',
   deepseekAnalysisModel: 'deepseek-v4-pro',
-  deepseekReviewModel: 'deepseek-v4-flash',      // 🔧 新增：审查独立配置
-  deepseekRepairModel: 'deepseek-v4-pro',          // 🔧 新增：修复独立配置
   
   // 🔧 新增：是否分析理科图表（默认启用）
   analyzeCharts: true,
@@ -414,9 +409,6 @@ export const apiConfig = reactive({
     // 逐题生成 → 重型模型（需要创造力和准确性）
     questionGeneration: 'heavy',
     
-    // 🔧 质量审查 → 升级到重型模型（审查比生成更需要准确，不能用7b凑合）
-    qualityReview: 'heavy',
-    
     // 🔧 逐题验证/数学验算 → 新增：用独立模型，低温确保客观
     questionValidation: 'heavy',
     
@@ -433,9 +425,6 @@ export const apiConfig = reactive({
   // 生成设置（按任务区分温度）
   generationSettings: {
     analysisTemperature: 0.1,           // 分析/提取（低温，更准确）
-    blueprintTemperature: 0.3,          // 蓝图生成（中低温，有结构约束）
-    questionTemperature: 0.5,           // 🔧 题目生成：从0.7降到0.5，平衡准确性和创造性
-    reviewTemperature: 0.1,             // 质量审查（低温，需客观）
     // 🔧 整卷生成温度分层（此前调用点硬编码 0.7/0.3 未走设置页，现纳入配置可调）：
     paperTemperature: 0.7,              // 整卷正文（一次生成整卷，需创作性：情境/题目/卷面，略高）
     answerTemperature: 0.3,             // 答案页（阅卷专家视角，需严谨：答案/评分标准/听力原文，低温）
@@ -455,9 +444,7 @@ export const apiConfig = reactive({
       'analysis': 65536,
       'blueprint': 32768,
       'generation': 65536,
-      'review': 8192,
-      'formatting': 8192,
-      'quality-repair': 65536
+      'formatting': 8192
     },
     
     topP: 0.9,
@@ -613,7 +600,6 @@ export const getCurrentEngineConfig = async (taskType = 'generation') => {
     'analysis': apiConfig.modelStrategy.contentAnalysis,
     'blueprint': apiConfig.modelStrategy.blueprintGeneration,
     'generation': apiConfig.modelStrategy.questionGeneration,
-    'review': apiConfig.modelStrategy.qualityReview,
     'questionValidation': apiConfig.modelStrategy.questionValidation,  // 🔧 新增
     'formatting': apiConfig.modelStrategy.formatting
   };
@@ -624,13 +610,11 @@ export const getCurrentEngineConfig = async (taskType = 'generation') => {
   const temperatureMap = {
     'extraction': apiConfig.generationSettings.analysisTemperature,
     'analysis': apiConfig.generationSettings.analysisTemperature,
-    'blueprint': apiConfig.generationSettings.blueprintTemperature,
-    'generation': apiConfig.generationSettings.questionTemperature,
-    'review': apiConfig.generationSettings.reviewTemperature,
+    'generation': apiConfig.generationSettings.paperTemperature,
     'questionValidation': 0,  // 🔧 验证任务温度=0，确保客观一致
     'formatting': apiConfig.generationSettings.analysisTemperature
   };
-  const taskTemperature = temperatureMap[taskType] ?? apiConfig.generationSettings.questionTemperature;
+  const taskTemperature = temperatureMap[taskType] ?? apiConfig.generationSettings.paperTemperature;
   
   if (apiConfig.currentEngine === 'ollama') {
     // 🔧 优化：按任务类型选择模型，支持用户自定义覆盖
@@ -664,24 +648,16 @@ export const getCurrentEngineConfig = async (taskType = 'generation') => {
       maxTokens: MAX_TOKENS_BY_TASK[taskType] || apiConfig.generationSettings.maxTokens
     };
   } else {
-    // 🔧 按任务类型选择 DeepSeek 模型（4档独立配置）
+    // 🔧 按任务类型选择 DeepSeek 模型（2档独立配置）
     //   生成类（generation/blueprint/formatting）→ 生成模型
     //   分析类（analysis/extraction）→ 分析模型
-    //   审查类（review）→ 审查模型
-    //   修复类（quality-repair）→ 修复模型
     const generationTasks = ['generation', 'blueprint', 'formatting'];
     const analysisTasks = ['analysis', 'extraction', 'questionValidation'];
-    const reviewTasks = ['review'];
-    const repairTasks = ['quality-repair', 'quality_repair'];
     let deepseekModel;
     if (generationTasks.includes(taskType)) {
       deepseekModel = apiConfig.deepseekGenerationModel || apiConfig.deepseekModel;
     } else if (analysisTasks.includes(taskType)) {
       deepseekModel = apiConfig.deepseekAnalysisModel || apiConfig.deepseekModel;
-    } else if (reviewTasks.includes(taskType)) {
-      deepseekModel = apiConfig.deepseekReviewModel || apiConfig.deepseekAnalysisModel || apiConfig.deepseekModel;
-    } else if (repairTasks.includes(taskType)) {
-      deepseekModel = apiConfig.deepseekRepairModel || apiConfig.deepseekAnalysisModel || apiConfig.deepseekModel;
     } else {
       deepseekModel = apiConfig.deepseekModel;  // 兜底
     }
@@ -706,77 +682,6 @@ export const refreshConfigCache = async () => {
   return await getCachedConfig(true);
 };
 
-// ✨ 智能缓存管理器（用于未来扩展）
-class SmartCache {
-  constructor() {
-    this.cache = new Map();
-    this.accessTimes = new Map();
-    this.maxSize = 50; // 最多缓存50项
-  }
-  
-  set(key, value, type = 'default') {
-    // 如果缓存已满，清理最少使用的项
-    if (this.cache.size >= this.maxSize) {
-      this.evictLRU();
-    }
-    
-    const config = CACHE_CONFIG[type] || { ttl: CONFIG_CACHE_TTL, priority: 'low' };
-    this.cache.set(key, {
-      value,
-      expireTime: Date.now() + config.ttl,
-      priority: config.priority,
-      lastAccess: Date.now()
-    });
-  }
-  
-  get(key) {
-    const item = this.cache.get(key);
-    if (!item) return null;
-    
-    // 检查是否过期
-    if (Date.now() > item.expireTime) {
-      this.cache.delete(key);
-      return null;
-    }
-    
-    // 更新访问时间
-    item.lastAccess = Date.now();
-    return item.value;
-  }
-  
-  clear() {
-    this.cache.clear();
-    this.accessTimes.clear();
-  }
-  
-  // 清理最少使用的项
-  evictLRU() {
-    let oldestKey = null;
-    let oldestTime = Infinity;
-    
-    for (const [key, item] of this.cache.entries()) {
-      // 优先清理低优先级的项
-      if (item.priority === 'low') {
-        this.cache.delete(key);
-        return;
-      }
-      
-      if (item.lastAccess < oldestTime) {
-        oldestTime = item.lastAccess;
-        oldestKey = key;
-      }
-    }
-    
-    if (oldestKey) {
-      this.cache.delete(oldestKey);
-    }
-  }
-}
-
-// 导出智能缓存实例（供未来使用）
-export const smartCache = new SmartCache();
-
-
 /**
  * 获取多模态配置（图片分析专用）
  */
@@ -794,13 +699,6 @@ export const getMultimodalConfig = async () => {
     baseUrl: '',
     model: 'PaddleOCR-VL'
   };
-};
-
-/**
- * 获取多模态引擎配置（getMultimodalConfig 的别名，兼容旧代码引用）
- */
-export const getOCREngineConfig = async () => {
-  return getMultimodalConfig();
 };
 
 // ==================== 🔧 新增：动态模型选择器 ====================
@@ -829,7 +727,6 @@ export const selectBestModel = (taskType, requirements = {}) => {
     'analysis': apiConfig.modelStrategy.contentAnalysis,
     'blueprint': apiConfig.modelStrategy.blueprintGeneration,
     'generation': apiConfig.modelStrategy.questionGeneration,
-    'review': apiConfig.modelStrategy.qualityReview,
     'questionValidation': apiConfig.modelStrategy.questionValidation,
     'formatting': apiConfig.modelStrategy.formatting
   };
@@ -887,12 +784,9 @@ export const MAX_TOKENS_BY_TASK = Object.freeze({
   'analysis': 65536,
   'blueprint': 32768,
   'generation': 65536,
-  // 🔧 review/formatting 从 2048 提升到 8192：语义审查与自动修复使用深度思考模型，
+  // 🔧 formatting 从 2048 提升到 8192：语义修复使用深度思考模型，
   //    推理链与输出共享 max_tokens 配额——2048 时模型推理耗尽配额导致 0 内容输出/修复截断（finish_reason=length）
-  'review': 8192,
-  'formatting': 8192,
-  // 🔧 quality-repair 需重输出整份修复后的 HTML（数千字），与 generation 同级预算，否则必然截断
-  'quality-repair': 65536
+  'formatting': 8192
 });
 
 
@@ -906,30 +800,50 @@ export const getCurrentEngineConfigEnhanced = async (taskType = 'generation', re
     Object.assign(apiConfig, savedConfig);
   }
 
+  // 🔧 分析/提取任务可独立指定引擎（analysisEngine，空 = 跟随主引擎）
+  //    场景：主引擎云端 DeepSeek 做生成，分析提取走本地 Ollama（免费）或反之
+  let engine = apiConfig.currentEngine;
+  const analysisTasks = ['analysis', 'extraction'];
+  if (analysisTasks.includes(taskType) && apiConfig.analysisEngine && apiConfig.analysisEngine !== apiConfig.currentEngine) {
+    const candidate = apiConfig.analysisEngine;
+    // 可用性校验：ollama 需桌面端；云端需已启用且有 API Key
+    let available = true;
+    if (candidate === 'ollama') {
+      available = !isWebDevice();
+    } else {
+      const meta = PROVIDER_META[candidate];
+      available = !!(meta && (!meta.enabled || apiConfig[meta.enabled]) && (!meta.apiKey || apiConfig[meta.apiKey]));
+    }
+    if (available) {
+      engine = candidate;
+      console.log(`🔀 [${taskType}] 使用独立分析引擎: ${engine}`);
+    } else {
+      console.warn(`⚠️ 分析引擎 "${candidate}" 不可用（未配置/非桌面端），回退主引擎 "${apiConfig.currentEngine}"`);
+    }
+  }
+
   // 🔧 Web/手机端保护：Ollama 是本地模型，手机端无法运行
-  if (isWebDevice() && apiConfig.currentEngine === 'ollama') {
+  if (isWebDevice() && engine === 'ollama') {
     if (apiConfig.deepseekApiKey) {
       console.warn('⚠️ Web 设备检测到 Ollama 引擎（手机端无法运行本地模型），自动切换到 DeepSeek');
-      apiConfig.currentEngine = 'deepseek';
+      engine = 'deepseek';
     } else {
       console.warn('⚠️ Web 设备使用 Ollama 引擎但未配置 DeepSeek API Key，请前往设置页配置');
     }
   }
 
   // 🔧 DeepSeek 引擎：自动发现云端最新可用模型（1 小时缓存，不阻塞）
-  if (apiConfig.currentEngine === 'deepseek') {
+  if (engine === 'deepseek') {
     autoDiscoverDeepSeekModel(); // fire-and-forget，首次调用后缓存生效
   }
 
   // 🔧 多提供商：Ollama 走专用路径（有模型选择策略），其余云端提供商统一走 resolveProviderConfig
-  if (apiConfig.currentEngine === 'ollama') {
+  if (engine === 'ollama') {
     const bestModel = selectBestModel(taskType, requirements);
     const temperatureMap = {
       'extraction': apiConfig.generationSettings.analysisTemperature,
       'analysis': apiConfig.generationSettings.analysisTemperature,
-      'blueprint': apiConfig.generationSettings.blueprintTemperature,
-      'generation': apiConfig.generationSettings.questionTemperature,
-      'review': apiConfig.generationSettings.reviewTemperature,
+      'generation': apiConfig.generationSettings.paperTemperature,
       'questionValidation': 0,
       'formatting': apiConfig.generationSettings.analysisTemperature
     };
@@ -939,14 +853,14 @@ export const getCurrentEngineConfigEnhanced = async (taskType = 'generation', re
       baseUrl: apiConfig.ollamaBaseUrl,
       textModel: bestModel.model,
       multimodalModel: apiConfig.ollamaMultimodalModel,
-      temperature: temperatureMap[taskType] ?? apiConfig.generationSettings.questionTemperature,
+      temperature: temperatureMap[taskType] ?? apiConfig.generationSettings.paperTemperature,
       maxTokens: apiConfig.generationSettings.maxTokens,
       modelSelectionReason: bestModel.reason
     };
   }
 
   // 云端提供商：统一使用 resolveProviderConfig（DeepSeek / 火山 / 阿里 / 智谱）
-  const provider = apiConfig.currentEngine;
+  const provider = engine;
   const resolved = resolveProviderConfig(provider, taskType);
   if (!resolved) {
     throw new Error(`当前引擎 "${provider}" 不可用：请检查 API Key 是否已配置，或切换到其他引擎。`);
@@ -954,15 +868,13 @@ export const getCurrentEngineConfigEnhanced = async (taskType = 'generation', re
   const temperatureMap = {
     'extraction': apiConfig.generationSettings.analysisTemperature,
     'analysis': apiConfig.generationSettings.analysisTemperature,
-    'blueprint': apiConfig.generationSettings.blueprintTemperature,
-    'generation': apiConfig.generationSettings.questionTemperature,
-    'review': apiConfig.generationSettings.reviewTemperature,
+    'generation': apiConfig.generationSettings.paperTemperature,
     'questionValidation': 0,
     'formatting': apiConfig.generationSettings.analysisTemperature
   };
   return {
     ...resolved,
-    temperature: temperatureMap[taskType] ?? apiConfig.generationSettings.questionTemperature,
+    temperature: temperatureMap[taskType] ?? apiConfig.generationSettings.paperTemperature,
     maxTokens: MAX_TOKENS_BY_TASK[taskType] || apiConfig.generationSettings.maxTokens,
   };
 };
@@ -1040,7 +952,6 @@ export const resolveProviderConfig = (provider, taskType = 'generation') => {
       'analysis': apiConfig.modelStrategy.contentAnalysis,
       'blueprint': apiConfig.modelStrategy.blueprintGeneration,
       'generation': apiConfig.modelStrategy.questionGeneration,
-      'review': apiConfig.modelStrategy.qualityReview,
       'questionValidation': apiConfig.modelStrategy.questionValidation,
       'formatting': apiConfig.modelStrategy.formatting
     };
@@ -1073,15 +984,10 @@ export const resolveProviderConfig = (provider, taskType = 'generation') => {
   if (provider !== 'deepseek' && !apiKey) return null; // 非 DeepSeek 必须配置 Key
   if (provider === 'deepseek' && !apiKey && !apiConfig.deepseekApiKey) return null;
   
-  // 🔧 4档模型路由：DeepSeek 支持独立的审查/修复模型，其他引擎走 genModel/anaModel 二分
+  // 🔧 模型路由：DeepSeek 与其他引擎统一走 genModel/anaModel 二分
   let model;
   if (provider === 'deepseek') {
-    // DeepSeek 4档独立配置
-    if (taskType === 'review') {
-      model = apiConfig.deepseekReviewModel || apiConfig[meta.anaModel] || apiConfig.deepseekModel;
-    } else if (taskType === 'quality-repair' || taskType === 'quality_repair') {
-      model = apiConfig.deepseekRepairModel || apiConfig[meta.anaModel] || apiConfig.deepseekModel;
-    } else if (isGeneration) {
+    if (isGeneration) {
       model = apiConfig[meta.genModel] || apiConfig.deepseekModel;
     } else {
       model = apiConfig[meta.anaModel] || apiConfig.deepseekModel;
@@ -1103,39 +1009,6 @@ export const resolveProviderConfig = (provider, taskType = 'generation') => {
     model,
   };
 };
-
-/**
- * 获取提供商配置列表（按 enginePriority 顺序，自动过滤不可用的提供商）
- * @param {string} taskType - 任务类型
- * @returns {Array<object>} 按优先级排列的提供商配置数组
- */
-export const getProviderChain = (taskType = 'generation') => {
-  const priority = apiConfig.enginePriority || [];
-  const chain = [];
-  
-  for (const provider of priority) {
-    const config = resolveProviderConfig(provider, taskType);
-    if (config) {
-      chain.push(config);
-    }
-  }
-  
-  // 兜底：如果 priority 为空或全部不可用，回退到 currentEngine 兼容模式
-  if (chain.length === 0) {
-    if (apiConfig.currentEngine === 'deepseek' && apiConfig.deepseekApiKey) {
-      const config = resolveProviderConfig('deepseek', taskType);
-      if (config) chain.push(config);
-    }
-    // Ollama 作为最后兜底（仅桌面端）
-    const ollamaConfig = resolveProviderConfig('ollama', taskType);
-    if (ollamaConfig) chain.push(ollamaConfig);
-  }
-  
-  return chain;
-};
-
-// 🔧 每个提供商独立的熔断器实例（由 useAiGenerator.js 管理，此处仅定义 key 列表）
-export const PROVIDER_BREAKER_KEYS = ['volcano', 'alibaba', 'deepseek', 'zhipu', 'ollama'];
 
 /**
  * 🔧 新增：清洗文本中可能泄露的文件路径

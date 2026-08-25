@@ -1,7 +1,7 @@
 // 命题范围断言测试：单课/整单元/跨单元（期中/期末/月考/专题）命名 + 卷首标题拼装 + 避重
 import { describe, it, expect } from 'vitest';
 import {
-  inferPaperScope, buildPaperTitle, filterTitleLabel, findCommonAncestorIndex,
+  inferPaperScope, findCommonAncestorIndex,
   categorizeUnits, effectiveUnitIndices, buildScopeCandidates, EXPLICIT_SCOPE_TYPES, inferAcademicTerm,
 } from '@/config/recipe/paperScope.js';
 
@@ -225,34 +225,6 @@ describe('findCommonAncestorIndex', () => {
   });
   it('不足 2 节点返回 lcaIdx -1', () => {
     expect(findCommonAncestorIndex([kecheng1], outline).lcaIdx).toBe(-1);
-  });
-});
-
-describe('buildPaperTitle —— 卷首标题拼装', () => {
-  const base = { academicTitle: '2025—2026学年第一学期', stageLabel: '小学中段', gradeLabel: '四年级', subject: '语文' };
-  it('单课范围：学年 + 学段年级 + 学科 + 课名 + 类型名', () => {
-    const t = buildPaperTitle({ ...base, scopeName: '第2课 观潮', scopeIsLabel: false, genTypeLabel: '综合检测' });
-    expect(t).toBe('2025—2026学年第一学期小学中段四年级语文第2课 观潮综合检测');
-  });
-  it('整单元范围：拼单元名 + 类型名', () => {
-    const t = buildPaperTitle({ ...base, scopeName: '第一单元', scopeIsLabel: false, genTypeLabel: '综合检测' });
-    expect(t).toBe('2025—2026学年第一学期小学中段四年级语文第一单元综合检测');
-  });
-  it('范围即标签（期中/期末）：不再重复拼类型名', () => {
-    const t = buildPaperTitle({ ...base, scopeName: '期中综合测试', scopeIsLabel: true, genTypeLabel: '综合检测' });
-    expect(t).toBe('2025—2026学年第一学期小学中段四年级语文期中综合测试');
-  });
-});
-
-describe('filterTitleLabel —— 病句避重', () => {
-  it('范围名含"单元"时剔除含"单元"的类型候选，防"第二单元单元测试卷"', () => {
-    const safe = filterTitleLabel(['单元测试卷', '综合检测'], '第二单元');
-    expect(safe).not.toContain('单元测试卷');
-    expect(safe).toContain('综合检测');
-  });
-  it('范围名不含"单元"时保持原池', () => {
-    const safe = filterTitleLabel(['单元测试卷', '综合检测'], '第2课 观潮');
-    expect(safe).toEqual(['单元测试卷', '综合检测']);
   });
 });
 

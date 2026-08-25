@@ -212,26 +212,3 @@ export function categorizeUnits(chapters, outline) {
   if (last < Math.ceil(G / 2)) return 'midterm';
   return 'default';
 }
-
-/**
- * 避重：范围名含"单元"时，从资料类型名候选剔除含"单元"的词，
- * 避免拼出"⋯第二单元单元测试卷"这类病句。
- */
-export function filterTitleLabel(pool, scopeName) {
-  return /单元/.test(scopeName || '') ? (pool || []).filter(l => !/单元/.test(l)) : (pool || []);
-}
-
-/**
- * 卷首标题拼装（纯函数）。
- * 结构：学年学期 + 学段年级 + 学科 + 范围段 + 类型段
- *   - scopeIsLabel 时范围名已含类型语义（"期中综合测试"），不再拼类型段，否则病句；
- *   - 其余情况拼 范围名 + 类型名（调用方已通过 filterTitleLabel 避重）。
- */
-export function buildPaperTitle({
-  academicTitle = '', stageLabel = '', gradeLabel = '', subject = '',
-  scopeName = '', scopeIsLabel = false, genTypeLabel = '',
-} = {}) {
-  const prefix = [academicTitle, stageLabel, gradeLabel, subject].filter(Boolean).join('');
-  if (scopeIsLabel) return prefix + (scopeName || '');
-  return prefix + (scopeName || '') + (genTypeLabel || '');
-}

@@ -1389,35 +1389,45 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
     return result;
   };
 
+  // 🔧 目录卡片构建（无原文目录模式 & 未分析降级共用）
+  //    目录（章节标题 + 子标题）本身就是考点线索，确保"仅勾选目录"也能生成：
+  //    Step2 知识图谱基于目录标题 + 学科课标知识补全考点，planner 正常分配，AI 无素材凭空生成。
+  const buildTocCard = (chapter, mode = 'toc') => {
+    const collectTitles = (node, depth = 0, out = []) => {
+      if (!node || depth >= 3) return out;
+      for (const child of (node.children || [])) {
+        if (child?.title) out.push('  '.repeat(depth) + child.title);
+        collectTitles(child, depth + 1, out);
+      }
+      return out;
+    };
+    const tocText = [chapter.title, ...collectTitles(chapter)].filter(Boolean).join('\n');
+    if (!tocText.trim()) return null;
+    // 目录标题（章节 + 子标题）作为该卡片的检索关键词，供 retrieveSegments 命中
+    const tocKps = [chapter.title, ...collectTitles(chapter).map(t => t.trim())].filter(Boolean);
+    const isUnanalyzed = mode === 'unanalyzed';
+    return {
+      chapterTitle: chapter.title,
+      summary: isUnanalyzed
+        ? `【未分析·目录模式】本课有教材原文但未执行分析提取（生成时不做现场分析）。以下为该课目录结构，生成时请基于章节标题与该学科 2022 版新课标典型内容命题，题目情境/数据由你合理设计，禁止编造教材版本特有内容。如需完整命题素材，请先对本课执行"分析提取"：\n${tocText}`
+        : `【仅目录模式】本课教材原文未提取（未 OCR/未分析），以下为该课目录结构。生成时请基于章节标题与该学科 2022 版新课标典型内容命题，题目情境/数据由你合理设计，禁止编造教材版本特有内容：\n${tocText}`,
+      knowledgePointsForTest: tocKps,
+      segments: [{ text: tocText, type: '正文', isKeyConcept: false, isExample: false, hasFormula: false, knowledgePoints: tocKps }],
+      totalSegments: 1,
+      tags: ['toc-only'],
+      isTocOnly: true,
+      source: isUnanalyzed ? 'unanalyzed' : 'toc',
+    };
+  };
+
   for (const book of selectedBooks) {
     const chapters = book.selectedChapters || [];
     for (const chapter of chapters) {
       if (!chapter.rawText && !chapter.coreTopics) {
-        // 🔴 目录模式（TOC-only）：章节无 OCR 原文且未分析时，用目录标题构建"目录卡片"。
-        //    目录（章节标题 + 子标题）本身就是考点线索，确保"仅勾选目录"也能生成：
-        //    Step2 知识图谱基于目录标题 + 学科课标知识补全考点，planner 正常分配，AI 无素材凭空生成。
-        const collectTitles = (node, depth = 0, out = []) => {
-          if (!node || depth >= 3) return out;
-          for (const child of (node.children || [])) {
-            if (child?.title) out.push('  '.repeat(depth) + child.title);
-            collectTitles(child, depth + 1, out);
-          }
-          return out;
-        };
-        const tocText = [chapter.title, ...collectTitles(chapter)].filter(Boolean).join('\n');
-        if (tocText.trim()) {
-          // 目录标题（章节 + 子标题）作为该卡片的检索关键词，供 retrieveSegments 命中
-          const tocKps = [chapter.title, ...collectTitles(chapter).map(t => t.trim())].filter(Boolean);
-          contentCards.push({
-            chapterTitle: chapter.title,
-            summary: `【仅目录模式】本课教材原文未提取（未 OCR/未分析），以下为该课目录结构。生成时请基于章节标题与该学科 2022 版新课标典型内容命题，题目情境/数据由你合理设计，禁止编造教材版本特有内容：\n${tocText}`,
-            knowledgePointsForTest: tocKps,
-            segments: [{ text: tocText, type: '正文', isKeyConcept: false, isExample: false, hasFormula: false, knowledgePoints: tocKps }],
-            totalSegments: 1,
-            tags: ['toc-only'],
-            isTocOnly: true,
-            source: 'toc',
-          });
+        // 🔴 目录模式（TOC-only）：章节无 OCR 原文且未分析时，用目录标题构建"目录卡片"
+        const tocCard = buildTocCard(chapter, 'toc');
+        if (tocCard) {
+          contentCards.push(tocCard);
           console.log(`📑 [Step1·目录模式] ${chapter.title}: 无教材原文，已生成目录卡片`);
         }
         continue;
@@ -1514,206 +1524,12 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
           segments: segmentCards, totalSegments: segmentCards.length, tags: displayKps.slice(0, 10) });
         continue;
       }
-      const rawSegments = splitTextIntoSegments(cleanRawText, 500);
-      const segments = mergeShortSegments(rawSegments);
-      const segmentCards = [];
-      console.log(`🤖 [Step1完整AI] ${chapter.title}: analyzed=${chapter.analyzed} hierarchy=${chapter.knowledgeHierarchy?.length || 0}个 segments=${segments.length}(原始${rawSegments.length}) rawText=${cleanRawText.length}字`);
-
-      // 🔧 收集候选知识点名称，确保命名一致
-      const candidateKpNames = [];
-      if (chapter.knowledgePoints?.length) { candidateKpNames.push(...chapter.knowledgePoints); }
-      else if (chapter.knowledgeHierarchy?.length) {
-        for (const bc of chapter.knowledgeHierarchy) {
-          for (const ck of (bc.coreKnowledge || [])) {
-            candidateKpNames.push(ck.name);
-            if (ck.specificConcepts) candidateKpNames.push(...ck.specificConcepts);
-          }
-        }
-      }
-      const uniqueCandidates = [...new Set(candidateKpNames)].slice(0, 20);
-
-      for (let batchStart = 0; batchStart < segments.length; batchStart += 3) {
-        const batchSegments = segments.slice(batchStart, batchStart + 3);
-        const batchText = batchSegments.map((seg, i) => `[段${batchStart + i + 1}] ${seg}`).join('\n\n---\n\n');
-        // 🔧 从指令库获取候选知识点命名规范
-        const candidateKpNamesRule = getAnalysisPrompts({ category: '分析-知识图谱构建' }).find(b => b.id.includes('candidate_kp_names'));
-        const candidateKpNote = candidateKpNamesRule ? candidateKpNamesRule.content : '⚠️ 知识点名称必须与以上列表一致的命名风格，不要自创不同名称指代同一概念';
-        const candidateHint = uniqueCandidates.length > 0
-          ? `【候选知识点名称——必须从以下列表中选择，或保持命名风格一致】\n${uniqueCandidates.join('、')}\n${candidateKpNote}\n` : '';
-        
-        // 🔧 学科×学段二维智能适配：15个学科全覆盖，每个学科只看自己的提取规则
-        const rawSubj = (book.subject || '');
-        const stageStr = (book.stage || '');
-        
-        // 学科识别（含别名兼容：政治→道德与法治/思想政治，信息科技→信息技术）
-        const isChinese = rawSubj.includes('语文');
-        const isMath = rawSubj.includes('数学');
-        const isEnglish = rawSubj.includes('英语');
-        const isPhysics = rawSubj.includes('物理');
-        const isChemistry = rawSubj.includes('化学');
-        const isBiology = rawSubj.includes('生物');
-        const isScience = rawSubj.includes('科学');  // 小学科学
-        const isHistory = rawSubj.includes('历史');
-        const isGeography = rawSubj.includes('地理');
-        const isPolitics = rawSubj.includes('政治') || rawSubj.includes('道德') || rawSubj.includes('思想');
-        const isIT = rawSubj.includes('信息');
-        const isMusic = rawSubj.includes('音乐');
-        const isArt = rawSubj.includes('美术');
-        const isPE = rawSubj.includes('体育');
-        
-        // 理科/文科分组
-        const isScienceGroup = isPhysics || isChemistry || isBiology || isScience;
-        const isHumanitiesGroup = isHistory || isGeography || isPolitics;
-        
-        // 学段识别
-        const gradeNum = extractGradeNum(book.grade || '');
-        const isPrimary = stageStr.includes('小学');
-        const isJunior = stageStr.includes('初中');
-        const isSenior = stageStr.includes('高中');
-        const isLowerGrade = isPrimary && gradeNum > 0 && gradeNum <= 2;
-        const isMidGrade = isPrimary && gradeNum >= 3 && gradeNum <= 4;
-        const isUpperGrade = isPrimary && gradeNum >= 5;
-        
-        let subjectRules = '';
-        if (isChinese) {
-          subjectRules = `【语文学科专项提取规则——通读全文，不得遗漏任何知识内容】
-- 📝 生字/生词：每个生字独立标注（如"人""口""手"），绝不合并
-- 📝 多音字：标注每个读音和组词（如"长(cháng)长短/长(zhǎng)长大"）
-- 📝 近义词/反义词：成对标注，注明辨析要点
-- 📝 重点词语/成语/俗语/歇后语：逐词标注含义和用法
-- 📝 需背诵段落/古诗/名句/文言文：标注篇名和范围
-- 📝 课文内容理解：主旨、人物形象、事件脉络、道理、情感
-- 📝 修辞手法：比喻、拟人、排比、夸张、反问、设问等
-- 📝 标点符号用法与病句修改考点
-- 📝 阅读理解考点：词语理解、句子含义、内容概括、结构分析
-- 📝 写作/口语交际/综合性学习/名著导读要求
-${isLowerGrade ? '- 🔧 低段(1-2)：拼音、笔画笔顺、偏旁部首、看图写话、简单日记\n' : ''}${isMidGrade ? '- 🔧 中段(3-4)：段落大意、习作、简单修辞、观察日记\n' : ''}${isUpperGrade ? '- 🔧 高段(5-6)：文言文入门、说明文阅读、读后感\n' : ''}${isJunior ? '- 🔧 初中：文言文实词虚词、古诗词鉴赏、议论文/说明文阅读\n' : ''}${isSenior ? '- 🔧 高中：文言文特殊句式、诗歌鉴赏手法、论述类/文学类文本阅读\n' : ''}`;
-        } else if (isMath) {
-          subjectRules = `【数学学科专项提取规则——通读全文，不得遗漏任何知识内容】
-- 🔢 概念/定义：每个数学概念独立标注
-- 🔢 公式/定理/运算法则/性质：逐条标注，注明适用条件
-- 🔢 计算方法/解题步骤/证明思路：标注关键步骤
-- 🔢 例题：标注考查的知识点和解题方法
-- 🔢 几何图形：性质、判定、计算公式
-- 🔢 统计与概率：数据收集、图表解读、概率计算
-- 🔢 应用题类型与解题策略
-- 🔢 数学术语/符号/单位
-- 🔢 课后练习/习题中考查的题型和能力层次
-${isLowerGrade ? '- 🔧 低段(1-2)：数的认识、20以内加减、图形认识、口算、钟表\n' : ''}${isMidGrade ? '- 🔧 中段(3-4)：乘除法、分数初步、周长面积、简单应用题\n' : ''}${isUpperGrade ? '- 🔧 高段(5-6)：小数分数运算、方程、几何计算、复合应用题\n' : ''}${isJunior ? '- 🔧 初中：代数运算、几何证明、函数初步、统计与概率\n' : ''}${isSenior ? '- 🔧 高中：函数、数列、立体几何、概率统计、导数、向量\n' : ''}`;
-        } else if (isEnglish) {
-          subjectRules = `【英语学科专项提取规则——通读全文，不得遗漏任何知识内容】
-- 📕 词汇表/单词表：每个词条（英文+中文释义）独立标注，逐条列出，不得遗漏任何一个
-- 📕 重点句型：每个句型独立标注（如"What's your name?""I like...""There be..."）
-- 📕 语法点：时态、语态、句型结构、词性、从句等逐条标注
-- 📕 对话/短文：标注主题、关键表达、交际功能
-- 📕 发音/拼读规则：自然拼读、音标、重音、连读等
-- 📕 听力材料中的关键信息和考查点
-- 📕 阅读理解策略与完形填空考点
-- 📕 书面表达/写作话题与常用表达
-- 📕 文化知识/跨文化交际内容
-- 📕 教材各板块：Let's learn/Talk/Spell/Read/Write/Story等全部提取
-${isLowerGrade ? '- 🔧 低段(1-2)：字母、简单单词、日常问候、歌曲歌谣、颜色数字\n' : ''}${isMidGrade ? '- 🔧 中段(3-4)：对话理解、短文阅读、简单语法、词汇拼写\n' : ''}${isUpperGrade ? '- 🔧 高段(5-6)：篇章阅读、时态综合、简单写作\n' : ''}${isJunior ? '- 🔧 初中：完形填空、阅读理解、书面表达、语法系统\n' : ''}${isSenior ? '- 🔧 高中：深层阅读、语法填空、读后续写、概要写作\n' : ''}`;
-        } else if (isScienceGroup) {
-          const subjLabel = isPhysics ? '物理' : isChemistry ? '化学' : isBiology ? '生物' : '科学';
-          subjectRules = `【${subjLabel}学科专项提取规则——通读全文，不得遗漏任何知识内容】
-- 🔬 概念/定义/定律/原理：每个独立标注，注明内涵
-- 🔬 公式/方程式/化学式：逐条标注${isChemistry ? '，配平和反应条件' : ''}
-- 🔬 实验：目的、器材、步骤、现象、结论、注意事项
-- 🔬 计算题考查点和公式应用
-- 🔬 图表/数据/示意图的解读要点
-- 🔬 ${isPhysics ? '力学/电学/光学/热学' : isChemistry ? '物质性质、反应类型、元素周期' : isBiology ? '细胞、遗传、生态、进化' : '物质科学、生命科学、地球科学'}核心知识
-- 🔬 科学探究方法：观察、假设、实验、分析、结论
-- 🔬 ${isBiology ? '结构与功能关系、分类依据' : '物质变化规律、能量转化'}
-- 🔬 课后练习/习题中考查的题型和能力
-${isPrimary ? '- 🔧 小学：观察描述、简单分类、常见现象解释、动手实验\n' : ''}${isJunior ? '- 🔧 初中：基础定律、简单计算、实验操作规范、探究报告\n' : ''}${isSenior ? '- 🔧 高中：复杂理论推导、定量计算、综合实验设计、科学思维\n' : ''}`;
-        } else if (isHumanitiesGroup) {
-          const subjLabel = isHistory ? '历史' : isGeography ? '地理' : '政治/道德与法治/思想政治';
-          subjectRules = `【${subjLabel}学科专项提取规则——通读全文，不得遗漏任何知识内容】
-- 📖 核心概念/原理/定义：每个独立标注
-- 📖 ${isHistory ? '重要事件/人物/时间/导火索/结果/意义' : isGeography ? '地理位置/地形/气候/资源/人口/经济' : '政治概念/制度/法律/权利/义务/价值观'}
-- 📖 ${isGeography ? '地图/图表/数据分析：识图、读图、绘图要点' : '材料/图表/数据解读要点'}
-- 📖 因果关系/影响意义/启示/教训
-- 📖 案例分析/材料解读/情境判断
-- 📖 比较异同/归纳总结/评价论述
-- 📖 ${isHistory ? '史料实证/历史解释/时空观念' : isGeography ? '区域认知/综合思维/人地协调观' : '政治认同/法治意识/公共参与'}
-- 📖 课后练习/习题中考查的题型和能力层次
-${isPrimary ? '- 🔧 小学：常识性了解、行为规范、简单地图识别、身边的社会现象\n' : ''}${isJunior ? '- 🔧 初中：系统知识体系、综合分析能力、材料题/简答题\n' : ''}${isSenior ? '- 🔧 高中：深度理论理解、多角度分析、论述题/综合探究\n' : ''}`;
-        } else if (isIT) {
-          subjectRules = `【信息科技学科专项提取规则——通读全文，不得遗漏任何知识内容】
-- 💻 概念/术语：每个独立标注
-- 💻 操作步骤/流程/命令
-- 💻 编程知识点：语法、算法、数据结构
-- 💻 软件应用/工具使用
-- 💻 信息安全/网络道德
-- 💻 项目实践/案例应用
-${isPrimary ? '- 🔧 小学：计算机基础操作、图形化编程、信息意识\n' : ''}${isJunior ? '- 🔧 初中：办公软件、简单编程、网络基础\n' : ''}${isSenior ? '- 🔧 高中：算法设计、数据处理、人工智能初步\n' : ''}`;
-        } else if (isMusic || isArt || isPE) {
-          subjectRules = `【${rawSubj}学科专项提取规则——通读全文，不得遗漏任何知识内容】
-- 核心概念/术语/技法：每个独立标注
-- 作品/曲目/运动项目及其要点
-- 鉴赏/欣赏/评价要点
-- 实践/操作/训练要求
-- 课后练习/活动考查的内容`;
-        }
-        
-        const segPrompt = `你是${book.stage || ''}${book.grade || ''}${book.subject || ''}学科命题专家。
-
-【核心任务】通读以下教材段落，标注所有可用于命题的知识内容。必须逐字逐句通读，确保不遗漏段落中的任何知识信息。
-
-${subjectRules}
-
-【通用规则——所有学科都必须遵守】
-- ⭐ 教材中加粗/标红/框出/特殊字体标注的内容，必须全部提取
-- ⭐ 课后练习/习题中明确要求学生掌握的内容
-- ⭐ 段落中明确标记为"重点""难点""考点"的内容
-- 🔒 必须逐条标注，绝不将多个知识点合并为一条（如"生字5个"→必须拆成5条独立知识点）
-- 🔒 先通读确认段落整体内容类型（正文/词汇表/练习/导语），再逐条精准标注
-${candidateHint}
-${batchText}
-
-返回 JSON 数组：[{"segmentIndex": ${batchStart + 1}, "knowledgePoints": ["知识点1"], "type": "正文|例题|练习|导语|小结|词汇表|生字表", "isKeyConcept": true, "suggestedQuestionTypes": ["题型1"]}]
-⚠️ 如果是词汇表/生字表段落，type 必须标注为"词汇表"或"生字表"，并将每个词条作为独立 knowledgePoint 列出，不得合并`;
-        try {
-          const segResponse = await callAI(segPrompt, { taskType: 'analysis', temperature: 0.1, timeout: 60000 });
-          const segParsed = await robustJsonParse(segResponse, null, `分段分析-${chapter.title}`);
-          if (Array.isArray(segParsed)) {
-            for (const segResult of segParsed) {
-              const segIdx = (segResult.segmentIndex || 1) - 1 - batchStart;
-              if (segIdx >= 0 && segIdx < batchSegments.length) {
-                segmentCards.push({ text: batchSegments[segIdx], knowledgePoints: segResult.knowledgePoints || [],
-                  type: segResult.type || '正文', isKeyConcept: segResult.isKeyConcept || false,
-                  isExample: segResult.type === '例题' || batchSegments[segIdx].includes('例'),
-                  isExercise: segResult.type === '练习' || batchSegments[segIdx].includes('练习'),
-                  suggestedQuestionTypes: segResult.suggestedQuestionTypes || [],
-                  hasFormula: hasFormula(batchSegments[segIdx]) });
-              }
-            }
-          }
-        } catch (e) {
-          console.warn(`分段分析失败（${chapter.title}），使用降级策略:`, e.message);
-          const fallbackNames = candidateKpNames.length > 0 ? candidateKpNames : [chapter.title];
-          for (let si = 0; si < batchSegments.length; si++) {
-            const segText = batchSegments[si];
-            const matchedFallback = fallbackNames.filter(name => wordBoundaryMatch(segText, name));
-            let segType = '正文';
-            if (segText.includes('例') || /^例\d+/.test(segText)) segType = '例题';
-            else if (segText.includes('练习') || segText.includes('习题')) segType = '练习';
-            else if (segText.includes('小结') || segText.includes('回顾')) segType = '小结';
-            segmentCards.push({ text: segText, knowledgePoints: matchedFallback.length > 0 ? matchedFallback : [chapter.title],
-              type: segType, isKeyConcept: matchedFallback.length > 0, isExample: segType === '例题',
-              isExercise: segType === '练习', suggestedQuestionTypes: [], hasFormula: hasFormula(segText) });
-          }
-        }
-      }
-      const allKps = [...new Set(segmentCards.flatMap(s => s.knowledgePoints).filter(kp => typeof kp === 'string' && kp.trim()))];
-      const keySegments = segmentCards.filter(s => s.isKeyConcept);
-      contentCards.push({ chapterTitle: chapter.title, summary: chapter.coreTopics || allKps.slice(0, 5).join('、'),
-        knowledgePointsForTest: allKps.map(kp => ({ name: kp, cognitiveLevel: '理解', sourceText: '', suggestedDifficulty: '基础',
-          hasFormula: (chapter.formulas || []).some(f => kp.includes(f.replace(/[^a-zA-Z\u4e00-\u9fa5]/g, '').substring(0, 4)) || f.includes(kp.substring(0, 4))),
-          relatedFormulas: (chapter.formulas || []).filter(f => kp.includes(f.replace(/[^a-zA-Z\u4e00-\u9fa5]/g, '').substring(0, 4)) || f.includes(kp.substring(0, 4))).slice(0, 3)
-        })), adaptableMaterials: keySegments.slice(0, 5).map(s => s.text.substring(0, 100)),
-        suggestedQuestionTypes: [...new Set(segmentCards.flatMap(s => s.suggestedQuestionTypes))].slice(0, 5),
-        rawText: cleanRawText, segments: segmentCards, totalSegments: segmentCards.length, tags: allKps });
+      // 🔴 方案A：有教材原文但未执行分析 → 不现场补分析（生成内补做基于不精准原文，质量不可控），
+      //    统一降级为目录模式（与无原文章节同路径）；完整命题素材需先手动执行"分析提取"
+      console.log(`📑 [Step1·未分析降级] ${chapter.title}: 有原文(${cleanRawText.length}字)但未分析，按目录模式生成（不现场补分析）`);
+      const unanalyzedCard = buildTocCard(chapter, 'unanalyzed');
+      if (unanalyzedCard) contentCards.push(unanalyzedCard);
+      continue;
     }
   }
   return contentCards;
@@ -1765,8 +1581,8 @@ ${JSON.stringify(cardsSummary, null, 2)}
 返回JSON：{"knowledgePoints":[""],"keyDifficulties":[""],"knowledgeGraph":[{"unit":"","bigConcepts":[{"name":"","coreKnowledge":[{"name":"","cognitiveLevel":"理解","isKeyPoint":true,"isDifficulty":false,"specificConcepts":[""],"suggestedQuestionTypes":[""],"relatedChapters":[""],"testPriority":1}]}]}],"crossChapterLinks":[{"from":"","to":"","relation":"前置|并列|拓展|应用"}]}`;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const response2 = await callAI(prompt2, { taskType: attempt >= 1 ? 'blueprint' : 'analysis', temperature: 0.1, retries: 0, forceJson: true });
-      const parsed = await robustJsonParse(response2, (rp) => callAI(rp, { taskType: 'analysis', temperature: 0.1 }), `第二步-尝试${attempt + 1}`);
+      const response2 = await callAI(prompt2, { taskType: attempt >= 1 ? 'blueprint' : 'analysis', temperature: apiConfig.generationSettings.analysisTemperature ?? 0.1, retries: 0, forceJson: true });
+      const parsed = await robustJsonParse(response2, (rp) => callAI(rp, { taskType: 'analysis', temperature: apiConfig.generationSettings.analysisTemperature ?? 0.1 }), `第二步-尝试${attempt + 1}`);
       if ((parsed.knowledgeGraph && parsed.knowledgeGraph.length) || (parsed.knowledgePoints && parsed.knowledgePoints.length)) {
         // 🔧 防御：确保 knowledgePoints/keyDifficulties 只包含有效字符串
         const safeKnowledgePoints = (parsed.knowledgePoints || []).filter(kp => typeof kp === 'string' && kp.trim());
@@ -2135,13 +1951,11 @@ export function useAiGenerator() {
       const temperatureMap = {
         'extraction': apiConfig.generationSettings.analysisTemperature,
         'analysis': apiConfig.generationSettings.analysisTemperature,
-        'blueprint': apiConfig.generationSettings.blueprintTemperature,
-        'generation': apiConfig.generationSettings.questionTemperature,
-        'review': apiConfig.generationSettings.reviewTemperature,
+        'generation': apiConfig.generationSettings.paperTemperature,
         'questionValidation': 0,
         'formatting': apiConfig.generationSettings.analysisTemperature
       };
-      config.temperature = temperatureMap[taskType] ?? apiConfig.generationSettings.questionTemperature;
+      config.temperature = temperatureMap[taskType] ?? apiConfig.generationSettings.paperTemperature;
       config.maxTokens = MAX_TOKENS_BY_TASK[taskType] || apiConfig.generationSettings.maxTokens;
     } else {
       config = await getCurrentEngineConfigEnhanced(taskType, {
@@ -2346,6 +2160,7 @@ const maxInputTokens = config.engine === 'deepseek'
               model: config.textModel,
               prompt: finalPrompt,
               stream: false,
+              think: false,  // 🔧 关闭推理：所有本地模型不思考直接输出（r1 等推理模型同样生效，提速省显存）
               keep_alive: 600,  // 🔧 保持 10 分钟，避免频繁重新加载
               // 🔧 System 分离：规则/格式/蓝本入 system（Ollama /api/generate 原生支持 system 字段）
               ...(options.systemMessage ? { system: options.systemMessage } : {}),
@@ -2391,6 +2206,7 @@ const maxInputTokens = config.engine === 'deepseek'
                   model: config.textModel,
                   prompt: continuationPrompt,
                   stream: false,
+                  think: false,  // 🔧 关闭推理：续写同样不思考直接输出
                   options: {
                     temperature: Math.max(0, temperature - 0.2),
                     num_predict: Math.floor(maxTokens * 0.5),
@@ -2473,18 +2289,16 @@ const maxInputTokens = config.engine === 'deepseek'
             throw new Error('DeepSeek API 地址未配置，请在设置中填写 API 地址');
           }
 
-          // 如果 baseUrl 已经包含 /chat/completions，直接使用
+          // 🔧 端点拼接：OpenAI 兼容协议统一为 baseUrl + /chat/completions
+          //    各厂商 baseUrl 形态不同：DeepSeek .../v1、火山 .../api/v3、智谱 .../api/paas/v4、阿里 .../compatible-mode/v1
+          //    一律直接追加 /chat/completions（不能强加 /v1，否则火山/智谱会被拼成错误地址）
           if (apiUrl.includes('/chat/completions')) {
             console.warn('⚠️ baseUrl 已包含完整路径，直接使用');
-          } else if (apiUrl.endsWith('/v1')) {
-            // 如果以 /v1 结尾，拼接 /chat/completions
-            apiUrl = `${apiUrl}/chat/completions`;
           } else {
-            // 否则拼接 /v1/chat/completions
-            apiUrl = `${apiUrl.replace(/\/$/, '')}/v1/chat/completions`;
+            apiUrl = `${apiUrl.replace(/\/$/, '')}/chat/completions`;
           }
 
-          console.log(`🔗 DeepSeek API URL: ${apiUrl}`);
+          console.log(`🔗 AI API URL (${config.provider}): ${apiUrl}`);
 
           // 🌡️ 熔断器检查
           if (deepseekBreaker.isOpen) {
@@ -2513,6 +2327,8 @@ const maxInputTokens = config.engine === 'deepseek'
             // 🔧 阿里百炼思考模型（qwen3.8-max/qwen3-max/qwq 系）：默认关闭思考链——
             //    教辅结构化输出不需要推理链，思考 tokens 按输出价计费（¥36/百万）且耗时 3-5 倍
             ...(config.provider === 'alibaba' && /qwen3.*max|qwq/i.test(config.model || '') ? { enable_thinking: false } : {}),
+            // 🔧 火山方舟（doubao-seed 系）：默认开启深度思考，强制关闭——思考 token 按输出价计费且耗时数倍
+            ...(config.provider === 'volcano' ? { thinking: { type: 'disabled' } } : {}),
             // 🔧 DeepSeek 思考模式控制：分析/审查/格式化/提取/验算等任务全部关闭思考链——
             //    reasoning_content 按输出价计费（v4-pro 高峰 ¥27/百万）且耗时数倍，清单式/机械任务非思考模式足够；
             //    仅整卷生成（generation）可经设置项「deepseekGenerationThinking」单独开启深度思考（提升质量）
@@ -2584,6 +2400,7 @@ const maxInputTokens = config.engine === 'deepseek'
                   top_p: 0.9,
                   stream: false,  // 续写不流式（短内容）
                   ...(config.provider === 'alibaba' && /qwen3.*max|qwq/i.test(config.model || '') ? { enable_thinking: false } : {}),
+                  ...(config.provider === 'volcano' ? { thinking: { type: 'disabled' } } : {}),
                   ...(config.provider === 'deepseek' ? { thinking: { type: (taskType === 'generation' && apiConfig.generationSettings?.deepseekGenerationThinking) ? 'enabled' : 'disabled' } } : {})
                 }),
                 signal: AbortSignal.timeout(30000)
@@ -2727,7 +2544,7 @@ const maxInputTokens = config.engine === 'deepseek'
     if (FALLBACK_ALLOWED_TASKS.includes(taskType) && !options.providerOverride) {
       const glmConfig = resolveProviderConfig('zhipu', taskType);
       if (glmConfig && glmConfig.apiKey) {
-        console.warn(`🔄 [降级] ${taskType} 主引擎失败，尝试免费 GLM-4.7-Flash 兜底...`);
+        console.warn(`🔄 [降级] ${taskType} 主引擎失败，尝试智谱 GLM 兜底...`);
         try {
           return await callAI(prompt, {
             ...options,
@@ -2997,18 +2814,15 @@ const maxInputTokens = config.engine === 'deepseek'
               // 🔧 关键修复：智能构建 API URL，避免重复拼接
               let apiUrl = textConfig.baseUrl;
               
-              // 如果 baseUrl 已经包含 /chat/completions，直接使用
+              // 🔧 端点拼接：OpenAI 兼容协议统一为 baseUrl + /chat/completions
+              //    各厂商 baseUrl 形态不同（DeepSeek .../v1、火山 .../api/v3、智谱 .../api/paas/v4、阿里 .../compatible-mode/v1）
               if (apiUrl.includes('/chat/completions')) {
                 console.warn('⚠️ baseUrl 已包含完整路径，直接使用');
-              } else if (apiUrl.endsWith('/v1')) {
-                // 如果以 /v1 结尾，拼接 /chat/completions
-                apiUrl = `${apiUrl}/chat/completions`;
               } else {
-                // 否则拼接 /v1/chat/completions
-                apiUrl = `${apiUrl.replace(/\/$/, '')}/v1/chat/completions`;
+                apiUrl = `${apiUrl.replace(/\/$/, '')}/chat/completions`;
               }
               
-              console.log(`🔗 DeepSeek API URL: ${apiUrl}`);
+              console.log(`🔗 AI API URL (${textConfig.provider}): ${apiUrl}`);
               console.log(`📋 检测模型: ${textConfig.model}`);
               
               let consecutiveEmpties = 0;  // 🔧 熔断：连续空响应计数
@@ -3027,7 +2841,8 @@ const maxInputTokens = config.engine === 'deepseek'
                   temperature: 0.1,
                   max_tokens: 256,  // 🔧 推理模型思考链+回复共享配额，200+才够输出content+reasoning
                   stream: false,     // 🔧 显式指定，与生成调用的 stream:true 对齐 API 规范
-                  ...(textConfig.provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {})  // 🔧 连通检测：关闭思考，快速返回
+                  ...(textConfig.provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),  // 🔧 连通检测：关闭思考，快速返回
+                  ...(textConfig.provider === 'volcano' ? { thinking: { type: 'disabled' } } : {})     // 🔧 火山默认开深度思考，检测时强制关闭加速
                 }),
                 signal: controller.signal
               });
@@ -4113,7 +3928,7 @@ ${isPrimary ? '- 🔧 小学：计算机基础操作、图形化编程、信息�
 
       const response = await callAI(analysisPrompt, { 
         taskType: 'analysis',
-        temperature: 0.1,
+        temperature: apiConfig.generationSettings.analysisTemperature ?? 0.1,
         timeout: 300000,
         // 🔧 推理模型思考链+输出共享，不硬编码maxTokens，走config统一配置（V4 上限 384K）
       });
@@ -4123,7 +3938,7 @@ ${isPrimary ? '- 🔧 小学：计算机基础操作、图形化编程、信息�
       try {
         const parsed = await robustJsonParse(
           response,
-          (retryPrompt) => callAI(retryPrompt, { taskType: 'analysis', temperature: 0.1 }),
+          (retryPrompt) => callAI(retryPrompt, { taskType: 'analysis', temperature: apiConfig.generationSettings.analysisTemperature ?? 0.1 }),
           '教材特征分析',
           'analysis'
         );
@@ -5653,10 +5468,10 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
       } // ── 整卷生成分支结束（if _useFullPaper）──
       
       // ========== 第四步：多维度质量校验 ==========
-      // 🔧 步骤编号适配：DeepSeek 整卷路径为步骤 4/4，Ollama 逐题路径为步骤 4/5
+      // 🔧 所有引擎（含 Ollama）统一走整卷路径，步骤固定为 4/4
       const stepQCConfig = await getCurrentEngineConfigEnhanced('review');
       const stepQCModelName = getModelDisplayName(stepQCConfig.textModel || stepQCConfig.model);
-      const qcStepLabel = _useFullPaper ? '4/4' : '5/5';
+      const qcStepLabel = '4/4';
       statusText.value = `步骤 ${qcStepLabel}：质量校验 [${stepQCModelName}]...`;
       progress.value = 85;
 
@@ -5664,6 +5479,15 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
       // 🔴 PostPass 质量门/总题量防线问题 → 展示到生成报告（issues 已声明）
       if (postPassIssues?.length) {
         postPassIssues.forEach(q => issues.push(`❌ ${q}`));
+      }
+      // 🔴 未分析/无原文章节提示 → 展示到生成报告（混合勾选时用户需知道哪些章用了目录模式）
+      const unanalyzedCardList = (contentCards || []).filter(c => c.source === 'unanalyzed').map(c => c.chapterTitle);
+      const tocCardList = (contentCards || []).filter(c => c.source === 'toc').map(c => c.chapterTitle);
+      if (unanalyzedCardList.length > 0) {
+        issues.push(`⚠️ 以下章节有教材原文但未执行分析提取，已按目录模式生成（完整命题素材需先"分析提取"）：${unanalyzedCardList.join('、')}`);
+      }
+      if (tocCardList.length > 0) {
+        issues.push(`⚠️ 以下章节未能提取到教材原文（OCR/解析无内容），已按目录模式生成：${tocCardList.join('、')}`);
       }
 
       // ========== 🔧 质检已移除（生成端保障） ==========
@@ -5688,6 +5512,19 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
       
       // 🔧 生成摘要（仅过程信息，无质检结论）
       const summaryParts = ['生成完成'];
+      // 🔧 章节来源统计：区分"已分析/未分析/无原文"，混合勾选时用户清楚知道每类章节的素材来源
+      const analyzedCardCount = (contentCards || []).filter(c => c.source !== 'unanalyzed' && c.source !== 'toc').length;
+      const unanalyzedCardCount = (contentCards || []).filter(c => c.source === 'unanalyzed').length;
+      const tocCardCount = (contentCards || []).filter(c => c.source === 'toc').length;
+      if (analyzedCardCount > 0 && (unanalyzedCardCount > 0 || tocCardCount > 0)) {
+        summaryParts.push(`✅${analyzedCardCount}章已分析`);
+      }
+      if (unanalyzedCardCount > 0) {
+        summaryParts.push(`⚠️${unanalyzedCardCount}章未分析·目录模式`);
+      }
+      if (tocCardCount > 0) {
+        summaryParts.push(`📑${tocCardCount}章无原文·目录模式`);
+      }
       if (issues && issues.length > 0) {
         const errorCount = issues.filter(i => i.startsWith('❌')).length;
         const warnCount = issues.filter(i => i.startsWith('⚠️')).length;
