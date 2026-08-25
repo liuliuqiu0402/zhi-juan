@@ -359,6 +359,53 @@ describe('examValidator 书写格按学段（writing-grid-fix）', () => {
   });
 });
 
+describe('examValidator 本卷案例根治（20:16 卷 第1/2题 + 大题标题）', () => {
+  it('读音题"每空1分"无填空载体 → 自动改"共N题每题X分"（第2题）', () => {
+    const html = [
+      '<h2>一、识字与写字（共4题，每题8分，共32分）</h2>',
+      '<p class="question">2. 用"○"圈出下列句子中加点字的正确读音。（每空1分，共6分）</p>',
+      '<p>（1）一行（① háng　② xíng）垂柳站在小河边。</p>',
+      '<p>（2）远处传来嘹亮的铜号（① hào　② háo）声。</p>',
+      '<p>（3）这只小猴子在树上快乐地行（① háng　② xíng）走。</p>',
+      '<p>（4）风在树林里呼号（① hào　② háo），听起来有点可怕。</p>',
+      '<p>（5）妈妈在银行（① háng　② xíng）上班，每天都很忙。</p>',
+      '<p>（6）运动会上，同学们大声喊"加油"，为运动员们助威、叫号（① hào　② háo）。</p>',
+    ].join('\n');
+    const { html: out } = auditExamPaper(html, OPTS);
+    expect(out).toContain('圈出下列句子中加点字的正确读音。（共6题，每题1分，共6分）');
+  });
+
+  it('拼音 2 字却给 4 个空位 → 自动删除多余空位（第1题）', () => {
+    const html = [
+      '<h2>一、识字与写字（共4题，每题8分，共32分）</h2>',
+      '<p class="question">1. 读一读拼音，在田字格里写出正确的词语。（每字1分，共12分）</p>',
+      '<p>（1）蓝蓝的（tiān kōng）中，一群大雁排成"人"字飞过。（　　　　）（　　　　）（　　　　）（　　　　）</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    // 4 个空位 → 删到 2 个（拼音 tiān kōng 两个音节）
+    const blankCount = (out.match(/[（(]\s*[　\u3000 ]{1,12}\s*[)）]/g) || []).length;
+    expect(blankCount).toBe(2);
+    expect(issues.some(i => i.type === 'pinyin-blank-mismatch')).toBe(true);
+  });
+
+  it('大题标题"每题8分"但各题 12/6/8/6 分不一致 → 自动改"共N题共X分"', () => {
+    const html = [
+      '<h2>一、识字与写字（共4题，每题8分，共32分）</h2>',
+      '<p class="question">1. 读拼音写词语。（共12分）</p>',
+      '<p>（1）（tiān kōng）。（　　　　）（　　　　）</p>',
+      '<p class="question">2. 圈出加点字的正确读音。（共6分）</p>',
+      '<p>（1）一行（háng xíng）。</p>',
+      '<p class="question">3. 连一连。（共8分）</p>',
+      '<p>雀　---　①鸟</p>',
+      '<p class="question">4. 选字填空。（共6分）</p>',
+      '<p>（1）公（　　　　）里的菊花开了。</p>',
+    ].join('\n');
+    const { html: out } = auditExamPaper(html, OPTS);
+    expect(out).toContain('一、识字与写字（共4题，共32分）');
+    expect(out).not.toContain('每题8分');
+  });
+});
+
 describe('examValidator 子题载体一致性（第2题案例）', () => {
   it('同题组一题有拼音选项一题没有 → 产生提示（不自动改，供抽检）', () => {
     const html = [

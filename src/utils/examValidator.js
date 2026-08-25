@@ -23,7 +23,7 @@ const PINYIN_CHARS = 'a-zA-Z\u0101\u00e1\u01ce\u00e0\u014d\u00f3\u01d2\u00f2\u01
 const PINYIN_GROUP_RE = new RegExp(`(?<![${PINYIN_CHARS}])[${PINYIN_CHARS}]+(?![${PINYIN_CHARS}])`, 'g');
 // 空位载体：span/u/div 的 blank-N 标签、以及全角空格括号（　）
 const BLANK_TAG_RE = /<span[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/span>|<u[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/u>/gi;
-const PAREN_BLANK_RE = /[（(]\s*[　\u3000 ]{1,6}\s*[)）]/g;
+const PAREN_BLANK_RE = /[（(]\s*[　\u3000 ]{1,12}\s*[)）]/g;
 // 拼音选项括号（读音题）：（háng xíng）/（háng、xíng）——音节间以空格或顿号分隔
 const PINYIN_OPTION_RE = new RegExp(`[（(]\\s*[${PINYIN_CHARS}]+(?:[／/、，, \\s]+[${PINYIN_CHARS}]+)+\\s*[)）]`, 'g');
 // 选项行：<p class="option"> 或行首 "A. xxx"
@@ -148,15 +148,28 @@ export const fixScoreLabel = (title, totalScore, carrierCount, subCount) => {
   if (!unitMatch) return out;
   const unit = unitMatch[1];
   const claimed = parseInt(unitMatch[2], 10);
+  // 🔧 载体按单位类型对应（每空→填空数、每线→连线数、每题→小题数）：
+  //    读音题"圈出读音"无填空载体，若标"每空"应修正为"每题"
+  // "每题"优先采用标题自带的"共N题"（如"（共4题，每题8分，共32分）"）——
+  // 它代表出题意图，countSubQuestions 可能因 DOM 结构漏数（如子题用（1）（2）编号），不能作为唯一依据
   let ok = false;
-  if (carrierCount > 0 && totalScore % carrierCount === 0) ok = totalScore / carrierCount === claimed;
-  if (!ok && subCount > 0 && totalScore % subCount === 0 && unit === '每题') ok = totalScore / subCount === claimed;
+  if (unit === '每题') {
+    const nInTitle = out.match(/共\s*(\d{1,3})\s*题/);
+    const n = nInTitle ? parseInt(nInTitle[1], 10) : subCount;
+    if (n > 0 && totalScore % n === 0) ok = totalScore / n === claimed;
+  } else if (unit === '每线') {
+    if (carrierCount > 0 && totalScore % carrierCount === 0) ok = totalScore / carrierCount === claimed;
+  } else if (carrierCount > 0 && totalScore % carrierCount === 0) {
+    ok = totalScore / carrierCount === claimed;
+  }
   if (ok) return out;
-  // 尝试换算：分值 ÷ 载体数 为整数 → 标注正确单值；否则去掉单元标注
+  // 换算：单位与真实载体对应——括号空位一律用"空"（田字格=填空位，不是"字/词"）；
+  //    连线载体用"线"；无载体/不整除 → 回退"共N题每题X分"；再不行只留总分
   let label = '';
-  if (carrierCount > 0 && totalScore % carrierCount === 0) {
-    const unitLabel = unit === '每线' ? '线' : unit === '每题' ? '题' : '空';
-    label = `共${carrierCount}${unitLabel === '线' ? '处连线' : unitLabel}，每${unitLabel}${totalScore / carrierCount}分，共${totalScore}分`;
+  if (unit !== '每题' && carrierCount > 0 && totalScore % carrierCount === 0) {
+    const isLine = unit === '每线';
+    const unitLabel = isLine ? '线' : '空';
+    label = `共${carrierCount}${isLine ? '处连线' : '空'}，每${unitLabel}${totalScore / carrierCount}分，共${totalScore}分`;
   } else if (subCount > 1 && totalScore % subCount === 0) {
     label = `共${subCount}题，每题${totalScore / subCount}分，共${totalScore}分`;
   } else {
@@ -495,41 +508,55 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         let secHtml = '';
         for (const n of secNodes) secHtml += n.outerHTML || n.textContent || '';
         if (!secHtml) return;
-        const secText = secNodes.map(n => n.textContent || '').join('');
 
-        // 载体统计
-        const blanks = countBlanks(secHtml);
+        // 2a 前的初始载体（仅用于触发拼音空位对齐判断；2a 删/补空位后由下方重算覆盖）
         const pinyinGroups = countPinyinGroups(secHtml);
-        const pinyinOpts = countPinyinOptions(secHtml);
-        const options = countOptions(secHtml);
-        const matchSides = countMatchSides(secHtml);
+        const blanksBefore = countBlanks(secHtml);
 
-        // 2a. 看拼音写词语/拼音填空缺空自动补（规则 pinyin-blank-fill）
-        if (has('pinyin-blank-fill') && pinyinGroups >= 2 && blanks >= 1 && pinyinGroups !== blanks) {
-          if (pinyinGroups > blanks) {
-            const missing = pinyinGroups - blanks;
+        // 2a. 看拼音写词语/拼音填空空位对齐（规则 pinyin-blank-fill：缺空自动补、多余自动删）
+        if (has('pinyin-blank-fill') && pinyinGroups >= 2 && blanksBefore >= 1 && pinyinGroups !== blanksBefore) {
+          if (pinyinGroups > blanksBefore) {
+            const missing = pinyinGroups - blanksBefore;
             const { recovered } = fixMissingPinyinBlanksInDom(secNodes, missing);
             issues.push({
               severity: 'info',
               type: 'pinyin-blank-mismatch',
-              message: `已自动补 ${missing} 个拼音空位（大题「${title}」拼音${pinyinGroups}组/空位${blanks}个）${recovered ? '' : '，部分补全失败请抽检'}`,
+              message: `已自动补 ${missing} 个拼音空位（大题「${title}」拼音${pinyinGroups}组/空位${blanksBefore}个）${recovered ? '' : '，部分补全失败请抽检'}`,
             });
             fixed += 1;
-          } else if (has('blank-excess-guard')) {
-            silentCount('blank-excess', `大题「${title}」空位数(${blanks})多于拼音组数(${pinyinGroups})`);
+          } else {
+            // 🔧 空位数多于拼音组数（如"拼音2字却给4个田字格"）→ 自动删除多余空位
+            const excess = blanksBefore - pinyinGroups;
+            const { removed } = fixExcessPinyinBlanksInDom(secNodes, excess);
+            issues.push({
+              severity: 'info',
+              type: 'pinyin-blank-mismatch',
+              message: `已删除 ${excess} 个多余拼音空位（大题「${title}」拼音${pinyinGroups}组/空位${blanksBefore}个）${removed ? '' : '，部分删除失败请抽检'}`,
+            });
+            fixed += 1;
           }
         }
 
+        // 🔧 2a 后：重算序列化与载体（反映 2a 对空位的删/补，后续 2b~2h 均以修正后的 DOM 为准，
+        //    避免"分值换算"仍按删除前的旧空位数校验）
+        let secHtml2 = '';
+        for (const n of secNodes) secHtml2 += n.outerHTML || n.textContent || '';
+        const secText2 = secNodes.map(n => n.textContent || '').join('');
+        const blanks = countBlanks(secHtml2);
+        const pinyinOpts = countPinyinOptions(secHtml2);
+        const options = countOptions(secHtml2);
+        const matchSides = countMatchSides(secHtml2);
+
         // 2b. 同题组子题载体一致性（规则 sub-carrier-fix：提示性描述，不改内容）
         if (has('sub-carrier-fix')) {
-          const subConsistency = checkSubQuestionConsistency(secText);
+          const subConsistency = checkSubQuestionConsistency(secText2);
           if (subConsistency) {
             issues.push({ severity: 'info', type: 'sub-inconsistent', message: subConsistency.message });
           }
         }
 
         // 2c. 读音题缺拼音选项（规则 pinyin-option-guard：静默）
-        if (has('pinyin-option-guard') && (/读音|加点字/.test(title) || /读音|加点字/.test(secText.slice(0, 300)))) {
+        if (has('pinyin-option-guard') && (/读音|加点字/.test(title) || /读音|加点字/.test(secText2.slice(0, 300)))) {
           if (pinyinOpts === 0) {
             silentCount('pinyin-option', `大题「${title}」未检测到拼音选项（如"（háng xíng）"），可能有小题缺选项`);
           }
@@ -541,14 +568,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         }
 
         // 2e. 选择题选项过少（规则 option-count-guard：静默）
-        if (has('option-count-guard') && /选一选|选择|选出/.test(secText.slice(0, 400)) && options > 0 && options < 2) {
+        if (has('option-count-guard') && /选一选|选择|选出/.test(secText2.slice(0, 400)) && options > 0 && options < 2) {
           silentCount('option-missing', `大题「${title}」选项数过少(${options})`);
         }
 
         // 2f. 分值标注修正（规则 score-label-fix：每空/每线/每题分标注与载体数对齐）
         if (has('score-label-fix')) {
-          const carrierTotal = blanks || (matchSides ? matchSides.left : 0) || pinyinOpts || (/连/.test(title) ? countMatchLines(secText) : 0);
-          const newTitle = fixScoreLabel(title, totalScore, carrierTotal, countSubQuestions(secText));
+          // 🔧 载体只取真实载体（填空数/连线数）——拼音选项（读音题括号）不是"空位"，不能当载体验证"每空X分"
+          const carrierTotal = blanks || (matchSides ? matchSides.left : 0) || (/连/.test(title) ? countMatchLines(secText2) : 0);
+          const newTitle = fixScoreLabel(title, totalScore, carrierTotal, countSubQuestions(secText2));
           if (newTitle !== title) {
             head.textContent = newTitle;
             issues.push({ severity: 'info', type: 'score-label', message: `分值标注已对齐：${newTitle}` });
@@ -563,7 +591,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           for (const p of subHeadPs) {
             const t = (p.textContent || '').trim();
             if (!/^\s*(?:\d+[.、．]|[(（]\d+[)）])/.test(t)) continue;
-            if (!/[（(]\s*\d{1,3}\s*分/.test(t)) continue;
+            // 🔧 括号内任意位置含分值即视为标题（兼容"（共12分）""（每空1分，共6分）"等写法）
+            if (!/[（(][^）)]*?\d{1,3}\s*分/.test(t)) continue;
             subTitles.push({ p, text: t });
           }
           subTitles.forEach((st, i) => {
@@ -576,13 +605,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const segText = st.text + nodesBetween.map(x => x.textContent || '').join('');
             const sBlanks = countBlanks(segHtml);
             const sMatch = countMatchSides(segHtml);
-            const sPinyin = countPinyinOptions(segHtml);
-            const carrier = sBlanks || (sMatch ? sMatch.left : 0) || sPinyin || (/连/.test(st.text) ? countMatchLines(segText) : 0);
+            // 🔧 载体只取真实填空载体——拼音选项（读音题括号）不是"空位"，
+            //    "每空X分"不得用拼音选项组数验证（否则读音题"每空1分"被误判合法）
+            const carrier = sBlanks || (sMatch ? sMatch.left : 0) || (/连/.test(st.text) ? countMatchLines(segText) : 0);
             const cm2 = st.text.match(/共\s*(\d{1,3})\s*分/);
             const sm2 = st.text.match(/[（(]\s*(\d{1,3})\s*分/);
             const scoreM = cm2 || sm2;
-            if (!scoreM || !carrier) return;
+            if (!scoreM) return;
             const sScore = parseInt(scoreM[1], 10);
+            // 🔧 无填空载体时也继续校验（如读音题"每空1分"→ 由 fixScoreLabel 按子题数改"每题X分"）
             const newT = fixScoreLabel(st.text, sScore, carrier, countSubNumbered(segText));
             if (newT !== st.text) {
               st.p.textContent = newT;
@@ -590,6 +621,33 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               fixed += 1;
             }
           });
+        }
+
+        // 2h. 大题标题"每题X分"与实际各题分值一致性（规则 score-label-fix）：
+        //     标题"每题8分"但各题实际 12/6/8/6 分不一致 → 改为"共N题，共X分"
+        if (has('score-label-fix') && /每题\s*\d{1,3}\s*分/.test(head.textContent || '')) {
+          const subHeadPs = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p');
+          const scores = [];
+          for (const p of subHeadPs) {
+            const t = (p.textContent || '').trim();
+            if (!/^\s*\d+[.、．]/.test(t)) continue;
+            // 🔧 括号内任意位置取分值（兼容"（共12分）"写法）
+            const sm = t.match(/[（(][^）)]*?(\d{1,3})\s*分/);
+            if (sm) scores.push(parseInt(sm[1], 10));
+          }
+          const uniq = new Set(scores);
+          if (scores.length >= 2 && uniq.size >= 2) {
+            const subCount = countSubQuestions(secText2);
+            const newT = head.textContent.replace(
+              /[（(][^）)]*?每题\s*\d{1,3}\s*分[^）)]*?[)）]/,
+              `（共${subCount}题，共${totalScore}分）`
+            );
+            if (newT !== head.textContent) {
+              head.textContent = newT;
+              issues.push({ severity: 'info', type: 'score-label', message: `大题各题分值不一致，标题已改为"共N题共X分"：${newT}` });
+              fixed += 1;
+            }
+          }
         }
       });
       out = tpl.innerHTML;
@@ -723,6 +781,37 @@ const fixMissingPinyinBlanksInDom = (nodes, missing) => {
     console.warn('⚠️ 拼音空位补齐失败:', e.message);
   }
   return { recovered: recovered >= missing };
+};
+
+/** 删除多余空位（空位数 > 拼音组数，如"拼音2字却给4个田字格"→ 删到 2 个） */
+const fixExcessPinyinBlanksInDom = (nodes, excess) => {
+  let removed = 0;
+  try {
+    const parenRe = /[（(]\s*[　\u3000 ]{1,12}\s*[)）]/g;
+    for (const root of nodes) {
+      if (removed >= excess) break;
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const textNodes = [];
+      while (walker.nextNode()) textNodes.push(walker.currentNode);
+      // 从后往前处理（避免索引偏移）：每段文本内也从最后一个空位删起
+      for (let i = textNodes.length - 1; i >= 0 && removed < excess; i--) {
+        const node = textNodes[i];
+        const t = node.nodeValue || '';
+        if (!parenRe.test(t)) continue;
+        const matches = [...t.matchAll(parenRe)].reverse();
+        let fixedText = t;
+        for (const m of matches) {
+          if (removed >= excess) break;
+          fixedText = fixedText.slice(0, m.index) + fixedText.slice(m.index + m[0].length);
+          removed += 1;
+        }
+        if (fixedText !== t) node.nodeValue = fixedText;
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ 拼音多余空位删除失败:', e.message);
+  }
+  return { removed: removed >= excess };
 };
 
 export default { auditExamPaper, normalizePinyinText, countBlanks, countPinyinGroups, countPinyinOptions, countOptions, countMatchSides, splitSections, fixScoreLabel };
