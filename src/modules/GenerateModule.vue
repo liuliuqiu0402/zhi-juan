@@ -1528,6 +1528,7 @@ const SCOPE_BASIS = {
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, AlignmentType } from 'docx';
 import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml, parseMarkdownToTextRuns } from '../utils/wordExporter.js';
 import { buildTianZiGeMarker, htmlToDocxBlob } from '../utils/docxBuilder.js';
+import { buildUnitKey, pushUnitPaperMemory, buildMemoryDiffInstruction, extractQuestionSamples } from '../utils/unitPaperMemory.js';
 import { injectDrawingML, TZG_MARKER, FLT_MARKER } from '../utils/drawingMLShapes.js';
 import storage from '../utils/storage';
 import { normalizeSealStructure, wrapContentForTheme, applyThemeToContent } from '../themeConfig.js';  // 🔧 密封线结构归一化 + 试卷主题包装（导出与排版模块一致）
@@ -6039,6 +6040,15 @@ const generate = async (mode) => {
     
     // ✨ 复生成差异化：第二个及以后的类型，注入已生成内容的知识点，避免重复
     let diffInstruction = instructionDraft.value;
+    // 🔧 跨会话记忆分桶键（同 单元×类型 多次生成去重）：生成前读取、生成后写入共用
+    let unitKeyForMem = '';
+    try {
+      unitKeyForMem = buildUnitKey({
+        bookId: selectedBooks?.[0]?.id || '',
+        scope: scopeType.value || '',
+        genType,
+      });
+    } catch { /* 记忆键构建失败不影响生成 */ }
     if (typeIndex > 0 && generatedKps.length > 0) {
       const typeName = genTypeTemplates[genType]?.name || genType;
       const prevTypes = generatedTypes.join('、');
@@ -6060,8 +6070,17 @@ const generate = async (mode) => {
     try {
       // 🔴 整卷生成：注入指令（指令库渲染，用户可编辑）作为生成依据
       const inj = await ensureInjectedInstruction();
+      // 🔧 跨会话记忆差异化（同 单元×类型 多次生成去重——不同会话间也生效）：
+      //    读历史"已出题目摘要"，要求本次避开，换情境/字词/设问角度
+      let finalInstr = typeIndex > 0 ? diffInstruction : inj;
+      if (unitKeyForMem) {
+        try {
+          const memDiff = buildMemoryDiffInstruction(unitKeyForMem, genTypeTemplates[genType]?.name || genType);
+          if (memDiff) finalInstr = finalInstr + memDiff;
+        } catch { /* 记忆差异化失败不影响生成 */ }
+      }
       const result = await callGenerate(
-        typeIndex > 0 ? diffInstruction : inj, 
+        finalInstr, 
         genType, 
         selectedBooks, 
         selectedTpls, 
@@ -6646,6 +6665,20 @@ const cancelPeriodSplit = async () => {
         graphInstructions: extractGraphs(safeContent),
         confidenceMarks: detectConfidenceIssues(safeContent, selectedBooks),
       });
+      // 🔧 写入跨会话生成记忆（同 单元×类型 多次生成去重）：
+      //    记录题目摘要，下次同单元同类型生成时注入差异化要求
+      try {
+        const samples = extractQuestionSamples(safeContent);
+        if (samples.length > 0) {
+          const unitKey = buildUnitKey({
+            bookId: book?.id || '',
+            scope: scopeInfo?.name || scopeType.value || '',
+            genType: genTypeName,
+          });
+          pushUnitPaperMemory(unitKey, samples);
+          console.log(`🧠 已记录生成记忆：${samples.length} 条题目摘要（${genTypeName}）`);
+        }
+      } catch { /* 记忆写入失败不影响结果 */ }
     } else {
       previewHint.value = `❌ 整体生成失败：${result.error || '未知错误'}`;
     }
