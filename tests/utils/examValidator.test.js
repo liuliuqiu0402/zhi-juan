@@ -218,6 +218,87 @@ describe('examValidator 连线题连线符号清理（match-line-clean）', () =
   });
 });
 
+describe('examValidator 连线题右列格式（match-format-fix：本案例 19:22 卷 第3/9题）', () => {
+  it('"右列裸序号＋内容下方对照行"拆分格式 → 自动重组为并排（第3题形近字连线）', () => {
+    const html = [
+      '<h2>一、识字与写字（32分）</h2>',
+      '<p class="question">3. 仔细观察下面的形近字，连一连，帮它们找到自己的朋友。（每线1分，共6分）</p>',
+      '<p>园　　②</p>',
+      '<p>圆　　④</p>',
+      '<p>从　　①</p>',
+      '<p>丛　　③</p>',
+      '<p>处　　⑥</p>',
+      '<p>外　　⑤</p>',
+      '<p>① 树林　　② 花</p>',
+      '<p>③ 草　　④ 形</p>',
+      '<p>⑤ 面　　⑥ 所</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    // 对照行"① 树林　② 花"→ 右列回填为"②花"（园＋②花＝花园），对照行删除
+    expect(out).toContain('<p>园　　　　②花</p>');
+    expect(out).toContain('<p>圆　　　　④形</p>');
+    expect(out).toContain('<p>处　　　　⑥所</p>');
+    expect(out).not.toContain('① 树林'); // 对照行已删除
+    expect(issues.some(i => i.type === 'match-format')).toBe(true);
+  });
+
+  it('长释义连线（第9题谚语与意思）→ 同样重组', () => {
+    const html = [
+      '<h2>二、积累与运用（24分）</h2>',
+      '<p class="question">9. 帮小兔子把下面的谚语和意思连起来。（每线1分，共4分）</p>',
+      '<p>十年树木　　②</p>',
+      '<p>树高百尺　　④</p>',
+      '<p>树无根不长　　①</p>',
+      '<p>人无志不立　　③</p>',
+      '<p>① 树没有根就不能生长，人没有志向就不能成功。</p>',
+      '<p>② 培养人才不容易，是长久之计。</p>',
+      '<p>③ 人一定要有远大的志向。</p>',
+      '<p>④ 树长得再高，落叶也要回到树根。</p>',
+    ].join('\n');
+    const { html: out } = auditExamPaper(html, OPTS);
+    expect(out).toContain('十年树木　　　　②培养人才不容易，是长久之计。');
+    expect(out).toContain('树无根不长　　　　①树没有根就不能生长，人没有志向就不能成功。');
+    expect(out).not.toContain('③ 人一定要有远大的志向。'); // 对照行删除
+  });
+
+  it('无对照行的正常连线题（右列直接内容）→ 不动', () => {
+    const html = [
+      '<h2>一、识字与写字（32分）</h2>',
+      '<p class="question">3. 连一连。</p>',
+      '<p>园　　花园</p>',
+      '<p>圆　　圆形</p>',
+      '<p>从　　树林</p>',
+      '<p>丛　　草丛</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    expect(out).toContain('园　　花园');
+    expect(issues.some(i => i.type === 'match-format')).toBe(false);
+  });
+
+  it('排版语义自洽：题干要求"圈出加点字"但正文无 <u> 标记 → 静默计数（不进问题列表）', () => {
+    const html = [
+      '<h2>一、识字与写字（32分）</h2>',
+      '<p class="question">2. 圈出加点字正确的读音。（4分）</p>',
+      '<p>（1）一行（háng xíng）白鹭飞上青天。</p>',
+      '<p>（2）小号（hào háo）手吹响了集合号。</p>',
+    ].join('\n');
+    const { issues, silent } = auditExamPaper(html, OPTS);
+    expect(issues.every(i => i.severity !== 'warning')).toBe(true);
+    expect(silent).toBeGreaterThan(0);
+  });
+
+  it('排版语义自洽：有 <u> 加点字标记 → 不触发', () => {
+    const html = [
+      '<h2>一、识字与写字（32分）</h2>',
+      '<p class="question">2. 圈出加点字正确的读音。（4分）</p>',
+      '<p>（1）<u>行</u>（háng xíng）白鹭飞上青天。</p>',
+      '<p>（2）小<u>号</u>（hào háo）手吹响了集合号。</p>',
+    ].join('\n');
+    const { silent } = auditExamPaper(html, OPTS);
+    expect(silent).toBe(0);
+  });
+});
+
 describe('examValidator 子题载体一致性（第2题案例）', () => {
   it('同题组一题有拼音选项一题没有 → 产生提示（不自动改，供抽检）', () => {
     const html = [

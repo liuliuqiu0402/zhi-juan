@@ -329,6 +329,71 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     });
   }
 
+  // ── 1.5.5. 连线题右列格式规范化（规则 match-format-fix：右列裸序号＋内容下方对照行 → 合并并排）──
+  if (has('match-format-fix')) {
+    const NUM = '①②③④⑤⑥⑦⑧⑨⑩'; // 注意：不含方括号，拼字符类时再包
+    const strip = (s) => s.replace(/<[^>]+>/g, '');
+    const lines = out.split('\n');
+    // 裸序号行：左列汉字 + 全角空格 + 行尾单个序号（"园　　②"，兼容 <p> 包裹）
+    const bareRe = new RegExp(`^([\\s\\S]{1,30}?)[\\s　]+([${NUM}])$`);
+    // 对照行解析：可含多对"序号 内容"（"① 树林　　② 花"）
+    const parseMapRow = (t) => {
+      const o = {};
+      const re = new RegExp(`([${NUM}])\\s*([^\\n${NUM}]{1,40}?)(?=[${NUM}]|$)`, 'g');
+      let m;
+      while ((m = re.exec(t)) !== null) o[m[1]] = m[2].trim();
+      return o;
+    };
+    const bareRows = [];
+    lines.forEach((ln, i) => {
+      const t = strip(ln).trim();
+      const m = bareRe.exec(t);
+      if (m && /[\u4e00-\u9fa5]/.test(m[1])) bareRows.push({ idx: i, num: m[2], left: m[1].trim(), raw: ln });
+    });
+    if (bareRows.length >= 2) {
+      // 收集所有对照行（跨行合并）
+      const lookup = {};
+      lines.forEach(ln => {
+        const t = strip(ln).trim();
+        if (bareRe.test(t)) return;
+        Object.assign(lookup, parseMapRow(t));
+      });
+      const mapped = bareRows.filter(r => lookup[r.num]);
+      // 至少一半裸序号行有对应内容、且 ≥2 项才重组（防误伤无对照行的连线题）
+      if (mapped.length >= Math.max(2, Math.ceil(bareRows.length * 0.5))) {
+        const mappedNums = new Set(mapped.map(r => r.num));
+        const newLines = lines.map((ln, i) => {
+          const row = bareRows.find(r => r.idx === i);
+          if (row && lookup[row.num]) {
+            const escLeft = row.left.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const re = new RegExp(`(${escLeft})[\\s　]+(${row.num})`);
+            return ln.replace(re, `$1　　　　${row.num}${lookup[row.num]}`);
+          }
+          const t = strip(ln).trim();
+          const cm = parseMapRow(t);
+          if (Object.keys(cm).some(k => mappedNums.has(k))) return null; // 删除已被回填到行尾的对照行
+          return ln;
+        }).filter(x => x !== null);
+        const merged = newLines.join('\n');
+        if (merged !== out) {
+          issues.push({ severity: 'info', type: 'match-format', message: `已重组连线题格式：右列序号与内容合并并排（${mapped.length} 项），删除下方对照行` });
+          fixed += 1;
+          out = merged;
+        }
+      }
+    }
+  }
+
+  // ── 1.5.6. 排版语义标记自洽检测（规则 text-format-fix：题干要求加点/画线但正文无 <u> 标记 → 静默计数）──
+  if (has('text-format-fix')) {
+    const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+    const uMarkCount = (out.match(/<u[ >]/gi) || []).length;
+    const claims = bodyText.match(/(圈出加点字|给加点字|加点字|画线(?:的)?(?:词语|句子|部分)|划(?:出|一划)|描出|用.{0,3}线(?:画出|划出))/g) || [];
+    if (claims.length > 0 && uMarkCount === 0) {
+      silentCount('text-format', `题干要求加点/画线（${claims[0]}）但正文无 <u> 标记——题目不自洽，请抽检`);
+    }
+  }
+
   // ── 1.6. 大题标题明细式（规则 title-detail-fix：旧式"（X分）"→"共N题，每题X分，共X分"）──
   if (has('title-detail-fix')) {
     try {
