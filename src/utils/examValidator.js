@@ -144,7 +144,7 @@ export const splitSections = (html) => {
  */
 export const fixScoreLabel = (title, totalScore, carrierCount, subCount) => {
   let out = title;
-  const unitMatch = out.match(/[（(][^)）]*?(每空|每线|每题)\s*(\d{1,3})\s*分[^)）]*?[)）]/);
+  const unitMatch = out.match(/[（(][^)）]*?(每空|每线|每题|每字|每词)\s*(\d{1,3})\s*分[^)）]*?[)）]/);
   if (!unitMatch) return out;
   const unit = unitMatch[1];
   const claimed = parseInt(unitMatch[2], 10);
@@ -155,13 +155,14 @@ export const fixScoreLabel = (title, totalScore, carrierCount, subCount) => {
   // 尝试换算：分值 ÷ 载体数 为整数 → 标注正确单值；否则去掉单元标注
   let label = '';
   if (carrierCount > 0 && totalScore % carrierCount === 0) {
-    label = `共${carrierCount}${carrierCount > 0 && unit === '每线' ? '处连线' : '空'}，每${unit === '每线' ? '线' : '空'}${totalScore / carrierCount}分，共${totalScore}分`;
+    const unitLabel = unit === '每线' ? '线' : unit === '每题' ? '题' : '空';
+    label = `共${carrierCount}${unitLabel === '线' ? '处连线' : unitLabel}，每${unitLabel}${totalScore / carrierCount}分，共${totalScore}分`;
   } else if (subCount > 1 && totalScore % subCount === 0) {
     label = `共${subCount}题，每题${totalScore / subCount}分，共${totalScore}分`;
   } else {
     label = `共${totalScore}分`;
   }
-  out = out.replace(/[（(][^）)]*?(每空|每线|每题)\s*\d{1,3}\s*分[^）)]*?[)）]/, `（${label}）`);
+  out = out.replace(/[（(][^）)]*?(每空|每线|每题|每字|每词)\s*\d{1,3}\s*分[^）)]*?[)）]/, `（${label}）`);
   return out;
 };
 
@@ -258,6 +259,74 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       return norm;
     });
     out = normImage;
+  }
+
+  // ── 1.5.2. 正文重复内容检测截断（规则 duplicate-content-fix：截断续写时模型从头重出整卷）──
+  if (has('duplicate-content-fix')) {
+    // 1) 正文区重复大题标题（同一标题第二次出现 → 保留第一份）
+    const bodyPart = out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0];
+    const ansPart = out.slice(bodyPart.length);
+    const headRe = /<h[234][^>]*>([^<]*)<\/h[234]>/g;
+    const heads = [];
+    let hm;
+    while ((hm = headRe.exec(bodyPart)) !== null) {
+      const t = (hm[1] || '').trim();
+      if (/^[一二三四五六七八九十]+、/.test(t)) heads.push({ text: t, index: hm.index });
+    }
+    let dupIndex = -1;
+    const seenTitles = new Set();
+    for (const h of heads) {
+      if (seenTitles.has(h.text)) { dupIndex = h.index; break; }
+      seenTitles.add(h.text);
+    }
+    if (dupIndex > 0) {
+      issues.push({ severity: 'info', type: 'duplicate-content', message: '检测到正文重复（同一大题标题出现 ≥2 次，疑截断续写重出），已截断保留第一份' });
+      fixed += 1;
+      out = bodyPart.slice(0, dupIndex) + ansPart;
+    }
+    // 2) 重复答案区（once 模式正文含两份答案 → 保留第一份）
+    const ansBlocks = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/g) || [];
+    if (ansBlocks.length > 1) {
+      const first = out.indexOf(ansBlocks[0]);
+      const second = out.indexOf(ansBlocks[1], first + ansBlocks[0].length);
+      out = out.slice(0, second);
+      issues.push({ severity: 'info', type: 'duplicate-content', message: '检测到重复答案区，已截断保留第一份' });
+      fixed += 1;
+    }
+  }
+
+  // ── 1.5.3. 连线题选项重复检测（规则 match-option-dup-guard：右列选项重复 → 连线不唯一，静默）──
+  if (has('match-option-dup-guard')) {
+    const optLineRe = /^[^\n]{1,40}?[\s]*[-—━]{2,}[\s]*([①②③④⑤⑥⑦⑧⑨⑩][^\n]*)$/gm;
+    const rightOpts = [];
+    let om;
+    while ((om = optLineRe.exec(out)) !== null) {
+      rightOpts.push(om[1].replace(/^[①②③④⑤⑥⑦⑧⑨⑩]/, '').trim());
+    }
+    const seenOpts = new Set();
+    const dupOpts = new Set();
+    for (const o of rightOpts) {
+      if (o && seenOpts.has(o)) dupOpts.add(o);
+      if (o) seenOpts.add(o);
+    }
+    if (dupOpts.size > 0) {
+      silentCount('match-option-dup', `连线题右侧选项重复（${[...dupOpts].join('、')}），学生无法唯一连线，请抽检`);
+    }
+  }
+
+  // ── 1.5.4. 连线题分隔符规范化（规则 match-line-clean：连字符易被误读为答案线）──
+  if (has('match-line-clean')) {
+    out = out.replace(/^([^\n]{1,40}?)[\s]*[-—━]{2,}[\s]*([^\n]*)$/gm, (m, left, right) => {
+      // 仅处理"中文左侧 + 中文/圈号序号右侧"的连线题行，避免误伤其他内容
+      const l = (left || '').trim();
+      const r = (right || '').trim();
+      if (/[\u4e00-\u9fa5]/.test(l) && (/[①②③④⑤⑥⑦⑧⑨⑩]/.test(r) || /[\u4e00-\u9fa5]{1,8}/.test(r))) {
+        issues.push({ severity: 'info', type: 'match-line', message: `已把连线题分隔符规范为全角空格（${l}…），避免被误读为答案线` });
+        fixed += 1;
+        return `${l}　　　　${r}`;
+      }
+      return m;
+    });
   }
 
   // ── 1.6. 大题标题明细式（规则 title-detail-fix：旧式"（X分）"→"共N题，每题X分，共X分"）──

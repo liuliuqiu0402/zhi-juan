@@ -125,6 +125,35 @@ export const VALIDATOR_RULES = [
     description: '把 AI 输出的 [IMAGE] 块规范化为 EduRender 标准格式：参数独占一行、半角冒号、补齐缺失的 NEGATIVE/WIDTH/HEIGHT 默认值、清理 PROMPT 中混入的 HTML 残留、未闭合自动补 [/IMAGE]。',
     enabled: true,
   },
+  {
+    id: 'duplicate-content-fix',
+    name: '正文重复内容检测截断',
+    category: 'fix',
+    subjects: ['*'],
+    stages: ['*'],
+    promptHint: '全卷题目与板块标题必须唯一（"一、识字与写字"等大题标题严禁重复出现），严禁输出两份相同内容（含重复的看图写话/配图/作文格）。',
+    description: '检测正文区重复的大题标题（同一标题出现 ≥2 次，多为截断续写时模型从头重出导致）→ 从第二次重复处截断保留第一份；重复的答案区保留第一份。',
+    enabled: true,
+  },
+  {
+    id: 'match-line-clean',
+    name: '连线题分隔符规范化',
+    category: 'fix',
+    subjects: ['*'],
+    stages: ['*'],
+    promptHint: '连线题（连一连）左右两列内容用全角空格分隔（左列与右列各自乱序排列），严禁用 ---/——/━ 等连字符作分隔——连字符竖排逐行对应时易被误读为已连好的答案线，线应由答题者自己连接。',
+    description: '把连线题行内的连字符分隔符（---/———/━）替换为全角空格，避免视觉上被误读为预置答案线；左右两列内容与顺序不受影响。',
+    enabled: true,
+  },
+  {
+    id: 'match-option-dup-guard',
+    name: '连线题选项重复静默防护',
+    category: 'guard',
+    subjects: ['*'],
+    stages: ['*'],
+    description: '连线题右侧选项内容重复（如两个"鸟"）时静默计数——选项重复导致学生无法唯一连线（即使答案内容相同也会困惑）。',
+    enabled: true,
+  },
 
   // ==================== guard：静默防护（仅 debug 计数，不产生问题提示） ====================
   {

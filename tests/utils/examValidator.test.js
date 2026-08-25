@@ -71,6 +71,11 @@ describe('examValidator 分值标注修正（第4题案例）', () => {
     expect(fixed).toBe('（2）连一连。（共4分）');
   });
 
+  it('"每字1分"标注与字数不符时按空位换算（第1题案例：6空12分→每空2分）', () => {
+    const fixed = fixScoreLabel('1. 读拼音写词语。（12分，每字1分）', 12, 6, 1);
+    expect(fixed).toBe('1. 读拼音写词语。（共6空，每空2分，共12分）');
+  });
+
   it('小题标题"每空2分"与空数不整除时修正（第4题案例）', () => {
     const html = [
       '<h2>一、识字与写字（32分）</h2>',
@@ -147,6 +152,61 @@ describe('examValidator [IMAGE] 配图块标准化（image-block-fix）', () => 
     const { html: out, issues } = auditExamPaper(std, OPTS);
     expect(out).toBe(std);
     expect(issues.some(i => i.type === 'image-block')).toBe(false);
+  });
+});
+
+describe('examValidator 正文重复内容检测截断（duplicate-content-fix）', () => {
+  it('同一大题标题出现两次（截断续写重出）→ 截断保留第一份', () => {
+    const html = [
+      '<h2>一、识字与写字（共6题，共32分）</h2><p>1. 看拼音写词语。</p>',
+      '<h2>二、积累与运用（共5题，共24分）</h2><p>7. 量词填空。</p>',
+      '<h2>一、识字与写字（共6题，共32分）</h2><p>1. 看拼音写词语。（重复内容）</p>',
+      '<div class="answer-section"><h2>参考答案</h2><p>1. 答案</p></div>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    // 第二个"一、"之后的内容被截断，答案区保留
+    expect(out).toContain('二、积累与运用');
+    expect((out.match(/一、识字与写字/g) || []).length).toBe(1);
+    expect(out).toContain('answer-section');
+    expect(issues.some(i => i.type === 'duplicate-content')).toBe(true);
+  });
+
+  it('重复答案区 → 保留第一份', () => {
+    const html = '<div class="answer-section"><h2>参考答案</h2><p>1. 答案</p></div>\n<div class="answer-section"><h2>参考答案</h2><p>1. 答案（重复）</p></div>';
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    expect((out.match(/answer-section/g) || []).length).toBe(1);
+    expect(issues.some(i => i.type === 'duplicate-content')).toBe(true);
+  });
+});
+
+describe('examValidator 连线题连线符号清理（match-line-clean）', () => {
+  it('连线题预置连线（---）→ 替换为全角空格（线由答题者连）', () => {
+    const html = '<h2>一、识字与写字（32分）</h2>\n<p>3. 连一连。</p>\n<p>雀　---　①鸟</p>\n<p>鹰　---　②隹</p>\n<p>鸡　---　③犭</p>\n<p>猫　---　④鸟</p>';
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    expect(out).not.toContain('---');
+    expect(out).toContain('雀　　　　①鸟');
+    expect(issues.some(i => i.type === 'match-line')).toBe(true);
+  });
+
+  it('非连线形态的连续横线（如分隔线）不受影响', () => {
+    const html = '<p>-------------------</p>';
+    const { html: out } = auditExamPaper(html, OPTS);
+    // 纯横线行无中文左侧，不替换
+    expect(out).toContain('---');
+  });
+
+  it('连线题右列选项重复（如两个"鸟"）→ 静默计数（match-option-dup-guard）', () => {
+    const html = '<h2>一、识字与写字（32分）</h2>\n<p>3. 连一连。</p>\n<p>雀　---　①鸟</p>\n<p>鹰　---　②隹</p>\n<p>鸡　---　③犭</p>\n<p>猫　---　④鸟</p>';
+    const { issues, silent } = auditExamPaper(html, OPTS);
+    // 选项"鸟"重复 → silent 计数；不产生 warning 问题条目
+    expect(issues.every(i => i.severity !== 'warning')).toBe(true);
+    expect(silent).toBeGreaterThan(0);
+  });
+
+  it('连线题右列选项唯一 → 不触发重复防护', () => {
+    const html = '<h2>一、识字与写字（32分）</h2>\n<p>6. 连一连。</p>\n<p>一艘　---　①鱼塘</p>\n<p>一方　---　②军舰</p>\n<p>一行　---　③垂柳</p>\n<p>一座　---　④花园</p>';
+    const { silent } = auditExamPaper(html, OPTS);
+    expect(silent).toBe(0);
   });
 });
 
