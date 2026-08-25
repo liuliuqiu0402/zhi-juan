@@ -80,8 +80,16 @@ export const decrypt = async (encrypted) => {
   try {
     if (window.electronAPI?.decrypt) {
       const result = await window.electronAPI.decrypt(encrypted);
-      if (result && result.length > 0) {
+      // 🔧 关键修复：仅信任"可打印 ASCII"的解密结果（API Key 均为 sk- 等 ASCII 字符）。
+      //    主进程对非 safeStorage 加密的值（如 WebCrypto 的 enc_wc_ 格式）解密失败时
+      //    曾返回 base64→utf-8 乱码（含 U+FFFD 等非 Latin-1 字符），若直接当 Key 使用，
+      //    放进 Authorization 头会抛 "String contains non ISO-8859-1 code point"。
+      //    非 ASCII 结果一律不信任，继续走下方 WebCrypto 解密。
+      if (result && result.length > 0 && /^[\x20-\x7E]+$/.test(result)) {
         return result;
+      }
+      if (result && result.length > 0) {
+        console.warn('⚠️ Electron 解密结果含非 ASCII 字符，疑似乱码，忽略并改用 WebCrypto 解密');
       }
     }
   } catch (e) { 
@@ -153,6 +161,21 @@ export const decrypt = async (encrypted) => {
   return '';
 };
 
+// 🔧 API Key 消毒（模块级，saveConfig/loadConfig 共用）——保守策略，绝不删除 Key 内容：
+//    1) 全角转半角（Ａ→A、０→0、－→- 等，1:1 映射不减少字符）
+//    2) 仅删除"绝不可能是 Key 内容"的无害字符：零宽/BOM/不间断空格 + 首尾空白
+//    3) 中间其他非 ASCII（中文等）不处理——由请求预检提示用户重填，防止误删合法 Key
+const sanitizeApiKey = (k) => {
+  if (typeof k !== 'string') return k;
+  let out = k
+    .replace(/[\uFF21-\uFF3A\uFF41-\uFF5A\uFF10-\uFF19]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+    .replace(/\uFF0D/g, '-');
+  out = out
+    .replace(/[\u200B-\u200D\uFEFF\u00A0\u3000\u200E\u200F\u202A-\u202E\u2060-\u206F]/g, '')
+    .trim();
+  return out;
+};
+
 // ✨ 从存储加载配置（localStorage → Cookie 兜底）
 const loadConfig = async () => {
   try {
@@ -176,6 +199,20 @@ const loadConfig = async () => {
       // 🔧 异步解密密钥
       if (config.deepseekApiKey) {
         config.deepseekApiKey = await decrypt(config.deepseekApiKey);
+        // 🔧 安全消毒：仅转换全角/移除零宽与首尾空白，绝不删除 Key 内容；
+        //    只警告不写回（防止误删后把损坏 Key 持久化，用户需重新粘贴原始 Key）
+        const cleanKey = sanitizeApiKey(config.deepseekApiKey);
+        if (cleanKey !== config.deepseekApiKey) {
+          console.warn(`⚠️ API Key 已做安全清理（${config.deepseekApiKey.length}→${cleanKey.length} 字符）：仅转换全角/移除零宽与首尾空白；若清理后仍无效请重新粘贴原始 Key`);
+          config.deepseekApiKey = cleanKey;
+        }
+        // 🔧 关键修复：识别历史损坏的 Key（旧版本解密链路曾把 base64→utf-8 乱码当 Key 加密存储，
+        //    解密后含 ?()@^ 等非法字符或长度异常）。损坏 Key 一律清空并提示重填，
+        //    避免继续以乱码请求 API（401 / "String contains non ISO-8859-1 code point" 报错）
+        if (config.deepseekApiKey && !/^[A-Za-z0-9._\-+/=]{12,}$/.test(config.deepseekApiKey)) {
+          console.warn(`⚠️ 检测到损坏的 API Key（${config.deepseekApiKey.length} 字符，含非法字符），已清空，请在设置页重新填写`);
+          config.deepseekApiKey = '';
+        }
       }
       
       // 🔧 关键修复：自动修正 DeepSeek API 地址
@@ -220,6 +257,11 @@ const loadConfig = async () => {
       // 🔧 异步解密密钥
       if (cookieConfig.deepseekApiKey) {
         cookieConfig.deepseekApiKey = await decrypt(cookieConfig.deepseekApiKey);
+        // 🔧 同 localStorage 路径：识别并清空历史损坏的 Key
+        if (cookieConfig.deepseekApiKey && !/^[A-Za-z0-9._\-+/=]{12,}$/.test(cookieConfig.deepseekApiKey)) {
+          console.warn(`⚠️ Cookie 中检测到损坏的 API Key，已清空，请在设置页重新填写`);
+          cookieConfig.deepseekApiKey = '';
+        }
       }
       // 回写到 localStorage，下次直接用
       try {
@@ -263,6 +305,18 @@ export const loadConfigSync = () => {
 export const saveConfig = async (config) => {
   try {
     const toSave = { ...config };
+    // 🔧 API Key 清洗（全角转半角 + 去非法字符，见 sanitizeApiKey）。
+    //    脏 Key 会导致 fetch 请求头含非 ASCII 而直接抛错，被误报为网络问题
+    // 🔧 清洗后同步回 apiConfig 内存：当前会话立即生效（否则 watch/检测仍读到脏值）
+    const cleanAndSync = (field, key) => {
+      const cleaned = sanitizeApiKey(key);
+      if (cleaned !== key && apiConfig[field] !== undefined) apiConfig[field] = cleaned;
+      return cleaned;
+    };
+    if (toSave.deepseekApiKey) toSave.deepseekApiKey = cleanAndSync('deepseekApiKey', toSave.deepseekApiKey);
+    if (toSave.volcanoApiKey) toSave.volcanoApiKey = cleanAndSync('volcanoApiKey', toSave.volcanoApiKey);
+    if (toSave.alibabaApiKey) toSave.alibabaApiKey = cleanAndSync('alibabaApiKey', toSave.alibabaApiKey);
+    if (toSave.zhipuApiKey) toSave.zhipuApiKey = cleanAndSync('zhipuApiKey', toSave.zhipuApiKey);
     // 🔧 异步加密密钥（避免二次加密：已 enc_ 开头的跳过）
     if (toSave.deepseekApiKey && !toSave.deepseekApiKey.startsWith('enc_')) {
       toSave.deepseekApiKey = await encrypt(toSave.deepseekApiKey);
@@ -501,6 +555,7 @@ export const getAvailableModels = async () => {
 let _deepseekModelsCache = null;
 let _deepseekModelsCacheTime = 0;
 let _deepseekDiscoverPromise = null; // 🔧 并发去重：同一次发现共享一个进行中的请求
+let _deepseekModelsBlocked = false;  // 🔧 /models 返回 401 后不再重复请求（该端点鉴权与 chat/completions 不一致）
 const MODEL_DISCOVERY_TTL = 3600000; // 1 小时
 
 /**
@@ -511,6 +566,7 @@ const MODEL_DISCOVERY_TTL = 3600000; // 1 小时
  */
 export const autoDiscoverDeepSeekModel = async () => {
   const now = Date.now();
+  if (_deepseekModelsBlocked) return apiConfig.deepseekModel; // /models 曾 401，跳过发现（不影响生成）
   if (_deepseekModelsCache && (now - _deepseekModelsCacheTime) < MODEL_DISCOVERY_TTL) {
     return _deepseekModelsCache;
   }
@@ -519,7 +575,9 @@ export const autoDiscoverDeepSeekModel = async () => {
 
   _deepseekDiscoverPromise = (async () => {
   // 无 API Key 时不调用（/models 可能需鉴权）
-  if (!apiConfig.deepseekApiKey) {
+  // 🔧 防御性清洗：全角转半角 + 去非法字符（内存中可能残留脏值）
+  const apiKey = sanitizeApiKey(apiConfig.deepseekApiKey || '');
+  if (!apiKey) {
     console.log('🔍 DeepSeek 未配置 API Key，跳过模型自动发现');
     return apiConfig.deepseekModel;
   }
@@ -529,12 +587,15 @@ export const autoDiscoverDeepSeekModel = async () => {
     const response = await fetch(`${baseUrl}/models`, {
       headers: {
         'Accept': 'application/json',
-        'Authorization': `Bearer ${apiConfig.deepseekApiKey}`
+        'Authorization': `Bearer ${apiKey}`
       }
     });
     
     if (!response.ok) {
-      console.warn(`🔍 DeepSeek /models 返回 ${response.status}，使用已配置的模型: ${apiConfig.deepseekModel}`);
+      // 🔧 /models 401 不代表 Key 无效：DeepSeek 该端点鉴权策略与 chat/completions 不同，
+      //    仅作为模型自动发现的辅助（失败用已配置模型即可），且 401 后本次会话不再重复请求
+      if (response.status === 401) _deepseekModelsBlocked = true;
+      console.log(`🔍 DeepSeek /models 返回 ${response.status}，使用已配置的模型: ${apiConfig.deepseekModel}`);
       return apiConfig.deepseekModel;
     }
     

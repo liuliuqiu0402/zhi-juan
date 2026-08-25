@@ -3300,7 +3300,12 @@ const checkDeepSeekReady = async () => {
   deepseekStatusMsg.value = '';
   try {
     const baseUrl = apiConfig.deepseekBaseUrl || 'https://api.deepseek.com/v1';
-    const apiKey = apiConfig.deepseekApiKey;
+    // 🔧 防御性清洗（保守）：全角转半角 + 仅移除零宽/BOM/首尾空白，绝不删除 Key 内容
+    const apiKey = (apiConfig.deepseekApiKey || '')
+      .replace(/[\uFF21-\uFF3A\uFF41-\uFF5A\uFF10-\uFF19]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+      .replace(/\uFF0D/g, '-')
+      .replace(/[\u200B-\u200D\uFEFF\u00A0\u3000\u200E\u200F\u202A-\u202E\u2060-\u206F]/g, '')
+      .trim();
     if (!apiKey) {
       deepseekStatus.value = 'error';
       deepseekStatusMsg.value = '未配置API Key';
@@ -3308,9 +3313,26 @@ const checkDeepSeekReady = async () => {
     }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
-    const resp = await fetch(`${baseUrl}/models`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${apiKey}` },
+    // 🔧 关键修复：DeepSeek 官方 /models 端点对该类 Key 返回 401（即使 Key 有效，chat/completions 正常），
+    //    导致就绪检测误判。改用 chat/completions 发最小对话请求做真实连通测试（与生成同路径，最可靠）
+    let apiUrl = baseUrl;
+    if (apiUrl.includes('/chat/completions')) {
+      // 已含完整路径
+    } else {
+      apiUrl = `${apiUrl.replace(/\/$/, '')}/chat/completions`;
+    }
+    const resp = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: apiConfig.deepseekGenerationModel || apiConfig.deepseekModel || 'deepseek-chat',
+        messages: [{ role: 'user', content: 'OK' }],
+        max_tokens: 5,
+        stream: false
+      }),
       signal: controller.signal
     });
     clearTimeout(timeout);
@@ -3319,13 +3341,29 @@ const checkDeepSeekReady = async () => {
       deepseekStatusMsg.value = '';
     } else {
       deepseekStatus.value = 'error';
-      deepseekStatusMsg.value = `HTTP ${resp.status}`;
+      if (resp.status === 401) {
+        // 🔧 诊断：输出 Key 长度与首尾字符码（脱敏，定位隐藏字符/复制不全/全角字符）
+        const k = apiKey || '';
+        const head = [...k.slice(0, 6)].map(c => c.charCodeAt(0).toString(16)).join(' ');
+        const tail = [...k.slice(-4)].map(c => c.charCodeAt(0).toString(16)).join(' ');
+        console.warn(`🔑 401诊断: Key长度=${k.length} 开头[${head}] 结尾[${tail}] （正常Key应为 sk- 开头、长度≥30、全部ASCII码点）`);
+        deepseekStatusMsg.value = 'API Key 无效或已过期，请重新填写';
+      } else {
+        deepseekStatusMsg.value = `HTTP ${resp.status}（模型: ${apiConfig.deepseekGenerationModel || apiConfig.deepseekModel}）`;
+      }
     }
   } catch (e) {
     deepseekStatus.value = 'error';
     deepseekStatusMsg.value = e.name === 'AbortError' ? '连接超时' : (e.message || '网络错误');
   }
 };
+
+// 🔧 引擎/Key 变更后自动重新检测就绪状态（粘贴新 Key 保存后无需刷新页面）
+watch(
+  () => [apiConfig.currentEngine, apiConfig.deepseekApiKey],
+  () => { checkDeepSeekReady(); },
+  { deep: false }
+);
 
 // 📖 章节选择弹窗
 const showChapterSelector = ref(false);

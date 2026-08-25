@@ -199,8 +199,18 @@ const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000) => {
 const normalizeFetchError = async (e, response) => {
   // 网络错误（fetch 只在网络失败时抛异常）
   if (e) {
-    const normalized = new Error(e.message || '网络请求失败');
-    normalized.code = e.name === 'AbortError' ? 'ECONNABORTED' : 'ENOTFOUND';
+    const rawMsg = e.message || '网络请求失败';
+    // 🔧 识别 headers 非 ASCII：API Key 含中文/特殊字符时浏览器在构造请求头就抛此错，
+    //    此前被硬编码成 ENOTFOUND 误报为"网络问题"，实际是 Key 非法
+    if (/String contains non ISO-8859-1 code point|Failed to read the 'headers' property/i.test(rawMsg)) {
+      const friendly = new Error('API Key 包含非法字符（应仅含英文、数字、连字符）。请到设置页重新复制粘贴 API Key 后保存');
+      friendly.code = 'EINVALIDKEY';
+      friendly.originalError = e;
+      return friendly;
+    }
+    // 🔧 保留真实错误码（不再一律标 ENOTFOUND），便于区分 DNS/连接/构造失败
+    const normalized = new Error(rawMsg);
+    normalized.code = e.name === 'AbortError' ? 'ECONNABORTED' : (e.code || e.cause?.code || 'ENOTFOUND');
     normalized.originalError = e;
     return normalized;
   }
@@ -2304,6 +2314,12 @@ const maxInputTokens = config.engine === 'deepseek'
           if (deepseekBreaker.isOpen) {
             const remainingCooldown = Math.ceil((deepseekBreaker.lastFailTime + deepseekBreaker.cooldownMs - Date.now()) / 1000);
             throw new Error(`DeepSeek 服务暂时熔断中，请 ${Math.max(1, remainingCooldown)} 秒后重试`);
+          }
+
+          // 🔧 API Key 合法性预检：含非 ASCII/空白（中文/零宽字符/全角等）时 fetch 构造请求头会直接抛错，
+          //    且会被误报为网络错误。这里提前拦截，给出明确修复指引
+          if (config.apiKey && /[^\x21-\x7E]/.test(config.apiKey)) {
+            throw new Error('API Key 包含非法字符（应仅含英文、数字、连字符）。请到设置页重新复制粘贴 API Key 后保存');
           }
 
           // 🔧 流式 SSE 传输：避免长连接因空闲而被中间代理断开

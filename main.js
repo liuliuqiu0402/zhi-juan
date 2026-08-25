@@ -319,9 +319,11 @@ ipcMain.handle('encrypt-text', async (event, text) => {
       const encrypted = safeStorage.encryptString(text);
       return Buffer.from(encrypted).toString('base64');
     }
-    return Buffer.from(text, 'utf-8').toString('base64');
+    // 🔧 修复：降级路径补 enc_ 前缀（与渲染进程 encrypt() 的 base64 兜底一致），
+    //    保证 decrypt 能正确识别——无前缀 base64 会被误判为明文 Key
+    return 'enc_' + Buffer.from(text, 'utf-8').toString('base64');
   } catch (e) {
-    return Buffer.from(text, 'utf-8').toString('base64');
+    return 'enc_' + Buffer.from(text, 'utf-8').toString('base64');
   }
 });
 
@@ -330,11 +332,16 @@ ipcMain.handle('decrypt-text', async (event, encryptedBase64) => {
     const { safeStorage } = require('electron');
     const buffer = Buffer.from(encryptedBase64, 'base64');
     if (safeStorage.isEncryptionAvailable()) {
+      // 仅对 safeStorage 自己加密过的值调用解密；其他格式（如 WebCrypto 的 enc_wc_*）
+      // 会在此抛异常 → 进入 catch → 返回 null，由渲染进程回退到 WebCrypto 解密
       return safeStorage.decryptString(buffer);
     }
-    return buffer.toString('utf-8');
+    return null; // 🔧 修复：safeStorage 不可用且无法确认可解密时返回 null，绝不返回乱码
   } catch (e) {
-    return Buffer.from(encryptedBase64, 'base64').toString('utf-8');
+    // 🔧 关键修复：解密失败返回 null，绝不返回 Buffer.from(...).toString('utf-8') 乱码。
+    //    乱码含 U+FFFD 等非 Latin-1 字符，会被渲染进程当作 API Key 放进 Authorization 头，
+    //    导致 fetch 抛 "Failed to read the 'headers' property from 'RequestInit': String contains non ISO-8859-1 code point"
+    return null;
   }
 });
 

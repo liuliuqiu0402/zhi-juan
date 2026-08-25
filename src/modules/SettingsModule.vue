@@ -1044,17 +1044,35 @@ onMounted(async () => {
       const parsed = JSON.parse(savedSettings);
       // 🔧 修复：解密 deepseekApiKey，防止加密值回显到表单
       // 否则用户在不知情下保存会导致二次加密 → 密钥永久损坏
+      // 🔧 修复：解密结果含非法字符（?()@^ 等）视为历史损坏，清空提示重填
+      const VALID_KEY_RE = /^[A-Za-z0-9._\-+/=]{12,}$/;
       if (parsed.deepseekApiKey) {
         parsed.deepseekApiKey = await decrypt(parsed.deepseekApiKey);
+        if (parsed.deepseekApiKey && !VALID_KEY_RE.test(parsed.deepseekApiKey)) {
+          console.warn('⚠️ 检测到损坏的 DeepSeek API Key，已清空，请重新填写');
+          parsed.deepseekApiKey = '';
+        }
       }
       if (parsed.volcanoApiKey) {
         parsed.volcanoApiKey = await decrypt(parsed.volcanoApiKey);
+        if (parsed.volcanoApiKey && !VALID_KEY_RE.test(parsed.volcanoApiKey)) {
+          console.warn('⚠️ 检测到损坏的火山引擎 API Key，已清空，请重新填写');
+          parsed.volcanoApiKey = '';
+        }
       }
       if (parsed.alibabaApiKey) {
         parsed.alibabaApiKey = await decrypt(parsed.alibabaApiKey);
+        if (parsed.alibabaApiKey && !VALID_KEY_RE.test(parsed.alibabaApiKey)) {
+          console.warn('⚠️ 检测到损坏的阿里百炼 API Key，已清空，请重新填写');
+          parsed.alibabaApiKey = '';
+        }
       }
       if (parsed.zhipuApiKey) {
         parsed.zhipuApiKey = await decrypt(parsed.zhipuApiKey);
+        if (parsed.zhipuApiKey && !VALID_KEY_RE.test(parsed.zhipuApiKey)) {
+          console.warn('⚠️ 检测到损坏的智谱 API Key，已清空，请重新填写');
+          parsed.zhipuApiKey = '';
+        }
       }
       // 🔧 深合并 generationSettings：旧 localStorage 缺少新字段（paperTemperature/answerTemperature 等）时
       //    以默认值补齐，避免被旧对象整体覆盖导致新字段丢失
