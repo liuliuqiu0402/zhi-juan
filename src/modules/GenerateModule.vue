@@ -7152,8 +7152,15 @@ const downloadDoc = async (doc, format) => {
   const sealLike = /密封线|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：]/.test(content);
   if (sealLike) content = wrapContentForTheme(content, 'sealed_exam');
   if (format === 'pdf') {
+    // 🔧 配图占位框还原为干净文本（与 docxBuilder 一致）：占位框是编辑器 UI，
+    //    导出 PDF 时不可出现"[插图占位]/复制 PROMPT"等字样，按 data-image-raw 还原为〔配图位置：描述〕
+    let pdfSrc = content.replace(/<div[^>]*class="[^"]*image-placeholder[^"]*"[^>]*data-image-raw="([^"]*)"[^>]*>[\s\S]*?<\/div>/gi, (m, raw) => {
+      const decoded = raw.split('&amp;').join('&').split('&lt;').join('<').split('&gt;').join('>').split('&quot;').join('"');
+      const pm = decoded.match(/PROMPT:\s*(.+)/);
+      return pm ? `〔配图位置：${pm[1].trim()}〕` : '〔配图位置〕';
+    });
     // 转换 $...$ 公式标记为可读文本
-    let pdfContent = convertFormulasInHtml(content);
+    let pdfContent = convertFormulasInHtml(pdfSrc);
     // 🔧 应用主题 CSS（与排版模块 TypesetModule 的 PDF 导出一致）：
     //    密封内容自动按 sealed_exam 注入主题样式，PDF 才有密封区/虚线/旋转文字效果；
     //    否则 puppeteer 渲染的是无样式 HTML（密封线退化为普通横排文字）。

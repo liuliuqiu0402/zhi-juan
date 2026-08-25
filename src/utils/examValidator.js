@@ -226,7 +226,41 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     });
   }
 
-  // ── 1.5. 大题标题明细式（规则 title-detail-fix：旧式"（X分）"→"共N题，每题X分，共X分"）──
+  // ── 1.5. [IMAGE] 配图块标准化（规则 image-block-fix：AI 常漏 NEGATIVE/WIDTH/HEIGHT 或写成一行式）──
+  if (has('image-block-fix')) {
+    const imageBlockRe = /\[IMAGE\]([\s\S]*?)(\[\/IMAGE\]|$)/gi;
+    const normImage = out.replace(imageBlockRe, (m, body) => {
+      // 按行解析，兼容行内多字段（"TYPE:SD STYLE:line_art"）——值在遇到下一个字段名时截断
+      const fields = { TYPE: 'SD', PROMPT: '', NEGATIVE: '写实,照片,复杂背景,文字,水印', WIDTH: '800', HEIGHT: '600', STYLE: 'line_art' };
+      const KEY_RE = /(TYPE|PROMPT|NEGATIVE|WIDTH|HEIGHT|STYLE|描述)\s*[：:]\s*((?:(?!\b(?:TYPE|PROMPT|NEGATIVE|WIDTH|HEIGHT|STYLE|描述)\s*[：:])[^\n])*)/gi;
+      let mm;
+      while ((mm = KEY_RE.exec(body)) !== null) {
+        const key = mm[1].toUpperCase() === '描述' ? 'PROMPT' : mm[1].toUpperCase();
+        if (key === 'PROMPT' && fields.PROMPT) {
+          // 多段 PROMPT 拼接
+          fields.PROMPT += mm[2];
+        } else {
+          fields[key] = mm[2].trim();
+        }
+      }
+      // 清理 PROMPT 中混入的 HTML 残留（&nbsp;/&lt;/p&gt;/</p>/\</div\> 等）与多余空白
+      let prompt = fields.PROMPT
+        .replace(/&(?:nbsp|ensp|emsp);/g, ' ')
+        .replace(/&lt;\/?[a-zA-Z][^&]*&gt;|<\/?[a-zA-Z][^>]*>|\\?<\/?[a-zA-Z]\s*\\?>/g, '')
+        .replace(/[ \t]{2,}/g, ' ')
+        .trim();
+      if (!prompt) prompt = '（画面描述缺失）';
+      const norm = `[IMAGE]\nTYPE:${fields.TYPE}\nPROMPT:${prompt}\nNEGATIVE:${fields.NEGATIVE}\nWIDTH:${fields.WIDTH}\nHEIGHT:${fields.HEIGHT}\nSTYLE:${fields.STYLE}\n[/IMAGE]`;
+      if (norm !== m) {
+        issues.push({ severity: 'info', type: 'image-block', message: '已规范 [IMAGE] 配图块为标准 EduRender 格式（补齐参数/统一分行/清理残留）' });
+        fixed += 1;
+      }
+      return norm;
+    });
+    out = normImage;
+  }
+
+  // ── 1.6. 大题标题明细式（规则 title-detail-fix：旧式"（X分）"→"共N题，每题X分，共X分"）──
   if (has('title-detail-fix')) {
     try {
       const tpl = document.createElement('template');

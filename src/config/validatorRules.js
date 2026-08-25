@@ -115,6 +115,16 @@ export const VALIDATOR_RULES = [
     description: 'once 模式答案区 <h2>参考答案… 无 answer-section 包裹时自动补包（docx 独立分节所需）。',
     enabled: true,
   },
+  {
+    id: 'image-block-fix',
+    name: '[IMAGE] 配图块标准化',
+    category: 'fix',
+    subjects: ['*'],
+    stages: ['*'],
+    promptHint: '配图块必须输出完整 EduRender 格式（[IMAGE] 起始、TYPE:SD 独占一行、PROMPT 画面描述、NEGATIVE、WIDTH、HEIGHT、STYLE:line_art、[/IMAGE] 结束），每个参数一行、半角冒号，严禁写成一行式或漏参数。',
+    description: '把 AI 输出的 [IMAGE] 块规范化为 EduRender 标准格式：参数独占一行、半角冒号、补齐缺失的 NEGATIVE/WIDTH/HEIGHT 默认值、清理 PROMPT 中混入的 HTML 残留、未闭合自动补 [/IMAGE]。',
+    enabled: true,
+  },
 
   // ==================== guard：静默防护（仅 debug 计数，不产生问题提示） ====================
   {

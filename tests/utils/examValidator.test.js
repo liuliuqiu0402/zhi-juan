@@ -125,6 +125,31 @@ describe('examValidator 模板残留清理', () => {
   });
 });
 
+describe('examValidator [IMAGE] 配图块标准化（image-block-fix）', () => {
+  it('一行式 + 缺参数 + HTML 残留 → 规范为 EduRender 标准格式并补默认参数', () => {
+    const html = '[IMAGE]\nTYPE:SD STYLE:line_art\nPROMPT: 秋天果园摘苹果&nbsp;两个孩子很开心&lt;/p&gt;\n[/IMAGE]';
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    expect(out).toContain('[IMAGE]\nTYPE:SD\nPROMPT:秋天果园摘苹果 两个孩子很开心\nNEGATIVE:写实,照片,复杂背景,文字,水印\nWIDTH:800\nHEIGHT:600\nSTYLE:line_art\n[/IMAGE]');
+    expect(out).not.toContain('&lt;/p&gt;');
+    expect(out).not.toContain('&nbsp;');
+    expect(issues.some(i => i.type === 'image-block')).toBe(true);
+  });
+
+  it('未闭合 [IMAGE] 块自动补全结束标记', () => {
+    const html = '[IMAGE]\nTYPE:SD\nPROMPT:一只熊猫在竹林里吃竹子';
+    const { html: out } = auditExamPaper(html, OPTS);
+    expect(out).toContain('[/IMAGE]');
+    expect(out).toContain('NEGATIVE:写实,照片,复杂背景,文字,水印');
+  });
+
+  it('已完整的标准块保持不变（幂等）', () => {
+    const std = '[IMAGE]\nTYPE:SD\nPROMPT:熊猫吃竹子\nNEGATIVE:文字,水印\nWIDTH:800\nHEIGHT:600\nSTYLE:line_art\n[/IMAGE]';
+    const { html: out, issues } = auditExamPaper(std, OPTS);
+    expect(out).toBe(std);
+    expect(issues.some(i => i.type === 'image-block')).toBe(false);
+  });
+});
+
 describe('examValidator 子题载体一致性（第2题案例）', () => {
   it('同题组一题有拼音选项一题没有 → 产生提示（不自动改，供抽检）', () => {
     const html = [
