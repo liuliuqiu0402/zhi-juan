@@ -3,6 +3,7 @@ import axios from 'axios';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, MAX_TOKENS_BY_TASK } from '../config/apiConfig.js';
 import { getStoragePath } from '../utils/pathHelper.js';
 import { fixExamFormats } from '../utils/examFixer.js';
+import { auditExamPaper } from '../utils/examValidator.js';
 import { 
   subjectGradeSystem, 
   genTypeTemplates,
@@ -5016,6 +5017,25 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     if (genType === 'exam' && !/<div[^>]*class="[^"]*seal-zone[^"]*"/.test(finalContent)) {
       finalContent = `${buildSealLineHeader()}\n${finalContent}`;
     }
+
+    // 🔴 整卷结构质量校验（所有资料类型×学科×学段通用）：
+    //    自动修复：拼音字符归一（ɡ→g）、模板残留清理（插图占位/转义标签/空条款）、
+    //              看拼音写词语缺空自动补全、分值标注与空位数对齐
+    //    记警告：子题载体不一致（缺空/缺选项）、连线项不对称、看图写话缺图、答案空壳等
+    try {
+      const audit = auditExamPaper(finalContent);
+      if (audit.fixed > 0 || audit.issues.length > 0) {
+        console.log(`🔍 整卷质检：修复 ${audit.fixed} 处，警告 ${audit.issues.filter(i => i.severity === 'warning').length} 条，提示 ${audit.issues.filter(i => i.severity === 'info').length} 条`);
+        audit.issues.forEach(i => {
+          if (i.severity === 'warning') console.warn(`🔍 [质检-${i.type}] ${i.message}`);
+          else console.log(`🔍 [质检-${i.type}] ${i.message}`);
+        });
+      }
+      finalContent = audit.html;
+    } catch (e) {
+      console.warn('⚠️ 整卷质检器异常（不影响生成结果）:', e.message);
+    }
+
     const modeLabel = generateMode === 'once' ? '一次成型' : '两次生成';
     console.log(`✅ 整卷生成完成：${finalContent.length} 字符（${modeLabel}${answerHtml ? '，含独立答案页' : ''}）（指令库注入）`);
     return {

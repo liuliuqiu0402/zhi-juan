@@ -135,8 +135,14 @@ export const htmlToPlainText = (html = '', maxChars = 24000) => {
     }
     return '\n' + rows.join('\n');
   });
-  // [IMAGE] 标记 → 占位（配图描述不是题目内容，避免干扰作答）
-  body = body.replace(/\[IMAGE\][\s\S]*?\[\/IMAGE\]/g, '（配图）').replace(/\[IMAGE\][^\n]*/g, '（配图）');
+  // [IMAGE] 标记 → 保留画面描述文本（答案页生成需"看着画面"作答，
+  //    否则模型脑补画面导致答案示例与插图内容不一致——本卷第11题"小明和爸爸"vs"小男孩和小女孩"案例）。
+  //    格式："（配图：秋天，果园里……）"，PROMPT 描述完整保留
+  body = body.replace(/\[IMAGE\][\s\S]*?\[\/IMAGE\]/gi, (m) => {
+    const prompt = m.match(/PROMPT\s*:\s*([^\n\]]+)/i);
+    const desc = prompt ? prompt[1].trim().slice(0, 120) : '';
+    return desc ? `（配图：${desc}）` : '（配图）';
+  }).replace(/\[IMAGE\][^\n]*/gi, '（配图）');
   // 块级标签 → 换行
   body = body.replace(/<\/(h[1-6]|p|div|li|tr)>/gi, '\n');
   // 去其余标签
