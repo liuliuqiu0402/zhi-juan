@@ -171,6 +171,13 @@ describe('examValidator 答案区检查', () => {
     expect(issues.some(i => i.type === 'answer-shell')).toBe(false);
     expect(silent).toBeGreaterThan(0);
   });
+
+  it('答案区 <h2>参考答案 无 answer-section 包裹 → 自动补包（规则 answer-section-fix）', () => {
+    const html = '<p>1. 题目内容</p>\n<h2>参考答案与评分标准</h2>\n<p>1. 答案</p>';
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    expect(out).toContain('<div class="answer-section">');
+    expect(issues.some(i => i.type === 'answer-section')).toBe(true);
+  });
 });
 
 describe('examValidator 三维度规则过滤', () => {
