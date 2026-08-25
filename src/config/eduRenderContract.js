@@ -26,6 +26,12 @@ export const MATH_SUBJECTS = ['数学', '物理', '化学'];
 /** 配图类题型（看图写话/看图列式/听音选图等）关键词 */
 const IMAGE_HINT_RE = /看图|写话|配图|听音|观察|绘画|绘图/;
 
+/**
+ * 教辅类默认配图的类型（课时练/专项/预习/阅读/默写普遍要求图文并茂/情境配图，
+ * 与题型关键词无关——即使单元名不含"看图"也应注入 [IMAGE] 契约，否则 AI 配图无格式规范）
+ */
+const IMAGE_DEFAULT_TYPES = new Set(['practice', 'special', 'preview', 'reading', 'dictation']);
+
 // ==================== EduRender Studio 完整格式骨架 ====================
 
 /** [IMAGE] 完整示例（SD 文生图 + ICON 图标检索） */
@@ -281,8 +287,9 @@ export function buildRenderContract({ subject = '', genType = '', needsImage = f
   return `\n\n${parts.join('\n')}`;
 }
 
-/** 判定某资料/大题是否需要配图标记（题型含看图/写话/配图等） */
+/** 判定某资料/大题是否需要配图标记（教辅类默认配图；exam 按题型关键词；纯文字类不配图） */
 export function needsImageHint(text = '', genType = '') {
+  if (genType && IMAGE_DEFAULT_TYPES.has(genType)) return true;
   return IMAGE_HINT_RE.test(String(text || '')) || genType === 'dictation';
 }
 

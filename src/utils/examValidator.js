@@ -415,6 +415,18 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
+  // ── 1.5.8. 书写格按学段（规则 writing-grid-fix：语文 3 年级+ 田字格、英语中学+ 四线三格 → 静默计数）──
+  if (has('writing-grid-fix')) {
+    const stageRank = { primary_low: 1, primary_mid: 2, primary_high: 3, middle: 4, high: 5 };
+    const rank = stageRank[stage] || 0;
+    if (subject.includes('语文') && rank >= 2 && /tian-zi-ge/.test(out)) {
+      silentCount('writing-grid', '语文 3 年级及以上仍使用田字格——应改方格/横线，请抽检');
+    }
+    if (subject.includes('英语') && rank >= 4 && /(four-line-three|sixian-ge)/.test(out)) {
+      silentCount('writing-grid', '英语中学段仍使用四线三格——应改单线/横线，请抽检');
+    }
+  }
+
   // ── 1.6. 大题标题明细式（规则 title-detail-fix：旧式"（X分）"→"共N题，每题X分，共X分"）──
   if (has('title-detail-fix')) {
     try {

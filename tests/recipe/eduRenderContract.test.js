@@ -121,6 +121,18 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     expect(needsImageHint('看图写话，写几句话', 'exam')).toBe(true);
     expect(needsImageHint('连一连', 'exam')).toBe(false);
   });
+
+  it('教辅类默认配图（课时练/预习/阅读/默写等）——与题型关键词无关', () => {
+    // 课时练模板要求"图文并茂"，即使单元名不含配图词也应注入 [IMAGE] 契约
+    expect(needsImageHint('第二单元 词语练习', 'practice')).toBe(true);
+    expect(needsImageHint('第二单元 词语练习', 'preview')).toBe(true);
+    expect(needsImageHint('第二单元 词语练习', 'reading')).toBe(true);
+    expect(needsImageHint('第二单元 词语练习', 'special')).toBe(true);
+    // 纯文字类（总结/复习/错题本）不默认配图
+    expect(needsImageHint('第二单元 词语练习', 'summary')).toBe(false);
+    expect(needsImageHint('第二单元 词语练习', 'review')).toBe(false);
+    expect(needsImageHint('第二单元 词语练习', 'errorbook')).toBe(false);
+  });
 });
 
 describe('指令库内置学科×类型模板（按学科全面完善）', () => {
