@@ -299,6 +299,43 @@ describe('examValidator 连线题右列格式（match-format-fix：本案例 19:
   });
 });
 
+describe('examValidator 教辅类资料关键元素（type-elements-guard）', () => {
+  it('预习单缺"我的疑问"栏目 → 静默计数（不进问题列表）', () => {
+    const html = [
+      '<h1>课前预习任务单</h1>',
+      '<h2>一、读一读</h2>',
+      '<p class="question">1. 圈出你不认识的字。</p>',
+    ].join('\n');
+    const { issues, silent } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'preview' });
+    expect(issues.every(i => i.severity !== 'warning')).toBe(true);
+    expect(silent).toBeGreaterThan(0);
+  });
+
+  it('预习单含"我的疑问" → 不触发', () => {
+    const html = [
+      '<h1>课前预习任务单</h1>',
+      '<h2>一、我的疑问</h2>',
+      '<p>把你预习中不懂的问题写下来。</p>',
+    ].join('\n');
+    const { silent } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'preview' });
+    expect(silent).toBe(0);
+  });
+
+  it('错题本缺"错因归因" → 静默计数', () => {
+    const html = '<h1>错题本</h1>\n<h2>一、数学错题</h2>\n<p class="question">1. 原题：3+5=（　）</p>';
+    const { silent } = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'errorbook' });
+    expect(silent).toBeGreaterThan(0);
+  });
+
+  it('阅读训练含"短文" → 不触发；考试类（exam）不检测', () => {
+    const html = '<h1>阅读训练</h1>\n<h2>一、阅读短文</h2>\n<p>春天来了，小草绿了。</p>';
+    const { silent: s1 } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'reading' });
+    expect(s1).toBe(0);
+    const { silent: s2 } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'exam' });
+    expect(s2).toBe(0);
+  });
+});
+
 describe('examValidator 子题载体一致性（第2题案例）', () => {
   it('同题组一题有拼音选项一题没有 → 产生提示（不自动改，供抽检）', () => {
     const html = [

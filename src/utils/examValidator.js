@@ -394,6 +394,27 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
+  // ── 1.5.7. 教辅类资料关键元素齐全性（规则 type-elements-guard：模板已有生成前要求，生成后静默确认）──
+  if (has('type-elements-guard')) {
+    const gt = genType || '';
+    const TYPE_ELEMENT_CHECKS = {
+      preview: [{ re: /我的疑问/, label: '"我的疑问"栏目' }],
+      errorbook: [{ re: /错因|归因/, label: '错因归因' }],
+      summary: [{ re: /易错/, label: '易错辨析' }],
+      review: [{ re: /易错|自测/, label: '易错聚焦/自测' }],
+      dictation: [{ re: /tian-zi-ge|四线|拼音/, label: '书写格/拼音标注' }],
+      reading: [{ re: /短文|阅读/, label: '选文（短文）' }],
+    };
+    const checks = TYPE_ELEMENT_CHECKS[gt];
+    if (checks) {
+      const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+      const miss = checks.filter(c => !c.re.test(bodyText)).map(c => c.label);
+      if (miss.length > 0) {
+        silentCount('type-elements', `「${gt}」类型关键元素缺失（${miss.join('、')}）——请抽检`);
+      }
+    }
+  }
+
   // ── 1.6. 大题标题明细式（规则 title-detail-fix：旧式"（X分）"→"共N题，每题X分，共X分"）──
   if (has('title-detail-fix')) {
     try {

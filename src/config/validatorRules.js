@@ -155,6 +155,15 @@ export const VALIDATOR_RULES = [
     enabled: true,
   },
   {
+    id: 'type-elements-guard',
+    name: '教辅类资料关键元素齐全性静默防护',
+    category: 'guard',
+    subjects: ['*'],
+    stages: ['*'],
+    description: '非考试类资料（预习单/错题本/知识总结/复习资料/默写纸/阅读训练）生成后静默确认关键栏目元素是否齐全（如预习单的"我的疑问"、错题本的"错因归因"、总结/复习的"易错辨析"、默写纸的书写格、阅读训练的选文）——模板已有生成前要求，此规则补生成后确认，缺失仅 debug 计数不打扰用户。',
+    enabled: true,
+  },
+  {
     id: 'match-format-fix',
     name: '连线题右列格式规范化',
     category: 'fix',
