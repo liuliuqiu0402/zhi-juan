@@ -1029,7 +1029,10 @@ const buildOutputFormatBlock = (genType, subject, stage, grade) => {
 <p class="question">6. 仔细看图，写几句话。</p>
 [IMAGE]
 TYPE:SD
-PROMPT:画面描述...
+PROMPT:画面描述（主体/动作/场景，黑白线稿简笔画，图内禁文字）
+NEGATIVE:写实,照片,复杂背景,文字,水印
+WIDTH:800
+HEIGHT:600
 STYLE:line_art
 [/IMAGE]
 <div class="zuo-wen-ge">

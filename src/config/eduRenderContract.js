@@ -1,13 +1,13 @@
 /**
  * EduRender 渲染指令契约（生成端注入版）
  * ============================================================
- * 🔴 定位：告诉生成模型"如何输出可被 EduRender Studio 渲染的标记"。
- *    - [GRAPH]...[/GRAPH]  图形（坐标系/函数/几何/统计/受力/电路/光路/原子）
- *    - [IMAGE]...[/IMAGE]  配图（SD 文生图 / ICON 图标库）
+ * 🔴 定位：把 EduRender Studio 的完整指令格式整合进生成链路，
+ *    让生成模型输出的 [GRAPH]/[IMAGE]/公式标记可被 EduRender Studio 直接渲染。
+ *    - [GRAPH]...[/GRAPH]  图形（数轴/函数/几何/统计/受力/电路/光路/原子）
+ *    - [IMAGE]...[/IMAGE]  配图（SD 文生图 / ICON 图标检索）
  *    - $...$ / $$...$$     公式（行内 / 块级）
- * 按 学科×学段×资料类型 三维度匹配注入（需要图的学科才给、配图题才给 [IMAGE]）。
- * 注入的是"格式骨架 + 常用示例"（约 300 字），完整参数表在 EduRender Studio 端——
- * 保持指令精简，不约束模型的命题内容。
+ * 按 学科×学段×资料类型 三维度匹配注入（需要图的学科才给 [GRAPH] 骨架、
+ * 配图题才给 [IMAGE]、数理化学科才给公式）。
  * ============================================================
  */
 
@@ -26,6 +26,195 @@ export const MATH_SUBJECTS = ['数学', '物理', '化学'];
 /** 配图类题型（看图写话/看图列式/听音选图等）关键词 */
 const IMAGE_HINT_RE = /看图|写话|配图|听音|观察|绘画|绘图/;
 
+// ==================== EduRender Studio 完整格式骨架 ====================
+
+/** [IMAGE] 完整示例（SD 文生图 + ICON 图标检索） */
+const IMAGE_SAMPLE_SD = `[IMAGE]
+TYPE:SD
+PROMPT:画面描述（主体/动作/场景/风格细节，黑白线稿简笔画，图内禁文字）
+NEGATIVE:写实,照片,复杂背景,文字,水印
+WIDTH:800
+HEIGHT:600
+STYLE:line_art
+[/IMAGE]`;
+
+const IMAGE_SAMPLE_ICON = `[IMAGE]
+TYPE:ICON
+KEYWORDS:熊猫,竹子,卡通
+STYLE:flat
+[/IMAGE]`;
+
+/** [GRAPH] 各 TYPE 骨架示例（与 EduRender Studio 文档逐项对齐） */
+const GRAPH_SAMPLE_COORDINATE = `[GRAPH]
+TYPE:COORDINATE
+XLIM:-6,6
+YLIM:-1,1
+GRID:FALSE
+NUMBER_POSITION:top
+TICK_DIRECTION:up
+LEFT_ARROW:false
+RIGHT_ARROW:true
+AXIS_COLOR:black
+LINE_WIDTH:2
+TICK_LENGTH:6
+FONT_SIZE:10
+TICK_STEP:1
+ARROW_STYLE:>
+ARROW_SCALE:1.0
+PADDING:0.15
+[/GRAPH]`;
+
+const GRAPH_SAMPLE_SHAPES = `[GRAPH]
+TYPE:SHAPES
+XLIM:-3,5
+YLIM:-5,6
+GRID:TRUE
+TITLE:二次函数图像
+SHAPES:
+  FUNCTION:x**2 - 2*x - 3 | COLOR:blue | DOMAIN:-3,5
+  POINT:(1,-4) | LABEL:顶点 | COLOR:red | SIZE:8
+[/GRAPH]`;
+
+const GRAPH_SAMPLE_SHAPES_EXTRA = `· SHAPES 元素格式（一行一个元素、属性用 | 分隔）：
+  POINT:(x,y) | LABEL:标签 | COLOR:颜色 | SIZE:大小
+  FUNCTION:表达式 | COLOR:颜色 | DOMAIN:min,max
+  POLYGON:(x1,y1),(x2,y2),(x3,y3) | LABELS:A,B,C | COLOR:颜色
+  CIRCLE:(x,y) | RADIUS:半径 | COLOR:颜色
+  LINE:(x1,y1),(x2,y2) | COLOR:颜色 | WIDTH:线宽 | DASH:true/false
+  ANGLE:(x1,y1),(顶点x,y),(x2,y2) | LABEL:角度 | COLOR:颜色
+· 颜色可选：red/blue/green/black/yellow/orange/purple/pink/brown/gray`;
+
+const GRAPH_SAMPLE_BAR = `[GRAPH]
+TYPE:BAR_CHART
+DATA:15,22,18,30,25
+LABELS:语文,数学,英语,科学,社会
+TITLE:期末考试成绩
+XLABEL:科目
+YLABEL:分数
+COLORS:#e74c3c,#3498db,#27ae60,#f1c40f,#9b59b6
+[/GRAPH]`;
+
+const GRAPH_SAMPLE_CHART_LINE = `[GRAPH]
+TYPE:LINE_CHART
+DATA:5,12,8,20,15
+LABELS:周一,周二,周三,周四,周五
+TITLE:一周气温变化
+XLABEL:日期
+YLABEL:温度
+[/GRAPH]`;
+
+const GRAPH_SAMPLE_PIE = `[GRAPH]
+TYPE:PIE_CHART
+DATA:30,25,20,15,10
+LABELS:选项A,选项B,选项C,选项D,选项E
+TITLE:占比分布
+[/GRAPH]`;
+
+const GRAPH_SAMPLE_FORCE = `[GRAPH]
+TYPE:FORCE
+OBJECT:rectangle,0,0,4,2
+FORCES:
+  G:down,center,10
+  N:up,center,10
+  F:right,center,15
+  f:left,center,5
+LABELS:true
+[/GRAPH]`;
+
+const GRAPH_SAMPLE_CIRCUIT = `[GRAPH]
+TYPE:CIRCUIT
+COMPONENTS:
+  battery,0,0,right
+  switch,2,0,right
+  bulb,4,0,right
+  resistor,4,-2,up
+WIRES:0,0-2,0;2,0-4,0;4,0-4,-2;4,-2-0,-2;0,-2-0,0
+[/GRAPH]`;
+
+const GRAPH_SAMPLE_OPTICS = `[GRAPH]
+TYPE:OPTICS
+MIRROR:plane,0,-2,0,2
+INCIDENT:2,1,0,0
+ANGLE:30
+[/GRAPH]`;
+
+const GRAPH_SAMPLE_ATOM = `[GRAPH]
+TYPE:ATOM
+ELEMENT:Na
+SHELLS:2,8,1
+[/GRAPH]`;
+
+/** 学科 → [GRAPH] 注入内容（键为段落标识） */
+const SUBJECT_GRAPH_PARTS = {
+  '数学': [
+    '· 数轴用 TYPE:COORDINATE（参数：NUMBER_POSITION:top/bottom 数字位置、TICK_DIRECTION:up/down 刻度方向、LEFT_ARROW/RIGHT_ARROW:true/false 箭头、AXIS_COLOR:颜色、LINE_WIDTH:线宽、TICK_LENGTH:刻度长、FONT_SIZE:字号、TICK_STEP:刻度步长、ARROW_STYLE:>/->、ARROW_SCALE:箭头大小、PADDING:留白）：',
+    GRAPH_SAMPLE_COORDINATE,
+    '· 几何/函数用 TYPE:SHAPES：',
+    GRAPH_SAMPLE_SHAPES,
+    GRAPH_SAMPLE_SHAPES_EXTRA,
+    '· 统计图（BAR_CHART/LINE_CHART/PIE_CHART，参数 DATA:数据列表、LABELS:分类、TITLE、XLABEL、YLABEL、COLORS:颜色列表）：',
+    GRAPH_SAMPLE_BAR,
+    GRAPH_SAMPLE_CHART_LINE,
+    GRAPH_SAMPLE_PIE,
+  ],
+  '物理': [
+    '· 受力分析用 TYPE:FORCE（OBJECT:形状,x,y,w,h；FORCES 每行"名称:方向,作用点,大小"，方向 down/up/left/right、作用点 center/corner）：',
+    GRAPH_SAMPLE_FORCE,
+    '· 电路图用 TYPE:CIRCUIT（COMPONENTS 每行"元件,x,y,方向"，元件 battery/switch/bulb/resistor；WIRES 用 "x1,y1-x2,y2;..." 描述连线）：',
+    GRAPH_SAMPLE_CIRCUIT,
+    '· 光路图用 TYPE:OPTICS（MIRROR:plane,x1,y1,x2,y2；INCIDENT:x1,y1,x2,y2 入射光线；ANGLE:入射角）：',
+    GRAPH_SAMPLE_OPTICS,
+    '· 函数/几何/统计：',
+    GRAPH_SAMPLE_SHAPES,
+    GRAPH_SAMPLE_BAR,
+  ],
+  '化学': [
+    '· 原子结构用 TYPE:ATOM（ELEMENT:元素符号；SHELLS:各层电子数,逗号分隔）：',
+    GRAPH_SAMPLE_ATOM,
+    '· 统计/数据：',
+    GRAPH_SAMPLE_BAR,
+  ],
+  '科学': [
+    '· 统计/数据图（BAR_CHART/LINE_CHART/PIE_CHART）：',
+    GRAPH_SAMPLE_BAR,
+    GRAPH_SAMPLE_CHART_LINE,
+  ],
+  '生物': [
+    '· 统计/数据图（BAR_CHART/LINE_CHART/PIE_CHART）：',
+    GRAPH_SAMPLE_BAR,
+    GRAPH_SAMPLE_CHART_LINE,
+    GRAPH_SAMPLE_PIE,
+  ],
+  '地理': [
+    '· 统计/数据图（BAR_CHART/LINE_CHART/PIE_CHART）：',
+    GRAPH_SAMPLE_BAR,
+    GRAPH_SAMPLE_CHART_LINE,
+    GRAPH_SAMPLE_PIE,
+  ],
+  '信息科技': [
+    '· 统计/数据图（BAR_CHART/LINE_CHART/PIE_CHART）：',
+    GRAPH_SAMPLE_BAR,
+    GRAPH_SAMPLE_CHART_LINE,
+  ],
+};
+
+/** 学科 → 允许的 GRAPH TYPE 列表（渲染端校验用） */
+export const SUBJECT_GRAPH_TYPES = {
+  '数学': ['COORDINATE', 'SHAPES', 'BAR_CHART', 'LINE_CHART', 'PIE_CHART'],
+  '物理': ['FORCE', 'CIRCUIT', 'OPTICS', 'SHAPES', 'BAR_CHART', 'LINE_CHART'],
+  '化学': ['ATOM', 'BAR_CHART', 'LINE_CHART'],
+  '科学': ['BAR_CHART', 'LINE_CHART', 'PIE_CHART'],
+  '生物': ['BAR_CHART', 'LINE_CHART', 'PIE_CHART'],
+  '地理': ['BAR_CHART', 'LINE_CHART', 'PIE_CHART'],
+  '信息科技': ['BAR_CHART', 'LINE_CHART'],
+};
+
+/** 通用图形参数说明（注入一次，避免每个示例重复） */
+const GRAPH_COMMON_PARAMS = '通用参数：XLIM:min,max 横轴范围、YLIM:min,max 纵轴范围、GRID:TRUE/FALSE 网格、TITLE:标题';
+
+/** 公式规则 */
+const FORMULA_RULES = '· 公式：行内用 $...$、块级用 $$...$$（如 $$x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}$$），严禁用文本堆砌或图片代替公式。';
+
 /**
  * 构建渲染指令契约段（三维度注入）
  * @param {Object} opts { subject(学科), genType(资料类型), needsImage(大题/资料是否配图) }
@@ -33,22 +222,23 @@ const IMAGE_HINT_RE = /看图|写话|配图|听音|观察|绘画|绘图/;
  */
 export function buildRenderContract({ subject = '', genType = '', needsImage = false } = {}) {
   const parts = [];
-  const graphNeeded = GRAPH_SUBJECTS.includes(subject);
+  const graphParts = SUBJECT_GRAPH_PARTS[subject];
   const formulaNeeded = MATH_SUBJECTS.includes(subject);
-  if (!graphNeeded && !formulaNeeded && !needsImage) return '';
+  if (!graphParts && !formulaNeeded && !needsImage) return '';
 
-  parts.push('【渲染指令（EduRender 标记，供 EduRender Studio 渲染；仅需图/公式时使用，不计题量）】');
-  if (graphNeeded) {
-    parts.push(`· 图形题用 [GRAPH]...[/GRAPH]，TYPE ∈ ${GRAPH_TYPES.join('/')}，含 XLIM/YLIM 坐标与真实数据（须与题干一致）。例：`
-      + '\n[GRAPH]\nTYPE:BAR_CHART\nDATA:15,22,18,30,25\nLABELS:语文,数学,英语,科学,社会\nTITLE:期末考试成绩\n[/GRAPH]');
+  parts.push('【渲染指令（EduRender Studio 格式，渲染端可直接解析；仅需图/公式时输出，不计题量）】');
+  if (graphParts) {
+    parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${(SUBJECT_GRAPH_TYPES[subject] || GRAPH_TYPES).join('/')}；${GRAPH_COMMON_PARAMS}。图形数据必须与题干完全一致。`);
+    parts.push(...graphParts);
   }
   if (formulaNeeded) {
-    parts.push('· 公式用 $...$/$$...$$（如 $$x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}$$），勿文本堆砌。');
+    parts.push(FORMULA_RULES);
   }
   if (needsImage) {
-    parts.push('· 配图（看图写话/看图列式/配图题）用 [IMAGE]...[/IMAGE]，每图一个、单独成段，图内无字、不暗示答案，PROMPT 画面要素须与题干情境严格一致（人物/场景/数量与题干吻合，不得另起无关画面）：'
-      + '\n  TYPE:SD → PROMPT:画面描述（季节/景物/人物/动作/背景）/NEGATIVE:负面词/STYLE:line_art；'
-      + '\n  或 TYPE:ICON → KEYWORDS:关键词/STYLE:flat');
+    parts.push(`· 配图（看图/配图题）用 [IMAGE]...[/IMAGE]，每图一个、单独成段，图内无字、不暗示答案，PROMPT 画面要素须与题干情境严格一致（人物/场景/数量与题干吻合，不得另起无关画面）：`);
+    parts.push(IMAGE_SAMPLE_SD);
+    parts.push(`· 或图标检索：`);
+    parts.push(IMAGE_SAMPLE_ICON);
   }
   return `\n\n${parts.join('\n')}`;
 }
@@ -58,4 +248,7 @@ export function needsImageHint(text = '', genType = '') {
   return IMAGE_HINT_RE.test(String(text || '')) || genType === 'dictation';
 }
 
-export default { GRAPH_TYPES, GRAPH_SUBJECTS, MATH_SUBJECTS, buildRenderContract, needsImageHint };
+export default {
+  GRAPH_TYPES, GRAPH_SUBJECTS, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES,
+  buildRenderContract, needsImageHint,
+};

@@ -13,13 +13,65 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     const out = buildRenderContract({ subject: '数学', genType: 'exam' });
     expect(out).toContain('[GRAPH]');
     expect(out).toContain('TYPE:BAR_CHART');
-    expect(out).toContain('XLIM/YLIM');
+    expect(out).toContain('XLIM:min,max');
+    expect(out).toContain('YLIM:min,max');
+  });
+
+  it('数学注入 EduRender 完整骨架（数轴/函数/统计图参数）', () => {
+    const out = buildRenderContract({ subject: '数学', genType: 'exam' });
+    // 数轴完整参数
+    expect(out).toContain('TYPE:COORDINATE');
+    expect(out).toContain('NUMBER_POSITION:top');
+    expect(out).toContain('TICK_DIRECTION:up');
+    expect(out).toContain('ARROW_STYLE:>');
+    expect(out).toContain('PADDING:0.15');
+    // SHAPES 元素
+    expect(out).toContain('TYPE:SHAPES');
+    expect(out).toContain('FUNCTION:x**2 - 2*x - 3 | COLOR:blue | DOMAIN:-3,5');
+    expect(out).toContain('POLYGON:(x1,y1),(x2,y2),(x3,y3)');
+    expect(out).toContain('CIRCLE:(x,y) | RADIUS:半径');
+    expect(out).toContain('LINE:(x1,y1),(x2,y2)');
+    expect(out).toContain('ANGLE:(x1,y1),(顶点x,y),(x2,y2)');
+    // 统计图
+    expect(out).toContain('TYPE:BAR_CHART');
+    expect(out).toContain('DATA:15,22,18,30,25');
+    expect(out).toContain('XLABEL:科目');
+  });
+
+  it('物理注入 FORCE/CIRCUIT/OPTICS 骨架', () => {
+    const out = buildRenderContract({ subject: '物理', genType: 'exam' });
+    expect(out).toContain('TYPE:FORCE');
+    expect(out).toContain('OBJECT:rectangle,0,0,4,2');
+    expect(out).toContain('TYPE:CIRCUIT');
+    expect(out).toContain('battery,0,0,right');
+    expect(out).toContain('TYPE:OPTICS');
+    expect(out).toContain('MIRROR:plane,0,-2,0,2');
+  });
+
+  it('化学注入 ATOM 骨架', () => {
+    const out = buildRenderContract({ subject: '化学', genType: 'exam' });
+    expect(out).toContain('TYPE:ATOM');
+    expect(out).toContain('ELEMENT:Na');
+    expect(out).toContain('SHELLS:2,8,1');
+  });
+
+  it('配图注入完整 [IMAGE] 参数（SD 含 WIDTH/HEIGHT、ICON 含 KEYWORDS）', () => {
+    const out = buildRenderContract({ subject: '语文', genType: 'exam', needsImage: true });
+    expect(out).toContain('TYPE:SD');
+    expect(out).toContain('NEGATIVE:写实,照片,复杂背景,文字,水印');
+    expect(out).toContain('WIDTH:800');
+    expect(out).toContain('HEIGHT:600');
+    expect(out).toContain('STYLE:line_art');
+    expect(out).toContain('TYPE:ICON');
+    expect(out).toContain('KEYWORDS:熊猫,竹子,卡通');
   });
 
   it('数理化学科（数学/物理/化学）注入公式说明', () => {
     expect(MATH_SUBJECTS).toContain('数学');
     expect(MATH_SUBJECTS).toContain('物理');
-    expect(buildRenderContract({ subject: '物理', genType: 'exam' })).toContain('$...$/$$...$$');
+    const out = buildRenderContract({ subject: '物理', genType: 'exam' });
+    expect(out).toContain('$...$');
+    expect(out).toContain('$$...$$');
   });
 
   it('配图类题型注入 [IMAGE] 说明（SD/ICON 格式）', () => {
