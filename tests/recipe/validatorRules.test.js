@@ -102,6 +102,17 @@ describe('validatorRules 生成前约束（阶段一：随指令注入）', () =
     expect(prompt).toContain('分值账目自洽');
     expect(prompt).not.toContain('看拼音写词语');
   });
+
+  it('排版语义标记规范全量注入（上下标/删除线/分数/音标/表格，全学科）', () => {
+    const prompt = buildValidatorPrompt({ subject: '化学', stage: 'middle', genType: 'exam' });
+    expect(prompt).toContain('<sub>');          // 化学式下标
+    expect(prompt).toContain('<sup>');          // 离子/幂上标
+    expect(prompt).toContain('<del>');          // 删除/划去
+    expect(prompt).toContain('1/2');            // 分数半角斜杠
+    expect(prompt).toContain('音标');           // 英语音标
+    expect(prompt).toContain('Unicode 上下标字符'); // 禁混用乱码字符
+    expect(prompt).toContain('<table>');        // 统计表
+  });
 });
 
 describe('validatorRules normalizeStage', () => {
