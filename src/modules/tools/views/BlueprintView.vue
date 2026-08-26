@@ -195,9 +195,10 @@ for (const subj of SUBJECT_KEYS) {
     const def = TEACHING_BLUEPRINTS[t];
     if (!def) continue;
     const custom = TEACHING_SUBJECT_BLUEPRINTS[subj]?.[t];
+    const subjectStages = TEACHING_SUBJECT_BLUEPRINTS[subj]?.stages;
     allTeach.push({
       key: `${subj}|${t}`, subject: subj, genType: t, label: def.label,
-      sections: (custom || def).sections, stages: def.stages, custom: !!custom,
+      sections: (custom || def).sections, stages: subjectStages || def.stages, custom: !!custom,
     });
   }
 }

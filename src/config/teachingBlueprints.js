@@ -454,18 +454,23 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     },
   },
   '物理': {
+    /* 物理仅初中/高中开设，学段差异显著（义教 2022 vs 高中 2017）：学科级学段要求覆盖初高中档，小学档回退通用（物理不开设） */
+    stages: {
+      middle: { note: '从生活走向物理、从物理走向社会（2022 义教物理课程理念）：以生活与实验现象为情境，注重现象观察、规律运用与实验规范；计算题步骤完整（解→公式→代入→计算→答，带单位）' },
+      high: { note: '注重物理观念与科学思维（高中物理课程理念）：以真实复杂情境为载体，设问有层次；实验任务含方案设计与数据分析；解答过程完整、逻辑严谨' },
+    },
     practice: {
       label: '课时练',
       sections: [
-        { name: '基础建构任务', note: '覆盖本课时核心知识点（概念、规律、公式），在情境中考查' },
-        { name: '探究进阶任务', note: '实验与现象分析任务，变式设问，考查迁移' },
-        { name: '迁移创新任务', note: '真实问题解决（生活现象、科技应用），联系本单元主题' },
+        { name: '基础建构任务', note: '覆盖本课时概念、规律与公式，以生活与实验现象为情境' },
+        { name: '探究进阶任务', note: '实验探究任务（方案→现象/数据→结论）与变式练习，考查迁移' },
+        { name: '迁移创新任务', note: '真实问题解决（生活、科技、工程应用），含作图与计算' },
       ],
     },
     special: {
       label: '专项突破',
       sections: [
-        { name: '分板块组织', note: '按本单元内容分 2-4 个板块，板块内由易到难' },
+        { name: '分板块组织', note: '按本单元内容分 2-4 个板块（概念辨析/规律应用/实验探究），板块内由易到难' },
         { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
       ],
     },
@@ -488,7 +493,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     summary: {
       label: '知识总结',
       sections: [
-        { name: '知识框架', note: '结构化呈现本单元概念、规律、公式（导图/表格/对比优先）' },
+        { name: '知识框架', note: '结构化呈现本单元概念、规律、公式与实验方法（导图/表格/对比优先）' },
         { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
         { name: '易错辨析', note: '本单元易混概念与易错规律应用辨析' },
         { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -515,7 +520,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     review: {
       label: '复习资料',
       sections: [
-        { name: '知识框架', note: '本单元概念、规律、公式结构图或表格' },
+        { name: '知识框架', note: '本单元概念、规律、公式与实验方法结构图或表格' },
         { name: '考点梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
         { name: '典型题析', note: '适量典型题（含解题思路分析）' },
         { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -557,7 +562,9 @@ export function getTeachingBlueprint({ genType = '', stage = '', subject = '' } 
   const bp = custom || def;
   if (!bp) return null;
   const stageKey = normalizeTeachingStage(stage);
-  const stages = custom?.stages || def?.stages || {};
+  // 学段要求优先级：学科级（覆盖初高中档，未覆盖档回退通用）> 类型级 custom > 通用默认
+  const subjectStages = TEACHING_SUBJECT_BLUEPRINTS[subject]?.stages;
+  const stages = subjectStages ? { ...(custom?.stages || def?.stages || {}), ...subjectStages } : (custom?.stages || def?.stages || {});
   const stageParams = stages[stageKey] || stages.primary_mid;
   return {
     label: bp.label, sections: bp.sections, stageParams,

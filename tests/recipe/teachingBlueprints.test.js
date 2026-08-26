@@ -206,14 +206,17 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     }
   });
 
-  it('物理已定制：课时练含实验/现象分析语义，默写积累改造为概念规律/单位常量', () => {
+  it('物理已定制：课时练含实验探究/作图计算语义，学科级学段要求（初中/高中两档）', () => {
     const bp = getTeachingBlueprint({ genType: 'practice', stage: 'middle', subject: '物理' });
     expect(bp.custom).toBe(true);
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '物理' });
     expect(inject).toContain('物理·课时练');
-    expect(inject).toContain('概念、规律、公式');
-    expect(inject).toContain('实验与现象分析任务');
-    expect(inject).toContain('生活现象、科技应用');
+    expect(inject).toContain('概念、规律与公式');
+    expect(inject).toContain('实验探究任务');
+    expect(inject).toContain('生活、科技、工程应用');
+    expect(inject).toContain('从生活走向物理'); // 学科级学段要求·初中（课标课程理念）
+    const high = buildTeachingInjection({ genType: 'practice', stage: 'high', subject: '物理' });
+    expect(high).toContain('物理观念与科学思维'); // 学科级学段要求·高中
     const dict = buildTeachingInjection({ genType: 'dictation', stage: 'middle', subject: '物理' });
     expect(dict).toContain('物理·默写积累');
     expect(dict).toContain('概念规律');
