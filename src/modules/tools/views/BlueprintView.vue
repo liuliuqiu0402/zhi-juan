@@ -101,7 +101,7 @@
           <span v-if="bp.custom" class="src-custom">学科定制</span>
           <span v-else class="src-fallback">通用模板</span>
           <span class="key-hint" :title="'数据键：' + bp.key">{{ bp.key }}</span>
-          <span class="bp-meta">建议时长 {{ stageParam(bp).duration || '—' }} · 题量 {{ stageParam(bp).volume || '—' }}</span>
+          <span class="bp-meta">{{ dims.stage ? `学段参数 ${STAGE_LABELS[dims.stage]}：建议时长 ${stageParam(bp).duration || '—'} · 题量 ${stageParam(bp).volume || '—'}` : '5 学段参数 · 展开查看' }}</span>
         </div>
         <div v-if="openTeach === bp.key" class="bp-body">
           <div class="bp-secs">
@@ -111,7 +111,16 @@
               <span class="sec-note">{{ s.note }}</span>
             </div>
           </div>
-          <div v-if="stageParam(bp).note" class="stage-note">📌 学段注意（{{ dims.stage ? STAGE_LABELS[dims.stage] : '默认中段' }}）：{{ stageParam(bp).note }}</div>
+          <!-- 学段参数表：5 档全展示，生成时按所选学段注入对应档 -->
+          <div class="bp-stages">
+            <div class="stages-head">📌 学段参数（5 档 · 生成时按所选学段注入对应档）</div>
+            <div v-for="(p, sk) in bp.stages" :key="sk" class="stage-row" :class="{ cur: sk === (dims.stage || 'primary_mid') }">
+              <span class="st-name">{{ STAGE_LABELS[sk] || sk }}</span>
+              <span class="st-dur">时长 {{ p.duration || '—' }}</span>
+              <span class="st-vol">题量/篇幅 {{ p.volume || '—' }}</span>
+              <span class="st-note">{{ p.note || '' }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -371,6 +380,14 @@ const createBp = () => {
 .bp-ops { display: flex; gap: 8px; margin-top: 10px; }
 .stage-note { margin-top: 8px; font-size: 12px; color: #a06a10; background: #fdf3e2; border-radius: 8px; padding: 6px 10px; }
 .bp-empty { color: var(--text-muted); font-size: 13px; padding: 10px 4px; }
+.bp-stages { margin-top: 8px; border: 1px solid var(--border-light); border-radius: 8px; overflow: hidden; }
+.stages-head { font-size: 12px; font-weight: 600; color: var(--primary); background: var(--primary-lighter); padding: 6px 10px; }
+.stage-row { display: flex; align-items: baseline; gap: 10px; font-size: 12px; padding: 5px 10px; border-top: 1px dashed var(--border-light); flex-wrap: wrap; }
+.stage-row.cur { background: #fbf7ec; }
+.st-name { font-weight: 700; min-width: 118px; color: #26303e; }
+.st-dur { color: var(--primary); white-space: nowrap; }
+.st-vol { color: #556; white-space: nowrap; }
+.st-note { color: #889; font-size: 11.5px; }
 
 /* 编辑态 */
 .bp-edit { border-top: 1px dashed var(--border-light); padding: 12px 14px 14px; background: var(--primary-lighter); }
