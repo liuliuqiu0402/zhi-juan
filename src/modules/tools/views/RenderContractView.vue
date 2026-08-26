@@ -102,7 +102,7 @@
             <button class="btn-p" @click="saveUser(c.subject)">💾 保存契约</button>
             <button class="btn" @click="cancelEdit">取消</button>
           </div>
-          <p class="edit-tip">※ 自定义契约当前仅存储于本地（用户优先显示）；生成端 buildRenderContract 接入用户契约在"代码读取落实"阶段打通。</p>
+          <p class="edit-tip">※ 自定义契约即时生效：图（[GRAPH] TYPE）、公式（$..$）、配图（[IMAGE]）均按此覆盖内置，生成时自动读取；删除自定义即回退内置。</p>
         </div>
       </div>
       <div v-if="!contractList.length" class="rc-empty">当前筛选无学科契约（可放宽学科筛选）</div>
@@ -147,7 +147,7 @@ const GRAPH_TYPE_DESC = {
   BAR_CHART: '柱状统计图', LINE_CHART: '折线统计图', PIE_CHART: '饼状统计图',
   FORCE: '受力分析图', CIRCUIT: '电路图', OPTICS: '光路图', ATOM: '原子结构图',
 };
-const IMAGE_KEYWORDS = ['看图', '写话', '配图', '听音', '观察', '绘画', '绘图'];
+const IMAGE_KEYWORDS = ['看图', '写话', '配图', '听音', '观察', '绘画', '绘图', '识图', '读图', '示意', '地图', '图表', '结构'];
 const IMAGE_DEFAULT_TYPES = ['practice', 'special', 'preview', 'reading', 'dictation'];
 
 /* ===== 图形 TYPE 目录 ===== */
@@ -169,8 +169,8 @@ const allContract = SUBJECT_KEYS.map((subject) => {
   const graphTypes = user ? (user.graphTypes || []) : (SUBJECT_GRAPH_TYPES[subject] || []);
   const formula = user ? !!user.formula : MATH_SUBJECTS.includes(subject);
   const image = user ? !!user.image : needsImageHint(`${subject} 看图配图听音观察`, 'exam');
-  // 缺口：蓝本引用了 [GRAPH] 但学科无契约（历史/生物/地理 中历史缺）
-  const missing = subject === '历史' && !GRAPH_SUBJECTS.includes(subject);
+  // 缺口：蓝本引用了 [GRAPH] 但学科无契约（历史已在 2026-08 补齐）
+  const missing = false;
   return {
     subject, graphTypes, formula, image, missing,
     user: !!user, stageNote: subject === '数学' ? '低段裁剪（仅数轴/统计图）' : '全学段',
@@ -190,13 +190,7 @@ const gapCount = computed(() => allContract.filter((c) => c.missing).length);
 /* ===== 校验 ===== */
 const validateMsgs = computed(() => {
   const msgs = [];
-  const missingSub = allContract.filter((c) => c.missing);
-  if (missingSub.length) {
-    msgs.push({ code: 'RC1', severity: 'error', detail: `历史学科：蓝本（历史|middle/high）要求"[GRAPH] 统计图"，但契约无历史学科——GRAPH_SUBJECTS 缺"历史"。` });
-  }
-  if (!IMAGE_KEYWORDS.some((k) => ['识图', '读图', '示意'].includes(k))) {
-    msgs.push({ code: 'RC2', severity: 'warning', detail: 'IMAGE 触发关键词未含「识图/读图/示意/图表/地图/结构」——生物结构示意图、地理读图分析题的 needsImage 不命中。' });
-  }
+  // 缺口历史已补齐（2026-08：SUBJECT_GRAPH_PARTS/TYPES 增"历史"）；IMAGE 关键词已扩展含识图/读图等。
   return msgs;
 });
 

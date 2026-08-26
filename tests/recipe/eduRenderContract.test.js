@@ -117,6 +117,43 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     expect(buildRenderContract({ subject: '体育', genType: 'exam' })).toBe('');
   });
 
+  it('历史学科已补 GRAPH 契约（统计/数据图）', () => {
+    expect(GRAPH_SUBJECTS).toContain('历史');
+    const out = buildRenderContract({ subject: '历史', genType: 'exam', stage: 'middle' });
+    expect(out).toContain('[GRAPH]');
+    expect(out).toContain('TYPE:BAR_CHART');
+    expect(out).toContain('TYPE:LINE_CHART');
+  });
+
+  it('用户自定义契约覆盖内置（graphTypes/formula 优先生效）', () => {
+    // 用户为体育开启图形（内置体育无图；无内置骨架示例，仅注入 TYPE 声明）
+    const out = buildRenderContract({
+      subject: '体育', genType: 'exam', stage: 'middle',
+      userContract: { '体育': { graphTypes: ['BAR_CHART', 'LINE_CHART'], formula: false } },
+    });
+    expect(out).toContain('[GRAPH]');
+    expect(out).toContain('TYPE ∈ BAR_CHART/LINE_CHART');
+    // 用户清空数学公式（内置数学初中需公式）
+    const noFormula = buildRenderContract({
+      subject: '数学', genType: 'exam', stage: 'middle',
+      userContract: { '数学': { formula: false } },
+    });
+    expect(noFormula).toContain('[GRAPH]');
+    expect(noFormula).not.toContain('\\frac');
+    // 用户显式关闭配图：覆盖题型关键词（看图题不注入 [IMAGE]）
+    const noImage = buildRenderContract({
+      subject: '语文', genType: 'exam', needsImage: true,
+      userContract: { '语文': { image: false } },
+    });
+    expect(noImage).not.toContain('[IMAGE]');
+    // 用户显式开启配图：无需题型关键词也注入
+    const yesImage = buildRenderContract({
+      subject: '数学', genType: 'exam', stage: 'middle', needsImage: false,
+      userContract: { '数学': { image: true } },
+    });
+    expect(yesImage).toContain('[IMAGE]');
+  });
+
   it('needsImageHint 识别看图/写话类题型', () => {
     expect(needsImageHint('看图写话，写几句话', 'exam')).toBe(true);
     expect(needsImageHint('连一连', 'exam')).toBe(false);

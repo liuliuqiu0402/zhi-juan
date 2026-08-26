@@ -197,6 +197,12 @@ const SUBJECT_GRAPH_PARTS = {
     GRAPH_SAMPLE_CHART_LINE,
     GRAPH_SAMPLE_PIE,
   ],
+  '历史': [
+    '· 统计/数据图（BAR_CHART/LINE_CHART/PIE_CHART，用于史实数据比较、时序变化等）：',
+    GRAPH_SAMPLE_BAR,
+    GRAPH_SAMPLE_CHART_LINE,
+    GRAPH_SAMPLE_PIE,
+  ],
   '信息科技': [
     '· 统计/数据图（BAR_CHART/LINE_CHART/PIE_CHART）：',
     GRAPH_SAMPLE_BAR,
@@ -212,6 +218,7 @@ export const SUBJECT_GRAPH_TYPES = {
   '科学': ['BAR_CHART', 'LINE_CHART', 'PIE_CHART'],
   '生物': ['BAR_CHART', 'LINE_CHART', 'PIE_CHART'],
   '地理': ['BAR_CHART', 'LINE_CHART', 'PIE_CHART'],
+  '历史': ['BAR_CHART', 'LINE_CHART', 'PIE_CHART'],
   '信息科技': ['BAR_CHART', 'LINE_CHART'],
 };
 
@@ -261,24 +268,46 @@ const getFormulaNeeded = (subject, stage) => {
 
 /**
  * 构建渲染指令契约段（三维度注入：学段 × 学科 × 类型/配图）
- * @param {Object} opts { subject(学科), genType(资料类型), needsImage(是否配图), stage(学段键) }
+ * 用户自定义契约（RenderContractView 编辑、localStorage 存储）在此优先覆盖内置：
+ *   - graphTypes：覆盖该学科的 [GRAPH] TYPE 集合
+ *   - formula：覆盖是否注入 $..$ 公式
+ * @param {Object} opts { subject(学科), genType(资料类型), needsImage(是否配图), stage(学段键), userContract(用户契约，默认从 localStorage 读取) }
  * @returns {string} 空串 = 无需渲染指令
  */
-export function buildRenderContract({ subject = '', genType = '', needsImage = false, stage = '' } = {}) {
+const USER_CONTRACT_KEY = 'wisdom_render_contract_v1';
+const loadUserContract = () => {
+  if (typeof localStorage === 'undefined') return {};
+  try { return JSON.parse(localStorage.getItem(USER_CONTRACT_KEY) || '{}'); } catch { return {}; }
+};
+
+export function buildRenderContract({ subject = '', genType = '', needsImage = false, stage = '', userContract } = {}) {
   const parts = [];
+  const user = userContract ?? loadUserContract();
+  const userForSubject = user[subject] || null;
   const graph = getGraphParts(subject, stage);
   const formulaNeeded = getFormulaNeeded(subject, stage);
-  if (!graph && !formulaNeeded && !needsImage) return '';
+  if (!graph && !formulaNeeded && !needsImage && !userForSubject) return '';
 
-  parts.push('【渲染指令（EduRender Studio 格式，渲染端可直接解析；仅需图/公式时输出，不计题量）】');
-  if (graph) {
-    parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${graph.types.join('/')}；${GRAPH_COMMON_PARAMS}。图形数据必须与题干完全一致。`);
-    parts.push(...graph.parts);
+  // 用户自定义覆盖内置（仅当用户定义了该学科的契约才生效）
+  const graphTypes = userForSubject?.graphTypes && userForSubject.graphTypes.length
+    ? userForSubject.graphTypes
+    : (graph ? graph.types : []);
+  const formula = userForSubject ? !!userForSubject.formula : formulaNeeded;
+  // 用户显式定义了配图开关则覆盖题型关键词判定（否则按内置 needsImage）
+  const image = userForSubject && 'image' in userForSubject ? !!userForSubject.image : needsImage;
+
+  if (graphTypes.length || graph || userForSubject) {
+    const typeLabel = graphTypes.length ? graphTypes.join('/') : (graph ? graph.types.join('/') : '');
+    if (typeLabel) {
+      parts.push('【渲染指令（EduRender Studio 格式，渲染端可直接解析；仅需图/公式时输出，不计题量）】');
+      parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${typeLabel}；${GRAPH_COMMON_PARAMS}。图形数据必须与题干完全一致。`);
+      parts.push(...(graph ? graph.parts : []));
+    }
   }
-  if (formulaNeeded) {
+  if (formula) {
     parts.push(FORMULA_RULES);
   }
-  if (needsImage) {
+  if (image) {
     parts.push(`· 配图（看图/配图题）用 [IMAGE]...[/IMAGE]，每图一个、单独成段，图内无字、不暗示答案，PROMPT 画面要素须与题干情境严格一致（人物/场景/数量与题干吻合，不得另起无关画面）：`);
     parts.push(IMAGE_SAMPLE_SD);
     parts.push(`· 或图标检索：`);
