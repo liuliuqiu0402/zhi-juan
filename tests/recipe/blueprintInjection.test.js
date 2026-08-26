@@ -142,12 +142,20 @@ describe('OUTPUT_FORMAT_HINT（非 exam 统一输出格式）', () => {
 
 describe('非 exam 模板正文自带【输出格式】（指令库可见，无需代码拼接）', () => {
   const NON_EXAM_TYPES = ['practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
+  const CONTENT_TYPES = ['preview', 'summary']; // 内容型：结构化呈现，不用题号
   it('8 类非 exam 三维度模板均含【输出格式】与正文边界要求', () => {
     for (const g of NON_EXAM_TYPES) {
       const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: g });
       expect(t.template, `类型 ${g} 缺输出格式`).toContain('【输出格式】');
       expect(t.template).toContain('只输出资料正文');
-      expect(t.template).toContain('填空空位宽度与答案字数匹配');
+      // 题为主类型含作答载体规则；内容型含结构化呈现规则（不用题号）
+      if (CONTENT_TYPES.includes(g)) {
+        expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
+        expect(t.template, `类型 ${g} 不应要求题号包裹`).not.toContain('以 <p class="question"> 包裹并带题号');
+      } else {
+        expect(t.template, `类型 ${g} 缺作答载体规则`).toContain('填空空位宽度与答案字数匹配');
+        expect(t.template).toContain('以 <p class="question"> 包裹并带题号');
+      }
     }
   });
 
@@ -168,19 +176,28 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
 
 describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微观格式）', () => {
   const ALL_TYPES = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
+  const CONTENT_TYPES = ['preview', 'summary'];
   it('9 类型通用模板均含宽度匹配语义与载体要求（无微观格式/诱导词）', () => {
     for (const g of ALL_TYPES) {
       const t = getPromptTemplate({ genType: g });
-      expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('1字≈2格');
-      expect(t.template, `类型 ${g} 缺括号空位要求`).toContain('选择/判断用括号空位');
+      if (CONTENT_TYPES.includes(g)) {
+        expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
+      } else {
+        expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('1字≈2格');
+        expect(t.template, `类型 ${g} 缺括号空位要求`).toContain('选择/判断用括号空位');
+      }
       expect(t.template, `类型 ${g} 残留连线诱导词`).not.toContain('连线题');
     }
   });
 
-  it('宽度语义按答案字数匹配（不再要求模型计算空格数）', () => {
+  it('宽度语义按答案字数匹配（不再要求模型计算空格数；内容型无填空规则）', () => {
     for (const g of ALL_TYPES) {
       const t = getPromptTemplate({ genType: g });
-      expect(t.template, `类型 ${g}`).toContain('宽度与答案字数匹配');
+      if (CONTENT_TYPES.includes(g)) {
+        expect(t.template, `类型 ${g}`).not.toContain('填空空位宽度');
+      } else {
+        expect(t.template, `类型 ${g}`).toContain('宽度与答案字数匹配');
+      }
       expect(t.template, `类型 ${g} 残留微观格式`).not.toContain('空格数=答案字数');
       expect(t.template, `类型 ${g} 残留诱导词`).not.toContain('括号与横线二选一');
     }
