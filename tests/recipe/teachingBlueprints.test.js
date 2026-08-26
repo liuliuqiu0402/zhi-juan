@@ -130,13 +130,13 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     }
   });
 
-  it('数学已定制：课时练栏目学科化（概念/计算/图形/真实问题解决），标记 custom', () => {
+  it('数学已定制：课时练栏目学科化（情境考查/真实问题解决），标记 custom', () => {
     const bp = getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '数学' });
     expect(bp.custom).toBe(true);
     expect(bp.subject).toBe('数学');
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_low', subject: '数学' });
     expect(inject).toContain('数学·课时练');
-    expect(inject).toContain('概念、计算、图形');
+    expect(inject).toContain('核心知识点，在情境中考查');
     expect(inject).toContain('真实问题解决');
   });
 
@@ -150,5 +150,26 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(dict).toContain('数学·默写积累');
     expect(dict).toContain('公式法则');
     expect(dict).toContain('情境填空');
+  });
+
+  it('英语已定制：课时练含语篇/交际语义，默写积累为词汇句型/语音/四线三格', () => {
+    const bp = getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '英语' });
+    expect(bp.custom).toBe(true);
+    const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_low', subject: '英语' });
+    expect(inject).toContain('英语·课时练');
+    expect(inject).toContain('语篇语境中的综合运用');
+    expect(inject).toContain('真实交际任务');
+    const dict = buildTeachingInjection({ genType: 'dictation', stage: 'primary_low', subject: '英语' });
+    expect(dict).toContain('英语·默写积累');
+    expect(dict).toContain('词汇句型');
+    expect(dict).toContain('四线三格');
+  });
+
+  it('英语全 8 类教辅均有学科定制栏目', () => {
+    for (const g of ['practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review']) {
+      const bp = getTeachingBlueprint({ genType: g, stage: 'middle', subject: '英语' });
+      expect(bp?.custom, `英语 ${g} 未学科定制`).toBe(true);
+      expect(bp.sections.length).toBeGreaterThanOrEqual(2);
+    }
   });
 });

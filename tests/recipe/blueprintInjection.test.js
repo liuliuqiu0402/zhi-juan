@@ -225,7 +225,7 @@ describe('质量底线三维度注入（类型/学科/学段各司其职，非�
     const practice = getPromptTemplate({ genType: 'practice' });
     expect(practice.template).toContain('任务之间不重复不雷同'); // practice 防重复（正面表述）
     const special = getPromptTemplate({ genType: 'special' });
-    expect(special.template).toContain('按考点或能力点分类组织');
+    expect(special.template).toContain('按考点分类组织');
     expect(special.template).toContain('同板块内题目不雷同');
     const reading = getPromptTemplate({ genType: 'reading' });
     expect(reading.template).toContain('短文完整呈现（不截断）');
