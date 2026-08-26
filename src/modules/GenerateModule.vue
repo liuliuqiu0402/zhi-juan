@@ -205,6 +205,7 @@
         <div class="generate-actions" v-if="!isMobile">
           <button class="btn-success" @click="generate('single')" :disabled="!hasSelectedChapters || isGenerating">📄 单生成</button>
           <button class="btn-success" @click="generate('multiple')" :disabled="!hasSelectedChapters || isGenerating || genTypes.length < 2">📚 复生成 ({{ genTypes.length }}个)</button>
+          <button v-if="genTypes.includes('exam')" class="btn" @click="openScoreAdjust" :disabled="isGenerating" title="本次生成前临时调整大题分值，不保存到蓝图库">⚖️ 分值微调</button>
           <button class="btn-cancel" @click="handleCancelOrRelease">
             {{ isGenerating ? '❌ 取消生成' : '🧹 释放显存' }}
           </button>
@@ -428,6 +429,29 @@
           <button class="btn" @click="restoreAutoStyle" v-if="styleManuallySet">↻ 恢复自动</button>
           <button class="btn" @click="showStyleModal = false">取消</button>
           <button class="btn-primary" @click="confirmStyle">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 分值微调弹窗（本次生成前临时调整，不落库） -->
+    <div v-if="showScoreAdjustModal" class="modal-mask" @click.self="showScoreAdjustModal = false">
+      <div class="modal">
+        <h3>⚖️ 分值微调（本次生成生效）</h3>
+        <div class="score-adjust-list">
+          <div v-for="(s, i) in scoreAdjustDraft" :key="i" class="score-adjust-row">
+            <span class="sa-name">{{ '一二三四五六七八九十'[i] || i + 1 }}、{{ s.name }}</span>
+            <input v-model.number="s.score" type="number" class="sa-input" min="0" />
+            <span class="sa-unit">分</span>
+          </div>
+        </div>
+        <div class="sa-sum" :class="{ 'sa-bad': scoreAdjustSum !== scoreAdjustFull }">
+          分值之和：<b>{{ scoreAdjustSum }}</b> / 满分 {{ scoreAdjustFull }} {{ scoreAdjustSum === scoreAdjustFull ? '✅' : '⚠️ 不闭合，无法生成' }}
+        </div>
+        <p class="hint">💡 仅本次生成使用；不保存到蓝图库、不改动内置默认。下次生成可再次微调或恢复默认。</p>
+        <div class="modal-actions">
+          <button class="btn" @click="resetScoreAdjust">↩️ 恢复默认</button>
+          <button class="btn" @click="showScoreAdjustModal = false">取消</button>
+          <button class="btn-primary" @click="confirmScoreAdjust">确定</button>
         </div>
       </div>
     </div>
@@ -1595,6 +1619,24 @@ const getSelectedBookSubject = () => {
 const scopeType = ref('');
 const scopeOverride = ref('');  // 🔧 范围确认弹窗后用户选定的范围名（优先于自动推断）
 const mergeChapters = ref(true);  // 🔧 多章节合并出卷开关（默认合并；false=逐章拆分）
+/** 🔧 生成前分值微调（本次生效，不落库、不动内置/用户蓝本；键=学科|学段，值={大题名:分值}） */
+const scoreAdjust = ref({});
+const currentDimKey = () => {
+  const book = textbookStore.textbooks.find((b) => hasAnySelected(b.outline));
+  if (!book) return '';
+  const stageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
+  const base = stageMap[book.stage] || book.stage;
+  const subject = normalizeSubjectName(book.subject, base);
+  const g = parseInt(book.grade) || 0;
+  let st = base;
+  if (base === 'primary') st = g <= 2 ? 'primary_low' : g <= 4 ? 'primary_mid' : 'primary_high';
+  return `${subject}|${st}`;
+};
+const applyScoreAdjust = (bp) => {
+  const adj = scoreAdjust.value[currentDimKey()];
+  if (!adj || !bp?.sections?.length) return bp;
+  return { ...bp, sections: bp.sections.map((s) => (adj[s.name] != null ? { ...s, score: adj[s.name] } : s)) };
+};
 const propositionStyle = ref('');
 const styleManuallySet = ref(false);  // 🔴 追踪用户是否手动选过命题风格——false 时切换 genType 自动覆盖
 const styleConfirmed = ref(false);    // 🔴 必选风格是否已确认（生成前弹窗确认；换类型时重置）
@@ -3121,6 +3163,42 @@ const confirmStyle = () => {
   styleConfirmed.value = true;
   showStyleModal.value = false;
 };
+
+/* 🔧 生成前分值微调（本次生效，不落库） */
+const showScoreAdjustModal = ref(false);
+const scoreAdjustDraft = ref([]); // [{name, score}]
+const scoreAdjustFull = ref(100);
+const scoreAdjustSum = computed(() => scoreAdjustDraft.value.reduce((a, s) => a + (Number(s.score) || 0), 0));
+const openScoreAdjust = () => {
+  try {
+    const key = currentDimKey();
+    if (!key) { window.alert('请先选择教材'); return; }
+    const [subject, stageKey] = key.split('|');
+    const bp = findBlueprint({ genType: genTypes.value[0], subject, stage: stageKey, region: examRegion.value });
+    if (!bp?.sections?.length) { window.alert('当前资料类型无可微调的卷面结构（仅 exam 有固定卷面）'); return; }
+    const adj = scoreAdjust.value[key] || {};
+    scoreAdjustDraft.value = bp.sections.map((s) => ({ name: s.name, score: adj[s.name] != null ? adj[s.name] : s.score }));
+    scoreAdjustFull.value = bp.fullScore || 100;
+    showScoreAdjustModal.value = true;
+  } catch (e) { window.alert('分值微调打开失败：' + e.message); }
+};
+const confirmScoreAdjust = () => {
+  if (scoreAdjustSum.value !== scoreAdjustFull.value) {
+    window.alert(`分值之和 ${scoreAdjustSum.value} ≠ 满分 ${scoreAdjustFull.value}，请调整到闭合后再确定`);
+    return;
+  }
+  const map = {};
+  scoreAdjustDraft.value.forEach((s) => { map[s.name] = Number(s.score); });
+  scoreAdjust.value[currentDimKey()] = map;
+  showScoreAdjustModal.value = false;
+  loadInstructionFromLibrary(); // 重新注入指令（应用微调分值）
+};
+const resetScoreAdjust = () => {
+  if (!window.confirm('恢复本次微调为默认分值？')) return;
+  delete scoreAdjust.value[currentDimKey()];
+  showScoreAdjustModal.value = false;
+  loadInstructionFromLibrary();
+};
 const genTypeLabel = computed(() => '资料类型');
 const specialSubTypeLabel = computed(() => {
   if (!specialSubType.value) return '';
@@ -4380,7 +4458,7 @@ const loadInstructionFromLibrary = async () => {
   //    非 exam 附加教辅结构蓝本（栏目框架 + 题量/字数底线，按 学段×类型 三维度）；
   //    模板正文已自带【输出格式】，用户自定义模板可能缺失 → 去重兜底追加
   if (genType === 'exam') {
-    if (bp) instructionDraft.value += buildBlueprintInjection(bp);
+    if (bp) instructionDraft.value += buildBlueprintInjection(applyScoreAdjust(bp));
   } else {
     instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey });
     if (!instructionDraft.value.includes('【输出格式】')) {
@@ -4438,7 +4516,7 @@ const restoreDefaultInstruction = async () => {
   });
   instructionDraft.value += buildValidatorPrompt({ subject, stage: stageKey, genType });
   if (genType === 'exam') {
-    if (bp) instructionDraft.value += buildBlueprintInjection(bp);
+    if (bp) instructionDraft.value += buildBlueprintInjection(applyScoreAdjust(bp));
   } else {
     instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey });
   }
@@ -8579,6 +8657,15 @@ const addBlueprintQuestion = () => {
 }
 .opt-disabled { opacity: 0.45; }
 .opt-for { display: block; width: 100%; font-size: 11px; color: var(--warn, #a06a10); margin-top: 2px; }
+
+/* 分值微调弹窗 */
+.score-adjust-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow: auto; }
+.score-adjust-row { display: flex; align-items: center; gap: 10px; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 8px; padding: 8px 10px; }
+.sa-name { flex: 1; font-size: 13px; }
+.sa-input { width: 76px; border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 13px; text-align: right; }
+.sa-unit { font-size: 12px; color: var(--text-muted); }
+.sa-sum { margin-top: 10px; font-size: 13px; padding: 8px 12px; background: var(--success-light); border-radius: 8px; color: #1d7a4a; }
+.sa-sum.sa-bad { background: var(--danger-light); color: var(--danger); }
 
 /* 🔧 省市差异化选择区 */
 .region-select-section {
