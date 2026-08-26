@@ -104,8 +104,8 @@ export const TOOL_LIBRARIES = [
     desc: '学科内容底线：语数英、理化生、史地政、科学、信息、音体美',
     count: '15 学科',
     status: 'ok',
-    migrate: 'empty',
-    toolbar: { actions: ['new'], filter: 'dim3' },
+    migrate: 'ready',
+    toolbar: { actions: [], filter: 'dim3' },
   },
   {
     id: 'context',
