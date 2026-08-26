@@ -123,11 +123,11 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(inject).toContain('生活化口语表达或写话');
   });
 
-  it('未定制学科（生物等）回退通用默认：栏目为通用、注入标"通用·"', () => {
-    const bp = getTeachingBlueprint({ genType: 'practice', stage: 'middle', subject: '生物' });
+  it('未注册学科回退通用默认：栏目为通用、注入标"通用·"', () => {
+    const bp = getTeachingBlueprint({ genType: 'practice', stage: 'middle', subject: '未知学科' });
     expect(bp.custom).toBe(false);
-    expect(bp.subject).toBe('生物');
-    const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '生物' });
+    expect(bp.subject).toBe('未知学科');
+    const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '未知学科' });
     expect(inject).toContain('通用·课时练');
     // 学段要求仍按学段注入（初中）
     expect(inject).toContain('学段要求');
@@ -229,5 +229,31 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
       expect(bp?.custom, `物理 ${g} 未学科定制`).toBe(true);
       expect(bp.sections.length).toBeGreaterThanOrEqual(2);
     }
+  });
+
+  it('其余 10 科（化学/生物/历史/地理/思政/道法/信息/音乐/美术/体育）全 8 类均有学科定制', () => {
+    const rest = ['化学', '生物', '历史', '地理', '思想政治', '道德与法治', '信息科技', '音乐', '美术', '体育'];
+    for (const subj of rest) {
+      const stage = subj === '思想政治' ? 'high' : subj === '信息科技' ? 'primary_mid' : 'middle';
+      for (const g of ['practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review']) {
+        const bp = getTeachingBlueprint({ genType: g, stage, subject: subj });
+        expect(bp?.custom, `${subj} ${g} 未学科定制`).toBe(true);
+        expect(bp.sections.length).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
+  it('理科新科：化学默写积累为化学用语/概念规律，历史课时练含时间轴/论从史出，体育课时练含动作要领', () => {
+    const chem = buildTeachingInjection({ genType: 'dictation', stage: 'middle', subject: '化学' });
+    expect(chem).toContain('化学·默写积累');
+    expect(chem).toContain('化学用语');
+    expect(chem).toContain('2022义教化学课程理念');
+    const hist = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '历史' });
+    expect(hist).toContain('历史·课时练');
+    expect(hist).toContain('时间轴/地图情境');
+    expect(hist).toContain('论从史出');
+    const pe = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '体育' });
+    expect(pe).toContain('体育·课时练');
+    expect(pe).toContain('动作要领');
   });
 });
