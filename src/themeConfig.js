@@ -1,5 +1,6 @@
 // ==================== 主题定义 ====================
 import { convertFormulasInHtml } from './utils/wordExporter.js';
+import { ZUOWEN_CELL } from './config/layoutSpec.js';
 
 export const themes = [
   // 我的样式
@@ -1387,11 +1388,11 @@ export const getThemeHeadingStyle = (theme, level) => {
 export const applyThemeToContent = (content, themeId, options = {}) => {
   const { isHtmlContent = false, forceImportant = false, stage: stageOpt } = options;
   const theme = getThemeById(themeId);
-  // 🔧 作文格尺寸按学段（用户规格：小学 1.0-1.5cm→取12mm / 中考 1.0cm→10mm / 高考 0.75×0.8cm→宽7.5×高8mm）
-  //    每行格子数不固定：CSS grid auto-fill 按容器宽度自动排满，与导出端按 A4 可用宽度排满一致
+  // 🔧 作文格尺寸按学段（来自排版规格库 ZUOWEN_CELL：主12/初10/高7.5×8；每行格数 CSS auto-fill 自动排满）
   const stage = theme?.stage || stageOpt || 'middle';
-  const zwgMm = stage === 'primary' ? 12 : stage === 'middle' ? 10 : 8;
-  const zwgMmW = stage === 'high' ? 7.5 : zwgMm;
+  const zwgKey = stage === 'primary' ? 'primary' : stage === 'high' ? 'high' : 'middle';
+  const zwgMm = ZUOWEN_CELL[zwgKey].heightMm;   // 格高（主/初正方、高8mm）
+  const zwgMmW = ZUOWEN_CELL[zwgKey].widthMm;   // 格宽（主12/初10/高7.5）
   
   // 🔧 无样式：不应用任何主题 CSS，仅返回纯净 HTML 包装
   if (!theme) {
@@ -1716,7 +1717,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       font-family: 'Times New Roman', 'Georgia', serif;
     }
 
-    /* ⭐ 作文格（尺寸按学段：小学 12mm / 中考 10mm / 高考 宽7.5×高8mm；每行格数按容器宽度自动排满） */
+    /* ⭐ 作文格（尺寸取上方 ZUOWEN_CELL 变量：小学 12mm / 中考 10mm / 高考 宽7.5×高8mm；每行格数按容器宽度自动排满） */
     .zuo-wen-ge {
       display: grid;
       grid-template-columns: repeat(auto-fill, ${zwgMmW}mm);
