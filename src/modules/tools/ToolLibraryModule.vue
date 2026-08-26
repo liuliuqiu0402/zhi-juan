@@ -74,7 +74,7 @@
             </div>
             <div class="lib-desc">{{ lib.desc }}</div>
             <div class="lib-ft">
-              <span class="chip">{{ libStats[lib.id] || lib.count }}</span>
+              <span class="chip">{{ (libStats && libStats[lib.id]) || lib.count }}</span>
               <span class="dim-hint">学段 × 学科 × 类型</span>
             </div>
           </div>
@@ -87,12 +87,7 @@
 <script setup>
 import { computed, ref, watch, markRaw, provide } from 'vue';
 import { useRoute } from 'vue-router';
-import { TOOL_LIBRARIES, SUBJECT_KEYS, getToolLibrary } from '@/config/toolLibrary.js';
-import { listAllBlueprints } from '@/config/blueprintProvider.js';
-import { TEACHING_SUBJECT_BLUEPRINTS } from '@/config/teachingBlueprints.js';
-import { BUILTIN_TEMPLATES } from '@/config/promptLibrary.js';
-import { listValidatorRules } from '@/config/validatorRules.js';
-import { GRAPH_TYPES } from '@/config/eduRenderContract.js';
+import { TOOL_LIBRARIES, SUBJECT_KEYS, getToolLibrary, computeLibStats } from '@/config/toolLibrary.js';
 import DimensionFilter from '@/components/tools/DimensionFilter.vue';
 
 import BlueprintView from './views/BlueprintView.vue';
@@ -107,17 +102,12 @@ const route = useRoute();
 const dims = ref({ stage: '', subject: '', genType: '' });
 const hasAnyDim = computed(() => dims.value.stage || dims.value.subject || dims.value.genType);
 
-/** 各库计数（统一动态口径：真实数据源实时计算，随增删改自动更新） */
-const libStats = computed(() => {
-  const customSubjects = new Set(Object.keys(TEACHING_SUBJECT_BLUEPRINTS).filter((s) => TEACHING_SUBJECT_BLUEPRINTS[s]));
-  const cellCount = Object.keys(BUILTIN_TEMPLATES).filter((k) => k.includes('|')).length;
-  return {
-    blueprint: `真题蓝本 ${listAllBlueprints().length} · 教辅定制 ${customSubjects.size} / ${SUBJECT_KEYS.length} 科`,
-    instruction: `${cellCount} 三维度 cell（学段×学科×类型）`,
-    rules: `规则 ${listValidatorRules().length}`,
-    'render-contract': `图形 TYPE ${GRAPH_TYPES.length}`,
-  };
-});
+/** 各库条数统计（分子/分母由真实数据源自动算，见 toolLibrary.computeLibStats） */
+const statsTick = ref(0);
+const libStats = computed(() => (statsTick.value, computeLibStats()));
+/** 增删改后刷新统计（子视图保存/删除后经 inject 调用） */
+const refreshLibStats = () => { statsTick.value += 1; };
+provide('refreshLibStats', refreshLibStats);
 
 /** 向子视图提供三维度检索键（蓝图/规则/要点等子库 inject 使用） */
 provide('toolDims', dims);

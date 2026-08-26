@@ -8,6 +8,13 @@
  * ============================================================
  */
 
+import { EXAM_BLUEPRINTS } from './examPaperBlueprints.js';
+import { listAllBlueprints } from './blueprintProvider.js';
+import { TEACHING_SUBJECT_BLUEPRINTS, TEACHING_GEN_TYPES } from './teachingBlueprints.js';
+import { BUILTIN_TEMPLATES } from './promptLibrary.js';
+import { listValidatorRules } from './validatorRules.js';
+import { GRAPH_TYPES } from './eduRenderContract.js';
+
 /** 学段维度（年级 → 学段的映射由教材元数据提供） */
 export const STAGE_KEYS = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
 
@@ -62,7 +69,7 @@ export const TOOL_LIBRARIES = [
     name: '蓝图库',
     icon: '📐',
     desc: '卷面/教辅骨架：大题、分值、载体、内容范围（课标条款由指令库承载）',
-    count: '54 真题蓝本 · 15 科教辅',
+    count: '真题蓝本 · 教辅结构（条数动态统计）',
     status: 'ok',
     migrate: 'ready',
     toolbar: { actions: ['new', 'validate'], filter: 'dim3' },
@@ -72,7 +79,7 @@ export const TOOL_LIBRARIES = [
     name: '指令库',
     icon: '📝',
     desc: '创作要求与模板：角色、创作要求、学科×学段要点、学段特点、输出格式、质量底线',
-    count: '486 三维度 cell',
+    count: '三维度 cell（学段×学科×类型，动态统计）',
     status: 'ok',
     migrate: 'ready',
     toolbar: { actions: ['new'], filter: 'dim3' },
@@ -82,7 +89,7 @@ export const TOOL_LIBRARIES = [
     name: '生成端规则库',
     icon: '🧪',
     desc: '确定性门：分值账目、载体一致、配对、覆盖度、学段底线',
-    count: '33 规则',
+    count: '规则（动态统计）',
     status: 'ok',
     migrate: 'ready',
     toolbar: { actions: ['new'], filter: 'dim3' },
@@ -118,4 +125,27 @@ export const isValidDimension = ({ stage, subject, genType } = {}) => {
   return ok(stage, STAGE_KEYS) && ok(subject, SUBJECT_KEYS) && ok(genType, GEN_TYPE_KEYS);
 };
 
-export default { STAGE_KEYS, SUBJECT_KEYS, GEN_TYPE_KEYS, WILDCARD, DIMENSIONS, TOOL_LIBRARIES, getToolLibrary, isValidDimension };
+/**
+ * 各库条数统计（统一口径：都按【条数】计，分子/分母由真实数据源自动算，不硬编码）
+ *   - 蓝图库  真题蓝本：当前条数 / 内置蓝本键总数
+ *             教辅结构：当前学科×类型条数 / 理论条数（15科×8类）
+ *   - 指令库  三维度 cell：当前 cell 数（学段×学科×类型，含实际开设组合）
+ *   - 规则库  规则条数
+ *   - 渲染契约 图形 TYPE 条数
+ * 返回 { [libId]: '分子/分母 单位' }，随增删改实时更新（首页 chip 与子页概览共用）。
+ */
+export function computeLibStats() {
+  const bps = listAllBlueprints();
+  const builtinKeys = Object.keys(EXAM_BLUEPRINTS);
+  const teachingTotal = Object.values(TEACHING_SUBJECT_BLUEPRINTS)
+    .reduce((n, types) => n + Object.keys(types).filter((k) => k !== 'stages').length, 0);
+  const cellKeys = Object.keys(BUILTIN_TEMPLATES).filter((k) => k.includes('|'));
+  return {
+    blueprint: `真题蓝本 ${bps.length}/${builtinKeys.length} 条 · 教辅结构 ${teachingTotal}/${SUBJECT_KEYS.length * TEACHING_GEN_TYPES.length} 条`,
+    instruction: `${cellKeys.length} 三维度 cell`,
+    rules: `规则 ${listValidatorRules().length} 条`,
+    'render-contract': `图形 TYPE ${GRAPH_TYPES.length}`,
+  };
+}
+
+export default { STAGE_KEYS, SUBJECT_KEYS, GEN_TYPE_KEYS, WILDCARD, DIMENSIONS, TOOL_LIBRARIES, getToolLibrary, isValidDimension, computeLibStats };

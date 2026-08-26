@@ -106,6 +106,7 @@ import { listPromptTemplates, savePromptTemplate, deletePromptTemplate, BUILTIN_
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
+const refreshLibStats = inject('refreshLibStats', () => {});
 
 const STAGE_LABELS = {
   primary_low: '小学低段（1-2年级）', primary_mid: '小学中段（3-4年级）', primary_high: '小学高段（5-6年级）', middle: '初中（7-9年级）', high: '高中',
@@ -121,7 +122,7 @@ const GEN_TYPE_NAME = Object.fromEntries(GEN_TYPE_LABELS.map((t) => [t.key, t.la
 const allTpl = ref(listPromptTemplates());
 const totalCount = computed(() => Object.keys(BUILTIN_TEMPLATES).filter((k) => k.includes('|')).length); // 内置三维度 cell（学段×学科×类型，仅实际开设组合）
 const userCount = computed(() => allTpl.value.filter((t) => t.source === 'user').length);
-const reload = () => { allTpl.value = listPromptTemplates(); };
+const reload = () => { allTpl.value = listPromptTemplates(); refreshLibStats(); };
 
 /* ===== 手风琴 ===== */
 const openKey = ref('');

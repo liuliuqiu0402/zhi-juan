@@ -114,6 +114,7 @@ import { computed, inject, ref } from 'vue';
 import { listValidatorRules, saveUserRule, deleteUserRule, resetUserRules } from '../../../config/validatorRules.js';
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
+const refreshLibStats = inject('refreshLibStats', () => {});
 
 const STAGE_LABELS = {
   primary_low: '小学低段（1-2年级）', primary_mid: '小学中段（3-4年级）', primary_high: '小学高段（5-6年级）', middle: '初中（7-9年级）', high: '高中',
@@ -127,7 +128,7 @@ const GEN_TYPE_NAME = {
 const allRules = ref(listValidatorRules());
 const totalCount = computed(() => allRules.value.length);
 const userCount = computed(() => allRules.value.filter((r) => r.source === 'user').length);
-const reload = () => { allRules.value = listValidatorRules(); };
+const reload = () => { allRules.value = listValidatorRules(); refreshLibStats(); };
 
 /* ===== 手风琴 ===== */
 const openKey = ref('');

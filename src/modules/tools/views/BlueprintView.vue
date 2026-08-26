@@ -4,9 +4,9 @@
     <div class="bp-overview">
       <div>
         <span class="lib-badge">📐 蓝图库</span>
-        <b>真题蓝本 {{ examList.length }} / {{ allExamCount }}</b>
+        <b>真题蓝本 {{ examList.length }} / {{ allExamCount }} 条</b>
         <span class="ov-sep">·</span>
-        <b>教辅结构 学科定制 {{ customSubjectCount }} / {{ SUBJECT_KEYS.length }} 科</b>
+        <b>教辅结构 {{ teachList.length }} / {{ allTeachCount }} 条</b>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="dim-now">
@@ -161,6 +161,7 @@ import { listAllBlueprints, saveUserBlueprint, deleteUserBlueprint } from '../..
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
+const refreshLibStats = inject('refreshLibStats', () => {});
 
 const STAGE_LABELS = {
   primary_low: '小学低段（1-2年级）', primary_mid: '小学中段（3-4年级）', primary_high: '小学高段（5-6年级）', middle: '初中（7-9年级）', high: '高中',
@@ -187,10 +188,9 @@ for (const subj of SUBJECT_KEYS) {
   }
 }
 const allTeachCount = allTeach.length;
-const customSubjectCount = computed(() => new Set(allTeach.filter((t) => t.custom).map((t) => t.subject)).size);
 
 /** 刷新数据源（保存/删除后调用） */
-const reload = () => { allExam.value = listAllBlueprints().map((bp) => enhanceBlueprint(bp)); };
+const reload = () => { allExam.value = listAllBlueprints().map((bp) => enhanceBlueprint(bp)); refreshLibStats(); };
 
 /* ===== 手风琴 ===== */
 const openKey = ref('');
