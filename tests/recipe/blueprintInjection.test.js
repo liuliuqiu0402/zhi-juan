@@ -44,16 +44,14 @@ describe('buildBlueprintInjection（exam 蓝图精简注入块）', () => {
     expect(inject).not.toContain('🔴 本蓝本为新课标真题卷通行规范');
   });
 
-  it('注入分值规则（允许 0.5 分、禁 0.5 以外的更小小数；措辞统一"大题"）', () => {
+  it('不再注入分值规则（分值分配回归 AI 命题常识，账目自洽由规则库 score 系列验算）', () => {
     const bp = getExamBlueprint('语文', 'middle', '江苏·南通'); // 120 → 150 缩放场景
     const inject = buildBlueprintInjection(bp);
-    expect(inject).toContain('【分值规则】');
-    expect(inject).toContain('小题数×每题分=大题分');
-    // 允许 0.5 分（高考英语听力每题 1.5 分真题惯例），仅禁更小小数
-    expect(inject).toContain('允许 0.5 分');
-    expect(inject).toContain('严禁 0.5 分以外的更小小数');
-    // 措辞与大题统一（无"板块分"）
-    expect(inject).not.toContain('板块分');
+    expect(inject).not.toContain('【分值规则】');
+    expect(inject).not.toContain('小题数×每题分=大题分');
+    // 结构 + 学段/学科新课标条款仍在
+    expect(inject).toContain('【卷面结构（真题蓝本，大题与分值固定，不得增删改）】');
+    expect(inject).toContain('新课标命题要求');
   });
 });
 
