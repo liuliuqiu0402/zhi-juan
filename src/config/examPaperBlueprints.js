@@ -119,7 +119,7 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '识字与写字', score: 32, note: '覆盖本单元识字与写字能力点（在语境中考查）；书写用田字格。' },
       { name: '积累与运用', score: 24, note: '覆盖本单元积累与运用能力点，在真实语境中选填、仿写。' },
-      { name: '阅读与鉴赏', score: 14, note: '课内课外阅读适量（7小题，每题2分），设问沿信息提取→理解递进；选文标注出处。' },
+      { name: '阅读与鉴赏', score: 14, note: '课内课外阅读适量，设问沿信息提取→理解递进；选文标注出处。' },
       { name: '表达与交流', score: 30, note: '口语交际与看图写话结合本单元主题；写话给情境与词语支架，用作文格并配图。' },
     ],
   },
@@ -174,7 +174,7 @@ export const EXAM_BLUEPRINTS = {
   '数学|primary_mid': {
     label: '数学·小学中段（3-4年级）', fullScore: 100, duration: '90分钟',
     sections: [
-      { name: '口算', score: 10, note: '口算（10题，每题1分）。' },
+      { name: '口算', score: 10, note: '口算，直接写得数。' },
       { name: '用竖式计算', score: 18, note: '竖式计算6题（含验算要求2题），三年级含三位数加减、多位数乘一位数；三年级（中段）竖式题用 <div class="bracket-grid"> 花式竖式格（3行书写区，学生竖式写在括号内），四年级起直接留竖式书写区' },
       { name: '填空', score: 20, note: '概念、单位换算、估算、图形特征等，一律情境化设问' },
       { name: '判断', score: 8, note: '概念辨析，打"√"或"×"' },
@@ -186,7 +186,7 @@ export const EXAM_BLUEPRINTS = {
   '数学|primary_high': {
     label: '数学·小学高段（5-6年级）', fullScore: 100, duration: '90分钟',
     sections: [
-      { name: '直接写得数', score: 8, note: '直接写得数（8题，每题1分）。' },
+      { name: '直接写得数', score: 8, note: '直接写得数。' },
       { name: '脱式计算（能简算的要简算）', score: 18, note: '脱式计算4题＋解方程2题（六年级），标注简算要求' },
       { name: '填空', score: 20, note: '概念、数感、几何度量、统计等，一律情境化设问' },
       { name: '判断', score: 8, note: '概念辨析，打"√"或"×"' },
