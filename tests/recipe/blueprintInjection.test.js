@@ -132,12 +132,12 @@ describe('OUTPUT_FORMAT_HINT（非 exam 统一输出格式）', () => {
     expect(OUTPUT_FORMAT_HINT).toContain('<h1>');
     expect(OUTPUT_FORMAT_HINT).toContain('<h2>');
     expect(OUTPUT_FORMAT_HINT).toContain('只输出资料正文');
-    expect(OUTPUT_FORMAT_HINT).toContain('<u>＿＿＿</u>');
+    expect(OUTPUT_FORMAT_HINT).toContain('填空空位宽度与答案字数匹配');
   });
 
-  it('含禁止事项：代码块包裹 / 答案混入正文', () => {
-    expect(OUTPUT_FORMAT_HINT).toContain('严禁代码块包裹输出');
+  it('含正文边界要求：答案不入正文；代码块由代码层拦截，不再要求模型', () => {
     expect(OUTPUT_FORMAT_HINT).toContain('严禁在正文中输出任何答案/解析');
+    expect(OUTPUT_FORMAT_HINT).not.toContain('严禁代码块包裹输出');
   });
 });
 
@@ -148,7 +148,7 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
       const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: g });
       expect(t.template, `类型 ${g} 缺输出格式`).toContain('【输出格式】');
       expect(t.template).toContain('只输出资料正文');
-      expect(t.template).toContain('严禁代码块包裹输出');
+      expect(t.template).toContain('填空空位宽度与答案字数匹配');
     }
   });
 
@@ -167,27 +167,30 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
   });
 });
 
-describe('作答空规范全模板覆盖（横线宽度 + 半角括号 + 括号宽度）', () => {
+describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微观格式）', () => {
   const ALL_TYPES = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
-  it('9 类型通用模板均含横线宽度标准（1字≈2格…）与半角括号作答空', () => {
+  it('9 类型通用模板均含宽度匹配语义与载体要求（无微观格式/诱导词）', () => {
     for (const g of ALL_TYPES) {
       const t = getPromptTemplate({ genType: g });
-      expect(t.template, `类型 ${g} 缺横线宽度标准`).toContain('1字≈2格');
-      expect(t.template, `类型 ${g} 缺半角括号要求`).toContain('半角括号');
-      expect(t.template, `类型 ${g} 缺括号横线二选一禁令`).toContain('括号与横线二选一');
+      expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('1字≈2格');
+      expect(t.template, `类型 ${g} 缺括号空位要求`).toContain('选择/判断用括号空位');
+      expect(t.template, `类型 ${g} 缺连线配对要求`).toContain('连线题只输出正确配对');
     }
   });
 
-  it('括号宽度按答案字数（括号内空格数=答案字数）全模板一致', () => {
+  it('宽度语义按答案字数匹配（不再要求模型计算空格数）', () => {
     for (const g of ALL_TYPES) {
       const t = getPromptTemplate({ genType: g });
-      expect(t.template, `类型 ${g}`).toContain('空格数=答案字数');
+      expect(t.template, `类型 ${g}`).toContain('宽度与答案字数匹配');
+      expect(t.template, `类型 ${g} 残留微观格式`).not.toContain('空格数=答案字数');
+      expect(t.template, `类型 ${g} 残留诱导词`).not.toContain('括号与横线二选一');
     }
   });
 
-  it('非 exam 输出格式含作答区留白与田字格/四线三格标记', () => {
+  it('非 exam 输出格式含作答区留白（无具体行数）与田字格/四线三格标记', () => {
     const t = getPromptTemplate({ genType: 'practice' });
-    expect(t.template).toContain('不少于3行');
+    expect(t.template).toContain('留足作答区');
+    expect(t.template).not.toContain('不少于3行');
     expect(t.template).toContain('tian-zi-ge');
     expect(t.template).toContain('four-line-three');
   });
@@ -202,18 +205,18 @@ describe('作答空规范全模板覆盖（横线宽度 + 半角括号 + 括号�
 });
 
 describe('质量底线三维度注入（类型/学科/学段各司其职，非一刀切）', () => {
-  it('类型维度：各类型【要求】带专属底线', () => {
+  it('类型维度：各类型【要求】带专属底线（无诱导措辞）', () => {
     const practice = getPromptTemplate({ genType: 'practice' });
-    expect(practice.template).toContain('禁止同情境同设问的机械重复'); // practice 防重复
+    expect(practice.template).toContain('任务之间不重复不雷同'); // practice 防重复（正面表述）
     const special = getPromptTemplate({ genType: 'special' });
     expect(special.template).toContain('按题型或考点分类组织');
-    expect(special.template).toContain('变式题须换情境换角度');
+    expect(special.template).toContain('同板块内题目不雷同');
     const reading = getPromptTemplate({ genType: 'reading' });
     expect(reading.template).toContain('短文完整呈现（不截断）');
     const dictation = getPromptTemplate({ genType: 'dictation' });
-    expect(dictation.template).toContain('不遗漏不重复');
+    expect(dictation.template).toContain('严格对应教材要求');
     const review = getPromptTemplate({ genType: 'review' });
-    expect(review.template).toContain('避免同考点重复考查');
+    expect(review.template).toContain('按考点分布');
   });
 
   it('学科维度：三维度模板携带学科底线（防孤立/情境化）', () => {
