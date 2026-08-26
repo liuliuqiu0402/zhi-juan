@@ -174,7 +174,7 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
       const t = getPromptTemplate({ genType: g });
       expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('1字≈2格');
       expect(t.template, `类型 ${g} 缺括号空位要求`).toContain('选择/判断用括号空位');
-      expect(t.template, `类型 ${g} 缺连线配对要求`).toContain('连线题只输出正确配对');
+      expect(t.template, `类型 ${g} 残留连线诱导词`).not.toContain('连线题');
     }
   });
 
@@ -195,12 +195,12 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
     expect(t.template).toContain('four-line-three');
   });
 
-  it('学段特点无旧措辞 [配图说明]，统一为 [IMAGE] 标记', () => {
+  it('学段特点无旧措辞 [配图说明]，统一为 [IMAGE] 标记；时长不写入学段特点（归蓝图）', () => {
     const t = getPromptTemplate({ grade: 'primary_low', genType: 'exam' });
     expect(t.template).not.toContain('[配图说明]');
     expect(t.template).toContain('[IMAGE] 标记');
-    // 题量表述与考试时长自洽（低年级完成约40分钟，留检查时间）
-    expect(t.template).toContain('留足读题与检查时间');
+    expect(t.template).toContain('认知底线');
+    expect(t.template).not.toContain('40分钟'); // 时长由蓝图 duration 唯一源，学段特点不含分钟
   });
 });
 
