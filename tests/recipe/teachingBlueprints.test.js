@@ -118,8 +118,8 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(bp.subject).toBe('数学');
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '数学' });
     expect(inject).toContain('通用·课时练');
-    // 学段参数仍生效（中段 40 分钟）
-    expect(inject).toContain('40分钟');
+    // 学段参数仍生效（初中 45 分钟）
+    expect(inject).toContain('45分钟');
   });
 
   it('语文全 8 类教辅均有学科定制栏目', () => {
