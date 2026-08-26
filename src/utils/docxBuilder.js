@@ -5,8 +5,18 @@
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader } from 'docx';
 import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
+import { ZUOWEN_CELL, ZUOWEN_MARK_STEP } from '../config/layoutSpec.js';
 
 // ============ 工具函数 ============
+
+// 🔧 作文格尺寸统一从排版规格库读取（mm 口径），本文件只做 mm→DXA 换算，不重复散落常量
+//    1mm ≈ 56.69 DXA（Word 精确保留：1 inch = 25.4mm = 1440 DXA → 1mm = 1440/25.4 ≈ 56.69）
+const MM2DXA = 56.69;
+const zwgCellByStage = (stage) => {
+  const g = stage === 'primary' ? 'primary' : stage === 'high' ? 'high' : 'middle';
+  const c = ZUOWEN_CELL[g];
+  return { widthDxa: Math.round(c.widthMm * MM2DXA), heightDxa: Math.round((c.heightMm || c.widthMm) * MM2DXA), widthMm: c.widthMm };
+};
 
 /** 阿拉伯数字 → 罗马数字（列表 type="i"/"I" 导出用） */
 const romanize = (n) => {
@@ -1033,10 +1043,8 @@ const processBlockNode = (node, ctx = {}) => {
       });
     }
     if (spans.length > 0) {
-      // 🔧 格子尺寸按学段（用户规格，1mm ≈ 56.69 DXA）：
-      //    primary 12mm≈680 / middle 10mm≈567 / high 宽0.75cm≈425（格高 8mm≈454，非正方形）
-      const zwgCellDxa = __zwgStage === 'primary' ? 680 : __zwgStage === 'middle' ? 567 : 425;
-      const zwgCellH = __zwgStage === 'high' ? 454 : zwgCellDxa;
+      // 🔧 格子尺寸按学段（来自排版规格库 mm → DXA；解析时 __zwgStage 已由 buildDocxFromDom 设置）
+      const { widthDxa: zwgCellDxa, heightDxa: zwgCellH } = zwgCellByStage(__zwgStage);
       // 🔧 每行格子数不固定：按 A4 可用宽度自动排满（__zwgPerRow 由 buildDocxFromDom 计算）
       const perRow = Math.max(8, __zwgPerRow || 20);
       // 🔧 单元格段落单倍行高（防默认行高撑高格子）；行高由 TableRow 的 EXACT=格宽 强制 →
@@ -1048,8 +1056,8 @@ const processBlockNode = (node, ctx = {}) => {
       });
       // 🔧 正规作文纸字数标注（格子内小字下标，不占行、不影响书写）：累计 50/100/150…
       //    字所在的那个格子内部底部用浅灰小字标数字（如"50"），学生书写在格子中央，
-      //    打印后标注不干扰；间隔按学段：小学 50 字、中学（中考/高考）100 字（试卷规范）
-      const MARK_STEP = __zwgStage === 'primary' ? 50 : 100;
+      //    打印后标注不干扰；间隔按学段（来自排版规格库 ZUOWEN_MARK_STEP：小学 50 / 中学 100）
+      const MARK_STEP = ZUOWEN_MARK_STEP[__zwgStage === 'primary' ? 'primary' : __zwgStage === 'middle' ? 'middle' : 'high'];
       const MARK_MAX = 800;
       const MARK_STEPS = [];
       for (let m = MARK_STEP; m <= MARK_MAX; m += MARK_STEP) MARK_STEPS.push(m);
@@ -1876,18 +1884,18 @@ const processBlockNode = (node, ctx = {}) => {
 
 /** 从 contentEditable DOM 构建 docx Document */
 export const buildDocxFromDom = (containerEl, stage = 'middle') => {
-  // 🔧 作文格学段（正式试卷规格：小学 8mm / 初中 7mm / 高中 6mm）
+  // 🔧 作文格学段（来自排版规格库 ZUOWEN_CELL：小学12/初中10/高中7.5mm），buildDocxFromDom 启动时设置
   __zwgStage = stage || 'middle';
   // 🔧 作文格每行格子数按 A4 可用宽度自动排满——必须在 processBlockNode 之前计算
   //    （作文格导出时读取 __zwgPerRow；旧实现在 children 构建后才算，导致默认 20 列超宽）
   {
     const hasSealDetect = !!(containerEl.querySelector && containerEl.querySelector('.sealed-wrapper, .sealed-line, .seal-line, .seal-zone'));
-    const zwgCellW = __zwgStage === 'primary' ? 680 : __zwgStage === 'middle' ? 567 : 425;
+    // 🔧 作文格尺寸（mm）来自排版规格库（zwgCellByStage 已换算）
+    const { widthMm: zwgCellMm } = zwgCellByStage(__zwgStage);
     // 🔧 每行格子数按 A4 可用宽度排满（无独立标注列，字数标注走行间"下标"方案）
     //    🔴 用 mm 口径与预览 CSS `repeat(auto-fill, Nmm)` 严格一致（DXA 换算有精度误差，会导致预览/导出行列差 1）：
     //    可用宽 = A4 宽 210mm − 左右边距（普通 20mm×2 / 密封线卷 25mm×2）；格宽 = 学段格宽（12/10/7.5mm）
     const zwgMarginMm = hasSealDetect ? 50 : 40;
-    const zwgCellMm = __zwgStage === 'primary' ? 12 : __zwgStage === 'middle' ? 10 : 7.5;
     __zwgPerRow = Math.max(8, Math.floor((210 - zwgMarginMm) / zwgCellMm));
   }
   const children = [];

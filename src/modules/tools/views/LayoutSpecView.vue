@@ -42,7 +42,7 @@
         </tbody>
       </table>
     </div>
-    <p style="font-size: 12px; color: var(--text-muted); margin-top: 10px;">※ 数据源：src/config/layoutSpec.js（填空/作文格已由清洗器与导出端读取；docxBuilder 作文格 DXA 换算接入见后续排期）。</p>
+    <p style="font-size: 12px; color: var(--text-muted); margin-top: 10px;">※ 数据源：src/config/layoutSpec.js（填空/作文格尺寸已由清洗器与 docxBuilder 读取；themeConfig 作文格 CSS 参数对齐见后续）。</p>
   </div>
 </template>
 
