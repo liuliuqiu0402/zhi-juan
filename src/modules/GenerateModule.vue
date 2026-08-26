@@ -401,25 +401,29 @@
       </div>
     </div>
 
-    <!-- 组织风格弹窗（命题风格/呈现风格按类型分组；必选类型生成前需确认） -->
+    <!-- 组织风格弹窗（命题/呈现两组全部列出；当前类型不适用的置灰） -->
     <div v-if="showStyleModal" class="modal-mask" @click.self="showStyleModal = false">
       <div class="modal">
         <h3>🎨 选择组织风格</h3>
         <div class="option-list">
-          <template v-if="styleOptsForCurrent.group === 'proposition'">
-            <div class="style-group-title">命题风格（题目组织方式）</div>
-          </template>
-          <template v-else>
-            <div class="style-group-title">呈现风格（内容组织方式）</div>
-          </template>
-          <label v-for="opt in styleOptsForCurrent.options" :key="opt.value" class="option-item">
-            <input type="radio" v-model="propositionStyle" :value="opt.value" @change="styleManuallySet = true" />
+          <div class="style-group-title">命题风格 · 以题为主（题目如何组织情境）</div>
+          <label v-for="opt in propositionOptions" :key="opt.value" class="option-item" :class="{ 'opt-disabled': !opt.applicable }">
+            <input type="radio" v-model="propositionStyle" :value="opt.value" :disabled="!opt.applicable" @change="styleManuallySet = true" />
             <span class="option-label">{{ opt.label }}</span>
             <span class="option-desc">{{ opt.desc }}</span>
             <span class="option-tip">{{ opt.tip }}</span>
+            <span v-if="!opt.applicable" class="opt-for">适用于：{{ opt.appliesToLabel }}</span>
+          </label>
+          <div class="style-group-title">呈现风格 · 以内容为主（内容如何组织呈现）</div>
+          <label v-for="opt in presentationOptions" :key="opt.value" class="option-item" :class="{ 'opt-disabled': !opt.applicable }">
+            <input type="radio" v-model="propositionStyle" :value="opt.value" :disabled="!opt.applicable" @change="styleManuallySet = true" />
+            <span class="option-label">{{ opt.label }}</span>
+            <span class="option-desc">{{ opt.desc }}</span>
+            <span class="option-tip">{{ opt.tip }}</span>
+            <span v-if="!opt.applicable" class="opt-for">适用于：{{ opt.appliesToLabel }}</span>
           </label>
         </div>
-        <p class="hint">💡 系统已按资料类型推荐默认风格（{{ styleLabel }}）。命题风格决定题目如何组织情境；呈现风格决定内容型资料如何组织呈现。如需恢复自动匹配，点击"恢复自动"。</p>
+        <p class="hint">💡 全部组织风格如上（当前资料类型不适用的已置灰）。系统已按当前类型推荐默认风格（{{ styleLabel }}）。如需恢复自动匹配，点击"恢复自动"。</p>
         <div class="modal-actions">
           <button class="btn" @click="restoreAutoStyle" v-if="styleManuallySet">↻ 恢复自动</button>
           <button class="btn" @click="showStyleModal = false">取消</button>
@@ -3098,6 +3102,19 @@ const restoreAutoStyle = () => {
 const styleOptsForCurrent = computed(() => styleOptionsForType(genTypes.value[0]));
 /** 当前类型是否需要必选风格确认 */
 const styleRequiredForCurrent = computed(() => genTypes.value.some((t) => isStyleRequiredForType(t)));
+/** 全部风格分组展示（当前类型不适用的置灰，标注适用类型） */
+const styleGroupOptions = (group) => {
+  const cur = genTypes.value[0] || '';
+  return styleOptions
+    .filter((o) => o.group === group)
+    .map((o) => ({
+      ...o,
+      applicable: !o.appliesTo.length || o.appliesTo.includes(cur),
+      appliesToLabel: (o.appliesTo || []).map((t) => genTypeTemplates[t]?.name || t).join('、'),
+    }));
+};
+const propositionOptions = computed(() => styleGroupOptions('proposition'));
+const presentationOptions = computed(() => styleGroupOptions('presentation'));
 /** 弹窗"确定"：确认当前风格（必选确认标记置位） */
 const confirmStyle = () => {
   styleManuallySet.value = true;
@@ -8556,6 +8573,8 @@ const addBlueprintQuestion = () => {
   color: #889;
   margin-top: 2px;
 }
+.opt-disabled { opacity: 0.45; }
+.opt-for { display: block; width: 100%; font-size: 11px; color: var(--warn, #a06a10); margin-top: 2px; }
 
 /* 🔧 省市差异化选择区 */
 .region-select-section {

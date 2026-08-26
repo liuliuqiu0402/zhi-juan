@@ -97,7 +97,6 @@ import RenderContractView from './views/RenderContractView.vue';
 import SubjectPointsView from './views/SubjectPointsView.vue';
 import ContextView from './views/ContextView.vue';
 import LayoutSpecView from './views/LayoutSpecView.vue';
-import MemoryView from './views/MemoryView.vue';
 
 const route = useRoute();
 
@@ -128,7 +127,6 @@ const VIEW_MAP = {
   'subject-points': markRaw(SubjectPointsView),
   'context': markRaw(ContextView),
   'layout-spec': markRaw(LayoutSpecView),
-  'memory': markRaw(MemoryView),
 };
 
 const activeLib = computed(() => {
@@ -153,19 +151,8 @@ const onValidate = () => {
   window.alert(`「${activeLib.value.name}」校验功能将在迁移后接入。`);
 };
 
-/** 清理：记忆库直接清空 localStorage，其余库待迁移 */
+/** 清理：暂无可清理的子库（记忆库已退役） */
 const reloadKey = ref(0);
-const onClear = () => {
-  if (!activeLib.value) return;
-  if (activeLib.value.id === 'memory') {
-    if (window.confirm('确认清空全部记忆记录？将影响后续生成的"避雷同"能力。')) {
-      localStorage.removeItem('wisdom_unit_paper_memory_v1');
-      reloadKey.value += 1;
-    }
-    return;
-  }
-  window.alert(`「${activeLib.value.name}」清理功能待迁移后开放。`);
-};
 
 watch(dims, () => {
   // TODO(迁移)：按 dims 检索对应库数据（蓝图/规则/要点等），当前为框架占位

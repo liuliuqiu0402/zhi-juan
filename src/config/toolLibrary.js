@@ -127,16 +127,6 @@ export const TOOL_LIBRARIES = [
     migrate: 'empty',
     toolbar: { actions: ['new'], filter: 'none' },
   },
-  {
-    id: 'memory',
-    name: '记忆库',
-    icon: '🧠',
-    desc: '跨会话去重：已出题摘要、分桶存储、自动清理',
-    count: '本地存储',
-    status: 'ok',
-    migrate: 'ready',
-    toolbar: { actions: ['clear'], filter: 'none' },
-  },
 ];
 
 /** 按 id 取库元数据 */
