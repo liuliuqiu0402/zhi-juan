@@ -237,7 +237,6 @@ const AUDIT_ISSUES = [
   { code: 'I6', type: 'over', key: '', desc: '小题标题规范硬编码 8 个题型名+"严禁自创"，压制模型自主命名。', action: '精简为"小题标题准确描述作答形式"。' },
   { code: 'I7', type: 'dup', key: '', desc: '"严禁 Markdown/代码块"在 OUTPUT_FORMAT_BLOCK 与 ANSWER_FORMAT_SPEC 重复；代码层已能拦截。', action: '删除重复句，代码层拦截。' },
   { code: 'I8', type: 'dup', key: '', desc: 'STAGE_EXAM_EXTRAS 与 EXAM_STAGE_STANDARDS 大面积重复（难度6:3:1 等），exam 生成时两组同时注入。', action: 'STAGE_EXAM_EXTRAS 删重复句，学段条款为唯一事实源。' },
-  { code: 'I9', type: 'dup', key: '', desc: 'SUBJECT_EXAM_EXTRAS 与 EXAM_SUBJECT_STANDARDS 底线高度重复（禁挖空/听力原文/禁孤立考进率等）。', action: 'SUBJECT_EXAM_EXTRAS 保留教辅适用要点，删重复底线句。' },
 ];
 const filteredIssues = computed(() => {
   const su = dims.value.subject, st = dims.value.stage;
