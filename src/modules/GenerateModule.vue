@@ -401,22 +401,29 @@
       </div>
     </div>
 
-    <!-- 命题风格弹窗 -->
+    <!-- 组织风格弹窗（命题风格/呈现风格按类型分组；必选类型生成前需确认） -->
     <div v-if="showStyleModal" class="modal-mask" @click.self="showStyleModal = false">
       <div class="modal">
-        <h3>🎨 选择命题风格</h3>
+        <h3>🎨 选择组织风格</h3>
         <div class="option-list">
-          <label v-for="opt in styleOptions" :key="opt.value" class="option-item">
+          <template v-if="styleOptsForCurrent.group === 'proposition'">
+            <div class="style-group-title">命题风格（题目组织方式）</div>
+          </template>
+          <template v-else>
+            <div class="style-group-title">呈现风格（内容组织方式）</div>
+          </template>
+          <label v-for="opt in styleOptsForCurrent.options" :key="opt.value" class="option-item">
             <input type="radio" v-model="propositionStyle" :value="opt.value" @change="styleManuallySet = true" />
             <span class="option-label">{{ opt.label }}</span>
             <span class="option-desc">{{ opt.desc }}</span>
+            <span class="option-tip">{{ opt.tip }}</span>
           </label>
         </div>
-        <p class="hint">💡 选择资料类型时，系统已按新课标推荐自动匹配命题风格（考试→统一情境，练习/专项→情境融合）。统一情境要求整份资料围绕一个核心情境展开；情境融合要求每个模块设置独立小情境。两者均确保所有题目置于真实学习情境中考查。大单元教学和项目式学习适用于特殊教学场景，需手动选择。如需恢复自动匹配，点击下方"恢复自动"。</p>
+        <p class="hint">💡 系统已按资料类型推荐默认风格（{{ styleLabel }}）。命题风格决定题目如何组织情境；呈现风格决定内容型资料如何组织呈现。如需恢复自动匹配，点击"恢复自动"。</p>
         <div class="modal-actions">
           <button class="btn" @click="restoreAutoStyle" v-if="styleManuallySet">↻ 恢复自动</button>
           <button class="btn" @click="showStyleModal = false">取消</button>
-          <button class="btn-primary" @click="showStyleModal = false">确定</button>
+          <button class="btn-primary" @click="confirmStyle">确定</button>
         </div>
       </div>
     </div>
@@ -1504,6 +1511,10 @@ import { getStoragePath } from '../utils/pathHelper.js';  // ✨ 存储路径工
 import { 
   styleOptions,
   styleInstructions,
+  styleOptionsForType,
+  DEFAULT_STYLE_BY_TYPE,
+  isStyleRequiredForType,
+  STYLE_GROUP,
   genTypeOptions,
   genTypeTemplates,
   scopeOptions,
@@ -1529,7 +1540,6 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, T
 import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml, parseMarkdownToTextRuns } from '../utils/wordExporter.js';
 import { buildTianZiGeMarker, htmlToDocxBlob } from '../utils/docxBuilder.js';
 import { GEN_CONST } from '../config/generationConstants.js';
-import { buildUnitKey, pushUnitPaperMemory, buildMemoryDiffInstruction, extractQuestionSamples } from '../utils/unitPaperMemory.js';
 import { injectDrawingML, TZG_MARKER, FLT_MARKER } from '../utils/drawingMLShapes.js';
 import storage from '../utils/storage';
 import { normalizeSealStructure, wrapContentForTheme, applyThemeToContent } from '../themeConfig.js';  // 🔧 密封线结构归一化 + 试卷主题包装（导出与排版模块一致）
@@ -1583,6 +1593,7 @@ const scopeOverride = ref('');  // 🔧 范围确认弹窗后用户选定的范�
 const mergeChapters = ref(true);  // 🔧 多章节合并出卷开关（默认合并；false=逐章拆分）
 const propositionStyle = ref('');
 const styleManuallySet = ref(false);  // 🔴 追踪用户是否手动选过命题风格——false 时切换 genType 自动覆盖
+const styleConfirmed = ref(false);    // 🔴 必选风格是否已确认（生成前弹窗确认；换类型时重置）
 const genTypes = ref([]);
 // 🔴 新架构：生成前置条件 = 已选教材章节（不再依赖指令文本）
 const hasSelectedChapters = computed(() => textbookStore.selectedChapterCount > 0);
@@ -3007,16 +3018,16 @@ const { isGenerating, progress: generateProgress, statusText: generateStatus, ge
 watch(genTypes, () => {
   const type = genTypes.value[0];
   labelStyle.value = type ? loadLabelStyle(type) : '';
-  // 🔴 生成端默认：用户选 genType 后若未手动选过命题风格，自动设默认值——
-  //    exam → unified_context（整卷一个核心情境，新课标推荐），
-  //    非 exam → context_fusion（每个模块独立小情境）
-  //    用户手动选过风格后（styleManuallySet=true），切换 genType 不再覆盖
-  if (type && !styleManuallySet.value) {
-    const autoStyle = type === 'exam' ? 'unified_context' : 'context_fusion';
-    if (propositionStyle.value !== autoStyle) {
-      propositionStyle.value = autoStyle;
-      console.log(`[propositionStyle] 自动设置默认命题风格: ${autoStyle} (genType=${type})`);
+  // 🔧 组织风格按类型映射（收敛方案）：换类型时——当前风格不适用则该类型默认风格并重置手动标记；
+  //    必选确认标记重置（需重新确认）
+  if (type) {
+    const applicable = styleOptionsForType(type).options.map((o) => o.value);
+    if (!applicable.includes(propositionStyle.value)) {
+      propositionStyle.value = DEFAULT_STYLE_BY_TYPE[type] || '';
+      styleManuallySet.value = false;
+      console.log(`[style] 自动设置默认组织风格: ${propositionStyle.value || '(免选)'} (genType=${type})`);
     }
+    styleConfirmed.value = false;
   }
 });
 watch(labelStyle, () => {
@@ -3069,9 +3080,9 @@ const {
 // 计算属性
 const scopeTypeLabel = computed(() => '命题范围');
 const styleLabel = computed(() => {
-  if (!propositionStyle.value) return '命题风格';
+  if (!propositionStyle.value) return '组织风格';
   const opt = styleOptions.find(o => o.value === propositionStyle.value);
-  if (!opt) return '命题风格';
+  if (!opt) return '组织风格';
   return styleManuallySet.value ? opt.label : `${opt.label}(自动)`;
 });
 const restoreAutoStyle = () => {
@@ -3081,6 +3092,16 @@ const restoreAutoStyle = () => {
     propositionStyle.value = type === 'exam' ? 'unified_context' : 'context_fusion';
     console.log(`[propositionStyle] 恢复自动匹配: ${propositionStyle.value} (genType=${type})`);
   }
+  showStyleModal.value = false;
+};
+/** 当前类型应显示的风格组（命题/呈现）与选项 */
+const styleOptsForCurrent = computed(() => styleOptionsForType(genTypes.value[0]));
+/** 当前类型是否需要必选风格确认 */
+const styleRequiredForCurrent = computed(() => genTypes.value.some((t) => isStyleRequiredForType(t)));
+/** 弹窗"确定"：确认当前风格（必选确认标记置位） */
+const confirmStyle = () => {
+  styleManuallySet.value = true;
+  styleConfirmed.value = true;
   showStyleModal.value = false;
 };
 const genTypeLabel = computed(() => '资料类型');
@@ -5906,6 +5927,13 @@ const generate = async (mode) => {
     await showAlertDialogFn('请选择资料类型');
     return;
   }
+
+  // 🔧 必选组织风格确认（收敛方案）：当前类型有必选风格且未确认 → 弹窗选择后才允许生成
+  if (styleRequiredForCurrent.value && !styleConfirmed.value) {
+    showStyleModal.value = true;
+    await showAlertDialogFn('请先确认该资料类型的组织风格（已按类型推荐默认值，可在弹窗中调整）');
+    return;
+  }
   
   // ✨ 先获取选中的教材和模板数据
   const selectedBooks = textbookStore.textbooks.filter(b => hasAnySelected(b.outline)).map(b => ({
@@ -6051,17 +6079,6 @@ const generate = async (mode) => {
     
     // ✨ 复生成差异化：第二个及以后的类型，注入已生成内容的知识点，避免重复
     let diffInstruction = instructionDraft.value;
-    // 🔧 跨会话记忆分桶键（同 单元×类型 多次生成去重）：生成前读取、生成后写入共用
-    let unitKeyForMem = '';
-    try {
-      unitKeyForMem = buildUnitKey({
-        bookId: selectedBooks?.[0]?.id || '',
-        scope: scopeType.value || '',
-        genType,
-        stage: selectedBooks?.[0]?.stage || '',
-        subject: selectedBooks?.[0]?.subject || '',
-      });
-    } catch { /* 记忆键构建失败不影响生成 */ }
     if (typeIndex > 0 && generatedKps.length > 0) {
       const typeName = genTypeTemplates[genType]?.name || genType;
       const prevTypes = generatedTypes.join('、');
@@ -6083,15 +6100,7 @@ const generate = async (mode) => {
     try {
       // 🔴 整卷生成：注入指令（指令库渲染，用户可编辑）作为生成依据
       const inj = await ensureInjectedInstruction();
-      // 🔧 跨会话记忆差异化（同 单元×类型 多次生成去重——不同会话间也生效）：
-      //    读历史"已出题目摘要"，要求本次避开，换情境/字词/设问角度
       let finalInstr = typeIndex > 0 ? diffInstruction : inj;
-      if (unitKeyForMem) {
-        try {
-          const memDiff = buildMemoryDiffInstruction(unitKeyForMem, genTypeTemplates[genType]?.name || genType);
-          if (memDiff) finalInstr = finalInstr + memDiff;
-        } catch { /* 记忆差异化失败不影响生成 */ }
-      }
       // 🔧 生成份数循环：详细配置"生成份数"真实生效（同类型一次出多份，每份独立整卷生成后直接入库；
       //    此前份数只在已移除的蓝图确认弹窗内生效，直接生成路径从未循环——份数配置形同虚设）
       for (let batch = 0; batch < batches; batch++) {
@@ -6676,22 +6685,6 @@ const cancelPeriodSplit = async () => {
         graphInstructions: extractGraphs(safeContent),
         confidenceMarks: detectConfidenceIssues(safeContent, selectedBooks),
       });
-      // 🔧 写入跨会话生成记忆（同 单元×类型 多次生成去重）：
-      //    记录题目摘要，下次同单元同类型生成时注入差异化要求
-      try {
-        const samples = extractQuestionSamples(safeContent);
-        if (samples.length > 0) {
-          const unitKey = buildUnitKey({
-            bookId: book?.id || '',
-            scope: scopeInfo?.name || scopeType.value || '',
-            genType: genTypeName,
-            stage: book?.stage || '',
-            subject: book?.subject || '',
-          });
-          pushUnitPaperMemory(unitKey, samples);
-          console.log(`🧠 已记录生成记忆：${samples.length} 条题目摘要（${genTypeName}）`);
-        }
-      } catch { /* 记忆写入失败不影响结果 */ }
     } else {
       previewHint.value = `❌ 整体生成失败：${result.error || '未知错误'}`;
     }
@@ -8544,6 +8537,24 @@ const addBlueprintQuestion = () => {
 .option-desc {
   color: #666;
   font-size: 13px;
+}
+
+/* 🔧 组织风格弹窗：分组标题 + 提示文案 */
+.style-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--primary-lighter);
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin: 4px 0;
+}
+.option-tip {
+  display: block;
+  width: 100%;
+  font-size: 11.5px;
+  color: #889;
+  margin-top: 2px;
 }
 
 /* 🔧 省市差异化选择区 */

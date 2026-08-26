@@ -239,25 +239,86 @@ export const genTypeOptions = [
   { value: 'review', label: '📋 单元/期末复习', desc: '系统化复习+自测' }
 ];
 
-// ==================== 命题风格选项 ====================
+// ==================== 组织风格选项（原"命题风格"改造：分命题/呈现两组，按类型映射，删"传统命题"） ====================
+/** 风格分组：命题风格（题的组织） / 呈现风格（内容的组织） */
+export const STYLE_GROUP = { PROPOSITION: 'proposition', PRESENTATION: 'presentation' };
+
+/**
+ * 组织风格选项（按所选资料类型自动显示对应组）
+ * field: group 分组 · value 值 · label 名称 · desc 一句话 · tip 实际影响（用户选择提示）
+ *        appliesTo 适用类型 · required 生成前是否必须确认（必选弹窗）
+ */
 export const styleOptions = [
-  { value: 'traditional', label: '传统命题', desc: '题型清晰，设问直接' },
-  { value: 'unified_context', label: '统一情境', desc: '整份资料一个核心主题' },
-  { value: 'context_fusion', label: '情境融合', desc: '每个模块独立小情境' },
-  { value: 'big_unit', label: '大单元教学', desc: '打破课时，大概念设计' },
-  { value: 'project_based', label: '项目式学习', desc: '项目驱动，综合能力' }
+  // ── 命题风格组（以题为主的资料：题的组织方式）──
+  { group: 'proposition', value: 'unified_context', label: '课标卷型', desc: '全卷统一情境、对标真题结构',
+    tip: '整卷围绕一个核心主题情境展开，情境贯穿所有题目，对标真题卷面结构与难度分层；适用于正式考试类资料。',
+    appliesTo: ['exam'], required: true },
+  { group: 'proposition', value: 'unit_context', label: '单元情境卷', desc: '单元大情境贯穿栏目',
+    tip: '以本单元大情境/任务群组织，栏目间情境连贯递进，考查单元整体理解；适用于课时练、复习等以单元组织的资料。',
+    appliesTo: ['practice', 'review'], required: false },
+  { group: 'proposition', value: 'scenario_each', label: '逐题情境', desc: '每题独立真实生活情境',
+    tip: '每题自带贴近学生生活的真实情境，不强制统一主题，灵活性最高；适用于日常训练类资料。',
+    appliesTo: ['practice', 'special', 'reading'], required: false },
+  { group: 'proposition', value: 'big_unit', label: '大单元教学', desc: '跨课时大概念组织',
+    tip: '打破课时界限，围绕大概念/大任务整体设计，体现知识间的关联与递进；适用于特殊教学场景。',
+    appliesTo: ['practice', 'review', 'special'], required: false },
+  { group: 'proposition', value: 'project_based', label: '项目式学习', desc: '项目任务驱动',
+    tip: '以一个完整项目任务为驱动，资料作为项目的一部分，考查真实问题中的综合能力；适用于特殊教学场景。',
+    appliesTo: ['practice', 'special'], required: false },
+  // ── 呈现风格组（以内容组织为主的资料：内容的呈现方式）──
+  { group: 'presentation', value: 'mindmap', label: '导图式', desc: '结构化导图优先',
+    tip: '以思维导图/结构图呈现知识点关系，层次清晰、便于记忆；适用于知识总结类资料。',
+    appliesTo: ['summary'], required: false },
+  { group: 'presentation', value: 'table', label: '表格化', desc: '对比/表格呈现',
+    tip: '以表格对比呈现易混点与分类信息，清晰易读；适用于知识总结、复习梳理。',
+    appliesTo: ['summary', 'review'], required: false },
+  { group: 'presentation', value: 'context_chain', label: '情境化串联', desc: '生活主题串联知识点',
+    tip: '用一个贴近生活的大主题把知识点串联呈现，符合课标情境化要求；适用于知识总结、复习资料。',
+    appliesTo: ['summary', 'review'], required: false },
+  { group: 'presentation', value: 'task_driven', label: '问题驱动', desc: '预习任务问题化',
+    tip: '以问题链驱动预习（圈画/概括/查阅/尝试），可操作可检查；适用于课前预习。',
+    appliesTo: ['preview'], required: false },
+  { group: 'presentation', value: 'framework', label: '框架式', desc: '框架→梳理→辨析',
+    tip: '按 知识框架→考点梳理→易错辨析→自测 组织，覆盖完整；适用于复习资料。',
+    appliesTo: ['review'], required: false },
 ];
 
-// ==================== 命题风格指令 ====================
-/**
- * @deprecated 命题风格由配方体系的情境框架（contextFramework / 学科情境库）承载。
- */
+/** 按资料类型返回该类型应显示的风格组与可选项 */
+export const styleOptionsForType = (genType = '') => {
+  const list = styleOptions.filter((o) => !o.appliesTo.length || o.appliesTo.includes(genType));
+  const group = list.find((o) => o.group)?.group || '';
+  return { group, options: list };
+};
+
+/** 资料类型 → 默认风格（选类型未手动选时自动推荐） */
+export const DEFAULT_STYLE_BY_TYPE = {
+  exam: 'unified_context',
+  practice: 'scenario_each',
+  special: 'scenario_each',
+  reading: 'scenario_each',
+  summary: 'mindmap',
+  review: 'framework',
+  preview: 'task_driven',
+  dictation: '',
+  errorbook: '',
+};
+
+/** 该类型是否必须在生成前确认风格（必选弹窗） */
+export const isStyleRequiredForType = (genType = '') =>
+  !!DEFAULT_STYLE_BY_TYPE[genType] && genType !== 'dictation' && genType !== 'errorbook';
+
+// ==================== 组织风格指令（生成时注入：情境组织/呈现方式，简洁不诱导） ====================
 export const styleInstructions = {
-  'traditional': '题型结构清晰，设问直接，知识点考查明确，不设置复杂情境。',
-  'unified_context': '整份资料围绕一个核心主题/故事情境展开，所有题目均在此情境下进行设问。',
-  'context_fusion': '每个题型/模块设置一个独立的小情境，情境与题目高度融合，考查知识迁移能力。',
-  'big_unit': '打破课时界限，围绕大概念/大任务进行整体设计，题目体现知识间的关联与递进。',
-  'project_based': '以一个完整的项目任务为驱动，资料作为项目的一部分，考查学生在真实问题中的综合能力。'
+  'unified_context': '整份资料围绕一个核心主题情境展开，情境贯穿全卷，各题在此情境下连贯设问。',
+  'unit_context': '以本单元大情境组织，栏目间情境连贯递进，各题在单元情境下展开。',
+  'scenario_each': '每题设置贴近学生生活的独立情境设问，情境与题目内容一致。',
+  'big_unit': '打破课时界限，围绕大概念与任务群整体组织，体现知识关联与递进。',
+  'project_based': '以一个完整项目任务为驱动组织资料，考查真实问题中的综合能力。',
+  'mindmap': '以导图/结构图呈现知识点关系，结构化展示，层次清晰。',
+  'table': '以表格对比呈现信息，清晰易读，易混点用对比突出。',
+  'context_chain': '以一个贴近生活的大主题串联各知识点呈现，情境自然连贯。',
+  'task_driven': '以问题链组织预习任务，可操作可检查，覆盖本课时新知识点。',
+  'framework': '按知识框架→考点梳理→易错辨析→自测组织，覆盖完整、重点突出。',
 };
 
 // ==================== 范围选项 ====================
