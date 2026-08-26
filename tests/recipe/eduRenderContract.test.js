@@ -158,11 +158,17 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(t.template).toContain('四线三格');
   });
 
-  it('全部 9 个资料类型都有三维度模板（内容=类型骨架+学科要点+学段特点）', () => {
-    const types = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
-    for (const g of types) {
+  it('全部 9 个资料类型都有三维度模板（命题型=类型骨架+学科要点+学段特点；内容型=类型骨架+学段特点，不注入命题要点）', () => {
+    const propositionTypes = ['exam', 'practice', 'special', 'reading', 'dictation', 'errorbook', 'review'];
+    const contentTypes = ['preview', 'summary'];
+    for (const g of propositionTypes) {
       const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: g });
       expect(t.template, `类型 ${g} 三维度缺失`).toContain('【语文学科要点】');
+      expect(t.template).toContain('【学段特点】');
+    }
+    for (const g of contentTypes) {
+      const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: g });
+      expect(t.template, `内容型 ${g} 不应注入命题要点`).not.toContain('【语文学科要点】');
       expect(t.template).toContain('【学段特点】');
     }
     // 类型骨架差异化：practice 三维度是课时练语料，不是试卷语料
