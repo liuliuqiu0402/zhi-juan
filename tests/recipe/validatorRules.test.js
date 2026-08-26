@@ -51,7 +51,7 @@ describe('validatorRules 三维度匹配（与指令库/蓝图库对齐）', () 
     expect(rules.has('score-label-fix')).toBe(true);
     expect(rules.has('template-cleanup')).toBe(true);
     expect(rules.has('title-detail-fix')).toBe(true);
-    expect(rules.has('answer-shell-guard')).toBe(true);
+    expect(rules.has('writing-grid-fix')).toBe(true);
   });
 
   it('数学·初中·exam：命中分值/统计图相关，不命中拼音规则', () => {

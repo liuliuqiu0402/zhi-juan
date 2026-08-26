@@ -84,16 +84,7 @@ export const VALIDATOR_RULES = [
     description: '大题/小题标题"每空/每线/每题 X 分"标注与实际空位数/连线数/子题数校验，不整除时按"每题 X 分"或"共 X 分"修正。',
     enabled: true,
   },
-  {
-    id: 'sub-carrier-fix',
-    name: '子题载体一致性提示',
-    category: 'fix',
-    subjects: ['*'],
-    stages: ['*'],
-    promptHint: '同题组内各子题作答载体必须一致：要么都有空位、要么都有选项，禁止同组内一题有空一题无空（如读音题每个子题都必须给出拼音选项）。',
-    description: '同题组各子题作答载体数（空位/拼音选项）不一致时给出差异描述，提示生成时补齐。',
-    enabled: true,
-  },
+
   {
     id: 'title-detail-fix',
     name: '大题标题明细式修复',
@@ -135,16 +126,7 @@ export const VALIDATOR_RULES = [
     description: '检测正文区重复的大题标题（同一标题出现 ≥2 次，多为截断续写时模型从头重出导致）→ 从第二次重复处截断保留第一份；重复的答案区保留第一份。',
     enabled: true,
   },
-  {
-    id: 'match-line-clean',
-    name: '连线题分隔符规范化',
-    category: 'fix',
-    subjects: ['*'],
-    stages: ['*'],
-    promptHint: '连线题左右两列用全角空格分隔，严禁用 ---/——/━ 等连字符作分隔（格式详见模板【输出格式】作答空规范）。',
-    description: '把连线题行内的连字符分隔符（---/———/━）替换为全角空格，避免视觉上被误读为预置答案线；左右两列内容与顺序不受影响。',
-    enabled: true,
-  },
+
   {
     id: 'teaching-volume-guard',
     name: '教辅内容充足性静默防护',
@@ -154,15 +136,7 @@ export const VALIDATOR_RULES = [
     description: '教辅类资料（非 exam）生成后静默确认内容充足性：阅读训练须含选文（短文）且长度达标、知识总结篇幅足够、课时练/专项/复习/默写题量不单薄——缺失/过短仅 debug 计数（题量/篇幅底线由教辅结构蓝本 stages.volume 提供，程序侧校验参考，不注入 prompt 防限定 AI）。',
     enabled: true,
   },
-  {
-    id: 'teaching-score-guard',
-    name: '教辅禁标分值静默防护',
-    category: 'guard',
-    subjects: ['*'],
-    stages: ['*'],
-    description: '非考试类资料（教辅）正文出现"每题X分/每空X分/共X分"等分值标注时静默计数——分值标注是考试卷专属，教辅资料（课时练/预习/总结等）不标分。',
-    enabled: true,
-  },
+
   {
     id: 'score-distribute-fix',
     name: '分值自动分配（大题内小题分值由代码按大题总分重算，账目闭合）',
@@ -194,34 +168,7 @@ export const VALIDATOR_RULES = [
     description: '小学卷小题分值必须为整数（低段每空/每题1-2分、中高段1-4分），出现 0.5 分等小数分值（如"每空0.5分"）时静默计数——分值规则明确小学一律整数分。',
     enabled: true,
   },
-  {
-    id: 'match-option-dup-guard',
-    name: '连线题选项重复静默防护',
-    category: 'guard',
-    subjects: ['*'],
-    stages: ['*'],
-    description: '连线题右侧选项内容重复（如两个"鸟"）时静默计数——选项重复导致学生无法唯一连线（即使答案内容相同也会困惑）。',
-    enabled: true,
-  },
-  {
-    id: 'match-pair-selfcheck',
-    name: '连线题配对知识自检（防错配）',
-    category: 'fix',
-    subjects: ['*'],
-    stages: ['*'],
-    promptHint: '连线题（连一连）配对知识自检硬性要求：每一条连线必须逐一核对知识正确性，严禁错配/漏配/一对多。偏旁/部首类连线（左列汉字↔右列偏旁名，如"鸭→鸟字旁"）：右侧每个偏旁必须与左侧至少一个汉字的真实偏旁正确对应，且左侧每个汉字在右侧有且仅有一个正确偏旁；字义/拼音/词语/反义词类连线同理，左列每一项的正确答案必须存在于右列且唯一对应。🔴 输出前逐对自检一遍：把每一条配对在心里读出来验证一遍，发现错误立即改正，宁可减少连线项数也不得保留错配。',
-    description: '生成前约束：连线题配对知识自检（防"偏旁连线只有一对正确"类学科知识错误——配对正确性属语义知识，程序无法可靠判断，靠生成指令强制逐对自检，发挥模型自身知识能力）。',
-    enabled: true,
-  },
-  {
-    id: 'type-elements-guard',
-    name: '教辅类资料关键元素齐全性静默防护',
-    category: 'guard',
-    subjects: ['*'],
-    stages: ['*'],
-    description: '非考试类资料（预习单/错题本/知识总结/复习资料/默写纸/阅读训练）生成后静默确认关键栏目元素是否齐全（如预习单的"我的疑问"、错题本的"错因归因"、总结/复习的"易错辨析"、默写纸的书写格、阅读训练的选文）——模板已有生成前要求，此规则补生成后确认，缺失仅 debug 计数不打扰用户。',
-    enabled: true,
-  },
+
   {
     id: 'match-format-fix',
     name: '连线题右列格式规范化',
@@ -254,15 +201,7 @@ export const VALIDATOR_RULES = [
   },
 
   // ==================== guard：静默防护（仅 debug 计数，不产生问题提示） ====================
-  {
-    id: 'pinyin-option-guard',
-    name: '读音题缺拼音选项静默防护',
-    category: 'guard',
-    subjects: ['语文'],
-    stages: ['primary_low', 'primary_mid'],
-    description: '读音辨析题某子题缺"（háng xíng）"式拼音选项时静默计数（无法程序补全，靠生成前约束）。',
-    enabled: true,
-  },
+
   {
     id: 'match-symmetric-guard',
     name: '连线项不对称静默防护',
@@ -281,24 +220,7 @@ export const VALIDATOR_RULES = [
     description: '选择题选项数过少（<2）时静默计数（无法程序补选项，靠生成前约束）。',
     enabled: true,
   },
-  {
-    id: 'blank-excess-guard',
-    name: '空位多于拼音静默防护',
-    category: 'guard',
-    subjects: ['语文'],
-    stages: ['primary_low', 'primary_mid'],
-    description: '看拼音写词语空位数多于拼音组数时静默计数（"圆又圆"类合法多空不误报）。',
-    enabled: true,
-  },
-  {
-    id: 'answer-shell-guard',
-    name: '答案空壳静默防护',
-    category: 'guard',
-    subjects: ['*'],
-    stages: ['*'],
-    description: '答案区出现"略/见教材"等空壳答案时静默计数（无法程序补答案，靠生成前约束）。',
-    enabled: true,
-  },
+
   {
     id: 'answer-coverage-guard',
     name: '答案覆盖度静默防护',
@@ -307,18 +229,9 @@ export const VALIDATOR_RULES = [
     stages: ['*'],
     description: '答案区题号明显少于正文时静默计数（提示答案页可能不完整）。',
     enabled: true,
-  },
-  {
-    id: 'reading-source-guard',
-    name: '阅读选文出处标注静默防护',
-    category: 'guard',
-    subjects: ['语文', '英语'],
-    stages: ['*'],
-    genTypes: ['exam', 'reading', 'special', 'review'],
-    description: '阅读大题选文末尾缺【选自/出自/节选】出处标注时静默计数。',
-    enabled: true,
-  },
-];
+  }
+]
+;
 
 /** 全量内置规则（维护/展示用） */
 export const listValidatorRules = () => getMergedRules().map(r => ({ ...r }));

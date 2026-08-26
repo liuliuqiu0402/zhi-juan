@@ -187,37 +187,6 @@ describe('examValidator 正文重复内容检测截断（duplicate-content-fix�
   });
 });
 
-describe('examValidator 连线题连线符号清理（match-line-clean）', () => {
-  it('连线题预置连线（---）→ 替换为全角空格（线由答题者连）', () => {
-    const html = '<h2>一、识字与写字（32分）</h2>\n<p>3. 连一连。</p>\n<p>雀　---　①鸟</p>\n<p>鹰　---　②隹</p>\n<p>鸡　---　③犭</p>\n<p>猫　---　④鸟</p>';
-    const { html: out, issues } = auditExamPaper(html, OPTS);
-    expect(out).not.toContain('---');
-    expect(out).toContain('雀　　　　①鸟');
-    expect(issues.some(i => i.type === 'match-line')).toBe(true);
-  });
-
-  it('非连线形态的连续横线（如分隔线）不受影响', () => {
-    const html = '<p>-------------------</p>';
-    const { html: out } = auditExamPaper(html, OPTS);
-    // 纯横线行无中文左侧，不替换
-    expect(out).toContain('---');
-  });
-
-  it('连线题右列选项重复（如两个"鸟"）→ 静默计数（match-option-dup-guard）', () => {
-    const html = '<h2>一、识字与写字（32分）</h2>\n<p>3. 连一连。</p>\n<p>雀　---　①鸟</p>\n<p>鹰　---　②隹</p>\n<p>鸡　---　③犭</p>\n<p>猫　---　④鸟</p>';
-    const { issues, silent } = auditExamPaper(html, OPTS);
-    // 选项"鸟"重复 → silent 计数；不产生 warning 问题条目
-    expect(issues.every(i => i.severity !== 'warning')).toBe(true);
-    expect(silent).toBeGreaterThan(0);
-  });
-
-  it('连线题右列选项唯一 → 不触发重复防护', () => {
-    const html = '<h2>一、识字与写字（32分）</h2>\n<p>6. 连一连。</p>\n<p>一艘　---　①鱼塘</p>\n<p>一方　---　②军舰</p>\n<p>一行　---　③垂柳</p>\n<p>一座　---　④花园</p>';
-    const { silent } = auditExamPaper(html, OPTS);
-    expect(silent).toBe(0);
-  });
-});
-
 describe('examValidator 连线题右列格式（match-format-fix：本案例 19:22 卷 第3/9题）', () => {
   it('"右列裸序号＋内容下方对照行"拆分格式 → 自动重组为并排（第3题形近字连线）', () => {
     const html = [
@@ -305,43 +274,6 @@ describe('examValidator 连线题右列格式（match-format-fix：本案例 19:
   });
 });
 
-describe('examValidator 教辅类资料关键元素（type-elements-guard）', () => {
-  it('预习单缺"我的疑问"栏目 → 静默计数（不进问题列表）', () => {
-    const html = [
-      '<h1>课前预习任务单</h1>',
-      '<h2>一、读一读</h2>',
-      '<p class="question">1. 圈出你不认识的字。</p>',
-    ].join('\n');
-    const { issues, silent } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'preview' });
-    expect(issues.every(i => i.severity !== 'warning')).toBe(true);
-    expect(silent).toBeGreaterThan(0);
-  });
-
-  it('预习单含"我的疑问" → 不触发', () => {
-    const html = [
-      '<h1>课前预习任务单</h1>',
-      '<h2>一、我的疑问</h2>',
-      '<p>把你预习中不懂的问题写下来。</p>',
-    ].join('\n');
-    const { silent } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'preview' });
-    expect(silent).toBe(0);
-  });
-
-  it('错题本缺"错因归因" → 静默计数', () => {
-    const html = '<h1>错题本</h1>\n<h2>一、数学错题</h2>\n<p class="question">1. 原题：3+5=（　）</p>';
-    const { silent } = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'errorbook' });
-    expect(silent).toBeGreaterThan(0);
-  });
-
-  it('阅读训练含"短文" → 不触发；考试类（exam）不检测', () => {
-    const html = '<h1>阅读训练</h1>\n<h2>一、阅读短文</h2>\n<p>春天来了，小草从泥土里探出脑袋，柳树摇着绿色的长辫子。小河里的水哗哗地流着，几只小燕子从南方飞回来了，在屋檐下忙着筑巢。小朋友们脱下厚厚的棉衣，在草地上放风筝，笑声飘得很远很远。</p>';
-    const { silent: s1 } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'reading' });
-    expect(s1).toBe(0);
-    const { silent: s2 } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'exam' });
-    expect(s2).toBe(0);
-  });
-});
-
 describe('examValidator 书写格按学段（writing-grid-fix）', () => {
   it('语文 3 年级及以上仍用田字格 → 静默计数', () => {
     const html = '<h1>默写纸</h1>\n<p>看拼音写词语：<span class="tian-zi-ge">海</span></p>';
@@ -412,35 +344,6 @@ describe('examValidator 本卷案例根治（20:16 卷 第1/2题 + 大题标题�
   });
 });
 
-describe('examValidator 子题载体一致性（第2题案例）', () => {
-  it('同题组一题有拼音选项一题没有 → 产生提示（不自动改，供抽检）', () => {
-    const html = [
-      '<h2>一、识字与写字（32分）</h2>',
-      '<p class="question">2. 圈出加点字正确的读音。（6分）</p>',
-      '<p>（1）一行（háng xíng）白鹭飞上青天。</p>',
-      '<p>（2）运动会上，体育老师吹响了铜号（hào háo）。</p>',
-      '<p>（3）孔雀的羽毛真漂亮，它可是动物世界里的明星呢！</p>',
-    ].join('\n');
-    const { issues } = auditExamPaper(html, OPTS);
-    expect(issues.some(i => i.type === 'sub-inconsistent')).toBe(true);
-  });
-
-  it('读音题缺拼音选项 → 静默计数（不进问题列表）', () => {
-    const html = [
-      '<h2>一、识字与写字（32分）</h2>',
-      '<p class="question">2. 圈出加点字正确的读音。（6分）</p>',
-      '<p>（1）一行（háng xíng）白鹭飞上青天。</p>',
-      '<p>（2）运动会上，体育老师吹响了铜号（hào háo）。</p>',
-      '<p>（3）孔雀的羽毛真漂亮，它可是动物世界里的明星呢！</p>',
-    ].join('\n');
-    const { issues, silent } = auditExamPaper(html, OPTS);
-    // 子题一致性提示存在，但"缺拼音选项"类问题不产生 warning 条目，仅静默计数
-    expect(issues.every(i => i.severity !== 'warning')).toBe(true);
-    expect(issues.some(i => i.type === 'pinyin-option-missing')).toBe(false);
-    expect(silent).toBeGreaterThanOrEqual(0);
-  });
-});
-
 describe('examValidator 看图写话缺图（第11题案例）', () => {
   it('题目含"看图"但无 [IMAGE] 块 → 静默计数（缺图标记，供抽检）', () => {
     const html = '<h2>四、表达与交流（30分）</h2>\n<p class="question">11. 看图写话。（20分）仔细观察下面的图片。</p>';
@@ -452,13 +355,6 @@ describe('examValidator 看图写话缺图（第11题案例）', () => {
 });
 
 describe('examValidator 答案区检查', () => {
-  it('答案区含"略"空壳 → 静默计数（不进问题列表）', () => {
-    const html = '<p>1. 题目</p>\n<div class="answer-section"><h2>参考答案</h2><p>1. 答案</p><p>2. 略</p></div>';
-    const { issues, silent } = auditExamPaper(html, OPTS);
-    expect(issues.some(i => i.type === 'answer-shell')).toBe(false);
-    expect(silent).toBeGreaterThan(0);
-  });
-
   it('答案区 <h2>参考答案 无 answer-section 包裹 → 自动补包（规则 answer-section-fix）', () => {
     const html = '<p>1. 题目内容</p>\n<h2>参考答案与评分标准</h2>\n<p>1. 答案</p>';
     const { html: out, issues } = auditExamPaper(html, OPTS);

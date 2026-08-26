@@ -24,7 +24,6 @@ import { getTypeDistribution as getTypeDistributionFromConfig } from '../config/
 import { SCOPE_LABEL_POOLS } from '../config/recipe/paperScope.js';
 import { getExamBlueprint } from '../config/examPaperBlueprints.js';
 import { buildSealLineHeader } from '../config/promptLibrary.js';
-import { runHardValidators, applyAutoFixes } from '../utils/subjectValidators.js';
 import { registerController, unregisterController } from '../utils/requestManager.js';
 import { generatePromptCacheKey, getCachedPromptResult, setCachedPromptResult } from '../utils/generationCache';
 

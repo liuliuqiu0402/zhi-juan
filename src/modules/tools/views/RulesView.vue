@@ -8,7 +8,7 @@
         <span class="ov-sep">·</span>
         <span>用户自定义 <b class="user-n">{{ userCount }}</b></span>
         <span class="ov-sep">·</span>
-        <span>学科硬校验 <b :class="hardWired ? 'ok-n' : 'bad-n'">{{ hardWired ? '已接线' : '未接线' }}</b></span>
+        <span>规则源 <b class="ok-n">已接线</b>（生成前注入 + 生成后审计）</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="dim-now">
@@ -156,20 +156,10 @@ const ruleList = computed(() =>
   )
 );
 
-/* ===== 接线状态（注册空洞：定义但生成端无执行点——来自迁移审计） ===== */
-const HOLE_RULES = {
-  'match-pair-selfcheck': 'fix 类定义了"连线配对自检"，但 examValidator 无对应执行代码（配对正确性只靠 prompt）',
-  'blank-excess-guard': 'guard 类定义了"空位多于拼音"，但 examValidator 无对应执行代码',
-};
-const wiredState = (r) => {
-  if (HOLE_RULES[r.id]) return { label: '注册空洞', cls: 'hole' };
-  return { label: '已接线', cls: 'ok' };
-};
-const holeRules = computed(() =>
-  ruleList.value.filter((r) => HOLE_RULES[r.id]).map((r) => ({ id: r.id, desc: HOLE_RULES[r.id] }))
-);
-/** 学科硬校验（subjectValidators.runHardValidators/applyAutoFixes）是否已接入主链路 */
-const hardWired = false; // 迁移审计确认：导入未调用，死代码
+/* ===== 接线状态 ===== */
+// 规则库（validatorRules）为生成端唯一规则源：生成前 buildValidatorPrompt 注入 + 生成后 auditExamPaper 执行
+const wiredState = () => ({ label: '已接线', cls: 'ok' });
+const holeRules = computed(() => []);
 
 /* ===== 编辑 / 保存 / 删除 / 新增 / 重置 ===== */
 const editingKey = ref('');

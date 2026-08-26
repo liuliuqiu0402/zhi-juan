@@ -311,40 +311,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 1.5.3. 连线题选项重复检测（规则 match-option-dup-guard：右列选项重复 → 连线不唯一，静默）──
-  if (has('match-option-dup-guard')) {
-    const optLineRe = /^[^\n]{1,40}?[\s]*[-—━]{2,}[\s]*([①②③④⑤⑥⑦⑧⑨⑩][^\n]*)$/gm;
-    const rightOpts = [];
-    let om;
-    while ((om = optLineRe.exec(out)) !== null) {
-      rightOpts.push(om[1].replace(/^[①②③④⑤⑥⑦⑧⑨⑩]/, '').trim());
-    }
-    const seenOpts = new Set();
-    const dupOpts = new Set();
-    for (const o of rightOpts) {
-      if (o && seenOpts.has(o)) dupOpts.add(o);
-      if (o) seenOpts.add(o);
-    }
-    if (dupOpts.size > 0) {
-      silentCount('match-option-dup', `连线题右侧选项重复（${[...dupOpts].join('、')}），学生无法唯一连线，请抽检`);
-    }
-  }
-
-  // ── 1.5.4. 连线题分隔符规范化（规则 match-line-clean：连字符易被误读为答案线；含 ─ 制表线）──
-  if (has('match-line-clean')) {
-    out = out.replace(/^([^\n]{1,40}?)[\s]*[-—━─]{2,}[\s]*([^\n]*)$/gm, (m, left, right) => {
-      // 仅处理"中文左侧 + 中文/圈号序号右侧"的连线题行，避免误伤其他内容
-      const l = (left || '').trim();
-      const r = (right || '').trim();
-      if (/[\u4e00-\u9fa5]/.test(l) && (/[①②③④⑤⑥⑦⑧⑨⑩]/.test(r) || /[\u4e00-\u9fa5]{1,8}/.test(r))) {
-        issues.push({ severity: 'info', type: 'match-line', message: `已把连线题分隔符规范为全角空格（${l}…），避免被误读为答案线` });
-        fixed += 1;
-        return `${l}　　　　${r}`;
-      }
-      return m;
-    });
-  }
-
   // ── 1.5.5. 连线题右列格式规范化（规则 match-format-fix：右列裸序号＋内容下方对照行 → 合并并排）──
   if (has('match-format-fix')) {
     const NUM = '①②③④⑤⑥⑦⑧⑨⑩'; // 注意：不含方括号，拼字符类时再包
@@ -502,27 +468,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 1.5.7. 教辅类资料关键元素齐全性（规则 type-elements-guard：模板已有生成前要求，生成后静默确认）──
-  if (has('type-elements-guard')) {
-    const gt = genType || '';
-    const TYPE_ELEMENT_CHECKS = {
-      preview: [{ re: /我的疑问/, label: '"我的疑问"栏目' }],
-      errorbook: [{ re: /错因|归因/, label: '错因归因' }],
-      summary: [{ re: /易错/, label: '易错辨析' }],
-      review: [{ re: /易错|自测/, label: '易错聚焦/自测' }],
-      dictation: [{ re: /tian-zi-ge|四线|拼音/, label: '书写格/拼音标注' }],
-      reading: [{ re: /短文|阅读/, label: '选文（短文）' }],
-    };
-    const checks = TYPE_ELEMENT_CHECKS[gt];
-    if (checks) {
-      const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
-      const miss = checks.filter(c => !c.re.test(bodyText)).map(c => c.label);
-      if (miss.length > 0) {
-        silentCount('type-elements', `「${gt}」类型关键元素缺失（${miss.join('、')}）——请抽检`);
-      }
-    }
-  }
-
   // ── 1.5.7b. 教辅内容充足性（规则 teaching-volume-guard：静默）──
   if (has('teaching-volume-guard') && genType && genType !== 'exam') {
     const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
@@ -540,14 +485,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     if (['practice', 'special', 'review', 'dictation'].includes(genType)) {
       const qCount = (bodyText.match(/\d+[.、．]/g) || []).length;
       if (qCount > 0 && qCount < 5) silentCount('teaching-volume', `「${genType}」题目数仅 ${qCount} 道，疑单薄，请抽检`);
-    }
-  }
-
-  // ── 1.5.7c. 教辅禁标分值（规则 teaching-score-guard：静默）──
-  if (has('teaching-score-guard') && genType && genType !== 'exam') {
-    const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
-    if (/(每[空题词线]|每题|每空)\s*\d+(\.\d+)?\s*分|（\s*\d+(\.\d+)?\s*分\s*）|共\s*\d+\s*题[，,]\s*每题/.test(bodyText)) {
-      silentCount('teaching-score', '教辅资料正文出现分值标注（考试卷专属），应去掉');
     }
   }
 
@@ -669,21 +606,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const pinyinOpts = countPinyinOptions(secHtml2);
         const options = countOptions(secHtml2);
         const matchSides = countMatchSides(secHtml2);
-
-        // 2b. 同题组子题载体一致性（规则 sub-carrier-fix：提示性描述，不改内容）
-        if (has('sub-carrier-fix')) {
-          const subConsistency = checkSubQuestionConsistency(secText2);
-          if (subConsistency) {
-            issues.push({ severity: 'info', type: 'sub-inconsistent', message: subConsistency.message });
-          }
-        }
-
-        // 2c. 读音题缺拼音选项（规则 pinyin-option-guard：静默）
-        if (has('pinyin-option-guard') && (/读音|加点字/.test(title) || /读音|加点字/.test(secText2.slice(0, 300)))) {
-          if (pinyinOpts === 0) {
-            silentCount('pinyin-option', `大题「${title}」未检测到拼音选项（如"（háng xíng）"），可能有小题缺选项`);
-          }
-        }
 
         // 2d. 连线项不对称（规则 match-symmetric-guard：静默）
         if (has('match-symmetric-guard') && matchSides && matchSides.total % 2 !== 0) {
@@ -1018,7 +940,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 3. 答案区一致性（规则 answer-section-fix / answer-shell-guard / answer-coverage-guard）──
+  // ── 3. 答案区一致性（规则 answer-section-fix：容器补全 / answer-coverage-guard：题号覆盖）──
   {
     // 3a. 答案区容器补全（规则 answer-section-fix）：<h2>参考答案… 无 answer-section 包裹 → 补包
     //    （docx 导出按 answer-section 拆分独立分节；与 useAiGenerator once 模式兜底幂等）
@@ -1031,13 +953,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       }
     }
 
-    // 3b. 答案区内容（answer-shell-guard / answer-coverage-guard：静默）
+    // 3b. 答案区内容（answer-coverage-guard：静默）
     const ansMatch = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>([\s\S]*)$/i);
     if (ansMatch) {
       const ansText = stripTags(ansMatch[1]);
-      if (has('answer-shell-guard') && /[（(]?\s*(略|见教材|自行查阅|答案略|详见教材)\s*[)）]?/.test(ansText)) {
-        silentCount('answer-shell', '答案区检测到"略/见教材"等空壳答案');
-      }
       if (has('answer-coverage-guard')) {
         const bodyText = stripTags(out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0]);
         const bodyTopQ = (bodyText.match(/(?:^|\n)\s*\d+[.、．]/g) || []).length;
@@ -1046,15 +965,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})`);
         }
       }
-    }
-  }
-
-  // ── 4. 阅读选文出处标注（规则 reading-source-guard：静默）──
-  if (has('reading-source-guard')) {
-    const secTexts = String(out).split(/<h[234][^>]*>/i).map(s => stripTags(s).trim()).filter(s => s.length > 200);
-    const hasSource = /【\s*选自|【\s*出自|【\s*节选|选自教材|节选自/.test(out);
-    if (!hasSource && secTexts.length > 0 && /(短文|选文|阅读|课内|课外阅读)/.test(out)) {
-      silentCount('reading-source', '阅读选文未检测到【选自…】出处标注');
     }
   }
 
@@ -1071,38 +981,6 @@ const countSubQuestions = (raw) => {
 const countSubNumbered = (raw) => {
   const text = stripTags(raw);
   return (text.match(/[(（]\s*\d+\s*[)）]/g) || []).length;
-};
-
-/**
- * 同题组子题载体一致性检查（纯文本输入）：
- * 提取（1）（2）…子题文本，若 ≥2 个子题且各子题"作答载体数"（拼音选项组/空位）参差不齐 → 返回警告文案
- */
-const checkSubQuestionConsistency = (text) => {
-  const marks = [];
-  const re = /[(（]\s*(\d+)\s*[)）]/g;
-  let m;
-  while ((m = re.exec(text)) !== null) marks.push({ idx: parseInt(m[1], 10), start: m.index });
-  if (marks.length < 2) return '';
-  const features = [];
-  for (let i = 0; i < marks.length; i++) {
-    const start = marks[i].start;
-    const end = i + 1 < marks.length ? marks[i + 1].start : text.length;
-    const seg = text.slice(start, end);
-    const opts = (seg.match(PINYIN_OPTION_RE) || []).length;
-    const blanks = countBlanks(`<p>${seg}</p>`);
-    const carrier = opts > 0 ? opts : blanks;
-    features.push({ idx: marks[i].idx, carrier, hasPinyin: opts > 0 });
-  }
-  const carrierSet = new Set(features.map(f => f.carrier));
-  const hasPinyinMix = features.some(f => f.hasPinyin) && features.some(f => !f.hasPinyin);
-  if (carrierSet.size > 1 || hasPinyinMix) {
-    const desc = features.map(f => `(${f.idx})${f.carrier}${f.hasPinyin ? '拼音选项' : '空'}`).join('、');
-    const message = `子题作答载体不一致（${desc}）：同题组内各子题应有相同数量的空位/选项，部分子题可能缺空或缺选项，请人工复核`;
-    // 拼音选项混合（有的子题有拼音选项、有的没有）= 大概率缺选项 → warning；
-    // 纯空位数量差异（如"月亮圆又圆"两个空）可能是合法设计 → 仅提示
-    return { severity: hasPinyinMix ? 'warning' : 'info', message };
-  }
-  return '';
 };
 
 /**
