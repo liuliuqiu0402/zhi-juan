@@ -69,18 +69,18 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
     expect(high).toContain('900-1500字');
   });
 
-  it('课时练含三段式栏目与防堆题底线', () => {
+  it('课时练含三段式栏目与内容底线', () => {
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_mid' });
     expect(inject).toContain('基础建构任务');
     expect(inject).toContain('探究进阶任务');
     expect(inject).toContain('迁移创新任务');
-    expect(inject).toContain('严禁只罗列题目');
+    expect(inject).toContain('栏目完整、板块分明');
   });
 
-  it('默写积累含覆盖量与书写格学段要求', () => {
+  it('默写积累含学科中立栏目与覆盖底线', () => {
     const inject = buildTeachingInjection({ genType: 'dictation', stage: 'primary_low' });
-    expect(inject).toContain('看拼音写词语');
-    expect(inject).toContain('4-8个');
+    expect(inject).toContain('基础默写');
+    expect(inject).toContain('4-8条');
   });
 
   it('错题本含五段结构（原题→归因→解法→变式→策略）', () => {
@@ -112,11 +112,11 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(inject).toContain('生活化口语表达或写话');
   });
 
-  it('未定制学科（数学等）回退通用默认：栏目为通用、注入标"通用·"', () => {
-    const bp = getTeachingBlueprint({ genType: 'practice', stage: 'middle', subject: '数学' });
+  it('未定制学科（生物等）回退通用默认：栏目为通用、注入标"通用·"', () => {
+    const bp = getTeachingBlueprint({ genType: 'practice', stage: 'middle', subject: '生物' });
     expect(bp.custom).toBe(false);
-    expect(bp.subject).toBe('数学');
-    const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '数学' });
+    expect(bp.subject).toBe('生物');
+    const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '生物' });
     expect(inject).toContain('通用·课时练');
     // 学段参数仍生效（初中 45 分钟）
     expect(inject).toContain('45分钟');
@@ -128,5 +128,27 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
       expect(bp?.custom, `语文 ${g} 未学科定制`).toBe(true);
       expect(bp.sections.length).toBeGreaterThanOrEqual(2);
     }
+  });
+
+  it('数学已定制：课时练栏目学科化（概念/计算/图形/真实问题解决），标记 custom', () => {
+    const bp = getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '数学' });
+    expect(bp.custom).toBe(true);
+    expect(bp.subject).toBe('数学');
+    const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_low', subject: '数学' });
+    expect(inject).toContain('数学·课时练');
+    expect(inject).toContain('概念、计算、图形');
+    expect(inject).toContain('真实问题解决');
+  });
+
+  it('数学全 8 类教辅均有学科定制栏目（默写积累改造为公式法则/情境填空）', () => {
+    for (const g of ['practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review']) {
+      const bp = getTeachingBlueprint({ genType: g, stage: 'middle', subject: '数学' });
+      expect(bp?.custom, `数学 ${g} 未学科定制`).toBe(true);
+      expect(bp.sections.length).toBeGreaterThanOrEqual(2);
+    }
+    const dict = buildTeachingInjection({ genType: 'dictation', stage: 'middle', subject: '数学' });
+    expect(dict).toContain('数学·默写积累');
+    expect(dict).toContain('公式法则');
+    expect(dict).toContain('情境填空');
   });
 });

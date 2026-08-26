@@ -29,12 +29,12 @@ export const TEACHING_BLUEPRINTS = {
   practice: {
     label: '课时练',
     sections: [
-      { name: '基础建构任务', note: '覆盖本课时全部核心知识点，基础题为主，题量约占一半' },
-      { name: '探究进阶任务', note: '变式与综合运用，换情境、换角度、换题型，考查迁移能力' },
+      { name: '基础建构任务', note: '覆盖本课时全部核心知识点，基础内容为主' },
+      { name: '探究进阶任务', note: '变式与综合运用，换情境、换角度、换设问，考查迁移能力' },
       { name: '迁移创新任务', note: '开放性/实践性任务，联系真实生活' },
     ],
     stages: {
-      primary_low: { duration: '30分钟', volume: '6-9题', note: '以认读/口答/简单书写为主，图文并茂；按"基础→探究→迁移"三层组织，严禁只罗列题目' },
+      primary_low: { duration: '30分钟', volume: '6-9题', note: '以认读/口答/简单书写为主，图文并茂；按基础→探究→迁移三层组织' },
       primary_mid: { duration: '40分钟', volume: '8-12题', note: '书写量适中，情境生活化' },
       primary_high: { duration: '45分钟', volume: '10-15题', note: '增加开放与思辨设问' },
       middle: { duration: '45分钟', volume: '8-12题', note: '含过程性考查与规范书写要求' },
@@ -46,8 +46,8 @@ export const TEACHING_BLUEPRINTS = {
   special: {
     label: '专项突破',
     sections: [
-      { name: '分板块组织', note: '按题型或考点分 2-4 个板块（每个板块一个考点/题型），板块内按基础→提升→拓展分层' },
-      { name: '每板块配解析', note: '每板块 3-5 题并附解析，聚焦本单元薄弱点' },
+      { name: '分板块组织', note: '按考点或能力点分 2-4 个板块（每个板块一个考点），板块内按基础→提升→拓展分层' },
+      { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
     ],
     stages: {
       primary_low: { duration: '30分钟', volume: '每类3-4题，2-3类', note: '题目短小，情境游戏化' },
@@ -114,16 +114,16 @@ export const TEACHING_BLUEPRINTS = {
   dictation: {
     label: '默写积累',
     sections: [
-      { name: '看拼音写词语', note: '拼音词嵌入语境句（非孤立罗列），空格数与拼音组一一对应' },
-      { name: '积累默写', note: '本单元要求掌握的字词/成语/名句/篇目，严格对应教材要求' },
-      { name: '书写格', note: '语文1-2年级田字格、3年级起方格/横线；英语小学四线三格、中学起单线' },
+      { name: '基础默写', note: '本课时/单元要求掌握的基础内容，置于语境或情境中呈现（不孤立罗列）' },
+      { name: '积累内容', note: '严格对应教材要求，覆盖全部要求掌握的积累内容' },
+      { name: '书写呈现', note: '书写载体按学科与学段规范呈现，由系统渲染' },
     ],
     stages: {
-      primary_low: { duration: '15分钟', volume: '字词4-8个，拼音语境句2-3句', note: '以本单元生字词为主' },
-      primary_mid: { duration: '20分钟', volume: '字词8-12个，名句/成语适量', note: '' },
-      primary_high: { duration: '20分钟', volume: '字词12-18个，含名句默写', note: '' },
-      middle: { duration: '20分钟', volume: '字词12-16个，名句按课标篇目', note: '含易错字形辨析' },
-      high: { duration: '25分钟', volume: '名句按高考要求篇目，字词15-20个', note: '含情境默写' },
+      primary_low: { duration: '15分钟', volume: '基础内容4-8条', note: '以本课时/单元核心内容为主' },
+      primary_mid: { duration: '20分钟', volume: '基础内容8-12条', note: '' },
+      primary_high: { duration: '20分钟', volume: '基础内容12-18条', note: '' },
+      middle: { duration: '20分钟', volume: '基础内容12-16条', note: '含易错辨析' },
+      high: { duration: '25分钟', volume: '基础内容15-20条', note: '含情境化考查' },
     },
   },
 
@@ -132,13 +132,13 @@ export const TEACHING_BLUEPRINTS = {
     label: '错题本',
     sections: [
       { name: '原题重现', note: '完整重现原题（可精简题干，保留关键信息）' },
-      { name: '错误归因', note: '具体到知识点，禁止笼统写"粗心"' },
+      { name: '错误归因', note: '具体到知识点或思维环节，归因明确' },
       { name: '正确解法', note: '分步完整解答' },
       { name: '同类变式', note: '每题 1 道变式（换情境、换设问角度，不复刻原题思路）' },
       { name: '解题策略', note: '归纳本类题通用策略' },
     ],
     stages: {
-      primary_low: { duration: '—', volume: '4-6题', note: '按知识点或题型分类，每题结构完整' },
+      primary_low: { duration: '—', volume: '4-6题', note: '按知识点或错因分类，每题结构完整' },
       primary_mid: { duration: '—', volume: '5-8题', note: '' },
       primary_high: { duration: '—', volume: '6-10题', note: '' },
       middle: { duration: '—', volume: '6-10题', note: '归因须具体到知识模块' },
@@ -154,14 +154,14 @@ export const TEACHING_BLUEPRINTS = {
       { name: '考点梳理', note: '按考点逐条梳理（标注教材出处），重点难点突出' },
       { name: '典型题析', note: '2-3 道典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '3-5 个易错点辨析' },
-      { name: '综合自测', note: '分层自测（基础/提高），按考点分布、避免同考点重复考查' },
+      { name: '综合自测', note: '分层自测（基础/提高），按考点分布，覆盖本单元全部能力点' },
     ],
     stages: {
-      primary_low: { duration: '30分钟', volume: '自测8-12题/≥3种题型', note: '自测题情境化、图文并茂' },
-      primary_mid: { duration: '40分钟', volume: '自测12-18题/≥4种题型', note: '' },
-      primary_high: { duration: '45分钟', volume: '自测15-25题/≥4种题型', note: '含开放与思辨题' },
-      middle: { duration: '45分钟', volume: '自测12-20题/≥4种题型', note: '含过程性考查' },
-      high: { duration: '60分钟', volume: '自测15-25题/≥5种题型', note: '素养立意，设问有层次' },
+      primary_low: { duration: '30分钟', volume: '自测8-12题', note: '自测题情境化、图文并茂' },
+      primary_mid: { duration: '40分钟', volume: '自测12-18题', note: '' },
+      primary_high: { duration: '45分钟', volume: '自测15-25题', note: '含开放与思辨题' },
+      middle: { duration: '45分钟', volume: '自测12-20题', note: '含过程性考查' },
+      high: { duration: '60分钟', volume: '自测15-25题', note: '素养立意，设问有层次' },
     },
   },
 };
@@ -225,7 +225,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       label: '错题本',
       sections: [
         { name: '原题重现', note: '完整重现原题（可精简题干，保留关键信息）' },
-        { name: '错误归因', note: '具体到字词/句法/阅读能力点，禁止笼统' },
+        { name: '错误归因', note: '具体到字词/句法/阅读能力点，归因明确' },
         { name: '正确解法', note: '分步完整解答' },
         { name: '同类变式', note: '1 道变式（换情境、换设问角度）' },
         { name: '解题策略', note: '归纳本类题通用策略' },
@@ -239,6 +239,76 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
         { name: '典型题析', note: '适量典型题（含解题思路分析）' },
         { name: '易错聚焦', note: '本单元易错点辨析' },
         { name: '综合自测', note: '分层自测（基础/提高），覆盖本单元能力点' },
+      ],
+    },
+  },
+  '数学': {
+    practice: {
+      label: '课时练',
+      sections: [
+        { name: '基础建构任务', note: '覆盖本课时概念、计算、图形等核心知识点，在情境中考查' },
+        { name: '探究进阶任务', note: '变式与综合运用，换情境、换数据、换设问角度，考查迁移' },
+        { name: '迁移创新任务', note: '真实问题解决（购物、测量、统计等生活情境），联系本单元主题' },
+      ],
+    },
+    special: {
+      label: '专项突破',
+      sections: [
+        { name: '分板块组织', note: '按考点或能力点分 2-4 个板块（计算/图形/解决问题等），板块内由易到难' },
+        { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱能力点' },
+      ],
+    },
+    preview: {
+      label: '课前预习',
+      sections: [
+        { name: '学习目标', note: '1-2 条，明确本课时概念与技能目标' },
+        { name: '预习任务', note: '问题驱动（阅读课本、尝试例题、圈画疑问），可操作可检查，覆盖本课时全部新知' },
+        { name: '预习检测', note: '2-4 道自检题，检测预习效果' },
+        { name: '我的疑问', note: '必设栏目，供学生记录预习中不懂的问题' },
+      ],
+    },
+    reading: {
+      label: '阅读训练',
+      sections: [
+        { name: '阅读材料', note: '数学阅读材料（生活情境、图表资料、数学故事、数学文化），主题与本单元相关，原创或改编，完整呈现并标注出处' },
+        { name: '分层设题', note: '分层设问（信息提取→数量关系理解→评价应用），考查素养而非机械记忆' },
+      ],
+    },
+    summary: {
+      label: '知识总结',
+      sections: [
+        { name: '知识框架', note: '结构化呈现本单元概念、法则、公式、方法（导图/表格/对比优先）' },
+        { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
+        { name: '易错辨析', note: '本单元易混概念与易错计算辨析' },
+        { name: '典型例题', note: '适量典型例题（含解析）' },
+      ],
+    },
+    dictation: {
+      label: '默写积累',
+      sections: [
+        { name: '公式法则', note: '本单元公式、法则、单位进率等必记内容，按课标要求覆盖' },
+        { name: '情境填空', note: '核心概念与关键词在情境句中的填写（不孤立默写）' },
+        { name: '书写规范', note: '数字与运算符号书写规范，低段强调' },
+      ],
+    },
+    errorbook: {
+      label: '错题本',
+      sections: [
+        { name: '原题重现', note: '完整重现原题（可精简题干，保留关键信息）' },
+        { name: '错误归因', note: '具体到知识点或思维环节（审题/建模/计算/验证），归因明确' },
+        { name: '正确解法', note: '分步完整解答' },
+        { name: '同类变式', note: '1 道变式（换数据、换情境、换设问角度）' },
+        { name: '解题策略', note: '归纳本类题通用策略' },
+      ],
+    },
+    review: {
+      label: '复习资料',
+      sections: [
+        { name: '知识框架', note: '本单元概念、公式、方法结构图或表格' },
+        { name: '考点梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
+        { name: '典型题析', note: '适量典型题（含解题思路分析）' },
+        { name: '易错聚焦', note: '本单元易错点辨析' },
+        { name: '综合自测', note: '分层自测（基础/提高），覆盖本单元全部能力点' },
       ],
     },
   },
@@ -301,7 +371,7 @@ export function buildTeachingInjection({ genType = '', stage = '', subject = '' 
 ${sectionsText}
 ▌题量与时长
 · 建议时长：${p.duration}
-· 题量/篇幅底线：${p.volume}（内容充足饱满，严禁单薄空洞；严禁只罗列题目或同知识点反复考查）${p.note ? `\n· 学段注意：${p.note}` : ''}`;
+· 题量/篇幅底线：${p.volume}（内容充足饱满，栏目完整、板块分明）${p.note ? `\n· 学段注意：${p.note}` : ''}`;
 }
 
 export default {
