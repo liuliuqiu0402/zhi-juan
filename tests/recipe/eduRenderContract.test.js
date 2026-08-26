@@ -200,12 +200,16 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(t2.template).toContain('【学段特点】');
   });
 
-  it('三维度模板全量：486（54 学科组合 × 9 类型）+ 学段×类型 45', () => {
+  it('指令库按 29 条基础组织（类型层9 + 学科层15 + 学段层5），检索时三维度实时组装', () => {
     const builtin = listPromptTemplates().filter(t => t.source === 'builtin');
-    const dim3 = builtin.filter(t => t.key.split('|').length === 3);
-    const dim2 = builtin.filter(t => t.key.split('|').length === 2);
-    expect(dim3.length).toBe(486);
-    expect(dim2.length).toBe(45);
+    expect(builtin.filter(t => t.layer === 'type').length).toBe(9);
+    expect(builtin.filter(t => t.layer === 'subject').length).toBe(15);
+    expect(builtin.filter(t => t.layer === 'stage').length).toBe(5);
+    expect(builtin.length).toBe(29);
+    // 检索组装：三维度 cell → 类型基础 + 学科要点 + 学段特点
+    const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
+    expect(t.template).toContain('【语文学科要点】');
+    expect(t.template).toContain('【学段特点】');
   });
 
   it('政治类学科名与标准化链一致：高中=思想政治、初中=道德与法治（三维度模板可命中）', () => {

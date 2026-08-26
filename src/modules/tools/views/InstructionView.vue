@@ -36,6 +36,7 @@
         <div class="tpl-head" @click="toggle(t.key)">
           <span class="arrow">{{ openKey === t.key ? '▾' : '▸' }}</span>
           <span class="lib-tag">📝 指令库</span>
+          <span class="layer-tag" :class="`ly-${t.layer}`">{{ layerLabel(t) }}</span>
           <span class="dim-name">{{ tplDimName(t) }}</span>
           <span class="key-hint" :title="'数据键：' + t.key">{{ t.key }}</span>
           <span v-if="t.source === 'user'" class="src-user">已自定义</span>
@@ -46,9 +47,11 @@
         <div v-if="openKey === t.key && editingKey !== t.key" class="tpl-body">
           <pre class="tpl-preview">{{ t.template }}</pre>
           <div class="tpl-ops">
-            <button class="btn" @click="startEdit(t)">✏️ 编辑</button>
-            <button v-if="t.source === 'builtin'" class="btn" @click="dupFromBuiltin(t)">📋 复制为自定义</button>
-            <button v-if="t.source === 'user'" class="btn danger" @click="removeTpl(t)">🗑️ 删除自定义</button>
+            <button v-if="t.layer === 'type' || t.source === 'user'" class="btn" @click="startEdit(t)">
+              {{ t.layer === 'type' && t.source === 'builtin' ? '✏️ 编辑（保存后覆盖内置，可恢复默认）' : '✏️ 编辑' }}
+            </button>
+            <button v-if="t.layer === 'user'" class="btn danger" @click="removeTpl(t)">🗑️ 删除自定义/恢复默认</button>
+            <span v-if="t.layer === 'subject' || t.layer === 'stage'" class="readonly-tip">📌 内置要点（只读），请在「学科要点库」维护</span>
           </div>
         </div>
 
@@ -133,7 +136,7 @@ const GEN_TYPE_NAME = Object.fromEntries(GEN_TYPE_LABELS.map((t) => [t.key, t.la
 
 /* ===== 数据源 ===== */
 const allTpl = ref(listPromptTemplates());
-const totalCount = computed(() => allTpl.value.length);
+const totalCount = computed(() => 29); // 29 条基础（类型层9 + 学科层15 + 学段层5）
 const userCount = computed(() => allTpl.value.filter((t) => t.source === 'user').length);
 const reload = () => { allTpl.value = listPromptTemplates(); };
 
@@ -141,7 +144,7 @@ const reload = () => { allTpl.value = listPromptTemplates(); };
 const openKey = ref('');
 const toggle = (key) => { openKey.value = openKey.value === key ? '' : key; };
 
-/* ===== key 三维度解析 ===== */
+/* ===== key 三维度解析（仅用户自定义条目用；内置按 layer 展示） ===== */
 const parseKey = (key) => {
   const parts = String(key || '').split('|');
   const genType = parts[parts.length - 1] || '';
@@ -149,15 +152,35 @@ const parseKey = (key) => {
   const subject = parts.length >= 3 ? parts[1] : '';
   return { stage, subject, genType };
 };
+/** 全中文三维度名（按 layer：类型模板 / 学科要点 / 学段要点 / 用户自定义） */
 const tplDimName = (t) => {
+  if (t.layer === 'type') return `全部学段 · 全学科 · ${GEN_TYPE_NAME[t.key] || t.key}`;
+  if (t.layer === 'subject') return `全部学段 · ${t.key} · 全部类型`;
+  if (t.layer === 'stage') return `${STAGE_LABELS[t.key] || t.key} · 全学科 · 全部类型`;
   const { stage, subject, genType } = parseKey(t.key);
   return `${stage ? STAGE_LABELS[stage] : '全部学段'} · ${subject || '全学科'} · ${GEN_TYPE_NAME[genType] || genType}`;
 };
+const layerLabel = (t) => (
+  { type: '类型模板', subject: '学科要点', stage: '学段要点', user: '自定义' }[t.layer] || '模板'
+);
 
-/* ===== 三维度筛选 ===== */
+/* ===== 三维度筛选（内置按 layer 匹配；用户自定义按 key 解析匹配） ===== */
 const tplList = computed(() =>
   allTpl.value.filter((t) => {
     const { stage, subject, genType } = parseKey(t.key);
+    if (t.layer === 'type') {
+      if (dims.value.genType && t.key !== dims.value.genType) return false;
+      return true;
+    }
+    if (t.layer === 'subject') {
+      if (dims.value.subject && t.key !== dims.value.subject) return false;
+      return true;
+    }
+    if (t.layer === 'stage') {
+      if (dims.value.stage && t.key !== dims.value.stage) return false;
+      return true;
+    }
+    // user
     if (dims.value.stage && stage && stage !== dims.value.stage) return false;
     if (dims.value.subject && subject && subject !== dims.value.subject) return false;
     if (dims.value.genType && genType && genType !== dims.value.genType) return false;
@@ -197,17 +220,10 @@ const saveDraft = (key) => {
   else window.alert('保存失败');
 };
 const removeTpl = (t) => {
-  if (!window.confirm(`删除「${t.key}」的自定义模板？删除后回退内置。`)) return;
+  if (!window.confirm(`删除「${t.key}」的自定义版本？删除后回退内置默认。`)) return;
   deletePromptTemplate(t.key);
   reload();
   if (openKey.value === t.key) openKey.value = '';
-};
-/** 内置模板复制为自定义（key 加 user- 前缀避免与内置冲突） */
-const dupFromBuiltin = (t) => {
-  const key = `user-${t.key}`;
-  savePromptTemplate(key, { name: `${t.name || t.key}（副本）`, template: t.template || '' });
-  reload();
-  openKey.value = key;
 };
 
 /* ===== 新增模板 ===== */
@@ -285,6 +301,12 @@ const openIssues = computed(() => filteredIssues.value.length);
 .dim-name { font-weight: 700; font-size: 13.5px; color: #26303e; }
 .key-hint { font-size: 11px; color: var(--text-muted); font-weight: 400; }
 .src-user { font-size: 10.5px; font-weight: 600; color: #a06a10; background: #fdf3e2; border: 1px solid #f3d9a8; border-radius: 999px; padding: 1px 8px; }
+.layer-tag { font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 8px; }
+.ly-type { background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; }
+.ly-subject { background: var(--success-light); color: #1d7a4a; border: 1px solid #bfe6cd; }
+.ly-stage { background: #eef7ee; color: #1d7a4a; border: 1px solid #bfe6cd; }
+.ly-user { background: var(--accent-soft, #fdf3e2); color: #a06a10; border: 1px solid #f3d9a8; }
+.readonly-tip { font-size: 11.5px; color: var(--text-muted); }
 .tpl-meta { font-size: 12px; color: var(--text-muted); margin-left: auto; }
 .tpl-body { border-top: 1px dashed var(--border-light); padding: 10px 14px 14px; }
 .tpl-preview { white-space: pre-wrap; word-break: break-all; font-size: 12px; line-height: 1.7; color: #445; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 8px; padding: 10px 12px; max-height: 260px; overflow: auto; margin: 0; }

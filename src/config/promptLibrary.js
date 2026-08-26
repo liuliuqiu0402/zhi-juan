@@ -217,22 +217,26 @@ export const STAGE_SUBJECTS = {
 /** 全部资料类型键（与 TYPE_BASES 一致） */
 const ALL_GEN_TYPES = Object.keys(TYPE_BASES);
 
-// 🔴 学段兜底：学段×资料类型（subject 缺省时命中，5 学段 × 9 类型 = 45）
-for (const [stage, stageExtra] of Object.entries(STAGE_EXAM_EXTRAS)) {
-  for (const gType of ALL_GEN_TYPES) {
-    BUILTIN_TEMPLATES[`${stage}|${gType}`] = TYPE_BASES[gType](`\n\n【学段特点】\n${stageExtra}`);
-  }
+// 🔴 三维度原则落地：内置不再预生成 540 份组合模板（物化冗余），
+//    只保留"29 条基础"（类型层 9 + 学科层 15 + 学段层 5），检索时按 cell 实时组装。
+//    BUILTIN_TEMPLATES 仅保留类型层基础（gType → 基础模板），供列表/兜底使用。
+for (const [gType, base] of Object.entries(TYPE_BASES)) {
+  BUILTIN_TEMPLATES[gType] = base('');
 }
-// 🔴 三维度全覆盖：学段×学科×资料类型（仅生成该学段实际开设的学科；
-//    内容 = 类型骨架 + 学科要点 + 学段特点，三维度针对性。54 组合 × 9 类型 = 486）
-for (const [stage, subjList] of Object.entries(STAGE_SUBJECTS)) {
-  for (const subj of subjList) {
-    const subjExtra = SUBJECT_EXAM_EXTRAS[subj];
-    if (!subjExtra) continue; // 学科要点缺失则跳过
-    for (const gType of ALL_GEN_TYPES) {
-      BUILTIN_TEMPLATES[`${stage}|${subj}|${gType}`] = TYPE_BASES[gType](`\n\n【${subj}学科要点】\n${subjExtra}\n\n【学段特点】\n${STAGE_EXAM_EXTRAS[stage]}`);
-    }
-  }
+
+/**
+ * 按三维度 cell 实时组装内置模板（原则 1：29 条基础 + 索引叠加，不预生成组合）
+ * @param {Object} opts { stage(学段键), subject(学科), genType(类型) }
+ * @returns {string} 完整模板正文 = 类型基础模板 + 学科要点 + 学段特点
+ */
+function buildBuiltinTemplate({ stage = '', subject = '', genType = '' } = {}) {
+  const base = TYPE_BASES[genType] || TYPE_BASES.exam;
+  const extra = [];
+  // 学科要点仅当该学段实际开设该学科时拼（低段无物理/化学 → 回落学段模板，与原 486 组合语义一致）
+  const stageOpensSubject = stage ? (STAGE_SUBJECTS[stage] || []).includes(subject) : false;
+  if (subject && stageOpensSubject && SUBJECT_EXAM_EXTRAS[subject]) extra.push(`\n\n【${subject}学科要点】\n${SUBJECT_EXAM_EXTRAS[subject]}`);
+  if (stage && STAGE_EXAM_EXTRAS[stage]) extra.push(`\n\n【学段特点】\n${STAGE_EXAM_EXTRAS[stage]}`);
+  return base(extra.join(''));
 }
 
 /** localStorage 键 */
@@ -271,7 +275,7 @@ export function getPromptTemplate({ grade = '', subject = '', genType = '' }) {
   if (userLib[genType]?.template) {
     return { ...userLib[genType], id: genType, source: 'user' };
   }
-  // 4) 内置 grade×subject×genType（三维度全覆盖模板——学科要点 + 学段特点）
+  // 4) 内置三维度（学段×学科×类型：实时组装 = 类型基础 + 学科要点 + 学段特点）
   const stageKeyOf = (g = '') => {
     if (!g) return '';
     if (STAGE_NAMES[g]) return g;
@@ -279,15 +283,16 @@ export function getPromptTemplate({ grade = '', subject = '', genType = '' }) {
     return '';
   };
   const stageKey = stageKeyOf(grade);
-  const dim3Key = stageKey && subject ? `${stageKey}|${subject}|${genType}` : '';
-  if (dim3Key && BUILTIN_TEMPLATES[dim3Key]) {
-    return { id: dim3Key, name: `内置·${GEN_TYPE_NAMES[genType] || genType}（${STAGE_NAMES[stageKey] || stageKey}·${subject}）`, template: BUILTIN_TEMPLATES[dim3Key], source: 'builtin' };
+  if (stageKey && subject && SUBJECT_EXAM_EXTRAS[subject]) {
+    const template = buildBuiltinTemplate({ stage: stageKey, subject, genType });
+    return { id: `${stageKey}|${subject}|${genType}`, name: `内置·${GEN_TYPE_NAMES[genType] || genType}（${STAGE_NAMES[stageKey] || stageKey}·${subject}）`, template, source: 'builtin' };
   }
-  // 5) 内置 grade×genType（学段定制模板；grade 可为 primary_low 等键或"小学低段·二年级"中文标签）
-  if (stageKey && BUILTIN_TEMPLATES[`${stageKey}|${genType}`]) {
-    return { id: `${stageKey}|${genType}`, name: `内置·${GEN_TYPE_NAMES[genType] || genType}（${STAGE_NAMES[stageKey] || stageKey}）`, template: BUILTIN_TEMPLATES[`${stageKey}|${genType}`], source: 'builtin' };
+  // 5) 内置 学段×类型（subject 缺省或学科无要点时）
+  if (stageKey) {
+    const template = buildBuiltinTemplate({ stage: stageKey, genType });
+    return { id: `${stageKey}|${genType}`, name: `内置·${GEN_TYPE_NAMES[genType] || genType}（${STAGE_NAMES[stageKey] || stageKey}）`, template, source: 'builtin' };
   }
-  // 6) 内置 genType
+  // 6) 内置 genType（类型基础模板兜底）
   const builtin = BUILTIN_TEMPLATES[genType] || BUILTIN_TEMPLATES.exam;
   const name = `内置·${GEN_TYPE_NAMES[genType] || genType}（通用模板）`;
   return { id: genType, name, template: builtin, source: 'builtin' };
@@ -309,21 +314,37 @@ export function deletePromptTemplate(key) {
   return false;
 }
 
-/** 列出全部可用模板（用户优先，内置兜底） */
+/**
+ * 列出指令库全部条目（原则 1：29 条基础 + 用户自定义，不列 540 组合）
+ * 返回条目带 layer：'type' 类型基础模板(9) / 'subject' 学科要点(15) / 'stage' 学段要点(5) / 'user' 用户自定义
+ */
 export function listPromptTemplates() {
   const userLib = loadUserLibrary();
   const out = [];
+  // 用户自定义（不变）
   for (const [key, t] of Object.entries(userLib)) {
-    if (t?.template) out.push({ key, ...t, source: 'user' });
+    if (t?.template) out.push({ key, ...t, source: 'user', layer: 'user' });
   }
-  for (const [key, template] of Object.entries(BUILTIN_TEMPLATES)) {
-    const parts = key.split('|');
-    const gType = parts[parts.length - 1];
-    const dims = parts.slice(0, -1).map(d => STAGE_NAMES[d] || d).join('·');
-    const name = parts.length > 1
-      ? `内置·${GEN_TYPE_NAMES[gType] || gType}（${dims}）`
-      : `内置·${GEN_TYPE_NAMES[key] || key}（通用模板）`;
-    out.push({ key, id: key, name, template, source: 'builtin' });
+  // 类型层基础模板（9）
+  for (const [gType, template] of Object.entries(BUILTIN_TEMPLATES)) {
+    out.push({
+      key: gType, id: gType, name: `类型模板·${GEN_TYPE_NAMES[gType] || gType}`,
+      template, source: 'builtin', layer: 'type',
+    });
+  }
+  // 学科层要点（15）
+  for (const [subject, text] of Object.entries(SUBJECT_EXAM_EXTRAS)) {
+    out.push({
+      key: subject, id: `subject|${subject}`, name: `学科要点·${subject}`,
+      template: text, source: 'builtin', layer: 'subject',
+    });
+  }
+  // 学段层要点（5）
+  for (const [stage, text] of Object.entries(STAGE_EXAM_EXTRAS)) {
+    out.push({
+      key: stage, id: `stage|${stage}`, name: `学段要点·${STAGE_NAMES[stage] || stage}`,
+      template: text, source: 'builtin', layer: 'stage',
+    });
   }
   return out;
 }
