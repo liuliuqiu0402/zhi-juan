@@ -205,4 +205,26 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
       expect(bp.sections.length).toBeGreaterThanOrEqual(2);
     }
   });
+
+  it('物理已定制：课时练含实验/现象分析语义，默写积累改造为概念规律/单位常量', () => {
+    const bp = getTeachingBlueprint({ genType: 'practice', stage: 'middle', subject: '物理' });
+    expect(bp.custom).toBe(true);
+    const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '物理' });
+    expect(inject).toContain('物理·课时练');
+    expect(inject).toContain('概念、规律、公式');
+    expect(inject).toContain('实验与现象分析任务');
+    expect(inject).toContain('生活现象、科技应用');
+    const dict = buildTeachingInjection({ genType: 'dictation', stage: 'middle', subject: '物理' });
+    expect(dict).toContain('物理·默写积累');
+    expect(dict).toContain('概念规律');
+    expect(dict).toContain('单位常量');
+  });
+
+  it('物理全 8 类教辅均有学科定制栏目', () => {
+    for (const g of ['practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review']) {
+      const bp = getTeachingBlueprint({ genType: g, stage: 'middle', subject: '物理' });
+      expect(bp?.custom, `物理 ${g} 未学科定制`).toBe(true);
+      expect(bp.sections.length).toBeGreaterThanOrEqual(2);
+    }
+  });
 });
