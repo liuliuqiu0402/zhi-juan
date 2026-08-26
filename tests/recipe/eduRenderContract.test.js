@@ -145,11 +145,11 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(t.template).toContain('【学段特点】');
   });
 
-  it('数学 exam：含数学学科要点 + 竖式 + [GRAPH] 简图', () => {
+  it('数学 exam：含数学学科要点 + 竖式 + 情境化', () => {
     const t = getPromptTemplate({ grade: '小学中段', subject: '数学', genType: 'exam' });
     expect(t.template).toContain('【数学学科要点】');
     expect(t.template).toContain('竖式');
-    expect(t.template).toContain('[GRAPH]');
+    expect(t.template).toContain('情境'); // 学科要点情境化表述（[GRAPH] 由渲染契约注入，不在要点）
   });
 
   it('英语 exam：含英语学科要点 + 四线三格', () => {
@@ -189,9 +189,11 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(getPromptTemplate({ grade: 'high', genType: 'exam' }).template).toContain('对标高考');
   });
 
-  it('三维度全覆盖：学段×学科×exam 命中（学科要点 + 学段特点）', () => {
+  it('三维度全覆盖：学段×学科×exam 命中（学科要点 + 学段特点，名称三维度中文）', () => {
     const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
-    expect(t.name).toContain('小学低段·语文');
+    expect(t.name).toContain('小学低段');
+    expect(t.name).toContain('语文');
+    expect(t.name).toContain('正式考卷');
     expect(t.template).toContain('【语文学科要点】');
     expect(t.template).toContain('【学段特点】');
     // 匹配链：三维度 > 学段×类型（初中×历史）
@@ -200,11 +202,11 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(t2.template).toContain('【学段特点】');
   });
 
-  it('指令库按 类型层基础组织（9），学科/学段要点归学科要点库（唯一事实源，生成时共享组装）', () => {
+  it('指令库按 486 三维度 cell 预生成（学段×学科×类型，一条全貌；名称三维度中文）', () => {
     const builtin = listPromptTemplates().filter(t => t.source === 'builtin');
-    expect(builtin.filter(t => t.layer === 'type').length).toBe(9);
-    expect(builtin.length).toBe(9);
-    // 检索组装：三维度 cell → 类型基础 + 学科要点 + 学段特点（要点在学科要点库维护，此处共享）
+    expect(builtin.filter(t => t.layer === 'cell').length).toBe(486);
+    expect(builtin.length).toBe(486);
+    // cell 直取：三维度 key 命中预生成 cell
     const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
     expect(t.template).toContain('【语文学科要点】');
     expect(t.template).toContain('【学段特点】');

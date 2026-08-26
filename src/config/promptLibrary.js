@@ -193,6 +193,83 @@ export const SUBJECT_EXAM_EXTRAS = {
   体育: '· 动作要领分步表述；\n· 安全提示到位；\n· 结合学生生活实际命题；\n· 底线：填空/选择在运动情境中设问（如"原地高抬腿时，上体应保持____"），禁止孤立术语名词填空。',
 };
 
+/**
+ * 学科×学段 命题要点（54 cell，语言按收敛方案：课标激活、简洁、不诱导、不列局限清单）
+ * 键 = 学科|学段（仅实际开设组合）；内容 = 该学科该学段的命题侧重（学科特性 + 学段差异）。
+ * 指令库三维度 cell（学段×学科×类型）组装时作为"学科层"注入。
+ */
+export const SUBJECT_STAGE_EXTRAS = {
+  // ── 语文 ──
+  '语文|primary_low': '识字写字在语境句中考（字词置于具体语句，不孤立罗列）；写话贴近生活、给情境与词语支架；用田字格规范书写。',
+  '语文|primary_mid': '词句运用在真实语境中选填、仿写；阅读设问沿信息提取→理解→评价递进；习作给选材与内容支架。',
+  '语文|primary_high': '阅读含概括与简单评价；综合性学习结合教材主题组织；习作二选一，给支架与字数提示。',
+  '语文|middle': '古诗文课内外对比阅读，重理解与积累运用；名著阅读设问有层次；作文立意明确、结构完整。',
+  '语文|high': '现代文、古代诗文阅读设问分层；语言文字运用重语境；作文准确理解材料、论证充分。',
+  // ── 数学 ──
+  '数学|primary_low': '口算与简单应用结合生活情境；图形与量以直观操作呈现；问题解决列式、计算、作答完整。',
+  '数学|primary_mid': '计算与竖式规范；概念与单位换算在情境中考查；应用题真实情境、列式计算作答完整。',
+  '数学|primary_high': '计算与方程在情境中运用；几何与统计结合操作；应用题体现建模过程（理解→列式→计算→作答）。',
+  '数学|middle': '数与式、方程不等式、函数、几何、统计概率综合；解答题过程完整（推理链清晰）；应用题真实情境建模。',
+  '数学|high': '函数与导数、几何、概率统计综合；解答题逻辑严谨、步骤完整；开放设问考查数学表达与推理。',
+  // ── 英语 ──
+  '英语|primary_low': '词汇在图片/情境中识别与认读；听力原文完整呈现；书写用四线三格规范。',
+  '英语|primary_mid': '词汇句型在语篇/情境中运用；听力原文完整呈现；书写规范（四线三格）。',
+  '英语|primary_high': '语篇阅读与书面表达结合主题语境；听力原文完整呈现；设问覆盖信息提取→理解→运用。',
+  '英语|middle': '语篇完整地道（真实语境、无中式英语）；听力原文完整呈现；书面表达给要点支架；设问覆盖信息提取→推理→主旨。',
+  '英语|high': '听力、阅读语篇真实地道；完形/语法在语篇语境中考查；应用文与续写设问清晰、给足信息。',
+  // ── 物理 ──
+  '物理|middle': '实验探究体现完整过程；计算题真实情境建模（画示意→列式→计算→作答）；选择填空以生活/实验现象为载体。',
+  '物理|high': '受力、电路、光路图规范；实验题重原理与数据处理；计算题过程完整、步骤严谨。',
+  // ── 化学 ──
+  '化学|middle': '化学用语规范（配平/条件）；实验探究含方案、现象、数据、结论；计算题步骤完整。',
+  '化学|high': '工艺流程与反应原理结合情境；实验探究重方案与评价；计算定量、步骤规范。',
+  // ── 生物 ──
+  '生物|middle': '识图与资料分析在图示情境中设问（结构→功能→原理）；实验探究含变量控制与结论。',
+  '生物|high': '细胞代谢、遗传、调节等以图表情境设问；实验探究重设计与数据分析。',
+  // ── 道德与法治 ──
+  '道德与法治|primary_low': '行为习惯与生活常识以情境辨析呈现；设问贴近生活、表达正向。',
+  '道德与法治|primary_mid': '规则意识与行为选择在情境中辨析；设问要求做法＋理由。',
+  '道德与法治|primary_high': '法律常识与价值判断以案例/时政为载体；实践探究给出做法并说明理由。',
+  '道德与法治|middle': '情境探究与法理阐释结合；材料题以时政/法律案例为载体，要求结合所学分析。',
+  // ── 思想政治 ──
+  '思想政治|high': '情境与法理结合、时政热点入题；材料分析沿原理→材料→结论；论述观点明确、分层论证。',
+  // ── 历史 ──
+  '历史|middle': '材料题论从史出（结合材料+所学）；时空观念（地图/时间轴/图表）设问；论述观点+史料+论证。',
+  '历史|high': '史料实证与历史解释结合；论述题观点明确、论证严谨；选择题以史料/图表为载体。',
+  // ── 地理 ──
+  '地理|middle': '以地图/图表为载体设问；综合题沿区域定位→要素分析→人地关系；资料真实、禁止捏造。',
+  '地理|high': '区域认知与地理原理结合；综合题多要素分析；图表信息提取有层次。',
+  // ── 科学 ──
+  '科学|primary_low': '观察与现象解释结合生活；记录题给记录表；操作型任务明确可做。',
+  '科学|primary_mid': '实验探究含猜想、方案、现象、结论；填空选择结合生活现象。',
+  '科学|primary_high': '实验探究重数据分析与结论；综合运用结合真实问题。',
+  '科学|middle': '实验探究体现完整科学过程（变量控制/数据/结论）；综合运用跨学科、开放性设问。',
+  // ── 信息科技 ──
+  '信息科技|primary_low': '设备认知与用眼卫生以情境设问；操作步骤描述清晰。',
+  '信息科技|primary_mid': '在线学习与数字媒体结合场景；操作题描述流程步骤。',
+  '信息科技|primary_high': '数据与算法初步结合场景；流程设计描述规范。',
+  '信息科技|middle': '互联网应用与物联网结合场景；方案设计体现流程思维。',
+  '信息科技|high': '数据与计算、信息系统结合真实任务；算法设计逻辑清晰。',
+  // ── 音乐 ──
+  '音乐|primary_low': '音的高低长短、节奏快慢以情境设问；表现题可用圈选/连线/涂色呈现。',
+  '音乐|primary_mid': '乐理常识与作品结合；简答沿要素→情感体验。',
+  '音乐|primary_high': '赏析沿要素→情感→文化理解递进；民族音乐与名曲结合。',
+  '音乐|middle': '中外名曲与体裁结合；赏析有层次、鼓励多元感受。',
+  '音乐|high': '音乐鉴赏与历史脉络结合；评价有依据、可思辨。',
+  // ── 美术 ──
+  '美术|primary_low': '造型语言与工具认识以感知呈现；表现题描述创作思路。',
+  '美术|primary_mid': '造型/色彩/构图知识结合实例；赏析沿内容→形式→情感。',
+  '美术|primary_high': '赏析结合中华优秀传统文化；设计应用题有明确要求。',
+  '美术|middle': '中外美术名作结合赏析；评价有依据。',
+  '美术|high': '美术鉴赏与设计原理结合；评价多元、有思辨。',
+  // ── 体育 ──
+  '体育|primary_low': '运动安全与生活习惯以情境设问；动作要领分步清晰。',
+  '体育|primary_mid': '运动规则与健康知识结合；动作要领在情境中描述。',
+  '体育|primary_high': '运动技能与健康行为结合；安全防护说明到位。',
+  '体育|middle': '运动原理与健康知识结合；锻炼方案合理可行。',
+  '体育|high': '健康素养与体育文化结合；锻炼方案设计科学。',
+};
+
 /** 学段命题要点（5 学段全覆盖——正面引导，非禁令；末尾"认知底线"=不超学段认知水平）
  *  🔧 学科要点库（工具库）读取源；与 EXAM_STAGE_STANDARDS（examPaperBlueprints）存在重复，迁移时定唯一事实源 */
 export const STAGE_EXAM_EXTRAS = {
@@ -217,24 +294,31 @@ export const STAGE_SUBJECTS = {
 /** 全部资料类型键（与 TYPE_BASES 一致） */
 const ALL_GEN_TYPES = Object.keys(TYPE_BASES);
 
-// 🔴 三维度原则落地：内置不再预生成 540 份组合模板（物化冗余），
-//    只保留"29 条基础"（类型层 9 + 学科层 15 + 学段层 5），检索时按 cell 实时组装。
-//    BUILTIN_TEMPLATES 仅保留类型层基础（gType → 基础模板），供列表/兜底使用。
-for (const [gType, base] of Object.entries(TYPE_BASES)) {
-  BUILTIN_TEMPLATES[gType] = base('');
+// 🔴 三维度 cell 预生成（学段×学科×类型，仅实际开设组合；一条全貌 = 类型基础 + 学科×学段要点 + 学段特点）
+//    生成时 getPromptTemplate 直取 cell，无需运行时组装（用户自定义优先，其次内置 cell）
+for (const [stage, subjList] of Object.entries(STAGE_SUBJECTS)) {
+  for (const subj of subjList) {
+    for (const gType of ALL_GEN_TYPES) {
+      BUILTIN_TEMPLATES[`${stage}|${subj}|${gType}`] = buildBuiltinTemplate({ stage, subject: subj, genType: gType });
+    }
+  }
 }
 
 /**
- * 按三维度 cell 实时组装内置模板（原则 1：29 条基础 + 索引叠加，不预生成组合）
+ * 按三维度 cell 实时组装内置模板（源材料变化时重建 cell 用；预生成后直取，不重复组装）
  * @param {Object} opts { stage(学段键), subject(学科), genType(类型) }
- * @returns {string} 完整模板正文 = 类型基础模板 + 学科要点 + 学段特点
+ * @returns {string} 完整模板正文 = 类型基础模板 + 学科×学段要点 + 学段特点
  */
 function buildBuiltinTemplate({ stage = '', subject = '', genType = '' } = {}) {
   const base = TYPE_BASES[genType] || TYPE_BASES.exam;
   const extra = [];
-  // 学科要点仅当该学段实际开设该学科时拼（低段无物理/化学 → 回落学段模板，与原 486 组合语义一致）
+  // 学科层：优先 学科×学段 专属要点（SUBJECT_STAGE_EXTRAS）；缺 cell 回落学科级（SUBJECT_EXAM_EXTRAS）
   const stageOpensSubject = stage ? (STAGE_SUBJECTS[stage] || []).includes(subject) : false;
-  if (subject && stageOpensSubject && SUBJECT_EXAM_EXTRAS[subject]) extra.push(`\n\n【${subject}学科要点】\n${SUBJECT_EXAM_EXTRAS[subject]}`);
+  if (subject && stageOpensSubject) {
+    const stageExtra = SUBJECT_STAGE_EXTRAS[`${subject}|${stage}`];
+    if (stageExtra) extra.push(`\n\n【${subject}学科要点】\n${stageExtra}`);
+    else if (SUBJECT_EXAM_EXTRAS[subject]) extra.push(`\n\n【${subject}学科要点】\n${SUBJECT_EXAM_EXTRAS[subject]}`);
+  }
   if (stage && STAGE_EXAM_EXTRAS[stage]) extra.push(`\n\n【学段特点】\n${STAGE_EXAM_EXTRAS[stage]}`);
   return base(extra.join(''));
 }
@@ -275,7 +359,7 @@ export function getPromptTemplate({ grade = '', subject = '', genType = '' }) {
   if (userLib[genType]?.template) {
     return { ...userLib[genType], id: genType, source: 'user' };
   }
-  // 4) 内置三维度（学段×学科×类型：实时组装 = 类型基础 + 学科要点 + 学段特点）
+  // 4) 内置三维度 cell（学段×学科×类型，预生成直取；名称三维度中文）
   const stageKeyOf = (g = '') => {
     if (!g) return '';
     if (STAGE_NAMES[g]) return g;
@@ -283,14 +367,15 @@ export function getPromptTemplate({ grade = '', subject = '', genType = '' }) {
     return '';
   };
   const stageKey = stageKeyOf(grade);
-  if (stageKey && subject && SUBJECT_EXAM_EXTRAS[subject]) {
-    const template = buildBuiltinTemplate({ stage: stageKey, subject, genType });
-    return { id: `${stageKey}|${subject}|${genType}`, name: `内置·${GEN_TYPE_NAMES[genType] || genType}（${STAGE_NAMES[stageKey] || stageKey}·${subject}）`, template, source: 'builtin' };
+  const cellId = stageKey && subject ? `${stageKey}|${subject}|${genType}` : '';
+  const cell = cellId && BUILTIN_TEMPLATES[cellId];
+  if (cell) {
+    return { id: cellId, name: `${STAGE_NAMES[stageKey] || stageKey} · ${subject} · ${GEN_TYPE_NAMES[genType] || genType}`, template: cell, source: 'builtin' };
   }
-  // 5) 内置 学段×类型（subject 缺省或学科无要点时）
+  // 5) 内置 学段×类型（subject 缺省或该学段未开设该学科时回落）
   if (stageKey) {
     const template = buildBuiltinTemplate({ stage: stageKey, genType });
-    return { id: `${stageKey}|${genType}`, name: `内置·${GEN_TYPE_NAMES[genType] || genType}（${STAGE_NAMES[stageKey] || stageKey}）`, template, source: 'builtin' };
+    return { id: `${stageKey}|${genType}`, name: `${STAGE_NAMES[stageKey] || stageKey} · ${GEN_TYPE_NAMES[genType] || genType}`, template, source: 'builtin' };
   }
   // 6) 内置 genType（类型基础模板兜底）
   const builtin = BUILTIN_TEMPLATES[genType] || BUILTIN_TEMPLATES.exam;
@@ -315,21 +400,24 @@ export function deletePromptTemplate(key) {
 }
 
 /**
- * 列出指令库条目（类型层基础模板 + 用户自定义；学科/学段要点归「学科要点库」唯一维护，
- * 生成时由 buildBuiltinTemplate 共享组装——不在此重复展示）
+ * 列出指令库条目（用户自定义 + 内置三维度 cell 486 条，名称三维度中文；一条 cell = 完整指令全貌）
  */
 export function listPromptTemplates() {
   const userLib = loadUserLibrary();
   const out = [];
-  // 用户自定义（不变）
+  // 用户自定义（覆盖 cell / 降级键）
   for (const [key, t] of Object.entries(userLib)) {
     if (t?.template) out.push({ key, ...t, source: 'user', layer: 'user' });
   }
-  // 类型层基础模板（9）
-  for (const [gType, template] of Object.entries(BUILTIN_TEMPLATES)) {
+  // 内置三维度 cell（486：学段×学科×类型，仅实际开设组合）
+  for (const [key, template] of Object.entries(BUILTIN_TEMPLATES)) {
+    const parts = key.split('|');
+    if (parts.length !== 3) continue; // 只列三维度 cell（类型基础 9 不单独列）
+    const [stage, subject, gType] = parts;
     out.push({
-      key: gType, id: gType, name: `类型模板·${GEN_TYPE_NAMES[gType] || gType}`,
-      template, source: 'builtin', layer: 'type',
+      key, id: key,
+      name: `${STAGE_NAMES[stage] || stage} · ${subject} · ${GEN_TYPE_NAMES[gType] || gType}`,
+      template, source: 'builtin', layer: 'cell',
     });
   }
   return out;

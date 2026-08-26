@@ -219,11 +219,11 @@ describe('质量底线三维度注入（类型/学科/学段各司其职，非�
     expect(review.template).toContain('按考点分布');
   });
 
-  it('学科维度：三维度模板携带学科底线（防孤立/情境化）', () => {
+  it('学科维度：三维度模板携带学科要点（学段化，正面表述）', () => {
     const chinese = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' });
-    expect(chinese.template).toContain('禁止原句挖空'); // 语文学科底线
+    expect(chinese.template).toContain('语境句'); // 语文低段：字词在语境句中
     const math = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'practice' });
-    expect(math.template).toContain('禁止孤立考查概念定义'); // 数学学科底线
+    expect(math.template).toContain('推理链'); // 数学初中：解答过程完整
     const english = getPromptTemplate({ grade: 'middle', subject: '英语', genType: 'practice' });
     expect(english.template).toContain('无中式英语'); // 英语语篇底线
   });
@@ -234,8 +234,8 @@ describe('质量底线三维度注入（类型/学科/学段各司其职，非�
     expect(low.template).toContain('不出现未学概念与抽象符号'); // 低段：只考已学
     const high = getPromptTemplate({ grade: 'high', subject: '数学', genType: 'practice' });
     expect(high.template).toContain('不超学业质量要求'); // 高段：符合课标
-    // 三维度模板同时携带 学科底线 + 学段认知底线（组合验证）
-    expect(low.template).toContain('禁止原句挖空');
+    // 三维度模板同时携带 学科要点 + 学段认知底线（组合验证）
+    expect(low.template).toContain('语境句');
     expect(low.template).toContain('认知底线');
   });
 

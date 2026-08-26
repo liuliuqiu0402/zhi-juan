@@ -39,7 +39,6 @@
           <span class="layer-tag" :class="`ly-${t.layer}`">{{ layerLabel(t) }}</span>
           <span class="dim-name">{{ tplDimName(t) }}</span>
           <span class="key-hint" :title="'数据键：' + t.key">{{ t.key }}</span>
-          <span v-if="t.source === 'user'" class="src-user">已自定义</span>
           <span class="tpl-meta">{{ t.template.length }} 字</span>
         </div>
 
@@ -47,10 +46,10 @@
         <div v-if="openKey === t.key && editingKey !== t.key" class="tpl-body">
           <pre class="tpl-preview">{{ t.template }}</pre>
           <div class="tpl-ops">
-            <button v-if="t.layer === 'type' || t.source === 'user'" class="btn" @click="startEdit(t)">
-              {{ t.layer === 'type' && t.source === 'builtin' ? '✏️ 编辑（保存后覆盖内置，可恢复默认）' : '✏️ 编辑' }}
+            <button v-if="t.layer === 'cell' || t.source === 'user'" class="btn" @click="startEdit(t)">
+              {{ t.layer === 'cell' ? '✏️ 编辑（保存后覆盖内置，可恢复默认）' : '✏️ 编辑' }}
             </button>
-            <button v-if="t.layer === 'user'" class="btn danger" @click="removeTpl(t)">🗑️ 删除自定义/恢复默认</button>
+            <button v-if="t.source === 'user'" class="btn danger" @click="removeTpl(t)">🗑️ 删除自定义/恢复默认</button>
           </div>
         </div>
 
@@ -135,7 +134,7 @@ const GEN_TYPE_NAME = Object.fromEntries(GEN_TYPE_LABELS.map((t) => [t.key, t.la
 
 /* ===== 数据源 ===== */
 const allTpl = ref(listPromptTemplates());
-const totalCount = computed(() => 9); // 类型层基础模板 9（学科/学段要点在学科要点库维护，生成时共享组装）
+const totalCount = computed(() => 486); // 内置三维度 cell（学段×学科×类型，仅实际开设组合）
 const userCount = computed(() => allTpl.value.filter((t) => t.source === 'user').length);
 const reload = () => { allTpl.value = listPromptTemplates(); };
 
@@ -143,7 +142,7 @@ const reload = () => { allTpl.value = listPromptTemplates(); };
 const openKey = ref('');
 const toggle = (key) => { openKey.value = openKey.value === key ? '' : key; };
 
-/* ===== key 三维度解析（仅用户自定义条目用；内置按 layer 展示） ===== */
+/* ===== key 三维度解析 ===== */
 const parseKey = (key) => {
   const parts = String(key || '').split('|');
   const genType = parts[parts.length - 1] || '';
@@ -151,10 +150,8 @@ const parseKey = (key) => {
   const subject = parts.length >= 3 ? parts[1] : '';
   return { stage, subject, genType };
 };
-/** 条目名称（类型模板显示类型名；用户自定义显示覆盖维度） */
+/** 条目名称：三维度中文（学段 · 学科 · 类型） */
 const tplDimName = (t) => {
-  if (t.layer === 'type') return GEN_TYPE_NAME[t.key] || t.key;
-  // user：显示实际覆盖维度（有维度才显示，无则键）
   const { stage, subject, genType } = parseKey(t.key);
   const parts = [];
   if (stage) parts.push(STAGE_LABELS[stage]);
@@ -162,27 +159,12 @@ const tplDimName = (t) => {
   if (genType && GEN_TYPE_NAME[genType]) parts.push(GEN_TYPE_NAME[genType]);
   return parts.join(' · ') || t.key;
 };
-const layerLabel = (t) => (
-  { type: '类型模板', user: '自定义' }[t.layer] || '模板'
-);
+const layerLabel = (t) => (t.source === 'user' ? '已自定义' : '内置');
 
-/* ===== 三维度筛选（内置按 layer 匹配；用户自定义按 key 解析匹配） ===== */
+/* ===== 三维度筛选（按 key 解析匹配） ===== */
 const tplList = computed(() =>
   allTpl.value.filter((t) => {
     const { stage, subject, genType } = parseKey(t.key);
-    if (t.layer === 'type') {
-      if (dims.value.genType && t.key !== dims.value.genType) return false;
-      return true;
-    }
-    if (t.layer === 'subject') {
-      if (dims.value.subject && t.key !== dims.value.subject) return false;
-      return true;
-    }
-    if (t.layer === 'stage') {
-      if (dims.value.stage && t.key !== dims.value.stage) return false;
-      return true;
-    }
-    // user
     if (dims.value.stage && stage && stage !== dims.value.stage) return false;
     if (dims.value.subject && subject && subject !== dims.value.subject) return false;
     if (dims.value.genType && genType && genType !== dims.value.genType) return false;
@@ -304,10 +286,8 @@ const openIssues = computed(() => filteredIssues.value.length);
 .key-hint { font-size: 11px; color: var(--text-muted); font-weight: 400; }
 .src-user { font-size: 10.5px; font-weight: 600; color: #a06a10; background: #fdf3e2; border: 1px solid #f3d9a8; border-radius: 999px; padding: 1px 8px; }
 .layer-tag { font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 8px; }
-.ly-type { background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; }
-.ly-subject { background: var(--success-light); color: #1d7a4a; border: 1px solid #bfe6cd; }
-.ly-stage { background: #eef7ee; color: #1d7a4a; border: 1px solid #bfe6cd; }
-.ly-user { background: var(--accent-soft, #fdf3e2); color: #a06a10; border: 1px solid #f3d9a8; }
+.ly-cell { background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; }
+.ly-user { background: #fdf3e2; color: #a06a10; border: 1px solid #f3d9a8; }
 .readonly-tip { font-size: 11.5px; color: var(--text-muted); }
 .tpl-meta { font-size: 12px; color: var(--text-muted); margin-left: auto; }
 .tpl-body { border-top: 1px dashed var(--border-light); padding: 10px 14px 14px; }

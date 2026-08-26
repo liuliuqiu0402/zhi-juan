@@ -98,16 +98,6 @@ export const TOOL_LIBRARIES = [
     toolbar: { actions: [], filter: 'dim3' },
   },
   {
-    id: 'subject-points',
-    name: '学科要点库',
-    icon: '📚',
-    desc: '学科内容底线：语数英、理化生、史地政、科学、信息、音体美',
-    count: '15 学科',
-    status: 'ok',
-    migrate: 'ready',
-    toolbar: { actions: [], filter: 'dim3' },
-  },
-  {
     id: 'layout-spec',
     name: '排版规格库',
     icon: '📏',
