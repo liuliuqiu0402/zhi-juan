@@ -22,7 +22,8 @@ export const TEACHING_STAGE_NAMES = {
 /**
  * 教辅结构蓝本：类型 × 学段参数
  * sections: 栏目框架（生成注入用，非固定分值）
- * stages:   各学段参数 { duration 建议时长, volume 题量/字数底线, note 学段注意 }
+ * stages:   各学段参数 { volume 题量/篇幅下限（程序护栏校验参考，不注入 prompt）, note 学段要求 }
+ *           —— 教辅无考试时限，不设时长；题量/篇幅由 teaching-volume-guard 生成后静默校验，不注入 AI 限定
  */
 export const TEACHING_BLUEPRINTS = {
   // ══════════════ 课时练 ══════════════
@@ -34,11 +35,11 @@ export const TEACHING_BLUEPRINTS = {
       { name: '迁移创新任务', note: '开放性/实践性任务，联系真实生活' },
     ],
     stages: {
-      primary_low: { duration: '30分钟', volume: '6-9题', note: '以认读/口答/简单书写为主，图文并茂；按基础→探究→迁移三层组织' },
-      primary_mid: { duration: '40分钟', volume: '8-12题', note: '书写量适中，情境生活化' },
-      primary_high: { duration: '45分钟', volume: '10-15题', note: '增加开放与思辨设问' },
-      middle: { duration: '45分钟', volume: '8-12题', note: '含过程性考查与规范书写要求' },
-      high: { duration: '45分钟', volume: '10-15题', note: '素养立意，设问有层次' },
+      primary_low: { volume: '6-9题', note: '以认读/口答/简单书写为主，图文并茂；按基础→探究→迁移三层组织' },
+      primary_mid: { volume: '8-12题', note: '书写量适中，情境生活化' },
+      primary_high: { volume: '10-15题', note: '增加开放与思辨设问' },
+      middle: { volume: '8-12题', note: '含过程性考查与规范书写要求' },
+      high: { volume: '10-15题', note: '素养立意，设问有层次' },
     },
   },
 
@@ -50,11 +51,11 @@ export const TEACHING_BLUEPRINTS = {
       { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
     ],
     stages: {
-      primary_low: { duration: '30分钟', volume: '每类3-4题，2-3类', note: '题目短小，情境游戏化' },
-      primary_mid: { duration: '40分钟', volume: '每类3-5题，2-4类', note: '' },
-      primary_high: { duration: '45分钟', volume: '每类4-5题，3-4类', note: '含综合变式题' },
-      middle: { duration: '45分钟', volume: '每类3-5题，3-4类', note: '含过程性设问' },
-      high: { duration: '45分钟', volume: '每类4-6题，3-5类', note: '素养立意，设问有区分度' },
+      primary_low: { volume: '每类3-4题，2-3类', note: '题目短小，情境游戏化' },
+      primary_mid: { volume: '每类3-5题，2-4类', note: '' },
+      primary_high: { volume: '每类4-5题，3-4类', note: '含综合变式题' },
+      middle: { volume: '每类3-5题，3-4类', note: '含过程性设问' },
+      high: { volume: '每类4-6题，3-5类', note: '素养立意，设问有区分度' },
     },
   },
 
@@ -68,11 +69,11 @@ export const TEACHING_BLUEPRINTS = {
       { name: '我的疑问', note: '必设栏目，供学生记录预习中不懂的问题' },
     ],
     stages: {
-      primary_low: { duration: '15-20分钟', volume: '检测2-3题', note: '以圈一圈/连一连等操作型任务为主' },
-      primary_mid: { duration: '20分钟', volume: '检测3-4题', note: '' },
-      primary_high: { duration: '20-25分钟', volume: '检测4-5题', note: '' },
-      middle: { duration: '20分钟', volume: '检测4-5题', note: '预习任务含自主查阅与概括' },
-      high: { duration: '25分钟', volume: '检测4-6题', note: '任务指向重难点与前置知识衔接' },
+      primary_low: { volume: '检测2-3题', note: '以圈一圈/连一连等操作型任务为主' },
+      primary_mid: { volume: '检测3-4题', note: '' },
+      primary_high: { volume: '检测4-5题', note: '' },
+      middle: { volume: '检测4-5题', note: '预习任务含自主查阅与概括' },
+      high: { volume: '检测4-6题', note: '任务指向重难点与前置知识衔接' },
     },
   },
 
@@ -84,11 +85,11 @@ export const TEACHING_BLUEPRINTS = {
       { name: '分层设题', note: '每篇配 3-5 道分层题，设问由浅入深，题目不可直接在原文找到原句答案' },
     ],
     stages: {
-      primary_low: { duration: '20-30分钟', volume: '2篇/80-150字/每篇3-4题', note: '短文短小，设问口语化' },
-      primary_mid: { duration: '30-40分钟', volume: '2篇/150-300字/每篇3-5题', note: '' },
-      primary_high: { duration: '40分钟', volume: '2-3篇/300-500字/每篇4-6题', note: '含概括与简单评价题' },
-      middle: { duration: '45分钟', volume: '2-3篇/500-900字/每篇4-6题', note: '含 1 篇非连续性文本（图表/通知/广告/海报）' },
-      high: { duration: '45-60分钟', volume: '3篇/900-1500字/每篇5-7题', note: '含论述类/实用类/文学类文本' },
+      primary_low: { volume: '2篇/80-150字/每篇3-4题', note: '短文短小，设问口语化' },
+      primary_mid: { volume: '2篇/150-300字/每篇3-5题', note: '' },
+      primary_high: { volume: '2-3篇/300-500字/每篇4-6题', note: '含概括与简单评价题' },
+      middle: { volume: '2-3篇/500-900字/每篇4-6题', note: '含 1 篇非连续性文本（图表/通知/广告/海报）' },
+      high: { volume: '3篇/900-1500字/每篇5-7题', note: '含论述类/实用类/文学类文本' },
     },
   },
 
@@ -102,11 +103,11 @@ export const TEACHING_BLUEPRINTS = {
       { name: '典型例题', note: '2-3 道典型例题（含解析）' },
     ],
     stages: {
-      primary_low: { duration: '—', volume: '正文300-500字', note: '图文并茂，多用表格与图示' },
-      primary_mid: { duration: '—', volume: '正文500-800字', note: '' },
-      primary_high: { duration: '—', volume: '正文800-1200字', note: '' },
-      middle: { duration: '—', volume: '正文800-1200字', note: '含规律与方法归纳' },
-      high: { duration: '—', volume: '正文1200-1800字', note: '含知识网络与素养导向梳理' },
+      primary_low: { volume: '正文300-500字', note: '图文并茂，多用表格与图示' },
+      primary_mid: { volume: '正文500-800字', note: '' },
+      primary_high: { volume: '正文800-1200字', note: '' },
+      middle: { volume: '正文800-1200字', note: '含规律与方法归纳' },
+      high: { volume: '正文1200-1800字', note: '含知识网络与素养导向梳理' },
     },
   },
 
@@ -119,11 +120,11 @@ export const TEACHING_BLUEPRINTS = {
       { name: '书写呈现', note: '书写载体按学科与学段规范呈现，由系统渲染' },
     ],
     stages: {
-      primary_low: { duration: '15分钟', volume: '基础内容4-8条', note: '以本课时/单元核心内容为主' },
-      primary_mid: { duration: '20分钟', volume: '基础内容8-12条', note: '' },
-      primary_high: { duration: '20分钟', volume: '基础内容12-18条', note: '' },
-      middle: { duration: '20分钟', volume: '基础内容12-16条', note: '含易错辨析' },
-      high: { duration: '25分钟', volume: '基础内容15-20条', note: '含情境化考查' },
+      primary_low: { volume: '基础内容4-8条', note: '以本课时/单元核心内容为主' },
+      primary_mid: { volume: '基础内容8-12条', note: '' },
+      primary_high: { volume: '基础内容12-18条', note: '' },
+      middle: { volume: '基础内容12-16条', note: '含易错辨析' },
+      high: { volume: '基础内容15-20条', note: '含情境化考查' },
     },
   },
 
@@ -138,11 +139,11 @@ export const TEACHING_BLUEPRINTS = {
       { name: '解题策略', note: '归纳本类题通用策略' },
     ],
     stages: {
-      primary_low: { duration: '—', volume: '4-6题', note: '按知识点或错因分类，每题结构完整' },
-      primary_mid: { duration: '—', volume: '5-8题', note: '' },
-      primary_high: { duration: '—', volume: '6-10题', note: '' },
-      middle: { duration: '—', volume: '6-10题', note: '归因须具体到知识模块' },
-      high: { duration: '—', volume: '8-12题', note: '含方法性归因与迁移策略' },
+      primary_low: { volume: '4-6题', note: '按知识点或错因分类，每题结构完整' },
+      primary_mid: { volume: '5-8题', note: '' },
+      primary_high: { volume: '6-10题', note: '' },
+      middle: { volume: '6-10题', note: '归因须具体到知识模块' },
+      high: { volume: '8-12题', note: '含方法性归因与迁移策略' },
     },
   },
 
@@ -157,11 +158,11 @@ export const TEACHING_BLUEPRINTS = {
       { name: '综合自测', note: '分层自测（基础/提高），按考点分布，覆盖本单元全部知识点' },
     ],
     stages: {
-      primary_low: { duration: '30分钟', volume: '自测8-12题', note: '自测题情境化、图文并茂' },
-      primary_mid: { duration: '40分钟', volume: '自测12-18题', note: '' },
-      primary_high: { duration: '45分钟', volume: '自测15-25题', note: '含开放与思辨题' },
-      middle: { duration: '45分钟', volume: '自测12-20题', note: '含过程性考查' },
-      high: { duration: '60分钟', volume: '自测15-25题', note: '素养立意，设问有层次' },
+      primary_low: { volume: '自测8-12题', note: '自测题情境化、图文并茂' },
+      primary_mid: { volume: '自测12-18题', note: '' },
+      primary_high: { volume: '自测15-25题', note: '含开放与思辨题' },
+      middle: { volume: '自测12-20题', note: '含过程性考查' },
+      high: { volume: '自测15-25题', note: '素养立意，设问有层次' },
     },
   },
 };
@@ -497,6 +498,7 @@ export function getTeachingBlueprint({ genType = '', stage = '', subject = '' } 
 
 /**
  * 构建教辅结构注入块（供生成指令尾部附加，与 exam 的 buildBlueprintInjection 对称）
+ * 只注入栏目框架 + 学段要求；题量/篇幅底线由 teaching-volume-guard 程序侧校验，不注入 prompt（防限定 AI）
  * @param {Object} opts { genType, stage, subject }
  * @returns {string} 空串 = 无蓝本
  */
@@ -506,12 +508,10 @@ export function buildTeachingInjection({ genType = '', stage = '', subject = '' 
   const sectionsText = bp.sections.map(s => `· ${s.name}——${s.note}`).join('\n');
   const p = bp.stageParams;
   const scope = bp.custom ? `${bp.subject}·` : '通用·';
-  return `\n\n【教辅结构（${scope}${bp.label}·${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）——栏目与题量底线，按此组织】
+  const stageLine = p.note ? `\n▌学段要求（${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）\n· ${p.note}` : '';
+  return `\n\n【教辅结构（${scope}${bp.label}·${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）——栏目与学段要求，按此组织】
 ▌栏目框架（栏目完整，不得缺失；板块间不重复、不相似）
-${sectionsText}
-▌题量与时长
-· 建议时长：${p.duration}
-· 题量/篇幅底线：${p.volume}（内容充足饱满，栏目完整、板块分明）${p.note ? `\n· 学段注意：${p.note}` : ''}`;
+${sectionsText}${stageLine}`;
 }
 
 export default {

@@ -24,13 +24,13 @@ describe('教辅蓝本三维度覆盖（类型 × 学段）', () => {
     }
   });
 
-  it('每个类型都覆盖 5 个学段参数（题量/时长底线齐全）', () => {
+  it('每个类型都覆盖 5 个学段要求（题量底线为程序护栏配置，教辅不含考试时长）', () => {
     for (const g of TEACHING_GEN_TYPES) {
       for (const s of STAGES) {
         const bp = getTeachingBlueprint({ genType: g, stage: s });
         expect(bp, `${g}|${s} 蓝本缺失`).toBeTruthy();
-        expect(bp.stageParams.volume, `${g}|${s} 缺题量/篇幅底线`).toBeTruthy();
-        expect(bp.stageParams.duration, `${g}|${s} 缺时长`).toBeTruthy();
+        expect(bp.stageParams.volume, `${g}|${s} 缺题量/篇幅底线（程序护栏配置）`).toBeTruthy();
+        expect('duration' in bp.stageParams, `${g}|${s} 教辅不应含时长`).toBe(false);
         expect(bp.stageKey).toBe(s);
       }
     }
@@ -51,36 +51,38 @@ describe('教辅蓝本三维度覆盖（类型 × 学段）', () => {
 });
 
 describe('buildTeachingInjection（教辅结构注入块）', () => {
-  it('输出栏目框架 + 题量与时长底线 + 学段名', () => {
+  it('输出栏目框架 + 学段要求（题量/时长不注入 prompt）', () => {
     const inject = buildTeachingInjection({ genType: 'reading', stage: 'middle' });
     expect(inject).toContain('【教辅结构（通用·阅读训练·初中）');
     expect(inject).toContain('栏目框架');
     expect(inject).toContain('原创选文');
     expect(inject).toContain('分层设题');
-    expect(inject).toContain('题量与时长');
-    expect(inject).toContain('500-900字'); // 初中阅读篇幅底线
-    expect(inject).toContain('2-3篇');
+    expect(inject).toContain('学段要求');
+    expect(inject).toContain('非连续性文本'); // 初中阅读学段要求
+    expect(inject).not.toContain('题量与时长');
+    expect(inject).not.toContain('500-900字'); // 篇幅底线归程序护栏，不注入 AI
   });
 
-  it('学段差异化：低段与高段篇幅底线不同', () => {
+  it('学段差异化：低段与高段学段要求不同', () => {
     const low = buildTeachingInjection({ genType: 'reading', stage: 'primary_low' });
     const high = buildTeachingInjection({ genType: 'reading', stage: 'high' });
-    expect(low).toContain('80-150字');
-    expect(high).toContain('900-1500字');
+    expect(low).toContain('短文短小');
+    expect(high).toContain('论述类');
   });
 
-  it('课时练含三段式栏目与内容底线', () => {
+  it('课时练含三段式栏目与学段要求（内容底线不注入）', () => {
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_mid' });
     expect(inject).toContain('基础建构任务');
     expect(inject).toContain('探究进阶任务');
     expect(inject).toContain('迁移创新任务');
-    expect(inject).toContain('栏目完整、板块分明');
+    expect(inject).toContain('学段要求');
+    expect(inject).not.toContain('栏目完整、板块分明');
   });
 
-  it('默写积累含学科中立栏目与覆盖底线', () => {
+  it('默写积累含学科中立栏目（篇幅底线不注入）', () => {
     const inject = buildTeachingInjection({ genType: 'dictation', stage: 'primary_low' });
     expect(inject).toContain('基础默写');
-    expect(inject).toContain('4-8条');
+    expect(inject).not.toContain('4-8条');
   });
 
   it('错题本含五段结构（原题→归因→解法→变式→策略）', () => {
@@ -118,8 +120,8 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(bp.subject).toBe('生物');
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '生物' });
     expect(inject).toContain('通用·课时练');
-    // 学段参数仍生效（初中 45 分钟）
-    expect(inject).toContain('45分钟');
+    // 学段要求仍按学段注入（初中）
+    expect(inject).toContain('学段要求');
   });
 
   it('语文全 8 类教辅均有学科定制栏目', () => {
