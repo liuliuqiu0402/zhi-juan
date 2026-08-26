@@ -93,7 +93,7 @@ const PRACTICE_BASE = (extra = '') => `你是教辅编辑·课时练设计者。
 【教材原文（取材依据）】
 {material}
 
-只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK}${extra}`;
+只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK(false)}${extra}`;
 
 /** 全部资料类型的基础模板（函数，供三维度/学段组合生成） */
 const TYPE_BASES = {
