@@ -24,6 +24,8 @@ export const TEACHING_STAGE_NAMES = {
  * sections: 栏目框架（生成注入用，非固定分值）
  * stages:   各学段参数 { volume 题量/篇幅下限（程序护栏校验参考，不注入 prompt）, note 学段要求 }
  *           —— 教辅无考试时限，不设时长；题量/篇幅由 teaching-volume-guard 生成后静默校验，不注入 AI 限定
+ *           —— note 为教学组织建议（符合课标理念、跨学科通用，非课标原文）；课标学段要求由指令库
+ *              【学科·学段要点】+【学段特点】承载（可查可引用），本条不冒充课标条款
  */
 export const TEACHING_BLUEPRINTS = {
   // ══════════════ 课时练 ══════════════
