@@ -153,7 +153,7 @@ const firstLabel = (arr, map, all) => {
   const a = arr || [];
   const real = a.filter((v) => v && v !== '*');
   if (!real.length) return all;
-  const label = map[real[0]] || real[0];
+  const label = map ? (map[real[0]] || real[0]) : real[0];
   return real.length > 1 ? `${label} 等` : label;
 };
 const ruleDimName = (r) =>
