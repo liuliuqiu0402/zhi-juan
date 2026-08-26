@@ -6,7 +6,7 @@
         <span class="lib-badge">📐 蓝图库</span>
         <b>真题蓝本 {{ examList.length }} / {{ allExamCount }}</b>
         <span class="ov-sep">·</span>
-        <b>教辅结构 {{ teachList.length }} / {{ allTeachCount }}</b>
+        <b>教辅结构 学科定制 {{ customSubjectCount }} / {{ SUBJECT_KEYS.length }} 科</b>
         <span class="ov-sep">·</span>
         <span>待修问题 <b class="issue-n">{{ openIssues.length }}</b></span>
       </div>
@@ -91,13 +91,15 @@
     <div v-else class="bp-empty">当前筛选无真题蓝本（可放宽筛选）</div>
 
     <!-- 教辅结构（手风琴只读） -->
-    <h4 class="bp-h">📚 教辅结构（8 类）<span class="hint">点击展开查看栏目与学段参数</span></h4>
+    <h4 class="bp-h">📚 教辅结构（学科 × 8 类）<span class="hint">点击展开查看栏目与学段参数 · 已定制显示学科版栏目，未定制回退通用模板</span></h4>
     <div v-if="teachList.length" class="bp-list teach">
       <div v-for="bp in teachList" :key="bp.key" class="bp-card" :class="{ open: openTeach === bp.key }">
         <div class="bp-head" @click="toggleTeach(bp.key)">
           <span class="arrow">{{ openTeach === bp.key ? '▾' : '▸' }}</span>
           <span class="lib-tag">📚 蓝图库</span>
           <span class="dim-name">{{ teachDimName(bp) }}</span>
+          <span v-if="bp.custom" class="src-custom">学科定制</span>
+          <span v-else class="src-fallback">通用模板</span>
           <span class="key-hint" :title="'数据键：' + bp.key">{{ bp.key }}</span>
           <span class="bp-meta">建议时长 {{ stageParam(bp).duration || '—' }} · 题量 {{ stageParam(bp).volume || '—' }}</span>
         </div>
@@ -158,7 +160,7 @@
 <script setup>
 import { computed, inject, ref } from 'vue';
 import { EXAM_BLUEPRINTS } from '../../../config/examPaperBlueprints.js';
-import { TEACHING_BLUEPRINTS, TEACHING_GEN_TYPES } from '../../../config/teachingBlueprints.js';
+import { TEACHING_BLUEPRINTS, TEACHING_GEN_TYPES, TEACHING_SUBJECT_BLUEPRINTS } from '../../../config/teachingBlueprints.js';
 import { validateAllBlueprints } from '../../../config/blueprintGuard.js';
 import { CARRIER_LABELS, enhanceBlueprint, AUDIT_ISSUES } from '../../../config/blueprintSchema.js';
 import { listAllBlueprints, saveUserBlueprint, deleteUserBlueprint } from '../../../config/blueprintProvider.js';
@@ -178,8 +180,21 @@ const TYPE_LABELS = { semantics: '语义', dup: '跨库重复', carrier: '载体
 /* ===== 数据源：内置 + 用户自定义（blueprintProvider） ===== */
 const allExam = ref(listAllBlueprints().map((bp) => enhanceBlueprint(bp)));
 const allExamCount = computed(() => allExam.value.length);
-const allTeach = TEACHING_GEN_TYPES.map((t) => ({ ...TEACHING_BLUEPRINTS[t], key: t }));
-const allTeachCount = TEACHING_GEN_TYPES.length;
+/** 教辅结构全矩阵：学科 × 资料类型（学段为参数，随筛选展示 5 档）；已定制用学科版栏目，未定制回退通用并标注 */
+const allTeach = [];
+for (const subj of SUBJECT_KEYS) {
+  for (const t of TEACHING_GEN_TYPES) {
+    const def = TEACHING_BLUEPRINTS[t];
+    if (!def) continue;
+    const custom = TEACHING_SUBJECT_BLUEPRINTS[subj]?.[t];
+    allTeach.push({
+      key: `${subj}|${t}`, subject: subj, genType: t, label: def.label,
+      sections: (custom || def).sections, stages: def.stages, custom: !!custom,
+    });
+  }
+}
+const allTeachCount = allTeach.length;
+const customSubjectCount = computed(() => new Set(allTeach.filter((t) => t.custom).map((t) => t.subject)).size);
 
 /** 刷新数据源（保存/删除后调用） */
 const reload = () => { allExam.value = listAllBlueprints().map((bp) => enhanceBlueprint(bp)); };
@@ -210,7 +225,8 @@ const examList = computed(() =>
 const teachList = computed(() =>
   allTeach.filter((bp) => {
     if (dims.value.genType === 'exam') return false;
-    if (dims.value.genType && bp.key !== dims.value.genType) return false;
+    if (dims.value.genType && bp.genType !== dims.value.genType) return false;
+    if (dims.value.subject && bp.subject !== dims.value.subject) return false;
     return true;
   })
 );
@@ -230,9 +246,9 @@ const dimName = (bp) => {
   const { subject, stage } = parseKey(bp.key);
   return `${STAGE_LABELS[stage] || stage || '全部学段'} · ${subject || '通用'} · 正式试卷`;
 };
-/** 教辅结构：学段 · 全学科 · 资料类型 */
+/** 教辅结构：学段(筛选) · 学科 · 资料类型（三维度名） */
 const teachDimName = (bp) =>
-  `${dims.value.stage ? STAGE_LABELS[dims.value.stage] : '全部学段'} · 全学科 · ${GEN_TYPE_LABELS[bp.key] || bp.key}`;
+  `${dims.value.stage ? STAGE_LABELS[dims.value.stage] : '全部学段'} · ${bp.subject} · ${GEN_TYPE_LABELS[bp.genType] || bp.genType}`;
 
 /* ===== 校验 ===== */
 const validateResults = computed(() => {
@@ -336,6 +352,8 @@ const createBp = () => {
 .dim-name { font-weight: 700; font-size: 13.5px; color: var(--ink, #26303e); }
 .key-hint { font-size: 11px; color: var(--text-muted); font-weight: 400; }
 .src-user { font-size: 10.5px; font-weight: 600; color: #a06a10; background: #fdf3e2; border: 1px solid #f3d9a8; border-radius: 999px; padding: 1px 8px; }
+.src-custom { font-size: 10.5px; font-weight: 600; color: #1d7a4a; background: var(--success-light); border: 1px solid #bfe6cd; border-radius: 999px; padding: 1px 8px; }
+.src-fallback { font-size: 10.5px; font-weight: 600; color: var(--text-muted); background: #f0f2f5; border: 1px solid var(--border-light); border-radius: 999px; padding: 1px 8px; }
 .bp-meta { font-size: 12px; color: var(--text-muted); margin-left: auto; }
 .bp-body { border-top: 1px dashed var(--border-light); padding: 10px 14px 14px; }
 .bp-secs { display: flex; flex-direction: column; gap: 5px; }

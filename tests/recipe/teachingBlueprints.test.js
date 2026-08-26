@@ -172,4 +172,26 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
       expect(bp.sections.length).toBeGreaterThanOrEqual(2);
     }
   });
+
+  it('科学已定制：课时练含观察/实验/生活实践语义，默写积累改造为科学概念/观察记录', () => {
+    const bp = getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '科学' });
+    expect(bp.custom).toBe(true);
+    const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_low', subject: '科学' });
+    expect(inject).toContain('科学·课时练');
+    expect(inject).toContain('生活现象与观察');
+    expect(inject).toContain('观察与实验任务');
+    expect(inject).toContain('观察自然、制作模型');
+    const dict = buildTeachingInjection({ genType: 'dictation', stage: 'middle', subject: '科学' });
+    expect(dict).toContain('科学·默写积累');
+    expect(dict).toContain('科学概念');
+    expect(dict).toContain('观察记录');
+  });
+
+  it('科学全 8 类教辅均有学科定制栏目', () => {
+    for (const g of ['practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review']) {
+      const bp = getTeachingBlueprint({ genType: g, stage: 'primary_mid', subject: '科学' });
+      expect(bp?.custom, `科学 ${g} 未学科定制`).toBe(true);
+      expect(bp.sections.length).toBeGreaterThanOrEqual(2);
+    }
+  });
 });
