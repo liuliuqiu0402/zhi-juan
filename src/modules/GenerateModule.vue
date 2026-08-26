@@ -4460,7 +4460,7 @@ const loadInstructionFromLibrary = async () => {
   if (genType === 'exam') {
     if (bp) instructionDraft.value += buildBlueprintInjection(applyScoreAdjust(bp));
   } else {
-    instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey });
+    instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey, subject });
     if (!instructionDraft.value.includes('【输出格式】')) {
       instructionDraft.value += OUTPUT_FORMAT_HINT;
     }
@@ -4518,7 +4518,7 @@ const restoreDefaultInstruction = async () => {
   if (genType === 'exam') {
     if (bp) instructionDraft.value += buildBlueprintInjection(applyScoreAdjust(bp));
   } else {
-    instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey });
+    instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey, subject });
   }
   instructionSource.value = { name: `内置默认·${genTypeLabel}`, source: 'builtin', key: genType };
   previewHint.value = '已恢复内置默认指令（未改动你的自定义模板）。';

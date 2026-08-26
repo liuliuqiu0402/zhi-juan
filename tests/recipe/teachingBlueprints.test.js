@@ -92,3 +92,41 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
     expect(inject).toContain('解题策略');
   });
 });
+
+describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () => {
+  it('语文已定制：课时练栏目学科化（字词句/语段/写话），标记 custom', () => {
+    const bp = getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '语文' });
+    expect(bp.custom).toBe(true);
+    expect(bp.subject).toBe('语文');
+    expect(bp.key).toBe('语文|practice|primary_low');
+    const sections = bp.sections.map((s) => s.name).join('|');
+    expect(sections).toContain('基础建构任务');
+    expect(sections).toContain('探究进阶任务');
+    expect(sections).toContain('迁移创新任务');
+  });
+
+  it('语文课时练栏目导向含学科语义（语段阅读/写话）', () => {
+    const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_mid', subject: '语文' });
+    expect(inject).toContain('语文·课时练');
+    expect(inject).toContain('语段阅读与表达运用');
+    expect(inject).toContain('生活化口语表达或写话');
+  });
+
+  it('未定制学科（数学等）回退通用默认：栏目为通用、注入标"通用·"', () => {
+    const bp = getTeachingBlueprint({ genType: 'practice', stage: 'middle', subject: '数学' });
+    expect(bp.custom).toBe(false);
+    expect(bp.subject).toBe('*');
+    const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '数学' });
+    expect(inject).toContain('通用·课时练');
+    // 学段参数仍生效（中段 40 分钟）
+    expect(inject).toContain('40分钟');
+  });
+
+  it('语文全 8 类教辅均有学科定制栏目', () => {
+    for (const g of ['practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review']) {
+      const bp = getTeachingBlueprint({ genType: g, stage: 'primary_mid', subject: '语文' });
+      expect(bp?.custom, `语文 ${g} 未学科定制`).toBe(true);
+      expect(bp.sections.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+});

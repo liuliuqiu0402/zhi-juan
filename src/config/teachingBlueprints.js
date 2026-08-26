@@ -166,6 +166,84 @@ export const TEACHING_BLUEPRINTS = {
   },
 };
 
+/**
+ * 学科专属教辅结构（三维度：学科×类型；学段参数回退通用默认）
+ * ——栏目框架与内容导向按学科定制（新课标口径、不局限、无题量）；
+ *    学科未定制时回退 TEACHING_BLUEPRINTS 通用默认（逐科补齐，工具库展示缺口）。
+ */
+export const TEACHING_SUBJECT_BLUEPRINTS = {
+  '语文': {
+    practice: {
+      label: '课时练',
+      sections: [
+        { name: '基础建构任务', note: '覆盖本课时字词句等核心知识点，在语境中考查' },
+        { name: '探究进阶任务', note: '语段阅读与表达运用，变式设问，考查知识迁移' },
+        { name: '迁移创新任务', note: '生活化口语表达或写话，联系本单元主题' },
+      ],
+    },
+    special: {
+      label: '专项突破',
+      sections: [
+        { name: '分板块组织', note: '按语文能力点分 2-4 个板块（字词/句子/语段/表达等），板块内由易到难' },
+        { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱能力点' },
+      ],
+    },
+    preview: {
+      label: '课前预习',
+      sections: [
+        { name: '学习目标', note: '1-2 条，明确本课字词积累与朗读/理解目标' },
+        { name: '预习任务', note: '问题驱动（读课文、圈画生字词、尝试朗读、质疑），可操作可检查，覆盖本课全部新知' },
+        { name: '预习检测', note: '2-4 道自检题，检测预习效果' },
+        { name: '我的疑问', note: '必设栏目，供学生记录预习中不懂的问题' },
+      ],
+    },
+    reading: {
+      label: '阅读训练',
+      sections: [
+        { name: '原创选文', note: '原创短文（不复制课文），文体适学段（低段儿歌童话、中段记叙文、高段散文说明文），主题与本单元相关，短文完整呈现并标注出处' },
+        { name: '分层设题', note: '分层设问（信息提取→理解感悟→评价创造），考查素养而非机械记忆' },
+      ],
+    },
+    summary: {
+      label: '知识总结',
+      sections: [
+        { name: '知识框架', note: '结构化呈现本单元字词、句段、篇章知识（导图/表格/对比优先）' },
+        { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
+        { name: '易错辨析', note: '本单元易错字形/读音/词义辨析' },
+        { name: '典型例题', note: '适量典型例题（含解析）' },
+      ],
+    },
+    dictation: {
+      label: '默写积累',
+      sections: [
+        { name: '看拼音写词语', note: '拼音词嵌入语境句（非孤立罗列）' },
+        { name: '积累默写', note: '本单元要求掌握的字词、成语、名句、篇目，严格对应教材要求' },
+        { name: '书写格', note: '按学段：1-2 年级田字格、3 年级起方格/横线' },
+      ],
+    },
+    errorbook: {
+      label: '错题本',
+      sections: [
+        { name: '原题重现', note: '完整重现原题（可精简题干，保留关键信息）' },
+        { name: '错误归因', note: '具体到字词/句法/阅读能力点，禁止笼统' },
+        { name: '正确解法', note: '分步完整解答' },
+        { name: '同类变式', note: '1 道变式（换情境、换设问角度）' },
+        { name: '解题策略', note: '归纳本类题通用策略' },
+      ],
+    },
+    review: {
+      label: '复习资料',
+      sections: [
+        { name: '知识框架', note: '本单元字词句段篇知识结构图/表格' },
+        { name: '考点梳理', note: '按能力点逐条梳理并标注教材出处，重点难点突出' },
+        { name: '典型题析', note: '适量典型题（含解题思路分析）' },
+        { name: '易错聚焦', note: '本单元易错点辨析' },
+        { name: '综合自测', note: '分层自测（基础/提高），覆盖本单元能力点' },
+      ],
+    },
+  },
+};
+
 /** 全部教辅类型键 */
 export const TEACHING_GEN_TYPES = Object.keys(TEACHING_BLUEPRINTS);
 
@@ -188,29 +266,37 @@ function normalizeTeachingStage(stage = '') {
 }
 
 /**
- * 查询教辅结构蓝本
- * @param {Object} opts { genType(资料类型), stage(学段键 primary_low 等) }
- * @returns {Object|null} { label, sections, stageParams, key }
+ * 查询教辅结构蓝本（三维度：学科×类型×学段；学科专属优先，未定制回退通用默认）
+ * @param {Object} opts { genType(资料类型), stage(学段键), subject(学科,可空→通用) }
+ * @returns {Object|null} { label, sections, stageParams, key, custom }
  */
-export function getTeachingBlueprint({ genType = '', stage = '' } = {}) {
-  const bp = TEACHING_BLUEPRINTS[genType];
+export function getTeachingBlueprint({ genType = '', stage = '', subject = '' } = {}) {
+  const custom = TEACHING_SUBJECT_BLUEPRINTS[subject]?.[genType];
+  const def = TEACHING_BLUEPRINTS[genType];
+  const bp = custom || def;
   if (!bp) return null;
   const stageKey = normalizeTeachingStage(stage);
-  const stageParams = bp.stages[stageKey] || bp.stages.primary_mid;
-  return { label: bp.label, sections: bp.sections, stageParams, key: `${genType}|${stageKey}`, stageKey };
+  const stages = custom?.stages || def?.stages || {};
+  const stageParams = stages[stageKey] || stages.primary_mid;
+  return {
+    label: bp.label, sections: bp.sections, stageParams,
+    key: `${subject || '*'}|${genType}|${stageKey}`, stageKey,
+    subject: subject || '*', custom: !!custom,
+  };
 }
 
 /**
  * 构建教辅结构注入块（供生成指令尾部附加，与 exam 的 buildBlueprintInjection 对称）
- * @param {Object} opts { genType, stage }
+ * @param {Object} opts { genType, stage, subject }
  * @returns {string} 空串 = 无蓝本
  */
-export function buildTeachingInjection({ genType = '', stage = '' } = {}) {
-  const bp = getTeachingBlueprint({ genType, stage });
+export function buildTeachingInjection({ genType = '', stage = '', subject = '' } = {}) {
+  const bp = getTeachingBlueprint({ genType, stage, subject });
   if (!bp) return '';
   const sectionsText = bp.sections.map(s => `· ${s.name}——${s.note}`).join('\n');
   const p = bp.stageParams;
-  return `\n\n【教辅结构（${bp.label}·${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）——栏目与题量底线，按此组织】
+  const scope = bp.custom ? `${bp.subject}·` : '通用·';
+  return `\n\n【教辅结构（${scope}${bp.label}·${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）——栏目与题量底线，按此组织】
 ▌栏目框架（栏目完整，不得缺失；板块间不重复、不相似）
 ${sectionsText}
 ▌题量与时长
@@ -220,6 +306,7 @@ ${sectionsText}
 
 export default {
   TEACHING_BLUEPRINTS,
+  TEACHING_SUBJECT_BLUEPRINTS,
   TEACHING_GEN_TYPES,
   TEACHING_STAGE_NAMES,
   getTeachingBlueprint,
