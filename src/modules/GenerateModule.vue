@@ -6118,6 +6118,10 @@ const generate = async (mode) => {
       // 🔴 整卷生成：注入指令（指令库渲染，用户可编辑）作为生成依据
       const inj = await ensureInjectedInstruction();
       let finalInstr = typeIndex > 0 ? diffInstruction : inj;
+      // 🔧 组织风格注入：风格值+说明追加到指令尾部（生成端识别并组织情境/呈现；情境库已退役）
+      if (propositionStyle.value && styleInstructions[propositionStyle.value]) {
+        finalInstr = `${finalInstr}\n\n【组织风格】${propositionStyle.value}：${styleInstructions[propositionStyle.value]}`;
+      }
       // 🔧 生成份数循环：详细配置"生成份数"真实生效（同类型一次出多份，每份独立整卷生成后直接入库；
       //    此前份数只在已移除的蓝图确认弹窗内生效，直接生成路径从未循环——份数配置形同虚设）
       for (let batch = 0; batch < batches; batch++) {

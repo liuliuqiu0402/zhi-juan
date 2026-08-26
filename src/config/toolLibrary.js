@@ -108,16 +108,6 @@ export const TOOL_LIBRARIES = [
     toolbar: { actions: [], filter: 'dim3' },
   },
   {
-    id: 'context',
-    name: '情境库',
-    icon: '🏞️',
-    desc: '统一情境/场景：学科 × 学段预设情境与可用场景',
-    count: '学科情境',
-    status: 'warn',
-    migrate: 'empty',
-    toolbar: { actions: ['new'], filter: 'dim3' },
-  },
-  {
     id: 'layout-spec',
     name: '排版规格库',
     icon: '📏',

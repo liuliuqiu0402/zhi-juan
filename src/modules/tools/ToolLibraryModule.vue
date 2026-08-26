@@ -95,7 +95,6 @@ import InstructionView from './views/InstructionView.vue';
 import RulesView from './views/RulesView.vue';
 import RenderContractView from './views/RenderContractView.vue';
 import SubjectPointsView from './views/SubjectPointsView.vue';
-import ContextView from './views/ContextView.vue';
 import LayoutSpecView from './views/LayoutSpecView.vue';
 
 const route = useRoute();
@@ -125,7 +124,6 @@ const VIEW_MAP = {
   'rules': markRaw(RulesView),
   'render-contract': markRaw(RenderContractView),
   'subject-points': markRaw(SubjectPointsView),
-  'context': markRaw(ContextView),
   'layout-spec': markRaw(LayoutSpecView),
 };
 

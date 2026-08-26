@@ -22,7 +22,6 @@ import { getAnalysisPrompts } from '../config/analysisPrompts.js';
 // 🔴 题型分布（UI 自动填充）与题型专项规则（兜底逐题路径）已迁出独立配置，指令库即将整体删除
 import { getTypeDistribution as getTypeDistributionFromConfig } from '../config/typeDistribution.js';
 import { SCOPE_LABEL_POOLS } from '../config/recipe/paperScope.js';
-import { getContextsForSubject } from '../config/subjectContextLibrary.js';
 import { getExamBlueprint } from '../config/examPaperBlueprints.js';
 import { buildSealLineHeader } from '../config/promptLibrary.js';
 import { runHardValidators, applyAutoFixes } from '../utils/subjectValidators.js';
@@ -5162,15 +5161,13 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         }
       }
       
-      // ✨ 命题风格 → 情境框架生成
-      //    unified_context：整卷统一情境框架（预设情境库 → AI生成 → 兜底文本）
-      //    context_fusion：每个模块独立小情境（提供多个情境建议 + 模块独立设计要求）
+      // ✨ 组织风格 → 情境框架生成（情境库已退役：预设素材冗余，统一由 AI 依据风格自主生成）
       let contextFramework = '';
-      // 从指令中解析命题风格
-      const instructionStyleMatch = instruction.match(/命题风格[：:]\s*([^\n]+)/);
+      // 从指令中解析组织风格（GenerateModule 注入"【组织风格】{value}：{说明}"）
+      const instructionStyleMatch = instruction.match(/(命题风格|组织风格)[：:]\s*([^\n]+)/);
       const instructionStyleText = instructionStyleMatch ? instructionStyleMatch[1] : '';
       const isUnifiedContext = instructionStyleText.includes('unified_context');
-      const isContextFusion = instructionStyleText.includes('context_fusion');
+      const isContextFusion = instructionStyleText.includes('context_fusion') || instructionStyleText.includes('scenario_each');
       const isContextStyle = isUnifiedContext || isContextFusion;
       
       if (isContextStyle) {
@@ -5184,8 +5181,8 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           const subject = normalizeSubjectName(rawSubject, stage);
           const grade = book?.grade || '';
 
-          // 🔧 优先：从学科情境库中获取预设情境
-          const presetContexts = getContextsForSubject(subject, stage, 3);
+          // 🔧 情境库已退役：预设素材置空，统一走 AI 自主生成（风格指令已注入 prompt）
+          const presetContexts = [];
 
           if (isUnifiedContext) {
             // ── 统一情境：整卷一个核心情境，所有题目在此情境下展开 ──
