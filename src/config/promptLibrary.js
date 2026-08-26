@@ -512,6 +512,9 @@ export function matchTemplateFilter(tpl, f = {}) {
   return dim(p.genType, f.genType) && dim(p.subject, f.subject) && dim(p.grade, f.grade);
 }
 
+/** 三维度 cell 具名导出（工具库/测试统计用） */
+export { BUILTIN_TEMPLATES };
+
 export default {
   BUILTIN_TEMPLATES,
   GEN_TYPE_NAMES,

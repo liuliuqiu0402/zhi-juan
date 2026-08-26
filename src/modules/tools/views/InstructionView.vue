@@ -102,7 +102,7 @@
 
 <script setup>
 import { computed, inject, ref } from 'vue';
-import { listPromptTemplates, savePromptTemplate, deletePromptTemplate } from '../../../config/promptLibrary.js';
+import { listPromptTemplates, savePromptTemplate, deletePromptTemplate, BUILTIN_TEMPLATES } from '../../../config/promptLibrary.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
@@ -119,7 +119,7 @@ const GEN_TYPE_NAME = Object.fromEntries(GEN_TYPE_LABELS.map((t) => [t.key, t.la
 
 /* ===== 数据源 ===== */
 const allTpl = ref(listPromptTemplates());
-const totalCount = computed(() => 486); // 内置三维度 cell（学段×学科×类型，仅实际开设组合）
+const totalCount = computed(() => Object.keys(BUILTIN_TEMPLATES).filter((k) => k.includes('|')).length); // 内置三维度 cell（学段×学科×类型，仅实际开设组合）
 const userCount = computed(() => allTpl.value.filter((t) => t.source === 'user').length);
 const reload = () => { allTpl.value = listPromptTemplates(); };
 
