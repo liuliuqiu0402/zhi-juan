@@ -315,8 +315,8 @@ export function deletePromptTemplate(key) {
 }
 
 /**
- * 列出指令库全部条目（原则 1：29 条基础 + 用户自定义，不列 540 组合）
- * 返回条目带 layer：'type' 类型基础模板(9) / 'subject' 学科要点(15) / 'stage' 学段要点(5) / 'user' 用户自定义
+ * 列出指令库条目（类型层基础模板 + 用户自定义；学科/学段要点归「学科要点库」唯一维护，
+ * 生成时由 buildBuiltinTemplate 共享组装——不在此重复展示）
  */
 export function listPromptTemplates() {
   const userLib = loadUserLibrary();
@@ -330,20 +330,6 @@ export function listPromptTemplates() {
     out.push({
       key: gType, id: gType, name: `类型模板·${GEN_TYPE_NAMES[gType] || gType}`,
       template, source: 'builtin', layer: 'type',
-    });
-  }
-  // 学科层要点（15）
-  for (const [subject, text] of Object.entries(SUBJECT_EXAM_EXTRAS)) {
-    out.push({
-      key: subject, id: `subject|${subject}`, name: `学科要点·${subject}`,
-      template: text, source: 'builtin', layer: 'subject',
-    });
-  }
-  // 学段层要点（5）
-  for (const [stage, text] of Object.entries(STAGE_EXAM_EXTRAS)) {
-    out.push({
-      key: stage, id: `stage|${stage}`, name: `学段要点·${STAGE_NAMES[stage] || stage}`,
-      template: text, source: 'builtin', layer: 'stage',
     });
   }
   return out;

@@ -51,7 +51,6 @@
               {{ t.layer === 'type' && t.source === 'builtin' ? '✏️ 编辑（保存后覆盖内置，可恢复默认）' : '✏️ 编辑' }}
             </button>
             <button v-if="t.layer === 'user'" class="btn danger" @click="removeTpl(t)">🗑️ 删除自定义/恢复默认</button>
-            <span v-if="t.layer === 'subject' || t.layer === 'stage'" class="readonly-tip">📌 内置要点（只读），请在「学科要点库」维护</span>
           </div>
         </div>
 
@@ -136,7 +135,7 @@ const GEN_TYPE_NAME = Object.fromEntries(GEN_TYPE_LABELS.map((t) => [t.key, t.la
 
 /* ===== 数据源 ===== */
 const allTpl = ref(listPromptTemplates());
-const totalCount = computed(() => 29); // 29 条基础（类型层9 + 学科层15 + 学段层5）
+const totalCount = computed(() => 9); // 类型层基础模板 9（学科/学段要点在学科要点库维护，生成时共享组装）
 const userCount = computed(() => allTpl.value.filter((t) => t.source === 'user').length);
 const reload = () => { allTpl.value = listPromptTemplates(); };
 
@@ -152,11 +151,9 @@ const parseKey = (key) => {
   const subject = parts.length >= 3 ? parts[1] : '';
   return { stage, subject, genType };
 };
-/** 条目名称（内置只显示所属维度；用户自定义显示其覆盖维度） */
+/** 条目名称（类型模板显示类型名；用户自定义显示覆盖维度） */
 const tplDimName = (t) => {
   if (t.layer === 'type') return GEN_TYPE_NAME[t.key] || t.key;
-  if (t.layer === 'subject') return t.key;
-  if (t.layer === 'stage') return STAGE_LABELS[t.key] || t.key;
   // user：显示实际覆盖维度（有维度才显示，无则键）
   const { stage, subject, genType } = parseKey(t.key);
   const parts = [];
@@ -166,7 +163,7 @@ const tplDimName = (t) => {
   return parts.join(' · ') || t.key;
 };
 const layerLabel = (t) => (
-  { type: '类型模板', subject: '学科要点', stage: '学段要点', user: '自定义' }[t.layer] || '模板'
+  { type: '类型模板', user: '自定义' }[t.layer] || '模板'
 );
 
 /* ===== 三维度筛选（内置按 layer 匹配；用户自定义按 key 解析匹配） ===== */
