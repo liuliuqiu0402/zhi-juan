@@ -8,8 +8,6 @@
         <span class="ov-sep">·</span>
         <span>用户自定义 <b class="user-n">{{ userCount }}</b></span>
         <span class="ov-sep">·</span>
-        <span>待修问题 <b class="issue-n">{{ openIssues.length }}</b></span>
-        <span class="ov-sep">·</span>
         <span>学科硬校验 <b :class="hardWired ? 'ok-n' : 'bad-n'">{{ hardWired ? '已接线' : '未接线' }}</b></span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -108,18 +106,6 @@
         </div>
       </div>
     </div>
-
-    <!-- 待修问题 -->
-    <h4 class="rule-h">🧹 迁移待修问题（注册空洞 × 死代码 × 跨库冲突 × 过度约束）</h4>
-    <div class="issue-list">
-      <div v-for="it in filteredIssues" :key="it.code" class="issue-item" :class="`tp-${it.type}`">
-        <span class="issue-code">{{ it.code }}</span>
-        <span class="issue-tag">{{ TYPE_LABELS[it.type] }}</span>
-        <span class="issue-desc">{{ it.desc }}</span>
-        <span class="issue-action">{{ it.action }}</span>
-      </div>
-      <div v-if="!filteredIssues.length" class="rule-empty">当前筛选无待修问题</div>
-    </div>
   </div>
 </template>
 
@@ -136,7 +122,6 @@ const GEN_TYPE_NAME = {
   exam: '正式试卷', practice: '课时练', special: '专项突破', preview: '课前预习',
   reading: '阅读训练', summary: '知识总结', dictation: '默写积累', errorbook: '错题本', review: '复习资料',
 };
-const TYPE_LABELS = { hole: '注册空洞', dead: '死代码', conflict: '跨库冲突', over: '过度约束' };
 
 /* ===== 数据源 ===== */
 const allRules = ref(listValidatorRules());
@@ -250,25 +235,6 @@ const saveNew = () => {
   else window.alert('保存失败');
 };
 
-/* ===== 待修问题 ===== */
-const AUDIT_ISSUES = [
-  { code: 'R1', type: 'hole', key: '', desc: 'match-pair-selfcheck（连线配对自检）：fix 类有 promptHint，但 examValidator 无对应执行代码——注册空洞，配对正确性只靠模型自检。', action: '补执行代码，或降级为 guard 并明确"配对语义只能靠模型"。' },
-  { code: 'R2', type: 'hole', key: '', desc: 'blank-excess-guard（空位多于拼音）：guard 类定义在规则库，但 auditExamPaper 无执行点——注册空洞。', action: '补执行（空位数 > 拼音组数时静默计数）或移除该规则。' },
-  { code: 'R3', type: 'dead', key: '', desc: 'subjectValidators.runHardValidators/applyAutoFixes（数学/物理/化学/语文别字等学科硬校验）：import 后从未调用，学科正确性无生成后闸门。', action: '接入 auditExamPaper 作为学科硬 GATE（本次迁移目标之一）。' },
-  { code: 'R4', type: 'conflict', key: '', desc: 'match-line-clean 把连线"—"替换为空格，与 promptLibrary FORMAT_RULES"用——连接"直接冲突——模型按 prompt 输出必被后处理改写。', action: '统一：模型只给配对，分隔符/布局归 match-format-fix；prompt 删"——"。' },
-  { code: 'R5', type: 'conflict', key: '', desc: 'match-format-fix 重组裸序号/左右分栏并乱序，与 prompt"逐行——输出"重叠——模型做格式又被代码重做。', action: '模型只输出配对内容，右列乱序与两列布局归代码。' },
-  { code: 'R6', type: 'over', key: '', desc: 'template-cleanup/image-block-fix/duplicate-content-fix/answer-section-fix/match-format-fix 等纯代码可确定的修复，被 buildValidatorPrompt 转成长指令注入——模型被迫"遵守"它做不好的微观要求。', action: 'buildValidatorPrompt 只保留模型语义类提示；代码可确定的修复不进 prompt。' },
-  { code: 'R7', type: 'over', key: '', desc: 'buildValidatorPrompt 注入策略需按"程序能否确定性执行"收窄：能确定→只代码执行；只有模型能判断→才注入。', action: '重构注入白名单：仅保留 配对正确/载体一致/答案完整 等语义类。' },
-];
-const filteredIssues = computed(() => {
-  const su = dims.value.subject, st = dims.value.stage;
-  return AUDIT_ISSUES.filter((it) => {
-    if (su && !it.key.includes(su)) return false;
-    if (st && !it.key.includes(st)) return false;
-    return true;
-  });
-});
-const openIssues = computed(() => filteredIssues.value.length);
 </script>
 
 <style scoped>
@@ -277,7 +243,6 @@ const openIssues = computed(() => filteredIssues.value.length);
 .lib-badge { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 6px; padding: 3px 10px; margin-right: 10px; }
 .ov-sep { margin: 0 8px; color: #c2ccda; }
 .user-n { color: var(--primary); }
-.issue-n { color: var(--danger); }
 .ok-n { color: #1d7a4a; }
 .bad-n { color: var(--danger); }
 .dim-now { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -333,14 +298,4 @@ const openIssues = computed(() => filteredIssues.value.length);
 .modal { background: #fff; border-radius: 12px; padding: 20px 22px; width: 560px; max-width: 92vw; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
 .modal h4 { margin: 0 0 14px; color: var(--primary); }
 .modal-tip { font-size: 12px; color: var(--text-muted); margin: 10px 0; }
-
-.issue-list { display: flex; flex-direction: column; gap: 8px; }
-.issue-item { display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; background: #fff; border: 1px solid var(--border-light); border-left: 4px solid var(--border); border-radius: 8px; padding: 8px 12px; flex-wrap: wrap; }
-.issue-item.tp-hole, .issue-item.tp-dead { border-left-color: var(--danger); }
-.issue-item.tp-conflict { border-left-color: var(--primary-light); }
-.issue-item.tp-over { border-left-color: var(--accent); }
-.issue-code { font-family: Consolas, monospace; font-weight: 700; color: var(--primary); }
-.issue-tag { font-size: 10.5px; padding: 1px 8px; border-radius: 999px; background: var(--primary-lighter); color: var(--primary); white-space: nowrap; }
-.issue-desc { flex: 1; min-width: 200px; color: #445; }
-.issue-action { font-size: 12px; color: var(--text-muted); }
 </style>

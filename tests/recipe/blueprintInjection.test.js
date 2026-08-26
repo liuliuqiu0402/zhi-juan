@@ -19,7 +19,7 @@ describe('buildBlueprintInjection（exam 蓝图精简注入块）', () => {
     expect(inject).toContain('三、阅读与鉴赏（共X题，共14分）——');
     expect(inject).toContain('四、表达与交流（共X题，共30分）——');
     // 大题命题要求（note 清洗后：激活式、无具体内容引导）被注入
-    expect(inject).toContain('覆盖本单元识字与写字能力点');
+    expect(inject).toContain('覆盖本单元识字与写字内容');
     expect(inject).not.toContain('禁止连续2道以上使用完全相同的题型格式');
     // 顺序：大题序号随位置递增
     expect(inject.indexOf('一、识字与写字')).toBeLessThan(inject.indexOf('二、积累与运用'));
@@ -30,18 +30,16 @@ describe('buildBlueprintInjection（exam 蓝图精简注入块）', () => {
     expect(buildBlueprintInjection({ sections: [] })).toBe('');
   });
 
-  it('注入学段/学科新课标条款（质量底线），不注入卷面规范全文', () => {
+  it('课标学段/学科条款不再注入（唯一事实源在指令库【学科·学段要点】+【学段特点】，蓝图只注入卷面结构）', () => {
     const bp = getExamBlueprint('语文', 'primary_low');
     const inject = buildBlueprintInjection(bp);
-    // 新课标条款已注入（学段 + 学科）
-    expect(inject).toContain('【小学新课标命题要求】');
-    expect(inject).toContain('情境化试题占比低段≥40%');
-    expect(inject).toContain('【语文新课标命题要求】');
-    expect(inject).toContain('禁止孤立罗列拼音');
-    // 卷面规范全文不进注入指令（模板【卷面格式】承担），条款头部红字也不进
-    expect(inject).not.toContain('密封线');
-    expect(inject).not.toContain('▌卷面规范');
-    expect(inject).not.toContain('🔴 本蓝本为新课标真题卷通行规范');
+    // 蓝图不再承载课标条款（指令库已带 source 注入），只注入卷面结构
+    expect(inject).not.toContain('新课标命题要求');
+    expect(inject).not.toContain('情境化试题占比');
+    expect(inject).not.toContain('禁止孤立罗列拼音');
+    // 卷面结构仍在（大题名+分值+命题要求 note）
+    expect(inject).toContain('【卷面结构（真题蓝本，大题与分值固定，不得增删改）】');
+    expect(inject).toContain('一、识字与写字（共X题，共32分）——');
   });
 
   it('不再注入分值规则（分值分配回归 AI 命题常识，账目自洽由规则库 score 系列验算）', () => {
@@ -49,9 +47,8 @@ describe('buildBlueprintInjection（exam 蓝图精简注入块）', () => {
     const inject = buildBlueprintInjection(bp);
     expect(inject).not.toContain('【分值规则】');
     expect(inject).not.toContain('小题数×每题分=大题分');
-    // 结构 + 学段/学科新课标条款仍在
+    // 卷面结构仍在
     expect(inject).toContain('【卷面结构（真题蓝本，大题与分值固定，不得增删改）】');
-    expect(inject).toContain('新课标命题要求');
   });
 });
 

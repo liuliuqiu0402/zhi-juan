@@ -9,8 +9,6 @@
         <b>契约学科 {{ contractList.length }} / {{ SUBJECT_KEYS.length }}</b>
         <span class="ov-sep">·</span>
         <span>缺口 <b class="issue-n">{{ gapCount }}</b></span>
-        <span class="ov-sep">·</span>
-        <span>待修问题 <b class="issue-n">{{ openIssues.length }}</b></span>
       </div>
       <div class="dim-now">
         <span class="dimb">{{ dims.subject || '全部学科' }}</span>
@@ -126,18 +124,6 @@
         <p class="note">图形数据必须与题干完全一致（契约强制）。</p>
       </div>
     </div>
-
-    <!-- 待修问题 -->
-    <h4 class="rc-h">🧹 迁移待修问题（覆盖缺口 × 接线待办）</h4>
-    <div class="issue-list">
-      <div v-for="it in filteredIssues" :key="it.code" class="issue-item" :class="`tp-${it.type}`">
-        <span class="issue-code">{{ it.code }}</span>
-        <span class="issue-tag">{{ TYPE_LABELS[it.type] }}</span>
-        <span class="issue-desc">{{ it.desc }}</span>
-        <span class="issue-action">{{ it.action }}</span>
-      </div>
-      <div v-if="!filteredIssues.length" class="rc-empty">当前筛选无待修问题</div>
-    </div>
   </div>
 </template>
 
@@ -155,8 +141,6 @@ const GEN_TYPE_NAME = {
   exam: '正式试卷', practice: '课时练', special: '专项突破', preview: '课前预习',
   reading: '阅读训练', summary: '知识总结', dictation: '默写积累', errorbook: '错题本', review: '复习资料',
 };
-const TYPE_LABELS = { gap: '覆盖缺口', wiring: '接线待办' };
-
 /* ===== 常量展示 ===== */
 const GRAPH_TYPE_DESC = {
   COORDINATE: '数轴/坐标系（XLIM/YLIM/箭头/刻度）', SHAPES: '函数/几何（FUNCTION/POINT/POLYGON/CIRCLE）',
@@ -244,19 +228,6 @@ const removeUser = (c) => {
   window.location.reload();
 };
 
-/* ===== 待修问题 ===== */
-const AUDIT_ISSUES = [
-  { code: 'RC1', type: 'gap', key: '历史', desc: 'GRAPH_SUBJECTS 缺"历史"，但历史蓝本（middle/high）明确要求"[GRAPH] 统计图格式或表格"——模型拿到要求却无 TYPE 骨架，悬空。', action: '把历史补入 GRAPH_SUBJECTS + SUBJECT_GRAPH_PARTS（BAR/LINE/PIE），或历史改"表格"呈现。' },
-  { code: 'RC2', type: 'gap', key: '', desc: 'IMAGE_HINT_RE（看图|写话|配图|听音|观察|绘画|绘图）缺"识图/读图/示意/图表/地图/结构"——生物结构示意图、地理读图分析、历史图表题的 needsImage=false，渲染契约不注入 [IMAGE] 格式。', action: '扩展 IMAGE_HINT_RE 关键词，或改由蓝本 carrier 显式驱动 needsImage。' },
-  { code: 'RC3', type: 'gap', key: '数学', desc: '数学低段门控裁剪 SHAPES 后仅剩 COORDINATE/BAR/LINE——需人工核验低段"图形与几何"是否真的不产生 [GRAPH] 需求。', action: '结合低段蓝本操作题核验；若需几何图则保留 SHAPES 简化版。' },
-  { code: 'RC4', type: 'wiring', key: '', desc: '用户自定义学科契约（本页可编辑）当前仅存储展示，buildRenderContract 尚未读取用户契约——生成端仍用内置。', action: '代码读取落实阶段：buildRenderContract 合并用户契约（用户优先）。' },
-  { code: 'RC5', type: 'wiring', key: '', desc: '公式仅数学/物理/化学注入；生物/地理统计图用 [GRAPH] 无公式——为既定口径，记录以防后续误改。', action: '无需修改（记录）。' },
-];
-const filteredIssues = computed(() => {
-  const su = dims.value.subject;
-  return AUDIT_ISSUES.filter((it) => (su ? it.key.includes(su) : true));
-});
-const openIssues = computed(() => filteredIssues.value.length);
 </script>
 
 <style scoped>
@@ -327,13 +298,4 @@ const openIssues = computed(() => filteredIssues.value.length);
 .rule-card code { background: var(--primary-lighter); color: var(--primary); padding: 1px 6px; border-radius: 4px; font-size: 11.5px; }
 .warn-note { color: #a06a10; }
 .note { color: var(--text-muted); }
-
-.issue-list { display: flex; flex-direction: column; gap: 8px; }
-.issue-item { display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; background: #fff; border: 1px solid var(--border-light); border-left: 4px solid var(--border); border-radius: 8px; padding: 8px 12px; flex-wrap: wrap; }
-.issue-item.tp-gap { border-left-color: var(--danger); }
-.issue-item.tp-wiring { border-left-color: var(--accent); }
-.issue-code { font-family: Consolas, monospace; font-weight: 700; color: var(--primary); }
-.issue-tag { font-size: 10.5px; padding: 1px 8px; border-radius: 999px; background: var(--primary-lighter); color: var(--primary); white-space: nowrap; }
-.issue-desc { flex: 1; min-width: 200px; color: #445; }
-.issue-action { font-size: 12px; color: var(--text-muted); }
 </style>

@@ -7,8 +7,6 @@
         <b>模板 {{ tplList.length }} / {{ totalCount }}</b>
         <span class="ov-sep">·</span>
         <span>用户自定义 <b class="user-n">{{ userCount }}</b></span>
-        <span class="ov-sep">·</span>
-        <span>待修问题 <b class="issue-n">{{ openIssues.length }}</b></span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="dim-now">
@@ -69,18 +67,6 @@
       <div v-if="!tplList.length" class="tpl-empty">当前筛选无模板（可放宽筛选）</div>
     </div>
 
-    <!-- 待修问题 -->
-    <h4 class="tpl-h">🧹 迁移待修问题（过度约束 × 自相矛盾 × 跨库重复）</h4>
-    <div class="issue-list">
-      <div v-for="it in filteredIssues" :key="it.code" class="issue-item" :class="`tp-${it.type}`">
-        <span class="issue-code">{{ it.code }}</span>
-        <span class="issue-tag">{{ TYPE_LABELS[it.type] }}</span>
-        <span class="issue-desc">{{ it.desc }}</span>
-        <span class="issue-action">{{ it.action }}</span>
-      </div>
-      <div v-if="!filteredIssues.length" class="tpl-empty">当前筛选无待修问题</div>
-    </div>
-
     <!-- 新增模板弹层 -->
     <div v-if="newOpen" class="modal-mask" @click.self="newOpen = false">
       <div class="modal">
@@ -129,7 +115,6 @@ const GEN_TYPE_LABELS = [
   { key: 'preview', label: '课前预习' }, { key: 'reading', label: '阅读训练' }, { key: 'summary', label: '知识总结' },
   { key: 'dictation', label: '默写积累' }, { key: 'errorbook', label: '错题本' }, { key: 'review', label: '复习资料' },
 ];
-const TYPE_LABELS = { over: '过度约束', contra: '自相矛盾', dup: '跨库重复' };
 const GEN_TYPE_NAME = Object.fromEntries(GEN_TYPE_LABELS.map((t) => [t.key, t.label]));
 
 /* ===== 数据源 ===== */
@@ -227,26 +212,6 @@ const createTpl = () => {
   if (t) startEdit(t);
 };
 
-/* ===== 指令库迁移待修问题 ===== */
-const AUDIT_ISSUES = [
-  { code: 'I1', type: 'over', key: '', desc: 'FORMAT_RULES 整段（格宽/括号空格数/连接符/HTML标签/留白行数）为微观格式，模型执行必然不稳，应归规则库/渲染层，prompt 只留"作答载体由系统按题型渲染"。', action: '迁移时删除 D 类格式约束，保留模型语义类。' },
-  { code: 'I2', type: 'contra', key: '', desc: '简答留白 EXAM_BASE 说"不少于4行"、OUTPUT_FORMAT_BLOCK 说"不少于3行"，自相矛盾。', action: '统一为"留足作答区"，行数由排版规格库按分值×学段生成。' },
-  { code: 'I3', type: 'contra', key: '', desc: '连线"系统会自动打乱右列"与蓝图"右列必须打乱"冲突；"用——连接"又被规则库替换为空格。', action: '统一：模型只给配对，右列乱序与布局归 match-format-fix。' },
-  { code: 'I4', type: 'contra', key: '', desc: 'FORMAT_RULES 要求"模型精确给出横线宽度"，又承认"系统后处理只按现有宽度归类、无法代算答案长度"——要求模型做系统做不到的事。', action: '只留"宽度与答案字数匹配（1字≈2格）"一句语义。' },
-  { code: 'I5', type: 'contra', key: '', desc: 'EXAM_BASE"禁止无情境的孤立堆题"与"若不需要统一情境，删除本行即可"自相矛盾；且情境框架生成依赖此字面量正则。', action: '情境改由资料类型显式驱动，废除指令字面量控制代码行为。' },
-  { code: 'I6', type: 'over', key: '', desc: '小题标题规范硬编码 8 个题型名+"严禁自创"，压制模型自主命名。', action: '精简为"小题标题准确描述作答形式"。' },
-  { code: 'I7', type: 'dup', key: '', desc: '"严禁 Markdown/代码块"在 OUTPUT_FORMAT_BLOCK 与 ANSWER_FORMAT_SPEC 重复；代码层已能拦截。', action: '删除重复句，代码层拦截。' },
-  { code: 'I8', type: 'dup', key: '', desc: 'STAGE_EXAM_EXTRAS 与 EXAM_STAGE_STANDARDS 大面积重复（难度6:3:1 等），exam 生成时两组同时注入。', action: 'STAGE_EXAM_EXTRAS 删重复句，学段条款为唯一事实源。' },
-];
-const filteredIssues = computed(() => {
-  const su = dims.value.subject, st = dims.value.stage;
-  return AUDIT_ISSUES.filter((it) => {
-    if (su && !it.key.includes(su)) return false;
-    if (st && !it.key.includes(st)) return false;
-    return true;
-  });
-});
-const openIssues = computed(() => filteredIssues.value.length);
 </script>
 
 <style scoped>
@@ -255,7 +220,6 @@ const openIssues = computed(() => filteredIssues.value.length);
 .lib-badge { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 6px; padding: 3px 10px; margin-right: 10px; }
 .ov-sep { margin: 0 8px; color: #c2ccda; }
 .user-n { color: var(--primary); }
-.issue-n { color: var(--danger); }
 .dim-now { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .dimb { font-size: 12px; padding: 2px 10px; border-radius: 6px; background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; }
 .btn-p { border: none; background: var(--primary); color: #fff; border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
@@ -304,14 +268,4 @@ const openIssues = computed(() => filteredIssues.value.length);
 .modal h4 { margin: 0 0 14px; color: var(--primary); }
 .modal-grid { grid-template-columns: 1fr 1fr 1fr; }
 .modal-tip { font-size: 12px; color: var(--text-muted); margin: 10px 0; }
-
-.issue-list { display: flex; flex-direction: column; gap: 8px; }
-.issue-item { display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; background: #fff; border: 1px solid var(--border-light); border-left: 4px solid var(--border); border-radius: 8px; padding: 8px 12px; flex-wrap: wrap; }
-.issue-item.tp-over { border-left-color: var(--accent); }
-.issue-item.tp-contra { border-left-color: var(--danger); }
-.issue-item.tp-dup { border-left-color: var(--primary-light); }
-.issue-code { font-family: Consolas, monospace; font-weight: 700; color: var(--primary); }
-.issue-tag { font-size: 10.5px; padding: 1px 8px; border-radius: 999px; background: var(--primary-lighter); color: var(--primary); white-space: nowrap; }
-.issue-desc { flex: 1; min-width: 200px; color: #445; }
-.issue-action { font-size: 12px; color: var(--text-muted); }
 </style>

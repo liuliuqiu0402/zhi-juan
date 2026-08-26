@@ -1,12 +1,12 @@
 /**
- * 蓝图库 · 结构化 Schema（迁移第一步）
+ * 蓝图库 · 结构化 Schema
  * ============================================================
  * 🔴 定位：把蓝本 note 里的"排版/载体/格式词汇"抽成机器可读的载体字段（carrier），
  *    note 仍保留原文（生成注入零影响），此模块提供：
  *     1. CARRIERS —— 载体常量（供子页展示、未来骨架编译器读取）
- *     2. inferCarriers —— 从 大题名+note 自动推断载体（迁移期用，免手工改 38 蓝本）
- *     3. AUDIT_ISSUES —— 迁移审计问题清单（语义/跨库重复/载体缺失，逐条可复核）
- * 后续骨架编译器（buildSkeleton）将读取 carrier 生成卷面骨架，届时 note 的格式词汇彻底移除。
+ *     2. inferCarriers —— 从 大题名+note 自动推断载体（供展示）
+ *     3. enhanceBlueprint —— 蓝本增强（补载体字段）
+ * 迁移期审计清单已移除（迁移问题非最终方案，内容按四纪律在蓝本 note 中直接清洗）。
  * ============================================================
  */
 
@@ -106,101 +106,4 @@ export function enhanceBlueprint(bp) {
   };
 }
 
-/**
- * 迁移审计问题清单（来自蓝图库×其他库交叉审计，逐条可复核）
- * type: semantics=语义不严谨 · dup=跨库重复/矛盾 · carrier=载体缺失 · account=账目/口径
- * status: open=待处理 · fixed=已处理
- * 子页展示为"待修问题"，迁移完善时逐条勾销。
- */
-export const AUDIT_ISSUES = [
-  // ── 表A：语义不严谨/自相矛盾/过时素材 ──
-  { code: 'A1', type: 'semantics', key: '语文|primary_low', section: '积累与运用', status: 'open',
-    desc: '"红彤彤"与"绿油油"同为旧教材经典 ABB 词，一边禁一边荐自相矛盾；"一(　)星星"量词示例又是"换皮挖空"句式，与同条禁令冲突。',
-    action: '删"红彤彤"，换真正新素材（如"亮晶晶的露珠"）；量词示例改为非挖空形式或删除。' },
-  { code: 'A2', type: 'semantics', key: '语文|primary_low', section: '阅读与鉴赏', status: 'fixed',
-    desc: '低段大题名含"鉴赏"，但学科条款明确"低段不考鉴赏"；原 note"3-4小题"把题量写死导致 14分÷3-4题≈3.5-4.7分/题违反低段每题1-2分。',
-    action: '低段大题改名"阅读"；删除蓝图题量，题量由生成时模型按分值规则分配（14分→7题×2分等整数分）+ 规则库 score 系列验算。' },
-  { code: 'A3', type: 'account', key: '数学|primary_mid·口算 / primary_high·直接写得数', section: '', status: 'fixed',
-    desc: '原 note"20题/16题"把题量写死导致 0.5分/题，违反"小学卷小题一律整数分"。',
-    action: '删除蓝图题量，题量由生成时模型按分值规则分配（10分→10题×1分等）+ 规则库验算。' },
-  { code: 'A4', type: 'semantics', key: '语文|primary_low', section: '识字与写字', status: 'open',
-    desc: '"禁止连续3题以上"与"禁止连续2道以上"同类阈值并存，口径不一。',
-    action: '统一为"连续2题"或明确④指操作方式、⑤指格式。' },
-  { code: 'A5', type: 'semantics', key: '语文|primary_low', section: '识字与写字', status: 'open',
-    desc: '同一条 note 内"选字填空须给出备选字"③⑥重复表述。',
-    action: '合并为一条，编号重整。' },
-  { code: 'A6', type: 'semantics', key: '语文|primary_low/mid/high', section: '表达与交流', status: 'open',
-    desc: '"须先查阅教材确认本单元口语交际主题"是生成端无法执行的操作指令；期中/期末无单元锚点。',
-    action: '改为"口语交际话题取自已提供的教材原文/单元上下文，无教材时选取适龄生活话题"。' },
-  { code: 'A7', type: 'semantics', key: '英语|high', section: '听力', status: 'open',
-    desc: '高中语速"120-140"与括号"实测约139-146"矛盾，且与学科条款"高中120-140"口径不一。',
-    action: '统一高中档为"130-145"或改括号注表述。' },
-  { code: 'A8', type: 'account', key: 'EXAM_STAGE_STANDARDS.primary', section: '', status: 'open',
-    desc: '"书写类填空合计≤18处"无量化口径，生成时无法核验。',
-    action: '定义"书写类填空"可计数口径（哪些题型计入），或在蓝本注明不含看图写话。' },
-  { code: 'A9', type: 'semantics', key: '数学|primary_low', section: '填空', status: 'open',
-    desc: '"1元5角=___角"仍是进率换算，仅加数值包装，与学科条款"禁止孤立考查进率背诵"有张力。',
-    action: '进率换算须给真实购物/找零情境载体，否则删此例。' },
-  { code: 'A10', type: 'semantics', key: '信息科技|primary_low', section: '情境操作题', status: 'open',
-    desc: '"保存文件"超出2022课标1-2年级水平；低段书面"文字描述"量大。',
-    action: '操作点按课标低段收敛（开关机/用鼠标/礼貌用语），删"保存文件"。' },
-  { code: 'A11', type: 'semantics', key: '音乐|primary_low', section: '表现题', status: 'open',
-    desc: '低段40分全卷要求"文字描述"演唱/律动，与低段识字写字能力不匹配。',
-    action: '允许圈选/连线/涂色等非文字方式呈现表现题。' },
-  { code: 'A12', type: 'account', key: '英语|primary_low', section: '全卷', status: 'open',
-    desc: '约45+小题 vs 学段条款"60分钟卷约25-35道小题"——40分钟低段卷题量显著超限。',
-    action: '压缩笔试小题量或延长 duration 至60分钟。' },
-  { code: 'A13', type: 'semantics', key: '语文|primary_low', section: '识字与写字', status: 'open',
-    desc: '"拼音标声调含干扰项"表述含混（选项干扰还是填空标注？）。',
-    action: '改为明确语义，如"读音辨析选项须含声调干扰项"。' },
-  { code: 'A14', type: 'dup', key: '语文|primary_low', section: '识字与写字/积累与运用', status: 'open',
-    desc: '"右列必须打乱"与 FORMAT_RULES"系统会自动打乱右列"直接冲突（系统渲染已打乱，暴露答案问题不存在）。',
-    action: 'note 删除"打乱右列"全部表述，只留连线语义。' },
-
-  // ── 表B：跨库重复/矛盾 ──
-  { code: 'B1', type: 'dup', key: '连线类 note（17处）', section: '', status: 'open',
-    desc: '"用match-question格式（见学科标记块）"悬空引用——"学科标记块"不存在；格式由 FORMAT_RULES + match-format-fix 单点定义。',
-    action: 'note 删除格式引用，只留连线语义。' },
-  { code: 'B2', type: 'dup', key: '语文 5 处（L123/131/139/148/157）', section: '作文格', status: 'open',
-    desc: '`<div class="zuo-wen-ge">`+`<span>&emsp;</span>` HTML 与 FORMAT_RULES L35 重复；蓝本内部"空格格子"与"&emsp;"表述也不一致。',
-    action: 'note 只留"作文格/方格纸"语义与行数，HTML 移渲染层。' },
-  { code: 'B3', type: 'dup', key: '约22处', section: '[IMAGE]', status: 'open',
-    desc: '"配图用 [IMAGE] 输出描述"重复声明，eduRenderContract.needsImageHint 已按关键词自动注入。',
-    action: 'note 只留"配图"语义，标记块由渲染契约注入。' },
-  { code: 'B4', type: 'dup', key: '历史|middle/high（L392/399）', section: '[GRAPH]', status: 'open',
-    desc: '蓝本要求"[GRAPH] 统计图"，但历史不在 eduRenderContract.GRAPH_SUBJECTS——悬空引用。',
-    action: '历史补入 GRAPH_SUBJECTS，或历史改"表格"呈现。' },
-  { code: 'B5', type: 'dup', key: '英语 5 处', section: '听力原文', status: 'open',
-    desc: '"听力原文放答案页供教师朗读"重复声明，学科条款英语#1 + ANSWER_ROLES 已是事实源。',
-    action: 'note 删除该句，听力原文归答案页载体。' },
-  { code: 'B6', type: 'dup', key: 'buildBlueprintInjection 分值规则', section: '', status: 'open',
-    desc: '分值规则与 validatorRules.score-label-fix 提示几乎同文；G3 与 score-sum-guard 职责重叠。',
-    action: '分值规则单点化，明确静态校验(G3) vs 生成后校验(score-sum-guard)边界。' },
-  { code: 'B7', type: 'dup', key: 'EXAM_STAGE_STANDARDS vs STAGE_EXAM_EXTRAS', section: '', status: 'open',
-    desc: '难度分布"6:3:1"等逐字重复，exam 生成时两组同时注入。',
-    action: 'STAGE_EXAM_EXTRAS 删除与学段条款重复的条款，学段条款为唯一事实源。' },
-  { code: 'B8', type: 'dup', key: 'EXAM_SUBJECT_STANDARDS vs SUBJECT_EXAM_EXTRAS', section: '', status: 'fixed',
-    desc: 'SUBJECT_EXAM_EXTRAS 为纯学科一维度死代码兜底（54 真实组合已全覆盖），且与学科条款重复，已整体删除；学科条款为唯一事实源。',
-    action: '已删除 SUBJECT_EXAM_EXTRAS，缺失组合改 DEV 告警。' },
-  { code: 'B9', type: 'account', key: '作文格量化口径', section: '', status: 'open',
-    desc: '格数（≥160格）/行数（8/15/18行）/字数（600/800字）三种口径并存且互相矛盾（低段8行≈80格<160格）。',
-    action: '统一为字数口径（低段80-100/中段300/高段450/初中600/高中800字），渲染层换算格数。' },
-
-  // ── 表C：载体缺失（迁移已通过 inferCarriers 补展示，待骨架编译器落盘） ──
-  { code: 'C1', type: 'carrier', key: '语文|primary_low·识字与写字', section: '', status: 'open',
-    desc: '低段写字须田字格、选字须括号/横线，note 未声明载体。', action: '声明 carrier: tian-zi-ge/blank/bracket。' },
-  { code: 'C2', type: 'carrier', key: '数学|primary_mid·用竖式计算', section: '', status: 'open',
-    desc: '仅三年级声明 bracket-grid，"四年级起直接留竖式书写区"未声明载体。', action: '声明 carrier: bracket-grid/blank-area。' },
-  { code: 'C3', type: 'carrier', key: '英语|primary_low·字母与词汇', section: '', status: 'open',
-    desc: '字母大小写/抄写单词必用四线三格，未声明。', action: '声明 carrier: four-line-three。' },
-  { code: 'C4', type: 'carrier', key: '英语|middle·信息转换', section: '', status: 'open',
-    desc: '听短文填表需要表格载体，未声明。', action: '声明 carrier: table + listening-script。' },
-  { code: 'C5', type: 'carrier', key: '物理|middle·作图题', section: '', status: 'open',
-    desc: '力的示意图/光路/电路需作图区，note 仅提 [IMAGE]。', action: '声明 carrier: draw-area + image。' },
-  { code: 'C6', type: 'carrier', key: '科学|primary_low·观察与探究', section: '', status: 'open',
-    desc: '观察记录题需记录表，蓝本未声明。', action: '声明 carrier: table（记录表）。' },
-  { code: 'C7', type: 'carrier', key: '简答/赏析/情景分析/实践探究类大题', section: '', status: 'open',
-    desc: '大量文字作答大题无空白区载体声明，依赖 OUTPUT_FORMAT 通用规则。', action: '骨架编译器按 f(分值,学段) 自动生成空白区。' },
-];
-
-export default { CARRIERS, CARRIER_LABELS, inferCarriers, enhanceBlueprint, AUDIT_ISSUES };
+export default { CARRIERS, CARRIER_LABELS, inferCarriers, enhanceBlueprint };

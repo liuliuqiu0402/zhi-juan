@@ -7,8 +7,6 @@
         <b>真题蓝本 {{ examList.length }} / {{ allExamCount }}</b>
         <span class="ov-sep">·</span>
         <b>教辅结构 学科定制 {{ customSubjectCount }} / {{ SUBJECT_KEYS.length }} 科</b>
-        <span class="ov-sep">·</span>
-        <span>待修问题 <b class="issue-n">{{ openIssues.length }}</b></span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="dim-now">
@@ -125,18 +123,6 @@
     </div>
     <div v-else class="bp-empty">当前筛选无教辅结构（选 exam 时仅显示真题蓝本）</div>
 
-    <!-- 审计问题清单 -->
-    <h4 class="bp-h">🧹 迁移待修问题（语义 × 跨库重复 × 载体）</h4>
-    <div class="issue-list">
-      <div v-for="it in filteredIssues" :key="it.code" class="issue-item" :class="`tp-${it.type}`">
-        <span class="issue-code">{{ it.code }}</span>
-        <span class="issue-tag">{{ TYPE_LABELS[it.type] }}</span>
-        <span class="issue-desc">{{ it.desc }}</span>
-        <span class="issue-action">{{ it.action }}</span>
-      </div>
-      <div v-if="!filteredIssues.length" class="bp-empty">当前筛选无待修问题</div>
-    </div>
-
     <!-- 新建蓝本弹层 -->
     <div v-if="newOpen" class="modal-mask" @click.self="newOpen = false">
       <div class="modal">
@@ -170,7 +156,7 @@ import { computed, inject, ref } from 'vue';
 import { EXAM_BLUEPRINTS } from '../../../config/examPaperBlueprints.js';
 import { TEACHING_BLUEPRINTS, TEACHING_GEN_TYPES, TEACHING_SUBJECT_BLUEPRINTS } from '../../../config/teachingBlueprints.js';
 import { validateAllBlueprints } from '../../../config/blueprintGuard.js';
-import { CARRIER_LABELS, enhanceBlueprint, AUDIT_ISSUES } from '../../../config/blueprintSchema.js';
+import { CARRIER_LABELS, enhanceBlueprint } from '../../../config/blueprintSchema.js';
 import { listAllBlueprints, saveUserBlueprint, deleteUserBlueprint } from '../../../config/blueprintProvider.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 
@@ -183,8 +169,6 @@ const GEN_TYPE_LABELS = {
   exam: '正式试卷', practice: '课时练', special: '专项突破', preview: '课前预习',
   reading: '阅读训练', summary: '知识总结', dictation: '默写积累', errorbook: '错题本', review: '复习资料',
 };
-const TYPE_LABELS = { semantics: '语义', dup: '跨库重复', carrier: '载体', account: '账目/口径' };
-
 /* ===== 数据源：内置 + 用户自定义（blueprintProvider） ===== */
 const allExam = ref(listAllBlueprints().map((bp) => enhanceBlueprint(bp)));
 const allExamCount = computed(() => allExam.value.length);
@@ -265,17 +249,6 @@ const validateResults = computed(() => {
   examList.value.forEach((bp) => { map[bp.key] = { ...bp }; delete map[bp.key].key; });
   return validateAllBlueprints(map);
 });
-
-/* ===== 审计问题 ===== */
-const filteredIssues = computed(() => {
-  const su = dims.value.subject, st = dims.value.stage;
-  return AUDIT_ISSUES.filter((it) => {
-    if (su && !it.key.includes(su)) return false;
-    if (st && !it.key.includes(st)) return false;
-    return true;
-  });
-});
-const openIssues = computed(() => filteredIssues.value.filter((i) => i.status === 'open'));
 
 /* ===== 编辑 / 保存 / 删除 / 新增 ===== */
 const editingKey = ref('');
@@ -406,15 +379,4 @@ const createBp = () => {
 .modal { background: #fff; border-radius: 12px; padding: 20px 22px; width: 420px; max-width: 92vw; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
 .modal h4 { margin: 0 0 14px; color: var(--primary); }
 .modal-tip { font-size: 12px; color: var(--text-muted); margin: 10px 0; }
-
-.issue-list { display: flex; flex-direction: column; gap: 8px; }
-.issue-item { display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; background: #fff; border: 1px solid var(--border-light); border-left: 4px solid var(--border); border-radius: 8px; padding: 8px 12px; flex-wrap: wrap; }
-.issue-item.tp-semantics { border-left-color: var(--accent); }
-.issue-item.tp-dup { border-left-color: var(--primary-light); }
-.issue-item.tp-carrier { border-left-color: var(--success); }
-.issue-item.tp-account { border-left-color: var(--danger); }
-.issue-code { font-family: Consolas, monospace; font-weight: 700; color: var(--primary); }
-.issue-tag { font-size: 10.5px; padding: 1px 8px; border-radius: 999px; background: var(--primary-lighter); color: var(--primary); white-space: nowrap; }
-.issue-desc { flex: 1; min-width: 200px; color: #445; }
-.issue-action { font-size: 12px; color: var(--text-muted); }
 </style>
