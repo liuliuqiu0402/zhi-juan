@@ -68,3 +68,6 @@ iOS/DerivedData/
 coverage/
 .nyc_output/
 .vercel
+
+# Trae HTML 分享临时包
+.trae-html-share-packages/

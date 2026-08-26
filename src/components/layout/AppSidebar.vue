@@ -13,18 +13,10 @@
       <span v-if="!canAccessFeature('template')" class="lock-icon">🔒</span>
     </div>
 
-    <div class="nav-item" :class="{ active: $route.path === '/instruction' }" @click="$router.push('/instruction')">
-      <span>📝</span> 指令库
+    <div class="nav-item" :class="{ active: $route.path.startsWith('/tools') }" @click="$router.push('/tools')">
+      <span>🧰</span> 工具库
     </div>
 
-    <div class="nav-item" :class="{ active: $route.path === '/blueprint' }" @click="$router.push('/blueprint')">
-      <span>📐</span> 蓝图库
-    </div>
-
-    <div class="nav-item" :class="{ active: $route.path === '/rules' }" @click="$router.push('/rules')">
-      <span>🧪</span> 质检规则
-    </div>
-    
     <div class="nav-item" :class="{ disabled: !canAccessFeature('draft') }"
       @click="goIfAllowed('/draft', 'draft')"
       :title="!canAccessFeature('draft') ? '旗舰版功能' : ''">

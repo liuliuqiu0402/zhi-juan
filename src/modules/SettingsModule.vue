@@ -231,7 +231,7 @@
       <div v-if="settings.currentEngine === 'volcano'" class="settings-section">
         <h3>🔥 火山引擎（豆包）</h3>
         <p style="font-size:12px;color:#666;margin-bottom:4px;">
-          💰 每日免费200万Token · 无峰谷定价 · 国产中文能力第一 · 深度思考已强制关闭（省时省钱）
+          💰 每日免费200万Token · 无峰谷定价 · 国产中文能力第一 · 深度思考默认关闭（可在下方「整卷生成深度思考」按引擎开启）
         </p>
         <p class="model-hint">👍 免费额度大：小量试用/白嫖首选，超额度后 doubao-seed-2-1-turbo 约 ¥3/百万输入</p>
         <label>API Key</label>
@@ -368,55 +368,138 @@
             </div>
             <span style="font-size:10px;color:#999;min-width:22px;">1.5</span>
           </div>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">整卷一次生成（正文）——需创作性：情境、题目、卷面，略高</p>
+          <p style="font-size:11px;color:#888;margin:2px 0 0;">整卷一次生成（正文）——需创作性：情境、题目、卷面，略高<span v-if="(settings.generationSettings.paperGenerateMode ?? 'auto') === 'once'">（一次成型下答案区取本温度与"答案页温度"的平均值）</span></p>
         </div>
 
-        <!-- 答案页温度（阅卷专家视角，低温严谨；一次成型模式下答案与正文共用整卷正文温度，此滑块仅两次生成生效） -->
-        <div style="margin-bottom:14px;" :style="(settings.generationSettings.paperGenerateMode ?? 'split') === 'once' ? { opacity: 0.5 } : {}">
+        <!-- 答案页温度（阅卷专家视角，低温严谨；一次成型下与正文温度取平均，共同影响答案区） -->
+        <div style="margin-bottom:14px;">
           <label style="display:flex;justify-content:space-between;">
             <span>✅ 答案页生成</span>
-            <span v-if="(settings.generationSettings.paperGenerateMode ?? 'split') === 'once'" style="font-size:10px;color:#999;font-weight:400;">一次成型下不生效</span>
+            <span v-if="(settings.generationSettings.paperGenerateMode ?? 'auto') === 'once'" style="font-size:10px;color:#999;font-weight:400;">一次成型下与正文温度取平均</span>
           </label>
           <div style="display:flex;align-items:center;gap:6px;">
             <span style="font-size:10px;color:#999;min-width:14px;">0</span>
             <div style="position:relative;flex:1;">
               <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.answerTemperature ?? 0.3) / 1.0 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.answerTemperature ?? 0.3) / 1.0 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.answerTemperature ?? 0.3).toFixed(1) }}</span>
-              <input type="range" v-model.number="settings.generationSettings.answerTemperature" min="0" max="1.0" step="0.1" list="ticks-1_0" style="width:100%;" :disabled="(settings.generationSettings.paperGenerateMode ?? 'split') === 'once'" />
+              <input type="range" v-model.number="settings.generationSettings.answerTemperature" min="0" max="1.0" step="0.1" list="ticks-1_0" style="width:100%;" />
             </div>
             <span style="font-size:10px;color:#999;min-width:22px;">1.0</span>
           </div>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">参考答案与评分标准——阅卷专家视角，低温确保严谨准确<span v-if="(settings.generationSettings.paperGenerateMode ?? 'split') === 'once'">（一次成型下答案与正文共用"整卷正文生成"温度，此滑块仅"两次生成"生效）</span></p>
+          <p style="font-size:11px;color:#888;margin:2px 0 0;">参考答案与评分标准——阅卷专家视角，低温确保严谨准确（一次成型下与「整卷正文生成」温度取平均，共同影响答案区）</p>
         </div>
 
-        <!-- DeepSeek 深度思考开关（仅整卷生成生效） -->
-        <div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;padding:8px 12px;">
-          <div style="flex:1;margin-right:10px;">
-            <div style="font-size:12px;font-weight:600;color:#333;">🧠 整卷生成启用深度思考（DeepSeek）</div>
-            <div style="font-size:11px;color:#888;margin-top:2px;line-height:1.5;">开启后整卷生成前先推理再作答，可提升生成质量；推理 token 按输出价计费、耗时更长。<br/>仅影响整卷生成——分析/审查/格式化/验算始终关闭思考。</div>
-          </div>
-          <label style="position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0;cursor:pointer;">
-            <input type="checkbox" v-model="settings.generationSettings.deepseekGenerationThinking" style="opacity:0;width:0;height:0;" />
-            <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'22px',transition:'0.3s',background:settings.generationSettings.deepseekGenerationThinking ? '#4a90d9' : '#ccc'}"></span>
-            <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.deepseekGenerationThinking ? '20px' : '2px',width:'18px',height:'18px',borderRadius:'50%',background:'#fff',transition:'0.3s'}"></span>
-          </label>
-        </div>
-
-        <!-- 整卷生成方式：两次生成 / 一次成型 -->
+        <!-- 整卷输出预算（tokens，全部可配置，生成端严格按此执行） -->
         <div style="margin-bottom:14px;background:#f0f7ff;border:1px solid #b3d4f5;border-radius:8px;padding:8px 12px;">
-          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:6px;">📜 整卷生成方式</div>
-          <div style="display:flex;gap:8px;margin-bottom:4px;">
-            <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:14px;cursor:pointer;font-size:12px;font-weight:500;border:1px solid #4a90d9;color:#4a90d9;background:#fff;" :style="(settings.generationSettings.paperGenerateMode ?? 'split') === 'split' ? { background:'#4a90d9', color:'#fff' } : {}">
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:6px;">📏 整卷输出预算（tokens）</div>
+          <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:#888;align-self:center;">快捷档位（不懂估算点这里）：</span>
+            <button class="btn-small" @click="applyBudgetPreset('standard')" style="font-size:11px;padding:3px 10px;">标准档（默认）</button>
+            <button class="btn-small" @click="applyBudgetPreset('large')" style="font-size:11px;padding:3px 10px;">大卷档（高中/长阅读）</button>
+            <button class="btn-small" @click="applyBudgetPreset('economy')" style="font-size:11px;padding:3px 10px;">保守档（省token）</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;">
+            <div>
+              <label style="font-size:11px;color:#666;">两次生成·正文单次上限（默认 32768）</label>
+              <input type="number" v-model.number="settings.generationSettings.paperBodyMaxTokens" min="4096" step="1024" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:#666;">一次成型·正文+答案上限（默认 49152）</label>
+              <input type="number" v-model.number="settings.generationSettings.paperOnceMaxTokens" min="8192" step="1024" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:#666;">两次生成·答案页上限（默认 16384）</label>
+              <input type="number" v-model.number="settings.generationSettings.answerMaxTokens" min="4096" step="1024" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:#666;">思考模式预算倍数（默认 2）</label>
+              <input type="number" v-model.number="settings.generationSettings.thinkingBudgetMultiplier" min="1" step="0.5" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:#666;">答案页上下文上限·字符（默认 24000）</label>
+              <input type="number" v-model.number="settings.generationSettings.answerContextMaxChars" min="8000" step="2000" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;" />
+            </div>
+          </div>
+          <div style="font-size:11px;color:#888;line-height:1.7;">
+            怎么估算：约 1 token ≈ 1.5 个中文字符。<br/>
+            参考量：小学 60 分钟卷正文约 1.5-2.5 万字符（≈1-1.7 万 tokens），答案页约 0.6-1.2 万字符（≈0.4-0.8 万 tokens）；高中 150 分卷（长阅读+作文）正文约 4-6 万字符（≈2.7-4 万 tokens）。<br/>
+            默认「标准档」对绝大多数场景足够；输出常被截断才考虑加大，费用过高才考虑「保守档」。思考模式下推理 token 与正文共享配额，按「思考模式预算倍数」放大预留推理余量。请按需配置，生成端严格按此执行。<br/>
+            「答案页上下文上限」：正文纯文本超过此长度时，答案页调用只能看到前 N 字符（后半卷题目看不到，答案会缺）。高中大卷正文常超 2.4 万字符——请点「大卷档」或手动调到 40000-60000，否则建议用「两次生成」。
+          </div>
+        </div>
+
+        <!-- 整卷生成深度思考开关（按引擎，仅整卷生成生效） -->
+        <div style="margin-bottom:14px;background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;padding:8px 12px;">
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:2px;">🧠 整卷生成深度思考（按引擎开关）</div>
+          <div style="font-size:11px;color:#888;margin-bottom:4px;line-height:1.5;">开启后整卷生成前先推理再作答，可提升生成质量；推理 token 按输出价计费、耗时更长，输出预算按上方「思考模式预算倍数」放大。<br/>仅影响整卷生成——分析/审查/格式化/验算始终关闭思考。请为当前使用的引擎明确选择。</div>
+          <!-- DeepSeek -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-top:1px dashed #ffe58f;">
+            <span style="font-size:12px;">DeepSeek</span>
+            <label style="position:relative;display:inline-block;width:34px;height:19px;flex-shrink:0;cursor:pointer;">
+              <input type="checkbox" v-model="settings.generationSettings.deepseekGenerationThinking" style="opacity:0;width:0;height:0;" />
+              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.deepseekGenerationThinking ? '#4a90d9' : '#ccc'}"></span>
+              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.deepseekGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}"></span>
+            </label>
+          </div>
+          <!-- 火山引擎 -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
+            <span style="font-size:12px;">火山引擎（豆包）</span>
+            <label style="position:relative;display:inline-block;width:34px;height:19px;flex-shrink:0;cursor:pointer;">
+              <input type="checkbox" v-model="settings.generationSettings.volcanoGenerationThinking" style="opacity:0;width:0;height:0;" />
+              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.volcanoGenerationThinking ? '#4a90d9' : '#ccc'}"></span>
+              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.volcanoGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}"></span>
+            </label>
+          </div>
+          <!-- 阿里百炼 -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
+            <span style="font-size:12px;">阿里百炼（通义千问）</span>
+            <label style="position:relative;display:inline-block;width:34px;height:19px;flex-shrink:0;cursor:pointer;">
+              <input type="checkbox" v-model="settings.generationSettings.alibabaGenerationThinking" style="opacity:0;width:0;height:0;" />
+              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.alibabaGenerationThinking ? '#4a90d9' : '#ccc'}"></span>
+              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.alibabaGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}"></span>
+            </label>
+          </div>
+          <!-- 智谱 GLM -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
+            <span style="font-size:12px;">智谱 GLM（模型侧可能强制推理，参数不一定生效）</span>
+            <label style="position:relative;display:inline-block;width:34px;height:19px;flex-shrink:0;cursor:pointer;">
+              <input type="checkbox" v-model="settings.generationSettings.zhipuGenerationThinking" style="opacity:0;width:0;height:0;" />
+              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.zhipuGenerationThinking ? '#4a90d9' : '#ccc'}"></span>
+              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.zhipuGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}"></span>
+            </label>
+          </div>
+          <!-- Ollama 本地 -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
+            <span style="font-size:12px;">Ollama 本地（r1 等推理模型生效）</span>
+            <label style="position:relative;display:inline-block;width:34px;height:19px;flex-shrink:0;cursor:pointer;">
+              <input type="checkbox" v-model="settings.generationSettings.ollamaGenerationThinking" style="opacity:0;width:0;height:0;" />
+              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.ollamaGenerationThinking ? '#4a90d9' : '#ccc'}"></span>
+              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.ollamaGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 整卷生成方式：两次生成 / 一次成型 / 自动按资料类型（三条路明确可选，生成端严格按此执行） -->
+        <div style="margin-bottom:14px;background:#f0f7ff;border:1px solid #b3d4f5;border-radius:8px;padding:8px 12px;">
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:6px;">📜 整卷生成方式（两条路径均可用，请明确选择）</div>
+          <div style="display:flex;gap:8px;margin-bottom:6px;">
+            <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:14px;cursor:pointer;font-size:12px;font-weight:500;border:1px solid #4a90d9;color:#4a90d9;background:#fff;" :style="(settings.generationSettings.paperGenerateMode ?? 'auto') === 'split' ? { background:'#4a90d9', color:'#fff' } : {}">
               <input type="radio" v-model="settings.generationSettings.paperGenerateMode" value="split" hidden />
               两次生成
             </label>
-            <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:14px;cursor:pointer;font-size:12px;font-weight:500;border:1px solid #4a90d9;color:#4a90d9;background:#fff;" :style="(settings.generationSettings.paperGenerateMode ?? 'split') === 'once' ? { background:'#4a90d9', color:'#fff' } : {}">
+            <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:14px;cursor:pointer;font-size:12px;font-weight:500;border:1px solid #4a90d9;color:#4a90d9;background:#fff;" :style="(settings.generationSettings.paperGenerateMode ?? 'auto') === 'once' ? { background:'#4a90d9', color:'#fff' } : {}">
               <input type="radio" v-model="settings.generationSettings.paperGenerateMode" value="once" hidden />
               一次成型
             </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:14px;cursor:pointer;font-size:12px;font-weight:500;border:1px solid #4a90d9;color:#4a90d9;background:#fff;" :style="(settings.generationSettings.paperGenerateMode ?? 'auto') === 'auto' ? { background:'#4a90d9', color:'#fff' } : {}">
+              <input type="radio" v-model="settings.generationSettings.paperGenerateMode" value="auto" hidden />
+              自动按类型
+            </label>
           </div>
           <div style="font-size:11px;color:#888;line-height:1.5;">
-            两次生成：正文一次 + 答案页独立一次（答案用阅卷专家角色 + 低温严谨，推荐）；<br/>
-            一次成型：正文与答案一次输出（上下文全程一致；答案部分与正文共用"整卷正文生成"温度，模型漏输出答案时自动补一次独立答案页）。
+            两次生成：正文一次 + 答案页独立一次（答案用阅卷专家角色 + 低温严谨，纯题型推荐）；<br/>
+            一次成型：正文与答案一次输出（上下文全程一致，知识型/错题/听写推荐）；<br/>
+            自动按类型：纯题型（试卷/课时练/专项/复习）→ 两次生成；知识型（阅读/总结/预习/听写/错题）→ 一次成型。<br/>
+            <span style="color:#d46b08;">⚠️ 生成时会严格按你的选择执行，并在进度与生成报告中显示本次所用路径；若显示与你预期不符，请回来调整此项。</span>
           </div>
         </div>
 
@@ -440,6 +523,9 @@
             </tr>
           </table>
           <p style="margin:6px 0 0;color:#999;">⚡ 温度 0 不保证绝对一致（GPU 浮点运算有微小差异），但差异可忽略</p>
+          <p style="margin:4px 0 0;color:#999;">🔄 何时调整：输出重复雷同/平淡 → 略升；跑题/格式乱/内容出错 → 略降。每次只调 0.1，小步验证再决定是否继续。</p>
+          <p style="margin:4px 0 0;color:#999;">🧠 温度只控制随机性与发散度，不决定模型能力——调高不会让模型"更聪明"，只会更敢于变化（也更易出错）；调低更稳定、更保守。质量上不去时优先换更强模型，而不是一味调温度。</p>
+          <p style="margin:4px 0 0;color:#999;">📌 思考模式开启时，正文/答案预算会按「思考模式预算倍数」放大——温度与思考相互独立，可组合使用。</p>
         </div>
       </div>
 
@@ -850,6 +936,26 @@ const resetTemperatureDefaults = () => {
   settings.value.generationSettings.answerTemperature = 0.3;
 };
 
+// 🔧 输出预算预设档位：不懂估算直接点档位，套用后记得「保存设置」生效
+const applyBudgetPreset = (preset) => {
+  const presets = {
+    standard: { paperBodyMaxTokens: 32768, paperOnceMaxTokens: 49152, answerMaxTokens: 16384, thinkingBudgetMultiplier: 2, answerContextMaxChars: 24000, label: '标准档（默认）' },
+    large:    { paperBodyMaxTokens: 49152, paperOnceMaxTokens: 73728, answerMaxTokens: 24576, thinkingBudgetMultiplier: 2, answerContextMaxChars: 48000, label: '大卷档（高中/长阅读）' },
+    economy:  { paperBodyMaxTokens: 24576, paperOnceMaxTokens: 36864, answerMaxTokens: 12288, thinkingBudgetMultiplier: 2, answerContextMaxChars: 24000, label: '保守档（省 token）' },
+  };
+  const p = presets[preset];
+  if (!p) return;
+  Object.assign(settings.value.generationSettings, {
+    paperBodyMaxTokens: p.paperBodyMaxTokens,
+    paperOnceMaxTokens: p.paperOnceMaxTokens,
+    answerMaxTokens: p.answerMaxTokens,
+    thinkingBudgetMultiplier: p.thinkingBudgetMultiplier,
+    answerContextMaxChars: p.answerContextMaxChars,
+  });
+  saveStatus.value = `已套用「${p.label}」，请点右上角「保存设置」生效`;
+  setTimeout(() => { saveStatus.value = ''; }, 5000);
+};
+
 const saveSettings = async () => {
   const oldEngine = apiConfig.currentEngine;
   const newEngine = settings.value.currentEngine;
@@ -919,7 +1025,7 @@ const saveSettings = async () => {
   } else if (settings.value.currentEngine === 'volcano') {
     qualityEstimate += '\n\n📊 质量预估：云端高质量（豆包 Seed）';
     qualityEstimate += '\n💰 每日免费200万Token · 超出后¥0.1/百万起';
-    qualityEstimate += '\n👍 免费额度大：小量试用首选 · 深度思考已强制关闭';
+    qualityEstimate += '\n👍 免费额度大：小量试用首选 · 深度思考默认关闭（可到下方按引擎开启）';
   } else if (settings.value.currentEngine === 'alibaba') {
     qualityEstimate += '\n\n📊 质量预估：云端高质量（通义千问 Qwen）';
     qualityEstimate += '\n💰 qwen3.8-27b ¥3/百万输入·¥12/百万输出 · 新用户送7000万Token';

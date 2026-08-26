@@ -32,13 +32,13 @@ const loadMemory = () => {
   } catch { return {}; }
 };
 
-/** 构建分桶键（教材 id + 范围 + 资料类型） */
-export const buildUnitKey = ({ bookId = '', scope = '', genType = '' } = {}) => `${bookId || 'book'}|${scope || 'default'}|${genType || 'type'}`;
+/** 构建分桶键（三维度口径统一：学段 × 学科 × 资料类型 + 教材/单元定位；口径见 src/config/toolLibrary.js） */
+export const buildUnitKey = ({ bookId = '', scope = '', genType = '', stage = '', subject = '' } = {}) =>
+  `${stage || '*'}|${subject || '*'}|${bookId || 'book'}|${scope || 'default'}|${genType || 'type'}`;
 
 /**
  * 从整卷 HTML 提取题目摘要（每题首句，限量）
- * 🔴 独立轻量实现：不复用 extractQuestionList（其"空壳题过滤"为答案生成设计，
- *    会漏掉"圈出加点字"等无括号载体的题），直接按顶层题号切分纯文本。
+ * 🔴 独立轻量实现：直接按顶层题号切分纯文本，不依赖整卷生成侧的题目清单提取。
  * @param {string} html 整卷 HTML
  * @param {number} maxCount 最多条数
  * @param {number} maxLen 每条最大字符

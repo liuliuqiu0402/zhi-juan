@@ -247,6 +247,13 @@ const loadConfig = async () => {
         }
       }
       
+      // 🔧 深合并 generationSettings：旧 localStorage 缺少新字段（paperBodyMaxTokens/answerMaxTokens/
+      //    volcanoGenerationThinking 等）时以当前默认值补齐，保证生成端读取的设置永远完整
+      //    （否则整块 generationSettings 会被旧对象覆盖，新设置项静默丢失）
+      if (config.generationSettings) {
+        config.generationSettings = { ...apiConfig.generationSettings, ...config.generationSettings };
+      }
+
       return config;
     }
     
@@ -476,31 +483,78 @@ export const apiConfig = reactive({
     quality: 85
   },
   
-  // 生成设置（按任务区分温度）
+  // 生成设置（全部由设置页配置并持久化，生成端严格按此执行，代码不再硬编码生效值）
   generationSettings: {
     analysisTemperature: 0.1,           // 分析/提取（低温，更准确）
-    // 🔧 整卷生成温度分层（此前调用点硬编码 0.7/0.3 未走设置页，现纳入配置可调）：
     paperTemperature: 0.7,              // 整卷正文（一次生成整卷，需创作性：情境/题目/卷面，略高）
     answerTemperature: 0.3,             // 答案页（阅卷专家视角，需严谨：答案/评分标准/听力原文，低温）
-    // 🔧 整卷生成方式：'split' 两次生成（正文一次 + 答案页独立一次，温度/角色分层，推荐）；
-    //    'once' 一次成型（正文+答案一次输出，全程上下文一致；答案部分与正文共用 paperTemperature）
-    paperGenerateMode: 'split',
-    // 🔧 DeepSeek 深度思考开关：仅整卷生成（generation）任务生效——
-    //    开启后生成前先推理再作答（提升质量，推理 token 按输出价计费、耗时数倍）；
-    //    分析/审查/格式化/验算等其他任务始终关闭思考（清单式/机械任务非思考模式足够）
+    // 🔧 整卷生成方式（设置页三选一，生成端严格按此执行）：
+    //    'split' 两次生成：正文一次 + 答案页独立一次（温度/角色分层，纯题型推荐）
+    //    'once'  一次成型：正文+答案一次输出（上下文全程一致；答案部分与正文共用 paperTemperature，知识型/错题/听写推荐）
+    //    'auto'  自动按资料类型（两条路都可用）：纯题型（exam/practice/special/review）→ split；
+    //            知识型/听写/错题（reading/summary/preview/dictation/errorbook）→ once
+    paperGenerateMode: 'auto',
+    // 🔧 整卷输出预算（tokens，设置页可调；思考模式下按 thinkingBudgetMultiplier 放大——
+    //    推理 token 与正文共享 max_tokens 配额，需给推理预留余量）
+    paperBodyMaxTokens: 32768,          // 两次生成：整卷正文单次输出上限
+    paperOnceMaxTokens: 49152,          // 一次成型：正文+答案一次输出上限
+    answerMaxTokens: 16384,             // 两次生成：答案页独立输出上限
+    answerContextMaxChars: 24000,       // 答案页输入：正文纯文本上限（正文超过此长度时答案只看前 N 字符；高中大卷建议调大至 40000-60000）
+    thinkingBudgetMultiplier: 2,        // 思考模式输出预算放大倍数
+    // 🔧 各引擎整卷生成深度思考开关（生成端按当前引擎读取对应开关；其余任务始终关闭思考）
     deepseekGenerationThinking: false,
-    maxTokens: 4096,                    // 默认输出限制
-    
-    // 🔧 注意：maxTokensByTask 的实际生效值由下方的 MAX_TOKENS_BY_TASK 常量定义，
-    //    此处仅作为 UI 展示参考，不会被 localStorage 覆盖。
+    volcanoGenerationThinking: false,
+    alibabaGenerationThinking: false,
+    zhipuGenerationThinking: false,     // 注意：GLM 系模型可能无视该参数强制推理
+    ollamaGenerationThinking: false,    // 本地推理模型（如 r1 系）是否启用 think 推理链
+    maxTokens: 4096,                    // 默认输出限制（兜底）
+
+    // 🔧 非整卷任务（提取/分析/蓝图/格式化）输出上限：与整卷预算一样均来自设置、可调
     maxTokensByTask: {
       'extraction': 2048,
       'analysis': 65536,
       'blueprint': 32768,
-      'generation': 65536,
+      'generation': 32768,
       'formatting': 8192
     },
-    
+
+    // 🔧 请求超时（ms，全部可调）。流式请求以"SSE 心跳活性"为主检测（无新数据即中断），
+    //    超时仅作兜底，不会"死等固定时长"。
+    timeouts: {
+      base: 120000,            // callAI 无显式超时时的默认值
+      max: 600000,             // 大模型（32B+）上限
+      per1000TokensMs: 30000,  // 动态超时公式：prompt 每 1000 tokens 追加
+      generation: 300000,      // 整卷正文
+      answer: 240000,          // 答案页
+      analysis: 180000,        // 章节/长文分析
+      extraction: 120000,      // 常规提取/OCR 识别
+      chunk: 60000,            // 分段提取
+      blueprint: 60000,        // 命题规划/情境框架
+      variant: 60000,          // 单题变体
+      sseHeartbeat: 60000,     // SSE 流活性心跳（无新数据即判定断流）
+      continuation: 30000,     // 续写请求
+      ollamaPreflight: 5000,   // Ollama 连接预检
+      ollamaOp: 10000,         // ollama 命令操作
+      infra: 3000,             // 基础设施请求（keep_alive 等）
+    },
+
+    // 🔧 请求输入上限（tokens）：DeepSeek 上下文大给足量；Ollama 按输出预算反推
+    maxInputTokensDeepseek: 100000,
+    maxInputTokensOllamaRatio: 0.7,
+    // 🔧 Ollama R1/推理模型显存优化参数（num_ctx 限制上下文窗口避免爆显存，num_gpu 最大化 GPU 层）
+    ollamaR1NumCtx: 4096,
+    ollamaR1NumGpu: 999,
+
+    // 🔧 重试/等待策略（ms；指数退避 + 上限，避免固定死等）
+    retry: {
+      baseDelayMs: 2000,       // 云端重试基础等待
+      ollamaBaseDelayMs: 5000, // Ollama 重试基础等待（本地模型慢热）
+      maxDelayMs: 10000,       // 重试等待上限
+      backoffFactor: 2,        // 指数退避倍数
+      maxRetries: 2,           // callAI 默认重试次数（任务可显式覆盖）
+      generationRetries: 2,    // generate() 整卷整体重试次数
+    },
+
     topP: 0.9,
     repeatPenalty: 1.1
   },
@@ -706,7 +760,7 @@ export const getCurrentEngineConfig = async (taskType = 'generation') => {
       textModel: textModel,
       multimodalModel: apiConfig.ollamaMultimodalModel,
       temperature: taskTemperature,
-      maxTokens: MAX_TOKENS_BY_TASK[taskType] || apiConfig.generationSettings.maxTokens
+      maxTokens: getTaskMaxTokens(taskType)
     };
   } else {
     // 🔧 按任务类型选择 DeepSeek 模型（2档独立配置）
@@ -729,7 +783,7 @@ export const getCurrentEngineConfig = async (taskType = 'generation') => {
       apiKey: apiConfig.deepseekApiKey,
       model: deepseekModel,
       temperature: taskTemperature,
-      maxTokens: MAX_TOKENS_BY_TASK[taskType] || apiConfig.generationSettings.maxTokens
+      maxTokens: getTaskMaxTokens(taskType)
     };
   }
 };
@@ -834,21 +888,52 @@ export const selectBestModel = (taskType, requirements = {}) => {
 
 
 /**
- * 🔧 核心常量：按任务类型区分的 maxTokens（权威来源，不会被 localStorage 覆盖）
- * 推理模型(R1系列)的思考链和输出内容共享 max_tokens 配额，需给足余量。
- * - analysis/generation: 65536（分析/生成 prompt 最长，推理链最复杂）
- * - blueprint: 32768（知识图谱 JSON，中等复杂度）
- * - extraction/review/formatting: 2048（短输出）
+ * 🔧 按任务获取输出上限（tokens）：权威来源为设置页 generationSettings.maxTokensByTask，
+ *    随用户配置持久化（loadConfig 已深合并补齐新字段），代码不再硬编码生效值；
+ *    极端缺省时兜底 generationSettings.maxTokens（默认 4096，同为设置项）。
  */
-export const MAX_TOKENS_BY_TASK = Object.freeze({
-  'extraction': 2048,
-  'analysis': 65536,
-  'blueprint': 32768,
-  'generation': 65536,
-  // 🔧 formatting 从 2048 提升到 8192：语义修复使用深度思考模型，
-  //    推理链与输出共享 max_tokens 配额——2048 时模型推理耗尽配额导致 0 内容输出/修复截断（finish_reason=length）
-  'formatting': 8192
-});
+export const getTaskMaxTokens = (taskType) => {
+  const byTask = apiConfig.generationSettings?.maxTokensByTask || {};
+  return byTask[taskType] || apiConfig.generationSettings?.maxTokens || 4096;
+};
+
+/**
+ * 🔧 当前引擎整卷生成是否启用深度思考（设置页按引擎配置的开关）
+ * 生成端（整卷正文/答案页）据此决定：传 thinking 参数、放大输出预算、设置推理流式上限。
+ */
+export const getGenerationThinkingEnabled = () => {
+  const gs = apiConfig.generationSettings || {};
+  let engine = apiConfig.currentEngine;
+  // Web/手机端 Ollama 自动切 DeepSeek 的兜底（与 getCurrentEngineConfigEnhanced 一致）
+  if (engine === 'ollama' && typeof window !== 'undefined' && !window.electronAPI && apiConfig.deepseekApiKey) {
+    engine = 'deepseek';
+  }
+  if (engine === 'deepseek') return !!gs.deepseekGenerationThinking;
+  if (engine === 'volcano') return !!gs.volcanoGenerationThinking;
+  if (engine === 'alibaba') return !!gs.alibabaGenerationThinking;
+  if (engine === 'zhipu') return !!gs.zhipuGenerationThinking;
+  if (engine === 'ollama') return !!gs.ollamaGenerationThinking;
+  return false;
+};
+
+/**
+ * 🔧 获取请求超时（ms）：权威来源为设置页 generationSettings.timeouts，随用户配置持久化；
+ *    缺省时兜底 120000（与默认值一致，正常不会触发）。
+ */
+export const getTimeout = (key) => {
+  const t = apiConfig.generationSettings?.timeouts || {};
+  return t[key] || 120000;
+};
+
+/**
+ * 🔧 计算重试等待时长（ms）：指数退避 + 上限，避免固定死等；
+ *    base 与上限均来自设置页 generationSettings.retry。
+ */
+export const getRetryDelay = (engine, attempt) => {
+  const r = apiConfig.generationSettings?.retry || {};
+  const base = engine === 'ollama' ? (r.ollamaBaseDelayMs || 5000) : (r.baseDelayMs || 2000);
+  return Math.min(base * Math.pow(r.backoffFactor || 2, attempt - 1), r.maxDelayMs || 10000);
+};
 
 
 /**
@@ -936,7 +1021,7 @@ export const getCurrentEngineConfigEnhanced = async (taskType = 'generation', re
   return {
     ...resolved,
     temperature: temperatureMap[taskType] ?? apiConfig.generationSettings.paperTemperature,
-    maxTokens: MAX_TOKENS_BY_TASK[taskType] || apiConfig.generationSettings.maxTokens,
+    maxTokens: getTaskMaxTokens(taskType),
   };
 };
 

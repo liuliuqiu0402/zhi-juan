@@ -911,6 +911,20 @@ const exportDocument = async () => {
       //    （降级源为 AI 原始 HTML：td 无 p → 行内田字格形态，docxBuilder 已跳过格子后残留 br）
       const liveDom = contentEditor.value?.editor?.view?.dom;
       let sourceHtml = liveDom?.innerHTML || rawHtmlContent.value || pristineHtmlForExport.value;
+      // 🔴 答案区兜底合并：编辑器（Tiptap）schema 不保留 answer-section 容器，liveDom 会整体丢掉答案区
+      //    （生成时有答案页、导出却消失的根因）——导出时从原始生成内容提取 answer-section 补回末尾，
+      //    正文以编辑器实时内容为准（含用户编辑）、答案区以生成源为准
+      try {
+        const rawSrc = rawHtmlContent.value || pristineHtmlForExport.value || '';
+        if (rawSrc && !/answer-section/i.test(sourceHtml)) {
+          const ansIdx = rawSrc.search(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i);
+          if (ansIdx >= 0) {
+            const ansPart = rawSrc.slice(ansIdx).replace(/<\/html>\s*$/i, '');
+            sourceHtml = `${sourceHtml}\n${ansPart}`;
+            console.log('🔧 排版导出：编辑器丢失答案区，已从原始内容兜底合并答案区');
+          }
+        }
+      } catch (e) { console.warn('⚠️ 答案区兜底合并失败:', e.message); }
       // 🔍 临时诊断日志（定位田字格单元格导出多出换行的来源，验证后删除）
       console.log('[导出诊断]', JSON.stringify({
         isHtmlContent: isHtmlContent.value,

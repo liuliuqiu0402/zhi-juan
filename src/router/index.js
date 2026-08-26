@@ -31,19 +31,26 @@ const routes = [
     component: () => import('@/modules/TemplateModule.vue')
   },
   {
+    path: '/tools',
+    name: 'tools',
+    component: () => import('@/modules/tools/ToolLibraryModule.vue')
+  },
+  {
+    path: '/tools/:sub',
+    name: 'tools-sub',
+    component: () => import('@/modules/tools/ToolLibraryModule.vue')
+  },
+  {
     path: '/instruction',
-    name: 'instruction',
-    component: () => import('@/modules/InstructionModule.vue')
+    redirect: '/tools/instruction'
   },
   {
     path: '/blueprint',
-    name: 'blueprint',
-    component: () => import('@/modules/BlueprintModule.vue')
+    redirect: '/tools/blueprint'
   },
   {
     path: '/rules',
-    name: 'rules',
-    component: () => import('@/modules/RulesModule.vue')
+    redirect: '/tools/rules'
   },
   {
     path: '/draft',

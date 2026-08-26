@@ -1528,6 +1528,7 @@ const SCOPE_BASIS = {
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, AlignmentType } from 'docx';
 import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml, parseMarkdownToTextRuns } from '../utils/wordExporter.js';
 import { buildTianZiGeMarker, htmlToDocxBlob } from '../utils/docxBuilder.js';
+import { GEN_CONST } from '../config/generationConstants.js';
 import { buildUnitKey, pushUnitPaperMemory, buildMemoryDiffInstruction, extractQuestionSamples } from '../utils/unitPaperMemory.js';
 import { injectDrawingML, TZG_MARKER, FLT_MARKER } from '../utils/drawingMLShapes.js';
 import storage from '../utils/storage';
@@ -2398,7 +2399,7 @@ const showBatchColumnSplitDialog = (pendingPages, statusRef, callMultimodalAI) =
         
         for (let ci = 0; ci < pageData._subImages.length; ci++) {
           const subBase64 = pageData._subImages[ci];
-          if (!subBase64 || subBase64.length < 100) continue;
+          if (!subBase64 || subBase64.length < GEN_CONST.IMAGE_MIN_BASE64) continue;
           
           // 🔧 关键修复：每页第一栏之前增加额外等待，确保模型状态稳定
           // 原因：教材分析证明连续调用可行，但跨页后需要更长恢复时间
@@ -2464,7 +2465,7 @@ const showBatchColumnSplitDialog = (pendingPages, statusRef, callMultimodalAI) =
           }
           
           // 🔧 最终检查：如果所有重试都失败，给出明确警告
-          if (!colText || colText.trim().length < 200) {
+          if (!colText || colText.trim().length < GEN_CONST.COL_MIN_TEXT) {
             console.error(`   🚨 第${ci + 1}栏OCR完全失败！已重试${maxRetries}次，当前长度: ${colText?.trim().length || 0}字`);
             // 添加明确的错误标记，提醒用户手动补充
             colText = `\n⚠️[系统错误：第${ci + 1}栏OCR识别失败，请对照原始PDF手动补充此部分内容]\n`;
@@ -3000,7 +3001,7 @@ const currentChapter = ref(null);
 const editingKnowledge = ref('');
 
 // AI生成器（新架构：不再使用 buildGenerationInstruction 长指令构建）
-const { isGenerating, progress: generateProgress, statusText: generateStatus, getTypeDistribution, generate: callGenerate, executeGenerationWithBlueprint, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool, pickLabelFromPool, pickScopeFromPool, setScopeLabelOverride } = useAiGenerator();
+const { isGenerating, progress: generateProgress, statusText: generateStatus, getTypeDistribution, generate: callGenerate, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool, pickLabelFromPool, pickScopeFromPool, setScopeLabelOverride } = useAiGenerator();
 
 // ✏️ 名称样式：类型切换恢复上次选择 + 当前选择同步到生成器（在 useAiGenerator 解构之后，避免 TDZ）
 watch(genTypes, () => {
@@ -3751,7 +3752,7 @@ const confirmAnalysisResult = async () => {
           blockedItems.push(item);
         } else {
           // 已修正但文本仍然很短，给予警告但允许保存
-          if (item.rawText.trim().length < 50) {
+          if (item.rawText.trim().length < GEN_CONST.OCR_WARN_MIN_TEXT) {
             warningItems.push(item);
           }
         }
@@ -3809,7 +3810,7 @@ const confirmAnalysisResult = async () => {
       return;
     }
     
-    if (isPoorOCR && hasRawText && analysisResultData.value.rawText.trim().length < 30) {
+    if (isPoorOCR && hasRawText && analysisResultData.value.rawText.trim().length < GEN_CONST.OCR_POOR_STRICT_MIN) {
       const proceed = await showConfirmDialogFn(
         `⚠️ 模板原文较短（${analysisResultData.value.rawText.trim().length}字）。\n\n` +
         `原文过短会影响 AI 对模板风格的学习效果。\n` +
@@ -3842,12 +3843,12 @@ const confirmAnalysisResult = async () => {
       await showAlertDialogFn('模板数据异常，请重新分析');
       return;
     }
-    if (!data.rawText || data.rawText.trim().length < 10) {
+    if (!data.rawText || data.rawText.trim().length < GEN_CONST.OCR_FAIL_MIN_TEXT) {
       await showAlertDialogFn('模板原文提取不完整，请先确认原文内容后再保存');
       return;
     }
     // 🔧 修复N：模板OCR完全失败时强制拦截
-    if (data.ocrQuality === 'poor' && (!data.rawText || data.rawText.trim().length < 20)) {
+    if (data.ocrQuality === 'poor' && (!data.rawText || data.rawText.trim().length < GEN_CONST.OCR_POOR_MIN_TEXT)) {
       await showAlertDialogFn(
         '❌ 模板原文提取完全失败，无法保存。\n\n' +
         '请先完成以下操作：\n' +
@@ -4952,7 +4953,7 @@ const confirmRawText = async () => {
   const { book, chapter, rawText, analyzeCharts } = rawTextEditorData.value;
   
   // 检查原文是否为空
-  if (!rawText || rawText.trim().length < 10) {
+  if (!rawText || rawText.trim().length < GEN_CONST.OCR_FAIL_MIN_TEXT) {
     const confirmed = await showConfirmDialogFn(
       '原文内容过短（少于10字），是否继续分析？\n\n建议：请检查 OCR 提取是否正确，或手动补充原文。'
     );
@@ -5012,7 +5013,7 @@ const confirmRawTextWithImages = async () => {
   const { book, chapter, rawText, analyzeCharts } = rawTextEditorData.value;
   
   // 检查原文是否为空
-  if (!rawText || rawText.trim().length < 10) {
+  if (!rawText || rawText.trim().length < GEN_CONST.OCR_FAIL_MIN_TEXT) {
     const confirmed = await showConfirmDialogFn(
       '原文内容过短（少于10字），是否继续分析？\n\n建议：请检查粘贴的内容是否正确。'
     );
@@ -5509,7 +5510,7 @@ const executeTextbookAnalysis = async (action) => {
     }
     
     // 🔧 修复：检查是否有完全失败的章节
-    const failedChapters = allResults.filter(r => !r.rawText || r.rawText.trim().length < 10);
+    const failedChapters = allResults.filter(r => !r.rawText || r.rawText.trim().length < GEN_CONST.OCR_FAIL_MIN_TEXT);
     if (failedChapters.length > 0) {
       console.warn(`⚠️ ${failedChapters.length}个章节原文提取失败或内容过短:`, 
         failedChapters.map(r => r.chapterTitle).join('、'));
@@ -5533,8 +5534,8 @@ const executeTextbookAnalysis = async (action) => {
     
     // 🔧 修复L：分析失败/质量统计摘要
     if (allResults.length > 0) {
-      const poorResults = allResults.filter(r => r.chapterRef?.ocrQuality === 'poor' || (!r.rawText || r.rawText.trim().length < 10));
-      const warningResults = allResults.filter(r => r.chapterRef?.ocrQuality === 'warning' || (r.rawText && r.rawText.trim().length >= 10 && r.rawText.trim().length < 200));
+      const poorResults = allResults.filter(r => r.chapterRef?.ocrQuality === 'poor' || (!r.rawText || r.rawText.trim().length < GEN_CONST.OCR_FAIL_MIN_TEXT));
+      const warningResults = allResults.filter(r => r.chapterRef?.ocrQuality === 'warning' || (r.rawText && r.rawText.trim().length >= GEN_CONST.OCR_FAIL_MIN_TEXT && r.rawText.trim().length < GEN_CONST.OCR_WARN_MIN_TEXT_200));
       const goodResults = allResults.filter(r => !poorResults.includes(r) && !warningResults.includes(r));
       
       let statsMsg = `📊 分析统计：✅${goodResults.length}章 ⚠️${warningResults.length}章 ❌${poorResults.length}章`;
@@ -5925,7 +5926,7 @@ const generate = async (mode) => {
   // 🔧 新增：检查教材是否已分析（增强警告，明确列出未分析章节）
   //    逐章分开处理：已分析章节保留完整教材数据；未分析章节走"仅目录模式"降级，两者混合生成
   const unanalyzedChapters = selectedBooks.flatMap(b => 
-    b.selectedChapters.filter(ch => !ch.analyzed || !ch.rawText || ch.rawText.trim().length < 10)
+    b.selectedChapters.filter(ch => !ch.analyzed || !ch.rawText || ch.rawText.trim().length < GEN_CONST.OCR_FAIL_MIN_TEXT)
   );
   if (unanalyzedChapters.length > 0) {
     const chapterList = unanalyzedChapters.map(ch => `• ${ch.title}`).join('\n');
@@ -6057,6 +6058,8 @@ const generate = async (mode) => {
         bookId: selectedBooks?.[0]?.id || '',
         scope: scopeType.value || '',
         genType,
+        stage: selectedBooks?.[0]?.stage || '',
+        subject: selectedBooks?.[0]?.subject || '',
       });
     } catch { /* 记忆键构建失败不影响生成 */ }
     if (typeIndex > 0 && generatedKps.length > 0) {
@@ -6089,6 +6092,13 @@ const generate = async (mode) => {
           if (memDiff) finalInstr = finalInstr + memDiff;
         } catch { /* 记忆差异化失败不影响生成 */ }
       }
+      // 🔧 生成份数循环：详细配置"生成份数"真实生效（同类型一次出多份，每份独立整卷生成后直接入库；
+      //    此前份数只在已移除的蓝图确认弹窗内生效，直接生成路径从未循环——份数配置形同虚设）
+      for (let batch = 0; batch < batches; batch++) {
+        if (batches > 1) {
+          statusText.value = `正在生成第 ${batch + 1}/${batches} 份...`;
+          progress.value = Math.max(progress.value, 5);
+        }
       const result = await callGenerate(
         finalInstr, 
         genType, 
@@ -6099,8 +6109,8 @@ const generate = async (mode) => {
         scopeType.value || ''
       );
 
-      // 🔧 课时切分：检测到多课时，弹出确认弹窗
-      if (result.success && result.needsPeriodConfirm && result.periods) {
+      // 🔧 课时切分：检测到多课时，弹出确认弹窗（仅第一份检测；多课时场景份数不适用）
+      if (batch === 0 && result.success && result.needsPeriodConfirm && result.periods) {
         console.log('[课时切分] ✅ 进入弹窗分支，periods:', result.periods.length, '个');
         pendingPeriods.value = result.periods;
         pendingGenType.value = genType;
@@ -6114,44 +6124,22 @@ const generate = async (mode) => {
       }
       
       if (result.success && result.blueprint) {
-        // 保存蓝图信息
-        pendingBlueprint.value = result.blueprint;
-        editedBlueprintText.value = result.blueprint;
-        
-        // 解析蓝图用于预览
-        if (result.parsedBlueprint && result.parsedBlueprint.length > 0) {
-          parsedBlueprintForPreview.value = result.parsedBlueprint;
-          // ✨ 收集知识点用于后续差异化
-          const kps = result.parsedBlueprint.map(q => q.knowledgePoint).filter(Boolean);
-          generatedKps.push(...kps);
-        } else {
-          // 尝试解析蓝图文本
-          tryParseBlueprintForPreview(result.blueprint);
-        }
-        
-        // 计算蓝图统计
-        pendingBlueprintStats.value = calculateBlueprintStats(
-          result.parsedBlueprint || [], 
-          result.blueprint
-        );
-        
-        // ✨ 记录已生成类型
-        generatedTypes.push(genTypeTemplates[genType]?.name || genType);
-        
-        // 保存上下文数据，供确认后使用
+        // 🔴 旧流程残留移除：蓝图库已完善（卷面结构/题型/题量直接注入整卷生成），
+        //    "AI 题目规划 → 用户确认/编辑 → 再生成"的蓝图确认弹窗多余——
+        //    整卷生成结果已含全部内容（三库约束+答案页+代码兜底），直接入库，不再弹窗确认编辑
         pendingGenerateContext.value = {
           result,
           genType,
           selectedBooks,
           selectedTpls,
-          generatedKps: [...generatedKps],       // ✨ 传递已生成知识点
-          generatedTypes: [...generatedTypes],   // ✨ 传递已生成类型
-          typeIndex                              // ✨ 当前类型索引
+          generatedKps: [...generatedKps],
+          generatedTypes: [...generatedTypes],
+          typeIndex
         };
-        
-        // 显示蓝图确认弹窗
-        showBlueprintConfirmModal.value = true;
-        return; // 暂停，等待用户确认
+        await finalizeGeneration(result, genType);
+        pendingGenerateContext.value = null;
+        generatedTypes.push(genTypeTemplates[genType]?.name || genType);
+        return;
       } else {
         // 蓝图生成失败/非蓝图类资料类型，降级为直接生成
         // 🔧 修复：必须先保存上下文，否则 finalizeGeneration 拿不到 selectedBooks 导致标题命名缺失
@@ -6168,6 +6156,7 @@ const generate = async (mode) => {
         pendingGenerateContext.value = null;
         generatedTypes.push(genTypeTemplates[genType]?.name || genType);
       }
+      } // end 份数循环（batchCount）
     } catch (e) {
       window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '❌ 生成失败：' + e.message, type: 'error' } }));
       await showAlertDialogFn(`生成出错：${e.message}`);
@@ -6382,15 +6371,27 @@ const confirmBlueprintAndGenerate = async () => {
           scopeType.value || ''
         );
       } else {
-        result = await executeGenerationWithBlueprint(
-          '',
-          context.genType,
-          context.selectedBooks,
-          context.selectedTpls,
-          finalBlueprint,
-          context.result.contentCards,
-          context.result.knowledgeMap
-        );
+        // 🔴 旧架构逐题生成路径（executeGenerationWithBlueprint）已整体删除：
+        //    蓝图库直接定结构 → 统一走整卷生成（三库约束+答案页+代码兜底）：
+        //    - 未编辑蓝图 → 直接复用首次整卷生成结果（含独立答案页）
+        //    - 编辑过蓝图 → 将编辑后的命题清单作为附加约束注入，重新走整卷生成
+        if (finalBlueprint === context.result.blueprint) {
+          result = context.result;
+          console.log('[answer-diag] 蓝图未编辑，复用整卷生成结果（含独立答案页）:', { len: result.content?.length, hasAnswer: /answer-section/.test(result.content || '') });
+        } else {
+          const inj = await ensureInjectedInstruction();
+          const blueprintConstrained = `${inj}\n\n【已确认命题清单——请严格按此清单命制全部题目（题号/知识点/题型/分值/难度与清单一致，题目内容可充实完善）】\n${finalBlueprint}`;
+          result = await callGenerate(
+            blueprintConstrained,
+            context.genType,
+            context.selectedBooks,
+            context.selectedTpls,
+            0,
+            false,
+            scopeType.value || ''
+          );
+          console.log('[answer-diag] 蓝图已编辑，注入清单重新整卷生成:', { len: result.content?.length, hasAnswer: /answer-section/.test(result.content || '') });
+        }
       }
       
       await finalizeGeneration(result, context.genType);
@@ -6684,6 +6685,8 @@ const cancelPeriodSplit = async () => {
             bookId: book?.id || '',
             scope: scopeInfo?.name || scopeType.value || '',
             genType: genTypeName,
+            stage: book?.stage || '',
+            subject: book?.subject || '',
           });
           pushUnitPaperMemory(unitKey, samples);
           console.log(`🧠 已记录生成记忆：${samples.length} 条题目摘要（${genTypeName}）`);
@@ -6784,6 +6787,8 @@ const finalizeGeneration = async (result, genType) => {
     //    保证排版编辑预览与导出所见即所得（预览看不到成串空行，导出也不会有）
     const safeContent = ((result.content && typeof result.content === 'string') ? result.content : '')
       .replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br>');
+    // 🔍 [answer-diag] 答案区存在性诊断：生成入库时确认 answer-section 是否在 content 中（定位"预览无答案"断点）
+    console.log('[answer-diag] finalizeGeneration 入库:', { len: safeContent.length, hasAnswer: /answer-section/.test(safeContent), tail: safeContent.slice(-160) });
     
     const genTypeName = genTypeTemplates[genType]?.name || genType;
     const ctxBooks = pendingGenerateContext.value?.selectedBooks;
@@ -6908,6 +6913,8 @@ const previewDoc = (doc) => {
   }
   
   previewContent.value = normalizeSealStructure(renderImagePlaceholders(content));
+  // 🔍 [answer-diag] 预览渲染诊断：确认预览内容是否含 answer-section（定位"预览无答案"断点）
+  console.log('[answer-diag] previewDoc 渲染:', { contentLen: content?.length, hasAnswer: /answer-section/.test(content || ''), previewLen: previewContent.value?.length, previewHasAnswer: /answer-section/.test(previewContent.value || '') });
   console.log('[preview-popup] 📺 即将设置 showPreview=true', { contentLen: content?.length });
   showPreview.value = true;
   console.log('[preview-popup] ✅ showPreview 已设为 true', { showPreview: showPreview.value, previewContentLen: previewContent.value?.length });

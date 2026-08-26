@@ -444,13 +444,20 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             colL.className = 'match-col';
             const colR = document.createElement('div');
             colR.className = 'match-col';
+            // 🔧 右列由代码乱序（Fisher-Yates）：AI 只需保证"左——右"配对正确，
+            //    乱序交给代码 → 杜绝"AI 自行乱序导致错配"与"逐行并排暴露答案"两类历史问题
+            const rightItemsShuffled = rightItems.slice();
+            for (let s = rightItemsShuffled.length - 1; s > 0; s--) {
+              const r = Math.floor(Math.random() * (s + 1));
+              [rightItemsShuffled[s], rightItemsShuffled[r]] = [rightItemsShuffled[r], rightItemsShuffled[s]];
+            }
             group.forEach((_, idx) => {
               const li = document.createElement('div');
               li.className = 'match-item';
               li.textContent = leftItems[idx];
               const ri = document.createElement('div');
               ri.className = 'match-item';
-              ri.textContent = rightItems[idx];
+              ri.textContent = rightItemsShuffled[idx];
               colL.appendChild(li);
               colR.appendChild(ri);
             });
@@ -688,6 +695,89 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           silentCount('option-missing', `大题「${title}」选项数过少(${options})`);
         }
 
+        // 2e2. 分值自动分配（规则 score-distribute-fix，per-section：只处理当前大题）
+        //    大题内小题分值之和≠大题分时，按各小题单位数从大题总分重算单位分值并重写小题标题——
+        //    分值账目是确定性算法，不依赖 AI 算术。⚠️ 必须在 score-label-fix（2f）之前执行：
+        //    2f 会把"每题X分，共X分"等标题改写为"（共X分）"，丢失单位数信息导致解析错乱；
+        //    且只能 DOM 操作（p.textContent），不得序列化 out——外层 heads.forEach 结束后统一 out = tpl.innerHTML。
+        if (has('score-distribute-fix')) {
+          try {
+            // 🔧 仅对带卷首满分标记的完整卷执行（裁剪/片段输入不重分配，防误伤——与 score-sum 同一门槛）
+            const headText = out.slice(0, 400).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+            if (/满分[:：]?\s*\d+(?:\.\d+)?\s*分/.test(headText)) {
+              const granularity = /^primary/.test(stage) ? 1 : 0.5; // 小学整数分、初高中 0.5 粒度
+              const parseUnitCount = (t) => {
+                const cm = t.match(/共\s*(\d{1,3})\s*(?:题|空|线|字|词)/);
+                if (cm) return parseInt(cm[1], 10);
+                const pm = t.match(/每(?:题|空|线|字|词)\s*(\d+(?:\.\d+)?)\s*分[^）)]*?共\s*(\d{1,3}(?:\.\d+)?)\s*分/);
+                if (pm && parseFloat(pm[1]) > 0) return Math.round(parseFloat(pm[2]) / parseFloat(pm[1]));
+                return null; // 标题未写明单位数 → 调用方用子题数兜底（如"（共4分）"但有 (1)-(4) 子题）
+              };
+              const parseUnitName = (t) => {
+                const um = t.match(/每(题|空|线|字|词)\s*\d+(?:\.\d+)?\s*分/);
+                return um ? um[1] : '题';
+              };
+              const secScoreM = head.textContent.match(/共\s*(\d{1,3})\s*分/) || head.textContent.match(/[（(]\s*(\d{1,3})\s*分\s*[)）]/);
+              const secScore = secScoreM ? parseFloat(secScoreM[1]) : null;
+              if (secScore == null) return;
+              const subHeadPs = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p'
+                && /^\s*\d+[.、．]/.test((n.textContent || '').trim())
+                && /[（(][^）)]*?\d+(?:\.\d+)?\s*分/.test(n.textContent || ''));
+              if (subHeadPs.length < 2) return; // 至少 2 个小题才重分配（单题大题可能是阅读/写作整题）
+              // 当前小题分值之和（"共X分"总分优先）
+              let subSum = 0;
+              for (const p of subHeadPs) {
+                const t2 = (p.textContent || '').trim();
+                const totalM = t2.match(/共\s*(\d+(?:\.\d+)?)\s*分/);
+                const singleM = t2.match(/[（(][^）)]*?(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
+                subSum += parseFloat((totalM || singleM)[1]);
+              }
+              if (Math.abs(subSum - secScore) <= 0.01) return; // 账目已闭合，不动
+              // 触发重分配：单位分 = 大题分 ÷ 总单位数（粒度向下），余数从第一题起逐单位补差
+              // 单位数：标题明确（共N题/空/线）优先；无则数该小题的子题行（(1)(2)...）兜底
+              const unitCounts = [];
+              for (let si = 0; si < subHeadPs.length; si++) {
+                const p = subHeadPs[si];
+                const endP = subHeadPs[si + 1] || null;
+                let sub = 0;
+                let sn = p.nextSibling;
+                while (sn && sn !== endP) {
+                  if (sn.nodeType === Node.ELEMENT_NODE && sn.tagName.toLowerCase() === 'p') {
+                    // 🔧 数行内所有子题号（(1)(2)(3)(4) 可同一行，如"（1）一坐石桥（2）一群飞鸟…"）
+                    sub += (sn.textContent.match(/[（(]\d+[)）]/g) || []).length;
+                  }
+                  sn = sn.nextSibling;
+                }
+                unitCounts.push(parseUnitCount(p.textContent || '') ?? Math.max(sub, 1));
+              }
+              const U = unitCounts.reduce((s, c) => s + c, 0);
+              if (U === 0) return;
+              const uRaw = secScore / U;
+              const uBase = Math.floor(uRaw / granularity) * granularity;
+              let bonusUnits = Math.round((secScore - uBase * U) / granularity);
+              let redistributed = 0;
+              for (let si = 0; si < subHeadPs.length; si++) {
+                const p = subHeadPs[si];
+                const t2 = (p.textContent || '').trim();
+                const c = unitCounts[si];
+                const take = Math.min(bonusUnits, c);
+                const unitScore = uBase + (take > 0 ? granularity : 0);
+                bonusUnits -= take;
+                const totalScore = unitScore * c;
+                const unit = parseUnitName(t2);
+                const newT2 = t2.replace(/[（(][^）)]*[)）]\s*$/, `（每${unit}${unitScore}分，共${totalScore}分）`);
+                if (newT2 !== t2) { p.textContent = newT2; redistributed += 1; }
+              }
+              if (redistributed > 0) {
+                issues.push({ severity: 'info', type: 'score-distribute', message: `分值已自动重分配（大题「${(head.textContent || '').slice(0, 16)}」${redistributed} 处小题标题按大题总分重算，账目闭合）` });
+                fixed += 1;
+              }
+            }
+          } catch (e) {
+            console.warn('⚠️ 分值自动分配失败（不影响其他修复）:', e.message);
+          }
+        }
+
         // 2f. 分值标注修正（规则 score-label-fix：每空/每线/每题分标注与载体数对齐）
         if (has('score-label-fix')) {
           // 🔧 载体只取真实载体（填空数/连线数）——拼音选项（读音题括号）不是"空位"，不能当载体验证"每空X分"
@@ -803,7 +893,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             if (node.nodeType === Node.ELEMENT_NODE && node.tagName.toLowerCase() === 'p') {
               const t2 = (node.textContent || '').trim();
               if (/^\s*\d+[.、．]/.test(t2)) {
-                const pm = t2.match(/[（(][^）)]*?(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
+                // 🔧 小题分值优先取"共X分"总分（如"（共4题，每题2分，共8分）"→8，而非"每题2分"的2）；
+                //    无"共X分"时再取括号内单值（"（共4分）"→4）——此前误取"每X分"导致账目校验严重低估
+                const totalM = t2.match(/共\s*(\d+(?:\.\d+)?)\s*分/);
+                const singleM = t2.match(/[（(][^）)]*?(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
+                const pm = totalM || singleM;
                 if (pm) { subSum += parseFloat(pm[1]); subCount += 1; }
               }
             }
@@ -872,6 +966,45 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       } catch (e) {
         console.warn('⚠️ 作文格自动补齐失败:', e.message);
         silentCount('writing-grid', '含写话/作文题但正文无作文格（zuo-wen-ge），请抽检');
+      }
+    }
+    // 2j-5a 作文格位置纠正：格子出现在所属题干之前 → 移到题干之后（模型常见顺序错误：
+    //    先输出 <div class="zuo-wen-ge"> 再写题干，卷面变成"格子在上、题目在下"）
+    if (has('writing-grid-fix') && /<div[^>]*class=["'][^"']*zuo-wen-ge/.test(out)) {
+      try {
+        const tpl3 = document.createElement('template');
+        tpl3.innerHTML = out;
+        const zwgList = Array.from(tpl3.content.querySelectorAll('div.zuo-wen-ge'));
+        const kwRe = /看图写话|写话|习作|作文|写作/;
+        let moved = 0;
+        for (const zwg of zwgList) {
+          // 1) 格子之前已有题干段落 → 顺序正确，跳过
+          let prev = zwg.previousElementSibling;
+          let hasBefore = false;
+          while (prev) {
+            if (kwRe.test(prev.textContent || '')) { hasBefore = true; break; }
+            prev = prev.previousElementSibling;
+          }
+          if (hasBefore) continue;
+          // 2) 格子跑到了题干上方 → 向后找最近的题干段落，把格子移到其后
+          let next = zwg.nextElementSibling;
+          let anchor = null;
+          while (next) {
+            if (kwRe.test(next.textContent || '')) { anchor = next; break; }
+            next = next.nextElementSibling;
+          }
+          if (anchor && anchor.parentNode === zwg.parentNode) {
+            zwg.parentNode.insertBefore(zwg, anchor.nextSibling);
+            moved += 1;
+          }
+        }
+        if (moved > 0) {
+          out = tpl3.innerHTML;
+          issues.push({ severity: 'info', type: 'writing-grid-order', message: `已将 ${moved} 处作文格移动到题干之后（顺序纠正）` });
+          fixed += moved;
+        }
+      } catch (e) {
+        console.warn('⚠️ 作文格位置纠正失败:', e.message);
       }
     }
     // 2j-6 语文低段连线题数量超限（规则 match-format-fix：全卷连线≤2道，超限标记）

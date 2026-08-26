@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生成链路完整审计报告</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#161d2e; --panel2:#1b2438; --line:#2a3550;
+    --ink:#dfe6f3; --mut:#8fa0bf; --accent:#4f9cff; --warn:#ffb85c; --err:#ff6b6b; --ok:#3ecf8e;
+    --code:#0d1117;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI","Microsoft YaHei",Roboto,sans-serif;line-height:1.7}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:26px;margin:0 0 6px}
+  h2{font-size:20px;margin:42px 0 14px;padding-left:12px;border-left:4px solid var(--accent)}
+  h3{font-size:16px;margin:26px 0 10px;color:#cfe0ff}
+  .sub{color:var(--mut);font-size:13px}
+  .meta{display:flex;gap:14px;flex-wrap:wrap;margin:16px 0 6px;font-size:12px;color:var(--mut)}
+  .meta span{background:var(--panel2);border:1px solid var(--line);padding:2px 10px;border-radius:999px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:14px 0}
+  .kv{display:grid;grid-template-columns:150px 1fr;gap:4px 14px;font-size:13.5px}
+  .kv b{color:var(--accent);font-weight:600}
+  .kv .v{color:var(--ink)}
+  code,pre{font-family:"Cascadia Code",Consolas,monospace;font-size:12.5px}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto;color:#b6c6e6;margin:10px 0}
+  .tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:999px;margin-right:6px;vertical-align:middle}
+  .t-ok{background:rgba(62,207,142,.12);color:var(--ok);border:1px solid rgba(62,207,142,.35)}
+  .t-warn{background:rgba(255,184,92,.12);color:var(--warn);border:1px solid rgba(255,184,92,.35)}
+  .t-err{background:rgba(255,107,107,.12);color:var(--err);border:1px solid rgba(255,107,107,.35)}
+  .t-ac{background:rgba(79,156,255,.12);color:var(--accent);border:1px solid rgba(79,156,255,.35)}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#cfe0ff;font-weight:600;white-space:nowrap}
+  tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0;font-size:12.5px}
+  .step{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+  .step b{color:var(--accent)}
+  .arrow{color:var(--mut)}
+  .root{border-left:4px solid var(--err);background:rgba(255,107,107,.05)}
+  .okline{border-left:4px solid var(--ok);background:rgba(62,207,142,.04)}
+  .rm{border-left:4px solid var(--accent)}
+  li{margin:5px 0}
+  ol,ul{padding-left:22px}
+  .pill{font-size:11px;padding:2px 8px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);color:var(--mut);white-space:nowrap}
+  .num{font-size:20px;font-weight:700;color:var(--accent)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:12px 0}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .stat .n{font-size:24px;font-weight:700;color:var(--accent)}
+  .stat .l{font-size:12px;color:var(--mut)}
+  .footer{margin-top:48px;color:var(--mut);font-size:12px;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>生成链路完整审计报告</h1>
+<div class="sub">wisdom-workshop · 教辅/试卷 AI 生成系统 · 端到端链路根因审计</div>
+<div class="meta">
+  <span>审计对象：AI 生成 → 素材/蓝图/提示词 → 整卷正文 → 答案页 → 后处理/质检 → 入库导出</span>
+  <span>审计范围：src/composables/useAiGenerator.js · src/modules/GenerateModule.vue · src/utils/* · src/config/*</span>
+  <span>审计性质：只读代码审计 + 构建产物核验 + 已知问题交叉定位</span>
+</div>
+
+<div class="stat" style="background:transparent;border-color:var(--err);border-radius:12px;padding:14px 16px">
+  <b style="color:var(--err)">核心结论</b>：生成链路本身是"能跑通"的，当前 dist 构建也确实包含最新答案页逻辑（已用字符串字面量核验，非陈旧产物）。
+  但链路之所以"问题被反复折腾、修了又复发"，根因不在某一行代码，而在<b>架构层与治理层</b>：
+  <b style="color:var(--err)">（1）整卷输出高度依赖模型在高温下自守格式，再靠大量"窄关键词启发式"事后打补丁</b>；
+  <b style="color:var(--err)">（2）若干关键决策被"脆弱的指令字面量"驱动（情境框架、差异化），与 UI 配置脱钩</b>；
+  <b style="color:var(--err)">（3）核心函数是 294KB/440KB 单体，多个修复能力（学科校验/标题修复/模板格式化）写好了却没接上线（死代码）</b>；
+  <b style="color:var(--err)">（4）大范围重构未提交、仅配分片子单元测试，缺"端到端结构不变量"回归防线</b>。
+</div>
+
+<h2>1. 审计范围与方法</h2>
+<div class="card">
+  <div class="kv">
+    <b>入口</b><div class="v">用户在编辑/生成界面选择教材与资料类型，点"生成"。</div>
+    <b>真入口</b><div class="v"><code>GenerateModule.vue</code> → <code>generate()</code> → <code>callGenerate()</code> → <code>useAiGenerator.generate()</code></div>
+    <b>主路径</b><div class="v"><code>generate()</code> 只做"素材抽取→知识图谱→命题规划（蓝图+情境框架）"，最终统一交由 <code>generateFullPaperNatural()</code> 一次成型正文+独立答案页。</div>
+    <b>核验方式</b><div class="v">子代理并行映射 + 逐函数人工读数 + <code>git diff</code> 看未提交改动 + dist 产物字符串核验（防"跑的是旧包"误判）。</div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="stat"><div class="n">4</div><div class="l">链路大环节（指令/正文/答案页/后处理质检）</div></div>
+  <div class="stat"><div class="n">294KB</div><div class="l">useAiGenerator.js 单体规模</div></div>
+  <div class="stat"><div class="n">13</div><div class="l">本次未提交改动的文件</div></div>
+  <div class="stat"><div class="n">≥3</div><div class="l">已写好但未接线的修复能力（死代码）</div></div>
+</div>
+
+<h2>2. 完整生成链路（函数级）</h2>
+<div class="card">
+  <div class="flow">
+    <span class="step"><b>GenerateModule</b> generate()</span><span class="arrow">→</span>
+    <span class="step">ensureInjectedInstruction()<br>（指令库注入指令）</span><span class="arrow">→</span>
+    <span class="step">callGenerate()<br>（callGenerate→generate）</span>
+  </div>
+  <div class="flow">
+    <span class="step"><b>useAiGenerator</b> generate()</span><span class="arrow">→</span>
+    <span class="step">extractContentCards()<br>（章节原文抽取）</span><span class="arrow">→</span>
+    <span class="step">buildKnowledgeMap()<br>（知识图谱）</span><span class="arrow">→</span>
+    <span class="step">semanticRetriever<br>.indexContentCards()</span>
+  </div>
+  <div class="flow">
+    <span class="step">practice 课时切分<br>detectPeriods()</span><span class="arrow">→</span>
+    <span class="step">命题规划：蓝图注入<br>+ 统一情境构建</span><span class="arrow">→</span>
+    <span class="step" style="border-color:var(--accent);background:rgba(79,156,255,.08)"><b>generateFullPaperNatural()</b><br>（正文 + 答案页核心）</span>
+  </div>
+  <div class="flow">
+    <span class="step">callAI(正文,<br>maxTokens/温度/thinking)</span><span class="arrow">→</span>
+    <span class="step">cleanSectionHtml →<br>normalizeBlankMarkers →<br>normalizeIndents</span><span class="arrow">→</span>
+    <span class="step">截断检测/续写</span>
+  </div>
+  <div class="flow">
+    <span class="step">答案页：htmlToPlainText(正文)<br>+ ANSWER_FORMAT_SPEC<br>→ callAI(ansPrompt)<br>→ 思考耗尽降级重试</span><span class="arrow">→</span>
+    <span class="step">包装 answer-section<br>+ stripTypeWordFromTitle</span><span class="arrow">→</span>
+    <span class="step">密封线兜底<br>（exam 且有 exam 类型）</span><span class="arrow">→</span>
+    <span class="step" style="border-color:var(--ok)"><b>auditExamPaper()</b><br>（三维度规则库 fix/guard）</span>
+  </div>
+  <div class="flow">
+    <span class="step">返回 finalContent<br>+ auditWarnings</span><span class="arrow">→</span>
+    <span class="step"><b>GenerateModule</b><br>finalizeGeneration()<br>（压行/配图占位/入库）</span><span class="arrow">→</span>
+    <span class="step">编辑器 / docx/PDF 导出</span>
+  </div>
+</div>
+
+<h2>3. 逐环节详细发现</h2>
+
+<h3>3.1 指令与提示词构建 <span class="tag t-ac">关键断链</span></h3>
+<div class="card">
+  <div class="kv">
+    <b>正常</b><div class="v">任务行 + 模板正文（EXAM_BASE / PRACTICE_BASE / TYPE_BASES）+ 渲染契约（[IMAGE]/[GRAPH]/公式）+ 校验前约束（buildValidatorPrompt）+ 蓝图注入/教辅结构注入。</div>
+    <b>模板匹配</b><div class="v">按 学段×学科×类型 逐级降级匹配（buildInjectionInstruction）。</div>
+    <b>作答空/括号/横线规范</b><div class="v">已写入 FORMAT_RULES 并注入。</div>
+    <b>作文格位置</b><div class="v">已写"先题干后格子"到 FORMAT_RULES 并注入。</div>
+  </div>
+  <pre>// buildInjectionInstruction 形参（promptLibrary.js:350-353）——注意：没有 propositionStyle！
+const { template, grade, subject, unit, genTypeLabel, structure, fullScore, duration, extra, label, semester, academic } = opts;</pre>
+  <div class="kv">
+    <b class="root-b" style="color:var(--err)">根因 R1 · 情境框架断链</b><div class="v" style="border-top:none">生成端 hasContext 判定用正则读<code>instruction</code>字符串里的"命题风格：unified_context"（useAiGenerator 5170-5174）。但 <code>buildInjectionInstruction</code> 把 <code>propositionStyle</code> 参数丢弃了，规则：
+      <ul>
+        <li>exam 因内置 EXAM_BASE 第 50 行硬编码了"命题风格：unified_context"，正则能命中 → 才会建统一情境。</li>
+        <li>非 exam（practice/reading/summary/preview/dictation/errorbook 等）模板没有这句，且 UI 默认的 <code>context_fusion</code> 根本没被注入 → <b>非考试类资料的情境框架代码路径（5176-5372）整体被跳过，直接不生成任何情境</b> → 产出易退化成"孤立堆题"，即"无情境"。</li>
+        <li>该字面量被设计成"若不需要统一情境，删除本行即可"（人可删），删除后情境能力瞬间消失，属"配置文本驱动代码行为"的反模式。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<h3>3.2 整卷正文生成（generateFullPaperNatural 段1）</h3>
+<div class="card">
+  <div class="kv">
+    <b>生成方式</b><div class="v"><code>paperGenerateMode</code>（split/once/auto），默认 auto：纯题型(exam/practice/special/review)→split；知识型(reading/summary/preview/dictation/errorbook)→once。</div>
+    <b>温度</b><div class="v">split 用 paperTemperature(0.7)；once 用 (0.7+0.3)/2=0.5 折中。</div>
+    <b>预算</b><div class="v">split 用 paperBodyMaxTokens(32768)；once 用 paperOnceMaxTokens(49152)；思考模式 ×thinkingBudgetMultiplier(2)。</div>
+    <b>后处理</b><div class="v"><code>cleanSectionHtml → normalizeBlankMarkers → normalizeIndents</code>。</div>
+    <b>截断</b><div class="v">finish_reason=length / reasoning_capped + 尾部启发式 → 自动续写一次。</div>
+    <b>思考耗尽</b><div class="v">reasoningChunkCount≥20000 或 reasoning_capped 且正文为空 → 强制关闭思考重试一次。</div>
+  </div>
+  <div class="okline">
+    <b class="b-ok" style="color:var(--ok)">已带电工程</b>：截断续写、思考耗尽降级、预算按路径读取，均比旧版可靠。
+  </div>
+</div>
+
+<h3>3.3 答案页生成（段2）</h3>
+<div class="card">
+  <div class="kv">
+    <b>输入</b><div class="v">正文完整转纯文本 <code>htmlToPlainText(content, answerContextMaxChars=24000)</code>，不是"空输入/凭记忆"，杜绝答案与正文不符。</div>
+    <b>提示词</b><div class="v">ANSWER_ROLES（exam=阅卷专家+评分标准，其他=教辅编辑+解析）+ ANSWER_FORMAT_SPEC（HTML 规范）。</div>
+    <b>温度</b><div class="v">answerTemperature(0.3) 低温严谨。</div>
+    <b>预算/续写</b><div class="v">answerMaxTokens(16384)×思考倍数，<code>allowContinuation:true</code>（截断自动续写），推理上限 20K，思考耗尽强制关思考重试一次。</div>
+    <b>once 补包</b><div class="v">once 模式模型漏答案区 → 正则有缘即自动触发独立答案页补生成；<code>&lt;h2&gt;参考答案</code> 缺 answer-section 包裹时补包。</div>
+    <b>不可见性</b><div class="v">独立调用仍无答案区 → 透出到生成报告【问题列表】+ 排查方向，不再静默丢。</div>
+  </div>
+  <div class="okline">
+    <b class="b-ok" style="color:var(--ok)">说明</b>：答案页"缺失"问题当前代码已有多层防御与可见性。曾因"23368 字符截断 → docxBuilder 丢答案区"（过去 allowContinuation=false 未续写）已改为 allowContinuation:true。<b>dist 产物已用字符串字面量核验确实包含这套逻辑</b>。
+  </div>
+  <div class="root">
+    <b style="color:var(--err)">风险 R2 · 大概率复发点</b>：<code>ansInContent = /&lt;h2[^>]*&gt;参考答案|answer-section/</code> 只认 <code>&lt;h2&gt;</code>。若模型输出 <code>&lt;h3&gt;</code> 或"答案""解析"等其它措辞，once 模式会误判"无答案"→ 又会独立再生成一份答案页，可能造成"正文+独立答案页"并存（正文已含答案区时部署）。建议统一为"包容器/结构"判定，而非措辞正则。
+  </div>
+</div>
+
+<h3>3.4 后处理 / 质检 / 修复链 <span class="tag t-err">死代码</span></h3>
+<div class="card">
+  <div class="kv">
+    <b>执行顺序</b><div class="v">正文清洗 → 答案拼接 → 标题类型词兜底 → 密封线兜底 → <code>auditExamPaper()</code>（三维度规则库 fix+guard）→ 返回。</div>
+    <b>auditExamPaper</b><div class="v">33 条内置规则（fix 16 / guard 17），覆盖：拼音归一、模板残留、[IMAGE] 标准化、连线组装与右列乱序、分值账目、标题明细式、答案区补包、书写格学段适配、作文格补格/位置纠正等。</div>
+  </div>
+  <pre>// useAiGenerator.js import 了但全文无函数调用：(x) 调用数为 0
+import { fixExamFormats }                                       // 'fixExamFormats(' → 0
+import { runHardValidators, applyAutoFixes }                    // 'runHardValidators('/'applyAutoFixes(' → 0
+buildHtmlGenerationPrompt()                                      // 模板格式化块定义存在，但主路径从不调用 → 0</pre>
+  <div class="root">
+    <b style="color:var(--err)">根因 R3 · 能力写好了没接上线</b>：
+    <ul>
+      <li><code>subjectValidators.runHardValidators/applyAutoFixes</code>（数学/物理/化学/语文别字等学科正确性校验）<b>从未接入主链路</b> → 学科硬伤无法在生成后拦截，只能靠模型自觉；这正是"修了别的 bug、学科内容错仍复发"的常见来源。</li>
+      <li><code>examFixer.fixExamFormats</code>（场景标签移除/标题明细化）未调用，与 examValidator 的 title-detail-fix 重复但实际只剩 examValidator 生效。</li>
+      <li><code>buildHtmlGenerationPrompt</code>（格式化模板块）从未在主路径调用 → 主生成并不依赖该模板，属死代码。</li>
+      <li>「括号与横线混用」「上下文情境连贯性」<b>没有任何确定性后处理规则</b>：全押在模型 prompt 自守 + 高温(0.7)上 → 间歇不稳，正是"反复修"的重灾区。</li>
+    </ul>
+  </div>
+</div>
+
+<h3>3.5 作文格位置纠正（2j-5a）<span class="tag t-warn">启发式脆弱</span></h3>
+<div class="card">
+  <pre>// examValidator.js 972-1009
+const kwRe = /看图写话|写话|习作|作文|写作/;
+// 向前找最近含关键词的"题干"，找不到就向后找并插入其后</pre>
+  <div class="root">
+    <b style="color:var(--err)">根因 R4 · 作文格位置</b>：位置纠正靠"关键词正则"找所属题干。两个致命弱点：
+    <ul>
+      <li><b>关键词不全</b>：题干若用"照样子，画一画写几句话""续写""给图画配文"等未列入 kwRe 的措辞，格子不会被挪动，就仍会出现在题干上方 → "作文格跑题头上"复发。</li>
+      <li><b>错配风险</b>：格子在其所在题题干缺失时，向后找"最近含关键词的段落"，可能撞上<b>后面另一题</b>的题干，把格子粘到错误题目上（内容错位）。</li>
+      <li>根子上，位置应由"模型输出结构"（题目节点内嵌格子）保证，而不是事后按模糊关键词搬运。</li>
+    </ul>
+  </div>
+</div>
+
+<h3>3.6 再生成 / 差异化（diffKps 与跨会话记忆）</h3>
+<div class="card">
+  <div class="kv">
+    <b>再生成</b><div class="v">失败自动重试走同一条 generate()；"重新生成蓝图"是另起分支只出蓝图。</div>
+    <b>差异化</b><div class="v">从指令读"已覆盖知识点"→ diffKps 注入；跨会话由 unitPaperMemory 读历史题目摘要 → 加"≥70% 不同"要求。</div>
+    <b>作文格"消失"</b><div class="v">不是被删除——再生成＝重新整卷生成，用户之前在旧卷上的任何编辑（含增删格子）不会被保留，整卷被新内容替换，故观感为"格子消失/跑位"。且新增内容会再次经受 2j-5a 的脆弱搬运，可能换位置。</div>
+  </div>
+</div>
+
+<h2>4. 已知问题 → 根本原因对照表</h2>
+<table>
+  <thead><tr><th>用户报告的问题</th><th>根因</th><th>性质</th></tr></thead>
+  <tbody>
+    <tr><td>无情境 / 孤立堆题</td><td>构建统一情境被"指令字面量 unified_context"驱动；非 exam 模板无此字面量、UI 的 context_fusion 未注入 → 代码路径整段跳过</td><td>R1 · 断链 + 依赖可删字面量</td></tr>
+    <tr><td>作文格出现在题干上方</td><td>位置纠正 2j-5a 用窄关键词找所属题干，措辞不匹配就不挪；且可能错配到后一题</td><td>R4 · 启发式脆弱</td></tr>
+    <tr><td>括号与横线混用</td><td>仅 prompt 约束，无确定性后处理归一；正文温度 0.7 偏创作，格式纪律弱 → 间歇复发</td><td>R3 · 无确定性兜底</td></tr>
+    <tr><td>答案页缺失</td><td>历史上"摘要提取失败→凭记忆编造/被删"。现改用 htmlToPlainText 全正文 + 独立调用 + allowContinuation + 思考降级 + 可见性警告，已多重断电；残余风险 in once 措辞误判（R2）</td><td>基本已带电，残留 R2</td></tr>
+    <tr><td>学科硬伤（数学/物理/化学等数值错）</td><td>runHardValidators/applyAutoFixes 已写好但从未接入主链路</td><td>R3 · 死代码</td></tr>
+    <tr><td>问题"修了又复发"</td><td>链路是"高温模型自守格式 + 窄启发式补丁堆叠"，无端到端结构不变量回归防线；单体不可隔离测试</td><td>架构/治理（R5/R6）</td></tr>
+    <tr><td>（排查排除）跑旧包</td><td>dist 12:20 构建，核验 <code>[answer-diag]</code>、<code>[生成方式]</code>、<code>独立答案页补生成</code> 等字符串字面量均在产物中 → 产物与源码已同步，不是陈旧构建</td><td>已排除</td></tr>
+  </tbody>
+</table>
+
+<h2>5. 结构性根因（为什么总在"猜测修复"）</h2>
+<div class="card root">
+  <h3 style="color:var(--err);margin-top:0">R5 · 单体 + 窄启发式 = 每次修一处，别处在别种措辞下复发</h3>
+  <p>useAiGenerator.js 294KB、GenerateModule.vue 440KB、examValidator.js 62KB，三者强耦合。整卷输出的结构（标题/题号/括号/横线/连线/作文格/答案区）全部由模型在 0.7 温度生成 HTML，再靠一串"正则/DOM 启发式"事后修正。每上报一个 bug 就加一层启发式；启发式只命中一种措辞，换个说法同一类问题立刻回来。<b>这是"重复折腾、猜测修复"的架构级根因，无法靠继续加补丁根治。</b></p>
+</div>
+<div class="card root">
+  <h3 style="color:var(--err);margin-top:0">R6 · 关键决策被"可删的指令字面量"驱动，与 UI 配置脱钩</h3>
+  <p>命题风格（情境框架）由指令字符串正则触发，而 UI 的 <code>propositionStyle</code> 选项在 buildInjectionInstruction 里被丢弃；"已覆盖知识点"差异化同样从字符串解析。UI 配置与代码行为分叉 → 用户以为选了 context_fusion/两次生成，代码却没照做。此类"配置与行为不一致"是最大隐藏雷区。</p>
+</div>
+<div class="card root">
+  <h3 style="color:var(--err);margin-top:0">R7 · 能力未接线（死代码）+ 未提交大重构 = 假安全感</h3>
+  <p>runHardValidators/applyAutoFixes/fixExamFormats/buildHtmlGenerationPrompt 写好了却不被调用；同时有 13 个文件的大改（常量体系 MAX_TOKENS→getTaskMaxTokens、默认 split→auto、extractQuestionList→htmlToPlainText）未提交、未做整链验证。子单元测试通过 ≠ 端到端链条正确，因为没有端到端结构不变量测试。</p>
+</div>
+
+<h2>6. 修复优先级与方案（止住"猜测修复"循环）</h2>
+
+<div class="card rm">
+  <h3 style="color:var(--accent);margin-top:0">P0 · 建立"端到端结构不变量"回归防线（治本，必须先做）</h3>
+  <p>用一个 fake <code>callAI</code>（可注入"作文格在题前/括号横线混用/答案区缺失/无情境"等指定坏样例），跑完整 <code>generateFullPaperNatural()</code>，断言四条硬不变量：</p>
+  <ol>
+    <li><b>答案区存在</b>：最终 content 必含 <code>answer-section</code>（或在问题列表透出明确原因）。</li>
+    <li><b>作文格在所属题干之后</b>：按"题目节点"维度判断，而非关键词搬运。</li>
+    <li><b>无括号×横线混用</b>：<code>（_____）</code> / <code>（_ _）</code> 等非法形态 count=0。</li>
+    <li><b>情境框架已注入</b>：按资料类型断言 contextFramework 非空。</li>
+  </ol>
+  <p>作用：以后任何 patch 都要先过这四条链条不变量，否则直接标红 —— 从机制上杜绝"改了不生效/悄然回归"。</p>
+</div>
+
+<div class="card rm">
+  <h3 style="color:var(--accent);margin-top:0">P0 · 情境框架改由资料类型显式驱动，废除指令字面量正则</h3>
+  <ol>
+    <li><code>buildInjectionInstruction</code> 增加并透传 <code>propositionStyle</code>；把"命题风格：{style}"作为确定注入文本。</li>
+    <li>generate() 的 isUnifiedContext/isContextFusion 改为接收 <code>params.propositionStyle</code>（GenerateModule 已把 style 传下来，只是没接进指令），并给非 exam 类型也建 context_fusion 框架。可选一张 <code>type→style</code> 默认映射，让映射走配置而非正文。</li>
+    <li>移除 EXAM_BASE 中"删除本行即可"的字面量对代码行为的控制。</li>
+  </ol>
+</div>
+
+<div class="card rm">
+  <h3 style="color:var(--accent);margin-top:0">P1 · 把"反复发作"的三处改成确定性后处理</h3>
+  <ol>
+    <li><b>括号/横线归一</b>：在 contentCleaner 增加确定性子程序——统一（英文半角括号+全角空格）形态，检测并清除括号内下划线；这是规则库或 cleaning 层的纯函数，可单测。</li>
+    <li><b>作文格位置</b>：改为"题目节点内嵌"判定（在 <code>&lt;p class="question"&gt;</code> 内找所属题干），不要跨题用关键词找；课时内无法归属时宁可不动也不错配（加抽检提示）。</li>
+    <li><b>答案区判定</b>：用包容器/结构（<code>answer-section</code> 或 含"参考答案|答案|解析"标题节点）判定，不单靠 <code>&lt;h2&gt;参考答案</code>，消除 once 模式双答案区风险（R2）。</li>
+  </ol>
+</div>
+
+<div class="card rm">
+  <h3 style="color:var(--accent);margin-top:0">P1 · 接通已写好的能力，清点死代码</h3>
+  <ol>
+    <li>把 <code>subjectValidators.runHardValidators/applyAutoFixes</code> 接入 auditExamPaper（或其后）作为学科硬 GATE（数值/化学方程式守恒/语文别字等）——零新增成本、直接补齐学科正确性。</li>
+    <li>决定 fixExamFormats/buildHtmlGenerationPrompt 去留：要么删除，要么接入；避免"规则库注册空洞"。</li>
+  </ol>
+</div>
+
+<div class="card rm">
+  <h3 style="color:var(--accent);margin-top:0">P1 · 治理：提交 + 构建同步自检</h3>
+  <ol>
+    <li>把当前 13 文件未提交改动先提交固化，避免"工作区形态与上次会话不一致"导致的假回归。</li>
+    <li>加一条构建自检脚本：构建后 grep dist 关键字符串（<code>[answer-diag]</code>、<code>paperOnceMaxTokens</code>），输出"dist 与 src 是否同步"；每次改 src 必须 rebuilt，防止又出现"改了 src 忘 build 以为没修好"。</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h3 style="color:var(--accent);margin-top:0">关于"再生成丢格子"的预期引导</h3>
+  <p>再生成＝整卷重新生成，旧卷用户编辑（含作文字格增删）不保留，属产品行为而非 bug。建议：再生成前明确提示"将整卷替换，未保存的手工修改会丢失"；或在再生成时保留作文格配置（学段格宽/列数）继续应用，避免"格子口径又变回默认"。作文格数字标注仍要注意：Word 中增删格子后需重新导出。</p>
+</div>
+
+<h2>7. 给你的下一步建议（按顺序）</h2>
+<ol>
+  <li><b>不要继续在 2j-5a / FORMAT_RULES 上叠话术和正则</b>；先做 P0 的端到端结构不变量测试，把"复发"变成可被回归测试捕获。</li>
+  <li>优先修 R1（情境断链）与 R2（答案区判定），这两处是"无情境"和"答案双区/结构错"的直接原因。</li>
+  <li>提交当前未提交的 13 文件改动并重建 dist，之后每次改动都跑构建自检。</li>
+</ol>
+
+<div class="footer">
+  审计依据：只读代码审计（src/composables/useAiGenerator.js、src/modules/GenerateModule.vue、src/utils/contentCleaner.js、examValidator.js、src/config/promptLibrary.js、apiConfig.js、generationConstants.js、validatorRules.js 等）+ git diff + dist 产物字符串核验。
+  定位均为"可复核的代码事实 + 明确触发条件"，不含推测性修复。本报告建议先落地 P0 回归防线，再谈逐条修复。
+</div>
+
+</div>
+</body>
+</html>

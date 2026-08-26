@@ -137,7 +137,7 @@ describe('OUTPUT_FORMAT_HINT（非 exam 统一输出格式）', () => {
 
   it('含禁止事项：代码块包裹 / 答案混入正文', () => {
     expect(OUTPUT_FORMAT_HINT).toContain('严禁代码块包裹输出');
-    expect(OUTPUT_FORMAT_HINT).toContain('严禁在正文中输出答案/解析');
+    expect(OUTPUT_FORMAT_HINT).toContain('严禁在正文中输出任何答案/解析');
   });
 });
 
@@ -174,7 +174,7 @@ describe('作答空规范全模板覆盖（横线宽度 + 半角括号 + 括号�
       const t = getPromptTemplate({ genType: g });
       expect(t.template, `类型 ${g} 缺横线宽度标准`).toContain('1字≈2格');
       expect(t.template, `类型 ${g} 缺半角括号要求`).toContain('半角括号');
-      expect(t.template, `类型 ${g} 缺全角括号禁令`).toContain('禁止用中文全角括号');
+      expect(t.template, `类型 ${g} 缺括号横线二选一禁令`).toContain('括号与横线二选一');
     }
   });
 

@@ -3,8 +3,8 @@
  * ============================================================
  * 🔴 定位：从原分步流水线 executor.js 中保留的通用函数（分步流水线已整体删除）：
  *    - cleanSectionHtml：清洗 AI 输出（去 ```html 包裹 / body 抽取 / 自评残留）
- *    - extractQuestionList：从 HTML 提取纯文本题目清单（答案页生成依据）
- *    - hasAnswerCarrier：判定题内是否存在可作答载体（答案清单空壳过滤用）
+ *    - htmlToPlainText：HTML → 纯文本（答案页生成上下文，整卷路径在用）
+ *    - hasAnswerCarrier：判定题内是否存在可作答载体
  * ============================================================
  */
 
@@ -44,65 +44,7 @@ export function hasAnswerCarrier(inner = '') {
   return false;
 }
 
-/**
- * 从整卷 HTML 提取"纯文本题目清单"（供答案页生成）
- * 只取正文区（答案区之前）；空壳题（题干承诺材料但未给出）不进清单，
- * 防止答案页 AI 对着空壳编造内容（题面缺失、答案却编出词表/短文）。
- * @param {string} html 完整 HTML
- * @param {number} [maxChars] 上限（默认 12000）
- * @returns {string} 纯文本题目清单（每题一行）
- */
-export const extractQuestionList = (html = '', maxChars = 12000) => {
-  if (!html) return '';
-  // 只取正文区（答案区之前的题目部分）
-  const body = html.split(/<div[^>]*class=["'][^"']*answer-section/i)[0];
-  const parts = [];
-  // 板块标题
-  const headingRe = /<h2[^>]*>([\s\S]*?)<\/h2>/g;
-  let m;
-  while ((m = headingRe.exec(body)) !== null) {
-    const t = m[1].replace(/<[^>]+>/g, '').trim();
-    if (t) parts.push(`【${t}】`);
-  }
-  // 题目（含题干、选项、空）——空壳过滤
-  const qRe = /<p[^>]*class=["'][^"']*question[^"']*["'][^>]*>([\s\S]*?)<\/p>/g;
-  const qPromiseRe = /(读一读下面的|下面的|下列|圈出.{0,10}(读音|加点字)|加点字|正确的读音)/;
-  let qm;
-  while ((qm = qRe.exec(body)) !== null) {
-    const inner = qm[1];
-    const text = inner.replace(/<[^>]+>/g, '').replace(/&emsp;/g, '＿＿').replace(/&nbsp;/g, ' ').trim();
-    if (!text) continue;
-    const stripped = text.replace(/^\s*\d+[.、．]\s*/, '');
-    const isShell = (qPromiseRe.test(stripped) || stripped.length < 10) && !hasAnswerCarrier(inner);
-    if (isShell) continue; // 空壳题 → 不进入答案清单
-    parts.push(text);
-  }
-  // 🔧 兜底：模型未按 class="question" 输出时（整卷模板此前未硬性要求），按"<p> 带题号"提取
-  //    （题号正则：行首 1. 2. 3.… / （1）（2）子题；防把普通叙述段误当题目）
-  if (parts.filter(x => x.startsWith('【')).length === 0) {
-    const fallbackRe = /<p[^>]*>([\s\S]*?)<\/p>/g;
-    let fm;
-    while ((fm = fallbackRe.exec(body)) !== null) {
-      const inner = fm[1];
-      const text = inner.replace(/<[^>]+>/g, '').replace(/&emsp;/g, '＿＿').replace(/&nbsp;/g, ' ').trim();
-      if (!text) continue;
-      const stripped = text.replace(/^\s*[(（]?\s*\d+\s*[)）]?\s*[.、．]?\s*/, '');
-      const looksQuestion = /^\d+[.、．]/.test(text) || /^[(（]\d+[)）]/.test(text) || stripped.length >= 10;
-      if (!looksQuestion) continue;
-      parts.push(text);
-    }
-  }
-  // 选择题选项
-  const optRe = /<p[^>]*class=["'][^"']*option[^"']*["'][^>]*>([\s\S]*?)<\/p>/g;
-  let om;
-  while ((om = optRe.exec(body)) !== null) {
-    const text = om[1].replace(/<[^>]+>/g, '').trim();
-    if (text) parts.push(`  ${text}`);
-  }
-  let out = parts.join('\n');
-  if (out.length > maxChars) out = out.slice(0, maxChars) + '…(已裁剪)';
-  return out;
-};
+
 
 /**
  * HTML → 纯文本（答案页生成上下文用）：
@@ -243,4 +185,4 @@ export function normalizeIndents(html = '') {
   return out;
 }
 
-export default { cleanSectionHtml, hasAnswerCarrier, extractQuestionList, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeIndents };
+export default { cleanSectionHtml, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeIndents };
