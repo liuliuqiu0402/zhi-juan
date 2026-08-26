@@ -53,7 +53,7 @@ describe('教辅蓝本三维度覆盖（类型 × 学段）', () => {
 describe('buildTeachingInjection（教辅结构注入块）', () => {
   it('输出栏目框架 + 题量与时长底线 + 学段名', () => {
     const inject = buildTeachingInjection({ genType: 'reading', stage: 'middle' });
-    expect(inject).toContain('【教辅结构（阅读训练·初中）');
+    expect(inject).toContain('【教辅结构（通用·阅读训练·初中）');
     expect(inject).toContain('栏目框架');
     expect(inject).toContain('原创选文');
     expect(inject).toContain('分层设题');
@@ -115,7 +115,7 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
   it('未定制学科（数学等）回退通用默认：栏目为通用、注入标"通用·"', () => {
     const bp = getTeachingBlueprint({ genType: 'practice', stage: 'middle', subject: '数学' });
     expect(bp.custom).toBe(false);
-    expect(bp.subject).toBe('*');
+    expect(bp.subject).toBe('数学');
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '数学' });
     expect(inject).toContain('通用·课时练');
     // 学段参数仍生效（中段 40 分钟）
