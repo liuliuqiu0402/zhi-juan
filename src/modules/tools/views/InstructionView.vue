@@ -152,13 +152,18 @@ const parseKey = (key) => {
   const subject = parts.length >= 3 ? parts[1] : '';
   return { stage, subject, genType };
 };
-/** 全中文三维度名（按 layer：类型模板 / 学科要点 / 学段要点 / 用户自定义） */
+/** 条目名称（内置只显示所属维度；用户自定义显示其覆盖维度） */
 const tplDimName = (t) => {
-  if (t.layer === 'type') return `全部学段 · 全学科 · ${GEN_TYPE_NAME[t.key] || t.key}`;
-  if (t.layer === 'subject') return `全部学段 · ${t.key} · 全部类型`;
-  if (t.layer === 'stage') return `${STAGE_LABELS[t.key] || t.key} · 全学科 · 全部类型`;
+  if (t.layer === 'type') return GEN_TYPE_NAME[t.key] || t.key;
+  if (t.layer === 'subject') return t.key;
+  if (t.layer === 'stage') return STAGE_LABELS[t.key] || t.key;
+  // user：显示实际覆盖维度（有维度才显示，无则键）
   const { stage, subject, genType } = parseKey(t.key);
-  return `${stage ? STAGE_LABELS[stage] : '全部学段'} · ${subject || '全学科'} · ${GEN_TYPE_NAME[genType] || genType}`;
+  const parts = [];
+  if (stage) parts.push(STAGE_LABELS[stage]);
+  if (subject) parts.push(subject);
+  if (genType && GEN_TYPE_NAME[genType]) parts.push(GEN_TYPE_NAME[genType]);
+  return parts.join(' · ') || t.key;
 };
 const layerLabel = (t) => (
   { type: '类型模板', subject: '学科要点', stage: '学段要点', user: '自定义' }[t.layer] || '模板'
