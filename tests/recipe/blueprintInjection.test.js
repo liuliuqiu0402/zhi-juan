@@ -18,8 +18,9 @@ describe('buildBlueprintInjection（exam 蓝图精简注入块）', () => {
     expect(inject).toContain('二、积累与运用（共X题，共24分）——');
     expect(inject).toContain('三、阅读与鉴赏（共X题，共14分）——');
     expect(inject).toContain('四、表达与交流（共X题，共30分）——');
-    // 大题命题要求（note）被注入
-    expect(inject).toContain('禁止连续2道以上使用完全相同的题型格式');
+    // 大题命题要求（note 清洗后：激活式、无具体内容引导）被注入
+    expect(inject).toContain('覆盖本单元识字与写字能力点');
+    expect(inject).not.toContain('禁止连续2道以上使用完全相同的题型格式');
     // 顺序：大题序号随位置递增
     expect(inject.indexOf('一、识字与写字')).toBeLessThan(inject.indexOf('二、积累与运用'));
   });
