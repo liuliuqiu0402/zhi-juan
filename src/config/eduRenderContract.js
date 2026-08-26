@@ -293,7 +293,20 @@ export function needsImageHint(text = '', genType = '') {
   return IMAGE_HINT_RE.test(String(text || '')) || genType === 'dictation';
 }
 
+/** 导出示例骨架（渲染契约库展示用；纯导出，不影响生成逻辑） */
+export const GRAPH_SAMPLES = {
+  COORDINATE: GRAPH_SAMPLE_COORDINATE,
+  SHAPES: GRAPH_SAMPLE_SHAPES,
+  BAR_CHART: GRAPH_SAMPLE_BAR,
+  LINE_CHART: GRAPH_SAMPLE_CHART_LINE,
+  PIE_CHART: GRAPH_SAMPLE_PIE,
+  FORCE: GRAPH_SAMPLE_FORCE,
+  CIRCUIT: GRAPH_SAMPLE_CIRCUIT,
+  OPTICS: GRAPH_SAMPLE_OPTICS,
+  ATOM: GRAPH_SAMPLE_ATOM,
+};
+
 export default {
   GRAPH_TYPES, GRAPH_SUBJECTS, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES,
-  buildRenderContract, needsImageHint,
+  buildRenderContract, needsImageHint, GRAPH_SAMPLES,
 };

@@ -1,34 +1,339 @@
 <template>
-  <div class="tool-sub-page">
-    <div class="ph">
-      <h3>🎨 渲染契约库</h3>
-      <span class="st-badge">待迁移 · 数据源：src/config/eduRenderContract.js</span>
+  <div class="rc-page">
+    <!-- 概览条（吸顶） -->
+    <div class="rc-overview">
+      <div>
+        <span class="lib-badge">🎨 渲染契约库</span>
+        <b>图形 TYPE {{ GRAPH_TYPES.length }}</b>
+        <span class="ov-sep">·</span>
+        <b>契约学科 {{ contractList.length }} / {{ SUBJECT_KEYS.length }}</b>
+        <span class="ov-sep">·</span>
+        <span>缺口 <b class="issue-n">{{ gapCount }}</b></span>
+        <span class="ov-sep">·</span>
+        <span>待修问题 <b class="issue-n">{{ openIssues.length }}</b></span>
+      </div>
+      <div class="dim-now">
+        <span class="dimb">{{ dims.subject || '全部学科' }}</span>
+        <span class="dimb">{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
+        <span class="dimb">{{ dims.genType ? GEN_TYPE_NAME[dims.genType] : '全部类型' }}</span>
+      </div>
     </div>
-    <div class="brief">
-      <p>EduRender Studio 渲染指令协议：[GRAPH]（9 种 TYPE）· [IMAGE]（SD/ICON）· 公式 $..$ / $$..$$。</p>
-      <p>迁移要点：补「历史」学科 [GRAPH] 统计图；扩展 [IMAGE] 关键词（识图/读图/示意）；按 学科×学段×类型 三维度组织条目。</p>
+
+    <!-- 校验：覆盖缺口 -->
+    <div class="rc-validate" v-if="validateMsgs.length">
+      <div class="v-head">🔍 覆盖缺口自检</div>
+      <div v-for="(m, i) in validateMsgs" :key="i" class="v-item" :class="`sev-${m.severity}`">
+        <span class="v-code">{{ m.code }}</span> {{ m.detail }}
+      </div>
     </div>
-    <div class="stat-row">
-      <div class="stat"><b>9</b><span>图形 TYPE</span></div>
-      <div class="stat"><b>7</b><span>GRAPH 学科</span></div>
-      <div class="stat"><b>2</b><span>IMAGE 类型（SD/ICON）</span></div>
-      <div class="stat warn"><b>1</b><span>缺口：历史学科</span></div>
+    <div class="rc-validate ok" v-else>✅ 渲染契约覆盖正常（当前筛选范围）</div>
+
+    <!-- 图形 TYPE 目录（手风琴） -->
+    <h4 class="rc-h">📊 图形 TYPE 目录（[GRAPH] 协议）<span class="hint">点击 TYPE 查看示例骨架</span></h4>
+    <div class="rc-list">
+      <div v-for="t in typeList" :key="t.id" class="rc-card" :class="{ open: openType === t.id }">
+        <div class="rc-head" @click="toggleType(t.id)">
+          <span class="arrow">{{ openType === t.id ? '▾' : '▸' }}</span>
+          <span class="lib-tag">🎨 契约库</span>
+          <span class="dim-name">{{ t.id }}</span>
+          <span class="key-hint" :title="'图形类型'">GRAPH</span>
+          <span class="rc-desc">{{ t.desc }}</span>
+          <span class="rc-meta">{{ t.subjects.length }} 学科</span>
+        </div>
+        <div v-if="openType === t.id" class="rc-body">
+          <div class="rc-subjects">
+            <b>适配学科：</b>
+            <span v-for="s in t.subjects" :key="s" class="car">{{ s }}</span>
+            <span v-if="!t.subjects.length" class="none">无学科适配（未启用）</span>
+          </div>
+          <pre class="rc-sample">{{ t.sample }}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 学科契约矩阵 -->
+    <h4 class="rc-h">📚 学科契约（学科 × 学段 → 图形/公式/配图）<span class="hint">按学科筛选联动 · 展开可自定义</span></h4>
+    <div class="rc-list">
+      <div v-for="c in contractList" :key="c.subject" class="rc-card" :class="{ open: openSub === c.subject, editing: editingSub === c.subject }">
+        <div class="rc-head" @click="toggleSub(c.subject)">
+          <span class="arrow">{{ openSub === c.subject ? '▾' : '▸' }}</span>
+          <span class="lib-tag">🎨 契约库</span>
+          <span class="dim-name">{{ c.subject }}</span>
+          <span class="key-hint" :title="'学科契约'">{{ c.subject }}</span>
+          <span v-if="c.missing" class="gap-tag">缺 GRAPH 契约</span>
+          <span v-if="c.user" class="src-user">已自定义</span>
+          <span class="rc-meta">
+            <span v-if="c.graphTypes.length" class="mini">图形 {{ c.graphTypes.join('/') }}</span>
+            <span v-if="c.formula" class="mini">公式 ✓</span>
+            <span v-if="c.image" class="mini">配图 ✓</span>
+          </span>
+        </div>
+        <div v-if="openSub === c.subject && editingSub !== c.subject" class="rc-body">
+          <div class="rc-subjects">
+            <b>图形类型：</b>
+            <span v-for="g in c.graphTypes" :key="g" class="car car-g">{{ g }}</span>
+            <span v-if="!c.graphTypes.length" class="none">无（如需图表请补契约）</span>
+          </div>
+          <div class="rc-flags">
+            <span class="flag" :class="c.formula ? 'on' : 'off'">公式 {{ c.formula ? '启用' : '未启用' }}</span>
+            <span class="flag" :class="c.image ? 'on' : 'off'">配图 {{ c.image ? '启用' : '未启用' }}</span>
+            <span class="flag">{{ c.stageNote }}</span>
+          </div>
+          <div class="rc-ops">
+            <button class="btn" @click="startEdit(c)">✏️ 自定义契约</button>
+            <button v-if="c.user" class="btn danger" @click="removeUser(c)">🗑️ 删除自定义</button>
+          </div>
+        </div>
+        <!-- 编辑态：自定义学科契约 -->
+        <div v-if="editingSub === c.subject" class="rc-edit">
+          <div class="edit-label">图形类型（多选）</div>
+          <div class="type-chips">
+            <span
+              v-for="t in GRAPH_TYPES"
+              :key="t"
+              class="chip-sel"
+              :class="{ sel: editForm.graphTypes.includes(t) }"
+              @click="toggleTypeSel(t)"
+            >{{ t }}</span>
+          </div>
+          <div class="edit-grid">
+            <label class="chk">公式（$..$ / $$..$$）<input v-model="editForm.formula" type="checkbox" /></label>
+            <label class="chk">配图（[IMAGE]）<input v-model="editForm.image" type="checkbox" /></label>
+          </div>
+          <div class="rc-ops">
+            <button class="btn-p" @click="saveUser(c.subject)">💾 保存契约</button>
+            <button class="btn" @click="cancelEdit">取消</button>
+          </div>
+          <p class="edit-tip">※ 自定义契约当前仅存储于本地（用户优先显示）；生成端 buildRenderContract 接入用户契约在"代码读取落实"阶段打通。</p>
+        </div>
+      </div>
+      <div v-if="!contractList.length" class="rc-empty">当前筛选无学科契约（可放宽学科筛选）</div>
+    </div>
+
+    <!-- 配图与公式规则 -->
+    <h4 class="rc-h">🖼️ 配图与公式规则</h4>
+    <div class="rule-grid">
+      <div class="rule-card">
+        <b>[IMAGE] 配图</b>
+        <p>触发关键词：<code>{{ IMAGE_KEYWORDS.join(' / ') }}</code></p>
+        <p>教辅默认配图类型：<code>{{ IMAGE_DEFAULT_TYPES.join(' / ') }}</code></p>
+        <p class="warn-note">⚠️ 缺口：关键词未含「识图 / 读图 / 示意 / 图表 / 地图 / 结构」——生物"结构示意图"、地理"读图分析"等题 needsImage 不命中。</p>
+      </div>
+      <div class="rule-card">
+        <b>$..$ 公式</b>
+        <p>公式学科：<code>{{ MATH_SUBJECTS.join(' / ') }}</code></p>
+        <p>学段门控：数学低段不注入；物理/化学仅初中及以上。</p>
+        <p class="note">图形数据必须与题干完全一致（契约强制）。</p>
+      </div>
+    </div>
+
+    <!-- 待修问题 -->
+    <h4 class="rc-h">🧹 迁移待修问题（覆盖缺口 × 接线待办）</h4>
+    <div class="issue-list">
+      <div v-for="it in filteredIssues" :key="it.code" class="issue-item" :class="`tp-${it.type}`">
+        <span class="issue-code">{{ it.code }}</span>
+        <span class="issue-tag">{{ TYPE_LABELS[it.type] }}</span>
+        <span class="issue-desc">{{ it.desc }}</span>
+        <span class="issue-action">{{ it.action }}</span>
+      </div>
+      <div v-if="!filteredIssues.length" class="rc-empty">当前筛选无待修问题</div>
     </div>
   </div>
 </template>
 
-<script setup></script>
+<script setup>
+import { computed, inject, ref } from 'vue';
+import { GRAPH_TYPES, GRAPH_SUBJECTS, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES, GRAPH_SAMPLES, needsImageHint } from '../../../config/eduRenderContract.js';
+import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
+
+const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
+
+const STAGE_LABELS = {
+  primary_low: '小学低段（1-2年级）', primary_mid: '小学中段（3-4年级）', primary_high: '小学高段（5-6年级）', middle: '初中（7-9年级）', high: '高中',
+};
+const GEN_TYPE_NAME = {
+  exam: '正式试卷', practice: '课时练', special: '专项突破', preview: '课前预习',
+  reading: '阅读训练', summary: '知识总结', dictation: '默写积累', errorbook: '错题本', review: '复习资料',
+};
+const TYPE_LABELS = { gap: '覆盖缺口', wiring: '接线待办' };
+
+/* ===== 常量展示 ===== */
+const GRAPH_TYPE_DESC = {
+  COORDINATE: '数轴/坐标系（XLIM/YLIM/箭头/刻度）', SHAPES: '函数/几何（FUNCTION/POINT/POLYGON/CIRCLE）',
+  BAR_CHART: '柱状统计图', LINE_CHART: '折线统计图', PIE_CHART: '饼状统计图',
+  FORCE: '受力分析图', CIRCUIT: '电路图', OPTICS: '光路图', ATOM: '原子结构图',
+};
+const IMAGE_KEYWORDS = ['看图', '写话', '配图', '听音', '观察', '绘画', '绘图'];
+const IMAGE_DEFAULT_TYPES = ['practice', 'special', 'preview', 'reading', 'dictation'];
+
+/* ===== 图形 TYPE 目录 ===== */
+const typeList = GRAPH_TYPES.map((id) => ({
+  id,
+  desc: GRAPH_TYPE_DESC[id] || '',
+  sample: GRAPH_SAMPLES[id] || '（无示例）',
+  subjects: Object.entries(SUBJECT_GRAPH_TYPES).filter(([, types]) => types.includes(id)).map(([s]) => s),
+}));
+const openType = ref('');
+const toggleType = (id) => { openType.value = openType.value === id ? '' : id; };
+
+/* ===== 学科契约（内置 + 用户自定义） ===== */
+const USER_KEY = 'wisdom_render_contract_v1';
+const loadUser = () => { try { return JSON.parse(localStorage.getItem(USER_KEY) || '{}'); } catch { return {}; } };
+
+const allContract = SUBJECT_KEYS.map((subject) => {
+  const user = loadUser()[subject];
+  const graphTypes = user ? (user.graphTypes || []) : (SUBJECT_GRAPH_TYPES[subject] || []);
+  const formula = user ? !!user.formula : MATH_SUBJECTS.includes(subject);
+  const image = user ? !!user.image : needsImageHint(`${subject} 看图配图听音观察`, 'exam');
+  // 缺口：蓝本引用了 [GRAPH] 但学科无契约（历史/生物/地理 中历史缺）
+  const missing = subject === '历史' && !GRAPH_SUBJECTS.includes(subject);
+  return {
+    subject, graphTypes, formula, image, missing,
+    user: !!user, stageNote: subject === '数学' ? '低段裁剪（仅数轴/统计图）' : '全学段',
+  };
+});
+
+const contractList = computed(() =>
+  allContract.filter((c) => {
+    if (dims.value.subject && c.subject !== dims.value.subject) return false;
+    return true;
+  })
+);
+const openSub = ref('');
+const toggleSub = (s) => { openSub.value = openSub.value === s ? '' : s; };
+const gapCount = computed(() => allContract.filter((c) => c.missing).length);
+
+/* ===== 校验 ===== */
+const validateMsgs = computed(() => {
+  const msgs = [];
+  const missingSub = allContract.filter((c) => c.missing);
+  if (missingSub.length) {
+    msgs.push({ code: 'RC1', severity: 'error', detail: `历史学科：蓝本（历史|middle/high）要求"[GRAPH] 统计图"，但契约无历史学科——GRAPH_SUBJECTS 缺"历史"。` });
+  }
+  if (!IMAGE_KEYWORDS.some((k) => ['识图', '读图', '示意'].includes(k))) {
+    msgs.push({ code: 'RC2', severity: 'warning', detail: 'IMAGE 触发关键词未含「识图/读图/示意/图表/地图/结构」——生物结构示意图、地理读图分析题的 needsImage 不命中。' });
+  }
+  return msgs;
+});
+
+/* ===== 编辑学科契约（用户自定义） ===== */
+const editingSub = ref('');
+const editForm = ref({ graphTypes: [], formula: false, image: false });
+const startEdit = (c) => {
+  editingSub.value = c.subject;
+  editForm.value = { graphTypes: [...c.graphTypes], formula: c.formula, image: c.image };
+  openSub.value = c.subject;
+};
+const cancelEdit = () => { editingSub.value = ''; };
+const toggleTypeSel = (t) => {
+  const i = editForm.value.graphTypes.indexOf(t);
+  if (i >= 0) editForm.value.graphTypes.splice(i, 1);
+  else editForm.value.graphTypes.push(t);
+};
+const saveUser = (subject) => {
+  const lib = loadUser();
+  lib[subject] = { graphTypes: editForm.value.graphTypes, formula: editForm.value.formula, image: editForm.value.image, updatedAt: Date.now() };
+  try { localStorage.setItem(USER_KEY, JSON.stringify(lib)); } catch { window.alert('保存失败'); return; }
+  window.location.reload(); // 简单刷新以重算契约（数据量小，可接受）
+};
+const removeUser = (c) => {
+  if (!window.confirm(`删除「${c.subject}」的自定义契约？删除后回退内置。`)) return;
+  const lib = loadUser();
+  delete lib[c.subject];
+  try { localStorage.setItem(USER_KEY, JSON.stringify(lib)); } catch {}
+  window.location.reload();
+};
+
+/* ===== 待修问题 ===== */
+const AUDIT_ISSUES = [
+  { code: 'RC1', type: 'gap', key: '历史', desc: 'GRAPH_SUBJECTS 缺"历史"，但历史蓝本（middle/high）明确要求"[GRAPH] 统计图格式或表格"——模型拿到要求却无 TYPE 骨架，悬空。', action: '把历史补入 GRAPH_SUBJECTS + SUBJECT_GRAPH_PARTS（BAR/LINE/PIE），或历史改"表格"呈现。' },
+  { code: 'RC2', type: 'gap', key: '', desc: 'IMAGE_HINT_RE（看图|写话|配图|听音|观察|绘画|绘图）缺"识图/读图/示意/图表/地图/结构"——生物结构示意图、地理读图分析、历史图表题的 needsImage=false，渲染契约不注入 [IMAGE] 格式。', action: '扩展 IMAGE_HINT_RE 关键词，或改由蓝本 carrier 显式驱动 needsImage。' },
+  { code: 'RC3', type: 'gap', key: '数学', desc: '数学低段门控裁剪 SHAPES 后仅剩 COORDINATE/BAR/LINE——需人工核验低段"图形与几何"是否真的不产生 [GRAPH] 需求。', action: '结合低段蓝本操作题核验；若需几何图则保留 SHAPES 简化版。' },
+  { code: 'RC4', type: 'wiring', key: '', desc: '用户自定义学科契约（本页可编辑）当前仅存储展示，buildRenderContract 尚未读取用户契约——生成端仍用内置。', action: '代码读取落实阶段：buildRenderContract 合并用户契约（用户优先）。' },
+  { code: 'RC5', type: 'wiring', key: '', desc: '公式仅数学/物理/化学注入；生物/地理统计图用 [GRAPH] 无公式——为既定口径，记录以防后续误改。', action: '无需修改（记录）。' },
+];
+const filteredIssues = computed(() => {
+  const su = dims.value.subject;
+  return AUDIT_ISSUES.filter((it) => (su ? it.key.includes(su) : true));
+});
+const openIssues = computed(() => filteredIssues.value.length);
+</script>
 
 <style scoped>
-.tool-sub-page { padding: 22px; }
-.ph { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-.ph h3 { margin: 0; font-size: 18px; color: var(--primary); }
-.st-badge { font-size: 12px; color: #a06a10; background: #fdf3e2; border: 1px solid #f3d9a8; border-radius: 999px; padding: 2px 12px; }
-.brief { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 10px; padding: 14px 16px; font-size: 13px; color: #445; }
-.brief p { margin: 4px 0; }
-.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 16px; }
-.stat { background: #fff; border: 1px solid var(--border-light); border-radius: 10px; padding: 14px; text-align: center; }
-.stat b { display: block; font-size: 24px; color: var(--primary); }
-.stat span { font-size: 12px; color: var(--text-muted); }
-.stat.warn b { color: #a06a10; }
+.rc-page { padding: 18px 22px 30px; max-width: 1080px; }
+.rc-overview { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; background: var(--bg); border: 1px solid var(--border-light); border-radius: 10px; padding: 10px 14px; box-shadow: 0 2px 6px rgba(30,58,111,.06); }
+.lib-badge { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 6px; padding: 3px 10px; margin-right: 10px; }
+.ov-sep { margin: 0 8px; color: #c2ccda; }
+.issue-n { color: var(--danger); }
+.dim-now { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.dimb { font-size: 12px; padding: 2px 10px; border-radius: 6px; background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; }
+
+.rc-validate { margin-top: 12px; background: #fff; border: 1px solid var(--border-light); border-radius: 10px; padding: 10px 14px; font-size: 12.5px; }
+.rc-validate.ok { color: #1d7a4a; background: var(--success-light); border-color: #bfe6cd; }
+.v-head { font-weight: 600; color: var(--primary); margin-bottom: 6px; }
+.v-item { margin: 3px 0; }
+.v-item.sev-error { color: var(--danger); }
+.v-item.sev-warning { color: #a06a10; }
+.v-code { font-family: Consolas, monospace; font-weight: 700; }
+
+.rc-h { font-size: 14px; color: var(--primary); margin: 22px 0 10px; }
+.hint { font-size: 11.5px; color: var(--text-muted); font-weight: 400; margin-left: 8px; }
+.rc-list { display: flex; flex-direction: column; gap: 8px; }
+.rc-card { background: #fff; border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; }
+.rc-card.open { border-color: var(--primary-light); box-shadow: 0 2px 10px rgba(30,58,111,.08); }
+.rc-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; flex-wrap: wrap; }
+.rc-head:hover { background: var(--primary-lighter); }
+.arrow { color: var(--accent); font-weight: 700; }
+.lib-tag { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 6px; padding: 2px 8px; }
+.dim-name { font-weight: 700; font-size: 13.5px; color: #26303e; font-family: Consolas, monospace; }
+.key-hint { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+.rc-desc { font-size: 12px; color: #667; }
+.rc-meta { font-size: 12px; color: var(--text-muted); margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.mini { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--primary-lighter); color: var(--primary); }
+.gap-tag { font-size: 10.5px; font-weight: 700; color: #b03a2e; background: var(--danger-light); border: 1px solid #f5c2bd; border-radius: 999px; padding: 1px 8px; }
+.src-user { font-size: 10.5px; font-weight: 600; color: #a06a10; background: #fdf3e2; border: 1px solid #f3d9a8; border-radius: 999px; padding: 1px 8px; }
+.rc-body { border-top: 1px dashed var(--border-light); padding: 10px 14px 14px; }
+.rc-subjects { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; }
+.rc-subjects b { color: var(--primary); }
+.car { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: #556; background: #fff; }
+.car-g { background: var(--success-light); border-color: #bfe6cd; color: #1d7a4a; }
+.none { color: var(--text-muted); font-size: 12px; }
+.rc-sample { white-space: pre-wrap; word-break: break-all; font-size: 11.5px; line-height: 1.6; color: #445; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 8px; padding: 10px 12px; max-height: 220px; overflow: auto; margin: 8px 0 0; }
+.rc-flags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.flag { font-size: 11.5px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--border); color: #667; }
+.flag.on { background: var(--success-light); border-color: #bfe6cd; color: #1d7a4a; }
+.flag.off { background: var(--bg-card); }
+.rc-ops { display: flex; gap: 8px; margin-top: 10px; }
+.btn { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 5px 12px; font-size: 12.5px; cursor: pointer; }
+.btn:hover { background: var(--primary-lighter); color: var(--primary); }
+.btn.danger { color: var(--danger); border-color: var(--danger-light); }
+.btn-p { border: none; background: var(--primary); color: #fff; border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+.btn-p:hover { background: var(--primary-light); }
+
+.rc-edit { border-top: 1px dashed var(--border-light); padding: 12px 14px 14px; background: var(--primary-lighter); }
+.edit-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+.type-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.chip-sel { font-size: 11.5px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border); cursor: pointer; background: #fff; color: #556; font-family: Consolas, monospace; }
+.chip-sel.sel { background: var(--primary); color: #fff; border-color: var(--primary); }
+.edit-grid { display: flex; gap: 16px; margin-bottom: 8px; }
+.edit-grid label.chk { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #445; }
+.edit-tip { font-size: 11.5px; color: var(--text-muted); margin: 8px 0 0; }
+.rc-empty { color: var(--text-muted); font-size: 13px; padding: 10px 4px; }
+
+.rule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.rule-card { background: #fff; border: 1px solid var(--border-light); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; }
+.rule-card b { color: var(--primary); }
+.rule-card p { margin: 6px 0; color: #445; }
+.rule-card code { background: var(--primary-lighter); color: var(--primary); padding: 1px 6px; border-radius: 4px; font-size: 11.5px; }
+.warn-note { color: #a06a10; }
+.note { color: var(--text-muted); }
+
+.issue-list { display: flex; flex-direction: column; gap: 8px; }
+.issue-item { display: flex; align-items: flex-start; gap: 10px; font-size: 12.5px; background: #fff; border: 1px solid var(--border-light); border-left: 4px solid var(--border); border-radius: 8px; padding: 8px 12px; flex-wrap: wrap; }
+.issue-item.tp-gap { border-left-color: var(--danger); }
+.issue-item.tp-wiring { border-left-color: var(--accent); }
+.issue-code { font-family: Consolas, monospace; font-weight: 700; color: var(--primary); }
+.issue-tag { font-size: 10.5px; padding: 1px 8px; border-radius: 999px; background: var(--primary-lighter); color: var(--primary); white-space: nowrap; }
+.issue-desc { flex: 1; min-width: 200px; color: #445; }
+.issue-action { font-size: 12px; color: var(--text-muted); }
 </style>

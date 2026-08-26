@@ -94,8 +94,8 @@ export const TOOL_LIBRARIES = [
     desc: '[GRAPH]/[IMAGE]/公式 标记协议（EduRender 格式）',
     count: '9 图形 TYPE',
     status: 'warn',
-    migrate: 'empty',
-    toolbar: { actions: ['new'], filter: 'dim3' },
+    migrate: 'ready',
+    toolbar: { actions: [], filter: 'dim3' },
   },
   {
     id: 'subject-points',
