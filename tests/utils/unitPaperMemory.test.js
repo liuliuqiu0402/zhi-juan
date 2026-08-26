@@ -15,14 +15,19 @@ beforeEach(() => {
 });
 
 describe('unitPaperMemory 分桶键', () => {
-  it('按 教材×范围×类型 构建唯一键', () => {
+  it('按三维度口径 学段×学科×教材×范围×类型 构建唯一键（无学段/学科时通配 *）', () => {
     expect(buildUnitKey({ bookId: 'b1', scope: '第二单元', genType: 'exam' }))
-      .toBe('b1|第二单元|exam');
+      .toBe('*|*|b1|第二单元|exam');
+    expect(buildUnitKey({ bookId: 'b1', scope: '第二单元', genType: 'exam', stage: 'primary_low', subject: '语文' }))
+      .toBe('primary_low|语文|b1|第二单元|exam');
     expect(buildUnitKey({ bookId: 'b1', scope: '第二单元', genType: 'exam' }))
       .toBe(buildUnitKey({ bookId: 'b1', scope: '第二单元', genType: 'exam' }));
     // 不同类型不同桶
     expect(buildUnitKey({ bookId: 'b1', scope: '第二单元', genType: 'exam' }))
       .not.toBe(buildUnitKey({ bookId: 'b1', scope: '第二单元', genType: 'practice' }));
+    // 不同学段/学科不同桶（三维度口径隔离）
+    expect(buildUnitKey({ bookId: 'b1', scope: '第二单元', genType: 'exam', stage: 'primary_low', subject: '语文' }))
+      .not.toBe(buildUnitKey({ bookId: 'b1', scope: '第二单元', genType: 'exam', stage: 'middle', subject: '数学' }));
   });
 });
 
