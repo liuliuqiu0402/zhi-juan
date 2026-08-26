@@ -41,6 +41,15 @@ describe('教辅蓝本三维度覆盖（类型 × 学段）', () => {
     expect(buildTeachingInjection({ genType: 'exam', stage: 'middle' })).toBe('');
   });
 
+  it('8 类型 × 5 学段学段要求全部完善（无空 note）', () => {
+    for (const g of TEACHING_GEN_TYPES) {
+      for (const s of STAGES) {
+        const bp = getTeachingBlueprint({ genType: g, stage: s });
+        expect(bp.stageParams.note?.trim(), `${g}|${s} 学段要求为空`).toBeTruthy();
+      }
+    }
+  });
+
   it('学段键归一：中文学段标签/年级可命中', () => {
     expect(getTeachingBlueprint({ genType: 'practice', stage: '小学低段' }).stageKey).toBe('primary_low');
     expect(getTeachingBlueprint({ genType: 'practice', stage: '初中' }).stageKey).toBe('middle');
@@ -66,8 +75,8 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
   it('学段差异化：低段与高段学段要求不同', () => {
     const low = buildTeachingInjection({ genType: 'reading', stage: 'primary_low' });
     const high = buildTeachingInjection({ genType: 'reading', stage: 'high' });
-    expect(low).toContain('短文短小');
-    expect(high).toContain('论述类');
+    expect(low).toContain('选文短小');
+    expect(high).toContain('多角度理解与思辨');
   });
 
   it('课时练含三段式栏目与学段要求（内容底线不注入）', () => {
