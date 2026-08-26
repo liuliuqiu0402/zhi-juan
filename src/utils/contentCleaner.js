@@ -7,6 +7,7 @@
  *    - hasAnswerCarrier：判定题内是否存在可作答载体
  * ============================================================
  */
+import { BLANK, ZUOWEN_DEFAULT_SPAN } from '../config/layoutSpec.js';
 
 /** 清洗 AI 输出：去 ```html 包裹、去 body 抽取、去自评残留 */
 export const cleanSectionHtml = (raw) => {
@@ -155,17 +156,19 @@ export function countTopLevelQuestions(html = '') {
  */
 export function normalizeBlankMarkers(html = '') {
   let out = String(html || '');
-  // 🔴 宽度上限 16em（8 个汉字）：答案通常 ≤8 字；超长横线会超出页内边距，长答案用"行尾自动延伸"方案
-  const capN = (n) => Math.min(16, Math.max(2, n));
+  // 🔴 填空横线参数来自排版规格库（BLANK）：宽度上限 maxCap、1字≈N格 wordGap、下限 minBlank
+  const { maxCap, wordGap, minBlank } = BLANK;
+  const capN = (n) => Math.min(maxCap, Math.max(minBlank, n));
+  const toBlank = (chWidth) => capN(chWidth * wordGap);
   out = out.replace(/<u>\s*＿+\s*<\/u>/gi, (m) => {
     const len = (m.match(/＿/g) || []).length;
-    return `<u class="blank-${capN(len * 2)}">&emsp;</u>`;
+    return `<u class="blank-${toBlank(len)}">&emsp;</u>`;
   });
   out = out.replace(/＿{2,}/g, (m) => {
-    const n = Math.min(16, Math.max(2, m.length * 2));
+    const n = toBlank(m.length);
     return `<u class="blank-${n}">&emsp;</u>`;
   });
-  out = out.replace(/<div class="zuo-wen-ge">\s*<\/div>/g, '<div class="zuo-wen-ge"><span>&emsp;</span><span>&emsp;</span></div>');
+  out = out.replace(/<div class="zuo-wen-ge">\s*<\/div>/g, `<div class="zuo-wen-ge">${'<span>&emsp;</span>'.repeat(Math.max(1, ZUOWEN_DEFAULT_SPAN))}</div>`);
   return out;
 }
 

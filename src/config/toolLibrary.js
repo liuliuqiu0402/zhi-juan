@@ -108,11 +108,11 @@ export const TOOL_LIBRARIES = [
     id: 'layout-spec',
     name: '排版规格库',
     icon: '📏',
-    desc: '学段渲染参数：作文格宽、空白区系数、行高、方格纸规格',
-    count: '学段参数',
-    status: 'new',
-    migrate: 'empty',
-    toolbar: { actions: ['new'], filter: 'none' },
+    desc: '格式参数唯一源：作文格宽、填空上限、书写载体、空白区系数、方格纸规格（程序可读，模型不感知）',
+    count: '5 类参数',
+    status: 'ok',
+    migrate: 'ready',
+    toolbar: { actions: [], filter: 'none' },
   },
 ];
 
