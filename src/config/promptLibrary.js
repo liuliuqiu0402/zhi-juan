@@ -124,7 +124,7 @@ const TYPE_BASES = {
 
   preview: (extra = '') => `你是课前预习设计者。请为{grade}{subject}设计一份{unit}课前预习任务单。
 
-【创作要求】以问题驱动预读（如"圈出你不认识的字""概括每段大意"），可操作可检查；任务覆盖本课时全部新知识点；栏目按生成时注入的【教辅结构】执行（含"我的疑问"栏目）；紧扣教材原文。
+【创作要求】以问题驱动预读（设计少量可操作的预读任务，如圈画重点、尝试作答、记录疑问），可操作可检查；任务覆盖本课时全部新知识点；栏目按生成时注入的【教辅结构】执行（含"我的疑问"栏目）；紧扣教材原文。
 
 【教材原文】
 {material}
@@ -142,7 +142,7 @@ const TYPE_BASES = {
 
   summary: (extra = '') => `你是知识总结编写者。请为{grade}{subject}编写一份{unit}知识总结。
 
-【创作要求】结构化呈现（表格/对比/导图优先），覆盖{unit}全部知识点并标注教材出处，不遗漏；重点标注，不堆砌大段文字；栏目与篇幅按生成时注入的【教辅结构】执行。
+【创作要求】结构化呈现（表格/对比/导图优先），覆盖{unit}全部知识点并标注教材出处，不遗漏；重点标注，文字精炼；栏目与篇幅按生成时注入的【教辅结构】执行。
 
 【教材原文】
 {material}
@@ -336,15 +336,16 @@ for (const [stage, subjList] of Object.entries(STAGE_SUBJECTS)) {
 function buildBuiltinTemplate({ stage = '', subject = '', genType = '' } = {}) {
   const base = TYPE_BASES[genType] || TYPE_BASES.exam;
   const extra = [];
-  // 命题型类型注入学科×学段要点；内容型（知识总结/课前预习）不命题，不注入命题要点
-  const propositionTypes = ['exam', 'practice', 'special', 'reading', 'dictation', 'errorbook', 'review'];
+  // 学科×学段要点：全部 9 个资料类型都注入（内容型同样需要学科方向，非仅试卷/命题型）；
+  // 仅当该学段实际开设该学科（如低段无物理/化学）且已提供学段时才注入
   const stageOpensSubject = stage ? (STAGE_SUBJECTS[stage] || []).includes(subject) : false;
-  if (propositionTypes.includes(genType) && subject && stageOpensSubject) {
+  if (subject && stageOpensSubject) {
     const stageExtra = SUBJECT_STAGE_EXTRAS[`${subject}|${stage}`];
-    if (stageExtra) extra.push(`\n\n【${subject}学科要点】\n${stageExtra}`);
-    else if (SUBJECT_EXAM_EXTRAS[subject]) extra.push(`\n\n【${subject}学科要点】\n${SUBJECT_EXAM_EXTRAS[subject]}`);
+    const point = stageExtra || SUBJECT_EXAM_EXTRAS[subject];
+    if (point) extra.push(`\n\n【${subject}·${STAGE_NAMES[stage] || stage}要点】\n${point}`);
   }
-  // 学段特点按类型：exam 用考试结构版（对标中考/高考），教辅用组织呈现版（无考试结构语言）
+  // 学段特点按类型：exam 用考试结构版（对标中考/高考），教辅用组织呈现版（无考试结构语言）；
+  // 认知底线为学段普适（所有学科不超本学段认知），呈现与学科差异由【学科·学段要点】承载
   const stageExtras = genType === 'exam' ? STAGE_EXAM_EXTRAS : STAGE_TEACHING_EXTRAS;
   if (stage && stageExtras[stage]) extra.push(`\n\n【学段特点】\n${stageExtras[stage]}`);
   return base(extra.join(''));

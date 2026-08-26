@@ -136,39 +136,33 @@ describe('EduRender 渲染契约（三维度注入）', () => {
 });
 
 describe('指令库内置学科×类型模板（按学科全面完善）', () => {
-  it('语文 exam 三维度：含语文学科要点 + 田字格/方格纸排版 + 学段特点', () => {
+  it('语文 exam 三维度：含语文·小学低段要点 + 田字格/方格纸排版 + 学段特点', () => {
     const t = getPromptTemplate({ grade: '小学低段', subject: '语文', genType: 'exam' });
     expect(t.source).toBe('builtin');
-    expect(t.template).toContain('【语文学科要点】');
+    expect(t.template).toContain('【语文·小学低段要点】');
     expect(t.template).toContain('田字格');
     expect(t.template).toContain('方格纸');
     expect(t.template).toContain('【学段特点】');
   });
 
-  it('数学 exam：含数学学科要点 + 竖式 + 情境化', () => {
+  it('数学 exam：含数学·小学中段要点 + 竖式 + 情境化', () => {
     const t = getPromptTemplate({ grade: '小学中段', subject: '数学', genType: 'exam' });
-    expect(t.template).toContain('【数学学科要点】');
+    expect(t.template).toContain('【数学·小学中段要点】');
     expect(t.template).toContain('竖式');
     expect(t.template).toContain('情境'); // 学科要点情境化表述（[GRAPH] 由渲染契约注入，不在要点）
   });
 
-  it('英语 exam：含英语学科要点 + 四线三格', () => {
+  it('英语 exam：含英语·小学低段要点 + 四线三格', () => {
     const t = getPromptTemplate({ grade: '小学低段', subject: '英语', genType: 'exam' });
-    expect(t.template).toContain('【英语学科要点】');
+    expect(t.template).toContain('【英语·小学低段要点】');
     expect(t.template).toContain('四线三格');
   });
 
-  it('全部 9 个资料类型都有三维度模板（命题型=类型骨架+学科要点+学段特点；内容型=类型骨架+学段特点，不注入命题要点）', () => {
-    const propositionTypes = ['exam', 'practice', 'special', 'reading', 'dictation', 'errorbook', 'review'];
-    const contentTypes = ['preview', 'summary'];
-    for (const g of propositionTypes) {
+  it('全部 9 个资料类型都有三维度模板（类型骨架 + 学科×学段要点 + 学段特点）', () => {
+    const types = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
+    for (const g of types) {
       const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: g });
-      expect(t.template, `类型 ${g} 三维度缺失`).toContain('【语文学科要点】');
-      expect(t.template).toContain('【学段特点】');
-    }
-    for (const g of contentTypes) {
-      const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: g });
-      expect(t.template, `内容型 ${g} 不应注入命题要点`).not.toContain('【语文学科要点】');
+      expect(t.template, `类型 ${g} 缺学科×学段要点`).toContain('【语文·小学低段要点】');
       expect(t.template).toContain('【学段特点】');
     }
     // 类型骨架差异化：practice 三维度是课时练语料，不是试卷语料
@@ -177,14 +171,14 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(p.template).not.toContain('满分');
   });
 
-  it('无学段时回落通用模板；学科要点只在三维度模板中（含学段时命中）', () => {
-    // 无学段：回落通用（不含学科要点）
+  it('无学段时回落通用模板；学科×学段要点只在三维度模板中（含学段时命中）', () => {
+    // 无学段：回落通用（不含学科×学段要点）
     const t = getPromptTemplate({ subject: '生物', genType: 'exam' });
     expect(t.template).toContain('命题专家');
-    expect(t.template).not.toContain('【生物学科要点】');
-    // 含学段：命中三维度模板（学科要点 + 学段特点）
+    expect(t.template).not.toContain('【生物·');
+    // 含学段：命中三维度模板（学科×学段要点 + 学段特点）
     const t2 = getPromptTemplate({ grade: 'middle', subject: '生物', genType: 'exam' });
-    expect(t2.template).toContain('【生物学科要点】');
+    expect(t2.template).toContain('【生物·初中要点】');
     expect(t2.template).toContain('【学段特点】');
   });
 
@@ -195,16 +189,16 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(getPromptTemplate({ grade: 'high', genType: 'exam' }).template).toContain('对标高考');
   });
 
-  it('三维度全覆盖：学段×学科×exam 命中（学科要点 + 学段特点，名称三维度中文）', () => {
+  it('三维度全覆盖：学段×学科×exam 命中（学科×学段要点 + 学段特点，名称三维度中文）', () => {
     const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
     expect(t.name).toContain('小学低段');
     expect(t.name).toContain('语文');
     expect(t.name).toContain('正式考卷');
-    expect(t.template).toContain('【语文学科要点】');
+    expect(t.template).toContain('【语文·小学低段要点】');
     expect(t.template).toContain('【学段特点】');
     // 匹配链：三维度 > 学段×类型（初中×历史）
     const t2 = getPromptTemplate({ grade: 'middle', subject: '历史', genType: 'exam' });
-    expect(t2.template).toContain('【历史学科要点】');
+    expect(t2.template).toContain('【历史·初中要点】');
     expect(t2.template).toContain('【学段特点】');
   });
 
@@ -214,17 +208,17 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(builtin.length).toBe(486);
     // cell 直取：三维度 key 命中预生成 cell
     const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
-    expect(t.template).toContain('【语文学科要点】');
+    expect(t.template).toContain('【语文·小学低段要点】');
     expect(t.template).toContain('【学段特点】');
   });
 
   it('政治类学科名与标准化链一致：高中=思想政治、初中=道德与法治（三维度模板可命中）', () => {
     // 高中×思想政治：三维度模板命中（学科要点存在）
     const high = getPromptTemplate({ grade: 'high', subject: '思想政治', genType: 'exam' });
-    expect(high.template).toContain('【思想政治学科要点】');
+    expect(high.template).toContain('【思想政治·高中要点】');
     // 初中×道德与法治：三维度模板命中
     const mid = getPromptTemplate({ grade: 'middle', subject: '道德与法治', genType: 'exam' });
-    expect(mid.template).toContain('【道德与法治学科要点】');
+    expect(mid.template).toContain('【道德与法治·初中要点】');
     // 初中不再生成"政治"死键模板
     const builtin = listPromptTemplates().filter(t => t.source === 'builtin');
     expect(builtin.some(t => t.key === 'middle|政治|exam')).toBe(false);
@@ -234,11 +228,11 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     // 小学低段×物理：无三维度模板 → 回落学段×exam
     const t = getPromptTemplate({ grade: 'primary_low', subject: '物理', genType: 'exam' });
     expect(t.template).toContain('【学段特点】');
-    expect(t.template).not.toContain('【物理学科要点】');
+    expect(t.template).not.toContain('【物理·');
     // 初中×物理：有三维度模板
     const t2 = getPromptTemplate({ grade: 'middle', subject: '物理', genType: 'exam' });
-    expect(t2.template).toContain('【物理学科要点】');
+    expect(t2.template).toContain('【物理·初中要点】');
     // 小学低段×语文：有三维度模板
-    expect(getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template).toContain('【语文学科要点】');
+    expect(getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template).toContain('【语文·小学低段要点】');
   });
 });
