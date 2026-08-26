@@ -763,15 +763,8 @@ export function buildBlueprintInjection(bp) {
   const subjectBlock = EXAM_SUBJECT_STANDARDS[bp.subject]
     ? `\n\n【${bp.subject}新课标命题要求】\n${EXAM_SUBJECT_STANDARDS[bp.subject]}`
     : '';
-  // 分值规则（全卷唯一口径；允许 0.5 分——高考英语听力每题 1.5 分等真题惯例；禁止 0.5 以外的更小小数）
-  const scoreRule = `
-【分值规则】（全卷统一口径）
-1. 分值单位：任何"每空/每题 X 分"必须为 0.5 的整数倍；允许 0.5 分（如高考英语听力每题 1.5 分、新高考英语阅读每题 2.5 分），严禁 0.5 分以外的更小小数。
-2. 学段口径：小学卷小题一律整数分（低段每空/每题 1-2 分，中高段 1-4 分）；初中、高中仅真题确有此分值的题型（英语听力/阅读等）可用 0.5 分，其余整数分。
-3. 账目自洽：小题数×每题分=大题分、空数×每空分=小题分、各大题分之和=满分${bp.fullScore}分，必须精确成立；多空题标注"（每空X分）"。
-4. 多选题/不定项"部分选对得部分分"属评分规则，写在答案页评分标准（全对X分、部分选对按规则得分、有错选0分）；卷面题头仍标"本题满分X分"整数分。
-5. 省市覆盖改变大题总分时，大题标注内的小题分配为默认参考比例，须按新大题分等比重算并按 0.5 分取整（可调整题数）。`;
-  return `\n\n【卷面结构（真题蓝本，大题与分值固定，不得增删改）】\n${sectionsText}${scoreRule}${stageBlock}${subjectBlock}`;
+  // 🔧 分值规则不再注入 prompt（AI 命题常识，无需教；账目自洽由规则库 score 系列生成后验算/修正）
+  return `\n\n【卷面结构（真题蓝本，大题与分值固定，不得增删改）】\n${sectionsText}${stageBlock}${subjectBlock}`;
 }
 
 export default {
