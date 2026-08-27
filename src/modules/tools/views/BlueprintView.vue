@@ -15,6 +15,9 @@
           <span class="dimb">{{ dims.genType ? GEN_TYPE_LABELS[dims.genType] : '全部类型' }}</span>
         </div>
         <button class="btn-p" @click="openNew">＋ 新增蓝本</button>
+        <button class="btn" @click="doExport">📤 导出</button>
+        <button class="btn" @click="importInput?.click()">📥 导入</button>
+        <input ref="importInput" type="file" accept=".json" style="display:none" @change="doImport" />
       </div>
     </div>
 
@@ -56,10 +59,11 @@
             <div v-if="!bp.sections.length" class="bp-empty">暂无大题（点「编辑」添加）</div>
           </div>
           <div class="bp-ops">
-            <button class="btn" @click="startEdit(bp)">✏️ 编辑</button>
-            <button v-if="bp.source === 'user'" class="btn danger" @click="removeBp(bp)">🗑️ 删除自定义</button>
-            <button v-if="bp.source === 'user'" class="btn" @click="removeBp(bp, true)">↩️ 重置为内置</button>
-          </div>
+          <button class="btn" @click="startEdit(bp)">✏️ 编辑</button>
+          <button class="btn" @click="copyBp(bp)">📋 复制</button>
+          <button v-if="bp.source === 'user'" class="btn danger" @click="removeBp(bp)">🗑️ 删除自定义</button>
+          <button v-if="bp.source === 'user'" class="btn" @click="removeBp(bp, true)">↩️ 重置为内置</button>
+        </div>
         </div>
 
         <!-- 编辑态 -->
@@ -159,6 +163,7 @@ import { validateAllBlueprints } from '../../../config/blueprintGuard.js';
 import { CARRIER_LABELS, enhanceBlueprint } from '../../../config/blueprintSchema.js';
 import { listAllBlueprints, saveUserBlueprint, deleteUserBlueprint } from '../../../config/blueprintProvider.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
+import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
 const refreshLibStats = inject('refreshLibStats', () => {});
@@ -296,6 +301,42 @@ const createBp = () => {
   openKey.value = key;
   const bp = allExam.value.find((b) => b.key === key);
   if (bp) startEdit(bp);
+};
+
+/* ===== 复制蓝本 ===== */
+const copyBp = (bp) => {
+  const newKey = `${bp.key}_副本`;
+  saveUserBlueprint(newKey, {
+    label: `${bp.label}（副本）`,
+    fullScore: bp.fullScore,
+    duration: bp.duration,
+    sections: JSON.parse(JSON.stringify(bp.sections || [])),
+  });
+  reload();
+  openKey.value = newKey;
+  const nb = allExam.value.find((b) => b.key === newKey);
+  if (nb) startEdit(nb);
+};
+
+/* ===== 导入/导出 ===== */
+const importInput = ref(null);
+const BP_USER_KEY = 'wisdom_blueprint_library_v1';
+const doExport = () => {
+  exportLibrary('blueprint', readLib(BP_USER_KEY));
+};
+const doImport = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const data = await importLibrary(file);
+    if (typeof data !== 'object' || data === null) throw new Error('数据格式不正确');
+    writeLib(BP_USER_KEY, data);
+    window.alert(`导入成功（${Object.keys(data).length} 条自定义蓝本）。`);
+    reload();
+  } catch (err) {
+    window.alert('导入失败：' + err.message);
+  }
+  e.target.value = '';
 };
 </script>
 

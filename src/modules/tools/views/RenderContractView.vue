@@ -14,6 +14,10 @@
         <span class="dimb">{{ dims.subject || '全部学科' }}</span>
         <span class="dimb">{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
         <span class="dimb">{{ dims.genType ? GEN_TYPE_NAME[dims.genType] : '全部类型' }}</span>
+        <button class="btn-p" @click="newOpen = true">＋ 新增契约</button>
+        <button class="btn" @click="doExport">📤 导出</button>
+        <button class="btn" @click="importInput?.click()">📥 导入</button>
+        <input ref="importInput" type="file" accept=".json" style="display:none" @change="doImport" />
       </div>
     </div>
 
@@ -73,12 +77,14 @@
             <span v-if="!c.graphTypes.length" class="none">无（如需图表请补契约）</span>
           </div>
           <div class="rc-flags">
-            <span class="flag" :class="c.formula ? 'on' : 'off'">公式 {{ c.formula ? '启用' : '未启用' }}</span>
-            <span class="flag" :class="c.image ? 'on' : 'off'">配图 {{ c.image ? '启用' : '未启用' }}</span>
-            <span class="flag">{{ c.stageNote }}</span>
-          </div>
+                <span class="flag" :class="c.formula ? 'on' : 'off'">公式 {{ c.formula ? '启用' : '未启用' }}</span>
+                <span class="flag" :class="c.image ? 'on' : 'off'">配图 {{ c.image ? '启用' : '未启用' }}</span>
+                <span v-if="c.stageEffect" class="flag stage-effect">{{ c.stageEffect }}</span>
+                <span v-if="c.typeEffect" class="flag type-effect">{{ c.typeEffect }}</span>
+              </div>
           <div class="rc-ops">
             <button class="btn" @click="startEdit(c)">✏️ 自定义契约</button>
+            <button class="btn" @click="copyContract(c)">📋 复制</button>
             <button v-if="c.user" class="btn danger" @click="removeUser(c)">🗑️ 删除自定义</button>
           </div>
         </div>
@@ -115,13 +121,40 @@
         <b>[IMAGE] 配图</b>
         <p>触发关键词：<code>{{ IMAGE_KEYWORDS.join(' / ') }}</code></p>
         <p>教辅默认配图类型：<code>{{ IMAGE_DEFAULT_TYPES.join(' / ') }}</code></p>
-        <p class="warn-note">⚠️ 缺口：关键词未含「识图 / 读图 / 示意 / 图表 / 地图 / 结构」——生物"结构示意图"、地理"读图分析"等题 needsImage 不命中。</p>
+        <p class="note">关键词已覆盖：识图 / 读图 / 示意 / 图表 / 地图 / 结构（生物结构图、地理读图等 needsImage 命中）。</p>
       </div>
       <div class="rule-card">
         <b>$..$ 公式</b>
         <p>公式学科：<code>{{ MATH_SUBJECTS.join(' / ') }}</code></p>
         <p>学段门控：数学低段不注入；物理/化学仅初中及以上。</p>
         <p class="note">图形数据必须与题干完全一致（契约强制）。</p>
+      </div>
+    </div>
+
+    <!-- 新增契约弹层 -->
+    <div v-if="newOpen" class="modal-mask" @click.self="newOpen = false">
+      <div class="modal">
+        <h4>＋ 新增学科契约</h4>
+        <div class="modal-grid">
+          <label>学科名称
+            <input v-model="newForm.subject" placeholder="如：书法、地方课程…" list="subject-list" />
+            <datalist id="subject-list">
+              <option v-for="s in SUBJECT_KEYS" :key="s" :value="s" />
+            </datalist>
+          </label>
+        </div>
+        <div class="edit-label">图形类型（多选）</div>
+        <div class="type-chips">
+          <span v-for="t in GRAPH_TYPES" :key="t" class="chip-sel" :class="{ sel: newForm.graphTypes.includes(t) }" @click="toggleNewType(t)">{{ t }}</span>
+        </div>
+        <div class="edit-grid">
+          <label class="chk">公式（$..$）<input v-model="newForm.formula" type="checkbox" /></label>
+          <label class="chk">配图（[IMAGE]）<input v-model="newForm.image" type="checkbox" /></label>
+        </div>
+        <div class="rc-ops">
+          <button class="btn-p" @click="saveNew">💾 保存</button>
+          <button class="btn" @click="newOpen = false">取消</button>
+        </div>
       </div>
     </div>
   </div>
@@ -131,6 +164,7 @@
 import { computed, inject, ref } from 'vue';
 import { GRAPH_TYPES, GRAPH_SUBJECTS, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES, GRAPH_SAMPLES, needsImageHint } from '../../../config/eduRenderContract.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
+import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
 
@@ -177,11 +211,34 @@ const allContract = SUBJECT_KEYS.map((subject) => {
   };
 });
 
+/* ===== 三维度影响（学段/类型 → 契约状态变化） ===== */
+const getStageEffect = (subject, stage) => {
+  if (!stage) return '';
+  if (subject === '数学') {
+    if (stage === 'primary_low' || stage === 'primary_mid') return '低段：不注入公式（仅数轴/统计图）';
+    return '中高段：注入公式';
+  }
+  if ((subject === '物理' || subject === '化学') && stage.startsWith('primary')) return '小学：不注入公式';
+  return '';
+};
+const getTypeEffect = (genType) => {
+  if (!genType) return '';
+  if (IMAGE_DEFAULT_TYPES.includes(genType)) return `${GEN_TYPE_NAME[genType]}：默认配图`;
+  if (genType === 'exam') return '试卷：不默认配图';
+  return '';
+};
+
 const contractList = computed(() =>
-  allContract.filter((c) => {
-    if (dims.value.subject && c.subject !== dims.value.subject) return false;
-    return true;
-  })
+  allContract
+    .filter((c) => {
+      if (dims.value.subject && c.subject !== dims.value.subject) return false;
+      return true;
+    })
+    .map((c) => ({
+      ...c,
+      stageEffect: getStageEffect(c.subject, dims.value.stage),
+      typeEffect: getTypeEffect(dims.value.genType),
+    }))
 );
 const openSub = ref('');
 const toggleSub = (s) => { openSub.value = openSub.value === s ? '' : s; };
@@ -220,6 +277,47 @@ const removeUser = (c) => {
   delete lib[c.subject];
   try { localStorage.setItem(USER_KEY, JSON.stringify(lib)); } catch {}
   window.location.reload();
+};
+
+/* ===== 新增自定义学科契约 ===== */
+const newOpen = ref(false);
+const newForm = ref({ subject: '', graphTypes: [], formula: false, image: false });
+const toggleNewType = (t) => {
+  const i = newForm.value.graphTypes.indexOf(t);
+  if (i >= 0) newForm.value.graphTypes.splice(i, 1);
+  else newForm.value.graphTypes.push(t);
+};
+const saveNew = () => {
+  const name = newForm.value.subject.trim();
+  if (!name) { window.alert('请输入学科名称'); return; }
+  const lib = loadUser();
+  lib[name] = { graphTypes: newForm.value.graphTypes, formula: newForm.value.formula, image: newForm.value.image, updatedAt: Date.now() };
+  try { localStorage.setItem(USER_KEY, JSON.stringify(lib)); } catch { window.alert('保存失败'); return; }
+  window.location.reload();
+};
+
+/* ===== 导入/导出 ===== */
+const importInput = ref(null);
+const doExport = () => {
+  exportLibrary('render_contract', readLib(USER_KEY));
+};
+const doImport = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const data = await importLibrary(file);
+    writeLib(USER_KEY, data);
+    window.location.reload();
+  } catch (err) {
+    window.alert('导入失败：' + err.message);
+  }
+  e.target.value = '';
+};
+
+/* ===== 复制契约 → 打开新增弹层（预填数据） ===== */
+const copyContract = (c) => {
+  newForm.value = { subject: `${c.subject}_副本`, graphTypes: [...c.graphTypes], formula: c.formula, image: c.image };
+  newOpen.value = true;
 };
 
 </script>
@@ -292,4 +390,14 @@ const removeUser = (c) => {
 .rule-card code { background: var(--primary-lighter); color: var(--primary); padding: 1px 6px; border-radius: 4px; font-size: 11.5px; }
 .warn-note { color: #a06a10; }
 .note { color: var(--text-muted); }
+
+.flag.stage-effect { background: #fdf3e2; border-color: #f3d9a8; color: #a06a10; }
+.flag.type-effect { background: #e8f5e9; border-color: #c8e6c9; color: #2e7d32; }
+
+.modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 100; display: flex; align-items: center; justify-content: center; }
+.modal { background: #fff; border-radius: 12px; padding: 20px 24px; width: 460px; max-width: 90vw; box-shadow: 0 8px 30px rgba(0,0,0,.18); }
+.modal h4 { margin: 0 0 14px; font-size: 15px; color: var(--primary); }
+.modal-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.modal-grid label { font-size: 12.5px; color: var(--primary); font-weight: 600; }
+.modal-grid input { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 13px; }
 </style>

@@ -7,7 +7,7 @@
  *    - hasAnswerCarrier：判定题内是否存在可作答载体
  * ============================================================
  */
-import { BLANK, ZUOWEN_DEFAULT_SPAN } from '../config/layoutSpec.js';
+import { getMergedSpec } from '../config/layoutSpec.js';
 
 /** 清洗 AI 输出：去 ```html 包裹、去 body 抽取、去自评残留 */
 export const cleanSectionHtml = (raw) => {
@@ -157,7 +157,7 @@ export function countTopLevelQuestions(html = '') {
 export function normalizeBlankMarkers(html = '') {
   let out = String(html || '');
   // 🔴 填空横线参数来自排版规格库（BLANK）：宽度上限 maxCap、1字≈N格 wordGap、下限 minBlank
-  const { maxCap, wordGap, minBlank } = BLANK;
+  const { maxCap, wordGap, minBlank } = getMergedSpec().BLANK;
   const capN = (n) => Math.min(maxCap, Math.max(minBlank, n));
   const toBlank = (chWidth) => capN(chWidth * wordGap);
   out = out.replace(/<u>\s*＿+\s*<\/u>/gi, (m) => {
@@ -168,7 +168,7 @@ export function normalizeBlankMarkers(html = '') {
     const n = toBlank(m.length);
     return `<u class="blank-${n}">&emsp;</u>`;
   });
-  out = out.replace(/<div class="zuo-wen-ge">\s*<\/div>/g, `<div class="zuo-wen-ge">${'<span>&emsp;</span>'.repeat(Math.max(1, ZUOWEN_DEFAULT_SPAN))}</div>`);
+  out = out.replace(/<div class="zuo-wen-ge">\s*<\/div>/g, `<div class="zuo-wen-ge">${'<span>&emsp;</span>'.repeat(Math.max(1, getMergedSpec().ZUOWEN_DEFAULT_SPAN))}</div>`);
   return out;
 }
 

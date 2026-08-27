@@ -79,13 +79,61 @@ export const SQUARE_GRID = {
   high: null,
 };
 
+// ==================== 用户自定义持久化 ====================
+const LAYOUT_SPEC_USER_KEY = 'wisdom_layout_spec_v1';
+
+/** 读取用户覆盖（localStorage） */
+export function loadLayoutSpecOverride() {
+  try { return JSON.parse(localStorage.getItem(LAYOUT_SPEC_USER_KEY) || '{}'); } catch { return {}; }
+}
+
+/** 保存用户覆盖 */
+export function saveLayoutSpecOverride(override) {
+  try { localStorage.setItem(LAYOUT_SPEC_USER_KEY, JSON.stringify(override)); return true; } catch { return false; }
+}
+
+/** 清除用户覆盖，恢复内置默认 */
+export function resetLayoutSpecOverride() {
+  try { localStorage.removeItem(LAYOUT_SPEC_USER_KEY); } catch {}
+}
+
+/** 两层嵌套对象合并（ZUOWEN_CELL.primary.widthMm 等） */
+function mergeNested(base, override) {
+  if (!override) return { ...base };
+  const out = {};
+  for (const k of Object.keys(base)) {
+    const bv = base[k];
+    if (bv && typeof bv === 'object') {
+      out[k] = { ...bv, ...(override[k] || {}) };
+    } else {
+      out[k] = k in override ? override[k] : bv;
+    }
+  }
+  return out;
+}
+
+/** 内置默认快照（只读，用于"恢复默认"比对与视图展示） */
+export const LAYOUT_SPEC_DEFAULTS = {
+  ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, ANSWER_REGION, SQUARE_GRID,
+};
+
+/** 合并内置 + 用户覆盖，返回完整规格对象（消费者调用此函数获取最新值） */
+export function getMergedSpec() {
+  const user = loadLayoutSpecOverride();
+  return {
+    ZUOWEN_CELL: mergeNested(ZUOWEN_CELL, user.ZUOWEN_CELL),
+    ZUOWEN_MARK_STEP: { ...ZUOWEN_MARK_STEP, ...(user.ZUOWEN_MARK_STEP || {}) },
+    ZUOWEN_DEFAULT_SPAN: user.ZUOWEN_DEFAULT_SPAN ?? ZUOWEN_DEFAULT_SPAN,
+    BLANK: { ...BLANK, ...(user.BLANK || {}) },
+    WRITING_CARRIER: { ...WRITING_CARRIER, ...(user.WRITING_CARRIER || {}) },
+    ANSWER_REGION: mergeNested(ANSWER_REGION, user.ANSWER_REGION),
+    SQUARE_GRID: mergeNested(SQUARE_GRID, user.SQUARE_GRID),
+  };
+}
+
 export default {
   STAGE_GROUP,
-  ZUOWEN_CELL,
-  ZUOWEN_MARK_STEP,
-  ZUOWEN_DEFAULT_SPAN,
-  BLANK,
-  WRITING_CARRIER,
-  ANSWER_REGION,
-  SQUARE_GRID,
+  ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, ANSWER_REGION, SQUARE_GRID,
+  LAYOUT_SPEC_DEFAULTS,
+  loadLayoutSpecOverride, saveLayoutSpecOverride, resetLayoutSpecOverride, getMergedSpec,
 };

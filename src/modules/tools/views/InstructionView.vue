@@ -15,6 +15,9 @@
           <span class="dimb">{{ dims.genType ? GEN_TYPE_LABELS[dims.genType] : '全部类型' }}</span>
         </div>
         <button class="btn-p" @click="openNew">＋ 新增模板</button>
+        <button class="btn" @click="doExport">📤 导出</button>
+        <button class="btn" @click="importInput?.click()">📥 导入</button>
+        <input ref="importInput" type="file" accept=".json" style="display:none" @change="doImport" />
       </div>
     </div>
 
@@ -47,6 +50,7 @@
             <button v-if="t.layer === 'cell' || t.source === 'user'" class="btn" @click="startEdit(t)">
               {{ t.layer === 'cell' ? '✏️ 编辑（保存后覆盖内置，可恢复默认）' : '✏️ 编辑' }}
             </button>
+            <button class="btn" @click="copyTpl(t)">📋 复制</button>
             <button v-if="t.source === 'user'" class="btn danger" @click="removeTpl(t)">🗑️ 删除自定义/恢复默认</button>
           </div>
         </div>
@@ -104,6 +108,7 @@
 import { computed, inject, ref } from 'vue';
 import { listPromptTemplates, savePromptTemplate, deletePromptTemplate, BUILTIN_TEMPLATES } from '../../../config/promptLibrary.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
+import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
 const refreshLibStats = inject('refreshLibStats', () => {});
@@ -211,6 +216,37 @@ const createTpl = () => {
   openKey.value = key;
   const t = allTpl.value.find((x) => x.key === key);
   if (t) startEdit(t);
+};
+
+/* ===== 复制模板 ===== */
+const copyTpl = (t) => {
+  const newKey = `${t.key}_副本`;
+  savePromptTemplate(newKey, { name: `${t.name}（副本）`, template: t.template });
+  reload();
+  openKey.value = newKey;
+  const nt = allTpl.value.find((x) => x.key === newKey);
+  if (nt) startEdit(nt);
+};
+
+/* ===== 导入/导出 ===== */
+const importInput = ref(null);
+const TPL_USER_KEY = 'wisdom_prompt_library_v1';
+const doExport = () => {
+  exportLibrary('instruction', readLib(TPL_USER_KEY));
+};
+const doImport = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const data = await importLibrary(file);
+    if (typeof data !== 'object' || data === null) throw new Error('数据格式不正确');
+    writeLib(TPL_USER_KEY, data);
+    window.alert(`导入成功（${Object.keys(data).length} 条自定义模板）。`);
+    reload();
+  } catch (err) {
+    window.alert('导入失败：' + err.message);
+  }
+  e.target.value = '';
 };
 
 </script>

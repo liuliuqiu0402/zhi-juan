@@ -5,7 +5,7 @@
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader } from 'docx';
 import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
-import { ZUOWEN_CELL, ZUOWEN_MARK_STEP } from '../config/layoutSpec.js';
+import { getMergedSpec } from '../config/layoutSpec.js';
 
 // ============ 工具函数 ============
 
@@ -14,7 +14,7 @@ import { ZUOWEN_CELL, ZUOWEN_MARK_STEP } from '../config/layoutSpec.js';
 const MM2DXA = 56.69;
 const zwgCellByStage = (stage) => {
   const g = stage === 'primary' ? 'primary' : stage === 'high' ? 'high' : 'middle';
-  const c = ZUOWEN_CELL[g];
+  const c = getMergedSpec().ZUOWEN_CELL[g];
   return { widthDxa: Math.round(c.widthMm * MM2DXA), heightDxa: Math.round((c.heightMm || c.widthMm) * MM2DXA), widthMm: c.widthMm };
 };
 
@@ -1057,7 +1057,7 @@ const processBlockNode = (node, ctx = {}) => {
       // 🔧 正规作文纸字数标注（格子内小字下标，不占行、不影响书写）：累计 50/100/150…
       //    字所在的那个格子内部底部用浅灰小字标数字（如"50"），学生书写在格子中央，
       //    打印后标注不干扰；间隔按学段（来自排版规格库 ZUOWEN_MARK_STEP：小学 50 / 中学 100）
-      const MARK_STEP = ZUOWEN_MARK_STEP[__zwgStage === 'primary' ? 'primary' : __zwgStage === 'middle' ? 'middle' : 'high'];
+      const MARK_STEP = getMergedSpec().ZUOWEN_MARK_STEP[__zwgStage === 'primary' ? 'primary' : __zwgStage === 'middle' ? 'middle' : 'high'];
       const MARK_MAX = 800;
       const MARK_STEPS = [];
       for (let m = MARK_STEP; m <= MARK_MAX; m += MARK_STEP) MARK_STEPS.push(m);

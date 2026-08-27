@@ -18,6 +18,9 @@
         </div>
         <button class="btn" @click="resetAll">↩️ 恢复默认</button>
         <button class="btn-p" @click="openNew">＋ 新增规则</button>
+        <button class="btn" @click="doExport">📤 导出</button>
+        <button class="btn" @click="importInput?.click()">📥 导入</button>
+        <input ref="importInput" type="file" accept=".json" style="display:none" @change="doImport" />
       </div>
     </div>
 
@@ -54,9 +57,10 @@
             <b>维度：</b>{{ dimsText(r) }}
           </div>
           <div class="rule-ops">
-            <button class="btn" @click="startEdit(r)">✏️ 编辑</button>
-            <button v-if="r.source === 'user'" class="btn danger" @click="removeRule(r)">🗑️ 删除自定义</button>
-          </div>
+          <button class="btn" @click="startEdit(r)">✏️ 编辑</button>
+          <button class="btn" @click="copyRule(r)">📋 复制</button>
+          <button v-if="r.source === 'user'" class="btn danger" @click="removeRule(r)">🗑️ 删除自定义</button>
+        </div>
         </div>
 
         <!-- 编辑态 -->
@@ -112,6 +116,7 @@
 <script setup>
 import { computed, inject, ref } from 'vue';
 import { listValidatorRules, saveUserRule, deleteUserRule, resetUserRules } from '../../../config/validatorRules.js';
+import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
 const refreshLibStats = inject('refreshLibStats', () => {});
@@ -224,6 +229,40 @@ const saveNew = () => {
   };
   if (saveUserRule(rule)) { reload(); newOpen.value = false; form.value = null; }
   else window.alert('保存失败');
+};
+
+/* ===== 复制规则 ===== */
+const copyRule = (r) => {
+  form.value = {
+    id: `${r.id}_copy`, name: `${r.name}（副本）`, category: r.category,
+    subjectsText: (r.subjects || []).join('、'), stagesText: (r.stages || []).join('、'),
+    genTypesText: (r.genTypes || []).join('、'), enabled: r.enabled,
+    promptHint: r.promptHint, description: r.description,
+  };
+  newOpen.value = true;
+  editingKey.value = '';
+  origId.value = '';
+};
+
+/* ===== 导入/导出 ===== */
+const importInput = ref(null);
+const RULE_USER_KEY = 'wisdom_validator_rules_v1';
+const doExport = () => {
+  exportLibrary('rules', readLib(RULE_USER_KEY));
+};
+const doImport = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const data = await importLibrary(file);
+    if (typeof data !== 'object' || data === null) throw new Error('数据格式不正确');
+    writeLib(RULE_USER_KEY, data);
+    window.alert('导入成功。');
+    reload();
+  } catch (err) {
+    window.alert('导入失败：' + err.message);
+  }
+  e.target.value = '';
 };
 
 </script>
