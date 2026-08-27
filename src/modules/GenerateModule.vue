@@ -156,11 +156,19 @@
           placeholder="点击「生成指令」，按 年级×学科×资料类型 从指令库匹配注入；可直接编辑（仅本次生成生效）。长期修改请在「指令库」面板编辑保存。"
           class="instruction-textarea"
         ></textarea>
+        <div v-if="injectSources.length" class="inject-sources">
+          <div class="src-title">📚 本次注入来源（共 {{ injectSources.length }} 个库）</div>
+          <div v-for="s in injectSources" :key="s.lib" class="src-item">
+            <span class="src-lib">{{ s.lib }}</span>
+            <span class="src-name">{{ s.name }}</span>
+            <span class="src-detail">{{ s.detail }}</span>
+          </div>
+        </div>
         <div v-if="instructionSource" class="instruction-source">
-          来源：{{ instructionSource.name }}（{{ instructionSource.source === 'user' ? '用户自定义' : '内置模板' }}）· 匹配维度：{{ instructionSource.key }}
+          匹配维度：{{ instructionSource.key }} · 来源：{{ instructionSource.name }}（{{ instructionSource.source === 'user' ? '用户自定义' : '内置模板' }}）
         </div>
         <div class="inject-hint">
-          📎 生成时自动附加：教材原文（按知识点检索，分级限量）、{{ templateStore.templates.some(t => t.selected) ? '模板对标、' : '' }}{{ propositionStyle ? '情境框架、' : '' }}用户附加要求
+          📎 生成时自动附加：教材原文（按知识点检索，分级限量）、{{ templateStore.templates.some(t => t.selected) ? '模板对标、' : '' }}{{ propositionStyle ? '组织风格、' : '' }}用户附加要求
         </div>
         
         <div v-if="previewHint" class="preview-hint">
@@ -2868,6 +2876,7 @@ const instructionDraft = ref(
 );
 // 🔴 指令来源记录（注入框展示：来自指令库哪条模板、按什么维度匹配）
 const instructionSource = ref(null);
+const injectSources = ref([]); // 本次注入来源清单（指令库/蓝图库/渲染契约/规则库）——面板可视化"读取应用了哪些库"
 // 🔴 学段显示名（原 planner 导出，planner 已删除，本地定义）
 const STAGE_LABEL_MAP = {
   primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段',
@@ -4362,6 +4371,9 @@ const buildInstruction = async () => {
 };
 
 // 🔴 生成指令：按三维度（年级×学科×资料类型）从指令库匹配模板并组装注入指令
+// 统计生成前约束文本中的 fix 规则条数（清单展示用）
+const countPromptHints = (txt) => (String(txt || '').match(/\n· /g) || []).length;
+
 const loadInstructionFromLibrary = async () => {
   const selectedBooks = textbookStore.textbooks.filter(b => hasAnySelected(b.outline));
   if (selectedBooks.length === 0) {
@@ -4447,20 +4459,30 @@ const loadInstructionFromLibrary = async () => {
   // 🔴 渲染指令契约（EduRender）按 学段×学科×类型×是否配图 三维度+注入——功能闭合：
   //    图形学科给 [GRAPH]（按学段裁剪：低段数学无函数/几何、物理化学仅中学）、
   //    数理化学科按学段给公式、配图类题型给 [IMAGE]（EduRender 可渲染）
-  instructionDraft.value += buildRenderContract({
+  const renderContractText = buildRenderContract({
     subject, genType, stage: stageKey,
     needsImage: needsImageHint(`${structure} ${genTypeLabel} ${unit}`, genType),
   });
+  if (renderContractText) instructionDraft.value += renderContractText;
   // 🔴 卷面质检规则（规则库）按 学段×学科×类型 注入生成前约束（fix 类规则提示，防患未然；
   //    生成后由校验器静默自动修复，无需人工处理）
-  instructionDraft.value += buildValidatorPrompt({ subject, stage: stageKey, genType });
+  const validatorPromptText = buildValidatorPrompt({ subject, stage: stageKey, genType });
+  if (validatorPromptText) instructionDraft.value += validatorPromptText;
   // 🔴 蓝图注入：exam 附加真题蓝本（题型骨架 + 大题命题要求 + 学段/学科新课标条款）；
   //    非 exam 附加教辅结构蓝本（栏目框架 + 题量/字数底线，按 学段×类型 三维度）；
   //    模板正文已自带【输出格式】，用户自定义模板可能缺失 → 去重兜底追加
+  let blueprintDetail = '';
   if (genType === 'exam') {
-    if (bp) instructionDraft.value += buildBlueprintInjection(applyScoreAdjust(bp));
+    if (bp) {
+      instructionDraft.value += buildBlueprintInjection(applyScoreAdjust(bp));
+      blueprintDetail = `真题蓝本「${bp.label}」· ${bp.sections.length} 个大题（大题/分值/时长）`;
+    }
   } else {
-    instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey, subject });
+    const teachingText = buildTeachingInjection({ genType, stage: stageKey, subject });
+    if (teachingText) {
+      instructionDraft.value += teachingText;
+      blueprintDetail = `教辅结构「${genTypeLabel}」· 栏目框架 + 题量底线`;
+    }
     if (!instructionDraft.value.includes('【输出格式】')) {
       instructionDraft.value += OUTPUT_FORMAT_HINT;
     }
@@ -4470,6 +4492,12 @@ const loadInstructionFromLibrary = async () => {
     source: tpl.source,
     key: tpl.id || genType,
   };
+  injectSources.value = [
+    { lib: '指令库', name: tpl.name || genType, detail: `${stageKey} × ${subject} × ${genType}（${tpl.source === 'user' ? '用户自定义' : '内置模板'}）` },
+    ...(blueprintDetail ? [{ lib: '蓝图库', name: genType === 'exam' ? '真题蓝本' : '教辅结构', detail: blueprintDetail }] : []),
+    ...(renderContractText ? [{ lib: '渲染契约库', name: '渲染指令', detail: '图形 / 公式 / 配图标记协议（按学科×学段）' }] : []),
+    ...(validatorPromptText ? [{ lib: '规则库', name: '生成前约束', detail: `${countPromptHints(validatorPromptText)} 条 fix 规则` }] : []),
+  ];
   previewHint.value = `注入指令来自指令库「${instructionSource.value.name}」，按 ${stageKey} × ${subject} × ${genType} 匹配${tpl.source === 'user' ? '（用户自定义）' : '（内置模板）'}。长期修改请到「指令库」面板编辑保存。`;
 };
 
@@ -4494,8 +4522,9 @@ const restoreDefaultInstruction = async () => {
   let structure = '';
   let fullScore = '';
   let duration = '';
+  let bp = null;
   try {
-    const bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value });
+    bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value });
     if (bp) {
       structure = buildStructureText(bp);
       fullScore = bp.fullScore || '';
@@ -4521,6 +4550,10 @@ const restoreDefaultInstruction = async () => {
     instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey, subject });
   }
   instructionSource.value = { name: `内置默认·${genTypeLabel}`, source: 'builtin', key: genType };
+  injectSources.value = [
+    { lib: '指令库', name: `内置默认·${genTypeLabel}`, detail: `${stageKey} × ${subject} × ${genType}（内置模板）` },
+    ...(bp ? [{ lib: '蓝图库', name: genType === 'exam' ? '真题蓝本' : '教辅结构', detail: bp.label }] : []),
+  ];
   previewHint.value = '已恢复内置默认指令（未改动你的自定义模板）。';
 };
 
@@ -4539,6 +4572,7 @@ const clearInstruction = async () => {
   }
   instructionDraft.value = '';
   previewHint.value = '';
+  injectSources.value = [];
 };
 
 // AI分析素材
@@ -8176,6 +8210,27 @@ const addBlueprintQuestion = () => {
   color: #2e7d32;
   font-size: 13px;
 }
+
+/* 本次注入来源清单（面板可视化：生成读了哪些库） */
+.inject-sources {
+  margin-top: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: var(--bg-card);
+}
+.src-title { font-size: 12.5px; font-weight: 700; color: #26303e; margin-bottom: 6px; }
+.src-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12.5px; }
+.src-item + .src-item { border-top: 1px dashed var(--border-light); }
+.src-lib {
+  flex: 0 0 auto; font-size: 11px; font-weight: 700; color: #fff;
+  background: var(--primary); border-radius: 6px; padding: 1px 8px;
+}
+.src-name { flex: 0 0 auto; font-weight: 600; color: #26303e; }
+.src-detail { flex: 1 1 auto; color: var(--text-muted); font-size: 12px; }
+
+.instruction-source { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+.inject-hint { margin-top: 6px; font-size: 12px; color: var(--text-muted); }
 
 .analysis-result {
   margin-top: 12px;
