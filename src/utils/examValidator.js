@@ -918,6 +918,30 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     if (has('image-block-fix') && /看图写话|写话|看图/.test(bodyText) && !/\[IMAGE\]/.test(out)) {
       silentCount('image-missing', '含"看图/写话"的题无 [IMAGE] 配图标记块，请抽检');
     }
+    // 2j-3b 写话/作文题缺题干说明（仅标题行，如"15. 看图写话。（共20分）"后直接是配图/格子/下一题）
+    //    ——真实事故：模型只输出标题行、无"仔细观察图片，写一段话"式情境与写作提示
+    if (has('writing-grid-fix') && /看图写话|写话|习作|作文|写作/.test(bodyText)) {
+      try {
+        const tplT = document.createElement('template');
+        tplT.innerHTML = out;
+        const psT = Array.from(tplT.content.querySelectorAll('p'));
+        const kwReT = /看图写话|写话|习作|作文|写作/;
+        for (const p of psT) {
+          const tt = (p.textContent || '').trim();
+          if (tt.length >= 22 || !kwReT.test(tt)) continue;
+          // 标题行（短）：其后需有说明段（下一个 p：非配图、非标题、≥10 字）；否则判定缺题干
+          let n = p.nextElementSibling;
+          while (n && n.tagName === 'DIV' && /zuo-wen-ge/.test(n.className || '')) n = n.nextElementSibling;
+          const nextP = n && n.tagName === 'P' ? n : null;
+          const npText = (nextP?.textContent || '').trim();
+          const hasDesc = nextP && !/\[IMAGE\]/.test(npText) && npText.length >= 10 && !kwReT.test(npText);
+          if (!hasDesc) {
+            silentCount('writing-grid', `「${tt.slice(0, 16)}」仅标题行、缺题干说明（情境与写作提示），请抽检`);
+            break;
+          }
+        }
+      } catch (e) { /* 静默 */ }
+    }
     // 2j-4 田字格载体缺失（规则 writing-grid-fix：题干要求田字格但无格子）
     if (has('writing-grid-fix') && /田字格中写|在田字格|方格中写/.test(bodyText) && !/tian-zi-ge/.test(out)) {
       silentCount('writing-grid', '题干要求"田字格中写"但正文无田字格格子——作答载体缺失，请抽检');

@@ -1559,7 +1559,7 @@ import {
   normalizeSubjectName
 } from '../config/expertKnowledge.js';
 import { useAiGenerator } from '../composables/useAiGenerator.js';
-import { inferPaperScope, buildScopeCandidates, inferAcademicTerm, SCOPE_LABEL_POOLS } from '../config/recipe/paperScope.js';
+import { inferPaperScope, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, SCOPE_LABEL_POOLS } from '../config/recipe/paperScope.js';
 
 // 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
 const SCOPE_TYPE_LABELS = { default: '默认', midterm: '期中', final: '期末', monthly: '月考', topic: '专题' };
@@ -6663,6 +6663,21 @@ const confirmPeriodSplit = async () => {
       const scopeInfo = inferPaperScope(chapters, book?.outline || [], scopeType.value || '');
       let chapterName = scopeInfo.name;
       let isScopeChapterName = scopeInfo.isScopeLabel;
+      // ✏️ 标题命名规范（程序强制，替换模型自由生成的 h1）：普通型=年级+学科+册别+范围名+类型名（类型名池轮换）；
+      //    考试型（期中/期末/月考/专题）=学年度学期+年级+学科+范围标签词（池轮换）——规则定义在 paperScope.buildPaperTitle
+      const finalTitle = buildPaperTitle({
+        grade: gradeLabel,
+        subject: subjectLabel,
+        semester: book?.semester || '',
+        scopeName: chapterName,
+        typeLabel: isScopeChapterName ? '' : (labelStyle.value || pickLabelFromPool(genType, '_all_')),
+        academic: isScopeChapterName ? inferAcademicTerm() : '',
+        isExam: isScopeChapterName,
+      });
+      // 🔧 强制规范化：内容中第一个 <h1> 替换为命名规范标题（模型自由生成的标题不再进卷面/文件名）
+      const forceTitle = (content) => (typeof content === 'string' && content)
+        ? content.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, `<h1>${finalTitle}</h1>`)
+        : content;
       const parts = [bookPrefix, chapterName, isScopeChapterName ? null : genTypeName].filter(Boolean);
       const now = new Date();
       const ts = now.toLocaleDateString('zh-CN') + ' ' + now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -6673,16 +6688,17 @@ const confirmPeriodSplit = async () => {
         result.periods.forEach((period, pi) => {
           const safeContent = (period.content && typeof period.content === 'string') ? period.content : '';
           if (!safeContent) return; // 跳过生成失败的课时
+          const forced = forceTitle(safeContent); // 标题命名规范强制
           // 🔧 优先取课时内容中的 <h1> 标题，回退到课时名拼接
-          const periodExtracted = extractTitleFromContent(safeContent);
+          const periodExtracted = extractTitleFromContent(forced);
           const periodTitle = periodExtracted
             ? periodExtracted + '_' + ts
             : `${baseTitle} — ${period.periodName}`;
           generatedDocs.value.push({
             id: 'period_' + Date.now() + '_' + pi + '_' + Math.random().toString(36).slice(2, 8),
             title: periodTitle,
-            content: renderImagePlaceholders(safeContent),
-            rawContent: safeContent,
+            content: renderImagePlaceholders(forced),
+            rawContent: forced,
             genType: genTypeName,
             style: propositionStyle.value,
             selected: false,
@@ -6705,16 +6721,17 @@ const confirmPeriodSplit = async () => {
       // 添加合并版完整条目
       const combinedContent = (result.content && typeof result.content === 'string') ? result.content : '';
       if (combinedContent) {
+        const forcedCombined = forceTitle(combinedContent); // 标题命名规范强制
         // 🔧 优先取合并版内容中的 <h1> 标题
-        const combinedExtracted = extractTitleFromContent(combinedContent);
+        const combinedExtracted = extractTitleFromContent(forcedCombined);
         const combinedTitle = combinedExtracted
           ? combinedExtracted + '_' + ts
           : `${baseTitle} — 完整版（${result.periodCount}课时）`;
         generatedDocs.value.push({
           id: 'period_combined_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
           title: combinedTitle,
-          content: renderImagePlaceholders(combinedContent),
-          rawContent: combinedContent,
+          content: renderImagePlaceholders(forcedCombined),
+          rawContent: forcedCombined,
           genType: genTypeName,
           style: propositionStyle.value,
           selected: false,

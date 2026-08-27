@@ -89,3 +89,38 @@ describe('根治回归：作文格位置（题干 → 配图 → 作文格）', 
     expect(zwgIdx).toBeGreaterThan(imgIdx); // 格子必须在配图之后
   });
 });
+
+describe('根治回归：写话/作文题缺题干说明 guard（真实事故：仅标题行）', () => {
+  it('写话题仅标题行（后接配图）→ 静默提示缺题干', () => {
+    const html = [
+      '<h2>四、表达与交流（共1题，共20分）</h2>',
+      '<p>15. 看图写话。（共20分）</p>',
+      '<p>[IMAGE]\nTYPE:SD\nPROMPT:春天公园\n[/IMAGE]</p>',
+    ].join('\n');
+    const { silentDetails } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(silentDetails.some(d => d.message.includes('缺题干说明'))).toBe(true);
+  });
+
+  it('写话题有完整题干说明（标题行 + 说明段）→ 不提示', () => {
+    const html = [
+      '<h2>四、表达与交流（共1题，共20分）</h2>',
+      '<p>15. 看图写话。（共20分）仔细观察图片，写一段话。</p>',
+      '<p>[IMAGE]\nTYPE:SD\nPROMPT:春天公园\n[/IMAGE]</p>',
+    ].join('\n');
+    const { silentDetails } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(silentDetails.some(d => d.message.includes('缺题干说明'))).toBe(false);
+  });
+});
+
+describe('标题命名规范 buildPaperTitle', () => {
+  it('普通型：年级+学科+册别+范围名+类型名', async () => {
+    const { buildPaperTitle } = await import('../../src/config/recipe/paperScope.js');
+    const t = buildPaperTitle({ grade: '二年级', subject: '语文', semester: '上册', scopeName: '第二单元', typeLabel: '综合检测' });
+    expect(t).toBe('二年级语文上册第二单元综合检测');
+  });
+  it('考试型：学年度学期+年级+学科+范围标签词', async () => {
+    const { buildPaperTitle } = await import('../../src/config/recipe/paperScope.js');
+    const t = buildPaperTitle({ grade: '二年级', subject: '语文', scopeName: '期中综合测试', academic: '2025—2026学年度第一学期', isExam: true });
+    expect(t).toBe('2025—2026学年度第一学期二年级语文期中综合测试');
+  });
+});

@@ -35,6 +35,18 @@ export const SCOPE_DIMENSION_LABELS = { midterm: '期中', final: '期末', mont
 export const EXPLICIT_SCOPE_TYPES = ['midterm', 'final', 'monthly', 'topic'];
 
 /**
+ * 卷首大标题拼装（标题命名规范，GenerateModule 注入与入库统一使用，便于维护）：
+ *   普通型（课/单元范围）：年级 + 学科 + 册别 + 范围名 + 类型名（类型名从名称池轮换）
+ *   考试型（期中/期末/月考/专题，isExam=true）：学年度学期 + 年级 + 学科 + 范围标签词（从名称池轮换）
+ */
+export const buildPaperTitle = ({ grade = '', subject = '', semester = '', scopeName = '', typeLabel = '', academic = '', isExam = false }) => {
+  const parts = isExam
+    ? [academic, grade, subject, scopeName].filter(Boolean)
+    : [grade, subject, semester, scopeName, typeLabel].filter(Boolean);
+  return parts.join('') || '未命名资料';
+};
+
+/**
  * 计算勾选节点最近公共祖先（LCA）。
  * @returns {{ lcaIdx:number, node:Object|null }} 无公共祖先返回 { lcaIdx:-1, node:null }
  */
