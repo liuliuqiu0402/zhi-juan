@@ -8,6 +8,8 @@
         <span class="ov-sep">·</span>
         <b>契约学科 {{ contractList.length }} / {{ SUBJECT_KEYS.length }}</b>
         <span class="ov-sep">·</span>
+        <span>停用 <b class="issue-n">{{ disabledSub.size }}</b> 学科</span>
+        <span class="ov-sep">·</span>
         <span>缺口 <b class="issue-n">{{ gapCount }}</b></span>
       </div>
       <div class="dim-now">
@@ -33,7 +35,7 @@
     <!-- 图形 TYPE 目录（手风琴） -->
     <h4 class="rc-h">📊 图形 TYPE 目录（[GRAPH] 协议）<span class="hint">点击 TYPE 查看示例骨架</span></h4>
     <div class="rc-list">
-      <div v-for="t in typeList" :key="t.id" class="rc-card" :class="{ open: openType === t.id }">
+      <div v-for="t in typeList" :key="t.id" class="rc-card" :class="{ open: openType === t.id, disabled: typeOff(t.id) }">
         <div class="rc-head" @click="toggleType(t.id)">
           <span class="arrow">{{ openType === t.id ? '▾' : '▸' }}</span>
           <span class="lib-tag">🎨 契约库</span>
@@ -41,6 +43,10 @@
           <span class="key-hint" :title="'图形类型'">GRAPH</span>
           <span class="rc-desc">{{ t.desc }}</span>
           <span class="rc-meta">{{ t.subjects.length }} 学科</span>
+          <label class="sw" :class="{ off: typeOff(t.id) }" @click.stop title="停用后此 TYPE 不再注入 [GRAPH] 契约（渲染端不再输出）">
+            <input type="checkbox" :checked="!typeOff(t.id)" @change="toggleTypeOn(t.id, $event.target.checked)" />
+            <span>{{ typeOff(t.id) ? '已停用' : '启用' }}</span>
+          </label>
         </div>
         <div v-if="openType === t.id" class="rc-body">
           <div class="rc-subjects">
@@ -56,7 +62,7 @@
     <!-- 学科契约矩阵 -->
     <h4 class="rc-h">📚 学科契约（学科 × 学段 → 图形/公式/配图）<span class="hint">按学科筛选联动 · 展开可自定义</span></h4>
     <div class="rc-list">
-      <div v-for="c in contractList" :key="c.subject" class="rc-card" :class="{ open: openSub === c.subject, editing: editingSub === c.subject }">
+      <div v-for="c in contractList" :key="c.subject" class="rc-card" :class="{ open: openSub === c.subject, editing: editingSub === c.subject, disabled: subOff(c.subject) }">
         <div class="rc-head" @click="toggleSub(c.subject)">
           <span class="arrow">{{ openSub === c.subject ? '▾' : '▸' }}</span>
           <span class="lib-tag">🎨 契约库</span>
@@ -69,8 +75,13 @@
             <span v-if="c.formula" class="mini">公式 ✓</span>
             <span v-if="c.image" class="mini">配图 ✓</span>
           </span>
+          <label class="sw" :class="{ off: subOff(c.subject) }" @click.stop title="停用后此学科不再注入图形/公式/配图契约（生成端不输出 [GRAPH]/公式/[IMAGE]）">
+            <input type="checkbox" :checked="!subOff(c.subject)" @change="toggleSubOn(c.subject, $event.target.checked)" />
+            <span>{{ subOff(c.subject) ? '已停用' : '启用' }}</span>
+          </label>
         </div>
         <div v-if="openSub === c.subject && editingSub !== c.subject" class="rc-body">
+          <div v-if="subOff(c.subject)" class="off-banner">⏸ 已停用：本学科图形/公式/配图契约均不注入（重新启用即恢复）</div>
           <div class="rc-subjects">
             <b>图形类型：</b>
             <span v-for="g in c.graphTypes" :key="g" class="car car-g">{{ g }}</span>
@@ -165,6 +176,7 @@ import { computed, inject, ref } from 'vue';
 import { GRAPH_TYPES, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES, GRAPH_SAMPLES, needsImageHint } from '../../../config/eduRenderContract.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
+import { setLibToggle, listDisabledEntries } from '../../../utils/libToggles.js';
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
 
@@ -193,6 +205,26 @@ const typeList = GRAPH_TYPES.map((id) => ({
 }));
 const openType = ref('');
 const toggleType = (id) => { openType.value = openType.value === id ? '' : id; };
+
+/* ===== 图形 TYPE 启用/停用开关（停用 = 不再注入该 TYPE，见 buildRenderContract） ===== */
+const disabledType = ref(new Set(listDisabledEntries('render-contract')));
+const typeOff = (id) => disabledType.value.has(id);
+const toggleTypeOn = (id, on) => {
+  setLibToggle('render-contract', id, on);
+  const next = new Set(disabledType.value);
+  if (on) next.delete(id); else next.add(id);
+  disabledType.value = next;
+};
+
+/* ===== 学科契约启用/停用开关（停用 = 该学科不注入图形/公式/配图契约，见 buildRenderContract 的 subj: 检查） ===== */
+const disabledSub = ref(new Set([...listDisabledEntries('render-contract')].filter((k) => k.startsWith('subj:')).map((k) => k.slice(5))));
+const subOff = (subject) => disabledSub.value.has(subject);
+const toggleSubOn = (subject, on) => {
+  setLibToggle('render-contract', `subj:${subject}`, on);
+  const next = new Set(disabledSub.value);
+  if (on) next.delete(subject); else next.add(subject);
+  disabledSub.value = next;
+};
 
 /* ===== 学科契约（内置 + 用户自定义） ===== */
 const USER_KEY = 'wisdom_render_contract_v1';
@@ -324,6 +356,12 @@ const copyContract = (c) => {
 
 <style scoped>
 .rc-page { padding: 18px 22px 30px; max-width: 1080px; }
+/* 图形 TYPE 启用/停用开关（停用卡片灰显） */
+.sw { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font-size: 12px; color: #2e7d32; user-select: none; white-space: nowrap; }
+.sw.off { color: #c0392b; }
+.sw input { accent-color: var(--primary); cursor: pointer; }
+.rc-card.disabled .rc-head { opacity: .55; }
+.off-banner { font-size: 12px; color: #a06a10; background: #fdf3e2; border: 1px solid #f3d9a8; border-radius: 6px; padding: 6px 10px; margin-bottom: 8px; }
 .rc-overview { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; background: var(--bg); border: 1px solid var(--border-light); border-radius: 10px; padding: 10px 14px; box-shadow: 0 2px 6px rgba(30,58,111,.06); }
 .lib-badge { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 6px; padding: 3px 10px; margin-right: 10px; }
 .ov-sep { margin: 0 8px; color: #c2ccda; }

@@ -464,10 +464,10 @@ export const apiConfig = reactive({
     // 🔧 知识点分析 → 升级到重型模型（需准确判断认知层次、提取命题素材）
     contentAnalysis: 'heavy',
     
-    // 命题蓝图 → 重型模型（最复杂的任务，需要推理能力）
+    // 命题规划（注入蓝图构建）→ 重型模型（最复杂的任务，需要推理能力）
     blueprintGeneration: 'heavy',
     
-    // 逐题生成 → 重型模型（需要创造力和准确性）
+    // 整卷生成 → 重型模型（需要创造力和准确性）
     questionGeneration: 'heavy',
     
     // 🔧 逐题验证/数学验算 → 新增：用独立模型，低温确保客观

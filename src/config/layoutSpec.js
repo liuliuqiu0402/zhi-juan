@@ -15,6 +15,8 @@
  * ============================================================
  */
 
+import { isLibEntryEnabled } from '../utils/libToggles.js';
+
 /** 作文格格宽（mm）· 按排版学段。列数由 A4 可用宽度自动排满。 */
 export const ZUOWEN_CELL = {
   primary: { widthMm: 12, heightMm: 12 },   // 小学：12×12mm 正方形
@@ -227,9 +229,23 @@ export const LAYOUT_SPEC_DEFAULTS = {
   BRACKET_GRID, ZUOWEN_FILL_CELLS,
 };
 
+/** 规格组 → 顶级字段映射（LayoutSpecView 启停开关按组控制） */
+export const LAYOUT_SPEC_GROUPS = {
+  zuowen: ['ZUOWEN_CELL', 'ZUOWEN_MARK_STEP', 'ZUOWEN_DEFAULT_SPAN'],
+  blank: ['BLANK'],
+  carrier: ['WRITING_CARRIER'],
+  answer: ['ANSWER_REGION'],
+  square: ['SQUARE_GRID', 'BRACKET_GRID', 'ZUOWEN_FILL_CELLS'],
+  'carrier-rules': ['CARRIER_RULES'],
+};
+
 /** 合并内置 + 用户覆盖，返回完整规格对象（消费者调用此函数获取最新值） */
 export function getMergedSpec() {
   const user = loadLayoutSpecOverride();
+  // 工具库启停开关：停用的规格组不合并用户覆盖（回退内置默认，消费者零改动）
+  for (const [gid, keys] of Object.entries(LAYOUT_SPEC_GROUPS)) {
+    if (!isLibEntryEnabled('layout-spec', gid)) for (const k of keys) user[k] = undefined;
+  }
   return {
     ZUOWEN_CELL: mergeDeep(ZUOWEN_CELL, user.ZUOWEN_CELL),
     ZUOWEN_MARK_STEP: { ...ZUOWEN_MARK_STEP, ...(user.ZUOWEN_MARK_STEP || {}) },
@@ -247,7 +263,7 @@ export function getMergedSpec() {
 export default {
   ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, CARRIER_RULES, ANSWER_REGION, SQUARE_GRID,
   BRACKET_GRID, ZUOWEN_FILL_CELLS,
-  LAYOUT_SPEC_DEFAULTS,
+  LAYOUT_SPEC_DEFAULTS, LAYOUT_SPEC_GROUPS,
   loadLayoutSpecOverride, saveLayoutSpecOverride, resetLayoutSpecOverride, getMergedSpec, getCarrierAllowlist,
   getAnswerRegion,
 };

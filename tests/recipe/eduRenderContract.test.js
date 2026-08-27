@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildRenderContract, needsImageHint, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES } from '@/config/eduRenderContract.js';
 import { getPromptTemplate, listPromptTemplates } from '@/config/promptLibrary.js';
+import { setLibToggle } from '@/utils/libToggles.js';
 
 describe('EduRender 渲染契约（三维度注入）', () => {
   it('图形学科（数学）注入 [GRAPH] 说明', () => {
@@ -271,5 +272,39 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(t2.template).toContain('【物理·初中要点】');
     // 小学低段×语文：有三维度模板
     expect(getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template).toContain('【语文·小学低段要点】');
+  });
+});
+
+describe('渲染 TYPE 停用（工具库开关）', () => {
+  it('停用 TYPE 后从注入列表剔除（示例骨架为格式说明，不受开关影响）', () => {
+    const typeLine = (out) => out.split('\n').find((l) => l.includes('TYPE ∈')) || '';
+    // 前置：数学注入列表含 BAR_CHART 与 COORDINATE
+    expect(typeLine(buildRenderContract({ subject: '数学', genType: 'exam' }))).toContain('BAR_CHART');
+    setLibToggle('render-contract', 'BAR_CHART', false);
+    const line = typeLine(buildRenderContract({ subject: '数学', genType: 'exam' }));
+    expect(line).not.toContain('BAR_CHART');
+    expect(line).toContain('COORDINATE'); // 其余 TYPE 保留
+    setLibToggle('render-contract', 'BAR_CHART', true);
+    expect(typeLine(buildRenderContract({ subject: '数学', genType: 'exam' }))).toContain('BAR_CHART');
+  });
+});
+
+describe('学科契约停用（工具库开关，subj: 前缀）', () => {
+  it('停用学科契约 → 该学科图形/公式/配图全部不注入', () => {
+    // 前置：数学初中注入 [GRAPH] 与公式；语文看图题注入 [IMAGE]
+    expect(buildRenderContract({ subject: '数学', genType: 'exam', stage: 'middle' })).toContain('[GRAPH]');
+    expect(buildRenderContract({ subject: '语文', genType: 'exam', needsImage: true })).toContain('[IMAGE]');
+    setLibToggle('render-contract', 'subj:数学', false);
+    expect(buildRenderContract({ subject: '数学', genType: 'exam', stage: 'middle' })).toBe('');
+    setLibToggle('render-contract', 'subj:语文', false);
+    expect(buildRenderContract({ subject: '语文', genType: 'exam', needsImage: true })).toBe('');
+    // 停用学科不影响其他学科
+    expect(buildRenderContract({ subject: '化学', genType: 'exam', stage: 'middle' })).toContain('[GRAPH]');
+  });
+
+  it('重新启用 → 恢复注入', () => {
+    setLibToggle('render-contract', 'subj:数学', false);
+    setLibToggle('render-contract', 'subj:数学', true);
+    expect(buildRenderContract({ subject: '数学', genType: 'exam', stage: 'middle' })).toContain('[GRAPH]');
   });
 });

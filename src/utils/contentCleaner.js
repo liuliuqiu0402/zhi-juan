@@ -275,11 +275,17 @@ export const resizeBlanksByAnswer = (html, answerHtml, bl = {}) => {
       const q = parseInt(qs, 10);
       const ansText = ansByQ[q];
       if (!ansText || spans.length === 0) continue;
+      // 壳词答案（略/见解析等）不代表真实答案长度 → 跳过校准（防错配场景误改宽度）
+      if (/^(?:略|答案略|见解析|见教材|待补充|暂无|此处留白|待填写)[。.、]?$/.test(ansText)) continue;
       const n = Math.min(maxCap, Math.max(minBlank, Math.ceil(([...ansText].length / spans.length) * wordGap)));
       for (const sp of spans) {
-        const cls = [...sp.classList].find((c) => /^blank-\d+$/.test(c));
-        if (cls && cls !== `blank-${n}`) {
-          sp.classList.remove(cls);
+        // 🔴 只加宽不缩窄（防误伤）：AI 估算宽度偏小（写不下）是主要问题，宽度偏大仅视觉宽松；
+        //    缩窄在"子题归父题/壳词答案"等错配场景会压缩手写空间（=内容破坏），故只单向修正
+        const cur = [...sp.classList].find((c) => /^blank-\d+$/.test(c));
+        if (!cur) continue;
+        const curN = parseInt(cur.slice(6), 10) || 0;
+        if (curN > 0 && n > curN) {
+          sp.classList.remove(cur);
           sp.classList.add(`blank-${n}`);
           changed += 1;
         }

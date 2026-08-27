@@ -50,4 +50,18 @@ describe('resizeBlanksByAnswer 按答案回填空位宽度', () => {
     const out = resizeBlanksByAnswer(html, ans);
     expect(out).toContain('blank-10');
   });
+
+  it('答案短于空位 → 只加宽不缩窄（blank-6 不缩成 blank-2，防压缩手写空间）', () => {
+    const html = '<p>6. 填空：<span class="blank-6">&emsp;</span></p>';
+    const ans = '<div class="answer-section"><h2>参考答案</h2><p>6. 答案：好</p></div>';
+    const out = resizeBlanksByAnswer(html, ans);
+    expect(out).toContain('blank-6');
+    expect(out).not.toContain('blank-2');
+  });
+
+  it('壳词答案（略）→ 跳过校准，空位保持原样（防错配误改宽度）', () => {
+    const html = '<p>7. 填空：<span class="blank-2">&emsp;</span></p>';
+    const ans = '<div class="answer-section"><h2>参考答案</h2><p>7. 答案：略</p></div>';
+    expect(resizeBlanksByAnswer(html, ans)).toBe(html);
+  });
 });

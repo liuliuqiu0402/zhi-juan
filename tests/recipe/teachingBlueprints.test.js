@@ -10,6 +10,7 @@ import {
   TEACHING_BLUEPRINTS, TEACHING_GEN_TYPES,
   getTeachingBlueprint, buildTeachingInjection,
 } from '@/config/teachingBlueprints.js';
+import { setLibToggle } from '@/utils/libToggles.js';
 
 const STAGES = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
 
@@ -255,5 +256,27 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     const pe = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '体育' });
     expect(pe).toContain('体育·课时练');
     expect(pe).toContain('动作要领');
+  });
+});
+
+describe('教辅结构条目停用（工具库开关）', () => {
+  it('停用学科定制 → 无教辅结构注入（null）', () => {
+    // 前置：语文课时练是学科定制
+    expect(getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '语文' }).custom).toBe(true);
+    setLibToggle('blueprint', '语文|practice', false);
+    expect(getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '语文' })).toBeNull();
+    expect(buildTeachingInjection({ genType: 'practice', stage: 'primary_low', subject: '语文' })).toBe('');
+    setLibToggle('blueprint', '语文|practice', true);
+    expect(getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '语文' }).custom).toBe(true);
+  });
+
+  it('停用通用回退行（无学科定制）只影响该学科，其他学科不受影响', () => {
+    // 前置：未知学科 practice 无学科定制（通用回退）
+    expect(getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '未知学科' }).custom).toBe(false);
+    setLibToggle('blueprint', '未知学科|practice', false);
+    expect(getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '未知学科' })).toBeNull();
+    // 其他学科（数学，学科定制）不受影响
+    expect(getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '数学' }).custom).toBe(true);
+    setLibToggle('blueprint', '未知学科|practice', true);
   });
 });

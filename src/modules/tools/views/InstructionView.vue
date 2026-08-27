@@ -33,7 +33,7 @@
     <!-- 模板列表（手风琴） -->
     <h4 class="tpl-h">🧾 创作模板<span class="hint">点击名称展开/收起 · 展开后可编辑</span></h4>
     <div class="tpl-list">
-      <div v-for="t in tplList" :key="t.key" class="tpl-card" :class="{ open: openKey === t.key, editing: editingKey === t.key }">
+      <div v-for="t in tplList" :key="t.key" class="tpl-card" :class="{ open: openKey === t.key, editing: editingKey === t.key, disabled: tplOff(t.key) }">
         <div class="tpl-head" @click="toggle(t.key)">
           <span class="arrow">{{ openKey === t.key ? '▾' : '▸' }}</span>
           <span class="lib-tag">📝 指令库</span>
@@ -41,6 +41,10 @@
           <span class="dim-name">{{ tplDimName(t) }}</span>
           <span class="key-hint" :title="'数据键：' + t.key">{{ t.key }}</span>
           <span class="tpl-meta">{{ t.template.length }} 字</span>
+          <label class="sw" :class="{ off: tplOff(t.key) }" @click.stop title="停用后生成端不命中此模板（自动落回下一级匹配）">
+            <input type="checkbox" :checked="!tplOff(t.key)" @change="toggleTpl(t.key, $event.target.checked)" />
+            <span>{{ tplOff(t.key) ? '已停用' : '启用' }}</span>
+          </label>
         </div>
 
         <!-- 展开态：预览 -->
@@ -109,9 +113,20 @@ import { computed, inject, ref } from 'vue';
 import { listPromptTemplates, savePromptTemplate, deletePromptTemplate, BUILTIN_TEMPLATES } from '../../../config/promptLibrary.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
+import { setLibToggle, listDisabledEntries } from '../../../utils/libToggles.js';
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
 const refreshLibStats = inject('refreshLibStats', () => {});
+
+/* ===== 条目启用/停用开关（停用 = 不命中，自动落下一级，见 getPromptTemplate） ===== */
+const disabledTpl = ref(new Set(listDisabledEntries('instruction')));
+const tplOff = (key) => disabledTpl.value.has(key);
+const toggleTpl = (key, on) => {
+  setLibToggle('instruction', key, on);
+  const next = new Set(disabledTpl.value);
+  if (on) next.delete(key); else next.add(key);
+  disabledTpl.value = next;
+};
 
 const STAGE_LABELS = {
   primary_low: '小学低段（1-2年级）', primary_mid: '小学中段（3-4年级）', primary_high: '小学高段（5-6年级）', middle: '初中（7-9年级）', high: '高中',
@@ -253,6 +268,11 @@ const doImport = async (e) => {
 
 <style scoped>
 .tpl-page { padding: 18px 22px 30px; max-width: 1080px; }
+/* 条目启用/停用开关（停用卡片灰显） */
+.sw { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font-size: 12px; color: #2e7d32; user-select: none; white-space: nowrap; }
+.sw.off { color: #c0392b; }
+.sw input { accent-color: var(--primary); cursor: pointer; }
+.tpl-card.disabled .tpl-head { opacity: .55; }
 .tpl-overview { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; background: var(--bg); border: 1px solid var(--border-light); border-radius: 10px; padding: 10px 14px; box-shadow: 0 2px 6px rgba(30,58,111,.06); }
 .lib-badge { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 6px; padding: 3px 10px; margin-right: 10px; }
 .ov-sep { margin: 0 8px; color: #c2ccda; }

@@ -33,7 +33,7 @@
     <!-- 真题蓝本（手风琴） -->
     <h4 class="bp-h">📐 真题蓝本（exam）<span class="hint">点击名称展开/收起 · 展开后可编辑</span></h4>
     <div v-if="examList.length" class="bp-list">
-      <div v-for="bp in examList" :key="bp.key" class="bp-card" :class="{ open: openKey === bp.key, editing: editingKey === bp.key }">
+      <div v-for="bp in examList" :key="bp.key" class="bp-card" :class="{ open: openKey === bp.key, editing: editingKey === bp.key, disabled: bpOff(bp.key) }">
         <!-- 卡片头：点击切换展开 -->
         <div class="bp-head" @click="toggle(bp.key)">
           <span class="arrow">{{ openKey === bp.key ? '▾' : '▸' }}</span>
@@ -42,6 +42,10 @@
           <span class="key-hint" :title="'数据键：' + bp.key">{{ bp.key }}</span>
           <span v-if="bp.source === 'user'" class="src-user">已自定义</span>
           <span class="bp-meta">满分 {{ bp.fullScore }} 分 · {{ bp.duration }} · {{ bp.sections.length }} 大题</span>
+          <label class="sw" :class="{ off: bpOff(bp.key) }" @click.stop title="停用后该条目不参与生成（exam 走密封线兜底）">
+            <input type="checkbox" :checked="!bpOff(bp.key)" @change="toggleBp(bp.key, $event.target.checked)" />
+            <span>{{ bpOff(bp.key) ? '已停用' : '启用' }}</span>
+          </label>
         </div>
 
         <!-- 展开态：浏览 -->
@@ -95,7 +99,7 @@
     <!-- 教辅结构（手风琴只读） -->
     <h4 class="bp-h">📚 教辅结构（学科 × 8 类）<span class="hint">点击展开查看栏目与学段参数 · 已定制显示学科版栏目，未定制回退通用模板</span></h4>
     <div v-if="teachList.length" class="bp-list teach">
-      <div v-for="bp in teachList" :key="bp.key" class="bp-card" :class="{ open: openTeach === bp.key }">
+      <div v-for="bp in teachList" :key="bp.key" class="bp-card" :class="{ open: openTeach === bp.key, disabled: bpOff(bp.key) }">
         <div class="bp-head" @click="toggleTeach(bp.key)">
           <span class="arrow">{{ openTeach === bp.key ? '▾' : '▸' }}</span>
           <span class="lib-tag">📚 蓝图库</span>
@@ -104,6 +108,10 @@
           <span v-else class="src-fallback">通用模板</span>
           <span class="key-hint" :title="'数据键：' + bp.key">{{ bp.key }}</span>
           <span class="bp-meta">{{ dims.stage ? `学段要求（${STAGE_LABELS[dims.stage]}）：${stageParam(bp).note || '—'}` : '5 学段要求 · 展开查看' }}</span>
+          <label class="sw" :class="{ off: bpOff(bp.key) }" @click.stop title="停用后此学科×类型不注入教辅结构（生成端按用户指令自由组织）">
+            <input type="checkbox" :checked="!bpOff(bp.key)" @change="toggleBp(bp.key, $event.target.checked)" />
+            <span>{{ bpOff(bp.key) ? '已停用' : '启用' }}</span>
+          </label>
         </div>
         <div v-if="openTeach === bp.key" class="bp-body">
           <div class="bp-secs">
@@ -164,9 +172,20 @@ import { CARRIER_LABELS, enhanceBlueprint } from '../../../config/blueprintSchem
 import { listAllBlueprints, saveUserBlueprint, deleteUserBlueprint } from '../../../config/blueprintProvider.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
+import { setLibToggle, listDisabledEntries } from '../../../utils/libToggles.js';
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
 const refreshLibStats = inject('refreshLibStats', () => {});
+
+/* ===== 条目启用/停用开关（停用 = 生成端不命中，见 blueprintProvider/getTeachingBlueprint） ===== */
+const disabledBp = ref(new Set(listDisabledEntries('blueprint')));
+const bpOff = (key) => disabledBp.value.has(key);
+const toggleBp = (key, on) => {
+  setLibToggle('blueprint', key, on);
+  const next = new Set(disabledBp.value);
+  if (on) next.delete(key); else next.add(key);
+  disabledBp.value = next;
+};
 
 const STAGE_LABELS = {
   primary_low: '小学低段（1-2年级）', primary_mid: '小学中段（3-4年级）', primary_high: '小学高段（5-6年级）', middle: '初中（7-9年级）', high: '高中',
@@ -342,6 +361,11 @@ const doImport = async (e) => {
 
 <style scoped>
 .bp-page { padding: 18px 22px 30px; max-width: 1080px; }
+/* 条目启用/停用开关（停用卡片灰显） */
+.sw { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font-size: 12px; color: #2e7d32; user-select: none; white-space: nowrap; }
+.sw.off { color: #c0392b; }
+.sw input { accent-color: var(--primary); cursor: pointer; }
+.bp-card.disabled .bp-head { opacity: .55; }
 .bp-overview { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; background: var(--bg); border: 1px solid var(--border-light); border-radius: 10px; padding: 10px 14px; box-shadow: 0 2px 6px rgba(30,58,111,.06); }
 .lib-badge { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 6px; padding: 3px 10px; margin-right: 10px; }
 .ov-sep { margin: 0 8px; color: #c2ccda; }

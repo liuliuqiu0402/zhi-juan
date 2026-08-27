@@ -8,6 +8,7 @@
  * ============================================================
  */
 import { getExamBlueprint, EXAM_BLUEPRINTS } from './examPaperBlueprints.js';
+import { isLibEntryEnabled } from '../utils/libToggles.js';
 
 /** localStorage 键：用户自定义蓝图库 */
 const BP_STORAGE_KEY = 'wisdom_blueprint_library_v1';
@@ -74,15 +75,19 @@ export function findBlueprint({ genType = '', subject = '', stage = '', region =
   if (genType !== 'exam') return null;
   try {
     // 1) 用户自定义精确命中（subject|stage 原始键，不经过内置别名/降级）
+    //    工具库停用（含自定义版与内置版整条停用）→ 无卷面蓝本（生成端走密封线/基础结构兜底）
     const userLib = loadUserBlueprints();
     const userKey = `${subject}|${stage}`;
     if (userLib[userKey]?.sections?.length) {
-      return { ...userLib[userKey], key: userKey, source: 'user' };
+      return isLibEntryEnabled('blueprint', userKey)
+        ? { ...userLib[userKey], key: userKey, source: 'user' }
+        : null;
     }
     // 2) 内置蓝本（学科别名 → 学段别名 → 降级链 → 省市覆盖）
     const bp = getExamBlueprint(subject, stage, region);
     if (!bp) return null;
-    return { ...bp, source: 'builtin' };
+    if (!isLibEntryEnabled('blueprint', `${subject}|${stage}`)) return null;
+    return { ...bp, key: `${subject}|${stage}`, source: 'builtin' };
   } catch {
     return null;
   }

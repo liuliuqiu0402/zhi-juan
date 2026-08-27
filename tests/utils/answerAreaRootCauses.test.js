@@ -1,43 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { auditExamPaper, countTzg } from '../../src/utils/examValidator.js';
-
-describe('根治回归：田字格数量与拼音音节对齐', () => {
-  it('每拼音组固定 4 格 → 按音节数删到每音节 1 格（真实事故：8 组固定 4 格）', () => {
-    const html = [
-      '<h2>一、识字与写字（共8题，共16分）</h2>',
-      '<p>1. 读句子，根据拼音写词语。（每空2分，共16分）</p>',
-      '<p>秋天到了，校园里的（guì huā）<span class="tian-zi-ge">　</span><span class="tian-zi-ge">　</span><span class="tian-zi-ge">　</span><span class="tian-zi-ge">　</span>开了。</p>',
-      '<p>（qún）<span class="tian-zi-ge">　</span><span class="tian-zi-ge">　</span><span class="tian-zi-ge">　</span><span class="tian-zi-ge">　</span>小鸟飞过。</p>',
-    ].join('\n');
-    const { html: out } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
-    // guì huā=2 音节 → 2 格；qún=1 音节 → 1 格；共 3 格
-    expect(countTzg(out)).toBe(3);
-  });
-
-  it('田字格少于音节 → 补足（每音节 1 格）', () => {
-    const html = [
-      '<h2>一、识字与写字（共2题，共8分）</h2>',
-      '<p>1. 读句子，根据拼音写词语。（每空2分，共4分）</p>',
-      '<p>（bǎo hù）<span class="tian-zi-ge">　</span>校园。</p>',
-    ].join('\n');
-    const { html: out } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
-    // bǎo hù=2 音节 → 应 2 格（现 1 格 → 补 1）
-    expect(countTzg(out)).toBe(2);
-  });
-
-  it('同大题含拼音题与写字题 → 只对齐拼音题的田字格，写字题格子不动（真实事故：大题级对齐克隆"柏"补格）', () => {
-    const html = [
-      '<h2>一、识字与写字（共6题，共32分）</h2>',
-      '<p>1. 读句子，根据拼音写词语。（每空1分，共8分）</p>',
-      '<p>（guì huā）<span class="tian-zi-ge">　</span><span class="tian-zi-ge">　</span><span class="tian-zi-ge">　</span><span class="tian-zi-ge">　</span>开了。</p>',
-      '<p>4. 把下面的字工整地写在田字格里。（每字1分，共6分）</p>',
-      '<p>杨<span class="tian-zi-ge">杨</span>松<span class="tian-zi-ge">松</span>桂<span class="tian-zi-ge">桂</span>柏<span class="tian-zi-ge">柏</span></p>',
-    ].join('\n');
-    const { html: out } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
-    // 第 1 题：guì huā=2 音节 → 2 格（删 2）；第 4 题：4 格不动 → 共 6
-    expect(countTzg(out)).toBe(6);
-  });
-});
+import { auditExamPaper } from '../../src/utils/examValidator.js';
 
 describe('根治回归：解答区误补（归类/仿写/圈选类题不再补横线）', () => {
   const run = (html) => auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
@@ -126,23 +88,6 @@ describe('根治回归：写话/作文题缺题干说明 guard（真实事故：
 });
 
 describe('根治回归：连线题"X——Y"配对行（题目暴露答案）', () => {
-  it('配对行 → 重组为左右分栏并乱序右列', () => {
-    const html = [
-      '<h2>二、积累与运用（共1题，共4分）</h2>',
-      '<p>6. 读一读，连一连。（每线1分，共4分）</p>',
-      '<p>杨树——高　榕树——壮　枫树——秋天叶儿红　松柏——四季披绿装</p>',
-    ].join('\n');
-    const { html: out } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'exam' });
-    expect(out).toContain('match-question');
-    // 左右分栏：左列含全部左项，右列含全部右项；题目不再直接暴露"X——Y"配对
-    const cols = out.split('match-col');
-    expect(cols[1]).toContain('杨树');
-    expect(cols[1]).toContain('榕树');
-    expect(cols[2]).toContain('高');
-    expect(cols[2]).toContain('壮');
-    expect(out).not.toContain('杨树——高');
-  });
-
   it('含破折号的普通句子（仅 1 对）→ 不重组（防误伤）', () => {
     const html = [
       '<h2>二、积累与运用（共1题，共4分）</h2>',
@@ -156,12 +101,12 @@ describe('根治回归：连线题"X——Y"配对行（题目暴露答案）', 
 
 describe('标题命名规范 buildPaperTitle', () => {
   it('普通型：年级+学科+册别+范围名+类型名', async () => {
-    const { buildPaperTitle } = await import('../../src/config/recipe/paperScope.js');
+    const { buildPaperTitle } = await import('../../src/config/paperScope.js');
     const t = buildPaperTitle({ grade: '二年级', subject: '语文', semester: '上册', scopeName: '第二单元', typeLabel: '综合检测' });
     expect(t).toBe('二年级语文上册第二单元综合检测');
   });
   it('考试型：学年度学期+年级+学科+范围标签词', async () => {
-    const { buildPaperTitle } = await import('../../src/config/recipe/paperScope.js');
+    const { buildPaperTitle } = await import('../../src/config/paperScope.js');
     const t = buildPaperTitle({ grade: '二年级', subject: '语文', scopeName: '期中综合测试', academic: '2025—2026学年度第一学期', isExam: true });
     expect(t).toBe('2025—2026学年度第一学期二年级语文期中综合测试');
   });

@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   inferPaperScope, findCommonAncestorIndex,
   categorizeUnits, effectiveUnitIndices, buildScopeCandidates, EXPLICIT_SCOPE_TYPES, inferAcademicTerm,
-} from '@/config/recipe/paperScope.js';
+} from '@/config/paperScope.js';
 
 // 仿真教材目录：top 单元 → 课（叶子）
 const outline = [

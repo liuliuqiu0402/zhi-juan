@@ -36,7 +36,7 @@
     <!-- 规则列表（手风琴） -->
     <h4 class="rule-h">📋 规则条目<span class="hint">点击名称展开/收起 · 展开后可编辑 · 修复=生成前约束+生成后自动修复 · 防护=生成后静默防护（仅抽检计数）</span></h4>
     <div class="rule-list">
-      <div v-for="r in ruleList" :key="r.id" class="rule-card" :class="{ open: openKey === r.id, editing: editingKey === r.id }">
+      <div v-for="r in ruleList" :key="r.id" class="rule-card" :class="{ open: openKey === r.id, editing: editingKey === r.id, disabled: ruleOff(r) }">
         <div class="rule-head" @click="toggle(r.id)">
           <span class="arrow">{{ openKey === r.id ? '▾' : '▸' }}</span>
           <span class="lib-tag">🧪 规则库</span>
@@ -46,7 +46,10 @@
           <span class="cat-tag" :class="`cat-${r.category}`" :title="r.category === 'fix' ? 'fix（生成前约束 + 生成后自动修复）' : 'guard（生成后静默防护，仅抽检计数）'">{{ r.category === 'fix' ? '修复' : '防护' }}</span>
           <span v-if="r.source === 'user'" class="src-user">已自定义</span>
           <span class="wired-tag" :class="wiredState(r).cls">{{ wiredState(r).label }}</span>
-          <span class="rule-meta">{{ r.enabled !== false ? '启用' : '停用' }}</span>
+          <label class="sw" :class="{ off: ruleOff(r) }" @click.stop title="停用后此规则不注入生成前约束、不执行生成后修复（见 buildValidatorPrompt / getValidatorRules）">
+            <input type="checkbox" :checked="!ruleOff(r)" @change="toggleRule(r, $event.target.checked)" />
+            <span>{{ ruleOff(r) ? '已停用' : '启用' }}</span>
+          </label>
         </div>
 
         <!-- 展开态 -->
@@ -166,6 +169,14 @@ const ruleList = computed(() =>
 // 规则库（validatorRules）为生成端唯一规则源：生成前 buildValidatorPrompt 注入 + 生成后 auditExamPaper 执行
 const wiredState = () => ({ label: '已接线', cls: 'ok' });
 const holeRules = computed(() => []);
+
+/* ===== 规则启用/停用开关（停用 = 双阶段均不命中，见 getValidatorRules / buildValidatorPrompt） ===== */
+const ruleOff = (r) => r.enabled === false;
+const toggleRule = (r, on) => {
+  const { source, ...rest } = r;
+  saveUserRule({ ...rest, enabled: on });
+  reload();
+};
 
 /* ===== 编辑 / 保存 / 删除 / 新增 / 重置 ===== */
 const editingKey = ref('');
@@ -311,6 +322,11 @@ const doImport = async (e) => {
 .wired-tag.ok { color: #1d7a4a; background: var(--success-light); border: 1px solid #bfe6cd; }
 .wired-tag.hole { color: #b03a2e; background: var(--danger-light); border: 1px solid #f5c2bd; }
 .rule-meta { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+/* 规则启用/停用开关（停用卡片灰显） */
+.sw { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font-size: 12px; color: #2e7d32; user-select: none; white-space: nowrap; margin-left: auto; }
+.sw.off { color: #c0392b; }
+.sw input { accent-color: var(--primary); cursor: pointer; }
+.rule-card.disabled .rule-head { opacity: .55; }
 .rule-body { border-top: 1px dashed var(--border-light); padding: 10px 14px 14px; }
 .rule-info { font-size: 12.5px; color: #445; margin: 4px 0; }
 .rule-info b { color: var(--primary); }

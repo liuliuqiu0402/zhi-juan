@@ -456,7 +456,7 @@ const checkPendingGeneration = async () => {
     const pending = await hasPendingGeneration();
     if (pending) {
       const snapshot = await getPendingSnapshot();
-      const stepNames = ['', '提取命题素材', '构建知识图谱', '生成命题蓝图', '逐题生成', '质量校验'];
+      const stepNames = ['', '提取命题素材', '构建知识图谱', '命题规划', '整卷生成', '质量校验'];
       const stepName = stepNames[snapshot?.step] || '未知';
       showToastMessage(
         `📌 检测到未完成的生成任务（已完成至步骤：${stepName}），可前往「生成教辅」继续`,

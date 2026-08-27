@@ -8,6 +8,8 @@
         <span class="ov-sep">·</span>
         <span>用户覆盖 <b class="user-n">{{ userOverrideCount }}</b> 项</span>
         <span class="ov-sep">·</span>
+        <span>停用 <b class="off-n">{{ disabledGroups.size }}</b> 组</span>
+        <span class="ov-sep">·</span>
         <span>消费者 docxBuilder / contentCleaner / themeConfig</span>
       </div>
       <div class="ls-ops">
@@ -22,11 +24,12 @@
     <div class="brief">
       <p>学段渲染参数（程序可读数据）：作文格宽、填空横线上限、书写载体、解答题空白区系数、方格纸规格等。消费者（docxBuilder/contentCleaner/themeConfig）调用 <code>getMergedSpec()</code> 读取合并后的值。</p>
       <p>与规则库分工：排版规格库承载格式<b>数值/参数</b>，规则库承载格式<b>逻辑/开关</b>。</p>
+      <p>每组可独立启停：停用后该组用户覆盖不生效（按内置默认渲染），重新启用即恢复，不影响已保存的覆盖数据。</p>
     </div>
 
     <!-- 规格组手风琴 -->
     <div class="ls-list">
-      <div v-for="g in SPEC_GROUPS" :key="g.id" class="ls-card" :class="{ open: openGroup === g.id, editing: editingGroup === g.id }">
+      <div v-for="g in SPEC_GROUPS" :key="g.id" class="ls-card" :class="{ open: openGroup === g.id, editing: editingGroup === g.id, disabled: groupOff(g.id) }">
         <div class="ls-head" @click="toggleGroup(g.id)">
           <span class="arrow">{{ openGroup === g.id ? '▾' : '▸' }}</span>
           <span class="lib-tag">📏 规格</span>
@@ -34,10 +37,15 @@
           <span class="ls-desc">{{ g.desc }}</span>
           <span v-if="groupHasOverride(g)" class="src-user">已自定义</span>
           <span class="ls-meta">{{ g.fields.length }} 参数</span>
+          <label class="sw" :class="{ off: groupOff(g.id) }" @click.stop title="停用后该组用户覆盖不生效（按内置默认渲染），可随时切回">
+            <input type="checkbox" :checked="!groupOff(g.id)" @change="toggleGroupEnabled(g.id, $event.target.checked)" />
+            <span>{{ groupOff(g.id) ? '已停用' : '启用' }}</span>
+          </label>
         </div>
 
         <!-- 展开态：预览表格 -->
         <div v-if="openGroup === g.id && editingGroup !== g.id" class="ls-body">
+          <div v-if="groupOff(g.id)" class="off-banner">⏸ 已停用：本组用户覆盖不生效，按内置默认值渲染（重新启用即恢复）</div>
           <template v-if="g.matrix">
             <div v-for="s in g.matrix.subjects" :key="s.key" class="matrix-block">
               <div class="matrix-title">{{ s.label }}<span v-if="s.key === '*'" class="matrix-tip">通配默认（未显式定义的学科）</span></div>
@@ -62,7 +70,8 @@
                 <td :class="{ modified: isModified(f.path) }">{{ formatVal(getByPath(mergedSpec, f.path), f) }}</td>
                 <td>{{ formatVal(getByPath(defaults, f.path), f) }}</td>
                 <td>
-                  <span v-if="isModified(f.path)" class="mod-tag">已修改</span>
+                  <span v-if="groupOff(g.id)" class="off-tag">已停用</span>
+                  <span v-else-if="isModified(f.path)" class="mod-tag">已修改</span>
                   <span v-else class="ok-tag">默认</span>
                 </td>
               </tr>
@@ -119,6 +128,7 @@ import {
   LAYOUT_SPEC_DEFAULTS,
 } from '../../../config/layoutSpec.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
+import { setLibToggle, listDisabledEntries } from '../../../utils/libToggles.js';
 
 // ==================== 规格组定义 ====================
 // 解答区参数矩阵（学科 × 学段）：通配默认/语文/英语/科学 × 5 学段 × (行分系数/行高/载体)
@@ -317,6 +327,17 @@ const userOverrideCount = computed(() => {
 
 const hasOverride = computed(() => userOverrideCount.value > 0);
 
+// ==================== 规格组启停开关 ====================
+// 停用 = 该组用户覆盖不生效（回退内置默认），见 getMergedSpec 的 LAYOUT_SPEC_GROUPS 过滤
+const disabledGroups = ref(new Set(listDisabledEntries('layout-spec')));
+const groupOff = (gid) => disabledGroups.value.has(gid);
+const toggleGroupEnabled = (gid, on) => {
+  setLibToggle('layout-spec', gid, on);
+  const next = new Set(disabledGroups.value);
+  if (on) next.delete(gid); else next.add(gid);
+  disabledGroups.value = next;
+};
+
 // ==================== 手风琴 ====================
 const openGroup = ref('');
 const toggleGroup = (id) => { openGroup.value = openGroup.value === id ? '' : id; };
@@ -448,6 +469,16 @@ const doImport = async (e) => {
 .ls-desc { font-size: 12px; color: #667; flex: 1; }
 .ls-meta { font-size: 12px; color: var(--text-muted); }
 .src-user { font-size: 10.5px; font-weight: 600; color: #a06a10; background: #fdf3e2; border: 1px solid #f3d9a8; border-radius: 999px; padding: 1px 8px; }
+.off-n { color: var(--danger); }
+
+/* 启停开关（与蓝图/指令/渲染契约视图同款） */
+.sw { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #2e7d32; cursor: pointer; user-select: none; }
+.sw input { width: 13px; height: 13px; accent-color: #2e7d32; cursor: pointer; }
+.sw.off { color: #c0392b; }
+.sw.off input { accent-color: #c0392b; }
+.ls-card.disabled .ls-head { opacity: .55; }
+.off-banner { font-size: 12px; color: #a06a10; background: #fdf3e2; border: 1px solid #f3d9a8; border-radius: 6px; padding: 6px 10px; margin-bottom: 8px; }
+.off-tag { font-size: 10.5px; font-weight: 700; color: #c0392b; background: #fdeeee; border-radius: 999px; padding: 1px 8px; }
 
 .ls-body { border-top: 1px dashed var(--border-light); padding: 10px 14px 14px; }
 .ls-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }

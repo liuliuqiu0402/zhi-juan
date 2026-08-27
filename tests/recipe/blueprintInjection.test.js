@@ -128,7 +128,7 @@ describe('OUTPUT_FORMAT_HINT（非 exam 统一输出格式）', () => {
     expect(OUTPUT_FORMAT_HINT).toContain('<h1>');
     expect(OUTPUT_FORMAT_HINT).toContain('<h2>');
     expect(OUTPUT_FORMAT_HINT).toContain('只输出资料正文');
-    expect(OUTPUT_FORMAT_HINT).toContain('填空空位宽度与答案字数匹配');
+    expect(OUTPUT_FORMAT_HINT).toContain('填空空位由系统按答案字数自动校准宽度');
   });
 
   it('含正文边界要求：答案不入正文；代码块由代码层拦截，不再要求模型', () => {
@@ -150,7 +150,7 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
         expect(t.template, `类型 ${g} 不应要求题号包裹`).not.toContain('以 <p class="question"> 包裹并带题号');
       } else {
-        expect(t.template, `类型 ${g} 缺作答载体规则`).toContain('填空空位宽度与答案字数匹配');
+        expect(t.template, `类型 ${g} 缺作答载体规则`).toContain('填空空位由系统按答案字数自动校准宽度');
         expect(t.template).toContain('以 <p class="question"> 包裹并带题号');
       }
     }
@@ -180,7 +180,7 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
       } else {
-        expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('1字≈2格');
+        expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('由系统按答案字数自动校准宽度');
         expect(t.template, `类型 ${g} 缺括号空位要求`).toContain('选择/判断用括号空位');
       }
       expect(t.template, `类型 ${g} 残留连线诱导词`).not.toContain('连线题');
@@ -193,9 +193,10 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g}`).not.toContain('填空空位宽度');
       } else {
-        expect(t.template, `类型 ${g}`).toContain('宽度与答案字数匹配');
+        expect(t.template, `类型 ${g}`).toContain('按答案字数自动校准宽度');
       }
       expect(t.template, `类型 ${g} 残留微观格式`).not.toContain('空格数=答案字数');
+      expect(t.template, `类型 ${g} 残留格数诱导`).not.toContain('1字≈2格');
       expect(t.template, `类型 ${g} 残留诱导词`).not.toContain('括号与横线二选一');
     }
   });

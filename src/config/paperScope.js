@@ -8,9 +8,9 @@
  *
  * 该函数同时服务两类命名：
  *   1) 文件名/文档列表命名（GenerateModule，统一消解多处重复实现）
- *   2) 卷首大标题（assembler.assembleHeader），让"命题范围"进入正式标题
+ *   2) 卷首大标题（生成标题占位符组装），让"命题范围"进入正式标题
  *
- * 🔴 范围类型分流规则（本模块的唯一判定口径，新旧生成路径共用）：
+ * 🔴 范围类型分流规则（本模块的唯一判定口径，整卷生成路径共用）：
  *   - scopeType 显式指定为非默认（midterm/final/monthly/topic）→ 一律用该类型的标签词（可轮换 override），
  *     即便勾选只是单课/单元也尊重用户显式意图（选"期中"就出"期中"）。
  *   - scopeType 为 default/空      → 按勾选集合自动推断：
@@ -72,7 +72,7 @@ export function findCommonAncestorIndex(chapters, outline) {
 }
 
 /**
- * 推断命题范围名（单数据源，新旧路径共用）。
+ * 推断命题范围名（单数据源，整卷生成路径共用）。
  * @param {Array} chapters 选中的章节节点（来自 outline）
  * @param {Array} outline 该教材的目录树根
  * @param {string} [scopeType] 范围类型（default/midterm/final/monthly/topic）

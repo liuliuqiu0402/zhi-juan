@@ -11,6 +11,8 @@
  * ============================================================
  */
 
+import { isLibEntryEnabled } from '../utils/libToggles.js';
+
 /** 允许的 [GRAPH] TYPE 全集 */
 export const GRAPH_TYPES = [
   'COORDINATE', 'SHAPES', 'BAR_CHART', 'LINE_CHART', 'PIE_CHART',
@@ -278,6 +280,8 @@ const loadUserContract = () => {
 };
 
 export function buildRenderContract({ subject = '', genType = '', needsImage = false, stage = '', userContract } = {}) {
+  // 工具库条目开关：学科契约整条停用（subj:学科）→ 该学科不注入任何图形/公式/配图契约
+  if (subject && !isLibEntryEnabled('render-contract', `subj:${subject}`)) return '';
   const parts = [];
   const user = userContract ?? loadUserContract();
   const userForSubject = user[subject] || null;
@@ -285,16 +289,17 @@ export function buildRenderContract({ subject = '', genType = '', needsImage = f
   const formulaNeeded = getFormulaNeeded(subject, stage);
   if (!graph && !formulaNeeded && !needsImage && !userForSubject) return '';
 
-  // 用户自定义覆盖内置（仅当用户定义了该学科的契约才生效）
+  // 用户自定义覆盖内置（仅当用户定义了该学科的契约才生效）；TYPE 在工具库被停用时剔除
+  const filterEnabledTypes = (list) => (list || []).filter((t) => isLibEntryEnabled('render-contract', t));
   const graphTypes = userForSubject?.graphTypes && userForSubject.graphTypes.length
-    ? userForSubject.graphTypes
-    : (graph ? graph.types : []);
+    ? filterEnabledTypes(userForSubject.graphTypes)
+    : (graph ? filterEnabledTypes(graph.types) : []);
   const formula = userForSubject ? !!userForSubject.formula : formulaNeeded;
   // 用户显式定义了配图开关则覆盖题型关键词判定（否则按内置 needsImage）
   const image = userForSubject && 'image' in userForSubject ? !!userForSubject.image : needsImage;
 
   if (graphTypes.length || graph || userForSubject) {
-    const typeLabel = graphTypes.length ? graphTypes.join('/') : (graph ? graph.types.join('/') : '');
+    const typeLabel = graphTypes.length ? graphTypes.join('/') : '';
     if (typeLabel) {
       parts.push('【渲染指令（EduRender Studio 格式，渲染端可直接解析；仅需图/公式时输出，不计题量）】');
       parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${typeLabel}；${GRAPH_COMMON_PARAMS}。图形数据必须与题干完全一致。`);

@@ -7,22 +7,14 @@ import { getStoragePath } from '../utils/pathHelper.js';
 import { fixExamFormats } from '../utils/examFixer.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { normalizeStage } from '../config/validatorRules.js';
-import { 
-  subjectGradeSystem, 
+import {
   genTypeTemplates,
-  normalizeSubjectName,
-  correctCognitiveLevel,
-  allowedCognitiveLevels,
-  checkKnowledgeBoundary,
-  getTerminologyHint,
-  normalizeTerminology
+  normalizeSubjectName
 } from '../config/expertKnowledge.js';
 // 🔴 分析阶段 prompt 已从指令库迁出为独立配置（analysisPrompts.js），生成规范与教材分析规范解耦
 import { getAnalysisPrompts } from '../config/analysisPrompts.js';
-// 🔴 题型分布（UI 自动填充）与题型专项规则（兜底逐题路径）已迁出独立配置，指令库即将整体删除
-import { getTypeDistribution as getTypeDistributionFromConfig } from '../config/typeDistribution.js';
-import { SCOPE_LABEL_POOLS } from '../config/recipe/paperScope.js';
-import { getExamBlueprint } from '../config/examPaperBlueprints.js';
+import { parseStyleFromInstruction } from '../utils/instructionStyle.js';
+import { SCOPE_LABEL_POOLS } from '../config/paperScope.js';
 import { buildSealLineHeader } from '../config/promptLibrary.js';
 import { registerController, unregisterController } from '../utils/requestManager.js';
 import { generatePromptCacheKey, getCachedPromptResult, setCachedPromptResult } from '../utils/generationCache';
@@ -245,59 +237,8 @@ const normalizeFetchError = async (e, response) => {
 };
 
 // ============================================================
-// 🔧 五步生成法工具函数：分层注入 + 精准检索 + 格式常量
+// 🔧 工具函数：分层注入 + 精准检索 + 格式常量
 // ============================================================
-
-/**
- * Step1 指令精简函数：从用户可读的完整指令中提取 AI 需要的关键约束
- * 人读版 instruction（~3000字）→ AI 精简版（≤500字）
- * 只保留：核心任务、结构框架、禁止项、格式关键点
- */
-const buildCompactAIInstruction = (fullInstruction, genType, subject, stage, grade) => {
-  if (!fullInstruction) return '';
-  
-  // 按【分段标记】提取关键段落
-  const sections = fullInstruction.split(/\n(?=【)/);
-  const keepSections = [];
-  const dropPrefixes = [
-    // 模板对标（逐题 prompt 不需要，模板已通过 templateContext 注入）
-    '【模板精准对标】', '【模板真题示例】', '【模板量化特征】',
-    '【语言风格指纹', '【格式排版指纹', '【语言风格特征',
-    '【模板风格约束', '【模板反例约束',
-    // 🔧 这些块在逐题生成中非必要，且会传递过度约束
-    '【命题约束】', '【教材章节确认】',
-    // 用户补丁
-    '【用户补充指令】', '【综合指令】', '【情境要求】'
-  ];
-  
-  // 需要保护的段落：不截断，无论多长
-  const protectPrefixes = [
-    '【顶层约束', '【尾约束', '【格式尾约束', '【红线',
-  ];
-
-  for (const section of sections) {
-    const trimmed = section.trim();
-    if (!trimmed) continue;
-    // 跳过模板对标等大段内容
-    if (dropPrefixes.some(p => trimmed.startsWith(p))) continue;
-    // 保留核心块，但限制长度
-    let content = trimmed;
-    const isProtected = protectPrefixes.some(p => trimmed.startsWith(p));
-    if (content.length > 800 && !isProtected) {
-      // 截断长段，只保留前 700 字 + "...(省略)"
-      content = content.substring(0, 700) + '...(已精简)';
-    }
-    keepSections.push(content);
-  }
-
-  let compact = keepSections.join('\n');
-  // 如果仍然超长，二轮截断（提升到4000，确保红线/格式/尾约束等关键规则不被裁掉）
-  if (compact.length > 4000) {
-    compact = compact.substring(0, 4000) + '\n...(后续指令已精简)';
-  }
-  
-  return compact ? `【关键指令摘要】\n${compact}\n` : '';
-};
 
 /**
  * 构建 KP→原文片段的反向索引：从 contentCards 的 segment 中提取所有 KP→segment 映射
@@ -475,7 +416,7 @@ const extractGradeNum = (gradeStr) => {
 
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
-import { cleanSectionHtml, htmlToPlainText, countTopLevelQuestions, normalizeBlankMarkers, normalizeIndents, resizeBlanksByAnswer } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeIndents, resizeBlanksByAnswer } from '../utils/contentCleaner.js';
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -484,108 +425,6 @@ const _countFixes = countFixes;
 const _robustJsonParse = robustJsonParse;
 const _addTemplateStructureMarkers = addTemplateStructureMarkers;
 
-//  知识点覆盖率校验（两个调用点共享）
-/**
- * 🔧 蓝本-生成结果结构化对比
- * 验证 AI 生成的试卷是否对齐蓝本定义的题型骨架
- * @param {string} content - 生成的 HTML 内容
- * @param {Array} parsedBlueprint - 蓝图数组（含题型/分值等）
- * @param {object} ctx - { genType, subject, stage, grade }
- * @returns {{ hasIssues: boolean, issues: string[] }}
- */
-const compareBlueprintToGenerated = (content, parsedBlueprint, ctx) => {
-  const issues = [];
-  if (!content || !parsedBlueprint || !Array.isArray(parsedBlueprint) || parsedBlueprint.length === 0) {
-    return { hasIssues: false, issues };
-  }
-  const { genType, subject, stage, region } = ctx || {};
-
-  // 仅 exam 类型做蓝本对比（其他类型无蓝本骨架约束）
-  if (genType !== 'exam') return { hasIssues: false, issues };
-
-  // 获取蓝本定义（省市差异化：命中省市配置时按该省市时长/总分/大题分值比对）
-  const examBlueprint = getExamBlueprint(subject, stage, region);
-  if (!examBlueprint || !examBlueprint.sections) return { hasIssues: false, issues };
-
-  // 从生成内容中提取大题标题（匹配 "一、" "二、" 等开头的标题行，或 <h2> 标签内容）
-  const sectionHeaders = [];
-  // 匹配中文数字序号开头的标题：一、二、三、...
-  const chineseNumMatch = content.match(/[一二三四五六七八九十]{1,3}、[^\n<]{2,30}/g);
-  if (chineseNumMatch) sectionHeaders.push(...chineseNumMatch);
-  // 匹配 <h2> 标签内容
-  const h2Match = content.match(/<h2[^>]*>([^<]{2,30})<\/h2>/gi);
-  if (h2Match) {
-    h2Match.forEach(h => {
-      const text = h.replace(/<[^>]+>/g, '').trim();
-      if (text) sectionHeaders.push(text);
-    });
-  }
-
-  // 对比：蓝本中的每个 section name 是否在生成内容中出现
-  const missingSections = [];
-  for (const section of examBlueprint.sections) {
-    const sectionName = section.name;
-    // 检查 sectionName 是否在生成的大题标题中出现
-    const found = sectionHeaders.some(header => {
-      // 去掉序号前缀，比较核心文字
-      const headerCore = header.replace(/^[一二三四五六七八九十]{1,3}、\s*/, '').trim();
-      return headerCore.includes(sectionName) || sectionName.includes(headerCore);
-    });
-    if (!found) {
-      missingSections.push(`${sectionName}（${section.score}分）`);
-    }
-  }
-
-  if (missingSections.length > 0) {
-    issues.push(`蓝本大题缺失：${missingSections.join('、')}——生成结果未对齐蓝本骨架，请检查`);
-  }
-
-  // 检查题目总数是否合理——至少每个大题1道题（口径统一：countTopLevelQuestions 只数顶层题、占位不计）
-  const topCount = countTopLevelQuestions(content);
-  const allNumItems = content.match(/>\s*\d+[.．、]\s/g) || [];
-  const totalQuestions = Math.max(topCount, allNumItems.length);
-  const sectionCount = examBlueprint.sections.length;
-  if (totalQuestions > 0 && totalQuestions < sectionCount) {
-    issues.push(`题目数量不足：蓝本有${sectionCount}个大题，但生成内容仅检测到约${totalQuestions}道小题——每个大题至少需1道题`);
-  }
-
-  // 对比总分
-  if (examBlueprint.fullScore) {
-    // 从生成内容中提取分值标注（如"（36分）""(36分)"）
-    const scoreMatches = content.match(/[（(](\d+)分[）)]/g);
-    if (scoreMatches) {
-      const totalGenerated = scoreMatches.reduce((sum, m) => {
-        const num = parseInt(m.match(/\d+/)[0]);
-        return sum + num;
-      }, 0);
-      if (totalGenerated > 0 && Math.abs(totalGenerated - examBlueprint.fullScore) > 2) {
-        issues.push(`分值不匹配：蓝本总分${examBlueprint.fullScore}分，生成卷面总分约${totalGenerated}分（差${Math.abs(totalGenerated - examBlueprint.fullScore)}分）`);
-      }
-    }
-  }
-
-  return { hasIssues: issues.length > 0, issues };
-};
-
-const checkKnowledgeCoverage = (blueprint, km) => {
-  if (!Array.isArray(blueprint)) {
-    return { covered: 0, total: 0, rate: 0, uncovered: [], duplicatedKPs: [] };
-  }
-  const allKps = ((km && km.knowledgePoints) || []).map(k => (k || '').trim()).filter(Boolean);
-  const bpKps = [...new Set(blueprint.map(q => q && q.knowledgePoint).filter(Boolean))];
-  const covered = bpKps.filter(kp => kp && allKps.some(ak => ak && (ak.includes(kp) || kp.includes(ak))));
-  const uncovered = allKps.filter(ak => ak && !bpKps.some(bk => bk && (ak.includes(bk) || bk.includes(ak))));
-  const kpCount = {};
-  blueprint.forEach(q => { const k = q && q.knowledgePoint; if (k) kpCount[k] = (kpCount[k] || 0) + 1; });
-  const duplicatedKPs = Object.entries(kpCount).filter(([, c]) => c > 2).map(([k]) => k);
-  return {
-    covered: covered.length,
-    total: allKps.length || 1,
-    rate: Math.round(covered.length / (allKps.length || 1) * 100),
-    uncovered: uncovered.slice(0, 10),
-    duplicatedKPs
-  };
-};
 
 // ===== 第一步：提取命题素材卡片 =====
 
@@ -809,49 +648,6 @@ const cleanReasoningOutput = (text) => {
   return sanitize(text);
 };
 
-/**
- * 🔧 共用 prompt 构建器——统一 HTML 生成 prompt 的外壳
- * 各特殊路径（preview/dictation/reading 等）调用此函数，只需传入任务特定的中间部分
- * @param {object} opts
- * @param {string} opts.taskDesc - 【任务】段内容（不含"【任务】"前缀）
- * @param {string} opts.blueprintSection - 蓝图/知识点段（含标题、结构、知识点等）
- * @param {string} opts.textbookSection - 教材原文段
- * @param {string} opts.subjectReqs - 【学科要求】段内容
- * @param {string} opts.genType - 资料类型（用于获取格式块）
- * @param {string} opts.subject - 学科
- * @param {string} opts.stage - 学段
- * @param {string} opts.grade - 年级
- * @param {string} opts.closing - 结尾指令（如"现在请直接输出完整的XX HTML："），不传则用默认
- * @returns {string} 完整 prompt
- */
-const buildHtmlGenerationPrompt = (opts) => {
-  const { taskDesc, blueprintSection, textbookSection, subjectReqs, genType, subject, stage, grade, closing } = opts;
-  const preamble = buildOutputPreamble();
-  const formatBlock = buildOutputFormatBlock(genType, subject, stage, grade);
-  const closeText = closing || `现在请直接输出完整的${genTypeTemplates[genType]?.name || genType}HTML：`;
-  return `${preamble}
-
-【任务】${taskDesc}
-
-${blueprintSection}
-
-【教材原文片段——⚠️OCR识别可能有误，以学科知识纠错后再命题；仅供核对知识点准确性，严禁复制原文段落】
-${textbookSection || '（基于蓝图知识点生成）'}
-
-【学科要求】
-${subjectReqs}
-
-${instructionBlock}
-
-【格式规范——必须严格遵守】
-${formatBlock}
-
-【强制输出格式——最后一条指令】
-你必须输出标准HTML代码。不允许纯文本输出。
-
-${closeText}`;
-};
-
 // ===== 🔧 输出排版兜底：检测 AI 输出是否挤在一个段落 =====
 const detectSquishedOutput = (html, genType = '') => {
   if (!html || html.length < 100) return { squished: false, blockCount: 0 };
@@ -874,6 +670,7 @@ const detectSquishedOutput = (html, genType = '') => {
 
 // ===== 🔧 统一输出前置指令：所有资料类型共享的「禁止前言+反Markdown」头 =====
 // 🔴 指令库已删除：内容直接内联（原「生成-输出前置指令」output_preamble 的唯一条目）
+// ⚠️ 当前无调用点（旧共用 prompt 构建链已删），保留作格式参考常量
 const buildOutputPreamble = () => `【最终输出指令——优先级最高，覆盖一切其他要求】\n` +
 `⛔ 1. 禁止输出任何前言、确认语、解释性文字！严禁出现"好的""收到""我将""根据"等\n` +
 `⛔ 2. 直接输出纯 HTML 代码！你的回复第一个字符必须是 <\n` +
@@ -884,7 +681,8 @@ const buildOutputPreamble = () => `【最终输出指令——优先级最高，
 `⛔ 4. 直接返回完整 HTML 代码，不要用 \`\`\`html 标记包裹\n` +
 `⛔ 5. 正文严禁出现任何页码文字或分页标注（"第X页""共X页""第X页　共X页"等）——页数由导出时自动生成（Word 页脚/PDF 页脚动态计算），生成内容不得标注页数。页数统计一律不含答案页，答案页另起编号、不计入正文页数`;
 
-// ===== 🔧 统一输出排版格式块：从指令库查询格式规范，保留结构模板作参考示例 =====
+// ===== 🔧 统一输出排版格式块：内置结构模板作参考示例（主要约束已由指令库模板承载） =====
+// ⚠️ 当前无调用点（旧共用 prompt 构建链已删），保留作格式参考常量
 const buildOutputFormatBlock = (genType, subject, stage, grade) => {
   // 按 genType 生成结构模板（保留为 HTML 参考示例）
   const templates = {
@@ -1121,7 +919,7 @@ STYLE:line_art
 <p>1. 答案 | 2. 答案 | 3. 答案 | 4.(1) 答案 | 4.(2) 答案</p>
 </div>`
   };
-  // 🔧 根修复：逐题生成类 genType（exam/practice/special）默认 fallback 为 exam 模板
+  // 🔧 结构模板兜底：无专属模板的 genType 默认 fallback 为 exam 模板
   const template = templates[genType] || templates.exam;
   
   // 🔴 格式规范已内联（分步规范块已删除）：核心格式契约
@@ -1132,8 +930,8 @@ STYLE:line_art
     `【输出结构模板——以下为参考示例，实际内容请根据指令自行设计】\n${template}`;
 };
 
-// ===== 🔧 genType 感知的逐题 Prompt Builder =====
-// 为 exam/practice/special 三种 genType 构建语义匹配的逐题生成 prompt
+// ===== 🔧 genType 感知的素材提取（第一步：逐课提取命题素材，供知识图谱与整卷生成） =====
+// 为各资料类型从教材提取内容卡片（contentCards），主路径 generateFullPaperNatural 前置阶段
 const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updateStatus) => {
   const stepConfig = await getCurrentEngineConfigEnhanced('analysis');
   const stepModelName = getModelDisplayName(stepConfig.textModel || stepConfig.model);
@@ -1185,7 +983,7 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
 
   // 🔧 目录卡片构建（无原文目录模式 & 未分析降级共用）
   //    目录（章节标题 + 子标题）本身就是考点线索，确保"仅勾选目录"也能生成：
-  //    Step2 知识图谱基于目录标题 + 学科课标知识补全考点，planner 正常分配，AI 无素材凭空生成。
+  //    Step2 知识图谱基于目录标题 + 学科课标知识补全考点，生成端按指令分配考点，AI 无素材凭空生成。
   const buildTocCard = (chapter, mode = 'toc') => {
     const collectTitles = (node, depth = 0, out = []) => {
       if (!node || depth >= 3) return out;
@@ -1547,22 +1345,14 @@ export function useAiGenerator() {
   // 🔧 新增：记录上次请求耗时（毫秒），用于动态调整等待策略
   const lastRequestDuration = ref(0);
 
-  // 🔧 课时练课时切分：reactive 确认状态，供 UI 层监听
-  const periodConfirm = ref(null); // { periods, knowledgeMap, contentCards, instruction, resolve }
-  // 🔧 缓存的原始知识图谱（Step2 结果），供逐课时生成复用
+  // 🔧 缓存的原始知识图谱（Step2 结果），供逐章生成复用
   let _cachedKnowledgeMap = null;
   let _cachedContentCards = null;
   let _cachedInstruction = null;
-  // 🔧 逐课时模式：设置此值后，generate() 跳过 Step1-2，直接使用给定的 knowledgeMap
-  let _perPeriodKnowledgeMap = null;
-  let _perPeriodSelectedBooks = null;
-  let _perPeriodSelectedTemplates = null;
   // 🔧 AI修复防循环守卫：确保每次生成最多触发一次AI修复（防止无限调用API）
   let _repairActive = false;
   // 🔧 逐章生成模式：设置此 chapterTitle 后，generate() 从缓存中过滤出单章数据
   let _perChapterChapterTitle = null;
-  // 🔧 整体生成跳过检测标志：cancelPeriodSplit 设置，阻止 generate() 清空 _cachedKnowledgeMap
-  let _preservePeriodCache = false;
 
   // 🔧 资料类型名称池——轮换使用，避免标题千篇一律（词条不含"单元/课"等范围词，防与范围名重复）
   const GEN_TYPE_LABEL_POOLS = {
@@ -1652,72 +1442,6 @@ export function useAiGenerator() {
    * @param {Object} knowledgeMap - Step2 构建的知识图谱
    * @returns {Array<{id, unitName, periodName, knowledgePoints, kpCount}>}
    */
-  const detectPeriods = (knowledgeMap) => {
-    const periods = [];
-    const graph = knowledgeMap?.knowledgeGraph || [];
-    for (const unit of graph) {
-      if (!unit.bigConcepts?.length) continue;
-      for (const bc of unit.bigConcepts) {
-        const kps = (bc.coreKnowledge || [])
-          .map(ck => (typeof ck === 'string' ? ck : (ck?.name || '')))
-          .filter(Boolean);
-        if (kps.length === 0) continue;
-        // 判断 bigConcept 名称是否有课时语义（包含 Part/Lesson/课时/Let's 等）
-        const hasSemanticName = /part|lesson|unit|课时|let'?s|story|read|write|spell|grammar|project/i.test(bc.name || '');
-        periods.push({
-          id: `period_${periods.length + 1}`,
-          unitName: unit.unit || '',
-          periodName: hasSemanticName ? bc.name : `第${periods.length + 1}课时`,
-          knowledgePoints: kps,
-          kpCount: kps.length,
-          // 保存原始 bigConcept 引用，供构造子知识图谱使用
-          _bigConcept: bc,
-          _unit: unit,
-        });
-      }
-    }
-    // 合并知识点 < 2 个的课时到相邻课时
-    if (periods.length > 1) {
-      const merged = [];
-      let buffer = null;
-      for (const p of periods) {
-        if (p.kpCount < 2) {
-          if (buffer) {
-            // 合并到上一个课时
-            buffer.knowledgePoints = [...buffer.knowledgePoints, ...p.knowledgePoints];
-            buffer.kpCount = buffer.knowledgePoints.length;
-            buffer.periodName = `${buffer.periodName} + ${p.periodName}`;
-          } else {
-            // 作为缓冲等待下一个
-            buffer = { ...p };
-          }
-        } else {
-          if (buffer) {
-            // 把缓冲合并到当前课时
-            p.knowledgePoints = [...buffer.knowledgePoints, ...p.knowledgePoints];
-            p.kpCount = p.knowledgePoints.length;
-            p.periodName = `${buffer.periodName} + ${p.periodName}`;
-            buffer = null;
-          }
-          merged.push(p);
-        }
-      }
-      if (buffer) {
-        // 最后一个缓冲合并到最后
-        if (merged.length > 0) {
-          const last = merged[merged.length - 1];
-          last.knowledgePoints = [...last.knowledgePoints, ...buffer.knowledgePoints];
-          last.kpCount = last.knowledgePoints.length;
-          last.periodName = `${last.periodName} + ${buffer.periodName}`;
-        } else {
-          merged.push(buffer);
-        }
-      }
-      return merged;
-    }
-    return periods;
-  }; 
-
   // 🔧 新增：智能等待函数 - 状态够了自动开始，不用等到时间结束
   const smartWait = async (baseTimeMs, statusCheckFn, maxTimeMs = null) => {
     const startTime = Date.now();
@@ -3857,7 +3581,7 @@ ${isPrimary ? '- 🔧 小学：计算机基础操作、图形化编程、信息�
 
       console.log(`📖 OCR质量: ${ocrQuality.quality} - ${ocrQuality.reason}`);
 
-      // 第二步：分步分析模板结构（拆分为两步，避免长prompt超时）
+      // 第二步：分析模板结构（拆分为两步，避免长prompt超时）
       let analysisResult = { 
         structure: [], 
         scoreDistribution: '', 
@@ -4570,27 +4294,6 @@ ${cardAnalysisText.substring(0, 1000)}
     const names = questionTypes.map(q => q.name).sort().join(',');
     return names === '填空题,解答题,选择题';
   };
-
-  // 🔧 从独立配置获取题型分布结构化数据（用于 UI 自动填充；指令库已删除）
-  const getTypeDistribution = (genType, subject, gradeSegment) => {
-    if (genType !== 'exam' && genType !== 'practice') return [];
-    const blocks = getTypeDistributionFromConfig({ genType, subject, stage: gradeSegment });
-    if (blocks.length === 0 || !blocks[0].typeDist) return [];
-    const dist = blocks[0].typeDist;
-    // 解析 "题型名:min-max,题型名:min-max,..."
-    return dist.split(',').map(item => {
-      const match = item.trim().match(/^(.+):(\d+)-(\d+)$/);
-      if (!match) return null;
-      const [, name, min, max] = match;
-      return {
-        name: name.trim(),
-        selected: true,
-        count: Math.ceil((parseInt(min) + parseInt(max)) / 2),
-        score: null
-      };
-    }).filter(Boolean);
-  };
-
   // ═══════════════════════════════════════
   // 🔧 教辅质量对标辅助函数（Q1-Q4）
   // ═══════════════════════════════════════
@@ -4623,8 +4326,6 @@ ${cardAnalysisText.substring(0, 1000)}
 // ==================== 🔧 整卷生成（DeepSeek 云端主路径）====================
   // 核心任务 + 结构大纲 + 知识图谱 + 教材原文 + 格式约束 → 一次性产出整份 HTML
   // 取代原 Step3（蓝图规划）+ Step4（逐题生成），让 DeepSeek 云端模型充分发挥原生能力
-  // 🔴 阶段3 分步流水线：薄壳编排——所有流水线逻辑在 examPipelineRunner（依赖注入、可单测），
-  //    本层只负责组装依赖（callAI/素材检索/状态/取消），失败由调用方回退整卷。
 
   // 🔴 generateByRecipe（配方/分步流水线入口）已删除：生成入口切换为整卷一次生成
   //    （generateFullPaperNatural，指令库驱动）。分步流水线相关文件（recipe/ 目录）同步删除。
@@ -4732,10 +4433,10 @@ ${cardAnalysisText.substring(0, 1000)}
    * 设计原则（与"分步流水线"的本质区别）：
    *   - 指令 = 网页端级人话（角色 + 卷面结构 + 命题要求），模型按本能命题、全局自洽
    *   - 素材 = 按知识点检索（RAG），分级限量，非全量注入
-   *   - 无分块、无 byCode 拼装、无事后质检——生成质量由指令与模型能力保证
+   *   - 无分块、无 byCode 拼装、无 AI 自产自评——生成质量由指令与模型能力保证；生成后由规则库静默质检（确定性规则校验+修复）
    *   - 长输出截断时自动续写一次（对应网页端手动点"继续"）
    * @param {Object} params { instruction, genType, selectedBooks, contentCards, knowledgeMap, contextFramework, templateInfo, diffKps }
-   * @returns {Promise<{success, content, generatedQuestions, parsedBlueprint, pipelineUsed, pipelineReason}>}
+   * @returns {Promise<{success, content, generatedQuestions, parsedBlueprint, auditWarnings}>}
    */
   const generateFullPaperNatural = async (params = {}) => {
     const {
@@ -4976,7 +4677,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     }
 
     // 🔴 整卷结构质量校验（规则库三维度匹配：学段×学科×资料类型）：
-    //    fix 类自动修复（拼音归一/模板残留/缺空补全/分值对齐/标题明细式/连线组装/作文格补格等），
+    //    fix 类自动修复（拼音归一/模板残留/分值对齐/标题明细式/作文格补格等），
     //    guard 类静默计数 → 明细转"抽检提示"展示到生成报告【问题列表】（代码确定性规则，零 AI 调用）
     let auditWarnings = [];
     try {
@@ -5033,35 +4734,26 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       generatedQuestions: [],
       parsedBlueprint: [],
       blueprint: '',
-      pipelineUsed: true,
-      pipelineReason: `整卷一次生成（指令库注入，${genType}，${modeLabel}路径）`,
       auditWarnings,
     };
   };
 
 
   // 执行生成
-  // ==================== 五步生成 ====================
-  const generate = async (instruction, genType, selectedBooks, selectedTemplates, retryCount = 0, blueprintOnly = false, scopeType = '') => {
+  // ==================== 整卷一次生成 ====================
+  const generate = async (instruction, genType, selectedBooks, selectedTemplates, retryCount = 0, scopeType = '') => {
     const MAX_RETRIES = apiConfig.generationSettings?.retry?.generationRetries ?? 2;
     // 🔴 整卷质检静默明细缓存（代码确定性规则检测到的需抽检项，经 fpResult.auditWarnings 传递后展示到生成报告）
     let auditWarningsFromPaper = [];
     // 🔧 缓存管理：
-    // - 逐课时调用（_perPeriodKnowledgeMap 已设置）：保留 _cachedContentCards 供复用
-    // - 整体生成跳过检测（_preservePeriodCache）：保留 _cachedKnowledgeMap 跳过课时切分
+    // - 逐章调用（_perChapterChapterTitle 已设置）：保留缓存供章节过滤复用
     // - 全新调用：全部清空，从 Step1 开始
-    if (!_perPeriodKnowledgeMap && !_preservePeriodCache && !_perChapterChapterTitle) {
+    if (!_perChapterChapterTitle) {
       _cachedKnowledgeMap = null;
-    }
-    if (!_perPeriodKnowledgeMap && !_perChapterChapterTitle) {
       _cachedContentCards = null;
       _cachedInstruction = null;
     }
-    _preservePeriodCache = false;
-    _perPeriodKnowledgeMap = null;
-    _perPeriodSelectedBooks = null;
-    _perPeriodSelectedTemplates = null;
-    // 🔧 _perChapterChapterTitle 不在此处清除——在 generateFullPaper 中用完即清
+    // 🔧 _perChapterChapterTitle 不在此处清除——在 generateFullPaperNatural 中用完即清
     // 🔧 每次生成前创建新的 AbortController，并注册到全局管理器
     if (abortController.value) {
       unregisterController(abortController.value);
@@ -5078,24 +4770,18 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         isGenerating.value = false;
         return { success: false, error: '未选择教材' };
       }
-      // ✅ 统一生成路径：所有引擎、所有资料类型一律走配方流水线
-      // （exam=命题老师蓝本，其余 8 类=教辅编辑任务群；角色由配方自动分流）
+      // ✅ 统一生成路径：所有引擎、所有资料类型一律整卷一次生成（指令库驱动）
+      // （exam=真题蓝本+命题要求，其余 8 类=教辅结构蓝本；角色由指令库模板定义）
       
       //  学段（函数级作用域，供后续模板使用）
       const stage = selectedBooks?.[0]?.stage || '';
       
       // ========== 第一步：逐课提取命题素材 ==========
-      // 🔧 逐课时模式：跳过 Step1-2，使用已缓存的结果和传入的子知识图谱
+      // 🔧 逐章模式（_perChapterChapterTitle 跨 genType 持久，由 GenerateModule 章节循环在完成后清除）
       let contentCards;
       let knowledgeMap;
       
-      if (_perPeriodKnowledgeMap) {
-        knowledgeMap = _perPeriodKnowledgeMap;
-        contentCards = _cachedContentCards;
-        _perPeriodKnowledgeMap = null;
-        console.log('[逐课时] 复用已缓存的 Step1-2 结果，知识点数:', knowledgeMap.knowledgePoints?.length);
-      } else if (_perChapterChapterTitle) {
-        // 🔧 逐章模式（_perChapterChapterTitle 跨 genType 持久，由 GenerateModule 章节循环在完成后清除）
+      if (_perChapterChapterTitle) {
         const targetChapter = _perChapterChapterTitle;
 
         if (!_cachedContentCards || !_cachedKnowledgeMap) {
@@ -5167,42 +4853,10 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       // 🔧 新增：初始化语义检索器
       semanticRetriever.indexContentCards(contentCards);
 
-      // ──────── 课时练课时切分 ────────
-      // 仅 practice 类型且非逐课时模式时触发
-      if (genType === 'practice' && !_cachedKnowledgeMap) {
-        const periods = detectPeriods(knowledgeMap);
-        if (periods.length > 1) {
-          console.log(`[课时切分] 检测到 ${periods.length} 个课时：`, periods.map(p => `${p.periodName}(${p.kpCount}KP)`).join(', '));
-          // 缓存 Step1/2 的结果供逐课时生成复用
-          _cachedKnowledgeMap = knowledgeMap;
-          _cachedContentCards = contentCards;
-          _cachedInstruction = instruction;
-          _perPeriodSelectedBooks = selectedBooks;
-          _perPeriodSelectedTemplates = selectedTemplates;
-          // 通过 periodConfirm 信号通知 UI 层
-          periodConfirm.value = {
-            periods,
-            knowledgeMap,
-            contentCards,
-            instruction,
-            selectedBooks,
-            selectedTemplates,
-          };
-          isGenerating.value = false;
-          const returnVal = {
-            success: true,
-            needsPeriodConfirm: true,
-            periods,
-          };
-          console.log('[课时切分] generate() 即将返回 needsPeriodConfirm:', JSON.stringify({ success: returnVal.success, needsPeriodConfirm: returnVal.needsPeriodConfirm, periodCount: returnVal.periods?.length }));
-          return returnVal;
-        }
-      }
-
       // ========== 第三步：命题规划 ==========
       const step3Config = await getCurrentEngineConfigEnhanced('blueprint');
       const step3ModelName = getModelDisplayName(step3Config.textModel || step3Config.model);
-      statusText.value = `步骤 3/5：命题规划 [${step3ModelName}]...`;
+      statusText.value = `步骤 3/4：命题规划 [${step3ModelName}]...`;
       progress.value = 40;
       
       let templateInfo = '';
@@ -5238,15 +4892,11 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       
       // ✨ 组织风格 → 情境框架生成（情境库已退役：预设素材冗余，统一由 AI 依据风格自主生成）
       let contextFramework = '';
-      // 从指令中解析组织风格（GenerateModule 注入"【组织风格】{value}：{说明}"）
-      const instructionStyleMatch = instruction.match(/(命题风格|组织风格)[：:]\s*([^\n]+)/);
-      const instructionStyleText = instructionStyleMatch ? instructionStyleMatch[1] : '';
-      const isUnifiedContext = instructionStyleText.includes('unified_context');
-      const isContextFusion = instructionStyleText.includes('context_fusion') || instructionStyleText.includes('scenario_each');
-      const isContextStyle = isUnifiedContext || isContextFusion;
+      // 从指令中解析组织风格（GenerateModule 注入"【组织风格】{value}：{说明}"；解析见 utils/instructionStyle.js）
+      const { isUnifiedContext, isContextFusion, isContextStyle } = parseStyleFromInstruction(instruction);
       
       if (isContextStyle) {
-        statusText.value = '步骤 3/5：构建情境框架...';
+        statusText.value = '步骤 3/4：构建情境框架...';
         progress.value = 42;
         
         try {
@@ -5257,37 +4907,11 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           const grade = book?.grade || '';
 
           // 🔧 情境库已退役：预设素材置空，统一走 AI 自主生成（风格指令已注入 prompt）
-          const presetContexts = [];
-
           if (isUnifiedContext) {
-            // ── 统一情境：整卷一个核心情境，所有题目在此情境下展开 ──
-            if (presetContexts.length > 0) {
-              const selectedContext = presetContexts[0];
+            // ── 统一情境：整卷一个核心情境，所有题目在此情境下展开（AI 自主设计）──
+            console.log('AI 动态生成统一情境...');
 
-              contextFramework = `
-【统一情境框架——所有命题必须在此情境下展开】
-
-📖 情境名称：${selectedContext.name}
-📝 背景：${selectedContext.description}
-
-📋 可用场景（每个场景可容纳多道题）：
-${selectedContext.scenes.map((s, i) => `  场景${i + 1}「${s}」`).join('\n')}
-
-📚 适合考查知识点：${selectedContext.suitableTopics?.join('、') || '教材核心知识点'}
-
-📐 叙事弧线：从简单到复杂递进，场景之间有逻辑连贯性
-
-⚠️ 【关键约束】
-1. 蓝图中的每道题必须标注所属场景（在 sourceChapter 字段中注明场景名）
-2. 同一场景内的题目要有逻辑连贯性
-3. 场景顺序应从简单到复杂，与难度递进匹配
-4. 知识点的考查应均匀分布在不同场景中
-`;
-              console.log(`✅ 使用学科情境库：${subject}·${stage}·${selectedContext.name}`);
-            } else {
-              console.log('⚠️ 学科情境库无匹配，AI动态生成统一情境...');
-
-              const contextPrompt = `你是一位${stage}${grade}${subject}教学专家。请为一份教辅资料设计一个贯穿全卷的统一情境/主题故事。
+            const contextPrompt = `你是一位${stage}${grade}${subject}教学专家。请为一份教辅资料设计一个贯穿全卷的统一情境/主题故事。
 
 【要求】
 1. 情境必须与学科内容和学生生活紧密相关
@@ -5312,21 +4936,21 @@ ${selectedContext.scenes.map((s, i) => `  场景${i + 1}「${s}」`).join('\n')}
 
 要求 scenes 至少3个场景，最多5个。场景之间要有逻辑递进关系。只返回 JSON。`;
 
-              const contextResult = await callAI(contextPrompt, {
-                taskType: 'blueprint',
-                temperature: apiConfig.generationSettings.paperTemperature,
-                timeout: getTimeout('blueprint')
-              });
+            const contextResult = await callAI(contextPrompt, {
+              taskType: 'blueprint',
+              temperature: apiConfig.generationSettings.paperTemperature,
+              timeout: getTimeout('blueprint')
+            });
 
-              try {
-                const contextJson = await robustJsonParse(
-                  contextResult,
-                  (retryPrompt) => callAI(retryPrompt, { temperature: apiConfig.generationSettings.paperTemperature, taskType: 'generation' }),
-                  '情境框架',
-                  'generation'
-                );
+            try {
+              const contextJson = await robustJsonParse(
+                contextResult,
+                (retryPrompt) => callAI(retryPrompt, { temperature: apiConfig.generationSettings.paperTemperature, taskType: 'generation' }),
+                '情境框架',
+                'generation'
+              );
 
-                contextFramework = `
+              contextFramework = `
 【统一情境框架——所有命题必须在此情境下展开】
 
 📖 情境名称：${contextJson.name}
@@ -5348,35 +4972,16 @@ ${(contextJson.scenes || []).map((s, i) =>
 3. 场景顺序应从简单到复杂，与难度递进匹配
 4. 知识点的考查应均匀分布在不同场景中
 `;
-                console.log('✅ AI情境框架生成成功:', contextJson.name);
-              } catch (e) {
-                console.warn('情境框架解析失败，使用基础情境约束:', e.message);
-                contextFramework = `\n【情境框架——自主设计统一情境】\n请自主设计一个贯穿全卷的统一情境/主题故事，所有题目在此情境下展开。情境须与学科内容和学生生活紧密相关，要有故事性或任务性，非简单背景装饰。同一情境内的题目要有逻辑连贯性。\n`;
-              }
+              console.log('✅ AI情境框架生成成功:', contextJson.name);
+            } catch (e) {
+              console.warn('情境框架解析失败，使用基础情境约束:', e.message);
+              contextFramework = `\n【情境框架——自主设计统一情境】\n请自主设计一个贯穿全卷的统一情境/主题故事，所有题目在此情境下展开。情境须与学科内容和学生生活紧密相关，要有故事性或任务性，非简单背景装饰。同一情境内的题目要有逻辑连贯性。\n`;
             }
           } else if (isContextFusion) {
-            // ── 情境融合：每个模块/题型独立小情境，不强制统一故事 ──
-            if (presetContexts.length > 0) {
-              const moduleContexts = presetContexts.slice(0, 3);
+            // ── 情境融合：每个模块/题型独立小情境，不强制统一故事（AI 自主设计）──
+            console.log('AI 动态生成模块情境...');
 
-              contextFramework = `
-【情境融合框架——每个模块独立设计情境】
-
-📋 可用情境（每个题型/模块选择一个独立情境）：
-${moduleContexts.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
-     → 适合知识点：${(c.suitableTopics || []).join('、') || '教材核心知识点'}`).join('\n')}
-
-⚠️ 【关键约束】
-1. 每个题型/模块使用一个独立情境，不同模块情境不要求关联
-2. 情境与题目高度融合，考查知识迁移能力
-3. 每个模块内的题目围绕该模块的情境展开
-4. 情境须与学科内容和学生生活紧密相关，要有真实性和任务性
-`;
-              console.log(`✅ 情境融合：使用${moduleContexts.length}个学科情境库情境`);
-            } else {
-              console.log('⚠️ 学科情境库无匹配，AI动态生成模块情境...');
-
-              const fusionPrompt = `你是一位${stage}${grade}${subject}教学专家。请为一份教辅资料设计3个独立的小情境，每个情境对应一个题型/模块。
+            const fusionPrompt = `你是一位${stage}${grade}${subject}教学专家。请为一份教辅资料设计3个独立的小情境，每个情境对应一个题型/模块。
 
 【要求】
 1. 每个情境独立，不要求关联
@@ -5397,22 +5002,22 @@ ${moduleContexts.map((c, i) => `  情境${i + 1}「${c.name}」：${c.descriptio
 
 要求 contexts 恰好3个，每个对应不同题型。只返回 JSON。`;
 
-              const fusionResult = await callAI(fusionPrompt, {
-                taskType: 'blueprint',
-                temperature: apiConfig.generationSettings.paperTemperature,
-                timeout: getTimeout('blueprint')
-              });
+            const fusionResult = await callAI(fusionPrompt, {
+              taskType: 'blueprint',
+              temperature: apiConfig.generationSettings.paperTemperature,
+              timeout: getTimeout('blueprint')
+            });
 
-              try {
-                const fusionJson = await robustJsonParse(
-                  fusionResult,
-                  (retryPrompt) => callAI(retryPrompt, { temperature: apiConfig.generationSettings.paperTemperature, taskType: 'generation' }),
-                  '情境融合框架',
-                  'generation'
-                );
+            try {
+              const fusionJson = await robustJsonParse(
+                fusionResult,
+                (retryPrompt) => callAI(retryPrompt, { temperature: apiConfig.generationSettings.paperTemperature, taskType: 'generation' }),
+                '情境融合框架',
+                'generation'
+              );
 
-                const ctxList = fusionJson.contexts || [];
-                contextFramework = `
+              const ctxList = fusionJson.contexts || [];
+              contextFramework = `
 【情境融合框架——每个模块独立设计情境】
 
 📋 可用情境（每个题型/模块选择一个独立情境）：
@@ -5426,11 +5031,10 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
 3. 每个模块内的题目围绕该模块的情境展开
 4. 情境须与学科内容和学生生活紧密相关，要有真实性和任务性
 `;
-                console.log('✅ AI情境融合框架生成成功:', ctxList.length, '个情境');
-              } catch (e) {
-                console.warn('情境融合框架解析失败，使用基础约束:', e.message);
-                contextFramework = `\n【情境融合框架——每个模块独立设计情境】\n请为每个题型/模块设计一个独立的小情境，情境与题目高度融合。不同模块的情境可以完全不同，但每个模块内的题目应围绕该模块的情境展开。情境须与学科内容和学生生活紧密相关，要有真实性和任务性。\n`;
-              }
+              console.log('✅ AI情境融合框架生成成功:', ctxList.length, '个情境');
+            } catch (e) {
+              console.warn('情境融合框架解析失败，使用基础约束:', e.message);
+              contextFramework = `\n【情境融合框架——每个模块独立设计情境】\n请为每个题型/模块设计一个独立的小情境，情境与题目高度融合。不同模块的情境可以完全不同，但每个模块内的题目应围绕该模块的情境展开。情境须与学科内容和学生生活紧密相关，要有真实性和任务性。\n`;
             }
           }
         } catch (e) {
@@ -5443,8 +5047,8 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
         }
       }
       
-      // ──────── 🔴 统一生成路径：所有引擎、所有资料类型一律走配方流水线 ────────
-      //    用户只选教材 + 资料类型：exam 自动用命题老师蓝本，其余 8 类自动用教辅编辑任务群。
+      // ──────── 🔴 统一生成路径：所有引擎、所有资料类型一律整卷一次生成（指令库驱动） ────────
+      //    用户只选教材 + 资料类型：exam 自动用真题蓝本（卷面结构固定），其余 8 类自动用教辅结构蓝本。
       // 整卷生成路径下声明的变量（供后续质量校验共享）
       let blueprint = '';
       let parsedBlueprint = [];
@@ -5457,7 +5061,7 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
 
       // ========== 🔴 整卷一次生成（指令库驱动，主路径） ==========
       // 注入指令 = 指令库模板（UI"注入指令框"可见可编辑），一次生成整卷正文 + 独立答案页。
-      // 无分块、无 byCode 拼装、无事后质检——生成质量由"人话指令 + 模型本能"保证。
+      // 无分块、无 byCode 拼装、无 AI 事后质检——生成质量由"人话指令 + 模型本能"保证（代码确定性兜底保留）。
       // 分步流水线（generateByRecipe/runPipeline）已整体删除。
       statusText.value = '步骤 3/4：整卷生成中...';
         progress.value = 40;
@@ -5520,10 +5124,10 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
         issues.push(`⚠️ 以下章节未能提取到教材原文（OCR/解析无内容），已按目录模式生成：${tocCardList.join('、')}`);
       }
 
-      // ========== 🔧 质检已移除（生成端保障） ==========
-      // 生成质量由"生成端"保证：指令库注入（含蓝图题型骨架与新课标条款）+ 整卷一次生成 + 代码确定性兜底（空白规范化/密封线）。
-      // 不再做生成后质量检测/拦截/修复——"自产自评"无意义（同一模型检不出系统性错误），
-      // 质检误报还会中断整卷生成（实测空壳误判→两次重试→整卷失败）。
+      // 🔴 整卷质检（生成端保障）：
+      //    - AI 质检已移除——"自产自评"无意义（同一模型检不出系统性错误），
+      //      质检误报还会中断整卷生成（实测空壳误判→两次重试→整卷失败）；
+      //    - 代码确定性兜底保留（auditExamPaper 已在整卷生成内部执行：拼音/模板残留/分值对齐等 fix + guard 静默抽检）
       const book = selectedBooks?.[0];
       const stageRaw = book?.stage || '';
 
@@ -5758,193 +5362,6 @@ ${questionPlan.score ? `- 标注：【知识点：${questionPlan.knowledgePoint}
     return matches.map(m => ({ full: m }));
   };
 
-  // ===== 课时练逐课时生成 =====
-  /**
-   * 对已确认的课时列表逐条生成蓝图和内容
-   * 调用前必须先通过 generate() 检测到 needsPeriodConfirm，用户确认后调用此函数
-   * @param {Array} confirmedPeriods - 用户确认的课时列表
-   */
-  const generatePracticeByPeriods = async (confirmedPeriods) => {
-    const knowledgeMap = _cachedKnowledgeMap;
-    const contentCards = _cachedContentCards;
-    const instruction = _cachedInstruction;
-    const selectedBooks = _perPeriodSelectedBooks;
-    const selectedTemplates = _perPeriodSelectedTemplates;
-
-    if (!knowledgeMap || !contentCards || !instruction) {
-      console.error('[逐课时生成] 缺少缓存数据，请先运行 generate() 检测课时');
-      _cachedKnowledgeMap = null;
-      _cachedContentCards = null;
-      _cachedInstruction = null;
-      periodConfirm.value = null;
-      isGenerating.value = false;
-      return { success: false, error: '缓存数据缺失' };
-    }
-
-    isGenerating.value = true;
-    progress.value = 30;
-    const periodResults = [];
-    const totalPeriods = confirmedPeriods.length;
-
-    for (let pi = 0; pi < totalPeriods; pi++) {
-      const period = confirmedPeriods[pi];
-      const periodLabel = `课时${pi + 1}/${totalPeriods}`;
-      statusText.value = `${periodLabel}：${period.periodName} — 命题规划...`;
-      progress.value = 30 + Math.round((pi / totalPeriods) * 35);
-
-      // 构造该课时的子知识图谱
-      const periodKMap = {
-        knowledgePoints: period.knowledgePoints,
-        keyDifficulties: (knowledgeMap.keyDifficulties || []).filter(
-          kd => period.knowledgePoints.some(kp => 
-            (typeof kd === 'string' && typeof kp === 'string') && (kd.includes(kp) || kp.includes(kd))
-          )
-        ),
-        knowledgeGraph: [{
-          unit: period.unitName || '',
-          bigConcepts: [{
-            name: period.periodName,
-            coreKnowledge: period.knowledgePoints.map(kp => ({ name: kp }))
-          }]
-        }],
-        crossChapterLinks: [],
-      };
-
-      // 构造课时专用 instruction
-      let periodInstruction = instruction;
-      if (totalPeriods > 1) {
-        periodInstruction += `\n\n【课时限定】当前仅生成「${period.periodName}」的课时练习。`;
-        periodInstruction += `\n本课时包含 ${period.kpCount} 个知识点：${period.knowledgePoints.join('、')}`;
-        periodInstruction += `\n严格仅考查以上知识点，不涉及本单元其他课时内容。`;
-      }
-
-      // 调用 generate 蓝图模式（复用 Step3 蓝图表生成逻辑）
-      _perPeriodKnowledgeMap = periodKMap;
-      let periodBlueprintResult;
-      try {
-        periodBlueprintResult = await generate(
-          periodInstruction, 'practice', selectedBooks, selectedTemplates, 0, true
-        );
-      } catch (e) {
-        console.error(`[逐课时] ${periodLabel} 蓝图生成失败:`, e.message);
-        periodResults.push({
-          periodName: period.periodName,
-          unitName: period.unitName,
-          kpCount: period.kpCount,
-          blueprint: '',
-          parsedBlueprint: [],
-          content: '',
-          error: e.message,
-        });
-        continue;
-      }
-
-      statusText.value = `${periodLabel}：${period.periodName} — 生成内容...`;
-      progress.value = 30 + Math.round(((pi + 0.5) / totalPeriods) * 35);
-
-      // 调用 generate 完整模式（复用 Step4-5 内容生成 + 质检逻辑）
-      _perPeriodKnowledgeMap = periodKMap;
-      let periodResult;
-      try {
-        periodResult = await generate(
-          periodInstruction, 'practice', selectedBooks, selectedTemplates, 0, false
-        );
-      } catch (e) {
-        console.error(`[逐课时] ${periodLabel} 内容生成失败:`, e.message);
-        periodResults.push({
-          periodName: period.periodName,
-          unitName: period.unitName,
-          kpCount: period.kpCount,
-          blueprint: periodBlueprintResult?.blueprint || '',
-          parsedBlueprint: periodBlueprintResult?.parsedBlueprint || [],
-          content: '',
-          error: e.message,
-        });
-        continue;
-      }
-
-      periodResults.push({
-        periodName: period.periodName,
-        unitName: period.unitName,
-        kpCount: period.kpCount,
-        blueprint: periodBlueprintResult?.blueprint || '',
-        parsedBlueprint: periodBlueprintResult?.parsedBlueprint || [],
-        content: periodResult?.content || '',
-        generatedQuestions: periodResult?.generatedQuestions || [],
-        issues: periodResult?.issues || [],
-        qualityReport: periodResult?.qualityReport || null,
-      });
-    }
-
-    // 清理缓存
-    _cachedKnowledgeMap = null;
-    _cachedContentCards = null;
-    _cachedInstruction = null;
-    _perPeriodSelectedBooks = null;
-    _perPeriodSelectedTemplates = null;
-    periodConfirm.value = null;
-    isGenerating.value = false;
-
-    progress.value = 100;
-    statusText.value = `课时练生成完成（${totalPeriods} 个课时）`;
-
-    // 合并所有课时内容
-    // 🔧 逐课时合并重构：剥离各课时独立的 answer-section，合并为统一答案区
-    const periodQuestions = [];
-    const periodAnswers = [];
-
-    for (let i = 0; i < periodResults.length; i++) {
-      const r = periodResults[i];
-      if (!r.content) continue;
-      let content = r.content;
-      // 提取尾部 answer-section（支持多行内容）
-      const answerMatch = content.match(/<div\s+class="answer-section">[\s\S]*?<\/div>(?:\s*<\/div>)?\s*$/i);
-      let answerHtml = '';
-      if (answerMatch) {
-        answerHtml = answerMatch[0];
-        // 从题目内容中移除该 answer-section
-        content = content.slice(0, answerMatch.index).trimEnd();
-      }
-      periodQuestions.push({ name: r.periodName, content });
-      periodAnswers.push({ name: r.periodName, answer: answerHtml });
-    }
-
-    // 组装：题目（按课时间隔）+ 统一答案区
-    let combinedContent = '';
-    for (let i = 0; i < periodQuestions.length; i++) {
-      const q = periodQuestions[i];
-      const header = totalPeriods > 1
-        ? `<h2 style="margin-top:${i > 0 ? '24px' : '0'};border-bottom:1px solid #e0e0e0;padding-bottom:8px;">${q.name}</h2>\n`
-        : '';
-      combinedContent += header + q.content;
-      if (i < periodQuestions.length - 1) combinedContent += '\n';
-    }
-
-    // 统一答案区
-    const hasAnswers = periodAnswers.some(a => a.answer);
-    if (hasAnswers) {
-      combinedContent += '\n<div class="answer-section">\n<h2>答案与解析</h2>\n';
-      for (const pa of periodAnswers) {
-        if (!pa.answer) continue;
-        if (totalPeriods > 1) {
-          combinedContent += `<h3>${pa.name}</h3>\n`;
-        }
-        // 提取 answer-section 内部内容（去掉外层 div 包装）
-        const inner = pa.answer.replace(/<div\s+class="answer-section">\s*/i, '').replace(/\s*<\/div>\s*$/i, '');
-        combinedContent += inner + '\n';
-      }
-      combinedContent += '</div>\n';
-    }
-
-    return {
-      success: true,
-      isMultiPeriod: true,
-      periodCount: totalPeriods,
-      periods: periodResults,
-      content: combinedContent,
-      generatedQuestions: periodResults.flatMap(r => r.generatedQuestions || []),
-    };
-  };
 
   // ===== 错误边界：安全 AI 调用包装 =====
   const safeCallAI = async (prompt, options = {}) => {
@@ -5977,20 +5394,6 @@ ${questionPlan.score ? `- 标注：【知识点：${questionPlan.knowledgePoint}
     }
   };
 
-  const clearPeriodCache = () => {
-    _cachedKnowledgeMap = null;
-    _cachedContentCards = null;
-    _cachedInstruction = null;
-    _perPeriodSelectedBooks = null;
-    _perPeriodSelectedTemplates = null;
-    periodConfirm.value = null;
-  };
-
-  // 🔧 整体生成跳过检测：cancelPeriodSplit 调用前设置此标志，阻止 generate() 重新触发课时切分
-  const preserveCacheForNextGenerate = () => {
-    _preservePeriodCache = true;
-  };
-
   // 🔧 逐章生成：设置当前章节标题，下次 generate() 从缓存过滤出单章数据
   const setPerChapterFilter = (chapterTitle) => {
     _perChapterChapterTitle = chapterTitle;
@@ -6001,7 +5404,6 @@ ${questionPlan.score ? `- 标注：【知识点：${questionPlan.knowledgePoint}
     progress,
     statusText,
     abortController,
-    periodConfirm,
     callAI,
     safeCallAI,
     callMultimodalAI,
@@ -6020,12 +5422,7 @@ ${questionPlan.score ? `- 标注：【知识点：${questionPlan.knowledgePoint}
     pickScopeFromPool,     // 📐 范围标签词轮换（期中/期末/月考/专题，避免标题千篇一律）
     setScopeLabelOverride, // 📐 考试标签维度固定名称（名称样式弹窗，null=恢复轮换）
     generate,
-    generatePracticeByPeriods,
-    generateFullPaperNatural,  // 🔴 整卷一次生成入口（指令库驱动，当前主路径）
-    clearPeriodCache,
-    preserveCacheForNextGenerate,
     setPerChapterFilter,
-    getTypeDistribution,
     cancelGeneration,
     extractGraphs,
     generateQuestionVariant,

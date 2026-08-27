@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   findBlueprint, saveUserBlueprint, deleteUserBlueprint, listAllBlueprints, previewWithRegion,
 } from '@/config/blueprintProvider.js';
+import { setLibToggle } from '@/utils/libToggles.js';
 
 const BP_KEY = '语文|primary_low';
 
@@ -83,5 +84,27 @@ describe('省市预览 previewWithRegion（蓝图库面板显示层）', () => {
     saveUserBlueprint('语文|middle', { label: 'x', fullScore: 130, duration: '60分钟', sections: [{ name: 'A', score: 130, note: '' }] });
     const userBp = listAllBlueprints().find(b => b.key === '语文|middle');
     expect(previewWithRegion(userBp, '江苏·南通').fullScore).toBe(130); // 用户版不被省市覆盖
+  });
+});
+
+describe('蓝图条目停用（工具库开关）', () => {
+  it('停用用户自定义 → 整条目停用（含内置版，null）', () => {
+    saveUserBlueprint(BP_KEY, {
+      label: '语文·低段自定义', fullScore: 120, duration: '90分钟',
+      sections: [{ name: '基础知识', score: 60, note: '自定义' }, { name: '阅读', score: 60, note: '自定义' }],
+    });
+    expect(findBlueprint({ genType: 'exam', subject: '语文', stage: 'primary_low' }).source).toBe('user');
+    setLibToggle('blueprint', BP_KEY, false);
+    expect(findBlueprint({ genType: 'exam', subject: '语文', stage: 'primary_low' })).toBeNull();
+    setLibToggle('blueprint', BP_KEY, true);
+    expect(findBlueprint({ genType: 'exam', subject: '语文', stage: 'primary_low' }).source).toBe('user');
+    deleteUserBlueprint(BP_KEY);
+  });
+
+  it('停用内置条目 → 无卷面蓝本（null）', () => {
+    setLibToggle('blueprint', BP_KEY, false);
+    expect(findBlueprint({ genType: 'exam', subject: '语文', stage: 'primary_low' })).toBeNull();
+    setLibToggle('blueprint', BP_KEY, true);
+    expect(findBlueprint({ genType: 'exam', subject: '语文', stage: 'primary_low' }).source).toBe('builtin');
   });
 });

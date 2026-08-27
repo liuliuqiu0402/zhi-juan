@@ -9,10 +9,12 @@
  *   - 本库：栏目框架、题量/字数底线、时长适配、关键元素——模板不再重复具体数字与栏目明细
  *   - 规则库：生成后静默质检（教辅题量充足性、禁标分值等 guard）
  *
- * 题量数字与 typeDistribution.js（UI 题型自动填充）对齐，保证界面展示与生成注入同源。
+ * 题量数字为教辅结构底线（生成端按 学段×类型 注入），与 exam 的蓝本骨架对称。
  * 生成端 buildTeachingInjection 按 学段×类型 注入，与 exam 的 buildBlueprintInjection 对称。
  * ============================================================
  */
+
+import { isLibEntryEnabled } from '../utils/libToggles.js';
 
 /** 学段显示名 */
 export const TEACHING_STAGE_NAMES = {
@@ -1043,6 +1045,8 @@ function normalizeTeachingStage(stage = '') {
  * @returns {Object|null} { label, sections, stageParams, key, custom }
  */
 export function getTeachingBlueprint({ genType = '', stage = '', subject = '' } = {}) {
+  // 工具库条目开关：该 学科×类型 条目（含学科定制与通用回退行）被停用 → 无教辅结构注入
+  if (!isLibEntryEnabled('blueprint', `${subject || '*'}|${genType}`)) return null;
   const custom = TEACHING_SUBJECT_BLUEPRINTS[subject]?.[genType];
   const def = TEACHING_BLUEPRINTS[genType];
   const bp = custom || def;
@@ -1055,7 +1059,7 @@ export function getTeachingBlueprint({ genType = '', stage = '', subject = '' } 
   return {
     label: bp.label, sections: bp.sections, stageParams,
     key: `${subject || '*'}|${genType}|${stageKey}`, stageKey,
-    subject: subject || '*', custom: !!custom,
+    subject: subject || '*', custom: bp === custom, // 停用定制后走通用模板 → custom=false
   };
 }
 

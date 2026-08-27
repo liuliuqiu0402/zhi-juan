@@ -1,46 +1,71 @@
 /**
  * 配方覆盖核查（check_recipe_coverage）
  * ============================================================
- * 验证：全学科 × 全学段 × 全 genType 是否都能找到配方（无回退旧路径缺口）。
+ * 验证（新架构：替代已删除的 recipeRegistry.js / recipe/blocks 规范块体系）：
+ * 1) 三维度指令 cell：学段×学科×类型 全命中（getPromptTemplate 直取预生成 cell，携带学科要点）
+ * 2) 真题卷蓝本：EXAM_BLUEPRINTS 全量校验（分值闭合/听力占比/卷面要素）+ 54 组合蓝本可达
+ * 3) 教辅结构蓝本：8 类 × 15 科 无缺口（getTeachingBlueprint，栏目非空）
  * ============================================================
  */
-import path from 'path';
-import { pathToFileURL } from 'url';
+const lib = (f) => new URL(`../src/config/${f}`, import.meta.url).href;
+const { getPromptTemplate, STAGE_SUBJECTS } = await import(lib('promptLibrary.js'));
+const { EXAM_BLUEPRINTS, getExamBlueprint } = await import(lib('examPaperBlueprints.js'));
+const { validateAllBlueprints } = await import(lib('blueprintGuard.js'));
+const { TEACHING_GEN_TYPES, TEACHING_SUBJECT_BLUEPRINTS, getTeachingBlueprint } = await import(lib('teachingBlueprints.js'));
 
-const registryUrl = pathToFileURL(path.resolve('d:/wisdom-workshop/src/config/recipe/recipeRegistry.js')).href;
-const { findRecipe } = await import(registryUrl);
-
-const ALL_TYPES = ['exam', 'practice', 'special', 'errorbook', 'reading', 'preview', 'dictation', 'summary', 'review'];
-const STAGES = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
-const SUBJECTS = [
-  '语文', '数学', '英语',
-  '物理', '化学', '生物',
-  '历史', '地理', '道德与法治', '思想政治',
-  '科学', '信息科技',
-  '音乐', '美术', '体育',
-];
-
-console.log('═══ 配方覆盖矩阵（genType × 学科，学段取 primary_low 为例 + exam 全学段核查）═══\n');
+const ALL_TYPES = ['exam', ...TEACHING_GEN_TYPES];
 let gaps = 0;
-for (const genType of ALL_TYPES) {
-  const row = [genType.padEnd(9)];
-  for (const subject of SUBJECTS) {
-    const r = findRecipe({ genType, subject, stage: 'primary_low' });
-    row.push(r ? '✓' : '✗');
-    if (!r) { gaps++; console.log(`❌ 无配方: ${genType}/${subject}/primary_low`); }
-  }
-  console.log(row.join(' '));
-}
 
-console.log('\n═══ exam 全学段核查 ═══\n');
-for (const subject of SUBJECTS) {
-  for (const stage of STAGES) {
-    const r = findRecipe({ genType: 'exam', subject, stage });
-    if (!r) { gaps++; console.log(`❌ 无 exam 配方: ${subject}/${stage}`); }
+// ── 1) 三维度指令 cell ──
+console.log('═══ 1) 三维度指令 cell（学段×学科×类型）═══\n');
+let cellCount = 0;
+for (const [stage, subjList] of Object.entries(STAGE_SUBJECTS)) {
+  for (const subject of subjList) {
+    for (const gType of ALL_TYPES) {
+      cellCount++;
+      const t = getPromptTemplate({ grade: stage, subject, genType: gType });
+      const cellHit = t.source === 'builtin' && t.id === `${stage}|${subject}|${gType}`;
+      if (!cellHit) { gaps++; console.log(`❌ 无三维度 cell: ${stage}/${subject}/${gType}（回落 ${t.id}）`); continue; }
+      if (!t.template.includes(`【${subject}·`)) { gaps++; console.log(`❌ cell 缺学科要点块: ${stage}/${subject}/${gType}`); }
+    }
   }
-  const r = findRecipe({ genType: 'exam', subject, stage: 'primary_low' });
-  console.log(`  ${subject}: ${r ? `✓ ${r.meta.id}（${r.blueprint.sections.length} 板块）` : '✗'}`);
 }
+console.log(`三维度 cell 共 ${cellCount} 个${gaps === 0 ? '，全部命中且携带学科要点' : ''}`);
 
-console.log(`\n${gaps === 0 ? '✅ 配方全学科覆盖无缺口' : `❌ 存在 ${gaps} 处缺口`}`);
+// ── 2) 真题卷蓝本 ──
+console.log('\n═══ 2) 真题卷蓝本（EXAM_BLUEPRINTS）═══\n');
+const { errors, warnings, ok } = validateAllBlueprints(EXAM_BLUEPRINTS);
+for (const e of errors) console.log(`❌ ${e.detail}`);
+for (const w of warnings) console.log(`⚠ ${w.detail}`);
+console.log(`蓝本数: ${Object.keys(EXAM_BLUEPRINTS).length}，${ok ? '分值闭合/结构校验全部通过' : `存在 ${errors.length} 处错误`}`);
+if (!ok) gaps += errors.length;
+
+let reachable = 0;
+let combos = 0;
+for (const [stage, subjList] of Object.entries(STAGE_SUBJECTS)) {
+  for (const subject of subjList) {
+    combos++;
+    const bp = getExamBlueprint(subject, stage);
+    if (!bp) { gaps++; console.log(`❌ ${subject}/${stage} 无可用真题蓝本`); }
+    else reachable++;
+  }
+}
+console.log(`学段×学科蓝本可达 ${reachable}/${combos}`);
+
+// ── 3) 教辅结构蓝本 ──
+console.log('\n═══ 3) 教辅结构蓝本（8 类 × 15 科）═══\n');
+let teachingTotal = 0;
+for (const subject of [...new Set(Object.values(STAGE_SUBJECTS).flat())]) {
+  const customs = Object.entries(TEACHING_SUBJECT_BLUEPRINTS[subject] || {}).filter(([k]) => TEACHING_GEN_TYPES.includes(k));
+  for (const gType of TEACHING_GEN_TYPES) {
+    teachingTotal++;
+    const bp = getTeachingBlueprint({ genType: gType, stage: 'middle', subject });
+    if (!bp) { gaps++; console.log(`❌ 无教辅蓝本: ${subject}/${gType}`); continue; }
+    if (!bp.sections?.length) { gaps++; console.log(`❌ 教辅蓝本栏目为空: ${subject}/${gType}`); }
+  }
+  console.log(`  ${subject}: 定制 ${customs.length}/${TEACHING_GEN_TYPES.length} 类`);
+}
+console.log(`教辅组合 ${teachingTotal} 个全部可达`);
+
+console.log(`\n${gaps === 0 ? '✅ 配方覆盖无缺口' : `❌ 存在 ${gaps} 处缺口`}`);
 process.exit(gaps === 0 ? 0 : 1);

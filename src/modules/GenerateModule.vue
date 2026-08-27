@@ -224,30 +224,6 @@
           <div class="progress-bar"><div class="progress-fill" :style="{ width: generateProgress + '%' }"></div></div>
         </div>
 
-        <!-- 🔧 多课时结果 tabs -->
-        <div v-if="multiPeriodResults && multiPeriodResults.periods && multiPeriodResults.periods.length > 1" class="period-tabs">
-          <div class="period-tab-bar">
-            <button 
-              :class="['period-tab', { active: activePeriodTab === -1 }]"
-              @click="switchPeriodTab(-1)"
-              title="查看合并版完整内容"
-            >📦 全部</button>
-            <button
-              v-for="(p, pi) in multiPeriodResults.periods"
-              :key="p.periodName"
-              :class="['period-tab', { active: activePeriodTab === pi }]"
-              @click="switchPeriodTab(pi)"
-              :title="`${p.periodName}：${p.kpCount}个知识点`"
-            >
-              <span class="period-tab-label">{{ p.periodName }}</span>
-              <span class="period-tab-kp">{{ p.kpCount }}KP</span>
-            </button>
-          </div>
-          <div class="period-tab-actions">
-            <button class="btn-small" @click="closePeriodTabs" title="收起课时视图">✕ 收起</button>
-          </div>
-        </div>
-
         <div class="result-header">
           <span>📋 结果 ({{ displayedDocs.length }})</span>
           <span class="select-all" @click="toggleSelectAll">{{ allSelected ? '取消全选' : '全选' }}</span>
@@ -758,7 +734,7 @@
       </div>
     </div>
 
-    <!-- 🔧 新增：原文编辑弹窗（分步流程 - 步骤2） -->
+    <!-- 🔧 原文编辑弹窗（用户确认/补充 OCR 或手动录入的教材原文） -->
     <div v-if="showRawTextEditor" class="modal-mask" @click.self="closeRawTextEditor">
       <div class="modal large-modal" style="max-width: 1200px; width: 95%; display: flex; flex-direction: column;">
         <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -811,7 +787,7 @@
             <li>支持直接粘贴图文混排内容（Word、网页、PDF等）</li>
             <li>图片会自动提取为 base64 格式</li>
             <li>如果启用"分析图片"，系统会用多模态模型描述每张图片并替换为文字</li>
-            <li>最终生成纯文本，方便后续五步生成法调用</li>
+            <li>最终生成纯文本，方便后续分析提取命题素材</li>
           </ul>
         </div>
             
@@ -1344,178 +1320,6 @@
       </div>
     </div>
 
-    <!-- 🔧 课时切分确认弹窗 -->
-    <div v-if="showPeriodConfirmModal" class="modal-mask" @click.self="showPeriodConfirmModal = false">
-      <div class="modal large-modal" style="max-width: 600px;">
-        <h3>📚 课时切分确认</h3>
-        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px;">
-          系统检测到该单元包含 <strong>{{ pendingPeriods.length }} 个课时</strong>，建议拆分为独立课时练习。
-          每个课时只覆盖对应知识点的内容，题量和难度更合理。
-        </p>
-        <div style="max-height: 300px; overflow-y: auto;">
-          <div v-for="(p, i) in pendingPeriods" :key="p.id"
-            style="display:flex;align-items:center;padding:8px 12px;margin:4px 0;background:var(--bg-card);border:1px solid var(--border-light);border-radius:6px;">
-            <span style="font-weight:600;min-width:60px;color:var(--accent);">课时{{ i + 1 }}</span>
-            <span style="flex:1;">{{ p.periodName }}</span>
-            <span style="color:var(--text-muted);font-size:12px;margin-left:8px;">{{ p.kpCount }} 个知识点</span>
-          </div>
-        </div>
-        <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
-          <button class="btn" @click="cancelPeriodSplit">不拆分，整体生成</button>
-          <button class="btn-primary" @click="confirmPeriodSplit">确认拆分，逐课时生成</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ✨ 蓝图确认弹窗 -->
-    <div v-if="showBlueprintConfirmModal" class="modal-mask" @click.self="showBlueprintConfirmModal = false">
-      <div class="modal large-modal" style="max-width: 900px;">
-        <h3>{{ blueprintModalConfig.title }}</h3>
-        <p style="color:var(--text-muted);font-size:13px;margin-bottom:8px;">
-          {{ blueprintModalConfig.subtitle }}
-        </p>
-        <p style="color:var(--warning);font-size:12px;margin-bottom:16px;background:#fef9e7;padding:8px 12px;border-radius:6px;">
-          {{ blueprintModalConfig.checkHint }}
-        </p>
-        
-        <!-- 蓝图统计信息 -->
-        <div v-if="pendingBlueprintStats" style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
-          <div style="padding:10px 16px;background:var(--info-light);border-radius:8px;font-size:13px;">
-            <span v-if="pendingGenType === 'dictation'">📝 词汇数：</span>
-            <span v-else>📚 知识点：</span>
-            <strong>{{ pendingBlueprintStats.knowledgePointCount }}</strong>个
-          </div>
-          <template v-if="isExamTypeForModal">
-            <div style="padding:10px 16px;background:var(--success-light);border-radius:8px;font-size:13px;">
-              📝 总题数：<strong>{{ pendingBlueprintStats.totalQuestions }}</strong>
-            </div>
-            <div style="padding:10px 16px;background:var(--warning-light);border-radius:8px;font-size:13px;">
-              🟢 基础：<strong>{{ pendingBlueprintStats.easyPercent }}%</strong>
-              🟡 中等：<strong>{{ pendingBlueprintStats.mediumPercent }}%</strong>
-              🔴 较难：<strong>{{ pendingBlueprintStats.hardPercent }}%</strong>
-            </div>
-            <div style="padding:10px 16px;background:#fce4ec;border-radius:8px;font-size:13px;">
-              💯 总分：<strong>{{ pendingBlueprintStats.totalScore }}</strong>
-            </div>
-          </template>
-        </div>
-
-        <!-- 🔧 操作按钮行 -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-          <span style="font-size:13px;color:#666;">
-            共 <strong>{{ parsedBlueprintForPreview.length }}</strong> {{ isExamTypeForModal ? '题' : '项' }}，可直接在表格中修改
-          </span>
-          <div style="display:flex;gap:6px;">
-            <button class="btn-small" v-if="lastDeletedQuestion" @click="undoDeleteQuestion" style="background:var(--warning-light);color:var(--warning);border-color:#f0c78e;" title="撤销删除">↩️ 撤销删除</button>
-            <button class="btn-small" @click="addBlueprintQuestion" style="background:var(--success-light);color:var(--success);border-color:#a5d6a7;">➕ 添加{{ isExamTypeForModal ? '题目' : '条目' }}</button>
-          </div>
-        </div>
-        
-        <!-- 蓝图编辑区 -->
-        <div class="blueprint-editor" style="margin-bottom:16px;">
-          <textarea 
-            v-model="editedBlueprintText" 
-            rows="20" 
-            style="width:100%;font-family:'Consolas',monospace;font-size:12px;padding:12px;border:1px solid #ddd;border-radius:8px;resize:vertical;"
-            placeholder="编辑蓝图..."
-          ></textarea>
-        </div>
-        
-        <!-- 逐项预览表格 -->
-        <div v-if="parsedBlueprintForPreview.length > 0" style="max-height:300px;overflow-y:auto;margin-bottom:16px;border:1px solid var(--border-light);border-radius:8px;">
-          <table style="width:100%;border-collapse:collapse;font-size:12px;">
-            <thead>
-              <tr style="background:var(--bg);position:sticky;top:0;">
-                <th style="padding:8px;border-bottom:1px solid var(--border-light);text-align:left;">序号</th>
-                <th v-if="isExamTypeForModal" style="padding:8px;border-bottom:1px solid var(--border-light);text-align:left;">题型</th>
-                <th style="padding:8px;border-bottom:1px solid var(--border-light);text-align:left;">{{ isExamTypeForModal ? '知识点' : (pendingGenType === 'dictation' ? '词汇' : '知识点') }}</th>
-                <th v-if="isExamTypeForModal" style="padding:8px;border-bottom:1px solid var(--border-light);text-align:left;">难度</th>
-                <th v-if="isExamTypeForModal" style="padding:8px;border-bottom:1px solid var(--border-light);text-align:left;">分值</th>
-                <th v-if="isExamTypeForModal" style="padding:8px;border-bottom:1px solid var(--border-light);text-align:left;">来源</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(q, qIdx) in parsedBlueprintForPreview" :key="q.number + '_' + qIdx" style="border-bottom:1px solid #f0f0f0;" :style="{background: q._deleted ? '#fce4ec' : 'transparent'}">
-                <td style="padding:6px 8px;">{{ q.number }}</td>
-                <!-- 考试类：题型下拉 -->
-                <td v-if="isExamTypeForModal" style="padding:4px 6px;">
-                  <select 
-                    v-model="q.type" 
-                    style="width:100%;padding:4px;font-size:12px;border:1px solid #ddd;border-radius:4px;"
-                    @change="onBlueprintCellChange(qIdx)"
-                  >
-                    <optgroup v-if="recommendedQuestionTypes.length > 0" label="📋 推荐题型">
-                      <option v-for="t in recommendedQuestionTypes" :key="'rec_' + t" :value="t">{{ t }}</option>
-                    </optgroup>
-                    <optgroup label="📝 全部题型">
-                      <option v-for="t in availableQuestionTypes" :key="'all_' + t" :value="t">{{ t }}</option>
-                    </optgroup>
-                  </select>
-                </td>
-                <!-- 知识点/词汇（可编辑文本） -->
-                <td style="padding:4px 6px;">
-                  <input 
-                    type="text" 
-                    v-model="q.knowledgePoint" 
-                    style="width:100%;padding:4px;font-size:12px;border:1px solid #ddd;border-radius:4px;"
-                    @change="onBlueprintCellChange(qIdx)"
-                  />
-                </td>
-                <td v-if="isExamTypeForModal" style="padding:4px 6px;">
-                  <select 
-                    v-model="q.difficulty" 
-                    style="width:100%;padding:4px;font-size:12px;border:1px solid #ddd;border-radius:4px;"
-                    :style="{color: q.difficulty === '基础' ? 'var(--success)' : q.difficulty === '中等' ? '#f39c12' : 'var(--danger)'}"
-                    @change="onBlueprintCellChange(qIdx)"
-                  >
-                    <option value="基础">基础</option>
-                    <option value="中等">中等</option>
-                    <option value="较难">较难</option>
-                  </select>
-                </td>
-                <td v-if="isExamTypeForModal" style="padding:4px 6px;">
-                  <input 
-                    type="number" 
-                    v-model.number="q.score" 
-                    min="1" 
-                    max="50"
-                    style="width:50px;padding:4px;font-size:12px;border:1px solid #ddd;border-radius:4px;"
-                    @change="onBlueprintCellChange(qIdx)"
-                  />
-                </td>
-                <td v-if="isExamTypeForModal" style="padding:4px 6px;color:var(--text-muted);">
-                  <input 
-                    type="text" 
-                    v-model="q.sourceChapter" 
-                    style="width:100%;padding:4px;font-size:12px;border:1px solid #ddd;border-radius:4px;color:var(--text-muted);"
-                    @change="onBlueprintCellChange(qIdx)"
-                  />
-                </td>
-                <td style="padding:4px 6px;text-align:center;">
-                  <button 
-                    class="btn-small btn-delete" 
-                    @click="removeBlueprintQuestion(qIdx)"
-                    title="删除此项"
-                    style="padding:2px 8px;"
-                  >🗑️</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- 无预览数据时的提示 -->
-        <div v-else-if="pendingBlueprint" style="margin-bottom:16px;padding:16px;background:var(--bg);border-radius:8px;text-align:center;color:var(--text-muted);">
-          📝 蓝图已生成，请在编辑区查看和修改文本内容后确认
-        </div>
-        
-        <div class="modal-actions">
-          <button class="btn" @click="cancelBlueprintConfirm">❌ 取消</button>
-          <button class="btn" @click="regenerateBlueprint">🔄 重新生成蓝图</button>
-          <button class="btn-primary" @click="confirmBlueprintAndGenerate">✅ 确认并生成</button>
-        </div>
-      </div>
-    </div>
 
     <!-- 知识点提取弹窗 -->
     <div v-if="showKnowledgeModal" class="modal-mask" @click.self="showKnowledgeModal = false">
@@ -1555,11 +1359,10 @@ import {
   genTypeTemplates,
   scopeOptions,
   granularityOptions,
-  subjectCoreCompetencies,
   normalizeSubjectName
 } from '../config/expertKnowledge.js';
 import { useAiGenerator } from '../composables/useAiGenerator.js';
-import { inferPaperScope, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, SCOPE_LABEL_POOLS } from '../config/recipe/paperScope.js';
+import { inferPaperScope, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, SCOPE_LABEL_POOLS } from '../config/paperScope.js';
 
 // 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
 const SCOPE_TYPE_LABELS = { default: '默认', midterm: '期中', final: '期末', monthly: '月考', topic: '专题' };
@@ -1659,9 +1462,8 @@ const batchCount = ref(1);  // 同类型一次生成份数，默认1
 // 🔧 省市差异化：正式试卷（exam）按省市取考试时长/总分（如江苏中考语数英150分、北京100分制），默认全国通用
 const examRegion = ref('');
 const examRegionOptions = EXAM_REGION_OPTIONS;
-// 🔧 题型配置默认空，由指令库「生成-题型分布建议」按学科×学段自动填充
+// 🔧 题型配置默认空，由用户手动添加（题型分布库已退役：蓝本为题型权威）
 const questionTypes = ref([]);
-const lastSyncedTypeKey = ref('');  // 追踪上次同步的学科+类型，避免覆盖用户手动修改
 const difficultyLevels = ref([
   { name: '基础题', selected: true, percentage: null },
   { name: '中档题', selected: true, percentage: null },
@@ -1726,22 +1528,9 @@ const showGranularityModal = ref(false);
 const showDetailConfigModal = ref(false);
 const showPreview = ref(false);
 const showEditor = ref(false);
-// ✨ 蓝图确认相关
-const showBlueprintConfirmModal = ref(false);
-const pendingBlueprint = ref('');          // 原始蓝图文本
-const editedBlueprintText = ref('');       // 编辑后的蓝图文本
-const parsedBlueprintForPreview = ref([]); // 解析后的蓝图（用于预览表格）
-const pendingBlueprintStats = ref(null);   // 蓝图统计信息
 const pendingGenerateMode = ref('single'); // 生成模式
 const pendingGenType = ref(null);          // 待生成的类型
 const showKnowledgeModal = ref(false);
-
-// 🔧 课时切分相关
-const showPeriodConfirmModal = ref(false);       // 课时确认弹窗
-const pendingPeriods = ref([]);                  // 检测到的课时列表
-const confirmedPeriods = ref([]);                // 用户确认/调整后的课时
-const multiPeriodResults = ref(null);            // 多课时生成结果
-const activePeriodTab = ref(0);                  // 当前激活的课时 tab
 
 // 🔧 修复：用响应式变量代替 window._pendingGenerateContext
 const pendingGenerateContext = ref(null);
@@ -2840,7 +2629,7 @@ const analysisAction = ref('');
 const analysisInputMode = ref('ocr'); // 'ocr' | 'manual' 原文获取方式
 const enableColumnSplit = ref(false);    // 📐 是否启用多栏切割（用户手动勾选）
 
-// 🔧 新增：原文编辑器相关（分步流程）
+// 🔧 原文编辑器相关
 const showRawTextEditor = ref(false);
 const rawTextEditorData = ref(null); // { book, chapter, rawText, originalRawText, analyzeCharts }
 const currentAnalyzingBook = ref(null); // 当前正在分析的教材对象
@@ -3067,7 +2856,7 @@ const currentChapter = ref(null);
 const editingKnowledge = ref('');
 
 // AI生成器（新架构：不再使用 buildGenerationInstruction 长指令构建）
-const { isGenerating, progress: generateProgress, statusText: generateStatus, getTypeDistribution, generate: callGenerate, generatePracticeByPeriods, clearPeriodCache, preserveCacheForNextGenerate, setPerChapterFilter, cancelGeneration: cancelGen, periodConfirm, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool, pickLabelFromPool, pickScopeFromPool, setScopeLabelOverride } = useAiGenerator();
+const { isGenerating, progress: generateProgress, statusText: generateStatus, generate: callGenerate, setPerChapterFilter, cancelGeneration: cancelGen, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool, pickLabelFromPool, pickScopeFromPool, setScopeLabelOverride } = useAiGenerator();
 
 // ✏️ 名称样式：类型切换恢复上次选择 + 当前选择同步到生成器（在 useAiGenerator 解构之后，避免 TDZ）
 watch(genTypes, () => {
@@ -3306,27 +3095,6 @@ const currentModelSummary = computed(() => {
   const genModel = apiConfig.deepseekGenerationModel || apiConfig.deepseekModel || 'deepseek-v4-flash';
   const analysisModel = apiConfig.deepseekAnalysisModel || 'deepseek-v4-pro';
   return { engine: '🌐 DeepSeek', heavy: genModel, light: analysisModel };
-});
-const EXAM_TYPES = ['exam', 'practice', 'special'];
-const isExamTypeForModal = computed(() => {
-  const t = pendingGenType.value || pendingGenerateContext.value?.genType;
-  return EXAM_TYPES.includes(t);
-});
-
-// 🔧 蓝图弹窗：按资料类型差异化的标题和提示
-const blueprintModalConfig = computed(() => {
-  const t = pendingGenType.value || pendingGenerateContext.value?.genType;
-  const configs = {
-    exam: { title: '📋 命题蓝图确认', subtitle: '以下是根据教材内容生成的命题蓝图，您可以修改后确认。', checkHint: '⚠️ 请重点检查：知识点覆盖、难度分布、题型设置。确认后将逐题生成。' },
-    practice: { title: '📋 课时练习蓝图确认', subtitle: '以下是根据教材内容生成的课时练习蓝图，您可以修改后确认。', checkHint: '⚠️ 请重点检查：知识点覆盖、难度分布、题型设置。确认后将逐题生成。' },
-    special: { title: '📋 专项训练蓝图确认', subtitle: '以下是根据教材内容生成的专项训练蓝图，您可以修改后确认。', checkHint: '⚠️ 请重点检查：知识点覆盖、难度分布、题型设置。确认后将逐题生成。' },
-    summary: { title: '📋 知识总结蓝图确认', subtitle: '以下是根据教材知识点生成的知识总结框架，您可以修改后确认。', checkHint: '⚠️ 请重点检查：知识点覆盖是否完整、是否有遗漏的重要概念。确认后将生成完整知识总结。' },
-    errorbook: { title: '📋 错题本蓝图确认', subtitle: '以下是识别出的易错知识点分析框架，您可以修改后确认。', checkHint: '⚠️ 请重点检查：易错知识点是否准确、是否遗漏了重要的易错点。确认后将生成完整错题分析。' },
-    preview: { title: '📋 预习资料蓝图确认', subtitle: '以下是基于教材内容生成的预习框架，您可以修改后确认。', checkHint: '⚠️ 请重点检查：预习知识点是否覆盖了课文核心内容、预习任务是否可操作。确认后将生成完整预习资料。' },
-    dictation: { title: '📋 听写默写蓝图确认', subtitle: '以下是从教材中提取的词汇/生字框架，您可以修改后确认。', checkHint: '⚠️ 请重点检查：词汇是否完整覆盖课文、拼写/拼音是否准确。确认后将生成完整听写练习。' },
-    reading: { title: '📋 阅读训练蓝图确认', subtitle: '以下是基于教材知识点生成的阅读训练框架，您可以修改后确认。', checkHint: '⚠️ 请重点检查：知识点覆盖是否合理、阅读题型是否多样。确认后将生成完整阅读训练。' },
-  };
-  return configs[t] || configs.exam;
 });
 
 const selectedTextbooks = computed(() => textbookStore.selectedBooks);
@@ -4294,7 +4062,7 @@ const buildInstruction = async () => {
   const currentStageEn = stageMapIns[currentStageRaw] || currentStageRaw;
   
   // 🔴 新架构：不再做 fragment/full 指令自动匹配（长指令注入已废弃）。
-  //    生成完全由配方流水线驱动（findRecipe 三维度匹配 + 规划器 + 派生器）。
+  //    生成由指令库三维度注入驱动（学段×学科×类型 cell + 蓝图/契约/规则附加块）。
   //    此处仅保留 options 骨架供逐章模式复用（章节信息），不注入任何指令文本。
   
   // 🔧 保存 options 供逐章生成时重建方案摘要
@@ -4357,7 +4125,7 @@ const buildInstruction = async () => {
         }
       }
     } catch (e) {
-      console.warn('[方案预览] 配方链路预览失败（不影响生成）:', e.message);
+      console.warn('[方案预览] 预览失败（不影响生成）:', e.message);
     }
 
     lines.push('');
@@ -6174,7 +5942,7 @@ const generate = async (mode) => {
       previewHint.value = `逐章生成：${chapterTarget.title} (${chIdx + 1}/${chapterTargets.length})`;
       setPerChapterFilter(chapterTarget.title);
       
-      // 🔧 逐章专属指令：更新方案摘要（配方流水线按章节过滤自动匹配）
+      // 🔧 逐章专属指令：更新方案摘要（指令库按章节过滤自动匹配）
       if (lastInstructionOptions.value) {
         const perChapterOpts = { ...lastInstructionOptions.value };
         // 过滤 selectedBooks：只保留当前章节（title + start 双重匹配，避免同名章节混淆）
@@ -6198,6 +5966,13 @@ const generate = async (mode) => {
       }
     }
   
+  // 🔧 组织风格注入统一入口：风格值+说明追加到指令尾部（生成端识别并组织情境/呈现；情境库已退役）
+  //    唯一生成入口（generate 主路径，含复生成差异化与逐章循环），防止分支漏注入
+  const withStyle = (instr = '') => {
+    if (!propositionStyle.value || !styleInstructions[propositionStyle.value]) return instr;
+    return `${instr}\n\n【组织风格】${propositionStyle.value}：${styleInstructions[propositionStyle.value]}`;
+  };
+
   // ✨ 新增：记录已生成资料的知识点，用于差异化（逐章模式下每章独立重置）
   const generatedKps = [];  // 已生成的知识点列表
   const generatedTypes = []; // 已生成的类型名称
@@ -6230,45 +6005,26 @@ const generate = async (mode) => {
       // 🔴 整卷生成：注入指令（指令库渲染，用户可编辑）作为生成依据
       const inj = await ensureInjectedInstruction();
       let finalInstr = typeIndex > 0 ? diffInstruction : inj;
-      // 🔧 组织风格注入：风格值+说明追加到指令尾部（生成端识别并组织情境/呈现；情境库已退役）
-      if (propositionStyle.value && styleInstructions[propositionStyle.value]) {
-        finalInstr = `${finalInstr}\n\n【组织风格】${propositionStyle.value}：${styleInstructions[propositionStyle.value]}`;
-      }
+      // 🔧 组织风格注入（统一入口 withStyle）：生成端识别并组织情境/呈现
+      finalInstr = withStyle(finalInstr);
       // 🔧 生成份数循环：详细配置"生成份数"真实生效（同类型一次出多份，每份独立整卷生成后直接入库；
-      //    此前份数只在已移除的蓝图确认弹窗内生效，直接生成路径从未循环——份数配置形同虚设）
+      //    份数循环对全部类型生效——蓝图确认弹窗已整体移除，不再有中断流程）
       for (let batch = 0; batch < batches; batch++) {
         if (batches > 1) {
           statusText.value = `正在生成第 ${batch + 1}/${batches} 份...`;
           progress.value = Math.max(progress.value, 5);
         }
-      const result = await callGenerate(
-        finalInstr, 
-        genType, 
-        selectedBooks, 
-        selectedTpls, 
-        0, 
-        true,
-        scopeType.value || ''
-      );
+        // 🔴 整卷生成结果已含全部内容（三库约束+答案页+代码兜底），直接入库，不再弹窗确认编辑
+        const result = await callGenerate(
+          finalInstr,
+          genType,
+          selectedBooks,
+          selectedTpls,
+          0,
+          scopeType.value || ''
+        );
 
-      // 🔧 课时切分：检测到多课时，弹出确认弹窗（仅第一份检测；多课时场景份数不适用）
-      if (batch === 0 && result.success && result.needsPeriodConfirm && result.periods) {
-        console.log('[课时切分] ✅ 进入弹窗分支，periods:', result.periods.length, '个');
-        pendingPeriods.value = result.periods;
-        pendingGenType.value = genType;
-        console.log('[课时切分] pendingPeriods 已设置:', pendingPeriods.value?.length, 'pendingGenType:', pendingGenType.value);
-        showPeriodConfirmModal.value = true;
-        console.log('[课时切分] showPeriodConfirmModal 已设为:', showPeriodConfirmModal.value);
-        // 用 nextTick 确认 DOM 更新
-        await nextTick();
-        console.log('[课时切分] nextTick 后 showPeriodConfirmModal:', showPeriodConfirmModal.value);
-        return; // 暂停，等待用户确认课时拆分
-      }
-      
-      if (result.success && result.blueprint) {
-        // 🔴 旧流程残留移除：蓝图库已完善（卷面结构/题型/题量直接注入整卷生成），
-        //    "AI 题目规划 → 用户确认/编辑 → 再生成"的蓝图确认弹窗多余——
-        //    整卷生成结果已含全部内容（三库约束+答案页+代码兜底），直接入库，不再弹窗确认编辑
+        // 🔧 必须先保存上下文，否则 finalizeGeneration 拿不到 selectedBooks 导致标题命名缺失
         pendingGenerateContext.value = {
           result,
           genType,
@@ -6279,26 +6035,14 @@ const generate = async (mode) => {
           typeIndex
         };
         await finalizeGeneration(result, genType);
-        pendingGenerateContext.value = null;
-        generatedTypes.push(genTypeTemplates[genType]?.name || genType);
-        return;
-      } else {
-        // 蓝图生成失败/非蓝图类资料类型，降级为直接生成
-        // 🔧 修复：必须先保存上下文，否则 finalizeGeneration 拿不到 selectedBooks 导致标题命名缺失
-        pendingGenerateContext.value = {
-          result,
-          genType,
-          selectedBooks,
-          selectedTpls,
-          generatedKps: [...generatedKps],
-          generatedTypes: [...generatedTypes],
-          typeIndex
-        };
-        await finalizeGeneration(result, genType);
-        pendingGenerateContext.value = null;
-        generatedTypes.push(genTypeTemplates[genType]?.name || genType);
-      }
+
+        // 🔧 复生成差异化：收集本类型已生成的知识点（原收集逻辑随蓝图确认弹窗移除，此处补回，
+        //    保证后续类型"已覆盖知识点"清单真实生效）
+        const kps = (result.parsedBlueprint || []).map(q => q?.knowledgePoint).filter(Boolean);
+        generatedKps.push(...kps);
       } // end 份数循环（batchCount）
+      pendingGenerateContext.value = null;
+      generatedTypes.push(genTypeTemplates[genType]?.name || genType);
     } catch (e) {
       window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '❌ 生成失败：' + e.message, type: 'error' } }));
       await showAlertDialogFn(`生成出错：${e.message}`);
@@ -6307,7 +6051,7 @@ const generate = async (mode) => {
   } // end chapterTargets loop
   if (chapterTargets.length > 1) {
     setPerChapterFilter(null); // 逐章模式结束，清除过滤器
-    // 🔴 新架构：逐章结束后无需恢复长指令（配方自动派生），更新方案摘要即可
+    // 🔴 新架构：逐章结束后无需恢复长指令（指令库自动匹配），更新方案摘要即可
     if (lastInstructionOptions.value) {
       try {
         const genTypeName = genTypeTemplates[genTypes.value?.[0]]?.name || genTypes.value?.[0] || '';
@@ -6325,603 +6069,7 @@ const generate = async (mode) => {
   }
 };
 
-// ✨ 新增：尝试解析蓝图文本为结构化数据
-const tryParseBlueprintForPreview = (blueprintText) => {
-  // 简单解析表格格式的蓝图
-  const lines = blueprintText.split('\n').filter(line => line.trim());
-  const parsed = [];
-  
-  for (const line of lines) {
-    // 匹配表格行：| 1 | 选择题 | 知识点 | 基础 | 3 | 第1课 |
-    // ✨ 使用更宽容的正则，允许知识点和来源包含空格
-    const match = line.match(/\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|/);
-    if (match) {
-      parsed.push({
-        number: parseInt(match[1]),
-        type: match[2].trim(),
-        knowledgePoint: match[3].trim(),
-        difficulty: match[4].trim(),
-        score: parseInt(match[5]),
-        sourceChapter: match[6].trim()
-      });
-    }
-  }
-  
-  parsedBlueprintForPreview.value = parsed;
-};
 
-// ✨ 新增：计算蓝图统计信息
-const calculateBlueprintStats = (parsedBlueprint, blueprintText) => {
-  if (parsedBlueprint && parsedBlueprint.length > 0) {
-    const totalQuestions = parsedBlueprint.length;
-    const knowledgePoints = [...new Set(parsedBlueprint.map(q => q.knowledgePoint))];
-    const difficultyCounts = { '基础': 0, '中等': 0, '较难': 0 };
-    let totalScore = 0;
-    
-    parsedBlueprint.forEach(q => {
-      if (difficultyCounts.hasOwnProperty(q.difficulty)) {
-        difficultyCounts[q.difficulty]++;
-      }
-      totalScore += (q.score || 0);
-    });
-    
-    return {
-      totalQuestions,
-      knowledgePointCount: knowledgePoints.length,
-      easyPercent: Math.round((difficultyCounts['基础'] / totalQuestions) * 100),
-      mediumPercent: Math.round((difficultyCounts['中等'] / totalQuestions) * 100),
-      hardPercent: Math.round((difficultyCounts['较难'] / totalQuestions) * 100),
-      totalScore
-    };
-  }
-  
-  // 从文本中提取总分
-  const scoreMatch = blueprintText?.match(/总分[：:]\s*(\d+)/);
-  return {
-    totalQuestions: parsedBlueprintForPreview.value.length || '?',
-    knowledgePointCount: '?',
-    easyPercent: '?',
-    mediumPercent: '?',
-    hardPercent: '?',
-    totalScore: scoreMatch ? parseInt(scoreMatch[1]) : '?'
-  };
-};
-
-// ✨ 新增：确认蓝图并继续生成
-const confirmBlueprintAndGenerate = async () => {
-  // 🔧 新增：确认前验证表格数据
-  const questions = parsedBlueprintForPreview.value;
-  const context = pendingGenerateContext.value;
-  // 考试类资料类型才需要校验总分和题型分布
-  const isExamType = EXAM_TYPES.includes(context?.genType);
-  
-  // 检查是否有空知识点
-  const emptyKps = questions.filter(q => !q.knowledgePoint || q.knowledgePoint.trim() === '' || q.knowledgePoint === '请填写知识点');
-  if (emptyKps.length > 0) {
-    await showAlertDialogFn(`以下题目知识点为空，请补充：\n题号：${emptyKps.map(q => q.number).join('、')}`);
-    return;
-  }
-  
-  // 检查是否有分值异常（所有类型都检查基础有效性）
-  const badScores = questions.filter(q => !q.score || q.score <= 0);
-  if (badScores.length > 0 && isExamType) {
-    await showAlertDialogFn(`以下题目分值异常，请修正：\n题号：${badScores.map(q => q.number).join('、')}`);
-    return;
-  }
-  
-  // 检查难度分布（仅考试类，非考试类难度无意义）
-  const total = questions.length;
-  if (isExamType) {
-    const diffCounts = { '基础': 0, '中等': 0, '较难': 0 };
-    questions.forEach(q => { if (diffCounts.hasOwnProperty(q.difficulty)) diffCounts[q.difficulty]++; });
-    if (diffCounts['较难'] > total * 0.4) {
-      const proceed = await showConfirmDialogFn(`较难题占比${Math.round(diffCounts['较难']/total*100)}%，偏高。是否继续？`);
-      if (!proceed) return;
-    }
-  }
-  
-  // ✨ 新增：题型分布合理性检查（仅考试类）
-  const warnings = [];
-  if (isExamType) {
-  const typeCount = {};
-  questions.forEach(q => { typeCount[q.type] = (typeCount[q.type] || 0) + 1; });
-  
-  // 检查1：是否只有单一题型
-  const uniqueTypes = Object.keys(typeCount);
-  if (uniqueTypes.length === 1) {
-    warnings.push(`⚠️ 只有「${uniqueTypes[0]}」一种题型，建议增加题型多样性`);
-  }
-  
-  // 检查2：选择题占比是否过高（超过60%）
-  const choiceCount = (typeCount['选择题'] || 0);
-  if (choiceCount > 0 && choiceCount / total > 0.6) {
-    warnings.push(`⚠️ 选择题占比${Math.round(choiceCount/total*100)}%，偏高。建议增加填空、解答等题型`);
-  }
-  
-  // 检查3：是否有解答题/应用题（重要题型）
-  const hasMajorType = questions.some(q => 
-    ['解答题', '应用题', '计算题', '简答题'].includes(q.type)
-  );
-  if (!hasMajorType && total >= 5) {
-    warnings.push(`⚠️ 缺少解答题/应用题/计算题等主要题型，建议至少添加1道`);
-  }
-  
-  // 检查4：总分是否与用户设置一致
-  const actualTotal = questions.reduce((sum, q) => sum + (q.score || 0), 0);
-  const userTotalSetting = totalScore.value ? parseInt(totalScore.value) : 100;
-  if (actualTotal !== userTotalSetting && userTotalSetting > 0) {
-    warnings.push(`⚠️ 蓝图总分${actualTotal}分，与设置的总分${userTotalSetting}分不一致`);
-  }
-  
-  // 检查5：是否有分值过大或过小的题目
-  const maxScore = Math.max(...questions.map(q => q.score || 0));
-  const minScore = Math.min(...questions.map(q => q.score || 0));
-  if (maxScore > 30) {
-    warnings.push(`⚠️ 第${questions.find(q => q.score === maxScore)?.number}题分值${maxScore}分，偏高`);
-  }
-  if (minScore < 1 && minScore > 0) {
-    warnings.push(`⚠️ 存在分值小于1分的题目`);
-  }
-  } // 闭合 if (isExamType)
-  
-  // 检查6：是否有连续多题同一知识点（所有类型通用）
-  for (let i = 1; i < questions.length - 1; i++) {
-    const kp = questions[i].knowledgePoint;
-    if (kp && kp === questions[i-1]?.knowledgePoint && kp === questions[i+1]?.knowledgePoint) {
-      warnings.push(`⚠️ 题${questions[i-1].number}-${questions[i+1].number}连续3题考查同一知识点「${kp}」`);
-      break; // 只报一次
-    }
-  }
-  
-  // 汇总警告
-  if (warnings.length > 0) {
-    const warningMsg = '蓝图存在以下问题，建议修改：\n\n' + warnings.join('\n') + '\n\n是否仍然继续生成？';
-    const proceed = await showConfirmDialogFn(warningMsg);
-    if (!proceed) return;
-  }
-  
-  // 先同步表格到文本
-  syncTableToText();
-  showBlueprintConfirmModal.value = false;
-  
-  if (!context) return;
-  
-  // 确定最终使用的蓝图
-  const finalBlueprint = editedBlueprintText.value !== pendingBlueprint.value 
-    ? editedBlueprintText.value 
-    : context.result.blueprint;
-  
-  // ✨ 基于已有蓝图，循环生成多份（每份独立调AI）
-  const batches = batchCount.value || 1;
-  for (let batch = 0; batch < batches; batch++) {
-    if (batches > 1) {
-      previewHint.value = `正在生成第 ${batch + 1}/${batches} 份...`;
-    }
-    
-    try {
-      let result;
-      // 🔧 非考试类（summary/errorbook/preview/dictation/reading）：重新调用全量生成（blueprintOnly=false）
-      if (!isExamType) {
-        const inj = await ensureInjectedInstruction();
-        result = await callGenerate(
-          inj,
-          context.genType,
-          context.selectedBooks,
-          context.selectedTpls,
-          0,
-          false,  // blueprintOnly = false，生成完整内容
-          scopeType.value || ''
-        );
-      } else {
-        // 🔴 旧架构逐题生成路径（executeGenerationWithBlueprint）已整体删除：
-        //    蓝图库直接定结构 → 统一走整卷生成（三库约束+答案页+代码兜底）：
-        //    - 未编辑蓝图 → 直接复用首次整卷生成结果（含独立答案页）
-        //    - 编辑过蓝图 → 将编辑后的命题清单作为附加约束注入，重新走整卷生成
-        if (finalBlueprint === context.result.blueprint) {
-          result = context.result;
-          console.log('[answer-diag] 蓝图未编辑，复用整卷生成结果（含独立答案页）:', { len: result.content?.length, hasAnswer: /answer-section/.test(result.content || '') });
-        } else {
-          const inj = await ensureInjectedInstruction();
-          const blueprintConstrained = `${inj}\n\n【已确认命题清单——请严格按此清单命制全部题目（题号/知识点/题型/分值/难度与清单一致，题目内容可充实完善）】\n${finalBlueprint}`;
-          result = await callGenerate(
-            blueprintConstrained,
-            context.genType,
-            context.selectedBooks,
-            context.selectedTpls,
-            0,
-            false,
-            scopeType.value || ''
-          );
-          console.log('[answer-diag] 蓝图已编辑，注入清单重新整卷生成:', { len: result.content?.length, hasAnswer: /answer-section/.test(result.content || '') });
-        }
-      }
-      
-      await finalizeGeneration(result, context.genType);
-    } catch (e) {
-      console.warn(`第${batch + 1}份生成失败:`, e.message);
-      await finalizeGeneration({ success: false, error: `第${batch + 1}份: ${e.message}` }, context.genType);
-    }
-  }
-  
-  if (batches > 1) {
-    previewHint.value = `✅ ${batches} 份全部生成完毕`;
-  }
-  
-  // 🔧 修复：复生成模式——继续处理剩余类型
-  const types = pendingGenerateMode.value === 'single' 
-    ? [genTypes.value[0]] 
-    : genTypes.value;
-  const nextTypeIndex = (context.typeIndex || 0) + 1;
-  
-  if (nextTypeIndex < types.length) {
-    // 还有剩余类型，继续生成下一个
-    const nextGenType = types[nextTypeIndex];
-    
-    // 收集已生成的知识点
-    const generatedKps = context.generatedKps || [];
-    const generatedTypes = context.generatedTypes || [];
-    
-    // 差异化指令
-    let diffInstruction = instructionDraft.value;
-    if (generatedKps.length > 0) {
-      const typeName = genTypeTemplates[nextGenType]?.name || nextGenType;
-      const prevTypes = generatedTypes.join('、');
-      const coveredKps = [...new Set(generatedKps)].slice(0, 20);
-      
-      diffInstruction = instructionDraft.value + `\n\n【差异化要求——本类型为「${typeName}」，前面已生成「${prevTypes}」】\n已覆盖知识点：${coveredKps.join('、')}\n差异化策略：优先选择未覆盖的知识点，或从不同角度考查已覆盖知识点。`;
-    }
-    
-    // 继续生成蓝图（非阻塞，用户可继续操作）
-    pendingGenerateContext.value = null;
-    previewHint.value = `✅ 「${genTypeTemplates[context.genType]?.name || context.genType}」已生成，正在生成「${genTypeTemplates[nextGenType]?.name || nextGenType}」...`;
-    
-    try {
-      const inj = await ensureInjectedInstruction();
-      const nextResult = await callGenerate(
-        diffInstruction || inj, 
-        nextGenType, 
-        context.selectedBooks, 
-        context.selectedTpls, 
-        0, 
-        true,
-        scopeType.value || ''
-      );
-      
-      if (nextResult.success && nextResult.blueprint) {
-        pendingBlueprint.value = nextResult.blueprint;
-        editedBlueprintText.value = nextResult.blueprint;
-        
-        if (nextResult.parsedBlueprint && nextResult.parsedBlueprint.length > 0) {
-          parsedBlueprintForPreview.value = nextResult.parsedBlueprint;
-          const kps = nextResult.parsedBlueprint.map(q => q.knowledgePoint).filter(Boolean);
-          generatedKps.push(...kps);
-        } else {
-          tryParseBlueprintForPreview(nextResult.blueprint);
-        }
-        
-        generatedTypes.push(genTypeTemplates[nextGenType]?.name || nextGenType);
-        
-        pendingBlueprintStats.value = calculateBlueprintStats(
-          nextResult.parsedBlueprint || [], 
-          nextResult.blueprint
-        );
-        
-        pendingGenerateContext.value = {
-          result: nextResult,
-          genType: nextGenType,
-          selectedBooks: context.selectedBooks,
-          selectedTpls: context.selectedTpls,
-          generatedKps: [...generatedKps],
-          generatedTypes: [...generatedTypes],
-          typeIndex: nextTypeIndex
-        };
-        
-        showBlueprintConfirmModal.value = true;
-      } else {
-        previewHint.value = `「${genTypeTemplates[nextGenType]?.name || nextGenType}」蓝图生成失败，请重试`;
-      }
-    } catch (e) {
-      previewHint.value = `生成出错：${e.message}`;
-    }
-  } else {
-    // 所有类型已生成完毕
-    pendingGenerateContext.value = null;
-    previewHint.value = `✅ 全部 ${types.length} 个类型已生成完毕`;
-  }
-};
-
-// ✨ 新增：取消蓝图确认
-const cancelBlueprintConfirm = () => {
-  showBlueprintConfirmModal.value = false;
-  pendingGenerateContext.value = null;
-  previewHint.value = '已取消生成';
-};
-
-// 🔧 课时切分：确认拆分，逐课时生成
-const confirmPeriodSplit = async () => {
-  showPeriodConfirmModal.value = false;
-  const periods = pendingPeriods.value;
-  const genType = pendingGenType.value;
-  if (!periods.length || !genType) return;
-
-  previewHint.value = `正在逐课时生成（共${periods.length}个课时）...`;
-  
-  try {
-    const result = await generatePracticeByPeriods(periods);
-    if (result.success) {
-      multiPeriodResults.value = result;
-      activePeriodTab.value = -1; // 默认显示"全部"合并版
-      
-      const genTypeName = genTypeTemplates[genType]?.name || genType;
-      const ctxBooks = pendingGenerateContext.value?.selectedBooks;
-      const book = pickPrimaryBook(ctxBooks);
-      const gradeLabel = book?.grade || '';
-      const subjectLabel = book?.subject || '';
-      const bookPrefix = [gradeLabel, subjectLabel].filter(Boolean).join('');
-      // 提取范围名（单数据源）：选课→课名、整单元→单元名、跨单元/期中/期末/月考/专题→标签词
-      const chapters = book?.selectedChapters || [];
-      const scopeInfo = inferPaperScope(chapters, book?.outline || [], scopeType.value || '');
-      let chapterName = scopeInfo.name;
-      let isScopeChapterName = scopeInfo.isScopeLabel;
-      // ✏️ 标题命名规范（程序强制，替换模型自由生成的 h1）：普通型=年级+学科+册别+范围名+类型名（类型名池轮换）；
-      //    考试型（期中/期末/月考/专题）=学年度学期+年级+学科+范围标签词（池轮换）——规则定义在 paperScope.buildPaperTitle
-      const finalTitle = buildPaperTitle({
-        grade: gradeLabel,
-        subject: subjectLabel,
-        semester: book?.semester || '',
-        scopeName: chapterName,
-        typeLabel: isScopeChapterName ? '' : (labelStyle.value || pickLabelFromPool(genType, '_all_')),
-        academic: isScopeChapterName ? inferAcademicTerm() : '',
-        isExam: isScopeChapterName,
-      });
-      // 🔧 强制规范化：内容中第一个 <h1> 替换为命名规范标题（模型自由生成的标题不再进卷面/文件名）
-      const forceTitle = (content) => (typeof content === 'string' && content)
-        ? content.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, `<h1>${finalTitle}</h1>`)
-        : content;
-      const parts = [bookPrefix, chapterName, isScopeChapterName ? null : genTypeName].filter(Boolean);
-      const now = new Date();
-      const ts = now.toLocaleDateString('zh-CN') + ' ' + now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const baseTitle = (parts.length > 0 ? parts.join(' · ') : genTypeName) + '_' + ts;
-      
-      // 将每个课时作为独立条目添加到 generatedDocs
-      if (result.periods) {
-        result.periods.forEach((period, pi) => {
-          const safeContent = (period.content && typeof period.content === 'string') ? period.content : '';
-          if (!safeContent) return; // 跳过生成失败的课时
-          const forced = forceTitle(safeContent); // 标题命名规范强制
-          // 🔧 优先取课时内容中的 <h1> 标题，回退到课时名拼接
-          const periodExtracted = extractTitleFromContent(forced);
-          const periodTitle = periodExtracted
-            ? periodExtracted + '_' + ts
-            : `${baseTitle} — ${period.periodName}`;
-          generatedDocs.value.push({
-            id: 'period_' + Date.now() + '_' + pi + '_' + Math.random().toString(36).slice(2, 8),
-            title: periodTitle,
-            content: renderImagePlaceholders(forced),
-            rawContent: forced,
-            genType: genTypeName,
-            style: propositionStyle.value,
-            selected: false,
-            quality: null,
-            status: 'success',
-            savedAt: Date.now(),
-            _isPeriod: true,
-            _periodIndex: pi,
-            graphInstructions: extractGraphs(safeContent),
-            confidenceMarks: detectConfidenceIssues(
-              safeContent, 
-              textbookStore.textbooks.filter(b => b.outline?.some(c => c.selected))
-            ),
-            issues: period.issues || [],
-            qualityReport: period.qualityReport || null,
-          });
-        });
-      }
-      
-      // 添加合并版完整条目
-      const combinedContent = (result.content && typeof result.content === 'string') ? result.content : '';
-      if (combinedContent) {
-        const forcedCombined = forceTitle(combinedContent); // 标题命名规范强制
-        // 🔧 优先取合并版内容中的 <h1> 标题
-        const combinedExtracted = extractTitleFromContent(forcedCombined);
-        const combinedTitle = combinedExtracted
-          ? combinedExtracted + '_' + ts
-          : `${baseTitle} — 完整版（${result.periodCount}课时）`;
-        generatedDocs.value.push({
-          id: 'period_combined_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-          title: combinedTitle,
-          content: renderImagePlaceholders(forcedCombined),
-          rawContent: forcedCombined,
-          genType: genTypeName,
-          style: propositionStyle.value,
-          selected: false,
-          quality: null,
-          status: 'success',
-          savedAt: Date.now(),
-          _isPeriodCombined: true,
-          _periodCount: result.periodCount,
-          graphInstructions: extractGraphs(combinedContent),
-          confidenceMarks: detectConfidenceIssues(
-            combinedContent, 
-            textbookStore.textbooks.filter(b => b.outline?.some(c => c.selected))
-          ),
-          issues: result.issues || [],
-          qualityReport: result.qualityReport || null,
-        });
-      }
-      
-      previewHint.value = `✅ 课时练生成完成（${result.periodCount} 个课时）`;
-    } else {
-      previewHint.value = `❌ 课时练生成失败：${result.error || '未知错误'}`;
-    }
-  } catch (e) {
-    previewHint.value = `❌ 课时练生成出错：${e.message}`;
-    console.error('[课时切分] 生成失败:', e);
-  }
-  
-  pendingPeriods.value = [];
-  pendingGenType.value = null;
-};
-
-// 🔧 课时切分：取消拆分，整体生成
-const cancelPeriodSplit = async () => {
-  showPeriodConfirmModal.value = false;
-  
-  const genType = pendingGenType.value;
-  pendingPeriods.value = [];
-  pendingGenType.value = null;
-  
-  // 🔧 设置跳过标志，阻止 generate() 重新触发课时切分（保留 _cachedKnowledgeMap）
-  preserveCacheForNextGenerate();
-  // 但清除 periodConfirm 信号，避免 UI 层读到过期状态
-  periodConfirm.value = null;
-  
-  previewHint.value = '已取消拆分，正在整体生成...';
-  
-  try {
-    // 重新获取选中的教材和模板（与 multi-generate 循环逻辑一致）
-    const selectedBooks = textbookStore.textbooks.filter(b => hasAnySelected(b.outline)).map(b => ({
-      ...b,
-      selectedChapters: getSelectedChapters(b.outline).filter(ch => ch._selectedForAnalysis !== false)
-    }));
-    const selectedTpls = templateStore.templates.filter(t => t.selected || hasAnySelected(t.outline)).map(t => ({
-      ...t,
-      selectedChapters: getSelectedChapters(t.outline).filter(ch => ch._selectedForAnalysis !== false)
-    }));
-    
-    // 直接全流程生成（blueprintOnly=false），跳过课时切分检测
-    const inj = await ensureInjectedInstruction();
-    const result = await callGenerate(inj, genType, selectedBooks, selectedTpls, 0, false, scopeType.value || '');
-    
-    if (result.success && result.content) {
-      console.log('[preview-popup] 🔄 cancelPeriodSplit 路径：直接设置预览', { contentLen: result.content?.length, contentPreview: result.content?.substring(0, 100) });
-      previewContent.value = normalizeSealStructure(renderImagePlaceholders(result.content));
-      showPreview.value = true;
-      console.log('[preview-popup] ✅ cancelPeriodSplit 路径 showPreview=true', { showPreview: showPreview.value });
-      previewHint.value = '✅ 整体生成完成';
-      
-      // 添加到生成记录（统一格式对 standardizeGeneration 路径）
-      const genTypeName = genTypeTemplates[genType]?.name || genType;
-      const book = pickPrimaryBook(selectedBooks);
-      const gradeLabel = book?.grade || '';
-      const subjectLabel = book?.subject || '';
-      const bookPrefix = [gradeLabel, subjectLabel].filter(Boolean).join('');
-      // 提取范围名（单数据源）：
-      const chapters = book?.selectedChapters || [];
-      const scopeInfo = inferPaperScope(chapters, book?.outline || [], scopeType.value || '');
-      let chapterName = scopeInfo.name;
-      let isScopeChapterName = scopeInfo.isScopeLabel;
-      const parts = [bookPrefix, chapterName, isScopeChapterName ? null : genTypeName].filter(Boolean);
-      const now = new Date();
-      const ts = now.toLocaleDateString('zh-CN') + ' ' + now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const safeContent = (result.content && typeof result.content === 'string') ? result.content : '';
-      // 🔧 优先取生成内容中的 <h1> 标题，回退到元数据拼接
-      const extractedTitle = extractTitleFromContent(safeContent);
-      const title = extractedTitle
-        ? extractedTitle + '_' + ts
-        : (parts.length > 0 ? parts.join(' · ') : genTypeName) + '_' + ts;
-      generatedDocs.value.push({
-        id: 'doc_' + Date.now() + '_' + Math.random().toString(36),
-        title,
-        content: renderImagePlaceholders(safeContent),
-        rawContent: safeContent,
-        genType: genTypeName,
-        stage: book?.stage || selectedBooks?.[0]?.stage || '',
-        style: propositionStyle.value,
-        selected: false,
-        quality: null,
-        status: 'success',
-        savedAt: Date.now(),
-        graphInstructions: extractGraphs(safeContent),
-        confidenceMarks: detectConfidenceIssues(safeContent, selectedBooks),
-      });
-    } else {
-      previewHint.value = `❌ 整体生成失败：${result.error || '未知错误'}`;
-    }
-  } catch (e) {
-    previewHint.value = `❌ 整体生成出错：${e.message}`;
-    console.error('[整体生成] 失败:', e);
-  }
-};
-
-// 🔧 多课时 tab 切换
-const switchPeriodTab = (index) => {
-  activePeriodTab.value = index;
-  const result = multiPeriodResults.value;
-  if (!result || !result.periods) return;
-  
-  let contentToShow = '';
-  if (index === -1) {
-    // 显示"全部"合并版
-    contentToShow = result.content || '';
-  } else if (index >= 0 && index < result.periods.length) {
-    // 显示单个课时
-    contentToShow = result.periods[index]?.content || '';
-  }
-  
-  if (contentToShow) {
-    console.log('[preview-popup] 📑 switchPeriodTab 路径：直接设置预览', { contentLen: contentToShow?.length, periodIndex: index });
-    previewContent.value = normalizeSealStructure(renderImagePlaceholders(contentToShow));
-    showPreview.value = true;
-    console.log('[preview-popup] ✅ switchPeriodTab 路径 showPreview=true', { showPreview: showPreview.value });
-  }
-};
-
-// 🔧 收起课时 tabs
-const closePeriodTabs = () => {
-  multiPeriodResults.value = null;
-  activePeriodTab.value = -1;
-};
-
-// ✨ 新增：重新生成蓝图
-const regenerateBlueprint = async () => {
-  showBlueprintConfirmModal.value = false;
-  
-  const context = pendingGenerateContext.value;
-  if (!context) return;
-  
-  // 重新调用生成
-  try {
-    // ✨ 重新生成也只生成蓝图
-    const inj = await ensureInjectedInstruction();
-    const result = await callGenerate(
-      inj, 
-      context.genType, 
-      context.selectedBooks, 
-      context.selectedTpls,
-      0,
-      true,  // blueprintOnly
-      scopeType.value || ''
-    );
-    
-    if (result.success && result.blueprint) {
-      pendingBlueprint.value = result.blueprint;
-      editedBlueprintText.value = result.blueprint;
-      
-      if (result.parsedBlueprint && result.parsedBlueprint.length > 0) {
-        parsedBlueprintForPreview.value = result.parsedBlueprint;
-      } else {
-        tryParseBlueprintForPreview(result.blueprint);
-      }
-      
-      pendingBlueprintStats.value = calculateBlueprintStats(
-        result.parsedBlueprint || [], 
-        result.blueprint
-      );
-      
-      pendingGenerateContext.value = {
-        result,
-        genType: context.genType,
-        selectedBooks: context.selectedBooks,
-        selectedTpls: context.selectedTpls
-      };
-      
-      showBlueprintConfirmModal.value = true;
-    }
-  } catch (e) {
-    await showAlertDialogFn(`重新生成失败：${e.message}`);
-  }
-};
 
 // ✨ 新增：完成最终生成（保存到 generatedDocs）
 const finalizeGeneration = async (result, genType) => {
@@ -6970,7 +6118,7 @@ const finalizeGeneration = async (result, genType) => {
       ),
       difficulty: (() => {
         // 从蓝图真实统计难度分布，替代固定配置值
-        // 优先用全量生成返回的 parsedBlueprint，其次用蓝图确认阶段缓存的
+        // 优先用整卷生成返回的 parsedBlueprint，其次用上下文缓存的（同一结果的备份）
         let parsed = result.parsedBlueprint;
         if ((!parsed || parsed.length === 0) && pendingGenerateContext.value?.result?.parsedBlueprint?.length) {
           parsed = pendingGenerateContext.value.result.parsedBlueprint;
@@ -7664,51 +6812,8 @@ watch(genTypes, (newTypes) => {
   }
 });
 
-// 🔧 题型自动同步：学科/类型变化时从指令库「生成-题型分布建议」自动填充
-// gradeSegment 映射：小学1-2→primary_low, 3-4→primary_mid, 5-6→primary_high, 初中→middle, 高中→high
-const syncQuestionTypesFromLib = () => {
-  const book = selectedTextbooks.value?.[0];
-  if (!book) return;
-  const subject = book.subject || '';
-  const primaryGenType = genTypes.value?.find(t => t === 'exam' || t === 'practice');
-  if (!subject || !primaryGenType) return;
-  
-  // 仅当 questionTypes 为空或学科/类型发生变化时才同步（避免覆盖用户手动修改）
-  const currentKey = `${subject}|${primaryGenType}`;
-  if (questionTypes.value.length > 0 && currentKey === lastSyncedTypeKey.value) return;
-  
-  // 计算 gradeSegment
-  const stage = book.stage || '';
-  const grade = book.grade || '';
-  const gradeNumMatch = grade.match(/[一二三四五六七八九十]+/);
-  const chineseNums = { '一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10 };
-  const gradeNum = gradeNumMatch ? (chineseNums[gradeNumMatch[0]] || 0) : 0;
-  
-  let gradeSegment;
-  if (stage === '小学' || stage === 'primary') {
-    if (gradeNum >= 1 && gradeNum <= 2) gradeSegment = 'primary_low';
-    else if (gradeNum >= 3 && gradeNum <= 4) gradeSegment = 'primary_mid';
-    else gradeSegment = 'primary_high';
-  } else if (stage === '初中' || stage === 'middle') {
-    gradeSegment = 'middle';
-  } else if (stage === '高中' || stage === 'high') {
-    gradeSegment = 'high';
-  } else {
-    gradeSegment = stage; // fallback
-  }
-  
-  const types = getTypeDistribution(primaryGenType, subject, gradeSegment);
-  if (types.length > 0) {
-    questionTypes.value = types;
-    lastSyncedTypeKey.value = currentKey;
-  }
-};
-
-// 教材选择或资料类型变化时触发题型同步
-watch([() => selectedTextbooks.value?.[0]?.subject, () => selectedTextbooks.value?.[0]?.stage, genTypes],
-  () => { syncQuestionTypesFromLib(); },
-  { deep: true }
-);
+  // 🔧 题型自动同步已删除（题型分布库退役：非课标来源的经验性题量建议，与蓝图库题型骨架权威冲突）
+  // 题型面板由用户手动添加，题型权威唯一化（蓝本/用户）
 
 // 初始化
 // ☁️ 云端数据同步完成后：从 localStorage 重新加载 + 清理 _deleted 标记项
@@ -7837,177 +6942,6 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   return marks;
 };
 
-// 🔧 新增：可用的题型列表
-const availableQuestionTypes = [
-  '选择题', '填空题', '判断题', '计算题', '解答题', 
-  '应用题', '简答题', '作图题', '实验题', '证明题',
-  '完形填空', '阅读理解', '书面表达'
-];
-
-// 🔧 新增：根据学科和年级获取推荐的题型列表（用于蓝图确认弹窗排序提示）
-const getRecommendedQuestionTypes = () => {
-  // 获取当前选中的教材
-  const selectedBook = textbookStore.textbooks.find(b => 
-    b.outline && textbookStore.hasAnySelected(b.outline)
-  );
-  
-  if (!selectedBook) return [];
-  
-  const stage = selectedBook.stage;
-  const subject = selectedBook.subject;
-  
-  // 各学段学科的推荐题型
-  const recommendedTypes = {
-    '小学': {
-      '数学': ['口算', '填空', '判断', '选择', '计算', '应用题', '操作题'],
-      '语文': ['看拼音写词语', '组词', '造句', '选词填空', '修改病句', '阅读理解', '古诗词默写', '作文'],
-      '英语': ['听力', '选择', '填空', '连线', '阅读理解', '写作'],
-      '科学': ['选择', '填空', '判断', '连线', '实验探究', '简答', '观察记录'],
-      '道德与法治': ['选择', '判断', '填空', '连线', '情境分析', '简答']
-    },
-    '初中': {
-      '数学': ['选择', '填空', '计算', '证明', '作图', '应用题', '综合探究'],
-      '语文': ['基础知识', '文言文阅读', '现代文阅读', '古诗词鉴赏', '综合性学习', '写作'],
-      '英语': ['听力', '单项选择', '完形填空', '阅读理解', '任务型阅读', '书面表达'],
-      '物理': ['选择', '填空', '作图', '实验探究', '计算'],
-      '化学': ['选择', '填空', '实验探究', '计算', '推断'],
-      '生物': ['选择', '填空', '识图', '实验探究', '简答'],
-      '历史': ['选择', '填空', '材料解析', '简答', '论述'],
-      '地理': ['选择', '填空', '读图分析', '简答', '综合题'],
-      '道德与法治': ['选择', '简答', '材料分析', '实践探究'],
-      '信息技术': ['选择', '填空', '判断', '操作题', '简答', '综合应用']
-    },
-    '高中': {
-      '数学': ['单选', '多选', '填空', '解答题'],
-      '语文': ['现代文阅读', '文言文阅读', '古代诗歌鉴赏', '名篇名句默写', '语言文字运用', '写作'],
-      '英语': ['听力', '阅读理解', '七选五', '完形填空', '语法填空', '书面表达'],
-      '物理': ['单选', '多选', '实验', '计算'],
-      '化学': ['单选', '不定项选择', '填空', '实验', '计算', '有机推断'],
-      '生物': ['单选', '多选', '填空', '实验设计', '遗传分析'],
-      '历史': ['选择', '材料解析', '论述'],
-      '地理': ['选择', '综合题', '选做题'],
-      '思想政治': ['选择', '简答', '辨析', '论述'],
-      '信息技术': ['选择', '填空', '判断', '操作题', '程序填空', '综合应用', '论述']
-    }
-  };
-  
-  const stageTypes = recommendedTypes[stage]?.[subject];
-  
-  return stageTypes || [];
-};
-
-// 🔧 新增：获取推荐题型列表（响应式计算属性）
-const recommendedQuestionTypes = computed(() => getRecommendedQuestionTypes());
-
-// 🔧 新增：蓝图表格单元格修改时，同步更新统计和文本
-const onBlueprintCellChange = (qIdx) => {
-  // 重新计算统计信息
-  pendingBlueprintStats.value = calculateBlueprintStats(
-    parsedBlueprintForPreview.value,
-    editedBlueprintText.value
-  );
-  // 同步到文本编辑区
-  syncTableToText();
-};
-
-// 🔧 新增：删除蓝图中的某道题（支持撤销）
-const lastDeletedQuestion = ref(null);  // 在 script setup 顶部添加这个变量
-
-const removeBlueprintQuestion = async (qIdx) => {
-  if (parsedBlueprintForPreview.value.length <= 1) {
-    await showAlertDialogFn('至少保留一道题');
-    return;
-  }
-  const qLabel = parsedBlueprintForPreview.value[qIdx]?.type || `第${qIdx + 1}题`;
-  const confirmed = await showConfirmDialogFn(`确定删除「${qLabel}」吗？可通过"撤销删除"恢复。`);
-  if (!confirmed) return;
-  // 保存删除前的数据用于撤销
-  lastDeletedQuestion.value = {
-    index: qIdx,
-    question: JSON.parse(JSON.stringify(parsedBlueprintForPreview.value[qIdx]))
-  };
-  
-  parsedBlueprintForPreview.value.splice(qIdx, 1);
-  // 重新编号
-  parsedBlueprintForPreview.value.forEach((q, i) => {
-    q.number = i + 1;
-  });
-  // 重新计算统计
-  pendingBlueprintStats.value = calculateBlueprintStats(
-    parsedBlueprintForPreview.value,
-    editedBlueprintText.value
-  );
-  // 同步到文本编辑区
-  syncTableToText();
-  
-  // 3秒后清除撤销记录（可选）
-  setTimeout(() => {
-    lastDeletedQuestion.value = null;
-  }, 30000);
-};
-
-// 🔧 新增：撤销删除
-const undoDeleteQuestion = async () => {
-  if (!lastDeletedQuestion.value) {
-    await showAlertDialogFn('没有可撤销的删除操作');
-    return;
-  }
-  
-  const { index, question } = lastDeletedQuestion.value;
-  parsedBlueprintForPreview.value.splice(index, 0, question);
-  // 重新编号
-  parsedBlueprintForPreview.value.forEach((q, i) => {
-    q.number = i + 1;
-  });
-  // 重新计算统计
-  pendingBlueprintStats.value = calculateBlueprintStats(
-    parsedBlueprintForPreview.value,
-    editedBlueprintText.value
-  );
-  syncTableToText();
-  lastDeletedQuestion.value = null;
-};
-
-// 🔧 新增：将表格数据同步到文本编辑区
-const syncTableToText = () => {
-  const questions = parsedBlueprintForPreview.value;
-  if (questions.length === 0) return;
-  
-  // 生成 Markdown 表格格式的蓝图文本（比 JSON 更易读）
-  let text = '| 题号 | 题型 | 知识点 | 难度 | 分值 | 来源 |\n';
-  text += '|------|------|--------|------|------|------|\n';
-  for (const q of questions) {
-    text += `| ${q.number} | ${q.type} | ${q.knowledgePoint} | ${q.difficulty} | ${q.score} | ${q.sourceChapter || ''} |\n`;
-  }
-  
-  // 追加 JSON 格式（程序解析用）
-  text += '\n--- 以下为JSON格式（程序解析用） ---\n';
-  text += JSON.stringify(questions, null, 2);
-  
-  editedBlueprintText.value = text;
-};
-
-// 🔧 新增：添加题目
-const addBlueprintQuestion = () => {
-  const maxNumber = parsedBlueprintForPreview.value.length > 0 
-    ? Math.max(...parsedBlueprintForPreview.value.map(q => q.number))
-    : 0;
-  
-  parsedBlueprintForPreview.value.push({
-    number: maxNumber + 1,
-    type: '选择题',
-    knowledgePoint: '请填写知识点',
-    difficulty: '基础',
-    score: 3,
-    sourceChapter: ''
-  });
-  
-  pendingBlueprintStats.value = calculateBlueprintStats(
-    parsedBlueprintForPreview.value,
-    editedBlueprintText.value
-  );
-  syncTableToText();
-};
 </script>
 
 <style scoped>

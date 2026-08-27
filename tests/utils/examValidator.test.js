@@ -35,22 +35,6 @@ describe('examValidator 空位/拼音统计', () => {
   });
 });
 
-describe('examValidator 看拼音写词语缺空自动补全（第1题案例）', () => {
-  it('拼音组数与空位数不一致时自动补空', () => {
-    const html = [
-      '<h2>一、识字与写字（32分）</h2>',
-      '<p class="question">1. 根据拼音写词语。（12分）</p>',
-      '<p>（1）海边的ɡǎnɡ wān(　　　　)里停着一条条小船，远处的沙tān上有一群海鸥在飞。</p>',
-      '<p>（2）田里的dào zi(　　　　)成熟了，农民伯伯虽然xīn kǔ(　　　　)，心里却很高兴。</p>',
-    ].join('\n');
-    const { html: out, issues } = auditExamPaper(html, OPTS);
-    // 补空后空位数应为 4（原 3 空 + 补 tān 1 空）
-    expect(countBlanks(out)).toBe(4);
-    expect(out).toContain('tān(　　　　)上');
-    expect(issues.some(i => i.type === 'pinyin-blank-mismatch')).toBe(true);
-  });
-});
-
 describe('examValidator 分值标注修正（第4题案例）', () => {
   it('"每空2分"标注与空数不整除时改为"每题X分"', () => {
     const title = '4. 选一选，填一填。（8分，每空2分）';
@@ -122,6 +106,23 @@ describe('examValidator 模板残留清理', () => {
     expect(out).not.toContain('\\</div>');
   });
 
+  it('占位块无"插入此处"且后跟正常题目 → 只删占位块本段，不误删后续题目与答案区（发现A回归）', () => {
+    const html = [
+      '<p>1. 题目正常内容。</p>',
+      '<p>【插图占位】请复制PROMPT到渲染器插入图片</p>',
+      '<p>2. 下一题内容正常。</p>',
+      '<p>3. 再一题。</p>',
+      '<div class="answer-section"><h2>参考答案</h2><p>1. 答案</p></div>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    expect(out).toContain('1. 题目正常内容');
+    expect(out).toContain('2. 下一题内容正常');
+    expect(out).toContain('3. 再一题');
+    expect(out).toContain('answer-section');
+    expect(out).not.toContain('插图占位'); // 占位块本段仍被清理
+    expect(issues.some(i => i.type === 'image-placeholder')).toBe(true);
+  });
+
   it('移除空条款（注意事项"3．。"）', () => {
     const html = '<p>1．答题前请填写清楚。</p>\n<p>2．请在各题答题区域内作答。</p>\n<p>3．。</p>';
     const { html: out, issues } = auditExamPaper(html, OPTS);
@@ -187,68 +188,8 @@ describe('examValidator 正文重复内容检测截断（duplicate-content-fix�
   });
 });
 
-describe('examValidator 连线题右列格式（match-format-fix：本案例 19:22 卷 第3/9题）', () => {
-  it('"右列裸序号＋内容下方对照行"拆分格式 → 自动重组为并排（第3题形近字连线）', () => {
-    const html = [
-      '<h2>一、识字与写字（32分）</h2>',
-      '<p class="question">3. 仔细观察下面的形近字，连一连，帮它们找到自己的朋友。（每线1分，共6分）</p>',
-      '<p>园　　②</p>',
-      '<p>圆　　④</p>',
-      '<p>从　　①</p>',
-      '<p>丛　　③</p>',
-      '<p>处　　⑥</p>',
-      '<p>外　　⑤</p>',
-      '<p>① 树林　　② 花</p>',
-      '<p>③ 草　　④ 形</p>',
-      '<p>⑤ 面　　⑥ 所</p>',
-    ].join('\n');
-    const { html: out, issues } = auditExamPaper(html, OPTS);
-    // 对照行"① 树林　② 花"→ 右列回填为"②花"（园＋②花＝花园），对照行删除
-    expect(out).toContain('<p>园　　　　②花</p>');
-    expect(out).toContain('<p>圆　　　　④形</p>');
-    expect(out).toContain('<p>处　　　　⑥所</p>');
-    expect(out).not.toContain('① 树林'); // 对照行已删除
-    expect(issues.some(i => i.type === 'match-format')).toBe(true);
-  });
-
-  it('长释义连线（第9题谚语与意思）→ 同样重组', () => {
-    const html = [
-      '<h2>二、积累与运用（24分）</h2>',
-      '<p class="question">9. 帮小兔子把下面的谚语和意思连起来。（每线1分，共4分）</p>',
-      '<p>十年树木　　②</p>',
-      '<p>树高百尺　　④</p>',
-      '<p>树无根不长　　①</p>',
-      '<p>人无志不立　　③</p>',
-      '<p>① 树没有根就不能生长，人没有志向就不能成功。</p>',
-      '<p>② 培养人才不容易，是长久之计。</p>',
-      '<p>③ 人一定要有远大的志向。</p>',
-      '<p>④ 树长得再高，落叶也要回到树根。</p>',
-    ].join('\n');
-    const { html: out } = auditExamPaper(html, OPTS);
-    expect(out).toContain('十年树木　　　　②培养人才不容易，是长久之计。');
-    expect(out).toContain('树无根不长　　　　①树没有根就不能生长，人没有志向就不能成功。');
-    expect(out).not.toContain('③ 人一定要有远大的志向。'); // 对照行删除
-  });
-
-  it('无对照行的正常连线题（右列直接内容）→ 组装为左右分栏结构（内容保留）', () => {
-    const html = [
-      '<h2>一、识字与写字（32分）</h2>',
-      '<p class="question">3. 连一连。</p>',
-      '<p>园　　花园</p>',
-      '<p>圆　　圆形</p>',
-      '<p>从　　树林</p>',
-      '<p>丛　　草丛</p>',
-    ].join('\n');
-    const { html: out, issues } = auditExamPaper(html, OPTS);
-    // 两列文本 → match-question 左右分栏结构（docx 渲染成可连线方框）；内容完整保留
-    expect(out).toContain('match-question');
-    expect(out).toContain('>园<');
-    expect(out).toContain('>花园<');
-    expect(issues.some(i => i.type === 'match-format')).toBe(false);
-    expect(issues.some(i => i.type === 'match-structure')).toBe(true);
-  });
-
-  it('排版语义自洽：题干要求"圈出加点字"但正文无 <u> 标记 → 静默计数（不进问题列表）', () => {
+describe('examValidator 排版语义自洽（text-format-fix）', () => {
+  it('题干要求"圈出加点字"但正文无 <u> 标记 → 静默计数（不进问题列表）', () => {
     const html = [
       '<h2>一、识字与写字（32分）</h2>',
       '<p class="question">2. 圈出加点字正确的读音。（4分）</p>',
@@ -354,19 +295,6 @@ describe('examValidator 本卷案例根治（20:16 卷 第1/2题 + 大题标题�
     expect(out).toContain('圈出下列句子中加点字的正确读音。（共6题，每题1分，共6分）');
   });
 
-  it('拼音 2 字却给 4 个空位 → 自动删除多余空位（第1题）', () => {
-    const html = [
-      '<h2>一、识字与写字（共4题，每题8分，共32分）</h2>',
-      '<p class="question">1. 读一读拼音，在田字格里写出正确的词语。（每字1分，共12分）</p>',
-      '<p>（1）蓝蓝的（tiān kōng）中，一群大雁排成"人"字飞过。（　　　　）（　　　　）（　　　　）（　　　　）</p>',
-    ].join('\n');
-    const { html: out, issues } = auditExamPaper(html, OPTS);
-    // 4 个空位 → 删到 2 个（拼音 tiān kōng 两个音节）
-    const blankCount = (out.match(/[（(]\s*[　\u3000 ]{1,12}\s*[)）]/g) || []).length;
-    expect(blankCount).toBe(2);
-    expect(issues.some(i => i.type === 'pinyin-blank-mismatch')).toBe(true);
-  });
-
   it('大题标题"每题8分"但各题 12/6/8/6 分不一致 → 自动改"共N题共X分"', () => {
     const html = [
       '<h2>一、识字与写字（共4题，每题8分，共32分）</h2>',
@@ -416,7 +344,7 @@ describe('examValidator 三维度规则过滤', () => {
     expect(silent).toBeGreaterThanOrEqual(0);
   });
 
-  it('高中阶段不执行低段拼音规则（pinyin-blank-fill 限定 low/mid）', () => {
+  it('高中阶段不执行拼音空位/田字格对齐修复（规则已删，无拼音空位修复）', () => {
     const html = [
       '<h2>一、语言运用（32分）</h2>',
       '<p>（1）海边的ɡǎnɡ wān(　　　　)里停着小船，远处的沙tān上有一群海鸥。</p>',
@@ -517,3 +445,4 @@ describe('examValidator 书写作答空间保障（answer-area-fix）', () => {
     expect(issues.some(i => i.type === 'answer-area')).toBe(false);
   });
 });
+

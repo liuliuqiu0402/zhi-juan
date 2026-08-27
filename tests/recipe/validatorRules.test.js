@@ -18,6 +18,25 @@ beforeEach(() => {
   localStorage.removeItem(RULES_STORAGE_KEY);
 });
 
+describe('validatorRules 规则启停开关（双阶段生效）', () => {
+  it('停用规则 → 生成前约束不注入、生成后不执行（getValidatorRules 不含）', () => {
+    const target = VALIDATOR_RULES.find((r) => r.id === 'template-cleanup');
+    saveUserRule({ ...target, enabled: false });
+    expect(getValidatorRules({ subject: '语文', stage: 'primary_low', genType: 'exam' }).has('template-cleanup')).toBe(false);
+    expect(buildValidatorPrompt({ subject: '语文', stage: 'primary_low', genType: 'exam' })).not.toContain(target.promptHint.slice(0, 12));
+    // 未停用规则不受影响（双阶段均保留）
+    expect(getValidatorRules({ subject: '语文', stage: 'primary_low', genType: 'exam' }).has('score-label-fix')).toBe(true);
+    expect(buildValidatorPrompt({ subject: '语文', stage: 'primary_low', genType: 'exam' })).toContain('分值账目自洽');
+  });
+
+  it('重新启用 → 恢复注入与执行', () => {
+    const target = VALIDATOR_RULES.find((r) => r.id === 'template-cleanup');
+    saveUserRule({ ...target, enabled: false });
+    saveUserRule({ ...target, enabled: true });
+    expect(getValidatorRules({ subject: '语文', stage: 'primary_low', genType: 'exam' }).has('template-cleanup')).toBe(true);
+  });
+});
+
 describe('validatorRules 规则库完整性', () => {
   it('fix 类规则必须带生成前约束文案 promptHint（阶段一注入所需）', () => {
     const fixRules = VALIDATOR_RULES.filter(r => r.category === 'fix');
@@ -31,7 +50,7 @@ describe('validatorRules 规则库完整性', () => {
 
   it('guard 类规则不注入生成前约束（静默兜底，不打扰）', () => {
     const guardRules = VALIDATOR_RULES.filter(r => r.category === 'guard');
-    expect(guardRules.length).toBeGreaterThanOrEqual(6);
+    expect(guardRules.length).toBeGreaterThanOrEqual(5);
     for (const r of guardRules) {
       expect(r.promptHint).toBeFalsy();
     }
@@ -44,10 +63,10 @@ describe('validatorRules 规则库完整性', () => {
 });
 
 describe('validatorRules 三维度匹配（与指令库/蓝图库对齐）', () => {
-  it('语文·小学低段·exam：命中拼音/分值/子题等规则', () => {
+  it('语文·小学低段·exam：命中拼音归一/分值/残留等规则', () => {
     const rules = getValidatorRules({ subject: '语文', stage: 'primary_low', genType: 'exam' });
     expect(rules.has('pinyin-norm')).toBe(true);
-    expect(rules.has('pinyin-blank-fill')).toBe(true);
+    expect(rules.has('pinyin-blank-fill')).toBe(false); // 缺空自动补全已删（旧方案补丁，靠生成前约束）
     expect(rules.has('score-label-fix')).toBe(true);
     expect(rules.has('template-cleanup')).toBe(true);
     expect(rules.has('title-detail-fix')).toBe(true);
@@ -103,15 +122,28 @@ describe('validatorRules 生成前约束（阶段一：随指令注入）', () =
     expect(prompt).not.toContain('看拼音写词语');
   });
 
-  it('排版语义标记规范全量注入（上下标/删除线/分数/音标/表格，全学科）', () => {
-    const prompt = buildValidatorPrompt({ subject: '化学', stage: 'middle', genType: 'exam' });
-    expect(prompt).toContain('<sub>');          // 化学式下标
-    expect(prompt).toContain('<sup>');          // 离子/幂上标
-    expect(prompt).toContain('<del>');          // 删除/划去
-    expect(prompt).toContain('1/2');            // 分数半角斜杠
-    expect(prompt).toContain('音标');           // 英语音标
-    expect(prompt).toContain('Unicode 上下标字符'); // 禁混用乱码字符
-    expect(prompt).toContain('<table>');        // 统计表
+  it('排版语义标记按学科×学段精确注入（通用全学科、上下标限数理化、音标限英语、注音限语文低段）', () => {
+    // 化学·中段：通用 + 上下标，不含音标/拼音注音（拆分后噪音约束不再全量注入）
+    const chem = buildValidatorPrompt({ subject: '化学', stage: 'middle', genType: 'exam' });
+    expect(chem).toContain('<sub>');          // 化学式下标
+    expect(chem).toContain('<sup>');          // 离子/幂上标
+    expect(chem).toContain('<del>');          // 删除/划去
+    expect(chem).toContain('1/2');            // 分数半角斜杠
+    expect(chem).toContain('Unicode 上下标字符'); // 禁混用乱码字符
+    expect(chem).toContain('<table>');        // 统计表
+    expect(chem).not.toContain('音标');        // 英语专属，不再注入化学卷
+    expect(chem).not.toContain('拼音注音');     // 语文专属，不再注入化学卷
+    // 英语·中段：含音标，不含拼音注音
+    const eng = buildValidatorPrompt({ subject: '英语', stage: 'primary_mid', genType: 'exam' });
+    expect(eng).toContain('音标');
+    expect(eng).not.toContain('拼音注音');
+    // 语文·低段：含拼音注音，不含音标斜杠包裹（pinyin-norm 的"音标"指 IPA 字符语境，非英语音标规则）
+    const yw = buildValidatorPrompt({ subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(yw).toContain('拼音注音');
+    expect(yw).not.toContain('斜杠包裹');
+    // 语文·高中：注音不注入（学段限定 low/mid）
+    const ywHigh = buildValidatorPrompt({ subject: '语文', stage: 'high', genType: 'exam' });
+    expect(ywHigh).not.toContain('拼音注音');
   });
 });
 
@@ -175,7 +207,7 @@ describe('validatorRules 用户自定义持久化（面板维护，即时生效�
     saveUserRule({ id: 'pinyin-norm', description: '用户改的说明' });
     const r = getValidatorRule('pinyin-norm');
     expect(r.description).toBe('用户改的说明');
-    expect(r.subjects).toEqual(['语文', '英语']); // 未覆盖字段保留内置
+    expect(r.subjects).toEqual(['语文']); // 未覆盖字段保留内置（拼音归一仅语文：英语音标是 IPA 正常内容）
     expect(r.source).toBe('user');
   });
 });

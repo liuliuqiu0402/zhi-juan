@@ -1,6 +1,6 @@
 // ==================== 整卷结构质量校验器（ExamPaperAuditor）====================
 // 🔴 定位：生成后程序化质检层（所有资料类型 × 所有学科 × 所有学段通用）。
-//    提示词规则（questionTypeRules/promptLibrary）约束 AI"应该怎么出题"，
+//    提示词规则（promptLibrary 指令库）约束 AI"应该怎么出题"，
 //    本校验器兜底"AI 没做到时怎么办"——能自动修复的修复（fix），
 //    不能修复的静默计数（guard，不产生任何问题提示）。
 //    规则清单在 src/config/validatorRules.js（与指令库/蓝图库同级，分学科可维护），
@@ -223,7 +223,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   // ── 1. 模板残留清理（规则 template-cleanup）──
   if (has('template-cleanup')) {
     // 1a. "【插图占位】…复制 PROMPT…"非标准块 → 整个移除（渲染链路只认 [IMAGE] 标准块）
-    const phRe = /【\s*插图占位[\s\S]*?(?:复制\s*PROMPT|PROMPT)[\s\S]*?(?:插入此处|<\/div>|$)/gi;
+    //    🔴 匹配以 <p>/<div> 标签边界为限（负向前瞻），绝不跨标签吞内容——
+    //    历史缺陷：占位块无"插入此处"时 [\s\S]*? 贪婪跨到答案区 </div>，误删中间全部正常题目
+    const phRe = /(?:<p[^>]*>\s*)?【\s*插图占位(?:(?!<\/?p\b|<\/?div\b)[\s\S])*?(?:复制\s*PROMPT|PROMPT)(?:(?!<\/?p\b|<\/?div\b)[\s\S])*(?:插入此处|<\/p>|$)/gi;
     out = out.replace(phRe, (m) => {
       issues.push({ severity: 'info', type: 'image-placeholder', message: `已移除非标准插图占位符残留（${m.length} 字符）` });
       fixed += 1;
@@ -322,196 +324,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       out = out.slice(0, second);
       issues.push({ severity: 'info', type: 'duplicate-content', message: '检测到重复答案区，已截断保留第一份' });
       fixed += 1;
-    }
-  }
-
-  // ── 1.5.5. 连线题右列格式规范化（规则 match-format-fix：右列裸序号＋内容下方对照行 → 合并并排）──
-  if (has('match-format-fix')) {
-    const NUM = '①②③④⑤⑥⑦⑧⑨⑩'; // 注意：不含方括号，拼字符类时再包
-    const strip = (s) => s.replace(/<[^>]+>/g, '');
-    const lines = out.split('\n');
-    // 裸序号行：左列汉字 + 全角空格 + 行尾单个序号（"园　　②"，兼容 <p> 包裹）
-    const bareRe = new RegExp(`^([\\s\\S]{1,30}?)[\\s　]+([${NUM}])$`);
-    // 对照行解析：可含多对"序号 内容"（"① 树林　　② 花"）
-    const parseMapRow = (t) => {
-      const o = {};
-      const re = new RegExp(`([${NUM}])\\s*([^\\n${NUM}]{1,40}?)(?=[${NUM}]|$)`, 'g');
-      let m;
-      while ((m = re.exec(t)) !== null) o[m[1]] = m[2].trim();
-      return o;
-    };
-    const bareRows = [];
-    lines.forEach((ln, i) => {
-      const t = strip(ln).trim();
-      const m = bareRe.exec(t);
-      if (m && /[\u4e00-\u9fa5]/.test(m[1])) bareRows.push({ idx: i, num: m[2], left: m[1].trim(), raw: ln });
-    });
-    if (bareRows.length >= 2) {
-      // 收集所有对照行（跨行合并）
-      const lookup = {};
-      lines.forEach(ln => {
-        const t = strip(ln).trim();
-        if (bareRe.test(t)) return;
-        Object.assign(lookup, parseMapRow(t));
-      });
-      const mapped = bareRows.filter(r => lookup[r.num]);
-      // 至少一半裸序号行有对应内容、且 ≥2 项才重组（防误伤无对照行的连线题）
-      if (mapped.length >= Math.max(2, Math.ceil(bareRows.length * 0.5))) {
-        const mappedNums = new Set(mapped.map(r => r.num));
-        const newLines = lines.map((ln, i) => {
-          const row = bareRows.find(r => r.idx === i);
-          if (row && lookup[row.num]) {
-            const escLeft = row.left.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const re = new RegExp(`(${escLeft})[\\s　]+(${row.num})`);
-            return ln.replace(re, `$1　　　　${row.num}${lookup[row.num]}`);
-          }
-          const t = strip(ln).trim();
-          const cm = parseMapRow(t);
-          if (Object.keys(cm).some(k => mappedNums.has(k))) return null; // 删除已被回填到行尾的对照行
-          return ln;
-        }).filter(x => x !== null);
-        const merged = newLines.join('\n');
-        if (merged !== out) {
-          issues.push({ severity: 'info', type: 'match-format', message: `已重组连线题格式：右列序号与内容合并并排（${mapped.length} 项），删除下方对照行` });
-          fixed += 1;
-          out = merged;
-        }
-      }
-    }
-  }
-
-  // ── 1.5.5b. 连线题两列文本 → 左右分栏结构（规则 match-format-fix 配套：
-  //     AI 只输出"左　　右"文本行（纯内容、无序号），代码组装为 match-question 结构，
-  //     docxBuilder 才能渲染成可连线的左右方框布局；右列带序号的行由 1.5.5 处理，不重复组装）──
-  if (has('match-format-fix')) {
-    try {
-      const isTwoColLine = (t, html) => {
-        if (!t || t.length > 80) return false;
-        // 🔧 根治"句内填空/拼音+格子被误判连线"：p 内含内嵌标记（填空 span/u、田字格、配图等）
-        //    → 不是纯文本两列连线（如"（guì huā）<span class='tian-zi-ge'>　</span>…开了"的空格
-        //    来自 span 内容，会被当成两列分隔 → 重组丢格子）
-        if (/<span|<u\b|<div|<img|<br/i.test(html || '')) return false;
-        const m = t.match(/^(.{1,20}?)\s{2,}(.{1,20})$/);
-        if (!m) return false;
-        const left = m[1].trim();
-        const right = m[2].trim();
-        if (!left || !right) return false;
-        if (/[（(]\s{1,12}[)）]/.test(t)) return false; // 括号作答空（空格在括号内）不是两列分隔
-        if (/[：:＿【】]/.test(t) || /分/.test(left) || /分/.test(right)) return false;
-        if (/[①②③④⑤⑥⑦⑧⑨⑩]/.test(right)) return false; // 右列带序号 → 留给 1.5.5 裸序号重组
-        return true;
-      };
-      const tpl = document.createElement('template');
-      tpl.innerHTML = out;
-      const ps = Array.from(tpl.content.querySelectorAll('p'));
-      let i = 0;
-      while (i < ps.length) {
-        const text = (ps[i].textContent || '').trim();
-        if (isTwoColLine(text, ps[i].outerHTML)) {
-          const group = [ps[i]];
-          let j = i + 1;
-          while (j < ps.length && isTwoColLine((ps[j].textContent || '').trim(), ps[j].outerHTML)) {
-            group.push(ps[j]);
-            j += 1;
-          }
-          if (group.length >= 2) {
-            const leftItems = [];
-            const rightItems = [];
-            for (const g of group) {
-              const m = (g.textContent || '').trim().match(/^(.{1,20}?)\s{2,}(.{1,20})$/);
-              leftItems.push(m[1].trim());
-              rightItems.push(m[2].trim());
-            }
-            const div = document.createElement('div');
-            div.className = 'match-question';
-            const colL = document.createElement('div');
-            colL.className = 'match-col';
-            const colR = document.createElement('div');
-            colR.className = 'match-col';
-            // 🔧 右列由代码乱序（Fisher-Yates）：AI 只需保证"左——右"配对正确，
-            //    乱序交给代码 → 杜绝"AI 自行乱序导致错配"与"逐行并排暴露答案"两类历史问题
-            const rightItemsShuffled = rightItems.slice();
-            for (let s = rightItemsShuffled.length - 1; s > 0; s--) {
-              const r = Math.floor(Math.random() * (s + 1));
-              [rightItemsShuffled[s], rightItemsShuffled[r]] = [rightItemsShuffled[r], rightItemsShuffled[s]];
-            }
-            group.forEach((_, idx) => {
-              const li = document.createElement('div');
-              li.className = 'match-item';
-              li.textContent = leftItems[idx];
-              const ri = document.createElement('div');
-              ri.className = 'match-item';
-              ri.textContent = rightItemsShuffled[idx];
-              colL.appendChild(li);
-              colR.appendChild(ri);
-            });
-            div.appendChild(colL);
-            div.appendChild(colR);
-            const parent = group[0].parentNode;
-            const ref = group[group.length - 1].nextSibling;
-            for (const g of group) parent.removeChild(g);
-            parent.insertBefore(div, ref);
-            issues.push({ severity: 'info', type: 'match-structure', message: `连线题已组装为左右分栏结构（${group.length} 项配对）` });
-            fixed += 1;
-            i = j;
-            continue;
-          }
-        }
-        i += 1;
-      }
-      // 🔧 "X——Y"配对行（AI 直接把配对写出 → 题目暴露答案）→ 拆左右列 + 乱序右列重组
-      //    如"杨树——高　榕树——壮　枫树——秋天叶儿红　松柏——四季披绿装"；只处理 ≥2 对的纯配对行，
-      //    含题号/说明/破折号单用（如"小明——小红是好朋友"仅 1 对）不触发，防误伤
-      {
-        const leftItems = [];
-        const rightItems = [];
-        const group = [];
-        for (const p of ps) {
-          const t = (p.textContent || '').trim();
-          const pairs = [...t.matchAll(/([^——\s]{1,15})——([^——\s]{1,15})/g)];
-          if (pairs.length < 2) continue;
-          let consumed = '';
-          for (const mm of pairs) consumed += mm[1] + mm[2];
-          const pure = t.replace(/[——\s　]/g, '').replace(/[（(]?\d{1,3}[)）]?/g, '');
-          if (pure.length > consumed.length + 2) continue; // 行内还有题干/说明文字 → 非纯配对行
-          for (const mm of pairs) { leftItems.push(mm[1].trim()); rightItems.push(mm[2].trim()); }
-          group.push(p);
-        }
-        if (group.length > 0 && leftItems.length >= 2) {
-          const rightShuffled = rightItems.slice();
-          for (let s = rightShuffled.length - 1; s > 0; s--) {
-            const r = Math.floor(Math.random() * (s + 1));
-            [rightShuffled[s], rightShuffled[r]] = [rightShuffled[r], rightShuffled[s]];
-          }
-          const div = document.createElement('div');
-          div.className = 'match-question';
-          const colL = document.createElement('div');
-          colL.className = 'match-col';
-          const colR = document.createElement('div');
-          colR.className = 'match-col';
-          leftItems.forEach((l, idx) => {
-            const li = document.createElement('div');
-            li.className = 'match-item';
-            li.textContent = l;
-            colL.appendChild(li);
-            const ri = document.createElement('div');
-            ri.className = 'match-item';
-            ri.textContent = rightShuffled[idx];
-            colR.appendChild(ri);
-          });
-          div.appendChild(colL);
-          div.appendChild(colR);
-          const parent = group[0].parentNode;
-          const ref = group[group.length - 1].nextSibling;
-          for (const g of group) parent.removeChild(g);
-          parent.insertBefore(div, ref);
-          issues.push({ severity: 'info', type: 'match-structure', message: `连线题"左——右"配对已重组为左右分栏并乱序右列（${leftItems.length} 项，题目不再直接暴露答案）` });
-          fixed += 1;
-        }
-      }
-      out = tpl.innerHTML;
-    } catch (e) {
-      console.warn('⚠️ 连线题结构组装失败（不影响其他修复）:', e.message);
     }
   }
 
@@ -665,71 +477,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         for (const n of secNodes) secHtml += n.outerHTML || n.textContent || '';
         if (!secHtml) return;
 
-        // 2a 前的初始载体（仅用于触发拼音空位对齐判断；2a 删/补空位后由下方重算覆盖）
-        const pinyinGroups = countPinyinGroups(secHtml);
-        const blanksBefore = countBlanks(secHtml);
-
-        // 2a. 看拼音写词语/拼音填空空位对齐（规则 pinyin-blank-fill：缺空自动补、多余自动删）
-        if (has('pinyin-blank-fill') && pinyinGroups >= 2 && blanksBefore >= 1 && pinyinGroups !== blanksBefore) {
-          if (pinyinGroups > blanksBefore) {
-            const missing = pinyinGroups - blanksBefore;
-            const { recovered } = fixMissingPinyinBlanksInDom(secNodes, missing);
-            issues.push({
-              severity: 'info',
-              type: 'pinyin-blank-mismatch',
-              message: `已自动补 ${missing} 个拼音空位（大题「${title}」拼音${pinyinGroups}组/空位${blanksBefore}个）${recovered ? '' : '，部分补全失败请抽检'}`,
-            });
-            fixed += 1;
-          } else {
-            // 🔧 空位数多于拼音组数（如"拼音2字却给4个田字格"）→ 自动删除多余空位
-            const excess = blanksBefore - pinyinGroups;
-            const { removed } = fixExcessPinyinBlanksInDom(secNodes, excess);
-            issues.push({
-              severity: 'info',
-              type: 'pinyin-blank-mismatch',
-              message: `已删除 ${excess} 个多余拼音空位（大题「${title}」拼音${pinyinGroups}组/空位${blanksBefore}个）${removed ? '' : '，部分删除失败请抽检'}`,
-            });
-            fixed += 1;
-          }
-        }
-
-        // 2a-tzg. 田字格数量与拼音音节对齐（pinyin-blank-fill 扩展，根治"田字格与拼音不对应"：
-        //    模型常按拼音组固定给 4 格 → 按音节数对齐，每音节 1 格，多了删、少了补。
-        //    🔧 粒度=「拼音段+紧邻田字格段」分组（真实事故：大题级统计把第 1 题拼音音节数
-        //    去对齐第 4 题写字田字格数 → 克隆最后字"柏"补 5 格；必须只对含拼音的段落组对齐））
-        if (has('pinyin-blank-fill')) {
-          let gi = 0;
-          while (gi < secNodes.length) {
-            const gn = secNodes[gi];
-            if (!gn || gn.nodeType !== Node.ELEMENT_NODE) { gi += 1; continue; }
-            const gHtml = gn.outerHTML || '';
-            const pg = countPinyinGroups(gHtml);
-            if (pg < 1) { gi += 1; continue; } // 含拼音（单音节"群"也要对齐；读音题无田字格 → tc=0 不触发）
-            // 收集该段及其后连续"仅含田字格/空白"的段（格子可能被 AI 拆成独立段落）
-            let groupHtml = gHtml;
-            let gj = gi + 1;
-            while (gj < secNodes.length && secNodes[gj]?.nodeType === Node.ELEMENT_NODE) {
-              const h2 = secNodes[gj].outerHTML || '';
-              if (/tian-zi-ge/.test(h2) && countPinyinGroups(h2) === 0) { groupHtml += h2; gj += 1; continue; }
-              break;
-            }
-            const tc = countTzg(groupHtml);
-            if (tc >= 1 && pg !== tc) {
-              const diff = pg - tc;
-              const ok = fixTzgCountInDom(secNodes.slice(gi, gj), diff);
-              issues.push({
-                severity: 'info',
-                type: 'pinyin-blank-mismatch',
-                message: `田字格数量已按拼音音节对齐（${diff > 0 ? `补 ${diff} 格` : `删 ${-diff} 格`}）：拼音${pg}音节/田字格${tc}个${ok ? '' : '，部分失败请抽检'}`,
-              });
-              fixed += 1;
-            }
-            gi = gj;
-          }
-        }
-
-        // 🔧 2a 后：重算序列化与载体（反映 2a 对空位的删/补，后续 2b~2h 均以修正后的 DOM 为准，
-        //    避免"分值换算"仍按删除前的旧空位数校验）
+        // 🔧 重算序列化与载体（后续 2b~2h 均以当前 DOM 为准）
         let secHtml2 = '';
         for (const n of secNodes) secHtml2 += n.outerHTML || n.textContent || '';
         const secText2 = secNodes.map(n => n.textContent || '').join('');
@@ -737,11 +485,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const pinyinOpts = countPinyinOptions(secHtml2);
         const options = countOptions(secHtml2);
         const matchSides = countMatchSides(secHtml2);
-
-        // 2d. 连线项不对称（规则 match-symmetric-guard：静默）
-        if (has('match-symmetric-guard') && matchSides && matchSides.total % 2 !== 0) {
-          silentCount('match-asymmetric', `大题「${title}」连线题左右项数不对称（共 ${matchSides.total} 项）`);
-        }
 
         // 2e. 选择题选项过少（规则 option-count-guard：静默）
         if (has('option-count-guard') && /选一选|选择|选出/.test(secText2.slice(0, 400)) && options > 0 && options < 2) {
@@ -977,8 +720,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       const dm = out.match(/[（(][^）)]*?(\d+\.\d+)\s*分/);
       if (dm) silentCount('low-score', `小学卷出现小数分值（${dm[1]}分）——小学一律整数分，请抽检`);
     }
-    // 2j-2 连一连空壳（规则 match-format-fix：有"连一连"题干但无配对内容）
-    if (has('match-format-fix') && /连一连|连起来/.test(bodyText)) {
+    // 2j-2 连一连空壳（有"连一连"题干但无配对内容 → 静默抽检；配对载体=match-question 结构或两列文本）
+    if (/连一连|连起来/.test(bodyText)) {
       const twoCol = (out.match(/[\u4e00-\u9fa5]{1,20}\u3000{2,}\S{1,20}/g) || []).length;
       if (!/match-question/.test(out) && twoCol === 0) {
         silentCount('match-empty', '检测到"连一连"题干但无配对内容（连一连题疑似空壳），请抽检');
@@ -1095,15 +838,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         console.warn('⚠️ 作文格位置纠正失败:', e.message);
       }
     }
-    // 2j-6 语文低段连线题数量超限（规则 match-format-fix：全卷连线≤2道，超限标记）
-    if (has('match-format-fix') && subject.includes('语文') && /^primary/.test(stage)) {
-      const mqCount = (out.match(/match-question/g) || []).length;
-      const twoColLines = (out.match(/[\u4e00-\u9fa5]{1,20}\u3000{2,}\S{1,20}/g) || []).length;
-      const total = mqCount + Math.ceil(twoColLines / 2);
-      if (total > 2) {
-        silentCount('match-empty', `语文低段连线题数量(${total})超过2道上限——题型重复，请抽检`);
-      }
-    }
   }
 
   // ── 2k. 书写作答空间保障（规则 answer-area-fix：
@@ -1171,9 +905,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           || countOptions(secAllHtml) > 0
           || /照样子|例[：:、]|圈出|归类|填一填|填空|选一选|选词|连一连|判断|选择|划出/.test(secAllText);
         if (sectionHasCarrier) return;
-        // 大题内小题（题号行："1." 或 "（1）"）；无题号行时整大题视为一个作答项（如书面表达）
-        const itemPs = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p'
-          && /^\s*(?:\d+[.、．]|[(（]\d+[)）])/.test((n.textContent || '').trim()));
+        // 大题内小题（题号行：优先"1."式顶层题号；无顶层题号时回退"（1）"式子题行）；无题号行时整大题视为一个作答项（如书面表达）
+        // 🔴 子题防误补：顶层题号与子题号并存时，子题（1）（2）归入父题作答段，不独立度量/补空间（防子题间误插横线）
+        const itemPs = (() => {
+          const top = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p'
+            && /^\s*\d+[.、．]/.test((n.textContent || '').trim()));
+          if (top.length > 0) return top;
+          return secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p'
+            && /^\s*[(（]\d+[)）]/.test((n.textContent || '').trim()));
+        })();
         const items = itemPs.length > 0
           ? itemPs.map((p, k) => {
               const t = (p.textContent || '').trim();
@@ -1375,116 +1115,5 @@ const countSubNumbered = (raw) => {
   return (text.match(/[(（]\s*\d+\s*[)）]/g) || []).length;
 };
 
-/**
- * 为"看拼音写词语/拼音填空"补齐缺失的空位（DOM 版）：
- * 在给定节点列表内的文本节点上，为"拼音组后紧跟汉字（且后无空位）"的位置补（　　）
- * @param {Array<Element|Text>} nodes DOM 节点列表
- * @param {number} missing 期望补全数
- * @returns {{recovered: boolean}}
- */
-const fixMissingPinyinBlanksInDom = (nodes, missing) => {
-  let recovered = 0;
-  try {
-    const re = new RegExp(`([${PINYIN_CHARS}]+)(?=\\s*[\\u4e00-\\u9fa5])`, 'g');
-    for (const root of nodes) {
-      if (recovered >= missing) break;
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-      const textNodes = [];
-      while (walker.nextNode()) textNodes.push(walker.currentNode);
-      for (const node of textNodes) {
-        if (recovered >= missing) break;
-        const t = node.nodeValue || '';
-        let fixedText = t;
-        let mm;
-        let changed = false;
-        re.lastIndex = 0;
-        while ((mm = re.exec(fixedText)) !== null && recovered < missing) {
-          // 该拼音组后紧跟汉字且后面没有空位 → 补（　　）
-          const after = fixedText.slice(mm.index + mm[1].length);
-          if (/[（(]\s*[　\s]{1,6}\s*[)）]/.test(after)) continue; // 已有空位
-          fixedText = fixedText.slice(0, mm.index + mm[1].length) + '(　　　　)' + fixedText.slice(mm.index + mm[1].length);
-          recovered += 1;
-          changed = true;
-        }
-        if (changed) node.nodeValue = fixedText;
-      }
-    }
-  } catch (e) {
-    console.warn('⚠️ 拼音空位补齐失败:', e.message);
-  }
-  return { recovered: recovered >= missing };
-};
-
-/** 删除多余空位（空位数 > 拼音组数，如"拼音2字却给4个田字格"→ 删到 2 个） */
-const fixExcessPinyinBlanksInDom = (nodes, excess) => {
-  let removed = 0;
-  try {
-    const parenRe = /[（(]\s*[　\u3000 ]{1,12}\s*[)）]/g;
-    for (const root of nodes) {
-      if (removed >= excess) break;
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-      const textNodes = [];
-      while (walker.nextNode()) textNodes.push(walker.currentNode);
-      // 从后往前处理（避免索引偏移）：每段文本内也从最后一个空位删起
-      for (let i = textNodes.length - 1; i >= 0 && removed < excess; i--) {
-        const node = textNodes[i];
-        const t = node.nodeValue || '';
-        if (!parenRe.test(t)) continue;
-        const matches = [...t.matchAll(parenRe)].reverse();
-        let fixedText = t;
-        for (const m of matches) {
-          if (removed >= excess) break;
-          fixedText = fixedText.slice(0, m.index) + fixedText.slice(m.index + m[0].length);
-          removed += 1;
-        }
-        if (fixedText !== t) node.nodeValue = fixedText;
-      }
-    }
-  } catch (e) {
-    console.warn('⚠️ 拼音多余空位删除失败:', e.message);
-  }
-  return { removed: removed >= excess };
-};
-
 export default { auditExamPaper, normalizePinyinText, countBlanks, countPinyinGroups, countPinyinOptions, countOptions, countMatchSides, splitSections, fixScoreLabel };
 
-/** 统计一段 HTML 中的田字格 span 数（看拼音写词语按音节对齐用） */
-export const countTzg = (html) => {
-  if (!html) return 0;
-  return (html.match(/<span[^>]*class=["'][^"']*tian-zi-ge[^"']*["'][^>]*>/gi) || []).length;
-};
-
-/** 按目标数量补/删田字格 span（拼音音节对齐：每音节 1 格；diff>0 补、diff<0 删，从尾部操作） */
-const fixTzgCountInDom = (nodes, diff) => {
-  let changed = 0;
-  try {
-    if (diff > 0) {
-      // 补：克隆最后一个田字格 span，插入其后（位置贴近原格，卷面连续）
-      for (const root of nodes) {
-        if (changed >= diff) break;
-        const spans = root.querySelectorAll ? Array.from(root.querySelectorAll('span.tian-zi-ge')) : [];
-        if (spans.length === 0) continue;
-        const last = spans[spans.length - 1];
-        for (let k = 0; k < diff - changed; k++) {
-          const clone = last.cloneNode(true);
-          last.parentNode.insertBefore(clone, last.nextSibling);
-          changed += 1;
-        }
-      }
-    } else {
-      // 删：从尾部删除多余的田字格 span（优先删后组的多余格，各组合法格保留）
-      const need = -diff;
-      for (let i = nodes.length - 1; i >= 0 && changed < need; i--) {
-        const root = nodes[i];
-        const spans = root.querySelectorAll ? Array.from(root.querySelectorAll('span.tian-zi-ge')) : [];
-        for (let k = spans.length - 1; k >= 0 && changed < need; k--) {
-          spans[k].parentNode.removeChild(spans[k]);
-          changed += 1;
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('⚠️ 田字格数量对齐失败:', e.message);
-  }
-  return changed >= Math.abs(diff);
-};

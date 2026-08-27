@@ -10,6 +10,7 @@ import {
   getPromptTemplate, savePromptTemplate, deletePromptTemplate,
   buildInjectionInstruction, buildStructureText,
 } from '@/config/promptLibrary.js';
+import { setLibToggle } from '@/utils/libToggles.js';
 
 const TEST_LIB_KEY = 'test_lib';
 
@@ -102,20 +103,40 @@ describe('注入指令组装（拼接格式与顺序）', () => {
 
 describe('卷面结构文本', () => {
   it('从蓝图生成人话结构（板块+分值）', () => {
-    const recipe = {
-      blueprint: {
-        sections: [
-          { name: '识字与写字', score: 32 },
-          { name: '积累与运用', score: 24 },
-        ],
-      },
+    const bp = {
+      sections: [
+        { name: '识字与写字', score: 32 },
+        { name: '积累与运用', score: 24 },
+      ],
     };
-    const text = buildStructureText(recipe);
+    const text = buildStructureText(bp);
     expect(text).toContain('一、识字与写字（共X题，共32分）');
     expect(text).toContain('二、积累与运用（共X题，共24分）');
   });
 
   it('无蓝图返回空串', () => {
     expect(buildStructureText({})).toBe('');
+  });
+});
+
+describe('指令库条目停用（工具库开关）', () => {
+  it('停用内置 cell → 落回 学段×类型 模板（不含学科定制要点）', () => {
+    const cellId = 'primary_low|语文|exam';
+    setLibToggle('instruction', cellId, false);
+    const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
+    expect(t.source).toBe('builtin');
+    expect(t.id).toBe('primary_low|exam'); // 落回 5) 学段×类型
+    setLibToggle('instruction', cellId, true);
+    expect(getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).id).toBe(cellId);
+  });
+
+  it('停用用户自定义 → 落回内置模板', () => {
+    savePromptTemplate('语文|exam', { name: '自定义', template: '用户版专属内容' });
+    expect(getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template).toContain('用户版专属内容');
+    setLibToggle('instruction', '语文|exam', false);
+    const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
+    expect(t.template).not.toContain('用户版专属内容');
+    setLibToggle('instruction', '语文|exam', true);
+    deletePromptTemplate('语文|exam');
   });
 });

@@ -18,6 +18,8 @@
  * ============================================================
  */
 
+import { isLibEntryEnabled } from '../utils/libToggles.js';
+
 /** 资料类型中文名（模板列表展示/任务行用） */
 export const GEN_TYPE_NAMES = {
   exam: '正式考卷', practice: '课时练', special: '专项突破', preview: '课前预习',
@@ -354,21 +356,21 @@ export function saveUserLibrary(lib) {
  */
 export function getPromptTemplate({ grade = '', subject = '', genType = '' }) {
   const userLib = loadUserLibrary();
-  // 1) 用户精确：grade+subject+genType
+  // 1) 用户精确：grade+subject+genType（停用 → 落下一级）
   const exactId = `${grade}|${subject}|${genType}`;
-  if (userLib[exactId]?.template) {
+  if (userLib[exactId]?.template && isLibEntryEnabled('instruction', exactId)) {
     return { ...userLib[exactId], id: exactId, source: 'user' };
   }
   // 2) 用户 subject×genType
   const subjId = `${subject}|${genType}`;
-  if (userLib[subjId]?.template) {
+  if (userLib[subjId]?.template && isLibEntryEnabled('instruction', subjId)) {
     return { ...userLib[subjId], id: subjId, source: 'user' };
   }
   // 3) 用户 genType
-  if (userLib[genType]?.template) {
+  if (userLib[genType]?.template && isLibEntryEnabled('instruction', genType)) {
     return { ...userLib[genType], id: genType, source: 'user' };
   }
-  // 4) 内置三维度 cell（学段×学科×类型，预生成直取；名称三维度中文）
+  // 4) 内置三维度 cell（学段×学科×类型，预生成直取；名称三维度中文；工具库停用该 cell → 落回 5) 学段×类型 模板）
   const stageKeyOf = (g = '') => {
     if (!g) return '';
     if (STAGE_NAMES[g]) return g;
@@ -378,7 +380,7 @@ export function getPromptTemplate({ grade = '', subject = '', genType = '' }) {
   const stageKey = stageKeyOf(grade);
   const cellId = stageKey && subject ? `${stageKey}|${subject}|${genType}` : '';
   const cell = cellId && BUILTIN_TEMPLATES[cellId];
-  if (cell) {
+  if (cell && isLibEntryEnabled('instruction', cellId)) {
     return { id: cellId, name: `${STAGE_NAMES[stageKey] || stageKey} · ${subject} · ${GEN_TYPE_NAMES[genType] || genType}`, template: cell, source: 'builtin' };
   }
   // 5) 内置 学段×类型（subject 缺省或该学段未开设该学科时回落）
@@ -437,7 +439,8 @@ export function listPromptTemplates() {
  *   【任务】定位行（系统生成，固定最前）
  *   → 模板正文（指令库模板，占位符替换，用户可排版；学科排版已并入模板本体）
  *   → 【用户附加要求】（最后，优先级最高）
- * 教材原文/渲染契约/质检规则/蓝图等附加块由生成器在生成时追加（不进注入框）。
+ * 教材原文由生成器在生成时按知识点检索后追加；渲染契约/质检规则/蓝图/教辅结构等附加块
+ * 在注入时已并入注入框（用户可见可编辑）。
  * @param {Object} opts { template, grade, subject, unit, genTypeLabel, structure, fullScore, duration, extra }
  * @returns {string} 完整注入指令（注入框展示内容）
  */
@@ -464,9 +467,9 @@ export function buildInjectionInstruction(opts = {}) {
   return [taskLine, body, extraBlock].filter(Boolean).join('\n').trim();
 }
 
-/** 从蓝图生成卷面结构文本（明细式，供指令注入）；支持传 recipe（含 blueprint）或蓝图对象本身 */
-export function buildStructureText(recipe) {
-  const sections = recipe?.blueprint?.sections || recipe?.sections;
+/** 从蓝图生成卷面结构文本（明细式，供指令注入）；参数为 findBlueprint/getExamBlueprint 返回的蓝图对象 */
+export function buildStructureText(bp) {
+  const sections = bp?.sections;
   if (!sections?.length) return '';
   return sections.map((s, i) => `${'一二三四五六七八九十'[i] || i + 1}、${s.name}（共X题，共${s.score || ''}分）`).join('\n');
 }
