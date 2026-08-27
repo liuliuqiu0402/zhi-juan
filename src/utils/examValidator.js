@@ -1162,7 +1162,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           });
         }
       });
-      if (fixedK > 0) out = tplK.innerHTML + ansPart;
+      if (fixedK > 0) {
+        // 🔧 双保险（真实事故：2k 段后答案区消失，护栏触发）：ansStart 未匹配时 ansPart 为空、
+        //    全量序列化可能弄丢答案区 → 先保存答案区原文（至文末），序列化后拼回
+        if (!ansStart) {
+          const savedAns = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>[\s\S]*$/i);
+          out = tplK.innerHTML + ansPart;
+          if (savedAns && !/answer-section/.test(out)) out = out + '\n\n' + savedAns[0];
+        } else {
+          out = tplK.innerHTML + ansPart;
+        }
+      }
       if (hadAnswerSection && !/answer-section/.test(out)) console.error('[answer-diag] 🎯 答案区在 2k（作答空间补差）段后丢失');
     } catch (e) {
       console.warn('⚠️ 作答空间保障失败（不影响其他修复）:', e.message);

@@ -4988,9 +4988,11 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       if (hadAnswerBeforeAudit && !/answer-section/.test(finalContent)) {
         const ansPart = beforeAudit.match(/<div[^>]*class="[^"]*answer-section"[^>]*>[\s\S]*$/i);
         if (ansPart) {
+          const ansHead = beforeAudit.match(/<div[^>]*class="[^"]*answer-section"[^>]*>/i);
           console.error('[answer-diag] ⚠️ auditExamPaper 丢失答案区（护栏已拼回）', {
             beforeLen: beforeAudit.length,
             answerDivCount: (beforeAudit.match(/<div[^>]*answer-section[^>]*>/gi) || []).length,
+            ansDivFormat: ansHead ? ansHead[0].slice(0, 120) : 'NO-DIV-MATCH',
             beforeTail: beforeAudit.slice(-300),
           });
           finalContent = finalContent + '\n\n' + ansPart[0];
