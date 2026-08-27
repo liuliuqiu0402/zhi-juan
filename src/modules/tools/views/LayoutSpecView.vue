@@ -135,6 +135,8 @@ const ANSWER_STAGES = [
   { key: 'middle', label: '初中' },
   { key: 'high', label: '高中' },
 ];
+/** 学段键 → 中文（预览 textArr 字段用，输入仍填英文键） */
+const STAGE_LABEL_MAP = Object.fromEntries(ANSWER_STAGES.map((s) => [s.key, s.label]));
 const ANSWER_MATRIX_PARAMS = [
   { key: 'linePerScore', label: '行/分', unit: '', type: 'number', min: 0.3, max: 3, step: 0.1 },
   { key: 'lineHeightMm', label: '行高', unit: 'mm', type: 'number', min: 4, max: 15, step: 0.5 },
@@ -179,7 +181,7 @@ const SPEC_GROUPS = [
       { path: 'ZUOWEN_MARK_STEP.primary', label: '小学标注步长', unit: '格/标', type: 'number', min: 10, max: 200, step: 10 },
       { path: 'ZUOWEN_MARK_STEP.middle', label: '初中标注步长', unit: '格/标', type: 'number', min: 10, max: 200, step: 10 },
       { path: 'ZUOWEN_MARK_STEP.high', label: '高中标注步长', unit: '格/标', type: 'number', min: 10, max: 200, step: 10 },
-      { path: 'ZUOWEN_DEFAULT_SPAN', label: '空格默认补全', unit: 'span', type: 'number', min: 1, max: 10, step: 1 },
+      { path: 'ZUOWEN_DEFAULT_SPAN', label: '空格默认补全', unit: '格', type: 'number', min: 1, max: 10, step: 1 },
     ],
   },
   {
@@ -233,22 +235,22 @@ const SPEC_GROUPS = [
   {
     id: 'carrier-rules',
     name: '载体×题型规则',
-    desc: 'must=写字/抄写类该用格子却没用→提示抽检；forbid=表达/写话类禁混入格子→出现自动剥离。examValidator writing-grid-fix 读取',
+    desc: '必备规则（must）=写字/抄写类该用格子却没用→提示抽检；禁用规则（forbid）=表达/写话类禁混入格子→出现自动剥离。examValidator writing-grid-fix 读取',
     fields: [
-      { path: 'CARRIER_RULES.must.0.subject', label: 'must1 学科', type: 'select', options: SUBJECT_OPTIONS },
-      { path: 'CARRIER_RULES.must.0.stages', label: 'must1 学段（逗号分隔）', type: 'textArr', placeholder: '如 primary_low' },
-      { path: 'CARRIER_RULES.must.0.keywords', label: 'must1 题型关键词（|分隔）', type: 'text' },
-      { path: 'CARRIER_RULES.must.0.carrier', label: 'must1 必须载体', type: 'select', options: GRID_OPTIONS.map((o) => o.value) },
-      { path: 'CARRIER_RULES.must.1.subject', label: 'must2 学科', type: 'select', options: SUBJECT_OPTIONS },
-      { path: 'CARRIER_RULES.must.1.stages', label: 'must2 学段（逗号分隔）', type: 'textArr', placeholder: '如 primary_low' },
-      { path: 'CARRIER_RULES.must.1.keywords', label: 'must2 题型关键词（|分隔）', type: 'text' },
-      { path: 'CARRIER_RULES.must.1.carrier', label: 'must2 必须载体', type: 'select', options: GRID_OPTIONS.map((o) => o.value) },
-      { path: 'CARRIER_RULES.must.2.subject', label: 'must3 学科', type: 'select', options: SUBJECT_OPTIONS },
-      { path: 'CARRIER_RULES.must.2.stages', label: 'must3 学段（逗号分隔）', type: 'textArr', placeholder: '如 primary_mid' },
-      { path: 'CARRIER_RULES.must.2.keywords', label: 'must3 题型关键词（|分隔）', type: 'text' },
-      { path: 'CARRIER_RULES.must.2.carrier', label: 'must3 必须载体', type: 'select', options: GRID_OPTIONS.map((o) => o.value) },
-      { path: 'CARRIER_RULES.forbid.0.keywords', label: 'forbid 题型关键词（|分隔）', type: 'text' },
-      { path: 'CARRIER_RULES.forbid.0.carriers', label: 'forbid 禁用的载体（多选）', type: 'carrier', chipOptions: GRID_OPTIONS },
+      { path: 'CARRIER_RULES.must.0.subject', label: '必备规则1·学科', type: 'select', options: SUBJECT_OPTIONS },
+      { path: 'CARRIER_RULES.must.0.stages', label: '必备规则1·学段（逗号分隔）', type: 'textArr', stageArr: true, placeholder: '学段键，如 primary_low（小学低段）' },
+      { path: 'CARRIER_RULES.must.0.keywords', label: '必备规则1·题型关键词（|分隔）', type: 'text' },
+      { path: 'CARRIER_RULES.must.0.carrier', label: '必备规则1·必须载体', type: 'select', options: GRID_OPTIONS.map((o) => o.value) },
+      { path: 'CARRIER_RULES.must.1.subject', label: '必备规则2·学科', type: 'select', options: SUBJECT_OPTIONS },
+      { path: 'CARRIER_RULES.must.1.stages', label: '必备规则2·学段（逗号分隔）', type: 'textArr', stageArr: true, placeholder: '学段键，如 primary_low（小学低段）' },
+      { path: 'CARRIER_RULES.must.1.keywords', label: '必备规则2·题型关键词（|分隔）', type: 'text' },
+      { path: 'CARRIER_RULES.must.1.carrier', label: '必备规则2·必须载体', type: 'select', options: GRID_OPTIONS.map((o) => o.value) },
+      { path: 'CARRIER_RULES.must.2.subject', label: '必备规则3·学科', type: 'select', options: SUBJECT_OPTIONS },
+      { path: 'CARRIER_RULES.must.2.stages', label: '必备规则3·学段（逗号分隔）', type: 'textArr', stageArr: true, placeholder: '学段键，如 primary_mid（小学中段）' },
+      { path: 'CARRIER_RULES.must.2.keywords', label: '必备规则3·题型关键词（|分隔）', type: 'text' },
+      { path: 'CARRIER_RULES.must.2.carrier', label: '必备规则3·必须载体', type: 'select', options: GRID_OPTIONS.map((o) => o.value) },
+      { path: 'CARRIER_RULES.forbid.0.keywords', label: '禁用规则·题型关键词（|分隔）', type: 'text' },
+      { path: 'CARRIER_RULES.forbid.0.carriers', label: '禁用规则·禁用的载体（多选）', type: 'carrier', chipOptions: GRID_OPTIONS },
     ],
   },
 ];
@@ -281,6 +283,11 @@ const setByPath = (obj, path, val) => {
 
 const formatVal = (v, f) => {
   if (v == null) return '—';
+  if (f.type === 'textArr') {
+    const arr = Array.isArray(v) ? v : String(v || '').split(/[,，]/).map((s) => s.trim()).filter(Boolean);
+    if (!arr.length) return '—';
+    return arr.map((x) => (f.stageArr ? (STAGE_LABEL_MAP[x] || x) : x)).join('、');
+  }
   if (Array.isArray(v)) {
     if (!v.length) return '（无，默认横线）';
     return v.map((x) => CARRIER_LABEL[x] || x).join('、');

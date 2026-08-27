@@ -34,7 +34,7 @@
     <div class="rule-validate ok" v-else>✅ 接线状态正常（当前筛选范围内无注册空洞）</div>
 
     <!-- 规则列表（手风琴） -->
-    <h4 class="rule-h">📋 规则条目<span class="hint">点击名称展开/收起 · 展开后可编辑 · fix=生成前约束+生成后修正 · guard=静默防护</span></h4>
+    <h4 class="rule-h">📋 规则条目<span class="hint">点击名称展开/收起 · 展开后可编辑 · 修复=生成前约束+生成后自动修复 · 防护=生成后静默防护（仅抽检计数）</span></h4>
     <div class="rule-list">
       <div v-for="r in ruleList" :key="r.id" class="rule-card" :class="{ open: openKey === r.id, editing: editingKey === r.id }">
         <div class="rule-head" @click="toggle(r.id)">
@@ -42,8 +42,8 @@
           <span class="lib-tag">🧪 规则库</span>
           <span class="dim-name">{{ r.name }}</span>
           <span class="rule-dim" :title="'维度：' + ruleDimName(r)">{{ ruleDimName(r) }}</span>
-          <span class="key-hint" :title="'规则 id：' + r.id">{{ r.id }}</span>
-          <span class="cat-tag" :class="`cat-${r.category}`">{{ r.category === 'fix' ? 'fix' : 'guard' }}</span>
+          <span class="key-hint" :title="'规则 id（程序身份标识）：' + r.id">{{ r.id }}</span>
+          <span class="cat-tag" :class="`cat-${r.category}`" :title="r.category === 'fix' ? 'fix（生成前约束 + 生成后自动修复）' : 'guard（生成后静默防护，仅抽检计数）'">{{ r.category === 'fix' ? '修复' : '防护' }}</span>
           <span v-if="r.source === 'user'" class="src-user">已自定义</span>
           <span class="wired-tag" :class="wiredState(r).cls">{{ wiredState(r).label }}</span>
           <span class="rule-meta">{{ r.enabled !== false ? '启用' : '停用' }}</span>
@@ -73,7 +73,7 @@
               <select v-model="form.category"><option value="fix">fix（自动修复）</option><option value="guard">guard（静默防护）</option></select>
             </label>
             <label>学科（* 或逗号分隔）<input v-model="form.subjectsText" placeholder="如 * 或 语文,数学" /></label>
-            <label>学段（* 或逗号分隔）<input v-model="form.stagesText" placeholder="如 primary_low,primary_mid" /></label>
+            <label>学段（* 或逗号分隔）<input v-model="form.stagesText" placeholder="学段键，如 primary_low（小学低段）,primary_mid（小学中段）" /></label>
             <label>资料类型（空=全部，逗号分隔）<input v-model="form.genTypesText" placeholder="如 exam,practice" /></label>
             <label class="chk">启用 <input v-model="form.enabled" type="checkbox" /></label>
           </div>
@@ -99,7 +99,7 @@
             <select v-model="form.category"><option value="fix">fix（自动修复）</option><option value="guard">guard（静默防护）</option></select>
           </label>
           <label>学科（* 或逗号分隔）<input v-model="form.subjectsText" placeholder="如 * 或 语文,数学" /></label>
-          <label>学段（* 或逗号分隔）<input v-model="form.stagesText" placeholder="如 primary_low,primary_mid" /></label>
+          <label>学段（* 或逗号分隔）<input v-model="form.stagesText" placeholder="学段键，如 primary_low（小学低段）,middle（初中）" /></label>
           <label>资料类型（空=全部）<input v-model="form.genTypesText" placeholder="如 exam,practice" /></label>
         </div>
         <label class="full">生成前约束（promptHint）<textarea v-model="form.promptHint" rows="2" placeholder="模型生成前要遵守的约束文案"></textarea></label>
