@@ -4590,9 +4590,11 @@ ${cardAnalysisText.substring(0, 1000)}
 
   /**
    * 🔴 素材构建：按本资料覆盖的知识点检索教材原文片段（RAG 思路，非全量注入/硬截断）
-   * - 章节目录 + 知识点清单：让模型知道覆盖范围与考查点
-   * - 每知识点取语义检索 top 片段，按相关度排序；总量超上限时按相关度裁剪
-   *   （丢的是与命题无关的片段，不是硬截断原文——每个考点都有对应原文依据）
+   * - 章节目录（前部）：告知覆盖范围
+   * - 原文片段（中部）：每知识点保底 top1 片段（保证每个考点都有原文依据，防相关度排序
+   *   把后段知识点的片段挤掉）；未命中片段的知识点自动拆词补检（覆盖度检查，静默 debug）；
+   *   剩余预算按相关度增量补充；总量受 maxChars 上限兜底（丢的是无关片段，不是考点原文）
+   * - 考查知识点清单（尾部锚点，中性措辞不加禁令）：生成时模型眼前即是覆盖范围
    * @returns {string} 素材块文本（空串 = 无素材）
    */
   const buildMaterialBlock = ({ contentCards = [], knowledgeMap = null, maxChars = 8000 } = {}) => {
@@ -4619,29 +4621,67 @@ ${cardAnalysisText.substring(0, 1000)}
     }
     const kpNames = [...kpSet].filter(Boolean);
     const kpText = kpNames.length ? `【本资料考查知识点】${kpNames.join('、')}` : '';
-    // 3. 按知识点检索原文片段（语义检索 top 片段 + 去重）
+    // 3. 按知识点检索（每知识点保底 + 缺失补检 + 剩余预算增量）
     const hits = [];
     const seen = new Set();
+    const hasRetriever = !!semanticRetriever?.segments?.length;
+    const findTop = (q, k = 1) => (hasRetriever ? (semanticRetriever.findRelevant(q, k) || []) : []);
+    const pushHit = (r, kp) => {
+      const t = String(r?.text || '').trim();
+      if (!t || t.length < 10 || seen.has(t)) return false;
+      seen.add(t);
+      hits.push({ text: t, score: r?.score || 1, type: r?.type || '', kp });
+      return true;
+    };
+    // 3a. 第一轮：每知识点保底 top1 片段（保证每个考点都有原文依据）
+    const missingKps = [];
     for (const kp of kpNames.slice(0, 50)) {
-      const related = (semanticRetriever?.segments?.length ? (semanticRetriever.findRelevant(kp, 2) || []) : []);
-      for (const r of related) {
-        const t = String(r?.text || '').trim();
-        if (t && t.length >= 10 && !seen.has(t)) {
-          seen.add(t);
-          hits.push({ text: t, score: r?.score || 1, type: r?.type || '' });
+      const first = findTop(kp, 1)[0];
+      if (first && pushHit(first, kp)) continue;
+      missingKps.push(kp);
+    }
+    // 3b. 覆盖度静默补检：未命中片段的知识点按子词拆检（"分数与小数"→"分数"/"小数"）；
+    //     仍无则 debug 记录（命题由模型知识兜底，不打扰用户）
+    if (hasRetriever && missingKps.length) {
+      for (const kp of missingKps) {
+        const parts = String(kp).split(/[、，,与和及]/).filter((p) => p.length >= 2);
+        let recovered = false;
+        for (const part of parts) {
+          const r = findTop(part, 1)[0];
+          if (r && pushHit({ ...r, score: (r.score || 1) * 0.95 }, kp)) { recovered = true; break; }
+        }
+        if (!recovered) console.debug(`[素材覆盖] 知识点未检索到原文片段（静默，命题由模型知识兜底）：${kp}`);
+      }
+    }
+    // 3c. 第二轮：剩余预算按相关度增量补充（每知识点再取 top2 中的新片段，总量受 maxChars 兜底）
+    let usedChars = hits.reduce((s, h) => s + h.text.length, 0);
+    if (usedChars < maxChars) {
+      const extra = [];
+      for (const kp of kpNames.slice(0, 50)) {
+        for (const r of findTop(kp, 2)) {
+          const t = String(r?.text || '').trim();
+          if (t && t.length >= 10 && !seen.has(t)) {
+            seen.add(t);
+            extra.push({ text: t, score: r?.score || 1, type: r?.type || '', kp });
+          }
         }
       }
-      if (hits.length > 30) break;
+      extra.sort((a, b) => (b.score || 0) - (a.score || 0));
+      for (const h of extra) {
+        if (usedChars + h.text.length > maxChars) break;
+        hits.push(h);
+        usedChars += h.text.length;
+      }
     }
-    // 4. 按相关度排序 + 上限裁剪（丢无关片段，不丢考点原文）
+    // 4. 汇总：按相关度排序输出（总量已由 maxChars 兜底）
     hits.sort((a, b) => (b.score || 0) - (a.score || 0));
     let body = '';
     for (const h of hits) {
       if (body.length + h.text.length > maxChars) break;
       body += `· ${h.text}\n`;
     }
-    // 5. 组装
-    const parts = [toc, kpText, body ? `【教材原文（按知识点检索，命题取材依据，可改编情境，禁止照搬原题）】\n${body}` : ''];
+    // 5. 组装：章节（前）→ 原文片段（中）→ 考查知识点清单（尾部锚点，生成时模型眼前即覆盖范围）
+    const parts = [toc, body ? `【教材原文（按知识点检索，命题取材依据，可改编情境，禁止照搬原题）】\n${body}` : '', kpText];
     return parts.filter(Boolean).join('\n\n');
   };
 
