@@ -7,6 +7,7 @@
 //    本文件只负责规则的执行逻辑。
 // ============================================================
 import { getValidatorRules } from '../config/validatorRules.js';
+import { getCarrierAllowlist, getMergedSpec } from '../config/layoutSpec.js';
 
 // ---------- 通用正则 ----------
 // 全角拼音字符归一表（IPA 音标字符混入小学拼音、全角字母）
@@ -488,15 +489,20 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 1.5.8. 书写格按学段（规则 writing-grid-fix：语文 3 年级+ 田字格、英语中学+ 四线三格 → 静默计数）──
+  // ── 1.5.8. 书写格按学段（规则 writing-grid-fix：按 学科×学段 允许载体列表检查输出是否越界，数据源=排版规格库 WRITING_CARRIER）──
   if (has('writing-grid-fix')) {
-    const stageRank = { primary_low: 1, primary_mid: 2, primary_high: 3, middle: 4, high: 5 };
-    const rank = stageRank[stage] || 0;
-    if (subject.includes('语文') && rank >= 2 && /tian-zi-ge/.test(out)) {
-      silentCount('writing-grid', '语文 3 年级及以上仍使用田字格——应改方格/横线，请抽检');
-    }
-    if (subject.includes('英语') && rank >= 4 && /(four-line-three|sixian-ge)/.test(out)) {
-      silentCount('writing-grid', '英语中学段仍使用四线三格——应改单线/横线，请抽检');
+    const allowed = getCarrierAllowlist(subject, stage);
+    if (allowed && allowed.length) {
+      const CARRIER_CLASS_LABEL = {
+        'tian-zi-ge': '田字格', 'four-line-three': '四线三格', 'sixian-ge': '四线三格',
+        'pinyin-line': '拼音格', 'square': '方格', 'mi-zi-ge': '米字格',
+      };
+      const defaultLabel = allowed.includes('line') ? '横线' : (allowed.join('或') || '正常书写');
+      for (const [cls, label] of Object.entries(CARRIER_CLASS_LABEL)) {
+        if (new RegExp(cls).test(out) && !allowed.includes(cls)) {
+          silentCount('writing-grid', `「${subject}」本学段不应使用${label}——应改${defaultLabel}，请抽检`);
+        }
+      }
     }
   }
 
@@ -873,14 +879,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const lastP = targetPs[targetPs.length - 1];
           const zwg = document.createElement('div');
           zwg.className = 'zuo-wen-ge';
-          for (let k = 0; k < 160; k++) {
+          const fillCells = getMergedSpec().ZUOWEN_FILL_CELLS || 160;
+          for (let k = 0; k < fillCells; k++) {
             const s = document.createElement('span');
             s.innerHTML = '&emsp;';
             zwg.appendChild(s);
           }
           lastP.parentNode.insertBefore(zwg, lastP.nextSibling);
           out = tpl2.innerHTML;
-          issues.push({ severity: 'info', type: 'writing-grid', message: '写话/作文题已自动补作文格（zuo-wen-ge 160格）' });
+          issues.push({ severity: 'info', type: 'writing-grid', message: `写话/作文题已自动补作文格（zuo-wen-ge ${fillCells}格）` });
           fixed += 1;
         } else {
           silentCount('writing-grid', '含写话/作文题但无作文格且未找到可补位置（zuo-wen-ge），请抽检');

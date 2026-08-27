@@ -1,5 +1,5 @@
 <template>
-  <div class="rich-text-editor" :style="{ minHeight: minHeight }">
+  <div class="rich-text-editor" :style="{ minHeight: minHeight, ...layoutVars }">
     <!-- 增强工具栏 - 参照 WPS Word 开始选项卡 -->
     <div v-if="editor" class="editor-toolbar-wrapper">
       <div class="editor-toolbar">
@@ -209,6 +209,7 @@ import { FontFamily } from '@tiptap/extension-font-family';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { Extension, Mark, Node } from '@tiptap/core';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
+import { getMergedSpec } from '../config/layoutSpec.js';
 
 // ══════════════════════════════════════════
 // 自定义扩展
@@ -718,6 +719,22 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:modelValue', 'content-change']);
+
+// 🔧 作图方格纸/括号格 CSS 变量（取自排版规格库 layoutSpec；静态兜底 CSS 用 var() 读取）
+const layoutVars = computed(() => {
+  try {
+    const spec = getMergedSpec();
+    const sg = spec.SQUARE_GRID.primary || { cols: 12, rows: 8, cellMm: 7 };
+    const bg = spec.BRACKET_GRID;
+    return {
+      '--sg-w': `${Math.round(sg.cols * sg.cellMm)}mm`,
+      '--sg-h': `${Math.round(sg.rows * sg.cellMm)}mm`,
+      '--sg-bg': `${sg.cellMm}mm ${sg.cellMm}mm`,
+      '--bg-rh': `${bg.rowHeightMm}mm`,
+      '--bg-w': `${bg.widthMm}mm`,
+    };
+  } catch { return {}; }
+});
 
 // 🔧 字母编号大小写：'a' 小写 / 'A' 大写（转文本时按所选大小写生成序号；
 //    光标进入 type="a"/"A" 列表时自动同步）。
@@ -1735,9 +1752,9 @@ defineExpose({
 .rich-text-editor :deep(ol[type="i"]) { list-style-type: lower-roman; }
 .rich-text-editor :deep(ol[type="I"]) { list-style-type: upper-roman; }
 
-/* 🔧 作图网格区 / 花式竖式格兜底（主题 CSS 注入后由带 !important 的规则覆盖） */
-.rich-text-editor :deep(.square-grid) { width: 84mm; height: 56mm; border: 1.5px solid #999; margin: 8px 0; background: linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm, linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm; }
-.rich-text-editor :deep(.bracket-grid) { display: grid; grid-template-rows: repeat(3, 10mm); width: 52mm; margin: 8px 0; border-left: 3px solid #333; border-right: 3px solid #333; }
+/* 🔧 作图网格区 / 花式竖式格兜底（CSS 变量取自排版规格库；主题 CSS 注入后由带 !important 的规则覆盖） */
+.rich-text-editor :deep(.square-grid) { width: var(--sg-w, 84mm); height: var(--sg-h, 56mm); border: 1.5px solid #999; margin: 8px 0; background: linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / var(--sg-bg, 7mm 7mm), linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / var(--sg-bg, 7mm 7mm); }
+.rich-text-editor :deep(.bracket-grid) { display: grid; grid-template-rows: repeat(3, var(--bg-rh, 10mm)); width: var(--bg-w, 52mm); margin: 8px 0; border-left: 3px solid #333; border-right: 3px solid #333; }
 .rich-text-editor :deep(.bracket-grid > div) { border-bottom: 0.5px solid #ccc; }
 .rich-text-editor :deep(.bracket-grid > div:last-child) { border-bottom: none; }
 

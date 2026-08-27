@@ -15,15 +15,6 @@
  * ============================================================
  */
 
-/** 学段分组：三维度学段 → 排版学段（作文格/填空等仅区分小学[写格]·初中·高中） */
-export const STAGE_GROUP = {
-  primary_low: 'primary',
-  primary_mid: 'primary',
-  primary_high: 'primary',
-  middle: 'middle',
-  high: 'high',
-};
-
 /** 作文格格宽（mm）· 按排版学段。列数由 A4 可用宽度自动排满。 */
 export const ZUOWEN_CELL = {
   primary: { widthMm: 12, heightMm: 12 },   // 小学：12×12mm 正方形
@@ -54,14 +45,39 @@ export const BLANK = {
 /** 空作文格默认补全：<div class="zuo-wen-ge"></div> → 默认 span 数 */
 export const ZUOWEN_DEFAULT_SPAN = 2;
 
-/** 书写载体（田字格/方格/横线/四线三格）· 按排版学段（语文等适用段） */
+/**
+ * 书写载体（学科 × 学段 → 允许的载体 class 列表）
+ *  - 语文：低段田字格+拼音格；中段起正常横线
+ *  - 英语：中段四线三格（英语 3 年级起点）；高段起正常横线
+ *  - 未显式定义的学科：无载体约束（不检测，保持"正常书写"）
+ * 消费方：examValidator writing-grid-fix（按 学科×学段 检查输出载体是否越界）
+ */
 export const WRITING_CARRIER = {
-  primary_low: 'tian-zi-ge',   // 田字格
-  primary_mid: 'tian-zi-ge',   // 田字格/方格
-  primary_high: 'square',      // 方格/横线
-  middle: 'line',              // 横线
-  high: 'line',                // 横线
+  语文: {
+    primary_low: ['tian-zi-ge', 'pinyin-line'], // 低段：田字格/拼音格
+    primary_mid: ['line'],                      // 中段起正常
+    primary_high: ['line'],
+    middle: ['line'],
+    high: ['line'],
+  },
+  英语: {
+    primary_mid: ['four-line-three'],           // 中段：四线三格
+    primary_high: ['line'],                     // 高段起正常
+    middle: ['line'],
+    high: ['line'],
+  },
 };
+
+/**
+ * 查询某学科×学段的允许书写载体列表（合并用户覆盖）。
+ * 未显式定义该学科的载体规则 → 返回 null（不检测，正常书写）。
+ */
+export function getCarrierAllowlist(subject = '', stage = '') {
+  const spec = getMergedSpec().WRITING_CARRIER;
+  const row = spec[subject];
+  if (!row) return null;
+  return row[stage] || null;
+}
 
 /** 解答题空白区（行数 = 分值 × 学段系数；行高按学段字号×间距系数）· 骨架编译器读取 */
 export const ANSWER_REGION = {
@@ -72,12 +88,24 @@ export const ANSWER_REGION = {
   high: { linePerScore: 0.8, lineHeightMm: 7 },
 };
 
-/** 方格纸 square-grid（小学段专用；初中以上无） */
+/**
+ * 方格纸 square-grid（作图答题区，小学段专用；初中以上由考试答题纸自带网格，不强制）
+ * cellMm：格子边长（CSS 背景网格与宽高换算用）
+ */
 export const SQUARE_GRID = {
-  primary: { cols: 12, rows: 8 },
+  primary: { cols: 12, rows: 8, cellMm: 7 },
   middle: null,
   high: null,
 };
+
+/** 括号答题格 bracket-grid（行高/宽度，themeConfig 与 RichTextEditor CSS 读取） */
+export const BRACKET_GRID = {
+  rowHeightMm: 10,
+  widthMm: 52,
+};
+
+/** 作文格默认补全格数（examValidator writing-grid-fix 自动补 zuo-wen-ge 用） */
+export const ZUOWEN_FILL_CELLS = 160;
 
 // ==================== 用户自定义持久化 ====================
 const LAYOUT_SPEC_USER_KEY = 'wisdom_layout_spec_v1';
@@ -115,6 +143,7 @@ function mergeNested(base, override) {
 /** 内置默认快照（只读，用于"恢复默认"比对与视图展示） */
 export const LAYOUT_SPEC_DEFAULTS = {
   ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, ANSWER_REGION, SQUARE_GRID,
+  BRACKET_GRID, ZUOWEN_FILL_CELLS,
 };
 
 /** 合并内置 + 用户覆盖，返回完整规格对象（消费者调用此函数获取最新值） */
@@ -125,15 +154,17 @@ export function getMergedSpec() {
     ZUOWEN_MARK_STEP: { ...ZUOWEN_MARK_STEP, ...(user.ZUOWEN_MARK_STEP || {}) },
     ZUOWEN_DEFAULT_SPAN: user.ZUOWEN_DEFAULT_SPAN ?? ZUOWEN_DEFAULT_SPAN,
     BLANK: { ...BLANK, ...(user.BLANK || {}) },
-    WRITING_CARRIER: { ...WRITING_CARRIER, ...(user.WRITING_CARRIER || {}) },
+    WRITING_CARRIER: mergeNested(WRITING_CARRIER, user.WRITING_CARRIER),
     ANSWER_REGION: mergeNested(ANSWER_REGION, user.ANSWER_REGION),
     SQUARE_GRID: mergeNested(SQUARE_GRID, user.SQUARE_GRID),
+    BRACKET_GRID: { ...BRACKET_GRID, ...(user.BRACKET_GRID || {}) },
+    ZUOWEN_FILL_CELLS: user.ZUOWEN_FILL_CELLS ?? ZUOWEN_FILL_CELLS,
   };
 }
 
 export default {
-  STAGE_GROUP,
   ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, ANSWER_REGION, SQUARE_GRID,
+  BRACKET_GRID, ZUOWEN_FILL_CELLS,
   LAYOUT_SPEC_DEFAULTS,
-  loadLayoutSpecOverride, saveLayoutSpecOverride, resetLayoutSpecOverride, getMergedSpec,
+  loadLayoutSpecOverride, saveLayoutSpecOverride, resetLayoutSpecOverride, getMergedSpec, getCarrierAllowlist,
 };

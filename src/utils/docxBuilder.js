@@ -1117,7 +1117,7 @@ const processBlockNode = (node, ctx = {}) => {
     return children;
   }
 
-  // ===== 作图网格区（数学操作题方格纸作答区：12列×8行细线网格） =====
+  // ===== 作图网格区（数学操作题方格纸作答区：尺寸取排版规格库 SQUARE_GRID） =====
   if (cls.contains('square-grid')) {
     const gridBorders = {
       top: { style: BorderStyle.SINGLE, size: 2, color: '999999' },
@@ -1131,9 +1131,10 @@ const processBlockNode = (node, ctx = {}) => {
       left: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
       right: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
     };
-    const cols = 12;
-    const rows = 8;
-    const cellW = 397; // 7mm ≈ 397 DXA
+    const sgSpec = getMergedSpec().SQUARE_GRID.primary || { cols: 12, rows: 8, cellMm: 7 };
+    const cols = sgSpec.cols;
+    const rows = sgSpec.rows;
+    const cellW = Math.round(sgSpec.cellMm * MM2DXA); // 7mm ≈ 397 DXA
     const gridRows = [];
     for (let r = 0; r < rows; r++) {
       const cells = [];
@@ -1152,7 +1153,7 @@ const processBlockNode = (node, ctx = {}) => {
       rows: gridRows,
       width: { size: cols * cellW, type: WidthType.DXA },
       columnWidths: Array(cols).fill(cellW), // gridCol 显式列宽（docx 库默认 100，FIXED 下会挤压）
-      layout: TableLayoutType.FIXED, // 固定布局：12 列 × 7mm 精确等宽方格
+      layout: TableLayoutType.FIXED, // 固定布局：cols × cellMm 精确等宽方格
     }));
     // 🔧 表格后显式间距段：防下一行内容顶住格子下边框（Word 表格后无段落会与后续内容粘连）
     children.push(new Paragraph({
@@ -1162,9 +1163,12 @@ const processBlockNode = (node, ctx = {}) => {
     return children;
   }
 
-  // ===== 花式竖式格（低段数学竖式计算括号格：3 行书写区，左右加粗竖线） =====
+  // ===== 花式竖式格（低段数学竖式计算括号格：行高/宽度取排版规格库 BRACKET_GRID） =====
   if (cls.contains('bracket-grid')) {
     const rowCount = Math.max(1, node.querySelectorAll(':scope > div').length || 3);
+    const bgSpec = getMergedSpec().BRACKET_GRID;
+    const bgW = Math.round(bgSpec.widthMm * MM2DXA); // 52mm ≈ 2945 DXA
+    const bgRh = Math.round(bgSpec.rowHeightMm * MM2DXA); // 10mm ≈ 567 DXA（Word 行距单位）
     const sideBorders = {
       top: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
       bottom: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
@@ -1182,13 +1186,13 @@ const processBlockNode = (node, ctx = {}) => {
     for (let r = 0; r < rowCount; r++) {
       rows.push(new TableRow({
         children: [new TableCell({
-          children: [new Paragraph({ text: ' ', spacing: { line: 567, lineRule: LineRuleType.EXACT } })],
-          width: { size: 2945, type: WidthType.DXA }, // 52mm ≈ 2945 DXA
+          children: [new Paragraph({ text: ' ', spacing: { line: bgRh, lineRule: LineRuleType.EXACT } })],
+          width: { size: bgW, type: WidthType.DXA },
           borders: r === 0 || r === rowCount - 1 ? sideBorders : innerBorders,
         })],
       }));
     }
-    children.push(new Table({ rows, width: { size: 2945, type: WidthType.DXA }, columnWidths: [2945] }));
+    children.push(new Table({ rows, width: { size: bgW, type: WidthType.DXA }, columnWidths: [bgW] }));
     return children;
   }
 

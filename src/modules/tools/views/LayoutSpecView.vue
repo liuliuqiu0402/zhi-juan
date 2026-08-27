@@ -63,7 +63,18 @@
           <div class="edit-grid">
             <div v-for="f in g.fields" :key="f.path" class="edit-field">
               <label>{{ f.label }}<span class="unit" v-if="f.unit"> ({{ f.unit }})</span></label>
-              <select v-if="f.type === 'select'" v-model="editValues[f.path]">
+              <template v-if="f.type === 'carrier'">
+                <div class="carrier-chips">
+                  <span
+                    v-for="opt in CARRIER_OPTIONS"
+                    :key="opt.value"
+                    class="chip-sel"
+                    :class="{ sel: (editValues[f.path] || []).includes(opt.value) }"
+                    @click="toggleCarrier(f.path, opt.value)"
+                  >{{ opt.label }}</span>
+                </div>
+              </template>
+              <select v-else-if="f.type === 'select'" v-model="editValues[f.path]">
                 <option v-for="opt in f.options" :key="opt" :value="opt">{{ opt }}</option>
               </select>
               <input v-else v-model="editValues[f.path]" type="number" :step="f.step" :min="f.min" :max="f.max" />
@@ -122,13 +133,18 @@ const SPEC_GROUPS = [
   {
     id: 'carrier',
     name: '书写载体',
-    desc: '学段×书写格式（writing-grid-fix 读取）',
+    desc: '学科×学段允许载体（examValidator writing-grid-fix 读取；未定义的学科不检测）',
     fields: [
-      { path: 'WRITING_CARRIER.primary_low', label: '小学低段', unit: '', type: 'select', options: ['tian-zi-ge', 'square', 'line', 'four-line-three'] },
-      { path: 'WRITING_CARRIER.primary_mid', label: '小学中段', unit: '', type: 'select', options: ['tian-zi-ge', 'square', 'line', 'four-line-three'] },
-      { path: 'WRITING_CARRIER.primary_high', label: '小学高段', unit: '', type: 'select', options: ['tian-zi-ge', 'square', 'line', 'four-line-three'] },
-      { path: 'WRITING_CARRIER.middle', label: '初中', unit: '', type: 'select', options: ['tian-zi-ge', 'square', 'line', 'four-line-three'] },
-      { path: 'WRITING_CARRIER.high', label: '高中', unit: '', type: 'select', options: ['tian-zi-ge', 'square', 'line', 'four-line-three'] },
+      { path: 'WRITING_CARRIER.语文.primary_low', label: '语文·低段', type: 'carrier' },
+      { path: 'WRITING_CARRIER.语文.primary_mid', label: '语文·中段', type: 'carrier' },
+      { path: 'WRITING_CARRIER.语文.primary_high', label: '语文·高段', type: 'carrier' },
+      { path: 'WRITING_CARRIER.语文.middle', label: '语文·初中', type: 'carrier' },
+      { path: 'WRITING_CARRIER.语文.high', label: '语文·高中', type: 'carrier' },
+      { path: 'WRITING_CARRIER.英语.primary_low', label: '英语·低段', type: 'carrier' },
+      { path: 'WRITING_CARRIER.英语.primary_mid', label: '英语·中段', type: 'carrier' },
+      { path: 'WRITING_CARRIER.英语.primary_high', label: '英语·高段', type: 'carrier' },
+      { path: 'WRITING_CARRIER.英语.middle', label: '英语·初中', type: 'carrier' },
+      { path: 'WRITING_CARRIER.英语.high', label: '英语·高中', type: 'carrier' },
     ],
   },
   {
@@ -150,16 +166,30 @@ const SPEC_GROUPS = [
   },
   {
     id: 'square',
-    name: '方格纸',
-    desc: '小学段专用（square-grid；初中以上为 null）',
+    name: '方格纸/括号格',
+    desc: '作图方格纸（小学段；SQUARE_GRID）+ 竖式括号格（BRACKET_GRID）· themeConfig/RichTextEditor/docxBuilder 读取',
     fields: [
-      { path: 'SQUARE_GRID.primary.cols', label: '列数', unit: '', type: 'number', min: 6, max: 20, step: 1 },
-      { path: 'SQUARE_GRID.primary.rows', label: '行数', unit: '', type: 'number', min: 4, max: 20, step: 1 },
+      { path: 'SQUARE_GRID.primary.cols', label: '方格纸 列数', unit: '', type: 'number', min: 6, max: 20, step: 1 },
+      { path: 'SQUARE_GRID.primary.rows', label: '方格纸 行数', unit: '', type: 'number', min: 4, max: 20, step: 1 },
+      { path: 'SQUARE_GRID.primary.cellMm', label: '方格纸 格边长', unit: 'mm', type: 'number', min: 4, max: 12, step: 0.5 },
+      { path: 'BRACKET_GRID.rowHeightMm', label: '括号格 行高', unit: 'mm', type: 'number', min: 5, max: 20, step: 0.5 },
+      { path: 'BRACKET_GRID.widthMm', label: '括号格 宽度', unit: 'mm', type: 'number', min: 30, max: 100, step: 1 },
+      { path: 'ZUOWEN_FILL_CELLS', label: '作文格自动补全数', unit: '格', type: 'number', min: 50, max: 400, step: 10 },
     ],
   },
 ];
 
 // ==================== 辅助函数 ====================
+const CARRIER_OPTIONS = [
+  { value: 'tian-zi-ge', label: '田字格' },
+  { value: 'pinyin-line', label: '拼音格' },
+  { value: 'four-line-three', label: '四线三格' },
+  { value: 'square', label: '方格' },
+  { value: 'line', label: '横线' },
+  { value: 'mi-zi-ge', label: '米字格' },
+];
+const CARRIER_LABEL = Object.fromEntries(CARRIER_OPTIONS.map((o) => [o.value, o.label]));
+
 const getByPath = (obj, path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
 const setByPath = (obj, path, val) => {
   const keys = path.split('.');
@@ -173,6 +203,10 @@ const setByPath = (obj, path, val) => {
 
 const formatVal = (v, f) => {
   if (v == null) return '—';
+  if (Array.isArray(v)) {
+    if (!v.length) return '（无，默认横线）';
+    return v.map((x) => CARRIER_LABEL[x] || x).join('、');
+  }
   if (f.unit) return `${v}${f.unit}`;
   return String(v);
 };
@@ -209,11 +243,20 @@ const startEdit = (g) => {
   editingGroup.value = g.id;
   const spec = mergedSpec.value;
   for (const f of g.fields) {
-    editValues.value[f.path] = getByPath(spec, f.path);
+    const v = getByPath(spec, f.path);
+    editValues.value[f.path] = Array.isArray(v) ? [...v] : v;
   }
 };
 
 const cancelEdit = () => { editingGroup.value = ''; };
+
+const toggleCarrier = (path, val) => {
+  const arr = editValues.value[path] || [];
+  const i = arr.indexOf(val);
+  if (i >= 0) arr.splice(i, 1);
+  else arr.push(val);
+  editValues.value[path] = [...arr];
+};
 
 const saveGroup = (g) => {
   // 校验范围
@@ -232,6 +275,13 @@ const saveGroup = (g) => {
   for (const f of g.fields) {
     let val = editValues.value[f.path];
     if (f.type === 'number') val = Number(val);
+    if (f.type === 'carrier') {
+      // 空数组 = 移除该覆盖（回退内置）
+      if (Array.isArray(val) && !val.length) {
+        override = setByPath(override, f.path, undefined);
+        continue;
+      }
+    }
     override = setByPath(override, f.path, val);
   }
   saveLayoutSpecOverride(override);
@@ -321,6 +371,9 @@ const doImport = async (e) => {
 .edit-field input, .edit-field select { border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 13px; width: 100%; box-sizing: border-box; }
 .edit-field input:focus, .edit-field select:focus { border-color: var(--primary); outline: none; }
 .range-hint { font-size: 10.5px; color: var(--text-muted); }
+.carrier-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip-sel { font-size: 11.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); cursor: pointer; background: #fff; color: #556; }
+.chip-sel.sel { background: var(--primary); color: #fff; border-color: var(--primary); }
 .edit-tip { font-size: 11.5px; color: var(--text-muted); margin: 8px 0 0; }
 
 .btn { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 5px 12px; font-size: 12.5px; cursor: pointer; }

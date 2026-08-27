@@ -162,7 +162,7 @@
 
 <script setup>
 import { computed, inject, ref } from 'vue';
-import { GRAPH_TYPES, GRAPH_SUBJECTS, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES, GRAPH_SAMPLES, needsImageHint } from '../../../config/eduRenderContract.js';
+import { GRAPH_TYPES, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES, GRAPH_SAMPLES, needsImageHint } from '../../../config/eduRenderContract.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 

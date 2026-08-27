@@ -17,9 +17,6 @@ export const GRAPH_TYPES = [
   'FORCE', 'CIRCUIT', 'OPTICS', 'ATOM',
 ];
 
-/** 可能产出 [GRAPH] 的学科（按需注入，不强求每题） */
-export const GRAPH_SUBJECTS = ['数学', '物理', '化学', '科学', '生物', '地理', '历史', '信息科技'];
-
 /** 需要 $公式$ 的学科 */
 export const MATH_SUBJECTS = ['数学', '物理', '化学'];
 
@@ -336,6 +333,6 @@ export const GRAPH_SAMPLES = {
 };
 
 export default {
-  GRAPH_TYPES, GRAPH_SUBJECTS, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES,
+  GRAPH_TYPES, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES,
   buildRenderContract, needsImageHint, GRAPH_SAMPLES,
 };

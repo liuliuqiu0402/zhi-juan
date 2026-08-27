@@ -100,7 +100,7 @@ export const TOOL_LIBRARIES = [
     icon: '🎨',
     desc: '[GRAPH]/[IMAGE]/公式 标记协议（EduRender 格式）',
     count: '9 图形 TYPE',
-    status: 'warn',
+    status: 'ok',
     migrate: 'ready',
     toolbar: { actions: [], filter: 'dim3' },
   },

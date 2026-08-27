@@ -1394,6 +1394,13 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   const ZC = getMergedSpec().ZUOWEN_CELL;
   const zwgMm = ZC[zwgKey].heightMm;   // 格高（主/初正方、高8mm）
   const zwgMmW = ZC[zwgKey].widthMm;   // 格宽（主12/初10/7.5）
+  // 🔧 方格纸/括号格尺寸（来自排版规格库 SQUARE_GRID / BRACKET_GRID）
+  const spec = getMergedSpec();
+  const sg = spec.SQUARE_GRID.primary || { cols: 12, rows: 8, cellMm: 7 };
+  const sgW = Math.round(sg.cols * sg.cellMm);
+  const sgH = Math.round(sg.rows * sg.cellMm);
+  const bg = spec.BRACKET_GRID;
+  const sgBg = `${sg.cellMm}mm ${sg.cellMm}mm`;
   
   // 🔧 无样式：不应用任何主题 CSS，仅返回纯净 HTML 包装
   if (!theme) {
@@ -1419,8 +1426,8 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       .square-box { display: inline-block; border: 2px solid #333; padding: 2px 8px; min-width: 2em; text-align: center; font-size: inherit !important; }
       .zuo-wen-ge { display: grid; grid-template-columns: repeat(auto-fill, ${zwgMmW}mm); gap: 0; border: 1.5px solid #999; margin: 8px 0; width: 100%; }
       .zuo-wen-ge span { display: inline-flex; align-items: center; justify-content: center; width: ${zwgMmW}mm; height: ${zwgMm}mm; border: 0.5px solid #e0e0e0; font-size: inherit !important; }
-      .square-grid { width: 84mm; height: 56mm; border: 1.5px solid #999; margin: 8px 0; background: linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm, linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm; }
-      .bracket-grid { display: grid; grid-template-rows: repeat(3, 10mm); width: 52mm; margin: 8px 0; border-left: 3px solid #333; border-right: 3px solid #333; }
+      .square-grid { width: ${sgW}mm; height: ${sgH}mm; border: 1.5px solid #999; margin: 8px 0; background: linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / ${sgBg} no-repeat, linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / ${sgBg}; }
+      .bracket-grid { display: grid; grid-template-rows: repeat(3, ${bg.rowHeightMm}mm); width: ${bg.widthMm}mm; margin: 8px 0; border-left: 3px solid #333; border-right: 3px solid #333; }
       .bracket-grid > div { border-bottom: 0.5px solid #ccc; }
       .bracket-grid > div:last-child { border-bottom: none; }
       /* 填空横线 */
@@ -1740,22 +1747,22 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       text-align: center;
     }
 
-    /* ⭐ 作图网格区（数学操作题作答方格纸：12列×8行，格 7mm） */
+    /* ⭐ 作图网格区（数学操作题作答方格纸：尺寸取排版规格库 SQUARE_GRID） */
     .square-grid {
-      width: 84mm;
-      height: 56mm;
+      width: ${sgW}mm;
+      height: ${sgH}mm;
       border: 1.5px solid #999;
       margin: 8px 0;
       background:
-        linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm,
-        linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / 7mm 7mm;
+        linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / ${sgBg},
+        linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / ${sgBg};
     }
 
-    /* ⭐ 花式竖式格（低段数学竖式计算括号格：3 行竖式书写区，左右开口括号） */
+    /* ⭐ 花式竖式格（低段数学竖式计算括号格：行高/宽度取排版规格库 BRACKET_GRID） */
     .bracket-grid {
       display: grid;
-      grid-template-rows: repeat(3, 10mm);
-      width: 52mm;
+      grid-template-rows: repeat(3, ${bg.rowHeightMm}mm);
+      width: ${bg.widthMm}mm;
       margin: 8px 0;
       border-left: 3px solid #333;
       border-right: 3px solid #333;

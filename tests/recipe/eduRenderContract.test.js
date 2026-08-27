@@ -5,7 +5,7 @@
 //    - 指令库内置学科×类型模板：按学科全面完善（命题要点+排版，非仅排版行）
 // ============================================================
 import { describe, it, expect } from 'vitest';
-import { buildRenderContract, needsImageHint, GRAPH_SUBJECTS, MATH_SUBJECTS } from '@/config/eduRenderContract.js';
+import { buildRenderContract, needsImageHint, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES } from '@/config/eduRenderContract.js';
 import { getPromptTemplate, listPromptTemplates } from '@/config/promptLibrary.js';
 
 describe('EduRender 渲染契约（三维度注入）', () => {
@@ -118,7 +118,7 @@ describe('EduRender 渲染契约（三维度注入）', () => {
   });
 
   it('历史学科已补 GRAPH 契约（统计/数据图）', () => {
-    expect(GRAPH_SUBJECTS).toContain('历史');
+    expect(SUBJECT_GRAPH_TYPES['历史']).toContain('BAR_CHART');
     const out = buildRenderContract({ subject: '历史', genType: 'exam', stage: 'middle' });
     expect(out).toContain('[GRAPH]');
     expect(out).toContain('TYPE:BAR_CHART');

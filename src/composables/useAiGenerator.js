@@ -851,39 +851,6 @@ ${closeText}`;
 };
 
 // ===== 🔧 输出排版兜底：检测 AI 输出是否挤在一个段落 =====
-// ═══════════════════════════════════
-// 🔴 多单元组卷规范（exam 专用：勾选多个单元时注入）
-// ═══════════════════════════════════
-export const MULTI_UNIT_EXAM_RULES = [
-  '单元权重分配：各单元的考查题量与分值按知识点密度与重难点占比分配，重点单元（知识点多/含重难点）多考，边缘单元少考',
-  '单元覆盖均衡：每个单元至少考查其核心知识点，不得整单元只考1题，更不得完全跳过某单元',
-  '跨单元综合题：设计1-2道综合题，考查2-3个关联知识点（可跨单元），体现单元间的知识衔接',
-  '多单元情境统筹：试卷统一情境/主题线索时，各单元知识点在情境中自然衔接，不得出现明显的拼接感',
-];
-
-/**
- * 统计知识图谱中的单元知识点分布，生成多单元组卷约束文本。
- * 仅 exam 且单元数>1 时返回非空；单单元/无图谱返回 ''。
- */
-export const buildMultiUnitExamConstraint = (knowledgeMap, isExam) => {
-  if (!isExam) return '';
-  const graph = knowledgeMap?.knowledgeGraph || [];
-  if (!Array.isArray(graph) || graph.length <= 1) return '';
-  const unitStats = graph.map(unit => {
-    const kpNames = (unit.bigConcepts || []).flatMap(bc => (bc.coreKnowledge || []).map(ck => ck.name)).filter(Boolean);
-    return { unit: unit.unit || '未命名单元', kpCount: kpNames.length, kpNames };
-  }).filter(u => u.kpCount > 0);
-  if (unitStats.length <= 1) return '';
-  const totalKps = unitStats.reduce((s, u) => s + u.kpCount, 0);
-  let text = `\n---\n【多单元组卷规范——本次覆盖${unitStats.length}个单元，必须遵守】\n`;
-  text += `【单元知识点统计】（共${totalKps}个核心知识点，组卷权重按知识点密度分配）\n`;
-  unitStats.forEach(u => {
-    text += `  - ${u.unit}：${u.kpCount}个知识点（${u.kpNames.slice(0, 6).join('、')}${u.kpNames.length > 6 ? '…' : ''}）\n`;
-  });
-  MULTI_UNIT_EXAM_RULES.forEach(r => { text += `- ${r}\n`; });
-  return text;
-};
-
 const detectSquishedOutput = (html, genType = '') => {
   if (!html || html.length < 100) return { squished: false, blockCount: 0 };
   // 统计块级标签数量
