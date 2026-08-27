@@ -1046,6 +1046,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       const region = getAnswerRegion(subject, stage);
       const lhMm = region.lineHeightMm || 8;
       const needRows = (score) => Math.max(0, Math.ceil(score * (region.linePerScore || 1)));
+      // 🔍 [answer-diag] 2k 入口诊断：答案区在 2k 前是否已被前面段改坏（区分"前面段弄丢 / ansStart 正则失败 / 序列化丢失"）
+      if (hadAnswerSection) {
+        const m0 = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i);
+        console.error('[answer-diag] 2k入口:', { hasAns: /answer-section/.test(out), ansStartMatched: !!m0, head: m0 ? m0[0].slice(0, 100) : 'NO-DIV' });
+      }
       // 只处理正文区（答案区/参考答案不做补差）
       const ansStart = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i);
       const bodyPart = ansStart ? out.slice(0, ansStart.index) : out;
