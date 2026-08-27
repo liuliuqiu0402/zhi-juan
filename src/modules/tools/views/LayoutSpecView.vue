@@ -265,7 +265,7 @@ const CARRIER_OPTIONS = [
 const CARRIER_LABEL = Object.fromEntries(CARRIER_OPTIONS.map((o) => [o.value, o.label]));
 const ANS_CARRIER_OPTIONS = [
   { value: 'line', label: '横线' },
-  { value: 'blank', label: '空白' },
+  { value: 'blank-area', label: '空白' },
 ];
 
 const getByPath = (obj, path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
@@ -285,7 +285,7 @@ const formatVal = (v, f) => {
     if (!v.length) return '（无，默认横线）';
     return v.map((x) => CARRIER_LABEL[x] || x).join('、');
   }
-  if (f.type === 'ansCarrier') return v === 'line' ? '横线' : v === 'blank' ? '空白' : String(v);
+  if (f.type === 'ansCarrier') return v === 'line' ? '横线' : v === 'blank-area' ? '空白' : String(v);
   if (f.unit) return `${v}${f.unit}`;
   return String(v);
 };

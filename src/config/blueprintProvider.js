@@ -48,7 +48,7 @@ export function deleteUserBlueprint(key) {
 export function listAllBlueprints() {
   const userLib = loadUserBlueprints();
   const out = [];
-  // 内置（38 个）
+  // 内置（54 个）
   for (const [key, bp] of Object.entries(EXAM_BLUEPRINTS)) {
     const user = userLib[key];
     if (user) {

@@ -8,6 +8,7 @@
 // ============================================================
 import { getValidatorRules } from '../config/validatorRules.js';
 import { getCarrierAllowlist, getMergedSpec, getAnswerRegion } from '../config/layoutSpec.js';
+import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 
 // ---------- 通用正则 ----------
 // 全角拼音字符归一表（IPA 音标字符混入小学拼音、全角字母）
@@ -34,10 +35,15 @@ const OPTION_LINE_RE = /(?:^|\n)\s*[A-H][.、．]\s*[^\n]+/g;
 const MATCH_ITEM_RE = /class=["'][^"']*match-item[^"']*["']/g;
 // 题组子题编号：（1）（2）或 1. 2.
 const SUBQ_RE = /[(（]\s*\d+\s*[)）]/g;
-// 书写格子 class → 中文标签（writing-grid-fix 越界剥离 / 载体×题型正规化共用）
+// 书写格子 class → 中文标签（writing-grid-fix 越界剥离 / 载体×题型正规化共用；
+// 中文标签唯一源 = 蓝图 Schema CARRIER_LABELS，此处只取校验器需要的 6 个格子键）
 const GRID_CLASS_LABEL = {
-  'tian-zi-ge': '田字格', 'four-line-three': '四线三格', 'sixian-ge': '四线三格',
-  'pinyin-line': '拼音格', 'square': '方格', 'mi-zi-ge': '米字格',
+  'tian-zi-ge': CARRIER_LABELS['tian-zi-ge'],
+  'four-line-three': CARRIER_LABELS['four-line-three'],
+  'sixian-ge': CARRIER_LABELS['sixian-ge'],
+  'pinyin-line': CARRIER_LABELS['pinyin-line'],
+  'square': CARRIER_LABELS['square'],
+  'mi-zi-ge': CARRIER_LABELS['mi-zi-ge'],
 };
 
 // ---------- 工具 ----------

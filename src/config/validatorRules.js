@@ -28,9 +28,6 @@
  * ============================================================
  */
 
-/** 学段键全集（与指令库 grade / 蓝图 stage 对齐） */
-export const STAGE_KEYS = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
-
 /** 归一学段：'小学'/'primary' → primary_low~high（按年级细分，无年级时回落 primary_low 由校验器宽松处理） */
 export const normalizeStage = (stage = '', grade = 0) => {
   const map = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
@@ -350,7 +347,7 @@ export const buildValidatorPrompt = ({ subject = '', stage = '', genType = '' } 
 };
 
 export default {
-  STAGE_KEYS, normalizeStage, VALIDATOR_RULES, RULES_STORAGE_KEY,
+  normalizeStage, VALIDATOR_RULES, RULES_STORAGE_KEY,
   listValidatorRules, getValidatorRule, getValidatorRules, buildValidatorPrompt,
   saveUserRule, deleteUserRule, resetUserRules,
 };

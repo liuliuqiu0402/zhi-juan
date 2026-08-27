@@ -137,11 +137,11 @@ export const CARRIER_RULES = {
  */
 export const ANSWER_REGION = {
   '*': {
-    primary_low: { linePerScore: 1.4, lineHeightMm: 9, carrier: 'blank' },
-    primary_mid: { linePerScore: 1.2, lineHeightMm: 8.5, carrier: 'blank' },
-    primary_high: { linePerScore: 1.0, lineHeightMm: 8, carrier: 'blank' },
-    middle: { linePerScore: 0.9, lineHeightMm: 7.5, carrier: 'blank' },
-    high: { linePerScore: 0.8, lineHeightMm: 7, carrier: 'blank' },
+    primary_low: { linePerScore: 1.4, lineHeightMm: 9, carrier: 'blank-area' },
+    primary_mid: { linePerScore: 1.2, lineHeightMm: 8.5, carrier: 'blank-area' },
+    primary_high: { linePerScore: 1.0, lineHeightMm: 8, carrier: 'blank-area' },
+    middle: { linePerScore: 0.9, lineHeightMm: 7.5, carrier: 'blank-area' },
+    high: { linePerScore: 0.8, lineHeightMm: 7, carrier: 'blank-area' },
   },
   语文: {
     primary_low: { linePerScore: 1.4, lineHeightMm: 9, carrier: 'line' },
@@ -170,7 +170,7 @@ export const ANSWER_REGION = {
 export function getAnswerRegion(subject = '', stage = '') {
   const spec = getMergedSpec().ANSWER_REGION;
   const row = spec[subject] || spec['*'] || {};
-  return row[stage] || { linePerScore: 1, lineHeightMm: 8, carrier: 'blank' };
+  return row[stage] || { linePerScore: 1, lineHeightMm: 8, carrier: 'blank-area' };
 }
 
 /**
