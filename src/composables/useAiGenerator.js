@@ -4967,6 +4967,8 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     //    guard 类静默计数 → 明细转"抽检提示"展示到生成报告【问题列表】（代码确定性规则，零 AI 调用）
     let auditWarnings = [];
     try {
+      const beforeAudit = finalContent;
+      const hadAnswerBeforeAudit = /answer-section/.test(beforeAudit);
       const audit = auditExamPaper(finalContent, {
         subject: book?.subject || '',
         stage: normalizeStage(book?.stage, book?.grade),
@@ -4979,6 +4981,19 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         auditWarnings = audit.silentDetails.map(d => `⚠️ ${d.message}`);
       }
       finalContent = audit.html;
+      // 🔴 答案区保留护栏：质检器异常丢失答案区（历史真实事故："拼接后有答案、audit 后无答案"）→
+      //    从审计前内容提取答案区拼回（宁可少修复，不可丢答案）；根因待样本定位
+      if (hadAnswerBeforeAudit && !/answer-section/.test(finalContent)) {
+        const ansPart = beforeAudit.match(/<div[^>]*class="[^"]*answer-section"[^>]*>[\s\S]*$/i);
+        if (ansPart) {
+          console.error('[answer-diag] ⚠️ auditExamPaper 丢失答案区（护栏已拼回）', {
+            beforeLen: beforeAudit.length,
+            answerDivCount: (beforeAudit.match(/<div[^>]*answer-section[^>]*>/gi) || []).length,
+            beforeTail: beforeAudit.slice(-300),
+          });
+          finalContent = finalContent + '\n\n' + ansPart[0];
+        }
+      }
       // 🔍 [answer-diag] audit 后：确认质检器是否保留答案区（测试证明保留；此处防回归）
       console.log('[answer-diag] audit 后:', { len: finalContent.length, hasAnswer: /answer-section/.test(finalContent) });
     } catch (e) {
