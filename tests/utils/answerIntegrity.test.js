@@ -42,8 +42,15 @@ describe('答案完整性·空壳答案区检测（isAnswerShell）', () => {
     }
   });
 
-  it('"参考答案"后内容极短（<40 字）→ 判为空壳', () => {
-    expect(isAnswerShell('<h2>参考答案</h2><p>1.A</p>')).toBe(true);
+  it('"参考答案"后内容极短（<40 字）但含作答痕迹（纯选项答案）→ 不判空壳（防误剥历史根因）', () => {
+    // 🔴 历史事故：真实答案 "1.A 2.B 3.C…" 曾因 <40 字被当空壳剥离 → 补生成失败 → "步骤有答案、结果无答案"
+    expect(isAnswerShell('<h2>参考答案</h2><p>1.A 2.B 3.C 4.D</p>')).toBe(false);
+    expect(isAnswerShell('<h2>参考答案</h2><p>1. 正确 2. 错误</p>')).toBe(false);
+  });
+
+  it('"参考答案"后近乎空白（<10 字且无任何作答痕迹）→ 判为空壳', () => {
+    expect(isAnswerShell('<h2>参考答案</h2>')).toBe(true);
+    expect(isAnswerShell('<h2>参考答案</h2><p></p>')).toBe(true);
   });
 
   it('正常完整答案页 → 不判空壳', () => {

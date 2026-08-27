@@ -1512,13 +1512,20 @@ export const detectTruncation = (content, finishReason = '') => {
   };
 };
 
-/** 答案区空壳检测：<h2>参考答案… 后几乎无内容（<40 字）或为"略/待补充"等占位 → 视为没有答案页（once 模式剥离并触发独立补生成） */
+/** 答案区空壳检测：<h2>参考答案… 后为占位式敷衍（"略/待补充"等）或近乎空白（<10 字且无作答痕迹）
+ *  🔴 不做纯长度判据：真实答案可能很短（如纯选项 "1.A 2.B 3.C"），
+ *     曾因 <40 字被误判空壳 → 剥离真实答案 → 独立补生成失败 → "步骤有答案、结果无答案"（历史事故根因） */
+const ANSWER_SHELL_RE = /略|待补充|见教材|暂无|此处留白|待填写/;
 export const isAnswerShell = (content) => {
   if (!content || !/<h2[^>]*>参考答案/.test(content)) return false;
   const m = String(content).match(/<h2[^>]*>参考答案[\s\S]*$/i);
   if (!m) return false;
   const text = m[0].replace(/<[^>]+>/g, '').replace(/\s/g, '');
-  return text.length < 40 || /略|待补充|见教材|暂无|此处留白/.test(text);
+  if (ANSWER_SHELL_RE.test(text)) return true;
+  // 剔除标题本身（"参考答案与评分标准"等）再看正文：避免标题汉字被当作"作答痕迹"
+  const body = text.replace(/^(参考答案与评分标准|参考答案与解析|参考答案)/, '');
+  const hasAnswerTrace = /[0-9A-Ha-h]|[一-龥]|[（(]|[．.。]/.test(body);
+  return body.length < 10 && !hasAnswerTrace;
 };
 
 /** once 模式答案区补包：<h2>参考答案… 无 answer-section 包裹 → 补包（docx 独立分节，页码不计入正文） */
@@ -4854,6 +4861,7 @@ ${cardAnalysisText.substring(0, 1000)}
     //         杜绝摘要提取失败后凭记忆编造导致答案与正文不符；
     //         once 模式正文已含答案区则跳过，若模型漏输出答案区则降级补一次独立答案页） ──
     let answerHtml = '';
+    let answerSkipNote = ''; // 题+解析一体资料（once）跳过独立答案页时的说明（追加到生成报告）
     const ansInContent = /<h2[^>]*>参考答案|answer-section/.test(content);
     // 🔴 once 模式空壳答案区检测：模型输出 `<h2>参考答案…` 但内容是"略/待补充"或近乎空白
     //    （占位式敷衍），不能算有答案页——剥离空壳并强制走独立答案页补生成
@@ -4864,7 +4872,15 @@ ${cardAnalysisText.substring(0, 1000)}
     }
     // 🔍 [answer-diag] 段2 答案页生成入口：确认是否进入独立答案页调用（split 恒进；once 看正文是否自带答案区）
     console.log('[answer-diag] 段2 答案页入口:', { generateMode, ansInContent, ansShellInContent, contentLen: content.length });
-    if (generateMode !== 'once' || !ansInContent || ansShellInContent) {
+    // 🔧 题+解析一体资料（错题本/知识总结等正文自带解析）once 模式且正文无独立参考答案区：
+    //    正文已含解析/答案标注时不再补独立答案页（正文解析即答案，防"正文解析 + 独立答案页"重复）
+    const genTypeCarriesAnswers = ['errorbook', 'summary'].includes(genType);
+    const bodyCarriesAnswers = /答案[:：]|解析[:：]|解法[:：]|归因[:：]|解题思路[:：]|评析[:：]/.test(content);
+    const skipAnswerPage = generateMode === 'once' && !ansInContent && !ansShellInContent && (genTypeCarriesAnswers || bodyCarriesAnswers);
+    if (skipAnswerPage) {
+      answerSkipNote = `ℹ️ 正文已含解析/答案标注（${genType} 为题+解析一体资料），未单独生成答案页。`;
+      console.log('[answer-diag] once 正文自带解析（题+解析一体），不补独立答案页');
+    } else if (generateMode !== 'once' || !ansInContent || ansShellInContent) {
       statusText.value = genType === 'exam' ? '整卷生成：撰写参考答案与评分标准...' : '整卷生成：撰写参考答案与解析...';
       progress.value = 85;
       try {
@@ -4970,10 +4986,11 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     }
 
     // 🔴 答案页缺失可见性：独立调用尝试过但仍无答案区 → 透出原因到生成报告【问题列表】，
-    //    不再静默丢（用户必须清楚为什么没有答案页）
-    if (!answerHtml && !(/<div[^>]*class="[^"]*answer-section"/.test(finalContent))) {
+    //    不再静默丢（用户必须清楚为什么没有答案页）；题+解析一体跳过时改为说明性提示，不误报"失败"
+    if (!answerSkipNote && !answerHtml && !(/<div[^>]*class="[^"]*answer-section"/.test(finalContent))) {
       auditWarnings.push('⚠️ 答案页生成失败/为空（正文已生成）。排查方向：① 引擎是否强制推理（推理会占用答案预算，可在设置关闭对应引擎思考开关）；② 「答案页输出上限」是否过小；③ 正文超「答案页上下文上限」时答案只能看到前段；④ 切换两次生成模式重试。');
     }
+    if (answerSkipNote) auditWarnings.push(answerSkipNote);
 
     // 🔴 生成方式提示：auto 模式下告知用户本次实际走的路径，并引导其到设置固定（用户必须清楚自己配置了什么）
     if (paperModeSetting === 'auto') {
