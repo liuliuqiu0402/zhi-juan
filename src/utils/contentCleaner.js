@@ -168,6 +168,36 @@ export function normalizeBlankMarkers(html = '') {
     const n = toBlank(m.length);
     return `<u class="blank-${n}">&emsp;</u>`;
   });
+  // 🔧 括号填空归一（正文主路径曾缺失：模型输出 ((　　)) / （＿ ＿） 被原样保留 → 卷面双括号）
+  //    ① 括号+下划线组合（可双层括号）→ <span class="blank-N">&emsp;</span>
+  //    ② 括号+纯空白（可双层括号）→ <span class="blank-N">&emsp;</span>
+  //    span.blank-N 渲染自带半角括号（预览 CSS ::before/::after + docx 显式补 ()），此处不包外层括号
+  out = out.replace(/(?:[（(]{1,2})\s*([_\uFF3F\s\u3000]{1,24})\s*(?:[）)]{1,2})/g, (m, inner) => {
+    const u = (inner.match(/[_\uFF3F]/g) || []).length;
+    if (u === 0) return m; // 纯空白 → 交给括号空白规则
+    let n;
+    if (u <= 3) n = 2;
+    else if (u <= 4) n = 4;
+    else if (u <= 6) n = 6;
+    else if (u <= 8) n = 8;
+    else n = 10;
+    return `<span class="blank-${capN(n)}">&emsp;</span>`;
+  });
+  out = out.replace(/(?:[（(]{1,2})((?:\s|&emsp;|\u2003|\u3000|&nbsp;| )+)(?:[）)]{1,2})/g, (m, inner) => {
+    const emspCount = (inner.match(/&emsp;/gi) || []).length + (inner.match(/\u2003/g) || []).length + (inner.match(/\u3000/g) || []).length;
+    const nbspCount = (inner.match(/&nbsp;| /gi) || []).length;
+    const totalWidth = emspCount + nbspCount * 0.25;
+    if (totalWidth <= 0) return m;
+    let n;
+    if (totalWidth <= 1) n = 2;
+    else if (totalWidth <= 1.5) n = 3;
+    else if (totalWidth <= 2) n = 4;
+    else if (totalWidth <= 3) n = 5;
+    else if (totalWidth <= 4) n = 6;
+    else if (totalWidth <= 6) n = 8;
+    else n = 10;
+    return `<span class="blank-${capN(n)}">&emsp;</span>`;
+  });
   out = out.replace(/<div class="zuo-wen-ge">\s*<\/div>/g, `<div class="zuo-wen-ge">${'<span>&emsp;</span>'.repeat(Math.max(1, getMergedSpec().ZUOWEN_DEFAULT_SPAN))}</div>`);
   return out;
 }

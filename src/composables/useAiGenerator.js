@@ -616,7 +616,9 @@ const convertBlankFormat = (html) => {
   // ── 步骤1.8：括号（可双层）包裹"下划线/空格"组合 → 括号填空 <span class="blank-N">&emsp;</span> ──
   // 用户规格：括号用英文状态（半角）括号，括号与横线二选一、严禁混用——
   // 任何"括号+下划线"组合（（_____）、(＿_＿)、（＿ ＿）、双层括号（(_ _)）等）一律归一为
-  // (<span class="blank-N">&emsp;</span>)，不再原样残留；纯空白括号交给步骤3处理
+  // <span class="blank-N">&emsp;</span>，不再原样残留；纯空白括号交给步骤3处理
+  // 🔧 span.blank-N 渲染自带半角括号（预览 CSS ::before/::after + docx 导出显式补 ()）——
+  //    清洗器不再包外层括号，否则预览/导出会变成双层括号 ((　))
   result = result.replace(/(?:[（(]{1,2})\s*([_\uFF3F\s\u3000]{1,24})\s*(?:[）)]{1,2})/g, (match, inner) => {
     const u = (inner.match(/[_\uFF3F]/g) || []).length;
     if (u === 0) return match; // 无下划线 → 交给步骤3（括号+纯空白）
@@ -626,7 +628,7 @@ const convertBlankFormat = (html) => {
     else if (u <= 6) n = 6;
     else if (u <= 8) n = 8;
     else n = 10;
-    return `(<span class="blank-${n}">&emsp;</span>)`;
+    return `<span class="blank-${n}">&emsp;</span>`;
   });
 
   // ── 步骤1.7a：单边左括号 + 下划线（无右括号，完整对已被1.8/1.9处理，此处无需负向前瞻）→ <span> ──
@@ -682,13 +684,13 @@ const convertBlankFormat = (html) => {
     else if (totalWidth <= 4) n = 6;
     else if (totalWidth <= 6) n = 8;
     else n = 10;
-    return `(<span class="blank-${n}">&emsp;</span>)`;
+    return `<span class="blank-${n}">&emsp;</span>`;
   });
 
   // ── 步骤3.5：归一保护标签外侧的括号 ──
-  // span（括号填空）外层括号 → 归一为英文状态括号（用户要求"括号就是括号"）；
+  // span（括号填空）外层括号 → 剥离（span 渲染自带半角括号，外层括号会变双层 ((　))）；
   // u（横线填空）外层括号 → 剥离（横线不加括号，"横线就横线"）
-  result = result.replace(/(?:[（(])\s*(PPKS\d+)\s*(?:[）)])/g, (m, p) => `(${p})`);
+  result = result.replace(/(?:[（(])\s*(\uE000PPKS\d+\uE001)\s*(?:[）)])/g, (m, p) => p);
   result = result.replace(/(?:[（(])\s*(PPKU\d+)\s*(?:[）)])/g, (m, p) => p);
 
   // ── 步骤4：还原保护的 blank-N 标签 ──

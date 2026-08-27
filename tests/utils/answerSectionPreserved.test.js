@@ -24,6 +24,8 @@ const variants = {
   IMAGE后未闭合div: [...base, '<div class="img-wrap"><p>配图说明'].join('\n') + '\n</div>' + answer,
   答案区前裸文本: base.join('\n') + '\n\n未闭合文本节点没有p包裹\n' + answer,
   IMAGE裸文本无p: [...base.slice(0, -1), '[IMAGE]\nTYPE:SD\nPROMPT:春天公园植树\n[/IMAGE]'].join('\n') + '\n' + answer,
+  答案区含评分表格: base.join('\n') + '\n' + '<div class="answer-section"><h2>参考答案与评分标准</h2><p>1. 天空</p><table><tr><th>等第</th><th>标准</th></tr><tr><td>一类</td><td>内容切题语句通顺</td></tr><tr><td>0—8分</td><td>内容与图意不符表达混乱</td></tr></table><p>11. 示例：秋天来了，小朋友们在公园里。</p></div>',
+  答案区含未闭合表格: base.join('\n') + '\n' + '<div class="answer-section"><h2>参考答案与评分标准</h2><p>1. 天空</p><table><tr><td>一类</td><td>内容切题</td></tr><tr><td>0—8分</td><td>内容与图意不符</td><p>11. 示例：秋天来了。</p></div>',
 };
 
 describe('复现：auditExamPaper 答案区丢失（多组变体）', () => {

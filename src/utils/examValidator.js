@@ -201,8 +201,10 @@ export const fixScoreLabel = (title, totalScore, carrierCount, subCount) => {
 export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } = {}) => {
   if (!html || typeof html !== 'string') return { html: html || '', issues: [], fixed: 0, silent: 0 };
   const rules = getValidatorRules({ subject, stage, genType });
-  const has = (id) => rules.has(id);
-  let out = String(html);
+    const has = (id) => rules.has(id);
+    // 🔍 [answer-diag] 分段追踪：输入是否含答案区（定位"audit 丢答案区"根因用）
+    const hadAnswerSection = /<div[^>]*class=["'][^"']*answer-section/i.test(String(html));
+    let out = String(html);
   const issues = [];
   let fixed = 0;
   let silent = 0;
@@ -1096,6 +1098,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         }
       });
       if (fixedK > 0) out = tplK.innerHTML + ansPart;
+      if (hadAnswerSection && !/answer-section/.test(out)) console.error('[answer-diag] 🎯 答案区在 2k（作答空间补差）段后丢失');
     } catch (e) {
       console.warn('⚠️ 作答空间保障失败（不影响其他修复）:', e.message);
     }
@@ -1172,6 +1175,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         issues.push({ severity: 'info', type: 'writing-grid', message: `已剥离表达/写话/习作类题目中混入的书写格 ${fixedL} 处（保留文字，卷面已规范）` });
         fixed += fixedL;
       }
+      if (hadAnswerSection && !/answer-section/.test(out)) console.error('[answer-diag] 🎯 答案区在 2l（载体×题型正规化）段后丢失');
     } catch (e) {
       console.warn('⚠️ 载体×题型正规化失败（不影响其他修复）:', e.message);
     }
@@ -1188,6 +1192,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         issues.push({ severity: 'info', type: 'answer-section', message: '答案区已自动补包为独立 answer-section' });
         fixed += 1;
       }
+      if (hadAnswerSection && !/answer-section/.test(out)) console.error('[answer-diag] 🎯 答案区在 3a（答案区容器补全）段后丢失');
     }
 
     // 3b. 答案区内容（answer-coverage-guard：静默）
