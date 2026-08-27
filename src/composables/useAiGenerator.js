@@ -1495,6 +1495,38 @@ const _persistLabelCounters = () => {
 };
 
 
+// ============================================================
+// 🔴 答案完整性判定（模块级纯函数，供生成链路调用 + 单元测试验证"答案是否丢失"）
+// ============================================================
+
+/** 截断判定：finish_reason=length/reasoning_capped（可靠）或尾部非完整句段（启发式兜底） */
+export const detectTruncation = (content, finishReason = '') => {
+  const c = String(content || '');
+  const byReason = (finishReason === 'length' || finishReason === 'reasoning_capped') && c.length > 200;
+  if (byReason) return { truncated: true, byReason: true };
+  if (c.length <= GEN_CONST.BODY_TRUNCATED_HEURISTIC) return { truncated: false, byReason: false };
+  const tail = c.slice(-GEN_CONST.TRUNCATED_TAIL_SAMPLE);
+  return {
+    truncated: !/<\/[a-z]+>$/i.test(tail) && !/[。！？；」』）)\n]$/.test(tail.trim()),
+    byReason: false,
+  };
+};
+
+/** 答案区空壳检测：<h2>参考答案… 后几乎无内容（<40 字）或为"略/待补充"等占位 → 视为没有答案页（once 模式剥离并触发独立补生成） */
+export const isAnswerShell = (content) => {
+  if (!content || !/<h2[^>]*>参考答案/.test(content)) return false;
+  const m = String(content).match(/<h2[^>]*>参考答案[\s\S]*$/i);
+  if (!m) return false;
+  const text = m[0].replace(/<[^>]+>/g, '').replace(/\s/g, '');
+  return text.length < 40 || /略|待补充|见教材|暂无|此处留白/.test(text);
+};
+
+/** once 模式答案区补包：<h2>参考答案… 无 answer-section 包裹 → 补包（docx 独立分节，页码不计入正文） */
+export const wrapAnswerSection = (content) => {
+  if (!content || /<div[^>]*class="[^"]*answer-section"/.test(content)) return String(content);
+  return String(content).replace(/(<h2[^>]*>\s*参考答案[\s\S]*?)$/i, (m, ansPart) => `<div class="answer-section">\n${ansPart}</div>`);
+};
+
 export function useAiGenerator() {
   const isGenerating = ref(false);
   const progress = ref(0);
@@ -4793,13 +4825,9 @@ ${cardAnalysisText.substring(0, 1000)}
         }
         // 🔴 截断判定：优先用 API 的 finish_reason=length（可靠，不依赖尾部启发式）；启发式作兜底；
         //    reasoning_capped（推理达到 40K 上限被流式中止）也算截断——半截正文须续写补齐
-        const truncatedByReason = (respObj.finishReason === 'length' || respObj.finishReason === 'reasoning_capped') && content.length > 200;
-        const tail = content.slice(-GEN_CONST.TRUNCATED_TAIL_SAMPLE);
-        const looksTruncated = content.length > GEN_CONST.BODY_TRUNCATED_HEURISTIC
-          && !/<\/[a-z]+>$/i.test(tail)
-          && !/[。！？；」』）)\n]$/.test(tail.trim());
-        if (truncatedByReason || looksTruncated) {
-          console.warn(`⚠️ 整卷输出${truncatedByReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，自动续写一次...`);
+        const trunc = detectTruncation(content, respObj.finishReason);
+        if (trunc.truncated) {
+          console.warn(`⚠️ 整卷输出${trunc.byReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，自动续写一次...`);
           const contResp = await callAI(
             `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
             { taskType: 'generation', timeout: getTimeout('generation'), retries: 0, maxTokens: (generateMode === 'once' ? (apiConfig.generationSettings.paperOnceMaxTokens || 49152) : (apiConfig.generationSettings.paperBodyMaxTokens || 32768)) * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)), allowContinuation: false, temperature: bodyTemperature, thinking: retryWithoutThinking ? false : undefined }
@@ -4829,13 +4857,7 @@ ${cardAnalysisText.substring(0, 1000)}
     const ansInContent = /<h2[^>]*>参考答案|answer-section/.test(content);
     // 🔴 once 模式空壳答案区检测：模型输出 `<h2>参考答案…` 但内容是"略/待补充"或近乎空白
     //    （占位式敷衍），不能算有答案页——剥离空壳并强制走独立答案页补生成
-    const ansShellInContent = (() => {
-      if (!ansInContent) return false;
-      const m = content.match(/<h2[^>]*>参考答案[\s\S]*$/i);
-      if (!m) return false;
-      const text = m[0].replace(/<[^>]+>/g, '').replace(/\s/g, '');
-      return text.length < 40 || /略|待补充|见教材|暂无|此处留白/.test(text);
-    })();
+    const ansShellInContent = isAnswerShell(content);
     if (ansShellInContent) {
       content = content.replace(/<h2[^>]*>参考答案[\s\S]*$/i, '');
       console.warn('[answer-diag] once 模式答案区为空壳，已剥离并触发独立答案页补生成');
@@ -4909,8 +4931,8 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
 
     // 🔧 once 模式答案区包装：模型输出的 <h2>参考答案… 无 answer-section 包裹 → 补包，
     //    docx 导出才能把答案区拆分为独立分节（页码独立、不计入正文页数）
-    if (generateMode === 'once' && ansInContent && !/<div[^>]*class="[^"]*answer-section"/.test(content)) {
-      content = content.replace(/(<h2[^>]*>\s*参考答案[\s\S]*?)$/i, (m, ansPart) => `<div class="answer-section">\n${ansPart}</div>`);
+    if (generateMode === 'once' && ansInContent) {
+      content = wrapAnswerSection(content);
     }
 
     // 🔴 标题根治兜底：移除模型拼入 h1 的任务行类型词（如" 考卷"），标题只保留命名规范占位符组合
