@@ -98,7 +98,7 @@ describe('根治回归：写话/作文题缺题干说明 guard（真实事故：
       '<p>[IMAGE]\nTYPE:SD\nPROMPT:春天公园\n[/IMAGE]</p>',
     ].join('\n');
     const { silentDetails } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
-    expect(silentDetails.some(d => d.message.includes('缺题干说明'))).toBe(true);
+    expect(silentDetails.some(d => d.message.includes('缺题目要求描述'))).toBe(true);
   });
 
   it('写话题有完整题干说明（标题行 + 说明段）→ 不提示', () => {
@@ -108,7 +108,7 @@ describe('根治回归：写话/作文题缺题干说明 guard（真实事故：
       '<p>[IMAGE]\nTYPE:SD\nPROMPT:春天公园\n[/IMAGE]</p>',
     ].join('\n');
     const { silentDetails } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
-    expect(silentDetails.some(d => d.message.includes('缺题干说明'))).toBe(false);
+    expect(silentDetails.some(d => d.message.includes('缺题目要求描述'))).toBe(false);
   });
 });
 

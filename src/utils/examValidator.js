@@ -918,8 +918,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     if (has('image-block-fix') && /看图写话|写话|看图/.test(bodyText) && !/\[IMAGE\]/.test(out)) {
       silentCount('image-missing', '含"看图/写话"的题无 [IMAGE] 配图标记块，请抽检');
     }
-    // 2j-3b 写话/作文题缺题干说明（仅标题行，如"15. 看图写话。（共20分）"后直接是配图/格子/下一题）
-    //    ——真实事故：模型只输出标题行、无"仔细观察图片，写一段话"式情境与写作提示
+    // 2j-3b 写话/作文题缺题目要求描述（仅标题行，如"15. 看图写话。（共20分）"后直接是配图/格子/下一题）
+    //    ——真实事故：模型只输出标题行、无题目要求（"仔细观察下面的图画，想一想：……请你用几句话写下来"式要求描述）
     if (has('writing-grid-fix') && /看图写话|写话|习作|作文|写作/.test(bodyText)) {
       try {
         const tplT = document.createElement('template');
@@ -936,7 +936,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const npText = (nextP?.textContent || '').trim();
           const hasDesc = nextP && !/\[IMAGE\]/.test(npText) && npText.length >= 10 && !kwReT.test(npText);
           if (!hasDesc) {
-            silentCount('writing-grid', `「${tt.slice(0, 16)}」仅标题行、缺题干说明（情境与写作提示），请抽检`);
+            silentCount('writing-grid', `「${tt.slice(0, 16)}」仅标题行、缺题目要求描述（观察提示与写作要求），请抽检`);
             break;
           }
         }
