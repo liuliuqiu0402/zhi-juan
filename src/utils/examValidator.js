@@ -34,6 +34,11 @@ const OPTION_LINE_RE = /(?:^|\n)\s*[A-H][.、．]\s*[^\n]+/g;
 const MATCH_ITEM_RE = /class=["'][^"']*match-item[^"']*["']/g;
 // 题组子题编号：（1）（2）或 1. 2.
 const SUBQ_RE = /[(（]\s*\d+\s*[)）]/g;
+// 书写格子 class → 中文标签（writing-grid-fix 越界剥离 / 载体×题型正规化共用）
+const GRID_CLASS_LABEL = {
+  'tian-zi-ge': '田字格', 'four-line-three': '四线三格', 'sixian-ge': '四线三格',
+  'pinyin-line': '拼音格', 'square': '方格', 'mi-zi-ge': '米字格',
+};
 
 // ---------- 工具 ----------
 const stripTags = (s) => String(s || '').replace(/<[^>]+>/g, '');
@@ -489,18 +494,41 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 1.5.8. 书写格按学段（规则 writing-grid-fix：按 学科×学段 允许载体列表检查输出是否越界，数据源=排版规格库 WRITING_CARRIER）──
+  // ── 1.5.8. 书写格按学段（规则 writing-grid-fix：
+  //    按 学科×学段 允许载体列表检查全卷载体是否越界——不在允许列表的格子 class 自动剥离保留文字
+  //    （如中段以上卷冒出的田字格/四线三格、非语英学科混入的格子），数据源=排版规格库 WRITING_CARRIER；
+  //    未显式定义学科的卷不检测；越界剥离是确定性操作，安全可修复）──
   if (has('writing-grid-fix')) {
     const allowed = getCarrierAllowlist(subject, stage);
-    if (allowed && allowed.length) {
-      const CARRIER_CLASS_LABEL = {
-        'tian-zi-ge': '田字格', 'four-line-three': '四线三格', 'sixian-ge': '四线三格',
-        'pinyin-line': '拼音格', 'square': '方格', 'mi-zi-ge': '米字格',
-      };
+    if (allowed) {
       const defaultLabel = allowed.includes('line') ? '横线' : (allowed.join('或') || '正常书写');
-      for (const [cls, label] of Object.entries(CARRIER_CLASS_LABEL)) {
-        if (new RegExp(cls).test(out) && !allowed.includes(cls)) {
-          silentCount('writing-grid', `「${subject}」本学段不应使用${label}——应改${defaultLabel}，请抽检`);
+      const stripList = Object.keys(GRID_CLASS_LABEL).filter(cls => !allowed.includes(cls));
+      if (stripList.length) {
+        try {
+          const tpl = document.createElement('template');
+          tpl.innerHTML = out;
+          const exactCls = (el, cls) => new RegExp(`(^|\\s)${cls}(?=\\s|$)`).test(el.className || '');
+          let stripped = 0;
+          const strippedLabels = new Set();
+          for (const cls of stripList) {
+            for (const el of tpl.content.querySelectorAll(`[class*="${cls}"]`)) {
+              if (!exactCls(el, cls)) continue;
+              el.className = (el.className || '').replace(new RegExp(`(^|\\s)${cls}(?=\\s|$)`), ' ').replace(/\s+/g, ' ').trim();
+              if (!el.className) el.removeAttribute('class');
+              stripped += 1;
+              strippedLabels.add(GRID_CLASS_LABEL[cls]);
+            }
+          }
+          if (stripped > 0) {
+            out = tpl.innerHTML;
+            issues.push({
+              severity: 'info', type: 'writing-grid',
+              message: `已自动剥离 ${stripped} 处${[...strippedLabels].join('、')}（「${subject}」该学段不应使用——保留文字，卷面已规范为${defaultLabel}）`,
+            });
+            fixed += stripped;
+          }
+        } catch (e) {
+          console.warn('⚠️ 书写格越界剥离失败（不影响其他修复）:', e.message);
         }
       }
     }
@@ -1061,6 +1089,82 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       if (fixedK > 0) out = tplK.innerHTML + ansPart;
     } catch (e) {
       console.warn('⚠️ 作答空间保障失败（不影响其他修复）:', e.message);
+    }
+  }
+
+  // ── 2l. 载体×题型正规化（规则 writing-grid-fix 配套，小题粒度，数据源=排版规格库 CARRIER_RULES）：
+  //    forbid=表达/写话/习作类题内混入书写格 → 自动剥离 class 保留文字（确定性可修复）；
+  //    must=写字/抄写类题该用格子却没用 → 静默提示抽检（程序不知道哪个字进格，无法自动补）──
+  if (has('writing-grid-fix')) {
+    try {
+      const cr = getMergedSpec().CARRIER_RULES || { must: [], forbid: [] };
+      const tplL = document.createElement('template');
+      tplL.innerHTML = out;
+      const headsL = Array.from(tplL.content.querySelectorAll('h2, h3, h4'));
+      let fixedL = 0;
+      const exactCls = (el, cls) => new RegExp(`(^|\\s)${cls}(?=\\s|$)`).test(el.className || '');
+      const stripClasses = (root, carriers) => {
+        let n = 0;
+        const pool = [root, ...(root.querySelectorAll ? Array.from(root.querySelectorAll('span, div, u')) : [])];
+        for (const el of pool) {
+          for (const c of carriers) {
+            if (exactCls(el, c)) {
+              el.className = (el.className || '').replace(new RegExp(`(^|\\s)${c}(?=\\s|$)`), ' ').replace(/\s+/g, ' ').trim();
+              if (!el.className) el.removeAttribute('class');
+              n += 1;
+            }
+          }
+        }
+        return n;
+      };
+      headsL.forEach((head, i) => {
+        const secNodes = [];
+        let node = head.nextSibling;
+        const end = headsL[i + 1] || null;
+        while (node && node !== end) { secNodes.push(node); node = node.nextSibling; }
+        if (secNodes.length === 0) return;
+        const itemPs = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p'
+          && /^\s*(?:\d+[.、．]|[(（]\d+[)）])/.test((n.textContent || '').trim()));
+        const items = itemPs.length > 0
+          ? itemPs.map((p, k) => {
+              const seg = [];
+              let sn = p.nextSibling;
+              const e2 = itemPs[k + 1] || null;
+              while (sn && sn !== e2) { seg.push(sn); sn = sn.nextSibling; }
+              return { p, seg };
+            })
+          : [{ p: head, seg: secNodes }];
+        for (const it of items) {
+          const scope = [it.p, ...it.seg];
+          const text = scope.map(n => n.textContent || '').join('');
+          // forbid：表达/写话类题内混入书写格 → 剥离保留文字
+          for (const fb of cr.forbid || []) {
+            if (new RegExp(fb.keywords).test(text)) {
+              for (const root of scope) {
+                if (root.nodeType !== Node.ELEMENT_NODE) continue;
+                fixedL += stripClasses(root, fb.carriers || []);
+              }
+            }
+          }
+          // must：写字/抄写类该用格子却没用 → 静默提示
+          for (const mu of cr.must || []) {
+            if (mu.subject && mu.subject !== subject) continue;
+            if (Array.isArray(mu.stages) && mu.stages.length && !mu.stages.includes(stage)) continue;
+            if (!new RegExp(mu.keywords).test(text)) continue;
+            const html = scope.map(n => n.outerHTML || '').join('');
+            if (!new RegExp(mu.carrier).test(html)) {
+              silentCount('writing-grid', `「${subject}」题干含"${String(mu.keywords).split('|')[0]}…"书写要求，但题内无${GRID_CLASS_LABEL[mu.carrier] || mu.carrier}——载体缺失，请抽检`);
+            }
+          }
+        }
+      });
+      if (fixedL > 0) {
+        out = tplL.innerHTML;
+        issues.push({ severity: 'info', type: 'writing-grid', message: `已剥离表达/写话/习作类题目中混入的书写格 ${fixedL} 处（保留文字，卷面已规范）` });
+        fixed += fixedL;
+      }
+    } catch (e) {
+      console.warn('⚠️ 载体×题型正规化失败（不影响其他修复）:', e.message);
     }
   }
 

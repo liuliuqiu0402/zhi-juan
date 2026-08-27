@@ -40,7 +40,8 @@
         <div class="rule-head" @click="toggle(r.id)">
           <span class="arrow">{{ openKey === r.id ? '▾' : '▸' }}</span>
           <span class="lib-tag">🧪 规则库</span>
-          <span class="dim-name">{{ ruleDimName(r) }}</span>
+          <span class="dim-name">{{ r.name }}</span>
+          <span class="rule-dim" :title="'维度：' + ruleDimName(r)">{{ ruleDimName(r) }}</span>
           <span class="key-hint" :title="'规则 id：' + r.id">{{ r.id }}</span>
           <span class="cat-tag" :class="`cat-${r.category}`">{{ r.category === 'fix' ? 'fix' : 'guard' }}</span>
           <span v-if="r.source === 'user'" class="src-user">已自定义</span>
@@ -300,6 +301,7 @@ const doImport = async (e) => {
 .arrow { color: var(--accent); font-weight: 700; }
 .lib-tag { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 6px; padding: 2px 8px; }
 .dim-name { font-weight: 700; font-size: 13.5px; color: #26303e; }
+.rule-dim { font-size: 11px; color: var(--text-muted); background: var(--bg-sub); border: 1px solid var(--border-light); border-radius: 6px; padding: 1px 6px; }
 .key-hint { font-size: 11px; color: var(--text-muted); font-weight: 400; }
 .cat-tag { font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 8px; }
 .cat-fix { background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; }

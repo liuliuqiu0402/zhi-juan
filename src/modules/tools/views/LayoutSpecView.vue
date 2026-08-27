@@ -38,7 +38,23 @@
 
         <!-- 展开态：预览表格 -->
         <div v-if="openGroup === g.id && editingGroup !== g.id" class="ls-body">
-          <table class="ls-table">
+          <template v-if="g.matrix">
+            <div v-for="s in g.matrix.subjects" :key="s.key" class="matrix-block">
+              <div class="matrix-title">{{ s.label }}<span v-if="s.key === '*'" class="matrix-tip">通配默认（未显式定义的学科）</span></div>
+              <table class="ls-table matrix-table">
+                <thead><tr><th>学段</th><th v-for="p in g.matrix.params" :key="p.key">{{ p.label }}<span v-if="p.unit"> ({{ p.unit }})</span></th></tr></thead>
+                <tbody>
+                  <tr v-for="st in g.matrix.stages" :key="st.key">
+                    <td class="matrix-stage">{{ st.label }}</td>
+                    <td v-for="p in g.matrix.params" :key="p.key" :class="{ modified: isModified(`ANSWER_REGION.${s.key}.${st.key}.${p.key}`) }">
+                      {{ formatVal(getByPath(mergedSpec, `ANSWER_REGION.${s.key}.${st.key}.${p.key}`), p) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+          <table v-else class="ls-table">
             <thead><tr><th>参数</th><th>当前值</th><th>内置默认</th><th>状态</th></tr></thead>
             <tbody>
               <tr v-for="f in g.fields" :key="f.path">
@@ -60,13 +76,14 @@
 
         <!-- 编辑态 -->
         <div v-if="editingGroup === g.id" class="ls-edit">
-          <div class="edit-grid">
-            <div v-for="f in g.fields" :key="f.path" class="edit-field">
+          <div v-for="grp in editGroups(g)" :key="grp.title || 'all'" class="edit-grid">
+            <div v-if="grp.title" class="edit-sec-title">{{ grp.title }}<span v-if="grp.title === '通配默认'" class="matrix-tip">通配默认（未显式定义的学科）</span></div>
+            <div v-for="f in grp.fields" :key="f.path" class="edit-field">
               <label>{{ f.label }}<span class="unit" v-if="f.unit"> ({{ f.unit }})</span></label>
               <template v-if="f.type === 'carrier'">
                 <div class="carrier-chips">
                   <span
-                    v-for="opt in CARRIER_OPTIONS"
+                    v-for="opt in (f.chipOptions || CARRIER_OPTIONS)"
                     :key="opt.value"
                     class="chip-sel"
                     :class="{ sel: (editValues[f.path] || []).includes(opt.value) }"
@@ -80,7 +97,7 @@
               <select v-else-if="f.type === 'select'" v-model="editValues[f.path]">
                 <option v-for="opt in f.options" :key="opt" :value="opt">{{ opt }}</option>
               </select>
-              <input v-else v-model="editValues[f.path]" type="number" :step="f.step" :min="f.min" :max="f.max" />
+              <input v-else v-model="editValues[f.path]" :type="f.type === 'number' ? 'number' : 'text'" :step="f.step" :min="f.min" :max="f.max" :placeholder="f.placeholder" />
               <span class="range-hint" v-if="f.type === 'number'">{{ f.min }}~{{ f.max }}</span>
             </div>
           </div>
@@ -118,16 +135,35 @@ const ANSWER_STAGES = [
   { key: 'middle', label: '初中' },
   { key: 'high', label: '高中' },
 ];
+const ANSWER_MATRIX_PARAMS = [
+  { key: 'linePerScore', label: '行/分', unit: '', type: 'number', min: 0.3, max: 3, step: 0.1 },
+  { key: 'lineHeightMm', label: '行高', unit: 'mm', type: 'number', min: 4, max: 15, step: 0.5 },
+  { key: 'carrier', label: '载体', unit: '', type: 'ansCarrier', options: ['line', 'blank'] },
+];
 const ANSWER_FIELDS = [];
 for (const s of ANSWER_SUBJECTS) {
   for (const st of ANSWER_STAGES) {
-    ANSWER_FIELDS.push(
-      { path: `ANSWER_REGION.${s.key}.${st.key}.linePerScore`, label: `${s.label}·${st.label} 行/分`, unit: '', type: 'number', min: 0.3, max: 3, step: 0.1 },
-      { path: `ANSWER_REGION.${s.key}.${st.key}.lineHeightMm`, label: `${s.label}·${st.label} 行高`, unit: 'mm', type: 'number', min: 4, max: 15, step: 0.5 },
-      { path: `ANSWER_REGION.${s.key}.${st.key}.carrier`, label: `${s.label}·${st.label} 载体`, type: 'ansCarrier', options: ['line', 'blank'] },
-    );
+    for (const p of ANSWER_MATRIX_PARAMS) {
+      ANSWER_FIELDS.push({
+        path: `ANSWER_REGION.${s.key}.${st.key}.${p.key}`,
+        label: `${s.label}·${st.label} ${p.label}`,
+        unit: p.unit, type: p.type, min: p.min, max: p.max, step: p.step, options: p.options,
+        subject: s.key, subjectLabel: s.label, stageKey: st.key, stageLabel: st.label,
+      });
+    }
   }
 }
+const ANSWER_MATRIX = { subjects: ANSWER_SUBJECTS, stages: ANSWER_STAGES, params: ANSWER_MATRIX_PARAMS };
+
+// 载体×题型规则（CARRIER_RULES）编辑用常量
+const SUBJECT_OPTIONS = ['语文', '数学', '英语', '物理', '化学', '生物', '科学', '道法', '政治', '历史', '地理', '音乐', '美术', '体育', '信息'];
+const GRID_OPTIONS = [
+  { value: 'tian-zi-ge', label: '田字格' },
+  { value: 'pinyin-line', label: '拼音格' },
+  { value: 'four-line-three', label: '四线三格' },
+  { value: 'mi-zi-ge', label: '米字格' },
+  { value: 'square', label: '方格' },
+];
 const SPEC_GROUPS = [
   {
     id: 'zuowen',
@@ -178,6 +214,7 @@ const SPEC_GROUPS = [
     id: 'answer',
     name: '解答区',
     desc: '学科×学段：行数=分值×系数 · 行高 · 载体（examValidator answer-area-fix 读取；语文/英语/科学横线、其余空白）',
+    matrix: ANSWER_MATRIX,
     fields: ANSWER_FIELDS,
   },
   {
@@ -191,6 +228,27 @@ const SPEC_GROUPS = [
       { path: 'BRACKET_GRID.rowHeightMm', label: '括号格 行高', unit: 'mm', type: 'number', min: 5, max: 20, step: 0.5 },
       { path: 'BRACKET_GRID.widthMm', label: '括号格 宽度', unit: 'mm', type: 'number', min: 30, max: 100, step: 1 },
       { path: 'ZUOWEN_FILL_CELLS', label: '作文格自动补全数', unit: '格', type: 'number', min: 50, max: 400, step: 10 },
+    ],
+  },
+  {
+    id: 'carrier-rules',
+    name: '载体×题型规则',
+    desc: 'must=写字/抄写类该用格子却没用→提示抽检；forbid=表达/写话类禁混入格子→出现自动剥离。examValidator writing-grid-fix 读取',
+    fields: [
+      { path: 'CARRIER_RULES.must.0.subject', label: 'must1 学科', type: 'select', options: SUBJECT_OPTIONS },
+      { path: 'CARRIER_RULES.must.0.stages', label: 'must1 学段（逗号分隔）', type: 'textArr', placeholder: '如 primary_low' },
+      { path: 'CARRIER_RULES.must.0.keywords', label: 'must1 题型关键词（|分隔）', type: 'text' },
+      { path: 'CARRIER_RULES.must.0.carrier', label: 'must1 必须载体', type: 'select', options: GRID_OPTIONS.map((o) => o.value) },
+      { path: 'CARRIER_RULES.must.1.subject', label: 'must2 学科', type: 'select', options: SUBJECT_OPTIONS },
+      { path: 'CARRIER_RULES.must.1.stages', label: 'must2 学段（逗号分隔）', type: 'textArr', placeholder: '如 primary_low' },
+      { path: 'CARRIER_RULES.must.1.keywords', label: 'must2 题型关键词（|分隔）', type: 'text' },
+      { path: 'CARRIER_RULES.must.1.carrier', label: 'must2 必须载体', type: 'select', options: GRID_OPTIONS.map((o) => o.value) },
+      { path: 'CARRIER_RULES.must.2.subject', label: 'must3 学科', type: 'select', options: SUBJECT_OPTIONS },
+      { path: 'CARRIER_RULES.must.2.stages', label: 'must3 学段（逗号分隔）', type: 'textArr', placeholder: '如 primary_mid' },
+      { path: 'CARRIER_RULES.must.2.keywords', label: 'must3 题型关键词（|分隔）', type: 'text' },
+      { path: 'CARRIER_RULES.must.2.carrier', label: 'must3 必须载体', type: 'select', options: GRID_OPTIONS.map((o) => o.value) },
+      { path: 'CARRIER_RULES.forbid.0.keywords', label: 'forbid 题型关键词（|分隔）', type: 'text' },
+      { path: 'CARRIER_RULES.forbid.0.carriers', label: 'forbid 禁用的载体（多选）', type: 'carrier', chipOptions: GRID_OPTIONS },
     ],
   },
 ];
@@ -265,8 +323,16 @@ const startEdit = (g) => {
   const spec = mergedSpec.value;
   for (const f of g.fields) {
     const v = getByPath(spec, f.path);
-    editValues.value[f.path] = Array.isArray(v) ? [...v] : v;
+    editValues.value[f.path] = f.type === 'textArr'
+      ? (Array.isArray(v) ? v.join(',') : (v ?? ''))
+      : (Array.isArray(v) ? [...v] : v);
   }
+};
+
+/** 编辑态分节（矩阵组按学科分节渲染，其余组整组一栏） */
+const editGroups = (g) => {
+  if (!g.matrix) return [{ title: '', fields: g.fields }];
+  return g.matrix.subjects.map((s) => ({ title: s.label, fields: g.fields.filter((f) => f.subject === s.key) }));
 };
 
 const cancelEdit = () => { editingGroup.value = ''; };
@@ -296,6 +362,7 @@ const saveGroup = (g) => {
   for (const f of g.fields) {
     let val = editValues.value[f.path];
     if (f.type === 'number') val = Number(val);
+    if (f.type === 'textArr') val = String(val || '').split(/[,，]/).map((s) => s.trim()).filter(Boolean);
     if (f.type === 'carrier') {
       // 空数组 = 移除该覆盖（回退内置）
       if (Array.isArray(val) && !val.length) {
@@ -380,6 +447,16 @@ const doImport = async (e) => {
 .ls-table th { text-align: left; background: var(--primary-lighter, #eef4ff); color: var(--primary); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--border-light); white-space: nowrap; }
 .ls-table td { padding: 6px 10px; border-bottom: 1px solid var(--border-light); }
 .ls-table tr:last-child td { border-bottom: none; }
+/* 矩阵化：学科分节 × 学段/参数二维表 */
+.matrix-block { margin-bottom: 10px; border: 1px solid var(--border-light); border-radius: 8px; padding: 8px 10px; }
+.matrix-block:last-child { margin-bottom: 0; }
+.matrix-title { font-size: 12.5px; font-weight: 700; color: #26303e; margin-bottom: 6px; }
+.matrix-tip { font-size: 11px; font-weight: 400; color: var(--text-muted); margin-left: 8px; }
+.matrix-table td { text-align: center; }
+.matrix-table td:first-child { font-weight: 600; color: var(--primary); }
+.matrix-stage { white-space: nowrap; }
+/* 编辑态分节标题 */
+.edit-sec-title { grid-column: 1 / -1; font-size: 12.5px; font-weight: 700; color: #26303e; border-bottom: 1px dashed var(--border-light); padding-bottom: 4px; margin-top: 4px; }
 .modified { color: var(--accent); font-weight: 600; }
 .mod-tag { font-size: 10.5px; font-weight: 700; color: #a06a10; background: #fdf3e2; border-radius: 999px; padding: 1px 8px; }
 .ok-tag { font-size: 10.5px; color: var(--text-muted); }

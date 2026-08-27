@@ -275,25 +275,66 @@ describe('examValidator 连线题右列格式（match-format-fix：本案例 19:
 });
 
 describe('examValidator 书写格按学段（writing-grid-fix）', () => {
-  it('语文 3 年级及以上仍用田字格 → 静默计数', () => {
-    const html = '<h1>默写纸</h1>\n<p>看拼音写词语：<span class="tian-zi-ge">海</span></p>';
-    const { silent } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'dictation' });
-    expect(silent).toBeGreaterThan(0);
+  it('语文 3 年级及以上仍用田字格 → 自动剥离 class 保留文字（越界修复）', () => {
+    const html = '<h1>默写纸</h1>\n<p>看拼音写词语：<span class="tian-zi-ge">海</span>边</p>';
+    const { html: out, issues, fixed } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'dictation' });
+    expect(out).not.toContain('tian-zi-ge');
+    expect(out).toContain('<span>海</span>边'); // 格子 class 剥离，汉字保留
+    expect(issues.some((i) => i.type === 'writing-grid')).toBe(true);
+    expect(fixed).toBeGreaterThan(0);
   });
 
-  it('语文 1-2 年级田字格 → 不触发（学段内合理）', () => {
+  it('语文 1-2 年级田字格 → 不剥离不提示（学段内合理）', () => {
     const html = '<h1>默写纸</h1>\n<p>看拼音写词语：<span class="tian-zi-ge">海</span></p>';
-    const { silent } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'dictation' });
+    const { html: out, silent } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'dictation' });
+    expect(out).toContain('tian-zi-ge');
     expect(silent).toBe(0);
   });
 
-  it('英语初中及以上用四线三格 → 静默计数；非语文英语学科不检测', () => {
-    // 注：dictation 的 type-elements 检查"拼音"字样，HTML 带"看拼音"以隔离两类计数
+  it('英语/数学初中及以上用四线三格 → 越界自动剥离（学科补齐后都拦截）', () => {
     const html = '<h1>默写纸</h1>\n<p>看拼音写词语：Write: <span class="four-line-three">a</span></p>';
-    const { silent: s1 } = auditExamPaper(html, { subject: '英语', stage: 'middle', genType: 'dictation' });
-    expect(s1).toBeGreaterThan(0);
-    const { silent: s2 } = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'dictation' });
-    expect(s2).toBe(0);
+    const { html: out1 } = auditExamPaper(html, { subject: '英语', stage: 'middle', genType: 'dictation' });
+    expect(out1).not.toContain('four-line-three');
+    const { html: out2 } = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'dictation' });
+    expect(out2).not.toContain('four-line-three');
+  });
+
+  it('数学作图方格纸 square-grid → 合法不剥离（数学全学段允许 square）', () => {
+    const html = '<h2>二、作图（10分）</h2>\n<p>1. 在方格纸上画一个正方形。</p>\n<div class="square-grid"><span>&emsp;</span></div>';
+    const { html: out } = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'exam' });
+    expect(out).toContain('square-grid');
+  });
+});
+
+describe('examValidator 载体×题型正规化（CARRIER_RULES）', () => {
+  it('看图写话/习作类题内混入田字格 → 自动剥离保留文字（forbid）', () => {
+    const html = [
+      '<h2>四、表达与交流（30分）</h2>',
+      '<p>1. 看图写话：<span class="tian-zi-ge">海</span>边的小朋友在玩耍。（15分）</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(out).not.toContain('tian-zi-ge');
+    expect(out).toContain('<span>海</span>边的小朋友在玩耍');
+    expect(issues.some((i) => i.type === 'writing-grid')).toBe(true);
+  });
+
+  it('语文低段"看拼音写词语"该用田字格却没用 → 静默提示（must，无法自动补）', () => {
+    const html = [
+      '<h2>一、识字与写字（32分）</h2>',
+      '<p>1. 看拼音写词语。（8分）</p>',
+      '<p>（1）tiān kōng（　　　　）</p>',
+    ].join('\n');
+    const { silent } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(silent).toBeGreaterThan(0);
+  });
+
+  it('语文低段写字题已用田字格 → 不提示', () => {
+    const html = [
+      '<h2>一、识字与写字（32分）</h2>',
+      '<p>1. 看拼音写词语：<span class="tian-zi-ge">海</span>。（8分）</p>',
+    ].join('\n');
+    const { silent } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(silent).toBe(0);
   });
 });
 
