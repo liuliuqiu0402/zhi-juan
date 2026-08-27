@@ -384,3 +384,80 @@ describe('examValidator 三维度规则过滤', () => {
     expect(issues.some(i => i.type === 'pinyin-blank-mismatch')).toBe(false);
   });
 });
+
+describe('examValidator 书写作答空间保障（answer-area-fix）', () => {
+  const countBlankLine = (html) => (html.match(/blank-line/g) || []).length;
+  const countBlankArea = (html) => (html.match(/class="blank-area"/g) || []).length;
+
+  it('语文解答题无作答空间 → 按 分值×系数 补横线行', () => {
+    const html = [
+      '<h2>三、阅读理解（20分）</h2>',
+      '<p>1. 短文主要讲了什么？（3分）</p>',
+      '<p>2. 你喜欢文中的谁？为什么？（4分）</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'exam' });
+    // 语文 primary_mid 系数 1.2 → 3分需 ceil(3.6)=4 行、4分需 ceil(4.8)=5 行
+    expect(countBlankLine(out)).toBe(9);
+    expect(issues.some(i => i.type === 'answer-area')).toBe(true);
+  });
+
+  it('数学解答题 → 补空白区（blank-area，无线）且高度按学段行高', () => {
+    const html = [
+      '<h2>四、解决问题（20分）</h2>',
+      '<p>1. 一个长方形长 12 厘米、宽 8 厘米，求它的周长。（5分）</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'exam' });
+    // 数学 middle 系数 0.9 → 5分需 ceil(4.5)=5 行空白
+    expect(countBlankArea(out)).toBe(5);
+    expect(out).toContain('class="blank-area" style="height:7.5mm"');
+    expect(issues.some(i => i.type === 'answer-area')).toBe(true);
+  });
+
+  it('选择/填空（括号空位）已有载体 → 不补差', () => {
+    const html = [
+      '<h2>一、选择题（30分）</h2>',
+      '<p>1. 下列词语书写正确的一项是（　　）。（2分）</p>',
+      '<p>A. 彩红　B. 彩虹　C. 采虹</p>',
+      '<h2>二、填空题（20分）</h2>',
+      '<p>2. 3+5=（　　）。（2分）</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'exam' });
+    expect(countBlankLine(out)).toBe(0);
+    expect(issues.some(i => i.type === 'answer-area')).toBe(false);
+  });
+
+  it('已有横线作答行且足够 → 幂等不重复补差', () => {
+    const lines = [];
+    for (let i = 0; i < 5; i++) lines.push('<p><span class="blank-line">&emsp;</span></p>');
+    const html = ['<h2>三、阅读理解（20分）</h2>', '<p>1. 谈谈你的理解。（4分）</p>', ...lines].join('\n');
+    const first = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'exam' });
+    // 5 行 ≥ 需求 5 行（4×1.2=4.8→5）→ 不再补
+    expect(countBlankLine(first.html)).toBe(5);
+    const second = auditExamPaper(first.html, { subject: '语文', stage: 'primary_mid', genType: 'exam' });
+    expect(countBlankLine(second.html)).toBe(5);
+  });
+
+  it('内嵌填空下划线（如 3+5=＿＿）视为已有载体 → 跳过补差', () => {
+    const html = [
+      '<h2>一、计算（20分）</h2>',
+      '<p>1. 直接写得数：3+5=＿＿。（2分）</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'exam' });
+    expect(countBlankArea(out)).toBe(0);
+    expect(issues.some(i => i.type === 'answer-area')).toBe(false);
+  });
+
+  it('答案区（answer-section）不做补差，补差后答案区完整保留', () => {
+    const html = [
+      '<h2>三、解答题（20分）</h2>',
+      '<p>1. 列式计算。（4分）</p>',
+      '<div class="answer-section"><h2>参考答案</h2><p>1. 答案：12</p></div>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'exam' });
+    // 正文补 4 行空白（4×0.9=3.6→4），答案区内不出现 blank-area
+    expect(countBlankArea(out)).toBe(4);
+    const ansPart = out.split('answer-section')[1];
+    expect(ansPart).not.toContain('blank-area');
+    expect(issues.some(i => i.type === 'answer-area')).toBe(true);
+  });
+});

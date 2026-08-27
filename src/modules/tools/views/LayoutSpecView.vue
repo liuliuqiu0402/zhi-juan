@@ -74,6 +74,9 @@
                   >{{ opt.label }}</span>
                 </div>
               </template>
+              <select v-else-if="f.type === 'ansCarrier'" v-model="editValues[f.path]">
+                <option v-for="opt in ANS_CARRIER_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
               <select v-else-if="f.type === 'select'" v-model="editValues[f.path]">
                 <option v-for="opt in f.options" :key="opt" :value="opt">{{ opt }}</option>
               </select>
@@ -101,6 +104,30 @@ import {
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 
 // ==================== 规格组定义 ====================
+// 解答区参数矩阵（学科 × 学段）：通配默认/语文/英语/科学 × 5 学段 × (行分系数/行高/载体)
+const ANSWER_SUBJECTS = [
+  { key: '*', label: '通配默认' },
+  { key: '语文', label: '语文' },
+  { key: '英语', label: '英语' },
+  { key: '科学', label: '科学' },
+];
+const ANSWER_STAGES = [
+  { key: 'primary_low', label: '低段' },
+  { key: 'primary_mid', label: '中段' },
+  { key: 'primary_high', label: '高段' },
+  { key: 'middle', label: '初中' },
+  { key: 'high', label: '高中' },
+];
+const ANSWER_FIELDS = [];
+for (const s of ANSWER_SUBJECTS) {
+  for (const st of ANSWER_STAGES) {
+    ANSWER_FIELDS.push(
+      { path: `ANSWER_REGION.${s.key}.${st.key}.linePerScore`, label: `${s.label}·${st.label} 行/分`, unit: '', type: 'number', min: 0.3, max: 3, step: 0.1 },
+      { path: `ANSWER_REGION.${s.key}.${st.key}.lineHeightMm`, label: `${s.label}·${st.label} 行高`, unit: 'mm', type: 'number', min: 4, max: 15, step: 0.5 },
+      { path: `ANSWER_REGION.${s.key}.${st.key}.carrier`, label: `${s.label}·${st.label} 载体`, type: 'ansCarrier', options: ['line', 'blank'] },
+    );
+  }
+}
 const SPEC_GROUPS = [
   {
     id: 'zuowen',
@@ -150,19 +177,8 @@ const SPEC_GROUPS = [
   {
     id: 'answer',
     name: '解答区',
-    desc: '行数=分值×系数 · 行高（骨架编译器读取）',
-    fields: [
-      { path: 'ANSWER_REGION.primary_low.linePerScore', label: '低段 行/分', unit: '', type: 'number', min: 0.3, max: 3, step: 0.1 },
-      { path: 'ANSWER_REGION.primary_low.lineHeightMm', label: '低段 行高', unit: 'mm', type: 'number', min: 4, max: 15, step: 0.5 },
-      { path: 'ANSWER_REGION.primary_mid.linePerScore', label: '中段 行/分', unit: '', type: 'number', min: 0.3, max: 3, step: 0.1 },
-      { path: 'ANSWER_REGION.primary_mid.lineHeightMm', label: '中段 行高', unit: 'mm', type: 'number', min: 4, max: 15, step: 0.5 },
-      { path: 'ANSWER_REGION.primary_high.linePerScore', label: '高段 行/分', unit: '', type: 'number', min: 0.3, max: 3, step: 0.1 },
-      { path: 'ANSWER_REGION.primary_high.lineHeightMm', label: '高段 行高', unit: 'mm', type: 'number', min: 4, max: 15, step: 0.5 },
-      { path: 'ANSWER_REGION.middle.linePerScore', label: '初中 行/分', unit: '', type: 'number', min: 0.3, max: 3, step: 0.1 },
-      { path: 'ANSWER_REGION.middle.lineHeightMm', label: '初中 行高', unit: 'mm', type: 'number', min: 4, max: 15, step: 0.5 },
-      { path: 'ANSWER_REGION.high.linePerScore', label: '高中 行/分', unit: '', type: 'number', min: 0.3, max: 3, step: 0.1 },
-      { path: 'ANSWER_REGION.high.lineHeightMm', label: '高中 行高', unit: 'mm', type: 'number', min: 4, max: 15, step: 0.5 },
-    ],
+    desc: '学科×学段：行数=分值×系数 · 行高 · 载体（examValidator answer-area-fix 读取；语文/英语/科学横线、其余空白）',
+    fields: ANSWER_FIELDS,
   },
   {
     id: 'square',
@@ -189,6 +205,10 @@ const CARRIER_OPTIONS = [
   { value: 'mi-zi-ge', label: '米字格' },
 ];
 const CARRIER_LABEL = Object.fromEntries(CARRIER_OPTIONS.map((o) => [o.value, o.label]));
+const ANS_CARRIER_OPTIONS = [
+  { value: 'line', label: '横线' },
+  { value: 'blank', label: '空白' },
+];
 
 const getByPath = (obj, path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
 const setByPath = (obj, path, val) => {
@@ -207,6 +227,7 @@ const formatVal = (v, f) => {
     if (!v.length) return '（无，默认横线）';
     return v.map((x) => CARRIER_LABEL[x] || x).join('、');
   }
+  if (f.type === 'ansCarrier') return v === 'line' ? '横线' : v === 'blank' ? '空白' : String(v);
   if (f.unit) return `${v}${f.unit}`;
   return String(v);
 };

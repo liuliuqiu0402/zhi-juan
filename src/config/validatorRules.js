@@ -229,6 +229,17 @@ export const VALIDATOR_RULES = [
     stages: ['*'],
     description: '答案区题号明显少于正文时静默计数（提示答案页可能不完整）。',
     enabled: true,
+  },
+
+  {
+    id: 'answer-area-fix',
+    name: '书写作答空间保障',
+    category: 'fix',
+    subjects: ['*'],
+    stages: ['*'],
+    promptHint: '每道需要书写作答的题目，在其题干后留足作答空间（空白或横线，量与其分值匹配），选择/判断题无需额外空间；作答空间不得被压缩或与下一题粘连。',
+    description: '程序按 分值×学段系数 度量题后有效作答行（横线/填空线/带高空白块；纯空行不计），不足时按学科配置（语文/英语/科学横线，其余空白）补差——卷面惯例非课标要求。',
+    enabled: true,
   }
 ]
 ;

@@ -323,6 +323,11 @@ p:has(> u[class*="blank-"]:last-child) u[class*="blank-"] {
   min-width: 3em;
 }
 
+/* 空白作答区（answer-area-fix 补差：无线空白行，高度按排版规格库 lineHeightMm 内联指定） */
+p.blank-area {
+  line-height: 1.2;
+}
+
 /* 四线三格（英语书写） */
 .four-line-three {
   display: inline-block;

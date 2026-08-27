@@ -183,6 +183,19 @@ const readBlockDecorations = (el) => {
       spacing.line = Math.round((lh / fsPx) * 240); // 倍数 × 240（单倍行距基准）
       spacing.lineRule = LineRuleType.AUTO;
     }
+    // 🔧 空白作答区（answer-area-fix 补差产物 <p class="blank-area" style="height:Xmm">）：
+    //    内联 height/min-height → EXACT 固定行高（仅认内联样式，避免把"计算高度=内容高度"误当行高）
+    if (el.tagName?.toLowerCase() === 'p') {
+      const istyle = el.getAttribute?.('style') || '';
+      const hm = istyle.match(/(?:^|;)\s*(?:height|min-height)\s*:\s*([\d.]+)\s*(mm|px|pt)/i);
+      if (hm) {
+        const px = hm[2] === 'mm' ? parseFloat(hm[1]) * 96 / 25.4 : hm[2] === 'px' ? parseFloat(hm[1]) : parseFloat(hm[1]) * 96 / 72;
+        if (px > 0) {
+          spacing.line = Math.max(Math.round(px * 15), spacing.line || 240); // px → twip（1px=15twip）
+          spacing.lineRule = LineRuleType.EXACT;
+        }
+      }
+    }
     if (Object.keys(spacing).length) out.spacing = spacing;
   } catch { /* detached 元素：无装饰 */ }
   return out;

@@ -7,7 +7,7 @@
 //    本文件只负责规则的执行逻辑。
 // ============================================================
 import { getValidatorRules } from '../config/validatorRules.js';
-import { getCarrierAllowlist, getMergedSpec } from '../config/layoutSpec.js';
+import { getCarrierAllowlist, getMergedSpec, getAnswerRegion } from '../config/layoutSpec.js';
 
 // ---------- 通用正则 ----------
 // 全角拼音字符归一表（IPA 音标字符混入小学拼音、全角字母）
@@ -944,6 +944,123 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       if (total > 2) {
         silentCount('match-empty', `语文低段连线题数量(${total})超过2道上限——题型重复，请抽检`);
       }
+    }
+  }
+
+  // ── 2k. 书写作答空间保障（规则 answer-area-fix：
+  //      题有分值 + 无选项/括号/填空格/专用格线 → 按 学科×学段 度量题后有效作答行
+  //      （blank-line 横线行 / 纯横线字符行 / 带高空白块；纯空行与题间空行不计），
+  //      不足时按排版规格库 ANSWER_REGION 补差：语文/英语/科学横线、其余空白——
+  //      卷面惯例而非课标要求，参数可在排版规格库调整）──
+  if (has('answer-area-fix')) {
+    try {
+      const region = getAnswerRegion(subject, stage);
+      const lhMm = region.lineHeightMm || 8;
+      const needRows = (score) => Math.max(0, Math.ceil(score * (region.linePerScore || 1)));
+      // 只处理正文区（答案区/参考答案不做补差）
+      const ansStart = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i);
+      const bodyPart = ansStart ? out.slice(0, ansStart.index) : out;
+      const ansPart = ansStart ? out.slice(ansStart.index) : '';
+      const tplK = document.createElement('template');
+      tplK.innerHTML = bodyPart;
+      const headsK = Array.from(tplK.content.querySelectorAll('h2, h3, h4'));
+      let fixedK = 0;
+      const padP = (carrier) => {
+        const p = document.createElement('p');
+        const span = document.createElement('span');
+        span.innerHTML = '&emsp;';
+        if (carrier === 'line') {
+          span.className = 'blank-line';
+        } else {
+          p.className = 'blank-area';
+          p.setAttribute('style', `height:${lhMm}mm`);
+        }
+        p.appendChild(span);
+        return p;
+      };
+      // 🔧 本地非全局正则（PAREN_BLANK_RE/BLANK_TAG_RE 为 /g 有状态，.test 会受 lastIndex 干扰）
+      const parenBlankTest = /[（(]\s*[　\u3000 ]{1,12}\s*[)）]/;
+      const blankTagTest = /<span[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/span>|<u[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/u>/i;
+      headsK.forEach((head, i) => {
+        const title = (head.textContent || '').trim();
+        const cm = title.match(/共\s*(\d{1,3})\s*分/);
+        const sm = title.match(/[（(]\s*(\d{1,3})\s*分/);
+        const scoreMatch = cm || sm;
+        if (!scoreMatch) return;
+        const secNodes = [];
+        let node = head.nextSibling;
+        const end = headsK[i + 1] || null;
+        while (node && node !== end) { secNodes.push(node); node = node.nextSibling; }
+        if (secNodes.length === 0) return;
+        // 大题内小题（题号行："1." 或 "（1）"）；无题号行时整大题视为一个作答项（如书面表达）
+        const itemPs = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p'
+          && /^\s*(?:\d+[.、．]|[(（]\d+[)）])/.test((n.textContent || '').trim()));
+        const items = itemPs.length > 0
+          ? itemPs.map((p, k) => {
+              const t = (p.textContent || '').trim();
+              const tm = t.match(/共\s*(\d+(?:\.\d+)?)\s*分/);
+              const im = t.match(/[（(][^）)]*?(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
+              const m = tm || im;
+              const seg = [];
+              let sn = p.nextSibling;
+              const e2 = itemPs[k + 1] || null;
+              while (sn && sn !== e2) { seg.push(sn); sn = sn.nextSibling; }
+              return { p, score: m ? parseFloat(m[1]) : null, seg };
+            })
+          : [{ p: head, score: parseFloat(scoreMatch[1]), seg: secNodes }];
+        for (const it of items) {
+          if (it.score == null || it.score <= 0 || it.score > 15) continue;
+          // 题号行 + 作答段统一克隆扫描（含嵌套 p/div/section）
+          const wrap = document.createElement('div');
+          wrap.appendChild(it.p.cloneNode(true));
+          for (const sn of it.seg) wrap.appendChild(sn.cloneNode(true));
+          const scanEls = Array.from(wrap.querySelectorAll('p, div, section'));
+          const segHtml = it.seg.map(n => n.outerHTML || n.textContent || '').join('');
+          const segAll = (it.p.outerHTML || '') + segHtml; // 题号行自身的括号空位/填空格/选项也要参与载体判定
+          const stem = (it.p.textContent || '').trim();
+          // 已有载体/题型 → 跳过（填空括号、填空格、连线、专用格线、选项、圈选/判断/写作类）
+          if (parenBlankTest.test(segAll) || blankTagTest.test(segAll)) continue;
+          if (/match-question|match-item|zuo-wen-ge|square-grid|bracket-grid|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge/.test(segAll)) continue;
+          if (countOptions(segAll) > 0) continue;
+          if (/(?:选择|选一选|选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|写话|习作|作文|写作)/.test(stem)) continue;
+          // 度量有效作答行（纯空行/题间空行不计；内嵌填空下划线=已有载体 → 跳过）
+          let rows = 0;
+          let hasFillIn = false;
+          for (const el of scanEls) {
+            const tag = (el.tagName || '').toLowerCase();
+            const html = el.outerHTML || '';
+            const txt = (el.textContent || '').trim();
+            if (tag === 'p') {
+              if (/^[＿_\s]+$/.test(txt)) { rows += 1; continue; }          // 纯横线字符行
+              if (/blank-line/.test(html)) { rows += 1; continue; }         // 含横线作答 span
+              if (/[＿_]{2,}/.test(txt)) { hasFillIn = true; break; }        // 内嵌填空线（如"3+5=＿＿"）
+            }
+            const st = (el.getAttribute && el.getAttribute('style')) || '';
+            const hm = st.match(/(?:^|;)\s*(?:height|min-height)\s*:\s*([\d.]+)\s*(mm|px|pt)/i);
+            if (hm) {
+              const mm = hm[2] === 'mm' ? parseFloat(hm[1]) : hm[2] === 'px' ? parseFloat(hm[1]) / 3.7795 : parseFloat(hm[1]) / 2.8346;
+              if (mm >= lhMm * 0.6) rows += Math.max(1, Math.round(mm / lhMm)); // 带高空白块
+            }
+          }
+          if (hasFillIn) continue;
+          const need = needRows(it.score);
+          if (rows >= need) continue;
+          const diff = Math.min(need - rows, 15);
+          const anchor = it.seg.length > 0 ? it.seg[it.seg.length - 1] : it.p;
+          for (let d = 0; d < diff; d++) {
+            anchor.parentNode.insertBefore(padP(region.carrier), anchor.nextSibling);
+          }
+          fixed += 1;
+          fixedK += 1;
+          issues.push({
+            severity: 'info', type: 'answer-area',
+            message: `已补作答空间：大题「${title.slice(0, 14)}」某题补 ${diff} 行${region.carrier === 'line' ? '横线' : '空白'}（分值${it.score}×系数${region.linePerScore}，原有效作答行${rows}）`,
+          });
+        }
+      });
+      if (fixedK > 0) out = tplK.innerHTML + ansPart;
+    } catch (e) {
+      console.warn('⚠️ 作答空间保障失败（不影响其他修复）:', e.message);
     }
   }
 

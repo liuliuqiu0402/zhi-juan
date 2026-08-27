@@ -79,14 +79,53 @@ export function getCarrierAllowlist(subject = '', stage = '') {
   return row[stage] || null;
 }
 
-/** 解答题空白区（行数 = 分值 × 学段系数；行高按学段字号×间距系数）· 骨架编译器读取 */
+/**
+ * 解答题作答空间（学科 × 学段 → 参数）
+ *  - carrier：'line' 横线（文字书写引导）/ 'blank' 无线空白行（答题卡风格）
+ *  - linePerScore：需求行数 = 分值 × 系数
+ *  - lineHeightMm：行高
+ *  - '*' = 通配默认（空白，对齐主流考试惯例——文综/理综主观题空白答题框）；
+ *    语文/英语/科学 显式覆盖为横线（阅读/书面表达/简答横线书写）。
+ *  ⚠️ 非课标要求，属卷面惯例（各省考试院答题卡规范），可按地区在排版规格库调整。
+ * 消费方：examValidator answer-area-fix（题有分值但有效作答行不足 → 按此补差）
+ */
 export const ANSWER_REGION = {
-  primary_low: { linePerScore: 1.4, lineHeightMm: 9 },
-  primary_mid: { linePerScore: 1.2, lineHeightMm: 8.5 },
-  primary_high: { linePerScore: 1.0, lineHeightMm: 8 },
-  middle: { linePerScore: 0.9, lineHeightMm: 7.5 },
-  high: { linePerScore: 0.8, lineHeightMm: 7 },
+  '*': {
+    primary_low: { linePerScore: 1.4, lineHeightMm: 9, carrier: 'blank' },
+    primary_mid: { linePerScore: 1.2, lineHeightMm: 8.5, carrier: 'blank' },
+    primary_high: { linePerScore: 1.0, lineHeightMm: 8, carrier: 'blank' },
+    middle: { linePerScore: 0.9, lineHeightMm: 7.5, carrier: 'blank' },
+    high: { linePerScore: 0.8, lineHeightMm: 7, carrier: 'blank' },
+  },
+  语文: {
+    primary_low: { linePerScore: 1.4, lineHeightMm: 9, carrier: 'line' },
+    primary_mid: { linePerScore: 1.2, lineHeightMm: 8.5, carrier: 'line' },
+    primary_high: { linePerScore: 1.0, lineHeightMm: 8, carrier: 'line' },
+    middle: { linePerScore: 0.9, lineHeightMm: 7.5, carrier: 'line' },
+    high: { linePerScore: 0.8, lineHeightMm: 7, carrier: 'line' },
+  },
+  英语: {
+    primary_low: { linePerScore: 1.4, lineHeightMm: 9, carrier: 'line' },
+    primary_mid: { linePerScore: 1.2, lineHeightMm: 8.5, carrier: 'line' },
+    primary_high: { linePerScore: 1.0, lineHeightMm: 8, carrier: 'line' },
+    middle: { linePerScore: 0.9, lineHeightMm: 7.5, carrier: 'line' },
+    high: { linePerScore: 0.8, lineHeightMm: 7, carrier: 'line' },
+  },
+  科学: {
+    primary_low: { linePerScore: 1.4, lineHeightMm: 9, carrier: 'line' },
+    primary_mid: { linePerScore: 1.2, lineHeightMm: 8.5, carrier: 'line' },
+    primary_high: { linePerScore: 1.0, lineHeightMm: 8, carrier: 'line' },
+    middle: { linePerScore: 0.9, lineHeightMm: 7.5, carrier: 'line' },
+    high: { linePerScore: 0.8, lineHeightMm: 7, carrier: 'line' },
+  },
 };
+
+/** 查询某学科×学段的解答区参数（合并用户覆盖；未显式学科回退 '*'） */
+export function getAnswerRegion(subject = '', stage = '') {
+  const spec = getMergedSpec().ANSWER_REGION;
+  const row = spec[subject] || spec['*'] || {};
+  return row[stage] || { linePerScore: 1, lineHeightMm: 8, carrier: 'blank' };
+}
 
 /**
  * 方格纸 square-grid（作图答题区，小学段专用；初中以上由考试答题纸自带网格，不强制）
@@ -125,17 +164,13 @@ export function resetLayoutSpecOverride() {
   try { localStorage.removeItem(LAYOUT_SPEC_USER_KEY); } catch {}
 }
 
-/** 两层嵌套对象合并（ZUOWEN_CELL.primary.widthMm 等） */
-function mergeNested(base, override) {
-  if (!override) return { ...base };
+/** 递归深合并（支持任意层对象嵌套；标量/数组/null 直接取 override，override 缺省保留 base） */
+function mergeDeep(base, override) {
+  if (override === undefined) return base;
+  if (base === null || typeof base !== 'object' || Array.isArray(base)) return override;
   const out = {};
   for (const k of Object.keys(base)) {
-    const bv = base[k];
-    if (bv && typeof bv === 'object') {
-      out[k] = { ...bv, ...(override[k] || {}) };
-    } else {
-      out[k] = k in override ? override[k] : bv;
-    }
+    out[k] = mergeDeep(base[k], override[k]);
   }
   return out;
 }
@@ -150,13 +185,13 @@ export const LAYOUT_SPEC_DEFAULTS = {
 export function getMergedSpec() {
   const user = loadLayoutSpecOverride();
   return {
-    ZUOWEN_CELL: mergeNested(ZUOWEN_CELL, user.ZUOWEN_CELL),
+    ZUOWEN_CELL: mergeDeep(ZUOWEN_CELL, user.ZUOWEN_CELL),
     ZUOWEN_MARK_STEP: { ...ZUOWEN_MARK_STEP, ...(user.ZUOWEN_MARK_STEP || {}) },
     ZUOWEN_DEFAULT_SPAN: user.ZUOWEN_DEFAULT_SPAN ?? ZUOWEN_DEFAULT_SPAN,
     BLANK: { ...BLANK, ...(user.BLANK || {}) },
-    WRITING_CARRIER: mergeNested(WRITING_CARRIER, user.WRITING_CARRIER),
-    ANSWER_REGION: mergeNested(ANSWER_REGION, user.ANSWER_REGION),
-    SQUARE_GRID: mergeNested(SQUARE_GRID, user.SQUARE_GRID),
+    WRITING_CARRIER: mergeDeep(WRITING_CARRIER, user.WRITING_CARRIER),
+    ANSWER_REGION: mergeDeep(ANSWER_REGION, user.ANSWER_REGION),
+    SQUARE_GRID: mergeDeep(SQUARE_GRID, user.SQUARE_GRID),
     BRACKET_GRID: { ...BRACKET_GRID, ...(user.BRACKET_GRID || {}) },
     ZUOWEN_FILL_CELLS: user.ZUOWEN_FILL_CELLS ?? ZUOWEN_FILL_CELLS,
   };
@@ -167,4 +202,5 @@ export default {
   BRACKET_GRID, ZUOWEN_FILL_CELLS,
   LAYOUT_SPEC_DEFAULTS,
   loadLayoutSpecOverride, saveLayoutSpecOverride, resetLayoutSpecOverride, getMergedSpec, getCarrierAllowlist,
+  getAnswerRegion,
 };
