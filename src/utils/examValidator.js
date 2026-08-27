@@ -385,8 +385,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   //     docxBuilder 才能渲染成可连线的左右方框布局；右列带序号的行由 1.5.5 处理，不重复组装）──
   if (has('match-format-fix')) {
     try {
-      const isTwoColLine = (t) => {
+      const isTwoColLine = (t, html) => {
         if (!t || t.length > 80) return false;
+        // 🔧 根治"句内填空/拼音+格子被误判连线"：p 内含内嵌标记（填空 span/u、田字格、配图等）
+        //    → 不是纯文本两列连线（如"（guì huā）<span class='tian-zi-ge'>　</span>…开了"的空格
+        //    来自 span 内容，会被当成两列分隔 → 重组丢格子）
+        if (/<span|<u\b|<div|<img|<br/i.test(html || '')) return false;
         const m = t.match(/^(.{1,20}?)\s{2,}(.{1,20})$/);
         if (!m) return false;
         const left = m[1].trim();
@@ -403,10 +407,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       let i = 0;
       while (i < ps.length) {
         const text = (ps[i].textContent || '').trim();
-        if (isTwoColLine(text)) {
+        if (isTwoColLine(text, ps[i].outerHTML)) {
           const group = [ps[i]];
           let j = i + 1;
-          while (j < ps.length && isTwoColLine((ps[j].textContent || '').trim())) {
+          while (j < ps.length && isTwoColLine((ps[j].textContent || '').trim(), ps[j].outerHTML)) {
             group.push(ps[j]);
             j += 1;
           }
@@ -637,6 +641,21 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             });
             fixed += 1;
           }
+        }
+
+        // 2a-tzg. 田字格数量与拼音音节对齐（pinyin-blank-fill 扩展，根治"田字格与拼音不对应"：
+        //    模型常按拼音组固定给 4 格 → 按音节数对齐，每音节 1 格，多了删、少了补；
+        //    只作用于含拼音组的大题，不影响写字题（无拼音））
+        const tzgCount = countTzg(secHtml);
+        if (has('pinyin-blank-fill') && pinyinGroups >= 2 && tzgCount >= 1 && pinyinGroups !== tzgCount) {
+          const diff = pinyinGroups - tzgCount;
+          const ok = fixTzgCountInDom(secNodes, diff);
+          issues.push({
+            severity: 'info',
+            type: 'pinyin-blank-mismatch',
+            message: `田字格数量已按拼音音节对齐（${diff > 0 ? `补 ${diff} 格` : `删 ${-diff} 格`}）：大题「${title}」拼音${pinyinGroups}音节/田字格${tzgCount}个${ok ? '' : '，部分失败请抽检'}`,
+          });
+          fixed += 1;
         }
 
         // 🔧 2a 后：重算序列化与载体（反映 2a 对空位的删/补，后续 2b~2h 均以修正后的 DOM 为准，
@@ -921,9 +940,19 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             s.innerHTML = '&emsp;';
             zwg.appendChild(s);
           }
-          lastP.parentNode.insertBefore(zwg, lastP.nextSibling);
+          // 🔧 插入位置（根治"作文格跑到配图/题干之前"）：题干 p 之后若紧跟 [IMAGE] 配图
+          //    标记（到下一道命中题为止）→ 作文格插在配图之后，卷面顺序 = 题干 → 配图 → 作文格
+          let ref = lastP;
+          let probe = lastP.nextSibling;
+          while (probe) {
+            const pt = probe.textContent || '';
+            if (pt && kwRe.test(pt) && probe !== lastP) break; // 下一道命中题 → 停
+            if (/\[IMAGE\]/.test(pt)) ref = probe;              // 配图标记 → 作文格插它后面
+            probe = probe.nextSibling;
+          }
+          ref.parentNode.insertBefore(zwg, ref.nextSibling);
           out = tpl2.innerHTML;
-          issues.push({ severity: 'info', type: 'writing-grid', message: `写话/作文题已自动补作文格（zuo-wen-ge ${fillCells}格）` });
+          issues.push({ severity: 'info', type: 'writing-grid', message: `写话/作文题已自动补作文格（zuo-wen-ge ${fillCells}格，位于题干与配图之后）` });
           fixed += 1;
         } else {
           silentCount('writing-grid', '含写话/作文题但无作文格且未找到可补位置（zuo-wen-ge），请抽检');
@@ -1031,6 +1060,18 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const end = headsK[i + 1] || null;
         while (node && node !== end) { secNodes.push(node); node = node.nextSibling; }
         if (secNodes.length === 0) return;
+        // 🔧 大题级载体预检（根治"题号行只带例句被误补"）：整大题任何位置有作答载体/样题/专用格线
+        //    → 跳过补差。题号行"3. 照样子…"后只有例句"例：…"（子题 (1)(2)(3) 的空位/田字格在各自
+        //    item 的 seg 里，item 级判定看不到）——历史事故：归类/仿写/圈选类题被补 5~9 行横线
+        const secAllHtml = secNodes.map(n => n.outerHTML || n.textContent || '').join('');
+        const secAllText = (head.textContent || '') + secNodes.map(n => n.textContent || '').join('');
+        const sectionHasCarrier = parenBlankTest.test(secAllHtml)
+          || blankTagTest.test(secAllHtml)
+          || fullWidthBlankTest.test(secAllHtml)
+          || /match-question|match-item|zuo-wen-ge|square-grid|bracket-grid|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge/.test(secAllHtml)
+          || countOptions(secAllHtml) > 0
+          || /照样子|例[：:、]|圈出|归类|填一填|填空|选一选|选词|连一连|判断|选择|划出/.test(secAllText);
+        if (sectionHasCarrier) return;
         // 大题内小题（题号行："1." 或 "（1）"）；无题号行时整大题视为一个作答项（如书面表达）
         const itemPs = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p'
           && /^\s*(?:\d+[.、．]|[(（]\d+[)）])/.test((n.textContent || '').trim()));
@@ -1297,3 +1338,44 @@ const fixExcessPinyinBlanksInDom = (nodes, excess) => {
 };
 
 export default { auditExamPaper, normalizePinyinText, countBlanks, countPinyinGroups, countPinyinOptions, countOptions, countMatchSides, splitSections, fixScoreLabel };
+
+/** 统计一段 HTML 中的田字格 span 数（看拼音写词语按音节对齐用） */
+export const countTzg = (html) => {
+  if (!html) return 0;
+  return (html.match(/<span[^>]*class=["'][^"']*tian-zi-ge[^"']*["'][^>]*>/gi) || []).length;
+};
+
+/** 按目标数量补/删田字格 span（拼音音节对齐：每音节 1 格；diff>0 补、diff<0 删，从尾部操作） */
+const fixTzgCountInDom = (nodes, diff) => {
+  let changed = 0;
+  try {
+    if (diff > 0) {
+      // 补：克隆最后一个田字格 span，插入其后（位置贴近原格，卷面连续）
+      for (const root of nodes) {
+        if (changed >= diff) break;
+        const spans = root.querySelectorAll ? Array.from(root.querySelectorAll('span.tian-zi-ge')) : [];
+        if (spans.length === 0) continue;
+        const last = spans[spans.length - 1];
+        for (let k = 0; k < diff - changed; k++) {
+          const clone = last.cloneNode(true);
+          last.parentNode.insertBefore(clone, last.nextSibling);
+          changed += 1;
+        }
+      }
+    } else {
+      // 删：从尾部删除多余的田字格 span（优先删后组的多余格，各组合法格保留）
+      const need = -diff;
+      for (let i = nodes.length - 1; i >= 0 && changed < need; i--) {
+        const root = nodes[i];
+        const spans = root.querySelectorAll ? Array.from(root.querySelectorAll('span.tian-zi-ge')) : [];
+        for (let k = spans.length - 1; k >= 0 && changed < need; k--) {
+          spans[k].parentNode.removeChild(spans[k]);
+          changed += 1;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ 田字格数量对齐失败:', e.message);
+  }
+  return changed >= Math.abs(diff);
+};
