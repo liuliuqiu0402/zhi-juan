@@ -1015,6 +1015,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       // 🔧 本地非全局正则（PAREN_BLANK_RE/BLANK_TAG_RE 为 /g 有状态，.test 会受 lastIndex 干扰）
       const parenBlankTest = /[（(]\s*[　\u3000 ]{1,12}\s*[)）]/;
       const blankTagTest = /<span[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/span>|<u[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/u>/i;
+      // 🔧 填空载体变体（防把填空/查字典题误当解答题补差）：
+      //    引号空位 “　　　　”、双括号空位 ((　))、裸全角空格空位（如"除去部首还有　　　　画"）
+      const fullWidthBlankTest = /[“"][　\s\u3000]{2,}[”"]|[(（]{1,2}[　\s\u3000]{2,}[)）]{1,2}|[　\u3000]{2,}/;
       headsK.forEach((head, i) => {
         const title = (head.textContent || '').trim();
         const cm = title.match(/共\s*(\d{1,3})\s*分/);
@@ -1052,11 +1055,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const segHtml = it.seg.map(n => n.outerHTML || n.textContent || '').join('');
           const segAll = (it.p.outerHTML || '') + segHtml; // 题号行自身的括号空位/填空格/选项也要参与载体判定
           const stem = (it.p.textContent || '').trim();
-          // 已有载体/题型 → 跳过（填空括号、填空格、连线、专用格线、选项、圈选/判断/写作类）
-          if (parenBlankTest.test(segAll) || blankTagTest.test(segAll)) continue;
+          // 已有载体/题型 → 跳过（填空括号、引号/全角空格空位、填空格、连线、专用格线、选项、圈选/判断/写作类）
+          if (parenBlankTest.test(segAll) || blankTagTest.test(segAll) || fullWidthBlankTest.test(segAll)) continue;
           if (/match-question|match-item|zuo-wen-ge|square-grid|bracket-grid|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge/.test(segAll)) continue;
           if (countOptions(segAll) > 0) continue;
-          if (/(?:选择|选一选|选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|写话|习作|作文|写作)/.test(stem)) continue;
+          if (/(?:选择|选一选|选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|写话|习作|作文|写作|填一填|填空|填字)/.test(stem)) continue;
           // 度量有效作答行（纯空行/题间空行不计；内嵌填空下划线=已有载体 → 跳过）
           let rows = 0;
           let hasFillIn = false;

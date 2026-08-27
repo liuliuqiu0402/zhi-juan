@@ -501,4 +501,19 @@ describe('examValidator 书写作答空间保障（answer-area-fix）', () => {
     expect(ansPart).not.toContain('blank-area');
     expect(issues.some(i => i.type === 'answer-area')).toBe(true);
   });
+
+  it('填空/查字典题（引号空位+全角空格空位+"填一填"）→ 不误补解答区（真实事故回归）', () => {
+    const html = [
+      '<h2>一、识字与写字（共4题，共32分）</h2>',
+      '<p>3. 照样子，用部首查字法填一填。（每空1分，共6分）</p>',
+      '<p>例：“桂”的部首是“木”，除去部首还有6画。</p>',
+      '<p>（1）“桐”的部首是“　　　　　　”，除去部首还有　　　　画。</p>',
+      '<p>（2）“旗”的部首是“　　　　　　”，除去部首还有　　　　画。</p>',
+      '<p>（3）“银”的部首是“　　　　　　”，除去部首还有　　　　画。</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    // 引号空位/裸全角空格 = 填空载体 → 不得补任何作答行
+    expect((out.match(/blank-line/g) || []).length).toBe(0);
+    expect(issues.some(i => i.type === 'answer-area')).toBe(false);
+  });
 });
