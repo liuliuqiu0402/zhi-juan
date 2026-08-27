@@ -475,7 +475,7 @@ const extractGradeNum = (gradeStr) => {
 
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
-import { cleanSectionHtml, htmlToPlainText, countTopLevelQuestions, normalizeBlankMarkers, normalizeIndents } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, countTopLevelQuestions, normalizeBlankMarkers, normalizeIndents, resizeBlanksByAnswer } from '../utils/contentCleaner.js';
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -4955,6 +4955,17 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
 
     // 🔴 标题根治兜底：移除模型拼入 h1 的任务行类型词（如" 考卷"），标题只保留命名规范占位符组合
     content = stripTypeWordFromTitle(content);
+
+    // 🔧 按答案回填空位宽度（卷面惯例程序化）：空位宽度=答案字数×wordGap，不依赖模型估算；
+    //    生成后调用（正文+答案均已就绪），题号匹配失败/无答案 → 保持原样
+    if (answerHtml && typeof content === 'string' && content) {
+      try {
+        const bl = getMergedSpec().BLANK || {};
+        content = resizeBlanksByAnswer(content, answerHtml, bl);
+      } catch (e) {
+        console.warn('⚠️ 按答案回填空位宽度失败（不影响其他）:', e.message);
+      }
+    }
 
     // 🔴 密封线兜底：正式试卷且 AI 未输出密封线 → 代码补（恢复原拼装器的密封线成果）
     let finalContent = answerHtml ? `${content}\n\n${answerHtml}` : content;

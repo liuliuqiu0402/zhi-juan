@@ -218,4 +218,77 @@ export function normalizeIndents(html = '') {
   return out;
 }
 
-export default { cleanSectionHtml, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeIndents };
+/**
+ * 按答案回填空位宽度（卷面惯例程序化：空位宽度=答案字数×wordGap，不依赖模型估算；
+ * 生成后调用，此时正文与答案均已就绪）。匹配粒度=题号（答案区"1.答案：…" ↔ 正文"1. …"），
+ * 多空题按空位数均分答案长度；匹配失败/无答案 → 保持原样（安全）。
+ * @param {string} html 正文 HTML（含 <span class="blank-N"> 空位）
+ * @param {string} answerHtml 答案区 HTML（含题号行）
+ * @param {{wordGap?:number,maxCap?:number,minBlank?:number}} bl 排版规格 BLANK 参数
+ */
+export const resizeBlanksByAnswer = (html, answerHtml, bl = {}) => {
+  if (!html || !answerHtml) return html;
+  const { wordGap = 2, maxCap = 10, minBlank = 2 } = bl;
+  // ── 1) 答案区按题号提取答案文本（"N.答案：…解析：…" → 每题取"答案"至"解析"前）──
+  const ansByQ = {};
+  try {
+    const tplA = document.createElement('template');
+    tplA.innerHTML = answerHtml;
+    const ansText = (tplA.content.textContent || '').replace(/\s+/g, '');
+    const qRe = /(\d{1,2})[.、．]/g;
+    const ansSegs = [];
+    let mm = null;
+    let lastIdx = 0;
+    let lastQ = null;
+    while ((mm = qRe.exec(ansText)) !== null) {
+      if (lastQ != null) ansSegs.push({ q: lastQ, text: ansText.slice(lastIdx, mm.index) });
+      lastQ = parseInt(mm[1], 10);
+      lastIdx = mm.index;
+    }
+    if (lastQ != null) ansSegs.push({ q: lastQ, text: ansText.slice(lastIdx) });
+    for (const s of ansSegs) {
+      let t = s.text.replace(/^\d+[.、．]|答案[:：]|解析[:：][\s\S]*$/g, '').replace(/（\d+）|[(（]\d{1,2}[)）]/g, '').replace(/[（()）"“”]/g, '');
+      if (t.length > 0) ansByQ[s.q] = t;
+    }
+  } catch (e) {
+    return html;
+  }
+  // ── 2) 正文按题号收集 blank-N span ──
+  try {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html;
+    const qBlanks = {};
+    let curQ = null;
+    for (const p of Array.from(tpl.content.querySelectorAll('p'))) {
+      const t = (p.textContent || '').trim();
+      const qm = t.match(/^(\d{1,2})[.、．]/);
+      if (qm) curQ = parseInt(qm[1], 10);
+      if (curQ == null) continue;
+      for (const sp of p.querySelectorAll('span[class*="blank-"]')) {
+        if (/^blank-\d+$/.test(sp.className || '') || /blank-\d+/.test(sp.className || '')) {
+          (qBlanks[curQ] = qBlanks[curQ] || []).push(sp);
+        }
+      }
+    }
+    let changed = 0;
+    for (const [qs, spans] of Object.entries(qBlanks)) {
+      const q = parseInt(qs, 10);
+      const ansText = ansByQ[q];
+      if (!ansText || spans.length === 0) continue;
+      const n = Math.min(maxCap, Math.max(minBlank, Math.ceil(([...ansText].length / spans.length) * wordGap)));
+      for (const sp of spans) {
+        const cls = [...sp.classList].find((c) => /^blank-\d+$/.test(c));
+        if (cls && cls !== `blank-${n}`) {
+          sp.classList.remove(cls);
+          sp.classList.add(`blank-${n}`);
+          changed += 1;
+        }
+      }
+    }
+    return changed > 0 ? tpl.innerHTML : html;
+  } catch (e) {
+    return html;
+  }
+};
+
+export default { cleanSectionHtml, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeIndents, resizeBlanksByAnswer };
