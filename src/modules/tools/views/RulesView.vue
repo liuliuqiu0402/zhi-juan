@@ -18,7 +18,7 @@
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="dim-now">
-          <span class="dimb">{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
+          <span class="dimb" :title="dims.stage ? STAGE_LABELS[dims.stage] : '全部学段'">{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
           <span class="dimb">{{ dims.subject || '全部学科' }}</span>
           <span class="dimb">{{ dims.genType ? GEN_TYPE_NAME[dims.genType] : '全部类型' }}</span>
         </div>
@@ -316,7 +316,7 @@ const doImport = async (e) => {
 .ok-n { color: #1d7a4a; }
 .bad-n { color: var(--danger); }
 .dim-now { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.dimb { font-size: 12px; padding: 2px 10px; border-radius: 6px; background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; }
+.dimb { font-size: 12px; padding: 2px 10px; border-radius: 6px; background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; max-width: 132px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .btn-p { border: none; background: var(--primary); color: #fff; border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
 .btn-p:hover { background: var(--primary-light); }
 .btn { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 5px 12px; font-size: 12.5px; cursor: pointer; }

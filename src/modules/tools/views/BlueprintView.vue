@@ -7,13 +7,32 @@
         <b>真题蓝本 {{ examList.length }} / {{ allExamCount }} 条</b>
         <span class="ov-sep">·</span>
         <b>教辅结构 {{ teachList.length }} / {{ allTeachCount }} 条</b>
+        <span class="ov-sep">·</span>
+        <span class="chip-label">真题蓝本</span>
+        <span class="st-chips">
+          <button class="st-chip" :class="{ sel: examFilter === 'all' }" @click="examFilter = 'all'">全部 {{ examCounts.total }}</button>
+          <button class="st-chip on" :class="{ sel: examFilter === 'on' }" @click="examFilter = 'on'">启用 {{ examCounts.on }}</button>
+          <button class="st-chip off" :class="{ sel: examFilter === 'off' }" @click="examFilter = 'off'">停用 {{ examCounts.off }}</button>
+        </span>
+        <span class="ov-sep">·</span>
+        <span class="chip-label">教辅结构</span>
+        <span class="st-chips">
+          <button class="st-chip" :class="{ sel: teachFilter === 'all' }" @click="teachFilter = 'all'">全部 {{ teachCounts.total }}</button>
+          <button class="st-chip on" :class="{ sel: teachFilter === 'on' }" @click="teachFilter = 'on'">启用 {{ teachCounts.on }}</button>
+          <button class="st-chip off" :class="{ sel: teachFilter === 'off' }" @click="teachFilter = 'off'">停用 {{ teachCounts.off }}</button>
+        </span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="dim-now">
-          <span class="dimb">{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
+          <span class="dimb" :title="dims.stage ? STAGE_LABELS[dims.stage] : '全部学段'">{{ dims.stage ? SHORT_STAGE[dims.stage] : '全部学段' }}</span>
           <span class="dimb">{{ dims.subject || '全部学科' }}</span>
           <span class="dimb">{{ dims.genType ? GEN_TYPE_LABELS[dims.genType] : '全部类型' }}</span>
         </div>
+        <select v-model="previewRegion" class="preview-select" :title="'省市预览：列表按所选省市中考总分/时长覆盖显示（不改存储的基础蓝本）'">
+          <option value="">不预览（基础蓝本）</option>
+          <option v-for="r in EXAM_REGION_OPTIONS" :key="r" :value="r">{{ r }}</option>
+        </select>
+        <button class="btn" @click="openRegionModal">🏙 省市分值维护</button>
         <button class="btn-p" @click="openNew">＋ 新增蓝本</button>
         <button class="btn" @click="doExport">📤 导出</button>
         <button class="btn" @click="importInput?.click()">📥 导入</button>
@@ -31,13 +50,7 @@
     <div class="bp-validate ok" v-else>✅ blueprintGuard 静态校验全部通过（当前筛选范围）</div>
 
     <!-- 真题蓝本（手风琴） -->
-    <h4 class="bp-h">📐 真题蓝本（exam）<span class="hint">点击名称展开/收起 · 展开后可编辑</span>
-      <span class="st-chips">
-        <button class="st-chip" :class="{ sel: examFilter === 'all' }" @click="examFilter = 'all'">全部 {{ examCounts.total }}</button>
-        <button class="st-chip on" :class="{ sel: examFilter === 'on' }" @click="examFilter = 'on'">启用 {{ examCounts.on }}</button>
-        <button class="st-chip off" :class="{ sel: examFilter === 'off' }" @click="examFilter = 'off'">停用 {{ examCounts.off }}</button>
-      </span>
-    </h4>
+    <h4 class="bp-h">📐 真题蓝本（exam）<span class="hint">点击名称展开/收起 · 展开后可编辑</span></h4>
     <div v-if="examList.length" class="bp-list">
       <div v-for="bp in examList" :key="bp.key" class="bp-card" :class="{ open: openKey === bp.key, editing: editingKey === bp.key, disabled: bpOff(bp.key) }">
         <!-- 卡片头：点击切换展开 -->
@@ -47,7 +60,8 @@
           <span class="dim-name">{{ dimName(bp) }}</span>
           <span class="key-hint" :title="'数据键：' + bp.key">{{ bp.key }}</span>
           <span v-if="bp.source === 'user'" class="src-user">已自定义</span>
-          <span class="bp-meta">满分 {{ bp.fullScore }} 分 · {{ bp.duration }} · {{ bp.sections.length }} 大题</span>
+          <span class="bp-meta">{{ bp.fullScore }} 分 · {{ bp.duration }} · {{ bp.sections.length }} 大题</span>
+          <span v-if="previewRegion" class="preview-tag">预览·{{ previewRegion }}（已覆盖，仅显示）</span>
           <label class="sw" :class="{ off: bpOff(bp.key) }" @click.stop title="停用后该条目不参与生成（exam 走密封线兜底）">
             <input type="checkbox" :checked="!bpOff(bp.key)" @change="toggleBp(bp.key, $event.target.checked)" />
             <span>{{ bpOff(bp.key) ? '已停用' : '启用' }}</span>
@@ -103,13 +117,7 @@
     <div v-else class="bp-empty">当前筛选无真题蓝本（可放宽筛选）</div>
 
     <!-- 教辅结构（手风琴只读） -->
-    <h4 class="bp-h">📚 教辅结构（学科 × 8 类）<span class="hint">点击展开查看栏目与学段参数 · 已定制显示学科版栏目，未定制回退通用模板</span>
-      <span class="st-chips">
-        <button class="st-chip" :class="{ sel: teachFilter === 'all' }" @click="teachFilter = 'all'">全部 {{ teachCounts.total }}</button>
-        <button class="st-chip on" :class="{ sel: teachFilter === 'on' }" @click="teachFilter = 'on'">启用 {{ teachCounts.on }}</button>
-        <button class="st-chip off" :class="{ sel: teachFilter === 'off' }" @click="teachFilter = 'off'">停用 {{ teachCounts.off }}</button>
-      </span>
-    </h4>
+    <h4 class="bp-h">📚 教辅结构（学科 × 8 类）<span class="hint">点击展开查看栏目与学段参数 · 已定制显示学科版栏目，未定制回退通用模板</span></h4>
     <div v-if="teachList.length" class="bp-list teach">
       <div v-for="bp in teachList" :key="bp.key" class="bp-card" :class="{ open: openTeach === bp.key, disabled: bpOff(bp.key) }">
         <div class="bp-head" @click="toggleTeach(bp.key)">
@@ -147,6 +155,44 @@
     </div>
     <div v-else class="bp-empty">当前筛选无教辅结构（选 exam 时仅显示真题蓝本）</div>
 
+    <!-- 🏙 省市分值维护弹窗（中考 · 初中；用户覆盖优先于内置，生成与预览即时生效） -->
+    <div v-if="showRegionModal" class="modal-mask" @click.self="showRegionModal = false">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <span>🏙 省市分值维护（中考 · 初中）</span>
+          <button class="btn" @click="showRegionModal = false">✕</button>
+        </div>
+        <p class="modal-desc">
+          内置各市中考卷总分/时长（各市中考总分 100-150 分不等）。修改后保存即覆盖（用户版优先），生成与面板"省市预览"即时生效；
+          清空总分并保存可退回内置。高考全国统一 3+1+2、小学无地区差异，无需维护。
+        </p>
+        <div class="region-sel-row">
+          <select v-model="regionSel" class="filter-select">
+            <option value="">选择省市</option>
+            <option v-for="r in EXAM_REGION_OPTIONS" :key="r" :value="r">{{ r }}</option>
+          </select>
+          <span class="filter-hint">{{ regionSel ? `已显示 ${regionSel} 初中各学科` : '请先选择省市' }}</span>
+        </div>
+        <div v-if="regionSel" class="region-table">
+          <div class="region-row region-row-head">
+            <span>学科</span><span>内置总分</span><span>内置时长</span><span>覆盖总分</span><span>覆盖时长</span><span>操作</span>
+          </div>
+          <div v-for="row in regionRows" :key="row.subject" class="region-row">
+            <span class="region-subject">{{ row.subject }}</span>
+            <span class="region-cell">{{ row.builtin.fullScore || '—' }}</span>
+            <span class="region-cell">{{ row.builtin.duration || '—' }}</span>
+            <input v-model.number="row.override.fullScore" class="filter-input region-input" type="number" min="1" max="300" :placeholder="row.builtin.fullScore || ''" />
+            <input v-model="row.override.duration" class="filter-input region-input" :placeholder="row.builtin.duration || ''" />
+            <span class="region-ops">
+              <button class="btn btn-sm" @click="saveRegionRow(row)" title="保存覆盖">💾</button>
+              <button v-if="row.hasOverride" class="btn btn-sm btn-remove" @click="removeRegionRow(row)" title="退回内置">↩️</button>
+            </span>
+          </div>
+        </div>
+        <p v-if="regionTip" class="region-tip">{{ regionTip }}</p>
+      </div>
+    </div>
+
     <!-- 新建蓝本弹层 -->
     <div v-if="newOpen" class="modal-mask" @click.self="newOpen = false">
       <div class="modal">
@@ -181,7 +227,8 @@ import { EXAM_BLUEPRINTS } from '../../../config/examPaperBlueprints.js';
 import { TEACHING_BLUEPRINTS, TEACHING_GEN_TYPES, TEACHING_SUBJECT_BLUEPRINTS } from '../../../config/teachingBlueprints.js';
 import { validateAllBlueprints } from '../../../config/blueprintGuard.js';
 import { CARRIER_LABELS, enhanceBlueprint } from '../../../config/blueprintSchema.js';
-import { listAllBlueprints, saveUserBlueprint, deleteUserBlueprint } from '../../../config/blueprintProvider.js';
+import { listAllBlueprints, saveUserBlueprint, deleteUserBlueprint, previewWithRegion } from '../../../config/blueprintProvider.js';
+import { EXAM_REGION_OPTIONS, EXAM_REGION_CONFIG, setRegionOverride, removeRegionOverride, loadUserRegionConfig } from '../../../config/examRegionConfig.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 import { setLibToggle, listDisabledEntries } from '../../../utils/libToggles.js';
@@ -202,6 +249,8 @@ const toggleBp = (key, on) => {
 const STAGE_LABELS = {
   primary_low: '小学低段（1-2年级）', primary_mid: '小学中段（3-4年级）', primary_high: '小学高段（5-6年级）', middle: '初中（7-9年级）', high: '高中',
 };
+/** 概览条学段短名（完整名过长导致第二行换行；悬浮 title 显示全名） */
+const SHORT_STAGE = { primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中' };
 const GEN_TYPE_LABELS = {
   exam: '正式试卷', practice: '课时练', special: '专项突破', preview: '课前预习',
   reading: '阅读训练', summary: '知识总结', dictation: '默写积累', errorbook: '错题本', review: '复习资料',
@@ -238,6 +287,42 @@ const toggleTeach = (key) => { openTeach.value = openTeach.value === key ? '' : 
 const examFilter = ref('all'); // all | on | off
 const teachFilter = ref('all');
 
+/* ===== 省市预览与分值维护（中考·初中；用户覆盖优先于内置，见 examRegionConfig） ===== */
+const previewRegion = ref(''); // 空=不预览（基础蓝本）
+const showRegionModal = ref(false);
+const regionSel = ref('');
+const regionTick = ref(0);
+const regionTip = ref('');
+const openRegionModal = () => { showRegionModal.value = true; regionSel.value = ''; regionTip.value = ''; };
+/** 选定省市的初中各学科行（内置值 + 用户覆盖值） */
+const regionRows = computed(() => {
+  regionTick.value; // 依赖触发：保存/删除后自增刷新
+  if (!regionSel.value) return [];
+  const builtinMap = EXAM_REGION_CONFIG[regionSel.value]?.middle || {};
+  const userMap = loadUserRegionConfig()[regionSel.value]?.middle || {};
+  const subjects = new Set([...Object.keys(builtinMap), ...Object.keys(userMap)]);
+  return [...subjects].map((subject) => ({
+    subject,
+    builtin: { fullScore: builtinMap[subject]?.fullScore || '', duration: builtinMap[subject]?.duration || '' },
+    override: { fullScore: userMap[subject]?.fullScore ?? null, duration: userMap[subject]?.duration ?? '' },
+    hasOverride: !!userMap[subject],
+  }));
+});
+const saveRegionRow = (row) => {
+  const score = Number(row.override.fullScore);
+  if (!score || score < 1) { regionTip.value = `⚠️ ${row.subject}：请填写有效的覆盖总分`; return; }
+  setRegionOverride(regionSel.value, 'middle', row.subject, { fullScore: score, duration: String(row.override.duration || '').trim() });
+  regionTip.value = `✅ ${row.subject}（${regionSel.value}）覆盖已保存，生成即时生效`;
+  regionTick.value++;
+  setTimeout(() => { regionTip.value = ''; }, 3000);
+};
+const removeRegionRow = (row) => {
+  removeRegionOverride(regionSel.value, 'middle', row.subject);
+  regionTip.value = `↩️ ${row.subject}（${regionSel.value}）已退回内置`;
+  regionTick.value++;
+  setTimeout(() => { regionTip.value = ''; }, 3000);
+};
+
 /* ===== 筛选 ===== */
 const matchStage = (key) => {
   const st = dims.value.stage;
@@ -250,10 +335,12 @@ const matchSubject = (key) => {
   return key.startsWith(`${su}|`) || key === su;
 };
 const dimExamList = computed(() =>
-  allExam.value.filter((bp) => {
-    if (dims.value.genType && dims.value.genType !== 'exam') return false;
-    return matchSubject(bp.key) && matchStage(bp.key);
-  })
+  allExam.value
+    .map((bp) => previewWithRegion(bp, previewRegion.value))
+    .filter((bp) => {
+      if (dims.value.genType && dims.value.genType !== 'exam') return false;
+      return matchSubject(bp.key) && matchStage(bp.key);
+    })
 );
 const examCounts = computed(() => {
   let on = 0, off = 0;
@@ -407,7 +494,7 @@ const doImport = async (e) => {
 .ov-sep { margin: 0 8px; color: #c2ccda; }
 .issue-n { color: var(--danger); }
 .dim-now { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.dimb { font-size: 12px; padding: 2px 10px; border-radius: 6px; background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; }
+.dimb { font-size: 12px; padding: 2px 10px; border-radius: 6px; background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; max-width: 132px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .btn-p { border: none; background: var(--primary); color: #fff; border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
 .btn-p:hover { background: var(--primary-light); }
 .btn { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 5px 12px; font-size: 12.5px; cursor: pointer; }
@@ -426,7 +513,8 @@ const doImport = async (e) => {
 .bp-h { font-size: 14px; color: var(--primary); margin: 22px 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .hint { font-size: 11.5px; color: var(--text-muted); font-weight: 400; margin-left: 8px; }
 /* 状态计数 chip（全部/启用/停用，点击过滤列表） */
-.st-chips { display: inline-flex; gap: 6px; margin-left: auto; }
+.st-chips { display: inline-flex; gap: 6px; margin-left: 6px; }
+.chip-label { font-size: 11.5px; color: var(--text-muted); font-weight: 400; }
 .st-chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 2px 10px; font-size: 11.5px; cursor: pointer; color: var(--text-muted); }
 .st-chip:hover { border-color: var(--primary-light); color: var(--primary); }
 .st-chip.on { color: #2e7d32; }
@@ -435,6 +523,26 @@ const doImport = async (e) => {
 .st-chip.sel:hover { color: #fff; }
 .st-chip.on.sel { background: #2e7d32; border-color: #2e7d32; }
 .st-chip.off.sel { background: #c0392b; border-color: #c0392b; }
+/* 省市预览下拉与维护弹窗（迁移自旧蓝图面板） */
+.preview-select { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; background: #fff; color: #556; cursor: pointer; }
+.preview-tag { font-size: 10.5px; font-weight: 600; padding: 2px 10px; border-radius: 20px; background: #fdf3e2; color: #a06a10; border: 1px solid #f3d9a8; }
+.modal-panel { width: 680px; max-width: 92vw; max-height: 80vh; overflow-y: auto; background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 8px 30px rgba(30,58,111,.18); }
+.modal-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 15px; color: var(--primary); margin-bottom: 8px; }
+.modal-desc { font-size: 12px; color: var(--text-muted); line-height: 1.7; margin-bottom: 12px; }
+.filter-select { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; background: #fff; color: #445; cursor: pointer; }
+.filter-hint { font-size: 11px; color: var(--text-muted); white-space: nowrap; margin-left: 4px; }
+.region-sel-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.region-table { border: 1px solid var(--border-light); border-radius: 8px; overflow: hidden; }
+.region-row { display: grid; grid-template-columns: 90px 70px 90px 90px 110px 90px; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--border-light); font-size: 13px; }
+.region-row:last-child { border-bottom: none; }
+.region-row-head { background: var(--primary-lighter); font-weight: 600; color: var(--primary); font-size: 12px; }
+.region-subject { font-weight: 500; color: #26303e; }
+.region-cell { color: var(--text-muted); }
+.region-input { width: 100%; min-width: 0; }
+.region-ops { display: flex; gap: 4px; }
+.btn-remove { color: var(--danger); }
+.btn-sm { padding: 4px 12px; font-size: 12px; }
+.region-tip { font-size: 12.5px; color: #1d7a4a; margin: 10px 0 0; }
 .bp-list { display: flex; flex-direction: column; gap: 8px; }
 .bp-card { background: #fff; border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; }
 .bp-card.open { border-color: var(--primary-light); box-shadow: 0 2px 10px rgba(30,58,111,.08); }

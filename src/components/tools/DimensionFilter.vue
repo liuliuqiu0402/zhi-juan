@@ -48,9 +48,9 @@ const GEN_TYPE_LABELS = GEN_TYPE_KEYS.map((k) => ({
 </script>
 
 <style scoped>
-.dim-filter { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
-.fitem { display: flex; flex-direction: column; gap: 4px; }
-.fitem label { font-size: 11.5px; color: var(--text-muted); }
+.dim-filter { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fitem { display: flex; align-items: center; gap: 6px; }
+.fitem label { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
 .fitem select { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 13px; background: #fff; min-width: 128px; }
-.compact .fitem select { min-width: 108px; padding: 5px 8px; font-size: 12.5px; }
+.compact .fitem select { min-width: 88px; padding: 5px 8px; font-size: 12.5px; }
 </style>

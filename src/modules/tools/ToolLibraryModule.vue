@@ -19,7 +19,7 @@
         <section class="sub-content">
           <div class="sub-toolbar">
             <button class="back-btn" @click="$router.push('/tools')">← 返回工具库</button>
-            <div class="crumb">工具库 <span class="crumb-sep">/</span> {{ activeLib.icon }} {{ activeLib.name }} <span class="crumb-dim">三维度 · 学段×学科×资料类型</span></div>
+            <div class="crumb">工具库 <span class="crumb-sep">/</span> {{ activeLib.icon }} {{ activeLib.name }} <span class="crumb-dim" :title="'三维度检索：学段 × 学科 × 资料类型'">三维度</span></div>
             <div class="toolbar-actions">
               <template v-for="act in (activeLib.toolbar?.actions || [])" :key="act">
                 <button v-if="act === 'new'" class="btn" @click="onNewEntry">+ 新建条目</button>

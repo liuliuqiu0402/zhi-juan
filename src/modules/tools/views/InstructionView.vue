@@ -16,7 +16,7 @@
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="dim-now">
-          <span class="dimb">{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
+          <span class="dimb" :title="dims.stage ? STAGE_LABELS[dims.stage] : '全部学段'">{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
           <span class="dimb">{{ dims.subject || '全部学科' }}</span>
           <span class="dimb">{{ dims.genType ? GEN_TYPE_LABELS[dims.genType] : '全部类型' }}</span>
         </div>
@@ -28,7 +28,7 @@
     </div>
 
     <!-- 课标版本声明（新课标发布后需人工核对更新，见 promptLibrary.CURRICULUM_VERSION_INFO） -->
-    <div class="tpl-curriculum">📚 课标版本：{{ curriculumNotice }}</div>
+    <div class="tpl-curriculum">📚 课标版本：{{ curriculumNotice }}<span class="check-tip">💡 提示：本应用不自动检测课标版本发布，请关注教育部官网动态，新版发布后请在此人工核对并更新本库表述</span></div>
 
     <!-- 校验结果 -->
     <div class="tpl-validate" v-if="validateMsgs.length">
@@ -310,13 +310,14 @@ const doImport = async (e) => {
 .st-chip.sel:hover { color: #fff; }
 .st-chip.on.sel { background: #2e7d32; border-color: #2e7d32; }
 .st-chip.off.sel { background: #c0392b; border-color: #c0392b; }
-/* 课标版本声明条 */
-.tpl-curriculum { margin-top: 10px; font-size: 12.5px; line-height: 1.7; color: #5b4005; background: #fdf3e2; border: 1px solid #f3d9a8; border-radius: 8px; padding: 8px 12px; }
+/* 课标版本声明条（含静态提示：系统不自动检测课标发布，需人工关注官方动态） */
+.tpl-curriculum { margin-top: 10px; font-size: 12.5px; line-height: 1.7; color: #5b4005; background: #fdf3e2; border: 1px solid #f3d9a8; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.check-tip { font-size: 12px; color: #8a6d1c; }
 .lib-badge { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 6px; padding: 3px 10px; margin-right: 10px; }
 .ov-sep { margin: 0 8px; color: #c2ccda; }
 .user-n { color: var(--primary); }
 .dim-now { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.dimb { font-size: 12px; padding: 2px 10px; border-radius: 6px; background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; }
+.dimb { font-size: 12px; padding: 2px 10px; border-radius: 6px; background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; max-width: 132px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .btn-p { border: none; background: var(--primary); color: #fff; border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
 .btn-p:hover { background: var(--primary-light); }
 .btn { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 5px 12px; font-size: 12.5px; cursor: pointer; }

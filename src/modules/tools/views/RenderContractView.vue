@@ -8,14 +8,28 @@
         <span class="ov-sep">·</span>
         <b>契约学科 {{ contractList.length }} / {{ SUBJECT_KEYS.length }}</b>
         <span class="ov-sep">·</span>
-        <span>停用 <b class="issue-n">{{ disabledSub.size }}</b> 学科</span>
-        <span class="ov-sep">·</span>
         <span>缺口 <b class="issue-n">{{ gapCount }}</b></span>
+        <span class="ov-sep">·</span>
+        <span class="chip-label">图形 TYPE</span>
+        <span class="st-chips">
+          <button class="st-chip" :class="{ sel: typeStatusFilter === 'all' }" @click="typeStatusFilter = 'all'">全部 {{ typeCounts.total }}</button>
+          <button class="st-chip on" :class="{ sel: typeStatusFilter === 'on' }" @click="typeStatusFilter = 'on'">启用 {{ typeCounts.on }}</button>
+          <button class="st-chip off" :class="{ sel: typeStatusFilter === 'off' }" @click="typeStatusFilter = 'off'">停用 {{ typeCounts.off }}</button>
+        </span>
+        <span class="ov-sep">·</span>
+        <span class="chip-label">学科契约</span>
+        <span class="st-chips">
+          <button class="st-chip" :class="{ sel: subStatusFilter === 'all' }" @click="subStatusFilter = 'all'">全部 {{ subCounts.total }}</button>
+          <button class="st-chip on" :class="{ sel: subStatusFilter === 'on' }" @click="subStatusFilter = 'on'">启用 {{ subCounts.on }}</button>
+          <button class="st-chip off" :class="{ sel: subStatusFilter === 'off' }" @click="subStatusFilter = 'off'">停用 {{ subCounts.off }}</button>
+        </span>
       </div>
-      <div class="dim-now">
-        <span class="dimb">{{ dims.subject || '全部学科' }}</span>
-        <span class="dimb">{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
-        <span class="dimb">{{ dims.genType ? GEN_TYPE_NAME[dims.genType] : '全部类型' }}</span>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div class="dim-now">
+          <span class="dimb">{{ dims.subject || '全部学科' }}</span>
+          <span class="dimb" :title="dims.stage ? STAGE_LABELS[dims.stage] : '全部学段'">{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
+          <span class="dimb">{{ dims.genType ? GEN_TYPE_NAME[dims.genType] : '全部类型' }}</span>
+        </div>
         <button class="btn-p" @click="newOpen = true">＋ 新增契约</button>
         <button class="btn" @click="doExport">📤 导出</button>
         <button class="btn" @click="importInput?.click()">📥 导入</button>
@@ -33,13 +47,7 @@
     <div class="rc-validate ok" v-else>✅ 渲染契约覆盖正常（当前筛选范围）</div>
 
     <!-- 图形 TYPE 目录（手风琴） -->
-    <h4 class="rc-h">📊 图形 TYPE 目录（[GRAPH] 协议）<span class="hint">点击 TYPE 查看示例骨架</span>
-      <span class="st-chips">
-        <button class="st-chip" :class="{ sel: typeStatusFilter === 'all' }" @click="typeStatusFilter = 'all'">全部 {{ typeCounts.total }}</button>
-        <button class="st-chip on" :class="{ sel: typeStatusFilter === 'on' }" @click="typeStatusFilter = 'on'">启用 {{ typeCounts.on }}</button>
-        <button class="st-chip off" :class="{ sel: typeStatusFilter === 'off' }" @click="typeStatusFilter = 'off'">停用 {{ typeCounts.off }}</button>
-      </span>
-    </h4>
+    <h4 class="rc-h">📊 图形 TYPE 目录（[GRAPH] 协议）<span class="hint">点击 TYPE 查看示例骨架</span></h4>
     <div class="rc-list">
       <div v-for="t in typeShowList" :key="t.id" class="rc-card" :class="{ open: openType === t.id, disabled: typeOff(t.id) }">
         <div class="rc-head" @click="toggleType(t.id)">
@@ -66,13 +74,7 @@
     </div>
 
     <!-- 学科契约矩阵 -->
-    <h4 class="rc-h">📚 学科契约（学科 × 学段 → 图形/公式/配图）<span class="hint">按学科筛选联动 · 展开可自定义</span>
-      <span class="st-chips">
-        <button class="st-chip" :class="{ sel: subStatusFilter === 'all' }" @click="subStatusFilter = 'all'">全部 {{ subCounts.total }}</button>
-        <button class="st-chip on" :class="{ sel: subStatusFilter === 'on' }" @click="subStatusFilter = 'on'">启用 {{ subCounts.on }}</button>
-        <button class="st-chip off" :class="{ sel: subStatusFilter === 'off' }" @click="subStatusFilter = 'off'">停用 {{ subCounts.off }}</button>
-      </span>
-    </h4>
+    <h4 class="rc-h">📚 学科契约（学科 × 学段 → 图形/公式/配图）<span class="hint">按学科筛选联动 · 展开可自定义</span></h4>
     <div class="rc-list">
       <div v-for="c in contractList" :key="c.subject" class="rc-card" :class="{ open: openSub === c.subject, editing: editingSub === c.subject, disabled: subOff(c.subject) }">
         <div class="rc-head" @click="toggleSub(c.subject)">
@@ -404,7 +406,7 @@ const copyContract = (c) => {
 .ov-sep { margin: 0 8px; color: #c2ccda; }
 .issue-n { color: var(--danger); }
 .dim-now { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.dimb { font-size: 12px; padding: 2px 10px; border-radius: 6px; background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; }
+.dimb { font-size: 12px; padding: 2px 10px; border-radius: 6px; background: var(--primary-lighter); color: var(--primary); border: 1px solid #c9d8ee; max-width: 132px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .rc-validate { margin-top: 12px; background: #fff; border: 1px solid var(--border-light); border-radius: 10px; padding: 10px 14px; font-size: 12.5px; }
 .rc-validate.ok { color: #1d7a4a; background: var(--success-light); border-color: #bfe6cd; }
@@ -417,7 +419,8 @@ const copyContract = (c) => {
 .rc-h { font-size: 14px; color: var(--primary); margin: 22px 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .hint { font-size: 11.5px; color: var(--text-muted); font-weight: 400; margin-left: 8px; }
 /* 状态计数 chip（全部/启用/停用，点击过滤列表） */
-.st-chips { display: inline-flex; gap: 6px; margin-left: auto; }
+.st-chips { display: inline-flex; gap: 6px; margin-left: 6px; }
+.chip-label { font-size: 11.5px; color: var(--text-muted); font-weight: 400; }
 .st-chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 2px 10px; font-size: 11.5px; cursor: pointer; color: var(--text-muted); }
 .st-chip:hover { border-color: var(--primary-light); color: var(--primary); }
 .st-chip.on { color: #2e7d32; }
