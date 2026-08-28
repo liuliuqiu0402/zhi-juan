@@ -12,7 +12,7 @@
  *
  * 单一事实源原则（2026-08 全局收敛，同义表述只留一处）：
  *   - 作答空/横线/括号/连线/排版标记规范：仅 OUTPUT_FORMAT_BLOCK 一处定义，全部模板统一引用；
- *   - 卷面结构（exam）：由蓝图库 buildBlueprintInjection 注入明细式，模板【卷面结构】不再重复细则；
+ *   - 卷面结构（exam）：由 buildStructureText 注入明细式（数据源：蓝图库），模板【卷面结构】为占位段；
  *   - 分值账目、填空宽度换算：由代码侧（examValidator/contentCleaner）兜底，模板只给一句话口径；
  *   - 质量底线（内容充足/内容正确/题集组织）：本文件统一定义，按 类型×学科×学段 三维度注入。
  * ============================================================
@@ -44,7 +44,7 @@ const TEACHING_QUALITY = `【质量底线】（教辅资料）
 /** 正式考卷基础模板（extra 为学科排版附加，学科模板复用本函数） */
 const EXAM_BASE = (extra = '') => `你是资深命题专家。请为{grade}{subject}命制一份{unit}正式试卷（满分{fullScore}分，考试时间{duration}）。
 
-【卷面结构】（大题与分值固定，不得增删；由系统注入的真题蓝本明细式确定）
+【卷面结构】（大题与分值固定，不得增删；由系统注入的真题蓝本明细式确定；大题标题"共X题"中的 X 按你实际命制的题数填写）
 {structure}
 
 【创作要求】
@@ -514,11 +514,16 @@ export function buildInjectionInstruction(opts = {}) {
   return [taskLine, body, extraBlock].filter(Boolean).join('\n').trim();
 }
 
-/** 从蓝图生成卷面结构文本（明细式，供指令注入）；参数为 findBlueprint/getExamBlueprint 返回的蓝图对象 */
+/** 从蓝图生成卷面结构文本（明细式，供指令注入）；参数为 findBlueprint/getExamBlueprint 返回的蓝图对象
+ *  注：大题标题"共X题"的 X 由模型按实际命制题数填写（题量是命题设计结果，非程序预知值）；
+ *     分值/大题固定由蓝图确定，生成后由规则库 score 系列验算账目自洽（程序职责）。 */
 export function buildStructureText(bp) {
   const sections = bp?.sections;
   if (!sections?.length) return '';
-  return sections.map((s, i) => `${'一二三四五六七八九十'[i] || i + 1}、${s.name}（共X题，共${s.score || ''}分）`).join('\n');
+  return sections.map((s, i) => {
+    const no = '一二三四五六七八九十'[i] || String(i + 1);
+    return `${no}、${s.name}（共X题，共${s.score || ''}分）${s.note ? `——${s.note}` : ''}`;
+  }).join('\n');
 }
 
 /** 密封线（正式试卷卷首必备，后处理兜底注入——AI 未输出时由代码补） */

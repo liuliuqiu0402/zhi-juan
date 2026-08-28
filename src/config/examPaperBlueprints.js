@@ -4,9 +4,9 @@
 //    蓝本基于人教统编教材配套真题卷（北京/浙江/江苏/广东等新课标命题区通行结构）归纳；
 //    义务教育段依据 2022 年版课标，高中段依据 2017 年版（2020 年修订）课标（新高考结构）。
 //
-// 使用：buildBlueprintInjection 对 genType=exam 强制注入本蓝本（大题/分值/时长固定，优先级高于指令库结构大纲）；
+// 使用：promptLibrary.buildStructureText 对 genType=exam 注入本蓝本（大题/分值/时长固定，优先级高于指令库结构大纲）；
 //      卷面格式细则与命题质量底线在指令库模板（EXAM_BASE）中定义，本库不重复。
-// 单一事实源：分值规则唯一在本文件 buildBlueprintInjection 中定义；大题标题统一明细式（共X题，共X分）。
+// 单一事实源：分值规则唯一在 promptLibrary.buildStructureText 中定义（含大题命题要求 note）；大题标题统一明细式（共X题，共X分）。
 import { getRegionConfig } from './examRegionConfig.js';
 
 /**
@@ -593,7 +593,7 @@ const STAGE_SUBJECT_ALIAS = {
  * @param {string} stage primary_low/primary_mid/primary_high/middle/high
  * @returns {{label:string, fullScore:number, duration:string, sections:Array, key:string}|null}
  */
-export function getExamBlueprint(subject, stage, region) {
+ export function getExamBlueprint(subject, stage, region) {
   if (!subject || !stage) return null;
   const stdSubject = SUBJECT_ALIAS[subject] || subject;
   // 学段联合别名（同一课程跨学段名称转换，如高中道法→思想政治）
@@ -638,33 +638,8 @@ export function getExamBlueprint(subject, stage, region) {
   return bp;
 }
 
-/**
- * 精简蓝图注入块（供整卷生成指令尾部附加）——只注入卷面结构（题型骨架 + 大题命题要求 + 分值），
- * 确定性结构数据由本库提供（真题卷卷面骨架是确定性知识，不是创意空间）。
- * 权衡说明（DeepSeek 自有能力）：
- *   - 注入的是"卷面结构与执行口径"（大题固定、分值账目），模型按蓝本结构出题，不凭本能自由发挥题型；
- *   - 学段/学科课标条款由指令库【学科·学段要点】+【学段特点】承载（带课标出处），蓝图不重复；
- *   - 分值账目自洽由规则库 score 系列生成后验算/修正（代码确定性），不注入 prompt。
- * 单一事实源：大题标题统一明细式（共X题，共X分）；分值规则唯一在本函数定义。
- * @param {object} bp getExamBlueprint 返回值
- * @returns {string} 空串 = 无蓝图
- */
-export function buildBlueprintInjection(bp) {
-  if (!bp?.sections?.length) return '';
-  const sectionsText = bp.sections
-    .map((s, i) => {
-      const no = '一二三四五六七八九十'[i] || String(i + 1);
-      return `${no}、${s.name}（共X题，共${s.score}分）——${s.note}`;
-    })
-    .join('\n');
-  // 课标学段/学科条款由指令库【学科·学段要点】+【学段特点】承载（带课标出处），蓝图只注入卷面结构；
-  // 分值规则不注入 prompt（AI 命题常识；账目自洽由规则库 score 系列生成后验算/修正）
-  return `\n\n【卷面结构（真题蓝本，大题与分值固定，不得增删改）】\n${sectionsText}`;
-}
-
 export default {
   EXAM_BLUEPRINTS,
   getExamBlueprint,
-  buildBlueprintInjection,
 };
 

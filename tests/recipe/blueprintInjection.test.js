@@ -6,49 +6,51 @@
 //    - 地区选择覆盖蓝图总分/时长/板块分值（比例缩放 + 末板块修正）
 // ============================================================
 import { describe, it, expect } from 'vitest';
-import { getExamBlueprint, buildBlueprintInjection } from '@/config/examPaperBlueprints.js';
-import { getPromptTemplate, OUTPUT_FORMAT_HINT } from '@/config/promptLibrary.js';
+import { getExamBlueprint } from '@/config/examPaperBlueprints.js';
+import { getPromptTemplate, OUTPUT_FORMAT_HINT, buildStructureText } from '@/config/promptLibrary.js';
 
-describe('buildBlueprintInjection（exam 蓝图精简注入块）', () => {
-  it('注入大题名+分值+命题要求，中文序号，头部固定提示', () => {
+describe('buildStructureText（exam 卷面结构注入段，单一事实源）', () => {
+  it('块头在指令库 EXAM_BASE（含"共X题"填写说明），明细由 buildStructureText 注入（中文序号/分值/命题要求）', () => {
+    const tpl = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
+    // 块头由指令库 EXAM_BASE 定义（含"共X题"按实际命制题数填写的说明）
+    expect(tpl.template).toContain('【卷面结构】');
+    expect(tpl.template).toContain('共X题');
+    // 明细由 buildStructureText 注入（蓝图数据）
     const bp = getExamBlueprint('语文', 'primary_low');
-    const inject = buildBlueprintInjection(bp);
-    expect(inject).toContain('【卷面结构（真题蓝本，大题与分值固定，不得增删改）】');
+    const inject = buildStructureText(bp);
     expect(inject).toContain('一、识字与写字（共X题，共32分）——');
     expect(inject).toContain('二、积累与运用（共X题，共24分）——');
     expect(inject).toContain('三、阅读与鉴赏（共X题，共14分）——');
     expect(inject).toContain('四、表达与交流（共X题，共30分）——');
-    // 大题命题要求（note 清洗后：激活式、无具体内容引导）被注入
+    // 大题命题要求（note）被注入
     expect(inject).toContain('覆盖本单元识字与写字内容');
-    expect(inject).not.toContain('禁止连续2道以上使用完全相同的题型格式');
     // 顺序：大题序号随位置递增
     expect(inject.indexOf('一、识字与写字')).toBeLessThan(inject.indexOf('二、积累与运用'));
   });
 
   it('空蓝图/无 sections 返回空串', () => {
-    expect(buildBlueprintInjection(null)).toBe('');
-    expect(buildBlueprintInjection({ sections: [] })).toBe('');
+    expect(buildStructureText(null)).toBe('');
+    expect(buildStructureText({ sections: [] })).toBe('');
   });
 
-  it('课标学段/学科条款不再注入（唯一事实源在指令库【学科·学段要点】+【学段特点】，蓝图只注入卷面结构）', () => {
+  it('课标学段/学科条款不再注入（唯一事实源在指令库【学科·学段要点】+【学段特点】）', () => {
     const bp = getExamBlueprint('语文', 'primary_low');
-    const inject = buildBlueprintInjection(bp);
-    // 蓝图不再承载课标条款（指令库已带 source 注入），只注入卷面结构
+    const inject = buildStructureText(bp);
+    // 卷面结构段不承载课标条款（指令库已带 source 注入）
     expect(inject).not.toContain('新课标命题要求');
     expect(inject).not.toContain('情境化试题占比');
     expect(inject).not.toContain('禁止孤立罗列拼音');
     // 卷面结构仍在（大题名+分值+命题要求 note）
-    expect(inject).toContain('【卷面结构（真题蓝本，大题与分值固定，不得增删改）】');
     expect(inject).toContain('一、识字与写字（共X题，共32分）——');
   });
 
   it('不再注入分值规则（分值分配回归 AI 命题常识，账目自洽由规则库 score 系列验算）', () => {
     const bp = getExamBlueprint('语文', 'middle', '江苏·南通'); // 120 → 150 缩放场景
-    const inject = buildBlueprintInjection(bp);
+    const inject = buildStructureText(bp);
     expect(inject).not.toContain('【分值规则】');
     expect(inject).not.toContain('小题数×每题分=大题分');
     // 卷面结构仍在
-    expect(inject).toContain('【卷面结构（真题蓝本，大题与分值固定，不得增删改）】');
+    expect(inject).toContain('一、');
   });
 });
 

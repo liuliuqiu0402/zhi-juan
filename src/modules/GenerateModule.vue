@@ -1391,7 +1391,6 @@ import { findBlueprint } from '../config/blueprintProvider.js';
 import { getPromptTemplate, buildInjectionInstruction, buildStructureText, OUTPUT_FORMAT_HINT, getCurriculumLabel } from '../config/promptLibrary.js';
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
-import { buildBlueprintInjection } from '../config/examPaperBlueprints.js';
 import { buildTeachingInjection } from '../config/teachingBlueprints.js';
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
@@ -4168,7 +4167,8 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   try {
     bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value });
     if (bp) {
-      structure = buildStructureText(bp);
+      // 用户分值微调（本次生效不落库）应用在唯一注入点，保证【卷面结构】段与实际分值一致
+      structure = buildStructureText(applyScoreAdjust(bp));
       fullScore = bp.fullScore || '';
       duration = bp.duration || '';
     }
@@ -4231,13 +4231,12 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   //    生成后由校验器静默自动修复，无需人工处理）
   const validatorPromptText = buildValidatorPrompt({ subject, stage: stageKey, genType });
   if (validatorPromptText) instructionDraft.value += validatorPromptText;
-  // 🔴 蓝图注入：exam 附加真题蓝本（题型骨架 + 大题命题要求 + 学段/学科新课标条款）；
-  //    非 exam 附加教辅结构蓝本（栏目框架 + 题量/字数底线，按 学段×类型 三维度）；
+  // 🔴 注入来源登记：exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段（单一事实源，
+  //    无重复注入）；非 exam 附加教辅结构蓝本（栏目框架 + 题量/字数底线，按 学段×类型 三维度）；
   //    模板正文已自带【输出格式】，用户自定义模板可能缺失 → 去重兜底追加
   let blueprintDetail = '';
   if (genType === 'exam') {
     if (bp) {
-      instructionDraft.value += buildBlueprintInjection(applyScoreAdjust(bp));
       blueprintDetail = `真题蓝本「${bp.label}」· ${bp.sections.length} 个大题（大题/分值/时长）`;
     }
   } else {
@@ -4261,7 +4260,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     ...(renderContractText ? [{ lib: '渲染契约库', name: '渲染指令', detail: '图形 / 公式 / 配图标记协议（按学科×学段）' }] : []),
     ...(validatorPromptText ? [{ lib: '规则库', name: '生成前约束', detail: `${countPromptHints(validatorPromptText)} 条 fix 规则` }] : []),
   ];
-  previewHint.value = `注入指令来自指令库「${instructionSource.value.name}」，按 ${stageKey} × ${subject} × ${genType} 匹配${tpl.source === 'user' ? '（用户自定义）' : '（内置模板）'}。长期修改请到「指令库」面板编辑保存。`;
+  previewHint.value = `注入指令来自指令库「${instructionSource.value.name}」，按 ${stageKey} × ${subject} × ${genType} 匹配${tpl.source === 'user' ? '（用户自定义）' : '（内置模板）'}。命题依据：${getCurriculumLabel(stageKey)}（教育部发布新课标后需人工更新，见指令库「课标版本」说明）。长期修改请到「指令库」面板编辑保存。`;
 };
 
 // 恢复默认：直接用内置模板重新注入（不保存覆盖）
@@ -4289,7 +4288,8 @@ const restoreDefaultInstruction = async () => {
   try {
     bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value });
     if (bp) {
-      structure = buildStructureText(bp);
+      // 恢复默认同样应用分值微调（与 loadInstructionFromLibrary 一致）
+      structure = buildStructureText(applyScoreAdjust(bp));
       fullScore = bp.fullScore || '';
       duration = bp.duration || '';
     }
@@ -4307,9 +4307,8 @@ const restoreDefaultInstruction = async () => {
     needsImage: needsImageHint(`${structure} ${genTypeLabel} ${unit}`, genType),
   });
   instructionDraft.value += buildValidatorPrompt({ subject, stage: stageKey, genType });
-  if (genType === 'exam') {
-    if (bp) instructionDraft.value += buildBlueprintInjection(applyScoreAdjust(bp));
-  } else {
+  // exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段，此处不重复；非 exam 追加教辅结构
+  if (genType !== 'exam') {
     instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey, subject });
   }
   instructionSource.value = { name: `内置默认·${genTypeLabel}`, source: 'builtin', key: genType };
@@ -4317,7 +4316,7 @@ const restoreDefaultInstruction = async () => {
     { lib: '指令库', name: `内置默认·${genTypeLabel}`, detail: `${stageKey} × ${subject} × ${genType}（内置模板）` },
     ...(bp ? [{ lib: '蓝图库', name: genType === 'exam' ? '真题蓝本' : '教辅结构', detail: bp.label }] : []),
   ];
-  previewHint.value = '已恢复内置默认指令（未改动你的自定义模板）。';
+  previewHint.value = `已恢复内置默认指令（未改动你的自定义模板）。命题依据：${getCurriculumLabel(stageKey)}（新课标发布不自动更新，见指令库「课标版本」说明）。`;
 };
 
 // 生成前确保注入指令非空（最小场景：选教材+类型后直接生成也能跑）

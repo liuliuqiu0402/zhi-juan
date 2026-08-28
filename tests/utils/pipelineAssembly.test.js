@@ -1,9 +1,9 @@
 // 临时验证：生成链路拼装是否完整（不调模型，确定性检查各库注入段）
 import { describe, it, expect } from 'vitest';
-import { getPromptTemplate } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, buildStructureText } from '../../src/config/promptLibrary.js';
 import { buildRenderContract, needsImageHint } from '../../src/config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../../src/config/validatorRules.js';
-import { buildBlueprintInjection, getExamBlueprint } from '../../src/config/examPaperBlueprints.js';
+import { getExamBlueprint } from '../../src/config/examPaperBlueprints.js';
 
 describe('生成链路拼装验证（不调模型）', () => {
   it('指令库模板含全部设计段（创作要求/学科要点/学段特点/输出格式/质量底线）', () => {
@@ -20,7 +20,7 @@ describe('生成链路拼装验证（不调模型）', () => {
     const rc = buildRenderContract({ subject: '语文', genType: 'exam', stage: 'primary_low', needsImage: needsImageHint('看图写话 表达与交流', 'exam') });
     const vp = buildValidatorPrompt({ subject: '语文', stage: 'primary_low', genType: 'exam' });
     const bp = getExamBlueprint('语文', 'primary_low');
-    const bi = bp ? buildBlueprintInjection(bp) : '';
+    const bi = bp ? buildStructureText(bp) : '';
     console.log('[verify] renderContract:', rc.length, 'chars | validatorRules:', (vp.match(/\n· /g) || []).length, '条 | blueprint:', bp?.label, bp?.sections.length, '大题');
     expect(rc.length).toBeGreaterThan(0);   // 语文低段：配图需要 → 有 IMAGE 契约
     expect(vp.length).toBeGreaterThan(0);   // fix 规则注入

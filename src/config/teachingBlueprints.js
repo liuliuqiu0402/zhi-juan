@@ -10,7 +10,7 @@
  *   - 规则库：生成后静默质检（教辅题量充足性、禁标分值等 guard）
  *
  * 题量数字为教辅结构底线（生成端按 学段×类型 注入），与 exam 的蓝本骨架对称。
- * 生成端 buildTeachingInjection 按 学段×类型 注入，与 exam 的 buildBlueprintInjection 对称。
+ * 生成端 buildTeachingInjection 按 学段×类型 注入，与 exam 的 buildStructureText（数据源：examPaperBlueprints 蓝图库）对称。
  * ============================================================
  */
 
@@ -1064,7 +1064,7 @@ export function getTeachingBlueprint({ genType = '', stage = '', subject = '' } 
 }
 
 /**
- * 构建教辅结构注入块（供生成指令尾部附加，与 exam 的 buildBlueprintInjection 对称）
+ * 构建教辅结构注入块（供生成指令尾部附加，与 exam 的 buildStructureText 对称）
  * 只注入栏目框架 + 学段要求；题量/篇幅底线由 teaching-volume-guard 程序侧校验，不注入 prompt（防限定 AI）
  * @param {Object} opts { genType, stage, subject }
  * @returns {string} 空串 = 无蓝本
