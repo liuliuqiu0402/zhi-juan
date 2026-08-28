@@ -452,7 +452,7 @@
             <span class="option-desc">{{ opt.desc }}</span>
           </label>
         </div>
-        <p class="hint">💡 选择资料类型后，系统将按新课标推荐自动匹配命题风格（考试→统一情境，其他→情境融合）。复生成时将按顺序生成选中的多个类型。命题风格可在上方"🎨"按钮中手动调整。</p>
+        <p class="hint">💡 选择资料类型后，系统将按资料类型自动推荐匹配命题风格（考试→统一情境，其他→情境融合）。复生成时将按顺序生成选中的多个类型。命题风格可在上方"🎨"按钮中手动调整。</p>
         <!-- 🔧 省市差异化：正式试卷（exam）按省市取考试时长/总分（如江苏中考语数英150分、北京100分制），未选则全国通用默认 -->
         <div v-if="genTypes.includes('exam')" class="region-select-section">
           <label class="option-label">🗺️ 省市（正式试卷按该省市考试时长/总分出卷）</label>
@@ -1388,7 +1388,7 @@ import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
 import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
 import { findBlueprint } from '../config/blueprintProvider.js';
-import { getPromptTemplate, buildInjectionInstruction, buildStructureText, OUTPUT_FORMAT_HINT } from '../config/promptLibrary.js';
+import { getPromptTemplate, buildInjectionInstruction, buildStructureText, OUTPUT_FORMAT_HINT, getCurriculumLabel } from '../config/promptLibrary.js';
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
 import { buildBlueprintInjection } from '../config/examPaperBlueprints.js';
@@ -4208,6 +4208,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   instructionDraft.value = buildInjectionInstruction({
     template: tpl.template,
     grade: gradeLabel,
+    stage: stageKey,
     subject,
     unit,
     genTypeLabel,
@@ -4298,7 +4299,7 @@ const restoreDefaultInstruction = async () => {
   const label = labelStyle.value || pickLabelFromPool(genType, '_all_');
   const gradeLabel = book.grade || '';
   instructionDraft.value = buildInjectionInstruction({
-    template: builtinTemplate, grade: gradeLabel, subject, genTypeLabel, label, semester: book.semester || '', structure, fullScore, duration,
+    template: builtinTemplate, grade: gradeLabel, stage: stageKey, subject, genTypeLabel, label, semester: book.semester || '', structure, fullScore, duration,
     subjectFormat: buildSubjectFormatBlock(subject),
   });
   instructionDraft.value += buildRenderContract({
@@ -5844,6 +5845,8 @@ const generate = async (mode) => {
   
   // 🔧 新增：检查教材是否已分析（增强警告，明确列出未分析章节）
   //    逐章分开处理：已分析章节保留完整教材数据；未分析章节走"仅目录模式"降级，两者混合生成
+  //    🔧 课标版本按学段注入（getCurriculumLabel），避免写死版本号（高中=2017版2020年修订，与 2022 义教版不同）
+  const curriculumLabel = getCurriculumLabel(selectedBooks[0]?.stage);
   const unanalyzedChapters = selectedBooks.flatMap(b => 
     b.selectedChapters.filter(ch => !ch.analyzed || !ch.rawText || ch.rawText.trim().length < GEN_CONST.OCR_FAIL_MIN_TEXT)
   );
@@ -5855,7 +5858,7 @@ const generate = async (mode) => {
       `未分析章节（将走"仅目录模式"）：\n${chapterList}\n\n` +
       `【说明】\n` +
       `• 已分析章节：保留教材原文/知识点，正常高质量生成\n` +
-      `• 未分析章节：基于「章节标题 + 2022 版新课标规范」降级生成（无教材细节，题目由 AI 依据学科典型内容设计，可能与教材版本不符）\n` +
+      `• 未分析章节：基于「章节标题 + ${curriculumLabel}规范」降级生成（无教材细节，题目由 AI 依据学科典型内容设计，可能与教材版本不符）\n` +
       `• 两者在同一份资料中混合生成，不是全部丢弃\n\n` +
       `建议：先点击「🔍 分析教材」完成分析后再生成，获得以教材内容为依据的高质量结果\n\n` +
       `是否仍要继续生成？`
@@ -6366,32 +6369,6 @@ const showQualityReport = async (doc) => {
     }
   }
 
-  // 🔴 新课标内容达标评估（逐题核查：情境化/设问层次/机械记忆/语篇/超纲/分值/素养）
-  if (report.curriculumCheck) {
-    const cc = report.curriculumCheck;
-    const emoji = cc.overall === '通过' ? '✅' : cc.overall === '基本通过' ? '⚠️' : '❌';
-    text += `\n【新课标内容达标】${emoji} ${cc.overall}（综合 ${cc.avgScore}/100，${cc.questionCount}题）\n`;
-    text += '  ' + cc.summary + '\n';
-    if (cc.dimensions?.length) {
-      cc.dimensions.forEach(d => {
-        text += `  ${d.passed ? '✅' : '❌'} ${d.name}（${d.score}分）: ${d.detail}\n`;
-      });
-    }
-    // 🔴 达标自处理结果
-    if (cc.autoFixPlan) {
-      const ap = cc.autoFixPlan;
-      if (ap.actions?.length) {
-        text += `\n  【自处理方案】${ap.planSummary}\n`;
-        ap.actions.forEach(a => {
-          const tag = a.type === 'fix' ? '🔧已自动修复' : '⚙️待定向重生成';
-          text += `  ${tag} [${a.dim}] ${a.detail}\n`;
-        });
-      } else {
-        text += '\n  【自处理】全部维度达标，无需处理\n';
-      }
-    }
-  }
-  
   // issues
   if (doc.issues && doc.issues.length > 0) {
     text += '\n【问题列表】\n';

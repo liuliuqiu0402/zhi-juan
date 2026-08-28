@@ -3,7 +3,7 @@
     <div class="page-head">
       <h2>📐 蓝图库</h2>
       <p class="page-desc">
-        正式考卷的卷面结构（大题/分值/时长/命题要求）来自蓝图库。内置蓝本按新课标真题结构设计；
+        正式考卷的卷面结构（大题/分值/时长/命题要求）来自蓝图库。内置蓝本按各学段现行课标真题卷结构设计；
         点开蓝本修改保存后持久化，生成模块的卷面结构自动生效（用户版优先于内置）。
         <button class="btn btn-sm region-btn" @click="openRegionModal">🏙 省市分值维护</button>
       </p>

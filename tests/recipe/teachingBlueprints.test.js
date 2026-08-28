@@ -248,7 +248,7 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     const chem = buildTeachingInjection({ genType: 'dictation', stage: 'middle', subject: '化学' });
     expect(chem).toContain('化学·默写积累');
     expect(chem).toContain('化学用语');
-    expect(chem).toContain('2022义教化学课程理念');
+    expect(chem).toContain('2022义教化学学科核心素养');
     const hist = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '历史' });
     expect(hist).toContain('历史·课时练');
     expect(hist).toContain('时间轴/地图情境');

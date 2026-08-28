@@ -2,7 +2,7 @@ import { ref } from 'vue';
 import axios from 'axios';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay } from '../config/apiConfig.js';
 import { GEN_CONST } from '../config/generationConstants.js';
-import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, ANSWER_FORMAT_SPEC } from '../config/promptLibrary.js';
+import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, ANSWER_FORMAT_SPEC, getCurriculumLabel } from '../config/promptLibrary.js';
 import { getStoragePath } from '../utils/pathHelper.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { normalizeStage } from '../config/validatorRules.js';
@@ -703,7 +703,7 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
   // 🔧 目录卡片构建（无原文目录模式 & 未分析降级共用）
   //    目录（章节标题 + 子标题）本身就是考点线索，确保"仅勾选目录"也能生成：
   //    Step2 知识图谱基于目录标题 + 学科课标知识补全考点，生成端按指令分配考点，AI 无素材凭空生成。
-  const buildTocCard = (chapter, mode = 'toc') => {
+  const buildTocCard = (chapter, mode = 'toc', stage = '') => {
     const collectTitles = (node, depth = 0, out = []) => {
       if (!node || depth >= 3) return out;
       for (const child of (node.children || [])) {
@@ -717,11 +717,13 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
     // 目录标题（章节 + 子标题）作为该卡片的检索关键词，供 retrieveSegments 命中
     const tocKps = [chapter.title, ...collectTitles(chapter).map(t => t.trim())].filter(Boolean);
     const isUnanalyzed = mode === 'unanalyzed';
+    // 🔧 目录模式提示词：课标版本按学段注入（getCurriculumLabel），避免写死版本号（高中=2017版2020年修订，与 2022 义教版不同）
+    const curriculumLabel = getCurriculumLabel(stage);
     return {
       chapterTitle: chapter.title,
       summary: isUnanalyzed
-        ? `【未分析·目录模式】本课有教材原文但未执行分析提取（生成时不做现场分析）。以下为该课目录结构，生成时请基于章节标题与该学科 2022 版新课标典型内容命题，题目情境/数据由你合理设计，禁止编造教材版本特有内容。如需完整命题素材，请先对本课执行"分析提取"：\n${tocText}`
-        : `【仅目录模式】本课教材原文未提取（未 OCR/未分析），以下为该课目录结构。生成时请基于章节标题与该学科 2022 版新课标典型内容命题，题目情境/数据由你合理设计，禁止编造教材版本特有内容：\n${tocText}`,
+        ? `【未分析·目录模式】本课有教材原文但未执行分析提取（生成时不做现场分析）。以下为该课目录结构，生成时请基于章节标题与该学科课标（${curriculumLabel}）推断典型内容命题，题目情境/数据由你合理设计，禁止编造教材版本特有内容。如需完整命题素材，请先对本课执行"分析提取"：\n${tocText}`
+        : `【仅目录模式】本课教材原文未提取（未 OCR/未分析），以下为该课目录结构。生成时请基于章节标题与该学科课标（${curriculumLabel}）推断典型内容命题，题目情境/数据由你合理设计，禁止编造教材版本特有内容：\n${tocText}`,
       knowledgePointsForTest: tocKps,
       segments: [{ text: tocText, type: '正文', isKeyConcept: false, isExample: false, hasFormula: false, knowledgePoints: tocKps }],
       totalSegments: 1,
@@ -736,7 +738,7 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
     for (const chapter of chapters) {
       if (!chapter.rawText && !chapter.coreTopics) {
         // 🔴 目录模式（TOC-only）：章节无 OCR 原文且未分析时，用目录标题构建"目录卡片"
-        const tocCard = buildTocCard(chapter, 'toc');
+        const tocCard = buildTocCard(chapter, 'toc', book.stage);
         if (tocCard) {
           contentCards.push(tocCard);
           console.log(`📑 [Step1·目录模式] ${chapter.title}: 无教材原文，已生成目录卡片`);
@@ -838,7 +840,7 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
       // 🔴 方案A：有教材原文但未执行分析 → 不现场补分析（生成内补做基于不精准原文，质量不可控），
       //    统一降级为目录模式（与无原文章节同路径）；完整命题素材需先手动执行"分析提取"
       console.log(`📑 [Step1·未分析降级] ${chapter.title}: 有原文(${cleanRawText.length}字)但未分析，按目录模式生成（不现场补分析）`);
-      const unanalyzedCard = buildTocCard(chapter, 'unanalyzed');
+      const unanalyzedCard = buildTocCard(chapter, 'unanalyzed', book.stage);
       if (unanalyzedCard) contentCards.push(unanalyzedCard);
       continue;
     }
@@ -873,6 +875,8 @@ const buildKnowledgeMap = async (contentCards, selectedBooks, callAI, robustJson
   const inputDataDescStr = inputDataDescRule ? inputDataDescRule.content : `- kpForTest：每个知识点对象，hasFormula=true表示涉及公式
 - suggestedQuestionTypes：该章节各知识点建议的考查题型`;
 
+  // 🔧 目录模式提示词：课标版本按学段注入（getCurriculumLabel），避免写死版本号
+  const curriculumLabel = getCurriculumLabel(selectedBooks?.[0]?.stage || '');
   const prompt2 = `你是课程与教学专家。请基于以下各课内容，构建层级知识图谱。
 
 【输入数据说明】
@@ -887,7 +891,7 @@ ${JSON.stringify(cardsSummary, null, 2)}
 3. 层级知识图谱：单元→大概念(≤5)→核心知识点(≤6)→具体概念(≤4)，每个核心知识标注建议题型(suggestedQuestionTypes)
 4. 跨章节关联（不超过10条）
 
-🔴 目录模式说明：若某课 summary 标注"仅目录模式"（教材原文未提取），请基于该课章节标题与该学科 2022 版新课标典型内容推断知识点（如"分数的初步认识"→ 分数的含义/几分之一/几分之几），只推断标题明确指向的知识范畴，不得臆造超出该章节标题的内容。
+🔴 目录模式说明：若某课 summary 标注"仅目录模式"（教材原文未提取），请基于该课章节标题与该学科课标（${curriculumLabel}）推断典型内容知识点（如"分数的初步认识"→ 分数的含义/几分之一/几分之几），只推断标题明确指向的知识范畴，不得臆造超出该章节标题的内容。
 
 返回JSON：{"knowledgePoints":[""],"keyDifficulties":[""],"knowledgeGraph":[{"unit":"","bigConcepts":[{"name":"","coreKnowledge":[{"name":"","cognitiveLevel":"理解","isKeyPoint":true,"isDifficulty":false,"specificConcepts":[""],"suggestedQuestionTypes":[""],"relatedChapters":[""],"testPriority":1}]}]}],"crossChapterLinks":[{"from":"","to":"","relation":"前置|并列|拓展|应用"}]}`;
   for (let attempt = 0; attempt < 3; attempt++) {

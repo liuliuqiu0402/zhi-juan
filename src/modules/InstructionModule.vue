@@ -8,6 +8,9 @@
       <p class="page-desc placeholder-desc">
         <b>占位符</b>：<code>{grade}</code>年级学段 · <code>{subject}</code>学科 · <code>{unit}</code>命题范围（课/单元/期中/期末）· <code>{scope}</code>确认后的范围名 · <code>{structure}</code>卷面结构 · <code>{fullScore}</code>总分 · <code>{duration}</code>时长 · <code>{material}</code>教材原文（生成时按知识点检索附加）· <code>{extra}</code>用户附加要求。占位符在注入时由系统按当前选择替换。
       </p>
+      <p class="page-desc curriculum-notice">
+        <b>📚 课标版本</b>：{{ curriculumNotice }}
+      </p>
     </div>
 
     <div class="lib-layout">
@@ -103,10 +106,15 @@
 import { ref, computed, onMounted, nextTick } from 'vue';
 import {
   listPromptTemplates, savePromptTemplate, deletePromptTemplate, STAGE_NAMES, matchTemplateFilter,
+  CURRICULUM_VERSION_INFO,
 } from '@/config/promptLibrary.js';
 import { subjects } from '@/config/expertKnowledge.js';
 
 const SUBJECT_OPTS = ['', '通用', ...subjects]; // 学科下拉：全部 / 通用 / 全学科列表（与教材库同源）
+
+/** 课标版本声明（指令库面板展示；新课标发布后人工核对更新，见 CURRICULUM_VERSION_INFO 注释） */
+const curriculumNotice = CURRICULUM_VERSION_INFO.notice;
+
 const GEN_TYPE_OPTS = [
   { value: 'exam', label: '正式考卷' },
   { value: 'practice', label: '课时练' },
