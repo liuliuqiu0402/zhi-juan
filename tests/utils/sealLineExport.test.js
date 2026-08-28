@@ -67,12 +67,12 @@ const sealHeaderXml = async (zip, withTip = true) => {
   return null;
 };
 
-// 🔧 偶页（even）页眉：镜像密封线特征为虚线在右侧 x=191mm（6876000 EMU）
+// 🔧 偶页（even）页眉：镜像密封线特征为「页面右缘锚定」（relativeFrom="page" align="right"），跟随纸张
 const sealEvenHeaderXml = async (zip) => {
   const names = Object.keys(zip.files).filter((p) => /^word\/header\d+\.xml$/.test(p));
   for (const n of names) {
     const x = await getPart(zip, n);
-    if (x && x.includes(`x="${191 * 36000}"`)) return x;
+    if (x && x.includes('<wp:positionH relativeFrom="page"><wp:align>right</wp:align></wp:positionH>')) return x;
   }
   return null;
 };
@@ -336,7 +336,7 @@ describe('密封线导出：wpg 浮动群组（左侧页边距内 0~20mm，不�
     }
   });
 
-  it('正式试卷对开版式：even 页眉镜像密封线靠书脊（右侧 191mm），启用奇偶页+对称页边距', async () => {
+  it('正式试卷对开版式：even 页眉镜像密封线靠书脊（锚定页面右缘 align="right" 贴纸边，距右纸边 19mm），启用奇偶页+对称页边距', async () => {
     const zip = await buildZip(TEMPLATE_HTML);
     const docXml = await getPart(zip, 'word/document.xml');
     // 奇偶页不同页眉/页脚引用
@@ -347,10 +347,13 @@ describe('密封线导出：wpg 浮动群组（左侧页边距内 0~20mm，不�
     // settings.xml 启用「奇偶页不同」
     const settingsXml = await getPart(zip, 'word/settings.xml');
     expect(settingsXml).toContain('<w:evenAndOddHeaders/>');
-    // even 页眉：密封线水平镜像到右侧（虚线 x=191mm=6876000 EMU，y=20mm 与上边距对齐）
+    // even 页眉：群组锚定「页面右缘」（relativeFrom="page" align="right" → 群组右缘贴纸边，Word 换纸张尺寸时自动跟随）
     const evenHdr = await sealEvenHeaderXml(zip);
     expect(evenHdr).not.toBeNull();
-    expect(evenHdr).toContain(`<a:off x="${191 * 36000}" y="${20 * 36000}"/>`);
+    expect(evenHdr).toContain('<wp:positionH relativeFrom="page"><wp:align>right</wp:align></wp:positionH>');
+    // 群组宽 = 右边距区 25mm（900000 EMU），虚线群组相对 x=6mm = 距右纸边 19mm，y=20mm 与上边距对齐
+    expect(evenHdr).toContain(`cx="${25 * 36000}"`);
+    expect(evenHdr).toContain(`<a:off x="${6 * 36000}" y="${20 * 36000}"/>`);
     expect(evenHdr).toContain(`cy="${257 * 36000}"`);
     expect(evenHdr).toContain('<a:prstDash val="dash"/>');
     // 镜像版文字整框旋转 90° CW（字头朝右），与左侧版 270° 关于页面中线对称

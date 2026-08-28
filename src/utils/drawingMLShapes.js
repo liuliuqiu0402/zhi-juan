@@ -537,6 +537,10 @@ const buildRubyRun = (baseText, pinyin, baseSizeHp, rPrXml) => {
 //    - 字符旋转用整框 a:xfrm rot=16200000（字头朝左，对应 HTML rotate(-90deg)），从下往上读。
 //    - 三字均匀嵌在虚线内：线(上1/4=84mm)、封(中=148mm)、密(下1/4=213mm)，字符右缘贴线（19mm），字号 10.5pt。
 //    - 曾用"页眉浮动文本框"（wordArtVert / rot）与表格方案，均有兼容/挤压正文问题，已废弃。
+//    - 镜像版（偶页靠书脊）：群组锚点改为「页面右缘」（positionH relativeFrom="page" align="right" 跟随纸张），
+//      群组坐标系 = 右边距区 0~25mm（虚线距右纸边 19mm、文字贴右）→ Word 中更换纸张尺寸时
+//      密封线自动保持贴右（不再按 A4 页宽 210mm 硬编码坐标）。
+//      ⚠️ 不能用 relativeFrom="margin"（其右缘 = 正文区右边界，密封线会落进正文区）。
 
 /** 后处理：将 __RUBY_...__ 标记替换为 Word 原生 w:ruby 注音元素 */
 const injectRubyAnnotations = (docXml) => {
@@ -562,6 +566,10 @@ const blockSealRegexR = /<w:p[^>]*>\s*(?:<w:pPr[^>]*>(?:(?!<w:r>)[\s\S])*?<\/w:p
 // EMU 常量：1mm = 36000 EMU；1pt 线宽 = 12700 EMU
 const EMU_PER_MM = 36000;
 const EMU_LINE_1PT = 12700;
+// 🔧 密封文档右边距（镜像版群组宽）：与 docxBuilder 密封文档页边距 1417 DXA = 2.5cm 同步，改动需两处一致
+const SEAL_RIGHT_MARGIN_MM = 25;
+// 镜像版坐标平移量：页面坐标 → 右边距群组坐标系（群组原点 = 正文区右边界 = 页面 185mm 处）
+const MIRROR_SHIFT_MM = 210 - SEAL_RIGHT_MARGIN_MM;
 
 /**
  * 密封线浮动群组（wpg）：左侧页边距内 0~20mm，正文保持 2.35cm 边距、不被挤压。
@@ -593,7 +601,8 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false) => {
   //  - 旋转后框宽 w ≈ 行高（≈1.35×字号），高 h = 文本长度 L（每字 ≈ 字号宽）+ 两端留白 pad
   //  - 文本正常顺序横排居中；旋转后左端（首字）落底 → 从下往上读
   //  - pad=1.5mm 两端留白：防整框旋转后首/尾字符贴边被裁剪（Word/WPS 均完整可见）
-  //  - mirror：偶页对开镜像——offX 关于页面中线（210mm）水平翻转、字头朝右（靠书脊）
+  //  - mirror：偶页对开镜像——offX 关于页面中线（210mm）水平翻转、字头朝右（靠书脊）；
+  //    再平移 -SEAL_RIGHT_MARGIN_MM → 群组坐标系（右边距区，锚点 relativeFrom="page" align="right" 贴纸边）
   const pad = 1.5;
   const ROT = mirror ? 5400000 : 16200000; // 镜像版 90°CW（字头朝右）/ 左版 270°（字头朝左）
   const txbx = (id, name, xMm, yMm, t, szPt, bold) => {
@@ -607,7 +616,7 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false) => {
     // 未旋转文本框：宽 Lmm+2pad、高 HlineMm，中心同视觉框；rot=16200000（270°= 逆时针 90°）
     let offX = cx - (Lmm + 2 * pad) / 2;
     const offY = cy - HlineMm / 2;
-    if (mirror) offX = 210 - offX - (Lmm + 2 * pad); // 水平镜像到右侧（虚线 191mm、文字贴右纸边）
+    if (mirror) offX = 210 - offX - (Lmm + 2 * pad) - MIRROR_SHIFT_MM; // 水平镜像到右侧后平移进右边距区（虚线 6mm、文字贴右纸边）
     return `<wps:wsp>
       <wps:cNvPr id="${id}" name="${name}"/>
       <wps:cNvSpPr txBox="1"/>
@@ -660,8 +669,8 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false) => {
   const tipY = groupTop;
   const infoY = groupTop + tipBoxH + BOX_GAP;
 
-  // 竖虚线（左版 x=19mm，镜像版 x=191mm；从上边距 20mm 到 下边距 277mm，与上下边距对齐）
-  const lineX = mirror ? 191 : 19;
+  // 竖虚线（左版 x=19mm 距纸边；镜像版群组相对 x=6mm = 距右纸边 19mm；从上边距 20mm 到 下边距 277mm，与上下边距对齐）
+  const lineX = mirror ? 210 - 19 - MIRROR_SHIFT_MM : 19;
   const lineShape = `<wps:wsp>
     <wps:cNvPr id="${idBase + 1}" name="SealLine"/>
     <wps:cNvSpPr/>
@@ -683,9 +692,14 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false) => {
     charBox(idBase + 6, 'SealBot', CHAR_CENTER_Y.bot, botChar),
   ].join('');
 
-  const cx = Math.round(210 * EMU_PER_MM);
+  // 群组 extent：左版 = 整页（A4 210×297mm，锚定页面 (0,0)）；镜像版 = 右边距区（25mm×297mm，
+  // 锚定页面右缘 align="right" → 群组右缘贴纸边）→ Word 更换纸张尺寸时镜像密封线自动保持贴右纸边
+  const cx = Math.round((mirror ? SEAL_RIGHT_MARGIN_MM : 210) * EMU_PER_MM);
   const cy = Math.round(297 * EMU_PER_MM);
-  return `<w:drawing xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wp:anchor distT="0" distB="0" distL="0" distR="0" relativeHeight="251659264" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1" simplePos="0"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${idBase}" name="SealGroup"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"><wpg:wgp><wpg:cNvGrpSpPr/><wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/><a:chOff x="0" y="0"/><a:chExt cx="${cx}" cy="${cy}"/></a:xfrm></wpg:grpSpPr>${shapes}</wpg:wgp></a:graphicData></a:graphic></wp:anchor></w:drawing>`;
+  const posH = mirror
+    ? '<wp:positionH relativeFrom="page"><wp:align>right</wp:align></wp:positionH>'
+    : '<wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH>';
+  return `<w:drawing xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wp:anchor distT="0" distB="0" distL="0" distR="0" relativeHeight="251659264" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1" simplePos="0"><wp:simplePos x="0" y="0"/>${posH}<wp:positionV relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${idBase}" name="SealGroup"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"><wpg:wgp><wpg:cNvGrpSpPr/><wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/><a:chOff x="0" y="0"/><a:chExt cx="${cx}" cy="${cy}"/></a:xfrm></wpg:grpSpPr>${shapes}</wpg:wgp></a:graphicData></a:graphic></wp:anchor></w:drawing>`;
 };
 
 const replaceSealMarkers = (xml) => {
