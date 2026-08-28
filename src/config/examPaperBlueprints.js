@@ -363,7 +363,7 @@ export const EXAM_BLUEPRINTS = {
     ],
   },
 
-  // ══════════════ 信息科技（2022 课标按学段内容差异大，5 档蓝本） ══════════════
+  // ══════════════ 信息科技（义教 2022 课标按学段内容差异大，5 档蓝本；高中档课标名=信息技术，数据键沿用统一名） ══════════════
   '信息科技|primary_low': {
     label: '信息科技·小学低段（1-2年级）', fullScore: 100, duration: '40分钟',
     sections: [
@@ -404,7 +404,7 @@ export const EXAM_BLUEPRINTS = {
     ],
   },
   '信息科技|high': {
-    label: '信息科技·高中', fullScore: 100, duration: '60分钟',
+    label: '信息技术·高中', fullScore: 100, duration: '60分钟',
     sections: [
       { name: '选择题', score: 24, note: '数据与计算、信息系统与社会、人工智能' },
       { name: '填空题', score: 16, note: '原理在数字化场景中运用' },
