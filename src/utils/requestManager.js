@@ -66,11 +66,3 @@ export async function cancelAllRequests() {
   activeControllers.clear();
   console.log('✅ 所有请求已取消');
 }
-
-/**
- * 获取当前活跃请求数量
- * @returns {number} 活跃请求数
- */
-export function getActiveRequestCount() {
-  return activeControllers.size;
-}

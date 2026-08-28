@@ -33,14 +33,6 @@ export const GEN_TYPE_KEYS = [
 /** 通配符（降级匹配用：无专属条目时逐级回退） */
 export const WILDCARD = '*';
 
-/** 三维度口径统一对象 */
-export const DIMENSIONS = {
-  stage: STAGE_KEYS,
-  subject: SUBJECT_KEYS,
-  genType: GEN_TYPE_KEYS,
-  wildcard: WILDCARD,
-};
-
 /**
  * 工具库注册表：8 个子库
  * status: ok=正常 · warn=有缺口 · new=新增
@@ -119,12 +111,6 @@ export const TOOL_LIBRARIES = [
 /** 按 id 取库元数据 */
 export const getToolLibrary = (id) => TOOL_LIBRARIES.find((lib) => lib.id === id) || null;
 
-/** 按检索键校验维度合法性（迁移/新增条目时用） */
-export const isValidDimension = ({ stage, subject, genType } = {}) => {
-  const ok = (v, list) => !v || v === WILDCARD || list.includes(v);
-  return ok(stage, STAGE_KEYS) && ok(subject, SUBJECT_KEYS) && ok(genType, GEN_TYPE_KEYS);
-};
-
 /**
  * 各库条数统计（统一口径：都按【条数】计，分子/分母由真实数据源自动算，不硬编码）
  *   - 蓝图库  真题蓝本：当前条数 / 内置蓝本键总数
@@ -148,4 +134,4 @@ export function computeLibStats() {
   };
 }
 
-export default { STAGE_KEYS, SUBJECT_KEYS, GEN_TYPE_KEYS, WILDCARD, DIMENSIONS, TOOL_LIBRARIES, getToolLibrary, isValidDimension, computeLibStats };
+export default { STAGE_KEYS, SUBJECT_KEYS, GEN_TYPE_KEYS, WILDCARD, TOOL_LIBRARIES, getToolLibrary, computeLibStats };

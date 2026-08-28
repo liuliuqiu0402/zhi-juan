@@ -11,17 +11,6 @@ const EMU_PER_DXA = 635;  // 1 DXA = 635 EMU
 export { EMU_PER_DXA };
 const EMU_PER_PT  = 12700; // 1 pt = 12700 EMU
 
-// ═══════════ 纸张几何（单一事实来源，供密封线等浮动对象与正文分节共用）═══════════
-// A4 竖版：210mm × 297mm；上下边距 2cm（1134 DXA），左右边距 2.35cm（1332 DXA，避免虚线贴正文）。
-export const PAGE_GEOMETRY = {
-  widthTwips: 11906,   // A4 宽 210mm
-  heightTwips: 16838,  // A4 高 297mm
-  marginTopTwips: 1134,    // 2cm
-  marginBottomTwips: 1134, // 2cm
-  marginLeftTwips: 1332,   // 2.35cm（虚线 19mm + 4.5mm 呼吸空间，不贴正文）
-  marginRightTwips: 1332,  // 2.35cm
-};
-
 // ============ mc:AlternateContent 包裹 ============
 
 // 🔧 不再用 mc:AlternateContent 包裹：实测 Word 打开时遇 wpg 在 mc:Ignorable 中会跳过

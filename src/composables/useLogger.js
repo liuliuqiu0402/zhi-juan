@@ -49,13 +49,6 @@ const _orig = {};
   };
 });
 
-// 恢复原始 console（清理用）
-export const restoreConsole = () => {
-  Object.keys(_orig).forEach((method) => {
-    if (_orig[method]) console[method] = _orig[method];
-  });
-};
-
 // 获取日志列表
 export const getLogs = () => logs;
 

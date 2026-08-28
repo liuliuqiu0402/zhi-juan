@@ -195,7 +195,6 @@ import { APP_EVENTS } from '@/constants/events.js';
 import storage from '@/utils/storage';
 import { compressDocArray, decompressDocArray } from '@/utils/contentCompress.js';
 import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, pullDeletedDocIds, pushDeletedDocIds, uploadTemplates, uploadSettings, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
-import { hasPendingGeneration, getPendingSnapshot } from '@/utils/generationSnapshot.js';
 import { apiConfig, getCurrentEngineConfig, loadConfigSync, decrypt, encrypt } from '@/config/apiConfig.js';
 // ☁️ Supabase 云端同步配置由 CI Secrets 注入
 // 📱 iOS 签名倒计时（基于安装时间计算 7 天有效期）
@@ -449,23 +448,6 @@ const nextGuideStep = () => {
 };
 
 const closeGuide = () => { showGuideOverlay.value = false; };
-
-// 断点续传检测
-const checkPendingGeneration = async () => {
-  try {
-    const pending = await hasPendingGeneration();
-    if (pending) {
-      const snapshot = await getPendingSnapshot();
-      const stepNames = ['', '提取命题素材', '构建知识图谱', '命题规划', '整卷生成', '质量校验'];
-      const stepName = stepNames[snapshot?.step] || '未知';
-      showToastMessage(
-        `📌 检测到未完成的生成任务（已完成至步骤：${stepName}），可前往「生成教辅」继续`,
-        'info',
-        8000
-      );
-    }
-  } catch { /* ignore */ }
-};
 
 // Python 依赖检测（含一键安装）
 const checkPythonDepsAsync = async () => {
@@ -980,9 +962,6 @@ onMounted(async () => {
   checkFirstRun();
   checkPythonDepsAsync();
   checkStorageUsageAsync();
-
-  // 断点续传检测
-  checkPendingGeneration();
 
   // GPU 状态显示
   try {

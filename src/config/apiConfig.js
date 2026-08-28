@@ -1156,28 +1156,6 @@ export const resolveProviderConfig = (provider, taskType = 'generation') => {
   };
 };
 
-/**
- * 🔧 新增：清洗文本中可能泄露的文件路径
- * @param {string} text - 原始文本
- * @returns {string} 清洗后的文本
- */
-export const sanitizeFilePath = (text) => {
-  if (!text || typeof text !== 'string') return text;
-  
-  let cleaned = text;
-  
-  // Windows 绝对路径
-  cleaned = cleaned.replace(/[A-Za-z]:[\\/][^\s\n,，。；;！!？?]{3,}/g, '[路径已移除]');
-  // UNC 路径
-  cleaned = cleaned.replace(/\\\\[^\s\n,，。]{3,}/g, '[路径已移除]');
-  // Unix 绝对路径
-  cleaned = cleaned.replace(/\/[a-zA-Z]+\/[^\s\n,，。]{3,}/g, '[路径已移除]');
-  // 应用数据目录名
-  cleaned = cleaned.replace(/智卷工坊数据/g, '应用数据');
-
-  return cleaned;
-};
-
 // ==================== DeepSeek 峰谷时段检测 ====================
 // DeepSeek 2026-08-16 起实行峰谷定价（UTC 时间）：
 //   高峰段1: 01:00-04:00 UTC  → 北京时间 09:00-12:00

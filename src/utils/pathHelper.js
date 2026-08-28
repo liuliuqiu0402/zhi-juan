@@ -32,43 +32,6 @@ export const getStoragePath = () => {
 };
 
 /**
- * 设置存储路径
- * @param {string} path - 新的存储路径
- */
-export const setStoragePath = (path) => {
-  if (!path || path.trim().length === 0) {
-    console.warn('存储路径不能为空');
-    return false;
-  }
-  
-  localStorage.setItem('storagePath', path);
-  return true;
-};
-
-/**
- * 确保存储路径存在（提示用户）
- * @returns {boolean} 路径是否有效
- */
-export const validateStoragePath = () => {
-  const path = getStoragePath();
-  
-  if (!path || path.trim().length === 0) {
-    console.warn('存储路径未配置');
-    return false;
-  }
-  
-  // 检查是否是相对路径或绝对路径
-  const isAbsolutePath = /^[A-Za-z]:[\\/]/.test(path) || /^[\\/]/.test(path);
-  
-  if (!isAbsolutePath) {
-    console.warn(`存储路径 "${path}" 是相对路径，可能无法正常工作`);
-    console.warn('建议在设置中配置完整的绝对路径，如: D:/智卷工坊数据');
-  }
-  
-  return true;
-};
-
-/**
  * 修复旧数据中存储的相对路径（补全为基于当前存储路径的绝对路径）
  * 旧版 fallback 返回 "智卷工坊数据" 这个裸相对路径，导致教材/模板的 pdfPath 存成了相对路径
  * 当用户移动文件夹后，这些相对路径就找不到文件了

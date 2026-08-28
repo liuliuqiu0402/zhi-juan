@@ -1377,9 +1377,8 @@ const SCOPE_BASIS = {
 };
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, AlignmentType } from 'docx';
 import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml, parseMarkdownToTextRuns } from '../utils/wordExporter.js';
-import { buildTianZiGeMarker, htmlToDocxBlob } from '../utils/docxBuilder.js';
+import { htmlToDocxBlob } from '../utils/docxBuilder.js';
 import { GEN_CONST } from '../config/generationConstants.js';
-import { injectDrawingML, TZG_MARKER, FLT_MARKER } from '../utils/drawingMLShapes.js';
 import storage from '../utils/storage';
 import { normalizeSealStructure, wrapContentForTheme, applyThemeToContent } from '../themeConfig.js';  // 🔧 密封线结构归一化 + 试卷主题包装（导出与排版模块一致）
 import { pushDeletedDocIds } from '../utils/cloudStorage';

@@ -101,13 +101,6 @@ export const subjects = [
   '历史', '地理', '道德与法治', '思想政治', '科学', '信息技术'
 ];
 
-// 向后兼容：如果旧数据中有"政治"，自动映射
-export const legacySubjectAliases = {
-  '政治': '道德与法治',  // 默认初中
-  '思想品德': '道德与法治'
-};
-
-
 // ==================== 资料类型模板 ====================
 /**
  * @deprecated genTypeTemplates.instruction 和 .structure 字段已废弃。

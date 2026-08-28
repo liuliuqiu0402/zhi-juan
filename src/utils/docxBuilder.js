@@ -698,28 +698,6 @@ export const buildTianZiGePinyinMarker = (gridChar, pinyin, sizeHp, _fontFamily)
   });
 };
 
-/** 四线三格 → 标记 Paragraph（后处理替换为 4 条 DrawingML 水平线） */
-export const buildFourLineMarker = (letter, sizeHp) => {
-  const contentLen = Math.max(1, [...letter].length);
-  const cellW = fltCellWidthDxa(contentLen, sizeHp);
-  const cellWEmu = Math.round(cellW * EMU_PER_DXA);
-  return new Paragraph({
-    children: [new TextRun({ text: FLT_MARKER(letter, cellWEmu, sizeHp), size: sizeHp, font: 'Times New Roman' })],
-    spacing: { before: 40, after: 40 },
-  });
-};
-
-/** 空白四线三格 → 标记 Paragraph（仅绘制线，不渲染字母 —— 听写/默写留空场景）
- *  raw：元素内原始空白内容（&emsp; 序列），按实体数量自适应宽度（同填空横线） */
-export const buildFourLineBlankMarker = (sizeHp, raw = '') => {
-  const cellW = fltBlankWidthDxa(raw, sizeHp);
-  const cellWEmu = Math.round(cellW * EMU_PER_DXA);
-  return new Paragraph({
-    children: [new TextRun({ text: FLT_BLANK_MARKER(cellWEmu, sizeHp), size: sizeHp })],
-    spacing: { before: 40, after: 40 },
-  });
-};
-
 // ============ 图片导出 ============
 
 /** <img> → ImageRun（尺寸限制页宽内，比例不变） */
@@ -772,75 +750,6 @@ const inlineImagesForExport = async (container) => {
   await Promise.allSettled(tasks);
 };
 
-
-// ============ 降级方案：Table 构建器（canvas 不可用时）============
-
-/** 田字格 → 2×2 Table：实线外框 + 虚线十字（正方形格子） */
-export const buildTianZiGeTable = (gridChar, sizeHp, _fontFamily) => {
-  const cellW = Math.round(sizeHp * 18); // 1.8em half-points → DXA（与预览 CSS 一致，手写余量）
-  const rowH = { value: cellW, rule: HeightRule.EXACT };  // 强制行高 = 列宽 → 正方形
-  const outerB = { style: BorderStyle.SINGLE, size: 6, color: '999999' };  // 实线 ~1.5px
-  const innerB = { style: BorderStyle.DASHED, size: 2, color: 'CCCCCC' };   // 虚线 ~0.5px
-  const charP = new Paragraph({
-    children: [new TextRun({ text: gridChar, size: sizeHp, font: _fontFamily || 'SimSun' })],
-    alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 },
-  });
-  const blankP = new Paragraph({ text: '', spacing: { before: 0, after: 0 } });
-  const cell = (borders, hasChar) => new TableCell({
-    children: [hasChar ? charP : blankP],
-    width: { size: cellW, type: WidthType.DXA },
-    verticalAlign: VerticalAlign.CENTER,
-    borders,
-  });
-  return new Table({
-    rows: [
-      new TableRow({ height: rowH, children: [
-        /* TL-字 */ cell({ top: outerB, bottom: innerB, left: outerB, right: innerB }, true),
-        /* TR-空 */ cell({ top: outerB, bottom: innerB, left: innerB, right: outerB }, false),
-      ]}),
-      new TableRow({ height: rowH, children: [
-        /* BL-空 */ cell({ top: innerB, bottom: outerB, left: outerB, right: innerB }, false),
-        /* BR-空 */ cell({ top: innerB, bottom: outerB, left: innerB, right: outerB }, false),
-      ]}),
-    ],
-    width: { size: cellW * 2, type: WidthType.DXA },
-  });
-};
-
-/** 四线三格 → 1×1 Table：4 条水平线（3 灰 + 1 红底）
- *  用 4 个 Paragraph 各自的 bottom-border 画出 4 条线，
- *  字母放在第 2 个 Paragraph 中（线1和线2之间）。
- *  对应 CSS: 0.1em 灰 / 0.55em 灰 / 1.0em 深灰 / 1.45em 红 */
-export const buildFourLineTable = (letter, sizeHp) => {
-  const cellW = Math.round(sizeHp * 20);
-  const line1 = { style: BorderStyle.SINGLE, size: 2, color: '999999' };      // 灰线 1
-  const line2 = { style: BorderStyle.SINGLE, size: 2, color: '999999' };      // 灰线 2
-  const line3 = { style: BorderStyle.SINGLE, size: 2, color: '666666' };      // 深灰线 3
-  const line4 = { style: BorderStyle.SINGLE, size: 4, color: 'e74c3c' };      // 红线 4
-  const none = BorderStyle.NONE;
-  const p = (text, bottomBorder, sz) => new Paragraph({
-    text,
-    alignment: AlignmentType.CENTER,
-    spacing: { before: sz || 20, after: 0 },
-    border: bottomBorder ? { bottom: bottomBorder } : undefined,
-  });
-  return new Table({
-    rows: [new TableRow({
-      children: [new TableCell({
-        children: [
-          p('',        { style: line1.style, size: line1.size, color: line1.color }, 10),   // 线1（灰）
-          p(letter,    { style: line2.style, size: line2.size, color: line2.color }, 40),   // 线2（灰）+ 字母
-          p('',        { style: line3.style, size: line3.size, color: line3.color }, 10),   // 线3（深灰）
-          p('',        { style: line4.style, size: line4.size, color: line4.color }, 10),   // 线4（红）
-        ],
-        width: { size: cellW, type: WidthType.DXA },
-        verticalAlign: VerticalAlign.CENTER,
-        borders: { top: { style: none }, bottom: { style: none }, left: { style: none }, right: { style: none } },
-      })],
-    })],
-    width: { size: cellW, type: WidthType.DXA },
-  });
-};
 
 /** 表格单元格段落行距：固定值行距（exact）+ 段前段后 0
  *  🔧 用 exact：文字在行盒内垂直居中（auto 多倍行距贴顶→偏上；atLeast 文字贴行盒底→偏下），
