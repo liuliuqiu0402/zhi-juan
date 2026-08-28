@@ -1032,7 +1032,7 @@ const exportDocument = async () => {
 
       try {
         // 只传 clone（不含 style 标签），避免 CSS 被当成正文
-        // 🔧 作文格格子按学段尺寸（小学 8mm / 初中 7mm / 高中 6mm）
+        // 🔧 作文格格子按学段尺寸（小学 12mm / 初中 10mm / 高中 7.5×8mm，来自排版规格库），学段取自所选主题 stage
         const blob = await htmlToDocxBlob(clone, selectedTheme.value?.stage || 'middle');
         document.body.removeChild(wrapper);
         downloadBlob(blob, `${exportBaseName.value}.docx`);

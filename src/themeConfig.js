@@ -1,6 +1,6 @@
 // ==================== 主题定义 ====================
 import { convertFormulasInHtml } from './utils/wordExporter.js';
-import { getMergedSpec } from './config/layoutSpec.js';
+import { getMergedSpec, normalizeStage3 } from './config/layoutSpec.js';
 
 export const themes = [
   // 我的样式
@@ -1390,7 +1390,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   const theme = getThemeById(themeId);
   // 🔧 作文格尺寸按学段（来自排版规格库 ZUOWEN_CELL：主12/初10/高7.5×8；每行格数 CSS auto-fill 自动排满）
   const stage = theme?.stage || stageOpt || 'middle';
-  const zwgKey = stage === 'primary' ? 'primary' : stage === 'high' ? 'high' : 'middle';
+  const zwgKey = normalizeStage3(stage);
   const ZC = getMergedSpec().ZUOWEN_CELL;
   const zwgMm = ZC[zwgKey].heightMm;   // 格高（主/初正方、高8mm）
   const zwgMmW = ZC[zwgKey].widthMm;   // 格宽（主12/初10/7.5）

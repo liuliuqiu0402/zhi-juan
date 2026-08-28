@@ -17,6 +17,18 @@
 
 import { isLibEntryEnabled } from '../utils/libToggles.js';
 
+/**
+ * 学段 → 排版三档键归一化（primary/middle/high）
+ * 兼容三维度五档键（primary_low/mid/high）、旧三档键、中文名；
+ * 生成链路传入 stageKey（五档），排版/导出端一律经此归一化，避免 primary_low 误落 middle 档。
+ */
+export const normalizeStage3 = (stage) => {
+  const s = String(stage || '');
+  if (/^primary|小学/.test(s)) return 'primary';
+  if (/^high|高中/.test(s)) return 'high';
+  return 'middle';
+};
+
 /** 作文格格宽（mm）· 按排版学段。列数由 A4 可用宽度自动排满。 */
 export const ZUOWEN_CELL = {
   primary: { widthMm: 12, heightMm: 12 },   // 小学：12×12mm 正方形
@@ -265,5 +277,5 @@ export default {
   BRACKET_GRID, ZUOWEN_FILL_CELLS,
   LAYOUT_SPEC_DEFAULTS, LAYOUT_SPEC_GROUPS,
   loadLayoutSpecOverride, saveLayoutSpecOverride, resetLayoutSpecOverride, getMergedSpec, getCarrierAllowlist,
-  getAnswerRegion,
+  getAnswerRegion, normalizeStage3,
 };

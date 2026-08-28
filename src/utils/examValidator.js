@@ -300,10 +300,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     });
   }
 
-  // ── 1.5. [IMAGE] 配图块标准化（规则 image-block-fix：AI 常漏 NEGATIVE/WIDTH/HEIGHT、写成一行式、参数间混入 HTML）──
+  // ── 1.5. [IMAGE] 配图块标准化（规则 image-block-fix：AI 常漏块结构、写成一行式、参数间混入 HTML）──
   if (has('image-block-fix')) {
     // 🔧 兼容 [IMAGE: 描述] 一行式（AI 常漏块结构）→ 先规范化为标准 [IMAGE] 块
-    out = out.replace(/\[IMAGE\s*[:：]\s*([^\]]+)\]/gi, (m, desc) => `[IMAGE]\nTYPE:SD\nPROMPT:${desc.trim()}\nNEGATIVE:写实,照片,复杂背景,文字,水印\nWIDTH:800\nHEIGHT:600\nSTYLE:line_art\n[/IMAGE]`);
+    out = out.replace(/\[IMAGE\s*[:：]\s*([^\]]+)\]/gi, (m, desc) => `[IMAGE]\nPROMPT:${desc.trim()}\n[/IMAGE]`);
     const imageBlockRe = /\[IMAGE\]([\s\S]*?)(\[\/IMAGE\]|$)/gi;
     const stripHtmlIn = (s) => String(s || '')
       .replace(/&lt;\/?[a-zA-Z][^&]*&gt;|<\/?[a-zA-Z][^>]*>|\\?<\/?[a-zA-Z]\s*\\?>/g, '')
@@ -311,24 +311,26 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       .replace(/[ \t]{2,}/g, ' ')
       .trim();
     const normImage = out.replace(imageBlockRe, (m, body) => {
-      // 按行解析，兼容行内多字段（"TYPE:SD STYLE:line_art"）——值在遇到下一个字段名时截断
-      const fields = { TYPE: 'SD', PROMPT: '', NEGATIVE: '写实,照片,复杂背景,文字,水印', WIDTH: '800', HEIGHT: '600', STYLE: 'line_art' };
-      const KEY_RE = /(TYPE|PROMPT|NEGATIVE|WIDTH|HEIGHT|STYLE|描述)\s*[：:]\s*((?:(?!\b(?:TYPE|PROMPT|NEGATIVE|WIDTH|HEIGHT|STYLE|描述)\s*[：:])[^\n])*)/gi;
+      // 按行解析，兼容行内多字段；普通配图仅保留画面要求 PROMPT（不指定生图引擎），ICON 图标检索保留 TYPE/KEYWORDS
+      const fields = { PROMPT: '' };
+      const KEY_RE = /(TYPE|PROMPT|KEYWORDS|描述)\s*[：:]\s*((?:(?!\b(?:TYPE|PROMPT|KEYWORDS|描述)\s*[：:])[^\n])*)/gi;
       let mm;
       while ((mm = KEY_RE.exec(body)) !== null) {
         const key = mm[1].toUpperCase() === '描述' ? 'PROMPT' : mm[1].toUpperCase();
         // 字段值统一清理 HTML 残留（AI 常在参数行间混入 </p><p></p>）与多余空白
         const cleanVal = stripHtmlIn(mm[2]);
-        if (key === 'PROMPT' && fields.PROMPT) {
-          fields.PROMPT += mm[2]; // 多段 PROMPT 先拼接，最后统一清理
+        if (key === 'PROMPT') {
+          fields.PROMPT += cleanVal; // 多段 PROMPT 先拼接，最后统一清理
         } else {
           fields[key] = cleanVal;
         }
       }
       const prompt = stripHtmlIn(fields.PROMPT) || '（画面描述缺失）';
-      const norm = `[IMAGE]\nTYPE:${fields.TYPE || 'SD'}\nPROMPT:${prompt}\nNEGATIVE:${fields.NEGATIVE}\nWIDTH:${fields.WIDTH}\nHEIGHT:${fields.HEIGHT}\nSTYLE:${fields.STYLE}\n[/IMAGE]`;
+      const norm = fields.TYPE && fields.TYPE.toUpperCase() === 'ICON'
+        ? `[IMAGE]\nTYPE:ICON\nKEYWORDS:${fields.KEYWORDS || '（关键词缺失）'}\n[/IMAGE]`
+        : `[IMAGE]\nPROMPT:${prompt}\n[/IMAGE]`;
       if (norm !== m) {
-        issues.push({ severity: 'info', type: 'image-block', message: '已规范 [IMAGE] 配图块为标准 EduRender 格式（补齐参数/统一分行/清理残留）' });
+        issues.push({ severity: 'info', type: 'image-block', message: '已规范 [IMAGE] 配图块为 EduRender 格式（仅保留画面要求，不指定生图引擎）' });
         fixed += 1;
       }
       return norm;

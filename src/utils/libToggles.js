@@ -5,8 +5,9 @@
  *       停用条目在生成端消费点（findBlueprint / getTeachingBlueprint /
  *       getPromptTemplate / buildRenderContract）直接不命中，回退到下一级数据。
  * 存储：localStorage（仅存停用项，缺省 = 启用）；模块级缓存避免生成热路径反复 JSON.parse。
- * 键约定：{ [libId]: { [entryKey]: false } }——libId ∈ blueprint / instruction / render-contract；
- *         entryKey 与各库数据键一致（如 '语文|primary_low'、'primary_low|语文|exam'、'COORDINATE'）。
+ * 键约定：{ [libId]: { [entryKey]: false } }——libId ∈ blueprint / instruction / render-contract / layout-spec；
+ *         entryKey 与各库数据键一致（如 '语文|primary_low'、'primary_low|语文|exam'、'COORDINATE'、'zuo-wen-ge'）。
+ *         规则库启停不走此模块（RulesView 经 saveUserRule 的 enabled 字段覆盖，见 validatorRules）。
  */
 
 const TOGGLES_KEY = 'wisdom_lib_toggles_v1';

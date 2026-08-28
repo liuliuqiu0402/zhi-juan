@@ -2757,7 +2757,7 @@ const teacherVersion = ref(true); // true=教师版（含答案）, false=学生
 // 预览和编辑
 const previewContent = ref('');
 
-// 🖼️ [IMAGE] 标记 → 可视化配图占位框：AI 输出图形描述（PROMPT/描述），用户用生图工具生成后替换此框插入图片
+// 🖼️ [IMAGE] 标记 → 可视化配图占位框：AI 输出画面描述（PROMPT），用户用生图工具生成后替换此框插入图片
 //    避用正则与转义字符（历史教训：构建链路曾破坏转义序列），全部用 indexOf/split 处理
 const renderImagePlaceholders = (html) => {
   if (!html || typeof html !== 'string') return html;
@@ -2766,7 +2766,7 @@ const renderImagePlaceholders = (html) => {
     .split('&').join('&amp;')
     .split('<').join('&lt;')
     .split('>').join('&gt;');
-  // 提取字段标记后的第一行值（如 TYPE:SD / STYLE:line_art）
+  // 提取字段标记后的第一行值（如 PROMPT / TYPE:ICON / KEYWORDS）
   const fieldVal = (body, name) => {
     const idx = body.indexOf(name);
     if (idx === -1) return '';
@@ -2775,16 +2775,16 @@ const renderImagePlaceholders = (html) => {
     return v;
   };
   // 🔧 占位框构建（正常闭合与未闭合兜底共用）：data-image-raw 保存标准化 [IMAGE]…[/IMAGE] 标记，
-  //    导出 DOCX 时还原为标准生图格式，避免字段散架
-  const buildBox = (prompt, imgType, style, width, height, negative) => {
-    const rawMark = esc('[IMAGE]' + NL + 'TYPE:' + (imgType || 'SD') + NL + 'PROMPT:' + prompt + (negative ? NL + 'NEGATIVE:' + negative : '') + (width ? NL + 'WIDTH:' + width : '') + (height ? NL + 'HEIGHT:' + height : '') + NL + 'STYLE:' + (style || 'line_art') + NL + '[/IMAGE]').split('"').join('&quot;');
+  //    导出 DOCX 时还原为标准标记；普通配图仅画面描述（不指定生图引擎），ICON 图标检索保留 TYPE/KEYWORDS
+  const buildBox = (prompt, imgType, keywords) => {
+    const isIcon = imgType === 'ICON';
+    const rawMark = esc(isIcon
+      ? '[IMAGE]' + NL + 'TYPE:ICON' + NL + 'KEYWORDS:' + (keywords || prompt) + NL + '[/IMAGE]'
+      : '[IMAGE]' + NL + 'PROMPT:' + prompt + NL + '[/IMAGE]').split('"').join('&quot;');
     let box = '<div class="image-placeholder" data-image-raw="' + rawMark + '" style="text-align:left;padding:12px 14px;margin:12px 0;background:#f7f9fc;border:1px dashed #a0b4d0;border-radius:6px;color:#44608a;font-size:13px;line-height:1.7;">'
       + '<strong>[插图占位]</strong><br>'
-      + 'TYPE: ' + esc(imgType || 'SD') + '　STYLE: ' + esc(style || 'line_art')
-      + (width || height ? '　WIDTH: ' + esc(width || '800') + '　HEIGHT: ' + esc(height || '600') : '')
-      + '<br>PROMPT: <span style="color:#5c6bc0;">' + esc(prompt) + '</span>';
-    if (negative) box += '<br>NEGATIVE: ' + esc(negative);
-    box += '<br><span style="font-size:12px;color:#8899b0;">复制 PROMPT 到生图工具生成图片后插入此处</span></div>';
+      + (isIcon ? '图标检索: ' + esc(keywords || prompt) : 'PROMPT: <span style="color:#5c6bc0;">' + esc(prompt) + '</span>')
+      + '<br><span style="font-size:12px;color:#8899b0;">' + (isIcon ? '替换为检索到的图标图片' : '复制 PROMPT 到生图工具生成图片后插入此处') + '</span></div>';
     return box;
   };
   const out = [];
@@ -2805,7 +2805,7 @@ const renderImagePlaceholders = (html) => {
         .replace(/^描述[：:]\s*/, '')
         .replace(/^TYPE:SD\s*/i, '')
         .trim() || '画面描述缺失（未闭合）';
-      out.push(buildBox(prompt, 'SD', 'line_art', '', '', ''));
+      out.push(buildBox(prompt, '', ''));
       rest = nl === -1 ? '' : rest.slice(nl + 1);
       continue;
     }
@@ -2820,12 +2820,9 @@ const renderImagePlaceholders = (html) => {
       prompt = lines.length ? lines[lines.length - 1].trim() : '';
     }
     if (prompt.charAt(0) === ':' || prompt.charAt(0) === '：') prompt = prompt.slice(1).trim();
-    const imgType = fieldVal(body, 'TYPE') || 'SD';
-    const style = fieldVal(body, 'STYLE') || 'line_art';
-    const width = fieldVal(body, 'WIDTH');
-    const height = fieldVal(body, 'HEIGHT');
-    const negative = fieldVal(body, 'NEGATIVE');
-    out.push(buildBox(prompt, imgType, style, width, height, negative));
+    const imgType = (fieldVal(body, 'TYPE') || '').toUpperCase();
+    const keywords = fieldVal(body, 'KEYWORDS') || fieldVal(body, '关键词');
+    out.push(buildBox(prompt, imgType, keywords));
     rest = rest.slice(e + 8);
   }
   return out.join('');
@@ -6482,7 +6479,7 @@ const downloadDoc = async (doc, format) => {
     //    密封内容自动按 sealed_exam 注入主题样式，PDF 才有密封区/虚线/旋转文字效果；
     //    否则 puppeteer 渲染的是无样式 HTML（密封线退化为普通横排文字）。
     if (sealLike) {
-      pdfContent = applyThemeToContent(pdfContent, 'sealed_exam', { isHtmlContent: true, forceImportant: true });
+      pdfContent = applyThemeToContent(pdfContent, 'sealed_exam', { isHtmlContent: true, forceImportant: true, stage: doc?.meta?.stage || doc?.stage });
     }
     
     // 🔧 优先使用 Electron 原生 PDF 导出
@@ -6535,7 +6532,7 @@ const downloadDoc = async (doc, format) => {
     clone.innerHTML = exportContent;
     if (sealLike) {
       try {
-        const fullHtml = applyThemeToContent('<div></div>', 'sealed_exam', { isHtmlContent: true, forceImportant: false });
+        const fullHtml = applyThemeToContent('<div></div>', 'sealed_exam', { isHtmlContent: true, forceImportant: false, stage: doc?.meta?.stage || doc?.stage });
         const cssMatch = fullHtml.match(/<style>([\s\S]*?)<\/style>/i);
         if (cssMatch) {
           let exportCSS = cssMatch[1].trim()
@@ -6557,7 +6554,7 @@ const downloadDoc = async (doc, format) => {
     document.body.appendChild(wrapper);
 
     try {
-      // 🔧 作文格格子按学段尺寸（小学 8mm / 初中 7mm / 高中 6mm），学段取自生成参数
+      // 🔧 作文格格子按学段尺寸（小学 12mm / 初中 10mm / 高中 7.5×8mm），学段取自生成参数（五档 stageKey，docxBuilder 内归一化为三档）
       const blob = await htmlToDocxBlob(clone, doc?.meta?.stage || doc?.stage || 'middle');
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);

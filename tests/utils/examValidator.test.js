@@ -252,10 +252,12 @@ describe('examValidator 模板残留清理', () => {
 });
 
 describe('examValidator [IMAGE] 配图块标准化（image-block-fix）', () => {
-  it('一行式 + 缺参数 + HTML 残留 → 规范为 EduRender 标准格式并补默认参数', () => {
+  it('一行式 + 缺参数 + HTML 残留 → 规范为 EduRender 标准格式（仅画面要求 PROMPT，不指定引擎）', () => {
     const html = '[IMAGE]\nTYPE:SD STYLE:line_art\nPROMPT: 秋天果园摘苹果&nbsp;两个孩子很开心&lt;/p&gt;\n[/IMAGE]';
     const { html: out, issues } = auditExamPaper(html, OPTS);
-    expect(out).toContain('[IMAGE]\nTYPE:SD\nPROMPT:秋天果园摘苹果 两个孩子很开心\nNEGATIVE:写实,照片,复杂背景,文字,水印\nWIDTH:800\nHEIGHT:600\nSTYLE:line_art\n[/IMAGE]');
+    expect(out).toContain('[IMAGE]\nPROMPT:秋天果园摘苹果 两个孩子很开心\n[/IMAGE]');
+    expect(out).not.toContain('TYPE:SD');
+    expect(out).not.toContain('NEGATIVE:');
     expect(out).not.toContain('&lt;/p&gt;');
     expect(out).not.toContain('&nbsp;');
     expect(issues.some(i => i.type === 'image-block')).toBe(true);
@@ -265,22 +267,25 @@ describe('examValidator [IMAGE] 配图块标准化（image-block-fix）', () => 
     const html = '[IMAGE]\nTYPE:SD\nPROMPT:一只熊猫在竹林里吃竹子';
     const { html: out } = auditExamPaper(html, OPTS);
     expect(out).toContain('[/IMAGE]');
-    expect(out).toContain('NEGATIVE:写实,照片,复杂背景,文字,水印');
+    expect(out).toContain('[IMAGE]\nPROMPT:一只熊猫在竹林里吃竹子\n[/IMAGE]');
+    expect(out).not.toContain('NEGATIVE:');
   });
 
   it('已完整的标准块保持不变（幂等）', () => {
-    const std = '[IMAGE]\nTYPE:SD\nPROMPT:熊猫吃竹子\nNEGATIVE:文字,水印\nWIDTH:800\nHEIGHT:600\nSTYLE:line_art\n[/IMAGE]';
+    const std = '[IMAGE]\nPROMPT:熊猫吃竹子\n[/IMAGE]';
     const { html: out, issues } = auditExamPaper(std, OPTS);
     expect(out).toBe(std);
     expect(issues.some(i => i.type === 'image-block')).toBe(false);
   });
 
-  it('参数行间混入 HTML 残留（</p><p></p>）→ 全部字段清理（本案例：TYPE/STYLE/WIDTH/HEIGHT/NEGATIVE 都带标签）', () => {
+  it('参数行间混入 HTML 残留（</p><p></p>）→ 字段清理（SD 专属参数一律不输出）', () => {
     const html = '[IMAGE]\nTYPE: SD</p>　STYLE: line_art<p></p>　WIDTH: 400<p></p>　HEIGHT: 300<p></p>\nPROMPT: 秋天公园里扫落叶。\nNEGATIVE: 文字、水印、彩色、写实照片<p></p>\n[/IMAGE]';
     const { html: out } = auditExamPaper(html, OPTS);
-    expect(out).toContain('TYPE:SD\nPROMPT:秋天公园里扫落叶。\nNEGATIVE:文字、水印、彩色、写实照片\nWIDTH:400\nHEIGHT:300\nSTYLE:line_art\n[/IMAGE]');
+    expect(out).toContain('[IMAGE]\nPROMPT:秋天公园里扫落叶。\n[/IMAGE]');
     expect(out).not.toContain('</p>');
     expect(out).not.toContain('&lt;/p&gt;');
+    expect(out).not.toContain('TYPE:SD');
+    expect(out).not.toContain('NEGATIVE:');
   });
 });
 

@@ -5,7 +5,7 @@
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader } from 'docx';
 import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
-import { getMergedSpec } from '../config/layoutSpec.js';
+import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js';
 
 // ============ 工具函数 ============
 
@@ -13,7 +13,7 @@ import { getMergedSpec } from '../config/layoutSpec.js';
 //    1mm ≈ 56.69 DXA（Word 精确保留：1 inch = 25.4mm = 1440 DXA → 1mm = 1440/25.4 ≈ 56.69）
 const MM2DXA = 56.69;
 const zwgCellByStage = (stage) => {
-  const g = stage === 'primary' ? 'primary' : stage === 'high' ? 'high' : 'middle';
+  const g = normalizeStage3(stage);
   const c = getMergedSpec().ZUOWEN_CELL[g];
   return { widthDxa: Math.round(c.widthMm * MM2DXA), heightDxa: Math.round((c.heightMm || c.widthMm) * MM2DXA), widthMm: c.widthMm };
 };
@@ -979,7 +979,7 @@ const processBlockNode = (node, ctx = {}) => {
       // 🔧 正规作文纸字数标注（格子内小字下标，不占行、不影响书写）：累计 50/100/150…
       //    字所在的那个格子内部底部用浅灰小字标数字（如"50"），学生书写在格子中央，
       //    打印后标注不干扰；间隔按学段（来自排版规格库 ZUOWEN_MARK_STEP：小学 50 / 中学 100）
-      const MARK_STEP = getMergedSpec().ZUOWEN_MARK_STEP[__zwgStage === 'primary' ? 'primary' : __zwgStage === 'middle' ? 'middle' : 'high'];
+      const MARK_STEP = getMergedSpec().ZUOWEN_MARK_STEP[normalizeStage3(__zwgStage)];
       const MARK_MAX = 800;
       const MARK_STEPS = [];
       for (let m = MARK_STEP; m <= MARK_MAX; m += MARK_STEP) MARK_STEPS.push(m);
@@ -1968,7 +1968,8 @@ export const buildDocxFromDom = (containerEl, stage = 'middle') => {
 
 
 /** HTML DOM → docx Blob（含 DrawingML 后处理 + 图片预内联）
- *  stage: primary/middle/high —— 作文格格子尺寸按学段（小学 8mm / 初中 7mm / 高中 6mm） */
+ *  stage: primary_low~high/primary/middle/high/中文 —— 作文格格子尺寸按学段归一化
+ *  （小学 12mm / 初中 10mm / 高中 7.5×8mm，来自排版规格库 ZUOWEN_CELL） */
 export const htmlToDocxBlob = async (containerEl, stage = 'middle') => {
   // 🔧 预内联外部图片：fetch → dataURL 写入 _inlined 属性
   await inlineImagesForExport(containerEl);

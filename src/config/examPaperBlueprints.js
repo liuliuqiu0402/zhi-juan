@@ -8,6 +8,7 @@
 //      卷面格式细则与命题质量底线在指令库模板（EXAM_BASE）中定义，本库不重复。
 // 单一事实源：分值规则唯一在 promptLibrary.buildStructureText 中定义（含大题命题要求 note）；大题标题统一明细式（共X题，共X分）。
 import { getRegionConfig } from './examRegionConfig.js';
+import { isLibEntryEnabled } from '../utils/libToggles.js';
 
 /**
  * 学科×学段 → 真题卷题型骨架
@@ -119,10 +120,10 @@ export const EXAM_BLUEPRINTS = {
   '英语|primary_low': {
     label: '英语·小学低段（1-2年级，部分地区）', fullScore: 100, duration: '40分钟',
     sections: [
-      { name: '听力·听音选图', score: 10, note: '听简短词句选对应图片（物品/动物/人物动作等），基础交际要素' },
-      { name: '听力·听音判断', score: 10, note: '听句子判断图片或陈述正误' },
-      { name: '听力·听音排序', score: 10, note: '听词句给图片标序号' },
-      { name: '听力·听音选答语', score: 10, note: '听问句选正确应答（问候/喜好/年龄/物品归属等交际功能句）' },
+      { name: '听力·听音选图', score: 10, note: '听简短词句选对应图片（物品/动物/人物动作等），基础交际要素；每段材料读两遍' },
+      { name: '听力·听音判断', score: 10, note: '听句子判断图片或陈述正误；每段材料读两遍' },
+      { name: '听力·听音排序', score: 10, note: '听词句给图片标序号；每段材料读两遍' },
+      { name: '听力·听音选答语', score: 10, note: '听问句选正确应答（问候/喜好/年龄/物品归属等交际功能句）；每段材料读两遍' },
       { name: '笔试·看图连线', score: 10, note: '单词与图片连线' },
       { name: '笔试·字母与词汇', score: 10, note: '字母大小写、抄写单词' },
       { name: '笔试·情景对话', score: 10, note: '选词补全对话' },
@@ -133,10 +134,10 @@ export const EXAM_BLUEPRINTS = {
   '英语|primary_mid': {
     label: '英语·小学中段（3-4年级）', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '听力·听音选词/选图', score: 10, note: '听词句选正确单词或图片' },
-      { name: '听力·听音判断', score: 5, note: '听句子/对话判断图片或句子正误' },
-      { name: '听力·听音选答语', score: 10, note: '听问句（含简短对话语境）选正确应答（问路/购物/计划/喜好等交际功能句）' },
-      { name: '听力·听音排序', score: 10, note: '听一段对话或独白，按顺序给图片标序号' },
+      { name: '听力·听音选词/选图', score: 10, note: '听词句选正确单词或图片；每段材料读两遍' },
+      { name: '听力·听音判断', score: 5, note: '听句子/对话判断图片或句子正误；每段材料读两遍' },
+      { name: '听力·听音选答语', score: 10, note: '听问句（含简短对话语境）选正确应答（问路/购物/计划/喜好等交际功能句）；每段材料读两遍' },
+      { name: '听力·听音排序', score: 10, note: '听一段对话或独白，按顺序给图片标序号；每段材料读两遍' },
       { name: '笔试·语音辨析', score: 6, note: '选出画线部分发音不同的单词' },
       { name: '笔试·词汇运用', score: 8, note: '看图写词、词图匹配、词汇分类' },
       { name: '笔试·单项选择', score: 10, note: '语境中考查语法与交际用语' },
@@ -149,9 +150,9 @@ export const EXAM_BLUEPRINTS = {
   '英语|primary_high': {
     label: '英语·小学高段（5-6年级）', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '听力·听音选词/选图', score: 10, note: '听词句选正确单词或图片' },
-      { name: '听力·听音判断', score: 10, note: '听简短对话判断句子正误' },
-      { name: '听力·听音填空', score: 10, note: '听一篇完整短文（通知/自我介绍等），补全信息（姓名/时间/地点/活动），每空一词或短语' },
+      { name: '听力·听音选词/选图', score: 10, note: '听词句选正确单词或图片；每段材料读两遍' },
+      { name: '听力·听音判断', score: 10, note: '听简短对话判断句子正误；每段材料读两遍' },
+      { name: '听力·听音填空', score: 10, note: '听一篇完整短文（通知/自我介绍等），补全信息（姓名/时间/地点/活动），每空一词或短语；每段材料读两遍' },
       { name: '笔试·语音辨析', score: 5, note: '选出画线部分发音不同的单词' },
       { name: '笔试·词汇运用', score: 10, note: '词图匹配、词汇分类、根据提示写词' },
       { name: '笔试·单项选择', score: 15, note: '语境中考查语法与交际用语' },
@@ -616,6 +617,8 @@ const STAGE_SUBJECT_ALIAS = {
       if (all) bp = { ...all, key: `${bpSubject}|all`, subject: bpSubject, stage: bpStage };
     }
   }
+  // 工具库启停开关：命中蓝本被停用 → 返回 null（生成端落回兜底，见 useAiGenerator）
+  if (bp && !isLibEntryEnabled('blueprint', bp.key)) return null;
   // 省市差异化：命中省市配置则覆盖时长/总分，并按比例缩放题型骨架分值（末大题修正保证各大题之和=新总分）
   // 配置 = 内置 EXAM_REGION_CONFIG + 用户蓝图库"省市分值"维护的覆盖（用户优先）
   if (bp && region) {

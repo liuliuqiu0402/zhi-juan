@@ -4,7 +4,7 @@
  * 🔴 定位：把 EduRender Studio 的完整指令格式整合进生成链路，
  *    让生成模型输出的 [GRAPH]/[IMAGE]/公式标记可被 EduRender Studio 直接渲染。
  *    - [GRAPH]...[/GRAPH]  图形（数轴/函数/几何/统计/受力/电路/光路/原子）
- *    - [IMAGE]...[/IMAGE]  配图（SD 文生图 / ICON 图标检索）
+ *    - [IMAGE]...[/IMAGE]  配图（画面描述 / ICON 图标检索）
  *    - $...$ / $$...$$     公式（行内 / 块级）
  * 按 学科×学段×资料类型 三维度匹配注入（需要图的学科才给 [GRAPH] 骨架、
  * 配图题才给 [IMAGE]、数理化学科才给公式）。
@@ -33,14 +33,9 @@ const IMAGE_DEFAULT_TYPES = new Set(['practice', 'special', 'preview', 'reading'
 
 // ==================== EduRender Studio 完整格式骨架 ====================
 
-/** [IMAGE] 完整示例（SD 文生图 + ICON 图标检索） */
-const IMAGE_SAMPLE_SD = `[IMAGE]
-TYPE:SD
-PROMPT:画面描述（主体/动作/场景/风格细节，黑白线稿简笔画，图内禁文字）
-NEGATIVE:写实,照片,复杂背景,文字,水印
-WIDTH:800
-HEIGHT:600
-STYLE:line_art
+/** [IMAGE] 示例（画面描述 + ICON 图标检索；不指定生图引擎，渲染端按其标准处理） */
+const IMAGE_SAMPLE = `[IMAGE]
+PROMPT:画面描述（主体/动作/场景，黑白线稿简笔画，图内禁文字）
 [/IMAGE]`;
 
 const IMAGE_SAMPLE_ICON = `[IMAGE]
@@ -311,7 +306,7 @@ export function buildRenderContract({ subject = '', genType = '', needsImage = f
   }
   if (image) {
     parts.push(`· 配图（看图/配图题）用 [IMAGE]...[/IMAGE]，每图一个、单独成段，图内无字、不暗示答案，PROMPT 画面要素须与题干情境严格一致（人物/场景/数量与题干吻合，不得另起无关画面）：`);
-    parts.push(IMAGE_SAMPLE_SD);
+    parts.push(IMAGE_SAMPLE);
     parts.push(`· 或图标检索：`);
     parts.push(IMAGE_SAMPLE_ICON);
   }

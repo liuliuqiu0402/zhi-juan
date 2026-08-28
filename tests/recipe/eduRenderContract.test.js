@@ -56,13 +56,13 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     expect(out).toContain('SHELLS:2,8,1');
   });
 
-  it('配图注入完整 [IMAGE] 参数（SD 含 WIDTH/HEIGHT、ICON 含 KEYWORDS）', () => {
+  it('配图注入 [IMAGE] 示例（画面描述 + ICON 图标检索，不指定生图引擎）', () => {
     const out = buildRenderContract({ subject: '语文', genType: 'exam', needsImage: true });
-    expect(out).toContain('TYPE:SD');
-    expect(out).toContain('NEGATIVE:写实,照片,复杂背景,文字,水印');
-    expect(out).toContain('WIDTH:800');
-    expect(out).toContain('HEIGHT:600');
-    expect(out).toContain('STYLE:line_art');
+    expect(out).toContain('PROMPT:画面描述');
+    expect(out).not.toContain('TYPE:SD');
+    expect(out).not.toContain('NEGATIVE:');
+    expect(out).not.toContain('WIDTH:');
+    expect(out).not.toContain('HEIGHT:');
     expect(out).toContain('TYPE:ICON');
     expect(out).toContain('KEYWORDS:熊猫,竹子,卡通');
   });
@@ -104,10 +104,10 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     expect(out).toContain('$$...$$');
   });
 
-  it('配图类题型注入 [IMAGE] 说明（SD/ICON 格式）', () => {
+  it('配图类题型注入 [IMAGE] 说明（画面描述/ICON 格式）', () => {
     const out = buildRenderContract({ subject: '语文', genType: 'exam', needsImage: true });
     expect(out).toContain('[IMAGE]');
-    expect(out).toContain('TYPE:SD');
+    expect(out).not.toContain('TYPE:SD');
     expect(out).toContain('PROMPT');
     expect(out).toContain('TYPE:ICON');
     // 图与题干一致性约束（防"图片与内容不符"）
