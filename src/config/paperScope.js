@@ -47,6 +47,18 @@ export const buildPaperTitle = ({ grade = '', subject = '', semester = '', scope
 };
 
 /**
+ * 将卷首 h1 替换为规范标题（标题命名是确定性拼装——程序职责，不采信 AI 自由发挥的 h1）：
+ *   有 h1 则整体替换文本；无 h1 则原样返回（不插入，避免卷首结构位置争议）
+ * @param {string} html 生成结果 HTML
+ * @param {string} title 规范标题（buildPaperTitle 输出）
+ * @returns {string} 替换后的 HTML
+ */
+export const applyPaperTitleToContent = (html, title) => {
+  if (!html || !title) return html || '';
+  return String(html).replace(/<h1[^>]*>([\s\S]*?)<\/h1>/i, (m, t) => m.replace(t, title));
+};
+
+/**
  * 计算勾选节点最近公共祖先（LCA）。
  * @returns {{ lcaIdx:number, node:Object|null }} 无公共祖先返回 { lcaIdx:-1, node:null }
  */

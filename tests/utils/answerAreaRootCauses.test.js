@@ -110,4 +110,15 @@ describe('标题命名规范 buildPaperTitle', () => {
     const t = buildPaperTitle({ grade: '二年级', subject: '语文', scopeName: '期中综合测试', academic: '2025—2026学年度第一学期', isExam: true });
     expect(t).toBe('2025—2026学年度第一学期二年级语文期中综合测试');
   });
+  it('applyPaperTitleToContent：有 h1 → 替换为规范标题', async () => {
+    const { applyPaperTitleToContent } = await import('../../src/config/paperScope.js');
+    const html = '<h1>XX市2026年春季期末质量检测</h1><p>正文</p>';
+    expect(applyPaperTitleToContent(html, '2025—2026学年度第二学期二年级语文期末综合测试'))
+      .toBe('<h1>2025—2026学年度第二学期二年级语文期末综合测试</h1><p>正文</p>');
+  });
+  it('applyPaperTitleToContent：无 h1 / 空标题 → 原样返回（不插入）', async () => {
+    const { applyPaperTitleToContent } = await import('../../src/config/paperScope.js');
+    expect(applyPaperTitleToContent('<p>无标题正文</p>', '二年级语文上册第二单元综合检测')).toBe('<p>无标题正文</p>');
+    expect(applyPaperTitleToContent('<h1>原标题</h1>', '')).toBe('<h1>原标题</h1>');
+  });
 });

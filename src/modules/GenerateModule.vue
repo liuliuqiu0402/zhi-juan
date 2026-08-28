@@ -1362,7 +1362,7 @@ import {
   normalizeSubjectName
 } from '../config/expertKnowledge.js';
 import { useAiGenerator } from '../composables/useAiGenerator.js';
-import { inferPaperScope, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, SCOPE_LABEL_POOLS } from '../config/paperScope.js';
+import { inferPaperScope, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS } from '../config/paperScope.js';
 
 // 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
 const SCOPE_TYPE_LABELS = { default: '默认', midterm: '期中', final: '期末', monthly: '月考', topic: '专题' };
@@ -3372,16 +3372,6 @@ const pickPrimaryBook = (books) => {
   // 按 selectedChapters 数量降序排列，取最多的那本
   const sorted = [...books].sort((a, b) => (b.selectedChapters?.length || 0) - (a.selectedChapters?.length || 0));
   return sorted[0] || books[0];
-};
-
-// 🔧 从生成的 HTML 内容中提取第一个 <h1> 标题文本
-const extractTitleFromContent = (html) => {
-  if (!html || typeof html !== 'string') return null;
-  const match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-  if (match) {
-    return match[1].replace(/<[^>]+>/g, '').trim();
-  }
-  return null;
 };
 
 const isCoveredByAnalyzedParent = (book, chapter) => {
@@ -6083,25 +6073,41 @@ const finalizeGeneration = async (result, genType) => {
     const book = pickPrimaryBook(ctxBooks);
     const gradeLabel = book?.grade || '';
     const subjectLabel = book?.subject || '';
-    const bookPrefix = [gradeLabel, subjectLabel].filter(Boolean).join('');
-    // 提取范围名（单数据源）：
+    // 🔴 卷首大标题命名规范唯一实现（buildPaperTitle，与指令注入侧同一套语义）：
+    //    普通型（课/单元范围）= 年级 + 学科 + 册别 + 范围名 + 类型名（类型名从名称池轮换）
+    //    考试型（期中/期末/月考/专题）= 学年度学期 + 年级 + 学科 + 范围标签词（从名称池轮换）
+    //    ——标题命名是确定性拼装（程序职责），不再采信 AI 生成的 h1（此前 AI 自由发挥导致命名规则从未生效）
     const chapters = book?.selectedChapters || [];
-    const scopeInfo = inferPaperScope(chapters, book?.outline || [], scopeType.value || '');
+    const examLabelCats = ['midterm', 'final', 'monthly', 'topic'];
+    const scopeInfo = inferPaperScope(chapters, book?.outline || [], scopeType.value || '', pickScopeFromPool);
     const chapterName = scopeInfo.name;
-    const parts = [bookPrefix, chapterName, genTypeName].filter(Boolean);
+    const isLabelScope = !!scopeInfo?.isScopeLabel
+      && (examLabelCats.includes(scopeType.value || '') || examLabelCats.includes(scopeInfo.category || ''));
+    let label = scopeInfo?.isScopeLabel ? '' : (labelStyle.value || pickLabelFromPool(genType, chapterName || '_all_'));
+    if (label && /单元/.test(label) && /单元/.test(chapterName || '')) {
+      label = (getLabelPool(genType) || []).find(w => !/单元/.test(w)) || label;
+    }
+    const paperTitle = buildPaperTitle({
+      grade: gradeLabel,
+      subject: subjectLabel,
+      semester: isLabelScope ? '' : (book.semester || ''),
+      scopeName: chapterName,
+      typeLabel: label,
+      academic: isLabelScope ? inferAcademicTerm() : '',
+      isExam: isLabelScope,
+    });
+    // 🔴 卷首 h1 与文档标题统一为规范命名（AI 生成的 h1 一律替换为程序拼装的规范标题）
+    const titledContent = applyPaperTitleToContent(safeContent, paperTitle);
     const now = new Date();
     const ts = now.toLocaleDateString('zh-CN') + ' ' + now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    // 🔧 优先取生成内容中的 <h1> 标题，回退到元数据拼接
-    const extractedTitle = extractTitleFromContent(safeContent);
-    const title = extractedTitle
-      ? extractedTitle + '_' + ts
-      : (parts.length > 0 ? parts.join(' · ') : genTypeName) + '_' + ts;
+    // 文档标题 = 规范标题 + 时间戳（去重标识）
+    const title = paperTitle + '_' + ts;
     
     generatedDocs.value.push({
       id: 'doc_' + Date.now() + '_' + Math.random().toString(36),
       title,
-      content: renderImagePlaceholders(safeContent),
-      rawContent: safeContent,
+      content: renderImagePlaceholders(titledContent),
+      rawContent: titledContent,
       genType: genTypeName,
       style: propositionStyle.value,
       selected: false,
