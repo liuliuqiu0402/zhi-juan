@@ -35,7 +35,7 @@ const CONTENT_FORMAT = `· 内容用结构化呈现（表格/对比/导图优先
 /** 质量底线（按类型：正式卷 vs 教辅；在新课标"素养立意、教-学-评一致"基础上理解，不字面化） */
 const EXAM_QUALITY = `【质量底线】（正式卷）
 · 内容充足：题量与文字量与考试时长匹配，充实靠丰富题干信息、情境描述与思维层次；题干信息充分（情境/条件/要求完整），答案附解析
-· 内容正确：图文一致（配图/图形与题干严格吻合）；逻辑自洽（条件充分、因果清晰、设问与答案对应）；知识点与能力要求不超出本学段课标学业质量要求——材料载体可来自课外（课标鼓励广泛阅读、真实生活与跨学科情境），但材料难度适切本学段、设问对应的要求不超出课标学业质量；全部内容围绕本单元主题与考点（知识锚定教材单元）`;
+· 内容正确：图文一致（配图/图形与题干严格吻合）；逻辑自洽（条件充分、因果清晰、设问与答案对应）；知识点与能力要求不超出本学段课标学业质量要求——材料载体可来自课外（主题相关、难度适切本学段），设问对应的要求不超出课标学业质量；全部内容围绕本单元主题与考点（知识锚定教材单元）`;
 
 const TEACHING_QUALITY = `【质量底线】（教辅资料）
 · 内容充实：内容量与篇幅达到该类型底线，充实靠丰富题干信息、情境描述与思维层次；栏目完整，板块间不重复不雷同
@@ -48,7 +48,7 @@ const EXAM_BASE = (extra = '') => `你是资深命题专家。请为{grade}{subj
 {structure}
 
 【创作要求】
-1. 依据2022版新课标命题：素养立意、情境真实适切、设问有层次；按所选组织风格展开情境，情境与学科内容深度融合
+1. 依据{curriculum}命题：素养立意、情境真实适切、设问有层次；按所选组织风格展开情境，情境与学科内容深度融合
 2. 以{unit}为命题范围（本单元/本课/期中/期末等选定范围）：知识点与能力要求不超出本学段课标学业质量要求；选文、情境等载体可来自课外，但须主题相关、难度适切
 3. 每道题题干完整、条件充分、逻辑自洽、可直接作答；所有题目原创设计，禁止照搬教材原题；题量与文字量与考试时长匹配，内容充实饱满
 4. 阅读/材料题先给出完整选文或材料（课外选文标注出处）再设问；需配图处用 [IMAGE] 标记描述画面（格式见生成时注入的【渲染指令】）
@@ -96,7 +96,7 @@ ${quality}`;
  *  不做"一股脑全模板补充"，三维度模板各自针对性携带底线。 */
 
 /** 课时练基础模板（extra 为学科排版附加） */
-const PRACTICE_BASE = (extra = '') => `你是教辅编辑·课时练设计者。请为{grade}{subject}编写一份{unit}课时练习（依据2022版新课标学习任务群）。
+const PRACTICE_BASE = (extra = '') => `你是教辅编辑·课时练设计者。请为{grade}{subject}编写一份{unit}课时练习（依据{curriculum}）。
 
 【创作要求】
 1. 以学习任务组织，任务含真实情境+活动+成果
@@ -186,6 +186,15 @@ for (const [gType, base] of Object.entries(TYPE_BASES)) {
 /** 学段中文名（面板显示） */
 export const STAGE_NAMES = {
   primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中',
+};
+
+/** 课标版本按学段（可查可引用）：义务教育=《义务教育课程方案和课程标准（2022年版）》，高中=《普通高中课程标准（2017年版2020年修订）》 */
+export const CURRICULUM_BY_STAGE = {
+  primary_low: '2022年版义务教育课程标准',
+  primary_mid: '2022年版义务教育课程标准',
+  primary_high: '2022年版义务教育课程标准',
+  middle: '2022年版义务教育课程标准',
+  high: '《普通高中课程标准（2017年版2020年修订）》',
 };
 
 /**
@@ -331,7 +340,11 @@ function buildBuiltinTemplate({ stage = '', subject = '', genType = '' } = {}) {
   const stageExtras = genType === 'exam' ? STAGE_EXAM_EXTRAS : STAGE_TEACHING_EXTRAS;
   const se = stageExtras[stage];
   if (stage && se) extra.push(`\n\n【学段特点】\n${se.text}`);
-  return base(extra.join(''));
+  let tpl = base(extra.join(''));
+  // 🔧 课标版本按学段替换（{curriculum} 占位符：义务教育=2022年版，高中=2017年版2020年修订）；
+  //    通用模板（无学段）保留占位符，由注入侧 buildInjectionInstruction 兜底替换
+  if (stage && CURRICULUM_BY_STAGE[stage]) tpl = tpl.split('{curriculum}').join(CURRICULUM_BY_STAGE[stage]);
+  return tpl;
 }
 
 /** localStorage 键 */
@@ -458,6 +471,7 @@ export function buildInjectionInstruction(opts = {}) {
     '{label}': label || genTypeLabel || '试卷', '{semester}': semester || '', '{academic}': academic || '',
     '{structure}': structure || '（按教材内容合理设计大题）',
     '{fullScore}': fullScore, '{duration}': duration,
+    '{curriculum}': '本学段最新课程标准',
     '{material}': '（教材原文由系统按本资料覆盖的知识点检索后，生成时自动附加在指令末尾）',
   };
   for (const [k, v] of Object.entries(map)) body = body.split(k).join(v);
