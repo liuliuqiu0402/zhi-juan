@@ -7,6 +7,12 @@
         <b>模板 {{ tplList.length }} / {{ totalCount }}</b>
         <span class="ov-sep">·</span>
         <span>用户自定义 <b class="user-n">{{ userCount }}</b></span>
+        <span class="ov-sep">·</span>
+        <span class="st-chips">
+          <button class="st-chip" :class="{ sel: statusFilter === 'all' }" @click="statusFilter = 'all'">全部 {{ statusCounts.total }}</button>
+          <button class="st-chip on" :class="{ sel: statusFilter === 'on' }" @click="statusFilter = 'on'">启用 {{ statusCounts.on }}</button>
+          <button class="st-chip off" :class="{ sel: statusFilter === 'off' }" @click="statusFilter = 'off'">停用 {{ statusCounts.off }}</button>
+        </span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="dim-now">
@@ -20,6 +26,9 @@
         <input ref="importInput" type="file" accept=".json" style="display:none" @change="doImport" />
       </div>
     </div>
+
+    <!-- 课标版本声明（新课标发布后需人工核对更新，见 promptLibrary.CURRICULUM_VERSION_INFO） -->
+    <div class="tpl-curriculum">📚 课标版本：{{ curriculumNotice }}</div>
 
     <!-- 校验结果 -->
     <div class="tpl-validate" v-if="validateMsgs.length">
@@ -110,13 +119,19 @@
 
 <script setup>
 import { computed, inject, ref } from 'vue';
-import { listPromptTemplates, savePromptTemplate, deletePromptTemplate, BUILTIN_TEMPLATES } from '../../../config/promptLibrary.js';
+import { listPromptTemplates, savePromptTemplate, deletePromptTemplate, BUILTIN_TEMPLATES, CURRICULUM_VERSION_INFO } from '../../../config/promptLibrary.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 import { setLibToggle, listDisabledEntries } from '../../../utils/libToggles.js';
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
 const refreshLibStats = inject('refreshLibStats', () => {});
+
+/** 课标版本声明（指令库面板展示；新课标发布后人工核对更新，见 CURRICULUM_VERSION_INFO 注释） */
+const curriculumNotice = CURRICULUM_VERSION_INFO.notice;
+
+/* ===== 全部/启用/停用 状态筛选（停用条目灰显，点击计数过滤列表） ===== */
+const statusFilter = ref('all'); // all | on | off
 
 /* ===== 条目启用/停用开关（停用 = 不命中，自动落下一级，见 getPromptTemplate） ===== */
 const disabledTpl = ref(new Set(listDisabledEntries('instruction')));
@@ -168,7 +183,7 @@ const tplDimName = (t) => {
 const layerLabel = (t) => (t.source === 'user' ? '已自定义' : '内置');
 
 /* ===== 三维度筛选（按 key 解析匹配） ===== */
-const tplList = computed(() =>
+const dimList = computed(() =>
   allTpl.value.filter((t) => {
     const { stage, subject, genType } = parseKey(t.key);
     if (dims.value.stage && stage && stage !== dims.value.stage) return false;
@@ -177,6 +192,17 @@ const tplList = computed(() =>
     return true;
   })
 );
+/* 状态计数（基于三维度筛选结果，点击计数可过滤列表） */
+const statusCounts = computed(() => {
+  let on = 0, off = 0;
+  for (const t of dimList.value) { if (tplOff(t.key)) off++; else on++; }
+  return { total: dimList.value.length, on, off };
+});
+const tplList = computed(() => dimList.value.filter((t) => {
+  if (statusFilter.value === 'on' && tplOff(t.key)) return false;
+  if (statusFilter.value === 'off' && !tplOff(t.key)) return false;
+  return true;
+}));
 
 /* ===== 轻量校验：模板非空 + 数据键格式 ===== */
 const validateMsgs = computed(() => {
@@ -274,6 +300,18 @@ const doImport = async (e) => {
 .sw input { accent-color: var(--primary); cursor: pointer; }
 .tpl-card.disabled .tpl-head { opacity: .55; }
 .tpl-overview { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; background: var(--bg); border: 1px solid var(--border-light); border-radius: 10px; padding: 10px 14px; box-shadow: 0 2px 6px rgba(30,58,111,.06); }
+/* 状态计数 chip（全部/启用/停用，点击过滤列表） */
+.st-chips { display: inline-flex; gap: 6px; margin-left: 6px; }
+.st-chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 2px 10px; font-size: 11.5px; cursor: pointer; color: var(--text-muted); }
+.st-chip:hover { border-color: var(--primary-light); color: var(--primary); }
+.st-chip.on { color: #2e7d32; }
+.st-chip.off { color: #c0392b; }
+.st-chip.sel { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+.st-chip.sel:hover { color: #fff; }
+.st-chip.on.sel { background: #2e7d32; border-color: #2e7d32; }
+.st-chip.off.sel { background: #c0392b; border-color: #c0392b; }
+/* 课标版本声明条 */
+.tpl-curriculum { margin-top: 10px; font-size: 12.5px; line-height: 1.7; color: #5b4005; background: #fdf3e2; border: 1px solid #f3d9a8; border-radius: 8px; padding: 8px 12px; }
 .lib-badge { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 6px; padding: 3px 10px; margin-right: 10px; }
 .ov-sep { margin: 0 8px; color: #c2ccda; }
 .user-n { color: var(--primary); }

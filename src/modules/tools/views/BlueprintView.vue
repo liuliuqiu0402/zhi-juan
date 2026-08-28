@@ -31,7 +31,13 @@
     <div class="bp-validate ok" v-else>✅ blueprintGuard 静态校验全部通过（当前筛选范围）</div>
 
     <!-- 真题蓝本（手风琴） -->
-    <h4 class="bp-h">📐 真题蓝本（exam）<span class="hint">点击名称展开/收起 · 展开后可编辑</span></h4>
+    <h4 class="bp-h">📐 真题蓝本（exam）<span class="hint">点击名称展开/收起 · 展开后可编辑</span>
+      <span class="st-chips">
+        <button class="st-chip" :class="{ sel: examFilter === 'all' }" @click="examFilter = 'all'">全部 {{ examCounts.total }}</button>
+        <button class="st-chip on" :class="{ sel: examFilter === 'on' }" @click="examFilter = 'on'">启用 {{ examCounts.on }}</button>
+        <button class="st-chip off" :class="{ sel: examFilter === 'off' }" @click="examFilter = 'off'">停用 {{ examCounts.off }}</button>
+      </span>
+    </h4>
     <div v-if="examList.length" class="bp-list">
       <div v-for="bp in examList" :key="bp.key" class="bp-card" :class="{ open: openKey === bp.key, editing: editingKey === bp.key, disabled: bpOff(bp.key) }">
         <!-- 卡片头：点击切换展开 -->
@@ -97,7 +103,13 @@
     <div v-else class="bp-empty">当前筛选无真题蓝本（可放宽筛选）</div>
 
     <!-- 教辅结构（手风琴只读） -->
-    <h4 class="bp-h">📚 教辅结构（学科 × 8 类）<span class="hint">点击展开查看栏目与学段参数 · 已定制显示学科版栏目，未定制回退通用模板</span></h4>
+    <h4 class="bp-h">📚 教辅结构（学科 × 8 类）<span class="hint">点击展开查看栏目与学段参数 · 已定制显示学科版栏目，未定制回退通用模板</span>
+      <span class="st-chips">
+        <button class="st-chip" :class="{ sel: teachFilter === 'all' }" @click="teachFilter = 'all'">全部 {{ teachCounts.total }}</button>
+        <button class="st-chip on" :class="{ sel: teachFilter === 'on' }" @click="teachFilter = 'on'">启用 {{ teachCounts.on }}</button>
+        <button class="st-chip off" :class="{ sel: teachFilter === 'off' }" @click="teachFilter = 'off'">停用 {{ teachCounts.off }}</button>
+      </span>
+    </h4>
     <div v-if="teachList.length" class="bp-list teach">
       <div v-for="bp in teachList" :key="bp.key" class="bp-card" :class="{ open: openTeach === bp.key, disabled: bpOff(bp.key) }">
         <div class="bp-head" @click="toggleTeach(bp.key)">
@@ -222,6 +234,10 @@ const openTeach = ref('');
 const toggle = (key) => { openKey.value = openKey.value === key ? '' : key; };
 const toggleTeach = (key) => { openTeach.value = openTeach.value === key ? '' : key; };
 
+/* ===== 全部/启用/停用 状态筛选（停用条目灰显，点击计数过滤列表） ===== */
+const examFilter = ref('all'); // all | on | off
+const teachFilter = ref('all');
+
 /* ===== 筛选 ===== */
 const matchStage = (key) => {
   const st = dims.value.stage;
@@ -233,13 +249,23 @@ const matchSubject = (key) => {
   if (!su) return true;
   return key.startsWith(`${su}|`) || key === su;
 };
-const examList = computed(() =>
+const dimExamList = computed(() =>
   allExam.value.filter((bp) => {
     if (dims.value.genType && dims.value.genType !== 'exam') return false;
     return matchSubject(bp.key) && matchStage(bp.key);
   })
 );
-const teachList = computed(() =>
+const examCounts = computed(() => {
+  let on = 0, off = 0;
+  for (const bp of dimExamList.value) { if (bpOff(bp.key)) off++; else on++; }
+  return { total: dimExamList.value.length, on, off };
+});
+const examList = computed(() => dimExamList.value.filter((bp) => {
+  if (examFilter.value === 'on' && bpOff(bp.key)) return false;
+  if (examFilter.value === 'off' && !bpOff(bp.key)) return false;
+  return true;
+}));
+const dimTeachList = computed(() =>
   allTeach.filter((bp) => {
     if (dims.value.genType === 'exam') return false;
     if (dims.value.genType && bp.genType !== dims.value.genType) return false;
@@ -247,6 +273,16 @@ const teachList = computed(() =>
     return true;
   })
 );
+const teachCounts = computed(() => {
+  let on = 0, off = 0;
+  for (const bp of dimTeachList.value) { if (bpOff(bp.key)) off++; else on++; }
+  return { total: dimTeachList.value.length, on, off };
+});
+const teachList = computed(() => dimTeachList.value.filter((bp) => {
+  if (teachFilter.value === 'on' && bpOff(bp.key)) return false;
+  if (teachFilter.value === 'off' && !bpOff(bp.key)) return false;
+  return true;
+}));
 const stageParam = (bp) => {
   const st = dims.value.stage;
   if (st && bp.stages && bp.stages[st]) return bp.stages[st];
@@ -387,8 +423,18 @@ const doImport = async (e) => {
 .v-item.sev-warning { color: #a06a10; }
 .v-code { font-family: Consolas, monospace; font-weight: 700; }
 
-.bp-h { font-size: 14px; color: var(--primary); margin: 22px 0 10px; }
+.bp-h { font-size: 14px; color: var(--primary); margin: 22px 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .hint { font-size: 11.5px; color: var(--text-muted); font-weight: 400; margin-left: 8px; }
+/* 状态计数 chip（全部/启用/停用，点击过滤列表） */
+.st-chips { display: inline-flex; gap: 6px; margin-left: auto; }
+.st-chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 2px 10px; font-size: 11.5px; cursor: pointer; color: var(--text-muted); }
+.st-chip:hover { border-color: var(--primary-light); color: var(--primary); }
+.st-chip.on { color: #2e7d32; }
+.st-chip.off { color: #c0392b; }
+.st-chip.sel { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+.st-chip.sel:hover { color: #fff; }
+.st-chip.on.sel { background: #2e7d32; border-color: #2e7d32; }
+.st-chip.off.sel { background: #c0392b; border-color: #c0392b; }
 .bp-list { display: flex; flex-direction: column; gap: 8px; }
 .bp-card { background: #fff; border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; }
 .bp-card.open { border-color: var(--primary-light); box-shadow: 0 2px 10px rgba(30,58,111,.08); }

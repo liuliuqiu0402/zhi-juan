@@ -33,9 +33,15 @@
     <div class="rc-validate ok" v-else>✅ 渲染契约覆盖正常（当前筛选范围）</div>
 
     <!-- 图形 TYPE 目录（手风琴） -->
-    <h4 class="rc-h">📊 图形 TYPE 目录（[GRAPH] 协议）<span class="hint">点击 TYPE 查看示例骨架</span></h4>
+    <h4 class="rc-h">📊 图形 TYPE 目录（[GRAPH] 协议）<span class="hint">点击 TYPE 查看示例骨架</span>
+      <span class="st-chips">
+        <button class="st-chip" :class="{ sel: typeStatusFilter === 'all' }" @click="typeStatusFilter = 'all'">全部 {{ typeCounts.total }}</button>
+        <button class="st-chip on" :class="{ sel: typeStatusFilter === 'on' }" @click="typeStatusFilter = 'on'">启用 {{ typeCounts.on }}</button>
+        <button class="st-chip off" :class="{ sel: typeStatusFilter === 'off' }" @click="typeStatusFilter = 'off'">停用 {{ typeCounts.off }}</button>
+      </span>
+    </h4>
     <div class="rc-list">
-      <div v-for="t in typeList" :key="t.id" class="rc-card" :class="{ open: openType === t.id, disabled: typeOff(t.id) }">
+      <div v-for="t in typeShowList" :key="t.id" class="rc-card" :class="{ open: openType === t.id, disabled: typeOff(t.id) }">
         <div class="rc-head" @click="toggleType(t.id)">
           <span class="arrow">{{ openType === t.id ? '▾' : '▸' }}</span>
           <span class="lib-tag">🎨 契约库</span>
@@ -60,7 +66,13 @@
     </div>
 
     <!-- 学科契约矩阵 -->
-    <h4 class="rc-h">📚 学科契约（学科 × 学段 → 图形/公式/配图）<span class="hint">按学科筛选联动 · 展开可自定义</span></h4>
+    <h4 class="rc-h">📚 学科契约（学科 × 学段 → 图形/公式/配图）<span class="hint">按学科筛选联动 · 展开可自定义</span>
+      <span class="st-chips">
+        <button class="st-chip" :class="{ sel: subStatusFilter === 'all' }" @click="subStatusFilter = 'all'">全部 {{ subCounts.total }}</button>
+        <button class="st-chip on" :class="{ sel: subStatusFilter === 'on' }" @click="subStatusFilter = 'on'">启用 {{ subCounts.on }}</button>
+        <button class="st-chip off" :class="{ sel: subStatusFilter === 'off' }" @click="subStatusFilter = 'off'">停用 {{ subCounts.off }}</button>
+      </span>
+    </h4>
     <div class="rc-list">
       <div v-for="c in contractList" :key="c.subject" class="rc-card" :class="{ open: openSub === c.subject, editing: editingSub === c.subject, disabled: subOff(c.subject) }">
         <div class="rc-head" @click="toggleSub(c.subject)">
@@ -206,6 +218,19 @@ const typeList = GRAPH_TYPES.map((id) => ({
 const openType = ref('');
 const toggleType = (id) => { openType.value = openType.value === id ? '' : id; };
 
+/* ===== 全部/启用/停用 状态筛选（点击计数过滤列表） ===== */
+const typeStatusFilter = ref('all'); // all | on | off
+const typeCounts = computed(() => {
+  let on = 0, off = 0;
+  for (const t of typeList) { if (typeOff(t.id)) off++; else on++; }
+  return { total: typeList.length, on, off };
+});
+const typeShowList = computed(() => typeList.filter((t) => {
+  if (typeStatusFilter.value === 'on' && typeOff(t.id)) return false;
+  if (typeStatusFilter.value === 'off' && !typeOff(t.id)) return false;
+  return true;
+}));
+
 /* ===== 图形 TYPE 启用/停用开关（停用 = 不再注入该 TYPE，见 buildRenderContract） ===== */
 const disabledType = ref(new Set(listDisabledEntries('render-contract')));
 const typeOff = (id) => disabledType.value.has(id);
@@ -260,7 +285,9 @@ const getTypeEffect = (genType) => {
   return '';
 };
 
-const contractList = computed(() =>
+/* 全部/启用/停用 状态筛选（点击计数过滤列表） */
+const subStatusFilter = ref('all'); // all | on | off
+const dimContractList = computed(() =>
   allContract
     .filter((c) => {
       if (dims.value.subject && c.subject !== dims.value.subject) return false;
@@ -272,6 +299,16 @@ const contractList = computed(() =>
       typeEffect: getTypeEffect(dims.value.genType),
     }))
 );
+const subCounts = computed(() => {
+  let on = 0, off = 0;
+  for (const c of dimContractList.value) { if (subOff(c.subject)) off++; else on++; }
+  return { total: dimContractList.value.length, on, off };
+});
+const contractList = computed(() => dimContractList.value.filter((c) => {
+  if (subStatusFilter.value === 'on' && subOff(c.subject)) return false;
+  if (subStatusFilter.value === 'off' && !subOff(c.subject)) return false;
+  return true;
+}));
 const openSub = ref('');
 const toggleSub = (s) => { openSub.value = openSub.value === s ? '' : s; };
 const gapCount = computed(() => allContract.filter((c) => c.missing).length);
@@ -377,8 +414,18 @@ const copyContract = (c) => {
 .v-item.sev-warning { color: #a06a10; }
 .v-code { font-family: Consolas, monospace; font-weight: 700; }
 
-.rc-h { font-size: 14px; color: var(--primary); margin: 22px 0 10px; }
+.rc-h { font-size: 14px; color: var(--primary); margin: 22px 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .hint { font-size: 11.5px; color: var(--text-muted); font-weight: 400; margin-left: 8px; }
+/* 状态计数 chip（全部/启用/停用，点击过滤列表） */
+.st-chips { display: inline-flex; gap: 6px; margin-left: auto; }
+.st-chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 2px 10px; font-size: 11.5px; cursor: pointer; color: var(--text-muted); }
+.st-chip:hover { border-color: var(--primary-light); color: var(--primary); }
+.st-chip.on { color: #2e7d32; }
+.st-chip.off { color: #c0392b; }
+.st-chip.sel { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+.st-chip.sel:hover { color: #fff; }
+.st-chip.on.sel { background: #2e7d32; border-color: #2e7d32; }
+.st-chip.off.sel { background: #c0392b; border-color: #c0392b; }
 .rc-list { display: flex; flex-direction: column; gap: 8px; }
 .rc-card { background: #fff; border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; }
 .rc-card.open { border-color: var(--primary-light); box-shadow: 0 2px 10px rgba(30,58,111,.08); }

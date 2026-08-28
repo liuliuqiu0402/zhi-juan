@@ -8,6 +8,12 @@
         <span class="ov-sep">·</span>
         <span>用户自定义 <b class="user-n">{{ userCount }}</b></span>
         <span class="ov-sep">·</span>
+        <span class="st-chips">
+          <button class="st-chip" :class="{ sel: statusFilter === 'all' }" @click="statusFilter = 'all'">全部 {{ statusCounts.total }}</button>
+          <button class="st-chip on" :class="{ sel: statusFilter === 'on' }" @click="statusFilter = 'on'">启用 {{ statusCounts.on }}</button>
+          <button class="st-chip off" :class="{ sel: statusFilter === 'off' }" @click="statusFilter = 'off'">停用 {{ statusCounts.off }}</button>
+        </span>
+        <span class="ov-sep">·</span>
         <span>规则源 <b class="ok-n">已接线</b>（生成前注入 + 生成后审计）</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -157,13 +163,24 @@ const dimsText = (r) =>
   `学段[${(r.stages || []).join('、') || '*'}] · 学科[${(r.subjects || []).join('、') || '*'}] · 类型[${(r.genTypes || []).join('、') || '全部'}]`;
 
 const matchArr = (arr, v) => !v || !arr || !arr.length || arr.includes('*') || arr.includes(v);
-const ruleList = computed(() =>
+const dimRuleList = computed(() =>
   allRules.value.filter((r) =>
     matchArr(r.stages, dims.value.stage) &&
     matchArr(r.subjects, dims.value.subject) &&
     matchArr(r.genTypes, dims.value.genType)
   )
 );
+/* 状态计数（基于三维度筛选结果，点击计数可过滤列表） */
+const statusCounts = computed(() => {
+  let on = 0, off = 0;
+  for (const r of dimRuleList.value) { if (ruleOff(r)) off++; else on++; }
+  return { total: dimRuleList.value.length, on, off };
+});
+const ruleList = computed(() => dimRuleList.value.filter((r) => {
+  if (statusFilter.value === 'on' && ruleOff(r)) return false;
+  if (statusFilter.value === 'off' && !ruleOff(r)) return false;
+  return true;
+}));
 
 /* ===== 接线状态 ===== */
 // 规则库（validatorRules）为生成端唯一规则源：生成前 buildValidatorPrompt 注入 + 生成后 auditExamPaper 执行
@@ -171,6 +188,7 @@ const wiredState = () => ({ label: '已接线', cls: 'ok' });
 const holeRules = computed(() => []);
 
 /* ===== 规则启用/停用开关（停用 = 双阶段均不命中，见 getValidatorRules / buildValidatorPrompt） ===== */
+const statusFilter = ref('all'); // 全部/启用/停用 状态筛选（点击计数过滤列表）
 const ruleOff = (r) => r.enabled === false;
 const toggleRule = (r, on) => {
   const { source, ...rest } = r;
@@ -282,6 +300,16 @@ const doImport = async (e) => {
 <style scoped>
 .rule-page { padding: 18px 22px 30px; max-width: 1080px; }
 .rule-overview { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13px; background: var(--bg); border: 1px solid var(--border-light); border-radius: 10px; padding: 10px 14px; box-shadow: 0 2px 6px rgba(30,58,111,.06); }
+/* 状态计数 chip（全部/启用/停用，点击过滤列表） */
+.st-chips { display: inline-flex; gap: 6px; margin-left: 6px; }
+.st-chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 2px 10px; font-size: 11.5px; cursor: pointer; color: var(--text-muted); }
+.st-chip:hover { border-color: var(--primary-light); color: var(--primary); }
+.st-chip.on { color: #2e7d32; }
+.st-chip.off { color: #c0392b; }
+.st-chip.sel { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+.st-chip.sel:hover { color: #fff; }
+.st-chip.on.sel { background: #2e7d32; border-color: #2e7d32; }
+.st-chip.off.sel { background: #c0392b; border-color: #c0392b; }
 .lib-badge { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: var(--primary); border-radius: 6px; padding: 3px 10px; margin-right: 10px; }
 .ov-sep { margin: 0 8px; color: #c2ccda; }
 .user-n { color: var(--primary); }

@@ -8,7 +8,11 @@
         <span class="ov-sep">·</span>
         <span>用户覆盖 <b class="user-n">{{ userOverrideCount }}</b> 项</span>
         <span class="ov-sep">·</span>
-        <span>停用 <b class="off-n">{{ disabledGroups.size }}</b> 组</span>
+        <span class="st-chips">
+          <button class="st-chip" :class="{ sel: specFilter === 'all' }" @click="specFilter = 'all'">全部 {{ specCounts.total }}</button>
+          <button class="st-chip on" :class="{ sel: specFilter === 'on' }" @click="specFilter = 'on'">启用 {{ specCounts.on }}</button>
+          <button class="st-chip off" :class="{ sel: specFilter === 'off' }" @click="specFilter = 'off'">停用 {{ specCounts.off }}</button>
+        </span>
         <span class="ov-sep">·</span>
         <span>消费者 docxBuilder / contentCleaner / themeConfig</span>
       </div>
@@ -29,7 +33,8 @@
 
     <!-- 规格组手风琴 -->
     <div class="ls-list">
-      <div v-for="g in SPEC_GROUPS" :key="g.id" class="ls-card" :class="{ open: openGroup === g.id, editing: editingGroup === g.id, disabled: groupOff(g.id) }">
+      <div v-if="!specShowList.length" class="ls-empty">当前筛选无规格组（可切换上方状态筛选）</div>
+      <div v-for="g in specShowList" :key="g.id" class="ls-card" :class="{ open: openGroup === g.id, editing: editingGroup === g.id, disabled: groupOff(g.id) }">
         <div class="ls-head" @click="toggleGroup(g.id)">
           <span class="arrow">{{ openGroup === g.id ? '▾' : '▸' }}</span>
           <span class="lib-tag">📏 规格</span>
@@ -338,6 +343,19 @@ const toggleGroupEnabled = (gid, on) => {
   disabledGroups.value = next;
 };
 
+/* ===== 状态筛选（全部/启用/停用，点击计数过滤列表） ===== */
+const specFilter = ref('all'); // all | on | off
+const specCounts = computed(() => {
+  let on = 0, off = 0;
+  for (const g of SPEC_GROUPS) { if (groupOff(g.id)) off++; else on++; }
+  return { total: SPEC_GROUPS.length, on, off };
+});
+const specShowList = computed(() => SPEC_GROUPS.filter((g) => {
+  if (specFilter.value === 'on' && groupOff(g.id)) return false;
+  if (specFilter.value === 'off' && !groupOff(g.id)) return false;
+  return true;
+}));
+
 // ==================== 手风琴 ====================
 const openGroup = ref('');
 const toggleGroup = (id) => { openGroup.value = openGroup.value === id ? '' : id; };
@@ -459,6 +477,18 @@ const doImport = async (e) => {
 .brief code { background: var(--primary-lighter); color: var(--primary); padding: 1px 6px; border-radius: 4px; font-size: 11.5px; }
 
 .ls-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.ls-empty { font-size: 12.5px; color: var(--text-muted); background: var(--bg-card); border: 1px dashed var(--border-light); border-radius: 8px; padding: 14px; text-align: center; }
+
+/* 状态计数 chips（与指令/蓝图/规则/渲染契约视图同款） */
+.st-chips { display: inline-flex; gap: 6px; }
+.st-chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 2px 10px; font-size: 11.5px; cursor: pointer; color: var(--text-muted); }
+.st-chip:hover { border-color: var(--primary-light); color: var(--primary); }
+.st-chip.on { color: #2e7d32; }
+.st-chip.off { color: #c0392b; }
+.st-chip.sel { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+.st-chip.sel:hover { color: #fff; }
+.st-chip.on.sel { background: #2e7d32; border-color: #2e7d32; }
+.st-chip.off.sel { background: #c0392b; border-color: #c0392b; }
 .ls-card { background: #fff; border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; }
 .ls-card.open { border-color: var(--primary-light); box-shadow: 0 2px 10px rgba(30,58,111,.08); }
 .ls-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; flex-wrap: wrap; }
@@ -469,7 +499,6 @@ const doImport = async (e) => {
 .ls-desc { font-size: 12px; color: #667; flex: 1; }
 .ls-meta { font-size: 12px; color: var(--text-muted); }
 .src-user { font-size: 10.5px; font-weight: 600; color: #a06a10; background: #fdf3e2; border: 1px solid #f3d9a8; border-radius: 999px; padding: 1px 8px; }
-.off-n { color: var(--danger); }
 
 /* 启停开关（与蓝图/指令/渲染契约视图同款） */
 .sw { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #2e7d32; cursor: pointer; user-select: none; }
