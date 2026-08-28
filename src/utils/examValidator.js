@@ -69,14 +69,29 @@ export const normalizePinyinText = (text) => {
   return { text: out, fixed };
 };
 
-/** 统计一段 HTML 中的空位数（blank 标签 + 全角括号空位） */
+/** 统计一段 HTML 中的空位数（blank 标签 + 全角括号空位 + 表格空单元格） */
 export const countBlanks = (html) => {
   if (!html) return 0;
   const tagCount = (html.match(BLANK_TAG_RE) || []).length;
   const parenCount = (html.match(PAREN_BLANK_RE) || []).length;
   const bareUCount = (html.match(BARE_U_BLANK_RE) || []).length;
   const underlineCount = (html.match(BARE_UNDERLINE_RE) || []).length;
-  return tagCount + parenCount + bareUCount + underlineCount;
+  // 表格空单元格（查字典表/数位表等作答格）：已计载体形态（blank 标签/括号空位/裸横线）剔除后
+  //   无可见文字（仅空白字符/空白实体/换行）的 <td> 计 1 空——与已计形态不重复计数
+  //   （历史缺口：AI 声称"共29空"但表格仅 6 个空格子时，旧口径数不到 → 声称无法验证被原样保留）
+  let tableCount = 0;
+  const tdRe = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+  let tm;
+  while ((tm = tdRe.exec(html))) {
+    const stripped = tm[1]
+      .replace(BLANK_TAG_RE, 'x')
+      .replace(PAREN_BLANK_RE, 'x')
+      .replace(BARE_U_BLANK_RE, 'x')
+      .replace(BARE_UNDERLINE_RE, 'x');
+    const text = stripped.replace(/<[^>]+>/g, '').replace(/&(?:emsp|ensp|nbsp|thinsp);|[\u3000\u00A0\u2000-\u200B\uFEFF 　]/g, '');
+    if (!text.trim()) tableCount += 1;
+  }
+  return tagCount + parenCount + bareUCount + underlineCount + tableCount;
 };
 
 /** 统计一段 HTML 中的独立拼音组数 */

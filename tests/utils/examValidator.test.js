@@ -164,6 +164,53 @@ describe('examValidator 分值标注修正（第4题案例）', () => {
   });
 });
 
+describe('examValidator 表格空单元格统计（查字典表案例）', () => {
+  it('countBlanks 统计表格空单元格（空 td/全角空格/空白实体）', () => {
+    const html = '<table><tr><td>字</td><td></td><td>　</td><td>&emsp;</td><td><br></td></tr></table>';
+    expect(countBlanks(html)).toBe(4);
+  });
+
+  it('表格内已计载体形态（blank 标签/括号空位）不重复计数', () => {
+    const html = '<table><tr><td><u class="blank-2">&emsp;</u></td><td>（　　）</td><td>字</td><td><u>　　</u></td></tr></table>';
+    // blank 标签 1 + 括号空位 1 + 无 class u 1，表格不再重复计；有文字的 td 不计
+    expect(countBlanks(html)).toBe(3);
+  });
+
+  it('查字典表：声称"共29空，每空1分，共29分"但表格仅 4 个空单元格 → 修正为共4空共4分', () => {
+    const html = [
+      '<h2>六、查字典。（共29空，每空1分，共29分）</h2>',
+      '<table>',
+      '<tr><td>字</td><td>部首</td><td>读音</td></tr>',
+      '<tr><td>沉</td><td></td><td></td></tr>',
+      '<tr><td>闷</td><td></td><td></td></tr>',
+      '</table>',
+    ].join('');
+    // 2 行数据 × 每行 2 个空单元格 = 4 空：声称 29 空与实际不符 → 按实际载体重算为 4 空 × 1 分 = 4 分
+    const { html: out } = auditExamPaper(html, OPTS);
+    expect(out).toContain('（共4空，每空1分，共4分）');
+    expect(out).not.toContain('共29空');
+  });
+
+  it('查字典表：声称"共29空"实际 12 个空单元格 → 按实际 12 空修正总分', () => {
+    const html = [
+      '<h2>六、用部首查字法查字典，完成下面的表格。（共29空，每空1分，共29分）</h2>',
+      '<table>',
+      '<tr><td>加点字</td><td>部首</td><td>除部首外几画</td><td>读音</td></tr>',
+      '<tr><td>沉</td><td></td><td></td></tr>',
+      '<tr><td>闷</td><td></td><td></td></tr>',
+      '<tr><td>阔</td><td></td><td></td></tr>',
+      '<tr><td>洒</td><td></td><td></td></tr>',
+      '<tr><td>透</td><td></td><td></td></tr>',
+      '<tr><td>挤</td><td></td><td></td></tr>',
+      '</table>',
+    ].join('');
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    expect(out).toContain('（共12空，每空1分，共12分）');
+    expect(out).not.toContain('共29空');
+    expect(issues.some(i => i.type === 'score-label')).toBe(true);
+  });
+});
+
 describe('examValidator 模板残留清理', () => {
   it('移除非标准插图占位符残留（第11题案例）', () => {
     const html = '<p class="question">11. 看图写话。</p>\n【插图占位】\nTYPE: SD　STYLE: line_art\nPROMPT:秋天果园摘苹果\n复制 PROMPT 到生图工具生成图片后插入此处\n<div class="zuo-wen-ge"><span>&emsp;</span></div>';
