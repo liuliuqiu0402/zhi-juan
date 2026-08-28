@@ -153,6 +153,7 @@
         </div>
         <textarea
           v-model="instructionDraft"
+          @input="userEditedInstruction = true"
           placeholder="点击「生成指令」，按 年级×学科×资料类型 从指令库匹配注入；可直接编辑（仅本次生成生效）。长期修改请在「指令库」面板编辑保存。"
           class="instruction-textarea"
         ></textarea>
@@ -2662,6 +2663,9 @@ const instructionDraft = ref(
     } catch { return ''; }
   })()
 );
+// 🔧 指令是否为用户手动编辑过（多类型混合生成时：手动编辑的指令对全部类型共用；
+//    自动组装（loadInstructionFromLibrary）则按每个类型重新匹配组装，防类型错位）
+let userEditedInstruction = false;
 // 🔴 指令来源记录（注入框展示：来自指令库哪条模板、按什么维度匹配）
 const instructionSource = ref(null);
 const injectSources = ref([]); // 本次注入来源清单（指令库/蓝图库/渲染契约/规则库）——面板可视化"读取应用了哪些库"
@@ -2845,9 +2849,6 @@ watch([showPreview, previewingDoc], () => {
   } catch {}
 });
 
-// 🔧 逐章生成：保存最近一次 buildInstruction 的 options，供逐章循环中为每个章节重建专属指令
-const lastInstructionOptions = ref(null);
-
 // 知识点
 const currentBook = ref(null);
 const currentChapter = ref(null);
@@ -2931,8 +2932,10 @@ const restoreAutoStyle = () => {
   styleManuallySet.value = false;
   const type = genTypes.value[0];
   if (type) {
-    propositionStyle.value = type === 'exam' ? 'unified_context' : 'context_fusion';
-    console.log(`[propositionStyle] 恢复自动匹配: ${propositionStyle.value} (genType=${type})`);
+    // 🔧 恢复自动 = 按类型默认风格（DEFAULT_STYLE_BY_TYPE 唯一源）；
+    //    旧代码硬编码 'context_fusion'（已删除的旧风格值）→ styleInstructions 无此键 → withStyle 静默跳过 → 风格失效
+    propositionStyle.value = DEFAULT_STYLE_BY_TYPE[type] || '';
+    console.log(`[propositionStyle] 恢复自动匹配: ${propositionStyle.value || '(免选)'} (genType=${type})`);
   }
   showStyleModal.value = false;
 };
@@ -4050,11 +4053,8 @@ const buildInstruction = async () => {
   const currentStageEn = stageMapIns[currentStageRaw] || currentStageRaw;
   
   // 🔴 新架构：不再做 fragment/full 指令自动匹配（长指令注入已废弃）。
-  //    生成由指令库三维度注入驱动（学段×学科×类型 cell + 蓝图/契约/规则附加块）。
-  //    此处仅保留 options 骨架供逐章模式复用（章节信息），不注入任何指令文本。
-  
-  // 🔧 保存 options 供逐章生成时重建方案摘要
-  lastInstructionOptions.value = options;
+  //    生成由指令库三维度注入驱动（学段×学科×类型 cell + 蓝图/契约/规则附加块）；
+  //    options 仅用于下方方案摘要展示，逐章指令由 generate 循环内按单章重新组装。
   
   // 🔴 新架构：方案摘要展示"三维度匹配链路"——指令库匹配 + 蓝图大题结构 + 省市差异化，
   //    不构建长指令（生成由整卷一次生成自动完成，摘要仅供确认参数）。
@@ -4130,18 +4130,24 @@ const buildInstruction = async () => {
 // 统计生成前约束文本中的 fix 规则条数（清单展示用）
 const countPromptHints = (txt) => (String(txt || '').match(/\n· /g) || []).length;
 
-const loadInstructionFromLibrary = async () => {
-  const selectedBooks = textbookStore.textbooks.filter(b => hasAnySelected(b.outline));
+const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = null) => {
+  // 🔧 逐章模式：booksOverride 传入单章过滤版教材（范围名/标题按当前章节）；
+  //    空数组（章节未匹配）回退全量勾选，不阻塞
+  const selectedBooks = booksOverride?.length ? booksOverride : textbookStore.textbooks.filter(b => hasAnySelected(b.outline));
   if (selectedBooks.length === 0) {
     await showAlertDialogFn('请先勾选教材章节');
     return;
   }
   const book = selectedBooks[0];
-  const genType = genTypes.value?.[0];
+  // 🔧 多类型混合生成：按当前循环类型重新组装（第二类型起不沿用第一类型指令）；
+  //    默认取第一个类型（单类型/首次组装路径不变）
+  const genType = genTypeOverride || genTypes.value?.[0];
   if (!genType) {
     await showAlertDialogFn('请先选择资料类型');
     return;
   }
+  // 自动组装完成后清除手动编辑标记（本次组装结果为基准，后续用户再敲字会重新置位）
+  userEditedInstruction = false;
   // 三维度：学段键 + 规范学科名 + 资料类型
   const stageMapLib = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
   const stageBase = stageMapLib[book.stage] || book.stage;
@@ -5922,6 +5928,8 @@ const generate = async (mode) => {
   const chapterTargets = (effectiveSplit && allChapters.length > 1)
     ? allChapters
     : [null];
+  // 🔧 逐章模式当前章节的教材过滤版（标题/指令范围名按单章）；非逐章为 null
+  const perChapterBooksRef = { value: null };
   
   for (let chIdx = 0; chIdx < chapterTargets.length; chIdx++) {
     const chapterTarget = chapterTargets[chIdx];
@@ -5930,28 +5938,25 @@ const generate = async (mode) => {
       previewHint.value = `逐章生成：${chapterTarget.title} (${chIdx + 1}/${chapterTargets.length})`;
       setPerChapterFilter(chapterTarget.title);
       
-      // 🔧 逐章专属指令：更新方案摘要（指令库按章节过滤自动匹配）
-      if (lastInstructionOptions.value) {
-        const perChapterOpts = { ...lastInstructionOptions.value };
-        // 过滤 selectedBooks：只保留当前章节（title + start 双重匹配，避免同名章节混淆）
-        perChapterOpts.selectedBooks = selectedBooks.map(b => ({
-          ...b,
-          selectedChapters: b.selectedChapters.filter(
-            ch => ch.title === chapterTarget.title && ch.start === chapterTarget.start
-          )
-        })).filter(b => b.selectedChapters.length > 0);
-        try {
-          // 🔴 新架构：仅更新方案摘要（不构建长指令），章节信息由整卷生成按 _perChapterFilter 使用
-          instructionDraft.value = [
-            `【生成方案】逐章生成：${chapterTarget.title}`,
-            `教材：${perChapterOpts.selectedBooks.map(b => `${b.subject || ''}${b.grade || ''}《${b.name || ''}》`).join('、')}`,
-            `（系统将按指令库自动匹配大题结构、题型难度与新课标规范，无需手动编写指令）`,
-          ].join('\n');
-          console.log(`[逐章] 「${chapterTarget.title}」生成方案已更新`);
-        } catch (e) {
-          console.warn('[逐章] 更新生成方案失败，回退到全量方案:', e);
+      // 🔧 逐章专属指令：按单章过滤教材后从指令库重新组装完整指令
+      //    （范围名=当前章节；此前覆盖为 3 行方案摘要 → 生成端指令丢失角色/卷面结构/命题要求，逐章生成失控）
+      const perChapterBooks = selectedBooks.map(b => ({
+        ...b,
+        selectedChapters: b.selectedChapters.filter(
+          ch => ch.title === chapterTarget.title && ch.start === chapterTarget.start
+        )
+      })).filter(b => b.selectedChapters.length > 0);
+      perChapterBooksRef.value = perChapterBooks;
+      try {
+        if (!userEditedInstruction) {
+          await loadInstructionFromLibrary('', perChapterBooks);
         }
+        console.log(`[逐章] 「${chapterTarget.title}」指令已按单章组装（${perChapterBooks.map(b => b.subject || '').join('、') || '教材为空'}）`);
+      } catch (e) {
+        console.warn('[逐章] 按单章组装指令失败，沿用全量方案:', e.message);
       }
+    } else {
+      perChapterBooksRef.value = null;
     }
   
   // 🔧 组织风格注入统一入口：风格值+说明追加到指令尾部（生成端识别并组织情境/呈现；情境库已退役）
@@ -5968,7 +5973,18 @@ const generate = async (mode) => {
   for (let typeIndex = 0; typeIndex < types.length; typeIndex++) {
     const genType = types[typeIndex];
     pendingGenType.value = genType;
-    
+
+    // 🔧 多类型混合生成：第二类型起若指令为自动组装（用户未手动编辑），
+    //    按当前类型重新组装（任务行/蓝本/渲染契约/规则约束三维度匹配）——
+    //    此前复用第一类型指令导致错位（如"课时练"被注入"正式试卷"角色与 exam 真题蓝本）
+    if (typeIndex > 0 && !userEditedInstruction) {
+      try {
+        await loadInstructionFromLibrary(genType, perChapterBooksRef.value);
+      } catch (e) {
+        console.warn(`[多类型] 按类型 ${genType} 重新组装指令失败，沿用上一类型指令:`, e.message);
+      }
+    }
+
     // ✨ 复生成差异化：第二个及以后的类型，注入已生成内容的知识点，避免重复
     let diffInstruction = instructionDraft.value;
     if (typeIndex > 0 && generatedKps.length > 0) {
@@ -6016,7 +6032,8 @@ const generate = async (mode) => {
         pendingGenerateContext.value = {
           result,
           genType,
-          selectedBooks,
+          // 🔧 逐章模式：用单章过滤版教材 → 标题范围名=当前章节（此前全量勾选 → 多份同名）
+          selectedBooks: perChapterBooksRef.value || selectedBooks,
           selectedTpls,
           generatedKps: [...generatedKps],
           generatedTypes: [...generatedTypes],
@@ -6039,19 +6056,12 @@ const generate = async (mode) => {
   } // end chapterTargets loop
   if (chapterTargets.length > 1) {
     setPerChapterFilter(null); // 逐章模式结束，清除过滤器
-    // 🔴 新架构：逐章结束后无需恢复长指令（指令库自动匹配），更新方案摘要即可
-    if (lastInstructionOptions.value) {
+    // 🔧 逐章结束：恢复全量教材的完整指令（此前覆盖为方案摘要 → 再次生成时指令丢失角色/卷面结构/命题要求）
+    if (!userEditedInstruction) {
       try {
-        const genTypeName = genTypeTemplates[genTypes.value?.[0]]?.name || genTypes.value?.[0] || '';
-        const bookSummary = selectedBooks.map(b => `${b.subject || ''}${b.grade || ''}《${b.name || ''}》`).join('、');
-        instructionDraft.value = [
-          `【生成方案】资料类型：${genTypeName}`,
-          `教材：${bookSummary || '未选择'}`,
-          `学段：${currentStageEn || '未选择'}`,
-          `（系统将按指令库自动匹配大题结构、题型难度与新课标规范，无需手动编写指令）`,
-        ].join('\n');
+        await loadInstructionFromLibrary('');
       } catch (e) {
-        console.warn('[逐章] 更新全量方案失败:', e);
+        console.warn('[逐章] 恢复全量指令失败:', e);
       }
     }
   }
