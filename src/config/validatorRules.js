@@ -69,8 +69,9 @@ export const VALIDATOR_RULES = [
     category: 'fix',
     subjects: ['*'],
     stages: ['*'],
-    promptHint: '分值账目自洽：小题数×每题分=大题分、空数×每空分=小题分、各大题分之和=满分，必须精确成立；多空题注明"（每空X分）"。',
-    description: '大题/小题标题"每空/每线/每题 X 分"标注与实际空位数/连线数/子题数校验，不整除时按"每题 X 分"或"共 X 分"修正。',
+    genTypes: ['exam'],
+    promptHint: '分值账目自洽：小题数×每题分=大题分、空数×每空分=小题分、各大题分之和=满分，必须精确成立；多空题注明"（每空X分）"；声称的题数/空数/连线数必须等于正文实际输出的题号/空位/连线数。',
+    description: '大题/小题标题"每空/每线/每题 X 分"标注与实际空位数/连线数/子题数校验，不一致时以实际载体数为准按「声称单位分×实际载体数」重算总分（不凑数）。',
     enabled: true,
   },
 
@@ -128,13 +129,13 @@ export const VALIDATOR_RULES = [
 
   {
     id: 'score-distribute-fix',
-    name: '分值自动分配（大题内小题分值由代码按大题总分重算，账目闭合）',
+    name: '分值自动分配（无单位声称的小题按大题总分重算，账目闭合）',
     category: 'fix',
     subjects: ['*'],
     stages: ['*'],
     genTypes: ['exam'],
-    description: '生成后自动修复：大题内小题分值之和≠大题分时，按各小题单位数（题/空/线/字/词）从标题解析，由代码按大题总分重新分配单位分值并重写小题标题（0.5 分粒度）——分值账目是确定性算法，不依赖 AI 算术。',
-    promptHint: '分值标注须完整准确（小题标题后注明"（每题X分）"或"（每空X分）"）；生成后系统会按大题总分自动校验并修正账目（确定性算法，0.5 分粒度），但标注是卷面必需内容，不得省略或依赖系统补写。',
+    description: '生成后自动修复：大题内小题分值之和≠大题分时，未带"每X分"单位声称的小题按大题总分重算单位分值并重写标题（0.5 分粒度）；带单位声称的小题保留模型语义定价（由 score-label-fix 按实际载体数处理）——分值账目是确定性算法，不依赖 AI 算术。',
+    promptHint: '小题标题后须注明"（每题X分）"或"（每空X分）"；小题分值之和=大题分、大题分值之和=满分，账目必须自洽。',
     enabled: true,
   },
   {
@@ -346,7 +347,7 @@ export const buildValidatorPrompt = ({ subject = '', stage = '', genType = '' } 
     hints.push(rule.promptHint);
   }
   if (hints.length === 0) return '';
-  return `\n\n【卷面质检规则（生成前约束，生成后自动校验修复，无需人工处理）】\n${hints.map(h => `· ${h}`).join('\n')}`;
+  return `\n\n【卷面质检规则（生成前约束）】\n${hints.map(h => `· ${h}`).join('\n')}`;
 };
 
 export default {

@@ -36,28 +36,28 @@ describe('examValidator 空位/拼音统计', () => {
 });
 
 describe('examValidator 分值标注修正（第4题案例）', () => {
-  it('"每空2分"标注与空数不整除时改为"每题X分"', () => {
+  it('"每空2分"声称4空实际5空时按单位分重算总分（不凑数）', () => {
     const title = '4. 选一选，填一填。（8分，每空2分）';
-    // 5 个空：8%5 != 0；4 个子题：8%4 == 0 → 每题2分
-    const fixed = fixScoreLabel(title, 8, 5, 4);
-    expect(fixed).toBe('4. 选一选，填一填。（共4题，每题2分，共8分）');
+    // 声称 8分÷2=4 空，实际 5 空 → 以实际为准：5空×2分=10分（不再保留 8 分凑成"每题2分"）
+    const { text } = fixScoreLabel(title, 8, 5, 4);
+    expect(text).toBe('4. 选一选，填一填。（共5空，每空2分，共10分）');
   });
 
   it('空数与分值整除时保留"每空X分"', () => {
     const title = '1. 看拼音写词语。（12分，每空2分）';
-    // 6 空：12%6 == 0
-    const fixed = fixScoreLabel(title, 12, 6, 3);
-    expect(fixed).toBe('1. 看拼音写词语。（12分，每空2分）');
+    // 6 空：12÷2=6 自洽 → 不动
+    const { text } = fixScoreLabel(title, 12, 6, 3);
+    expect(text).toBe('1. 看拼音写词语。（12分，每空2分）');
   });
 
-  it('无法整除时去掉单元标注只留总分', () => {
-    const fixed = fixScoreLabel('（2）连一连。（4分，每线1分）', 4, 3, 1);
-    expect(fixed).toBe('（2）连一连。（共4分）');
+  it('连线题"每线1分"声称4线实际3线时按单位分重算（不整除也不去单位）', () => {
+    const { text } = fixScoreLabel('（2）连一连。（4分，每线1分）', 4, 3, 1);
+    expect(text).toBe('（2）连一连。（共3处连线，每线1分，共3分）');
   });
 
-  it('"每字1分"标注与字数不符时按空位换算（第1题案例：6空12分→每空2分）', () => {
-    const fixed = fixScoreLabel('1. 读拼音写词语。（12分，每字1分）', 12, 6, 1);
-    expect(fixed).toBe('1. 读拼音写词语。（共6空，每空2分，共12分）');
+  it('"每字/每词"为语义性载体，程序不假装验证——保留原标注', () => {
+    const { text } = fixScoreLabel('1. 读拼音写词语。（12分，每字1分）', 12, 6, 1);
+    expect(text).toBe('1. 读拼音写词语。（12分，每字1分）');
   });
 
   it('小题标题"每空2分"与空数不整除时修正（第4题案例）', () => {
@@ -71,8 +71,8 @@ describe('examValidator 分值标注修正（第4题案例）', () => {
       '<p>（4）小朋友们在(　　　　)面玩得真开心。</p>',
     ].join('\n');
     const { html: out, issues } = auditExamPaper(html, OPTS);
-    // 8分 / 5空 不整除，但 8分 / 4子题 = 每题2分 → 修正为"共4题，每题2分，共8分"
-    expect(out).toContain('4. 选一选，填一填。（共4题，每题2分，共8分）');
+    // 声称 8分÷2=4 空，实际 5 空 → 按每空2分×5空重算为10分（不再凑成"共4题每题2分共8分"）
+    expect(out).toContain('4. 选一选，填一填。（共5空，每空2分，共10分）');
     expect(issues.some(i => i.type === 'score-label')).toBe(true);
   });
 
@@ -86,8 +86,81 @@ describe('examValidator 分值标注修正（第4题案例）', () => {
       '<p>正月　　　　　　　　　山茶</p>',
     ].join('\n');
     const { html: out, issues } = auditExamPaper(html, OPTS);
-    expect(out).toContain('（2）根据短文内容，连一连。（共4分）');
+    // 声称 4分÷1分=4 线，实际 3 条连线 → 按每线1分×3线重算为3分（不再去掉单位只留"共4分"）
+    expect(out).toContain('（2）根据短文内容，连一连。（共3处连线，每线1分，共3分）');
     expect(issues.some(i => i.type === 'score-label')).toBe(true);
+  });
+
+  it('"每题1分共4分"实际仅 2 题时按单位分重算总分（声称值为 AI 笔误）', () => {
+    const { text } = fixScoreLabel('二、判断题（每题1分，共4分）', 4, 0, 2);
+    // 声称 4题，实际 2 题 → 2题×每题1分=2分（不再保留 4 分凑成"每题2分"）
+    expect(text).toBe('二、判断题（共2题，每题1分，共2分）');
+  });
+
+  it('整卷：大题"每题1分共4分"下实际 2 题被修正', () => {
+    const html = [
+      '<h2>二、判断题（每题1分，共4分）</h2>',
+      '<p>1. 太阳从东方升起。</p>',
+      '<p>2. 月亮比太阳大。</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    expect(out).toContain('二、判断题（共2题，每题1分，共2分）');
+    expect(issues.some(i => i.type === 'score-label')).toBe(true);
+  });
+
+  it('无括号裸文本"每空2分，共16分"触发校验（声称8空实际3空 → 重算为 3空×2分=6分）', () => {
+    const { text } = fixScoreLabel('一、填空题，每空2分，共16分。', 16, 3, 1);
+    expect(text).toBe('一、填空题，（共3空，每空2分，共6分）。');
+  });
+
+  it('countBlanks 统计半角下划线 ___、无 class 的 <u>　　</u> 与全角＿＿', () => {
+    const html = '<p>1. ___</p><p>2. <u>　　</u></p><p>3. ＿＿</p>';
+    expect(countBlanks(html)).toBe(3);
+  });
+
+  it('整卷：半角下划线空位也能被数到并触发"每空"校验（3 空 16 分不整除 → 修正标注）', () => {
+    const html = [
+      '<h2>一、填空题（每空2分，共16分）</h2>',
+      '<p>1. ___</p>',
+      '<p>2. ___</p>',
+      '<p>3. ___</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    // 声称 16分÷2=8 空，实际 3 空 → 3空×每空2分=6分
+    expect(out).toContain('一、填空题（共3空，每空2分，共6分）');
+    expect(issues.some(i => i.type === 'score-label')).toBe(true);
+  });
+
+  it('有单位分声称的小题不被按大题总分重算（保护语义定价，由 2g 按实际载体重算）', () => {
+    const html = [
+      '<p>满分：100分</p>',
+      '<h2>一、填空题（共16分）</h2>',
+      '<p>1. 填一填。（每空2分，共6分）</p>',
+      '<p>（1）（　　）（　　）</p>',
+      '<p>2. 填一填。（每空2分，共6分）</p>',
+      '<p>（1）（　　）（　　）</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    // 2e2 不重算（有"每空2分"语义定价，不得改成"每空4分共8分"）→ 2g 按实际 2 空重算：2空×2分=4分
+    expect(out).toContain('1. 填一填。（共2空，每空2分，共4分）');
+    expect(out).toContain('2. 填一填。（共2空，每空2分，共4分）');
+    expect(out).not.toContain('每空4分');
+    expect(issues.some(i => i.type === 'score-label')).toBe(true);
+  });
+
+  it('无单位分声称的标题不触发重算（程序推不出正确总分，保留）', () => {
+    const { text } = fixScoreLabel('一、填空题（共16分）', 16, 3, 1);
+    expect(text).toBe('一、填空题（共16分）');
+  });
+
+  it('声称与实际情况完全自洽时不动（共8空每空2分共16分 且实际8空）', () => {
+    const { text } = fixScoreLabel('一、填空题（共8空，每空2分，共16分）', 16, 8, 1);
+    expect(text).toBe('一、填空题（共8空，每空2分，共16分）');
+  });
+
+  it('裸"每空2分"标注（无共N空/共Y分）时按实际载体数补全', () => {
+    const { text } = fixScoreLabel('1. 看拼音写词语。（每空2分）', 0, 3, 1);
+    expect(text).toBe('1. 看拼音写词语。（共3空，每空2分，共6分）');
   });
 });
 
@@ -280,7 +353,7 @@ describe('examValidator 载体×题型正规化（CARRIER_RULES）', () => {
 });
 
 describe('examValidator 本卷案例根治（20:16 卷 第1/2题 + 大题标题）', () => {
-  it('读音题"每空1分"无填空载体 → 自动改"共N题每题X分"（第2题）', () => {
+  it('读音题"每空1分"无填空载体 → 载体数数不到，保留原标注（第2题）', () => {
     const html = [
       '<h2>一、识字与写字（共4题，每题8分，共32分）</h2>',
       '<p class="question">2. 用"○"圈出下列句子中加点字的正确读音。（每空1分，共6分）</p>',
@@ -292,7 +365,8 @@ describe('examValidator 本卷案例根治（20:16 卷 第1/2题 + 大题标题�
       '<p>（6）运动会上，同学们大声喊"加油"，为运动员们助威、叫号（① hào　② háo）。</p>',
     ].join('\n');
     const { html: out } = auditExamPaper(html, OPTS);
-    expect(out).toContain('圈出下列句子中加点字的正确读音。（共6题，每题1分，共6分）');
+    // 读音题无填空载体（拼音选项不是空位）→ 程序数不到实际载体数，不假装验证，保留原标注
+    expect(out).toContain('圈出下列句子中加点字的正确读音。（每空1分，共6分）');
   });
 
   it('大题标题"每题8分"但各题 12/6/8/6 分不一致 → 自动改"共N题共X分"', () => {

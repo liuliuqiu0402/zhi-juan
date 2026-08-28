@@ -26,6 +26,10 @@ const PINYIN_GROUP_RE = new RegExp(`(?<![${PINYIN_CHARS}])[${PINYIN_CHARS}]+(?![
 // 空位载体：span/u/div 的 blank-N 标签、以及全角空格括号（　）
 const BLANK_TAG_RE = /<span[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/span>|<u[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/u>/gi;
 const PAREN_BLANK_RE = /[（(]\s*[　\u3000 ]{1,12}\s*[)）]/g;
+// 空位载体补充（AI 裸输出形态，normalizeBlankMarkers 归一前的漏网）：
+//   无 class 的 <u>　　</u> / <u>&emsp;</u> 下划线载体、连续裸下划线 ___/＿＿（连续 2+，防英文单词内单下划线误数）
+const BARE_U_BLANK_RE = /<u(?![^>]*class=)[^>]*>\s*(?:[　\u3000 _]|&emsp;){1,24}\s*<\/u>/gi;
+const BARE_UNDERLINE_RE = /_{2,}|＿{2,}/g;
 // 拼音选项括号（读音题）：（háng xíng）/（háng、xíng）——音节间以空格或顿号分隔
 const PINYIN_OPTION_RE = new RegExp(`[（(]\\s*[${PINYIN_CHARS}]+(?:[／/、，, \\s]+[${PINYIN_CHARS}]+)+\\s*[)）]`, 'g');
 // 选项行：<p class="option"> 或行首 "A. xxx"
@@ -70,7 +74,9 @@ export const countBlanks = (html) => {
   if (!html) return 0;
   const tagCount = (html.match(BLANK_TAG_RE) || []).length;
   const parenCount = (html.match(PAREN_BLANK_RE) || []).length;
-  return tagCount + parenCount;
+  const bareUCount = (html.match(BARE_U_BLANK_RE) || []).length;
+  const underlineCount = (html.match(BARE_UNDERLINE_RE) || []).length;
+  return tagCount + parenCount + bareUCount + underlineCount;
 };
 
 /** 统计一段 HTML 中的独立拼音组数 */
@@ -145,50 +151,74 @@ export const splitSections = (html) => {
   return out;
 };
 
+/** 分值格式化：整数直出、小数去尾零（0.5 → "0.5"、5.33 → "5.33"） */
+const fmtScore = (n) => (Number.isInteger(n) ? String(n) : String(parseFloat(n.toFixed(2))));
+
 /**
- * 修复大标题内"每X分"标注与载体数对齐：
- *   - 分值能整除空位/连线数 → 保留"每空X分"（换算正确）
- *   - 否则：能整除子题数 → 改"每题X分"；再不行 → 去掉"每空/每线X分"字样，仅保留"共X分"
- * @param {string} title 大题标题
- * @param {number} totalScore 大题分值
- * @param {number} carrierCount 载体数（空位或连线对）
- * @param {number} subCount 子题数
+ * 修复标题内"每X分"标注与载体数对齐（规则 score-label-fix 标注换算核心）：
+ * 🔴 不凑数原则（2026-08 修订）：声称单位分（每空/每线/每题 X 分）是模型的语义定价
+ *    （如看拼音写词语"一个词语2分"），实际载体数（空位/连线/子题）是 DOM 实数——
+ *    两者矛盾时以实际载体数为准，按「声称单位分 × 实际载体数」重算正确总分，
+ *    不再保留声称总分只改措辞（历史事故："每空2分共16分"实际3空被凑成"共3空共16分"，
+ *    正确是 3空×2分=6分；"每题1分共4分"实际2题被凑成"每题2分"，正确是 2分）。
+ * 边界：每字/每词为语义性载体（一个空可写多字，程序无法可靠统计字数），不假装验证，保留原标注；
+ *    实际载体数数不到（0）时无法验证，同样保留。
+ * @param {string} title 大题/小题标题
+ * @param {number} totalScore 声称总分（调用方解析，仅用于自洽校验）
+ * @param {number} carrierCount 实际载体数（空位数或连线对数）
+ * @param {number} subCount 实际题数（"每题"用：大题场景传题目行数，小题场景传子题号数）
+ * @returns {{text: string, note: string}} text 修正后标题；note 非空表示按实际载体重算了总分（供调用处提示）
  */
 export const fixScoreLabel = (title, totalScore, carrierCount, subCount) => {
   let out = title;
-  const unitMatch = out.match(/[（(][^)）]*?(每空|每线|每题|每字|每词)\s*(\d{1,3})\s*分[^)）]*?[)）]/);
-  if (!unitMatch) return out;
+  // 🔧 标注形态兼容：括号版"（每空2分，共16分）"与裸文本版"每空2分，共16分"均触发校验
+  //    捕获组不含"每"字：unitMatch[1] 为 空/线/题/字/词，后续 unit==='线' 等比较才成立
+  let unitMatch = out.match(/[（(][^)）]*?每(空|线|题|字|词)\s*(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
+  let bareMode = false;
+  if (!unitMatch) {
+    const bare = out.match(/每(空|线|题|字|词)\s*(\d+(?:\.\d+)?)\s*分/);
+    if (bare) { unitMatch = bare; bareMode = true; }
+  }
+  if (!unitMatch) return { text: out, note: '' };
   const unit = unitMatch[1];
-  const claimed = parseInt(unitMatch[2], 10);
-  // 🔧 载体按单位类型对应（每空→填空数、每线→连线数、每题→小题数）：
-  //    读音题"圈出读音"无填空载体，若标"每空"应修正为"每题"
-  // "每题"优先采用标题自带的"共N题"（如"（共4题，每题8分，共32分）"）——
-  // 它代表出题意图，countSubQuestions 可能因 DOM 结构漏数（如子题用（1）（2）编号），不能作为唯一依据
-  let ok = false;
-  if (unit === '每题') {
-    const nInTitle = out.match(/共\s*(\d{1,3})\s*题/);
-    const n = nInTitle ? parseInt(nInTitle[1], 10) : subCount;
-    if (n > 0 && totalScore % n === 0) ok = totalScore / n === claimed;
-  } else if (unit === '每线') {
-    if (carrierCount > 0 && totalScore % carrierCount === 0) ok = totalScore / carrierCount === claimed;
-  } else if (carrierCount > 0 && totalScore % carrierCount === 0) {
-    ok = totalScore / carrierCount === claimed;
-  }
-  if (ok) return out;
-  // 换算：单位与真实载体对应——括号空位一律用"空"（田字格=填空位，不是"字/词"）；
-  //    连线载体用"线"；无载体/不整除 → 回退"共N题每题X分"；再不行只留总分
-  let label = '';
-  if (unit !== '每题' && carrierCount > 0 && totalScore % carrierCount === 0) {
-    const isLine = unit === '每线';
-    const unitLabel = isLine ? '线' : '空';
-    label = `共${carrierCount}${isLine ? '处连线' : '空'}，每${unitLabel}${totalScore / carrierCount}分，共${totalScore}分`;
-  } else if (subCount > 1 && totalScore % subCount === 0) {
-    label = `共${subCount}题，每题${totalScore / subCount}分，共${totalScore}分`;
+  const unitScore = parseFloat(unitMatch[2]);
+  if (!(unitScore > 0)) return { text: out, note: '' };
+  // 每字/每词：语义性载体，程序不假装验证（不数字数、不换算空位）——保留原标注
+  if (unit === '字' || unit === '词') return { text: out, note: '' };
+  // 实际载体数：空/线取实际载体数，题取实际子题数；数不到（0）→ 无法验证，保留
+  const actualN = unit === '题' ? subCount : carrierCount;
+  if (!(actualN > 0)) return { text: out, note: '' };
+  const unitLabel = unit === '线' ? '线' : unit === '题' ? '题' : '空';
+  // 声称载体数：标题"共N空/题/线"显式值；缺失时由"共Y分 ÷ 单位分"推算（16分÷每空2分=声称8空）
+  const claimedNM = out.match(/共\s*(\d{1,3})\s*(?:处连线|空|题|线)/);
+  // 声称总分：优先"共X分"；无"共"字时取括号内首个"数字分"（兼容"（8分，每空2分）"式）——
+  //    括号开头是"每X"（如"（每空2分）"）时视为无声称总分，不提取（该"2分"是单位分不是总分）
+  const claimedTotalM = out.match(/共\s*(\d+(?:\.\d+)?)\s*分/)
+    || out.match(/[（(](?!每(?:空|线|题|字|词))[^）)]*?(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
+  const claimedTotal = claimedTotalM ? parseFloat(claimedTotalM[1]) : null;
+  let claimedN = claimedNM ? parseInt(claimedNM[1], 10) : null;
+  if (claimedN == null && claimedTotal != null) claimedN = claimedTotal / unitScore;
+  // 正确总分：声称单位分 × 实际载体数（确定性算术，一定整除）
+  const correctTotal = unitScore * actualN;
+  const countConsistent = claimedN != null && Math.abs(claimedN - actualN) < 0.001;
+  const totalConsistent = claimedTotal != null && Math.abs(claimedTotal - correctTotal) < 0.001;
+  // 完全自洽（声称载体数=实际 且 声称总分=单位分×实际）→ 不动
+  if (countConsistent && totalConsistent) return { text: out, note: '' };
+  // 重算：以实际载体数为准，不凑数
+  const label = `共${actualN}${unitLabel === '线' ? '处连线' : unitLabel}，每${unitLabel}${fmtScore(unitScore)}分，共${fmtScore(correctTotal)}分`;
+  const claimedDesc = [];
+  if (claimedN != null) claimedDesc.push(`声称${fmtScore(claimedN)}${unitLabel}`);
+  if (claimedTotal != null) claimedDesc.push(`声称${fmtScore(claimedTotal)}分`);
+  const note = claimedDesc.length
+    ? `原${claimedDesc.join('、')}与实际${actualN}${unitLabel}不符，已按每${unitLabel}${fmtScore(unitScore)}分×${actualN}${unitLabel}重算为${fmtScore(correctTotal)}分`
+    : '';
+  if (bareMode) {
+    // 裸文本版：整段替换"每X分…共Y分"（无括号标注，AI 常见输出形态）
+    out = out.replace(/(每空|每线|每题)\s*\d+(?:\.\d+)?\s*分(?:[，,、]?\s*共\s*\d+(?:\.\d+)?\s*分)?/, `（${label}）`);
   } else {
-    label = `共${totalScore}分`;
+    out = out.replace(/[（(][^）)]*?(每空|每线|每题)\s*\d+(?:\.\d+)?\s*分[^）)]*?[)）]/, `（${label}）`);
   }
-  out = out.replace(/[（(][^）)]*?(每空|每线|每题|每字|每词)\s*\d{1,3}\s*分[^）)]*?[)）]/, `（${label}）`);
-  return out;
+  return { text: out, note };
 };
 
 /**
@@ -202,8 +232,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   if (!html || typeof html !== 'string') return { html: html || '', issues: [], fixed: 0, silent: 0 };
   const rules = getValidatorRules({ subject, stage, genType });
     const has = (id) => rules.has(id);
-    // 🔍 [answer-diag] 分段追踪：输入是否含答案区（定位"audit 丢答案区"根因用）
-    const hadAnswerSection = /<div[^>]*class=["'][^"']*answer-section/i.test(String(html));
     let out = String(html);
   const issues = [];
   let fixed = 0;
@@ -501,6 +529,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             // 🔧 仅对带卷首满分标记的完整卷执行（裁剪/片段输入不重分配，防误伤——与 score-sum 同一门槛）
             const headText = out.slice(0, 400).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
             if (/满分[:：]?\s*\d+(?:\.\d+)?\s*分/.test(headText)) {
+              // 🔧 IIFE 包裹：内部 return 只退出"分值重分配"，不得短路后续 2f/2g/2h
+              //    （历史事故：语义定价保护 return 使小题分值标注修正（2g）被整体跳过）
+              (() => {
               const granularity = /^primary/.test(stage) ? 1 : 0.5; // 小学整数分、初高中 0.5 粒度
               const parseUnitCount = (t) => {
                 const cm = t.match(/共\s*(\d{1,3})\s*(?:题|空|线|字|词)/);
@@ -520,6 +551,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
                 && /^\s*\d+[.、．]/.test((n.textContent || '').trim())
                 && /[（(][^）)]*?\d+(?:\.\d+)?\s*分/.test(n.textContent || ''));
               if (subHeadPs.length < 2) return; // 至少 2 个小题才重分配（单题大题可能是阅读/写作整题）
+              // 🔧 语义定价保护：小题标题带单位分声称（每空/每线/每题/每字/每词 X 分）时不按大题总分重算——
+              //    单位分是模型的语义定价（如看拼音写词语"一个词语2分"），按大题总分重算会改掉定价
+              //    （历史事故：声称"每空2分"被重算成"每空5分"）；此类小题由 2g 按实际载体数重算正确总分，
+              //    账目冲突由 2i 静默提示，不在此处裁决
+              if (subHeadPs.some(p => /每(?:空|线|题|字|词)\s*\d+(?:\.\d+)?\s*分/.test(p.textContent || ''))) return;
               // 当前小题分值之和（"共X分"总分优先）
               let subSum = 0;
               for (const p of subHeadPs) {
@@ -536,15 +572,34 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
                 const p = subHeadPs[si];
                 const endP = subHeadPs[si + 1] || null;
                 let sub = 0;
+                let segHtml = p.outerHTML || '';
                 let sn = p.nextSibling;
                 while (sn && sn !== endP) {
+                  segHtml += sn.outerHTML || sn.textContent || '';
                   if (sn.nodeType === Node.ELEMENT_NODE && sn.tagName.toLowerCase() === 'p') {
                     // 🔧 数行内所有子题号（(1)(2)(3)(4) 可同一行，如"（1）一坐石桥（2）一群飞鸟…"）
                     sub += (sn.textContent.match(/[（(]\d+[)）]/g) || []).length;
                   }
                   sn = sn.nextSibling;
                 }
-                unitCounts.push(parseUnitCount(p.textContent || '') ?? Math.max(sub, 1));
+                // 🔧 单位数优先取实际载体（DOM 实数的空位/连线/子题号），声称值仅在实际数不到时兜底——
+                //    此前采信标题声称值（"每空2分共16分"推算 8 空），声称与实际载体不符时账目闭合但标注仍失真；
+                //    字/词为语义性载体（程序无法可靠统计字数），不假装验证，保持声称值
+                const claimU = parseUnitCount(p.textContent || '');
+                const unitName = parseUnitName(p.textContent || '');
+                const actualBlanks = countBlanks(segHtml);
+                const matchSidesSeg = countMatchSides(segHtml);
+                const actualLines = matchSidesSeg ? matchSidesSeg.left : 0;
+                const actualSub = countSubNumbered(segHtml);
+                let actualU = 0;
+                if (unitName === '空') actualU = actualBlanks;
+                else if (unitName === '线') actualU = actualLines;
+                else if (unitName === '题') actualU = actualSub;
+                if (actualU > 0 && claimU != null && actualU !== claimU) {
+                  const unitLabel = unitName === '线' ? '处连线' : unitName === '空' ? '空' : '题';
+                  silentCount('score-unit', `小题「${(p.textContent || '').slice(0, 14)}」声称${claimU}${unitLabel}，实际${actualU}${unitLabel}——已按实际载体重分配，请抽检`);
+                }
+                unitCounts.push(actualU > 0 ? actualU : (claimU ?? Math.max(sub, 1)));
               }
               const U = unitCounts.reduce((s, c) => s + c, 0);
               if (U === 0) return;
@@ -568,6 +623,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
                 issues.push({ severity: 'info', type: 'score-distribute', message: `分值已自动重分配（大题「${(head.textContent || '').slice(0, 16)}」${redistributed} 处小题标题按大题总分重算，账目闭合）` });
                 fixed += 1;
               }
+              })();
             }
           } catch (e) {
             console.warn('⚠️ 分值自动分配失败（不影响其他修复）:', e.message);
@@ -578,10 +634,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         if (has('score-label-fix')) {
           // 🔧 载体只取真实载体（填空数/连线数）——拼音选项（读音题括号）不是"空位"，不能当载体验证"每空X分"
           const carrierTotal = blanks || (matchSides ? matchSides.left : 0) || (/连/.test(title) ? countMatchLines(secText2) : 0);
-          const newTitle = fixScoreLabel(title, totalScore, carrierTotal, countSubQuestions(secText2));
-          if (newTitle !== title) {
-            head.textContent = newTitle;
-            issues.push({ severity: 'info', type: 'score-label', message: `分值标注已对齐：${newTitle}` });
+          const fsRes = fixScoreLabel(title, totalScore, carrierTotal, countSubInNodes(secNodes));
+          if (fsRes.text !== title) {
+            head.textContent = fsRes.text;
+            issues.push({ severity: 'info', type: 'score-label', message: fsRes.note ? `分值标注已按实际载体重算：${fsRes.text}（${fsRes.note}）` : `分值标注已对齐：${fsRes.text}` });
             fixed += 1;
           }
         }
@@ -615,11 +671,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const scoreM = cm2 || sm2;
             if (!scoreM) return;
             const sScore = parseInt(scoreM[1], 10);
-            // 🔧 无填空载体时也继续校验（如读音题"每空1分"→ 由 fixScoreLabel 按子题数改"每题X分"）
-            const newT = fixScoreLabel(st.text, sScore, carrier, countSubNumbered(segText));
-            if (newT !== st.text) {
-              st.p.textContent = newT;
-              issues.push({ severity: 'info', type: 'score-label', message: `小题分值标注已对齐：${newT}` });
+            // 🔧 无填空载体时也继续校验（如读音题"每空1分"数不到载体 → fixScoreLabel 保留原标注）
+            const fsRes2 = fixScoreLabel(st.text, sScore, carrier, countSubNumbered(segText));
+            if (fsRes2.text !== st.text) {
+              st.p.textContent = fsRes2.text;
+              issues.push({ severity: 'info', type: 'score-label', message: fsRes2.note ? `小题分值标注已按实际载体重算：${fsRes2.text}（${fsRes2.note}）` : `小题分值标注已对齐：${fsRes2.text}` });
               fixed += 1;
             }
           });
@@ -639,7 +695,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           }
           const uniq = new Set(scores);
           if (scores.length >= 2 && uniq.size >= 2) {
-            const subCount = countSubQuestions(secText2);
+            const subCount = countSubInNodes(secNodes);
             const newT = head.textContent.replace(
               /[（(][^）)]*?每题\s*\d{1,3}\s*分[^）)]*?[)）]/,
               `（共${subCount}题，共${totalScore}分）`
@@ -850,11 +906,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       const region = getAnswerRegion(subject, stage);
       const lhMm = region.lineHeightMm || 8;
       const needRows = (score) => Math.max(0, Math.ceil(score * (region.linePerScore || 1)));
-      // 🔍 [answer-diag] 2k 入口诊断：答案区在 2k 前是否已被前面段改坏（区分"前面段弄丢 / ansStart 正则失败 / 序列化丢失"）
-      if (hadAnswerSection) {
-        const m0 = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i);
-        console.error('[answer-diag] 2k入口:', { hasAns: /answer-section/.test(out), ansStartMatched: !!m0, head: m0 ? m0[0].slice(0, 100) : 'NO-DIV' });
-      }
       // 只处理正文区（答案区/参考答案不做补差）
       const ansStart = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i);
       const bodyPart = ansStart ? out.slice(0, ansStart.index) : out;
@@ -988,7 +1039,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           out = tplK.innerHTML + ansPart;
         }
       }
-      if (hadAnswerSection && !/answer-section/.test(out)) console.error('[answer-diag] 🎯 答案区在 2k（作答空间补差）段后丢失');
     } catch (e) {
       console.warn('⚠️ 作答空间保障失败（不影响其他修复）:', e.message);
     }
@@ -1065,7 +1115,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         issues.push({ severity: 'info', type: 'writing-grid', message: `已剥离表达/写话/习作类题目中混入的书写格 ${fixedL} 处（保留文字，卷面已规范）` });
         fixed += fixedL;
       }
-      if (hadAnswerSection && !/answer-section/.test(out)) console.error('[answer-diag] 🎯 答案区在 2l（载体×题型正规化）段后丢失');
     } catch (e) {
       console.warn('⚠️ 载体×题型正规化失败（不影响其他修复）:', e.message);
     }
@@ -1082,7 +1131,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         issues.push({ severity: 'info', type: 'answer-section', message: '答案区已自动补包为独立 answer-section' });
         fixed += 1;
       }
-      if (hadAnswerSection && !/answer-section/.test(out)) console.error('[answer-diag] 🎯 答案区在 3a（答案区容器补全）段后丢失');
     }
 
     // 3b. 答案区内容（answer-coverage-guard：静默）
@@ -1103,10 +1151,16 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   return { html: out, issues, fixed, silent, silentDetails };
 };
 
-/** 统计大题内子题数（"1." 式小题编号） */
-const countSubQuestions = (raw) => {
-  const text = stripTags(raw);
-  return (text.match(/(?:^|\n)\s*\d+[.、．]/g) || []).length;
+/** 统计大题内实际题目行数（DOM 口径：p/li/div 行首 "N." 题号——"每题X分"的载体数；文本口径 stripTags 丢换行，数不到 HTML 段落内的题号） */
+const countSubInNodes = (nodes = []) => {
+  let n = 0;
+  for (const node of nodes) {
+    if (node.nodeType !== Node.ELEMENT_NODE) continue;
+    const tag = node.tagName.toLowerCase();
+    if (tag !== 'p' && tag !== 'li' && tag !== 'div') continue;
+    if (/^\s*\d+[.、．]/.test((node.textContent || '').trim())) n += 1;
+  }
+  return n;
 };
 
 /** 统计"（1）（2）"式子题编号数（小题分值标注用） */

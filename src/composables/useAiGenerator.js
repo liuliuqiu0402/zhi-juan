@@ -4,7 +4,6 @@ import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getM
 import { GEN_CONST } from '../config/generationConstants.js';
 import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, ANSWER_FORMAT_SPEC } from '../config/promptLibrary.js';
 import { getStoragePath } from '../utils/pathHelper.js';
-import { fixExamFormats } from '../utils/examFixer.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { normalizeStage } from '../config/validatorRules.js';
 import {
@@ -416,7 +415,7 @@ const extractGradeNum = (gradeStr) => {
 
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeIndents, resizeBlanksByAnswer } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeIndents } from '../utils/contentCleaner.js';
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -4571,10 +4570,7 @@ ${cardAnalysisText.substring(0, 1000)}
     const ansShellInContent = isAnswerShell(content);
     if (ansShellInContent) {
       content = content.replace(/<h2[^>]*>参考答案[\s\S]*$/i, '');
-      console.warn('[answer-diag] once 模式答案区为空壳，已剥离并触发独立答案页补生成');
     }
-    // 🔍 [answer-diag] 段2 答案页生成入口：确认是否进入独立答案页调用（split 恒进；once 看正文是否自带答案区）
-    console.log('[answer-diag] 段2 答案页入口:', { generateMode, ansInContent, ansShellInContent, contentLen: content.length });
     // 🔧 题+解析一体资料（错题本/知识总结等正文自带解析）once 模式且正文无独立参考答案区：
     //    正文已含解析/答案标注时不再补独立答案页（正文解析即答案，防"正文解析 + 独立答案页"重复）
     const genTypeCarriesAnswers = ['errorbook', 'summary'].includes(genType);
@@ -4582,7 +4578,6 @@ ${cardAnalysisText.substring(0, 1000)}
     const skipAnswerPage = generateMode === 'once' && !ansInContent && !ansShellInContent && (genTypeCarriesAnswers || bodyCarriesAnswers);
     if (skipAnswerPage) {
       answerSkipNote = `ℹ️ 正文已含解析/答案标注（${genType} 为题+解析一体资料），未单独生成答案页。`;
-      console.log('[answer-diag] once 正文自带解析（题+解析一体），不补独立答案页');
     } else if (generateMode !== 'once' || !ansInContent || ansShellInContent) {
       statusText.value = genType === 'exam' ? '整卷生成：撰写参考答案与评分标准...' : '整卷生成：撰写参考答案与解析...';
       progress.value = 85;
@@ -4621,7 +4616,6 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         if (aHtml && aHtml.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansCapped) {
           const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
           answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${aHtml}</div>`;
-          console.log('[answer-diag] 答案页首次生成成功:', { aHtmlLen: aHtml.length });
         } else {
           // 🔧 答案页为空/过短/思考耗尽 → 自动重试一次（思考耗尽时强制关闭思考，防再次空转；
           //    模型偶发输出空或"略"式敷衍内容也覆盖）
@@ -4638,7 +4632,6 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           if (aHtml2 && aHtml2.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN) {
             const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
             answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${aHtml2}</div>`;
-            console.log('[answer-diag] 答案页重试成功:', { aHtml2Len: aHtml2.length });
           } else {
             console.warn('⚠️ 答案页重试仍为空/过短（正文仍有效）');
           }
@@ -4654,24 +4647,11 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       content = wrapAnswerSection(content);
     }
 
-    // 🔴 标题根治兜底：移除模型拼入 h1 的任务行类型词（如" 考卷"），标题只保留命名规范占位符组合
+    // 🔴 标题根治兜底：移除模型拼入 h1 的任务行类型词（如“ 考卷”），标题只保留命名规范占位符组合
     content = stripTypeWordFromTitle(content);
-
-    // 🔧 按答案回填空位宽度（卷面惯例程序化）：空位宽度=答案字数×wordGap，不依赖模型估算；
-    //    生成后调用（正文+答案均已就绪），题号匹配失败/无答案 → 保持原样
-    if (answerHtml && typeof content === 'string' && content) {
-      try {
-        const bl = getMergedSpec().BLANK || {};
-        content = resizeBlanksByAnswer(content, answerHtml, bl);
-      } catch (e) {
-        console.warn('⚠️ 按答案回填空位宽度失败（不影响其他）:', e.message);
-      }
-    }
-
+    
     // 🔴 密封线兜底：正式试卷且 AI 未输出密封线 → 代码补（恢复原拼装器的密封线成果）
     let finalContent = answerHtml ? `${content}\n\n${answerHtml}` : content;
-    // 🔍 [answer-diag] 拼接后：确认答案区是否已进入最终内容（若此处已含 answer-section，后续任何丢失都发生在 audit/入库环节）
-    console.log('[answer-diag] 拼接后 finalContent:', { len: finalContent.length, hasAnswer: /answer-section/.test(finalContent), answerHtmlLen: answerHtml.length });
     if (genType === 'exam' && !/<div[^>]*class="[^"]*seal-zone[^"]*"/.test(finalContent)) {
       finalContent = `${buildSealLineHeader()}\n${finalContent}`;
     }
@@ -4700,18 +4680,9 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       if (hadAnswerBeforeAudit && !/answer-section/.test(finalContent)) {
         const ansPart = beforeAudit.match(/<div[^>]*class="[^"]*answer-section"[^>]*>[\s\S]*$/i);
         if (ansPart) {
-          const ansHead = beforeAudit.match(/<div[^>]*class="[^"]*answer-section"[^>]*>/i);
-          console.error('[answer-diag] ⚠️ auditExamPaper 丢失答案区（护栏已拼回）', {
-            beforeLen: beforeAudit.length,
-            answerDivCount: (beforeAudit.match(/<div[^>]*answer-section[^>]*>/gi) || []).length,
-            ansDivFormat: ansHead ? ansHead[0].slice(0, 120) : 'NO-DIV-MATCH',
-            beforeTail: beforeAudit.slice(-300),
-          });
           finalContent = finalContent + '\n\n' + ansPart[0];
         }
       }
-      // 🔍 [answer-diag] audit 后：确认质检器是否保留答案区（测试证明保留；此处防回归）
-      console.log('[answer-diag] audit 后:', { len: finalContent.length, hasAnswer: /answer-section/.test(finalContent) });
     } catch (e) {
       console.warn('⚠️ 整卷质检器异常（不影响生成结果）:', e.message);
     }

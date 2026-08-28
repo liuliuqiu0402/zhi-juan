@@ -2834,7 +2834,6 @@ const editingDoc = ref(null);
 
 // 🔥 预览弹窗状态持久化：切APP/杀进程后恢复（热启动窗口 10 分钟内有效）
 watch([showPreview, previewingDoc], () => {
-  console.log('[preview-popup] 👁️ watch 触发', { showPreview: showPreview.value, hasDoc: !!previewingDoc.value, docId: previewingDoc.value?.id });
   try {
     if (showPreview.value && previewingDoc.value) {
       localStorage.setItem('__preview_state', JSON.stringify({
@@ -6078,8 +6077,6 @@ const finalizeGeneration = async (result, genType) => {
     //    保证排版编辑预览与导出所见即所得（预览看不到成串空行，导出也不会有）
     const safeContent = ((result.content && typeof result.content === 'string') ? result.content : '')
       .replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br>');
-    // 🔍 [answer-diag] 答案区存在性诊断：生成入库时确认 answer-section 是否在 content 中（定位"预览无答案"断点）
-    console.log('[answer-diag] finalizeGeneration 入库:', { len: safeContent.length, hasAnswer: /answer-section/.test(safeContent), tail: safeContent.slice(-160) });
     
     const genTypeName = genTypeTemplates[genType]?.name || genType;
     const ctxBooks = pendingGenerateContext.value?.selectedBooks;
@@ -6182,14 +6179,6 @@ const cancelGeneration = () => {
 
 // 结果处理
 const previewDoc = (doc) => {
-  console.log('[preview-popup] 🔍 previewDoc 被调用', {
-    docId: doc?.id,
-    docTitle: doc?.title?.substring(0, 50),
-    genType: doc?.genType,
-    contentLen: doc?.content?.length,
-    contentPreview: doc?.content?.substring(0, 100),
-    caller: new Error().stack?.split('\n')[2]?.trim()
-  });
   previewingDoc.value = doc;
   
   // 如果有置信度标记，在预览内容中高亮显示
@@ -6204,11 +6193,7 @@ const previewDoc = (doc) => {
   }
   
   previewContent.value = normalizeSealStructure(renderImagePlaceholders(content));
-  // 🔍 [answer-diag] 预览渲染诊断：确认预览内容是否含 answer-section（定位"预览无答案"断点）
-  console.log('[answer-diag] previewDoc 渲染:', { contentLen: content?.length, hasAnswer: /answer-section/.test(content || ''), previewLen: previewContent.value?.length, previewHasAnswer: /answer-section/.test(previewContent.value || '') });
-  console.log('[preview-popup] 📺 即将设置 showPreview=true', { contentLen: content?.length });
   showPreview.value = true;
-  console.log('[preview-popup] ✅ showPreview 已设为 true', { showPreview: showPreview.value, previewContentLen: previewContent.value?.length });
 };
 
 // 🔥 同步恢复预览弹窗（setup 阶段、首帧即显示，调用 previewDoc 保证逻辑一致）
