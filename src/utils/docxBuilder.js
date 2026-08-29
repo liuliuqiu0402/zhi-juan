@@ -1393,6 +1393,31 @@ const processBlockNode = (node, ctx = {}) => {
     // 无 data-image-raw 的旧数据：走下方通用 div 路径按占位框文本导出
   }
 
+  // ===== 图形占位框：导出为干净占位文本（不再暴露 [GRAPH]/TYPE/坐标 等指令代码）=====
+  if (cls.contains('graph-placeholder')) {
+    const raw = node.getAttribute('data-graph-raw');
+    if (raw) {
+      const decoded = raw
+        .split('&amp;').join('&')
+        .split('&lt;').join('<')
+        .split('&gt;').join('>')
+        .split('&quot;').join('"');
+      // 从 [GRAPH]...[/GRAPH] 中提取 TYPE 与图形描述，输出为人类可读占位符
+      const typeMatch = decoded.match(/TYPE:\s*([A-Z_]+)/i);
+      const descMatch = decoded.match(/DESC:\s*(.+)/i) || decoded.match(/描述[：:]\s*(.+)/);
+      const typeText = typeMatch ? typeMatch[1].trim() : '图形';
+      const descText = descMatch ? descMatch[1].trim() : '';
+      const label = descText ? `〔图形位置（${typeText}）：${descText}〕` : `〔图形位置（${typeText}）〕`;
+      children.push(new Paragraph({
+        children: [new TextRun({ text: label, italics: true, color: '888888', size: 20 })],
+        spacing: { before: 80, after: 80 },
+        alignment: AlignmentType.CENTER,
+      }));
+      return children;
+    }
+    // 无 data-graph-raw 的旧数据：走下方通用 div 路径按占位框文本导出
+  }
+
   // ===== 标题 =====
   if (tag === 'h1' || cls.contains('main-title')) {
     const deco = readBlockDecorations(node);

@@ -20,7 +20,7 @@ import { generatePromptCacheKey, getCachedPromptResult, setCachedPromptResult } 
 
 // ===== 提取的独立工具模块 =====
 import { getModelDisplayName, robustJsonParse } from '../utils/jsonParser.js';
-import { splitTextIntoSegments, findRelatedSegments, buildGradedMaterialContext } from '../utils/textSegmenter.js';
+import { splitTextIntoSegments } from '../utils/textSegmenter.js';
 import { useDialog } from './useDialog.js';
 
 // ============================================================
@@ -925,76 +925,6 @@ ${JSON.stringify(cardsSummary, null, 2)}
     knowledgeGraph: Array.isArray(knowledgeMap.knowledgeGraph) ? knowledgeMap.knowledgeGraph : [],
     crossChapterLinks: Array.isArray(knowledgeMap.crossChapterLinks) ? knowledgeMap.crossChapterLinks : []
   };
-};
-
-/**
- * 从三维度指令库查询资料类型结构，替代硬编码 genTypeTemplates.structure
- * @param {string} genType - 资料类型（dictation/summary/errorbook/preview/reading/exam/practice/special）
- * @param {string} subject - 学科
- * @param {string} stage - 学段
- * @param {string} [stylePreference] - 命题风格偏好（big_unit/project_based），优先匹配新课标风格结构
- * @param {string} [specialSubType] - 专项子类型（如'阅读理解''计算'），仅 genType=special 时使用
- * @returns {string} 结构文本（不含"结构参考："前缀）
- */
-const getStructureForBlueprint = (genType, subject, stage, stylePreference, specialSubType = '') => {
-  // 🔴 已废弃：原「生成-资料类型结构」随指令库删除。非 exam 结构现由指令库模板承载：
-  //    exam → 蓝图 blueprint.sections；非 exam → 教辅栏目 TEACHING_MATERIAL_BANK / 结构大纲。
-  //    保留空实现兼容历史调用（无调用点）。
-  return genTypeTemplates[genType]?.structure || '';
-};
-
-/**
- * 🔧 构建知识层级文本（蓝图显示用），带智能截断
- * 整本书场景下 knowledgeGraph 可能有几百个知识点，蓝图显示需截断以保证可读性
- * @param {Object} knowledgeMap - 知识图谱（有 knowledgeGraph 时优先）
- * @param {Array} contentCards - 内容卡片（降级用，无 knowledgeGraph 时从 knowledgePointsForTest 提取）
- * @param {number} maxDisplay - 最大显示条目数，默认30
- * @returns {string} 层级文本
- */
-const buildHierarchyText = (knowledgeMap, contentCards, maxDisplay = 30) => {
-  let hierarchyText = '';
-  
-  if (knowledgeMap?.knowledgeGraph?.length > 0) {
-    let totalKps = 0;
-    let shownKps = 0;
-    const lines = [];
-    for (const unit of knowledgeMap.knowledgeGraph) {
-      lines.push(`📌 ${unit.unit || ''}`);
-      for (const bc of (unit.bigConcepts || [])) {
-        lines.push(`  ├─ ${bc.name}`);
-        for (const ck of (bc.coreKnowledge || [])) {
-          totalKps++;
-          if (totalKps <= maxDisplay) {
-            lines.push(`  │  ├─ ${ck.name}【${ck.cognitiveLevel || ck.level || '理解'}】`);
-            // 具体概念（仅展开已显示的知识点）
-            (ck.specificConcepts || []).forEach(sc => {
-              lines.push(`  │  │  └─ ${sc}`);
-            });
-            shownKps++;
-          }
-        }
-      }
-    }
-    hierarchyText = lines.join('\n');
-    if (totalKps > maxDisplay) {
-      hierarchyText += `\n  ...（共${totalKps}个核心知识点，显示前${shownKps}个，完整覆盖请参考教材原文）`;
-    }
-    return hierarchyText;
-  }
-  
-  // 降级：从 contentCards 提取扁平列表
-  const allKps = [...new Set((contentCards || []).flatMap(c =>
-    (c.knowledgePointsForTest || []).map(k => typeof k === 'string' ? k : k.name)
-  ).filter(Boolean))];
-  if (allKps.length > 0) {
-    const displayKps = allKps.slice(0, maxDisplay);
-    hierarchyText = '📌 教材知识覆盖（非穷举）\n' + displayKps.map(kp => `  ├─ ${kp}`).join('\n');
-    if (allKps.length > maxDisplay) {
-      hierarchyText += `\n  ...（共${allKps.length}个知识点，显示前${maxDisplay}个）`;
-    }
-  }
-  
-  return hierarchyText;
 };
 
 // 🔧 模块级：资料类型名称轮换计数器，localStorage 持久化保证硬刷新不丢

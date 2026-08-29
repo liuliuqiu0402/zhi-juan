@@ -2825,7 +2825,62 @@ const renderImagePlaceholders = (html) => {
     out.push(buildBox(prompt, imgType, keywords));
     rest = rest.slice(e + 8);
   }
-  return out.join('');
+  // 📊 [GRAPH] 标记 → 可视化图形占位框：AI 输出的图形（数轴/函数/几何/统计/受力/电路/光路/原子）契约，
+  //    渲染端不直接绘制矢量图，故转换为占位框并在导出时输出"图形位置"提示（与 [IMAGE] 同模式，杜绝指令原文泄漏）
+  //    标准格式（见 eduRenderContract GRAPH_SAMPLE_*）：[GRAPH] TYPE:XX DESC:...（或 描述:...）[/GRAPH]
+  {
+    const escGraph = (s) => String(s == null ? '' : s)
+      .split('&').join('&amp;')
+      .split('<').join('&lt;')
+      .split('>').join('&gt;')
+      .split('"').join('&quot;');
+    const out2 = [];
+    let rest2 = html;
+    const GRAPH_TAG = '[GRAPH]';
+    const GRAPH_END = '[/GRAPH]';
+    while (true) {
+      const gs = rest2.indexOf(GRAPH_TAG);
+      if (gs === -1) { out2.push(rest2); break; }
+      out2.push(rest2.slice(0, gs));
+      const bodyStart = gs + GRAPH_TAG.length;
+      const ge = rest2.indexOf(GRAPH_END, bodyStart);
+      if (ge === -1) {
+        // 未闭合兜底：取标记后到行尾内容作为描述，强制转占位框
+        const nl = rest2.indexOf(NL, bodyStart);
+        const partial = (nl === -1 ? rest2.slice(bodyStart) : rest2.slice(bodyStart, nl)).trim()
+          .replace(/^TYPE[：:]?\s*[A-Z_]+/i, '')
+          .replace(/^DESC[：:]\s*/i, '')
+          .replace(/^描述[：:]\s*/, '')
+          .trim() || '图形描述缺失（未闭合）';
+        const rawMark = escGraph('[GRAPH]' + NL + 'TYPE:COORDINATE' + NL + 'DESC:' + partial + NL + '[/GRAPH]');
+        out2.push('<div class="graph-placeholder" data-graph-raw="' + rawMark + '" style="text-align:left;padding:12px 14px;margin:12px 0;background:#f0f6fb;border:1px dashed #8fb4d8;border-radius:6px;color:#3a6a9e;font-size:13px;line-height:1.7;">'
+          + '<strong>[图形占位]</strong><br>'
+          + 'DESC: <span style="color:#5c6bc0;">' + escGraph(partial) + '</span>'
+          + '<br><span style="font-size:12px;color:#8899b0;">复制到 EduRender 生成图形后插入此处</span></div>');
+        rest2 = nl === -1 ? '' : rest2.slice(nl + 1);
+        continue;
+      }
+      const body = rest2.slice(bodyStart, ge);
+      const typeMatch = body.match(/TYPE[：:]\s*([A-Z_]+)/i);
+      const typeText = typeMatch ? typeMatch[1].trim().toUpperCase() : '图形';
+      let descText = '';
+      const dIdx = body.indexOf('DESC');
+      if (dIdx !== -1) descText = body.slice(dIdx + 4).split(NL)[0].trim().replace(/^[：:]\s*/, '');
+      if (!descText) {
+        const cIdx = body.indexOf('描述');
+        if (cIdx !== -1) descText = body.slice(cIdx + 2).split(NL)[0].trim().replace(/^[：:]\s*/, '');
+      }
+      if (descText.charAt(0) === ':' || descText.charAt(0) === '：') descText = descText.slice(1).trim();
+      const rawMark = escGraph('[GRAPH]' + NL + 'TYPE:' + (typeMatch ? typeText : 'COORDINATE') + NL + 'DESC:' + (descText || '（无描述）') + NL + '[/GRAPH]');
+      out2.push('<div class="graph-placeholder" data-graph-raw="' + rawMark + '" style="text-align:left;padding:12px 14px;margin:12px 0;background:#f0f6fb;border:1px dashed #8fb4d8;border-radius:6px;color:#3a6a9e;font-size:13px;line-height:1.7;">'
+        + '<strong>[图形占位]</strong><br>'
+        + (typeMatch ? 'TYPE: <span style="color:#3a6a9e;font-weight:600;">' + escGraph(typeText) + '</span><br>' : '')
+        + 'DESC: <span style="color:#5c6bc0;">' + escGraph(descText || '（无描述）') + '</span>'
+        + '<br><span style="font-size:12px;color:#8899b0;">复制到 EduRender 生成图形后插入此处</span></div>');
+      rest2 = rest2.slice(ge + GRAPH_END.length);
+    }
+    return out2.join('');
+  }
 };
 const previewingDoc = ref(null);
 const editingContent = ref('');
