@@ -4245,8 +4245,8 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
       blueprintDetail = `教辅结构「${genTypeLabel}」· 栏目框架 + 题量底线`;
     }
     if (!instructionDraft.value.includes('【输出格式】')) {
-      // 用户自定义模板缺失【输出格式】时兜底：书写载体条款按 学科×学段 注入（不广播跨学科示例）
-      instructionDraft.value += buildOutputFormatHint({ subject, stage: stageKey });
+      // 用户自定义模板缺失【输出格式】时兜底：书写载体条款按 学科×学段 注入；内容型走结构化格式（不注作答载体）
+      instructionDraft.value += buildOutputFormatHint({ subject, stage: stageKey, genType });
     }
   }
   instructionSource.value = {
@@ -4302,7 +4302,6 @@ const restoreDefaultInstruction = async () => {
   const gradeLabel = book.grade || '';
   instructionDraft.value = buildInjectionInstruction({
     template: builtinTemplate, grade: gradeLabel, stage: stageKey, subject, genTypeLabel, label, semester: book.semester || '', structure, fullScore, duration,
-    subjectFormat: buildSubjectFormatBlock(subject),
   });
   instructionDraft.value += buildRenderContract({
     subject, genType, stage: stageKey,
@@ -6585,7 +6584,7 @@ const downloadDoc = async (doc, format) => {
     document.body.appendChild(wrapper);
 
     try {
-      // 🔧 作文格格子按学段尺寸（小学 12mm / 初中 10mm / 高中 7.5×8mm），学段取自生成参数（五档 stageKey，docxBuilder 内归一化为三档）
+      // 🔧 作文格格子尺寸取排版规格库 ZUOWEN_CELL（按学段），学段取自生成参数（五档 stageKey，docxBuilder 内归一化为三档）
       const blob = await htmlToDocxBlob(clone, doc?.meta?.stage || doc?.stage || 'middle');
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);

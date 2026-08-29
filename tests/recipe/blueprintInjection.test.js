@@ -2,12 +2,13 @@
 // ============================================================
 // 🔴 目的：锁定"格式内容对全部资料类型生效"的契约——
 //    - exam：整卷生成指令尾部注入真题蓝本题型骨架（板块+分值+命题要求）
-//    - 非 exam（课时练/预习/总结/默写等）：注入统一输出格式 OUTPUT_FORMAT_HINT
+//    - 非 exam（课时练/预习/总结/默写等）：注入统一输出格式 buildOutputFormatHint（按 genType 分 question/content 模式）
 //    - 地区选择覆盖蓝图总分/时长/板块分值（比例缩放 + 末板块修正）
 // ============================================================
 import { describe, it, expect } from 'vitest';
 import { getExamBlueprint } from '@/config/examPaperBlueprints.js';
-import { getPromptTemplate, OUTPUT_FORMAT_HINT, buildOutputFormatHint, buildStructureText } from '@/config/promptLibrary.js';
+import { getPromptTemplate, buildOutputFormatHint, buildStructureText } from '@/config/promptLibrary.js';
+import { buildCarrierInstruction } from '@/config/layoutSpec.js';
 
 describe('buildStructureText（exam 卷面结构注入段，单一事实源）', () => {
   it('块头在指令库 EXAM_BASE（含"共X题"填写说明），明细由 buildStructureText 注入（中文序号/分值/命题要求）', () => {
@@ -124,18 +125,19 @@ describe('getExamBlueprint 地区覆盖（总分/时长/板块分值）', () => 
   });
 });
 
-describe('OUTPUT_FORMAT_HINT（非 exam 统一输出格式）', () => {
+describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
+  const hint = buildOutputFormatHint({});
   it('含结构化排版要求与正文边界要求', () => {
-    expect(OUTPUT_FORMAT_HINT).toContain('【输出格式】');
-    expect(OUTPUT_FORMAT_HINT).toContain('<h1>');
-    expect(OUTPUT_FORMAT_HINT).toContain('<h2>');
-    expect(OUTPUT_FORMAT_HINT).toContain('只输出资料正文');
-    expect(OUTPUT_FORMAT_HINT).toContain('填空空位由系统按答案字数自动校准宽度');
+    expect(hint).toContain('【输出格式】');
+    expect(hint).toContain('<h1>');
+    expect(hint).toContain('<h2>');
+    expect(hint).toContain('只输出资料正文');
+    expect(hint).toContain('填空空位由系统按答案字数自动校准宽度');
   });
 
   it('含正文边界要求：答案不入正文；代码块由代码层拦截，不再要求模型', () => {
-    expect(OUTPUT_FORMAT_HINT).toContain('严禁在正文中输出任何答案/解析');
-    expect(OUTPUT_FORMAT_HINT).not.toContain('严禁代码块包裹输出');
+    expect(hint).toContain('严禁在正文中输出任何答案/解析');
+    expect(hint).not.toContain('严禁代码块包裹输出');
   });
 
   it('buildOutputFormatHint 兜底路径：按 学科×学段 注入载体条款，通用兜底不含具体示例', () => {
@@ -144,6 +146,15 @@ describe('OUTPUT_FORMAT_HINT（非 exam 统一输出格式）', () => {
     const generic = buildOutputFormatHint({});
     expect(generic).not.toContain('tian-zi-ge');
     expect(generic).not.toContain('four-line-three');
+  });
+
+  it('内容型（preview/summary）走结构化格式，不注入作答载体条款', () => {
+    const preview = buildOutputFormatHint({ subject: '语文', stage: 'primary_low', genType: 'preview' });
+    expect(preview).toContain('栏目标题');
+    expect(preview).not.toContain('写汉字类题必须真实输出田字格');
+    expect(preview).not.toContain('填空空位由系统按答案字数自动校准宽度');
+    const summary = buildOutputFormatHint({ genType: 'summary' });
+    expect(summary).toContain('知识框架');
   });
 });
 
@@ -191,7 +202,7 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
       } else {
         expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('由系统按答案字数自动校准宽度');
-        expect(t.template, `类型 ${g} 缺括号空位要求`).toContain('选择/判断用括号空位');
+        expect(t.template, `类型 ${g} 缺括号空位要求`).toContain('选择/判断类与填空按作答形式留空位');
       }
       expect(t.template, `类型 ${g} 残留连线诱导词`).not.toContain('连线题');
     }
@@ -231,9 +242,12 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
     expect(enMid.template).toContain('字母/单词抄写类题必须真实输出四线三格 <span class="four-line-three">a</span>');
     const enLow = getPromptTemplate({ grade: 'primary_low', subject: '英语', genType: 'practice' });
     expect(enLow.template).not.toContain('four-line-three');
-    // 数学全学段：方格纸（作图答题区）
-    const math = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'practice' });
-    expect(math.template).toContain('作图/答题区用方格纸');
+    // 数学小学段：作图方格纸（作图题）
+    const mathPri = getPromptTemplate({ grade: 'primary_mid', subject: '数学', genType: 'practice' });
+    expect(mathPri.template).toContain('作图类题用方格纸');
+    // 数学中/高学段：由考试答题纸自带网格，不注入"方格纸"诱导（SQUARE_GRID middle/high=null）
+    const mathMid = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'practice' });
+    expect(mathMid.template).not.toContain('方格纸');
     // 无格子学科（物理）：不注入任何载体示例 span
     const physics = getPromptTemplate({ grade: 'middle', subject: '物理', genType: 'practice' });
     expect(physics.template).not.toContain('<span class=');
@@ -247,14 +261,19 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
     expect(t.template).not.toContain('40分钟'); // 时长由蓝图 duration 唯一源，学段特点不含分钟
   });
 
-  it('作答载体条款无语文题型词广播：写作/表达类题通用化（写话/作文不出现于通用句）', () => {
-    // 数学卷的格式块不得出现语文题型词
+  it('作答载体条款按学科三维度：写作/表达硬约束仅语英，不广播到非语英学科', () => {
+    // 数学卷：不出现任何写作/写话/作文词（写作/表达硬约束仅语英）
     const math = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'exam' });
-    expect(math.template).toContain('写作/表达类题须完整呈现题目要求');
+    expect(math.template).not.toContain('写作/表达类题须完整呈现题目要求');
     expect(math.template).not.toContain('写话/作文题');
-    // 通用模板（无学科）同样
+    // 语文/英语：写作/表达硬约束出现
+    const chinese = getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' });
+    expect(chinese.template).toContain('写作/表达类题须完整呈现题目要求');
+    const english = getPromptTemplate({ grade: 'middle', subject: '英语', genType: 'exam' });
+    expect(english.template).toContain('写作/表达类题须完整呈现题目要求');
+    // 通用模板（无学科）：同样不含（无学科不注入表达约束）
     const generic = getPromptTemplate({ genType: 'practice' });
-    expect(generic.template).toContain('写作/表达类题须完整呈现题目要求');
+    expect(generic.template).not.toContain('写作/表达类题须完整呈现题目要求');
     expect(generic.template).not.toContain('写话/作文题');
   });
 });
@@ -298,5 +317,29 @@ describe('质量底线三维度注入（类型/学科/学段各司其职，非�
     const t = getPromptTemplate({ genType: 'practice' });
     expect(t.template).not.toContain('禁止教材外概念');
     expect(t.template).not.toContain('不得超出教材');
+  });
+});
+
+describe('载体允许表学科键归一化（道法/政治/信息 → canonical，越界剥离防线对 3 科恢复生效）', () => {
+  it('旧别名与 canonical 名均命中同一显式空数组（剥离防线不再静默关闭）', () => {
+    // 无格子学科：旧别名/规范名均返回显式空数组（非 null），指令不注入任何载体示例
+    for (const subject of ['道法', '政治', '道德与法治', '思想政治', '信息', '信息科技', '历史', '体育']) {
+      const clause = buildCarrierInstruction(subject, 'middle');
+      expect(clause, `学科 ${subject} 不应注入载体条款`).toBe('');
+    }
+    // 高中政治类归一化到"思想政治"，初中政治类归一化到"道德与法治"（同样空数组）
+    expect(buildCarrierInstruction('政治', 'high')).toBe('');
+    expect(buildCarrierInstruction('道法', 'primary_low')).toBe('');
+  });
+
+  it('有载体学科不受影响：语文低段/英语中段/数学小学段仍精确注入', () => {
+    expect(buildCarrierInstruction('语文', 'primary_low')).toContain('tian-zi-ge');
+    expect(buildCarrierInstruction('英语', 'primary_mid')).toContain('four-line-three');
+    expect(buildCarrierInstruction('数学', 'primary_mid')).toContain('方格纸');
+  });
+
+  it('数学中/高段不注入方格纸（归靠考试答题纸网格）', () => {
+    expect(buildCarrierInstruction('数学', 'middle')).toBe('');
+    expect(buildCarrierInstruction('数学', 'high')).toBe('');
   });
 });

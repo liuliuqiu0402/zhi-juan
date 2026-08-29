@@ -17,6 +17,7 @@
 
 import { isLibEntryEnabled } from '../utils/libToggles.js';
 import { CARRIER_LABELS } from './blueprintSchema.js'; // 载体中文标签唯一源（指令端条款翻译共用，不另造标签）
+import { normalizeSubjectName } from './expertKnowledge.js'; // 学科名归一化（道法/政治/信息 → 道德与法治/思想政治/信息科技），保证载体键始终命中 canonical key
 
 /**
  * 学段 → 排版三档键归一化（primary/middle/high）
@@ -64,12 +65,16 @@ export const ZUOWEN_DEFAULT_SPAN = 2;
  * 书写载体（学科 × 学段 → 允许的载体 class 列表）
  *  - 语文：低段田字格+拼音格；中段起正常横线
  *  - 英语：中段四线三格（英语 3 年级起点）；高段起正常横线
- *  - 数学：作图方格纸 square-grid 全学段合法（作图答题区）；其余格子类一律不允许
- *  - 其余学科（物理/化学/生物/科学/道法/政治/历史/地理/音乐/美术/体育/信息）：显式空数组
+ *  - 数学：作图方格纸 square-grid 仅小学段合法（作图题；初中以上由考试答题纸自带网格，不给"用方格纸"诱导）；其余格子类一律不允许
+ *  - 其余学科（物理/化学/生物/科学/道德与法治/思想政治/历史/地理/音乐/美术/体育/信息科技）：显式空数组
  *    = 不允许任何格子类（出现田字格/四线三格等即按越界自动剥离）
  *  - 未显式定义的学科（新学科兜底）：不检测（getCarrierAllowlist 返回 null）
  * 消费方：examValidator writing-grid-fix（按 学科×学段 检查输出载体是否越界，越界自动剥离保留文字）
  */
+/** 书写载体允许表（学科→学段→允许载体）
+ * 🔗 命名双轨·学科键：键名必须与 expertKnowledge.subjects canonical 名（道德与法治/思想政治/信息科技 等）完全同名；
+ *    旧别名（道法/政治/信息）不再使用，统一在上方显式空数组。新增/改名学科须与 expertKnowledge.subjects、
+ *    指令库 STAGE_SUBJECTS/SUBJECT_STAGE_EXTRAS 同步，否则剥离防线失效（见 getCarrierAllowlist 归一化）。 */
 export const WRITING_CARRIER = {
   语文: {
     primary_low: ['tian-zi-ge', 'pinyin-line'], // 低段：田字格/拼音格
@@ -88,30 +93,30 @@ export const WRITING_CARRIER = {
     primary_low: ['square'],
     primary_mid: ['square'],
     primary_high: ['square'],
-    middle: ['square'],
-    high: ['square'],
+    middle: [], // 🔴 作图方格纸仅小学段渲染（SQUARE_GRID middle/high=null）；初中以上由考试答题纸自带网格，不给"用方格纸"诱导
+    high: [],
   },
   物理: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
   化学: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
   生物: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
   科学: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
-  道法: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
-  政治: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
+  道德与法治: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
+  思想政治: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
   历史: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
   地理: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
   音乐: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
   美术: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
   体育: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
-  信息: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
+  信息科技: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
 };
 
 /**
- * 查询某学科×学段的允许书写载体列表（合并用户覆盖）。
+ * 查询某学科×学段的允许书写载体列表（合并用户覆盖；学科名先归一化，任何旧别名都命中 canonical key）。
  * 未显式定义该学科的载体规则 → 返回 null（不检测，保持正常书写）。
  */
 export function getCarrierAllowlist(subject = '', stage = '') {
   const spec = getMergedSpec().WRITING_CARRIER;
-  const row = spec[subject];
+  const row = spec[normalizeSubjectName(subject, stage)];
   if (!row) return null;
   return row[stage] || null;
 }
@@ -152,7 +157,7 @@ const CARRIER_MUST_SEMANTICS = {
  * 生成"书写载体"指令条款（指令库 QUESTION_FORMAT 引用；数据源 = WRITING_CARRIER/CARRIER_RULES 唯一事实源）
  * 按 学科×学段 精确输出：
  *   - 命中 must 载体规则（语文低段田字格/拼音格、英语中段四线三格）→ 逐条输出"XX类题必须真实输出XX"
- *   - 允许方格纸（数学全学段作图答题区）→ 输出"作图/答题区用方格纸"
+ *   - 允许方格纸（数学小学段作图题）→ 输出"作图类题用方格纸"
  *   - 其余（横线惯例/显式禁止格子/未定义学科）→ 返回空串（默认作答形态由通用句覆盖，不注入）
  * 消费方：promptLibrary QUESTION_FORMAT（按三维度 cell 组装时以 subject/stage 调用）
  */
@@ -168,7 +173,7 @@ export function buildCarrierInstruction(subject = '', stage = '') {
     if (sem) parts.push(`${sem.label}必须真实输出${label} <span class="${r.carrier}">${sem.demo}</span>`);
     else parts.push(`「${r.keywords.split('|')[0]}」类题必须真实输出${label}`);
   }
-  if (list.includes('square')) parts.push('作图/答题区用方格纸');
+  if (list.includes('square')) parts.push('作图类题用方格纸');
   if (!parts.length) return '';
   const hasMust = parts.some((p) => p.includes('必须真实输出'));
   return `${parts.join('；')}${hasMust ? '；题干未写明时按此书写惯例。' : '。'}`;

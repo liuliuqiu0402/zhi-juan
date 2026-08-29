@@ -174,7 +174,11 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     const dict = buildTeachingInjection({ genType: 'dictation', stage: 'primary_low', subject: '英语' });
     expect(dict).toContain('英语·默写积累');
     expect(dict).toContain('词汇句型');
-    expect(dict).toContain('四线三格');
+    expect(dict).toContain('书写载体规格');
+    expect(dict).not.toContain('四线三格'); // 载体硬编码已移除，交由书写载体规则按学段限定
+    // 英语中/高学段默写纸同样不得出现四线三格（书写格仅英语中段由载体规则注入）
+    const dictHigh = buildTeachingInjection({ genType: 'dictation', stage: 'high', subject: '英语' });
+    expect(dictHigh).not.toContain('四线三格');
   });
 
   it('英语全 8 类教辅均有学科定制栏目', () => {

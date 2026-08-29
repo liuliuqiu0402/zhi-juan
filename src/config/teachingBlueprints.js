@@ -16,7 +16,8 @@
 
 import { isLibEntryEnabled } from '../utils/libToggles.js';
 
-/** 学段显示名 */
+/** 学段显示名
+ * 🔗 命名双轨·学段：五档 key 须与指令库 STAGE_NAMES、layoutSpec 载体表学段 key（primary_low…high）完全一致。 */
 export const TEACHING_STAGE_NAMES = {
   primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中',
 };
@@ -223,7 +224,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       sections: [
         { name: '看拼音写词语', note: '拼音词嵌入语境句（非孤立罗列）' },
         { name: '积累默写', note: '本单元要求掌握的字词、成语、名句、篇目，严格对应教材要求' },
-        { name: '书写格', note: '按学段：1-2 年级田字格、3 年级起方格/横线' },
+        { name: '书写格', note: '书写载体按书写规格呈现（低段田字格/拼音格，中段起横线）' },
       ],
     },
     errorbook: {
@@ -363,7 +364,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       sections: [
         { name: '词汇句型', note: '本单元要求掌握的词汇与句型，在情境中呈现（不孤立默写）' },
         { name: '语音积累', note: '本单元要求掌握的语音知识（字母组合、读音规则等），按教材要求覆盖' },
-        { name: '书写规范', note: '英文书写用四线三格呈现' },
+        { name: '书写规范', note: '英文书写按书写载体规格呈现（抄写类题的格子由书写载体规则限定）' },
       ],
     },
     errorbook: {
@@ -1019,6 +1020,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
 };
 
 /** 全部教辅类型键 */
+// 🔗 命名双轨·资料类型：TEACHING_BLUEPRINTS 的顶层 key 即教辅类型 key，须与 expertKnowledge.genTypeTemplates、
+//    指令库 GEN_TYPE_NAMES/TYPE_BASES 的九类 key 完全一致（本行由键推导，改蓝图顶层键时须同步另三处）。
 export const TEACHING_GEN_TYPES = Object.keys(TEACHING_BLUEPRINTS);
 
 /** 学段键归一：接受学段键（primary_low 等）或中文学段/年级标签（'小学低段'/'二年级'/'高一' 等） */

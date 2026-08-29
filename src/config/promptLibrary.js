@@ -21,7 +21,9 @@
 import { isLibEntryEnabled } from '../utils/libToggles.js';
 import { buildCarrierInstruction } from './layoutSpec.js'; // 书写载体条款按 学科×学段 生成（排版规格库唯一事实源）
 
-/** 资料类型中文名（模板列表展示/任务行用） */
+/** 资料类型中文名（模板列表展示/任务行用）
+ * 🔗 命名双轨·资料类型：key 须与 expertKnowledge.genTypeTemplates/genTypeOptions、TYPE_BASES、蓝图库类型 key 完全一致。
+ *    新增/改名类型四处同步，否则模板命不中/面板失配。 */
 export const GEN_TYPE_NAMES = {
   exam: '正式考卷', practice: '课时练', special: '专项突破', preview: '课前预习',
   reading: '阅读训练', summary: '知识总结', dictation: '默写积累', errorbook: '错题本', review: '复习资料',
@@ -32,9 +34,28 @@ export const GEN_TYPE_NAMES = {
  *    三维度 cell 组装时以 subject/stage 注入——田字格示例只进语文低段、四线三格示例只进英语中段、
  *    方格纸只进数学等允许学科，不再全学科广播（防跨学科/跨学段诱导）；
  *    无载体规则的学段（横线惯例/禁止格子）走通用句，不注入具体格子示例。 */
+const HAS_EXPRESSION_QUESTIONS = ['语文', '英语']; // 存在写话/写作/抄写/表达类题的学科——写字/写作硬约束仅注入这些学科
+
+/** 作答载体格式（题为主类型：填空/选择/书写载体/方格纸/作答区；全类型唯一定义处，模板统一引用）
+ * 🔴 书写载体条款按 学科×学段 条件化组装（buildCarrierInstruction），三维度 cell 组装时以 subject/stage 注入：
+ *    田字格/拼音格只进语文低段、四线三格只进英语中段、作图方格纸只进小学数学；
+ *    "写字=废题""写作须完整呈现"硬约束只进存在写话/写作/抄写题的学科（语文/英语）；
+ *    其余学科不注入任何格子/写字/写作词汇——杜绝跨学科/跨学段诱导。 */
 const QUESTION_FORMAT = (ctx = {}) => {
-  const carrier = buildCarrierInstruction(ctx.subject, ctx.stage);
-  return `· 作答载体（系统按作答形式渲染，输出时与题干语义保持一致）：填空空位由系统按答案字数自动校准宽度；选择/判断用括号空位；写字题必须真实输出题干要求的书写载体——题干写了"田字格/四线三格"等，正文就必须真的有对应格子，只写描述没有格子=废题；${carrier || '题干未写明时按本学段书写惯例用对应格子；'}任何作答载体一律输出在所属题目之后，不得置于题干之前；写作/表达类题须完整呈现题目要求（含写作要求），不得只有标题行；解答/简答题留足作答区（如适用）`;
+  const carrier = (buildCarrierInstruction(ctx.subject, ctx.stage) || '').replace(/。$/, '');
+  const hasEx = HAS_EXPRESSION_QUESTIONS.includes(ctx.subject);
+  const clauses = [
+    '填空空位由系统按答案字数自动校准宽度',
+    '选择/判断类与填空按作答形式留空位（系统按作答形式渲染，输出时与题干语义保持一致）',
+  ];
+  if (carrier) clauses.push(carrier);
+  if (hasEx) {
+    clauses.push('写字/抄写类题必须真实输出题干要求的书写载体，只写描述没有实际载体=废题');
+    clauses.push('写作/表达类题须完整呈现题目要求（含写作要求），不得只有标题行');
+  }
+  clauses.push('任何作答载体一律输出在所属题目之后，不得置于题干之前');
+  clauses.push('解答/简答题留足作答区（如适用）');
+  return `· 作答载体（系统按作答形式渲染，输出时与题干语义保持一致）：${clauses.join('；')}`;
 };
 
 /** 内容组织格式（内容型类型：结构化呈现，不用题号） */
@@ -193,7 +214,9 @@ for (const [gType, base] of Object.entries(TYPE_BASES)) {
   BUILTIN_TEMPLATES[gType] = base('');
 }
 
-/** 学段中文名（面板显示） */
+/** 学段中文名（面板显示）——五档 key（primary_low/primary_mid/primary_high/middle/high）为学段键唯一标准
+ * 🔗 命名双轨·学段：key 须与 layoutSpec 载体表、SUBJECT_STAGE_EXTRAS/STAGE_EXAM_EXTRAS/STAGE_TEACHING_EXTRAS/STAGE_SUBJECTS、
+ *    蓝图库学段 key、docxBuilder 三档归一化完全一致；新增/改学段须多处同步。 */
 export const STAGE_NAMES = {
   primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中',
 };
@@ -243,6 +266,9 @@ export function getCurriculumLabel(stage = '') {
  * 指令库三维度 cell（学段×学科×类型）组装时作为"学科层"注入（注入 text）。
  * source 对应课标条款名，维护时可据以核对原文，防止凭印象措辞混入。
  */
+/** 三维度 学科×学段 要点（subject|stage 复合键）——
+ * 🔗 命名双轨·键：`学科|学段` 两段须分别与 expertKnowledge.subjects、STAGE_SUBJECTS/五档学段 key（见 STAGE_NAMES 顶部）完全同名；
+ *    只改上面 canonical 清单而漏更本复合键，对应学科/学段要点会静默漏注入。 */
 export const SUBJECT_STAGE_EXTRAS = {
   // ── 语文 ──
   '语文|primary_low': { text: '识字写字在语境句中考（字词置于具体语句，不孤立罗列）；写话贴近生活、给情境与词语支架；用田字格规范书写。', source: '2022义教语文·第一学段识字与写字/阅读与鉴赏 + 语言文字积累与梳理任务群' },
@@ -257,7 +283,7 @@ export const SUBJECT_STAGE_EXTRAS = {
   '数学|middle': { text: '数与式、方程不等式、函数、几何、统计概率综合；解答题过程完整（推理链清晰）；应用题真实情境建模。', source: '2022义教数学·第四学段学段目标（数与式/方程与不等式/函数）+ 推理能力核心素养' },
   '数学|high': { text: '函数与导数、几何、概率统计综合；解答题逻辑严谨、步骤完整；开放设问考查数学表达与推理。', source: '高中数学课标(2017/2020)·必修内容 + 核心素养（数学抽象/逻辑推理/数学建模/直观想象/数学运算/数据分析）' },
   // ── 英语 ──
-  '英语|primary_low': { text: '词汇在图片/情境中识别与认读；听力原文完整呈现；以听说认读为主（低段无书写格子惯例，与排版规格库 WRITING_CARRIER 一致）。', source: '2022义教英语·语言能力核心素养（感知与积累）' },
+  '英语|primary_low': { text: '词汇在图片/情境中识别与认读；听力原文完整呈现；以听说认读为主（低段书写按本学段惯例，不套用四线三格等格子）。', source: '2022义教英语·语言能力核心素养（感知与积累）' },
   '英语|primary_mid': { text: '词汇句型在语篇/情境中运用；听力原文完整呈现；书写规范（四线三格）。', source: '2022义教英语·语言能力核心素养（习得与建构）' },
   '英语|primary_high': { text: '语篇阅读与书面表达结合主题语境；听力原文完整呈现；设问由浅入深、有层次。', source: '2022义教英语·核心素养（语言能力/思维品质）' },
   '英语|middle': { text: '语篇完整地道（真实语境、无中式英语）；听力原文完整呈现；书面表达给要点支架；设问由浅入深、有层次。', source: '2022义教英语·核心素养（语言能力/文化意识/思维品质/学习能力）' },
@@ -337,7 +363,9 @@ export const STAGE_TEACHING_EXTRAS = {
 /** 学段→学科 合理映射（按实际课程设置，非全矩阵——低段无物理/化学/生物/史地政等；
  *  学科名与 normalizeSubjectName 标准化产出一致：高中政治类=思想政治，初小=道德与法治）
  *  🔧 学科要点库（工具库）读取源
- *  🔧 学科数据键全学段统一（义教课标名优先）；高中课标名仍为"信息技术"（2022 义教课标不覆盖高中），键不变 */
+ *  🔧 学科数据键全学段统一（义教课标名优先）；高中课标名仍为"信息技术"（2022 义教课标不覆盖高中），键不变
+ * 🔗 命名双轨·学科：清单须与 expertKnowledge.subjects（15 科 canonical）、SUBJECT_STAGE_EXTRAS 学科 key、layoutSpec.WRITING_CARRIER 键
+ *    完全同名；新增/改学科只改 expertKnowledge.subjects，本处与载体键若漏更会静默失配（漏注入/剥离失效）。 */
 export const STAGE_SUBJECTS = {
   primary_low: ['语文', '数学', '英语', '科学', '道德与法治', '音乐', '美术', '体育', '信息科技'],
   primary_mid: ['语文', '数学', '英语', '科学', '道德与法治', '音乐', '美术', '体育', '信息科技'],
@@ -543,13 +571,13 @@ export function buildSealLineHeader() {
 }
 
 /** 非考试类资料（课时练/预习/总结等）的统一输出格式要求（系统级注入，模板不必重复写）——与 OUTPUT_FORMAT_BLOCK 同源，仅一处定义；
- *  书写载体条款按 学科×学段 注入（buildCarrierInstruction），供用户自定义模板缺【输出格式】时兜底 */
-export function buildOutputFormatHint({ subject = '', stage = '' } = {}) {
-  return OUTPUT_FORMAT_BLOCK('question', { subject, stage });
+ *  书写载体条款按 学科×学段 注入（buildCarrierInstruction），供用户自定义模板缺【输出格式】时兜底；
+ *  内容型资料（preview/summary）走 CONTENT_FORMAT（结构化，不用作答载体条款），避免污染 */
+const CONTENT_GEN_TYPES = ['preview', 'summary'];
+export function buildOutputFormatHint({ subject = '', stage = '', genType = '' } = {}) {
+  const mode = CONTENT_GEN_TYPES.includes(genType) ? 'content' : 'question';
+  return OUTPUT_FORMAT_BLOCK(mode, { subject, stage });
 }
-
-/** 兼容旧引用（无学科/学段上下文的通用兜底；生成端请用 buildOutputFormatHint 传入三维度） */
-export const OUTPUT_FORMAT_HINT = buildOutputFormatHint({});
 
 /** 学段键集合 */
 const STAGE_KEYS = Object.keys(STAGE_NAMES);
@@ -602,7 +630,6 @@ export default {
   buildStructureText,
   buildSealLineHeader,
   buildOutputFormatHint,
-  OUTPUT_FORMAT_HINT,
   matchTemplateFilter,
 };
 
@@ -610,22 +637,27 @@ export default {
 // 🔧 整卷生成端专用提示词（由 useAiGenerator 导入，统一在本库维护，避免散落代码常量）
 // ============================================================
 
-/** 整卷输出约定（按生成路径注入；once=正文+答案一次输出，split=正文禁答+答案页独立调用） */
+/** 是否含听力题的学科（答案页"听力原文"条款仅注入英语） */
+const HAS_LISTENING = (subject = '') => subject === '英语';
+
+/** 整卷输出约定（按生成路径注入；once=正文+答案一次输出，split=正文禁答+答案页独立调用）
+ * 🔴 听力原文仅英语学科答案页涉及，其余学科不注入（防跨学科噪音） */
 export const PAPER_OUTPUT_CONVENTIONS = {
-  once: `【输出约定】本次输出完整试卷/资料正文，并在正文结束后另起一部分输出《参考答案与评分标准》/《参考答案与解析》：
-· 答案区大题用 <h2>（如 <h2>参考答案与评分标准</h2>），逐题对应、注明分值；评分标准/等级表用 <table>；听力题附完整听力原文
+  once: (subject = '') => `【输出约定】本次输出完整试卷/资料正文，并在正文结束后另起一部分输出《参考答案与评分标准》/《参考答案与解析》：
+· 答案区大题用 <h2>（如 <h2>参考答案与评分标准</h2>），逐题对应、注明分值；评分标准/等级表用 <table>${HAS_LISTENING(subject) ? '；听力题附完整听力原文' : ''}
 · 严禁使用 ##、**、|表格 等 Markdown 语法；严禁 \`\`\` 代码块包裹；直接输出 HTML 内容`,
   split: `【输出约定】本次只输出资料/试卷正文（题目、卷面与作答区）。严禁在正文中输出任何答案、解析、评分标准、听力原文——参考答案由系统在正文生成后单独调用生成。`,
 };
 
-/** 答案页角色（按资料类型：exam=阅卷专家+评分标准；其余=教辅编辑+参考答案与解析） */
+/** 答案页角色（按资料类型：exam=阅卷专家+评分标准；其余=教辅编辑+参考答案与解析）
+ * 🔴 作文/写话评分仅语英（表达类题）、听力原文仅英语，其余学科不注入 */
 export const ANSWER_ROLES = {
-  exam: '你是阅卷专家。请为以下试卷逐题撰写完整《参考答案与评分标准》：每题给出答案与简要解析；选择题给正确选项；作文/写话给评分标准（等级描述+采分点）；听力题附完整听力原文。',
+  exam: (subject = '') => `你是阅卷专家。请为以下试卷逐题撰写完整《参考答案与评分标准》：每题给出答案与简要解析；选择题给正确选项${HAS_EXPRESSION_QUESTIONS.includes(subject) ? '；作文/写话给评分标准（等级描述+采分点）' : ''}${HAS_LISTENING(subject) ? '；听力题附完整听力原文' : ''}。`,
   other: '你是教辅编辑。请为以下资料逐题撰写完整《参考答案与解析》：选择题给正确选项；错题类附错误归因与正确解法；知识总结/预习类给出要点梳理与参考解答。',
 };
 
 /** 答案页 HTML 输出格式规范（与正文一致，便于排版导出） */
-export const ANSWER_FORMAT_SPEC = `【答案页输出格式】（HTML 规范，与正文一致，便于排版导出）
+export const buildAnswerFormatSpec = (subject = '') => `【答案页输出格式】（HTML 规范，与正文一致，便于排版导出）
 · 大题用 <h2>（如 <h2>一、〈大题名〉</h2>）；每题先写题号（与试卷正文完全一致）再写答案与解析
-· 评分标准/等级表用 <table> 表格；听力题附完整听力原文
+· 评分标准/等级表用 <table> 表格${HAS_LISTENING(subject) ? '；听力题附完整听力原文' : ''}
 · 严禁使用 ##、**、|表格 等 Markdown 语法；严禁 \`\`\` 代码块包裹；直接输出 HTML 内容`;

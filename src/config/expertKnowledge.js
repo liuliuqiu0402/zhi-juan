@@ -124,11 +124,15 @@ export const subjectGradeSystem = {
 };
 
 // ==================== 学段列表 ====================
+// 🔗 命名双轨·学段：本数组与指令库 STAGE_NAMES（五档 key）、蓝图库学段 key 一一对应。
+//    新增/改名学段须三处同步，否则"面板可选但注入不到"或"学段要点漏注入"。
 export const stages = ['小学', '初中', '高中'];
 
 // ==================== 学科列表 ====================
 // 🔧 修复：移除"政治"（使用"道德与法治"/"思想政治"替代），保留别名供兼容
 // 🔧 学科数据键统一为"信息科技"（义教课标名优先，兼容旧名"信息技术"；高中课标名仍为"信息技术"，键不变）；补齐音体美（与指令库 STAGE_SUBJECTS/蓝图库/教材库自动识别 15 科清单一致）
+// 🔗 命名双轨·学科（15 科 canonical 清单，唯一权威）：须与指令库 STAGE_SUBJECTS、SUBJECT_STAGE_EXTRAS 的学科 key、
+//    排版规格库 WRITING_CARRIER 的学科键、蓝图库学科键完全同名。新增/改名学科只改本数组，另三处会静默失配（漏注入/污染）。
 export const subjects = [
   '语文', '数学', '英语', '物理', '化学', '生物', 
   '历史', '地理', '道德与法治', '思想政治', '科学', '信息科技',
@@ -136,6 +140,9 @@ export const subjects = [
 ];
 
 // ==================== 资料类型模板 ====================
+// 🔗 命名双轨·资料类型：'exam/practice/special/preview/reading/summary/dictation/errorbook/review' 九类 key
+//    与指令库 GEN_TYPE_NAMES、TYPE_BASES、蓝图库 TEACHING_GEN_TYPES/EXAM 类型 key 完全一致。
+//    新增/改名类型须四处同步（expertKnowledge·指令库·examPaperBlueprints·teachingBlueprints），否则模板命不中/面板失配。
 /**
  * @deprecated genTypeTemplates.instruction 和 .structure 字段已废弃。
  * 生成规范已迁移至指令库模板 + 蓝图库（examPaperBlueprints/teachingBlueprints）+ 规则库。
@@ -282,14 +289,18 @@ export const granularityOptions = [
 ];
 
 // 🔧 学科名称别名映射（统一为 2022 新课标标准名）
+// 🔗 命名双轨·别名：别名最终归一化的目标名，必须落在上方 subjects canonical 清单内（并与指令库/载体键同名）；
+//    新增别名只加映射目标（canonical），不要为旧名另造新规范名，否则载体键/指令 key 又失配。
 // 政治/思想品德 → 道德与法治(初中小学) / 思想政治(高中)，由 normalizeSubjectName 按学段处理
 // 信息技术 → 信息科技（2022 新课标统一名称）
 // 体育与健康 → 体育（蓝本与指令库以"体育"为主 key，保留全名作为别名兼容）
 export const subjectAliasMap = {
   '政治': '道德与法治',  // 默认映射到初中名称（更常用，高中由 normalizeSubjectName 二次纠正为思想政治）
+  '道法': '道德与法治',  // 旧简称兼容
   '思想品德': '道德与法治',
   '品德与社会': '道德与法治',
   '信息技术': '信息科技',  // 2022 新课标统一为"信息科技"
+  '信息': '信息科技',  // 旧简称兼容
   '通用技术': '信息科技',
   '体育与健康': '体育',
   '体育与健康课程': '体育',

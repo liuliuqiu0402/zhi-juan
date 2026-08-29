@@ -2,7 +2,7 @@ import { ref } from 'vue';
 import axios from 'axios';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay } from '../config/apiConfig.js';
 import { GEN_CONST } from '../config/generationConstants.js';
-import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, ANSWER_FORMAT_SPEC, getCurriculumLabel } from '../config/promptLibrary.js';
+import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel } from '../config/promptLibrary.js';
 import { getStoragePath } from '../utils/pathHelper.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { normalizeStage } from '../config/validatorRules.js';
@@ -4170,6 +4170,8 @@ ${cardAnalysisText.substring(0, 1000)}
     if (!instruction.trim()) {
       return { success: false, error: '注入指令为空（请点击「生成指令」从指令库注入）' };
     }
+    // 🔴 学科规范化（三维度答案提示词/作答载体按 subject 精确注入，避免跨学科噪音）
+    const subject = normalizeSubjectName(book?.subject, book?.stage);
 
     // ── 素材构建：按知识点检索（目录 + 知识点清单 + 相关片段，分级限量，非硬截断） ──
     // 素材量按类型差异化（内容型资料需充分原文、引导型资料适量即可，避免信息过载）
@@ -4212,7 +4214,7 @@ ${cardAnalysisText.substring(0, 1000)}
       ? (apiConfig.generationSettings.paperTemperature + apiConfig.generationSettings.answerTemperature) / 2
       : apiConfig.generationSettings.paperTemperature;
     if (generateMode === 'once') {
-      prompt += `\n\n${PAPER_OUTPUT_CONVENTIONS.once}`;
+      prompt += `\n\n${PAPER_OUTPUT_CONVENTIONS.once(subject)}`;
     } else {
       // 🔴 答案页由系统在正文生成后单独调用生成：强制约定本次只输出正文（题目与卷面），
       //    覆盖模板里残留的"正文后再另起一部分输出答案"旧要求，防止模型把答案混入正文（正文+答案重复）
@@ -4307,12 +4309,12 @@ ${cardAnalysisText.substring(0, 1000)}
       progress.value = 85;
       try {
         // 类型差异化：exam 用阅卷专家+评分标准（作文评分/听力原文）；非 exam 用教辅编辑+参考答案与解析
-        const ansRole = genType === 'exam' ? ANSWER_ROLES.exam : ANSWER_ROLES.other;
+        const ansRole = genType === 'exam' ? ANSWER_ROLES.exam(subject) : ANSWER_ROLES.other;
         // 🔧 上下文根治：整卷正文转纯文本作为输入（不依赖 class="question" 摘要——摘要提取失败/不全即凭记忆编造）
         //    正文长度上限走设置项 answerContextMaxChars（默认 24000；超大卷/高中大卷可调大至 40000-60000）
         const paperPlain = htmlToPlainText(content, apiConfig.generationSettings.answerContextMaxChars);
         // 🔧 格式根治：答案页注入与正文一致的 HTML 输出规范（此前无格式要求 → 模型直接输出 Markdown 源码）
-        const ansFormat = ANSWER_FORMAT_SPEC;
+        const ansFormat = buildAnswerFormatSpec(subject);
         const ansPrompt = `${ansRole}题号与试卷正文完全一致，逐题作答，不要重复题目原文。
 ${ansFormat}
 
