@@ -19,6 +19,7 @@
  */
 
 import { isLibEntryEnabled } from '../utils/libToggles.js';
+import { buildCarrierInstruction } from './layoutSpec.js'; // 书写载体条款按 学科×学段 生成（排版规格库唯一事实源）
 
 /** 资料类型中文名（模板列表展示/任务行用） */
 export const GEN_TYPE_NAMES = {
@@ -26,8 +27,15 @@ export const GEN_TYPE_NAMES = {
   reading: '阅读训练', summary: '知识总结', dictation: '默写积累', errorbook: '错题本', review: '复习资料',
 };
 
-/** 作答载体格式（题为主类型：填空/选择/书写载体/方格纸/作答区；全类型唯一定义处，模板统一引用） */
-const QUESTION_FORMAT = `· 作答载体（系统按作答形式渲染，输出时与题干语义保持一致）：填空空位由系统按答案字数自动校准宽度；选择/判断用括号空位；写字题必须真实输出题干要求的书写载体——题干写了"田字格/四线三格"等，正文就必须真的有对应格子，只写描述没有格子=废题；题干未写明时按本学段书写惯例用对应格子；任何作答载体（田字格/方格纸/作文格等）一律输出在所属题目之后，不得置于题干之前；写话/作文题须完整呈现题目要求（含写作要求），不得只有标题行；解答/简答题留足作答区（如适用：语文田字格 <span class="tian-zi-ge">字</span>、英语四线三格 <span class="four-line-three">a</span>）`;
+/** 作答载体格式（题为主类型：填空/选择/书写载体/方格纸/作答区；全类型唯一定义处，模板统一引用）
+ * 🔴 书写载体条款按 学科×学段 由排版规格库 WRITING_CARRIER 生成（buildCarrierInstruction），
+ *    三维度 cell 组装时以 subject/stage 注入——田字格示例只进语文低段、四线三格示例只进英语中段、
+ *    方格纸只进数学等允许学科，不再全学科广播（防跨学科/跨学段诱导）；
+ *    无载体规则的学段（横线惯例/禁止格子）走通用句，不注入具体格子示例。 */
+const QUESTION_FORMAT = (ctx = {}) => {
+  const carrier = buildCarrierInstruction(ctx.subject, ctx.stage);
+  return `· 作答载体（系统按作答形式渲染，输出时与题干语义保持一致）：填空空位由系统按答案字数自动校准宽度；选择/判断用括号空位；写字题必须真实输出题干要求的书写载体——题干写了"田字格/四线三格"等，正文就必须真的有对应格子，只写描述没有格子=废题；${carrier || '题干未写明时按本学段书写惯例用对应格子；'}任何作答载体一律输出在所属题目之后，不得置于题干之前；写话/作文题须完整呈现题目要求（含写作要求），不得只有标题行；解答/简答题留足作答区（如适用）`;
+};
 
 /** 内容组织格式（内容型类型：结构化呈现，不用题号） */
 const CONTENT_FORMAT = `· 内容用结构化呈现（表格/对比/导图优先），条目清晰；正文段落用 <p>，条目列表用 <ul><li> 或带序号（1）（2）；如需图表用 [GRAPH]/[IMAGE] 标记描述（格式见生成时注入的【渲染指令】）`;
@@ -42,7 +50,7 @@ const TEACHING_QUALITY = `【质量底线】（教辅资料）
 · 内容正确：图文一致；逻辑自洽（条件充分、设问与答案对应）；知识点与能力要求不超出本学段课标学业质量要求；全部内容围绕本单元主题与知识点`;
 
 /** 正式考卷基础模板（extra 为学科排版附加，学科模板复用本函数） */
-const EXAM_BASE = (extra = '') => `你是资深命题专家。请为{grade}{subject}命制一份{unit}正式试卷（满分{fullScore}分，考试时间{duration}）。
+const EXAM_BASE = (extra = '', ctx = {}) => `你是资深命题专家。请为{grade}{subject}命制一份{unit}正式试卷（满分{fullScore}分，考试时间{duration}）。
 
 【卷面结构】（大题与分值固定，不得增删；由系统注入的真题蓝本明细式确定；大题标题"共X题"中的 X 按你实际命制的题数填写）
 {structure}
@@ -64,20 +72,22 @@ const EXAM_BASE = (extra = '') => `你是资深命题专家。请为{grade}{subj
 【教材原文（命题取材依据；⚠️ OCR识别可能有误，以学科知识纠错后再命题；可改编情境，禁止照搬原句原题）】
 {material}
 
-${OUTPUT_FORMAT_BLOCK('exam')}${extra}`;
+${OUTPUT_FORMAT_BLOCK('exam', ctx)}${extra}`;
 
-/** 输出格式块（按类型三维度：'exam' 正式卷带分值标注 / 'question' 题为主教辅 / 'content' 内容型不用题号） */
-const OUTPUT_FORMAT_BLOCK = (mode = 'question') => {
+/** 输出格式块（按类型三维度：'exam' 正式卷带分值标注 / 'question' 题为主教辅 / 'content' 内容型不用题号；
+ *  ctx 传 subject/stage 时书写载体条款按 学科×学段 生成（buildCarrierInstruction），无上下文走通用句） */
+const OUTPUT_FORMAT_BLOCK = (mode = 'question', ctx = {}) => {
   const isContent = mode === 'content';
+  // 🔴 大题名示例不带学科词（"识字与写字"只进语文蓝本明细，不广播到全学科 exam 格式示例）
   const head = mode === 'exam'
-    ? '如 <h2>一、识字与写字（共X题，共32分）</h2>，标注题量与分值'
+    ? '如 <h2>一、〈大题名〉（共X题，共32分）</h2>，标注题量与分值'
     : isContent ? '如 <h2>一、知识框架</h2>，不标注分值'
     : '如 <h2>一、基础建构任务</h2>，不标注分值';
   const headLabel = isContent ? '栏目标题' : '大题标题';
   const itemRule = isContent
     ? '· 栏目用 <h2>；条目/知识点用 <p> 或 <ul><li> 呈现，编号用（1）（2）或 ①②'
     : '· 题目以 <p class="question"> 包裹并带题号（1. 2. 3.…），子题用 (1)(2)';
-  const fmt = isContent ? CONTENT_FORMAT : QUESTION_FORMAT;
+  const fmt = isContent ? CONTENT_FORMAT : QUESTION_FORMAT(ctx);
   const quality = mode === 'exam' ? EXAM_QUALITY : TEACHING_QUALITY;
   return `
 
@@ -96,7 +106,7 @@ ${quality}`;
  *  不做"一股脑全模板补充"，三维度模板各自针对性携带底线。 */
 
 /** 课时练基础模板（extra 为学科排版附加） */
-const PRACTICE_BASE = (extra = '') => `你是教辅编辑·课时练设计者。请为{grade}{subject}编写一份{unit}课时练习（依据{curriculum}）。
+const PRACTICE_BASE = (extra = '', ctx = {}) => `你是教辅编辑·课时练设计者。请为{grade}{subject}编写一份{unit}课时练习（依据{curriculum}）。
 
 【创作要求】
 1. 以学习任务组织，任务含真实情境+活动+成果
@@ -106,75 +116,75 @@ const PRACTICE_BASE = (extra = '') => `你是教辅编辑·课时练设计者。
 【教材原文（取材依据）】
 {material}
 
-只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('question')}${extra}`;
+只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`;
 
 /** 全部资料类型的基础模板（函数，供三维度/学段组合生成） */
 const TYPE_BASES = {
   exam: EXAM_BASE,
   practice: PRACTICE_BASE,
 
-  special: (extra = '') => `你是专项训练设计者。请为{grade}{subject}设计一份{unit}专项突破训练。
+  special: (extra = '', ctx = {}) => `你是专项训练设计者。请为{grade}{subject}设计一份{unit}专项突破训练。
 
 【创作要求】按考点分类组织（每类一个板块），类内按基础→提升→拓展分层，聚焦{unit}薄弱点，板块数与题量按生成时注入的【教辅结构】执行；同板块内题目不雷同（换情境/角度/设问呈现变式）；覆盖教材核心知识点；题目完整可作答。
 
 【教材原文】
 {material}
 
-只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('question')}${extra}`,
+只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
 
-  preview: (extra = '') => `你是课前预习设计者。请为{grade}{subject}设计一份{unit}课前预习任务单。
+  preview: (extra = '', ctx = {}) => `你是课前预习设计者。请为{grade}{subject}设计一份{unit}课前预习任务单。
 
 【创作要求】以问题驱动预读（设计少量可操作的预读任务，如圈画重点、尝试作答、记录疑问），可操作可检查；任务覆盖本课时全部新知识点；栏目按生成时注入的【教辅结构】执行（含"我的疑问"栏目）；紧扣教材原文。
 
 【教材原文】
 {material}
 
-只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('content')}${extra}`,
+只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('content', ctx)}${extra}`,
 
-  reading: (extra = '') => `你是阅读素养训练设计者。请为{grade}{subject}设计一份{unit}阅读训练。
+  reading: (extra = '', ctx = {}) => `你是阅读素养训练设计者。请为{grade}{subject}设计一份{unit}阅读训练。
 
 【创作要求】原创短文（不复制课文/网络文章，课外选文主题须与{unit}相关），短文完整呈现（不截断），每篇配分层题，设问由浅入深；题目不可直接在原文找到原句答案；短文无语病；篇数/字数/题量按生成时注入的【教辅结构】执行。
 
 【教材原文（主题参考）】
 {material}
 
-只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('question')}${extra}`,
+只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
 
-  summary: (extra = '') => `你是知识总结编写者。请为{grade}{subject}编写一份{unit}知识总结。
+  summary: (extra = '', ctx = {}) => `你是知识总结编写者。请为{grade}{subject}编写一份{unit}知识总结。
 
 【创作要求】结构化呈现（表格/对比/导图优先），覆盖{unit}全部知识点并标注教材出处，不遗漏；重点标注，文字精炼；栏目与篇幅按生成时注入的【教辅结构】执行。
 
 【教材原文】
 {material}
 
-只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('content')}${extra}`,
+只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('content', ctx)}${extra}`,
 
-  dictation: (extra = '') => `你是积累运用设计者。请为{grade}{subject}设计一份{unit}默写/积累纸。
+  dictation: (extra = '', ctx = {}) => `你是积累运用设计者。请为{grade}{subject}设计一份{unit}默写/积累纸。
 
 【创作要求】要求掌握的基础内容置于语境或情境中呈现（不孤立罗列），严格对应教材要求，覆盖本单元全部要求掌握的内容，内容准确无误；覆盖量与栏目按生成时注入的【教辅结构】执行。
 
 【教材原文】
 {material}
 
-只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('question')}${extra}`,
+只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
 
-  errorbook: (extra = '') => `你是错题整理专家。请为{grade}{subject}设计一份{unit}错题本样例。
+  errorbook: (extra = '', ctx = {}) => `你是错题整理专家。请为{grade}{subject}设计一份{unit}错题本样例。
 
 【创作要求】按知识点或错因分类组织（每类一个板块），每题结构按生成时注入的【教辅结构】执行（原题→归因→解法→变式→策略）；归因明确到知识点或思维环节。
 
 【教材原文（素材参考）】
 {material}
 
-只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('question')}${extra}`,
+只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
 
-  review: (extra = '') => `你是复习资料编写者。请为{grade}{subject}编写一份{unit}复习资料。
+  review: (extra = '', ctx = {}) => `你是复习资料编写者。请为{grade}{subject}编写一份{unit}复习资料。
 
 【创作要求】栏目按生成时注入的【教辅结构】执行（知识框架→考点梳理→典型题析→易错聚焦→综合自测），覆盖{unit}全部知识点；结构化呈现；自测题分层（基础/提高），按考点分布。
 
 【教材原文】
 {material}
 
-只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('question')}${extra}`,
+只输出资料正文（答案由系统在正文生成后单独生成）。${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
 };
 
 /** 内置模板：通用（按资料类型） */
@@ -247,7 +257,7 @@ export const SUBJECT_STAGE_EXTRAS = {
   '数学|middle': { text: '数与式、方程不等式、函数、几何、统计概率综合；解答题过程完整（推理链清晰）；应用题真实情境建模。', source: '2022义教数学·第四学段学段目标（数与式/方程与不等式/函数）+ 推理能力核心素养' },
   '数学|high': { text: '函数与导数、几何、概率统计综合；解答题逻辑严谨、步骤完整；开放设问考查数学表达与推理。', source: '高中数学课标(2017/2020)·必修内容 + 核心素养（数学抽象/逻辑推理/数学建模/直观想象/数学运算/数据分析）' },
   // ── 英语 ──
-  '英语|primary_low': { text: '词汇在图片/情境中识别与认读；听力原文完整呈现；书写用四线三格规范。', source: '2022义教英语·语言能力核心素养（感知与积累）' },
+  '英语|primary_low': { text: '词汇在图片/情境中识别与认读；听力原文完整呈现；以听说认读为主（低段无书写格子惯例，与排版规格库 WRITING_CARRIER 一致）。', source: '2022义教英语·语言能力核心素养（感知与积累）' },
   '英语|primary_mid': { text: '词汇句型在语篇/情境中运用；听力原文完整呈现；书写规范（四线三格）。', source: '2022义教英语·语言能力核心素养（习得与建构）' },
   '英语|primary_high': { text: '语篇阅读与书面表达结合主题语境；听力原文完整呈现；设问由浅入深、有层次。', source: '2022义教英语·核心素养（语言能力/思维品质）' },
   '英语|middle': { text: '语篇完整地道（真实语境、无中式英语）；听力原文完整呈现；书面表达给要点支架；设问由浅入深、有层次。', source: '2022义教英语·核心素养（语言能力/文化意识/思维品质/学习能力）' },
@@ -371,7 +381,7 @@ function buildBuiltinTemplate({ stage = '', subject = '', genType = '' } = {}) {
   const stageExtras = genType === 'exam' ? STAGE_EXAM_EXTRAS : STAGE_TEACHING_EXTRAS;
   const se = stageExtras[stage];
   if (stage && se) extra.push(`\n\n【学段特点】\n${se.text}`);
-  let tpl = base(extra.join(''));
+  let tpl = base(extra.join(''), { subject, stage });
   // 🔧 课标版本按学段替换（{curriculum} 占位符：义务教育=2022年版，高中=2017年版2020年修订）；
   //    通用模板（无学段）保留占位符，由注入侧 buildInjectionInstruction 兜底替换
   if (stage && CURRICULUM_BY_STAGE[stage]) tpl = tpl.split('{curriculum}').join(CURRICULUM_BY_STAGE[stage]);
@@ -532,8 +542,14 @@ export function buildSealLineHeader() {
   return '<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-note">密封线内不要答题</div><div class="seal-info">学校：＿＿＿　班级：＿＿＿　姓名：＿＿＿　学号：＿＿＿</div><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div></div>';
 }
 
-/** 非考试类资料（课时练/预习/总结等）的统一输出格式要求（系统级注入，模板不必重复写）——与 OUTPUT_FORMAT_BLOCK 同源，仅一处定义 */
-export const OUTPUT_FORMAT_HINT = OUTPUT_FORMAT_BLOCK('question');
+/** 非考试类资料（课时练/预习/总结等）的统一输出格式要求（系统级注入，模板不必重复写）——与 OUTPUT_FORMAT_BLOCK 同源，仅一处定义；
+ *  书写载体条款按 学科×学段 注入（buildCarrierInstruction），供用户自定义模板缺【输出格式】时兜底 */
+export function buildOutputFormatHint({ subject = '', stage = '' } = {}) {
+  return OUTPUT_FORMAT_BLOCK('question', { subject, stage });
+}
+
+/** 兼容旧引用（无学科/学段上下文的通用兜底；生成端请用 buildOutputFormatHint 传入三维度） */
+export const OUTPUT_FORMAT_HINT = buildOutputFormatHint({});
 
 /** 学段键集合 */
 const STAGE_KEYS = Object.keys(STAGE_NAMES);
@@ -585,6 +601,7 @@ export default {
   buildInjectionInstruction,
   buildStructureText,
   buildSealLineHeader,
+  buildOutputFormatHint,
   OUTPUT_FORMAT_HINT,
   matchTemplateFilter,
 };
@@ -609,6 +626,6 @@ export const ANSWER_ROLES = {
 
 /** 答案页 HTML 输出格式规范（与正文一致，便于排版导出） */
 export const ANSWER_FORMAT_SPEC = `【答案页输出格式】（HTML 规范，与正文一致，便于排版导出）
-· 大题用 <h2>（如 <h2>一、识字与写字</h2>）；每题先写题号（与试卷正文完全一致）再写答案与解析
+· 大题用 <h2>（如 <h2>一、〈大题名〉</h2>）；每题先写题号（与试卷正文完全一致）再写答案与解析
 · 评分标准/等级表用 <table> 表格；听力题附完整听力原文
 · 严禁使用 ##、**、|表格 等 Markdown 语法；严禁 \`\`\` 代码块包裹；直接输出 HTML 内容`;

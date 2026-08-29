@@ -1388,7 +1388,7 @@ import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
 import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
 import { findBlueprint } from '../config/blueprintProvider.js';
-import { getPromptTemplate, buildInjectionInstruction, buildStructureText, OUTPUT_FORMAT_HINT, getCurriculumLabel } from '../config/promptLibrary.js';
+import { getPromptTemplate, buildInjectionInstruction, buildStructureText, buildOutputFormatHint, getCurriculumLabel } from '../config/promptLibrary.js';
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
 import { buildTeachingInjection } from '../config/teachingBlueprints.js';
@@ -4245,7 +4245,8 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
       blueprintDetail = `教辅结构「${genTypeLabel}」· 栏目框架 + 题量底线`;
     }
     if (!instructionDraft.value.includes('【输出格式】')) {
-      instructionDraft.value += OUTPUT_FORMAT_HINT;
+      // 用户自定义模板缺失【输出格式】时兜底：书写载体条款按 学科×学段 注入（不广播跨学科示例）
+      instructionDraft.value += buildOutputFormatHint({ subject, stage: stageKey });
     }
   }
   instructionSource.value = {

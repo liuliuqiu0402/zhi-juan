@@ -75,6 +75,19 @@ SHAPES:
   POINT:(1,-4) | LABEL:顶点 | COLOR:red | SIZE:8
 [/GRAPH]`;
 
+/** 小学版 SHAPES 示例（六年级"圆"；🔴 无函数——小学课标无函数内容，示例即诱导源，必须学段化） */
+const GRAPH_SAMPLE_SHAPES_PRIMARY = `[GRAPH]
+TYPE:SHAPES
+XLIM:-6,6
+YLIM:-6,6
+GRID:TRUE
+TITLE:圆
+SHAPES:
+  CIRCLE:(0,0) | RADIUS:3 | COLOR:blue
+  LINE:(-3,0),(3,0) | LABEL:直径 | COLOR:red
+  LINE:(0,-3),(0,3) | LABEL:半径 | COLOR:green
+[/GRAPH]`;
+
 const GRAPH_SAMPLE_SHAPES_EXTRA = `· SHAPES 元素格式（一行一个元素、属性用 | 分隔）：
   POINT:(x,y) | LABEL:标签 | COLOR:颜色 | SIZE:大小
   FUNCTION:表达式 | COLOR:颜色 | DOMAIN:min,max
@@ -226,13 +239,12 @@ const FORMULA_RULES = '· 公式：行内用 $...$、块级用 $$...$$（如 $$x
 
 /** 中学及以上（middle/high；stage 为空时视为全量，兼容旧调用） */
 const isMiddlePlus = (stage) => !stage || stage === 'middle' || stage === 'high';
-/** 小学低段 */
-const isPrimaryLow = (stage) => stage === 'primary_low';
 
 /**
  * 学科×学段 → [GRAPH] 注入内容（学段门控）：
  *   - 物理/化学：仅初中及以上（小学无物理化学）
- *   - 数学低段：只保留数轴与统计图（裁剪函数/几何 SHAPES 段）
+ *   - 数学低段/中段：只保留数轴与统计图（裁剪函数/几何 SHAPES 段——SHAPES 示例为二次函数，小学课标无函数）
+ *   - 数学高段：SHAPES 替换为小学版示例（圆/几何图形，无函数；高段课标含圆，保留图形能力）
  *   - 其余学科：全量
  * @returns {null | {parts: string[], types: string[]}}
  */
@@ -240,9 +252,22 @@ const getGraphParts = (subject, stage) => {
   const base = SUBJECT_GRAPH_PARTS[subject];
   if (!base) return null;
   if ((subject === '物理' || subject === '化学') && !isMiddlePlus(stage)) return null;
-  if (subject === '数学' && isPrimaryLow(stage)) {
+  if (subject === '数学' && /^primary/.test(stage)) {
+    if (stage === 'primary_high') {
+      // 小学高段：保留 SHAPES 能力但替换示例为小学版（圆），裁剪 EXTRA 中的 FUNCTION 行；
+      // 统计图含 PIE（六年级扇形统计图是课标内容）
+      const parts = base.filter(p => !/SHAPES|函数|几何/.test(p));
+      parts.splice(2, 0,
+        '· 几何图形用 TYPE:SHAPES（CIRCLE 圆/三角形/长方形等，元素格式见下）：',
+        GRAPH_SAMPLE_SHAPES_PRIMARY,
+        GRAPH_SAMPLE_SHAPES_EXTRA.replace(/  FUNCTION:表达式 \| COLOR:颜色 \| DOMAIN:min,max\n/, ''));
+      return { parts, types: ['COORDINATE', 'SHAPES', 'BAR_CHART', 'LINE_CHART', 'PIE_CHART'] };
+    }
+    // 低段/中段：无函数几何与扇形统计图（PIE 为六年级课标内容），整体裁剪 SHAPES/PIE 段
     return {
-      parts: base.filter(p => !/SHAPES|函数|几何/.test(p)),
+      parts: base
+        .filter(p => !/SHAPES|函数|几何/.test(p) && !/PIE/.test(p))
+        .map(p => p.startsWith('· 统计图') ? '· 统计图（BAR_CHART/LINE_CHART，参数 DATA:数据列表、LABELS:分类、TITLE、XLABEL、YLABEL、COLORS:颜色列表）：' : p),
       types: ['COORDINATE', 'BAR_CHART', 'LINE_CHART'],
     };
   }
@@ -251,11 +276,11 @@ const getGraphParts = (subject, stage) => {
 
 /**
  * 学科×学段 → 是否注入公式（学段门控）：
- *   - 数学：小学中段起（低段无 LaTeX 公式）
+ *   - 数学：初中及以上（小学全学段无 LaTeX 公式——FORMULA_RULES 示例为二次函数求根公式，属初中内容，注入即诱导超纲）
  *   - 物理/化学：初中及以上（小学无物理化学）
  */
 const getFormulaNeeded = (subject, stage) => {
-  if (subject === '数学') return !isPrimaryLow(stage);
+  if (subject === '数学') return isMiddlePlus(stage);
   if (subject === '物理' || subject === '化学') return isMiddlePlus(stage);
   return false;
 };

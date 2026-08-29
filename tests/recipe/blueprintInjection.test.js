@@ -7,7 +7,7 @@
 // ============================================================
 import { describe, it, expect } from 'vitest';
 import { getExamBlueprint } from '@/config/examPaperBlueprints.js';
-import { getPromptTemplate, OUTPUT_FORMAT_HINT, buildStructureText } from '@/config/promptLibrary.js';
+import { getPromptTemplate, OUTPUT_FORMAT_HINT, buildOutputFormatHint, buildStructureText } from '@/config/promptLibrary.js';
 
 describe('buildStructureText（exam 卷面结构注入段，单一事实源）', () => {
   it('块头在指令库 EXAM_BASE（含"共X题"填写说明），明细由 buildStructureText 注入（中文序号/分值/命题要求）', () => {
@@ -137,6 +137,14 @@ describe('OUTPUT_FORMAT_HINT（非 exam 统一输出格式）', () => {
     expect(OUTPUT_FORMAT_HINT).toContain('严禁在正文中输出任何答案/解析');
     expect(OUTPUT_FORMAT_HINT).not.toContain('严禁代码块包裹输出');
   });
+
+  it('buildOutputFormatHint 兜底路径：按 学科×学段 注入载体条款，通用兜底不含具体示例', () => {
+    const chineseLow = buildOutputFormatHint({ subject: '语文', stage: 'primary_low' });
+    expect(chineseLow).toContain('写汉字类题必须真实输出田字格');
+    const generic = buildOutputFormatHint({});
+    expect(generic).not.toContain('tian-zi-ge');
+    expect(generic).not.toContain('four-line-three');
+  });
 });
 
 describe('非 exam 模板正文自带【输出格式】（指令库可见，无需代码拼接）', () => {
@@ -203,12 +211,32 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
     }
   });
 
-  it('非 exam 输出格式含作答区留白（无具体行数）与田字格/四线三格标记', () => {
-    const t = getPromptTemplate({ genType: 'practice' });
-    expect(t.template).toContain('留足作答区');
-    expect(t.template).not.toContain('不少于3行');
-    expect(t.template).toContain('tian-zi-ge');
-    expect(t.template).toContain('four-line-three');
+  it('书写载体条款按 学科×学段 精确注入（排版规格库唯一事实源，不广播跨学科示例）', () => {
+    // 通用模板（无学科/学段）：只留通用句，不含任何具体格子示例（旧版全学科广播已移除）
+    const generic = getPromptTemplate({ genType: 'practice' });
+    expect(generic.template).toContain('留足作答区');
+    expect(generic.template).not.toContain('不少于3行');
+    expect(generic.template).not.toContain('tian-zi-ge');
+    expect(generic.template).not.toContain('four-line-three');
+    // 语文低段：田字格 + 拼音格（必须真实输出条款）
+    const chineseLow = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' });
+    expect(chineseLow.template).toContain('写汉字类题必须真实输出田字格 <span class="tian-zi-ge">字</span>');
+    expect(chineseLow.template).toContain('写拼音类题必须真实输出拼音格 <span class="pinyin-line">拼音</span>');
+    expect(chineseLow.template).not.toContain('four-line-three');
+    // 语文中段：横线惯例不注入具体格子示例
+    const chineseMid = getPromptTemplate({ grade: 'primary_mid', subject: '语文', genType: 'practice' });
+    expect(chineseMid.template).not.toContain('<span class="tian-zi-ge">');
+    // 英语：中段才注入四线三格示例，低段无（低段以听说认读为主）
+    const enMid = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'practice' });
+    expect(enMid.template).toContain('字母/单词抄写类题必须真实输出四线三格 <span class="four-line-three">a</span>');
+    const enLow = getPromptTemplate({ grade: 'primary_low', subject: '英语', genType: 'practice' });
+    expect(enLow.template).not.toContain('four-line-three');
+    // 数学全学段：方格纸（作图答题区）
+    const math = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'practice' });
+    expect(math.template).toContain('作图/答题区用方格纸');
+    // 无格子学科（物理）：不注入任何载体示例 span
+    const physics = getPromptTemplate({ grade: 'middle', subject: '物理', genType: 'practice' });
+    expect(physics.template).not.toContain('<span class=');
   });
 
   it('学段特点无旧措辞 [配图说明]，统一为 [IMAGE] 标记；时长不写入学段特点（归蓝图）', () => {

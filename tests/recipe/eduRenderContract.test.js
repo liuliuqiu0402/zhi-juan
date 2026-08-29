@@ -76,6 +76,25 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     expect(out).not.toContain('\\frac');
   });
 
+  it('学段门控：数学小学中段裁剪函数/几何与扇形统计图（PIE 六年级内容），不注入公式', () => {
+    const out = buildRenderContract({ subject: '数学', genType: 'exam', stage: 'primary_mid' });
+    expect(out).toContain('TYPE:COORDINATE');
+    expect(out).toContain('TYPE:BAR_CHART');
+    expect(out).not.toContain('TYPE:SHAPES');
+    expect(out).not.toContain('FUNCTION');
+    expect(out).not.toContain('PIE');
+    expect(out).not.toContain('\\frac');
+  });
+
+  it('学段门控：数学小学高段 SHAPES 用小学版示例（圆，无函数），保留 PIE 不注入公式', () => {
+    const out = buildRenderContract({ subject: '数学', genType: 'exam', stage: 'primary_high' });
+    expect(out).toContain('TITLE:圆');
+    expect(out).not.toContain('二次函数');
+    expect(out).not.toContain('FUNCTION');
+    expect(out).toContain('TYPE:PIE_CHART');
+    expect(out).not.toContain('\\frac');
+  });
+
   it('学段门控：数学初中注入函数/几何与公式', () => {
     const out = buildRenderContract({ subject: '数学', genType: 'exam', stage: 'middle' });
     expect(out).toContain('TYPE:SHAPES');
@@ -174,12 +193,12 @@ describe('EduRender 渲染契约（三维度注入）', () => {
 });
 
 describe('指令库内置学科×类型模板（按学科全面完善）', () => {
-  it('语文 exam 三维度：含语文·小学低段要点 + 田字格/方格纸排版 + 学段特点', () => {
+  it('语文 exam 三维度：含语文·小学低段要点 + 田字格条款 + 学段特点', () => {
     const t = getPromptTemplate({ grade: '小学低段', subject: '语文', genType: 'exam' });
     expect(t.source).toBe('builtin');
     expect(t.template).toContain('【语文·小学低段要点】');
     expect(t.template).toContain('田字格');
-    expect(t.template).toContain('方格纸');
+    expect(t.template).toContain('写汉字类题必须真实输出田字格');
     expect(t.template).toContain('【学段特点】');
   });
 
@@ -190,10 +209,13 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(t.template).toContain('情境'); // 学科要点情境化表述（[GRAPH] 由渲染契约注入，不在要点）
   });
 
-  it('英语 exam：含英语·小学低段要点 + 四线三格', () => {
-    const t = getPromptTemplate({ grade: '小学低段', subject: '英语', genType: 'exam' });
-    expect(t.template).toContain('【英语·小学低段要点】');
-    expect(t.template).toContain('四线三格');
+  it('英语 exam：低段无书写格子示例（低段以听说认读为主）；中段才注入四线三格', () => {
+    const low = getPromptTemplate({ grade: '小学低段', subject: '英语', genType: 'exam' });
+    expect(low.template).toContain('【英语·小学低段要点】');
+    expect(low.template).not.toContain('<span class="four-line-three">');
+    const mid = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'exam' });
+    expect(mid.template).toContain('字母/单词抄写类题必须真实输出四线三格 <span class="four-line-three">a</span>');
+    expect(mid.template).toContain('书写规范（四线三格）'); // 中段要点保留书写惯例
   });
 
   it('全部 9 个资料类型都有三维度模板（类型骨架 + 学科×学段要点 + 学段特点）', () => {

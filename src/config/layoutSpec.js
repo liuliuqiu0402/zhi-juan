@@ -16,6 +16,7 @@
  */
 
 import { isLibEntryEnabled } from '../utils/libToggles.js';
+import { CARRIER_LABELS } from './blueprintSchema.js'; // 载体中文标签唯一源（指令端条款翻译共用，不另造标签）
 
 /**
  * 学段 → 排版三档键归一化（primary/middle/high）
@@ -138,6 +139,40 @@ export const CARRIER_RULES = {
     { keywords: '看图写话|写话|习作|作文|写作|小练笔|口语交际', carriers: ['tian-zi-ge', 'four-line-three', 'sixian-ge', 'pinyin-line', 'mi-zi-ge'] },
   ],
 };
+
+/** 载体 must 规则的指令端语义（与 CARRIER_RULES.must 的 keywords 对应，把"允许载体"翻译成可读条款；
+ *   demo 为渲染 class 的最小可读示例字——示例随条款按 学科×学段 注入，不再全学科广播（防跨学科/跨学段诱导）） */
+const CARRIER_MUST_SEMANTICS = {
+  'tian-zi-ge': { label: '写汉字类题', demo: '字' },
+  'pinyin-line': { label: '写拼音类题', demo: '拼音' },
+  'four-line-three': { label: '字母/单词抄写类题', demo: 'a' },
+};
+
+/**
+ * 生成"书写载体"指令条款（指令库 QUESTION_FORMAT 引用；数据源 = WRITING_CARRIER/CARRIER_RULES 唯一事实源）
+ * 按 学科×学段 精确输出：
+ *   - 命中 must 载体规则（语文低段田字格/拼音格、英语中段四线三格）→ 逐条输出"XX类题必须真实输出XX"
+ *   - 允许方格纸（数学全学段作图答题区）→ 输出"作图/答题区用方格纸"
+ *   - 其余（横线惯例/显式禁止格子/未定义学科）→ 返回空串（默认作答形态由通用句覆盖，不注入）
+ * 消费方：promptLibrary QUESTION_FORMAT（按三维度 cell 组装时以 subject/stage 调用）
+ */
+export function buildCarrierInstruction(subject = '', stage = '') {
+  const list = getCarrierAllowlist(subject, stage);
+  if (!list || list.length === 0) return '';
+  const parts = [];
+  for (const r of CARRIER_RULES.must) {
+    if (r.subject && r.subject !== subject) continue;
+    if (r.stages && !r.stages.includes(stage)) continue;
+    const sem = CARRIER_MUST_SEMANTICS[r.carrier];
+    const label = CARRIER_LABELS[r.carrier] || r.carrier;
+    if (sem) parts.push(`${sem.label}必须真实输出${label} <span class="${r.carrier}">${sem.demo}</span>`);
+    else parts.push(`「${r.keywords.split('|')[0]}」类题必须真实输出${label}`);
+  }
+  if (list.includes('square')) parts.push('作图/答题区用方格纸');
+  if (!parts.length) return '';
+  const hasMust = parts.some((p) => p.includes('必须真实输出'));
+  return `${parts.join('；')}${hasMust ? '；题干未写明时按此书写惯例。' : '。'}`;
+}
 
 /**
  * 解答题作答空间（学科 × 学段 → 参数）
