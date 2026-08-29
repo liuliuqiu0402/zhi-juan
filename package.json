@@ -40,7 +40,6 @@
     "axios": "^1.6.7",
     "docx": "^8.5.0",
     "exceljs": "^4.4.0",
-    "html-to-docx": "^1.8.0",
     "jszip": "^3.10.1",
     "mammoth": "^1.6.0",
     "node-machine-id": "^1.1.12",

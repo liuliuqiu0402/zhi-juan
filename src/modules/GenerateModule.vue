@@ -1376,7 +1376,6 @@ const SCOPE_BASIS = {
   monthly: '月考',
   topic: '专题',
 };
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableCell, TableRow, WidthType, AlignmentType } from 'docx';
 import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml, parseMarkdownToTextRuns } from '../utils/wordExporter.js';
 import { htmlToDocxBlob } from '../utils/docxBuilder.js';
 import { GEN_CONST } from '../config/generationConstants.js';
