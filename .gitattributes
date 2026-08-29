@@ -2,3 +2,6 @@
 #    heredoc 定界符（EOF\r）不匹配，导致脚本解析失败
 #    仅约束 workflow 文件，不全局改 text=auto（避免全仓库行尾重写）
 .github/workflows/*.yml text eol=lf
+
+# git 钩子脚本必须 LF：Windows 下 CRLF 会让 shebang/解析出错，钩子失效
+githooks/* text eol=lf
