@@ -1,7 +1,11 @@
 # 配方（Recipe）Schema 说明
 
+> ⚠️ **已废弃（2026-08-29）**：Recipe 配方体系已随"生成端收敛方案"整体删除，代码实现 `src/config/recipe/schema.js` 已不存在。
+> **现行为**：指令库（`promptLibrary.js` 三维度注入）× 蓝图库（`examPaperBlueprints.js`/`teachingBlueprints.js`）× 整卷一次生成（`generateFullPaperNatural`）。
+> 本文档仅作历史决策背景参考，以最新代码为准。
+
 > 版本：v1（2026-08-23 定稿）
-> 代码实现：`src/config/recipe/schema.js`
+> 代码实现：`src/config/recipe/schema.js`（已删除）
 > 配套文档：[生成链路与配方设计.md](./生成链路与配方设计.md)、[指令体系与生成架构规划.md](./指令体系与生成架构规划.md)
 
 ## 一、定位与原则

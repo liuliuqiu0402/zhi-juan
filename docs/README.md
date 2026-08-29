@@ -16,7 +16,10 @@
 - numpy - 数值计算
 - opencv-python - 计算机视觉
 
-安装命令: `pip install -r requirements.txt`
+安装命令（在 `python-scripts/` 目录执行）:
+```bash
+pip install PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
+```
 
 ### 可选环境（用于 AI 功能）
 - **Ollama**: 本地 AI 引擎（支持离线使用）
@@ -43,8 +46,10 @@ install.bat
 # 1. 安装 Node.js 依赖
 npm install
 
-# 2. 安装 Python 依赖
-pip install -r requirements.txt
+# 2. 安装 Python 依赖（在 python-scripts/ 目录）
+cd python-scripts
+pip install PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
+cd ..
 
 # 3. 验证 Python 依赖（可选）
 python check_python_deps.py
@@ -130,7 +135,7 @@ wisdom-workshop/
 ├── main.js                 # Electron 主进程
 ├── preload.js              # 预加载脚本
 ├── package.json            # Node.js 依赖
-└── requirements.txt        # Python 依赖
+└── python-scripts/         # Python 脚本（依赖见各脚本头注释）
 ```
 
 ---
