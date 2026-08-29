@@ -104,7 +104,7 @@
         <div class="theme-actions">
           <button class="btn" @click="openCustomThemeEditor">➕ 自定义主题</button>
           <button class="btn" v-if="selectedTheme?.type === 'custom'" @click="editCustomTheme">✏️ 编辑</button>
-          <button class="btn btn-danger" v-if="selectedTheme?.type === 'custom'" @click="deleteCustomTheme">🗑️ 删除</button>
+          <button class="btn btn-danger" v-if="selectedTheme?.type === 'custom'" @click="deleteCustomThemeHandler">🗑️ 删除</button>
         </div>
       </div>
 

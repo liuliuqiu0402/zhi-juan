@@ -25,6 +25,7 @@
                 <button v-if="act === 'new'" class="btn" @click="onNewEntry">+ 新建条目</button>
                 <button v-if="act === 'validate'" class="btn" @click="onValidate">🔍 校验</button>
                 <button v-if="act === 'clear'" class="btn danger" @click="onClear">🗑️ 清理</button>
+                <!-- 🔧 clear 动作当前无任何库启用（toolLibrary.js 5 库均未注册 'clear'），若未来启用需先补 onClear 处理器（见 setup） -->
               </template>
               <DimensionFilter
                 v-if="activeLib.toolbar?.filter === 'dim3'"
@@ -152,6 +153,12 @@ const onValidate = () => {
   if (!activeLib.value) return;
   // TODO(迁移)：蓝图库接入 blueprintGuard；规则库→接线状态自检；其余库注册各自的校验
   window.alert(`「${activeLib.value.name}」校验功能将在迁移后接入。`);
+};
+
+/** 清理：无任何库注册 'clear' 动作（toolLibrary.js 5 库均未启用），预留处理器防模板悬空引用 */
+const onClear = () => {
+  if (!activeLib.value) return;
+  window.alert(`「${activeLib.value.name}」清理功能当前未注册（无库启用 clear 动作）。`);
 };
 
 /** 清理：暂无可清理的子库（记忆库已退役） */

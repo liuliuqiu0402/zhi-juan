@@ -143,7 +143,7 @@
         <div class="panel-header">
           <h3>📝 注入指令</h3>
           <div class="header-actions">
-            <button class="btn-primary" @click="loadInstructionFromLibrary">🔧 生成指令</button>
+            <button class="btn-primary" @click="loadInstructionFromLibrary()">🔧 生成指令</button>
             <button class="btn" @click="restoreDefaultInstruction">↩️ 恢复默认</button>
             <button class="btn" @click="clearInstruction">🗑️ 清空</button>
             <button class="btn" @click="analyzeTextbook" v-if="!isMobile">🔍 分析教材</button>
@@ -4137,7 +4137,9 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   const book = selectedBooks[0];
   // 🔧 多类型混合生成：按当前循环类型重新组装（第二类型起不沿用第一类型指令）；
   //    默认取第一个类型（单类型/首次组装路径不变）
-  const genType = genTypeOverride || genTypes.value?.[0];
+  // 🔧 防御：事件对象误传防护——非字符串的 genTypeOverride（如 @click 无括号误传 PointerEvent）直接忽略，
+  //    避免污染三维度匹配（曾导致模板错配 exam + 蓝图/渲染契约全失效）
+  const genType = (typeof genTypeOverride === 'string' && genTypeOverride) ? genTypeOverride : genTypes.value?.[0];
   if (!genType) {
     await showAlertDialogFn('请先选择资料类型');
     return;
@@ -4294,6 +4296,8 @@ const restoreDefaultInstruction = async () => {
   const genTypeLabel = genTypeTemplates[genType]?.name || genType;
   // ✏️ 标题类型名：名称样式固定优先，否则轮换（restoreDefault 场景无 unit，用全量轮换键）
   const label = labelStyle.value || pickLabelFromPool(genType, '_all_');
+  // 🔧 恢复默认无范围推断（unit 仅在 loadInstructionFromLibrary 内有定义，此处引用会 ReferenceError → 显式置空）
+  const unit = '';
   const gradeLabel = book.grade || '';
   instructionDraft.value = buildInjectionInstruction({
     template: builtinTemplate, grade: gradeLabel, stage: stageKey, subject, genTypeLabel, label, semester: book.semester || '', structure, fullScore, duration,
@@ -4333,6 +4337,29 @@ const clearInstruction = async () => {
   previewHint.value = '';
   injectSources.value = [];
 };
+
+// 🔧 三维度勾选变化 → 指令失效自动清空：教材（学段/学科/册别/勾选章节）/资料类型/范围维度任一变化，
+//    旧指令即不可用（学科/学段/范围/角色可能全变），生成时 ensureInjectedInstruction 自动按当前勾选
+//    重新组装——从源头杜绝跨次生成旧类型指令残留（如先出"正式试卷"再出"课时练"仍注入 exam 角色/
+//    真题蓝本）；用户手动编辑的指令同样失效（勾选是事实源，编辑基于旧勾选无意义）。
+//    模板勾选不影响指令组装（loadInstructionFromLibrary 只用教材库），不纳入 watch 源。
+watch(
+  () => [
+    (genTypes.value || []).join(','),
+    textbookStore.textbooks
+      .filter(b => hasAnySelected(b.outline))
+      .map(b => `${b.id}|${b.stage}|${b.subject}|${b.grade}|${getSelectedChapters(b.outline).map(c => `${c.title}@${c.start}`).join(',')}`)
+      .join(';'),
+    scopeType.value || '',
+  ].join('~~'),
+  () => {
+    if (!instructionDraft.value.trim()) return;
+    instructionDraft.value = '';
+    userEditedInstruction = false;
+    previewHint.value = '检测到三维度勾选变化，指令已重置——生成时将按当前勾选自动重新组装（或点「🔧 生成指令」立即预览）。';
+    injectSources.value = [];
+  }
+);
 
 // AI分析素材
 // 辅助：扁平化outline
@@ -5976,11 +6003,14 @@ const generate = async (mode) => {
     // 🔧 多类型混合生成：第二类型起若指令为自动组装（用户未手动编辑），
     //    按当前类型重新组装（任务行/蓝本/渲染契约/规则约束三维度匹配）——
     //    此前复用第一类型指令导致错位（如"课时练"被注入"正式试卷"角色与 exam 真题蓝本）
-    if (typeIndex > 0 && !userEditedInstruction) {
+    // 🔧 跨次生成刷新（防御纵深）：勾选变化已由 watch 自动清空指令，此处覆盖 watch 未感知的
+    //    边缘变化源（如 specialSubType 等不触发清空的配置）；typeIndex=0 非逐章时同样按当前类型
+    //    重新组装——逐章分支已在章节循环开头（L5955）用单章教材组装过，跳过避免重复组装
+    if (!userEditedInstruction && (typeIndex > 0 || !chapterTarget)) {
       try {
         await loadInstructionFromLibrary(genType, perChapterBooksRef.value);
       } catch (e) {
-        console.warn(`[多类型] 按类型 ${genType} 重新组装指令失败，沿用上一类型指令:`, e.message);
+        console.warn(`[指令刷新] 按类型 ${genType} 重新组装指令失败，沿用现有指令:`, e.message);
       }
     }
 
