@@ -1396,6 +1396,7 @@ import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
+import { stripXss } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离（AI 内容入 v-html/导出前的纵深防御，负向剥离零排版影响）
 
 defineOptions({ name: 'GenerateModule' });
 
@@ -6158,8 +6159,13 @@ const finalizeGeneration = async (result, genType) => {
   if (result.success) {
     // 🔧 防御：确保 content 是有效字符串；生成入库时清理 AI 残留的成串 <br>（2+ 压成 1 个），
     //    保证排版编辑预览与导出所见即所得（预览看不到成串空行，导出也不会有）
-    const safeContent = ((result.content && typeof result.content === 'string') ? result.content : '')
-      .replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br>');
+    // 🔧 纵深防御：AI 内容在此单点经 stripXss 剥离可执行向量（script/on*/javascript:/iframe 等），
+    //    预览(v-html)/导出(innerHTML)/编辑全链路读 doc.content 均拿到安全内容；
+    //    stripXss 为负向剥离，不动任何 class/style/结构标签，排版零影响
+    const safeContent = stripXss(
+      ((result.content && typeof result.content === 'string') ? result.content : '')
+        .replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br>')
+    );
     
     const genTypeName = genTypeTemplates[genType]?.name || genType;
     const ctxBooks = pendingGenerateContext.value?.selectedBooks;

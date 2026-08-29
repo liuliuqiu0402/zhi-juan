@@ -9,6 +9,41 @@
  */
 import { getMergedSpec } from '../config/layoutSpec.js';
 
+/**
+ * XSS 剥离（负向剥离，零排版影响）
+ * ============================================================
+ * 只删除"可执行向量"，保留全部排版结构（标签结构 / class / style 内联样式 / 属性）：
+ *   - <script>（含未闭合）→ 删
+ *   - <iframe>/<object>/<embed>/<link>/<meta>/<base>/<form> → 删（含未闭合）
+ *   - on* 事件属性（onerror/onclick/onload/onmouseover…）→ 删
+ *   - href/src/xlink:href/action/formaction 的 javascript:/vbscript: 协议 → 掐断
+ * 明确保留：style 属性（田字格/四线三格/占位框等排版依赖内联样式；
+ *   现代浏览器不执行 style 内 javascript: 背景，无 XSS 面）；
+ *   所有 class/结构标签（排版依赖，负向剥离不动它们）。
+ * 用途：AI 生成内容入预览(v-html)/导出(innerHTML)前的纵深防御，
+ *   在唯一源头清洗一次，全链路（预览/入库/导出/编辑）生效。
+ */
+export const stripXss = (html) => {
+  if (!html || typeof html !== 'string') return html;
+  let s = html;
+  // 1) <script> 闭合块 → 整体删除
+  s = s.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '');
+  // 2) <script> 未闭合 → 标签连同其后裸内容（直到下一个标签或结尾）一并删除
+  s = s.replace(/<script\b[^>]*>[\s\S]*?(?=<\/?[a-zA-Z]|$)/gi, '')
+       .replace(/<script\b[^>]*>/gi, '');
+  // 3) 危险嵌入式/元信息标签（含未闭合兜底）
+  s = s.replace(/<(iframe|object|embed|link|meta|base|form)[\s\S]*?<\/\1\s*>/gi, '')
+       .replace(/<(iframe|object|embed|link|meta|base|form)[\s\S]*?>/gi, '');
+  // 4) on* 事件属性
+  s = s.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  // 5) javascript:/vbscript: 协议 → 整个属性值清空为 ""
+  s = s.replace(/(\b(?:href|src|xlink:href|action|formaction)\s*=\s*)(["'])\s*javascript:[^"']*\2/gi, '$1$2$2')
+       .replace(/(\b(?:href|src|xlink:href|action|formaction)\s*=\s*)javascript:[^\s>]*/gi, '$1""')
+       .replace(/(\b(?:href|src|xlink:href|action|formaction)\s*=\s*)(["'])\s*vbscript:[^"']*\2/gi, '$1$2$2')
+       .replace(/(\b(?:href|src|xlink:href|action|formaction)\s*=\s*)vbscript:[^\s>]*/gi, '$1""');
+  return s;
+};
+
 /** 清洗 AI 输出：去 ```html 包裹、去 body 抽取、去自评残留 */
 export const cleanSectionHtml = (raw) => {
   if (!raw) return '';
