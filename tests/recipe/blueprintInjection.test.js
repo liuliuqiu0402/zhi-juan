@@ -246,6 +246,17 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
     expect(t.template).toContain('认知底线');
     expect(t.template).not.toContain('40分钟'); // 时长由蓝图 duration 唯一源，学段特点不含分钟
   });
+
+  it('作答载体条款无语文题型词广播：写作/表达类题通用化（写话/作文不出现于通用句）', () => {
+    // 数学卷的格式块不得出现语文题型词
+    const math = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'exam' });
+    expect(math.template).toContain('写作/表达类题须完整呈现题目要求');
+    expect(math.template).not.toContain('写话/作文题');
+    // 通用模板（无学科）同样
+    const generic = getPromptTemplate({ genType: 'practice' });
+    expect(generic.template).toContain('写作/表达类题须完整呈现题目要求');
+    expect(generic.template).not.toContain('写话/作文题');
+  });
 });
 
 describe('质量底线三维度注入（类型/学科/学段各司其职，非一刀切）', () => {
