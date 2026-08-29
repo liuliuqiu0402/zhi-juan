@@ -71,3 +71,15 @@ coverage/
 
 # Trae HTML 分享临时包
 .trae-html-share-packages/
+
+# PaddleOCR 模型（大文件，本地使用，不入库）
+python-scripts/PaddleOCR-VL-model/
+
+# Capacitor 平台构建产物（小写目录名，与上方大写规则对齐）
+ios/App/App/public/
+android/app/build/
+android/app/src/main/assets/public/
+
+# 构建诊断/测试残留（防再入 public 构建产物）
+public/diag.js
+public/test-*.html
