@@ -40,7 +40,7 @@ const LEGACY = [
   { name: '死代码保留声明文件（standardQuestionBank/examSampleLibrary/complianceAutoFix/recipeRegistry）', re: /standardQuestionBank|examSampleLibrary|complianceAutoFix|recipeRegistry/g, exempt: [/死代码保留供测试|已删除|不再调用/] },
 
   // ── C. 旧名词/旧数据键（数据层不应出现；别名映射与兼容逻辑豁免）──
-  { name: '旧学科名"信息技术"（2022 课标名=信息科技）', re: /信息技术/g, exempt: [/'信息技术': '信息科技'|信息技术→信息科技|2022 新课标统一|兼容|subjectAliasMap|SUBJECT_ALIAS|信息技术课标|信息科技课标|高中信息技术课标|\|信息技术\||\|信息技术\s|\|信息技术\)/] },
+  { name: '旧学科名"信息技术"（2022 课标名=信息科技）', re: /信息技术/g, exempt: [/'信息技术': '信息科技'|信息技术→信息科技|2022 新课标统一|兼容|subjectAliasMap|SUBJECT_ALIAS|信息技术课标|信息科技课标|高中信息技术课标|高中.*信息技术|信息技术.*高中|\|信息技术\||\|信息技术\s|\|信息技术\)/] },
   { name: '旧学段键"primary"（应细分 primary_low/mid/high）', re: /['"`]primary['"`]|primary\|/g, exempt: [/primary_low|primary_mid|primary_high|startsWith\('primary'\)|'小学': 'primary'|stageBase === 'primary'|base === 'primary'|stage \|\| 'primary'|value="primary"|stage: 'primary'|normalizeStage3|return 'primary'|兼容/] },
   { name: '旧资料类型名"听写/默写"（已统一为默写积累）', re: /听写\/默写|听写默写/g, exempt: [/留空|专用生成|知识型\/错题\/听写|听写格式|听写条目|听写推荐/] },
   { name: '旧注释"8 个子库"（当前 5 库均 ready）', re: /8 个子库/g, exempt: [] },
