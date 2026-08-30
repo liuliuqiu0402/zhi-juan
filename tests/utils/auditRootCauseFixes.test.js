@@ -199,6 +199,37 @@ describe('根治回归：作文格补全（完整题干超长也能补，不再�
     expect((out.match(/class="zuo-wen-ge"/g) || []).length).toBe(2);
   });
 
+  it('口语交际题已有横线作答载体 → 不补作文格（根治横线+作文格重复）', () => {
+    const html = [
+      '<h2>四、表达与交流（共2题，共30分）</h2>',
+      '<p>12. 看图写话。（15分）仔细观察图片，写一写图中的内容。</p>',
+      '<p>13. 口语交际：向同学介绍一种你喜欢的水果，用几句话写一写。（15分）</p>',
+      '<p><span class="blank-line">&emsp;</span><span class="blank-line">&emsp;</span><span class="blank-line">&emsp;</span></p>',
+    ].join('\n');
+    const { html: out } = run(html);
+    // 题12 补格；题13（口语交际，已有横线）不补 → 仅 1 个作文格
+    expect((out.match(/class="zuo-wen-ge"/g) || []).length).toBe(1);
+  });
+
+  it('口语交际题无任何载体也排除（本质是"说"，不补作文格）', () => {
+    const html = [
+      '<h2>四、表达与交流（共1题，共15分）</h2>',
+      '<p>13. 口语交际：小华生病了，请你打电话劝劝他。（15分）</p>',
+    ].join('\n');
+    const { html: out } = run(html);
+    expect(out).not.toContain('zuo-wen-ge');
+  });
+
+  it('写话题区域已有括号空位载体 → 不重复补作文格', () => {
+    const html = [
+      '<h2>四、表达与交流（共1题，共15分）</h2>',
+      '<p>12. 看图写话。（15分）观察图片，把句子补充完整。</p>',
+      '<p>（　　）的春天真美。</p>',
+    ].join('\n');
+    const { html: out } = run(html);
+    expect(out).not.toContain('zuo-wen-ge');
+  });
+
   it('补格数按学段×分值动态：低段15分写话 → 160格兜底（15×8=120<160）', () => {
     const html = [
       '<h2>四、表达与交流（共1题，共15分）</h2>',

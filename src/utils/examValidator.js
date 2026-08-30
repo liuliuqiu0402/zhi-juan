@@ -936,9 +936,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         tpl2.innerHTML = out;
         const ps2 = Array.from(tpl2.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
         const kwRe = /看图写话|写话|习作|作文|写作|小练笔/;
-        const kwPs = ps2.filter(p => {
+        // 🔧 区域边界用"所有数字开头小题标题"（不论是否 kw 命中）：口语交际/非写话题被排除后仍须是边界，
+        //    否则其内容（如横线作答区）并入上一题区域 → 上一题被误判"已有载体"而不补格
+        const numberedPs = ps2.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
+        const kwPs = numberedPs.filter(p => {
           const t = p.textContent || '';
-          return kwRe.test(t) && !t.includes('[IMAGE]'); // 排除配图标记行（PROMPT 描述可能含"写话"）
+          // 🔧 排除口语交际类题（2026-08）：口语交际即使含"写话/写作"字样（如"口语交际：说一说再写下来"），
+          //    本质是"说"的考查，书面呈现走对话/要点/横线，不补作文格——避免"口语交际+作文格"误配
+          return kwRe.test(t) && !t.includes('[IMAGE]') && !/口语交际/.test(t);
         });
         if (kwPs.length === 0) {
           silentCount('writing-grid', '含写话/作文题但无作文格且未找到可补位置（zuo-wen-ge），请抽检');
@@ -948,22 +953,26 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           let added = 0;
           for (let i = 0; i < kwPs.length; i++) {
             const p = kwPs[i];
-            const endP = kwPs[i + 1] || null;
+            const idx = numberedPs.indexOf(p);
+            const endP = numberedPs[idx + 1] || null;
             // 🔧 补格数按学段×分值动态（低段8格/分…初中20、高中17；低于兜底160取兜底）：
             //    小学二年级15分写话→max(160,120)=160；初中40分作文→max(160,800)=800；高中60分→max(160,1020)=1020。
             //    不再全学段统一 160（低段足够、高段作文格子不够；字数依据见 layoutSpec ZUOWEN_CELLS_PER_SCORE）
             const scoreM = (p.textContent || '').match(/[（(][^）)]*?(\d{1,3})\s*分/);
             const score = scoreM ? parseInt(scoreM[1], 10) : 0;
             const fillCells = Math.max(fillCellsBase, score * perScore);
-            // 该题区域（题干 p 到下一道写话题之间）已有作文格 → 跳过
-            let hasGrid = false;
+            // 该题区域（题干 p 到下一道写话题之间）已有任何作答载体 → 跳过补格
+            //   🔧 2026-08 根治"口语交际横线+作文格重复"：原只查 zuo-wen-ge，题内已有横线（blank-line）/
+            //    括号空位/blank 标签/书写格等其他载体仍补作文格 → 重复；现任一作答载体存在即视为已有作答空间
+            let hasAnyCarrier = false;
             let probe = p.nextSibling;
             while (probe && probe !== endP) {
               const ph = probe.outerHTML || '';
-              if (ph && /zuo-wen-ge/.test(ph)) { hasGrid = true; break; }
+              if (ph && /zuo-wen-ge|blank-line|blank-\d|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge|square-grid/.test(ph)) { hasAnyCarrier = true; break; }
+              if (/[（(]\s*[　\u3000 ]{1,12}\s*[)）]/.test(probe.textContent || '')) { hasAnyCarrier = true; break; }
               probe = probe.nextSibling;
             }
-            if (hasGrid) continue;
+            if (hasAnyCarrier) continue;
             // 🔧 插入位置（根治"作文格跑到配图/题干之前"）：题干 p 之后若紧跟 [IMAGE] 配图
             //    标记（到下一道命中题为止）→ 作文格插在配图之后，卷面顺序 = 题干 → 配图 → 作文格
             let ref = p;
