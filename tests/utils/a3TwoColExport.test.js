@@ -96,6 +96,10 @@ describe('A3 两栏导出（每栏页码按栏计数）', () => {
     for (const f of headerFiles) headers += await zip.file(f).async('string');
     // 密封线虚线/字符群组在页眉中（wpg 锚定）
     expect(headers).toContain('wpg');
+    // even 页眉镜像密封线（右侧靠书脊）：群组锚定 align right（relativeFrom="page"）+ 虚线群组相对 x=6mm
+    // （216000 EMU，2026-08 修复：A3 宽 420 不再用 A4 口径平移导致坐标溢出群组）
+    expect(headers).toContain('<wp:positionH relativeFrom="page"><wp:align>right</wp:align></wp:positionH>');
+    expect(headers).toContain('x="216000"');
     // A3 两栏尺寸仍生效
     const docXml = await zip.file('word/document.xml').async('string');
     expect(docXml).toContain('w:w="23811"');

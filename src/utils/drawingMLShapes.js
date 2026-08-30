@@ -568,8 +568,6 @@ const EMU_PER_MM = 36000;
 const EMU_LINE_1PT = 12700;
 // 🔧 密封文档右边距（镜像版群组宽）：与 docxBuilder 密封文档页边距 1417 DXA = 2.5cm 同步，改动需两处一致
 const SEAL_RIGHT_MARGIN_MM = 25;
-// 镜像版坐标平移量：页面坐标 → 右边距群组坐标系（群组原点 = 正文区右边界 = 页面 185mm 处）
-const MIRROR_SHIFT_MM = 210 - SEAL_RIGHT_MARGIN_MM;
 
 /**
  * 密封线浮动群组（wpg）：左侧页边距内 0~20mm，正文保持 2.35cm 边距、不被挤压。
@@ -623,7 +621,10 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false, pageW = 
     // 未旋转文本框：宽 Lmm+2pad、高 HlineMm，中心同视觉框；rot=16200000（270°= 逆时针 90°）
     let offX = cx - (Lmm + 2 * pad) / 2;
     const offY = cy - HlineMm / 2;
-    if (mirror) offX = pageW - offX - (Lmm + 2 * pad) - MIRROR_SHIFT_MM; // 以 pageW 为轴水平镜像到右侧后平移进右边距区（虚线 6mm、文字贴右纸边）
+    // 🔧 镜像版（2026-08 修复）：群组锚定页面右缘 align="right"，群组内坐标 = "距右缘距离"，
+    //    与纸张宽度无关——offX 直接以右边距区（25mm）为轴翻转（旧实现用 pageW-...-185，
+    //    仅 A4 恰好正确，A3/A2/840 等宽度算出坐标超出 25mm 群组被裁剪 → 镜像密封线不可见）
+    if (mirror) offX = SEAL_RIGHT_MARGIN_MM - offX - (Lmm + 2 * pad);
     return `<wps:wsp>
       <wps:cNvPr id="${id}" name="${name}"/>
       <wps:cNvSpPr txBox="1"/>
@@ -681,7 +682,7 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false, pageW = 
   const infoY = groupTop + tipBoxH + BOX_GAP;
 
   // 竖虚线（左版 x=19mm 距纸边；镜像版群组相对 x=6mm = 距右纸边 19mm；从上边距到 下边距，与上下边距对齐）
-  const lineX = mirror ? pageW - 19 - MIRROR_SHIFT_MM : 19;
+  const lineX = mirror ? SEAL_RIGHT_MARGIN_MM - 19 : 19;
   const lineShape = `<wps:wsp>
     <wps:cNvPr id="${idBase + 1}" name="SealLine"/>
     <wps:cNvSpPr/>
@@ -703,10 +704,11 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false, pageW = 
     charBox(idBase + 6, 'SealBot', CHAR_CENTER_Y.bot, botChar),
   ].join('');
 
-  // 群组 extent：左版 = 整页（A4 210×297mm，锚定页面 (0,0)）；镜像版 = 右边距区（25mm×297mm，
-  // 锚定页面右缘 align="right" → 群组右缘贴纸边）→ Word 更换纸张尺寸时镜像密封线自动保持贴右纸边
-  const cx = Math.round((mirror ? SEAL_RIGHT_MARGIN_MM : 210) * EMU_PER_MM);
-  const cy = Math.round(297 * EMU_PER_MM);
+  // 群组 extent：左版 = 整页（宽 pageW×高 pageH，锚定页面 (0,0)）；镜像版 = 右边距区（25mm×pageH，
+  // 锚定页面右缘 align="right" → 群组右缘贴纸边）→ Word 更换纸张尺寸时镜像密封线自动保持贴右纸边；
+  //   🔴 cy 必须 = 页面高（旧实现硬编码 297，A2 高 420 时虚线 380mm 超出群组被裁剪）
+  const cx = Math.round((mirror ? SEAL_RIGHT_MARGIN_MM : pageW) * EMU_PER_MM);
+  const cy = Math.round(pageH * EMU_PER_MM);
   const posH = mirror
     ? '<wp:positionH relativeFrom="page"><wp:align>right</wp:align></wp:positionH>'
     : '<wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH>';

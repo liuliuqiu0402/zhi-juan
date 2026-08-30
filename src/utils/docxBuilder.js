@@ -897,6 +897,15 @@ const sealMarkerParagraph = (fields, sizeHp, lineOnly = false, mirror = false) =
   });
 };
 
+/** 双侧密封线页眉（2026-08：大幅面大试卷 840×297 四栏，纸面左右两侧都渲染密封线——
+ *  左侧装订边 + 右侧镜像（align="right" 贴右纸边），对开/翻面/任意装订侧都有密封线） */
+const sealMarkerParagraphBoth = (fields, sizeHp, lineOnly = false) => new Header({
+  children: [
+    sealMarkerParagraph(fields, sizeHp, lineOnly, false),
+    sealMarkerParagraph(fields, sizeHp, lineOnly, true),
+  ],
+});
+
 /** 页码页脚段落："第X页　共X页"（PAGE + 域，显式纯黑）
  *  totalField 默认 SECTIONPAGES：正文分节"共X页"只计正文（不含答案页），答案分节"共X页"只计答案页自身。 */
 const pageNumberParagraph = (totalField = PageNumber.TOTAL_PAGES_IN_SECTION) => new Paragraph({
@@ -2013,14 +2022,21 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
   let leftMargin = 1134;
   let rightMargin = 1134;
   let sealHeaders = null;
-  // 🔧 A3 两栏同样保留密封线：左版锚定页面 (0,0)（A3 下依然最左 0~20mm）、镜像版锚定页面右缘（自动贴右），
+  // 🔧 大幅面（≥600mm 宽，如 840×297 四栏）双侧密封线：每页左右两侧都渲染（左侧装订边 + 右侧镜像）；
+  //    常规（A4/A3/A2/8K）保持 左侧 + 偶页镜像 的对开版式
+  const sealBothSides = preset.wMm >= 600;
+  // 🔧 多栏同样保留密封线：左版锚定页面 (0,0)（A3 下依然最左 0~20mm）、镜像版锚定页面右缘（自动贴右），
   //    密封线坐标不依赖纸张宽度，A3 两栏直接复用
   if (hasSealLine) {
     const fields = sealFirst?.fields?.length ? sealFirst.fields : ['密封线'];
     const sizeHp = sealFirst?.sizeHp || 20;
     // 🔧 密封线随页眉渲染：首页页眉全量（线/封/密 + 提示语 + 信息栏），后续页默认页眉仅 虚线+密/封/线；
     //    even 页眉：正式试卷对开版式，偶页（反面）密封线镜像到右侧靠书脊
-    sealHeaders = {
+    sealHeaders = sealBothSides ? {
+      first: sealMarkerParagraphBoth(fields, sizeHp, false),
+      default: sealMarkerParagraphBoth(fields, sizeHp, true),
+      even: sealMarkerParagraphBoth(fields, sizeHp, true),
+    } : {
       first: new Header({ children: [sealMarkerParagraph(fields, sizeHp)] }),
       default: new Header({ children: [sealMarkerParagraph(fields, sizeHp, true)] }),
       even: new Header({ children: [sealMarkerParagraph(fields, sizeHp, true, true)] }),
