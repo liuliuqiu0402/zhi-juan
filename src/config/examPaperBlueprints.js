@@ -20,7 +20,7 @@ export const EXAM_BLUEPRINTS = {
   '语文|primary_low': {
     label: '语文·小学低段（1-2年级）', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '识字与写字', score: 32, note: '覆盖本单元识字与写字内容，在语境中考查；书写用田字格。' },
+      { name: '识字与写字', score: 32, note: '覆盖本单元识字与写字内容，在语境中考查。' },
       { name: '积累与运用', score: 24, note: '覆盖本单元积累与运用内容，在真实语境中选填、仿写。' },
       { name: '阅读与鉴赏', score: 14, note: '课内课外阅读结合，设问有层次；选文标注出处。' },
       { name: '表达与交流', score: 30, note: '口语交际与看图写话结合本单元主题；写话给情境与词语支架。' },
@@ -37,9 +37,9 @@ export const EXAM_BLUEPRINTS = {
   '语文|primary_high': {
     label: '语文·小学高段（5-6年级）', fullScore: 100, duration: '90分钟',
     sections: [
-      { name: '积累与运用', score: 38, note: '覆盖本单元积累与运用内容：字词句段在真实语境中考查，名句运用型填空。' },
+      { name: '积累与运用', score: 38, note: '覆盖本单元积累与运用内容：字词句段在真实语境中考查，名句运用型填空，含文言词句积累。' },
       { name: '阅读与鉴赏', score: 26, note: '课内阅读与课外阅读结合，课外选文标注出处；设问有层次。' },
-      { name: '表达与交流', score: 36, note: '综合性学习与习作结合本单元主题；习作二选一、给选材支架。' },
+      { name: '表达与交流', score: 36, note: '综合性学习与习作结合本单元主题；习作给选材支架。' },
     ],
   },
   '语文|middle': {
@@ -89,7 +89,7 @@ export const EXAM_BLUEPRINTS = {
   '数学|primary_high': {
     label: '数学·小学高段（5-6年级）', fullScore: 100, duration: '90分钟',
     sections: [
-      { name: '直接写得数', score: 8, note: '直接写得数。' },
+      { name: '口算', score: 8, note: '口算，直接写得数' },
       { name: '脱式计算（能简算的要简算）', score: 18, note: '脱式计算（含简算），六年级含解方程' },
       { name: '填空', score: 20, note: '概念、数感、几何度量、统计等，情境化设问' },
       { name: '判断', score: 8, note: '概念辨析' },
@@ -112,7 +112,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '单选题', score: 40, note: '4选1' },
       { name: '多选题', score: 18, note: '全对得分、部分选对得部分分' },
       { name: '填空题', score: 15, note: '以计算推理为主' },
-      { name: '解答题', score: 77, note: '含解三角形或数列、立体几何、概率统计、解析几何、函数导数综合（后为压轴题）' },
+      { name: '解答题', score: 77, note: '含解三角形或数列、立体几何、概率统计、解析几何、函数导数综合，末题为压轴题' },
     ],
   },
 
@@ -152,7 +152,7 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '听力·听音选词/选图', score: 10, note: '听词句选正确单词或图片；每段材料读两遍' },
       { name: '听力·听音判断', score: 10, note: '听简短对话判断句子正误；每段材料读两遍' },
-      { name: '听力·听音填空', score: 10, note: '听一篇完整短文（通知/自我介绍等），补全信息（姓名/时间/地点/活动），每空一词或短语；每段材料读两遍' },
+      { name: '听力·听音填空', score: 10, note: '听一篇完整短文（通知/自我介绍等），补全信息（姓名/时间/地点/活动），每空一词或短语；整篇材料读两遍' },
       { name: '笔试·语音辨析', score: 5, note: '选出画线部分发音不同的单词' },
       { name: '笔试·词汇运用', score: 10, note: '词图匹配、词汇分类、根据提示写词' },
       { name: '笔试·单项选择', score: 15, note: '语境中考查语法与交际用语' },
@@ -249,7 +249,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断', score: 20, note: '生活常识与行为习惯辨析' },
       { name: '选择', score: 30, note: '情境判断' },
       { name: '连线', score: 20, note: '情境与做法连线、行为与对错连线' },
-      { name: '情景辨析', score: 30, note: '看图或读短文后说说该怎么做，一句话作答' },
+      { name: '情境辨析', score: 30, note: '看图或读短文后说说该怎么做，一句话作答' },
     ],
   },
   '道德与法治|primary_mid': {
@@ -258,7 +258,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断', score: 20, note: '行为习惯与规则意识辨析' },
       { name: '选择', score: 30, note: '情境判断' },
       { name: '连线与分类', score: 10, note: '概念关联、行为分类' },
-      { name: '情景分析', score: 20, note: '结合生活情境说明理由，简短作答' },
+      { name: '情境分析', score: 20, note: '结合生活情境说明理由，简短作答' },
       { name: '实践探究', score: 20, note: '安全自护、垃圾分类等真实问题，给出做法并说明理由' },
     ],
   },
@@ -418,7 +418,7 @@ export const EXAM_BLUEPRINTS = {
     label: '音乐·小学低段（1-2年级）', fullScore: 100, duration: '40分钟',
     sections: [
       { name: '判断题', score: 20, note: '音的高低长短、节奏快慢、歌曲情绪（情境化设问）' },
-      { name: '选择题', score: 20, note: '听辨类以知识识记呈现' },
+      { name: '选择题', score: 20, note: '听辨内容以文字/图谱形式呈现（无音频环境）' },
       { name: '连线题', score: 20, note: '乐器与声音、节奏型与动作连线' },
       { name: '表现题', score: 40, note: '以文字描述演唱/律动/节奏表现（无音频以图谱/节奏型识读），配评分要点' },
     ],

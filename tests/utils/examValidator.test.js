@@ -365,10 +365,12 @@ describe('examValidator 书写格按学段（writing-grid-fix）', () => {
     expect(out2).not.toContain('four-line-three');
   });
 
-  it('数学作图方格纸 square-grid → 合法不剥离（数学全学段允许 square）', () => {
+  it('数学作图方格纸 square-grid：小学段合法保留；初中以上剥离（考试答题纸自带网格）', () => {
     const html = '<h2>二、作图（10分）</h2>\n<p>1. 在方格纸上画一个正方形。</p>\n<div class="square-grid"><span>&emsp;</span></div>';
-    const { html: out } = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'exam' });
-    expect(out).toContain('square-grid');
+    const { html: out1 } = auditExamPaper(html, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
+    expect(out1).toContain('square-grid');
+    const { html: out2 } = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'exam' });
+    expect(out2).not.toContain('square-grid');
   });
 });
 

@@ -68,7 +68,7 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
     expect(inject).toContain('原创选文');
     expect(inject).toContain('分层设题');
     expect(inject).toContain('学段要求');
-    expect(inject).toContain('非连续性文本'); // 初中阅读学段要求
+    expect(inject).toContain('区分观点与事实'); // 初中阅读学段要求（非连续性文本已改中性的"材料形式多样"）
     expect(inject).not.toContain('题量与时长');
     expect(inject).not.toContain('500-900字'); // 篇幅底线归程序护栏，不注入 AI
   });
@@ -252,7 +252,7 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     const chem = buildTeachingInjection({ genType: 'dictation', stage: 'middle', subject: '化学' });
     expect(chem).toContain('化学·默写积累');
     expect(chem).toContain('化学用语');
-    expect(chem).toContain('2022义教化学学科核心素养');
+    expect(chem).toContain('2022年版义务教育化学课标核心素养');
     const hist = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '历史' });
     expect(hist).toContain('历史·课时练');
     expect(hist).toContain('时间轴/地图情境');

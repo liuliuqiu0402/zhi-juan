@@ -20,7 +20,7 @@ export const CARRIERS = {
   BRACKET_GRID: 'bracket-grid',   // 竖式格（3行书写区）
   TIAN_ZI_GE: 'tian-zi-ge',       // 田字格（低段写字）
   FOUR_LINE_THREE: 'four-line-three', // 四线三格（英语书写/拼音）
-  SIXIAN_GE: 'sixian-ge',         // 四线三格（拼音/字母书写常见 class，与 four-line-three 混用）
+  SIXIAN_GE: 'sixian-ge',         // 四线三格 class 别名（与 four-line-three 同义，渲染/剥离共用，推断统一归 four-line-three）
   PINYIN_LINE: 'pinyin-line',     // 拼音格
   MI_ZI_GE: 'mi-zi-ge',           // 米字格（书法练习）
   SQUARE: 'square',               // 方格（作图方格纸类名前缀，匹配 square-grid）
@@ -45,7 +45,6 @@ export const CARRIER_LABELS = {
   [CARRIERS.SIXIAN_GE]: '四线三格',
   [CARRIERS.PINYIN_LINE]: '拼音格',
   [CARRIERS.MI_ZI_GE]: '米字格',
-  [CARRIERS.SQUARE]: '方格',
   [CARRIERS.TABLE]: '表格',
   [CARRIERS.BLANK_AREA]: '空白区',
   [CARRIERS.DRAW_AREA]: '作图区',
@@ -75,10 +74,10 @@ export function inferCarriers(name = '', note = '') {
   if (HAS(t, /竖式|bracket-grid/)) out.add(CARRIERS.BRACKET_GRID);
   // 田字格
   if (HAS(t, /田字格|tian-zi/)) out.add(CARRIERS.TIAN_ZI_GE);
-  // 四线三格
-  if (HAS(t, /四线三格|four-line/)) out.add(CARRIERS.FOUR_LINE_THREE);
+  // 四线三格（sixian-ge 为同义 class 别名，统一归 four-line-three）
+  if (HAS(t, /四线三格|four-line|sixian/)) out.add(CARRIERS.FOUR_LINE_THREE);
   // 连线
-  if (HAS(t, /连线|连一连|match-question|匹配|连一连/)) out.add(CARRIERS.MATCH);
+  if (HAS(t, /连线|连一连|match-question|匹配/)) out.add(CARRIERS.MATCH);
   // 配图
   if (HAS(t, /\[IMAGE\]|配图|看图/)) out.add(CARRIERS.IMAGE);
   // 图形

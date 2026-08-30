@@ -35,7 +35,7 @@ const IMAGE_DEFAULT_TYPES = new Set(['practice', 'special', 'preview', 'reading'
 
 /** [IMAGE] 示例（画面描述 + ICON 图标检索；不指定生图引擎，渲染端按其标准处理） */
 const IMAGE_SAMPLE = `[IMAGE]
-PROMPT:画面描述（主体/动作/场景，黑白线稿简笔画，图内禁文字）
+PROMPT:画面描述（主体/动作/场景，图内不出现文字）
 [/IMAGE]`;
 
 const IMAGE_SAMPLE_ICON = `[IMAGE]
@@ -100,26 +100,26 @@ const GRAPH_SAMPLE_SHAPES_EXTRA = `· SHAPES 元素格式（一行一个元素�
 const GRAPH_SAMPLE_BAR = `[GRAPH]
 TYPE:BAR_CHART
 DATA:15,22,18,30,25
-LABELS:语文,数学,英语,科学,社会
-TITLE:期末考试成绩
-XLABEL:科目
-YLABEL:分数
+LABELS:类别甲,类别乙,类别丙,类别丁,类别戊
+TITLE:某班数据分布
+XLABEL:类别
+YLABEL:数量
 COLORS:#e74c3c,#3498db,#27ae60,#f1c40f,#9b59b6
 [/GRAPH]`;
 
 const GRAPH_SAMPLE_CHART_LINE = `[GRAPH]
 TYPE:LINE_CHART
 DATA:5,12,8,20,15
-LABELS:周一,周二,周三,周四,周五
-TITLE:一周气温变化
-XLABEL:日期
-YLABEL:温度
+LABELS:第1期,第2期,第3期,第4期,第5期
+TITLE:数据变化
+XLABEL:时间
+YLABEL:数值
 [/GRAPH]`;
 
 const GRAPH_SAMPLE_PIE = `[GRAPH]
 TYPE:PIE_CHART
 DATA:30,25,20,15,10
-LABELS:选项A,选项B,选项C,选项D,选项E
+LABELS:类别甲,类别乙,类别丙,类别丁,类别戊
 TITLE:占比分布
 [/GRAPH]`;
 
@@ -184,13 +184,15 @@ const SUBJECT_GRAPH_PARTS = {
   '化学': [
     '· 原子结构用 TYPE:ATOM（ELEMENT:元素符号；SHELLS:各层电子数,逗号分隔）：',
     GRAPH_SAMPLE_ATOM,
-    '· 统计/数据：',
+    '· 统计/数据（BAR_CHART/LINE_CHART）：',
     GRAPH_SAMPLE_BAR,
+    GRAPH_SAMPLE_CHART_LINE,
   ],
   '科学': [
     '· 统计/数据图（BAR_CHART/LINE_CHART/PIE_CHART）：',
     GRAPH_SAMPLE_BAR,
     GRAPH_SAMPLE_CHART_LINE,
+    GRAPH_SAMPLE_PIE,
   ],
   '生物': [
     '· 统计/数据图（BAR_CHART/LINE_CHART/PIE_CHART）：',
@@ -211,7 +213,7 @@ const SUBJECT_GRAPH_PARTS = {
     GRAPH_SAMPLE_PIE,
   ],
   '信息科技': [
-    '· 统计/数据图（BAR_CHART/LINE_CHART/PIE_CHART）：',
+    '· 统计/数据图（BAR_CHART/LINE_CHART）：',
     GRAPH_SAMPLE_BAR,
     GRAPH_SAMPLE_CHART_LINE,
   ],
@@ -229,11 +231,11 @@ export const SUBJECT_GRAPH_TYPES = {
   '信息科技': ['BAR_CHART', 'LINE_CHART'],
 };
 
-/** 通用图形参数说明（注入一次，避免每个示例重复） */
-const GRAPH_COMMON_PARAMS = '通用参数：XLIM:min,max 横轴范围、YLIM:min,max 纵轴范围、GRID:TRUE/FALSE 网格、TITLE:标题';
+/** 坐标类图形参数说明（仅 COORDINATE/SHAPES 适用；注入一次，避免每个示例重复） */
+const GRAPH_AXIS_PARAMS = '坐标类参数：XLIM:min,max 横轴范围、YLIM:min,max 纵轴范围、GRID:TRUE/FALSE 网格、TITLE:标题';
 
-/** 公式规则 */
-const FORMULA_RULES = '· 公式：行内用 $...$、块级用 $$...$$（如 $$x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}$$），严禁用文本堆砌或图片代替公式。';
+/** 公式规则（公式内分数用 \frac；非公式语境的分数标注用半角斜杠——两者分属不同标记场景） */
+const FORMULA_RULES = '· 公式：行内用 $...$、块级用 $$...$$；公式内分数用 \\frac 表示，非公式语境的分数标注用"分子/分母"半角斜杠（如 1/2）；公式禁止用文本堆砌或图片代替。';
 
 // ==================== 学段维度门控（三维度对齐：学段 × 学科 × 类型） ====================
 
@@ -264,10 +266,11 @@ const getGraphParts = (subject, stage) => {
       return { parts, types: ['COORDINATE', 'SHAPES', 'BAR_CHART', 'LINE_CHART', 'PIE_CHART'] };
     }
     // 低段/中段：无函数几何与扇形统计图（PIE 为六年级课标内容），整体裁剪 SHAPES/PIE 段
+    // 🔧 先替换统计图引导句（去 PIE_CHART）再裁剪 PIE 示例，避免引导句被 /PIE/ 一并滤除（历史缺陷：map 永不命中）
     return {
       parts: base
-        .filter(p => !/SHAPES|函数|几何/.test(p) && !/PIE/.test(p))
-        .map(p => p.startsWith('· 统计图') ? '· 统计图（BAR_CHART/LINE_CHART，参数 DATA:数据列表、LABELS:分类、TITLE、XLABEL、YLABEL、COLORS:颜色列表）：' : p),
+        .map(p => p.startsWith('· 统计图') ? '· 统计图（BAR_CHART/LINE_CHART，参数 DATA:数据列表、LABELS:分类、TITLE、XLABEL、YLABEL、COLORS:颜色列表）：' : p)
+        .filter(p => !/SHAPES|函数|几何/.test(p) && !/PIE/.test(p)),
       types: ['COORDINATE', 'BAR_CHART', 'LINE_CHART'],
     };
   }
@@ -318,11 +321,16 @@ export function buildRenderContract({ subject = '', genType = '', needsImage = f
   // 用户显式定义了配图开关则覆盖题型关键词判定（否则按内置 needsImage）
   const image = userForSubject && 'image' in userForSubject ? !!userForSubject.image : needsImage;
 
-  if (graphTypes.length || graph || userForSubject) {
+  if (graphTypes.length || graph || image || userForSubject) {
+    // 🔧 段头注入条件含"配图"场景（历史缺陷：仅 graph 时注入，配图-only 无段头 → 格式说明悬空）
+    parts.push('【渲染指令（EduRender Studio 格式，渲染端可直接解析；仅需图/公式/配图时输出，不计题量）】');
     const typeLabel = graphTypes.length ? graphTypes.join('/') : '';
     if (typeLabel) {
-      parts.push('【渲染指令（EduRender Studio 格式，渲染端可直接解析；仅需图/公式时输出，不计题量）】');
-      parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${typeLabel}；${GRAPH_COMMON_PARAMS}。图形数据必须与题干完全一致。`);
+      if (/COORDINATE|SHAPES/.test(typeLabel)) {
+        parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${typeLabel}；${GRAPH_AXIS_PARAMS}。图形数据必须与题干完全一致。`);
+      } else {
+        parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${typeLabel}。图形数据必须与题干完全一致。`);
+      }
       parts.push(...(graph ? graph.parts : []));
     }
   }
@@ -332,7 +340,7 @@ export function buildRenderContract({ subject = '', genType = '', needsImage = f
   if (image) {
     parts.push(`· 配图（看图/配图题）用 [IMAGE]...[/IMAGE]，每图一个、单独成段，图内无字、不暗示答案，PROMPT 画面要素须与题干情境严格一致（人物/场景/数量与题干吻合，不得另起无关画面）：`);
     parts.push(IMAGE_SAMPLE);
-    parts.push(`· 或图标检索：`);
+    parts.push(`· 或图标检索（图标/标识类场景用 TYPE:ICON）：`);
     parts.push(IMAGE_SAMPLE_ICON);
   }
   return `\n\n${parts.join('\n')}`;

@@ -33,10 +33,10 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     expect(out).toContain('CIRCLE:(x,y) | RADIUS:半径');
     expect(out).toContain('LINE:(x1,y1),(x2,y2)');
     expect(out).toContain('ANGLE:(x1,y1),(顶点x,y),(x2,y2)');
-    // 统计图
+    // 统计图（学科中立示例，不再广播"期末考试成绩/科目"）
     expect(out).toContain('TYPE:BAR_CHART');
     expect(out).toContain('DATA:15,22,18,30,25');
-    expect(out).toContain('XLABEL:科目');
+    expect(out).toContain('XLABEL:类别');
   });
 
   it('物理注入 FORCE/CIRCUIT/OPTICS 骨架', () => {
@@ -214,8 +214,8 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(low.template).toContain('【英语·小学低段要点】');
     expect(low.template).not.toContain('<span class="four-line-three">');
     const mid = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'exam' });
-    expect(mid.template).toContain('字母/单词抄写类题必须真实输出四线三格 <span class="four-line-three">a</span>');
-    expect(mid.template).toContain('书写规范（四线三格）'); // 中段要点保留书写惯例
+    expect(mid.template).toContain('字母/单词抄写类题必须真实输出四线三格（示例：<span class="four-line-three">a</span>）');
+    expect(mid.template).toContain('书写规范'); // 中段要点保留书写惯例（载体具体格式由排版规格库单通道注入）
   });
 
   it('全部 9 个资料类型都有三维度模板（类型骨架 + 学科×学段要点 + 学段特点）', () => {
@@ -245,8 +245,11 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
   it('5 学段 exam 全覆盖（学段特点模板）', () => {
     expect(getPromptTemplate({ grade: 'primary_low', genType: 'exam' }).template).toContain('【学段特点】');
     expect(getPromptTemplate({ grade: 'primary_low', genType: 'exam' }).name).toContain('小学低段');
-    expect(getPromptTemplate({ grade: 'middle', genType: 'exam' }).template).toContain('对标中考');
-    expect(getPromptTemplate({ grade: 'high', genType: 'exam' }).template).toContain('对标高考');
+    // 对标中考/高考结构仅注入考试科目（三维度精确）；无学科回落通用不注入
+    expect(getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template).toContain('对标中考');
+    expect(getPromptTemplate({ grade: 'high', subject: '语文', genType: 'exam' }).template).toContain('对标高考');
+    expect(getPromptTemplate({ grade: 'middle', subject: '音乐', genType: 'exam' }).template).not.toContain('对标中考');
+    expect(getPromptTemplate({ grade: 'high', subject: '美术', genType: 'exam' }).template).not.toContain('对标高考');
   });
 
   it('三维度全覆盖：学段×学科×exam 命中（学科×学段要点 + 学段特点，名称三维度中文）', () => {

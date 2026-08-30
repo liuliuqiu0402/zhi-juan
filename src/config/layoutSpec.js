@@ -90,9 +90,9 @@ export const WRITING_CARRIER = {
     high: ['line'],
   },
   数学: {
-    primary_low: ['square'],
-    primary_mid: ['square'],
-    primary_high: ['square'],
+    primary_low: ['square-grid'],
+    primary_mid: ['square-grid'],
+    primary_high: ['square-grid'],
     middle: [], // 🔴 作图方格纸仅小学段渲染（SQUARE_GRID middle/high=null）；初中以上由考试答题纸自带网格，不给"用方格纸"诱导
     high: [],
   },
@@ -170,20 +170,20 @@ export function buildCarrierInstruction(subject = '', stage = '') {
     if (r.stages && !r.stages.includes(stage)) continue;
     const sem = CARRIER_MUST_SEMANTICS[r.carrier];
     const label = CARRIER_LABELS[r.carrier] || r.carrier;
-    if (sem) parts.push(`${sem.label}必须真实输出${label} <span class="${r.carrier}">${sem.demo}</span>`);
+    if (sem) parts.push(`${sem.label}必须真实输出${label}（示例：<span class="${r.carrier}">${sem.demo}</span>）`);
     else parts.push(`「${r.keywords.split('|')[0]}」类题必须真实输出${label}`);
   }
-  if (list.includes('square')) parts.push('作图类题用方格纸');
+  if (list.includes('square-grid')) parts.push('作图类题用方格纸作答区（示例：<span class="square-grid"></span>）');
   if (!parts.length) return '';
   // 🔧 书写格结构约束（基准1/2 根治）：格子必须紧跟对应词语/拼音之后，不得集中单独成段；
-  //    且格子必须是空格子（作答载体），严禁格内预填字/拼音/答案；
+  //    且格子必须是空格子（作答载体），格内不填字/拼音/答案；
   //    计分自洽条款（基准3 根治）：按词/字计分时词数=拼音组数、字数=书写格数——仅 must 命中
   //    （语文低段/英语中段书写类）注入，天然按 学科×学段 收敛，不对全学科广播（防跨学科噪音）
   const hasMust = parts.some((p) => p.includes('必须真实输出'));
   const structureNote = hasMust
-    ? '；书写格紧跟对应词语（拼音）之后输出，不得集中单独成段；格子必须为空格子（严禁格内填写任何字/拼音/答案）；书写类题按词或字计分时声称须自洽（词数=拼音组数、字数=书写格数，总分=单位分×实际载体数）。'
+    ? '书写格紧跟对应词语（拼音）之后输出，不得集中单独成段；格子为空格子（格内不填字/拼音/答案）；书写类题按词或字计分时声称须自洽（词数=拼音组数、字数=书写格数，总分=单位分×实际载体数）。'
     : '';
-  return `${parts.join('；')}${hasMust ? '；题干未写明时按此书写惯例。' : '。'}${structureNote}`;
+  return `${parts.join('；')}${hasMust ? '；题干未写明时按此书写惯例。' : '。'}${structureNote ? ` ${structureNote}` : ''}`;
 }
 
 /**

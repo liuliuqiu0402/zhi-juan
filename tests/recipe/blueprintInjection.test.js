@@ -131,18 +131,18 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     expect(hint).toContain('【输出格式】');
     expect(hint).toContain('<h1>');
     expect(hint).toContain('<h2>');
-    expect(hint).toContain('只输出资料正文');
-    expect(hint).toContain('填空空位由系统按答案字数自动校准宽度');
+    expect(hint).toContain('题目区严禁混入任何答案/解析');
+    expect(hint).toContain('填空空位（括号空位或横线）长度即留空宽度');
   });
 
-  it('含正文边界要求：答案不入正文；代码块由代码层拦截，不再要求模型', () => {
-    expect(hint).toContain('严禁在正文中输出任何答案/解析');
+  it('含正文边界要求：答案仅出现在独立答案区；代码块由代码层拦截，不再要求模型', () => {
+    expect(hint).toContain('答案/解析/评分标准/听力原文仅出现在独立答案区');
     expect(hint).not.toContain('严禁代码块包裹输出');
   });
 
   it('buildOutputFormatHint 兜底路径：按 学科×学段 注入载体条款，通用兜底不含具体示例', () => {
     const chineseLow = buildOutputFormatHint({ subject: '语文', stage: 'primary_low' });
-    expect(chineseLow).toContain('写汉字类题必须真实输出田字格');
+    expect(chineseLow).toContain('写汉字类题必须真实输出田字格（示例：');
     const generic = buildOutputFormatHint({});
     expect(generic).not.toContain('tian-zi-ge');
     expect(generic).not.toContain('four-line-three');
@@ -152,7 +152,7 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     const preview = buildOutputFormatHint({ subject: '语文', stage: 'primary_low', genType: 'preview' });
     expect(preview).toContain('栏目标题');
     expect(preview).not.toContain('写汉字类题必须真实输出田字格');
-    expect(preview).not.toContain('填空空位由系统按答案字数自动校准宽度');
+    expect(preview).not.toContain('填空空位');
     const summary = buildOutputFormatHint({ genType: 'summary' });
     expect(summary).toContain('知识框架');
   });
@@ -165,13 +165,13 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
     for (const g of NON_EXAM_TYPES) {
       const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: g });
       expect(t.template, `类型 ${g} 缺输出格式`).toContain('【输出格式】');
-      expect(t.template).toContain('只输出资料正文');
+      expect(t.template).toContain('题目区严禁混入任何答案/解析');
       // 题为主类型含作答载体规则；内容型含结构化呈现规则（不用题号）
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
         expect(t.template, `类型 ${g} 不应要求题号包裹`).not.toContain('以 <p class="question"> 包裹并带题号');
       } else {
-        expect(t.template, `类型 ${g} 缺作答载体规则`).toContain('填空空位由系统按答案字数自动校准宽度');
+        expect(t.template, `类型 ${g} 缺作答载体规则`).toContain('填空空位（括号空位或横线）长度即留空宽度');
         expect(t.template).toContain('以 <p class="question"> 包裹并带题号');
       }
     }
@@ -201,20 +201,20 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
       } else {
-        expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('由系统按答案字数自动校准宽度');
+        expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('填空空位（括号空位或横线）长度即留空宽度');
         expect(t.template, `类型 ${g} 缺括号空位要求`).toContain('选择/判断类与填空按作答形式留空位');
       }
       expect(t.template, `类型 ${g} 残留连线诱导词`).not.toContain('连线题');
     }
   });
 
-  it('宽度语义按答案字数匹配（不再要求模型计算空格数；内容型无填空规则）', () => {
+  it('宽度语义按空位长度匹配（不要求模型计算；内容型无填空规则）', () => {
     for (const g of ALL_TYPES) {
       const t = getPromptTemplate({ genType: g });
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g}`).not.toContain('填空空位宽度');
       } else {
-        expect(t.template, `类型 ${g}`).toContain('按答案字数自动校准宽度');
+        expect(t.template, `类型 ${g}`).toContain('留空宽度');
       }
       expect(t.template, `类型 ${g} 残留微观格式`).not.toContain('空格数=答案字数');
       expect(t.template, `类型 ${g} 残留格数诱导`).not.toContain('1字≈2格');
@@ -225,21 +225,21 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
   it('书写载体条款按 学科×学段 精确注入（排版规格库唯一事实源，不广播跨学科示例）', () => {
     // 通用模板（无学科/学段）：只留通用句，不含任何具体格子示例（旧版全学科广播已移除）
     const generic = getPromptTemplate({ genType: 'practice' });
-    expect(generic.template).toContain('留足作答区');
+    expect(generic.template).toContain('填空空位（括号空位或横线）长度即留空宽度');
     expect(generic.template).not.toContain('不少于3行');
     expect(generic.template).not.toContain('tian-zi-ge');
     expect(generic.template).not.toContain('four-line-three');
     // 语文低段：田字格 + 拼音格（必须真实输出条款）
     const chineseLow = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' });
-    expect(chineseLow.template).toContain('写汉字类题必须真实输出田字格 <span class="tian-zi-ge">字</span>');
-    expect(chineseLow.template).toContain('写拼音类题必须真实输出拼音格 <span class="pinyin-line">拼音</span>');
+    expect(chineseLow.template).toContain('写汉字类题必须真实输出田字格（示例：<span class="tian-zi-ge">字</span>）');
+    expect(chineseLow.template).toContain('写拼音类题必须真实输出拼音格（示例：<span class="pinyin-line">拼音</span>）');
     expect(chineseLow.template).not.toContain('four-line-three');
     // 语文中段：横线惯例不注入具体格子示例
     const chineseMid = getPromptTemplate({ grade: 'primary_mid', subject: '语文', genType: 'practice' });
     expect(chineseMid.template).not.toContain('<span class="tian-zi-ge">');
     // 英语：中段才注入四线三格示例，低段无（低段以听说认读为主）
     const enMid = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'practice' });
-    expect(enMid.template).toContain('字母/单词抄写类题必须真实输出四线三格 <span class="four-line-three">a</span>');
+    expect(enMid.template).toContain('字母/单词抄写类题必须真实输出四线三格（示例：<span class="four-line-three">a</span>）');
     const enLow = getPromptTemplate({ grade: 'primary_low', subject: '英语', genType: 'practice' });
     expect(enLow.template).not.toContain('four-line-three');
     // 数学小学段：作图方格纸（作图题）

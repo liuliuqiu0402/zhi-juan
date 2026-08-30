@@ -46,7 +46,7 @@ const GRID_CLASS_LABEL = {
   'four-line-three': CARRIER_LABELS['four-line-three'],
   'sixian-ge': CARRIER_LABELS['sixian-ge'],
   'pinyin-line': CARRIER_LABELS['pinyin-line'],
-  'square': CARRIER_LABELS['square'],
+  'square-grid': CARRIER_LABELS['square-grid'],
   'mi-zi-ge': CARRIER_LABELS['mi-zi-ge'],
 };
 

@@ -301,7 +301,6 @@ export const subjectAliasMap = {
   '品德与社会': '道德与法治',
   '信息技术': '信息科技',  // 2022 新课标统一为"信息科技"
   '信息': '信息科技',  // 旧简称兼容
-  '通用技术': '信息科技',
   '体育与健康': '体育',
   '体育与健康课程': '体育',
   '科学（小学）': '科学',  // 教材旧数据兼容（与蓝本库 SUBJECT_ALIAS 对齐，避免学科要点维度缺失）
@@ -324,8 +323,8 @@ export const normalizeSubjectName = (subject, stage) => {
   // 先检查别名映射
   const aliasTarget = subjectAliasMap[subject];
   if (aliasTarget) {
-    // 如果是"政治"且是高中，映射到"思想政治"（其他学段统一映射到"道德与法治"）
-    if (subject === '政治' && normalizedStage === '高中') {
+    // 政治类高中 → 思想政治（初小统一映射到"道德与法治"）；"思想品德"高中同款处理（历史缺陷：高中分支不可达）
+    if ((subject === '政治' || subject === '思想品德') && normalizedStage === '高中') {
       return '思想政治';
     }
     return aliasTarget;
