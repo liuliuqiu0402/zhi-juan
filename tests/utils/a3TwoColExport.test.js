@@ -140,50 +140,33 @@ describe('普通卷剥离密封线结构（stripSealStructure，2026-08 卷型�
   });
 });
 
-describe('多栏大试卷导出（2026-08：A3 三栏 / 8K / 4K 四栏，正规考试尺寸）', () => {
+describe('8K 大试卷导出（2026-08：正度 273×393 横向，地方统考尺寸）', () => {
   const HTML2 = '<h2>一、选择题（共10题，共30分）</h2><p>1. 下列各题只有一个正确答案。</p>';
 
-  it('A3 三栏：w:num="3" + 每栏页码 3*PAGE-2 / 3*PAGE-1 / 3*PAGE + 共X栏 =3*SECTIONPAGES', async () => {
-    const zip = await buildZip(HTML2, 'a3-3col');
-    const docXml = await zip.file('word/document.xml').async('string');
-    // A3 横向尺寸 + 三栏
-    expect(docXml).toContain('w:w="23811"');
-    expect(docXml).toContain('w:num="3"');
-    // 三栏栏距 15mm ≈ 850 twip
-    expect(docXml).toContain('w:space="850"');
-    const footers = await footerText(zip);
-    // 公式域转嵌套域后指令拆分：=3*PAGE-2 / -1 / -0 三段算术 + PAGE/SECTIONPAGES 嵌套域
-    expect(footers).toContain('<w:instrText xml:space="preserve"> = 3* ');
-    expect(footers).toContain('<w:instrText xml:space="preserve">  - 2 </w:instrText>');
-    expect(footers).toContain('<w:instrText xml:space="preserve">  - 1 </w:instrText>');
-    expect(footers).toContain('PAGE </w:instrText>');
-    expect(footers).toContain('SECTIONPAGES </w:instrText>');
-    // 页脚表格 3 列：可用宽 21543 − 2×850 = 19843 → 列宽 6614
-    expect(footers).toContain('w:w="6614"');
-  });
-
-  it('8K 两栏（273×393）：页面尺寸 15477×22280 + w:num="2"', async () => {
+  it('8K 横向两栏：页面尺寸 22280×15477（393×273mm）+ w:num="2" + 每栏页码 =2*PAGE-1 / =2*PAGE', async () => {
     const zip = await buildZip(HTML2, '8k-2col');
     const docXml = await zip.file('word/document.xml').async('string');
-    expect(docXml).toContain('w:w="15477"');
-    expect(docXml).toContain('w:h="22280"');
+    // 横向：宽 393mm = 22280 DXA、高 273mm = 15477 DXA
+    expect(docXml).toContain('w:w="22280"');
+    expect(docXml).toContain('w:h="15477"');
     expect(docXml).toContain('w:num="2"');
-  });
-
-  it('4K 四栏（390×543）：页面尺寸 22110×30784 + w:num="4" + 每栏页码 =4*PAGE-3 … =4*PAGE', async () => {
-    const zip = await buildZip(HTML2, '4k-4col');
-    const docXml = await zip.file('word/document.xml').async('string');
-    expect(docXml).toContain('w:w="22110"');
-    expect(docXml).toContain('w:h="30784"');
-    expect(docXml).toContain('w:num="4"');
     const footers = await footerText(zip);
-    // 四栏公式域：=4*PAGE-3 / -2 / -1 / -0（嵌套域拆分后断言算术段与 PAGE/SECTIONPAGES 嵌套域）
-    expect(footers).toContain('<w:instrText xml:space="preserve"> = 4* ');
-    expect(footers).toContain('<w:instrText xml:space="preserve">  - 3 </w:instrText>');
-    expect(footers).toContain('<w:instrText xml:space="preserve">  - 2 </w:instrText>');
-    expect(footers).toContain('<w:instrText xml:space="preserve">  - 1 </w:instrText>');
+    // 两栏页码公式域（嵌套域拆分后断言算术段）
+    expect(footers).toContain('<w:instrText xml:space="preserve"> = 2* ');
     expect(footers).toContain('PAGE </w:instrText>');
     expect(footers).toContain('SECTIONPAGES </w:instrText>');
+    // 页脚表格宽 = 可用宽 − 栏距（22280−2268−1020 = 18992；普通卷边距 2cm、栏距 18mm≈1020）
+    expect(footers).toContain('w:w="18992"');
+  });
+
+  it('8K 两栏作文格按每栏可用宽排满（密封线卷每栏 162.5mm → 13 列 × 680）', async () => {
+    const zwgHtml = '<h2>三、习作。（共30分）</h2><div class="zuo-wen-ge"></div>';
+    const sealHtml = '<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div><div class="sealed-content">' + zwgHtml + '</div></div>';
+    const zip = await buildZip(sealHtml, '8k-2col');
+    const docXml = await zip.file('word/document.xml').async('string');
+    // 密封线卷每栏 = (393 − 50 − 18)/2 = 162.5mm → floor(162.5/12) = 13 列；格子 680 DXA 不缩放
+    expect(docXml).toContain('w:w="8840"'); // 13 × 680
+    expect(docXml).toContain('<w:gridCol w:w="680"');
   });
 });
 
