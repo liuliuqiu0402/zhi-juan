@@ -6,12 +6,19 @@ import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Width
 import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
 import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js';
+import { PAPER_PRESETS, normalizeLayout } from '../config/paperPresets.js';
 
 // ============ 工具函数 ============
 
 // 🔧 作文格尺寸统一从排版规格库读取（mm 口径），本文件只做 mm→DXA 换算，不重复散落常量
-//    1mm ≈ 56.69 DXA（Word 精确保留：1 inch = 25.4mm = 1440 DXA → 1mm = 1440/25.4 ≈ 56.69）
-const MM2DXA = 56.69;
+//    1mm = 1440/25.4 ≈ 56.6929 DXA（Word 精确保留：1 inch = 25.4mm = 1440 DXA；
+//    必须用精确值而非 56.69 近似，否则 A4 210mm 会算成 11905 而非标准 11906）
+const MM2DXA = 1440 / 25.4;
+
+// ============ 纸张版式预设 ============
+// 正规考试大试卷尺寸（2026-08 调研）与布局参数集中在 src/config/paperPresets.js：
+//   A3 两栏/三栏（高考卷）、8K 两栏/三栏（地方统考）、4K 四栏（大型考试大试卷）
+
 const zwgCellByStage = (stage) => {
   const g = normalizeStage3(stage);
   const c = getMergedSpec().ZUOWEN_CELL[g];
@@ -258,8 +265,8 @@ const buildTextRuns = (node, styleOverride = {}) => {
           if (i > 0) runs.push(new TextRun({ break: 1 }));
           if (line) {
             // 🔧 卷面规范：注意事项"本试卷共＿页" → 页数域自动填充：
-            //    A4 单栏 = SECTIONPAGES（Word 按正文分节物理页数填充，不含答案页；与正文页脚"共X页"联动）；
-            //    A3 两栏 = =2*SECTIONPAGES 公式域（总栏数 = 物理页数×2，与页脚"共X栏"联动，2026-08）。
+            //    单栏 = SECTIONPAGES（Word 按正文分节物理页数填充，不含答案页；与正文页脚"共X页"联动）；
+            //    多栏（A3/8K/4K 分栏）= =N*SECTIONPAGES 公式域（总栏数 = 物理页数×N，与页脚"共X栏"联动，2026-08）。
             //    预览/HTML 保持占位由人工填写。正则兼容下划线变体：半角 _ / 全角 ＿ / 多个（AI 输出不稳定）
             const pageCountRe = /本试卷共\s*[＿_]{1,}\s*页/;
             const pageCountMatch = line.match(pageCountRe);
@@ -273,8 +280,8 @@ const buildTextRuns = (node, styleOverride = {}) => {
               };
               segs.forEach((seg, j) => {
                 if (j > 0) {
-                  const children = __isA3TwoCol
-                    ? ['本试卷共', new SimpleField('= 2*SECTIONPAGES', '8'), '页']
+                  const children = __colCount > 1
+                    ? ['本试卷共', new SimpleField(`= ${__colCount}*SECTIONPAGES`, String(__colCount)), '页']
                     : ['本试卷共', PageNumber.TOTAL_PAGES_IN_SECTION, '页'];
                   runs.push(new TextRun(ctxRun({ children })));
                 }
@@ -875,10 +882,10 @@ const ANSWER_SPLIT_MARKER = Symbol('answer-section-split');
 
 // 🔧 作文格学段（用户规格：primary 12mm / middle 10mm / high 宽7.5×高8mm），buildDocxFromDom 启动时设置；
 //    __zwgPerRow 每行格子数按「每栏可用宽度」放最多整数格子（不固定列数，格子尺寸保持学段规格不缩放）；
-//    __isA3TwoCol A3 两栏标记（"本试卷共X页"按总栏数 =2*SECTIONPAGES 填充）
+//    __colCount 当前版式栏数（>1 时"本试卷共X页"按总栏数 =N*SECTIONPAGES 填充）
 let __zwgStage = 'middle';
 let __zwgPerRow = 20;
-let __isA3TwoCol = false;
+let __colCount = 0;
 
 /** 密封线 marker 段落（放页眉，后处理替换为浮动文本框；lineOnly 时仅 虚线+密/封/线；mirror 时偶页镜像到右侧靠书脊） */
 const sealMarkerParagraph = (fields, sizeHp, lineOnly = false, mirror = false) => {
@@ -897,16 +904,29 @@ const pageNumberParagraph = (totalField = PageNumber.TOTAL_PAGES_IN_SECTION) => 
   children: [new TextRun({ children: ['第 ', PageNumber.CURRENT, ' 页　共 ', totalField, ' 页'], size: 18, color: '000000' })],
 });
 
-/** A3 两栏页脚（2026-08）：每栏一个页码、按栏计数——无边框 2 列表格，
- *  左栏域 =2*PAGE-1（第 1、3、5…栏）、右栏域 =2*PAGE（第 2、4、6…栏），
- *  格式与 A4 一致"第X页　共X页"（共X页 = =2*SECTIONPAGES 总栏数），每栏底部居中。
- *  🔴 表格宽 = 两栏可用宽之和（页面宽−左右边距−栏距），列宽对半——页码中心与正文两栏中心
- *    精确对齐（旧实现表格宽 100% 未扣栏距，页码中心相对正文栏中心偏移 栏距/4）。
- *  🔴 公式域中 PAGE/SECTIONPAGES 为字段引用（Word 公式域原生支持），页码只依赖物理页数、与内容流式重排无关；
- *    fldSimple 的 w:dirty 由 injectDrawingML 后处理注入（Word 打开时强制更新，防"第 页 共 页"空白）。 */
-const columnPageFooter = (availW = 0, space = 1134) => {
-  const tblW = Math.max(1, availW - space);
-  const colW = Math.max(1, Math.floor(tblW / 2));
+/** 多栏页脚（2026-08）：每栏一个页码、按栏计数——无边框 N 列表格，
+ *  第 c 栏（1-index）域 = N*PAGE - (N-c)（N=2 → 2P-1 / 2P；N=3 → 3P-2 / 3P-1 / 3P；N=4 → 4P-3 … 4P），
+ *  共X栏 = N*SECTIONPAGES。格式与 A4 一致"第X页　共X页"，每栏底部居中。
+ *  🔴 表格宽 = 各栏可用宽之和（页面宽−左右边距−栏距×(N-1)），列宽均分——页码中心与正文各栏中心精确对齐
+ *    （旧实现表格宽 100% 未扣栏距，页码中心相对正文栏中心偏移）。
+ *  🔴 公式域中 PAGE/SECTIONPAGES 必须用嵌套域语法 {PAGE}（injectDrawingML 后处理自动转换），
+ *    begin 带 w:dirty，Word 打开即按 updateFields 自动更新为真实栏数。 */
+const columnPageFooter = (availW = 0, space = 1134, cols = 2) => {
+  const n = Math.max(2, cols);
+  const tblW = Math.max(1, availW - space * (n - 1));
+  const colW = Math.max(1, Math.floor(tblW / n));
+  const cells = Array.from({ length: n }, (_, i) => {
+    const c = i + 1; // 栏序号 1..N
+    const pageInstr = `= ${n}*PAGE - ${n - c}`;
+    return new TableCell({
+      width: { size: colW, type: WidthType.DXA },
+      verticalAlign: VerticalAlign.CENTER,
+      children: [new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ children: ['第 ', new SimpleField(pageInstr, String(c)), ' 页　共 ', new SimpleField(`= ${n}*SECTIONPAGES`, String(n)), ' 页'], size: 18, color: '000000' })],
+      })],
+    });
+  });
   return new Footer({
     children: [
       new Table({
@@ -919,26 +939,7 @@ const columnPageFooter = (availW = 0, space = 1134) => {
           insideHorizontal: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
           insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
         },
-        rows: [new TableRow({
-          children: [
-            new TableCell({
-              width: { size: colW, type: WidthType.DXA },
-              verticalAlign: VerticalAlign.CENTER,
-              children: [new Paragraph({
-                alignment: AlignmentType.CENTER,
-                children: [new TextRun({ children: ['第 ', new SimpleField('= 2*PAGE - 1', '1'), ' 页　共 ', new SimpleField('= 2*SECTIONPAGES', '8'), ' 页'], size: 18, color: '000000' })],
-              })],
-            }),
-            new TableCell({
-              width: { size: colW, type: WidthType.DXA },
-              verticalAlign: VerticalAlign.CENTER,
-              children: [new Paragraph({
-                alignment: AlignmentType.CENTER,
-                children: [new TextRun({ children: ['第 ', new SimpleField('= 2*PAGE', '2'), ' 页　共 ', new SimpleField('= 2*SECTIONPAGES', '8'), ' 页'], size: 18, color: '000000' })],
-              })],
-            }),
-          ],
-        })],
+        rows: [new TableRow({ children: cells })],
       }),
     ],
   });
@@ -1891,9 +1892,14 @@ const processBlockNode = (node, ctx = {}) => {
 
 /** 从 contentEditable DOM 构建 docx Document */
 export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') => {
-  // 🔧 A3 两栏（2026-08）：横向 A3（420×297mm = 两栏 A4 并排），正文两栏 + 每栏页码（按栏计数）
-  const isA3TwoCol = layout === 'a3-2col';
-  __isA3TwoCol = isA3TwoCol; // "本试卷共X页"按总栏数 =2*SECTIONPAGES 填充（buildTextRuns 读取）
+  // 🔧 多栏大试卷（2026-08 调研：A3 两栏/三栏、8K 两栏/三栏、4K 四栏）：
+  //    预设驱动纸张尺寸与栏数；A4 单栏为默认。layout 兼容旧值 'a4'/'a3-2col'
+  const preset = PAPER_PRESETS[normalizeLayout(layout)];
+  const isMultiCol = preset.cols > 1;
+  const pageW = Math.round(preset.wMm * MM2DXA);
+  const pageH = Math.round(preset.hMm * MM2DXA);
+  const columnCount = preset.cols;
+  __colCount = isMultiCol ? columnCount : 0; // "本试卷共X页"按总栏数 =N*SECTIONPAGES 填充（buildTextRuns 读取）
   // 🔧 作文格学段（来自排版规格库 ZUOWEN_CELL：小学12/初中10/高中7.5mm），buildDocxFromDom 启动时设置
   __zwgStage = stage || 'middle';
   // 🔧 作文格每行格子数按「每栏可用宽度」放最多整数格子——必须在 processBlockNode 之前计算
@@ -1904,10 +1910,12 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
     const { widthMm: zwgCellMm } = zwgCellByStage(__zwgStage);
     // 🔧 每行格子数 = 每栏可用宽度 ÷ 格宽（向下取整放最多整数格，格子尺寸不缩放）
     //    🔴 用 mm 口径与预览 CSS `repeat(auto-fill, Nmm)` 严格一致（DXA 换算有精度误差，会导致预览/导出行列差 1）：
-    //    可用宽 = A4 宽 210mm − 左右边距（普通 20mm×2 / 密封线卷 25mm×2）；
-    //            A3 两栏每栏 = (A3 宽 420 − 左右边距 − 栏距 20) / 2（栏距 2cm，2026-08）
+    //    可用宽 = 页面宽 − 左右边距（普通 20mm×2 / 密封线卷 25mm×2）；
+    //            分栏时每栏 = (页面宽 − 左右边距 − 栏距×(N-1)) / N（栏距随预设 gapMm）
     const zwgMarginMm = hasSealDetect ? 50 : 40;
-    const zwgColumnAvailMm = isA3TwoCol ? (420 - zwgMarginMm - 20) / 2 : 210 - zwgMarginMm;
+    const zwgColumnAvailMm = isMultiCol
+      ? (preset.wMm - zwgMarginMm - preset.gapMm * (columnCount - 1)) / columnCount
+      : preset.wMm - zwgMarginMm;
     __zwgPerRow = Math.max(8, Math.floor(zwgColumnAvailMm / zwgCellMm));
   }
   const children = [];
@@ -2000,27 +2008,27 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
   }
 
   const pageProps = {
-    // 🔧 A3 两栏：横向 A3（420×297mm = 23812×16838 DXA，两栏 A4 并排）；默认 A4 竖版（11906×16838）
-    size: isA3TwoCol ? { width: 23812, height: 16838 } : { width: 11906, height: 16838 },
+    // 🔧 纸张尺寸来自预设（A4 210×297 / A3 420×297 / 8K 273×393 / 4K 390×543 mm → DXA）
+    size: { width: pageW, height: pageH },
     // 🔧 上下 2cm；密封文档左右 2.5cm（1417 DXA，虚线 19mm + 6mm 不贴正文），普通文档左右 2cm；
     //    footer 页脚距纸边 0.7cm（397 twip，用户规格 2026-08）：正文底边距 2cm → 页码与正文拉开约 0.9cm
     margin: { top: 1134, bottom: 1134, left: leftMargin, right: rightMargin, footer: 397 },
   };
 
-  // 🔧 A3 两栏栏距 2cm（1134 twip，2026-08）：贴近标准 A3 两栏试卷排版（常见 1.5~2cm）；
-  //    两栏之间为装订/折叠空隙，4cm/5cm 过宽浪费版面
-  const columnSpace = isA3TwoCol ? 1134 : 0;
-  // 🔧 A3 两栏页脚可用宽 = 页面宽 − 左右边距（页脚表格宽 = 可用宽 − 栏距，页码中心与正文两栏中心对齐）
-  const columnAvailW = isA3TwoCol ? 23812 - leftMargin - rightMargin : 0;
-  // 🔧 A3 两栏页脚（每栏页码按栏计数）vs 默认"第X页　共X页"页脚
-  const bodyFooter = isA3TwoCol ? columnPageFooter(columnAvailW, columnSpace) : new Footer({ children: [pageNumberParagraph()] });
+  // 🔧 分栏栏距来自预设（两栏 20mm / 三栏 15mm / 四栏 12mm，贴近印刷排版惯例）；
+  //    单栏 A4 无分栏（columnSpace=0 不输出 w:cols）
+  const columnSpace = isMultiCol ? Math.round(preset.gapMm * MM2DXA) : 0;
+  // 🔧 多栏页脚可用宽 = 页面宽 − 左右边距（页脚表格宽 = 可用宽 − 栏距×(N-1)，页码中心与正文各栏中心对齐）
+  const columnAvailW = isMultiCol ? pageW - leftMargin - rightMargin : 0;
+  // 🔧 多栏页脚（每栏页码按栏计数）vs 默认"第X页　共X页"页脚
+  const bodyFooter = isMultiCol ? columnPageFooter(columnAvailW, columnSpace, columnCount) : new Footer({ children: [pageNumberParagraph()] });
 
   const sections = [{
     properties: {
       // 🔧 密封文档：different-first-page（首页页眉全量密封区，后续页仅 虚线+密/封/线）；仅 true 时输出 w:titlePg
       ...(hasSealLine ? { titlePage: true } : {}),
-      // 🔧 A3 两栏：正文两栏（蛇形分栏，栏距 = 左右边距之和 ≈ 两 A4 面并排）
-      ...(isA3TwoCol ? { column: { count: 2, space: columnSpace } } : {}),
+      // 🔧 多栏大试卷：正文 N 栏（蛇形分栏，栏距随预设 gapMm）
+      ...(isMultiCol ? { column: { count: columnCount, space: columnSpace } } : {}),
       page: pageProps,
     },
     // 🔧 密封线页眉（每页重复渲染；无密封文档不设页眉）
@@ -2029,7 +2037,7 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
     //    ⚠️ 密封文档开启 different-first-page 后必须同时提供 first 页脚，否则 Word 首页不显示页码
     //    ⚠️ 显式黑色：页码为 PAGE/SECTIONPAGES 域，Word 默认给域加浅灰底纹（显示设置），文字本身保持纯黑
     footers: {
-      ...(hasSealLine ? { first: bodyFooter, even: isA3TwoCol ? columnPageFooter(columnAvailW, columnSpace) : new Footer({ children: [pageNumberParagraph()] }) } : {}),
+      ...(hasSealLine ? { first: bodyFooter, even: isMultiCol ? columnPageFooter(columnAvailW, columnSpace, columnCount) : new Footer({ children: [pageNumberParagraph()] }) } : {}),
       default: bodyFooter,
     },
     children: bodyChildren,
@@ -2044,13 +2052,13 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
           ...pageProps,
           pageNumbers: { start: 1 },
         },
-        // 🔧 A3 两栏：答案区同样两栏 + 栏页码
-        ...(isA3TwoCol ? { column: { count: 2, space: columnSpace } } : {}),
+        // 🔧 多栏大试卷：答案区同样分栏 + 栏页码
+        ...(isMultiCol ? { column: { count: columnCount, space: columnSpace } } : {}),
       },
       ...(sealHeaders ? { headers: { default: new Header({ children: [] }), even: new Header({ children: [] }) } } : {}),
       footers: {
-        default: isA3TwoCol ? columnPageFooter(columnAvailW, columnSpace) : new Footer({ children: [pageNumberParagraph()] }),
-        even: isA3TwoCol ? columnPageFooter(columnAvailW, columnSpace) : new Footer({ children: [pageNumberParagraph()] }),
+        default: isMultiCol ? columnPageFooter(columnAvailW, columnSpace, columnCount) : new Footer({ children: [pageNumberParagraph()] }),
+        even: isMultiCol ? columnPageFooter(columnAvailW, columnSpace, columnCount) : new Footer({ children: [pageNumberParagraph()] }),
       },
       children: answerChildren,
     });

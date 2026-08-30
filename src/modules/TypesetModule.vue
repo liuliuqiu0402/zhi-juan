@@ -125,10 +125,9 @@
               <option value="pdf">📕 PDF</option>
               <option value="html">🌐 HTML</option>
             </select>
-            <!-- 🔧 A3 两栏导出（2026-08）：默认 A4 单栏；A3 两栏 = 横向 A3 两栏 + 每栏页码按栏计数（Word 公式域自动算） -->
+            <!-- 🔧 纸张版式（2026-08）：A4 单栏 / A3 两栏三栏（高考卷）/ 8K 两栏三栏（地方统考）/ 4K 四栏（大型考试大试卷） -->
             <select v-if="exportFormat === 'docx'" v-model="paperLayout" class="export-select" title="纸张版式">
-              <option value="a4">A4 单栏</option>
-              <option value="a3-2col">A3 两栏（每栏页码）</option>
+              <option v-for="(p, key) in paperPresets" :key="key" :value="key">{{ p.label }}</option>
             </select>
             <!-- 🔧 卷型选择（2026-08）：密封线卷（默认，含密封线+考生信息栏）/ 普通卷（无密封线） -->
             <select v-if="exportFormat === 'docx'" v-model="sealVariant" class="export-select" title="卷型">
@@ -263,6 +262,7 @@ import {
   normalizeSealStructure, injectExamShell, stripSealStructure
 } from '../themeConfig.js';
 import { APP_EVENTS } from '../constants/events.js';
+import { PAPER_PRESETS } from '../config/paperPresets.js';
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import storage from '../utils/storage';
@@ -280,7 +280,8 @@ const editingTheme = ref(null);
 const themeGroupFilter = ref('');
 const isExporting = ref(false);
 const exportStatus = ref('');
-const paperLayout = ref('a4'); // 🔧 纸张版式：a4（默认单栏）/ a3-2col（A3 两栏 + 每栏页码）
+const paperPresets = PAPER_PRESETS; // 🔧 纸张版式预设（A4 单栏 / A3 两栏三栏 / 8K 两栏三栏 / 4K 四栏）
+const paperLayout = ref('a4-1col'); // 🔧 纸张版式：默认 A4 单栏；多栏 = 分栏 + 每栏页码按栏计数（Word 公式域自动算）
 const sealVariant = ref('sealed'); // 🔧 卷型：sealed（密封线卷，默认）/ plain（普通卷，无密封线）
 const exportFormat = ref('docx');
 
