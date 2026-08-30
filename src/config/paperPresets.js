@@ -9,7 +9,7 @@
 //    尺寸 mm → docxBuilder 按 MM2DXA 换算；栏距随栏数收敛（两栏 20 / 三栏 15 / 四栏 12mm）
 export const PAPER_PRESETS = {
   'a4-1col': { label: 'A4 单栏', wMm: 210, hMm: 297, cols: 1, gapMm: 0 },
-  'a3-2col': { label: 'A3 两栏（高考综合卷）', wMm: 420, hMm: 297, cols: 2, gapMm: 20 },
+  'a3-2col': { label: 'A3 两栏（420×297）', wMm: 420, hMm: 297, cols: 2, gapMm: 20 },
   'a2-3col': { label: 'A2 三栏（594×420，每栏≈A4）', wMm: 594, hMm: 420, cols: 3, gapMm: 15 },
   'a1-4col': { label: 'A1 四栏（841×594，每栏=A4）', wMm: 841, hMm: 594, cols: 4, gapMm: 12 },
   '8k-2col': { label: '8K 横向两栏（393×273）', wMm: 393, hMm: 273, cols: 2, gapMm: 18 },
