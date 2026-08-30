@@ -72,8 +72,8 @@ describe('A3 两栏导出（每栏页码按栏计数）', () => {
     // A3 两栏尺寸仍生效
     const docXml = await zip.file('word/document.xml').async('string');
     expect(docXml).toContain('w:w="23812"');
-    // 密封线卷栏距 = 左右边距之和（2.5+2.5cm = 2834 twip）
-    expect(docXml).toContain('w:space="2834"');
+    // 密封线卷栏距统一 4cm（2268 twip，2026-08：两种卷型栏距一致，不再 2.5+2.5=5cm）
+    expect(docXml).toContain('w:space="2268"');
   });
 });
 
@@ -106,5 +106,26 @@ describe('普通卷剥离密封线结构（stripSealStructure，2026-08 卷型�
     // 普通卷左右边距 2cm → 栏距 2268 twip；A3 两栏尺寸仍生效
     expect(docXml).toContain('w:space="2268"');
     expect(docXml).toContain('w:w="23812"');
+  });
+});
+
+describe('作文格按每栏可用宽度放最多整数格（2026-08：格子尺寸保持规格不缩放）', () => {
+  const ZWG_HTML = '<h2>三、习作。（共30分）</h2><div class="zuo-wen-ge"></div>';
+  const sealHtml = '<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div><div class="sealed-content">' + ZWG_HTML + '</div></div>';
+
+  it('密封线卷 A3 两栏：每栏 165mm → 13 列 × 680（12mm 格，尺寸不缩放）', async () => {
+    const zip = await buildZip(sealHtml, 'a3-2col');
+    const docXml = await zip.file('word/document.xml').async('string');
+    // 每栏可用宽 = (420 − 2.5cm×2 − 4cm 栏距)/2 = 165mm → floor(165/12) = 13 列；格子仍 680 DXA（12mm）
+    expect(docXml).toContain('w:w="8840"'); // 13 × 680
+    expect(docXml).toContain('<w:gridCol w:w="680"');
+  });
+
+  it('普通卷 A3 两栏：每栏 170mm → 14 列 × 680（12mm 格，尺寸不缩放）', async () => {
+    const zip = await buildZip(stripSealStructure(sealHtml), 'a3-2col');
+    const docXml = await zip.file('word/document.xml').async('string');
+    // 每栏可用宽 = (420 − 2cm×2 − 4cm 栏距)/2 = 170mm → floor(170/12) = 14 列；格子仍 680 DXA
+    expect(docXml).toContain('w:w="9520"'); // 14 × 680
+    expect(docXml).toContain('<w:gridCol w:w="680"');
   });
 });

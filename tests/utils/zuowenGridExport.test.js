@@ -46,7 +46,7 @@ describe('作文格导出（zuo-wen-ge）：格子尺寸按学段（来自排版
   it('高中(high)：行高 ≈ 454（8mm 格高）', async () => {
     const xml = await getDocumentXml(zwg(4), 'high');
     const tbl = xml.slice(xml.indexOf('<w:tbl>'), xml.indexOf('</w:tbl>') + 8);
-    // 行高（trHeight EXACT）= 格高 8mm≈454；格宽 7.5mm≈425 体现在列宽 gridCol
+    // 行高（trHeight EXACT）= 格高 8mm≈454；格宽 7.5mm≈425 体现在列宽 gridCol（尺寸不缩放）
     const heights = [...tbl.matchAll(/<w:trHeight[^>]*w:val="(\d+)"/g)].map((m) => +m[1]);
     expect(heights.length).toBeGreaterThan(0);
     expect(Math.abs(heights[0] - 454)).toBeLessThanOrEqual(2);

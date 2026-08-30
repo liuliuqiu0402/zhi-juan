@@ -868,7 +868,7 @@ let __sealCollector = null;
 const ANSWER_SPLIT_MARKER = Symbol('answer-section-split');
 
 // 🔧 作文格学段（用户规格：primary 12mm / middle 10mm / high 宽7.5×高8mm），buildDocxFromDom 启动时设置；
-//    __zwgPerRow 每行格子数按 A4 可用宽度自动排满（不固定列数，用户需求）
+//    __zwgPerRow 每行格子数按「每栏可用宽度」放最多整数格子（不固定列数，格子尺寸保持学段规格不缩放）
 let __zwgStage = 'middle';
 let __zwgPerRow = 20;
 
@@ -1007,7 +1007,8 @@ const processBlockNode = (node, ctx = {}) => {
     if (spans.length > 0) {
       // 🔧 格子尺寸按学段（来自排版规格库 mm → DXA；解析时 __zwgStage 已由 buildDocxFromDom 设置）
       const { widthDxa: zwgCellDxa, heightDxa: zwgCellH } = zwgCellByStage(__zwgStage);
-      // 🔧 每行格子数不固定：按 A4 可用宽度自动排满（__zwgPerRow 由 buildDocxFromDom 计算）
+      // 🔧 每行格子数不固定：按「每栏可用宽度」放最多整数格子（格子尺寸保持学段规格，不缩放；
+      //    __zwgPerRow 由 buildDocxFromDom 计算，A3 两栏按每栏可用宽、A4 按整页可用宽）
       const perRow = Math.max(8, __zwgPerRow || 20);
       // 🔧 单元格段落单倍行高（防默认行高撑高格子）；行高由 TableRow 的 EXACT=格宽 强制 →
       //    正方形方格（docx 库 TableCell.height 不输出 w:tcH，行高完全取决于 trHeight）
@@ -1054,7 +1055,7 @@ const processBlockNode = (node, ctx = {}) => {
         rows,
         width: { size: perRow * zwgCellDxa, type: WidthType.DXA },
         // 🔧 columnWidths：docx 库默认 gridCol=100 且 FIXED 布局下 Word 以 tblGrid 为准 → 格子挤压成细条；
-        //    显式指定列宽数组生成正确 gridCol（每格 zwgCellDxa 宽）
+        //    显式指定列宽数组生成正确 gridCol（每格 zwgCellDxa 宽，规格尺寸不缩放）
         columnWidths: Array(perRow).fill(zwgCellDxa),
         layout: TableLayoutType.FIXED, // 固定布局：按声明宽度排布，防 Word 自动布局+单元格边距撑宽超页
       }));
@@ -1879,17 +1880,19 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
   const isA3TwoCol = layout === 'a3-2col';
   // 🔧 作文格学段（来自排版规格库 ZUOWEN_CELL：小学12/初中10/高中7.5mm），buildDocxFromDom 启动时设置
   __zwgStage = stage || 'middle';
-  // 🔧 作文格每行格子数按 A4 可用宽度自动排满——必须在 processBlockNode 之前计算
+  // 🔧 作文格每行格子数按「每栏可用宽度」放最多整数格子——必须在 processBlockNode 之前计算
   //    （作文格导出时读取 __zwgPerRow；旧实现在 children 构建后才算，导致默认 20 列超宽）
   {
     const hasSealDetect = !!(containerEl.querySelector && containerEl.querySelector('.sealed-wrapper, .sealed-line, .seal-line, .seal-zone'));
     // 🔧 作文格尺寸（mm）来自排版规格库（zwgCellByStage 已换算）
     const { widthMm: zwgCellMm } = zwgCellByStage(__zwgStage);
-    // 🔧 每行格子数按 A4 可用宽度排满（无独立标注列，字数标注走行间"下标"方案）
+    // 🔧 每行格子数 = 每栏可用宽度 ÷ 格宽（向下取整放最多整数格，格子尺寸不缩放）
     //    🔴 用 mm 口径与预览 CSS `repeat(auto-fill, Nmm)` 严格一致（DXA 换算有精度误差，会导致预览/导出行列差 1）：
-    //    可用宽 = A4 宽 210mm − 左右边距（普通 20mm×2 / 密封线卷 25mm×2）；格宽 = 学段格宽（12/10/7.5mm）
+    //    可用宽 = A4 宽 210mm − 左右边距（普通 20mm×2 / 密封线卷 25mm×2）；
+    //            A3 两栏每栏 = (A3 宽 420 − 左右边距 − 栏距 40) / 2（栏距统一 4cm，2026-08）
     const zwgMarginMm = hasSealDetect ? 50 : 40;
-    __zwgPerRow = Math.max(8, Math.floor((210 - zwgMarginMm) / zwgCellMm));
+    const zwgColumnAvailMm = isA3TwoCol ? (420 - zwgMarginMm - 40) / 2 : 210 - zwgMarginMm;
+    __zwgPerRow = Math.max(8, Math.floor(zwgColumnAvailMm / zwgCellMm));
   }
   const children = [];
   const allNodes = containerEl.childNodes;
@@ -1989,9 +1992,9 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
 
   // 🔧 A3 两栏页脚（每栏页码按栏计数）vs 默认"第X页　共X页"页脚
   const bodyFooter = isA3TwoCol ? columnPageFooter() : new Footer({ children: [pageNumberParagraph()] });
-  // 🔧 A3 两栏栏距 = 左右边距之和（模拟两个 A4 面并排：中间间隔 = 左面右边距 + 右面左边距，
-  //    密封线卷 2.5+2.5=5cm，普通卷 2+2=4cm）；Word 分栏模型栏距为栏间空白（twip）
-  const columnSpace = leftMargin + rightMargin;
+  // 🔧 A3 两栏栏距统一 4cm（2268 twip，2026-08）：两种卷型中间间隔一致 4cm，
+  //    不再等于左右边距之和（密封线卷 2.5+2.5=5cm 过宽）；Word 分栏模型栏距为栏间空白（twip）
+  const columnSpace = isA3TwoCol ? 2268 : 0;
 
   const sections = [{
     properties: {

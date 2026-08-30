@@ -1734,7 +1734,8 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       font-family: 'Times New Roman', 'Georgia', serif;
     }
 
-    /* ⭐ 作文格（尺寸取上方 ZUOWEN_CELL 变量：小学 12mm / 中考 10mm / 高考 宽7.5×高8mm；每行格数按容器宽度自动排满） */
+    /* ⭐ 作文格（尺寸取上方 ZUOWEN_CELL 变量：小学 12mm / 中考 10mm / 高考 宽7.5×高8mm；
+       auto-fill 每行格数按容器宽度放最多整数格，格子尺寸固定不缩放——与 docx 导出 perRow 同口径） */
     .zuo-wen-ge {
       display: grid;
       grid-template-columns: repeat(auto-fill, ${zwgMmW}mm);

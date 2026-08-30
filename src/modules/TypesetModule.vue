@@ -773,6 +773,16 @@ const applyThemeAndPreview = async () => {
       // 手动输入的 Markdown/纯文本：先转为 HTML
       htmlContent = markdownToHtml(currentContent.value);
     }
+    // 🔧 卷型选择（2026-08）：普通卷时预览与导出口径一致——剥离密封线结构（避免"预览有密封线、
+    //    导出没有"的视觉错觉），并同步修正注意事项第 1 条文案；页面壳 padding 与普通卷 docx
+    //    边距一致（左右 2cm → 可用宽 170mm，作文格列数与导出一致）
+    if (sealVariant.value === 'plain') {
+      htmlContent = stripSealStructure(htmlContent);
+      htmlContent = htmlContent.replace(/(答题前，请将)密封线内的(学校、班级、姓名、学号填写清楚。)/, '$1$2');
+      if (!/<div[^>]*class=["'][^"']*plain-wrapper/.test(htmlContent)) {
+        htmlContent = `<div class="plain-wrapper" style="padding:20mm 20mm;box-sizing:border-box;min-height:100%;">${htmlContent}</div>`;
+      }
+    }
     
     // 应用主题（导出时也强制 !important，确保与编辑预览一致）
     const themedHtml = applyThemeToContent(htmlContent, selectedThemeId.value, {
@@ -1229,6 +1239,16 @@ const loadFromGenerate = async (payload) => {
 
 // ==================== 监听主题切换：刷新预览 ====================
 watch(selectedThemeId, async () => {
+  const hasContent = isHtmlContent.value
+    ? (rawHtmlContent.value && rawHtmlContent.value.length > 20)
+    : currentContent.value.trim();
+  if (hasContent) {
+    applyThemeAndPreview();
+  }
+});
+
+// 🔧 卷型切换（密封线卷/普通卷）：刷新预览，使普通卷预览剥离密封线、与导出一致
+watch(sealVariant, async () => {
   const hasContent = isHtmlContent.value
     ? (rawHtmlContent.value && rawHtmlContent.value.length > 20)
     : currentContent.value.trim();

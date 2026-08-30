@@ -100,7 +100,7 @@ describe('作文格（zuo-wen-ge）导出', () => {
     expect(xml).toContain('<w:tc>');
   });
 
-  it('格子尺寸按学段：小学 12mm≈680 / 初中 10mm≈567 / 高中 宽0.75cm≈425 DXA', async () => {
+  it('格子尺寸按学段：小学 12mm≈680 / 初中 10mm≈567 / 高中 宽0.75cm≈425 DXA（尺寸不缩放）', async () => {
     const html = '<div class="zuo-wen-ge"><span>&emsp;</span><span>&emsp;</span></div>';
     const run = async (stage) => {
       const xml = await getDocumentXml(html, stage);
@@ -113,11 +113,11 @@ describe('作文格（zuo-wen-ge）导出', () => {
     expect(await run()).toBe(567); // 默认 middle
   });
 
-  it('每行格子数按 A4 可用宽度自动排满（普通文档：初中 17 列，与预览 auto-fill 同口径）', async () => {
+  it('每行格子数按 A4 可用宽度放最多整数格（普通文档：初中 17 列，与预览 auto-fill 同口径）', async () => {
     // 普通文档（左右边距 20mm×2）：floor((210-40)/10mm) = 17 列 —— 与预览 CSS repeat(auto-fill, 10mm) 严格一致
     const html = '<div class="zuo-wen-ge">' + Array.from({ length: 45 }, () => '<span>&emsp;</span>').join('') + '</div>';
     const xml = await getDocumentXml(html, 'middle');
-    // 表格总宽 = 每行格数 × 567
+    // 表格总宽 = 每行格数 × 567（格子规格尺寸不变）
     const tblW = xml.match(/<w:tblW[^>]*w:w="(\d+)"/);
     expect(tblW).toBeTruthy();
     expect(parseInt(tblW[1], 10)).toBe(17 * 567);
