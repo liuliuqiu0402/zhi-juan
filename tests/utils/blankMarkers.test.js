@@ -27,5 +27,21 @@ describe('normalizeBlankMarkers 括号填空归一（正文主路径）', () => 
     const twice = normalizeBlankMarkers(once);
     expect(twice).toBe(once);
   });
+
+  it('零宽全角（）→ 默认留空格（语境写词语漏空格回归：美丽的（）园）', () => {
+    const out = normalizeBlankMarkers('美丽的（）园。杨（）高高的。');
+    expect(out).toContain('美丽的<span class="blank-4">&emsp;</span>园');
+    expect(out).toContain('杨<span class="blank-4">&emsp;</span>高高的');
+    expect(out).not.toContain('（）');
+  });
+
+  it('含内文的括号不误转（分值/读音/序号/提示标注保持原样）', () => {
+    const out = normalizeBlankMarkers('（每空1分）选（háng　xíng）。（1）第（2）题（提示：huā、shù）');
+    expect(out).toContain('（每空1分）');
+    expect(out).toContain('（háng　xíng）');
+    expect(out).toContain('（1）');
+    expect(out).toContain('（提示：huā、shù）');
+    expect(out).not.toContain('<span class="blank-');
+  });
 });
 

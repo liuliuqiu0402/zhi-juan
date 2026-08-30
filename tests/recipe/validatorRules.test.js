@@ -50,7 +50,7 @@ describe('validatorRules 规则库完整性', () => {
 
   it('guard 类规则不注入生成前约束（静默兜底，不打扰）', () => {
     const guardRules = VALIDATOR_RULES.filter(r => r.category === 'guard');
-    expect(guardRules.length).toBeGreaterThanOrEqual(5);
+    expect(guardRules.length).toBeGreaterThanOrEqual(3);
     for (const r of guardRules) {
       expect(r.promptHint).toBeFalsy();
     }

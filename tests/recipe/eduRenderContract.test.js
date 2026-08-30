@@ -218,6 +218,17 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(mid.template).toContain('书写规范'); // 中段要点保留书写惯例（载体具体格式由排版规格库单通道注入）
   });
 
+  it('语文"看拼音写/田字格"措辞不跨污染到英语（英语载体走四线三格条款，不含田字格/看拼音写）', () => {
+    for (const g of ['小学低段', 'primary_mid', '小学中段', 'middle', 'high']) {
+      const t = getPromptTemplate({ grade: g, subject: '英语', genType: 'exam' });
+      expect(t.template, `英语 ${g} 不应含"看拼音写词语"`).not.toContain('看拼音写词语');
+      expect(t.template, `英语 ${g} 不应含"田字格"`).not.toContain('田字格');
+    }
+    const yw = getPromptTemplate({ grade: '小学低段', subject: '语文', genType: 'exam' });
+    expect(yw.template).toContain('看拼音写词语');
+    expect(yw.template).toContain('田字格');
+  });
+
   it('全部 9 个资料类型都有三维度模板（类型骨架 + 学科×学段要点 + 学段特点）', () => {
     const types = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
     for (const g of types) {

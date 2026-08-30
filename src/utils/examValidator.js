@@ -515,8 +515,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           node = node.nextSibling;
         }
         if (count <= 0) return;
-        const perScore = count > 1 && totalScore % count === 0 ? totalScore / count : null;
-        const detail = perScore != null ? `共${count}题，每题${perScore}分，共${totalScore}分` : `共${count}题，共${totalScore}分`;
+        // 🔧 不再推断"每题X分"（total/count 整除判定依赖题号计数，不可靠时会给错每题分）；
+        //    只补全"共N题，共X分"，分值明细交由模型按标注规范自行保证，程序不做分值猜测
+        const detail = `共${count}题，共${totalScore}分`;
         const newT = t.replace(/[（(]\s*\d{1,3}\s*分\s*[)）]\s*$/, `（${detail}）`);
         if (newT !== t) {
           h.textContent = newT;
@@ -704,9 +705,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             gridCells: countGridCells(secHtml2),
           });
           if (fsRes.text !== title) {
-            head.textContent = fsRes.text;
-            issues.push({ severity: 'info', type: 'score-label', message: fsRes.note ? `分值标注已按实际载体重算：${fsRes.text}（${fsRes.note}）` : `分值标注已对齐：${fsRes.text}` });
-            fixed += 1;
+            // 🔧 只报不改：分值账目不依赖程序重算（模型自洽），判不符仅静默抽检
+            silentCount('score-label', `大题「${title.slice(0, 22)}」分值标注与实际载体不符，请抽检`);
           }
         }
 
@@ -745,9 +745,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               gridCells: countGridCells(segHtml),
             });
             if (fsRes2.text !== st.text) {
-              st.p.textContent = fsRes2.text;
-              issues.push({ severity: 'info', type: 'score-label', message: fsRes2.note ? `小题分值标注已按实际载体重算：${fsRes2.text}（${fsRes2.note}）` : `小题分值标注已对齐：${fsRes2.text}` });
-              fixed += 1;
+              silentCount('score-label', `小题「${st.text.slice(0, 14)}」分值标注与实际载体不符，请抽检`);
             }
           });
         }
@@ -772,9 +770,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               `（共${subCount}题，共${totalScore}分）`
             );
             if (newT !== head.textContent) {
-              head.textContent = newT;
-              issues.push({ severity: 'info', type: 'score-label', message: `大题各题分值不一致，标题已改为"共N题共X分"：${newT}` });
-              fixed += 1;
+              silentCount('score-label', `大题各题分值不一致（标题含"每题X分"），请抽检`);
             }
           }
         }
@@ -1127,7 +1123,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
 
   // ── 2l. 载体×题型正规化（规则 writing-grid-fix 配套，小题粒度，数据源=排版规格库 CARRIER_RULES）：
   //    forbid=表达/写话/习作类题内混入书写格 → 自动剥离 class 保留文字（确定性可修复）；
-  //    must=写字/抄写类题该用格子却没用 → 静默提示抽检（程序不知道哪个字进格，无法自动补）──
+  //    🔧 2026-08 收敛：移除 must 软推断（"看拼音写→推断该有田字格"属卷面惯例非硬要求，且会误报
+  //    语境式空格“看拼音写词语”等合理形态）；载体缺失只保留无歧义强要求哨兵 2j-4
+  //    （题干明确写"田字格中写/在田字格/方格中写"却没格子 → 客观缺陷才提示抽检）──
   if (has('writing-grid-fix')) {
     try {
       const cr = getMergedSpec().CARRIER_RULES || { must: [], forbid: [] };
@@ -1179,16 +1177,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               }
             }
           }
-          // must：写字/抄写类该用格子却没用 → 静默提示
-          for (const mu of cr.must || []) {
-            if (mu.subject && mu.subject !== subject) continue;
-            if (Array.isArray(mu.stages) && mu.stages.length && !mu.stages.includes(stage)) continue;
-            if (!new RegExp(mu.keywords).test(text)) continue;
-            const html = scope.map(n => n.outerHTML || '').join('');
-            if (!new RegExp(mu.carrier).test(html)) {
-              silentCount('writing-grid', `「${subject}」题干含"${String(mu.keywords).split('|')[0]}…"书写要求，但题内无${GRID_CLASS_LABEL[mu.carrier] || mu.carrier}——载体缺失，请抽检`);
-            }
-          }
+          // 🔧 must 软推断已移除（见 2l 头注释）：写字/抄写类题该用格子却没用 → 不在此提示，
+          //    载体缺失仅由 2j-4（题干明确点名"田字格中写/在田字格/方格中写"却没格子）客观强要求兜底
         }
       });
       if (fixedL > 0) {
@@ -1217,6 +1207,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       ));
       let cleared = 0;
       for (const g of gridEls) {
+        // 🔧 示范格豁免（2026-08）：格所在题块/紧邻文本含语义引导（例：/例如/示例/照样子/仿照/示范/仿写）
+        //    时视为示范字（题干一部分，非答案），保留不清空——避免误删"例：树"里的示范字；
+        //    判定作用域=上溯 3 层 + 紧邻前兄弟，防空跨大题污染
+        let demoCtx = '', dg = g;
+        for (let k = 0; k < 3 && dg; k++) { demoCtx = (dg.textContent || '') + demoCtx; dg = dg.parentElement; }
+        demoCtx += ' ' + (g.previousSibling?.textContent || '');
+        if (/例[:：]|例如|示例|照样子|仿照|示范|仿写/.test(demoCtx)) continue;
         // 1) 清空内层 span 的非空文本（保留 span 结构；&emsp; 空格子不剥离）
         for (const sp of Array.from(g.querySelectorAll('span'))) {
           const nonBlank = (sp.textContent || '').replace(/\s|\u3000/g, '');

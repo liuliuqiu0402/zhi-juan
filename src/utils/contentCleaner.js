@@ -233,6 +233,10 @@ export function normalizeBlankMarkers(html = '') {
     else n = 10;
     return `<span class="blank-${capN(n)}">&emsp;</span>`;
   });
+  // ③ 全角裸空括号（零内宽，如"美丽的（）园"读句子写词语遗漏的空格）→ 默认留空格
+  //    （规则①②需括号内 ≥1 空格/下划线才转换；零宽全角（）被跳过 → 卷面保留成无书写宽度的全角括号）。
+  //    零宽全角（）夹在正文中几乎必为填空缺省（分值/读音/提示等标注均有内文不匹配），故安全收敛统一。
+  out = out.replace(/[（][）]/g, () => `<span class="blank-${capN(4)}">&emsp;</span>`);
   out = out.replace(/<div class="zuo-wen-ge">\s*<\/div>/g, `<div class="zuo-wen-ge">${'<span>&emsp;</span>'.repeat(Math.max(1, getMergedSpec().ZUOWEN_DEFAULT_SPAN))}</div>`);
   return out;
 }
