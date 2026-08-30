@@ -2173,6 +2173,8 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       h4 { ${toCss(heading3Style)} }
       /* 段距标准配置：段前 0、段后 6pt（教辅惯例，段距统一由段后控制） */
       p { ${normalParaCSS}; margin: 0 0 ${pMarginBottom}; text-indent: 2em; }
+      /* 🔧 子题行（（1）（2）式，markSubQuestion 标记）：比题号行 2em 更深，形成"题号→子题内容"层级（docx getComputedStyle 同步生效） */
+      p.sub-question { text-indent: 4em; }
       /* 居中/右对齐/两端对齐段落不缩进 */
       p[style*="text-align: center"],
       p[style*="text-align: right"],

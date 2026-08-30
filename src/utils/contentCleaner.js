@@ -258,4 +258,31 @@ export function normalizeIndents(html = '') {
 }
 
 
-export default { cleanSectionHtml, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeIndents };
+/** 子题行标记内层：对正文段正则追加 sub-question 类（纯正则，不做 DOM 序列化——防 &emsp; 等实体被改写；
+ *  仅匹配到左括号（lookahead 判定后随数字+右括号），括号内容留在匹配之外不被消费） */
+const applySubQuestionMark = (seg) => seg.replace(
+  /<p\b([^>]*)>(\s*)[（(](?=\s*\d+\s*[)）])/g,
+  (m, attrs, ws) => {
+    const clsM = attrs.match(/class=(["'])(.*?)\1/);
+    if (clsM) {
+      if (clsM[2].includes('sub-question')) return m;
+      return `<p${attrs.replace(clsM[0], `class=${clsM[1]}${clsM[2]} sub-question${clsM[1]}`)}>${ws}（`;
+    }
+    return `<p${attrs} class="sub-question">${ws}（`;
+  }
+);
+
+/**
+ * 子题行标记（小题题号下的独立内容段：行首 （N）/(N) → class="sub-question"）
+ * 🔧 2026-08 排版层级：渲染层按 class 应用更深缩进（4em，比题号行 2em 深），
+ *    区分"题号行"与"题号下的内容"（docx 导出经 getComputedStyle 读 text-indent 同步生效）。
+ * 判定：段落文本行首为 （N）/(N)（数字括号）；答案区同样标记（评分标准分点也走正式排版层级，
+ *    与正文一致）；选项字母（A）等非数字不命中。
+ * 边界：整卷用（1）做顶层题的罕见形态也会被标记（缩进 2em→4em 差异小，注释说明，可接受）。
+ */
+export function markSubQuestion(html = '') {
+  return applySubQuestionMark(String(html || ''));
+}
+
+
+export default { cleanSectionHtml, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeIndents, markSubQuestion };
