@@ -44,4 +44,12 @@ describe('编辑器 themeCSS 转换（编辑区 = 导出视觉）', () => {
     expect(css).toMatch(/\.seal-zone\s*\{[^}]*position:\s*absolute/);
     expect(css).toMatch(/\.exam-score-table/);
   });
+
+  it('书写格尺寸按学段 GRID_CELL mm 渲染（不再硬编码 1.8em）', () => {
+    expect(css).toMatch(/\.tian-zi-ge\s*\{[^}]*width:\s*\d+(\.\d+)?mm/);
+    expect(css).toMatch(/\.tian-zi-ge\s*\{[^}]*height:\s*\d+(\.\d+)?mm/);
+    expect(css).toMatch(/\.mi-zi-ge\s*\{[^}]*width:\s*\d+(\.\d+)?mm/);
+    expect(css).toMatch(/\.four-line-three::before\s*\{[^}]*height:\s*\d+(\.\d+)?mm/);
+    expect(css).not.toContain('.tian-zi-ge { display: inline-block; position: relative; width: 1.8em');
+  });
 });

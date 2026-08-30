@@ -173,6 +173,61 @@ describe('根治回归：作文格补全（完整题干超长也能补，不再�
     const body = out.split(/class="answer-section"/)[0];
     expect(body).toContain('zuo-wen-ge');
   });
+
+  it('两道写话题、仅题13 有格 → 题12 也补格（按题级，原整卷级短路漏补）', () => {
+    const html = [
+      '<h2>四、表达与交流（共2题，共30分）</h2>',
+      '<p>12. 看图写话。（15分）仔细观察图片，用几句话写一写图中的内容。</p>',
+      '<p>[IMAGE]\nTYPE:SD\nPROMPT:山洞前的宝箱\n[/IMAGE]</p>',
+      '<p>词语提示：宝箱　打开　开心　宝石</p>',
+      '<p>13. 写话。（15分）以《美丽的树林》为题，写几句话。</p>',
+      '<p>词语提示：杨树　松柏　枫树</p>',
+      '<div class="zuo-wen-ge"><span>&emsp;</span><span>&emsp;</span></div>',
+    ].join('\n');
+    const { html: out } = run(html);
+    // 两题各补一格（题12 原本无格 → 补；题13 已有格 → 不重复）
+    expect((out.match(/class="zuo-wen-ge"/g) || []).length).toBe(2);
+  });
+
+  it('两题写话均无格 → 两道都补', () => {
+    const html = [
+      '<h2>四、表达与交流（共2题，共30分）</h2>',
+      '<p>12. 看图写话。（15分）仔细观察图片，写一写。</p>',
+      '<p>13. 写话。（15分）以《美丽的树林》为题写几句话。</p>',
+    ].join('\n');
+    const { html: out } = run(html);
+    expect((out.match(/class="zuo-wen-ge"/g) || []).length).toBe(2);
+  });
+
+  it('补格数按学段×分值动态：低段15分写话 → 160格兜底（15×8=120<160）', () => {
+    const html = [
+      '<h2>四、表达与交流（共1题，共15分）</h2>',
+      '<p>12. 看图写话。（15分）仔细观察图片，写一写。</p>',
+    ].join('\n');
+    const { html: out } = run(html, { stage: 'primary_low' });
+    const spanCount = (out.match(/<span\b/g) || []).length;
+    expect(spanCount).toBe(160);
+  });
+
+  it('补格数按学段×分值动态：初中40分作文 → 800格（40×20，中考≥600字+余量，对齐作文纸800）', () => {
+    const html = [
+      '<h2>三、写作（共1题，共40分）</h2>',
+      '<p>21. 以《成长中的一件事》为题写一篇作文。（40分）</p>',
+    ].join('\n');
+    const { html: out } = run(html, { stage: 'middle', subject: '语文' });
+    const spanCount = (out.match(/<span\b/g) || []).length;
+    expect(spanCount).toBe(800);
+  });
+
+  it('补格数按学段×分值动态：高中60分作文 → 1020格（60×17，高考≥800字+850-900安全篇幅+余量）', () => {
+    const html = [
+      '<h2>四、写作（共1题，共60分）</h2>',
+      '<p>22. 阅读下面的材料，根据要求写作。（60分）</p>',
+    ].join('\n');
+    const { html: out } = run(html, { stage: 'high', subject: '语文' });
+    const spanCount = (out.match(/<span\b/g) || []).length;
+    expect(spanCount).toBe(1020);
+  });
 });
 
 describe('根治回归：分值载体误报消除（每词词条语义 + 小题 segHtml 边界，2026-08）', () => {

@@ -251,8 +251,50 @@ export const BRACKET_GRID = {
   widthMm: 52,
 };
 
-/** 作文格默认补全格数（examValidator writing-grid-fix 自动补 zuo-wen-ge 用） */
+/** 书写格物理尺寸（mm）· 按学段三档键（手写体随学段变化：低段格大、高段格小；与 ZUOWEN_CELL 同模式，
+ *  消费方统一经 normalizeStage3 归一到 primary/middle/high 取值）。
+ *  方块格（田字格/米字格）：宽×高；行式格（四线三格/拼音格）：行高。
+ *  消费方：themeConfig 预览 CSS（mm→px 渲染，与作文格/方格纸同通道）；
+ *  docx 导出暂随字号（sizeHp）间接体现学段差异，未接入本表（待统一，见 docxBuilder buildTianZiGeMarker）。 */
+export const GRID_CELL = {
+  'tian-zi-ge': {
+    primary: { widthMm: 12, heightMm: 12 },
+    middle: { widthMm: 9, heightMm: 9 },
+    high: { widthMm: 8, heightMm: 8 },
+  },
+  'mi-zi-ge': {
+    primary: { widthMm: 12, heightMm: 12 },
+    middle: { widthMm: 9, heightMm: 9 },
+    high: { widthMm: 8, heightMm: 8 },
+  },
+  'four-line-three': {
+    primary: { lineHeightMm: 9 },
+    middle: { lineHeightMm: 8 },
+  },
+  'pinyin-line': {
+    primary: { lineHeightMm: 9 },
+    middle: { lineHeightMm: 8 },
+  },
+};
+
+/** 作文格默认补全格数（examValidator writing-grid-fix 自动补 zuo-wen-ge 用；低于"分值×每分格数"时按分值动态放大） */
 export const ZUOWEN_FILL_CELLS = 160;
+
+/** 作文格自动补格系数：每分格数（examValidator 2j-5 按 题目分值×系数 动态补格，与 ANSWER_REGION 按学段系数同模式；
+ *  校准依据（2026-08，按课标/中高考实际字数要求 + 标点缩进余量）：
+ *    - 高中：作文要求"不少于800字"，高分篇幅 850-900 字，考试作文纸 900-1000 格 → 60分×17=1020
+ *    - 初中：作文要求"不少于600字"（多数地区），作文纸 800-1000 格 → 40分×20=800
+ *    - 小学高段（5-6年级）：课标"40分钟完成不少于450字左右"，期末考 400-500 字 → 30分×16=480
+ *    - 小学中段（3-4年级）：第二学段 300-400 字 → 30分×12=360
+ *    - 小学低段（1-2年级）：写话不规定字数（几句话），兜底 160 已足够
+ *  不足 ZUOWEN_FILL_CELLS 兜底时取兜底数） */
+export const ZUOWEN_CELLS_PER_SCORE = {
+  primary_low: 8,
+  primary_mid: 12,
+  primary_high: 16,
+  middle: 20,
+  high: 17,
+};
 
 // ==================== 用户自定义持久化 ====================
 const LAYOUT_SPEC_USER_KEY = 'wisdom_layout_spec_v1';
@@ -286,14 +328,14 @@ function mergeDeep(base, override) {
 /** 内置默认快照（只读，用于"恢复默认"比对与视图展示） */
 export const LAYOUT_SPEC_DEFAULTS = {
   ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, CARRIER_RULES, ANSWER_REGION, SQUARE_GRID,
-  BRACKET_GRID, ZUOWEN_FILL_CELLS,
+  BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL,
 };
 
 /** 规格组 → 顶级字段映射（LayoutSpecView 启停开关按组控制） */
 export const LAYOUT_SPEC_GROUPS = {
-  zuowen: ['ZUOWEN_CELL', 'ZUOWEN_MARK_STEP', 'ZUOWEN_DEFAULT_SPAN'],
+  zuowen: ['ZUOWEN_CELL', 'ZUOWEN_MARK_STEP', 'ZUOWEN_DEFAULT_SPAN', 'ZUOWEN_CELLS_PER_SCORE'],
   blank: ['BLANK'],
-  carrier: ['WRITING_CARRIER'],
+  carrier: ['WRITING_CARRIER', 'GRID_CELL'],
   answer: ['ANSWER_REGION'],
   square: ['SQUARE_GRID', 'BRACKET_GRID', 'ZUOWEN_FILL_CELLS'],
   'carrier-rules': ['CARRIER_RULES'],
@@ -312,17 +354,19 @@ export function getMergedSpec() {
     ZUOWEN_DEFAULT_SPAN: user.ZUOWEN_DEFAULT_SPAN ?? ZUOWEN_DEFAULT_SPAN,
     BLANK: { ...BLANK, ...(user.BLANK || {}) },
     WRITING_CARRIER: mergeDeep(WRITING_CARRIER, user.WRITING_CARRIER),
+    GRID_CELL: mergeDeep(GRID_CELL, user.GRID_CELL),
     CARRIER_RULES: mergeDeep(CARRIER_RULES, user.CARRIER_RULES),
     ANSWER_REGION: mergeDeep(ANSWER_REGION, user.ANSWER_REGION),
     SQUARE_GRID: mergeDeep(SQUARE_GRID, user.SQUARE_GRID),
     BRACKET_GRID: { ...BRACKET_GRID, ...(user.BRACKET_GRID || {}) },
     ZUOWEN_FILL_CELLS: user.ZUOWEN_FILL_CELLS ?? ZUOWEN_FILL_CELLS,
+    ZUOWEN_CELLS_PER_SCORE: mergeDeep(ZUOWEN_CELLS_PER_SCORE, user.ZUOWEN_CELLS_PER_SCORE),
   };
 }
 
 export default {
   ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, CARRIER_RULES, ANSWER_REGION, SQUARE_GRID,
-  BRACKET_GRID, ZUOWEN_FILL_CELLS,
+  BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL,
   LAYOUT_SPEC_DEFAULTS, LAYOUT_SPEC_GROUPS,
   loadLayoutSpecOverride, saveLayoutSpecOverride, resetLayoutSpecOverride, getMergedSpec, getCarrierAllowlist,
   getAnswerRegion, normalizeStage3,

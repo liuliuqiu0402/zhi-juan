@@ -6,7 +6,7 @@
 //    规则清单在 src/config/validatorRules.js（与指令库/蓝图库同级，分学科可维护），
 //    本文件只负责规则的执行逻辑。
 // ============================================================
-import { getValidatorRules } from '../config/validatorRules.js';
+import { getValidatorRules, normalizeStage } from '../config/validatorRules.js';
 import { getCarrierAllowlist, getMergedSpec, getAnswerRegion } from '../config/layoutSpec.js';
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 
@@ -907,43 +907,67 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     // 2j-5 写话/作文无作文格 → 自动补方格区（看图写话/写话/习作/作文/写作/小练笔均适用）
     //    🔧 2026-08 根治"作文格变横线"：① 扫描排除答案区（答案区评分标准标题含"写话/作文"词
     //       不得当补格锚点——用 closest('.answer-section') 过滤，序列化保留完整 out 防答案区丢失）；
-    //       ② 优先短标题行（<60 字）当锚点，无短标题时放宽到含关键词的任意题干
-    //       （历史缺口：完整题干超 60 字 → targetPs 找不到 → 作文格不补，只剩横线作答区）；
-    //       ③ 关键词补"小练笔"（forbid 已有、补格通道缺失）
-    if (has('writing-grid-fix') && /看图写话|写话|习作|作文|写作|小练笔/.test(bodyText) && !/zuo-wen-ge/.test(out)) {
+    //       ② 关键词补"小练笔"（forbid 已有、补格通道缺失）
+    //    🔧 2026-08 按题级补格（原整卷级短路：卷面任一题已有 zuo-wen-ge 就整体跳过，
+    //       导致"题13 有格、题12 无格"时题12 漏补）：逐道写话题检查自身区域（到下一写话题为止）
+    //       有无作文格，无则补；有则跳过不重复补
+    if (has('writing-grid-fix') && /看图写话|写话|习作|作文|写作|小练笔/.test(bodyText)) {
       try {
         const tpl2 = document.createElement('template');
         tpl2.innerHTML = out;
         const ps2 = Array.from(tpl2.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
         const kwRe = /看图写话|写话|习作|作文|写作|小练笔/;
-        let targetPs = ps2.filter(p => kwRe.test(p.textContent || '') && (p.textContent || '').length < 60);
-        if (targetPs.length === 0) targetPs = ps2.filter(p => kwRe.test(p.textContent || ''));
-        if (targetPs.length > 0) {
-          const lastP = targetPs[targetPs.length - 1];
-          const zwg = document.createElement('div');
-          zwg.className = 'zuo-wen-ge';
-          const fillCells = getMergedSpec().ZUOWEN_FILL_CELLS || 160;
-          for (let k = 0; k < fillCells; k++) {
-            const s = document.createElement('span');
-            s.innerHTML = '&emsp;';
-            zwg.appendChild(s);
-          }
-          // 🔧 插入位置（根治"作文格跑到配图/题干之前"）：题干 p 之后若紧跟 [IMAGE] 配图
-          //    标记（到下一道命中题为止）→ 作文格插在配图之后，卷面顺序 = 题干 → 配图 → 作文格
-          let ref = lastP;
-          let probe = lastP.nextSibling;
-          while (probe) {
-            const pt = probe.textContent || '';
-            if (pt && kwRe.test(pt) && probe !== lastP) break; // 下一道命中题 → 停
-            if (/\[IMAGE\]/.test(pt)) ref = probe;              // 配图标记 → 作文格插它后面
-            probe = probe.nextSibling;
-          }
-          ref.parentNode.insertBefore(zwg, ref.nextSibling);
-          out = tpl2.innerHTML;
-          issues.push({ severity: 'info', type: 'writing-grid', message: `写话/作文题已自动补作文格（zuo-wen-ge ${fillCells}格，位于题干与配图之后）` });
-          fixed += 1;
-        } else {
+        const kwPs = ps2.filter(p => {
+          const t = p.textContent || '';
+          return kwRe.test(t) && !t.includes('[IMAGE]'); // 排除配图标记行（PROMPT 描述可能含"写话"）
+        });
+        if (kwPs.length === 0) {
           silentCount('writing-grid', '含写话/作文题但无作文格且未找到可补位置（zuo-wen-ge），请抽检');
+        } else {
+          const fillCellsBase = getMergedSpec().ZUOWEN_FILL_CELLS || 160;
+          const perScore = (getMergedSpec().ZUOWEN_CELLS_PER_SCORE || {})[normalizeStage(stage)] || 10;
+          let added = 0;
+          for (let i = 0; i < kwPs.length; i++) {
+            const p = kwPs[i];
+            const endP = kwPs[i + 1] || null;
+            // 🔧 补格数按学段×分值动态（低段8格/分…初中20、高中17；低于兜底160取兜底）：
+            //    小学二年级15分写话→max(160,120)=160；初中40分作文→max(160,800)=800；高中60分→max(160,1020)=1020。
+            //    不再全学段统一 160（低段足够、高段作文格子不够；字数依据见 layoutSpec ZUOWEN_CELLS_PER_SCORE）
+            const scoreM = (p.textContent || '').match(/[（(][^）)]*?(\d{1,3})\s*分/);
+            const score = scoreM ? parseInt(scoreM[1], 10) : 0;
+            const fillCells = Math.max(fillCellsBase, score * perScore);
+            // 该题区域（题干 p 到下一道写话题之间）已有作文格 → 跳过
+            let hasGrid = false;
+            let probe = p.nextSibling;
+            while (probe && probe !== endP) {
+              const ph = probe.outerHTML || '';
+              if (ph && /zuo-wen-ge/.test(ph)) { hasGrid = true; break; }
+              probe = probe.nextSibling;
+            }
+            if (hasGrid) continue;
+            // 🔧 插入位置（根治"作文格跑到配图/题干之前"）：题干 p 之后若紧跟 [IMAGE] 配图
+            //    标记（到下一道命中题为止）→ 作文格插在配图之后，卷面顺序 = 题干 → 配图 → 作文格
+            let ref = p;
+            let probe2 = p.nextSibling;
+            while (probe2 && probe2 !== endP) {
+              if (/\[IMAGE\]/.test(probe2.textContent || '')) ref = probe2;
+              probe2 = probe2.nextSibling;
+            }
+            const zwg = document.createElement('div');
+            zwg.className = 'zuo-wen-ge';
+            for (let k = 0; k < fillCells; k++) {
+              const s = document.createElement('span');
+              s.innerHTML = '&emsp;';
+              zwg.appendChild(s);
+            }
+            ref.parentNode.insertBefore(zwg, ref.nextSibling);
+            added += 1;
+          }
+          if (added > 0) {
+            out = tpl2.innerHTML;
+            issues.push({ severity: 'info', type: 'writing-grid', message: `写话/作文题已自动补作文格（zuo-wen-ge，按学段×分值动态格数，位于题干与配图之后，共补${added}题）` });
+            fixed += 1;
+          }
         }
       } catch (e) {
         console.warn('⚠️ 作文格自动补齐失败:', e.message);
