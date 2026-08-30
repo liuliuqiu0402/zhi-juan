@@ -1413,7 +1413,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       table, figure, pre, blockquote { page-break-inside: avoid; }
       .no-print { display: none !important; }
       /* 田字格（无样式模式也需渲染，⭐ inline-block + text-align 居中 + line-height，保证无内层span时也能居中） */
-      .tian-zi-ge { display: inline-block; position: relative; width: 1.8em; height: 1.8em; border: 1.5px solid #5B9BD5; vertical-align: middle; margin: 0 1px; font-size: inherit !important; box-sizing: border-box; text-align: center; line-height: 1.8em; background: repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat; }
+      .tian-zi-ge { display: inline-block; position: relative; width: 1.8em; height: 1.8em; border: 1.5px solid #5B9BD5; vertical-align: middle; margin: 2px 4px; font-size: inherit !important; box-sizing: border-box; text-align: center; line-height: 1.8em; background: repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat; }
       .tian-zi-ge>span { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); line-height: 1; white-space: nowrap; }
       /* 四线三格 + 其他特殊格式 */
       .four-line-three { display: inline-block; position: relative; padding: 4px 4px; font-family: 'Times New Roman', 'Georgia', SimSun, serif; font-size: inherit !important; line-height: 1; min-width: 18px; text-align: center; vertical-align: middle; text-indent: 0; }
@@ -1497,7 +1497,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   // ========== 特殊标记样式（全学科通用） ==========
   styleTag += `
     /* ⭐ 田字格/米字格 - 小学语文（inline-block + text-align 居中，无内层span也能居中） */
-    .tian-zi-ge { display: inline-block; position: relative; width: 1.8em; height: 1.8em; border: 1.5px solid #999; vertical-align: middle; margin: 0 1px; font-size: inherit !important; box-sizing: border-box; text-align: center; line-height: 1.8em; background: linear-gradient(to right,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)),linear-gradient(to bottom,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)); }
+    .tian-zi-ge { display: inline-block; position: relative; width: 1.8em; height: 1.8em; border: 1.5px solid #999; vertical-align: middle; margin: 2px 4px; font-size: inherit !important; box-sizing: border-box; text-align: center; line-height: 1.8em; background: linear-gradient(to right,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)),linear-gradient(to bottom,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)); }
     .tian-zi-ge>span { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); line-height: 1; white-space: nowrap; }
     .mi-zi-ge { display: inline-block; position: relative; width: 1.8em; height: 1.8em; border: 1.5px solid #999; vertical-align: middle; margin: 0 1px; font-size: inherit !important; font-family: 'KaiTi', 'SimSun', serif; box-sizing: border-box; text-align: center; line-height: 1.8em; background: linear-gradient(to right,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)),linear-gradient(to bottom,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)),linear-gradient(to top right,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)),linear-gradient(to bottom right,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)); }
     .mi-zi-ge>span { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); line-height: 1; white-space: nowrap; }
@@ -1612,7 +1612,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       border: 1.5px solid #999;
       font-size: inherit !important;
       vertical-align: middle;
-      margin: 0 1px;
+      margin: 2px 4px;
       box-sizing: border-box;
       text-align: center;
       line-height: 1.8em;

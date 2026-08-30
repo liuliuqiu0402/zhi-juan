@@ -175,8 +175,13 @@ export function buildCarrierInstruction(subject = '', stage = '') {
   }
   if (list.includes('square')) parts.push('作图类题用方格纸');
   if (!parts.length) return '';
+  // 🔧 书写格结构约束（基准1/2 根治）：格子必须紧跟对应词语/拼音之后，不得集中单独成段；
+  //    且格子必须是空格子（作答载体），严禁格内预填字/拼音/答案
   const hasMust = parts.some((p) => p.includes('必须真实输出'));
-  return `${parts.join('；')}${hasMust ? '；题干未写明时按此书写惯例。' : '。'}`;
+  const structureNote = hasMust
+    ? '；书写格紧跟对应词语（拼音）之后输出，不得集中单独成段；格子必须为空格子（严禁格内填写任何字/拼音/答案）。'
+    : '';
+  return `${parts.join('；')}${hasMust ? '；题干未写明时按此书写惯例。' : '。'}${structureNote}`;
 }
 
 /**

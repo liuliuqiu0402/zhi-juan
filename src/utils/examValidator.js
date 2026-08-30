@@ -101,6 +101,32 @@ export const countPinyinGroups = (html) => {
   return (text.match(PINYIN_GROUP_RE) || []).length;
 };
 
+/** 统计书写格内格子数（田字格/米字格/四线三格/六线格等方块格）：
+ *  内层 span 数优先（一个 span = 一个字格）；无内层 span 时数汉字数（AI 直书"<div class=...>字</div>"，
+ *  一字一格）；空 div 计 1 格。兼容 span 形态（<span class="tian-zi-ge">字</span> 一字一格）。
+ *  看拼音写词语按"字"计分时用（字 = 格）。
+ *  ⚠️ 不含 zuo-wen-ge（作文格为横排网格非方块格）与 pinyin-line（横线格非方块格） */
+export const countGridCells = (html) => {
+  if (!html) return 0;
+  let n = 0;
+  const gridRe = /<div[^>]*class=["'][^"']*(?:tian-zi-ge|mi-zi-ge|four-line-three|sixian-ge)[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi;
+  let m;
+  while ((m = gridRe.exec(html))) {
+    const inner = m[1] || '';
+    const spanCount = (inner.match(/<span\b[^>]*>/gi) || []).length;
+    if (spanCount > 0) {
+      n += spanCount;
+    } else {
+      const text = inner.replace(/<[^>]+>/g, '').replace(/&[a-zA-Z]+;/g, ' ').replace(/[\s\u3000]/g, '');
+      const hanzi = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+      n += hanzi > 0 ? hanzi : 1;
+    }
+  }
+  // span 形态格子（AI 直书"<span class=\"tian-zi-ge\">字</span>"，一字一格；与 div 内无 class 的 span 不重复计）
+  n += (html.match(/<span[^>]*class=["'][^"']*(?:tian-zi-ge|mi-zi-ge)[^"']*["'][^>]*>[\s\S]*?<\/span>/gi) || []).length;
+  return n;
+};
+
 /** 统计读音题拼音选项组数：（háng xíng）式括号 */
 export const countPinyinOptions = (html) => {
   if (!html) return 0;
@@ -176,15 +202,20 @@ const fmtScore = (n) => (Number.isInteger(n) ? String(n) : String(parseFloat(n.t
  *    两者矛盾时以实际载体数为准，按「声称单位分 × 实际载体数」重算正确总分，
  *    不再保留声称总分只改措辞（历史事故："每空2分共16分"实际3空被凑成"共3空共16分"，
  *    正确是 3空×2分=6分；"每题1分共4分"实际2题被凑成"每题2分"，正确是 2分）。
- * 边界：每字/每词为语义性载体（一个空可写多字，程序无法可靠统计字数），不假装验证，保留原标注；
- *    实际载体数数不到（0）时无法验证，同样保留。
+ * 单位×载体验证维度（2026-08 根治"每字/每词"豁免导致账目无法闭合）：
+ *    - 空/线 → carrierCount（外部传入的 DOM 空位/连线数）
+ *    - 题   → subCount（子题号数）
+ *    - 词   → opts.pinyinGroups（看拼音写词语：一个词=一组拼音，词数=拼音组数，程序可数）
+ *    - 字   → opts.gridCells（看拼音写词语：一个字=一个田字格，字数=格子数，程序可数）
+ *    数不到对应载体时（如题内无拼音、无格子）→ 无法判定，保留原标注（不假装验证）。
  * @param {string} title 大题/小题标题
  * @param {number} totalScore 声称总分（调用方解析，仅用于自洽校验）
  * @param {number} carrierCount 实际载体数（空位数或连线对数）
  * @param {number} subCount 实际题数（"每题"用：大题场景传题目行数，小题场景传子题号数）
+ * @param {Object} opts { pinyinGroups, gridCells } "每词/每字"声称时的实际载体数（词=拼音组、字=格子）
  * @returns {{text: string, note: string}} text 修正后标题；note 非空表示按实际载体重算了总分（供调用处提示）
  */
-export const fixScoreLabel = (title, totalScore, carrierCount, subCount) => {
+export const fixScoreLabel = (title, totalScore, carrierCount, subCount, opts = {}) => {
   let out = title;
   // 🔧 标注形态兼容：括号版"（每空2分，共16分）"与裸文本版"每空2分，共16分"均触发校验
   //    捕获组不含"每"字：unitMatch[1] 为 空/线/题/字/词，后续 unit==='线' 等比较才成立
@@ -198,14 +229,16 @@ export const fixScoreLabel = (title, totalScore, carrierCount, subCount) => {
   const unit = unitMatch[1];
   const unitScore = parseFloat(unitMatch[2]);
   if (!(unitScore > 0)) return { text: out, note: '' };
-  // 每字/每词：语义性载体，程序不假装验证（不数字数、不换算空位）——保留原标注
-  if (unit === '字' || unit === '词') return { text: out, note: '' };
-  // 实际载体数：空/线取实际载体数，题取实际子题数；数不到（0）→ 无法验证，保留
-  const actualN = unit === '题' ? subCount : carrierCount;
+  // 实际载体数：按声称单位取对应维度；数不到（0）→ 无法验证，保留原标注
+  let actualN = 0;
+  if (unit === '题') actualN = subCount;
+  else if (unit === '线' || unit === '空') actualN = carrierCount;
+  else if (unit === '词') actualN = opts.pinyinGroups || 0;
+  else if (unit === '字') actualN = opts.gridCells || 0;
   if (!(actualN > 0)) return { text: out, note: '' };
-  const unitLabel = unit === '线' ? '线' : unit === '题' ? '题' : '空';
-  // 声称载体数：标题"共N空/题/线"显式值；缺失时由"共Y分 ÷ 单位分"推算（16分÷每空2分=声称8空）
-  const claimedNM = out.match(/共\s*(\d{1,3})\s*(?:处连线|空|题|线)/);
+  const unitLabel = unit === '线' ? '线' : unit;
+  // 声称载体数：标题"共N空/题/线/词/字"显式值；缺失时由"共Y分 ÷ 单位分"推算（16分÷每空2分=声称8空）
+  const claimedNM = out.match(/共\s*(\d{1,3})\s*(?:处连线|空|题|线|词|字)/);
   // 声称总分：优先"共X分"；无"共"字时取括号内首个"数字分"（兼容"（8分，每空2分）"式）——
   //    括号开头是"每X"（如"（每空2分）"）时视为无声称总分，不提取（该"2分"是单位分不是总分）
   const claimedTotalM = out.match(/共\s*(\d+(?:\.\d+)?)\s*分/)
@@ -229,9 +262,9 @@ export const fixScoreLabel = (title, totalScore, carrierCount, subCount) => {
     : '';
   if (bareMode) {
     // 裸文本版：整段替换"每X分…共Y分"（无括号标注，AI 常见输出形态）
-    out = out.replace(/(每空|每线|每题)\s*\d+(?:\.\d+)?\s*分(?:[，,、]?\s*共\s*\d+(?:\.\d+)?\s*分)?/, `（${label}）`);
+    out = out.replace(/(每空|每线|每题|每词|每字)\s*\d+(?:\.\d+)?\s*分(?:[，,、]?\s*共\s*\d+(?:\.\d+)?\s*分)?/, `（${label}）`);
   } else {
-    out = out.replace(/[（(][^）)]*?(每空|每线|每题)\s*\d+(?:\.\d+)?\s*分[^）)]*?[)）]/, `（${label}）`);
+    out = out.replace(/[（(][^）)]*?(每空|每线|每题|每词|每字)\s*\d+(?:\.\d+)?\s*分[^）)]*?[)）]/, `（${label}）`);
   }
   return { text: out, note };
 };
@@ -568,40 +601,51 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
                 && /^\s*\d+[.、．]/.test((n.textContent || '').trim())
                 && /[（(][^）)]*?\d+(?:\.\d+)?\s*分/.test(n.textContent || ''));
               if (subHeadPs.length < 2) return; // 至少 2 个小题才重分配（单题大题可能是阅读/写作整题）
-              // 🔧 语义定价保护：小题标题带单位分声称（每空/每线/每题/每字/每词 X 分）时不按大题总分重算——
-              //    单位分是模型的语义定价（如看拼音写词语"一个词语2分"），按大题总分重算会改掉定价
-              //    （历史事故：声称"每空2分"被重算成"每空5分"）；此类小题由 2g 按实际载体数重算正确总分，
-              //    账目冲突由 2i 静默提示，不在此处裁决
-              if (subHeadPs.some(p => /每(?:空|线|题|字|词)\s*\d+(?:\.\d+)?\s*分/.test(p.textContent || ''))) return;
-              // 当前小题分值之和（"共X分"总分优先）
-              let subSum = 0;
-              for (const p of subHeadPs) {
+              // 🔧 语义定价保护（2026-08 收窄根治"分值账目不闭合"）：
+              //    仅当存在"声称单位无法验证"的小题（每词/每字声称但题内数不到拼音/格子——
+              //    无法确定其真实分值）时才整体跳过重分配；
+              //    可验证声称（空/线/题，或词/字数得到载体）不触发保护——
+              //    声称项保留语义定价不参与重分配（自身失真由 2g 按实际载体重算），
+              //    未声称项按「大题分 − 声称项合计」重分配，账目即可闭合（不再 2i 报差）
+              const isClaimed = (t) => /每(?:空|线|题|字|词)\s*\d+(?:\.\d+)?\s*分/.test(t || '');
+              const segs = subHeadPs.map((p, si) => {
+                const endP = subHeadPs[si + 1] || null;
+                let segHtml = p.outerHTML || '';
+                let sn = p.nextSibling;
+                while (sn && sn !== endP) { segHtml += sn.outerHTML || sn.textContent || ''; sn = sn.nextSibling; }
+                return { p, segHtml };
+              });
+              const unverifiableClaim = segs.some(({ p, segHtml }) => {
+                const m = (p.textContent || '').match(/每(词|字)\s*\d+(?:\.\d+)?\s*分/);
+                if (!m) return false;
+                return m[1] === '词' ? countPinyinGroups(segHtml) <= 0 : countGridCells(segHtml) <= 0;
+              });
+              if (unverifiableClaim) return;
+              // 声称项合计（"共X分"总分优先；语义定价保留，不参与重分配）
+              let claimSum = 0;
+              for (const { p } of segs) {
+                if (!isClaimed(p.textContent || '')) continue;
                 const t2 = (p.textContent || '').trim();
                 const totalM = t2.match(/共\s*(\d+(?:\.\d+)?)\s*分/);
                 const singleM = t2.match(/[（(][^）)]*?(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
-                subSum += parseFloat((totalM || singleM)[1]);
+                claimSum += parseFloat((totalM || singleM || [])[1] || 0);
               }
-              if (Math.abs(subSum - secScore) <= 0.01) return; // 账目已闭合，不动
-              // 触发重分配：单位分 = 大题分 ÷ 总单位数（粒度向下），余数从第一题起逐单位补差
-              // 单位数：标题明确（共N题/空/线）优先；无则数该小题的子题行（(1)(2)...）兜底
+              const freeScore = secScore - claimSum; // 未声称项可分配总分
+              const freeSegs = segs.filter(({ p }) => !isClaimed(p.textContent || ''));
+              if (freeSegs.length === 0) return; // 全部为声称项 → 2g 修正 + 2i 兜底
+              // 未声称项单位数：标题明确（共N题/空/线）优先；无则数该小题的子题行（(1)(2)...）兜底
               const unitCounts = [];
-              for (let si = 0; si < subHeadPs.length; si++) {
-                const p = subHeadPs[si];
-                const endP = subHeadPs[si + 1] || null;
+              for (const { p, segHtml } of freeSegs) {
                 let sub = 0;
-                let segHtml = p.outerHTML || '';
-                let sn = p.nextSibling;
-                while (sn && sn !== endP) {
-                  segHtml += sn.outerHTML || sn.textContent || '';
-                  if (sn.nodeType === Node.ELEMENT_NODE && sn.tagName.toLowerCase() === 'p') {
-                    // 🔧 数行内所有子题号（(1)(2)(3)(4) 可同一行，如"（1）一坐石桥（2）一群飞鸟…"）
-                    sub += (sn.textContent.match(/[（(]\d+[)）]/g) || []).length;
+                let sn2 = p.nextSibling;
+                const e2 = subHeadPs[subHeadPs.indexOf(p) + 1] || null;
+                while (sn2 && sn2 !== e2) {
+                  if (sn2.nodeType === Node.ELEMENT_NODE && sn2.tagName.toLowerCase() === 'p') {
+                    sub += (sn2.textContent.match(/[（(]\d+[)）]/g) || []).length;
                   }
-                  sn = sn.nextSibling;
+                  sn2 = sn2.nextSibling;
                 }
-                // 🔧 单位数优先取实际载体（DOM 实数的空位/连线/子题号），声称值仅在实际数不到时兜底——
-                //    此前采信标题声称值（"每空2分共16分"推算 8 空），声称与实际载体不符时账目闭合但标注仍失真；
-                //    字/词为语义性载体（程序无法可靠统计字数），不假装验证，保持声称值
+                // 🔧 单位数优先取实际载体（DOM 实数的空位/连线/子题号），声称值仅在实际数不到时兜底
                 const claimU = parseUnitCount(p.textContent || '');
                 const unitName = parseUnitName(p.textContent || '');
                 const actualBlanks = countBlanks(segHtml);
@@ -619,15 +663,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
                 unitCounts.push(actualU > 0 ? actualU : (claimU ?? Math.max(sub, 1)));
               }
               const U = unitCounts.reduce((s, c) => s + c, 0);
-              if (U === 0) return;
-              const uRaw = secScore / U;
+              if (U === 0 || freeScore <= 0) return;
+              const uRaw = freeScore / U;
               const uBase = Math.floor(uRaw / granularity) * granularity;
-              let bonusUnits = Math.round((secScore - uBase * U) / granularity);
+              let bonusUnits = Math.round((freeScore - uBase * U) / granularity);
               let redistributed = 0;
-              for (let si = 0; si < subHeadPs.length; si++) {
-                const p = subHeadPs[si];
+              for (let fi = 0; fi < freeSegs.length; fi++) {
+                const p = freeSegs[fi].p;
                 const t2 = (p.textContent || '').trim();
-                const c = unitCounts[si];
+                const c = unitCounts[fi];
                 const take = Math.min(bonusUnits, c);
                 const unitScore = uBase + (take > 0 ? granularity : 0);
                 bonusUnits -= take;
@@ -651,7 +695,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         if (has('score-label-fix')) {
           // 🔧 载体只取真实载体（填空数/连线数）——拼音选项（读音题括号）不是"空位"，不能当载体验证"每空X分"
           const carrierTotal = blanks || (matchSides ? matchSides.left : 0) || (/连/.test(title) ? countMatchLines(secText2) : 0);
-          const fsRes = fixScoreLabel(title, totalScore, carrierTotal, countSubInNodes(secNodes));
+          const fsRes = fixScoreLabel(title, totalScore, carrierTotal, countSubInNodes(secNodes), {
+            pinyinGroups: countPinyinGroups(secHtml2),
+            gridCells: countGridCells(secHtml2),
+          });
           if (fsRes.text !== title) {
             head.textContent = fsRes.text;
             issues.push({ severity: 'info', type: 'score-label', message: fsRes.note ? `分值标注已按实际载体重算：${fsRes.text}（${fsRes.note}）` : `分值标注已对齐：${fsRes.text}` });
@@ -689,7 +736,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             if (!scoreM) return;
             const sScore = parseInt(scoreM[1], 10);
             // 🔧 无填空载体时也继续校验（如读音题"每空1分"数不到载体 → fixScoreLabel 保留原标注）
-            const fsRes2 = fixScoreLabel(st.text, sScore, carrier, countSubNumbered(segText));
+            const fsRes2 = fixScoreLabel(st.text, sScore, carrier, countSubNumbered(segText), {
+              pinyinGroups: countPinyinGroups(segHtml),
+              gridCells: countGridCells(segHtml),
+            });
             if (fsRes2.text !== st.text) {
               st.p.textContent = fsRes2.text;
               issues.push({ severity: 'info', type: 'score-label', message: fsRes2.note ? `小题分值标注已按实际载体重算：${fsRes2.text}（${fsRes2.note}）` : `小题分值标注已对齐：${fsRes2.text}` });
@@ -806,21 +856,25 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
     // 2j-3b 写话/作文题缺题目要求描述（仅标题行，如"15. 看图写话。（共20分）"后直接是配图/格子/下一题）
     //    ——真实事故：模型只输出标题行、无题目要求（"仔细观察下面的图画，想一想：……请你用几句话写下来"式要求描述）
+    //    🔧 2026-08 误报根治：只扫描正文区（答案区/评分标准标题不计入——历史误报：
+    //       答案区"16. 看图写话评分标准（20分"标题行后跟 <table> 评分标准被判"缺描述"）；
+    //       描述段识别放宽到 P/UL/OL/TABLE（评分标准表格/要点列表也算"有内容"，非仅 P）
     if (has('writing-grid-fix') && /看图写话|写话|习作|作文|写作/.test(bodyText)) {
       try {
+        const bodyHtml = out.split(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i)[0];
         const tplT = document.createElement('template');
-        tplT.innerHTML = out;
+        tplT.innerHTML = bodyHtml;
         const psT = Array.from(tplT.content.querySelectorAll('p'));
         const kwReT = /看图写话|写话|习作|作文|写作/;
         for (const p of psT) {
           const tt = (p.textContent || '').trim();
           if (tt.length >= 22 || !kwReT.test(tt)) continue;
-          // 标题行（短）：其后需有说明段（下一个 p：非配图、非标题、≥10 字）；否则判定缺题干
+          // 标题行（短）：其后需有说明段（下一个块级元素：非配图、非标题、≥10 字）；否则判定缺题干
           let n = p.nextElementSibling;
           while (n && n.tagName === 'DIV' && /zuo-wen-ge/.test(n.className || '')) n = n.nextElementSibling;
-          const nextP = n && n.tagName === 'P' ? n : null;
-          const npText = (nextP?.textContent || '').trim();
-          const hasDesc = nextP && !/\[IMAGE\]/.test(npText) && npText.length >= 10 && !kwReT.test(npText);
+          const descEl = n && (n.tagName === 'P' || n.tagName === 'UL' || n.tagName === 'OL' || n.tagName === 'TABLE') ? n : null;
+          const descText = (descEl?.textContent || '').trim();
+          const hasDesc = descEl && !/\[IMAGE\]/.test(descText) && descText.length >= 10 && !kwReT.test(descText);
           if (!hasDesc) {
             silentCount('writing-grid', `「${tt.slice(0, 16)}」仅标题行、缺题目要求描述（观察提示与写作要求），请抽检`);
             break;
@@ -832,14 +886,20 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     if (has('writing-grid-fix') && /田字格中写|在田字格|方格中写/.test(bodyText) && !/tian-zi-ge/.test(out)) {
       silentCount('writing-grid', '题干要求"田字格中写"但正文无田字格格子——作答载体缺失，请抽检');
     }
-    // 2j-5 写话/作文无作文格 → 自动补方格区（看图写话/写话/习作/作文/写作均适用）
-    if (has('writing-grid-fix') && /看图写话|写话|习作|作文|写作/.test(bodyText) && !/zuo-wen-ge/.test(out)) {
+    // 2j-5 写话/作文无作文格 → 自动补方格区（看图写话/写话/习作/作文/写作/小练笔均适用）
+    //    🔧 2026-08 根治"作文格变横线"：① 扫描排除答案区（答案区评分标准标题含"写话/作文"词
+    //       不得当补格锚点——用 closest('.answer-section') 过滤，序列化保留完整 out 防答案区丢失）；
+    //       ② 优先短标题行（<60 字）当锚点，无短标题时放宽到含关键词的任意题干
+    //       （历史缺口：完整题干超 60 字 → targetPs 找不到 → 作文格不补，只剩横线作答区）；
+    //       ③ 关键词补"小练笔"（forbid 已有、补格通道缺失）
+    if (has('writing-grid-fix') && /看图写话|写话|习作|作文|写作|小练笔/.test(bodyText) && !/zuo-wen-ge/.test(out)) {
       try {
         const tpl2 = document.createElement('template');
         tpl2.innerHTML = out;
-        const ps2 = Array.from(tpl2.content.querySelectorAll('p'));
-        const kwRe = /看图写话|写话|习作|作文|写作/;
-        const targetPs = ps2.filter(p => kwRe.test(p.textContent || '') && (p.textContent || '').length < 60);
+        const ps2 = Array.from(tpl2.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
+        const kwRe = /看图写话|写话|习作|作文|写作|小练笔/;
+        let targetPs = ps2.filter(p => kwRe.test(p.textContent || '') && (p.textContent || '').length < 60);
+        if (targetPs.length === 0) targetPs = ps2.filter(p => kwRe.test(p.textContent || ''));
         if (targetPs.length > 0) {
           const lastP = targetPs[targetPs.length - 1];
           const zwg = document.createElement('div');
@@ -1134,6 +1194,45 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       }
     } catch (e) {
       console.warn('⚠️ 载体×题型正规化失败（不影响其他修复）:', e.message);
+    }
+  }
+
+  // ── 2j-6. 书写格内容剥离（规则 writing-grid-fix：格子内严禁预填字/拼音/答案——空格子才可作答）
+  //    🔧 2026-08 根治"田字格已填答案"（基准1/2）：AI 常把答案字直接写进格子 span/文本
+  //    （如 <div class="tian-zi-ge"><span>春</span></div>），正文混入答案且学生无法作答；
+  //    确定性修复：清空格内非空内容保留空格子（不剥离格子结构本身，与 countGridCells 口径一致）。
+  //    ⚠️ 必须在 2l（载体×题型正规化）之后执行：2l 会先剥离"表达/写话类题内混入的书写格 class"
+  //    （保留格子内文字），此处只处理剥离后仍保留的书写格（即该用格子的 must 类题）——顺序颠倒会把
+  //    表达类题混入格子里的示范字误清空（历史事故：forbid 回归测试"<span class=tian-zi-ge>海</span>"）
+  if (has('writing-grid-fix')) {
+    try {
+      const tpl6 = document.createElement('template');
+      tpl6.innerHTML = out;
+      const gridEls = Array.from(tpl6.content.querySelectorAll(
+        'div.tian-zi-ge, div.mi-zi-ge, div.four-line-three, div.sixian-ge, div.pinyin-line, div.zuo-wen-ge, span.tian-zi-ge, span.mi-zi-ge'
+      ));
+      let cleared = 0;
+      for (const g of gridEls) {
+        // 1) 清空内层 span 的非空文本（保留 span 结构；&emsp; 空格子不剥离）
+        for (const sp of Array.from(g.querySelectorAll('span'))) {
+          const nonBlank = (sp.textContent || '').replace(/\s|\u3000/g, '');
+          if (nonBlank) { sp.innerHTML = '&emsp;'; cleared += 1; }
+        }
+        // 2) 清空格子 div 内的直接文本节点（AI 直书"<div class=...>字</div>"形态）
+        for (const child of Array.from(g.childNodes)) {
+          if (child.nodeType === Node.TEXT_NODE) {
+            const nonBlank = (child.textContent || '').replace(/\s|\u3000/g, '');
+            if (nonBlank) { child.textContent = '　'; cleared += 1; }
+          }
+        }
+      }
+      if (cleared > 0) {
+        out = tpl6.innerHTML;
+        issues.push({ severity: 'info', type: 'writing-grid-clear', message: `已清空 ${cleared} 处书写格内预填内容（保留空格子，学生可作答）` });
+        fixed += cleared;
+      }
+    } catch (e) {
+      console.warn('⚠️ 书写格内容剥离失败:', e.message);
     }
   }
 
