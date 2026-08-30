@@ -509,6 +509,13 @@ const themeCSS = computed(() => {
       css += `.four-line-three,.sixian-ge{text-indent:0!important;padding-left:4px!important;padding-right:4px!important;text-align:center!important}\n`;
     }
 
+    // 🔧 卷型选择（2026-08）：普通卷时编辑器预览同步隐藏密封线（所见即所得 = 导出口径）——
+    //    seal 结构保留（切回密封线卷即时恢复），仅视觉隐藏；页面壳左右边距改为 2cm 与导出普通卷一致
+    if (sealVariant.value === 'plain') {
+      css += `.sealed-wrapper{padding:20mm 20mm!important}\n`;
+      css += `.seal-zone,.seal-line,.seal-note,.seal-info,.seal-char{display:none!important}\n`;
+    }
+
     return css;
   } catch (e) {
     console.warn('提取主题 CSS 失败:', e);
