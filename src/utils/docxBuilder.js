@@ -892,42 +892,49 @@ const pageNumberParagraph = (totalField = PageNumber.TOTAL_PAGES_IN_SECTION) => 
 /** A3 两栏页脚（2026-08）：每栏一个页码、按栏计数——无边框 2 列表格，
  *  左栏域 =2*PAGE-1（第 1、3、5…栏）、右栏域 =2*PAGE（第 2、4、6…栏），
  *  格式与 A4 一致"第X页　共X页"（共X页 = =2*SECTIONPAGES 总栏数），每栏底部居中。
- *  🔴 公式域中 PAGE/SECTIONPAGES 为字段引用（Word 公式域原生支持），页码只依赖物理页数、与内容流式重排无关。 */
-const columnPageFooter = () => new Footer({
-  children: [
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      borders: {
-        top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-        bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-        left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-        right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-        insideHorizontal: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-        insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
-      },
-      rows: [new TableRow({
-        children: [
-          new TableCell({
-            width: { size: 50, type: WidthType.PERCENTAGE },
-            verticalAlign: VerticalAlign.CENTER,
-            children: [new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [new TextRun({ children: ['第 ', new SimpleField('= 2*PAGE - 1', '1'), ' 页　共 ', new SimpleField('= 2*SECTIONPAGES', '8'), ' 页'], size: 18, color: '000000' })],
-            })],
-          }),
-          new TableCell({
-            width: { size: 50, type: WidthType.PERCENTAGE },
-            verticalAlign: VerticalAlign.CENTER,
-            children: [new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [new TextRun({ children: ['第 ', new SimpleField('= 2*PAGE', '2'), ' 页　共 ', new SimpleField('= 2*SECTIONPAGES', '8'), ' 页'], size: 18, color: '000000' })],
-            })],
-          }),
-        ],
-      })],
-    }),
-  ],
-});
+ *  🔴 表格宽 = 两栏可用宽之和（页面宽−左右边距−栏距），列宽对半——页码中心与正文两栏中心
+ *    精确对齐（旧实现表格宽 100% 未扣栏距，页码中心相对正文栏中心偏移 栏距/4）。
+ *  🔴 公式域中 PAGE/SECTIONPAGES 为字段引用（Word 公式域原生支持），页码只依赖物理页数、与内容流式重排无关；
+ *    fldSimple 的 w:dirty 由 injectDrawingML 后处理注入（Word 打开时强制更新，防"第 页 共 页"空白）。 */
+const columnPageFooter = (availW = 0, space = 1134) => {
+  const tblW = Math.max(1, availW - space);
+  const colW = Math.max(1, Math.floor(tblW / 2));
+  return new Footer({
+    children: [
+      new Table({
+        width: { size: tblW, type: WidthType.DXA },
+        borders: {
+          top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          insideHorizontal: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+        },
+        rows: [new TableRow({
+          children: [
+            new TableCell({
+              width: { size: colW, type: WidthType.DXA },
+              verticalAlign: VerticalAlign.CENTER,
+              children: [new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [new TextRun({ children: ['第 ', new SimpleField('= 2*PAGE - 1', '1'), ' 页　共 ', new SimpleField('= 2*SECTIONPAGES', '8'), ' 页'], size: 18, color: '000000' })],
+              })],
+            }),
+            new TableCell({
+              width: { size: colW, type: WidthType.DXA },
+              verticalAlign: VerticalAlign.CENTER,
+              children: [new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [new TextRun({ children: ['第 ', new SimpleField('= 2*PAGE', '2'), ' 页　共 ', new SimpleField('= 2*SECTIONPAGES', '8'), ' 页'], size: 18, color: '000000' })],
+              })],
+            }),
+          ],
+        })],
+      }),
+    ],
+  });
+};
 
 const processBlockNode = (node, ctx = {}) => {
   const inheritedDeco = ctx.deco || {};
@@ -1889,9 +1896,9 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
     // 🔧 每行格子数 = 每栏可用宽度 ÷ 格宽（向下取整放最多整数格，格子尺寸不缩放）
     //    🔴 用 mm 口径与预览 CSS `repeat(auto-fill, Nmm)` 严格一致（DXA 换算有精度误差，会导致预览/导出行列差 1）：
     //    可用宽 = A4 宽 210mm − 左右边距（普通 20mm×2 / 密封线卷 25mm×2）；
-    //            A3 两栏每栏 = (A3 宽 420 − 左右边距 − 栏距 40) / 2（栏距统一 4cm，2026-08）
+    //            A3 两栏每栏 = (A3 宽 420 − 左右边距 − 栏距 20) / 2（栏距 2cm，2026-08）
     const zwgMarginMm = hasSealDetect ? 50 : 40;
-    const zwgColumnAvailMm = isA3TwoCol ? (420 - zwgMarginMm - 40) / 2 : 210 - zwgMarginMm;
+    const zwgColumnAvailMm = isA3TwoCol ? (420 - zwgMarginMm - 20) / 2 : 210 - zwgMarginMm;
     __zwgPerRow = Math.max(8, Math.floor(zwgColumnAvailMm / zwgCellMm));
   }
   const children = [];
@@ -1986,15 +1993,19 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
   const pageProps = {
     // 🔧 A3 两栏：横向 A3（420×297mm = 23812×16838 DXA，两栏 A4 并排）；默认 A4 竖版（11906×16838）
     size: isA3TwoCol ? { width: 23812, height: 16838 } : { width: 11906, height: 16838 },
-    // 🔧 上下 2cm；密封文档左右 2.5cm（1417 DXA，虚线 19mm + 6mm 不贴正文），普通文档左右 2cm
-    margin: { top: 1134, bottom: 1134, left: leftMargin, right: rightMargin },
+    // 🔧 上下 2cm；密封文档左右 2.5cm（1417 DXA，虚线 19mm + 6mm 不贴正文），普通文档左右 2cm；
+    //    footer 页脚距纸边 1cm（567 twip）：正文底边距 2cm → 页码与正文拉开约 0.3~0.5cm
+    //    （Word 默认 footer 距离 1.27cm，页脚内容高约 0.7cm 时几乎贴着正文）
+    margin: { top: 1134, bottom: 1134, left: leftMargin, right: rightMargin, footer: 567 },
   };
 
+  // 🔧 A3 两栏栏距 2cm（1134 twip，2026-08）：贴近标准 A3 两栏试卷排版（常见 1.5~2cm）；
+  //    两栏之间为装订/折叠空隙，4cm/5cm 过宽浪费版面
+  const columnSpace = isA3TwoCol ? 1134 : 0;
+  // 🔧 A3 两栏页脚可用宽 = 页面宽 − 左右边距（页脚表格宽 = 可用宽 − 栏距，页码中心与正文两栏中心对齐）
+  const columnAvailW = isA3TwoCol ? 23812 - leftMargin - rightMargin : 0;
   // 🔧 A3 两栏页脚（每栏页码按栏计数）vs 默认"第X页　共X页"页脚
-  const bodyFooter = isA3TwoCol ? columnPageFooter() : new Footer({ children: [pageNumberParagraph()] });
-  // 🔧 A3 两栏栏距统一 4cm（2268 twip，2026-08）：两种卷型中间间隔一致 4cm，
-  //    不再等于左右边距之和（密封线卷 2.5+2.5=5cm 过宽）；Word 分栏模型栏距为栏间空白（twip）
-  const columnSpace = isA3TwoCol ? 2268 : 0;
+  const bodyFooter = isA3TwoCol ? columnPageFooter(columnAvailW, columnSpace) : new Footer({ children: [pageNumberParagraph()] });
 
   const sections = [{
     properties: {
@@ -2010,7 +2021,7 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
     //    ⚠️ 密封文档开启 different-first-page 后必须同时提供 first 页脚，否则 Word 首页不显示页码
     //    ⚠️ 显式黑色：页码为 PAGE/SECTIONPAGES 域，Word 默认给域加浅灰底纹（显示设置），文字本身保持纯黑
     footers: {
-      ...(hasSealLine ? { first: bodyFooter, even: isA3TwoCol ? columnPageFooter() : new Footer({ children: [pageNumberParagraph()] }) } : {}),
+      ...(hasSealLine ? { first: bodyFooter, even: isA3TwoCol ? columnPageFooter(columnAvailW, columnSpace) : new Footer({ children: [pageNumberParagraph()] }) } : {}),
       default: bodyFooter,
     },
     children: bodyChildren,
@@ -2030,8 +2041,8 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
       },
       ...(sealHeaders ? { headers: { default: new Header({ children: [] }), even: new Header({ children: [] }) } } : {}),
       footers: {
-        default: isA3TwoCol ? columnPageFooter() : new Footer({ children: [pageNumberParagraph()] }),
-        even: isA3TwoCol ? columnPageFooter() : new Footer({ children: [pageNumberParagraph()] }),
+        default: isA3TwoCol ? columnPageFooter(columnAvailW, columnSpace) : new Footer({ children: [pageNumberParagraph()] }),
+        even: isA3TwoCol ? columnPageFooter(columnAvailW, columnSpace) : new Footer({ children: [pageNumberParagraph()] }),
       },
       children: answerChildren,
     });

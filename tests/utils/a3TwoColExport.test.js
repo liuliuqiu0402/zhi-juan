@@ -38,13 +38,19 @@ describe('A3 两栏导出（每栏页码按栏计数）', () => {
     expect(docXml).toContain('w:h="16838"');
     // 正文两栏
     expect(docXml).toContain('w:num="2"');
-    // 栏距 = 左右边距之和（普通卷 2+2cm = 2268 twip；模拟两 A4 面并排的中间间隔）
-    expect(docXml).toContain('w:space="2268"');
+    // 栏距 2cm（1134 twip，2026-08：贴近标准 A3 两栏试卷排版 1.5~2cm）
+    expect(docXml).toContain('w:space="1134"');
+    // 页脚距纸边 1cm（567 twip）：页码与正文拉开间距（防贴正文）
+    expect(docXml).toContain('w:footer="567"');
     // 页脚每栏页码公式域：左栏 =2*PAGE-1、右栏 =2*PAGE，共X页 =2*SECTIONPAGES（与 A4"第X页　共X页"格式一致）
     const footers = await footerText(zip);
     expect(footers).toContain('= 2*PAGE - 1');
     expect(footers).toContain('= 2*PAGE');
     expect(footers).toContain('= 2*SECTIONPAGES');
+    // 公式域带 w:dirty="true"（Word 打开时强制更新域，防"第 页 共 页"空白）
+    expect(footers).toContain('w:dirty="true"');
+    // 页脚表格宽 = 可用宽 − 栏距（21544−1134 = 20410）：页码中心与正文两栏中心精确对齐
+    expect(footers).toContain('w:w="20410"');
   });
 
   it('A4 默认路径不变：A4 竖版 + 无两栏 + 页脚仍为 PAGE/SECTIONPAGES（无公式域）', async () => {
@@ -72,8 +78,12 @@ describe('A3 两栏导出（每栏页码按栏计数）', () => {
     // A3 两栏尺寸仍生效
     const docXml = await zip.file('word/document.xml').async('string');
     expect(docXml).toContain('w:w="23812"');
-    // 密封线卷栏距统一 4cm（2268 twip，2026-08：两种卷型栏距一致，不再 2.5+2.5=5cm）
-    expect(docXml).toContain('w:space="2268"');
+    // 密封线卷栏距 2cm（1134 twip，2026-08：两种卷型栏距一致，贴近标准 1.5~2cm）
+    expect(docXml).toContain('w:space="1134"');
+    // 页脚公式域 w:dirty + 页脚表格宽 = 可用宽 − 栏距（20978−1134 = 19844，页码中心对齐正文栏中心）
+    const footers = await footerText(zip);
+    expect(footers).toContain('w:dirty="true"');
+    expect(footers).toContain('w:w="19844"');
   });
 });
 
@@ -97,14 +107,14 @@ describe('普通卷剥离密封线结构（stripSealStructure，2026-08 卷型�
     expect(stripSealStructure(plain)).toBe(plain);
   });
 
-  it('普通卷 A3 两栏：无密封线页眉 + 栏距 = 左右边距之和（2+2cm = 2268）', async () => {
+  it('普通卷 A3 两栏：无密封线页眉 + 栏距 2cm（1134 twip）', async () => {
     const zip = await buildZip(stripSealStructure(sealHtml), 'a3-2col');
     // 普通卷无密封线 → 不生成页眉（密封线由页眉 wpg 承载，普通卷没有）
     const headerFiles = Object.keys(zip.files).filter((n) => /word\/header\d+\.xml/.test(n));
     expect(headerFiles.length).toBe(0);
     const docXml = await zip.file('word/document.xml').async('string');
-    // 普通卷左右边距 2cm → 栏距 2268 twip；A3 两栏尺寸仍生效
-    expect(docXml).toContain('w:space="2268"');
+    // 普通卷左右边距 2cm → 栏距 1134 twip；A3 两栏尺寸仍生效
+    expect(docXml).toContain('w:space="1134"');
     expect(docXml).toContain('w:w="23812"');
   });
 });
@@ -113,19 +123,19 @@ describe('作文格按每栏可用宽度放最多整数格（2026-08：格子尺
   const ZWG_HTML = '<h2>三、习作。（共30分）</h2><div class="zuo-wen-ge"></div>';
   const sealHtml = '<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div><div class="sealed-content">' + ZWG_HTML + '</div></div>';
 
-  it('密封线卷 A3 两栏：每栏 165mm → 13 列 × 680（12mm 格，尺寸不缩放）', async () => {
+  it('密封线卷 A3 两栏：每栏 175mm → 14 列 × 680（12mm 格，尺寸不缩放）', async () => {
     const zip = await buildZip(sealHtml, 'a3-2col');
     const docXml = await zip.file('word/document.xml').async('string');
-    // 每栏可用宽 = (420 − 2.5cm×2 − 4cm 栏距)/2 = 165mm → floor(165/12) = 13 列；格子仍 680 DXA（12mm）
-    expect(docXml).toContain('w:w="8840"'); // 13 × 680
+    // 每栏可用宽 = (420 − 2.5cm×2 − 2cm 栏距)/2 = 175mm → floor(175/12) = 14 列；格子仍 680 DXA（12mm）
+    expect(docXml).toContain('w:w="9520"'); // 14 × 680
     expect(docXml).toContain('<w:gridCol w:w="680"');
   });
 
-  it('普通卷 A3 两栏：每栏 170mm → 14 列 × 680（12mm 格，尺寸不缩放）', async () => {
+  it('普通卷 A3 两栏：每栏 180mm → 15 列 × 680（12mm 格，尺寸不缩放）', async () => {
     const zip = await buildZip(stripSealStructure(sealHtml), 'a3-2col');
     const docXml = await zip.file('word/document.xml').async('string');
-    // 每栏可用宽 = (420 − 2cm×2 − 4cm 栏距)/2 = 170mm → floor(170/12) = 14 列；格子仍 680 DXA
-    expect(docXml).toContain('w:w="9520"'); // 14 × 680
+    // 每栏可用宽 = (420 − 2cm×2 − 2cm 栏距)/2 = 180mm → floor(180/12) = 15 列；格子仍 680 DXA
+    expect(docXml).toContain('w:w="10200"'); // 15 × 680
     expect(docXml).toContain('<w:gridCol w:w="680"');
   });
 });

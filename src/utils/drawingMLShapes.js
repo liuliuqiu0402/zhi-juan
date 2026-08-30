@@ -955,6 +955,23 @@ export const injectDrawingML = async (zipBuffer) => {
     zip.file(settingsPath, settingsXml);
   }
 
+  // 🔧 A3 两栏页脚公式域（footer*.xml 的 fldSimple）：注入 w:dirty="true" + 空域补缓存
+  //    - docx 库 SimpleField 不输出 w:dirty；公式域（= 2*PAGE-1）Word 打开默认不重算，
+  //      若无缓存结果则显示空白"第 页　共 页"。w:dirty 标记后 Word 打开即按 updateFields 更新。
+  //    - fldSimple 内部无缓存文本时补 "1"（防 WPS/在线预览等不自动更新域的查看器空白，
+  //      与 document.xml 三段式域的缓存注入策略一致）。
+  const footerPaths = Object.keys(zip.files).filter((p) => /^word\/footer\d*\.xml$/.test(p) && !zip.files[p].dir);
+  for (const fPath of footerPaths) {
+    let fXml = await zip.file(fPath)?.async('string');
+    if (!fXml) continue;
+    const fNew = fXml.replace(/<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>/g, (m, attrs, inner) => {
+      const a = /w:dirty=/.test(attrs) ? attrs : `${attrs} w:dirty="true"`;
+      const i = /<w:t[\s>]/i.test(inner) ? inner : '<w:r><w:t xml:space="preserve">1</w:t></w:r>';
+      return `<w:fldSimple${a}>${i}</w:fldSimple>`;
+    });
+    if (fNew !== fXml) zip.file(fPath, fNew);
+  }
+
   return await zip.generateAsync({
     type: 'uint8array',
     compression: 'DEFLATE',
