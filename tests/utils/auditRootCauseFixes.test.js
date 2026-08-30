@@ -266,4 +266,36 @@ describe('根治回归：分值载体误报消除（每词词条语义 + 小题 
     const { silentDetails } = run(html);
     expect(silentDetails.some(d => d.type === 'score-label' && d.message.includes('照样子'))).toBe(true);
   });
+
+  it('圈出类题（载体=句内文字）→ 不按填空验算，不报（强判定守卫）', () => {
+    const html = SEC(`
+<p>6. 读句子，圈出句子中的错误并改正。（每句2分，共8分）</p>
+<p>（1）春天到了，果园里的苹果花开了，桃花开了。</p>
+<p>（2）小明穿着新衣服，戴着红领巾，高高兴兴去上学。</p>
+`.trim());
+    const { silentDetails } = run(html);
+    expect(silentDetails.some(d => d.type === 'score-label' && d.message.includes('圈出'))).toBe(false);
+  });
+
+  it('课文内容填空（引号空位形态，countBlanks 数不到）→ 不报（计数不可靠不做断言）', () => {
+    const html = SEC(`
+<p>11. 根据课文内容填空。（每空2分，共10分）</p>
+<p>（1）"举头望明月，　　　　　　。"</p>
+<p>（2）"桃花潭水深千尺，　　　　　　。"</p>
+`.trim());
+    const { silentDetails } = run(html);
+    expect(silentDetails.some(d => d.type === 'score-label' && d.message.includes('根据课文内容填空'))).toBe(false);
+  });
+
+  it('分值抽检条目标记为 debug 级（不进问题列表，但保留诊断线索）', () => {
+    const html = SEC(`
+<p>5. 词语魔法桥——照样子，写一写。（每空1分，共4分）</p>
+<p>例：泡桐　白桦　云杉　翠柏</p>
+<p>杨(　　　　　　)　　松(　　　　　　)</p>
+`.trim());
+    const { silentDetails } = run(html);
+    const d = silentDetails.find(x => x.type === 'score-label' && x.message.includes('照样子'));
+    expect(d).toBeTruthy();
+    expect(d.level).toBe('debug');
+  });
 });

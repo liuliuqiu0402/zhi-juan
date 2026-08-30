@@ -4328,7 +4328,8 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         console.log(`🔍 整卷质检：修复 ${audit.fixed} 处，静默防护 ${audit.silent} 项${audit.issues.length ? `，修复记录 ${audit.issues.length} 条` : ''}`);
       }
       if (audit.silentDetails && audit.silentDetails.length > 0) {
-        auditWarnings = audit.silentDetails.map(d => `⚠️ ${d.message}`);
+        // 🔧 2026-08 分值抽检降级：level==='debug' 仅 console 诊断，不进生成报告问题列表（误报侵蚀信任）
+        auditWarnings = audit.silentDetails.filter(d => d.level !== 'debug').map(d => `⚠️ ${d.message}`);
       }
       finalContent = audit.html;
       // 🔴 答案区保留护栏：质检器异常丢失答案区（历史真实事故："拼接后有答案、audit 后无答案"）→

@@ -297,7 +297,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   let fixed = 0;
   let silent = 0;
   const silentDetails = [];
-  const silentCount = (type, msg) => { silent += 1; silentDetails.push({ type, message: msg }); console.debug(`🔍 [质检-${type}] ${msg}`); };
+  // level: 'notice'（默认，进生成报告问题列表）/ 'debug'（仅 console+明细，供开发诊断，不进问题列表——
+  //   🔧 2026-08 分值抽检降级：程序对多样载体形态（引号空位/语境空格/圈选句）数不可靠，
+  //   误报侵蚀信任；生成侧 promptHint 已强制模型自洽，抽检仅保留强判定 debug 线索）
+  const silentCount = (type, msg, level = 'notice') => { silent += 1; silentDetails.push({ type, message: msg, level }); console.debug(`🔍 [质检-${type}] ${msg}`); };
 
   // ── 0. 拼音字符归一（规则 pinyin-norm，全卷防 ɡ/ŋ/ɑ 混入）──
   if (has('pinyin-norm')) {
@@ -579,7 +582,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
 
         // 2e. 选择题选项过少（规则 option-count-guard：静默）
         if (has('option-count-guard') && /选一选|选择|选出/.test(secText2.slice(0, 400)) && options > 0 && options < 2) {
-          silentCount('option-missing', `大题「${title}」选项数过少(${options})`);
+          // 🔧 debug 级（2026-08）：行首"A."式例句/提示行会被 countOptions 误判为选项，误报侵蚀信任
+          silentCount('option-missing', `大题「${title}」选项数过少(${options})`, 'debug');
         }
 
         // 2e2. 分值自动分配（规则 score-distribute-fix，per-section：只处理当前大题）
@@ -714,8 +718,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             gridCells: countGridCells(secHtml2),
           });
           if (fsRes.text !== title) {
-            // 🔧 只报不改：分值账目不依赖程序重算（模型自洽），判不符仅静默抽检
-            silentCount('score-label', `大题「${title.slice(0, 22)}」分值标注与实际载体不符，请抽检`);
+            // 🔧 只报不改 + 强判定守卫 + debug 级（2026-08）：圈选/划去/涂色类（载体=句内文字）不按填空验算；
+            //    区域含非标准空位形态（引号空位/裸连续空格）时计数不可靠不做断言——误报侵蚀信任，
+            //    生成侧 promptHint 已强制模型自洽，此处仅保留强判定 debug 线索供开发诊断
+            const secInteractive = /圈出|圈一?圈|划去|划掉|涂色|打[√×✓]|勾出|选出/.test(secText2);
+            // 非标准空位形态（countBlanks 数不到→计数不可靠）：引号空位"　　"、双重括号 ((　))；
+            //   注意不能判"连续全角空格"——标准单括号空位（　　　　）内部正是连续全角空格，是可靠载体
+            const secAmbiguous = /[“"][　\s\u3000]{2,}[”"]|[(（]{2}[　\s\u3000]{2,}[)）]{2}/.test(secText2);
+            if (!secInteractive && !secAmbiguous) silentCount('score-label', `大题「${title.slice(0, 22)}」分值标注与实际载体不符，请抽检`, 'debug');
           }
         }
 
@@ -763,7 +773,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               gridCells: countGridCells(segHtml),
             });
             if (fsRes2.text !== st.text) {
-              silentCount('score-label', `小题「${st.text.slice(0, 14)}」分值标注与实际载体不符，请抽检`);
+              // 🔧 强判定守卫 + debug 级（2026-08，同 2f）：圈选/划去/涂色类题（载体=句内文字）不按填空验算；
+              //    区域含非标准空位形态（引号空位"　　"、双重括号空位、连续3+裸全角空格=例句/语境分隔）
+              //    时计数不可靠不做断言——消除"读句子圈出错误""课文内容填空（引号空位）"类误报；
+              //    真缺陷（标准括号空位声称≠实际）不含上述形态，仍保留 debug 线索
+              const segInteractive = /圈出|圈一?圈|划去|划掉|涂色|打[√×✓]|勾出|选出/.test(segText);
+              // 非标准空位形态（countBlanks 数不到→计数不可靠）：引号空位"　　"、双重括号 ((　))；
+              //   注意不能判"连续全角空格"——标准单括号空位（　　　　）内部正是连续全角空格，是可靠载体
+              const segAmbiguous = /[“"][　\s\u3000]{2,}[”"]|[(（]{2}[　\s\u3000]{2,}[)）]{2}/.test(segText);
+              if (!segInteractive && !segAmbiguous) silentCount('score-label', `小题「${st.text.slice(0, 14)}」分值标注与实际载体不符，请抽检`, 'debug');
             }
           });
         }
@@ -788,7 +806,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               `（共${subCount}题，共${totalScore}分）`
             );
             if (newT !== head.textContent) {
-              silentCount('score-label', `大题各题分值不一致（标题含"每题X分"），请抽检`);
+              // 🔧 debug 级（2026-08，同 2f/2g）：分值抽检降级，不进问题列表
+              silentCount('score-label', `大题各题分值不一致（标题含"每题X分"），请抽检`, 'debug');
             }
           }
         }
