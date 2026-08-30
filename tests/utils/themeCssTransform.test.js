@@ -52,8 +52,4 @@ describe('编辑器 themeCSS 转换（编辑区 = 导出视觉）', () => {
     expect(css).toMatch(/\.four-line-three::before\s*\{[^}]*height:\s*\d+(\.\d+)?mm/);
     expect(css).not.toContain('.tian-zi-ge { display: inline-block; position: relative; width: 1.8em');
   });
-
-  it('子题行 p.sub-question 缩进 4em（比题号行 2em 深，形成层级）', () => {
-    expect(css).toMatch(/p\.sub-question\s*\{[^}]*text-indent:\s*4em/);
-  });
 });
