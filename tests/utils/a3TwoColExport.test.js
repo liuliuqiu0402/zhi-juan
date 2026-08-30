@@ -42,11 +42,12 @@ describe('A3 两栏导出（每栏页码按栏计数）', () => {
     expect(docXml).toContain('w:space="1134"');
     // 页脚距纸边 0.7cm（397 twip，用户规格）：页码与正文拉开间距（防贴正文）
     expect(docXml).toContain('w:footer="397"');
-    // 页脚每栏页码公式域：左栏 =2*PAGE-1、右栏 =2*PAGE，共X页 =2*SECTIONPAGES（与 A4"第X页　共X页"格式一致）
+    // 页脚每栏页码公式域：左栏 =2*{PAGE}-1、右栏 =2*{PAGE}，共X页 =2*{SECTIONPAGES}（与 A4"第X页　共X页"格式一致）
     const footers = await footerText(zip);
-    expect(footers).toContain('= 2*PAGE - 1');
-    expect(footers).toContain('= 2*PAGE');
-    expect(footers).toContain('= 2*SECTIONPAGES');
+    // 公式域引用 PAGE/SECTIONPAGES 用嵌套域语法 { PAGE }（直接写会被 Word 当作"未定义的书签"）
+    expect(footers).toContain('<w:instrText xml:space="preserve"> = 2* ');
+    expect(footers).toContain('PAGE </w:instrText>');
+    expect(footers).toContain('SECTIONPAGES </w:instrText>');
     // 公式域转三段式（fldChar begin）+ begin 带 w:dirty（Word 打开时强制更新域，防"第 页 共 页"空白）
     expect(footers).toContain('w:fldChar w:fldCharType="begin" w:dirty="true"');
     // 页脚表格宽 = 可用宽 − 栏距（21544−1134 = 20410）：页码中心与正文两栏中心精确对齐
@@ -65,13 +66,19 @@ describe('A3 两栏导出（每栏页码按栏计数）', () => {
     expect(footers).toContain('PAGE');
   });
 
-  it('"本试卷共＿页"：A3 两栏按总栏数 =2*SECTIONPAGES（物理页数×2），A4 按 SECTIONPAGES 物理页数', async () => {
+  it('"本试卷共＿页"：A3 两栏按总栏数 =2*{SECTIONPAGES}（物理页数×2），A4 按 SECTIONPAGES 物理页数', async () => {
     const noticeHtml = '<div class="exam-shell"><div class="exam-notice"><p class="notice-title">注意事项：</p><p class="notice-item">1．答题前，请将密封线内的学校、班级、姓名、学号填写清楚。</p><p class="notice-item">3．本试卷共＿页。</p></div></div>' + HTML;
-    // A3 两栏：本试卷共X页 → =2*SECTIONPAGES 公式域（总栏数，转三段式 + begin dirty）
+    // A3 两栏：本试卷共X页 → =2*{SECTIONPAGES} 公式域（总栏数，转三段式 + begin dirty + 嵌套域语法）
     const zipA3 = await buildZip(noticeHtml, 'a3-2col');
     const docA3 = await zipA3.file('word/document.xml').async('string');
-    expect(docA3).toContain('= 2*SECTIONPAGES');
+    expect(docA3).toContain('<w:instrText xml:space="preserve"> = 2* ');
+    expect(docA3).toContain('SECTIONPAGES </w:instrText>');
     expect(docA3).toContain('w:fldChar w:fldCharType="begin" w:dirty="true"');
+    // 域结果在"页"字之前（本试卷共[8]页，不出现"共页8"错乱）
+    const i8 = docA3.indexOf('>8</w:t>');
+    const iYe = docA3.indexOf('>页</w:t>', i8);
+    expect(i8).toBeGreaterThan(0);
+    expect(iYe).toBeGreaterThan(i8);
     // A4 单栏：本试卷共X页 → SECTIONPAGES 域（物理页数，三段式，与既有行为一致）
     const zipA4 = await buildZip(noticeHtml, 'a4');
     const docA4 = await zipA4.file('word/document.xml').async('string');

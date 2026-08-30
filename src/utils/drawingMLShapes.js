@@ -781,17 +781,29 @@ export const injectDrawingML = async (zipBuffer) => {
   );
 
   // 🔧 fldSimple 公式域 → 三段式域（begin/instrText/separate/result/end + begin w:dirty）
-  //    - docx 库 SimpleField 输出 <w:fldSimple>（简化域，且不带 dirty）。部分查看器（WPS/在线预览）对
-  //      fldSimple 的公式域（= 2*PAGE-1 等）显示空白；三段式 fldChar 结构与 Word"插入域"生成的域一致，
-  //      与 document.xml 的 PAGE/SECTIONPAGES 域同构，兼容性最好。
+  //    - docx 库 SimpleField 输出 <w:fldSimple>（简化域，不带 dirty），且 fldSimple 位于外层 TextRun 内部；
+  //      直接替换为 <w:r> 包裹的 run 会形成 run 嵌套（非法结构，Word 显示错乱如"共页8"）——
+  //      因此输出裸元素（fldChar/instrText/text 不包 w:r），保持在外层 run 上下文内（Word 按流式解析域）。
+  //    - 🔴 Word 公式域中直接写 PAGE/SECTIONPAGES 会被当作"未定义的书签"（显示 !未定义的书签，PAGE），
+  //      必须用嵌套域语法 { PAGE }：外层公式域 = 2*{ PAGE } - 1，内层 PAGE 为独立嵌套域。
   //    - begin 无条件带 w:dirty（公式域 Word 默认不自动重算，dirty 标记后打开即按 updateFields 更新）。
   //    - 应用于 document.xml（"本试卷共X页" A3 =2*SECTIONPAGES）与 footer*.xml（A3 两栏页脚按栏页码）。
   const fldSimpleToThreePart = (xml) => xml.replace(/<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>/g, (m, attrs, inner) => {
     const instrMatch = /w:instr="([^"]*)"/.exec(attrs);
-    const instr = instrMatch ? instrMatch[1] : '';
+    const rawInstr = instrMatch ? instrMatch[1] : '';
     const cachedMatch = /<w:t[^>]*>([^<]*)<\/w:t>/.exec(inner);
     const cached = cachedMatch ? cachedMatch[1] : '1';
-    return `<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r><w:r><w:instrText xml:space="preserve"> ${instr} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t xml:space="preserve">${cached}</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>`;
+    // 拆分公式指令，把 PAGE/SECTIONPAGES/NUMPAGES/SECTION 域引用转为嵌套域（{ PAGE } 语法）
+    const segments = rawInstr.split(/\b(PAGE|SECTIONPAGES|NUMPAGES|SECTION)\b/);
+    let innerXml = '';
+    segments.forEach((seg, i) => {
+      if (i % 2 === 1) {
+        innerXml += `<w:fldChar w:fldCharType="begin"/><w:instrText xml:space="preserve"> ${seg} </w:instrText><w:fldChar w:fldCharType="separate"/><w:t xml:space="preserve">1</w:t><w:fldChar w:fldCharType="end"/>`;
+      } else if (seg.trim()) {
+        innerXml += `<w:instrText xml:space="preserve"> ${seg} </w:instrText>`;
+      }
+    });
+    return `<w:fldChar w:fldCharType="begin" w:dirty="true"/>${innerXml}<w:fldChar w:fldCharType="separate"/><w:t xml:space="preserve">${cached}</w:t><w:fldChar w:fldCharType="end"/>`;
   });
   docXml = fldSimpleToThreePart(docXml);
   zip.file(docPath, docXml);
