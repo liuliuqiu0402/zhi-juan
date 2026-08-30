@@ -959,6 +959,9 @@ const columnPageFooter = (availW = 0, space = 1134, cols = 2) => {
           insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
         },
         columnWidths,
+        // 🔧 固定布局（2026-08）：多栏页脚表格按声明宽度排布——Word 自动布局会忽略 tblW
+        //    把表格收缩到最左侧（4 栏页码挤在一起）；FIXED 后按 gridCol 精确占满可用宽
+        layout: TableLayoutType.FIXED,
         rows: [new TableRow({ children: cells })],
       }),
     ],

@@ -190,11 +190,12 @@ describe('A2/A1 大试卷导出（2026-08：A 系列标准纸拼 A4 单元，每
     expect(footers).toContain('w:w="9902"');
   });
 
-  it('A1 四栏（841×594 横向，每栏=整张 A4 宽）：尺寸 47679×33676 + w:num="4" + 每栏页码 =4*PAGE-3 … -0', async () => {
+  it('4×A4 并排四栏（840×297，每栏=整张 A4 版面）：尺寸 47622×16838 + w:num="4" + 每栏页码 =4*PAGE-3 … -0', async () => {
     const zip = await buildZip(HTML3, 'a1-4col');
     const docXml = await zip.file('word/document.xml').async('string');
-    expect(docXml).toContain('w:w="47679"');
-    expect(docXml).toContain('w:h="33676"');
+    // 840×297mm：4 张 A4 竖放并排（每栏 210 宽 × 297 高 = 整张 A4）
+    expect(docXml).toContain('w:w="47622"');
+    expect(docXml).toContain('w:h="16838"');
     expect(docXml).toContain('w:num="4"');
     const footers = await footerText(zip);
     expect(footers).toContain('<w:instrText xml:space="preserve"> = 4* ');
@@ -203,18 +204,19 @@ describe('A2/A1 大试卷导出（2026-08：A 系列标准纸拼 A4 单元，每
     expect(footers).toContain('<w:instrText xml:space="preserve">  - 1 </w:instrText>');
     expect(footers).toContain('PAGE </w:instrText>');
     expect(footers).toContain('SECTIONPAGES </w:instrText>');
-    // 页脚表格宽 = 可用宽 − 栏距×3（45411−2040 = 43371 → 列宽 10842）
-    expect(footers).toContain('w:w="10842"');
+    // 页脚数据列宽 = (45354 − 3×680)/4 = 10828（gridCol），表格 FIXED 布局占满可用宽
+    expect(footers).toContain('w:w="10828"');
+    expect(footers).toContain('w:tblLayout w:type="fixed"');
   });
 
-  it('A1 四栏密封线卷：密封线虚线贯穿整页高度（594−40=554mm → cy=19944000 EMU），A4 保持 257mm', async () => {
+  it('A2 三栏密封线卷：密封线虚线贯穿整页高度（420−40=380mm → cy=13680000 EMU），A4 保持 257mm', async () => {
     const sealHtml = '<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div><div class="sealed-content">' + HTML3 + '</div></div>';
-    // A1（高 594mm）：虚线长度 = 594−40 = 554mm → 554×36000 = 19944000 EMU
-    const zipA1 = await buildZip(sealHtml, 'a1-4col');
-    const hdrsA1 = Object.keys(zipA1.files).filter((n) => /word\/header\d+\.xml/.test(n));
-    let headersA1 = '';
-    for (const f of hdrsA1) headersA1 += await zipA1.file(f).async('string');
-    expect(headersA1).toContain('cy="19944000"');
+    // A2（高 420mm）：虚线长度 = 420−40 = 380mm → 380×36000 = 13680000 EMU
+    const zipA2 = await buildZip(sealHtml, 'a2-3col');
+    const hdrsA2 = Object.keys(zipA2.files).filter((n) => /word\/header\d+\.xml/.test(n));
+    let headersA2 = '';
+    for (const f of hdrsA2) headersA2 += await zipA2.file(f).async('string');
+    expect(headersA2).toContain('cy="13680000"');
     // A4（高 297mm）：虚线长度 = 297−40 = 257mm → 9252000 EMU（既有行为不变）
     const zipA4 = await buildZip(sealHtml, 'a4');
     const hdrsA4 = Object.keys(zipA4.files).filter((n) => /word\/header\d+\.xml/.test(n));
