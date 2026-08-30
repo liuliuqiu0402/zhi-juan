@@ -22,6 +22,15 @@ describe('examValidator 拼音字符归一', () => {
     const { text } = normalizePinyinText('ＡＢＣ');
     expect(text).toBe('ABC');
   });
+
+  it('拼音注音括号全角→半角（多音节拼音组）；不误伤说明/序号/单选字母括号', () => {
+    const html = '<p>（háng　xíng）　（1）看拼音写词语（提示：注意声调）　（A）选项</p>';
+    const { html: out } = auditExamPaper(html, OPTS);
+    expect(out).toContain('(háng　xíng)');   // 多音节拼音组 → 半角
+    expect(out).toContain('（1）');           // 序号括号保留全角
+    expect(out).toContain('（提示：注意声调）'); // 中文说明括号保留
+    expect(out).toContain('（A）');           // 单选字母括号保留（非多音节拼音组）
+  });
 });
 
 describe('examValidator 空位/拼音统计', () => {

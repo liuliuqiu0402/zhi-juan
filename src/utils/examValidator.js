@@ -309,6 +309,16 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       fixed += f;
       out = text;
     }
+    // 🔧 拼音注音括号全角→半角（2026-08）：防模型不遵守半角约束（约束已在指令层注入）；
+    //    仅括号内容为"多音节拼音组"（含空格/顿号/斜杠分隔，如 （háng xíng））时替换，
+    //    不误伤中文说明括号（提示：…）、序号括号（1）、单选字母（A）——它们非多音节拼音组
+    const PY = PINYIN_CHARS;
+    const pyParenRe = new RegExp(`[（(]([${PY}]+(?:[／/、，, \\s　]+[${PY}]+)+)[)）]`, 'g');
+    const pyHits = out.match(pyParenRe);
+    if (pyHits && pyHits.length) {
+      out = out.replace(pyParenRe, '($1)');
+      fixed += pyHits.length;
+    }
   }
 
   // ── 1. 模板残留清理（规则 template-cleanup）──
