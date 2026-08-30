@@ -125,6 +125,16 @@
               <option value="pdf">📕 PDF</option>
               <option value="html">🌐 HTML</option>
             </select>
+            <!-- 🔧 A3 两栏导出（2026-08）：默认 A4 单栏；A3 两栏 = 横向 A3 两栏 + 每栏页码按栏计数（Word 公式域自动算） -->
+            <select v-if="exportFormat === 'docx'" v-model="paperLayout" class="export-select" title="纸张版式">
+              <option value="a4">A4 单栏</option>
+              <option value="a3-2col">A3 两栏（每栏页码）</option>
+            </select>
+            <!-- 🔧 卷型选择（2026-08）：密封线卷（默认，含密封线+考生信息栏）/ 普通卷（无密封线） -->
+            <select v-if="exportFormat === 'docx'" v-model="sealVariant" class="export-select" title="卷型">
+              <option value="sealed">密封线卷</option>
+              <option value="plain">普通卷</option>
+            </select>
             <button class="btn-primary" @click="exportDocument" :disabled="isExporting">
               {{ isExporting ? '导出中...' : '📥 导出' }}
             </button>
@@ -250,7 +260,7 @@ import { useFileHandler } from '../composables/useFileHandler.js';
 import {
   getAllThemes, getThemeById, addCustomTheme, updateCustomTheme, deleteCustomTheme,
   applyThemeToContent, wrapContentForTheme, getSpecialThemeEditorCSS, markdownToHtml, defaultThemeId, themeOptions,
-  normalizeSealStructure, injectExamShell
+  normalizeSealStructure, injectExamShell, stripSealStructure
 } from '../themeConfig.js';
 import { APP_EVENTS } from '../constants/events.js';
 import RichTextEditor from '../components/RichTextEditor.vue';
@@ -270,6 +280,8 @@ const editingTheme = ref(null);
 const themeGroupFilter = ref('');
 const isExporting = ref(false);
 const exportStatus = ref('');
+const paperLayout = ref('a4'); // 🔧 纸张版式：a4（默认单栏）/ a3-2col（A3 两栏 + 每栏页码）
+const sealVariant = ref('sealed'); // 🔧 卷型：sealed（密封线卷，默认）/ plain（普通卷，无密封线）
 const exportFormat = ref('docx');
 
 // 🔧 处理从生成模块跳转过来的 HTML 内容
@@ -877,7 +889,12 @@ const exportDocument = async () => {
   //    内容含密封线特征时自动按 sealed_exam 包装（不依赖用户手动选主题）
   let previewContentForExport;
   if (isHtmlContent.value && pristineHtmlForExport.value) {
-    const wrapped = wrapContentForTheme(pristineHtmlForExport.value, effectiveThemeFor(pristineHtmlForExport.value));
+    let wrapped = wrapContentForTheme(pristineHtmlForExport.value, effectiveThemeFor(pristineHtmlForExport.value));
+    // 🔧 卷型选择：普通卷剥离密封线结构（HTML/PDF 导出与 DOCX 口径一致，PDF 走默认页边距）
+    if (sealVariant.value === 'plain') {
+      wrapped = stripSealStructure(wrapped);
+      wrapped = wrapped.replace(/(答题前，请将)密封线内的(学校、班级、姓名、学号填写清楚。)/, '$1$2');
+    }
     previewContentForExport = applyThemeToContent(wrapped, effectiveThemeFor(pristineHtmlForExport.value), {
       isHtmlContent: true,
       forceImportant: true
@@ -951,6 +968,14 @@ const exportDocument = async () => {
       //    必须与预览走同一包装（effectiveThemeFor：内容含密封特征时自动按 sealed_exam），
       //    确保导出 Word 与预览所见一致。
       sourceHtml = wrapContentForTheme(sourceHtml, effectiveThemeFor(sourceHtml));
+
+      // 🔧 卷型选择（2026-08）：普通卷 = 先按密封线卷包装（注入卷面固定件），再剥离密封线结构
+      //    （sealed-wrapper/seal-zone，docxBuilder 据此判 hasSealLine=false → 左右 2cm 边距 + A3 栏距 4cm），
+      //    并同步修正注意事项第 1 条文案（去掉"密封线内"字样）；密封线卷（默认）保持原样。
+      if (sealVariant.value === 'plain') {
+        sourceHtml = stripSealStructure(sourceHtml);
+        sourceHtml = sourceHtml.replace(/(答题前，请将)密封线内的(学校、班级、姓名、学号填写清楚。)/, '$1$2');
+      }
 
       // 🔧 懒加载 docxBuilder（避免 chunk 加载时序导致整个组件挂掉）
       const { htmlToDocxBlob } = await import('../utils/docxBuilder.js');
@@ -1033,7 +1058,8 @@ const exportDocument = async () => {
       try {
         // 只传 clone（不含 style 标签），避免 CSS 被当成正文
         // 🔧 作文格格子按学段尺寸（小学 12mm / 初中 10mm / 高中 7.5×8mm，来自排版规格库），学段取自所选主题 stage
-        const blob = await htmlToDocxBlob(clone, selectedTheme.value?.stage || 'middle');
+        // 🔧 纸张版式：paperLayout（a4 默认单栏 / a3-2col 横向 A3 两栏 + 每栏页码按栏计数）
+        const blob = await htmlToDocxBlob(clone, selectedTheme.value?.stage || 'middle', paperLayout.value);
         document.body.removeChild(wrapper);
         downloadBlob(blob, `${exportBaseName.value}.docx`);
       } finally {

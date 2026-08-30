@@ -2720,6 +2720,30 @@ export const wrapContentForTheme = (html, themeId) => {
   }
 };
 
+/** 普通卷剥离密封线结构（2026-08）：去除 sealed-wrapper/seal-zone 等密封元素，仅保留正文内容；
+ *  用于导出"普通卷"（无密封线）——与 wrapContentForTheme（密封线卷）互为反操作。
+ *  幂等：无密封结构时原样返回。 */
+export const stripSealStructure = (html) => {
+  if (!html || typeof html !== 'string') return html || '';
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const wrapper = tpl.content.querySelector('.sealed-wrapper');
+  if (wrapper) {
+    const content = wrapper.querySelector('.sealed-content');
+    if (content) {
+      // 保留正文内容（sealed-content 内），替换整个 wrapper
+      const frag = document.createDocumentFragment();
+      while (content.firstChild) frag.appendChild(content.firstChild);
+      wrapper.parentNode.replaceChild(frag, wrapper);
+    } else {
+      wrapper.remove();
+    }
+  }
+  // 清理孤儿密封元素（密封线/密封区残留）
+  tpl.content.querySelectorAll('.seal-zone, .sealed-line, .seal-line, .seal-char, .seal-note, .seal-info, .seal-zone-wrap').forEach((el) => el.remove());
+  return tpl.innerHTML;
+};
+
 /**
  * 🔧 特殊主题编辑器 CSS：将 class 选择器布局转为 .ProseMirror 伪元素实现
  *    Tiptap 丢弃 div/class，但 .ProseMirror 是编辑器真实 DOM 元素

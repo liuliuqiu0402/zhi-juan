@@ -2,7 +2,7 @@
 // 数据源：contentEditable 实时 DOM（预览看到什么就导出什么）
 // 输出：docx 库的 Document 对象 → Packer.toBlob()
 
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader } from 'docx';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader, SimpleField } from 'docx';
 import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
 import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js';
@@ -887,6 +887,46 @@ const sealMarkerParagraph = (fields, sizeHp, lineOnly = false, mirror = false) =
 const pageNumberParagraph = (totalField = PageNumber.TOTAL_PAGES_IN_SECTION) => new Paragraph({
   alignment: AlignmentType.CENTER,
   children: [new TextRun({ children: ['第 ', PageNumber.CURRENT, ' 页　共 ', totalField, ' 页'], size: 18, color: '000000' })],
+});
+
+/** A3 两栏页脚（2026-08）：每栏一个页码、按栏计数——无边框 2 列表格，
+ *  左栏域 =2*PAGE-1（第 1、3、5…栏）、右栏域 =2*PAGE（第 2、4、6…栏），
+ *  格式与 A4 一致"第X页　共X页"（共X页 = =2*SECTIONPAGES 总栏数），每栏底部居中。
+ *  🔴 公式域中 PAGE/SECTIONPAGES 为字段引用（Word 公式域原生支持），页码只依赖物理页数、与内容流式重排无关。 */
+const columnPageFooter = () => new Footer({
+  children: [
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: {
+        top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+        bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+        left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+        right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+        insideHorizontal: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+        insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+      },
+      rows: [new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [new TextRun({ children: ['第 ', new SimpleField('= 2*PAGE - 1', '1'), ' 页　共 ', new SimpleField('= 2*SECTIONPAGES', '8'), ' 页'], size: 18, color: '000000' })],
+            })],
+          }),
+          new TableCell({
+            width: { size: 50, type: WidthType.PERCENTAGE },
+            verticalAlign: VerticalAlign.CENTER,
+            children: [new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [new TextRun({ children: ['第 ', new SimpleField('= 2*PAGE', '2'), ' 页　共 ', new SimpleField('= 2*SECTIONPAGES', '8'), ' 页'], size: 18, color: '000000' })],
+            })],
+          }),
+        ],
+      })],
+    }),
+  ],
 });
 
 const processBlockNode = (node, ctx = {}) => {
@@ -1834,7 +1874,9 @@ const processBlockNode = (node, ctx = {}) => {
 // ============ 公开 API ============
 
 /** 从 contentEditable DOM 构建 docx Document */
-export const buildDocxFromDom = (containerEl, stage = 'middle') => {
+export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') => {
+  // 🔧 A3 两栏（2026-08）：横向 A3（420×297mm = 两栏 A4 并排），正文两栏 + 每栏页码（按栏计数）
+  const isA3TwoCol = layout === 'a3-2col';
   // 🔧 作文格学段（来自排版规格库 ZUOWEN_CELL：小学12/初中10/高中7.5mm），buildDocxFromDom 启动时设置
   __zwgStage = stage || 'middle';
   // 🔧 作文格每行格子数按 A4 可用宽度自动排满——必须在 processBlockNode 之前计算
@@ -1921,6 +1963,8 @@ export const buildDocxFromDom = (containerEl, stage = 'middle') => {
   let leftMargin = 1134;
   let rightMargin = 1134;
   let sealHeaders = null;
+  // 🔧 A3 两栏同样保留密封线：左版锚定页面 (0,0)（A3 下依然最左 0~20mm）、镜像版锚定页面右缘（自动贴右），
+  //    密封线坐标不依赖纸张宽度，A3 两栏直接复用
   if (hasSealLine) {
     const fields = sealFirst?.fields?.length ? sealFirst.fields : ['密封线'];
     const sizeHp = sealFirst?.sizeHp || 20;
@@ -1937,15 +1981,24 @@ export const buildDocxFromDom = (containerEl, stage = 'middle') => {
   }
 
   const pageProps = {
-    size: { width: 11906, height: 16838 },
+    // 🔧 A3 两栏：横向 A3（420×297mm = 23812×16838 DXA，两栏 A4 并排）；默认 A4 竖版（11906×16838）
+    size: isA3TwoCol ? { width: 23812, height: 16838 } : { width: 11906, height: 16838 },
     // 🔧 上下 2cm；密封文档左右 2.5cm（1417 DXA，虚线 19mm + 6mm 不贴正文），普通文档左右 2cm
     margin: { top: 1134, bottom: 1134, left: leftMargin, right: rightMargin },
   };
+
+  // 🔧 A3 两栏页脚（每栏页码按栏计数）vs 默认"第X页　共X页"页脚
+  const bodyFooter = isA3TwoCol ? columnPageFooter() : new Footer({ children: [pageNumberParagraph()] });
+  // 🔧 A3 两栏栏距 = 左右边距之和（模拟两个 A4 面并排：中间间隔 = 左面右边距 + 右面左边距，
+  //    密封线卷 2.5+2.5=5cm，普通卷 2+2=4cm）；Word 分栏模型栏距为栏间空白（twip）
+  const columnSpace = leftMargin + rightMargin;
 
   const sections = [{
     properties: {
       // 🔧 密封文档：different-first-page（首页页眉全量密封区，后续页仅 虚线+密/封/线）；仅 true 时输出 w:titlePg
       ...(hasSealLine ? { titlePage: true } : {}),
+      // 🔧 A3 两栏：正文两栏（蛇形分栏，栏距 = 左右边距之和 ≈ 两 A4 面并排）
+      ...(isA3TwoCol ? { column: { count: 2, space: columnSpace } } : {}),
       page: pageProps,
     },
     // 🔧 密封线页眉（每页重复渲染；无密封文档不设页眉）
@@ -1954,8 +2007,8 @@ export const buildDocxFromDom = (containerEl, stage = 'middle') => {
     //    ⚠️ 密封文档开启 different-first-page 后必须同时提供 first 页脚，否则 Word 首页不显示页码
     //    ⚠️ 显式黑色：页码为 PAGE/SECTIONPAGES 域，Word 默认给域加浅灰底纹（显示设置），文字本身保持纯黑
     footers: {
-      ...(hasSealLine ? { first: new Footer({ children: [pageNumberParagraph()] }), even: new Footer({ children: [pageNumberParagraph()] }) } : {}),
-      default: new Footer({ children: [pageNumberParagraph()] }),
+      ...(hasSealLine ? { first: bodyFooter, even: isA3TwoCol ? columnPageFooter() : new Footer({ children: [pageNumberParagraph()] }) } : {}),
+      default: bodyFooter,
     },
     children: bodyChildren,
   }];
@@ -1969,11 +2022,13 @@ export const buildDocxFromDom = (containerEl, stage = 'middle') => {
           ...pageProps,
           pageNumbers: { start: 1 },
         },
+        // 🔧 A3 两栏：答案区同样两栏 + 栏页码
+        ...(isA3TwoCol ? { column: { count: 2, space: columnSpace } } : {}),
       },
       ...(sealHeaders ? { headers: { default: new Header({ children: [] }), even: new Header({ children: [] }) } } : {}),
       footers: {
-        default: new Footer({ children: [pageNumberParagraph()] }),
-        even: new Footer({ children: [pageNumberParagraph()] }),
+        default: isA3TwoCol ? columnPageFooter() : new Footer({ children: [pageNumberParagraph()] }),
+        even: isA3TwoCol ? columnPageFooter() : new Footer({ children: [pageNumberParagraph()] }),
       },
       children: answerChildren,
     });
@@ -1994,11 +2049,12 @@ export const buildDocxFromDom = (containerEl, stage = 'middle') => {
 
 /** HTML DOM → docx Blob（含 DrawingML 后处理 + 图片预内联）
  *  stage: primary_low~high/primary/middle/high/中文 —— 作文格格子尺寸按学段归一化
- *  （小学 12mm / 初中 10mm / 高中 7.5×8mm，来自排版规格库 ZUOWEN_CELL） */
-export const htmlToDocxBlob = async (containerEl, stage = 'middle') => {
+ *  （小学 12mm / 初中 10mm / 高中 7.5×8mm，来自排版规格库 ZUOWEN_CELL）
+ *  layout: 'a4'（默认，单栏）/ 'a3-2col'（A3 横向两栏 + 每栏页码按栏计数） */
+export const htmlToDocxBlob = async (containerEl, stage = 'middle', layout = 'a4') => {
   // 🔧 预内联外部图片：fetch → dataURL 写入 _inlined 属性
   await inlineImagesForExport(containerEl);
-  const doc = buildDocxFromDom(containerEl, stage);
+  const doc = buildDocxFromDom(containerEl, stage, layout);
   const blob = await Packer.toBlob(doc);
   const buffer = await blob.arrayBuffer();
   const processed = await injectDrawingML(buffer);
