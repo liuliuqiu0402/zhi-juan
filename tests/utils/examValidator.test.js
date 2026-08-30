@@ -52,7 +52,7 @@ describe('examValidator 分值标注修正（第4题案例）', () => {
 
   it('连线题"每线1分"声称4线实际3线时按单位分重算（不整除也不去单位）', () => {
     const { text } = fixScoreLabel('（2）连一连。（4分，每线1分）', 4, 3, 1);
-    expect(text).toBe('（2）连一连。（共3处连线，每线1分，共3分）');
+    expect(text).toBe('（2）连一连。（共3组，每组1分，共3分）');
   });
 
   it('"每字/每词"为语义性载体，程序不假装验证——保留原标注', () => {
@@ -86,8 +86,8 @@ describe('examValidator 分值标注修正（第4题案例）', () => {
       '<p>正月　　　　　　　　　山茶</p>',
     ].join('\n');
     const { html: out, issues } = auditExamPaper(html, OPTS);
-    // 声称 4分÷1分=4 线，实际 3 条连线 → 按每线1分×3线重算为3分（不再去掉单位只留"共4分"）
-    expect(out).toContain('（2）根据短文内容，连一连。（共3处连线，每线1分，共3分）');
+    // 声称 4分÷1分=4 线，实际 3 条连线 → 按每线1分×3组重算为3分（不再去掉单位只留"共4分"）
+    expect(out).toContain('（2）根据短文内容，连一连。（共3组，每组1分，共3分）');
     expect(issues.some(i => i.type === 'score-label')).toBe(true);
   });
 

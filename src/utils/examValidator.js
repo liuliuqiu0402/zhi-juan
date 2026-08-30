@@ -197,32 +197,34 @@ const fmtScore = (n) => (Number.isInteger(n) ? String(n) : String(parseFloat(n.t
 
 /**
  * 修复标题内"每X分"标注与载体数对齐（规则 score-label-fix 标注换算核心）：
- * 🔴 不凑数原则（2026-08 修订）：声称单位分（每空/每线/每题 X 分）是模型的语义定价
- *    （如看拼音写词语"一个词语2分"），实际载体数（空位/连线/子题）是 DOM 实数——
+ * 🔴 不凑数原则（2026-08 修订）：声称单位分（每空/每线/每组/每题 X 分）是模型的语义定价
+ *    （如看拼音写词语"一个词语2分"），实际载体数（空位/连线组/子题）是 DOM 实数——
  *    两者矛盾时以实际载体数为准，按「声称单位分 × 实际载体数」重算正确总分，
  *    不再保留声称总分只改措辞（历史事故："每空2分共16分"实际3空被凑成"共3空共16分"，
  *    正确是 3空×2分=6分；"每题1分共4分"实际2题被凑成"每题2分"，正确是 2分）。
  * 单位×载体验证维度（2026-08 根治"每字/每词"豁免导致账目无法闭合）：
- *    - 空/线 → carrierCount（外部传入的 DOM 空位/连线数）
+ *    - 空/线/组 → carrierCount（外部传入的 DOM 空位/连线组数；连线题"每线/每组"同义，
+ *      配对对数=左侧项数=组数，输出统一为"组"）
  *    - 题   → subCount（子题号数）
  *    - 词   → opts.pinyinGroups（看拼音写词语：一个词=一组拼音，词数=拼音组数，程序可数）
  *    - 字   → opts.gridCells（看拼音写词语：一个字=一个田字格，字数=格子数，程序可数）
  *    数不到对应载体时（如题内无拼音、无格子）→ 无法判定，保留原标注（不假装验证）。
  * @param {string} title 大题/小题标题
  * @param {number} totalScore 声称总分（调用方解析，仅用于自洽校验）
- * @param {number} carrierCount 实际载体数（空位数或连线对数）
+ * @param {number} carrierCount 实际载体数（空位数或连线组数）
  * @param {number} subCount 实际题数（"每题"用：大题场景传题目行数，小题场景传子题号数）
  * @param {Object} opts { pinyinGroups, gridCells } "每词/每字"声称时的实际载体数（词=拼音组、字=格子）
  * @returns {{text: string, note: string}} text 修正后标题；note 非空表示按实际载体重算了总分（供调用处提示）
  */
 export const fixScoreLabel = (title, totalScore, carrierCount, subCount, opts = {}) => {
   let out = title;
-  // 🔧 标注形态兼容：括号版"（每空2分，共16分）"与裸文本版"每空2分，共16分"均触发校验
-  //    捕获组不含"每"字：unitMatch[1] 为 空/线/题/字/词，后续 unit==='线' 等比较才成立
-  let unitMatch = out.match(/[（(][^)）]*?每(空|线|题|字|词)\s*(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
+  // 🔧 标注形态兼容：括号版"（每空2分，共16分）"与裸文本版"每空2分，共16分"均触发校验；
+  //    连线题声称"每线/每组"均识别（同义，向后兼容 AI 两种输出）
+  //    捕获组不含"每"字：unitMatch[1] 为 空/线/组/题/字/词，后续 unit==='线' 等比较才成立
+  let unitMatch = out.match(/[（(][^)）]*?每(空|线|组|题|字|词)\s*(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
   let bareMode = false;
   if (!unitMatch) {
-    const bare = out.match(/每(空|线|题|字|词)\s*(\d+(?:\.\d+)?)\s*分/);
+    const bare = out.match(/每(空|线|组|题|字|词)\s*(\d+(?:\.\d+)?)\s*分/);
     if (bare) { unitMatch = bare; bareMode = true; }
   }
   if (!unitMatch) return { text: out, note: '' };
@@ -232,17 +234,18 @@ export const fixScoreLabel = (title, totalScore, carrierCount, subCount, opts = 
   // 实际载体数：按声称单位取对应维度；数不到（0）→ 无法验证，保留原标注
   let actualN = 0;
   if (unit === '题') actualN = subCount;
-  else if (unit === '线' || unit === '空') actualN = carrierCount;
+  else if (unit === '线' || unit === '组' || unit === '空') actualN = carrierCount;
   else if (unit === '词') actualN = opts.pinyinGroups || 0;
   else if (unit === '字') actualN = opts.gridCells || 0;
   if (!(actualN > 0)) return { text: out, note: '' };
-  const unitLabel = unit === '线' ? '线' : unit;
-  // 声称载体数：标题"共N空/题/线/词/字"显式值；缺失时由"共Y分 ÷ 单位分"推算（16分÷每空2分=声称8空）
-  const claimedNM = out.match(/共\s*(\d{1,3})\s*(?:处连线|空|题|线|词|字)/);
+  // 连线题输出统一为"组"（"每线/每组"声称都归一为"组"）
+  const unitLabel = (unit === '线' || unit === '组') ? '组' : unit;
+  // 声称载体数：标题"共N空/题/线/词/字/组"显式值；缺失时由"共Y分 ÷ 单位分"推算（16分÷每空2分=声称8空）
+  const claimedNM = out.match(/共\s*(\d{1,3})\s*(?:处连线|空|题|线|词|字|组)/);
   // 声称总分：优先"共X分"；无"共"字时取括号内首个"数字分"（兼容"（8分，每空2分）"式）——
   //    括号开头是"每X"（如"（每空2分）"）时视为无声称总分，不提取（该"2分"是单位分不是总分）
   const claimedTotalM = out.match(/共\s*(\d+(?:\.\d+)?)\s*分/)
-    || out.match(/[（(](?!每(?:空|线|题|字|词))[^）)]*?(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
+    || out.match(/[（(](?!每(?:空|线|组|题|字|词))[^）)]*?(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
   const claimedTotal = claimedTotalM ? parseFloat(claimedTotalM[1]) : null;
   let claimedN = claimedNM ? parseInt(claimedNM[1], 10) : null;
   if (claimedN == null && claimedTotal != null) claimedN = claimedTotal / unitScore;
@@ -253,7 +256,7 @@ export const fixScoreLabel = (title, totalScore, carrierCount, subCount, opts = 
   // 完全自洽（声称载体数=实际 且 声称总分=单位分×实际）→ 不动
   if (countConsistent && totalConsistent) return { text: out, note: '' };
   // 重算：以实际载体数为准，不凑数
-  const label = `共${actualN}${unitLabel === '线' ? '处连线' : unitLabel}，每${unitLabel}${fmtScore(unitScore)}分，共${fmtScore(correctTotal)}分`;
+  const label = `共${actualN}${unitLabel}，每${unitLabel}${fmtScore(unitScore)}分，共${fmtScore(correctTotal)}分`;
   const claimedDesc = [];
   if (claimedN != null) claimedDesc.push(`声称${fmtScore(claimedN)}${unitLabel}`);
   if (claimedTotal != null) claimedDesc.push(`声称${fmtScore(claimedTotal)}分`);
@@ -262,9 +265,9 @@ export const fixScoreLabel = (title, totalScore, carrierCount, subCount, opts = 
     : '';
   if (bareMode) {
     // 裸文本版：整段替换"每X分…共Y分"（无括号标注，AI 常见输出形态）
-    out = out.replace(/(每空|每线|每题|每词|每字)\s*\d+(?:\.\d+)?\s*分(?:[，,、]?\s*共\s*\d+(?:\.\d+)?\s*分)?/, `（${label}）`);
+    out = out.replace(/(每空|每线|每组|每题|每词|每字)\s*\d+(?:\.\d+)?\s*分(?:[，,、]?\s*共\s*\d+(?:\.\d+)?\s*分)?/, `（${label}）`);
   } else {
-    out = out.replace(/[（(][^）)]*?(每空|每线|每题|每词|每字)\s*\d+(?:\.\d+)?\s*分[^）)]*?[)）]/, `（${label}）`);
+    out = out.replace(/[（(][^）)]*?(每空|每线|每组|每题|每词|每字)\s*\d+(?:\.\d+)?\s*分[^）)]*?[)）]/, `（${label}）`);
   }
   return { text: out, note };
 };
@@ -584,15 +587,16 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               (() => {
               const granularity = /^primary/.test(stage) ? 1 : 0.5; // 小学整数分、初高中 0.5 粒度
               const parseUnitCount = (t) => {
-                const cm = t.match(/共\s*(\d{1,3})\s*(?:题|空|线|字|词)/);
+                const cm = t.match(/共\s*(\d{1,3})\s*(?:题|空|线|字|词|组)/);
                 if (cm) return parseInt(cm[1], 10);
-                const pm = t.match(/每(?:题|空|线|字|词)\s*(\d+(?:\.\d+)?)\s*分[^）)]*?共\s*(\d{1,3}(?:\.\d+)?)\s*分/);
+                const pm = t.match(/每(?:题|空|线|组|字|词)\s*(\d+(?:\.\d+)?)\s*分[^）)]*?共\s*(\d{1,3}(?:\.\d+)?)\s*分/);
                 if (pm && parseFloat(pm[1]) > 0) return Math.round(parseFloat(pm[2]) / parseFloat(pm[1]));
                 return null; // 标题未写明单位数 → 调用方用子题数兜底（如"（共4分）"但有 (1)-(4) 子题）
               };
               const parseUnitName = (t) => {
-                const um = t.match(/每(题|空|线|字|词)\s*\d+(?:\.\d+)?\s*分/);
-                return um ? um[1] : '题';
+                const um = t.match(/每(题|空|线|组|字|词)\s*\d+(?:\.\d+)?\s*分/);
+                const u = um ? um[1] : '题';
+                return (u === '线' || u === '组') ? '组' : u; // 连线题统一"组"
               };
               const secScoreM = head.textContent.match(/共\s*(\d{1,3})\s*分/) || head.textContent.match(/[（(]\s*(\d{1,3})\s*分\s*[)）]/);
               const secScore = secScoreM ? parseFloat(secScoreM[1]) : null;
@@ -607,7 +611,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               //    可验证声称（空/线/题，或词/字数得到载体）不触发保护——
               //    声称项保留语义定价不参与重分配（自身失真由 2g 按实际载体重算），
               //    未声称项按「大题分 − 声称项合计」重分配，账目即可闭合（不再 2i 报差）
-              const isClaimed = (t) => /每(?:空|线|题|字|词)\s*\d+(?:\.\d+)?\s*分/.test(t || '');
+              const isClaimed = (t) => /每(?:空|线|组|题|字|词)\s*\d+(?:\.\d+)?\s*分/.test(t || '');
               const segs = subHeadPs.map((p, si) => {
                 const endP = subHeadPs[si + 1] || null;
                 let segHtml = p.outerHTML || '';
@@ -654,10 +658,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
                 const actualSub = countSubNumbered(segHtml);
                 let actualU = 0;
                 if (unitName === '空') actualU = actualBlanks;
-                else if (unitName === '线') actualU = actualLines;
+                else if (unitName === '组') actualU = actualLines; // 连线题统一"组"（配对对数=左侧项数）
                 else if (unitName === '题') actualU = actualSub;
                 if (actualU > 0 && claimU != null && actualU !== claimU) {
-                  const unitLabel = unitName === '线' ? '处连线' : unitName === '空' ? '空' : '题';
+                  const unitLabel = unitName === '组' ? '组' : unitName === '空' ? '空' : '题';
                   silentCount('score-unit', `小题「${(p.textContent || '').slice(0, 14)}」声称${claimU}${unitLabel}，实际${actualU}${unitLabel}——已按实际载体重分配，请抽检`);
                 }
                 unitCounts.push(actualU > 0 ? actualU : (claimU ?? Math.max(sub, 1)));

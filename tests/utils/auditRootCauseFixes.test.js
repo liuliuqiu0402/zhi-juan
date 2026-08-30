@@ -32,6 +32,18 @@ describe('根治回归：分值账目闭合（每词=拼音组数、每字=格�
     expect(r.text).toBe('1. 读短文。（每词2分，共6分）');
   });
 
+  it('连线题"每线1分共8分"实际 4 组 → 重算为"共4组，每组1分，共4分"（每线/每组归一为组）', () => {
+    const r = fixScoreLabel('2. 连一连。（每线1分，共8分）', 8, 4, 0);
+    expect(r.text).toContain('共4组');
+    expect(r.text).toContain('每组1分');
+    expect(r.text).toContain('共4分');
+  });
+
+  it('连线题"每组2分共8分"实际 4 组 → 自洽，保留（每组声称兼容）', () => {
+    const r = fixScoreLabel('2. 连一连。（每组2分，共8分）', 8, 4, 0);
+    expect(r.text).toBe('2. 连一连。（每组2分，共8分）');
+  });
+
   it('countPinyinGroups：空格/顿号分隔的拼音串数 = 词数', () => {
     expect(countPinyinGroups('看拼音写词语：qīng wā xiǎo hé')).toBe(4);
   });
