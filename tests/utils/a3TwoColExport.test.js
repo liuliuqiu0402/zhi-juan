@@ -170,6 +170,57 @@ describe('8K 大试卷导出（2026-08：正度 273×393 横向，地方统考�
   });
 });
 
+describe('A2/A1 大试卷导出（2026-08：A 系列标准纸拼 A4 单元，每栏≥A4 口径）', () => {
+  const HTML3 = '<h2>一、选择题（共10题，共30分）</h2><p>1. 下列各题只有一个正确答案。</p>';
+
+  it('A2 三栏（594×420 横向）：尺寸 33676×23811 + w:num="3" + 每栏页码 =3*PAGE-2 / -1 / -0', async () => {
+    const zip = await buildZip(HTML3, 'a2-3col');
+    const docXml = await zip.file('word/document.xml').async('string');
+    expect(docXml).toContain('w:w="33676"');
+    expect(docXml).toContain('w:h="23811"');
+    expect(docXml).toContain('w:num="3"');
+    const footers = await footerText(zip);
+    // 三栏页码公式域（嵌套域拆分后断言算术段 + PAGE/SECTIONPAGES 嵌套域）
+    expect(footers).toContain('<w:instrText xml:space="preserve"> = 3* ');
+    expect(footers).toContain('<w:instrText xml:space="preserve">  - 2 </w:instrText>');
+    expect(footers).toContain('<w:instrText xml:space="preserve">  - 1 </w:instrText>');
+    expect(footers).toContain('PAGE </w:instrText>');
+    expect(footers).toContain('SECTIONPAGES </w:instrText>');
+    // 页脚表格宽 = 可用宽 − 栏距×2（31408−1700 = 29708 → 列宽 9902）
+    expect(footers).toContain('w:w="9902"');
+  });
+
+  it('A1 四栏（841×594 横向，每栏=整张 A4 宽）：尺寸 47679×33676 + w:num="4" + 每栏页码 =4*PAGE-3 … -0', async () => {
+    const zip = await buildZip(HTML3, 'a1-4col');
+    const docXml = await zip.file('word/document.xml').async('string');
+    expect(docXml).toContain('w:w="47679"');
+    expect(docXml).toContain('w:h="33676"');
+    expect(docXml).toContain('w:num="4"');
+    const footers = await footerText(zip);
+    expect(footers).toContain('<w:instrText xml:space="preserve"> = 4* ');
+    expect(footers).toContain('<w:instrText xml:space="preserve">  - 3 </w:instrText>');
+    expect(footers).toContain('<w:instrText xml:space="preserve">  - 2 </w:instrText>');
+    expect(footers).toContain('<w:instrText xml:space="preserve">  - 1 </w:instrText>');
+    expect(footers).toContain('PAGE </w:instrText>');
+    expect(footers).toContain('SECTIONPAGES </w:instrText>');
+    // 页脚表格宽 = 可用宽 − 栏距×3（45411−2040 = 43371 → 列宽 10842）
+    expect(footers).toContain('w:w="10842"');
+  });
+
+  it('A2 三栏/A1 四栏作文格按每栏可用宽排满（密封线卷：A2→14 列、A1→15 列，12mm 格）', async () => {
+    const zwgHtml = '<h2>三、习作。（共30分）</h2><div class="zuo-wen-ge"></div>';
+    const sealHtml = '<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div><div class="sealed-content">' + zwgHtml + '</div></div>';
+    // A2 三栏：密封线卷每栏 = (594−50−30)/3 = 171.3mm → floor(171.3/12) = 14 列
+    const zipA2 = await buildZip(sealHtml, 'a2-3col');
+    const docA2 = await zipA2.file('word/document.xml').async('string');
+    expect(docA2).toContain('w:w="9520"'); // 14 × 680
+    // A1 四栏：密封线卷每栏 = (841−50−36)/4 = 188.8mm → floor(188.8/12) = 15 列
+    const zipA1 = await buildZip(sealHtml, 'a1-4col');
+    const docA1 = await zipA1.file('word/document.xml').async('string');
+    expect(docA1).toContain('w:w="10200"'); // 15 × 680
+  });
+});
+
 describe('作文格按每栏可用宽度放最多整数格（2026-08：格子尺寸保持规格不缩放）', () => {
   const ZWG_HTML = '<h2>三、习作。（共30分）</h2><div class="zuo-wen-ge"></div>';
   const sealHtml = '<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div><div class="sealed-content">' + ZWG_HTML + '</div></div>';
