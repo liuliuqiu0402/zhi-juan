@@ -229,6 +229,21 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(yw.template).toContain('田字格');
   });
 
+  it('拼音注音半角示例 (háng xíng) 不跨学科广播（英语/数学模板不含拼音示例；分值半角示例全学科通用）', () => {
+    for (const g of ['primary_mid', 'primary_low']) {
+      const eng = getPromptTemplate({ grade: g, subject: '英语', genType: 'exam' });
+      expect(eng.template, `英语不应含拼音注音示例 (háng xíng)`).not.toContain('háng xíng');
+      expect(eng.template, `英语不应含"拼音注音"`).not.toContain('拼音注音');
+      const math = getPromptTemplate({ grade: g, subject: '数学', genType: 'exam' });
+      expect(math.template, `数学不应含拼音注音示例 (háng xíng)`).not.toContain('háng xíng');
+    }
+    // 分值半角示例全学科通用（分值标注各科都有）；拼音半角示例只在语文专属规则通道（validatorRules text-format-zhuyin），不进模板
+    const eng = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'exam' });
+    expect(eng.template).toContain('分值标注一律半角括号');
+    const yw = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
+    expect(yw.template).not.toContain('háng xíng'); // 模板通道不含拼音示例（拼音约束走规则库注入）
+  });
+
   it('全部 9 个资料类型都有三维度模板（类型骨架 + 学科×学段要点 + 学段特点）', () => {
     const types = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
     for (const g of types) {
