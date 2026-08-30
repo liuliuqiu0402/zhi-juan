@@ -44,8 +44,10 @@ describe('根治回归：分值账目闭合（每词=拼音组数、每字=格�
     expect(r.text).toBe('2. 连一连。（每组2分，共8分）');
   });
 
-  it('countPinyinGroups：空格/顿号分隔的拼音串数 = 词数', () => {
-    expect(countPinyinGroups('看拼音写词语：qīng wā xiǎo hé')).toBe(4);
+  it('countPinyinGroups：全角空格分隔的拼音词条数 = 词数（2026-08 词条语义，非音节）', () => {
+    expect(countPinyinGroups('看拼音写词语：qīng wā　xiǎo hé')).toBe(2);
+    // 半角空格混排（音节/词条同为半角空格）→ 显式分隔不可靠，整段计 1 词条（边界保守，不假装精确）
+    expect(countPinyinGroups('看拼音写词语：qīng wā xiǎo hé')).toBe(1);
   });
 
   it('countGridCells：div 内 span 数（一字一格）', () => {
@@ -170,5 +172,43 @@ describe('根治回归：作文格补全（完整题干超长也能补，不再�
     expect(out).toContain('zuo-wen-ge');
     const body = out.split(/class="answer-section"/)[0];
     expect(body).toContain('zuo-wen-ge');
+  });
+});
+
+describe('根治回归：分值载体误报消除（每词词条语义 + 小题 segHtml 边界，2026-08）', () => {
+  const SEC = (inner) => `<section><h2>一、识字与写字（32分）</h2>${inner}<h2>二、阅读理解（40分）</h2></section>`;
+
+  it('题1 看拼音写词语（每词2分共12分，6词12音节）→ 不报"载体不符"（音节不再误当词）', () => {
+    const html = SEC(`
+<p>1. 出发准备站——看拼音，写词语。探险队要出发啦。（每词2分，共12分）</p>
+<p>yáng shù　sōng bǎi　huā yuán</p>
+<p>péng you　bǎo hù　xīn kǔ</p>
+<p><span class="tian-zi-ge">杨</span><span class="tian-zi-ge">树</span><span class="tian-zi-ge">松</span><span class="tian-zi-ge">柏</span><span class="tian-zi-ge">花</span><span class="tian-zi-ge">园</span></p>
+<p><span class="tian-zi-ge">朋</span><span class="tian-zi-ge">友</span><span class="tian-zi-ge">保</span><span class="tian-zi-ge">护</span><span class="tian-zi-ge">辛</span><span class="tian-zi-ge">苦</span></p>
+`.trim());
+    const { silentDetails } = run(html);
+    expect(silentDetails.some(d => d.type === 'score-label' && d.message.includes('看拼音'))).toBe(false);
+  });
+
+  it('题5 照样子（每空1分共4分，4空）后跟无分值题6 → 不报（无分值题也是 segHtml 边界）', () => {
+    const html = SEC(`
+<p>5. 词语魔法桥——照样子，写一写。你还能说出这样的词语吗？（每空1分，共4分）</p>
+<p>例：泡桐　白桦　云杉　翠柏</p>
+<p>杨(　　　　　　)　　松(　　　　　　)　　枫(　　　　　　)　　水(　　　　　　)</p>
+<p>6. 读一读，把词语补充完整。</p>
+<p>(　　　　　　)　(　　　　　　)　(　　　　　　)</p>
+`.trim());
+    const { silentDetails } = run(html);
+    expect(silentDetails.some(d => d.type === 'score-label' && d.message.includes('照样子'))).toBe(false);
+  });
+
+  it('真缺陷不误杀：声称"每空1分共4分"但实际仅 2 空 → 仍报"载体不符"', () => {
+    const html = SEC(`
+<p>5. 词语魔法桥——照样子，写一写。（每空1分，共4分）</p>
+<p>例：泡桐　白桦　云杉　翠柏</p>
+<p>杨(　　　　　　)　　松(　　　　　　)</p>
+`.trim());
+    const { silentDetails } = run(html);
+    expect(silentDetails.some(d => d.type === 'score-label' && d.message.includes('照样子'))).toBe(true);
   });
 });

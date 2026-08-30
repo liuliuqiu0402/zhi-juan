@@ -94,11 +94,20 @@ export const countBlanks = (html) => {
   return tagCount + parenCount + bareUCount + underlineCount + tableCount;
 };
 
-/** 统计一段 HTML 中的独立拼音组数 */
+/** 统计一段 HTML 中的拼音词条数（看拼音写词语"每词"验证用）：
+ *  词条 = 以显式分隔符（全角空格/制表符/换行/中文标点）为界的连续拼音音节组，
+ *  半角空格为音节内分隔（yáng shù = 1 词条）。
+ *  🔧 2026-08 修订：原实现按音节计数，"看拼音写词语 每词2分共12分"（6词12音节）被误数成
+ *  12 组 → 误报"声称6词≠实际12"；改词条语义后 6 词条×2分=12分 自洽。 */
 export const countPinyinGroups = (html) => {
   if (!html) return 0;
   const text = stripTags(html);
-  return (text.match(PINYIN_GROUP_RE) || []).length;
+  let n = 0;
+  for (const chunk of text.split(/[　\u3000\t\n\r、，,。；;：:·\u200b\u200c\u200d]+/)) {
+    const m = chunk.match(PINYIN_GROUP_RE);
+    if (m && m.length) n += 1;
+  }
+  return n;
 };
 
 /** 统计书写格内格子数（田字格/米字格/四线三格/六线格等方块格）：
@@ -713,10 +722,18 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         // 2g. 小题标题分值标注校验（规则 score-label-fix，p 级标题）
         if (has('score-label-fix')) {
           const subHeadPs = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p');
-          const subTitles = [];
-          for (const p of subHeadPs) {
+          // 🔧 边界用"小题标题行"（不论是否含分值）：无分值题（如"6. 读短文，回答问题"）
+          //    也必须是上一题的 segHtml 边界，否则被吞并进上一题 → 数到后续空位/拼音 → 误报"载体不符"；
+          //    但（1）（2）式子题作答行（无分值）不是小题标题、不作边界——它们是上一小题的内容
+          //    （如"4. 选一选"下 4 个（n）行），作边界会把题4 截断在子题前数不到空位（误报"数不到载体"）
+          const numberedPs = subHeadPs.filter(p => {
             const t = (p.textContent || '').trim();
-            if (!/^\s*(?:\d+[.、．]|[(（]\d+[)）])/.test(t)) continue;
+            return /^\s*\d+[.、．]/.test(t)
+              || (/^\s*[(（]\d+[)）]/.test(t) && /[（(][^）)]*?\d{1,3}\s*分/.test(t));
+          });
+          const subTitles = [];
+          for (const p of numberedPs) {
+            const t = (p.textContent || '').trim();
             // 🔧 括号内任意位置含分值即视为标题（兼容"（共12分）""（每空1分，共6分）"等写法）
             if (!/[（(][^）)]*?\d{1,3}\s*分/.test(t)) continue;
             subTitles.push({ p, text: t });
@@ -724,7 +741,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           subTitles.forEach((st, i) => {
             const nodesBetween = [];
             let n = st.p.nextSibling;
-            const endNode = subTitles[i + 1] ? subTitles[i + 1].p : null;
+            const idx = numberedPs.indexOf(st.p);
+            const endNode = numberedPs[idx + 1] || null;
             while (n && n !== endNode) { nodesBetween.push(n); n = n.nextSibling; }
             let segHtml = st.p.outerHTML;
             for (const nb of nodesBetween) segHtml += nb.outerHTML || nb.textContent || '';

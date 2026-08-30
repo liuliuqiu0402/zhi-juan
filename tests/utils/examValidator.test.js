@@ -30,8 +30,9 @@ describe('examValidator 空位/拼音统计', () => {
     expect(countBlanks(html)).toBe(3);
   });
 
-  it('统计独立拼音组', () => {
-    expect(countPinyinGroups('<p>dào zi( )成熟了，xīn kǔ( )</p>')).toBe(4);
+  it('统计拼音词条（词条=显式分隔符为界的连续音节组；2026-08 起"每词"按词条不按音节）', () => {
+    // dào zi / xīn kǔ 两个词条（顿号分隔），音节内半角空格不计分隔
+    expect(countPinyinGroups('<p>dào zi( )成熟了，xīn kǔ( )</p>')).toBe(2);
   });
 });
 
