@@ -284,3 +284,37 @@ describe('教辅结构条目停用（工具库开关）', () => {
     setLibToggle('blueprint', '未知学科|practice', true);
   });
 });
+
+describe('回归：教辅结构注入无数字区间（防诱导 AI 精确计数）', () => {
+  const RANGE_RE = /\d\s*[-–—~～至]\s*\d/;
+  it('全部 类型×学段×学科 注入块不含数字区间（题量/篇幅底线归程序护栏 volume，不注入）', () => {
+    const subjects = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '思想政治', '道德与法治', '信息科技', '音乐', '美术', '体育', '科学', '未知学科', ''];
+    const stages = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
+    for (const g of TEACHING_GEN_TYPES) {
+      for (const s of stages) {
+        for (const subj of subjects) {
+          const inject = buildTeachingInjection({ genType: g, stage: s, subject: subj });
+          if (!inject) continue;
+          expect(RANGE_RE.test(inject), `${subj || '*'} ${g} ${s} 注入含数字区间：\n${inject}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('栏目框架 note 已去数字（summary/review/special/preview 抽查）', () => {
+    const summary = buildTeachingInjection({ genType: 'summary', stage: 'primary_high', subject: '' });
+    expect(summary).toContain('列出易错点并辨析');
+    expect(summary).not.toContain('2-3');
+    const review = buildTeachingInjection({ genType: 'review', stage: 'primary_high', subject: '' });
+    expect(review).not.toContain('2-3');
+    expect(review).not.toContain('3-5');
+    const special = buildTeachingInjection({ genType: 'special', stage: 'primary_high', subject: '语文' });
+    expect(special).toContain('按本单元内容分板块');
+    expect(special).not.toContain('2-4');
+    const preview = buildTeachingInjection({ genType: 'preview', stage: 'primary_low', subject: '数学' });
+    expect(preview).toContain('明确本课时概念与技能目标');
+    expect(preview).toContain('自检题检测预习效果');
+    expect(preview).not.toContain('1-2');
+    expect(preview).not.toContain('2-4');
+  });
+});

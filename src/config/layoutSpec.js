@@ -146,11 +146,12 @@ export const CARRIER_RULES = {
 };
 
 /** 载体 must 规则的指令端语义（与 CARRIER_RULES.must 的 keywords 对应，把"允许载体"翻译成可读条款；
- *   demo 为渲染 class 的最小可读示例字——示例随条款按 学科×学段 注入，不再全学科广播（防跨学科/跨学段诱导）） */
+ *   demo 为渲染 class 的示例——必须为空串（空格子），与"格子为空格子（格内不填字/拼音/答案）"一致，
+ *   示例内若带占位字会诱导模型输出已填内容的格子（违规）；示例随条款按 学科×学段 注入，不再全学科广播） */
 const CARRIER_MUST_SEMANTICS = {
-  'tian-zi-ge': { label: '写汉字类题', demo: '字' },
-  'pinyin-line': { label: '写拼音类题', demo: '拼音' },
-  'four-line-three': { label: '字母/单词抄写类题', demo: 'a' },
+  'tian-zi-ge': { label: '写汉字类题', demo: '' },
+  'pinyin-line': { label: '写拼音类题', demo: '' },
+  'four-line-three': { label: '字母/单词抄写类题', demo: '' },
 };
 
 /**

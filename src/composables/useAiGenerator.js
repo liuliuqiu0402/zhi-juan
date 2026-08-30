@@ -4148,7 +4148,7 @@ ${cardAnalysisText.substring(0, 1000)}
     } else {
       // 🔴 答案页由系统在正文生成后单独调用生成：强制约定本次只输出正文（题目与卷面），
       //    覆盖模板里残留的"正文后再另起一部分输出答案"旧要求，防止模型把答案混入正文（正文+答案重复）
-      prompt += `\n\n${PAPER_OUTPUT_CONVENTIONS.split}`;
+      prompt += `\n\n${PAPER_OUTPUT_CONVENTIONS.split(subject)}`;
     }
 
     // ── 段1：整卷正文一次生成（once 模式正文+答案一次输出） ──

@@ -214,7 +214,7 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(low.template).toContain('【英语·小学低段要点】');
     expect(low.template).not.toContain('<span class="four-line-three">');
     const mid = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'exam' });
-    expect(mid.template).toContain('字母/单词抄写类题必须真实输出四线三格（示例：<span class="four-line-three">a</span>）');
+    expect(mid.template).toContain('字母/单词抄写类题必须真实输出四线三格（示例：<span class="four-line-three"></span>）'); // 示例为空格子（格内不填字母，与"格子为空"规则自洽）
     expect(mid.template).toContain('书写规范'); // 中段要点保留书写惯例（载体具体格式由排版规格库单通道注入）
   });
 

@@ -7,7 +7,7 @@
 // ============================================================
 import { describe, it, expect } from 'vitest';
 import { getExamBlueprint } from '@/config/examPaperBlueprints.js';
-import { getPromptTemplate, buildOutputFormatHint, buildStructureText } from '@/config/promptLibrary.js';
+import { getPromptTemplate, buildOutputFormatHint, buildStructureText, PAPER_OUTPUT_CONVENTIONS } from '@/config/promptLibrary.js';
 import { buildCarrierInstruction } from '@/config/layoutSpec.js';
 
 describe('buildStructureText（exam 卷面结构注入段，单一事实源）', () => {
@@ -136,13 +136,17 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
   });
 
   it('含正文边界要求：答案仅出现在独立答案区；代码块由代码层拦截，不再要求模型', () => {
-    expect(hint).toContain('答案/解析/评分标准/听力原文仅出现在独立答案区');
+    expect(hint).toContain('答案/解析/评分标准仅出现在独立答案区');
+    // 通用（无学科）不广播"听力原文"（听力原文仅英语学科答案页涉及）
+    expect(hint).not.toContain('听力原文');
     expect(hint).not.toContain('严禁代码块包裹输出');
   });
 
   it('buildOutputFormatHint 兜底路径：按 学科×学段 注入载体条款，通用兜底不含具体示例', () => {
     const chineseLow = buildOutputFormatHint({ subject: '语文', stage: 'primary_low' });
-    expect(chineseLow).toContain('写汉字类题必须真实输出田字格（示例：');
+    // 载体示例为空格子（格内不填字，与"格子为空格子"规则一致，不诱导输出已填内容的格子）
+    expect(chineseLow).toContain('写汉字类题必须真实输出田字格（示例：<span class="tian-zi-ge"></span>）');
+    expect(chineseLow).not.toContain('>字</span>');
     const generic = buildOutputFormatHint({});
     expect(generic).not.toContain('tian-zi-ge');
     expect(generic).not.toContain('four-line-three');
@@ -229,17 +233,17 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
     expect(generic.template).not.toContain('不少于3行');
     expect(generic.template).not.toContain('tian-zi-ge');
     expect(generic.template).not.toContain('four-line-three');
-    // 语文低段：田字格 + 拼音格（必须真实输出条款）
+    // 语文低段：田字格 + 拼音格（必须真实输出条款，示例为空格子）
     const chineseLow = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' });
-    expect(chineseLow.template).toContain('写汉字类题必须真实输出田字格（示例：<span class="tian-zi-ge">字</span>）');
-    expect(chineseLow.template).toContain('写拼音类题必须真实输出拼音格（示例：<span class="pinyin-line">拼音</span>）');
+    expect(chineseLow.template).toContain('写汉字类题必须真实输出田字格（示例：<span class="tian-zi-ge"></span>）');
+    expect(chineseLow.template).toContain('写拼音类题必须真实输出拼音格（示例：<span class="pinyin-line"></span>）');
     expect(chineseLow.template).not.toContain('four-line-three');
     // 语文中段：横线惯例不注入具体格子示例
     const chineseMid = getPromptTemplate({ grade: 'primary_mid', subject: '语文', genType: 'practice' });
     expect(chineseMid.template).not.toContain('<span class="tian-zi-ge">');
     // 英语：中段才注入四线三格示例，低段无（低段以听说认读为主）
     const enMid = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'practice' });
-    expect(enMid.template).toContain('字母/单词抄写类题必须真实输出四线三格（示例：<span class="four-line-three">a</span>）');
+    expect(enMid.template).toContain('字母/单词抄写类题必须真实输出四线三格（示例：<span class="four-line-three"></span>）');
     const enLow = getPromptTemplate({ grade: 'primary_low', subject: '英语', genType: 'practice' });
     expect(enLow.template).not.toContain('four-line-three');
     // 数学小学段：作图方格纸（作图题）
@@ -341,5 +345,51 @@ describe('载体允许表学科键归一化（道法/政治/信息 → canonical
   it('数学中/高段不注入方格纸（归靠考试答题纸网格）', () => {
     expect(buildCarrierInstruction('数学', 'middle')).toBe('');
     expect(buildCarrierInstruction('数学', 'high')).toBe('');
+  });
+});
+
+describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听力原文仅英语', () => {
+  it('数学（有方格纸载体）不注入"写字/抄写"词（防跨学科诱导）', () => {
+    const mathLow = getPromptTemplate({ grade: 'primary_low', subject: '数学', genType: 'exam' });
+    expect(mathLow.template).toContain('作图类题用方格纸'); // 载体条款仍在
+    expect(mathLow.template).not.toContain('写字/抄写类题');
+    expect(mathLow.template).not.toContain('抄写类题');
+    const mathMid = getPromptTemplate({ grade: 'primary_mid', subject: '数学', genType: 'practice' });
+    expect(mathMid.template).not.toContain('写字/抄写类题');
+  });
+
+  it('语文各学段均保留"写字/抄写"硬约束（hasEx 学科，无论是否有具体格子示例）', () => {
+    // 低段：田字格/拼音格 + 写字/抄写 + 写作/表达
+    const low = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
+    expect(low.template).toContain('写字/抄写类题须真实输出对应书写载体');
+    expect(low.template).toContain('写作/表达类题须完整呈现题目要求');
+    // 中段：无具体格子示例，但写字/抄写硬约束仍保留
+    const mid = getPromptTemplate({ grade: 'primary_mid', subject: '语文', genType: 'exam' });
+    expect(mid.template).toContain('写字/抄写类题须真实输出对应书写载体');
+    expect(mid.template).not.toContain('tian-zi-ge');
+  });
+
+  it('载体示例为空格子（示例内不填字/拼音/字母，与"格子为空格子"一致）', () => {
+    expect(buildCarrierInstruction('语文', 'primary_low')).toContain('<span class="tian-zi-ge"></span>');
+    expect(buildCarrierInstruction('语文', 'primary_low')).toContain('<span class="pinyin-line"></span>');
+    expect(buildCarrierInstruction('英语', 'primary_mid')).toContain('<span class="four-line-three"></span>');
+    expect(buildCarrierInstruction('语文', 'primary_low')).not.toContain('>字</span>');
+    expect(buildCarrierInstruction('英语', 'primary_mid')).not.toContain('>a</span>');
+  });
+
+  it('PAPER_OUTPUT_CONVENTIONS 听力原文仅英语（once/split 均按学科门控）', () => {
+    expect(PAPER_OUTPUT_CONVENTIONS.once('英语')).toContain('听力题附完整听力原文');
+    expect(PAPER_OUTPUT_CONVENTIONS.once('数学')).not.toContain('听力原文');
+    expect(PAPER_OUTPUT_CONVENTIONS.once('')).not.toContain('听力原文');
+    expect(PAPER_OUTPUT_CONVENTIONS.split('英语')).toContain('听力原文');
+    expect(PAPER_OUTPUT_CONVENTIONS.split('数学')).not.toContain('听力原文');
+    expect(PAPER_OUTPUT_CONVENTIONS.split('')).not.toContain('听力原文');
+  });
+
+  it('非英语学科 exam 模板【输出格式】不广播"听力原文"（答案归属行按学科门控）', () => {
+    const mathExam = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'exam' });
+    expect(mathExam.template).not.toContain('听力原文');
+    const enExam = getPromptTemplate({ grade: 'middle', subject: '英语', genType: 'exam' });
+    expect(enExam.template).toContain('听力原文');
   });
 });
