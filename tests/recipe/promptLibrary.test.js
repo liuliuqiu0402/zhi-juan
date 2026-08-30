@@ -29,6 +29,14 @@ describe('指令库三维度匹配', () => {
     expect(unknown.source).toBe('builtin');
   });
 
+  it('语文低段学段要点：表达与交流兼顾口语交际与写话（课标维度引导，非具体题型诱导）', () => {
+    const tpl = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
+    expect(tpl.template).toContain('表达与交流兼顾口语交际与写话');
+    expect(tpl.template).toContain('给情境与词语支架');
+    // 口语交际的具体考查形态给自由度（情境对话/听要求选答等书面呈现），不点名单一题型
+    expect(tpl.template).toContain('口语交际可用情境对话、听要求选答等书面呈现');
+  });
+
   it('用户保存后匹配优先返回用户版（持久化自动更新）', () => {
     savePromptTemplate(`${TEST_LIB_KEY}`, { name: '测试模板', template: '你是测试专家。{subject}{grade}{structure}' });
     const tpl = getPromptTemplate({ grade: '', subject: '', genType: TEST_LIB_KEY });

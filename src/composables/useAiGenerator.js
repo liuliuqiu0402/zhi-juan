@@ -4566,7 +4566,10 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
             const contextResult = await callAI(contextPrompt, {
               taskType: 'blueprint',
               temperature: apiConfig.generationSettings.paperTemperature,
-              timeout: getTimeout('blueprint')
+              timeout: getTimeout('blueprint'),
+              // 🔧 情境框架是创作性任务，不进 L1 缓存：同科同学段的情境 prompt 完全相同，
+              //    若被缓存则首次生成的"小小汉字探险家"等情境被永久复用，后续生成永远同一个框架
+              skipCache: true,
             });
 
             try {
@@ -4630,7 +4633,9 @@ ${(contextJson.scenes || []).map((s, i) =>
             const fusionResult = await callAI(fusionPrompt, {
               taskType: 'blueprint',
               temperature: apiConfig.generationSettings.paperTemperature,
-              timeout: getTimeout('blueprint')
+              timeout: getTimeout('blueprint'),
+              // 🔧 情境融合框架同样属创作性任务，不进 L1 缓存（原因同统一情境）
+              skipCache: true,
             });
 
             try {
