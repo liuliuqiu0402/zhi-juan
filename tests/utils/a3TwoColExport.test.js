@@ -50,8 +50,8 @@ describe('A3 两栏导出（每栏页码按栏计数）', () => {
     expect(footers).toContain('SECTIONPAGES </w:instrText>');
     // 公式域转三段式（fldChar begin）+ begin 带 w:dirty（Word 打开时强制更新域，防"第 页 共 页"空白）
     expect(footers).toContain('w:fldChar w:fldCharType="begin" w:dirty="true"');
-    // 页脚表格宽 = 可用宽 − 栏距（21543−1134 = 20409）：页码中心与正文两栏中心精确对齐
-    expect(footers).toContain('w:w="20409"');
+    // 页脚表格 = 数据列+栏距空隙列（2×10204 + 1134 = 21542）：页码中心与正文两栏中心精确对齐
+    expect(footers).toContain('w:w="21542"');
   });
 
   it('A4 默认路径不变：A4 竖版 + 无两栏 + 页脚仍为 PAGE/SECTIONPAGES（无公式域）', async () => {
@@ -101,10 +101,10 @@ describe('A3 两栏导出（每栏页码按栏计数）', () => {
     expect(docXml).toContain('w:w="23811"');
     // 密封线卷栏距 2cm（1134 twip，2026-08：两种卷型栏距一致，贴近标准 1.5~2cm）
     expect(docXml).toContain('w:space="1134"');
-    // 页脚公式域转三段式（begin w:dirty）+ 页脚表格宽 = 可用宽 − 栏距（20977−1134 = 19843，页码中心对齐正文栏中心）
+    // 页脚公式域转三段式（begin w:dirty）+ 页脚表格 = 数据列+栏距空隙列（2×9921 + 1134 = 20976）
     const footers = await footerText(zip);
     expect(footers).toContain('w:fldChar w:fldCharType="begin" w:dirty="true"');
-    expect(footers).toContain('w:w="19843"');
+    expect(footers).toContain('w:w="20976"');
   });
 });
 
@@ -155,8 +155,8 @@ describe('8K 大试卷导出（2026-08：正度 273×393 横向，地方统考�
     expect(footers).toContain('<w:instrText xml:space="preserve"> = 2* ');
     expect(footers).toContain('PAGE </w:instrText>');
     expect(footers).toContain('SECTIONPAGES </w:instrText>');
-    // 页脚表格宽 = 可用宽 − 栏距（22280−2268−1020 = 18992；普通卷边距 2cm、栏距 18mm≈1020）
-    expect(footers).toContain('w:w="18992"');
+    // 页脚表格 = 数据列+栏距空隙列（2×9496 + 1020 = 20012；普通卷边距 2cm、栏距 18mm≈1020）
+    expect(footers).toContain('w:w="20012"');
   });
 
   it('8K 两栏作文格按每栏可用宽排满（密封线卷每栏 162.5mm → 13 列 × 680）', async () => {
@@ -205,6 +205,22 @@ describe('A2/A1 大试卷导出（2026-08：A 系列标准纸拼 A4 单元，每
     expect(footers).toContain('SECTIONPAGES </w:instrText>');
     // 页脚表格宽 = 可用宽 − 栏距×3（45411−2040 = 43371 → 列宽 10842）
     expect(footers).toContain('w:w="10842"');
+  });
+
+  it('A1 四栏密封线卷：密封线虚线贯穿整页高度（594−40=554mm → cy=19944000 EMU），A4 保持 257mm', async () => {
+    const sealHtml = '<div class="sealed-wrapper"><div class="seal-zone"><div class="seal-line"></div><div class="seal-char s-top">线</div><div class="seal-char s-mid">封</div><div class="seal-char s-bot">密</div></div><div class="sealed-content">' + HTML3 + '</div></div>';
+    // A1（高 594mm）：虚线长度 = 594−40 = 554mm → 554×36000 = 19944000 EMU
+    const zipA1 = await buildZip(sealHtml, 'a1-4col');
+    const hdrsA1 = Object.keys(zipA1.files).filter((n) => /word\/header\d+\.xml/.test(n));
+    let headersA1 = '';
+    for (const f of hdrsA1) headersA1 += await zipA1.file(f).async('string');
+    expect(headersA1).toContain('cy="19944000"');
+    // A4（高 297mm）：虚线长度 = 297−40 = 257mm → 9252000 EMU（既有行为不变）
+    const zipA4 = await buildZip(sealHtml, 'a4');
+    const hdrsA4 = Object.keys(zipA4.files).filter((n) => /word\/header\d+\.xml/.test(n));
+    let headersA4 = '';
+    for (const f of hdrsA4) headersA4 += await zipA4.file(f).async('string');
+    expect(headersA4).toContain('cy="9252000"');
   });
 
   it('A2 三栏/A1 四栏作文格按每栏可用宽排满（密封线卷：A2→14 列、A1→15 列，12mm 格）', async () => {

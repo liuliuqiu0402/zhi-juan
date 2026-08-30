@@ -904,33 +904,24 @@ const pageNumberParagraph = (totalField = PageNumber.TOTAL_PAGES_IN_SECTION) => 
   children: [new TextRun({ children: ['第 ', PageNumber.CURRENT, ' 页　共 ', totalField, ' 页'], size: 18, color: '000000' })],
 });
 
-/** 多栏页脚（2026-08）：每栏一个页码、按栏计数——无边框 N 列表格，
+/** 多栏页脚（2026-08）：每栏一个页码、按栏计数——无边框表格，数据列与栏距空隙列交替，
  *  第 c 栏（1-index）域 = N*PAGE - (N-c)（N=2 → 2P-1 / 2P；N=3 → 3P-2 / 3P-1 / 3P；N=4 → 4P-3 … 4P），
  *  共X栏 = N*SECTIONPAGES。格式与 A4 一致"第X页　共X页"，每栏底部居中。
- *  🔴 表格宽 = 各栏可用宽之和（页面宽−左右边距−栏距×(N-1)），列宽均分——页码中心与正文各栏中心精确对齐
- *    （旧实现表格宽 100% 未扣栏距，页码中心相对正文栏中心偏移）。
+ *  🔴 页码中心对齐（2026-08 修复）：数据列间插入栏距空隙列（宽 = space），
+ *    表格总宽 = 可用宽 → 每栏页码中心与正文各栏中心精确对齐
+ *    （旧实现数据列连续排列、未插入栏距空隙，页码中心相对正文栏中心偏移）。
  *  🔴 公式域中 PAGE/SECTIONPAGES 必须用嵌套域语法 {PAGE}（injectDrawingML 后处理自动转换），
  *    begin 带 w:dirty，Word 打开即按 updateFields 自动更新为真实栏数。 */
 const columnPageFooter = (availW = 0, space = 1134, cols = 2) => {
   const n = Math.max(2, cols);
-  const tblW = Math.max(1, availW - space * (n - 1));
-  const colW = Math.max(1, Math.floor(tblW / n));
-  const cells = Array.from({ length: n }, (_, i) => {
-    const c = i + 1; // 栏序号 1..N
-    const pageInstr = `= ${n}*PAGE - ${n - c}`;
-    return new TableCell({
-      width: { size: colW, type: WidthType.DXA },
-      verticalAlign: VerticalAlign.CENTER,
-      children: [new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [new TextRun({ children: ['第 ', new SimpleField(pageInstr, String(c)), ' 页　共 ', new SimpleField(`= ${n}*SECTIONPAGES`, String(n)), ' 页'], size: 18, color: '000000' })],
-      })],
-    });
-  });
-  return new Footer({
-    children: [
-      new Table({
-        width: { size: tblW, type: WidthType.DXA },
+  const colW = Math.max(1, Math.floor((availW - space * (n - 1)) / n));
+  const cells = [];
+  const columnWidths = [];
+  for (let i = 0; i < n; i++) {
+    if (i > 0) {
+      // 栏距空隙列（无边框、无内容）：保证页码中心与正文栏中心对齐
+      cells.push(new TableCell({
+        width: { size: space, type: WidthType.DXA },
         borders: {
           top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
           bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
@@ -939,6 +930,35 @@ const columnPageFooter = (availW = 0, space = 1134, cols = 2) => {
           insideHorizontal: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
           insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
         },
+        children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text: '', size: 2 })], alignment: AlignmentType.CENTER })],
+      }));
+      columnWidths.push(space);
+    }
+    const c = i + 1; // 栏序号 1..N
+    const pageInstr = `= ${n}*PAGE - ${n - c}`;
+    cells.push(new TableCell({
+      width: { size: colW, type: WidthType.DXA },
+      verticalAlign: VerticalAlign.CENTER,
+      children: [new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ children: ['第 ', new SimpleField(pageInstr, String(c)), ' 页　共 ', new SimpleField(`= ${n}*SECTIONPAGES`, String(n)), ' 页'], size: 18, color: '000000' })],
+      })],
+    }));
+    columnWidths.push(colW);
+  }
+  return new Footer({
+    children: [
+      new Table({
+        width: { size: colW * n + space * (n - 1), type: WidthType.DXA },
+        borders: {
+          top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          insideHorizontal: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+          insideVertical: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+        },
+        columnWidths,
         rows: [new TableRow({ children: cells })],
       }),
     ],

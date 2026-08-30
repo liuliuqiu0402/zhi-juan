@@ -585,7 +585,7 @@ const MIRROR_SHIFT_MM = 210 - SEAL_RIGHT_MARGIN_MM;
  *   可被鼠标选中 → 在页眉编辑状态下点击即可出现文本框编辑文字。
  * ⚠️ 多字字段可能粘有密封线字符（如"密封线内不要答题封""学号：＿密"），提取时剥离尾部密/封/线
  */
-const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false) => {
+const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false, pageW = 210, pageH = 297) => {
   const fields = String(text || '密封线').split('\u0001').map((f) => f.trim()).filter(Boolean);
   const stripSealSuffix = (s) => String(s || '').replace(/[密封线]+$/g, '');
   // 🔧 学校/班级/姓名/学号 后的下划线统一为 8 个全角 ＿（"再长一些且一致"）
@@ -596,6 +596,13 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false) => {
   const topChar = charOf('线', '线');
   const midChar = charOf('封', '封');
   const botChar = charOf('密', '密');
+
+  // 🔧 页面尺寸参数化（2026-08：A2/A1 大试卷横向，密封线须贯穿整页高度）：
+  //    垂直有效区 = 上下边距之间（20mm ~ pageH-20mm）；密/封/线在 1/4、1/2、3/4 处；
+  //    提示语/信息栏垂直居中于有效区中点；镜像版以 pageW 为水平翻转轴
+  const sealTop = 20;
+  const sealHeight = pageH - 40; // 虚线长度（上下边距之间）
+  const midY = sealTop + sealHeight / 2; // 有效区垂直中点（A4 = 148.5mm）
 
   // 文字框：整框旋转（左版 270°=字头朝左；镜像版 90°=字头朝右）。visualBox = 旋转后视觉框 {x,y,w,h}
   //  - 旋转后框宽 w ≈ 行高（≈1.35×字号），高 h = 文本长度 L（每字 ≈ 字号宽）+ 两端留白 pad
@@ -616,7 +623,7 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false) => {
     // 未旋转文本框：宽 Lmm+2pad、高 HlineMm，中心同视觉框；rot=16200000（270°= 逆时针 90°）
     let offX = cx - (Lmm + 2 * pad) / 2;
     const offY = cy - HlineMm / 2;
-    if (mirror) offX = 210 - offX - (Lmm + 2 * pad) - MIRROR_SHIFT_MM; // 水平镜像到右侧后平移进右边距区（虚线 6mm、文字贴右纸边）
+    if (mirror) offX = pageW - offX - (Lmm + 2 * pad) - MIRROR_SHIFT_MM; // 以 pageW 为轴水平镜像到右侧后平移进右边距区（虚线 6mm、文字贴右纸边）
     return `<wps:wsp>
       <wps:cNvPr id="${id}" name="${name}"/>
       <wps:cNvSpPr txBox="1"/>
@@ -650,9 +657,13 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false) => {
   };
 
   // 密/封/线三字：右缘贴虚线（虚线 19mm），字号 10.5pt（略小于提示语/信息栏 12pt）；
-  // 纵向 1/4、1/2、3/4 均匀分布（间距 64.25mm）
+  // 纵向 1/4、1/2、3/4 均匀分布（随页面高度参数化）
   const CHAR_SZ = 10.5;
-  const CHAR_CENTER_Y = { top: 84.25, mid: 148.5, bot: 212.75 }; // 线(上1/4)/封(中)/密(下1/4)
+  const CHAR_CENTER_Y = {
+    top: sealTop + sealHeight * 0.25, // 线（上 1/4；A4 = 84.25mm）
+    mid: midY,                        // 封（中点；A4 = 148.5mm）
+    bot: sealTop + sealHeight * 0.75, // 密（下 1/4；A4 = 212.75mm）
+  };
   const charBox = (id, name, cyMm, ch) => {
     const charW = [...ch].length * CHAR_SZ * 0.353;      // 字符宽
     const wVis = Math.max(CHAR_SZ * 0.353 * 1.35, 4);    // 旋转后视觉宽（行高方向）
@@ -661,21 +672,21 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false) => {
     return txbx(id, name, xMm, cyMm - h / 2, ch, CHAR_SZ, true);
   };
 
-  // 提示语 + 信息栏：向密封线靠拢（x=8mm）；两组垂直居中于上下边距（20~277mm）中间，框间距 6mm
+  // 提示语 + 信息栏：向密封线靠拢（x=8mm）；两组垂直居中于上下边距之间，框间距 6mm
   const tipBoxH = [...tip].length * 12 * 0.353 + 2 * pad;
   const infoBoxH = info ? [...info].length * 12 * 0.353 + 2 * pad : 0;
   const BOX_GAP = 6;
-  const groupTop = 148.5 - (tipBoxH + BOX_GAP + infoBoxH) / 2;
+  const groupTop = midY - (tipBoxH + BOX_GAP + infoBoxH) / 2;
   const tipY = groupTop;
   const infoY = groupTop + tipBoxH + BOX_GAP;
 
-  // 竖虚线（左版 x=19mm 距纸边；镜像版群组相对 x=6mm = 距右纸边 19mm；从上边距 20mm 到 下边距 277mm，与上下边距对齐）
-  const lineX = mirror ? 210 - 19 - MIRROR_SHIFT_MM : 19;
+  // 竖虚线（左版 x=19mm 距纸边；镜像版群组相对 x=6mm = 距右纸边 19mm；从上边距到 下边距，与上下边距对齐）
+  const lineX = mirror ? pageW - 19 - MIRROR_SHIFT_MM : 19;
   const lineShape = `<wps:wsp>
     <wps:cNvPr id="${idBase + 1}" name="SealLine"/>
     <wps:cNvSpPr/>
     <wps:spPr>
-      <a:xfrm><a:off x="${Math.round(lineX * EMU_PER_MM)}" y="${Math.round(20 * EMU_PER_MM)}"/><a:ext cx="${EMU_LINE_1PT}" cy="${Math.round(257 * EMU_PER_MM)}"/></a:xfrm>
+      <a:xfrm><a:off x="${Math.round(lineX * EMU_PER_MM)}" y="${Math.round(sealTop * EMU_PER_MM)}"/><a:ext cx="${EMU_LINE_1PT}" cy="${Math.round(sealHeight * EMU_PER_MM)}"/></a:xfrm>
       <a:prstGeom prst="line"><a:avLst/></a:prstGeom>
       <a:noFill/>
       <a:ln w="9525"><a:solidFill><a:srgbClr val="000000"/></a:solidFill><a:prstDash val="dash"/></a:ln>
@@ -702,7 +713,7 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false) => {
   return `<w:drawing xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><wp:anchor distT="0" distB="0" distL="0" distR="0" relativeHeight="251659264" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1" simplePos="0"><wp:simplePos x="0" y="0"/>${posH}<wp:positionV relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionV><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${idBase}" name="SealGroup"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"><wpg:wgp><wpg:cNvGrpSpPr/><wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/><a:chOff x="0" y="0"/><a:chExt cx="${cx}" cy="${cy}"/></a:xfrm></wpg:grpSpPr>${shapes}</wpg:wgp></a:graphicData></a:graphic></wp:anchor></w:drawing>`;
 };
 
-const replaceSealMarkers = (xml) => {
+const replaceSealMarkers = (xml, pageW = 210, pageH = 297) => {
   let changed = false;
   // ⚠️ 浮动群组 anchor 放在段落 run 中；段落行距压到 1pt（w:line=20 exact）→ 锚点不占文档流
   const toPara = (ooxml) => `<w:p><w:pPr><w:spacing w:line="20" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/></w:rPr></w:pPr><w:r><w:rPr><w:sz w:val="2"/></w:rPr>${ooxml}</w:r></w:p>`;
@@ -713,22 +724,22 @@ const replaceSealMarkers = (xml) => {
   let out = xml.replace(blockSealLineRegexR, (match, encText) => {
     changed = true;
     const idBase = Math.floor(Math.random() * 90000) + 50000;
-    return toPara(sealGroupOOXML(decode(encText), idBase, true, true));
+    return toPara(sealGroupOOXML(decode(encText), idBase, true, true, pageW, pageH));
   });
   out = out.replace(blockSealRegexR, (match, encText) => {
     changed = true;
     const idBase = Math.floor(Math.random() * 90000) + 50000;
-    return toPara(sealGroupOOXML(decode(encText), idBase, false, true));
+    return toPara(sealGroupOOXML(decode(encText), idBase, false, true, pageW, pageH));
   });
   out = out.replace(blockSealLineRegex, (match, encText) => {
     changed = true;
     const idBase = Math.floor(Math.random() * 90000) + 50000;
-    return toPara(sealGroupOOXML(decode(encText), idBase, true));
+    return toPara(sealGroupOOXML(decode(encText), idBase, true, false, pageW, pageH));
   });
   out = out.replace(blockSealRegex, (match, encText) => {
     changed = true;
     const idBase = Math.floor(Math.random() * 90000) + 50000;
-    return toPara(sealGroupOOXML(decode(encText), idBase));
+    return toPara(sealGroupOOXML(decode(encText), idBase, false, false, pageW, pageH));
   });
   return { xml: out, changed };
 };
@@ -766,6 +777,13 @@ export const injectDrawingML = async (zipBuffer) => {
   const docPath = 'word/document.xml';
   let docXml = await zip.file(docPath)?.async('string');
   if (!docXml) return zipBuffer;
+
+  // 🔧 页面尺寸（2026-08：A2/A1 大试卷横向，密封线须贯穿整页高度、镜像版以页面宽为轴；
+  //    pgSz 单位 DXA → mm（取整到整数 mm，纸张尺寸本为整数，避免 EMU 双重换算舍入误差））
+  const pgSzMatch = docXml.match(/<w:pgSz\b[^>]*w:w="(\d+)"[^>]*w:h="(\d+)"/);
+  const MM_PER_DXA = 25.4 / 1440;
+  const pageWmm = pgSzMatch ? Math.round(parseInt(pgSzMatch[1], 10) * MM_PER_DXA) : 210;
+  const pageHmm = pgSzMatch ? Math.round(parseInt(pgSzMatch[2], 10) * MM_PER_DXA) : 297;
 
   let hasDml = false;
 
@@ -906,7 +924,7 @@ export const injectDrawingML = async (zipBuffer) => {
 
   // ==== 密封线标记替换（块级：marker 独立段落 → 含浮动 drawing 的空段落，不占文档流）====
   {
-    const sealResult = replaceSealMarkers(docXml);
+    const sealResult = replaceSealMarkers(docXml, pageWmm, pageHmm);
     docXml = sealResult.xml;
     if (sealResult.changed) hasDml = true;
   }
@@ -953,7 +971,7 @@ export const injectDrawingML = async (zipBuffer) => {
   for (const hPath of headerPaths) {
     let hXml = await zip.file(hPath)?.async('string');
     if (!hXml) continue;
-    const sealResult = replaceSealMarkers(hXml);
+    const sealResult = replaceSealMarkers(hXml, pageWmm, pageHmm);
     if (sealResult.changed) {
       hasSealHeader = true;
       hXml = sealResult.xml;
