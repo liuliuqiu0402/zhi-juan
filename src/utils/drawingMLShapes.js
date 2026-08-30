@@ -780,6 +780,22 @@ export const injectDrawingML = async (zipBuffer) => {
     }
   );
 
+  // 🔧 fldSimple 公式域 → 三段式域（begin/instrText/separate/result/end + begin w:dirty）
+  //    - docx 库 SimpleField 输出 <w:fldSimple>（简化域，且不带 dirty）。部分查看器（WPS/在线预览）对
+  //      fldSimple 的公式域（= 2*PAGE-1 等）显示空白；三段式 fldChar 结构与 Word"插入域"生成的域一致，
+  //      与 document.xml 的 PAGE/SECTIONPAGES 域同构，兼容性最好。
+  //    - begin 无条件带 w:dirty（公式域 Word 默认不自动重算，dirty 标记后打开即按 updateFields 更新）。
+  //    - 应用于 document.xml（"本试卷共X页" A3 =2*SECTIONPAGES）与 footer*.xml（A3 两栏页脚按栏页码）。
+  const fldSimpleToThreePart = (xml) => xml.replace(/<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>/g, (m, attrs, inner) => {
+    const instrMatch = /w:instr="([^"]*)"/.exec(attrs);
+    const instr = instrMatch ? instrMatch[1] : '';
+    const cachedMatch = /<w:t[^>]*>([^<]*)<\/w:t>/.exec(inner);
+    const cached = cachedMatch ? cachedMatch[1] : '1';
+    return `<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r><w:r><w:instrText xml:space="preserve"> ${instr} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t xml:space="preserve">${cached}</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>`;
+  });
+  docXml = fldSimpleToThreePart(docXml);
+  zip.file(docPath, docXml);
+
   // ==== 第一遍：独立段落标记 ====
   // ⚠️ 顺序关键：空白标记必须在普通标记之前处理，
   //    否则 __FLT_BLANK_xxx__ 会被普通 FLT 正则的 [^_]+? 误匹配，"BLANK" 被当成字母渲染
@@ -955,20 +971,15 @@ export const injectDrawingML = async (zipBuffer) => {
     zip.file(settingsPath, settingsXml);
   }
 
-  // 🔧 A3 两栏页脚公式域（footer*.xml 的 fldSimple）：注入 w:dirty="true" + 空域补缓存
-  //    - docx 库 SimpleField 不输出 w:dirty；公式域（= 2*PAGE-1）Word 打开默认不重算，
-  //      若无缓存结果则显示空白"第 页　共 页"。w:dirty 标记后 Word 打开即按 updateFields 更新。
-  //    - fldSimple 内部无缓存文本时补 "1"（防 WPS/在线预览等不自动更新域的查看器空白，
-  //      与 document.xml 三段式域的缓存注入策略一致）。
+  // 🔧 A3 两栏页脚公式域（footer*.xml 的 fldSimple）→ 三段式域（begin w:dirty + instrText + 缓存结果 + end）
+  //    - docx 库 SimpleField 不输出 w:dirty；fldSimple 公式域（= 2*PAGE-1 等）在部分查看器（WPS/在线预览）
+  //      打开不显示数值（"第 页　共 页"）。转三段式 + begin w:dirty 后，Word 打开即按 updateFields 自动更新；
+  //      缓存结果文本（1/8）保证不自动更新域的查看器至少显示数字（与 document.xml 域缓存策略一致）。
   const footerPaths = Object.keys(zip.files).filter((p) => /^word\/footer\d*\.xml$/.test(p) && !zip.files[p].dir);
   for (const fPath of footerPaths) {
     let fXml = await zip.file(fPath)?.async('string');
     if (!fXml) continue;
-    const fNew = fXml.replace(/<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>/g, (m, attrs, inner) => {
-      const a = /w:dirty=/.test(attrs) ? attrs : `${attrs} w:dirty="true"`;
-      const i = /<w:t[\s>]/i.test(inner) ? inner : '<w:r><w:t xml:space="preserve">1</w:t></w:r>';
-      return `<w:fldSimple${a}>${i}</w:fldSimple>`;
-    });
+    const fNew = fldSimpleToThreePart(fXml);
     if (fNew !== fXml) zip.file(fPath, fNew);
   }
 

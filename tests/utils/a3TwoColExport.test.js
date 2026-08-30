@@ -40,15 +40,15 @@ describe('A3 两栏导出（每栏页码按栏计数）', () => {
     expect(docXml).toContain('w:num="2"');
     // 栏距 2cm（1134 twip，2026-08：贴近标准 A3 两栏试卷排版 1.5~2cm）
     expect(docXml).toContain('w:space="1134"');
-    // 页脚距纸边 1cm（567 twip）：页码与正文拉开间距（防贴正文）
-    expect(docXml).toContain('w:footer="567"');
+    // 页脚距纸边 0.7cm（397 twip，用户规格）：页码与正文拉开间距（防贴正文）
+    expect(docXml).toContain('w:footer="397"');
     // 页脚每栏页码公式域：左栏 =2*PAGE-1、右栏 =2*PAGE，共X页 =2*SECTIONPAGES（与 A4"第X页　共X页"格式一致）
     const footers = await footerText(zip);
     expect(footers).toContain('= 2*PAGE - 1');
     expect(footers).toContain('= 2*PAGE');
     expect(footers).toContain('= 2*SECTIONPAGES');
-    // 公式域带 w:dirty="true"（Word 打开时强制更新域，防"第 页 共 页"空白）
-    expect(footers).toContain('w:dirty="true"');
+    // 公式域转三段式（fldChar begin）+ begin 带 w:dirty（Word 打开时强制更新域，防"第 页 共 页"空白）
+    expect(footers).toContain('w:fldChar w:fldCharType="begin" w:dirty="true"');
     // 页脚表格宽 = 可用宽 − 栏距（21544−1134 = 20410）：页码中心与正文两栏中心精确对齐
     expect(footers).toContain('w:w="20410"');
   });
@@ -63,6 +63,20 @@ describe('A3 两栏导出（每栏页码按栏计数）', () => {
     expect(footers).not.toContain('= 2*PAGE');
     // 页脚仍是"第X页　共X页"（PAGE + SECTIONPAGES 域）
     expect(footers).toContain('PAGE');
+  });
+
+  it('"本试卷共＿页"：A3 两栏按总栏数 =2*SECTIONPAGES（物理页数×2），A4 按 SECTIONPAGES 物理页数', async () => {
+    const noticeHtml = '<div class="exam-shell"><div class="exam-notice"><p class="notice-title">注意事项：</p><p class="notice-item">1．答题前，请将密封线内的学校、班级、姓名、学号填写清楚。</p><p class="notice-item">3．本试卷共＿页。</p></div></div>' + HTML;
+    // A3 两栏：本试卷共X页 → =2*SECTIONPAGES 公式域（总栏数，转三段式 + begin dirty）
+    const zipA3 = await buildZip(noticeHtml, 'a3-2col');
+    const docA3 = await zipA3.file('word/document.xml').async('string');
+    expect(docA3).toContain('= 2*SECTIONPAGES');
+    expect(docA3).toContain('w:fldChar w:fldCharType="begin" w:dirty="true"');
+    // A4 单栏：本试卷共X页 → SECTIONPAGES 域（物理页数，三段式，与既有行为一致）
+    const zipA4 = await buildZip(noticeHtml, 'a4');
+    const docA4 = await zipA4.file('word/document.xml').async('string');
+    expect(docA4).toContain('SECTIONPAGES');
+    expect(docA4).not.toContain('2*SECTIONPAGES');
   });
 
   it('A3 两栏 + 密封线：页眉密封线保留（密封线坐标不依赖纸张宽度，A3 直接复用）', async () => {
@@ -80,9 +94,9 @@ describe('A3 两栏导出（每栏页码按栏计数）', () => {
     expect(docXml).toContain('w:w="23812"');
     // 密封线卷栏距 2cm（1134 twip，2026-08：两种卷型栏距一致，贴近标准 1.5~2cm）
     expect(docXml).toContain('w:space="1134"');
-    // 页脚公式域 w:dirty + 页脚表格宽 = 可用宽 − 栏距（20978−1134 = 19844，页码中心对齐正文栏中心）
+    // 页脚公式域转三段式（begin w:dirty）+ 页脚表格宽 = 可用宽 − 栏距（20978−1134 = 19844，页码中心对齐正文栏中心）
     const footers = await footerText(zip);
-    expect(footers).toContain('w:dirty="true"');
+    expect(footers).toContain('w:fldChar w:fldCharType="begin" w:dirty="true"');
     expect(footers).toContain('w:w="19844"');
   });
 });

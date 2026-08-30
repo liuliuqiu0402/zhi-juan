@@ -257,9 +257,10 @@ const buildTextRuns = (node, styleOverride = {}) => {
         lines.forEach((line, i) => {
           if (i > 0) runs.push(new TextRun({ break: 1 }));
           if (line) {
-            // 🔧 卷面规范：注意事项"本试卷共＿页" → SECTIONPAGES 域（Word 按正文分节实际页数自动填充，
-            //    不含答案页；与正文页脚"共X页"联动。预览/HTML 保持占位由人工填写）
-            //    正则兼容下划线变体：半角 _ / 全角 ＿ / 多个（AI 输出不稳定）
+            // 🔧 卷面规范：注意事项"本试卷共＿页" → 页数域自动填充：
+            //    A4 单栏 = SECTIONPAGES（Word 按正文分节物理页数填充，不含答案页；与正文页脚"共X页"联动）；
+            //    A3 两栏 = =2*SECTIONPAGES 公式域（总栏数 = 物理页数×2，与页脚"共X栏"联动，2026-08）。
+            //    预览/HTML 保持占位由人工填写。正则兼容下划线变体：半角 _ / 全角 ＿ / 多个（AI 输出不稳定）
             const pageCountRe = /本试卷共\s*[＿_]{1,}\s*页/;
             const pageCountMatch = line.match(pageCountRe);
             if (pageCountMatch) {
@@ -271,7 +272,12 @@ const buildTextRuns = (node, styleOverride = {}) => {
                 return o;
               };
               segs.forEach((seg, j) => {
-                if (j > 0) runs.push(new TextRun(ctxRun({ children: ['本试卷共', PageNumber.TOTAL_PAGES_IN_SECTION, '页'] })));
+                if (j > 0) {
+                  const children = __isA3TwoCol
+                    ? ['本试卷共', new SimpleField('= 2*SECTIONPAGES', '8'), '页']
+                    : ['本试卷共', PageNumber.TOTAL_PAGES_IN_SECTION, '页'];
+                  runs.push(new TextRun(ctxRun({ children })));
+                }
                 if (seg) runs.push(new TextRun(ctxRun({ text: seg })));
               });
               return;
@@ -868,9 +874,11 @@ let __sealCollector = null;
 const ANSWER_SPLIT_MARKER = Symbol('answer-section-split');
 
 // 🔧 作文格学段（用户规格：primary 12mm / middle 10mm / high 宽7.5×高8mm），buildDocxFromDom 启动时设置；
-//    __zwgPerRow 每行格子数按「每栏可用宽度」放最多整数格子（不固定列数，格子尺寸保持学段规格不缩放）
+//    __zwgPerRow 每行格子数按「每栏可用宽度」放最多整数格子（不固定列数，格子尺寸保持学段规格不缩放）；
+//    __isA3TwoCol A3 两栏标记（"本试卷共X页"按总栏数 =2*SECTIONPAGES 填充）
 let __zwgStage = 'middle';
 let __zwgPerRow = 20;
+let __isA3TwoCol = false;
 
 /** 密封线 marker 段落（放页眉，后处理替换为浮动文本框；lineOnly 时仅 虚线+密/封/线；mirror 时偶页镜像到右侧靠书脊） */
 const sealMarkerParagraph = (fields, sizeHp, lineOnly = false, mirror = false) => {
@@ -1885,6 +1893,7 @@ const processBlockNode = (node, ctx = {}) => {
 export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') => {
   // 🔧 A3 两栏（2026-08）：横向 A3（420×297mm = 两栏 A4 并排），正文两栏 + 每栏页码（按栏计数）
   const isA3TwoCol = layout === 'a3-2col';
+  __isA3TwoCol = isA3TwoCol; // "本试卷共X页"按总栏数 =2*SECTIONPAGES 填充（buildTextRuns 读取）
   // 🔧 作文格学段（来自排版规格库 ZUOWEN_CELL：小学12/初中10/高中7.5mm），buildDocxFromDom 启动时设置
   __zwgStage = stage || 'middle';
   // 🔧 作文格每行格子数按「每栏可用宽度」放最多整数格子——必须在 processBlockNode 之前计算
@@ -1994,9 +2003,8 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
     // 🔧 A3 两栏：横向 A3（420×297mm = 23812×16838 DXA，两栏 A4 并排）；默认 A4 竖版（11906×16838）
     size: isA3TwoCol ? { width: 23812, height: 16838 } : { width: 11906, height: 16838 },
     // 🔧 上下 2cm；密封文档左右 2.5cm（1417 DXA，虚线 19mm + 6mm 不贴正文），普通文档左右 2cm；
-    //    footer 页脚距纸边 1cm（567 twip）：正文底边距 2cm → 页码与正文拉开约 0.3~0.5cm
-    //    （Word 默认 footer 距离 1.27cm，页脚内容高约 0.7cm 时几乎贴着正文）
-    margin: { top: 1134, bottom: 1134, left: leftMargin, right: rightMargin, footer: 567 },
+    //    footer 页脚距纸边 0.7cm（397 twip，用户规格 2026-08）：正文底边距 2cm → 页码与正文拉开约 0.9cm
+    margin: { top: 1134, bottom: 1134, left: leftMargin, right: rightMargin, footer: 397 },
   };
 
   // 🔧 A3 两栏栏距 2cm（1134 twip，2026-08）：贴近标准 A3 两栏试卷排版（常见 1.5~2cm）；
