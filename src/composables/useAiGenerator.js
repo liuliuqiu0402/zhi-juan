@@ -4003,24 +4003,43 @@ ${cardAnalysisText.substring(0, 1000)}
    * @returns {string} 素材块文本（空串 = 无素材）
    */
   const buildMaterialBlock = ({ contentCards = [], knowledgeMap = null, maxChars = 8000 } = {}) => {
-    // 1. 章节目录
+    // 1. 结构化目录（范围锚定：先给目录确定命题范围，不遗漏、不越界）
     const titles = [];
     for (const card of contentCards || []) {
       if (card?.chapterTitle && !titles.includes(card.chapterTitle)) titles.push(card.chapterTitle);
     }
-    const toc = titles.length ? `【本资料覆盖章节】${titles.join('、')}` : '';
-    // 2. 知识点清单（从知识图谱提取全部具体知识点，去重）
+    const toc = titles.length
+      ? `【本资料覆盖范围·目录】（命题范围以本目录为准，覆盖全部章节，不遗漏、不越界）\n${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
+      : '';
+    // 1b. 章节→原文片段索引（章节锚定直取用；key 归一化去括号空白）
+    const normCh = (t) => String(t || '').replace(/\s+/g, '').replace(/[（(].*?[)）]/g, '').trim();
+    const chapterSegs = new Map();
+    for (const card of contentCards || []) {
+      const key = normCh(card?.chapterTitle);
+      if (!key || !card?.segments?.length) continue;
+      chapterSegs.set(key, card.segments);
+    }
+    // 2. 知识点清单 + 知识点→章节映射（relatedChapters/unit——出处锚点程序化，不让模型凭记忆编）
     const kpSet = new Set();
+    const kpChapters = new Map(); // 知识点名 → 关联章节名[]
+    const collectKp = (name, chapters = []) => {
+      if (!name) return;
+      kpSet.add(name);
+      const list = kpChapters.get(name) || [];
+      for (const c of chapters) if (c && !list.includes(c)) list.push(c);
+      kpChapters.set(name, list);
+    };
     for (const kp of (knowledgeMap?.knowledgePoints || [])) {
-      if (typeof kp === 'string') kpSet.add(kp);
-      else if (kp?.name) kpSet.add(kp.name);
+      if (typeof kp === 'string') collectKp(kp);
+      else if (kp?.name) collectKp(kp.name, kp.relatedChapters || []);
     }
     for (const unit of (knowledgeMap?.knowledgeGraph || [])) {
+      const unitName = unit?.unit || '';
       for (const bc of (unit.bigConcepts || [])) {
-        if (bc?.bigConcept) kpSet.add(bc.bigConcept);
+        if (bc?.bigConcept) collectKp(bc.bigConcept, unitName ? [unitName] : []);
         for (const ck of (bc.coreKnowledge || [])) {
-          if (ck?.name) kpSet.add(ck.name);
-          for (const sp of (ck.specificConcepts || [])) if (sp) kpSet.add(sp);
+          if (ck?.name) collectKp(ck.name, [...(ck?.relatedChapters || []), unitName].filter(Boolean));
+          for (const sp of (ck.specificConcepts || [])) if (sp) collectKp(sp, ck?.relatedChapters || []);
         }
       }
     }
@@ -4056,7 +4075,25 @@ ${cardAnalysisText.substring(0, 1000)}
           const r = findTop(part, 1)[0];
           if (r && pushHit({ ...r, score: (r.score || 1) * 0.95 }, kp)) { recovered = true; break; }
         }
-        if (!recovered) console.debug(`[素材覆盖] 知识点未检索到原文片段（静默，命题由模型知识兜底）：${kp}`);
+        if (!recovered) {
+          // 🔧 章节锚定直取（2026-08-31）：语义检索 miss → 按知识点关联章节（relatedChapters/unit）
+          //    直接取该章节关键片段（isKeyConcept 优先），不再静默靠模型知识兜底（教材改版模型跟不上）
+          const missChapters = kpChapters.get(kp) || [];
+          let anchored = false;
+          for (const ch of missChapters) {
+            const segs = chapterSegs.get(normCh(ch)) || [];
+            if (!segs.length) continue;
+            const pick = segs
+              .filter(s => (s.text || '').trim().length >= 10)
+              .sort((a, b) => (b.isKeyConcept ? 1 : 0) - (a.isKeyConcept ? 1 : 0))
+              .slice(0, 2);
+            for (const s of pick) {
+              if (pushHit({ text: s.text, score: 0.8, type: s.type || '正文', kp, chapter: ch })) anchored = true;
+            }
+            if (anchored) break;
+          }
+          if (!anchored) console.debug(`[素材覆盖] 知识点未检索到原文且无章节锚定（静默，模型知识兜底）：${kp}`);
+        }
       }
     }
     // 3c. 第二轮：剩余预算按相关度增量补充（每知识点再取 top2 中的新片段，总量受 maxChars 兜底）
@@ -4079,15 +4116,38 @@ ${cardAnalysisText.substring(0, 1000)}
         usedChars += h.text.length;
       }
     }
-    // 4. 汇总：按相关度排序输出（总量已由 maxChars 兜底）
-    hits.sort((a, b) => (b.score || 0) - (a.score || 0));
-    let body = '';
+    // 4. 汇总：按章节均匀配额输出（期末/整本书等大范围每章都取到、不遗漏任何章节；
+    //    章节内按相关度排序取配额内片段；总量受 maxChars 兜底）
+    const byChapter = new Map();
     for (const h of hits) {
-      if (body.length + h.text.length > maxChars) break;
-      body += `· ${h.text}${h.chapter ? `（出自：${h.chapter}）` : ''}\n`;
+      const key = normCh(h.chapter) || '__noChapter__';
+      if (!byChapter.has(key)) byChapter.set(key, []);
+      byChapter.get(key).push(h);
     }
-    // 5. 组装：章节（前）→ 原文片段（中，带出处锚点）→ 考查知识点清单（尾部锚点，生成时模型眼前即覆盖范围）
-    const parts = [toc, body ? `【教材原文（按知识点检索，命题取材依据；以本原文为准，教材版本以用户所选为准，可改编情境，禁止照搬原题）】\n${body}` : '', kpText];
+    let body = '';
+    const chKeys = [...byChapter.keys()].filter(k => k !== '__noChapter__');
+    if (chKeys.length) {
+      // 章节均匀配额：每章均分预算；章节过多时保底也按比例收缩，总量绝不超 maxChars（防大范围勾选截断/超限）
+      const share = Math.floor(maxChars / chKeys.length);
+      const quota = share >= 300 ? share : Math.max(200, share); // 正常规模每章 300+ 保底；章节极多时收缩到 200 均分
+      for (const key of chKeys) {
+        const segs = byChapter.get(key).sort((a, b) => (b.score || 0) - (a.score || 0));
+        let used = 0;
+        for (const h of segs) {
+          if (used + h.text.length > quota) break;
+          if (body.length + h.text.length > maxChars) break; // 总量硬上限
+          body += `· ${h.text}${h.chapter ? `（出自：${h.chapter}）` : ''}\n`;
+          used += h.text.length;
+        }
+      }
+    }
+    // 无章节信息的片段按剩余预算补充
+    for (const h of (byChapter.get('__noChapter__') || []).sort((a, b) => (b.score || 0) - (a.score || 0))) {
+      if (body.length + h.text.length > maxChars) break;
+      body += `· ${h.text}\n`;
+    }
+    // 5. 组装：目录（前）→ 原文片段（中，按章节带出处锚点）→ 考查知识点清单（尾部锚点，生成时模型眼前即覆盖范围）
+    const parts = [toc, body ? `【教材原文（按章节取材，命题依据；以本原文为准，教材版本以用户所选为准，可改编情境，禁止照搬原题）】\n${body}` : '', kpText];
     return parts.filter(Boolean).join('\n\n');
   };
 
