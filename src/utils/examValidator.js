@@ -1055,6 +1055,68 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         silentCount('writing-grid', '含写话/作文题但正文无作文格（zuo-wen-ge），请抽检');
       }
     }
+    // 2j-5b 英语书面表达/写作无作答载体 → 自动补横线作答区（英语写作走横线体系，与其语文补作文格对称，
+    //    按关键词触发、不依赖分值——教辅/知识总结内表达题常无分值，2k answer-area-fix 依赖分值补不到，
+    //    且 2k 将写作类 continue 排除，故英语表达缺载体时只能在此按关键词补齐）。
+    //    🔧 2026-08 根治"英语书面表达题无横线"：知识总结等自包含教辅正文含书面表达题时，
+    //    模型常漏输出作答横线，语文有 2j-5 补作文格、英语此前无对应通道 → 缺横线。此处按关键词补齐。
+    if (has('writing-expression-fix') && subject === '英语'
+        && /书面表达|写作|小作文|看图写话|用英语|Write\b/.test(bodyNoAnsText)) {
+      try {
+        const tplE = document.createElement('template');
+        tplE.innerHTML = out;
+        const psE = Array.from(tplE.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
+        const numberedE = psE.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
+        const kwReE = /书面表达|写作|小作文|看图写话|用英语|Write\b/;
+        const kwPE = numberedE.filter(p => {
+          const t = p.textContent || '';
+          return kwReE.test(t) && !t.includes('[IMAGE]')
+            && !/选择|判断|填空|阅读|读短文|完形|改写句子|连词成句|Read\b/.test(t);
+        });
+        const regionE = getAnswerRegion('英语', stage);
+        const lhE = regionE.lineHeightMm || 8.5;
+        const linePerScoreE = regionE.linePerScore || 1.0;
+        let addedE = 0;
+        for (let i = 0; i < kwPE.length; i++) {
+          const p = kwPE[i];
+          const idx = numberedE.indexOf(p);
+          const endP = numberedE[idx + 1] || null;
+          // 该题区域（题干 p 到下一题之间）已有任何作答载体 → 跳过补横线（防重复）
+          let hasAnyCarrierE = false;
+          let probeE = p.nextSibling;
+          while (probeE && probeE !== endP) {
+            const phE = probeE.outerHTML || '';
+            if (phE && /blank-line|zuo-wen-ge|blank-\d|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge|square-grid/.test(phE)) { hasAnyCarrierE = true; break; }
+            probeE = probeE.nextSibling;
+          }
+          if (hasAnyCarrierE) continue;
+          // 补格数：有分值按 分值×横线系数；无分值（教辅/知识总结常见）兜底 8 行
+          const wm = (p.textContent || '').match(/[（(][^）)]*?(\d{1,3})\s*分/);
+          const wscore = wm ? parseInt(wm[1], 10) : 0;
+          const rowsE = wscore > 0 ? Math.max(8, Math.ceil(wscore * linePerScoreE)) : 8;
+          // 🔧 插入位置：题干 p 之后
+          const wrapE = document.createElement('div');
+          for (let k = 0; k < rowsE; k++) {
+            const pL = document.createElement('p');
+            const spanL = document.createElement('span');
+            spanL.innerHTML = '&emsp;';
+            spanL.className = 'blank-line';
+            pL.appendChild(spanL);
+            wrapE.appendChild(pL);
+          }
+          p.parentNode.insertBefore(wrapE, p.nextSibling);
+          addedE += 1;
+        }
+        if (addedE > 0) {
+          out = tplE.innerHTML;
+          issues.push({ severity: 'info', type: 'writing-grid', message: `英语书面表达/写作题已自动补横线作答区（blank-line${lhE}mm，位于题干后，共补${addedE}题）` });
+          fixed += 1;
+        }
+      } catch (e) {
+        console.warn('⚠️ 英语写作横线自动补齐失败:', e.message);
+        silentCount('writing-grid', '含英语书面表达/写作题但正文无横线作答区（blank-line），请抽检');
+      }
+    }
     // 2j-5a 作文格位置纠正：格子出现在所属题干之前 → 移到题干之后（模型常见顺序错误：
     //    先输出 <div class="zuo-wen-ge"> 再写题干，卷面变成"格子在上、题目在下"）
     if (has('writing-expression-fix') && /<div[^>]*class=["'][^"']*zuo-wen-ge/.test(out)) {

@@ -614,3 +614,52 @@ describe('examValidator 书写作答空间保障（answer-area-fix）', () => {
   });
 });
 
+describe('examValidator 英语书面表达横线补差（2j-5b，2026-08）', () => {
+  // 英语写作走横线作答体系（carrier=line），与语文作文格对称：按关键词触发、不依赖分值——
+  // 知识总结/教辅内表达题常无分值（2k answer-area-fix 依赖分值补不到，且 2k 将写作类 continue 排除），
+  // 故英语书面表达题缺横线时在此按关键词补齐 blank-line。
+  const ENG_SUMMARY = { subject: '英语', stage: 'middle', genType: 'summary' };
+  const ENG_EXAM = { subject: '英语', stage: 'high', genType: 'exam' };
+
+  it('知识点总结内英语书面表达题无横线 → 自动补齐 blank-line 作答区', () => {
+    const html = '<p>第三节 书面表达。(15分)</p>\n<p>5. 请以“My Weekend”为题，用英语写一篇短文。</p>\n<p>6. 翻译下列句子。</p>';
+    const { html: out, issues } = auditExamPaper(html, ENG_SUMMARY);
+    const count = (out.match(/blank-line/g) || []).length;
+    expect(count).toBeGreaterThanOrEqual(8); // 无分值兜底 8 行
+    expect(issues.some(i => i.type === 'writing-grid' && i.message.includes('补横线'))).toBe(true);
+  });
+
+  it('有分值的英语书面表达 → 按分值×系数补行（≥8行）', () => {
+    const html = '<p>书面表达。(15分)</p>\n<p>5. 书面表达：Write a short passage about your school,</p>\n<p>不少于60词。</p>\n<p>6. 完形填空。</p>';
+    const { html: out } = auditExamPaper(html, ENG_EXAM);
+    // 15分×0.8(linePerScore middle/high)=12行 → ≥8
+    expect((out.match(/blank-line/g) || []).length).toBeGreaterThanOrEqual(8);
+  });
+
+  it('阅读/完形/填空/选择类题不误补横线', () => {
+    const html = '<p>Passage A。阅读短文，回答问题。</p>\n<p>1. Read the passage and answer question.</p>\n<p>2. Choose the best answer.</p>\n<p>3. <span class="blank-4">&emsp;</span>填空。</p>';
+    const { html: out, issues } = auditExamPaper(html, ENG_SUMMARY);
+    expect((out.match(/blank-line/g) || []).length).toBe(0);
+    expect(issues.some(i => i.type === 'writing-grid' && i.message.includes('补横线'))).toBe(false);
+  });
+
+  it('已有 blank-line 载体的英语书面表达 → 不重复补', () => {
+    const html = '<p>书面表达。(15分)</p>\n<p>5. Write a passage about your weekend.</p>\n<p class="write-line"></p>\n<span class="blank-line">&emsp;</span>\n<p>6. 用所给词填空。</p>';
+    const { html: out } = auditExamPaper(html, ENG_EXAM);
+    // 已有 1 条 blank-line，不应再补成 8+ 条
+    expect((out.match(/blank-line/g) || []).length).toBeLessThan(8);
+  });
+
+  it('英语学科语文式作文格关键词（看图写话）也应补横线', () => {
+    const html = '<p>看图写话。</p>\n<p>5. 看图写话：用英语描述图中场景。</p>\n<p>6. 将下列句子改为否定句。</p>';
+    const { html: out } = auditExamPaper(html, ENG_SUMMARY);
+    expect((out.match(/blank-line/g) || []).length).toBeGreaterThanOrEqual(8);
+  });
+
+  it('非英语学科不触发英语横线补差', () => {
+    const html = '<p>书面表达。</p>\n<p>5. 请用中文写一段话描述你的校园生活。</p>\n<p>6. 解释词语。</p>';
+    const { html: out } = auditExamPaper(html, { subject: '语文', stage: 'middle', genType: 'summary' });
+    expect((out.match(/blank-line/g) || []).length).toBe(0);
+  });
+});
+
