@@ -4127,8 +4127,8 @@ ${cardAnalysisText.substring(0, 1000)}
     let body = '';
     const chKeys = [...byChapter.keys()].filter(k => k !== '__noChapter__');
     if (chKeys.length) {
-      // 章节均匀配额：总量倒除均分（每章 = maxChars/章数，精确不超总量；章节多则每章自动收缩，章节少则每章充分）
-      const quota = Math.floor(maxChars / chKeys.length);
+      // 章节均匀配额：总量倒除均分，并预留 10% 余量覆盖"· 文本（出自：章节）"格式开销与无章节兜底（精确不超预算）
+      const quota = Math.floor((maxChars * 0.9) / chKeys.length);
       for (const key of chKeys) {
         const segs = byChapter.get(key).sort((a, b) => (b.score || 0) - (a.score || 0));
         let used = 0;
@@ -4146,7 +4146,9 @@ ${cardAnalysisText.substring(0, 1000)}
       body += `· ${h.text}\n`;
     }
     // 5. 组装：目录（前）→ 原文片段（中，按章节带出处锚点）→ 考查知识点清单（尾部锚点，生成时模型眼前即覆盖范围）
-    const parts = [toc, body ? `【教材原文（按章节取材，命题依据；以本原文为准，教材版本以用户所选为准，可改编情境，禁止照搬原题）】\n${body}` : '', kpText];
+    // 🔧 措辞分工（2026-08-31）：知识点/内容以所选教材为准（防模型用训练记忆的旧版）；
+    //    选文、情境等命题材料可取自课外（符合课标"材料可课外"要求），不限制材料来源
+    const parts = [toc, body ? `【教材原文（按章节取材，知识点与内容以本原文为准，教材版本以用户所选为准；可改编情境，禁止照搬原题；选文/情境等材料可取自课外，主题相关、难度适切即可）】\n${body}` : '', kpText];
     return parts.filter(Boolean).join('\n\n');
   };
 
