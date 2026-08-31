@@ -4035,7 +4035,8 @@ ${cardAnalysisText.substring(0, 1000)}
       const t = String(r?.text || '').trim();
       if (!t || t.length < 10 || seen.has(t)) return false;
       seen.add(t);
-      hits.push({ text: t, score: r?.score || 1, type: r?.type || '', kp });
+      // 🔧 保留出处锚点（semanticRetriever 已带 chapterTitle，此前被丢弃——知识点出处是程序知道的信息，程序化注入，不让模型凭记忆编）
+      hits.push({ text: t, score: r?.score || 1, type: r?.type || '', kp, chapter: r?.chapterTitle || '' });
       return true;
     };
     // 3a. 第一轮：每知识点保底 top1 片段（保证每个考点都有原文依据）
@@ -4083,10 +4084,10 @@ ${cardAnalysisText.substring(0, 1000)}
     let body = '';
     for (const h of hits) {
       if (body.length + h.text.length > maxChars) break;
-      body += `· ${h.text}\n`;
+      body += `· ${h.text}${h.chapter ? `（出自：${h.chapter}）` : ''}\n`;
     }
-    // 5. 组装：章节（前）→ 原文片段（中）→ 考查知识点清单（尾部锚点，生成时模型眼前即覆盖范围）
-    const parts = [toc, body ? `【教材原文（按知识点检索，命题取材依据，可改编情境，禁止照搬原题）】\n${body}` : '', kpText];
+    // 5. 组装：章节（前）→ 原文片段（中，带出处锚点）→ 考查知识点清单（尾部锚点，生成时模型眼前即覆盖范围）
+    const parts = [toc, body ? `【教材原文（按知识点检索，命题取材依据；以本原文为准，教材版本以用户所选为准，可改编情境，禁止照搬原题）】\n${body}` : '', kpText];
     return parts.filter(Boolean).join('\n\n');
   };
 
