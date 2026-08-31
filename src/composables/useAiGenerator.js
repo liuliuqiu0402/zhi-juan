@@ -4140,6 +4140,12 @@ ${cardAnalysisText.substring(0, 1000)}
     //    'once'  一次成型：正文+答案一次输出（上下文全程一致，知识型/错题/听写推荐）
     //    'auto'  自动按资料类型（两条路都可用）：纯题型 → split；知识型/听写/错题 → once
     const PAPER_SPLIT_TYPES = ['exam', 'practice', 'special', 'review'];
+    // 🔧 自包含教辅（正文本身即内容梳理：知识总结/复习/课前预习/默写积累/错题本）：
+    //    答案区必须只对练习/自测/例题作答，严禁把正文的知识梳理整体复述到答案区。
+    //    归入此集合后：once 不再强制"另起一部分输出参考答案"而改为"答案区仅逐题作答"；
+    //    split 独立答案页角色注入"勿复述正文梳理"硬约束。
+    const SELF_CONTAINED_TEACHING = ['summary', 'review', 'preview', 'dictation', 'errorbook'];
+    const isSelfContainedTeaching = SELF_CONTAINED_TEACHING.includes(genType);
     const paperModeSetting = apiConfig.generationSettings.paperGenerateMode || 'auto';
     const generateMode = paperModeSetting === 'auto'
       ? (PAPER_SPLIT_TYPES.includes(genType) ? 'split' : 'once')
@@ -4154,11 +4160,11 @@ ${cardAnalysisText.substring(0, 1000)}
       ? (apiConfig.generationSettings.paperTemperature + apiConfig.generationSettings.answerTemperature) / 2
       : apiConfig.generationSettings.paperTemperature;
     if (generateMode === 'once') {
-      prompt += `\n\n${PAPER_OUTPUT_CONVENTIONS.once(subject)}`;
+      prompt += `\n\n${PAPER_OUTPUT_CONVENTIONS.once(subject, isSelfContainedTeaching)}`;
     } else {
       // 🔴 答案页由系统在正文生成后单独调用生成：强制约定本次只输出正文（题目与卷面），
       //    覆盖模板里残留的"正文后再另起一部分输出答案"旧要求，防止模型把答案混入正文（正文+答案重复）
-      prompt += `\n\n${PAPER_OUTPUT_CONVENTIONS.split(subject)}`;
+      prompt += `\n\n${PAPER_OUTPUT_CONVENTIONS.split(subject, isSelfContainedTeaching)}`;
     }
 
     // ── 段1：整卷正文一次生成（once 模式正文+答案一次输出） ──
@@ -4253,14 +4259,22 @@ ${cardAnalysisText.substring(0, 1000)}
       statusText.value = genType === 'exam' ? '整卷生成：撰写参考答案与评分标准...' : '整卷生成：撰写参考答案与解析...';
       progress.value = 85;
       try {
-        // 类型差异化：exam 用阅卷专家+评分标准（作文评分/听力原文）；非 exam 用教辅编辑+参考答案与解析
-        const ansRole = genType === 'exam' ? ANSWER_ROLES.exam(subject) : ANSWER_ROLES.other;
+        // 类型差异化：exam 用阅卷专家+评分标准；非 exam 用教辅编辑+参考答案与解析
+        //    🔧 自包含教辅（summary/review/preview/dictation/errorbook）答案角色限定"仅对练习题作答，
+        //       严禁复述正文知识梳理"，根治"答案区把知识总结整体又输出一遍"
+        const ansRole = genType === 'exam' ? ANSWER_ROLES.exam(subject) : ANSWER_ROLES.other(genType);
         // 🔧 上下文根治：整卷正文转纯文本作为输入（不依赖 class="question" 摘要——摘要提取失败/不全即凭记忆编造）
         //    正文长度上限走设置项 answerContextMaxChars（默认 24000；超大卷/高中大卷可调大至 40000-60000）
         const paperPlain = htmlToPlainText(content, apiConfig.generationSettings.answerContextMaxChars);
         // 🔧 格式根治：答案页注入与正文一致的 HTML 输出规范（此前无格式要求 → 模型直接输出 Markdown 源码）
         const ansFormat = buildAnswerFormatSpec(subject);
+        // 🔧 自包含教辅（summary/review/preview/dictation/errorbook）答案区只写练习/自测/例题解答，
+        //    “按栏目组织答案”仅指按题目所在栏目对答案分类，绝不把正文知识梳理整体复述进答案区（防二次复述）
+        const selfContainedAnsNote = isSelfContainedTeaching
+          ? '\n【自包含教辅答案原则】答案区【只】给出正文中练习/自测/例题/变式的解答；正文的知识框架/重点梳理/考点梳理/易错辨析/默写内容已在前文呈现，【严禁】在答案区整体重复复述。【严禁】在答案区重复呈现知识结构图、考点导图、梳理条目等正文性内容。'
+          : '';
         const ansPrompt = `${ansRole}题号与试卷正文完全一致，逐题作答，不要重复题目原文。
+${selfContainedAnsNote}
 ${ansFormat}
 
 【试卷正文】

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS, ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS } from '../../src/config/promptLibrary.js';
 import { TEACHING_SUBJECT_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
 import { styleInstructions, styleOptions } from '../../src/config/expertKnowledge.js';
 
@@ -149,5 +149,59 @@ describe('promptLibrary 课标版本按学段注入', () => {
     expect(SUBJECT_STAGE_EXTRAS['数学|high'].source).toContain('直观想象');
     expect(SUBJECT_STAGE_EXTRAS['数学|high'].source).toContain('数学运算');
     expect(SUBJECT_STAGE_EXTRAS['数学|high'].source).toContain('数据分析');
+  });
+});
+
+/**
+ * 答案区复述治理：非 exam 自包含教辅（知识总结/复习/课前预习/默写积累）正文本身即内容梳理，
+ * 答案区必须只对练习/自测/例题作答，严禁把正文的知识框架/重点梳理/考点梳理整体复述——正文已提供，答案区不复述。
+ */
+describe('非exam教辅答案区不复述正文（自包含教辅防重复）', () => {
+  it('ANSWER_ROLES.other：summary/review/preview/dictation 显式"严禁复述正文梳理，仅对题目作答"', () => {
+    for (const gt of ['summary', 'review', 'preview', 'dictation']) {
+      const role = ANSWER_ROLES.other(gt);
+      expect(role).toContain('仅针对正文中的练习/自测/例题逐题作答');
+      expect(role).toContain('严禁将正文的知识框架/重点梳理/考点梳理/易错辨析/默写内容等梳理正文整体复述到答案区');
+      expect(role).not.toContain('按栏目给出要点梳理'); // 旧文案诱导复述
+    }
+  });
+
+  it('ANSWER_ROLES.other：errorbook 只附归因与解法，不复述原题', () => {
+    expect(ANSWER_ROLES.other('errorbook')).toContain('错误归因');
+    expect(ANSWER_ROLES.other('errorbook')).not.toContain('按栏目给出要点梳理');
+  });
+
+  it('ANSWER_ROLES.other：普通教辅保留"逐题答案+选择题正确选项"通用指引，不含复述诱导', () => {
+    const role = ANSWER_ROLES.other('practice');
+    expect(role).toContain('逐题给出答案与简要解析');
+    expect(role).toContain('选择题给正确选项');
+    expect(role).not.toContain('按栏目给出要点梳理');
+    expect(role).not.toContain('知识总结/预习类按栏目'); // 旧文案去净
+  });
+
+  it('PAPER_OUTPUT_CONVENTIONS.once：非自包含教辅保持"另起一部分输出参考答案"', () => {
+    const conv = PAPER_OUTPUT_CONVENTIONS.once('语文', false);
+    expect(conv).toContain('另起一部分输出《参考答案与评分标准》/《参考答案与解析》');
+    expect(conv).not.toContain('严禁将正文的知识框架');
+  });
+
+  it('PAPER_OUTPUT_CONVENTIONS.once：自包含教辅改为"答案区仅逐题作答，严禁整体复述正文"', () => {
+    const conv = PAPER_OUTPUT_CONVENTIONS.once('语文', true);
+    expect(conv).toContain('严禁');
+    expect(conv).toContain('整体重复输出到答案区');
+    expect(conv).toContain('答案区仅逐题作答');
+    expect(conv).toContain('知识框架/重点梳理/考点梳理/易错辨析/默写内容等正文内容整体重复输出到答案区');
+  });
+
+  it('PAPER_OUTPUT_CONVENTIONS.split：自包含教辅强调正文梳理不属于答案、无需答案区', () => {
+    const conv = PAPER_OUTPUT_CONVENTIONS.split('语文', true);
+    expect(conv).toContain('知识梳理部分不属于“答案”');
+    expect(conv).toContain('无需为它设置答案区');
+    expect(conv).toContain('参考答案由系统在正文生成后单独调用生成');
+  });
+
+  it('听力原文仅英语：自包含教辅 once 注入听力原文仅在英语时出现', () => {
+    expect(PAPER_OUTPUT_CONVENTIONS.once('英语', true)).toContain('听力题附完整听力原文');
+    expect(PAPER_OUTPUT_CONVENTIONS.once('数学', true)).not.toContain('听力题附完整听力原文');
   });
 });
