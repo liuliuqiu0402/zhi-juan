@@ -262,6 +262,77 @@ export function normalizeBlankMarkers(html = '') {
 }
 
 /**
+ * 配对类题（连一连/连线/配对）渲染结构归一
+ * ============================================================
+ * 🔴 目的：对模型形态漂移免疫——模型输出配对类题时形态不稳定（两列表格 / 两个相邻列表
+ *    等），一律确定性转成标准连线结构（match-question：左右两列 match-item 方框），
+ *    预览/编辑器/排版/导出全部按标准连线渲染（docxBuilder 两列方框 + 连线留白）。
+ * 规则（保守、幂等、不破坏已有内容）：
+ *   1. 幂等：题区已含 match-question 结构 → 不重复处理
+ *   2. 触发：题干附近（同一题内、无题号间隔）含"连一连|连线|配对|搭配"关键词
+ *   3. 只转明确两列形态：两列表格（每行 td×2）或两个相邻 <ul>/<ol> 列表（各 ≥2 项）
+ *   4. 其余形态（单列/普通段落/编号对应）不转，保持原样
+ *   5. 转换保留全部文本，不丢内容
+ */
+export function normalizeMatchQuestions(html = '') {
+  const src = String(html || '');
+  if (!src || !/(连一连|连线|配对|搭配)/.test(src)) return src;
+  let out = src;
+
+  // 两列表格 → match-question（每行 td×2 且 ≥2 行；剥除单元格标签保留文本）
+  const tableToMatch = (tableHtml) => {
+    const rows = [...tableHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
+    const pairs = [];
+    for (const [, cellsHtml] of rows) {
+      const tds = [...cellsHtml.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(m =>
+        m[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim());
+      if (tds.length === 2 && tds[0] && tds[1]) pairs.push(tds);
+    }
+    if (pairs.length < 2) return null;
+    const col = (side) => `<div class="match-col">${pairs.map(p => `<div class="match-item">${p[side]}</div>`).join('')}</div>`;
+    return `<div class="match-question">${col(0)}${col(1)}</div>`;
+  };
+
+  // 两个相邻 <ul>/<ol> 列表 → match-question（各 ≥2 项）
+  const listsToMatch = (block) => {
+    const m = block.match(/(<(?:ul|ol)[^>]*>[\s\S]*?<\/(?:ul|ol)>)\s*(<(?:ul|ol)[^>]*>[\s\S]*?<\/(?:ul|ol)>)/i);
+    if (!m) return null;
+    const items = (ul) => [...ul.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)]
+      .map(x => x[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const left = items(m[1]);
+    const right = items(m[2]);
+    if (left.length < 2 || right.length < 2) return null;
+    const col = (list) => `<div class="match-col">${list.map(it => `<div class="match-item">${it}</div>`).join('')}</div>`;
+    return `<div class="match-question">${col(left)}${col(right)}</div>`;
+  };
+
+  // 题号间隔守卫：关键词与目标块之间不得跨越题号行（\n [标签] 数字 1. 等），防跨题误转
+  const hasQuestionBoundary = (gap) => /\n\s*(?:<[^>]+>\s*)?\d{1,3}\s*[.、．]/.test(gap);
+
+  // ① 两列表格转换（关键词前置、同题、幂等）
+  out = out.replace(/([\s\S]*?)(<table[^>]*>[\s\S]*?<\/table>)/gi, (m, before, tableHtml) => {
+    const tail = before.slice(-260);
+    if (/match-question/.test(tail)) return m; // 幂等（同题已转）
+    if (!/(连一连|连线|配对|搭配)/.test(tail)) return m;
+    if (hasQuestionBoundary(tail)) return m;
+    const match = tableToMatch(tableHtml);
+    return match ? before + match : m;
+  });
+
+  // ② 相邻双列表转换（同前规则）
+  out = out.replace(/([\s\S]*?)(<(?:ul|ol)[^>]*>[\s\S]*?<\/(?:ul|ol)>)\s*(<(?:ul|ol)[^>]*>[\s\S]*?<\/(?:ul|ol)>)/gi, (m, before, l1, l2) => {
+    const tail = before.slice(-260);
+    if (/match-question/.test(tail)) return m;
+    if (!/(连一连|连线|配对|搭配)/.test(tail)) return m;
+    if (hasQuestionBoundary(tail)) return m;
+    const match = listsToMatch(`${l1}\n${l2}`);
+    return match ? before + match : m;
+  });
+
+  return out;
+}
+
+/**
  * 缩进归一化（根治"排版缩进加倍"——AI 常用行首空格/内联 text-indent 模拟缩进，
  * 与排版层 CSS `p { text-indent: 2em }` 叠加后视觉缩进翻倍）：
  *   1) 去除元素内联 text-indent 声明（缩进统一由排版层 CSS 控制）
@@ -278,4 +349,4 @@ export function normalizeIndents(html = '') {
 }
 
 
-export default { cleanSectionHtml, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeIndents };
+export default { cleanSectionHtml, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeMatchQuestions, normalizeIndents };
