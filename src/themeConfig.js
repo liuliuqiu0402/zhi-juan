@@ -1444,7 +1444,15 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }
       u.blank-3 { min-width: 3em; } u.blank-4 { min-width: 4em; }
       u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; }
-      u.blank-8 { min-width: 8em; } u.blank-10 { min-width: 10em; }
+      u.blank-7 { min-width: 7em; } u.blank-8 { min-width: 8em; }
+      u.blank-9 { min-width: 9em; } u.blank-10 { min-width: 10em; }
+      u.blank-11 { min-width: 11em; } u.blank-12 { min-width: 12em; }
+      u.blank-13 { min-width: 13em; } u.blank-14 { min-width: 14em; }
+      u.blank-15 { min-width: 15em; } u.blank-16 { min-width: 16em; }
+      u.blank-17 { min-width: 17em; } u.blank-18 { min-width: 18em; }
+      u.blank-19 { min-width: 19em; } u.blank-20 { min-width: 20em; }
+      u.blank-21 { min-width: 21em; } u.blank-22 { min-width: 22em; }
+      u.blank-23 { min-width: 23em; } u.blank-24 { min-width: 24em; }
       /* 括号间距——仅占宽度，无下划线 */
       span[class*="blank-"] { display: inline-block; }
     </style>`;
@@ -1520,7 +1528,15 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
     u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }
     u.blank-3 { min-width: 3em; } u.blank-4 { min-width: 4em; }
     u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; }
-    u.blank-8 { min-width: 8em; } u.blank-10 { min-width: 10em; }
+    u.blank-7 { min-width: 7em; } u.blank-8 { min-width: 8em; }
+    u.blank-9 { min-width: 9em; } u.blank-10 { min-width: 10em; }
+    u.blank-11 { min-width: 11em; } u.blank-12 { min-width: 12em; }
+    u.blank-13 { min-width: 13em; } u.blank-14 { min-width: 14em; }
+    u.blank-15 { min-width: 15em; } u.blank-16 { min-width: 16em; }
+    u.blank-17 { min-width: 17em; } u.blank-18 { min-width: 18em; }
+    u.blank-19 { min-width: 19em; } u.blank-20 { min-width: 20em; }
+    u.blank-21 { min-width: 21em; } u.blank-22 { min-width: 22em; }
+    u.blank-23 { min-width: 23em; } u.blank-24 { min-width: 24em; }
     /* 括号间距——仅占宽度 */
     span[class*="blank-"] { display: inline-block; }
     /* ⭐ 口算框 / 方框 */
@@ -2195,13 +2211,29 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }
       u.blank-3 { min-width: 3em; } u.blank-4 { min-width: 4em; }
       u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; }
-      u.blank-8 { min-width: 8em; } u.blank-10 { min-width: 10em; }
+      u.blank-7 { min-width: 7em; } u.blank-8 { min-width: 8em; }
+      u.blank-9 { min-width: 9em; } u.blank-10 { min-width: 10em; }
+      u.blank-11 { min-width: 11em; } u.blank-12 { min-width: 12em; }
+      u.blank-13 { min-width: 13em; } u.blank-14 { min-width: 14em; }
+      u.blank-15 { min-width: 15em; } u.blank-16 { min-width: 16em; }
+      u.blank-17 { min-width: 17em; } u.blank-18 { min-width: 18em; }
+      u.blank-19 { min-width: 19em; } u.blank-20 { min-width: 20em; }
+      u.blank-21 { min-width: 21em; } u.blank-22 { min-width: 22em; }
+      u.blank-23 { min-width: 23em; } u.blank-24 { min-width: 24em; }
       /* 括号间距：仅占宽度，无下划线 */
       span[class*="blank-"] { display: inline-block; text-align: center; }
       span.blank-1 { min-width: 1em; } span.blank-2 { min-width: 2em; }
       span.blank-3 { min-width: 3em; } span.blank-4 { min-width: 4em; }
       span.blank-5 { min-width: 5em; } span.blank-6 { min-width: 6em; }
-      span.blank-8 { min-width: 8em; } span.blank-10 { min-width: 10em; }
+      span.blank-7 { min-width: 7em; } span.blank-8 { min-width: 8em; }
+      span.blank-9 { min-width: 9em; } span.blank-10 { min-width: 10em; }
+      span.blank-11 { min-width: 11em; } span.blank-12 { min-width: 12em; }
+      span.blank-13 { min-width: 13em; } span.blank-14 { min-width: 14em; }
+      span.blank-15 { min-width: 15em; } span.blank-16 { min-width: 16em; }
+      span.blank-17 { min-width: 17em; } span.blank-18 { min-width: 18em; }
+      span.blank-19 { min-width: 19em; } span.blank-20 { min-width: 20em; }
+      span.blank-21 { min-width: 21em; } span.blank-22 { min-width: 22em; }
+      span.blank-23 { min-width: 23em; } span.blank-24 { min-width: 24em; }
       strong, b { font-weight: bold; }
       em, i { font-style: italic; }
       s, del, strike { text-decoration: line-through; }

@@ -318,7 +318,9 @@ const MiZiGe = Node.create({
 // ⭐ 学科特殊格式标记：保护其他自定义 class（田字格/米字格已提升为 Node）
 const PRESERVE_CLASSES = [
   'four-line-three', 'sixian-ge', 'pinyin-line', 'english-line', 'blank-line',
-  'blank-1', 'blank-2', 'blank-3', 'blank-4', 'blank-5', 'blank-6', 'blank-8', 'blank-10',
+  'blank-1', 'blank-2', 'blank-3', 'blank-4', 'blank-5', 'blank-6', 'blank-7', 'blank-8', 'blank-9', 'blank-10',
+  'blank-11', 'blank-12', 'blank-13', 'blank-14', 'blank-15', 'blank-16', 'blank-17', 'blank-18', 'blank-19', 'blank-20',
+  'blank-21', 'blank-22', 'blank-23', 'blank-24',
   'stroke-order', 'underline-sentence', 'wavy-underline', 'double-line', 'single-line',
   'oral-box', 'square-box', 'score-box', 'chem-condition', 'wb-item',
   'superscript', 'subscript', 'dashed-line',
@@ -1792,13 +1794,29 @@ defineExpose({
 .rich-text-editor :deep(u.blank-1) { min-width: 1em; } .rich-text-editor :deep(u.blank-2) { min-width: 2em; }
 .rich-text-editor :deep(u.blank-3) { min-width: 3em; } .rich-text-editor :deep(u.blank-4) { min-width: 4em; }
 .rich-text-editor :deep(u.blank-5) { min-width: 5em; } .rich-text-editor :deep(u.blank-6) { min-width: 6em; }
-.rich-text-editor :deep(u.blank-8) { min-width: 8em; } .rich-text-editor :deep(u.blank-10) { min-width: 10em; }
+.rich-text-editor :deep(u.blank-7) { min-width: 7em; } .rich-text-editor :deep(u.blank-8) { min-width: 8em; }
+.rich-text-editor :deep(u.blank-9) { min-width: 9em; } .rich-text-editor :deep(u.blank-10) { min-width: 10em; }
+.rich-text-editor :deep(u.blank-11) { min-width: 11em; } .rich-text-editor :deep(u.blank-12) { min-width: 12em; }
+.rich-text-editor :deep(u.blank-13) { min-width: 13em; } .rich-text-editor :deep(u.blank-14) { min-width: 14em; }
+.rich-text-editor :deep(u.blank-15) { min-width: 15em; } .rich-text-editor :deep(u.blank-16) { min-width: 16em; }
+.rich-text-editor :deep(u.blank-17) { min-width: 17em; } .rich-text-editor :deep(u.blank-18) { min-width: 18em; }
+.rich-text-editor :deep(u.blank-19) { min-width: 19em; } .rich-text-editor :deep(u.blank-20) { min-width: 20em; }
+.rich-text-editor :deep(u.blank-21) { min-width: 21em; } .rich-text-editor :deep(u.blank-22) { min-width: 22em; }
+.rich-text-editor :deep(u.blank-23) { min-width: 23em; } .rich-text-editor :deep(u.blank-24) { min-width: 24em; }
 /* ⭐ 括号间距用 span.blank-N：仅占宽度，无下划线 */
 .rich-text-editor :deep(span[class*="blank-"]) { display: inline-block; text-align: center; }
 .rich-text-editor :deep(span.blank-1) { min-width: 1em; } .rich-text-editor :deep(span.blank-2) { min-width: 2em; }
 .rich-text-editor :deep(span.blank-3) { min-width: 3em; } .rich-text-editor :deep(span.blank-4) { min-width: 4em; }
 .rich-text-editor :deep(span.blank-5) { min-width: 5em; } .rich-text-editor :deep(span.blank-6) { min-width: 6em; }
-.rich-text-editor :deep(span.blank-8) { min-width: 8em; } .rich-text-editor :deep(span.blank-10) { min-width: 10em; }
+.rich-text-editor :deep(span.blank-7) { min-width: 7em; } .rich-text-editor :deep(span.blank-8) { min-width: 8em; }
+.rich-text-editor :deep(span.blank-9) { min-width: 9em; } .rich-text-editor :deep(span.blank-10) { min-width: 10em; }
+.rich-text-editor :deep(span.blank-11) { min-width: 11em; } .rich-text-editor :deep(span.blank-12) { min-width: 12em; }
+.rich-text-editor :deep(span.blank-13) { min-width: 13em; } .rich-text-editor :deep(span.blank-14) { min-width: 14em; }
+.rich-text-editor :deep(span.blank-15) { min-width: 15em; } .rich-text-editor :deep(span.blank-16) { min-width: 16em; }
+.rich-text-editor :deep(span.blank-17) { min-width: 17em; } .rich-text-editor :deep(span.blank-18) { min-width: 18em; }
+.rich-text-editor :deep(span.blank-19) { min-width: 19em; } .rich-text-editor :deep(span.blank-20) { min-width: 20em; }
+.rich-text-editor :deep(span.blank-21) { min-width: 21em; } .rich-text-editor :deep(span.blank-22) { min-width: 22em; }
+.rich-text-editor :deep(span.blank-23) { min-width: 23em; } .rich-text-editor :deep(span.blank-24) { min-width: 24em; }
 /* 普通横线（英译汉等中文书写区） */
 .rich-text-editor :deep(.blank-line) { display: inline-block; min-width: 3em; border-bottom: 1.5px solid var(--text-secondary); margin: 0 2px; vertical-align: baseline; }
 /* ⭐ 行尾自动延伸：blank-line / u.blank-N 为段落最后元素时，段落变 flex、横线弹性撑满剩余行宽
