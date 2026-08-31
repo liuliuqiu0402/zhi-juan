@@ -1440,7 +1440,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     if (ansMatch) {
       const ansText = stripTags(ansMatch[1]);
       if (has('answer-coverage-guard')) {
-        const bodyText = stripTags(out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0]);
+        const bodyTextRaw = stripTags(out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0]);
+        // 剔除"目标类板块"（学习目标/预习目标/复习目标/教学目标：标题至下一标题间的目标条目——不是题，
+        // 答案区无对应，误统计会使 preview/review/summary 类资料误报"答案区题号少于正文"）
+        const bodyText = bodyTextRaw.replace(/\n[一二三四五六七八九十]+\、\s*(?:学习|预习|复习|教学)目标[\s\S]*?(?=\n[一二三四五六七八九十]+\、|$)/g, '');
         const bodyTopQ = (bodyText.match(/(?:^|\n)\s*\d+[.、．]/g) || []).length;
         const ansTopQ = (ansText.match(/(?:^|\n)\s*\d+[.、．]/g) || []).length;
         if (bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {

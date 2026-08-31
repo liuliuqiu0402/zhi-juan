@@ -415,7 +415,7 @@ const extractGradeNum = (gradeStr) => {
 
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeIndents } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeIndents } from '../utils/contentCleaner.js';
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -4259,7 +4259,7 @@ ${cardAnalysisText.substring(0, 1000)}
           maxReasoningChunks: (!retryWithoutThinking && getGenerationThinkingEnabled()) ? GEN_CONST.REASONING_CAP_BODY : GEN_CONST.REASONING_CAP_BODY_FORCED,
         });
         const respObj = typeof resp === 'string' ? { content: resp, finishReason: '' } : (resp || { content: '', finishReason: '' });
-        content = normalizeIndents(normalizeMatchQuestions(normalizeBlankMarkers(cleanSectionHtml(respObj.content || ''))));
+        content = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeBlankMarkers(cleanSectionHtml(respObj.content || '')))));
         // 🔴 思考耗尽检测：推理 chunks 大量（≥20000）或触发推理上限（reasoning_capped）且正文为空 → 判定思考占满输出预算
         if (((respObj.reasoningChunkCount || 0) >= GEN_CONST.REASONING_EXHAUST_THRESHOLD || respObj.finishReason === 'reasoning_capped') && !content.trim()) {
           console.warn(`⚠️ 思考模式推理过长（${respObj.reasoningChunkCount || 0} chunks，finish_reason=${respObj.finishReason || 'length'}）且正文为空——本次重试将自动关闭思考`);

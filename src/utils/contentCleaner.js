@@ -333,6 +333,27 @@ export function normalizeMatchQuestions(html = '') {
 }
 
 /**
+ * 行首"项目符号 + 序号"双标记归一（AI 常见冗余输出：在序号前附加项目符号字符，如 "• A."）
+ * ============================================================
+ * 规则（保守、幂等、不误伤）：
+ *   1. 仅当行首 = 项目符号字符（•●○◦▪■►➤‣⁃·）+ 空白 + 序号标记时，删项目符号、保留序号
+ *   2. 序号标记：字母序号（A. A、 A．）/ 数字序号（1. 1、）/ 括号序号（(1)（1））/ 圆圈序号（① ❶ ㉑ 等）
+ *   3. 项目符号后无序号（纯列表符号，如 "• 草原迎客"）→ 不动（列表符号本身合理，删了变普通文本）
+ *   4. 只处理块级元素（p/li/div）行首文本，行首非文本（标签开头）不触碰
+ */
+export function normalizeLeadingMarkers(html = '') {
+  let out = String(html || '');
+  out = out.replace(/<(p|li|div)([^>]*)>([\s\S]*?)<\/\1>/gi, (m, tag, attrs, inner) => {
+    const n = inner.replace(
+      /^([ \t\u3000\u00A0\u2003\u2002]*)([•●○◦▪■►➤‣⁃·])([ \t\u3000\u00A0\u2003\u2002]*)(?=[A-Za-z][.、．:：]|\d+[.、．:：]|[（(]\s*\d+\s*[)）]|[\u2460-\u2473\u2776-\u277F\u3251-\u325F])/,
+      '$1'
+    );
+    return n === inner ? m : `<${tag}${attrs}>${n}</${tag}>`;
+  });
+  return out;
+}
+
+/**
  * 缩进归一化（根治"排版缩进加倍"——AI 常用行首空格/内联 text-indent 模拟缩进，
  * 与排版层 CSS `p { text-indent: 2em }` 叠加后视觉缩进翻倍）：
  *   1) 去除元素内联 text-indent 声明（缩进统一由排版层 CSS 控制）
@@ -349,4 +370,4 @@ export function normalizeIndents(html = '') {
 }
 
 
-export default { cleanSectionHtml, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeMatchQuestions, normalizeIndents };
+export default { cleanSectionHtml, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeIndents };
