@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildRenderContract, needsImageHint, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES } from '@/config/eduRenderContract.js';
 import { getPromptTemplate, listPromptTemplates } from '@/config/promptLibrary.js';
+import { buildValidatorPrompt } from '@/config/validatorRules.js';
 import { setLibToggle } from '@/utils/libToggles.js';
 
 describe('EduRender 渲染契约（三维度注入）', () => {
@@ -237,9 +238,10 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
       const math = getPromptTemplate({ grade: g, subject: '数学', genType: 'exam' });
       expect(math.template, `数学不应含拼音注音示例 (háng xíng)`).not.toContain('háng xíng');
     }
-    // 分值半角示例全学科通用（分值标注各科都有）；拼音半角示例只在语文专属规则通道（validatorRules text-format-zhuyin），不进模板
+    // 分值半角规范已收敛至规则库（score-label-fix 承载，exam 注入），模板通道不再重复（单一事实源）
     const eng = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'exam' });
-    expect(eng.template).toContain('分值标注一律半角括号');
+    expect(eng.template).not.toContain('分值标注一律半角括号');
+    expect(buildValidatorPrompt({ subject: '英语', stage: 'primary_mid', genType: 'exam' })).toContain('分值标注一律半角括号');
     const yw = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
     expect(yw.template).not.toContain('háng xíng'); // 模板通道不含拼音示例（拼音约束走规则库注入）
   });
@@ -271,11 +273,11 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
   it('5 学段 exam 全覆盖（学段特点模板）', () => {
     expect(getPromptTemplate({ grade: 'primary_low', genType: 'exam' }).template).toContain('【学段特点】');
     expect(getPromptTemplate({ grade: 'primary_low', genType: 'exam' }).name).toContain('小学低段');
-    // 对标中考/高考结构仅注入考试科目（三维度精确）；无学科回落通用不注入
-    expect(getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template).toContain('对标中考');
-    expect(getPromptTemplate({ grade: 'high', subject: '语文', genType: 'exam' }).template).toContain('对标高考');
-    expect(getPromptTemplate({ grade: 'middle', subject: '音乐', genType: 'exam' }).template).not.toContain('对标中考');
-    expect(getPromptTemplate({ grade: 'high', subject: '美术', genType: 'exam' }).template).not.toContain('对标高考');
+    // 参照中/高考卷面结构仅注入考试科目（三维度精确）；无学科回落通用不注入
+    expect(getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template).toContain('参照中考卷面结构');
+    expect(getPromptTemplate({ grade: 'high', subject: '语文', genType: 'exam' }).template).toContain('参照高考卷面结构');
+    expect(getPromptTemplate({ grade: 'middle', subject: '音乐', genType: 'exam' }).template).not.toContain('参照中考卷面结构');
+    expect(getPromptTemplate({ grade: 'high', subject: '美术', genType: 'exam' }).template).not.toContain('参照高考卷面结构');
   });
 
   it('三维度全覆盖：学段×学科×exam 命中（学科×学段要点 + 学段特点，名称三维度中文）', () => {

@@ -131,7 +131,7 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     expect(hint).toContain('【输出格式】');
     expect(hint).toContain('<h1>');
     expect(hint).toContain('<h2>');
-    expect(hint).toContain('题目区严禁混入任何答案/解析');
+    expect(hint).toContain('题目区严禁混入');
     expect(hint).toContain('填空空位（括号空位或横线）长度即留空宽度');
   });
 
@@ -169,7 +169,7 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
     for (const g of NON_EXAM_TYPES) {
       const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: g });
       expect(t.template, `类型 ${g} 缺输出格式`).toContain('【输出格式】');
-      expect(t.template).toContain('题目区严禁混入任何答案/解析');
+      expect(t.template).toContain('题目区严禁混入');
       // 题为主类型含作答载体规则；内容型含结构化呈现规则（不用题号）
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
@@ -206,7 +206,7 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
       } else {
         expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('填空空位（括号空位或横线）长度即留空宽度');
-        expect(t.template, `类型 ${g} 缺括号空位要求`).toContain('选择/判断类与填空按作答形式留空位');
+        expect(t.template, `类型 ${g} 缺括号空位要求`).toContain('客观题按作答形式留出相应作答位置');
       }
       expect(t.template, `类型 ${g} 残留连线诱导词`).not.toContain('连线题');
     }
@@ -285,16 +285,15 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
 describe('质量底线三维度注入（类型/学科/学段各司其职，非一刀切）', () => {
   it('类型维度：各类型【要求】带专属底线（无诱导措辞）', () => {
     const practice = getPromptTemplate({ genType: 'practice' });
-    expect(practice.template).toContain('任务之间不重复不雷同'); // practice 防重复（正面表述）
+    expect(practice.template).toContain('板块间不重复不雷同'); // 防重复语义由质量底线承载（单一事实源）
     const special = getPromptTemplate({ genType: 'special' });
-    expect(special.template).toContain('按考点分类组织');
-    expect(special.template).toContain('同板块内题目不雷同');
+    expect(special.template).toContain('板块划分与题量按生成时注入的【教辅结构】执行');
     const reading = getPromptTemplate({ genType: 'reading' });
-    expect(reading.template).toContain('短文完整呈现（不截断）');
+    expect(reading.template).toContain('短文无语病'); // 选文规范由教辅结构蓝本承载（单一事实源）
     const dictation = getPromptTemplate({ genType: 'dictation' });
     expect(dictation.template).toContain('严格对应教材要求');
     const review = getPromptTemplate({ genType: 'review' });
-    expect(review.template).toContain('按考点分布');
+    expect(review.template).toContain('栏目以注入的【教辅结构】为准');
   });
 
   it('学科维度：三维度模板携带学科要点（学段化，正面表述）', () => {

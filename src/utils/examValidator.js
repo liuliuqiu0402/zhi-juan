@@ -1422,11 +1422,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 3. 答案区一致性（规则 answer-section-fix：容器补全 / answer-coverage-guard：题号覆盖）──
+  // ── 3. 答案区一致性（规则 answer-section-exam/answer-section-teaching：容器补全 / answer-coverage-guard：题号覆盖）──
   {
-    // 3a. 答案区容器补全（规则 answer-section-fix）：<h2>参考答案… 无 answer-section 包裹 → 补包
+    // 3a. 答案区容器补全（规则 answer-section-exam/answer-section-teaching）：<h2>参考答案… 无 answer-section 包裹 → 补包
     //    （docx 导出按 answer-section 拆分独立分节；与 useAiGenerator once 模式兜底幂等）
-    if (has('answer-section-fix') && !/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>[\s\S]*?<h2[^>]*>\s*参考答案/i.test(out)) {
+    if ((has('answer-section-exam') || has('answer-section-teaching')) && !/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>[\s\S]*?<h2[^>]*>\s*参考答案/i.test(out)) {
       const newOut = out.replace(/(<h2[^>]*>\s*参考答案[\s\S]*?)$/i, (m, ansPart) => `<div class="answer-section">\n${ansPart}</div>`);
       if (newOut !== out) {
         out = newOut;

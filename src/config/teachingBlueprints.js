@@ -36,7 +36,7 @@ export const TEACHING_BLUEPRINTS = {
     label: '课时练',
     sections: [
       { name: '基础建构任务', note: '覆盖本课时全部核心知识点，基础内容为主' },
-      { name: '探究进阶任务', note: '变式与综合运用，换情境、换角度、换设问，考查迁移能力' },
+      { name: '探究进阶任务', note: '变式与综合运用，换情境、换角度、换设问，考查迁移运用' },
       { name: '迁移创新任务', note: '开放性/实践性任务，联系真实生活' },
     ],
     stages: {
@@ -254,7 +254,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       sections: [
         { name: '基础建构任务', note: '覆盖本课时核心知识点，在情境中考查' },
         { name: '探究进阶任务', note: '变式与综合运用，换情境、换数据、换设问角度，考查迁移' },
-        { name: '迁移创新任务', note: '真实问题解决（购物、测量、统计等生活情境），联系本单元主题' },
+        { name: '迁移创新任务', note: '真实问题解决，联系生活实际与本单元主题' },
       ],
     },
     special: {

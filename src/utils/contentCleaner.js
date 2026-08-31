@@ -252,9 +252,11 @@ export function normalizeBlankMarkers(html = '') {
   //    块级元素内纯空白当书写空间）：包成 u.blank-N（预览 flex 延伸 / 导出 ptab 延伸一致）；
   //    在 <u>/括号/span.blank-N 规则之后执行——已归一的形态不含裸空格不受影响；
   //    ≥2 个连续全角空格才处理（单空格为排版分隔）；表格单元格（td/th）不匹配（空位语义保留）
+  //    🔧 保留原块级标签外壳（<p> 等）：横线为行尾元素时 CSS `p:has(> u[class*="blank-"]:last-child)`
+  //    需该 <p> 命中 flex 延伸；拆裸 <u> 会丢失外壳 → 行尾不延伸、作答横线塌缩/不可见
   out = out.replace(/<(p|div|li)(?![^>]*class=)[^>]*>(\s*\u3000{2,}\s*)<\/\1>/gi, (m, tag, inner) => {
     const len = (inner.match(/\u3000/g) || []).length;
-    return `<u class="blank-${toBlank(len)}">&emsp;</u>`;
+    return `<${tag}><u class="blank-${toBlank(len)}">&emsp;</u></${tag}>`;
   });
   return out;
 }

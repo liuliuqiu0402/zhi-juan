@@ -204,7 +204,7 @@ export function buildCarrierInstruction(subject = '', stage = '') {
   //    （语文低段/英语中段书写类）注入，天然按 学科×学段 收敛，不对全学科广播（防跨学科噪音）
   const hasMust = parts.some((p) => p.includes('必须真实输出'));
   const structureNote = hasMust
-    ? '书写格紧跟对应词语（拼音）之后输出，不得集中单独成段；格子为空格子（格内不填字/拼音/答案）；书写类题按词或字计分时声称须自洽（词数=拼音组数、字数=书写格数，总分=单位分×实际载体数）。'
+    ? '书写格紧跟对应词语（拼音）之后输出，不得集中单独成段；书写类题按词或字计分时声称须自洽（词数=拼音组数、字数=书写格数，总分=单位分×实际载体数）。'
     : '';
   return `${parts.join('；')}${hasMust ? '；题干未写明时按此书写惯例。' : '。'}${structureNote ? ` ${structureNote}` : ''}`;
 }

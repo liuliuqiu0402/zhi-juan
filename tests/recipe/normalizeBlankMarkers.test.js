@@ -25,4 +25,17 @@ describe('normalizeBlankMarkers（后处理排版兜底）', () => {
     const html = '<p>1. 选择题</p>';
     expect(normalizeBlankMarkers(html)).toBe(html);
   });
+
+  it('裸全角空格写作答题行保留 <p> 外壳（行尾 flex 延伸依赖它；拆裸 <u> 会塌缩）', () => {
+    expect(normalizeBlankMarkers('<p>　　　　　　</p>')).toBe('<p><u class="blank-12">&emsp;</u></p>');
+  });
+
+  it('裸全角空格留空在 div/li 中外壳同样保留', () => {
+    expect(normalizeBlankMarkers('<div>　　　　　　</div>')).toBe('<div><u class="blank-12">&emsp;</u></div>');
+    expect(normalizeBlankMarkers('<li>　　　　　　</li>')).toBe('<li><u class="blank-12">&emsp;</u></li>');
+  });
+
+  it('单全角空格排版分隔不误转（≥2 才构成书写横线）', () => {
+    expect(normalizeBlankMarkers('<p>　　你好</p>')).toBe('<p>　　你好</p>');
+  });
 });

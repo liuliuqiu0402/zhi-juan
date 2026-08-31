@@ -1,4 +1,4 @@
-// 卷面质检规则库测试（三维度匹配 + 双阶段：注入约束 / 静默校验 + 用户自定义持久化）
+// 版面质检规则库测试（三维度匹配 + 双阶段：注入约束 / 静默校验 + 用户自定义持久化）
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   VALIDATOR_RULES,
@@ -101,7 +101,7 @@ describe('validatorRules 三维度匹配（与指令库/蓝图库对齐）', () 
 describe('validatorRules 生成前约束（阶段一：随指令注入）', () => {
   it('语文·小学低段·exam：注入拼音/分值/残留等约束，guard 不注入', () => {
     const prompt = buildValidatorPrompt({ subject: '语文', stage: 'primary_low', genType: 'exam' });
-    expect(prompt).toContain('【卷面质检规则');
+    expect(prompt).toContain('【版面质检规则');
     expect(prompt).toContain('拼音');
     expect(prompt).toContain('分值账目自洽');
     // guard 类（缺拼音选项/答案空壳）不注入生成前约束
@@ -123,16 +123,17 @@ describe('validatorRules 生成前约束（阶段一：随指令注入）', () =
   });
 
   it('排版语义标记按学科×学段精确注入（通用全学科、上下标限数理化、音标限英语、注音限语文低段）', () => {
-    // 化学·中段：通用 + 上下标，不含音标/拼音注音（拆分后噪音约束不再全量注入）
+    // 化学·中段：通用 + 上下标，不含音标/拼音注音/分数措辞（拆分后噪音约束不再全量注入）
     const chem = buildValidatorPrompt({ subject: '化学', stage: 'middle', genType: 'exam' });
     expect(chem).toContain('<sub>');          // 化学式下标
     expect(chem).toContain('<sup>');          // 离子/幂上标
     expect(chem).toContain('<del>');          // 删除/划去
-    expect(chem).toContain('1/2');            // 分数半角斜杠
     expect(chem).toContain('Unicode 上下标字符'); // 禁混用乱码字符
-    expect(chem).toContain('<table>');        // 统计表
+    expect(chem).toContain('<table>');        // 表格标准结构
     expect(chem).not.toContain('音标');        // 英语专属，不再注入化学卷
     expect(chem).not.toContain('拼音注音');     // 语文专属，不再注入化学卷
+    expect(chem).not.toContain('分子/分母');   // 分数措辞收敛至渲染契约 FORMULA_RULES，不再跨学科广播
+    expect(chem).not.toContain('\\frac');     // 公式措辞由渲染契约按数理学科×学段注入
     // 英语·中段：含音标，不含拼音注音
     const eng = buildValidatorPrompt({ subject: '英语', stage: 'primary_mid', genType: 'exam' });
     expect(eng).toContain('音标');

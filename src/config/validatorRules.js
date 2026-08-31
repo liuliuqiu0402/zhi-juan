@@ -87,13 +87,25 @@ export const VALIDATOR_RULES = [
     enabled: true,
   },
   {
-    id: 'answer-section-fix',
-    name: '答案区容器补全',
+    id: 'answer-section-exam',
+    name: '答案区容器补全（正式卷）',
     category: 'fix',
     subjects: ['*'],
     stages: ['*'],
-    promptHint: '答案区以 <h2>参考答案与评分标准</h2> 或 <h2>参考答案与解析</h2> 标题开头（系统自动包裹为独立答案区并另起分节）。',
-    description: 'once 模式答案区 <h2>参考答案… 无 answer-section 包裹时自动补包（docx 独立分节所需）。',
+    genTypes: ['exam'],
+    promptHint: '答案区以 <h2>参考答案与评分标准</h2> 标题开头（系统自动包裹为独立答案区并另起分节）。',
+    description: 'exam 正式卷答案区标题约束（仅注入正式卷，不向教辅广播"评分标准"措辞）；once 模式答案区 <h2>参考答案… 无 answer-section 包裹时自动补包（docx 独立分节所需）。',
+    enabled: true,
+  },
+  {
+    id: 'answer-section-teaching',
+    name: '答案区容器补全（教辅）',
+    category: 'fix',
+    subjects: ['*'],
+    stages: ['*'],
+    genTypes: ['practice', 'special', 'preview', 'reading', 'dictation', 'review'],
+    promptHint: '答案区以 <h2>参考答案与解析</h2> 标题开头（系统自动包裹为独立答案区并另起分节）。',
+    description: '教辅类（课时练/专项突破/课前预习/阅读训练/默写积累/复习资料）答案区标题约束（仅注入有独立答案区的教辅类型）；once 模式答案区无包裹时自动补包。错题本/知识总结为"题+解析一体"资料（正文自带解析，可能跳过独立答案页），不注入"另起答案区"要求。',
     enabled: true,
   },
   {
@@ -112,7 +124,7 @@ export const VALIDATOR_RULES = [
     category: 'fix',
     subjects: ['*'],
     stages: ['*'],
-    promptHint: '全卷题目与板块标题必须唯一（同一大题标题严禁重复出现），严禁输出两份相同内容（含重复的配图/写作格/作文格）。',
+    promptHint: '严禁输出两份相同内容（整份资料内题目与板块标题必须唯一，同一大题标题严禁重复出现）。',
     description: '检测正文区重复的大题标题（同一标题出现 ≥2 次，多为截断续写时模型从头重出导致）→ 从第二次重复处截断保留第一份；重复的答案区保留第一份。',
     enabled: true,
   },
@@ -129,12 +141,12 @@ export const VALIDATOR_RULES = [
 
   {
     id: 'text-format-fix',
-    name: '排版语义标记规范（加粗/删除线/分数/表格）',
+    name: '排版语义标记规范（加粗/删除线/表格）',
     category: 'fix',
     subjects: ['*'],
     stages: ['*'],
-    promptHint: '排版语义标记规范：强调用 <b>…</b>；删除/划去用 <del>…</del>；分数统一“分子/分母”半角斜杠（如 1/2，公式场景按【渲染指令】用 $...$）；统计表/对比表/关系表用 <table> 标准结构。',
-    description: '定义全学科通用的排版语义标记（加粗/删除线/分数/表格），不含学科专属词汇；加点/画线句子为语文/英语专属，拆至独立规则按学科精确注入，杜绝跨学科噪音。',
+    promptHint: '排版语义标记规范：强调用 <b>…</b>；删除/划去用 <del>…</del>；表格类内容用 <table> 标准结构（不用 Markdown 竖线表）。',
+    description: '全学科通用排版语义标记（加粗/删除线/表格）。分数/公式为数学理科学标记、权威源在渲染契约 FORMULA_RULES（按学科×学段精确注入：分子/分母半角斜杠仅非公式语境、公式内 \\frac、公式场景 $...$），本全学科规则不再广播"分子/分母/公式"等数学措辞——杜绝向体育/音乐/美术/道法等无分数需求学科注入跨学科噪音；表格仅保留中性标准结构（<table>），不点名"统计/对比/关系"等学科联想词；加点/画线句子为语文/英语专属，拆至独立规则按学科精确注入。',
     enabled: true,
   },
   {
@@ -193,8 +205,8 @@ export const VALIDATOR_RULES = [
     category: 'fix',
     subjects: ['*'],
     stages: ['*'],
-    promptHint: '写字/抄写/作图类题按书写惯例输出对应书写载体，载体输出在所属题目之后；格子内严禁预填字/拼音/答案（空格子才可作答）。',
-    description: '书写格按学段与题型双向规范（数据源=排版规格库 WRITING_CARRIER/CARRIER_RULES）：按 学科×学段 允许载体列表越界自动剥离（如中段以上田字格/四线三格、非语英学科混入格子）；书写格内容剥离（格子内预填字清空保留空格子）；载体×题型正规化（must 提示抽检/forbid 自动剥离）。2026-08 拆分：表达类禁格子/载体缺失/作文格补格等 语英专属 逻辑拆至独立规则 writing-expression-fix（subjects 语/英），本规则保持全学科职责（越界剥离对数学 square-grid 等全学科生效）——杜绝向数学/科学等学科注入"写话/作文"词汇噪音，同时不破坏全学科载体治理。',
+    promptHint: '书写/作图类题按书写惯例输出对应书写载体；载体格内严禁预填字/答案（空格子才可作答）。',
+    description: '书写格按学段与题型双向规范（数据源=排版规格库 WRITING_CARRIER/CARRIER_RULES）：按 学科×学段 允许载体列表越界自动剥离（如中段以上田字格/四线三格、非语英学科混入格子）；书写格内容剥离（格子内预填字清空保留空格子）；载体×题型正规化（must 提示抽检/forbid 自动剥离）。2026-08 拆分：表达类禁格子/载体缺失/作文格补格等 语英专属 逻辑拆至独立规则 writing-expression-fix（subjects 语/英），本规则保持全学科职责（越界剥离对数学 square-grid 等全学科生效）——杜绝向数学/科学等学科注入"写话/作文"词汇噪音，同时不破坏全学科载体治理。2026-08-31 生成前提示语中性化：原"写字/抄写/…拼音"为语英专属词，经 subjects=* 广播到数学/体育/音乐等学科构成跨学科诱导（A1），现改为中性措辞；具体载体条款（田字格/拼音格/四线三格/方格纸）由 buildCarrierInstruction 按 学科×学段 精确注入，本规则生成后剥离职责保持全学科不变。',
     enabled: true,
   },
   {
@@ -236,8 +248,8 @@ export const VALIDATOR_RULES = [
     category: 'fix',
     subjects: ['*'],
     stages: ['*'],
-    promptHint: '作答空间量与其分值匹配（空白或横线），选择/判断题无需额外空间；作答空间不得被压缩或与下一题粘连。',
-    description: '程序按 分值×学段系数 度量题后有效作答行（横线/填空线/带高空白块；纯空行不计），不足时按学科配置（语文/英语/科学横线，其余空白）补差——卷面惯例非课标要求。',
+    promptHint: '解答类题留出与之匹配的作答空间（空白或横线）；有分值的按分值给足空间，无分值的按题型书写惯例留出合理空间；客观题无需额外空间；作答空间不得被压缩或与下一题粘连。',
+    description: '程序按 分值×学段系数 度量题后有效作答行（横线/填空线/带高空白块；纯空行不计），无分值题按题型惯例留白，不足时按学科配置（语文/英语/科学横线，其余空白）补差——卷面惯例非课标要求。',
     enabled: true,
   }
 ]
@@ -331,7 +343,7 @@ export const getValidatorRules = ({ subject = '', stage = '', genType = '' } = {
 
 /**
  * 生成前约束文案（阶段一：随指令注入）：
- * 收集启用 fix 类规则的 promptHint，转成一段精简的【卷面质检规则】约束注入指令。
+ * 收集启用 fix 类规则的 promptHint，转成一段精简的【版面质检规则】约束注入指令。
  * @param {Object} opts { subject, stage, genType }
  * @returns {string} 空串 = 无 fix 规则启用
  */
@@ -345,7 +357,7 @@ export const buildValidatorPrompt = ({ subject = '', stage = '', genType = '' } 
     hints.push(rule.promptHint);
   }
   if (hints.length === 0) return '';
-  return `\n\n【卷面质检规则（生成前约束）】\n${hints.map(h => `· ${h}`).join('\n')}`;
+  return `\n\n【版面质检规则（生成前约束）】\n${hints.map(h => `· ${h}`).join('\n')}`;
 };
 
 export default {

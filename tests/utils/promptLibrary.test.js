@@ -171,10 +171,10 @@ describe('非exam教辅答案区不复述正文（自包含教辅防重复）', 
     expect(ANSWER_ROLES.other('errorbook')).not.toContain('按栏目给出要点梳理');
   });
 
-  it('ANSWER_ROLES.other：普通教辅保留"逐题答案+选择题正确选项"通用指引，不含复述诱导', () => {
+  it('ANSWER_ROLES.other：普通教辅保留"逐题答案+客观题正确答案"通用指引，不含复述诱导', () => {
     const role = ANSWER_ROLES.other('practice');
     expect(role).toContain('逐题给出答案与简要解析');
-    expect(role).toContain('选择题给正确选项');
+    expect(role).toContain('客观题给出正确答案');
     expect(role).not.toContain('按栏目给出要点梳理');
     expect(role).not.toContain('知识总结/预习类按栏目'); // 旧文案去净
   });

@@ -492,11 +492,17 @@ describe('examValidator 看图写话缺图（第11题案例）', () => {
 });
 
 describe('examValidator 答案区检查', () => {
-  it('答案区 <h2>参考答案 无 answer-section 包裹 → 自动补包（规则 answer-section-fix）', () => {
+  it('答案区 <h2>参考答案 无 answer-section 包裹 → 自动补包（规则 answer-section-exam）', () => {
     const html = '<p>1. 题目内容</p>\n<h2>参考答案与评分标准</h2>\n<p>1. 答案</p>';
     const { html: out, issues } = auditExamPaper(html, OPTS);
     expect(out).toContain('<div class="answer-section">');
     expect(issues.some(i => i.type === 'answer-section')).toBe(true);
+  });
+
+  it('教辅类型（阅读训练）答案区补包同样生效（规则 answer-section-teaching）', () => {
+    const html = '<p>1. 阅读短文</p>\n<h2>参考答案与解析</h2>\n<p>1. 答案</p>';
+    const { html: out } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'reading' });
+    expect(out).toContain('<div class="answer-section">');
   });
 });
 
