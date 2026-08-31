@@ -330,3 +330,61 @@ describe('根治回归：分值载体误报消除（每词词条语义 + 小题 
     expect(d.level).toBe('debug');
   });
 });
+
+describe('根治回归：作文格按学科精准适配（2026-08 英语"无作文格"误报根因）', () => {
+  const ENG = (h) => auditExamPaper(h, { subject: '英语', stage: 'primary_mid', genType: 'exam' });
+
+  it('英语卷"写作"字样仅出现在答案区评分标准（正文无写话题）→ 不再误报"未找到可补位置"', () => {
+    const html = `
+<h2>三、词汇与句型（共1题，共15分）</h2>
+<p>6. 用所给句型造句。（每句3分，共15分）</p>
+<p>I like apples. / She is my friend.</p>
+<div class="answer-section"><h2>参考答案与解析</h2><p>写作评分标准：内容完整、语法正确……</p></div>
+`.trim();
+    const { silentDetails } = ENG(html);
+    expect(silentDetails.some(d => d.type === 'writing-grid' && d.message.includes('未找到可补位置'))).toBe(false);
+    expect(silentDetails.some(d => d.type === 'writing-grid' && d.message.includes('zuo-wen-ge'))).toBe(false);
+  });
+
+  it('英语卷作文格相关检查不再补格（zuo-wen-ge 为语文专属方块格）', () => {
+    const html = `
+<h2>三、写作（共1题，共15分）</h2>
+<p>6. Writing: My Day（共15分）</p>
+<p>＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿</p>
+`.trim();
+    const r = ENG(html);
+    expect(r.html).not.toContain('zuo-wen-ge');
+  });
+
+  it('英语中段抄写/书写题无四线三格 → debug 级静默抽检（仅诊断线索，不进问题列表）', () => {
+    const html = `
+<h2>三、抄写（共1题，共10分）</h2>
+<p>5. 抄写下列单词。（每个2分，共10分）</p>
+<p>cat　dog　bird</p>
+`.trim();
+    const { silentDetails } = ENG(html);
+    const d = silentDetails.find(x => x.type === 'writing-grid' && x.message.includes('four-line-three'));
+    expect(d).toBeTruthy();
+    expect(d.level).toBe('debug');
+  });
+
+  it('数学卷含"写作"字样（应用写作规范）→ writing-grid-fix 收窄后不再触发作文格/载体逻辑', () => {
+    const html = `
+<h2>五、解决问题（共1题，共10分）</h2>
+<p>10. 写出计算过程。（共10分）</p>
+<p>120 × 3 = 360</p>
+`.trim();
+    const r = auditExamPaper(html, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
+    expect(r.html).not.toContain('zuo-wen-ge');
+    expect(r.silentDetails.filter(d => d.type === 'writing-grid')).toHaveLength(0);
+  });
+
+  it('语文作文题无格 → 仍自动补作文格（学科限定不破坏主功能）', () => {
+    const html = `
+<h2>四、习作（共1题，共20分）</h2>
+<p>15. 习作：写一篇关于秋天的短文。（共20分）</p>
+`.trim();
+    const r = auditExamPaper(html, { subject: '语文', stage: 'primary_high', genType: 'exam' });
+    expect(r.html).toContain('zuo-wen-ge');
+  });
+});

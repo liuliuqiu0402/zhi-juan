@@ -500,7 +500,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             out = tpl.innerHTML;
             issues.push({
               severity: 'info', type: 'writing-grid',
-              message: `已自动剥离 ${stripped} 处${[...strippedLabels].join('、')}（「${subject}」该学段不应使用——保留文字，卷面已规范为${defaultLabel}）`,
+              message: `已自动剥离 ${stripped} 处${[...strippedLabels].join('、')}（「${subject}」该学段不应使用——保留文字，版面已规范为${defaultLabel}）`,
             });
             fixed += stripped;
           }
@@ -884,21 +884,24 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
 
   // ── 2j. 质量兜底检测（低段0.5分 / 连一连空壳 / 看图缺图 / 田字格载体 / 作文格，均静默计数）──
   {
-    const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
+    // 🔧 正文区纯文本（排除答案区）——2j 系列关键词扫描一律用正文区文本：
+    //    答案区标题（"写作/作文评分标准"等）曾命中关键词致误报（2026-08 英语"无作文格"误报根因）
+    const bodyNoAnsText = out.split(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i)[0]
+      .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
     // 2j-1 低段 0.5 分（规则 low-score-guard：小学卷一律整数分）
     if (has('low-score-guard')) {
-      const dm = out.match(/[（(][^）)]*?(\d+\.\d+)\s*分/);
+      const dm = bodyNoAnsText.match(/[（(][^）)]*?(\d+\.\d+)\s*分/);
       if (dm) silentCount('low-score', `小学卷出现小数分值（${dm[1]}分）——小学一律整数分，请抽检`);
     }
     // 2j-2 连一连空壳（有"连一连"题干但无配对内容 → 静默抽检；配对载体=match-question 结构或两列文本）
-    if (/连一连|连起来/.test(bodyText)) {
+    if (/连一连|连起来/.test(bodyNoAnsText)) {
       const twoCol = (out.match(/[\u4e00-\u9fa5]{1,20}\u3000{2,}\S{1,20}/g) || []).length;
       if (!/match-question/.test(out) && twoCol === 0) {
         silentCount('match-empty', '检测到"连一连"题干但无配对内容（连一连题疑似空壳），请抽检');
       }
     }
     // 2j-3 看图/写话缺配图标记（规则 image-block-fix）
-    if (has('image-block-fix') && /看图写话|写话|看图/.test(bodyText) && !/\[IMAGE\]/.test(out)) {
+    if (has('image-block-fix') && /看图写话|写话|看图/.test(bodyNoAnsText) && !/\[IMAGE\]/.test(out)) {
       silentCount('image-missing', '含"看图/写话"的题无 [IMAGE] 配图标记块，请抽检');
     }
     // 2j-3b 写话/作文题缺题目要求描述（仅标题行，如"15. 看图写话。（共20分）"后直接是配图/格子/下一题）
@@ -906,7 +909,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     //    🔧 2026-08 误报根治：只扫描正文区（答案区/评分标准标题不计入——历史误报：
     //       答案区"16. 看图写话评分标准（20分"标题行后跟 <table> 评分标准被判"缺描述"）；
     //       描述段识别放宽到 P/UL/OL/TABLE（评分标准表格/要点列表也算"有内容"，非仅 P）
-    if (has('writing-grid-fix') && /看图写话|写话|习作|作文|写作/.test(bodyText)) {
+    if (has('writing-expression-fix') && /看图写话|写话|习作|作文|写作/.test(bodyNoAnsText)) {
       try {
         const bodyHtml = out.split(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i)[0];
         const tplT = document.createElement('template');
@@ -929,9 +932,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         }
       } catch (e) { /* 静默 */ }
     }
-    // 2j-4 田字格载体缺失（规则 writing-grid-fix：题干要求田字格但无格子）
-    if (has('writing-grid-fix') && /田字格中写|在田字格|方格中写/.test(bodyText) && !/tian-zi-ge/.test(out)) {
+    // 2j-4 田字格载体缺失（规则 writing-expression-fix：题干要求田字格但无格子；"田字格中写"仅语文题干会出现）
+    if (has('writing-expression-fix') && subject === '语文' && /田字格中写|在田字格|方格中写/.test(bodyNoAnsText) && !/tian-zi-ge/.test(out)) {
       silentCount('writing-grid', '题干要求"田字格中写"但正文无田字格格子——作答载体缺失，请抽检');
+    }
+    // 2j-4b 英语中段抄写/书写题缺四线三格（载体缺失 debug 抽检：程序按关键词推断，仅留诊断线索不打扰）
+    if (has('writing-expression-fix') && subject === '英语' && normalizeStage(stage) === 'primary_mid'
+        && /抄写|写一写|书写/.test(bodyNoAnsText) && !/four-line-three|sixian-ge/.test(out)) {
+      silentCount('writing-grid', '英语中段抄写/书写题无四线三格（four-line-three）——作答载体缺失，请抽检', 'debug');
     }
     // 2j-5 写话/作文无作文格 → 自动补方格区（看图写话/写话/习作/作文/写作/小练笔均适用）
     //    🔧 2026-08 根治"作文格变横线"：① 扫描排除答案区（答案区评分标准标题含"写话/作文"词
@@ -940,7 +948,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     //    🔧 2026-08 按题级补格（原整卷级短路：卷面任一题已有 zuo-wen-ge 就整体跳过，
     //       导致"题13 有格、题12 无格"时题12 漏补）：逐道写话题检查自身区域（到下一写话题为止）
     //       有无作文格，无则补；有则跳过不重复补
-    if (has('writing-grid-fix') && /看图写话|写话|习作|作文|写作|小练笔/.test(bodyText)) {
+    //    🔧 2026-08 学科限定：zuo-wen-ge 为中文方块格（语文专属），英语写作走横线作答体系——
+    //       仅语文执行补格/抽检（此前 writing-grid-fix subjects=* 导致英语卷答案区"写作评分标准"命中关键词误报"无作文格"）
+    if (has('writing-expression-fix') && subject === '语文' && /看图写话|写话|习作|作文|写作|小练笔/.test(bodyNoAnsText)) {
       try {
         const tpl2 = document.createElement('template');
         tpl2.innerHTML = out;
@@ -1014,7 +1024,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
     // 2j-5a 作文格位置纠正：格子出现在所属题干之前 → 移到题干之后（模型常见顺序错误：
     //    先输出 <div class="zuo-wen-ge"> 再写题干，卷面变成"格子在上、题目在下"）
-    if (has('writing-grid-fix') && /<div[^>]*class=["'][^"']*zuo-wen-ge/.test(out)) {
+    if (has('writing-expression-fix') && /<div[^>]*class=["'][^"']*zuo-wen-ge/.test(out)) {
       try {
         const tpl3 = document.createElement('template');
         tpl3.innerHTML = out;
