@@ -50,6 +50,7 @@
       <!-- 批量操作栏 -->
       <div class="batch-row" v-show="!isMobile || selectedCount > 0">
         <span>已选中 {{ selectedCount }} 本</span>
+        <button class="btn" :disabled="selectedCount === 0" @click="batchDelete">🗑️ 批量删除</button>
         <button v-if="!isMobile" class="btn" :disabled="selectedCount === 0" @click="batchExport">📤 导出目录</button>
         <button v-if="!isMobile" class="btn btn-primary btn-sm" :disabled="unanalyzedCount === 0" @click="batchAnalyze">
           🤖 一键分析全部 ({{ unanalyzedCount }})
@@ -77,6 +78,10 @@
               <span class="expand-icon">{{ expandedBooks.includes(book.id) ? '▼' : '▶' }}</span>
               <span class="book-name">{{ book.name }}</span>
               <span class="chapter-count">{{ countChapters(book.outline) }}个章节 {{ countAnalyzed(book.outline) > 0 ? '· ✅' + countAnalyzed(book.outline) : '' }}</span>
+            </div>
+            <div class="item-actions">
+              <button class="icon-btn" @click.stop="renameTextbook(book)" title="重命名">✏️</button>
+              <button class="icon-btn" @click.stop="deleteTextbook(book)" title="删除">🗑️</button>
             </div>
           </div>
           <div v-if="expandedBooks.includes(book.id)" class="outline-tree">
@@ -1283,12 +1288,38 @@ const batchExport = () => {
   a.click();
 };
 
-// 重命名
+// 重命名（🔧 联动物理路径：显示名、id、存储目录三者保持一致——存储以名称为标识，
+//    仅改显示名会导致"名字与文件/图片对应不上"，改名时同步移动 imagesDir/pdfPath/coverPath）
 const renameTextbook = async (book) => {
   const newName = await showInputDialogFn('输入新名称', book.name);
-  if (newName?.trim()) {
-    textbookStore.updateTextbook(book.id, { name: newName.trim() });
+  const name = newName?.trim();
+  if (!name || name === book.name) return;
+  const safeNew = name.replace(/[<>:"/\\|?*]/g, '_');
+  if (safeNew === book.id) { textbookStore.updateTextbook(book.id, { name }); return; }
+  const storagePath = getStoragePath();
+  const newImagesDir = `${storagePath}/教材库/图片/${safeNew}`;
+  const newPdfPath = book.pdfPath ? `${storagePath}/教材库/${safeNew}_带书签.pdf` : '';
+  const newCoverPath = book.coverPath ? `${storagePath}/教材库/缩略图/${safeNew}.png` : '';
+  // 目标文件冲突保护：同名的 PDF/缩略图已存在 → 换名（目录冲突由 moveFile 失败兜底）
+  const fileExists = async (p) => { try { await window.electronAPI.readFile(p); return true; } catch { return false; } };
+  if ((newPdfPath && await fileExists(newPdfPath)) || (newCoverPath && await fileExists(newCoverPath))) {
+    await showAlertDialogFn('已存在同名教材的存储文件（PDF/缩略图），请换一个名称。');
+    return;
   }
+  // 物理路径联动（fs.renameSync 支持目录移动）；目录目标已存在时 move 失败 → 中止并提示换名
+  try {
+    if (book.imagesDir) await moveFile(book.imagesDir, newImagesDir);
+  } catch (e) {
+    console.error('移动图片目录失败:', e);
+    await showAlertDialogFn(`改名失败：存储目录「${safeNew}」已存在或文件被占用，请换一个名称。`);
+    return;
+  }
+  try { if (book.pdfPath) await moveFile(book.pdfPath, newPdfPath); } catch (e) { console.error('移动PDF失败:', e); }
+  try { if (book.coverPath) await moveFile(book.coverPath, newCoverPath); } catch (e) { console.error('移动缩略图失败:', e); }
+  textbookStore.updateTextbook(book.id, {
+    id: safeNew, name,
+    imagesDir: newImagesDir, pdfPath: newPdfPath, coverPath: newCoverPath,
+  });
 };
 
 // 删除单个

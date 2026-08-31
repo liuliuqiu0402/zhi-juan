@@ -1331,12 +1331,45 @@ const batchExport = () => {
   a.click();
 };
 
-// 重命名模板
+// 重命名模板（🔧 联动物理路径：显示名、id、存储目录一致——与教材库对齐；
+//    存储以名称为标识，仅改显示名会导致"名字与文件/图片对应不上"）
 const renameTemplate = async (tpl) => {
   const newName = await showInputDialogFn('输入新名称', tpl.name);
-  if (newName?.trim()) {
-    templateStore.updateTemplate(tpl.id, { name: newName.trim() });
+  const name = newName?.trim();
+  if (!name || name === tpl.name) return;
+  const safeNew = name.replace(/[<>:"/\\|?*]/g, '_');
+  if (safeNew === tpl.id) { templateStore.updateTemplate(tpl.id, { name }); return; }
+  const storagePath = getStoragePath();
+  const newImagesDir = `${storagePath}/模板库/图片/${safeNew}`;
+  const newPdfPath = tpl.pdfPath ? `${storagePath}/模板库/${safeNew}_带书签.pdf` : '';
+  const newCoverPath = tpl.coverPath ? `${storagePath}/模板库/缩略图/${safeNew}.png` : '';
+  let newFilePath = '';
+  if (tpl.filePath) {
+    const ext = (tpl.filePath.split('.').pop() || '').toLowerCase();
+    newFilePath = ext === 'pdf' ? newPdfPath : `${storagePath}/模板库/${safeNew}.${ext}`;
   }
+  // 目标文件冲突保护：同名的 PDF/缩略图/原始文件已存在 → 换名（目录冲突由 moveFile 失败兜底）
+  const fileExists = async (p) => { try { await window.electronAPI.readFile(p); return true; } catch { return false; } };
+  if ((newPdfPath && await fileExists(newPdfPath)) || (newCoverPath && await fileExists(newCoverPath))
+      || (newFilePath && newFilePath !== newPdfPath && await fileExists(newFilePath))) {
+    await showAlertDialogFn('已存在同名模板的存储文件（PDF/缩略图/源文件），请换一个名称。');
+    return;
+  }
+  // 物理路径联动（fs.renameSync 支持目录移动）；目录目标已存在时 move 失败 → 中止并提示换名
+  try {
+    if (tpl.imagesDir) await moveFile(tpl.imagesDir, newImagesDir);
+  } catch (e) {
+    console.error('移动图片目录失败:', e);
+    await showAlertDialogFn(`改名失败：存储目录「${safeNew}」已存在或文件被占用，请换一个名称。`);
+    return;
+  }
+  try { if (tpl.pdfPath) await moveFile(tpl.pdfPath, newPdfPath); } catch (e) { console.error('移动PDF失败:', e); }
+  try { if (tpl.filePath && tpl.filePath !== tpl.pdfPath) await moveFile(tpl.filePath, newFilePath); } catch (e) { console.error('移动原始文件失败:', e); }
+  try { if (tpl.coverPath) await moveFile(tpl.coverPath, newCoverPath); } catch (e) { console.error('移动缩略图失败:', e); }
+  templateStore.updateTemplate(tpl.id, {
+    id: safeNew, name,
+    imagesDir: newImagesDir, pdfPath: newPdfPath, filePath: newFilePath, coverPath: newCoverPath,
+  });
 };
 
 // 删除单个
