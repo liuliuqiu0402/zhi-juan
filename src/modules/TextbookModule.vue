@@ -732,7 +732,7 @@ const OutlineTreeNode = {
 };
 
 // Composables
-const { selectFiles, getTotalPages, pdfToImages, pdfPagesToImages, addPdfBookmarks, moveFile, deleteFile, deleteDirectory, createDirectory, createThumbnail } = useFileHandler();
+const { selectFiles, getTotalPages, pdfToImages, pdfPagesToImages, addPdfBookmarks, moveFile, pathExists, deleteFile, deleteDirectory, createDirectory, createThumbnail } = useFileHandler();
 const textbookStore = useTextbookStore();
 const { isMobile } = useMobile();
 const { parseClipboardText, flattenOutline, countChapters, rebuildTree } = useTocParser();
@@ -993,9 +993,10 @@ const pdfPath = computed(() => {
     const ext = tempFilePath.value.split('.').pop().toLowerCase();
     if (ext === 'pdf') return tempFilePath.value;
   }
-  // 已保存的教材用存储路径（🔧 修复旧数据中可能存的相对路径）
+  // 已保存的教材用存储路径（🔧 修复旧数据中可能存的相对路径；匹配失败时按 id 兜底）
   if (!previewData.value) return '';
-  const book = textbookStore.textbooks.find(b => b.imagesDir === previewData.value.imagesDir);
+  const book = textbookStore.textbooks.find(b => b.imagesDir === previewData.value.imagesDir)
+    || textbookStore.textbooks.find(b => b.id === previewData.value.imagesDir);
   return resolveStoredPath(book?.pdfPath || '');
 });
 
@@ -1290,6 +1291,7 @@ const batchExport = () => {
 
 // 重命名（🔧 联动物理路径：显示名、id、存储目录三者保持一致——存储以名称为标识，
 //    仅改显示名会导致"名字与文件/图片对应不上"，改名时同步移动 imagesDir/pdfPath/coverPath）
+//    🔧 事务式：任一文件移动失败 → 回滚已移动的，且不更新存储记录（避免 store 指向不存在的文件导致预览空白）
 const renameTextbook = async (book) => {
   const newName = await showInputDialogFn('输入新名称', book.name);
   const name = newName?.trim();
@@ -1300,22 +1302,41 @@ const renameTextbook = async (book) => {
   const newImagesDir = `${storagePath}/教材库/图片/${safeNew}`;
   const newPdfPath = book.pdfPath ? `${storagePath}/教材库/${safeNew}_带书签.pdf` : '';
   const newCoverPath = book.coverPath ? `${storagePath}/教材库/缩略图/${safeNew}.png` : '';
-  // 目标文件冲突保护：同名的 PDF/缩略图已存在 → 换名（目录冲突由 moveFile 失败兜底）
+  // 目标冲突预检（图片目录 + PDF + 缩略图）
   const fileExists = async (p) => { try { await window.electronAPI.readFile(p); return true; } catch { return false; } };
-  if ((newPdfPath && await fileExists(newPdfPath)) || (newCoverPath && await fileExists(newCoverPath))) {
-    await showAlertDialogFn('已存在同名教材的存储文件（PDF/缩略图），请换一个名称。');
+  if ((await pathExists(newImagesDir))
+      || (newPdfPath && await fileExists(newPdfPath))
+      || (newCoverPath && await fileExists(newCoverPath))) {
+    await showAlertDialogFn('已存在同名教材的存储文件（图片目录/PDF/缩略图），请换一个名称。');
     return;
   }
-  // 物理路径联动（fs.renameSync 支持目录移动）；目录目标已存在时 move 失败 → 中止并提示换名
-  try {
-    if (book.imagesDir) await moveFile(book.imagesDir, newImagesDir);
-  } catch (e) {
-    console.error('移动图片目录失败:', e);
-    await showAlertDialogFn(`改名失败：存储目录「${safeNew}」已存在或文件被占用，请换一个名称。`);
+  // 事务式移动：全部成功才更新存储；任一失败 → 回滚已移动项并中止
+  const moved = [];
+  const doMove = async (src, dst) => {
+    if (!src) return true;
+    const r = await moveFile(src, dst);
+    if (r?.success) { moved.push([src, dst]); return true; }
+    return false;
+  };
+  const rollbackMoves = async () => {
+    for (const [src, dst] of [...moved].reverse()) {
+      try { await moveFile(dst, src); } catch { /* 忽略回滚失败 */ }
+    }
+  };
+  if (!(await doMove(book.imagesDir, newImagesDir))) {
+    await showAlertDialogFn('改名失败：图片目录被占用或无法移动，请关闭占用程序后重试。');
     return;
   }
-  try { if (book.pdfPath) await moveFile(book.pdfPath, newPdfPath); } catch (e) { console.error('移动PDF失败:', e); }
-  try { if (book.coverPath) await moveFile(book.coverPath, newCoverPath); } catch (e) { console.error('移动缩略图失败:', e); }
+  if (!(await doMove(book.pdfPath, newPdfPath))) {
+    await rollbackMoves();
+    await showAlertDialogFn('改名失败：PDF 文件被占用（可能正在阅读器中打开），请关闭后重试。');
+    return;
+  }
+  if (!(await doMove(book.coverPath, newCoverPath))) {
+    await rollbackMoves();
+    await showAlertDialogFn('改名失败：缩略图无法移动，已自动还原，请重试。');
+    return;
+  }
   textbookStore.updateTextbook(book.id, {
     id: safeNew, name,
     imagesDir: newImagesDir, pdfPath: newPdfPath, coverPath: newCoverPath,

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import storage from '../utils/storage';
-import { resolveStoredPath } from '../utils/pathHelper';
+import { resolveStoredPath, getStoragePath } from '../utils/pathHelper';
+import { repairLibraryPaths } from '../utils/libraryPathRepair';
 
 export const useTemplateStore = defineStore('template', {
   state: () => ({
@@ -63,6 +64,25 @@ export const useTemplateStore = defineStore('template', {
           if (t.pdfPath) { t.pdfPath = resolveStoredPath(t.pdfPath); hasChange = true; }
           if (t.filePath) { t.filePath = resolveStoredPath(t.filePath); hasChange = true; }
           if (t.imagesDir) { t.imagesDir = resolveStoredPath(t.imagesDir); hasChange = true; }
+        }
+        // 🔧 加载自愈：旧版改名只改 name、或改名中途移动失败导致 store 路径错乱 → 迁移/修复指针
+        const hasElectronFs = !!(window.electronAPI?.existsPath);
+        if (hasElectronFs) {
+          const repairFs = {
+            pathExists: async (p) => {
+              try { return !!(await window.electronAPI.existsPath(p)); } catch { return false; }
+            },
+            moveFile: async (s, t) => {
+              try { return (await window.electronAPI.moveFile(s, t)) || { success: false }; } catch { return { success: false }; }
+            }
+          };
+          for (const t of saved) {
+            try {
+              if (await repairLibraryPaths(t, repairFs, getStoragePath(), '模板库')) hasChange = true;
+            } catch (e) {
+              console.error('模板路径自愈失败:', e);
+            }
+          }
         }
         this.templates = saved;
         if (hasChange) await storage.setItem('templates', saved);

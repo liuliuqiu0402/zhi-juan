@@ -790,7 +790,7 @@ const OutlineTreeNode = {
 };
 
 // Composables
-const { selectFiles, getTotalPages, pdfToImages, pdfPagesToImages, addPdfBookmarks, moveFile, deleteFile, deleteDirectory, createDirectory, createThumbnail } = useFileHandler();
+const { selectFiles, getTotalPages, pdfToImages, pdfPagesToImages, addPdfBookmarks, moveFile, pathExists, deleteFile, deleteDirectory, createDirectory, createThumbnail } = useFileHandler();
 const templateStore = useTemplateStore();
 const { parseClipboardText, flattenOutline, countChapters, rebuildTree } = useTocParser();
 const countAnalyzed = (nodes) => {
@@ -1023,9 +1023,10 @@ const pdfPath = computed(() => {
     const ext = tempFilePath.value.split('.').pop().toLowerCase();
     if (ext === 'pdf') return tempFilePath.value;
   }
-  // 已保存的教材用存储路径（🔧 修复旧数据中可能存的相对路径）
+  // 已保存的模板用存储路径（🔧 修复旧数据中可能存的相对路径；匹配失败时按 id 兜底）
   if (!previewData.value) return '';
-  const tpl = templateStore.templates.find(t => t.imagesDir === previewData.value.imagesDir);
+  const tpl = templateStore.templates.find(t => t.imagesDir === previewData.value.imagesDir)
+    || templateStore.templates.find(t => t.id === previewData.value.imagesDir);
   return resolveStoredPath(tpl?.pdfPath || tpl?.filePath || '');
 });
 
@@ -1348,24 +1349,47 @@ const renameTemplate = async (tpl) => {
     const ext = (tpl.filePath.split('.').pop() || '').toLowerCase();
     newFilePath = ext === 'pdf' ? newPdfPath : `${storagePath}/模板库/${safeNew}.${ext}`;
   }
-  // 目标文件冲突保护：同名的 PDF/缩略图/原始文件已存在 → 换名（目录冲突由 moveFile 失败兜底）
+  // 目标冲突预检（图片目录 + PDF/缩略图/源文件）
   const fileExists = async (p) => { try { await window.electronAPI.readFile(p); return true; } catch { return false; } };
-  if ((newPdfPath && await fileExists(newPdfPath)) || (newCoverPath && await fileExists(newCoverPath))
+  if ((await pathExists(newImagesDir))
+      || (newPdfPath && await fileExists(newPdfPath))
+      || (newCoverPath && await fileExists(newCoverPath))
       || (newFilePath && newFilePath !== newPdfPath && await fileExists(newFilePath))) {
-    await showAlertDialogFn('已存在同名模板的存储文件（PDF/缩略图/源文件），请换一个名称。');
+    await showAlertDialogFn('已存在同名模板的存储文件（图片目录/PDF/缩略图/源文件），请换一个名称。');
     return;
   }
-  // 物理路径联动（fs.renameSync 支持目录移动）；目录目标已存在时 move 失败 → 中止并提示换名
-  try {
-    if (tpl.imagesDir) await moveFile(tpl.imagesDir, newImagesDir);
-  } catch (e) {
-    console.error('移动图片目录失败:', e);
-    await showAlertDialogFn(`改名失败：存储目录「${safeNew}」已存在或文件被占用，请换一个名称。`);
+  // 🔧 事务式移动：全部成功才更新存储；任一失败 → 回滚已移动项并中止
+  const moved = [];
+  const doMove = async (src, dst) => {
+    if (!src) return true;
+    const r = await moveFile(src, dst);
+    if (r?.success) { moved.push([src, dst]); return true; }
+    return false;
+  };
+  const rollbackMoves = async () => {
+    for (const [src, dst] of [...moved].reverse()) {
+      try { await moveFile(dst, src); } catch { /* 忽略回滚失败 */ }
+    }
+  };
+  if (!(await doMove(tpl.imagesDir, newImagesDir))) {
+    await showAlertDialogFn('改名失败：图片目录被占用或无法移动，请关闭占用程序后重试。');
     return;
   }
-  try { if (tpl.pdfPath) await moveFile(tpl.pdfPath, newPdfPath); } catch (e) { console.error('移动PDF失败:', e); }
-  try { if (tpl.filePath && tpl.filePath !== tpl.pdfPath) await moveFile(tpl.filePath, newFilePath); } catch (e) { console.error('移动原始文件失败:', e); }
-  try { if (tpl.coverPath) await moveFile(tpl.coverPath, newCoverPath); } catch (e) { console.error('移动缩略图失败:', e); }
+  if (!(await doMove(tpl.pdfPath, newPdfPath))) {
+    await rollbackMoves();
+    await showAlertDialogFn('改名失败：PDF 文件被占用（可能正在阅读器中打开），请关闭后重试。');
+    return;
+  }
+  if (tpl.filePath && tpl.filePath !== tpl.pdfPath && !(await doMove(tpl.filePath, newFilePath))) {
+    await rollbackMoves();
+    await showAlertDialogFn('改名失败：源文件被占用，已自动还原，请重试。');
+    return;
+  }
+  if (!(await doMove(tpl.coverPath, newCoverPath))) {
+    await rollbackMoves();
+    await showAlertDialogFn('改名失败：缩略图无法移动，已自动还原，请重试。');
+    return;
+  }
   templateStore.updateTemplate(tpl.id, {
     id: safeNew, name,
     imagesDir: newImagesDir, pdfPath: newPdfPath, filePath: newFilePath, coverPath: newCoverPath,

@@ -224,14 +224,29 @@ ipcMain.handle('parse-word', async (event, filePath) => {
     });
 });
 
-// 移动文件
+// 路径存在检查（教材/模板改名与加载自愈共用）
+ipcMain.handle('path-exists', async (event, filePath) => {
+    if (!filePath) return false;
+    try { return fs.existsSync(filePath); } catch { return false; }
+});
+
+// 移动文件（目录安全 + 失败返回不抛错，供渲染进程做事务式改名）
 ipcMain.handle('move-file', async (event, sourcePath, targetPath) => {
-    if (!fs.existsSync(sourcePath)) return { success: false, error: '源文件不存在' };
-    const targetDir = path.dirname(targetPath);
-    if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-    if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath);
-    fs.renameSync(sourcePath, targetPath);
-    return { success: true, target: targetPath };
+    try {
+        if (!sourcePath || !targetPath) return { success: false, error: '路径无效' };
+        if (!fs.existsSync(sourcePath)) return { success: false, error: '源文件不存在' };
+        const targetDir = path.dirname(targetPath);
+        if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+        if (fs.existsSync(targetPath)) {
+            const stat = fs.statSync(targetPath);
+            if (stat.isDirectory()) return { success: false, error: '目标目录已存在' };
+            fs.unlinkSync(targetPath);
+        }
+        fs.renameSync(sourcePath, targetPath);
+        return { success: true, target: targetPath };
+    } catch (e) {
+        return { success: false, error: e.message || '移动失败' };
+    }
 });
 
 // 删除文件

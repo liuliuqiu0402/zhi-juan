@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     selectDirectory: () => ipcRenderer.invoke('select-directory'),
     readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
     parseWord: (filePath) => ipcRenderer.invoke('parse-word', filePath),
+    existsPath: (filePath) => ipcRenderer.invoke('path-exists', filePath),
     moveFile: (source, target) => ipcRenderer.invoke('move-file', source, target),
     deleteFile: (filePath) => ipcRenderer.invoke('delete-file', filePath),
     deleteDirectory: (dirPath) => ipcRenderer.invoke('delete-directory', dirPath),

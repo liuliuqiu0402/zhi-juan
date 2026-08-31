@@ -95,6 +95,18 @@ export function useFileHandler() {
     }
   };
 
+  // 路径存在检查
+  const pathExists = async (filePath) => {
+    if (!filePath) return false;
+    try {
+      const result = await window.electronAPI.existsPath(filePath);
+      return !!result;
+    } catch (error) {
+      console.error('路径检查失败:', error);
+      return false;
+    }
+  };
+
   // 删除文件
   const deleteFile = async (filePath) => {
     try {
@@ -160,6 +172,7 @@ export function useFileHandler() {
     addPdfBookmarks,
     parseWord,
     moveFile,
+    pathExists,
     deleteFile,
     deleteDirectory,
     createDirectory,

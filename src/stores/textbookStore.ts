@@ -1,7 +1,11 @@
 import { defineStore } from 'pinia';
 import storage from '../utils/storage';
 // @ts-ignore - pathHelper.js 无类型声明
-import { resolveStoredPath } from '../utils/pathHelper';
+import { resolveStoredPath, getStoragePath } from '../utils/pathHelper';
+// @ts-ignore - libraryPathRepair.js 无类型声明
+import { repairLibraryPaths } from '../utils/libraryPathRepair';
+
+export { sanitizeFsName } from '../utils/libraryPathRepair';
 
 interface ChapterNode {
   id?: string;
@@ -92,6 +96,22 @@ function applyAnalyzedSync(nodes: ChapterNode[]) {
   }
 }
 
+/**
+ * 🔧 教材路径自愈（修复旧版改名遗留与改名中途失败导致的路径错乱）：
+ * - 旧改名遗留：旧版只改 name 不改 id/路径 → 磁盘文件仍在旧 id 名下、名称名下无冲突时，整体迁移到名称名下并对齐 id
+ * - 改名中途失败：store 指向不存在的文件，但磁盘在名称名下或旧 id 名下存在 → 指针修复指向真实文件
+ * 纯函数：fs 能力通过参数注入（便于单测）；无冲突、无文件时不产生任何副作用。
+ * @returns 是否发生了变更
+ */
+export async function repairLegacyRename(
+  book: Record<string, unknown>,
+  // @ts-ignore - fs 结构定义在 libraryPathRepair.js 的 JSDoc 中
+  fs: { pathExists: (p: string) => Promise<boolean>; moveFile: (s: string, t: string) => Promise<{ success?: boolean; error?: string }> },
+  storagePath: string
+): Promise<boolean> {
+  return repairLibraryPaths(book, fs, storagePath, '教材库');
+}
+
 export const useTextbookStore = defineStore('textbook', {
   state: () => ({
     textbooks: [] as Textbook[],
@@ -150,6 +170,27 @@ export const useTextbookStore = defineStore('textbook', {
           if (b.coverPath) { b.coverPath = resolveStoredPath(b.coverPath as string); hasChange = true; }
           if (b.pdfPath) { b.pdfPath = resolveStoredPath(b.pdfPath as string); hasChange = true; }
           if (b.imagesDir) { b.imagesDir = resolveStoredPath(b.imagesDir as string); hasChange = true; }
+        }
+        // 🔧 加载自愈：旧版改名只改 name、或改名中途移动失败导致 store 路径错乱 → 迁移/修复指针
+        const hasElectronFs = !!(window as any).electronAPI?.existsPath;
+        if (hasElectronFs) {
+          const repairFs = {
+            pathExists: async (p: string) => {
+              try { return !!(await (window as any).electronAPI.existsPath(p)); } catch { return false; }
+            },
+            moveFile: async (s: string, t: string) => {
+              try { return (await (window as any).electronAPI.moveFile(s, t)) || { success: false }; } catch { return { success: false }; }
+            }
+          };
+          for (const b of saved) {
+            try {
+              if (await repairLegacyRename(b as unknown as Record<string, unknown>, repairFs, getStoragePath())) {
+                hasChange = true;
+              }
+            } catch (e) {
+              console.error('教材路径自愈失败:', e);
+            }
+          }
         }
         // 🔧 加载时同步联动：修复旧数据中父已分析但子未打钩的情况
         for (const b of saved) {
