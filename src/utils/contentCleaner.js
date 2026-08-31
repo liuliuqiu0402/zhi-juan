@@ -44,7 +44,7 @@ export const stripXss = (html) => {
   return s;
 };
 
-/** 清洗 AI 输出：去 ```html 包裹、去 body 抽取、去自评残留 */
+/** 清洗 AI 输出：去 ```html 包裹、去 body 抽取、去自评残留、去 markdown 语法残留 */
 export const cleanSectionHtml = (raw) => {
   if (!raw) return '';
   let html = raw;
@@ -52,6 +52,9 @@ export const cleanSectionHtml = (raw) => {
   const bm = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
   if (bm) html = bm[1];
   html = html.replace(/<div[^>]*class=["'][^"']*self-review[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '');
+  // 🔧 markdown 语法残留兜底（指令已禁，模型偶发违反——正文/答案页统一清理）：
+  //    行首 ## 标题标记、成对 ** 加粗；保留正文中自然出现的 # / * 单字符（数学/符号场景）
+  html = html.replace(/^#{1,6}\s+/gm, '').replace(/\*\*([^*\n]+)\*\*/g, '$1');
   return html.trim();
 };
 
@@ -245,6 +248,14 @@ export function normalizeBlankMarkers(html = '') {
   //    零宽全角（）夹在正文中几乎必为填空缺省（分值/读音/提示等标注均有内文不匹配），故安全收敛统一。
   out = out.replace(/[（][）]/g, () => `<span class="blank-${capN(4)}">&emsp;</span>`);
   out = out.replace(/<div class="zuo-wen-ge">\s*<\/div>/g, `<div class="zuo-wen-ge">${'<span>&emsp;</span>'.repeat(Math.max(1, getMergedSpec().ZUOWEN_DEFAULT_SPAN))}</div>`);
+  // 🔧 裸全角空格留空（AI 常见裸输出形态：未包 <u>/括号，如 <p>　　　　　　</p> 写作答题行、
+  //    块级元素内纯空白当书写空间）：包成 u.blank-N（预览 flex 延伸 / 导出 ptab 延伸一致）；
+  //    在 <u>/括号/span.blank-N 规则之后执行——已归一的形态不含裸空格不受影响；
+  //    ≥2 个连续全角空格才处理（单空格为排版分隔）；表格单元格（td/th）不匹配（空位语义保留）
+  out = out.replace(/<(p|div|li)(?![^>]*class=)[^>]*>(\s*\u3000{2,}\s*)<\/\1>/gi, (m, tag, inner) => {
+    const len = (inner.match(/\u3000/g) || []).length;
+    return `<u class="blank-${toBlank(len)}">&emsp;</u>`;
+  });
   return out;
 }
 

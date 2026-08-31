@@ -289,6 +289,27 @@ const buildTextRuns = (node, styleOverride = {}) => {
               });
               return;
             }
+            // 🔧 裸全角空格留空（AI 裸输出形态：未包 <u>/括号，如 <p>　　　　</p> 写作答题行）：
+            //    连续全角空格（≥2）片段 → 填空横线标记（段落末尾 → ptab 自动延伸，非末尾 → NBSP 定宽），
+            //    与 blank-line/u.blank-N 同一后处理；文字间单个全角空格（排版分隔）不受影响
+            if (/\u3000{2,}/.test(line)) {
+              const segs = line.split(/(\u3000{2,})/);
+              const mkPure = (base) => {
+                const o = { ...base };
+                ['size', 'color', 'font', 'bold', 'italics', 'underline', 'strike', 'shading', 'superScript', 'subScript']
+                  .forEach(k => { if (ctxIn[k] !== undefined) o[k] = ctxIn[k]; });
+                return o;
+              };
+              for (const seg of segs) {
+                if (!seg) continue;
+                if (/^\u3000{2,}$/.test(seg)) {
+                  runs.push({ __blankLineTab: true, size: ctxIn.size || readFontSizeHp(node), raw: seg, color: '333333' });
+                } else {
+                  runs.push(new TextRun(mkPure({ text: seg })));
+                }
+              }
+              return;
+            }
             const pure = { text: line };
             // 只保留 ctx 中有值的键（避免 undefined 覆盖 docx 默认值）
             const keys = ['size', 'color', 'font', 'bold', 'italics', 'underline', 'strike', 'shading', 'superScript', 'subScript'];

@@ -3,7 +3,7 @@
 //       要求：1) 可执行向量（script/on*/javascript:/iframe 等）被剥离
 //             2) 排版结构（class/style 内联样式/表格/田字格等）完整保留 —— 负向剥离不碰排版
 import { describe, it, expect } from 'vitest';
-import { stripXss } from '@/utils/contentCleaner.js';
+import { stripXss, cleanSectionHtml } from '@/utils/contentCleaner.js';
 
 describe('stripXss：剥离可执行向量', () => {
   it('剥离 <script> 块（含内联代码）', () => {
@@ -108,5 +108,32 @@ describe('stripXss：排版结构零影响（负向剥离不碰排版）', () =>
     expect(stripXss(null)).toBeNull();
     expect(stripXss(undefined)).toBeUndefined();
     expect(stripXss(123)).toBe(123);
+  });
+});
+
+describe('cleanSectionHtml：markdown 语法残留清理（指令已禁，模型偶发违反）', () => {
+  it('行首 ## 标题标记 → 去除（正文/答案页统一）', () => {
+    const out = cleanSectionHtml('<h2>一、识字</h2>\n## 二、阅读\n<p>题目。</p>');
+    expect(out).not.toContain('##');
+    expect(out).toContain('二、阅读');
+  });
+
+  it('成对 ** 加粗 → 还原为纯文本', () => {
+    const out = cleanSectionHtml('<p>**重点词汇**与题目</p>');
+    expect(out).not.toContain('**');
+    expect(out).toContain('重点词汇');
+  });
+
+  it('正文中自然出现的 # / * 单字符（数学/符号）→ 不受影响', () => {
+    const out = cleanSectionHtml('<p>第 # 号题：3 * 5 = 15</p>');
+    expect(out).toContain('#');
+    expect(out).toContain('*');
+  });
+
+  it('代码块/body/自评残留清理仍生效（回归）', () => {
+    const out = cleanSectionHtml('```html\n<body><h2>一、识字</h2><p>题目。</p></body>\n```');
+    expect(out).toContain('<h2>一、识字</h2>');
+    expect(out).not.toContain('```');
+    expect(out).not.toContain('<body>');
   });
 });

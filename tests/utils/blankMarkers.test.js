@@ -81,3 +81,30 @@ describe('normalizeBlankMarkers 无 class 裸 u 空白横线归一（AI 裸输�
   });
 });
 
+describe('normalizeBlankMarkers 裸全角空格留空归一（未包 u/括号，AI 裸输出形态）', () => {
+  it('<p> 内纯全角空格（10个，写作答题行）→ 包 u.blank-16（cap 上限，自动延伸）', () => {
+    const out = normalizeBlankMarkers('<p>' + '　'.repeat(10) + '</p>');
+    expect(out).toContain('<u class="blank-16">&emsp;</u>');
+  });
+
+  it('<div> 内纯全角空格（6个）→ 包 u.blank-12（1字≈2格）', () => {
+    const out = normalizeBlankMarkers('<div>' + '　'.repeat(6) + '</div>');
+    expect(out).toContain('<u class="blank-12">&emsp;</u>');
+  });
+
+  it('单个全角空格 <p>　</p> → 不处理（排版分隔，不构成留空）', () => {
+    const html = '<p>' + '　'.repeat(1) + '</p>';
+    expect(normalizeBlankMarkers(html)).toBe(html);
+  });
+
+  it('表格单元格 td 内全角空格 → 不处理（查字典表等空位语义保留）', () => {
+    const html = '<table><tr><td>' + '　'.repeat(4) + '</td></tr></table>';
+    expect(normalizeBlankMarkers(html)).toBe(html);
+  });
+
+  it('已有 class 的块级元素（blank-line/zuo-wen-ge）→ 幂等不误转', () => {
+    expect(normalizeBlankMarkers('<p class="blank-line"></p>')).toContain('blank-line');
+    expect(normalizeBlankMarkers('<div class="zuo-wen-ge">' + '　'.repeat(4) + '</div>')).toContain('zuo-wen-ge');
+  });
+});
+
