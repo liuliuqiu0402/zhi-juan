@@ -199,6 +199,13 @@ export function normalizeBlankMarkers(html = '') {
     const len = (m.match(/＿/g) || []).length;
     return `<u class="blank-${toBlank(len)}">&emsp;</u>`;
   });
+  // 🔧 无 class 裸 <u> 空白横线（全角空格/空白实体填充——AI 常见裸输出形态，countBlanks 同源识别 BARE_U_BLANK_RE）：
+  //    归一为 u.blank-N（段落末尾自动延伸/非末尾定宽，与导出端 ptab 兜底一致）；
+  //    宽度按空白宽度×2（1 字≈2 格，与 ＿ 规则同源），长度≥2 才归一（单个空格/空白不构成书写横线）
+  out = out.replace(/<u(?![^>]*class=)[^>]*>\s*(?:[　\u3000 _]|&emsp;){2,24}\s*<\/u>/gi, (m) => {
+    const len = (m.match(/\u3000/g) || []).length + (m.match(/[ _]/g) || []).length + (m.match(/&emsp;/gi) || []).length;
+    return `<u class="blank-${toBlank(len)}">&emsp;</u>`;
+  });
   out = out.replace(/＿{2,}/g, (m) => {
     const n = toBlank(m.length);
     return `<u class="blank-${n}">&emsp;</u>`;

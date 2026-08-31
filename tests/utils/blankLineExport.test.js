@@ -177,5 +177,25 @@ describe('填空横线导出：段落末尾 blank-line 自动延伸到行尾', (
     expect(xml).not.toContain('<w:ptab');
     expect(xml).toMatch(/>\(/); // 括号 + NBSP 占位
   });
+
+  it('无 class 裸 u 全角空格整行（段落末尾）→ 导出端兜底 ptab 自动延伸', async () => {
+    const line = '<p><u>' + '　'.repeat(40) + '</u></p>';
+    const xml = await getDocumentXml(line);
+    expect(xml).toContain('<w:ptab');
+    expect(xml).toContain('w:leader="underscore"');
+  });
+
+  it('无 class 裸 u 全角空格（非末尾，后跟文字）→ NBSP 固定宽度 + 下划线，不输出 ptab', async () => {
+    const xml = await getDocumentXml('<p>答案：<u>　　</u>后还有字</p>');
+    expect(xml).not.toContain('<w:ptab');
+    expect(xml).toContain('<w:u w:val="single"');
+    expect(xml).toContain('>后还有字</w:t>');
+  });
+
+  it('u 内含文字（下划线强调）→ 不受影响（不按空白横线处理）', async () => {
+    const xml = await getDocumentXml('<p>重点：<u>词汇</u></p>');
+    expect(xml).not.toContain('<w:ptab');
+    expect(xml).toContain('>词汇</w:t>');
+  });
 });
 

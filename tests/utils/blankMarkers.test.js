@@ -45,3 +45,39 @@ describe('normalizeBlankMarkers 括号填空归一（正文主路径）', () => 
   });
 });
 
+describe('normalizeBlankMarkers 无 class 裸 u 空白横线归一（AI 裸输出形态 <u>全角空格</u>）', () => {
+  it('整行 <u> 全角空格（40个，写作答题行）→ 归一为 u.blank-16（cap 上限，导出/预览自动延伸）', () => {
+    const line = '<p><u>' + '　'.repeat(40) + '</u></p>';
+    const out = normalizeBlankMarkers(line);
+    expect(out).toContain('<u class="blank-16">&emsp;</u>');
+    expect(out).not.toContain('　'.repeat(40));
+  });
+
+  it('短空白 <u>（4个全角空格）→ blank-8（1字≈2格）', () => {
+    const out = normalizeBlankMarkers('<p>读短文。<u>' + '　'.repeat(4) + '</u></p>');
+    expect(out).toContain('<u class="blank-8">&emsp;</u>');
+  });
+
+  it('2 个全角空格 <u> → blank-4（宽度下限内按 1字≈2格）', () => {
+    const out = normalizeBlankMarkers('<p>读短文。<u>　　</u></p>');
+    expect(out).toContain('<u class="blank-4">&emsp;</u>');
+  });
+
+  it('单个全角空格 <u> → 不归一（不构成书写横线，避免误伤强调场景）', () => {
+    const html = '<p>a<u> </u>b</p>';
+    expect(normalizeBlankMarkers(html)).toBe(html);
+  });
+
+  it('已有 class 的 u.blank-N / blank-line → 幂等不重复转换', () => {
+    const once = normalizeBlankMarkers('<p><u class="blank-10">&emsp;</u></p>');
+    const twice = normalizeBlankMarkers(once);
+    expect(twice).toBe(once);
+    expect(normalizeBlankMarkers('<p><u class="blank-line">&emsp;</u></p>')).toContain('blank-line');
+  });
+
+  it('u 内含文字（下划线强调）→ 不归一', () => {
+    const html = '<p><u>重点词汇</u></p>';
+    expect(normalizeBlankMarkers(html)).toBe(html);
+  });
+});
+

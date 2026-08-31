@@ -441,6 +441,16 @@ const buildTextRuns = (node, styleOverride = {}) => {
       }
       return;
     }
+    // === 无 class 裸 <u> 空白横线兜底（AI 裸输出形态：<u>全角空格</u>，未走 blank-N 归一）===
+    //    countBlanks 同源识别（BARE_U_BLANK_RE）；内容全为空白 → 按填空横线处理：
+    //    段落末尾 → ptab 自动延伸（与 blank-line/u.blank-N 同一后处理），非末尾 → NBSP 固定宽度
+    if (tag === 'u' && ![...cls].some(c => /^blank-\d+$/.test(c)) && !cls.contains('blank-line')) {
+      const { raw } = extractGridContent(child);
+      if (raw && /^[\s\u3000\u00A0\u2003\u2002]*$/.test(raw) && (raw.match(/\u3000/g) || []).length >= 2) {
+        runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw, nFromClass: 16, color: '333333' });
+        return;
+      }
+    }
     if (cls.contains('pinyin-line')) {
       for (const c of child.childNodes) processChild(c, { ...ctx, font: 'Times New Roman' });
       return;
