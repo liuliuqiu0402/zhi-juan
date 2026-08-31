@@ -7,7 +7,7 @@
 //    本文件只负责规则的执行逻辑。
 // ============================================================
 import { getValidatorRules, normalizeStage } from '../config/validatorRules.js';
-import { getCarrierAllowlist, getMergedSpec, getAnswerRegion } from '../config/layoutSpec.js';
+import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATION } from '../config/layoutSpec.js';
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 
 // ---------- 通用正则 ----------
@@ -932,9 +932,42 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         }
       } catch (e) { /* 静默 */ }
     }
-    // 2j-4 田字格载体缺失（规则 writing-expression-fix：题干要求田字格但无格子；"田字格中写"仅语文题干会出现）
-    if (has('writing-expression-fix') && subject === '语文' && /田字格中写|在田字格|方格中写/.test(bodyNoAnsText) && !/tian-zi-ge/.test(out)) {
-      silentCount('writing-grid', '题干要求"田字格中写"但正文无田字格格子——作答载体缺失，请抽检');
+    // 2j-4 载体声明→输出一致性（规则 writing-grid-fix，小题粒度）：
+    //   题干标题明确声明了书写载体（如"在田字格中写""在四线三格中抄写""在方格纸上画"）→
+    //   题内必须输出对应载体 class——声明即客观强要求（区别于 must 行为词软推断，2l 已移除执行），缺失静默抽检。
+    //   映射按学科配置（CARRIER_DECLARATION，三维度）：语文田字格/拼音格、英语四线三格、数学方格纸，
+    //   跨学科不检（语文作文格不污染英语同理）；学段门控：载体须 ∈ 该学科×学段允许列表
+    //   （getCarrierAllowlist），该学段不允许的载体声明（如初中数学"方格纸"）不按"应输出"强检。
+    const declRules = CARRIER_DECLARATION[subject];
+    if (has('writing-grid-fix') && declRules && declRules.length) {
+      try {
+        const allowed = getCarrierAllowlist(subject, stage);
+        const activeDecls = allowed ? declRules.filter(r => allowed.includes(r.cls)) : [];
+        if (activeDecls.length) {
+          const tplD = document.createElement('template');
+          tplD.innerHTML = out;
+          const psD = Array.from(tplD.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
+          const numberedD = psD.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
+          for (let i = 0; i < numberedD.length; i++) {
+            const p = numberedD[i];
+            const pText = p.textContent || '';
+            const hit = activeDecls.find(r => r.re.test(pText));
+            if (!hit) continue;
+            const endP = numberedD[i + 1] || null;
+            const clsRe = new RegExp(`class=["'][^"']*${hit.cls}`);
+            let hasCarrier = false;
+            let probe = p;
+            while (probe && probe !== endP) {
+              const ph = probe.outerHTML || '';
+              if (clsRe.test(ph)) { hasCarrier = true; break; }
+              probe = probe.nextSibling;
+            }
+            if (!hasCarrier) {
+              silentCount('writing-grid', `题干明确声明了「${hit.cls}」作答载体但题内未输出（${pText.slice(0, 12)}…），请抽检`);
+            }
+          }
+        }
+      } catch (e) { /* 静默 */ }
     }
     // 2j-4b 英语中段抄写/书写题缺四线三格（载体缺失 debug 抽检：程序按关键词推断，仅留诊断线索不打扰）
     if (has('writing-expression-fix') && subject === '英语' && normalizeStage(stage) === 'primary_mid'

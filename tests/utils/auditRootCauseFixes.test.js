@@ -388,3 +388,69 @@ describe('根治回归：作文格按学科精准适配（2026-08 英语"无作�
     expect(r.html).toContain('zuo-wen-ge');
   });
 });
+
+describe('根治回归：载体声明→输出一致性（题干明确声明载体 → 题内必须输出，全学科三维度）', () => {
+  it('数学小学段"在方格纸上画"题内无 square-grid → 声明强要求抽检', () => {
+    const html = `
+<h2>三、动手操作（共1题，共6分）</h2>
+<p>5. 在方格纸上画一个边长为2厘米的正方形。（共6分）</p>
+`.trim();
+    const { silentDetails } = auditExamPaper(html, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
+    const d = silentDetails.find(x => x.type === 'writing-grid' && x.message.includes('square-grid'));
+    expect(d).toBeTruthy();
+  });
+
+  it('数学小学段"在方格纸上画"题内已有 square-grid → 不抽检', () => {
+    const html = `
+<h2>三、动手操作（共1题，共6分）</h2>
+<p>5. 在方格纸上画一个边长为2厘米的正方形。（共6分）</p>
+<div class="square-grid"><span>&emsp;</span></div>
+`.trim();
+    const { silentDetails } = auditExamPaper(html, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
+    expect(silentDetails.some(d => d.type === 'writing-grid' && d.message.includes('square-grid'))).toBe(false);
+  });
+
+  it('英语"在四线三格中抄写"题内无 four-line-three → 声明强要求抽检', () => {
+    const html = `
+<h2>三、抄写（共1题，共10分）</h2>
+<p>5. 在四线三格中抄写下列单词。（每个2分，共10分）</p>
+<p>cat　dog　bird</p>
+`.trim();
+    const { silentDetails } = auditExamPaper(html, { subject: '英语', stage: 'primary_mid', genType: 'exam' });
+    const d = silentDetails.find(x => x.type === 'writing-grid' && x.message.includes('four-line-three'));
+    expect(d).toBeTruthy();
+    expect(d.level).toBe('notice');
+  });
+
+  it('语文"在田字格中写"题内无格子 → 声明强要求抽检（2j-4 保留）', () => {
+    const html = `
+<h2>一、识字与写字（32分）</h2>
+<p>1. 照样子，在田字格中把字写规范。（8分）</p>
+<p>请写：杨　柏　金　桂</p>
+`.trim();
+    const { silent } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(silent).toBeGreaterThan(0);
+  });
+
+  it('数学初中"在方格纸上画"（该学段方格纸不合法）→ 不按"应输出"强检（越界剥离防线已处理）', () => {
+    const html = `
+<h2>三、动手操作（共1题，共6分）</h2>
+<p>5. 在方格纸上画一个正方形。（共6分）</p>
+<div class="square-grid"><span>&emsp;</span></div>
+`.trim();
+    const r = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'exam' });
+    // 初中以上 square-grid 被越界剥离（答题纸自带网格）→ 声明检测不应报"应输出"
+    expect(r.silentDetails.some(d => d.type === 'writing-grid' && d.message.includes('square-grid'))).toBe(false);
+    expect(r.html).not.toContain('square-grid');
+  });
+
+  it('语文中段"在田字格中写"（中段田字格不合法）→ 不按"应输出"强检', () => {
+    const html = `
+<h2>一、识字与写字（32分）</h2>
+<p>1. 照样子，在田字格中把字写规范。（8分）</p>
+<p>请写：杨　柏　金　桂</p>
+`.trim();
+    const { silentDetails } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'exam' });
+    expect(silentDetails.some(d => d.type === 'writing-grid' && d.message.includes('tian-zi-ge'))).toBe(false);
+  });
+});

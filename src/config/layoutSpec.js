@@ -145,6 +145,28 @@ export const CARRIER_RULES = {
   ],
 };
 
+/**
+ * 载体声明→输出一致性映射（题干标题明确声明了书写载体 → 题内必须输出对应载体 class）
+ *  - 与 CARRIER_RULES.must 的区别：must 是"行为词→载体"惯例推断（软，2l 已移除执行，仅指令层注入）；
+ *    本表是"载体名显式出现在题干"的客观强要求（硬，声明即要求，缺失静默抽检）
+ *  - 按 学科 配置（三维度），杜绝跨学科污染（语文田字格不检英语/数学，数学方格纸不检语文）
+ *  - 学段门控：执行时校验载体 class ∈ 该 学科×学段 允许列表（getCarrierAllowlist）——
+ *    该学段不允许的载体声明（如初中数学"方格纸"、语文中段"田字格"）不按"应输出"强检（越界剥离已处理格子）
+ * 消费方：examValidator writing-grid-fix（小题粒度：题干命中声明 → 检查该题区域有无对应载体）
+ */
+export const CARRIER_DECLARATION = {
+  语文: [
+    { re: /在田字格|田字格中写/, cls: 'tian-zi-ge' },
+    { re: /在拼音格|拼音格中写/, cls: 'pinyin-line' },
+  ],
+  英语: [
+    { re: /四线三格/, cls: 'four-line-three' },
+  ],
+  数学: [
+    { re: /方格纸/, cls: 'square-grid' },
+  ],
+};
+
 /** 载体 must 规则的指令端语义（与 CARRIER_RULES.must 的 keywords 对应，把"允许载体"翻译成可读条款；
  *   demo 为渲染 class 的示例——必须为空串（空格子），与"格子为空格子（格内不填字/拼音/答案）"一致，
  *   示例内若带占位字会诱导模型输出已填内容的格子（违规）；示例随条款按 学科×学段 注入，不再全学科广播） */
@@ -365,7 +387,8 @@ export function getMergedSpec() {
 }
 
 export default {
-  ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, CARRIER_RULES, ANSWER_REGION, SQUARE_GRID,
+  ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, CARRIER_RULES, CARRIER_DECLARATION,
+  ANSWER_REGION, SQUARE_GRID,
   BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL,
   LAYOUT_SPEC_DEFAULTS, LAYOUT_SPEC_GROUPS,
   loadLayoutSpecOverride, saveLayoutSpecOverride, resetLayoutSpecOverride, getMergedSpec, getCarrierAllowlist,
