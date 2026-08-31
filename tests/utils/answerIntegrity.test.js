@@ -1,6 +1,6 @@
 // 答案完整性判定测试（生成链路"答案是否丢失"的核心判定逻辑，与 useAiGenerator 真实调用同一函数）
 import { describe, it, expect } from 'vitest';
-import { detectTruncation, isAnswerShell, wrapAnswerSection } from '../../src/composables/useAiGenerator.js';
+import { detectTruncation, isAnswerShell, wrapAnswerSection, stripAnswerSection } from '../../src/composables/useAiGenerator.js';
 
 describe('答案完整性·截断判定（detectTruncation）', () => {
   it('finish_reason=length 且内容较长 → 判定截断（API 可靠信号）', () => {
@@ -80,5 +80,34 @@ describe('答案完整性·once 模式补包（wrapAnswerSection）', () => {
   it('无答案区 → 不变', () => {
     const html = '<h2>一、选择题</h2><p>1. A</p>';
     expect(wrapAnswerSection(html)).toBe(html);
+  });
+});
+
+describe('答案完整性·split 正文混答剥离（stripAnswerSection）', () => {
+  it('正文末尾混入完整《参考答案与解析》→ 整体剥离（防"正文答案+独立答案页"重复）', () => {
+    const html = '<h2>二、基础建构任务</h2><p>1. 完成任务一。</p><h2>参考答案与解析</h2><p>1. 答案：……</p>';
+    expect(stripAnswerSection(html)).toBe('<h2>二、基础建构任务</h2><p>1. 完成任务一。</p>');
+  });
+
+  it('空壳答案区（"略"占位）→ 同样剥离', () => {
+    const html = '<h2>二、基础建构任务</h2><p>1. 完成任务一。</p><h2>参考答案</h2><p>略</p>';
+    expect(stripAnswerSection(html)).toBe('<h2>二、基础建构任务</h2><p>1. 完成任务一。</p>');
+  });
+
+  it('answer-section 包裹的答案区 → 剥离至正文末尾', () => {
+    const html = '<p>题目。</p><div class="answer-section"><h2>参考答案与解析</h2><p>1. A</p></div>';
+    const out = stripAnswerSection(html);
+    expect(out).not.toContain('answer-section');
+    expect(out).not.toContain('参考答案');
+  });
+
+  it('无答案区 → 原样返回（不误剥正文）', () => {
+    const html = '<h2>二、基础建构任务</h2><p>1. 完成任务一。（每空2分）</p>';
+    expect(stripAnswerSection(html)).toBe(html);
+  });
+
+  it('空串/非字符串 → 安全返回', () => {
+    expect(stripAnswerSection('')).toBe('');
+    expect(stripAnswerSection(null)).toBe('');
   });
 });

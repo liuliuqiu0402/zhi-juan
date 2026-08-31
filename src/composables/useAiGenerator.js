@@ -987,6 +987,16 @@ export const wrapAnswerSection = (content) => {
   return String(content).replace(/(<h2[^>]*>\s*参考答案[\s\S]*?)$/i, (m, ansPart) => `<div class="answer-section">\n${ansPart}</div>`);
 };
 
+/** split 模式正文混答剥离：正文末尾若混入《参考答案…》区（完整或空壳）→ 整体剥离，
+ *  答案统一由独立答案页承载（与 wrapAnswerSection 互为反向；once 模式不调用，防止误剥正文答案）
+ *  支持两种形态：answer-section 包裹的整块（含 div 外壳）、裸 <h2>参考答案… 到结尾 */
+export const stripAnswerSection = (content) => {
+  let out = String(content || '');
+  out = out.replace(/<div[^>]*class="[^"]*answer-section[^"]*"[^>]*>[\s\S]*?<\/div>\s*$/i, '');
+  out = out.replace(/<h2[^>]*>参考答案[\s\S]*$/i, '');
+  return out;
+};
+
 export function useAiGenerator() {
   const isGenerating = ref(false);
   const progress = ref(0);
@@ -4224,8 +4234,13 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔴 once 模式空壳答案区检测：模型输出 `<h2>参考答案…` 但内容是"略/待补充"或近乎空白
     //    （占位式敷衍），不能算有答案页——剥离空壳并强制走独立答案页补生成
     const ansShellInContent = isAnswerShell(content);
-    if (ansShellInContent) {
-      content = content.replace(/<h2[^>]*>参考答案[\s\S]*$/i, '');
+    // 🔧 split 模式正文混答剥离（2026-08）：正文生成时即使注入"严禁输出答案"，
+    //    任务式教辅（课时练/专项/复习）模型仍可能把《参考答案》写进正文末尾——
+    //    与独立答案页重复（"正文答案 + 独立答案页"两份）。split 下正文一律不应含答案区：
+    //    无论完整还是空壳，命中即剥离，答案统一由独立答案页承载（once 模式不受影响）
+    const splitBodyHasAnswer = generateMode !== 'once' && ansInContent;
+    if (ansShellInContent || splitBodyHasAnswer) {
+      content = stripAnswerSection(content);
     }
     // 🔧 题+解析一体资料（错题本/知识总结等正文自带解析）once 模式且正文无独立参考答案区：
     //    正文已含解析/答案标注时不再补独立答案页（正文解析即答案，防"正文解析 + 独立答案页"重复）

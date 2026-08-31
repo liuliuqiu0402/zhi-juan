@@ -113,7 +113,7 @@ const OUTPUT_FORMAT_BLOCK = (mode = 'question', ctx = {}) => {
   const headLabel = isContent ? '栏目标题' : '大题标题';
   const itemRule = isContent
     ? '· 栏目用 <h2>；条目/知识点用 <p> 或 <ul><li> 呈现，编号用（1）（2）或 ①②'
-    : '· 题目以 <p class="question"> 包裹并带题号（1. 2. 3.…），子题用 (1)(2)';
+    : '· 题目以 <p class="question"> 包裹并带题号（1. 2. 3.…），子题用 (1)(2)\n· 段落组织：每道题、每个任务（情境/活动/成果各条）独立成 <p> 段落，段间空行分隔；严禁把多个题目或条目堆叠在同一段落内';
   const fmt = isContent ? CONTENT_FORMAT : QUESTION_FORMAT(ctx);
   const quality = mode === 'exam' ? EXAM_QUALITY : TEACHING_QUALITY;
   return `
