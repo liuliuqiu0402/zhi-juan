@@ -4127,9 +4127,8 @@ ${cardAnalysisText.substring(0, 1000)}
     let body = '';
     const chKeys = [...byChapter.keys()].filter(k => k !== '__noChapter__');
     if (chKeys.length) {
-      // 章节均匀配额：每章均分预算；章节过多时保底也按比例收缩，总量绝不超 maxChars（防大范围勾选截断/超限）
-      const share = Math.floor(maxChars / chKeys.length);
-      const quota = share >= 300 ? share : Math.max(200, share); // 正常规模每章 300+ 保底；章节极多时收缩到 200 均分
+      // 章节均匀配额：总量倒除均分（每章 = maxChars/章数，精确不超总量；章节多则每章自动收缩，章节少则每章充分）
+      const quota = Math.floor(maxChars / chKeys.length);
       for (const key of chKeys) {
         const segs = byChapter.get(key).sort((a, b) => (b.score || 0) - (a.score || 0));
         let used = 0;
