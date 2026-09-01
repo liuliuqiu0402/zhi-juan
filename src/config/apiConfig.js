@@ -176,6 +176,36 @@ const sanitizeApiKey = (k) => {
   return out;
 };
 
+// 🔧 生成端预算规整（纯函数，与 Settings 的 normalizeBudgetSlots 逻辑同构；生成端读配置时的确定性兜底）：
+//    确保每个资料类型都有 mode/tier 与 body/answer/once 三槽，每槽含 economy/balanced/full/custom/cap。
+//    缺槽从默认补、已有保留；避免残缺 localStorage/云同步数据让 pickSlot 静默回退到默认系数。
+const normalizeBudgetByType = (bbt) => {
+  const defs = apiConfig.generationSettings.budgetByType || {};
+  const out = {};
+  for (const [key, def] of Object.entries(defs)) {
+    const src = (bbt && bbt[key]) || {};
+    const norm = (slot) => {
+      const d = (def && def[slot]) || { economy: 1, balanced: 1, full: 1.3, cap: 20000, custom: null };
+      const s = (src[slot] && typeof src[slot] === 'object') ? src[slot] : {};
+      return {
+        economy: typeof s.economy === 'number' ? s.economy : d.economy,
+        balanced: typeof s.balanced === 'number' ? s.balanced : d.balanced,
+        full: typeof s.full === 'number' ? s.full : d.full,
+        cap: (typeof s.cap === 'number' && s.cap > 0) ? s.cap : (d.cap ?? 20000),
+        custom: typeof s.custom === 'number' ? s.custom : null,
+      };
+    };
+    out[key] = {
+      mode: (src.mode === 'split' || src.mode === 'once') ? src.mode : 'auto',
+      tier: (src.tier === 'economy' || src.tier === 'balanced' || src.tier === 'full') ? src.tier : 'balanced',
+      body: norm('body'),
+      answer: norm('answer'),
+      once: norm('once'),
+    };
+  }
+  return out;
+};
+
 // ✨ 从存储加载配置（localStorage → Cookie 兜底）
 const loadConfig = async () => {
   try {
@@ -252,6 +282,11 @@ const loadConfig = async () => {
       //    （否则整块 generationSettings 会被旧对象覆盖，新设置项静默丢失）
       if (config.generationSettings) {
         config.generationSettings = { ...apiConfig.generationSettings, ...config.generationSettings };
+        // 🔧 生成端预算规整兜底：旧/云同步/Cookie 数据可能存了残缺 budgetByType（缺槽/缺档），
+        //    此处确定性补齐（缺槽从默认补、已有保留），避免 pickSlot 静默回退到通用 coef1.0/cap32768 的错误预算。
+        if (config.generationSettings.budgetByType) {
+          config.generationSettings.budgetByType = normalizeBudgetByType(config.generationSettings.budgetByType);
+        }
       }
 
       return config;
@@ -498,13 +533,19 @@ export const apiConfig = reactive({
     //    推理 token 与正文共享 max_tokens 配额，需给推理预留余量）
     answerContextMaxChars: 24000,       // 答案页输入：正文纯文本上限（正文超过此长度时答案只看前 N 字符；高中大卷建议调大至 40000-60000）
     thinkingBudgetMultiplier: 2,        // 思考模式输出预算放大倍数
+    // 🔧 大范围浏览·漏章补齐（2026-09 增强档）：
+    //    true  = 自动补齐（默认）：检测到"目录有可用原文素材、但模型本次未浏览"的章节（漏章数量 ≤ browseAutoFillMaxSkipped）
+    //            时，程序在收敛前把那批漏章的原文确定性注入上下文，让模型重新取材后收敛出正文——兜住"章节覆盖不遗漏"。
+    //    false = 仅提醒：只列入主编式提醒，不自动补料（省一次补料调用；正式卷由命题老师复核）。
+    browseAutoFill: true,
+    browseAutoFillMaxSkipped: 3,        // 漏章数量上界：超过此数退回"仅提醒"（补料过多会显著放大多轮往返成本与上下文）
     // 🔧 每类型动态输出预算（2026-09 重构）：预算 = min(槽位硬上限 cap, max(floor, 勾选字符 × 当前系数))。
     //    动态是主预算：正常勾选范围下 cap 不介入，动态系数直接生效；仅当勾选远超该类型预期才触 cap（提示范围过大）。
     //    budgetByType[type] = {
     //      mode: 'auto'|'split'|'once'        —— 该类型生成路径（auto=按 PAPER_SPLIT_TYPES 内置最合适）
-    //      tier: 'economy'|'balanced'|'full'|'custom'  —— 用户为该类型当前选中的档位；手填后切 'custom'
-    //      body/answer/once: { economy,balanced,full, cap, custom }  —— 三套各自三档系数(每字符token率) + 槽硬上限token + slip供手填
-    //    手填：custom 非空即生效（同时 tier 切 'custom'，界面三档取消高亮）。
+    //      tier: 'economy'|'balanced'|'full'          —— 用户为该类型当前选中的档位（无 'custom'：手填值经 custom字段独立生效，不切 tier）
+    //      body/answer/once: { economy,balanced,full, cap, custom }  —— 三套各自三档系数(每字符token率) + 槽硬上限token + 手填系数
+    //    手填：custom 非空即生效（同时界面三档取消高亮）；生效系数优先级 custom>tier，不需置 tier='custom'。
     budgetByType: {
       exam:     { mode: 'auto', tier: 'balanced', body: { economy: 0.7, balanced: 1.2, full: 1.6, cap: 32768, custom: null }, answer: { economy: 0.35, balanced: 0.6, full: 0.8, cap: 16384, custom: null }, once: { economy: 1.0, balanced: 1.5, full: 2.0, cap: 49152, custom: null } },
       practice: { mode: 'auto', tier: 'balanced', body: { economy: 0.5, balanced: 0.9, full: 1.2, cap: 20000, custom: null }, answer: { economy: 0.25, balanced: 0.45, full: 0.6, cap: 10000, custom: null }, once: { economy: 0.7, balanced: 1.1, full: 1.4, cap: 30000, custom: null } },

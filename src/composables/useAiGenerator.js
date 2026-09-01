@@ -4038,7 +4038,7 @@ ${cardAnalysisText.substring(0, 1000)}
   // 大范围：程序侧确定性取料供给工具 browse_textbook；模型按章浏览、收敛后单主请求产出正文。
   // 返回 { content, coverageNotes }——coverageNotes 为防旧教材的主编式提醒（只提示，不改写）。
   const generateBodyByTextbookBrowse = async (params) => {
-    const { genType, promptBase, maxTokens, temperature, contentCards = [], knowledgeMap = null } = params;
+    const { genType, promptBase, maxTokens, temperature, contentCards = [], knowledgeMap = null, generateMode = 'once' } = params;
     const myBudget = GEN_CONST.MATERIAL_CHARS[genType] || 5000;
     const { perBrowseCap, maxRounds } = deriveBrowseParams(myBudget);
 
@@ -4099,14 +4099,37 @@ ${cardAnalysisText.substring(0, 1000)}
       ...(provider === 'alibaba' ? { enable_thinking: false } : {}),
     };
     const messages = [
-      { role: 'system', content: BROWSE_SYSTEM },
+      { role: 'system', content: BROWSE_SYSTEM
+        + (generateMode === 'once'
+          ? '\n（本资料为一次成型：正文与答案区一次输出，答案区仅对本资料的练习/自测/例题作答，勿把正文的知识梳理整体复述到答案区。）'
+          : '') },
       { role: 'user', content: promptBase },
     ];
     const browsed = new Set();
     let content = '';
     let hitRoundLimit = false;
+    let hitTruncLimited = false;
+    let writeRounds = 0;               // 正文阶段已进行的续写次数（独立于浏览轮，防死循环）
+    const BROWSE_WRITE_CAP = 3;        // 正文截断续写上界（超此视为极端，放弃并交由编辑兜底）
     let lastMsg = null;
     let lastFr = '';
+    // 🔧 问题3增强档：漏章自动补齐（默认开，config.generationSettings.browseAutoFill）。
+    //    模型收敛出正文时，若还有"有素材但未浏览"的章 且 数量≤上界 → 程序确定性补一轮取料后回循环，
+    //    让模型看到补料再收敛出正文；补一轮后 filledSkipped=true，不再反复补（防死循环/成本失控）。
+    const cfgGS = apiConfig.generationSettings || {};
+    const autoFillSkipped = cfgGS.browseAutoFill !== false;
+    const fillMax = Number(cfgGS.browseAutoFillMaxSkipped) > 0 ? Number(cfgGS.browseAutoFillMaxSkipped) : 3;
+    let filledSkipped = false;
+    let fillQualifiedSkipped = [];       // 本次补料的候选漏章
+    const computeSkipped = () => {
+      const out = [];
+      for (const card of contentCards || []) {
+        if (!card?.chapterTitle) continue;
+        const hasText = (card.segments || []).some((s) => (s.text || '').trim().length >= 10);
+        if (hasText && !browsed.has(normChapter(card.chapterTitle))) out.push(card.chapterTitle);
+      }
+      return out;
+    };
     const combineAbort = (signals) => {
       const ctrl = new AbortController();
       const onAbort = () => ctrl.abort();
@@ -4160,12 +4183,46 @@ ${cardAnalysisText.substring(0, 1000)}
         }
         continue;
       }
-      // 无工具调用 → 本轮即正文
+      // 无工具调用 → 模型已收敛（准备出正文）。先检查是否需要漏章自动补齐。
+      if (autoFillSkipped && !filledSkipped) {
+        const q = computeSkipped();
+        if (q.length && q.length <= fillMax) {
+          filledSkipped = true;
+          fillQualifiedSkipped = q;
+          // 程序确定性补料：把漏章原文直接注入上下文（本地取料，不新增外部请求），让模型看到后重新收敛。
+          const filled = [];
+          for (let i = 0; i < q.length; i++) {
+            const ch = q[i];
+            const key = normChapter(ch);
+            if (browsed.has(key)) continue;
+            browsed.add(key);
+            const id = `fill_${round}_${i}`;
+            filled.push({ role: 'assistant', content: null, tool_calls: [{ id, type: 'function', function: { name: 'browse_textbook', arguments: JSON.stringify({ chapter: ch }) } }] });
+            filled.push({ role: 'tool', tool_call_id: id, content: buildBrowseResult(ch) });
+          }
+          if (filled.length) {
+            messages.push(...filled);
+            statusText.value = `大范围浏览：检出漏浏览章节，自动补齐取材（${q.join('、')}）后继续...`;
+            continue; // 补料后回到循环，模型基于补料重新收敛出正文
+          }
+        }
+        filledSkipped = true; // 无待补/超上界：本轮起不再反复检测
+      }
+      // 无工具调用 → 本轮即正文（进入正文输出阶段；受 maxTokens 约束，截断用独立续写计数兜底）
       if (text) content = text;
-      if (lastFr === 'length' && round < maxRounds) {
-        messages.push({ role: 'assistant', content: text || '' });
-        messages.push({ role: 'user', content: '【续写】上次输出被截断，请直接从停止处继续完成剩余内容，不要重复已有内容。' });
-        continue;
+      // 🔴 正文阶段续写兜底：截断（finish_reason=length）说明输出预算不够，素材已在上下文，
+      //    无需重新浏览——用独立续写计数（WRITE_CAP）兜底，不受浏览轮数上限（maxRounds）约束；
+      //    否则当 round==maxRounds 且正文被截断时会直接采纳半截卷面（之前的 bug）。
+      if (lastFr === 'length') {
+        if (writeRounds < BROWSE_WRITE_CAP) {
+          writeRounds++;
+          messages.push({ role: 'assistant', content: text || '' });
+          messages.push({ role: 'user', content: '【续写】上次输出被截断，请直接从停止处继续完成剩余内容，不要重复已有内容。' });
+          continue;
+        } else {
+          hitTruncLimited = true;
+          break;
+        }
       }
       break;
     }
@@ -4177,8 +4234,22 @@ ${cardAnalysisText.substring(0, 1000)}
     if (noTextChapters.length) {
       coverageNotes.push(`⚠️ 以下章节无可用教材原文片段，其内容若涉及命题可能依赖训练记忆而非所选课本，请人工核对取材：${noTextChapters.slice(0, 10).join('、')}${noTextChapters.length > 10 ? '…' : ''}`);
     }
+    // 🔧 问题3：漏浏览整章校验。优先展示自动补齐结果；对仍漏（超上界时补不齐）的章列主编式提醒。
+    {
+      const skipped = computeSkipped();   // 复用同一判定，避免逻辑重复
+      if (filledSkipped && fillQualifiedSkipped.length) {
+        coverageNotes.push(`✅ 已自动补齐取材：发现漏浏览章节（${fillQualifiedSkipped.join('、')}），已将原文注入上下文后重新生成。`);
+      }
+      if (skipped.length) {
+        coverageNotes.push(`⚠️ 以下章节虽有可用原文素材但未及浏览取材，命题可能遗漏这些章：${skipped.slice(0, 12).join('、')}${skipped.length > 12 ? '…' : ''}（可扩大浏览或单独为该章生成）`);
+      }
+    }
     if (hitRoundLimit || (!content.trim() && (lastMsg?.tool_calls || []).length)) {
       coverageNotes.push('⚠️ 大范围教材浏览达到轮数上限，部分章节可能未及取材，请核对取材完整性。');
+    }
+    // 🔧 问题2兜底：正文截断续写达到上限仍不完整 → 提醒（放弃重试，交由编辑兜底）
+    if (hitTruncLimited) {
+      coverageNotes.push('⚠️ 浏览取到的原文已充分，但生成的正文多次续写仍被截断，末尾可能不完整；请人工查看末尾是否缺题或缺内容。');
     }
     return { content, coverageNotes };
   };
@@ -4416,9 +4487,9 @@ ${cardAnalysisText.substring(0, 1000)}
     const bodyNeeded = Math.round(Math.max(floorTok, selectedRawChars * bodyCfg.coef));
     const bodyOverCap = bodyNeeded > bodyCfg.cap;
     // 🔧 触顶升级（2026-09）：勾选量远超该类型预期（估算所需 > 槽 cap）时，不静默截断预算——
-    //    本次调用升级为实际所需（安全上界 mainTokenCeil 防发散），保证内容完整生成；
-    //    一旦如此，提示"范围较大，已自动加长预算"，请用户后续考虑缩小勾选或调大该类型上限。
-    const MAIN_TOKEN_CEIL = apiConfig.generationSettings.mainTokenCeil ?? 98304;
+    //    本次调用升级为实际所需（安全上界防发散），保证内容完整生成；提示"范围较大，已自动加长预算"。
+    //    注意：安全上界为程序侧固定常量（不进设置 UI），仅防极端发散，正常勾选不会触达。
+    const MAIN_TOKEN_CEIL = 98304;
     const bodyEffectiveCap = bodyOverCap ? Math.min(MAIN_TOKEN_CEIL, bodyNeeded) : bodyCfg.cap;
     const bodyDynamicCap = Math.round(Math.min(bodyEffectiveCap, bodyNeeded));
     // 答案页：split 才有独立答案页调用，用 answer 槽；once 无独立答案页（答案随正文，不走 here）
@@ -4493,6 +4564,7 @@ ${cardAnalysisText.substring(0, 1000)}
           genType, promptBase: prompt, contentCards, knowledgeMap,
           maxTokens: bodyDynamicCap,
           temperature: bodyTemperature,
+          generateMode,
         });
         browseCoverageNotes = bres?.coverageNotes || [];
         const bc = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeBlankMarkers(cleanSectionHtml(bres?.content || '')))));
