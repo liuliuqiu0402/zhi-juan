@@ -4113,20 +4113,29 @@ ${cardAnalysisText.substring(0, 1000)}
     const BROWSE_WRITE_CAP = 3;        // 正文截断续写上界（超此视为极端，放弃并交由编辑兜底）
     let lastMsg = null;
     let lastFr = '';
-    // 🔧 问题3增强档：漏章自动补齐（默认开，config.generationSettings.browseAutoFill）。
-    //    模型收敛出正文时，若还有"有素材但未浏览"的章 且 数量≤上界 → 程序确定性补一轮取料后回循环，
-    //    让模型看到补料再收敛出正文；补一轮后 filledSkipped=true，不再反复补（防死循环/成本失控）。
+    // 🔧 问题3增强档：漏章兜底覆盖（默认开，config.generationSettings.browseAutoFill）。
+    //    模型收敛出正文时，若还有"有素材但未浏览"的章 且 数量≤上界 → 先给模型一轮主动确认
+    //    （提示漏章清单，由其判断相关性并 browse），模型仍未采用时程序才确定性兜底取料回循环。
+    //    只各做一轮，filledSkipped=true 后不再反复（防死循环/成本失控）。落实程序-模型分工：
+    //    程序负责确定性检出+有界兜底+报告，模型保有"是否取某章素材"的主动性。
     const cfgGS = apiConfig.generationSettings || {};
     const autoFillSkipped = cfgGS.browseAutoFill !== false;
     const fillMax = Number(cfgGS.browseAutoFillMaxSkipped) > 0 ? Number(cfgGS.browseAutoFillMaxSkipped) : 3;
     let filledSkipped = false;
-    let fillQualifiedSkipped = [];       // 本次补料的候选漏章
+    let fillQualifiedSkipped = [];       // 本次程序兜底（确定性）落到上下文的章
+    let directiveSent = false;           // 漏章确认提示是否已发过一轮（只发一次，防死循环）
+    let notedSkipPrompted = [];          // 已交由模型确认的漏章候选（供生成报告溯源）
     const computeSkipped = () => {
-      const out = [];
+      const out = []; const seen = new Set();
       for (const card of contentCards || []) {
         if (!card?.chapterTitle) continue;
+        const key = normChapter(card.chapterTitle);
+        // 🔧 去重：同一章可能以多张卡片（词语/课文/习作）进入勾选，规范键相同即视为同一章，
+        //    避免同一章被重复判漏、重复兜底（V2 括号/空模板碰撞保护）
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
         const hasText = (card.segments || []).some((s) => (s.text || '').trim().length >= 10);
-        if (hasText && !browsed.has(normChapter(card.chapterTitle))) out.push(card.chapterTitle);
+        if (hasText && !browsed.has(key)) out.push(card.chapterTitle);
       }
       return out;
     };
@@ -4183,13 +4192,27 @@ ${cardAnalysisText.substring(0, 1000)}
         }
         continue;
       }
-      // 无工具调用 → 模型已收敛（准备出正文）。先检查是否需要漏章自动补齐。
+      // 无工具调用 → 模型已收敛（准备出正文）。先处理"漏章"（有素材但未浏览的章）：
+      //   不允许程序静默兜底绕过模型决策——先发一轮【漏章确认】指令让模型自行判断相关性并 browse；
+      //   模型仍未采用时，程序才确定性兜底取料（保证防旧教材覆盖），且兜底有界、报告溯源。
       if (autoFillSkipped && !filledSkipped) {
         const q = computeSkipped();
         if (q.length && q.length <= fillMax) {
+          if (!directiveSent) {
+            directiveSent = true;
+            notedSkipPrompted = q;
+            // 补 assistant（携带本轮未提交草稿，避免相邻两条 user 消息）+ 漏章确认指令
+            messages.push({ role: 'assistant', content: (typeof text === 'string' && text.trim()) ? text : '' });
+            messages.push({
+              role: 'user',
+              content: `【取材提示·漏章确认】所选范围内以下章节含教材原文素材但你尚未 browse：${q.join('、')}。请自行判断这些章节是否与本卷命题相关：相关章节请调用 browse_textbook 取料后再出正文；无关章节请直接在正文末尾以括号注明「未采用章节：…」后出正文，不要凭训练记忆编写原文。`,
+            });
+            statusText.value = `大范围浏览：检出 ${q.length} 个漏浏览章节，交由模型确认取材...`;
+            continue; // 给模型一轮主动决策
+          }
+          // 模型被提示后仍未 browse → 程序确定性兜底补料（本地取料，不新增外部请求），有界为界
           filledSkipped = true;
-          fillQualifiedSkipped = q;
-          // 程序确定性补料：把漏章原文直接注入上下文（本地取料，不新增外部请求），让模型看到后重新收敛。
+          fillQualifiedSkipped = q.slice(); // 仅记录本轮兜底兜住的章
           const filled = [];
           for (let i = 0; i < q.length; i++) {
             const ch = q[i];
@@ -4202,11 +4225,11 @@ ${cardAnalysisText.substring(0, 1000)}
           }
           if (filled.length) {
             messages.push(...filled);
-            statusText.value = `大范围浏览：检出漏浏览章节，自动补齐取材（${q.join('、')}）后继续...`;
-            continue; // 补料后回到循环，模型基于补料重新收敛出正文
+            statusText.value = `大范围浏览：漏浏览章节经确认后仍缺料，程序兜底补料（${q.join('、')}）后继续...`;
+            continue; // 兜底后回到循环，模型基于补料重新收敛出正文
           }
         }
-        filledSkipped = true; // 无待补/超上界：本轮起不再反复检测
+        filledSkipped = true; // 无待补/超上界：本轮起不再反复处理
       }
       // 无工具调用 → 本轮即正文（进入正文输出阶段；受 maxTokens 约束，截断用独立续写计数兜底）
       if (text) content = text;
@@ -4234,14 +4257,17 @@ ${cardAnalysisText.substring(0, 1000)}
     if (noTextChapters.length) {
       coverageNotes.push(`⚠️ 以下章节无可用教材原文片段，其内容若涉及命题可能依赖训练记忆而非所选课本，请人工核对取材：${noTextChapters.slice(0, 10).join('、')}${noTextChapters.length > 10 ? '…' : ''}`);
     }
-    // 🔧 问题3：漏浏览整章校验。优先展示自动补齐结果；对仍漏（超上界时补不齐）的章列主编式提醒。
+    // 🔧 问题3：漏浏览整章校验。区分「已交模型确认」/「程序兜底补料」/「最终仍未覆盖」，报告可溯源。
     {
-      const skipped = computeSkipped();   // 复用同一判定，避免逻辑重复
-      if (filledSkipped && fillQualifiedSkipped.length) {
-        coverageNotes.push(`✅ 已自动补齐取材：发现漏浏览章节（${fillQualifiedSkipped.join('、')}），已将原文注入上下文后重新生成。`);
+      const skipped = computeSkipped();   // 复用同一判定（含去重），避免逻辑重复
+      if (notedSkipPrompted.length) {
+        coverageNotes.push(`ℹ️ 已检出并交模型确认的漏浏览章节：${notedSkipPrompted.join('、')}——模型已按相关性取料或判定无关。`);
+      }
+      if (fillQualifiedSkipped.length) {
+        coverageNotes.push(`✅ 程序兜底补料：以下章节经确认后仍未采用，已将其原文注入上下文兜底覆盖，防止依赖训练记忆：${fillQualifiedSkipped.join('、')}。`);
       }
       if (skipped.length) {
-        coverageNotes.push(`⚠️ 以下章节虽有可用原文素材但未及浏览取材，命题可能遗漏这些章：${skipped.slice(0, 12).join('、')}${skipped.length > 12 ? '…' : ''}（可扩大浏览或单独为该章生成）`);
+        coverageNotes.push(`⚠️ 以下章节虽有可用原文素材但最终未及浏览，命题可能遗漏或依赖非所选教材：${skipped.slice(0, 12).join('、')}${skipped.length > 12 ? '…' : ''}（可扩大浏览或单独为该章生成）`);
       }
     }
     if (hitRoundLimit || (!content.trim() && (lastMsg?.tool_calls || []).length)) {
@@ -4491,7 +4517,7 @@ ${cardAnalysisText.substring(0, 1000)}
     //    注意：安全上界为程序侧固定常量（不进设置 UI），仅防极端发散，正常勾选不会触达。
     const MAIN_TOKEN_CEIL = 98304;
     const bodyEffectiveCap = bodyOverCap ? Math.min(MAIN_TOKEN_CEIL, bodyNeeded) : bodyCfg.cap;
-    const bodyDynamicCap = Math.round(Math.min(bodyEffectiveCap, bodyNeeded));
+    let bodyDynamicCap = Math.round(Math.min(bodyEffectiveCap, bodyNeeded)); // 注：浏览回退兜底时会按实际素材块重算
     // 答案页：split 才有独立答案页调用，用 answer 槽；once 无独立答案页（答案随正文，不走 here）
     const answerCfg = pickSlot('answer');
     const answerNeeded = Math.round(Math.max(floorTok, selectedRawChars * answerCfg.coef));
@@ -4582,6 +4608,13 @@ ${cardAnalysisText.substring(0, 1000)}
         if (diffKps?.length) fb += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}`;
         fb += `\n\n${generateMode === 'once' ? PAPER_OUTPUT_CONVENTIONS.once(subject, isSelfContainedTeaching) : PAPER_OUTPUT_CONVENTIONS.split(subject, isSelfContainedTeaching)}`;
         prompt = fb;
+        // 🔧 2026-09 自洽修正：回退后注入的是被 typeBudget 截断的素材块（≤ materialBlock），
+        //   而非勾选全量原文——预算若仍按 selectedRawChars 计算会虚高，诱发散写（费用+内容发散）。
+        //   按实际注入的素材块长度重算兜底预算（同样受槽 cap / 硬上界约束），与正文首次预算标尺一致。
+        const fbBlockLen = (materialBlock || '').length;
+        const fbNeeded = Math.round(Math.max(floorTok, fbBlockLen * bodyCfg.coef));
+        const fbOver = fbNeeded > bodyCfg.cap;
+        bodyDynamicCap = Math.round(Math.min(fbOver ? Math.min(MAIN_TOKEN_CEIL, fbNeeded) : bodyCfg.cap, fbNeeded));
         console.warn('📚 [教材浏览] 浏览未产出合格正文，回退单次全量注入。');
       }
     }

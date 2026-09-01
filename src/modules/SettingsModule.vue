@@ -415,11 +415,11 @@
           <div style="background:#f4f8fd;border:1px solid #dfe8f2;border-radius:8px;padding:8px 12px;margin-bottom:10px;">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
               <div style="flex:1;min-width:200px;">
-                <div style="font-size:12px;font-weight:600;color:#333;">🔧 大范围浏览·漏章自动补齐</div>
+                <div style="font-size:12px;font-weight:600;color:#333;">🔧 大范围浏览·漏章覆盖</div>
                 <div style="font-size:10px;color:#8896a8;margin-top:3px;line-height:1.5;">
                   大范围（整册/多章）浏览取材时，若某章<b>有教材原文素材但模型本次未浏览</b>：
-                  <span v-if="settings.value?.generationSettings?.browseAutoFill !== false" style="color:#1f6feb;">开 = 自动把那批漏章的原文注入上下文后重新生成（兜住章节覆盖不遗漏）；</span>
-                  <span v-else style="color:#8896a8;">关 = 仅列入生成报告的主编式提醒，不自动补料（省成本，由命题老师复核）。</span>
+                  <span v-if="settings.value?.generationSettings?.browseAutoFill !== false" style="color:#1f6feb;">开 = 先发一轮漏章确认给模型、由它判断是否取料；仍未采用时程序才确定性兜底补料（有界、报告标注程序兜底，保覆盖不遗漏）；</span>
+                  <span v-else style="color:#8896a8;">关 = 仅列入生成报告的主编式提醒，程序不补料（省成本，由命题老师复核）。</span>
                 </div>
               </div>
               <button class="btn-small" @click="toggleBrowseAutoFill" style="font-size:11px;padding:3px 12px;" :style="settings.value?.generationSettings?.browseAutoFill !== false ? 'background:#eaf4ff;color:#1f6feb;border:1px solid #1f6feb;' : ''">
@@ -964,11 +964,11 @@ const setAllPaths = (path) => {
 };
 
 // 🔧 大范围浏览·漏章自动补齐 开关（默认开）：
-//    开 = 检出漏浏览章节时程序自动补一轮取材后重新生成；关 = 仅列入主编式提醒。
+//    开 = 检出漏章先交模型确认、未采用时程序有界兜底补料（报告标注程序兜底）；关 = 仅列入主编式提醒。
 const toggleBrowseAutoFill = () => {
   const gs = settings.value.generationSettings || {};
   gs.browseAutoFill = (gs.browseAutoFill !== false) ? false : true;
-  saveStatus.value = gs.browseAutoFill === false ? '已切换为「仅提醒」：漏章不再自动补齐，只列主编式提醒。请点「保存设置」生效' : '已切换为「自动补齐」：检出漏章时自动补料后重新生成。请点「保存设置」生效';
+  saveStatus.value = gs.browseAutoFill === false ? '已切换为「仅提醒」：漏章不再交给模型确认/程序兜底，只列入主编式提醒。请点「保存设置」生效' : '已切换为「漏章覆盖」：检出漏章先交模型确认、未采用再由程序有界兜底补料。请点「保存设置」生效';
   setTimeout(() => { saveStatus.value = ''; }, 5000);
 };
 
