@@ -4205,7 +4205,7 @@ ${cardAnalysisText.substring(0, 1000)}
             messages.push({ role: 'assistant', content: (typeof text === 'string' && text.trim()) ? text : '' });
             messages.push({
               role: 'user',
-              content: `【取材提示·漏章确认】所选范围内以下章节含教材原文素材但你尚未 browse：${q.join('、')}。请自行判断这些章节是否与本卷命题相关：相关章节请调用 browse_textbook 取料后再出正文；无关章节请直接在正文末尾以括号注明「未采用章节：…」后出正文，不要凭训练记忆编写原文。`,
+              content: `【取材提示·漏章确认】所选范围内以下章节含教材原文素材但你尚未 browse：${q.join('、')}。请自行判断这些章节是否与本卷命题相关：相关章节请调用 browse_textbook 取料后再出正文；无关章节请直接在正文末尾以括号注明「未采用章节：…」后出正文，不要凭训练记忆编写原文。命题坚持素养立意、以情境为载体，依据学生在真实情境下解决问题的过程和结果评定其素养水平（课标原义）；命题素材可取自教材之外的真实情境、不限于所选教材，但须主题相关、难度适切。`,
             });
             statusText.value = `大范围浏览：检出 ${q.length} 个漏浏览章节，交由模型确认取材...`;
             continue; // 给模型一轮主动决策
