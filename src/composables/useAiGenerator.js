@@ -4002,6 +4002,190 @@ ${cardAnalysisText.substring(0, 1000)}
    * - 考查知识点清单（尾部锚点，中性措辞不加禁令）：生成时模型眼前即是覆盖范围
    * @returns {string} 素材块文本（空串 = 无素材）
    */
+  // ── 教材附件式浏览（大范围工具路径；设计文档 v2：Q1/Q2/Q3/Q6） ─────────
+  // 触发：勾选区累计原文字数 > 该类型素材预算 且 引擎支持 tools。
+  // 前缀仅含 指令(含目录骨架)+模板对标+情境+输出约定；原文与整册知识清单不入前缀，
+  // 由模型按章 browse 后置追加进 messages 尾部（缓存前缀不被大块原文扰动）。详见 design v2。
+  const TOOLS_SUPPORTED_PROVIDERS = ['deepseek', 'zhipu', 'volcano', 'alibaba'];
+  const clampB = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const normChapter = (t) => String(t || '').replace(/\s+/g, '').replace(/[（(].*?[)）]/g, '').trim();
+  const BROWSE_TOOL = {
+    type: 'function',
+    function: {
+      name: 'browse_textbook',
+      description: '浏览教材：按章节名从当前所选课本中取回该章的教材原文片段与该章知识点，作为本卷/本资料取材依据（教材版本以所选课本为准）。',
+      parameters: {
+        type: 'object',
+        properties: {
+          chapter: { type: 'string', description: '章节名，须列在【本资料覆盖范围·目录】中' },
+          knowledge: { type: 'string', description: '（可选）需要的知识点关键词' },
+        },
+        required: ['chapter'],
+      },
+    },
+  };
+  const BROWSE_SYSTEM = [
+    '你是教材命题/教辅编辑，依据当前所选课本与相应学段课标要求，生成正式卷面的正文。',
+    '【教材取材约定】',
+    '· 需要某章原文作依据时，调用 browse_textbook，按章节名取回该章的原文片段与该章知识点；',
+    '· 每个章节只需浏览一次，同一章节不可重复浏览；',
+    '· 取到本卷所需章节的原文后，必须立即停止调用工具，依据已浏览到的原文与课标术语完成命题，不再发起任何工具调用；',
+    '· 已浏览过的章节，直接依据已有的原文命题，不要重复调用。',
+    '· 不把具体选文名写进标题或大题名（大题名使用结构名）。',
+  ].join('\n');
+  const deriveBrowseParams = (budget) => {
+    const perBrowseCap = clampB(Math.round(budget / 12), 400, 1000);
+    return { perBrowseCap, maxRounds: clampB(Math.ceil(budget / perBrowseCap), 4, 15) };
+  };
+
+  // 大范围：程序侧确定性取料供给工具 browse_textbook；模型按章浏览、收敛后单主请求产出正文。
+  // 返回 { content, coverageNotes }——coverageNotes 为防旧教材的主编式提醒（只提示，不改写）。
+  const generateBodyByTextbookBrowse = async (params) => {
+    const { genType, promptBase, maxTokens, temperature, contentCards = [], knowledgeMap = null } = params;
+    const myBudget = GEN_CONST.MATERIAL_CHARS[genType] || 5000;
+    const { perBrowseCap, maxRounds } = deriveBrowseParams(myBudget);
+
+    // 章节→原文片段、章节→知识点 索引（与 buildMaterialBlock 同源，供 browse 确定性取料）
+    const chapterSegsBy = new Map();
+    for (const card of contentCards || []) {
+      const key = normChapter(card?.chapterTitle);
+      if (!key || !card?.segments?.length) continue;
+      chapterSegsBy.set(key, card.segments);
+      chapterSegsBy.set(card.chapterTitle, card.segments);
+    }
+    const chapterKpBy = new Map();
+    const addKp = (name, chs) => {
+      if (!name) return;
+      (chs || []).forEach((c) => {
+        if (!c) return;
+        const k = normChapter(c);
+        if (!chapterKpBy.has(k)) chapterKpBy.set(k, []);
+        if (!chapterKpBy.get(k).includes(name)) chapterKpBy.get(k).push(name);
+      });
+    };
+    for (const kp of (knowledgeMap?.knowledgePoints || [])) {
+      if (typeof kp === 'string') addKp(kp, []);
+      else if (kp?.name) addKp(kp.name, kp.relatedChapters || []);
+    }
+    const buildBrowseResult = (chapter) => {
+      const segs = chapterSegsBy.get(normChapter(chapter)) || chapterSegsBy.get(chapter) || [];
+      let frag = '';
+      let used = 0;
+      const candidates = (segs || [])
+        .filter((s) => (s.text || '').trim().length >= 10)
+        .sort((a, b) => (b.isKeyConcept ? 1 : 0) - (a.isKeyConcept ? 1 : 0));
+      for (const s of candidates) {
+        const t = s.text.trim();
+        if (used + t.length > perBrowseCap) break;
+        frag += `\n· ${t}`;
+        used += t.length + 2;
+      }
+      const kp = chapterKpBy.get(normChapter(chapter)) || [];
+      const head = frag
+        ? `【${chapter}】教材原文（节选，教材版本以所选课本为准）：${frag}`
+        : `【${chapter}】该章未检索到可用原文片段。若非目录所列章节名，请改用目录中的章节名；确属范围内仍无片段，请跳过该章知识点，不要凭训练记忆编写。`;
+      return kp.length ? `${head}\n【该章知识点】${kp.slice(0, 20).join('、')}` : head;
+    };
+
+    const cfg = await getCurrentEngineConfigEnhanced('generation', { promptLength: estimateTokens(promptBase) });
+    const apiUrl = (cfg.baseUrl || '').includes('/chat/completions')
+      ? cfg.baseUrl
+      : `${(cfg.baseUrl || '').replace(/\/$/, '')}/chat/completions`;
+    const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` };
+    const provider = cfg.provider;
+    const baseBody = {
+      model: cfg.model, temperature, top_p: apiConfig.generationSettings.topP || 0.9, stream: false,
+      tools: [BROWSE_TOOL], tool_choice: 'auto',
+      ...(provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),
+      ...(provider === 'volcano' ? { thinking: { type: 'disabled' } } : {}),
+      ...(provider === 'zhipu' ? { thinking: { type: 'disabled' } } : {}),
+      ...(provider === 'alibaba' ? { enable_thinking: false } : {}),
+    };
+    const messages = [
+      { role: 'system', content: BROWSE_SYSTEM },
+      { role: 'user', content: promptBase },
+    ];
+    const browsed = new Set();
+    let content = '';
+    let hitRoundLimit = false;
+    let lastMsg = null;
+    let lastFr = '';
+    const combineAbort = (signals) => {
+      const ctrl = new AbortController();
+      const onAbort = () => ctrl.abort();
+      for (const s of signals) if (s && !s.aborted) { s.addEventListener('abort', onAbort, { once: true }); }
+      if (signals.some((s) => s?.aborted)) ctrl.abort();
+      return { signal: ctrl.signal, dispose: () => signals.forEach((s) => s && s.removeEventListener('abort', onAbort)) };
+    };
+    for (let round = 0; round <= maxRounds; round++) {
+      if (abortController.value?.signal?.aborted) throw new Error('生成已取消');
+      let data;
+      const ab = combineAbort([abortController.value?.signal, AbortSignal.timeout(getTimeout('generation'))]);
+      try {
+        const resp = await fetch(apiUrl, {
+          method: 'POST', headers,
+          body: JSON.stringify({ ...baseBody, messages, max_tokens: maxTokens }),
+          signal: ab.signal,
+        });
+        const bodyText = await resp.text();
+        if (!resp.ok) {
+          if (resp.status >= 500) deepseekBreaker.fail();
+          throw await normalizeFetchError(null, resp);
+        }
+        try { data = await new Response(bodyText).json(); }
+        catch {
+          deepseekBreaker.fail();
+          throw await normalizeFetchError(null, resp);
+        }
+        deepseekBreaker.success();
+      } catch (e) {
+        if (abortController.value?.signal?.aborted) throw e;
+        throw e;
+      } finally {
+        ab.dispose();
+      }
+      lastMsg = data?.choices?.[0]?.message || {};
+      lastFr = data?.choices?.[0]?.finish_reason || '';
+      const text = typeof lastMsg.content === 'string' ? lastMsg.content : '';
+      if (lastMsg.tool_calls && lastMsg.tool_calls.length) {
+        if (text) content += text;
+        if (round >= maxRounds) hitRoundLimit = true;
+        messages.push({ role: 'assistant', content: text || null, tool_calls: lastMsg.tool_calls.map((tc) => ({ id: tc.id || '', type: 'function', function: { name: tc.function?.name || 'browse_textbook', arguments: String(tc.function?.arguments || '{}') } })) });
+        for (const tc of lastMsg.tool_calls) {
+          let arg = {};
+          try { arg = JSON.parse(tc.function?.arguments || '{}'); } catch { arg = {}; }
+          const ch = String(arg.chapter || '').trim();
+          let resultStr;
+          if (!ch) resultStr = buildBrowseResult('');
+          else if (browsed.has(normChapter(ch))) resultStr = `［提示］章节「${ch}」已浏览过，请直接依据已有原文命题，不要重复浏览。`;
+          else { browsed.add(normChapter(ch)); resultStr = buildBrowseResult(ch); }
+          messages.push({ role: 'tool', tool_call_id: tc.id || '', content: resultStr });
+        }
+        continue;
+      }
+      // 无工具调用 → 本轮即正文
+      if (text) content = text;
+      if (lastFr === 'length' && round < maxRounds) {
+        messages.push({ role: 'assistant', content: text || '' });
+        messages.push({ role: 'user', content: '【续写】上次输出被截断，请直接从停止处继续完成剩余内容，不要重复已有内容。' });
+        continue;
+      }
+      break;
+    }
+    // 防旧教材覆盖校验（确定性，不靠模型兜底；只提示、不改写）
+    const coverageNotes = [];
+    const noTextChapters = (contentCards || [])
+      .filter((c) => !(c.segments || []).some((s) => (s.text || '').trim().length >= 10))
+      .map((c) => c.chapterTitle).filter(Boolean);
+    if (noTextChapters.length) {
+      coverageNotes.push(`⚠️ 以下章节无可用教材原文片段，其内容若涉及命题可能依赖训练记忆而非所选课本，请人工核对取材：${noTextChapters.slice(0, 10).join('、')}${noTextChapters.length > 10 ? '…' : ''}`);
+    }
+    if (hitRoundLimit || (!content.trim() && (lastMsg?.tool_calls || []).length)) {
+      coverageNotes.push('⚠️ 大范围教材浏览达到轮数上限，部分章节可能未及取材，请核对取材完整性。');
+    }
+    return { content, coverageNotes };
+  };
+
   const buildMaterialBlock = ({ contentCards = [], knowledgeMap = null, maxChars = 8000 } = {}) => {
     // 1. 结构化目录（范围锚定：先给目录确定命题范围，不遗漏、不越界）
     const titles = [];
@@ -4178,7 +4362,31 @@ ${cardAnalysisText.substring(0, 1000)}
     // ── 素材构建：按知识点检索（目录 + 知识点清单 + 相关片段，分级限量，非硬截断） ──
     // 素材量按类型差异化（内容型资料需充分原文、引导型资料适量即可，避免信息过载）
     const MATERIAL_CHARS = GEN_CONST.MATERIAL_CHARS;
-    const materialBlock = buildMaterialBlock({ contentCards, knowledgeMap, maxChars: MATERIAL_CHARS[genType] || 5000 });
+    const materialBudget = MATERIAL_CHARS[genType] || 5000;
+    const materialBlock = buildMaterialBlock({ contentCards, knowledgeMap, maxChars: materialBudget });
+    // ── 大/小范围判定（设计 v2·Q1）：不做章节数判定，按勾选区累计原文字数；
+    //    超该类型素材预算（即单次注入会被 maxChars 截断）且引擎支持工具 → 走附件式浏览路径 ──
+    const selectedRawChars = (contentCards || []).reduce(
+      (s, c) => s + (c.segments || []).reduce((ss, p) => ss + (p && p.text ? p.text.length : 0), 0), 0);
+    const largeBrowsing = selectedRawChars > materialBudget;
+    const browseTitles = [];
+    for (const c of contentCards || []) {
+      if (c?.chapterTitle && !browseTitles.includes(c.chapterTitle)) browseTitles.push(c.chapterTitle);
+    }
+    // 浏览路径前缀只放"目录骨架"作范围锚，不放大段原文/整册知识清单（整册清单会撑爆前缀）
+    const browseAnchor = browseTitles.length
+      ? `【本资料覆盖范围·目录】（命题范围以本目录为准，覆盖全部章节，不遗漏、不越界）\n${browseTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
+      : '';
+    let browsePath = false;
+    if (largeBrowsing) {
+      try {
+        const gateCfg = await getCurrentEngineConfigEnhanced('generation', { promptLength: Math.min(selectedRawChars, 4000) });
+        browsePath = TOOLS_SUPPORTED_PROVIDERS.includes(gateCfg?.provider);
+        if (browsePath) console.log(`📚 [教材浏览] 勾选原文 ${selectedRawChars} 字 > ${materialBudget}，走附件式工具浏览路径`);
+      } catch (e) {
+        browsePath = false; // 引擎可配置探询失败 → 安全回退单次注入，不阻断生成
+      }
+    }
 
     // 🔴 标题根治兜底：标题只由命名规范占位符组成——模型若把任务行类型名（如"考卷"）拼进 h1，
     //    代码强制移除（仅移除"空格/分隔符+类型词"形态，不误伤名称池合法词如"测试卷"贴正文的情况）
@@ -4190,8 +4398,10 @@ ${cardAnalysisText.substring(0, 1000)}
     });
 
     // ── 组装最终 prompt：注入指令 + 附加块（素材/模板对标/情境/差异化，用户配置了才加） ──
+    // 浏览路径用"目录骨架"作前缀范围锚；单次注入用完整素材块（原文/知识清单）——两者顺序与后缀块均一致
+    const activeBlock = browsePath ? browseAnchor : materialBlock;
     let prompt = instruction.trim();
-    if (materialBlock) prompt += `\n\n${materialBlock}`;
+    if (activeBlock) prompt += `\n\n${activeBlock}`;
     if (templateInfo?.trim()) prompt += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
     if (contextFramework?.trim()) prompt += `\n\n${contextFramework.trim()}`;
     if (diffKps?.length) {
@@ -4234,9 +4444,40 @@ ${cardAnalysisText.substring(0, 1000)}
     progress.value = 45;
     let content = '';
     let lastErr = null;
+    let browseCoverageNotes = [];
+    // ── 大范围工具路径：先按章 browse 取材后再生成正文；失败自动回退单次全量注入（一次生成成功优先） ──
+    if (browsePath) {
+      statusText.value = `整卷生成：大范围教材浏览取材中（工具路径，${modeLabel}）...`;
+      try {
+        const bres = await generateBodyByTextbookBrowse({
+          genType, promptBase: prompt, contentCards, knowledgeMap,
+          maxTokens: (generateMode === 'once'
+            ? (apiConfig.generationSettings.paperOnceMaxTokens || 49152)
+            : (apiConfig.generationSettings.paperBodyMaxTokens || 32768)),
+          temperature: bodyTemperature,
+        });
+        browseCoverageNotes = bres?.coverageNotes || [];
+        const bc = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeBlankMarkers(cleanSectionHtml(bres?.content || '')))));
+        if (bc && bc.length > GEN_CONST.BODY_VALID_MIN_LEN) content = bc;
+      } catch (e) {
+        lastErr = e;
+        console.warn('⚠️ 教材浏览路径失败，回退单次全量注入:', e.message);
+      }
+      if (!content) {
+        // 回退单次注入：恢复完整素材块（目录骨架不足以支撑命题）
+        let fb = instruction.trim();
+        if (materialBlock) fb += `\n\n${materialBlock}`;
+        if (templateInfo?.trim()) fb += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
+        if (contextFramework?.trim()) fb += `\n\n${contextFramework.trim()}`;
+        if (diffKps?.length) fb += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}`;
+        fb += `\n\n${generateMode === 'once' ? PAPER_OUTPUT_CONVENTIONS.once(subject, isSelfContainedTeaching) : PAPER_OUTPUT_CONVENTIONS.split(subject, isSelfContainedTeaching)}`;
+        prompt = fb;
+        console.warn('📚 [教材浏览] 浏览未产出合格正文，回退单次全量注入。');
+      }
+    }
     // 🔴 思考模式耗尽降级：推理 chunks 巨大且正文为空（finish_reason=length 截断在推理阶段）→ 重试强制关闭思考
     let retryWithoutThinking = false;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 2 && !content; attempt++) {
       try {
         const resp = await callAI(prompt, {
           taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
@@ -4441,6 +4682,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       auditWarnings.push('⚠️ 答案页生成失败/为空（正文已生成）。排查方向：① 引擎是否强制推理（推理会占用答案预算，可在设置关闭对应引擎思考开关）；② 「答案页输出上限」是否过小；③ 正文超「答案页上下文上限」时答案只能看到前段；④ 切换两次生成模式重试。');
     }
     if (answerSkipNote) auditWarnings.push(answerSkipNote);
+    if (browseCoverageNotes.length) auditWarnings.push(...browseCoverageNotes);
 
     // 🔴 生成方式提示：auto 模式下告知用户本次实际走的路径，并引导其到设置固定（用户必须清楚自己配置了什么）
     if (paperModeSetting === 'auto') {
