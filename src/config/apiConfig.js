@@ -493,14 +493,31 @@ export const apiConfig = reactive({
     //    'once'  一次成型：正文+答案一次输出（上下文全程一致；答案部分与正文共用 paperTemperature，知识型/错题/听写推荐）
     //    'auto'  自动按资料类型（两条路都可用）：纯题型（exam/practice/special/review）→ split；
     //            知识型/听写/错题（reading/summary/preview/dictation/errorbook）→ once
-    paperGenerateMode: 'auto',
-    // 🔧 整卷输出预算（tokens，设置页可调；思考模式下按 thinkingBudgetMultiplier 放大——
+    // 🔧 每类型输出预算见下方 budgetByType（每类型已含路径 mode 与三槽 cap，动态为主，无需全局上限）。
+    // 🔧 整卷输出预算（tokens，思考模式下按 thinkingBudgetMultiplier 放大——
     //    推理 token 与正文共享 max_tokens 配额，需给推理预留余量）
-    paperBodyMaxTokens: 32768,          // 两次生成：整卷正文单次输出上限
-    paperOnceMaxTokens: 49152,          // 一次成型：正文+答案一次输出上限
-    answerMaxTokens: 16384,             // 两次生成：答案页独立输出上限
     answerContextMaxChars: 24000,       // 答案页输入：正文纯文本上限（正文超过此长度时答案只看前 N 字符；高中大卷建议调大至 40000-60000）
     thinkingBudgetMultiplier: 2,        // 思考模式输出预算放大倍数
+    // 🔧 每类型动态输出预算（2026-09 重构）：预算 = min(槽位硬上限 cap, max(floor, 勾选字符 × 当前系数))。
+    //    动态是主预算：正常勾选范围下 cap 不介入，动态系数直接生效；仅当勾选远超该类型预期才触 cap（提示范围过大）。
+    //    budgetByType[type] = {
+    //      mode: 'auto'|'split'|'once'        —— 该类型生成路径（auto=按 PAPER_SPLIT_TYPES 内置最合适）
+    //      tier: 'economy'|'balanced'|'full'|'custom'  —— 用户为该类型当前选中的档位；手填后切 'custom'
+    //      body/answer/once: { economy,balanced,full, cap, custom }  —— 三套各自三档系数(每字符token率) + 槽硬上限token + slip供手填
+    //    手填：custom 非空即生效（同时 tier 切 'custom'，界面三档取消高亮）。
+    budgetByType: {
+      exam:     { mode: 'auto', tier: 'balanced', body: { economy: 0.7, balanced: 1.2, full: 1.6, cap: 32768, custom: null }, answer: { economy: 0.35, balanced: 0.6, full: 0.8, cap: 16384, custom: null }, once: { economy: 1.0, balanced: 1.5, full: 2.0, cap: 49152, custom: null } },
+      practice: { mode: 'auto', tier: 'balanced', body: { economy: 0.5, balanced: 0.9, full: 1.2, cap: 20000, custom: null }, answer: { economy: 0.25, balanced: 0.45, full: 0.6, cap: 10000, custom: null }, once: { economy: 0.7, balanced: 1.1, full: 1.4, cap: 30000, custom: null } },
+      special:  { mode: 'auto', tier: 'balanced', body: { economy: 0.5, balanced: 0.9, full: 1.2, cap: 20000, custom: null }, answer: { economy: 0.25, balanced: 0.45, full: 0.6, cap: 10000, custom: null }, once: { economy: 0.7, balanced: 1.1, full: 1.4, cap: 30000, custom: null } },
+      reading:  { mode: 'auto', tier: 'balanced', body: { economy: 0.8, balanced: 1.5, full: 1.9, cap: 20000, custom: null }, answer: { economy: 0.4, balanced: 0.75, full: 0.95, cap: 10000, custom: null }, once: { economy: 1.0, balanced: 1.6, full: 2.0, cap: 30000, custom: null } },
+      summary:  { mode: 'auto', tier: 'balanced', body: { economy: 0.7, balanced: 1.25, full: 1.6, cap: 20000, custom: null }, answer: { economy: 0.35, balanced: 0.6, full: 0.8, cap: 10000, custom: null }, once: { economy: 0.9, balanced: 1.4, full: 1.8, cap: 30000, custom: null } },
+      review:   { mode: 'auto', tier: 'balanced', body: { economy: 0.7, balanced: 1.25, full: 1.6, cap: 20000, custom: null }, answer: { economy: 0.35, balanced: 0.6, full: 0.8, cap: 10000, custom: null }, once: { economy: 0.9, balanced: 1.4, full: 1.8, cap: 30000, custom: null } },
+      preview:  { mode: 'auto', tier: 'balanced', body: { economy: 1.0, balanced: 1.7, full: 2.0, cap: 12000, custom: null }, answer: { economy: 0.5, balanced: 0.85, full: 1.0, cap: 6000, custom: null }, once: { economy: 1.2, balanced: 1.9, full: 2.2, cap: 16000, custom: null } },
+      dictation: { mode: 'auto', tier: 'balanced', body: { economy: 0.6, balanced: 1.0, full: 1.4, cap: 12000, custom: null }, answer: { economy: 0.3, balanced: 0.5, full: 0.7, cap: 6000, custom: null }, once: { economy: 0.8, balanced: 1.2, full: 1.6, cap: 16000, custom: null } },
+      errorbook: { mode: 'auto', tier: 'balanced', body: { economy: 0.6, balanced: 1.1, full: 1.5, cap: 12000, custom: null }, answer: { economy: 0.3, balanced: 0.55, full: 0.75, cap: 6000, custom: null }, once: { economy: 0.8, balanced: 1.3, full: 1.7, cap: 16000, custom: null } },
+    },
+    // 🔧 各类型系数内置下限（不含在界面配置，确定性兜底防异常小）；上限由每槽 cap 承担
+    budgetClamp: { floorTokens: 800, },
     // 🔧 各引擎整卷生成深度思考开关（生成端按当前引擎读取对应开关；其余任务始终关闭思考）
     deepseekGenerationThinking: false,
     volcanoGenerationThinking: false,

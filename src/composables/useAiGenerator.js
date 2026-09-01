@@ -562,27 +562,24 @@ const cleanReasoningOutput = (text) => {
     return t.trim();
   };
   
-  // ===== 格式A：markdown 代码块提取（处理对话前缀+代码块的情况）=====
-  // 匹配 ```html ... ``` 或 ``` ... ```，提取代码块内内容
-  // 🔧 使用 [\s\n]* 而非 \s*\n，兼容 AI 在 ```html 后跟空格而非换行的情况
-  const mdBlockRegex = /```(?:html?|HTML?)?[\s\n]*([\s\S]*?)\n?```/g;
-  const mdBlocks = [];
-  let mdMatch;
-  while ((mdMatch = mdBlockRegex.exec(text)) !== null) {
-    mdBlocks.push(mdMatch[1].trim());
-  }
-  // 找到了代码块 → 合并所有块内容
-  if (mdBlocks.length > 0) {
-    const extracted = mdBlocks.join('\n\n');
-    if (extracted.length > 20) return sanitize(extracted);
-    // 🔧 代码块存在但内容为空/过短（如 AI 返回了 ```html ``` 空壳）
-    // 尝试从代码块之外寻找 HTML 内容
-    const withoutBlocks = text.replace(/```(?:html?|HTML?)?[\s\n]*[\s\S]*?\n?```/g, '').trim();
-    const fallbackHtmlIdx = withoutBlocks.search(/<(!DOCTYPE|html|head|body|h[1-6]|p\b|div|table|ul|ol|span)\b/i);
-    if (fallbackHtmlIdx >= 0) {
-      return sanitize(withoutBlocks.substring(fallbackHtmlIdx));
-    }
-    // 🔧 代码块为空且外部无HTML → 返回空，触发错误提示而非导出乱码
+  // ===== 格式A：markdown 代码块处理（剥除 ``` 包裹标记，保留代码块内外的全部正文）=====
+  // 🔴 回归修复：此前"只提取代码块内内容、丢弃代码块外正文"，导致模型在"叙述＋多代码块"
+  //    混排输出时，代码块外的教材正文/作答横线载体被整段剥除（7万字符 → 5千，内容量不足+横线丢失）。
+  //    改为：仅剥除 ```html/``` 包裹标记本身，代码块内与代码块外的内容一并保留（去对话前缀/后缀走 sanitize）。
+  //    单个代码块包裹全文的形态同样成立（剥标记后即全文正文）。
+  if (/(```|```html)/.test(text)) {
+    // 仅剥除 ```html?/ ``` 包裹标记词本身，标记外与标记内的全部正文一并保留
+    let cleaned = text.replace(/```(?:html?|HTML?)?/gi, '');
+    cleaned = cleaned.replace(/\n\s*\n\s*\n+/g, '\n\n'); // 压缩剥标记后产生的多余空行
+    // 🔧 剥除叙述前缀：首个 HTML 标签前的对话式开场（"以下是为您生成…""这是…"）不保留，
+    //    后续 body 提取/convertBlankFormat 均需相对干净的正文输入
+    const pIdx = cleaned.search(/<(!DOCTYPE|html|head|body|h[1-6]|p\b|div|table|ul|ol|span|u\b)\b/i);
+    if (pIdx > 0 && pIdx < 2000) cleaned = cleaned.substring(pIdx);
+    const withoutBlocks = cleaned.trim();
+    if (withoutBlocks.length > 20) return sanitize(withoutBlocks);
+    // 标记剥除后内容过短（空壳），回退按是否含 HTML 判定
+    const fallbackHtmlIdx = withoutBlocks.search(/<(!DOCTYPE|html|head|body|h[1-6]|p\b|div|table|ul|ol|span|u\b)\b/i);
+    if (fallbackHtmlIdx >= 0) return sanitize(withoutBlocks.substring(fallbackHtmlIdx));
     return '';
   }
   
@@ -4388,6 +4385,52 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     }
 
+    // ── 动态输出预算帽（2026-09）：正文 maxTokens 不再固定取用户档位，而是按
+    //    勾选区原文字符量×类型系数推导，在用户固定档之内收紧——防止模型在小范围勾选
+    //    （1课/单元）时发散写满大预算（费用虚高+内容散乱）。三档策略用户可调。
+    //    原则：只收紧不放大（取 min(动态帽, 用户档位)），大范围勾选自然放大但仍不超用户档。
+    //    系数为程序确定性常量（非 Prompt 诱导），exp 目的：原文量饱和后输出增长趋缓。
+    // ── 每类型动态预算解析（2026-09 重构，从设置页 budgetByType 读取）──
+    // 系数"每字符产出 token 率"× 勾选原文量 → 该次预算目标；取手填 custom（tier 为 custom）或当前档位系数，
+    // 再 clamp 到 [floorTokens, 该槽硬上限 cap]。动态是主预算；cap 仅在勾选远超类型预期时才触顶。
+    const bbt = apiConfig.generationSettings.budgetByType?.[genType] || {};
+    // 🔴 路径决定（2026-09 重构）：优先读该类型的 mode（auto/split/once，设置页每类型可独立选）；
+    //    auto 时回退到内置类型表（纯题型→split、知识型→once）。全局"整卷生成方式"已移除，路径完全由每类型决定。
+    //  ⚠️ 必须在预算解析（pickSlot/bodyNeeded）之前声明——下方按 generateMode 选择 body/once 槽。
+    const PAPER_SPLIT_TYPES = ['exam', 'practice', 'special', 'review'];
+    const typeBudgetCfg = bbt;
+    const typeMode = typeBudgetCfg.mode || 'auto';
+    const generateMode = typeMode !== 'auto' ? typeMode
+      : (PAPER_SPLIT_TYPES.includes(genType) ? 'split' : 'once');
+    const pickSlot = (slot) => {
+      const s = bbt[slot] || null;
+      if (!s) return { coef: 1.0, cap: 32768 };
+      const tier = bbt.tier || 'balanced';
+      const coef = (typeof s.custom === 'number' && s.custom > 0) ? s.custom
+        : (typeof s[tier] === 'number' ? s[tier] : (typeof s.balanced === 'number' ? s.balanced : 1.0));
+      return { coef: coef || 1.0, cap: (typeof s.cap === 'number' && s.cap > 0) ? s.cap : 32768 };
+    };
+    const floorTok = apiConfig.generationSettings.budgetClamp?.floorTokens ?? 800;
+    // split：正文用 body 槽（系数+cap）；once：正文+答案共用 once 槽
+    const bodyCfg = pickSlot(generateMode === 'once' ? 'once' : 'body');
+    const bodyNeeded = Math.round(Math.max(floorTok, selectedRawChars * bodyCfg.coef));
+    const bodyOverCap = bodyNeeded > bodyCfg.cap;
+    // 🔧 触顶升级（2026-09）：勾选量远超该类型预期（估算所需 > 槽 cap）时，不静默截断预算——
+    //    本次调用升级为实际所需（安全上界 mainTokenCeil 防发散），保证内容完整生成；
+    //    一旦如此，提示"范围较大，已自动加长预算"，请用户后续考虑缩小勾选或调大该类型上限。
+    const MAIN_TOKEN_CEIL = apiConfig.generationSettings.mainTokenCeil ?? 98304;
+    const bodyEffectiveCap = bodyOverCap ? Math.min(MAIN_TOKEN_CEIL, bodyNeeded) : bodyCfg.cap;
+    const bodyDynamicCap = Math.round(Math.min(bodyEffectiveCap, bodyNeeded));
+    // 答案页：split 才有独立答案页调用，用 answer 槽；once 无独立答案页（答案随正文，不走 here）
+    const answerCfg = pickSlot('answer');
+    const answerNeeded = Math.round(Math.max(floorTok, selectedRawChars * answerCfg.coef));
+    const answerOverCap = answerNeeded > answerCfg.cap;
+    const answerEffectiveCap = answerOverCap ? Math.min(MAIN_TOKEN_CEIL, answerNeeded) : answerCfg.cap;
+    const answerDynamicCap = Math.round(Math.min(answerEffectiveCap, answerNeeded));
+    const budgetAlert = (bodyOverCap ? `${genType}正文估算${bodyNeeded}token 超上限${bodyCfg.cap}，已自动加长预算` : '')
+      + (answerOverCap ? `；答案页估算${answerNeeded}token 超上限${answerCfg.cap}，已自动加长` : '');
+    console.log(`[每类型预算] ${genType}: 路径=${generateMode} 勾选原文=${selectedRawChars}字 所需=${bodyNeeded}→帽=${bodyDynamicCap}(cap=${bodyCfg.cap}${bodyOverCap ? ' 已升级' : ''}/coef=${bodyCfg.coef}) 答案帽=${answerDynamicCap}(cap=${answerCfg.cap})`);
+
     // 🔴 标题根治兜底：标题只由命名规范占位符组成——模型若把任务行类型名（如"考卷"）拼进 h1，
     //    代码强制移除（仅移除"空格/分隔符+类型词"形态，不误伤名称池合法词如"测试卷"贴正文的情况）
     const stripTypeWordFromTitle = (html) => String(html || '').replace(/<h1[^>]*>([\s\S]*?)<\/h1>/i, (m, t) => {
@@ -4411,19 +4454,16 @@ ${cardAnalysisText.substring(0, 1000)}
     //    'split' 两次生成：正文一次 + 答案页独立一次（温度/角色分层，纯题型推荐）
     //    'once'  一次成型：正文+答案一次输出（上下文全程一致，知识型/错题/听写推荐）
     //    'auto'  自动按资料类型（两条路都可用）：纯题型 → split；知识型/听写/错题 → once
-    const PAPER_SPLIT_TYPES = ['exam', 'practice', 'special', 'review'];
+    //   (PAPER_SPLIT_TYPES 与 generateMode 已在上方预算解析前声明)
     // 🔧 自包含教辅（正文本身即内容梳理：知识总结/复习/课前预习/默写积累/错题本）：
     //    答案区必须只对练习/自测/例题作答，严禁把正文的知识梳理整体复述到答案区。
     //    归入此集合后：once 不再强制"另起一部分输出参考答案"而改为"答案区仅逐题作答"；
     //    split 独立答案页角色注入"勿复述正文梳理"硬约束。
     const SELF_CONTAINED_TEACHING = ['summary', 'review', 'preview', 'dictation', 'errorbook'];
     const isSelfContainedTeaching = SELF_CONTAINED_TEACHING.includes(genType);
-    const paperModeSetting = apiConfig.generationSettings.paperGenerateMode || 'auto';
-    const generateMode = paperModeSetting === 'auto'
-      ? (PAPER_SPLIT_TYPES.includes(genType) ? 'split' : 'once')
-      : paperModeSetting;
     const modeLabel = generateMode === 'once' ? '一次成型' : '两次生成';
-    const modeSource = paperModeSetting === 'auto' ? `自动按类型（${genType}→${modeLabel}）` : `设置（${modeLabel}）`;
+    const modeSource = typeMode !== 'auto' ? `每类型设置（${genType}→${modeLabel}）`
+      : `自动按类型（${genType}→${modeLabel}）`;
     console.log(`[生成方式] ${modeSource}，本卷走「${modeLabel}」路径`);
     // 🔧 once 模式温度折中：正文与答案同一次输出，取「整卷正文温度」与「答案页温度」的均值
     //    （默认 (0.7+0.3)/2=0.5），兼顾正文创作性与答案严谨性；
@@ -4451,9 +4491,7 @@ ${cardAnalysisText.substring(0, 1000)}
       try {
         const bres = await generateBodyByTextbookBrowse({
           genType, promptBase: prompt, contentCards, knowledgeMap,
-          maxTokens: (generateMode === 'once'
-            ? (apiConfig.generationSettings.paperOnceMaxTokens || 49152)
-            : (apiConfig.generationSettings.paperBodyMaxTokens || 32768)),
+          maxTokens: bodyDynamicCap,
           temperature: bodyTemperature,
         });
         browseCoverageNotes = bres?.coverageNotes || [];
@@ -4481,13 +4519,9 @@ ${cardAnalysisText.substring(0, 1000)}
       try {
         const resp = await callAI(prompt, {
           taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
-          // 🔴 整卷输出预算来自设置页（paperBodyMaxTokens / paperOnceMaxTokens），按所选路径读取；
-          //    思考模式按 thinkingBudgetMultiplier 放大（推理 token 与正文共享 max_tokens 配额，
-          //    需给推理预留余量，防止推理吃满预算导致正文被截断）
-          maxTokens: (generateMode === 'once'
-            ? (apiConfig.generationSettings.paperOnceMaxTokens || 49152)
-            : (apiConfig.generationSettings.paperBodyMaxTokens || 32768))
-            * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)),
+          // 🔴 整卷输出预算：正文 base 取「每类型动态帽」（已含触顶升级：勾选超 cap 时自动加长到所需，
+          //    不静默截断预算）；思考模式按 thinkingBudgetMultiplier 放大（推理与正文共享配额，需给推理预留余量）
+          maxTokens: bodyDynamicCap * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)),
           allowContinuation: false,
           // 🔧 整卷正文温度：split 用「整卷正文温度」；once 用折中温度（见上方 bodyTemperature）
           temperature: bodyTemperature,
@@ -4514,7 +4548,7 @@ ${cardAnalysisText.substring(0, 1000)}
           console.warn(`⚠️ 整卷输出${trunc.byReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，自动续写一次...`);
           const contResp = await callAI(
             `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
-            { taskType: 'generation', timeout: getTimeout('generation'), retries: 0, maxTokens: (generateMode === 'once' ? (apiConfig.generationSettings.paperOnceMaxTokens || 49152) : (apiConfig.generationSettings.paperBodyMaxTokens || 32768)) * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)), allowContinuation: false, temperature: bodyTemperature, thinking: retryWithoutThinking ? false : undefined }
+            { taskType: 'generation', timeout: getTimeout('generation'), retries: 0, maxTokens: bodyDynamicCap * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)), allowContinuation: false, temperature: bodyTemperature, thinking: retryWithoutThinking ? false : undefined }
           );
           const contHtml = normalizeIndents(normalizeBlankMarkers(cleanSectionHtml(typeof contResp === 'string' ? contResp : (contResp?.content || ''))));
           if (contHtml && contHtml.length > 100) content = content + '\n' + contHtml;
@@ -4585,7 +4619,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         const ansThinking = getGenerationThinkingEnabled();
         const ansResp = await callAI(ansPrompt, {
           taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
-          // 🔴 答案页输出预算来自设置页（answerMaxTokens）；思考模式按 thinkingBudgetMultiplier 放大
+          // 🔴 答案页输出预算来自每类型 answer 槽的 answerDynamicCap；思考模式按 thinkingBudgetMultiplier 放大
           //    （推理预留 + 答案输出），并设 20K 推理上限流式中止止损（答案页短输出，推理可控）
           // 🔧 答案页温度走设置页（answerTemperature）
           // 🔴 allowContinuation:true → 输出被截断（finish_reason=length / reasoning_capped）时自动续写补齐——
@@ -4593,7 +4627,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           // 🔴 returnMeta:true → 带出 finishReason / reasoningChunkCount，检测"思考耗尽"（与正文 retryWithoutThinking 对称）：
           //    答案页要逐题作答+评分标准+听力原文，思考推理长，一旦推理占满 20K 上限 → 输出为空/半截；
           //    第二次重试强制关闭思考，防再次空转（此前无降级 → answerHtml='' → 入库无答案区，"无答案页"根因）
-          maxTokens: (apiConfig.generationSettings.answerMaxTokens || 16384) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
+          maxTokens: answerDynamicCap * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
           maxReasoningChunks: ansThinking ? GEN_CONST.REASONING_CAP_ANSWER : GEN_CONST.REASONING_CAP_ANSWER_FORCED,
           returnMeta: true,
         });
@@ -4610,7 +4644,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           console.warn(`⚠️ 答案页内容${ansCapped ? `思考耗尽（${ansObj.reasoningChunkCount || 0} 推理chunks）` : `过短（${aHtml?.length || 0} 字符）`}，自动重试一次${ansCapped ? '（强制关闭思考）' : ''}`);
           const ansResp2 = await callAI(ansPrompt, {
             taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
-            maxTokens: (apiConfig.generationSettings.answerMaxTokens || 16384) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
+            maxTokens: answerDynamicCap * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
             maxReasoningChunks: ansThinking ? GEN_CONST.REASONING_CAP_ANSWER : GEN_CONST.REASONING_CAP_ANSWER_FORCED,
             thinking: (ansCapped || (ansObj.reasoningChunkCount || 0) > 0) ? false : undefined, // 🔴 有推理痕迹（含引擎强制推理）→ 重试强制关闭思考
             returnMeta: true,
@@ -4685,9 +4719,12 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     if (browseCoverageNotes.length) auditWarnings.push(...browseCoverageNotes);
 
     // 🔴 生成方式提示：auto 模式下告知用户本次实际走的路径，并引导其到设置固定（用户必须清楚自己配置了什么）
-    if (paperModeSetting === 'auto') {
-      auditWarnings.push(`ℹ️ 生成方式：${modeLabel}（自动按资料类型：${genType}）。如需固定请到「设置 → 整卷生成方式」选择「两次生成」或「一次成型」。`);
+    if ((typeMode || 'auto') === 'auto') {
+      auditWarnings.push(`ℹ️ 生成方式：${modeLabel}（自动按资料类型：${genType}）。如需固定请到「设置 → 整卷输出预算」把该类型的「生成路径」改为「两次」或「一次」。`);
     }
+    // 🔧 预算触顶提示：勾选量超该类型槽上限时，本次已自动加长预算完成生成，无需用户操作；
+    //    但需告知，方便用户决定是否缩小勾选或调大该类型上限（后续生成可更省）
+    if (budgetAlert) auditWarnings.push(`⚠️ ${budgetAlert}（本次已完整生成；如需更省/更稳，可缩小勾选范围，或到「设置 → 整卷输出预算」调大该类型的「上限」）。`);
     console.log(`✅ 整卷生成完成：${finalContent.length} 字符（${modeLabel}路径，${modeSource}${answerHtml ? '，含独立答案页' : ''}）（指令库注入）`);
     return {
       success: true,

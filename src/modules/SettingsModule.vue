@@ -216,6 +216,7 @@
           <button @click="applyModelPreset('balanced')" style="padding:5px 10px;font-size:12px;border:1px solid #2196f3;border-radius:4px;background:#e3f2fd;cursor:pointer;">⚖️ 均衡模式（推荐）</button>
           <button @click="applyModelPreset('flagship')" style="padding:5px 10px;font-size:12px;border:1px solid #ff9800;border-radius:4px;background:#fff3e0;cursor:pointer;">👑 旗舰模式</button>
         </div>
+        <p style="font-size:11px;color:#888;margin:0 0 8px;">💡 一键为下方生成/分析模型选择合适的档位组合：经济=最便宜·最快，均衡=性价比平衡（推荐），旗舰=质量优先。点击后请点顶部「保存设置」生效。</p>
 
         <label>📝 资料生成模型（generation/blueprint）</label>
         <select v-model="settings.deepseekGenerationModel">
@@ -318,6 +319,7 @@
           <option :value="false">跳过（仅提取文字）</option>
           <option :value="true">分析（用 AI 描述图表）</option>
         </select>
+        <p style="font-size:11px;color:#888;margin:4px 0 0;">💡 开启后会用 AI 描述理科题中的图表内容（帮助理解图），仅在遇到图表题时产生额外 token 消耗；纯文科/无图场景建议保持「跳过」以省成本。</p>
       </div>
 
       <!-- 存储路径 -->
@@ -368,14 +370,13 @@
             </div>
             <span style="font-size:10px;color:#999;min-width:22px;">1.5</span>
           </div>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">整卷一次生成（正文）——需创作性：情境、题目、卷面，略高<span v-if="(settings.generationSettings.paperGenerateMode ?? 'auto') === 'once'">（一次成型下答案区取本温度与"答案页温度"的平均值）</span></p>
+          <p style="font-size:11px;color:#888;margin:2px 0 0;">整卷一次生成（正文）——需创作性：情境、题目、卷面，略高</p>
         </div>
 
         <!-- 答案页温度（阅卷专家视角，低温严谨；一次成型下与正文温度取平均，共同影响答案区） -->
         <div style="margin-bottom:14px;">
           <label style="display:flex;justify-content:space-between;">
             <span>✅ 答案页生成</span>
-            <span v-if="(settings.generationSettings.paperGenerateMode ?? 'auto') === 'once'" style="font-size:10px;color:#999;font-weight:400;">一次成型下与正文温度取平均</span>
           </label>
           <div style="display:flex;align-items:center;gap:6px;">
             <span style="font-size:10px;color:#999;min-width:14px;">0</span>
@@ -390,26 +391,68 @@
 
         <!-- 整卷输出预算（tokens，全部可配置，生成端严格按此执行） -->
         <div style="margin-bottom:14px;background:#f0f7ff;border:1px solid #b3d4f5;border-radius:8px;padding:8px 12px;">
-          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:6px;">📏 整卷输出预算（tokens）</div>
-          <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
-            <span style="font-size:11px;color:#888;align-self:center;">快捷档位（不懂估算点这里）：</span>
-            <button class="btn-small" @click="applyBudgetPreset('standard')" style="font-size:11px;padding:3px 10px;">标准档（默认）</button>
-            <button class="btn-small" @click="applyBudgetPreset('large')" style="font-size:11px;padding:3px 10px;">大卷档（高中/长阅读）</button>
-            <button class="btn-small" @click="applyBudgetPreset('economy')" style="font-size:11px;padding:3px 10px;">保守档（省token）</button>
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:8px;">📏 整卷输出预算（每类型独立，动态为主 · 预算=勾选原文×系数）</div>
+
+          <!-- 一键快捷（分组） -->
+          <div style="background:#f4f8fd;border:1px solid #dfe8f2;border-radius:8px;padding:6px 10px;margin-bottom:10px;">
+            <div style="font-size:10px;color:#8896a8;margin-bottom:4px;font-weight:600;">⚡ 一键快捷设置（可逐类型微调）</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+                <span style="font-size:10px;color:#8896a8;">档位度：</span>
+                <button v-for="t in BUDGET_TIERS" :key="t.key" class="btn-small" @click="setAllTiers(t.key)" style="font-size:10px;padding:2px 8px;">{{ t.name }}</button>
+              </div>
+              <span style="color:#d5dde8;">│</span>
+              <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+                <span style="font-size:10px;color:#8896a8;">生成路径：</span>
+                <button class="btn-small" @click="setAllPaths('auto')" style="font-size:10px;padding:2px 8px;">全部自动</button>
+                <button class="btn-small" @click="setAllPaths('split')" style="font-size:10px;padding:2px 8px;">全部两次</button>
+                <button class="btn-small" @click="setAllPaths('once')" style="font-size:10px;padding:2px 8px;">全部一次</button>
+              </div>
+            </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;">
-            <div>
-              <label style="font-size:11px;color:#666;">两次生成·正文单次上限（默认 32768）</label>
-              <input type="number" v-model.number="settings.generationSettings.paperBodyMaxTokens" min="4096" step="1024" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;" />
+
+          <!-- 逐类型卡片 -->
+          <div v-for="row in BUDGET_TYPE_ORDER" :key="row.key" style="border:1px solid #e3e9f2;border-radius:8px;margin-bottom:8px;overflow:hidden;">
+            <!-- 卡片头：类型名 + 路径 -->
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:#fafcff;border-bottom:1px solid #eef2f7;flex-wrap:wrap;">
+              <span style="font-weight:600;color:#1f6feb;font-size:12px;white-space:nowrap;">{{ row.name }}</span>
+              <span style="font-size:10px;color:#8896a8;white-space:nowrap;">路径</span>
+              <label :title="'自动：由程序按该类型最合适的路径决定（考卷/课时练/专项/复习→两次，阅读/总结/预习/默写/错题→一次）'" style="margin-right:4px;font-size:11px;color:#555;cursor:pointer;">
+                <input type="radio" value="auto" v-model="budgetBt()[row.key].mode" style="margin-right:2px;vertical-align:middle;" />自动
+              </label>
+              <label :title="'两次生成：正文一次 + 独立答案页一次（答案分开）'" style="margin-right:4px;font-size:11px;color:#555;cursor:pointer;">
+                <input type="radio" value="split" v-model="budgetBt()[row.key].mode" style="margin-right:2px;vertical-align:middle;" />两次
+              </label>
+              <label :title="'一次成型：正文与答案一次输出'" style="margin-right:4px;font-size:11px;color:#555;cursor:pointer;">
+                <input type="radio" value="once" v-model="budgetBt()[row.key].mode" style="margin-right:2px;vertical-align:middle;" />一次
+              </label>
             </div>
-            <div>
-              <label style="font-size:11px;color:#666;">一次成型·正文+答案上限（默认 49152）</label>
-              <input type="number" v-model.number="settings.generationSettings.paperOnceMaxTokens" min="8192" step="1024" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;" />
+            <!-- 卡片体：三槽并排 -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px 10px;">
+              <div v-for="slotDef in [ ['body','两次生成·正文'], ['answer','两次生成·答案页'], ['once','一次成型·正文+答案'] ]" :key="slotDef[0]"
+                   :style="{ border:'1px solid '+(isSlotActive(row.key, slotDef[0]) ? '#cfe0f5':'#eef2f7'), borderRadius:'6px', padding:'5px 7px', background: isSlotActive(row.key, slotDef[0]) ? '#fbfdff' : '#f6f8fa', opacity: isSlotActive(row.key, slotDef[0]) ? 1 : 0.5 }">
+                <div style="font-size:10px;color:#64748b;margin-bottom:4px;white-space:nowrap;">{{ slotDef[1] }}</div>
+                <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:4px;">
+                  <span v-for="t in BUDGET_TIERS" :key="t.key"
+                        :title="t.name + '——' + t.note"
+                        style="display:inline-flex;align-items:center;gap:2px;cursor:pointer;border:1px solid #d0d8e4;border-radius:4px;padding:1px 5px;font-size:10px;color:#475569;"
+                        :style="(budgetBt()[row.key].tier === t.key && typeof budgetBt()[row.key][slotDef[0]].custom !== 'number') ? 'background:#1f6feb;color:#fff;border-color:#1f6feb;' : ''"
+                        @click="budgetBt()[row.key].tier = t.key; budgetBt()[row.key][slotDef[0]].custom = null;">
+                        {{ t.key === 'economy' ? '精简' : t.key === 'balanced' ? '均衡' : '充分' }}
+                        <b>{{ budgetBt()[row.key][slotDef[0]][t.key] }}</b>
+                  </span>
+                </div>
+                <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#94a3b8;">
+                  <span :title="'系数：预算=勾选原文×系数。手填可自定义该槽的系数（覆盖档位）。'">手填</span>
+                  <input type="number" step="0.1" min="0.1" v-model.number="budgetBt()[row.key][slotDef[0]].custom" placeholder="—" :title="'手填系数（覆盖精简/均衡/充分档位），清空即回档位'" style="width:44px;padding:1px 4px;border:1px solid #d6dde6;border-radius:4px;font-size:10px;" />
+                  <span :title="'这里是「输出 token 上限」：本次生成最多能写到多少 token。区别于上方『答案页上下文上限·字符』（那是答案生成时能看到多少正文，输入侧）。'">上限</span>
+                  <input type="number" step="1024" min="2000" v-model.number="budgetBt()[row.key][slotDef[0]].cap" placeholder="cap" :title="'该槽输出 token 上限（不是字符数）：预算=系数×勾选原文，封顶不超过这里'" style="width:56px;padding:1px 4px;border:1px solid #e3e9f2;border-radius:4px;font-size:10px;" />
+                </div>
+              </div>
             </div>
-            <div>
-              <label style="font-size:11px;color:#666;">两次生成·答案页上限（默认 16384）</label>
-              <input type="number" v-model.number="settings.generationSettings.answerMaxTokens" min="4096" step="1024" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;" />
-            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 4px;">
             <div>
               <label style="font-size:11px;color:#666;">思考模式预算倍数（默认 2）</label>
               <input type="number" v-model.number="settings.generationSettings.thinkingBudgetMultiplier" min="1" step="0.5" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;" />
@@ -419,11 +462,10 @@
               <input type="number" v-model.number="settings.generationSettings.answerContextMaxChars" min="8000" step="2000" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;" />
             </div>
           </div>
-          <div style="font-size:11px;color:#888;line-height:1.7;">
-            怎么估算：约 1 token ≈ 1.5 个中文字符。<br/>
-            参考量：小学 60 分钟卷正文约 1.5-2.5 万字符（≈1-1.7 万 tokens），答案页约 0.6-1.2 万字符（≈0.4-0.8 万 tokens）；高中 150 分卷（长阅读+作文）正文约 4-6 万字符（≈2.7-4 万 tokens）。<br/>
-            默认「标准档」对绝大多数场景足够；输出常被截断才考虑加大，费用过高才考虑「保守档」。思考模式下推理 token 与正文共享配额，按「思考模式预算倍数」放大预留推理余量。请按需配置，生成端严格按此执行。<br/>
-            「答案页上下文上限」：正文纯文本超过此长度时，答案页调用只能看到前 N 字符（后半卷题目看不到，答案会缺）。高中大卷正文常超 2.4 万字符——请点「大卷档」或手动调到 40000-60000，否则建议用「两次生成」。
+          <div style="font-size:10.5px;color:#8896a8;line-height:1.6;margin-top:4px;">
+            预算 = 勾选原文（生成入口处勾选的教材章节原文）× 该类型系数，再封顶到该槽 token 上限。正常勾选（一课/单元/单册）动态直接生效、内容完整；勾选远超该类型上限时自动加长保证完整（生成报告会提示）。<br/>
+            生效槽：选「两次生成」→ 前两槽（正文·答案页）生效、第三槽灰显；选「一次成型」→ 仅第三槽生效；选「自动」→ 按该类型最合适路径。<br/>
+            两处「上限」不同：<b>每类型卡片里的是「输出 token 上限」</b>（这次生成最多写多少 token）；<b>下方「答案页上下文上限」是「输入侧」字符数</b>（答案生成时能看到多少正文——正文超过此长度则后半卷题目答案会缺）。高中大卷常超 2.4 万字符——可调大该值，或改用「两次生成」。
           </div>
         </div>
 
@@ -475,31 +517,6 @@
               <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.ollamaGenerationThinking ? '#4a90d9' : '#ccc'}"></span>
               <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.ollamaGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}"></span>
             </label>
-          </div>
-        </div>
-
-        <!-- 整卷生成方式：两次生成 / 一次成型 / 自动按资料类型（三条路明确可选，生成端严格按此执行） -->
-        <div style="margin-bottom:14px;background:#f0f7ff;border:1px solid #b3d4f5;border-radius:8px;padding:8px 12px;">
-          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:6px;">📜 整卷生成方式（两条路径均可用，请明确选择）</div>
-          <div style="display:flex;gap:8px;margin-bottom:6px;">
-            <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:14px;cursor:pointer;font-size:12px;font-weight:500;border:1px solid #4a90d9;color:#4a90d9;background:#fff;" :style="(settings.generationSettings.paperGenerateMode ?? 'auto') === 'split' ? { background:'#4a90d9', color:'#fff' } : {}">
-              <input type="radio" v-model="settings.generationSettings.paperGenerateMode" value="split" hidden />
-              两次生成
-            </label>
-            <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:14px;cursor:pointer;font-size:12px;font-weight:500;border:1px solid #4a90d9;color:#4a90d9;background:#fff;" :style="(settings.generationSettings.paperGenerateMode ?? 'auto') === 'once' ? { background:'#4a90d9', color:'#fff' } : {}">
-              <input type="radio" v-model="settings.generationSettings.paperGenerateMode" value="once" hidden />
-              一次成型
-            </label>
-            <label style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:14px;cursor:pointer;font-size:12px;font-weight:500;border:1px solid #4a90d9;color:#4a90d9;background:#fff;" :style="(settings.generationSettings.paperGenerateMode ?? 'auto') === 'auto' ? { background:'#4a90d9', color:'#fff' } : {}">
-              <input type="radio" v-model="settings.generationSettings.paperGenerateMode" value="auto" hidden />
-              自动按类型
-            </label>
-          </div>
-          <div style="font-size:11px;color:#888;line-height:1.5;">
-            两次生成：正文一次 + 答案页独立一次（答案用阅卷专家角色 + 低温严谨，纯题型推荐）；<br/>
-            一次成型：正文与答案一次输出（上下文全程一致，知识型/错题/听写推荐）；<br/>
-            自动按类型：纯题型（试卷/课时练/专项/复习）→ 两次生成；知识型（阅读/总结/预习/听写/错题）→ 一次成型。<br/>
-            <span style="color:#d46b08;">⚠️ 生成时会严格按你的选择执行，并在进度与生成报告中显示本次所用路径；若显示与你预期不符，请回来调整此项。</span>
           </div>
         </div>
 
@@ -843,13 +860,106 @@ const settings = ref({
   zhipuAnalysisModel: apiConfig.zhipuAnalysisModel || 'glm-5.3',
   analyzeCharts: true,
   storagePath: localStorage.getItem('storagePath') || '智卷工坊数据',
-  generationSettings: { ...apiConfig.generationSettings }
+  generationSettings: JSON.parse(JSON.stringify(apiConfig.generationSettings))
 });
 
 const availableTextModels = ref(['qwen2.5:7b', 'qwen2:7b']);
 
 // 🔧 DeepSeek 模型选项（优先云端发现，兜底常用列表）
 const deepseekModelOptions = ref(['deepseek-v4-flash', 'deepseek-v4-pro']);
+
+// 🔗 预算配置·资料类型表（key 与 apiConfig.budgetByType / promptLibrary.GEN_TYPE_NAMES 双轨一致）
+const BUDGET_TYPE_ORDER = [
+  { key: 'exam',     name: '正式考卷' },
+  { key: 'practice', name: '课时练' },
+  { key: 'special',  name: '专项突破' },
+  { key: 'reading',  name: '阅读训练' },
+  { key: 'summary',  name: '知识总结' },
+  { key: 'review',   name: '复习资料' },
+  { key: 'preview',  name: '课前预习' },
+  { key: 'dictation', name: '默写积累' },
+  { key: 'errorbook', name: '错题本' },
+];
+const BUDGET_TIERS = [
+  { key: 'economy',  name: '精简档', note: '省token·内容精简' },
+  { key: 'balanced', name: '均衡档', note: '平衡性价比（默认）' },
+  { key: 'full',     name: '充分档', note: '内容优先·更详尽' },
+];
+const budgetByTypeNames = (t) => ({ economy: '精简档', balanced: '均衡档', full: '充分档' }[t] || t);
+
+// 🔧 budgetByType 槽位规整（纯函数，无副作用）：确保每个类型都有 mode/tier 与 body/answer/once 三槽，
+//    每槽含 economy/balanced/full 系数与 custom。缺槽从默认补、已有槽保留。返回新对象。
+const normalizeBudgetSlots = (bbt) => {
+  const defaults = apiConfig.generationSettings.budgetByType || {};
+  const out = {};
+  for (const t of BUDGET_TYPE_ORDER) {
+    const src = (bbt && bbt[t.key]) || {};
+    const def = defaults[t.key] || {};
+    const norm = (slotDef) => {
+      const fromDef = (defaults[t.key] && defaults[t.key][slotDef]) || { economy: 1, balanced: 1, full: 1.3, cap: 20000, custom: null };
+      const s = typeof src[slotDef] === 'object' && src[slotDef] ? src[slotDef] : {};
+      return {
+        economy: typeof s.economy === 'number' ? s.economy : fromDef.economy,
+        balanced: typeof s.balanced === 'number' ? s.balanced : fromDef.balanced,
+        full: typeof s.full === 'number' ? s.full : fromDef.full,
+        cap: typeof s.cap === 'number' && s.cap > 0 ? s.cap : (fromDef.cap ?? 20000),
+        custom: typeof s.custom === 'number' ? s.custom : null,
+      };
+    };
+    out[t.key] = {
+      mode: src.mode === 'split' || src.mode === 'once' ? src.mode : 'auto',
+      tier: src.tier === 'economy' || src.tier === 'balanced' || src.tier === 'full' ? src.tier : 'balanced',
+      body: norm('body'),
+      answer: norm('answer'),
+      once: norm('once'),
+    };
+  }
+  return out;
+};
+
+// 🔧 初始化补全：设置页内存的 budgetByType 永保完整槽位（渲染期间 budgetBt 纯读取）
+(() => {
+  const gs = settings.value.generationSettings || {};
+  gs.budgetByType = normalizeBudgetSlots(gs.budgetByType || {});
+})();
+
+// 一键把全部 9 类型的 tier 设为同一档位（快捷套档）
+const setAllTiers = (tier) => {
+  const gs = settings.value.generationSettings || {};
+  if (!gs.budgetByType) return;
+  for (const t of BUDGET_TYPE_ORDER) {
+    if (gs.budgetByType[t.key]) gs.budgetByType[t.key].tier = tier;
+  }
+  saveStatus.value = `已将所有资料类型预算档位设为「${budgetByTypeNames(tier)}」，请点「保存设置」生效`;
+  setTimeout(() => { saveStatus.value = ''; }, 5000);
+};
+
+// 🔧 一键把所有类型的生成路径设为同一路径（auto / split / once）；每类型仍可个别微调
+const setAllPaths = (path) => {
+  const label = { auto: '自动（按类型）', split: '两次生成', once: '一次成型' }[path] || path;
+  const gs = settings.value.generationSettings || {};
+  if (!gs.budgetByType) return;
+  for (const t of BUDGET_TYPE_ORDER) {
+    if (gs.budgetByType[t.key]) gs.budgetByType[t.key].mode = path;
+  }
+  saveStatus.value = `已将所有资料类型生成路径设为「${label}」，请点「保存设置」生效`;
+  setTimeout(() => { saveStatus.value = ''; }, 5000);
+};
+
+// 生成端读取的系数在配置里，这里仅作"当前生效值"展示辅助（与生成端 pickSlot 同口径）
+// 纯读取：返回当前内存中的 budgetByType（无副作用，模板多读安全——不能在渲染中做补全/深拷贝）
+const budgetBt = () => settings.value.generationSettings?.budgetByType || {};
+
+// 🔧 槽生效态：用于高亮"生成路径下真实使用的系数槽"。
+//    body/answer 属于"两次生成"，once 属于"一次成型"。auto 按类型内置映射（考卷/课时练/专项/复习→两次，其余→一次）。
+//    生效槽高亮、非生效槽灰显（视觉弱化，不影响编辑）。
+const SLOT_PATH_MAP = { body: 'split', answer: 'split', once: 'once' };
+const TYPE_BUILTIN_PATH = (key) => ['exam', 'practice', 'special', 'review'].includes(key) ? 'split' : 'once';
+const isSlotActive = (rowKey, slot) => {
+  const mode = budgetBt()[rowKey]?.mode || 'auto';
+  const effective = mode !== 'auto' ? mode : TYPE_BUILTIN_PATH(rowKey);
+  return SLOT_PATH_MAP[slot] === effective;
+};
 
 const formatDeepSeekModel = (model) => {
   const nameMap = {
@@ -936,26 +1046,6 @@ const resetTemperatureDefaults = () => {
   settings.value.generationSettings.answerTemperature = 0.3;
 };
 
-// 🔧 输出预算预设档位：不懂估算直接点档位，套用后记得「保存设置」生效
-const applyBudgetPreset = (preset) => {
-  const presets = {
-    standard: { paperBodyMaxTokens: 32768, paperOnceMaxTokens: 49152, answerMaxTokens: 16384, thinkingBudgetMultiplier: 2, answerContextMaxChars: 24000, label: '标准档（默认）' },
-    large:    { paperBodyMaxTokens: 49152, paperOnceMaxTokens: 73728, answerMaxTokens: 24576, thinkingBudgetMultiplier: 2, answerContextMaxChars: 48000, label: '大卷档（高中/长阅读）' },
-    economy:  { paperBodyMaxTokens: 24576, paperOnceMaxTokens: 36864, answerMaxTokens: 12288, thinkingBudgetMultiplier: 2, answerContextMaxChars: 24000, label: '保守档（省 token）' },
-  };
-  const p = presets[preset];
-  if (!p) return;
-  Object.assign(settings.value.generationSettings, {
-    paperBodyMaxTokens: p.paperBodyMaxTokens,
-    paperOnceMaxTokens: p.paperOnceMaxTokens,
-    answerMaxTokens: p.answerMaxTokens,
-    thinkingBudgetMultiplier: p.thinkingBudgetMultiplier,
-    answerContextMaxChars: p.answerContextMaxChars,
-  });
-  saveStatus.value = `已套用「${p.label}」，请点右上角「保存设置」生效`;
-  setTimeout(() => { saveStatus.value = ''; }, 5000);
-};
-
 const saveSettings = async () => {
   const oldEngine = apiConfig.currentEngine;
   const newEngine = settings.value.currentEngine;
@@ -991,7 +1081,10 @@ const saveSettings = async () => {
   apiConfig.zhipuAnalysisModel = settings.value.zhipuAnalysisModel;
   apiConfig.analyzeCharts = settings.value.analyzeCharts;
   apiConfig.multimodalEngine = settings.value.multimodalEngine || 'paddleocr_vl';
-  apiConfig.generationSettings = { ...settings.value.generationSettings };
+  // 🔧 写回前剔除已废弃字段（dynamicBudgetMode 已被 budgetByType 取代），避免旧配置残留
+  const gsToSave = { ...settings.value.generationSettings };
+  delete gsToSave.dynamicBudgetMode;
+  apiConfig.generationSettings = gsToSave;
   await saveConfig(settings.value);
   await refreshConfigCache();
 
@@ -1184,6 +1277,8 @@ onMounted(async () => {
       //    以默认值补齐，避免被旧对象整体覆盖导致新字段丢失
       if (parsed.generationSettings) {
         parsed.generationSettings = { ...settings.value.generationSettings, ...parsed.generationSettings };
+        // 🔧 覆盖后可会重置 budgetByType 为旧/缺槽形状，须重新规整补齐所有类型的 mode/tier/body/answer/once 槽
+        parsed.generationSettings.budgetByType = normalizeBudgetSlots(parsed.generationSettings.budgetByType || {});
       }
       Object.assign(settings.value, parsed);
     } catch { /* ignore */ }
@@ -1326,7 +1421,15 @@ onUnmounted(() => {
 }
 
 .settings-content {
-  max-width: 600px;
+  max-width: 860px;
+}
+
+/* 常规表单控件保持紧凑：仅下拉/输入收窄到合理宽，预算区等宽布局卡片仍可撑满 860px */
+.settings-section select,
+.settings-section input[type='text'],
+.settings-section input[type='password'],
+.settings-section textarea {
+  max-width: 520px;
 }
 
 .settings-section {
@@ -1560,6 +1663,11 @@ onUnmounted(() => {
   .btn-small {
     padding: 3px 6px;
     font-size: 10px;
+  }
+  .budget-active {
+    background: #1f6feb !important;
+    color: #fff !important;
+    border-color: #1f6feb !important;
   }
   .model-hint {
     font-size: 10px;
