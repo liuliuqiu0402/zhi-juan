@@ -568,6 +568,7 @@ import { CARRIER_LABELS, enhanceBlueprint } from '../../../config/blueprintSchem
 import { listAllBlueprints, saveUserBlueprint, deleteUserBlueprint, previewWithRegion } from '../../../config/blueprintProvider.js';
 import { EXAM_REGION_OPTIONS, EXAM_REGION_CONFIG, setRegionOverride, removeRegionOverride, loadUserRegionConfig } from '../../../config/examRegionConfig.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
+import { GEN_TYPE_NAMES } from '../../../config/promptLibrary.js'; // 类型中文名单一事实源（曾本地写"正式试卷"异名漂移）
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 import { setLibToggle, listDisabledEntries } from '../../../utils/libToggles.js';
 
@@ -589,10 +590,9 @@ const STAGE_LABELS = {
 };
 /** 概览条学段短名（完整名过长导致第二行换行；悬浮 title 显示全名） */
 const SHORT_STAGE = { primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中' };
-const GEN_TYPE_LABELS = {
-  exam: '正式试卷', practice: '课时练', special: '专项突破', preview: '课前预习',
-  reading: '阅读训练', summary: '知识总结', dictation: '默写积累', errorbook: '错题本', review: '复习资料',
-};
+// 🔴 类型中文名单一事实源 = GEN_TYPE_NAMES（曾本地写"正式试卷"等异名，与正式考卷漂移）
+const GEN_TYPE_KEYS_ALL = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
+const GEN_TYPE_LABELS = Object.fromEntries(GEN_TYPE_KEYS_ALL.map((k) => [k, GEN_TYPE_NAMES[k] || k]));
 /* ===== 数据源：内置 + 用户自定义（blueprintProvider） ===== */
 const allExam = ref(listAllBlueprints().map((bp) => enhanceBlueprint(bp)));
 const allExamCount = computed(() => allExam.value.length);

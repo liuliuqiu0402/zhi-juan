@@ -15,8 +15,8 @@ import { BUILTIN_TEMPLATES } from './promptLibrary.js';
 import { listValidatorRules } from './validatorRules.js';
 import { GRAPH_TYPES } from './eduRenderContract.js';
 
-/** 学段维度（年级 → 学段的映射由教材元数据提供） */
-export const STAGE_KEYS = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
+/** 学段维度（年级 → 学段的映射由教材元数据提供；五档键唯一事实源 = gradeStage.STAGE_KEYS，此处再导出防双轨） */
+export { STAGE_KEYS } from '../utils/gradeStage.js';
 
 /** 学科维度（全系统学科全集） */
 export const SUBJECT_KEYS = [

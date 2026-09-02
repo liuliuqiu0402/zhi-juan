@@ -1312,12 +1312,13 @@ import { useDialog } from '@/composables/useDialog.js';
 import { useBackup } from '@/composables/useBackup.js';
 import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
 import useLogger, { copyLogs } from '@/composables/useLogger.js';
-import { apiConfig, DEFAULT_BUDGET_BY_TYPE, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
+import { apiConfig, DEFAULT_BUDGET_BY_TYPE, normalizeBudgetByType, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
 import { listTypeBuckets, applyCalibration, clearCalibration, setCalibratedEnabled, CHARS_PER_TOKEN, CALIBRATION_THRESHOLDS } from '@/utils/budgetCalibration.js';
 import { recordAudit, getAuditLogs, clearAuditLogs, getAuditCount } from '@/utils/auditLog.js';
 import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud, fetchCloudDevices, deleteDeviceFromCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
+import { STAGE_KEYS } from '@/utils/gradeStage.js'; // 五档学段键唯一事实源（CAL_STAGE_KEYS 复用，不再本地另建副本）
 
 const { showAlertDialogFn, showConfirmDialogFn } = useDialog();
 const {
@@ -1577,36 +1578,9 @@ const BUDGET_TIERS = [
 ];
 const budgetByTypeNames = (t) => ({ economy: '精简档', balanced: '均衡档', full: '充分档' }[t] || t);
 
-// 🔧 budgetByType 槽位规整（纯函数，无副作用）：确保每个类型都有 mode/tier 与 body/answer/once 三槽，
-//    每槽含 economy/balanced/full 系数与 custom。三档系数为内置常量且非用户可直接编辑→随代码默认播种；
-//    custom（手填）/cap（上限）为用户可编辑项→按存档保留。杜绝旧存档把档位冻成恒值（如"精简=均衡=1"）。
-const normalizeBudgetSlots = (bbt) => {
-  const defaults = DEFAULT_BUDGET_BY_TYPE;
-  const out = {};
-  for (const t of BUDGET_TYPE_ORDER) {
-    const src = (bbt && bbt[t.key]) || {};
-    const def = defaults[t.key] || {};
-    const norm = (slotDef) => {
-      const fromDef = def[slotDef]; // DEFAULT_BUDGET_BY_TYPE 恒含全部类型×槽，无需兜底字面量（防"精简=均衡=1"塌档）
-      const s = typeof src[slotDef] === 'object' && src[slotDef] ? src[slotDef] : {};
-      return {
-        economy: fromDef.economy,
-        balanced: fromDef.balanced,
-        full: fromDef.full,
-        cap: typeof s.cap === 'number' && s.cap > 0 ? s.cap : (fromDef.cap ?? 20000),
-        custom: typeof s.custom === 'number' ? s.custom : null,
-      };
-    };
-    out[t.key] = {
-      mode: src.mode === 'split' || src.mode === 'once' ? src.mode : 'auto',
-      tier: src.tier === 'economy' || src.tier === 'balanced' || src.tier === 'full' ? src.tier : 'balanced',
-      body: norm('body'),
-      answer: norm('answer'),
-      once: norm('once'),
-    };
-  }
-  return out;
-};
+// 🔧 budgetByType 槽位规整：单一实现 = apiConfig.normalizeBudgetByType（生成端读取兜底共用同一份，
+//    曾与 apiConfig 内同名同构逻辑双份维护；此处仅保留别名以兼容本文件调用点）
+const normalizeBudgetSlots = normalizeBudgetByType;
 
 // 🔧 初始化补全：设置页内存的 budgetByType 永保完整槽位（渲染期间 budgetBt 纯读取）
 (() => {
@@ -1651,7 +1625,7 @@ const toggleBrowseAutoFill = () => {
 const budgetBt = () => settings.value.generationSettings?.budgetByType || {};
 
 // ── 实测校准 UI（每类型×学科×学段分桶；数据由 budgetCalibration 落库驱动）──
-const CAL_STAGE_KEYS = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
+const CAL_STAGE_KEYS = STAGE_KEYS; // 五档键唯一事实源（gradeStage），不本地另建副本
 const calStageName = (s) => ({ primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中' }[s] || s || '');
 const CAL_SUBJECT_KEYS = ['语文', '数学', '英语', '科学', '道法', '道德与法治', '历史', '地理', '生物', '物理', '化学', '政治'];
 const calThresholdLabel = `${CALIBRATION_THRESHOLDS.standard}条`;

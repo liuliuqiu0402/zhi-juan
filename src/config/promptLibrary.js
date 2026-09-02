@@ -250,23 +250,14 @@ export const CURRICULUM_VERSION_INFO = {
 
 /**
  * 归一化学段键并返回该学段课标版本名（供生成链路目录模式/知识图谱等非指令库提示词使用）
- * @param {string} stage 学段键（primary_low 等）或中文标签（'小学'/'初中'/'高中'/'二年级'/'高一' 等）
+ * @param {string} stage 学段键（primary_low 等）或中文标签（'小学'/'初中'/'高中'/'二年级'/'高一'/'小学低段' 等）
  * @returns {string} 版本名；无法识别时返回 '本学段最新课标'（不阻断生成）
  */
 export function getCurriculumLabel(stage = '', grade = '', name = '') {
-  const s = String(stage).trim();
-  if (CURRICULUM_BY_STAGE[s]) return CURRICULUM_BY_STAGE[s];
-  if (/高一|高二|高三|高中/.test(s)) return CURRICULUM_BY_STAGE.high;
-  if (/初中|七年级|八年级|九年级/.test(s)) return CURRICULUM_BY_STAGE.middle;
-  if (/低段|一年级|二年级/.test(s)) return CURRICULUM_BY_STAGE.primary_low;
-  if (/中段|三年级|四年级/.test(s)) return CURRICULUM_BY_STAGE.primary_mid;
-  if (/高段|五年级|六年级/.test(s)) return CURRICULUM_BY_STAGE.primary_high;
-  if (/小学|年级/.test(s)) {
-    // 🔧 grade 缺失时也兼容圈码（如"⑥年级"）；教材名带年级时据此兜底，避免误归高段
-    const key = resolveStageKey('小学', grade || s, name);
-    return CURRICULUM_BY_STAGE[key] || CURRICULUM_BY_STAGE.primary_high;
-  }
-  return '本学段最新课标';
+  // 🔴 学段归一唯一事实源：五档键透传/段位标签/粗学段×年级/教材名回退 全部委托 resolveStageKey，
+  //    不再自建 高中/初中/低中高段 前置正则链（曾与 gradeStage.resolveLabelKey 同口径重写、双轨漂移）
+  const key = resolveStageKey(stage, grade, name);
+  return (key && CURRICULUM_BY_STAGE[key]) || '本学段最新课标';
 }
 
 /**

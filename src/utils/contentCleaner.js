@@ -58,6 +58,27 @@ export const cleanSectionHtml = (raw) => {
   return html.trim();
 };
 
+/** 导出端第二道防线：剥离 AI 响应残留的 markdown 代码块/对话前缀（不改 HTML 结构本身）
+ * 有 ```html 代码块 → 取块内 HTML 拼接；否则无块但存在"对话前缀+HTML" → 从首个 HTML 标签截断。
+ * 曾分别内联于 GenerateModule.downloadDoc 与 TypesetModule.sanitizeExportContent（两段逐字同构、各自演化），
+ * 现收敛为共享函数；配合 callAI 层 cleanReasoningOutput 使用（部分模型仍可能绕过第一道防线）。 */
+export const stripAiCodeFence = (html) => {
+  if (!html) return html;
+  let cleaned = String(html);
+  const mdBlockRegex = /```(?:html?|HTML?)?[\s\n]*([\s\S]*?)\n?```/g;
+  const mdBlocks = [];
+  let mdMatch;
+  while ((mdMatch = mdBlockRegex.exec(cleaned)) !== null) mdBlocks.push(mdMatch[1].trim());
+  if (mdBlocks.length > 0) {
+    cleaned = mdBlocks.join('\n\n');
+  } else {
+    // 无代码块但有 HTML 标签 → 截掉对话前缀（限前缀长度，防误切正文里晚出现的标签）
+    const htmlStartIdx = cleaned.search(/<(!DOCTYPE|html|head|body|h[1-6]|p\b|div|table|ul|ol|span)\b/i);
+    if (htmlStartIdx > 0 && htmlStartIdx < 500) cleaned = cleaned.substring(htmlStartIdx);
+  }
+  return cleaned;
+};
+
 /**
  * 判定题内是否存在"可作答载体"：
  * 填空空位 blank-N / 选项行 option / 连线结构 match / 作答区 blank-line /
@@ -186,31 +207,53 @@ export function countTopLevelQuestions(html = '') {
   return analyzeQuestionHierarchy(String(html || '')).filter(x => x.kind === 'top').length;
 }
 
+// ── 填空宽度换算（唯一事实源 = 排版规格库 layoutSpec.BLANK）
+//    callAI 层 convertBlankFormat（useAiGenerator）与正文层 normalizeBlankMarkers 共用本组函数，
+//    消除"两套宽度梯形/规格并存、排版规格对 callAI 层不生效"的双轨漂移；参数演进只改 layoutSpec.BLANK。──
+const BLANK_SPEC = () => getMergedSpec().BLANK || { maxCap: 16, wordGap: 2, minBlank: 2 };
+/** 宽度封顶/下限：规格 BLANK.maxCap / minBlank（超长横线交由"行尾自动延伸"，不无限加宽） */
+export const clampBlankWidth = (n) => {
+  const { maxCap, minBlank } = BLANK_SPEC();
+  return Math.min(maxCap, Math.max(minBlank, Math.round(n)));
+};
+/** 字宽 → 宽度：正文书写横线/裸下划线换算（1 字 ≈ wordGap 格；＿ 计数按字宽计） */
+export const blankWidthForChars = (chars) => {
+  const { wordGap } = BLANK_SPEC();
+  return clampBlankWidth(chars * wordGap);
+};
+/** 括号填空：下划线个数 → 宽度（短空 1:1 档位：≤3→2 / ≤4→4 / ≤6→6 / ≤8→8 / 其余 10，再按规格封顶） */
+export const shortBlankWidth = (underscores) => {
+  const u = underscores <= 3 ? 2 : underscores <= 4 ? 4 : underscores <= 6 ? 6 : underscores <= 8 ? 8 : 10;
+  return clampBlankWidth(u);
+};
+/** 括号填空：空白 em 宽 → 宽度档（&emsp;/全角=1em、&nbsp;/半角≈0.25em；档位 ≤1→2 … 其余 10，再按规格封顶） */
+export const spaceBlankWidth = (emWidth) => {
+  const n = emWidth <= 1 ? 2 : emWidth <= 1.5 ? 3 : emWidth <= 2 ? 4 : emWidth <= 3 ? 5 : emWidth <= 4 ? 6 : emWidth <= 6 ? 8 : 10;
+  return clampBlankWidth(n);
+};
+
 /**
  * 空白规范化（后处理排版兜底——AI 输出为"一大段文本"时由代码补排版要素）：
- *   1) <u>＿＿＿</u> / 纯文本 ＿N 个 → 带宽度等级的填空横线 blank-N（1字≈2格，2≤N≤24）
+ *   1) <u>＿＿＿</u> / 纯文本 ＿N 个 → 带宽度等级的填空横线 blank-N（宽度换算唯一事实源 = blankWidthForChars）
  *   2) 空作文格 <div class="zuo-wen-ge"></div> → 补默认格
  * 排版要素（田字格/四线三格/图区）若 AI 未输出则保持原样，由导出层按学科排版兜底。
  */
 export function normalizeBlankMarkers(html = '') {
   let out = String(html || '');
-  // 🔴 填空横线参数来自排版规格库（BLANK）：宽度上限 maxCap、1字≈N格 wordGap、下限 minBlank
-  const { maxCap, wordGap, minBlank } = getMergedSpec().BLANK;
-  const capN = (n) => Math.min(maxCap, Math.max(minBlank, n));
-  const toBlank = (chWidth) => capN(chWidth * wordGap);
+  // 🔴 填空横线宽度换算统一走共享函数（读排版规格库 BLANK.maxCap/wordGap/minBlank），不在此另建梯形
   out = out.replace(/<u>\s*＿+\s*<\/u>/gi, (m) => {
     const len = (m.match(/＿/g) || []).length;
-    return `<u class="blank-${toBlank(len)}">&emsp;</u>`;
+    return `<u class="blank-${blankWidthForChars(len)}">&emsp;</u>`;
   });
   // 🔧 无 class 裸 <u> 空白横线（全角空格/空白实体填充——AI 常见裸输出形态，countBlanks 同源识别 BARE_U_BLANK_RE）：
   //    归一为 u.blank-N（段落末尾自动延伸/非末尾定宽，与导出端 ptab 兜底一致）；
   //    宽度按空白宽度×2（1 字≈2 格，与 ＿ 规则同源），长度≥2 才归一（单个空格/空白不构成书写横线）
   out = out.replace(/<u(?![^>]*class=)[^>]*>\s*(?:[　\u3000 _]|&emsp;){2,24}\s*<\/u>/gi, (m) => {
     const len = (m.match(/\u3000/g) || []).length + (m.match(/[ _]/g) || []).length + (m.match(/&emsp;/gi) || []).length;
-    return `<u class="blank-${toBlank(len)}">&emsp;</u>`;
+    return `<u class="blank-${blankWidthForChars(len)}">&emsp;</u>`;
   });
   out = out.replace(/＿{2,}/g, (m) => {
-    const n = toBlank(m.length);
+    const n = blankWidthForChars(m.length);
     return `<u class="blank-${n}">&emsp;</u>`;
   });
   // 🔧 括号填空归一（正文主路径曾缺失：模型输出 ((　　)) / （＿ ＿） 被原样保留 → 卷面双括号）
@@ -220,33 +263,19 @@ export function normalizeBlankMarkers(html = '') {
   out = out.replace(/(?:[（(]{1,2})\s*([_\uFF3F\s\u3000]{1,24})\s*(?:[）)]{1,2})/g, (m, inner) => {
     const u = (inner.match(/[_\uFF3F]/g) || []).length;
     if (u === 0) return m; // 纯空白 → 交给括号空白规则
-    let n;
-    if (u <= 3) n = 2;
-    else if (u <= 4) n = 4;
-    else if (u <= 6) n = 6;
-    else if (u <= 8) n = 8;
-    else n = 10;
-    return `<span class="blank-${capN(n)}">&emsp;</span>`;
+    return `<span class="blank-${shortBlankWidth(u)}">&emsp;</span>`;
   });
   out = out.replace(/(?:[（(]{1,2})((?:\s|&emsp;|\u2003|\u3000|&nbsp;| )+)(?:[）)]{1,2})/g, (m, inner) => {
     const emspCount = (inner.match(/&emsp;/gi) || []).length + (inner.match(/\u2003/g) || []).length + (inner.match(/\u3000/g) || []).length;
     const nbspCount = (inner.match(/&nbsp;| /gi) || []).length;
     const totalWidth = emspCount + nbspCount * 0.25;
     if (totalWidth <= 0) return m;
-    let n;
-    if (totalWidth <= 1) n = 2;
-    else if (totalWidth <= 1.5) n = 3;
-    else if (totalWidth <= 2) n = 4;
-    else if (totalWidth <= 3) n = 5;
-    else if (totalWidth <= 4) n = 6;
-    else if (totalWidth <= 6) n = 8;
-    else n = 10;
-    return `<span class="blank-${capN(n)}">&emsp;</span>`;
+    return `<span class="blank-${spaceBlankWidth(totalWidth)}">&emsp;</span>`;
   });
   // ③ 全角裸空括号（零内宽，如"美丽的（）园"读句子写词语遗漏的空格）→ 默认留空格
   //    （规则①②需括号内 ≥1 空格/下划线才转换；零宽全角（）被跳过 → 卷面保留成无书写宽度的全角括号）。
   //    零宽全角（）夹在正文中几乎必为填空缺省（分值/读音/提示等标注均有内文不匹配），故安全收敛统一。
-  out = out.replace(/[（][）]/g, () => `<span class="blank-${capN(4)}">&emsp;</span>`);
+  out = out.replace(/[（][）]/g, () => `<span class="blank-${clampBlankWidth(4)}">&emsp;</span>`);
   out = out.replace(/<div class="zuo-wen-ge">\s*<\/div>/g, `<div class="zuo-wen-ge">${'<span>&emsp;</span>'.repeat(Math.max(1, getMergedSpec().ZUOWEN_DEFAULT_SPAN))}</div>`);
   // 🔧 裸全角空格留空（AI 常见裸输出形态：未包 <u>/括号，如 <p>　　　　　　</p> 写作答题行、
   //    块级元素内纯空白当书写空间）：包成 u.blank-N（预览 flex 延伸 / 导出 ptab 延伸一致）；
@@ -256,7 +285,7 @@ export function normalizeBlankMarkers(html = '') {
   //    需该 <p> 命中 flex 延伸；拆裸 <u> 会丢失外壳 → 行尾不延伸、作答横线塌缩/不可见
   out = out.replace(/<(p|div|li)(?![^>]*class=)[^>]*>(\s*\u3000{2,}\s*)<\/\1>/gi, (m, tag, inner) => {
     const len = (inner.match(/\u3000/g) || []).length;
-    return `<${tag}><u class="blank-${toBlank(len)}">&emsp;</u></${tag}>`;
+    return `<${tag}><u class="blank-${blankWidthForChars(len)}">&emsp;</u></${tag}>`;
   });
   return out;
 }
@@ -370,4 +399,4 @@ export function normalizeIndents(html = '') {
 }
 
 
-export default { cleanSectionHtml, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeIndents };
+export default { cleanSectionHtml, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeIndents, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth };

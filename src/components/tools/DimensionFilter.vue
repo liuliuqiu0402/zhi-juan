@@ -62,6 +62,7 @@
 
 <script setup>
 import { STAGE_KEYS, SUBJECT_KEYS, GEN_TYPE_KEYS } from '@/config/toolLibrary.js';
+import { GEN_TYPE_NAMES } from '@/config/promptLibrary.js'; // 类型中文名单一事实源（曾本地写"正式试卷"异名漂移）
 
 defineProps({
   modelValue: { type: Object, default: () => ({ stage: '', subject: '', genType: '' }) },
@@ -79,7 +80,7 @@ const STAGE_LABELS = {
 
 const GEN_TYPE_LABELS = GEN_TYPE_KEYS.map((k) => ({
   key: k,
-  label: ({ exam: '正式试卷', practice: '课时练', special: '专项突破', preview: '课前预习', reading: '阅读训练', summary: '知识总结', dictation: '默写积累', errorbook: '错题本', review: '复习资料' })[k] || k,
+  label: GEN_TYPE_NAMES[k] || k,
 }));
 </script>
 

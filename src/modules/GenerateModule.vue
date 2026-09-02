@@ -2956,7 +2956,7 @@ import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
-import { stripXss } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离（AI 内容入 v-html/导出前的纵深防御，负向剥离零排版影响）
+import { stripXss, stripAiCodeFence } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离（导出端第二道防线共享）
 
 defineOptions({ name: 'GenerateModule' });
 
@@ -4618,11 +4618,12 @@ const granularityLabel = computed(() => '生成粒度');
 const genTypeModelHint = computed(() => {
   if (genTypes.value.length === 0) return null;
   const type = genTypes.value[0];
+  // 🔧 生成重任务清单（生成量大的类型走 Flash 生成模型/强制推理）：单处定义，曾云分支/Ollama 分支各自复制
+  const heavyTasks = ['exam', 'practice', 'special', 'reading', 'errorbook'];
   // 🌐 云端 DeepSeek：按任务分 Flash（生成）和 Pro（分析）
   if (apiConfig.currentEngine === 'deepseek') {
     const genModel = apiConfig.deepseekGenerationModel || apiConfig.deepseekModel || 'deepseek-v4-flash';
     const analysisModel = apiConfig.deepseekAnalysisModel || 'deepseek-v4-pro';
-    const heavyTasks = ['exam', 'practice', 'special', 'reading', 'errorbook'];
     if (heavyTasks.includes(type)) {
       return { icon: '🧠', model: genModel, tip: '生成用Flash·分析用Pro' };
     }
@@ -4633,7 +4634,6 @@ const genTypeModelHint = computed(() => {
     const cfg = apiConfig;
     const genModel = cfg[`${apiConfig.currentEngine}GenerationModel`] || '';
     const analysisModel = cfg[`${apiConfig.currentEngine}AnalysisModel`] || '';
-    const heavyTasks = ['exam', 'practice', 'special', 'reading', 'errorbook'];
     const m = heavyTasks.includes(type) ? genModel : analysisModel;
     const tip = apiConfig.currentEngine === 'zhipu'
       ? (heavyTasks.includes(type) ? '生成/分析同模型·强制推理' : '生成/分析同模型·强制推理')
@@ -4650,6 +4650,7 @@ const genTypeModelHint = computed(() => {
     'preview':   { icon: '🌟', model: 'glm4:9b / qwen2.5:14b', tip: '预习资料格式驱动' },
     'dictation': { icon: '🌟', model: 'glm4:9b / qwen2.5:14b', tip: '听写格式要求高' },
     'reading':   { icon: '🧠', model: apiConfig.ollamaTextModel || 'deepseek-r1:14b', tip: '阅读理解·大模型更稳' },
+    'review':    { icon: '📚', model: apiConfig.ollamaLightModel || 'glm4:9b', tip: '复习资料·综合梳理' }, // 🔧 补齐缺项（曾回落 null 无提示）
   };
   return hints[type] || null;
 });
@@ -5316,11 +5317,11 @@ const confirmAnalysisResult = async () => {
   if (analysisResultType.value === 'textbook' && analysisResultData.value) {
     for (const item of analysisResultData.value) {
       if (item._rawTextHtml) {
-        item.rawText = htmlToPlainText(item._rawTextHtml);
+        item.rawText = simpleHtmlToPlainText(item._rawTextHtml);
       }
     }
   } else if (analysisResultType.value === 'template' && analysisResultData.value?._rawTextHtml) {
-    analysisResultData.value.rawText = htmlToPlainText(analysisResultData.value._rawTextHtml);
+    analysisResultData.value.rawText = simpleHtmlToPlainText(analysisResultData.value._rawTextHtml);
   }
 
   if (analysisResultType.value === 'textbook') {
@@ -5655,11 +5656,7 @@ const buildInstruction = async () => {
   // 🔍 诊断日志：多学科匹配验证
   console.log('[buildInstruction] 选中教材:', selectedBooksWithChapters.map(b => ({ name: b.name, subject: b.subject, stage: b.stage, chCount: b.selectedChapters?.length })));
   console.log('[buildInstruction] currentSubjects:', currentSubjects, '→ currentSubject:', JSON.stringify(currentSubject), '(多学科模式:', currentSubjects.length > 1, ')');
-  const currentStageRaw = selectedBooksWithChapters[0]?.stage || '';
-  // 统一映射 stage 为英文 key，与指令库 stage 字段对齐
-  const stageMapIns = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-  const currentStageEn = stageMapIns[currentStageRaw] || currentStageRaw;
-  
+
   // 🔴 新架构：不再做 fragment/full 指令自动匹配（长指令注入已废弃）。
   //    生成由指令库三维度注入驱动（学段×学科×类型 cell + 蓝图/契约/规则附加块）；
   //    options 仅用于下方方案摘要展示，逐章指令由 generate 循环内按单章重新组装。
@@ -6234,8 +6231,9 @@ const plainToHtml = (text) => {
     .join('\n');
 };
 
-// 🔧 HTML → 纯文本（保留段落和换行结构）
-const htmlToPlainText = (html) => {
+// 🔧 HTML → 纯文本（保留段落和换行结构；仅本模块 rawText 同步用——比 contentCleaner.htmlToPlainText
+//    更"简单"：不做答案节截取/表格转文/[IMAGE]描述/超长裁剪，避免同名双实现误引歧义，故命名为 simple 版）
+const simpleHtmlToPlainText = (html) => {
   if (!html) return '';
   return html
     .replace(/<br\s*\/?>/gi, '\n')           // <br> → 换行
@@ -6523,7 +6521,7 @@ const confirmRawText = async () => {
   }
   
   // 🔧 存两份：rawText 给 AI 分析，_rawTextHtml 给编辑器复显
-  const plainText = htmlToPlainText(finalText);
+  const plainText = simpleHtmlToPlainText(finalText);
   chapter.rawText = plainText;
   chapter._rawTextHtml = rawText;  // 保留原始 HTML，重新打开编辑器时用
   
@@ -6699,7 +6697,7 @@ const confirmRawTextWithImages = async () => {
   }
   
   // 🔧 存两份：rawText 给 AI 分析，_rawTextHtml 给编辑器复显
-  const plainText = htmlToPlainText(finalText);
+  const plainText = simpleHtmlToPlainText(finalText);
   chapter.rawText = plainText;
   chapter._rawTextHtml = rawText;  // 保留原始 HTML，重新打开编辑器时用
   
@@ -8067,22 +8065,9 @@ const downloadDoc = async (doc, format) => {
   } catch { /* 读取失败用内存值 */ }
   
   // 🔧 第二道防线：清洗 AI 响应中可能残留的 markdown 代码块标记和对话文本
-  //    虽然 callAI 中已有 cleanReasoningOutput，但部分模型（如 Qwen）仍可能绕过
-  const mdBlockRegex = /```(?:html?|HTML?)?[\s\n]*([\s\S]*?)\n?```/g;
-  const mdBlocks = [];
-  let mdMatch;
-  while ((mdMatch = mdBlockRegex.exec(content)) !== null) {
-    mdBlocks.push(mdMatch[1].trim());
-  }
-  if (mdBlocks.length > 0) {
-    content = mdBlocks.join('\n\n');
-  } else {
-    // 无代码块但有 HTML 标签 → 截掉对话前缀
-    const htmlStartIdx = content.search(/<(!DOCTYPE|html|head|body|h[1-6]|p\b|div|table|ul|ol|span)\b/i);
-    if (htmlStartIdx > 0 && htmlStartIdx < 500) {
-      content = content.substring(htmlStartIdx);
-    }
-  }
+  //    虽然 callAI 中已有 cleanReasoningOutput，但部分模型（如 Qwen）仍可能绕过；
+  //    逻辑收敛至 contentCleaner.stripAiCodeFence（与 TypesetModule 导出端共用，不再各自维护同构副本）
+  content = stripAiCodeFence(content);
   
   // 🔧 所见即所得：换行不做导出阶段清理（AI 残留的成串 br 已在生成入库时清理，
   //    排版编辑里保留的换行原样导出、删除的换行不会导出）

@@ -198,7 +198,8 @@ export const DEFAULT_BUDGET_BY_TYPE = {
   errorbook: { mode: 'auto', tier: 'balanced', body: { economy: 0.95, balanced: 1.4, full: 1.8, cap: 12000, custom: null }, answer: { economy: 0.5, balanced: 0.7, full: 0.95, cap: 6000, custom: null }, once: { economy: 1.2, balanced: 1.7, full: 2.2, cap: 16000, custom: null } },
 };
 
-const normalizeBudgetByType = (bbt) => {
+// 🔧 budgetByType 槽位规整唯一实现（生成端读取兜底 + 设置页播种/导入共用；曾与 SettingsModule.normalizeBudgetSlots 同构双份）
+export const normalizeBudgetByType = (bbt) => {
   const defs = DEFAULT_BUDGET_BY_TYPE;
   const out = {};
   for (const [key, def] of Object.entries(defs)) {

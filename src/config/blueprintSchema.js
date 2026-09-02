@@ -31,6 +31,7 @@ export const CARRIERS = {
   IMAGE: 'image',                 // [IMAGE] 配图标记
   GRAPH: 'graph',                 // [GRAPH] 图形标记
   FORMULA: 'formula',             // 公式 $..$ / $$..$$
+  LINE: 'line',                   // 横线书写区（排版规格库 layoutSpec 的缺省作答区/允许表词条——词汇表补齐，防枚举缺项）
 };
 
 export const CARRIER_LABELS = {
@@ -52,6 +53,7 @@ export const CARRIER_LABELS = {
   [CARRIERS.IMAGE]: '配图',
   [CARRIERS.GRAPH]: '图形',
   [CARRIERS.FORMULA]: '公式',
+  [CARRIERS.LINE]: '横线',
 };
 
 const HAS = (text, re) => re.test(String(text || ''));

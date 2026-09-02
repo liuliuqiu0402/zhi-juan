@@ -7,7 +7,7 @@
  *    精确 key 命中时优先返回用户版（覆盖内置），删除后回退内置。
  * ============================================================
  */
-import { getExamBlueprint, EXAM_BLUEPRINTS } from './examPaperBlueprints.js';
+import { getExamBlueprint, EXAM_BLUEPRINTS, DEFAULT_EXAM_FULL_SCORE, DEFAULT_EXAM_DURATION } from './examPaperBlueprints.js';
 import { isLibEntryEnabled } from '../utils/libToggles.js';
 
 /** localStorage 键：用户自定义蓝图库 */
@@ -26,8 +26,8 @@ export function saveUserBlueprint(key, bp = {}) {
   const lib = loadUserBlueprints();
   lib[key] = {
     label: bp.label || key,
-    fullScore: Number(bp.fullScore) || 100,
-    duration: bp.duration || '60分钟',
+    fullScore: Number(bp.fullScore) || DEFAULT_EXAM_FULL_SCORE,
+    duration: bp.duration || DEFAULT_EXAM_DURATION,
     sections: Array.isArray(bp.sections) ? bp.sections : [],
     updatedAt: Date.now(),
   };

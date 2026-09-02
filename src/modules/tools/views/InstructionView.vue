@@ -272,7 +272,7 @@
 
 <script setup>
 import { computed, inject, ref } from 'vue';
-import { listPromptTemplates, savePromptTemplate, deletePromptTemplate, BUILTIN_TEMPLATES, CURRICULUM_VERSION_INFO } from '../../../config/promptLibrary.js';
+import { listPromptTemplates, savePromptTemplate, deletePromptTemplate, BUILTIN_TEMPLATES, CURRICULUM_VERSION_INFO, GEN_TYPE_NAMES } from '../../../config/promptLibrary.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 import { setLibToggle, listDisabledEntries } from '../../../utils/libToggles.js';
@@ -299,11 +299,9 @@ const toggleTpl = (key, on) => {
 const STAGE_LABELS = {
   primary_low: '小学低段（1-2年级）', primary_mid: '小学中段（3-4年级）', primary_high: '小学高段（5-6年级）', middle: '初中（7-9年级）', high: '高中',
 };
-const GEN_TYPE_LABELS = [
-  { key: 'exam', label: '正式试卷' }, { key: 'practice', label: '课时练' }, { key: 'special', label: '专项突破' },
-  { key: 'preview', label: '课前预习' }, { key: 'reading', label: '阅读训练' }, { key: 'summary', label: '知识总结' },
-  { key: 'dictation', label: '默写积累' }, { key: 'errorbook', label: '错题本' }, { key: 'review', label: '复习资料' },
-];
+// 🔴 类型中文名单一事实源 = promptLibrary.GEN_TYPE_NAMES（曾本地写"正式试卷"等异名，与正式考卷等漂移）
+const GEN_TYPE_KEYS_ALL = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
+const GEN_TYPE_LABELS = GEN_TYPE_KEYS_ALL.map((k) => ({ key: k, label: GEN_TYPE_NAMES[k] || k }));
 const GEN_TYPE_NAME = Object.fromEntries(GEN_TYPE_LABELS.map((t) => [t.key, t.label]));
 
 /* ===== 数据源 ===== */

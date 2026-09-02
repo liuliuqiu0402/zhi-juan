@@ -1235,6 +1235,7 @@ import { useFileHandler } from '../composables/useFileHandler.js';
 import { convertFormulasInHtml } from '../utils/wordExporter.js';
 import { useTocParser, safeFocusOutlineInput, fastFocusInput, smartFocusInput, fastCalculatePageRanges, fastRebuildTree } from '../composables/useTocParser.js';
 import { subjects, subjectGradeSystem } from '../config/expertKnowledge.js';
+import { autoDetectTextbookMeta } from '../utils/textbookMeta.js'; // 教材/模板名元数据识别（课本库/模板库共用单一实现，曾双份逐字副本）
 import { useAiGenerator } from '../composables/useAiGenerator.js';
 import { deepClone } from '../utils/helpers';
 import PdfPreview from '../components/PdfPreview.vue';
@@ -2977,29 +2978,8 @@ const loadExistingOutline = async () => {
 };
 
 
-const autoDetectMeta = (name) => {
-  const result = { stage: '', grade: '', subject: '', semester: '' };
-  const normalized = name
-    .replace(/①/g, '1').replace(/②/g, '2').replace(/③/g, '3')
-    .replace(/④/g, '4').replace(/⑤/g, '5').replace(/⑥/g, '6');
-  
-  const gradeMap = {'1':'一年级','2':'二年级','3':'三年级','4':'四年级','5':'五年级','6':'六年级'};
-  const gradeMatch = normalized.match(/([1-6])年级/);
-  if (gradeMatch) {
-    result.stage = '小学';
-    result.grade = gradeMap[gradeMatch[1]];
-  }
-  
-  const subjects = ['语文','数学','英语','科学','物理','化学','生物','历史','地理','政治','道德与法治','信息科技','音乐','美术','体育'];
-  for (const s of subjects) {
-    if (normalized.includes(s)) { result.subject = s; break; }
-  }
-  
-  if (normalized.includes('上册')) result.semester = '上册';
-  else if (normalized.includes('下册')) result.semester = '下册';
-  
-  return result;
-};
+// 教材/模板名元数据自动识别 → 已收敛至共享 utils/textbookMeta.autoDetectTextbookMeta（课本库/模板库共用，
+// 曾在此双份逐字副本；含学科旧键"政治/信息技术"漏"思想政治"识别等 bug——共享实现已修复）
 
 // 保存模板
 const saveTemplate = async () => {
@@ -3128,10 +3108,10 @@ const saveTemplate = async () => {
       imagesDir,
       coverPath,
       // 🔑 直接存中文值，不做 stageMap 映射（筛选时也用中文比对）
-      stage: filterStage.value || autoDetectMeta(rawName).stage || '',
-      grade: filterGrade.value || autoDetectMeta(rawName).grade || '',
-      subject: filterSubject.value || autoDetectMeta(rawName).subject || '',
-      semester: filterSemester.value || autoDetectMeta(rawName).semester || '',
+      stage: filterStage.value || autoDetectTextbookMeta(rawName).stage || '',
+      grade: filterGrade.value || autoDetectTextbookMeta(rawName).grade || '',
+      subject: filterSubject.value || autoDetectTextbookMeta(rawName).subject || '',
+      semester: filterSemester.value || autoDetectTextbookMeta(rawName).semester || '',
       selected: false,
       outline: outlineForSave,
       totalPages: totalPages.value,

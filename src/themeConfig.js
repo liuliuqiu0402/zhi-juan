@@ -1,6 +1,7 @@
 // ==================== 主题定义 ====================
 import { convertFormulasInHtml } from './utils/wordExporter.js';
 import { getMergedSpec, normalizeStage3 } from './config/layoutSpec.js';
+import { stripSealSuffix, normalizeSealBlanks } from './utils/sealText.js'; // 密封线文本规整（与 docx 导出 drawingMLShapes 共用，曾同正文双份）
 
 export const themes = [
   // 我的样式
@@ -2353,12 +2354,9 @@ const escHtml = (s) => String(s == null ? '' : s)
  */
 export const buildSealZoneHTML = (fields) => {
   const list = Array.isArray(fields) ? fields : splitSealText(fields || '');
-  // ⚠️ 多字字段可能粘有密封线字符（如"密封线内不要答题封""学号：＿密"），剥离尾部密/封/线
-  const stripSealSuffix = (s) => String(s || '').replace(/[密封线]+$/g, '');
-  // 🔧 学校/班级/姓名/学号 后的下划线统一为 8 个全角 ＿（"再长一些且一致"），预览与导出一致
-  const normalizeBlanks = (s) => String(s || '').replace(/＿+/g, '＿＿＿＿＿＿＿＿');
+  // ⚠️ 密封文本规整（剥离尾部密/封/线、下划线统一 8 全角）→ 共享 sealText（与 docx 导出一致，曾同正文双份）
   const tip = stripSealSuffix(list.find((f) => /不要答题|^密封线内/.test(f)) || '密封线内不要答题');
-  const info = normalizeBlanks(stripSealSuffix(list.find((f) => /^(学校|班级|姓名|学号|考生|考号)[:：]/.test(f)) || ''));
+  const info = normalizeSealBlanks(stripSealSuffix(list.find((f) => /^(学校|班级|姓名|学号|考生|考号)[:：]/.test(f)) || ''));
   // 标准试卷密封线必含"密/封/线"三字（写在折线上，线上密下）；源文本未显式给出时补全
   const chars = ['线', '封', '密'].filter((c) => list.includes(c));
   const effChars = chars.length ? chars : ['线', '封', '密'];

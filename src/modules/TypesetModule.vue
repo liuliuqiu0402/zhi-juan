@@ -461,6 +461,7 @@ import { APP_EVENTS } from '../constants/events.js';
 import { PAPER_PRESETS } from '../config/paperPresets.js';
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
+import { stripAiCodeFence } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离（与 GenerateModule 共用，防同构副本各自演化）
 import storage from '../utils/storage';
 import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
 
@@ -1030,30 +1031,9 @@ const uploadCustomWord = async () => {
 /**
  * 🔧 清洗导出内容中的 AI 对话残留和 markdown 代码块标记
  *    仅剥离对话文本和 ```html 标记，不修改 HTML 结构本身
+ *    逻辑收敛至 contentCleaner.stripAiCodeFence（与 GenerateModule.downloadDoc 共用，防同构副本各自演化）
  */
-const sanitizeExportContent = (html) => {
-  if (!html) return html;
-  let cleaned = html;
-  // 提取 markdown 代码块中的 HTML（支持对话前缀+代码块）
-  const mdBlockRegex = /```(?:html?|HTML?)?[\s\n]*([\s\S]*?)\n?```/g;
-  const mdBlocks = [];
-  let mdMatch;
-  while ((mdMatch = mdBlockRegex.exec(cleaned)) !== null) {
-    mdBlocks.push(mdMatch[1].trim());
-  }
-  if (mdBlocks.length > 0) {
-    cleaned = mdBlocks.join('\n\n');
-  } else {
-    // 无代码块但有对话前缀+HTML → 从第一个 HTML 标签开始截取
-    const htmlStartIdx = cleaned.search(/<(!DOCTYPE|html|head|body|h[1-6]|p\b|div|table|ul|ol|span)\b/i);
-    if (htmlStartIdx > 0 && htmlStartIdx < 500) {
-      cleaned = cleaned.substring(htmlStartIdx);
-    }
-  }
-  // 🔧 换行不做任何导出阶段清理：所见即所得（AI 残留的成串 br 已在生成入库时清理，
-  //    编辑器里保留的换行原样导出、删除的换行不会导出）
-  return cleaned;
-};
+const sanitizeExportContent = (html) => stripAiCodeFence(html);
 
 const printFallback = (htmlContent) => {
   const w = window.open('', '_blank', 'width=800,height=600');

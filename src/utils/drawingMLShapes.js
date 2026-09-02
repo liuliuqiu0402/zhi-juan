@@ -7,6 +7,8 @@
 //   - anchor 必须放在 <w:t> 之前 → 形状从 run 起点绘制，紧贴前文（零多余间距）
 // 兼容策略：mc:Choice Requires="wpg"（矢量群组）→ mc:Fallback VML（旧版 Word）
 
+import { stripSealSuffix, normalizeSealBlanks } from './sealText.js'; // 密封线文本规整（与 themeConfig 预览共用，曾同正文双份）
+
 const EMU_PER_DXA = 635;  // 1 DXA = 635 EMU
 export { EMU_PER_DXA };
 const EMU_PER_PT  = 12700; // 1 pt = 12700 EMU
@@ -585,11 +587,9 @@ const SEAL_RIGHT_MARGIN_MM = 25;
  */
 const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false, pageW = 210, pageH = 297) => {
   const fields = String(text || '密封线').split('\u0001').map((f) => f.trim()).filter(Boolean);
-  const stripSealSuffix = (s) => String(s || '').replace(/[密封线]+$/g, '');
-  // 🔧 学校/班级/姓名/学号 后的下划线统一为 8 个全角 ＿（"再长一些且一致"）
-  const normalizeBlanks = (s) => String(s || '').replace(/＿+/g, '＿＿＿＿＿＿＿＿');
+  // ⚠️ 密封文本规整（剥离尾部密/封/线、下划线统一 8 全角）→ 共享 sealText（与 themeConfig 预览一致，曾同正文双份）
   const tip = stripSealSuffix(fields.find((f) => /密封线内/.test(f)) || '密封线内不要答题');
-  const info = normalizeBlanks(stripSealSuffix(fields.find((f) => /^(学校|班级|姓名|学号|考生|考号)/.test(f)) || ''));
+  const info = normalizeSealBlanks(stripSealSuffix(fields.find((f) => /^(学校|班级|姓名|学号|考生|考号)/.test(f)) || ''));
   const charOf = (name, def) => fields.find((f) => f.length === 1 && f === name) || def;
   const topChar = charOf('线', '线');
   const midChar = charOf('封', '封');

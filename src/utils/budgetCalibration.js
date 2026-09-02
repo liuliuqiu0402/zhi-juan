@@ -19,7 +19,7 @@
  * ============================================================
  */
 
-import { resolveStageKey } from './gradeStage.js'; // 年级→五档学段键唯一事实源（校准桶键与三维度注入/质检同口径）
+import { resolveStageKey, STAGE_KEY_SET } from './gradeStage.js'; // 年级→五档学段键唯一事实源（校准桶键与三维度注入/质检同口径）
 
 // 存储 key（与 apiConfig 同层的 localStorage 业务 key；避免与生成内容仓库混放）
 const SAMPLE_KEY = 'budgetCalibrationSamples';   // 原始样本队列
@@ -30,12 +30,11 @@ const CALIB_KEY = 'budgetCalibrationValues';     // 采纳后的校准覆盖层
 // 桶键拆分原则上只允许"五档键"：已是五档键（存量样本/面板枚举回传）直接透传；
 // 否则用 学段×年级(可回退教材名) 解析，小学按 低/中/高段 精确分桶。
 // 🔴 无年级信息时 resolveStageKey 对小学按高段宽松（primary_high），与质检口径一致。
-const FIVE_TIER_RE = /^(primary_low|primary_mid|primary_high|middle|high)$/;
 const resolveBucketStage = (stage = '', grade = '', name = '') => {
   const s = String(stage || '').trim();
-  if (FIVE_TIER_RE.test(s)) return s;
+  if (STAGE_KEY_SET.has(s)) return s; // 五档键自检唯一事实源（gradeStage.STAGE_KEY_SET，不另建正则防双轨）
   const resolved = resolveStageKey(s, grade, name);
-  return FIVE_TIER_RE.test(resolved || '') ? resolved : 'middle';
+  return STAGE_KEY_SET.has(resolved || '') ? resolved : 'middle';
 };
 
 /** 桶 key：genType|subject|stageKey|mode（mode 区分 split/once——两者产出率口径不同，绝不混算防废数据） */

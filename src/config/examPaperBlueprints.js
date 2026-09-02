@@ -9,6 +9,11 @@
 // 单一事实源：分值规则唯一在 promptLibrary.buildStructureText 中定义（含大题命题要求 note）；大题标题统一明细式（共X题，共X分）。
 import { getRegionConfig } from './examRegionConfig.js';
 import { isLibEntryEnabled } from '../utils/libToggles.js';
+import { normalizeSubjectName } from './expertKnowledge.js'; // 学科×学段归名唯一事实源（别名+跨学段纠正，曾本地双表 SUBJECT_ALIAS/STAGE_SUBJECT_ALIAS 双轨）
+
+/** 蓝图默认分值/时长兜底（保存用户蓝图、省市缩放分母等共用；曾散落 100/'60分钟' 字面量于多处） */
+export const DEFAULT_EXAM_FULL_SCORE = 100;
+export const DEFAULT_EXAM_DURATION = '60分钟';
 
 /**
  * 学科×学段 → 真题卷题型骨架
@@ -561,15 +566,6 @@ export const EXAM_BLUEPRINTS = {
   },
 };
 
-/** 学科名模糊匹配兜底表（教材库学科名 → 蓝本 key 学科名，统一为新课标标准名） */
-const SUBJECT_ALIAS = {
-  '政治': '道德与法治', '思想品德': '道德与法治', '道法': '道德与法治',
-  '信息技术': '信息科技', '信息': '信息科技',
-  '科学（小学）': '科学', '小学科学': '科学',
-  // 体育与健康（2022 新课标官方名）→ 体育（蓝本 key）
-  '体育与健康': '体育', '体育与健康课程': '体育',
-};
-
 /** 学段兜底链：无精确匹配时依次降级 */
 const STAGE_FALLBACK = {
   primary_low: ['primary_mid', 'primary_high', 'middle'],
@@ -579,42 +575,33 @@ const STAGE_FALLBACK = {
   high: ['middle'],
 };
 
-/** 学科-学段联合别名：同一门课程在不同学段名称不同（道德与法治课在高中叫思想政治） */
-const STAGE_SUBJECT_ALIAS = {
-  '道德与法治|high': '思想政治|high',
-  '思想政治|primary_low': '道德与法治|primary_low',
-  '思想政治|primary_mid': '道德与法治|primary_mid',
-  '思想政治|primary_high': '道德与法治|primary_high',
-  '思想政治|middle': '道德与法治|middle',
-};
-
 /**
  * 查询真题卷蓝本
- * @param {string} subject 学科名（未标准化也可）
+ * @param {string} subject 学科名（未标准化也可：政治/道法/信息技术/体育与健康…）
  * @param {string} stage primary_low/primary_mid/primary_high/middle/high
  * @returns {{label:string, fullScore:number, duration:string, sections:Array, key:string}|null}
  */
  export function getExamBlueprint(subject, stage, region) {
   if (!subject || !stage) return null;
-  const stdSubject = SUBJECT_ALIAS[subject] || subject;
-  // 学段联合别名（同一课程跨学段名称转换，如高中道法→思想政治）
-  const joint = STAGE_SUBJECT_ALIAS[`${stdSubject}|${stage}`] || `${stdSubject}|${stage}`;
-  const [bpSubject, bpStage] = joint.split('|');
+  // 学科归名唯一事实源：expertKnowledge.normalizeSubjectName（含跨学段纠正：道法(小/初)@高中→思想政治、思想政治@小/初→道德与法治；
+  // 曾本地维护 SUBJECT_ALIAS/STAGE_SUBJECT_ALIAS 两份表，与共享源同义双轨——已删除收敛）
+  const stdSubject = normalizeSubjectName(subject, stage);
+  const bpStage = String(stage).trim();
   let bp = null;
-  const direct = EXAM_BLUEPRINTS[`${bpSubject}|${bpStage}`];
+  const direct = EXAM_BLUEPRINTS[`${stdSubject}|${bpStage}`];
   if (direct) {
-    bp = { ...direct, key: `${bpSubject}|${bpStage}`, subject: bpSubject, stage: bpStage };
+    bp = { ...direct, key: `${stdSubject}|${bpStage}`, subject: stdSubject, stage: bpStage };
   } else {
     // 学段降级链
     const chain = STAGE_FALLBACK[bpStage] || [];
     for (const st of chain) {
-      const b = EXAM_BLUEPRINTS[`${bpSubject}|${st}`];
-      if (b) { bp = { ...b, key: `${bpSubject}|${st}`, subject: bpSubject, stage: bpStage }; break; }
+      const b = EXAM_BLUEPRINTS[`${stdSubject}|${st}`];
+      if (b) { bp = { ...b, key: `${stdSubject}|${st}`, subject: stdSubject, stage: bpStage }; break; }
     }
     // 全学段通配蓝本（如信息科技跨学段通用）
     if (!bp) {
-      const all = EXAM_BLUEPRINTS[`${bpSubject}|all`];
-      if (all) bp = { ...all, key: `${bpSubject}|all`, subject: bpSubject, stage: bpStage };
+      const all = EXAM_BLUEPRINTS[`${stdSubject}|all`];
+      if (all) bp = { ...all, key: `${stdSubject}|all`, subject: stdSubject, stage: bpStage };
     }
   }
   // 工具库启停开关：命中蓝本被停用 → 返回 null（生成端落回兜底，见 useAiGenerator）
@@ -624,10 +611,10 @@ const STAGE_SUBJECT_ALIAS = {
   if (bp && region) {
     const effConfig = getRegionConfig();
     const regMap = effConfig[region] && effConfig[region][bpStage];
-    const rc = regMap && (regMap[bpSubject] || regMap[stdSubject] || regMap[subject]);
+    const rc = regMap && (regMap[stdSubject] || regMap[subject]);
     if (rc) {
       if (rc.fullScore && rc.fullScore !== bp.fullScore) {
-        const defaultTotal = bp.fullScore || 100;
+        const defaultTotal = bp.fullScore || DEFAULT_EXAM_FULL_SCORE;
         const newTotal = rc.fullScore;
         const scaled = bp.sections.map(s => ({ ...s, score: Math.max(1, Math.round((s.score * newTotal) / defaultTotal)) }));
         const sum = scaled.reduce((a, c) => a + c.score, 0);

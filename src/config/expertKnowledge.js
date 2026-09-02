@@ -143,6 +143,8 @@ export const subjects = [
 // 🔗 命名双轨·资料类型：'exam/practice/special/preview/reading/summary/dictation/errorbook/review' 九类 key
 //    与指令库 GEN_TYPE_NAMES、TYPE_BASES、蓝图库 TEACHING_GEN_TYPES/EXAM 类型 key 完全一致。
 //    新增/改名类型须四处同步（expertKnowledge·指令库·examPaperBlueprints·teachingBlueprints），否则模板命不中/面板失配。
+// 🔴 中文名以指令库 GEN_TYPE_NAMES 为规范（正式考卷/知识总结/复习资料…）；本表仅叠加 emoji 前缀用于 UI 卡片，
+//    文本必须与规范名一致（tests/utils/typeNameConsistency 有断言守卫，防再漂移）。
 /**
  * @deprecated genTypeTemplates.instruction 和 .structure 字段已废弃。
  * 生成规范已迁移至指令库模板 + 蓝图库（examPaperBlueprints/teachingBlueprints）+ 规则库。
@@ -150,13 +152,13 @@ export const subjects = [
  */
 export const genTypeTemplates = {
   'exam': {
-    name: '📝 考卷',
+    name: '📝 正式考卷',
   },
   'practice': {
     name: '📚 课时练',
   },
   'summary': {
-    name: '📖 知识点总结',
+    name: '📖 知识总结',
   },
   'special': {
     name: '🎯 专项突破',
@@ -174,21 +176,21 @@ export const genTypeTemplates = {
     name: '📖 阅读训练',
   },
   'review': {
-    name: '📋 单元/期末复习',
+    name: '📋 复习资料',
   }
 };
 
 // ==================== 资料类型选项 ====================
 export const genTypeOptions = [
-  { value: 'exam', label: '📝 考卷', desc: '正式考试试卷' },
+  { value: 'exam', label: '📝 正式考卷', desc: '正式考试试卷' },
   { value: 'practice', label: '📚 课时练', desc: '日常课时作业' },
-  { value: 'summary', label: '📖 知识点总结', desc: '知识归纳整理' },
+  { value: 'summary', label: '📖 知识总结', desc: '知识归纳整理' },
   { value: 'special', label: '🎯 专项突破', desc: '专题深度训练' },
   { value: 'errorbook', label: '🔖 错题本', desc: '错题整理分析' },
   { value: 'preview', label: '🔍 课前预习', desc: '自主预习引导' },
   { value: 'dictation', label: '📝 默写积累', desc: '生字词/单词听默写' },
   { value: 'reading', label: '📖 阅读训练', desc: '阅读理解专项训练' },
-  { value: 'review', label: '📋 单元/期末复习', desc: '系统化复习+自测' }
+  { value: 'review', label: '📋 复习资料', desc: '系统化复习+自测' }
 ];
 
 // ==================== 组织风格选项（原"命题风格"改造：分命题/呈现两组，按类型映射，删"传统命题"） ====================
@@ -308,37 +310,32 @@ export const subjectAliasMap = {
 };
 
 /**
- * 🔧 新增：根据学段自动纠正学科名称
- * @param {string} subject - 原始学科名称
- * @param {string} stage - 学段（小学/初中/高中）
- * @returns {string} 纠正后的学科名称
+ * 🔧 学科名按学段自动纠正（学科×学段归名唯一事实源）
+ * @param {string} subject - 原始学科名称（含简称/旧名：政治/道法/思想品德/信息技术/体育与健康…）
+ * @param {string} stage - 学段：五档键（primary_low/middle/high）或粗标签（小学/初中/高中、primary/middle/high）
+ * @returns {string} 纠正后的学科标准名（政治类：高中=思想政治，小学/初中=道德与法治；信息技术→信息科技；体育与健康→体育…）
  */
 export const normalizeSubjectName = (subject, stage) => {
   if (!subject) return subject;
-  
-  // 🔧 统一学段值：兼容中英文（部分调用方传英文 'primary'/'middle'/'high'，部分传中文）
-  const stageMap = { 'primary': '小学', 'middle': '初中', 'high': '高中' };
+
+  // 🔧 统一学段值：兼容英文三档（'primary'/'middle'/'high'）、五档键（primary_low…high）、中文（小学/初中/高中）
+  const stageMap = { 'primary': '小学', 'middle': '初中', 'high': '高中', 'primary_low': '小学', 'primary_mid': '小学', 'primary_high': '小学' };
   const normalizedStage = stageMap[stage] || stage;
-  
-  // 先检查别名映射
+  const isHigh = normalizedStage === '高中';
+  const isLowerPrimaryOrMiddle = normalizedStage === '小学' || normalizedStage === '初中';
+
+  // 政治类（含简称/旧名）按学段归名：高中=思想政治；小学/初中=道德与法治
+  if (subject === '政治' || subject === '思想品德' || subject === '道法') {
+    return isHigh ? '思想政治' : '道德与法治';
+  }
+  // 标准名跨学段纠正（同一课程不同学段不同名）：道德与法治(小/初)在高中叫思想政治；思想政治在小学/初中叫道德与法治
+  if (subject === '道德与法治' && isHigh) return '思想政治';
+  if (subject === '思想政治' && isLowerPrimaryOrMiddle) return '道德与法治';
+
+  // 其余别名（信息技术→信息科技、体育与健康→体育 等，与学段无关）
   const aliasTarget = subjectAliasMap[subject];
-  if (aliasTarget) {
-    // 政治类高中 → 思想政治（初小统一映射到"道德与法治"）；"思想品德"高中同款处理（历史缺陷：高中分支不可达）
-    if ((subject === '政治' || subject === '思想品德') && normalizedStage === '高中') {
-      return '思想政治';
-    }
-    return aliasTarget;
-  }
-  
-  // 初中政治类 → 道德与法治
-  if (['政治', '思想品德'].includes(subject) && normalizedStage === '初中') {
-    return '道德与法治';
-  }
-  // 高中政治类 → 思想政治
-  if (['政治', '思想品德'].includes(subject) && normalizedStage === '高中') {
-    return '思想政治';
-  }
-  
+  if (aliasTarget) return aliasTarget;
+
   return subject;
 };
 

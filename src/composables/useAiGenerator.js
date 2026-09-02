@@ -407,7 +407,7 @@ const retrieveBlueprintSegments = (contentCards, parsedBlueprint, maxChars = 150
 
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeIndents } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeIndents, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -452,49 +452,25 @@ const convertBlankFormat = (html) => {
   result = result.replace(/(?:[（(]{1,2})\s*([_\uFF3F\s\u3000]{1,24})\s*(?:[）)]{1,2})/g, (match, inner) => {
     const u = (inner.match(/[_\uFF3F]/g) || []).length;
     if (u === 0) return match; // 无下划线 → 交给步骤3（括号+纯空白）
-    let n;
-    if (u <= 3) n = 2;
-    else if (u <= 4) n = 4;
-    else if (u <= 6) n = 6;
-    else if (u <= 8) n = 8;
-    else n = 10;
-    return `<span class="blank-${n}">&emsp;</span>`;
+    // 🔴 宽度换算唯一事实源 = contentCleaner 共享函数（读 layoutSpec.BLANK），不在此另建梯形
+    return `<span class="blank-${shortBlankWidth(u)}">&emsp;</span>`;
   });
 
   // ── 步骤1.7a：单边左括号 + 下划线（无右括号，完整对已被1.8/1.9处理，此处无需负向前瞻）→ <span> ──
   result = result.replace(/(?:[（(])\s*([_\uFF3F]{3,})/g, (match, underscores) => {
-    const len = underscores.length;
-    let n;
-    if (len <= 3) n = 2;
-    else if (len <= 4) n = 4;
-    else if (len <= 6) n = 6;
-    else if (len <= 8) n = 8;
-    else n = 10;
-    return `<span class="blank-${n}">&emsp;</span>`;
+    return `<span class="blank-${shortBlankWidth(underscores.length)}">&emsp;</span>`;
   });
 
   // ── 步骤1.7b：下划线 + 单边右括号（无左括号，完整对已被1.8/1.9处理）→ <span> ──
   result = result.replace(/([_\uFF3F]{3,})\s*(?:[）)])/g, (match, underscores) => {
-    const len = underscores.length;
-    let n;
-    if (len <= 3) n = 2;
-    else if (len <= 4) n = 4;
-    else if (len <= 6) n = 6;
-    else if (len <= 8) n = 8;
-    else n = 10;
-    return `<span class="blank-${n}">&emsp;</span>`;
+    return `<span class="blank-${shortBlankWidth(underscores.length)}">&emsp;</span>`;
   });
 
   // ── 步骤2：裸露下划线 → <u class="blank-N">&emsp;</u>（无外壳包裹 → 横线书写区；半角/全角均支持）──
+  // 🔴 宽度换算唯一事实源 = blankWidthForChars（读 layoutSpec.BLANK：1 字 ≈ 2 格），与正文层 normalizeBlankMarkers 同口径；
+  //    曾用 1:1 硬编码梯形（≤4→4）导致同一 ＿ 输入两处宽度不同、排版规格对 callAI 层不生效——已收敛
   result = result.replace(/[\uFF3F_]{3,}/g, (match) => {
-    const len = match.length;
-    let n;
-    if (len <= 3) n = 2;
-    else if (len <= 4) n = 4;
-    else if (len <= 6) n = 6;
-    else if (len <= 8) n = 8;
-    else n = 10;
-    return `<u class="blank-${n}">&emsp;</u>`;
+    return `<u class="blank-${blankWidthForChars(match.length)}">&emsp;</u>`;
   });
 
 
@@ -506,15 +482,8 @@ const convertBlankFormat = (html) => {
     const nbspCount = (inner.match(/&nbsp;| /gi) || []).length;
     const totalWidth = emspCount + nbspCount * 0.25;
     if (totalWidth <= 0) return match; // 无有效空白，保持原样
-    let n;
-    if (totalWidth <= 1) n = 2;
-    else if (totalWidth <= 1.5) n = 3;
-    else if (totalWidth <= 2) n = 4;
-    else if (totalWidth <= 3) n = 5;
-    else if (totalWidth <= 4) n = 6;
-    else if (totalWidth <= 6) n = 8;
-    else n = 10;
-    return `<span class="blank-${n}">&emsp;</span>`;
+    // 🔴 宽度换算唯一事实源 = spaceBlankWidth（与正文层 normalizeBlankMarkers 同函数），不在此另建梯形
+    return `<span class="blank-${spaceBlankWidth(totalWidth)}">&emsp;</span>`;
   });
 
   // ── 步骤3.5：归一保护标签外侧的括号 ──
@@ -1066,26 +1035,6 @@ export function useAiGenerator() {
   const setScopeLabelOverride = (scopeTypeVal, label) => {
     if (label) _scopeLabelOverrides[scopeTypeVal] = label;
     else delete _scopeLabelOverrides[scopeTypeVal];
-  };
-
-  /**
-   * 🔧 后处理：将 AI 生成的内联拼音（如"蓬péng"）转换为 <ruby> 标签
-   *    匹配模式：汉字 + 拼音（小写字母含声调符号）→ <ruby>汉字<rt>拼音</rt></ruby>
-   *    注意：只匹配汉字后紧跟拼音的情况，不动 HTML 标签和已有 <ruby>
-   */
-  const convertInlinePinyinToRuby = (html) => {
-    if (!html || typeof html !== 'string') return html;
-    // 拼音声调字母：āáǎà ēéěè īíǐì ōóǒò ūúǔù ǖǘǚǜ ü ê ɑ ɡ
-    const pinyinChar = '[a-zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜüêɑɡ]';
-    // 汉字范围：CJK统一表意文字（基本区 + 扩展A + 兼容区）
-    const hanzi = '[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]';
-    // 模式：汉字 + 至少2个拼音字符（避免匹配单个字母误伤英文缩写）
-    const pattern = new RegExp(`(${hanzi})(${pinyinChar}{2,})`, 'g');
-    return html.replace(pattern, (match, han, py) => {
-      // 安全检查：如果已经在 <ruby> 标签内，不重复包裹
-      // （通过检查 match 前后是否有 <ruby 或 </ruby> 标签——简化处理：直接替换）
-      return `<ruby>${han}<rt>${py}</rt></ruby>`;
-    });
   };
 
   /**
@@ -5234,8 +5183,6 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
       //    - AI 质检已移除——"自产自评"无意义（同一模型检不出系统性错误），
       //      质检误报还会中断整卷生成（实测空壳误判→两次重试→整卷失败）；
       //    - 代码确定性兜底保留（auditExamPaper 已在整卷生成内部执行：拼音/模板残留/分值对齐等 fix + guard 静默抽检）
-      const book = selectedBooks?.[0];
-      const stageRaw = book?.stage || '';
 
       // 初始化质量报告（最小结构，兼容 UI 展示；无检查项）
       const qualityReport = {

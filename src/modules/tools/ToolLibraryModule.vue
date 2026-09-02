@@ -149,6 +149,7 @@
 import { computed, ref, watch, markRaw, provide } from 'vue';
 import { useRoute } from 'vue-router';
 import { TOOL_LIBRARIES, SUBJECT_KEYS, getToolLibrary, computeLibStats } from '@/config/toolLibrary.js';
+import { GEN_TYPE_NAMES } from '@/config/promptLibrary.js'; // 类型中文名单一事实源（曾本地写"正式试卷"异名漂移）
 import DimensionFilter from '@/components/tools/DimensionFilter.vue';
 
 import BlueprintView from './views/BlueprintView.vue';
@@ -180,10 +181,9 @@ const STAGE_LABELS = {
   middle: '初中（7-9年级）',
   high: '高中',
 };
-const GEN_TYPE_LABELS = {
-  exam: '正式试卷', practice: '课时练', special: '专项突破', preview: '课前预习',
-  reading: '阅读训练', summary: '知识总结', dictation: '默写积累', errorbook: '错题本', review: '复习资料',
-};
+// 🔴 类型中文名单一事实源 = GEN_TYPE_NAMES（曾本地写"正式试卷"异名漂移）
+const GEN_TYPE_KEYS_ALL = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
+const GEN_TYPE_LABELS = Object.fromEntries(GEN_TYPE_KEYS_ALL.map((k) => [k, GEN_TYPE_NAMES[k] || k]));
 
 const VIEW_MAP = {
   'blueprint': markRaw(BlueprintView),
