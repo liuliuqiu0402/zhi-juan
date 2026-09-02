@@ -509,6 +509,28 @@
               </template>
               <div v-else style="font-size:10px;color:#c3cdda;padding:3px 0;">（该类型暂无样本；完成若干次该类型生成后，这里会出现按学科×学段分桶的校准入口）</div>
               <div style="font-size:9px;color:#aab6c4;margin-top:3px;">产出率按 勾选原文→实际输出字符 实测；采纳即用中位数作均衡档基准，按 精简0.72/均衡1/充分1.25 展开三档。低于门槛或波动过大(CV&gt;0.35)时按钮置灰。</div>
+              <!-- 📋 操作流水（审计日志：谁/何时/做了什么；清空只删日志，不动校准数据） -->
+              <div style="border-top:1px dashed #dbe4ee;padding:5px 0 1px;margin-top:5px;">
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                  <button @click="auditOpen[row.key] = !auditOpen[row.key]" style="font-size:10px;padding:2px 8px;border:1px solid #c2ccd9;color:#5b6b7c;background:#fff;border-radius:4px;cursor:pointer;">📋 操作流水（{{ auditCountFor(row.key) }}）</button>
+                  <span style="font-size:9px;color:#aab6c4;">采纳/切换/清理的每一条动作记录（设备 · 时间 · 操作）</span>
+                </div>
+                <div v-if="auditOpen[row.key]">
+                  <div v-if="auditLogsFor(row.key).length" style="margin-top:4px;max-height:150px;overflow-y:auto;border:1px solid #e7eef7;border-radius:6px;background:#fff;">
+                    <div v-for="(log, i) in auditLogsFor(row.key)" :key="i" style="display:flex;gap:6px;flex-wrap:wrap;padding:3px 7px;border-bottom:1px solid #f1f5fb;font-size:10px;color:#475569;">
+                      <span style="color:#94a3b8;white-space:nowrap;">{{ fmtAuditTime(log.t) }}</span>
+                      <span style="color:#1f6feb;font-weight:600;white-space:nowrap;">{{ actLabel(log.action) }}</span>
+                      <span style="color:#334155;">{{ log.operator }}</span>
+                      <span v-if="log.bucket" style="color:#64748b;">{{ log.bucket.subject || '—' }} · {{ calStageName(log.bucket.stage) }} · {{ log.bucket.mode === 'split' ? '两次' : log.bucket.mode === 'once' ? '一次' : '全部' }}</span>
+                      <span style="margin-left:auto;color:#94a3b8;">{{ log.detail }}</span>
+                    </div>
+                  </div>
+                  <div v-else style="font-size:10px;color:#c3cdda;padding:3px 0;">暂无操作记录</div>
+                  <div style="display:flex;justify-content:flex-end;margin-top:3px;">
+                    <button @click="clearAuditFor(row.key)" style="font-size:10px;padding:2px 8px;border:1px solid #d9673a;color:#d9673a;background:#fff;border-radius:4px;cursor:pointer;">清空流水</button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -687,6 +709,7 @@ import useLogger, { copyLogs } from '@/composables/useLogger.js';
 import { apiConfig, DEFAULT_BUDGET_BY_TYPE, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
 import { listTypeBuckets, applyCalibration, clearCalibration, setCalibratedEnabled, CHARS_PER_TOKEN, CALIBRATION_THRESHOLDS } from '@/utils/budgetCalibration.js';
+import { recordAudit, getAuditLogs, clearAuditLogs, getAuditCount } from '@/utils/auditLog.js';
 import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud, fetchCloudDevices, deleteDeviceFromCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
 
@@ -1040,6 +1063,8 @@ const calBucketsFor = (rowKey) => {
 const adoptCalibration = (rowKey, bk) => {
   const res = applyCalibration(rowKey, bk.subject, bk.stage, bk.mode || '', CALIBRATION_THRESHOLDS.standard);
   if (res.ok) {
+    const detail = `按实测采纳：基准产出率 ${res.base.toFixed(2)}，样本 ${res.stats.count}`;
+    recordAudit({ action: 'adopt', operator: getDeviceName() || '本地', genType: rowKey, subject: bk.subject, stage: bk.stage, mode: bk.mode || '', detail });
     window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `✅ 已按实测采纳「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」（基准产出率 ${res.base.toFixed(2)}，样本 ${res.stats.count}）`, type: 'info' } }));
   } else {
     window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `采纳失败：${res.reason || '未知'}`, type: 'warning' } }));
@@ -1047,6 +1072,7 @@ const adoptCalibration = (rowKey, bk) => {
 };
 const clearCalibrationRow = (rowKey, bk) => {
   clearCalibration(rowKey, bk.subject, bk.stage, bk.mode || '');
+  recordAudit({ action: 'clear', operator: getDeviceName() || '本地', genType: rowKey, subject: bk.subject, stage: bk.stage, mode: bk.mode || '', detail: '清理校准：校准值+样本一并清除，回退播种默认' });
   window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已清理「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」（校准值+样本一并清除，回退播种默认）`, type: 'info' } }));
 };
 // 播种对照：取该类型播种默认"均衡档"系数（token/字符）× CHARS_PER_TOKEN 转成"产出率基线(字符/字符)"，与校准 calBase 同单位可比。
@@ -1065,8 +1091,20 @@ const toggleCalibrated = (rowKey, bk) => {
     window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '切换失败：该校准已不存在', type: 'warning' } }));
     return;
   }
+  recordAudit({ action: 'toggle', operator: getDeviceName() || '本地', genType: rowKey, subject: bk.subject, stage: bk.stage, mode: bk.mode || '', detail: `切换启用 → ${next ? '使用校准值' : '使用播种默认'}` });
   window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已切换「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」为${next ? '使用校准值' : '使用播种默认'}`, type: 'info' } }));
 };
+
+// 操作流水（审计）：只读展示 + 清空流水（清日志不影响校准数据）。
+const auditOpen = ref({});
+const actLabel = (a) => ({ adopt: '一键采纳', toggle: '切换启用', clear: '清理校准', clearLogs: '清空流水' }[a] || a);
+const auditLogsFor = (rowKey) => getAuditLogs({ bucket: { genType: rowKey } });
+const auditCountFor = (rowKey) => auditLogsFor(rowKey).length;
+const clearAuditFor = (rowKey) => {
+  clearAuditLogs({ bucket: { genType: rowKey } });
+  window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已清空「${rowKey}」的操作流水（仅删除日志，不影响校准数据与样本）`, type: 'info' } }));
+};
+const fmtAuditTime = (t) => new Date(t).toLocaleString('zh-CN', { hour12: false });
 
 // 🔧 槽生效态：用于高亮"生成路径下真实使用的系数槽"。
 //    body/answer 属于"两次生成"，once 属于"一次成型"。auto 按类型内置映射（考卷/课时练/专项/复习→两次，其余→一次）。
