@@ -4567,7 +4567,10 @@ ${cardAnalysisText.substring(0, 1000)}
           taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
           // 🔴 整卷输出预算：正文 base 取「每类型动态帽」（已含触顶升级：勾选超 cap 时自动加长到所需，
           //    不静默截断预算）；思考模式按 thinkingBudgetMultiplier 放大（推理与正文共享配额，需给推理预留余量）
-          maxTokens: bodyDynamicCap * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)),
+          // ⚠️ once 一次成型：正文+答案同一次输出，预算由 once 槽「系数」一体核算（once 槽系数 > body 槽，
+          //    设计上已含答案区，勿再叠加 answer 帽双重放大——此前误判叠加已回退，见 git log 2026-09）
+          maxTokens: bodyDynamicCap
+            * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)),
           allowContinuation: false,
           // 🔧 整卷正文温度：split 用「整卷正文温度」；once 用折中温度（见上方 bodyTemperature）
           temperature: bodyTemperature,
