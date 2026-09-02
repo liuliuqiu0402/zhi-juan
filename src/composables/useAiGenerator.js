@@ -6,7 +6,7 @@ import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurri
 import { getStoragePath } from '../utils/pathHelper.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
-import { normalizeStage } from '../config/validatorRules.js';
+import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
 import {
   genTypeTemplates,
   normalizeSubjectName
@@ -402,17 +402,8 @@ const retrieveBlueprintSegments = (contentCards, parsedBlueprint, maxChars = 150
 };
 
 // ==================== 年级数字提取工具 ====================
-// 🔑 grade 可能是中文（"三年级"）或数字，统一提取数字
-const extractGradeNum = (gradeStr) => {
-  if (!gradeStr) return 0;
-  const num = parseInt(gradeStr);
-  if (!isNaN(num)) return num;
-  const cnMap = { '一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9 };
-  for (const [cn, n] of Object.entries(cnMap)) {
-    if (gradeStr.includes(cn)) return gradeStr.startsWith('高') ? 9 + n : n;
-  }
-  return 0;
-};
+// 🔑 统一使用共享工具 ../utils/gradeStage.js 的 extractGradeNum（曾因本地 parseInt('六年级')
+//    得 NaN→0 误判学段；全项目禁止再各自 parseInt(grade) 直接解析中文年级）
 
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
@@ -4798,7 +4789,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       const hadAnswerBeforeAudit = /answer-section/.test(beforeAudit);
       const audit = auditExamPaper(finalContent, {
         subject: book?.subject || '',
-        stage: normalizeStage(book?.stage, book?.grade),
+        stage: resolveStageKey(book?.stage, book?.grade),
         genType,
       });
       if (audit.fixed > 0 || audit.silent > 0 || audit.issues.length > 0) {

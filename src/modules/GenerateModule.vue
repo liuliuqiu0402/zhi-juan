@@ -1363,6 +1363,7 @@ import {
   normalizeSubjectName
 } from '../config/expertKnowledge.js';
 import { useAiGenerator } from '../composables/useAiGenerator.js';
+import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
 import { inferPaperScope, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS } from '../config/paperScope.js';
 
 // 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
@@ -1434,12 +1435,8 @@ const scoreAdjust = ref({});
 const currentDimKey = () => {
   const book = textbookStore.textbooks.find((b) => hasAnySelected(b.outline));
   if (!book) return '';
-  const stageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-  const base = stageMap[book.stage] || book.stage;
-  const subject = normalizeSubjectName(book.subject, base);
-  const g = parseInt(book.grade) || 0;
-  let st = base;
-  if (base === 'primary') st = g <= 2 ? 'primary_low' : g <= 4 ? 'primary_mid' : 'primary_high';
+  const st = resolveStageKey(book.stage, book.grade);
+  const subject = normalizeSubjectName(book.subject, st);
   return `${subject}|${st}`;
 };
 const applyScoreAdjust = (bp) => {
@@ -3600,7 +3597,7 @@ const viewChapterAnalysis = async (book, chapter) => {
     }
     // 🔧 确保能力层次和风格有默认值
     if (!chapter.competency) {
-      chapter.competency = book.grade && parseInt(book.grade) <= 6 ? '识记与理解' : '应用与分析';
+      chapter.competency = book.grade && extractGradeNum(book.grade) <= 6 ? '识记与理解' : '应用与分析';
     }
     if (!chapter.style) {
       chapter.style = '传统';
@@ -4135,14 +4132,8 @@ const buildInstruction = async () => {
     try {
       const firstBook = selectedBooksWithChapters[0];
       if (firstBook?.subject) {
-        const stageMapIns2 = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-        const stageBase = stageMapIns2[firstBook.stage] || firstBook.stage;
-        const subject = normalizeSubjectName(firstBook.subject, stageBase);
-        const gradeNum = parseInt(firstBook.grade) || 0;
-        let stageKey = stageBase;
-        if (stageBase === 'primary') {
-          stageKey = gradeNum <= 2 ? 'primary_low' : gradeNum <= 4 ? 'primary_mid' : 'primary_high';
-        }
+        const stageKey = resolveStageKey(firstBook.stage, firstBook.grade);
+        const subject = normalizeSubjectName(firstBook.subject, stageKey);
         const region = examRegion.value || firstBook.region || '';
         const genType = genTypes.value?.[0];
         const stageLabel = STAGE_LABEL_MAP[stageKey] || stageKey;
@@ -4202,14 +4193,9 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   // 自动组装完成后清除手动编辑标记（本次组装结果为基准，后续用户再敲字会重新置位）
   userEditedInstruction = false;
   // 三维度：学段键 + 规范学科名 + 资料类型
-  const stageMapLib = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-  const stageBase = stageMapLib[book.stage] || book.stage;
+  const stageBase = resolveStageKey(book.stage, book.grade);
   const subject = normalizeSubjectName(book.subject, stageBase);
-  const gradeNum = parseInt(book.grade) || 0;
-  let stageKey = stageBase;
-  if (stageBase === 'primary') {
-    stageKey = gradeNum <= 2 ? 'primary_low' : gradeNum <= 4 ? 'primary_mid' : 'primary_high';
-  }
+  const stageKey = stageBase;
   // 匹配指令库模板（用户自定义优先，内置兜底）
   const tpl = getPromptTemplate({ grade: stageKey, subject, genType });
 
@@ -4325,14 +4311,9 @@ const restoreDefaultInstruction = async () => {
   const book = selectedBooks[0];
   const genType = genTypes.value?.[0];
   if (!genType) return;
-  const stageMapLib = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-  const stageBase = stageMapLib[book.stage] || book.stage;
+  const stageBase = resolveStageKey(book.stage, book.grade);
   const subject = normalizeSubjectName(book.subject, stageBase);
-  const gradeNum = parseInt(book.grade) || 0;
-  let stageKey = stageBase;
-  if (stageBase === 'primary') {
-    stageKey = gradeNum <= 2 ? 'primary_low' : gradeNum <= 4 ? 'primary_mid' : 'primary_high';
-  }
+  const stageKey = stageBase;
   const tpl = getPromptTemplate({ grade: stageKey, subject, genType });
   // 恢复默认：临时改为内置模板渲染（不写入指令库）
   const builtinTemplate = tpl.source === 'user' ? getPromptTemplate({ grade: '', subject: '', genType }).template : tpl.template;
@@ -5488,7 +5469,7 @@ const executeTextbookAnalysis = async (action) => {
             coreTopics: ch.coreTopics,
             knowledgePoints: ch.knowledgePoints,
             knowledgeHierarchy: ch.knowledgeHierarchy,
-            competency: book.grade && parseInt(book.grade) <= 6 ? '识记与理解' : '应用与分析',
+            competency: book.grade && extractGradeNum(book.grade) <= 6 ? '识记与理解' : '应用与分析',
             style: '传统'
           });
           

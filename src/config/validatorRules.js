@@ -28,16 +28,11 @@
  * ============================================================
  */
 
-/** 归一学段：'小学'/'primary' → primary_low~high（按年级细分，无年级时回落 primary_low 由校验器宽松处理） */
-export const normalizeStage = (stage = '', grade = 0) => {
-  const map = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-  let base = map[stage] || stage || '';
-  if (base === 'primary') {
-    const g = parseInt(grade, 10) || 0;
-    base = g <= 2 ? 'primary_low' : g <= 4 ? 'primary_mid' : 'primary_high';
-  }
-  return base;
-};
+/** 归一学段：'小学'/'primary' → primary_low~high（按年级细分）。统一委托共享工具 gradeStage.resolveStageKey，
+ * 曾因 parseint('六年级') 得 NaN→0 误判为 primary_low；无年级信息时小学按高段（primary_high）宽松处理，不再回落低段。 */
+import { resolveStageKey } from '../utils/gradeStage.js';
+
+export const normalizeStage = (stage = '', grade = 0) => resolveStageKey(stage, grade);
 
 export const VALIDATOR_RULES = [
   // ==================== fix：自动修复（生成前约束 + 生成后修正） ====================

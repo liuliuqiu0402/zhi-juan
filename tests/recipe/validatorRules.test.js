@@ -157,6 +157,13 @@ describe('validatorRules normalizeStage', () => {
     expect(normalizeStage('高中')).toBe('high');
     expect(normalizeStage('primary_low')).toBe('primary_low');
   });
+
+  it('中文年级字符串不再被 parseint 误判为低段（回归：六年级→primary_high）', () => {
+    expect(normalizeStage('小学', '一年级')).toBe('primary_low');
+    expect(normalizeStage('小学', '三年级')).toBe('primary_mid');
+    expect(normalizeStage('小学', '六年级')).toBe('primary_high');
+    expect(normalizeStage('小学', '')).toBe('primary_high'); // 无年级信息时小学按高段宽松处理
+  });
 });
 
 describe('validatorRules 用户自定义持久化（面板维护，即时生效）', () => {
