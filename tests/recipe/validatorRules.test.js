@@ -190,6 +190,28 @@ describe('gradeStage extractGradeNum / resolveStageKey', () => {
     expect(resolveStageKey('初中', '七年级', '人教版数学七年级上册')).toBe('middle');
     expect(resolveStageKey('高中', '高一', '人教版数学高一上册')).toBe('high');
   });
+
+  it('小学 1-6 全年级矩阵：消费端每个年级都落到对应学段（六档边界精确）', () => {
+    const expectGrade = (cn, circled, expectKey) => {
+      expect(resolveStageKey('小学', `${cn}年级`)).toBe(expectKey);
+      expect(resolveStageKey('小学', circled)).toBe(expectKey);          // 圈码直传
+      expect(resolveStageKey('小学', '', `教材${cn}年级上册`)).toBe(expectKey); // 教材名回退
+    };
+    expectGrade('一', '①', 'primary_low');
+    expectGrade('二', '②', 'primary_low');
+    expectGrade('三', '③', 'primary_mid');
+    expectGrade('四', '④', 'primary_mid');
+    expectGrade('五', '⑤', 'primary_high');
+    expectGrade('六', '⑥', 'primary_high');
+  });
+
+  it('初/高中各级别消费端均落到 middle/high（不误降小学）', () => {
+    expect(resolveStageKey('初中', '初一')).toBe('middle');
+    expect(resolveStageKey('初中', '八年级')).toBe('middle');
+    expect(resolveStageKey('初中', '九年级')).toBe('middle');
+    expect(resolveStageKey('高中', '高二')).toBe('high');
+    expect(resolveStageKey('高中', '高三')).toBe('high');
+  });
 });
 
 describe('validatorRules 用户自定义持久化（面板维护，即时生效）', () => {

@@ -157,10 +157,11 @@ describe('promptLibrary 课标版本按学段注入', () => {
  * 答案区必须只对练习/自测/例题作答，严禁把正文的知识框架/重点梳理/考点梳理整体复述——正文已提供，答案区不复述。
  */
 describe('非exam教辅答案区不复述正文（自包含教辅防重复）', () => {
-  it('ANSWER_ROLES.other：summary/review/preview/dictation 显式"严禁复述正文梳理，仅对题目作答"', () => {
+  it('ANSWER_ROLES.other：summary/review/preview/dictation 显式"严禁复述正文梳理，仅对题目作答"，典型例题已在正文讲解展示、答案区不重复', () => {
     for (const gt of ['summary', 'review', 'preview', 'dictation']) {
       const role = ANSWER_ROLES.other(gt);
-      expect(role).toContain('仅针对正文中的练习/自测/例题逐题作答');
+      expect(role).toContain('仅针对正文中的练习/自测/变式逐题作答');
+      expect(role).toContain('典型例题的解答与解析已在正文讲解展示');
       expect(role).toContain('严禁将正文的知识框架/重点梳理/考点梳理/易错辨析/默写内容等梳理正文整体复述到答案区');
       expect(role).not.toContain('按栏目给出要点梳理'); // 旧文案诱导复述
     }

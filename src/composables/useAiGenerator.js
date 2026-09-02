@@ -4707,10 +4707,10 @@ ${cardAnalysisText.substring(0, 1000)}
         const paperPlain = htmlToPlainText(content, apiConfig.generationSettings.answerContextMaxChars);
         // 🔧 格式根治：答案页注入与正文一致的 HTML 输出规范（此前无格式要求 → 模型直接输出 Markdown 源码）
         const ansFormat = buildAnswerFormatSpec(subject);
-        // 🔧 自包含教辅（summary/review/preview/dictation/errorbook）答案区只写练习/自测/例题解答，
+        // 🔧 自包含教辅（summary/review/preview/dictation/errorbook）答案区只写练习/自测/变式解答（典型例题已在正文讲解展示，不重复），
         //    “按栏目组织答案”仅指按题目所在栏目对答案分类，绝不把正文知识梳理整体复述进答案区（防二次复述）
         const selfContainedAnsNote = isSelfContainedTeaching
-          ? '\n【自包含教辅答案原则】答案区【只】给出正文中练习/自测/例题/变式的解答；正文的知识框架/重点梳理/考点梳理/易错辨析/默写内容已在前文呈现，【严禁】在答案区整体重复复述。【严禁】在答案区重复呈现知识结构图、考点导图、梳理条目等正文性内容。'
+          ? '\n【自包含教辅答案原则】答案区【只】给出正文中练习/自测/变式的解答（典型例题的解答与解析已在正文讲解展示，严禁在答案区重复复述）；正文的知识框架/重点梳理/考点梳理/易错辨析/默写内容已在前文呈现，【严禁】在答案区整体重复复述。【严禁】在答案区重复呈现知识结构图、考点导图、梳理条目等正文性内容。'
           : '';
         const ansPrompt = `${ansRole}题号与试卷正文完全一致，逐题作答，不要重复题目原文。
 ${selfContainedAnsNote}
