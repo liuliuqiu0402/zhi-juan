@@ -8266,7 +8266,8 @@ const sendToTypeset = async (doc) => {
     content = content.replace(/<div class="answer-section">[\s\S]*?<\/div>/gi, '<div class="answer-section"><p>（答案略，请独立完成）</p></div>');
   }
   // 🔧 双通道传递：window 兜底（解决 lazy-load 竞态）+ CustomEvent
-  window.__pendingTypesetContent = { content, meta: { title: doc.title || '生成文档', genType: doc.genType || '' } };
+  //    stage 必须随 meta 传递（作文格/书写格/导出按学段），曾遗漏导致排版回退自动档
+  window.__pendingTypesetContent = { content, meta: { title: doc.title || '生成文档', genType: doc.genType || '', stage: doc?.meta?.stage || doc?.stage || doc?.stageKey || '' } };
   window.dispatchEvent(new CustomEvent(APP_EVENTS.SWITCH_TAB, { detail: { tab: 'typeset' } }));
   setTimeout(() => {
     window.dispatchEvent(new CustomEvent(APP_EVENTS.TYPESET_CONTENT, {

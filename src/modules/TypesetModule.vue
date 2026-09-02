@@ -645,10 +645,18 @@ const STAGE_NAME_3 = { primary: '小学', middle: '初中', high: '高中' };
 const autoStageName = computed(() => STAGE_NAME_3[normalizeStage3(effStage.value)] || effStage.value || '—');
 
 // 🔧 作文格预览格宽/格高按学段读排版规格库 ZUOWEN_CELL（曾硬编码 12/10/7.5mm，面板调规格不生效）
+//    四线三格/六线格行高同源 GRID_CELL，经 --flt-h 供 carrierCss CARRIER_LINE_CSS 消费
 const zwgCssVars = computed(() => {
   const key = normalizeStage3(effStage.value);
-  const c = getMergedSpec().ZUOWEN_CELL[key] || { widthMm: 12, heightMm: 12 };
-  return { '--zwg-cell-w': `${c.widthMm}mm`, '--zwg-cell-h': `${c.heightMm}mm` };
+  const ZC = getMergedSpec().ZUOWEN_CELL;
+  const GRD = getMergedSpec().GRID_CELL || {};
+  const c = ZC[key] || { widthMm: 12, heightMm: 12 };
+  const fltH = GRD['four-line-three']?.[key]?.lineHeightMm ?? 9;
+  return {
+    '--zwg-cell-w': `${c.widthMm}mm`,
+    '--zwg-cell-h': `${c.heightMm}mm`,
+    '--flt-h': `${fltH}mm`,
+  };
 });
 
 const filteredThemes = computed(() => {
@@ -2319,44 +2327,10 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
     repeating-linear-gradient(to bottom right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat;
 }
 
-/* 四线三格 - 伪元素绘制4条等距线（fix: line-height:1让字体自然基线渲染） */
-.four-line-three {
-  display: inline-block;
-  position: relative;
-  padding: 4px 4px;
-  font-family: 'Times New Roman', 'Georgia', SimSun, serif;
-  font-size: inherit !important;
-  line-height: 1;
-  min-width: 18px;
-  text-align: center;
-  vertical-align: middle;
-  overflow: visible;
-}
-.four-line-three::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 1.5em;
-  background:
-    linear-gradient(#999, #999) 0 0.1em / 100% 1px no-repeat,
-    linear-gradient(#999, #999) 0 0.55em / 100% 1px no-repeat,
-    linear-gradient(#666, #666) 0 1.0em / 100% 1px no-repeat,
-    linear-gradient(#999, #999) 0 1.45em / 100% 1px no-repeat;
-  pointer-events: none;
-}
+/* 四线三格/六线格/拼音格/英语书写格画法已收口到 carrierCss（全局注入，行高 --flt-h 由 :root/容器 CSS 变量按学段设置）——
+   曾在此维护 em(随字号) 副本，与全局 mm 规则并存造成双口径，已删除勿重建 */
 
-/* ⭐ 拼音格 - Times New Roman（拼音体专用） */
-.pinyin-line {
-  font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif;
-}
-/* ⭐ 英语书写格 - Times New Roman 印刷体（英语字母专用） */
-.english-line {
-  font-family: 'Times New Roman', 'Georgia', serif;
-}
-
-/* 作文格 */
+/* ⭐ 作文格 */
 .zuo-wen-ge {
   display: grid;
   grid-template-columns: repeat(20, 1.3em);

@@ -1,12 +1,14 @@
 // ============================================================
 // 作答载体 CSS 单一事实源（填空横线 u.blank-N / 括号空位 span.blank-N /
-// 整行横线 .blank-line / 行尾弹性延伸）
+// 整行横线 .blank-line / 行尾弹性延伸 / 四线三格·六线格·拼音格·英语书写格）
 // ============================================================
 // 🔴 消费方：main.js 全局注入（替代原 styles/global.css 里的静态副本）、
 //    themeConfig 独立导出文档（HTML/PDF 自带内嵌样式）。
-//    曾 global.css / themeConfig / RichTextEditor 深规则各自维护同规则，
-//    改档位需多处手动同步 → 现收敛此处，改规则只改本文件。
+//    曾 global.css / themeConfig / RichTextEditor 深规则 / TypesetModule 各自维护同规则，
+//    改档位/线位/线色需多处手动同步 → 现收敛此处，改规则只改本文件。
 //    宽度档位 1..24 与排版规格库 layoutSpec.sanitizeBlankSpec 上限一致。
+//    四线三格/六线格行高 = CSS 变量 --flt-h（默认 9mm；排版模块按文档学段注入，
+//    GRID_CELL four-line-three：小学 9 / 初中 8mm；Word 导出几何见 docxBuilder，另口径）
 // ============================================================
 
 const TIERS = Array.from({ length: 24 }, (_, i) => i + 1);
@@ -17,6 +19,17 @@ const uWidthCss = () => TIERS.map((n) => `u.blank-${n}{min-width:${n}em;}`).join
 /** span.blank-N 括号填空：伪元素括号外置，书写空间 = 中间 minmax(N em,1fr) 轨
  *（与 Word 导出 "(" + NBSP×N + ")" 同口径，括号内恰为 N em） */
 const spanGridCss = () => TIERS.map((n) => `span.blank-${n}{grid-template-columns:auto minmax(${n}em,1fr) auto;}`).join('\n');
+
+/** 四线三格/六线格/拼音格/英语书写格（行高 CSS 变量化，线位百分比等距三等带：
+ * 线在 6.7%/36.7%/66.7%/96.7%，三条浅线 var(--flt-soft,#999) + 基线 var(--flt-strong,#666)） */
+export const CARRIER_LINE_CSS = `
+.four-line-three, .sixian-ge { display: inline-block; position: relative; padding: 4px 4px; font-size: inherit !important; line-height: 1; min-width: 18px; text-align: center; vertical-align: middle; text-indent: 0; }
+.four-line-three { font-family: 'Times New Roman', 'Georgia', SimSun, serif; }
+.sixian-ge { font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; }
+.four-line-three::before, .sixian-ge::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: var(--flt-h, 9mm); background: linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 6.7%/100% 1px no-repeat, linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 36.7%/100% 1px no-repeat, linear-gradient(var(--flt-strong,#666),var(--flt-strong,#666)) 0 66.7%/100% 1px no-repeat, linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 96.7%/100% 1px no-repeat; pointer-events: none; }
+.pinyin-line { font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; }
+.english-line { font-family: 'Times New Roman', 'Georgia', serif; }
+`;
 
 /**
  * 括号填空/整行横线/行尾延伸基础（不含 u 横线本体，u 横线见 CARRIER_CSS 首段）
@@ -40,6 +53,7 @@ export const CARRIER_CSS = `
 u[class*="blank-"]{display:inline-block;text-align:center;text-decoration:none;border-bottom:1.5px solid #333;padding:0 1px;font-size:inherit !important;min-width:1em;}
 ${uWidthCss()}
 ${CARRIER_EXTRA_CSS}
+${CARRIER_LINE_CSS}
 `;
 
 export default CARRIER_CSS;

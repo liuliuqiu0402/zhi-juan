@@ -45,11 +45,12 @@ describe('编辑器 themeCSS 转换（编辑区 = 导出视觉）', () => {
     expect(css).toMatch(/\.exam-score-table/);
   });
 
-  it('书写格尺寸按学段 GRID_CELL mm 渲染（不再硬编码 1.8em）', () => {
+  it('书写格尺寸按学段 GRID_CELL mm 渲染（不再硬编码 1.8em/em 随字号）', () => {
     expect(css).toMatch(/\.tian-zi-ge\s*\{[^}]*width:\s*\d+(\.\d+)?mm/);
     expect(css).toMatch(/\.tian-zi-ge\s*\{[^}]*height:\s*\d+(\.\d+)?mm/);
     expect(css).toMatch(/\.mi-zi-ge\s*\{[^}]*width:\s*\d+(\.\d+)?mm/);
-    expect(css).toMatch(/\.four-line-three::before\s*\{[^}]*height:\s*\d+(\.\d+)?mm/);
+    expect(css).toMatch(/:root\s*\{\s*--flt-h:\s*\d+(\.\d+)?mm/); // 四线三格行高变量：单一事实源 carrierCss（按学段注入）
+    expect(css).toMatch(/\.four-line-three::before,\s*\.sixian-ge::before\s*\{[^}]*height:\s*var\(--flt-h,\s*9mm\)/);
     expect(css).not.toContain('.tian-zi-ge { display: inline-block; position: relative; width: 1.8em');
   });
 

@@ -51,6 +51,7 @@
           <span class="history-title">{{ item.title }}</span>
           <span class="history-time">{{ formatTime(item.createdAt) }}</span>
           <span class="history-type">{{ item.genType }}</span>
+          <span class="history-stage" :title="`学段字段：${item?.meta?.stage || item?.stage || '（未存）'}。进入排版后作文格/书写格按此学段渲染`">{{ stageChip(item) }}</span>
         </div>
         <div class="history-actions">
           <button
@@ -247,6 +248,16 @@ const downloadFromHistory = (item) => {
 const showPreview = ref(false);
 const previewContent = ref('');
 
+// 🔧 学段徽标：直接展示记录是否带学段字段（meta.stage / stage），带 → 五档名；不带 → 未存（进入排版会回退自动档）
+const STAGE_CHIP_LABEL = {
+  primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段',
+  middle: '初中', high: '高中', primary: '小学'
+};
+const stageChip = (item) => {
+  const s = item?.meta?.stage || item?.stage || '';
+  return s ? (STAGE_CHIP_LABEL[s] || s) : '学段未存';
+};
+
 const previewHistoryItem = (item) => {
   previewContent.value = item.content || '';
   showPreview.value = true;
@@ -254,9 +265,10 @@ const previewHistoryItem = (item) => {
 
 // 📄 发送到排版模块
 const sendToTypeset = (item) => {
+  // 🔧 stage 必须随 meta 传递（作文格/书写格/导出按学段），曾遗漏导致排版回退自动档
   window.__pendingTypesetContent = {
     content: item.content,
-    meta: { title: item.title || '历史文档', genType: item.genType || '' }
+    meta: { title: item.title || '历史文档', genType: item.genType || '', stage: item?.meta?.stage || item?.stage || '' }
   };
   router.push('/typeset');
   setTimeout(() => {
@@ -382,6 +394,15 @@ onUnmounted(() => {
   background: var(--primary-lighter);
   border-radius: 20px;
   color: var(--primary-light);
+}
+
+.history-stage {
+  font-size: 12px;
+  padding: 2px 8px;
+  background: #f5f0e6;
+  border: 1px solid #e3d5b8;
+  border-radius: 20px;
+  color: #8a6d3b;
 }
 
 .history-actions {

@@ -1415,13 +1415,13 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   const tzH = GRD['tian-zi-ge']?.primary?.heightMm ?? 12;
   const mzW = GRD['mi-zi-ge']?.primary?.widthMm ?? tzW;
   const mzH = GRD['mi-zi-ge']?.primary?.heightMm ?? tzH;
-  const fltH = GRD['four-line-three']?.[gcKey]?.lineHeightMm ?? 9;
-  const pyH = GRD['pinyin-line']?.[gcKey]?.lineHeightMm ?? 9;
+  const fltH = GRD['four-line-three']?.[gcKey]?.lineHeightMm ?? 9; // 四线三格/六线格行高：注入 :root --flt-h（画法单一事实源见 carrierCss）
   
   // 🔧 无样式：不应用任何主题 CSS，仅返回纯净 HTML 包装
   if (!theme) {
     const styleTag = `<style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
+      :root { --flt-h: ${fltH}mm; } /* 四线三格行高：单一事实源 carrierCss CARRIER_LINE_CSS，行高 CSS 变量按学段注入 */
       body { font-family: SimSun, 'Microsoft YaHei', serif; font-size: 12pt; line-height: 1.6; margin: 20px; background: white; color: #1e1e1e; }
       ul, ol { padding-left: 2em; }
       li { display: list-item; }
@@ -1431,11 +1431,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       /* 田字格（无样式模式也需渲染，⭐ inline-block + text-align 居中 + line-height，保证无内层span时也能居中；尺寸按学段 GRID_CELL mm） */
       .tian-zi-ge { display: inline-block; position: relative; width: ${tzW}mm; height: ${tzH}mm; border: 1.5px solid #5B9BD5; vertical-align: middle; margin: 2px 4px; font-size: inherit !important; box-sizing: border-box; text-align: center; line-height: ${tzH}mm; background: repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat; }
       .tian-zi-ge>span { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); line-height: 1; white-space: nowrap; }
-      /* 四线三格 + 其他特殊格式（行高按学段 GRID_CELL mm） */
-      .four-line-three { display: inline-block; position: relative; padding: 4px 4px; font-family: 'Times New Roman', 'Georgia', SimSun, serif; font-size: inherit !important; line-height: 1; min-width: 18px; text-align: center; vertical-align: middle; text-indent: 0; }
-      .four-line-three::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: ${fltH}mm; background: linear-gradient(#999,#999) 0 ${(fltH * 0.067).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#999,#999) 0 ${(fltH * 0.367).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#666,#666) 0 ${(fltH * 0.667).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#999,#999) 0 ${(fltH * 0.967).toFixed(1)}mm/100% 1px no-repeat; pointer-events: none; }
-      .sixian-ge { display: inline-block; position: relative; padding: 4px 4px; font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; font-size: inherit !important; line-height: 1; min-width: 18px; text-align: center; vertical-align: middle; text-indent: 0; }
-      .sixian-ge::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: ${fltH}mm; background: linear-gradient(#999,#999) 0 ${(fltH * 0.067).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#999,#999) 0 ${(fltH * 0.367).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#666,#666) 0 ${(fltH * 0.667).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#999,#999) 0 ${(fltH * 0.967).toFixed(1)}mm/100% 1px no-repeat; pointer-events: none; }
+      /* 四线三格/六线格/拼音格：行高 mm 按学段由 :root --flt-h 注入，画法见 carrierCss CARRIER_LINE_CSS（单一事实源，不再在此维护副本） */
       .mi-zi-ge { display: inline-block; position: relative; width: ${mzW}mm; height: ${mzH}mm; border: 1.5px solid #5B9BD5; vertical-align: middle; margin: 0 1px; font-size: inherit !important; font-family: 'KaiTi', 'SimSun', serif; box-sizing: border-box; text-align: center; line-height: ${mzH}mm; background: repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,repeating-linear-gradient(to top right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,repeating-linear-gradient(to bottom right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat; }
       .mi-zi-ge>span { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); line-height: 1; white-space: nowrap; }
       .oral-box { display: inline-block; border: 1.5px solid #999; padding: 2px 6px; min-width: 3em; text-align: center; font-size: inherit !important; }
@@ -1465,6 +1461,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   // 构建样式
   let styleTag = `<style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root { --flt-h: ${fltH}mm; } /* 四线三格行高：单一事实源 carrierCss CARRIER_LINE_CSS，按学段注入 */
     body {
       font-family: ${theme.bodyFont};
       font-size: ${theme.bodySize}pt;
@@ -1511,12 +1508,8 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
     .tian-zi-ge>span { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); line-height: 1; white-space: nowrap; }
     .mi-zi-ge { display: inline-block; position: relative; width: ${mzW}mm; height: ${mzH}mm; border: 1.5px solid #999; vertical-align: middle; margin: 0 1px; font-size: inherit !important; font-family: 'KaiTi', 'SimSun', serif; box-sizing: border-box; text-align: center; line-height: ${mzH}mm; background: linear-gradient(to right,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)),linear-gradient(to bottom,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)),linear-gradient(to top right,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)),linear-gradient(to bottom right,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)); }
     .mi-zi-ge>span { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); line-height: 1; white-space: nowrap; }
-    /* ⭐ 四线三格 - 英语（行高按学段 GRID_CELL mm） */
-    .four-line-three { display: inline-block; position: relative; padding: 4px 4px; font-family: 'Times New Roman', 'Georgia', SimSun, serif; font-size: inherit !important; line-height: 1; min-width: 18px; text-align: center; vertical-align: middle; text-indent: 0; }
-    .four-line-three::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: ${fltH}mm; background: linear-gradient(#999,#999) 0 ${(fltH * 0.067).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#999,#999) 0 ${(fltH * 0.367).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#666,#666) 0 ${(fltH * 0.667).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#999,#999) 0 ${(fltH * 0.967).toFixed(1)}mm/100% 1px no-repeat; pointer-events: none; }
-    .sixian-ge { display: inline-block; position: relative; padding: 4px 4px; font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; font-size: inherit !important; line-height: 1; min-width: 18px; text-align: center; vertical-align: middle; text-indent: 0; }
-    .sixian-ge::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: ${fltH}mm; background: linear-gradient(#999,#999) 0 ${(fltH * 0.067).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#999,#999) 0 ${(fltH * 0.367).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#666,#666) 0 ${(fltH * 0.667).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#999,#999) 0 ${(fltH * 0.967).toFixed(1)}mm/100% 1px no-repeat; pointer-events: none; }
-    /* 作答载体 CSS（填空横线/括号空位/整行横线/行尾延伸）——单一事实源 carrierCss */
+    /* 四线三格/六线格/拼音格/英语书写格：画法与行高见 carrierCss CARRIER_LINE_CSS（单一事实源；--flt-h 由 :root 按学段注入） */
+    /* 作答载体 CSS（填空横线/括号空位/整行横线/行尾延伸/四线格）——单一事实源 carrierCss */
     ${CARRIER_CSS}
     /* ⭐ 口算框 / 方框 */
     .oral-box { display: inline-block; border: 1.5px solid #999; padding: 1px 3px; min-width: 3em; text-align: center; font-size: inherit !important; }
@@ -1662,72 +1655,8 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       white-space: nowrap;
     }
 
-    /* ⭐ 四线三格 - 英语/拼音（伪元素绘制4条等距线） */
-    .four-line-three {
-      display: inline-block;
-      position: relative;
-      padding: 4px 4px;
-      font-family: 'Times New Roman', 'Georgia', SimSun, serif;
-      font-size: inherit !important;
-      line-height: 1;
-      min-width: 18px;
-      text-align: center;
-      vertical-align: middle;
-      text-indent: 0;
-      overflow: visible;
-    }
-    .four-line-three::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      right: 0;
-      top: 0;
-      height: 1.5em;
-      background:
-        linear-gradient(#999, #999) 0 0.1em / 100% 1px no-repeat,
-        linear-gradient(#999, #999) 0 0.55em / 100% 1px no-repeat,
-        linear-gradient(#666, #666) 0 1.0em / 100% 1px no-repeat,
-        linear-gradient(#999, #999) 0 1.45em / 100% 1px no-repeat;
-      pointer-events: none;
-    }
-
-    /* ⭐ 四线格（sixian-ge）- 拼音四线格别名，与 four-line-three 视觉一致 */
-    .sixian-ge {
-      display: inline-block;
-      position: relative;
-      padding: 4px 4px;
-      font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif;
-      font-size: inherit !important;
-      line-height: 1;
-      min-width: 18px;
-      text-align: center;
-      vertical-align: middle;
-      text-indent: 0;
-      overflow: visible;
-    }
-    .sixian-ge::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      right: 0;
-      top: 0;
-      height: 1.5em;
-      background:
-        linear-gradient(#999, #999) 0 0.1em / 100% 1px no-repeat,
-        linear-gradient(#999, #999) 0 0.55em / 100% 1px no-repeat,
-        linear-gradient(#666, #666) 0 1.0em / 100% 1px no-repeat,
-        linear-gradient(#999, #999) 0 1.45em / 100% 1px no-repeat;
-      pointer-events: none;
-    }
-
-    /* ⭐ 拼音格 - 使用 Times New Roman（拼音体专用） */
-    .pinyin-line {
-      font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif;
-    }
-    /* ⭐ 英语书写格 - 使用 Times New Roman 印刷体（英语字母专用） */
-    .english-line {
-      font-family: 'Times New Roman', 'Georgia', serif;
-    }
+    /* ⭐ 四线三格/六线格/拼音格/英语书写格：画法与行高单一事实源见 carrierCss CARRIER_LINE_CSS（--flt-h 由 :root 注入）。
+       曾在此维护 em(随字号) 副本，与上方 mm 规则叠加后后写覆盖，导致导出四线随字号 —— 已删除，勿在此重建副本 */
 
     /* ⭐ 作文格（尺寸取上方 ZUOWEN_CELL 变量：小学 12mm / 中考 10mm / 高考 宽7.5×高8mm；
        auto-fill 每行格数按容器宽度放最多整数格，格子尺寸固定不缩放——与 docx 导出 perRow 同口径） */
