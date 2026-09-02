@@ -387,6 +387,20 @@ describe('根治回归：作文格按学科精准适配（2026-08 英语"无作�
     const r = auditExamPaper(html, { subject: '语文', stage: 'primary_high', genType: 'exam' });
     expect(r.html).toContain('zuo-wen-ge');
   });
+
+  it('知识总结讲解表内"小练笔/写作方法"（无编号无分值）→ 不补格、不再报"未找到可补位置"（2026-09 summary 草原误报回归）', () => {
+    const html = `
+<h2>一、知识框架</h2>
+<p>表达训练：小练笔——写相聚、惜别经历，融入感受</p>
+<p>教材出处：课后小练笔</p>
+<h2>二、重点梳理</h2>
+<p>（4）写作方法：情景交融（出自：课后第二题）</p>
+`.trim();
+    const r = auditExamPaper(html, { subject: '语文', stage: 'primary_high', genType: 'summary' });
+    expect(r.html).not.toContain('zuo-wen-ge');
+    expect(r.issues.some(i => i.message.includes('未找到可补位置'))).toBe(false);
+    expect(r.silentDetails.some(d => d.type === 'writing-grid' && d.message.includes('未找到可补位置'))).toBe(false);
+  });
 });
 
 describe('根治回归：载体声明→输出一致性（题干明确声明载体 → 题内必须输出，全学科三维度）', () => {

@@ -992,14 +992,20 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         // 🔧 区域边界用"所有数字开头小题标题"（不论是否 kw 命中）：口语交际/非写话题被排除后仍须是边界，
         //    否则其内容（如横线作答区）并入上一题区域 → 上一题被误判"已有载体"而不补格
         const numberedPs = ps2.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
-        const kwPs = numberedPs.filter(p => {
+        const isKwText = (t) => kwRe.test(t) && !t.includes('[IMAGE]') && !/口语交际/.test(t);
+        // 🔧 讲解型资料净化（2026-09）：关键词只命中"讲解表/方法说明/教材出处"行（如知识框架表内
+        //    "表达训练 — 小练笔：写相聚、惜别经历（教材出处：课后小练笔）"）时不是学生写话题，
+        //    ——无编号也无分值 → 不补格、不报"未找到可补位置"（此前误报刷屏，见 summary 草原复现）。
+        //    无编号但带分值的写话题（如"习作。（30分）"整段/大字标题）仍计入：真写话题常无题号但有分值。
+        const numberedKwPs = numberedPs.filter(p => isKwText(p.textContent || ''));
+        const scoredUnnumKw = ps2.filter(p => {
           const t = p.textContent || '';
-          // 🔧 排除口语交际类题（2026-08）：口语交际即使含"写话/写作"字样（如"口语交际：说一说再写下来"），
-          //    本质是"说"的考查，书面呈现走对话/要点/横线，不补作文格——避免"口语交际+作文格"误配
-          return kwRe.test(t) && !t.includes('[IMAGE]') && !/口语交际/.test(t);
+          return isKwText(t) && /[（(](?:共)?\s*\d{1,3}\s*分/.test(t) && !/^\s*\d+[.、．]/.test(t.trim());
         });
+        const kwPs = numberedKwPs.length ? numberedKwPs : scoredUnnumKw;
         if (kwPs.length === 0) {
-          silentCount('writing-grid', '含写话/作文题但无作文格且未找到可补位置（zuo-wen-ge），请抽检');
+          // 讲解表/非题干命中（或答案区外无编号无分值说明）→ debug 级留痕，不进用户问题列表
+          silentCount('writing-grid', '关键词仅命中讲解/表内说明（无编号且无分值的写话字样），非作答写话题，不补格不报告', 'debug');
         } else {
           const fillCellsBase = getMergedSpec().ZUOWEN_FILL_CELLS || 160;
           const perScore = (getMergedSpec().ZUOWEN_CELLS_PER_SCORE || {})[normalizeStage(stage)] || 10;
@@ -1007,7 +1013,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           for (let i = 0; i < kwPs.length; i++) {
             const p = kwPs[i];
             const idx = numberedPs.indexOf(p);
-            const endP = numberedPs[idx + 1] || null;
+            // 🔧 无编号但带分值的写话题：区域边界取其后第一道编号小题（按文档序），无则到文末
+            const endP = idx >= 0
+              ? (numberedPs[idx + 1] || null)
+              : (numberedPs.find(n => n !== p && (p.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING)) || null);
             // 🔧 补格数按学段×分值动态（低段8格/分…初中20、高中17；低于兜底160取兜底）：
             //    小学二年级15分写话→max(160,120)=160；初中40分作文→max(160,800)=800；高中60分→max(160,1020)=1020。
             //    不再全学段统一 160（低段足够、高段作文格子不够；字数依据见 layoutSpec ZUOWEN_CELLS_PER_SCORE）
