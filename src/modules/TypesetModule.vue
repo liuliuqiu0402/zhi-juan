@@ -657,6 +657,15 @@ const autoStageName = computed(() => {
 });
 // 打开/切换文档：一律回到"自动跟随文档学段"
 const applyDocStage = (stage) => { docOriginStage.value = stage || ''; docStage.value = AUTO_STAGE; };
+// 🔧 无学段字段的旧记录/粘贴内容：按作答载体推断学段（单一事实 WRITING_CARRIER）——
+//    田字格/米字格/拼音格仅语文低段 → 低段；四线三格/六线格为英语字母书写(小学中段) → 中段；
+//    仍无信号才回退默认 middle（初中）。推断仅用于本次渲染展示，不写回记录（老数据真实学段未知）
+const sniffCarrierStage = (html) => {
+  if (!html || typeof html !== 'string') return '';
+  if (/class="[^"]*(tian-zi-ge|mi-zi-ge|pinyin-line)[^"]*"/.test(html)) return 'primary_low';
+  if (/class="[^"]*(four-line-three|sixian-ge)[^"]*"/.test(html)) return 'primary_mid';
+  return '';
+};
 // 手动选择 = 修改本文档学段并写回（持久化，避免与文件学段打架）
 watch(docStage, (v) => {
   if (!v || v === AUTO_STAGE) return;
@@ -1447,7 +1456,7 @@ const withExamShell = (html, stage) => {
 
 const loadContentSilent = (content, stage = '') => {
   if (!content || typeof content !== 'string') return;
-  applyDocStage(stage); // 文档学段随文档切换（作文格/书写格/导出口径）；下拉回到"自动跟随文档学段"
+  applyDocStage(stage || sniffCarrierStage(content)); // 文档学段：记录字段优先，无则按载体推断（作文格/书写格/导出口径）
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
   // 🔧 HTML 内容统一做密封线结构归一化 + 注入卷面固定件（编辑区所见即所得），幂等
   if (isHtml) { isHtmlContent.value = true; rawHtmlContent.value = withExamShell(content); currentContent.value = ''; }
@@ -1458,9 +1467,9 @@ const loadFromGenerate = async (payload) => {
   let content = typeof payload === 'string' ? payload : payload?.content || '';
   const meta = (typeof payload === 'object' && payload.meta) ? payload.meta : {};
   if (!content || typeof content !== 'string') return;
-  // 🔧 文档学段（作文格/书写格/导出按学段走排版规格库）：生成参数五档 stageKey → 排版单一事实。
-  //    进入即"自动跟随文档学段"（origin=meta.stage），不再回退主题/初中遮蔽真实学段
-  applyDocStage(meta.stage);
+  // 🔧 文档学段（作文格/书写格/导出按学段走排版规格库）：生成参数五档 stageKey 优先，
+  //    旧记录/无字段内容按载体推断（田字格/拼音格→低段、四线格→中段），避免误回退默认档
+  applyDocStage(meta.stage || sniffCarrierStage(content));
   
   // 🔧 直接保存原始 HTML（不再走 Tiptap 预处理，contentEditable 原样保留所有 class）
   // 🔧 密封线结构归一化 + 注入卷面固定件（编辑区所见即所得，幂等）
