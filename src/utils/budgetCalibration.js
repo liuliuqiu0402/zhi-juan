@@ -38,9 +38,9 @@ const normalizeStageKey = (stage = '') => {
   return 'middle';
 };
 
-/** 桶 key：genType|subject|stageKey */
-const bucketKey = (genType, subject, stage) =>
-  `${String(genType || '')}|${String(subject || '')}|${normalizeStageKey(stage)}`;
+/** 桶 key：genType|subject|stageKey|mode（mode 区分 split/once——两者产出率口径不同，绝不混算防废数据） */
+const bucketKey = (genType, subject, stage, mode = '') =>
+  `${String(genType || '')}|${String(subject || '')}|${normalizeStageKey(stage)}|${String(mode || '')}`;
 
 // ── 读取/安全写入工具（localStorage，跨端；web 与 electron 均可用）──
 const safeRead = (key, fallback) => {
@@ -81,7 +81,7 @@ export const recordSample = (s = {}) => {
   if (!Number.isFinite(outChars) || !Number.isFinite(inChars) || inChars <= 0) return;
   // 预算失效场剔除：触顶/续写/截断/产出低于最低阈值 → 不算真实产出率
   const invalid = Boolean(s.truncated || s.overCap) || outChars < 50;
-  const key = bucketKey(s.genType, s.subject, s.stage);
+  const key = bucketKey(s.genType, s.subject, s.stage, s.mode);
   const sample = {
     t: Date.now(),
     genType: s.genType, subject: s.subject, stage: normalizeStageKey(s.stage),
@@ -94,7 +94,7 @@ export const recordSample = (s = {}) => {
   // 每桶淘汰最旧
   const perBucket = new Map();
   for (const el of samples) {
-    const k = bucketKey(el.genType, el.subject, el.stage);
+    const k = bucketKey(el.genType, el.subject, el.stage, el.mode);
     if (!perBucket.has(k)) perBucket.set(k, []);
     perBucket.get(k).push(el);
   }
@@ -145,15 +145,15 @@ export const CALIBRATION_THRESHOLDS = {
  * @returns {{count,inValid,median,mean,cv,ready,reason}}
  *   ready=true 表示样本足够且波动可控，可采纳；否则带 reason 说明缺什么。
  */
-export const getBucketStats = (genType, subject, stage, opts = {}) => {
+export const getBucketStats = (genType, subject, stage, mode = '', opts = {}) => {
   const minSamples = opts.minSamples ?? CALIBRATION_THRESHOLDS.standard;
   const cvWarn = opts.cvWarn ?? 0.35;
   const samples = safeRead(SAMPLE_KEY, []);
-  const key = bucketKey(genType, subject, stage);
+  const key = bucketKey(genType, subject, stage, mode);
   const valid = samples.filter(el =>
-    bucketKey(el.genType, el.subject, el.stage) === key && !el.invalid);
+    bucketKey(el.genType, el.subject, el.stage, el.mode) === key && !el.invalid);
   const inValid = samples.filter(el =>
-    bucketKey(el.genType, el.subject, el.stage) === key && el.invalid).length;
+    bucketKey(el.genType, el.subject, el.stage, el.mode) === key && el.invalid).length;
   const ratios = valid.map(el => el.ratio).filter(Number.isFinite);
   const mean = trimmedMean(ratios);
   const cv = coefficientOfVariation(ratios);
@@ -171,8 +171,8 @@ export const getBucketStats = (genType, subject, stage, opts = {}) => {
 };
 
 /** 当前桶是否可采纳（只读判断，供 UI 置灰按钮/展示进度） */
-export const canCalibrate = (genType, subject, stage, threshold) =>
-  getBucketStats(genType, subject, stage, { minSamples: threshold }).ready;
+export const canCalibrate = (genType, subject, stage, mode, threshold) =>
+  getBucketStats(genType, subject, stage, mode, { minSamples: threshold }).ready;
 
 // ── 校准层读写 ──
 /**
@@ -180,22 +180,22 @@ export const canCalibrate = (genType, subject, stage, threshold) =>
  * 消费端用它替换 DEFBAULT 播种系数 = base / 中文token字符率 ? 见 usage。
  * 返回 null 表示无校准（应回退播种默认）。
  */
-export const getCalibration = (genType, subject, stage) => {
+export const getCalibration = (genType, subject, stage, mode = '') => {
   const cal = safeRead(CALIB_KEY, {});
-  return cal[bucketKey(genType, subject, stage)] ?? null;
+  return cal[bucketKey(genType, subject, stage, mode)] ?? null;
 };
 
 /**
  * 一键采纳：取该桶有效样本的中位数作为均衡档基准产出率。
  * 返回 { ok, base, applied } 或失败原因。
  */
-export const applyCalibration = (genType, subject, stage, threshold = CALIBRATION_THRESHOLDS.standard) => {
-  const st = getBucketStats(genType, subject, stage, { minSamples: threshold });
+export const applyCalibration = (genType, subject, stage, mode, threshold = CALIBRATION_THRESHOLDS.standard) => {
+  const st = getBucketStats(genType, subject, stage, mode, { minSamples: threshold });
   if (!st.ready) return { ok: false, reason: st.reason, stats: st };
   const base = st.median; // 中位数比均值更稳
   const cal = safeRead(CALIB_KEY, {});
-  cal[bucketKey(genType, subject, stage)] = {
-    genType, subject, stage: normalizeStageKey(stage),
+  cal[bucketKey(genType, subject, stage, mode)] = {
+    genType, subject, stage: normalizeStageKey(stage), mode,
     base,            // 均衡档基准产出率（字符/字符）
     tiers: {
       economy: +(base * TIER_RATIO.economy).toFixed(3),
@@ -210,9 +210,9 @@ export const applyCalibration = (genType, subject, stage, threshold = CALIBRATIO
 };
 
 /** 清除某桶校准（回退播种默认）。 */
-export const clearCalibration = (genType, subject, stage) => {
+export const clearCalibration = (genType, subject, stage, mode = '') => {
   const cal = safeRead(CALIB_KEY, {});
-  const k = bucketKey(genType, subject, stage);
+  const k = bucketKey(genType, subject, stage, mode);
   if (cal[k]) {
     delete cal[k];
     safeWrite(CALIB_KEY, cal);
@@ -227,8 +227,8 @@ export const CHARS_PER_TOKEN = 1.3;
  * 供生成端 pickSlot 在「用户 custom」之后、「播种默认」之前注入。
  * @returns {number|null} 折算后的 token/字符系数；无校准返回 null
  */
-export const getCalibratedCoef = (genType, subject, stage, tier = 'balanced') => {
-  const cal = getCalibration(genType, subject, stage);
+export const getCalibratedCoef = (genType, subject, stage, mode = '', tier = 'balanced') => {
+  const cal = getCalibration(genType, subject, stage, mode);
   if (!cal) return null;
   const base = typeof cal.base === 'number' && cal.base > 0 ? cal.base : null;
   if (base == null) return null;
@@ -251,12 +251,13 @@ export const getSampleCount = () => safeRead(SAMPLE_KEY, []).length;
 export const listTypeBuckets = (genType, opts = {}) => {
   const samples = safeRead(SAMPLE_KEY, []);
   const map = new Map();
+  const mk = (s) => bucketKey(s.genType, s.subject, s.stage, s.mode);
   // 1) 从样本建桶
   for (const s of samples) {
     if (s.genType !== genType) continue;
-    const k = bucketKey(s.genType, s.subject, s.stage);
+    const k = mk(s);
     if (!map.has(k)) {
-      map.set(k, { key: k, genType, subject: s.subject, stage: s.stage, ratios: [], inValid: 0 });
+      map.set(k, { key: k, genType, subject: s.subject, stage: s.stage, mode: s.mode || '', ratios: [], inValid: 0, fromCal: false });
     }
     if (s.invalid) map.get(k).inValid++;
     else if (Number.isFinite(s.ratio)) map.get(k).ratios.push(s.ratio);
@@ -267,7 +268,7 @@ export const listTypeBuckets = (genType, opts = {}) => {
     const c = cal[k];
     if (c?.genType !== genType) continue;
     if (!map.has(k)) {
-      map.set(k, { key: k, genType, subject: c.subject, stage: c.stage, ratios: [], inValid: 0 });
+      map.set(k, { key: k, genType, subject: c.subject, stage: c.stage, mode: c.mode || '', ratios: [], inValid: 0, fromCal: false });
     }
   }
   const out = [];
@@ -287,7 +288,7 @@ export const listTypeBuckets = (genType, opts = {}) => {
       return { count, inValid: b.inValid, median, mean, cv, ready, reason };
     })();
     const c = cal[k] || null;
-    out.push({ key: k, genType, subject: b.subject, stage: b.stage, stats, calibrated: !!c, calBase: c?.base ?? null, samples: stats.count });
+    out.push({ key: k, genType, subject: b.subject, stage: b.stage, mode: b.mode, stats, calibrated: !!c, calBase: c?.base ?? null, samples: stats.count });
   }
   return out;
 };

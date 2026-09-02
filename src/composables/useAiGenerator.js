@@ -4505,7 +4505,7 @@ ${cardAnalysisText.substring(0, 1000)}
       let coef = (typeof s.custom === 'number' && s.custom > 0) ? s.custom
         : (typeof s[tier] === 'number' ? s[tier] : (typeof s.balanced === 'number' ? s.balanced : 1.0));
       if (!(typeof s.custom === 'number' && s.custom > 0) && (slot === 'body' || slot === 'once')) {
-        const calCoef = getCalibratedCoef(genType, subject, book?.stage, tier);
+        const calCoef = getCalibratedCoef(genType, subject, book?.stage, generateMode, tier);
         if (typeof calCoef === 'number' && calCoef > 0) coef = calCoef;
       }
       return { coef: coef || 1.0, cap: (typeof s.cap === 'number' && s.cap > 0) ? s.cap : 32768 };

@@ -470,7 +470,7 @@
             <!-- 🔧 实测校准（每类型×学科×学段分桶；一键采纳以样本中位产出率为基准） -->
             <div style="padding:6px 10px;border-top:1px dashed #dbe4ee;background:#fbfdff;">
               <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:5px;">
-                <span style="font-size:10px;color:#64748b;font-weight:600;">📊 实测校准（按学科×学段，门槛 {{ calThresholdLabel }}，CV&gt;0.35 拒采）</span>
+                <span style="font-size:10px;color:#64748b;font-weight:600;">📊 实测校准（按学科×学段×路径，门槛 {{ calThresholdLabel }}，CV&gt;0.35 拒采）</span>
                 <span style="display:flex;gap:5px;align-items:center;font-size:10px;color:#94a3b8;">
                   学段
                   <select v-model="calStageFilter[row.key]" style="font-size:10px;padding:1px 3px;border:1px solid #d6dde6;border-radius:4px;background:#fff;">
@@ -482,11 +482,17 @@
                     <option value="">全部</option>
                     <option v-for="sub in CAL_SUBJECT_KEYS" :key="sub" :value="sub">{{ sub }}</option>
                   </select>
+                  路径
+                  <select v-model="calModeFilter[row.key]" style="font-size:10px;padding:1px 3px;border:1px solid #d6dde6;border-radius:4px;background:#fff;">
+                    <option value="">全部</option>
+                    <option value="split">两次(split)</option>
+                    <option value="once">一次(once)</option>
+                  </select>
                 </span>
               </div>
               <template v-if="calBucketsFor(row.key).length">
                 <div v-for="bk in calBucketsFor(row.key)" :key="bk.key" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid #e7eef7;border-radius:6px;padding:4px 7px;margin-bottom:4px;background:#fff;">
-                  <span style="font-size:10px;color:#334155;white-space:nowrap;">{{ bk.subject }} · {{ calStageName(bk.stage) }}</span>
+                  <span style="font-size:10px;color:#334155;white-space:nowrap;">{{ bk.subject }} · {{ calStageName(bk.stage) }} · {{ bk.mode === 'split' ? '两次' : bk.mode === 'once' ? '一次' : bk.mode || '全部' }}</span>
                   <span style="font-size:10px;color:#64748b;">样本 {{ bk.stats.count }}<template v-if="bk.stats.inValid">/{{ bk.stats.inValid }}失效</template></span>
                   <span v-if="bk.stats.count" style="font-size:10px;color:#94a3b8;">CV={{ bk.stats.cv.toFixed(2) }}</span>
                   <span v-if="bk.calibrated" style="font-size:10px;color:#1f6feb;">已采纳(基准{{ bk.calBase }})</span>
@@ -1018,24 +1024,26 @@ const CAL_SUBJECT_KEYS = ['语文', '数学', '英语', '科学', '道法', '道
 const calThresholdLabel = `${CALIBRATION_THRESHOLDS.standard}条`;
 const calStageFilter = ref({});
 const calSubjectFilter = ref({});
-// 分桶视图：返回该类型下过滤后的桶（每次读取重算）
+const calModeFilter = ref({});
+// 分桶视图：返回该类型下过滤后的桶（split/once 独立分桶，绝不混算；每次读取重算）
 const calBucketsFor = (rowKey) => {
   const sf = calStageFilter.value[rowKey] || '';
   const su = calSubjectFilter.value[rowKey] || '';
+  const md = calModeFilter.value[rowKey] || '';
   const all = listTypeBuckets(rowKey, { threshold: CALIBRATION_THRESHOLDS.standard });
-  return all.filter(b => (!sf || b.stage === sf) && (!su || b.subject === su));
+  return all.filter(b => (!sf || b.stage === sf) && (!su || b.subject === su) && (!md || b.mode === md));
 };
 const adoptCalibration = (rowKey, bk) => {
-  const res = applyCalibration(rowKey, bk.subject, bk.stage, CALIBRATION_THRESHOLDS.standard);
+  const res = applyCalibration(rowKey, bk.subject, bk.stage, bk.mode || '', CALIBRATION_THRESHOLDS.standard);
   if (res.ok) {
-    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `✅ 已按实测采纳「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)}」（基准产出率 ${res.base.toFixed(2)}，样本 ${res.stats.count}）`, type: 'info' } }));
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `✅ 已按实测采纳「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」（基准产出率 ${res.base.toFixed(2)}，样本 ${res.stats.count}）`, type: 'info' } }));
   } else {
     window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `采纳失败：${res.reason || '未知'}`, type: 'warning' } }));
   }
 };
 const clearCalibrationRow = (rowKey, bk) => {
-  clearCalibration(rowKey, bk.subject, bk.stage);
-  window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已清除「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)}」校准，回退播种默认`, type: 'info' } }));
+  clearCalibration(rowKey, bk.subject, bk.stage, bk.mode || '');
+  window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已清除「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」校准，回退播种默认`, type: 'info' } }));
 };
 
 // 🔧 槽生效态：用于高亮"生成路径下真实使用的系数槽"。
