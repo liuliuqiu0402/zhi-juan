@@ -316,6 +316,7 @@ import { useDialog } from '@/composables/useDialog.js';
 import { useMobile } from '@/composables/useMobile.js';
 import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
+import { STORAGE_KEYS } from '@/constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（曾跨模块字面量散落）
 import storage from '@/utils/storage';
 import { compressDocArray, decompressDocArray } from '@/utils/contentCompress.js';
 import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, pullDeletedDocIds, pushDeletedDocIds, uploadTemplates, uploadSettings, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
@@ -343,7 +344,7 @@ const router = useRouter();
 //    场景2: localStorage 丢失（系统修复/缓存清理） → 从配置文件恢复
 (function bootstrapStoragePath() {
   try {
-    const sp = localStorage.getItem('storagePath');
+    const sp = localStorage.getItem(STORAGE_KEYS.STORAGE_PATH);
     if (sp) {
       // 场景1: 现有路径 → 同步到配置文件
       if (window.electronAPI?.saveAppConfig) {
@@ -353,7 +354,7 @@ const router = useRouter();
       // 场景2: localStorage 丢失 → 从配置文件恢复
       window.electronAPI.getAppConfig().then(config => {
         if (config?.storagePath) {
-          localStorage.setItem('storagePath', config.storagePath);
+          localStorage.setItem(STORAGE_KEYS.STORAGE_PATH, config.storagePath);
           console.log('🔧 从配置文件恢复了 storagePath:', config.storagePath);
         }
       }).catch(() => {});
@@ -393,7 +394,7 @@ watch(isMobile, (mobile) => {
   if (mobile && router.currentRoute.value.path === '/') {
     // 🔥 有热启动路由时，交由 router redirect 处理，不做干预（避免取消 redirect 导航致闪）
     try {
-      if (localStorage.getItem('__app_route')) return;
+      if (localStorage.getItem(STORAGE_KEYS.APP_ROUTE)) return;
     } catch {}
     router.push('/generate');
   }
@@ -559,10 +560,10 @@ const showGuideOverlay = ref(false);
 const guideStep = ref(1);
 
 const checkFirstRun = () => {
-  const hasRun = localStorage.getItem('has_launched');
+  const hasRun = localStorage.getItem(STORAGE_KEYS.HAS_LAUNCHED);
   if (!hasRun) {
     showGuideOverlay.value = true;
-    localStorage.setItem('has_launched', 'true');
+    localStorage.setItem(STORAGE_KEYS.HAS_LAUNCHED, 'true');
   }
 };
 
@@ -800,8 +801,8 @@ onMounted(async () => {
           ]);
           // 合并本地墓碑（取并集，保留最新时间戳）
           const loadLocal = (key) => { try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch { return {}; } };
-          const localDelGen = loadLocal('wisdom_deleted_gen_doc_ids');
-          const localDelHist = loadLocal('wisdom_deleted_hist_doc_ids');
+          const localDelGen = loadLocal(STORAGE_KEYS.DELETED_GEN_IDS);
+          const localDelHist = loadLocal(STORAGE_KEYS.DELETED_HIST_IDS);
           mergedDeletedGen = { ...delGen };
           for (const [id, ts] of Object.entries(localDelGen)) {
             if (!mergedDeletedGen[id] || ts > mergedDeletedGen[id]) mergedDeletedGen[id] = ts;
@@ -811,8 +812,8 @@ onMounted(async () => {
             if (!mergedDeletedHist[id] || ts > mergedDeletedHist[id]) mergedDeletedHist[id] = ts;
           }
           // 更新本地墓碑缓存
-          localStorage.setItem('wisdom_deleted_gen_doc_ids', JSON.stringify(mergedDeletedGen));
-          localStorage.setItem('wisdom_deleted_hist_doc_ids', JSON.stringify(mergedDeletedHist));
+          localStorage.setItem(STORAGE_KEYS.DELETED_GEN_IDS, JSON.stringify(mergedDeletedGen));
+          localStorage.setItem(STORAGE_KEYS.DELETED_HIST_IDS, JSON.stringify(mergedDeletedHist));
         }
 
         // ② 合并生成结果（双向，两端都做）— 使用 IndexedDB 避免 localStorage 配额溢出
@@ -921,7 +922,7 @@ onMounted(async () => {
           // 引擎设置：仅同步 DeepSeek 云端路径字段，保留本地 Ollama 等独立配置（各设备手动管理本地引擎）
           if (unilateralData.settings && typeof unilateralData.settings === 'object') {
             try {
-              const rawCfg = localStorage.getItem('apiConfig');
+              const rawCfg = localStorage.getItem(STORAGE_KEYS.API_CONFIG);
               const localCfg = rawCfg ? JSON.parse(rawCfg) : {};
               const dsFields = ['deepseekBaseUrl', 'deepseekApiKey', 'deepseekGenerationModel', 'deepseekAnalysisModel'];
               for (const key of dsFields) {
@@ -943,7 +944,7 @@ onMounted(async () => {
               if (isWebMode.value && localCfg.deepseekApiKey) {
                 localCfg.currentEngine = 'deepseek';
               }
-              localStorage.setItem('apiConfig', JSON.stringify(localCfg));
+              localStorage.setItem(STORAGE_KEYS.API_CONFIG, JSON.stringify(localCfg));
               // 🔧 内存中 apiConfig 需要解密后的明文值（localStorage 存加密值是正确的）
               //    否则设置页输入框会显示加密串、生成时 API 调用也会失败
               const memCfg = { ...localCfg };
@@ -963,8 +964,8 @@ onMounted(async () => {
 
           // 激活信息
           if (unilateralData.activationInfo) {
-            localStorage.setItem('activationInfo', JSON.stringify(unilateralData.activationInfo));
-            try { await storage.setItem('activationInfo', unilateralData.activationInfo); } catch {}
+            localStorage.setItem(STORAGE_KEYS.ACTIVATION_INFO, JSON.stringify(unilateralData.activationInfo));
+            try { await storage.setItem(STORAGE_KEYS.ACTIVATION_INFO, unilateralData.activationInfo); } catch {}
             console.log('🔄 [写入] 激活信息 ✅');
             if (isWebMode.value) {
               licenseInfo.value = { ...unilateralData.activationInfo, isActive: true };
@@ -1015,8 +1016,8 @@ onMounted(async () => {
           storage.getItem('wisdom_generated_docs').catch(() => null),
           !isMobile ? storage.getItem('textbooks').catch(() => null) : Promise.resolve(null),
           !isMobile ? storage.getItem('templates').catch(() => null) : Promise.resolve(null),
-          !isMobile ? Promise.resolve().then(() => { const r = localStorage.getItem('apiConfig'); return r ? JSON.parse(r) : null; }) : Promise.resolve(null),
-          !isMobile ? storage.getItem('activationInfo').catch(() => null) : Promise.resolve(null),
+          !isMobile ? Promise.resolve().then(() => { const r = localStorage.getItem(STORAGE_KEYS.API_CONFIG); return r ? JSON.parse(r) : null; }) : Promise.resolve(null),
+          !isMobile ? storage.getItem(STORAGE_KEYS.ACTIVATION_INFO).catch(() => null) : Promise.resolve(null),
         ]);
 
         // ② 并行推送全部有数据项到云端
@@ -1107,7 +1108,7 @@ onMounted(async () => {
       wasHidden = true;
       try {
         localStorage.setItem(WARM_START_KEY, Date.now().toString());
-        localStorage.setItem('__app_route', router.currentRoute.value.path);
+        localStorage.setItem(STORAGE_KEYS.APP_ROUTE, router.currentRoute.value.path);
       } catch {}
     } else {
       wasHidden = false;
@@ -1116,7 +1117,7 @@ onMounted(async () => {
   window.addEventListener('pagehide', () => {
     try {
       localStorage.setItem(WARM_START_KEY, Date.now().toString());
-      localStorage.setItem('__app_route', router.currentRoute.value.path);
+      localStorage.setItem(STORAGE_KEYS.APP_ROUTE, router.currentRoute.value.path);
     } catch {}
   });
   window.addEventListener('pageshow', (event) => {
@@ -1153,7 +1154,7 @@ onMounted(async () => {
 
   // 🔧 iOS PWA 专用：localStorage 降级备份到 sessionStorage
   //    iOS 存储压力大时可能静默清空 localStorage，sessionStorage 相对稳定
-  const BACKUP_KEYS = ['apiConfig', 'wisdom_generated_docs', 'activationInfo', 'textbooks', 'docHistory', 'templates'];
+  const BACKUP_KEYS = [STORAGE_KEYS.API_CONFIG, 'wisdom_generated_docs', STORAGE_KEYS.ACTIVATION_INFO, 'textbooks', 'docHistory', 'templates'];
   const backupToSession = () => {
     for (const k of BACKUP_KEYS) {
       try {

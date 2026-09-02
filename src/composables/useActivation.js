@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue';
 import storage from '../utils/storage';
 import { APP_EVENTS } from '../constants/events.js'; // 全局事件名唯一事实源（曾字面量分发 show-toast）
+import { STORAGE_KEYS } from '../constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（activationInfo 曾字面量散落）
 
 // 超级管理员码
 const SUPER_CODE = 'WISDOM-ADMIN-2024';
@@ -167,8 +168,8 @@ export function useActivation() {
     if (checkIsWebMode()) {
       await getMachineId();
       let savedInfo = null;
-      try { savedInfo = await storage.getItem('activationInfo'); } catch {
-        const raw = localStorage.getItem('activationInfo');
+      try { savedInfo = await storage.getItem(STORAGE_KEYS.ACTIVATION_INFO); } catch {
+        const raw = localStorage.getItem(STORAGE_KEYS.ACTIVATION_INFO);
         if (raw) { try { savedInfo = JSON.parse(raw); } catch {} }
       }
       if (savedInfo && savedInfo.version) {
@@ -185,10 +186,10 @@ export function useActivation() {
     // 🔧 优先从 IndexedDB 读取，再降级到 localStorage
     let savedInfo = null;
     try {
-      savedInfo = await storage.getItem('activationInfo');
+      savedInfo = await storage.getItem(STORAGE_KEYS.ACTIVATION_INFO);
     } catch (e) {
       // IndexedDB 读取失败，降级到 localStorage
-      const localData = localStorage.getItem('activationInfo');
+      const localData = localStorage.getItem(STORAGE_KEYS.ACTIVATION_INFO);
       if (localData) {
         try {
           savedInfo = JSON.parse(localData);
@@ -207,8 +208,8 @@ export function useActivation() {
           console.warn('⚠️ 激活信息签名验证失败，可能被篡改');
           activationStatus.value = 'inactive';
           licenseInfo.value.isActive = false;
-          await storage.removeItem('activationInfo');
-          localStorage.removeItem('activationInfo');
+          await storage.removeItem(STORAGE_KEYS.ACTIVATION_INFO);
+          localStorage.removeItem(STORAGE_KEYS.ACTIVATION_INFO);
           return;
         }
         
@@ -269,9 +270,9 @@ export function useActivation() {
       _sign: generateSign(activationData)
     };
     
-    await storage.setItem('activationInfo', signedData);
+    await storage.setItem(STORAGE_KEYS.ACTIVATION_INFO, signedData);
     // 🔧 同步清理 localStorage 中的旧数据
-    localStorage.removeItem('activationInfo');
+    localStorage.removeItem(STORAGE_KEYS.ACTIVATION_INFO);
     
     activationStatus.value = 'active';
     activationError.value = '';
@@ -289,8 +290,8 @@ export function useActivation() {
 
   // 更换激活码
   const changeActivationCode = async () => {
-    await storage.removeItem('activationInfo');
-    localStorage.removeItem('activationInfo'); // 兼容旧数据
+    await storage.removeItem(STORAGE_KEYS.ACTIVATION_INFO);
+    localStorage.removeItem(STORAGE_KEYS.ACTIVATION_INFO); // 兼容旧数据
     activationStatus.value = 'inactive';
     activationCode.value = '';
     licenseInfo.value.isActive = false;

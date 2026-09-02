@@ -1,5 +1,6 @@
 // src/utils/pathHelper.js
 // 统一的存储路径管理工具
+import { STORAGE_KEYS } from '../constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（storagePath 曾字面量）
 
 /**
  * 获取默认存储路径
@@ -21,7 +22,7 @@ export const getDefaultStoragePath = () => {
  */
 export const getStoragePath = () => {
   // 1. 尝试从 localStorage 读取用户配置
-  const savedPath = localStorage.getItem('storagePath');
+  const savedPath = localStorage.getItem(STORAGE_KEYS.STORAGE_PATH);
   if (savedPath && savedPath.trim().length > 0) {
     return savedPath;
   }

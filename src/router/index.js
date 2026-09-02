@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
+import { STORAGE_KEYS } from '../constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（__app_route 曾字面量）
 
 const routes = [
   {
@@ -9,9 +10,9 @@ const routes = [
       if (isMobile) {
         // 🔥 热启动：恢复到离开前的页面（redirect 同步执行，无闪烁）
         try {
-          const warmRoute = localStorage.getItem('__app_route');
+          const warmRoute = localStorage.getItem(STORAGE_KEYS.APP_ROUTE);
           if (warmRoute && warmRoute !== '/') {
-            localStorage.removeItem('__app_route');
+            localStorage.removeItem(STORAGE_KEYS.APP_ROUTE);
             return warmRoute;
           }
         } catch {}

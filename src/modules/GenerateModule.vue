@@ -2959,6 +2959,7 @@ import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { stripXss, stripAiCodeFence } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离（导出端第二道防线共享）
 import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
 import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实体解码唯一实现（曾本地 esc/escGraph 及 data-raw 解码链副本）
+import { STORAGE_KEYS } from '../constants/storageKeys.js';  // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
 
 defineOptions({ name: 'GenerateModule' });
 
@@ -4275,7 +4276,7 @@ const displayedDocs = computed(() => {
   // 🔧 双通道口径一致：_deleted 标记 + deleted_docs 墓碑双重过滤（与 HistoryModule 加载一致，
   //    覆盖同步尚未清理墓碑记录前的展示窗口）
   let tombstoneIds = {};
-  try { tombstoneIds = JSON.parse(localStorage.getItem('wisdom_deleted_gen_doc_ids') || '{}'); } catch {}
+  try { tombstoneIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_GEN_IDS) || '{}'); } catch {}
   return [...generatedDocs.value].filter(d => !d._deleted && !tombstoneIds[d.id]).reverse();
 });
 const saveGeneratedDocs = async () => {
@@ -7888,9 +7889,9 @@ const deleteDoc = async (doc) => {
     generatedDocs.value[idx].savedAt = Date.now(); // 🔧 更新时间戳，确保删除标记进入推送 Top 20
     // 🔧 写入独立墓碑通道（不依赖 _deleted 字段，7 天自动过期）
     try {
-      const deletedIds = JSON.parse(localStorage.getItem('wisdom_deleted_gen_doc_ids') || '{}');
+      const deletedIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_GEN_IDS) || '{}');
       deletedIds[doc.id] = Date.now();
-      localStorage.setItem('wisdom_deleted_gen_doc_ids', JSON.stringify(deletedIds));
+      localStorage.setItem(STORAGE_KEYS.DELETED_GEN_IDS, JSON.stringify(deletedIds));
     } catch {}
     // 🔧 立即推送墓碑到云端（fire-and-forget），不等待同步流程
     pushDeletedDocIds('generated_docs', { [doc.id]: Date.now() }).catch(e => console.error('删除生成结果后墓碑推送失败:', e?.message || e));
@@ -7917,9 +7918,9 @@ const batchDeleteDocs = async () => {
     d.savedAt = Date.now(); // 🔧 更新时间戳，确保删除标记进入推送 Top 20
     // 🔧 写入独立墓碑通道
     try {
-      const deletedIds = JSON.parse(localStorage.getItem('wisdom_deleted_gen_doc_ids') || '{}');
+      const deletedIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_GEN_IDS) || '{}');
       deletedIds[d.id] = Date.now();
-      localStorage.setItem('wisdom_deleted_gen_doc_ids', JSON.stringify(deletedIds));
+      localStorage.setItem(STORAGE_KEYS.DELETED_GEN_IDS, JSON.stringify(deletedIds));
     } catch {}
   }
   // 🔧 批量删除后立即推送墓碑到云端（fire-and-forget）

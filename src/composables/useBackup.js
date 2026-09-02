@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import storage from '@/utils/storage';
+import { STORAGE_KEYS } from '@/constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（曾字面量散落）
 
 export function useBackup() {
   const isExporting = ref(false);
@@ -30,15 +31,15 @@ export function useBackup() {
       }
 
       // 也包含 localStorage 中的配置
-      const apiConfig = localStorage.getItem('apiConfig');
+      const apiConfig = localStorage.getItem(STORAGE_KEYS.API_CONFIG);
       if (apiConfig) {
         backupData.keys['_localStorage_apiConfig'] = JSON.parse(apiConfig);
       }
-      const storagePath = localStorage.getItem('storagePath');
+      const storagePath = localStorage.getItem(STORAGE_KEYS.STORAGE_PATH);
       if (storagePath) {
         backupData.keys['_localStorage_storagePath'] = storagePath;
       }
-      const hasLaunched = localStorage.getItem('has_launched');
+      const hasLaunched = localStorage.getItem(STORAGE_KEYS.HAS_LAUNCHED);
       if (hasLaunched) {
         backupData.keys['_localStorage_hasLaunched'] = true;
       }
@@ -84,14 +85,14 @@ export function useBackup() {
         // localStorage 数据恢复
         if (key.startsWith('_localStorage_')) {
           const localKey = key.replace('_localStorage_', '');
-          if (localKey === 'apiConfig') {
-            localStorage.setItem('apiConfig', JSON.stringify(value));
+          if (localKey === STORAGE_KEYS.API_CONFIG) {
+            localStorage.setItem(STORAGE_KEYS.API_CONFIG, JSON.stringify(value));
             restoredCount++;
-          } else if (localKey === 'storagePath') {
-            localStorage.setItem('storagePath', String(value));
+          } else if (localKey === STORAGE_KEYS.STORAGE_PATH) {
+            localStorage.setItem(STORAGE_KEYS.STORAGE_PATH, String(value));
             restoredCount++;
           } else if (localKey === 'hasLaunched') {
-            localStorage.setItem('has_launched', 'true');
+            localStorage.setItem(STORAGE_KEYS.HAS_LAUNCHED, 'true');
             restoredCount++;
           }
           continue;

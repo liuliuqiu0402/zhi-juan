@@ -1,4 +1,5 @@
 import { reactive } from 'vue';
+import { STORAGE_KEYS } from '../constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（'apiConfig' 曾全文件 + 跨模块字面量散落）
 
 // 环境检测：桌面端 (Electron) vs Web/手机端
 const isWebDevice = () => typeof window !== 'undefined' && !window.electronAPI;
@@ -9,7 +10,7 @@ const SECRET_PREFIX = 'enc_';
 // ── Cookie 桥接：iOS Safari ↔ PWA 共享存储 ──
 //    iOS 上 Safari 和 PWA 独立模式的 localStorage/IndexedDB 完全隔离，
 //    但 Cookie 是共享的。通过 Cookie 桥接避免"浏览器配置好→PWA打开丢了"的问题。
-const COOKIE_KEY = 'apiConfig';
+const COOKIE_KEY = STORAGE_KEYS.API_CONFIG; // 与 localStorage 主 key 同名（Cookie 桥接共用同一业务键）
 const COOKIE_MAX_AGE = 365 * 24 * 60 * 60; // 1年
 
 const readCookie = (name) => {
@@ -232,7 +233,7 @@ export const normalizeBudgetByType = (bbt) => {
 // ✨ 从存储加载配置（localStorage → Cookie 兜底）
 const loadConfig = async () => {
   try {
-    const saved = localStorage.getItem('apiConfig');
+    const saved = localStorage.getItem(STORAGE_KEYS.API_CONFIG);
     if (saved) {
       const config = JSON.parse(saved);
       
@@ -293,7 +294,7 @@ const loadConfig = async () => {
           if (toSave.deepseekApiKey) {
             toSave.deepseekApiKey = await encrypt(toSave.deepseekApiKey);
           }
-          localStorage.setItem('apiConfig', JSON.stringify(toSave));
+          localStorage.setItem(STORAGE_KEYS.API_CONFIG, JSON.stringify(toSave));
           console.log('💾 已保存修正后的配置');
         } catch (e) {
           console.error('保存修正配置失败:', e);
@@ -334,7 +335,7 @@ const loadConfig = async () => {
         if (toSave.deepseekApiKey && !toSave.deepseekApiKey.startsWith('enc_')) {
           toSave.deepseekApiKey = await encrypt(toSave.deepseekApiKey);
         }
-        localStorage.setItem('apiConfig', JSON.stringify(toSave));
+        localStorage.setItem(STORAGE_KEYS.API_CONFIG, JSON.stringify(toSave));
       } catch { /* ignore */ }
       return cookieConfig;
     }
@@ -347,7 +348,7 @@ const loadConfig = async () => {
 // ✨ 从存储加载配置（同步版，仅读非敏感字段，供 App.vue 提前注入）
 export const loadConfigSync = () => {
   try {
-    const raw = localStorage.getItem('apiConfig');
+    const raw = localStorage.getItem(STORAGE_KEYS.API_CONFIG);
     if (raw) {
       const parsed = JSON.parse(raw);
       const { deepseekApiKey, ...safeFields } = parsed;
@@ -395,7 +396,7 @@ export const saveConfig = async (config) => {
     if (toSave.zhipuApiKey && !toSave.zhipuApiKey.startsWith('enc_')) {
       toSave.zhipuApiKey = await encrypt(toSave.zhipuApiKey);
     }
-    localStorage.setItem('apiConfig', JSON.stringify(toSave));
+    localStorage.setItem(STORAGE_KEYS.API_CONFIG, JSON.stringify(toSave));
     
     // 🔧 Cookie 桥接：仅写入跨设备同步的核心字段（避免超 4KB 上限导致静默失败）
     //    iOS Safari↔PWA 通过此机制共享 API 配置
@@ -640,7 +641,7 @@ let _configCacheTime = 0;
 
 // ✨ 分级缓存配置：不同类型数据设置不同的 TTL
 const CACHE_CONFIG = {
-  'apiConfig': { ttl: 60000, priority: 'high' },      // API 配置：60秒
+  [STORAGE_KEYS.API_CONFIG]: { ttl: 60000, priority: 'high' },      // API 配置：60秒
   'modelList': { ttl: 120000, priority: 'medium' },   // 模型列表：2分钟
 };
 

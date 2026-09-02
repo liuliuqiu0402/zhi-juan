@@ -1320,6 +1320,7 @@ import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud, fetch
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
 import { STAGE_KEYS } from '@/utils/gradeStage.js'; // 五档学段键唯一事实源（CAL_STAGE_KEYS 复用，不再本地另建副本）
 import { APP_EVENTS } from '@/constants/events.js'; // 全局事件名唯一事实源（曾字面量分发 show-toast/sign-countdown-reset）
+import { STORAGE_KEYS } from '@/constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（apiConfig/storagePath/activationInfo 曾字面量）
 
 const { showAlertDialogFn, showConfirmDialogFn } = useDialog();
 const {
@@ -1515,7 +1516,7 @@ const handleChangeActivation = async () => {
   try {
     await changeActivationCode();
   } catch {
-    localStorage.removeItem('activationInfo');
+    localStorage.removeItem(STORAGE_KEYS.ACTIVATION_INFO);
   }
   window.location.reload();
 };
@@ -1551,7 +1552,7 @@ const settings = ref({
   zhipuGenerationModel: apiConfig.zhipuGenerationModel || 'glm-5.3',
   zhipuAnalysisModel: apiConfig.zhipuAnalysisModel || 'glm-5.3',
   analyzeCharts: true,
-  storagePath: localStorage.getItem('storagePath') || '智卷工坊数据',
+  storagePath: localStorage.getItem(STORAGE_KEYS.STORAGE_PATH) || '智卷工坊数据',
   generationSettings: JSON.parse(JSON.stringify(apiConfig.generationSettings))
 });
 
@@ -1785,7 +1786,7 @@ const selectStoragePath = async () => {
     const selectedPath = await window.electronAPI.selectDirectory();
     if (selectedPath) {
       settings.value.storagePath = selectedPath;
-      localStorage.setItem('storagePath', selectedPath);
+      localStorage.setItem(STORAGE_KEYS.STORAGE_PATH, selectedPath);
       await showAlertDialogFn(`✅ 存储路径已设置为：\n${selectedPath}`);
     }
   } catch (error) {
@@ -1925,7 +1926,7 @@ const analyzeModelCapabilities = (modelInfos) => {
 
 const applyModelRecommendation = (recommendation) => {
   if (!recommendation) return;
-  const savedConfig = localStorage.getItem('apiConfig');
+  const savedConfig = localStorage.getItem(STORAGE_KEYS.API_CONFIG);
   const hasSavedConfig = savedConfig && JSON.parse(savedConfig).ollamaTextModel;
   if (hasSavedConfig) return;
 
@@ -1944,7 +1945,7 @@ let _modelAlertShown = false;
 const refreshModels = async () => {
   try {
     saveStatus.value = '正在检测模型...';
-    const savedConfig = JSON.parse(localStorage.getItem('apiConfig') || '{}');
+    const savedConfig = JSON.parse(localStorage.getItem(STORAGE_KEYS.API_CONFIG) || '{}');
     if (savedConfig?.ollamaBaseUrl) settings.value.ollamaBaseUrl = savedConfig.ollamaBaseUrl;
 
     const baseUrl = settings.value.ollamaBaseUrl.replace(/\/$/, '');
@@ -1990,7 +1991,7 @@ onMounted(async () => {
     // 倒计时数据已由 getSignCountdown() 初始化，无需额外操作
   }
   // 从 localStorage 恢复其他设置
-  const savedSettings = localStorage.getItem('apiConfig');
+  const savedSettings = localStorage.getItem(STORAGE_KEYS.API_CONFIG);
   if (savedSettings) {
     try {
       const parsed = JSON.parse(savedSettings);

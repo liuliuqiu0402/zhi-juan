@@ -126,6 +126,7 @@ import { formatTime } from '@/utils/helpers';
 import { useDialog } from '@/composables/useDialog.js';
 import { useMobile } from '@/composables/useMobile.js';
 import { APP_EVENTS } from '@/constants/events.js';
+import { STORAGE_KEYS } from '@/constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
 import { pushDeletedDocIds } from '@/utils/cloudStorage';
 
 const router = useRouter();
@@ -159,7 +160,7 @@ const loadHistory = async () => {
   if (saved) {
     // 🔧 加载本地墓碑，作为加载时的最后一道兜底过滤
     let tombstoneIds = {};
-    try { tombstoneIds = JSON.parse(localStorage.getItem('wisdom_deleted_hist_doc_ids') || '{}'); } catch {}
+    try { tombstoneIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_HIST_IDS) || '{}'); } catch {}
     // 向后兼容：为旧数据补填 savedAt
     let needsSave = false;
     for (const item of saved) {
@@ -199,9 +200,9 @@ const clearAllHistory = async () => {
     }
     // 🔧 写入独立墓碑通道
     try {
-      const existing = JSON.parse(localStorage.getItem('wisdom_deleted_hist_doc_ids') || '{}');
+      const existing = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_HIST_IDS) || '{}');
       Object.assign(existing, deletedIds);
-      localStorage.setItem('wisdom_deleted_hist_doc_ids', JSON.stringify(existing));
+      localStorage.setItem(STORAGE_KEYS.DELETED_HIST_IDS, JSON.stringify(existing));
     } catch {}
     await storage.setItem('docHistory', historyList.value);
     // 🔧 立即推送墓碑到云端（fire-and-forget），不等待同步流程
@@ -218,9 +219,9 @@ const deleteHistoryItem = async (id) => {
   item.savedAt = Date.now(); // 🔧 更新时间戳
   // 🔧 写入独立墓碑通道
   try {
-    const deletedIds = JSON.parse(localStorage.getItem('wisdom_deleted_hist_doc_ids') || '{}');
+    const deletedIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_HIST_IDS) || '{}');
     deletedIds[id] = Date.now();
-    localStorage.setItem('wisdom_deleted_hist_doc_ids', JSON.stringify(deletedIds));
+    localStorage.setItem(STORAGE_KEYS.DELETED_HIST_IDS, JSON.stringify(deletedIds));
   } catch {}
   await storage.setItem('docHistory', historyList.value);
   // 🔧 立即推送墓碑到云端（fire-and-forget），不等待同步流程

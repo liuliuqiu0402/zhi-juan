@@ -1,4 +1,5 @@
 // 基于 IndexedDB 的统一存储层，替代 localStorage
+import { STORAGE_KEYS } from '../constants/storageKeys'; // 业务 key 唯一事实源（清理豁免 apiConfig 前缀用）
 
 const DB_NAME = 'zhijuan_studio';
 const DB_VERSION = 1;
@@ -79,7 +80,7 @@ const setItem = async (key: string, value: unknown): Promise<void> => {
           const keys = Object.keys(localStorage).sort();
           const toRemove = keys.slice(0, Math.max(0, keys.length - 20));
           toRemove.forEach(k => {
-            if (!k.startsWith('apiConfig') && !k.startsWith('enc_')) {
+            if (!k.startsWith(STORAGE_KEYS.API_CONFIG) && !k.startsWith('enc_')) {
               localStorage.removeItem(k);
             }
           });
