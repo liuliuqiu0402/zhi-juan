@@ -228,13 +228,13 @@
             <!-- 🔧 学段（2026-09）：影响"按学段取尺寸"的书写载体——作文格尺寸（小学12/初中10/高中7.5×8mm）、
                  四线三格/六线格与拼音格行高（小学9/初中8mm，预览/HTML/PDF）；
                  田字格/米字格按"仅低段一档"固定 12mm，不随此选择变化。
-                 解析链：文档学段(生成带入) > 所选主题学段 > 默认初中。自动档实时显示解析结果 -->
+                 自动 = 跟随文档学段（从生成/历史带入）；手动选择 = 修改本文档学段并保存，不会静默遮蔽真实学段 -->
             <select
               v-model="docStage"
               class="export-select"
-              :title="`内容所属学段：决定作文格/四线三格/拼音格等书写载体按学段的尺寸（田字格固定低段12mm）。解析链：文档学段 > 主题学段 > 默认初中；当前自动解析：${autoStageName}`"
+              :title="`自动 = 跟随文档自身学段（生成/历史记录带入，无则仅对粘贴内容回退默认）；手动选档 = 修改本文档学段并写回记录。影响作文格/四线三格/拼音格等按学段的尺寸（田字格固定低段12mm）。当前自动解析：${autoStageName}`"
             >
-              <option value="">
+              <option :value="AUTO_STAGE">
                 学段：自动（{{ autoStageName }}）
               </option>
               <option value="primary_low">
@@ -636,13 +636,44 @@ const themeForm = ref({
 // ==================== 计算属性 ====================
 const selectedTheme = computed(() => getThemeById(selectedThemeId.value));
 
-// 🔧 文档学段（单一事实）：从"生成→排版"带入的真实学段（五档 stageKey），无则回退主题 stage / middle。
-//    曾全程用主题 stage（多数预设为 high/风格值）→ 小学卷的作文格/田字格/导出被画成高中尺寸
-const docStage = ref('');
-const effStage = computed(() => docStage.value || selectedTheme.value?.stage || 'middle');
-// 🔧 学段显示名（自动档实时解析提示）：primary→小学 / middle→初中 / high→高中
+// ==================== 学段语义（2026-09 重构：选择器不干扰"文档自身学段"） ====================
+//  - 文档学段 docOriginStage：从生成/历史记录 meta.stage 带入（单一事实），每次打开文档恢复为"自动跟随"。
+//  - 下拉"自动"（AUTO_STAGE）= 跟随 docOriginStage（无则回退主题 stage / middle，仅对无学段的粘贴内容生效）；
+//    手动选档 = 显式修改本文档学段并写回（排版文档条目 + 生成记录），此后"自动"跟随新值——主动覆盖，不静默遮蔽。
+const AUTO_STAGE = '__auto__';
+const docOriginStage = ref('');   // 文档自身学段（打开时带入；手动修改时同步）
+const docStage = ref(AUTO_STAGE); // 下拉选择值：__auto__（跟随文档）或五档显式值（修改文档学段）
+const effStage = computed(() => {
+  const s = docStage.value === AUTO_STAGE ? '' : (docStage.value || '');
+  return s || docOriginStage.value || selectedTheme.value?.stage || 'middle';
+});
+const STAGE_NAME_5 = { primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中' };
 const STAGE_NAME_3 = { primary: '小学', middle: '初中', high: '高中' };
-const autoStageName = computed(() => STAGE_NAME_3[normalizeStage3(effStage.value)] || effStage.value || '—');
+// 自动档实时解析名：优先五档原名（低/中/高段可辨），其次三档归一，其次主题 stage
+const autoStageName = computed(() => {
+  const raw = effStage.value;
+  return STAGE_NAME_5[raw] || STAGE_NAME_3[normalizeStage3(raw)] || raw || '—';
+});
+// 打开/切换文档：一律回到"自动跟随文档学段"
+const applyDocStage = (stage) => { docOriginStage.value = stage || ''; docStage.value = AUTO_STAGE; };
+// 手动选择 = 修改本文档学段并写回（持久化，避免与文件学段打架）
+watch(docStage, (v) => {
+  if (!v || v === AUTO_STAGE) return;
+  docOriginStage.value = v;
+  persistStageOverride(v);
+});
+const persistStageOverride = async (s) => {
+  const doc = documents.value.find(d => d.id === activeDocId.value);
+  if (doc) doc.stage = s;
+  if (!currentGenRecordId.value) return;
+  try {
+    const saved = await storage.getItem(GEN_STORAGE_KEY).catch(() => null);
+    if (!saved || !Array.isArray(saved)) return;
+    const records = decompressDocArray(saved);
+    const idx = records.findIndex(r => r.id === currentGenRecordId.value);
+    if (idx >= 0) { records[idx].stage = s; await storage.setItem(GEN_STORAGE_KEY, compressDocArray(records)).catch(() => {}); }
+  } catch (e) { /* 写回失败不阻塞编辑 */ }
+};
 
 // 🔧 作文格预览格宽/格高按学段读排版规格库 ZUOWEN_CELL（曾硬编码 12/10/7.5mm，面板调规格不生效）
 //    四线三格/六线格行高同源 GRID_CELL，经 --flt-h 供 carrierCss CARRIER_LINE_CSS 消费
@@ -1385,7 +1416,7 @@ const closeDoc = (docId) => {
     const next = documents.value[Math.min(idx, documents.value.length - 1)];
     activeDocId.value = next?.id || null;
     if (next) loadContentSilent(next.content, next.stage || '');
-    else { rawHtmlContent.value = ''; currentContent.value = ''; isHtmlContent.value = false; docStage.value = ''; }
+    else { rawHtmlContent.value = ''; currentContent.value = ''; isHtmlContent.value = false; applyDocStage(''); }
   }
 };
 // ==================== 渲染预览（已并入编辑视图，所见即所得） ====================
@@ -1415,7 +1446,7 @@ const withExamShell = (html, stage) => {
 
 const loadContentSilent = (content, stage = '') => {
   if (!content || typeof content !== 'string') return;
-  docStage.value = stage || ''; // 文档学段随文档切换（作文格/书写格/导出口径）
+  applyDocStage(stage); // 文档学段随文档切换（作文格/书写格/导出口径）；下拉回到"自动跟随文档学段"
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
   // 🔧 HTML 内容统一做密封线结构归一化 + 注入卷面固定件（编辑区所见即所得），幂等
   if (isHtml) { isHtmlContent.value = true; rawHtmlContent.value = withExamShell(content); currentContent.value = ''; }
@@ -1426,8 +1457,9 @@ const loadFromGenerate = async (payload) => {
   let content = typeof payload === 'string' ? payload : payload?.content || '';
   const meta = (typeof payload === 'object' && payload.meta) ? payload.meta : {};
   if (!content || typeof content !== 'string') return;
-  // 🔧 文档学段（作文格/书写格/导出按学段走排版规格库）：生成参数五档 stageKey → 排版单一事实
-  docStage.value = meta.stage || '';
+  // 🔧 文档学段（作文格/书写格/导出按学段走排版规格库）：生成参数五档 stageKey → 排版单一事实。
+  //    进入即"自动跟随文档学段"（origin=meta.stage），不再回退主题/初中遮蔽真实学段
+  applyDocStage(meta.stage);
   
   // 🔧 直接保存原始 HTML（不再走 Tiptap 预处理，contentEditable 原样保留所有 class）
   // 🔧 密封线结构归一化 + 注入卷面固定件（编辑区所见即所得，幂等）
