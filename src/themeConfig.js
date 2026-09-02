@@ -1393,9 +1393,11 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   const { isHtmlContent = false, forceImportant = false, stage: stageOpt } = options;
   const theme = getThemeById(themeId);
   // 🔧 作文格/书写格尺寸按学段（来自排版规格库 ZUOWEN_CELL/GRID_CELL）。
-  //    学段优先级：调用方显式 stage（文档学段，如生成参数五档 stageKey）> 主题 stage > middle。
-  //    ⚠️ 曾 theme.stage 优先——多数预设主题 stage 为 high/风格化值，导致小学卷导出成高中格尺寸
-  const stage = stageOpt || theme?.stage || 'middle';
+  //    学段优先级：调用方显式 stage（文档学段，如生成参数五档 stageKey）> 默认 middle。
+  //    ⚠️ 主题与学段彻底解耦：主题=纯样式（版式/配色/字体），可跨学段共用；
+  //       曾 theme.stage 参与解析（多数预设为 high/风格值）→ 同一主题换学段即错、共用受限制。
+  //       主题上的 stage 字段仅为历史遗留，不再参与任何尺寸/学段解析。
+  const stage = stageOpt || 'middle';
   const zwgKey = normalizeStage3(stage);
   const ZC = getMergedSpec().ZUOWEN_CELL;
   const zwgMm = ZC[zwgKey].heightMm;   // 格高（主/初正方、高8mm）
@@ -2531,7 +2533,7 @@ export const injectExamShell = (html, stage) => {
  * 根据主题 ID，给 HTML 内容包上结构化外壳
  * 解决 Word/AI 生成内容不含主题 class 导致特殊布局不生效的问题
  */
-export const wrapContentForTheme = (html, themeId) => {
+export const wrapContentForTheme = (html, themeId, stage) => {
   if (!html || typeof html !== 'string') return html || '';
 
   // 🔧 密封线结构归一化（旧结构信息栏横向 p → 并入 sealed-line 整体竖排），幂等
@@ -2604,7 +2606,7 @@ export const wrapContentForTheme = (html, themeId) => {
       let out = tpl.innerHTML;
       // 🔧 密封线结构归一化（幂等）+ 卷面固定件（注意事项 + 题号得分表，幂等注入；旧内容重新打开自动补齐）
       out = normalizeSealStructure(out);
-      out = injectExamShell(out, theme.stage);
+      out = injectExamShell(out, stage || 'middle'); // 学段参数仅用于固定件(当前实现不分支)；主题与学段解耦，不读 theme.stage
       return out;
     }
     

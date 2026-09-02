@@ -638,14 +638,15 @@ const selectedTheme = computed(() => getThemeById(selectedThemeId.value));
 
 // ==================== 学段语义（2026-09 重构：选择器不干扰"文档自身学段"） ====================
 //  - 文档学段 docOriginStage：从生成/历史记录 meta.stage 带入（单一事实），每次打开文档恢复为"自动跟随"。
-//  - 下拉"自动"（AUTO_STAGE）= 跟随 docOriginStage（无则回退主题 stage / middle，仅对无学段的粘贴内容生效）；
+//  - 下拉"自动"（AUTO_STAGE）= 跟随 docOriginStage（无则默认 middle，仅对无学段的粘贴内容生效）。
 //    手动选档 = 显式修改本文档学段并写回（排版文档条目 + 生成记录），此后"自动"跟随新值——主动覆盖，不静默遮蔽。
+//  - ⚠️ 主题与学段解耦：主题=纯样式可跨学段共用，不再参与学段解析/尺寸回退（曾用主题 stage 当学段来源）。
 const AUTO_STAGE = '__auto__';
 const docOriginStage = ref('');   // 文档自身学段（打开时带入；手动修改时同步）
 const docStage = ref(AUTO_STAGE); // 下拉选择值：__auto__（跟随文档）或五档显式值（修改文档学段）
 const effStage = computed(() => {
   const s = docStage.value === AUTO_STAGE ? '' : (docStage.value || '');
-  return s || docOriginStage.value || selectedTheme.value?.stage || 'middle';
+  return s || docOriginStage.value || 'middle';
 });
 const STAGE_NAME_5 = { primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中' };
 const STAGE_NAME_3 = { primary: '小学', middle: '初中', high: '高中' };
