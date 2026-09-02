@@ -171,14 +171,9 @@ export const useTemplateStore = defineStore('template', {
       this.showChapterAnalysis = false;
     },
 
-    // 检查是否有任何选中的章节
+    // 检查是否有任何选中的章节（委托 utils/outlineTree 唯一实现；曾 self 递归逐字副本，与 textbookStore 同构双份）
     hasAnySelected(nodes) {
-      if (!nodes) return false;
-      for (const node of nodes) {
-        if (node.selected) return true;
-        if (node.children && this.hasAnySelected(node.children)) return true;
-      }
-      return false;
+      return hasAnySelectedTree(nodes);
     },
 
     // 获取选中的章节列表

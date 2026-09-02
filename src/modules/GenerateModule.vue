@@ -6368,8 +6368,6 @@ const selectAllDetectedImages = (selected) => {
   }
 };
 
-// 🔧 djb2 哈希（32位指纹，用于精确比对文本是否变更）——唯一实现 utils/hash（顶部 import；曾与 useAiGenerator 各复制一份，协议耦合）
-
 // 🔧 将编辑器 HTML 转换为 AI 分析用的纯文本（保留格式语义）
 //   支持：表格→Markdown表格、LaTeX公式保留、图片占位符、语义标签转Markdown
 const convertHtmlToPlainText = (html) => {

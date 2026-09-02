@@ -181,6 +181,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { APP_EVENTS } from '../constants/events.js'; // 全局事件名唯一事实源（曾字面量分发 switch-tab/process-draft）
+import { STORAGE_KEYS } from '../constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（'drafts'/'pendingDraft' 曾纯字面量散落本文件）
 import { useDialog } from '../composables/useDialog.js';
 
 // 草稿箱数据
@@ -243,7 +244,7 @@ const confirmUpload = () => {
 
 // 处理单个草稿
 const processDraft = (draft) => {
-  localStorage.setItem('pendingDraft', JSON.stringify(draft));
+  localStorage.setItem(STORAGE_KEYS.PENDING_DRAFT, JSON.stringify(draft));
   
   // 触发事件，让父组件切换到对应页面
   if (draft.type === 'textbook') {
@@ -338,11 +339,11 @@ onMounted(() => {
 
 // 数据持久化
 const saveDrafts = () => {
-  localStorage.setItem('drafts', JSON.stringify(drafts.value));
+  localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts.value));
 };
 
 const loadDrafts = () => {
-  const saved = localStorage.getItem('drafts');
+  const saved = localStorage.getItem(STORAGE_KEYS.DRAFTS);
   if (saved) {
     try { drafts.value = JSON.parse(saved); } catch (e) {}
   }
