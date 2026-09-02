@@ -4,9 +4,23 @@ import App from '@/App.vue';
 import router from '@/router';
 import '@/styles/global.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
+import { CARRIER_CSS } from '@/styles/carrierCss.js'; // 作答载体 CSS 单一事实源（填空横线/括号空位/整行横线/行尾延伸）
 import '@/composables/useLogger.js'; // 📋 全局日志劫持——必须在最早加载
 
 console.log('[main] 模块开始执行...');
+
+// 🔧 作答载体 CSS 全局注入（原 global.css 静态副本已移除，规则统一收敛 carrierCss.js；
+//    themeConfig 独立导出文档复用同一常量，改规则只改一处）
+(function injectCarrierCss() {
+  try {
+    const el = document.createElement('style');
+    el.setAttribute('data-carrier-css', 'true');
+    el.textContent = CARRIER_CSS;
+    document.head.appendChild(el);
+  } catch (e) {
+    console.warn('[main] 注入作答载体 CSS 失败:', e?.message);
+  }
+})();
 
 // 🔧 OPPO 软渲染检测：position:fixed 在软件渲染下失效
 //    在 Vue 挂载前检测，通过 <html> 标记让 CSS 兜底生效

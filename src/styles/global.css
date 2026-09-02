@@ -241,25 +241,8 @@ u, ins {
   text-decoration-thickness: 1.5px;
 }
 
-/* 填空横线：按答案字数精确控宽，1em≈1汉字 */
-u[class*="blank-"] {
-  display: inline-block;
-  text-align: center;
-  font-size: inherit !important;
-  min-width: 1em;
-}
-u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }
-u.blank-3 { min-width: 3em; } u.blank-4 { min-width: 4em; }
-u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; }
-u.blank-7 { min-width: 7em; } u.blank-8 { min-width: 8em; }
-u.blank-9 { min-width: 9em; } u.blank-10 { min-width: 10em; }
-u.blank-11 { min-width: 11em; } u.blank-12 { min-width: 12em; }
-u.blank-13 { min-width: 13em; } u.blank-14 { min-width: 14em; }
-u.blank-15 { min-width: 15em; } u.blank-16 { min-width: 16em; }
-u.blank-17 { min-width: 17em; } u.blank-18 { min-width: 18em; }
-u.blank-19 { min-width: 19em; } u.blank-20 { min-width: 20em; }
-u.blank-21 { min-width: 21em; } u.blank-22 { min-width: 22em; }
-u.blank-23 { min-width: 23em; } u.blank-24 { min-width: 24em; }
+/* 🔧 填空横线 u.blank-N / 括号空位 span.blank-N / 整行横线 .blank-line / 行尾延伸：
+   已收敛到 src/styles/carrierCss.js（main.js 全局注入，与 themeConfig 导出文档同源），本文件不再维护副本 */
 
 /* 注音/拼音上方标注（ruby-char）—— 低年级识字材料用 */
 /* 绝对定位拼音在字上方，不影响行高（pinyin overflows above） */
@@ -283,63 +266,6 @@ u.blank-23 { min-width: 23em; } u.blank-24 { min-width: 24em; }
   color: #666;
   font-weight: normal;
   pointer-events: none;
-}
-
-/* 括号内留空（span.blank-N：伪元素括号外置；中间轨 minmax(N em,1fr) 决定书写空间 = N em，
-   与 Word 导出 "(" + NBSP×N + ")" 同口径——曾 min-width 作用整盒，括号内实际留白不足） */
-span[class*="blank-"]:not(.blank-line) {
-  display: inline-grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  vertical-align: middle;
-  text-align: center;
-}
-span[class*="blank-"]:not(.blank-line)::before {
-  content: "(";
-  font-weight: normal;
-}
-span[class*="blank-"]:not(.blank-line)::after {
-  content: ")";
-  font-weight: normal;
-}
-span.blank-1 { grid-template-columns: auto minmax(1em,1fr) auto; } span.blank-2 { grid-template-columns: auto minmax(2em,1fr) auto; }
-span.blank-3 { grid-template-columns: auto minmax(3em,1fr) auto; } span.blank-4 { grid-template-columns: auto minmax(4em,1fr) auto; }
-span.blank-5 { grid-template-columns: auto minmax(5em,1fr) auto; } span.blank-6 { grid-template-columns: auto minmax(6em,1fr) auto; }
-span.blank-7 { grid-template-columns: auto minmax(7em,1fr) auto; } span.blank-8 { grid-template-columns: auto minmax(8em,1fr) auto; }
-span.blank-9 { grid-template-columns: auto minmax(9em,1fr) auto; } span.blank-10 { grid-template-columns: auto minmax(10em,1fr) auto; }
-span.blank-11 { grid-template-columns: auto minmax(11em,1fr) auto; } span.blank-12 { grid-template-columns: auto minmax(12em,1fr) auto; }
-span.blank-13 { grid-template-columns: auto minmax(13em,1fr) auto; } span.blank-14 { grid-template-columns: auto minmax(14em,1fr) auto; }
-span.blank-15 { grid-template-columns: auto minmax(15em,1fr) auto; } span.blank-16 { grid-template-columns: auto minmax(16em,1fr) auto; }
-span.blank-17 { grid-template-columns: auto minmax(17em,1fr) auto; } span.blank-18 { grid-template-columns: auto minmax(18em,1fr) auto; }
-span.blank-19 { grid-template-columns: auto minmax(19em,1fr) auto; } span.blank-20 { grid-template-columns: auto minmax(20em,1fr) auto; }
-span.blank-21 { grid-template-columns: auto minmax(21em,1fr) auto; } span.blank-22 { grid-template-columns: auto minmax(22em,1fr) auto; }
-span.blank-23 { grid-template-columns: auto minmax(23em,1fr) auto; } span.blank-24 { grid-template-columns: auto minmax(24em,1fr) auto; }
-
-/* 普通横线（英译汉等中文书写区） */
-/* 整行横线书写区（勿加括号，覆盖上方 span[class*="blank-"] 的 ::before/::after） */
-span.blank-line::before,
-span.blank-line::after {
-  content: none !important;
-}
-.blank-line {
-  display: inline-block;
-  min-width: 3em;
-  border-bottom: 1.5px solid #666;
-  margin: 0 2px;
-  vertical-align: baseline;
-}
-
-/* ⭐ 行尾自动延伸：blank-line / u.blank-N 为段落最后元素时，段落变 flex、横线弹性撑满剩余行宽
-   （与导出端 <w:ptab/> 自动画到右边距行为一致，所见即所得） */
-p:has(> .blank-line:last-child),
-p:has(> u[class*="blank-"]:last-child) {
-  display: flex;
-  align-items: baseline;
-}
-p:has(> .blank-line:last-child) .blank-line,
-p:has(> u[class*="blank-"]:last-child) u[class*="blank-"] {
-  flex: 1 1 auto;
-  min-width: 3em;
 }
 
 /* 空白作答区（answer-area-fix 补差：无线空白行，高度按排版规格库 lineHeightMm 内联指定） */

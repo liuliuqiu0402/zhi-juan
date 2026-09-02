@@ -2134,40 +2134,8 @@ defineExpose({
 .rich-text-editor :deep(.zuo-wen-ge) { display: grid; grid-template-columns: repeat(auto-fill, var(--zwg-cell-w, 12mm)); gap: 0; border: 1.5px solid var(--text-muted); margin: 8px 0; width: 100%; box-sizing: border-box; }
 .rich-text-editor :deep(.zuo-wen-ge span) { display: inline-flex; align-items: center; justify-content: center; width: var(--zwg-cell-w, 12mm); height: var(--zwg-cell-h, 12mm); border: 0.5px solid #ccc; font-family: 'SimSun', 'KaiTi', serif; font-size: inherit !important; line-height: 1; text-align: center; box-sizing: border-box; }
 .rich-text-editor :deep(.oral-box) { display: inline-block; border: 1.5px solid #333; padding: 2px 8px; margin: 0 2px; min-width: 40px; text-align: center; vertical-align: middle; font-size: inherit !important; }
-/* ⭐ 填空横线 - 防御性CSS：确保 ThemeCSS 注入前/后均生效 */
-.rich-text-editor :deep(u[class*="blank-"]) { display: inline-block; text-align: center; font-size: inherit !important; min-width: 1em; }
-.rich-text-editor :deep(u.blank-1) { min-width: 1em; } .rich-text-editor :deep(u.blank-2) { min-width: 2em; }
-.rich-text-editor :deep(u.blank-3) { min-width: 3em; } .rich-text-editor :deep(u.blank-4) { min-width: 4em; }
-.rich-text-editor :deep(u.blank-5) { min-width: 5em; } .rich-text-editor :deep(u.blank-6) { min-width: 6em; }
-.rich-text-editor :deep(u.blank-7) { min-width: 7em; } .rich-text-editor :deep(u.blank-8) { min-width: 8em; }
-.rich-text-editor :deep(u.blank-9) { min-width: 9em; } .rich-text-editor :deep(u.blank-10) { min-width: 10em; }
-.rich-text-editor :deep(u.blank-11) { min-width: 11em; } .rich-text-editor :deep(u.blank-12) { min-width: 12em; }
-.rich-text-editor :deep(u.blank-13) { min-width: 13em; } .rich-text-editor :deep(u.blank-14) { min-width: 14em; }
-.rich-text-editor :deep(u.blank-15) { min-width: 15em; } .rich-text-editor :deep(u.blank-16) { min-width: 16em; }
-.rich-text-editor :deep(u.blank-17) { min-width: 17em; } .rich-text-editor :deep(u.blank-18) { min-width: 18em; }
-.rich-text-editor :deep(u.blank-19) { min-width: 19em; } .rich-text-editor :deep(u.blank-20) { min-width: 20em; }
-.rich-text-editor :deep(u.blank-21) { min-width: 21em; } .rich-text-editor :deep(u.blank-22) { min-width: 22em; }
-.rich-text-editor :deep(u.blank-23) { min-width: 23em; } .rich-text-editor :deep(u.blank-24) { min-width: 24em; }
-/* ⭐ 括号填空用 span.blank-N：伪元素括号外置，书写空间 = 中间轨 N em（与 Word 导出口径一致） */
-.rich-text-editor :deep(span[class*="blank-"]:not(.blank-line)) { display: inline-grid; grid-template-columns: auto 1fr auto; align-items: center; vertical-align: middle; text-align: center; }
-.rich-text-editor :deep(span.blank-1) { grid-template-columns: auto minmax(1em,1fr) auto; } .rich-text-editor :deep(span.blank-2) { grid-template-columns: auto minmax(2em,1fr) auto; }
-.rich-text-editor :deep(span.blank-3) { grid-template-columns: auto minmax(3em,1fr) auto; } .rich-text-editor :deep(span.blank-4) { grid-template-columns: auto minmax(4em,1fr) auto; }
-.rich-text-editor :deep(span.blank-5) { grid-template-columns: auto minmax(5em,1fr) auto; } .rich-text-editor :deep(span.blank-6) { grid-template-columns: auto minmax(6em,1fr) auto; }
-.rich-text-editor :deep(span.blank-7) { grid-template-columns: auto minmax(7em,1fr) auto; } .rich-text-editor :deep(span.blank-8) { grid-template-columns: auto minmax(8em,1fr) auto; }
-.rich-text-editor :deep(span.blank-9) { grid-template-columns: auto minmax(9em,1fr) auto; } .rich-text-editor :deep(span.blank-10) { grid-template-columns: auto minmax(10em,1fr) auto; }
-.rich-text-editor :deep(span.blank-11) { grid-template-columns: auto minmax(11em,1fr) auto; } .rich-text-editor :deep(span.blank-12) { grid-template-columns: auto minmax(12em,1fr) auto; }
-.rich-text-editor :deep(span.blank-13) { grid-template-columns: auto minmax(13em,1fr) auto; } .rich-text-editor :deep(span.blank-14) { grid-template-columns: auto minmax(14em,1fr) auto; }
-.rich-text-editor :deep(span.blank-15) { grid-template-columns: auto minmax(15em,1fr) auto; } .rich-text-editor :deep(span.blank-16) { grid-template-columns: auto minmax(16em,1fr) auto; }
-.rich-text-editor :deep(span.blank-17) { grid-template-columns: auto minmax(17em,1fr) auto; } .rich-text-editor :deep(span.blank-18) { grid-template-columns: auto minmax(18em,1fr) auto; }
-.rich-text-editor :deep(span.blank-19) { grid-template-columns: auto minmax(19em,1fr) auto; } .rich-text-editor :deep(span.blank-20) { grid-template-columns: auto minmax(20em,1fr) auto; }
-.rich-text-editor :deep(span.blank-21) { grid-template-columns: auto minmax(21em,1fr) auto; } .rich-text-editor :deep(span.blank-22) { grid-template-columns: auto minmax(22em,1fr) auto; }
-.rich-text-editor :deep(span.blank-23) { grid-template-columns: auto minmax(23em,1fr) auto; } .rich-text-editor :deep(span.blank-24) { grid-template-columns: auto minmax(24em,1fr) auto; }
-/* 普通横线（英译汉等中文书写区） */
-.rich-text-editor :deep(.blank-line) { display: inline-block; min-width: 3em; border-bottom: 1.5px solid var(--text-secondary); margin: 0 2px; vertical-align: baseline; }
-/* ⭐ 行尾自动延伸：blank-line / u.blank-N 为段落最后元素时，段落变 flex、横线弹性撑满剩余行宽
-   （与导出端 <w:ptab/> 自动画到右边距行为一致，所见即所得） */
-.rich-text-editor :deep(p:has(> .blank-line:last-child)), .rich-text-editor :deep(p:has(> u[class*="blank-"]:last-child)) { display: flex; align-items: baseline; }
-.rich-text-editor :deep(p:has(> .blank-line:last-child) .blank-line), .rich-text-editor :deep(p:has(> u[class*="blank-"]:last-child) u[class*="blank-"]) { flex: 1 1 auto; min-width: 3em; }
+/* ⭐ 填空横线/括号空位/整行横线/行尾延伸：已收敛到 src/styles/carrierCss.js（main.js 全局注入，编辑器内自动生效），
+   不再在 SFC 深规则里维护副本，避免与全局/导出口径漂移 */
 .rich-text-editor :deep(.oral-box.blank) { min-width: 50px; border-style: dashed; color: var(--text-muted); }
 .rich-text-editor :deep(.vertical-calculation) { display: inline-block; margin: 8px 16px; font-family: 'Courier New', monospace; }
 .rich-text-editor :deep(.vertical-calculation .vc-row) { text-align: right; padding: 1px 8px; letter-spacing: 0.2em; }
