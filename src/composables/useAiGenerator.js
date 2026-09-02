@@ -4449,7 +4449,19 @@ ${cardAnalysisText.substring(0, 1000)}
     const floorTok = apiConfig.generationSettings.budgetClamp?.floorTokens ?? 800;
     // split：正文用 body 槽（系数+cap）；once：正文+答案共用 once 槽
     const bodyCfg = pickSlot(generateMode === 'once' ? 'once' : 'body');
-    const bodyNeeded = Math.round(Math.max(floorTok, selectedRawChars * bodyCfg.coef));
+    let bodyNeeded = Math.round(Math.max(floorTok, selectedRawChars * bodyCfg.coef));
+    // 🔴 once 一次成型 = 正文+答案区同一输出：所需下限 = 「body 槽估算 + answer 槽估算」两段合计。
+    //    一次输出必须覆盖两段内容；once 槽系数若低于两段合计（如 summary once2.2 < body1.6+answer0.85=2.45），
+    //    会在写完正文后因预算用尽截断在答案区（历史复现根因）——此处兜底抬升，宁多勿截。
+    if (generateMode === 'once') {
+      const splitBodyNeed = Math.round(Math.max(floorTok, selectedRawChars * pickSlot('body').coef));
+      const splitAnsNeed = Math.round(Math.max(floorTok, selectedRawChars * pickSlot('answer').coef));
+      const onceNeedSum = splitBodyNeed + splitAnsNeed;
+      if (bodyNeeded < onceNeedSum) {
+        bodyNeeded = onceNeedSum;
+        console.warn(`📐 [once预算] once槽系数(${bodyCfg.coef})低于两段合计(${splitBodyNeed}+${splitAnsNeed})，按合计 ${onceNeedSum} token 兜底（防答案区截断）`);
+      }
+    }
     const bodyOverCap = bodyNeeded > bodyCfg.cap;
     // 🔧 触顶升级（2026-09）：勾选量远超该类型预期（估算所需 > 槽 cap）时，不静默截断预算——
     //    本次调用升级为实际所需（安全上界防发散），保证内容完整生成；提示"范围较大，已自动加长预算"。
