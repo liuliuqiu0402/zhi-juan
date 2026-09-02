@@ -355,9 +355,9 @@ const buildTextRuns = (node, styleOverride = {}) => {
       const rawTxt = child.textContent || '';
       if (rawTxt && /^[\s\u00A0\u2003\u2002\u3000]*$/.test(rawTxt)) {
         const emW = whitespaceEmWidth(rawTxt);
-        const n = Math.min(16, Math.max(2, Math.round(emW)));
-        if (n >= 2) {
-          runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw: rawTxt, nFromClass: n, color: '333333' });
+        const rawN = Math.round(emW);
+        if (rawN >= 2) {
+          runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw: rawTxt, nFromClass: clampBlankToSpec(rawN), color: '333333' });
           return;
         }
         runs.push(new TextRun({ text: rawTxt, ...ctx }));
@@ -466,10 +466,9 @@ const buildTextRuns = (node, styleOverride = {}) => {
     if (tag === 'u' && ![...cls].some(c => /^blank-\d+$/.test(c)) && !cls.contains('blank-line')) {
       const { raw } = extractGridContent(child);
       if (raw && /^[\s\u3000\u00A0\u2003\u2002]*$/.test(raw) && (raw.match(/\u3000/g) || []).length >= 2) {
-        // 宽度 = 实际空白宽 ×2（1 字≈2 格，与正文层 blankWidthForChars 同源），封顶 16；
-        //   曾写死 nFromClass:16，导致句内 <u>　　</u>（正文层同输入归一 blank-4）被导出成 16em 超宽横线
+        // 宽度 = 实际空白宽 ×2（1 字≈2 格，与正文层 blankWidthForChars 同源），档位经 clampBlankToSpec（读规格库，不写死 16）
         const emW = whitespaceEmWidth(raw);
-        runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw, nFromClass: Math.min(16, Math.max(2, Math.round(emW * 2))), color: '333333' });
+        runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw, nFromClass: clampBlankToSpec(emW * 2), color: '333333' });
         return;
       }
     }
@@ -691,6 +690,13 @@ const whitespaceEmWidth = (raw = '') => {
     else if (/\s/.test(ch)) w += 1;
   }
   return w;
+};
+
+/** 档位换算兜底：与正文层 clampBlankWidth 同口径（读规格库 minBlank/maxCap；曾写死 16，
+ * 用户把 maxCap 调高后正文层 blank-17+ 有样式、导出兜底却截断到 16 → 两端口径分歧） */
+const clampBlankToSpec = (n) => {
+  const b = getMergedSpec().BLANK || { minBlank: 2, maxCap: 16 };
+  return Math.min(b.maxCap || 16, Math.max(b.minBlank || 2, Math.round(n)));
 };
 
 /**
