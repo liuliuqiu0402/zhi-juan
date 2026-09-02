@@ -1437,7 +1437,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       .mi-zi-ge { display: inline-block; position: relative; width: ${mzW}mm; height: ${mzH}mm; border: 1.5px solid #5B9BD5; vertical-align: middle; margin: 0 1px; font-size: inherit !important; font-family: 'KaiTi', 'SimSun', serif; box-sizing: border-box; text-align: center; line-height: ${mzH}mm; background: repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,repeating-linear-gradient(to top right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,repeating-linear-gradient(to bottom right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat; }
       .mi-zi-ge>span { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); line-height: 1; white-space: nowrap; }
       .oral-box { display: inline-block; border: 1.5px solid #999; padding: 2px 6px; min-width: 3em; text-align: center; font-size: inherit !important; }
-      .square-box { display: inline-block; border: 2px solid #333; padding: 2px 8px; min-width: 2em; text-align: center; font-size: inherit !important; }
+      .square-box { display: inline-flex; align-items: center; justify-content: center; width: 1.8em; height: 1.8em; border: 1.5px solid #333; box-sizing: border-box; text-align: center; vertical-align: middle; margin: 0 1px; font-weight: bold; color: #333; font-size: inherit !important; line-height: 1; }
       .zuo-wen-ge { display: grid; grid-template-columns: repeat(auto-fill, ${zwgMmW}mm); gap: 0; border: 1.5px solid #999; margin: 8px 0; width: 100%; }
       .zuo-wen-ge span { display: inline-flex; align-items: center; justify-content: center; width: ${zwgMmW}mm; height: ${zwgMm}mm; border: 0.5px solid #e0e0e0; font-size: inherit !important; }
       .square-grid { width: ${sgW}mm; height: ${sgH}mm; border: 1.5px solid #999; margin: 8px 0; background: linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / ${sgBg} no-repeat, linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / ${sgBg}; }
@@ -1518,7 +1518,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
     ${CARRIER_CSS}
     /* ⭐ 口算框 / 方框 */
     .oral-box { display: inline-block; border: 1.5px solid #999; padding: 1px 3px; min-width: 3em; text-align: center; font-size: inherit !important; }
-    .square-box { display: inline-block; border: 2px solid #333; padding: 1px 4px; min-width: 2em; text-align: center; font-size: inherit !important; }
+    .square-box { display: inline-flex; align-items: center; justify-content: center; width: 1.8em; height: 1.8em; border: 1.5px solid #333; box-sizing: border-box; text-align: center; vertical-align: middle; margin: 0 1px; font-weight: bold; color: #333; font-size: inherit !important; line-height: 1; }
     /* ⭐ 加点字 - 语文（text-emphasis 每字下方自动加点） */
     .emphasis-dot {
       text-emphasis: dot #d32f2f;
@@ -2004,20 +2004,22 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       font-weight: bold;
     }
 
-    /* ⭐ 方框填空 - 数学填数字/符号 */
+    /* ⭐ 方框填空 - 数学填数字/符号（等边方框 1.8em，与 Word DrawingML 方框同尺寸） */
     .square-box {
-      display: inline-block;
-      border: 2px solid #333;
-      min-width: 1.6em;
-      height: 1.6em;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.8em;
+      height: 1.8em;
+      border: 1.5px solid #333;
+      box-sizing: border-box;
       text-align: center;
-      line-height: 1.6em;
       vertical-align: middle;
       margin: 0 1px;
-      padding: 0 3px;
       font-weight: bold;
       color: #333;
       font-size: inherit !important;
+      line-height: 1;
     }
 
     /* ⭐ 得分框 */

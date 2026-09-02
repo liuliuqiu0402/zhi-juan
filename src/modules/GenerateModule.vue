@@ -10493,19 +10493,22 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   font-weight: bold;
 }
 
-/* 方框填空 */
+/* 方框填空（等边方框 1.8em，与 Word 一致） */
 .square-box {
-  display: inline-block;
-  border: 2px solid #333;
-  min-width: 1.6em;
-  height: 1.6em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8em;
+  height: 1.8em;
+  border: 1.5px solid #333;
+  box-sizing: border-box;
   text-align: center;
-  line-height: 1.6em;
   vertical-align: middle;
   margin: 0 1px;
-  padding: 0 2px;
   font-weight: bold;
   color: #333;
+  font-size: inherit !important;
+  line-height: 1;
 }
 
 /* 得分框 */

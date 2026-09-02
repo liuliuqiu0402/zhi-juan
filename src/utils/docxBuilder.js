@@ -1216,26 +1216,22 @@ const processBlockNode = (node, ctx = {}) => {
     const bgSpec = getMergedSpec().BRACKET_GRID;
     const bgW = Math.round(bgSpec.widthMm * MM2DXA); // 52mm ≈ 2945 DXA
     const bgRh = Math.round(bgSpec.rowHeightMm * MM2DXA); // 10mm ≈ 567 DXA（Word 行距单位）
-    const sideBorders = {
-      top: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
-      bottom: { style: BorderStyle.SINGLE, size: 6, color: '000000' },
-      left: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
-      right: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
-    };
-    const innerBorders = {
-      top: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
-      bottom: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
-      // 🔧 中间行左右保留细线：左右粗线在 3 行上连续（预览 bracket-grid 是整体框，左右边框不断开）
-      left: { style: BorderStyle.SINGLE, size: 2, color: '000000' },
-      right: { style: BorderStyle.SINGLE, size: 2, color: '000000' },
-    };
     const rows = [];
     for (let r = 0; r < rowCount; r++) {
+      // 🔧 预览 bracket-grid 是"左右括号 + 上下开放 + 行间细线"的整体框：
+      //    Word 各单元格边框独立，需显式：首行无上边框、末行无下边框（否则闭合成长方形）、
+      //    左右粗线每行都画（视觉连续）、行间分隔用细线（等价预览 div border-bottom）
+      const borders = {
+        top: r === 0 ? { style: BorderStyle.NONE, size: 0 } : { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
+        bottom: r === rowCount - 1 ? { style: BorderStyle.NONE, size: 0 } : { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
+        left: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
+        right: { style: BorderStyle.SINGLE, size: 12, color: '000000' },
+      };
       rows.push(new TableRow({
         children: [new TableCell({
           children: [new Paragraph({ text: ' ', spacing: { line: bgRh, lineRule: LineRuleType.EXACT } })],
           width: { size: bgW, type: WidthType.DXA },
-          borders: r === 0 || r === rowCount - 1 ? sideBorders : innerBorders,
+          borders,
         })],
       }));
     }

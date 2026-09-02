@@ -2172,7 +2172,7 @@ defineExpose({
 .rich-text-editor :deep(.score-board .sb-label), .rich-text-editor :deep(.score-board .sb-value) { display: table-cell; padding: 4px 16px; border: 1px solid var(--text-muted); text-align: center; }
 .rich-text-editor :deep(.score-board .sb-label) { font-size: 0.9em; color: #555; background: #f9f9f9; }
 .rich-text-editor :deep(.score-board .sb-value) { font-weight: bold; }
-.rich-text-editor :deep(.square-box) { display: inline-block; border: 2px solid #333; min-width: 1.6em; height: 1.6em; text-align: center; line-height: 1.6em; vertical-align: middle; margin: 0 1px; padding: 0 2px; font-weight: bold; color: #333; font-size: inherit !important; }
+.rich-text-editor :deep(.square-box) { display: inline-flex; align-items: center; justify-content: center; width: 1.8em; height: 1.8em; border: 1.5px solid #333; box-sizing: border-box; text-align: center; vertical-align: middle; margin: 0 1px; font-weight: bold; color: #333; font-size: inherit !important; line-height: 1; }
 .rich-text-editor :deep(.score-box) { display: inline-block; border: 1.5px solid #333; padding: 3px 16px; text-align: center; min-width: 60px; font-weight: bold; font-size: inherit !important; }
 .rich-text-editor :deep(.dashed-line) { display: inline-block; border-bottom: 1.5px dashed var(--text-muted); min-width: 40px; margin: 0 2px; }
 .rich-text-editor :deep(table.periodic-table) { border-collapse: collapse; margin: 8px auto; font-size: 0.75em; }
