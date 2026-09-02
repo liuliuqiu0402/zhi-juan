@@ -225,6 +225,32 @@
             >
               {{ showSource ? '🎨 渲染' : '<> 源码' }}
             </button>
+            <!-- 🔧 学段（2026-09）：书写格/作文格尺寸按学段读排版规格库（ZUOWEN_CELL/GRID_CELL）。
+                 粘贴/新建内容没有学段上下文 → 手动选；从生成进入则自动带五档 stageKey -->
+            <select
+              v-model="docStage"
+              class="export-select"
+              title="学段（作文格/书写格/导出尺寸依据）"
+            >
+              <option value="">
+                学段：自动
+              </option>
+              <option value="primary_low">
+                小学低段
+              </option>
+              <option value="primary_mid">
+                小学中段
+              </option>
+              <option value="primary_high">
+                小学高段
+              </option>
+              <option value="middle">
+                初中
+              </option>
+              <option value="high">
+                高中
+              </option>
+            </select>
             <select
               v-model="exportFormat"
               class="export-select"
