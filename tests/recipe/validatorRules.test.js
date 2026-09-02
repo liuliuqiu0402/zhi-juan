@@ -12,6 +12,7 @@ import {
   resetUserRules,
   RULES_STORAGE_KEY,
 } from '@/config/validatorRules.js';
+import { resolveStageKey, extractGradeNum } from '@/utils/gradeStage.js';
 
 beforeEach(() => {
   // 每个用例前清空用户自定义，保证内置基线
@@ -163,6 +164,31 @@ describe('validatorRules normalizeStage', () => {
     expect(normalizeStage('小学', '三年级')).toBe('primary_mid');
     expect(normalizeStage('小学', '六年级')).toBe('primary_high');
     expect(normalizeStage('小学', '')).toBe('primary_high'); // 无年级信息时小学按高段宽松处理
+  });
+});
+
+// 共享学段工具（gradeStage）回归：圈码识别 + 教材名回退（用户反馈："教材名称中有年级，⑥年级识别不到"）
+describe('gradeStage extractGradeNum / resolveStageKey', () => {
+  it('圈码 ①-⑥ 与教材名"X年级"能正确归一（⑥年级→六年级→primary_high）', () => {
+    expect(resolveStageKey('小学', '⑥年级')).toBe('primary_high');
+    expect(resolveStageKey('小学', '②年级')).toBe('primary_low');
+    expect(resolveStageKey('小学', '④年级')).toBe('primary_mid');
+  });
+
+  it('grade 为空但教材名带年级时，按教材名回退解析（不再误判无年级落低段）', () => {
+    expect(resolveStageKey('小学', '', '人教版语文六年级上册')).toBe('primary_high');
+    expect(resolveStageKey('小学', '', '苏教版数学三年级下册')).toBe('primary_mid');
+    expect(resolveStageKey('小学', '', '人教版语文一年级上册')).toBe('primary_low');
+  });
+
+  it('教材名带 "X上/X下/第X册" 缩写也能回退识别', () => {
+    expect(resolveStageKey('小学', '', '人教版语文六上')).toBe('primary_high');
+    expect(resolveStageKey('小学', '', '人教版语文第2册')).toBe('primary_low');
+  });
+
+  it('课标场景：非小学学段不随年级细分', () => {
+    expect(resolveStageKey('初中', '七年级', '人教版数学七年级上册')).toBe('middle');
+    expect(resolveStageKey('高中', '高一', '人教版数学高一上册')).toBe('high');
   });
 });
 

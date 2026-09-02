@@ -19,6 +19,7 @@
  */
 
 import { isLibEntryEnabled } from '../utils/libToggles.js';
+import { resolveStageKey } from '../utils/gradeStage.js'; // 年级→学段唯一事实源（三维度与课标版本标签共用，禁止各自 parseInt 中文年级）
 import { buildCarrierInstruction } from './layoutSpec.js'; // 书写载体条款按 学科×学段 生成（排版规格库唯一事实源）
 
 /** 资料类型中文名（模板列表展示/任务行用）
@@ -252,17 +253,18 @@ export const CURRICULUM_VERSION_INFO = {
  * @param {string} stage 学段键（primary_low 等）或中文标签（'小学'/'初中'/'高中'/'二年级'/'高一' 等）
  * @returns {string} 版本名；无法识别时返回 '本学段最新课标'（不阻断生成）
  */
-export function getCurriculumLabel(stage = '') {
+export function getCurriculumLabel(stage = '', grade = '', name = '') {
   const s = String(stage).trim();
   if (CURRICULUM_BY_STAGE[s]) return CURRICULUM_BY_STAGE[s];
   if (/高一|高二|高三|高中/.test(s)) return CURRICULUM_BY_STAGE.high;
   if (/初中|七年级|八年级|九年级/.test(s)) return CURRICULUM_BY_STAGE.middle;
-  if (/一年级|二年级|低段/.test(s)) return CURRICULUM_BY_STAGE.primary_low;
-  if (/三年级|四年级|中段/.test(s)) return CURRICULUM_BY_STAGE.primary_mid;
-  if (/五年级|六年级|高段/.test(s)) return CURRICULUM_BY_STAGE.primary_high;
-  if (/小学/.test(s)) {
-    const g = parseInt(s.replace(/\D/g, ''), 10) || 0;
-    return CURRICULUM_BY_STAGE[g >= 1 && g <= 2 ? 'primary_low' : g >= 3 && g <= 4 ? 'primary_mid' : 'primary_high'];
+  if (/低段|一年级|二年级/.test(s)) return CURRICULUM_BY_STAGE.primary_low;
+  if (/中段|三年级|四年级/.test(s)) return CURRICULUM_BY_STAGE.primary_mid;
+  if (/高段|五年级|六年级/.test(s)) return CURRICULUM_BY_STAGE.primary_high;
+  if (/小学|年级/.test(s)) {
+    // 🔧 grade 缺失时也兼容圈码（如"⑥年级"）；教材名带年级时据此兜底，避免误归高段
+    const key = resolveStageKey('小学', grade || s, name);
+    return CURRICULUM_BY_STAGE[key] || CURRICULUM_BY_STAGE.primary_high;
   }
   return '本学段最新课标';
 }

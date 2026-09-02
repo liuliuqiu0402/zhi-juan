@@ -1435,7 +1435,7 @@ const scoreAdjust = ref({});
 const currentDimKey = () => {
   const book = textbookStore.textbooks.find((b) => hasAnySelected(b.outline));
   if (!book) return '';
-  const st = resolveStageKey(book.stage, book.grade);
+  const st = resolveStageKey(book.stage, book.grade, book.name);
   const subject = normalizeSubjectName(book.subject, st);
   return `${subject}|${st}`;
 };
@@ -4132,7 +4132,7 @@ const buildInstruction = async () => {
     try {
       const firstBook = selectedBooksWithChapters[0];
       if (firstBook?.subject) {
-        const stageKey = resolveStageKey(firstBook.stage, firstBook.grade);
+        const stageKey = resolveStageKey(firstBook.stage, firstBook.grade, firstBook.name);
         const subject = normalizeSubjectName(firstBook.subject, stageKey);
         const region = examRegion.value || firstBook.region || '';
         const genType = genTypes.value?.[0];
@@ -4193,7 +4193,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   // 自动组装完成后清除手动编辑标记（本次组装结果为基准，后续用户再敲字会重新置位）
   userEditedInstruction = false;
   // 三维度：学段键 + 规范学科名 + 资料类型
-  const stageBase = resolveStageKey(book.stage, book.grade);
+  const stageBase = resolveStageKey(book.stage, book.grade, book.name);
   const subject = normalizeSubjectName(book.subject, stageBase);
   const stageKey = stageBase;
   // 匹配指令库模板（用户自定义优先，内置兜底）
@@ -4311,7 +4311,7 @@ const restoreDefaultInstruction = async () => {
   const book = selectedBooks[0];
   const genType = genTypes.value?.[0];
   if (!genType) return;
-  const stageBase = resolveStageKey(book.stage, book.grade);
+  const stageBase = resolveStageKey(book.stage, book.grade, book.name);
   const subject = normalizeSubjectName(book.subject, stageBase);
   const stageKey = stageBase;
   const tpl = getPromptTemplate({ grade: stageKey, subject, genType });
@@ -5905,7 +5905,7 @@ const generate = async (mode) => {
   // 🔧 新增：检查教材是否已分析（增强警告，明确列出未分析章节）
   //    逐章分开处理：已分析章节保留完整教材数据；未分析章节走"仅目录模式"降级，两者混合生成
   //    🔧 课标版本按学段注入（getCurriculumLabel），避免写死版本号（高中=2017版2020年修订，与 2022 义教版不同）
-  const curriculumLabel = getCurriculumLabel(selectedBooks[0]?.stage);
+  const curriculumLabel = getCurriculumLabel(selectedBooks[0]?.stage, selectedBooks[0]?.grade, selectedBooks[0]?.name);
   const unanalyzedChapters = selectedBooks.flatMap(b => 
     b.selectedChapters.filter(ch => !ch.analyzed || !ch.rawText || ch.rawText.trim().length < GEN_CONST.OCR_FAIL_MIN_TEXT)
   );

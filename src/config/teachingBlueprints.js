@@ -15,6 +15,7 @@
  */
 
 import { isLibEntryEnabled } from '../utils/libToggles.js';
+import { resolveStageKey } from '../utils/gradeStage.js'; // 年级→学段唯一事实源（蓝图学段与三维度共用，禁止各自 parseInt 中文年级）
 
 /** 学段显示名
  * 🔗 命名双轨·学段：五档 key 须与指令库 STAGE_NAMES、layoutSpec 载体表学段 key（primary_low…high）完全一致。 */
@@ -1034,10 +1035,8 @@ function normalizeTeachingStage(stage = '') {
   if (/三年级|四年级/.test(s) || s.includes('中段')) return 'primary_mid';
   if (/五年级|六年级/.test(s) || s.includes('高段')) return 'primary_high';
   if (/小学/.test(s)) {
-    const g = parseInt(s.replace(/\D/g, ''), 10) || 0;
-    if (g >= 1 && g <= 2) return 'primary_low';
-    if (g >= 3 && g <= 4) return 'primary_mid';
-    return 'primary_high';
+    // 🔧 委托共享工具：grade 缺失时也能按圈码/教材名兜底，避免误归低/高段
+    return resolveStageKey('小学', s, '') || 'primary_high';
   }
   return 'primary_mid'; // 无法识别时宽松回退（不阻断生成）
 }

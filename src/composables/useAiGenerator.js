@@ -865,7 +865,7 @@ const buildKnowledgeMap = async (contentCards, selectedBooks, callAI, robustJson
 - suggestedQuestionTypes：该章节各知识点建议的考查题型`;
 
   // 🔧 目录模式提示词：课标版本按学段注入（getCurriculumLabel），避免写死版本号
-  const curriculumLabel = getCurriculumLabel(selectedBooks?.[0]?.stage || '');
+  const curriculumLabel = getCurriculumLabel(selectedBooks?.[0]?.stage, selectedBooks?.[0]?.grade, selectedBooks?.[0]?.name);
   const prompt2 = `你是课程与教学专家。请基于以下各课内容，构建层级知识图谱。
 
 【输入数据说明】
@@ -4789,7 +4789,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       const hadAnswerBeforeAudit = /answer-section/.test(beforeAudit);
       const audit = auditExamPaper(finalContent, {
         subject: book?.subject || '',
-        stage: resolveStageKey(book?.stage, book?.grade),
+        stage: resolveStageKey(book?.stage, book?.grade, book?.name),
         genType,
       });
       if (audit.fixed > 0 || audit.silent > 0 || audit.issues.length > 0) {
