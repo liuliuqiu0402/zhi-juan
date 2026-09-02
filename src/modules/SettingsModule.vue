@@ -1070,7 +1070,13 @@ const adoptCalibration = (rowKey, bk) => {
     window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `采纳失败：${res.reason || '未知'}`, type: 'warning' } }));
   }
 };
-const clearCalibrationRow = (rowKey, bk) => {
+const clearCalibrationRow = async (rowKey, bk) => {
+  const confirmed = await showConfirmDialogFn(
+    `⚠️ 确定要清理「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」的校准吗？\n\n` +
+    `将删除该校准值及该维度累积的 ${bk.stats.count} 条有效样本（含 ${bk.stats.inValid} 条失效），彻底回退播种默认、从零重采样。\n\n` +
+    `此操作不可撤销；切换回去/重新校准需重新积累样本。`
+  );
+  if (!confirmed) return;
   clearCalibration(rowKey, bk.subject, bk.stage, bk.mode || '');
   recordAudit({ action: 'clear', operator: getDeviceName() || '本地', genType: rowKey, subject: bk.subject, stage: bk.stage, mode: bk.mode || '', detail: '清理校准：校准值+样本一并清除，回退播种默认' });
   window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已清理「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」（校准值+样本一并清除，回退播种默认）`, type: 'info' } }));
@@ -1100,9 +1106,19 @@ const auditOpen = ref({});
 const actLabel = (a) => ({ adopt: '一键采纳', toggle: '切换启用', clear: '清理校准', clearLogs: '清空流水' }[a] || a);
 const auditLogsFor = (rowKey) => getAuditLogs({ bucket: { genType: rowKey } });
 const auditCountFor = (rowKey) => auditLogsFor(rowKey).length;
-const clearAuditFor = (rowKey) => {
+const clearAuditFor = async (rowKey) => {
+  const n = auditCountFor(rowKey);
+  if (!n) {
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '暂无操作流水可清空', type: 'info' } }));
+    return;
+  }
+  const confirmed = await showConfirmDialogFn(
+    `⚠️ 确定要清空「${rowKey}」的 ${n} 条操作流水吗？\n\n` +
+    `仅删除审计日志记录，不影响任何校准值或样本数据。此操作不可撤销。`
+  );
+  if (!confirmed) return;
   clearAuditLogs({ bucket: { genType: rowKey } });
-  window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已清空「${rowKey}」的操作流水（仅删除日志，不影响校准数据与样本）`, type: 'info' } }));
+  window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已清空「${rowKey}」的 ${n} 条操作流水（仅删除日志，不影响校准数据与样本）`, type: 'info' } }));
 };
 const fmtAuditTime = (t) => new Date(t).toLocaleString('zh-CN', { hour12: false });
 
