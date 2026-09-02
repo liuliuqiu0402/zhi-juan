@@ -225,5 +225,19 @@ describe('填空横线导出：段落末尾 blank-line 自动延伸到行尾', (
     expect(xml).toContain('甲');
     expect(xml).toContain('乙');
   });
+
+  it('emphasis-dot 包 NBSP 空白（段落末尾，课文填空空位误包加点标记）→ 导出兜底 ptab 画线', async () => {
+    const xml = await getDocumentXml('<p>请在横线上作答<span class="emphasis-dot">' + '&nbsp;'.repeat(8) + '</span></p>');
+    expect(xml).toContain('<w:ptab');
+    expect(xml).toContain('w:leader="underscore"');
+    expect(xml).not.toContain('emphasis-dot');
+  });
+
+  it('emphasis-dot 包 NBSP 空白（句内，后还有字）→ NBSP 定宽 + 下划线，不输出 ptab', async () => {
+    const xml = await getDocumentXml('<p>空气是那么<span class="emphasis-dot">' + '&nbsp;'.repeat(8) + '</span>，天空是那么清鲜。</p>');
+    expect(xml).not.toContain('<w:ptab');
+    expect(xml).toContain('<w:u w:val="single"');
+    expect(xml).toContain('天空是那么清鲜');
+  });
 });
 

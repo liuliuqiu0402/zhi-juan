@@ -94,7 +94,7 @@ const EXAM_BASE = (extra = '', ctx = {}) => `你是资深命题专家。请为{g
 
 【卷面格式】（正式卷面必备）
 · 卷首输出一个且仅一个 <h1> 占位标题（内容按当前范围写即可）；系统生成后统一替换为规范标题，正文不附加资料类型词
-· 标题下接一行（考试时间：{duration}　满分：{fullScore}分），再写密封线（左侧竖排"密封线内不要答题"，含学校/班级/姓名/学号填写栏）
+· 标题下接一行(考试时间：{duration}　满分：{fullScore}分)，再写密封线（左侧竖排"密封线内不要答题"，含学校/班级/姓名/学号填写栏）
 · 🔴 页码、分页由系统生成，正文不输出页码文字（答案归属见【输出格式】——正文严禁混入答案/解析）
 
 【教材原文（命题取材依据；⚠️ OCR识别可能有误，以学科知识纠错后再命题；可改编情境，禁止照搬原句原题）】
@@ -574,7 +574,7 @@ export function buildStructureText(bp) {
   return sections.map((s, i) => {
     const no = '一二三四五六七八九十'[i] || String(i + 1);
     const scorePart = s.score ? `，共${s.score}分` : '';
-    return `${no}、${s.name}（共X题${scorePart}）${s.note ? `——${s.note}` : ''}`;
+    return `${no}、${s.name}(共X题${scorePart})${s.note ? `——${s.note}` : ''}`;
   }).join('\n');
 }
 

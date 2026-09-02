@@ -19,10 +19,10 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     // 明细由 buildStructureText 注入（蓝图数据）
     const bp = getExamBlueprint('语文', 'primary_low');
     const inject = buildStructureText(bp);
-    expect(inject).toContain('一、识字与写字（共X题，共32分）——');
-    expect(inject).toContain('二、积累与运用（共X题，共24分）——');
-    expect(inject).toContain('三、阅读与鉴赏（共X题，共14分）——');
-    expect(inject).toContain('四、表达与交流（共X题，共30分）——');
+    expect(inject).toContain('一、识字与写字(共X题，共32分)——');
+    expect(inject).toContain('二、积累与运用(共X题，共24分)——');
+    expect(inject).toContain('三、阅读与鉴赏(共X题，共14分)——');
+    expect(inject).toContain('四、表达与交流(共X题，共30分)——');
     // 大题命题要求（note）被注入
     expect(inject).toContain('覆盖本单元识字与写字内容');
     // 顺序：大题序号随位置递增
@@ -42,7 +42,7 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(inject).not.toContain('情境化试题占比');
     expect(inject).not.toContain('禁止孤立罗列拼音');
     // 卷面结构仍在（大题名+分值+命题要求 note）
-    expect(inject).toContain('一、识字与写字（共X题，共32分）——');
+    expect(inject).toContain('一、识字与写字(共X题，共32分)——');
   });
 
   it('不再注入分值规则（分值分配回归 AI 命题常识，账目自洽由规则库 score 系列验算）', () => {

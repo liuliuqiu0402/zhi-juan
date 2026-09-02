@@ -9,9 +9,9 @@ import path from 'path';
 
 // 从 instructionLib 和 AI prompt 中提取的所有特殊格式 CSS 类
 const REQUIRED_SPECIAL_CLASSES = [
-  // 填空横线（u + span）
+  // 填空横线（u + span；span 基选择器含 :not(.blank-line)，整行横线走 .blank-line 自有规则）
   'u[class*="blank-"]',
-  'span[class*="blank-"]',
+  'span[class*="blank-"]:not(.blank-line)',
   // 四线三格
   '.four-line-three',
   // 画线句子 / 波浪线 / 双线 / 单线

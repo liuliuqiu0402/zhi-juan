@@ -287,7 +287,48 @@ export function normalizeBlankMarkers(html = '') {
     const len = (inner.match(/\u3000/g) || []).length;
     return `<${tag}><u class="blank-${blankWidthForChars(len)}">&emsp;</u></${tag}>`;
   });
+  // 🔧 纯空白"装饰标记"兜底（见 normalizeWhitespaceCarriers：强调类标记无字可加 → 空白实为书写空位）
+  out = normalizeWhitespaceCarriers(out);
   return out;
+}
+
+/**
+ * 纯空白"装饰标记"→ 填空横线（精确规则，防止把真加点/画线误伤）
+ * ============================================================
+ * 强调类行内标记（emphasis-dot 加点 / wavy-underline 波浪线 / double-line 双线 /
+ * single-line 单线 / underline-sentence 画线 / dashed-line 虚线 / chem-condition /
+ * stroke-order 笔顺等）语义必须落在"可见字符"上；
+ * 若内容纯为空白（模型把课文填空空位误包成 <span class="emphasis-dot">&nbsp;×8</span>
+ * ——空位在、字被抽走，装饰无字可加），则空白实为书写空位 → 按实际空白宽度转 u.blank-N（≥2em）；
+ * 不足 2em（单个空格等排版分隔）→ 仅拆掉空壳标记、保留空白。
+ * 定位：生成归一（normalizeBlankMarkers 内部）、docx 导出入口（docxBuilder）、
+ * 编辑器装载/粘贴（RichTextEditor）三处共用，保证"排版所见 = Word 导出"。
+ */
+export function normalizeWhitespaceCarriers(html = '') {
+  const src = String(html || '');
+  const markerCls = 'emphasis-dot|wavy-underline|double-line|single-line|underline-sentence|dashed-line|chem-condition|stroke-order';
+  const re = new RegExp(`<span[^>]*class=["'][^"']*(?:${markerCls})[^"']*["'][^>]*>([\\s\\S]*?)<\\/span>`, 'gi');
+  return src.replace(re, (m, inner) => {
+    const text = String(inner || '').replace(/<[^>]+>/g, '');
+    // 实体→字符后判"可见内容"（NBSP/EMSP/全角空格均属空白，不算可见）
+    const decoded = text
+      .replace(/&nbsp;|&#160;|&#xA0;/gi, '\u00A0')
+      .replace(/&emsp;|&#8195;/gi, '\u2003')
+      .replace(/&ensp;|&#8194;/gi, '\u2002')
+      .replace(/&amp;/gi, '&');
+    if (/\S/.test(decoded)) return m; // 有可见字符 → 真标记，不动
+    let emW = 0;
+    for (const ch of decoded) {
+      if (ch === '\u3000' || ch === '\u2003') emW += 1;
+      else if (ch === '\u2002') emW += 0.5;
+      else if (ch === '\u00A0') emW += 0.5;
+      else if (ch === ' ') emW += 0.25;
+      else if (/\s/.test(ch)) emW += 0.5;
+    }
+    const rawN = Math.round(emW);
+    if (rawN >= 2) return `<u class="blank-${clampBlankWidth(rawN)}">&emsp;</u>`;
+    return inner; // 空壳标记（宽度 < 2em，如单个空格排版分隔）→ 拆壳保留原空白
+  });
 }
 
 /**
@@ -399,4 +440,4 @@ export function normalizeIndents(html = '') {
 }
 
 
-export default { cleanSectionHtml, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeIndents, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth };
+export default { cleanSectionHtml, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeIndents, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth };

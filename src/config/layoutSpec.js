@@ -353,6 +353,15 @@ export const LAYOUT_SPEC_DEFAULTS = {
   BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL,
 };
 
+/** BLANK 规格消毒：档位越界会导致换算产物无 CSS/无编辑器白名单（blank-25+ 宽度失效） */
+export const sanitizeBlankSpec = (b = {}) => {
+  const minBlank = Math.min(24, Math.max(1, Math.round(Number(b.minBlank) || 2)));
+  const maxBlank = Math.min(24, Math.max(minBlank, Math.round(Number(b.maxBlank) || 24)));
+  const maxCap = Math.min(maxBlank, Math.max(minBlank, Math.round(Number(b.maxCap) || 16)));
+  const wordGap = Math.min(4, Math.max(1, Number(b.wordGap) || 2));
+  return { minBlank, maxBlank, maxCap, wordGap };
+};
+
 /** 规格组 → 顶级字段映射（LayoutSpecView 启停开关按组控制） */
 export const LAYOUT_SPEC_GROUPS = {
   zuowen: ['ZUOWEN_CELL', 'ZUOWEN_MARK_STEP', 'ZUOWEN_DEFAULT_SPAN', 'ZUOWEN_CELLS_PER_SCORE'],
@@ -374,7 +383,9 @@ export function getMergedSpec() {
     ZUOWEN_CELL: mergeDeep(ZUOWEN_CELL, user.ZUOWEN_CELL),
     ZUOWEN_MARK_STEP: { ...ZUOWEN_MARK_STEP, ...(user.ZUOWEN_MARK_STEP || {}) },
     ZUOWEN_DEFAULT_SPAN: user.ZUOWEN_DEFAULT_SPAN ?? ZUOWEN_DEFAULT_SPAN,
-    BLANK: { ...BLANK, ...(user.BLANK || {}) },
+    // 🔧 BLANK 档位消毒（档位缝隙收口）：CSS/编辑器白名单只覆盖 blank-1..24，越界档位无样式=宽度失效；
+    //    统一约束 1 ≤ minBlank ≤ maxCap ≤ maxBlank ≤ 24，wordGap 限 1..4（LayoutSpecView 上限同步，见面板 blank 组）
+    BLANK: sanitizeBlankSpec({ ...BLANK, ...(user.BLANK || {}) }),
     WRITING_CARRIER: mergeDeep(WRITING_CARRIER, user.WRITING_CARRIER),
     GRID_CELL: mergeDeep(GRID_CELL, user.GRID_CELL),
     CARRIER_RULES: mergeDeep(CARRIER_RULES, user.CARRIER_RULES),

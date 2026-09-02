@@ -4,17 +4,19 @@ import { getMergedSpec, normalizeStage3 } from './config/layoutSpec.js';
 import { stripSealSuffix, normalizeSealBlanks } from './utils/sealText.js'; // 密封线文本规整（与 docx 导出 drawingMLShapes 共用，曾同正文双份）
 import { escapeHtml as escHtml } from './utils/escape.js'; // HTML 转义唯一实现（曾本地 escHtml 与 drawingMLShapes/GenerateModule 等 5 份同构副本）
 
-/** 🔧 填空横线/括号空位宽度档位 CSS（blank-1..24，1 档=1em）——由档位数生成，三套主题模板共用；
+/** 🔧 填空横线宽度档位 CSS（u.blank-1..24，1 档=1em）——由档位数生成，三套主题模板共用；
  * 曾各自整段复制（styles/global.css 静态文件仍独立维护同规则，需人工同步） */
 const blankWidthRules = (sel) => Array.from({ length: 24 }, (_, i) => `${sel}.blank-${i + 1} { min-width: ${i + 1}em; }`).join('\n');
 const BLANK_U_WIDTH_CSS = blankWidthRules('u');
-const SPAN_BLANK_WIDTH_CSS = blankWidthRules('span');
+/** 括号填空（span.blank-N）：伪元素括号外置，书写空间 = 中间 minmax(N em,1fr) 轨 → 括号内恰为 N em，
+ * 与 Word 导出 "(" + NBSP×N + ")" 同口径（曾 min-width 作用整盒，括号内实际留白 < N em，两端口径不一致） */
+const SPAN_BLANK_GRID_CSS = Array.from({ length: 24 }, (_, i) => `span.blank-${i + 1} { grid-template-columns: auto minmax(${i + 1}em, 1fr) auto; }`).join('\n');
 /** 作答载体基础 CSS：独立导出 HTML/PDF 文档只带主题内嵌 <style>、不含 global.css，
  * 须自带与编辑器一致的规则——span.blank-N 括号伪元素、整行横线 .blank-line、行尾 blank 弹性延伸 */
 const CARRIER_EXTRA_CSS = `
-span[class*="blank-"] { display: inline-block; text-align: center; vertical-align: baseline; }
-span[class*="blank-"]::before { content: "("; font-weight: normal; }
-span[class*="blank-"]::after { content: ")"; font-weight: normal; }
+span[class*="blank-"]:not(.blank-line) { display: inline-grid; grid-template-columns: auto 1fr auto; align-items: center; vertical-align: middle; text-align: center; }
+span[class*="blank-"]:not(.blank-line)::before { content: "("; font-weight: normal; }
+span[class*="blank-"]:not(.blank-line)::after { content: ")"; font-weight: normal; }
 span.blank-line::before, span.blank-line::after { content: none !important; }
 .blank-line { display: inline-block; min-width: 3em; border-bottom: 1.5px solid #666; margin: 0 2px; vertical-align: baseline; }
 p:has(> .blank-line:last-child), p:has(> u[class*="blank-"]:last-child) { display: flex; align-items: baseline; }
@@ -1462,9 +1464,9 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       u[class*="blank-"] { display: inline-block; text-align: center; text-decoration: none; border-bottom: 1.5px solid #333; padding: 0 2px; font-size: inherit !important; min-width: 1em; }
       ${BLANK_U_WIDTH_CSS}
       /* 括号填空/整行横线/行尾延伸（独立导出文档缺 global.css，须自带） */
-      ${CARRIER_EXTRA_CSS}
-      ${SPAN_BLANK_WIDTH_CSS}
-    </style>`;
+       ${CARRIER_EXTRA_CSS}
+       ${SPAN_BLANK_GRID_CSS}
+     </style>`;
     return `<!DOCTYPE html>
 <html>
 <head>
@@ -1537,7 +1539,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
     ${BLANK_U_WIDTH_CSS}
     /* 括号填空/整行横线/行尾延伸（独立导出文档缺 global.css，须自带） */
     ${CARRIER_EXTRA_CSS}
-    ${SPAN_BLANK_WIDTH_CSS}
+    ${SPAN_BLANK_GRID_CSS}
     /* ⭐ 口算框 / 方框 */
     .oral-box { display: inline-block; border: 1.5px solid #999; padding: 1px 3px; min-width: 3em; text-align: center; font-size: inherit !important; }
     .square-box { display: inline-block; border: 2px solid #333; padding: 1px 4px; min-width: 2em; text-align: center; font-size: inherit !important; }

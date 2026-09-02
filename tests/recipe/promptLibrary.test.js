@@ -118,8 +118,8 @@ describe('卷面结构文本', () => {
       ],
     };
     const text = buildStructureText(bp);
-    expect(text).toContain('一、识字与写字（共X题，共32分）');
-    expect(text).toContain('二、积累与运用（共X题，共24分）');
+    expect(text).toContain('一、识字与写字(共X题，共32分)');
+    expect(text).toContain('二、积累与运用(共X题，共24分)');
   });
 
   it('无蓝图返回空串', () => {

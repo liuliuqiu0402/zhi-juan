@@ -10,7 +10,8 @@ describe('排版规格库：规格组启停开关（停用 = 该组用户覆盖�
 
   it('停用「填空规格」组 → 用户覆盖不合并（按内置默认 maxCap=16）', () => {
     saveLayoutSpecOverride({ BLANK: { maxCap: 99 } });
-    expect(getMergedSpec().BLANK.maxCap).toBe(99);
+    // 🔧 档位收口：越界覆盖被消毒到 CSS 档位上限 24（曾可直通 99 → 产物无样式）
+    expect(getMergedSpec().BLANK.maxCap).toBe(24);
     setLibToggle('layout-spec', 'blank', false);
     expect(getMergedSpec().BLANK.maxCap).toBe(16);
   });
@@ -19,7 +20,7 @@ describe('排版规格库：规格组启停开关（停用 = 该组用户覆盖�
     saveLayoutSpecOverride({ BLANK: { maxCap: 99 } });
     setLibToggle('layout-spec', 'blank', false);
     setLibToggle('layout-spec', 'blank', true);
-    expect(getMergedSpec().BLANK.maxCap).toBe(99);
+    expect(getMergedSpec().BLANK.maxCap).toBe(24);
   });
 
   it('停用「作文格规格」组 → 组内全部顶级字段都不合并', () => {

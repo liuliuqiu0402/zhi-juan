@@ -705,7 +705,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
                 bonusUnits -= take;
                 const totalScore = unitScore * c;
                 const unit = parseUnitName(t2);
-                const newT2 = t2.replace(/[（(][^）)]*[)）]\s*$/, `（每${unit}${unitScore}分，共${totalScore}分）`);
+                const newT2 = t2.replace(/[（(][^）)]*[)）]\s*$/, `(每${unit}${unitScore}分，共${totalScore}分)`);
                 if (newT2 !== t2) { p.textContent = newT2; redistributed += 1; }
               }
               if (redistributed > 0) {
@@ -813,7 +813,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const subCount = countSubInNodes(secNodes);
             const newT = head.textContent.replace(
               /[（(][^）)]*?每题\s*\d{1,3}\s*分[^）)]*?[)）]/,
-              `（共${subCount}题，共${totalScore}分）`
+              `(共${subCount}题，共${totalScore}分)`
             );
             if (newT !== head.textContent) {
               // 🔧 debug 级（2026-08，同 2f/2g）：分值抽检降级，不进问题列表

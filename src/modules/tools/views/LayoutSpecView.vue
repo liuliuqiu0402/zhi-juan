@@ -394,10 +394,10 @@ const SPEC_GROUPS = [
     name: '填空规格',
     desc: '横线宽度/字数换算（contentCleaner · normalizeBlankMarkers）',
     fields: [
-      { path: 'BLANK.maxCap', label: '宽度上限', unit: 'em', type: 'number', min: 8, max: 30, step: 1 },
+      { path: 'BLANK.maxCap', label: '宽度上限', unit: 'em', type: 'number', min: 8, max: 24, step: 1 },
       { path: 'BLANK.wordGap', label: '1字≈N格', unit: '格', type: 'number', min: 1, max: 4, step: 0.5 },
-      { path: 'BLANK.minBlank', label: '最小 blank-N', unit: '', type: 'number', min: 1, max: 6, step: 1 },
-      { path: 'BLANK.maxBlank', label: '最大 blank-N', unit: '', type: 'number', min: 10, max: 40, step: 1 },
+      { path: 'BLANK.minBlank', label: '最小 blank-N', unit: '', type: 'number', min: 1, max: 24, step: 1 },
+      { path: 'BLANK.maxBlank', label: '最大 blank-N', unit: '', type: 'number', min: 10, max: 24, step: 1 },
     ],
   },
   {

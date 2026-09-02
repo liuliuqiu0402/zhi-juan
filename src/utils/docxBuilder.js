@@ -343,6 +343,24 @@ const buildTextRuns = (node, styleOverride = {}) => {
     }
 
     // === 特殊 class 白名单（保持优先级，用最终 ctx 替代旧 defaults）===
+    // ⚠️ 前置：纯空白"装饰标记"兜底（emphasis-dot/wavy/double/single/underline-sentence/dashed 等无字可加 → 空白即书写空位）。
+    //    与 contentCleaner.normalizeWhitespaceCarriers 同语义：模型把课文填空空位误包成
+    //    <span class="emphasis-dot">&nbsp;×8</span>，真加点/画线必须落在可见字上，纯空白标记是空位；
+    //    宽度 = 实际空白宽（nbsp≈0.5em/全角=1em，round 后落 [2,16]），与归一规则产出 blank-N 同口径。
+    //    必须位于下方各装饰分支之前，否则空白 span 会被当作"加点/画线文字"导出（无字可加 → 点/线语义失效）
+    if (/emphasis-dot|wavy-underline|double-line|single-line|underline-sentence|dashed-line|chem-condition|stroke-order/.test(child.className || '')) {
+      const rawTxt = child.textContent || '';
+      if (rawTxt && /^[\s\u00A0\u2003\u2002\u3000]*$/.test(rawTxt)) {
+        const emW = whitespaceEmWidth(rawTxt);
+        const n = Math.min(16, Math.max(2, Math.round(emW)));
+        if (n >= 2) {
+          runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw: rawTxt, nFromClass: n, color: '333333' });
+          return;
+        }
+        runs.push(new TextRun({ text: rawTxt, ...ctx }));
+        return;
+      }
+    }
     if (cls.contains('emphasis-dot')) {
       // 🔧 用标准值 dot（<w:em w:val="dot"/>）：Word/WPS/手机端全部支持；underDot 仅 Microsoft Word 渲染，WPS 等会丢失着重号
       runs.push(new TextRun({ text, emphasisMark: { type: 'dot' }, color: 'D32F2F', ...ctx }));
