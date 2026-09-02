@@ -204,11 +204,19 @@ describe('填空横线导出：段落末尾 blank-line 自动延伸到行尾', (
     expect(xml).toContain('w:leader="underscore"');
   });
 
-  it('文字间夹带连续全角空格（非末尾）→ 空白片段 NBSP 定宽 + 下划线，不输出 ptab', async () => {
+  it('行内夹带连续全角空格（未包 <u>/括号，非末尾）→ 按排版空格保留不画线（所见即所得：预览为空格、导出不再变横线）', async () => {
     const xml = await getDocumentXml('<p>答案：' + '　'.repeat(4) + '后还有字</p>');
     expect(xml).not.toContain('<w:ptab');
-    expect(xml).toContain('<w:u w:val="single"');
-    expect(xml).toContain('>后还有字</w:t>');
+    expect(xml).not.toContain('<w:u w:val="single"');
+    expect(xml).toMatch(/<w:t[^>]*>[^<]*后还有字<\/w:t>/); // 空格与文字同 run 原样保留
+  });
+
+  it('选项间距用多个全角空格分隔 → 不画横线（回归：曾把 "A. 甲　　B. 乙" 间距在 Word 导出成下划线）', async () => {
+    const xml = await getDocumentXml('<p>1. A. 苹果' + '　'.repeat(3) + 'B. 香蕉' + '　'.repeat(3) + 'C. 梨</p>');
+    expect(xml).not.toContain('<w:ptab');
+    expect(xml).not.toContain('<w:u w:val="single"');
+    expect(xml).toContain('苹果');
+    expect(xml).toContain('香蕉');
   });
 
   it('单个全角空格分隔（排版分隔）→ 不按填空横线处理', async () => {

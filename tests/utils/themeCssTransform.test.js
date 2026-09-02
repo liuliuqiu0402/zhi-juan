@@ -52,4 +52,13 @@ describe('编辑器 themeCSS 转换（编辑区 = 导出视觉）', () => {
     expect(css).toMatch(/\.four-line-three::before\s*\{[^}]*height:\s*\d+(\.\d+)?mm/);
     expect(css).not.toContain('.tian-zi-ge { display: inline-block; position: relative; width: 1.8em');
   });
+
+  it('作答载体规则随独立导出文档自带（span 括号伪元素/blank-line/行尾延伸/宽度档位 1..24）', () => {
+    expect(css).toMatch(/span\[class\*="blank-"\]::before\s*\{\s*content:\s*"\("/);
+    expect(css).toMatch(/span\[class\*="blank-"\]::after\s*\{\s*content:\s*"\)"/);
+    expect(css).toMatch(/\.blank-line\s*\{[^}]*border-bottom:/);
+    expect(css).toMatch(/p:has\(> u\[class\*="blank-"\]:last-child\)\s*\{[^}]*display:\s*flex/);
+    expect(css).toMatch(/u\.blank-24\s*\{\s*min-width:\s*24em/);
+    expect(css).toMatch(/span\.blank-24\s*\{\s*min-width:\s*24em/);
+  });
 });

@@ -290,25 +290,14 @@ const buildTextRuns = (node, styleOverride = {}) => {
               });
               return;
             }
-            // 🔧 裸全角空格留空（AI 裸输出形态：未包 <u>/括号，如 <p>　　　　</p> 写作答题行）：
-            //    连续全角空格（≥2）片段 → 填空横线标记（段落末尾 → ptab 自动延伸，非末尾 → NBSP 定宽），
-            //    与 blank-line/u.blank-N 同一后处理；文字间单个全角空格（排版分隔）不受影响
-            if (/\u3000{2,}/.test(line)) {
-              const segs = line.split(/(\u3000{2,})/);
-              const mkPure = (base) => {
-                const o = { ...base };
-                ['size', 'color', 'font', 'bold', 'italics', 'underline', 'strike', 'shading', 'superScript', 'subScript']
-                  .forEach(k => { if (ctxIn[k] !== undefined) o[k] = ctxIn[k]; });
-                return o;
-              };
-              for (const seg of segs) {
-                if (!seg) continue;
-                if (/^\u3000{2,}$/.test(seg)) {
-                  runs.push({ __blankLineTab: true, size: ctxIn.size || readFontSizeHp(node), raw: seg, color: '333333' });
-                } else {
-                  runs.push(new TextRun(mkPure({ text: seg })));
-                }
-              }
+            // 🔧 裸全角空格留空（AI 裸输出形态：<p>　　　　</p> 整行写作答题行）：
+            //    仅"整行纯空白（含 ≥2 个全角空格）"判为书写横线（段落末尾 → ptab 自动延伸），
+            //    与正文层 normalizeBlankMarkers"整块纯空格才归一 u.blank-N"同一语义，保证所见即所得；
+            //    ⚠️ 行内夹带的连续全角空格一律按排版空格原样保留（选项间距/对齐留白）——
+            //    曾按"行内 ≥2 就转"的字符数规则，把 "A. 苹果　　B. 香蕉" 的选项间距在 Word
+            //    导出成下划线（预览却只是空格），排版导出失真即由此而来
+            if (/^\s*\u3000{2,}\s*$/.test(line)) {
+              runs.push({ __blankLineTab: true, size: ctxIn.size || readFontSizeHp(node), raw: line, color: '333333' });
               return;
             }
             const pure = { text: line };
@@ -408,7 +397,8 @@ const buildTextRuns = (node, styleOverride = {}) => {
       //    横线不再依赖 AI 估算的 &emsp; 数量，自动顶满行尾；
       //    若后面还有内容（非末尾）→ 退回原 NBSP 固定宽度逻辑，避免破坏后续文字排版。
       const { raw } = extractGridContent(child);
-      runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw, color: '666666' });
+      // minEm=3：预览 .blank-line 最小 3em（global.css/themeConfig 同规则），非末尾 NBSP 回退不得窄于预览保底
+      runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw, minEm: 3, color: '666666' });
       return;
     }
     // === 括号内留空（span.blank-N）——无下划线，仅占位 ===
@@ -420,14 +410,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
       if (blankSpanMatch) {
         const nFromClass = parseInt(blankSpanMatch.split('-')[1]) || 2;
         const { raw } = extractGridContent(child);
-        let emWidth = 0;
-        for (const ch of raw) {
-          if (ch === '\u2003') emWidth += 1;
-          else if (ch === '\u2002') emWidth += 0.5;
-          else if (ch === '\u00A0') emWidth += 0.5;
-          else if (ch === ' ') emWidth += 0.25;
-          else if (/\s/.test(ch)) emWidth += 1;
-        }
+        const emWidth = whitespaceEmWidth(raw);
         const effectiveN = Math.max(nFromClass, Math.round(emWidth), 2);
         const innerText = '\u00A0'.repeat(effectiveN * 4);
         runs.push(new TextRun({ text: `(${innerText})`, font: 'Times New Roman', size: ctx.size || readFontSizeHp(child) }));
@@ -449,14 +432,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
         runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw, nFromClass, color: '333333' });
       } else {
         // 非标标签：统一按括号处理
-        let emWidth = 0;
-        for (const ch of raw) {
-          if (ch === '\u2003') emWidth += 1;
-          else if (ch === '\u2002') emWidth += 0.5;
-          else if (ch === '\u00A0') emWidth += 0.5;
-          else if (ch === ' ') emWidth += 0.25;
-          else if (/\s/.test(ch)) emWidth += 1;
-        }
+        const emWidth = whitespaceEmWidth(raw);
         const effectiveN = Math.max(nFromClass, Math.round(emWidth), 2);
         const innerText = '\u00A0'.repeat(effectiveN * 4);
         runs.push(new TextRun({ text: `(${innerText})`, font: 'Times New Roman', size: ctx.size || readFontSizeHp(child) }));
@@ -469,7 +445,10 @@ const buildTextRuns = (node, styleOverride = {}) => {
     if (tag === 'u' && ![...cls].some(c => /^blank-\d+$/.test(c)) && !cls.contains('blank-line')) {
       const { raw } = extractGridContent(child);
       if (raw && /^[\s\u3000\u00A0\u2003\u2002]*$/.test(raw) && (raw.match(/\u3000/g) || []).length >= 2) {
-        runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw, nFromClass: 16, color: '333333' });
+        // 宽度 = 实际空白宽 ×2（1 字≈2 格，与正文层 blankWidthForChars 同源），封顶 16；
+        //   曾写死 nFromClass:16，导致句内 <u>　　</u>（正文层同输入归一 blank-4）被导出成 16em 超宽横线
+        const emW = whitespaceEmWidth(raw);
+        runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw, nFromClass: Math.min(16, Math.max(2, Math.round(emW * 2))), color: '333333' });
         return;
       }
     }
@@ -657,16 +636,10 @@ const buildTextRuns = (node, styleOverride = {}) => {
       });
       tailTabDone = true;
     } else {
-      // 非末尾：退回原 NBSP 固定宽度逻辑（宽度取 class N 值与内部 &emsp; 等空白实体中较大者）
-      let emWidth = 0;
-      for (const ch of (r.raw || '')) {
-        if (ch === '\u2003') emWidth += 1;
-        else if (ch === '\u2002') emWidth += 0.5;
-        else if (ch === '\u00A0') emWidth += 0.5;
-        else if (ch === ' ') emWidth += 0.25;
-        else if (/\s/.test(ch)) emWidth += 1;
-      }
-      const effectiveN = r.nFromClass ? Math.max(r.nFromClass, Math.round(emWidth), 2) : Math.max(2, Math.round(emWidth));
+      // 非末尾：退回 NBSP 固定宽度逻辑（宽度取 类型保底/class N 值/内部空白实体 中较大者）
+      const emWidth = whitespaceEmWidth(r.raw);
+      const baseMin = r.minEm || (r.nFromClass ? Math.max(r.nFromClass, 2) : 2);
+      const effectiveN = Math.max(baseMin, Math.round(emWidth));
       const nbspCount = Math.max(8, effectiveN * 4);
       runs[i] = new TextRun({
         text: '\u00A0'.repeat(nbspCount),
@@ -684,6 +657,20 @@ const buildTextRuns = (node, styleOverride = {}) => {
 // 导出时在 Paragraph 中写入标记 TextRun，后处理时替换为完整 DrawingML OOXML
 
 const EMU_PER_DXA = _EMU_PER_DXA; // 635 EMU/DXA
+
+/** 空白字符 → em 宽度（单一换算；曾以 4-5 份相同循环散落 span/u/flt/后处理，现统一）
+ * 约定：em(U+2003)=1 / en(U+2002)=0.5 / NBSP=0.5 / 半角空格=0.25 / 其余空白(含全角 \u3000)=1 */
+const whitespaceEmWidth = (raw = '') => {
+  let w = 0;
+  for (const ch of raw) {
+    if (ch === '\u2003') w += 1;
+    else if (ch === '\u2002') w += 0.5;
+    else if (ch === '\u00A0') w += 0.5;
+    else if (ch === ' ') w += 0.25;
+    else if (/\s/.test(ch)) w += 1;
+  }
+  return w;
+};
 
 /**
  * 四线三格宽度自适应（内容决定格子宽）
@@ -709,14 +696,7 @@ const fltCellWidthDxa = (contentLen, sizeHp) => {
  * @returns {number} cellW in DXA
  */
 const fltBlankWidthDxa = (raw, sizeHp) => {
-  let emWidth = 0;
-  for (const ch of raw || '') {
-    if (ch === '\u2003') emWidth += 1;
-    else if (ch === '\u2002') emWidth += 0.5;
-    else if (ch === '\u00A0') emWidth += 0.5;
-    else if (ch === ' ') emWidth += 0.25;
-    else if (/\s/.test(ch)) emWidth += 1;
-  }
+  let emWidth = whitespaceEmWidth(raw);
   if (emWidth < 1) emWidth = 2; // 无宽度信息时默认 2em（与旧版一致）
   const emDxa = (sizeHp || 28) * 10; // 1em = sizeHp/2 pt = sizeHp*10 DXA
   const padEachSide = Math.round((sizeHp || 28) * 2.5); // ¼em/侧（与 pad 文本精确对齐）

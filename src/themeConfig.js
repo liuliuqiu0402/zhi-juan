@@ -4,21 +4,22 @@ import { getMergedSpec, normalizeStage3 } from './config/layoutSpec.js';
 import { stripSealSuffix, normalizeSealBlanks } from './utils/sealText.js'; // 密封线文本规整（与 docx 导出 drawingMLShapes 共用，曾同正文双份）
 import { escapeHtml as escHtml } from './utils/escape.js'; // HTML 转义唯一实现（曾本地 escHtml 与 drawingMLShapes/GenerateModule 等 5 份同构副本）
 
-/** 🔧 填空横线宽度档位 CSS（u.blank-1..24，1 档=1em）——三套主题模板共用一段，曾各自整段复制（styles/global.css 静态文件仍独立维护同规则） */
-const BLANK_U_WIDTH_CSS = [
-  'u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }',
-  'u.blank-3 { min-width: 3em; } u.blank-4 { min-width: 4em; }',
-  'u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; }',
-  'u.blank-7 { min-width: 7em; } u.blank-8 { min-width: 8em; }',
-  'u.blank-9 { min-width: 9em; } u.blank-10 { min-width: 10em; }',
-  'u.blank-11 { min-width: 11em; } u.blank-12 { min-width: 12em; }',
-  'u.blank-13 { min-width: 13em; } u.blank-14 { min-width: 14em; }',
-  'u.blank-15 { min-width: 15em; } u.blank-16 { min-width: 16em; }',
-  'u.blank-17 { min-width: 17em; } u.blank-18 { min-width: 18em; }',
-  'u.blank-19 { min-width: 19em; } u.blank-20 { min-width: 20em; }',
-  'u.blank-21 { min-width: 21em; } u.blank-22 { min-width: 22em; }',
-  'u.blank-23 { min-width: 23em; } u.blank-24 { min-width: 24em; }',
-].join('\n');
+/** 🔧 填空横线/括号空位宽度档位 CSS（blank-1..24，1 档=1em）——由档位数生成，三套主题模板共用；
+ * 曾各自整段复制（styles/global.css 静态文件仍独立维护同规则，需人工同步） */
+const blankWidthRules = (sel) => Array.from({ length: 24 }, (_, i) => `${sel}.blank-${i + 1} { min-width: ${i + 1}em; }`).join('\n');
+const BLANK_U_WIDTH_CSS = blankWidthRules('u');
+const SPAN_BLANK_WIDTH_CSS = blankWidthRules('span');
+/** 作答载体基础 CSS：独立导出 HTML/PDF 文档只带主题内嵌 <style>、不含 global.css，
+ * 须自带与编辑器一致的规则——span.blank-N 括号伪元素、整行横线 .blank-line、行尾 blank 弹性延伸 */
+const CARRIER_EXTRA_CSS = `
+span[class*="blank-"] { display: inline-block; text-align: center; vertical-align: baseline; }
+span[class*="blank-"]::before { content: "("; font-weight: normal; }
+span[class*="blank-"]::after { content: ")"; font-weight: normal; }
+span.blank-line::before, span.blank-line::after { content: none !important; }
+.blank-line { display: inline-block; min-width: 3em; border-bottom: 1.5px solid #666; margin: 0 2px; vertical-align: baseline; }
+p:has(> .blank-line:last-child), p:has(> u[class*="blank-"]:last-child) { display: flex; align-items: baseline; }
+p:has(> .blank-line:last-child) .blank-line, p:has(> u[class*="blank-"]:last-child) u[class*="blank-"] { flex: 1 1 auto; min-width: 3em; }
+`;
 
 export const themes = [
   // 我的样式
@@ -1460,8 +1461,9 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       /* 填空横线 */
       u[class*="blank-"] { display: inline-block; text-align: center; text-decoration: none; border-bottom: 1.5px solid #333; padding: 0 2px; font-size: inherit !important; min-width: 1em; }
       ${BLANK_U_WIDTH_CSS}
-      /* 括号间距——仅占宽度，无下划线 */
-      span[class*="blank-"] { display: inline-block; }
+      /* 括号填空/整行横线/行尾延伸（独立导出文档缺 global.css，须自带） */
+      ${CARRIER_EXTRA_CSS}
+      ${SPAN_BLANK_WIDTH_CSS}
     </style>`;
     return `<!DOCTYPE html>
 <html>
@@ -1533,8 +1535,9 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
     /* ⭐ 填空横线 */
     u[class*="blank-"] { display: inline-block; text-align: center; text-decoration: none; border-bottom: 1.5px solid #333; padding: 0 1px; font-size: inherit !important; min-width: 1em; }
     ${BLANK_U_WIDTH_CSS}
-    /* 括号间距——仅占宽度 */
-    span[class*="blank-"] { display: inline-block; }
+    /* 括号填空/整行横线/行尾延伸（独立导出文档缺 global.css，须自带） */
+    ${CARRIER_EXTRA_CSS}
+    ${SPAN_BLANK_WIDTH_CSS}
     /* ⭐ 口算框 / 方框 */
     .oral-box { display: inline-block; border: 1.5px solid #999; padding: 1px 3px; min-width: 3em; text-align: center; font-size: inherit !important; }
     .square-box { display: inline-block; border: 2px solid #333; padding: 1px 4px; min-width: 2em; text-align: center; font-size: inherit !important; }
@@ -2205,20 +2208,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       /* 填空横线：按答案字数精确控宽，1em≈1个汉字 */
       u[class*="blank-"] { display: inline-block; text-align: center; font-size: inherit !important; min-width: 1em; }
       ${BLANK_U_WIDTH_CSS}
-      /* 括号间距：仅占宽度，无下划线 */
-      span[class*="blank-"] { display: inline-block; text-align: center; }
-      span.blank-1 { min-width: 1em; } span.blank-2 { min-width: 2em; }
-      span.blank-3 { min-width: 3em; } span.blank-4 { min-width: 4em; }
-      span.blank-5 { min-width: 5em; } span.blank-6 { min-width: 6em; }
-      span.blank-7 { min-width: 7em; } span.blank-8 { min-width: 8em; }
-      span.blank-9 { min-width: 9em; } span.blank-10 { min-width: 10em; }
-      span.blank-11 { min-width: 11em; } span.blank-12 { min-width: 12em; }
-      span.blank-13 { min-width: 13em; } span.blank-14 { min-width: 14em; }
-      span.blank-15 { min-width: 15em; } span.blank-16 { min-width: 16em; }
-      span.blank-17 { min-width: 17em; } span.blank-18 { min-width: 18em; }
-      span.blank-19 { min-width: 19em; } span.blank-20 { min-width: 20em; }
-      span.blank-21 { min-width: 21em; } span.blank-22 { min-width: 22em; }
-      span.blank-23 { min-width: 23em; } span.blank-24 { min-width: 24em; }
+      /* 括号空位宽度档位已在主样式段注入（SPAN_BLANK_WIDTH_CSS），此处不再重复 */
       strong, b { font-weight: bold; }
       em, i { font-style: italic; }
       s, del, strike { text-decoration: line-through; }
