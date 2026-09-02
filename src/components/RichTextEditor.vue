@@ -629,6 +629,8 @@ const EmphasisDot = Mark.create({
 });
 
 // ⭐ 田字格：与无样式模式完全一致——inline-block+relative+absolute居中（经无样式模式验证的最稳定方案）
+// 🔧 田字格/米字格仅语文低段存在 → 定档 GRID_CELL primary（12mm），与预览/HTML/docx 同尺寸（曾 1.8em 随字号漂移）
+const gridCellMm = () => (getMergedSpec().GRID_CELL?.['tian-zi-ge']?.primary?.widthMm) || 12;
 const TianZiGe = Node.create({
   name: 'tianZiGe',
   group: 'inline',
@@ -638,7 +640,7 @@ const TianZiGe = Node.create({
   renderHTML() {
     return ['span', {
       class: 'tian-zi-ge',
-      style: 'display:inline-block!important;position:relative!important;width:1.8em!important;height:1.8em!important;border:1.5px solid #5B9BD5;font-size:inherit!important;vertical-align:middle;margin:0 1px;box-sizing:border-box!important;background:repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat',
+      style: `display:inline-block!important;position:relative!important;width:${gridCellMm()}mm!important;height:${gridCellMm()}mm!important;border:1.5px solid #5B9BD5;font-size:inherit!important;vertical-align:middle;margin:0 1px;box-sizing:border-box!important;background:repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat'`,
     }, ['span', { style: 'position:absolute!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;line-height:1!important;white-space:nowrap!important' }, 0]];
   },
 });
@@ -653,7 +655,7 @@ const MiZiGe = Node.create({
   renderHTML() {
     return ['span', {
       class: 'mi-zi-ge',
-      style: 'display:inline-block!important;position:relative!important;width:1.8em!important;height:1.8em!important;border:1.5px solid #5B9BD5;font-size:inherit!important;font-family:KaiTi,SimSun,serif;vertical-align:middle;margin:0 1px;box-sizing:border-box!important;background:repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,repeating-linear-gradient(to top right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,repeating-linear-gradient(to bottom right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat',
+      style: `display:inline-block!important;position:relative!important;width:${gridCellMm()}mm!important;height:${gridCellMm()}mm!important;border:1.5px solid #5B9BD5;font-size:inherit!important;font-family:KaiTi,SimSun,serif;vertical-align:middle;margin:0 1px;box-sizing:border-box!important;background:repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,repeating-linear-gradient(to top right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,repeating-linear-gradient(to bottom right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat'`,
     }, ['span', { style: 'position:absolute!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important;line-height:1!important;white-space:nowrap!important' }, 0]];
   },
 });
@@ -1823,8 +1825,8 @@ const forceTianZiGeStyles = () => {
       // 🔑 从内层文字读取实际计算字号，确保字号变化时格子等比缩放
       const actualFontSize = getComputedStyle(innerSpan).fontSize;
       s.setProperty('font-size', actualFontSize, 'important');
-      s.setProperty('width', '1.8em', 'important');
-      s.setProperty('height', '1.8em', 'important');
+      s.setProperty('width', `${gridCellMm()}mm`, 'important'); // 田字格/米字格仅低段 → 定档 12mm
+      s.setProperty('height', `${gridCellMm()}mm`, 'important');
       const si = innerSpan.style;
       si.setProperty('position', 'absolute', 'important');
       si.setProperty('top', '50%', 'important');
@@ -2117,7 +2119,7 @@ defineExpose({
 .rich-text-editor :deep(ruby.radical) rt { font-size: 0.5em; color: var(--primary-light); }
 .rich-text-editor :deep(.stroke-order) { display: inline-flex; align-items: flex-start; gap: 1px; vertical-align: baseline; }
 .rich-text-editor :deep(.stroke-order)::after { content: attr(data-strokes) '画'; font-size: 0.55em; vertical-align: super; color: var(--text-muted); line-height: 1; margin-left: 1px; }
-.rich-text-editor :deep(.tian-zi-ge), .rich-text-editor :deep(.mi-zi-ge) { display: inline-block; position: relative; width: 1.8em; height: 1.8em; border: 1.5px solid #5B9BD5; font-size: inherit !important; vertical-align: middle; margin: 0 1px; box-sizing: border-box; background: repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat, repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat; }
+.rich-text-editor :deep(.tian-zi-ge), .rich-text-editor :deep(.mi-zi-ge) { display: inline-block; position: relative; width: 12mm; height: 12mm; border: 1.5px solid #5B9BD5; font-size: inherit !important; vertical-align: middle; margin: 0 1px; box-sizing: border-box; background: repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat, repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat; } /* 田字格仅低段：定档 12mm（同 inline/导出） */
 .rich-text-editor :deep(.tian-zi-ge > span), .rich-text-editor :deep(.mi-zi-ge > span) { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); line-height: 1; white-space: nowrap; }
 .rich-text-editor :deep(.mi-zi-ge) { background: repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat, repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat, repeating-linear-gradient(to top right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat, repeating-linear-gradient(to bottom right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat; }
 .rich-text-editor :deep(.four-line-three) { display: inline-block; position: relative; padding: 4px 4px; font-family: 'Times New Roman', 'Georgia', SimSun, serif; font-size: inherit !important; line-height: 1; min-width: 18px; text-align: center; vertical-align: middle; text-indent: 0; overflow: visible; }

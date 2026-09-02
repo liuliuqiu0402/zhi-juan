@@ -153,8 +153,9 @@ input:focus, select:focus, textarea:focus {
 .ProseMirror .tian-zi-ge {
   display: inline-block;
   position: relative;
-  width: 1.8em;
-  height: 1.8em;
+  /* 🔧 田字格仅语文低段 → 定档低段 12mm（与导出 docx/HTML/编辑器同口径；曾 1.8em 随字号漂移） */
+  width: 12mm;
+  height: 12mm;
   border: 1.5px solid #999;
   font-size: inherit !important;
   vertical-align: middle;
@@ -177,8 +178,9 @@ input:focus, select:focus, textarea:focus {
 .mi-zi-ge {
   display: inline-block;
   position: relative;
-  width: 1.8em;
-  height: 1.8em;
+  /* 🔧 米字格同田字格：仅语文低段 → 定档 12mm */
+  width: 12mm;
+  height: 12mm;
   border: 1.5px solid #999;
   font-family: 'KaiTi', 'SimSun', serif;
   font-size: inherit !important;

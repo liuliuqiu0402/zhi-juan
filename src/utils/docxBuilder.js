@@ -15,6 +15,9 @@ import { decodeEntities } from './escape.js'; // 实体解码唯一实现 utils/
 //    1mm = 1440/25.4 ≈ 56.6929 DXA（Word 精确保留：1 inch = 25.4mm = 1440 DXA；
 //    必须用精确值而非 56.69 近似，否则 A4 210mm 会算成 11905 而非标准 11906）
 const MM2DXA = 1440 / 25.4;
+/** 田字格/米字格定档：仅语文低段存在（WRITING_CARRIER），统一取 GRID_CELL 'tian-zi-ge'.primary（低段 12mm），
+ * 与预览/HTML/编辑器同口径——曾随字号 1.8em 或主题学段 mm 漂移（layoutSpec 注释"docx 未接入本表，待统一"即此遗留） */
+const tzgCellMm = () => (getMergedSpec().GRID_CELL?.['tian-zi-ge']?.primary?.widthMm) || 12;
 
 // ============ 纸张版式预设 ============
 // 正规考试大试卷尺寸（2026-08 调研）与布局参数集中在 src/config/paperPresets.js：
@@ -323,7 +326,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
     if (cls.contains('tian-zi-ge') || cls.contains('mi-zi-ge')) {
       const { text: extractedText, hasVisible } = extractGridContent(child);
       const sizeHp = ctx.size || readFontSizeHp(child) || 32;
-      const cellW = Math.round(sizeHp * 18);
+      const cellW = Math.round(tzgCellMm() * MM2DXA); // 定档低段 12mm（曾 sizeHp*18 = 随字号 1.8em）
       const cellWEmu = Math.round(cellW * EMU_PER_DXA);
       // 🔧 注音田字格：内部含 ruby-char → 拼音画进格子群组（格内带字，拼音浮在字上方）
       const innerRuby = child.querySelector('.ruby-char[data-pinyin]');
@@ -723,7 +726,7 @@ const fltBlankWidthDxa = (raw, sizeHp) => {
 
 /** 田字格 → 标记 Paragraph（后处理替换为 1×1 Table + DrawingML 十字线） */
 export const buildTianZiGeMarker = (gridChar, sizeHp, _fontFamily) => {
-  const cellW = Math.round(sizeHp * 18); // 1.8em（与预览 CSS 一致，手写余量）
+  const cellW = Math.round(tzgCellMm() * MM2DXA); // 定档低段 12mm（曾 sizeHp*18 随字号）
   const cellWEmu = Math.round(cellW * EMU_PER_DXA);
   return new Paragraph({
     children: [new TextRun({ text: TZG_MARKER(gridChar, cellWEmu), size: sizeHp })],
@@ -733,7 +736,7 @@ export const buildTianZiGeMarker = (gridChar, sizeHp, _fontFamily) => {
 
 /** 注音田字格 → 标记 Paragraph（格内带字，拼音浮在格内字上方） */
 export const buildTianZiGePinyinMarker = (gridChar, pinyin, sizeHp, _fontFamily) => {
-  const cellW = Math.round(sizeHp * 18);
+  const cellW = Math.round(tzgCellMm() * MM2DXA); // 定档低段 12mm（曾 sizeHp*18 随字号）
   const cellWEmu = Math.round(cellW * EMU_PER_DXA);
   return new Paragraph({
     children: [new TextRun({ text: TZG_PINYIN_MARKER(gridChar, pinyin, cellWEmu), size: sizeHp })],

@@ -1422,13 +1422,14 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   const sgH = Math.round(sg.rows * sg.cellMm);
   const bg = spec.BRACKET_GRID;
   const sgBg = `${sg.cellMm}mm ${sg.cellMm}mm`;
-  // 🔧 书写格尺寸按学段（来自排版规格库 GRID_CELL：田字格/米字格 主12/初9/高8mm；四线三格/拼音格行高 9/8mm）
+  // 🔧 书写格尺寸（GRID_CELL）：田字格/米字格仅语文低段存在（WRITING_CARRIER 白名单）→ 定档低段 primary（12mm），
+  //    三端统一（预览/HTML/编辑器/docx 均取同值）；四线三格/拼音格行高仍按学段（内容跨中/高段）
   const GRD = spec.GRID_CELL || {};
   const gcKey = GRD['tian-zi-ge']?.[zwgKey] ? zwgKey : (GRD['tian-zi-ge']?.middle ? 'middle' : 'primary');
-  const tzW = GRD['tian-zi-ge']?.[gcKey]?.widthMm ?? 10;
-  const tzH = GRD['tian-zi-ge']?.[gcKey]?.heightMm ?? 10;
-  const mzW = GRD['mi-zi-ge']?.[gcKey]?.widthMm ?? tzW;
-  const mzH = GRD['mi-zi-ge']?.[gcKey]?.heightMm ?? tzH;
+  const tzW = GRD['tian-zi-ge']?.primary?.widthMm ?? 12;
+  const tzH = GRD['tian-zi-ge']?.primary?.heightMm ?? 12;
+  const mzW = GRD['mi-zi-ge']?.primary?.widthMm ?? tzW;
+  const mzH = GRD['mi-zi-ge']?.primary?.heightMm ?? tzH;
   const fltH = GRD['four-line-three']?.[gcKey]?.lineHeightMm ?? 9;
   const pyH = GRD['pinyin-line']?.[gcKey]?.lineHeightMm ?? 9;
   
