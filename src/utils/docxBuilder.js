@@ -383,6 +383,12 @@ const buildTextRuns = (node, styleOverride = {}) => {
       runs.push(new TextRun({ ...ctx, text, underline: { type: 'single' } }));
       return;
     }
+    if (cls.contains('underline-sentence')) {
+      // 🔧 画线句子（<u class="underline-sentence">/<span class="underline-sentence">）→ 单下划线
+      //    （曾缺分支：主题/编辑器有 text-decoration，Word 导出却退化为普通文字）
+      runs.push(new TextRun({ ...ctx, text, underline: { type: 'single' } }));
+      return;
+    }
     // === 四线三格 / 四线格 ===
     if ((cls.contains('four-line-three') || cls.contains('sixian-ge')) && !cls.contains('blank-line')) {
       const { text: _letter, hasVisible, raw } = extractGridContent(child);

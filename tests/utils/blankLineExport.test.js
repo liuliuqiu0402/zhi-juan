@@ -57,6 +57,13 @@ describe('特殊下划线导出（double-line/wavy-underline 不被 ctx 覆盖�
     const xml = await getDocumentXml('<p>加点字：<span class="emphasis-dot">尽</span>力</p>');
     expect(xml).toMatch(/<w:em w:val="dot"\/>/);
   });
+
+  it('underline-sentence（画线句，<u>/<span> 两种形态）→ w:u single（曾缺分支退化为普通文字）', async () => {
+    const uXml = await getDocumentXml('<p>用“——”画出比喻句：<u class="underline-sentence">弯弯的月儿像小船</u>。</p>');
+    expect(uXml).toContain('<w:u w:val="single"');
+    const spanXml = await getDocumentXml('<p>画线：<span class="underline-sentence">可爱的家乡</span></p>');
+    expect(spanXml).toContain('<w:u w:val="single"');
+  });
 });
 
 describe('四线三格文字居中导出（字母进群组 Textbox，不右移出格）', () => {
