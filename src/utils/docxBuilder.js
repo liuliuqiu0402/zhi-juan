@@ -7,6 +7,7 @@ import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKE
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
 import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js';
 import { PAPER_PRESETS, normalizeLayout } from '../config/paperPresets.js';
+import { decodeEntities } from './escape.js'; // 实体解码唯一实现 utils/escape（曾 data-image-raw/data-graph-raw 两条同构链 + GenerateModule 副本）
 
 // ============ 工具函数 ============
 
@@ -1486,11 +1487,7 @@ const processBlockNode = (node, ctx = {}) => {
   if (cls.contains('image-placeholder')) {
     const raw = node.getAttribute('data-image-raw');
     if (raw) {
-      const decoded = raw
-        .split('&amp;').join('&')
-        .split('&lt;').join('<')
-        .split('&gt;').join('>')
-        .split('&quot;').join('"');
+      const decoded = decodeEntities(raw); // 实体解码唯一实现 utils/escape（曾与下方图形链同构双份）
       // 从 [IMAGE]...[/IMAGE] 中提取 PROMPT 描述，输出为人类可读占位符
       const promptMatch = decoded.match(/PROMPT:\s*(.+)/);
       const promptText = promptMatch ? promptMatch[1].trim() : '配图';
@@ -1508,11 +1505,7 @@ const processBlockNode = (node, ctx = {}) => {
   if (cls.contains('graph-placeholder')) {
     const raw = node.getAttribute('data-graph-raw');
     if (raw) {
-      const decoded = raw
-        .split('&amp;').join('&')
-        .split('&lt;').join('<')
-        .split('&gt;').join('>')
-        .split('&quot;').join('"');
+      const decoded = decodeEntities(raw); // 实体解码唯一实现 utils/escape（曾与上图链同构双份）
       // 从 [GRAPH]...[/GRAPH] 中提取 TYPE 与图形描述，输出为人类可读占位符
       const typeMatch = decoded.match(/TYPE:\s*([A-Z_]+)/i);
       const descMatch = decoded.match(/DESC:\s*(.+)/i) || decoded.match(/描述[：:]\s*(.+)/);

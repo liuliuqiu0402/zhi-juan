@@ -102,16 +102,18 @@
 </template>
 
 <script setup>
+import { APP_EVENTS } from '@/constants/events.js'; // 全局事件名唯一事实源（曾字面量分发）
+
 const refreshApp = () => {
-  window.dispatchEvent(new CustomEvent('app-refresh'));
+  window.dispatchEvent(new CustomEvent(APP_EVENTS.APP_REFRESH));
 };
 
 const uploadToCloud = () => {
-  window.dispatchEvent(new CustomEvent('app-upload'));
+  window.dispatchEvent(new CustomEvent(APP_EVENTS.APP_UPLOAD));
 };
 
 const resetTask = () => {
-  window.dispatchEvent(new CustomEvent('reset-task'));
+  window.dispatchEvent(new CustomEvent(APP_EVENTS.RESET_TASK));
 };
 
 defineProps({

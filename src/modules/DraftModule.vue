@@ -180,6 +180,7 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue';
+import { APP_EVENTS } from '../constants/events.js'; // 全局事件名唯一事实源（曾字面量分发 switch-tab/process-draft）
 import { useDialog } from '../composables/useDialog.js';
 
 // 草稿箱数据
@@ -246,13 +247,13 @@ const processDraft = (draft) => {
   
   // 触发事件，让父组件切换到对应页面
   if (draft.type === 'textbook') {
-    window.dispatchEvent(new CustomEvent('switch-tab', { detail: { tab: 'textbook' } }));
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SWITCH_TAB, { detail: { tab: 'textbook' } }));
   } else {
-    window.dispatchEvent(new CustomEvent('switch-tab', { detail: { tab: 'template' } }));
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SWITCH_TAB, { detail: { tab: 'template' } }));
   }
   
   setTimeout(() => {
-    window.dispatchEvent(new CustomEvent('process-draft', { detail: draft }));
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.PROCESS_DRAFT, { detail: draft }));
   }, 500);
 };
 

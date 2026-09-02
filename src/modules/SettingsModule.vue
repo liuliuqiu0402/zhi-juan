@@ -1319,6 +1319,7 @@ import { recordAudit, getAuditLogs, clearAuditLogs, getAuditCount } from '@/util
 import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud, fetchCloudDevices, deleteDeviceFromCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
 import { STAGE_KEYS } from '@/utils/gradeStage.js'; // 五档学段键唯一事实源（CAL_STAGE_KEYS 复用，不再本地另建副本）
+import { APP_EVENTS } from '@/constants/events.js'; // 全局事件名唯一事实源（曾字面量分发 show-toast/sign-countdown-reset）
 
 const { showAlertDialogFn, showConfirmDialogFn } = useDialog();
 const {
@@ -1402,9 +1403,9 @@ const filteredLogs = computed(() => {
 const copyLogsToClipboard = async () => {
   const ok = await copyLogs();
   if (ok) {
-    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '✅ 日志已复制到剪贴板', type: 'info' } }));
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: '✅ 日志已复制到剪贴板', type: 'info' } }));
   } else {
-    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '❌ 复制失败，请检查浏览器权限', type: 'warning' } }));
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: '❌ 复制失败，请检查浏览器权限', type: 'warning' } }));
   }
 };
 
@@ -1430,7 +1431,7 @@ const onDeviceNameChange = () => {
     setDeviceName(trimmed);
     deviceName.value = trimmed;
     console.log('🏷️ 设备名已更新:', trimmed);
-    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '✅ 设备名已更新，下次上推时生效', type: 'info' } }));
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: '✅ 设备名已更新，下次上推时生效', type: 'info' } }));
   }
 };
 
@@ -1478,13 +1479,13 @@ const confirmRemoveDevice = async (dev) => {
     const success = await deleteDeviceFromCloud(dev.deviceId);
     if (success) {
       cloudDevices.value = cloudDevices.value.filter(d => d.deviceId !== dev.deviceId);
-      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `✅ 已移除「${dev.label}」的云端数据`, type: 'info' } }));
+      window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: `✅ 已移除「${dev.label}」的云端数据`, type: 'info' } }));
     } else {
-      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '⚠️ 移除失败，请稍后重试', type: 'warning' } }));
+      window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: '⚠️ 移除失败，请稍后重试', type: 'warning' } }));
     }
   } catch (e) {
     console.warn('移除设备失败:', e);
-    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '❌ 移除异常，请稍后重试', type: 'warning' } }));
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: '❌ 移除异常，请稍后重试', type: 'warning' } }));
   } finally {
     removingDeviceId.value = null;
   }
@@ -1499,7 +1500,7 @@ const handleResetCountdown = () => {
   signInfo.value = getSignCountdown();
   signDaysInfo.value = formatDaysRemaining(signInfo.value.daysRemaining);
   // 通知 App.vue 更新顶部徽章
-  window.dispatchEvent(new CustomEvent('sign-countdown-reset'));
+  window.dispatchEvent(new CustomEvent(APP_EVENTS.SIGN_COUNTDOWN_RESET));
 };
 
 //  更换激活码 / 访问码
@@ -1645,9 +1646,9 @@ const adoptCalibration = (rowKey, bk) => {
   if (res.ok) {
     const detail = `按实测采纳：基准产出率 ${res.base.toFixed(2)}，样本 ${res.stats.count}`;
     recordAudit({ action: 'adopt', operator: getDeviceName() || '本地', genType: rowKey, subject: bk.subject, stage: bk.stage, mode: bk.mode || '', detail });
-    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `✅ 已按实测采纳「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」（基准产出率 ${res.base.toFixed(2)}，样本 ${res.stats.count}）`, type: 'info' } }));
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: `✅ 已按实测采纳「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」（基准产出率 ${res.base.toFixed(2)}，样本 ${res.stats.count}）`, type: 'info' } }));
   } else {
-    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `采纳失败：${res.reason || '未知'}`, type: 'warning' } }));
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: `采纳失败：${res.reason || '未知'}`, type: 'warning' } }));
   }
 };
 const clearCalibrationRow = async (rowKey, bk) => {
@@ -1659,7 +1660,7 @@ const clearCalibrationRow = async (rowKey, bk) => {
   if (!confirmed) return;
   clearCalibration(rowKey, bk.subject, bk.stage, bk.mode || '');
   recordAudit({ action: 'clear', operator: getDeviceName() || '本地', genType: rowKey, subject: bk.subject, stage: bk.stage, mode: bk.mode || '', detail: '清理校准：校准值+样本一并清除，回退播种默认' });
-  window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已清理「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」（校准值+样本一并清除，回退播种默认）`, type: 'info' } }));
+  window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: `已清理「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」（校准值+样本一并清除，回退播种默认）`, type: 'info' } }));
 };
 // 播种对照：取该类型播种默认"均衡档"系数（token/字符）× CHARS_PER_TOKEN 转成"产出率基线(字符/字符)"，与校准 calBase 同单位可比。
 const seedCoefFor = (rowKey, mode) => {
@@ -1674,11 +1675,11 @@ const seedCoefFor = (rowKey, mode) => {
 const toggleCalibrated = (rowKey, bk) => {
   const next = setCalibratedEnabled(rowKey, bk.subject, bk.stage, bk.mode || '', !bk.enabled);
   if (next === null) {
-    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '切换失败：该校准已不存在', type: 'warning' } }));
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: '切换失败：该校准已不存在', type: 'warning' } }));
     return;
   }
   recordAudit({ action: 'toggle', operator: getDeviceName() || '本地', genType: rowKey, subject: bk.subject, stage: bk.stage, mode: bk.mode || '', detail: `切换启用 → ${next ? '使用校准值' : '使用播种默认'}` });
-  window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已切换「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」为${next ? '使用校准值' : '使用播种默认'}`, type: 'info' } }));
+  window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: `已切换「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」为${next ? '使用校准值' : '使用播种默认'}`, type: 'info' } }));
 };
 
 // 操作流水（审计）：只读展示 + 清空流水（清日志不影响校准数据）。
@@ -1689,7 +1690,7 @@ const auditCountFor = (rowKey) => auditLogsFor(rowKey).length;
 const clearAuditFor = async (rowKey) => {
   const n = auditCountFor(rowKey);
   if (!n) {
-    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '暂无操作流水可清空', type: 'info' } }));
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: '暂无操作流水可清空', type: 'info' } }));
     return;
   }
   const confirmed = await showConfirmDialogFn(
@@ -1698,7 +1699,7 @@ const clearAuditFor = async (rowKey) => {
   );
   if (!confirmed) return;
   clearAuditLogs({ bucket: { genType: rowKey } });
-  window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已清空「${rowKey}」的 ${n} 条操作流水（仅删除日志，不影响校准数据与样本）`, type: 'info' } }));
+  window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: `已清空「${rowKey}」的 ${n} 条操作流水（仅删除日志，不影响校准数据与样本）`, type: 'info' } }));
 };
 const fmtAuditTime = (t) => new Date(t).toLocaleString('zh-CN', { hour12: false });
 

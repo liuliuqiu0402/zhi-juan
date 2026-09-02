@@ -1484,7 +1484,7 @@ onMounted(() => {
     }
   });
   // ☁️ 云端同步完成后刷新记录列表（排除软删除）
-  window.addEventListener('data-sync-complete', refreshGenRecords);
+  window.addEventListener(APP_EVENTS.DATA_SYNC_COMPLETE, refreshGenRecords);
 });
 
 onActivated(() => {

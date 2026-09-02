@@ -408,6 +408,7 @@ const retrieveBlueprintSegments = (contentCards, parsedBlueprint, maxChars = 150
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
 import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeIndents, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
+import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -706,15 +707,8 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
       let cleanRawText = chapter.rawText || '';
 
       // 🔧 检测原文是否被修改过（如用户粘贴了词汇表）
-      // 优先：哈希精确比对（新数据 → 内容完全一致 → 绝对走捷径）
+      // 优先：哈希精确比对（新数据 → 内容完全一致 → 绝对走捷径）——djb2 唯一实现 utils/hash（曾本地复制）
       // 兜底：长度比对（旧数据兼容 → 差≤300 即视为未变）
-      const djb2 = (str) => {
-        let hash = 5381;
-        for (let i = 0; i < str.length; i++) {
-          hash = ((hash << 5) + hash) + str.charCodeAt(i);
-        }
-        return (hash >>> 0).toString(36);
-      };
       const hashMatch = chapter._analyzedTextHash && djb2(cleanRawText) === chapter._analyzedTextHash;
       const analyzedTextLen = chapter._analyzedPlainTextLength || 0;
       const rawLen = cleanRawText.length;

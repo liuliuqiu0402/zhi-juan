@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue';
 import storage from '../utils/storage';
+import { APP_EVENTS } from '../constants/events.js'; // 全局事件名唯一事实源（曾字面量分发 show-toast）
 
 // 超级管理员码
 const SUPER_CODE = 'WISDOM-ADMIN-2024';
@@ -281,7 +282,7 @@ export function useActivation() {
   const copyMachineId = () => {
     navigator.clipboard?.writeText(machineId.value);
     // 自定义事件通知 App.vue 显示 Toast
-    window.dispatchEvent(new CustomEvent('show-toast', { 
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { 
       detail: { message: '机器码已复制到剪贴板', type: 'success' } 
     }));
   };

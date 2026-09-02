@@ -20,6 +20,7 @@
  */
 
 import { resolveStageKey, STAGE_KEY_SET } from './gradeStage.js'; // 年级→五档学段键唯一事实源（校准桶键与三维度注入/质检同口径）
+import { safeRead, safeWrite } from './safeStorage.js'; // localStorage JSON 安全读写唯一实现（曾与 auditLog 各复制一份同构函数）
 
 // 存储 key（与 apiConfig 同层的 localStorage 业务 key；避免与生成内容仓库混放）
 const SAMPLE_KEY = 'budgetCalibrationSamples';   // 原始样本队列
@@ -41,18 +42,7 @@ const resolveBucketStage = (stage = '', grade = '', name = '') => {
 const bucketKey = (genType, subject, stage, mode = '', grade = '', name = '') =>
   `${String(genType || '')}|${String(subject || '')}|${resolveBucketStage(stage, grade, name)}|${String(mode || '')}`;
 
-// ── 读取/安全写入工具（localStorage，跨端；web 与 electron 均可用）──
-const safeRead = (key, fallback) => {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
-    if (!raw) return fallback;
-    const obj = JSON.parse(raw);
-    return obj ?? fallback;
-  } catch { return fallback; }
-};
-const safeWrite = (key, value) => {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* 存储满/隐私模式静默 */ }
-};
+// 读取/安全写入工具 → safeStorage.js 共享（曾本文件与 auditLog 各有一份 safeRead/safeWrite 逐字副本）
 
 /** 淘汰策略：每桶最多保留 N 条（超出的按时间戳去最早的），防无限增长 */
 const MAX_PER_BUCKET = 60;

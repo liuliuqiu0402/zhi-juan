@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import storage from '../utils/storage';
 import { resolveStoredPath, getStoragePath } from '../utils/pathHelper';
 import { repairLibraryPaths } from '../utils/libraryPathRepair';
+import { hasAnySelected as hasAnySelectedTree, countSelected as countSelectedTree } from '../utils/outlineTree'; // 大纲树勾选唯一实现（曾 store 内 3 份逐字副本）
 
 export const useTemplateStore = defineStore('template', {
   state: () => ({
@@ -19,31 +20,13 @@ export const useTemplateStore = defineStore('template', {
     selectedTemplates: (state) => {
       return state.templates.filter(t => {
         if (!t.outline || t.outline.length === 0) return t.selected;
-        const hasAnySelected = (nodes) => {
-          for (const node of nodes) {
-            if (node.selected) return true;
-            if (node.children && node.children.length > 0) {
-              if (hasAnySelected(node.children)) return true;
-            }
-          }
-          return false;
-        };
-        return t.selected || hasAnySelected(t.outline);
+        return t.selected || hasAnySelectedTree(t.outline); // utils/outlineTree（曾内联逐字副本）
       });
     },
 
     // 获取已选中的章节数量
     selectedChapterCount: (state) => {
-      const countRecursive = (nodes) => {
-        if (!nodes) return 0;
-        let count = 0;
-        for (const node of nodes) {
-          if (node.selected) count++;
-          if (node.children) count += countRecursive(node.children);
-        }
-        return count;
-      };
-      return state.templates.reduce((sum, t) => sum + countRecursive(t.outline), 0);
+      return state.templates.reduce((sum, t) => sum + countSelectedTree(t.outline), 0); // utils/outlineTree
     }
   },
 
@@ -162,16 +145,7 @@ export const useTemplateStore = defineStore('template', {
     // 检查整本模板是否所有章节都被勾选
     _isTemplateFullySelected(tpl) {
       if (!tpl.outline || tpl.outline.length === 0) return false;
-      const hasAnySelected = (nodes) => {
-        for (const node of nodes) {
-          if (node.selected) return true;
-          if (node.children && node.children.length > 0) {
-            if (hasAnySelected(node.children)) return true;
-          }
-        }
-        return false;
-      };
-      return hasAnySelected(tpl.outline);
+      return hasAnySelectedTree(tpl.outline); // utils/outlineTree（曾内联逐字副本）
     },
 
     // 取消所有选择

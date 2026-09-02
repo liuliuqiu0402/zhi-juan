@@ -332,14 +332,8 @@ export function useTocParser() {
     countChapters,
     rebuildTree,
     applyOffset,
-    deepClone // 新增：导出 deepClone
   };
 }
-
-// 新增：深拷贝工具函数
-export const deepClone = (obj) => {
-  return JSON.parse(JSON.stringify(obj));
-};
 
 /**
  * 安全地将焦点设置到目录编辑器中的输入框

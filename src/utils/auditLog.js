@@ -16,20 +16,10 @@
  * ============================================================
  */
 
+import { safeRead, safeWrite } from './safeStorage.js'; // localStorage JSON 安全读写唯一实现（曾与 budgetCalibration 各复制一份同构函数）
+
 const AUDIT_KEY = 'budgetCalibrationAudit';
 const MAX_PER_BUCKET = 200; // 每桶最多保留条数，防无限增长
-
-const safeRead = (key, fallback) => {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
-    if (!raw) return fallback;
-    const obj = JSON.parse(raw);
-    return obj ?? fallback;
-  } catch { return fallback; }
-};
-const safeWrite = (key, value) => {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* 存储满/隐私模式静默 */ }
-};
 
 /** 追加一条动作流水。@returns 追加后的全部流水（倒序） */
 export const recordAudit = (entry = {}) => {

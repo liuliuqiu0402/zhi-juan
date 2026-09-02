@@ -519,7 +519,7 @@ if (typeof window !== 'undefined') {
 
 const handlePullRefresh = async () => {
   // 📱 移动端下拉刷新：直接复用 app-refresh 完整同步逻辑（双向合并 + 单向推送）
-  window.dispatchEvent(new CustomEvent('app-refresh'));
+  window.dispatchEvent(new CustomEvent(APP_EVENTS.APP_REFRESH));
   showToastMessage('✅ 同步完成', 'info');
 };
 
@@ -974,7 +974,7 @@ onMounted(async () => {
         }
 
         // ⑥ 通知子组件重新加载
-        window.dispatchEvent(new CustomEvent('data-sync-complete'));
+        window.dispatchEvent(new CustomEvent(APP_EVENTS.DATA_SYNC_COMPLETE));
         const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
         // 🔧 软删除计数：合并阶段已按"_deleted 标记 + 墓碑"双重统计（mergedGen/mergedHist 已过滤删除记录，不可再回数）
         const genDel = genDeletedTotal;
@@ -994,8 +994,8 @@ onMounted(async () => {
       }
     };
     // 🔧 HMR 安全：先移除旧监听器再注册，避免热更新累积重复 handler
-    window.removeEventListener('app-refresh', _handleAppRefresh);
-    window.addEventListener('app-refresh', _handleAppRefresh);
+    window.removeEventListener(APP_EVENTS.APP_REFRESH, _handleAppRefresh);
+    window.addEventListener(APP_EVENTS.APP_REFRESH, _handleAppRefresh);
 
     // 📤 手动上推处理器（app-upload 事件）
     //    桌面端：全量推送 7 类数据；手机端：仅推送双向 2 类（历史+生成）
@@ -1071,15 +1071,15 @@ onMounted(async () => {
         _uploadInProgress = false;
       }
     };
-    window.removeEventListener('app-upload', _handleAppUpload);
-    window.addEventListener('app-upload', _handleAppUpload);
+    window.removeEventListener(APP_EVENTS.APP_UPLOAD, _handleAppUpload);
+    window.addEventListener(APP_EVENTS.APP_UPLOAD, _handleAppUpload);
   }
 
   setupMenuListeners();
   setupDraftListener();
 
   window.addEventListener(APP_EVENTS.SWITCH_TAB, handleSwitchTab);
-  window.addEventListener('show-toast', (e) => {
+  window.addEventListener(APP_EVENTS.SHOW_TOAST, (e) => {
     showToastMessage(e.detail.message, e.detail.type || 'info');
   });
 
@@ -1137,8 +1137,8 @@ onMounted(async () => {
     setTimeout(() => { resetDebounce = false; }, 500);
   };
   // 🔧 HMR 安全：先移除旧监听器再注册，避免热更新累积重复 handler
-  window.removeEventListener('reset-task', _handleResetTask);
-  window.addEventListener('reset-task', _handleResetTask);
+  window.removeEventListener(APP_EVENTS.RESET_TASK, _handleResetTask);
+  window.addEventListener(APP_EVENTS.RESET_TASK, _handleResetTask);
 
   // 📱 签名倒计时重置：SettingsModule 中用户点击"已续签"后刷新顶部徽章
   const _handleSignCountdownReset = () => {
@@ -1148,8 +1148,8 @@ onMounted(async () => {
     }
   };
   // 🔧 HMR 安全：先移除旧监听器再注册，避免热更新累积重复 handler
-  window.removeEventListener('sign-countdown-reset', _handleSignCountdownReset);
-  window.addEventListener('sign-countdown-reset', _handleSignCountdownReset);
+  window.removeEventListener(APP_EVENTS.SIGN_COUNTDOWN_RESET, _handleSignCountdownReset);
+  window.addEventListener(APP_EVENTS.SIGN_COUNTDOWN_RESET, _handleSignCountdownReset);
 
   // 🔧 iOS PWA 专用：localStorage 降级备份到 sessionStorage
   //    iOS 存储压力大时可能静默清空 localStorage，sessionStorage 相对稳定

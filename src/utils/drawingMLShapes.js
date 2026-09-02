@@ -8,6 +8,7 @@
 // 兼容策略：mc:Choice Requires="wpg"（矢量群组）→ mc:Fallback VML（旧版 Word）
 
 import { stripSealSuffix, normalizeSealBlanks } from './sealText.js'; // 密封线文本规整（与 themeConfig 预览共用，曾同正文双份）
+import { escapeXml as escXml } from './escape.js'; // XML 转义唯一实现（曾本地 escXml + buildRubyRun 内 esc 同文件双份，与 themeConfig/GenerateModule 等 5 份同构）
 
 const EMU_PER_DXA = 635;  // 1 DXA = 635 EMU
 export { EMU_PER_DXA };
@@ -523,12 +524,12 @@ const buildRubyRun = (baseText, pinyin, baseSizeHp, rPrXml) => {
   // 🔧 拼音注音字号：用基础字号的 65%（CSS 中 rt 为 0.6em），最低 9pt
   //    原 0.5 比例导致拼音在正文 14pt 时仅 7pt，Word 渲染几乎不可见
   const rubySizeHp = Math.max(18, Math.round(baseSizeHp * 0.65));
-  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  // XML 转义唯一实现 utils/escape（曾函数内局部 esc 副本）
   const rPr = rPrXml && rPrXml.trim() ? rPrXml : `<w:rPr><w:sz w:val="${baseSizeHp}"/></w:rPr>`;
   return `<w:r>${rPr}<w:ruby>` +
     `<w:rubyPr><w:rubyAlign w:val="center"/><w:hps w:val="${rubySizeHp}"/><w:hpsBaseText w:val="${baseSizeHp}"/></w:rubyPr>` +
-    `<w:rt><w:r><w:rPr><w:sz w:val="${rubySizeHp}"/></w:rPr><w:t xml:space="preserve">${esc(pinyin)}</w:t></w:r></w:rt>` +
-    `<w:rubyBase><w:r><w:rPr><w:sz w:val="${baseSizeHp}"/></w:rPr><w:t xml:space="preserve">${esc(baseText)}</w:t></w:r></w:rubyBase>` +
+    `<w:rt><w:r><w:rPr><w:sz w:val="${rubySizeHp}"/></w:rPr><w:t xml:space="preserve">${escXml(pinyin)}</w:t></w:r></w:rt>` +
+    `<w:rubyBase><w:r><w:rPr><w:sz w:val="${baseSizeHp}"/></w:rPr><w:t xml:space="preserve">${escXml(baseText)}</w:t></w:r></w:rubyBase>` +
     `</w:ruby></w:r>`;
 };
 
@@ -1024,8 +1025,4 @@ export const injectDrawingML = async (zipBuffer) => {
 
 // ============ 工具函数 ============
 
-const escXml = (s) => String(s)
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;');
+// （XML 转义 escXml → 顶部 import utils/escape.js 唯一实现；曾本地同构副本）

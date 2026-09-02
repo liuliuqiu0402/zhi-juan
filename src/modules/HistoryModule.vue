@@ -284,10 +284,10 @@ const onCloudSync = () => {
 
 // 🔧 KeepAlive 感知的监听器管理
 const _hSetupListeners = () => {
-  window.addEventListener('data-sync-complete', onCloudSync);
+  window.addEventListener(APP_EVENTS.DATA_SYNC_COMPLETE, onCloudSync);
 };
 const _hTeardownListeners = () => {
-  window.removeEventListener('data-sync-complete', onCloudSync);
+  window.removeEventListener(APP_EVENTS.DATA_SYNC_COMPLETE, onCloudSync);
 };
 
 onMounted(() => {

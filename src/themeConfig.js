@@ -2,6 +2,23 @@
 import { convertFormulasInHtml } from './utils/wordExporter.js';
 import { getMergedSpec, normalizeStage3 } from './config/layoutSpec.js';
 import { stripSealSuffix, normalizeSealBlanks } from './utils/sealText.js'; // 密封线文本规整（与 docx 导出 drawingMLShapes 共用，曾同正文双份）
+import { escapeHtml as escHtml } from './utils/escape.js'; // HTML 转义唯一实现（曾本地 escHtml 与 drawingMLShapes/GenerateModule 等 5 份同构副本）
+
+/** 🔧 填空横线宽度档位 CSS（u.blank-1..24，1 档=1em）——三套主题模板共用一段，曾各自整段复制（styles/global.css 静态文件仍独立维护同规则） */
+const BLANK_U_WIDTH_CSS = [
+  'u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }',
+  'u.blank-3 { min-width: 3em; } u.blank-4 { min-width: 4em; }',
+  'u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; }',
+  'u.blank-7 { min-width: 7em; } u.blank-8 { min-width: 8em; }',
+  'u.blank-9 { min-width: 9em; } u.blank-10 { min-width: 10em; }',
+  'u.blank-11 { min-width: 11em; } u.blank-12 { min-width: 12em; }',
+  'u.blank-13 { min-width: 13em; } u.blank-14 { min-width: 14em; }',
+  'u.blank-15 { min-width: 15em; } u.blank-16 { min-width: 16em; }',
+  'u.blank-17 { min-width: 17em; } u.blank-18 { min-width: 18em; }',
+  'u.blank-19 { min-width: 19em; } u.blank-20 { min-width: 20em; }',
+  'u.blank-21 { min-width: 21em; } u.blank-22 { min-width: 22em; }',
+  'u.blank-23 { min-width: 23em; } u.blank-24 { min-width: 24em; }',
+].join('\n');
 
 export const themes = [
   // 我的样式
@@ -1442,18 +1459,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       .bracket-grid > div:last-child { border-bottom: none; }
       /* 填空横线 */
       u[class*="blank-"] { display: inline-block; text-align: center; text-decoration: none; border-bottom: 1.5px solid #333; padding: 0 2px; font-size: inherit !important; min-width: 1em; }
-      u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }
-      u.blank-3 { min-width: 3em; } u.blank-4 { min-width: 4em; }
-      u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; }
-      u.blank-7 { min-width: 7em; } u.blank-8 { min-width: 8em; }
-      u.blank-9 { min-width: 9em; } u.blank-10 { min-width: 10em; }
-      u.blank-11 { min-width: 11em; } u.blank-12 { min-width: 12em; }
-      u.blank-13 { min-width: 13em; } u.blank-14 { min-width: 14em; }
-      u.blank-15 { min-width: 15em; } u.blank-16 { min-width: 16em; }
-      u.blank-17 { min-width: 17em; } u.blank-18 { min-width: 18em; }
-      u.blank-19 { min-width: 19em; } u.blank-20 { min-width: 20em; }
-      u.blank-21 { min-width: 21em; } u.blank-22 { min-width: 22em; }
-      u.blank-23 { min-width: 23em; } u.blank-24 { min-width: 24em; }
+      ${BLANK_U_WIDTH_CSS}
       /* 括号间距——仅占宽度，无下划线 */
       span[class*="blank-"] { display: inline-block; }
     </style>`;
@@ -1526,18 +1532,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
     .sixian-ge::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: ${fltH}mm; background: linear-gradient(#999,#999) 0 ${(fltH * 0.067).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#999,#999) 0 ${(fltH * 0.367).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#666,#666) 0 ${(fltH * 0.667).toFixed(1)}mm/100% 1px no-repeat, linear-gradient(#999,#999) 0 ${(fltH * 0.967).toFixed(1)}mm/100% 1px no-repeat; pointer-events: none; }
     /* ⭐ 填空横线 */
     u[class*="blank-"] { display: inline-block; text-align: center; text-decoration: none; border-bottom: 1.5px solid #333; padding: 0 1px; font-size: inherit !important; min-width: 1em; }
-    u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }
-    u.blank-3 { min-width: 3em; } u.blank-4 { min-width: 4em; }
-    u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; }
-    u.blank-7 { min-width: 7em; } u.blank-8 { min-width: 8em; }
-    u.blank-9 { min-width: 9em; } u.blank-10 { min-width: 10em; }
-    u.blank-11 { min-width: 11em; } u.blank-12 { min-width: 12em; }
-    u.blank-13 { min-width: 13em; } u.blank-14 { min-width: 14em; }
-    u.blank-15 { min-width: 15em; } u.blank-16 { min-width: 16em; }
-    u.blank-17 { min-width: 17em; } u.blank-18 { min-width: 18em; }
-    u.blank-19 { min-width: 19em; } u.blank-20 { min-width: 20em; }
-    u.blank-21 { min-width: 21em; } u.blank-22 { min-width: 22em; }
-    u.blank-23 { min-width: 23em; } u.blank-24 { min-width: 24em; }
+    ${BLANK_U_WIDTH_CSS}
     /* 括号间距——仅占宽度 */
     span[class*="blank-"] { display: inline-block; }
     /* ⭐ 口算框 / 方框 */
@@ -2209,18 +2204,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       u, ins { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
       /* 填空横线：按答案字数精确控宽，1em≈1个汉字 */
       u[class*="blank-"] { display: inline-block; text-align: center; font-size: inherit !important; min-width: 1em; }
-      u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }
-      u.blank-3 { min-width: 3em; } u.blank-4 { min-width: 4em; }
-      u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; }
-      u.blank-7 { min-width: 7em; } u.blank-8 { min-width: 8em; }
-      u.blank-9 { min-width: 9em; } u.blank-10 { min-width: 10em; }
-      u.blank-11 { min-width: 11em; } u.blank-12 { min-width: 12em; }
-      u.blank-13 { min-width: 13em; } u.blank-14 { min-width: 14em; }
-      u.blank-15 { min-width: 15em; } u.blank-16 { min-width: 16em; }
-      u.blank-17 { min-width: 17em; } u.blank-18 { min-width: 18em; }
-      u.blank-19 { min-width: 19em; } u.blank-20 { min-width: 20em; }
-      u.blank-21 { min-width: 21em; } u.blank-22 { min-width: 22em; }
-      u.blank-23 { min-width: 23em; } u.blank-24 { min-width: 24em; }
+      ${BLANK_U_WIDTH_CSS}
       /* 括号间距：仅占宽度，无下划线 */
       span[class*="blank-"] { display: inline-block; text-align: center; }
       span.blank-1 { min-width: 1em; } span.blank-2 { min-width: 2em; }
@@ -2341,10 +2325,6 @@ export const splitSealContinuation = (fields) => {
   const sealOnly = arr.filter((f) => f === '密' || f === '封' || f === '线' || f === '密封线');
   return sealOnly.length ? sealOnly : ['密封线'];
 };
-
-/** HTML 转义（密封线字段文本） */
-const escHtml = (s) => String(s == null ? '' : s)
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /**
  * 密封线字段序列 → 模板结构 seal-zone HTML（严格对齐「试卷密封线模板.html」）：

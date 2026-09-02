@@ -18,6 +18,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
+import { APP_EVENTS } from '@/constants/events.js'; // 全局事件名唯一事实源（曾字面量监听 show-toast）
 
 const message = ref('');
 const type = ref('info');
@@ -41,11 +42,11 @@ const onToastEvent = (e) => {
 };
 
 onMounted(() => {
-  window.addEventListener('show-toast', onToastEvent);
+  window.addEventListener(APP_EVENTS.SHOW_TOAST, onToastEvent);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('show-toast', onToastEvent);
+  window.removeEventListener(APP_EVENTS.SHOW_TOAST, onToastEvent);
   if (toastTimer) clearTimeout(toastTimer);
 });
 </script>

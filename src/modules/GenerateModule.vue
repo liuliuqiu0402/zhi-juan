@@ -2957,16 +2957,10 @@ import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { stripXss, stripAiCodeFence } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离（导出端第二道防线共享）
+import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
+import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实体解码唯一实现（曾本地 esc/escGraph 及 data-raw 解码链副本）
 
 defineOptions({ name: 'GenerateModule' });
-
-const readFontSizeHp = (el) => {
-  try {
-    const px = parseFloat(getComputedStyle(el).getPropertyValue('font-size'));
-    if (!px || px <= 0) return 0;
-    return Math.round(Math.round(px * 0.75) * 2);
-  } catch { return 0; }
-};
 
 // 勾选状态
 const sectionCollapsed = ref({ textbook: false, template: false, instruction: false });
@@ -4319,10 +4313,8 @@ const previewContent = ref('');
 const renderImagePlaceholders = (html) => {
   if (!html || typeof html !== 'string') return html;
   const NL = String.fromCharCode(10);
-  const esc = (s) => String(s == null ? '' : s)
-    .split('&').join('&amp;')
-    .split('<').join('&lt;')
-    .split('>').join('&gt;');
+  // 转义唯一实现 utils/escape（曾本地 3 字符转义副本，缺 " 转义）；rawMark 属性场景的引号处理保留在调用点
+  const esc = escapeHtml;
   // 提取字段标记后的第一行值（如 PROMPT / TYPE:ICON / KEYWORDS）
   const fieldVal = (body, name) => {
     const idx = body.indexOf(name);
@@ -4386,11 +4378,8 @@ const renderImagePlaceholders = (html) => {
   //    渲染端不直接绘制矢量图，故转换为占位框并在导出时输出"图形位置"提示（与 [IMAGE] 同模式，杜绝指令原文泄漏）
   //    标准格式（见 eduRenderContract GRAPH_SAMPLE_*）：[GRAPH] TYPE:XX DESC:...（或 描述:...）[/GRAPH]
   {
-    const escGraph = (s) => String(s == null ? '' : s)
-      .split('&').join('&amp;')
-      .split('<').join('&lt;')
-      .split('>').join('&gt;')
-      .split('"').join('&quot;');
+    // 转义唯一实现 utils/escape（曾本地 escGraph 4 字符副本）
+    const escGraph = escapeHtml;
     const out2 = [];
     let rest2 = html;
     const GRAPH_TAG = '[GRAPH]';
@@ -4774,17 +4763,17 @@ const handleMobileGenerate = (mode) => {
 const refreshPage = () => {
   instructionDraft.value = '';
   showPreview.value = false;
-  window.dispatchEvent(new CustomEvent('reset-task'));
+  window.dispatchEvent(new CustomEvent(APP_EVENTS.RESET_TASK));
 };
 
 // ☁️ 手动同步：拉取云端数据+推送本地数据（双向合并，不重置任务）
 const syncPage = () => {
-  window.dispatchEvent(new CustomEvent('app-refresh'));
+  window.dispatchEvent(new CustomEvent(APP_EVENTS.APP_REFRESH));
 };
 
 // 📤 手动上推：推送本地全量数据到云端
 const uploadPage = () => {
-  window.dispatchEvent(new CustomEvent('app-upload'));
+  window.dispatchEvent(new CustomEvent(APP_EVENTS.APP_UPLOAD));
 };
 
 // 🌐 DeepSeek API 真实就绪检测
@@ -6378,14 +6367,7 @@ const selectAllDetectedImages = (selected) => {
   }
 };
 
-// 🔧 djb2 哈希：32位指纹，用于精确比对文本是否变更
-const djb2 = (str) => {
-  let hash = 5381;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash) + str.charCodeAt(i);
-  }
-  return (hash >>> 0).toString(36);
-};
+// 🔧 djb2 哈希（32位指纹，用于精确比对文本是否变更）——唯一实现 utils/hash（顶部 import；曾与 useAiGenerator 各复制一份，协议耦合）
 
 // 🔧 将编辑器 HTML 转换为 AI 分析用的纯文本（保留格式语义）
 //   支持：表格→Markdown表格、LaTeX公式保留、图片占位符、语义标签转Markdown
@@ -7672,7 +7654,7 @@ const generate = async (mode) => {
       pendingGenerateContext.value = null;
       generatedTypes.push(genTypeTemplates[genType]?.name || genType);
     } catch (e) {
-      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '❌ 生成失败：' + e.message, type: 'error' } }));
+      window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: '❌ 生成失败：' + e.message, type: 'error' } }));
       await showAlertDialogFn(`生成出错：${e.message}`);
     }
   }
@@ -7803,12 +7785,12 @@ const finalizeGeneration = async (result, genType) => {
       if (!report.formatCheck?.passed) hint += ' | ⚠️ 格式问题';
       previewHint.value = hint;
     }
-    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '✅ 生成完成，已保存到结果区', type: 'info' } }));
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: '✅ 生成完成，已保存到结果区', type: 'info' } }));
   } else {
     const errorMsg = result.retried 
       ? `生成失败，已自动重试3次仍未成功。\n错误：${result.error}` 
       : `生成失败：${result.error}`;
-    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '❌ ' + errorMsg, type: 'error' } }));
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: '❌ ' + errorMsg, type: 'error' } }));
     await showAlertDialogFn(errorMsg);
   }
 };
@@ -8085,7 +8067,7 @@ const downloadDoc = async (doc, format) => {
     // 🔧 配图占位框还原为干净文本（与 docxBuilder 一致）：占位框是编辑器 UI，
     //    导出 PDF 时不可出现"[插图占位]/复制 PROMPT"等字样，按 data-image-raw 还原为〔配图位置：描述〕
     let pdfSrc = content.replace(/<div[^>]*class="[^"]*image-placeholder[^"]*"[^>]*data-image-raw="([^"]*)"[^>]*>[\s\S]*?<\/div>/gi, (m, raw) => {
-      const decoded = raw.split('&amp;').join('&').split('&lt;').join('<').split('&gt;').join('>').split('&quot;').join('"');
+      const decoded = decodeEntities(raw); // 实体解码唯一实现 utils/escape（曾本地 4 段 split/join 链）
       const pm = decoded.match(/PROMPT:\s*(.+)/);
       return pm ? `〔配图位置：${pm[1].trim()}〕` : '〔配图位置〕';
     });
@@ -8444,11 +8426,11 @@ const _setupListeners = () => {
   window.addEventListener(APP_EVENTS.LOAD_INSTRUCTION, (e) => {
     if (e.detail) instructionDraft.value = e.detail;
   });
-  window.addEventListener('data-sync-complete', onCloudSync);
+  window.addEventListener(APP_EVENTS.DATA_SYNC_COMPLETE, onCloudSync);
 };
 const _teardownListeners = () => {
   window.removeEventListener('pull-refresh', onPullRefresh);
-  window.removeEventListener('data-sync-complete', onCloudSync);
+  window.removeEventListener(APP_EVENTS.DATA_SYNC_COMPLETE, onCloudSync);
 };
 
 // 首次挂载

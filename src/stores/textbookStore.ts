@@ -4,6 +4,8 @@ import storage from '../utils/storage';
 import { resolveStoredPath, getStoragePath } from '../utils/pathHelper';
 // @ts-ignore - libraryPathRepair.js 无类型声明
 import { repairLibraryPaths } from '../utils/libraryPathRepair';
+// @ts-ignore - outlineTree.js 无类型声明
+import { hasAnySelected as hasAnySelectedTree, countSelected as countSelectedTree } from '../utils/outlineTree'; // 大纲树勾选唯一实现（曾 store 内 4 份逐字副本）
 
 export { sanitizeFsName } from '../utils/libraryPathRepair';
 
@@ -126,30 +128,12 @@ export const useTextbookStore = defineStore('textbook', {
     selectedBooks: (state) => {
       return state.textbooks.filter(b => {
         if (!b.outline || b.outline.length === 0) return false;
-        const hasAnySelected = (nodes: ChapterNode[]): boolean => {
-          for (const node of nodes) {
-            if (node.selected) return true;
-            if (node.children && node.children.length > 0) {
-              if (hasAnySelected(node.children)) return true;
-            }
-          }
-          return false;
-        };
-        return hasAnySelected(b.outline);
+        return hasAnySelectedTree(b.outline); // 大纲树勾选唯一实现 utils/outlineTree
       });
     },
 
     selectedChapterCount: (state) => {
-      const countRecursive = (nodes?: ChapterNode[]): number => {
-        if (!nodes) return 0;
-        let count = 0;
-        for (const node of nodes) {
-          if (node.selected) count++;
-          if (node.children) count += countRecursive(node.children);
-        }
-        return count;
-      };
-      return state.textbooks.reduce((sum, b) => sum + countRecursive(b.outline), 0);
+      return state.textbooks.reduce((sum, b) => sum + countSelectedTree(b.outline), 0); // utils/outlineTree
     }
   },
 
@@ -252,16 +236,7 @@ export const useTextbookStore = defineStore('textbook', {
 
     _isBookFullySelected(book: Textbook): boolean {
       if (!book.outline || book.outline.length === 0) return false;
-      const hasAnySelected = (nodes: ChapterNode[]): boolean => {
-        for (const node of nodes) {
-          if (node.selected) return true;
-          if (node.children && node.children.length > 0) {
-            if (hasAnySelected(node.children)) return true;
-          }
-        }
-        return false;
-      };
-      return hasAnySelected(book.outline);
+      return hasAnySelectedTree(book.outline); // utils/outlineTree（曾内联逐字副本）
     },
 
     clearSelection() {
@@ -285,12 +260,7 @@ export const useTextbookStore = defineStore('textbook', {
     },
 
     hasAnySelected(nodes?: ChapterNode[]): boolean {
-      if (!nodes) return false;
-      for (const node of nodes) {
-        if (node.selected) return true;
-        if (node.children && this.hasAnySelected(node.children)) return true;
-      }
-      return false;
+      return hasAnySelectedTree(nodes); // utils/outlineTree（曾 store action 自实现副本）
     },
 
     getSelectedChapters(nodes?: ChapterNode[]): ChapterNode[] {
