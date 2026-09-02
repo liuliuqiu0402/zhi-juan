@@ -225,17 +225,18 @@
             >
               {{ showSource ? '🎨 渲染' : '<> 源码' }}
             </button>
-            <!-- 🔧 学段（2026-09）：影响"按学段取尺寸"的书写载体——作文格尺寸（小学12/初中10/高中7.5×8mm）、
-                 四线三格/六线格与拼音格行高（小学9/初中8mm，预览/HTML/PDF）；
-                 田字格/米字格按"仅低段一档"固定 12mm，不随此选择变化。
-                 自动 = 跟随文档学段（从生成/历史带入）；手动选择 = 修改本文档学段并保存，不会静默遮蔽真实学段 -->
+            <!-- 🔧 学段（2026-09）：不默认、不冒充——文档有学段→自动跟随；无学段→"未选择"，手动选择才应用并写回。
+                 影响作文格尺寸（小学12/初中10/高中7.5×8mm）、四线三格/六线格与拼音格行高；田字格固定低段12mm -->
             <select
               v-model="docStage"
               class="export-select"
-              :title="`自动 = 跟随文档自身学段（生成/历史记录带入，无则仅对粘贴内容回退默认）；手动选档 = 修改本文档学段并写回记录。影响作文格/四线三格/拼音格等按学段的尺寸（田字格固定低段12mm）。当前自动解析：${autoStageName}`"
+              :title="`学段选择器：文档有学段（生成/历史带入或按载体推断）→ 自动跟随；无学段 → 未选择（不默认初中），手动选择后才应用并写回记录。${hasDocStage ? '当前学段：' + stageDisplayName : '当前未选择：请手动选择学段'}`"
             >
-              <option :value="AUTO_STAGE">
-                学段：自动（{{ autoStageName }}）
+              <option v-if="hasDocStage" :value="AUTO_STAGE">
+                学段：自动（{{ stageDisplayName }}）
+              </option>
+              <option v-else :value="NONE_STAGE">
+                学段：未选择（请选择）
               </option>
               <option value="primary_low">
                 小学低段
@@ -636,39 +637,47 @@ const themeForm = ref({
 // ==================== 计算属性 ====================
 const selectedTheme = computed(() => getThemeById(selectedThemeId.value));
 
-// ==================== 学段语义（2026-09 重构：选择器不干扰"文档自身学段"） ====================
+// ==================== 学段语义（2026-09：不默认、不冒充，选择才生效） ====================
 //  - 文档学段 docOriginStage：从生成/历史记录 meta.stage 带入（单一事实），每次打开文档恢复为"自动跟随"。
-//  - 下拉"自动"（AUTO_STAGE）= 跟随 docOriginStage（无则默认 middle，仅对无学段的粘贴内容生效）。
-//    手动选档 = 显式修改本文档学段并写回（排版文档条目 + 生成记录），此后"自动"跟随新值——主动覆盖，不静默遮蔽。
-//  - ⚠️ 主题与学段解耦：主题=纯样式可跨学段共用，不再参与学段解析/尺寸回退（曾用主题 stage 当学段来源）。
+//  - 文档确有学段 → 下拉"自动（学段名）"；文档无学段且按载体推断不出 → 下拉"未选择（请选择）"，
+//    此时不声称任何学段、不写回记录，仅用中性默认（与 CSS 缺省一致的 12mm/9mm）渲染编辑与预览。
+//  - 手动选档 = 显式应用学段并写回（排版文档条目 + 生成记录），此后"自动"跟随新值。
+//  - ⚠️ 主题与学段解耦：主题=纯样式可跨学段共用，不参与学段解析/尺寸回退。
 const AUTO_STAGE = '__auto__';
+const NONE_STAGE = '';
 const docOriginStage = ref('');   // 文档自身学段（打开时带入；手动修改时同步）
-const docStage = ref(AUTO_STAGE); // 下拉选择值：__auto__（跟随文档）或五档显式值（修改文档学段）
+const docStage = ref(NONE_STAGE); // 下拉值：__auto__（跟随文档）/ ''（未选择）/ 五档显式值（已应用）
+const hasDocStage = computed(() => !!docOriginStage.value || (docStage.value !== AUTO_STAGE && docStage.value !== NONE_STAGE));
+// 生效学段：手动选择 > 文档学段 > ''（未选择；尺寸中性默认见 STAGE_NEUTRAL）
 const effStage = computed(() => {
-  const s = docStage.value === AUTO_STAGE ? '' : (docStage.value || '');
-  return s || docOriginStage.value || 'middle';
+  if (docStage.value !== AUTO_STAGE && docStage.value !== NONE_STAGE) return docStage.value;
+  if (docStage.value === AUTO_STAGE) return docOriginStage.value;
+  return '';
 });
+// 未选择时渲染/导出用中性默认（与 carrierCss/RTE 缺省一致：作文格 12mm、四线 9mm = GRID_CELL primary）
+const STAGE_NEUTRAL = 'primary';
 const STAGE_NAME_5 = { primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中' };
 const STAGE_NAME_3 = { primary: '小学', middle: '初中', high: '高中' };
-// 自动档实时解析名：优先五档原名（低/中/高段可辨），其次三档归一，其次主题 stage
-const autoStageName = computed(() => {
+// 选择器显示名：手动/文档学段 → 档名；未选择 → 提示占位
+const stageDisplayName = computed(() => {
   const raw = effStage.value;
-  return STAGE_NAME_5[raw] || STAGE_NAME_3[normalizeStage3(raw)] || raw || '—';
+  if (!raw) return '未选择（请选择）';
+  return STAGE_NAME_5[raw] || STAGE_NAME_3[normalizeStage3(raw)] || raw;
 });
-// 打开/切换文档：一律回到"自动跟随文档学段"
-const applyDocStage = (stage) => { docOriginStage.value = stage || ''; docStage.value = AUTO_STAGE; };
+// 打开/切换文档：有学段 → 自动跟随；无学段 → 未选择（不默认、不冒充）
+const applyDocStage = (stage) => { docOriginStage.value = stage || ''; docStage.value = stage ? AUTO_STAGE : NONE_STAGE; };
 // 🔧 无学段字段的旧记录/粘贴内容：按作答载体推断学段（单一事实 WRITING_CARRIER）——
 //    田字格/米字格/拼音格仅语文低段 → 低段；四线三格/六线格为英语字母书写(小学中段) → 中段；
-//    仍无信号才回退默认 middle（初中）。推断仅用于本次渲染展示，不写回记录（老数据真实学段未知）
+//    仍无信号保持"未选择"。推断仅用于本次渲染展示，不写回记录（老数据真实学段未知）
 const sniffCarrierStage = (html) => {
   if (!html || typeof html !== 'string') return '';
   if (/class="[^"]*(tian-zi-ge|mi-zi-ge|pinyin-line)[^"]*"/.test(html)) return 'primary_low';
   if (/class="[^"]*(four-line-three|sixian-ge)[^"]*"/.test(html)) return 'primary_mid';
   return '';
 };
-// 手动选择 = 修改本文档学段并写回（持久化，避免与文件学段打架）
+// 手动选择 = 应用本文档学段并写回（持久化；"未选择/自动"不触发）
 watch(docStage, (v) => {
-  if (!v || v === AUTO_STAGE) return;
+  if (v === AUTO_STAGE || v === NONE_STAGE) return;
   docOriginStage.value = v;
   persistStageOverride(v);
 });
@@ -688,7 +697,7 @@ const persistStageOverride = async (s) => {
 // 🔧 作文格预览格宽/格高按学段读排版规格库 ZUOWEN_CELL（曾硬编码 12/10/7.5mm，面板调规格不生效）
 //    四线三格/六线格行高同源 GRID_CELL，经 --flt-h 供 carrierCss CARRIER_LINE_CSS 消费
 const zwgCssVars = computed(() => {
-  const key = normalizeStage3(effStage.value);
+  const key = normalizeStage3(effStage.value || STAGE_NEUTRAL);
   const ZC = getMergedSpec().ZUOWEN_CELL;
   const GRD = getMergedSpec().GRID_CELL || {};
   const c = ZC[key] || { widthMm: 12, heightMm: 12 };
@@ -725,7 +734,7 @@ const themeCSS = computed(() => {
     const fullHtml = applyThemeToContent('<div></div>', cssThemeId, { 
       isHtmlContent: true, 
       forceImportant: true, // 确保标题/字体等主题样式不被覆盖
-      stage: effStage.value // 作文格/书写格按文档学段（排版规格库）
+      stage: effStage.value || STAGE_NEUTRAL // 作文格/书写格按文档学段（未选择→中性默认，不冒充学段）
     });
     const match = fullHtml.match(/<style>([\s\S]*?)<\/style>/i);
     let css = match ? match[1].trim() : '';
@@ -1078,7 +1087,7 @@ const applyThemeAndPreview = async () => {
     const themedHtml = applyThemeToContent(htmlContent, selectedThemeId.value, {
       isHtmlContent: isHtmlContent.value,
       forceImportant: true,
-      stage: effStage.value // 作文格/书写格按文档学段
+      stage: effStage.value || STAGE_NEUTRAL // 作文格/书写格按文档学段（未选择→中性默认）
     });
     previewContent.value = themedHtml;
   } catch (e) {
@@ -1286,7 +1295,7 @@ const exportDocument = async () => {
         const fullHtml = applyThemeToContent('<div></div>', selectedThemeId.value, {
           isHtmlContent: true,
           forceImportant: false,
-          stage: effStage.value, // 作文格/书写格按文档学段
+          stage: effStage.value || STAGE_NEUTRAL, // 作文格/书写格按文档学段（未选择→中性默认）
         });
         const cssMatch = fullHtml.match(/<style>([\s\S]*?)<\/style>/i);
         if (cssMatch) {
@@ -1339,8 +1348,8 @@ const exportDocument = async () => {
 
       try {
         // 只传 clone（不含 style 标签），避免 CSS 被当成正文
-        // 🔧 作文格格子按学段尺寸（排版规格库 ZUOWEN_CELL），学段 = 文档学段（生成带入）> 主题 stage
-        const blob = await htmlToDocxBlob(clone, effStage.value, paperLayout.value);
+         // 🔧 作文格格子按学段尺寸（排版规格库 ZUOWEN_CELL），学段 = 文档学段/手动选择（未选择→中性默认）
+        const blob = await htmlToDocxBlob(clone, effStage.value || STAGE_NEUTRAL, paperLayout.value);
         document.body.removeChild(wrapper);
         downloadBlob(blob, `${exportBaseName.value}.docx`);
       } finally {
