@@ -641,7 +641,7 @@ import { useDialog } from '@/composables/useDialog.js';
 import { useBackup } from '@/composables/useBackup.js';
 import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
 import useLogger, { copyLogs } from '@/composables/useLogger.js';
-import { apiConfig, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
+import { apiConfig, DEFAULT_BUDGET_BY_TYPE, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
 import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud, fetchCloudDevices, deleteDeviceFromCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
@@ -905,20 +905,21 @@ const BUDGET_TIERS = [
 const budgetByTypeNames = (t) => ({ economy: '精简档', balanced: '均衡档', full: '充分档' }[t] || t);
 
 // 🔧 budgetByType 槽位规整（纯函数，无副作用）：确保每个类型都有 mode/tier 与 body/answer/once 三槽，
-//    每槽含 economy/balanced/full 系数与 custom。缺槽从默认补、已有槽保留。返回新对象。
+//    每槽含 economy/balanced/full 系数与 custom。三档系数为内置常量且非用户可直接编辑→随代码默认播种；
+//    custom（手填）/cap（上限）为用户可编辑项→按存档保留。杜绝旧存档把档位冻成恒值（如"精简=均衡=1"）。
 const normalizeBudgetSlots = (bbt) => {
-  const defaults = apiConfig.generationSettings.budgetByType || {};
+  const defaults = DEFAULT_BUDGET_BY_TYPE;
   const out = {};
   for (const t of BUDGET_TYPE_ORDER) {
     const src = (bbt && bbt[t.key]) || {};
     const def = defaults[t.key] || {};
     const norm = (slotDef) => {
-      const fromDef = (defaults[t.key] && defaults[t.key][slotDef]) || { economy: 1, balanced: 1, full: 1.3, cap: 20000, custom: null };
+      const fromDef = def[slotDef]; // DEFAULT_BUDGET_BY_TYPE 恒含全部类型×槽，无需兜底字面量（防"精简=均衡=1"塌档）
       const s = typeof src[slotDef] === 'object' && src[slotDef] ? src[slotDef] : {};
       return {
-        economy: typeof s.economy === 'number' ? s.economy : fromDef.economy,
-        balanced: typeof s.balanced === 'number' ? s.balanced : fromDef.balanced,
-        full: typeof s.full === 'number' ? s.full : fromDef.full,
+        economy: fromDef.economy,
+        balanced: fromDef.balanced,
+        full: fromDef.full,
         cap: typeof s.cap === 'number' && s.cap > 0 ? s.cap : (fromDef.cap ?? 20000),
         custom: typeof s.custom === 'number' ? s.custom : null,
       };

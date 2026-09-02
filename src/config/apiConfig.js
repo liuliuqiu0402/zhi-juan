@@ -178,19 +178,41 @@ const sanitizeApiKey = (k) => {
 
 // 🔧 生成端预算规整（纯函数，与 Settings 的 normalizeBudgetSlots 逻辑同构；生成端读配置时的确定性兜底）：
 //    确保每个资料类型都有 mode/tier 与 body/answer/once 三槽，每槽含 economy/balanced/full/custom/cap。
-//    缺槽从默认补、已有保留；避免残缺 localStorage/云同步数据让 pickSlot 静默回退到默认系数。
+//    三档系数（economy/balanced/full）为程序内置常量且设置页不允许用户直接改数字，
+//    故一律从代码默认播种（杜绝旧存档把档位冻成恒值，如"精简=均衡=1"）；
+//    用户可编辑项（cap/custom/mode/tier）按存档保留。
+// 🔧 每类型动态输出预算·单一权威默认：设置页/生成端/校验统一从 DEFAULT_BUDGET_BY_TYPE 播种。
+//    抽成独立只读常量，杜绝"设置页播种时 apiConfig.generationSettings 被旧存档覆盖为空
+//    → normalize 漏出兜底字面量 {精简1/均衡1/充分1.3/上限20000}"这类"精简=均衡=1"塌档问题。
+//    三档系数（精简/均衡/充分）为内置常量：设置页只允许选档位或手填 custom，不允许改这三档数字，
+//    故一律随本权威默认；用户可编辑项 custom（手填）/cap（上限）/mode（路径）/tier（档位）按存档保留。
+export const DEFAULT_BUDGET_BY_TYPE = {
+  exam:     { mode: 'auto', tier: 'balanced', body: { economy: 1.1, balanced: 1.6, full: 2.0, cap: 32768, custom: null }, answer: { economy: 0.6, balanced: 0.85, full: 1.1, cap: 16384, custom: null }, once: { economy: 1.3, balanced: 1.9, full: 2.4, cap: 49152, custom: null } },
+  practice: { mode: 'auto', tier: 'balanced', body: { economy: 0.85, balanced: 1.2, full: 1.55, cap: 20000, custom: null }, answer: { economy: 0.42, balanced: 0.6, full: 0.78, cap: 10000, custom: null }, once: { economy: 1.05, balanced: 1.5, full: 1.9, cap: 30000, custom: null } },
+  special:  { mode: 'auto', tier: 'balanced', body: { economy: 0.85, balanced: 1.2, full: 1.55, cap: 20000, custom: null }, answer: { economy: 0.42, balanced: 0.6, full: 0.78, cap: 10000, custom: null }, once: { economy: 1.05, balanced: 1.5, full: 1.9, cap: 30000, custom: null } },
+  reading:  { mode: 'auto', tier: 'balanced', body: { economy: 1.25, balanced: 1.8, full: 2.3, cap: 20000, custom: null }, answer: { economy: 0.63, balanced: 0.9, full: 1.15, cap: 10000, custom: null }, once: { economy: 1.4, balanced: 2.0, full: 2.6, cap: 30000, custom: null } },
+  summary:  { mode: 'auto', tier: 'balanced', body: { economy: 1.1, balanced: 1.6, full: 2.0, cap: 20000, custom: null }, answer: { economy: 0.6, balanced: 0.85, full: 1.1, cap: 10000, custom: null }, once: { economy: 1.5, balanced: 2.2, full: 2.8, cap: 30000, custom: null } },
+  review:   { mode: 'auto', tier: 'balanced', body: { economy: 1.05, balanced: 1.5, full: 1.9, cap: 20000, custom: null }, answer: { economy: 0.5, balanced: 0.7, full: 0.95, cap: 10000, custom: null }, once: { economy: 1.25, balanced: 1.8, full: 2.3, cap: 30000, custom: null } },
+  preview:  { mode: 'auto', tier: 'balanced', body: { economy: 1.45, balanced: 2.1, full: 2.7, cap: 12000, custom: null }, answer: { economy: 0.73, balanced: 1.05, full: 1.35, cap: 6000, custom: null }, once: { economy: 1.65, balanced: 2.4, full: 3.0, cap: 16000, custom: null } },
+  dictation: { mode: 'auto', tier: 'balanced', body: { economy: 0.9, balanced: 1.3, full: 1.7, cap: 12000, custom: null }, answer: { economy: 0.46, balanced: 0.65, full: 0.85, cap: 6000, custom: null }, once: { economy: 1.05, balanced: 1.5, full: 1.9, cap: 16000, custom: null } },
+  errorbook: { mode: 'auto', tier: 'balanced', body: { economy: 0.95, balanced: 1.4, full: 1.8, cap: 12000, custom: null }, answer: { economy: 0.5, balanced: 0.7, full: 0.95, cap: 6000, custom: null }, once: { economy: 1.2, balanced: 1.7, full: 2.2, cap: 16000, custom: null } },
+};
+
 const normalizeBudgetByType = (bbt) => {
-  const defs = apiConfig.generationSettings.budgetByType || {};
+  const defs = DEFAULT_BUDGET_BY_TYPE;
   const out = {};
   for (const [key, def] of Object.entries(defs)) {
     const src = (bbt && bbt[key]) || {};
     const norm = (slot) => {
-      const d = (def && def[slot]) || { economy: 1, balanced: 1, full: 1.3, cap: 20000, custom: null };
+      const d = def[slot];
       const s = (src[slot] && typeof src[slot] === 'object') ? src[slot] : {};
       return {
-        economy: typeof s.economy === 'number' ? s.economy : d.economy,
-        balanced: typeof s.balanced === 'number' ? s.balanced : d.balanced,
-        full: typeof s.full === 'number' ? s.full : d.full,
+        // 🔧 三档系数为内置常量且非用户可直接编辑 → 一律随代码默认播种；
+        //    custom 为用户手填（独立生效），cap 为用户可调 → 按存档保留。
+        //    DEFAULT_BUDGET_BY_TYPE 恒含全部类型×槽，无需兜底字面量（防"精简=均衡=1"塌档）。
+        economy: d.economy,
+        balanced: d.balanced,
+        full: d.full,
         cap: (typeof s.cap === 'number' && s.cap > 0) ? s.cap : (d.cap ?? 20000),
         custom: typeof s.custom === 'number' ? s.custom : null,
       };
@@ -546,17 +568,7 @@ export const apiConfig = reactive({
     //      tier: 'economy'|'balanced'|'full'          —— 用户为该类型当前选中的档位（无 'custom'：手填值经 custom字段独立生效，不切 tier）
     //      body/answer/once: { economy,balanced,full, cap, custom }  —— 三套各自三档系数(每字符token率) + 槽硬上限token + 手填系数
     //    手填：custom 非空即生效（同时界面三档取消高亮）；生效系数优先级 custom>tier，不需置 tier='custom'。
-    budgetByType: {
-      exam:     { mode: 'auto', tier: 'balanced', body: { economy: 0.7, balanced: 1.2, full: 1.6, cap: 32768, custom: null }, answer: { economy: 0.35, balanced: 0.6, full: 0.8, cap: 16384, custom: null }, once: { economy: 1.0, balanced: 1.5, full: 2.0, cap: 49152, custom: null } },
-      practice: { mode: 'auto', tier: 'balanced', body: { economy: 0.5, balanced: 0.9, full: 1.2, cap: 20000, custom: null }, answer: { economy: 0.25, balanced: 0.45, full: 0.6, cap: 10000, custom: null }, once: { economy: 0.7, balanced: 1.1, full: 1.4, cap: 30000, custom: null } },
-      special:  { mode: 'auto', tier: 'balanced', body: { economy: 0.5, balanced: 0.9, full: 1.2, cap: 20000, custom: null }, answer: { economy: 0.25, balanced: 0.45, full: 0.6, cap: 10000, custom: null }, once: { economy: 0.7, balanced: 1.1, full: 1.4, cap: 30000, custom: null } },
-      reading:  { mode: 'auto', tier: 'balanced', body: { economy: 0.8, balanced: 1.5, full: 1.9, cap: 20000, custom: null }, answer: { economy: 0.4, balanced: 0.75, full: 0.95, cap: 10000, custom: null }, once: { economy: 1.0, balanced: 1.6, full: 2.0, cap: 30000, custom: null } },
-      summary:  { mode: 'auto', tier: 'balanced', body: { economy: 0.7, balanced: 1.25, full: 1.6, cap: 20000, custom: null }, answer: { economy: 0.35, balanced: 0.6, full: 0.8, cap: 10000, custom: null }, once: { economy: 0.9, balanced: 1.4, full: 1.8, cap: 30000, custom: null } },
-      review:   { mode: 'auto', tier: 'balanced', body: { economy: 0.7, balanced: 1.25, full: 1.6, cap: 20000, custom: null }, answer: { economy: 0.35, balanced: 0.6, full: 0.8, cap: 10000, custom: null }, once: { economy: 0.9, balanced: 1.4, full: 1.8, cap: 30000, custom: null } },
-      preview:  { mode: 'auto', tier: 'balanced', body: { economy: 1.0, balanced: 1.7, full: 2.0, cap: 12000, custom: null }, answer: { economy: 0.5, balanced: 0.85, full: 1.0, cap: 6000, custom: null }, once: { economy: 1.2, balanced: 1.9, full: 2.2, cap: 16000, custom: null } },
-      dictation: { mode: 'auto', tier: 'balanced', body: { economy: 0.6, balanced: 1.0, full: 1.4, cap: 12000, custom: null }, answer: { economy: 0.3, balanced: 0.5, full: 0.7, cap: 6000, custom: null }, once: { economy: 0.8, balanced: 1.2, full: 1.6, cap: 16000, custom: null } },
-      errorbook: { mode: 'auto', tier: 'balanced', body: { economy: 0.6, balanced: 1.1, full: 1.5, cap: 12000, custom: null }, answer: { economy: 0.3, balanced: 0.55, full: 0.75, cap: 6000, custom: null }, once: { economy: 0.8, balanced: 1.3, full: 1.7, cap: 16000, custom: null } },
-    },
+    budgetByType: DEFAULT_BUDGET_BY_TYPE,
     // 🔧 各类型系数内置下限（不含在界面配置，确定性兜底防异常小）；上限由每槽 cap 承担
     budgetClamp: { floorTokens: 800, },
     // 🔧 各引擎整卷生成深度思考开关（生成端按当前引擎读取对应开关；其余任务始终关闭思考）
