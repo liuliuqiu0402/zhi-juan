@@ -470,8 +470,10 @@ const convertBlankFormat = (html) => {
   // ── 步骤2：裸露下划线 → <u class="blank-N">&emsp;</u>（无外壳包裹 → 横线书写区；半角/全角均支持）──
   // 🔴 宽度换算唯一事实源 = blankWidthForChars（读 layoutSpec.BLANK：1 字 ≈ 2 格），与正文层 normalizeBlankMarkers 同口径；
   //    曾用 1:1 硬编码梯形（≤4→4）导致同一 ＿ 输入两处宽度不同、排版规格对 callAI 层不生效——已收敛
-  result = result.replace(/[\uFF3F_]{3,}/g, (match) => {
-    return `<u class="blank-${blankWidthForChars(match.length)}">&emsp;</u>`;
+  //    ≥2 即转（曾要求 ≥3，ASCII "__" 短空会漏；正文层 ≥2 同口径）；半角 _ 按 0.5 字计（视觉半宽）
+  result = result.replace(/[\uFF3F_]{2,}/g, (match) => {
+    const em = (match.match(/\uFF3F/g) || []).length + (match.match(/_/g) || []).length * 0.5;
+    return `<u class="blank-${blankWidthForChars(Math.round(em))}">&emsp;</u>`;
   });
 
 

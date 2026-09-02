@@ -252,9 +252,11 @@ export function normalizeBlankMarkers(html = '') {
     const len = (m.match(/\u3000/g) || []).length + (m.match(/[ _]/g) || []).length + (m.match(/&emsp;/gi) || []).length;
     return `<u class="blank-${blankWidthForChars(len)}">&emsp;</u>`;
   });
-  out = out.replace(/＿{2,}/g, (m) => {
-    const n = blankWidthForChars(m.length);
-    return `<u class="blank-${n}">&emsp;</u>`;
+  // 下划线（半角/全角混合）→ 填空横线：半角 _ 按 0.5 字计（视觉半宽），≥2 个即构成书写横线——
+  //   曾只匹配全角 ＿，ASCII "__"（模型常用短空）会漏成裸下划线
+  out = out.replace(/(?:＿|_){2,}/g, (m) => {
+    const em = (m.match(/＿/g) || []).length + (m.match(/_/g) || []).length * 0.5;
+    return `<u class="blank-${clampBlankWidth(Math.round(em * 2))}">&emsp;</u>`;
   });
   // 🔧 括号填空归一（正文主路径曾缺失：模型输出 ((　　)) / （＿ ＿） 被原样保留 → 卷面双括号）
   //    ① 括号+下划线组合（可双层括号）→ <span class="blank-N">&emsp;</span>
@@ -289,6 +291,9 @@ export function normalizeBlankMarkers(html = '') {
   });
   // 🔧 纯空白"装饰标记"兜底（见 normalizeWhitespaceCarriers：强调类标记无字可加 → 空白实为书写空位）
   out = normalizeWhitespaceCarriers(out);
+  // 🔧 拆裸 <u> 空壳：模型把下划线写进无 class 的 <u>（<u>____</u>/<u>（　　）</u>），先被上面规则转成
+  //    u.blank-N/span.blank-N 后外层 <u> 仍在 → 下划线叠下划线/叠括号。外层仅包一个 blank 空位时拆壳
+  out = out.replace(/<u(?![^>]*class=)[^>]*>\s*(<(u|span) class="blank-\d+">&emsp;<\/\2>)\s*<\/u>/gi, '$1');
   return out;
 }
 
