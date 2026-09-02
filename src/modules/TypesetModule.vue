@@ -226,14 +226,15 @@
               {{ showSource ? '🎨 渲染' : '<> 源码' }}
             </button>
             <!-- 🔧 学段（2026-09）：书写格/作文格尺寸按学段读排版规格库（ZUOWEN_CELL/GRID_CELL）。
-                 粘贴/新建内容没有学段上下文 → 手动选；从生成进入则自动带五档 stageKey -->
+                 粘贴/新建内容没有学段上下文 → 手动选；从生成进入则自动带五档 stageKey。
+                 解析链：文档学段(生成带入) > 所选主题学段 > 默认初中。自动档会实时显示当前解析结果 -->
             <select
               v-model="docStage"
               class="export-select"
-              title="学段（作文格/书写格/导出尺寸依据）"
+              :title="`作文格/书写格/导出尺寸依据：文档学段 > 主题学段 > 默认初中。当前自动解析：${autoStageName}`"
             >
               <option value="">
-                学段：自动
+                学段：自动（{{ autoStageName }}）
               </option>
               <option value="primary_low">
                 小学低段
@@ -638,6 +639,9 @@ const selectedTheme = computed(() => getThemeById(selectedThemeId.value));
 //    曾全程用主题 stage（多数预设为 high/风格值）→ 小学卷的作文格/田字格/导出被画成高中尺寸
 const docStage = ref('');
 const effStage = computed(() => docStage.value || selectedTheme.value?.stage || 'middle');
+// 🔧 学段显示名（自动档实时解析提示）：primary→小学 / middle→初中 / high→高中
+const STAGE_NAME_3 = { primary: '小学', middle: '初中', high: '高中' };
+const autoStageName = computed(() => STAGE_NAME_3[normalizeStage3(effStage.value)] || effStage.value || '—');
 
 // 🔧 作文格预览格宽/格高按学段读排版规格库 ZUOWEN_CELL（曾硬编码 12/10/7.5mm，面板调规格不生效）
 const zwgCssVars = computed(() => {
