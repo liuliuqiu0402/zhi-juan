@@ -1392,8 +1392,10 @@ export const getThemeHeadingStyle = (theme, level) => {
 export const applyThemeToContent = (content, themeId, options = {}) => {
   const { isHtmlContent = false, forceImportant = false, stage: stageOpt } = options;
   const theme = getThemeById(themeId);
-  // 🔧 作文格尺寸按学段（来自排版规格库 ZUOWEN_CELL：主12/初10/高7.5×8；每行格数 CSS auto-fill 自动排满）
-  const stage = theme?.stage || stageOpt || 'middle';
+  // 🔧 作文格/书写格尺寸按学段（来自排版规格库 ZUOWEN_CELL/GRID_CELL）。
+  //    学段优先级：调用方显式 stage（文档学段，如生成参数五档 stageKey）> 主题 stage > middle。
+  //    ⚠️ 曾 theme.stage 优先——多数预设主题 stage 为 high/风格化值，导致小学卷导出成高中格尺寸
+  const stage = stageOpt || theme?.stage || 'middle';
   const zwgKey = normalizeStage3(stage);
   const ZC = getMergedSpec().ZUOWEN_CELL;
   const zwgMm = ZC[zwgKey].heightMm;   // 格高（主/初正方、高8mm）

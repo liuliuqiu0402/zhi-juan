@@ -459,6 +459,7 @@ import {
 } from '../themeConfig.js';
 import { APP_EVENTS } from '../constants/events.js';
 import { PAPER_PRESETS } from '../config/paperPresets.js';
+import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js'; // 作文格/书写格尺寸按学段（排版规格库）
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { stripAiCodeFence } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离（与 GenerateModule 共用，防同构副本各自演化）
@@ -554,7 +555,7 @@ const loadGenRecord = (rec) => {
   const content = rec?.content || '';
   if (content.length < 50) return;
   currentGenRecordId.value = rec.id || null;  // 🔧 记住加载的记录 ID
-  loadFromGenerate({ content, meta: { title: rec.title || '未命名', genType: rec.genType || '' } });
+  loadFromGenerate({ content, meta: { title: rec.title || '未命名', genType: rec.genType || '', stage: rec?.meta?.stage || rec?.stage || '' } });
 };
 // 🔧 将当前编辑内容回写到生成记录，刷新后不丢
 const persistCurrentEdits = async (content) => {
@@ -607,13 +608,16 @@ const themeForm = ref({
 // ==================== 计算属性 ====================
 const selectedTheme = computed(() => getThemeById(selectedThemeId.value));
 
-// 🔧 作文格预览格宽/格高按学段（与导出端 buildDocxFromDom 口径完全一致）：
-//    primary 12mm / middle 10mm / high 宽7.5×高8mm —— 预览/导出行列一致，按 A4 可用宽度排满
+// 🔧 文档学段（单一事实）：从"生成→排版"带入的真实学段（五档 stageKey），无则回退主题 stage / middle。
+//    曾全程用主题 stage（多数预设为 high/风格值）→ 小学卷的作文格/田字格/导出被画成高中尺寸
+const docStage = ref('');
+const effStage = computed(() => docStage.value || selectedTheme.value?.stage || 'middle');
+
+// 🔧 作文格预览格宽/格高按学段读排版规格库 ZUOWEN_CELL（曾硬编码 12/10/7.5mm，面板调规格不生效）
 const zwgCssVars = computed(() => {
-  const s = selectedTheme.value?.stage || 'middle';
-  if (s === 'high') return { '--zwg-cell-w': '7.5mm', '--zwg-cell-h': '8mm' };
-  if (s === 'middle') return { '--zwg-cell-w': '10mm', '--zwg-cell-h': '10mm' };
-  return { '--zwg-cell-w': '12mm', '--zwg-cell-h': '12mm' };
+  const key = normalizeStage3(effStage.value);
+  const c = getMergedSpec().ZUOWEN_CELL[key] || { widthMm: 12, heightMm: 12 };
+  return { '--zwg-cell-w': `${c.widthMm}mm`, '--zwg-cell-h': `${c.heightMm}mm` };
 });
 
 const filteredThemes = computed(() => {
@@ -640,7 +644,8 @@ const themeCSS = computed(() => {
       || (raw && (sealMarkRegex.test(raw) || /sealed-wrapper|seal-zone|seal-note/.test(raw)) ? 'sealed_exam' : null);
     const fullHtml = applyThemeToContent('<div></div>', cssThemeId, { 
       isHtmlContent: true, 
-      forceImportant: true  // 确保标题/字体等主题样式不被覆盖
+      forceImportant: true, // 确保标题/字体等主题样式不被覆盖
+      stage: effStage.value // 作文格/书写格按文档学段（排版规格库）
     });
     const match = fullHtml.match(/<style>([\s\S]*?)<\/style>/i);
     let css = match ? match[1].trim() : '';
@@ -992,7 +997,8 @@ const applyThemeAndPreview = async () => {
     // 应用主题（导出时也强制 !important，确保与编辑预览一致）
     const themedHtml = applyThemeToContent(htmlContent, selectedThemeId.value, {
       isHtmlContent: isHtmlContent.value,
-      forceImportant: true
+      forceImportant: true,
+      stage: effStage.value // 作文格/书写格按文档学段
     });
     previewContent.value = themedHtml;
   } catch (e) {
@@ -1091,7 +1097,8 @@ const exportDocument = async () => {
     }
     previewContentForExport = applyThemeToContent(wrapped, effectiveThemeFor(pristineHtmlForExport.value), {
       isHtmlContent: true,
-      forceImportant: true
+      forceImportant: true,
+      stage: effStage.value // 作文格/书写格按文档学段
     });
   } else {
     // 降级：用预览流程
@@ -1199,6 +1206,7 @@ const exportDocument = async () => {
         const fullHtml = applyThemeToContent('<div></div>', selectedThemeId.value, {
           isHtmlContent: true,
           forceImportant: false,
+          stage: effStage.value, // 作文格/书写格按文档学段
         });
         const cssMatch = fullHtml.match(/<style>([\s\S]*?)<\/style>/i);
         if (cssMatch) {
@@ -1251,9 +1259,8 @@ const exportDocument = async () => {
 
       try {
         // 只传 clone（不含 style 标签），避免 CSS 被当成正文
-        // 🔧 作文格格子按学段尺寸（小学 12mm / 初中 10mm / 高中 7.5×8mm，来自排版规格库），学段取自所选主题 stage
-        // 🔧 纸张版式：paperLayout（a4 默认单栏 / a3-2col 横向 A3 两栏 + 每栏页码按栏计数）
-        const blob = await htmlToDocxBlob(clone, selectedTheme.value?.stage || 'middle', paperLayout.value);
+        // 🔧 作文格格子按学段尺寸（排版规格库 ZUOWEN_CELL），学段 = 文档学段（生成带入）> 主题 stage
+        const blob = await htmlToDocxBlob(clone, effStage.value, paperLayout.value);
         document.body.removeChild(wrapper);
         downloadBlob(blob, `${exportBaseName.value}.docx`);
       } finally {
@@ -1329,7 +1336,7 @@ const switchToDoc = (docId) => {
   const doc = documents.value.find(d => d.id === docId);
   if (!doc) return;
   activeDocId.value = docId;
-  loadContentSilent(doc.content);
+  loadContentSilent(doc.content, doc.stage || '');
 };
 const closeDoc = (docId) => {
   const idx = documents.value.findIndex(d => d.id === docId);
@@ -1338,8 +1345,8 @@ const closeDoc = (docId) => {
   if (activeDocId.value === docId) {
     const next = documents.value[Math.min(idx, documents.value.length - 1)];
     activeDocId.value = next?.id || null;
-    if (next) loadContentSilent(next.content);
-    else { rawHtmlContent.value = ''; currentContent.value = ''; isHtmlContent.value = false; }
+    if (next) loadContentSilent(next.content, next.stage || '');
+    else { rawHtmlContent.value = ''; currentContent.value = ''; isHtmlContent.value = false; docStage.value = ''; }
   }
 };
 // ==================== 渲染预览（已并入编辑视图，所见即所得） ====================
@@ -1367,8 +1374,9 @@ const withExamShell = (html, stage) => {
   }
 };
 
-const loadContentSilent = (content) => {
+const loadContentSilent = (content, stage = '') => {
   if (!content || typeof content !== 'string') return;
+  docStage.value = stage || ''; // 文档学段随文档切换（作文格/书写格/导出口径）
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
   // 🔧 HTML 内容统一做密封线结构归一化 + 注入卷面固定件（编辑区所见即所得），幂等
   if (isHtml) { isHtmlContent.value = true; rawHtmlContent.value = withExamShell(content); currentContent.value = ''; }
@@ -1379,6 +1387,8 @@ const loadFromGenerate = async (payload) => {
   let content = typeof payload === 'string' ? payload : payload?.content || '';
   const meta = (typeof payload === 'object' && payload.meta) ? payload.meta : {};
   if (!content || typeof content !== 'string') return;
+  // 🔧 文档学段（作文格/书写格/导出按学段走排版规格库）：生成参数五档 stageKey → 排版单一事实
+  docStage.value = meta.stage || '';
   
   // 🔧 直接保存原始 HTML（不再走 Tiptap 预处理，contentEditable 原样保留所有 class）
   // 🔧 密封线结构归一化 + 注入卷面固定件（编辑区所见即所得，幂等）
@@ -1407,12 +1417,14 @@ const loadFromGenerate = async (payload) => {
     existing.content = isHtmlContent.value ? rawHtmlContent.value : currentContent.value;
     existing.cleanHtml = rawHtmlContent.value || currentContent.value;
     existing.genType = meta.genType || existing.genType;
+    existing.stage = meta.stage || existing.stage || '';
     activeDocId.value = existing.id;
   } else {
     const newDoc = {
       id: 'doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       title: docTitle,
       genType: meta.genType || '',
+      stage: meta.stage || '',
       content: isHtmlContent.value ? rawHtmlContent.value : currentContent.value,
       cleanHtml: rawHtmlContent.value || currentContent.value,
     };
