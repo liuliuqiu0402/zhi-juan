@@ -495,11 +495,15 @@
                   <span style="font-size:10px;color:#334155;white-space:nowrap;">{{ bk.subject }} · {{ calStageName(bk.stage) }} · {{ bk.mode === 'split' ? '两次' : bk.mode === 'once' ? '一次' : bk.mode || '全部' }}</span>
                   <span style="font-size:10px;color:#64748b;">样本 {{ bk.stats.count }}<template v-if="bk.stats.inValid">/{{ bk.stats.inValid }}失效</template></span>
                   <span v-if="bk.stats.count" style="font-size:10px;color:#94a3b8;">CV={{ bk.stats.cv.toFixed(2) }}</span>
-                  <span v-if="bk.calibrated" style="font-size:10px;color:#1f6feb;">已采纳(基准{{ bk.calBase }})</span>
+                  <span v-if="bk.calibrated" style="font-size:10px;color:#1f6feb;">校准基准{{ bk.calBase }}（播种均衡档{{ seedCoefFor(row.key, bk.mode) }}）</span>
                   <span v-else style="font-size:10px;color:#94a3b8;">{{ bk.stats.reason }}</span>
-                  <span style="margin-left:auto;display:flex;gap:5px;">
+                  <span style="margin-left:auto;display:flex;gap:5px;align-items:center;">
                     <button v-if="bk.stats.ready && !bk.calibrated" @click="adoptCalibration(row.key, bk)" style="font-size:10px;padding:2px 8px;border:1px solid #1f6feb;color:#1f6feb;background:#fff;border-radius:4px;cursor:pointer;">一键采纳</button>
-                    <button v-if="bk.calibrated" @click="clearCalibrationRow(row.key, bk)" style="font-size:10px;padding:2px 8px;border:1px solid #c2ccd9;color:#5b6b7c;background:#fff;border-radius:4px;cursor:pointer;">清除</button>
+                    <template v-if="bk.calibrated">
+                      <span style="font-size:10px;color:#94a3b8;white-space:nowrap;">切换：</span>
+                      <button @click="toggleCalibrated(row.key, bk)" style="font-size:10px;padding:2px 8px;border:1px solid #c2ccd9;color:#5b6b7c;background:#fff;border-radius:4px;cursor:pointer;">{{ bk.enabled ? '用播种' : '用校准' }}</button>
+                      <button @click="clearCalibrationRow(row.key, bk)" style="font-size:10px;padding:2px 8px;border:1px solid #d9673a;color:#d9673a;background:#fff;border-radius:4px;cursor:pointer;">清理</button>
+                    </template>
                   </span>
                 </div>
               </template>
@@ -682,7 +686,7 @@ import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
 import useLogger, { copyLogs } from '@/composables/useLogger.js';
 import { apiConfig, DEFAULT_BUDGET_BY_TYPE, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
-import { listTypeBuckets, applyCalibration, clearCalibration, CALIBRATION_THRESHOLDS } from '@/utils/budgetCalibration.js';
+import { listTypeBuckets, applyCalibration, clearCalibration, setCalibratedEnabled, CHARS_PER_TOKEN, CALIBRATION_THRESHOLDS } from '@/utils/budgetCalibration.js';
 import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud, fetchCloudDevices, deleteDeviceFromCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
 
@@ -1043,7 +1047,25 @@ const adoptCalibration = (rowKey, bk) => {
 };
 const clearCalibrationRow = (rowKey, bk) => {
   clearCalibration(rowKey, bk.subject, bk.stage, bk.mode || '');
-  window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已清除「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」校准，回退播种默认`, type: 'info' } }));
+  window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已清理「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」（校准值+样本一并清除，回退播种默认）`, type: 'info' } }));
+};
+// 播种对照：取该类型播种默认"均衡档"系数（token/字符）× CHARS_PER_TOKEN 转成"产出率基线(字符/字符)"，与校准 calBase 同单位可比。
+const seedCoefFor = (rowKey, mode) => {
+  const def = DEFAULT_BUDGET_BY_TYPE[rowKey];
+  if (!def) return '—';
+  const slot = mode === 'split' ? 'body' : 'once';
+  const s = def[slot];
+  if (!s || typeof s.balanced !== 'number') return '—';
+  return (s.balanced * CHARS_PER_TOKEN).toFixed(2);
+};
+// 切换：只翻 enabled 位，保留校准数据与样本（与"清理"严格区分）。
+const toggleCalibrated = (rowKey, bk) => {
+  const next = setCalibratedEnabled(rowKey, bk.subject, bk.stage, bk.mode || '', !bk.enabled);
+  if (next === null) {
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: '切换失败：该校准已不存在', type: 'warning' } }));
+    return;
+  }
+  window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已切换「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」为${next ? '使用校准值' : '使用播种默认'}`, type: 'info' } }));
 };
 
 // 🔧 槽生效态：用于高亮"生成路径下真实使用的系数槽"。

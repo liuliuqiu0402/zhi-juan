@@ -197,6 +197,7 @@ export const applyCalibration = (genType, subject, stage, mode, threshold = CALI
   cal[bucketKey(genType, subject, stage, mode)] = {
     genType, subject, stage: normalizeStageKey(stage), mode,
     base,            // 均衡档基准产出率（字符/字符）
+    enabled: true,   // 是否启用校准（切换=只翻此位，不动数据；清理=整桶删）
     tiers: {
       economy: +(base * TIER_RATIO.economy).toFixed(3),
       balanced: +base.toFixed(3),
@@ -209,14 +210,34 @@ export const applyCalibration = (genType, subject, stage, mode, threshold = CALI
   return { ok: true, base, stats: st };
 };
 
-/** 清除某桶校准（回退播种默认）。 */
-export const clearCalibration = (genType, subject, stage, mode = '') => {
+/**
+ * 切换某桶校准的启用状态（只翻 enabled 位，保留校准值与样本）。
+ * @returns {boolean} 切换后的 enabled 状态；无该桶校准记录时返回 null
+ */
+export const setCalibratedEnabled = (genType, subject, stage, mode = '', enabled) => {
   const cal = safeRead(CALIB_KEY, {});
   const k = bucketKey(genType, subject, stage, mode);
+  if (!cal[k]) return null;
+  cal[k].enabled = enabled === false ? false : true;
+  safeWrite(CALIB_KEY, cal);
+  return cal[k].enabled;
+};
+
+/**
+ * 清理某桶校准（删除校准值 + 一并清除该桶全部样本，从零再来）。
+ * 与"切换"严格区分：切换只翻 enabled，清理才删数据。
+ */
+export const clearCalibration = (genType, subject, stage, mode = '') => {
+  const k = bucketKey(genType, subject, stage, mode);
+  const cal = safeRead(CALIB_KEY, {});
   if (cal[k]) {
     delete cal[k];
     safeWrite(CALIB_KEY, cal);
   }
+  // 清理语义 = 校准 + 样本一并移除（用户重采样从零开始）
+  const samples = safeRead(SAMPLE_KEY, []);
+  const kept = samples.filter(el => bucketKey(el.genType, el.subject, el.stage, el.mode) !== k);
+  if (kept.length !== samples.length) safeWrite(SAMPLE_KEY, kept);
 };
 
 // 中文平均 token 字符率（实证系数；中英混合会更高，作为校准折算标尺）
@@ -229,7 +250,7 @@ export const CHARS_PER_TOKEN = 1.3;
  */
 export const getCalibratedCoef = (genType, subject, stage, mode = '', tier = 'balanced') => {
   const cal = getCalibration(genType, subject, stage, mode);
-  if (!cal) return null;
+  if (!cal || cal.enabled === false) return null; // disabled → 回退播种默认（切换态）
   const base = typeof cal.base === 'number' && cal.base > 0 ? cal.base : null;
   if (base == null) return null;
   // 校准 base 是"基准档产出率(字符/字符)"；换算该档 token 系数 = base / token字符率
@@ -288,7 +309,7 @@ export const listTypeBuckets = (genType, opts = {}) => {
       return { count, inValid: b.inValid, median, mean, cv, ready, reason };
     })();
     const c = cal[k] || null;
-    out.push({ key: k, genType, subject: b.subject, stage: b.stage, mode: b.mode, stats, calibrated: !!c, calBase: c?.base ?? null, samples: stats.count });
+    out.push({ key: k, genType, subject: b.subject, stage: b.stage, mode: b.mode, stats, calibrated: !!c, enabled: c ? c.enabled !== false : false, calBase: c?.base ?? null, samples: stats.count });
   }
   return out;
 };
