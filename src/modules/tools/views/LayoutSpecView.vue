@@ -9,18 +9,52 @@
         <span>用户覆盖 <b class="user-n">{{ userOverrideCount }}</b> 项</span>
         <span class="ov-sep">·</span>
         <span class="st-chips">
-          <button class="st-chip" :class="{ sel: specFilter === 'all' }" @click="specFilter = 'all'">全部 {{ specCounts.total }}</button>
-          <button class="st-chip on" :class="{ sel: specFilter === 'on' }" @click="specFilter = 'on'">启用 {{ specCounts.on }}</button>
-          <button class="st-chip off" :class="{ sel: specFilter === 'off' }" @click="specFilter = 'off'">停用 {{ specCounts.off }}</button>
+          <button
+            class="st-chip"
+            :class="{ sel: specFilter === 'all' }"
+            @click="specFilter = 'all'"
+          >全部 {{ specCounts.total }}</button>
+          <button
+            class="st-chip on"
+            :class="{ sel: specFilter === 'on' }"
+            @click="specFilter = 'on'"
+          >启用 {{ specCounts.on }}</button>
+          <button
+            class="st-chip off"
+            :class="{ sel: specFilter === 'off' }"
+            @click="specFilter = 'off'"
+          >停用 {{ specCounts.off }}</button>
         </span>
         <span class="ov-sep">·</span>
         <span>消费者 docxBuilder / contentCleaner / themeConfig</span>
       </div>
       <div class="ls-ops">
-        <button v-if="hasOverride" class="btn danger" @click="resetAll">↩️ 恢复全部默认</button>
-        <button class="btn" @click="doExport">📤 导出</button>
-        <button class="btn" @click="importInput?.click()">📥 导入</button>
-        <input ref="importInput" type="file" accept=".json" style="display:none" @change="doImport" />
+        <button
+          v-if="hasOverride"
+          class="btn danger"
+          @click="resetAll"
+        >
+          ↩️ 恢复全部默认
+        </button>
+        <button
+          class="btn"
+          @click="doExport"
+        >
+          📤 导出
+        </button>
+        <button
+          class="btn"
+          @click="importInput?.click()"
+        >
+          📥 导入
+        </button>
+        <input
+          ref="importInput"
+          type="file"
+          accept=".json"
+          style="display:none"
+          @change="doImport"
+        >
       </div>
     </div>
 
@@ -33,33 +67,93 @@
 
     <!-- 规格组手风琴 -->
     <div class="ls-list">
-      <div v-if="!specShowList.length" class="ls-empty">当前筛选无规格组（可切换上方状态筛选）</div>
-      <div v-for="g in specShowList" :key="g.id" class="ls-card" :class="{ open: openGroup === g.id, editing: editingGroup === g.id, disabled: groupOff(g.id) }">
-        <div class="ls-head" @click="toggleGroup(g.id)">
+      <div
+        v-if="!specShowList.length"
+        class="ls-empty"
+      >
+        当前筛选无规格组（可切换上方状态筛选）
+      </div>
+      <div
+        v-for="g in specShowList"
+        :key="g.id"
+        class="ls-card"
+        :class="{ open: openGroup === g.id, editing: editingGroup === g.id, disabled: groupOff(g.id) }"
+      >
+        <div
+          class="ls-head"
+          @click="toggleGroup(g.id)"
+        >
           <span class="arrow">{{ openGroup === g.id ? '▾' : '▸' }}</span>
           <span class="lib-tag">📏 规格</span>
           <span class="dim-name">{{ g.name }}</span>
           <span class="ls-desc">{{ g.desc }}</span>
-          <span v-if="groupHasOverride(g)" class="src-user">已自定义</span>
+          <span
+            v-if="groupHasOverride(g)"
+            class="src-user"
+          >已自定义</span>
           <span class="ls-meta">{{ g.fields.length }} 参数</span>
-          <label class="sw" :class="{ off: groupOff(g.id) }" @click.stop title="停用后该组用户覆盖不生效（按内置默认渲染），可随时切回">
-            <input type="checkbox" :checked="!groupOff(g.id)" @change="toggleGroupEnabled(g.id, $event.target.checked)" />
+          <label
+            class="sw"
+            :class="{ off: groupOff(g.id) }"
+            title="停用后该组用户覆盖不生效（按内置默认渲染），可随时切回"
+            @click.stop
+          >
+            <input
+              type="checkbox"
+              :checked="!groupOff(g.id)"
+              @change="toggleGroupEnabled(g.id, $event.target.checked)"
+            >
             <span>{{ groupOff(g.id) ? '已停用' : '启用' }}</span>
           </label>
         </div>
 
         <!-- 展开态：预览表格 -->
-        <div v-if="openGroup === g.id && editingGroup !== g.id" class="ls-body">
-          <div v-if="groupOff(g.id)" class="off-banner">⏸ 已停用：本组用户覆盖不生效，按内置默认值渲染（重新启用即恢复）</div>
+        <div
+          v-if="openGroup === g.id && editingGroup !== g.id"
+          class="ls-body"
+        >
+          <div
+            v-if="groupOff(g.id)"
+            class="off-banner"
+          >
+            ⏸ 已停用：本组用户覆盖不生效，按内置默认值渲染（重新启用即恢复）
+          </div>
           <template v-if="g.matrix">
-            <div v-for="s in g.matrix.subjects" :key="s.key" class="matrix-block">
-              <div class="matrix-title">{{ s.label }}<span v-if="s.key === '*'" class="matrix-tip">通配默认（未显式定义的学科）</span></div>
+            <div
+              v-for="s in g.matrix.subjects"
+              :key="s.key"
+              class="matrix-block"
+            >
+              <div class="matrix-title">
+                {{ s.label }}<span
+                  v-if="s.key === '*'"
+                  class="matrix-tip"
+                >通配默认（未显式定义的学科）</span>
+              </div>
               <table class="ls-table matrix-table">
-                <thead><tr><th>学段</th><th v-for="p in g.matrix.params" :key="p.key">{{ p.label }}<span v-if="p.unit"> ({{ p.unit }})</span></th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>学段</th><th
+                      v-for="p in g.matrix.params"
+                      :key="p.key"
+                    >
+                      {{ p.label }}<span v-if="p.unit"> ({{ p.unit }})</span>
+                    </th>
+                  </tr>
+                </thead>
                 <tbody>
-                  <tr v-for="st in g.matrix.stages" :key="st.key">
-                    <td class="matrix-stage">{{ st.label }}</td>
-                    <td v-for="p in g.matrix.params" :key="p.key" :class="{ modified: isModified(`ANSWER_REGION.${s.key}.${st.key}.${p.key}`) }">
+                  <tr
+                    v-for="st in g.matrix.stages"
+                    :key="st.key"
+                  >
+                    <td class="matrix-stage">
+                      {{ st.label }}
+                    </td>
+                    <td
+                      v-for="p in g.matrix.params"
+                      :key="p.key"
+                      :class="{ modified: isModified(`ANSWER_REGION.${s.key}.${st.key}.${p.key}`) }"
+                    >
                       {{ formatVal(getByPath(mergedSpec, `ANSWER_REGION.${s.key}.${st.key}.${p.key}`), p) }}
                     </td>
                   </tr>
@@ -67,33 +161,83 @@
               </table>
             </div>
           </template>
-          <table v-else class="ls-table">
+          <table
+            v-else
+            class="ls-table"
+          >
             <thead><tr><th>参数</th><th>当前值</th><th>内置默认</th><th>状态</th></tr></thead>
             <tbody>
-              <tr v-for="f in g.fields" :key="f.path">
+              <tr
+                v-for="f in g.fields"
+                :key="f.path"
+              >
                 <td>{{ f.label }}</td>
-                <td :class="{ modified: isModified(f.path) }">{{ formatVal(getByPath(mergedSpec, f.path), f) }}</td>
+                <td :class="{ modified: isModified(f.path) }">
+                  {{ formatVal(getByPath(mergedSpec, f.path), f) }}
+                </td>
                 <td>{{ formatVal(getByPath(defaults, f.path), f) }}</td>
                 <td>
-                  <span v-if="groupOff(g.id)" class="off-tag">已停用</span>
-                  <span v-else-if="isModified(f.path)" class="mod-tag">已修改</span>
-                  <span v-else class="ok-tag">默认</span>
+                  <span
+                    v-if="groupOff(g.id)"
+                    class="off-tag"
+                  >已停用</span>
+                  <span
+                    v-else-if="isModified(f.path)"
+                    class="mod-tag"
+                  >已修改</span>
+                  <span
+                    v-else
+                    class="ok-tag"
+                  >默认</span>
                 </td>
               </tr>
             </tbody>
           </table>
           <div class="ls-ops">
-            <button class="btn" @click="startEdit(g)">✏️ 编辑</button>
-            <button v-if="groupHasOverride(g)" class="btn danger" @click="resetGroup(g)">↩️ 恢复此组默认</button>
+            <button
+              class="btn"
+              @click="startEdit(g)"
+            >
+              ✏️ 编辑
+            </button>
+            <button
+              v-if="groupHasOverride(g)"
+              class="btn danger"
+              @click="resetGroup(g)"
+            >
+              ↩️ 恢复此组默认
+            </button>
           </div>
         </div>
 
         <!-- 编辑态 -->
-        <div v-if="editingGroup === g.id" class="ls-edit">
-          <div v-for="grp in editGroups(g)" :key="grp.title || 'all'" class="edit-grid">
-            <div v-if="grp.title" class="edit-sec-title">{{ grp.title }}<span v-if="grp.title === '通配默认'" class="matrix-tip">通配默认（未显式定义的学科）</span></div>
-            <div v-for="f in grp.fields" :key="f.path" class="edit-field">
-              <label>{{ f.label }}<span class="unit" v-if="f.unit"> ({{ f.unit }})</span></label>
+        <div
+          v-if="editingGroup === g.id"
+          class="ls-edit"
+        >
+          <div
+            v-for="grp in editGroups(g)"
+            :key="grp.title || 'all'"
+            class="edit-grid"
+          >
+            <div
+              v-if="grp.title"
+              class="edit-sec-title"
+            >
+              {{ grp.title }}<span
+                v-if="grp.title === '通配默认'"
+                class="matrix-tip"
+              >通配默认（未显式定义的学科）</span>
+            </div>
+            <div
+              v-for="f in grp.fields"
+              :key="f.path"
+              class="edit-field"
+            >
+              <label>{{ f.label }}<span
+                v-if="f.unit"
+                class="unit"
+              > ({{ f.unit }})</span></label>
               <template v-if="f.type === 'carrier'">
                 <div class="carrier-chips">
                   <span
@@ -105,21 +249,62 @@
                   >{{ opt.label }}</span>
                 </div>
               </template>
-              <select v-else-if="f.type === 'ansCarrier'" v-model="editValues[f.path]">
-                <option v-for="opt in ANS_CARRIER_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              <select
+                v-else-if="f.type === 'ansCarrier'"
+                v-model="editValues[f.path]"
+              >
+                <option
+                  v-for="opt in ANS_CARRIER_OPTIONS"
+                  :key="opt.value"
+                  :value="opt.value"
+                >
+                  {{ opt.label }}
+                </option>
               </select>
-              <select v-else-if="f.type === 'select'" v-model="editValues[f.path]">
-                <option v-for="opt in f.options" :key="opt" :value="opt">{{ opt }}</option>
+              <select
+                v-else-if="f.type === 'select'"
+                v-model="editValues[f.path]"
+              >
+                <option
+                  v-for="opt in f.options"
+                  :key="opt"
+                  :value="opt"
+                >
+                  {{ opt }}
+                </option>
               </select>
-              <input v-else v-model="editValues[f.path]" :type="f.type === 'number' ? 'number' : 'text'" :step="f.step" :min="f.min" :max="f.max" :placeholder="f.placeholder" />
-              <span class="range-hint" v-if="f.type === 'number'">{{ f.min }}~{{ f.max }}</span>
+              <input
+                v-else
+                v-model="editValues[f.path]"
+                :type="f.type === 'number' ? 'number' : 'text'"
+                :step="f.step"
+                :min="f.min"
+                :max="f.max"
+                :placeholder="f.placeholder"
+              >
+              <span
+                v-if="f.type === 'number'"
+                class="range-hint"
+              >{{ f.min }}~{{ f.max }}</span>
             </div>
           </div>
           <div class="ls-ops">
-            <button class="btn-p" @click="saveGroup(g)">💾 保存</button>
-            <button class="btn" @click="cancelEdit">取消</button>
+            <button
+              class="btn-p"
+              @click="saveGroup(g)"
+            >
+              💾 保存
+            </button>
+            <button
+              class="btn"
+              @click="cancelEdit"
+            >
+              取消
+            </button>
           </div>
-          <p class="edit-tip">※ 保存后即时生效（docxBuilder/contentCleaner/themeConfig 下次生成自动读取）；恢复默认仅清除此组覆盖。</p>
+          <p class="edit-tip">
+            ※ 保存后即时生效（docxBuilder/contentCleaner/themeConfig 下次生成自动读取）；恢复默认仅清除此组覆盖。
+          </p>
         </div>
       </div>
     </div>

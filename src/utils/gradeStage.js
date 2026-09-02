@@ -37,13 +37,39 @@ export const extractGradeFromName = (name = '') => {
   return m && m[1] ? extractGradeNum(m[1]) : 0;
 };
 
-/** 由学段（中文/键）+ 年级（grade 优先，空则回退抓教材名 name），归一为五档学段键（primary_low/mid/high、middle、high） */
+/** 五档学段键（单一事实源集合，供消费端校验"是否已是关键"） */
+export const STAGE_KEYS = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
+export const STAGE_KEY_SET = new Set(STAGE_KEYS);
+
+/** 中文学段/年级/段位标签 → 五档键（不依赖 grade/name）。仅处理"非纯粗学段标签"（'小学低段'/'初一'/'六年级'等），
+ * 纯 '小学'/'初中'/'高中' 由 resolveStageKey 主逻辑配 grade/name 处理。无法识别返回 ''。 */
+const resolveLabelKey = (s = '') => {
+  if (/低段|一年级|二年级/.test(s)) return 'primary_low';
+  if (/中段|三年级|四年级/.test(s)) return 'primary_mid';
+  if (/高段|五年级|六年级/.test(s)) return 'primary_high';
+  if (/初中|初[一二三]|七年级|八年级|九年级/.test(s)) return 'middle';
+  if (/高中|高[一二三]/.test(s)) return 'high';
+  return '';
+};
+
+/** 由学段（中文/键）+ 年级（grade 优先，空则回退抓教材名 name），归一为五档学段键（primary_low/mid/high、middle、high）
+ * 🔴 单一事实源：全项目"学段标签→五档键"统一走本函数。现存已支持：
+ *    五档键透传、'小学'+年级(数字/中文/圈码)、教材名带年级、'小学低/中/高段'(含裸低/中/高段)、
+ *    一~六年级、初一~初三、高一~高三、初中/高中。消费端禁止再各自实现标签解析。 */
 export const resolveStageKey = (stage = '', grade = '', name = '') => {
   const map = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
-  const base = map[stage] || stage || '';
-  if (base !== 'primary') return base;
+  const s = String(stage || '').trim();
+  if (STAGE_KEY_SET.has(s)) return s; // 五档键直接透传（存量调用方/已归一值）
+  // 非纯粗学段标签（段位/带年级）→ 按标签直接归一；纯 '小学'/'初中'/'高中' 不在此解析，避免阻断 grade 细分
+  if (s && !map[s]) {
+    const labelKey = resolveLabelKey(s);
+    if (labelKey) return labelKey;
+  }
+  const base = map[s] || s || '';
+  if (!base) return ''; // 空输入 → 空（保留原语义：未识别由调用方兜底）
+  if (base !== 'primary') return base; // 初中→middle、高中→high、或未识别标签原样返回
   let g = extractGradeNum(grade);
   if (!g && name) g = extractGradeFromName(name); // 🔧 教材名通常带年级（如"六年级/⑥年级/六上"），据此兜底，避免误判"无年级"落回低段
-  const key = g > 0 ? (g <= 2 ? 'primary_low' : g <= 4 ? 'primary_mid' : 'primary_high') : '';
-  return key || 'primary_high'; // 末位兜底：教材确无年级信息时按高段宽松处理（不再回落到低段）；前置 name 回退已保证"名校带年级"必能解析
+  if (g > 0) return g <= 2 ? 'primary_low' : g <= 4 ? 'primary_mid' : 'primary_high';
+  return 'primary_high'; // 末位兜底：教材确无年级信息时按高段宽松处理（不再回落到低段）；前置 name 回退已保证"名校带年级"必能解析
 };

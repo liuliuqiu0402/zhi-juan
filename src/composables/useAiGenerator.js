@@ -3004,7 +3004,7 @@ ${(() => {
 - 📝 修辞手法：比喻、拟人、排比、夸张、反问、设问等
 - 📝 标点符号用法与病句修改考点
 - 📝 阅读理解考点：词语理解、句子含义、内容概括、结构分析
-- 📝 写作/口语交际/综合性学习/名著导读要求
+- 📝 写作/口语交际/跨学科学习/名著导读要求
 - 🔒 必须逐条标注，绝不将多个知识点合并为一条（如"生字5个"→必须拆成5条独立知识点）
 ${isLowerGrade ? '- 🔧 低段(1-2)：拼音、笔画笔顺、偏旁部首、看图写话、简单日记\n' : ''}${isMidGrade ? '- 🔧 中段(3-4)：段落大意、习作、简单修辞、观察日记\n' : ''}${isUpperGrade ? '- 🔧 高段(5-6)：文言文入门、说明文阅读、读后感\n' : ''}${isJunior ? '- 🔧 初中：文言文实词虚词、古诗词鉴赏、议论文/说明文阅读\n' : ''}${isSenior ? '- 🔧 高中：文言文特殊句式、诗歌鉴赏手法、论述类/文学类文本阅读\n' : ''}`;
   } else if (isMath) {
@@ -4496,7 +4496,7 @@ ${cardAnalysisText.substring(0, 1000)}
       let coef = (typeof s.custom === 'number' && s.custom > 0) ? s.custom
         : (typeof s[tier] === 'number' ? s[tier] : (typeof s.balanced === 'number' ? s.balanced : 1.0));
       if (!(typeof s.custom === 'number' && s.custom > 0) && (slot === 'body' || slot === 'once')) {
-        const calCoef = getCalibratedCoef(genType, subject, book?.stage, generateMode, tier);
+        const calCoef = getCalibratedCoef(genType, subject, book?.stage, generateMode, tier, book?.grade, book?.name);
         if (typeof calCoef === 'number' && calCoef > 0) coef = calCoef;
       }
       return { coef: coef || 1.0, cap: (typeof s.cap === 'number' && s.cap > 0) ? s.cap : 32768 };
@@ -4832,7 +4832,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     //    只记正文 content（split 不含答案页；once 答案随正文，与 once 预算槽口径一致）；
     //    触顶 cap / 续写截断 的样本在统计侧剔除（预算失效场，不算真实产出率）。
     recordSample({
-      genType, subject, stage: book?.stage, grade: book?.grade, scope: scopeType,
+      genType, subject, stage: book?.stage, grade: book?.grade, name: book?.name, scope: scopeType,
       mode: generateMode, selectedRawChars,
       budgetTokens: bodyDynamicCap, outputChars: content.length,
       truncated: sampleTruncated, overCap: bodyOverCap,

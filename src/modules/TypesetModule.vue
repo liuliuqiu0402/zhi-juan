@@ -4,14 +4,24 @@
       <!-- 左侧：生成记录 + 主题库 -->
       <div class="theme-panel">
         <!-- 🔧 生成记录：直接从 localStorage 读取，点击载入编辑器 -->
-        <div class="gen-records-section" v-if="genRecords.length > 0">
+        <div
+          v-if="genRecords.length > 0"
+          class="gen-records-section"
+        >
           <div class="panel-header">
             <h3>📋 生成记录</h3>
-            <button class="btn-icon" @click="refreshGenRecords" title="刷新">🔄</button>
+            <button
+              class="btn-icon"
+              title="刷新"
+              @click="refreshGenRecords"
+            >
+              🔄
+            </button>
           </div>
           <div class="gen-records-list">
             <div
-              v-for="rec in genRecords" :key="rec.id"
+              v-for="rec in genRecords"
+              :key="rec.id"
               class="gen-record-item"
               @click="loadGenRecord(rec)"
             >
@@ -23,28 +33,64 @@
 
         <div class="panel-header">
           <h3>🎨 排版主题库</h3>
-          <button class="btn-icon" @click="refreshThemes" title="刷新主题">🔄</button>
+          <button
+            class="btn-icon"
+            title="刷新主题"
+            @click="refreshThemes"
+          >
+            🔄
+          </button>
         </div>
 
         <!-- 上传自制Word -->
         <div class="upload-section">
-          <button class="btn btn-full" @click="uploadCustomWord">
+          <button
+            class="btn btn-full"
+            @click="uploadCustomWord"
+          >
             📤 上传自制 Word
           </button>
-          <p class="hint" v-if="customFileName">当前文件: {{ customFileName }}</p>
-          <p class="hint" v-else>支持 .docx 格式</p>
+          <p
+            v-if="customFileName"
+            class="hint"
+          >
+            当前文件: {{ customFileName }}
+          </p>
+          <p
+            v-else
+            class="hint"
+          >
+            支持 .docx 格式
+          </p>
         </div>
 
         <!-- 主题分组选择 -->
         <div class="theme-filter">
-          <select v-model="themeGroupFilter" class="filter-select">
-            <option value="">全部主题</option>
-            <option value="我的样式">我的样式</option>
-            <option value="小学">小学</option>
-            <option value="初中">初中</option>
-            <option value="高中">高中</option>
-            <option value="特殊">特殊</option>
-            <option value="自定义">自定义</option>
+          <select
+            v-model="themeGroupFilter"
+            class="filter-select"
+          >
+            <option value="">
+              全部主题
+            </option>
+            <option value="我的样式">
+              我的样式
+            </option>
+            <option value="小学">
+              小学
+            </option>
+            <option value="初中">
+              初中
+            </option>
+            <option value="高中">
+              高中
+            </option>
+            <option value="特殊">
+              特殊
+            </option>
+            <option value="自定义">
+              自定义
+            </option>
           </select>
         </div>
 
@@ -57,10 +103,16 @@
             @click="selectTheme(null)"
           >
             <div class="theme-preview no-style-preview">
-              <div class="preview-title" style="font-size:14pt;font-weight:normal;color:var(--text-muted);text-align:left;">
+              <div
+                class="preview-title"
+                style="font-size:14pt;font-weight:normal;color:var(--text-muted);text-align:left;"
+              >
                 无应用样式
               </div>
-              <div class="preview-body" style="font-size:12pt;color:var(--text-muted);">
+              <div
+                class="preview-body"
+                style="font-size:12pt;color:var(--text-muted);"
+              >
                 原始内容预览
               </div>
             </div>
@@ -75,14 +127,26 @@
             :class="{ active: selectedThemeId === theme.id }"
             @click="selectTheme(theme.id)"
           >
-            <div class="theme-preview" :style="getThemePreviewStyle(theme)">
-              <div class="preview-title" :style="getPreviewTitleStyle(theme)">
+            <div
+              class="theme-preview"
+              :style="getThemePreviewStyle(theme)"
+            >
+              <div
+                class="preview-title"
+                :style="getPreviewTitleStyle(theme)"
+              >
                 {{ theme.name }}
               </div>
-              <div class="preview-body" :style="getPreviewBodyStyle(theme)">
+              <div
+                class="preview-body"
+                :style="getPreviewBodyStyle(theme)"
+              >
                 正文预览样式
               </div>
-              <div class="preview-table" :style="getPreviewTableStyle(theme)">
+              <div
+                class="preview-table"
+                :style="getPreviewTableStyle(theme)"
+              >
                 <div style="display: flex;">
                   <span style="flex:1; padding:4px;">表头1</span>
                   <span style="flex:1; padding:4px;">表头2</span>
@@ -95,59 +159,139 @@
             </div>
             <div class="theme-info">
               <span class="theme-name">{{ theme.name }}</span>
-              <span class="theme-badge" v-if="theme.type === 'custom'">自定义</span>
+              <span
+                v-if="theme.type === 'custom'"
+                class="theme-badge"
+              >自定义</span>
             </div>
           </div>
         </div>
 
         <!-- 主题操作 -->
         <div class="theme-actions">
-          <button class="btn" @click="openCustomThemeEditor">➕ 自定义主题</button>
-          <button class="btn" v-if="selectedTheme?.type === 'custom'" @click="editCustomTheme">✏️ 编辑</button>
-          <button class="btn btn-danger" v-if="selectedTheme?.type === 'custom'" @click="deleteCustomThemeHandler">🗑️ 删除</button>
+          <button
+            class="btn"
+            @click="openCustomThemeEditor"
+          >
+            ➕ 自定义主题
+          </button>
+          <button
+            v-if="selectedTheme?.type === 'custom'"
+            class="btn"
+            @click="editCustomTheme"
+          >
+            ✏️ 编辑
+          </button>
+          <button
+            v-if="selectedTheme?.type === 'custom'"
+            class="btn btn-danger"
+            @click="deleteCustomThemeHandler"
+          >
+            🗑️ 删除
+          </button>
         </div>
       </div>
 
       <!-- 中间：内容编辑区 -->
       <div class="editor-panel">
         <!-- 🔧 主题 CSS 注入（contentEditable 用，不可 scoped） -->
-        <component :is="'style'" v-if="themeCSS">{{ themeCSS }}</component>
+        <component
+          :is="'style'"
+          v-if="themeCSS"
+        >
+          {{ themeCSS }}
+        </component>
         <div class="panel-header">
           <h3>✏️ 内容编辑</h3>
           <div class="editor-actions">
-            <button class="btn" @click="clearContent">清空</button>
-            <button class="btn" @click="pasteFromClipboard">📋 粘贴</button>
-            <button v-if="isHtmlContent" class="btn" :class="{ 'btn-active': showSource }" @click="toggleSource" :title="showSource ? '切换视觉编辑' : '查看HTML源码'">
+            <button
+              class="btn"
+              @click="clearContent"
+            >
+              清空
+            </button>
+            <button
+              class="btn"
+              @click="pasteFromClipboard"
+            >
+              📋 粘贴
+            </button>
+            <button
+              v-if="isHtmlContent"
+              class="btn"
+              :class="{ 'btn-active': showSource }"
+              :title="showSource ? '切换视觉编辑' : '查看HTML源码'"
+              @click="toggleSource"
+            >
               {{ showSource ? '🎨 渲染' : '<> 源码' }}
             </button>
-            <select v-model="exportFormat" class="export-select">
-              <option value="docx">📘 Word</option>
-              <option value="pdf">📕 PDF</option>
-              <option value="html">🌐 HTML</option>
+            <select
+              v-model="exportFormat"
+              class="export-select"
+            >
+              <option value="docx">
+                📘 Word
+              </option>
+              <option value="pdf">
+                📕 PDF
+              </option>
+              <option value="html">
+                🌐 HTML
+              </option>
             </select>
             <!-- 🔧 纸张版式（2026-08）：A4 单栏 / A3 两栏三栏（高考卷）/ 8K 两栏三栏（地方统考）/ 4K 四栏（大型考试大试卷） -->
-            <select v-if="exportFormat === 'docx'" v-model="paperLayout" class="export-select" title="纸张版式">
-              <option v-for="(p, key) in paperPresets" :key="key" :value="key">{{ p.label }}</option>
+            <select
+              v-if="exportFormat === 'docx'"
+              v-model="paperLayout"
+              class="export-select"
+              title="纸张版式"
+            >
+              <option
+                v-for="(p, key) in paperPresets"
+                :key="key"
+                :value="key"
+              >
+                {{ p.label }}
+              </option>
             </select>
             <!-- 🔧 卷型选择（2026-08）：密封线卷（默认，含密封线+考生信息栏）/ 普通卷（无密封线） -->
-            <select v-if="exportFormat === 'docx'" v-model="sealVariant" class="export-select" title="卷型">
-              <option value="sealed">密封线卷</option>
-              <option value="plain">普通卷</option>
+            <select
+              v-if="exportFormat === 'docx'"
+              v-model="sealVariant"
+              class="export-select"
+              title="卷型"
+            >
+              <option value="sealed">
+                密封线卷
+              </option>
+              <option value="plain">
+                普通卷
+              </option>
             </select>
-            <button class="btn-primary" @click="exportDocument" :disabled="isExporting">
+            <button
+              class="btn-primary"
+              :disabled="isExporting"
+              @click="exportDocument"
+            >
               {{ isExporting ? '导出中...' : '📥 导出' }}
             </button>
           </div>
         </div>
         
         <!-- 🔧 A4 纸张预览区（单一编辑视图：所见即所得 = 预览效果，含密封线/注意事项/得分表） -->
-        <div v-if="isHtmlContent && !showSource" class="paper-preview-area">
-          <div class="paper-page" :style="zwgCssVars">
+        <div
+          v-if="isHtmlContent && !showSource"
+          class="paper-preview-area"
+        >
+          <div
+            class="paper-page"
+            :style="zwgCssVars"
+          >
             <RichTextEditor
               ref="contentEditor"
               v-model="rawHtmlContent"
-              :customCSS="themeCSS || ''"
-              :minHeight="'auto'"
+              :custom-c-s-s="themeCSS || ''"
+              :min-height="'auto'"
               @content-change="onRichEditorChange"
             />
           </div>
@@ -158,12 +302,11 @@
           class="content-textarea source-view"
           style="min-height: calc(100vh - 420px); font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; white-space: pre-wrap;"
           placeholder="HTML 源码..."
-        ></textarea>
+        />
         <textarea
           v-else-if="!isHtmlContent"
           ref="contentEditor"
           v-model="currentContent"
-          @paste="onTextareaPaste"
           placeholder="在此粘贴或编辑你的教辅内容...
           
 支持 Markdown 基础语法：
@@ -179,72 +322,125 @@
 - 从生成模块跳转过来的内容会自动填充
 - 点击「智能识别」可自动识别标题层级"
           class="content-textarea"
-        ></textarea>
+          @paste="onTextareaPaste"
+        />
         
-        <p class="hint" v-if="!isHtmlContent">
+        <p
+          v-if="!isHtmlContent"
+          class="hint"
+        >
           💡 从生成模块跳转过来的内容会自动填充到这里。支持 Markdown 语法。
         </p>
-        <p class="hint" v-else>
+        <p
+          v-else
+          class="hint"
+        >
           💡 HTML 原样编辑模式：切换左侧主题可预览效果，导出为 Word/PDF 时自动应用主题。
         </p>
       </div>
     </div>
 
     <!-- 自定义主题编辑弹窗 -->
-    <div v-if="showThemeEditor" class="modal-mask">
+    <div
+      v-if="showThemeEditor"
+      class="modal-mask"
+    >
       <div class="modal large-modal">
         <h3>{{ editingTheme ? '✏️ 编辑主题' : '➕ 新建主题' }}</h3>
         
         <div class="form-group">
           <label>主题名称</label>
-          <input type="text" v-model="themeForm.name" placeholder="例如：我的精品样式" />
+          <input
+            v-model="themeForm.name"
+            type="text"
+            placeholder="例如：我的精品样式"
+          >
         </div>
         
         <div class="form-group">
           <label>描述</label>
-          <input type="text" v-model="themeForm.description" placeholder="简要描述这个主题" />
+          <input
+            v-model="themeForm.description"
+            type="text"
+            placeholder="简要描述这个主题"
+          >
         </div>
         
         <div class="form-row">
           <div class="form-group">
             <label>学段</label>
             <select v-model="themeForm.stage">
-              <option value="primary">小学</option>
-              <option value="middle">初中</option>
-              <option value="high">高中</option>
+              <option value="primary">
+                小学
+              </option>
+              <option value="middle">
+                初中
+              </option>
+              <option value="high">
+                高中
+              </option>
             </select>
           </div>
           <div class="form-group">
             <label>类型</label>
             <select v-model="themeForm.category">
-              <option value="exam">试卷</option>
-              <option value="practice">课时练</option>
-              <option value="summary">知识点总结</option>
-              <option value="plan">教案</option>
+              <option value="exam">
+                试卷
+              </option>
+              <option value="practice">
+                课时练
+              </option>
+              <option value="summary">
+                知识点总结
+              </option>
+              <option value="plan">
+                教案
+              </option>
             </select>
           </div>
           <div class="form-group">
             <label>颜色主题</label>
             <select v-model="themeForm.colorTheme">
-              <option value="original">蓝色系（原始）</option>
-              <option value="warm">暖色系</option>
-              <option value="fresh">清新系</option>
-              <option value="academic">学术系</option>
+              <option value="original">
+                蓝色系（原始）
+              </option>
+              <option value="warm">
+                暖色系
+              </option>
+              <option value="fresh">
+                清新系
+              </option>
+              <option value="academic">
+                学术系
+              </option>
             </select>
           </div>
         </div>
         
         <div class="modal-actions">
-          <button class="btn" @click="closeThemeEditor">取消</button>
-          <button class="btn-primary" @click="saveCustomTheme">保存主题</button>
+          <button
+            class="btn"
+            @click="closeThemeEditor"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="saveCustomTheme"
+          >
+            保存主题
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 导出进度提示 -->
-    <div v-if="isExporting" class="loading-mask">
+    <div
+      v-if="isExporting"
+      class="loading-mask"
+    >
       <div class="loading-content">
-        <div class="spinner"></div>
+        <div class="spinner" />
         <p>{{ exportStatus }}</p>
       </div>
     </div>

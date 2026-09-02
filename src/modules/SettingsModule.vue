@@ -2,7 +2,12 @@
   <div class="embedded-page">
     <div class="page-header">
       <h2>⚙️ 系统设置</h2>
-      <button class="btn-primary" @click="saveSettings">保存设置</button>
+      <button
+        class="btn-primary"
+        @click="saveSettings"
+      >
+        保存设置
+      </button>
     </div>
     <div class="settings-content">
       <!-- 激活信息 -->
@@ -20,12 +25,28 @@
           <span>到期时间：</span>
           <span class="info-value">{{ expireDateLabel }}</span>
         </div>
-        <div class="info-row" v-if="remainingDays !== null">
+        <div
+          v-if="remainingDays !== null"
+          class="info-row"
+        >
           <span>剩余天数：</span>
-          <span class="info-value" :style="{ color: remainingDays <= 7 ? 'var(--danger)' : 'var(--success)' }">{{ remainingDays }} 天</span>
+          <span
+            class="info-value"
+            :style="{ color: remainingDays <= 7 ? 'var(--danger)' : 'var(--success)' }"
+          >{{ remainingDays }} 天</span>
         </div>
-        <button class="btn" @click="handleChangeActivation">🔄 更换激活码</button>
-        <p class="hint" style="margin-top: 12px;">如需购买或续费，请联系客服</p>
+        <button
+          class="btn"
+          @click="handleChangeActivation"
+        >
+          🔄 更换激活码
+        </button>
+        <p
+          class="hint"
+          style="margin-top: 12px;"
+        >
+          如需购买或续费，请联系客服
+        </p>
       </div>
 
       <!-- 🔑 同步密钥 -->
@@ -35,13 +56,13 @@
           多设备间共享数据的唯一凭证。请在各设备上输入相同的密钥。留空则不同步。
         </p>
         <input
-          type="text"
           v-model="syncKeyInput"
+          type="text"
           placeholder="输入4位同步密钥"
           maxlength="16"
           style="font-family: monospace; letter-spacing: 2px; text-transform: uppercase;"
           @change="onSyncKeyChange"
-        />
+        >
       </div>
 
       <!-- 🔧 本设备标识 -->
@@ -54,12 +75,12 @@
           <span>设备名称：</span>
           <input
             v-model="deviceNameInput"
-            @blur="onDeviceNameChange"
-            @keyup.enter="onDeviceNameEnter"
             class="device-name-input"
             placeholder="输入设备名称"
             maxlength="30"
-          />
+            @blur="onDeviceNameChange"
+            @keyup.enter="onDeviceNameEnter"
+          >
         </div>
       </div>
 
@@ -70,15 +91,29 @@
           查看并管理已同步到云端的设备。移除操作仅删除云端的设备数据，不影响其他设备和本机。
         </p>
         <div style="display:flex;gap:8px;margin-bottom:12px;">
-          <button class="btn-small" @click="loadCloudDevices" :disabled="cloudDevicesLoading">
+          <button
+            class="btn-small"
+            :disabled="cloudDevicesLoading"
+            @click="loadCloudDevices"
+          >
             {{ cloudDevicesLoading ? '⏳ 加载中…' : '🔄 加载设备列表' }}
           </button>
         </div>
-        <div v-if="cloudDevices.length > 0" class="cloud-device-list">
-          <div v-for="dev in cloudDevices" :key="dev.deviceId" class="cloud-device-row">
+        <div
+          v-if="cloudDevices.length > 0"
+          class="cloud-device-list"
+        >
+          <div
+            v-for="dev in cloudDevices"
+            :key="dev.deviceId"
+            class="cloud-device-row"
+          >
             <div class="cloud-device-info">
               <span class="cloud-device-name">{{ dev.label }}</span>
-              <span v-if="dev.isSelf" class="cloud-device-self">（本机）</span>
+              <span
+                v-if="dev.isSelf"
+                class="cloud-device-self"
+              >（本机）</span>
               <span class="cloud-device-stats">
                 历史 {{ dev.histCount }} 条
                 <span v-if="dev.genCount > 0"> · 生成 {{ dev.genCount }} 条</span>
@@ -87,20 +122,26 @@
             <button
               v-if="!dev.isSelf"
               class="btn-small btn-danger-outline"
-              @click="confirmRemoveDevice(dev)"
               :disabled="removingDeviceId === dev.deviceId"
+              @click="confirmRemoveDevice(dev)"
             >
               {{ removingDeviceId === dev.deviceId ? '⏳ 移除中…' : '🗑️ 移除' }}
             </button>
           </div>
         </div>
-        <div v-else-if="!cloudDevicesLoading && cloudDevicesFetched" style="font-size:13px;color:var(--text-muted);padding:8px 0;">
+        <div
+          v-else-if="!cloudDevicesLoading && cloudDevicesFetched"
+          style="font-size:13px;color:var(--text-muted);padding:8px 0;"
+        >
           暂无云端设备数据，或尚未配置同步密钥。
         </div>
       </div>
 
       <!-- 📱 iOS 签名倒计时（仅手机端显示） -->
-      <div class="settings-section" v-if="isCapacitorIOS">
+      <div
+        v-if="isCapacitorIOS"
+        class="settings-section"
+      >
         <h3>📱 签名倒计时</h3>
         <template v-if="signInfo.found">
           <div class="info-row">
@@ -109,14 +150,24 @@
           </div>
           <div class="info-row">
             <span>剩余时间：</span>
-            <span class="info-value" :style="{ color: signDaysInfo.color, fontWeight: signDaysInfo.warning ? 'bold' : 'normal' }">
+            <span
+              class="info-value"
+              :style="{ color: signDaysInfo.color, fontWeight: signDaysInfo.warning ? 'bold' : 'normal' }"
+            >
               {{ signDaysInfo.text }}
             </span>
           </div>
-          <div v-if="signDaysInfo.warning" style="margin-top:8px;padding:8px 12px;background:#fff5f5;border:1px solid #feb2b2;border-radius:8px;font-size:12px;color:#c53030;">
+          <div
+            v-if="signDaysInfo.warning"
+            style="margin-top:8px;padding:8px 12px;background:#fff5f5;border:1px solid #feb2b2;border-radius:8px;font-size:12px;color:#c53030;"
+          >
             ⚠️ 签名即将到期！请在电脑上打开爱思助手 → 连接手机 → 重新签名安装。
           </div>
-          <button class="btn" @click="handleResetCountdown" style="margin-top:8px;">
+          <button
+            class="btn"
+            style="margin-top:8px;"
+            @click="handleResetCountdown"
+          >
             🔄 已续签，重置倒计时
           </button>
           <p style="font-size:11px;color:#999;margin-top:4px;">
@@ -130,172 +181,389 @@
         <h3>🤖 AI 引擎</h3>
         <label>选择引擎</label>
         <select v-model="settings.currentEngine">
-          <option value="ollama">🦙 Ollama 本地 —— 免费 · 需自备硬件（≥16GB显存）</option>
-          <option value="deepseek">🌐 DeepSeek —— 💰低 · 推荐 · ¥2.02/百万输出 · 峰谷价</option>
-          <option value="volcano">🔥 火山引擎 —— 💰免费额度大 · 每日200万Token · 超出¥0.1起</option>
-          <option value="alibaba">☁️ 阿里百炼 —— 💰中 · ¥12/百万输出起 · 新用户送7000万</option>
-          <option value="zhipu">🧠 智谱 GLM —— 💰高 · ¥28/百万输出 · ⚠️强制推理</option>
+          <option value="ollama">
+            🦙 Ollama 本地 —— 免费 · 需自备硬件（≥16GB显存）
+          </option>
+          <option value="deepseek">
+            🌐 DeepSeek —— 💰低 · 推荐 · ¥2.02/百万输出 · 峰谷价
+          </option>
+          <option value="volcano">
+            🔥 火山引擎 —— 💰免费额度大 · 每日200万Token · 超出¥0.1起
+          </option>
+          <option value="alibaba">
+            ☁️ 阿里百炼 —— 💰中 · ¥12/百万输出起 · 新用户送7000万
+          </option>
+          <option value="zhipu">
+            🧠 智谱 GLM —— 💰高 · ¥28/百万输出 · ⚠️强制推理
+          </option>
         </select>
         <p style="font-size:11px;color:#888;margin-top:6px;">
-          💡 费用档位：Ollama 免费（只要硬件）＜ DeepSeek 最低 ≈ 火山（免费额度大）＜ 阿里 ＜ 智谱（强制推理最贵）。<br/>
+          💡 费用档位：Ollama 免费（只要硬件）＜ DeepSeek 最低 ≈ 火山（免费额度大）＜ 阿里 ＜ 智谱（强制推理最贵）。<br>
           切换引擎无需重新填写 API Key。选择哪个引擎就用哪个引擎工作。错误会直接提示，不会自动切换。
         </p>
 
         <label style="margin-top:14px;">📋 分析/提取引擎（可选）</label>
         <select v-model="settings.analysisEngine">
-          <option value="">跟随主引擎（推荐）</option>
-          <option value="ollama">🦙 Ollama 本地（免费·分析提取用轻量模型）</option>
-          <option value="deepseek">🌐 DeepSeek（Pro 分析最强）</option>
-          <option value="volcano">🔥 火山引擎（豆包）</option>
-          <option value="alibaba">☁️ 阿里百炼（通义千问）</option>
-          <option value="zhipu">🧠 智谱 GLM</option>
+          <option value="">
+            跟随主引擎（推荐）
+          </option>
+          <option value="ollama">
+            🦙 Ollama 本地（免费·分析提取用轻量模型）
+          </option>
+          <option value="deepseek">
+            🌐 DeepSeek（Pro 分析最强）
+          </option>
+          <option value="volcano">
+            🔥 火山引擎（豆包）
+          </option>
+          <option value="alibaba">
+            ☁️ 阿里百炼（通义千问）
+          </option>
+          <option value="zhipu">
+            🧠 智谱 GLM
+          </option>
         </select>
-        <p class="model-hint">💡 单独指定分析/提取（教材解读、知识点分析）用的引擎，生成/蓝图仍走上方主引擎。<br/>
-          例：主引擎 DeepSeek 生成 + 分析提取用本地 Ollama（免费），需在 Ollama 区把"分析提取模型"设为 glm4:9b 等 8GB 可跑的模型。</p>
+        <p class="model-hint">
+          💡 单独指定分析/提取（教材解读、知识点分析）用的引擎，生成/蓝图仍走上方主引擎。<br>
+          例：主引擎 DeepSeek 生成 + 分析提取用本地 Ollama（免费），需在 Ollama 区把"分析提取模型"设为 glm4:9b 等 8GB 可跑的模型。
+        </p>
       </div>
 
       <!-- 🦙 Ollama 配置 -->
-      <div v-if="settings.currentEngine === 'ollama'" class="settings-section">
+      <div
+        v-if="settings.currentEngine === 'ollama'"
+        class="settings-section"
+      >
         <h3>🦙 Ollama 配置（文本任务）</h3>
         <label>服务地址</label>
-        <input type="text" v-model="settings.ollamaBaseUrl" placeholder="http://localhost:11434" />
+        <input
+          v-model="settings.ollamaBaseUrl"
+          type="text"
+          placeholder="http://localhost:11434"
+        >
 
         <label>重型模型（命题生成、蓝图规划）</label>
         <select v-model="settings.ollamaTextModel">
-          <option v-for="m in availableTextModels" :key="m" :value="m">{{ formatModelName(m) }}</option>
+          <option
+            v-for="m in availableTextModels"
+            :key="m"
+            :value="m"
+          >
+            {{ formatModelName(m) }}
+          </option>
         </select>
-        <p class="model-hint">💡 14B 重型模型需 16GB+ 显存：当前配置不够可先选 8B/9B，电脑升级后再切回 14B 命题质量最高（推理已关闭，选大模型只为生成质量）</p>
+        <p class="model-hint">
+          💡 14B 重型模型需 16GB+ 显存：当前配置不够可先选 8B/9B，电脑升级后再切回 14B 命题质量最高（推理已关闭，选大模型只为生成质量）
+        </p>
 
         <label>轻量模型（分析、提取、格式化）</label>
         <select v-model="settings.ollamaLightModel">
-          <option v-for="m in availableTextModels" :key="'light_' + m" :value="m">{{ formatModelName(m) }}</option>
+          <option
+            v-for="m in availableTextModels"
+            :key="'light_' + m"
+            :value="m"
+          >
+            {{ formatModelName(m) }}
+          </option>
         </select>
-        <p class="model-hint">💡 glm4:9b→分析提取精准 | qwen2.5:7b→轻快省显存</p>
+        <p class="model-hint">
+          💡 glm4:9b→分析提取精准 | qwen2.5:7b→轻快省显存
+        </p>
 
         <label>📝 题目生成模型（可选）</label>
         <select v-model="settings.ollamaQuestionGenModel">
-          <option value="">跟随重型模型</option>
-          <option v-for="m in availableTextModels" :key="'qgen_' + m" :value="m">{{ formatModelName(m) }}</option>
+          <option value="">
+            跟随重型模型
+          </option>
+          <option
+            v-for="m in availableTextModels"
+            :key="'qgen_' + m"
+            :value="m"
+          >
+            {{ formatModelName(m) }}
+          </option>
         </select>
-        <p class="model-hint">💡 deepseek-r1:14b→命题最准（需16GB+显存）| 留空=跟随重型模型</p>
+        <p class="model-hint">
+          💡 deepseek-r1:14b→命题最准（需16GB+显存）| 留空=跟随重型模型
+        </p>
 
         <label>📊 质量审查模型（可选）</label>
         <select v-model="settings.ollamaReviewModel">
-          <option value="">跟随重型模型</option>
-          <option v-for="m in availableTextModels" :key="'rev_' + m" :value="m">{{ formatModelName(m) }}</option>
+          <option value="">
+            跟随重型模型
+          </option>
+          <option
+            v-for="m in availableTextModels"
+            :key="'rev_' + m"
+            :value="m"
+          >
+            {{ formatModelName(m) }}
+          </option>
         </select>
-        <p class="model-hint">💡 deepseek-r1:8b 或 glm4:9b→审查更稳 | 留空=跟随重型模型</p>
+        <p class="model-hint">
+          💡 deepseek-r1:8b 或 glm4:9b→审查更稳 | 留空=跟随重型模型
+        </p>
 
         <label>📋 分析提取模型（可选）</label>
         <select v-model="settings.ollamaAnalysisModel">
-          <option value="">跟随重型模型</option>
-          <option v-for="m in availableTextModels" :key="'ana_' + m" :value="m">{{ formatModelName(m) }}</option>
+          <option value="">
+            跟随重型模型
+          </option>
+          <option
+            v-for="m in availableTextModels"
+            :key="'ana_' + m"
+            :value="m"
+          >
+            {{ formatModelName(m) }}
+          </option>
         </select>
-        <p class="model-hint">💡 glm4:9b→结构化分析精准 | qwen2.5:7b→轻量快速 | 留空=跟随重型模型</p>
+        <p class="model-hint">
+          💡 glm4:9b→结构化分析精准 | qwen2.5:7b→轻量快速 | 留空=跟随重型模型
+        </p>
 
-        <button class="btn-small" @click="refreshModels">🔄 刷新模型列表</button>
-        <div v-if="saveStatus" class="model-hint" style="margin-top:8px;color:var(--primary-light);">
+        <button
+          class="btn-small"
+          @click="refreshModels"
+        >
+          🔄 刷新模型列表
+        </button>
+        <div
+          v-if="saveStatus"
+          class="model-hint"
+          style="margin-top:8px;color:var(--primary-light);"
+        >
           {{ saveStatus }}
         </div>
       </div>
 
       <!-- 🌐 DeepSeek 配置 -->
-      <div v-if="settings.currentEngine === 'deepseek'" class="settings-section">
+      <div
+        v-if="settings.currentEngine === 'deepseek'"
+        class="settings-section"
+      >
         <h3>🌐 DeepSeek 配置</h3>
         <p style="font-size:12px;color:#666;margin-bottom:4px;">
           💰 费用低 · 推荐首选：输入 ¥1.01/百万 · 输出 ¥2.02/百万 · 缓存命中 ¥0.02/百万 · 高峰(9-12/14-18工作日)×2
         </p>
-        <p class="model-hint">👍 性价比最优：生成用 Flash（快且便宜）、分析用 Pro（精准）· 推理已默认关闭</p>
+        <p class="model-hint">
+          👍 性价比最优：生成用 Flash（快且便宜）、分析用 Pro（精准）· 推理已默认关闭
+        </p>
         <label>API Key</label>
-        <input type="password" v-model="settings.deepseekApiKey" placeholder="sk-..." />
-        <input type="text" v-model="settings.deepseekBaseUrl" placeholder="https://api.deepseek.com/v1" />
+        <input
+          v-model="settings.deepseekApiKey"
+          type="password"
+          placeholder="sk-..."
+        >
+        <input
+          v-model="settings.deepseekBaseUrl"
+          type="text"
+          placeholder="https://api.deepseek.com/v1"
+        >
 
         <!-- 🔧 成本预设按钮 -->
         <div style="display:flex;gap:6px;margin:10px 0;flex-wrap:wrap;">
-          <button @click="applyModelPreset('economy')" style="padding:5px 10px;font-size:12px;border:1px solid #4caf50;border-radius:4px;background:#e8f5e9;cursor:pointer;">💰 经济模式</button>
-          <button @click="applyModelPreset('balanced')" style="padding:5px 10px;font-size:12px;border:1px solid #2196f3;border-radius:4px;background:#e3f2fd;cursor:pointer;">⚖️ 均衡模式（推荐）</button>
-          <button @click="applyModelPreset('flagship')" style="padding:5px 10px;font-size:12px;border:1px solid #ff9800;border-radius:4px;background:#fff3e0;cursor:pointer;">👑 旗舰模式</button>
+          <button
+            style="padding:5px 10px;font-size:12px;border:1px solid #4caf50;border-radius:4px;background:#e8f5e9;cursor:pointer;"
+            @click="applyModelPreset('economy')"
+          >
+            💰 经济模式
+          </button>
+          <button
+            style="padding:5px 10px;font-size:12px;border:1px solid #2196f3;border-radius:4px;background:#e3f2fd;cursor:pointer;"
+            @click="applyModelPreset('balanced')"
+          >
+            ⚖️ 均衡模式（推荐）
+          </button>
+          <button
+            style="padding:5px 10px;font-size:12px;border:1px solid #ff9800;border-radius:4px;background:#fff3e0;cursor:pointer;"
+            @click="applyModelPreset('flagship')"
+          >
+            👑 旗舰模式
+          </button>
         </div>
-        <p style="font-size:11px;color:#888;margin:0 0 8px;">💡 一键为下方生成/分析模型选择合适的档位组合：经济=最便宜·最快，均衡=性价比平衡（推荐），旗舰=质量优先。点击后请点顶部「保存设置」生效。</p>
+        <p style="font-size:11px;color:#888;margin:0 0 8px;">
+          💡 一键为下方生成/分析模型选择合适的档位组合：经济=最便宜·最快，均衡=性价比平衡（推荐），旗舰=质量优先。点击后请点顶部「保存设置」生效。
+        </p>
 
         <label>📝 资料生成模型（generation/blueprint）</label>
         <select v-model="settings.deepseekGenerationModel">
-          <option v-for="m in deepseekModelOptions" :key="'dsg_' + m" :value="m">{{ formatDeepSeekModel(m) }}</option>
+          <option
+            v-for="m in deepseekModelOptions"
+            :key="'dsg_' + m"
+            :value="m"
+          >
+            {{ formatDeepSeekModel(m) }}
+          </option>
         </select>
         <label>📋 教材分析模型（analysis/extraction · 决策性步骤）</label>
         <select v-model="settings.deepseekAnalysisModel">
-          <option v-for="m in deepseekModelOptions" :key="'dsa_' + m" :value="m">{{ formatDeepSeekModel(m) }}</option>
+          <option
+            v-for="m in deepseekModelOptions"
+            :key="'dsa_' + m"
+            :value="m"
+          >
+            {{ formatDeepSeekModel(m) }}
+          </option>
         </select>
       </div>
 
       <!-- 🔥 火山引擎（豆包）配置 -->
-      <div v-if="settings.currentEngine === 'volcano'" class="settings-section">
+      <div
+        v-if="settings.currentEngine === 'volcano'"
+        class="settings-section"
+      >
         <h3>🔥 火山引擎（豆包）</h3>
         <p style="font-size:12px;color:#666;margin-bottom:4px;">
           💰 每日免费200万Token · 无峰谷定价 · 国产中文能力第一 · 深度思考默认关闭（可在下方「整卷生成深度思考」按引擎开启）
         </p>
-        <p class="model-hint">👍 免费额度大：小量试用/白嫖首选，超额度后 doubao-seed-2-1-turbo 约 ¥3/百万输入</p>
+        <p class="model-hint">
+          👍 免费额度大：小量试用/白嫖首选，超额度后 doubao-seed-2-1-turbo 约 ¥3/百万输入
+        </p>
         <label>API Key</label>
-        <input type="password" v-model="settings.volcanoApiKey" placeholder="火山引擎 API Key" />
-        <input type="text" v-model="settings.volcanoBaseUrl" placeholder="https://ark.cn-beijing.volces.com/api/v3" />
+        <input
+          v-model="settings.volcanoApiKey"
+          type="password"
+          placeholder="火山引擎 API Key"
+        >
+        <input
+          v-model="settings.volcanoBaseUrl"
+          type="text"
+          placeholder="https://ark.cn-beijing.volces.com/api/v3"
+        >
         <label>📝 资料生成模型</label>
-        <input type="text" v-model="settings.volcanoGenerationModel" placeholder="doubao-seed-2-1-turbo-260628" />
+        <input
+          v-model="settings.volcanoGenerationModel"
+          type="text"
+          placeholder="doubao-seed-2-1-turbo-260628"
+        >
         <label>📋 教材分析模型</label>
-        <input type="text" v-model="settings.volcanoAnalysisModel" placeholder="doubao-seed-2-1-pro-260628" />
+        <input
+          v-model="settings.volcanoAnalysisModel"
+          type="text"
+          placeholder="doubao-seed-2-1-pro-260628"
+        >
       </div>
 
       <!-- ☁️ 阿里百炼（通义千问）配置 -->
-      <div v-if="settings.currentEngine === 'alibaba'" class="settings-section">
+      <div
+        v-if="settings.currentEngine === 'alibaba'"
+        class="settings-section"
+      >
         <h3>☁️ 阿里百炼（通义千问）</h3>
         <p style="font-size:12px;color:#666;margin-bottom:4px;">
           💰 费用中：qwen3.8-27b ¥3/百万输入·¥12/百万输出（生成性价比） · qwen3.8-max ¥12/百万输入·¥36/百万输出（中文综合第一）
         </p>
-        <p class="model-hint">👍 中档选择：生成用 27b 性价比好、分析用 max 质量高 · 新用户送7000万Token · 推理已默认关闭</p>
+        <p class="model-hint">
+          👍 中档选择：生成用 27b 性价比好、分析用 max 质量高 · 新用户送7000万Token · 推理已默认关闭
+        </p>
         <label>API Key</label>
-        <input type="password" v-model="settings.alibabaApiKey" placeholder="sk-..." />
-        <input type="text" v-model="settings.alibabaBaseUrl" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+        <input
+          v-model="settings.alibabaApiKey"
+          type="password"
+          placeholder="sk-..."
+        >
+        <input
+          v-model="settings.alibabaBaseUrl"
+          type="text"
+          placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
+        >
         <label>📝 资料生成模型</label>
-        <input type="text" v-model="settings.alibabaGenerationModel" placeholder="qwen3.8-27b" />
+        <input
+          v-model="settings.alibabaGenerationModel"
+          type="text"
+          placeholder="qwen3.8-27b"
+        >
         <label>📋 教材分析模型</label>
-        <input type="text" v-model="settings.alibabaAnalysisModel" placeholder="qwen3.8-max" />
+        <input
+          v-model="settings.alibabaAnalysisModel"
+          type="text"
+          placeholder="qwen3.8-max"
+        >
       </div>
 
       <!-- 🧠 智谱 GLM 配置 -->
-      <div v-if="settings.currentEngine === 'zhipu'" class="settings-section">
+      <div
+        v-if="settings.currentEngine === 'zhipu'"
+        class="settings-section"
+      >
         <h3>🧠 智谱 GLM</h3>
         <p style="font-size:12px;color:#666;margin-bottom:4px;">
           💰 费用高：glm-5.3 最新旗舰（2026-08）· 输入¥8/百万 · 输出¥28/百万 · ⚠️ 强制开启推理（不可关闭，成本较高）
         </p>
-        <p class="model-hint">⚠️ 性价比最低：强制推理 token 按输出价计费，仅当需要顶级质量且不在乎成本时选用</p>
+        <p class="model-hint">
+          ⚠️ 性价比最低：强制推理 token 按输出价计费，仅当需要顶级质量且不在乎成本时选用
+        </p>
         <label>API Key</label>
-        <input type="password" v-model="settings.zhipuApiKey" placeholder="智谱 API Key" />
-        <input type="text" v-model="settings.zhipuBaseUrl" placeholder="https://open.bigmodel.cn/api/paas/v4" />
+        <input
+          v-model="settings.zhipuApiKey"
+          type="password"
+          placeholder="智谱 API Key"
+        >
+        <input
+          v-model="settings.zhipuBaseUrl"
+          type="text"
+          placeholder="https://open.bigmodel.cn/api/paas/v4"
+        >
         <label>📝 资料生成模型</label>
-        <input type="text" v-model="settings.zhipuGenerationModel" placeholder="glm-5.3" />
+        <input
+          v-model="settings.zhipuGenerationModel"
+          type="text"
+          placeholder="glm-5.3"
+        >
         <label>📋 教材分析模型</label>
-        <input type="text" v-model="settings.zhipuAnalysisModel" placeholder="glm-5.3" />
+        <input
+          v-model="settings.zhipuAnalysisModel"
+          type="text"
+          placeholder="glm-5.3"
+        >
       </div>
 
       <!-- 📖 API 申请指南 -->
       <div class="settings-section">
-        <h3>📖 API 申请指南 <button class="btn-small" @click="showGuide = !showGuide" style="margin-left:8px;">{{ showGuide ? '收起' : '展开' }}</button></h3>
-        <div v-if="showGuide" class="api-guide">
+        <h3>
+          📖 API 申请指南 <button
+            class="btn-small"
+            style="margin-left:8px;"
+            @click="showGuide = !showGuide"
+          >
+            {{ showGuide ? '收起' : '展开' }}
+          </button>
+        </h3>
+        <div
+          v-if="showGuide"
+          class="api-guide"
+        >
           <div class="guide-item">
             <strong>🔥 火山引擎（豆包）</strong>
-            <p>1. 访问 <a href="https://console.volcengine.com/ark" target="_blank">火山引擎 Ark 控制台</a></p>
+            <p>
+              1. 访问 <a
+                href="https://console.volcengine.com/ark"
+                target="_blank"
+              >火山引擎 Ark 控制台</a>
+            </p>
             <p>2. 注册/登录 → 开通模型推理服务 → 创建 API Key</p>
             <p>3. 在"推理接入点"创建 endpoint，选择 doubao-seed-2-1 系列模型</p>
             <p>4. 每日免费 200万 Token，自动刷新</p>
           </div>
           <div class="guide-item">
             <strong>☁️ 阿里百炼（通义千问）</strong>
-            <p>1. 访问 <a href="https://bailian.console.aliyun.com" target="_blank">阿里百炼控制台</a></p>
+            <p>
+              1. 访问 <a
+                href="https://bailian.console.aliyun.com"
+                target="_blank"
+              >阿里百炼控制台</a>
+            </p>
             <p>2. 注册/登录 → 开通百炼服务 → 创建 API Key</p>
             <p>3. 新用户送 7000万 Token，qwen3.8-27b 生成性价比高（¥3/百万输入）</p>
           </div>
           <div class="guide-item">
             <strong>🧠 智谱 GLM</strong>
-            <p>1. 访问 <a href="https://open.bigmodel.cn" target="_blank">智谱开放平台</a></p>
+            <p>
+              1. 访问 <a
+                href="https://open.bigmodel.cn"
+                target="_blank"
+              >智谱开放平台</a>
+            </p>
             <p>2. 注册/登录 → 创建 API Key</p>
             <p>3. glm-5.3 为最新旗舰模型（2026-08 发布），输入¥8/百万 · 输出¥28/百万</p>
           </div>
@@ -316,27 +584,51 @@
 
         <label style="margin-top: 8px;">理科图表处理</label>
         <select v-model="settings.analyzeCharts">
-          <option :value="false">跳过（仅提取文字）</option>
-          <option :value="true">分析（用 AI 描述图表）</option>
+          <option :value="false">
+            跳过（仅提取文字）
+          </option>
+          <option :value="true">
+            分析（用 AI 描述图表）
+          </option>
         </select>
-        <p style="font-size:11px;color:#888;margin:4px 0 0;">💡 开启后会用 AI 描述理科题中的图表内容（帮助理解图），仅在遇到图表题时产生额外 token 消耗；纯文科/无图场景建议保持「跳过」以省成本。</p>
+        <p style="font-size:11px;color:#888;margin:4px 0 0;">
+          💡 开启后会用 AI 描述理科题中的图表内容（帮助理解图），仅在遇到图表题时产生额外 token 消耗；纯文科/无图场景建议保持「跳过」以省成本。
+        </p>
       </div>
 
       <!-- 存储路径 -->
       <div class="settings-section">
         <h3>💾 存储路径</h3>
         <div style="display: flex; gap: 8px; align-items: center;">
-          <input type="text" v-model="settings.storagePath" placeholder="例如：D:\\智卷工坊数据"
-            style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;" />
-          <button class="btn-small" @click="selectStoragePath" style="white-space: nowrap; padding: 8px 16px;">📁 选择文件夹</button>
+          <input
+            v-model="settings.storagePath"
+            type="text"
+            placeholder="例如：D:\\智卷工坊数据"
+            style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;"
+          >
+          <button
+            class="btn-small"
+            style="white-space: nowrap; padding: 8px 16px;"
+            @click="selectStoragePath"
+          >
+            📁 选择文件夹
+          </button>
         </div>
       </div>
 
       <!-- 生成设置 -->
       <div class="settings-section">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <h3 style="margin:0;">🎲 生成设置（温度：控制输出随机性）</h3>
-          <button class="btn-small" @click="resetTemperatureDefaults" style="font-size:11px;padding:4px 10px;">🔄 恢复默认</button>
+          <h3 style="margin:0;">
+            🎲 生成设置（温度：控制输出随机性）
+          </h3>
+          <button
+            class="btn-small"
+            style="font-size:11px;padding:4px 10px;"
+            @click="resetTemperatureDefaults"
+          >
+            🔄 恢复默认
+          </button>
         </div>
 
         <!-- 分析/提取 -->
@@ -348,16 +640,30 @@
             <span style="font-size:10px;color:#999;min-width:14px;">0</span>
             <div style="position:relative;flex:1;">
               <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.analysisTemperature ?? 0.1) / 1.0 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.analysisTemperature ?? 0.1) / 1.0 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.analysisTemperature ?? 0.1).toFixed(1) }}</span>
-              <input type="range" v-model.number="settings.generationSettings.analysisTemperature" min="0" max="1.0" step="0.1" list="ticks-1_0" style="width:100%;" />
+              <input
+                v-model.number="settings.generationSettings.analysisTemperature"
+                type="range"
+                min="0"
+                max="1.0"
+                step="0.1"
+                list="ticks-1_0"
+                style="width:100%;"
+              >
             </div>
             <span style="font-size:10px;color:#999;min-width:22px;">1.0</span>
           </div>
-          <datalist id="ticks-1_0"><option value="0"></option><option value="0.5"></option><option value="1.0"></option></datalist>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">知识点提取、内容分析、格式化——低温确保准确</p>
+          <datalist id="ticks-1_0">
+            <option value="0" /><option value="0.5" /><option value="1.0" />
+          </datalist>
+          <p style="font-size:11px;color:#888;margin:2px 0 0;">
+            知识点提取、内容分析、格式化——低温确保准确
+          </p>
         </div>
 
         <!-- 整卷正文温度（一次生成整卷，创作性略高） -->
-        <datalist id="ticks-1_5"><option value="0"></option><option value="0.5"></option><option value="1.0"></option><option value="1.5"></option></datalist>
+        <datalist id="ticks-1_5">
+          <option value="0" /><option value="0.5" /><option value="1.0" /><option value="1.5" />
+        </datalist>
         <div style="margin-bottom:14px;">
           <label style="display:flex;justify-content:space-between;">
             <span>📄 整卷正文生成</span>
@@ -366,11 +672,21 @@
             <span style="font-size:10px;color:#999;min-width:14px;">0</span>
             <div style="position:relative;flex:1;">
               <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.paperTemperature ?? 0.7) / 1.5 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.paperTemperature ?? 0.7) / 1.5 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.paperTemperature ?? 0.7).toFixed(1) }}</span>
-              <input type="range" v-model.number="settings.generationSettings.paperTemperature" min="0" max="1.5" step="0.1" list="ticks-1_5" style="width:100%;" />
+              <input
+                v-model.number="settings.generationSettings.paperTemperature"
+                type="range"
+                min="0"
+                max="1.5"
+                step="0.1"
+                list="ticks-1_5"
+                style="width:100%;"
+              >
             </div>
             <span style="font-size:10px;color:#999;min-width:22px;">1.5</span>
           </div>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">整卷一次生成（正文）——需创作性：情境、题目、卷面，略高</p>
+          <p style="font-size:11px;color:#888;margin:2px 0 0;">
+            整卷一次生成（正文）——需创作性：情境、题目、卷面，略高
+          </p>
         </div>
 
         <!-- 答案页温度（阅卷专家视角，低温严谨；一次成型下与正文温度取平均，共同影响答案区） -->
@@ -382,31 +698,71 @@
             <span style="font-size:10px;color:#999;min-width:14px;">0</span>
             <div style="position:relative;flex:1;">
               <span :style="{ position:'absolute', left: `calc(${((settings.generationSettings.answerTemperature ?? 0.3) / 1.0 * 100).toFixed(1)}% + 6px - ${((settings.generationSettings.answerTemperature ?? 0.3) / 1.0 * 10).toFixed(0)}px)`, top: '-20px', transform: 'translateX(-50%)', background: 'var(--primary,#4a90d9)', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', pointerEvents: 'none' }">{{ (settings.generationSettings.answerTemperature ?? 0.3).toFixed(1) }}</span>
-              <input type="range" v-model.number="settings.generationSettings.answerTemperature" min="0" max="1.0" step="0.1" list="ticks-1_0" style="width:100%;" />
+              <input
+                v-model.number="settings.generationSettings.answerTemperature"
+                type="range"
+                min="0"
+                max="1.0"
+                step="0.1"
+                list="ticks-1_0"
+                style="width:100%;"
+              >
             </div>
             <span style="font-size:10px;color:#999;min-width:22px;">1.0</span>
           </div>
-          <p style="font-size:11px;color:#888;margin:2px 0 0;">参考答案与评分标准——阅卷专家视角，低温确保严谨准确（一次成型下与「整卷正文生成」温度取平均，共同影响答案区）</p>
+          <p style="font-size:11px;color:#888;margin:2px 0 0;">
+            参考答案与评分标准——阅卷专家视角，低温确保严谨准确（一次成型下与「整卷正文生成」温度取平均，共同影响答案区）
+          </p>
         </div>
 
         <!-- 整卷输出预算（tokens，全部可配置，生成端严格按此执行） -->
         <div style="margin-bottom:14px;background:#f0f7ff;border:1px solid #b3d4f5;border-radius:8px;padding:8px 12px;">
-          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:8px;">📏 整卷输出预算（每类型独立，动态为主 · 预算=勾选原文×系数）</div>
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:8px;">
+            📏 整卷输出预算（每类型独立，动态为主 · 预算=勾选原文×系数）
+          </div>
 
           <!-- 一键快捷（分组） -->
           <div style="background:#f4f8fd;border:1px solid #dfe8f2;border-radius:8px;padding:6px 10px;margin-bottom:10px;">
-            <div style="font-size:10px;color:#8896a8;margin-bottom:4px;font-weight:600;">⚡ 一键快捷设置（可逐类型微调）</div>
+            <div style="font-size:10px;color:#8896a8;margin-bottom:4px;font-weight:600;">
+              ⚡ 一键快捷设置（可逐类型微调）
+            </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
               <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
                 <span style="font-size:10px;color:#8896a8;">档位度：</span>
-                <button v-for="t in BUDGET_TIERS" :key="t.key" class="btn-small" @click="setAllTiers(t.key)" style="font-size:10px;padding:2px 8px;">{{ t.name }}</button>
+                <button
+                  v-for="t in BUDGET_TIERS"
+                  :key="t.key"
+                  class="btn-small"
+                  style="font-size:10px;padding:2px 8px;"
+                  @click="setAllTiers(t.key)"
+                >
+                  {{ t.name }}
+                </button>
               </div>
               <span style="color:#d5dde8;">│</span>
               <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
                 <span style="font-size:10px;color:#8896a8;">生成路径：</span>
-                <button class="btn-small" @click="setAllPaths('auto')" style="font-size:10px;padding:2px 8px;">全部自动</button>
-                <button class="btn-small" @click="setAllPaths('split')" style="font-size:10px;padding:2px 8px;">全部两次</button>
-                <button class="btn-small" @click="setAllPaths('once')" style="font-size:10px;padding:2px 8px;">全部一次</button>
+                <button
+                  class="btn-small"
+                  style="font-size:10px;padding:2px 8px;"
+                  @click="setAllPaths('auto')"
+                >
+                  全部自动
+                </button>
+                <button
+                  class="btn-small"
+                  style="font-size:10px;padding:2px 8px;"
+                  @click="setAllPaths('split')"
+                >
+                  全部两次
+                </button>
+                <button
+                  class="btn-small"
+                  style="font-size:10px;padding:2px 8px;"
+                  @click="setAllPaths('once')"
+                >
+                  全部一次
+                </button>
               </div>
             </div>
           </div>
@@ -415,55 +771,120 @@
           <div style="background:#f4f8fd;border:1px solid #dfe8f2;border-radius:8px;padding:8px 12px;margin-bottom:10px;">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
               <div style="flex:1;min-width:200px;">
-                <div style="font-size:12px;font-weight:600;color:#333;">🔧 大范围浏览·漏章覆盖</div>
+                <div style="font-size:12px;font-weight:600;color:#333;">
+                  🔧 大范围浏览·漏章覆盖
+                </div>
                 <div style="font-size:10px;color:#8896a8;margin-top:3px;line-height:1.5;">
                   大范围（整册/多章）浏览取材时，若某章<b>有教材原文素材但模型本次未浏览</b>：
-                  <span v-if="settings.value?.generationSettings?.browseAutoFill !== false" style="color:#1f6feb;">开 = 先发一轮漏章确认给模型、由它判断是否取料；仍未采用时程序才确定性兜底补料（有界、报告标注程序兜底，保覆盖不遗漏）；</span>
-                  <span v-else style="color:#8896a8;">关 = 仅列入生成报告的主编式提醒，程序不补料（省成本，由命题老师复核）。</span>
+                  <span
+                    v-if="settings.value?.generationSettings?.browseAutoFill !== false"
+                    style="color:#1f6feb;"
+                  >开 = 先发一轮漏章确认给模型、由它判断是否取料；仍未采用时程序才确定性兜底补料（有界、报告标注程序兜底，保覆盖不遗漏）；</span>
+                  <span
+                    v-else
+                    style="color:#8896a8;"
+                  >关 = 仅列入生成报告的主编式提醒，程序不补料（省成本，由命题老师复核）。</span>
                 </div>
               </div>
-              <button class="btn-small" @click="toggleBrowseAutoFill" style="font-size:11px;padding:3px 12px;" :style="settings.value?.generationSettings?.browseAutoFill !== false ? 'background:#eaf4ff;color:#1f6feb;border:1px solid #1f6feb;' : ''">
+              <button
+                class="btn-small"
+                style="font-size:11px;padding:3px 12px;"
+                :style="settings.value?.generationSettings?.browseAutoFill !== false ? 'background:#eaf4ff;color:#1f6feb;border:1px solid #1f6feb;' : ''"
+                @click="toggleBrowseAutoFill"
+              >
                 {{ settings.value?.generationSettings?.browseAutoFill !== false ? '● 开（自动补齐，默认）' : '○ 关（仅提醒）' }}
               </button>
             </div>
           </div>
 
           <!-- 逐类型卡片 -->
-          <div v-for="row in BUDGET_TYPE_ORDER" :key="row.key" style="border:1px solid #e3e9f2;border-radius:8px;margin-bottom:8px;overflow:hidden;">
+          <div
+            v-for="row in BUDGET_TYPE_ORDER"
+            :key="row.key"
+            style="border:1px solid #e3e9f2;border-radius:8px;margin-bottom:8px;overflow:hidden;"
+          >
             <!-- 卡片头：类型名 + 路径 -->
             <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:#fafcff;border-bottom:1px solid #eef2f7;flex-wrap:wrap;">
               <span style="font-weight:600;color:#1f6feb;font-size:12px;white-space:nowrap;">{{ row.name }}</span>
               <span style="font-size:10px;color:#8896a8;white-space:nowrap;">路径</span>
-              <label :title="'自动：由程序按该类型最合适的路径决定（考卷/课时练/专项/复习→两次，阅读/总结/预习/默写/错题→一次）'" style="margin-right:4px;font-size:11px;color:#555;cursor:pointer;">
-                <input type="radio" value="auto" v-model="budgetBt()[row.key].mode" style="margin-right:2px;vertical-align:middle;" />自动
+              <label
+                :title="'自动：由程序按该类型最合适的路径决定（考卷/课时练/专项/复习→两次，阅读/总结/预习/默写/错题→一次）'"
+                style="margin-right:4px;font-size:11px;color:#555;cursor:pointer;"
+              >
+                <input
+                  v-model="budgetBt()[row.key].mode"
+                  type="radio"
+                  value="auto"
+                  style="margin-right:2px;vertical-align:middle;"
+                >自动
               </label>
-              <label :title="'两次生成：正文一次 + 独立答案页一次（答案分开）'" style="margin-right:4px;font-size:11px;color:#555;cursor:pointer;">
-                <input type="radio" value="split" v-model="budgetBt()[row.key].mode" style="margin-right:2px;vertical-align:middle;" />两次
+              <label
+                :title="'两次生成：正文一次 + 独立答案页一次（答案分开）'"
+                style="margin-right:4px;font-size:11px;color:#555;cursor:pointer;"
+              >
+                <input
+                  v-model="budgetBt()[row.key].mode"
+                  type="radio"
+                  value="split"
+                  style="margin-right:2px;vertical-align:middle;"
+                >两次
               </label>
-              <label :title="'一次成型：正文与答案一次输出'" style="margin-right:4px;font-size:11px;color:#555;cursor:pointer;">
-                <input type="radio" value="once" v-model="budgetBt()[row.key].mode" style="margin-right:2px;vertical-align:middle;" />一次
+              <label
+                :title="'一次成型：正文与答案一次输出'"
+                style="margin-right:4px;font-size:11px;color:#555;cursor:pointer;"
+              >
+                <input
+                  v-model="budgetBt()[row.key].mode"
+                  type="radio"
+                  value="once"
+                  style="margin-right:2px;vertical-align:middle;"
+                >一次
               </label>
             </div>
             <!-- 卡片体：三槽并排 -->
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px 10px;">
-              <div v-for="slotDef in [ ['body','两次生成·正文'], ['answer','两次生成·答案页'], ['once','一次成型·正文+答案'] ]" :key="slotDef[0]"
-                   :style="{ border:'1px solid '+(isSlotActive(row.key, slotDef[0]) ? '#cfe0f5':'#eef2f7'), borderRadius:'6px', padding:'5px 7px', background: isSlotActive(row.key, slotDef[0]) ? '#fbfdff' : '#f6f8fa', opacity: isSlotActive(row.key, slotDef[0]) ? 1 : 0.5 }">
-                <div style="font-size:10px;color:#64748b;margin-bottom:4px;white-space:nowrap;">{{ slotDef[1] }}</div>
+              <div
+                v-for="slotDef in [ ['body','两次生成·正文'], ['answer','两次生成·答案页'], ['once','一次成型·正文+答案'] ]"
+                :key="slotDef[0]"
+                :style="{ border:'1px solid '+(isSlotActive(row.key, slotDef[0]) ? '#cfe0f5':'#eef2f7'), borderRadius:'6px', padding:'5px 7px', background: isSlotActive(row.key, slotDef[0]) ? '#fbfdff' : '#f6f8fa', opacity: isSlotActive(row.key, slotDef[0]) ? 1 : 0.5 }"
+              >
+                <div style="font-size:10px;color:#64748b;margin-bottom:4px;white-space:nowrap;">
+                  {{ slotDef[1] }}
+                </div>
                 <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:4px;">
-                  <span v-for="t in BUDGET_TIERS" :key="t.key"
-                        :title="t.name + '——' + t.note"
-                        style="display:inline-flex;align-items:center;gap:2px;cursor:pointer;border:1px solid #d0d8e4;border-radius:4px;padding:1px 5px;font-size:10px;color:#475569;"
-                        :style="(budgetBt()[row.key].tier === t.key && typeof budgetBt()[row.key][slotDef[0]].custom !== 'number') ? 'background:#1f6feb;color:#fff;border-color:#1f6feb;' : ''"
-                        @click="budgetBt()[row.key].tier = t.key; budgetBt()[row.key][slotDef[0]].custom = null;">
-                        {{ t.key === 'economy' ? '精简' : t.key === 'balanced' ? '均衡' : '充分' }}
-                        <b>{{ budgetBt()[row.key][slotDef[0]][t.key] }}</b>
+                  <span
+                    v-for="t in BUDGET_TIERS"
+                    :key="t.key"
+                    :title="t.name + '——' + t.note"
+                    style="display:inline-flex;align-items:center;gap:2px;cursor:pointer;border:1px solid #d0d8e4;border-radius:4px;padding:1px 5px;font-size:10px;color:#475569;"
+                    :style="(budgetBt()[row.key].tier === t.key && typeof budgetBt()[row.key][slotDef[0]].custom !== 'number') ? 'background:#1f6feb;color:#fff;border-color:#1f6feb;' : ''"
+                    @click="budgetBt()[row.key].tier = t.key; budgetBt()[row.key][slotDef[0]].custom = null;"
+                  >
+                    {{ t.key === 'economy' ? '精简' : t.key === 'balanced' ? '均衡' : '充分' }}
+                    <b>{{ budgetBt()[row.key][slotDef[0]][t.key] }}</b>
                   </span>
                 </div>
                 <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#94a3b8;">
                   <span :title="'系数：预算=勾选原文×系数。手填可自定义该槽的系数（覆盖档位）。'">手填</span>
-                  <input type="number" step="0.1" min="0.1" v-model.number="budgetBt()[row.key][slotDef[0]].custom" placeholder="—" :title="'手填系数（覆盖精简/均衡/充分档位），清空即回档位'" style="width:44px;padding:1px 4px;border:1px solid #d6dde6;border-radius:4px;font-size:10px;" />
+                  <input
+                    v-model.number="budgetBt()[row.key][slotDef[0]].custom"
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    placeholder="—"
+                    :title="'手填系数（覆盖精简/均衡/充分档位），清空即回档位'"
+                    style="width:44px;padding:1px 4px;border:1px solid #d6dde6;border-radius:4px;font-size:10px;"
+                  >
                   <span :title="'这里是「输出 token 上限」：本次生成最多能写到多少 token。区别于上方『答案页上下文上限·字符』（那是答案生成时能看到多少正文，输入侧）。'">上限</span>
-                  <input type="number" step="1024" min="2000" v-model.number="budgetBt()[row.key][slotDef[0]].cap" placeholder="cap" :title="'该槽输出 token 上限（不是字符数）：预算=系数×勾选原文，封顶不超过这里'" style="width:56px;padding:1px 4px;border:1px solid #e3e9f2;border-radius:4px;font-size:10px;" />
+                  <input
+                    v-model.number="budgetBt()[row.key][slotDef[0]].cap"
+                    type="number"
+                    step="1024"
+                    min="2000"
+                    placeholder="cap"
+                    :title="'该槽输出 token 上限（不是字符数）：预算=系数×勾选原文，封顶不超过这里'"
+                    style="width:56px;padding:1px 4px;border:1px solid #e3e9f2;border-radius:4px;font-size:10px;"
+                  >
                 </div>
               </div>
             </div>
@@ -473,17 +894,34 @@
                 <span style="font-size:10px;color:#64748b;font-weight:600;">📊 实测校准（按学科×学段×路径，门槛 {{ calThresholdLabel }}，CV&gt;0.35 拒采）</span>
                 <span style="display:flex;gap:5px;align-items:center;font-size:10px;color:#94a3b8;">
                   学段
-                  <select v-model="calStageFilter[row.key]" style="font-size:10px;padding:1px 3px;border:1px solid #d6dde6;border-radius:4px;background:#fff;">
+                  <select
+                    v-model="calStageFilter[row.key]"
+                    style="font-size:10px;padding:1px 3px;border:1px solid #d6dde6;border-radius:4px;background:#fff;"
+                  >
                     <option value="">全部</option>
-                    <option v-for="s in CAL_STAGE_KEYS" :key="s" :value="s">{{ calStageName(s) }}</option>
+                    <option
+                      v-for="s in CAL_STAGE_KEYS"
+                      :key="s"
+                      :value="s"
+                    >{{ calStageName(s) }}</option>
                   </select>
                   学科
-                  <select v-model="calSubjectFilter[row.key]" style="font-size:10px;padding:1px 3px;border:1px solid #d6dde6;border-radius:4px;background:#fff;">
+                  <select
+                    v-model="calSubjectFilter[row.key]"
+                    style="font-size:10px;padding:1px 3px;border:1px solid #d6dde6;border-radius:4px;background:#fff;"
+                  >
                     <option value="">全部</option>
-                    <option v-for="sub in CAL_SUBJECT_KEYS" :key="sub" :value="sub">{{ sub }}</option>
+                    <option
+                      v-for="sub in CAL_SUBJECT_KEYS"
+                      :key="sub"
+                      :value="sub"
+                    >{{ sub }}</option>
                   </select>
                   路径
-                  <select v-model="calModeFilter[row.key]" style="font-size:10px;padding:1px 3px;border:1px solid #d6dde6;border-radius:4px;background:#fff;">
+                  <select
+                    v-model="calModeFilter[row.key]"
+                    style="font-size:10px;padding:1px 3px;border:1px solid #d6dde6;border-radius:4px;background:#fff;"
+                  >
                     <option value="">全部</option>
                     <option value="split">两次(split)</option>
                     <option value="once">一次(once)</option>
@@ -491,43 +929,98 @@
                 </span>
               </div>
               <template v-if="calBucketsFor(row.key).length">
-                <div v-for="bk in calBucketsFor(row.key)" :key="bk.key" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid #e7eef7;border-radius:6px;padding:4px 7px;margin-bottom:4px;background:#fff;">
+                <div
+                  v-for="bk in calBucketsFor(row.key)"
+                  :key="bk.key"
+                  style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid #e7eef7;border-radius:6px;padding:4px 7px;margin-bottom:4px;background:#fff;"
+                >
                   <span style="font-size:10px;color:#334155;white-space:nowrap;">{{ bk.subject }} · {{ calStageName(bk.stage) }} · {{ bk.mode === 'split' ? '两次' : bk.mode === 'once' ? '一次' : bk.mode || '全部' }}</span>
                   <span style="font-size:10px;color:#64748b;">样本 {{ bk.stats.count }}<template v-if="bk.stats.inValid">/{{ bk.stats.inValid }}失效</template></span>
-                  <span v-if="bk.stats.count" style="font-size:10px;color:#94a3b8;">CV={{ bk.stats.cv.toFixed(2) }}</span>
-                  <span v-if="bk.calibrated" style="font-size:10px;color:#1f6feb;">校准基准{{ bk.calBase }}（播种均衡档{{ seedCoefFor(row.key, bk.mode) }}）</span>
-                  <span v-else style="font-size:10px;color:#94a3b8;">{{ bk.stats.reason }}</span>
+                  <span
+                    v-if="bk.stats.count"
+                    style="font-size:10px;color:#94a3b8;"
+                  >CV={{ bk.stats.cv.toFixed(2) }}</span>
+                  <span
+                    v-if="bk.calibrated"
+                    style="font-size:10px;color:#1f6feb;"
+                  >校准基准{{ bk.calBase }}（播种均衡档{{ seedCoefFor(row.key, bk.mode) }}）</span>
+                  <span
+                    v-else
+                    style="font-size:10px;color:#94a3b8;"
+                  >{{ bk.stats.reason }}</span>
                   <span style="margin-left:auto;display:flex;gap:5px;align-items:center;">
-                    <button v-if="bk.stats.ready && !bk.calibrated" @click="adoptCalibration(row.key, bk)" style="font-size:10px;padding:2px 8px;border:1px solid #1f6feb;color:#1f6feb;background:#fff;border-radius:4px;cursor:pointer;">一键采纳</button>
+                    <button
+                      v-if="bk.stats.ready && !bk.calibrated"
+                      style="font-size:10px;padding:2px 8px;border:1px solid #1f6feb;color:#1f6feb;background:#fff;border-radius:4px;cursor:pointer;"
+                      @click="adoptCalibration(row.key, bk)"
+                    >一键采纳</button>
                     <template v-if="bk.calibrated">
                       <span style="font-size:10px;color:#94a3b8;white-space:nowrap;">切换：</span>
-                      <button @click="toggleCalibrated(row.key, bk)" style="font-size:10px;padding:2px 8px;border:1px solid #c2ccd9;color:#5b6b7c;background:#fff;border-radius:4px;cursor:pointer;">{{ bk.enabled ? '用播种' : '用校准' }}</button>
-                      <button @click="clearCalibrationRow(row.key, bk)" style="font-size:10px;padding:2px 8px;border:1px solid #d9673a;color:#d9673a;background:#fff;border-radius:4px;cursor:pointer;">清理</button>
+                      <button
+                        style="font-size:10px;padding:2px 8px;border:1px solid #c2ccd9;color:#5b6b7c;background:#fff;border-radius:4px;cursor:pointer;"
+                        @click="toggleCalibrated(row.key, bk)"
+                      >{{ bk.enabled ? '用播种' : '用校准' }}</button>
+                      <button
+                        style="font-size:10px;padding:2px 8px;border:1px solid #d9673a;color:#d9673a;background:#fff;border-radius:4px;cursor:pointer;"
+                        @click="clearCalibrationRow(row.key, bk)"
+                      >清理</button>
                     </template>
                   </span>
                 </div>
               </template>
-              <div v-else style="font-size:10px;color:#c3cdda;padding:3px 0;">（该类型暂无样本；完成若干次该类型生成后，这里会出现按学科×学段分桶的校准入口）</div>
-              <div style="font-size:9px;color:#aab6c4;margin-top:3px;">产出率按 勾选原文→实际输出字符 实测；采纳即用中位数作均衡档基准，按 精简0.72/均衡1/充分1.25 展开三档。低于门槛或波动过大(CV&gt;0.35)时按钮置灰。</div>
+              <div
+                v-else
+                style="font-size:10px;color:#c3cdda;padding:3px 0;"
+              >
+                （该类型暂无样本；完成若干次该类型生成后，这里会出现按学科×学段分桶的校准入口）
+              </div>
+              <div style="font-size:9px;color:#aab6c4;margin-top:3px;">
+                产出率按 勾选原文→实际输出字符 实测；采纳即用中位数作均衡档基准，按 精简0.72/均衡1/充分1.25 展开三档。低于门槛或波动过大(CV&gt;0.35)时按钮置灰。
+              </div>
               <!-- 📋 操作流水（审计日志：谁/何时/做了什么；清空只删日志，不动校准数据） -->
               <div style="border-top:1px dashed #dbe4ee;padding:5px 0 1px;margin-top:5px;">
                 <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                  <button @click="auditOpen[row.key] = !auditOpen[row.key]" style="font-size:10px;padding:2px 8px;border:1px solid #c2ccd9;color:#5b6b7c;background:#fff;border-radius:4px;cursor:pointer;">📋 操作流水（{{ auditCountFor(row.key) }}）</button>
+                  <button
+                    style="font-size:10px;padding:2px 8px;border:1px solid #c2ccd9;color:#5b6b7c;background:#fff;border-radius:4px;cursor:pointer;"
+                    @click="auditOpen[row.key] = !auditOpen[row.key]"
+                  >
+                    📋 操作流水（{{ auditCountFor(row.key) }}）
+                  </button>
                   <span style="font-size:9px;color:#aab6c4;">采纳/切换/清理的每一条动作记录（设备 · 时间 · 操作）</span>
                 </div>
                 <div v-if="auditOpen[row.key]">
-                  <div v-if="auditLogsFor(row.key).length" style="margin-top:4px;max-height:150px;overflow-y:auto;border:1px solid #e7eef7;border-radius:6px;background:#fff;">
-                    <div v-for="(log, i) in auditLogsFor(row.key)" :key="i" style="display:flex;gap:6px;flex-wrap:wrap;padding:3px 7px;border-bottom:1px solid #f1f5fb;font-size:10px;color:#475569;">
+                  <div
+                    v-if="auditLogsFor(row.key).length"
+                    style="margin-top:4px;max-height:150px;overflow-y:auto;border:1px solid #e7eef7;border-radius:6px;background:#fff;"
+                  >
+                    <div
+                      v-for="(log, i) in auditLogsFor(row.key)"
+                      :key="i"
+                      style="display:flex;gap:6px;flex-wrap:wrap;padding:3px 7px;border-bottom:1px solid #f1f5fb;font-size:10px;color:#475569;"
+                    >
                       <span style="color:#94a3b8;white-space:nowrap;">{{ fmtAuditTime(log.t) }}</span>
                       <span style="color:#1f6feb;font-weight:600;white-space:nowrap;">{{ actLabel(log.action) }}</span>
                       <span style="color:#334155;">{{ log.operator }}</span>
-                      <span v-if="log.bucket" style="color:#64748b;">{{ log.bucket.subject || '—' }} · {{ calStageName(log.bucket.stage) }} · {{ log.bucket.mode === 'split' ? '两次' : log.bucket.mode === 'once' ? '一次' : '全部' }}</span>
+                      <span
+                        v-if="log.bucket"
+                        style="color:#64748b;"
+                      >{{ log.bucket.subject || '—' }} · {{ calStageName(log.bucket.stage) }} · {{ log.bucket.mode === 'split' ? '两次' : log.bucket.mode === 'once' ? '一次' : '全部' }}</span>
                       <span style="margin-left:auto;color:#94a3b8;">{{ log.detail }}</span>
                     </div>
                   </div>
-                  <div v-else style="font-size:10px;color:#c3cdda;padding:3px 0;">暂无操作记录</div>
+                  <div
+                    v-else
+                    style="font-size:10px;color:#c3cdda;padding:3px 0;"
+                  >
+                    暂无操作记录
+                  </div>
                   <div style="display:flex;justify-content:flex-end;margin-top:3px;">
-                    <button @click="clearAuditFor(row.key)" style="font-size:10px;padding:2px 8px;border:1px solid #d9673a;color:#d9673a;background:#fff;border-radius:4px;cursor:pointer;">清空流水</button>
+                    <button
+                      style="font-size:10px;padding:2px 8px;border:1px solid #d9673a;color:#d9673a;background:#fff;border-radius:4px;cursor:pointer;"
+                      @click="clearAuditFor(row.key)"
+                    >
+                      清空流水
+                    </button>
                   </div>
                 </div>
               </div>
@@ -537,67 +1030,103 @@
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 4px;">
             <div>
               <label style="font-size:11px;color:#666;">思考模式预算倍数（默认 2）</label>
-              <input type="number" v-model.number="settings.generationSettings.thinkingBudgetMultiplier" min="1" step="0.5" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;" />
+              <input
+                v-model.number="settings.generationSettings.thinkingBudgetMultiplier"
+                type="number"
+                min="1"
+                step="0.5"
+                style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+              >
             </div>
             <div>
               <label style="font-size:11px;color:#666;">答案页上下文上限·字符（默认 24000）</label>
-              <input type="number" v-model.number="settings.generationSettings.answerContextMaxChars" min="8000" step="2000" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;" />
+              <input
+                v-model.number="settings.generationSettings.answerContextMaxChars"
+                type="number"
+                min="8000"
+                step="2000"
+                style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+              >
             </div>
           </div>
           <div style="font-size:10.5px;color:#8896a8;line-height:1.6;margin-top:4px;">
-            预算 = 勾选原文（生成入口处勾选的教材章节原文）× 该类型系数，再封顶到该槽 token 上限。正常勾选（一课/单元/单册）动态直接生效、内容完整；勾选远超该类型上限时自动加长保证完整（生成报告会提示）。<br/>
-            生效槽：选「两次生成」→ 前两槽（正文·答案页）生效、第三槽灰显；选「一次成型」→ 仅第三槽生效；选「自动」→ 按该类型最合适路径。<br/>
+            预算 = 勾选原文（生成入口处勾选的教材章节原文）× 该类型系数，再封顶到该槽 token 上限。正常勾选（一课/单元/单册）动态直接生效、内容完整；勾选远超该类型上限时自动加长保证完整（生成报告会提示）。<br>
+            生效槽：选「两次生成」→ 前两槽（正文·答案页）生效、第三槽灰显；选「一次成型」→ 仅第三槽生效；选「自动」→ 按该类型最合适路径。<br>
             两处「上限」不同：<b>每类型卡片里的是「输出 token 上限」</b>（这次生成最多写多少 token）；<b>下方「答案页上下文上限」是「输入侧」字符数</b>（答案生成时能看到多少正文——正文超过此长度则后半卷题目答案会缺）。高中大卷常超 2.4 万字符——可调大该值，或改用「两次生成」。
           </div>
         </div>
 
         <!-- 整卷生成深度思考开关（按引擎，仅整卷生成生效） -->
         <div style="margin-bottom:14px;background:#fffbe6;border:1px solid #ffe58f;border-radius:8px;padding:8px 12px;">
-          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:2px;">🧠 整卷生成深度思考（按引擎开关）</div>
-          <div style="font-size:11px;color:#888;margin-bottom:4px;line-height:1.5;">开启后整卷生成前先推理再作答，可提升生成质量；推理 token 按输出价计费、耗时更长，输出预算按上方「思考模式预算倍数」放大。<br/>仅影响整卷生成——分析/审查/格式化/验算始终关闭思考。请为当前使用的引擎明确选择。</div>
+          <div style="font-size:12px;font-weight:600;color:#333;margin-bottom:2px;">
+            🧠 整卷生成深度思考（按引擎开关）
+          </div>
+          <div style="font-size:11px;color:#888;margin-bottom:4px;line-height:1.5;">
+            开启后整卷生成前先推理再作答，可提升生成质量；推理 token 按输出价计费、耗时更长，输出预算按上方「思考模式预算倍数」放大。<br>仅影响整卷生成——分析/审查/格式化/验算始终关闭思考。请为当前使用的引擎明确选择。
+          </div>
           <!-- DeepSeek -->
           <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-top:1px dashed #ffe58f;">
             <span style="font-size:12px;">DeepSeek</span>
             <label style="position:relative;display:inline-block;width:34px;height:19px;flex-shrink:0;cursor:pointer;">
-              <input type="checkbox" v-model="settings.generationSettings.deepseekGenerationThinking" style="opacity:0;width:0;height:0;" />
-              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.deepseekGenerationThinking ? '#4a90d9' : '#ccc'}"></span>
-              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.deepseekGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}"></span>
+              <input
+                v-model="settings.generationSettings.deepseekGenerationThinking"
+                type="checkbox"
+                style="opacity:0;width:0;height:0;"
+              >
+              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.deepseekGenerationThinking ? '#4a90d9' : '#ccc'}" />
+              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.deepseekGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}" />
             </label>
           </div>
           <!-- 火山引擎 -->
           <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
             <span style="font-size:12px;">火山引擎（豆包）</span>
             <label style="position:relative;display:inline-block;width:34px;height:19px;flex-shrink:0;cursor:pointer;">
-              <input type="checkbox" v-model="settings.generationSettings.volcanoGenerationThinking" style="opacity:0;width:0;height:0;" />
-              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.volcanoGenerationThinking ? '#4a90d9' : '#ccc'}"></span>
-              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.volcanoGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}"></span>
+              <input
+                v-model="settings.generationSettings.volcanoGenerationThinking"
+                type="checkbox"
+                style="opacity:0;width:0;height:0;"
+              >
+              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.volcanoGenerationThinking ? '#4a90d9' : '#ccc'}" />
+              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.volcanoGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}" />
             </label>
           </div>
           <!-- 阿里百炼 -->
           <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
             <span style="font-size:12px;">阿里百炼（通义千问）</span>
             <label style="position:relative;display:inline-block;width:34px;height:19px;flex-shrink:0;cursor:pointer;">
-              <input type="checkbox" v-model="settings.generationSettings.alibabaGenerationThinking" style="opacity:0;width:0;height:0;" />
-              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.alibabaGenerationThinking ? '#4a90d9' : '#ccc'}"></span>
-              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.alibabaGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}"></span>
+              <input
+                v-model="settings.generationSettings.alibabaGenerationThinking"
+                type="checkbox"
+                style="opacity:0;width:0;height:0;"
+              >
+              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.alibabaGenerationThinking ? '#4a90d9' : '#ccc'}" />
+              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.alibabaGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}" />
             </label>
           </div>
           <!-- 智谱 GLM -->
           <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
             <span style="font-size:12px;">智谱 GLM（模型侧可能强制推理，参数不一定生效）</span>
             <label style="position:relative;display:inline-block;width:34px;height:19px;flex-shrink:0;cursor:pointer;">
-              <input type="checkbox" v-model="settings.generationSettings.zhipuGenerationThinking" style="opacity:0;width:0;height:0;" />
-              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.zhipuGenerationThinking ? '#4a90d9' : '#ccc'}"></span>
-              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.zhipuGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}"></span>
+              <input
+                v-model="settings.generationSettings.zhipuGenerationThinking"
+                type="checkbox"
+                style="opacity:0;width:0;height:0;"
+              >
+              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.zhipuGenerationThinking ? '#4a90d9' : '#ccc'}" />
+              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.zhipuGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}" />
             </label>
           </div>
           <!-- Ollama 本地 -->
           <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
             <span style="font-size:12px;">Ollama 本地（r1 等推理模型生效）</span>
             <label style="position:relative;display:inline-block;width:34px;height:19px;flex-shrink:0;cursor:pointer;">
-              <input type="checkbox" v-model="settings.generationSettings.ollamaGenerationThinking" style="opacity:0;width:0;height:0;" />
-              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.ollamaGenerationThinking ? '#4a90d9' : '#ccc'}"></span>
-              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.ollamaGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}"></span>
+              <input
+                v-model="settings.generationSettings.ollamaGenerationThinking"
+                type="checkbox"
+                style="opacity:0;width:0;height:0;"
+              >
+              <span :style="{position:'absolute',top:'0',left:'0',right:'0',bottom:'0',borderRadius:'19px',transition:'0.3s',background:settings.generationSettings.ollamaGenerationThinking ? '#4a90d9' : '#ccc'}" />
+              <span :style="{position:'absolute',top:'2px',left:settings.generationSettings.ollamaGenerationThinking ? '17px' : '2px',width:'15px',height:'15px',borderRadius:'50%',background:'#fff',transition:'0.3s'}" />
             </label>
           </div>
         </div>
@@ -606,25 +1135,47 @@
           💡 <b>0=完全确定</b>（每次输出相同），<b>0.3=低随机</b>，<b>0.5=平衡</b>，<b>1.0+=高创意</b>
         </p>
         <div style="margin-top:10px;background:#f8f9fa;border-radius:8px;padding:10px 12px;font-size:11px;line-height:1.6;color:#555;">
-          <div style="font-weight:600;margin-bottom:6px;color:#333;">📖 温度使用指南</div>
+          <div style="font-weight:600;margin-bottom:6px;color:#333;">
+            📖 温度使用指南
+          </div>
           <table style="width:100%;border-collapse:collapse;font-size:11px;">
             <tr style="border-bottom:1px solid #e0e0e0;">
-              <td style="padding:3px 4px;font-weight:600;white-space:nowrap;">📊 分析/提取</td>
-              <td style="padding:3px 4px;"><b>0–0.2</b> 精准稳定 · <b>0.3+</b> 可能产生幻觉，不推荐</td>
+              <td style="padding:3px 4px;font-weight:600;white-space:nowrap;">
+                📊 分析/提取
+              </td>
+              <td style="padding:3px 4px;">
+                <b>0–0.2</b> 精准稳定 · <b>0.3+</b> 可能产生幻觉，不推荐
+              </td>
             </tr>
             <tr style="border-bottom:1px solid #e0e0e0;">
-              <td style="padding:3px 4px;font-weight:600;white-space:nowrap;">📄 整卷正文生成</td>
-              <td style="padding:3px 4px;"><b>0.5–0.8</b> 情境/题目/卷面创作性 · <b>1.0+</b> 高创意</td>
+              <td style="padding:3px 4px;font-weight:600;white-space:nowrap;">
+                📄 整卷正文生成
+              </td>
+              <td style="padding:3px 4px;">
+                <b>0.5–0.8</b> 情境/题目/卷面创作性 · <b>1.0+</b> 高创意
+              </td>
             </tr>
             <tr>
-              <td style="padding:3px 4px;font-weight:600;white-space:nowrap;">✅ 答案页生成</td>
-              <td style="padding:3px 4px;"><b>0–0.3</b> 阅卷严谨准确 · <b>0.5+</b> 可能发散，不推荐</td>
+              <td style="padding:3px 4px;font-weight:600;white-space:nowrap;">
+                ✅ 答案页生成
+              </td>
+              <td style="padding:3px 4px;">
+                <b>0–0.3</b> 阅卷严谨准确 · <b>0.5+</b> 可能发散，不推荐
+              </td>
             </tr>
           </table>
-          <p style="margin:6px 0 0;color:#999;">⚡ 温度 0 不保证绝对一致（GPU 浮点运算有微小差异），但差异可忽略</p>
-          <p style="margin:4px 0 0;color:#999;">🔄 何时调整：输出重复雷同/平淡 → 略升；跑题/格式乱/内容出错 → 略降。每次只调 0.1，小步验证再决定是否继续。</p>
-          <p style="margin:4px 0 0;color:#999;">🧠 温度只控制随机性与发散度，不决定模型能力——调高不会让模型"更聪明"，只会更敢于变化（也更易出错）；调低更稳定、更保守。质量上不去时优先换更强模型，而不是一味调温度。</p>
-          <p style="margin:4px 0 0;color:#999;">📌 思考模式开启时，正文/答案预算会按「思考模式预算倍数」放大——温度与思考相互独立，可组合使用。</p>
+          <p style="margin:6px 0 0;color:#999;">
+            ⚡ 温度 0 不保证绝对一致（GPU 浮点运算有微小差异），但差异可忽略
+          </p>
+          <p style="margin:4px 0 0;color:#999;">
+            🔄 何时调整：输出重复雷同/平淡 → 略升；跑题/格式乱/内容出错 → 略降。每次只调 0.1，小步验证再决定是否继续。
+          </p>
+          <p style="margin:4px 0 0;color:#999;">
+            🧠 温度只控制随机性与发散度，不决定模型能力——调高不会让模型"更聪明"，只会更敢于变化（也更易出错）；调低更稳定、更保守。质量上不去时优先换更强模型，而不是一味调温度。
+          </p>
+          <p style="margin:4px 0 0;color:#999;">
+            📌 思考模式开启时，正文/答案预算会按「思考模式预算倍数」放大——温度与思考相互独立，可组合使用。
+          </p>
         </div>
       </div>
 
@@ -632,14 +1183,25 @@
       <div class="settings-section">
         <h3>💾 数据备份与恢复</h3>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-          <button class="btn" @click="exportData" :disabled="isExporting">
+          <button
+            class="btn"
+            :disabled="isExporting"
+            @click="exportData"
+          >
             {{ isExporting ? '导出中...' : '📥 导出备份' }}
           </button>
-          <button class="btn" @click="selectAndImport" :disabled="isImporting">
+          <button
+            class="btn"
+            :disabled="isImporting"
+            @click="selectAndImport"
+          >
             {{ isImporting ? '导入中...' : '📤 导入恢复' }}
           </button>
         </div>
-        <p v-if="backupStatus" style="margin-top: 10px; font-size: 13px; color: var(--primary-light);">
+        <p
+          v-if="backupStatus"
+          style="margin-top: 10px; font-size: 13px; color: var(--primary-light);"
+        >
           {{ backupStatus }}
         </p>
         <p style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
@@ -651,17 +1213,31 @@
       <div class="settings-section">
         <h3>🐍 Python 依赖管理</h3>
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-          <button class="btn" @click="checkPythonDeps" :disabled="isCheckingDeps">
+          <button
+            class="btn"
+            :disabled="isCheckingDeps"
+            @click="checkPythonDeps"
+          >
             {{ isCheckingDeps ? '检测中...' : '🔍 检测依赖' }}
           </button>
-          <button class="btn-primary" @click="installPythonDeps" :disabled="isInstallingDeps">
+          <button
+            class="btn-primary"
+            :disabled="isInstallingDeps"
+            @click="installPythonDeps"
+          >
             {{ isInstallingDeps ? '安装中...' : '⚡ 一键安装缺失依赖' }}
           </button>
         </div>
-        <p v-if="pythonDepsStatus" style="margin-top: 10px; font-size: 13px; color: var(--primary-light);">
+        <p
+          v-if="pythonDepsStatus"
+          style="margin-top: 10px; font-size: 13px; color: var(--primary-light);"
+        >
           {{ pythonDepsStatus }}
         </p>
-        <p v-if="missingDeps.length > 0" style="margin-top: 8px; font-size: 12px; color: var(--warning);">
+        <p
+          v-if="missingDeps.length > 0"
+          style="margin-top: 8px; font-size: 12px; color: var(--warning);"
+        >
           ⚠️ 缺失：{{ missingDeps.join(', ') }}
         </p>
         <p style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
@@ -673,18 +1249,43 @@
       <div class="settings-section">
         <h3>📋 操作日志 <span style="font-weight:normal;font-size:11px;color:#999;">({{ logStore.logs.length }})</span></h3>
         <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
-          <select v-model="logFilter" style="width:auto;font-size:11px;padding:4px 6px;">
-            <option value="">全部级别</option>
-            <option value="error">🔴 错误</option>
-            <option value="warn">🟡 警告</option>
-            <option value="log">🔵 日志</option>
+          <select
+            v-model="logFilter"
+            style="width:auto;font-size:11px;padding:4px 6px;"
+          >
+            <option value="">
+              全部级别
+            </option>
+            <option value="error">
+              🔴 错误
+            </option>
+            <option value="warn">
+              🟡 警告
+            </option>
+            <option value="log">
+              🔵 日志
+            </option>
           </select>
-          <button class="btn-small" @click="copyLogsToClipboard">📋 复制</button>
-          <button class="btn-small" @click="logStore.clearLogs()">🗑️ 清空</button>
+          <button
+            class="btn-small"
+            @click="copyLogsToClipboard"
+          >
+            📋 复制
+          </button>
+          <button
+            class="btn-small"
+            @click="logStore.clearLogs()"
+          >
+            🗑️ 清空
+          </button>
         </div>
-        <div class="log-viewer" v-if="filteredLogs.length > 0">
+        <div
+          v-if="filteredLogs.length > 0"
+          class="log-viewer"
+        >
           <div
-            v-for="entry in filteredLogs" :key="entry.id"
+            v-for="entry in filteredLogs"
+            :key="entry.id"
             class="log-entry"
             :class="'log-' + entry.level"
           >
@@ -692,7 +1293,12 @@
             <span class="log-msg">{{ entry.message }}</span>
           </div>
         </div>
-        <p v-else style="font-size:11px;color:#999;">暂无日志记录</p>
+        <p
+          v-else
+          style="font-size:11px;color:#999;"
+        >
+          暂无日志记录
+        </p>
       </div>
     </div>
   </div>

@@ -1,8 +1,17 @@
 <template>
   <Teleport to="body">
-    <div v-if="show" class="toast-container" :class="'toast-' + type">
+    <div
+      v-if="show"
+      class="toast-container"
+      :class="'toast-' + type"
+    >
       <span>{{ message }}</span>
-      <button class="toast-close" @click="show = false">✕</button>
+      <button
+        class="toast-close"
+        @click="show = false"
+      >
+        ✕
+      </button>
     </div>
   </Teleport>
 </template>

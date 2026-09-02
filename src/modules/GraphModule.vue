@@ -4,13 +4,30 @@
       <h2>⭐ 我的图形库</h2>
     </div>
     <div class="graph-list-page">
-      <div v-for="g in graphLibrary" :key="g.id" class="graph-item-page">
+      <div
+        v-for="g in graphLibrary"
+        :key="g.id"
+        class="graph-item-page"
+      >
         <code class="graph-preview">{{ truncate(g.full, 80) }}</code>
         <span class="graph-time">{{ formatTime(g.savedAt) }}</span>
-        <button class="btn-small" @click="copyGraph(g)">📋</button>
-        <button class="btn-small btn-delete" @click="deleteGraph(g.id)">🗑️</button>
+        <button
+          class="btn-small"
+          @click="copyGraph(g)"
+        >
+          📋
+        </button>
+        <button
+          class="btn-small btn-delete"
+          @click="deleteGraph(g.id)"
+        >
+          🗑️
+        </button>
       </div>
-      <div v-if="graphLibrary.length === 0" class="empty-tip">
+      <div
+        v-if="graphLibrary.length === 0"
+        class="empty-tip"
+      >
         暂无收藏的图形
       </div>
     </div>

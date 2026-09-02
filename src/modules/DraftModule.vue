@@ -4,73 +4,174 @@
       <div class="panel-header">
         <h3>📦 草稿箱 ({{ drafts.length }})</h3>
         <div class="header-actions">
-          <button class="btn" @click="processAllPending" :disabled="pendingCount === 0">
+          <button
+            class="btn"
+            :disabled="pendingCount === 0"
+            @click="processAllPending"
+          >
             🚀 全部处理 ({{ pendingCount }})
           </button>
-          <button class="btn" @click="batchDelete" :disabled="selectedDrafts.length === 0">🗑️ 批量删除</button>
-          <button class="btn-primary" @click="openUploadModal">📤 添加文件</button>
+          <button
+            class="btn"
+            :disabled="selectedDrafts.length === 0"
+            @click="batchDelete"
+          >
+            🗑️ 批量删除
+          </button>
+          <button
+            class="btn-primary"
+            @click="openUploadModal"
+          >
+            📤 添加文件
+          </button>
         </div>
       </div>
 
       <!-- 状态筛选 -->
       <div class="filter-row">
         <select v-model="filterStatus">
-          <option value="">全部状态</option>
-          <option value="pending">⏳ 等待处理</option>
-          <option value="completed">✅ 已完成</option>
-          <option value="failed">❌ 失败</option>
+          <option value="">
+            全部状态
+          </option>
+          <option value="pending">
+            ⏳ 等待处理
+          </option>
+          <option value="completed">
+            ✅ 已完成
+          </option>
+          <option value="failed">
+            ❌ 失败
+          </option>
         </select>
         <select v-model="uploadType">
-          <option value="textbook">📚 教材</option>
-          <option value="template">📋 模板</option>
+          <option value="textbook">
+            📚 教材
+          </option>
+          <option value="template">
+            📋 模板
+          </option>
         </select>
       </div>
 
       <!-- 草稿列表 -->
       <div class="draft-list">
-        <div v-if="filteredDrafts.length === 0" class="empty-tip">
+        <div
+          v-if="filteredDrafts.length === 0"
+          class="empty-tip"
+        >
           <p>📭 草稿箱为空</p>
-          <p class="hint">点击「添加文件」批量上传教材或模板</p>
+          <p class="hint">
+            点击「添加文件」批量上传教材或模板
+          </p>
         </div>
-        <div v-for="draft in filteredDrafts" :key="draft.id" class="draft-item" :class="'status-' + draft.status">
+        <div
+          v-for="draft in filteredDrafts"
+          :key="draft.id"
+          class="draft-item"
+          :class="'status-' + draft.status"
+        >
           <div class="draft-info">
-            <input type="checkbox" v-model="draft.selected" />
+            <input
+              v-model="draft.selected"
+              type="checkbox"
+            >
             <span class="draft-icon">{{ getStatusIcon(draft.status) }}</span>
             <span class="draft-name">{{ draft.name }}</span>
             <span class="draft-type">{{ draft.type === 'textbook' ? '📚 教材' : '📋 模板' }}</span>
             <span class="draft-status">{{ getStatusText(draft.status) }}</span>
           </div>
-          <div v-if="draft.error" class="draft-error">{{ draft.error }}</div>
+          <div
+            v-if="draft.error"
+            class="draft-error"
+          >
+            {{ draft.error }}
+          </div>
           <div class="draft-actions">
-            <button v-if="draft.status === 'pending'" class="btn-small" @click="processDraft(draft)">▶️ 处理</button>
-            <button v-if="draft.status === 'failed'" class="btn-small" @click="retryDraft(draft)">🔄 重试</button>
-            <button class="btn-small btn-delete" @click="deleteDraft(draft)">🗑️</button>
+            <button
+              v-if="draft.status === 'pending'"
+              class="btn-small"
+              @click="processDraft(draft)"
+            >
+              ▶️ 处理
+            </button>
+            <button
+              v-if="draft.status === 'failed'"
+              class="btn-small"
+              @click="retryDraft(draft)"
+            >
+              🔄 重试
+            </button>
+            <button
+              class="btn-small btn-delete"
+              @click="deleteDraft(draft)"
+            >
+              🗑️
+            </button>
           </div>
         </div>
       </div>
     </div>
 
     <!-- 上传弹窗 -->
-    <div v-if="showUploadModal" class="modal-mask" @click.self="closeUploadModal">
+    <div
+      v-if="showUploadModal"
+      class="modal-mask"
+      @click.self="closeUploadModal"
+    >
       <div class="modal">
         <h3>📤 添加到草稿箱</h3>
-        <button class="btn btn-full" @click="selectFiles">📁 选择文件（支持多选）</button>
-        <p class="hint">支持 PDF / Word / 图片</p>
+        <button
+          class="btn btn-full"
+          @click="selectFiles"
+        >
+          📁 选择文件（支持多选）
+        </button>
+        <p class="hint">
+          支持 PDF / Word / 图片
+        </p>
         
-        <div v-if="selectedFiles.length > 0" class="file-list">
+        <div
+          v-if="selectedFiles.length > 0"
+          class="file-list"
+        >
           <div class="file-list-header">
             <span>已选择 {{ selectedFiles.length }} 个文件</span>
-            <button class="icon-btn" @click="clearFiles">清空</button>
+            <button
+              class="icon-btn"
+              @click="clearFiles"
+            >
+              清空
+            </button>
           </div>
-          <div v-for="(f, i) in selectedFiles" :key="i" class="file-item">
+          <div
+            v-for="(f, i) in selectedFiles"
+            :key="i"
+            class="file-item"
+          >
             <span>{{ f.split('\\').pop() }}</span>
-            <button class="icon-btn" @click="removeFile(i)">🗑️</button>
+            <button
+              class="icon-btn"
+              @click="removeFile(i)"
+            >
+              🗑️
+            </button>
           </div>
         </div>
 
         <div class="modal-actions">
-          <button class="btn" @click="closeUploadModal">取消</button>
-          <button class="btn-primary" :disabled="selectedFiles.length === 0" @click="confirmUpload">添加到草稿箱</button>
+          <button
+            class="btn"
+            @click="closeUploadModal"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            :disabled="selectedFiles.length === 0"
+            @click="confirmUpload"
+          >
+            添加到草稿箱
+          </button>
         </div>
       </div>
     </div>

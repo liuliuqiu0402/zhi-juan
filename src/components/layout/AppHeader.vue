@@ -1,37 +1,102 @@
 <template>
-  <header class="app-header" :class="{ 'mobile-header': isMobile }">
+  <header
+    class="app-header"
+    :class="{ 'mobile-header': isMobile }"
+  >
     <div class="header-left">
       <span class="logo">{{ isMobile ? '📘 智卷' : '📘 智卷工坊' }}</span>
-      <span v-if="!isMobile" class="badge">小初高·学科教辅专家</span>
-      <span v-if="!isMobile && licenseInfo.version !== 'ultimate'" class="version-badge">
+      <span
+        v-if="!isMobile"
+        class="badge"
+      >小初高·学科教辅专家</span>
+      <span
+        v-if="!isMobile && licenseInfo.version !== 'ultimate'"
+        class="version-badge"
+      >
         {{ versionLabel }}
       </span>
     </div>
     
-    <div class="header-center" v-if="!isMobile">
-      <span v-if="isExpiringSoon" class="expire-warning">⚠️ 即将到期，请续费</span>
-      <span v-else-if="remainingDays !== null" class="expire-info">⏰ 剩余 {{ remainingDays }} 天</span>
+    <div
+      v-if="!isMobile"
+      class="header-center"
+    >
+      <span
+        v-if="isExpiringSoon"
+        class="expire-warning"
+      >⚠️ 即将到期，请续费</span>
+      <span
+        v-else-if="remainingDays !== null"
+        class="expire-info"
+      >⏰ 剩余 {{ remainingDays }} 天</span>
     </div>
     
-    <div class="header-right" v-if="!isMobile">
-      <button class="header-btn" @click="$router.push('/history')">📚 历史</button>
-      <button class="header-btn" @click="$router.push('/graph')" :disabled="!canAccessFeature('graph')">⭐ 图形库</button>
-      <button class="header-btn" @click="$router.push('/settings')">⚙️ 设置</button>
+    <div
+      v-if="!isMobile"
+      class="header-right"
+    >
+      <button
+        class="header-btn"
+        @click="$router.push('/history')"
+      >
+        📚 历史
+      </button>
+      <button
+        class="header-btn"
+        :disabled="!canAccessFeature('graph')"
+        @click="$router.push('/graph')"
+      >
+        ⭐ 图形库
+      </button>
+      <button
+        class="header-btn"
+        @click="$router.push('/settings')"
+      >
+        ⚙️ 设置
+      </button>
     </div>
 
     <!-- 📱 移动端：签名到期（仅iOS） + 操作按钮 -->
-    <div class="header-right" v-if="isMobile">
+    <div
+      v-if="isMobile"
+      class="header-right"
+    >
       <template v-if="isCapacitorIOS">
-        <span v-if="signInfo && signInfo.found && signInfo.daysRemaining >= 0" class="mobile-sign-badge" :class="{ warning: signInfo.daysRemaining <= 3 }">
+        <span
+          v-if="signInfo && signInfo.found && signInfo.daysRemaining >= 0"
+          class="mobile-sign-badge"
+          :class="{ warning: signInfo.daysRemaining <= 3 }"
+        >
           📱 {{ signInfo.daysRemaining === 0 ? '今日到期!' : signInfo.daysRemaining + '天' }}
         </span>
-        <span v-else-if="signInfo && !signInfo.found" class="mobile-sign-badge unknown">
+        <span
+          v-else-if="signInfo && !signInfo.found"
+          class="mobile-sign-badge unknown"
+        >
           📱 未签名
         </span>
       </template>
-      <button class="header-btn header-btn-sm" @click="resetTask" title="重置任务">🔄</button>
-      <button class="header-btn header-btn-sm" @click="uploadToCloud" title="上推：桌面全量 | 手机仅双向2类（引擎独立）">📤</button>
-      <button class="header-btn header-btn-sm" @click="refreshApp" title="同步：桌面拉双向2类→合并→推回 | 手机拉全量→合并双向→推回（引擎独立）">☁️</button>
+      <button
+        class="header-btn header-btn-sm"
+        title="重置任务"
+        @click="resetTask"
+      >
+        🔄
+      </button>
+      <button
+        class="header-btn header-btn-sm"
+        title="上推：桌面全量 | 手机仅双向2类（引擎独立）"
+        @click="uploadToCloud"
+      >
+        📤
+      </button>
+      <button
+        class="header-btn header-btn-sm"
+        title="同步：桌面拉双向2类→合并→推回 | 手机拉全量→合并双向→推回（引擎独立）"
+        @click="refreshApp"
+      >
+        ☁️
+      </button>
     </div>
   </header>
 </template>

@@ -1,53 +1,81 @@
 <template>
   <div class="pdf-preview">
     <div class="pdf-toolbar">
-      <button class="toolbar-btn" @click="zoomOut" :disabled="scale <= 0.5">−</button>
+      <button
+        class="toolbar-btn"
+        :disabled="scale <= 0.5"
+        @click="zoomOut"
+      >
+        −
+      </button>
       
       <!-- 缩放比例：点击可输入 -->
       <span 
+        v-if="!showScaleInput" 
         class="scale-text scale-editable" 
-        @click="showScaleInput = true" 
         title="点击输入缩放比例"
-        v-if="!showScaleInput"
+        @click="showScaleInput = true"
       >{{ Math.round(displayScale * 100) }}%</span>
       <input
         v-else
         ref="scaleInputRef"
+        v-model="scaleInputValue"
         type="number"
         min="20"
         max="300"
         class="scale-input"
-        v-model="scaleInputValue"
         @keyup.enter="applyScaleInput"
         @blur="applyScaleInput"
         @keyup.escape="cancelScaleInput"
-      />
+      >
       <span style="font-size:11px; color:var(--text-muted); margin-left:4px; white-space:nowrap;">20%~300%</span>
       
-      <button class="toolbar-btn" @click="zoomIn" :disabled="scale >= 3">+</button>
-      <button class="toolbar-btn" @click="resetZoom">⟲</button>
+      <button
+        class="toolbar-btn"
+        :disabled="scale >= 3"
+        @click="zoomIn"
+      >
+        +
+      </button>
+      <button
+        class="toolbar-btn"
+        @click="resetZoom"
+      >
+        ⟲
+      </button>
       
       <!-- 页码跳转 -->
       <span class="page-text">
         第 
-        <span class="page-editable" @click="showPageInput = true" title="点击输入页码" v-if="!showPageInput">{{ currentPage }}</span>
+        <span
+          v-if="!showPageInput"
+          class="page-editable"
+          title="点击输入页码"
+          @click="showPageInput = true"
+        >{{ currentPage }}</span>
         <input
           v-else
           ref="pageInputRef"
+          v-model="pageInputValue"
           type="number"
           :min="1"
           :max="totalPages"
           class="page-input"
-          v-model="pageInputValue"
           @keyup.enter="jumpToPage"
           @blur="jumpToPage"
           @keyup.escape="cancelPageInput"
-        />
-         / {{ totalPages }} 页
+        >
+        / {{ totalPages }} 页
       </span>
     </div>
-    <div class="pdf-canvas-container" ref="containerRef">
-      <canvas ref="canvasRef" class="pdf-canvas"></canvas>
+    <div
+      ref="containerRef"
+      class="pdf-canvas-container"
+    >
+      <canvas
+        ref="canvasRef"
+        class="pdf-canvas"
+      />
     </div>
   </div>
 </template>

@@ -9,114 +9,316 @@
         <span>用户自定义 <b class="user-n">{{ userCount }}</b></span>
         <span class="ov-sep">·</span>
         <span class="st-chips">
-          <button class="st-chip" :class="{ sel: statusFilter === 'all' }" @click="statusFilter = 'all'">全部 {{ statusCounts.total }}</button>
-          <button class="st-chip on" :class="{ sel: statusFilter === 'on' }" @click="statusFilter = 'on'">启用 {{ statusCounts.on }}</button>
-          <button class="st-chip off" :class="{ sel: statusFilter === 'off' }" @click="statusFilter = 'off'">停用 {{ statusCounts.off }}</button>
+          <button
+            class="st-chip"
+            :class="{ sel: statusFilter === 'all' }"
+            @click="statusFilter = 'all'"
+          >全部 {{ statusCounts.total }}</button>
+          <button
+            class="st-chip on"
+            :class="{ sel: statusFilter === 'on' }"
+            @click="statusFilter = 'on'"
+          >启用 {{ statusCounts.on }}</button>
+          <button
+            class="st-chip off"
+            :class="{ sel: statusFilter === 'off' }"
+            @click="statusFilter = 'off'"
+          >停用 {{ statusCounts.off }}</button>
         </span>
         <span class="ov-sep">·</span>
         <span>规则源 <b class="ok-n">已接线</b>（生成前注入 + 生成后审计）</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="dim-now">
-          <span class="dimb" :title="dims.stage ? STAGE_LABELS[dims.stage] : '全部学段'">{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
+          <span
+            class="dimb"
+            :title="dims.stage ? STAGE_LABELS[dims.stage] : '全部学段'"
+          >{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
           <span class="dimb">{{ dims.subject || '全部学科' }}</span>
           <span class="dimb">{{ dims.genType ? GEN_TYPE_NAME[dims.genType] : '全部类型' }}</span>
         </div>
-        <button class="btn" @click="resetAll">↩️ 恢复默认</button>
-        <button class="btn-p" @click="openNew">＋ 新增规则</button>
-        <button class="btn" @click="doExport">📤 导出</button>
-        <button class="btn" @click="importInput?.click()">📥 导入</button>
-        <input ref="importInput" type="file" accept=".json" style="display:none" @change="doImport" />
+        <button
+          class="btn"
+          @click="resetAll"
+        >
+          ↩️ 恢复默认
+        </button>
+        <button
+          class="btn-p"
+          @click="openNew"
+        >
+          ＋ 新增规则
+        </button>
+        <button
+          class="btn"
+          @click="doExport"
+        >
+          📤 导出
+        </button>
+        <button
+          class="btn"
+          @click="importInput?.click()"
+        >
+          📥 导入
+        </button>
+        <input
+          ref="importInput"
+          type="file"
+          accept=".json"
+          style="display:none"
+          @change="doImport"
+        >
       </div>
     </div>
 
     <!-- 校验：接线状态 -->
-    <div class="rule-validate" v-if="holeRules.length">
-      <div class="v-head">🔍 接线状态自检（注册空洞 = 定义但生成端无执行点）</div>
-      <div v-for="r in holeRules" :key="r.id" class="v-item sev-error">
+    <div
+      v-if="holeRules.length"
+      class="rule-validate"
+    >
+      <div class="v-head">
+        🔍 接线状态自检（注册空洞 = 定义但生成端无执行点）
+      </div>
+      <div
+        v-for="r in holeRules"
+        :key="r.id"
+        class="v-item sev-error"
+      >
         <span class="v-code">{{ r.id }}</span> 注册空洞——{{ r.desc }}
       </div>
     </div>
-    <div class="rule-validate ok" v-else>✅ 接线状态正常（当前筛选范围内无注册空洞）</div>
+    <div
+      v-else
+      class="rule-validate ok"
+    >
+      ✅ 接线状态正常（当前筛选范围内无注册空洞）
+    </div>
 
     <!-- 规则列表（手风琴） -->
-    <h4 class="rule-h">📋 规则条目<span class="hint">点击名称展开/收起 · 展开后可编辑 · 修复=生成前约束+生成后自动修复 · 防护=生成后静默防护（仅抽检计数）</span></h4>
+    <h4 class="rule-h">
+      📋 规则条目<span class="hint">点击名称展开/收起 · 展开后可编辑 · 修复=生成前约束+生成后自动修复 · 防护=生成后静默防护（仅抽检计数）</span>
+    </h4>
     <div class="rule-list">
-      <div v-for="r in ruleList" :key="r.id" class="rule-card" :class="{ open: openKey === r.id, editing: editingKey === r.id, disabled: ruleOff(r) }">
-        <div class="rule-head" @click="toggle(r.id)">
+      <div
+        v-for="r in ruleList"
+        :key="r.id"
+        class="rule-card"
+        :class="{ open: openKey === r.id, editing: editingKey === r.id, disabled: ruleOff(r) }"
+      >
+        <div
+          class="rule-head"
+          @click="toggle(r.id)"
+        >
           <span class="arrow">{{ openKey === r.id ? '▾' : '▸' }}</span>
           <span class="lib-tag">🧪 规则库</span>
           <span class="dim-name">{{ r.name }}</span>
-          <span class="rule-dim" :title="'维度：' + ruleDimName(r)">{{ ruleDimName(r) }}</span>
-          <span class="key-hint" :title="'规则 id（程序身份标识）：' + r.id">{{ r.id }}</span>
-          <span class="cat-tag" :class="`cat-${r.category}`" :title="r.category === 'fix' ? 'fix（生成前约束 + 生成后自动修复）' : 'guard（生成后静默防护，仅抽检计数）'">{{ r.category === 'fix' ? '修复' : '防护' }}</span>
-          <span v-if="r.source === 'user'" class="src-user">已自定义</span>
-          <span class="wired-tag" :class="wiredState(r).cls">{{ wiredState(r).label }}</span>
-          <label class="sw" :class="{ off: ruleOff(r) }" @click.stop title="停用后此规则不注入生成前约束、不执行生成后修复（见 buildValidatorPrompt / getValidatorRules）">
-            <input type="checkbox" :checked="!ruleOff(r)" @change="toggleRule(r, $event.target.checked)" />
+          <span
+            class="rule-dim"
+            :title="'维度：' + ruleDimName(r)"
+          >{{ ruleDimName(r) }}</span>
+          <span
+            class="key-hint"
+            :title="'规则 id（程序身份标识）：' + r.id"
+          >{{ r.id }}</span>
+          <span
+            class="cat-tag"
+            :class="`cat-${r.category}`"
+            :title="r.category === 'fix' ? 'fix（生成前约束 + 生成后自动修复）' : 'guard（生成后静默防护，仅抽检计数）'"
+          >{{ r.category === 'fix' ? '修复' : '防护' }}</span>
+          <span
+            v-if="r.source === 'user'"
+            class="src-user"
+          >已自定义</span>
+          <span
+            class="wired-tag"
+            :class="wiredState(r).cls"
+          >{{ wiredState(r).label }}</span>
+          <label
+            class="sw"
+            :class="{ off: ruleOff(r) }"
+            title="停用后此规则不注入生成前约束、不执行生成后修复（见 buildValidatorPrompt / getValidatorRules）"
+            @click.stop
+          >
+            <input
+              type="checkbox"
+              :checked="!ruleOff(r)"
+              @change="toggleRule(r, $event.target.checked)"
+            >
             <span>{{ ruleOff(r) ? '已停用' : '启用' }}</span>
           </label>
         </div>
 
         <!-- 展开态 -->
-        <div v-if="openKey === r.id && editingKey !== r.id" class="rule-body">
-          <div class="rule-info"><b>名称：</b>{{ r.name }}</div>
-          <div class="rule-info"><b>说明：</b>{{ r.description || '—' }}</div>
-          <div v-if="r.promptHint" class="rule-hint"><b>生成前约束：</b>{{ r.promptHint }}</div>
+        <div
+          v-if="openKey === r.id && editingKey !== r.id"
+          class="rule-body"
+        >
+          <div class="rule-info">
+            <b>名称：</b>{{ r.name }}
+          </div>
+          <div class="rule-info">
+            <b>说明：</b>{{ r.description || '—' }}
+          </div>
+          <div
+            v-if="r.promptHint"
+            class="rule-hint"
+          >
+            <b>生成前约束：</b>{{ r.promptHint }}
+          </div>
           <div class="rule-info dims-line">
             <b>维度：</b>{{ dimsText(r) }}
           </div>
           <div class="rule-ops">
-          <button class="btn" @click="startEdit(r)">✏️ 编辑</button>
-          <button class="btn" @click="copyRule(r)">📋 复制</button>
-          <button v-if="r.source === 'user'" class="btn danger" @click="removeRule(r)">🗑️ 删除自定义</button>
-        </div>
+            <button
+              class="btn"
+              @click="startEdit(r)"
+            >
+              ✏️ 编辑
+            </button>
+            <button
+              class="btn"
+              @click="copyRule(r)"
+            >
+              📋 复制
+            </button>
+            <button
+              v-if="r.source === 'user'"
+              class="btn danger"
+              @click="removeRule(r)"
+            >
+              🗑️ 删除自定义
+            </button>
+          </div>
         </div>
 
         <!-- 编辑态 -->
-        <div v-if="editingKey === r.id" class="rule-edit">
+        <div
+          v-if="editingKey === r.id"
+          class="rule-edit"
+        >
           <div class="edit-grid">
-            <label>规则 id <input v-model="form.id" :disabled="!!origId" placeholder="唯一英文标识" /></label>
-            <label>名称 <input v-model="form.name" placeholder="规则名" /></label>
+            <label>规则 id <input
+              v-model="form.id"
+              :disabled="!!origId"
+              placeholder="唯一英文标识"
+            ></label>
+            <label>名称 <input
+              v-model="form.name"
+              placeholder="规则名"
+            ></label>
             <label>类别
               <select v-model="form.category"><option value="fix">fix（自动修复）</option><option value="guard">guard（静默防护）</option></select>
             </label>
-            <label>学科（* 或逗号分隔）<input v-model="form.subjectsText" placeholder="如 * 或 语文,数学" /></label>
-            <label>学段（* 或逗号分隔）<input v-model="form.stagesText" placeholder="学段键，如 primary_low（小学低段）,primary_mid（小学中段）" /></label>
-            <label>资料类型（空=全部，逗号分隔）<input v-model="form.genTypesText" placeholder="如 exam,practice" /></label>
-            <label class="chk">启用 <input v-model="form.enabled" type="checkbox" /></label>
+            <label>学科（* 或逗号分隔）<input
+              v-model="form.subjectsText"
+              placeholder="如 * 或 语文,数学"
+            ></label>
+            <label>学段（* 或逗号分隔）<input
+              v-model="form.stagesText"
+              placeholder="学段键，如 primary_low（小学低段）,primary_mid（小学中段）"
+            ></label>
+            <label>资料类型（空=全部，逗号分隔）<input
+              v-model="form.genTypesText"
+              placeholder="如 exam,practice"
+            ></label>
+            <label class="chk">启用 <input
+              v-model="form.enabled"
+              type="checkbox"
+            ></label>
           </div>
-          <label class="full">生成前约束（promptHint）<textarea v-model="form.promptHint" rows="2" placeholder="模型生成前要遵守的约束文案"></textarea></label>
-          <label class="full">规则说明<textarea v-model="form.description" rows="2" placeholder="规则用途说明"></textarea></label>
+          <label class="full">生成前约束（promptHint）<textarea
+            v-model="form.promptHint"
+            rows="2"
+            placeholder="模型生成前要遵守的约束文案"
+          /></label>
+          <label class="full">规则说明<textarea
+            v-model="form.description"
+            rows="2"
+            placeholder="规则用途说明"
+          /></label>
           <div class="rule-ops">
-            <button class="btn-p" @click="saveDraft">💾 保存</button>
-            <button class="btn" @click="cancelEdit">取消</button>
+            <button
+              class="btn-p"
+              @click="saveDraft"
+            >
+              💾 保存
+            </button>
+            <button
+              class="btn"
+              @click="cancelEdit"
+            >
+              取消
+            </button>
           </div>
         </div>
       </div>
-      <div v-if="!ruleList.length" class="rule-empty">当前筛选无规则（可放宽筛选）</div>
+      <div
+        v-if="!ruleList.length"
+        class="rule-empty"
+      >
+        当前筛选无规则（可放宽筛选）
+      </div>
     </div>
 
     <!-- 新增规则弹层 -->
-    <div v-if="newOpen" class="modal-mask" @click.self="newOpen = false">
+    <div
+      v-if="newOpen"
+      class="modal-mask"
+      @click.self="newOpen = false"
+    >
       <div class="modal">
         <h4>＋ 新增规则（用户自定义，优先于内置）</h4>
         <div class="edit-grid">
-          <label>规则 id <input v-model="form.id" placeholder="唯一英文标识（如 my-check）" /></label>
-          <label>名称 <input v-model="form.name" placeholder="规则名" /></label>
+          <label>规则 id <input
+            v-model="form.id"
+            placeholder="唯一英文标识（如 my-check）"
+          ></label>
+          <label>名称 <input
+            v-model="form.name"
+            placeholder="规则名"
+          ></label>
           <label>类别
             <select v-model="form.category"><option value="fix">fix（自动修复）</option><option value="guard">guard（静默防护）</option></select>
           </label>
-          <label>学科（* 或逗号分隔）<input v-model="form.subjectsText" placeholder="如 * 或 语文,数学" /></label>
-          <label>学段（* 或逗号分隔）<input v-model="form.stagesText" placeholder="学段键，如 primary_low（小学低段）,middle（初中）" /></label>
-          <label>资料类型（空=全部）<input v-model="form.genTypesText" placeholder="如 exam,practice" /></label>
+          <label>学科（* 或逗号分隔）<input
+            v-model="form.subjectsText"
+            placeholder="如 * 或 语文,数学"
+          ></label>
+          <label>学段（* 或逗号分隔）<input
+            v-model="form.stagesText"
+            placeholder="学段键，如 primary_low（小学低段）,middle（初中）"
+          ></label>
+          <label>资料类型（空=全部）<input
+            v-model="form.genTypesText"
+            placeholder="如 exam,practice"
+          ></label>
         </div>
-        <label class="full">生成前约束（promptHint）<textarea v-model="form.promptHint" rows="2" placeholder="模型生成前要遵守的约束文案"></textarea></label>
-        <label class="full">规则说明<textarea v-model="form.description" rows="2" placeholder="规则用途说明"></textarea></label>
-        <p class="modal-tip">注意：新增规则只在规则库注册；对应的执行逻辑（校验器内按 id 开关）需在代码中实现，否则会变成"注册空洞"（见接线状态自检）。</p>
+        <label class="full">生成前约束（promptHint）<textarea
+          v-model="form.promptHint"
+          rows="2"
+          placeholder="模型生成前要遵守的约束文案"
+        /></label>
+        <label class="full">规则说明<textarea
+          v-model="form.description"
+          rows="2"
+          placeholder="规则用途说明"
+        /></label>
+        <p class="modal-tip">
+          注意：新增规则只在规则库注册；对应的执行逻辑（校验器内按 id 开关）需在代码中实现，否则会变成"注册空洞"（见接线状态自检）。
+        </p>
         <div class="rule-ops">
-          <button class="btn-p" @click="saveNew">💾 创建</button>
-          <button class="btn" @click="newOpen = false">取消</button>
+          <button
+            class="btn-p"
+            @click="saveNew"
+          >
+            💾 创建
+          </button>
+          <button
+            class="btn"
+            @click="newOpen = false"
+          >
+            取消
+          </button>
         </div>
       </div>
     </div>

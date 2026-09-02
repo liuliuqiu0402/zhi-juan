@@ -4,7 +4,9 @@
     <template v-if="activeLib">
       <div class="sub-layout">
         <aside class="sub-sidebar">
-          <div class="sub-cat">🧰 工具库</div>
+          <div class="sub-cat">
+            🧰 工具库
+          </div>
           <div
             v-for="lib in TOOL_LIBRARIES"
             :key="lib.id"
@@ -13,18 +15,52 @@
             @click="$router.push(`/tools/${lib.id}`)"
           >
             <span>{{ lib.icon }}</span> {{ lib.name }}
-            <span v-if="lib.migrate === 'migrating'" class="mig-badge">迁移中</span>
+            <span
+              v-if="lib.migrate === 'migrating'"
+              class="mig-badge"
+            >迁移中</span>
           </div>
         </aside>
         <section class="sub-content">
           <div class="sub-toolbar">
-            <button class="back-btn" @click="$router.push('/tools')">← 返回工具库</button>
-            <div class="crumb">工具库 <span class="crumb-sep">/</span> {{ activeLib.icon }} {{ activeLib.name }} <span class="crumb-dim" :title="'三维度检索：学段 × 学科 × 资料类型'">三维度</span></div>
+            <button
+              class="back-btn"
+              @click="$router.push('/tools')"
+            >
+              ← 返回工具库
+            </button>
+            <div class="crumb">
+              工具库 <span class="crumb-sep">/</span> {{ activeLib.icon }} {{ activeLib.name }} <span
+                class="crumb-dim"
+                :title="'三维度检索：学段 × 学科 × 资料类型'"
+              >三维度</span>
+            </div>
             <div class="toolbar-actions">
-              <template v-for="act in (activeLib.toolbar?.actions || [])" :key="act">
-                <button v-if="act === 'new'" class="btn" @click="onNewEntry">+ 新建条目</button>
-                <button v-if="act === 'validate'" class="btn" @click="onValidate">🔍 校验</button>
-                <button v-if="act === 'clear'" class="btn danger" @click="onClear">🗑️ 清理</button>
+              <template
+                v-for="act in (activeLib.toolbar?.actions || [])"
+                :key="act"
+              >
+                <button
+                  v-if="act === 'new'"
+                  class="btn"
+                  @click="onNewEntry"
+                >
+                  + 新建条目
+                </button>
+                <button
+                  v-if="act === 'validate'"
+                  class="btn"
+                  @click="onValidate"
+                >
+                  🔍 校验
+                </button>
+                <button
+                  v-if="act === 'clear'"
+                  class="btn danger"
+                  @click="onClear"
+                >
+                  🗑️ 清理
+                </button>
                 <!-- 🔧 clear 动作当前无任何库启用（toolLibrary.js 5 库均未注册 'clear'），若未来启用需先补 onClear 处理器（见 setup） -->
               </template>
               <DimensionFilter
@@ -35,7 +71,10 @@
             </div>
           </div>
           <div class="sub-body">
-            <component :is="activeView" :key="reloadKey" />
+            <component
+              :is="activeView"
+              :key="reloadKey"
+            />
           </div>
         </section>
       </div>
@@ -47,11 +86,19 @@
         <div class="page-header">
           <div>
             <h2>🧰 工具库</h2>
-            <p class="page-desc">生成端各工具库统一入口 · 三维度检索（学段 × 学科 × 资料类型）· 代码读取而非指令注入</p>
+            <p class="page-desc">
+              生成端各工具库统一入口 · 三维度检索（学段 × 学科 × 资料类型）· 代码读取而非指令注入
+            </p>
           </div>
-          <DimensionFilter v-model="dims" compact />
+          <DimensionFilter
+            v-model="dims"
+            compact
+          />
         </div>
-        <div class="keyline" v-if="hasAnyDim">
+        <div
+          v-if="hasAnyDim"
+          class="keyline"
+        >
           <span class="dim-key">当前检索键</span>
           <span class="dimb">{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
           <span class="dimb">{{ dims.subject || '全部学科' }}</span>
@@ -66,14 +113,27 @@
             :class="`st-${lib.status}`"
             @click="$router.push(`/tools/${lib.id}`)"
           >
-            <div class="lib-ico">{{ lib.icon }}</div>
+            <div class="lib-ico">
+              {{ lib.icon }}
+            </div>
             <div class="lib-name">
               {{ lib.name }}
-              <span v-if="lib.status === 'new'" class="badge-new">新增</span>
-              <span v-if="lib.migrate === 'migrating'" class="badge-mig">迁移中</span>
-              <span v-if="lib.status === 'warn'" class="badge-warn">有缺口</span>
+              <span
+                v-if="lib.status === 'new'"
+                class="badge-new"
+              >新增</span>
+              <span
+                v-if="lib.migrate === 'migrating'"
+                class="badge-mig"
+              >迁移中</span>
+              <span
+                v-if="lib.status === 'warn'"
+                class="badge-warn"
+              >有缺口</span>
             </div>
-            <div class="lib-desc">{{ lib.desc }}</div>
+            <div class="lib-desc">
+              {{ lib.desc }}
+            </div>
             <div class="lib-ft">
               <span class="chip">{{ (libStats && libStats[lib.id]) || lib.count }}</span>
               <span class="dim-hint">学段 × 学科 × 类型</span>

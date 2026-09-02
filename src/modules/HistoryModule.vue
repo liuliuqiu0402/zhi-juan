@@ -4,49 +4,114 @@
       <h2>📚 历史记录</h2>
       <div class="history-search">
         <input
-          type="text"
           v-model="historySearchKeyword"
+          type="text"
           placeholder="🔍 搜索标题或内容..."
           class="search-input"
-        />
-        <select v-model="historyFilterType" class="filter-select" style="width:auto;padding:6px 10px;border-radius:20px;border:1px solid #ddd;font-size:13px;">
-          <option value="">全部类型</option>
-          <option value="📝 考卷">📝 考卷</option>
-          <option value="📚 课时练">📚 课时练</option>
-          <option value="📖 知识点总结">📖 知识点总结</option>
-          <option value="🎯 专项突破">🎯 专项突破</option>
-          <option value="🔖 错题本">🔖 错题本</option>
+        >
+        <select
+          v-model="historyFilterType"
+          class="filter-select"
+          style="width:auto;padding:6px 10px;border-radius:20px;border:1px solid #ddd;font-size:13px;"
+        >
+          <option value="">
+            全部类型
+          </option>
+          <option value="📝 考卷">
+            📝 考卷
+          </option>
+          <option value="📚 课时练">
+            📚 课时练
+          </option>
+          <option value="📖 知识点总结">
+            📖 知识点总结
+          </option>
+          <option value="🎯 专项突破">
+            🎯 专项突破
+          </option>
+          <option value="🔖 错题本">
+            🔖 错题本
+          </option>
         </select>
-        <button class="btn" @click="clearAllHistory">清空全部</button>
+        <button
+          class="btn"
+          @click="clearAllHistory"
+        >
+          清空全部
+        </button>
       </div>
     </div>
     <div class="history-list-page">
-      <div v-for="item in filteredHistoryList" :key="item.id" class="history-item-page">
+      <div
+        v-for="item in filteredHistoryList"
+        :key="item.id"
+        class="history-item-page"
+      >
         <div class="history-info">
           <span class="history-title">{{ item.title }}</span>
           <span class="history-time">{{ formatTime(item.createdAt) }}</span>
           <span class="history-type">{{ item.genType }}</span>
         </div>
         <div class="history-actions">
-          <button class="btn-small" @click="previewHistoryItem(item)">👁️ 预览</button>
-          <button class="btn-small hide-on-mobile" @click="sendToTypeset(item)">📄 排版</button>
-          <button class="btn-small" @click="loadFromHistory(item)">📋 加载指令</button>
-          <button class="btn-small" @click="downloadFromHistory(item)">📥 下载</button>
-          <button class="btn-small btn-delete" @click="deleteHistoryItem(item.id)">🗑️</button>
+          <button
+            class="btn-small"
+            @click="previewHistoryItem(item)"
+          >
+            👁️ 预览
+          </button>
+          <button
+            class="btn-small hide-on-mobile"
+            @click="sendToTypeset(item)"
+          >
+            📄 排版
+          </button>
+          <button
+            class="btn-small"
+            @click="loadFromHistory(item)"
+          >
+            📋 加载指令
+          </button>
+          <button
+            class="btn-small"
+            @click="downloadFromHistory(item)"
+          >
+            📥 下载
+          </button>
+          <button
+            class="btn-small btn-delete"
+            @click="deleteHistoryItem(item.id)"
+          >
+            🗑️
+          </button>
         </div>
       </div>
-      <div v-if="filteredHistoryList.length === 0" class="empty-tip">
+      <div
+        v-if="filteredHistoryList.length === 0"
+        class="empty-tip"
+      >
         暂无历史记录
       </div>
     </div>
   
     <!-- 预览弹窗 -->
-    <div v-if="showPreview" class="modal-mask" @click.self="showPreview = false">
+    <div
+      v-if="showPreview"
+      class="modal-mask"
+      @click.self="showPreview = false"
+    >
       <div class="modal large-modal">
         <h3>👁️ 内容预览</h3>
-        <div class="preview-content" v-html="previewContent"></div>
+        <div
+          class="preview-content"
+          v-html="previewContent"
+        />
         <div class="modal-actions">
-          <button class="btn" @click="showPreview = false">关闭</button>
+          <button
+            class="btn"
+            @click="showPreview = false"
+          >
+            关闭
+          </button>
         </div>
       </div>
     </div>

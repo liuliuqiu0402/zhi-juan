@@ -1,61 +1,142 @@
 <template>
   <Teleport to="body">
     <!-- 输入对话框 -->
-    <div v-if="showInputDialog" class="modal-mask" @click.self="cancelInputDialog">
-      <div class="modal" style="max-width: 500px;">
+    <div
+      v-if="showInputDialog"
+      class="modal-mask"
+      @click.self="cancelInputDialog"
+    >
+      <div
+        class="modal"
+        style="max-width: 500px;"
+      >
         <h3>{{ inputDialogTitle }}</h3>
         <textarea
+          ref="inputDialogRef"
           v-model="inputDialogValue"
           style="margin: 16px 0; min-height: 200px; width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; resize: vertical; font-family: inherit; box-sizing: border-box;"
-          ref="inputDialogRef"
-        ></textarea>
+        />
         <div class="modal-actions">
-          <button class="btn" @click="cancelInputDialog">取消</button>
-          <button class="btn-primary" @click="confirmInputDialog">确定</button>
+          <button
+            class="btn"
+            @click="cancelInputDialog"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="confirmInputDialog"
+          >
+            确定
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 确认对话框 -->
-    <div v-if="showConfirmDialog" class="modal-mask" @click.self="cancelConfirmDialog">
-      <div class="modal" style="max-width: 400px;">
+    <div
+      v-if="showConfirmDialog"
+      class="modal-mask"
+      @click.self="cancelConfirmDialog"
+    >
+      <div
+        class="modal"
+        style="max-width: 400px;"
+      >
         <h3>确认</h3>
-        <p style="margin: 16px 0; white-space: pre-line;">{{ confirmDialogMessage }}</p>
+        <p style="margin: 16px 0; white-space: pre-line;">
+          {{ confirmDialogMessage }}
+        </p>
         <div class="modal-actions">
-          <button class="btn" @click="cancelConfirmDialog">取消</button>
-          <button class="btn-primary" @click="confirmConfirmDialog">确定</button>
+          <button
+            class="btn"
+            @click="cancelConfirmDialog"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="confirmConfirmDialog"
+          >
+            确定
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 提示对话框 -->
-    <div v-if="showAlertDialog" class="modal-mask" @click.self="closeAlertDialog">
-      <div class="modal" style="max-width: 500px;">
+    <div
+      v-if="showAlertDialog"
+      class="modal-mask"
+      @click.self="closeAlertDialog"
+    >
+      <div
+        class="modal"
+        style="max-width: 500px;"
+      >
         <h3>提示</h3>
-        <p style="margin: 16px 0; white-space: pre-line; max-height: 400px; overflow-y: auto;">{{ alertDialogMessage }}</p>
+        <p style="margin: 16px 0; white-space: pre-line; max-height: 400px; overflow-y: auto;">
+          {{ alertDialogMessage }}
+        </p>
         <div class="modal-actions">
-          <button class="btn-primary" @click="closeAlertDialog">确定</button>
+          <button
+            class="btn-primary"
+            @click="closeAlertDialog"
+          >
+            确定
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 重试对话框（三按钮） -->
-    <div v-if="showRetryDialog" class="modal-mask" @click.self="cancelRetry">
-      <div class="modal" style="max-width: 480px;">
+    <div
+      v-if="showRetryDialog"
+      class="modal-mask"
+      @click.self="cancelRetry"
+    >
+      <div
+        class="modal"
+        style="max-width: 480px;"
+      >
         <h3>⚠️ 生成失败</h3>
-        <p style="margin: 16px 0; white-space: pre-line; max-height: 300px; overflow-y: auto;">{{ retryDialogMessage }}</p>
-        <div class="modal-actions" style="flex-wrap: wrap; gap: 8px;">
-          <button class="btn" @click="cancelRetry">取消</button>
-          <button class="btn-primary" @click="chooseRetry">🔄 原样重试</button>
+        <p style="margin: 16px 0; white-space: pre-line; max-height: 300px; overflow-y: auto;">
+          {{ retryDialogMessage }}
+        </p>
+        <div
+          class="modal-actions"
+          style="flex-wrap: wrap; gap: 8px;"
+        >
+          <button
+            class="btn"
+            @click="cancelRetry"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="chooseRetry"
+          >
+            🔄 原样重试
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 单选对话框 -->
-    <div v-if="showRadioDialog" class="modal-mask" @click.self="cancelRadioDialog">
-      <div class="modal" style="max-width: 440px;">
+    <div
+      v-if="showRadioDialog"
+      class="modal-mask"
+      @click.self="cancelRadioDialog"
+    >
+      <div
+        class="modal"
+        style="max-width: 440px;"
+      >
         <h3>生成方式</h3>
-        <p style="margin: 12px 0; white-space: pre-line; color: #666;">{{ radioDialogMessage }}</p>
+        <p style="margin: 12px 0; white-space: pre-line; color: #666;">
+          {{ radioDialogMessage }}
+        </p>
         <div style="margin: 8px 0 16px;">
           <label
             v-for="opt in radioDialogOptions"
@@ -68,22 +149,35 @@
               : {}"
             @click="radioDialogSelected = opt.value"
           >
-            <span style="width: 20px; height: 20px; border-radius: 50%; border: 2px solid #ccc;
+            <span
+              style="width: 20px; height: 20px; border-radius: 50%; border: 2px solid #ccc;
                          display: inline-flex; align-items: center; justify-content: center; margin-right: 10px;
                          flex-shrink: 0;"
-                  :style="radioDialogSelected === opt.value
-                    ? { borderColor: 'var(--primary-light)' }
-                    : {}"
+              :style="radioDialogSelected === opt.value
+                ? { borderColor: 'var(--primary-light)' }
+                : {}"
             >
-              <span v-if="radioDialogSelected === opt.value"
-                    style="width: 10px; height: 10px; border-radius: 50%; background: var(--primary-light);"></span>
+              <span
+                v-if="radioDialogSelected === opt.value"
+                style="width: 10px; height: 10px; border-radius: 50%; background: var(--primary-light);"
+              />
             </span>
             <span style="font-size: 14px;">{{ opt.label }}</span>
           </label>
         </div>
         <div class="modal-actions">
-          <button class="btn" @click="cancelRadioDialog">取消</button>
-          <button class="btn-primary" @click="confirmRadioDialog">确定</button>
+          <button
+            class="btn"
+            @click="cancelRadioDialog"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="confirmRadioDialog"
+          >
+            确定
+          </button>
         </div>
       </div>
     </div>

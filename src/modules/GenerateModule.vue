@@ -3,100 +3,238 @@
     <!-- 顶部配置栏 -->
     <div class="config-ribbon">
       <div class="ribbon-left">
-        <button class="ribbon-btn" @click="showScopeModal = true">
+        <button
+          class="ribbon-btn"
+          @click="showScopeModal = true"
+        >
           📐 {{ scopeTypeLabel }}
         </button>
-        <button class="ribbon-btn" @click="showStyleModal = true">
+        <button
+          class="ribbon-btn"
+          @click="showStyleModal = true"
+        >
           🎨 {{ styleLabel }}
         </button>
-        <button class="ribbon-btn" @click="showGenTypeModal = true">
+        <button
+          class="ribbon-btn"
+          @click="showGenTypeModal = true"
+        >
           📂 {{ genTypeLabel }}
         </button>
-        <button class="ribbon-btn" @click="showLabelStyleModal = true" :title="'名称样式：决定生成资料标题中的名称（当前：' + labelStyleLabel + '）'">
+        <button
+          class="ribbon-btn"
+          :title="'名称样式：决定生成资料标题中的名称（当前：' + labelStyleLabel + '）'"
+          @click="showLabelStyleModal = true"
+        >
           ✏️ {{ labelStyleLabel }}
         </button>
-        <button v-if="showSpecialSubType" class="ribbon-btn ribbon-btn-special" @click="showSpecialSubTypeModal = true">
+        <button
+          v-if="showSpecialSubType"
+          class="ribbon-btn ribbon-btn-special"
+          @click="showSpecialSubTypeModal = true"
+        >
           🎯 {{ specialSubTypeLabel || '选择专项领域' }}
         </button>
-        <button class="ribbon-btn" @click="showGranularityModal = true">
+        <button
+          class="ribbon-btn"
+          @click="showGranularityModal = true"
+        >
           📏 {{ granularityLabel }}
         </button>
-        <button class="ribbon-btn" @click="showDetailConfigModal = true">
+        <button
+          class="ribbon-btn"
+          @click="showDetailConfigModal = true"
+        >
           📝 详细配置
         </button>
         <!-- 🖥️ 桌面端专用：同步/上推/重置（手机端走 AppHeader 全局按钮） -->
         <template v-if="!isMobile">
-          <button class="ribbon-btn ribbon-btn-sync" @click="syncPage" title="同步：拉双向2类→合并→推回">☁️</button>
-          <button class="ribbon-btn ribbon-btn-upload" @click="uploadPage" title="上推：全量推送至云端">📤</button>
-          <button class="ribbon-btn ribbon-btn-refresh" @click="refreshPage" title="重置任务">🔄</button>
+          <button
+            class="ribbon-btn ribbon-btn-sync"
+            title="同步：拉双向2类→合并→推回"
+            @click="syncPage"
+          >
+            ☁️
+          </button>
+          <button
+            class="ribbon-btn ribbon-btn-upload"
+            title="上推：全量推送至云端"
+            @click="uploadPage"
+          >
+            📤
+          </button>
+          <button
+            class="ribbon-btn ribbon-btn-refresh"
+            title="重置任务"
+            @click="refreshPage"
+          >
+            🔄
+          </button>
         </template>
         <!-- 📱 移动端模型状态 -->
-        <span v-if="isMobile" class="mobile-model-chip" :class="{ 'mobile-chip-error': deepseekStatus === 'error', 'mobile-chip-checking': deepseekStatus === 'checking' }" :title="deepseekStatus === 'error' ? '⚠️ ' + deepseekStatusMsg : (apiConfig.currentEngine === 'deepseek' ? `✅ 已就绪 | 生成:${currentModelSummary.heavy} / 分析:${currentModelSummary.light}` : currentModelSummary.heavy)">
-          <span class="chip-dot" :class="apiConfig.currentEngine === 'deepseek' ? (deepseekStatus === 'ready' ? 'dot-ready' : deepseekStatus === 'checking' ? 'dot-checking' : 'dot-error') : 'dot-ollama'"></span>
+        <span
+          v-if="isMobile"
+          class="mobile-model-chip"
+          :class="{ 'mobile-chip-error': deepseekStatus === 'error', 'mobile-chip-checking': deepseekStatus === 'checking' }"
+          :title="deepseekStatus === 'error' ? '⚠️ ' + deepseekStatusMsg : (apiConfig.currentEngine === 'deepseek' ? `✅ 已就绪 | 生成:${currentModelSummary.heavy} / 分析:${currentModelSummary.light}` : currentModelSummary.heavy)"
+        >
+          <span
+            class="chip-dot"
+            :class="apiConfig.currentEngine === 'deepseek' ? (deepseekStatus === 'ready' ? 'dot-ready' : deepseekStatus === 'checking' ? 'dot-checking' : 'dot-error') : 'dot-ollama'"
+          />
           {{ deepseekStatus === 'checking' ? '检测中...' : deepseekStatus === 'error' ? '⚠️ 未就绪' : (apiConfig.currentEngine === 'deepseek' ? currentModelSummary.heavy.split('-').pop() + '+' + currentModelSummary.light.split('-').pop() : currentModelSummary.heavy) }}
         </span>
       </div>
       <div class="ribbon-right">
-        <div v-if="genTypeModelHint" class="model-recommend-badge">
+        <div
+          v-if="genTypeModelHint"
+          class="model-recommend-badge"
+        >
           <span class="badge-icon">{{ genTypeModelHint.icon }}</span>
           <span class="badge-model">{{ genTypeModelHint.model }}</span>
           <span class="badge-tip">{{ genTypeModelHint.tip }}</span>
         </div>
-        <div class="model-config-chip" :title="deepseekStatus === 'error' ? '⚠️ ' + deepseekStatusMsg : (currentModelSummary.review ? `重型:${currentModelSummary.heavy}\n轻量:${currentModelSummary.light}\n分析:${currentModelSummary.analysis}\n审查:${currentModelSummary.review}` : apiConfig.currentEngine === 'deepseek' ? `生成:${currentModelSummary.heavy}\n分析:${currentModelSummary.light}` : `重型:${currentModelSummary.heavy}\n轻量:${currentModelSummary.light}\n分析:${currentModelSummary.analysis}`)">
-          <span class="chip-dot" :class="apiConfig.currentEngine === 'deepseek' ? (deepseekStatus === 'ready' ? 'dot-ready' : deepseekStatus === 'checking' ? 'dot-checking' : 'dot-error') : 'dot-ollama'"></span>
+        <div
+          class="model-config-chip"
+          :title="deepseekStatus === 'error' ? '⚠️ ' + deepseekStatusMsg : (currentModelSummary.review ? `重型:${currentModelSummary.heavy}\n轻量:${currentModelSummary.light}\n分析:${currentModelSummary.analysis}\n审查:${currentModelSummary.review}` : apiConfig.currentEngine === 'deepseek' ? `生成:${currentModelSummary.heavy}\n分析:${currentModelSummary.light}` : `重型:${currentModelSummary.heavy}\n轻量:${currentModelSummary.light}\n分析:${currentModelSummary.analysis}`)"
+        >
+          <span
+            class="chip-dot"
+            :class="apiConfig.currentEngine === 'deepseek' ? (deepseekStatus === 'ready' ? 'dot-ready' : deepseekStatus === 'checking' ? 'dot-checking' : 'dot-error') : 'dot-ollama'"
+          />
           <span class="chip-label">{{ currentModelSummary.engine === '🦙 Ollama' ? '本地' : '云端' }}</span>
           <span class="chip-sep">·</span>
           <span class="chip-model">{{ apiConfig.currentEngine === 'deepseek' ? currentModelSummary.heavy + ' + ' + currentModelSummary.light : currentModelSummary.heavy }}</span>
-          <span v-if="deepseekStatus === 'error'" class="chip-status-err" :title="deepseekStatusMsg">⚠️</span>
+          <span
+            v-if="deepseekStatus === 'error'"
+            class="chip-status-err"
+            :title="deepseekStatusMsg"
+          >⚠️</span>
         </div>
       </div>
     </div>
 
     <!-- 📱 移动端 Tab 切换栏 -->
-    <div v-if="isMobile" class="mobile-gen-tabs">
-      <div class="gen-tab" :class="{ active: mobileGenTab === 'select' }" @click="mobileGenTab = 'select'">
-        📋 已选<span v-if="selectedTextbookCount" class="gen-tab-badge">{{ selectedTextbookCount }}</span>
+    <div
+      v-if="isMobile"
+      class="mobile-gen-tabs"
+    >
+      <div
+        class="gen-tab"
+        :class="{ active: mobileGenTab === 'select' }"
+        @click="mobileGenTab = 'select'"
+      >
+        📋 已选<span
+          v-if="selectedTextbookCount"
+          class="gen-tab-badge"
+        >{{ selectedTextbookCount }}</span>
       </div>
-      <div class="gen-tab" :class="{ active: mobileGenTab === 'instruct' }" @click="mobileGenTab = 'instruct'">
+      <div
+        class="gen-tab"
+        :class="{ active: mobileGenTab === 'instruct' }"
+        @click="mobileGenTab = 'instruct'"
+      >
         📝 方案
       </div>
-      <div class="gen-tab" :class="{ active: mobileGenTab === 'result' }" @click="mobileGenTab = 'result'">
-        📄 结果<span v-if="displayedDocs.length" class="gen-tab-badge">{{ displayedDocs.length }}</span>
+      <div
+        class="gen-tab"
+        :class="{ active: mobileGenTab === 'result' }"
+        @click="mobileGenTab = 'result'"
+      >
+        📄 结果<span
+          v-if="displayedDocs.length"
+          class="gen-tab-badge"
+        >{{ displayedDocs.length }}</span>
       </div>
     </div>
 
     <!-- 主工作区 -->
-    <div class="main-workspace" :class="{ 'mobile-workspace': isMobile }">
+    <div
+      class="main-workspace"
+      :class="{ 'mobile-workspace': isMobile }"
+    >
       <!-- 左侧：已选摘要面板 -->
-      <div class="selection-panel" v-show="!isMobile || mobileGenTab === 'select'">
+      <div
+        v-show="!isMobile || mobileGenTab === 'select'"
+        class="selection-panel"
+      >
         <!-- 已选教材 -->
         <div class="panel-section">
-          <div class="section-header" @click="toggleSection('textbook')">
+          <div
+            class="section-header"
+            @click="toggleSection('textbook')"
+          >
             <span>{{ sectionCollapsed.textbook ? '▶' : '▼' }}</span>
             <span>📚 已选教材章节</span>
             <span class="selected-count">{{ selectedTextbookCount }}</span>
-            <span class="analysis-toggle-all" @click.stop="toggleAllForAnalysis('textbook')" title="切换全选/取消分析勾选">{{ allTextbookSelectedForAnalysis ? '☑' : '☐' }}</span>
+            <span
+              class="analysis-toggle-all"
+              title="切换全选/取消分析勾选"
+              @click.stop="toggleAllForAnalysis('textbook')"
+            >{{ allTextbookSelectedForAnalysis ? '☑' : '☐' }}</span>
           </div>
-          <div v-show="!sectionCollapsed.textbook" class="section-content">
-            <div v-if="selectedTextbookCount === 0" class="empty-tip-small">
+          <div
+            v-show="!sectionCollapsed.textbook"
+            class="section-content"
+          >
+            <div
+              v-if="selectedTextbookCount === 0"
+              class="empty-tip-small"
+            >
               <span>请先在教材库中勾选章节</span>
             </div>
-            <template v-for="(book, index) in textbookStore.textbooks" :key="book?.id || index">
-              <div v-if="book && book.outline && hasAnySelected(book.outline)" class="summary-book">
+            <template
+              v-for="(book, index) in textbookStore.textbooks"
+              :key="book?.id || index"
+            >
+              <div
+                v-if="book && book.outline && hasAnySelected(book.outline)"
+                class="summary-book"
+              >
                 <div class="summary-book-name">
                   {{ book.name }}
-                  <span class="remove-btn" @click="removeSelectedBook(book)" title="取消该书所有勾选">✕</span>
+                  <span
+                    class="remove-btn"
+                    title="取消该书所有勾选"
+                    @click="removeSelectedBook(book)"
+                  >✕</span>
                 </div>
                 <div class="summary-chapter-list">
-                  <div v-for="chapter in getSelectedChapters(book.outline)" :key="chapter.title" class="summary-chapter">
-                    <input type="checkbox" v-model="chapter._selectedForAnalysis" :checked="chapter._selectedForAnalysis !== false" class="analysis-checkbox" title="勾选要分析的章节" />
-                    <span class="chapter-title" @click="isLeafChapter(chapter) && viewChapterAnalysis(book, chapter)" :style="{ cursor: isLeafChapter(chapter) ? 'pointer' : 'default', textDecoration: isLeafChapter(chapter) ? 'underline' : 'none', color: isLeafChapter(chapter) ? 'var(--primary-light)' : '#1a1a1a' }">
+                  <div
+                    v-for="chapter in getSelectedChapters(book.outline)"
+                    :key="chapter.title"
+                    class="summary-chapter"
+                  >
+                    <input
+                      v-model="chapter._selectedForAnalysis"
+                      type="checkbox"
+                      :checked="chapter._selectedForAnalysis !== false"
+                      class="analysis-checkbox"
+                      title="勾选要分析的章节"
+                    >
+                    <span
+                      class="chapter-title"
+                      :style="{ cursor: isLeafChapter(chapter) ? 'pointer' : 'default', textDecoration: isLeafChapter(chapter) ? 'underline' : 'none', color: isLeafChapter(chapter) ? 'var(--primary-light)' : '#1a1a1a' }"
+                      @click="isLeafChapter(chapter) && viewChapterAnalysis(book, chapter)"
+                    >
                       {{ chapter.title }}
-                      <span v-if="chapter.analyzed" style="color:var(--success);font-size:11px;" title="已分析">✅</span>
-                      <span v-else style="color:#ccc;font-size:11px;" title="未分析">⬜</span>
+                      <span
+                        v-if="chapter.analyzed"
+                        style="color:var(--success);font-size:11px;"
+                        title="已分析"
+                      >✅</span>
+                      <span
+                        v-else
+                        style="color:#ccc;font-size:11px;"
+                        title="未分析"
+                      >⬜</span>
                     </span>
                     <span class="page-range">第{{ chapter.start }}-{{ chapter.end }}页</span>
-                    <span class="remove-btn" @click="removeSelectedChapter(book, chapter)" title="取消选择">✕</span>
+                    <span
+                      class="remove-btn"
+                      title="取消选择"
+                      @click="removeSelectedChapter(book, chapter)"
+                    >✕</span>
                   </div>
                 </div>
               </div>
@@ -106,80 +244,183 @@
 
         <!-- 已选模板 -->
         <div class="panel-section">
-          <div class="section-header" @click="toggleSection('template')">
+          <div
+            class="section-header"
+            @click="toggleSection('template')"
+          >
             <span>{{ sectionCollapsed.template ? '▶' : '▼' }}</span>
             <span>📋 已选模板</span>
             <span class="selected-count">{{ selectedTemplateCount }}</span>
-            <span class="analysis-toggle-all" @click.stop="toggleAllForAnalysis('template')" title="切换全选/取消分析勾选">{{ allTemplateSelectedForAnalysis ? '☑' : '☐' }}</span>
+            <span
+              class="analysis-toggle-all"
+              title="切换全选/取消分析勾选"
+              @click.stop="toggleAllForAnalysis('template')"
+            >{{ allTemplateSelectedForAnalysis ? '☑' : '☐' }}</span>
           </div>
-          <div v-show="!sectionCollapsed.template" class="section-content">
-            <div v-if="selectedTemplateCount === 0" class="empty-tip-small">
+          <div
+            v-show="!sectionCollapsed.template"
+            class="section-content"
+          >
+            <div
+              v-if="selectedTemplateCount === 0"
+              class="empty-tip-small"
+            >
               请先在模板库中勾选模板
             </div>
-            <div v-for="(tpl, index) in templateStore.templates.filter(t => t?.selected)" :key="tpl?.id || index" class="summary-book">
+            <div
+              v-for="(tpl, index) in templateStore.templates.filter(t => t?.selected)"
+              :key="tpl?.id || index"
+              class="summary-book"
+            >
               <div class="summary-book-name">
                 {{ tpl?.name }}
-                <span class="remove-btn" @click="removeSelectedBook(tpl)" title="取消该模板所有勾选">✕</span>
+                <span
+                  class="remove-btn"
+                  title="取消该模板所有勾选"
+                  @click="removeSelectedBook(tpl)"
+                >✕</span>
               </div>
               <div class="summary-chapter-list">
-                <div v-for="chapter in getSelectedChapters(tpl?.outline || [])" :key="chapter.title" class="summary-chapter">
-                  <input type="checkbox" v-model="chapter._selectedForAnalysis" :checked="chapter._selectedForAnalysis !== false" class="analysis-checkbox" title="勾选要分析的章节" />
-                  <span class="chapter-title" @click="isLeafChapter(chapter) && viewChapterAnalysis(tpl, chapter)" :style="{ cursor: isLeafChapter(chapter) ? 'pointer' : 'default', textDecoration: isLeafChapter(chapter) ? 'underline' : 'none', color: isLeafChapter(chapter) ? 'var(--primary-light)' : '#1a1a1a' }">
+                <div
+                  v-for="chapter in getSelectedChapters(tpl?.outline || [])"
+                  :key="chapter.title"
+                  class="summary-chapter"
+                >
+                  <input
+                    v-model="chapter._selectedForAnalysis"
+                    type="checkbox"
+                    :checked="chapter._selectedForAnalysis !== false"
+                    class="analysis-checkbox"
+                    title="勾选要分析的章节"
+                  >
+                  <span
+                    class="chapter-title"
+                    :style="{ cursor: isLeafChapter(chapter) ? 'pointer' : 'default', textDecoration: isLeafChapter(chapter) ? 'underline' : 'none', color: isLeafChapter(chapter) ? 'var(--primary-light)' : '#1a1a1a' }"
+                    @click="isLeafChapter(chapter) && viewChapterAnalysis(tpl, chapter)"
+                  >
                     {{ chapter.title }}
-                    <span v-if="chapter.analyzed" style="color:var(--success);font-size:11px;" title="已分析">✅</span>
-                    <span v-else style="color:#ccc;font-size:11px;" title="未分析">⬜</span>
+                    <span
+                      v-if="chapter.analyzed"
+                      style="color:var(--success);font-size:11px;"
+                      title="已分析"
+                    >✅</span>
+                    <span
+                      v-else
+                      style="color:#ccc;font-size:11px;"
+                      title="未分析"
+                    >⬜</span>
                   </span>
                   <span class="page-range">第{{ chapter.start }}-{{ chapter.end }}页</span>
-                  <span class="remove-btn" @click="removeSelectedChapter(tpl, chapter)" title="取消选择">✕</span>
+                  <span
+                    class="remove-btn"
+                    title="取消选择"
+                    @click="removeSelectedChapter(tpl, chapter)"
+                  >✕</span>
                 </div>
               </div>
             </div>
           </div>
         </div>  
-        </div>            
+      </div>            
 
       <!-- 中间：注入指令（指令库模板渲染，可见可编辑——改本次生效；长期修改去指令库面板） -->
-      <div class="instruction-panel" v-show="!isMobile || mobileGenTab === 'instruct'">
+      <div
+        v-show="!isMobile || mobileGenTab === 'instruct'"
+        class="instruction-panel"
+      >
         <div class="panel-header">
           <h3>📝 注入指令</h3>
           <div class="header-actions">
-            <button class="btn-primary" @click="loadInstructionFromLibrary()">🔧 生成指令</button>
-            <button class="btn" @click="restoreDefaultInstruction">↩️ 恢复默认</button>
-            <button class="btn" @click="clearInstruction">🗑️ 清空</button>
-            <button class="btn" @click="analyzeTextbook" v-if="!isMobile">🔍 分析教材</button>
-            <button class="btn" @click="analyzeTemplate" v-if="!isMobile">🔍 分析模板</button>
-            <span class="analyze-model-hint" title="知识点结构化分析推荐模型，在设置→分析提取模型中配置">📚 glm4:9b</span>
+            <button
+              class="btn-primary"
+              @click="loadInstructionFromLibrary()"
+            >
+              🔧 生成指令
+            </button>
+            <button
+              class="btn"
+              @click="restoreDefaultInstruction"
+            >
+              ↩️ 恢复默认
+            </button>
+            <button
+              class="btn"
+              @click="clearInstruction"
+            >
+              🗑️ 清空
+            </button>
+            <button
+              v-if="!isMobile"
+              class="btn"
+              @click="analyzeTextbook"
+            >
+              🔍 分析教材
+            </button>
+            <button
+              v-if="!isMobile"
+              class="btn"
+              @click="analyzeTemplate"
+            >
+              🔍 分析模板
+            </button>
+            <span
+              class="analyze-model-hint"
+              title="知识点结构化分析推荐模型，在设置→分析提取模型中配置"
+            >📚 glm4:9b</span>
           </div>
         </div>
         <textarea
           v-model="instructionDraft"
-          @input="userEditedInstruction = true"
           placeholder="点击「生成指令」，按 年级×学科×资料类型 从指令库匹配注入；可直接编辑（仅本次生成生效）。长期修改请在「指令库」面板编辑保存。"
           class="instruction-textarea"
-        ></textarea>
-        <div v-if="injectSources.length" class="inject-sources">
-          <div class="src-title">📚 本次注入来源（共 {{ injectSources.length }} 个库）</div>
-          <div v-for="s in injectSources" :key="s.lib" class="src-item">
+          @input="userEditedInstruction = true"
+        />
+        <div
+          v-if="injectSources.length"
+          class="inject-sources"
+        >
+          <div class="src-title">
+            📚 本次注入来源（共 {{ injectSources.length }} 个库）
+          </div>
+          <div
+            v-for="s in injectSources"
+            :key="s.lib"
+            class="src-item"
+          >
             <span class="src-lib">{{ s.lib }}</span>
             <span class="src-name">{{ s.name }}</span>
             <span class="src-detail">{{ s.detail }}</span>
           </div>
         </div>
-        <div v-if="instructionSource" class="instruction-source">
+        <div
+          v-if="instructionSource"
+          class="instruction-source"
+        >
           匹配维度：{{ instructionSource.key }} · 来源：{{ instructionSource.name }}（{{ instructionSource.source === 'user' ? '用户自定义' : '内置模板' }}）
         </div>
         <div class="inject-hint">
           📎 生成时自动附加：教材原文（按知识点检索，分级限量）、{{ templateStore.templates.some(t => t.selected) ? '模板对标、' : '' }}{{ propositionStyle ? '组织风格、' : '' }}用户附加要求
         </div>
         
-        <div v-if="previewHint" class="preview-hint">
+        <div
+          v-if="previewHint"
+          class="preview-hint"
+        >
           <span>{{ previewHint }}</span>
         </div>
         
-        <div v-if="analysisResult" class="analysis-result">
+        <div
+          v-if="analysisResult"
+          class="analysis-result"
+        >
           <div class="analysis-header">
             <span>📊 素材分析结果</span>
-            <button class="icon-btn" @click="analysisResult = null">✕</button>
+            <button
+              class="icon-btn"
+              @click="analysisResult = null"
+            >
+              ✕
+            </button>
           </div>
           <div class="analysis-content">
             <div v-if="analysisResult.textbook">
@@ -197,189 +438,490 @@
       </div>
 
       <!-- 右侧：生成和结果区 -->
-      <div class="result-panel" v-show="!isMobile || mobileGenTab === 'result'">
+      <div
+        v-show="!isMobile || mobileGenTab === 'result'"
+        class="result-panel"
+      >
         <!-- 💰 DeepSeek 峰谷时段提示 -->
-        <div v-if="showPricingTip" class="pricing-tip" :class="pricingPeriod.isPeak ? 'pricing-peak' : 'pricing-offpeak'" @click="showPeakDetail = !showPeakDetail">
+        <div
+          v-if="showPricingTip"
+          class="pricing-tip"
+          :class="pricingPeriod.isPeak ? 'pricing-peak' : 'pricing-offpeak'"
+          @click="showPeakDetail = !showPeakDetail"
+        >
           <span class="pricing-badge">{{ pricingPeriod.isPeak ? '⚠️ 高峰时段' : '✅ 谷时优惠' }}</span>
-          <span class="pricing-text" v-if="pricingPeriod.isPeak">当前为 DeepSeek 高峰时段，费用较高。{{ pricingPeriod.nextOffPeakLabel ? `谷时（约${pricingPeriod.discount}）将在 ${pricingPeriod.nextOffPeakLabel} 开始` : '' }}</span>
-          <span class="pricing-text" v-else>当前为 DeepSeek 谷时，{{ pricingPeriod.discount }}</span>
+          <span
+            v-if="pricingPeriod.isPeak"
+            class="pricing-text"
+          >当前为 DeepSeek 高峰时段，费用较高。{{ pricingPeriod.nextOffPeakLabel ? `谷时（约${pricingPeriod.discount}）将在 ${pricingPeriod.nextOffPeakLabel} 开始` : '' }}</span>
+          <span
+            v-else
+            class="pricing-text"
+          >当前为 DeepSeek 谷时，{{ pricingPeriod.discount }}</span>
           <span class="pricing-detail-toggle">{{ showPeakDetail ? '▲' : '▼ 时段表' }}</span>
-          <div v-if="showPeakDetail" class="pricing-detail-box">
-            <div class="pricing-detail-title">DeepSeek 峰谷时段表（北京时间）</div>
-            <div class="pricing-detail-row pricing-detail-peak">🔴 高峰：09:00-12:00 / 14:00-18:00</div>
-            <div class="pricing-detail-row pricing-detail-offpeak">🟢 谷时：00:00-09:00 / 12:00-14:00 / 18:00-24:00</div>
-            <div class="pricing-detail-note">谷时费用约为高峰的 50%，建议非紧急生成安排在谷时</div>
+          <div
+            v-if="showPeakDetail"
+            class="pricing-detail-box"
+          >
+            <div class="pricing-detail-title">
+              DeepSeek 峰谷时段表（北京时间）
+            </div>
+            <div class="pricing-detail-row pricing-detail-peak">
+              🔴 高峰：09:00-12:00 / 14:00-18:00
+            </div>
+            <div class="pricing-detail-row pricing-detail-offpeak">
+              🟢 谷时：00:00-09:00 / 12:00-14:00 / 18:00-24:00
+            </div>
+            <div class="pricing-detail-note">
+              谷时费用约为高峰的 50%，建议非紧急生成安排在谷时
+            </div>
           </div>
         </div>
-        <div class="generate-actions" v-if="!isMobile">
-          <button class="btn-success" @click="generate('single')" :disabled="!hasSelectedChapters || isGenerating">📄 单生成</button>
-          <button class="btn-success" @click="generate('multiple')" :disabled="!hasSelectedChapters || isGenerating || genTypes.length < 2">📚 复生成 ({{ genTypes.length }}个)</button>
-          <button v-if="genTypes.includes('exam')" class="btn" @click="openScoreAdjust" :disabled="isGenerating" title="本次生成前临时调整大题分值，不保存到蓝图库">⚖️ 分值微调</button>
-          <button class="btn-cancel" @click="handleCancelOrRelease">
+        <div
+          v-if="!isMobile"
+          class="generate-actions"
+        >
+          <button
+            class="btn-success"
+            :disabled="!hasSelectedChapters || isGenerating"
+            @click="generate('single')"
+          >
+            📄 单生成
+          </button>
+          <button
+            class="btn-success"
+            :disabled="!hasSelectedChapters || isGenerating || genTypes.length < 2"
+            @click="generate('multiple')"
+          >
+            📚 复生成 ({{ genTypes.length }}个)
+          </button>
+          <button
+            v-if="genTypes.includes('exam')"
+            class="btn"
+            :disabled="isGenerating"
+            title="本次生成前临时调整大题分值，不保存到蓝图库"
+            @click="openScoreAdjust"
+          >
+            ⚖️ 分值微调
+          </button>
+          <button
+            class="btn-cancel"
+            @click="handleCancelOrRelease"
+          >
             {{ isGenerating ? '❌ 取消生成' : '🧹 释放显存' }}
           </button>
         </div>
 
-        <div v-if="isGenerating" class="generating-tip">
+        <div
+          v-if="isGenerating"
+          class="generating-tip"
+        >
           <span>{{ generateStatus }}</span>
-          <div class="progress-bar"><div class="progress-fill" :style="{ width: generateProgress + '%' }"></div></div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              :style="{ width: generateProgress + '%' }"
+            />
+          </div>
         </div>
 
         <div class="result-header">
           <span>📋 结果 ({{ displayedDocs.length }})</span>
-          <span class="select-all" @click="toggleSelectAll">{{ allSelected ? '取消全选' : '全选' }}</span>
-          <span class="batch-delete" @click="batchDeleteDocs" v-if="selectedCount > 0">🗑️ 批量删除</span>
+          <span
+            class="select-all"
+            @click="toggleSelectAll"
+          >{{ allSelected ? '取消全选' : '全选' }}</span>
+          <span
+            v-if="selectedCount > 0"
+            class="batch-delete"
+            @click="batchDeleteDocs"
+          >🗑️ 批量删除</span>
         </div>
 
         <div class="result-list">
-          <div v-if="displayedDocs.length === 0" class="empty-tip">暂无生成结果</div>
-          <div v-for="(doc, idx) in displayedDocs" :key="doc.id" class="result-item" :class="getQualityClass(doc.quality)">
+          <div
+            v-if="displayedDocs.length === 0"
+            class="empty-tip"
+          >
+            暂无生成结果
+          </div>
+          <div
+            v-for="(doc, idx) in displayedDocs"
+            :key="doc.id"
+            class="result-item"
+            :class="getQualityClass(doc.quality)"
+          >
             <div class="result-row">
-              <input type="checkbox" v-model="doc.selected" />
-              <div class="result-info" @click="previewDoc(doc)">
-                <div v-if="doc.confidenceMarks && doc.confidenceMarks.length > 0" class="confidence-warning">
-                  <span v-for="(mark, idx) in doc.confidenceMarks.slice(0, 2)" :key="idx" :title="mark.message">
+              <input
+                v-model="doc.selected"
+                type="checkbox"
+              >
+              <div
+                class="result-info"
+                @click="previewDoc(doc)"
+              >
+                <div
+                  v-if="doc.confidenceMarks && doc.confidenceMarks.length > 0"
+                  class="confidence-warning"
+                >
+                  <span
+                    v-for="(mark, idx) in doc.confidenceMarks.slice(0, 2)"
+                    :key="idx"
+                    :title="mark.message"
+                  >
                     ⚠️ {{ mark.keyword }}
                   </span>
-                  <span v-if="doc.confidenceMarks.length > 2" class="more-marks">
+                  <span
+                    v-if="doc.confidenceMarks.length > 2"
+                    class="more-marks"
+                  >
                     等{{ doc.confidenceMarks.length }}项提醒
                   </span>
                 </div>
-                <div class="result-title">{{ doc.title }}</div>
+                <div class="result-title">
+                  {{ doc.title }}
+                </div>
                 <div class="result-meta">
-                  {{ doc.genType }}<template v-if="doc.style"> | {{ doc.style }}</template>
-                  <span v-if="doc.difficulty" class="difficulty-tag">
+                  {{ doc.genType }}<template v-if="doc.style">
+                    | {{ doc.style }}
+                  </template>
+                  <span
+                    v-if="doc.difficulty"
+                    class="difficulty-tag"
+                  >
                     🟢 {{ doc.difficulty.easy }}% · 🟡 {{ doc.difficulty.medium }}% · 🔴 {{ doc.difficulty.hard }}%
                   </span>
                 </div>
                 <!-- ✨ 新增：质量报告摘要 -->
-                <div v-if="doc.qualityReport" class="quality-summary">
-                  <span v-if="doc.qualityReport.aiReview?.details?.length" class="quality-item" :class="{ 'quality-warn': !doc.qualityReport.aiReview.passed }">
+                <div
+                  v-if="doc.qualityReport"
+                  class="quality-summary"
+                >
+                  <span
+                    v-if="doc.qualityReport.aiReview?.details?.length"
+                    class="quality-item"
+                    :class="{ 'quality-warn': !doc.qualityReport.aiReview.passed }"
+                  >
                     🤖 评分：{{ doc.qualityReport.aiReview.details.find(d => d.includes('综合评分')) || '' }}
                   </span>
                 </div>
                 <!-- ✨ 新增：issues警告 -->
-                <div v-if="doc.issues && doc.issues.length > 0" class="issues-summary">
-                  <span v-for="(issue, iIdx) in doc.issues.slice(0, 2)" :key="iIdx" class="issue-tag" :class="{ 'issue-error': issue.startsWith('❌'), 'issue-warn': issue.startsWith('⚠️') }">
+                <div
+                  v-if="doc.issues && doc.issues.length > 0"
+                  class="issues-summary"
+                >
+                  <span
+                    v-for="(issue, iIdx) in doc.issues.slice(0, 2)"
+                    :key="iIdx"
+                    class="issue-tag"
+                    :class="{ 'issue-error': issue.startsWith('❌'), 'issue-warn': issue.startsWith('⚠️') }"
+                  >
                     {{ issue }}
                   </span>
-                  <span v-if="doc.issues.length > 2" class="issue-more">+{{ doc.issues.length - 2 }}条</span>
+                  <span
+                    v-if="doc.issues.length > 2"
+                    class="issue-more"
+                  >+{{ doc.issues.length - 2 }}条</span>
                 </div>
               </div>
               <div class="result-actions-col">
-                <button class="btn-small btn-save-history" @click.stop="saveToHistory(doc)" title="保存到历史">
+                <button
+                  class="btn-small btn-save-history"
+                  title="保存到历史"
+                  @click.stop="saveToHistory(doc)"
+                >
                   <span class="icon-desktop">💾</span><span class="icon-mobile">✅</span> 保存
                 </button>
-                <button class="btn-small btn-delete-doc" @click.stop="deleteDoc(doc)" title="删除">🗑️ 删除</button>
-                <button class="btn-small" @click.stop="previewDoc(doc)">👁️ 预览</button>
+                <button
+                  class="btn-small btn-delete-doc"
+                  title="删除"
+                  @click.stop="deleteDoc(doc)"
+                >
+                  🗑️ 删除
+                </button>
+                <button
+                  class="btn-small"
+                  @click.stop="previewDoc(doc)"
+                >
+                  👁️ 预览
+                </button>
               </div>
             </div>
             <div class="result-actions">
-              <button class="btn-small hide-on-mobile" @click.stop="sendToTypeset(doc)">📄 排版</button>
-              <button class="btn-small hide-on-mobile" @click.stop="downloadDoc(doc, 'docx')">📘 Word</button>
-              <button class="btn-small hide-on-mobile" @click.stop="downloadDoc(doc, 'pdf')">📕 PDF</button>
-              <button class="btn-small btn-variant hide-on-mobile" @click.stop="generateVariantForDoc(doc)" title="生成变体版本">🔄 变体</button>
-              <button v-if="doc.qualityReport" class="btn-small hide-on-mobile" @click.stop="showQualityReport(doc)" title="查看质量报告">📊</button>
+              <button
+                class="btn-small hide-on-mobile"
+                @click.stop="sendToTypeset(doc)"
+              >
+                📄 排版
+              </button>
+              <button
+                class="btn-small hide-on-mobile"
+                @click.stop="downloadDoc(doc, 'docx')"
+              >
+                📘 Word
+              </button>
+              <button
+                class="btn-small hide-on-mobile"
+                @click.stop="downloadDoc(doc, 'pdf')"
+              >
+                📕 PDF
+              </button>
+              <button
+                class="btn-small btn-variant hide-on-mobile"
+                title="生成变体版本"
+                @click.stop="generateVariantForDoc(doc)"
+              >
+                🔄 变体
+              </button>
+              <button
+                v-if="doc.qualityReport"
+                class="btn-small hide-on-mobile"
+                title="查看质量报告"
+                @click.stop="showQualityReport(doc)"
+              >
+                📊
+              </button>
               <span class="quality-marks hide-on-mobile">
-                <span @click.stop="markQuality(doc, 'good')" :class="{ active: doc.quality === 'good' }" title="可用">👍</span>
-                <span @click.stop="markQuality(doc, 'bad')" :class="{ active: doc.quality === 'bad' }" title="不可用">👎</span>
-                <span @click.stop="markQuality(doc, 'star')" :class="{ active: doc.quality === 'star' }" title="收藏">⭐</span>
+                <span
+                  :class="{ active: doc.quality === 'good' }"
+                  title="可用"
+                  @click.stop="markQuality(doc, 'good')"
+                >👍</span>
+                <span
+                  :class="{ active: doc.quality === 'bad' }"
+                  title="不可用"
+                  @click.stop="markQuality(doc, 'bad')"
+                >👎</span>
+                <span
+                  :class="{ active: doc.quality === 'star' }"
+                  title="收藏"
+                  @click.stop="markQuality(doc, 'star')"
+                >⭐</span>
               </span>
             </div>
-            <div v-if="doc.graphInstructions?.length" class="graph-collect">
-              <span v-for="(g, gIdx) in doc.graphInstructions" :key="gIdx" @click.stop="collectGraph(doc, gIdx)">⭐ 收藏图形{{ gIdx + 1 }}</span>
+            <div
+              v-if="doc.graphInstructions?.length"
+              class="graph-collect"
+            >
+              <span
+                v-for="(g, gIdx) in doc.graphInstructions"
+                :key="gIdx"
+                @click.stop="collectGraph(doc, gIdx)"
+              >⭐ 收藏图形{{ gIdx + 1 }}</span>
             </div>
-            <div v-if="doc.status === 'failed'" class="failed-tip">
+            <div
+              v-if="doc.status === 'failed'"
+              class="failed-tip"
+            >
               ⚠️ 生成失败
-              <button class="btn-small" @click="retryGenerate(doc)">重试</button>
+              <button
+                class="btn-small"
+                @click="retryGenerate(doc)"
+              >
+                重试
+              </button>
             </div>
           </div>
         </div>
 
-        <div class="batch-download hide-on-mobile" v-if="generatedDocs.length > 0">
+        <div
+          v-if="generatedDocs.length > 0"
+          class="batch-download hide-on-mobile"
+        >
           <select v-model="batchDownloadFormat">
-            <option value="word">📘 仅 Word</option>
-            <option value="pdf">📕 仅 PDF</option>
-            <option value="both">📦 Word + PDF</option>
+            <option value="word">
+              📘 仅 Word
+            </option>
+            <option value="pdf">
+              📕 仅 PDF
+            </option>
+            <option value="both">
+              📦 Word + PDF
+            </option>
           </select>
-          <select v-model="teacherVersion" style="width:auto;padding:6px 10px;border-radius:6px;border:1px solid #ddd;font-size:12px;">
-            <option :value="true">👩‍🏫 教师版（含答案）</option>
-            <option :value="false">👩‍🎓 学生版（无答案）</option>
+          <select
+            v-model="teacherVersion"
+            style="width:auto;padding:6px 10px;border-radius:6px;border:1px solid #ddd;font-size:12px;"
+          >
+            <option :value="true">
+              👩‍🏫 教师版（含答案）
+            </option>
+            <option :value="false">
+              👩‍🎓 学生版（无答案）
+            </option>
           </select>
-          <button class="btn-warning" @click="batchDownload" :disabled="selectedCount === 0">📦 下载 ({{ selectedCount }})</button>
+          <button
+            class="btn-warning"
+            :disabled="selectedCount === 0"
+            @click="batchDownload"
+          >
+            📦 下载 ({{ selectedCount }})
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 💰 移动端 DeepSeek 峰谷提示 -->
-    <div v-if="isMobile && showPricingTip" class="pricing-tip" :class="pricingPeriod.isPeak ? 'pricing-peak' : 'pricing-offpeak'" style="margin: 8px 12px;" @click="showPeakDetail = !showPeakDetail">
+    <div
+      v-if="isMobile && showPricingTip"
+      class="pricing-tip"
+      :class="pricingPeriod.isPeak ? 'pricing-peak' : 'pricing-offpeak'"
+      style="margin: 8px 12px;"
+      @click="showPeakDetail = !showPeakDetail"
+    >
       <span class="pricing-badge">{{ pricingPeriod.isPeak ? '⚠️ 高峰' : '✅ 谷时' }}</span>
-      <span class="pricing-text" v-if="pricingPeriod.isPeak">费用较高，谷时{{ pricingPeriod.nextOffPeakLabel ? ` ${pricingPeriod.nextOffPeakLabel} 开始` : '约省50%' }}</span>
-      <span class="pricing-text" v-else>费用约为高峰50%</span>
+      <span
+        v-if="pricingPeriod.isPeak"
+        class="pricing-text"
+      >费用较高，谷时{{ pricingPeriod.nextOffPeakLabel ? ` ${pricingPeriod.nextOffPeakLabel} 开始` : '约省50%' }}</span>
+      <span
+        v-else
+        class="pricing-text"
+      >费用约为高峰50%</span>
     </div>
 
     <!-- 📱 移动端固定底部操作栏 -->
-    <div v-if="isMobile" class="mobile-gen-fab">
-      <button class="fab-btn fab-primary" @click="handleMobileGenerate('single')" :disabled="!hasSelectedChapters || isGenerating">
+    <div
+      v-if="isMobile"
+      class="mobile-gen-fab"
+    >
+      <button
+        class="fab-btn fab-primary"
+        :disabled="!hasSelectedChapters || isGenerating"
+        @click="handleMobileGenerate('single')"
+      >
         📄 单生成
       </button>
-      <button class="fab-btn fab-secondary" @click="handleMobileGenerate('multiple')" :disabled="!hasSelectedChapters || isGenerating || genTypes.length < 2">
+      <button
+        class="fab-btn fab-secondary"
+        :disabled="!hasSelectedChapters || isGenerating || genTypes.length < 2"
+        @click="handleMobileGenerate('multiple')"
+      >
         📚 复生成({{ genTypes.length }})
       </button>
-      <button class="fab-btn fab-cancel" @click="handleCancelOrRelease">
+      <button
+        class="fab-btn fab-cancel"
+        @click="handleCancelOrRelease"
+      >
         {{ isGenerating ? '❌ 取消' : '🧹 释放' }}
       </button>
     </div>
 
     <!-- 📖 章节选择弹窗（移动端在生成页面直接勾选） -->
-    <div v-if="showChapterSelector" class="modal-mask chapter-selector-mask" @click.self="showChapterSelector = false">
+    <div
+      v-if="showChapterSelector"
+      class="modal-mask chapter-selector-mask"
+      @click.self="showChapterSelector = false"
+    >
       <div class="chapter-selector-modal">
         <div class="cs-header">
           <h3>📖 选择教材章节</h3>
-          <button class="icon-btn" @click="showChapterSelector = false">✕</button>
+          <button
+            class="icon-btn"
+            @click="showChapterSelector = false"
+          >
+            ✕
+          </button>
         </div>
         <div class="cs-body">
-          <div v-if="textbookStore.textbooks.length === 0" class="empty-tip-small">
+          <div
+            v-if="textbookStore.textbooks.length === 0"
+            class="empty-tip-small"
+          >
             📭 还没有教材，请先在教材库中上传
           </div>
-          <div v-for="book in textbookStore.textbooks" :key="book.id" class="cs-book">
-            <div class="cs-book-header" @click="toggleCsBookExpand(book.id)">
+          <div
+            v-for="book in textbookStore.textbooks"
+            :key="book.id"
+            class="cs-book"
+          >
+            <div
+              class="cs-book-header"
+              @click="toggleCsBookExpand(book.id)"
+            >
               <span class="cs-expand-icon">{{ csExpandedBooks.has(book.id) ? '▼' : '▶' }}</span>
               <span class="cs-book-name">{{ book.name }}</span>
-              <span class="cs-book-badge" v-if="countBookSelected(book) > 0">{{ countBookSelected(book) }}个已选</span>
+              <span
+                v-if="countBookSelected(book) > 0"
+                class="cs-book-badge"
+              >{{ countBookSelected(book) }}个已选</span>
             </div>
-            <div v-if="csExpandedBooks.has(book.id) && book.outline" class="cs-chapter-tree">
-              <div v-for="(node, idx) in book.outline" :key="idx">
-                <ChapterCheckNode :node="node" :level="0" :book="book" @toggle="onCsChapterToggle" />
+            <div
+              v-if="csExpandedBooks.has(book.id) && book.outline"
+              class="cs-chapter-tree"
+            >
+              <div
+                v-for="(node, idx) in book.outline"
+                :key="idx"
+              >
+                <ChapterCheckNode
+                  :node="node"
+                  :level="0"
+                  :book="book"
+                  @toggle="onCsChapterToggle"
+                />
               </div>
             </div>
           </div>
         </div>
         <div class="cs-footer">
-          <button class="btn-primary" @click="showChapterSelector = false; textbookStore.saveTextbooks()">✅ 完成</button>
+          <button
+            class="btn-primary"
+            @click="showChapterSelector = false; textbookStore.saveTextbooks()"
+          >
+            ✅ 完成
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 范围类型弹窗 -->
-    <div v-if="showScopeModal" class="modal-mask" @click.self="showScopeModal = false">
+    <div
+      v-if="showScopeModal"
+      class="modal-mask"
+      @click.self="showScopeModal = false"
+    >
       <div class="modal">
         <h3>📐 选择范围类型</h3>
         <div class="option-list">
-          <label v-for="opt in scopeOptions" :key="opt.value" class="option-item">
-            <input type="radio" v-model="scopeType" :value="opt.value" />
+          <label
+            v-for="opt in scopeOptions"
+            :key="opt.value"
+            class="option-item"
+          >
+            <input
+              v-model="scopeType"
+              type="radio"
+              :value="opt.value"
+            >
             <span class="option-label">{{ opt.label }}</span>
             <span class="option-desc">{{ opt.desc }}</span>
           </label>
         </div>
         <div class="modal-actions">
-          <button class="btn" @click="showScopeModal = false">取消</button>
-          <button class="btn-primary" @click="showScopeModal = false">确定</button>
+          <button
+            class="btn"
+            @click="showScopeModal = false"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="showScopeModal = false"
+          >
+            确定
+          </button>
         </div>
         <!-- 🔧 多章节合并开关（期中/期末强制合并，不可切换） -->
-        <div v-if="scopeType && scopeType !== 'midterm' && scopeType !== 'final'" class="merge-toggle-section">
+        <div
+          v-if="scopeType && scopeType !== 'midterm' && scopeType !== 'final'"
+          class="merge-toggle-section"
+        >
           <label class="option-item merge-toggle">
-            <input type="checkbox" v-model="mergeChapters" />
+            <input
+              v-model="mergeChapters"
+              type="checkbox"
+            >
             <span class="option-label">📦 多章节合并为一份综合卷</span>
             <span class="option-desc">取消勾选则逐章独立生成</span>
           </label>
@@ -388,242 +930,598 @@
     </div>
 
     <!-- 组织风格弹窗（命题/呈现两组全部列出；当前类型不适用的置灰） -->
-    <div v-if="showStyleModal" class="modal-mask" @click.self="showStyleModal = false">
+    <div
+      v-if="showStyleModal"
+      class="modal-mask"
+      @click.self="showStyleModal = false"
+    >
       <div class="modal">
         <h3>🎨 选择组织风格</h3>
         <div class="option-list">
-          <div class="style-group-title">命题风格 · 以题为主（题目如何组织情境）</div>
-          <label v-for="opt in propositionOptions" :key="opt.value" class="option-item" :class="{ 'opt-disabled': !opt.applicable }">
-            <input type="radio" v-model="propositionStyle" :value="opt.value" :disabled="!opt.applicable" @change="styleManuallySet = true" />
+          <div class="style-group-title">
+            命题风格 · 以题为主（题目如何组织情境）
+          </div>
+          <label
+            v-for="opt in propositionOptions"
+            :key="opt.value"
+            class="option-item"
+            :class="{ 'opt-disabled': !opt.applicable }"
+          >
+            <input
+              v-model="propositionStyle"
+              type="radio"
+              :value="opt.value"
+              :disabled="!opt.applicable"
+              @change="styleManuallySet = true"
+            >
             <span class="option-label">{{ opt.label }}</span>
             <span class="option-desc">{{ opt.desc }}</span>
             <span class="option-tip">{{ opt.tip }}</span>
-            <span v-if="!opt.applicable" class="opt-for">适用于：{{ opt.appliesToLabel }}</span>
+            <span
+              v-if="!opt.applicable"
+              class="opt-for"
+            >适用于：{{ opt.appliesToLabel }}</span>
           </label>
-          <div class="style-group-title">呈现风格 · 以内容为主（内容如何组织呈现）</div>
-          <label v-for="opt in presentationOptions" :key="opt.value" class="option-item" :class="{ 'opt-disabled': !opt.applicable }">
-            <input type="radio" v-model="propositionStyle" :value="opt.value" :disabled="!opt.applicable" @change="styleManuallySet = true" />
+          <div class="style-group-title">
+            呈现风格 · 以内容为主（内容如何组织呈现）
+          </div>
+          <label
+            v-for="opt in presentationOptions"
+            :key="opt.value"
+            class="option-item"
+            :class="{ 'opt-disabled': !opt.applicable }"
+          >
+            <input
+              v-model="propositionStyle"
+              type="radio"
+              :value="opt.value"
+              :disabled="!opt.applicable"
+              @change="styleManuallySet = true"
+            >
             <span class="option-label">{{ opt.label }}</span>
             <span class="option-desc">{{ opt.desc }}</span>
             <span class="option-tip">{{ opt.tip }}</span>
-            <span v-if="!opt.applicable" class="opt-for">适用于：{{ opt.appliesToLabel }}</span>
+            <span
+              v-if="!opt.applicable"
+              class="opt-for"
+            >适用于：{{ opt.appliesToLabel }}</span>
           </label>
         </div>
-        <p class="hint">💡 全部组织风格如上（当前资料类型不适用的已置灰）。系统已按当前类型推荐默认风格（{{ styleLabel }}）。如需恢复自动匹配，点击"恢复自动"。</p>
+        <p class="hint">
+          💡 全部组织风格如上（当前资料类型不适用的已置灰）。系统已按当前类型推荐默认风格（{{ styleLabel }}）。如需恢复自动匹配，点击"恢复自动"。
+        </p>
         <div class="modal-actions">
-          <button class="btn" @click="restoreAutoStyle" v-if="styleManuallySet">↻ 恢复自动</button>
-          <button class="btn" @click="showStyleModal = false">取消</button>
-          <button class="btn-primary" @click="confirmStyle">确定</button>
+          <button
+            v-if="styleManuallySet"
+            class="btn"
+            @click="restoreAutoStyle"
+          >
+            ↻ 恢复自动
+          </button>
+          <button
+            class="btn"
+            @click="showStyleModal = false"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="confirmStyle"
+          >
+            确定
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 分值微调弹窗（本次生成前临时调整，不落库） -->
-    <div v-if="showScoreAdjustModal" class="modal-mask" @click.self="showScoreAdjustModal = false">
+    <div
+      v-if="showScoreAdjustModal"
+      class="modal-mask"
+      @click.self="showScoreAdjustModal = false"
+    >
       <div class="modal">
         <h3>⚖️ 分值微调（本次生成生效）</h3>
         <div class="score-adjust-list">
-          <div v-for="(s, i) in scoreAdjustDraft" :key="i" class="score-adjust-row">
+          <div
+            v-for="(s, i) in scoreAdjustDraft"
+            :key="i"
+            class="score-adjust-row"
+          >
             <span class="sa-name">{{ '一二三四五六七八九十'[i] || i + 1 }}、{{ s.name }}</span>
-            <input v-model.number="s.score" type="number" class="sa-input" min="0" />
+            <input
+              v-model.number="s.score"
+              type="number"
+              class="sa-input"
+              min="0"
+            >
             <span class="sa-unit">分</span>
           </div>
         </div>
-        <div class="sa-sum" :class="{ 'sa-bad': scoreAdjustSum !== scoreAdjustFull }">
+        <div
+          class="sa-sum"
+          :class="{ 'sa-bad': scoreAdjustSum !== scoreAdjustFull }"
+        >
           分值之和：<b>{{ scoreAdjustSum }}</b> / 满分 {{ scoreAdjustFull }} {{ scoreAdjustSum === scoreAdjustFull ? '✅' : '⚠️ 不闭合，无法生成' }}
         </div>
-        <p class="hint">💡 仅本次生成使用；不保存到蓝图库、不改动内置默认。下次生成可再次微调或恢复默认。</p>
+        <p class="hint">
+          💡 仅本次生成使用；不保存到蓝图库、不改动内置默认。下次生成可再次微调或恢复默认。
+        </p>
         <div class="modal-actions">
-          <button class="btn" @click="resetScoreAdjust">↩️ 恢复默认</button>
-          <button class="btn" @click="showScoreAdjustModal = false">取消</button>
-          <button class="btn-primary" @click="confirmScoreAdjust">确定</button>
+          <button
+            class="btn"
+            @click="resetScoreAdjust"
+          >
+            ↩️ 恢复默认
+          </button>
+          <button
+            class="btn"
+            @click="showScoreAdjustModal = false"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="confirmScoreAdjust"
+          >
+            确定
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 资料类型弹窗（多选） -->
-    <div v-if="showGenTypeModal" class="modal-mask" @click.self="showGenTypeModal = false">
+    <div
+      v-if="showGenTypeModal"
+      class="modal-mask"
+      @click.self="showGenTypeModal = false"
+    >
       <div class="modal">
         <h3>📂 选择资料类型（可多选）</h3>
         <div class="option-list">
-          <label v-for="opt in genTypeOptions" :key="opt.value" class="option-item">
-            <input type="checkbox" v-model="genTypes" :value="opt.value" />
+          <label
+            v-for="opt in genTypeOptions"
+            :key="opt.value"
+            class="option-item"
+          >
+            <input
+              v-model="genTypes"
+              type="checkbox"
+              :value="opt.value"
+            >
             <span class="option-label">{{ opt.label }}</span>
             <span class="option-desc">{{ opt.desc }}</span>
           </label>
         </div>
-        <p class="hint">💡 选择资料类型后，系统将按资料类型自动推荐匹配命题风格（考试→统一情境，其他→情境融合）。复生成时将按顺序生成选中的多个类型。命题风格可在上方"🎨"按钮中手动调整。</p>
+        <p class="hint">
+          💡 选择资料类型后，系统将按资料类型自动推荐匹配命题风格（考试→统一情境，其他→情境融合）。复生成时将按顺序生成选中的多个类型。命题风格可在上方"🎨"按钮中手动调整。
+        </p>
         <!-- 🔧 省市差异化：正式试卷（exam）按省市取考试时长/总分（如江苏中考语数英150分、北京100分制），未选则全国通用默认 -->
-        <div v-if="genTypes.includes('exam')" class="region-select-section">
+        <div
+          v-if="genTypes.includes('exam')"
+          class="region-select-section"
+        >
           <label class="option-label">🗺️ 省市（正式试卷按该省市考试时长/总分出卷）</label>
           <div class="region-select-row">
-            <select v-model="examRegion" class="region-select">
-              <option value="">全国通用（默认）</option>
-              <option v-for="r in examRegionOptions" :key="r" :value="r">{{ r }}</option>
+            <select
+              v-model="examRegion"
+              class="region-select"
+            >
+              <option value="">
+                全国通用（默认）
+              </option>
+              <option
+                v-for="r in examRegionOptions"
+                :key="r"
+                :value="r"
+              >
+                {{ r }}
+              </option>
             </select>
-            <button v-if="examRegion" class="btn btn-sm" @click="examRegion = ''">清除</button>
+            <button
+              v-if="examRegion"
+              class="btn btn-sm"
+              @click="examRegion = ''"
+            >
+              清除
+            </button>
           </div>
         </div>
         <div class="modal-actions">
-          <button class="btn" @click="showGenTypeModal = false">取消</button>
-          <button class="btn-primary" @click="showGenTypeModal = false">确定</button>
+          <button
+            class="btn"
+            @click="showGenTypeModal = false"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="showGenTypeModal = false"
+          >
+            确定
+          </button>
         </div>
       </div>
     </div>
 
     <!-- ✏️ 名称样式弹窗（单选：自动轮换/固定名称） -->
-    <div v-if="showLabelStyleModal" class="modal-mask" @click.self="showLabelStyleModal = false">
+    <div
+      v-if="showLabelStyleModal"
+      class="modal-mask"
+      @click.self="showLabelStyleModal = false"
+    >
       <div class="modal">
         <h3>✏️ 名称样式（{{ genTypes[0] ? genTypeOptions.find(o => o.value === genTypes[0])?.label : '未选类型' }}）</h3>
-        <p style="color:var(--text-secondary);margin-bottom:12px;">决定生成资料标题中的名称（如"测试卷""课堂练习"）。默认自动轮换避免标题重复；考试标签（期中/期末/月考）也可按维度固定。</p>
-        <p class="name-style-label">资料类型名称</p>
+        <p style="color:var(--text-secondary);margin-bottom:12px;">
+          决定生成资料标题中的名称（如"测试卷""课堂练习"）。默认自动轮换避免标题重复；考试标签（期中/期末/月考）也可按维度固定。
+        </p>
+        <p class="name-style-label">
+          资料类型名称
+        </p>
         <div class="name-chip-group">
-          <label v-for="opt in labelStyleOptions" :key="opt.value" class="name-chip" :class="{ active: labelStyle === opt.value }" :title="opt.desc">
-            <input type="radio" v-model="labelStyle" :value="opt.value" name="labelStyle" hidden />
+          <label
+            v-for="opt in labelStyleOptions"
+            :key="opt.value"
+            class="name-chip"
+            :class="{ active: labelStyle === opt.value }"
+            :title="opt.desc"
+          >
+            <input
+              v-model="labelStyle"
+              type="radio"
+              :value="opt.value"
+              name="labelStyle"
+              hidden
+            >
             {{ opt.label }}
           </label>
         </div>
         <!-- 📐 考试标签名称（期中/期末/月考/综合）：每维度单选 自动轮换 / 固定名称，与资料类型名称样式统一 -->
-        <div v-if="genTypes[0] === 'exam'" class="scope-style-block">
-          <p class="scope-style-title">📐 考试标签名称（选"🔄 自动轮换"按名称池轮流用；选具体名称则固定）</p>
-          <div v-for="dim in scopeDims" :key="dim.type" class="scope-dim">
-            <div class="scope-dim-head">{{ dim.label }}</div>
+        <div
+          v-if="genTypes[0] === 'exam'"
+          class="scope-style-block"
+        >
+          <p class="scope-style-title">
+            📐 考试标签名称（选"🔄 自动轮换"按名称池轮流用；选具体名称则固定）
+          </p>
+          <div
+            v-for="dim in scopeDims"
+            :key="dim.type"
+            class="scope-dim"
+          >
+            <div class="scope-dim-head">
+              {{ dim.label }}
+            </div>
             <div class="name-chip-group">
-              <label class="name-chip" :class="{ active: scopeLabelStyle[dim.type] === '' }">
-                <input type="radio" v-model="scopeLabelStyle[dim.type]" value="" :name="'scope-' + dim.type" hidden />
+              <label
+                class="name-chip"
+                :class="{ active: scopeLabelStyle[dim.type] === '' }"
+              >
+                <input
+                  v-model="scopeLabelStyle[dim.type]"
+                  type="radio"
+                  value=""
+                  :name="'scope-' + dim.type"
+                  hidden
+                >
                 🔄 自动轮换
               </label>
-              <label v-for="w in dim.pool" :key="w" class="name-chip" :class="{ active: scopeLabelStyle[dim.type] === w }">
-                <input type="radio" v-model="scopeLabelStyle[dim.type]" :value="w" :name="'scope-' + dim.type" hidden />
+              <label
+                v-for="w in dim.pool"
+                :key="w"
+                class="name-chip"
+                :class="{ active: scopeLabelStyle[dim.type] === w }"
+              >
+                <input
+                  v-model="scopeLabelStyle[dim.type]"
+                  type="radio"
+                  :value="w"
+                  :name="'scope-' + dim.type"
+                  hidden
+                >
                 {{ w }}
               </label>
             </div>
           </div>
         </div>
-        <p class="hint">💡 多类型复生成时，此处只设置第一个类型的名称，其余类型仍自动轮换；选具体名称会持久化（刷新不丢失），可随时点回"🔄 自动轮换"或一键恢复</p>
+        <p class="hint">
+          💡 多类型复生成时，此处只设置第一个类型的名称，其余类型仍自动轮换；选具体名称会持久化（刷新不丢失），可随时点回"🔄 自动轮换"或一键恢复
+        </p>
         <div class="modal-actions">
-          <button class="btn" @click="resetNameStyles" title="资料类型名称 + 考试标签各维度全部恢复自动轮换">↩️ 全部恢复自动轮换</button>
-          <button class="btn" @click="showLabelStyleModal = false">取消</button>
-          <button class="btn-primary" @click="showLabelStyleModal = false">确定</button>
+          <button
+            class="btn"
+            title="资料类型名称 + 考试标签各维度全部恢复自动轮换"
+            @click="resetNameStyles"
+          >
+            ↩️ 全部恢复自动轮换
+          </button>
+          <button
+            class="btn"
+            @click="showLabelStyleModal = false"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="showLabelStyleModal = false"
+          >
+            确定
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 🎯 专项子类型弹窗（单选） -->
-    <div v-if="showSpecialSubTypeModal" class="modal-mask" @click.self="showSpecialSubTypeModal = false">
+    <div
+      v-if="showSpecialSubTypeModal"
+      class="modal-mask"
+      @click.self="showSpecialSubTypeModal = false"
+    >
       <div class="modal">
         <h3>🎯 选择专项训练领域</h3>
-        <p style="color:var(--text-secondary);margin-bottom:12px;">选择一个聚焦的技能领域，AI 将围绕该领域生成针对性的专项训练资料。</p>
-        <div v-if="specialSubTypeOptions.length === 0" class="empty-tip-small" style="padding:16px;">
+        <p style="color:var(--text-secondary);margin-bottom:12px;">
+          选择一个聚焦的技能领域，AI 将围绕该领域生成针对性的专项训练资料。
+        </p>
+        <div
+          v-if="specialSubTypeOptions.length === 0"
+          class="empty-tip-small"
+          style="padding:16px;"
+        >
           当前学科暂无专项子类型可用，将使用通用专项结构（方法指导→典例剖析→变式训练→真题实战）。
         </div>
         <div class="option-list">
-          <label v-for="opt in specialSubTypeOptions" :key="opt.value" class="option-item">
-            <input type="radio" v-model="specialSubType" :value="opt.value" name="specialSubType" />
+          <label
+            v-for="opt in specialSubTypeOptions"
+            :key="opt.value"
+            class="option-item"
+          >
+            <input
+              v-model="specialSubType"
+              type="radio"
+              :value="opt.value"
+              name="specialSubType"
+            >
             <span class="option-label">{{ opt.label }}</span>
             <span class="option-desc">{{ opt.desc }}</span>
           </label>
           <label class="option-item">
-            <input type="radio" v-model="specialSubType" :value="''" name="specialSubType" />
+            <input
+              v-model="specialSubType"
+              type="radio"
+              :value="''"
+              name="specialSubType"
+            >
             <span class="option-label">🔄 通用专项</span>
             <span class="option-desc">使用默认专项结构（方法指导→典例剖析→变式训练→真题实战）</span>
           </label>
         </div>
         <div class="modal-actions">
-          <button class="btn" @click="showSpecialSubTypeModal = false">取消</button>
-          <button class="btn-primary" @click="showSpecialSubTypeModal = false">确定</button>
+          <button
+            class="btn"
+            @click="showSpecialSubTypeModal = false"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="showSpecialSubTypeModal = false"
+          >
+            确定
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 生成粒度弹窗 -->
-    <div v-if="showGranularityModal" class="modal-mask" @click.self="showGranularityModal = false">
+    <div
+      v-if="showGranularityModal"
+      class="modal-mask"
+      @click.self="showGranularityModal = false"
+    >
       <div class="modal">
         <h3>📏 选择生成粒度</h3>
         <div class="option-list">
-          <label v-for="opt in granularityOptions" :key="opt.value" class="option-item">
-            <input type="radio" v-model="generateGranularity" :value="opt.value" />
+          <label
+            v-for="opt in granularityOptions"
+            :key="opt.value"
+            class="option-item"
+          >
+            <input
+              v-model="generateGranularity"
+              type="radio"
+              :value="opt.value"
+            >
             <span class="option-label">{{ opt.label }}</span>
             <span class="option-desc">{{ opt.desc }}</span>
           </label>
         </div>
         <div class="modal-actions">
-          <button class="btn" @click="showGranularityModal = false">取消</button>
-          <button class="btn-primary" @click="showGranularityModal = false">确定</button>
+          <button
+            class="btn"
+            @click="showGranularityModal = false"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="showGranularityModal = false"
+          >
+            确定
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 详细配置弹窗 -->
-    <div v-if="showDetailConfigModal" class="modal-mask" @click.self="showDetailConfigModal = false">
+    <div
+      v-if="showDetailConfigModal"
+      class="modal-mask"
+      @click.self="showDetailConfigModal = false"
+    >
       <div class="modal large-modal">
         <h3>📝 详细配置</h3>
         <div class="modal-scroll-area">
+          <div class="config-section">
+            <h4>总分设置</h4>
+            <input
+              v-model="totalScore"
+              type="number"
+              placeholder="例如：100"
+              min="0"
+            >
+          </div>
         
-        <div class="config-section">
-          <h4>总分设置</h4>
-          <input type="number" v-model="totalScore" placeholder="例如：100" min="0" />
-        </div>
+          <div class="config-section">
+            <h4>题型配置</h4>
+            <div
+              v-if="selectedTextbookCount === 0"
+              class="empty-tip-small"
+            >
+              📌 请先在左侧勾选教材，系统将根据学科和年级智能推荐题型
+            </div>
+            <div
+              v-else
+              class="hint"
+              style="margin-bottom: 10px; color: var(--primary-light);"
+            >
+              📋 当前是根据 <strong>{{ getSelectedBookSubject() }}</strong> 学科推荐的题型
+            </div>
+            <div
+              v-for="(qt, idx) in questionTypes"
+              :key="idx"
+              class="config-row"
+            >
+              <input
+                v-model="qt.selected"
+                type="checkbox"
+              >
+              <span class="qt-name">{{ qt.name }}</span>
+              <input
+                v-model="qt.count"
+                type="number"
+                placeholder="题量"
+                min="0"
+                style="width:70px"
+              >
+              <input
+                v-model="qt.score"
+                type="number"
+                placeholder="分值"
+                min="0"
+                style="width:70px"
+              >
+            </div>
+            <button
+              class="btn-small"
+              @click="addQuestionType"
+            >
+              ➕ 添加题型
+            </button>
+          </div>
         
-        <div class="config-section">
-          <h4>题型配置</h4>
-          <div v-if="selectedTextbookCount === 0" class="empty-tip-small">
-            📌 请先在左侧勾选教材，系统将根据学科和年级智能推荐题型
+          <div class="config-section">
+            <h4>难度配置（%）</h4>
+            <div
+              v-for="(dl, idx) in difficultyLevels"
+              :key="idx"
+              class="config-row"
+            >
+              <input
+                v-model="dl.selected"
+                type="checkbox"
+              >
+              <span class="dl-name">{{ dl.name }}</span>
+              <input
+                v-model="dl.percentage"
+                type="number"
+                min="0"
+                max="100"
+                style="width:70px"
+                :placeholder="dl.percentage == null ? '自动' : ''"
+              > %
+            </div>
           </div>
-          <div v-else class="hint" style="margin-bottom: 10px; color: var(--primary-light);">
-            📋 当前是根据 <strong>{{ getSelectedBookSubject() }}</strong> 学科推荐的题型
-          </div>
-          <div v-for="(qt, idx) in questionTypes" :key="idx" class="config-row">
-            <input type="checkbox" v-model="qt.selected" />
-            <span class="qt-name">{{ qt.name }}</span>
-            <input type="number" v-model="qt.count" placeholder="题量" min="0" style="width:70px" />
-            <input type="number" v-model="qt.score" placeholder="分值" min="0" style="width:70px" />
-          </div>
-          <button class="btn-small" @click="addQuestionType">➕ 添加题型</button>
-        </div>
-        
-        <div class="config-section">
-          <h4>难度配置（%）</h4>
-          <div v-for="(dl, idx) in difficultyLevels" :key="idx" class="config-row">
-            <input type="checkbox" v-model="dl.selected" />
-            <span class="dl-name">{{ dl.name }}</span>
-            <input type="number" v-model="dl.percentage" min="0" max="100" style="width:70px" :placeholder="dl.percentage == null ? '自动' : ''" /> %
-          </div>
-        </div>
 
-        <div class="config-section">
-          <h4>生成份数（同类型一次出多份）</h4>
-          <input type="number" v-model.number="batchCount" min="1" max="10" placeholder="1" style="width:100px" />
-          <span class="hint">设置>1时，一次生成多份不同的资料</span>
-        </div>                
+          <div class="config-section">
+            <h4>生成份数（同类型一次出多份）</h4>
+            <input
+              v-model.number="batchCount"
+              type="number"
+              min="1"
+              max="10"
+              placeholder="1"
+              style="width:100px"
+            >
+            <span class="hint">设置>1时，一次生成多份不同的资料</span>
+          </div>                
         
-        <div class="config-section">
-          <h4>原题引用</h4>
-          <label class="checkbox-label">
-            <input type="checkbox" v-model="allowOriginalQuestions" />
-            允许适量引用教材原题
-          </label>
-        </div>
+          <div class="config-section">
+            <h4>原题引用</h4>
+            <label class="checkbox-label">
+              <input
+                v-model="allowOriginalQuestions"
+                type="checkbox"
+              >
+              允许适量引用教材原题
+            </label>
+          </div>
         </div>
         
         <div class="modal-actions">
-          <button class="btn" @click="showDetailConfigModal = false">取消</button>
-          <button class="btn-primary" @click="closeDetailConfigModal">确定</button>
+          <button
+            class="btn"
+            @click="showDetailConfigModal = false"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="closeDetailConfigModal"
+          >
+            确定
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 预览弹窗（Teleport 到 body 脱离缩放容器，避免 transform:scale 导致缩小溢出） -->
     <Teleport to="body">
-      <div v-if="showPreview" class="modal-mask" @click.self="showPreview = false">
+      <div
+        v-if="showPreview"
+        class="modal-mask"
+        @click.self="showPreview = false"
+      >
         <div class="modal large-modal">
           <h3><span class="hide-on-mobile">👁️</span> 内容预览</h3>
-          <div v-if="previewHint" class="copy-hint">{{ previewHint }}</div>
-          <div class="preview-content" v-html="previewContent"></div>
+          <div
+            v-if="previewHint"
+            class="copy-hint"
+          >
+            {{ previewHint }}
+          </div>
+          <div
+            class="preview-content"
+            v-html="previewContent"
+          />
           <div class="modal-actions">
-            <button class="btn" @click="showPreview = false">关闭</button>
-            <button class="btn-edurender hide-on-mobile" @click="copyToEduRender">📋 复制到EduRender</button>
-            <button class="btn-primary hide-on-mobile" @click="editDoc">✏️ 编辑</button>
+            <button
+              class="btn"
+              @click="showPreview = false"
+            >
+              关闭
+            </button>
+            <button
+              class="btn-edurender hide-on-mobile"
+              @click="copyToEduRender"
+            >
+              📋 复制到EduRender
+            </button>
+            <button
+              class="btn-primary hide-on-mobile"
+              @click="editDoc"
+            >
+              ✏️ 编辑
+            </button>
           </div>
         </div>
       </div>
@@ -631,141 +1529,294 @@
 
     <!-- 编辑弹窗（Teleport 到 body 脱离缩放容器） -->
     <Teleport to="body">
-      <div v-if="showEditor" class="modal-mask" @click.self="showEditor = false">
+      <div
+        v-if="showEditor"
+        class="modal-mask"
+        @click.self="showEditor = false"
+      >
         <div class="modal large-modal">
           <h3>✏️ 编辑文档</h3>
-          <textarea v-model="editingContent" rows="20" class="editor-textarea"></textarea>
+          <textarea
+            v-model="editingContent"
+            rows="20"
+            class="editor-textarea"
+          />
           <div class="modal-actions">
-            <button class="btn" @click="showEditor = false">取消</button>
-            <button class="btn-primary" @click="saveEdit">💾 保存</button>
+            <button
+              class="btn"
+              @click="showEditor = false"
+            >
+              取消
+            </button>
+            <button
+              class="btn-primary"
+              @click="saveEdit"
+            >
+              💾 保存
+            </button>
           </div>
         </div>
       </div>
     </Teleport>
 
     <!-- 分析确认弹窗 -->
-    <div v-if="showAnalysisModal" class="modal-mask" @click.self="showAnalysisModal = false">
-      <div class="modal large-modal" style="max-width: 900px; width: 90%;">
+    <div
+      v-if="showAnalysisModal"
+      class="modal-mask"
+      @click.self="showAnalysisModal = false"
+    >
+      <div
+        class="modal large-modal"
+        style="max-width: 900px; width: 90%;"
+      >
         <h3>📊 素材分析状态</h3>
         <p style="color:var(--text-muted);font-size:13px;margin-bottom:8px;flex-shrink:0;">
           {{ analysisType === 'textbook' ? '以下是将要分析的教材章节，请确认后选择分析方式' : '以下是将要分析的模板，请确认后选择分析方式' }}
         </p>
         <div class="modal-scroll-area">
-        <div class="chapter-analysis-two-columns">
-          <!-- 左栏：章节列表 -->
-          <div class="chapter-analysis-left">
-            <strong v-if="analysisType === 'textbook'">📚 教材章节</strong>
-            <strong v-else>📋 模板章节</strong>
+          <div class="chapter-analysis-two-columns">
+            <!-- 左栏：章节列表 -->
+            <div class="chapter-analysis-left">
+              <strong v-if="analysisType === 'textbook'">📚 教材章节</strong>
+              <strong v-else>📋 模板章节</strong>
             
-            <div v-if="analysisType === 'textbook'">
-              <div v-for="book in analysisBooks" :key="book.id" style="margin-bottom:14px;border:1px solid var(--border-light);border-radius:8px;padding:12px;">
-                <div style="font-weight:600;color:var(--primary);margin-bottom:8px;">{{ book.name }}</div>
-                <div v-for="ch in book.selectedChapters" :key="ch.title" style="padding:6px 0;font-size:14px;border-bottom:1px dashed #f0f0f0;">
-                  <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <span style="font-weight:500;">{{ ch.title }}</span>
-                    <span v-if="ch.analyzed" style="color:var(--success);">✅ 已分析</span>
-                    <span v-else style="color:var(--warning);">⚠️ 未分析</span>
+              <div v-if="analysisType === 'textbook'">
+                <div
+                  v-for="book in analysisBooks"
+                  :key="book.id"
+                  style="margin-bottom:14px;border:1px solid var(--border-light);border-radius:8px;padding:12px;"
+                >
+                  <div style="font-weight:600;color:var(--primary);margin-bottom:8px;">
+                    {{ book.name }}
                   </div>
-                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">分析范围：第{{ ch._analysisStart ?? ch.start }}-{{ ch._analysisEnd ?? ch.end }}页</div>
+                  <div
+                    v-for="ch in book.selectedChapters"
+                    :key="ch.title"
+                    style="padding:6px 0;font-size:14px;border-bottom:1px dashed #f0f0f0;"
+                  >
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                      <span style="font-weight:500;">{{ ch.title }}</span>
+                      <span
+                        v-if="ch.analyzed"
+                        style="color:var(--success);"
+                      >✅ 已分析</span>
+                      <span
+                        v-else
+                        style="color:var(--warning);"
+                      >⚠️ 未分析</span>
+                    </div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+                      分析范围：第{{ ch._analysisStart ?? ch.start }}-{{ ch._analysisEnd ?? ch.end }}页
+                    </div>
+                  </div>
+                  <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                    {{ book.cached }}个已缓存 / {{ book.new }}个未分析
+                  </div>
                 </div>
-                <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">{{ book.cached }}个已缓存 / {{ book.new }}个未分析</div>
+              </div>
+              <div v-else>
+                <div
+                  v-for="tpl in analysisTpls"
+                  :key="tpl.id"
+                  style="margin-bottom:14px;border:1px solid var(--border-light);border-radius:8px;padding:12px;"
+                >
+                  <div style="font-weight:600;color:var(--primary);margin-bottom:8px;">
+                    {{ tpl.name }}
+                  </div>
+                  <div
+                    v-for="ch in tpl.selectedChapters"
+                    :key="ch.title"
+                    style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:14px;border-bottom:1px dashed #f0f0f0;"
+                  >
+                    <span>{{ ch.title }}</span>
+                    <span
+                      v-if="ch.analyzed"
+                      style="color:var(--success);"
+                    >✅ 已分析</span>
+                    <span
+                      v-else
+                      style="color:var(--warning);"
+                    >⚠️ 未分析</span>
+                  </div>
+                  <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                    {{ tpl.cached }}个已缓存 / {{ tpl.new }}个未分析
+                  </div>
+                </div>
               </div>
             </div>
-            <div v-else>
-              <div v-for="tpl in analysisTpls" :key="tpl.id" style="margin-bottom:14px;border:1px solid var(--border-light);border-radius:8px;padding:12px;">
-                <div style="font-weight:600;color:var(--primary);margin-bottom:8px;">{{ tpl.name }}</div>
-                <div v-for="ch in tpl.selectedChapters" :key="ch.title" style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:14px;border-bottom:1px dashed #f0f0f0;">
-                  <span>{{ ch.title }}</span>
-                  <span v-if="ch.analyzed" style="color:var(--success);">✅ 已分析</span>
-                  <span v-else style="color:var(--warning);">⚠️ 未分析</span>
-                </div>
-                <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">{{ tpl.cached }}个已缓存 / {{ tpl.new }}个未分析</div>
-              </div>
-            </div>
-          </div>
           
-          <!-- 右栏：操作面板 -->
-          <div class="chapter-analysis-right" style="display:flex;flex-direction:column;gap:12px;">
-            <div style="text-align:center;padding:12px;background:#f0f7ff;border-radius:8px;">
-              <div style="font-size:24px;font-weight:700;color:var(--primary-light);">{{ totalNewCount }}</div>
-              <div style="font-size:12px;color:var(--text-muted);">个章节待分析</div>
-            </div>
+            <!-- 右栏：操作面板 -->
+            <div
+              class="chapter-analysis-right"
+              style="display:flex;flex-direction:column;gap:12px;"
+            >
+              <div style="text-align:center;padding:12px;background:#f0f7ff;border-radius:8px;">
+                <div style="font-size:24px;font-weight:700;color:var(--primary-light);">
+                  {{ totalNewCount }}
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);">
+                  个章节待分析
+                </div>
+              </div>
             
-            <!-- 🔧 新增：原文获取方式选择 -->
-            <div style="margin-bottom: 15px; padding: 12px; background: #f8f9fa; border-radius: 8px;">
-              <div style="font-size: 12px; color: #555; margin-bottom: 8px;"><strong>📥 原文获取方式：</strong></div>
-              <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer; font-size: 13px;">
-                <input type="radio" v-model="analysisInputMode" value="ocr" />
-                <span>📷 自动OCR提取 <span style="color:var(--text-muted);font-size:11px;">（PaddleOCR-VL 引擎，本地识别图片文字，无需联网）</span></span>
-              </label>
-              <label v-if="analysisInputMode === 'ocr'" style="display: flex; align-items: center; gap: 8px; margin-left: 24px; margin-bottom: 8px; cursor: pointer; font-size: 12px;">
-                <input type="checkbox" v-model="enableColumnSplit" />
-                <span>📐 启用多栏切割 <span style="color:var(--text-muted);font-size:11px;">（分栏排版文档勾选，逐栏识别后合并）</span></span>
-              </label>
-              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px;">
-                <input type="radio" v-model="analysisInputMode" value="manual" />
-                <span>✍️ 手动输入原文 <span style="color:var(--text-muted);font-size:11px;">（粘贴或手动输入文字）</span></span>
-              </label>
-            </div>
+              <!-- 🔧 新增：原文获取方式选择 -->
+              <div style="margin-bottom: 15px; padding: 12px; background: #f8f9fa; border-radius: 8px;">
+                <div style="font-size: 12px; color: #555; margin-bottom: 8px;">
+                  <strong>📥 原文获取方式：</strong>
+                </div>
+                <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer; font-size: 13px;">
+                  <input
+                    v-model="analysisInputMode"
+                    type="radio"
+                    value="ocr"
+                  >
+                  <span>📷 自动OCR提取 <span style="color:var(--text-muted);font-size:11px;">（PaddleOCR-VL 引擎，本地识别图片文字，无需联网）</span></span>
+                </label>
+                <label
+                  v-if="analysisInputMode === 'ocr'"
+                  style="display: flex; align-items: center; gap: 8px; margin-left: 24px; margin-bottom: 8px; cursor: pointer; font-size: 12px;"
+                >
+                  <input
+                    v-model="enableColumnSplit"
+                    type="checkbox"
+                  >
+                  <span>📐 启用多栏切割 <span style="color:var(--text-muted);font-size:11px;">（分栏排版文档勾选，逐栏识别后合并）</span></span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px;">
+                  <input
+                    v-model="analysisInputMode"
+                    type="radio"
+                    value="manual"
+                  >
+                  <span>✍️ 手动输入原文 <span style="color:var(--text-muted);font-size:11px;">（粘贴或手动输入文字）</span></span>
+                </label>
+              </div>
             
-            <div style="font-size:12px;color:var(--text-muted);line-height:1.8;">
-              <p><strong>📌 说明：</strong></p>
-              <p>• 分析会调用 AI 模型提取教材/模板中的文字和知识点</p>
-              <p>• 已分析的章节会缓存结果，下次无需重复分析</p>
-              <p>• 分析过程可能需要几分钟，请耐心等待</p>
-            </div>
+              <div style="font-size:12px;color:var(--text-muted);line-height:1.8;">
+                <p><strong>📌 说明：</strong></p>
+                <p>• 分析会调用 AI 模型提取教材/模板中的文字和知识点</p>
+                <p>• 已分析的章节会缓存结果，下次无需重复分析</p>
+                <p>• 分析过程可能需要几分钟，请耐心等待</p>
+              </div>
             
-            <div class="modal-actions" style="flex-direction:column;gap:10px;margin-top:auto;">
-              <button class="btn-primary" @click="runAnalysis('all')" style="width:100%;padding:12px;">
-                🔄 全部重新分析
-              </button>
-              <button class="btn" @click="runAnalysis('new')" :disabled="totalNewCount === 0" style="width:100%;padding:12px;">
-                📝 仅分析新的（{{ totalNewCount }}个）
-              </button>
-              <button class="btn" @click="runAnalysis('skip')" style="width:100%;padding:12px;">
-                ⏭️ 跳过，使用已有缓存
-              </button>
-              <button class="btn" @click="showAnalysisModal = false" style="width:100%;padding:12px;color:var(--text-muted);">
-                取消
-              </button>
+              <div
+                class="modal-actions"
+                style="flex-direction:column;gap:10px;margin-top:auto;"
+              >
+                <button
+                  class="btn-primary"
+                  style="width:100%;padding:12px;"
+                  @click="runAnalysis('all')"
+                >
+                  🔄 全部重新分析
+                </button>
+                <button
+                  class="btn"
+                  :disabled="totalNewCount === 0"
+                  style="width:100%;padding:12px;"
+                  @click="runAnalysis('new')"
+                >
+                  📝 仅分析新的（{{ totalNewCount }}个）
+                </button>
+                <button
+                  class="btn"
+                  style="width:100%;padding:12px;"
+                  @click="runAnalysis('skip')"
+                >
+                  ⏭️ 跳过，使用已有缓存
+                </button>
+                <button
+                  class="btn"
+                  style="width:100%;padding:12px;color:var(--text-muted);"
+                  @click="showAnalysisModal = false"
+                >
+                  取消
+                </button>
+              </div>
             </div>
           </div>
-        </div>
         </div>
       </div>
     </div>
 
     <!-- 🔧 原文编辑弹窗（用户确认/补充 OCR 或手动录入的教材原文） -->
-    <div v-if="showRawTextEditor" class="modal-mask" @click.self="closeRawTextEditor">
-      <div class="modal large-modal" style="max-width: 1200px; width: 95%; display: flex; flex-direction: column;">
-        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <h3 style="margin: 0;">📝 原文编辑器 - {{ rawTextEditorData?.chapterTitle }}</h3>
-          <button class="close-btn" @click="closeRawTextEditor" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+    <div
+      v-if="showRawTextEditor"
+      class="modal-mask"
+      @click.self="closeRawTextEditor"
+    >
+      <div
+        class="modal large-modal"
+        style="max-width: 1200px; width: 95%; display: flex; flex-direction: column;"
+      >
+        <div
+          class="modal-header"
+          style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;"
+        >
+          <h3 style="margin: 0;">
+            📝 原文编辑器 - {{ rawTextEditorData?.chapterTitle }}
+          </h3>
+          <button
+            class="close-btn"
+            style="background: none; border: none; font-size: 24px; cursor: pointer;"
+            @click="closeRawTextEditor"
+          >
+            ✕
+          </button>
         </div>
             
         <div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center;">
           <span style="font-size: 13px; color: #666;">ℹ️ 直接粘贴图文混排内容，图片会自动提取</span>
           <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
-            <input type="checkbox" v-model="rawTextEditorData.analyzeCharts" @change="onAnalyzeChartsChange" />
+            <input
+              v-model="rawTextEditorData.analyzeCharts"
+              type="checkbox"
+              @change="onAnalyzeChartsChange"
+            >
             <span>🖼️ 分析图片内容（自动调用多模态模型描述）</span>
           </label>
         </div>
         
         <!-- 🔧 图片列表和勾选 -->
-        <div v-if="rawTextEditorData.analyzeCharts && rawTextEditorData.detectedImages && rawTextEditorData.detectedImages.length > 0" 
-             style="margin-bottom: 12px; padding: 12px; background: #f8f9fa; border-radius: 6px; max-height: 200px; overflow-y: auto;">
+        <div
+          v-if="rawTextEditorData.analyzeCharts && rawTextEditorData.detectedImages && rawTextEditorData.detectedImages.length > 0" 
+          style="margin-bottom: 12px; padding: 12px; background: #f8f9fa; border-radius: 6px; max-height: 200px; overflow-y: auto;"
+        >
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <strong style="font-size: 13px;">📸 检测到 {{ rawTextEditorData.detectedImages.length }} 张图片</strong>
             <div style="display: flex; gap: 8px;">
-              <button @click="selectAllDetectedImages(true)" style="font-size: 12px; padding: 4px 8px; cursor: pointer;">全选</button>
-              <button @click="selectAllDetectedImages(false)" style="font-size: 12px; padding: 4px 8px; cursor: pointer;">全不选</button>
+              <button
+                style="font-size: 12px; padding: 4px 8px; cursor: pointer;"
+                @click="selectAllDetectedImages(true)"
+              >
+                全选
+              </button>
+              <button
+                style="font-size: 12px; padding: 4px 8px; cursor: pointer;"
+                @click="selectAllDetectedImages(false)"
+              >
+                全不选
+              </button>
             </div>
           </div>
-          <div v-for="(img, idx) in rawTextEditorData.detectedImages" :key="idx" 
-               style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 6px; background: white; border-radius: 4px;">
-            <input type="checkbox" v-model="img.selected" :id="'img-' + idx" />
-            <label :for="'img-' + idx" style="flex: 1; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-              <img :src="img.src" style="max-width: 60px; max-height: 60px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px;" />
+          <div
+            v-for="(img, idx) in rawTextEditorData.detectedImages"
+            :key="idx" 
+            style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 6px; background: white; border-radius: 4px;"
+          >
+            <input
+              :id="'img-' + idx"
+              v-model="img.selected"
+              type="checkbox"
+            >
+            <label
+              :for="'img-' + idx"
+              style="flex: 1; cursor: pointer; display: flex; align-items: center; gap: 8px;"
+            >
+              <img
+                :src="img.src"
+                style="max-width: 60px; max-height: 60px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px;"
+              >
               <span style="font-size: 12px; color: #666;">图片 {{ idx + 1 }}</span>
             </label>
           </div>
@@ -792,11 +1843,23 @@
           </ul>
         </div>
             
-        <div class="modal-actions" style="margin-top: 16px; display: flex; gap: 12px; justify-content: flex-end;">
-          <button class="btn" @click="closeRawTextEditor" style="padding: 10px 20px;">
+        <div
+          class="modal-actions"
+          style="margin-top: 16px; display: flex; gap: 12px; justify-content: flex-end;"
+        >
+          <button
+            class="btn"
+            style="padding: 10px 20px;"
+            @click="closeRawTextEditor"
+          >
             ❌ 取消
           </button>
-          <button class="btn-primary" @click="confirmRawTextWithImages" :disabled="isAnalyzingImages" style="padding: 10px 20px;">
+          <button
+            class="btn-primary"
+            :disabled="isAnalyzingImages"
+            style="padding: 10px 20px;"
+            @click="confirmRawTextWithImages"
+          >
             {{ isAnalyzingImages ? '🔄 正在分析图片...' : '✅ 确认原文，继续分析' }}
           </button>
         </div>
@@ -804,12 +1867,27 @@
     </div>
 
     <!-- 分析结果确认弹窗 -->
-    <div v-if="showAnalysisResultModal" class="modal-mask" @click.self="showAnalysisResultModal = false">
-      <div class="modal large-modal draggable-modal analysis-result-modal" style="max-width: 1200px; width: 96%; display: flex; flex-direction: column;" ref="analysisResultModalRef">
+    <div
+      v-if="showAnalysisResultModal"
+      class="modal-mask"
+      @click.self="showAnalysisResultModal = false"
+    >
+      <div
+        ref="analysisResultModalRef"
+        class="modal large-modal draggable-modal analysis-result-modal"
+        style="max-width: 1200px; width: 96%; display: flex; flex-direction: column;"
+      >
         <!-- ✅ 固定头部：标题 + 提示 -->
         <div style="flex-shrink: 0;">
-          <div class="modal-drag-handle" @mousedown="startAnalysisResultDrag($event)">📊 分析结果确认（可拖动）</div>
-          <h3 style="margin: 8px 0 4px 0;">📊 分析结果确认</h3>
+          <div
+            class="modal-drag-handle"
+            @mousedown="startAnalysisResultDrag($event)"
+          >
+            📊 分析结果确认（可拖动）
+          </div>
+          <h3 style="margin: 8px 0 4px 0;">
+            📊 分析结果确认
+          </h3>
           <p style="color:var(--text-muted);font-size:12px;margin-bottom:6px;">
             {{ analysisResultType === 'textbook' ? '教材' : '模板' }}分析完成，请确认以下结果后保存
           </p>
@@ -822,14 +1900,38 @@
         <div style="flex: 1; overflow-y: auto; min-height: 0; padding-right: 8px;">
           <!-- 教材分析结果 -->
           <div v-if="analysisResultType === 'textbook' && analysisResultData">
-            <div v-for="(item, idx) in analysisResultData" :key="idx" style="border:1px solid var(--border-light);border-radius:8px;padding:10px;margin-bottom:10px;">
+            <div
+              v-for="(item, idx) in analysisResultData"
+              :key="idx"
+              style="border:1px solid var(--border-light);border-radius:8px;padding:10px;margin-bottom:10px;"
+            >
               <div class="confirm-item-header">
                 <strong style="font-size:13px;">{{ item.bookName }} - {{ item.chapterTitle }}</strong>
                 <div style="display:flex;gap:6px;align-items:center;">
-                  <span v-if="item.ocrQuality === 'poor'" style="color:var(--danger);font-weight:bold;font-size:11px;background:#fde8e8;padding:2px 6px;border-radius:3px;">❌ 质量差·必须修正</span>
-                  <span v-else-if="item.ocrQuality === 'warning'" style="color:var(--warning);font-size:11px;background:#fef3e2;padding:2px 6px;border-radius:3px;">️ 可能有误·建议核对</span>
-                  <button class="icon-btn" @click="saveSingleAnalysisItem(idx)" title="单独保存" style="padding:2px 4px;color:var(--success);">💾</button>
-                  <button class="icon-btn" @click="removeAnalysisItem(idx)" title="删除" style="padding:2px 4px;">🗑️</button>
+                  <span
+                    v-if="item.ocrQuality === 'poor'"
+                    style="color:var(--danger);font-weight:bold;font-size:11px;background:#fde8e8;padding:2px 6px;border-radius:3px;"
+                  >❌ 质量差·必须修正</span>
+                  <span
+                    v-else-if="item.ocrQuality === 'warning'"
+                    style="color:var(--warning);font-size:11px;background:#fef3e2;padding:2px 6px;border-radius:3px;"
+                  >️ 可能有误·建议核对</span>
+                  <button
+                    class="icon-btn"
+                    title="单独保存"
+                    style="padding:2px 4px;color:var(--success);"
+                    @click="saveSingleAnalysisItem(idx)"
+                  >
+                    💾
+                  </button>
+                  <button
+                    class="icon-btn"
+                    title="删除"
+                    style="padding:2px 4px;"
+                    @click="removeAnalysisItem(idx)"
+                  >
+                    🗑️
+                  </button>
                 </div>
               </div>
               
@@ -838,12 +1940,32 @@
                 <!-- 左栏：原文 -->
                 <div class="template-left-column">
                   <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;">📖 原文提取</label>
-                  <div v-if="item.rawText && item.rawText.includes('【？】')" 
-                    style="display:flex;align-items:center;gap:4px;margin-bottom:3px;padding:3px 6px;background:#fffbf0;border:1px solid #f0c78e;border-radius:3px;font-size:10px;">
+                  <div
+                    v-if="item.rawText && item.rawText.includes('【？】')" 
+                    style="display:flex;align-items:center;gap:4px;margin-bottom:3px;padding:3px 6px;background:#fffbf0;border:1px solid #f0c78e;border-radius:3px;font-size:10px;"
+                  >
                     <span style="color:var(--warning);font-weight:600;">⚠️ {{ (item.rawText.match(/【？】/g) || []).length }} 处</span>
-                    <button class="btn-small" @click="jumpToUncertainInItem(item, 'prev')" style="color:var(--primary-light);padding:1px 4px;font-size:10px;">◀</button>
-                    <button class="btn-small" @click="jumpToUncertainInItem(item, 'next')" style="color:var(--primary-light);padding:1px 4px;font-size:10px;">▶</button>
-                    <button class="btn-small" @click="item.rawText = item.rawText.replace(/【？】/g, '')" style="color:var(--success);margin-left:auto;padding:1px 6px;font-size:10px;">✅ 清除</button>
+                    <button
+                      class="btn-small"
+                      style="color:var(--primary-light);padding:1px 4px;font-size:10px;"
+                      @click="jumpToUncertainInItem(item, 'prev')"
+                    >
+                      ◀
+                    </button>
+                    <button
+                      class="btn-small"
+                      style="color:var(--primary-light);padding:1px 4px;font-size:10px;"
+                      @click="jumpToUncertainInItem(item, 'next')"
+                    >
+                      ▶
+                    </button>
+                    <button
+                      class="btn-small"
+                      style="color:var(--success);margin-left:auto;padding:1px 6px;font-size:10px;"
+                      @click="item.rawText = item.rawText.replace(/【？】/g, '')"
+                    >
+                      ✅ 清除
+                    </button>
                   </div>
                   <!-- 🔧 保留原文格式：有 _rawTextHtml 用富文本编辑器，否则用纯文本框 -->
                   <RichTextEditor 
@@ -853,44 +1975,86 @@
                     :min-height="'240px'"
                     style="width:100%;font-size:11px;max-height:420px;"
                   />
-                  <textarea v-else v-model="item.rawText" rows="16" placeholder="逐段原文..."
+                  <textarea
+                    v-else
+                    v-model="item.rawText"
+                    rows="16"
+                    placeholder="逐段原文..."
                     :style="{ borderColor: item.ocrQuality === 'poor' ? 'var(--danger)' : '#ddd', width:'100%',fontSize:'11px',padding:'6px',borderRadius:'4px',resize:'vertical',fontFamily:'inherit',boxSizing:'border-box' }"
                     @click="updateUncertainForItem($event, item)"
-                  ></textarea>
+                  />
                 </div>
                 
                 <!-- 右栏：分析字段 -->
                 <div class="template-right-column">
                   <div class="confirm-field">
                     <label style="font-size:11px;">️ 图表描述</label>
-                    <input type="text" v-model="item.visualDescription" placeholder="图表描述..." style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;" />
+                    <input
+                      v-model="item.visualDescription"
+                      type="text"
+                      placeholder="图表描述..."
+                      style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;"
+                    >
                   </div>
                   <div class="confirm-field">
                     <label style="font-size:11px;"> 公式描述</label>
-                    <input type="text" v-model="item.formulasText" placeholder="公式..." style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;" />
+                    <input
+                      v-model="item.formulasText"
+                      type="text"
+                      placeholder="公式..."
+                      style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;"
+                    >
                   </div>
                   <div class="confirm-field">
                     <label style="font-size:11px;">️ 核心主题词（逗号分隔）</label>
-                    <input type="text" v-model="item.coreTopics" placeholder="主题词..." style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;" />
+                    <input
+                      v-model="item.coreTopics"
+                      type="text"
+                      placeholder="主题词..."
+                      style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;"
+                    >
                   </div>
                   <div class="confirm-field">
                     <label style="font-size:11px;">📍 知识点（每行一个）</label>
-                    <textarea v-model="item.knowledgePointsText" rows="4" placeholder="每行一个知识点..." style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;resize:vertical;font-family:inherit;"></textarea>
+                    <textarea
+                      v-model="item.knowledgePointsText"
+                      rows="4"
+                      placeholder="每行一个知识点..."
+                      style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;resize:vertical;font-family:inherit;"
+                    />
                   </div>
                   <div class="confirm-field">
                     <label style="font-size:11px;"> 能力层次</label>
-                    <select v-model="item.competency" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;">
-                      <option value="识记与理解">识记与理解</option>
-                      <option value="应用与分析">应用与分析</option>
-                      <option value="综合与评价">综合与评价</option>
+                    <select
+                      v-model="item.competency"
+                      style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;"
+                    >
+                      <option value="识记与理解">
+                        识记与理解
+                      </option>
+                      <option value="应用与分析">
+                        应用与分析
+                      </option>
+                      <option value="综合与评价">
+                        综合与评价
+                      </option>
                     </select>
                   </div>
                   <div class="confirm-field">
                     <label style="font-size:11px;">🎨 风格</label>
-                    <select v-model="item.style" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;">
-                      <option value="传统">传统</option>
-                      <option value="创新">创新</option>
-                      <option value="情境化">情境化</option>
+                    <select
+                      v-model="item.style"
+                      style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;box-sizing:border-box;"
+                    >
+                      <option value="传统">
+                        传统
+                      </option>
+                      <option value="创新">
+                        创新
+                      </option>
+                      <option value="情境化">
+                        情境化
+                      </option>
                     </select>
                   </div>
                 </div>
@@ -899,10 +2063,15 @@
           </div>
           
           <!-- 🔧 重构：模板分析结果——左右两栏布局 -->
-          <div v-if="analysisResultType === 'template' && analysisResultData" class="template-review-layout">
+          <div
+            v-if="analysisResultType === 'template' && analysisResultData"
+            class="template-review-layout"
+          >
             <!-- 顶部提示条 -->
             <div style="background:#fff9e6;border:2px solid #f39c12;border-radius:6px;padding:8px 12px;margin-bottom:10px;">
-              <p style="margin:0;color:#b85c00;font-weight:600;font-size:12px;">⚠️ 模板对标是生成高质量资料的关键，请逐项核对</p>
+              <p style="margin:0;color:#b85c00;font-weight:600;font-size:12px;">
+                ⚠️ 模板对标是生成高质量资料的关键，请逐项核对
+              </p>
             </div>
 
             <!-- 左右两栏 -->
@@ -914,13 +2083,33 @@
                   <span style="font-size:11px;color:var(--text-muted);">{{ (analysisResultData.rawText || '').length }}字</span>
                 </div>
                 <!-- 🔧 不确定文字导航条 -->
-                <div v-if="analysisResultData.rawText && analysisResultData.rawText.includes('【？】')" 
-                  style="display:flex;align-items:center;gap:4px;margin-bottom:4px;padding:4px 8px;background:#fffbf0;border:1px solid #f0c78e;border-radius:4px;font-size:11px;">
+                <div
+                  v-if="analysisResultData.rawText && analysisResultData.rawText.includes('【？】')" 
+                  style="display:flex;align-items:center;gap:4px;margin-bottom:4px;padding:4px 8px;background:#fffbf0;border:1px solid #f0c78e;border-radius:4px;font-size:11px;"
+                >
                   <span style="color:var(--warning);font-weight:600;">⚠️ {{ uncertainCount }} 处不确定</span>
-                  <button class="btn-small" @click="jumpToUncertain('prev')" style="color:var(--primary-light);font-size:10px;">◀ 上一个</button>
-                  <button class="btn-small" @click="jumpToUncertain('next')" style="color:var(--primary-light);font-size:10px;">下一个 ▶</button>
+                  <button
+                    class="btn-small"
+                    style="color:var(--primary-light);font-size:10px;"
+                    @click="jumpToUncertain('prev')"
+                  >
+                    ◀ 上一个
+                  </button>
+                  <button
+                    class="btn-small"
+                    style="color:var(--primary-light);font-size:10px;"
+                    @click="jumpToUncertain('next')"
+                  >
+                    下一个 ▶
+                  </button>
                   <span style="color:var(--text-muted);margin:0 4px;font-size:10px;">{{ uncertainCurrentIndex > 0 ? uncertainCurrentIndex : '?' }}/{{ uncertainCount }}</span>
-                  <button class="btn-small" @click="clearAllUncertainMarks" style="color:var(--success);margin-left:auto;font-size:10px;">✅ 一键清除</button>
+                  <button
+                    class="btn-small"
+                    style="color:var(--success);margin-left:auto;font-size:10px;"
+                    @click="clearAllUncertainMarks"
+                  >
+                    ✅ 一键清除
+                  </button>
                 </div>
                 <!-- 🔧 保留原文格式：有 _rawTextHtml 用富文本编辑器，否则用纯文本框 -->
                 <RichTextEditor 
@@ -930,14 +2119,17 @@
                   :min-height="'400px'"
                   style="width:100%;font-size:12px;max-height:500px;"
                 />
-                <textarea v-else v-model="analysisResultData.rawText" rows="26" 
+                <textarea
+                  v-else
                   ref="rawTextTextarea"
-                  @click="updateUncertainList"
-                  @keyup="updateUncertainList"
+                  v-model="analysisResultData.rawText" 
+                  rows="26"
                   placeholder="逐段原文...（请对照原始模板PDF逐字核对）"
                   class="template-raw-textarea"
-                  :style="{ borderColor: analysisResultData.ocrQuality === 'poor' ? 'var(--danger)' : '#ddd' }">
-                </textarea>
+                  :style="{ borderColor: analysisResultData.ocrQuality === 'poor' ? 'var(--danger)' : '#ddd' }"
+                  @click="updateUncertainList"
+                  @keyup="updateUncertainList"
+                />
               </div>
 
               <!-- ========== 右栏：分析字段 ========== -->
@@ -945,54 +2137,157 @@
                 <div class="confirm-item-header">
                   <strong style="font-size:13px;">📊 结构分析</strong>
                   <div style="display:flex;gap:4px;">
-                    <span v-if="analysisResultData.ocrQuality === 'poor'" style="color:var(--danger);font-weight:bold;font-size:10px;background:#fde8e8;padding:2px 6px;border-radius:3px;">OCR质量差</span>
-                    <span v-else-if="analysisResultData.ocrQuality === 'warning'" style="color:var(--warning);font-weight:bold;font-size:10px;background:#fef3e2;padding:2px 6px;border-radius:3px;">OCR有误</span>
-                    <button class="btn-small" @click="clearTemplateAnalysisFields" title="清空所有分析字段" style="color:var(--warning);border-color:#f0c78e;font-size:10px;">🗑️ 重填</button>
+                    <span
+                      v-if="analysisResultData.ocrQuality === 'poor'"
+                      style="color:var(--danger);font-weight:bold;font-size:10px;background:#fde8e8;padding:2px 6px;border-radius:3px;"
+                    >OCR质量差</span>
+                    <span
+                      v-else-if="analysisResultData.ocrQuality === 'warning'"
+                      style="color:var(--warning);font-weight:bold;font-size:10px;background:#fef3e2;padding:2px 6px;border-radius:3px;"
+                    >OCR有误</span>
+                    <button
+                      class="btn-small"
+                      title="清空所有分析字段"
+                      style="color:var(--warning);border-color:#f0c78e;font-size:10px;"
+                      @click="clearTemplateAnalysisFields"
+                    >
+                      🗑️ 重填
+                    </button>
                   </div>
                 </div>
 
                 <div class="confirm-field">
                   <label style="font-size:11px;">📋 结构分析 <span style="color:var(--danger);">*必填</span></label>
-                  <div v-for="(section, si) in (analysisResultData.结构分析 || [])" :key="si" style="margin-bottom:6px;border:1px solid var(--border-light);border-radius:4px;padding:6px;">
+                  <div
+                    v-for="(section, si) in (analysisResultData.结构分析 || [])"
+                    :key="si"
+                    style="margin-bottom:6px;border:1px solid var(--border-light);border-radius:4px;padding:6px;"
+                  >
                     <div style="display:flex;gap:4px;margin-bottom:3px;">
-                      <input type="text" v-model="section.大题" placeholder="大题（如一、看拼音写词语）" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
-                      <input type="text" v-model="section.题型" placeholder="题型" style="width:100px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
-                      <button class="btn-small" @click="analysisResultData.结构分析.splice(si, 1)" style="color:var(--danger);flex-shrink:0;padding:2px 4px;font-size:10px;">🗑️</button>
+                      <input
+                        v-model="section.大题"
+                        type="text"
+                        placeholder="大题（如一、看拼音写词语）"
+                        style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;"
+                      >
+                      <input
+                        v-model="section.题型"
+                        type="text"
+                        placeholder="题型"
+                        style="width:100px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;"
+                      >
+                      <button
+                        class="btn-small"
+                        style="color:var(--danger);flex-shrink:0;padding:2px 4px;font-size:10px;"
+                        @click="analysisResultData.结构分析.splice(si, 1)"
+                      >
+                        🗑️
+                      </button>
                     </div>
                     <div style="display:flex;gap:4px;">
-                      <input type="number" v-model.number="section.小题数量" placeholder="小题数" style="width:60px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
-                      <input type="number" v-model.number="section.大题分值" placeholder="分值" style="width:60px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
-                      <input type="number" v-model.number="section.每小题分值" placeholder="每小题分" style="width:70px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
-                      <input type="text" v-model="section.难度" placeholder="难度" style="width:60px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
+                      <input
+                        v-model.number="section.小题数量"
+                        type="number"
+                        placeholder="小题数"
+                        style="width:60px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;"
+                      >
+                      <input
+                        v-model.number="section.大题分值"
+                        type="number"
+                        placeholder="分值"
+                        style="width:60px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;"
+                      >
+                      <input
+                        v-model.number="section.每小题分值"
+                        type="number"
+                        placeholder="每小题分"
+                        style="width:70px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;"
+                      >
+                      <input
+                        v-model="section.难度"
+                        type="text"
+                        placeholder="难度"
+                        style="width:60px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;"
+                      >
                     </div>
-                    <input type="text" v-model="section.设问风格" placeholder="设问风格" style="width:100%;margin-top:3px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;" />
+                    <input
+                      v-model="section.设问风格"
+                      type="text"
+                      placeholder="设问风格"
+                      style="width:100%;margin-top:3px;padding:4px 6px;border:1px solid #ddd;border-radius:3px;font-size:11px;"
+                    >
                   </div>
-                  <button class="btn-small" @click="analysisResultData.结构分析.push({大题:'',题型:'',小题数量:0,大题分值:0,每小题分值:0,设问风格:'',难度:'基础'})" style="margin-top:3px;font-size:10px;">➕ 添加大题</button>
+                  <button
+                    class="btn-small"
+                    style="margin-top:3px;font-size:10px;"
+                    @click="analysisResultData.结构分析.push({大题:'',题型:'',小题数量:0,大题分值:0,每小题分值:0,设问风格:'',难度:'基础'})"
+                  >
+                    ➕ 添加大题
+                  </button>
                 </div>
                 <div style="display:flex;gap:10px;">
-                  <div class="confirm-field" style="flex:1;">
+                  <div
+                    class="confirm-field"
+                    style="flex:1;"
+                  >
                     <label style="font-size:11px;">总分</label>
-                    <input type="number" v-model.number="analysisResultData.总分" placeholder="100" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;" />
+                    <input
+                      v-model.number="analysisResultData.总分"
+                      type="number"
+                      placeholder="100"
+                      style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;"
+                    >
                   </div>
-                  <div class="confirm-field" style="flex:1;">
+                  <div
+                    class="confirm-field"
+                    style="flex:1;"
+                  >
                     <label style="font-size:11px;">总题数</label>
-                    <input type="number" v-model.number="analysisResultData.总题数" placeholder="20" style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;" />
+                    <input
+                      v-model.number="analysisResultData.总题数"
+                      type="number"
+                      placeholder="20"
+                      style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:11px;"
+                    >
                   </div>
                 </div>
 
                 <!-- 🔧 语言风格指纹（可折叠查看） -->
-                <div class="confirm-field" v-if="analysisResultData.languageStyle">
-                  <label @click="showLanguageStyleDetail = !showLanguageStyleDetail" style="cursor:pointer;font-size:11px;">
+                <div
+                  v-if="analysisResultData.languageStyle"
+                  class="confirm-field"
+                >
+                  <label
+                    style="cursor:pointer;font-size:11px;"
+                    @click="showLanguageStyleDetail = !showLanguageStyleDetail"
+                  >
                     🔍 语言风格指纹 {{ showLanguageStyleDetail ? '▼' : '▶' }}
                   </label>
-                  <div v-if="showLanguageStyleDetail" style="font-size:10px;color:#555;background:var(--bg-card);padding:6px;border-radius:4px;margin-top:3px;">
-                    <div v-if="analysisResultData.languageStyle.avgSentenceLength">平均句长：{{ analysisResultData.languageStyle.avgSentenceLength }}字</div>
-                    <div v-if="analysisResultData.languageStyle.commonPatterns?.length">高频句式：{{ analysisResultData.languageStyle.commonPatterns.join('、') }}</div>
-                    <div v-if="analysisResultData.languageStyle.connectors?.length">连接词：{{ analysisResultData.languageStyle.connectors.join('、') }}</div>
-                    <div v-if="analysisResultData.languageStyle.contextIntro">情境引入：{{ analysisResultData.languageStyle.contextIntro }}</div>
-                    <div v-if="analysisResultData.languageStyle.personReference">指代方式：{{ analysisResultData.languageStyle.personReference }}</div>
-                    <div v-if="analysisResultData.languageStyle.tone">语气：{{ analysisResultData.languageStyle.tone }}</div>
-                    <div v-if="analysisResultData.languageStyle.sampleSentence">典型句式：「{{ analysisResultData.languageStyle.sampleSentence }}」</div>
+                  <div
+                    v-if="showLanguageStyleDetail"
+                    style="font-size:10px;color:#555;background:var(--bg-card);padding:6px;border-radius:4px;margin-top:3px;"
+                  >
+                    <div v-if="analysisResultData.languageStyle.avgSentenceLength">
+                      平均句长：{{ analysisResultData.languageStyle.avgSentenceLength }}字
+                    </div>
+                    <div v-if="analysisResultData.languageStyle.commonPatterns?.length">
+                      高频句式：{{ analysisResultData.languageStyle.commonPatterns.join('、') }}
+                    </div>
+                    <div v-if="analysisResultData.languageStyle.connectors?.length">
+                      连接词：{{ analysisResultData.languageStyle.connectors.join('、') }}
+                    </div>
+                    <div v-if="analysisResultData.languageStyle.contextIntro">
+                      情境引入：{{ analysisResultData.languageStyle.contextIntro }}
+                    </div>
+                    <div v-if="analysisResultData.languageStyle.personReference">
+                      指代方式：{{ analysisResultData.languageStyle.personReference }}
+                    </div>
+                    <div v-if="analysisResultData.languageStyle.tone">
+                      语气：{{ analysisResultData.languageStyle.tone }}
+                    </div>
+                    <div v-if="analysisResultData.languageStyle.sampleSentence">
+                      典型句式：「{{ analysisResultData.languageStyle.sampleSentence }}」
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1003,27 +2298,53 @@
         <!-- ✅ 固定底部：操作按钮 -->
         <div style="flex-shrink: 0; margin-top:10px; padding-top:10px; border-top:1px solid var(--border-light);">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <button class="btn btn-delete" @click="discardAnalysisResult" style="font-size:11px;padding:4px 10px;">🗑️ 丢弃分析结果</button>
-            <div class="modal-actions" style="display:flex;gap:8px;">
-              <button class="btn" @click="openAnalysisPDFPreview">📄 打开PDF对照</button>
-              <button class="btn" @click="showAnalysisResultModal = false">稍后处理</button>
-              <button class="btn-primary" @click="confirmAnalysisResult">💾 确认保存</button>
+            <button
+              class="btn btn-delete"
+              style="font-size:11px;padding:4px 10px;"
+              @click="discardAnalysisResult"
+            >
+              🗑️ 丢弃分析结果
+            </button>
+            <div
+              class="modal-actions"
+              style="display:flex;gap:8px;"
+            >
+              <button
+                class="btn"
+                @click="openAnalysisPDFPreview"
+              >
+                📄 打开PDF对照
+              </button>
+              <button
+                class="btn"
+                @click="showAnalysisResultModal = false"
+              >
+                稍后处理
+              </button>
+              <button
+                class="btn-primary"
+                @click="confirmAnalysisResult"
+              >
+                💾 确认保存
+              </button>
             </div>
           </div>
         </div>
         
         <!-- 🔧 右下角调整大小手柄 -->
         <div 
-          @mousedown="startAnalysisResultResize"
           style="position:absolute; right:0; bottom:0; width:20px; height:20px; cursor:nwse-resize; z-index:10;"
-          title="拖动调整大小">
-          <div style="position:absolute; right:3px; bottom:3px; width:10px; height:10px; border-right:2px solid var(--text-muted); border-bottom:2px solid var(--text-muted);"></div>
+          title="拖动调整大小"
+          @mousedown="startAnalysisResultResize"
+        >
+          <div style="position:absolute; right:3px; bottom:3px; width:10px; height:10px; border-right:2px solid var(--text-muted); border-bottom:2px solid var(--text-muted);" />
         </div>
       </div>
     </div>
 
     <!-- 🔧 新增：PDF对照浮窗 -->
-    <div v-if="showAnalysisPDF" 
+    <div
+      v-if="showAnalysisPDF" 
       ref="analysisPDFRef"
       :style="{ 
         position: 'fixed', 
@@ -1041,57 +2362,101 @@
         boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
         display: 'flex',
         flexDirection: 'column'
-      }">
+      }"
+    >
       <div 
-        @mousedown="startAnalysisPDFDrag" 
-        style="display:flex; justify-content:space-between; align-items:center; padding:6px 12px; background:var(--primary); color:white; cursor:move; user-select:none; flex-shrink:0;">
+        style="display:flex; justify-content:space-between; align-items:center; padding:6px 12px; background:var(--primary); color:white; cursor:move; user-select:none; flex-shrink:0;" 
+        @mousedown="startAnalysisPDFDrag"
+      >
         <span style="font-size:13px;">📖 PDF 对照</span>
         <div style="display:flex; gap:6px; align-items:center;">
-          <button @click="analysisPDFPage = Math.max(1, analysisPDFPage - 1)" style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer; padding:3px 8px; border-radius:4px; font-size:12px;">◀</button>
+          <button
+            style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer; padding:3px 8px; border-radius:4px; font-size:12px;"
+            @click="analysisPDFPage = Math.max(1, analysisPDFPage - 1)"
+          >
+            ◀
+          </button>
           <span style="font-size:12px;">第 {{ analysisPDFPage }} 页</span>
-          <button @click="analysisPDFPage = analysisPDFPage + 1" style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer; padding:3px 8px; border-radius:4px; font-size:12px;">▶</button>
-          <button @click="showAnalysisPDF = false" style="background:none; border:none; color:white; cursor:pointer; font-size:18px; margin-left:4px;">✕</button>
+          <button
+            style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer; padding:3px 8px; border-radius:4px; font-size:12px;"
+            @click="analysisPDFPage = analysisPDFPage + 1"
+          >
+            ▶
+          </button>
+          <button
+            style="background:none; border:none; color:white; cursor:pointer; font-size:18px; margin-left:4px;"
+            @click="showAnalysisPDF = false"
+          >
+            ✕
+          </button>
         </div>
       </div>
       <div style="flex:1; min-height:0;">
-        <PdfPreview :pdfPath="analysisPDFPath" :page="analysisPDFPage" :largeFile="true" />
+        <PdfPreview
+          :pdf-path="analysisPDFPath"
+          :page="analysisPDFPage"
+          :large-file="true"
+        />
       </div>
       <div 
-        @mousedown="startAnalysisPDFResize"
         style="position:absolute; right:0; bottom:0; width:20px; height:20px; cursor:nwse-resize; z-index:10;"
-        title="拖动调整大小">
-        <div style="position:absolute; right:3px; bottom:3px; width:10px; height:10px; border-right:2px solid var(--text-muted); border-bottom:2px solid var(--text-muted);"></div>
+        title="拖动调整大小"
+        @mousedown="startAnalysisPDFResize"
+      >
+        <div style="position:absolute; right:3px; bottom:3px; width:10px; height:10px; border-right:2px solid var(--text-muted); border-bottom:2px solid var(--text-muted);" />
       </div>
     </div>    
 
     <!-- 🔧 新增：多栏分割预览弹窗 -->
-    <div v-if="showColumnSplitModal" class="modal-mask" @click.self="showColumnSplitModal = false">
-      <div class="modal large-modal column-split-modal" style="max-width: 1100px; width: 96%; display: flex; flex-direction: column;">
+    <div
+      v-if="showColumnSplitModal"
+      class="modal-mask"
+      @click.self="showColumnSplitModal = false"
+    >
+      <div
+        class="modal large-modal column-split-modal"
+        style="max-width: 1100px; width: 96%; display: flex; flex-direction: column;"
+      >
         <!-- ✅ 固定头部：标题 + 翻页导航 -->
         <div style="flex-shrink: 0;">
           <h3>📐 多栏分割预览与调整</h3>
           
           <!-- 🔧 新增：翻页导航 -->
-          <div v-if="columnSplitAllPages && columnSplitAllPages.length > 1" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#f0f7ff;border-radius:8px;">
-            <button class="btn-small" @click="goToSplitPage(columnSplitCurrentPage - 1)" :disabled="columnSplitCurrentPage <= 0">◀ 上一页</button>
+          <div
+            v-if="columnSplitAllPages && columnSplitAllPages.length > 1"
+            style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#f0f7ff;border-radius:8px;"
+          >
+            <button
+              class="btn-small"
+              :disabled="columnSplitCurrentPage <= 0"
+              @click="goToSplitPage(columnSplitCurrentPage - 1)"
+            >
+              ◀ 上一页
+            </button>
             <span style="font-size:13px;font-weight:600;color:var(--primary);">
               第 {{ columnSplitCurrentPage + 1 }} / {{ columnSplitAllPages.length }} 页
             </span>
-            <button class="btn-small" @click="goToSplitPage(columnSplitCurrentPage + 1)" :disabled="columnSplitCurrentPage >= columnSplitAllPages.length - 1">下一页 ▶</button>
+            <button
+              class="btn-small"
+              :disabled="columnSplitCurrentPage >= columnSplitAllPages.length - 1"
+              @click="goToSplitPage(columnSplitCurrentPage + 1)"
+            >
+              下一页 ▶
+            </button>
             
             <!-- 各页状态指示 -->
             <div style="display:flex;gap:4px;margin-left:8px;">
               <span 
                 v-for="(page, pIdx) in columnSplitAllPages" 
                 :key="'page-dot-' + pIdx"
-                @click="goToSplitPage(pIdx)"
                 :title="'第' + page.page + '页' + (page._skipSplit ? ' ⏩整页OCR' : page._confirmed ? ' ✅已确认' : ' ⚠️待确认')"
                 style="cursor:pointer;width:12px;height:12px;border-radius:50%;display:inline-block;"
                 :style="{
                   background: pIdx === columnSplitCurrentPage ? 'var(--primary-light)' : page._skipSplit ? '#f0a030' : page._confirmed ? 'var(--success)' : 'var(--border-light)',
                   border: pIdx === columnSplitCurrentPage ? '2px solid var(--primary)' : '2px solid transparent'
                 }"
-              ></span>
+                @click="goToSplitPage(pIdx)"
+              />
             </div>
             
             <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">
@@ -1110,16 +2475,22 @@
         <!-- ✅ 滚动内容区 -->
         <div style="flex: 1; overflow-y: auto; min-height: 0;">
           <!-- 切割预览区 -->
-          <div class="column-split-preview" ref="columnSplitPreviewRef">
+          <div
+            ref="columnSplitPreviewRef"
+            class="column-split-preview"
+          >
             <!-- 原图容器 -->
-            <div class="split-canvas-container" ref="splitCanvasContainer">
+            <div
+              ref="splitCanvasContainer"
+              class="split-canvas-container"
+            >
               <img 
                 v-if="columnSplitOriginBase64" 
-                :src="'data:image/jpeg;base64,' + columnSplitOriginBase64" 
+                ref="splitOriginImage" 
+                :src="'data:image/jpeg;base64,' + columnSplitOriginBase64"
                 class="split-origin-image"
-                ref="splitOriginImage"
                 @load="onSplitImageLoaded"
-              />
+              >
               <!-- 切割线 -->
               <div 
                 v-for="(line, idx) in columnSplitLines" 
@@ -1134,9 +2505,11 @@
                 </div>
                 <button 
                   class="split-line-delete" 
-                  @click.stop="removeSplitLine(idx)" 
-                  title="删除此切割线"
-                >🗑️</button>
+                  title="删除此切割线" 
+                  @click.stop="removeSplitLine(idx)"
+                >
+                  🗑️
+                </button>
               </div>
               <!-- 栏预览 -->
               <div 
@@ -1148,16 +2521,31 @@
                 <span class="col-label">第{{ idx + 1 }}栏</span>
               </div>
               <!-- 添加切割线按钮 -->
-              <button class="add-split-line-btn" @click="addSplitLine" title="在中间位置添加切割线">➕ 添加切割线</button>
+              <button
+                class="add-split-line-btn"
+                title="在中间位置添加切割线"
+                @click="addSplitLine"
+              >
+                ➕ 添加切割线
+              </button>
             </div>
           </div>
 
           <!-- 子图预览（切割后的各栏） -->
-          <div v-if="columnSplitPreviewCols.length > 0" style="margin-top:16px;">
+          <div
+            v-if="columnSplitPreviewCols.length > 0"
+            style="margin-top:16px;"
+          >
             <h4 style="color:var(--primary);margin-bottom:8px;">
               📷 切割后的各栏预览：
-              <span v-if="columnSplitConfirmed" style="color:var(--success);">✅ 已确认切割</span>
-              <span v-else style="color:var(--warning);">⚠️ 请先点击下方「预览切割效果」</span>
+              <span
+                v-if="columnSplitConfirmed"
+                style="color:var(--success);"
+              >✅ 已确认切割</span>
+              <span
+                v-else
+                style="color:var(--warning);"
+              >⚠️ 请先点击下方「预览切割效果」</span>
             </h4>
             <div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;">
               <div 
@@ -1165,45 +2553,120 @@
                 :key="'sub-preview-' + idx"
                 style="flex-shrink:0;text-align:center;border:1px solid var(--border-light);border-radius:8px;padding:8px;background:var(--bg-card);"
               >
-                <div style="font-weight:600;font-size:12px;color:var(--primary);margin-bottom:4px;">第{{ idx + 1 }}栏</div>
+                <div style="font-weight:600;font-size:12px;color:var(--primary);margin-bottom:4px;">
+                  第{{ idx + 1 }}栏
+                </div>
                 <img 
                   v-if="col.subBase64" 
                   :src="'data:image/jpeg;base64,' + col.subBase64" 
                   style="max-height:250px;max-width:250px;border-radius:4px;"
-                />
-                <div v-else style="width:200px;height:150px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;color:#ccc;">
+                >
+                <div
+                  v-else
+                  style="width:200px;height:150px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;color:#ccc;"
+                >
                   {{ columnSplitConfirmed ? '加载中...' : '待切割' }}
                 </div>
-                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">{{ col.xRange }}</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+                  {{ col.xRange }}
+                </div>
               </div>
             </div>
           </div>
         </div>
         
         <!-- ✅ 固定底部：操作按钮 -->
-        <div class="modal-actions" style="flex-shrink: 0; margin-top:16px; padding-top:12px; border-top:1px solid var(--border-light);">
-          <button class="btn" @click="resetSplitLines">🔄 重置为自动检测</button>
-          <button class="btn" @click="previewColumnSplit" v-if="!columnSplitConfirmed">👁️ 预览切割效果</button>
-          <button class="btn btn-success" @click="confirmCurrentPage" v-if="!columnSplitConfirmed" :disabled="columnSplitLines.length === 0">✅ 确认本页切割</button>
-          <button class="btn-warning" @click="skipSplitForCurrentPage" v-if="!columnSplitConfirmed" title="不切割此页，直接对整页图片做 OCR 识别">⏩ 不切割，整页OCR</button>
-          <button class="btn" @click="previewColumnSplit" v-if="columnSplitConfirmed">🔄 重新预览</button>
-          <span v-if="columnSplitConfirmed && columnSplitSkip" style="color:#f0a030;font-weight:600;margin:0 12px;">⏩ 本页将整页OCR（不切割）</span>
-          <span v-else-if="columnSplitConfirmed" style="color:var(--success);font-weight:600;margin:0 12px;">✅ 本页切割已确认</span>
-          <button class="btn btn-cancel" @click="cancelAllColumnSplit" style="margin-right:auto;">❌ 全部取消</button>
-          <button class="btn-primary" @click="finishAllColumnSplit" :disabled="!allPagesConfirmed">✅ 全部确认并提取原文 ({{ confirmedPageCount }}/{{ columnSplitAllPages?.length || 0 }})</button>
+        <div
+          class="modal-actions"
+          style="flex-shrink: 0; margin-top:16px; padding-top:12px; border-top:1px solid var(--border-light);"
+        >
+          <button
+            class="btn"
+            @click="resetSplitLines"
+          >
+            🔄 重置为自动检测
+          </button>
+          <button
+            v-if="!columnSplitConfirmed"
+            class="btn"
+            @click="previewColumnSplit"
+          >
+            👁️ 预览切割效果
+          </button>
+          <button
+            v-if="!columnSplitConfirmed"
+            class="btn btn-success"
+            :disabled="columnSplitLines.length === 0"
+            @click="confirmCurrentPage"
+          >
+            ✅ 确认本页切割
+          </button>
+          <button
+            v-if="!columnSplitConfirmed"
+            class="btn-warning"
+            title="不切割此页，直接对整页图片做 OCR 识别"
+            @click="skipSplitForCurrentPage"
+          >
+            ⏩ 不切割，整页OCR
+          </button>
+          <button
+            v-if="columnSplitConfirmed"
+            class="btn"
+            @click="previewColumnSplit"
+          >
+            🔄 重新预览
+          </button>
+          <span
+            v-if="columnSplitConfirmed && columnSplitSkip"
+            style="color:#f0a030;font-weight:600;margin:0 12px;"
+          >⏩ 本页将整页OCR（不切割）</span>
+          <span
+            v-else-if="columnSplitConfirmed"
+            style="color:var(--success);font-weight:600;margin:0 12px;"
+          >✅ 本页切割已确认</span>
+          <button
+            class="btn btn-cancel"
+            style="margin-right:auto;"
+            @click="cancelAllColumnSplit"
+          >
+            ❌ 全部取消
+          </button>
+          <button
+            class="btn-primary"
+            :disabled="!allPagesConfirmed"
+            @click="finishAllColumnSplit"
+          >
+            ✅ 全部确认并提取原文 ({{ confirmedPageCount }}/{{ columnSplitAllPages?.length || 0 }})
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 🔧 重构：查看/编辑章节分析弹窗（左右两栏） -->
-    <div v-if="showChapterAnalysisModal" class="modal-mask" @click.self="showChapterAnalysisModal = false">
-      <div class="modal draggable-modal" style="max-width: 1000px; width: 90%; display: flex; flex-direction: column;" ref="chapterAnalysisModalRef">
-        <div class="modal-drag-handle" @mousedown="startChapterDrag($event)">📊 章节分析详情</div>
+    <div
+      v-if="showChapterAnalysisModal"
+      class="modal-mask"
+      @click.self="showChapterAnalysisModal = false"
+    >
+      <div
+        ref="chapterAnalysisModalRef"
+        class="modal draggable-modal"
+        style="max-width: 1000px; width: 90%; display: flex; flex-direction: column;"
+      >
+        <div
+          class="modal-drag-handle"
+          @mousedown="startChapterDrag($event)"
+        >
+          📊 章节分析详情
+        </div>
         <div style="flex-shrink: 0; padding: 8px 0;">
           <h3>📊 {{ viewingBook?.name }} - {{ viewingChapter?.title }}</h3>
         </div>
         <div style="flex: 1; overflow-y: auto; min-height: 0;">
-          <div v-if="viewingChapter" class="chapter-analysis-two-columns">
+          <div
+            v-if="viewingChapter"
+            class="chapter-analysis-two-columns"
+          >
             <!-- 左栏：原文 -->
             <div class="chapter-analysis-left">
               <strong>📖 原文提取：</strong>
@@ -1215,9 +2678,12 @@
                 :min-height="'280px'"
                 style="width:100%;font-size:12px;max-height:none;"
               />
-              <textarea v-else v-model="viewingChapter.rawText" rows="18" 
-                style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;overflow:auto;font-family:inherit;box-sizing:border-box;">
-              </textarea>
+              <textarea
+                v-else
+                v-model="viewingChapter.rawText"
+                rows="18" 
+                style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;overflow:auto;font-family:inherit;box-sizing:border-box;"
+              />
             </div>
             <!-- 右栏：分析字段 -->
             <div class="chapter-analysis-right">
@@ -1225,7 +2691,11 @@
                 <!-- ✅ 模板分析结果 - 只读显示 -->
                 <div class="detail-item">
                   <strong>📋 结构分析：</strong>
-                  <div v-for="(section, si) in (viewingChapter._tplAnalysis.结构分析 || viewingChapter._tplAnalysis.structure || [])" :key="si" style="font-size:12px;color:#555;line-height:1.8;margin-bottom:6px;border-bottom:1px dashed var(--border-light);padding-bottom:4px;">
+                  <div
+                    v-for="(section, si) in (viewingChapter._tplAnalysis.结构分析 || viewingChapter._tplAnalysis.structure || [])"
+                    :key="si"
+                    style="font-size:12px;color:#555;line-height:1.8;margin-bottom:6px;border-bottom:1px dashed var(--border-light);padding-bottom:4px;"
+                  >
                     <div><strong>{{ section.大题 }}</strong>（{{ section.题型 }}）</div>
                     <div>小题：{{ section.小题数量 }}道 × {{ section.每小题分值 }}分 = {{ section.大题分值 }}分</div>
                     <div>设问：{{ section.设问风格 }} | 难度：{{ section.难度 }}</div>
@@ -1244,49 +2714,86 @@
                 <!-- ✅ 教材分析字段 - 原有字段可编辑 -->
                 <div class="detail-item">
                   <strong>🏷️ 核心主题：</strong>
-                  <input type="text" v-model="viewingChapter.coreTopics" 
-                    style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;" />
+                  <input
+                    v-model="viewingChapter.coreTopics"
+                    type="text" 
+                    style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"
+                  >
                 </div>
-                <div class="detail-item" v-if="viewingChapter.visualDescription">
+                <div
+                  v-if="viewingChapter.visualDescription"
+                  class="detail-item"
+                >
                   <strong>🖼️ 图表描述：</strong>
-                  <input type="text" v-model="viewingChapter.visualDescription" 
-                    style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;" />
+                  <input
+                    v-model="viewingChapter.visualDescription"
+                    type="text" 
+                    style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"
+                  >
                 </div>
-                <div class="detail-item" v-if="viewingChapter.formulas && viewingChapter.formulas.length > 0">
+                <div
+                  v-if="viewingChapter.formulas && viewingChapter.formulas.length > 0"
+                  class="detail-item"
+                >
                   <strong>📐 公式：</strong>
-                  <textarea v-model="viewingChapter.formulasText" rows="3"
+                  <textarea
+                    v-model="viewingChapter.formulasText"
+                    rows="3"
                     style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box;"
-                    placeholder="每行一个公式"></textarea>
+                    placeholder="每行一个公式"
+                  />
                 </div>
-                <div class="detail-item" v-if="viewingChapter.knowledgePoints && viewingChapter.knowledgePoints.length > 0">
+                <div
+                  v-if="viewingChapter.knowledgePoints && viewingChapter.knowledgePoints.length > 0"
+                  class="detail-item"
+                >
                   <strong>📍 知识点：</strong>
-                  <textarea v-model="viewingChapter.knowledgePointsText" rows="4"
+                  <textarea
+                    v-model="viewingChapter.knowledgePointsText"
+                    rows="4"
                     style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box;"
-                    placeholder="每行一个知识点"></textarea>
+                    placeholder="每行一个知识点"
+                  />
                 </div>
                 
                 <!-- 🔧 新增字段 - 只读显示，根据分析结果显示 -->
-                <div class="detail-item" v-if="viewingChapter.knowledgeHierarchy && viewingChapter.knowledgeHierarchy.length > 0">
+                <div
+                  v-if="viewingChapter.knowledgeHierarchy && viewingChapter.knowledgeHierarchy.length > 0"
+                  class="detail-item"
+                >
                   <strong>🎯 知识层级：</strong>
                   <div style="margin-top:8px;background:#f8f9fa;padding:10px;border-radius:6px;max-height:200px;overflow-y:auto;">
-                    <div v-for="(bc, bcIdx) in viewingChapter.knowledgeHierarchy" :key="bcIdx" 
-                      style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border-light);">
+                    <div
+                      v-for="(bc, bcIdx) in viewingChapter.knowledgeHierarchy"
+                      :key="bcIdx" 
+                      style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border-light);"
+                    >
                       <div style="font-size:13px;color:var(--primary-light);font-weight:600;margin-bottom:6px;">
                         {{ bcIdx + 1 }}. {{ bc.bigConcept || '未命名大概念' }}
                       </div>
                       
-                      <div v-for="(ck, ckIdx) in (bc.coreKnowledge || [])" :key="ckIdx" 
-                        style="margin-left:16px;margin-bottom:6px;">
+                      <div
+                        v-for="(ck, ckIdx) in (bc.coreKnowledge || [])"
+                        :key="ckIdx" 
+                        style="margin-left:16px;margin-bottom:6px;"
+                      >
                         <div style="font-size:12px;font-weight:600;color:#34495e;">
                           {{ ckIdx + 1 }}. {{ ck.name || ck.coreConcept || '未命名核心知识' }}
-                          <span v-if="ck.level" style="margin-left:8px;padding:2px 6px;background:#3498db;color:white;border-radius:3px;font-size:10px;">{{ ck.level }}</span>
+                          <span
+                            v-if="ck.level"
+                            style="margin-left:8px;padding:2px 6px;background:#3498db;color:white;border-radius:3px;font-size:10px;"
+                          >{{ ck.level }}</span>
                         </div>
-                        <div v-if="ck.specificConcepts && ck.specificConcepts.length > 0" 
-                          style="font-size:11px;color:#666;margin-left:16px;margin-top:2px;">
+                        <div
+                          v-if="ck.specificConcepts && ck.specificConcepts.length > 0" 
+                          style="font-size:11px;color:#666;margin-left:16px;margin-top:2px;"
+                        >
                           具体概念：{{ ck.specificConcepts.join('、') }}
                         </div>
-                        <div v-if="ck.suggestedQuestionTypes && ck.suggestedQuestionTypes.length > 0" 
-                          style="font-size:11px;color:var(--text-muted);margin-left:16px;margin-top:2px;">
+                        <div
+                          v-if="ck.suggestedQuestionTypes && ck.suggestedQuestionTypes.length > 0" 
+                          style="font-size:11px;color:var(--text-muted);margin-left:16px;margin-top:2px;"
+                        >
                           建议题型：{{ ck.suggestedQuestionTypes.join('、') }}
                         </div>
                       </div>
@@ -1294,14 +2801,20 @@
                   </div>
                 </div>
                 
-                <div class="detail-item" v-if="viewingChapter.competency">
+                <div
+                  v-if="viewingChapter.competency"
+                  class="detail-item"
+                >
                   <strong>🎓 能力层次：</strong>
                   <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:13px;color:#555;">
                     {{ viewingChapter.competency }}
                   </div>
                 </div>
                 
-                <div class="detail-item" v-if="viewingChapter.style">
+                <div
+                  v-if="viewingChapter.style"
+                  class="detail-item"
+                >
                   <strong>🎨 风格：</strong>
                   <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:13px;color:#555;">
                     {{ viewingChapter.style }}
@@ -1311,11 +2824,30 @@
             </div>
           </div>
         </div>
-        <div class="analysis-footer" style="flex-shrink: 0; display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
-          <button class="btn btn-delete hide-on-mobile" @click="discardSingleChapterAnalysis" style="font-size:11px;padding:4px 10px;">🗑️ 丢弃分析</button>
+        <div
+          class="analysis-footer"
+          style="flex-shrink: 0; display:flex; justify-content:space-between; align-items:center; margin-top:16px;"
+        >
+          <button
+            class="btn btn-delete hide-on-mobile"
+            style="font-size:11px;padding:4px 10px;"
+            @click="discardSingleChapterAnalysis"
+          >
+            🗑️ 丢弃分析
+          </button>
           <div class="modal-actions">
-            <button class="btn" @click="showChapterAnalysisModal = false">取消</button>
-            <button class="btn-primary" @click="saveChapterAnalysis"><span class="icon-desktop">💾</span><span class="icon-mobile">✅</span> 保存</button>
+            <button
+              class="btn"
+              @click="showChapterAnalysisModal = false"
+            >
+              取消
+            </button>
+            <button
+              class="btn-primary"
+              @click="saveChapterAnalysis"
+            >
+              <span class="icon-desktop">💾</span><span class="icon-mobile">✅</span> 保存
+            </button>
           </div>
         </div>
       </div>
@@ -1323,19 +2855,47 @@
 
 
     <!-- 知识点提取弹窗 -->
-    <div v-if="showKnowledgeModal" class="modal-mask" @click.self="showKnowledgeModal = false">
+    <div
+      v-if="showKnowledgeModal"
+      class="modal-mask"
+      @click.self="showKnowledgeModal = false"
+    >
       <div class="modal">
         <h3>📖 知识点管理</h3>
         <p><strong>{{ currentBook?.name }} - {{ currentChapter?.title }}</strong></p>
         <div class="form-group">
           <label>知识点（每行一个）</label>
-          <textarea v-model="editingKnowledge" rows="8" placeholder="输入知识点，每行一个"></textarea>
+          <textarea
+            v-model="editingKnowledge"
+            rows="8"
+            placeholder="输入知识点，每行一个"
+          />
         </div>
         <div class="modal-actions">
-          <button class="btn" @click="copyKnowledgePoints">📋 复制全部</button>
-          <button class="btn" @click="exportKnowledgePoints">📤 导出TXT</button>
-          <button class="btn" @click="showKnowledgeModal = false">取消</button>
-          <button class="btn-primary" @click="saveKnowledge">保存</button>
+          <button
+            class="btn"
+            @click="copyKnowledgePoints"
+          >
+            📋 复制全部
+          </button>
+          <button
+            class="btn"
+            @click="exportKnowledgePoints"
+          >
+            📤 导出TXT
+          </button>
+          <button
+            class="btn"
+            @click="showKnowledgeModal = false"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="saveKnowledge"
+          >
+            保存
+          </button>
         </div>
       </div>
     </div>

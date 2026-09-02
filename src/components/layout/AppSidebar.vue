@@ -1,53 +1,91 @@
 <template>
   <div class="sidebar">
-    <div class="nav-category">📦 核心功能</div>
+    <div class="nav-category">
+      📦 核心功能
+    </div>
     
-    <div class="nav-item" :class="{ active: $route.path === '/textbook' }" @click="$router.push('/textbook')">
+    <div
+      class="nav-item"
+      :class="{ active: $route.path === '/textbook' }"
+      @click="$router.push('/textbook')"
+    >
       <span>📚</span> 教材库
     </div>
     
-    <div class="nav-item" :class="{ active: $route.path === '/template', disabled: !canAccessFeature('template') }"
+    <div
+      class="nav-item"
+      :class="{ active: $route.path === '/template', disabled: !canAccessFeature('template') }"
+      :title="!canAccessFeature('template') ? '专业版/旗舰版功能' : ''"
       @click="goIfAllowed('/template', 'template')"
-      :title="!canAccessFeature('template') ? '专业版/旗舰版功能' : ''">
+    >
       <span>📋</span> 模板库
-      <span v-if="!canAccessFeature('template')" class="lock-icon">🔒</span>
+      <span
+        v-if="!canAccessFeature('template')"
+        class="lock-icon"
+      >🔒</span>
     </div>
 
-    <div class="nav-item" :class="{ active: $route.path.startsWith('/tools') }" @click="$router.push('/tools')">
+    <div
+      class="nav-item"
+      :class="{ active: $route.path.startsWith('/tools') }"
+      @click="$router.push('/tools')"
+    >
       <span>🧰</span> 工具库
     </div>
 
-    <div class="nav-item" :class="{ disabled: !canAccessFeature('draft') }"
+    <div
+      class="nav-item"
+      :class="{ disabled: !canAccessFeature('draft') }"
+      :title="!canAccessFeature('draft') ? '旗舰版功能' : ''"
       @click="goIfAllowed('/draft', 'draft')"
-      :title="!canAccessFeature('draft') ? '旗舰版功能' : ''">
+    >
       <span>📦</span> 草稿箱
     </div>
     
-    <div class="nav-item" :class="{ active: $route.path === '/generate' }" @click="$router.push('/generate')">
+    <div
+      class="nav-item"
+      :class="{ active: $route.path === '/generate' }"
+      @click="$router.push('/generate')"
+    >
       <span>🤖</span> 生成教辅
     </div>
     
-    <div class="nav-item" :class="{ disabled: !canAccessFeature('typeset') }"
+    <div
+      class="nav-item"
+      :class="{ disabled: !canAccessFeature('typeset') }"
+      :title="!canAccessFeature('typeset') ? '专业版/旗舰版功能' : ''"
       @click="goIfAllowed('/typeset', 'typeset')"
-      :title="!canAccessFeature('typeset') ? '专业版/旗舰版功能' : ''">
+    >
       <span>📄</span> 排版导出
     </div>
     
-    <div class="nav-category">🔧 工具</div>
+    <div class="nav-category">
+      🔧 工具
+    </div>
     
-    <div class="nav-item" :class="{ disabled: !canAccessFeature('history') }"
+    <div
+      class="nav-item"
+      :class="{ disabled: !canAccessFeature('history') }"
+      :title="!canAccessFeature('history') ? '旗舰版功能' : ''"
       @click="goIfAllowed('/history', 'history')"
-      :title="!canAccessFeature('history') ? '旗舰版功能' : ''">
+    >
       <span>📚</span> 历史记录
     </div>
     
-    <div class="nav-item" :class="{ disabled: !canAccessFeature('graph') }"
+    <div
+      class="nav-item"
+      :class="{ disabled: !canAccessFeature('graph') }"
+      :title="!canAccessFeature('graph') ? '旗舰版功能' : ''"
       @click="goIfAllowed('/graph', 'graph')"
-      :title="!canAccessFeature('graph') ? '旗舰版功能' : ''">
+    >
       <span>⭐</span> 图形库
     </div>
     
-    <div class="nav-item" :class="{ active: $route.path === '/settings' }" @click="$router.push('/settings')">
+    <div
+      class="nav-item"
+      :class="{ active: $route.path === '/settings' }"
+      @click="$router.push('/settings')"
+    >
       <span>⚙️</span> 系统设置
     </div>
   </div>

@@ -19,7 +19,7 @@
  */
 
 import { isLibEntryEnabled } from '../utils/libToggles.js';
-import { resolveStageKey } from '../utils/gradeStage.js'; // 年级→学段唯一事实源（三维度与课标版本标签共用，禁止各自 parseInt 中文年级）
+import { resolveStageKey, STAGE_KEY_SET } from '../utils/gradeStage.js'; // 年级→学段唯一事实源（三维度与课标版本标签共用，禁止各自 parseInt 中文年级）
 import { buildCarrierInstruction } from './layoutSpec.js'; // 书写载体条款按 学科×学段 生成（排版规格库唯一事实源）
 
 /** 资料类型中文名（模板列表展示/任务行用）
@@ -474,11 +474,11 @@ export function getPromptTemplate({ grade = '', subject = '', genType = '' }) {
     return { ...userLib[genType], id: genType, source: 'user' };
   }
   // 4) 内置三维度 cell（学段×学科×类型，预生成直取；名称三维度中文；工具库停用该 cell → 落回 5) 学段×类型 模板）
-  const stageKeyOf = (g = '') => {
-    if (!g) return '';
-    if (STAGE_NAMES[g]) return g;
-    for (const [k, v] of Object.entries(STAGE_NAMES)) if (String(g).includes(v)) return k;
-    return '';
+  // 🔴 学段键解析唯一事实源：'小学低段/小学中段/小学高段'、一~六年级、初一~初三、高一~高三、初中/高中、五档键 统一走 resolveStageKey
+  const stageKeyOf = (grade = '') => {
+    if (!grade) return '';
+    const key = resolveStageKey(grade);
+    return STAGE_KEY_SET.has(key) ? key : '';
   };
   const stageKey = stageKeyOf(grade);
   const cellId = stageKey && subject ? `${stageKey}|${subject}|${genType}` : '';

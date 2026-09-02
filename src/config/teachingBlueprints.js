@@ -15,7 +15,7 @@
  */
 
 import { isLibEntryEnabled } from '../utils/libToggles.js';
-import { resolveStageKey } from '../utils/gradeStage.js'; // 年级→学段唯一事实源（蓝图学段与三维度共用，禁止各自 parseInt 中文年级）
+import { resolveStageKey, STAGE_KEY_SET } from '../utils/gradeStage.js'; // 年级→学段唯一事实源（蓝图学段与三维度共用，禁止各自 parseInt 中文年级）
 
 /** 学段显示名
  * 🔗 命名双轨·学段：五档 key 须与指令库 STAGE_NAMES、layoutSpec 载体表学段 key（primary_low…high）完全一致。 */
@@ -1025,20 +1025,14 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
 //    指令库 GEN_TYPE_NAMES/TYPE_BASES 的九类 key 完全一致（本行由键推导，改蓝图顶层键时须同步另三处）。
 export const TEACHING_GEN_TYPES = Object.keys(TEACHING_BLUEPRINTS);
 
-/** 学段键归一：接受学段键（primary_low 等）或中文学段/年级标签（'小学低段'/'二年级'/'高一' 等） */
+/** 学段键归一：接受学段键（primary_low 等）或中文学段/年级标签（'小学低段'/'二年级'/'高一' 等）
+ * 🔴 唯一事实源：统一委托 gradeStage.resolveStageKey（'小学低/中/高段'、一~六年级、初一~初三、高一~高三、初中/高中 全覆盖），
+ *    不再本地自建启发式，杜绝三处解析互相错位的风险。 */
 function normalizeTeachingStage(stage = '') {
   const s = String(stage).trim();
-  if (['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'].includes(s)) return s;
-  if (/高一|高二|高三/.test(s) || s === '高中') return 'high';
-  if (s === '初中' || /七年级|八年级|九年级/.test(s)) return 'middle';
-  if (/一年级|二年级/.test(s) || s.includes('低段')) return 'primary_low';
-  if (/三年级|四年级/.test(s) || s.includes('中段')) return 'primary_mid';
-  if (/五年级|六年级/.test(s) || s.includes('高段')) return 'primary_high';
-  if (/小学/.test(s)) {
-    // 🔧 委托共享工具：grade 缺失时也能按圈码/教材名兜底，避免误归低/高段
-    return resolveStageKey('小学', s, '') || 'primary_high';
-  }
-  return 'primary_mid'; // 无法识别时宽松回退（不阻断生成）
+  if (STAGE_KEY_SET.has(s)) return s; // 五档键直接透传
+  const key = resolveStageKey(s);
+  return key && STAGE_KEY_SET.has(key) ? key : 'primary_mid'; // 无法识别时宽松回退（不阻断生成）
 }
 
 /**

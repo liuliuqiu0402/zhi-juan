@@ -1,20 +1,50 @@
 <template>
   <div class="compare-container">
     <div class="compare-panel left-panel">
-      <div class="panel-header">📖 教材原文</div>
-      <div class="panel-body" ref="leftBodyRef" @scroll="onLeftScroll">
-        <div v-if="!sourceText" class="empty-hint">暂无原文数据</div>
-        <div v-else class="source-content" v-html="renderedSource"></div>
+      <div class="panel-header">
+        📖 教材原文
+      </div>
+      <div
+        ref="leftBodyRef"
+        class="panel-body"
+        @scroll="onLeftScroll"
+      >
+        <div
+          v-if="!sourceText"
+          class="empty-hint"
+        >
+          暂无原文数据
+        </div>
+        <div
+          v-else
+          class="source-content"
+          v-html="renderedSource"
+        />
       </div>
     </div>
     <div class="compare-divider">
-      <div class="divider-line"></div>
+      <div class="divider-line" />
     </div>
     <div class="compare-panel right-panel">
-      <div class="panel-header">🤖 生成结果</div>
-      <div class="panel-body" ref="rightBodyRef" @scroll="onRightScroll">
-        <div v-if="!generatedHtml" class="empty-hint">暂无生成内容</div>
-        <div v-else class="generated-content" v-html="renderedGenerated"></div>
+      <div class="panel-header">
+        🤖 生成结果
+      </div>
+      <div
+        ref="rightBodyRef"
+        class="panel-body"
+        @scroll="onRightScroll"
+      >
+        <div
+          v-if="!generatedHtml"
+          class="empty-hint"
+        >
+          暂无生成内容
+        </div>
+        <div
+          v-else
+          class="generated-content"
+          v-html="renderedGenerated"
+        />
       </div>
     </div>
   </div>

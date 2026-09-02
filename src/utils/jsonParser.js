@@ -125,11 +125,11 @@ export const robustJsonParse = async (response, retryCallback = null, context = 
         if (quoteCount % 2 !== 0) incomplete += '"';
         const openBraces = (incomplete.match(/\{/g) || []).length;
         const closeBraces = (incomplete.match(/\}/g) || []).length;
-        // eslint-disable-next-line no-unmodified-loop-condition
-        /* eslint-disable no-constant-condition */
+         
+         
         for (let _i = closeBraces; _i < openBraces; _i++) incomplete += '}';
-        /* eslint-enable no-constant-condition */
-        incomplete += ']'; // eslint-disable-line no-unreachable-loop
+         
+        incomplete += ']';  
 
         try {
           const result = JSON.parse(incomplete);

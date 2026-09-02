@@ -4,7 +4,13 @@
     <div class="library-panel">
       <div class="panel-header">
         <h3>📚 教材库 ({{ textbookStore.textbooks.length }})</h3>
-        <button v-if="!isMobile" class="btn-primary" @click="openUploadModal">📤 上传教材</button>
+        <button
+          v-if="!isMobile"
+          class="btn-primary"
+          @click="openUploadModal"
+        >
+          📤 上传教材
+        </button>
       </div>
 
       <!-- 筛选搜索行 -->
@@ -12,203 +18,459 @@
       <div class="filter-search-row">
         <div class="search-box">
           <span class="search-icon">🔍</span>
-          <input type="text" v-model="searchKeyword" placeholder="搜索教材..." class="search-input-inline" />
+          <input
+            v-model="searchKeyword"
+            type="text"
+            placeholder="搜索教材..."
+            class="search-input-inline"
+          >
         </div>
         <div class="filter-selects">
-          <select v-model="filterStage" @change="onStageChange" class="filter-select">
-            <option value="">学段</option>
-            <option value="小学">小学</option>
-            <option value="初中">初中</option>
-            <option value="高中">高中</option>
+          <select
+            v-model="filterStage"
+            class="filter-select"
+            @change="onStageChange"
+          >
+            <option value="">
+              学段
+            </option>
+            <option value="小学">
+              小学
+            </option>
+            <option value="初中">
+              初中
+            </option>
+            <option value="高中">
+              高中
+            </option>
           </select>
-          <select v-model="filterGrade" :disabled="!filterStage" class="filter-select">
-            <option value="">年级</option>
-            <option v-for="g in gradeOptions" :key="g">{{ g }}</option>
+          <select
+            v-model="filterGrade"
+            :disabled="!filterStage"
+            class="filter-select"
+          >
+            <option value="">
+              年级
+            </option>
+            <option
+              v-for="g in gradeOptions"
+              :key="g"
+            >
+              {{ g }}
+            </option>
           </select>
-          <select v-model="filterSubject" class="filter-select">
-            <option value="">学科</option>
-            <option v-for="s in subjectOptions" :key="s">{{ s }}</option>
+          <select
+            v-model="filterSubject"
+            class="filter-select"
+          >
+            <option value="">
+              学科
+            </option>
+            <option
+              v-for="s in subjectOptions"
+              :key="s"
+            >
+              {{ s }}
+            </option>
           </select>
-          <select v-model="filterVersion" class="filter-select">
-            <option value="">版本</option>
-            <option v-for="v in versionOptions" :key="v">{{ v }}</option>
+          <select
+            v-model="filterVersion"
+            class="filter-select"
+          >
+            <option value="">
+              版本
+            </option>
+            <option
+              v-for="v in versionOptions"
+              :key="v"
+            >
+              {{ v }}
+            </option>
           </select>
-          <select v-model="filterSemester" class="filter-select">
-            <option value="">上下册</option>
-            <option value="上册">上册</option>
-            <option value="下册">下册</option>
+          <select
+            v-model="filterSemester"
+            class="filter-select"
+          >
+            <option value="">
+              上下册
+            </option>
+            <option value="上册">
+              上册
+            </option>
+            <option value="下册">
+              下册
+            </option>
           </select>
-          <select v-model="sortBy" class="filter-select sort-select">
-            <option value="name">按名称</option>
-            <option value="subject">按学科</option>
-            <option value="grade">按年级</option>
-            <option value="createdAt">按时间</option>
+          <select
+            v-model="sortBy"
+            class="filter-select sort-select"
+          >
+            <option value="name">
+              按名称
+            </option>
+            <option value="subject">
+              按学科
+            </option>
+            <option value="grade">
+              按年级
+            </option>
+            <option value="createdAt">
+              按时间
+            </option>
           </select>
         </div>
       </div>
 
       <!-- 批量操作栏 -->
-      <div class="batch-row" v-show="!isMobile || selectedCount > 0">
+      <div
+        v-show="!isMobile || selectedCount > 0"
+        class="batch-row"
+      >
         <span>已选中 {{ selectedCount }} 本</span>
-        <button class="btn" :disabled="selectedCount === 0" @click="batchDelete">🗑️ 批量删除</button>
-        <button v-if="!isMobile" class="btn" :disabled="selectedCount === 0" @click="batchExport">📤 导出目录</button>
-        <button v-if="!isMobile" class="btn btn-primary btn-sm" :disabled="unanalyzedCount === 0" @click="batchAnalyze">
+        <button
+          class="btn"
+          :disabled="selectedCount === 0"
+          @click="batchDelete"
+        >
+          🗑️ 批量删除
+        </button>
+        <button
+          v-if="!isMobile"
+          class="btn"
+          :disabled="selectedCount === 0"
+          @click="batchExport"
+        >
+          📤 导出目录
+        </button>
+        <button
+          v-if="!isMobile"
+          class="btn btn-primary btn-sm"
+          :disabled="unanalyzedCount === 0"
+          @click="batchAnalyze"
+        >
           🤖 一键分析全部 ({{ unanalyzedCount }})
         </button>
-        <button class="btn" :disabled="selectedCount === 0" @click="clearSelection">取消选择</button>
+        <button
+          class="btn"
+          :disabled="selectedCount === 0"
+          @click="clearSelection"
+        >
+          取消选择
+        </button>
       </div>
 
       <!-- 教材列表 -->
       <div class="textbook-list">
-        <div v-if="filteredTextbooks.length === 0" class="empty-tip">
+        <div
+          v-if="filteredTextbooks.length === 0"
+          class="empty-tip"
+        >
           <p>📭 还没有教材</p>
-          <button class="btn-primary" @click="openUploadModal">📤 上传第一本教材</button>
+          <button
+            class="btn-primary"
+            @click="openUploadModal"
+          >
+            📤 上传第一本教材
+          </button>
         </div>
-        <div v-for="book in filteredTextbooks" :key="book.id" class="textbook-item">
+        <div
+          v-for="book in filteredTextbooks"
+          :key="book.id"
+          class="textbook-item"
+        >
           <div class="item-header">
             <input 
               type="checkbox" 
               :checked="book.selected"
-              @change="(e) => toggleBookSelection(book, e.target.checked)"
-              class="select-checkbox" 
-            />
-            <img v-if="book.coverPath && !book.coverFailed" :src="book.coverPath" class="book-cover" @error="book.coverFailed = true" />
-            <div class="book-cover-placeholder" v-if="!book.coverPath || book.coverFailed">📘</div>
-            <div class="item-info" @click="toggleExpand(book.id)">
+              class="select-checkbox"
+              @change="(e) => toggleBookSelection(book, e.target.checked)" 
+            >
+            <img
+              v-if="book.coverPath && !book.coverFailed"
+              :src="book.coverPath"
+              class="book-cover"
+              @error="book.coverFailed = true"
+            >
+            <div
+              v-if="!book.coverPath || book.coverFailed"
+              class="book-cover-placeholder"
+            >
+              📘
+            </div>
+            <div
+              class="item-info"
+              @click="toggleExpand(book.id)"
+            >
               <span class="expand-icon">{{ expandedBooks.includes(book.id) ? '▼' : '▶' }}</span>
               <span class="book-name">{{ book.name }}</span>
               <span class="chapter-count">{{ countChapters(book.outline) }}个章节 {{ countAnalyzed(book.outline) > 0 ? '· ✅' + countAnalyzed(book.outline) : '' }}</span>
             </div>
             <div class="item-actions">
-              <button class="icon-btn" @click.stop="renameTextbook(book)" title="重命名">✏️</button>
-              <button class="icon-btn" @click.stop="deleteTextbook(book)" title="删除">🗑️</button>
+              <button
+                class="icon-btn"
+                title="重命名"
+                @click.stop="renameTextbook(book)"
+              >
+                ✏️
+              </button>
+              <button
+                class="icon-btn"
+                title="删除"
+                @click.stop="deleteTextbook(book)"
+              >
+                🗑️
+              </button>
             </div>
           </div>
-          <div v-if="expandedBooks.includes(book.id)" class="outline-tree">
-            <div v-if="!book.outline || book.outline.length === 0" class="empty-outline">暂无目录结构</div>
+          <div
+            v-if="expandedBooks.includes(book.id)"
+            class="outline-tree"
+          >
+            <div
+              v-if="!book.outline || book.outline.length === 0"
+              class="empty-outline"
+            >
+              暂无目录结构
+            </div>
             <OutlineTreeNode 
               v-for="(node, idx) in book.outline" 
               :key="idx" 
               :node="node" 
               :level="0"
-              :bookData="book"
+              :book-data="book"
               @update="onChapterUpdate"
               @preview="handlePreview"
-            ></OutlineTreeNode>
+            />
           </div>
         </div>
       </div>
     </div>
 
     <!-- 右侧预览面板 -->
-    <div v-if="showPreview" class="preview-panel">
+    <div
+      v-if="showPreview"
+      class="preview-panel"
+    >
       <div class="preview-header">
         <h3>📖 {{ previewData.title }}</h3>
-        <button class="close-btn" @click="closePreview">✕</button>
+        <button
+          class="close-btn"
+          @click="closePreview"
+        >
+          ✕
+        </button>
       </div>
       <div class="preview-info">
         <span class="page-range">第 {{ previewData.start }} - {{ previewData.end }} 页</span>
         <div class="page-nav">
-          <button class="nav-btn" @click="prevPage" :disabled="currentPreviewPage <= previewData.start">◀ 上一页</button>
+          <button
+            class="nav-btn"
+            :disabled="currentPreviewPage <= previewData.start"
+            @click="prevPage"
+          >
+            ◀ 上一页
+          </button>
           <span class="page-indicator">{{ currentPreviewPage }} / {{ previewData.end }}</span>
-          <button class="nav-btn" @click="nextPage" :disabled="currentPreviewPage >= previewData.end">下一页 ▶</button>
+          <button
+            class="nav-btn"
+            :disabled="currentPreviewPage >= previewData.end"
+            @click="nextPage"
+          >
+            下一页 ▶
+          </button>
         </div>
       </div>
       <PdfPreview 
-        :pdfPath="pdfPath" 
-        :page="currentPreviewPage" 
-        :largeFile="true"
-        ref="pdfPreviewRef"
-        @pageChange="(page) => currentPreviewPage = page"
+        ref="pdfPreviewRef" 
+        :pdf-path="pdfPath" 
+        :page="currentPreviewPage"
+        :large-file="true"
+        @page-change="(page) => currentPreviewPage = page"
       />
     </div>
 
     <!-- 没有预览时显示提示（仅桌面端） -->
-    <div v-else-if="!isMobile" class="preview-panel preview-empty-state">
+    <div
+      v-else-if="!isMobile"
+      class="preview-panel preview-empty-state"
+    >
       <div class="empty-hint">
         <span class="empty-icon">👈</span>
-        <p>点击左侧目录中的章节名称<br/>即可在此预览内容</p>
+        <p>点击左侧目录中的章节名称<br>即可在此预览内容</p>
       </div>
     </div>
 
     <!-- 上传弹窗 -->
-    <div v-if="showUploadModal" class="modal-mask" @click.self="closeUploadModal">
+    <div
+      v-if="showUploadModal"
+      class="modal-mask"
+      @click.self="closeUploadModal"
+    >
       <div class="modal">
         <h3>📤 上传教材</h3>
-        <button class="btn btn-full" @click="selectFileHandler">📁 选择文件（支持 PDF / Word / 图片）</button>
-        <p v-if="selectedFilePath" class="file-name">{{ selectedFilePath.split('\\').pop() }}</p>
+        <button
+          class="btn btn-full"
+          @click="selectFileHandler"
+        >
+          📁 选择文件（支持 PDF / Word / 图片）
+        </button>
+        <p
+          v-if="selectedFilePath"
+          class="file-name"
+        >
+          {{ selectedFilePath.split('\\').pop() }}
+        </p>
         
-        <div v-if="selectedFilePath" class="upload-meta">
+        <div
+          v-if="selectedFilePath"
+          class="upload-meta"
+        >
           <div class="meta-item">
             <label>学段</label>
-            <select v-model="uploadStage" @change="onUploadStageChange">
-              <option value="">自动识别</option>
-              <option value="小学">小学</option>
-              <option value="初中">初中</option>
-              <option value="高中">高中</option>
+            <select
+              v-model="uploadStage"
+              @change="onUploadStageChange"
+            >
+              <option value="">
+                自动识别
+              </option>
+              <option value="小学">
+                小学
+              </option>
+              <option value="初中">
+                初中
+              </option>
+              <option value="高中">
+                高中
+              </option>
             </select>
           </div>
           <div class="meta-item">
             <label>年级</label>
-            <select v-model="uploadGrade" :disabled="!uploadStage">
-              <option value="">自动识别</option>
-              <option v-for="g in uploadGradeOptions" :key="g">{{ g }}</option>
+            <select
+              v-model="uploadGrade"
+              :disabled="!uploadStage"
+            >
+              <option value="">
+                自动识别
+              </option>
+              <option
+                v-for="g in uploadGradeOptions"
+                :key="g"
+              >
+                {{ g }}
+              </option>
             </select>
           </div>
           <div class="meta-item">
             <label>学科</label>
             <select v-model="uploadSubject">
-              <option value="">自动识别</option>
-              <option v-for="s in subjectOptions" :key="s">{{ s }}</option>
+              <option value="">
+                自动识别
+              </option>
+              <option
+                v-for="s in subjectOptions"
+                :key="s"
+              >
+                {{ s }}
+              </option>
             </select>
           </div>
           <div class="meta-item">
             <label>上下册</label>
             <select v-model="uploadSemester">
-              <option value="">自动识别</option>
-              <option value="上册">上册</option>
-              <option value="下册">下册</option>
+              <option value="">
+                自动识别
+              </option>
+              <option value="上册">
+                上册
+              </option>
+              <option value="下册">
+                下册
+              </option>
             </select>
           </div>
         </div>
         
         <div class="modal-actions">
-          <button class="btn" @click="closeUploadModal">取消</button>
-          <button class="btn-primary" :disabled="!selectedFilePath" @click="confirmUpload">确定</button>
+          <button
+            class="btn"
+            @click="closeUploadModal"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            :disabled="!selectedFilePath"
+            @click="confirmUpload"
+          >
+            确定
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 目录页设置弹窗 -->
-    <div v-if="showCatalogPageModal" class="modal-mask" @click.self="closeCatalogPageModal">
-      <div class="modal draggable-modal" style="max-width: 560px;" ref="catalogModalRef">
-        <div class="modal-drag-handle" @mousedown="startDrag($event, 'catalog')"></div>
+    <div
+      v-if="showCatalogPageModal"
+      class="modal-mask"
+      @click.self="closeCatalogPageModal"
+    >
+      <div
+        ref="catalogModalRef"
+        class="modal draggable-modal"
+        style="max-width: 560px;"
+      >
+        <div
+          class="modal-drag-handle"
+          @mousedown="startDrag($event, 'catalog')"
+        />
         <div class="catalog-modal-header">
           <span class="catalog-modal-icon">📖</span>
           <h3>目录页设置</h3>
-          <p class="catalog-modal-desc">请指定教材目录所在的页码范围</p>
+          <p class="catalog-modal-desc">
+            请指定教材目录所在的页码范围
+          </p>
         </div>
         
         <div class="catalog-form-group">
           <label class="catalog-label">📄 页码范围</label>
           <input 
-            type="text" 
             v-model="pageRange" 
+            type="text" 
             placeholder="例如：5-8 或 5" 
             class="catalog-input"
-          />
+          >
           <div class="catalog-examples">
             <span class="example-label">快捷填充：</span>
-            <span class="example-tag" @click="pageRange = '1-2'">1-2</span>
-            <span class="example-tag" @click="pageRange = '3-6'">3-6</span>
-            <span class="example-tag" @click="pageRange = ''">留空</span>
+            <span
+              class="example-tag"
+              @click="pageRange = '1-2'"
+            >1-2</span>
+            <span
+              class="example-tag"
+              @click="pageRange = '3-6'"
+            >3-6</span>
+            <span
+              class="example-tag"
+              @click="pageRange = ''"
+            >留空</span>
           </div>
           
-          <label class="ai-checkbox" style="margin-top: 12px; display: flex; align-items: center; gap: 8px; cursor: pointer;">
-            <input type="checkbox" v-model="useAiRecognition" />
+          <label
+            class="ai-checkbox"
+            style="margin-top: 12px; display: flex; align-items: center; gap: 8px; cursor: pointer;"
+          >
+            <input
+              v-model="useAiRecognition"
+              type="checkbox"
+            >
             <span>🤖 使用 AI 智能识别（可处理复杂分栏排版，扫描型PDF推荐）</span>
           </label>
-          <div v-if="useAiRecognition" style="margin-top: 4px; padding-left: 24px; font-size: 12px; color: var(--text-muted);">
+          <div
+            v-if="useAiRecognition"
+            style="margin-top: 4px; padding-left: 24px; font-size: 12px; color: var(--text-muted);"
+          >
             💡 使用 PaddleOCR-VL 引擎（本地离线识别，准确率高，无需联网）
           </div>
         </div>
@@ -223,23 +485,55 @@
         </div>
         
         <div class="modal-actions">
-          <button class="btn" @click="closeCatalogPageModal">取消</button>
-          <button class="btn-primary" @click="startOutlineEditor">🚀 开始识别</button>
+          <button
+            class="btn"
+            @click="closeCatalogPageModal"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="startOutlineEditor"
+          >
+            🚀 开始识别
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 目录确认弹窗 -->
-    <div v-if="showOutlineEditor" class="modal-mask">
-      <div class="modal large-modal outline-editor-modal draggable-modal" 
-           ref="outlineModalRef"
-           :class="{ 'maximized': isMaximized }">
-        <div class="modal-drag-handle" @mousedown="startDrag($event, 'outline')"></div>
+    <div
+      v-if="showOutlineEditor"
+      class="modal-mask"
+    >
+      <div
+        ref="outlineModalRef" 
+        class="modal large-modal outline-editor-modal draggable-modal"
+        :class="{ 'maximized': isMaximized }"
+      >
+        <div
+          class="modal-drag-handle"
+          @mousedown="startDrag($event, 'outline')"
+        />
         <div class="outline-editor-title">
           <h3>📑 确认目录结构</h3>
           <div class="title-actions">
-            <button class="icon-btn" v-if="!isMaximized" @click="maximizeModal" title="最大化">⛶</button>
-            <button class="icon-btn" v-if="isMaximized" @click="restoreModal" title="还原">🗗</button>
+            <button
+              v-if="!isMaximized"
+              class="icon-btn"
+              title="最大化"
+              @click="maximizeModal"
+            >
+              ⛶
+            </button>
+            <button
+              v-if="isMaximized"
+              class="icon-btn"
+              title="还原"
+              @click="restoreModal"
+            >
+              🗗
+            </button>
           </div>
         </div>
         <div class="warning-tip">
@@ -253,127 +547,279 @@
         <div class="offset-row">
           <label>📐 页码偏移量：</label>
           <div class="offset-input-group">
-            <button class="btn offset-btn" @click="pageOffset = Math.max(0, pageOffset - 1); applyOffset()">−</button>
-            <input type="number" v-model.number="pageOffset" @input="applyOffset" class="offset-number-input" />
-            <button class="btn offset-btn" @click="pageOffset = pageOffset + 1; applyOffset()">+</button>
+            <button
+              class="btn offset-btn"
+              @click="pageOffset = Math.max(0, pageOffset - 1); applyOffset()"
+            >
+              −
+            </button>
+            <input
+              v-model.number="pageOffset"
+              type="number"
+              class="offset-number-input"
+              @input="applyOffset"
+            >
+            <button
+              class="btn offset-btn"
+              @click="pageOffset = pageOffset + 1; applyOffset()"
+            >
+              +
+            </button>
           </div>
           <span>
             （目录写第1页，实际在PDF第20页，则填19）
-            <span v-if="previewData" style="color:var(--primary-light);font-weight:500;">
+            <span
+              v-if="previewData"
+              style="color:var(--primary-light);font-weight:500;"
+            >
               📐 当前：目录第{{ previewData.start }}页 = PDF第{{ currentPreviewPage }}页 → 偏移{{ currentPreviewPage - previewData.start }}
             </span>
           </span>
         </div>
-        <div v-if="pdfPageHint" style="padding:8px 12px; background:var(--success-light); border-radius:8px; margin-top:8px; color:#2e7d32; font-weight:500;">
+        <div
+          v-if="pdfPageHint"
+          style="padding:8px 12px; background:var(--success-light); border-radius:8px; margin-top:8px; color:#2e7d32; font-weight:500;"
+        >
           {{ pdfPageHint }}
         </div>        
         <div class="action-row">
-          <button class="btn" @click="insertBefore = false; addManualChapter()" title="在选中行下方插入新章节">➕ 下方添加</button>
-          <button class="btn" @click="insertBefore = true; addManualChapter()" title="在选中行上方插入新章节">⬆️ 上方添加</button>
-          <button class="btn-primary" @click="showImportModal = true">📋 导入目录</button>
-          <button class="btn" @click="loadExistingOutline">📂 加载原有目录</button>
-          <button class="btn" @click="downloadTemplate">📥 下载模板</button>
-          <button class="btn" @click="clearAllChapters" v-if="flatOutline.length > 0">🗑️ 清空所有</button>
+          <button
+            class="btn"
+            title="在选中行下方插入新章节"
+            @click="insertBefore = false; addManualChapter()"
+          >
+            ➕ 下方添加
+          </button>
+          <button
+            class="btn"
+            title="在选中行上方插入新章节"
+            @click="insertBefore = true; addManualChapter()"
+          >
+            ⬆️ 上方添加
+          </button>
+          <button
+            class="btn-primary"
+            @click="showImportModal = true"
+          >
+            📋 导入目录
+          </button>
+          <button
+            class="btn"
+            @click="loadExistingOutline"
+          >
+            📂 加载原有目录
+          </button>
+          <button
+            class="btn"
+            @click="downloadTemplate"
+          >
+            📥 下载模板
+          </button>
+          <button
+            v-if="flatOutline.length > 0"
+            class="btn"
+            @click="clearAllChapters"
+          >
+            🗑️ 清空所有
+          </button>
           <div class="batch-level-group">
             <span class="batch-level-label">批量层级：</span>
-            <select v-model="batchTargetLevel" class="batch-level-select">
-              <option :value="0">一级</option>
-              <option :value="1">二级</option>
-              <option :value="2">三级</option>
-              <option :value="3">四级</option>
-              <option :value="4">五级</option>
+            <select
+              v-model="batchTargetLevel"
+              class="batch-level-select"
+            >
+              <option :value="0">
+                一级
+              </option>
+              <option :value="1">
+                二级
+              </option>
+              <option :value="2">
+                三级
+              </option>
+              <option :value="3">
+                四级
+              </option>
+              <option :value="4">
+                五级
+              </option>
             </select>
-            <button class="btn btn-primary btn-sm" @click="batchSetLevel">
+            <button
+              class="btn btn-primary btn-sm"
+              @click="batchSetLevel"
+            >
               批量修改
             </button>
           </div>
         </div>
         <div class="table-container-wrapper">
           <div class="table-container">
-          <table class="outline-table">
-            <thead>
-              <tr>
-                <th style="min-width: 200px;">
-                  <input type="checkbox" :checked="allSelected" @change="toggleSelectAll" class="row-checkbox" style="margin-right: 8px;" />
-                  章节标题
-                </th>
-                <th style="width: 80px;">页码</th>
-                <th style="width: 70px;">层级</th>
-                <th style="width: 100px;">页码范围</th>
-                <th style="width: 120px;">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(item, index) in flatOutline" :key="index" :class="{ 'row-focused': focusedRow === index }">
-                <td class="td-title" style="display: flex; align-items: center; padding: 0 !important;">
-                  <input type="checkbox" v-model="item.selected" class="row-checkbox" style="margin-left: 8px; flex-shrink: 0;" />
-                  <div class="title-cell-wrapper" :style="{ paddingLeft: (item.level * 20) + 'px', flex: 1 }">
+            <table class="outline-table">
+              <thead>
+                <tr>
+                  <th style="min-width: 200px;">
+                    <input
+                      type="checkbox"
+                      :checked="allSelected"
+                      class="row-checkbox"
+                      style="margin-right: 8px;"
+                      @change="toggleSelectAll"
+                    >
+                    章节标题
+                  </th>
+                  <th style="width: 80px;">
+                    页码
+                  </th>
+                  <th style="width: 70px;">
+                    层级
+                  </th>
+                  <th style="width: 100px;">
+                    页码范围
+                  </th>
+                  <th style="width: 120px;">
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(item, index) in flatOutline"
+                  :key="index"
+                  :class="{ 'row-focused': focusedRow === index }"
+                >
+                  <td
+                    class="td-title"
+                    style="display: flex; align-items: center; padding: 0 !important;"
+                  >
+                    <input
+                      v-model="item.selected"
+                      type="checkbox"
+                      class="row-checkbox"
+                      style="margin-left: 8px; flex-shrink: 0;"
+                    >
+                    <div
+                      class="title-cell-wrapper"
+                      :style="{ paddingLeft: (item.level * 20) + 'px', flex: 1 }"
+                    >
+                      <input 
+                        v-model="item.title" 
+                        :class="{ 'error-input': !item.title }" 
+                        class="cell-input title-input"
+                        @focus="focusedRow = index"
+                        @blur="focusedRow = -1"
+                      >
+                    </div>
+                  </td>
+                  <td>
                     <input 
-                      v-model="item.title" 
-                      :class="{ 'error-input': !item.title }" 
+                      v-model.number="item.page" 
+                      type="number" 
+                      :class="{ 'error-input': !item.page || item.page < 1 }" 
+                      class="cell-input"
+                      @change="updatePageRange()"
                       @focus="focusedRow = index"
                       @blur="focusedRow = -1"
-                      class="cell-input title-input"
-                    />
-                  </div>
-                </td>
-                <td>
-                  <input 
-                    type="number" 
-                    v-model.number="item.page" 
-                    @change="updatePageRange()" 
-                    :class="{ 'error-input': !item.page || item.page < 1 }"
-                    @focus="focusedRow = index"
-                    @blur="focusedRow = -1"
-                    class="cell-input"
-                  />
-                </td>
-                <td style="text-align:center;">
-                  <span v-if="item.level === 0">一级</span>
-                  <span v-else-if="item.level === 1">二级</span>
-                  <span v-else-if="item.level === 2">三级</span>
-                  <span v-else-if="item.level === 3">四级</span>
-                  <span v-else>五级</span>
-                </td>
-                <td class="page-range-cell">
-                  <input 
-                    type="text" 
-                    :value="item.start + ' - ' + item.end"
-                    @focus="$event.target.select()"
-                    @blur="parsePageRange($event, index)"
-                    @keyup.enter="parsePageRange($event, index)"
-                    class="cell-input"
-                    style="text-align:center;"
-                  />
-                </td>
-                <td>
-                  <button class="icon-btn" @click="showPageHint(index)" title="页码对照">👁️</button>
-                  <button class="icon-btn" @click="increaseIndent(index)" :disabled="item.level >= 4" title="提升层级">↪️</button>
-                  <button class="icon-btn" @click="decreaseIndent(index)" :disabled="item.level <= 0" title="降低层级">↩️</button>
-                  <button class="icon-btn" @click="deleteChapter(index)" title="删除">🗑️</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                    >
+                  </td>
+                  <td style="text-align:center;">
+                    <span v-if="item.level === 0">一级</span>
+                    <span v-else-if="item.level === 1">二级</span>
+                    <span v-else-if="item.level === 2">三级</span>
+                    <span v-else-if="item.level === 3">四级</span>
+                    <span v-else>五级</span>
+                  </td>
+                  <td class="page-range-cell">
+                    <input 
+                      type="text" 
+                      :value="item.start + ' - ' + item.end"
+                      class="cell-input"
+                      style="text-align:center;"
+                      @focus="$event.target.select()"
+                      @blur="parsePageRange($event, index)"
+                      @keyup.enter="parsePageRange($event, index)"
+                    >
+                  </td>
+                  <td>
+                    <button
+                      class="icon-btn"
+                      title="页码对照"
+                      @click="showPageHint(index)"
+                    >
+                      👁️
+                    </button>
+                    <button
+                      class="icon-btn"
+                      :disabled="item.level >= 4"
+                      title="提升层级"
+                      @click="increaseIndent(index)"
+                    >
+                      ↪️
+                    </button>
+                    <button
+                      class="icon-btn"
+                      :disabled="item.level <= 0"
+                      title="降低层级"
+                      @click="decreaseIndent(index)"
+                    >
+                      ↩️
+                    </button>
+                    <button
+                      class="icon-btn"
+                      title="删除"
+                      @click="deleteChapter(index)"
+                    >
+                      🗑️
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
-        <p v-if="flatOutline.length === 0" class="empty-tip">😕 没有目录数据，请手动添加或导入</p>
+        <p
+          v-if="flatOutline.length === 0"
+          class="empty-tip"
+        >
+          😕 没有目录数据，请手动添加或导入
+        </p>
         <div class="render-loading-bar">
           ⚠️ 光标出现前请勿鼠标点击，正在准备编辑区域...
         </div>        
-        <p class="total-pages-hint">📌 最后一章自动延伸至第 {{ totalPages }} 页，可手动修改页码范围</p>
-        <p class="total-pages-hint" style="color: var(--primary-light);">⌨️ 点击出现光标后，按 <strong>Alt</strong> 键聚焦编辑</p>
+        <p class="total-pages-hint">
+          📌 最后一章自动延伸至第 {{ totalPages }} 页，可手动修改页码范围
+        </p>
+        <p
+          class="total-pages-hint"
+          style="color: var(--primary-light);"
+        >
+          ⌨️ 点击出现光标后，按 <strong>Alt</strong> 键聚焦编辑
+        </p>
         <div class="modal-actions">
-          <button class="btn" @click="closeOutlineEditor">取消</button>
-          <button class="btn" @click="goBackToCatalogPage">← 返回</button>
-          <button class="btn-primary" :disabled="isSaving || !isValid" @click="saveTextbook">
+          <button
+            class="btn"
+            @click="closeOutlineEditor"
+          >
+            取消
+          </button>
+          <button
+            class="btn"
+            @click="goBackToCatalogPage"
+          >
+            ← 返回
+          </button>
+          <button
+            class="btn-primary"
+            :disabled="isSaving || !isValid"
+            @click="saveTextbook"
+          >
             {{ isSaving ? '保存中...' : '确认并保存' }}
           </button>
         </div>
       </div>
     </div>
 
-    <div v-if="showInlinePreview" 
+    <div
+      v-if="showInlinePreview" 
       ref="inlinePreviewRef"
       :style="{ 
         position: 'fixed', 
@@ -391,173 +837,299 @@
         boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
         display: 'flex',
         flexDirection: 'column'
-      }">
+      }"
+    >
       <!-- 拖动条 -->
       <div 
-        @mousedown="startInlineDrag" 
-        style="display:flex; justify-content:space-between; align-items:center; padding:6px 12px; background:var(--primary); color:white; cursor:move; user-select:none; flex-shrink:0;">
+        style="display:flex; justify-content:space-between; align-items:center; padding:6px 12px; background:var(--primary); color:white; cursor:move; user-select:none; flex-shrink:0;" 
+        @mousedown="startInlineDrag"
+      >
         <span style="font-size:13px;">📖 PDF 预览</span>
         <div style="display:flex; gap:6px; align-items:center;">
-          <button @click="inlinePreviewPage = Math.max(1, inlinePreviewPage - 1)" style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer; padding:3px 8px; border-radius:4px; font-size:12px;">◀</button>
+          <button
+            style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer; padding:3px 8px; border-radius:4px; font-size:12px;"
+            @click="inlinePreviewPage = Math.max(1, inlinePreviewPage - 1)"
+          >
+            ◀
+          </button>
           <span style="font-size:12px;">第 {{ inlinePreviewPage }} 页</span>
-          <button @click="inlinePreviewPage = inlinePreviewPage + 1" style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer; padding:3px 8px; border-radius:4px; font-size:12px;">▶</button>
-          <button @click="showInlinePreview = false" style="background:none; border:none; color:white; cursor:pointer; font-size:18px; margin-left:4px;">✕</button>
+          <button
+            style="background:rgba(255,255,255,0.2); border:none; color:white; cursor:pointer; padding:3px 8px; border-radius:4px; font-size:12px;"
+            @click="inlinePreviewPage = inlinePreviewPage + 1"
+          >
+            ▶
+          </button>
+          <button
+            style="background:none; border:none; color:white; cursor:pointer; font-size:18px; margin-left:4px;"
+            @click="showInlinePreview = false"
+          >
+            ✕
+          </button>
         </div>
       </div>
       <!-- 内容区 -->
       <div style="flex:1; min-height:0;">
-        <PdfPreview :pdfPath="tempFilePath" :page="inlinePreviewPage" @pageChange="(page) => inlinePreviewPage = page" />
+        <PdfPreview
+          :pdf-path="tempFilePath"
+          :page="inlinePreviewPage"
+          @page-change="(page) => inlinePreviewPage = page"
+        />
       </div>
       <div style="padding:8px 12px; background:#f0f7ff; font-size:12px; color:var(--primary-light); flex-shrink:0;">
         📐 目录页码：{{ currentHintPage }} → 请翻到对应页，看实际页码
       </div>
       <!-- 右下角调整大小手柄 -->
       <div 
-        @mousedown="startInlineResize"
         style="position:absolute; right:0; bottom:0; width:20px; height:20px; cursor:nwse-resize; z-index:10;"
-        title="拖动调整大小">
-        <div style="position:absolute; right:3px; bottom:3px; width:10px; height:10px; border-right:2px solid var(--text-muted); border-bottom:2px solid var(--text-muted);"></div>
+        title="拖动调整大小"
+        @mousedown="startInlineResize"
+      >
+        <div style="position:absolute; right:3px; bottom:3px; width:10px; height:10px; border-right:2px solid var(--text-muted); border-bottom:2px solid var(--text-muted);" />
       </div>
     </div> 
 
     <!-- Loading 遮罩 -->
-    <div v-if="isSaving" class="loading-mask">
+    <div
+      v-if="isSaving"
+      class="loading-mask"
+    >
       <div class="loading-content">
-        <div class="spinner"></div>
+        <div class="spinner" />
         <p>{{ saveStatus }}</p>
       </div>
     </div>
 
     <!-- 导入选择弹窗 -->
-    <div v-if="showImportModal" class="modal-mask" @click.self="showImportModal = false">
-      <div class="modal" style="max-width: 360px;">
+    <div
+      v-if="showImportModal"
+      class="modal-mask"
+      @click.self="showImportModal = false"
+    >
+      <div
+        class="modal"
+        style="max-width: 360px;"
+      >
         <h3>📋 选择导入方式</h3>
         <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 20px;">
-          <button class="btn-primary" @click="importFromClipboard(true)">
+          <button
+            class="btn-primary"
+            @click="importFromClipboard(true)"
+          >
             📋 从剪贴板导入
             <span class="hint">（微信截图 OCR 后复制的内容）</span>
           </button>
-          <button class="btn" @click="showImportModal = false; importTemplateFile()">
+          <button
+            class="btn"
+            @click="showImportModal = false; importTemplateFile()"
+          >
             📤 导入模板文件
             <span class="hint">（已填好的 CSV 模板文件）</span>
           </button>
         </div>
         <div class="modal-actions">
-          <button class="btn" @click="showImportModal = false">取消</button>
+          <button
+            class="btn"
+            @click="showImportModal = false"
+          >
+            取消
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 查看/编辑章节分析弹窗（左右两栏） -->
-    <div v-if="showChapterAnalysisModal" class="modal-mask" @click.self="showChapterAnalysisModal = false">
-      <div class="modal draggable-modal" style="max-width: 1000px; width: 90%; display: flex; flex-direction: column;" ref="chapterAnalysisModalRef">
-        <div class="modal-drag-handle" @mousedown="startChapterDrag($event)">📊 章节分析详情</div>
+    <div
+      v-if="showChapterAnalysisModal"
+      class="modal-mask"
+      @click.self="showChapterAnalysisModal = false"
+    >
+      <div
+        ref="chapterAnalysisModalRef"
+        class="modal draggable-modal"
+        style="max-width: 1000px; width: 90%; display: flex; flex-direction: column;"
+      >
+        <div
+          class="modal-drag-handle"
+          @mousedown="startChapterDrag($event)"
+        >
+          📊 章节分析详情
+        </div>
         <div style="flex-shrink: 0; padding: 8px 0;">
           <h3>📊 {{ viewingBook?.name }} - {{ viewingChapter?.title }}</h3>
         </div>
         <div style="flex: 1; overflow-y: auto; min-height: 0;">
-        
-        <div v-if="viewingChapter" class="chapter-analysis-two-columns">
-          <div class="chapter-analysis-left">
-            <strong>📖 原文提取：</strong>
-            <!-- 🔧 有富文本时用 RichTextEditor 只读模式，否则用纯文本框编辑 -->
-            <RichTextEditor 
-              v-if="viewingChapter._rawTextHtml"
-              :model-value="viewingChapter._rawTextHtml"
-              :editable="false"
-              :min-height="'280px'"
-              style="width:100%;font-size:12px;max-height:none;"
-            />
-            <textarea v-else v-model="viewingChapter.rawText" rows="18"
-              style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;overflow:auto;font-family:inherit;box-sizing:border-box;">
-            </textarea>
-          </div>
-          <div class="chapter-analysis-right">
-            <!-- ✅ 可编辑字段 - 始终显示 -->
-            <div class="detail-item">
-              <strong>🏷️ 核心主题：</strong>
-              <input type="text" v-model="viewingChapter.coreTopics"
-                style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;" />
+          <div
+            v-if="viewingChapter"
+            class="chapter-analysis-two-columns"
+          >
+            <div class="chapter-analysis-left">
+              <strong>📖 原文提取：</strong>
+              <!-- 🔧 有富文本时用 RichTextEditor 只读模式，否则用纯文本框编辑 -->
+              <RichTextEditor 
+                v-if="viewingChapter._rawTextHtml"
+                :model-value="viewingChapter._rawTextHtml"
+                :editable="false"
+                :min-height="'280px'"
+                style="width:100%;font-size:12px;max-height:none;"
+              />
+              <textarea
+                v-else
+                v-model="viewingChapter.rawText"
+                rows="18"
+                style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;overflow:auto;font-family:inherit;box-sizing:border-box;"
+              />
             </div>
+            <div class="chapter-analysis-right">
+              <!-- ✅ 可编辑字段 - 始终显示 -->
+              <div class="detail-item">
+                <strong>🏷️ 核心主题：</strong>
+                <input
+                  v-model="viewingChapter.coreTopics"
+                  type="text"
+                  style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"
+                >
+              </div>
             
-            <div class="detail-item" v-if="viewingChapter.visualDescription">
-              <strong>🖼️ 图表描述：</strong>
-              <input type="text" v-model="viewingChapter.visualDescription"
-                style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;" />
-            </div>
+              <div
+                v-if="viewingChapter.visualDescription"
+                class="detail-item"
+              >
+                <strong>🖼️ 图表描述：</strong>
+                <input
+                  v-model="viewingChapter.visualDescription"
+                  type="text"
+                  style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;"
+                >
+              </div>
             
-            <div class="detail-item" v-if="viewingChapter.formulas && viewingChapter.formulas.length > 0">
-              <strong>📐 公式：</strong>
-              <textarea v-model="viewingChapter.formulasText" rows="3"
-                style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box;"
-                placeholder="每行一个公式"></textarea>
-            </div>
+              <div
+                v-if="viewingChapter.formulas && viewingChapter.formulas.length > 0"
+                class="detail-item"
+              >
+                <strong>📐 公式：</strong>
+                <textarea
+                  v-model="viewingChapter.formulasText"
+                  rows="3"
+                  style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box;"
+                  placeholder="每行一个公式"
+                />
+              </div>
             
-            <div class="detail-item" v-if="viewingChapter.knowledgePoints && viewingChapter.knowledgePoints.length > 0">
-              <strong>📍 知识点：</strong>
-              <textarea v-model="viewingChapter.knowledgePointsText" rows="4"
-                style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box;"
-                placeholder="每行一个知识点"></textarea>
-            </div>
+              <div
+                v-if="viewingChapter.knowledgePoints && viewingChapter.knowledgePoints.length > 0"
+                class="detail-item"
+              >
+                <strong>📍 知识点：</strong>
+                <textarea
+                  v-model="viewingChapter.knowledgePointsText"
+                  rows="4"
+                  style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box;"
+                  placeholder="每行一个知识点"
+                />
+              </div>
             
-            <!-- 🔧 只读显示字段 - 根据分析结果显示 -->
-            <div class="detail-item" v-if="viewingChapter.knowledgeHierarchy && viewingChapter.knowledgeHierarchy.length > 0">
-              <strong>🎯 知识层级：</strong>
-              <div style="margin-top:8px;background:#f8f9fa;padding:10px;border-radius:6px;">
-                <div v-for="(bc, bcIdx) in viewingChapter.knowledgeHierarchy" :key="bcIdx" 
-                  style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border-light);">
-                  <div style="font-size:13px;color:var(--primary-light);font-weight:600;margin-bottom:6px;">
-                    {{ bcIdx + 1 }}. {{ bc.bigConcept || '未命名大概念' }}
-                  </div>
+              <!-- 🔧 只读显示字段 - 根据分析结果显示 -->
+              <div
+                v-if="viewingChapter.knowledgeHierarchy && viewingChapter.knowledgeHierarchy.length > 0"
+                class="detail-item"
+              >
+                <strong>🎯 知识层级：</strong>
+                <div style="margin-top:8px;background:#f8f9fa;padding:10px;border-radius:6px;">
+                  <div
+                    v-for="(bc, bcIdx) in viewingChapter.knowledgeHierarchy"
+                    :key="bcIdx" 
+                    style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border-light);"
+                  >
+                    <div style="font-size:13px;color:var(--primary-light);font-weight:600;margin-bottom:6px;">
+                      {{ bcIdx + 1 }}. {{ bc.bigConcept || '未命名大概念' }}
+                    </div>
                   
-                  <div v-for="(ck, ckIdx) in (bc.coreKnowledge || [])" :key="ckIdx" 
-                    style="margin-left:16px;margin-bottom:6px;">
-                    <div style="font-size:12px;font-weight:600;color:#34495e;">
-                      {{ ckIdx + 1 }}. {{ ck.name || ck.coreConcept || '未命名核心知识' }}
-                      <span v-if="ck.level" style="margin-left:8px;padding:2px 6px;background:#3498db;color:white;border-radius:3px;font-size:10px;">{{ ck.level }}</span>
-                    </div>
-                    <div v-if="ck.specificConcepts && ck.specificConcepts.length > 0" 
-                      style="font-size:11px;color:#666;margin-left:16px;margin-top:2px;">
-                      具体概念：{{ ck.specificConcepts.join('、') }}
-                    </div>
-                    <div v-if="ck.suggestedQuestionTypes && ck.suggestedQuestionTypes.length > 0" 
-                      style="font-size:11px;color:var(--text-muted);margin-left:16px;margin-top:2px;">
-                      建议题型：{{ ck.suggestedQuestionTypes.join('、') }}
+                    <div
+                      v-for="(ck, ckIdx) in (bc.coreKnowledge || [])"
+                      :key="ckIdx" 
+                      style="margin-left:16px;margin-bottom:6px;"
+                    >
+                      <div style="font-size:12px;font-weight:600;color:#34495e;">
+                        {{ ckIdx + 1 }}. {{ ck.name || ck.coreConcept || '未命名核心知识' }}
+                        <span
+                          v-if="ck.level"
+                          style="margin-left:8px;padding:2px 6px;background:#3498db;color:white;border-radius:3px;font-size:10px;"
+                        >{{ ck.level }}</span>
+                      </div>
+                      <div
+                        v-if="ck.specificConcepts && ck.specificConcepts.length > 0" 
+                        style="font-size:11px;color:#666;margin-left:16px;margin-top:2px;"
+                      >
+                        具体概念：{{ ck.specificConcepts.join('、') }}
+                      </div>
+                      <div
+                        v-if="ck.suggestedQuestionTypes && ck.suggestedQuestionTypes.length > 0" 
+                        style="font-size:11px;color:var(--text-muted);margin-left:16px;margin-top:2px;"
+                      >
+                        建议题型：{{ ck.suggestedQuestionTypes.join('、') }}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
             
-            <div class="detail-item" v-if="viewingChapter.competency">
-              <strong>🎓 能力层次：</strong>
-              <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:13px;color:#555;">
-                {{ viewingChapter.competency }}
+              <div
+                v-if="viewingChapter.competency"
+                class="detail-item"
+              >
+                <strong>🎓 能力层次：</strong>
+                <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:13px;color:#555;">
+                  {{ viewingChapter.competency }}
+                </div>
               </div>
-            </div>
             
-            <div class="detail-item" v-if="viewingChapter.style">
-              <strong>🎨 风格：</strong>
-              <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:13px;color:#555;">
-                {{ viewingChapter.style }}
+              <div
+                v-if="viewingChapter.style"
+                class="detail-item"
+              >
+                <strong>🎨 风格：</strong>
+                <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:13px;color:#555;">
+                  {{ viewingChapter.style }}
+                </div>
               </div>
-            </div>
             
-            <div class="detail-item" v-if="viewingChapter.ocrQuality">
-              <strong>📊 OCR质量：</strong>
-              <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:13px;color:#555;">
-                {{ viewingChapter.ocrQuality }}
+              <div
+                v-if="viewingChapter.ocrQuality"
+                class="detail-item"
+              >
+                <strong>📊 OCR质量：</strong>
+                <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:13px;color:#555;">
+                  {{ viewingChapter.ocrQuality }}
+                </div>
               </div>
             </div>
           </div>
         </div>
-        </div>
         
-        <div class="analysis-footer" style="flex-shrink: 0; display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
-          <button class="btn btn-delete hide-on-mobile" @click="discardChapterAnalysis" style="font-size:11px;padding:4px 10px;">🗑️ 丢弃分析</button>
+        <div
+          class="analysis-footer"
+          style="flex-shrink: 0; display:flex; justify-content:space-between; align-items:center; margin-top:16px;"
+        >
+          <button
+            class="btn btn-delete hide-on-mobile"
+            style="font-size:11px;padding:4px 10px;"
+            @click="discardChapterAnalysis"
+          >
+            🗑️ 丢弃分析
+          </button>
           <div class="modal-actions">
-            <button class="btn" @click="showChapterAnalysisModal = false">取消</button>
-            <button class="btn-primary" @click="saveChapterAnalysis"><span class="icon-desktop">💾</span><span class="icon-mobile">✅</span> 保存</button>
+            <button
+              class="btn"
+              @click="showChapterAnalysisModal = false"
+            >
+              取消
+            </button>
+            <button
+              class="btn-primary"
+              @click="saveChapterAnalysis"
+            >
+              <span class="icon-desktop">💾</span><span class="icon-mobile">✅</span> 保存
+            </button>
           </div>
         </div>
       </div>

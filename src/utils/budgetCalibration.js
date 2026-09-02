@@ -19,28 +19,28 @@
  * ============================================================
  */
 
+import { resolveStageKey } from './gradeStage.js'; // 年级→五档学段键唯一事实源（校准桶键与三维度注入/质检同口径）
+
 // 存储 key（与 apiConfig 同层的 localStorage 业务 key；避免与生成内容仓库混放）
 const SAMPLE_KEY = 'budgetCalibrationSamples';   // 原始样本队列
 const CALIB_KEY = 'budgetCalibrationValues';     // 采纳后的校准覆盖层
 
-// 归一学段：接受五档 key（primary_low 等）或中文标签（'小学'/'初一'/'高二' 等）
-const STAGE_KEY_RE = /^(primary_low|primary_mid|primary_high|middle|high)$/;
-const normalizeStageKey = (stage = '') => {
+// 学段归一：一律走共享 resolveStageKey（年级→五档键唯一事实源，禁止这里自建一套 parseInt/启发式，
+// 否则与三维度注入/质检的学段口径错位——曾致小学一年级~六年级全被折叠成 primary_mid）。
+// 桶键拆分原则上只允许"五档键"：已是五档键（存量样本/面板枚举回传）直接透传；
+// 否则用 学段×年级(可回退教材名) 解析，小学按 低/中/高段 精确分桶。
+// 🔴 无年级信息时 resolveStageKey 对小学按高段宽松（primary_high），与质检口径一致。
+const FIVE_TIER_RE = /^(primary_low|primary_mid|primary_high|middle|high)$/;
+const resolveBucketStage = (stage = '', grade = '', name = '') => {
   const s = String(stage || '').trim();
-  if (STAGE_KEY_RE.test(s)) return s;
-  if (/小学|一|二/.test(s) && s.length <= 3) { /* 保守，避免误判'高中'含'一' */ }
-  if (/^小/.test(s)) return /低|一|二/.test(s) ? 'primary_low' : /高|五|六/.test(s) ? 'primary_high' : 'primary_mid';
-  if (/^初|middle/.test(s)) return 'middle';
-  if (/^高|high/.test(s)) return 'high';
-  if (/低|一|二/.test(s)) return 'primary_low';
-  if (/中|三|四/.test(s)) return 'primary_mid';
-  if (/高|五|六/.test(s)) return 'primary_high';
-  return 'middle';
+  if (FIVE_TIER_RE.test(s)) return s;
+  const resolved = resolveStageKey(s, grade, name);
+  return FIVE_TIER_RE.test(resolved || '') ? resolved : 'middle';
 };
 
 /** 桶 key：genType|subject|stageKey|mode（mode 区分 split/once——两者产出率口径不同，绝不混算防废数据） */
-const bucketKey = (genType, subject, stage, mode = '') =>
-  `${String(genType || '')}|${String(subject || '')}|${normalizeStageKey(stage)}|${String(mode || '')}`;
+const bucketKey = (genType, subject, stage, mode = '', grade = '', name = '') =>
+  `${String(genType || '')}|${String(subject || '')}|${resolveBucketStage(stage, grade, name)}|${String(mode || '')}`;
 
 // ── 读取/安全写入工具（localStorage，跨端；web 与 electron 均可用）──
 const safeRead = (key, fallback) => {
@@ -81,11 +81,12 @@ export const recordSample = (s = {}) => {
   if (!Number.isFinite(outChars) || !Number.isFinite(inChars) || inChars <= 0) return;
   // 预算失效场剔除：触顶/续写/截断/产出低于最低阈值 → 不算真实产出率
   const invalid = Boolean(s.truncated || s.overCap) || outChars < 50;
-  const key = bucketKey(s.genType, s.subject, s.stage, s.mode);
+  const key = bucketKey(s.genType, s.subject, s.stage, s.mode, s.grade, s.name);
   const sample = {
     t: Date.now(),
-    genType: s.genType, subject: s.subject, stage: normalizeStageKey(s.stage),
+    genType: s.genType, subject: s.subject, stage: resolveBucketStage(s.stage, s.grade, s.name),
     grade: s.grade || '', scope: s.scope || 'default', mode: s.mode || '',
+    name: s.name || '',
     inChars, budgetTokens: Number(s.budgetTokens) || 0,
     outChars, ratio: outChars / inChars, invalid,
   };
@@ -180,9 +181,9 @@ export const canCalibrate = (genType, subject, stage, mode, threshold) =>
  * 消费端用它替换 DEFBAULT 播种系数 = base / 中文token字符率 ? 见 usage。
  * 返回 null 表示无校准（应回退播种默认）。
  */
-export const getCalibration = (genType, subject, stage, mode = '') => {
+export const getCalibration = (genType, subject, stage, mode = '', grade = '', name = '') => {
   const cal = safeRead(CALIB_KEY, {});
-  return cal[bucketKey(genType, subject, stage, mode)] ?? null;
+  return cal[bucketKey(genType, subject, stage, mode, grade, name)] ?? null;
 };
 
 /**
@@ -195,7 +196,7 @@ export const applyCalibration = (genType, subject, stage, mode, threshold = CALI
   const base = st.median; // 中位数比均值更稳
   const cal = safeRead(CALIB_KEY, {});
   cal[bucketKey(genType, subject, stage, mode)] = {
-    genType, subject, stage: normalizeStageKey(stage), mode,
+    genType, subject, stage: resolveBucketStage(stage), mode,
     base,            // 均衡档基准产出率（字符/字符）
     enabled: true,   // 是否启用校准（切换=只翻此位，不动数据；清理=整桶删）
     tiers: {
@@ -248,8 +249,8 @@ export const CHARS_PER_TOKEN = 1.3;
  * 供生成端 pickSlot 在「用户 custom」之后、「播种默认」之前注入。
  * @returns {number|null} 折算后的 token/字符系数；无校准返回 null
  */
-export const getCalibratedCoef = (genType, subject, stage, mode = '', tier = 'balanced') => {
-  const cal = getCalibration(genType, subject, stage, mode);
+export const getCalibratedCoef = (genType, subject, stage, mode = '', tier = 'balanced', grade = '', name = '') => {
+  const cal = getCalibration(genType, subject, stage, mode, grade, name);
   if (!cal || cal.enabled === false) return null; // disabled → 回退播种默认（切换态）
   const base = typeof cal.base === 'number' && cal.base > 0 ? cal.base : null;
   if (base == null) return null;

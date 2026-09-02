@@ -12,61 +12,156 @@
         <span class="ov-sep">·</span>
         <span class="chip-label">图形 TYPE</span>
         <span class="st-chips">
-          <button class="st-chip" :class="{ sel: typeStatusFilter === 'all' }" @click="typeStatusFilter = 'all'">全部 {{ typeCounts.total }}</button>
-          <button class="st-chip on" :class="{ sel: typeStatusFilter === 'on' }" @click="typeStatusFilter = 'on'">启用 {{ typeCounts.on }}</button>
-          <button class="st-chip off" :class="{ sel: typeStatusFilter === 'off' }" @click="typeStatusFilter = 'off'">停用 {{ typeCounts.off }}</button>
+          <button
+            class="st-chip"
+            :class="{ sel: typeStatusFilter === 'all' }"
+            @click="typeStatusFilter = 'all'"
+          >全部 {{ typeCounts.total }}</button>
+          <button
+            class="st-chip on"
+            :class="{ sel: typeStatusFilter === 'on' }"
+            @click="typeStatusFilter = 'on'"
+          >启用 {{ typeCounts.on }}</button>
+          <button
+            class="st-chip off"
+            :class="{ sel: typeStatusFilter === 'off' }"
+            @click="typeStatusFilter = 'off'"
+          >停用 {{ typeCounts.off }}</button>
         </span>
         <span class="ov-sep">·</span>
         <span class="chip-label">学科契约</span>
         <span class="st-chips">
-          <button class="st-chip" :class="{ sel: subStatusFilter === 'all' }" @click="subStatusFilter = 'all'">全部 {{ subCounts.total }}</button>
-          <button class="st-chip on" :class="{ sel: subStatusFilter === 'on' }" @click="subStatusFilter = 'on'">启用 {{ subCounts.on }}</button>
-          <button class="st-chip off" :class="{ sel: subStatusFilter === 'off' }" @click="subStatusFilter = 'off'">停用 {{ subCounts.off }}</button>
+          <button
+            class="st-chip"
+            :class="{ sel: subStatusFilter === 'all' }"
+            @click="subStatusFilter = 'all'"
+          >全部 {{ subCounts.total }}</button>
+          <button
+            class="st-chip on"
+            :class="{ sel: subStatusFilter === 'on' }"
+            @click="subStatusFilter = 'on'"
+          >启用 {{ subCounts.on }}</button>
+          <button
+            class="st-chip off"
+            :class="{ sel: subStatusFilter === 'off' }"
+            @click="subStatusFilter = 'off'"
+          >停用 {{ subCounts.off }}</button>
         </span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="dim-now">
           <span class="dimb">{{ dims.subject || '全部学科' }}</span>
-          <span class="dimb" :title="dims.stage ? STAGE_LABELS[dims.stage] : '全部学段'">{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
+          <span
+            class="dimb"
+            :title="dims.stage ? STAGE_LABELS[dims.stage] : '全部学段'"
+          >{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
           <span class="dimb">{{ dims.genType ? GEN_TYPE_NAME[dims.genType] : '全部类型' }}</span>
         </div>
-        <button class="btn-p" @click="newOpen = true">＋ 新增契约</button>
-        <button class="btn" @click="doExport">📤 导出</button>
-        <button class="btn" @click="importInput?.click()">📥 导入</button>
-        <input ref="importInput" type="file" accept=".json" style="display:none" @change="doImport" />
+        <button
+          class="btn-p"
+          @click="newOpen = true"
+        >
+          ＋ 新增契约
+        </button>
+        <button
+          class="btn"
+          @click="doExport"
+        >
+          📤 导出
+        </button>
+        <button
+          class="btn"
+          @click="importInput?.click()"
+        >
+          📥 导入
+        </button>
+        <input
+          ref="importInput"
+          type="file"
+          accept=".json"
+          style="display:none"
+          @change="doImport"
+        >
       </div>
     </div>
 
     <!-- 校验：覆盖缺口 -->
-    <div class="rc-validate" v-if="validateMsgs.length">
-      <div class="v-head">🔍 覆盖缺口自检</div>
-      <div v-for="(m, i) in validateMsgs" :key="i" class="v-item" :class="`sev-${m.severity}`">
+    <div
+      v-if="validateMsgs.length"
+      class="rc-validate"
+    >
+      <div class="v-head">
+        🔍 覆盖缺口自检
+      </div>
+      <div
+        v-for="(m, i) in validateMsgs"
+        :key="i"
+        class="v-item"
+        :class="`sev-${m.severity}`"
+      >
         <span class="v-code">{{ m.code }}</span> {{ m.detail }}
       </div>
     </div>
-    <div class="rc-validate ok" v-else>✅ 渲染契约覆盖正常（当前筛选范围）</div>
+    <div
+      v-else
+      class="rc-validate ok"
+    >
+      ✅ 渲染契约覆盖正常（当前筛选范围）
+    </div>
 
     <!-- 图形 TYPE 目录（手风琴） -->
-    <h4 class="rc-h">📊 图形 TYPE 目录（[GRAPH] 协议）<span class="hint">点击 TYPE 查看示例骨架</span></h4>
+    <h4 class="rc-h">
+      📊 图形 TYPE 目录（[GRAPH] 协议）<span class="hint">点击 TYPE 查看示例骨架</span>
+    </h4>
     <div class="rc-list">
-      <div v-for="t in typeShowList" :key="t.id" class="rc-card" :class="{ open: openType === t.id, disabled: typeOff(t.id) }">
-        <div class="rc-head" @click="toggleType(t.id)">
+      <div
+        v-for="t in typeShowList"
+        :key="t.id"
+        class="rc-card"
+        :class="{ open: openType === t.id, disabled: typeOff(t.id) }"
+      >
+        <div
+          class="rc-head"
+          @click="toggleType(t.id)"
+        >
           <span class="arrow">{{ openType === t.id ? '▾' : '▸' }}</span>
           <span class="lib-tag">🎨 契约库</span>
           <span class="dim-name">{{ t.id }}</span>
-          <span class="key-hint" :title="'图形类型'">GRAPH</span>
+          <span
+            class="key-hint"
+            :title="'图形类型'"
+          >GRAPH</span>
           <span class="rc-desc">{{ t.desc }}</span>
           <span class="rc-meta">{{ t.subjects.length }} 学科</span>
-          <label class="sw" :class="{ off: typeOff(t.id) }" @click.stop title="停用后此 TYPE 不再注入 [GRAPH] 契约（渲染端不再输出）">
-            <input type="checkbox" :checked="!typeOff(t.id)" @change="toggleTypeOn(t.id, $event.target.checked)" />
+          <label
+            class="sw"
+            :class="{ off: typeOff(t.id) }"
+            title="停用后此 TYPE 不再注入 [GRAPH] 契约（渲染端不再输出）"
+            @click.stop
+          >
+            <input
+              type="checkbox"
+              :checked="!typeOff(t.id)"
+              @change="toggleTypeOn(t.id, $event.target.checked)"
+            >
             <span>{{ typeOff(t.id) ? '已停用' : '启用' }}</span>
           </label>
         </div>
-        <div v-if="openType === t.id" class="rc-body">
+        <div
+          v-if="openType === t.id"
+          class="rc-body"
+        >
           <div class="rc-subjects">
             <b>适配学科：</b>
-            <span v-for="s in t.subjects" :key="s" class="car">{{ s }}</span>
-            <span v-if="!t.subjects.length" class="none">无学科适配（未启用）</span>
+            <span
+              v-for="s in t.subjects"
+              :key="s"
+              class="car"
+            >{{ s }}</span>
+            <span
+              v-if="!t.subjects.length"
+              class="none"
+            >无学科适配（未启用）</span>
           </div>
           <pre class="rc-sample">{{ t.sample }}</pre>
         </div>
@@ -74,48 +169,133 @@
     </div>
 
     <!-- 学科契约矩阵 -->
-    <h4 class="rc-h">📚 学科契约（学科 × 学段 → 图形/公式/配图）<span class="hint">按学科筛选联动 · 展开可自定义</span></h4>
+    <h4 class="rc-h">
+      📚 学科契约（学科 × 学段 → 图形/公式/配图）<span class="hint">按学科筛选联动 · 展开可自定义</span>
+    </h4>
     <div class="rc-list">
-      <div v-for="c in contractList" :key="c.subject" class="rc-card" :class="{ open: openSub === c.subject, editing: editingSub === c.subject, disabled: subOff(c.subject) }">
-        <div class="rc-head" @click="toggleSub(c.subject)">
+      <div
+        v-for="c in contractList"
+        :key="c.subject"
+        class="rc-card"
+        :class="{ open: openSub === c.subject, editing: editingSub === c.subject, disabled: subOff(c.subject) }"
+      >
+        <div
+          class="rc-head"
+          @click="toggleSub(c.subject)"
+        >
           <span class="arrow">{{ openSub === c.subject ? '▾' : '▸' }}</span>
           <span class="lib-tag">🎨 契约库</span>
           <span class="dim-name">{{ c.subject }}</span>
-          <span class="key-hint" :title="'学科契约'">{{ c.subject }}</span>
-          <span v-if="c.missing" class="gap-tag">缺 GRAPH 契约</span>
-          <span v-if="c.user" class="src-user">已自定义</span>
+          <span
+            class="key-hint"
+            :title="'学科契约'"
+          >{{ c.subject }}</span>
+          <span
+            v-if="c.missing"
+            class="gap-tag"
+          >缺 GRAPH 契约</span>
+          <span
+            v-if="c.user"
+            class="src-user"
+          >已自定义</span>
           <span class="rc-meta">
-            <span v-if="c.graphTypes.length" class="mini">图形 {{ c.graphTypes.join('/') }}</span>
-            <span v-if="c.formula" class="mini">公式 ✓</span>
-            <span v-if="c.image" class="mini">配图 ✓</span>
+            <span
+              v-if="c.graphTypes.length"
+              class="mini"
+            >图形 {{ c.graphTypes.join('/') }}</span>
+            <span
+              v-if="c.formula"
+              class="mini"
+            >公式 ✓</span>
+            <span
+              v-if="c.image"
+              class="mini"
+            >配图 ✓</span>
           </span>
-          <label class="sw" :class="{ off: subOff(c.subject) }" @click.stop title="停用后此学科不再注入图形/公式/配图契约（生成端不输出 [GRAPH]/公式/[IMAGE]）">
-            <input type="checkbox" :checked="!subOff(c.subject)" @change="toggleSubOn(c.subject, $event.target.checked)" />
+          <label
+            class="sw"
+            :class="{ off: subOff(c.subject) }"
+            title="停用后此学科不再注入图形/公式/配图契约（生成端不输出 [GRAPH]/公式/[IMAGE]）"
+            @click.stop
+          >
+            <input
+              type="checkbox"
+              :checked="!subOff(c.subject)"
+              @change="toggleSubOn(c.subject, $event.target.checked)"
+            >
             <span>{{ subOff(c.subject) ? '已停用' : '启用' }}</span>
           </label>
         </div>
-        <div v-if="openSub === c.subject && editingSub !== c.subject" class="rc-body">
-          <div v-if="subOff(c.subject)" class="off-banner">⏸ 已停用：本学科图形/公式/配图契约均不注入（重新启用即恢复）</div>
+        <div
+          v-if="openSub === c.subject && editingSub !== c.subject"
+          class="rc-body"
+        >
+          <div
+            v-if="subOff(c.subject)"
+            class="off-banner"
+          >
+            ⏸ 已停用：本学科图形/公式/配图契约均不注入（重新启用即恢复）
+          </div>
           <div class="rc-subjects">
             <b>图形类型：</b>
-            <span v-for="g in c.graphTypes" :key="g" class="car car-g">{{ g }}</span>
-            <span v-if="!c.graphTypes.length" class="none">无（如需图表请补契约）</span>
+            <span
+              v-for="g in c.graphTypes"
+              :key="g"
+              class="car car-g"
+            >{{ g }}</span>
+            <span
+              v-if="!c.graphTypes.length"
+              class="none"
+            >无（如需图表请补契约）</span>
           </div>
           <div class="rc-flags">
-                <span class="flag" :class="c.formula ? 'on' : 'off'">公式 {{ c.formula ? '启用' : '未启用' }}</span>
-                <span class="flag" :class="c.image ? 'on' : 'off'">配图 {{ c.image ? '启用' : '未启用' }}</span>
-                <span v-if="c.stageEffect" class="flag stage-effect">{{ c.stageEffect }}</span>
-                <span v-if="c.typeEffect" class="flag type-effect">{{ c.typeEffect }}</span>
-              </div>
+            <span
+              class="flag"
+              :class="c.formula ? 'on' : 'off'"
+            >公式 {{ c.formula ? '启用' : '未启用' }}</span>
+            <span
+              class="flag"
+              :class="c.image ? 'on' : 'off'"
+            >配图 {{ c.image ? '启用' : '未启用' }}</span>
+            <span
+              v-if="c.stageEffect"
+              class="flag stage-effect"
+            >{{ c.stageEffect }}</span>
+            <span
+              v-if="c.typeEffect"
+              class="flag type-effect"
+            >{{ c.typeEffect }}</span>
+          </div>
           <div class="rc-ops">
-            <button class="btn" @click="startEdit(c)">✏️ 自定义契约</button>
-            <button class="btn" @click="copyContract(c)">📋 复制</button>
-            <button v-if="c.user" class="btn danger" @click="removeUser(c)">🗑️ 删除自定义</button>
+            <button
+              class="btn"
+              @click="startEdit(c)"
+            >
+              ✏️ 自定义契约
+            </button>
+            <button
+              class="btn"
+              @click="copyContract(c)"
+            >
+              📋 复制
+            </button>
+            <button
+              v-if="c.user"
+              class="btn danger"
+              @click="removeUser(c)"
+            >
+              🗑️ 删除自定义
+            </button>
           </div>
         </div>
         <!-- 编辑态：自定义学科契约 -->
-        <div v-if="editingSub === c.subject" class="rc-edit">
-          <div class="edit-label">图形类型（多选）</div>
+        <div
+          v-if="editingSub === c.subject"
+          class="rc-edit"
+        >
+          <div class="edit-label">
+            图形类型（多选）
+          </div>
           <div class="type-chips">
             <span
               v-for="t in GRAPH_TYPES"
@@ -126,59 +306,124 @@
             >{{ t }}</span>
           </div>
           <div class="edit-grid">
-            <label class="chk">公式（$..$ / $$..$$）<input v-model="editForm.formula" type="checkbox" /></label>
-            <label class="chk">配图（[IMAGE]）<input v-model="editForm.image" type="checkbox" /></label>
+            <label class="chk">公式（$..$ / $$..$$）<input
+              v-model="editForm.formula"
+              type="checkbox"
+            ></label>
+            <label class="chk">配图（[IMAGE]）<input
+              v-model="editForm.image"
+              type="checkbox"
+            ></label>
           </div>
           <div class="rc-ops">
-            <button class="btn-p" @click="saveUser(c.subject)">💾 保存契约</button>
-            <button class="btn" @click="cancelEdit">取消</button>
+            <button
+              class="btn-p"
+              @click="saveUser(c.subject)"
+            >
+              💾 保存契约
+            </button>
+            <button
+              class="btn"
+              @click="cancelEdit"
+            >
+              取消
+            </button>
           </div>
-          <p class="edit-tip">※ 自定义契约即时生效：图（[GRAPH] TYPE）、公式（$..$）、配图（[IMAGE]）均按此覆盖内置，生成时自动读取；删除自定义即回退内置。</p>
+          <p class="edit-tip">
+            ※ 自定义契约即时生效：图（[GRAPH] TYPE）、公式（$..$）、配图（[IMAGE]）均按此覆盖内置，生成时自动读取；删除自定义即回退内置。
+          </p>
         </div>
       </div>
-      <div v-if="!contractList.length" class="rc-empty">当前筛选无学科契约（可放宽学科筛选）</div>
+      <div
+        v-if="!contractList.length"
+        class="rc-empty"
+      >
+        当前筛选无学科契约（可放宽学科筛选）
+      </div>
     </div>
 
     <!-- 配图与公式规则 -->
-    <h4 class="rc-h">🖼️ 配图与公式规则</h4>
+    <h4 class="rc-h">
+      🖼️ 配图与公式规则
+    </h4>
     <div class="rule-grid">
       <div class="rule-card">
         <b>[IMAGE] 配图</b>
         <p>触发关键词：<code>{{ IMAGE_KEYWORDS.join(' / ') }}</code></p>
         <p>教辅默认配图类型：<code>{{ IMAGE_DEFAULT_TYPES.join(' / ') }}</code></p>
-        <p class="note">关键词已覆盖：识图 / 读图 / 示意 / 图表 / 地图 / 结构（生物结构图、地理读图等 needsImage 命中）。</p>
+        <p class="note">
+          关键词已覆盖：识图 / 读图 / 示意 / 图表 / 地图 / 结构（生物结构图、地理读图等 needsImage 命中）。
+        </p>
       </div>
       <div class="rule-card">
         <b>$..$ 公式</b>
         <p>公式学科：<code>{{ MATH_SUBJECTS.join(' / ') }}</code></p>
         <p>学段门控：数学低段不注入；物理/化学仅初中及以上。</p>
-        <p class="note">图形数据必须与题干完全一致（契约强制）。</p>
+        <p class="note">
+          图形数据必须与题干完全一致（契约强制）。
+        </p>
       </div>
     </div>
 
     <!-- 新增契约弹层 -->
-    <div v-if="newOpen" class="modal-mask" @click.self="newOpen = false">
+    <div
+      v-if="newOpen"
+      class="modal-mask"
+      @click.self="newOpen = false"
+    >
       <div class="modal">
         <h4>＋ 新增学科契约</h4>
         <div class="modal-grid">
           <label>学科名称
-            <input v-model="newForm.subject" placeholder="如：书法、地方课程…" list="subject-list" />
+            <input
+              v-model="newForm.subject"
+              placeholder="如：书法、地方课程…"
+              list="subject-list"
+            >
             <datalist id="subject-list">
-              <option v-for="s in SUBJECT_KEYS" :key="s" :value="s" />
+              <option
+                v-for="s in SUBJECT_KEYS"
+                :key="s"
+                :value="s"
+              />
             </datalist>
           </label>
         </div>
-        <div class="edit-label">图形类型（多选）</div>
+        <div class="edit-label">
+          图形类型（多选）
+        </div>
         <div class="type-chips">
-          <span v-for="t in GRAPH_TYPES" :key="t" class="chip-sel" :class="{ sel: newForm.graphTypes.includes(t) }" @click="toggleNewType(t)">{{ t }}</span>
+          <span
+            v-for="t in GRAPH_TYPES"
+            :key="t"
+            class="chip-sel"
+            :class="{ sel: newForm.graphTypes.includes(t) }"
+            @click="toggleNewType(t)"
+          >{{ t }}</span>
         </div>
         <div class="edit-grid">
-          <label class="chk">公式（$..$）<input v-model="newForm.formula" type="checkbox" /></label>
-          <label class="chk">配图（[IMAGE]）<input v-model="newForm.image" type="checkbox" /></label>
+          <label class="chk">公式（$..$）<input
+            v-model="newForm.formula"
+            type="checkbox"
+          ></label>
+          <label class="chk">配图（[IMAGE]）<input
+            v-model="newForm.image"
+            type="checkbox"
+          ></label>
         </div>
         <div class="rc-ops">
-          <button class="btn-p" @click="saveNew">💾 保存</button>
-          <button class="btn" @click="newOpen = false">取消</button>
+          <button
+            class="btn-p"
+            @click="saveNew"
+          >
+            💾 保存
+          </button>
+          <button
+            class="btn"
+            @click="newOpen = false"
+          >
+            取消
+          </button>
         </div>
       </div>
     </div>

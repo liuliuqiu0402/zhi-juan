@@ -1,153 +1,495 @@
 <template>
-  <div class="rich-text-editor" :style="{ minHeight: minHeight, ...layoutVars }">
+  <div
+    class="rich-text-editor"
+    :style="{ minHeight: minHeight, ...layoutVars }"
+  >
     <!-- 增强工具栏 - 参照 WPS Word 开始选项卡 -->
-    <div v-if="editor" class="editor-toolbar-wrapper">
+    <div
+      v-if="editor"
+      class="editor-toolbar-wrapper"
+    >
       <div class="editor-toolbar">
-      <!-- ═══════ 组0：剪贴板 ═══════ -->
-      <button @click="editor.chain().focus().undo().run()" title="撤销 (Ctrl+Z)" :disabled="!editor.can().undo()">↶</button>
-      <button @click="editor.chain().focus().redo().run()" title="重做 (Ctrl+Y)" :disabled="!editor.can().redo()">↷</button>
-      <div class="toolbar-divider"></div>
-
-      <!-- ═══════ 组1：字体 ═══════ -->
-      <select class="toolbar-select" @change="setFontFamily($event.target.value)" title="字体" style="width:90px">
-        <option value="">字体</option>
-        <option value="宋体" style="font-family:SimSun,宋体">宋体</option>
-        <option value="黑体" style="font-family:SimHei,黑体">黑体</option>
-        <option value="楷体" style="font-family:KaiTi,楷体">楷体</option>
-        <option value="仿宋" style="font-family:FangSong,仿宋">仿宋</option>
-        <option value="微软雅黑" style="font-family:Microsoft YaHei,微软雅黑">微软雅黑</option>
-        <option value="Times New Roman" style="font-family:Times New Roman">Times New Roman</option>
-        <option value="Arial" style="font-family:Arial">Arial</option>
-      </select>
-
-      <select class="toolbar-select toolbar-select--sm" @change="setFontSize($event.target.value)" title="字号" style="width:58px">
-        <option value="">字号</option>
-        <option value="42pt">初号</option>
-        <option value="36pt">小初</option>
-        <option value="26pt">一号</option>
-        <option value="24pt">小一</option>
-        <option value="22pt">二号</option>
-        <option value="18pt">小二</option>
-        <option value="16pt">三号</option>
-        <option value="15pt">小三</option>
-        <option value="14pt">四号</option>
-        <option value="12pt">小四</option>
-        <option value="10.5pt">五号</option>
-        <option value="9pt">小五</option>
-        <option value="7.5pt">六号</option>
-        <option value="5.5pt">七号</option>
-      </select>
-
-      <button @click="changeFontSize(1)" title="增大字号">A⁺</button>
-      <button @click="changeFontSize(-1)" title="减小字号">A⁻</button>
-
-      <button @click="editor.chain().focus().clearNodes().unsetAllMarks().run()" title="清除格式">
-        <span style="text-decoration:line-through;">T</span><sub>x</sub>
-      </button>
-      <div class="toolbar-divider"></div>
-
-      <!-- 加粗/斜体/下划线/删除线 -->
-      <button @click="editor.chain().focus().toggleBold().run()" :class="{ 'is-active': editor.isActive('bold') }" title="加粗 (Ctrl+B)"><strong>B</strong></button>
-      <button @click="editor.chain().focus().toggleItalic().run()" :class="{ 'is-active': editor.isActive('italic') }" title="斜体 (Ctrl+I)"><em>I</em></button>
-      <button @click="editor.chain().focus().toggleUnderline().run()" :class="{ 'is-active': editor.isActive('underline') }" title="下划线 (Ctrl+U)"><u>U</u></button>
-      <button @click="editor.chain().focus().toggleStrike().run()" :class="{ 'is-active': editor.isActive('strike') }" title="删除线"><s>S</s></button>
-      <button @click="editor.chain().focus().toggleEmphasisDot().run()" :class="{ 'is-active': editor.isActive('emphasisDot') }" title="加点字/着重号" style="font-weight:bold;color:#d32f2f;">··</button>
-      <div class="toolbar-divider"></div>
-
-      <!-- 上标/下标 -->
-      <button @click="editor.chain().focus().toggleSuperscript().run()" :class="{ 'is-active': editor.isActive('superscript') }" title="上标">X²</button>
-      <button @click="editor.chain().focus().toggleSubscript().run()" :class="{ 'is-active': editor.isActive('subscript') }" title="下标">X₂</button>
-      <div class="toolbar-divider"></div>
-
-      <!-- 文字颜色 / 高亮 -->
-      <div class="color-picker-wrapper">
-        <button class="color-btn" title="文字颜色" :style="{ borderBottomColor: currentTextColor }">
-          <span class="color-letter" :style="{ color: currentTextColor }">A</span>
+        <!-- ═══════ 组0：剪贴板 ═══════ -->
+        <button
+          title="撤销 (Ctrl+Z)"
+          :disabled="!editor.can().undo()"
+          @click="editor.chain().focus().undo().run()"
+        >
+          ↶
         </button>
-        <input type="color" class="color-input" @input="setTextColor($event.target.value)" :value="currentTextColor" title="选择文字颜色" />
-      </div>
-      <button @click="editor.chain().focus().toggleHighlight().run()" :class="{ 'is-active': editor.isActive('highlight') }" title="高亮">🖍</button>
+        <button
+          title="重做 (Ctrl+Y)"
+          :disabled="!editor.can().redo()"
+          @click="editor.chain().focus().redo().run()"
+        >
+          ↷
+        </button>
+        <div class="toolbar-divider" />
 
-      <!-- 字符边框 -->
-      <button @click="editor.chain().focus().toggleTextBorder().run()" :class="{ 'is-active': editor.isActive('textBorder') }" title="字符边框">□</button>
+        <!-- ═══════ 组1：字体 ═══════ -->
+        <select
+          class="toolbar-select"
+          title="字体"
+          style="width:90px"
+          @change="setFontFamily($event.target.value)"
+        >
+          <option value="">
+            字体
+          </option>
+          <option
+            value="宋体"
+            style="font-family:SimSun,宋体"
+          >
+            宋体
+          </option>
+          <option
+            value="黑体"
+            style="font-family:SimHei,黑体"
+          >
+            黑体
+          </option>
+          <option
+            value="楷体"
+            style="font-family:KaiTi,楷体"
+          >
+            楷体
+          </option>
+          <option
+            value="仿宋"
+            style="font-family:FangSong,仿宋"
+          >
+            仿宋
+          </option>
+          <option
+            value="微软雅黑"
+            style="font-family:Microsoft YaHei,微软雅黑"
+          >
+            微软雅黑
+          </option>
+          <option
+            value="Times New Roman"
+            style="font-family:Times New Roman"
+          >
+            Times New Roman
+          </option>
+          <option
+            value="Arial"
+            style="font-family:Arial"
+          >
+            Arial
+          </option>
+        </select>
 
-      <!-- 字符底纹 -->
-      <button @click="editor.chain().focus().toggleTextShading().run()" :class="{ 'is-active': editor.isActive('textShading') }" title="字符底纹">⬛</button>
+        <select
+          class="toolbar-select toolbar-select--sm"
+          title="字号"
+          style="width:58px"
+          @change="setFontSize($event.target.value)"
+        >
+          <option value="">
+            字号
+          </option>
+          <option value="42pt">
+            初号
+          </option>
+          <option value="36pt">
+            小初
+          </option>
+          <option value="26pt">
+            一号
+          </option>
+          <option value="24pt">
+            小一
+          </option>
+          <option value="22pt">
+            二号
+          </option>
+          <option value="18pt">
+            小二
+          </option>
+          <option value="16pt">
+            三号
+          </option>
+          <option value="15pt">
+            小三
+          </option>
+          <option value="14pt">
+            四号
+          </option>
+          <option value="12pt">
+            小四
+          </option>
+          <option value="10.5pt">
+            五号
+          </option>
+          <option value="9pt">
+            小五
+          </option>
+          <option value="7.5pt">
+            六号
+          </option>
+          <option value="5.5pt">
+            七号
+          </option>
+        </select>
 
-      <!-- 格式刷 -->
-      <button @click="toggleFormatPainter" :class="{ 'is-active': formatPainterActive }" title="格式刷">🖌</button>
-      <div class="toolbar-divider"></div>
+        <button
+          title="增大字号"
+          @click="changeFontSize(1)"
+        >
+          A⁺
+        </button>
+        <button
+          title="减小字号"
+          @click="changeFontSize(-1)"
+        >
+          A⁻
+        </button>
 
-      <!-- ═══════ 组2：段落 ═══════ -->
-      <!-- 样式（含标题 + 正文缩进变体） -->
-      <select class="toolbar-select" @change="setParagraphStyle($event.target.value)" :value="currentStyle" title="样式 | 正文=默认缩进 | 正文无=无缩进 | 正文4=缩进4字符">
-        <option value="paragraph">正文</option>
-        <option value="paragraph-noindent">正文 · 无缩进</option>
-        <option value="paragraph-indent4">正文 · 4字符</option>
-        <optgroup label="── 标题 ──"></optgroup>
-        <option value="1">标题 1</option>
-        <option value="2">标题 2</option>
-        <option value="3">标题 3</option>
-        <option value="4">标题 4</option>
-      </select>
-      <div class="toolbar-divider"></div>
+        <button
+          title="清除格式"
+          @click="editor.chain().focus().clearNodes().unsetAllMarks().run()"
+        >
+          <span style="text-decoration:line-through;">T</span><sub>x</sub>
+        </button>
+        <div class="toolbar-divider" />
 
-      <!-- 列表 -->
-      <button @click="toggleBulletListKeepMarkers" :class="{ 'is-active': editor.isActive('bulletList') }" title="项目符号（再点一次转文本）">•≡</button>
-      <select class="toolbar-select toolbar-select--sm" v-model="bulletMarker" title="项目符号形式" style="width:42px">
-        <option value="• ">•</option>
-        <option value="○ ">○</option>
-        <option value="▪ ">▪</option>
-        <option value="✎ ">✎</option>
-        <option value="√ ">√</option>
-      </select>
-      <button @click="toggleOrderedListKeepMarkers" :class="{ 'is-active': editor.isActive('orderedList') && !isAlphaOrderedList }" title="数字编号（再点一次转文本）">1.</button>
-      <button @click="convertAlphaListToText" :class="{ 'is-active': isAlphaOrderedList }" title="字母编号转文本（a. b. c.）">{{ alphaCase }}.</button>
-      <select class="toolbar-select toolbar-select--sm" v-model="alphaCase" title="字母编号大小写" style="width:44px">
-        <option value="a">a.</option>
-        <option value="A">A.</option>
-      </select>
-      <div class="toolbar-divider"></div>
+        <!-- 加粗/斜体/下划线/删除线 -->
+        <button
+          :class="{ 'is-active': editor.isActive('bold') }"
+          title="加粗 (Ctrl+B)"
+          @click="editor.chain().focus().toggleBold().run()"
+        >
+          <strong>B</strong>
+        </button>
+        <button
+          :class="{ 'is-active': editor.isActive('italic') }"
+          title="斜体 (Ctrl+I)"
+          @click="editor.chain().focus().toggleItalic().run()"
+        >
+          <em>I</em>
+        </button>
+        <button
+          :class="{ 'is-active': editor.isActive('underline') }"
+          title="下划线 (Ctrl+U)"
+          @click="editor.chain().focus().toggleUnderline().run()"
+        >
+          <u>U</u>
+        </button>
+        <button
+          :class="{ 'is-active': editor.isActive('strike') }"
+          title="删除线"
+          @click="editor.chain().focus().toggleStrike().run()"
+        >
+          <s>S</s>
+        </button>
+        <button
+          :class="{ 'is-active': editor.isActive('emphasisDot') }"
+          title="加点字/着重号"
+          style="font-weight:bold;color:#d32f2f;"
+          @click="editor.chain().focus().toggleEmphasisDot().run()"
+        >
+          ··
+        </button>
+        <div class="toolbar-divider" />
 
-      <!-- 缩进微调 -->
-      <button @click="decreaseIndent" title="减少缩进">↞</button>
-      <button @click="increaseIndent" title="增加缩进">↠</button>
-      <div class="toolbar-divider"></div>
+        <!-- 上标/下标 -->
+        <button
+          :class="{ 'is-active': editor.isActive('superscript') }"
+          title="上标"
+          @click="editor.chain().focus().toggleSuperscript().run()"
+        >
+          X²
+        </button>
+        <button
+          :class="{ 'is-active': editor.isActive('subscript') }"
+          title="下标"
+          @click="editor.chain().focus().toggleSubscript().run()"
+        >
+          X₂
+        </button>
+        <div class="toolbar-divider" />
 
-      <!-- 对齐 -->
-      <button @click="editor.chain().focus().setTextAlign('left').run()" :class="{ 'is-active': editor.isActive({ textAlign: 'left' }) }" title="左对齐">⫷</button>
-      <button @click="editor.chain().focus().setTextAlign('center').run()" :class="{ 'is-active': editor.isActive({ textAlign: 'center' }) }" title="居中">⬌</button>
-      <button @click="editor.chain().focus().setTextAlign('right').run()" :class="{ 'is-active': editor.isActive({ textAlign: 'right' }) }" title="右对齐">⫸</button>
-      <button @click="editor.chain().focus().setTextAlign('justify').run()" :class="{ 'is-active': editor.isActive({ textAlign: 'justify' }) }" title="两端对齐">⊞</button>
-      <button @click="setDistributedAlign" :class="{ 'is-active': isDistributedActive }" title="分散对齐">⊡</button>
-      <div class="toolbar-divider"></div>
+        <!-- 文字颜色 / 高亮 -->
+        <div class="color-picker-wrapper">
+          <button
+            class="color-btn"
+            title="文字颜色"
+            :style="{ borderBottomColor: currentTextColor }"
+          >
+            <span
+              class="color-letter"
+              :style="{ color: currentTextColor }"
+            >A</span>
+          </button>
+          <input
+            type="color"
+            class="color-input"
+            :value="currentTextColor"
+            title="选择文字颜色"
+            @input="setTextColor($event.target.value)"
+          >
+        </div>
+        <button
+          :class="{ 'is-active': editor.isActive('highlight') }"
+          title="高亮"
+          @click="editor.chain().focus().toggleHighlight().run()"
+        >
+          🖍
+        </button>
 
-      <!-- 行距 -->
-      <select class="toolbar-select toolbar-select--sm" @change="setLineSpacing($event.target.value)" title="行距" style="width:56px">
-        <option value="">行距</option>
-        <option value="1">1.0</option>
-        <option value="1.15">1.15</option>
-        <option value="1.5">1.5</option>
-        <option value="2">2.0</option>
-        <option value="2.5">2.5</option>
-        <option value="3">3.0</option>
-      </select>
-      <div class="toolbar-divider"></div>
+        <!-- 字符边框 -->
+        <button
+          :class="{ 'is-active': editor.isActive('textBorder') }"
+          title="字符边框"
+          @click="editor.chain().focus().toggleTextBorder().run()"
+        >
+          □
+        </button>
 
-      <!-- ═══════ 组3：插入 ═══════ -->
-      <button @click="insertTable" title="插入表格">📊</button>
-      <button @click="triggerImageUpload" title="插入图片">🖼</button>
-      <button @click="editor.chain().focus().setHorizontalRule().run()" title="分割线">—</button>
-      <button @click="editor.chain().focus().setPageBreak().run()" title="分页符">⏎</button>
-      <input ref="imageInput" type="file" accept="image/*" style="display:none" @change="onImageUpload" />
+        <!-- 字符底纹 -->
+        <button
+          :class="{ 'is-active': editor.isActive('textShading') }"
+          title="字符底纹"
+          @click="editor.chain().focus().toggleTextShading().run()"
+        >
+          ⬛
+        </button>
 
-      <!-- 缩放指示器 -->
-      <span class="zoom-indicator" @click="resetZoom" :title="`缩放 ${zoomLevel}% | Ctrl+滚轮调节 | 点击重置`">{{ zoomLevel }}%</span>
+        <!-- 格式刷 -->
+        <button
+          :class="{ 'is-active': formatPainterActive }"
+          title="格式刷"
+          @click="toggleFormatPainter"
+        >
+          🖌
+        </button>
+        <div class="toolbar-divider" />
+
+        <!-- ═══════ 组2：段落 ═══════ -->
+        <!-- 样式（含标题 + 正文缩进变体） -->
+        <select
+          class="toolbar-select"
+          :value="currentStyle"
+          title="样式 | 正文=默认缩进 | 正文无=无缩进 | 正文4=缩进4字符"
+          @change="setParagraphStyle($event.target.value)"
+        >
+          <option value="paragraph">
+            正文
+          </option>
+          <option value="paragraph-noindent">
+            正文 · 无缩进
+          </option>
+          <option value="paragraph-indent4">
+            正文 · 4字符
+          </option>
+          <optgroup label="── 标题 ──" />
+          <option value="1">
+            标题 1
+          </option>
+          <option value="2">
+            标题 2
+          </option>
+          <option value="3">
+            标题 3
+          </option>
+          <option value="4">
+            标题 4
+          </option>
+        </select>
+        <div class="toolbar-divider" />
+
+        <!-- 列表 -->
+        <button
+          :class="{ 'is-active': editor.isActive('bulletList') }"
+          title="项目符号（再点一次转文本）"
+          @click="toggleBulletListKeepMarkers"
+        >
+          •≡
+        </button>
+        <select
+          v-model="bulletMarker"
+          class="toolbar-select toolbar-select--sm"
+          title="项目符号形式"
+          style="width:42px"
+        >
+          <option value="• ">
+            •
+          </option>
+          <option value="○ ">
+            ○
+          </option>
+          <option value="▪ ">
+            ▪
+          </option>
+          <option value="✎ ">
+            ✎
+          </option>
+          <option value="√ ">
+            √
+          </option>
+        </select>
+        <button
+          :class="{ 'is-active': editor.isActive('orderedList') && !isAlphaOrderedList }"
+          title="数字编号（再点一次转文本）"
+          @click="toggleOrderedListKeepMarkers"
+        >
+          1.
+        </button>
+        <button
+          :class="{ 'is-active': isAlphaOrderedList }"
+          title="字母编号转文本（a. b. c.）"
+          @click="convertAlphaListToText"
+        >
+          {{ alphaCase }}.
+        </button>
+        <select
+          v-model="alphaCase"
+          class="toolbar-select toolbar-select--sm"
+          title="字母编号大小写"
+          style="width:44px"
+        >
+          <option value="a">
+            a.
+          </option>
+          <option value="A">
+            A.
+          </option>
+        </select>
+        <div class="toolbar-divider" />
+
+        <!-- 缩进微调 -->
+        <button
+          title="减少缩进"
+          @click="decreaseIndent"
+        >
+          ↞
+        </button>
+        <button
+          title="增加缩进"
+          @click="increaseIndent"
+        >
+          ↠
+        </button>
+        <div class="toolbar-divider" />
+
+        <!-- 对齐 -->
+        <button
+          :class="{ 'is-active': editor.isActive({ textAlign: 'left' }) }"
+          title="左对齐"
+          @click="editor.chain().focus().setTextAlign('left').run()"
+        >
+          ⫷
+        </button>
+        <button
+          :class="{ 'is-active': editor.isActive({ textAlign: 'center' }) }"
+          title="居中"
+          @click="editor.chain().focus().setTextAlign('center').run()"
+        >
+          ⬌
+        </button>
+        <button
+          :class="{ 'is-active': editor.isActive({ textAlign: 'right' }) }"
+          title="右对齐"
+          @click="editor.chain().focus().setTextAlign('right').run()"
+        >
+          ⫸
+        </button>
+        <button
+          :class="{ 'is-active': editor.isActive({ textAlign: 'justify' }) }"
+          title="两端对齐"
+          @click="editor.chain().focus().setTextAlign('justify').run()"
+        >
+          ⊞
+        </button>
+        <button
+          :class="{ 'is-active': isDistributedActive }"
+          title="分散对齐"
+          @click="setDistributedAlign"
+        >
+          ⊡
+        </button>
+        <div class="toolbar-divider" />
+
+        <!-- 行距 -->
+        <select
+          class="toolbar-select toolbar-select--sm"
+          title="行距"
+          style="width:56px"
+          @change="setLineSpacing($event.target.value)"
+        >
+          <option value="">
+            行距
+          </option>
+          <option value="1">
+            1.0
+          </option>
+          <option value="1.15">
+            1.15
+          </option>
+          <option value="1.5">
+            1.5
+          </option>
+          <option value="2">
+            2.0
+          </option>
+          <option value="2.5">
+            2.5
+          </option>
+          <option value="3">
+            3.0
+          </option>
+        </select>
+        <div class="toolbar-divider" />
+
+        <!-- ═══════ 组3：插入 ═══════ -->
+        <button
+          title="插入表格"
+          @click="insertTable"
+        >
+          📊
+        </button>
+        <button
+          title="插入图片"
+          @click="triggerImageUpload"
+        >
+          🖼
+        </button>
+        <button
+          title="分割线"
+          @click="editor.chain().focus().setHorizontalRule().run()"
+        >
+          —
+        </button>
+        <button
+          title="分页符"
+          @click="editor.chain().focus().setPageBreak().run()"
+        >
+          ⏎
+        </button>
+        <input
+          ref="imageInput"
+          type="file"
+          accept="image/*"
+          style="display:none"
+          @change="onImageUpload"
+        >
+
+        <!-- 缩放指示器 -->
+        <span
+          class="zoom-indicator"
+          :title="`缩放 ${zoomLevel}% | Ctrl+滚轮调节 | 点击重置`"
+          @click="resetZoom"
+        >{{ zoomLevel }}%</span>
       </div>
     </div>
 
     <!-- 缩放容器：Ctrl+滚轮缩放编辑区 -->
-    <div class="editor-zoom-wrap" ref="zoomWrapRef" :class="{ 'painter-active': formatPainterActive }">
+    <div
+      ref="zoomWrapRef"
+      class="editor-zoom-wrap"
+      :class="{ 'painter-active': formatPainterActive }"
+    >
       <editor-content :editor="editor" />
     </div>
   </div>

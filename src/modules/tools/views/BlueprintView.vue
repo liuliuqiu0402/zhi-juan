@@ -10,132 +10,374 @@
         <span class="ov-sep">·</span>
         <span class="chip-label">真题蓝本</span>
         <span class="st-chips">
-          <button class="st-chip" :class="{ sel: examFilter === 'all' }" @click="examFilter = 'all'">全部 {{ examCounts.total }}</button>
-          <button class="st-chip on" :class="{ sel: examFilter === 'on' }" @click="examFilter = 'on'">启用 {{ examCounts.on }}</button>
-          <button class="st-chip off" :class="{ sel: examFilter === 'off' }" @click="examFilter = 'off'">停用 {{ examCounts.off }}</button>
+          <button
+            class="st-chip"
+            :class="{ sel: examFilter === 'all' }"
+            @click="examFilter = 'all'"
+          >全部 {{ examCounts.total }}</button>
+          <button
+            class="st-chip on"
+            :class="{ sel: examFilter === 'on' }"
+            @click="examFilter = 'on'"
+          >启用 {{ examCounts.on }}</button>
+          <button
+            class="st-chip off"
+            :class="{ sel: examFilter === 'off' }"
+            @click="examFilter = 'off'"
+          >停用 {{ examCounts.off }}</button>
         </span>
         <span class="ov-sep">·</span>
         <span class="chip-label">教辅结构</span>
         <span class="st-chips">
-          <button class="st-chip" :class="{ sel: teachFilter === 'all' }" @click="teachFilter = 'all'">全部 {{ teachCounts.total }}</button>
-          <button class="st-chip on" :class="{ sel: teachFilter === 'on' }" @click="teachFilter = 'on'">启用 {{ teachCounts.on }}</button>
-          <button class="st-chip off" :class="{ sel: teachFilter === 'off' }" @click="teachFilter = 'off'">停用 {{ teachCounts.off }}</button>
+          <button
+            class="st-chip"
+            :class="{ sel: teachFilter === 'all' }"
+            @click="teachFilter = 'all'"
+          >全部 {{ teachCounts.total }}</button>
+          <button
+            class="st-chip on"
+            :class="{ sel: teachFilter === 'on' }"
+            @click="teachFilter = 'on'"
+          >启用 {{ teachCounts.on }}</button>
+          <button
+            class="st-chip off"
+            :class="{ sel: teachFilter === 'off' }"
+            @click="teachFilter = 'off'"
+          >停用 {{ teachCounts.off }}</button>
         </span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="dim-now">
-          <span class="dimb" :title="dims.stage ? STAGE_LABELS[dims.stage] : '全部学段'">{{ dims.stage ? SHORT_STAGE[dims.stage] : '全部学段' }}</span>
+          <span
+            class="dimb"
+            :title="dims.stage ? STAGE_LABELS[dims.stage] : '全部学段'"
+          >{{ dims.stage ? SHORT_STAGE[dims.stage] : '全部学段' }}</span>
           <span class="dimb">{{ dims.subject || '全部学科' }}</span>
           <span class="dimb">{{ dims.genType ? GEN_TYPE_LABELS[dims.genType] : '全部类型' }}</span>
         </div>
-        <select v-model="previewRegion" class="preview-select" :title="'省市预览：列表按所选省市中考总分/时长覆盖显示（不改存储的基础蓝本）'">
-          <option value="">不预览（基础蓝本）</option>
-          <option v-for="r in EXAM_REGION_OPTIONS" :key="r" :value="r">{{ r }}</option>
+        <select
+          v-model="previewRegion"
+          class="preview-select"
+          :title="'省市预览：列表按所选省市中考总分/时长覆盖显示（不改存储的基础蓝本）'"
+        >
+          <option value="">
+            不预览（基础蓝本）
+          </option>
+          <option
+            v-for="r in EXAM_REGION_OPTIONS"
+            :key="r"
+            :value="r"
+          >
+            {{ r }}
+          </option>
         </select>
-        <button class="btn" @click="openRegionModal">🏙 省市分值维护</button>
-        <button class="btn-p" @click="openNew">＋ 新增蓝本</button>
-        <button class="btn" @click="doExport">📤 导出</button>
-        <button class="btn" @click="importInput?.click()">📥 导入</button>
-        <input ref="importInput" type="file" accept=".json" style="display:none" @change="doImport" />
+        <button
+          class="btn"
+          @click="openRegionModal"
+        >
+          🏙 省市分值维护
+        </button>
+        <button
+          class="btn-p"
+          @click="openNew"
+        >
+          ＋ 新增蓝本
+        </button>
+        <button
+          class="btn"
+          @click="doExport"
+        >
+          📤 导出
+        </button>
+        <button
+          class="btn"
+          @click="importInput?.click()"
+        >
+          📥 导入
+        </button>
+        <input
+          ref="importInput"
+          type="file"
+          accept=".json"
+          style="display:none"
+          @change="doImport"
+        >
       </div>
     </div>
 
     <!-- 校验结果 -->
-    <div class="bp-validate" v-if="validateResults.length">
-      <div class="v-head">🔍 blueprintGuard 静态校验（含用户自定义蓝本）</div>
-      <div v-for="(r, i) in validateResults" :key="i" class="v-item" :class="`sev-${r.severity}`">
+    <div
+      v-if="validateResults.length"
+      class="bp-validate"
+    >
+      <div class="v-head">
+        🔍 blueprintGuard 静态校验（含用户自定义蓝本）
+      </div>
+      <div
+        v-for="(r, i) in validateResults"
+        :key="i"
+        class="v-item"
+        :class="`sev-${r.severity}`"
+      >
         <span class="v-code">{{ r.code }}</span> {{ r.detail }}
       </div>
     </div>
-    <div class="bp-validate ok" v-else>✅ blueprintGuard 静态校验全部通过（当前筛选范围）</div>
+    <div
+      v-else
+      class="bp-validate ok"
+    >
+      ✅ blueprintGuard 静态校验全部通过（当前筛选范围）
+    </div>
 
     <!-- 真题蓝本（手风琴） -->
-    <h4 class="bp-h">📐 真题蓝本（exam）<span class="hint">点击名称展开/收起 · 展开后可编辑</span></h4>
-    <div v-if="examList.length" class="bp-list">
-      <div v-for="bp in examList" :key="bp.key" class="bp-card" :class="{ open: openKey === bp.key, editing: editingKey === bp.key, disabled: bpOff(bp.key) }">
+    <h4 class="bp-h">
+      📐 真题蓝本（exam）<span class="hint">点击名称展开/收起 · 展开后可编辑</span>
+    </h4>
+    <div
+      v-if="examList.length"
+      class="bp-list"
+    >
+      <div
+        v-for="bp in examList"
+        :key="bp.key"
+        class="bp-card"
+        :class="{ open: openKey === bp.key, editing: editingKey === bp.key, disabled: bpOff(bp.key) }"
+      >
         <!-- 卡片头：点击切换展开 -->
-        <div class="bp-head" @click="toggle(bp.key)">
+        <div
+          class="bp-head"
+          @click="toggle(bp.key)"
+        >
           <span class="arrow">{{ openKey === bp.key ? '▾' : '▸' }}</span>
           <span class="lib-tag">📐 蓝图库</span>
           <span class="dim-name">{{ dimName(bp) }}</span>
-          <span class="key-hint" :title="'数据键：' + bp.key">{{ bp.key }}</span>
-          <span v-if="bp.source === 'user'" class="src-user">已自定义</span>
+          <span
+            class="key-hint"
+            :title="'数据键：' + bp.key"
+          >{{ bp.key }}</span>
+          <span
+            v-if="bp.source === 'user'"
+            class="src-user"
+          >已自定义</span>
           <span class="bp-meta">{{ bp.fullScore }} 分 · {{ bp.duration }} · {{ bp.sections.length }} 大题</span>
-          <span v-if="previewRegion" class="preview-tag">预览·{{ previewRegion }}（已覆盖，仅显示）</span>
-          <label class="sw" :class="{ off: bpOff(bp.key) }" @click.stop title="停用后该条目不参与生成（exam 走密封线兜底）">
-            <input type="checkbox" :checked="!bpOff(bp.key)" @change="toggleBp(bp.key, $event.target.checked)" />
+          <span
+            v-if="previewRegion"
+            class="preview-tag"
+          >预览·{{ previewRegion }}（已覆盖，仅显示）</span>
+          <label
+            class="sw"
+            :class="{ off: bpOff(bp.key) }"
+            title="停用后该条目不参与生成（exam 走密封线兜底）"
+            @click.stop
+          >
+            <input
+              type="checkbox"
+              :checked="!bpOff(bp.key)"
+              @change="toggleBp(bp.key, $event.target.checked)"
+            >
             <span>{{ bpOff(bp.key) ? '已停用' : '启用' }}</span>
           </label>
         </div>
 
         <!-- 展开态：浏览 -->
-        <div v-if="openKey === bp.key && editingKey !== bp.key" class="bp-body">
+        <div
+          v-if="openKey === bp.key && editingKey !== bp.key"
+          class="bp-body"
+        >
           <div class="bp-secs">
-            <div v-for="(s, i) in bp.sections" :key="i" class="bp-sec">
+            <div
+              v-for="(s, i) in bp.sections"
+              :key="i"
+              class="bp-sec"
+            >
               <span class="sec-no">{{ '一二三四五六七八九十'[i] }}</span>
               <span class="sec-name">{{ s.name }}</span>
               <span class="sec-score">{{ s.score }}分</span>
               <span class="sec-note">{{ s.note }}</span>
               <span class="carriers">
-                <span v-for="c in s.carriers" :key="c" class="car" :class="`c-${c}`">{{ CARRIER_LABELS[c] }}</span>
+                <span
+                  v-for="c in s.carriers"
+                  :key="c"
+                  class="car"
+                  :class="`c-${c}`"
+                >{{ CARRIER_LABELS[c] }}</span>
               </span>
             </div>
-            <div v-if="!bp.sections.length" class="bp-empty">暂无大题（点「编辑」添加）</div>
+            <div
+              v-if="!bp.sections.length"
+              class="bp-empty"
+            >
+              暂无大题（点「编辑」添加）
+            </div>
           </div>
           <div class="bp-ops">
-          <button class="btn" @click="startEdit(bp)">✏️ 编辑</button>
-          <button class="btn" @click="copyBp(bp)">📋 复制</button>
-          <button v-if="bp.source === 'user'" class="btn danger" @click="removeBp(bp)">🗑️ 删除自定义</button>
-          <button v-if="bp.source === 'user'" class="btn" @click="removeBp(bp, true)">↩️ 重置为内置</button>
-        </div>
+            <button
+              class="btn"
+              @click="startEdit(bp)"
+            >
+              ✏️ 编辑
+            </button>
+            <button
+              class="btn"
+              @click="copyBp(bp)"
+            >
+              📋 复制
+            </button>
+            <button
+              v-if="bp.source === 'user'"
+              class="btn danger"
+              @click="removeBp(bp)"
+            >
+              🗑️ 删除自定义
+            </button>
+            <button
+              v-if="bp.source === 'user'"
+              class="btn"
+              @click="removeBp(bp, true)"
+            >
+              ↩️ 重置为内置
+            </button>
+          </div>
         </div>
 
         <!-- 编辑态 -->
-        <div v-if="editingKey === bp.key" class="bp-edit">
+        <div
+          v-if="editingKey === bp.key"
+          class="bp-edit"
+        >
           <div class="edit-grid">
-            <label>名称 <input v-model="draft.label" placeholder="蓝本名称" /></label>
-            <label>满分 <input v-model.number="draft.fullScore" type="number" /></label>
-            <label>时长 <input v-model="draft.duration" placeholder="如 60分钟" /></label>
+            <label>名称 <input
+              v-model="draft.label"
+              placeholder="蓝本名称"
+            ></label>
+            <label>满分 <input
+              v-model.number="draft.fullScore"
+              type="number"
+            ></label>
+            <label>时长 <input
+              v-model="draft.duration"
+              placeholder="如 60分钟"
+            ></label>
           </div>
           <div class="edit-secs">
-            <div v-for="(s, i) in draft.sections" :key="i" class="edit-sec">
+            <div
+              v-for="(s, i) in draft.sections"
+              :key="i"
+              class="edit-sec"
+            >
               <span class="sec-no">{{ '一二三四五六七八九十'[i] }}</span>
-              <input v-model="s.name" class="in-name" placeholder="大题名" />
-              <input v-model.number="s.score" type="number" class="in-score" placeholder="分值" />
-              <textarea v-model="s.note" rows="2" placeholder="命题要求/内容底线"></textarea>
-              <button class="btn x" @click="removeSection(i)">✕</button>
+              <input
+                v-model="s.name"
+                class="in-name"
+                placeholder="大题名"
+              >
+              <input
+                v-model.number="s.score"
+                type="number"
+                class="in-score"
+                placeholder="分值"
+              >
+              <textarea
+                v-model="s.note"
+                rows="2"
+                placeholder="命题要求/内容底线"
+              />
+              <button
+                class="btn x"
+                @click="removeSection(i)"
+              >
+                ✕
+              </button>
             </div>
-            <button class="btn add" @click="addSection">＋ 添加大题</button>
+            <button
+              class="btn add"
+              @click="addSection"
+            >
+              ＋ 添加大题
+            </button>
           </div>
           <div class="bp-ops">
-            <button class="btn-p" @click="saveDraft(bp.key)">💾 保存</button>
-            <button class="btn" @click="cancelEdit">取消</button>
+            <button
+              class="btn-p"
+              @click="saveDraft(bp.key)"
+            >
+              💾 保存
+            </button>
+            <button
+              class="btn"
+              @click="cancelEdit"
+            >
+              取消
+            </button>
           </div>
         </div>
       </div>
     </div>
-    <div v-else class="bp-empty">当前筛选无真题蓝本（可放宽筛选）</div>
+    <div
+      v-else
+      class="bp-empty"
+    >
+      当前筛选无真题蓝本（可放宽筛选）
+    </div>
 
     <!-- 教辅结构（手风琴只读） -->
-    <h4 class="bp-h">📚 教辅结构（学科 × 8 类）<span class="hint">点击展开查看栏目与学段参数 · 已定制显示学科版栏目，未定制回退通用模板</span></h4>
-    <div v-if="teachList.length" class="bp-list teach">
-      <div v-for="bp in teachList" :key="bp.key" class="bp-card" :class="{ open: openTeach === bp.key, disabled: bpOff(bp.key) }">
-        <div class="bp-head" @click="toggleTeach(bp.key)">
+    <h4 class="bp-h">
+      📚 教辅结构（学科 × 8 类）<span class="hint">点击展开查看栏目与学段参数 · 已定制显示学科版栏目，未定制回退通用模板</span>
+    </h4>
+    <div
+      v-if="teachList.length"
+      class="bp-list teach"
+    >
+      <div
+        v-for="bp in teachList"
+        :key="bp.key"
+        class="bp-card"
+        :class="{ open: openTeach === bp.key, disabled: bpOff(bp.key) }"
+      >
+        <div
+          class="bp-head"
+          @click="toggleTeach(bp.key)"
+        >
           <span class="arrow">{{ openTeach === bp.key ? '▾' : '▸' }}</span>
           <span class="lib-tag">📚 蓝图库</span>
           <span class="dim-name">{{ teachDimName(bp) }}</span>
-          <span v-if="bp.custom" class="src-custom">学科定制</span>
-          <span v-else class="src-fallback">通用模板</span>
-          <span class="key-hint" :title="'数据键：' + bp.key">{{ bp.key }}</span>
+          <span
+            v-if="bp.custom"
+            class="src-custom"
+          >学科定制</span>
+          <span
+            v-else
+            class="src-fallback"
+          >通用模板</span>
+          <span
+            class="key-hint"
+            :title="'数据键：' + bp.key"
+          >{{ bp.key }}</span>
           <span class="bp-meta">{{ dims.stage ? `学段要求（${STAGE_LABELS[dims.stage]}）：${stageParam(bp).note || '—'}` : '5 学段要求 · 展开查看' }}</span>
-          <label class="sw" :class="{ off: bpOff(bp.key) }" @click.stop title="停用后此学科×类型不注入教辅结构（生成端按用户指令自由组织）">
-            <input type="checkbox" :checked="!bpOff(bp.key)" @change="toggleBp(bp.key, $event.target.checked)" />
+          <label
+            class="sw"
+            :class="{ off: bpOff(bp.key) }"
+            title="停用后此学科×类型不注入教辅结构（生成端按用户指令自由组织）"
+            @click.stop
+          >
+            <input
+              type="checkbox"
+              :checked="!bpOff(bp.key)"
+              @change="toggleBp(bp.key, $event.target.checked)"
+            >
             <span>{{ bpOff(bp.key) ? '已停用' : '启用' }}</span>
           </label>
         </div>
-        <div v-if="openTeach === bp.key" class="bp-body">
+        <div
+          v-if="openTeach === bp.key"
+          class="bp-body"
+        >
           <div class="bp-secs">
-            <div v-for="(s, i) in bp.sections" :key="i" class="bp-sec">
+            <div
+              v-for="(s, i) in bp.sections"
+              :key="i"
+              class="bp-sec"
+            >
               <span class="sec-no">{{ i + 1 }}</span>
               <span class="sec-name">{{ s.name }}</span>
               <span class="sec-note">{{ s.note }}</span>
@@ -143,78 +385,174 @@
           </div>
           <!-- 学段要求表：5 档全展示（生成时按所选学段注入对应档）；题量/篇幅底线由程序护栏校验，不注入 AI -->
           <div class="bp-stages">
-            <div class="stages-head">📌 学段要求（5 档 · 生成时按所选学段注入对应档）</div>
-            <div v-for="(p, sk) in bp.stages" :key="sk" class="stage-row" :class="{ cur: sk === (dims.stage || 'primary_mid') }">
+            <div class="stages-head">
+              📌 学段要求（5 档 · 生成时按所选学段注入对应档）
+            </div>
+            <div
+              v-for="(p, sk) in bp.stages"
+              :key="sk"
+              class="stage-row"
+              :class="{ cur: sk === (dims.stage || 'primary_mid') }"
+            >
               <span class="st-name">{{ STAGE_LABELS[sk] || sk }}</span>
               <span class="st-note">{{ p.note || '—' }}</span>
             </div>
-            <div class="stages-foot">题量/篇幅底线（{{ (bp.stages.primary_mid && bp.stages.primary_mid.volume) || '—' }} 等）由 teaching-volume-guard 生成后静默校验，不注入 AI；教辅无考试时长</div>
+            <div class="stages-foot">
+              题量/篇幅底线（{{ (bp.stages.primary_mid && bp.stages.primary_mid.volume) || '—' }} 等）由 teaching-volume-guard 生成后静默校验，不注入 AI；教辅无考试时长
+            </div>
           </div>
         </div>
       </div>
     </div>
-    <div v-else class="bp-empty">当前筛选无教辅结构（选 exam 时仅显示真题蓝本）</div>
+    <div
+      v-else
+      class="bp-empty"
+    >
+      当前筛选无教辅结构（选 exam 时仅显示真题蓝本）
+    </div>
 
     <!-- 🏙 省市分值维护弹窗（中考 · 初中；用户覆盖优先于内置，生成与预览即时生效） -->
-    <div v-if="showRegionModal" class="modal-mask" @click.self="showRegionModal = false">
+    <div
+      v-if="showRegionModal"
+      class="modal-mask"
+      @click.self="showRegionModal = false"
+    >
       <div class="modal-panel">
         <div class="modal-head">
           <span>🏙 省市分值维护（中考 · 初中）</span>
-          <button class="btn" @click="showRegionModal = false">✕</button>
+          <button
+            class="btn"
+            @click="showRegionModal = false"
+          >
+            ✕
+          </button>
         </div>
         <p class="modal-desc">
           内置各市中考卷总分/时长（各市中考总分 100-150 分不等）。修改后保存即覆盖（用户版优先），生成与面板"省市预览"即时生效；
           清空总分并保存可退回内置。高考全国统一 3+1+2、小学无地区差异，无需维护。
         </p>
         <div class="region-sel-row">
-          <select v-model="regionSel" class="filter-select">
-            <option value="">选择省市</option>
-            <option v-for="r in EXAM_REGION_OPTIONS" :key="r" :value="r">{{ r }}</option>
+          <select
+            v-model="regionSel"
+            class="filter-select"
+          >
+            <option value="">
+              选择省市
+            </option>
+            <option
+              v-for="r in EXAM_REGION_OPTIONS"
+              :key="r"
+              :value="r"
+            >
+              {{ r }}
+            </option>
           </select>
           <span class="filter-hint">{{ regionSel ? `已显示 ${regionSel} 初中各学科` : '请先选择省市' }}</span>
         </div>
-        <div v-if="regionSel" class="region-table">
+        <div
+          v-if="regionSel"
+          class="region-table"
+        >
           <div class="region-row region-row-head">
             <span>学科</span><span>内置总分</span><span>内置时长</span><span>覆盖总分</span><span>覆盖时长</span><span>操作</span>
           </div>
-          <div v-for="row in regionRows" :key="row.subject" class="region-row">
+          <div
+            v-for="row in regionRows"
+            :key="row.subject"
+            class="region-row"
+          >
             <span class="region-subject">{{ row.subject }}</span>
             <span class="region-cell">{{ row.builtin.fullScore || '—' }}</span>
             <span class="region-cell">{{ row.builtin.duration || '—' }}</span>
-            <input v-model.number="row.override.fullScore" class="filter-input region-input" type="number" min="1" max="300" :placeholder="row.builtin.fullScore || ''" />
-            <input v-model="row.override.duration" class="filter-input region-input" :placeholder="row.builtin.duration || ''" />
+            <input
+              v-model.number="row.override.fullScore"
+              class="filter-input region-input"
+              type="number"
+              min="1"
+              max="300"
+              :placeholder="row.builtin.fullScore || ''"
+            >
+            <input
+              v-model="row.override.duration"
+              class="filter-input region-input"
+              :placeholder="row.builtin.duration || ''"
+            >
             <span class="region-ops">
-              <button class="btn btn-sm" @click="saveRegionRow(row)" title="保存覆盖">💾</button>
-              <button v-if="row.hasOverride" class="btn btn-sm btn-remove" @click="removeRegionRow(row)" title="退回内置">↩️</button>
+              <button
+                class="btn btn-sm"
+                title="保存覆盖"
+                @click="saveRegionRow(row)"
+              >💾</button>
+              <button
+                v-if="row.hasOverride"
+                class="btn btn-sm btn-remove"
+                title="退回内置"
+                @click="removeRegionRow(row)"
+              >↩️</button>
             </span>
           </div>
         </div>
-        <p v-if="regionTip" class="region-tip">{{ regionTip }}</p>
+        <p
+          v-if="regionTip"
+          class="region-tip"
+        >
+          {{ regionTip }}
+        </p>
       </div>
     </div>
 
     <!-- 新建蓝本弹层 -->
-    <div v-if="newOpen" class="modal-mask" @click.self="newOpen = false">
+    <div
+      v-if="newOpen"
+      class="modal-mask"
+      @click.self="newOpen = false"
+    >
       <div class="modal">
         <h4>＋ 新增蓝本（自定义覆盖或新建）</h4>
         <div class="edit-grid">
           <label>学科
             <select v-model="newForm.subject">
-              <option value="" disabled>选择学科</option>
-              <option v-for="s in SUBJECT_KEYS" :key="s" :value="s">{{ s }}</option>
+              <option
+                value=""
+                disabled
+              >选择学科</option>
+              <option
+                v-for="s in SUBJECT_KEYS"
+                :key="s"
+                :value="s"
+              >{{ s }}</option>
             </select>
           </label>
           <label>学段
             <select v-model="newForm.stage">
-              <option v-for="(l, k) in STAGE_LABELS" :key="k" :value="k">{{ l }}</option>
+              <option
+                v-for="(l, k) in STAGE_LABELS"
+                :key="k"
+                :value="k"
+              >{{ l }}</option>
             </select>
           </label>
-          <label>资料类型 <input :value="'正式试卷（exam）'" disabled /></label>
+          <label>资料类型 <input
+            :value="'正式试卷（exam）'"
+            disabled
+          ></label>
         </div>
-        <p class="modal-tip">蓝本键 = 学科 | 学段（标准名，如 语文|primary_low）。生成时按「教材（学段+学科）+ 资料类型」精确检索，用户自定义版优先于内置。已自定义的蓝本可点「重置为内置」还原。</p>
+        <p class="modal-tip">
+          蓝本键 = 学科 | 学段（标准名，如 语文|primary_low）。生成时按「教材（学段+学科）+ 资料类型」精确检索，用户自定义版优先于内置。已自定义的蓝本可点「重置为内置」还原。
+        </p>
         <div class="bp-ops">
-          <button class="btn-p" @click="createBp">创建并编辑</button>
-          <button class="btn" @click="newOpen = false">取消</button>
+          <button
+            class="btn-p"
+            @click="createBp"
+          >
+            创建并编辑
+          </button>
+          <button
+            class="btn"
+            @click="newOpen = false"
+          >
+            取消
+          </button>
         </div>
       </div>
     </div>

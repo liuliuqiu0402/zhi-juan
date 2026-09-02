@@ -1,60 +1,101 @@
 <template>
-  <div class="app-container" :style="adaptiveScaleStyle">
+  <div
+    class="app-container"
+    :style="adaptiveScaleStyle"
+  >
     <!-- ==================== 激活验证 ==================== -->
-    <div v-if="activationStatus === 'checking' && !isWebMode" class="activation-overlay">
+    <div
+      v-if="activationStatus === 'checking' && !isWebMode"
+      class="activation-overlay"
+    >
       <div class="activation-loading">
-        <div class="loading-spinner"></div>
+        <div class="loading-spinner" />
         <p>正在验证激活状态...</p>
       </div>
     </div>
 
-    <div v-if="activationStatus === 'inactive' && !isWebMode" class="activation-overlay">
+    <div
+      v-if="activationStatus === 'inactive' && !isWebMode"
+      class="activation-overlay"
+    >
       <div class="activation-modal">
         <h2>📦 智卷工坊 · 激活</h2>
-        <p class="activation-desc">请输入激活码以继续使用</p>
+        <p class="activation-desc">
+          请输入激活码以继续使用
+        </p>
         
         <input
-          type="text"
           v-model="activationCode"
+          type="text"
           placeholder="请输入激活码"
           class="activation-input"
           @keyup.enter="activate"
-        />
+        >
         
         <div class="machine-id-display">
           <span>机器码：</span>
           <span class="machine-id-value">{{ machineId }}</span>
-          <span class="copy-machine-id" @click="copyMachineId">📋</span>
+          <span
+            class="copy-machine-id"
+            @click="copyMachineId"
+          >📋</span>
         </div>
         
-        <div v-if="activationError" class="activation-error">{{ activationError }}</div>
+        <div
+          v-if="activationError"
+          class="activation-error"
+        >
+          {{ activationError }}
+        </div>
         
         <div class="activation-actions">
-          <button class="btn btn-primary" @click="activate">激活</button>
+          <button
+            class="btn btn-primary"
+            @click="activate"
+          >
+            激活
+          </button>
         </div>
         
-        <p class="activation-hint">如需购买激活码，请联系客服</p>
+        <p class="activation-hint">
+          如需购买激活码，请联系客服
+        </p>
       </div>
     </div>
 
     <!-- ==================== 🔐 Web 端访问码验证 ==================== -->
-    <div v-if="showWebAuth" class="activation-overlay">
+    <div
+      v-if="showWebAuth"
+      class="activation-overlay"
+    >
       <div class="activation-modal">
         <h2>🔐 智卷工坊</h2>
-        <p class="activation-desc">请输入访问码以继续使用</p>
+        <p class="activation-desc">
+          请输入访问码以继续使用
+        </p>
         
         <input
-          type="password"
           v-model="webAccessCode"
+          type="password"
           placeholder="请输入访问码"
           class="activation-input"
           @keyup.enter="verifyWebAccess"
-        />
+        >
         
-        <div v-if="webAuthError" class="activation-error">{{ webAuthError }}</div>
+        <div
+          v-if="webAuthError"
+          class="activation-error"
+        >
+          {{ webAuthError }}
+        </div>
         
         <div class="activation-actions">
-          <button class="btn btn-primary" @click="verifyWebAccess">进入</button>
+          <button
+            class="btn btn-primary"
+            @click="verifyWebAccess"
+          >
+            进入
+          </button>
         </div>
         
         <p class="activation-hint">
@@ -64,24 +105,42 @@
     </div>
 
     <!-- ==================== 首次启动引导 ==================== -->
-    <div v-if="showGuideOverlay" class="guide-overlay" @click.self="closeGuide">
+    <div
+      v-if="showGuideOverlay"
+      class="guide-overlay"
+      @click.self="closeGuide"
+    >
       <div class="guide-card">
         <div class="guide-header">
           <span>🎉 欢迎使用智卷工坊</span>
-          <button class="icon-btn" @click="closeGuide">✕</button>
+          <button
+            class="icon-btn"
+            @click="closeGuide"
+          >
+            ✕
+          </button>
         </div>
         <div class="guide-body">
-          <div class="guide-step" v-show="guideStep === 1">
+          <div
+            v-show="guideStep === 1"
+            class="guide-step"
+          >
             <span class="step-icon">📚</span>
             <h3>第一步：上传教材</h3>
             <p>点击左侧「教材库」，上传您的PDF/Word教材，系统会自动识别目录结构。</p>
           </div>
-          <div class="guide-step" v-show="guideStep === 2">
+          <div
+            v-show="guideStep === 2"
+            class="guide-step"
+          >
             <span class="step-icon">📋</span>
             <h3>第二步：上传模板</h3>
             <p>点击左侧「模板库」，上传您想要对标的教辅范本，AI将学习其风格。</p>
           </div>
-          <div class="guide-step" v-show="guideStep === 3">
+          <div
+            v-show="guideStep === 3"
+            class="guide-step"
+          >
             <span class="step-icon">🤖</span>
             <h3>第三步：生成教辅</h3>
             <p>点击「生成教辅」，勾选教材和模板，点击生成，即可获得专业资料。</p>
@@ -89,11 +148,14 @@
         </div>
         <div class="guide-footer">
           <span class="guide-dots">
-            <span :class="{ active: guideStep === 1 }"></span>
-            <span :class="{ active: guideStep === 2 }"></span>
-            <span :class="{ active: guideStep === 3 }"></span>
+            <span :class="{ active: guideStep === 1 }" />
+            <span :class="{ active: guideStep === 2 }" />
+            <span :class="{ active: guideStep === 3 }" />
           </span>
-          <button class="btn-primary" @click="nextGuideStep">
+          <button
+            class="btn-primary"
+            @click="nextGuideStep"
+          >
             {{ guideStep === 3 ? '开始使用' : '下一步' }}
           </button>
         </div>
@@ -103,63 +165,120 @@
     <!-- ==================== 主界面 ==================== -->
     <template v-if="activationStatus === 'active' && !showWebAuth">
       <AppHeader
-        :licenseInfo="licenseInfo"
-        :versionLabel="versionLabel"
-        :remainingDays="remainingDays"
-        :isExpiringSoon="isExpiringSoon"
-        :canAccessFeature="canAccessFeature"
-        :isMobile="isMobile"
-        :signInfo="signInfo"
-        :signCheckLoading="signCheckLoading"
-        :isCapacitorIOS="isCapacitorIOS"
+        :license-info="licenseInfo"
+        :version-label="versionLabel"
+        :remaining-days="remainingDays"
+        :is-expiring-soon="isExpiringSoon"
+        :can-access-feature="canAccessFeature"
+        :is-mobile="isMobile"
+        :sign-info="signInfo"
+        :sign-check-loading="signCheckLoading"
+        :is-capacitor-i-o-s="isCapacitorIOS"
       />
 
-      <div class="main-layout" :class="{ 'mobile-layout': isMobile }">
-        <AppSidebar v-if="!isMobile" :canAccessFeature="canAccessFeature" />
+      <div
+        class="main-layout"
+        :class="{ 'mobile-layout': isMobile }"
+      >
+        <AppSidebar
+          v-if="!isMobile"
+          :can-access-feature="canAccessFeature"
+        />
         <!-- 📱 移动端：下拉刷新容器 -->
-        <div v-if="isMobile" class="mobile-content" :ref="ptrContainerRef">
+        <div
+          v-if="isMobile"
+          :ref="ptrContainerRef"
+          class="mobile-content"
+        >
           <!-- 下拉刷新指示器 -->
-          <div class="ptr-indicator" :style="{ height: pullDistance + 'px' }">
-            <span v-if="ptrRefreshing" class="ptr-spinner">⟳</span>
-            <span v-else-if="pullDistance > 0" class="ptr-arrow">↓</span>
-            <span v-if="ptrRefreshing" class="ptr-text">刷新中...</span>
-            <span v-else-if="pullDistance >= 60" class="ptr-text">释放刷新</span>
+          <div
+            class="ptr-indicator"
+            :style="{ height: pullDistance + 'px' }"
+          >
+            <span
+              v-if="ptrRefreshing"
+              class="ptr-spinner"
+            >⟳</span>
+            <span
+              v-else-if="pullDistance > 0"
+              class="ptr-arrow"
+            >↓</span>
+            <span
+              v-if="ptrRefreshing"
+              class="ptr-text"
+            >刷新中...</span>
+            <span
+              v-else-if="pullDistance >= 60"
+              class="ptr-text"
+            >释放刷新</span>
           </div>
           <router-view v-slot="{ Component }">
             <keep-alive :max="10">
-              <component :is="Component" :key="refreshKey + ':' + $route.path" />
+              <component
+                :is="Component"
+                :key="refreshKey + ':' + $route.path"
+              />
             </keep-alive>
           </router-view>
         </div>
         <!-- 🖥️ 桌面端 -->
-        <div v-else class="content-area">
+        <div
+          v-else
+          class="content-area"
+        >
           <router-view v-slot="{ Component }">
             <keep-alive :max="10">
-              <component :is="Component" :key="refreshKey + ':' + $route.path" />
+              <component
+                :is="Component"
+                :key="refreshKey + ':' + $route.path"
+              />
             </keep-alive>
           </router-view>
         </div>
       </div>
 
       <!-- 📱 移动端底部导航栏 -->
-      <nav v-if="isMobile" class="mobile-bottom-nav">
-        <div class="nav-tab" :class="{ active: $route.path === '/textbook' }" @click="$router.push('/textbook')">
+      <nav
+        v-if="isMobile"
+        class="mobile-bottom-nav"
+      >
+        <div
+          class="nav-tab"
+          :class="{ active: $route.path === '/textbook' }"
+          @click="$router.push('/textbook')"
+        >
           <span class="nav-icon">📖</span>
           <span class="nav-label">教材</span>
         </div>
-        <div class="nav-tab" :class="{ active: $route.path === '/template' }" @click="$router.push('/template')">
+        <div
+          class="nav-tab"
+          :class="{ active: $route.path === '/template' }"
+          @click="$router.push('/template')"
+        >
           <span class="nav-icon">📋</span>
           <span class="nav-label">模板</span>
         </div>
-        <div class="nav-tab" :class="{ active: $route.path === '/generate' }" @click="$router.push('/generate')">
+        <div
+          class="nav-tab"
+          :class="{ active: $route.path === '/generate' }"
+          @click="$router.push('/generate')"
+        >
           <span class="nav-icon">🤖</span>
           <span class="nav-label">生成</span>
         </div>
-        <div class="nav-tab" :class="{ active: $route.path === '/history' }" @click="$router.push('/history')">
+        <div
+          class="nav-tab"
+          :class="{ active: $route.path === '/history' }"
+          @click="$router.push('/history')"
+        >
           <span class="nav-icon">📚</span>
           <span class="nav-label">历史</span>
         </div>
-        <div class="nav-tab" :class="{ active: $route.path === '/settings' }" @click="$router.push('/settings')">
+        <div
+          class="nav-tab"
+          :class="{ active: $route.path === '/settings' }"
+          @click="$router.push('/settings')"
+        >
           <span class="nav-icon">⚙️</span>
           <span class="nav-label">设置</span>
         </div>
@@ -167,11 +286,16 @@
     </template>
 
     <!-- ==================== 🔧 兜底：任何未覆盖状态均显示加载指示器（确保 #app 永不为空） ==================== -->
-    <div v-if="activationStatus === 'checking' && (isWebMode || isCapacitorNative)" class="activation-overlay">
+    <div
+      v-if="activationStatus === 'checking' && (isWebMode || isCapacitorNative)"
+      class="activation-overlay"
+    >
       <div class="activation-loading">
-        <div class="loading-spinner"></div>
+        <div class="loading-spinner" />
         <p>正在加载智卷工坊...</p>
-        <p style="font-size:11px;color:#999;margin-top:8px;">{{ isCapacitorNative ? 'Capacitor 原生环境' : 'Web 环境' }}</p>
+        <p style="font-size:11px;color:#999;margin-top:8px;">
+          {{ isCapacitorNative ? 'Capacitor 原生环境' : 'Web 环境' }}
+        </p>
       </div>
     </div>
 

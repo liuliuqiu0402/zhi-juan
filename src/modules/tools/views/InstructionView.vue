@@ -9,108 +9,261 @@
         <span>用户自定义 <b class="user-n">{{ userCount }}</b></span>
         <span class="ov-sep">·</span>
         <span class="st-chips">
-          <button class="st-chip" :class="{ sel: statusFilter === 'all' }" @click="statusFilter = 'all'">全部 {{ statusCounts.total }}</button>
-          <button class="st-chip on" :class="{ sel: statusFilter === 'on' }" @click="statusFilter = 'on'">启用 {{ statusCounts.on }}</button>
-          <button class="st-chip off" :class="{ sel: statusFilter === 'off' }" @click="statusFilter = 'off'">停用 {{ statusCounts.off }}</button>
+          <button
+            class="st-chip"
+            :class="{ sel: statusFilter === 'all' }"
+            @click="statusFilter = 'all'"
+          >全部 {{ statusCounts.total }}</button>
+          <button
+            class="st-chip on"
+            :class="{ sel: statusFilter === 'on' }"
+            @click="statusFilter = 'on'"
+          >启用 {{ statusCounts.on }}</button>
+          <button
+            class="st-chip off"
+            :class="{ sel: statusFilter === 'off' }"
+            @click="statusFilter = 'off'"
+          >停用 {{ statusCounts.off }}</button>
         </span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <div class="dim-now">
-          <span class="dimb" :title="dims.stage ? STAGE_LABELS[dims.stage] : '全部学段'">{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
+          <span
+            class="dimb"
+            :title="dims.stage ? STAGE_LABELS[dims.stage] : '全部学段'"
+          >{{ dims.stage ? STAGE_LABELS[dims.stage] : '全部学段' }}</span>
           <span class="dimb">{{ dims.subject || '全部学科' }}</span>
           <span class="dimb">{{ dims.genType ? GEN_TYPE_LABELS[dims.genType] : '全部类型' }}</span>
         </div>
-        <button class="btn-p" @click="openNew">＋ 新增模板</button>
-        <button class="btn" @click="doExport">📤 导出</button>
-        <button class="btn" @click="importInput?.click()">📥 导入</button>
-        <input ref="importInput" type="file" accept=".json" style="display:none" @change="doImport" />
+        <button
+          class="btn-p"
+          @click="openNew"
+        >
+          ＋ 新增模板
+        </button>
+        <button
+          class="btn"
+          @click="doExport"
+        >
+          📤 导出
+        </button>
+        <button
+          class="btn"
+          @click="importInput?.click()"
+        >
+          📥 导入
+        </button>
+        <input
+          ref="importInput"
+          type="file"
+          accept=".json"
+          style="display:none"
+          @change="doImport"
+        >
       </div>
     </div>
 
     <!-- 课标版本声明（新课标发布后需人工核对更新，见 promptLibrary.CURRICULUM_VERSION_INFO） -->
-    <div class="tpl-curriculum">📚 课标版本：{{ curriculumNotice }}<span class="check-tip">💡 提示：本应用不自动检测课标版本发布，请关注教育部官网动态，新版发布后请在此人工核对并更新本库表述</span></div>
+    <div class="tpl-curriculum">
+      📚 课标版本：{{ curriculumNotice }}<span class="check-tip">💡 提示：本应用不自动检测课标版本发布，请关注教育部官网动态，新版发布后请在此人工核对并更新本库表述</span>
+    </div>
 
     <!-- 校验结果 -->
-    <div class="tpl-validate" v-if="validateMsgs.length">
-      <div class="v-head">🔍 模板完整性校验</div>
-      <div v-for="(m, i) in validateMsgs" :key="i" class="v-item" :class="`sev-${m.severity}`">
+    <div
+      v-if="validateMsgs.length"
+      class="tpl-validate"
+    >
+      <div class="v-head">
+        🔍 模板完整性校验
+      </div>
+      <div
+        v-for="(m, i) in validateMsgs"
+        :key="i"
+        class="v-item"
+        :class="`sev-${m.severity}`"
+      >
         <span class="v-code">{{ m.code }}</span> {{ m.detail }}
       </div>
     </div>
-    <div class="tpl-validate ok" v-else>✅ 模板完整性校验通过（当前筛选范围）</div>
+    <div
+      v-else
+      class="tpl-validate ok"
+    >
+      ✅ 模板完整性校验通过（当前筛选范围）
+    </div>
 
     <!-- 模板列表（手风琴） -->
-    <h4 class="tpl-h">🧾 创作模板<span class="hint">点击名称展开/收起 · 展开后可编辑</span></h4>
+    <h4 class="tpl-h">
+      🧾 创作模板<span class="hint">点击名称展开/收起 · 展开后可编辑</span>
+    </h4>
     <div class="tpl-list">
-      <div v-for="t in tplList" :key="t.key" class="tpl-card" :class="{ open: openKey === t.key, editing: editingKey === t.key, disabled: tplOff(t.key) }">
-        <div class="tpl-head" @click="toggle(t.key)">
+      <div
+        v-for="t in tplList"
+        :key="t.key"
+        class="tpl-card"
+        :class="{ open: openKey === t.key, editing: editingKey === t.key, disabled: tplOff(t.key) }"
+      >
+        <div
+          class="tpl-head"
+          @click="toggle(t.key)"
+        >
           <span class="arrow">{{ openKey === t.key ? '▾' : '▸' }}</span>
           <span class="lib-tag">📝 指令库</span>
-          <span class="layer-tag" :class="`ly-${t.layer}`">{{ layerLabel(t) }}</span>
+          <span
+            class="layer-tag"
+            :class="`ly-${t.layer}`"
+          >{{ layerLabel(t) }}</span>
           <span class="dim-name">{{ tplDimName(t) }}</span>
-          <span class="key-hint" :title="'数据键：' + t.key">{{ t.key }}</span>
+          <span
+            class="key-hint"
+            :title="'数据键：' + t.key"
+          >{{ t.key }}</span>
           <span class="tpl-meta">{{ t.template.length }} 字</span>
-          <label class="sw" :class="{ off: tplOff(t.key) }" @click.stop title="停用后生成端不命中此模板（自动落回下一级匹配）">
-            <input type="checkbox" :checked="!tplOff(t.key)" @change="toggleTpl(t.key, $event.target.checked)" />
+          <label
+            class="sw"
+            :class="{ off: tplOff(t.key) }"
+            title="停用后生成端不命中此模板（自动落回下一级匹配）"
+            @click.stop
+          >
+            <input
+              type="checkbox"
+              :checked="!tplOff(t.key)"
+              @change="toggleTpl(t.key, $event.target.checked)"
+            >
             <span>{{ tplOff(t.key) ? '已停用' : '启用' }}</span>
           </label>
         </div>
 
         <!-- 展开态：预览 -->
-        <div v-if="openKey === t.key && editingKey !== t.key" class="tpl-body">
+        <div
+          v-if="openKey === t.key && editingKey !== t.key"
+          class="tpl-body"
+        >
           <pre class="tpl-preview">{{ t.template }}</pre>
           <div class="tpl-ops">
-            <button v-if="t.layer === 'cell' || t.source === 'user'" class="btn" @click="startEdit(t)">
+            <button
+              v-if="t.layer === 'cell' || t.source === 'user'"
+              class="btn"
+              @click="startEdit(t)"
+            >
               {{ t.layer === 'cell' ? '✏️ 编辑（保存后覆盖内置，可恢复默认）' : '✏️ 编辑' }}
             </button>
-            <button class="btn" @click="copyTpl(t)">📋 复制</button>
-            <button v-if="t.source === 'user'" class="btn danger" @click="removeTpl(t)">🗑️ 删除自定义/恢复默认</button>
+            <button
+              class="btn"
+              @click="copyTpl(t)"
+            >
+              📋 复制
+            </button>
+            <button
+              v-if="t.source === 'user'"
+              class="btn danger"
+              @click="removeTpl(t)"
+            >
+              🗑️ 删除自定义/恢复默认
+            </button>
           </div>
         </div>
 
         <!-- 编辑态 -->
-        <div v-if="editingKey === t.key" class="tpl-edit">
+        <div
+          v-if="editingKey === t.key"
+          class="tpl-edit"
+        >
           <div class="edit-grid">
-            <label>名称 <input v-model="draft.name" placeholder="模板名称" /></label>
-            <label>数据键 <input :value="editingKey" disabled /></label>
+            <label>名称 <input
+              v-model="draft.name"
+              placeholder="模板名称"
+            ></label>
+            <label>数据键 <input
+              :value="editingKey"
+              disabled
+            ></label>
           </div>
-          <textarea v-model="draft.template" rows="10" class="tpl-editarea" placeholder="模板正文（占位符 {grade}/{subject}/{unit}/{structure}/{fullScore}/{duration}/{extra} 生成时替换）"></textarea>
+          <textarea
+            v-model="draft.template"
+            rows="10"
+            class="tpl-editarea"
+            placeholder="模板正文（占位符 {grade}/{subject}/{unit}/{structure}/{fullScore}/{duration}/{extra} 生成时替换）"
+          />
           <div class="tpl-ops">
-            <button class="btn-p" @click="saveDraft(editingKey)">💾 保存</button>
-            <button class="btn" @click="cancelEdit">取消</button>
+            <button
+              class="btn-p"
+              @click="saveDraft(editingKey)"
+            >
+              💾 保存
+            </button>
+            <button
+              class="btn"
+              @click="cancelEdit"
+            >
+              取消
+            </button>
           </div>
         </div>
       </div>
-      <div v-if="!tplList.length" class="tpl-empty">当前筛选无模板（可放宽筛选）</div>
+      <div
+        v-if="!tplList.length"
+        class="tpl-empty"
+      >
+        当前筛选无模板（可放宽筛选）
+      </div>
     </div>
 
     <!-- 新增模板弹层 -->
-    <div v-if="newOpen" class="modal-mask" @click.self="newOpen = false">
+    <div
+      v-if="newOpen"
+      class="modal-mask"
+      @click.self="newOpen = false"
+    >
       <div class="modal">
         <h4>＋ 新增模板（自定义覆盖或新建）</h4>
         <div class="edit-grid modal-grid">
           <label>学段
             <select v-model="newForm.stage">
               <option value="">全部学段</option>
-              <option v-for="(l, k) in STAGE_LABELS" :key="k" :value="k">{{ l }}</option>
+              <option
+                v-for="(l, k) in STAGE_LABELS"
+                :key="k"
+                :value="k"
+              >{{ l }}</option>
             </select>
           </label>
           <label>学科
             <select v-model="newForm.subject">
               <option value="">全学科</option>
-              <option v-for="s in SUBJECT_KEYS" :key="s" :value="s">{{ s }}</option>
+              <option
+                v-for="s in SUBJECT_KEYS"
+                :key="s"
+                :value="s"
+              >{{ s }}</option>
             </select>
           </label>
           <label>资料类型
             <select v-model="newForm.genType">
-              <option v-for="t in GEN_TYPE_LABELS" :key="t.key" :value="t.key">{{ t.label }}</option>
+              <option
+                v-for="t in GEN_TYPE_LABELS"
+                :key="t.key"
+                :value="t.key"
+              >{{ t.label }}</option>
             </select>
           </label>
         </div>
-        <p class="modal-tip">模板键 = 学段|学科|类型（三维度精确）或 学段|类型 / 类型（降级）。生成时按 学段×学科×类型 精确匹配，用户自定义优先；可建降级模板覆盖更广范围。</p>
+        <p class="modal-tip">
+          模板键 = 学段|学科|类型（三维度精确）或 学段|类型 / 类型（降级）。生成时按 学段×学科×类型 精确匹配，用户自定义优先；可建降级模板覆盖更广范围。
+        </p>
         <div class="tpl-ops">
-          <button class="btn-p" @click="createTpl">创建并编辑</button>
-          <button class="btn" @click="newOpen = false">取消</button>
+          <button
+            class="btn-p"
+            @click="createTpl"
+          >
+            创建并编辑
+          </button>
+          <button
+            class="btn"
+            @click="newOpen = false"
+          >
+            取消
+          </button>
         </div>
       </div>
     </div>

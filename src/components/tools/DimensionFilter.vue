@@ -1,24 +1,60 @@
 <template>
-  <div class="dim-filter" :class="{ compact }">
+  <div
+    class="dim-filter"
+    :class="{ compact }"
+  >
     <div class="fitem">
       <label>学段</label>
-      <select :value="modelValue.stage" @change="emit('update:modelValue', { ...modelValue, stage: $event.target.value })">
-        <option value="">全部学段</option>
-        <option v-for="(label, key) in STAGE_LABELS" :key="key" :value="key">{{ label }}</option>
+      <select
+        :value="modelValue.stage"
+        @change="emit('update:modelValue', { ...modelValue, stage: $event.target.value })"
+      >
+        <option value="">
+          全部学段
+        </option>
+        <option
+          v-for="(label, key) in STAGE_LABELS"
+          :key="key"
+          :value="key"
+        >
+          {{ label }}
+        </option>
       </select>
     </div>
     <div class="fitem">
       <label>学科</label>
-      <select :value="modelValue.subject" @change="emit('update:modelValue', { ...modelValue, subject: $event.target.value })">
-        <option value="">全部学科</option>
-        <option v-for="s in SUBJECT_KEYS" :key="s" :value="s">{{ s }}</option>
+      <select
+        :value="modelValue.subject"
+        @change="emit('update:modelValue', { ...modelValue, subject: $event.target.value })"
+      >
+        <option value="">
+          全部学科
+        </option>
+        <option
+          v-for="s in SUBJECT_KEYS"
+          :key="s"
+          :value="s"
+        >
+          {{ s }}
+        </option>
       </select>
     </div>
     <div class="fitem">
       <label>资料类型</label>
-      <select :value="modelValue.genType" @change="emit('update:modelValue', { ...modelValue, genType: $event.target.value })">
-        <option value="">全部类型</option>
-        <option v-for="t in GEN_TYPE_LABELS" :key="t.key" :value="t.key">{{ t.label }}</option>
+      <select
+        :value="modelValue.genType"
+        @change="emit('update:modelValue', { ...modelValue, genType: $event.target.value })"
+      >
+        <option value="">
+          全部类型
+        </option>
+        <option
+          v-for="t in GEN_TYPE_LABELS"
+          :key="t.key"
+          :value="t.key"
+        >
+          {{ t.label }}
+        </option>
       </select>
     </div>
   </div>
