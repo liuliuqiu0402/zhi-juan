@@ -5,6 +5,7 @@ import { GEN_CONST } from '../config/generationConstants.js';
 import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel } from '../config/promptLibrary.js';
 import { getStoragePath } from '../utils/pathHelper.js';
 import { auditExamPaper } from '../utils/examValidator.js';
+import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
 import { normalizeStage } from '../config/validatorRules.js';
 import {
   genTypeTemplates,
@@ -3939,11 +3940,6 @@ ${cardAnalysisText.substring(0, 1000)}
   // 🔧 从 stageMap 推导权威难度比例（当用户未自定义时以此为准）
   // 🔧 值从指令库「生成-难度配置」解析，兜底保留硬编码
 
-  // 🔧 页数指导：按学段区分，试卷/复习单独加量（DeepSeek 输出更完整）
-  //    小学 6页（试卷10页/复习8页）/ 初中 8页（试卷12页/复习10页）/ 高中 10页（试卷14页/复习12页）
-  // 🔧 页数配置：从指令库「生成-页数配置」读取，兜底保留硬编码
-  //    数值含义为纯题目正文页数（不含答案页），在指令库 UI 可直接维护
-
   // 🔧 智能默认总分：对标现行考试标准
   // 🔧 值从指令库「生成-难度配置」解析，兜底保留硬编码
 
@@ -4445,6 +4441,7 @@ ${cardAnalysisText.substring(0, 1000)}
     const {
       instruction = '', genType = '', selectedBooks = [], contentCards = [],
       knowledgeMap = null, contextFramework = '', templateInfo = '', diffKps = [],
+      scopeType = '',
     } = params;
     const book = selectedBooks?.[0];
     if (!instruction.trim()) {
@@ -4503,8 +4500,14 @@ ${cardAnalysisText.substring(0, 1000)}
       const s = bbt[slot] || null;
       if (!s) return { coef: 1.0, cap: 32768 };
       const tier = bbt.tier || 'balanced';
-      const coef = (typeof s.custom === 'number' && s.custom > 0) ? s.custom
+      // 🔧 实测校准注入：优先级 用户 custom > 校准覆盖 > 播种默认。
+      //    校准折算系数只作用于"正文样本口径"的 body/once 槽（answer 槽无独立采样，保持播种）+ 无 custom。
+      let coef = (typeof s.custom === 'number' && s.custom > 0) ? s.custom
         : (typeof s[tier] === 'number' ? s[tier] : (typeof s.balanced === 'number' ? s.balanced : 1.0));
+      if (!(typeof s.custom === 'number' && s.custom > 0) && (slot === 'body' || slot === 'once')) {
+        const calCoef = getCalibratedCoef(genType, subject, book?.stage, tier);
+        if (typeof calCoef === 'number' && calCoef > 0) coef = calCoef;
+      }
       return { coef: coef || 1.0, cap: (typeof s.cap === 'number' && s.cap > 0) ? s.cap : 32768 };
     };
     const floorTok = apiConfig.generationSettings.budgetClamp?.floorTokens ?? 800;
@@ -4582,6 +4585,8 @@ ${cardAnalysisText.substring(0, 1000)}
     let content = '';
     let lastErr = null;
     let browseCoverageNotes = [];
+    // 🔧 采样用：正文是否触发过续写/截断（预算失效场，校准统计须剔除）
+    let sampleTruncated = false;
     // ── 大范围工具路径：先按章 browse 取材后再生成正文；失败自动回退单次全量注入（一次生成成功优先） ──
     if (browsePath) {
       statusText.value = `整卷生成：大范围教材浏览取材中（工具路径，${modeLabel}）...`;
@@ -4650,6 +4655,7 @@ ${cardAnalysisText.substring(0, 1000)}
         //    reasoning_capped（推理达到 40K 上限被流式中止）也算截断——半截正文须续写补齐
         const trunc = detectTruncation(content, respObj.finishReason);
         if (trunc.truncated) {
+          sampleTruncated = true;
           console.warn(`⚠️ 整卷输出${trunc.byReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，自动续写一次...`);
           const contResp = await callAI(
             `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
@@ -4831,6 +4837,15 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     //    但需告知，方便用户决定是否缩小勾选或调大该类型上限（后续生成可更省）
     if (budgetAlert) auditWarnings.push(`⚠️ ${budgetAlert}（本次已完整生成；如需更省/更稳，可缩小勾选范围，或到「设置 → 整卷输出预算」调大该类型的「上限」）。`);
     console.log(`✅ 整卷生成完成：${finalContent.length} 字符（${modeLabel}路径，${modeSource}${answerHtml ? '，含独立答案页' : ''}）（指令库注入）`);
+    // 🔧 每类型预算·实测采样：正文产出率（字符/字符）落库，供设置页校准贴合度。
+    //    只记正文 content（split 不含答案页；once 答案随正文，与 once 预算槽口径一致）；
+    //    触顶 cap / 续写截断 的样本在统计侧剔除（预算失效场，不算真实产出率）。
+    recordSample({
+      genType, subject, stage: book?.stage, grade: book?.grade, scope: scopeType,
+      mode: generateMode, selectedRawChars,
+      budgetTokens: bodyDynamicCap, outputChars: content.length,
+      truncated: sampleTruncated, overCap: bodyOverCap,
+    });
     return {
       success: true,
       content: finalContent,

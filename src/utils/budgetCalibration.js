@@ -1,0 +1,293 @@
+/**
+ * 每类型输出预算·实测校准（采样落库 + 统计 + 一键采纳）
+ * ============================================================
+ * 🔴 定位：校准"勾选字量×系数→预算"的贴合度（选到什么字，实际能产出多少）。
+ *    系数是程序内置常量 + 档间固定比例（精简:均衡:充分 ≈ 0.72:1:1.25），
+ *    一键采纳只需锁定"均衡档基准产出率"，再按既有档间比例展开三档。
+ *
+ * 分桶主键 = 资料类型 × 学科 × 学段（五档 key），与项目"三维度注入标准"同构；
+ * 范围层级（单元/课时/期中/期末等）软分层（记在样本里，统计时按需归并）；
+ * 触顶 cap / 触发续写 / 疑似截断 的样本剔除（预算失效场，不算真实产出率）。
+ *
+ * 优先级（generate 端消费）：用户手工 custom > 校准覆盖值 > 播种默认。
+ *    本模块只提供"读校准值/写校准值"，不直接改写 DEFAULT_BUDGET_BY_TYPE 源码常量——
+ *    校准值存独立 key，实现"旧存档覆盖播种默认"也能在 boot 后回补。
+ *
+ * 产出率口径：产出率 = 实际输出字符数 / 勾选原文字数（无单位，字符/字符）。
+ *    按中文经验 1 token ≈ 1.3 字符反推系数贴合度；校准目标是让"系数×勾选字量"
+ *    更贴近"实际字符量折算的 token 待输出量"。
+ * ============================================================
+ */
+
+// 存储 key（与 apiConfig 同层的 localStorage 业务 key；避免与生成内容仓库混放）
+const SAMPLE_KEY = 'budgetCalibrationSamples';   // 原始样本队列
+const CALIB_KEY = 'budgetCalibrationValues';     // 采纳后的校准覆盖层
+
+// 归一学段：接受五档 key（primary_low 等）或中文标签（'小学'/'初一'/'高二' 等）
+const STAGE_KEY_RE = /^(primary_low|primary_mid|primary_high|middle|high)$/;
+const normalizeStageKey = (stage = '') => {
+  const s = String(stage || '').trim();
+  if (STAGE_KEY_RE.test(s)) return s;
+  if (/小学|一|二/.test(s) && s.length <= 3) { /* 保守，避免误判'高中'含'一' */ }
+  if (/^小/.test(s)) return /低|一|二/.test(s) ? 'primary_low' : /高|五|六/.test(s) ? 'primary_high' : 'primary_mid';
+  if (/^初|middle/.test(s)) return 'middle';
+  if (/^高|high/.test(s)) return 'high';
+  if (/低|一|二/.test(s)) return 'primary_low';
+  if (/中|三|四/.test(s)) return 'primary_mid';
+  if (/高|五|六/.test(s)) return 'primary_high';
+  return 'middle';
+};
+
+/** 桶 key：genType|subject|stageKey */
+const bucketKey = (genType, subject, stage) =>
+  `${String(genType || '')}|${String(subject || '')}|${normalizeStageKey(stage)}`;
+
+// ── 读取/安全写入工具（localStorage，跨端；web 与 electron 均可用）──
+const safeRead = (key, fallback) => {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+    if (!raw) return fallback;
+    const obj = JSON.parse(raw);
+    return obj ?? fallback;
+  } catch { return fallback; }
+};
+const safeWrite = (key, value) => {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* 存储满/隐私模式静默 */ }
+};
+
+/** 淘汰策略：每桶最多保留 N 条（超出的按时间戳去最早的），防无限增长 */
+const MAX_PER_BUCKET = 60;
+
+/**
+ * 追加一条采样样本。
+ * @param {Object} s
+ * @param {string} s.genType 资料类型
+ * @param {string} s.subject 学科
+ * @param {string} s.stage    学段（五档 key 或中文标签，内部归一）
+ * @param {string} s.grade    具体年级（留告警用）
+ * @param {string} s.scope    范围层级（单元/课时/期中/期末/整本等；软分层）
+ * @param {number} s.selectedRawChars 勾选原文字数
+ * @param {number} s.budgetTokens     本次正文/once 预算 cap（已触顶升级后的 bodyDynamicCap）
+ * @param {number} s.outputChars      实际输出字符数（正文 finalContent.length）
+ * @param {boolean} s.truncated       是否触发续写/疑似截断（true 则剔除）
+ * @param {boolean} s.overCap         是否勾选超 cap（true 则剔除）
+ * @param {string} s.mode             split|once 路径
+ */
+export const recordSample = (s = {}) => {
+  if (!s.genType || !s.subject) return;
+  const outChars = Number(s.outputChars);
+  const inChars = Number(s.selectedRawChars);
+  // 记录非数/无产出/无输入 → 无意义样本，跳过（避免污染均值）
+  if (!Number.isFinite(outChars) || !Number.isFinite(inChars) || inChars <= 0) return;
+  // 预算失效场剔除：触顶/续写/截断/产出低于最低阈值 → 不算真实产出率
+  const invalid = Boolean(s.truncated || s.overCap) || outChars < 50;
+  const key = bucketKey(s.genType, s.subject, s.stage);
+  const sample = {
+    t: Date.now(),
+    genType: s.genType, subject: s.subject, stage: normalizeStageKey(s.stage),
+    grade: s.grade || '', scope: s.scope || 'default', mode: s.mode || '',
+    inChars, budgetTokens: Number(s.budgetTokens) || 0,
+    outChars, ratio: outChars / inChars, invalid,
+  };
+  const samples = safeRead(SAMPLE_KEY, []);
+  samples.push(sample);
+  // 每桶淘汰最旧
+  const perBucket = new Map();
+  for (const el of samples) {
+    const k = bucketKey(el.genType, el.subject, el.stage);
+    if (!perBucket.has(k)) perBucket.set(k, []);
+    perBucket.get(k).push(el);
+  }
+  const trimmed = [];
+  for (const [k, arr] of perBucket) {
+    arr.sort((a, b) => a.t - b.t);
+    trimmed.push(...(arr.length > MAX_PER_BUCKET ? arr.slice(-MAX_PER_BUCKET) : arr));
+  }
+  safeWrite(SAMPLE_KEY, trimmed);
+};
+
+// ── 统计口径 ──
+// 三档系数档间比例（与 DEFAULT_BUDGET_BY_TYPE 同源的事实约束；采纳展开时用）
+export const TIER_RATIO = { economy: 0.72, balanced: 1.0, full: 1.25 };
+
+/** 截尾均值：剔除首尾 pct 比例后的均值（防单一异常样本拉偏） */
+const trimmedMean = (arr, pct = 0.1) => {
+  if (!arr.length) return null;
+  if (arr.length <= 2) return arr.reduce((a, b) => a + b, 0) / arr.length;
+  const s = [...arr].sort((a, b) => a - b);
+  const cut = Math.max(1, Math.floor(s.length * pct));
+  const mid = s.slice(cut, s.length - cut);
+  return mid.reduce((a, b) => a + b, 0) / mid.length;
+};
+
+/** 变异系数（CV = SD/均值），量化某桶样本的离散度 */
+const coefficientOfVariation = (arr) => {
+  if (arr.length < 2) return 0;
+  const m = arr.reduce((a, b) => a + b, 0) / arr.length;
+  if (m === 0) return 0;
+  const sd = Math.sqrt(arr.reduce((a, b) => a + (b - m) * (b - m), 0) / arr.length);
+  return sd / m;
+};
+
+// 校准采纳门槛（条数档位，可配置）
+export const CALIBRATION_THRESHOLDS = {
+  loose: 8,      // 宽松：快速看效果
+  standard: 12,  // 标准默认：兼顾稳定与反馈速度
+  strict: 20,    // 严谨：教务正式采用前
+};
+
+/**
+ * 汇总某桶的有效样本统计（剔除 invalid）。
+ * @param {string} genType
+ * @param {string} subject
+ * @param {string} stage
+ * @param {Object} [opts] { minSamples=12, cvWarn=0.35 }
+ * @returns {{count,inValid,median,mean,cv,ready,reason}}
+ *   ready=true 表示样本足够且波动可控，可采纳；否则带 reason 说明缺什么。
+ */
+export const getBucketStats = (genType, subject, stage, opts = {}) => {
+  const minSamples = opts.minSamples ?? CALIBRATION_THRESHOLDS.standard;
+  const cvWarn = opts.cvWarn ?? 0.35;
+  const samples = safeRead(SAMPLE_KEY, []);
+  const key = bucketKey(genType, subject, stage);
+  const valid = samples.filter(el =>
+    bucketKey(el.genType, el.subject, el.stage) === key && !el.invalid);
+  const inValid = samples.filter(el =>
+    bucketKey(el.genType, el.subject, el.stage) === key && el.invalid).length;
+  const ratios = valid.map(el => el.ratio).filter(Number.isFinite);
+  const mean = trimmedMean(ratios);
+  const cv = coefficientOfVariation(ratios);
+  const sorted = [...ratios].sort((a, b) => a - b);
+  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;
+  let ready = false, reason = '';
+  if (ratios.length < minSamples) {
+    reason = `样本不足（${ratios.length}/${minSamples}）`;
+  } else if (cv > cvWarn) {
+    reason = `波动偏大（CV=${cv.toFixed(2)}>${cvWarn}，样本跨范围层级或模型不稳定）`;
+  } else {
+    ready = true; reason = '可采纳';
+  }
+  return { count: ratios.length, inValid, median, mean, cv, ready, reason };
+};
+
+/** 当前桶是否可采纳（只读判断，供 UI 置灰按钮/展示进度） */
+export const canCalibrate = (genType, subject, stage, threshold) =>
+  getBucketStats(genType, subject, stage, { minSamples: threshold }).ready;
+
+// ── 校准层读写 ──
+/**
+ * 读取某桶的已采纳校准 base（均衡档基准产出率，字符/字符）。
+ * 消费端用它替换 DEFBAULT 播种系数 = base / 中文token字符率 ? 见 usage。
+ * 返回 null 表示无校准（应回退播种默认）。
+ */
+export const getCalibration = (genType, subject, stage) => {
+  const cal = safeRead(CALIB_KEY, {});
+  return cal[bucketKey(genType, subject, stage)] ?? null;
+};
+
+/**
+ * 一键采纳：取该桶有效样本的中位数作为均衡档基准产出率。
+ * 返回 { ok, base, applied } 或失败原因。
+ */
+export const applyCalibration = (genType, subject, stage, threshold = CALIBRATION_THRESHOLDS.standard) => {
+  const st = getBucketStats(genType, subject, stage, { minSamples: threshold });
+  if (!st.ready) return { ok: false, reason: st.reason, stats: st };
+  const base = st.median; // 中位数比均值更稳
+  const cal = safeRead(CALIB_KEY, {});
+  cal[bucketKey(genType, subject, stage)] = {
+    genType, subject, stage: normalizeStageKey(stage),
+    base,            // 均衡档基准产出率（字符/字符）
+    tiers: {
+      economy: +(base * TIER_RATIO.economy).toFixed(3),
+      balanced: +base.toFixed(3),
+      full: +(base * TIER_RATIO.full).toFixed(3),
+    },
+    samples: st.count,   // 采纳时样本条数
+    t: Date.now(),
+  };
+  safeWrite(CALIB_KEY, cal);
+  return { ok: true, base, stats: st };
+};
+
+/** 清除某桶校准（回退播种默认）。 */
+export const clearCalibration = (genType, subject, stage) => {
+  const cal = safeRead(CALIB_KEY, {});
+  const k = bucketKey(genType, subject, stage);
+  if (cal[k]) {
+    delete cal[k];
+    safeWrite(CALIB_KEY, cal);
+  }
+};
+
+// 中文平均 token 字符率（实证系数；中英混合会更高，作为校准折算标尺）
+export const CHARS_PER_TOKEN = 1.3;
+
+/**
+ * 读取某桶校准并折算为"每字符勾选的 token 系数"（与播种系数同单位），
+ * 供生成端 pickSlot 在「用户 custom」之后、「播种默认」之前注入。
+ * @returns {number|null} 折算后的 token/字符系数；无校准返回 null
+ */
+export const getCalibratedCoef = (genType, subject, stage, tier = 'balanced') => {
+  const cal = getCalibration(genType, subject, stage);
+  if (!cal) return null;
+  const base = typeof cal.base === 'number' && cal.base > 0 ? cal.base : null;
+  if (base == null) return null;
+  // 校准 base 是"基准档产出率(字符/字符)"；换算该档 token 系数 = base / token字符率
+  const ratio = TIER_RATIO[tier] ?? 1.0;
+  const coef = (base * ratio) / CHARS_PER_TOKEN;
+  return +coef.toFixed(3);
+};
+
+/** 全部样本数（诊断用） */
+export const getSampleCount = () => safeRead(SAMPLE_KEY, []).length;
+
+/**
+ * 枚举某类型下"已有样本"的全部（学科×学段）桶，附统计与是否已采纳。
+ * 供设置页分桶 UI 展示（含已采纳但当前无它样本的桶——从校准层并入）。
+ * @param {string} genType
+ * @param {Object} [opts] { threshold }
+ * @returns {Array<{key,genType,subject,stage,stats,calibrated,calBase,samples}>}
+ */
+export const listTypeBuckets = (genType, opts = {}) => {
+  const samples = safeRead(SAMPLE_KEY, []);
+  const map = new Map();
+  // 1) 从样本建桶
+  for (const s of samples) {
+    if (s.genType !== genType) continue;
+    const k = bucketKey(s.genType, s.subject, s.stage);
+    if (!map.has(k)) {
+      map.set(k, { key: k, genType, subject: s.subject, stage: s.stage, ratios: [], inValid: 0 });
+    }
+    if (s.invalid) map.get(k).inValid++;
+    else if (Number.isFinite(s.ratio)) map.get(k).ratios.push(s.ratio);
+  }
+  // 2) 并入已采纳但样本可能已逾期/被清空 的桶
+  const cal = safeRead(CALIB_KEY, {});
+  for (const k of Object.keys(cal)) {
+    const c = cal[k];
+    if (c?.genType !== genType) continue;
+    if (!map.has(k)) {
+      map.set(k, { key: k, genType, subject: c.subject, stage: c.stage, ratios: [], inValid: 0 });
+    }
+  }
+  const out = [];
+  for (const [k, b] of map) {
+    const stats = (() => {
+      const minSamples = opts.threshold ?? CALIBRATION_THRESHOLDS.standard;
+      const ratios = b.ratios.filter(Number.isFinite);
+      const mean = trimmedMean(ratios);
+      const cv = coefficientOfVariation(ratios);
+      const sorted = [...ratios].sort((a, b) => a - b);
+      const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;
+      const count = ratios.length;
+      let ready = false, reason = '';
+      if (count < minSamples) reason = `样本不足(${count}/${minSamples})`;
+      else if (cv > 0.35) reason = `波动偏大(CV=${cv.toFixed(2)})`;
+      else { ready = true; reason = '可采纳'; }
+      return { count, inValid: b.inValid, median, mean, cv, ready, reason };
+    })();
+    const c = cal[k] || null;
+    out.push({ key: k, genType, subject: b.subject, stage: b.stage, stats, calibrated: !!c, calBase: c?.base ?? null, samples: stats.count });
+  }
+  return out;
+};

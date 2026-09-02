@@ -467,6 +467,39 @@
                 </div>
               </div>
             </div>
+            <!-- 🔧 实测校准（每类型×学科×学段分桶；一键采纳以样本中位产出率为基准） -->
+            <div style="padding:6px 10px;border-top:1px dashed #dbe4ee;background:#fbfdff;">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:5px;">
+                <span style="font-size:10px;color:#64748b;font-weight:600;">📊 实测校准（按学科×学段，门槛 {{ calThresholdLabel }}，CV&gt;0.35 拒采）</span>
+                <span style="display:flex;gap:5px;align-items:center;font-size:10px;color:#94a3b8;">
+                  学段
+                  <select v-model="calStageFilter[row.key]" style="font-size:10px;padding:1px 3px;border:1px solid #d6dde6;border-radius:4px;background:#fff;">
+                    <option value="">全部</option>
+                    <option v-for="s in CAL_STAGE_KEYS" :key="s" :value="s">{{ calStageName(s) }}</option>
+                  </select>
+                  学科
+                  <select v-model="calSubjectFilter[row.key]" style="font-size:10px;padding:1px 3px;border:1px solid #d6dde6;border-radius:4px;background:#fff;">
+                    <option value="">全部</option>
+                    <option v-for="sub in CAL_SUBJECT_KEYS" :key="sub" :value="sub">{{ sub }}</option>
+                  </select>
+                </span>
+              </div>
+              <template v-if="calBucketsFor(row.key).length">
+                <div v-for="bk in calBucketsFor(row.key)" :key="bk.key" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid #e7eef7;border-radius:6px;padding:4px 7px;margin-bottom:4px;background:#fff;">
+                  <span style="font-size:10px;color:#334155;white-space:nowrap;">{{ bk.subject }} · {{ calStageName(bk.stage) }}</span>
+                  <span style="font-size:10px;color:#64748b;">样本 {{ bk.stats.count }}<template v-if="bk.stats.inValid">/{{ bk.stats.inValid }}失效</template></span>
+                  <span v-if="bk.stats.count" style="font-size:10px;color:#94a3b8;">CV={{ bk.stats.cv.toFixed(2) }}</span>
+                  <span v-if="bk.calibrated" style="font-size:10px;color:#1f6feb;">已采纳(基准{{ bk.calBase }})</span>
+                  <span v-else style="font-size:10px;color:#94a3b8;">{{ bk.stats.reason }}</span>
+                  <span style="margin-left:auto;display:flex;gap:5px;">
+                    <button v-if="bk.stats.ready && !bk.calibrated" @click="adoptCalibration(row.key, bk)" style="font-size:10px;padding:2px 8px;border:1px solid #1f6feb;color:#1f6feb;background:#fff;border-radius:4px;cursor:pointer;">一键采纳</button>
+                    <button v-if="bk.calibrated" @click="clearCalibrationRow(row.key, bk)" style="font-size:10px;padding:2px 8px;border:1px solid #c2ccd9;color:#5b6b7c;background:#fff;border-radius:4px;cursor:pointer;">清除</button>
+                  </span>
+                </div>
+              </template>
+              <div v-else style="font-size:10px;color:#c3cdda;padding:3px 0;">（该类型暂无样本；完成若干次该类型生成后，这里会出现按学科×学段分桶的校准入口）</div>
+              <div style="font-size:9px;color:#aab6c4;margin-top:3px;">产出率按 勾选原文→实际输出字符 实测；采纳即用中位数作均衡档基准，按 精简0.72/均衡1/充分1.25 展开三档。低于门槛或波动过大(CV&gt;0.35)时按钮置灰。</div>
+            </div>
           </div>
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 4px;">
@@ -643,6 +676,7 @@ import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
 import useLogger, { copyLogs } from '@/composables/useLogger.js';
 import { apiConfig, DEFAULT_BUDGET_BY_TYPE, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
+import { listTypeBuckets, applyCalibration, clearCalibration, CALIBRATION_THRESHOLDS } from '@/utils/budgetCalibration.js';
 import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud, fetchCloudDevices, deleteDeviceFromCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
 
@@ -976,6 +1010,33 @@ const toggleBrowseAutoFill = () => {
 // 生成端读取的系数在配置里，这里仅作"当前生效值"展示辅助（与生成端 pickSlot 同口径）
 // 纯读取：返回当前内存中的 budgetByType（无副作用，模板多读安全——不能在渲染中做补全/深拷贝）
 const budgetBt = () => settings.value.generationSettings?.budgetByType || {};
+
+// ── 实测校准 UI（每类型×学科×学段分桶；数据由 budgetCalibration 落库驱动）──
+const CAL_STAGE_KEYS = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
+const calStageName = (s) => ({ primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中' }[s] || s || '');
+const CAL_SUBJECT_KEYS = ['语文', '数学', '英语', '科学', '道法', '道德与法治', '历史', '地理', '生物', '物理', '化学', '政治'];
+const calThresholdLabel = `${CALIBRATION_THRESHOLDS.standard}条`;
+const calStageFilter = ref({});
+const calSubjectFilter = ref({});
+// 分桶视图：返回该类型下过滤后的桶（每次读取重算）
+const calBucketsFor = (rowKey) => {
+  const sf = calStageFilter.value[rowKey] || '';
+  const su = calSubjectFilter.value[rowKey] || '';
+  const all = listTypeBuckets(rowKey, { threshold: CALIBRATION_THRESHOLDS.standard });
+  return all.filter(b => (!sf || b.stage === sf) && (!su || b.subject === su));
+};
+const adoptCalibration = (rowKey, bk) => {
+  const res = applyCalibration(rowKey, bk.subject, bk.stage, CALIBRATION_THRESHOLDS.standard);
+  if (res.ok) {
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `✅ 已按实测采纳「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)}」（基准产出率 ${res.base.toFixed(2)}，样本 ${res.stats.count}）`, type: 'info' } }));
+  } else {
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `采纳失败：${res.reason || '未知'}`, type: 'warning' } }));
+  }
+};
+const clearCalibrationRow = (rowKey, bk) => {
+  clearCalibration(rowKey, bk.subject, bk.stage);
+  window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `已清除「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)}」校准，回退播种默认`, type: 'info' } }));
+};
 
 // 🔧 槽生效态：用于高亮"生成路径下真实使用的系数槽"。
 //    body/answer 属于"两次生成"，once 属于"一次成型"。auto 按类型内置映射（考卷/课时练/专项/复习→两次，其余→一次）。
