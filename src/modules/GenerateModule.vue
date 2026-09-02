@@ -7727,6 +7727,9 @@ const finalizeGeneration = async (result, genType) => {
       content: renderImagePlaceholders(titledContent),
       rawContent: titledContent,
       genType: genTypeName,
+      // 🔧 stage 随记录持久化（五档 stageKey）：排版打开/作文格与书写格按学段渲染的单一来源。
+      //    曾不存 → 生成端渲染正常(内存有参数)，但历史记录/排版打开读不到学段回退自动档
+      stage: book ? resolveStageKey(book.stage, book.grade, book.name) : '',
       style: propositionStyle.value,
       selected: false,
       quality: null,
