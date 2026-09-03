@@ -551,7 +551,7 @@ import { FontFamily } from '@tiptap/extension-font-family';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { Extension, Mark, Node } from '@tiptap/core';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
-import { normalizeWhitespaceCarriers } from '../utils/contentCleaner.js'; // 纯空白装饰标记→填空横线（emphasis-dot 包空位等退化形态，装载/粘贴统一）
+import { normalizeWhitespaceCarriers, normalizeLeadingMarkers } from '../utils/contentCleaner.js'; // 全局归一：纯空白装饰标记→填空横线 + 行首"项目符号+序号"剥离（装载/粘贴统一，旧内容回改）
 import { getMergedSpec } from '../config/layoutSpec.js';
 
 // ══════════════════════════════════════════
@@ -1214,7 +1214,7 @@ const editor = useEditor({
     // 🔧 粘贴 HTML 预处理：拦截所有 pasted/dropped HTML，在 ProseMirror 解析前转换 ruby 标签
     transformPastedHTML(html) {
       if (!html) return html;
-      return normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeWhitespaceCarriers(html)))));
+      return normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeWhitespaceCarriers(html))))));
     },
     handleKeyDown: (view, event) => {
       // Escape 退出格式刷连刷模式
@@ -1762,7 +1762,7 @@ const trySetContent = () => {
   // 🔧 载入前预处理：class 样式 → 内联 → ruby 标签 → span.ruby-char
   let processed;
   try {
-    processed = normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeWhitespaceCarriers(pendingContent)))));
+    processed = normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeWhitespaceCarriers(pendingContent))))));
     // 🔧 载入前预处理：<ol> 双编号去重
     processed = normalizeDoubleNumberedLists(processed);
   } catch (e) {
@@ -1925,7 +1925,7 @@ defineExpose({
       }
     });
   },
-  setContent: (html) => { editor.value?.commands.setContent(normalizeShortHexColors(normalizeDoubleNumberedLists(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeWhitespaceCarriers(html)))))), false); },
+  setContent: (html) => { editor.value?.commands.setContent(normalizeShortHexColors(normalizeDoubleNumberedLists(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeWhitespaceCarriers(html))))))), false); },
 });
 </script>
 

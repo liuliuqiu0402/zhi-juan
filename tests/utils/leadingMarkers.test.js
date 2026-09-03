@@ -37,4 +37,23 @@ describe('normalizeLeadingMarkers 行首"项目符号+序号"双标记归一', (
     const once = normalizeLeadingMarkers('<p>• A. 草原迎客</p>');
     expect(normalizeLeadingMarkers(once)).toBe(once);
   });
+  it('实体空位分隔：&nbsp;（+序号，AI 常用写法）→ 剥项目符号', () => {
+    expect(normalizeLeadingMarkers('<p>•&nbsp;A. 草原迎客</p>')).toBe('<p>A. 草原迎客</p>');
+    expect(normalizeLeadingMarkers('<p>•&nbsp;1. 勾勒</p>')).toBe('<p>1. 勾勒</p>');
+    expect(normalizeLeadingMarkers('<p>•&nbsp;(1) 第一小题</p>')).toBe('<p>(1) 第一小题</p>');
+    expect(normalizeLeadingMarkers('<p>•&nbsp;① 轻声朗读</p>')).toBe('<p>① 轻声朗读</p>');
+  });
+  it('实体空位分隔：&#160;/&emsp;/&ensp; → 剥项目符号', () => {
+    expect(normalizeLeadingMarkers('<p>•&#160;B、草原风光</p>')).toBe('<p>B、草原风光</p>');
+    expect(normalizeLeadingMarkers('<li>•&emsp;B、草原风光</li>')).toBe('<li>B、草原风光</li>');
+    expect(normalizeLeadingMarkers('<p>•&ensp;C. 内容</p>')).toBe('<p>C. 内容</p>');
+  });
+  it('实体空位幂等：二次处理不变化', () => {
+    const once = normalizeLeadingMarkers('<p>•&nbsp;A. 草原迎客</p>');
+    expect(normalizeLeadingMarkers(once)).toBe(once);
+  });
+  it('实体空位下纯项目符号（无序号）仍不动', () => {
+    const html = '<p>•&nbsp;草原迎客</p>';
+    expect(normalizeLeadingMarkers(html)).toBe(html);
+  });
 });

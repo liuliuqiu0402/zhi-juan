@@ -415,14 +415,18 @@ export function normalizeMatchQuestions(html = '') {
  *   2. 序号标记：字母序号（A. A、 A．）/ 数字序号（1. 1、）/ 括号序号（(1)（1））/ 圆圈序号（① ❶ ㉑ 等）
  *   3. 项目符号后无序号（纯列表符号，如 "• 草原迎客"）→ 不动（列表符号本身合理，删了变普通文本）
  *   4. 只处理块级元素（p/li/div）行首文本，行首非文本（标签开头）不触碰
+ *   5. 空白含 HTML 实体空位：AI 常用 &nbsp;/&emsp;/&#160; 等实体分隔"项目符号+序号"，
+ *      曾只认真实空白字符（[ \t\u3000…]），实体序列（•&nbsp;A.）lookahead 因非空白失败 → 项目符号残留
  */
+// 行首可作分隔的"空白"：真实空白字符 或 HTML 实体空位（&nbsp;&#160;&emsp;&ensp; 等）
+const LEAD_WS = '(?:[ \\t\\u3000\\u00A0\\u2003\\u2002]|&(?:nbsp|#160|#xA0|emsp|#8195|ensp|#8194);)';
+const LEAD_MARKER_RE = new RegExp(
+  `^(${LEAD_WS}*)([•●○◦▪■►➤‣⁃·])(${LEAD_WS}*)(?=[A-Za-z][.、．:：]|\\d+[.、．:：]|[（(]\\s*\\d+\\s*[)）]|[\\u2460-\\u2473\\u2776-\\u277F\\u3251-\\u325F])`
+);
 export function normalizeLeadingMarkers(html = '') {
   let out = String(html || '');
   out = out.replace(/<(p|li|div)([^>]*)>([\s\S]*?)<\/\1>/gi, (m, tag, attrs, inner) => {
-    const n = inner.replace(
-      /^([ \t\u3000\u00A0\u2003\u2002]*)([•●○◦▪■►➤‣⁃·])([ \t\u3000\u00A0\u2003\u2002]*)(?=[A-Za-z][.、．:：]|\d+[.、．:：]|[（(]\s*\d+\s*[)）]|[\u2460-\u2473\u2776-\u277F\u3251-\u325F])/,
-      '$1'
-    );
+    const n = inner.replace(LEAD_MARKER_RE, '$1');
     return n === inner ? m : `<${tag}${attrs}>${n}</${tag}>`;
   });
   return out;

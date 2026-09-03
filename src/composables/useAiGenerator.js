@@ -4612,7 +4612,7 @@ ${cardAnalysisText.substring(0, 1000)}
             `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
             { taskType: 'generation', timeout: getTimeout('generation'), retries: 0, maxTokens: bodyDynamicCap * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)), allowContinuation: false, temperature: bodyTemperature, thinking: retryWithoutThinking ? false : undefined }
           );
-          const contHtml = normalizeIndents(normalizeBlankMarkers(cleanSectionHtml(typeof contResp === 'string' ? contResp : (contResp?.content || ''))));
+          const contHtml = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeBlankMarkers(cleanSectionHtml(typeof contResp === 'string' ? contResp : (contResp?.content || ''))))));
           if (contHtml && contHtml.length > 100) content = content + '\n' + contHtml;
         }
         if (content && content.length > GEN_CONST.BODY_VALID_MIN_LEN) break;
@@ -4694,7 +4694,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           returnMeta: true,
         });
         const ansObj = typeof ansResp === 'string' ? { content: ansResp, finishReason: '', reasoningChunkCount: 0 } : (ansResp || { content: '', finishReason: '', reasoningChunkCount: 0 });
-        let aHtml = cleanSectionHtml(ansObj.content || '');
+        let aHtml = normalizeLeadingMarkers(cleanSectionHtml(ansObj.content || ''));
         // 🔴 思考耗尽判定：推理达到上限（reasoning_capped）或 chunk 数巨大 → 本次重试强制关闭思考
         const ansCapped = ansObj.finishReason === 'reasoning_capped' || (ansObj.reasoningChunkCount || 0) >= GEN_CONST.REASONING_EXHAUST_THRESHOLD;
         if (aHtml && aHtml.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansCapped) {
@@ -4712,7 +4712,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
             returnMeta: true,
           });
           const ansObj2 = typeof ansResp2 === 'string' ? { content: ansResp2, finishReason: '', reasoningChunkCount: 0 } : (ansResp2 || { content: '', finishReason: '', reasoningChunkCount: 0 });
-          const aHtml2 = cleanSectionHtml(ansObj2.content || '');
+          const aHtml2 = normalizeLeadingMarkers(cleanSectionHtml(ansObj2.content || ''));
           if (aHtml2 && aHtml2.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN) {
             const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
             answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${aHtml2}</div>`;
