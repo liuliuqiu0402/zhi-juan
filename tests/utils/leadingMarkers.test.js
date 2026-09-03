@@ -56,4 +56,19 @@ describe('normalizeLeadingMarkers 行首"项目符号+序号"双标记归一', (
     const html = '<p>•&nbsp;草原迎客</p>';
     expect(normalizeLeadingMarkers(html)).toBe(html);
   });
+  it('序号被 <strong>/<b> 加粗包裹（模型常见写法）→ 仍剥项目符号并保留序号标签', () => {
+    expect(normalizeLeadingMarkers('<p>• <strong>（1）</strong>知道</p>')).toBe('<p><strong>（1）</strong>知道</p>');
+    expect(normalizeLeadingMarkers('<p>• <b>1、</b>内容</p>')).toBe('<p><b>1、</b>内容</p>');
+  });
+  it('中文数字序号（一、/（一））→ 剥项目符号', () => {
+    expect(normalizeLeadingMarkers('<p>· 一、学习目标</p>')).toBe('<p>一、学习目标</p>');
+    expect(normalizeLeadingMarkers('<p>• （一）设问</p>')).toBe('<p>（一）设问</p>');
+  });
+  it('◆◇ 等列表项符号 + 序号 → 剥', () => {
+    expect(normalizeLeadingMarkers('<p>◆ 1、内容</p>')).toBe('<p>1、内容</p>');
+    expect(normalizeLeadingMarkers('<p>◇ ② 内容</p>')).toBe('<p>② 内容</p>');
+  });
+  it('标签后是正文文字而非序号 → 保守不剥（防误伤）', () => {
+    expect(normalizeLeadingMarkers('<p>• <strong>要点说明</strong>1、见下</p>')).toBe('<p>• <strong>要点说明</strong>1、见下</p>');
+  });
 });

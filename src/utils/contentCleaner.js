@@ -420,8 +420,14 @@ export function normalizeMatchQuestions(html = '') {
  */
 // 行首可作分隔的"空白"：真实空白字符 或 HTML 实体空位（&nbsp;&#160;&emsp;&ensp; 等）
 const LEAD_WS = '(?:[ \\t\\u3000\\u00A0\\u2003\\u2002]|&(?:nbsp|#160|#xA0|emsp|#8195|ensp|#8194);)';
+// 项目符号常见集合（含 ◆◇ 等列表项常用符号）
+const LEAD_BULLET = '[•●○◦▪■►➤‣⁃·◆◇]';
+// 序号前可能出现的单个起始修饰标签（模型常用 <strong>/<b> 加粗要点序号；限长防失控，避免吞入正文）
+const INITIAL_TAG = '(?:<[a-zA-Z][^>]{0,80}>)';
+// 编号形式：字母/数字+分隔符、(数字)、中文数字序号、(中文数字)、带圈数字
+const LEAD_SEQ = '(?:[A-Za-z][.、．:：]|\\d+[.、．:：]|[（(]\\s*\\d+\\s*[)）]|[一二三四五六七八九十]{1,3}[.、．]|[（(][一二三四五六七八九十]{1,3}[)）]|[\\u2460-\\u2473\\u2776-\\u277F\\u3251-\\u325F])';
 const LEAD_MARKER_RE = new RegExp(
-  `^(${LEAD_WS}*)([•●○◦▪■►➤‣⁃·])(${LEAD_WS}*)(?=[A-Za-z][.、．:：]|\\d+[.、．:：]|[（(]\\s*\\d+\\s*[)）]|[\\u2460-\\u2473\\u2776-\\u277F\\u3251-\\u325F])`
+  `^(${LEAD_WS}*)(${LEAD_BULLET})(${LEAD_WS}*)(?=${INITIAL_TAG}?${LEAD_SEQ})`
 );
 export function normalizeLeadingMarkers(html = '') {
   let out = String(html || '');

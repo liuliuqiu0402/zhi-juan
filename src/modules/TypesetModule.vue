@@ -491,7 +491,7 @@ import { PAPER_PRESETS } from '../config/paperPresets.js';
 import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js'; // 作文格/书写格尺寸按学段（排版规格库）
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
-import { stripAiCodeFence } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离（与 GenerateModule 共用，防同构副本各自演化）
+import { stripAiCodeFence, normalizeLeadingMarkers } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离 + 行首"项目符号+序号"归一（与 GenerateModule 共用，防同构副本各自演化）
 import storage from '../utils/storage';
 import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
 
@@ -1466,6 +1466,9 @@ const withExamShell = (html, stage) => {
 const loadContentSilent = (content, stage = '') => {
   if (!content || typeof content !== 'string') return;
   applyDocStage(stage || sniffCarrierStage(content)); // 文档学段：记录字段优先，无则按载体推断（作文格/书写格/导出口径）
+  // 🔧 行首页签"项目符号+序号"在此统一剥离（幂等）：历史/旧内容首次载入排版即规范，与生成端/编辑器同口径，
+  //    避免"第二遍才剥"——排版/导出直接读取本入口产出的 rawHtmlContent，必须先归一再装卷面
+  content = normalizeLeadingMarkers(content);
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
   // 🔧 HTML 内容统一做密封线结构归一化 + 注入卷面固定件（编辑区所见即所得），幂等
   if (isHtml) { isHtmlContent.value = true; rawHtmlContent.value = withExamShell(content); currentContent.value = ''; }
@@ -1476,6 +1479,8 @@ const loadFromGenerate = async (payload) => {
   let content = typeof payload === 'string' ? payload : payload?.content || '';
   const meta = (typeof payload === 'object' && payload.meta) ? payload.meta : {};
   if (!content || typeof content !== 'string') return;
+  // 🔧 生成/载入统一规范：行首页签"项目符号+序号"剥离（幂等，与生成端/编辑器同口径），确保排版/导出首次即规范
+  content = normalizeLeadingMarkers(content);
   // 🔧 文档学段（作文格/书写格/导出按学段走排版规格库）：生成参数五档 stageKey 优先，
   //    旧记录/无字段内容按载体推断（田字格/拼音格→低段、四线格→中段），避免误回退默认档
   applyDocStage(meta.stage || sniffCarrierStage(content));
