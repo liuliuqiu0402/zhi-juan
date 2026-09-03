@@ -206,7 +206,7 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
       } else {
         expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('留白宽窄与答案篇幅相称');
-        expect(t.template, `类型 ${g} 缺作答位置要求`).toContain('客观题按作答形式留出相应作答位置');
+        expect(t.template, `类型 ${g} 缺客观题口径（与规则库一致：不再整行留白）`).toContain('不再额外整行留白');
       }
       expect(t.template, `类型 ${g} 残留连线诱导词`).not.toContain('连线题');
     }
