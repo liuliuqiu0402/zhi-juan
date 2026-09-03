@@ -49,9 +49,9 @@ describe('编辑器 themeCSS 转换（编辑区 = 导出视觉）', () => {
     expect(css).toMatch(/\.tian-zi-ge\s*\{[^}]*width:\s*\d+(\.\d+)?mm/);
     expect(css).toMatch(/\.tian-zi-ge\s*\{[^}]*height:\s*\d+(\.\d+)?mm/);
     expect(css).toMatch(/\.mi-zi-ge\s*\{[^}]*width:\s*\d+(\.\d+)?mm/);
-    expect(css).toMatch(/:root\s*\{\s*--flt-h:\s*\d+(\.\d+)?mm/); // 四线三格行高变量：单一事实源 carrierCss（按学段注入）
-    // 🔧 行式格家族（四线三格/六线格/拼音格）共享同一 ::before 格线画法（拼音格 2026-09 补齐）
-    expect(css).toMatch(/\.four-line-three::before,\s*\.sixian-ge::before,\s*\.pinyin-line::before\s*\{[^}]*height:\s*var\(--flt-h,\s*9mm\)/);
+    expect(css).toMatch(/:root\s*\{\s*--flt-h:\s*1\.45em/); // 四线三格/拼音格行高：随字母字号自适应（2026-09 起 em，不再按学段 mm）
+    // 🔧 行式格家族（四线三格/六线格/拼音格）共享同一 ::before 格线画法（行高 1.45em 随字号）
+    expect(css).toMatch(/\.four-line-three::before,\s*\.sixian-ge::before,\s*\.pinyin-line::before\s*\{[^}]*height:\s*var\(--flt-h,\s*1\.45em\)/);
     expect(css).not.toContain('.tian-zi-ge { display: inline-block; position: relative; width: 1.8em');
   });
 

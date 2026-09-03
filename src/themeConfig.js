@@ -1417,13 +1417,15 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   const tzH = GRD['tian-zi-ge']?.primary?.heightMm ?? 12;
   const mzW = GRD['mi-zi-ge']?.primary?.widthMm ?? tzW;
   const mzH = GRD['mi-zi-ge']?.primary?.heightMm ?? tzH;
-  const fltH = GRD['four-line-three']?.[gcKey]?.lineHeightMm ?? 9; // 四线三格/六线格行高：注入 :root --flt-h（画法单一事实源见 carrierCss）
+  // 四线三格/拼音格行高：--flt-h 恒为 1.45em（随字母字号自适应，见 carrierCss 注释；
+  //   曾按学段注入 GRID_CELL 9/8mm，小字号书写格位失真，2026-09 改 em 三端口径一致）
+  const FLT_H_EM = '1.45em';
   
   // 🔧 无样式：不应用任何主题 CSS，仅返回纯净 HTML 包装
   if (!theme) {
     const styleTag = `<style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      :root { --flt-h: ${fltH}mm; } /* 四线三格行高：单一事实源 carrierCss CARRIER_LINE_CSS，行高 CSS 变量按学段注入 */
+      :root { --flt-h: ${FLT_H_EM}; } /* 四线三格/拼音格行高：1.45em 随字号自适应（carrierCss 单一事实源） */
       body { font-family: SimSun, 'Microsoft YaHei', serif; font-size: 12pt; line-height: 1.6; margin: 20px; background: white; color: #1e1e1e; }
       ul, ol { padding-left: 2em; }
       li { display: list-item; }
@@ -1462,7 +1464,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   // 构建样式
   let styleTag = `<style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    :root { --flt-h: ${fltH}mm; } /* 四线三格行高：单一事实源 carrierCss CARRIER_LINE_CSS，按学段注入 */
+    :root { --flt-h: ${FLT_H_EM}; } /* 四线三格/拼音格行高：1.45em 随字号自适应（carrierCss 单一事实源） */
     body {
       font-family: ${theme.bodyFont};
       font-size: ${theme.bodySize}pt;

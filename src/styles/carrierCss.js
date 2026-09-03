@@ -7,8 +7,8 @@
 //    曾 global.css / themeConfig / RichTextEditor 深规则 / TypesetModule 各自维护同规则，
 //    改档位/线位/线色需多处手动同步 → 现收敛此处，改规则只改本文件。
 //    宽度档位 1..24 与排版规格库 layoutSpec.sanitizeBlankSpec 上限一致。
-//    四线三格/六线格行高 = CSS 变量 --flt-h（默认 9mm；排版模块按文档学段注入，
-//    GRID_CELL four-line-three：小学 9 / 初中 8mm；Word 导出几何见 docxBuilder，另口径）
+//    四线三格/六线格/拼音格行高 = CSS 变量 --flt-h（默认 1.45em，随字母字号自适应；
+//    曾按学段注入 mm（9/8），小字号时字母书写格位失真 → 2026-09 改 em，与 Word 导出口径一致）
 // ============================================================
 
 const TIERS = Array.from({ length: 24 }, (_, i) => i + 1);
@@ -20,15 +20,17 @@ const uWidthCss = () => TIERS.map((n) => `u.blank-${n}{min-width:${n}em;}`).join
  *（与 Word 导出 "(" + NBSP×N + ")" 同口径，括号内恰为 N em） */
 const spanGridCss = () => TIERS.map((n) => `span.blank-${n}{grid-template-columns:auto minmax(${n}em,1fr) auto;}`).join('\n');
 
-/** 四线三格/六线格/拼音格/英语书写格（行高 CSS 变量化，线位百分比等距三等带：
- * 线在 6.7%/36.7%/66.7%/96.7%，三条浅线 var(--flt-soft,#999) + 基线 var(--flt-strong,#666)）
- * 拼音格（.pinyin-line）为行式格家族成员（GRID_CELL 同口径行高 9/8mm）：与四线三格同画法，
- * 学生手写拼音字母于中间两线间——曾仅声明字体无格线（span 空载不可见），2026-09 补线补齐 */
+/** 四线三格/六线格/拼音格（行高随字母字号自适应，字母行内垂直居中）
+ * ============================================================
+ * 线位：行高 H 内等距三等带（6.7%/36.7%/66.7%/96.7%），soft #999 ×3 + strong #666（第 3 线，基线）。
+ * H = var(--flt-h, 1.45em)（2026-09 起随字号自适应：曾固定 9mm → 小字号时格子过大、字母只能落在中格，
+ * 上/中/下格书写关系失真；改为与导出/编辑器同口径的 1.45em，字母用 inline-flex 垂直居中 → 与 Word 一致）。
+ * 排版/主题注入改为同值（em），不再注入 mm。 */
 export const CARRIER_LINE_CSS = `
-.four-line-three, .sixian-ge, .pinyin-line { display: inline-block; position: relative; padding: 4px 4px; font-size: inherit !important; line-height: 1; min-width: 18px; text-align: center; vertical-align: middle; text-indent: 0; }
+.four-line-three, .sixian-ge, .pinyin-line { display: inline-flex; align-items: center; justify-content: center; position: relative; padding: 0 0.18em; font-size: inherit !important; height: var(--flt-h, 1.45em); line-height: 1; min-width: 18px; text-align: center; vertical-align: middle; text-indent: 0; }
 .four-line-three { font-family: 'Times New Roman', 'Georgia', SimSun, serif; }
 .sixian-ge { font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; }
-.four-line-three::before, .sixian-ge::before, .pinyin-line::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: var(--flt-h, 9mm); background: linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 6.7%/100% 1px no-repeat, linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 36.7%/100% 1px no-repeat, linear-gradient(var(--flt-strong,#666),var(--flt-strong,#666)) 0 66.7%/100% 1px no-repeat, linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 96.7%/100% 1px no-repeat; pointer-events: none; }
+.four-line-three::before, .sixian-ge::before, .pinyin-line::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: var(--flt-h, 1.45em); background: linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 6.7%/100% 1px no-repeat, linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 36.7%/100% 1px no-repeat, linear-gradient(var(--flt-strong,#666),var(--flt-strong,#666)) 0 66.7%/100% 1px no-repeat, linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 96.7%/100% 1px no-repeat; pointer-events: none; }
 .pinyin-line { font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; }
 .english-line { font-family: 'Times New Roman', 'Georgia', serif; }
 `;

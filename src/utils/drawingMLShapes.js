@@ -193,22 +193,19 @@ const textboxFlt = (id, letter, sizeHp, font, W, cy, pts, colorTag = '', bold = 
 };
 
 const fltLineAnchors = (lineWEmu, pts, idBase, centerAlign = false, gapEmu = 0, letter = '', sizeHp = 28, font = 'Times New Roman', colorTag = '', bold = false, italic = false) => {
-  // 🔧 四线格几何统一 mm（2026-09 全局一致性修复）：预览/编辑器行式格高度 = var(--flt-h) mm（GRID_CELL
-  //    four-line-three/pinyin-line：9mm），曾 Word 端按 1.45em×字号 推算（12pt≈18.4pt≈6.5mm < 9mm，随字号漂移，
-  //    且第 4 线用红色 1pt 与预览第 3 线 #666 强线不一致）→ 现按 9mm 定高、线位/配色照抄 carrierCss
-  //    CARRIER_LINE_CSS（线在 6.7%/36.7%/66.7%/96.7%；soft #999999 ×3 + strong #666666 于第 3 线；1px=9525 EMU）
-  const FLT_HMM = 9;
-  const HPT = FLT_HMM * 72 / 25.4;                 // 9mm ≈ 25.51pt
-  const lineFracs = [0.067, 0.367, 0.667, 0.967];  // 与 preview 线位同源（% 行高）
+  // 🔧 四线格几何随字母字号（2026-09 用户反馈校准）：格子高 = 1.45em×字号（曾改 9mm 定高 → 小字号时
+  //    格子过大、上/中/下格书写关系失真），线位 = 0.1/0.55/1.0/1.45em 恰等于预览 1.45em 行高的
+  //    6.7%/36.7%/66.7%/96.7% 线位；配色与预览对齐：soft #999999 ×3 + strong #666666（第 3 线，基线）1px
+  const linePosEm = [0.1, 0.55, 1.0, 1.45];
   const lineColors = ['999999', '999999', '666666', '999999'];
-  const lineWidths = [9525, 9525, 9525, 9525];     // 1px（@96dpi）= 0.75pt，与 preview 1px 同口径
+  const lineWidths = [9525, 9525, 9525, 9525];     // 1px（@96dpi）= 0.75pt，与预览 1px 同口径
   const wPt = Math.round(lineWEmu / EMU_PER_PT);
-  const groupCy = Math.round(HPT * EMU_PER_PT) + 12700;
-  const shapes = lineFracs.map((frac, i) => ({
+  const groupCy = Math.round(linePosEm[3] * pts * EMU_PER_PT) + 12700;
+  const shapes = linePosEm.map((em, i) => ({
     id: idBase + i + 1,
     name: `FLT-Line-${i + 1}`,
     x: 0,
-    y: Math.round(frac * HPT * EMU_PER_PT),
+    y: Math.round(em * pts * EMU_PER_PT),
     cx: lineWEmu,
     cy: 0,
     geom: 'line',
@@ -226,8 +223,8 @@ const fltLineAnchors = (lineWEmu, pts, idBase, centerAlign = false, gapEmu = 0, 
     cy: groupCy,
     shapesXml,
   });
-  const fallback = `<w:pict>${lineFracs.map((frac, i) => {
-    const yPt = Math.round(frac * HPT);
+  const fallback = `<w:pict>${linePosEm.map((em, i) => {
+    const yPt = Math.round(em * pts);
     return `<v:line from="0,${yPt}pt" to="${wPt}pt,${yPt}pt" strokecolor="#${lineColors[i]}" strokeweight="${lineWidths[i] / EMU_PER_PT}pt"/>`;
   }).join('')}</w:pict>`;
   return mcWrap(choice, fallback);

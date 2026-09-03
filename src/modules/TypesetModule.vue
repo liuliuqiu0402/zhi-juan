@@ -695,17 +695,15 @@ const persistStageOverride = async (s) => {
 };
 
 // 🔧 作文格预览格宽/格高按学段读排版规格库 ZUOWEN_CELL（曾硬编码 12/10/7.5mm，面板调规格不生效）
-//    四线三格/六线格行高同源 GRID_CELL，经 --flt-h 供 carrierCss CARRIER_LINE_CSS 消费
+//    四线三格/拼音格行高：--flt-h 恒 1.45em（随字母字号自适应，与主题/导出同口径；曾按学段 mm，2026-09 改）
 const zwgCssVars = computed(() => {
   const key = normalizeStage3(effStage.value || STAGE_NEUTRAL);
   const ZC = getMergedSpec().ZUOWEN_CELL;
-  const GRD = getMergedSpec().GRID_CELL || {};
   const c = ZC[key] || { widthMm: 12, heightMm: 12 };
-  const fltH = GRD['four-line-three']?.[key]?.lineHeightMm ?? 9;
   return {
     '--zwg-cell-w': `${c.widthMm}mm`,
     '--zwg-cell-h': `${c.heightMm}mm`,
-    '--flt-h': `${fltH}mm`,
+    '--flt-h': '1.45em',
   };
 });
 
