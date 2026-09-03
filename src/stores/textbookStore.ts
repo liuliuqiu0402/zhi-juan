@@ -6,6 +6,8 @@ import { resolveStoredPath, getStoragePath } from '../utils/pathHelper';
 import { repairLibraryPaths } from '../utils/libraryPathRepair';
 // @ts-ignore - outlineTree.js 无类型声明
 import { hasAnySelected as hasAnySelectedTree, countSelected as countSelectedTree } from '../utils/outlineTree'; // 大纲树勾选唯一实现（曾 store 内 4 份逐字副本）
+// 🔧 文本指纹哈希唯一实现（djb2，与生成端 useAiGenerator 的"文本是否变过"判定同源，曾各自复制导致字段对不上）
+import { djb2 } from '../utils/hash';
 
 export { sanitizeFsName } from '../utils/libraryPathRepair';
 
@@ -18,6 +20,9 @@ interface ChapterNode {
   analyzed?: boolean;
   rawText?: string;
   _rawTextHtml?: string;
+  // 🔧 分析时原文的指纹/长度（生成端据此判定"文本是否变过"而决定启用/降级分析结果）
+  _analyzedPlainTextLength?: number;
+  _analyzedTextHash?: string;
   visualDescription?: string;
   formulas?: string[];
   coreTopics?: string;
@@ -180,6 +185,28 @@ export const useTextbookStore = defineStore('textbook', {
         for (const b of saved) {
           if (b.outline) applyAnalyzedSync(b.outline);
         }
+        // 🔧 旧版分析数据兼容：补齐缺失的 _analyzedTextHash / _analyzedPlainTextLength
+        //    根因：2026.09 前版本保存分析时未持久化这两个字段，导致生成端误判"文本已变"→ 降级目录卡 → 教材原文检不到
+        //    修复策略：加载时幂等回填，无需重新分析 AI（指纹是 rawText 的确定性派生，直接现算，成本为零）
+        const backfillAnalyzedFingerprints = (nodes: ChapterNode[]) => {
+          for (const node of nodes) {
+            if (node.analyzed && node.rawText) {
+              // 只在缺省时回填（幂等），已有的不覆盖（覆盖等于什么都没做）
+              if (node._analyzedTextHash == null || node._analyzedPlainTextLength == null) {
+                node._analyzedPlainTextLength = (node.rawText || '').length;
+                node._analyzedTextHash = djb2(node.rawText || '');
+                hasChange = true;
+              }
+            }
+            if (node.children && node.children.length > 0) {
+              backfillAnalyzedFingerprints(node.children);
+            }
+          }
+        };
+        for (const b of saved) {
+          if (b.outline) backfillAnalyzedFingerprints(b.outline);
+        }
+        // 🔧 完成回填 & 旧路径自愈后写回，后续不再做
         this.textbooks = saved;
         if (hasChange) await storage.setItem('textbooks', saved);
       }
@@ -338,6 +365,10 @@ export const useTextbookStore = defineStore('textbook', {
           }
         }
         ch.analyzed = true;
+        // 🔧 现场补齐分析指纹：分析保存时若调用方未携带 hash/长度，则按本次落盘的 rawText 现算，
+        //    确保持久化里始终有可判定的指纹。缺失时生成端会误判"文本已变"→ 降级目录卡 → 教材原文检不到。
+        ch._analyzedPlainTextLength = (ch.rawText || '').length;
+        ch._analyzedTextHash = djb2(ch.rawText || '');
       }
 
       const updateParentAnalyzed = (nodes: ChapterNode[]) => {

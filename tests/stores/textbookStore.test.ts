@@ -52,6 +52,44 @@ describe('useTextbookStore', () => {
     expect(store.textbooks[0].outline![0].children![0].selected).toBe(true);
   });
 
+  it('updateChaptersAnalysis 必须补齐 _analyzedTextHash / _analyzedPlainTextLength（缺失会致生成端误判"文本已变"→降级目录卡、教材原文检不到）', () => {
+    const store = useTextbookStore();
+    const lesson = createChapter('一、草原', 1, 10);
+    lesson.rawText = '草原风光教学设计素材第一段。';
+    store.addTextbook({ id: '1', title: '语文', outline: [lesson] } as any);
+
+    store.updateChaptersAnalysis('1', [{
+      chapterRef: lesson,
+      rawText: lesson.rawText,
+      knowledgePointsText: '草原、风光',
+      coreTopics: '草原风情',
+      knowledgeHierarchy: [{ bigConcept: '写景', coreKnowledge: [{ name: '草原' }] }]
+    }] as any);
+
+    expect(lesson.analyzed).toBe(true);
+    expect(lesson._analyzedPlainTextLength).toBe(lesson.rawText.length);
+    expect(lesson._analyzedTextHash).toBeTruthy();
+    // 与生成端 useAiGenerator 判定一致：指纹命中 → textChangedSinceAnalysis=false → 走"分析捷径"保原文片段
+    // 这里仅校验持久化干净落盘，hash 一致性由 utils/hash.djb2 契约保证
+    expect(typeof lesson._analyzedTextHash).toBe('string');
+  });
+
+  it('updateChaptersAnalysis 兜底：调用方不传指纹字段时仍会按 rawText 现算补齐', () => {
+    const store = useTextbookStore();
+    const lesson = createChapter('二、某课', 1, 5);
+    lesson.rawText = '仅原文，无指纹回传。';
+    store.addTextbook({ id: '1', title: '语文', outline: [lesson] } as any);
+
+    store.updateChaptersAnalysis('1', [{
+      chapterRef: lesson,
+      rawText: lesson.rawText,
+      coreTopics: '主题'
+    }] as any);
+
+    expect(lesson._analyzedPlainTextLength).toBe(lesson.rawText.length);
+    expect(lesson._analyzedTextHash).toBeTruthy();
+  });
+
   it('selectedBooks 返回有选中章节的教材', () => {
     const store = useTextbookStore();
     const outline = [
@@ -106,5 +144,40 @@ describe('useTextbookStore', () => {
 
     const selected = store.getSelectedChapters(outline);
     expect(selected.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('loadTextbooks 启动时幂等回填旧版分析缺省指纹（无需重新分析）', async () => {
+    const storageApi = (await import('@/utils/storage')).default;
+    const legacyBook = { id: 'L1', name: '旧教材·上', outline: [
+      { title: '第一课', start: 1, end: 8, selected: false, analyzed: true, rawText: '来有着旧数据原文一段。', knowledgePoints: ['点1'] }
+    ] };
+    (storageApi.getItem as any).mockResolvedValueOnce([legacyBook]);
+
+    const store = useTextbookStore();
+    await store.loadTextbooks();
+
+    const ch = store.textbooks[0].outline![0] as any;
+    expect(ch._analyzedPlainTextLength).toBe(ch.rawText.length);
+    expect(ch._analyzedTextHash).toBeTruthy();
+    expect(typeof ch._analyzedTextHash).toBe('string');
+    expect(storageApi.setItem).toHaveBeenCalled();
+  });
+
+  it('loadTextbooks 对已带指纹的章节保持幂等（不覆盖），旧版缺省只补一次', async () => {
+    const storageApi = (await import('@/utils/storage')).default;
+    const book = { id: 'M1', name: '新版·上', outline: [
+      { title: '第一课', start: 1, end: 8, selected: false, analyzed: true, rawText: 'abc',
+        _analyzedPlainTextLength: 3, _analyzedTextHash: 'xxx',
+        knowledgePoints: ['点1'] }
+    ] };
+    (storageApi.getItem as any).mockResolvedValueOnce([book]);
+
+    const store = useTextbookStore();
+    await store.loadTextbooks();
+
+    const ch = store.textbooks[0].outline![0] as any;
+    // 已有指纹不应被覆盖（保持原值）
+    expect(ch._analyzedPlainTextLength).toBe(3);
+    expect(ch._analyzedTextHash).toBe('xxx');
   });
 });
