@@ -283,7 +283,7 @@
                 {{ p.label }}
               </option>
             </select>
-            <!-- 🔧 卷型选择（2026-08）：密封线卷（默认，含密封线+考生信息栏）/ 普通卷（无密封线） -->
+            <!-- 🔧 卷型选择（2026-08）：密封线卷（含密封线+考生信息栏）/ 普通卷（默认，无密封线） -->
             <select
               v-if="exportFormat === 'docx'"
               v-model="sealVariant"
@@ -509,7 +509,7 @@ const isExporting = ref(false);
 const exportStatus = ref('');
 const paperPresets = PAPER_PRESETS; // 🔧 纸张版式预设（A4 单栏 / A3 两栏三栏 / 8K 两栏三栏 / 4K 四栏）
 const paperLayout = ref('a4-1col'); // 🔧 纸张版式：默认 A4 单栏；多栏 = 分栏 + 每栏页码按栏计数（Word 公式域自动算）
-const sealVariant = ref('sealed'); // 🔧 卷型：sealed（密封线卷，默认）/ plain（普通卷，无密封线）
+const sealVariant = ref('plain'); // 🔧 卷型：sealed（密封线卷）/ plain（普通卷，默认）
 const exportFormat = ref('docx');
 
 // 🔧 处理从生成模块跳转过来的 HTML 内容
