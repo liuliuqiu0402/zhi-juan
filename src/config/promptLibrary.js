@@ -46,7 +46,7 @@ const QUESTION_FORMAT = (ctx = {}) => {
   const carrier = (buildCarrierInstruction(ctx.subject, ctx.stage) || '').replace(/。$/, '');
   const hasEx = HAS_EXPRESSION_QUESTIONS.includes(ctx.subject);
   const clauses = [
-    '需要学生作答处一律留出书写空间：空间宽度与该处答案长度匹配（短答案留窄空间、答案长则加宽，同一题内不得一律等宽），空间内保持空白、不填任何字；具体空间样式由排版系统按语义渲染，模型只需保证"留白处宽度与答案长度相符"',
+    '学生作答处按答案长度给出空的作答书写载体',
     '客观题按作答形式留出相应作答位置',
   ];
   // 🔧 写字/抄写硬约束仅注入存在写话/写作/抄写题的学科（语文/英语，hasEx）；

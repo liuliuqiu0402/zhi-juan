@@ -132,7 +132,7 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     expect(hint).toContain('<h1>');
     expect(hint).toContain('<h2>');
     expect(hint).toContain('题目区严禁混入');
-    expect(hint).toContain('需要学生作答处一律留出书写空间');
+    expect(hint).toContain('学生作答处按答案长度给出空的作答书写载体');
   });
 
   it('含正文边界要求：答案仅出现在独立答案区；代码块由代码层拦截，不再要求模型', () => {
@@ -156,7 +156,7 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     const preview = buildOutputFormatHint({ subject: '语文', stage: 'primary_low', genType: 'preview' });
     expect(preview).toContain('栏目标题');
     expect(preview).not.toContain('写汉字类题必须真实输出田字格');
-    expect(preview).not.toContain('需要学生作答处一律留出书写空间');
+    expect(preview).not.toContain('学生作答处按答案长度给出空的作答书写载体');
     const summary = buildOutputFormatHint({ genType: 'summary' });
     expect(summary).toContain('知识框架');
   });
@@ -175,7 +175,7 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
         expect(t.template, `类型 ${g} 不应要求题号包裹`).not.toContain('以 <p class="question"> 包裹并带题号');
       } else {
-        expect(t.template, `类型 ${g} 缺作答载体规则`).toContain('需要学生作答处一律留出书写空间');
+        expect(t.template, `类型 ${g} 缺作答载体规则`).toContain('学生作答处按答案长度给出空的作答书写载体');
         expect(t.template).toContain('以 <p class="question"> 包裹并带题号');
       }
     }
@@ -205,7 +205,7 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
       } else {
-        expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('需要学生作答处一律留出书写空间');
+        expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('学生作答处按答案长度给出空的作答书写载体');
         expect(t.template, `类型 ${g} 缺作答位置要求`).toContain('客观题按作答形式留出相应作答位置');
       }
       expect(t.template, `类型 ${g} 残留连线诱导词`).not.toContain('连线题');
@@ -216,13 +216,14 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
     for (const g of ALL_TYPES) {
       const t = getPromptTemplate({ genType: g });
       if (CONTENT_TYPES.includes(g)) {
-        expect(t.template, `类型 ${g}`).not.toContain('书写空间宽度与答案长度匹配');
+        expect(t.template, `类型 ${g}`).not.toContain('作答书写载体');
       } else {
-        expect(t.template, `类型 ${g}`).toContain('空间宽度与该处答案长度匹配');
+        expect(t.template, `类型 ${g}`).toContain('按答案长度给出空的作答书写载体');
       }
       expect(t.template, `类型 ${g} 残留微观格式`).not.toContain('空格数=答案字数');
       expect(t.template, `类型 ${g} 残留格数诱导`).not.toContain('1字≈2格');
       expect(t.template, `类型 ${g} 残留诱导词`).not.toContain('括号与横线二选一');
+      expect(t.template, `类型 ${g} 残留形态诱导词`).not.toContain('留白书写位');
       expect(t.template, `类型 ${g} 残留形态诱导词`).not.toContain('书写空间形态');
     }
   });
@@ -230,7 +231,7 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
   it('书写载体条款按 学科×学段 精确注入（排版规格库唯一事实源，不广播跨学科示例）', () => {
     // 通用模板（无学科/学段）：只留通用句，不含任何具体格子示例（旧版全学科广播已移除）
     const generic = getPromptTemplate({ genType: 'practice' });
-    expect(generic.template).toContain('需要学生作答处一律留出书写空间');
+    expect(generic.template).toContain('学生作答处按答案长度给出空的作答书写载体');
     expect(generic.template).not.toContain('不少于3行');
     expect(generic.template).not.toContain('tian-zi-ge');
     expect(generic.template).not.toContain('four-line-three');
