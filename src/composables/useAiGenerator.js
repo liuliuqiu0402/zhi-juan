@@ -4724,13 +4724,14 @@ ${cardAnalysisText.substring(0, 1000)}
         //    正文长度上限走设置项 answerContextMaxChars（默认 24000；超大卷/高中大卷可调大至 40000-60000）
         const paperPlain = htmlToPlainText(content, apiConfig.generationSettings.answerContextMaxChars);
         // 🔧 格式根治：答案页注入与正文一致的 HTML 输出规范（此前无格式要求 → 模型直接输出 Markdown 源码）
-        const ansFormat = buildAnswerFormatSpec(subject);
+        //    stage 参与答案页格式：低段（primary_low）答案速查一行一条（不复述题干、不重现作答空位）
+        const ansFormat = buildAnswerFormatSpec(subject, resolveStageKey(book?.stage, book?.grade, book?.name));
         // 🔧 自包含教辅（summary/review/preview/dictation/errorbook）答案区只写练习/自测/变式解答（典型例题已在正文讲解展示，不重复），
         //    “按栏目组织答案”仅指按题目所在栏目对答案分类，绝不把正文知识梳理整体复述进答案区（防二次复述）
         const selfContainedAnsNote = isSelfContainedTeaching
           ? '\n【自包含教辅答案原则】答案区【只】给出正文中练习/自测/变式的解答（典型例题的解答与解析已在正文讲解展示，严禁在答案区重复复述）；正文的知识框架/重点梳理/考点梳理/易错辨析/默写内容已在前文呈现，【严禁】在答案区整体重复复述。【严禁】在答案区重复呈现知识结构图、考点导图、梳理条目等正文性内容。'
           : '';
-        const ansPrompt = `${ansRole}题号与试卷正文完全一致，逐题作答，不要重复题目原文。
+        const ansPrompt = `${ansRole}题号与试卷正文完全一致，逐题作答。答案区不复述题干原文（含子题题干）：按“大题号.子题号 → 答案”组织，答案本身（算式/口诀/字词/完整句子）直接写全；不设作答空位、不重现正文里学生要填写的留白与书写格。
 ${selfContainedAnsNote}
 ${ansFormat}
 
