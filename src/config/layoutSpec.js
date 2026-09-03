@@ -228,8 +228,8 @@ export function buildBlankWidthInstruction(spec = BLANK) {
   const capChars = Math.max(1, Math.floor(b.maxCap / per)); // 单处上限 ≈ maxCap em
   const perText = Number.isInteger(per) ? String(per) : String(per);
   return (
-    `按答案长度倒推书写空间：答案每 1 字/1 位数字给 1 个全角空格` +
-    `（1 空格≈1 字位≈${perText} em 书写宽；单处上限 ${capChars} 字位≈${b.maxCap} em，超长改用整行书写位）`
+    `书写空间按照答案的长度倒推，每一长度对应一个空格；并按此换算` +
+    `（1 个全角空格≈1 个字位≈${perText} em 书写宽；单处上限 ${capChars} 字位≈${b.maxCap} em，超长改用整行书写位）`
   );
 }
 

@@ -10,11 +10,11 @@ import { buildBlankWidthInstruction, BLANK } from '@/config/layoutSpec.js';
 const FORM_WORDS = /横线|括号|下划线|＿|blank-\d/;
 
 describe('buildBlankWidthInstruction（换算口径随 BLANK 动态生成）', () => {
-  it('默认规格：按答案长度倒推（1 空格≈2 em、单处上限 8 字位≈16 em）', () => {
+  it('默认规格：长度倒推（每长度 1 空格，1 空格≈2 em、单处上限 8 字位≈16 em）', () => {
     const s = buildBlankWidthInstruction();
-    expect(s).toContain('按答案长度倒推书写空间');
-    expect(s).toContain('答案每 1 字/1 位数字给 1 个全角空格');
-    expect(s).toContain('1 空格≈1 字位≈2 em');
+    expect(s).toContain('书写空间按照答案的长度倒推');
+    expect(s).toContain('每一长度对应一个空格');
+    expect(s).toContain('1 个全角空格≈1 个字位≈2 em');
     expect(s).toContain('8 字位');
     expect(s).toContain('16 em');
   });
