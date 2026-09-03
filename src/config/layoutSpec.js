@@ -219,7 +219,7 @@ export function buildCarrierInstruction(subject = '', stage = '') {
  *     排版规格（LayoutSpecView）调整 BLANK 后本口径自动跟随，禁止在提示词里手写死另一套数字；
  *  🔴 只讲宽度换算（空格数↔字位↔em），不出现横线/括号/下划线等形态词（防诱导，审核基准 2.4）；
  *  🔴 分工口径（2026-09 收敛）：手写放大系数（每字位 wordGap em）与宽度上限是渲染端参数，
- *     模型只需按答案字数给空格（答案几字给几个空格），不教模型算 em/上限以外的事，拒绝补丁句堆叠；
+ *     模型只需按答案字数给空格；客观题留白/空位位置等属模型既有能力，不再注入引导句（拒绝补丁堆叠）；
  * 消费方：promptLibrary QUESTION_FORMAT（题为主类型统一注入；内容型不注入）
  */
 export function buildBlankWidthInstruction(spec = BLANK) {
@@ -228,8 +228,8 @@ export function buildBlankWidthInstruction(spec = BLANK) {
   const capChars = Math.max(1, Math.floor(b.maxCap / per)); // 单处上限 ≈ maxCap em
   const perText = Number.isInteger(per) ? String(per) : String(per);
   return (
-    `渲染端换算口径：1 个全角空格≈1 个字位≈${perText} em 书写宽，答案每 1 字/1 位数字给 1 个空格，` +
-    `单处上限 ${capChars} 字位（约 ${b.maxCap} em），超出改用整行书写位`
+    `按答案长度倒推书写空间：答案每 1 字/1 位数字给 1 个全角空格` +
+    `（1 空格≈1 字位≈${perText} em 书写宽；单处上限 ${capChars} 字位≈${b.maxCap} em，超长改用整行书写位）`
   );
 }
 

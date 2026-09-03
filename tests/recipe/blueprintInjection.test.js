@@ -132,7 +132,7 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     expect(hint).toContain('<h1>');
     expect(hint).toContain('<h2>');
     expect(hint).toContain('题目区严禁混入');
-    expect(hint).toContain('渲染端换算口径');
+    expect(hint).toContain('按答案长度倒推书写空间');
   });
 
   it('含正文边界要求：答案仅出现在独立答案区；代码块由代码层拦截，不再要求模型', () => {
@@ -156,7 +156,7 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     const preview = buildOutputFormatHint({ subject: '语文', stage: 'primary_low', genType: 'preview' });
     expect(preview).toContain('栏目标题');
     expect(preview).not.toContain('写汉字类题必须真实输出田字格');
-    expect(preview).not.toContain('渲染端换算口径');
+    expect(preview).not.toContain('按答案长度倒推书写空间');
     const summary = buildOutputFormatHint({ genType: 'summary' });
     expect(summary).toContain('知识框架');
   });
@@ -175,7 +175,7 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
         expect(t.template, `类型 ${g} 不应要求题号包裹`).not.toContain('以 <p class="question"> 包裹并带题号');
       } else {
-        expect(t.template, `类型 ${g} 缺作答载体规则`).toContain('渲染端换算口径');
+        expect(t.template, `类型 ${g} 缺作答载体规则`).toContain('按答案长度倒推书写空间');
         expect(t.template).toContain('以 <p class="question"> 包裹并带题号');
       }
     }
@@ -205,8 +205,10 @@ describe('作答载体规范全模板覆盖（宽度换算口径随 BLANK 注入
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
       } else {
-        expect(t.template, `类型 ${g} 缺换算口径`).toContain('渲染端换算口径');
-        expect(t.template, `类型 ${g} 缺客观题口径（与规则库一致：不再整行留白）`).toContain('不再额外整行留白');
+        expect(t.template, `类型 ${g} 缺换算口径`).toContain('按答案长度倒推书写空间');
+        // 🔧 客观题留白/空位位置属模型既有能力，模板不得再注入引导句（审核基准：不引导、不冗余）
+        expect(t.template, `类型 ${g} 残留客观题引导句`).not.toContain('不再额外整行留白');
+        expect(t.template, `类型 ${g} 残留空位位置引导句`).not.toContain('随所属题目输出');
       }
       expect(t.template, `类型 ${g} 残留连线诱导词`).not.toContain('连线题');
     }
@@ -217,10 +219,10 @@ describe('作答载体规范全模板覆盖（宽度换算口径随 BLANK 注入
       const t = getPromptTemplate({ genType: g });
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g}`).not.toContain('作答书写载体');
-        expect(t.template, `类型 ${g} 内容型不得注入换算口径`).not.toContain('渲染端换算口径');
+        expect(t.template, `类型 ${g} 内容型不得注入换算口径`).not.toContain('按答案长度倒推书写空间');
       } else {
         // 🔧 换算口径随 BLANK 动态注入（空格数→字位→em），只讲宽度、无形态词（审核基准 2.4）
-        expect(t.template, `类型 ${g} 缺换算口径`).toContain('渲染端换算口径');
+        expect(t.template, `类型 ${g} 缺换算口径`).toContain('按答案长度倒推书写空间');
         expect(t.template, `类型 ${g} 换算口径含形态诱导词`).not.toMatch(/括号|横线|下划线|＿|blank-\d/);
       }
       expect(t.template, `类型 ${g} 残留诱导词`).not.toContain('括号与横线二选一');
@@ -232,7 +234,7 @@ describe('作答载体规范全模板覆盖（宽度换算口径随 BLANK 注入
   it('书写载体条款按 学科×学段 精确注入（排版规格库唯一事实源，不广播跨学科示例）', () => {
     // 通用模板（无学科/学段）：只留通用句，不含任何具体格子示例（旧版全学科广播已移除）
     const generic = getPromptTemplate({ genType: 'practice' });
-    expect(generic.template).toContain('渲染端换算口径');
+    expect(generic.template).toContain('按答案长度倒推书写空间');
     expect(generic.template).not.toContain('不少于3行');
     expect(generic.template).not.toContain('tian-zi-ge');
     expect(generic.template).not.toContain('four-line-three');

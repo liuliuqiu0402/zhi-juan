@@ -46,24 +46,15 @@ const QUESTION_FORMAT = (ctx = {}) => {
   const carrier = (buildCarrierInstruction(ctx.subject, ctx.stage) || '').replace(/。$/, '');
   const hasEx = HAS_EXPRESSION_QUESTIONS.includes(ctx.subject);
   // 🔧 作答空位口径（2026-09 收敛，防叠句啰嗦）：
-  //   宽度换算 = 唯一换算口径（layoutSpec BLANK 动态生成）；客观题口径与规则库对齐；
-  //   已删补丁句：'实际可见/宽窄相称/答案长则宽短则窄/不依赖系统凭空生成'（换算句已命令式给出空格，
-  //   长短随答案自动体现）；手写放大系数与上限属渲染端参数，不再向模型复述第二遍。
-  const blankCalc = buildBlankWidthInstruction();
-  const clauses = [
-    blankCalc,
-    // 与规则库 answer-area-fix 同一口径（曾“客观题按作答形式留出相应作答位置”与“客观题无需额外空间”前后矛盾）
-    '客观题（选择/判断/连线等）按作答形式自含可作答位置，不再额外整行留白',
+  //   语义句只留一句（layoutSpec BLANK 动态生成）——按答案长度倒推、字数=空格数、手写宽系数与上限属渲染参数；
+  //   客观题留白/空位位置等属模型既有能力，不再注入引导句；
+  //   载体 class 示例（田字格/拼音格/四线三格/方格纸）是"程序↔模型协议"，按 学科×学段 单独成行注入（buildCarrierInstruction）。
+  const lines = [
+    `· 作答书写载体：${buildBlankWidthInstruction()}`,
   ];
-  // 🔧 写字/抄写硬约束仅注入存在写话/写作/抄写题的学科（语文/英语，hasEx）；
-  //    载体输出条款（田字格/拼音格/四线三格/方格纸）由 buildCarrierInstruction 按 学科×学段 单一事实源输出（上 carrier），
-  //    本处不再重复写"写字/抄写→XX格"（曾无学段门控致田字格诱导进语文中高段，与渲染剥离/校验冲突——已删，勿重建第二事实源）
-  if (carrier) clauses.push(carrier);
-  if (hasEx) {
-    clauses.push('写作/表达类题须完整呈现题目要求（含写作要求），不得只有标题行');
-  }
-  clauses.push('作答空位一律随所属题目输出，不置于题干之前');
-  return `· 作答空位：${clauses.join('；')}`;
+  if (carrier) lines.push(`· 书写载体协议：${carrier}`);
+  if (hasEx) lines.push('· 写作/表达类题须完整呈现题目要求（含写作要求），不得只有标题行');
+  return lines.join('\n');
 };
 
 /** 内容组织格式（内容型类型：结构化呈现，不用题号） */
