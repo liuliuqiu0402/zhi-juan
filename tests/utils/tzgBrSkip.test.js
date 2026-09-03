@@ -45,11 +45,11 @@ describe('表格单元格田字格行内化（td>p>span.tian-zi-ge 保持行内�
   // 提取含 __TZG_ marker 的段落 XML
   const markerPara = (xml) => xml.match(/<w:p\b[^>]*>[\s\S]*?__TZG_[\s\S]*?<\/w:p>/)?.[0] || '';
 
-  it('Tiptap 规范化 td>p>纯田字格 → 行内路径（exact 格行距 552，非块级 before=40）', async () => {
+  it('Tiptap 规范化 td>p>纯田字格 → 行内路径（exact 格行距 800=12mm+6pt，非块级 before=40）', async () => {
     const xml = await buildDoc('<table><tr><td><p><span class="tian-zi-ge">蝌</span></p></td><td>（部首：虫）</td></tr></table>');
     const para = markerPara(xml);
     expect(para).toContain('w:lineRule="exact"');
-    expect(para).toContain('w:line="552"');
+    expect(para).toContain('w:line="800"');
     expect(para).not.toContain('w:before="40"');
   });
 
@@ -105,7 +105,7 @@ describe('普通段落行内田字格（文字+格子同行，不再块级拆段
     expect(paras[0]).toContain('今天学习');
     expect(paras[0]).toContain('这个字');
     expect(paras[0]).toContain('w:lineRule="exact"');
-    expect(paras[0]).toContain('w:line="552"');
+    expect(paras[0]).toContain('w:line="800"');
     expect(paras[0]).not.toContain('w:before="40"');
   });
 

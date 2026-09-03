@@ -843,16 +843,17 @@ const inlineImagesForExport = async (container) => {
 
 /** 表格单元格段落行距：固定值行距（exact）+ 段前段后 0
  *  🔧 用 exact：文字在行盒内垂直居中（auto 多倍行距贴顶→偏上；atLeast 文字贴行盒底→偏下），
- *     且行盒 ≥ 内容高度时不裁切（格行 27.6pt > 田字格 21.6pt、普通行 25pt > 文字 12pt）；
+ *     且行盒 ≥ 内容高度时不裁切（格行 = 田字格 12mm≈34.02pt + 上下各 3pt；普通行 25pt > 文字 12pt）；
  *  🔧 普通行 = 2.08×字号（≈Word 多倍行距 1.6 的等价行盒，25pt 不拥挤，居中后上下各 6.5pt）；
- *  🔧 含田字格/米字格行：行盒 = 格子 1.8em + 上下各 3pt 间距，
+ *  🔧 含田字格/米字格行：行盒 = 格子 12mm（tzgCellMm，与导出格几何一致）+ 上下各 3pt 间距，
+ *     曾按 1.8em×字号 算（12pt 时仅 27.6pt < 格 34pt → 格线纵向越出行盒与上下行重叠），
  *     配合格子 anchor 下移 3pt → 格子中心与文字中心重合（同为行盒中心）、上下留白严格对称 */
 const tableCellLineSpacing = (el) => {
   const fsPx = parseFloat(cs(el, 'font-size'));
   const sizePt = fsPx ? fsPx * 0.75 : 12; // px → pt（96dpi，16px=12pt）
   const hasGrid = el.querySelector?.('.tian-zi-ge, .mi-zi-ge');
   const line = hasGrid
-    ? Math.round((1.8 * sizePt + 6) * 20)  // 格行：1.8em 格高 + 上下各 3pt 间距
+    ? Math.round((tzgCellMm() * 72 / 25.4 + 6) * 20)  // 格行：12mm 格高（pt）+ 上下各 3pt 间距
     : Math.round(2.08 * sizePt * 20);       // 普通行：2.08×字号 ≈ Word 多倍行距 1.6 的等价行盒（25pt，不拥挤）
   return { line, lineRule: LineRuleType.EXACT, before: 0, after: 0 };
 };
@@ -881,12 +882,12 @@ const splitGridAwareContent = (node, runDefaults, opts = {}) => {
   if (exactLine) {
     spacing = { ...spacing, ...tableCellLineSpacing(node) };
   } else if (node.querySelector?.('.tian-zi-ge, .mi-zi-ge')) {
-    // 🔧 含田字格/米字格的普通段落：行盒 = 格子 1.8em + 上下各 3pt（EXACT 固定行高）。
-    //    anchor 形状不占行高，若不预留行盒，1.8em 的格子会与上下行文字重叠；
+    // 🔧 含田字格/米字格的普通段落：行盒 = 格子 12mm（tzgCellMm，与导出格几何一致）+ 上下各 3pt（EXACT 固定行高）。
+    //    anchor 形状不占行高，若不预留行盒，12mm 的格子会与上下行文字重叠（曾按 1.8em×字号，
+    //    12pt 时行盒 27.6pt < 格 34pt → 纵向越出重叠，2026-09 与格 mm 几何对齐）；
     //    EXACT 行盒内文字垂直居中，配合行内 anchor 下移 3pt → 格子中心与文字中心重合、
     //    上下留白严格对称（与表格单元格格行同一公式，单元格已调优验证）
-    const sizePt = ((baseCtx.size && baseCtx.size > 0) ? baseCtx.size : (readFontSizeHp(node) || 32)) / 2;
-    spacing = { ...spacing, line: Math.round((1.8 * sizePt + 6) * 20), lineRule: LineRuleType.EXACT };
+    spacing = { ...spacing, line: Math.round((tzgCellMm() * 72 / 25.4 + 6) * 20), lineRule: LineRuleType.EXACT };
   }
   const baseIndent = readIndent(node) ? { firstLine: readIndent(node) } : undefined;
   const paraIndent = extraIndent || baseIndent;

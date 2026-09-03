@@ -9436,33 +9436,11 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   vertical-align: middle;
 }
 
-/* 🔧 预览区四线三格防御样式（确保 v-html 渲染时线条可见；口径与 carrierCss mm 版一致——1.5em 旧副本已删） */
-.preview-content :deep(.four-line-three) {
-  display: inline-block;
-  position: relative;
-  padding: 4px 4px;
-  font-family: 'Times New Roman', 'Georgia', SimSun, serif;
-  font-size: inherit !important;
-  line-height: 1;
-  min-width: 18px;
-  text-align: center;
-  vertical-align: middle;
-  overflow: visible;
-}
-.preview-content :deep(.four-line-three)::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: var(--flt-h, 9mm);
-  background: linear-gradient(var(--flt-soft, #999), var(--flt-soft, #999)) 0 6.7% / 100% 1px no-repeat,
-              linear-gradient(var(--flt-soft, #999), var(--flt-soft, #999)) 0 36.7% / 100% 1px no-repeat,
-              linear-gradient(var(--flt-strong, #666), var(--flt-strong, #666)) 0 66.7% / 100% 1px no-repeat,
-              linear-gradient(var(--flt-soft, #999), var(--flt-soft, #999)) 0 96.7% / 100% 1px no-repeat;
-  pointer-events: none;
-}
-/* 🔧 预览区横线防御样式 */
+/* 🔧 四线三格/填空横线/括号空位等作答载体画法已收口到 carrierCss.js（main.js 全局注入，单一事实源）——
+   曾在此维护 :deep 副本：u 走 text-underline（非 border-bottom）、span 走 inline-block+min-width（非括号网格轨）、
+   档位只到 6/8/10（blank-7/9/11+ 全被 base min-width:1em 压成一样窄）→ 生成预览与编辑器/排版/导出口径漂移，
+   已删除勿重建（2026-09 全局一致性修复） */
+
 /* 🔧 密封线防御：sealed-wrapper + seal-zone（主题注入的 sealed 样式可能未启用，此处兜底）
    标准试卷样式（A4 + 上下 2cm、左右 2.35cm 页边距）：
    页面壳自带边距（正文不被挤压，虚线不贴正文）；密封区绝对定位于左侧页边距内（纸边 0~20mm，正文内边距外侧）；
@@ -9528,59 +9506,9 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   box-sizing: border-box;
 }
 
-.preview-content :deep(.blank-line) {
-  display: inline-block;
-  min-width: 3em;
-  border-bottom: 1.5px solid #666;
-  margin: 0 2px;
-  vertical-align: baseline;
-}
-
-/* 🔧 行尾自动延伸：仅 blank-line（整行作答区）在段落末尾 flex 弹性延伸（与 Word ptab 一致）。
-   u.blank-N（短填空，按答案长度定宽）不参与延伸——句末短填空在 Word 端导出为 NBSP 空格串 + 下划线（可编辑），
-   两端口径一致（2026-09：u.blank-N 曾随 blank-line 一起延伸 → Word ptab 显示 →、不可逐格编辑） */
-.preview-content :deep(p:has(> .blank-line:last-child)) {
-  display: flex;
-  align-items: baseline;
-}
-.preview-content :deep(p:has(> .blank-line:last-child) .blank-line) {
-  flex: 1 1 auto;
-  min-width: 3em;
-}
-
-/* 🔧 预览区填空横线 blank-N 防御样式 */
-.preview-content :deep(u[class*="blank-"]) {
-  display: inline-block;
-  text-align: center;
-  font-size: inherit !important;
-  min-width: 1em;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 1.5px;
-}
-.preview-content :deep(u.blank-1) { min-width: 1em; }
-.preview-content :deep(u.blank-2) { min-width: 2em; }
-.preview-content :deep(u.blank-3) { min-width: 3em; }
-.preview-content :deep(u.blank-4) { min-width: 4em; }
-.preview-content :deep(u.blank-5) { min-width: 5em; }
-.preview-content :deep(u.blank-6) { min-width: 6em; }
-.preview-content :deep(u.blank-8) { min-width: 8em; }
-.preview-content :deep(u.blank-10) { min-width: 10em; }
-
-/* 括号内留空（span 无下划线，仅占位）——与横线 u.blank-N 完全独立计算
-   ⚠️ 排除数学填空圈（math-circle-blank-18 类名含 "blank-" 子串，会被 [class*="blank-"] 误命中） */
-.preview-content :deep(span[class*="blank-"]:not([class*="math-circle-blank"])) {
-  display: inline-block;
-  text-align: center;
-}
-.preview-content :deep(span.blank-1) { min-width: 1em; }
-.preview-content :deep(span.blank-2) { min-width: 2em; }
-.preview-content :deep(span.blank-3) { min-width: 3em; }
-.preview-content :deep(span.blank-4) { min-width: 4em; }
-.preview-content :deep(span.blank-5) { min-width: 5em; }
-.preview-content :deep(span.blank-6) { min-width: 6em; }
-.preview-content :deep(span.blank-8) { min-width: 8em; }
-.preview-content :deep(span.blank-10) { min-width: 10em; }
+/* blank-line / u.blank-N / span.blank-N（括号填空）等作答载体画法已收口到 carrierCss.js（全局注入单一事实源）——
+   见上方注释；曾在此重复维护（blank-line 与 p:has 延伸、u 1..6/8/10 与 span 1..6/8/10 残缺档位副本），
+   已删除勿重建（2026-09 全局一致性修复） */
 
 .copy-hint {
   padding: 8px 16px;

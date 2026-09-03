@@ -104,6 +104,13 @@ describe('拼音格（pinyin-line）导出——与四线三格同 FLT 几何，
     expect(xml).toContain('name="FourLineGrid"');
     expect(xml).toMatch(/<w:txbxContent>[\s\S]*?<w:t[^>]*>ma<\/w:t>[\s\S]*?<\/w:txbxContent>/);
   });
+
+  it('四线格配色与预览口径一致（曾第 4 线红色 1pt：e74c3c 已移除；soft #999999 + strong #666666 第 3 线）', async () => {
+    const xml = await getDocumentXml('<p>抄写：<span class="four-line-three">cat</span></p>');
+    expect(xml).not.toContain('e74c3c');
+    expect(xml).toContain('999999');
+    expect(xml).toContain('666666');
+  });
 });
 
 describe('作文格（zuo-wen-ge）导出', () => {

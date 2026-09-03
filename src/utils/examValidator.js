@@ -24,7 +24,9 @@ const PINYIN_CHARS = 'a-zA-Z\u0101\u00e1\u01ce\u00e0\u014d\u00f3\u01d2\u00f2\u01
 // 独立拼音组（连续拼音字母/声调字母，前后非字母）
 const PINYIN_GROUP_RE = new RegExp(`(?<![${PINYIN_CHARS}])[${PINYIN_CHARS}]+(?![${PINYIN_CHARS}])`, 'g');
 // 空位载体：span/u/div 的 blank-N 标签、以及全角空格括号（　）
-const BLANK_TAG_RE = /<span[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/span>|<u[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/u>/gi;
+// 🔧 算式填空容器同列（2026-09 对称）：math-circle-blank-18 因含 "blank-" 子串被上一式命中；
+//    square-box（算式 □ 归一产物）无 blank- 子串曾漏计 → 与圆圈空位同口径计入（"每空X分"验证用）
+const BLANK_TAG_RE = /<span[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/span>|<u[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/u>|<span[^>]*class=["'][^"']*square-box[^"']*["'][^>]*>[\s\S]*?<\/span>/gi;
 const PAREN_BLANK_RE = /[（(]\s*[　\u3000 ]{1,12}\s*[)）]/g;
 // 空位载体补充（AI 裸输出形态，normalizeBlankMarkers 归一前的漏网）：
 //   无 class 的 <u>　　</u> / <u>&emsp;</u> 下划线载体、连续裸下划线 ___/＿＿（连续 2+，防英文单词内单下划线误数）

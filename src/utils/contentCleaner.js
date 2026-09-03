@@ -221,16 +221,35 @@ export const blankWidthForChars = (chars) => {
   const { wordGap } = BLANK_SPEC();
   return clampBlankWidth(chars * wordGap);
 };
-/** 括号填空：下划线个数 → 宽度（短空 1:1 档位：≤3→2 / ≤4→4 / ≤6→6 / ≤8→8 / 其余 10，再按规格封顶） */
-export const shortBlankWidth = (underscores) => {
-  const u = underscores <= 3 ? 2 : underscores <= 4 ? 4 : underscores <= 6 ? 6 : underscores <= 8 ? 8 : 10;
-  return clampBlankWidth(u);
-};
-/** 括号填空：空白 em 宽 → 宽度档（&emsp;/全角=1em、&nbsp;/半角≈0.25em；档位 ≤1→2 … 其余 10，再按规格封顶） */
-export const spaceBlankWidth = (emWidth) => {
-  const n = emWidth <= 1 ? 2 : emWidth <= 1.5 ? 3 : emWidth <= 2 ? 4 : emWidth <= 3 ? 5 : emWidth <= 4 ? 6 : emWidth <= 6 ? 8 : 10;
-  return clampBlankWidth(n);
-};
+/** 括号填空·下划线空位 → 宽度档：下划线即"字位"标记（1 ＿≈1 字），按 1字≈wordGap 格换算
+ *  🔧 2026-09 全局一致性：曾用 1:1 梯形（≤3→2…），与裸下划线（blankWidthForChars 字×2）口径不同——
+ *     （＿＿＿＿）4字位只得 4em（半宽）、2~3 条一律 2em → "括号内答案写不下/时宽时窄"；
+ *     现收敛为与裸 ＿/u 空白同一换算（blankWidthForChars），任何写法产物一致 */
+export const shortBlankWidth = (underscores) => blankWidthForChars(underscores);
+/** 括号填空·纯空白空位 → 宽度档：1 字位 ≈ 1em 空白（与 <u>空白</u> 同口径：字位=空格数），按 1字≈2格 换算
+ *  🔧 2026-09 全局一致性：曾用非线性梯形（≤2→4 / ≤4→6 / >6→10 封顶），7~24 个空格的括号空位
+ *     全被压成同一 10em → "都一样宽"；现线性：N = 字位×wordGap，宽窄随空白数量单调 */
+export const spaceBlankWidth = (emWidth) => blankWidthForChars(emWidth);
+
+/** 空载体兜底填充（编辑器装载/粘贴前调用）
+ * ============================================================
+ * ProseMirror/Tiptap 解析时，classed 载体若内容为空或纯 ASCII 空格会被整体剥除
+ * （<u class="blank-8"></u> → 消失；编辑器 onUpdate 回写后"源被覆盖/横线丢失"固化）。
+ * 本函数把"无任何可见字符"的载体统一填 &emsp; 占位（不可见，宽度由 class 档位/导出 NBSP 撑起），
+ * 保证载体保 class 存活、可往返。幂等；已有可见字/空白实体内容不动。
+ * 覆盖：u/span.blank-N、blank-line、square-box、math-circle-blank-18（空格子渲染皆由 class 定宽）。
+ */
+export function ensureCarrierContent(html = '') {
+  const src = String(html || '');
+  return src.replace(/<(u|span)((?:[^>]*\bclass=["'][^"']*(?:blank-\d+|blank-line|square-box|math-circle-blank-18)[^"']*["'])[^>]*)>([\s\S]*?)<\/\1>/gi, (m, tag, attrs, inner) => {
+    const text = String(inner || '').replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;|&#160;|&#xA0;/gi, '\u00A0')
+      .replace(/&emsp;|&#8195;/gi, '\u2003')
+      .replace(/&ensp;|&#8194;/gi, '\u2002');
+    if (/\S/.test(text)) return m; // 有可见内容（含 NBSP/EMSP 空白实体）→ 原样
+    return `<${tag}${attrs}>&emsp;</${tag}>`;
+  });
+}
 
 /**
  * 空白规范化（normalizeBlankMarkers）：后处理排版兜底——AI 输出为"一大段文本"时由代码补排版要素：
@@ -330,8 +349,9 @@ export function normalizeBlankMarkers(html = '') {
   //    块级元素内纯空白当书写空间）：包成 u.blank-N（预览 flex 延伸 / 导出 ptab 延伸一致）；
   //    在 <u>/括号/span.blank-N 规则之后执行——已归一的形态不含裸空格不受影响；
   //    ≥2 个连续全角空格才处理（单空格为排版分隔）；表格单元格（td/th）不匹配（空位语义保留）
-  //    🔧 保留原块级标签外壳（<p> 等）：横线为行尾元素时 CSS `p:has(> u[class*="blank-"]:last-child)`
-  //    需该 <p> 命中 flex 延伸；拆裸 <u> 会丢失外壳 → 行尾不延伸、作答横线塌缩/不可见
+  //    🔧 保留原块级标签外壳（<p> 等）：整行作答的横线需该外壳参与排版；
+  //    ⚠️ 行尾自动延伸仅 .blank-line 享有（carrierCss p:has 规则），u.blank-N 固定 N em 宽度
+  //    （2026-09 口径：u.blank-N 为短填空按答案定宽，不随行延伸）
   out = out.replace(/<(p|div|li)(?![^>]*class=)[^>]*>(\s*\u3000{2,}\s*)<\/\1>/gi, (m, tag, inner) => {
     const len = (inner.match(/\u3000/g) || []).length;
     return `<${tag}><u class="blank-${blankWidthForChars(len)}">&emsp;</u></${tag}>`;
@@ -533,4 +553,4 @@ export function normalizeIndents(html = '') {
 }
 
 
-export default { cleanSectionHtml, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth };
+export default { cleanSectionHtml, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, ensureCarrierContent, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth };

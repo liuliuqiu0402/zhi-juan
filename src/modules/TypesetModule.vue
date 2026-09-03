@@ -2291,47 +2291,10 @@ rt {
   text-underline-offset: 3px;
 }
 
-/* ═══════ 填空横线（blank-N） ═══════ */
-u[class*="blank-"] {
-  display: inline-block;
-  text-align: center;
-  font-size: inherit !important;
-  min-width: 1em;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 1.5px;
-}
-u.blank-1 { min-width: 1em; } u.blank-2 { min-width: 2em; }
-u.blank-3 { min-width: 3em; } u.blank-4 { min-width: 4em; }
-u.blank-5 { min-width: 5em; } u.blank-6 { min-width: 6em; }
-u.blank-7 { min-width: 7em; } u.blank-8 { min-width: 8em; }
-u.blank-9 { min-width: 9em; } u.blank-10 { min-width: 10em; }
-u.blank-11 { min-width: 11em; } u.blank-12 { min-width: 12em; }
-u.blank-13 { min-width: 13em; } u.blank-14 { min-width: 14em; }
-u.blank-15 { min-width: 15em; } u.blank-16 { min-width: 16em; }
-u.blank-17 { min-width: 17em; } u.blank-18 { min-width: 18em; }
-u.blank-19 { min-width: 19em; } u.blank-20 { min-width: 20em; }
-u.blank-21 { min-width: 21em; } u.blank-22 { min-width: 22em; }
-u.blank-23 { min-width: 23em; } u.blank-24 { min-width: 24em; }
-
-/* 括号内留空（span 无下划线，仅占位）
-   ⚠️ 排除数学填空圈（math-circle-blank-18 类名含 "blank-" 子串，会被 [class*="blank-"] 误命中） */
-span[class*="blank-"]:not([class*="math-circle-blank"]) {
-  display: inline-block;
-  text-align: center;
-}
-span.blank-1 { min-width: 1em; } span.blank-2 { min-width: 2em; }
-span.blank-3 { min-width: 3em; } span.blank-4 { min-width: 4em; }
-span.blank-5 { min-width: 5em; } span.blank-6 { min-width: 6em; }
-span.blank-7 { min-width: 7em; } span.blank-8 { min-width: 8em; }
-span.blank-9 { min-width: 9em; } span.blank-10 { min-width: 10em; }
-span.blank-11 { min-width: 11em; } span.blank-12 { min-width: 12em; }
-span.blank-13 { min-width: 13em; } span.blank-14 { min-width: 14em; }
-span.blank-15 { min-width: 15em; } span.blank-16 { min-width: 16em; }
-span.blank-17 { min-width: 17em; } span.blank-18 { min-width: 18em; }
-span.blank-19 { min-width: 19em; } span.blank-20 { min-width: 20em; }
-span.blank-21 { min-width: 21em; } span.blank-22 { min-width: 22em; }
-span.blank-23 { min-width: 23em; } span.blank-24 { min-width: 24em; }
+/* ═══════ 填空横线/括号空位（blank-N）═══════
+   🔧 作答载体画法已收口到 carrierCss.js（main.js 全局注入单一事实源；编辑器/预览/排版/主题导出共用）——
+   曾在此 scoped 块重复维护 u/span 档位副本（u 走 text-underline 而非 border-bottom、档位残缺），
+   scoped 规则本不命中 v-html 内容却反复被改造成第二口径，已删除勿重建（2026-09 全局一致性修复） */
 
 /* 部首标注 */
 ruby.radical rb { font-size: 1em; }

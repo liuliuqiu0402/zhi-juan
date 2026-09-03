@@ -281,7 +281,9 @@ export const BRACKET_GRID = {
  *  消费方统一经 normalizeStage3 归一到 primary/middle/high 取值）。
  *  方块格（田字格/米字格）：宽×高；行式格（四线三格/拼音格）：行高。
  *  消费方：themeConfig 预览 CSS（mm→px 渲染，与作文格/方格纸同通道）；
- *  docx 导出暂随字号（sizeHp）间接体现学段差异，未接入本表（待统一，见 docxBuilder buildTianZiGeMarker）。 */
+ *  docx 导出：方块格按 primary 12mm 统一（docxBuilder tzgCellMm/格子行盒），
+ *  行式格 Word 端按 9mm 定高（drawingMLShapes fltLineAnchors，与预览 --flt-h 默认 9mm 同口径）。
+ *  ⚠️ 中/高学段 FLT 理论 8mm 与 Word 9mm 存在既有差异（FLT 仅 primary_mid/primary_low 出现，实际恒 9mm）。 */
 export const GRID_CELL = {
   'tian-zi-ge': {
     primary: { widthMm: 12, heightMm: 12 },

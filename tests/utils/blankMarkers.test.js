@@ -4,7 +4,8 @@ import { normalizeBlankMarkers } from '../../src/utils/contentCleaner.js';
 describe('normalizeBlankMarkers 括号填空归一（正文主路径）', () => {
   it('双括号纯空白 ((　　)) → span，无外层括号（真实事故回归：卷面 ((　)) 双括号）', () => {
     const out = normalizeBlankMarkers('一((　　　　))海鸥');
-    expect(out).toContain('<span class="blank-6">&emsp;</span>');
+    // 4 字位空白 × wordGap(2) → blank-8（2026-09 线性口径：曾非线性梯形压成 6）
+    expect(out).toContain('<span class="blank-8">&emsp;</span>');
     expect(out).not.toMatch(/\(<span class="blank/);
     expect(out).not.toContain('((');
     expect(out).not.toContain('))');
@@ -12,7 +13,7 @@ describe('normalizeBlankMarkers 括号填空归一（正文主路径）', () => 
 
   it('单括号纯空白 （　　） → span（无外层括号）', () => {
     const out = normalizeBlankMarkers('（1）（　　　　）');
-    expect(out).toContain('<span class="blank-6">&emsp;</span>');
+    expect(out).toContain('<span class="blank-8">&emsp;</span>');
     expect(out).not.toMatch(/\(<span class="blank/);
   });
 

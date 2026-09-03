@@ -1,7 +1,7 @@
 // 空白规范化后处理测试（AI 输出"一大段文本"时由代码补排版要素）
 // ============================================================
 import { describe, it, expect } from 'vitest';
-import { normalizeBlankMarkers } from '@/utils/contentCleaner.js';
+import { normalizeBlankMarkers, ensureCarrierContent } from '@/utils/contentCleaner.js';
 
 describe('normalizeBlankMarkers（后处理排版兜底）', () => {
   it('<u>＿N＿</u> 转 blank-N 宽度横线（1字≈2格）', () => {
@@ -72,6 +72,32 @@ describe('normalizeBlankMarkers 密封信息栏 ＿ 保护（C2 链序：＿ 不
     const seal = '<p>密封线内不要答题　学校：＿＿＿　班级：＿＿＿　姓名：＿＿＿　学号：＿＿＿</p>';
     const once = normalizeBlankMarkers(seal);
     expect(normalizeBlankMarkers(once)).toBe(once);
+  });
+});
+
+describe('ensureCarrierContent 空载体兜底填充（编辑器 ProseMirror 解析前：防 class 空载体被剥除固化进源）', () => {
+  it('空 <u class="blank-N"></u> → 填 &emsp; 占位保 class 存活', () => {
+    expect(ensureCarrierContent('<p>答案：<u class="blank-8"></u></p>')).toBe('<p>答案：<u class="blank-8">&emsp;</u></p>');
+  });
+
+  it('纯 ASCII 空格载体（ProseMirror 会折叠）→ 填 &emsp;', () => {
+    expect(ensureCarrierContent('<p><u class="blank-4"> </u></p>')).toBe('<p><u class="blank-4">&emsp;</u></p>');
+    expect(ensureCarrierContent('<p>作答：<span class="blank-line"> </span></p>')).toBe('<p>作答：<span class="blank-line">&emsp;</span></p>');
+  });
+
+  it('算式空位 square-box / math-circle-blank-18 空壳同样兜底', () => {
+    expect(ensureCarrierContent('<p>3+<span class="square-box"></span>=8</p>')).toBe('<p>3+<span class="square-box">&emsp;</span>=8</p>');
+    expect(ensureCarrierContent('<p>5<span class="math-circle-blank-18"></span>3</p>')).toBe('<p>5<span class="math-circle-blank-18">&emsp;</span>3</p>');
+  });
+
+  it('已有空白实体/可见内容 → 原样不动（幂等）', () => {
+    expect(ensureCarrierContent('<u class="blank-8">&emsp;</u>')).toBe('<u class="blank-8">&emsp;</u>');
+    expect(ensureCarrierContent('<u class="blank-8">字</u>')).toBe('<u class="blank-8">字</u>');
+  });
+
+  it('非载体标签不受影响', () => {
+    const html = '<p>普通<u>下划线强调</u>与<span class="oral-box">口算</span></p>';
+    expect(ensureCarrierContent(html)).toBe(html);
   });
 });
 

@@ -39,6 +39,12 @@ describe('examValidator 空位/拼音统计', () => {
     expect(countBlanks(html)).toBe(3);
   });
 
+  it('算式填空容器同口径计空：math-circle-blank-18 与 square-box（□/○ 每空计 1）', () => {
+    // math-circle-blank-18 含 "blank-" 子串命中 blank-N 式；square-box 曾漏计（2026-09 补齐，算式"每空X分"验证用）
+    const html = '<p>3＋<span class="square-box">&nbsp;</span>＝8</p><p>4＋<span class="math-circle-blank-18">&nbsp;</span>＝7</p><p>普通（　　）</p>';
+    expect(countBlanks(html)).toBe(3);
+  });
+
   it('统计拼音词条（词条=显式分隔符为界的连续音节组；2026-08 起"每词"按词条不按音节）', () => {
     // dào zi / xīn kǔ 两个词条（顿号分隔），音节内半角空格不计分隔
     expect(countPinyinGroups('<p>dào zi( )成熟了，xīn kǔ( )</p>')).toBe(2);
