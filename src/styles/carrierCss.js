@@ -43,8 +43,11 @@ span[class*="blank-"]:not(.blank-line):not([class*="math-circle-blank"])::after{
 ${spanGridCss()}
 span.blank-line::before,span.blank-line::after{content:none !important;}
 .blank-line{display:inline-block;min-width:3em;border-bottom:1.5px solid #666;margin:0 2px;vertical-align:baseline;}
-p:has(> .blank-line:last-child),p:has(> u[class*="blank-"]:last-child){display:flex;align-items:baseline;}
-p:has(> .blank-line:last-child) .blank-line,p:has(> u[class*="blank-"]:last-child) u[class*="blank-"]{flex:1 1 auto;min-width:3em;}
+/* 🔧 行尾自动延伸：仅 blank-line（整行作答区）在段落末尾 flex 弹性延伸（与 Word ptab 一致）。
+   u.blank-N（短填空，按答案长度定宽）不参与延伸——句末短填空在 Word 端导出为 NBSP 空格串 + 下划线（可编辑），
+   两端口径一致（2026-09：u.blank-N 曾随 blank-line 一起延伸 → Word ptab 显示 →、不可逐格编辑） */
+p:has(> .blank-line:last-child){display:flex;align-items:baseline;}
+p:has(> .blank-line:last-child) .blank-line{flex:1 1 auto;min-width:3em;}
 `;
 
 /** 作答载体完整 CSS（全局注入与独立导出文档共用）：u 横线本体 + 宽度档位 + 括号/整行横线/行尾延伸 */

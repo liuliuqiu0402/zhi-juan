@@ -9536,15 +9536,14 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   vertical-align: baseline;
 }
 
-/* 🔧 行尾自动延伸：blank-line / u.blank-N 为段落最后元素时，段落变 flex、横线弹性撑满剩余行宽
-   （与导出端 <w:ptab/> 自动画到右边距行为一致，所见即所得） */
-.preview-content :deep(p:has(> .blank-line:last-child)),
-.preview-content :deep(p:has(> u[class*="blank-"]:last-child)) {
+/* 🔧 行尾自动延伸：仅 blank-line（整行作答区）在段落末尾 flex 弹性延伸（与 Word ptab 一致）。
+   u.blank-N（短填空，按答案长度定宽）不参与延伸——句末短填空在 Word 端导出为 NBSP 空格串 + 下划线（可编辑），
+   两端口径一致（2026-09：u.blank-N 曾随 blank-line 一起延伸 → Word ptab 显示 →、不可逐格编辑） */
+.preview-content :deep(p:has(> .blank-line:last-child)) {
   display: flex;
   align-items: baseline;
 }
-.preview-content :deep(p:has(> .blank-line:last-child) .blank-line),
-.preview-content :deep(p:has(> u[class*="blank-"]:last-child) u[class*="blank-"]) {
+.preview-content :deep(p:has(> .blank-line:last-child) .blank-line) {
   flex: 1 1 auto;
   min-width: 3em;
 }

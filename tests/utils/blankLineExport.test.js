@@ -165,10 +165,11 @@ describe('填空横线导出：段落末尾 blank-line 自动延伸到行尾', (
     expect(xml).toContain('>乙</w:t>');
   });
 
-  it('u.blank-N 句末填空（段落末尾）→ 同样输出 ptab 自动延伸', async () => {
+  it('u.blank-N 句末填空（段落末尾）→ NBSP 空格串 + 下划线（可编辑），不输出 ptab', async () => {
     const xml = await getDocumentXml('<p>照样子写句子：<u class="blank-6">&emsp;&emsp;</u></p>');
-    expect(xml).toContain('<w:ptab');
-    expect(xml).toContain('w:leader="underscore"');
+    expect(xml).not.toContain('<w:ptab');
+    // 空格串 + 下划线：Word/WPS 中可逐格增删空格微调长度（ptab 是制表符对象，显示 →、一碰整条删）
+    expect(xml).toContain('<w:u w:val="single"');
     expect(xml).toContain('>照样子写句子：</w:t>');
   });
 

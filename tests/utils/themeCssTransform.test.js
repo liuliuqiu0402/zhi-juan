@@ -58,7 +58,9 @@ describe('编辑器 themeCSS 转换（编辑区 = 导出视觉）', () => {
     expect(css).toMatch(/span\[class\*="blank-"\][^{]*::before\s*\{\s*content:\s*"\("/);
     expect(css).toMatch(/span\[class\*="blank-"\][^{]*::after\s*\{\s*content:\s*"\)"/);
     expect(css).toMatch(/\.blank-line\s*\{[^}]*border-bottom:/);
-    expect(css).toMatch(/p:has\(> u\[class\*="blank-"\]:last-child\)\s*\{[^}]*display:\s*flex/);
+    // 🔧 行尾自动延伸仅 blank-line（整行作答区）；u.blank-N 短填空不延伸（Word 端导出 NBSP 空格串可编辑，两端一致）
+    expect(css).toMatch(/p:has\(> \.blank-line:last-child\)\s*\{[^}]*display:\s*flex/);
+    expect(css).not.toMatch(/p:has\(> u\[class\*="blank-"\]:last-child\)/);
     expect(css).toMatch(/u\.blank-24\s*\{\s*min-width:\s*24em/);
     expect(css).toMatch(/span\.blank-24\s*\{[^}]*minmax\(24em,\s*1fr\)/); // 括号内书写空间 = 24em（与 Word 口径一致）
   });

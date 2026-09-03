@@ -456,7 +456,10 @@ const buildTextRuns = (node, styleOverride = {}) => {
       if (tag === 'u') {
         // 填空横线：段落末尾 → 占位标记（后处理转 ptab 自动延伸到行尾，颜色 333333），
         //   非末尾 → 后处理退回 NBSP 固定宽度 + 下划线
-        runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw, nFromClass, color: '333333' });
+        //   🔧 2026-09：显式 u.blank-N（短填空）标 editableBlank——末尾也不转 ptab，
+        //   改空格串可编辑（ptab 是单个制表符对象，Word/WPS 里显示 →、不可逐格编辑、一碰整条删）；
+        //   仅 blank-line/整行兜底空白（无此标记）保留 ptab 自动延伸
+        runs.push({ __blankLineTab: true, editableBlank: true, size: ctx.size || readFontSizeHp(child), raw, nFromClass, color: '333333' });
       } else {
         // 非标标签：统一按括号处理
         const emWidth = whitespaceEmWidth(raw);
@@ -650,11 +653,15 @@ const buildTextRuns = (node, styleOverride = {}) => {
 
   // 🔧 blank-line / u.blank-N 末尾后处理：倒序扫描，真正的段落末尾横线 → PositionalTab（行尾自动延伸），
   //    其余（非末尾）→ 退回 NBSP 固定宽度（原逻辑），避免 ptab 破坏后续文字排版。
+  //    🔧 折中（2026-09）：显式 u.blank-N（editableBlank，句内/句末短填空）一律不转 ptab——
+  //    Word 里 ptab 是单个制表符对象：显示为 →（编辑标记）、不可逐格编辑、一碰整条删；
+  //    短填空横线改为 NBSP 空格串 + 下划线（可增删空格微调长度、编辑标记显示空格点·）。
+  //    blank-line / 整行兜底空白（无 editableBlank）保留 ptab 自动延伸（独占整行，美观优先）。
   let tailTabDone = false;
   for (let i = runs.length - 1; i >= 0; i--) {
     const r = runs[i];
     if (!r || !r.__blankLineTab) continue;
-    if (i === runs.length - 1 && !tailTabDone) {
+    if (i === runs.length - 1 && !tailTabDone && !r.editableBlank) {
       // 段落末尾：<w:ptab alignment=right relativeTo=indent leader=underscore/>
       //    🔴 relativeTo=indent：延伸到"段落文字区右边界"（非页面边距）——段落带右缩进（题号/列表段落）
       //    时横线不会超出文字内边距；无缩进段落效果与 margin 一致
