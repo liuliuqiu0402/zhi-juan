@@ -45,15 +45,14 @@ const HAS_EXPRESSION_QUESTIONS = ['语文', '英语']; // 存在写话/写作/�
 const QUESTION_FORMAT = (ctx = {}) => {
   const carrier = (buildCarrierInstruction(ctx.subject, ctx.stage) || '').replace(/。$/, '');
   const hasEx = HAS_EXPRESSION_QUESTIONS.includes(ctx.subject);
-  const blankCalc = buildBlankWidthInstruction(); // 🔧 换算口径：由 layoutSpec BLANK 动态生成（调 wordGap/上限自动跟随，勿手写死）
+  // 🔧 作答空位口径（2026-09 收敛，防叠句啰嗦）：
+  //   宽度换算 = 唯一换算口径（layoutSpec BLANK 动态生成）；客观题口径与规则库对齐；
+  //   已删补丁句：'实际可见/宽窄相称/答案长则宽短则窄/不依赖系统凭空生成'（换算句已命令式给出空格，
+  //   长短随答案自动体现）；手写放大系数与上限属渲染端参数，不再向模型复述第二遍。
+  const blankCalc = buildBlankWidthInstruction();
   const clauses = [
-    // ① 作答空位 = 学生书写位（泛指横线/括号/留白等，具体形态由排版渲染；宽度随答案篇幅）
-    //   🔧 “样式由系统渲染”不等于空位由系统凭空生成：空位必须作为可见字符落在正文里（＿/空格串/括号空位皆可），
-    //   否则归一链没有输入 → 学生没有可写位置（深层缺口 2026-09 修复）
-    '学生作答处给出实际可见的作答空位，留白宽窄与答案篇幅相称（答案长则留宽、答案短则留窄；答案独立整行书写时给出整行书写位）——空位须落在正文里，不依赖系统凭空生成',
-    // ② 换算口径（可操作版）：空格数→字位→em，由排版规格库生成；只讲宽度换算，无形态词（审核基准 2.4）
     blankCalc,
-    // ③ 与规则库 answer-area-fix 同一口径（曾“客观题按作答形式留出相应作答位置”与“客观题无需额外空间”前后矛盾）
+    // 与规则库 answer-area-fix 同一口径（曾“客观题按作答形式留出相应作答位置”与“客观题无需额外空间”前后矛盾）
     '客观题（选择/判断/连线等）按作答形式自含可作答位置，不再额外整行留白',
   ];
   // 🔧 写字/抄写硬约束仅注入存在写话/写作/抄写题的学科（语文/英语，hasEx）；
@@ -63,8 +62,8 @@ const QUESTION_FORMAT = (ctx = {}) => {
   if (hasEx) {
     clauses.push('写作/表达类题须完整呈现题目要求（含写作要求），不得只有标题行');
   }
-  clauses.push('任何作答空位一律输出在所属题目之后，不得置于题干之前');
-  return `· 作答空位：按题型所需给出留白，样式由系统渲染（${clauses.join('；')}）`;
+  clauses.push('作答空位一律随所属题目输出，不置于题干之前');
+  return `· 作答空位：${clauses.join('；')}`;
 };
 
 /** 内容组织格式（内容型类型：结构化呈现，不用题号） */
