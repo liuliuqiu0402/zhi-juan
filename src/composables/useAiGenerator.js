@@ -3962,9 +3962,15 @@ ${cardAnalysisText.substring(0, 1000)}
     '· 已浏览过的章节，直接依据已有的原文命题，不要重复调用。',
     '· 不把具体选文名写进标题或大题名（大题名使用结构名）。',
   ].join('\n');
-  const deriveBrowseParams = (budget) => {
-    const perBrowseCap = clampB(Math.round(budget / 12), 400, 1000);
-    return { perBrowseCap, maxRounds: clampB(Math.ceil(budget / perBrowseCap), 4, 15) };
+  const deriveBrowseParams = (budget, chapterCount = 1) => {
+    // 🔧 P2-1/P2-3 单章取料与轮数按章节数适配：
+    //   - perBrowseCap 由 budget/12(下限400) 提至 budget/6(下限800、上限1800)，让单章在预算允许下取到更充分的原文；
+    //   - maxRounds 由固定 4~15 改为至少覆盖"每章 2 轮"(主动浏览+漏章兜底)+2 轮正文，并为多章预留足够轮数，
+    //     避免多章场景未及取材就触顶（模型收敛出正文即提前 break，轮数仅作护栏，不增加正常成本）。
+    const perBrowseCap = clampB(Math.round(budget / 6), 800, 1800);
+    const minRounds = Math.max(6, chapterCount * 2 + 2);
+    const maxRounds = clampB(Math.max(Math.ceil(budget / perBrowseCap) * 2, minRounds), minRounds, 40);
+    return { perBrowseCap, maxRounds };
   };
 
   // 大范围：程序侧确定性取料供给工具 browse_textbook；模型按章浏览、收敛后单主请求产出正文。
@@ -3972,15 +3978,20 @@ ${cardAnalysisText.substring(0, 1000)}
   const generateBodyByTextbookBrowse = async (params) => {
     const { genType, promptBase, maxTokens, temperature, contentCards = [], knowledgeMap = null, generateMode = 'once' } = params;
     const myBudget = GEN_CONST.MATERIAL_CHARS[genType] || 5000;
-    const { perBrowseCap, maxRounds } = deriveBrowseParams(myBudget);
+    const { perBrowseCap, maxRounds } = deriveBrowseParams(myBudget, (contentCards || []).length);
 
     // 章节→原文片段、章节→知识点 索引（与 buildMaterialBlock 同源，供 browse 确定性取料）
     const chapterSegsBy = new Map();
+    // 🔧 P2-7 命名匹配加强：模型 browse 时往往传"第1课"这类主干名，而章节卡标题可能是"第1课·词语盘点"。
+    //    登记索引时同步注册"目录主干键"，让主干名也能命中（精确键优先，主干仅在无歧义时兜底）。
+    const chapterMain = (t) => { const n = String(t || '').trim(); const m = n.split(/[·.．:：]/)[0].trim(); return m || n; };
     for (const card of contentCards || []) {
       const key = normChapter(card?.chapterTitle);
       if (!key || !card?.segments?.length) continue;
       chapterSegsBy.set(key, card.segments);
       chapterSegsBy.set(card.chapterTitle, card.segments);
+      const main = chapterMain(card.chapterTitle);
+      if (main && main !== key) chapterSegsBy.set(main, card.segments);
     }
     const chapterKpBy = new Map();
     const addKp = (name, chs) => {
@@ -3996,8 +4007,26 @@ ${cardAnalysisText.substring(0, 1000)}
       if (typeof kp === 'string') addKp(kp, []);
       else if (kp?.name) addKp(kp.name, kp.relatedChapters || []);
     }
+    // 🔧 P1-2 统一知识点源：浏览路径与 buildMaterialBlock 同口径，同时吸收 knowledgeGraph 的细分层级知识点
+    //    （bigConcept / coreKnowledge / specificConcepts），否则这些层级知识点在 browse 路径丢失，
+    //    导致"素材注入有细分考点、浏览取料没考点"，覆盖口径漂移。
+    for (const unit of (knowledgeMap?.knowledgeGraph || [])) {
+      const unitName = unit?.unit || '';
+      for (const bc of (unit.bigConcepts || [])) {
+        if (bc?.bigConcept) addKp(bc.bigConcept, unitName ? [unitName] : []);
+        for (const ck of (bc.coreKnowledge || [])) {
+          if (ck?.name) addKp(ck.name, [...(ck?.relatedChapters || []), unitName].filter(Boolean));
+          for (const sp of (ck?.specificConcepts || [])) if (sp) addKp(sp, ck?.relatedChapters || []);
+        }
+      }
+    }
     const buildBrowseResult = (chapter) => {
-      const segs = chapterSegsBy.get(normChapter(chapter)) || chapterSegsBy.get(chapter) || [];
+      // 🔧 P2-7 索引查询容错：精确规范键 → 原始标题 → 主干名 三级命中，降低"模型传名≠卡标题"的漏检
+      const segKey = normChapter(chapter) || chapter || '';
+      const segs = chapterSegsBy.get(segKey)
+        || chapterSegsBy.get(chapter)
+        || chapterSegsBy.get(chapterMain(chapter))
+        || [];
       let frag = '';
       let used = 0;
       const candidates = (segs || [])
@@ -4009,7 +4038,7 @@ ${cardAnalysisText.substring(0, 1000)}
         frag += `\n· ${t}`;
         used += t.length + 2;
       }
-      const kp = chapterKpBy.get(normChapter(chapter)) || [];
+      const kp = chapterKpBy.get(segKey) || chapterKpBy.get(chapterMain(chapter)) || [];
       const head = frag
         ? `【${chapter}】教材原文（节选，教材版本以所选课本为准）：${frag}`
         : `【${chapter}】该章未检索到可用原文片段。若非目录所列章节名，请改用目录中的章节名；确属范围内仍无片段，请跳过该章知识点，不要凭训练记忆编写。`;
@@ -4053,6 +4082,10 @@ ${cardAnalysisText.substring(0, 1000)}
     const cfgGS = apiConfig.generationSettings || {};
     const autoFillSkipped = cfgGS.browseAutoFill !== false;
     const fillMax = Number(cfgGS.browseAutoFillMaxSkipped) > 0 ? Number(cfgGS.browseAutoFillMaxSkipped) : 3;
+    // 🔧 P1-3 兜底护栏：漏章的程序兜底补料不再受默认 3 条砍断（那是漏章略多就"只报告不带料"的主因），
+    //    改用 maxAutoFill(≥40) 作为绝对上界；仅当极端大范围（选整册等）超过该上界时才回落为"报告提示"，
+    //    避免上下文被原文涨爆。用户配置 browseAutoFillMaxSkipped 更大时取其大。
+    const autoCap = Math.max(fillMax, 40);
     let filledSkipped = false;
     let fillQualifiedSkipped = [];       // 本次程序兜底（确定性）落到上下文的章
     let directiveSent = false;           // 漏章确认提示是否已发过一轮（只发一次，防死循环）
@@ -4061,6 +4094,9 @@ ${cardAnalysisText.substring(0, 1000)}
       const out = []; const seen = new Set();
       for (const card of contentCards || []) {
         if (!card?.chapterTitle) continue;
+        // 🔧 P2-2 排除仅目录卡：TOC-only 章只有目录标题、无真实原文片段，不该列为"有可用原文却未浏览"的漏章，
+        //    否则模型会被要求 browse 却拿到"该章未检索到可用原文片段"，形成"认为有素材实际只有目录"的错配。
+        if (card.isTocOnly || card.source === 'toc' || card.source === 'unanalyzed') continue;
         const key = normChapter(card.chapterTitle);
         // 🔧 去重：同一章可能以多张卡片（词语/课文/习作）进入勾选，规范键相同即视为同一章，
         //    避免同一章被重复判漏、重复兜底（V2 括号/空模板碰撞保护）
@@ -4129,7 +4165,7 @@ ${cardAnalysisText.substring(0, 1000)}
       //   模型仍未采用时，程序才确定性兜底取料（保证防旧教材覆盖），且兜底有界、报告溯源。
       if (autoFillSkipped && !filledSkipped) {
         const q = computeSkipped();
-        if (q.length && q.length <= fillMax) {
+        if (q.length && q.length <= autoCap) {
           if (!directiveSent) {
             directiveSent = true;
             notedSkipPrompted = q;
@@ -4354,6 +4390,29 @@ ${cardAnalysisText.substring(0, 1000)}
     for (const h of (byChapter.get('__noChapter__') || []).sort((a, b) => (b.score || 0) - (a.score || 0))) {
       if (body.length + h.text.length > maxChars) break;
       body += `· ${h.text}\n`;
+    }
+    // 5b. 空正文兜底：语义检索 miss + 章节锚定也未命中时 body 为空 → 模型只看到"目录+知识点"而自写"教材原文未能检索到可用片段"。
+    //    这里改为按章节锚定直取 contentCards 已有真实片段（isKeyConcept 优先），确保正文永不因 RAG miss 而空。
+    //    真正的"无原文"场景（全部章节为仅目录卡、无任何片段）才保持现状——那是有意为之的模型知识兜底。
+    if (!body.trim()) {
+      const realCards = (contentCards || []).filter(c => (c.segments || []).some(s => (s.text || '').trim().length >= 10));
+      if (realCards.length) {
+        const realNames = realCards.map(c => normCh(c.chapterTitle)).filter(Boolean);
+        const quota = Math.floor((maxChars * 0.9) / (realNames.length || 1));
+        for (const card of realCards) {
+          const segs = (card.segments || [])
+            .filter(s => (s.text || '').trim().length >= 10)
+            .sort((a, b) => (b.isKeyConcept ? 1 : 0) - (a.isKeyConcept ? 1 : 0));
+          let used = 0;
+          for (const s of segs) {
+            const t = s.text.trim();
+            if (used + t.length > quota) break;
+            if (body.length + t.length > maxChars) break;
+            body += `· ${t}（出自：${card.chapterTitle}）\n`;
+            used += t.length;
+          }
+        }
+      }
     }
     // 5. 组装：目录（前）→ 原文片段（中，按章节带出处锚点）→ 考查知识点清单（尾部锚点，生成时模型眼前即覆盖范围）
     // 🔧 段头只强调教材版本（2026-08-31）：核心是防模型用训练记忆的旧版教材；
