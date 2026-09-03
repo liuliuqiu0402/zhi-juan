@@ -212,11 +212,16 @@ export const normalizeBudgetByType = (bbt) => {
         // 🔧 三档系数为内置常量且非用户可直接编辑 → 一律随代码默认播种；
         //    custom 为用户手填（独立生效），cap 为用户可调 → 按存档保留。
         //    DEFAULT_BUDGET_BY_TYPE 恒含全部类型×槽，无需兜底字面量（防"精简=均衡=1"塌档）。
+        //    上限解析：用户手动锁定（点「设计/存档」按钮或手填 cap）的槽 → 以存档值为准，重载/重新打开不取大、保留手动值；
+        //    未锁定的槽（如旧存档遗留 cap）→ 取「设计默认」与「存档值」较大者，防止过期小上限压住新设计上限导致深度内容截断。
         economy: d.economy,
         balanced: d.balanced,
         full: d.full,
-        cap: (typeof s.cap === 'number' && s.cap > 0) ? s.cap : (d.cap ?? 20000),
+        cap: (s.locked === true)
+          ? ((typeof s.cap === 'number' && s.cap > 0) ? s.cap : (d.cap ?? 20000))
+          : Math.max((typeof s.cap === 'number' && s.cap > 0) ? s.cap : 0, d.cap ?? 20000),
         custom: typeof s.custom === 'number' ? s.custom : null,
+        locked: s.locked === true,
       };
     };
     out[key] = {

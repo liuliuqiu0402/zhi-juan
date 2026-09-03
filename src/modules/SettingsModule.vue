@@ -882,20 +882,26 @@
                     step="1024"
                     min="2000"
                     placeholder="cap"
-                    :title="'该槽输出 token 上限（不是字符数）：预算=系数×勾选原文，封顶不超过这里'"
+                    @input="lockCap(row.key, slotDef[0])"
+                    :title="'该槽输出 token 上限（不是字符数）：预算=系数×勾选原文，封顶不超过这里。手填即视为手动选择并锁定：保存后重开也以手填值为准。'"
                     style="width:56px;padding:1px 4px;border:1px solid #e3e9f2;border-radius:4px;font-size:10px;"
                   >
                   <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:3px;font-size:10px;">
                     <span
-                      :title="'采用最新代码设计默认上限（DEFAULT_BUDGET_BY_TYPE）。生效需点「保存设置」。'"
+                      :title="'采用最新代码设计默认上限（DEFAULT_BUDGET_BY_TYPE）并锁定该值：保存后重开以此为准。未手动选过的槽才默认取设计与存档较大者。需点「保存设置」生效。'"
                       @click="applyDesignCap(row.key, slotDef[0])"
                       :style="{ cursor:'pointer', padding:'0 4px', borderRadius:'3px', border:'1px solid '+(budgetBt()[row.key][slotDef[0]].cap === designCap(row.key, slotDef[0]) ? '#1f6feb' : '#d6dde6'), color: budgetBt()[row.key][slotDef[0]].cap === designCap(row.key, slotDef[0]) ? '#1f6feb' : '#64748b' }"
                     >设计 {{ designCap(row.key, slotDef[0]) }}</span>
                     <span
-                      :title="'采用存档上限（更早版设计默认固化进存储的值；无存档时等同设计默认）。生效需点「保存设置」。'"
+                      :title="'采用存档上限（更早一版设计默认固化进存储的值；无存档时等同设计默认）并锁定该值：保存后重开以此为准，不会被取大覆盖。需点「保存设置」生效。'"
                       @click="applyArchiveCap(row.key, slotDef[0])"
                       :style="{ cursor:'pointer', padding:'0 4px', borderRadius:'3px', border:'1px solid '+(budgetBt()[row.key][slotDef[0]].cap === archiveCapOf(row.key, slotDef[0]) ? '#10b981' : '#d6dde6'), color: budgetBt()[row.key][slotDef[0]].cap === archiveCapOf(row.key, slotDef[0]) ? '#10b981' : '#64748b' }"
                     >存档 {{ archiveCapOf(row.key, slotDef[0]) }}</span>
+                    <span
+                      v-if="isSlotLocked(row.key, slotDef[0])"
+                      title="已手动选择（点按钮或手填）并锁定：保存后重开也以当前值为准。"
+                      style="color:#b45309;border:1px solid #f59e0b;border-radius:3px;padding:0 4px;background:#fff7ed;"
+                    >锁定</span>
                   </div>
                 </div>
               </div>
@@ -1621,16 +1627,22 @@ const archiveCapOf = (type, slot) => {
   const saved = pristineSavedCaps[type]?.[slot];
   return (saved != null) ? saved : designCap(type, slot);
 };
-// 采用「设计默认上限」（即最新代码 DEFAULT_BUDGET_BY_TYPE 的上限，点「保存设置」生效）
+// 采用「设计默认上限」（即最新代码 DEFAULT_BUDGET_BY_TYPE 的上限；手动点按即锁定该值，重开以此为准）
 const applyDesignCap = (type, slot) => {
   const sc = budgetBt()[type]?.[slot];
-  if (sc) sc.cap = designCap(type, slot);
+  if (sc) { sc.cap = designCap(type, slot); sc.locked = true; }
 };
-// 采用「存档上限」（即更早一版设计默认固化进存储的值；无存档时等同设计默认）
+// 采用「存档上限」（即更早一版设计默认固化进存储的值；手动点按即锁定该值，无存档时等同设计默认）
 const applyArchiveCap = (type, slot) => {
   const sc = budgetBt()[type]?.[slot];
-  if (sc) sc.cap = archiveCapOf(type, slot);
+  if (sc) { sc.cap = archiveCapOf(type, slot); sc.locked = true; }
 };
+// 手填上限也视为用户明确选择 → 锁定，重开保留手动值
+const lockCap = (type, slot) => {
+  const sc = budgetBt()[type]?.[slot];
+  if (sc) sc.locked = true;
+};
+const isSlotLocked = (type, slot) => budgetBt()[type]?.[slot]?.locked === true;
 
 // 一键把全部 9 类型的 tier 设为同一档位（快捷套档）
 const setAllTiers = (tier) => {
