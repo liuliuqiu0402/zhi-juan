@@ -885,6 +885,18 @@
                     :title="'该槽输出 token 上限（不是字符数）：预算=系数×勾选原文，封顶不超过这里'"
                     style="width:56px;padding:1px 4px;border:1px solid #e3e9f2;border-radius:4px;font-size:10px;"
                   >
+                  <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:3px;font-size:10px;">
+                    <span
+                      :title="'采用最新代码设计默认上限（DEFAULT_BUDGET_BY_TYPE）。生效需点「保存设置」。'"
+                      @click="applyDesignCap(row.key, slotDef[0])"
+                      :style="{ cursor:'pointer', padding:'0 4px', borderRadius:'3px', border:'1px solid '+(budgetBt()[row.key][slotDef[0]].cap === designCap(row.key, slotDef[0]) ? '#1f6feb' : '#d6dde6'), color: budgetBt()[row.key][slotDef[0]].cap === designCap(row.key, slotDef[0]) ? '#1f6feb' : '#64748b' }"
+                    >设计 {{ designCap(row.key, slotDef[0]) }}</span>
+                    <span
+                      :title="'采用存档上限（更早版设计默认固化进存储的值；无存档时等同设计默认）。生效需点「保存设置」。'"
+                      @click="applyArchiveCap(row.key, slotDef[0])"
+                      :style="{ cursor:'pointer', padding:'0 4px', borderRadius:'3px', border:'1px solid '+(budgetBt()[row.key][slotDef[0]].cap === archiveCapOf(row.key, slotDef[0]) ? '#10b981' : '#d6dde6'), color: budgetBt()[row.key][slotDef[0]].cap === archiveCapOf(row.key, slotDef[0]) ? '#10b981' : '#64748b' }"
+                    >存档 {{ archiveCapOf(row.key, slotDef[0]) }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1585,10 +1597,40 @@ const budgetByTypeNames = (t) => ({ economy: '精简档', balanced: '均衡档',
 const normalizeBudgetSlots = normalizeBudgetByType;
 
 // 🔧 初始化补全：设置页内存的 budgetByType 永保完整槽位（渲染期间 budgetBt 纯读取）
+//    先抓取「原始存档 cap」（未归一化前的值）供"设计默认/存档"双值切换用；
+//    归一化后 slot.cap 要么是存档值、要么是代码默认，已无法区分来源，故须在归一化前快照。
+const RAW_BUDGET = settings.value.generationSettings?.budgetByType || null;
+const pristineSavedCaps = {};
+if (RAW_BUDGET) {
+  for (const [tk, tv] of Object.entries(RAW_BUDGET)) {
+    pristineSavedCaps[tk] = {};
+    for (const slot of ['body', 'answer', 'once']) {
+      const s = tv && tv[slot];
+      pristineSavedCaps[tk][slot] = (s && typeof s.cap === 'number' && s.cap > 0) ? s.cap : null; // null=无存档 → 视同设计默认
+    }
+  }
+}
 (() => {
   const gs = settings.value.generationSettings || {};
   gs.budgetByType = normalizeBudgetSlots(gs.budgetByType || {});
 })();
+
+// 该类型槽的「设计默认上限」与「存档上限」双值视图；存档无值时回退设计默认（与 normalize 承诺同口径）
+const designCap = (type, slot) => DEFAULT_BUDGET_BY_TYPE[type]?.[slot]?.cap ?? 20000;
+const archiveCapOf = (type, slot) => {
+  const saved = pristineSavedCaps[type]?.[slot];
+  return (saved != null) ? saved : designCap(type, slot);
+};
+// 采用「设计默认上限」（即最新代码 DEFAULT_BUDGET_BY_TYPE 的上限，点「保存设置」生效）
+const applyDesignCap = (type, slot) => {
+  const sc = budgetBt()[type]?.[slot];
+  if (sc) sc.cap = designCap(type, slot);
+};
+// 采用「存档上限」（即更早一版设计默认固化进存储的值；无存档时等同设计默认）
+const applyArchiveCap = (type, slot) => {
+  const sc = budgetBt()[type]?.[slot];
+  if (sc) sc.cap = archiveCapOf(type, slot);
+};
 
 // 一键把全部 9 类型的 tier 设为同一档位（快捷套档）
 const setAllTiers = (tier) => {
