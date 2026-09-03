@@ -21,12 +21,14 @@ const uWidthCss = () => TIERS.map((n) => `u.blank-${n}{min-width:${n}em;}`).join
 const spanGridCss = () => TIERS.map((n) => `span.blank-${n}{grid-template-columns:auto minmax(${n}em,1fr) auto;}`).join('\n');
 
 /** 四线三格/六线格/拼音格/英语书写格（行高 CSS 变量化，线位百分比等距三等带：
- * 线在 6.7%/36.7%/66.7%/96.7%，三条浅线 var(--flt-soft,#999) + 基线 var(--flt-strong,#666)） */
+ * 线在 6.7%/36.7%/66.7%/96.7%，三条浅线 var(--flt-soft,#999) + 基线 var(--flt-strong,#666)）
+ * 拼音格（.pinyin-line）为行式格家族成员（GRID_CELL 同口径行高 9/8mm）：与四线三格同画法，
+ * 学生手写拼音字母于中间两线间——曾仅声明字体无格线（span 空载不可见），2026-09 补线补齐 */
 export const CARRIER_LINE_CSS = `
-.four-line-three, .sixian-ge { display: inline-block; position: relative; padding: 4px 4px; font-size: inherit !important; line-height: 1; min-width: 18px; text-align: center; vertical-align: middle; text-indent: 0; }
+.four-line-three, .sixian-ge, .pinyin-line { display: inline-block; position: relative; padding: 4px 4px; font-size: inherit !important; line-height: 1; min-width: 18px; text-align: center; vertical-align: middle; text-indent: 0; }
 .four-line-three { font-family: 'Times New Roman', 'Georgia', SimSun, serif; }
 .sixian-ge { font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; }
-.four-line-three::before, .sixian-ge::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: var(--flt-h, 9mm); background: linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 6.7%/100% 1px no-repeat, linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 36.7%/100% 1px no-repeat, linear-gradient(var(--flt-strong,#666),var(--flt-strong,#666)) 0 66.7%/100% 1px no-repeat, linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 96.7%/100% 1px no-repeat; pointer-events: none; }
+.four-line-three::before, .sixian-ge::before, .pinyin-line::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: var(--flt-h, 9mm); background: linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 6.7%/100% 1px no-repeat, linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 36.7%/100% 1px no-repeat, linear-gradient(var(--flt-strong,#666),var(--flt-strong,#666)) 0 66.7%/100% 1px no-repeat, linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 96.7%/100% 1px no-repeat; pointer-events: none; }
 .pinyin-line { font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; }
 .english-line { font-family: 'Times New Roman', 'Georgia', serif; }
 `;

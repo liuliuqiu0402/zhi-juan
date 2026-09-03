@@ -2353,61 +2353,10 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   margin-left: 1px;
 }
 
-/* 田字格/米字格（⭐ inline-block + relative 容器，子元素 absolute+transform 居中） */
-.tian-zi-ge, .mi-zi-ge {
-  display: inline-block;
-  position: relative;
-  width: 1.8em;
-  height: 1.8em;
-  border: 1.5px solid #5B9BD5;
-  font-size: inherit !important;
-  vertical-align: middle;
-  margin: 0 1px;
-  box-sizing: border-box;
-  background:
-    repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,
-    repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat;
-}
-.tian-zi-ge > span, .mi-zi-ge > span {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  line-height: 1;
-  white-space: nowrap;
-}
-.mi-zi-ge {
-  background:
-    repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,
-    repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,
-    repeating-linear-gradient(to top right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,
-    repeating-linear-gradient(to bottom right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat;
-}
-
+/* 田字格/米字格/作文格旧 scoped 副本（1.8em/1.3em em 随字号）已于 2026-09 删除——
+   画法/尺寸单一事实源：themeConfig mm 版 + carrierCss（编辑器/预览/导出/docx 同口径）；v-html 内容不带 scoped 属性，旧副本本不命中，勿在此重建 */
 /* 四线三格/六线格/拼音格/英语书写格画法已收口到 carrierCss（全局注入，行高 --flt-h 由 :root/容器 CSS 变量按学段设置）——
    曾在此维护 em(随字号) 副本，与全局 mm 规则并存造成双口径，已删除勿重建 */
-
-/* ⭐ 作文格 */
-.zuo-wen-ge {
-  display: grid;
-  grid-template-columns: repeat(20, 1.3em);
-  gap: 0;
-  border: 1.5px solid var(--text-muted);
-  margin: 8px 0;
-  width: fit-content;
-}
-.zuo-wen-ge span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.3em;
-  height: 1.3em;
-  border: 0.5px solid #ccc;
-  font-family: 'SimSun', 'KaiTi', serif;
-  font-size: inherit !important;
-  line-height: 1.3em;
-  text-align: center;
-}
 
 /* 口算框 */
 .oral-box {

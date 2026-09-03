@@ -273,33 +273,9 @@ p.blank-area {
   line-height: 1.2;
 }
 
-/* 四线三格（英语书写） */
-.four-line-three {
-  display: inline-block;
-  position: relative;
-  padding: 4px 4px;
-  font-family: 'Times New Roman', 'Georgia', SimSun, serif;
-  font-size: inherit !important;
-  line-height: 1;
-  min-width: 18px;
-  text-align: center;
-  vertical-align: middle;
-  overflow: visible;
-}
-.four-line-three::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 1.5em;
-  background:
-    linear-gradient(#999, #999) 0 0.1em / 100% 1px no-repeat,
-    linear-gradient(#999, #999) 0 0.55em / 100% 1px no-repeat,
-    linear-gradient(#666, #666) 0 1.0em / 100% 1px no-repeat,
-    linear-gradient(#999, #999) 0 1.45em / 100% 1px no-repeat;
-  pointer-events: none;
-}
+/* 四线三格/六线格/拼音格/英语书写格：画法与行高单一事实源见 carrierCss CARRIER_LINE_CSS（--flt-h 由 :root 注入）。
+   曾在此维护 em(随字号) 1.5em 静态副本，与 carrierCss mm 版同特异性后写覆盖（carrierCss 由 main.js appendChild 注入 head 末尾）——
+   已删除旧副本，勿在此重建 */
 
 /* 画线句子 */
 .underline-sentence {

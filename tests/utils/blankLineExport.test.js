@@ -84,6 +84,28 @@ describe('四线三格文字居中导出（字母进群组 Textbox，不右移�
   });
 });
 
+describe('拼音格（pinyin-line）导出——与四线三格同 FLT 几何，独立 class 不再退化为纯文字丢格线', () => {
+  it('行内拼音格（留空）：画四条格线（FourLineGrid），作答区可见', async () => {
+    const xml = await getDocumentXml('<p>写音节：<span class="pinyin-line"></span></p>');
+    expect(xml).toContain('name="FourLineGrid"');
+    expect(xml).toContain('FLT-Line-4');
+  });
+
+  it('行内拼音格（带音节）：音节进 FLT-Char textbox（曾递归子节点 → 无格线纯文本）', async () => {
+    const xml = await getDocumentXml('<p>照样子写拼音：<span class="pinyin-line">ba</span></p>');
+    expect(xml).toContain('name="FLT-Char"');
+    expect(xml).toMatch(/<w:txbxContent>[\s\S]*?<w:t[^>]*>ba<\/w:t>[\s\S]*?<\/w:txbxContent>/);
+    expect(xml).toContain('name="FourLineGrid"');
+    expect(xml).toContain('FLT-Line-4');
+  });
+
+  it('块级拼音格（独立段落）：同样按格线群组导出', async () => {
+    const xml = await getDocumentXml('<p class="question">1. 写拼音。</p><div class="pinyin-line">ma</div>');
+    expect(xml).toContain('name="FourLineGrid"');
+    expect(xml).toMatch(/<w:txbxContent>[\s\S]*?<w:t[^>]*>ma<\/w:t>[\s\S]*?<\/w:txbxContent>/);
+  });
+});
+
 describe('作文格（zuo-wen-ge）导出', () => {
   it('标准 span 格子结构 → 导出为格子表格', async () => {
     const xml = await getDocumentXml(

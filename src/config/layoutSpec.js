@@ -63,8 +63,8 @@ export const ZUOWEN_DEFAULT_SPAN = 2;
 
 /**
  * 书写载体（学科 × 学段 → 允许的载体 class 列表）
- *  - 语文：低段田字格+拼音格；中段起正常横线
- *  - 英语：中段四线三格（英语 3 年级起点）；高段起正常横线
+ *  - 语文：低段田字格+米字格+拼音格；中段起正常横线
+ *  - 英语：中段四线三格（英语 3 年级起点）；低段/高段起正常横线（低段显式声明，避免 null 漏检语文格子越界混入）
  *  - 数学：作图方格纸 square-grid 仅小学段合法（作图题；初中以上由考试答题纸自带网格，不给"用方格纸"诱导）；其余格子类一律不允许
  *  - 其余学科（物理/化学/生物/科学/道德与法治/思想政治/历史/地理/音乐/美术/体育/信息科技）：显式空数组
  *    = 不允许任何格子类（出现田字格/四线三格等即按越界自动剥离）
@@ -77,13 +77,17 @@ export const ZUOWEN_DEFAULT_SPAN = 2;
  *    指令库 STAGE_SUBJECTS/SUBJECT_STAGE_EXTRAS 同步，否则剥离防线失效（见 getCarrierAllowlist 归一化）。 */
 export const WRITING_CARRIER = {
   语文: {
-    primary_low: ['tian-zi-ge', 'pinyin-line'], // 低段：田字格/拼音格
+    // 🔧 米字格（书法练习格）与田字格同属方块格、同为写字载体：多处消费端注释（themeConfig/RichTextEditor/
+    //   TypesetModule/global.css）均声明"米字格仅语文低段"，曾允许表漏列 → 越界剥离把模型偶发输出的
+    //   mi-zi-ge 当越界拆掉（写字题丢失书写格）——已收敛加入，与注释/渲染能力一致
+    primary_low: ['tian-zi-ge', 'mi-zi-ge', 'pinyin-line'], // 低段：田字格/米字格/拼音格
     primary_mid: ['line'],                      // 中段起正常
     primary_high: ['line'],
     middle: ['line'],
     high: ['line'],
   },
   英语: {
+    primary_low: ['line'],                      // 低段：显式声明=无书写格（英语 3 年级起点，1-2 年级不要求字母书写）
     primary_mid: ['four-line-three'],           // 中段：四线三格
     primary_high: ['line'],                     // 高段起正常
     middle: ['line'],

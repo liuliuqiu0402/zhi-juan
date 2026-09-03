@@ -9436,7 +9436,7 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   vertical-align: middle;
 }
 
-/* 🔧 预览区四线三格防御样式（确保 v-html 渲染时线条可见） */
+/* 🔧 预览区四线三格防御样式（确保 v-html 渲染时线条可见；口径与 carrierCss mm 版一致——1.5em 旧副本已删） */
 .preview-content :deep(.four-line-three) {
   display: inline-block;
   position: relative;
@@ -9455,11 +9455,11 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   left: 0;
   right: 0;
   top: 0;
-  height: 1.5em;
-  background: linear-gradient(#999, #999) 0 0.1em / 100% 1px no-repeat,
-              linear-gradient(#999, #999) 0 0.55em / 100% 1px no-repeat,
-              linear-gradient(#666, #666) 0 1.0em / 100% 1px no-repeat,
-              linear-gradient(#e74c3c, #e74c3c) 0 1.45em / 100% 1px no-repeat;
+  height: var(--flt-h, 9mm);
+  background: linear-gradient(var(--flt-soft, #999), var(--flt-soft, #999)) 0 6.7% / 100% 1px no-repeat,
+              linear-gradient(var(--flt-soft, #999), var(--flt-soft, #999)) 0 36.7% / 100% 1px no-repeat,
+              linear-gradient(var(--flt-strong, #666), var(--flt-strong, #666)) 0 66.7% / 100% 1px no-repeat,
+              linear-gradient(var(--flt-soft, #999), var(--flt-soft, #999)) 0 96.7% / 100% 1px no-repeat;
   pointer-events: none;
 }
 /* 🔧 预览区横线防御样式 */
@@ -10255,89 +10255,8 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   line-height: 1;
   margin-left: 1px;
 }
-.tian-zi-ge, .mi-zi-ge {
-  display: inline-block;
-  position: relative;
-  width: 1.8em;
-  height: 1.8em;
-  border: 1.5px solid #5B9BD5;
-  font-size: inherit !important;
-  vertical-align: middle;
-  margin: 0 1px;
-  box-sizing: border-box;
-  background:
-    repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,
-    repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat;
-}
-.tian-zi-ge > span, .mi-zi-ge > span {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  line-height: 1;
-  white-space: nowrap;
-}
-.mi-zi-ge {
-  background:
-    repeating-linear-gradient(to right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/100% 0.5px no-repeat,
-    repeating-linear-gradient(to bottom,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,
-    repeating-linear-gradient(to top right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat,
-    repeating-linear-gradient(to bottom right,#5B9BD5 0px,#5B9BD5 3px,transparent 3px,transparent 6px) center/0.5px 100% no-repeat;
-}
-.four-line-three {
-  display: inline-block;
-  position: relative;
-  padding: 4px 4px;
-  font-family: 'Times New Roman', 'Georgia', SimSun, serif;
-  font-size: 16px;
-  line-height: 1;
-  min-width: 18px;
-  text-align: center;
-  vertical-align: middle;
-  overflow: visible;
-}
-.four-line-three::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 1.5em;
-  background:
-    linear-gradient(#999, #999) 0 0.1em / 100% 1px no-repeat,
-    linear-gradient(#999, #999) 0 0.55em / 100% 1px no-repeat,
-    linear-gradient(#666, #666) 0 1.0em / 100% 1px no-repeat,
-    linear-gradient(#999, #999) 0 1.45em / 100% 1px no-repeat;
-  pointer-events: none;
-}
-/* ⭐ 拼音格 - Times New Roman（拼音体专用） */
-.pinyin-line {
-  font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif;
-}
-/* ⭐ 英语书写格 - Times New Roman 印刷体（英语字母专用） */
-.english-line {
-  font-family: 'Times New Roman', 'Georgia', serif;
-}
-.zuo-wen-ge {
-  display: grid;
-  grid-template-columns: repeat(20, 1.3em);
-  gap: 0;
-  border: 1.5px solid var(--text-muted);
-  margin: 8px 0;
-  width: fit-content;
-}
-.zuo-wen-ge span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.3em;
-  height: 1.3em;
-  border: 0.5px solid #ccc;
-  font-family: 'SimSun', 'KaiTi', serif;
-  font-size: 0.9em;
-  line-height: 1.3em;
-  text-align: center;
-}
+/* ⭐ 田字格/米字格/四线三格/拼音格/英语格/作文格旧 scoped 副本（1.8em/1.5em/1.3em）已于 2026-09 删除——
+   v-html 内容不带 scoped 属性，本副本本就不命中；画法口径收敛 carrierCss/themeConfig mm 单源，勿在此重建 */
 .oral-box {
   display: inline-block;
   border: 1.5px solid #333;

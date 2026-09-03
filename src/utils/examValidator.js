@@ -49,6 +49,11 @@ const GRID_CLASS_LABEL = {
   'square-grid': CARRIER_LABELS['square-grid'],
   'mi-zi-ge': CARRIER_LABELS['mi-zi-ge'],
 };
+// 🔧 载体旧名别名（越界判定按 canonical 折叠）：sixian-ge = four-line-three 旧名
+//   （渲染同 FLT 几何、中文标签同为"四线三格"——blueprintSchema CARRIER_LABELS 同值）；
+//   曾允许表只有 four-line-three → 模型输出 sixian-ge 时被判越界剥离，英语中段合法抄写格被误删
+const CARRIER_CLASS_ALIAS = { 'sixian-ge': 'four-line-three' };
+const carrierCanonical = (cls) => CARRIER_CLASS_ALIAS[cls] || cls;
 
 // ---------- 工具 ----------
 const stripTags = (s) => String(s || '').replace(/<[^>]+>/g, '');
@@ -479,7 +484,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     const allowed = getCarrierAllowlist(subject, stage);
     if (allowed) {
       const defaultLabel = allowed.includes('line') ? '横线' : (allowed.join('或') || '正常书写');
-      const stripList = Object.keys(GRID_CLASS_LABEL).filter(cls => !allowed.includes(cls));
+      // 🔧 sixian-ge 别名折叠：与 four-line-three 同格（canonical 在允许表内即合法，不再误剥）
+      const stripList = Object.keys(GRID_CLASS_LABEL).filter(cls => !allowed.includes(carrierCanonical(cls)));
       if (stripList.length) {
         try {
           const tpl = document.createElement('template');
@@ -1397,7 +1403,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       const tpl6 = document.createElement('template');
       tpl6.innerHTML = out;
       const gridEls = Array.from(tpl6.content.querySelectorAll(
-        'div.tian-zi-ge, div.mi-zi-ge, div.four-line-three, div.sixian-ge, div.pinyin-line, div.zuo-wen-ge, span.tian-zi-ge, span.mi-zi-ge'
+        // 🔧 行式格 span 形态补齐（four-line-three/sixian-ge/pinyin-line）：四线三格/拼音格常以行内 span 出现
+        //   （<span class="four-line-three">cat</span>），曾选择器只收 div 形态与 span 田字格 → 内嵌答案字漏清
+        'div.tian-zi-ge, div.mi-zi-ge, div.four-line-three, div.sixian-ge, div.pinyin-line, div.zuo-wen-ge, span.tian-zi-ge, span.mi-zi-ge, span.four-line-three, span.sixian-ge, span.pinyin-line'
       ));
       let cleared = 0;
       for (const g of gridEls) {

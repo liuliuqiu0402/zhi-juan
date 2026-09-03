@@ -1,4 +1,4 @@
-// 蓝图注入 + 非 exam 输出格式 测试
+﻿// 蓝图注入 + 非 exam 输出格式 测试
 // ============================================================
 // 🔴 目的：锁定"格式内容对全部资料类型生效"的契约——
 //    - exam：整卷生成指令尾部注入真题蓝本题型骨架（板块+分值+命题要求）
@@ -132,7 +132,7 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     expect(hint).toContain('<h1>');
     expect(hint).toContain('<h2>');
     expect(hint).toContain('题目区严禁混入');
-    expect(hint).toContain('学生作答处按答案长度给出空的作答书写载体');
+    expect(hint).toContain('留白宽窄与答案篇幅相称');
   });
 
   it('含正文边界要求：答案仅出现在独立答案区；代码块由代码层拦截，不再要求模型', () => {
@@ -156,7 +156,7 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     const preview = buildOutputFormatHint({ subject: '语文', stage: 'primary_low', genType: 'preview' });
     expect(preview).toContain('栏目标题');
     expect(preview).not.toContain('写汉字类题必须真实输出田字格');
-    expect(preview).not.toContain('学生作答处按答案长度给出空的作答书写载体');
+    expect(preview).not.toContain('留白宽窄与答案篇幅相称');
     const summary = buildOutputFormatHint({ genType: 'summary' });
     expect(summary).toContain('知识框架');
   });
@@ -175,7 +175,7 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
         expect(t.template, `类型 ${g} 不应要求题号包裹`).not.toContain('以 <p class="question"> 包裹并带题号');
       } else {
-        expect(t.template, `类型 ${g} 缺作答载体规则`).toContain('学生作答处按答案长度给出空的作答书写载体');
+        expect(t.template, `类型 ${g} 缺作答载体规则`).toContain('留白宽窄与答案篇幅相称');
         expect(t.template).toContain('以 <p class="question"> 包裹并带题号');
       }
     }
@@ -205,7 +205,7 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
       } else {
-        expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('学生作答处按答案长度给出空的作答书写载体');
+        expect(t.template, `类型 ${g} 缺宽度匹配语义`).toContain('留白宽窄与答案篇幅相称');
         expect(t.template, `类型 ${g} 缺作答位置要求`).toContain('客观题按作答形式留出相应作答位置');
       }
       expect(t.template, `类型 ${g} 残留连线诱导词`).not.toContain('连线题');
@@ -218,7 +218,7 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g}`).not.toContain('作答书写载体');
       } else {
-        expect(t.template, `类型 ${g}`).toContain('按答案长度给出空的作答书写载体');
+        expect(t.template, `类型 ${g}`).toContain('留白宽窄与答案篇幅相称');
       }
       expect(t.template, `类型 ${g} 残留微观格式`).not.toContain('空格数=答案字数');
       expect(t.template, `类型 ${g} 残留格数诱导`).not.toContain('1字≈2格');
@@ -231,7 +231,7 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
   it('书写载体条款按 学科×学段 精确注入（排版规格库唯一事实源，不广播跨学科示例）', () => {
     // 通用模板（无学科/学段）：只留通用句，不含任何具体格子示例（旧版全学科广播已移除）
     const generic = getPromptTemplate({ genType: 'practice' });
-    expect(generic.template).toContain('学生作答处按答案长度给出空的作答书写载体');
+    expect(generic.template).toContain('留白宽窄与答案篇幅相称');
     expect(generic.template).not.toContain('不少于3行');
     expect(generic.template).not.toContain('tian-zi-ge');
     expect(generic.template).not.toContain('four-line-three');
@@ -359,15 +359,26 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
     expect(mathMid.template).not.toContain('写字/抄写类题');
   });
 
-  it('语文各学段均保留"写字/抄写"硬约束（hasEx 学科，无论是否有具体格子示例）', () => {
-    // 低段：田字格/拼音格 + 写字/抄写 + 写作/表达
+  it('语文载体条款按 学科×学段 收敛（载体输出要求随允许表注入，不广播无载体学段）', () => {
+    // 低段：田字格/拼音格载体条款（buildCarrierInstruction 按 must 注入）+ 写作/表达通用要求
     const low = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
-    expect(low.template).toContain('写字/抄写类题须真实输出对应书写载体');
+    expect(low.template).toContain('写汉字类题必须真实输出田字格');
+    expect(low.template).toContain('写拼音类题必须真实输出拼音格');
     expect(low.template).toContain('写作/表达类题须完整呈现题目要求');
-    // 中段：无具体格子示例，但写字/抄写硬约束仍保留
+    // 中段：无格子载体（WRITING_CARRIER 中段=line），不注入任何"写字/抄写→格"条款（曾全学段广播田字格诱导，已删）
     const mid = getPromptTemplate({ grade: 'primary_mid', subject: '语文', genType: 'exam' });
-    expect(mid.template).toContain('写字/抄写类题须真实输出对应书写载体');
+    expect(mid.template).not.toContain('写字/抄写类题须真实输出对应书写载体');
     expect(mid.template).not.toContain('tian-zi-ge');
+    expect(mid.template).not.toContain('pinyin-line');
+    expect(mid.template).toContain('写作/表达类题须完整呈现题目要求'); // hasEx 通用写作要求仍在
+  });
+
+  it('英语中段保留四线三格载体条款（must 单一事实源），低段无载体条款', () => {
+    const enMid = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'exam' });
+    expect(enMid.template).toContain('字母/单词抄写类题必须真实输出四线三格');
+    const enLow = getPromptTemplate({ grade: 'primary_low', subject: '英语', genType: 'exam' });
+    expect(enLow.template).not.toContain('four-line-three');
+    expect(enLow.template).not.toContain('写字/抄写类题须真实输出对应书写载体');
   });
 
   it('载体示例为空格子（示例内不填字/拼音/字母，与"格子为空格子"一致）', () => {
@@ -394,3 +405,4 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
     expect(enExam.template).toContain('听力原文');
   });
 });
+

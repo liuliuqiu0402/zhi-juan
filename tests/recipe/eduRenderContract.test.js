@@ -219,14 +219,17 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(mid.template).toContain('书写规范'); // 中段要点保留书写惯例（载体具体格式由排版规格库单通道注入）
   });
 
-  it('语文"看拼音写/田字格"措辞不跨污染到英语（英语载体走四线三格条款，不含田字格/看拼音写）', () => {
+  it('语文低段"汉字/拼音载体条款"不跨污染到英语（英语载体走四线三格条款，不含田字格/拼音格）', () => {
     for (const g of ['小学低段', 'primary_mid', '小学中段', 'middle', 'high']) {
       const t = getPromptTemplate({ grade: g, subject: '英语', genType: 'exam' });
-      expect(t.template, `英语 ${g} 不应含"看拼音写词语"`).not.toContain('看拼音写词语');
       expect(t.template, `英语 ${g} 不应含"田字格"`).not.toContain('田字格');
+      expect(t.template, `英语 ${g} 不应含"拼音格"`).not.toContain('拼音格');
     }
+    // 语文低段载体条款由排版规格库单一事实源注入（buildCarrierInstruction），不再广播"看拼音写词语→田字格"旧措辞
     const yw = getPromptTemplate({ grade: '小学低段', subject: '语文', genType: 'exam' });
-    expect(yw.template).toContain('看拼音写词语');
+    expect(yw.template).toContain('写汉字类题必须真实输出田字格');
+    expect(yw.template).toContain('写拼音类题必须真实输出拼音格');
+    expect(yw.template).not.toContain('看拼音写词语'); // 词性推导演示已收敛（规则库 keywords 承载），模板不再出现题型词→载体直写
     expect(yw.template).toContain('田字格');
   });
 

@@ -390,6 +390,63 @@ describe('examValidator 书写格按学段（writing-grid-fix）', () => {
     const { html: out2 } = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'exam' });
     expect(out2).not.toContain('square-grid');
   });
+
+  it('sixian-ge（four-line-three 旧名别名）英语中段不剥离；中段以上仍越界剥离（别名折叠）', () => {
+    const html = '<h2>二、字母与书写</h2>\n<p>1. 抄写单词：<span class="sixian-ge">cat</span></p>';
+    // 英语中段允许表 = four-line-three，sixian-ge 别名按 canonical 折叠 → 合法保留
+    const { html: out1, issues } = auditExamPaper(html, { subject: '英语', stage: 'primary_mid', genType: 'exam' });
+    expect(out1).toContain('sixian-ge');
+    expect(issues.some((i) => i.type === 'writing-grid' && i.message.includes('剥离'))).toBe(false);
+    // 英语中段以上（high）允许表 = line → sixian-ge 越界剥离保留文字
+    const { html: out2 } = auditExamPaper(html, { subject: '英语', stage: 'high', genType: 'exam' });
+    expect(out2).not.toContain('sixian-ge');
+    expect(out2).not.toContain('four-line-three');
+  });
+
+  it('米字格（mi-zi-ge）收敛为语文低段合法方块格：不再被越界剥离（死载体定位）', () => {
+    const html = '<h2>一、识字与写字</h2>\n<p>1. 写汉字：<span class="mi-zi-ge">海</span></p>';
+    const { html: out, issues } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(out).toContain('mi-zi-ge'); // 允许表已含 → 保留（写字题不丢书写格）
+    expect(issues.some((i) => i.type === 'writing-grid' && i.message.includes('剥离'))).toBe(false);
+    // 中段以上仍越界剥离
+    const { html: out2 } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'exam' });
+    expect(out2).not.toContain('mi-zi-ge');
+  });
+
+  it('英语低段允许表显式声明（=line）：语文田字格/四线三格漏入英语低段卷 → 越界剥离（曾 null 漏检）', () => {
+    const html = '<h2>一、基础</h2>\n<p>1. 选择：<span class="tian-zi-ge">海</span> <span class="four-line-three">a</span></p>';
+    const { html: out, issues } = auditExamPaper(html, { subject: '英语', stage: 'primary_low', genType: 'exam' });
+    expect(out).not.toContain('tian-zi-ge');
+    expect(out).not.toContain('four-line-three');
+    expect(issues.some((i) => i.type === 'writing-grid' && i.message.includes('剥离'))).toBe(true);
+  });
+
+  it('2j-6 清空 span 形态行式格内预填内容（four-line-three/sixian-ge/pinyin-line，曾漏清）', () => {
+    // four-line-three/sixian-ge：英语中段卷（允许表内，1.5.8 不剥离，2j-6 生效清空）
+    const en = [
+      '<h2>一、字母与书写</h2>',
+      '<p>1. 抄写单词：<span class="four-line-three">cat</span></p>',
+      '<p>2. 抄写单词：<span class="sixian-ge">dog</span></p>',
+    ].join('\n');
+    const { html: enOut, fixed: enFixed } = auditExamPaper(en, { subject: '英语', stage: 'primary_mid', genType: 'exam' });
+    expect(enOut).toContain('class="four-line-three"');
+    expect(enOut).toContain('class="sixian-ge"');
+    expect(enOut).not.toMatch(/<span class="four-line-three">cat<\/span>/);
+    expect(enOut).not.toMatch(/<span class="sixian-ge">dog<\/span>/);
+    expect(enFixed).toBeGreaterThan(0);
+    // pinyin-line：语文低段卷（允许表内），span 形态内嵌拼音漏清同样修复
+    const yw = '<h2>一、识字与写字</h2>\n<p>1. 写音节：<span class="pinyin-line">ba</span></p>';
+    const { html: ywOut, fixed: ywFixed } = auditExamPaper(yw, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(ywOut).toContain('class="pinyin-line"');
+    expect(ywOut).not.toMatch(/<span class="pinyin-line">ba<\/span>/);
+    expect(ywFixed).toBeGreaterThan(0);
+  });
+
+  it('2j-6 示范豁免：span 行式格紧邻"照样子/例"不清空（示范字保留）', () => {
+    const html = '<h2>一、字母与书写</h2>\n<p>1. 照样子抄写：cat <span class="four-line-three">cat</span></p>';
+    const { html: out } = auditExamPaper(html, { subject: '英语', stage: 'primary_mid', genType: 'exam' });
+    expect(out).toMatch(/<span class="four-line-three">cat<\/span>/); // 示范字保留
+  });
 });
 
 describe('examValidator 载体×题型正规化（CARRIER_RULES）', () => {

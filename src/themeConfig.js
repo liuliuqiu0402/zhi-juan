@@ -1600,63 +1600,10 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       margin-left: 1px;
     }
 
-    /* ⭐ 田字格 - 小学语文（⭐ inline-block + text-align 居中 + line-height，无内层span也能居中） */
-    .tian-zi-ge {
-      display: inline-block;
-      position: relative;
-      width: 1.8em;
-      height: 1.8em;
-      border: 1.5px solid #999;
-      font-size: inherit !important;
-      vertical-align: middle;
-      margin: 2px 4px;
-      box-sizing: border-box;
-      text-align: center;
-      line-height: 1.8em;
-      background:
-        linear-gradient(to right, transparent calc(50% - 0.5px), #ccc calc(50% - 0.5px), #ccc calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-        linear-gradient(to bottom, transparent calc(50% - 0.5px), #ccc calc(50% - 0.5px), #ccc calc(50% + 0.5px), transparent calc(50% + 0.5px));
-    }
-    .tian-zi-ge > span {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      line-height: 1;
-      white-space: nowrap;
-    }
-
-    /* ⭐ 米字格 - 小学语文（同上结构 + 对角虚线 + text-align 居中） */
-    .mi-zi-ge {
-      display: inline-block;
-      position: relative;
-      width: 1.8em;
-      height: 1.8em;
-      border: 1.5px solid #999;
-      font-family: 'KaiTi', 'SimSun', serif;
-      font-size: inherit !important;
-      vertical-align: middle;
-      margin: 0 1px;
-      box-sizing: border-box;
-      text-align: center;
-      line-height: 1.8em;
-      background:
-        linear-gradient(to right, transparent calc(50% - 0.5px), #ccc calc(50% - 0.5px), #ccc calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-        linear-gradient(to bottom, transparent calc(50% - 0.5px), #ccc calc(50% - 0.5px), #ccc calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-        linear-gradient(to top right, transparent calc(50% - 0.5px), #ccc calc(50% - 0.5px), #ccc calc(50% + 0.5px), transparent calc(50% + 0.5px)),
-        linear-gradient(to bottom right, transparent calc(50% - 0.5px), #ccc calc(50% - 0.5px), #ccc calc(50% + 0.5px), transparent calc(50% + 0.5px));
-    }
-    .mi-zi-ge > span {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      line-height: 1;
-      white-space: nowrap;
-    }
-
     /* ⭐ 四线三格/六线格/拼音格/英语书写格：画法与行高单一事实源见 carrierCss CARRIER_LINE_CSS（--flt-h 由 :root 注入）。
        曾在此维护 em(随字号) 副本，与上方 mm 规则叠加后后写覆盖，导致导出四线随字号 —— 已删除，勿在此重建副本 */
+    /* ⭐ 田字格/米字格 em 旧副本（1.8em 随字号）已于 2026-09 删除——1508-1511 mm 版（GRID_CELL）为唯一口径，
+       与编辑器/docx 固定 12mm 三端统一；勿在此重建 em 副本 */
 
     /* ⭐ 作文格（尺寸取上方 ZUOWEN_CELL 变量：小学 12mm / 中考 10mm / 高考 宽7.5×高8mm；
        auto-fill 每行格数按容器宽度放最多整数格，格子尺寸固定不缩放——与 docx 导出 perRow 同口径） */

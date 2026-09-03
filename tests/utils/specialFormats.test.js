@@ -80,4 +80,17 @@ describe('Special Format CSS Coverage', () => {
     // 正向确认：确实存在排除后的括号规则（防止测试因零匹配而空过）
     expect(CARRIER_CSS).toMatch(/span\[class\*="blank-"\]:not\(\.blank-line\):not\(\[class\*="math-circle-blank"\]\)::before\{content:"\("/);
   });
+
+  // 🔧 行式格家族（四线三格/六线格/拼音格）：每类都必须有 ::before 格线绘制（曾拼音格仅字体无格线 → 空载不可见）
+  it('行式格家族各成员（four-line-three/sixian-ge/pinyin-line）均有格线画法（::before 四线渐变）', () => {
+    for (const cls of ['.four-line-three', '.sixian-ge', '.pinyin-line']) {
+      // 家族成员共享同一组选择器规则（组内成员后跟逗号非 {），断言成员名出现在 ::before 规则中即可
+      expect(CARRIER_CSS, `${cls} 缺 ::before 格线画法`).toMatch(new RegExp(cls.replace('.', '\\.') + '::before'));
+    }
+    // 画法共享同一 CSS 变量行高与线位（不维护第二份几何）
+    const fltRule = CARRIER_CSS.match(/\.four-line-three::before, \.sixian-ge::before, \.pinyin-line::before\s*\{[^}]*\}/);
+    expect(fltRule, '行式格家族应共享同一 ::before 格线规则').not.toBeNull();
+    expect(fltRule[0]).toContain('var(--flt-h, 9mm)');
+    expect(fltRule[0]).toContain('linear-gradient');
+  });
 });

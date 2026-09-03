@@ -233,13 +233,60 @@ export const spaceBlankWidth = (emWidth) => {
 };
 
 /**
- * 空白规范化（后处理排版兜底——AI 输出为"一大段文本"时由代码补排版要素）：
+ * 空白规范化（normalizeBlankMarkers）：后处理排版兜底——AI 输出为"一大段文本"时由代码补排版要素：
  *   1) <u>＿＿＿</u> / 纯文本 ＿N 个 → 带宽度等级的填空横线 blank-N（宽度换算唯一事实源 = blankWidthForChars）
  *   2) 空作文格 <div class="zuo-wen-ge"></div> → 补默认格
  * 排版要素（田字格/四线三格/图区）若 AI 未输出则保持原样，由导出层按学科排版兜底。
+ * ============================================================
+ * 入口顺序：① 数字实体解码 → ② 密封信息栏 ＿ 保护 → ③ 各空白/括号/下划线归一 → ④ 还原密封占位。
  */
+
+/**
+ * 🔧 载体内数字字符引用解码（C3-C5 实体漏判根治）
+ * ============================================================
+ * 模型输出偶发以数字实体承载载体字符（&#xFF08;&#x3000;&#xFF09; 括号空位、&#95; 下划线、
+ * &#x25CB;/&#x25A1; 算式填空圈/框等）；DOM 解析会解码，但正文归一在字符串层先行，
+ * 不解码则实体形态空位穿过整条归一链漏判，产物与字面字符路径不一致
+ * （字面 （　　） → span.blank-N 标准括号载体；实体形态 → 普通字面字符，无载体语义）。
+ * 仅解码"载体内安全字符集"（括号/空白/下划线/○□），不碰 &lt;/&gt;/&amp; 等结构实体（防注入）。
+ * 消费方：normalizeBlankMarkers / normalizeWhitespaceCarriers 入口（编辑器/排版装载共用）。
+ */
+const CARRIER_ENTITY_CP = new Set([0x28, 0x29, 0x5F, 0xA0, 0x2002, 0x2003, 0x3000, 0xFF08, 0xFF09, 0xFF3F, 0x25CB, 0x25A1]);
+const decodeCarrierNumericEntities = (s) => String(s || '').replace(/&#(?:x([0-9a-fA-F]+)|(\d+));?/gi, (m, hex, dec) => {
+  const cp = hex ? parseInt(hex, 16) : parseInt(dec, 10);
+  if (CARRIER_ENTITY_CP.has(cp)) return String.fromCodePoint(cp);
+  return m;
+});
+
 export function normalizeBlankMarkers(html = '') {
   let out = String(html || '');
+  // ① 数字实体解码（见 decodeCarrierNumericEntities 注释，C3-C5）
+  out = decodeCarrierNumericEntities(out);
+  // ② 🔧 密封线考生信息栏保护（C2 链序）：模型按指令在卷首输出"学校：＿＿＿　班级：＿＿＿…"
+  //    文本填写栏，若被下方 ＿→填空横线 归一吃掉，排版/导出按 textContent 重建密封区时无 ＿
+  //    可回填（sealText.normalizeSealBlanks 只扩 ＿），填写栏塌缩成无横线的空串。
+  //    保护条件：＿ 运行所在行前后 80 字符窗口内另有密封字段词（≥2 字段=信息栏形态），
+  //    或字段起于段首（前一字符为标签闭合/换行）；普通正文填空（＿ 附近无第二字段词、
+  //    非段首字段形态）不豁免，仍按填空归一。占位用私用区字符（正文规则不涉及），函数末还原。
+  const sealFieldRe = /密封线内不要答题|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：]/;
+  const sealFieldReG = new RegExp(sealFieldRe.source, 'g');
+  const sealKeeps = [];
+  out = out.replace(/((?:密封线内不要答题|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：])[^<>\n]{0,120}?)(＿{2,})/g, (m, head, us, off, all) => {
+    const before = all.slice(Math.max(0, off - 80), off);
+    const after = all.slice(off + m.length, off + m.length + 80);
+    const tokens = (before + head + after).match(sealFieldReG) || [];
+    // 段首豁免：字段起于文本段开头（自上一标签闭合起无正文，含"<p>学校：＿＿＿</p>"的段首形态）；
+    // 行内"…姓名：＿＿"填空（标签后尚有正文）不豁免，防正文误护
+    const lastTag = before.slice(-80).lastIndexOf('>');
+    const textSinceTag = lastTag === -1 ? before : before.slice(lastTag + 1);
+    const blockHead = /^\s*$/.test(textSinceTag);
+    if (tokens.length >= 2 || blockHead) {
+      const key = `\uE000${sealKeeps.length}`;
+      sealKeeps.push(us.length);
+      return head + key;
+    }
+    return m;
+  });
   // 🔴 填空横线宽度换算统一走共享函数（读排版规格库 BLANK.maxCap/wordGap/minBlank），不在此另建梯形
   out = out.replace(/<u>\s*＿+\s*<\/u>/gi, (m) => {
     const len = (m.match(/＿/g) || []).length;
@@ -294,24 +341,32 @@ export function normalizeBlankMarkers(html = '') {
   // 🔧 拆裸 <u> 空壳：模型把下划线写进无 class 的 <u>（<u>____</u>/<u>（　　）</u>），先被上面规则转成
   //    u.blank-N/span.blank-N 后外层 <u> 仍在 → 下划线叠下划线/叠括号。外层仅包一个 blank 空位时拆壳
   out = out.replace(/<u(?![^>]*class=)[^>]*>\s*(<(u|span) class="blank-\d+">&emsp;<\/\2>)\s*<\/u>/gi, '$1');
+  // ④ 🔧 还原密封信息栏占位（＿ 原样保留，交给排版/导出端 sealText.normalizeSealBlanks 统一扩 8 全角）
+  if (sealKeeps.length) {
+    out = out.replace(/\uE000(\d+)/g, (_m, i) => '＿'.repeat(sealKeeps[Number(i)] || 0));
+  }
   return out;
 }
 
-/** 数学算式填空圈：把"算式里做比较/填空位的 ○"归一为直径 1.8em 的填空圈容器。
+/** 数学算式填空位：把"算式里做比较/填空位的 ○/□"归一为 1.8em 填空容器（○→圆圈、□→方框）。
  *  ============================================================
- *  题干判定（避免误伤）：○ 仅在"两侧都被数学项（数字/字母/×÷＋－＝+−<>（）()/括号）紧邻，
- *  可有空格间隔"时才是算式填空位 → 包成 <span class="math-circle-blank-18">&nbsp;</span>；
- *  普通句子"在○里填上…"的 ○（相邻为汉字）保持原样。与方框空位同规格（1.8em）。
+ *  题干判定（避免误伤）：○/□ 仅在"两侧都被数学项（数字/字母/×÷＋－＝+−<>（）()/括号）紧邻，
+ *  可有空格间隔"时才是算式填空位 → ○ 包成 <span class="math-circle-blank-18">&nbsp;</span>、
+ *  □ 包成 <span class="square-box">&nbsp;</span>（圆圈与方框同性质同规格 1.8em，双向对称——
+ *  曾仅 ○ 有归一，算式原文"3+□=8"的 □ 以裸字形渲染，无载体语义，见 C6）；
+ *  普通句子"在○里填上…/在□里填数"的 ○/□（相邻为汉字）保持原样。
  *  定位：与 normalizeWhitespaceCarriers 一致（生成归一 + 编辑器装载/粘贴共用），保证"预览所见 = 导出"。
  */
 export function normalizeMathCircleBlanks(html = '') {
   const src = String(html || '');
-  // 数学项字符：数字/字母/运算与比较符/括号；允许以空白间隔的空心圆 ○（U+25CB）
+  // 数学项字符：数字/字母/运算与比较符/括号；允许以空白间隔的空心圆 ○（U+25CB）/ 空心方框 □（U+25A1）
   const MATH_ITEM = '[0-9A-Za-z×÷＋－＝＋−+<>（）()]';
-  // ○ 左侧可有若干数学项+空白，右侧须紧随一个数学项，形成"算式语境"（题干○相邻为汉字不满足）
-  const re = new RegExp(`(?<=${MATH_ITEM}\\s*)○(?=\\s*${MATH_ITEM})`, 'g');
+  // ○/□ 左侧可有若干数学项+空白，右侧须紧随一个数学项，形成"算式语境"（题干○/□相邻为汉字不满足）
+  const re = new RegExp(`(?<=${MATH_ITEM}\\s*)[○□](?=\\s*${MATH_ITEM})`, 'g');
   if (!src.match(re)) return src;
-  return src.replace(re, () => '<span class="math-circle-blank-18">&nbsp;</span>');
+  return src.replace(re, (ch) => ch === '○'
+    ? '<span class="math-circle-blank-18">&nbsp;</span>'
+    : '<span class="square-box">&nbsp;</span>');
 }
 
 /**
@@ -327,7 +382,8 @@ export function normalizeMathCircleBlanks(html = '') {
  * 编辑器装载/粘贴（RichTextEditor）三处共用，保证"排版所见 = Word 导出"。
  */
 export function normalizeWhitespaceCarriers(html = '') {
-  const src = String(html || '');
+  // 🔧 入口先解码载体内数字实体（&#160;/&#x3000;/&#95; 等，与 normalizeBlankMarkers 同源，C3-C5）
+  const src = decodeCarrierNumericEntities(String(html || ''));
   const markerCls = 'emphasis-dot|wavy-underline|double-line|single-line|underline-sentence|dashed-line|chem-condition|stroke-order';
   const re = new RegExp(`<span[^>]*class=["'][^"']*(?:${markerCls})[^"']*["'][^>]*>([\\s\\S]*?)<\\/span>`, 'gi');
   return src.replace(re, (m, inner) => {

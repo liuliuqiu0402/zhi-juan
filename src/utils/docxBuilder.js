@@ -481,8 +481,23 @@ const buildTextRuns = (node, styleOverride = {}) => {
         return;
       }
     }
-    if (cls.contains('pinyin-line')) {
-      for (const c of child.childNodes) processChild(c, { ...ctx, font: 'Times New Roman' });
+    if (cls.contains('pinyin-line') && !cls.contains('four-line-three') && !cls.contains('sixian-ge')) {
+      // 🔧 拼音格（写拼音/写音节类题载体）：与四线三格同几何导出 FLT 格线——
+      //    曾仅递归子节点（无格线），预览/CSS 与 Word 两端空载不可见；2026-09 三端口径补齐。
+      //    带 four-line-three/sixian-ge 的组合 class 已在上方分支处理（同一 FLT 几何）
+      const { text: _letter, hasVisible, raw } = extractGridContent(child);
+      const sizeHp = ctx.size || readFontSizeHp(child) || 32;
+      const markerStyle = { font: 'Times New Roman', color: ctx.color, bold: ctx.bold, italics: ctx.italics };
+      if (hasVisible) {
+        const contentLen = Math.max(1, [..._letter].length);
+        const cellW = fltCellWidthDxa(contentLen, sizeHp);
+        const cellWEmu = Math.round(cellW * EMU_PER_DXA);
+        runs.push(new TextRun({ ...markerStyle, text: FLT_MARKER(_letter, cellWEmu, sizeHp), size: sizeHp }));
+      } else {
+        const cellW = fltBlankWidthDxa(raw, sizeHp);
+        const cellWEmu = Math.round(cellW * EMU_PER_DXA);
+        runs.push(new TextRun({ ...markerStyle, text: FLT_BLANK_MARKER(cellWEmu, sizeHp), size: sizeHp }));
+      }
       return;
     }
     if (cls.contains('english-line')) {
@@ -527,7 +542,9 @@ const buildTextRuns = (node, styleOverride = {}) => {
       //    （旧逻辑直接 return 吞掉内部田字格，导出只剩注音字）
       const innerGrids = child.querySelectorAll('.tian-zi-ge, .mi-zi-ge');
       if (pinyin && innerGrids.length > 0) {
-        const cellW = Math.round(baseSizeHp * 18);
+        // 🔧 格宽统一 12mm（tzgCellMm 定档低段，与 inline/块级 buildTianZiGePinyinMarker 同口径）——
+        //    曾 baseSizeHp*18 = 1.8em 随字号（14pt≈8.9mm < 预览 12mm），ruby 内嵌格与正文格/块级格不一致
+        const cellW = Math.round(tzgCellMm() * MM2DXA);
         const cellWEmu = Math.round(cellW * EMU_PER_DXA);
         // 拼音按空格拆成逐字音节，与格子一一对应（数量不符时仅首格带整串）
         const pinyinParts = pinyin.split(/\s+/).filter(Boolean);
@@ -1075,8 +1092,8 @@ const processBlockNode = (node, ctx = {}) => {
     return children;
   }
 
-  // ===== 四线三格 / 六线格（独立块 → 行内）=====
-  if (cls.contains('four-line-three') || cls.contains('sixian-ge')) {
+  // ===== 四线三格 / 六线格 / 拼音格（独立块 → 行内）=====
+  if (cls.contains('four-line-three') || cls.contains('sixian-ge') || cls.contains('pinyin-line')) {
     const wrapper = document.createElement('p');
     wrapper.appendChild(node.cloneNode(true));
     // 🔧 临时挂到原节点父级 DOM，确保 getComputedStyle 有正确的继承上下文

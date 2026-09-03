@@ -50,7 +50,8 @@ describe('编辑器 themeCSS 转换（编辑区 = 导出视觉）', () => {
     expect(css).toMatch(/\.tian-zi-ge\s*\{[^}]*height:\s*\d+(\.\d+)?mm/);
     expect(css).toMatch(/\.mi-zi-ge\s*\{[^}]*width:\s*\d+(\.\d+)?mm/);
     expect(css).toMatch(/:root\s*\{\s*--flt-h:\s*\d+(\.\d+)?mm/); // 四线三格行高变量：单一事实源 carrierCss（按学段注入）
-    expect(css).toMatch(/\.four-line-three::before,\s*\.sixian-ge::before\s*\{[^}]*height:\s*var\(--flt-h,\s*9mm\)/);
+    // 🔧 行式格家族（四线三格/六线格/拼音格）共享同一 ::before 格线画法（拼音格 2026-09 补齐）
+    expect(css).toMatch(/\.four-line-three::before,\s*\.sixian-ge::before,\s*\.pinyin-line::before\s*\{[^}]*height:\s*var\(--flt-h,\s*9mm\)/);
     expect(css).not.toContain('.tian-zi-ge { display: inline-block; position: relative; width: 1.8em');
   });
 

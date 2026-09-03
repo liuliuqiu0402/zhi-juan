@@ -826,8 +826,7 @@ const buildKnowledgeMap = async (contentCards, selectedBooks, callAI, robustJson
   }));
   // 🔧 从指令库获取输入数据说明
   const inputDataDescRule = getAnalysisPrompts({ category: '分析-知识图谱构建' }).find(b => b.id.includes('input_data_desc'));
-  const inputDataDescStr = inputDataDescRule ? inputDataDescRule.content : `- kpForTest：每个知识点对象，hasFormula=true表示涉及公式
-- suggestedQuestionTypes：该章节各知识点建议的考查题型`;
+  const inputDataDescStr = inputDataDescRule ? inputDataDescRule.content : `- 输入为"各课内容概要"数组（数组内每个元素 = 一课）：title 章节标题；summary 章节概要；kpForTest 可考查知识点；keySegmentSamples 关键片段示例（含 type/hasFormula/snippet）；totalSegments 片段数；tagSummary 标签摘要；suggestedQuestionTypes 建议考查题型`;
 
   // 🔧 目录模式提示词：课标版本按学段注入（getCurriculumLabel），避免写死版本号
   const curriculumLabel = getCurriculumLabel(selectedBooks?.[0]?.stage, selectedBooks?.[0]?.grade, selectedBooks?.[0]?.name);
