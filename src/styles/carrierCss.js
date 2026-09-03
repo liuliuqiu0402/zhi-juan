@@ -67,6 +67,10 @@ ${CARRIER_LINE_CSS}
 .square-box,.math-circle-blank-18{display:inline-flex;align-items:center;justify-content:center;width:1.8em;height:1.8em;min-width:1.8em;min-height:1.8em;box-sizing:border-box;text-align:center;vertical-align:middle;margin:0 1px;font-weight:bold;color:#333;font-size:inherit !important;line-height:1;}
 .square-box{border:1.5px solid #333;}
 .math-circle-blank-18{border:1.5px solid #333;border-radius:50%;}
+/* 🔧 注音田字格/米字格：拼音悬在格子正上方、格内只留字（2026-09 用户口径，与 Word TZGP 拼音条同视觉；
+   与 global.css 同源双写：应用预览（global.css）与主题独立导出文档（本文件经 themeConfig 嵌入）各取所需） */
+.tian-zi-ge > .ruby-char::before,
+.mi-zi-ge > .ruby-char::before { bottom: auto; top: -1.1em; }
 `;
 
 export default CARRIER_CSS;
