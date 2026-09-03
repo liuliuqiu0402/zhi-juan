@@ -407,7 +407,7 @@ const retrieveBlueprintSegments = (contentCards, parsedBlueprint, maxChars = 150
 
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeIndents, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 
 // 别名：保持原有名称兼容
@@ -4605,7 +4605,7 @@ ${cardAnalysisText.substring(0, 1000)}
           generateMode,
         });
         browseCoverageNotes = bres?.coverageNotes || [];
-        const bc = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeBlankMarkers(cleanSectionHtml(bres?.content || '')))));
+        const bc = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(bres?.content || ''))))));
         if (bc && bc.length > GEN_CONST.BODY_VALID_MIN_LEN) content = bc;
       } catch (e) {
         lastErr = e;
@@ -4654,7 +4654,7 @@ ${cardAnalysisText.substring(0, 1000)}
           maxReasoningChunks: (!retryWithoutThinking && getGenerationThinkingEnabled()) ? GEN_CONST.REASONING_CAP_BODY : GEN_CONST.REASONING_CAP_BODY_FORCED,
         });
         const respObj = typeof resp === 'string' ? { content: resp, finishReason: '' } : (resp || { content: '', finishReason: '' });
-        content = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeBlankMarkers(cleanSectionHtml(respObj.content || '')))));
+        content = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(respObj.content || ''))))));
         // 🔴 思考耗尽检测：推理 chunks 大量（≥20000）或触发推理上限（reasoning_capped）且正文为空 → 判定思考占满输出预算
         if (((respObj.reasoningChunkCount || 0) >= GEN_CONST.REASONING_EXHAUST_THRESHOLD || respObj.finishReason === 'reasoning_capped') && !content.trim()) {
           console.warn(`⚠️ 思考模式推理过长（${respObj.reasoningChunkCount || 0} chunks，finish_reason=${respObj.finishReason || 'length'}）且正文为空——本次重试将自动关闭思考`);
@@ -4671,7 +4671,7 @@ ${cardAnalysisText.substring(0, 1000)}
             `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
             { taskType: 'generation', timeout: getTimeout('generation'), retries: 0, maxTokens: bodyDynamicCap * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)), allowContinuation: false, temperature: bodyTemperature, thinking: retryWithoutThinking ? false : undefined }
           );
-          const contHtml = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeBlankMarkers(cleanSectionHtml(typeof contResp === 'string' ? contResp : (contResp?.content || ''))))));
+          const contHtml = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(typeof contResp === 'string' ? contResp : (contResp?.content || '')))))));
           if (contHtml && contHtml.length > 100) content = content + '\n' + contHtml;
         }
         if (content && content.length > GEN_CONST.BODY_VALID_MIN_LEN) break;
@@ -4753,7 +4753,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           returnMeta: true,
         });
         const ansObj = typeof ansResp === 'string' ? { content: ansResp, finishReason: '', reasoningChunkCount: 0 } : (ansResp || { content: '', finishReason: '', reasoningChunkCount: 0 });
-        let aHtml = normalizeLeadingMarkers(cleanSectionHtml(ansObj.content || ''));
+        let aHtml = normalizeMathCircleBlanks(normalizeLeadingMarkers(cleanSectionHtml(ansObj.content || '')));
         // 🔴 思考耗尽判定：推理达到上限（reasoning_capped）或 chunk 数巨大 → 本次重试强制关闭思考
         const ansCapped = ansObj.finishReason === 'reasoning_capped' || (ansObj.reasoningChunkCount || 0) >= GEN_CONST.REASONING_EXHAUST_THRESHOLD;
         if (aHtml && aHtml.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansCapped) {
@@ -4771,7 +4771,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
             returnMeta: true,
           });
           const ansObj2 = typeof ansResp2 === 'string' ? { content: ansResp2, finishReason: '', reasoningChunkCount: 0 } : (ansResp2 || { content: '', finishReason: '', reasoningChunkCount: 0 });
-          const aHtml2 = normalizeLeadingMarkers(cleanSectionHtml(ansObj2.content || ''));
+          const aHtml2 = normalizeMathCircleBlanks(normalizeLeadingMarkers(cleanSectionHtml(ansObj2.content || '')));
           if (aHtml2 && aHtml2.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN) {
             const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
             answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${aHtml2}</div>`;

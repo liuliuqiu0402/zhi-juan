@@ -551,7 +551,7 @@ import { FontFamily } from '@tiptap/extension-font-family';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { Extension, Mark, Node } from '@tiptap/core';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
-import { normalizeWhitespaceCarriers, normalizeLeadingMarkers } from '../utils/contentCleaner.js'; // 全局归一：纯空白装饰标记→填空横线 + 行首"项目符号+序号"剥离（装载/粘贴统一，旧内容回改）
+import { normalizeWhitespaceCarriers, normalizeLeadingMarkers, normalizeMathCircleBlanks } from '../utils/contentCleaner.js'; // 全局归一：纯空白装饰标记→填空横线 + 行首"项目符号+序号"剥离 + 算式 ○→数学填空圈（装载/粘贴统一，旧内容回改）
 import { getMergedSpec } from '../config/layoutSpec.js';
 
 // ══════════════════════════════════════════
@@ -668,6 +668,7 @@ const PRESERVE_CLASSES = [
   'blank-21', 'blank-22', 'blank-23', 'blank-24',
   'stroke-order', 'underline-sentence', 'wavy-underline', 'double-line', 'single-line',
   'oral-box', 'square-box', 'score-box', 'chem-condition', 'wb-item',
+  'math-circle-blank-18',  // 数学填空圈（算式中的 ○ → 1.8em 圆形边框容器，与 square-box 同性质，由 normalizeMathCircleBlanks 生成）
   'superscript', 'subscript', 'dashed-line',
   'ruby-char',  // 注音/拼音（由 transformPastedHTML / trySetContent 入口预处理 ruby → span.ruby-char）
 ];
@@ -1214,7 +1215,7 @@ const editor = useEditor({
     // 🔧 粘贴 HTML 预处理：拦截所有 pasted/dropped HTML，在 ProseMirror 解析前转换 ruby 标签
     transformPastedHTML(html) {
       if (!html) return html;
-      return normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeWhitespaceCarriers(html))))));
+      return normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeMathCircleBlanks(normalizeWhitespaceCarriers(html)))))));
     },
     handleKeyDown: (view, event) => {
       // Escape 退出格式刷连刷模式
@@ -1762,7 +1763,7 @@ const trySetContent = () => {
   // 🔧 载入前预处理：class 样式 → 内联 → ruby 标签 → span.ruby-char
   let processed;
   try {
-    processed = normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeWhitespaceCarriers(pendingContent))))));
+    processed = normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeMathCircleBlanks(normalizeWhitespaceCarriers(pendingContent)))))));
     // 🔧 载入前预处理：<ol> 双编号去重
     processed = normalizeDoubleNumberedLists(processed);
   } catch (e) {
@@ -1925,7 +1926,7 @@ defineExpose({
       }
     });
   },
-  setContent: (html) => { editor.value?.commands.setContent(normalizeShortHexColors(normalizeDoubleNumberedLists(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeWhitespaceCarriers(html))))))), false); },
+  setContent: (html) => { editor.value?.commands.setContent(normalizeShortHexColors(normalizeDoubleNumberedLists(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeMathCircleBlanks(normalizeWhitespaceCarriers(html)))))))), false); },
 });
 </script>
 
@@ -2168,7 +2169,6 @@ defineExpose({
 .rich-text-editor :deep(.score-board .sb-label), .rich-text-editor :deep(.score-board .sb-value) { display: table-cell; padding: 4px 16px; border: 1px solid var(--text-muted); text-align: center; }
 .rich-text-editor :deep(.score-board .sb-label) { font-size: 0.9em; color: #555; background: #f9f9f9; }
 .rich-text-editor :deep(.score-board .sb-value) { font-weight: bold; }
-.rich-text-editor :deep(.square-box) { display: inline-flex; align-items: center; justify-content: center; width: 1.8em; height: 1.8em; border: 1.5px solid #333; box-sizing: border-box; text-align: center; vertical-align: middle; margin: 0 1px; font-weight: bold; color: #333; font-size: inherit !important; line-height: 1; }
 .rich-text-editor :deep(.score-box) { display: inline-block; border: 1.5px solid #333; padding: 3px 16px; text-align: center; min-width: 60px; font-weight: bold; font-size: inherit !important; }
 .rich-text-editor :deep(.dashed-line) { display: inline-block; border-bottom: 1.5px dashed var(--text-muted); min-width: 40px; margin: 0 2px; }
 .rich-text-editor :deep(table.periodic-table) { border-collapse: collapse; margin: 8px auto; font-size: 0.75em; }

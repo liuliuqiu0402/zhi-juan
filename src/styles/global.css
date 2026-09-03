@@ -362,24 +362,6 @@ p.blank-area {
   font-size: inherit !important;
 }
 
-/* 方框填空 - 数学（等边方框 1.8em，与 Word DrawingML 方框同尺寸；曾用 padding+min-width 渲染成矩形） */
-.square-box {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.8em;
-  height: 1.8em;
-  border: 1.5px solid #333;
-  box-sizing: border-box;
-  text-align: center;
-  vertical-align: middle;
-  margin: 0 1px;
-  font-weight: bold;
-  color: #333;
-  font-size: inherit !important;
-  line-height: 1;
-}
-
 /* 得分框 */
 .score-box {
   display: inline-block;

@@ -12,9 +12,9 @@ import { CARRIER_CSS } from '@/styles/carrierCss.js'; // 作答载体 CSS 单一
 
 // 从 instructionLib 和 AI prompt 中提取的所有特殊格式 CSS 类
 const REQUIRED_SPECIAL_CLASSES = [
-  // 填空横线（u + span；span 基选择器含 :not(.blank-line)，整行横线走 .blank-line 自有规则）
+  // 填空横线（u + span；span 基选择器含 :not(.blank-line) 且排除数学填空圈 math-circle-blank，整行横线走 .blank-line 自有规则）
   'u[class*="blank-"]',
-  'span[class*="blank-"]:not(.blank-line)',
+  'span[class*="blank-"]:not(.blank-line):not([class*="math-circle-blank"])',
   // 四线三格
   '.four-line-three',
   // 画线句子 / 波浪线 / 双线 / 单线
@@ -30,6 +30,7 @@ const REQUIRED_SPECIAL_CLASSES = [
   // 数学专用
   '.oral-box',
   '.square-box',
+  '.math-circle-blank-18',
   // 得分框
   '.score-box',
   // 笔顺
@@ -65,5 +66,18 @@ describe('Special Format CSS Coverage', () => {
   // 关键：禁止 :deep() 伪选择器出现在 global.css 与 carrierCss.js（Vue SFC only，全局CSS无效）
   it('global.css / carrierCss.js 中不应包含 :deep() 伪选择器（Vue SFC only，全局CSS无效）', () => {
     expect(combinedCss).not.toMatch(/:deep\(/);
+  });
+
+  // 关键：括号填空伪元素规则（span[class*="blank-"]::before/::after 画括号）不得命中数学填空圈
+  //（.math-circle-blank-18 类名含 "blank-" 子串，宽泛属性选择器会误加 ( ) → 必须带 :not([class*="math-circle-blank"]) 排除）
+  it('括号填空伪元素规则排除数学填空圈（math-circle-blank-18 不出现 ( )）', () => {
+    // 取出所有画括号的伪元素行（::before content:"(" 或 ::after content:")"）
+    const parenLines = CARRIER_CSS.split('\n').filter((l) => /::(before|after)\{content\s*:\s*["']\(["']/.test(l) || /::(before|after)\{content\s*:\s*["'\)]["']/.test(l));
+    expect(parenLines.length).toBeGreaterThan(0); // 防空过
+    for (const line of parenLines) {
+      expect(line).toMatch(/:not\(\[class\*="math-circle-blank"\]\)/);
+    }
+    // 正向确认：确实存在排除后的括号规则（防止测试因零匹配而空过）
+    expect(CARRIER_CSS).toMatch(/span\[class\*="blank-"\]:not\(\.blank-line\):not\(\[class\*="math-circle-blank"\]\)::before\{content:"\("/);
   });
 });

@@ -9568,8 +9568,9 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 .preview-content :deep(u.blank-8) { min-width: 8em; }
 .preview-content :deep(u.blank-10) { min-width: 10em; }
 
-/* 括号内留空（span 无下划线，仅占位）——与横线 u.blank-N 完全独立计算 */
-.preview-content :deep(span[class*="blank-"]) {
+/* 括号内留空（span 无下划线，仅占位）——与横线 u.blank-N 完全独立计算
+   ⚠️ 排除数学填空圈（math-circle-blank-18 类名含 "blank-" 子串，会被 [class*="blank-"] 误命中） */
+.preview-content :deep(span[class*="blank-"]:not([class*="math-circle-blank"])) {
   display: inline-block;
   text-align: center;
 }
@@ -10495,24 +10496,6 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
 }
 .score-board .sb-value {
   font-weight: bold;
-}
-
-/* 方框填空（等边方框 1.8em，与 Word 一致） */
-.square-box {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.8em;
-  height: 1.8em;
-  border: 1.5px solid #333;
-  box-sizing: border-box;
-  text-align: center;
-  vertical-align: middle;
-  margin: 0 1px;
-  font-weight: bold;
-  color: #333;
-  font-size: inherit !important;
-  line-height: 1;
 }
 
 /* 得分框 */

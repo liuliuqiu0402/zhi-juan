@@ -297,6 +297,23 @@ export function normalizeBlankMarkers(html = '') {
   return out;
 }
 
+/** 数学算式填空圈：把"算式里做比较/填空位的 ○"归一为直径 1.8em 的填空圈容器。
+ *  ============================================================
+ *  题干判定（避免误伤）：○ 仅在"两侧都被数学项（数字/字母/×÷＋－＝+−<>（）()/括号）紧邻，
+ *  可有空格间隔"时才是算式填空位 → 包成 <span class="math-circle-blank-18">&nbsp;</span>；
+ *  普通句子"在○里填上…"的 ○（相邻为汉字）保持原样。与方框空位同规格（1.8em）。
+ *  定位：与 normalizeWhitespaceCarriers 一致（生成归一 + 编辑器装载/粘贴共用），保证"预览所见 = 导出"。
+ */
+export function normalizeMathCircleBlanks(html = '') {
+  const src = String(html || '');
+  // 数学项字符：数字/字母/运算与比较符/括号；允许以空白间隔的空心圆 ○（U+25CB）
+  const MATH_ITEM = '[0-9A-Za-z×÷＋－＝＋−+<>（）()]';
+  // ○ 左侧可有若干数学项+空白，右侧须紧随一个数学项，形成"算式语境"（题干○相邻为汉字不满足）
+  const re = new RegExp(`(?<=${MATH_ITEM}\\s*)○(?=\\s*${MATH_ITEM})`, 'g');
+  if (!src.match(re)) return src;
+  return src.replace(re, () => '<span class="math-circle-blank-18">&nbsp;</span>');
+}
+
 /**
  * 纯空白"装饰标记"→ 填空横线（精确规则，防止把真加点/画线误伤）
  * ============================================================
@@ -417,6 +434,9 @@ export function normalizeMatchQuestions(html = '') {
  *   4. 只处理块级元素（p/li/div）行首文本，行首非文本（标签开头）不触碰
  *   5. 空白含 HTML 实体空位：AI 常用 &nbsp;/&emsp;/&#160; 等实体分隔"项目符号+序号"，
  *      曾只认真实空白字符（[ \t\u3000…]），实体序列（•&nbsp;A.）lookahead 因非空白失败 → 项目符号残留
+ *   6. 🔧 递归处理嵌套块：答案区整块被 <div class="answer-section"> 包裹（或列表 ul>li 嵌套）时，
+ *      单轮 replace 会把外层容器整体消费、内层 <p> 不再有独立匹配机会 → 正文平铺可剥、答案区漏剥；
+ *      先递归处理内层块（带剥离结果回传），再处理当前块行首，嵌套任意深均覆盖
  */
 // 行首可作分隔的"空白"：真实空白字符 或 HTML 实体空位（&nbsp;&#160;&emsp;&ensp; 等）
 const LEAD_WS = '(?:[ \\t\\u3000\\u00A0\\u2003\\u2002]|&(?:nbsp|#160|#xA0|emsp|#8195|ensp|#8194);)';
@@ -432,7 +452,9 @@ const LEAD_MARKER_RE = new RegExp(
 export function normalizeLeadingMarkers(html = '') {
   let out = String(html || '');
   out = out.replace(/<(p|li|div)([^>]*)>([\s\S]*?)<\/\1>/gi, (m, tag, attrs, inner) => {
-    const n = inner.replace(LEAD_MARKER_RE, '$1');
+    // 🔧 先递归处理内层嵌套块（答案区/列表内层 p 的行首符号在此剥离，结果随 inner 回传）
+    const deep = normalizeLeadingMarkers(inner);
+    const n = deep.replace(LEAD_MARKER_RE, '$1');
     return n === inner ? m : `<${tag}${attrs}>${n}</${tag}>`;
   });
   return out;
@@ -455,4 +477,4 @@ export function normalizeIndents(html = '') {
 }
 
 
-export default { cleanSectionHtml, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeIndents, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth };
+export default { cleanSectionHtml, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth };

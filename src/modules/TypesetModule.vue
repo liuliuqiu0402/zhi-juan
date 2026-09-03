@@ -491,7 +491,7 @@ import { PAPER_PRESETS } from '../config/paperPresets.js';
 import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js'; // 作文格/书写格尺寸按学段（排版规格库）
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
-import { stripAiCodeFence, normalizeLeadingMarkers } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离 + 行首"项目符号+序号"归一（与 GenerateModule 共用，防同构副本各自演化）
+import { stripAiCodeFence, normalizeLeadingMarkers, normalizeMathCircleBlanks } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离 + 行首"项目符号+序号"归一（与 GenerateModule 共用，防同构副本各自演化）
 import storage from '../utils/storage';
 import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
 
@@ -755,7 +755,7 @@ const themeCSS = computed(() => {
     css = css.replace(/body\s*\{[^}]*\}/g, '');
 
     // 🔑 只保留 h1-h6 标题的 !important，其余全部移除
-    const preserveImportant = /(\bh[1-6]\b|four-line-three|sixian-ge|oral-box|square-box|zuo-wen-ge|square-grid|bracket-grid|pinyin-line|english-line|blank-\d|sealed-wrapper|seal-zone|seal-line|seal-note|seal-info|seal-char)/;
+    const preserveImportant = /(\bh[1-6]\b|four-line-three|sixian-ge|oral-box|square-box|math-circle-blank-18|zuo-wen-ge|square-grid|bracket-grid|pinyin-line|english-line|blank-\d|sealed-wrapper|seal-zone|seal-line|seal-note|seal-info|seal-char)/;
     css = css.replace(
       /([^{}]+)\{([^{}]+)\}/g,
       (full, selector, body) => {
@@ -1468,7 +1468,7 @@ const loadContentSilent = (content, stage = '') => {
   applyDocStage(stage || sniffCarrierStage(content)); // 文档学段：记录字段优先，无则按载体推断（作文格/书写格/导出口径）
   // 🔧 行首页签"项目符号+序号"在此统一剥离（幂等）：历史/旧内容首次载入排版即规范，与生成端/编辑器同口径，
   //    避免"第二遍才剥"——排版/导出直接读取本入口产出的 rawHtmlContent，必须先归一再装卷面
-  content = normalizeLeadingMarkers(content);
+  content = normalizeMathCircleBlanks(normalizeLeadingMarkers(content));
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
   // 🔧 HTML 内容统一做密封线结构归一化 + 注入卷面固定件（编辑区所见即所得），幂等
   if (isHtml) { isHtmlContent.value = true; rawHtmlContent.value = withExamShell(content); currentContent.value = ''; }
@@ -1479,8 +1479,8 @@ const loadFromGenerate = async (payload) => {
   let content = typeof payload === 'string' ? payload : payload?.content || '';
   const meta = (typeof payload === 'object' && payload.meta) ? payload.meta : {};
   if (!content || typeof content !== 'string') return;
-  // 🔧 生成/载入统一规范：行首页签"项目符号+序号"剥离（幂等，与生成端/编辑器同口径），确保排版/导出首次即规范
-  content = normalizeLeadingMarkers(content);
+  // 🔧 生成/载入统一规范：行首页签"项目符号+序号"剥离 + 算式 ○→填空圈（幂等，与生成端/编辑器同口径），确保排版/导出首次即规范
+  content = normalizeMathCircleBlanks(normalizeLeadingMarkers(content));
   // 🔧 文档学段（作文格/书写格/导出按学段走排版规格库）：生成参数五档 stageKey 优先，
   //    旧记录/无字段内容按载体推断（田字格/拼音格→低段、四线格→中段），避免误回退默认档
   applyDocStage(meta.stage || sniffCarrierStage(content));
@@ -2314,8 +2314,9 @@ u.blank-19 { min-width: 19em; } u.blank-20 { min-width: 20em; }
 u.blank-21 { min-width: 21em; } u.blank-22 { min-width: 22em; }
 u.blank-23 { min-width: 23em; } u.blank-24 { min-width: 24em; }
 
-/* 括号内留空（span 无下划线，仅占位） */
-span[class*="blank-"] {
+/* 括号内留空（span 无下划线，仅占位）
+   ⚠️ 排除数学填空圈（math-circle-blank-18 类名含 "blank-" 子串，会被 [class*="blank-"] 误命中） */
+span[class*="blank-"]:not([class*="math-circle-blank"]) {
   display: inline-block;
   text-align: center;
 }
@@ -2616,24 +2617,6 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
 }
 .score-board .sb-value {
   font-weight: bold;
-}
-
-/* 方框填空（等边方框 1.8em，与 Word 一致） */
-.square-box {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.8em;
-  height: 1.8em;
-  border: 1.5px solid #333;
-  box-sizing: border-box;
-  text-align: center;
-  vertical-align: middle;
-  margin: 0 1px;
-  font-weight: bold;
-  color: #333;
-  font-size: inherit !important;
-  line-height: 1;
 }
 
 /* 得分框 */

@@ -3,7 +3,7 @@
 // 输出：docx 库的 Document 对象 → Packer.toBlob()
 
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader, SimpleField } from 'docx';
-import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
+import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, CIRCLE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
 import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js';
 import { PAPER_PRESETS, normalizeLayout } from '../config/paperPresets.js';
@@ -493,6 +493,14 @@ const buildTextRuns = (node, styleOverride = {}) => {
       const sbCellW = Math.round(sbSizeHp * 18); // 1.8em（同田字格）
       const sbCellWEmu = Math.round(sbCellW * EMU_PER_DXA);
       runs.push(new TextRun({ ...ctx, text: SQUARE_BOX_MARKER((text.trim() || ' '), sbCellWEmu), size: sbSizeHp }));
+      return;
+    }
+    if (cls.contains('math-circle-blank-18')) {
+      // 🔧 数学填空圈 → 行内正圆（DrawingML ellipse 几何 + 文字 textbox，与方框同规格 1.8em、同锚定）
+      const cbSizeHp = ctx.size || readFontSizeHp(child) || 28;
+      const cbCellW = Math.round(cbSizeHp * 18); // 1.8em（同 square-box / 田字格）
+      const cbCellWEmu = Math.round(cbCellW * EMU_PER_DXA);
+      runs.push(new TextRun({ ...ctx, text: CIRCLE_BOX_MARKER((text.trim() || ' '), cbCellWEmu), size: cbSizeHp }));
       return;
     }
     if (cls.contains('oral-box') || cls.contains('score-box')) {

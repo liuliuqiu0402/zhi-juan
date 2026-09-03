@@ -397,19 +397,19 @@ const buildInlineTzg = (char, cellWEmu, idBase, rPrXml, pinyin = '') => {
     + '<w:r>' + anchorRPr + '<w:t xml:space="preserve"> </w:t></w:r>';
 };
 
-/** 方框填空行内方格：单个矩形 + 文字 textbox（与田字格同技术，真正正方形、可嵌算式行内） */
-const squareBoxShapeAnchors = (S, idBase, sizeHp, gapEmu, char, fontFamily = 'SimSun', posVFrom = 'line', vertOffEmu = 0) => {
+/** 方框/圆圈填空行内方格：单个 rect/ellipse 外框 + 文字 textbox（与田字格同技术，真正正方形/正圆、可嵌算式行内） */
+const squareBoxShapeAnchors = (S, idBase, sizeHp, gapEmu, char, fontFamily = 'SimSun', posVFrom = 'line', vertOffEmu = 0, geom = 'rect') => {
   const sPt = Math.round(S / EMU_PER_PT);
   const shapes = [
-    // 外框矩形（深灰 2pt，与预览 border:2px solid #333 一致）
-    { id: idBase + 1, name: 'SQBX-Box', x: 0, y: 0, cx: S, cy: S, geom: 'rect', color: '333333', wEmu: 12700, dash: false },
+    // 外框（深灰 2pt，与预览 border:2px solid #333 一致；圆圈用 ellipse 几何，方框用 rect）
+    { id: idBase + 1, name: geom === 'ellipse' ? 'SQBX-Circle' : 'SQBX-Box', x: 0, y: 0, cx: S, cy: S, geom, color: '333333', wEmu: 12700, dash: false },
   ];
   // 字符 Textbox（同田字格 textboxTzg：全尺寸、anchor=ctr、字号放大 30% 补偿）
   const tboxXml = char ? textboxTzg(idBase + 2, char, sizeHp, fontFamily, S, 0, S) : '';
   const shapesXml = shapes.map(childShape).join('') + tboxXml;
   const choice = groupAnchor({
     id: idBase,
-    name: 'SquareBoxGrid',
+    name: geom === 'ellipse' ? 'CircleBlankGrid' : 'SquareBoxGrid',
     posHXml: CHAR_POS_H(gapEmu),
     cx: S,
     cy: S,
@@ -417,16 +417,18 @@ const squareBoxShapeAnchors = (S, idBase, sizeHp, gapEmu, char, fontFamily = 'Si
     posVFrom,
     vertOffEmu,
   });
-  const fallback = `<w:pict><v:rect style="width:${sPt}pt;height:${sPt}pt" strokecolor="#333333" strokeweight="2pt" filled="f"><v:textbox inset="0,0,0,0"><div style="font-family:${fontFamily};font-size:${sizeHp / 2}pt;text-align:center;line-height:${sPt}pt;">${escXml(char)}</div></v:textbox></v:rect></w:pict>`;
+  const fallback = geom === 'ellipse'
+    ? `<w:pict><v:oval style="width:${sPt}pt;height:${sPt}pt" strokecolor="#333333" strokeweight="2pt" filled="f"><v:textbox inset="0,0,0,0"><div style="font-family:${fontFamily};font-size:${sizeHp / 2}pt;text-align:center;line-height:${sPt}pt;">${escXml(char)}</div></v:textbox></v:oval></w:pict>`
+    : `<w:pict><v:rect style="width:${sPt}pt;height:${sPt}pt" strokecolor="#333333" strokeweight="2pt" filled="f"><v:textbox inset="0,0,0,0"><div style="font-family:${fontFamily};font-size:${sizeHp / 2}pt;text-align:center;line-height:${sPt}pt;">${escXml(char)}</div></v:textbox></v:rect></w:pict>`;
   return mcWrap(choice, fallback);
 };
 
-/** 行内方框填空：三 run 结构（零宽占位 + drawing + spacing 撑宽，同田字格）。
+/** 行内方框/圆圈填空：三 run 结构（零宽占位 + drawing + spacing 撑宽，同田字格）。
  *  🔧 垂直锚定必须用合法枚举 relativeFrom="line"（"baseline" 非 OOXML 的
  *     ST_VerticalRelativeFrom 合法值，Word 严格校验直接拒绝打开整个文档，
  *     LibreOffice 宽容忽略 → 导出在 Word 中打不开/位置错乱）。
  *     与田字格同用 line 锚定 + 负偏移上移，使方框中心对齐相邻文字视觉中心 */
-const buildInlineSquareBox = (char, cellWEmu, idBase, rPrXml) => {
+const buildInlineSquareBox = (char, cellWEmu, idBase, rPrXml, geom = 'rect') => {
   const S = Math.round(cellWEmu);
   const cellW = Math.round(cellWEmu / EMU_PER_DXA);
   const sizeHp = Math.round(cellW / 18); // 1.8em 反推字号（与田字格一致）
@@ -440,7 +442,7 @@ const buildInlineSquareBox = (char, cellWEmu, idBase, rPrXml) => {
   //    0em 时中心偏下 2.9pt，-0.25em 时与行文字 bbox 中心重合，-0.35em 偏上 1.3pt）
   const sizePt = (sizeHp || 28) / 2;
   const vertOffEmu = -Math.round(0.25 * sizePt * EMU_PER_PT);
-  const anchors = squareBoxShapeAnchors(S, idBase, sizeHp, gapEmuOf(sizeHp), char, 'SimSun', 'line', vertOffEmu)
+  const anchors = squareBoxShapeAnchors(S, idBase, sizeHp, gapEmuOf(sizeHp), char, 'SimSun', 'line', vertOffEmu, geom)
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
   return '<w:r>' + zeroRPr + '<w:t xml:space="preserve">\u200C</w:t></w:r>'
     + '<w:r>' + zeroRPr + anchors + '</w:r>'
@@ -504,6 +506,8 @@ export const TZG_MARKER = (char, cellWEmu) => `__TZG_${char}_${cellWEmu}__`;
 export const TZG_PINYIN_MARKER = (char, pinyin, cellWEmu) => `__TZGP_${char}_${pinyin}_${cellWEmu}__`;
 /** 方框填空标记：后处理替换为行内正方形方格（矩形 + 文字 textbox，同田字格技术） */
 export const SQUARE_BOX_MARKER = (char, cellWEmu) => `__SQBX_${char}_${cellWEmu}__`;
+/** 圆圈填空标记：后处理替换为行内正圆（ellipse 几何 + 文字 textbox，与方框同规格 1.8em） */
+export const CIRCLE_BOX_MARKER = (char, cellWEmu) => `__CRBX_${char}_${cellWEmu}__`;
 // FLT 标记显式携带 sizeHp：cellW 已改为内容自适应，不能再从 cellW/20 反推字号
 export const FLT_MARKER = (letter, cellWEmu, sizeHp) => `__FLT_${letter}_${cellWEmu}_${sizeHp}__`;
 /** 空白四线三格标记：仅绘制四条线，不渲染字母（听写/默写留空场景） */
@@ -921,6 +925,15 @@ export const injectDrawingML = async (zipBuffer) => {
     const emu = parseInt(emuStr);
     const idBase = Math.floor(Math.random() * 90000) + 60000;
     return buildInlineSquareBox(char, emu, idBase, rPrXml);
+  });
+
+  // 圆圈填空标记：__CRBX_{char}_{cellWEmu}__ → 行内正圆（ellipse 几何 + 文字 textbox，与方框同规格）
+  const inlineCircleBoxRegex = /<w:r\b[^>]*>(\s*(?:<w:rPr[^>]*>(?:(?!<\/w:r>)[\s\S])*?<\/w:rPr>)?)\s*<w:t[^>]*>__CRBX_([^_]+?)_(\d+)__<\/w:t>\s*<\/w:r>/gi;
+  docXml = docXml.replace(inlineCircleBoxRegex, (match, rPrXml, char, emuStr) => {
+    hasDml = true;
+    const emu = parseInt(emuStr);
+    const idBase = Math.floor(Math.random() * 90000) + 61000;
+    return buildInlineSquareBox(char, emu, idBase, rPrXml, 'ellipse');
   });
 
   // 替换完成

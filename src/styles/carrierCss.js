@@ -37,9 +37,9 @@ export const CARRIER_LINE_CSS = `
  * 使括号伪元素与正文文字同一基线（曾 vertical-align:middle 导致与中文行不对齐）
  */
 export const CARRIER_EXTRA_CSS = `
-span[class*="blank-"]:not(.blank-line){display:inline-grid;grid-template-columns:auto 1fr auto;align-items:baseline;vertical-align:baseline;text-align:center;}
-span[class*="blank-"]:not(.blank-line)::before{content:"(";font-weight:normal;}
-span[class*="blank-"]:not(.blank-line)::after{content:")";font-weight:normal;}
+span[class*="blank-"]:not(.blank-line):not([class*="math-circle-blank"]){display:inline-grid;grid-template-columns:auto 1fr auto;align-items:baseline;vertical-align:baseline;text-align:center;}
+span[class*="blank-"]:not(.blank-line):not([class*="math-circle-blank"])::before{content:"(";font-weight:normal;}
+span[class*="blank-"]:not(.blank-line):not([class*="math-circle-blank"])::after{content:")";font-weight:normal;}
 ${spanGridCss()}
 span.blank-line::before,span.blank-line::after{content:none !important;}
 .blank-line{display:inline-block;min-width:3em;border-bottom:1.5px solid #666;margin:0 2px;vertical-align:baseline;}
@@ -54,6 +54,12 @@ u[class*="blank-"]{display:inline-block;text-align:center;text-decoration:none;b
 ${uWidthCss()}
 ${CARRIER_EXTRA_CSS}
 ${CARRIER_LINE_CSS}
+/* 数学填空方框（square-box）与数学填空圈（math-circle-blank-N）：均为 1.8em 等边容器，
+   供学生在框/圈内手写数字或符号，与 Word DrawingML 几何同尺寸。单一事实源收敛自
+   global.css / RichTextEditor :deep / themeConfig / TypesetModule / GenerateModule 的多份副本。 */
+.square-box,.math-circle-blank-18{display:inline-flex;align-items:center;justify-content:center;width:1.8em;height:1.8em;min-width:1.8em;min-height:1.8em;box-sizing:border-box;text-align:center;vertical-align:middle;margin:0 1px;font-weight:bold;color:#333;font-size:inherit !important;line-height:1;}
+.square-box{border:1.5px solid #333;}
+.math-circle-blank-18{border:1.5px solid #333;border-radius:50%;}
 `;
 
 export default CARRIER_CSS;

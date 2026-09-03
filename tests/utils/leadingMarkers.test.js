@@ -71,4 +71,24 @@ describe('normalizeLeadingMarkers 行首"项目符号+序号"双标记归一', (
   it('标签后是正文文字而非序号 → 保守不剥（防误伤）', () => {
     expect(normalizeLeadingMarkers('<p>• <strong>要点说明</strong>1、见下</p>')).toBe('<p>• <strong>要点说明</strong>1、见下</p>');
   });
+  it('答案区（answer-section div 包裹）内层 p 的符号+序号 → 剥（嵌套场景回归）', () => {
+    const html = '<div class="answer-section"><h2>参考答案与解析</h2><p>• （1）加法算式：5 + 5 + 5 = 15</p><p>• （2）表示 3 个 5 相加</p></div>';
+    expect(normalizeLeadingMarkers(html)).toBe('<div class="answer-section"><h2>参考答案与解析</h2><p>（1）加法算式：5 + 5 + 5 = 15</p><p>（2）表示 3 个 5 相加</p></div>');
+  });
+  it('列表嵌套（ul>li>p）内层 p 的符号+序号 → 剥', () => {
+    const html = '<ul><li><p>• （1）加法算式：5 + 5 + 5 = 15</p></li></ul>';
+    expect(normalizeLeadingMarkers(html)).toBe('<ul><li><p>（1）加法算式：5 + 5 + 5 = 15</p></li></ul>');
+  });
+  it('多层嵌套（div>div>p）内层 p 的符号+序号 → 剥', () => {
+    const html = '<div class="a"><div class="b"><p>• 1. 内容</p></div></div>';
+    expect(normalizeLeadingMarkers(html)).toBe('<div class="a"><div class="b"><p>1. 内容</p></div></div>');
+  });
+  it('嵌套场景幂等：二次处理不变化', () => {
+    const once = normalizeLeadingMarkers('<div class="answer-section"><p>• （1）加法算式：5 + 5 + 5 = 15</p></div>');
+    expect(normalizeLeadingMarkers(once)).toBe(once);
+  });
+  it('嵌套内层纯项目符号（无序号）仍不动', () => {
+    const html = '<div class="answer-section"><p>• 纯文本要点</p></div>';
+    expect(normalizeLeadingMarkers(html)).toBe(html);
+  });
 });
