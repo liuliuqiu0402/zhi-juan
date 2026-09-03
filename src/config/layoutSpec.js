@@ -214,6 +214,24 @@ export function buildCarrierInstruction(subject = '', stage = '') {
 }
 
 /**
+ * 填空留白换算口径（渲染端宽度换算的可操作版，注入给模型）
+ *  🔴 单一事实源：数字由 BLANK 动态计算（wordGap→每字位 em、maxCap→单处上限字位数），
+ *     排版规格（LayoutSpecView）调整 BLANK 后本口径自动跟随，禁止在提示词里手写死另一套数字；
+ *  🔴 只讲宽度换算（空格数↔字位↔em），不出现横线/括号/下划线等形态词（防诱导，审核基准 2.4）；
+ * 消费方：promptLibrary QUESTION_FORMAT（题为主类型统一注入；内容型不注入）
+ */
+export function buildBlankWidthInstruction(spec = BLANK) {
+  const b = sanitizeBlankSpec(spec);
+  const per = b.wordGap; // 1 空格 ≈ per em
+  const capChars = Math.max(1, Math.floor(b.maxCap / per)); // 单处上限 ≈ maxCap em
+  const perText = Number.isInteger(per) ? String(per) : String(per);
+  return (
+    `渲染端换算口径：1 个全角空格≈1 个字位≈${perText} em，答案每 1 个字给 1 个空格，` +
+    `同一题内各空按答案字数配宽、长短不一；单处上限 ${capChars} 个字位（约 ${b.maxCap} em），超长答案改用整行书写位`
+  );
+}
+
+/**
  * 解答题作答空间（学科 × 学段 → 参数）
  *  - carrier：'line' 横线（文字书写引导）/ 'blank' 无线空白行（答题卡风格）
  *  - linePerScore：需求行数 = 分值 × 系数

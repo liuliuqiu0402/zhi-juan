@@ -20,7 +20,7 @@
 
 import { isLibEntryEnabled } from '../utils/libToggles.js';
 import { resolveStageKey, STAGE_KEY_SET } from '../utils/gradeStage.js'; // 年级→学段唯一事实源（三维度与课标版本标签共用，禁止各自 parseInt 中文年级）
-import { buildCarrierInstruction } from './layoutSpec.js'; // 书写载体条款按 学科×学段 生成（排版规格库唯一事实源）
+import { buildCarrierInstruction, buildBlankWidthInstruction } from './layoutSpec.js'; // 载体条款 + 留白换算口径：均由排版规格库按 学科×学段/BLANK 动态生成（单一事实源，禁止在模板里手写死第二套数字/示例）
 
 /** 资料类型中文名（模板列表展示/任务行用）
  * 🔗 命名双轨·资料类型：key 须与 expertKnowledge.genTypeTemplates/genTypeOptions、TYPE_BASES、蓝图库类型 key 完全一致。
@@ -45,12 +45,15 @@ const HAS_EXPRESSION_QUESTIONS = ['语文', '英语']; // 存在写话/写作/�
 const QUESTION_FORMAT = (ctx = {}) => {
   const carrier = (buildCarrierInstruction(ctx.subject, ctx.stage) || '').replace(/。$/, '');
   const hasEx = HAS_EXPRESSION_QUESTIONS.includes(ctx.subject);
+  const blankCalc = buildBlankWidthInstruction(); // 🔧 换算口径：由 layoutSpec BLANK 动态生成（调 wordGap/上限自动跟随，勿手写死）
   const clauses = [
     // ① 作答空位 = 学生书写位（泛指横线/括号/留白等，具体形态由排版渲染；宽度随答案篇幅）
     //   🔧 “样式由系统渲染”不等于空位由系统凭空生成：空位必须作为可见字符落在正文里（＿/空格串/括号空位皆可），
     //   否则归一链没有输入 → 学生没有可写位置（深层缺口 2026-09 修复）
     '学生作答处给出实际可见的作答空位，留白宽窄与答案篇幅相称（答案长则留宽、答案短则留窄；答案独立整行书写时给出整行书写位）——空位须落在正文里，不依赖系统凭空生成',
-    // ② 与规则库 answer-area-fix 同一口径（曾“客观题按作答形式留出相应作答位置”与“客观题无需额外空间”前后矛盾）
+    // ② 换算口径（可操作版）：空格数→字位→em，由排版规格库生成；只讲宽度换算，无形态词（审核基准 2.4）
+    blankCalc,
+    // ③ 与规则库 answer-area-fix 同一口径（曾“客观题按作答形式留出相应作答位置”与“客观题无需额外空间”前后矛盾）
     '客观题（选择/判断/连线等）按作答形式自含可作答位置，不再额外整行留白',
   ];
   // 🔧 写字/抄写硬约束仅注入存在写话/写作/抄写题的学科（语文/英语，hasEx）；

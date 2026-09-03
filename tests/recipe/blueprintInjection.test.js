@@ -196,7 +196,7 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
   });
 });
 
-describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微观格式）', () => {
+describe('作答载体规范全模板覆盖（宽度换算口径随 BLANK 注入，不诱导形态）', () => {
   const ALL_TYPES = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
   const CONTENT_TYPES = ['preview', 'summary'];
   it('9 类型通用模板均含宽度匹配语义与载体要求（无微观格式/诱导词）', () => {
@@ -212,16 +212,18 @@ describe('作答载体规范全模板覆盖（宽度匹配语义，不诱导微�
     }
   });
 
-  it('宽度语义按答案长度匹配（不要求模型计算；内容型无填空规则）', () => {
+  it('宽度语义按答案长度匹配（换算口径随 BLANK 动态注入；内容型无填空规则）', () => {
     for (const g of ALL_TYPES) {
       const t = getPromptTemplate({ genType: g });
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g}`).not.toContain('作答书写载体');
+        expect(t.template, `类型 ${g} 内容型不得注入换算口径`).not.toContain('渲染端换算口径');
       } else {
         expect(t.template, `类型 ${g}`).toContain('留白宽窄与答案篇幅相称');
+        // 🔧 换算口径随 BLANK 动态注入（空格数→字位→em），只讲宽度、无形态词（审核基准 2.4）
+        expect(t.template, `类型 ${g} 缺换算口径`).toContain('渲染端换算口径');
+        expect(t.template, `类型 ${g} 换算口径含形态诱导词`).not.toMatch(/括号|横线|下划线|＿|blank-\d/);
       }
-      expect(t.template, `类型 ${g} 残留微观格式`).not.toContain('空格数=答案字数');
-      expect(t.template, `类型 ${g} 残留格数诱导`).not.toContain('1字≈2格');
       expect(t.template, `类型 ${g} 残留诱导词`).not.toContain('括号与横线二选一');
       expect(t.template, `类型 ${g} 残留形态诱导词`).not.toContain('留白书写位');
       expect(t.template, `类型 ${g} 残留形态诱导词`).not.toContain('书写空间形态');
