@@ -820,48 +820,6 @@ const BracketGrid = Node.create({
   renderHTML() { return ['div', { class: 'bracket-grid' }]; },
 });
 
-// 🔧 作文格（zuo-wen-ge）：整块保真占位（用户口径：不在格内打字）
-//    div.zuo-wen-ge > div(行) > span(格) 结构若交给 DivWrapper(block+) 解析，内层行/格会被
-//    ProseMirror 压平成单段“空格串” → 编辑器内塌缩、再编辑即破坏源。改为原子节点：
-//    解析时把行×格文本快照进 rows 属性，渲染时静态还原结构（格由 CSS grid 绘制），
-//    不做成可编辑网格；导出/预览（含 liveDom）均能看到真实 div.zuo-wen-ge 结构。
-const ZuoWenGe = Node.create({
-  name: 'zuoWenGe',
-  priority: 150,
-  group: 'block',
-  atom: true,
-  defining: true,
-  parseHTML() {
-    return [{
-      tag: 'div.zuo-wen-ge',
-      getAttrs: (el) => {
-        const readRow = (row) => [...row.children]
-          .filter((s) => s.tagName === 'SPAN')
-          .map((s) => (s.textContent || '').replace(/[\s\u00A0\u2003\u3000]+/g, ' ').trim());
-        const rows = [...el.children]
-          .filter((c) => c.tagName === 'DIV' && c.querySelector(':scope > span'))
-          .map(readRow);
-        if (rows.length) return { rows: JSON.stringify(rows) };
-        const flat = [...el.children].filter((s) => s.tagName === 'SPAN')
-          .map((s) => (s.textContent || '').replace(/[\s\u00A0\u2003\u3000]+/g, ' ').trim());
-        return { rows: JSON.stringify(flat.length ? [flat] : [[]]) };
-      },
-    }];
-  },
-  renderHTML({ HTMLAttributes }) {
-    let rows = [];
-    try { rows = JSON.parse(HTMLAttributes.rows || '[]'); } catch { rows = []; }
-    if (!Array.isArray(rows)) rows = [];
-    const rowNodes = rows.map((r) => ['div', {},
-      ...(Array.isArray(r) ? r.map((c) => ['span', {}, (c && /\S/.test(c)) ? c : ' ']) : []),
-    ]);
-    return ['div', { class: 'zuo-wen-ge' }, ...rowNodes];
-  },
-  addAttributes() {
-    return { rows: { default: '[]' } };
-  },
-});
-
 import Paragraph from '@tiptap/extension-paragraph';
 import Heading from '@tiptap/extension-heading';
 
@@ -1173,7 +1131,6 @@ const editor = useEditor({
     SealLineDiv,
     SquareGrid,
     BracketGrid,
-    ZuoWenGe, // 作文格保真占位（整块展示，不做可编辑网格）
     DivWrapper,
   ],
   onUpdate: ({ editor }) => {
