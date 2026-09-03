@@ -4724,8 +4724,7 @@ ${cardAnalysisText.substring(0, 1000)}
         //    正文长度上限走设置项 answerContextMaxChars（默认 24000；超大卷/高中大卷可调大至 40000-60000）
         const paperPlain = htmlToPlainText(content, apiConfig.generationSettings.answerContextMaxChars);
         // 🔧 格式根治：答案页注入与正文一致的 HTML 输出规范（此前无格式要求 → 模型直接输出 Markdown 源码）
-        //    stage 参与答案页格式：低段（primary_low）答案速查一行一条（不复述题干、不重现作答空位）
-        const ansFormat = buildAnswerFormatSpec(subject, resolveStageKey(book?.stage, book?.grade, book?.name));
+        const ansFormat = buildAnswerFormatSpec(subject);
         // 🔧 自包含教辅（summary/review/preview/dictation/errorbook）答案区只写练习/自测/变式解答（典型例题已在正文讲解展示，不重复），
         //    “按栏目组织答案”仅指按题目所在栏目对答案分类，绝不把正文知识梳理整体复述进答案区（防二次复述）
         const selfContainedAnsNote = isSelfContainedTeaching
