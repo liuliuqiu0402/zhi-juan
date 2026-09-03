@@ -38,6 +38,25 @@ describe('normalizeBlankMarkers（后处理排版兜底）', () => {
   it('单全角空格排版分隔不误转（≥2 才构成书写横线）', () => {
     expect(normalizeBlankMarkers('<p>　　你好</p>')).toBe('<p>　　你好</p>');
   });
+
+  it('行内裸全角空格（口诀/读作等前有正文后有标点）→ u.blank-N，导出 Word 有书写线', () => {
+    expect(normalizeBlankMarkers('口诀：　　　　　　。')).toBe('口诀：<u class="blank-12">&emsp;</u>。');
+    expect(normalizeBlankMarkers('他今年　　岁。')).toBe('他今年<u class="blank-4">&emsp;</u>岁。');
+  });
+
+  it('行内裸全角空格超长同样封顶 blank-16（与块级/横线规则同上限）', () => {
+    expect(normalizeBlankMarkers('读作：' + '　'.repeat(16) + '，乘数是')).toBe('读作：<u class="blank-16">&emsp;</u>，乘数是');
+  });
+
+  it('段首缩进全角空格不误转（前置字符守卫，防排版缩进被当成作答位）', () => {
+    expect(normalizeBlankMarkers('<p>　　　　他每天坚持锻炼。</p>')).toBe('<p>　　　　他每天坚持锻炼。</p>');
+    expect(normalizeBlankMarkers('　　　　　　　　答案：15')).toBe('　　　　　　　　答案：15');
+  });
+
+  it('行内裸空格归一是幂等的（二次执行不重复包壳）', () => {
+    const once = normalizeBlankMarkers('口诀：　　　　　　。');
+    expect(normalizeBlankMarkers(once)).toBe(once);
+  });
 });
 
 describe('normalizeBlankMarkers 密封信息栏 ＿ 保护（C2 链序：＿ 不被填空归一吃掉，排版/导出重建可回填）', () => {

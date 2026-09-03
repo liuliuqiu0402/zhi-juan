@@ -361,6 +361,19 @@ export function normalizeBlankMarkers(html = '') {
   // 🔧 拆裸 <u> 空壳：模型把下划线写进无 class 的 <u>（<u>____</u>/<u>（　　）</u>），先被上面规则转成
   //    u.blank-N/span.blank-N 后外层 <u> 仍在 → 下划线叠下划线/叠括号。外层仅包一个 blank 空位时拆壳
   out = out.replace(/<u(?![^>]*class=)[^>]*>\s*(<(u|span) class="blank-\d+">&emsp;<\/\2>)\s*<\/u>/gi, '$1');
+  // 🔧 行内裸全角空格（前有正文）→ u.blank-N：块级规则（上方）只覆盖"整段纯空白"，
+  //    行内形态如 "口诀：　　　　　　。" "读作：…，乘数是( )" 的空白段此前漏判 →
+  //    导出 Word 只剩空白无书写线（载体验证也因无载体判为无效/剥离）。
+  //    与块级同口径：长度×wordGap（1 空格≈1 字位≈2em，blankWidthForChars）；
+  //    段首守卫：自最近标签闭合（>）后无正文（含文档开头/行首缩进/标签后直接空格）不转，
+  //    防把排版缩进当成作答位；位于已归一载体/括号/块级产物（&emsp;）之后执行，幂等不重复处理。
+  out = out.replace(/\u3000{2,}/g, (m, off, all) => {
+    const head = all.slice(0, off);
+    const lastTag = head.lastIndexOf('>');
+    const sinceTag = (lastTag === -1 ? head : head.slice(lastTag + 1)).trim();
+    if (!sinceTag) return m; // 段首/行首/标签后直接空格：排版缩进，不构成作答位
+    return `<u class="blank-${blankWidthForChars(m.length)}">&emsp;</u>`;
+  });
   // ④ 🔧 还原密封信息栏占位（＿ 原样保留，交给排版/导出端 sealText.normalizeSealBlanks 统一扩 8 全角）
   if (sealKeeps.length) {
     out = out.replace(/\uE000(\d+)/g, (_m, i) => '＿'.repeat(sealKeeps[Number(i)] || 0));

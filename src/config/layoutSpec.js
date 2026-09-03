@@ -226,7 +226,7 @@ export function buildBlankWidthInstruction(spec = BLANK) {
   const capChars = Math.max(1, Math.floor(b.maxCap / per)); // 单处上限 ≈ maxCap em
   const perText = Number.isInteger(per) ? String(per) : String(per);
   return (
-    `渲染端换算口径：1 个全角空格≈1 个字位≈${perText} em，答案每 1 个字给 1 个空格，` +
+    `渲染端换算口径：1 个全角空格≈1 个字位≈${perText} em，答案每 1 个字（数字逐位计）给 1 个空格，` +
     `同一题内各空按答案字数配宽、长短不一；单处上限 ${capChars} 个字位（约 ${b.maxCap} em），超长答案改用整行书写位`
   );
 }
