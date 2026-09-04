@@ -1389,6 +1389,18 @@ export const getThemeHeadingStyle = (theme, level) => {
 };
 
 // ==================== 应用主题到HTML内容 ====================
+/** 连线题 / 词库作答框样式（theme=null 无主题导出分支与有主题分支共用，2026-09 收敛防两分支漂移；
+ *  有主题分支 literal 与之同值，改动须同步） */
+const MATCH_WORD_BANK_CSS = `
+    /* ⭐ 连线题 - 英语/语文 */
+    .match-question { display: flex; gap: 40px; margin: 12px 0; }
+    .match-question .match-col { display: flex; flex-direction: column; gap: 10px; }
+    .match-question .match-item { padding: 4px 16px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; min-width: 80px; text-align: center; }
+    /* ⭐ 词库框 - 完形填空 */
+    .word-bank { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border: 1.5px solid #666; border-radius: 4px; margin: 4px 0; background: #fafafa; }
+    .word-bank .wb-item { display: inline-block; padding: 2px 10px; font-family: 'Times New Roman', serif; font-size: 0.9em; color: #333; }
+`;
+
 export const applyThemeToContent = (content, themeId, options = {}) => {
   const { isHtmlContent = false, forceImportant = false, stage: stageOpt } = options;
   const theme = getThemeById(themeId);
@@ -1447,6 +1459,8 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       .bracket-grid > div:last-child { border-bottom: none; }
       /* 作答载体 CSS（填空横线/括号空位/整行横线/行尾延伸）——单一事实源 carrierCss */
       ${CARRIER_CSS}
+      /* 连线题 / 词库作答框（无样式主题导出兜底；与有主题分支同值，2026-09 收敛见 MATCH_WORD_BANK_CSS） */
+      ${MATCH_WORD_BANK_CSS}
     </style>`;
     return `<!DOCTYPE html>
 <html>
@@ -1511,7 +1525,8 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
     .tian-zi-ge>span { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); line-height: 1; white-space: nowrap; }
     .mi-zi-ge { display: inline-block; position: relative; width: ${mzW}mm; height: ${mzH}mm; border: 1.5px solid #999; vertical-align: middle; margin: 0 1px; font-size: inherit !important; font-family: 'KaiTi', 'SimSun', serif; box-sizing: border-box; text-align: center; line-height: ${mzH}mm; background: linear-gradient(to right,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)),linear-gradient(to bottom,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)),linear-gradient(to top right,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)),linear-gradient(to bottom right,transparent calc(50% - 0.5px),#ccc calc(50% - 0.5px),#ccc calc(50% + 0.5px),transparent calc(50% + 0.5px)); }
     .mi-zi-ge>span { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); line-height: 1; white-space: nowrap; }
-    /* 四线三格/六线格/拼音格/英语书写格：画法与行高见 carrierCss CARRIER_LINE_CSS（单一事实源；--flt-h 由 :root 按学段注入） */
+    /* 四线三格/六线格/拼音格：画法与行高见 carrierCss CARRIER_LINE_CSS（单一事实源；--flt-h 由 :root 按学段注入；
+       english-line 为遗留字体修饰类（Times）不画格线，独立格线书写用 four-line-three/sixian-ge，2026-09 定位收敛） */
     /* 作答载体 CSS（填空横线/括号空位/整行横线/行尾延伸/四线格）——单一事实源 carrierCss */
     ${CARRIER_CSS}
     /* ⭐ 口算框 / 方框 */

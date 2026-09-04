@@ -417,10 +417,6 @@ const SPEC_GROUPS = [
       { path: 'WRITING_CARRIER.英语.high', label: '英语·高中', type: 'carrier' },
       { path: 'GRID_CELL.tian-zi-ge.primary.widthMm', label: '田字格·小学宽', unit: 'mm', type: 'number', min: 6, max: 20, step: 0.5 },
       { path: 'GRID_CELL.tian-zi-ge.primary.heightMm', label: '田字格·小学高', unit: 'mm', type: 'number', min: 6, max: 20, step: 0.5 },
-      { path: 'GRID_CELL.tian-zi-ge.middle.widthMm', label: '田字格·初中宽', unit: 'mm', type: 'number', min: 6, max: 20, step: 0.5 },
-      { path: 'GRID_CELL.tian-zi-ge.high.widthMm', label: '田字格·高中宽', unit: 'mm', type: 'number', min: 4, max: 15, step: 0.5 },
-      { path: 'GRID_CELL.four-line-three.primary.lineHeightMm', label: '四线三格·小学行高', unit: 'mm', type: 'number', min: 4, max: 15, step: 0.5 },
-      { path: 'GRID_CELL.four-line-three.middle.lineHeightMm', label: '四线三格·初中行高', unit: 'mm', type: 'number', min: 4, max: 15, step: 0.5 },
     ],
   },
   {

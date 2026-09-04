@@ -3,7 +3,7 @@
 // 输出：docx 库的 Document 对象 → Packer.toBlob()
 
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader, SimpleField } from 'docx';
-import { TZG_MARKER, TZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, CIRCLE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
+import { TZG_MARKER, TZG_PINYIN_MARKER, MZG_MARKER, MZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, CIRCLE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
 import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js';
 import { PAPER_PRESETS, normalizeLayout } from '../config/paperPresets.js';
@@ -328,19 +328,20 @@ const buildTextRuns = (node, styleOverride = {}) => {
       const sizeHp = ctx.size || readFontSizeHp(child) || 32;
       const cellW = Math.round(tzgCellMm() * MM2DXA); // 定档低段 12mm（曾 sizeHp*18 = 随字号 1.8em）
       const cellWEmu = Math.round(cellW * EMU_PER_DXA);
+      const isMi = cls.contains('mi-zi-ge'); // 米字格 → MZG 标记（Word 补两对角虚线，与预览一致）
       // 🔧 注音田字格：内部含 ruby-char → 拼音画进格子群组（格内带字，拼音浮在字上方）
       const innerRuby = child.querySelector('.ruby-char[data-pinyin]');
       if (innerRuby) {
         const pinyin = innerRuby.getAttribute('data-pinyin') || '';
         const baseText = innerRuby.textContent || extractedText;
         if (pinyin && baseText) {
-          runs.push(new TextRun({ text: TZG_PINYIN_MARKER(baseText, pinyin, cellWEmu), size: sizeHp }));
+          runs.push(new TextRun({ text: (isMi ? MZG_PINYIN_MARKER : TZG_PINYIN_MARKER)(baseText, pinyin, cellWEmu), size: sizeHp }));
           lastGridMarkerIdx = runs.length - 1;
           return;
         }
       }
       const gridChar = hasVisible ? (child.querySelector('span')?.textContent || extractedText) : ' ';
-      runs.push(new TextRun({ text: TZG_MARKER(gridChar, cellWEmu), size: sizeHp }));
+      runs.push(new TextRun({ text: (isMi ? MZG_MARKER : TZG_MARKER)(gridChar, cellWEmu), size: sizeHp }));
       lastGridMarkerIdx = runs.length - 1;
       return;
     }
@@ -553,7 +554,8 @@ const buildTextRuns = (node, styleOverride = {}) => {
         for (let i = 0; i < innerGrids.length; i++) {
           const gridChar = innerGrids[i].querySelector('span')?.textContent || innerGrids[i].textContent.trim() || ' ';
           const p = pinyinParts.length === innerGrids.length ? (pinyinParts[i] || '') : (i === 0 ? pinyin : '');
-          runs.push(new TextRun({ text: TZG_PINYIN_MARKER(gridChar, p, cellWEmu), size: baseSizeHp }));
+          const gMi = /\bmi-zi-ge\b/.test(innerGrids[i].className || '');
+          runs.push(new TextRun({ text: (gMi ? MZG_PINYIN_MARKER : TZG_PINYIN_MARKER)(gridChar, p, cellWEmu), size: baseSizeHp }));
         }
         lastGridMarkerIdx = runs.length - 1;
         return;
@@ -774,22 +776,22 @@ const fltBlankWidthDxa = (raw, sizeHp) => {
   return Math.round(emWidth * emDxa) + padEachSide * 2;
 };
 
-/** 田字格 → 标记 Paragraph（后处理替换为 1×1 Table + DrawingML 十字线） */
-export const buildTianZiGeMarker = (gridChar, sizeHp, _fontFamily) => {
+/** 田字格 → 标记 Paragraph（后处理替换为 1×1 Table + DrawingML 十字线；米字格带两对角虚线） */
+export const buildTianZiGeMarker = (gridChar, sizeHp, _fontFamily, isMi = false) => {
   const cellW = Math.round(tzgCellMm() * MM2DXA); // 定档低段 12mm（曾 sizeHp*18 随字号）
   const cellWEmu = Math.round(cellW * EMU_PER_DXA);
   return new Paragraph({
-    children: [new TextRun({ text: TZG_MARKER(gridChar, cellWEmu), size: sizeHp })],
+    children: [new TextRun({ text: (isMi ? MZG_MARKER : TZG_MARKER)(gridChar, cellWEmu), size: sizeHp })],
     spacing: { before: 40, after: 40 },
   });
 };
 
-/** 注音田字格 → 标记 Paragraph（格内带字，拼音浮在格内字上方） */
-export const buildTianZiGePinyinMarker = (gridChar, pinyin, sizeHp, _fontFamily) => {
+/** 注音田字格 → 标记 Paragraph（格内带字，拼音浮在格内字上方；米字格带两对角虚线） */
+export const buildTianZiGePinyinMarker = (gridChar, pinyin, sizeHp, _fontFamily, isMi = false) => {
   const cellW = Math.round(tzgCellMm() * MM2DXA); // 定档低段 12mm（曾 sizeHp*18 随字号）
   const cellWEmu = Math.round(cellW * EMU_PER_DXA);
   return new Paragraph({
-    children: [new TextRun({ text: TZG_PINYIN_MARKER(gridChar, pinyin, cellWEmu), size: sizeHp })],
+    children: [new TextRun({ text: (isMi ? MZG_PINYIN_MARKER : TZG_PINYIN_MARKER)(gridChar, pinyin, cellWEmu), size: sizeHp })],
     spacing: { before: 40, after: 40 },
   });
 };
@@ -1084,18 +1086,19 @@ const processBlockNode = (node, ctx = {}) => {
   if (cls.contains('tian-zi-ge') || cls.contains('mi-zi-ge')) {
     const { text: extractedText, hasVisible } = extractGridContent(node);
     const sizeHp = runDefaults.size || readFontSizeHp(node) || 32;
+    const isMiBlk = cls.contains('mi-zi-ge'); // 米字格 → MZG（Word 补两对角虚线）
     // 🔧 注音田字格（块级）：单段 TZGP marker——拼音画进格子群组，格内带字
     const innerRuby = node.querySelector('.ruby-char[data-pinyin]');
     if (innerRuby) {
       const pinyin = innerRuby.getAttribute('data-pinyin') || '';
       const baseText = innerRuby.textContent || extractedText;
       if (pinyin && baseText) {
-        children.push(buildTianZiGePinyinMarker(baseText, pinyin, sizeHp, runDefaults.font || 'SimSun'));
+        children.push(buildTianZiGePinyinMarker(baseText, pinyin, sizeHp, runDefaults.font || 'SimSun', isMiBlk));
         return children;
       }
     }
     const gridChar = hasVisible ? (node.querySelector('span')?.textContent || extractedText) : ' ';
-    children.push(buildTianZiGeMarker(gridChar, sizeHp, runDefaults.font || 'SimSun'));
+    children.push(buildTianZiGeMarker(gridChar, sizeHp, runDefaults.font || 'SimSun', isMiBlk));
     return children;
   }
 

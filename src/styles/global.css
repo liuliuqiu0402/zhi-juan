@@ -174,11 +174,14 @@ input:focus, select:focus, textarea:focus {
   white-space: nowrap;
 }
 
-/* 米字格 - 小学语文（同上结构 + 对角虚线） */
-.mi-zi-ge {
+/* 米字格 - 小学语文（同上结构 + 对角虚线；选择器作用域与田字格对齐，2026-09） */
+.mi-zi-ge,
+.html-editor .mi-zi-ge,
+.preview-content .mi-zi-ge,
+.ProseMirror .mi-zi-ge {
   display: inline-block;
   position: relative;
-  /* 🔧 米字格同田字格：仅语文低段 → 定档 12mm */
+  /* 🔧 米字格同田字格：仅语文低段 → 定档 12mm（与导出 docx/HTML/编辑器同口径） */
   width: 12mm;
   height: 12mm;
   border: 1.5px solid #999;

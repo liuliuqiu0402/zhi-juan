@@ -47,6 +47,22 @@ describe('数学答题区导出', () => {
   });
 });
 
+describe('书写格 Word 导出（田字格/米字格三端口径）', () => {
+  it('田字格（行内）→ 不含 MZG 对角形状', async () => {
+    const xml = await getDocumentXml('<p>春<span class="tian-zi-ge">春</span>风</p>');
+    expect(xml).not.toContain('MZG-Diag');
+    expect(xml).not.toContain('__MZG_');
+  });
+
+  it('米字格（行内）→ 补两对角虚线（MZG-Diag1/2，Word 不再退化田字格）', async () => {
+    const xml = await getDocumentXml('<p>木<span class="mi-zi-ge">木</span>字</p>');
+    expect(xml).toContain('MZG-Diag1');
+    expect(xml).toContain('MZG-Diag2');
+    expect(xml).not.toContain('__MZG_'); // 标记全部替换完成
+    expect(xml).not.toContain('__MZGP_');
+  });
+});
+
 describe('特殊下划线导出（double-line/wavy-underline 不被 ctx 覆盖为 single）', () => {
   it('double-line → w:u w:val="double"（非 single）', async () => {
     const xml = await getDocumentXml('<p>重点词：<span class="double-line">栩栩如生</span></p>');

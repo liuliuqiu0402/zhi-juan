@@ -1,6 +1,7 @@
 // ============================================================
 // 作答载体 CSS 单一事实源（填空横线 u.blank-N / 括号空位 span.blank-N /
-// 整行横线 .blank-line / 行尾弹性延伸 / 四线三格·六线格·拼音格·英语书写格）
+// 整行横线 .blank-line / 行尾弹性延伸 / 四线三格·六线格·拼音格格线；
+// english-line 为遗留字体修饰类（Times），不画格线，独立格线书写用 four-line-three/sixian-ge）
 // ============================================================
 // 🔴 消费方：main.js 全局注入（替代原 styles/global.css 里的静态副本）、
 //    themeConfig 独立导出文档（HTML/PDF 自带内嵌样式）。
@@ -32,6 +33,8 @@ export const CARRIER_LINE_CSS = `
 .sixian-ge { font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; }
 .four-line-three::before, .sixian-ge::before, .pinyin-line::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: var(--flt-h, 1.45em); background: linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 6.7%/100% 1px no-repeat, linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 36.7%/100% 1px no-repeat, linear-gradient(var(--flt-strong,#666),var(--flt-strong,#666)) 0 66.7%/100% 1px no-repeat, linear-gradient(var(--flt-soft,#999),var(--flt-soft,#999)) 0 96.7%/100% 1px no-repeat; pointer-events: none; }
 .pinyin-line { font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; }
+/* english-line：遗留字体修饰类，仅设 Times 字体、不画格线（2026-09 定位收敛：
+   独立格线书写用 four-line-three/sixian-ge（含组合写法）；注释不得再声称其画线） */
 .english-line { font-family: 'Times New Roman', 'Georgia', serif; }
 `;
 
