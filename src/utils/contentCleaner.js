@@ -399,11 +399,30 @@ export function normalizeMathCircleBlanks(html = '') {
   //   - 左侧只排除汉字（题干叙述紧贴，如"在□里"），不再强制左侧也必须是数学项——
   //     曾要求两侧都被数学项紧邻，导致"算式表示：□×□＝12"的首个 □（左侧为"："）漏转，裸字形无载体语义；
   //   - 左侧为中文标点/标签边界/算式起点的 □ 属算式语境，正常转换；非算式装饰（□ 后无数学项）不受影响。
-  const re = new RegExp(`(?<![一-龥])[○□](?=\\s*${MATH_ITEM})`, 'g');
-  if (!src.match(re)) return src;
-  return src.replace(re, (ch) => ch === '○'
-    ? '<span class="math-circle-blank-18">&nbsp;</span>'
-    : '<span class="square-box">&nbsp;</span>');
+  const literalRe = new RegExp(`(?<![一-龥])[○□](?=\\s*${MATH_ITEM})`, 'g');
+  // 🔧 算式填空兜底（2026-09，用户口径：数字整体放一个框）：
+  //    模型若未写 □/○ 而用空白/下划线占位（曾点名"空格"后算式填空全变空格串），这些占位已被
+  //    blank 归一为 <u class="blank-N">&emsp;</u>——本函数在所有调用链（生成/编辑器装载/粘贴/排版导出）
+  //    均最后执行，此处把"算式语境内的占位 u"统一收口为单个 <span class="square-box">（1 个数一格）；
+  //    判定：占位两侧任一侧紧邻数学运算符/等号（×÷＋－＝+−<>）即算式单元格；
+  //    文本空位（如"我发现：＿＿＿。"两侧为汉字/句号）不受影响，保持空白横线语义。
+  const uCellRe = /<u(?=[^>]*class=["'][^"']*blank-\d+[^"']*["'])[^>]*>(?:&emsp;|&#8195;|&#x2003;|[\s\u3000])*<\/u>/gi;
+  const OP_SIDE = '×÷＋－＝+−<>';
+  let out = src;
+  if (literalRe.test(src)) {
+    out = out.replace(literalRe, (ch) => ch === '○'
+      ? '<span class="math-circle-blank-18">&nbsp;</span>'
+      : '<span class="square-box">&nbsp;</span>');
+  }
+  if (uCellRe.test(out)) {
+    out = out.replace(uCellRe, (m, off, all) => {
+      const prev = all.slice(0, off).replace(/<[^>]+>/g, '').replace(/[　\s]+$/, '').slice(-1);
+      const next = all.slice(off + m.length).replace(/<[^>]+>/g, '').replace(/^[　\s]+/, '').slice(0, 1);
+      if (OP_SIDE.includes(prev) || OP_SIDE.includes(next)) return '<span class="square-box">&nbsp;</span>';
+      return m;
+    });
+  }
+  return out;
 }
 
 /**

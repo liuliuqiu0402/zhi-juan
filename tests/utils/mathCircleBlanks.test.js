@@ -81,3 +81,34 @@ describe('normalizeMathCircleBlanks 方框 □ 对称归一（C6：算式语境 
     expect(normalizeMathCircleBlanks(once)).toBe(once);
   });
 });
+
+describe('normalizeMathCircleBlanks 算式占位兜底（模型写空格/下划线占位 → 单个方框，数字整体一格）', () => {
+  // 生成链实序：normalizeBlankMarkers（空格/＿→u.blank-N）→ normalizeMathCircleBlanks（算式语境 u → 方框）
+  const chain = (h) => normalizeMathCircleBlanks(normalizeBlankMarkers(h));
+
+  it('算式填空的空格占位（× 两侧、＝ 后）→ 每个空位一个 square-box', () => {
+    const src = '<p>（3）用乘法算式表示：' + '　'.repeat(6) + '×' + '　'.repeat(6) + '＝' + '　'.repeat(6) + '（人）</p>';
+    expect(chain(src)).toBe(
+      '<p>（3）用乘法算式表示：<span class="square-box">&nbsp;</span>×<span class="square-box">&nbsp;</span>＝<span class="square-box">&nbsp;</span>（人）</p>'
+    );
+  });
+
+  it('算式填空的下划线占位（＿ 已归一为 u.blank）同样收口为方框', () => {
+    expect(chain('<p>3＋＿＿＝7</p>')).toBe('<p>3＋<span class="square-box">&nbsp;</span>＝7</p>');
+  });
+
+  it('文本空位不受影响（我的发现：＿＿＿。两侧为汉字/句号 → 保持空白横线）', () => {
+    const out = chain('<p>我的发现：' + '　'.repeat(8) + '。</p>');
+    expect(out).toContain('<u class="blank-16">&emsp;</u>');
+    expect(out).not.toContain('square-box');
+  });
+
+  it('正常算式空格排版（半角单空格）不受影响，无空位不产生方框', () => {
+    expect(chain('<p>5 × 3 ＝ 15（人）</p>')).toBe('<p>5 × 3 ＝ 15（人）</p>');
+  });
+
+  it('幂等：算式方框产物再次走完整链不重复/不回退', () => {
+    const once = chain('<p>' + '　'.repeat(6) + '×' + '　'.repeat(6) + '＝10</p>');
+    expect(chain(once)).toBe(once);
+  });
+});
