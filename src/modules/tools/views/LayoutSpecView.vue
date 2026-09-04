@@ -77,7 +77,8 @@
         v-for="g in specShowList"
         :key="g.id"
         class="ls-card"
-        :class="{ open: openGroup === g.id, editing: editingGroup === g.id, disabled: groupOff(g.id) }"
+        :class="{ open: openGroup === g.id, editing: editingGroup === g.id, disabled: groupOff(g.id), flash: flashGroup === g.id }"
+        :data-gid="g.id"
       >
         <div
           class="ls-head"
@@ -312,7 +313,8 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
 import {
   getMergedSpec, loadLayoutSpecOverride, saveLayoutSpecOverride, resetLayoutSpecOverride,
   LAYOUT_SPEC_DEFAULTS,
@@ -552,6 +554,28 @@ const specShowList = computed(() => SPEC_GROUPS.filter((g) => {
 const openGroup = ref('');
 const toggleGroup = (id) => { openGroup.value = openGroup.value === id ? '' : id; };
 
+// ==================== 外部跳转定位（来源分段标注 → /tools/layout-spec?focus=<BLANK|carrier-rules>） ====================
+const route = useRoute();
+const flashGroup = ref('');
+const FOCUS_GID = { BLANK: 'blank', 'carrier-rules': 'carrier-rules' };
+watch(
+  () => route.query.focus,
+  async (f) => {
+    if (!f) return;
+    const gid = FOCUS_GID[String(f)] || String(f);
+    const g = SPEC_GROUPS.find((x) => x.id === gid);
+    if (!g) { console.warn('[layout-spec] focus 未命中规格组:', f); return; }
+    specFilter.value = 'all';       // 尽力显示（本库无三维度过滤，仅启停状态）
+    openGroup.value = gid;          // 展开目标规格组
+    flashGroup.value = gid;
+    setTimeout(() => { flashGroup.value = ''; }, 2600);
+    await nextTick();
+    const el = document.querySelector(`[data-gid="${CSS.escape(gid)}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  },
+  { immediate: true }
+);
+
 // ==================== 编辑态 ====================
 const editingGroup = ref('');
 const editValues = ref({});
@@ -683,6 +707,7 @@ const doImport = async (e) => {
 .st-chip.off.sel { background: #c0392b; border-color: #c0392b; }
 .ls-card { background: #fff; border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; }
 .ls-card.open { border-color: var(--primary-light); box-shadow: 0 2px 10px rgba(30,58,111,.08); }
+.ls-card.flash { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,170,0,.45); }
 .ls-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; flex-wrap: wrap; }
 .ls-head:hover { background: var(--primary-lighter); }
 .arrow { color: var(--accent); font-weight: 700; }

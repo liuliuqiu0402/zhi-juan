@@ -101,7 +101,8 @@
         v-for="t in tplList"
         :key="t.key"
         class="tpl-card"
-        :class="{ open: openKey === t.key, editing: editingKey === t.key, disabled: tplOff(t.key) }"
+        :class="{ open: openKey === t.key, editing: editingKey === t.key, disabled: tplOff(t.key), flash: flashKey === t.key }"
+        :data-fk="t.key"
       >
         <div
           class="tpl-head"
@@ -271,7 +272,8 @@
 </template>
 
 <script setup>
-import { computed, inject, ref } from 'vue';
+import { computed, inject, ref, watch, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
 import { listPromptTemplates, savePromptTemplate, deletePromptTemplate, BUILTIN_TEMPLATES, CURRICULUM_VERSION_INFO, GEN_TYPE_NAMES } from '../../../config/promptLibrary.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
@@ -313,6 +315,27 @@ const reload = () => { allTpl.value = listPromptTemplates(); refreshLibStats(); 
 /* ===== 手风琴 ===== */
 const openKey = ref('');
 const toggle = (key) => { openKey.value = openKey.value === key ? '' : key; };
+
+/* ===== 外部跳转定位（来源分段标注 → /tools/instruction?focus=<key>） ===== */
+const route = useRoute();
+const flashKey = ref(''); // 定位命中卡片短暂高亮
+watch(
+  () => route.query.focus,
+  async (f) => {
+    if (!f) return;
+    const key = String(f);
+    const t = allTpl.value.find((x) => x.key === key);
+    if (!t) { console.warn('[instruction] focus 未命中数据键:', key); return; }
+    openKey.value = key;            // 展开目标模板
+    statusFilter.value = 'all';     // 尽力显示（维度 dims 由工具库顶部控制，无法在此放宽）
+    flashKey.value = key;
+    setTimeout(() => { flashKey.value = ''; }, 2600);
+    await nextTick();
+    const el = document.querySelector(`[data-fk="${CSS.escape(key)}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  },
+  { immediate: true }
+);
 
 /* ===== key 三维度解析 ===== */
 const parseKey = (key) => {
@@ -488,6 +511,7 @@ const doImport = async (e) => {
 .tpl-list { display: flex; flex-direction: column; gap: 8px; }
 .tpl-card { background: #fff; border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; }
 .tpl-card.open { border-color: var(--primary-light); box-shadow: 0 2px 10px rgba(30,58,111,.08); }
+.tpl-card.flash { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,170,0,.45); }
 .tpl-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; flex-wrap: wrap; }
 .tpl-head:hover { background: var(--primary-lighter); }
 .arrow { color: var(--accent); font-weight: 700; }
