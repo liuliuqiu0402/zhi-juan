@@ -1,4 +1,4 @@
-// 连线结构渲染端归一测试（normalizeMatchQuestions）
+﻿// 连线结构渲染端归一测试（normalizeMatchQuestions）
 // ============================================================
 // 🔴 目的：锁定"配对类题（连一连/连线/配对）无论模型输出何种形态（表格/双列表），
 //    渲染端确定性转成标准 match-question 结构"，且不破坏已有内容。
@@ -38,6 +38,52 @@ describe('normalizeMatchQuestions：双列表 → 连线结构', () => {
   });
 });
 
+describe('normalizeMatchQuestions：右列确定性乱序（出题惯例，2026-09 用户口径）', () => {
+  // match-question 内 item 顺序 = 左列全部 → 右列全部（各列项数相等），提取后按半切分左右
+  const extractCols = (html) => {
+    const items = [...html.matchAll(/<div class="match-item">([\s\S]*?)<\/div>/g)].map(x => x[1]);
+    const half = Math.floor(items.length / 2);
+    return [items.slice(0, half), items.slice(half)];
+  };
+
+  it('两列表格：右列被打乱 ≠ 与左列同行即答案（内容全保留）', () => {
+    const html = '<p>2. 连一连。</p>\n<table><tbody><tr><td>苹果</td><td>red</td></tr><tr><td>香蕉</td><td>yellow</td></tr><tr><td>葡萄</td><td>purple</td></tr><tr><td>西瓜</td><td>green</td></tr></tbody></table>';
+    const out = normalizeMatchQuestions(html);
+    const [left, right] = extractCols(out);
+    expect(left).toEqual(['苹果', '香蕉', '葡萄', '西瓜']);
+    expect([...right].sort()).toEqual(['green', 'purple', 'red', 'yellow']); // 内容不丢
+    expect(right).not.toEqual(['red', 'yellow', 'purple', 'green']); // 已乱序，非同行答案
+    expect(right.join('|')).not.toBe(left.join('|'));
+  });
+
+  it('双列表：右列同样乱序', () => {
+    const html = '<p>3. 连线题：把词语与意思连起来。</p>\n<ul><li>善良</li><li>聪明</li><li>勇敢</li><li>诚实</li></ul>\n<ul><li>心地好</li><li>智力高</li><li>胆子大</li><li>不说谎</li></ul>';
+    const out = normalizeMatchQuestions(html);
+    const [, right] = extractCols(out);
+    // sort 为 Unicode 码点序（非拼音序）
+    expect([...right].sort()).toEqual(['不说谎', '心地好', '智力高', '胆子大']);
+    expect(right).not.toEqual(['心地好', '智力高', '胆子大', '不说谎']);
+  });
+
+  it('确定性：同输入两次归一产物完全一致（LCG 内容散列播种）', () => {
+    const html = '<p>2. 连一连。</p>\n<table><tbody><tr><td>甲</td><td>A</td></tr><tr><td>乙</td><td>B</td></tr><tr><td>丙</td><td>C</td></tr><tr><td>丁</td><td>D</td></tr></tbody></table>';
+    expect(normalizeMatchQuestions(html)).toBe(normalizeMatchQuestions(html));
+  });
+
+  it('幂等：已乱序产物二次归一不再重排', () => {
+    const html = '<p>2. 连一连。</p>\n<table><tbody><tr><td>甲</td><td>A</td></tr><tr><td>乙</td><td>B</td></tr><tr><td>丙</td><td>C</td></tr><tr><td>丁</td><td>D</td></tr></tbody></table>';
+    const once = normalizeMatchQuestions(html);
+    expect(normalizeMatchQuestions(once)).toBe(once);
+  });
+
+  it('2 项连线保持原序不打乱（无交叉可言，最小惊讶）', () => {
+    const html = '<p>1. 连一连。</p>\n<table><tbody><tr><td>甲</td><td>A</td></tr><tr><td>乙</td><td>B</td></tr></tbody></table>';
+    const out = normalizeMatchQuestions(html);
+    const [, right] = extractCols(out);
+    expect(right).toEqual(['A', 'B']);
+  });
+});
+
 describe('normalizeMatchQuestions：保守不误转', () => {
   it('无配对关键词的表格 → 不变', () => {
     const html = '<p>1. 统计本班人数。</p>\n<table><tbody><tr><td>男生</td><td>20</td></tr><tr><td>女生</td><td>18</td></tr></tbody></table>';
@@ -61,3 +107,4 @@ describe('normalizeMatchQuestions：保守不误转', () => {
     expect(normalizeMatchQuestions(html)).toBe(html);
   });
 });
+

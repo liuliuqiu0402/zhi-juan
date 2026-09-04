@@ -567,13 +567,34 @@ export function normalizeWhitespaceCarriers(html = '') {
  * 🔴 目的：对模型形态漂移免疫——模型输出配对类题时形态不稳定（两列表格 / 两个相邻列表
  *    等），一律确定性转成标准连线结构（match-question：左右两列 match-item 方框），
  *    预览/编辑器/排版/导出全部按标准连线渲染（docxBuilder 两列方框 + 连线留白）。
+ * 🔧 出题惯例（2026-09 用户口径）：连线题右列须与左列答案序错开（学生画斜线交叉连接），
+ *    模型常按答案序输出右列 → 渲染为"左[i]|右[i] 同行"，学生横向直连即答案、题目无考察意义。
+ *    归一转换时对右列做**确定性打乱**（LCG 由右列内容散列播种：同输入恒同输出 → 可测、幂等、
+ *    跨端一致；已持久化的 match-question 二次装载因幂等不再重排）。只动渲染端，不改模型/prompt。
  * 规则（保守、幂等、不破坏已有内容）：
  *   1. 幂等：题区已含 match-question 结构 → 不重复处理
  *   2. 触发：题干附近（同一题内、无题号间隔）含"连一连|连线|配对|搭配"关键词
  *   3. 只转明确两列形态：两列表格（每行 td×2）或两个相邻 <ul>/<ol> 列表（各 ≥2 项）
  *   4. 其余形态（单列/普通段落/编号对应）不转，保持原样
- *   5. 转换保留全部文本，不丢内容
+ *   5. 转换保留全部文本，不丢内容；左列保序（题干/模型顺序），仅右列打乱
  */
+// 确定性打乱：FNV-1a 散列播种 + LCG Fisher-Yates（同输入恒同输出；≥3 项才打乱——2 项无交叉可言）
+const shuffleRightItems = (items) => {
+  if (items.length < 3) return items.slice();
+  let h = 2166136261;
+  for (const it of items) {
+    for (let i = 0; i < it.length; i++) { h ^= it.charCodeAt(i); h = Math.imul(h, 16777619); }
+    h ^= 0x7c; // 项分隔
+  }
+  const arr = items.slice();
+  let s = h >>> 0;
+  for (let i = arr.length - 1; i > 0; i--) {
+    s = (Math.imul(s, 1103515245) + 12345) >>> 0;
+    const j = s % (i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
 export function normalizeMatchQuestions(html = '') {
   const src = String(html || '');
   if (!src || !/(连一连|连线|配对|搭配)/.test(src)) return src;
@@ -589,8 +610,10 @@ export function normalizeMatchQuestions(html = '') {
       if (tds.length === 2 && tds[0] && tds[1]) pairs.push(tds);
     }
     if (pairs.length < 2) return null;
-    const col = (side) => `<div class="match-col">${pairs.map(p => `<div class="match-item">${p[side]}</div>`).join('')}</div>`;
-    return `<div class="match-question">${col(0)}${col(1)}</div>`;
+    const leftSeq = pairs.map(p => p[0]);
+    const rightSeq = shuffleRightItems(pairs.map(p => p[1])); // 右列乱序，防左|右同行即答案
+    const col = (seq) => `<div class="match-col">${seq.map(t => `<div class="match-item">${t}</div>`).join('')}</div>`;
+    return `<div class="match-question">${col(leftSeq)}${col(rightSeq)}</div>`;
   };
 
   // 两个相邻 <ul>/<ol> 列表 → match-question（各 ≥2 项）
@@ -600,7 +623,7 @@ export function normalizeMatchQuestions(html = '') {
     const items = (ul) => [...ul.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)]
       .map(x => x[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
     const left = items(m[1]);
-    const right = items(m[2]);
+    const right = shuffleRightItems(items(m[2])); // 右列乱序（同上）
     if (left.length < 2 || right.length < 2) return null;
     const col = (list) => `<div class="match-col">${list.map(it => `<div class="match-item">${it}</div>`).join('')}</div>`;
     return `<div class="match-question">${col(left)}${col(right)}</div>`;
