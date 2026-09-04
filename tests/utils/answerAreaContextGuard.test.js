@@ -34,18 +34,20 @@ describe('专用作答区语境防错配（竖式/作图/填表无载体 → 不
     expect(hasGuard(r, '竖式')).toBe(false);
   });
 
-  it('作图题（画出…对称轴）无载体 → 不补 blank-area，报"作图"抽检', () => {
+  it('作图题（画出…对称轴）无载体 → 定向补 draw-area 虚线作图区（不再补 generic，也不提示缺载体）', () => {
     const html = [
       '<h1>三上数学期中测试</h1><p>满分：100分</p>',
       '<h2>三、操作（共1题，共6分）</h2>',
       '<p>2. 画出下面图形的对称轴。（6分）</p>',
     ].join('\n');
     const r = runMath(html);
+    expect(r.html).toContain('class="draw-area"');
     expect(r.html).not.toContain('blank-area');
-    expect(hasGuard(r, '作图')).toBe(true);
+    expect(hasGuard(r, '作图')).toBe(false);
+    expect(r.issues.some(i => i.type === 'answer-area' && i.message.includes('作图区'))).toBe(true);
   });
 
-  it('作图题已有 square-grid（方格纸）→ 有作图空间，不提示不补', () => {
+  it('作图题已有 square-grid（方格纸）→ 有作图空间，不补 draw-area 不提示', () => {
     const html = [
       '<h1>三上数学期中测试</h1><p>满分：100分</p>',
       '<h2>三、操作（共1题，共6分）</h2>',
@@ -53,6 +55,7 @@ describe('专用作答区语境防错配（竖式/作图/填表无载体 → 不
       '<div class="square-grid"></div>',
     ].join('\n');
     const r = runMath(html);
+    expect(r.html).not.toContain('draw-area');
     expect(hasGuard(r, '作图')).toBe(false);
   });
 

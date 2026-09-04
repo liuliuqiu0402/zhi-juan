@@ -72,6 +72,9 @@ ${CARRIER_LINE_CSS}
 .square-box,.math-circle-blank-18{display:inline-flex;align-items:center;justify-content:center;width:1.8em;height:1.8em;min-width:1.8em;min-height:1.8em;box-sizing:border-box;text-align:center;vertical-align:middle;margin:0 1px;font-weight:bold;color:#333;font-size:inherit !important;line-height:1;}
 .square-box{border:1.5px solid #333;}
 .math-circle-blank-18{border:1.5px solid #333;border-radius:50%;}
+/* 作图区 draw-area：学生作图用虚线框作答区（物理示意/光路/电路、数学画图等；最小渲染 2026-09——
+   供 2k 作图题定向补区产物与模型自出 div.draw-area 渲染；高度优先内联 min-height（Word 端虚线段落同视觉）） */
+.draw-area{display:block;box-sizing:border-box;min-height:30mm;border:1.2px dashed #999;border-radius:3px;margin:2px 0;padding:1mm 2mm;}
 `;
 
 export default CARRIER_CSS;

@@ -1883,6 +1883,22 @@ const processBlockNode = (node, ctx = {}) => {
 
   // ===== 装饰容器 div / blockquote / section / figcaption → 透传子节点 + 继承装饰 =====
   if (['div', 'section', 'figure', 'figcaption', 'article'].includes(tag)) {
+    // 🔧 作图区空盒（draw-area）：学生作图用虚线框作答区；空盒不得丢弃（预览/编辑器 CSS 有高度，
+    //    Word 须等高保留 + 虚线边框段落）——2k 作图题定向补区产物形态；含文字时走下方通用 div 段落路径
+    if (cls.contains('draw-area') && !(node.textContent || '').trim()) {
+      const istyleDa = node.getAttribute?.('style') || '';
+      const hmDa = istyleDa.match(/(?:^|;)\s*(?:height|min-height)\s*:\s*([\d.]+)\s*(mm|px|pt)/i);
+      let spacingDa = { before: 60, after: 60 };
+      if (hmDa) {
+        const pxDa = hmDa[2] === 'mm' ? parseFloat(hmDa[1]) * 96 / 25.4 : hmDa[2] === 'px' ? parseFloat(hmDa[1]) : parseFloat(hmDa[1]) * 96 / 72;
+        spacingDa = { line: Math.max(240, Math.round(pxDa * 15)), lineRule: LineRuleType.EXACT };
+      }
+      const daParaOpts = { children: [new TextRun({ text: ' ', size: 20, font: 'Times New Roman' })], spacing: spacingDa };
+      const daDeco = readBlockDecorations(node);
+      if (daDeco.border) daParaOpts.border = daDeco.border;
+      children.push(new Paragraph(daParaOpts));
+      return children;
+    }
     // 🔧 卷面规范：答案区独立分节（Word 导出时正文与答案区拆分为两个分节，答案页独立编号从 1 起）。
     //    这里仅插入拆分哨兵交由 buildDocxFromDom 拆分；分节自然新起一页，无需再插 PageBreak。
     if (cls.contains('answer-section')) {

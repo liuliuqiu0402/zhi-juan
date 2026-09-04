@@ -1312,10 +1312,26 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (/用竖式计算|竖式计算|列竖式|竖式/.test(specText)) specNeeds = '竖式';
           else if (/画(?:出|一画).{0,8}?(?:线段|射线|直线|对称轴?|图形|示意|光路|电路)|示意图|光路图|电路图|作图|画一画|接着画|按规律(?:接着)?画/.test(specText)) specNeeds = '作图';
           else if (/填表|把表格|在表格(?:里|中)填|用表格(?:整理|表示|呈现)|整理成(?:统计|数位|记录|调查)?表|制作(?:统计|调查|记录|数位)表|补全(?:统计|数位|记录|调查)?表/.test(specText)) specNeeds = '填表';
+          if (specNeeds === '作图') {
+            // 已有作图区/方格纸 → 有作图空间，不打扰
+            if (/draw-area|square-grid/.test(segAll)) continue;
+            // 作图题确无任何作答载体 → 定向补虚线作图区（draw-area，高度按分值 30-70mm）。
+            //    与作文格补格同级的确定性兜底（渲染/编辑器/Word 三端已支持 draw-area，2026-09 排版端）
+            const mmH = Math.min(70, Math.max(30, Math.round(it.score * 5)));
+            const da = document.createElement('div');
+            da.className = 'draw-area';
+            da.setAttribute('style', `min-height:${mmH}mm;border:1.2px dashed #999999;box-sizing:border-box;`);
+            const ancDa = it.seg.length > 0 ? it.seg[it.seg.length - 1] : it.p;
+            ancDa.parentNode.insertBefore(da, ancDa.nextSibling);
+            fixed += 1;
+            fixedK += 1;
+            issues.push({ severity: 'info', type: 'answer-area', message: `已补作图区（draw-area，高${mmH}mm）：「${title.slice(0, 14)}」作图题无作答载体` });
+            continue;
+          }
+          if (specNeeds === '填表' && /<table/i.test(segAll)) continue;       // 已有作答表格 → 有空间，不打扰
           if (specNeeds) {
-            if (specNeeds === '填表' && /<table/i.test(segAll)) continue;       // 已有作答表格 → 有空间，不打扰
-            if (specNeeds === '作图' && /draw-area|square-grid/.test(segAll)) continue; // 已有作图区/方格纸
-            silentCount('answer-area', `「${stem.slice(0, 14)}…」属${specNeeds}题但题内无对应载体（${specNeeds === '竖式' ? '竖式书写区' : specNeeds === '作图' ? '作图空白区' : '表格'}），已跳过横线/空白补差（请抽检）`);
+            // 竖式/填表类无法确定性生成内容（竖式格行数/表格结构未知）→ 静默抽检交人工，不落错配补差
+            silentCount('answer-area', `「${stem.slice(0, 14)}…」属${specNeeds}题但题内无对应载体（${specNeeds === '竖式' ? '竖式书写区' : '表格'}），已跳过横线/空白补差（请抽检）`);
             continue;
           }
           const diff = Math.min(need - rows, 15);

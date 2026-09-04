@@ -38,6 +38,13 @@ describe('数学答题区导出', () => {
     const rows = (xml.match(/<w:tr\b/g) || []).length;
     expect(rows).toBe(3);
   });
+
+  it('作图区（draw-area 空盒）→ Word 保留高度（EXACT 行距 + 虚线边框段落），不因空内容丢弃', async () => {
+    const xml = await getDocumentXml('<p>1. 画出小球受力示意图。</p><div class="draw-area" style="min-height:40mm;border:1.2px dashed #999999;box-sizing:border-box;"></div>');
+    expect(xml).toMatch(/w:lineRule="exact"/);
+    expect(xml).toContain('<w:pBdr>');
+    expect(xml).toContain('w:val="dashed"');
+  });
 });
 
 describe('特殊下划线导出（double-line/wavy-underline 不被 ctx 覆盖为 single）', () => {

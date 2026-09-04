@@ -820,6 +820,31 @@ const BracketGrid = Node.create({
   renderHTML() { return ['div', { class: 'bracket-grid' }]; },
 });
 
+// 作图区：空 div（atom 不可编辑）——虚线框由 CSS 绘制（同 square-grid/bracket-grid 保留空盒往返；
+//  2k 作图题定向补区产物 <div class="draw-area" style="min-height:Xmm;…">，style 需保留高度）
+const DrawArea = Node.create({
+  name: 'drawArea',
+  priority: 150,
+  group: 'block',
+  atom: true,
+  selectable: false,
+  parseHTML() { return [{ tag: 'div.draw-area' }]; },
+  renderHTML({ HTMLAttributes }) {
+    const attrs = { class: 'draw-area' };
+    if (HTMLAttributes.daStyle) attrs.style = HTMLAttributes.daStyle;
+    return ['div', attrs];
+  },
+  addAttributes() {
+    return {
+      daStyle: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('style') || null,
+        renderHTML: (a) => (a.daStyle ? { style: a.daStyle } : {}),
+      },
+    };
+  },
+});
+
 import Paragraph from '@tiptap/extension-paragraph';
 import Heading from '@tiptap/extension-heading';
 
@@ -1131,6 +1156,7 @@ const editor = useEditor({
     SealLineDiv,
     SquareGrid,
     BracketGrid,
+    DrawArea,
     DivWrapper,
   ],
   onUpdate: ({ editor }) => {
