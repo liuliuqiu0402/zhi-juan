@@ -99,7 +99,7 @@ describe('normalizeMathCircleBlanks 算式占位兜底（模型写空格/下划�
 
   it('文本空位不受影响（我的发现：＿＿＿。两侧为汉字/句号 → 保持空白横线）', () => {
     const out = chain('<p>我的发现：' + '　'.repeat(8) + '。</p>');
-    expect(out).toContain('<u class="blank-16">&emsp;</u>');
+    expect(out).toContain('<u class="blank-8">&emsp;</u>');
     expect(out).not.toContain('square-box');
   });
 

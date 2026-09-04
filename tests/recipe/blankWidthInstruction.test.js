@@ -14,8 +14,8 @@ describe('buildBlankWidthInstruction（换算口径随 BLANK 动态生成）', (
     const s = buildBlankWidthInstruction();
     expect(s).toContain('书写空间按照答案的长度倒推');
     expect(s).toContain('每一长度对应一个字位');
-    expect(s).toContain('1 个全角空格≈1 个字位≈2 em');
-    expect(s).toContain('8 字位');
+    expect(s).toContain('1 个全角空格≈1 个字位≈1 em');
+    expect(s).toContain('16 字位');
     expect(s).toContain('16 em');
     // 主句无形态诱导词（主句 = 冒号前段 + 换算括号外部分）
     expect(s).not.toMatch(/横线|括号|下划线|＿|□|blank-\d/);
@@ -27,8 +27,8 @@ describe('buildBlankWidthInstruction（换算口径随 BLANK 动态生成）', (
     expect(s).toContain('5 字位'); // floor(15/3)
     expect(s).toContain('15 em');
     const s2 = buildBlankWidthInstruction({ ...BLANK, maxCap: 8 });
-    expect(s2).toContain('4 字位'); // floor(8/2)
-    expect(s2).not.toContain('8 字位');
+    expect(s2).toContain('8 字位'); // floor(8/1)
+    expect(s2).not.toContain('4 字位');
   });
 
   it('只讲宽度换算，无形态诱导词', () => {
@@ -36,11 +36,11 @@ describe('buildBlankWidthInstruction（换算口径随 BLANK 动态生成）', (
     expect(s).not.toMatch(FORM_WORDS);
   });
 
-  it('与归一链换算口径一致：N em = 空格数 × wordGap（2 全角空格 → blank-4 → 4 em）', () => {
+  it('与归一链换算口径一致：N em = 字位数 × wordGap（默认 1 字位 ≈ 1 em，不翻倍）', () => {
     const per = BLANK.wordGap;
     const s = buildBlankWidthInstruction();
     // 1 空格→1 字位→per em 是换算句的承诺，须与 BLANK 定义一致
     expect(s).toContain(`≈${per} em`);
-    expect(BLANK.maxCap / per).toBeGreaterThanOrEqual(8); // 8 字位封顶来自 maxCap 16 ÷ wordGap 2
+    expect(BLANK.maxCap / per).toBeGreaterThanOrEqual(8); // 16 字位封顶 = maxCap 16 ÷ wordGap 1
   });
 });

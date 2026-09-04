@@ -475,9 +475,11 @@ const buildTextRuns = (node, styleOverride = {}) => {
     if (tag === 'u' && ![...cls].some(c => /^blank-\d+$/.test(c)) && !cls.contains('blank-line')) {
       const { raw } = extractGridContent(child);
       if (raw && /^[\s\u3000\u00A0\u2003\u2002]*$/.test(raw) && (raw.match(/\u3000/g) || []).length >= 2) {
-        // 宽度 = 实际空白宽 ×2（1 字≈2 格，与正文层 blankWidthForChars 同源），档位经 clampBlankToSpec（读规格库，不写死 16）
+        // 宽度 = 实际空白宽 × wordGap（1 字位≈wordGap em，读规格库 BLANK.wordGap；
+        //   与正文层 blankWidthForChars 同源，wordGap=1 时不再 ×2），档位经 clampBlankToSpec（读规格库，不写死 16）
         const emW = whitespaceEmWidth(raw);
-        runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw, nFromClass: clampBlankToSpec(emW * 2), color: '333333' });
+        const blankWordGap = (getMergedSpec().BLANK || {}).wordGap ?? 1;
+        runs.push({ __blankLineTab: true, size: ctx.size || readFontSizeHp(child), raw, nFromClass: clampBlankToSpec(emW * blankWordGap), color: '333333' });
         return;
       }
     }

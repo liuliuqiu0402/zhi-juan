@@ -210,23 +210,23 @@ export function countTopLevelQuestions(html = '') {
 // ── 填空宽度换算（唯一事实源 = 排版规格库 layoutSpec.BLANK）
 //    callAI 层 convertBlankFormat（useAiGenerator）与正文层 normalizeBlankMarkers 共用本组函数，
 //    消除"两套宽度梯形/规格并存、排版规格对 callAI 层不生效"的双轨漂移；参数演进只改 layoutSpec.BLANK。──
-const BLANK_SPEC = () => getMergedSpec().BLANK || { maxCap: 16, wordGap: 2, minBlank: 2 };
+const BLANK_SPEC = () => getMergedSpec().BLANK || { maxCap: 16, wordGap: 1, minBlank: 2 };
 /** 宽度封顶/下限：规格 BLANK.maxCap / minBlank（超长横线交由"行尾自动延伸"，不无限加宽） */
 export const clampBlankWidth = (n) => {
   const { maxCap, minBlank } = BLANK_SPEC();
   return Math.min(maxCap, Math.max(minBlank, Math.round(n)));
 };
-/** 字宽 → 宽度：正文书写横线/裸下划线换算（1 字 ≈ wordGap 格；＿ 计数按字宽计） */
+/** 字宽 → 宽度：正文书写横线/裸下划线换算（1 字位 ≈ wordGap em；＿ 计数按字位计） */
 export const blankWidthForChars = (chars) => {
   const { wordGap } = BLANK_SPEC();
   return clampBlankWidth(chars * wordGap);
 };
-/** 括号填空·下划线空位 → 宽度档：下划线即"字位"标记（1 ＿≈1 字），按 1字≈wordGap 格换算
- *  🔧 2026-09 全局一致性：曾用 1:1 梯形（≤3→2…），与裸下划线（blankWidthForChars 字×2）口径不同——
+/** 括号填空·下划线空位 → 宽度档：下划线即"字位"标记（1 ＿≈1 字位），按 1字位≈wordGap em 换算
+ *  🔧 2026-09 全局一致性：曾用 1:1 梯形（≤3→2…），与裸下划线（blankWidthForChars 字×wordGap）口径不同——
  *     （＿＿＿＿）4字位只得 4em（半宽）、2~3 条一律 2em → "括号内答案写不下/时宽时窄"；
  *     现收敛为与裸 ＿/u 空白同一换算（blankWidthForChars），任何写法产物一致 */
 export const shortBlankWidth = (underscores) => blankWidthForChars(underscores);
-/** 括号填空·纯空白空位 → 宽度档：1 字位 ≈ 1em 空白（与 <u>空白</u> 同口径：字位=空格数），按 1字≈2格 换算
+/** 括号填空·纯空白空位 → 宽度档：1 字位 ≈ 1em 空白（与 <u>空白</u> 同口径：字位=空格数），按 1字位≈wordGap em 换算
  *  🔧 2026-09 全局一致性：曾用非线性梯形（≤2→4 / ≤4→6 / >6→10 封顶），7~24 个空格的括号空位
  *     全被压成同一 10em → "都一样宽"；现线性：N = 字位×wordGap，宽窄随空白数量单调 */
 export const spaceBlankWidth = (emWidth) => blankWidthForChars(emWidth);
@@ -359,16 +359,18 @@ export function normalizeBlankMarkers(html = '') {
   });
   // 🔧 无 class 裸 <u> 空白横线（全角空格/空白实体填充——AI 常见裸输出形态，countBlanks 同源识别 BARE_U_BLANK_RE）：
   //    归一为 u.blank-N（段落末尾自动延伸/非末尾定宽，与导出端 ptab 兜底一致）；
-  //    宽度按空白宽度×2（1 字≈2 格，与 ＿ 规则同源），长度≥2 才归一（单个空格/空白不构成书写横线）
+  //    宽度按 blankWidthForChars（1 字位≈wordGap em；wordGap=1 时 1 空格≈1em，不翻倍），
+  //    与 ＿ 规则同源；长度≥2 才归一（单个空格/空白不构成书写横线）
   out = out.replace(/<u(?![^>]*class=)[^>]*>\s*(?:[　\u3000 _]|&emsp;){2,24}\s*<\/u>/gi, (m) => {
     const len = (m.match(/\u3000/g) || []).length + (m.match(/[ _]/g) || []).length + (m.match(/&emsp;/gi) || []).length;
     return `<u class="blank-${blankWidthForChars(len)}">&emsp;</u>`;
   });
-  // 下划线（半角/全角混合）→ 填空横线：半角 _ 按 0.5 字计（视觉半宽），≥2 个即构成书写横线——
-  //   曾只匹配全角 ＿，ASCII "__"（模型常用短空）会漏成裸下划线
+  // 下划线（半角/全角混合）→ 填空横线：半角 _ 按 0.5 字位计（视觉半宽），≥2 个即构成书写横线——
+  //   曾只匹配全角 ＿，ASCII "__"（模型常用短空）会漏成裸下划线；
+  //   宽度按 blankWidthForChars（字位数×wordGap；wordGap=1 时 1 ＿≈1em，不再 ×2 放大）
   out = out.replace(/(?:＿|_){2,}/g, (m) => {
     const em = (m.match(/＿/g) || []).length + (m.match(/_/g) || []).length * 0.5;
-    return `<u class="blank-${clampBlankWidth(Math.round(em * 2))}">&emsp;</u>`;
+    return `<u class="blank-${blankWidthForChars(em)}">&emsp;</u>`;
   });
   // 🔧 括号填空归一（正文主路径曾缺失：模型输出 ((　　)) / （＿ ＿） 被原样保留 → 卷面双括号）
   //    ① 括号+下划线组合（可双层括号）→ <span class="blank-N">&emsp;</span>
@@ -410,7 +412,7 @@ export function normalizeBlankMarkers(html = '') {
   // 🔧 行内裸全角空格（前有正文）→ u.blank-N：块级规则（上方）只覆盖"整段纯空白"，
   //    行内形态如 "口诀：　　　　　　。" "读作：…，乘数是( )" 的空白段此前漏判 →
   //    导出 Word 只剩空白无书写线（载体验证也因无载体判为无效/剥离）。
-  //    与块级同口径：长度×wordGap（1 空格≈1 字位≈2em，blankWidthForChars）；
+  //    与块级同口径：长度×wordGap（1 空格≈1 字位≈wordGap em，blankWidthForChars；默认 1 即 1em）；
   //    段首守卫：自最近标签闭合（>）后无正文（含文档开头/行首缩进/标签后直接空格）不转，
   //    防把排版缩进当成作答位；位于已归一载体/括号/块级产物（&emsp;）之后执行，幂等不重复处理。
   out = out.replace(/\u3000{2,}/g, (m, off, all) => {

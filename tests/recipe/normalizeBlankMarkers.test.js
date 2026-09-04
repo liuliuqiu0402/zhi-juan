@@ -4,12 +4,12 @@ import { describe, it, expect } from 'vitest';
 import { normalizeBlankMarkers, ensureCarrierContent } from '@/utils/contentCleaner.js';
 
 describe('normalizeBlankMarkers（后处理排版兜底）', () => {
-  it('<u>＿N＿</u> 转 blank-N 宽度横线（1字≈2格）', () => {
-    expect(normalizeBlankMarkers('<u>＿＿＿</u>')).toBe('<u class="blank-6">&emsp;</u>');
+  it('<u>＿N＿</u> 转 blank-N 宽度横线（1字位≈1em，不翻倍）', () => {
+    expect(normalizeBlankMarkers('<u>＿＿＿</u>')).toBe('<u class="blank-3">&emsp;</u>');
   });
 
   it('纯文本 ＿N 个转 blank-N（2≤N≤24）', () => {
-    expect(normalizeBlankMarkers('＿＿＿＿')).toBe('<u class="blank-8">&emsp;</u>');
+    expect(normalizeBlankMarkers('＿＿＿＿')).toBe('<u class="blank-4">&emsp;</u>');
   });
 
   it('超长横线上限 16 格（超出页内边距的横线禁用，长答案走行尾自动延伸）', () => {
@@ -27,12 +27,12 @@ describe('normalizeBlankMarkers（后处理排版兜底）', () => {
   });
 
   it('裸全角空格写作答题行保留 <p> 外壳（行尾 flex 延伸依赖它；拆裸 <u> 会塌缩）', () => {
-    expect(normalizeBlankMarkers('<p>　　　　　　</p>')).toBe('<p><u class="blank-12">&emsp;</u></p>');
+    expect(normalizeBlankMarkers('<p>　　　　　　</p>')).toBe('<p><u class="blank-6">&emsp;</u></p>');
   });
 
   it('裸全角空格留空在 div/li 中外壳同样保留', () => {
-    expect(normalizeBlankMarkers('<div>　　　　　　</div>')).toBe('<div><u class="blank-12">&emsp;</u></div>');
-    expect(normalizeBlankMarkers('<li>　　　　　　</li>')).toBe('<li><u class="blank-12">&emsp;</u></li>');
+    expect(normalizeBlankMarkers('<div>　　　　　　</div>')).toBe('<div><u class="blank-6">&emsp;</u></div>');
+    expect(normalizeBlankMarkers('<li>　　　　　　</li>')).toBe('<li><u class="blank-6">&emsp;</u></li>');
   });
 
   it('单全角空格排版分隔不误转（≥2 才构成书写横线）', () => {
@@ -40,8 +40,8 @@ describe('normalizeBlankMarkers（后处理排版兜底）', () => {
   });
 
   it('行内裸全角空格（口诀/读作等前有正文后有标点）→ u.blank-N，导出 Word 有书写线', () => {
-    expect(normalizeBlankMarkers('口诀：　　　　　　。')).toBe('口诀：<u class="blank-12">&emsp;</u>。');
-    expect(normalizeBlankMarkers('他今年　　岁。')).toBe('他今年<u class="blank-4">&emsp;</u>岁。');
+    expect(normalizeBlankMarkers('口诀：　　　　　　。')).toBe('口诀：<u class="blank-6">&emsp;</u>。');
+    expect(normalizeBlankMarkers('他今年　　岁。')).toBe('他今年<u class="blank-2">&emsp;</u>岁。');
   });
 
   it('行内裸全角空格超长同样封顶 blank-16（与块级/横线规则同上限）', () => {
@@ -78,7 +78,7 @@ describe('normalizeBlankMarkers 密封信息栏 ＿ 保护（C2 链序：＿ 不
 
   it('正文填空不受影响：无密封字段词的 ＿ 仍归一为填空横线', () => {
     expect(normalizeBlankMarkers('<p>1. 看拼音写词语：＿＿＿＿</p>')).toContain('<u class="blank-');
-    expect(normalizeBlankMarkers('＿＿＿＿')).toBe('<u class="blank-8">&emsp;</u>');
+    expect(normalizeBlankMarkers('＿＿＿＿')).toBe('<u class="blank-4">&emsp;</u>');
   });
 
   it('行内"姓名：＿＿"（非段首、非信息栏整条）不豁免 → 仍按正文填空归一', () => {
@@ -122,15 +122,15 @@ describe('ensureCarrierContent 空载体兜底填充（编辑器 ProseMirror 解
 
 describe('normalizeBlankMarkers 载体内数字实体解码（C3-C5：&#xFF08;&#x3000;&#x3000;&#xFF09; 与字面路径产物一致）', () => {
   it('实体括号空位（&#xFF08;&#x3000;&#x3000;&#xFF09;）→ span.blank-N（曾整条漏判）', () => {
-    expect(normalizeBlankMarkers('&#xFF08;&#x3000;&#x3000;&#xFF09;')).toBe('<span class="blank-4">&emsp;</span>');
+    expect(normalizeBlankMarkers('&#xFF08;&#x3000;&#x3000;&#xFF09;')).toBe('<span class="blank-2">&emsp;</span>');
   });
 
-  it('实体下划线（&#95;&#95;&#95;&#95;）→ u.blank-N（半角 _ 按 0.5 字计）', () => {
-    expect(normalizeBlankMarkers('&#95;&#95;&#95;&#95;')).toBe('<u class="blank-4">&emsp;</u>');
+  it('实体下划线（&#95;&#95;&#95;&#95;）→ u.blank-N（半角 _ 按 0.5 字位计：4×0.5=2 字位→2em）', () => {
+    expect(normalizeBlankMarkers('&#95;&#95;&#95;&#95;')).toBe('<u class="blank-2">&emsp;</u>');
   });
 
-  it('实体全角空格块（&#x3000;×6 独立段落）→ 整行填空横线（与字面 6 全角路径同档 blank-12）', () => {
-    expect(normalizeBlankMarkers('<p>&#x3000;&#x3000;&#x3000;&#x3000;&#x3000;&#x3000;</p>')).toBe('<p><u class="blank-12">&emsp;</u></p>');
+  it('实体全角空格块（&#x3000;×6 独立段落）→ 整行填空横线（与字面 6 全角路径同档 blank-6）', () => {
+    expect(normalizeBlankMarkers('<p>&#x3000;&#x3000;&#x3000;&#x3000;&#x3000;&#x3000;</p>')).toBe('<p><u class="blank-6">&emsp;</u></p>');
   });
 
   it('实体形态密封信息栏同样保护（解码后仍还原为 ＿）', () => {
@@ -141,6 +141,6 @@ describe('normalizeBlankMarkers 载体内数字实体解码（C3-C5：&#xFF08;&#
   });
 
   it('结构实体不解码（&lt;/&gt;/&amp; 原样保留，防注入）', () => {
-    expect(normalizeBlankMarkers('&lt;u&gt;＿＿＿&lt;/u&gt;')).toBe('&lt;u&gt;<u class="blank-6">&emsp;</u>&lt;/u&gt;');
+    expect(normalizeBlankMarkers('&lt;u&gt;＿＿＿&lt;/u&gt;')).toBe('&lt;u&gt;<u class="blank-3">&emsp;</u>&lt;/u&gt;');
   });
 });

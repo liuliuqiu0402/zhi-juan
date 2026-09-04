@@ -4,8 +4,8 @@ import { normalizeBlankMarkers } from '../../src/utils/contentCleaner.js';
 describe('normalizeBlankMarkers 括号填空归一（正文主路径）', () => {
   it('双括号纯空白 ((　　)) → span，无外层括号（真实事故回归：卷面 ((　)) 双括号）', () => {
     const out = normalizeBlankMarkers('一((　　　　))海鸥');
-    // 4 字位空白 × wordGap(2) → blank-8（2026-09 线性口径：曾非线性梯形压成 6）
-    expect(out).toContain('<span class="blank-8">&emsp;</span>');
+    // 4 字位空白 × wordGap(1) → blank-4（2026-09 线性口径：曾非线性梯形压成 6 / wordGap 2 时翻倍成 8）
+    expect(out).toContain('<span class="blank-4">&emsp;</span>');
     expect(out).not.toMatch(/\(<span class="blank/);
     expect(out).not.toContain('((');
     expect(out).not.toContain('))');
@@ -13,7 +13,7 @@ describe('normalizeBlankMarkers 括号填空归一（正文主路径）', () => 
 
   it('单括号纯空白 （　　） → span（无外层括号）', () => {
     const out = normalizeBlankMarkers('（1）（　　　　）');
-    expect(out).toContain('<span class="blank-8">&emsp;</span>');
+    expect(out).toContain('<span class="blank-4">&emsp;</span>');
     expect(out).not.toMatch(/\(<span class="blank/);
   });
 
@@ -54,14 +54,14 @@ describe('normalizeBlankMarkers 无 class 裸 u 空白横线归一（AI 裸输�
     expect(out).not.toContain('　'.repeat(40));
   });
 
-  it('短空白 <u>（4个全角空格）→ blank-8（1字≈2格）', () => {
+  it('短空白 <u>（4个全角空格）→ blank-4（1字位≈1em）', () => {
     const out = normalizeBlankMarkers('<p>读短文。<u>' + '　'.repeat(4) + '</u></p>');
-    expect(out).toContain('<u class="blank-8">&emsp;</u>');
+    expect(out).toContain('<u class="blank-4">&emsp;</u>');
   });
 
-  it('2 个全角空格 <u> → blank-4（宽度下限内按 1字≈2格）', () => {
+  it('2 个全角空格 <u> → blank-2（宽度下限内按 1字位≈1em）', () => {
     const out = normalizeBlankMarkers('<p>读短文。<u>　　</u></p>');
-    expect(out).toContain('<u class="blank-4">&emsp;</u>');
+    expect(out).toContain('<u class="blank-2">&emsp;</u>');
   });
 
   it('单个全角空格 <u> → 不归一（不构成书写横线，避免误伤强调场景）', () => {
@@ -83,14 +83,14 @@ describe('normalizeBlankMarkers 无 class 裸 u 空白横线归一（AI 裸输�
 });
 
 describe('normalizeBlankMarkers 裸全角空格留空归一（未包 u/括号，AI 裸输出形态）', () => {
-  it('<p> 内纯全角空格（10个，写作答题行）→ 包 u.blank-16（cap 上限，自动延伸）', () => {
+  it('<p> 内纯全角空格（10个，写作答题行）→ 包 u.blank-10（1字位≈1em；整行作答由排版端 .blank-solo 延伸）', () => {
     const out = normalizeBlankMarkers('<p>' + '　'.repeat(10) + '</p>');
-    expect(out).toContain('<u class="blank-16">&emsp;</u>');
+    expect(out).toContain('<u class="blank-10">&emsp;</u>');
   });
 
-  it('<div> 内纯全角空格（6个）→ 包 u.blank-12（1字≈2格）', () => {
+  it('<div> 内纯全角空格（6个）→ 包 u.blank-6（1字位≈1em）', () => {
     const out = normalizeBlankMarkers('<div>' + '　'.repeat(6) + '</div>');
-    expect(out).toContain('<u class="blank-12">&emsp;</u>');
+    expect(out).toContain('<u class="blank-6">&emsp;</u>');
   });
 
   it('单个全角空格 <p>　</p> → 不处理（排版分隔，不构成留空）', () => {

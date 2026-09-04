@@ -47,13 +47,13 @@ export const ZUOWEN_MARK_STEP = {
 
 /**
  * 填空横线（blank-N）参数：
- *   maxCap：宽度上限指数（16 = 8 个汉字；答案通常 ≤8 字，超长用"行尾自动延伸"方案）
- *   wordGap：1 字 ≈ N 格（填空宽度与答案字数匹配，1 字 ≈ 2 格）
+ *   maxCap：宽度上限指数（16 = 16 字位 = 16em；答案通常 ≤16 字，超长用"行尾自动延伸"方案）
+ *   wordGap：1 字位 ≈ N em（字位与书写宽换算，1 字位 ≈ 1 em，不放大）
  *   minBlank / maxBlank：blank-{n} 合法区间（2 ≤ n ≤ 24）
  */
 export const BLANK = {
-  maxCap: 16,     // 🔴 宽度上限 16em（8 个汉字），超长会超出页内边距
-  wordGap: 2,     // 1 字 ≈ 2 格
+  maxCap: 16,     // 🔴 宽度上限 16em（16 字位），超长会超出页内边距
+  wordGap: 1,     // 1 字位 ≈ 1 em
   minBlank: 2,
   maxBlank: 24,
 };
@@ -224,9 +224,9 @@ export function buildCarrierInstruction(subject = '', stage = '') {
  */
 export function buildBlankWidthInstruction(spec = BLANK) {
   const b = sanitizeBlankSpec(spec);
-  const per = b.wordGap; // 1 字位 ≈ per em（书写放大系数，渲染端参数）
+  const per = b.wordGap; // 1 字位 ≈ per em（字位→书写宽换算系数，渲染端参数；默认 1:1 不放大）
   const capChars = Math.max(1, Math.floor(b.maxCap / per)); // 单处上限 ≈ maxCap em
-  const perText = Number.isInteger(per) ? String(per) : String(per);
+  const perText = String(per);
   return (
     `书写空间按照答案的长度倒推，每一长度对应一个字位；并按此换算` +
     `（1 个全角空格≈1 个字位≈${perText} em 书写宽；单处上限 ${capChars} 字位≈${b.maxCap} em，超长改用整行书写位）`
@@ -385,7 +385,7 @@ export const sanitizeBlankSpec = (b = {}) => {
   const minBlank = Math.min(24, Math.max(1, Math.round(Number(b.minBlank) || 2)));
   const maxBlank = Math.min(24, Math.max(minBlank, Math.round(Number(b.maxBlank) || 24)));
   const maxCap = Math.min(maxBlank, Math.max(minBlank, Math.round(Number(b.maxCap) || 16)));
-  const wordGap = Math.min(4, Math.max(1, Number(b.wordGap) || 2));
+  const wordGap = Math.min(4, Math.max(1, Number(b.wordGap) || 1));
   return { minBlank, maxBlank, maxCap, wordGap };
 };
 
