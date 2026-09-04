@@ -1457,9 +1457,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     // 3b. 答案区内容（answer-coverage-guard：静默）
     const ansMatch = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>([\s\S]*)$/i);
     if (ansMatch) {
-      const ansText = stripTags(ansMatch[1]);
+      // 🔧 题号计数口径：按块级标签闭合强制补换行后再剥标签（计数不依赖模型输出文本自带的 \n——
+      //    曾正文模型带换行、答案页模型不带 → stripTags 后行首数字正则只命中首行，误报"答案区题号数(0)"；
+      //    <p>/<li>/<h1-6>/<div> 闭合处补 \n，正文与答案区同一口径逐块计数）
+      const blockToLines = (s) => String(s).replace(/<\/(?:p|li|h[1-6]|div|tr)>/gi, '\n');
+      const ansText = stripTags(blockToLines(ansMatch[1]));
       if (has('answer-coverage-guard')) {
-        const bodyTextRaw = stripTags(out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0]);
+        const bodyTextRaw = stripTags(blockToLines(out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0]));
         // 剔除"目标类板块"（学习目标/预习目标/复习目标/教学目标：标题至下一标题间的目标条目——不是题，
         // 答案区无对应，误统计会使 preview/review/summary 类资料误报"答案区题号少于正文"）
         const bodyText = bodyTextRaw.replace(/\n[一二三四五六七八九十]+\、\s*(?:学习|预习|复习|教学)目标[\s\S]*?(?=\n[一二三四五六七八九十]+\、|$)/g, '');

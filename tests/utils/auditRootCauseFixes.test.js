@@ -468,3 +468,19 @@ describe('根治回归：载体声明→输出一致性（题干明确声明载�
     expect(silentDetails.some(d => d.type === 'writing-grid' && d.message.includes('tian-zi-ge'))).toBe(false);
   });
 });
+
+describe('根治回归：答案区题号覆盖度按块级行计数（不依赖模型输出自带换行）', () => {
+  const singleLine = `<h1>表内乘法</h1><p>1. 一（8分）</p><p>2. 二（8分）</p><p>3. 三（8分）</p><p>4. 四（8分）</p><p>5. 五（8分）</p><div class="answer-section"><h2>参考答案与解析</h2><p>1. 答案</p><p>2. 答案</p><p>3. 答案</p><p>4. 答案</p><p>5. 答案</p></div>`;
+
+  it('正文与答案区均无原始换行（单行 HTML）→ 题号 5=5，不再误报"答案区题号数(0)"', () => {
+    const { silentDetails } = auditExamPaper(singleLine, { subject: '数学', stage: 'primary_low', genType: 'practice' });
+    expect(silentDetails.some(d => d.type === 'answer-coverage' && d.message.includes('答案区题号数'))).toBe(false);
+  });
+
+  it('答案区确缺题号时仍会告警（防护不失效：正文 5 题、答案区仅 2 题）', () => {
+    const poor = singleLine.replace(/<p>3\. 答案<\/p><p>4\. 答案<\/p><p>5\. 答案<\/p>/, '');
+    const { silentDetails } = auditExamPaper(poor, { subject: '数学', stage: 'primary_low', genType: 'practice' });
+    const d = silentDetails.find(x => x.type === 'answer-coverage' && x.message.includes('答案区题号数'));
+    expect(d).toBeTruthy();
+  });
+});
