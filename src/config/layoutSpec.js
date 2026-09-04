@@ -215,21 +215,20 @@ export function buildCarrierInstruction(subject = '', stage = '') {
 
 /**
  * 填空留白换算口径（注入给模型的语义句）
- *  🔴 单一事实源：字位宽（wordGap em/字位）与上限由 BLANK 计算，规格调整后本句自动跟随；
- *  🔴 不引导主句（2026-09 收敛）：主句不点名任何载体形态词，只讲"答案长度↔字位"——
- *     曾点名"对应一个空格"→ 算式填空也被模型统一写成空格、不再用 □（诱导实证）；
- *     换算括号保留"全角空格≈字位≈em"作为可执行的计数锚（用户口径：仅换算锚点，不作形态引导）；
- *     算式填空的形式收口由渲染端兜底（normalizeMathCircleBlanks：算式语境占位→单个方框）。
+ *  🔴 单一事实源：字位宽（wordGap em/字位）由 BLANK 计算，规格调整后本句自动跟随；
+ *  🔴 不引导主句（2026-09 收敛）：主句不点名任何载体形态词，只讲"书写惯例"与"答案长度↔字位"——
+ *     "按书写惯例"把作答载体样式交模型语感，不诱导横线/括号；换算括号仅保留
+ *     "全角空格≈字位≈em"作可执行计数锚（用户口径：仅换算锚点，不作形态引导）；
+ *     不再注入"单处上限/超长改用整行书写位"（曾使模型对句末短答倾向独立整行书写位）。
  * 消费方：promptLibrary QUESTION_FORMAT（题为主类型统一注入；内容型不注入）
  */
 export function buildBlankWidthInstruction(spec = BLANK) {
   const b = sanitizeBlankSpec(spec);
   const per = b.wordGap; // 1 字位 ≈ per em（字位→书写宽换算系数，渲染端参数；默认 1:1 不放大）
-  const capChars = Math.max(1, Math.floor(b.maxCap / per)); // 单处上限 ≈ maxCap em
   const perText = String(per);
   return (
-    `书写空间按照答案的长度倒推，每一长度对应一个字位；并按此换算` +
-    `（1 个全角空格≈1 个字位≈${perText} em 书写宽；单处上限 ${capChars} 字位≈${b.maxCap} em，超长改用整行书写位）`
+    `按书写惯例输出对应作答书写载体，书写空间按照答案的长度倒推，每一长度对应一个字位；并按此换算` +
+    `（1 个全角空格≈1 个字位≈${perText} em 书写宽）`
   );
 }
 
