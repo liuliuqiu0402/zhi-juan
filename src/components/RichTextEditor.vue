@@ -829,9 +829,11 @@ const DrawArea = Node.create({
   atom: true,
   selectable: false,
   parseHTML() { return [{ tag: 'div.draw-area' }]; },
-  renderHTML({ HTMLAttributes }) {
+  renderHTML({ node }) {
     const attrs = { class: 'draw-area' };
-    if (HTMLAttributes.daStyle) attrs.style = HTMLAttributes.daStyle;
+    // 🔧 Tiptap v3：自定义 attr 需 rendered:false 免默认直出；style 在此手动合并（同 CustomDiv 模式，
+    //    曾读 HTMLAttributes.daStyle → 恒 undefined → 往返丢 style，作图区高度塌缩，2026-09 实测）
+    if (node.attrs.daStyle) attrs.style = node.attrs.daStyle;
     return ['div', attrs];
   },
   addAttributes() {
@@ -839,7 +841,7 @@ const DrawArea = Node.create({
       daStyle: {
         default: null,
         parseHTML: (el) => el.getAttribute('style') || null,
-        renderHTML: (a) => (a.daStyle ? { style: a.daStyle } : {}),
+        rendered: false,
       },
     };
   },
