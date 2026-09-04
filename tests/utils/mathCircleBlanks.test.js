@@ -65,6 +65,12 @@ describe('normalizeMathCircleBlanks 方框 □ 对称归一（C6：算式语境 
     );
   });
 
+  it('算式表示式首个 □（左侧为中文标点/叙述边界）不漏转（C6 补盲：左侧不再强制数学项）', () => {
+    expect(normalizeMathCircleBlanks('<p>（3）用乘法算式表示：□×□＝12（人）</p>')).toBe(
+      '<p>（3）用乘法算式表示：<span class="square-box">&nbsp;</span>×<span class="square-box">&nbsp;</span>＝12（人）</p>'
+    );
+  });
+
   it('数字实体形态（&#x25A1;）先解码再转换（实体解码在 blank 归一入口，与字面路径产物一致）', () => {
     // 生成端链：normalizeBlankMarkers（入口解码数字实体）→ normalizeMathCircleBlanks
     expect(normalizeMathCircleBlanks(normalizeBlankMarkers('<p>3＋&#x25A1;＝8</p>'))).toBe('<p>3＋<span class="square-box">&nbsp;</span>＝8</p>');
