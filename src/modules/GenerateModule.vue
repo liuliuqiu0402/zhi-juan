@@ -2949,6 +2949,7 @@ import { useTemplateStore } from '../stores/templateStore.js';
 import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
 import { findBlueprint } from '../config/blueprintProvider.js';
 import { getPromptTemplate, buildInjectionInstruction, buildStructureText, buildOutputFormatHint, getCurriculumLabel } from '../config/promptLibrary.js';
+import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
 import { buildTeachingInjection } from '../config/teachingBlueprints.js';
@@ -2960,6 +2961,7 @@ import { stripXss, stripAiCodeFence, markSoloBlankLines, wrapBareBlankRuns } fro
 import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
 import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实体解码唯一实现（曾本地 esc/escGraph 及 data-raw 解码链副本）
 import { STORAGE_KEYS } from '../constants/storageKeys.js';  // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
+import { annotateInstructionBlocks } from '../utils/instructionBlocks.js';  // 指令来源分段标注（旁路：块区间↔{库,key}，不参与拼装）
 
 defineOptions({ name: 'GenerateModule' });
 
@@ -4220,6 +4222,9 @@ let userEditedInstruction = false;
 // 🔴 指令来源记录（注入框展示：来自指令库哪条模板、按什么维度匹配）
 const instructionSource = ref(null);
 const injectSources = ref([]); // 本次注入来源清单（指令库/蓝图库/渲染契约/规则库）——面板可视化"读取应用了哪些库"
+// 🔴 指令来源分段标注（MVP 批1）：组装后由 annotateInstructionBlocks 填充 偏移区间↔{库,key} 块；
+//    只读旁路（不参与拼装）；用户手动编辑指令后置空（watch 联动，见下），UI 据此提示"标注已失效"
+const instructionBlocks = ref([]);
 // 🔴 学段显示名（原 planner 导出，planner 已删除，本地定义）
 const STAGE_LABEL_MAP = {
   primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段',
@@ -4230,6 +4235,9 @@ watch(instructionDraft, (val) => {
     if (val) localStorage.setItem(DRAFT_STORAGE_KEY, val);
     else localStorage.removeItem(DRAFT_STORAGE_KEY);
   } catch {}
+  // 🔴 分段标注联动：自动组装（userEditedInstruction=false）由组装函数即时重算；
+  //    用户手动敲字（置位 true）→ 文本已偏离来源 → 标注清空（UI 显示"已手动修改，来源标注失效"）
+  if (userEditedInstruction && instructionBlocks.value.length) instructionBlocks.value = [];
 });
 const previewHint = ref('');
 const analysisResult = ref(null);
@@ -5806,6 +5814,8 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     fullScore,
     duration,
   });
+  // 🔴 模板正文段文本缓存（分段标注用：在后续追加渲染契约/规则/蓝本段之前取前缀）
+  const tplBodyText = instructionDraft.value;
   // 🔴 渲染指令契约（EduRender）按 学段×学科×类型×是否配图 三维度+注入——功能闭合：
   //    图形学科给 [GRAPH]（按学段裁剪：低段数学无函数/几何、物理化学仅中学）、
   //    数理化学科按学段给公式、配图类题型给 [IMAGE]（EduRender 可渲染）
@@ -5822,19 +5832,22 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   //    无重复注入）；非 exam 附加教辅结构蓝本（栏目框架 + 题量/字数底线，按 学段×类型 三维度）；
   //    模板正文已自带【输出格式】，用户自定义模板可能缺失 → 去重兜底追加
   let blueprintDetail = '';
+  let teachingText = '';    // 教辅蓝本段（分段标注用）
+  let outputHintText = '';  // 【输出格式】兜底段（分段标注用）
   if (genType === 'exam') {
     if (bp) {
       blueprintDetail = `真题蓝本「${bp.label}」· ${bp.sections.length} 个大题（大题/分值/时长）`;
     }
   } else {
-    const teachingText = buildTeachingInjection({ genType, stage: stageKey, subject });
+    teachingText = buildTeachingInjection({ genType, stage: stageKey, subject }) || '';
     if (teachingText) {
       instructionDraft.value += teachingText;
       blueprintDetail = `教辅结构「${genTypeLabel}」· 栏目框架 + 题量底线`;
     }
     if (!instructionDraft.value.includes('【输出格式】')) {
       // 用户自定义模板缺失【输出格式】时兜底：书写载体条款按 学科×学段 注入；内容型走结构化格式（不注作答载体）
-      instructionDraft.value += buildOutputFormatHint({ subject, stage: stageKey, genType });
+      outputHintText = buildOutputFormatHint({ subject, stage: stageKey, genType }) || '';
+      if (outputHintText) instructionDraft.value += outputHintText;
     }
   }
   instructionSource.value = {
@@ -5848,6 +5861,24 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     ...(renderContractText ? [{ lib: '渲染契约库', name: '渲染指令', detail: '图形 / 公式 / 配图标记协议（按学科×学段）' }] : []),
     ...(validatorPromptText ? [{ lib: '规则库', name: '生成前约束', detail: `${countPromptHints(validatorPromptText)} 条 fix 规则` }] : []),
   ];
+  // 🔴 来源分段标注（旁路 MVP 批1）：用本函数手上已有的段文本在成品全文定位 偏移区间↔{库,key}；
+  //    不改 instructionDraft 任何内容（输出零变化）；换算行/协议行不命中（模板无此行）静默跳过
+  const tplKey = tpl.id || genType;
+  const carrierLine = buildCarrierInstruction(subject, stageKey);
+  instructionBlocks.value = annotateInstructionBlocks(instructionDraft.value, [
+    {
+      text: tplBodyText, lib: 'instruction', key: tplKey, name: tpl.name || tplKey,
+      fragments: [
+        { text: `· 作答书写载体：${buildBlankWidthInstruction()}`, lib: 'layout-spec', key: 'BLANK', name: '填空换算卡' },
+        ...(carrierLine ? [{ text: `· 书写载体协议：${carrierLine}`, lib: 'layout-spec', key: 'carrier-rules', name: '载体允许表卡' }] : []),
+        ...(structure ? [{ text: structure, lib: 'blueprint', key: `${subject}|${stageKey}`, name: genType === 'exam' ? '真题蓝本' : '卷面结构' }] : []),
+      ],
+    },
+    ...(renderContractText ? [{ text: renderContractText, lib: 'render-contract', key: subject, name: '渲染指令' }] : []),
+    ...(validatorPromptText ? [{ text: validatorPromptText, lib: 'rules', key: null, name: '生成前约束' }] : []),
+    ...(teachingText ? [{ text: teachingText, lib: 'blueprint', key: `${subject}|${genType}`, name: '教辅结构' }] : []),
+    ...(outputHintText ? [{ text: outputHintText, lib: 'instruction', key: tplKey, name: '输出格式兜底' }] : []),
+  ]).blocks;
   previewHint.value = `注入指令来自指令库「${instructionSource.value.name}」，按 ${stageKey} × ${subject} × ${genType} 匹配${tpl.source === 'user' ? '（用户自定义）' : '（内置模板）'}。命题依据：${getCurriculumLabel(stageKey)}（教育部发布新课标后需人工更新，见指令库「课标版本」说明）。长期修改请到「指令库」面板编辑保存。`;
 };
 
