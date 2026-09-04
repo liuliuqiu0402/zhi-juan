@@ -491,7 +491,7 @@ import { PAPER_PRESETS } from '../config/paperPresets.js';
 import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js'; // 作文格/书写格尺寸按学段（排版规格库）
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
-import { stripAiCodeFence, normalizeLeadingMarkers, normalizeMathCircleBlanks } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离 + 行首"项目符号+序号"归一（与 GenerateModule 共用，防同构副本各自演化）
+import { stripAiCodeFence, normalizeLeadingMarkers, normalizeMathCircleBlanks, markSoloBlankLines } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离 + 行首"项目符号+序号"归一 + 排版"单独空行"整行延伸打标（与 GenerateModule 共用，防同构副本各自演化）
 import storage from '../utils/storage';
 import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
 
@@ -592,6 +592,12 @@ const persistCurrentEdits = async (content) => {
   // 🔧 剥离卷面固定件（注意事项/得分表）：固定件为渲染层注入，不写回生成记录，
   //    重新打开/导出时由 withExamShell/wrapContentForTheme 幂等重建
   content = String(content || '').replace(/<div class="exam-shell">[\s\S]*?<\/div>/gi, '');
+  // 🔧 剥离排版渲染标记类 blank-solo（单独空行延伸）：编辑器实时 DOM 打标仅供预览/导出
+  //    渲染，不属内容语义 → 不写回生成记录，重载后由编辑器渲染层按结构自动重建
+  content = content.replace(/class="([^"]*)"/g, (m, cls) => {
+    const clean = cls.split(/\s+/).filter((c) => c && c !== 'blank-solo').join(' ');
+    return clean ? `class="${clean}"` : '';
+  });
   if (!content) return;
   try {
     const saved = await storage.getItem(GEN_STORAGE_KEY).catch(() => null);
@@ -1176,13 +1182,17 @@ const exportDocument = async () => {
   //    内容含密封线特征时自动按 sealed_exam 包装（不依赖用户手动选主题）
   let previewContentForExport;
   if (isHtmlContent.value && pristineHtmlForExport.value) {
-    let wrapped = wrapContentForTheme(pristineHtmlForExport.value, effectiveThemeFor(pristineHtmlForExport.value));
+    // 🔧 排版端"单独空行"整行延伸打标：源码视图/粘贴直出（未过编辑器 DOM 打标）时按结构
+    //    识别"整段仅一条填空横线"→ 加 blank-solo，供 CARRIER_CSS flex 延伸；与 Word ptab 同口径。
+    //    （编辑器渲染视图路径的 DOM 已打标，本函数幂等不影响）
+    let exportSrc = markSoloBlankLines(pristineHtmlForExport.value);
+    let wrapped = wrapContentForTheme(exportSrc, effectiveThemeFor(exportSrc));
     // 🔧 卷型选择：普通卷剥离密封线结构（HTML/PDF 导出与 DOCX 口径一致，PDF 走默认页边距）
     if (sealVariant.value === 'plain') {
       wrapped = stripSealStructure(wrapped);
       wrapped = wrapped.replace(/(答题前，请将)密封线内的(学校、班级、姓名、学号填写清楚。)/, '$1$2');
     }
-    previewContentForExport = applyThemeToContent(wrapped, effectiveThemeFor(pristineHtmlForExport.value), {
+    previewContentForExport = applyThemeToContent(wrapped, effectiveThemeFor(exportSrc), {
       isHtmlContent: true,
       forceImportant: true,
       stage: effStage.value // 作文格/书写格按文档学段

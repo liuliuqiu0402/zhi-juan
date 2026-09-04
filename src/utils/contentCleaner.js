@@ -252,6 +252,52 @@ export function ensureCarrierContent(html = '') {
 }
 
 /**
+ * 排版端"单独空行"字符串打标（HTML 直出/独立文档导出前调用；编辑器内由 RichTextEditor DOM 层同逻辑打标）
+ * ============================================================
+ * 识别"块级容器（p/div/li）内仅一条填空横线（u[class*=blank-N]）、无任何正文文字/其它元素"
+ * （模型整行留白作答线 → <p><u class="blank-N">&emsp;</u></p> 的形态）→ 给容器加 class="blank-solo"，
+ * 供 carrierCss `:is(p,div,li).blank-solo` 规则 flex 弹性延伸，与 Word ptab（docxBuilder runs.length===1
+ * 判定）口径一致。
+ * ⚠️ 带引导词的句末短填空（"读作：＿＿"）、句内短填空（前后有文本节点）不命中 → 保持定宽可编辑。
+ * 幂等：已带 blank-solo 或非"整段仅一条横线"结构不动；无 DOMParser 环境（Node 校验脚本）原样返回。
+ */
+export function markSoloBlankLines(html = '') {
+  const src = String(html || '');
+  if (!src || typeof DOMParser === 'undefined') return src;
+  if (!/<(p|div|li)\b[^>]*>\s*<u\b[^>]*class=["'][^"']*blank-\d+/i.test(src)) return src;
+  try {
+    const doc = new DOMParser().parseFromString(`<body>${src}</body>`, 'text/html');
+    const blocks = doc.body.querySelectorAll('p, div, li');
+    for (const b of blocks) {
+      // 嵌套容器（div 内含 p）跳过：只处理叶子块（与编辑器打标一致，避免误伤结构）
+      let hasBlockChild = false;
+      for (const c of b.childNodes) {
+        if (c.nodeType === 1 && ['P', 'DIV', 'LI', 'TABLE', 'UL', 'OL'].includes(c.tagName)) { hasBlockChild = true; break; }
+      }
+      if (hasBlockChild) continue;
+      let hasBlank = false;
+      let hasOther = false;
+      for (const n of b.childNodes) {
+        if (n.nodeType === 3) { // TEXT_NODE：非空即正文（含全角空格/NBSP），与 docxBuilder runs 对齐
+          if (n.textContent) hasOther = true;
+          continue;
+        }
+        if (n.nodeType !== 1) { hasOther = true; continue; }
+        const tag = n.tagName;
+        const cls = n.className || '';
+        if (tag === 'U' && /\bblank-\d+\b/.test(cls)) hasBlank = true;
+        else if (tag === 'BR') { /* 忽略 */ }
+        else hasOther = true;
+      }
+      if (hasBlank && !hasOther && !b.classList.contains('blank-solo')) b.classList.add('blank-solo');
+    }
+    return doc.body.innerHTML;
+  } catch (e) {
+    return src;
+  }
+}
+
+/**
  * 空白规范化（normalizeBlankMarkers）：后处理排版兜底——AI 输出为"一大段文本"时由代码补排版要素：
  *   1) <u>＿＿＿</u> / 纯文本 ＿N 个 → 带宽度等级的填空横线 blank-N（宽度换算唯一事实源 = blankWidthForChars）
  *   2) 空作文格 <div class="zuo-wen-ge"></div> → 补默认格

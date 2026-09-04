@@ -1145,7 +1145,10 @@ const editor = useEditor({
     updateDebounceTimer = setTimeout(() => {
       emit('content-change', lastEmittedHTML);
       isInternalUpdate = false;
-      nextTick(() => forceTianZiGeStyles());
+      nextTick(() => {
+        forceTianZiGeStyles();
+        applySoloBlankMarks();
+      });
     }, 150);
   },
   onSelectionUpdate: ({ editor }) => {
@@ -1773,6 +1776,8 @@ const trySetContent = () => {
   }
   if (processed !== editor.value.getHTML()) {
     editor.value.commands.setContent(processed, false);
+    // 🔧 内容装载/切换后按结构重建"单独空行"渲染标记（ProseMirror 重绘会清 class）
+    nextTick(() => applySoloBlankMarks());
   }
   pendingContent = null;
 };
@@ -1850,6 +1855,46 @@ const forceTianZiGeStyles = () => {
   });
 };
 
+// 🔑 排版端"单独空行"识别（纯渲染层标记，不进内容源）：
+//    整段仅一条填空横线（u[class*=blank-]）且无任何正文文字/其它元素（模型整行留白作答线形态）
+//    → 给所在段落打 .blank-solo 渲染类 → carrierCss p.blank-solo 规则 flex 弹性延伸（与 Word ptab 口径一致）。
+//    带引导词的句末短填空（"读作：＿＿"）、句内短填空不含标记 → 保持定宽可编辑，不受影响。
+//    ⚠️ 文本节点不算 :only-child 的元素兄弟，纯 CSS 无法区分"无文字段落"与"引导词+横线"段落，
+//    故在 DOM 渲染层用 childNodes 精确判定；编辑器更新后需重新施加（ProseMirror 重绘会清 class）。
+const applySoloBlankMarks = () => {
+  if (!editor.value) return;
+  const root = editor.value.view.dom;
+  // 块级外壳：p/div/li（与 contentCleaner 裸空格归一保留的外壳、docxBuilder buildTextRuns 入口一致）
+  const blocks = root.querySelectorAll('p, div, li');
+  for (const b of blocks) {
+    // ⚠️ 嵌套容器（如 div 内含 p）只处理叶子：有块级子元素时不判定，避免误伤结构
+    let hasBlockChild = false;
+    for (const c of b.childNodes) {
+      if (c.nodeType === 1 && ['P', 'DIV', 'LI', 'TABLE', 'UL', 'OL'].includes(c.tagName)) { hasBlockChild = true; break; }
+    }
+    if (hasBlockChild) continue;
+    let hasBlank = false;
+    let hasOther = false;
+    for (const n of b.childNodes) {
+      if (n.nodeType === 3) { // TEXT_NODE
+        // ⚠️ 非空即视为正文内容（含全角空格/NBSP 等空白字符）——与 docxBuilder runs 判定
+        //    严格对齐：Word 端任何文本节点都会生成 TextRun → runs.length>1 → 不转 ptab 延伸。
+        //    若用 trim() 判定，"　<u>"（空格+横线）会误判为单独空行 → 预览延伸而 Word 定宽，两端不一致。
+        if (n.textContent) hasOther = true;
+        continue;
+      }
+      if (n.nodeType !== 1) { hasOther = true; continue; } // ELEMENT_NODE 之外
+      const tag = n.tagName;
+      const cls = n.className || '';
+      if (tag === 'U' && /\bblank-\d+\b/.test(cls)) hasBlank = true;
+      else if (tag === 'BR') { /* ProseMirror 空段尾 br：横线非空时不出现，忽略 */ }
+      else hasOther = true;
+    }
+    if (hasBlank && !hasOther) b.classList.add('blank-solo');
+    else b.classList.remove('blank-solo');
+  }
+};
+
 // 🔧 关键修复：editor 初始为 null → customCSS watch(immediate) 直接 return，CSS 从未注入
 //             需要等 editor 就绪后再注入一次
 watch(editor, (val) => {
@@ -1858,7 +1903,10 @@ watch(editor, (val) => {
   }
   // 🔑 editor 就绪后强制加固田字格样式（确保初始渲染也正确）
   if (val) {
-    nextTick(() => forceTianZiGeStyles());
+    nextTick(() => {
+      forceTianZiGeStyles();
+      applySoloBlankMarks();
+    });
   }
 });
 
@@ -1876,12 +1924,16 @@ watch(() => props.customCSS, (css, oldCss) => {
           isInternalUpdate = false;
           // 🔑 重渲染后强制加固（CSSOM API 保证 !important 优先级绝对不被任何 CSS 规则覆盖）
           forceTianZiGeStyles();
+          applySoloBlankMarks();
         });
       }
     });
   } else if (css && oldCss === undefined && editor.value) {
     // 🔑 首次加载（immediate）：CSS 已注入但未触发重渲染，直接加固
-    nextTick(() => forceTianZiGeStyles());
+    nextTick(() => {
+      forceTianZiGeStyles();
+      applySoloBlankMarks();
+    });
   }
 }, { immediate: true });
 

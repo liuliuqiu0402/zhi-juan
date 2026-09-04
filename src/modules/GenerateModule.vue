@@ -2956,7 +2956,7 @@ import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
-import { stripXss, stripAiCodeFence } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离（导出端第二道防线共享）
+import { stripXss, stripAiCodeFence, markSoloBlankLines } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离 + 排版"单独空行"整行延伸打标（导出端第二道防线共享）
 import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
 import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实体解码唯一实现（曾本地 esc/escGraph 及 data-raw 解码链副本）
 import { STORAGE_KEYS } from '../constants/storageKeys.js';  // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
@@ -8056,6 +8056,11 @@ const downloadDoc = async (doc, format) => {
   // 🔧 所见即所得：换行不做导出阶段清理（AI 残留的成串 br 已在生成入库时清理，
   //    排版编辑里保留的换行原样导出、删除的换行不会导出）
   
+  // 🔧 排版端"单独空行"整行延伸打标：PDF/HTML 直出（不经编辑器 DOM）时按结构识别
+  //    "整段仅一条填空横线"→ 加 blank-solo，供 CARRIER_CSS flex 延伸；与 Word ptab（docxBuilder
+  //    runs 判定）同口径。Word 走 docxBuilder 时不依赖本标记（runs 判定已覆盖）。
+  content = markSoloBlankLines(content);
+
   if (!teacherVersion.value) {
     content = content.replace(/<div class="answer-section">[\s\S]*?<\/div>/gi, '<div class="answer-section"><p>（答案略，请独立完成）</p></div>');
   }

@@ -674,11 +674,15 @@ const buildTextRuns = (node, styleOverride = {}) => {
   //    Word 里 ptab 是单个制表符对象：显示为 →（编辑标记）、不可逐格编辑、一碰整条删；
   //    短填空横线改为 NBSP 空格串 + 下划线（可增删空格微调长度、编辑标记显示空格点·）。
   //    blank-line / 整行兜底空白（无 editableBlank）保留 ptab 自动延伸（独占整行，美观优先）。
+  //    🔧 例外（2026-09 排版端口径）：runs.length === 1 且为填空横线 = 段落唯一内容
+  //    （"单独空行"整行书写线，AI 整行留白 → <p><u class="blank-N">&emsp;</u></p>，无正文文字）
+  //    → 与预览端 RichTextEditor 渲染层 .blank-solo 标记 flex 延伸同口径，也转 ptab 自动延伸；
+  //    句中/句末短填空（前后有正文 → runs 非单元素）不受影响，仍 NBSP 可编辑。
   let tailTabDone = false;
   for (let i = runs.length - 1; i >= 0; i--) {
     const r = runs[i];
     if (!r || !r.__blankLineTab) continue;
-    if (i === runs.length - 1 && !tailTabDone && !r.editableBlank) {
+    if (i === runs.length - 1 && !tailTabDone && (!r.editableBlank || runs.length === 1)) {
       // 段落末尾：<w:ptab alignment=right relativeTo=indent leader=underscore/>
       //    🔴 relativeTo=indent：延伸到"段落文字区右边界"（非页面边距）——段落带右缩进（题号/列表段落）
       //    时横线不会超出文字内边距；无缩进段落效果与 margin 一致

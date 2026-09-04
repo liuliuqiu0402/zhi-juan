@@ -49,9 +49,14 @@ span.blank-line::before,span.blank-line::after{content:none !important;}
 .blank-line{display:inline-block;min-width:3em;border-bottom:1.5px solid #666;margin:0 2px;vertical-align:baseline;}
 /* 🔧 行尾自动延伸：仅 blank-line（整行作答区）在段落末尾 flex 弹性延伸（与 Word ptab 一致）。
    u.blank-N（短填空，按答案长度定宽）不参与延伸——句末短填空在 Word 端导出为 NBSP 空格串 + 下划线（可编辑），
-   两端口径一致（2026-09：u.blank-N 曾随 blank-line 一起延伸 → Word ptab 显示 →、不可逐格编辑） */
+   两端口径一致（2026-09：u.blank-N 曾随 blank-line 一起延伸 → Word ptab 显示 →、不可逐格编辑）。
+   例外：排版端"单独空行"（整段仅一条填空横线、无任何正文文字；模型整行留白作答线常见形态）→
+   由 RichTextEditor 渲染层打 .blank-solo 标记后弹性延伸，预览与 Word ptab 口径一致（2026-09 排版端）；
+   注意：句内短填空 / 带引导词的句末横线（如"读作：＿＿"）不含该标记 → 保持定宽可编辑，不受影响 */
 p:has(> .blank-line:last-child){display:flex;align-items:baseline;}
 p:has(> .blank-line:last-child) .blank-line{flex:1 1 auto;min-width:3em;}
+:is(p,div,li).blank-solo{display:flex;align-items:baseline;}
+:is(p,div,li).blank-solo > u[class*="blank-"]{flex:1 1 auto;min-width:3em;}
 `;
 
 /** 作答载体完整 CSS（全局注入与独立导出文档共用）：u 横线本体 + 宽度档位 + 括号/整行横线/行尾延伸 */
