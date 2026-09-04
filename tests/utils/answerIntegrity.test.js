@@ -128,4 +128,14 @@ describe('答案页自带标题去重（stripLeadingAnswerTitle：段2 包装标
     expect(stripLeadingAnswerTitle(noTitle)).toBe(noTitle);
     expect(stripLeadingAnswerTitle('')).toBe('');
   });
+
+  it('标题被一层容器包裹（<div class="answer-page"><h3>参考答案…</h3>）→ 剥标题、保留容器外壳', () => {
+    const wrapped = '<div class="answer-page"><h3>参考答案与解析</h3><div class="section"><h4>一、基础建构任务</h4><p>1. 答案：A。</p></div></div>';
+    expect(stripLeadingAnswerTitle(wrapped)).toBe('<div class="answer-page"><div class="section"><h4>一、基础建构任务</h4><p>1. 答案：A。</p></div></div>');
+  });
+
+  it('容器包裹 + <p> 对 <h1> 同样生效，且不影响后续正文大题', () => {
+    expect(stripLeadingAnswerTitle('<p><h1>参考答案与评分标准</h1></p><h2>一、基础建构任务</h2><p>1. 答案：A。</p>'))
+      .toBe('<p></p><h2>一、基础建构任务</h2><p>1. 答案：A。</p>');
+  });
 });

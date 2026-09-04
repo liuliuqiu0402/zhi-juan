@@ -954,9 +954,12 @@ export const stripAnswerSection = (content) => {
  * （或 <h2> 同文、含"评分标准"等后缀），系统包装又会加 <h2>${ansTitle}</h2> →
  * 同一标题叠两层（2026-09 实证：answer-section 内 "参考答案与解析"×2）。
  * 剥除内容开头的"参考答案…"标题块（h1-h6），统一以系统包装标题为准；
- * 非"参考答案"开头的标题（如正文大题 h2"一、基础建构任务"）不动。 */
+ * 非"参考答案"开头的标题（如正文大题 h2"一、基础建构任务"）不动。
+ * 覆盖 2026-09 缺口：模型常以 <div class="answer-page"><h3>参考答案…</h3> 开头
+ * （标题被一层非标题块级容器包裹），原"^\s*<h"要求标题在最开头 → 漏剥 → h2/h3 双层残留。
+ * 现允许开头先出现一层 <div>/<p> 容器后再匹配，仅剥"参考答案"标题、保留容器外壳。 */
 export const stripLeadingAnswerTitle = (html = '') => String(html || '')
-  .replace(/^\s*<h[1-6][^>]*>\s*参考答案[^<]*<\/h[1-6]>\s*/i, '');
+  .replace(/^(\s*(?:<(?:div|p)\b[^>]*>\s*)?)<h[1-6]\b[^>]*>\s*参考答案[^<]*<\/h[1-6]>\s*/i, '$1');
 
 export function useAiGenerator() {
   const isGenerating = ref(false);
