@@ -491,7 +491,7 @@ import { PAPER_PRESETS } from '../config/paperPresets.js';
 import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js'; // 作文格/书写格尺寸按学段（排版规格库）
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
-import { stripAiCodeFence, normalizeLeadingMarkers, normalizeMathCircleBlanks, markSoloBlankLines } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离 + 行首"项目符号+序号"归一 + 排版"单独空行"整行延伸打标（与 GenerateModule 共用，防同构副本各自演化）
+import { stripAiCodeFence, normalizeLeadingMarkers, normalizeMathCircleBlanks, markSoloBlankLines, wrapBareBlankRuns } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离 + 行首"项目符号+序号"归一 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（与 GenerateModule 共用，防同构副本各自演化）
 import storage from '../utils/storage';
 import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
 
@@ -1185,7 +1185,9 @@ const exportDocument = async () => {
     // 🔧 排版端"单独空行"整行延伸打标：源码视图/粘贴直出（未过编辑器 DOM 打标）时按结构
     //    识别"整段仅一条填空横线"→ 加 blank-solo，供 CARRIER_CSS flex 延伸；与 Word ptab 同口径。
     //    （编辑器渲染视图路径的 DOM 已打标，本函数幂等不影响）
-    let exportSrc = markSoloBlankLines(pristineHtmlForExport.value);
+    //    🔧 前置 wrapBareBlankRuns：旧内容/源码直出里模型 em 空格形态书写空（&emsp;/U+2003）先补包成
+    //    u.blank-N（全角空格同口径），否则导出仍是无下划线的隐形空白（2026-09 实证回归）
+    let exportSrc = markSoloBlankLines(wrapBareBlankRuns(pristineHtmlForExport.value));
     let wrapped = wrapContentForTheme(exportSrc, effectiveThemeFor(exportSrc));
     // 🔧 卷型选择：普通卷剥离密封线结构（HTML/PDF 导出与 DOCX 口径一致，PDF 走默认页边距）
     if (sealVariant.value === 'plain') {

@@ -231,6 +231,37 @@ export const shortBlankWidth = (underscores) => blankWidthForChars(underscores);
  *     全被压成同一 10em → "都一样宽"；现线性：N = 字位×wordGap，宽窄随空白数量单调 */
 export const spaceBlankWidth = (emWidth) => blankWidthForChars(emWidth);
 
+/** 裸书写空跑段 → u.blank-N（全角空格 U+3000 / em 空格 U+2003·&emsp; 实体 同口径）
+ * ============================================================
+ * 模型输出"作答书写空"的 HTML 形态不固定：全角空格 \u3000、em 空格字符 \u2003、&emsp; 实体混用；
+ *  曾只认 \u3000 裸跑段 → 模型输出 em 空格形态（如 <p>加法算式：&emsp;×8</p> / U+2003×8）漏判，
+ *  源码有书写空、排版/导出却无下划线横线（2026-09 用户实证回归）；
+ * 本函数把"整段纯空白行"与"行内（前有正文）连续空位段"统一包成 u.blank-N（1 空位单位=1 字位），
+ * 与 ＿/括号 归一链幂等：已归一载体（&emsp; 单占位）与段首/标签后缩进不受影响。
+ * 消费方：normalizeBlankMarkers（生成归一）/ 编辑器装载·粘贴（RichTextEditor）/ 导出端（GenerateModule/TypesetModule）。
+ */
+const blankRunEmUnits = (s) => (s.match(/[\u3000\u2003]/g) || []).length + (s.match(/&emsp;/gi) || []).length;
+export function wrapBareBlankRuns(html = '') {
+  let out = String(html || '');
+  if (!out) return out;
+  // ① 块级"整段纯空白"（<p>/<div>/<li> 内仅空白跑段，写作答题行）→ 保留外壳包 u.blank-N（外壳参与排版/延伸）
+  out = out.replace(/<(p|div|li)(?![^>]*class=)[^>]*>(\s*(?:[\u3000\u2003]|&emsp;){2,}\s*)<\/\1>/gi, (m, tag, inner) => {
+    const len = blankRunEmUnits(inner);
+    return `<${tag}><u class="blank-${blankWidthForChars(len)}">&emsp;</u></${tag}>`;
+  });
+  // ② 行内连续空位段（前有正文："口诀：＿＿。" / "加法算式：＿＿" 形态）→ u.blank-N
+  //    段首/标签后直接空位（排版缩进、括号载体后的列间隔）守卫不转；
+  //    单空位（列分隔）天然不命中 {2,}；已归一载体内 &emsp; 为单占位也不命中
+  out = out.replace(/(?:[\u3000\u2003]|&emsp;){2,}/g, (m, off, all) => {
+    const head = all.slice(0, off);
+    const lastTag = head.lastIndexOf('>');
+    const sinceTag = (lastTag === -1 ? head : head.slice(lastTag + 1)).trim();
+    if (!sinceTag) return m;
+    return `<u class="blank-${blankWidthForChars(blankRunEmUnits(m))}">&emsp;</u>`;
+  });
+  return out;
+}
+
 /** 空载体兜底填充（编辑器装载/粘贴前调用）
  * ============================================================
  * ProseMirror/Tiptap 解析时，classed 载体若内容为空或纯 ASCII 空格会被整体剥除
@@ -393,35 +424,16 @@ export function normalizeBlankMarkers(html = '') {
   //    零宽全角（）夹在正文中几乎必为填空缺省（分值/读音/提示等标注均有内文不匹配），故安全收敛统一。
   out = out.replace(/[（][）]/g, () => `<span class="blank-${clampBlankWidth(4)}">&emsp;</span>`);
   out = out.replace(/<div class="zuo-wen-ge">\s*<\/div>/g, `<div class="zuo-wen-ge">${'<span>&emsp;</span>'.repeat(Math.max(1, getMergedSpec().ZUOWEN_DEFAULT_SPAN))}</div>`);
-  // 🔧 裸全角空格留空（AI 常见裸输出形态：未包 <u>/括号，如 <p>　　　　　　</p> 写作答题行、
-  //    块级元素内纯空白当书写空间）：包成 u.blank-N（预览 flex 延伸 / 导出 ptab 延伸一致）；
-  //    在 <u>/括号/span.blank-N 规则之后执行——已归一的形态不含裸空格不受影响；
-  //    ≥2 个连续全角空格才处理（单空格为排版分隔）；表格单元格（td/th）不匹配（空位语义保留）
-  //    🔧 保留原块级标签外壳（<p> 等）：整行作答的横线需该外壳参与排版；
-  //    ⚠️ 行尾自动延伸仅 .blank-line 享有（carrierCss p:has 规则），u.blank-N 固定 N em 宽度
-  //    （2026-09 口径：u.blank-N 为短填空按答案定宽，不随行延伸）
-  out = out.replace(/<(p|div|li)(?![^>]*class=)[^>]*>(\s*\u3000{2,}\s*)<\/\1>/gi, (m, tag, inner) => {
-    const len = (inner.match(/\u3000/g) || []).length;
-    return `<${tag}><u class="blank-${blankWidthForChars(len)}">&emsp;</u></${tag}>`;
-  });
+  // 🔧 裸书写空跑段 → u.blank-N（wrapBareBlankRuns：整段纯空白行 + 行内前有正文的连续空位段；
+  //    全角空格 \u3000 / em 空格 \u2003·&emsp; 实体同口径——曾只认 \u3000，模型 em 空格形态漏判 → 无横线）。
+  //    在 <u>/括号/span.blank-N 规则之后执行（幂等）；≥2 空位才处理（单空位=列分隔/排版）；
+  //    保留块级外壳（<p> 等）供整行作答参与排版；u.blank-N 固定 N em（行尾延伸仅 .blank-line/整行作答享有）
+  out = wrapBareBlankRuns(out);
   // 🔧 纯空白"装饰标记"兜底（见 normalizeWhitespaceCarriers：强调类标记无字可加 → 空白实为书写空位）
   out = normalizeWhitespaceCarriers(out);
   // 🔧 拆裸 <u> 空壳：模型把下划线写进无 class 的 <u>（<u>____</u>/<u>（　　）</u>），先被上面规则转成
   //    u.blank-N/span.blank-N 后外层 <u> 仍在 → 下划线叠下划线/叠括号。外层仅包一个 blank 空位时拆壳
   out = out.replace(/<u(?![^>]*class=)[^>]*>\s*(<(u|span) class="blank-\d+">&emsp;<\/\2>)\s*<\/u>/gi, '$1');
-  // 🔧 行内裸全角空格（前有正文）→ u.blank-N：块级规则（上方）只覆盖"整段纯空白"，
-  //    行内形态如 "口诀：　　　　　　。" "读作：…，乘数是( )" 的空白段此前漏判 →
-  //    导出 Word 只剩空白无书写线（载体验证也因无载体判为无效/剥离）。
-  //    与块级同口径：长度×wordGap（1 空格≈1 字位≈wordGap em，blankWidthForChars；默认 1 即 1em）；
-  //    段首守卫：自最近标签闭合（>）后无正文（含文档开头/行首缩进/标签后直接空格）不转，
-  //    防把排版缩进当成作答位；位于已归一载体/括号/块级产物（&emsp;）之后执行，幂等不重复处理。
-  out = out.replace(/\u3000{2,}/g, (m, off, all) => {
-    const head = all.slice(0, off);
-    const lastTag = head.lastIndexOf('>');
-    const sinceTag = (lastTag === -1 ? head : head.slice(lastTag + 1)).trim();
-    if (!sinceTag) return m; // 段首/行首/标签后直接空格：排版缩进，不构成作答位
-    return `<u class="blank-${blankWidthForChars(m.length)}">&emsp;</u>`;
-  });
   // ④ 🔧 还原密封信息栏占位（＿ 原样保留，交给排版/导出端 sealText.normalizeSealBlanks 统一扩 8 全角）
   if (sealKeeps.length) {
     out = out.replace(/\uE000(\d+)/g, (_m, i) => '＿'.repeat(sealKeeps[Number(i)] || 0));
@@ -466,7 +478,10 @@ export function normalizeMathCircleBlanks(html = '') {
     out = out.replace(uCellRe, (m, off, all) => {
       const prev = all.slice(0, off).replace(/<[^>]+>/g, '').replace(/[　\s]+$/, '').slice(-1);
       const next = all.slice(off + m.length).replace(/<[^>]+>/g, '').replace(/^[　\s]+/, '').slice(0, 1);
-      if (OP_SIDE.includes(prev) || OP_SIDE.includes(next)) return '<span class="square-box">&nbsp;</span>';
+      // 🔧 空邻接守卫（2026-09 回归）：''.includes(任何)===true，prev/next 为空串时原判断恒真 →
+      //    段尾/行尾书写行（"加法算式：＿＿＿</p>""口诀：＿＿＿</p>"默写行）被误收成单个方框，横线消失；
+      //    空串不视为算式邻接（算式单元格两侧必有真实运算符/等号字符）
+      if ((prev && OP_SIDE.includes(prev)) || (next && OP_SIDE.includes(next))) return '<span class="square-box">&nbsp;</span>';
       return m;
     });
   }
@@ -637,4 +652,4 @@ export function normalizeIndents(html = '') {
 }
 
 
-export default { cleanSectionHtml, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, ensureCarrierContent, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth };
+export default { cleanSectionHtml, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, ensureCarrierContent, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };

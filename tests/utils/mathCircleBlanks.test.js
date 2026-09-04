@@ -103,6 +103,18 @@ describe('normalizeMathCircleBlanks 算式占位兜底（模型写空格/下划�
     expect(out).not.toContain('square-box');
   });
 
+  it('文本空位（&emsp; 形态书写空）同样保持 u.blank，不误收成方框', () => {
+    const out = chain('<p>加法算式：' + '&emsp;'.repeat(8) + '</p>');
+    expect(out).toBe('<p>加法算式：<u class="blank-8">&emsp;</u></p>');
+    expect(out).not.toContain('square-box');
+  });
+
+  it('段尾书写行（算式/口诀作答行，空位后无字符）→ 保持 u.blank，不收成单个方框（空邻接误判回归）', () => {
+    // '' 的 includes 恒真曾使"段尾 u.blank-N"被误收方框 → 横线消失；算式单元格两侧必有真实运算符
+    expect(chain('<p>口诀：' + '&emsp;'.repeat(8) + '</p>')).toBe('<p>口诀：<u class="blank-8">&emsp;</u></p>');
+    expect(chain('<p>加法算式：' + '\u2003'.repeat(8) + '</p>')).toBe('<p>加法算式：<u class="blank-8">&emsp;</u></p>');
+  });
+
   it('正常算式空格排版（半角单空格）不受影响，无空位不产生方框', () => {
     expect(chain('<p>5 × 3 ＝ 15（人）</p>')).toBe('<p>5 × 3 ＝ 15（人）</p>');
   });
