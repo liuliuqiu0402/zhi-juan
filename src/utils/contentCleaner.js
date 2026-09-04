@@ -396,17 +396,14 @@ export function normalizeBlankMarkers(html = '') {
     const len = (m.match(/\u3000/g) || []).length + (m.match(/[ _]/g) || []).length + (m.match(/&emsp;/gi) || []).length;
     return `<u class="blank-${blankWidthForChars(len)}">&emsp;</u>`;
   });
-  // 下划线（半角/全角混合）→ 填空横线：半角 _ 按 0.5 字位计（视觉半宽），≥2 个即构成书写横线——
-  //   曾只匹配全角 ＿，ASCII "__"（模型常用短空）会漏成裸下划线；
-  //   宽度按 blankWidthForChars（字位数×wordGap；wordGap=1 时 1 ＿≈1em，不再 ×2 放大）
-  out = out.replace(/(?:＿|_){2,}/g, (m) => {
-    const em = (m.match(/＿/g) || []).length + (m.match(/_/g) || []).length * 0.5;
-    return `<u class="blank-${blankWidthForChars(em)}">&emsp;</u>`;
-  });
   // 🔧 括号填空归一（正文主路径曾缺失：模型输出 ((　　)) / （＿ ＿） 被原样保留 → 卷面双括号）
   //    ① 括号+下划线组合（可双层括号）→ <span class="blank-N">&emsp;</span>
   //    ② 括号+纯空白（可双层括号）→ <span class="blank-N">&emsp;</span>
   //    span.blank-N 渲染自带半角括号（预览 CSS ::before/::after + docx 显式补 ()），此处不包外层括号
+  //    🔴 顺序：括号收敛必须先于下方"裸＿→u.blank"规则——曾在其后执行，连续下划线被先行转成
+  //    <u class="blank-N"> 标签后括号正则只认字面字符而失配 → （＿＿＿）残留"字面括号+横线"并存、
+  //    <u>（＿＿＿）</u> 残留三层叠线（2026-09 实证）。"括号与横线并存：外层括号保留括号语义
+  //    （括号填空），内层横线不另成载体"——先收敛括号，裸＿ 规则只处理括号外的下划线。
   out = out.replace(/(?:[（(]{1,2})\s*([_\uFF3F\s\u3000]{1,24})\s*(?:[）)]{1,2})/g, (m, inner) => {
     const u = (inner.match(/[_\uFF3F]/g) || []).length;
     if (u === 0) return m; // 纯空白 → 交给括号空白规则
@@ -423,6 +420,17 @@ export function normalizeBlankMarkers(html = '') {
   //    （规则①②需括号内 ≥1 空格/下划线才转换；零宽全角（）被跳过 → 卷面保留成无书写宽度的全角括号）。
   //    零宽全角（）夹在正文中几乎必为填空缺省（分值/读音/提示等标注均有内文不匹配），故安全收敛统一。
   out = out.replace(/[（][）]/g, () => `<span class="blank-${clampBlankWidth(4)}">&emsp;</span>`);
+  // ④ 括号内已被上方 <u>＿+</u> 规则转成 u.blank-N 标签的形态（模型写 （<u>＿＿</u>） →
+  //    387 先转标签、①的字面正则失配）→ 剥字面括号、内层横线不另成载体，同口径收敛括号填空；
+  //    "括号与横线并存：外层括号保留括号语义"，宽度沿用内层 u.blank-N 的档位
+  out = out.replace(/(?:[（(]{1,2})\s*(<u class="blank-(\d+)">&emsp;<\/u>)\s*(?:[）)]{1,2})/g, (_m, _tag, n) => `<span class="blank-${Math.max(2, Number(n) || 2)}">&emsp;</span>`);
+  // 下划线（半角/全角混合）→ 填空横线：半角 _ 按 0.5 字位计（视觉半宽），≥2 个即构成书写横线——
+  //   曾只匹配全角 ＿，ASCII "__"（模型常用短空）会漏成裸下划线；
+  //   宽度按 blankWidthForChars（字位数×wordGap；wordGap=1 时 1 ＿≈1em，不再 ×2 放大）
+  out = out.replace(/(?:＿|_){2,}/g, (m) => {
+    const em = (m.match(/＿/g) || []).length + (m.match(/_/g) || []).length * 0.5;
+    return `<u class="blank-${blankWidthForChars(em)}">&emsp;</u>`;
+  });
   out = out.replace(/<div class="zuo-wen-ge">\s*<\/div>/g, `<div class="zuo-wen-ge">${'<span>&emsp;</span>'.repeat(Math.max(1, getMergedSpec().ZUOWEN_DEFAULT_SPAN))}</div>`);
   // 🔧 裸书写空跑段 → u.blank-N（wrapBareBlankRuns：整段纯空白行 + 行内前有正文的连续空位段；
   //    全角空格 \u3000 / em 空格 \u2003·&emsp; 实体同口径——曾只认 \u3000，模型 em 空格形态漏判 → 无横线）。

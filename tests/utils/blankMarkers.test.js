@@ -46,6 +46,48 @@ describe('normalizeBlankMarkers 括号填空归一（正文主路径）', () => 
   });
 });
 
+describe('normalizeBlankMarkers 括号与横线并存（谁在外层保留谁；2026-09 顺序修复）', () => {
+  it('字面括号+连续下划线 （＿＿＿＿）→ 括号填空（曾因裸＿先转标签致括号规则失配，残留字面括号+横线并存）', () => {
+    const out = normalizeBlankMarkers('读作：（＿＿＿＿）');
+    expect(out).toBe('读作：<span class="blank-4">&emsp;</span>');
+    expect(out).not.toContain('（');
+    expect(out).not.toContain('<u');
+  });
+
+  it('外层 u 装饰+括号+连续下划线 <u>（＿＿＿＿）</u> → 括号填空（曾三层叠线：u 下划线+字面括号+u.blank 横线）', () => {
+    const out = normalizeBlankMarkers('<u>（＿＿＿＿）</u>');
+    expect(out).toBe('<span class="blank-4">&emsp;</span>');
+    expect(out).not.toContain('<u');
+    expect(out).not.toContain('（');
+  });
+
+  it('括号内嵌 u 下划线 （<u>＿＿＿＿</u>）→ 括号填空（宽度沿用内层档位）', () => {
+    const out = normalizeBlankMarkers('读作：（<u>＿＿＿＿</u>）');
+    expect(out).toBe('读作：<span class="blank-4">&emsp;</span>');
+  });
+
+  it('双括号+连续下划线 （（＿＿＿＿））→ 括号填空（剥一层，曾残留双括号+横线）', () => {
+    const out = normalizeBlankMarkers('（（＿＿＿＿））');
+    expect(out).toBe('<span class="blank-4">&emsp;</span>');
+  });
+
+  it('半角括号+ASCII 下划线 (______) → 括号填空（曾残留字面括号+横线）', () => {
+    const out = normalizeBlankMarkers('读作：(______)');
+    expect(out).toBe('读作：<span class="blank-6">&emsp;</span>');
+  });
+
+  it('对照：括号外裸连续下划线 ＿＿＿＿ → 仍 u.blank 横线（不因括号规则前置被误伤）', () => {
+    const out = normalizeBlankMarkers('读作：＿＿＿＿');
+    expect(out).toBe('读作：<u class="blank-4">&emsp;</u>');
+  });
+
+  it('算式里 2×6＝12 后无括号字面横线不受影响', () => {
+    const out = normalizeBlankMarkers('口诀：三五十五，读作：＿＿＿');
+    expect(out).toContain('<u class="blank-3">&emsp;</u>');
+    expect(out).not.toContain('＿＿＿');
+  });
+});
+
 describe('normalizeBlankMarkers 无 class 裸 u 空白横线归一（AI 裸输出形态 <u>全角空格</u>）', () => {
   it('整行 <u> 全角空格（40个，写作答题行）→ 归一为 u.blank-16（cap 上限，导出/预览自动延伸）', () => {
     const line = '<p><u>' + '　'.repeat(40) + '</u></p>';
