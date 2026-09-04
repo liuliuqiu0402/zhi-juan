@@ -1,6 +1,6 @@
 // 答案完整性判定测试（生成链路"答案是否丢失"的核心判定逻辑，与 useAiGenerator 真实调用同一函数）
 import { describe, it, expect } from 'vitest';
-import { detectTruncation, isAnswerShell, wrapAnswerSection, stripAnswerSection } from '../../src/composables/useAiGenerator.js';
+import { detectTruncation, isAnswerShell, wrapAnswerSection, stripAnswerSection, stripLeadingAnswerTitle } from '../../src/composables/useAiGenerator.js';
 
 describe('答案完整性·截断判定（detectTruncation）', () => {
   it('finish_reason=length 且内容较长 → 判定截断（API 可靠信号）', () => {
@@ -109,5 +109,23 @@ describe('答案完整性·split 正文混答剥离（stripAnswerSection）', ()
   it('空串/非字符串 → 安全返回', () => {
     expect(stripAnswerSection('')).toBe('');
     expect(stripAnswerSection(null)).toBe('');
+  });
+});
+
+describe('答案页自带标题去重（stripLeadingAnswerTitle：段2 包装标题不叠模型自带标题）', () => {
+  it('内容开头 <h1>参考答案与解析</h1> → 剥除（保留后续内容，系统 h2 为准）', () => {
+    const a = '<h1>参考答案与解析</h1>\n<p>课时练：数学二年级</p><h2>一、基础建构任务</h2><p>1. 答案：A。</p>';
+    expect(stripLeadingAnswerTitle(a)).toBe('<p>课时练：数学二年级</p><h2>一、基础建构任务</h2><p>1. 答案：A。</p>');
+  });
+
+  it('<h2> 同文自带标题同样剥除（含"评分标准"后缀）', () => {
+    expect(stripLeadingAnswerTitle('<h2>参考答案与评分标准</h2><p>1. A</p>')).toBe('<p>1. A</p>');
+    expect(stripLeadingAnswerTitle('<h1>参考答案与解析</h1><h2>一、基础建构任务</h2>')).toBe('<h2>一、基础建构任务</h2>');
+  });
+
+  it('无自带标题 / 非参考答案开头标题 → 原样不动', () => {
+    const noTitle = '<h2>一、基础建构任务</h2><p>1. 答案：A。</p>';
+    expect(stripLeadingAnswerTitle(noTitle)).toBe(noTitle);
+    expect(stripLeadingAnswerTitle('')).toBe('');
   });
 });

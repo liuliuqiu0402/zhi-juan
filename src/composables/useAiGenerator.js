@@ -950,6 +950,14 @@ export const stripAnswerSection = (content) => {
   return out;
 };
 
+/** 答案页自带标题去重（段2 独立答案页）：模型常在答案内容开头自带 <h1>参考答案与解析</h1>
+ * （或 <h2> 同文、含"评分标准"等后缀），系统包装又会加 <h2>${ansTitle}</h2> →
+ * 同一标题叠两层（2026-09 实证：answer-section 内 "参考答案与解析"×2）。
+ * 剥除内容开头的"参考答案…"标题块（h1-h6），统一以系统包装标题为准；
+ * 非"参考答案"开头的标题（如正文大题 h2"一、基础建构任务"）不动。 */
+export const stripLeadingAnswerTitle = (html = '') => String(html || '')
+  .replace(/^\s*<h[1-6][^>]*>\s*参考答案[^<]*<\/h[1-6]>\s*/i, '');
+
 export function useAiGenerator() {
   const isGenerating = ref(false);
   const progress = ref(0);
@@ -4757,7 +4765,8 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         const ansCapped = ansObj.finishReason === 'reasoning_capped' || (ansObj.reasoningChunkCount || 0) >= GEN_CONST.REASONING_EXHAUST_THRESHOLD;
         if (aHtml && aHtml.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansCapped) {
           const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
-          answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${aHtml}</div>`;
+          // 🔧 去重：模型自带 <h1>参考答案…</h1> 头部标题剥除（系统包装已加 <h2> 标题，见 stripLeadingAnswerTitle）
+          answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml)}</div>`;
         } else {
           // 🔧 答案页为空/过短/思考耗尽 → 自动重试一次（思考耗尽时强制关闭思考，防再次空转；
           //    模型偶发输出空或"略"式敷衍内容也覆盖）
@@ -4773,7 +4782,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           const aHtml2 = normalizeMathCircleBlanks(normalizeLeadingMarkers(cleanSectionHtml(ansObj2.content || '')));
           if (aHtml2 && aHtml2.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN) {
             const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
-            answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${aHtml2}</div>`;
+            answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml2)}</div>`;
           } else {
             console.warn('⚠️ 答案页重试仍为空/过短（正文仍有效）');
           }
