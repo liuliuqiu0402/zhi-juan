@@ -39,13 +39,14 @@ describe('normalizeBlankMarkers（后处理排版兜底）', () => {
     expect(normalizeBlankMarkers('<p>　　你好</p>')).toBe('<p>　　你好</p>');
   });
 
-  it('行内裸全角空格（口诀/读作等）→ 保留原文（2026-09 撤行内兜底：分隔/书写空不可区分，书写空由＿/括号表达）', () => {
-    expect(normalizeBlankMarkers('口诀：　　　　　　。')).toBe('口诀：　　　　　　。');
+  it('行内裸全角空格（口诀/读作，空格后是句读或行尾）→ u.blank-N，导出 Word 有书写线', () => {
+    expect(normalizeBlankMarkers('口诀：　　　　　　。')).toBe('口诀：<u class="blank-6">&emsp;</u>。');
+    // 句内"他今年　　岁。"后紧跟汉字"岁"→ 判分隔保留（书写空用＿表达；收窄口径 2026-09）
     expect(normalizeBlankMarkers('他今年　　岁。')).toBe('他今年　　岁。');
   });
 
-  it('行内裸全角空格超长同样保留原文（不封顶转换，尊重模型输出）', () => {
-    expect(normalizeBlankMarkers('读作：' + '　'.repeat(16) + '，乘数是')).toBe('读作：' + '　'.repeat(16) + '，乘数是');
+  it('行内裸全角空格超长同样封顶 blank-16（句读前的长书写空）', () => {
+    expect(normalizeBlankMarkers('读作：' + '　'.repeat(16) + '，乘数是')).toBe('读作：<u class="blank-16">&emsp;</u>，乘数是');
   });
 
   it('段首缩进全角空格不误转（前置字符守卫，防排版缩进被当成作答位）', () => {

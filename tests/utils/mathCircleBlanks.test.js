@@ -97,24 +97,22 @@ describe('normalizeMathCircleBlanks 算式占位兜底（模型写空格/下划�
     expect(chain('<p>3＋＿＿＝7</p>')).toBe('<p>3＋<span class="square-box">&nbsp;</span>＝7</p>');
   });
 
-  it('文本空位（空格形态，两侧汉字/句号）→ 保留原文，不再臆断转横线（2026-09 撤行内空格兜底）', () => {
+  it('文本空位（句读前行书空"我的发现：　×8。"）→ u.blank-8，不误收成方框', () => {
     const out = chain('<p>我的发现：' + '　'.repeat(8) + '。</p>');
-    expect(out).toBe('<p>我的发现：' + '　'.repeat(8) + '。</p>');
+    expect(out).toBe('<p>我的发现：<u class="blank-8">&emsp;</u>。</p>');
     expect(out).not.toContain('square-box');
-    expect(out).not.toContain('blank-');
   });
 
-  it('文本空位（&emsp; 形态书写空）同样保留原文，不误收成方框（书写空由模型输出＿/括号表达）', () => {
+  it('行尾书写行（加法算式：&emsp;×8</p>）→ u.blank-8，不误收成方框', () => {
     const out = chain('<p>加法算式：' + '&emsp;'.repeat(8) + '</p>');
-    expect(out).toBe('<p>加法算式：' + '&emsp;'.repeat(8) + '</p>');
+    expect(out).toBe('<p>加法算式：<u class="blank-8">&emsp;</u></p>');
     expect(out).not.toContain('square-box');
   });
 
-  it('段尾书写行（算式/口诀作答行，空位后无字符）→ 保留原文，不收成单个方框', () => {
-    // 行内空格不再兜底转 u.blank（尊重模型输出：书写空用＿/括号表达）；
-    // 空格段后无字符邻接判定为空 → 不属算式单元格，不产生方框
-    expect(chain('<p>口诀：' + '&emsp;'.repeat(8) + '</p>')).toBe('<p>口诀：' + '&emsp;'.repeat(8) + '</p>');
-    expect(chain('<p>加法算式：' + '\u2003'.repeat(8) + '</p>')).toBe('<p>加法算式：' + '\u2003'.repeat(8) + '</p>');
+  it('段尾书写行（算式/口诀作答行，空位后无字符）→ u.blank-8，不收成单个方框（空邻接守卫）', () => {
+    // 行尾书写空由规则②转 u.blank（收窄口径）；空格段后无字符邻接判定为空 → 不属算式单元格，不产生方框
+    expect(chain('<p>口诀：' + '&emsp;'.repeat(8) + '</p>')).toBe('<p>口诀：<u class="blank-8">&emsp;</u></p>');
+    expect(chain('<p>加法算式：' + '\u2003'.repeat(8) + '</p>')).toBe('<p>加法算式：<u class="blank-8">&emsp;</u></p>');
   });
 
   it('正常算式空格排版（半角单空格）不受影响，无空位不产生方框', () => {

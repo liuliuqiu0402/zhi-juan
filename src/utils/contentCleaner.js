@@ -231,16 +231,15 @@ export const shortBlankWidth = (underscores) => blankWidthForChars(underscores);
  *     全被压成同一 10em → "都一样宽"；现线性：N = 字位×wordGap，宽窄随空白数量单调 */
 export const spaceBlankWidth = (emWidth) => blankWidthForChars(emWidth);
 
-/** 裸书写空跑段 → u.blank-N（仅"整段纯空白行"形态）
+/** 裸书写空跑段 → u.blank-N（整段空白行 + 行尾/句读前行内书写空）
  * ============================================================
  * 书写空载体只认模型明确输出的形态：＿（402）、<u> 包裹（387/395）、括号空位（括号收敛）、
- * 以及"整段纯空白行"（本函数规则①，写作答题行）——这些模型意图无歧义，可确定转横线。
- * 行内（前有正文）的连续空格/em 空格**不再臆断为书写空**：同一形态既可能是书写空
- * （"口诀：　　　。"）也可能是排版分隔（"2个3相加　　○○○"圆图间距、"13 与读作"之间），
- * 字符层不可区分（2026-09 实证：分隔空格被误转成横线）。按"尊重模型输出"口径：模型未用
- * ＿/<u>/括号/整行空白表达的空位一律保留原文，由模型按书写惯例输出＿或括号载体；
- * 曾把行内 &emsp;/U+2003 也转 u.blank-N（2026-09 曾修"源码有书写空、排版无横线"）→ 已撤，
- * 避免对分隔空格的误伤（与编辑器装载/粘贴/导出三端同函数，口径一致）。
+ * "整段纯空白行"（本函数规则①，写作答题行），以及**行尾/句读前的行内书写空**（规则②收窄版）：
+ * 模型在引导词后输出连续空格作作答留白（"加法算式：　　　　</p>"、"口诀：　　　　。"），
+ * 空格段后到块级结束无任何紧跟内容、或后一个可见字符是中文句读 → 书写空意图明确 → 转横线；
+ * 空格段后**紧跟内容**（"2个3相加　　○○○"圆图间距、"（1）2×6＝12　　读作："下一引导词、
+ * 算式"＝　　　（人）"的单位括号前 = 算式填空由 normalizeMathCircleBlanks 邻接运算符收方框）
+ * → 属排版分隔，保留原文（2026-09 实证：曾把分隔空格无差别转横线 → 撤，恢复仅行尾/句读口径）。
  * 消费方：normalizeBlankMarkers（生成归一）/ 编辑器装载·粘贴（RichTextEditor）/ 导出端（GenerateModule/TypesetModule）。
  */
 const blankRunEmUnits = (s) => (s.match(/[\u3000\u2003]/g) || []).length + (s.match(/&emsp;/gi) || []).length;
@@ -251,6 +250,24 @@ export function wrapBareBlankRuns(html = '') {
   out = out.replace(/<(p|div|li)(?![^>]*class=)[^>]*>(\s*(?:[\u3000\u2003]|&emsp;){2,}\s*)<\/\1>/gi, (m, tag, inner) => {
     const len = blankRunEmUnits(inner);
     return `<${tag}><u class="blank-${blankWidthForChars(len)}">&emsp;</u></${tag}>`;
+  });
+  // ② 行内书写空（收窄版）：引导词后连续空格段（"加法算式：＿＿" 形态，模型真实留白）→ u.blank-N。
+  //    后视守卫：空格段后到块级闭合（下一个 <p|div|li|table>）之间无可见内容（行尾作答行），
+  //    或首个可见字符是中文句读（。，、；：？！，"口诀：　　。"）→ 书写空；
+  //    后紧跟任何内容（汉字/数字/符号/○□图例/半角单位括号…）→ 分隔空格，保留原文不转。
+  //    段首/标签后直接空位（缩进/列间隔）仍守卫不转；单空位 {2,} 天然不命中。
+  out = out.replace(/(?:[\u3000\u2003]|&emsp;){2,}/g, (m, off, all) => {
+    const head = all.slice(0, off);
+    const lastTag = head.lastIndexOf('>');
+    const sinceTag = (lastTag === -1 ? head : head.slice(lastTag + 1)).trim();
+    if (!sinceTag) return m; // 段首/标签后缩进 → 不转
+    const tail = all.slice(off + m.length);
+    const blockEnd = tail.search(/<(?:p|div|li|table)\b/i);
+    const tailText = (blockEnd === -1 ? tail : tail.slice(0, blockEnd))
+      .replace(/<[^>]+>/g, '').replace(/^[\s\u3000\u2003\u2002]+/, '');
+    if (!tailText) return `<u class="blank-${blankWidthForChars(blankRunEmUnits(m))}">&emsp;</u>`; // 行尾书写空
+    if (/^[。，、；：？！]/.test(tailText)) return `<u class="blank-${blankWidthForChars(blankRunEmUnits(m))}">&emsp;</u>`; // 句读前书写空
+    return m; // 后紧跟内容 → 分隔空格保留
   });
   return out;
 }

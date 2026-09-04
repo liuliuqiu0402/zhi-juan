@@ -151,18 +151,18 @@ describe('normalizeBlankMarkers 裸全角空格留空归一（未包 u/括号，
   });
 });
 
-describe('normalizeBlankMarkers 行内 em 空格书写空（2026-09 撤行内兜底：保留原文，书写空由＿/括号表达）', () => {
-  it('行内"加法算式：&emsp;×8"（前有正文）→ 保留原文（分隔空格与书写空不可区分，不再臆断转横线）', () => {
+describe('normalizeBlankMarkers 行内 em 空格书写空（收窄版：行尾/句读前才转，分隔保留）', () => {
+  it('行尾书写空"加法算式：&emsp;×8</p>"（空格后即行尾）→ u.blank-8', () => {
     const out = normalizeBlankMarkers('<p>加法算式：' + '&emsp;'.repeat(8) + '</p>');
-    expect(out).toBe('<p>加法算式：' + '&emsp;'.repeat(8) + '</p>');
+    expect(out).toBe('<p>加法算式：<u class="blank-8">&emsp;</u></p>');
   });
 
-  it('行内字面 U+2003 em 空格 ×8（口诀：…。）同样保留原文', () => {
+  it('句读前书写空"口诀：U+2003 ×8。" → u.blank-8（后一个可见字符是句号）', () => {
     const out = normalizeBlankMarkers('<p>口诀：' + '\u2003'.repeat(8) + '。</p>');
-    expect(out).toBe('<p>口诀：' + '\u2003'.repeat(8) + '。</p>');
+    expect(out).toBe('<p>口诀：<u class="blank-8">&emsp;</u>。</p>');
   });
 
-  it('整段纯 &emsp; 行（写作答题行）→ 包 u.blank-8（保留 <p> 外壳；块级整段空白仍兜底）', () => {
+  it('整段纯 &emsp; 行（写作答题行）→ 包 u.blank-8（保留 <p> 外壳）', () => {
     const out = normalizeBlankMarkers('<p>' + '&emsp;'.repeat(8) + '</p>');
     expect(out).toBe('<p><u class="blank-8">&emsp;</u></p>');
   });
@@ -172,9 +172,32 @@ describe('normalizeBlankMarkers 行内 em 空格书写空（2026-09 撤行内兜
     expect(normalizeBlankMarkers('<p>一五得<span class="blank-2">\u2003</span>　二五</p>')).toBe('<p>一五得<span class="blank-2">\u2003</span>　二五</p>');
   });
 
-  it('整段空白行归一幂等（二次执行不重复包壳）', () => {
-    const once = normalizeBlankMarkers('<p>' + '&emsp;'.repeat(8) + '</p>');
+  it('已归一 u.blank-N 幂等（二次执行不重复包壳）', () => {
+    const once = normalizeBlankMarkers('<p>加法算式：' + '&emsp;'.repeat(8) + '</p>');
     expect(normalizeBlankMarkers(once)).toBe(once);
+  });
+});
+
+describe('normalizeBlankMarkers 行内分隔空格保留原文（规则②收窄：后紧跟内容不转，2026-09 回归）', () => {
+  it('文字与圆图间距"2个3相加　　○○○" → 保留（后紧跟 ○ 图例）', () => {
+    const src = '<p>例：2个3相加' + '　'.repeat(2) + '○○○' + '　'.repeat(2) + '○○○</p>';
+    expect(normalizeBlankMarkers(src)).toBe(src);
+  });
+
+  it('算式与下一引导词之间"（1）2×6＝12　　读作：" → 保留（后紧跟"读"）', () => {
+    const src = '<p>（1）2×6＝12' + '　'.repeat(4) + '读作：</p>';
+    expect(normalizeBlankMarkers(src)).toBe(src);
+  });
+
+  it('引导词行尾书写空（用户课时训练实证）：加法算式/乘法算式/读作：+ 行尾空格 → u.blank-N', () => {
+    const cases = [
+      ['<p>加法算式：' + '　'.repeat(14) + '</p>', '<p>加法算式：<u class="blank-14">&emsp;</u></p>'],
+      ['<p>乘法算式：' + '　'.repeat(10) + '</p>', '<p>乘法算式：<u class="blank-10">&emsp;</u></p>'],
+      ['<p>读作：' + '　'.repeat(8) + '</p>', '<p>读作：<u class="blank-8">&emsp;</u></p>'],
+    ];
+    for (const [input, expected] of cases) {
+      expect(normalizeBlankMarkers(input)).toBe(expected);
+    }
   });
 });
 
