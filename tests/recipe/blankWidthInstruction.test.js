@@ -9,21 +9,23 @@ import { buildBlankWidthInstruction, BLANK } from '@/config/layoutSpec.js';
 
 const FORM_WORDS = /横线|括号|下划线|＿|blank-\d/;
 
-describe('buildBlankWidthInstruction（换算口径随 BLANK 动态生成，无形态词）', () => {
-  it('默认规格：长度倒推（答案几字位→空位几字位宽，放大系数与上限随 BLANK）', () => {
+describe('buildBlankWidthInstruction（换算口径随 BLANK 动态生成）', () => {
+  it('默认规格：主句只讲长度↔字位（不点名形态），换算括号保留全角空格计数锚', () => {
     const s = buildBlankWidthInstruction();
     expect(s).toContain('书写空间按照答案的长度倒推');
-    expect(s).toContain('空位就给几个字位宽');
-    expect(s).toContain('1 字位≈2 em');
+    expect(s).toContain('每一长度对应一个字位');
+    expect(s).toContain('1 个全角空格≈1 个字位≈2 em');
     expect(s).toContain('8 字位');
-    // 无任何载体形态词（空格/横线/括号/下划线/□＿均不得出现——诱导实证防回潮）
-    expect(s).not.toMatch(/空格|横线|括号|下划线|＿|□|blank-\d/);
+    expect(s).toContain('16 em');
+    // 主句无形态诱导词（主句 = 冒号前段 + 换算括号外部分）
+    expect(s).not.toMatch(/横线|括号|下划线|＿|□|blank-\d/);
   });
 
   it('wordGap/maxCap 调整后口径自动跟随（不写死默认值）', () => {
     const s = buildBlankWidthInstruction({ ...BLANK, wordGap: 3, maxCap: 15 });
-    expect(s).toContain('1 字位≈3 em');
+    expect(s).toContain('≈3 em');
     expect(s).toContain('5 字位'); // floor(15/3)
+    expect(s).toContain('15 em');
     const s2 = buildBlankWidthInstruction({ ...BLANK, maxCap: 8 });
     expect(s2).toContain('4 字位'); // floor(8/2)
     expect(s2).not.toContain('8 字位');

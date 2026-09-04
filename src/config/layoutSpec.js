@@ -215,11 +215,11 @@ export function buildCarrierInstruction(subject = '', stage = '') {
 
 /**
  * 填空留白换算口径（注入给模型的语义句）
- *  🔴 单一事实源：字位宽放大系数（wordGap em/字位）与上限由 BLANK 计算，规格调整后本句自动跟随；
- *  🔴 不引导（2026-09 收敛）：不出现任何载体形态词（横线/括号/下划线/空格/＿/□），
- *     只讲"答案长度 ↔ 空位宽度"的换算关系——模型用哪个形式表达空位由它按题型惯例自选
- *     （曾点名"空格"→ 算式填空也被模型统一写成空格、不再用 □，见诱导实证）；
- *     算式填空的形式收口由渲染端兜底（normalizeMathCircleBlanks：算式语境占位→单个方框），不在提示词里教。
+ *  🔴 单一事实源：字位宽（wordGap em/字位）与上限由 BLANK 计算，规格调整后本句自动跟随；
+ *  🔴 不引导主句（2026-09 收敛）：主句不点名任何载体形态词，只讲"答案长度↔字位"——
+ *     曾点名"对应一个空格"→ 算式填空也被模型统一写成空格、不再用 □（诱导实证）；
+ *     换算括号保留"全角空格≈字位≈em"作为可执行的计数锚（用户口径：仅换算锚点，不作形态引导）；
+ *     算式填空的形式收口由渲染端兜底（normalizeMathCircleBlanks：算式语境占位→单个方框）。
  * 消费方：promptLibrary QUESTION_FORMAT（题为主类型统一注入；内容型不注入）
  */
 export function buildBlankWidthInstruction(spec = BLANK) {
@@ -228,8 +228,8 @@ export function buildBlankWidthInstruction(spec = BLANK) {
   const capChars = Math.max(1, Math.floor(b.maxCap / per)); // 单处上限 ≈ maxCap em
   const perText = Number.isInteger(per) ? String(per) : String(per);
   return (
-    `书写空间按照答案的长度倒推：答案几个字位，空位就给几个字位宽` +
-    `（排版按书写体放大，1 字位≈${perText} em）；单处上限 ${capChars} 字位，超出改用整行书写位`
+    `书写空间按照答案的长度倒推，每一长度对应一个字位；并按此换算` +
+    `（1 个全角空格≈1 个字位≈${perText} em 书写宽；单处上限 ${capChars} 字位≈${b.maxCap} em，超长改用整行书写位）`
   );
 }
 
