@@ -393,6 +393,28 @@
           </div>
         </div>
         <div
+          v-if="instructionDraft"
+          class="inject-blocks"
+        >
+          <div
+            class="src-title block-toggle"
+            @click="showInstructionBlocks = !showInstructionBlocks"
+          >
+            🧭 来源分段标注
+            <span v-if="instructionBlocks.length">（{{ instructionBlocks.length }} 块{{ showInstructionBlocks ? ' ▾' : ' ▸' }}）</span>
+            <span v-else-if="userEditedInstruction">（已手动修改，来源标注失效）</span>
+            <span v-else>（暂无标注——点击「生成指令」后出现）</span>
+          </div>
+          <div
+            v-if="showInstructionBlocks && instructionBlocks.length"
+            class="iab-view"
+            @click="onBlocksClick"
+          >
+            <div v-html="annotatedBlocksHtml"></div>
+            <div class="iab-legend">着色段可点击跳转来源库；灰字为模板固有/未映射文本</div>
+          </div>
+        </div>
+        <div
           v-if="instructionSource"
           class="instruction-source"
         >
@@ -2962,6 +2984,7 @@ import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实�
 import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实体解码唯一实现（曾本地 esc/escGraph 及 data-raw 解码链副本）
 import { STORAGE_KEYS } from '../constants/storageKeys.js';  // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
 import { annotateInstructionBlocks } from '../utils/instructionBlocks.js';  // 指令来源分段标注（旁路：块区间↔{库,key}，不参与拼装）
+import { useRouter } from 'vue-router';  // 来源分段点击跳转（工具库子页）
 
 defineOptions({ name: 'GenerateModule' });
 
@@ -4240,6 +4263,61 @@ watch(instructionDraft, (val) => {
   if (userEditedInstruction && instructionBlocks.value.length) instructionBlocks.value = [];
 });
 const previewHint = ref('');
+// ── 指令来源分段标注（MVP 批1·步3 UI：分段着色 + 点击跳来源库卡）──
+const router = useRouter();
+const showInstructionBlocks = ref(false); // 分段标注视图折叠态
+const BLOCK_LIB_ROUTES = {
+  instruction: '/tools/instruction', 'layout-spec': '/tools/layout-spec',
+  'render-contract': '/tools/render-contract', rules: '/tools/rules', blueprint: '/tools/blueprint',
+};
+const BLOCK_LIB_NAMES = {
+  instruction: '指令库', 'layout-spec': '排版规格库', 'render-contract': '渲染契约库',
+  rules: '规则库', blueprint: '蓝图库',
+};
+// 🔴 分段着色 HTML（只读旁路视图）：父块（来源段）底色、子块（BLANK/carrier/蓝图卡）细分；
+//    未映射文本灰显；块经 data-i 指向 instructionBlocks 下标，点击时跳对应工具库卡
+const annotatedBlocksHtml = computed(() => {
+  const text = instructionDraft.value || '';
+  const blocks = instructionBlocks.value;
+  if (!text || !blocks.length) return '';
+  const tops = blocks.filter(b => !b.parentKey).sort((a, b) => a.start - b.start);
+  let html = '';
+  let pos = 0;
+  for (const top of tops) {
+    if (top.start > pos) html += `<span class="iab-plain">${escapeHtml(text.slice(pos, top.start))}</span>`;
+    const ti = blocks.indexOf(top);
+    const subs = blocks.filter(b => b.parentKey === top.key && b.start >= top.start && b.end <= top.end)
+      .sort((a, b) => a.start - b.start);
+    let inner = '';
+    let p2 = top.start;
+    for (const s of subs) {
+      if (s.start > p2) inner += escapeHtml(text.slice(p2, s.start));
+      inner += `<span class="iab-sub" data-i="${blocks.indexOf(s)}">${escapeHtml(text.slice(s.start, s.end))}</span>`;
+      p2 = s.end;
+    }
+    if (p2 < top.end) inner += escapeHtml(text.slice(p2, top.end));
+    html += `<span class="iab-top" data-i="${ti}">${inner}</span>`;
+    pos = top.end;
+  }
+  if (pos < text.length) html += `<span class="iab-plain">${escapeHtml(text.slice(pos))}</span>`;
+  return html;
+});
+// 点击来源块：确认后跳转对应工具库子页（?focus=<条目key>，视图侧定位在后续提交启用）
+const jumpToSourceBlock = async (b) => {
+  if (!b) return;
+  const libName = BLOCK_LIB_NAMES[b.lib] || b.lib;
+  const label = b.name || b.key || '';
+  const ok = await showConfirmDialogFn(`即将跳转到 ${libName}「${label}」，是否继续？`);
+  if (!ok) return;
+  const focusKey = b.key ?? '';
+  await router.push({ path: BLOCK_LIB_ROUTES[b.lib] || '/tools', query: focusKey ? { focus: focusKey } : {} });
+};
+const onBlocksClick = (e) => {
+  const el = e.target.closest('[data-i]');
+  if (!el) return;
+  const b = instructionBlocks.value[Number(el.dataset.i)];
+  if (b) jumpToSourceBlock(b);
+};
 const analysisResult = ref(null);
 // 🔧 持久化存储：刷新不丢失
 const STORAGE_KEY = 'wisdom_generated_docs';
@@ -8791,6 +8869,17 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 }
 .src-name { flex: 0 0 auto; font-weight: 600; color: #26303e; }
 .src-detail { flex: 1 1 auto; color: var(--text-muted); font-size: 12px; }
+
+/* 来源分段标注（MVP 批1：分段着色只读视图 + 点击跳工具库） */
+.inject-blocks { margin-top: 8px; border: 1px dashed var(--border-light); border-radius: 10px; padding: 6px 12px; background: var(--bg-card); }
+.block-toggle { cursor: pointer; user-select: none; margin-bottom: 4px; }
+.block-toggle span { font-weight: 400; color: var(--text-muted); }
+.iab-view { margin-top: 4px; border: 1px solid var(--border-light); border-radius: 8px; padding: 8px 10px; background: #fff; font-size: 12px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto; }
+.iab-top { background: rgba(88, 142, 255, 0.16); border-radius: 3px; padding: 0 1px; cursor: pointer; }
+.iab-sub { background: rgba(0, 180, 160, 0.20); border-radius: 3px; padding: 0 1px; cursor: pointer; text-decoration: underline dotted rgba(0, 120, 100, 0.5); }
+.iab-plain { color: #b0b6bf; }
+.iab-top:hover, .iab-sub:hover { outline: 1px solid #556; }
+.iab-legend { margin-top: 6px; font-size: 11px; color: var(--text-muted); }
 
 .instruction-source { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
 .inject-hint { margin-top: 6px; font-size: 12px; color: var(--text-muted); }
