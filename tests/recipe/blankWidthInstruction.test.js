@@ -36,6 +36,13 @@ describe('buildBlankWidthInstruction（换算口径随 BLANK 动态生成）', (
     expect(s).not.toMatch(FORM_WORDS);
   });
 
+  it('默认换算句整句逐字锁定（不漏一字：含换算括号与"超长改用整行书写位"尾）', () => {
+    expect(buildBlankWidthInstruction()).toBe(
+      '书写空间按照答案的长度倒推，每一长度对应一个字位；并按此换算' +
+      '（1 个全角空格≈1 个字位≈1 em 书写宽；单处上限 16 字位≈16 em，超长改用整行书写位）'
+    );
+  });
+
   it('与归一链换算口径一致：N em = 字位数 × wordGap（默认 1 字位 ≈ 1 em，不翻倍）', () => {
     const per = BLANK.wordGap;
     const s = buildBlankWidthInstruction();
