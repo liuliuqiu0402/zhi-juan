@@ -982,6 +982,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         && /抄写|写一写|书写/.test(bodyNoAnsText) && !/four-line-three|sixian-ge/.test(out)) {
       silentCount('writing-grid', '英语中段抄写/书写题无四线三格（four-line-three）——作答载体缺失，请抽检', 'debug');
     }
+    // 2j-4c 语文低段描红/书法/临写题缺米字格（载体缺失 debug 抽检：与 2j-4b 同口径，仅诊断线索不打扰；
+    //    米字格未入 CARRIER_RULES.must / CARRIER_DECLARATION，漏输出零防线——此 guard 至少留痕）
+    if (has('writing-expression-fix') && subject === '语文' && normalizeStage(stage) === 'primary_low'
+        && (getCarrierAllowlist(subject, stage) || []).includes('mi-zi-ge')
+        && /描红|书法练习|临写|米字格/.test(bodyNoAnsText) && !/mi-zi-ge/.test(out)) {
+      silentCount('writing-grid', '语文低段描红/书法/临写题无米字格（mi-zi-ge）——作答载体缺失，请抽检', 'debug');
+    }
     // 2j-5 写话/作文无作文格 → 自动补方格区（看图写话/写话/习作/作文/写作/小练笔均适用）
     //    🔧 2026-08 根治"作文格变横线"：① 扫描排除答案区（答案区评分标准标题含"写话/作文"词
     //       不得当补格锚点——用 closest('.answer-section') 过滤，序列化保留完整 out 防答案区丢失）；
@@ -1294,6 +1301,23 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (hasFillIn) continue;
           const need = needRows(it.score);
           if (rows >= need) continue;
+          // 🔧 专用作答区语境防错配（2026-09；遵守"补差不越权 / 静默不误报"固化基准）：
+          //    竖式（需格状书写区）、作图（需空白区）、填表（需表格）类题在题内确无任何作答载体时，
+          //    generic 横线/空白行是错配兜底 → 不落通用补差，改静默抽检提示（notice）交人工确认；
+          //    已有对应载体（bracket-grid/draw-area/square-grid/<table>）或已有填空位/作答行
+          //    （上方已 continue）一律不打扰；"观察统计表/图表回答问题"等读表题不含作答动词，不命中。
+          //    只读题面文本（stem+题内 seg），不向模型注入任何新要求（不碰 prompt）。
+          const specText = (stem + '\n' + segHtml).replace(/\s+/g, '');
+          let specNeeds = '';
+          if (/用竖式计算|竖式计算|列竖式|竖式/.test(specText)) specNeeds = '竖式';
+          else if (/画(?:出|一画).{0,8}?(?:线段|射线|直线|对称轴?|图形|示意|光路|电路)|示意图|光路图|电路图|作图|画一画|接着画|按规律(?:接着)?画/.test(specText)) specNeeds = '作图';
+          else if (/填表|把表格|在表格(?:里|中)填|用表格(?:整理|表示|呈现)|整理成(?:统计|数位|记录|调查)?表|制作(?:统计|调查|记录|数位)表|补全(?:统计|数位|记录|调查)?表/.test(specText)) specNeeds = '填表';
+          if (specNeeds) {
+            if (specNeeds === '填表' && /<table/i.test(segAll)) continue;       // 已有作答表格 → 有空间，不打扰
+            if (specNeeds === '作图' && /draw-area|square-grid/.test(segAll)) continue; // 已有作图区/方格纸
+            silentCount('answer-area', `「${stem.slice(0, 14)}…」属${specNeeds}题但题内无对应载体（${specNeeds === '竖式' ? '竖式书写区' : specNeeds === '作图' ? '作图空白区' : '表格'}），已跳过横线/空白补差（请抽检）`);
+            continue;
+          }
           const diff = Math.min(need - rows, 15);
           const anchor = it.seg.length > 0 ? it.seg[it.seg.length - 1] : it.p;
           for (let d = 0; d < diff; d++) {
