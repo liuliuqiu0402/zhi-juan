@@ -231,13 +231,16 @@ export const shortBlankWidth = (underscores) => blankWidthForChars(underscores);
  *     全被压成同一 10em → "都一样宽"；现线性：N = 字位×wordGap，宽窄随空白数量单调 */
 export const spaceBlankWidth = (emWidth) => blankWidthForChars(emWidth);
 
-/** 裸书写空跑段 → u.blank-N（全角空格 U+3000 / em 空格 U+2003·&emsp; 实体 同口径）
+/** 裸书写空跑段 → u.blank-N（仅"整段纯空白行"形态）
  * ============================================================
- * 模型输出"作答书写空"的 HTML 形态不固定：全角空格 \u3000、em 空格字符 \u2003、&emsp; 实体混用；
- *  曾只认 \u3000 裸跑段 → 模型输出 em 空格形态（如 <p>加法算式：&emsp;×8</p> / U+2003×8）漏判，
- *  源码有书写空、排版/导出却无下划线横线（2026-09 用户实证回归）；
- * 本函数把"整段纯空白行"与"行内（前有正文）连续空位段"统一包成 u.blank-N（1 空位单位=1 字位），
- * 与 ＿/括号 归一链幂等：已归一载体（&emsp; 单占位）与段首/标签后缩进不受影响。
+ * 书写空载体只认模型明确输出的形态：＿（402）、<u> 包裹（387/395）、括号空位（括号收敛）、
+ * 以及"整段纯空白行"（本函数规则①，写作答题行）——这些模型意图无歧义，可确定转横线。
+ * 行内（前有正文）的连续空格/em 空格**不再臆断为书写空**：同一形态既可能是书写空
+ * （"口诀：　　　。"）也可能是排版分隔（"2个3相加　　○○○"圆图间距、"13 与读作"之间），
+ * 字符层不可区分（2026-09 实证：分隔空格被误转成横线）。按"尊重模型输出"口径：模型未用
+ * ＿/<u>/括号/整行空白表达的空位一律保留原文，由模型按书写惯例输出＿或括号载体；
+ * 曾把行内 &emsp;/U+2003 也转 u.blank-N（2026-09 曾修"源码有书写空、排版无横线"）→ 已撤，
+ * 避免对分隔空格的误伤（与编辑器装载/粘贴/导出三端同函数，口径一致）。
  * 消费方：normalizeBlankMarkers（生成归一）/ 编辑器装载·粘贴（RichTextEditor）/ 导出端（GenerateModule/TypesetModule）。
  */
 const blankRunEmUnits = (s) => (s.match(/[\u3000\u2003]/g) || []).length + (s.match(/&emsp;/gi) || []).length;
@@ -248,16 +251,6 @@ export function wrapBareBlankRuns(html = '') {
   out = out.replace(/<(p|div|li)(?![^>]*class=)[^>]*>(\s*(?:[\u3000\u2003]|&emsp;){2,}\s*)<\/\1>/gi, (m, tag, inner) => {
     const len = blankRunEmUnits(inner);
     return `<${tag}><u class="blank-${blankWidthForChars(len)}">&emsp;</u></${tag}>`;
-  });
-  // ② 行内连续空位段（前有正文："口诀：＿＿。" / "加法算式：＿＿" 形态）→ u.blank-N
-  //    段首/标签后直接空位（排版缩进、括号载体后的列间隔）守卫不转；
-  //    单空位（列分隔）天然不命中 {2,}；已归一载体内 &emsp; 为单占位也不命中
-  out = out.replace(/(?:[\u3000\u2003]|&emsp;){2,}/g, (m, off, all) => {
-    const head = all.slice(0, off);
-    const lastTag = head.lastIndexOf('>');
-    const sinceTag = (lastTag === -1 ? head : head.slice(lastTag + 1)).trim();
-    if (!sinceTag) return m;
-    return `<u class="blank-${blankWidthForChars(blankRunEmUnits(m))}">&emsp;</u>`;
   });
   return out;
 }
@@ -460,14 +453,15 @@ export function normalizeBlankMarkers(html = '') {
  */
 export function normalizeMathCircleBlanks(html = '') {
   const src = String(html || '');
-  // 数学项字符：数字/字母/运算与比较符/括号；允许以空白间隔的空心圆 ○（U+25CB）/ 空心方框 □（U+25A1）
-  const MATH_ITEM = '[0-9A-Za-z×÷＋－＝＋−+<>（）()]';
-  // ○/□ 判定（2026-09 收敛，C6 补盲）：
+  // 数学项字符：数字/字母/运算与比较符/括号（右侧 lookahead 用，不含 <——曾含 < 致 ○/□ 后跟
+  // 标签（</p> 等）或行尾时被误判为算式语境 → 图例数量圆被转成填空圆，2026-09 实证）
+  const MATH_ITEM = '[0-9A-Za-z×÷＋－＝＋−+>（）()]';
+  // ○/□ 判定（2026-09 收敛，C6 补盲 + 图例圆排除）：
   //   - 关键信号在右侧：○/□ 后须紧随数学项（可空格间隔）——题干"在○里填…/在□里填数"的 ○/□ 后跟汉字（里/中/上…），天然不命中；
-  //   - 左侧只排除汉字（题干叙述紧贴，如"在□里"），不再强制左侧也必须是数学项——
-  //     曾要求两侧都被数学项紧邻，导致"算式表示：□×□＝12"的首个 □（左侧为"："）漏转，裸字形无载体语义；
-  //   - 左侧为中文标点/标签边界/算式起点的 □ 属算式语境，正常转换；非算式装饰（□ 后无数学项）不受影响。
-  const literalRe = new RegExp(`(?<![一-龥])[○□](?=\\s*${MATH_ITEM})`, 'g');
+  //   - 左侧排除汉字与连排圆/框（○□ 紧邻 = 数量图例串，如 ○○○／○○○＋○○○：组内与组末圆均不转填空；
+  //     算式填空 3＋○＝8 / □×□＝12 的单个 ○/□ 左右为运算符/数字，不受影响）；
+  //   - 右侧 lookahead 不含 <（标签/行尾不再误判）；比较符 > 保留（高年级比较题）
+  const literalRe = new RegExp(`(?<![一-龥○□])[○□](?=\\s*${MATH_ITEM})`, 'g');
   // 🔧 算式填空兜底（2026-09，用户口径：数字整体放一个框）：
   //    模型若未写 □/○ 而用空白/下划线占位（曾点名"空格"后算式填空全变空格串），这些占位已被
   //    blank 归一为 <u class="blank-N">&emsp;</u>——本函数在所有调用链（生成/编辑器装载/粘贴/排版导出）
@@ -489,6 +483,20 @@ export function normalizeMathCircleBlanks(html = '') {
       // 🔧 空邻接守卫（2026-09 回归）：''.includes(任何)===true，prev/next 为空串时原判断恒真 →
       //    段尾/行尾书写行（"加法算式：＿＿＿</p>""口诀：＿＿＿</p>"默写行）被误收成单个方框，横线消失；
       //    空串不视为算式邻接（算式单元格两侧必有真实运算符/等号字符）
+      if ((prev && OP_SIDE.includes(prev)) || (next && OP_SIDE.includes(next))) return '<span class="square-box">&nbsp;</span>';
+      return m;
+    });
+  }
+  // 🔧 字面空格段算式占位（2026-09：wrapBareBlankRuns 行内空格→u.blank 已撤——分隔空格与书写空
+  //    字符层不可区分，不再无差别转横线；但算式填空的空格占位（模型未写 □/○ 时，如
+  //    "用乘法算式表示：　　×　　＝　　（人）"）语义明确：空格段任一侧邻接运算符/等号
+  //    （×÷＋－＝+−<>）即算式单元格 → 直接收单个 <span class="square-box">（1 个数一格）；
+  //    文本/图示/分隔空格（口诀：　　。、"2个3相加　　○○○"、段尾书写行）邻接非运算符不受影响，保留原文）
+  const bareSpaceRe = /(?:[\u3000\u2003]|&emsp;){2,}/g;
+  if (bareSpaceRe.test(out)) {
+    out = out.replace(bareSpaceRe, (m, off, all) => {
+      const prev = all.slice(0, off).replace(/<[^>]+>/g, '').replace(/[　\s]+$/, '').slice(-1);
+      const next = all.slice(off + m.length).replace(/<[^>]+>/g, '').replace(/^[　\s]+/, '').slice(0, 1);
       if ((prev && OP_SIDE.includes(prev)) || (next && OP_SIDE.includes(next))) return '<span class="square-box">&nbsp;</span>';
       return m;
     });

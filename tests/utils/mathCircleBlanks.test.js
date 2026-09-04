@@ -97,22 +97,24 @@ describe('normalizeMathCircleBlanks 算式占位兜底（模型写空格/下划�
     expect(chain('<p>3＋＿＿＝7</p>')).toBe('<p>3＋<span class="square-box">&nbsp;</span>＝7</p>');
   });
 
-  it('文本空位不受影响（我的发现：＿＿＿。两侧为汉字/句号 → 保持空白横线）', () => {
+  it('文本空位（空格形态，两侧汉字/句号）→ 保留原文，不再臆断转横线（2026-09 撤行内空格兜底）', () => {
     const out = chain('<p>我的发现：' + '　'.repeat(8) + '。</p>');
-    expect(out).toContain('<u class="blank-8">&emsp;</u>');
+    expect(out).toBe('<p>我的发现：' + '　'.repeat(8) + '。</p>');
     expect(out).not.toContain('square-box');
+    expect(out).not.toContain('blank-');
   });
 
-  it('文本空位（&emsp; 形态书写空）同样保持 u.blank，不误收成方框', () => {
+  it('文本空位（&emsp; 形态书写空）同样保留原文，不误收成方框（书写空由模型输出＿/括号表达）', () => {
     const out = chain('<p>加法算式：' + '&emsp;'.repeat(8) + '</p>');
-    expect(out).toBe('<p>加法算式：<u class="blank-8">&emsp;</u></p>');
+    expect(out).toBe('<p>加法算式：' + '&emsp;'.repeat(8) + '</p>');
     expect(out).not.toContain('square-box');
   });
 
-  it('段尾书写行（算式/口诀作答行，空位后无字符）→ 保持 u.blank，不收成单个方框（空邻接误判回归）', () => {
-    // '' 的 includes 恒真曾使"段尾 u.blank-N"被误收方框 → 横线消失；算式单元格两侧必有真实运算符
-    expect(chain('<p>口诀：' + '&emsp;'.repeat(8) + '</p>')).toBe('<p>口诀：<u class="blank-8">&emsp;</u></p>');
-    expect(chain('<p>加法算式：' + '\u2003'.repeat(8) + '</p>')).toBe('<p>加法算式：<u class="blank-8">&emsp;</u></p>');
+  it('段尾书写行（算式/口诀作答行，空位后无字符）→ 保留原文，不收成单个方框', () => {
+    // 行内空格不再兜底转 u.blank（尊重模型输出：书写空用＿/括号表达）；
+    // 空格段后无字符邻接判定为空 → 不属算式单元格，不产生方框
+    expect(chain('<p>口诀：' + '&emsp;'.repeat(8) + '</p>')).toBe('<p>口诀：' + '&emsp;'.repeat(8) + '</p>');
+    expect(chain('<p>加法算式：' + '\u2003'.repeat(8) + '</p>')).toBe('<p>加法算式：' + '\u2003'.repeat(8) + '</p>');
   });
 
   it('正常算式空格排版（半角单空格）不受影响，无空位不产生方框', () => {
@@ -122,5 +124,31 @@ describe('normalizeMathCircleBlanks 算式占位兜底（模型写空格/下划�
   it('幂等：算式方框产物再次走完整链不重复/不回退', () => {
     const once = chain('<p>' + '　'.repeat(6) + '×' + '　'.repeat(6) + '＝10</p>');
     expect(chain(once)).toBe(once);
+  });
+});
+
+describe('normalizeMathCircleBlanks 分隔空格与图例圆不误转（2026-09 用户实证回归）', () => {
+  const chain = (h) => normalizeMathCircleBlanks(normalizeBlankMarkers(h));
+
+  it('"2个3相加　　　○○○" 分隔空格保留原文，不转 u.blank 横线；图例 ○ 不变填空圆', () => {
+    const src = '<p>例：2个3相加' + '　'.repeat(2) + '○○○' + '　'.repeat(2) + '○○○</p>';
+    expect(chain(src)).toBe(src);
+  });
+
+  it('算式与"读作"之间的分隔空格保留原文（第一份实证：曾转成下划线横线）', () => {
+    const src = '<p>（1）2×6＝12' + '　'.repeat(4) + '读作：</p>';
+    expect(chain(src)).toBe(src);
+  });
+
+  it('纯图例加号连接 ○○○＋○○○：末圆不转填空圆（图例数量圆保留）', () => {
+    const src = '<p>例：2个3相加' + '　'.repeat(2) + '○○○＋○○○</p>';
+    expect(chain(src)).toBe(src);
+  });
+
+  it('算式填空空格占位仍收方框（删规则②后由算式邻接兜底，语义不变）', () => {
+    const src = '<p>（3）用乘法算式表示：' + '　'.repeat(4) + '×' + '　'.repeat(4) + '＝' + '　'.repeat(4) + '（人）</p>';
+    expect(chain(src)).toBe(
+      '<p>（3）用乘法算式表示：<span class="square-box">&nbsp;</span>×<span class="square-box">&nbsp;</span>＝<span class="square-box">&nbsp;</span>（人）</p>'
+    );
   });
 });

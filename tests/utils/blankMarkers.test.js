@@ -151,18 +151,18 @@ describe('normalizeBlankMarkers 裸全角空格留空归一（未包 u/括号，
   });
 });
 
-describe('normalizeBlankMarkers 模型 em 空格形态书写空（&emsp;/U+2003，与全角空格同口径；2026-09 回归）', () => {
-  it('行内"加法算式：&emsp;×8"（前有正文）→ u.blank-8（曾漏判 → 排版无下划线横线）', () => {
+describe('normalizeBlankMarkers 行内 em 空格书写空（2026-09 撤行内兜底：保留原文，书写空由＿/括号表达）', () => {
+  it('行内"加法算式：&emsp;×8"（前有正文）→ 保留原文（分隔空格与书写空不可区分，不再臆断转横线）', () => {
     const out = normalizeBlankMarkers('<p>加法算式：' + '&emsp;'.repeat(8) + '</p>');
-    expect(out).toBe('<p>加法算式：<u class="blank-8">&emsp;</u></p>');
+    expect(out).toBe('<p>加法算式：' + '&emsp;'.repeat(8) + '</p>');
   });
 
-  it('行内字面 U+2003 em 空格 ×8 同样转 u.blank-8', () => {
+  it('行内字面 U+2003 em 空格 ×8（口诀：…。）同样保留原文', () => {
     const out = normalizeBlankMarkers('<p>口诀：' + '\u2003'.repeat(8) + '。</p>');
-    expect(out).toBe('<p>口诀：<u class="blank-8">&emsp;</u>。</p>');
+    expect(out).toBe('<p>口诀：' + '\u2003'.repeat(8) + '。</p>');
   });
 
-  it('整段纯 &emsp; 行（写作答题行）→ 包 u.blank-8（保留 <p> 外壳）', () => {
+  it('整段纯 &emsp; 行（写作答题行）→ 包 u.blank-8（保留 <p> 外壳；块级整段空白仍兜底）', () => {
     const out = normalizeBlankMarkers('<p>' + '&emsp;'.repeat(8) + '</p>');
     expect(out).toBe('<p><u class="blank-8">&emsp;</u></p>');
   });
@@ -172,8 +172,8 @@ describe('normalizeBlankMarkers 模型 em 空格形态书写空（&emsp;/U+2003�
     expect(normalizeBlankMarkers('<p>一五得<span class="blank-2">\u2003</span>　二五</p>')).toBe('<p>一五得<span class="blank-2">\u2003</span>　二五</p>');
   });
 
-  it('已归一 u.blank-N 内单 &emsp; 幂等（二次执行不重复包壳）', () => {
-    const once = normalizeBlankMarkers('<p>加法算式：' + '&emsp;'.repeat(8) + '</p>');
+  it('整段空白行归一幂等（二次执行不重复包壳）', () => {
+    const once = normalizeBlankMarkers('<p>' + '&emsp;'.repeat(8) + '</p>');
     expect(normalizeBlankMarkers(once)).toBe(once);
   });
 });
