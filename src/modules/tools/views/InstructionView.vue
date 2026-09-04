@@ -268,6 +268,60 @@
         </div>
       </div>
     </div>
+
+    <!-- 相同旧句批量同步弹层（保存后：含被修改旧句的其它自定义条目，按库分组勾选） -->
+    <div
+      v-if="openSyncPanel"
+      class="modal-mask"
+      @click.self="openSyncPanel = false"
+    >
+      <div class="modal sync-modal">
+        <h4>🔁 发现相同旧句可批量同步（{{ syncTotal }} 处）</h4>
+        <p class="modal-tip">
+          以下条目中仍含你刚修改的旧句（行级 1:1 匹配）。按库分组，可自行勾选：勾选的条目将把旧句替换为新句并保存；不勾选的保持原样。
+        </p>
+        <div class="sync-groups">
+          <div
+            v-for="g in syncGroups"
+            :key="g.lib"
+            class="sync-group"
+          >
+            <div class="sync-lib">{{ libName(g.lib) }}（{{ g.items.length }}）</div>
+            <label
+              v-for="h in g.items"
+              :key="h.key + '|' + h.pair.old"
+              class="sync-item"
+            >
+              <input
+                type="checkbox"
+                :checked="syncChecked.has(syncHitKey(h))"
+                @change="toggleSyncHit(h)"
+              >
+              <span class="sync-name">{{ h.name }}</span>
+              <span class="sync-key">{{ h.key }}</span>
+              <span class="sync-prev">
+                <span class="sync-old">{{ h.pair.old }}</span> → <span class="sync-new">{{ h.pair.next }}</span>
+              </span>
+            </label>
+          </div>
+        </div>
+        <div class="tpl-ops">
+          <button
+            class="btn-p"
+            :disabled="!syncChecked.size"
+            @click="doSyncReplace"
+          >
+            替换勾选（{{ syncChecked.size }}）
+          </button>
+          <button
+            class="btn"
+            @click="openSyncPanel = false"
+          >
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -278,6 +332,8 @@ import { listPromptTemplates, savePromptTemplate, deletePromptTemplate, BUILTIN_
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 import { setLibToggle, listDisabledEntries } from '../../../utils/libToggles.js';
+import { listValidatorRules, saveUserRule } from '../../../config/validatorRules.js'; // 同旧句批量同步：扫描/落库规则库用户条目
+import { diffOldNewLines, scanSyncTargets, applySyncReplace, groupSyncHitsByLib } from '../../../utils/instructionSync.js'; // 同旧句批量同步（行级 diff 1:1）
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
 const refreshLibStats = inject('refreshLibStats', () => {});
@@ -396,18 +452,82 @@ const validateMsgs = computed(() => {
 /* ===== 编辑 / 保存 / 删除 / 新增 ===== */
 const editingKey = ref('');
 const draft = ref({ name: '', template: '' });
+const editingOldTemplate = ref(''); // 保存前模板原文（批量同步 diff 基准）
 
 const startEdit = (t) => {
   editingKey.value = t.key;
   draft.value = { name: t.name || t.key, template: t.template || '' };
+  editingOldTemplate.value = t.template || '';
   openKey.value = t.key;
 };
-const cancelEdit = () => { editingKey.value = ''; draft.value = null; };
+const cancelEdit = () => { editingKey.value = ''; draft.value = null; editingOldTemplate.value = ''; };
 const saveDraft = (key) => {
   if (!draft.value || !String(draft.value.template || '').trim()) { window.alert('模板内容不能为空'); return; }
-  const ok = savePromptTemplate(key, { name: draft.value.name || key, template: draft.value.template });
-  if (ok) { reload(); editingKey.value = ''; draft.value = null; }
-  else window.alert('保存失败');
+  const oldText = editingOldTemplate.value;
+  const newText = draft.value.template;
+  const ok = savePromptTemplate(key, { name: draft.value.name || key, template: newText });
+  if (ok) {
+    reload();
+    editingKey.value = ''; draft.value = null;
+    // 🔴 保存后触发"相同旧句批量同步"检查（行级 1:1；无命中或不可自动替换则静默）
+    runSyncCheck(key, oldText, newText);
+  } else window.alert('保存失败');
+};
+
+/* ===== 相同旧句批量同步（MVP 批2·步4：含被修改旧句的其它自定义条目，按库分组勾选替换） ===== */
+const openSyncPanel = ref(false);
+const syncGroups = ref([]); // groupSyncHitsByLib 结果
+const syncChecked = ref(new Set());
+const syncHitKey = (h) => `${h.lib}:${h.key}:${h.pair.old}`;
+const libName = (lib) => ({ instruction: '指令库', rules: '规则库' }[lib] || lib);
+const syncTotal = computed(() => syncGroups.value.reduce((n, g) => n + g.items.length, 0));
+const toggleSyncHit = (h) => {
+  const k = syncHitKey(h);
+  const next = new Set(syncChecked.value);
+  if (next.has(k)) next.delete(k); else next.add(k);
+  syncChecked.value = next;
+};
+// 保存成功后扫描：本条目之外的 用户自定义指令模板 + 规则库用户 promptHint
+const runSyncCheck = (key, oldText, newText) => {
+  if (!oldText || !newText || oldText === newText) return;
+  const { pairs } = diffOldNewLines(oldText, newText);
+  if (!pairs.length) return;
+  const tplTargets = allTpl.value.filter((t) => t.source === 'user' && t.key !== key)
+    .map((t) => ({ lib: 'instruction', key: t.key, name: tplDimName(t), text: t.template }));
+  const ruleTargets = listValidatorRules()
+    .filter((r) => r.source === 'user' && r.promptHint)
+    .map((r) => ({ lib: 'rules', key: r.id, name: r.name || r.id, text: r.promptHint }));
+  const hits = scanSyncTargets([...tplTargets, ...ruleTargets], pairs);
+  if (!hits.length) return;
+  syncGroups.value = groupSyncHitsByLib(hits);
+  syncChecked.value = new Set(hits.map((h) => syncHitKey(h))); // 默认全勾选
+  openSyncPanel.value = true;
+};
+// 执行：勾选命中 → 库内旧句替换为新句并保存（指令库 savePromptTemplate / 规则库 saveUserRule）
+const doSyncReplace = () => {
+  const checked = syncChecked.value;
+  let n = 0;
+  for (const g of syncGroups.value) {
+    for (const h of g.items) {
+      if (!checked.has(syncHitKey(h))) continue;
+      const replaced = applySyncReplace(h.text, h.pair.old, h.pair.next);
+      if (replaced === h.text) continue;
+      if (h.lib === 'instruction') {
+        const cur = allTpl.value.find((x) => x.key === h.key);
+        savePromptTemplate(h.key, { name: cur?.name || h.name, template: replaced });
+      } else if (h.lib === 'rules') {
+        const rule = listValidatorRules().find((r) => r.id === h.key);
+        if (rule) {
+          const { source, ...rest } = rule; // 剔除合并标记，落库同既有编辑
+          saveUserRule({ ...rest, promptHint: replaced });
+        }
+      }
+      n += 1;
+    }
+  }
+  openSyncPanel.value = false;
+  reload();
+  if (n) window.alert(`已同步替换 ${n} 处`);
 };
 const removeTpl = (t) => {
   if (!window.confirm(`删除「${t.key}」的自定义版本？删除后回退内置默认。`)) return;
@@ -512,6 +632,20 @@ const doImport = async (e) => {
 .tpl-card { background: #fff; border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; }
 .tpl-card.open { border-color: var(--primary-light); box-shadow: 0 2px 10px rgba(30,58,111,.08); }
 .tpl-card.flash { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,170,0,.45); }
+
+/* 相同旧句批量同步弹层 */
+.sync-modal { max-width: 640px; }
+.sync-groups { max-height: 46vh; overflow: auto; border: 1px solid var(--border-light); border-radius: 8px; padding: 4px 8px; margin: 6px 0; }
+.sync-group + .sync-group { margin-top: 6px; }
+.sync-lib { font-weight: 700; font-size: 12.5px; color: var(--primary); margin: 6px 0 2px; }
+.sync-item { display: flex; align-items: baseline; gap: 8px; padding: 5px 2px; font-size: 12.5px; cursor: pointer; border-top: 1px dashed var(--border-light); }
+.sync-item:first-of-type { border-top: none; }
+.sync-name { font-weight: 600; color: #26303e; flex: 0 0 auto; }
+.sync-key { font-size: 11px; color: var(--text-muted); flex: 0 0 auto; }
+.sync-prev { flex: 1 1 auto; font-size: 11.5px; line-height: 1.5; word-break: break-all; }
+.sync-old { color: #b3483c; }
+.sync-new { color: #2e7d32; }
+
 .tpl-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; flex-wrap: wrap; }
 .tpl-head:hover { background: var(--primary-lighter); }
 .arrow { color: var(--accent); font-weight: 700; }
