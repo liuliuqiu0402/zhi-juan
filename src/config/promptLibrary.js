@@ -58,7 +58,7 @@ const QUESTION_FORMAT = (ctx = {}) => {
 };
 
 /** 内容组织格式（内容型类型：结构化呈现，不用题号） */
-const CONTENT_FORMAT = `· 内容用结构化呈现（表格/对比/分层条目优先；条目用 <ul><li> 层级嵌套，勿自造图形字符），条目清晰；正文段落用 <p>，条目列表用 <ul><li> 或带序号（1）（2）；如需图形化图表用 [GRAPH]/[IMAGE] 标记描述（格式见生成时注入的【渲染指令】）`;
+const CONTENT_FORMAT = `· 内容用结构化呈现（表格/对比/分层条目优先；条目用 <ul><li> 层级嵌套，勿自造图形字符），条目清晰；正文段落用 <p>，条目列表用 <ul><li> 或带序号（1）（2），条目标记与序号只取其一、严禁叠加（同一条目仅保留一种标记，不得既用项目符号又带文本序号）；如需图形化图表用 [GRAPH]/[IMAGE] 标记描述（格式见生成时注入的【渲染指令】）`;
 
 /** 质量底线（按类型：正式卷 vs 教辅；在新课标"素养立意、教-学-评一致"基础上理解，不字面化） */
 const EXAM_QUALITY = `【质量底线】（正式卷）
@@ -105,7 +105,7 @@ const OUTPUT_FORMAT_BLOCK = (mode = 'question', ctx = {}) => {
     : '如 <h2>一、基础建构任务</h2>，不标注分值';
   const headLabel = isContent ? '栏目标题' : '大题标题';
   const itemRule = isContent
-    ? '· 栏目用 <h2>；条目/知识点用 <p> 或 <ul><li> 呈现，编号用（1）（2）或 ①②'
+    ? '· 栏目用 <h2>；条目/知识点用 <p> 或 <ul><li> 呈现，编号用（1）（2）或 ①②，条目标记与序号只取其一、严禁叠加（同一条目仅保留一种标记，不得既用项目符号又带文本序号）'
     : '· 题目以 <p class="question"> 包裹并带题号（1. 2. 3.…），子题用 (1)(2)\n· 段落组织：每道题、每个任务（情境/活动/成果各条）独立成 <p> 段落，段间空行分隔；严禁把多个题目或条目堆叠在同一段落内';
   const fmt = isContent ? CONTENT_FORMAT : QUESTION_FORMAT(ctx);
   const quality = mode === 'exam' ? EXAM_QUALITY : TEACHING_QUALITY;
