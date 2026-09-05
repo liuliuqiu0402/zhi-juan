@@ -49,7 +49,7 @@ describe('promptLibrary 课标版本按学段注入', () => {
     expect(inj).not.toContain('{curriculum}');
   });
 
-  it('EXAM_QUALITY 质量底线保留"不超出本学段课标学业质量要求"（学业质量为课标组成章节，可查）', () => {
+  it('质量底线（QUALITY_BASE 通用一套）保留"不超出本学段课标学业质量要求"（学业质量为课标组成章节，可查）', () => {
     const tpl = getPromptTemplate({ grade: 'middle', subject: '物理', genType: 'exam' });
     expect(tpl.template).toContain('不超出本学段课标学业质量要求');
   });

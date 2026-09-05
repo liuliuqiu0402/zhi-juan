@@ -305,7 +305,7 @@ describe('作答载体规范全模板覆盖（宽度换算口径随 BLANK 注入
 describe('质量底线三维度注入（类型/学科/学段各司其职，非一刀切）', () => {
   it('类型维度：各类型【要求】带专属底线（无诱导措辞）', () => {
     const practice = getPromptTemplate({ genType: 'practice' });
-    expect(practice.template).toContain('板块间不重复不雷同'); // 防重复语义由质量底线承载（单一事实源）
+    expect(practice.template).toContain('不扎堆反复出现'); // 防重复语义由质量底线承载（单一事实源，QUALITY_BASE 通用一套）
     const special = getPromptTemplate({ genType: 'special' });
     expect(special.template).toContain('板块划分与题量按生成时注入的【教辅结构】执行');
     const reading = getPromptTemplate({ genType: 'reading' });
