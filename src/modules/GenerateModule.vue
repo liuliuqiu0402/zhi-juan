@@ -921,7 +921,7 @@
         <h3>📐 选择范围类型</h3>
         <div class="option-list">
           <label
-            v-for="opt in scopeOptions"
+            v-for="opt in visibleScopeOptions"
             :key="opt.value"
             class="option-item"
           >
@@ -2960,10 +2960,10 @@ import {
 } from '../config/expertKnowledge.js';
 import { useAiGenerator } from '../composables/useAiGenerator.js';
 import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
-import { inferPaperScope, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS } from '../config/paperScope.js';
+import { inferPaperScope, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES } from '../config/paperScope.js';
 
 // 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
-const SCOPE_TYPE_LABELS = { default: '默认', midterm: '期中', final: '期末', monthly: '月考', topic: '专题' };
+const SCOPE_TYPE_LABELS = { default: '默认', midterm: '期中', final: '期末', monthly: '月考', topic: '专题', xiaoshengchu: '小升初', zhongkao: '中考', gaokao: '高考' };
 const SCOPE_BASIS = {
   lesson: '单课',
   unit: '整个单元（目录全勾选）',
@@ -3024,6 +3024,10 @@ const getSelectedBookSubject = () => {
 const scopeType = ref('');
 const scopeOverride = ref('');  // 🔧 范围确认弹窗后用户选定的范围名（优先于自动推断）
 const mergeChapters = ref(true);  // 🔧 多章节合并出卷开关（默认合并；false=逐章拆分）
+// 升学考卷别（小升初/中考/高考）仅对"正式考卷"展示生效；其余资料类型不外显，且已选卷别在切换类型时重置
+const visibleScopeOptions = computed(() =>
+  (genTypes.value?.includes('exam')) ? scopeOptions : scopeOptions.filter(o => !EXAM_GRADUATION_TYPES.includes(o.value)));
+watch(genTypes, (v) => { if (!v?.includes('exam') && EXAM_GRADUATION_TYPES.includes(scopeType.value)) scopeType.value = ''; });
 /** 🔧 生成前分值微调（本次生效，不落库、不动内置/用户蓝本；键=学科|学段，值={大题名:分值}） */
 const scoreAdjust = ref({});
 const currentDimKey = () => {
@@ -4682,7 +4686,7 @@ const openScoreAdjust = () => {
     const key = currentDimKey();
     if (!key) { window.alert('请先选择教材'); return; }
     const [subject, stageKey] = key.split('|');
-    const bp = findBlueprint({ genType: genTypes.value[0], subject, stage: stageKey, region: examRegion.value });
+    const bp = findBlueprint({ genType: genTypes.value[0], subject, stage: stageKey, region: examRegion.value, scopeType: scopeType.value });
     if (!bp?.sections?.length) { window.alert('当前资料类型无可微调的卷面结构（仅 exam 有固定卷面）'); return; }
     const adj = scoreAdjust.value[key] || {};
     scoreAdjustDraft.value = bp.sections.map((s) => ({ name: s.name, score: adj[s.name] != null ? adj[s.name] : s.score }));
@@ -5797,7 +5801,7 @@ const buildInstruction = async () => {
         const stageLabel = STAGE_LABEL_MAP[stageKey] || stageKey;
         lines.push(`学段：${stageLabel}（${stageKey}）${region ? `　地区：${region}` : ''}`);
 
-        const bp = findBlueprint({ genType, subject, stage: stageKey, region });
+        const bp = findBlueprint({ genType, subject, stage: stageKey, region, scopeType: scopeType.value });
         if (bp) {
           lines.push(`匹配蓝图：${bp.fullScore ? `（总分${bp.fullScore}分 · ${bp.duration || '时长未定'}）` : ''}`);
           // ── 大题结构预览（蓝图数据）──
@@ -5863,7 +5867,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   let duration = '';
   let bp = null; // 🔧 蓝图对象（供蓝图注入块使用）
   try {
-    bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value });
+    bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value, scopeType: scopeType.value });
     if (bp) {
       // 用户分值微调（本次生效不落库）应用在唯一注入点，保证【卷面结构】段与实际分值一致
       structure = buildStructureText(applyScoreAdjust(bp));
@@ -5892,7 +5896,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   const genTypeLabel = genTypeTemplates[genType]?.name || genType;
   // ✏️ 标题组成（命名规范）：年级(去学段) + 学科 + 册别 + 范围名 + 类型名；
   //    期中/期末/月考（范围名即考试标签，含跨单元推断出的考试类）：前缀加学年度学期、不带册别（学期已隐含上下册）、不拼类型名
-  const examLabelCats = ['midterm', 'final', 'monthly', 'topic'];
+  const examLabelCats = ['midterm', 'final', 'monthly', 'topic', ...EXAM_GRADUATION_TYPES];
   const isLabelScope = !!scopeInfo?.isScopeLabel
     && (examLabelCats.includes(scopeType.value || '') || examLabelCats.includes(scopeInfo.category || ''));
   // ✏️ 自定义范围名避重：范围名含"单元"时，类型名不用含"单元"的词（防"第二单元单元测试卷"病句；名称池已无"单元"词，此为兜底）
@@ -6003,7 +6007,7 @@ const restoreDefaultInstruction = async () => {
   let duration = '';
   let bp = null;
   try {
-    bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value });
+    bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value, scopeType: scopeType.value });
     if (bp) {
       // 恢复默认同样应用分值微调（与 loadInstructionFromLibrary 一致）
       structure = buildStructureText(applyScoreAdjust(bp));
@@ -7744,6 +7748,21 @@ const generate = async (mode) => {
     }
     
     try {
+      // 🔴 三维度一致性校验：升学考卷别必须与所选教材学段相符（小升初→小学、中考→初中、高考→高中）
+      if (EXAM_GRADUATION_TYPES.includes(scopeType.value)) {
+        const SCOPE_EXPECT_STAGE = { xiaoshengchu: '小学', zhongkao: '初中', gaokao: '高中' };
+        const expect = SCOPE_EXPECT_STAGE[scopeType.value];
+        const badBooks = (selectedBooks || []).filter(b => {
+          const st = resolveStageKey(b.stage, b.grade, b.name);
+          const norm = st === 'middle' ? '初中' : (st === 'high' ? '高中' : '小学');
+          return norm !== expect;
+        }).map(b => b.name).filter(Boolean);
+        if (badBooks.length) {
+          const label = SCOPE_TYPE_LABELS[scopeType.value] || scopeType.value;
+          window.alert(`「${label}」卷要求选择${expect}教材，但以下教材学段不符：${badBooks.join('、')}，无法生成。`);
+          return;
+        }
+      }
       // 🔴 整卷生成：注入指令（指令库渲染，用户可编辑）作为生成依据
       const inj = await ensureInjectedInstruction();
       let finalInstr = typeIndex > 0 ? diffInstruction : inj;
@@ -7830,7 +7849,7 @@ const finalizeGeneration = async (result, genType) => {
     //    考试型（期中/期末/月考/专题）= 学年度学期 + 年级 + 学科 + 范围标签词（从名称池轮换）
     //    ——标题命名是确定性拼装（程序职责），不再采信 AI 生成的 h1（此前 AI 自由发挥导致命名规则从未生效）
     const chapters = book?.selectedChapters || [];
-    const examLabelCats = ['midterm', 'final', 'monthly', 'topic'];
+    const examLabelCats = ['midterm', 'final', 'monthly', 'topic', ...EXAM_GRADUATION_TYPES];
     const scopeInfo = inferPaperScope(chapters, book?.outline || [], scopeType.value || '', pickScopeFromPool);
     const chapterName = scopeInfo.name;
     const isLabelScope = !!scopeInfo?.isScopeLabel

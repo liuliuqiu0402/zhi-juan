@@ -281,7 +281,11 @@ export const scopeOptions = [
   { value: 'midterm', label: '期中', desc: '期中考试范围' },
   { value: 'final', label: '期末', desc: '期末考试范围' },
   { value: 'monthly', label: '月考', desc: '月考范围' },
-  { value: 'topic', label: '专题', desc: '专题复习范围' }
+  { value: 'topic', label: '专题', desc: '专题复习范围' },
+  // 升学考卷别（仅对"正式考卷"销售展示与生效；卷面结构由蓝本按卷别解析，见 blueprintProvider）
+  { value: 'xiaoshengchu', label: '小升初', desc: '小学毕业升学衔接卷（毕业检测结构，仅正式考卷）' },
+  { value: 'zhongkao', label: '中考', desc: '初中毕业升学考卷（中考结构，仅正式考卷）' },
+  { value: 'gaokao', label: '高考', desc: '高中毕业升学考卷（新高考结构，仅正式考卷）' }
 ];
 
 // ==================== 粒度选项 ====================

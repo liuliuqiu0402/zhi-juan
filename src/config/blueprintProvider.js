@@ -66,28 +66,41 @@ export function listAllBlueprints() {
 }
 
 /**
+ * 升学考卷别 → 蓝本学段档映射（单一事实源：卷别是范围维度，不引入新学段档；
+ * 中考复用 middle（初中）/高考复用 high（高中）；小升初以小学高段（毕业检测）结构为基准，标题携带卷别语义）
+ */
+export const EXAM_SCOPE_TO_STAGE = {
+  xiaoshengchu: 'primary_high',
+  zhongkao: 'middle',
+  gaokao: 'high',
+};
+
+/**
  * 查询真题卷蓝本（仅 exam 有固定卷面结构；教辅无）
  * 用户自定义优先：精确 key（subject|stage）命中用户版 → 直接返回；否则走内置（含省市覆盖/降级链）。
- * @param {Object} opts { genType, subject, stage(primary_low 等), region }
+ * 卷别（scopeType=小升初/中考/高考）时按 EXAM_SCOPE_TO_STAGE 解析蓝本学段档（存在于卷别与所选教材学段的对应关系）。
+ * @param {Object} opts { genType, subject, stage(primary_low 等), region, scopeType(可选升学考卷别) }
  * @returns {Object|null} { fullScore, duration, sections:[{name,score,note}], source }
  */
-export function findBlueprint({ genType = '', subject = '', stage = '', region = '' } = {}) {
+export function findBlueprint({ genType = '', subject = '', stage = '', region = '', scopeType = '' } = {}) {
   if (genType !== 'exam') return null;
+  // 卷别覆盖蓝本学段档（原始 stage 供非蓝本用途：模板/学科维度等仍按所选教材学段）
+  const examStage = EXAM_SCOPE_TO_STAGE[scopeType] || String(stage);
   try {
     // 1) 用户自定义精确命中（subject|stage 原始键，不经过内置别名/降级）
     //    工具库停用（含自定义版与内置版整条停用）→ 无卷面蓝本（生成端走密封线/基础结构兜底）
     const userLib = loadUserBlueprints();
-    const userKey = `${subject}|${stage}`;
+    const userKey = `${subject}|${examStage}`;
     if (userLib[userKey]?.sections?.length) {
       return isLibEntryEnabled('blueprint', userKey)
         ? { ...userLib[userKey], key: userKey, source: 'user' }
         : null;
     }
     // 2) 内置蓝本（学科别名 → 学段别名 → 降级链 → 省市覆盖）
-    const bp = getExamBlueprint(subject, stage, region);
+    const bp = getExamBlueprint(subject, examStage, region);
     if (!bp) return null;
-    if (!isLibEntryEnabled('blueprint', `${subject}|${stage}`)) return null;
-    return { ...bp, key: `${subject}|${stage}`, source: 'builtin' };
+    if (!isLibEntryEnabled('blueprint', `${subject}|${examStage}`)) return null;
+    return { ...bp, key: `${subject}|${examStage}`, source: 'builtin' };
   } catch {
     return null;
   }

@@ -108,3 +108,37 @@ describe('蓝图条目停用（工具库开关）', () => {
     expect(findBlueprint({ genType: 'exam', subject: '语文', stage: 'primary_low' }).source).toBe('builtin');
   });
 });
+
+describe('升学考卷别 → 蓝本学段档映射（findBlueprint）', () => {
+  it('中考：初中档教材 + scopeType=zhongkao → 命中 middle（中考结构，语文120）', () => {
+    const bp = findBlueprint({ genType: 'exam', subject: '语文', stage: 'middle', scopeType: 'zhongkao' });
+    expect(bp.key).toBe('语文|middle');
+    expect(bp.fullScore).toBe(120);
+  });
+
+  it('高考：高中档教材 + scopeType=gaokao → 命中 high（新高考结构，语文150）', () => {
+    const bp = findBlueprint({ genType: 'exam', subject: '语文', stage: 'high', scopeType: 'gaokao' });
+    expect(bp.key).toBe('语文|high');
+    expect(bp.fullScore).toBe(150);
+  });
+
+  it('小升初：小学教材 + scopeType=xiaoshengchu → 命中 primary_high 档（标题携带卷别语义）', () => {
+    const bp = findBlueprint({ genType: 'exam', subject: '语文', stage: 'primary_high', scopeType: 'xiaoshengchu' });
+    expect(bp.key).toBe('语文|primary_high');
+    expect(bp.fullScore).toBe(100);
+  });
+
+  it('卷别不影响非蓝本用途：stage 仍透传 catch 内降级链以外场景（无卷别时走原始 stage）', () => {
+    // 无 scopeType 时行为与原来一致（小学高段 → primary_high）
+    const bp = findBlueprint({ genType: 'exam', subject: '语文', stage: 'primary_high' });
+    expect(bp.key).toBe('语文|primary_high');
+  });
+
+  it('卷别对用户自定义蓝本同样生效（在对应学段档 key 上命中用户版）', () => {
+    saveUserBlueprint('数学|middle', { label: '中考自定义', fullScore: 130, duration: '120分钟', sections: [{ name: 'A', score: 130, note: '' }] });
+    const bp = findBlueprint({ genType: 'exam', subject: '数学', stage: 'middle', scopeType: 'zhongkao' });
+    expect(bp.source).toBe('user');
+    expect(bp.fullScore).toBe(130);
+    deleteUserBlueprint('数学|middle');
+  });
+});

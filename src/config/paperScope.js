@@ -26,13 +26,22 @@ export const SCOPE_LABEL_POOLS = {
   final: ['期末综合测试', '期末素养检测', '期末质量检测', '学期综合测评', '期末学业检测'],
   monthly: ['月考检测', '月度素养检测', '月度综合测评', '月测卷'],
   topic: ['专题过关', '专题训练', '专题测评'],
+  xiaoshengchu: ['小升初综合测试', '小升初毕业检测', '小升初衔接测评', '小学毕业升学检测'],
+  zhongkao: ['中考模拟卷', '中考真题趋势卷', '中考适应性检测', '初中毕业升学模拟'],
+  gaokao: ['高考模拟卷', '高考真题趋势卷', '高考适应性检测', '高中毕业升学模拟'],
 };
 
-/** 范围维度 → 中文标签（弹窗候选用；确认的是"维度"，具体标题名称由名称池轮换组合） */
-export const SCOPE_DIMENSION_LABELS = { midterm: '期中', final: '期末', monthly: '月考', topic: '专题', default: '综合' };
+/** 升学考卷别范围类型（仅对正式考卷 exam 生效；卷别→蓝本学段档由 blueprintProvider.findBlueprint 单一解析） */
+export const EXAM_GRADUATION_TYPES = ['xiaoshengchu', 'zhongkao', 'gaokao'];
 
-/** 🔴 显式范围类型：用户手动选择"期中/期末/月考/专题"时应始终以标签词呈现（override 自动推断） */
-export const EXPLICIT_SCOPE_TYPES = ['midterm', 'final', 'monthly', 'topic'];
+/** 范围维度 → 中文标签（弹窗候选用；确认的是"维度"，具体标题名称由名称池轮换组合） */
+export const SCOPE_DIMENSION_LABELS = {
+  midterm: '期中', final: '期末', monthly: '月考', topic: '专题', default: '综合',
+  xiaoshengchu: '小升初', zhongkao: '中考', gaokao: '高考',
+};
+
+/** 🔴 显式范围类型：用户手动选择时应始终以标签词呈现（override 自动推断） */
+export const EXPLICIT_SCOPE_TYPES = ['midterm', 'final', 'monthly', 'topic', ...EXAM_GRADUATION_TYPES];
 
 /**
  * 卷首大标题拼装（标题命名规范，GenerateModule 注入与入库统一使用，便于维护）：

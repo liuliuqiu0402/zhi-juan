@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   inferPaperScope, findCommonAncestorIndex,
   categorizeUnits, effectiveUnitIndices, buildScopeCandidates, EXPLICIT_SCOPE_TYPES, inferAcademicTerm,
+  SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES,
 } from '@/config/paperScope.js';
 
 // 仿真教材目录：top 单元 → 课（叶子）
@@ -229,7 +230,39 @@ describe('findCommonAncestorIndex', () => {
 });
 
 describe('EXPLICIT_SCOPE_TYPES 覆盖命题老师可选全集', () => {
-  it('期中/期末/月考/专题均为显式范围类型', () => {
-    expect(EXPLICIT_SCOPE_TYPES).toEqual(['midterm', 'final', 'monthly', 'topic']);
+  it('期中/期末/月考/专题 + 升学考卷别（小升初/中考/高考）均为显式范围类型', () => {
+    expect(EXPLICIT_SCOPE_TYPES).toEqual(['midterm', 'final', 'monthly', 'topic', 'xiaoshengchu', 'zhongkao', 'gaokao']);
+  });
+});
+
+describe('升学考卷别（小升初/中考/高考）—— 完整落地', () => {
+  it('EXAM_GRADUATION_TYPES 三档齐备，且都进了标签池', () => {
+    expect(EXAM_GRADUATION_TYPES).toEqual(['xiaoshengchu', 'zhongkao', 'gaokao']);
+    for (const t of EXAM_GRADUATION_TYPES) {
+      expect(SCOPE_LABEL_POOLS[t]?.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it.each([
+    ['xiaoshengchu', '小升初'],
+    ['zhongkao', '中考'],
+    ['gaokao', '高考'],
+  ])('卷别 %s 显式指定 → 始终以标签词呈现（尊重用户意图，isScopeLabel）', (type, kw) => {
+    const r = inferPaperScope([kecheng1], outline, type);
+    expect(r.isScopeLabel).toBe(true);
+    expect(r.category).toBe(type);
+    expect(SCOPE_LABEL_POOLS[type]).toContain(r.name);
+    expect(r.name).toContain(kw); // 标签词携带卷别语义
+  });
+
+  it('卷别单课勾选也尊重用户意图（选"中考"就出"中考"）', () => {
+    const r = inferPaperScope([kecheng1], outline, 'zhongkao');
+    expect(['中考模拟卷', '中考真题趋势卷', '中考适应性检测', '初中毕业升学模拟']).toContain(r.name);
+  });
+
+  it('升学考卷别为显式范围：范围确认弹窗无需弹出（buildScopeCandidates 返回空）', () => {
+    expect(buildScopeCandidates([kecheng1], outline, 'xiaoshengchu')).toEqual([]);
+    expect(buildScopeCandidates([kecheng1], outline, 'zhongkao')).toEqual([]);
+    expect(buildScopeCandidates([kecheng1], outline, 'gaokao')).toEqual([]);
   });
 });
