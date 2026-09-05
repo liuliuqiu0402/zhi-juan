@@ -4538,14 +4538,33 @@ ${cardAnalysisText.substring(0, 1000)}
     const MAIN_TOKEN_CEIL = 98304;
     const bodyEffectiveCap = bodyOverCap ? Math.min(MAIN_TOKEN_CEIL, bodyNeeded) : bodyCfg.cap;
     let bodyDynamicCap = Math.round(Math.min(bodyEffectiveCap, bodyNeeded)); // 注：浏览回退兜底时会按实际素材块重算
+    // 🔧 防截断安全缓冲（2026-09"一次成功优先"）：估算 ×1.25 再取帽——HTML 标签膨胀/知识展开会让实际
+    //    输出 token 高于「素材×系数」估算（summary once 实证低估 ~20%）。缓冲宁多勿少，让主请求一次写完、
+    //    尽量不触发截断续写（续写只是兜底，一次成功质量最高）；配合篇幅纪律（写到即止），
+    //    模型不会因预算大而注水，费用风险可控。缓冲只作用于正文/once 主请求，答案页独立槽不受影响。
+    const BUDGET_SAFETY_BUFFER = 1.25;
+    bodyDynamicCap = Math.round(Math.min(bodyEffectiveCap, bodyNeeded * BUDGET_SAFETY_BUFFER));
     // 答案页：split 才有独立答案页调用，用 answer 槽；once 无独立答案页（答案随正文，不走 here）
     const answerCfg = pickSlot('answer');
     const answerNeeded = Math.round(Math.max(floorTok, selectedRawChars * answerCfg.coef));
     const answerOverCap = answerNeeded > answerCfg.cap;
     const answerEffectiveCap = answerOverCap ? Math.min(MAIN_TOKEN_CEIL, answerNeeded) : answerCfg.cap;
     const answerDynamicCap = Math.round(Math.min(answerEffectiveCap, answerNeeded));
+    // 🔧 引擎单次输出上限护栏（2026-09）：请求 max_tokens 超过模型硬上限会被 API 拒绝(400)或静默截断到上限。
+    //    DeepSeek 官方口径：deepseek-chat 默认 4K、最大 8K；deepseek-reasoner 默认 32K、最大 64K。
+    //    其他引擎（火山/阿里/智谱/本地）上限随模型档位未固证 → 不钳制（防误伤）。
+    //    护栏效果：请求值钳到引擎上限；估算缺口由「正文截断续写链」分次补齐（见段1续写链），
+    //    并在 budgetAlert 中透出"本次因引擎上限需要分次"（进入生成报告，用户可据此缩小范围或换 reasoner）。
+    const engineCap = (gateCfg?.provider === 'deepseek')
+      ? (/reasoner|r1|think/i.test(String(gateCfg?.model || '')) ? 65536 : 8192)
+      : Infinity;
+    const clampReq = (tok) => Math.min(tok, engineCap);
+    const bodyEngineOver = bodyDynamicCap > engineCap;
+    const answerEngineOver = answerDynamicCap > engineCap;
     const budgetAlert = (bodyOverCap ? `${genType}正文估算${bodyNeeded}token 超上限${bodyCfg.cap}，已自动加长预算` : '')
-      + (answerOverCap ? `；答案页估算${answerNeeded}token 超上限${answerCfg.cap}，已自动加长` : '');
+      + (answerOverCap ? `；答案页估算${answerNeeded}token 超上限${answerCfg.cap}，已自动加长` : '')
+      + (bodyEngineOver ? `；正文估算超引擎单次输出上限 ${engineCap} token，将自动分次续写补齐` : '')
+      + (answerEngineOver ? `；答案页估算超引擎单次输出上限 ${engineCap} token，将自动分次续写补齐` : '');
     console.log(`[每类型预算] ${genType}: 路径=${generateMode} 勾选原文=${selectedRawChars}字 所需=${bodyNeeded}→帽=${bodyDynamicCap}(cap=${bodyCfg.cap}${bodyOverCap ? ' 已升级' : ''}/coef=${bodyCfg.coef}) 答案帽=${answerDynamicCap}(cap=${answerCfg.cap})`);
 
     // 🔴 标题根治兜底：标题只由命名规范占位符组成——模型若把任务行类型名（如"考卷"）拼进 h1，
@@ -4610,13 +4629,19 @@ ${cardAnalysisText.substring(0, 1000)}
       try {
         const bres = await generateBodyByTextbookBrowse({
           genType, promptBase: prompt, contentCards, knowledgeMap,
-          maxTokens: bodyDynamicCap,
+          maxTokens: clampReq(bodyDynamicCap),
           temperature: bodyTemperature,
           generateMode,
         });
         browseCoverageNotes = bres?.coverageNotes || [];
         const bc = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(bres?.content || ''))))));
-        if (bc && bc.length > GEN_CONST.BODY_VALID_MIN_LEN) content = bc;
+        // 🔴 完整优先：browse 产出的正文若仍疑似截断（尾部启发式，内部多次续写未补齐时 coverageNotes 已含提醒），
+        //    不作为成功内容采纳——置空走下方"单次注入 + 预算升级重试"路径，避免半截卷进入交付
+        if (bc && bc.length > GEN_CONST.BODY_VALID_MIN_LEN && !detectTruncation(bc).truncated) {
+          content = bc;
+        } else if (bc) {
+          console.warn('⚠️ 浏览路径正文疑似未完整（截断启发式），改走单次注入升级预算路径重试');
+        }
       } catch (e) {
         lastErr = e;
         console.warn('⚠️ 教材浏览路径失败，回退单次全量注入:', e.message);
@@ -4642,7 +4667,17 @@ ${cardAnalysisText.substring(0, 1000)}
     }
     // 🔴 思考模式耗尽降级：推理 chunks 巨大且正文为空（finish_reason=length 截断在推理阶段）→ 重试强制关闭思考
     let retryWithoutThinking = false;
-    for (let attempt = 0; attempt < 2 && !content; attempt++) {
+    // 🔧 正文"完整优先"（2026-09）：截断经续写链仍无法补齐 → 本 attempt 判失败，升级预算整卷重试；
+    //    两次尝试都失败则抛错（绝不把半截正文当作成功交付——提醒半截对用户无用，宁可失败给行动建议）
+    let truncFailNote = '';
+    // 🔧 仅当上方 browse/回退路径未产出完整正文时，才进入"单次注入 + 预算升级重试"循环
+    //    （browse 已产出完整正文时跳过，避免循环首轮 content='' 清空 browse 成果）
+    if (!content) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      content = ''; // 每次 attempt 全新整卷生成（升级预算重试不携带上次半截残留）
+      // 🔧 截断重试预算升级：第 1 次按动态帽，第 2 次 ×1.4（仅截断补齐场景，篇幅纪律已防发散；
+      //    仍受引擎单次输出上限 clampReq 约束，超出部分由下方续写链动态分片补齐）
+      const attemptCap = Math.round(bodyDynamicCap * Math.pow(1.4, attempt));
       try {
         const resp = await callAI(prompt, {
           taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
@@ -4650,7 +4685,7 @@ ${cardAnalysisText.substring(0, 1000)}
           //    不静默截断预算）；思考模式按 thinkingBudgetMultiplier 放大（推理与正文共享配额，需给推理预留余量）
           // ⚠️ once 一次成型：正文+答案同一次输出，预算由 once 槽「系数」一体核算（once 槽系数 > body 槽，
           //    设计上已含答案区，勿再叠加 answer 帽双重放大——此前误判叠加已回退，见 git log 2026-09）
-          maxTokens: bodyDynamicCap
+          maxTokens: clampReq(attemptCap)
             * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)),
           allowContinuation: false,
           // 🔧 整卷正文温度：split 用「整卷正文温度」；once 用折中温度（见上方 bodyTemperature）
@@ -4673,16 +4708,62 @@ ${cardAnalysisText.substring(0, 1000)}
         }
         // 🔴 截断判定：优先用 API 的 finish_reason=length（可靠，不依赖尾部启发式）；启发式作兜底；
         //    reasoning_capped（推理达到 40K 上限被流式中止）也算截断——半截正文须续写补齐
-        const trunc = detectTruncation(content, respObj.finishReason);
+        // 🔧 续写链（2026-09 重构）：至多 MAX_CONT 次。每次续写带 returnMeta，检测续写自身是否再次截断；
+        //    仍截断则基于最新内容继续续写，直至完整或达上限。拼接前做尾部重叠去重——
+        //    模型续写常从上一段末尾开始重述，直接拼接会造成重复（旧实现只续一次且不检测二次截断，
+        //    续写再被截断时半截正文会被当作完整交付——summary 5080 字符截断实证根因）
+        let trunc = detectTruncation(content, respObj.finishReason);
         if (trunc.truncated) {
           sampleTruncated = true;
-          console.warn(`⚠️ 整卷输出${trunc.byReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，自动续写一次...`);
-          const contResp = await callAI(
-            `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
-            { taskType: 'generation', timeout: getTimeout('generation'), retries: 0, maxTokens: bodyDynamicCap * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)), allowContinuation: false, temperature: bodyTemperature, thinking: retryWithoutThinking ? false : undefined }
-          );
-          const contHtml = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(typeof contResp === 'string' ? contResp : (contResp?.content || '')))))));
-          if (contHtml && contHtml.length > 100) content = content + '\n' + contHtml;
+          console.warn(`⚠️ 整卷输出${trunc.byReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，进入续写链补齐...`);
+          // 续写拼接：去除与正文末尾的重叠段（DEDUP 常量与 callAI 内部续写同一套口径）
+          const appendContinuation = (base, cont) => {
+            const tail = base.slice(-GEN_CONST.DEDUP_TAIL_EXACT);
+            let clean = String(cont || '').trimStart();
+            if (tail && clean.startsWith(tail)) {
+              clean = clean.slice(tail.length);
+            } else {
+              for (let ol = GEN_CONST.DEDUP_OVERLAP_MAX; ol >= GEN_CONST.DEDUP_OVERLAP_MIN; ol--) {
+                const ov = base.slice(-ol);
+                if (ov && clean.startsWith(ov)) { clean = clean.slice(ol); break; }
+              }
+            }
+            clean = clean.trim();
+            if (!clean) return base;
+            return base + '\n' + clean;
+          };
+          const contMult = (retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2);
+          const contBudget = clampReq(attemptCap * contMult);
+          // 🔧 续写次数动态化：引擎单次输出有限（如 deepseek-chat 8K），总需求 ÷ 单次上限 = 需分片数，
+          //    +1 次余量（防恰好顶满）；非受限引擎沿用 2 次。上限 6 防失控循环。
+          const engineSteps = Number.isFinite(engineCap) ? Math.max(1, Math.ceil((attemptCap * contMult) / engineCap)) : 1;
+          const MAX_CONT = Math.min(6, engineSteps + 1);
+          let contCount = 0;
+          while (trunc.truncated && contCount < MAX_CONT) {
+            contCount++;
+            console.warn(`⏩ 整卷正文第 ${contCount}/${MAX_CONT} 次续写...（当前 ${content.length} 字符）`);
+            const contResp = await callAI(
+              `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
+              {
+                taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
+                maxTokens: contBudget,
+                allowContinuation: false, temperature: bodyTemperature,
+                thinking: retryWithoutThinking ? false : undefined,
+                returnMeta: true,
+              }
+            );
+            const cObj = typeof contResp === 'string' ? { content: contResp, finishReason: '' } : (contResp || { content: '', finishReason: '' });
+            const contHtml = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(cObj.content || ''))))));
+            if (!contHtml || contHtml.length <= 100) break; // 续写无效（过短/重复收尾）——按未补齐处理
+            content = appendContinuation(content, contHtml);
+            trunc = detectTruncation(contHtml, cObj.finishReason); // 检测本次续写是否再次被截断
+          }
+          if (trunc.truncated) {
+            // 🔴 未补齐 → 本 attempt 判失败（不交付半截）：升级预算由下一 attempt 整卷重试补齐
+            truncFailNote = `正文输出被截断，经 ${contCount} 次续写（预算 ${attemptCap} token）仍未完整（当前 ${content.length} 字符）`;
+            console.warn(`⚠️ ${truncFailNote}——升级预算重新整卷生成...`);
+            throw new Error(truncFailNote);
+          }
         }
         if (content && content.length > GEN_CONST.BODY_VALID_MIN_LEN) break;
         throw new Error('整卷输出过短/为空');
@@ -4695,8 +4776,14 @@ ${cardAnalysisText.substring(0, 1000)}
         }
       }
     }
-    if (!content || content.length <= GEN_CONST.BODY_VALID_MIN_LEN) {
-      throw new Error(`整卷生成失败: ${lastErr?.message || '未知错误'}`);
+    } // end if(!content) 单次注入重试循环（browse 已产出完整正文时跳过）
+    // 🔴 完整优先最终守卫：两次尝试（含续写链）都未能完整输出 → 明确抛错并给行动建议，
+    //    绝不把半截正文当作成功交付（generate 外层 MAX_RETRIES 会整卷级重试；再失败则由 UI 呈现此错误）
+    if (truncFailNote || !content || content.length <= GEN_CONST.BODY_VALID_MIN_LEN) {
+      const advise = truncFailNote
+        ? `${truncFailNote}。建议：① 缩小勾选范围降低单次体量；② 到「设置 → 整卷输出预算」调大该类型的「上限」或为该类型采纳「实测校准」；③ 内容较长时改用 deepseek-reasoner 等单次输出上限更高的模型（chat 单次仅 8K，长卷易截断）。`
+        : `整卷生成失败: ${lastErr?.message || '未知错误'}`;
+      throw new Error(advise);
     }
 
     // ── 段2：答案页（split 模式独立调用：上下文=整卷正文全文，模型"看着实际题目作答"——
@@ -4758,7 +4845,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           // 🔴 returnMeta:true → 带出 finishReason / reasoningChunkCount，检测"思考耗尽"（与正文 retryWithoutThinking 对称）：
           //    答案页要逐题作答+评分标准+听力原文，思考推理长，一旦推理占满 20K 上限 → 输出为空/半截；
           //    第二次重试强制关闭思考，防再次空转（此前无降级 → answerHtml='' → 入库无答案区，"无答案页"根因）
-          maxTokens: answerDynamicCap * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
+          maxTokens: clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
           maxReasoningChunks: ansThinking ? GEN_CONST.REASONING_CAP_ANSWER : GEN_CONST.REASONING_CAP_ANSWER_FORCED,
           returnMeta: true,
         });
@@ -4776,7 +4863,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           console.warn(`⚠️ 答案页内容${ansCapped ? `思考耗尽（${ansObj.reasoningChunkCount || 0} 推理chunks）` : `过短（${aHtml?.length || 0} 字符）`}，自动重试一次${ansCapped ? '（强制关闭思考）' : ''}`);
           const ansResp2 = await callAI(ansPrompt, {
             taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
-            maxTokens: answerDynamicCap * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
+            maxTokens: clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
             maxReasoningChunks: ansThinking ? GEN_CONST.REASONING_CAP_ANSWER : GEN_CONST.REASONING_CAP_ANSWER_FORCED,
             thinking: (ansCapped || (ansObj.reasoningChunkCount || 0) > 0) ? false : undefined, // 🔴 有推理痕迹（含引擎强制推理）→ 重试强制关闭思考
             returnMeta: true,
