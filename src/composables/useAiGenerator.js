@@ -3999,7 +3999,7 @@ ${cardAnalysisText.substring(0, 1000)}
   // 大范围：程序侧确定性取料供给工具 browse_textbook；模型按章浏览、收敛后单主请求产出正文。
   // 返回 { content, coverageNotes }——coverageNotes 为防旧教材的主编式提醒（只提示，不改写）。
   const generateBodyByTextbookBrowse = async (params) => {
-    const { genType, promptBase, maxTokens, temperature, contentCards = [], knowledgeMap = null, generateMode = 'once' } = params;
+    const { genType, promptBase, maxTokens, temperature, contentCards = [], knowledgeMap = null, anchors = [], generateMode = 'once' } = params;
     const myBudget = GEN_CONST.MATERIAL_CHARS[genType] || 5000;
     const { perBrowseCap, maxRounds } = deriveBrowseParams(myBudget, (contentCards || []).length);
 
@@ -4047,7 +4047,27 @@ ${cardAnalysisText.substring(0, 1000)}
         }
       }
     }
-    const buildBrowseResult = (chapter) => {
+    // ── P4（2026-09）：浏览取料的"该章知识点"改以覆盖锚清单为唯一事实源（analyzed 章）——
+    //    analyzed 章的考点由 contentCards.anchorTree（knowledgeHierarchy 归一树）给出，锚绑定按章四级定位；
+    //    不再用图谱 relatedChapters 的 AI 推断章归属（无写入点、缺省高风险，曾致章考点错配/丢失）。
+    //    图谱推断（chapterKpBy）仅回退给"无锚章"（目录/未分析卡——其考点本由 Step2 目录模式按标题范畴推断）。
+    const anchoredKpBy = new Map();
+    const regAnchorKey = (k, name) => {
+      if (!k) return;
+      if (!anchoredKpBy.has(k)) anchoredKpBy.set(k, []);
+      if (!anchoredKpBy.get(k).includes(name)) anchoredKpBy.get(k).push(name);
+    };
+    for (const a of anchors || []) {
+      if (a.bind.status === 'missing' || !a.name) continue; // 红线：缺料考点不进浏览可选题
+      regAnchorKey(normChapter(a.chapterTitle), a.name);
+      regAnchorKey(a.chapterTitle, a.name);
+      const main = chapterMain(a.chapterTitle);
+      if (main) regAnchorKey(main, a.name);
+    }
+    if (anchors.length) {
+      console.log(`[browse·章考点] 覆盖锚清单就绪：${anchoredKpBy.size} 个章节键（analyzed 章用锚清单，目录/未分析章回退图谱推断）`);
+    }
+    const buildBrowseResult = (chapter, knowledge = '') => {
       // 🔧 P2-7 索引查询容错：精确规范键 → 原始标题 → 主干名 三级命中，降低"模型传名≠卡标题"的漏检
       const segKey = normChapter(chapter) || chapter || '';
       const segs = chapterSegsBy.get(segKey)
@@ -4056,8 +4076,12 @@ ${cardAnalysisText.substring(0, 1000)}
         || [];
       let frag = '';
       let used = 0;
-      const candidates = (segs || [])
-        .filter((s) => (s.text || '').trim().length >= 10)
+      // 🔧 P4：knowledge 参数（工具 schema 可选字段）命中片段优先取——模型定向取某考点时先给相关段，
+      //    不足 perBrowseCap 再补其余片段；命中判定与锚绑定同 wordMatch 口径
+      const kw = String(knowledge || '').trim();
+      const longEnough = (segs || []).filter((s) => (s.text || '').trim().length >= 10);
+      const kwHits = kw ? longEnough.filter((s) => wordMatch(s.text, kw)) : [];
+      const candidates = (kw ? [...kwHits, ...longEnough.filter((s) => !kwHits.includes(s))] : longEnough)
         .sort((a, b) => (b.isKeyConcept ? 1 : 0) - (a.isKeyConcept ? 1 : 0));
       for (const s of candidates) {
         const t = s.text.trim();
@@ -4065,7 +4089,14 @@ ${cardAnalysisText.substring(0, 1000)}
         frag += `\n· ${t}`;
         used += t.length + 2;
       }
-      const kp = chapterKpBy.get(segKey) || chapterKpBy.get(chapterMain(chapter)) || [];
+      // 🔧 P4：该章知识点 = 锚清单（analyzed 章）优先，锚缺（目录/未分析章）才回退图谱推断 chapterKpBy；
+      //    同一章二选一、不并存，杜绝"章考点两套来源"漂移
+      const kp = anchoredKpBy.get(segKey)
+        || anchoredKpBy.get(chapter)
+        || anchoredKpBy.get(chapterMain(chapter))
+        || chapterKpBy.get(segKey)
+        || chapterKpBy.get(chapterMain(chapter))
+        || [];
       const head = frag
         ? `【${chapter}】教材原文（节选，教材版本以所选课本为准）：${frag}`
         : `【${chapter}】该章未检索到可用原文片段。若非目录所列章节名，请改用目录中的章节名；确属范围内仍无片段，请跳过该章知识点，不要凭训练记忆编写。`;
@@ -4179,10 +4210,11 @@ ${cardAnalysisText.substring(0, 1000)}
           let arg = {};
           try { arg = JSON.parse(tc.function?.arguments || '{}'); } catch { arg = {}; }
           const ch = String(arg.chapter || '').trim();
+          const kw = String(arg.knowledge || '').trim() || undefined; // P4：可选定向取料
           let resultStr;
           if (!ch) resultStr = buildBrowseResult('');
           else if (browsed.has(normChapter(ch))) resultStr = `［提示］章节「${ch}」已浏览过，请直接依据已有原文命题，不要重复浏览。`;
-          else { browsed.add(normChapter(ch)); resultStr = buildBrowseResult(ch); }
+          else { browsed.add(normChapter(ch)); resultStr = buildBrowseResult(ch, kw); }
           messages.push({ role: 'tool', tool_call_id: tc.id || '', content: resultStr });
         }
         continue;
@@ -4657,7 +4689,7 @@ ${cardAnalysisText.substring(0, 1000)}
       statusText.value = `整卷生成：大范围教材浏览取材中（工具路径，${modeLabel}）...`;
       try {
         const bres = await generateBodyByTextbookBrowse({
-          genType, promptBase: prompt, contentCards, knowledgeMap,
+          genType, promptBase: prompt, contentCards, knowledgeMap, anchors, // P4：章考点清单取自主路径已构建的覆盖锚（同源一致）
           maxTokens: clampReq(bodyDynamicCap),
           temperature: bodyTemperature,
           generateMode,
