@@ -6,7 +6,8 @@ import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurri
 import { getStoragePath } from '../utils/pathHelper.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
-import { buildAnchors, boundAnchorNames } from '../utils/coverageAnchor.js';
+import { buildAnchors, boundAnchorNames, wordMatch } from '../utils/coverageAnchor.js';
+import { contractOf } from '../config/coverageContract.js';
 import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
 import {
   genTypeTemplates,
@@ -4918,7 +4919,52 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
 
     // 🔴 标题根治兜底：移除模型拼入 h1 的任务行类型词（如“ 考卷”），标题只保留命名规范占位符组合
     content = stripTypeWordFromTitle(content);
-    
+
+    // ── P2b 覆盖自动补漏（2026-09）：full/per-lesson-full 类型正文对账缺漏 ≤6 个考点时，
+    //    针对缺漏考点做一次短生成（每考点一个 h2 栏目，内容贴合绑定原文片段），
+    //    插入正文（答案区之前；无答案区则插末尾）。
+    //    缺漏 >6 / 补漏失败 / 输出截断 / 无 h2 / 含答案区 / 未覆盖任何缺漏考点 → 放弃本次补漏
+    //    （不插半截栏目），由底部最终覆盖对账提示供定向重试或手动补充——宁缺毋滥，
+    //    补漏提示只允许引用绑定片段，绝不让模型凭记忆补教材。
+    {
+      const recon0 = reconcileCoverage({ genType, content, anchors });
+      if (recon0.required && recon0.missing.length > 0 && recon0.missing.length <= 6) {
+        const contractName = contractOf(genType).name || genType;
+        const missLines = recon0.missing.map((m) => {
+          const anchor = (anchors || []).find((a) => a.chapterTitle === m.chapter && a.name === m.name);
+          const frag = (anchor?.bind?.segments || []).slice(0, 3)
+            .map((s) => `· ${s.text}（出自：${s.chapterTitle || m.chapter}）`).join('\n');
+          return `考点：${m.name}\n所属：${m.chapter || '未标注章节'}\n教材依据：\n${frag || '（无原文片段，本次无法补漏）'}`;
+        }).join('\n\n');
+        const patchPrompt = `你是${contractName}编写助手。上一轮生成的${contractName}正文经程序覆盖对账，以下考点未覆盖到。请为每个考点补充一个 <h2> 栏目（栏目标题即考点名），栏目内容贴合下方给出的教材原文片段编写（归纳要点、示例或配套练习均可，风格与本资料一致）；不得重复正文已有内容，不得编写超出所给教材原文之外的新知识点。\n\n【缺漏考点】\n${missLines}\n\n只输出补漏栏目 HTML（从 <h2> 开始），不要输出整卷或其他说明。`;
+        try {
+          const thinkingMult = getGenerationThinkingEnabled() ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1;
+          const patchResp = await callAI(patchPrompt, {
+            taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
+            maxTokens: clampReq(Math.max(600, Math.min(3600, recon0.missing.length * 500)) * thinkingMult),
+            allowContinuation: false, temperature: bodyTemperature, returnMeta: true,
+          });
+          const pObj = typeof patchResp === 'string' ? { content: patchResp, finishReason: '' } : (patchResp || { content: '', finishReason: '' });
+          const patchHtml = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(pObj.content || '')))))).trim();
+          const truncated = detectTruncation(patchHtml, pObj.finishReason).truncated;
+          const hasAnyCovered = recon0.missing.some((m) => wordMatch(patchHtml, m.name));
+          const isClean = patchHtml.includes('<h2') && !/answer-section|参考答案/.test(patchHtml);
+          if (patchHtml && isClean && hasAnyCovered && !truncated) {
+            const idx = content.search(/answer-section|<h2[^>]*>\s*参考答案/i);
+            content = idx > 0
+              ? `${content.slice(0, idx).trimEnd()}\n\n${patchHtml}\n\n${content.slice(idx)}`
+              : `${content.trimEnd()}\n\n${patchHtml}`;
+            console.log(`✅ [覆盖补漏] ${genType} 已为 ${recon0.missing.length} 个缺漏考点补栏目（插入正文${idx > 0 ? '答案区前' : '末尾'}）`);
+          } else {
+            const why = !patchHtml ? '空输出' : truncated ? '输出截断' : !isClean ? '无 h2 或含答案区' : '未覆盖任何缺漏考点';
+            console.warn(`⚠️ [覆盖补漏] 放弃插入（${why}），保留覆盖对账提示`);
+          }
+        } catch (e) {
+          console.warn('⚠️ [覆盖补漏] 请求失败，保留覆盖对账提示:', e.message);
+        }
+      }
+    }
+
     // 🔴 密封线兜底：正式试卷且 AI 未输出密封线 → 代码补（恢复原拼装器的密封线成果）
     let finalContent = answerHtml ? `${content}\n\n${answerHtml}` : content;
     if (genType === 'exam' && !/<div[^>]*class="[^"]*seal-zone[^"]*"/.test(finalContent)) {
