@@ -408,6 +408,7 @@ const retrieveBlueprintSegments = (contentCards, parsedBlueprint, maxChars = 150
 
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
+import { reconcileCoverage, reconcileCoverageStats, coverageNoteOf } from '../utils/coverageReconciler.js';
 import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 
@@ -4964,6 +4965,20 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     if (answerSkipNote) auditWarnings.push(answerSkipNote);
     if (browseCoverageNotes.length) auditWarnings.push(...browseCoverageNotes);
     if (anchorMissingNote) auditWarnings.push(anchorMissingNote);
+    // 📊 覆盖对账（2026-09 P2）：生成完成后按 COVERAGE_CONTRACT 对账正文考点出现度。
+    //    只对 full/per-lesson-full（知识型/课时练）判缺并透出缺漏清单到生成报告【问题列表】，
+    //    供用户定向重试/手动补充；focus/none/sampled 不对账不补漏（契约语义，防误报与诱导）。
+    //    对账对象为正文 content（不含独立答案页，防答案区单词误判"已覆盖"）。
+    const reconReport = reconcileCoverage({ genType, content, anchors });
+    const reconNote = coverageNoteOf(reconReport);
+    if (reconNote) {
+      console.log(`[覆盖对账] ${genType} 正文缺漏 ${reconReport.missing.length}/${reconReport.total} 考点（${reconReport.missing.map((m) => `${m.chapter}:${m.name}`).join('、')}）`);
+      auditWarnings.push(reconNote);
+    }
+    const sampledStats = reconcileCoverageStats({ genType, content, anchors });
+    if (sampledStats && (anchors || []).length) {
+      console.log(`[覆盖对账·sampled] ${genType}：绑定考点在正文出现 ${sampledStats.coveredCount}/${sampledStats.total}（覆盖率 ${sampledStats.coverage}，抽样类型仅统计不补漏）`);
+    }
 
     // 🔴 生成方式提示：auto 模式下告知用户本次实际走的路径，并引导其到设置固定（用户必须清楚自己配置了什么）
     if ((typeMode || 'auto') === 'auto') {
