@@ -1650,13 +1650,17 @@ const convertListToMarkedParagraphs = (listTag, marker) => {
       : (list.getAttribute('data-marker') || UL_LEVEL_MARKERS[Math.min(depth, UL_LEVEL_MARKERS.length - 1)]);
     const lis = Array.from(list.querySelectorAll(':scope > li'));
     lis.forEach((li, idx) => {
-      if (isOl) {
-        // 有序：字母/罗马/数字前缀按 buildListPrefix 生成纯文本前缀（字号同正文）
-        const prefix = buildListPrefix(selfMarker, idx, type, depth);
-        prependMarkerToLI(li, prefix);
-      } else {
-        // 无序：符号作为 list-marker 小字号字形（0.75em，对齐 WPS"符号保持原大小"），与正文文字区别开
-        prependBulletMarker(li, depth, selfMarker);
+      // 剥离：条目文本已自带序号（① A. 1. 一、 (1) 等）→ 列表自动符号/编号冗余，不叠加前缀（保留文本序号）
+      const selfNumbered = RE_SELF_NUMBERED.test(li.textContent || '');
+      if (!selfNumbered) {
+        if (isOl) {
+          // 有序：字母/罗马/数字前缀按 buildListPrefix 生成纯文本前缀（字号同正文）
+          const prefix = buildListPrefix(selfMarker, idx, type, depth);
+          prependMarkerToLI(li, prefix);
+        } else {
+          // 无序：符号作为 list-marker 小字号字形（仅空心圆），与正文文字区别开
+          prependBulletMarker(li, depth, selfMarker);
+        }
       }
       // 将 <li> 的子节点搬到父级，然后移除 <li>
       const children = Array.from(li.childNodes);
@@ -1685,7 +1689,11 @@ const countAncestors = (node, tagName) => {
  *  仅对空心圆（○/◦）包 span.list-marker 缩小；• ▪ 实心符号、✎ √ ➤ 等本就按正文字符显示，字号同正文。 */
 const isSmallListMarkerGlyph = (glyph) => glyph === '○' || glyph === '◦';
 
-/** 无序列表符号转文本：空心圆包成 <span class="list-marker">（0.75em 小字号，借 PreserveSpan 保留），
+// 条目文本已自带序号（① ② A. 1. （1） 一、 等）→ 转换时剥离列表自动符号/编号，仅保留文本自带序号
+// （与 normalizeLeadingMarkers 的"删项目符号、保序号"语义一致；只在转换这一刻生效，不动粘贴/生成/预览）
+const RE_SELF_NUMBERED = /^[ \t\u3000\u00A0\u2003\u2002]*(?:[A-Za-z][.、．:：]|\d+[.、．:：]|[（(]\s*\d+\s*[)）]|[一二三四五六七八九十]{1,3}[.、．]|[（(][一二三四五六七八九十]{1,3}[)）]|[\u2460-\u2473\u2776-\u277F\u3251-\u325F])/;
+
+/** 无序列表符号转文本：空心圆包成 <span class="list-marker">（0.4em，借 PreserveSpan 保留），
  *  其余符号为普通文本（字号同正文）；缩进用全角空格、符号后跟一个正文宽度空格。
  *  与 prependMarkerToLI（有序纯文本前缀）区分。 */
 const prependBulletMarker = (li, depth, marker) => {

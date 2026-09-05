@@ -36,6 +36,7 @@ const prependMarkerToLI = (doc, li, prefix) => {
 };
 // 无序符号：仅空心圆包成 span.list-marker（小字号字形），其余为普通文本，与 RichTextEditor.vue prependBulletMarker 一致
 const isSmall = (g) => g === '○' || g === '◦';
+const RE_SELF_NUMBERED = /^[ \t\u3000\u00A0\u2003\u2002]*(?:[A-Za-z][.、．:：]|\d+[.、．:：]|[（(]\s*\d+\s*[)）]|[一二三四五六七八九十]{1,3}[.、．]|[（(][一二三四五六七八九十]{1,3}[)）]|[\u2460-\u2473\u2776-\u277F\u3251-\u325F])/;
 const prependBulletMarker = (doc, li, depth, marker) => {
   const frag = doc.createDocumentFragment();
   if (depth > 0) frag.appendChild(doc.createTextNode('　'.repeat(depth)));
@@ -69,8 +70,12 @@ const convert = (html, listTag, marker) => {
       : (list.getAttribute('data-marker') || UL_LEVEL_MARKERS[Math.min(depth, UL_LEVEL_MARKERS.length - 1)]);
     const lis = Array.from(list.querySelectorAll(':scope > li'));
     lis.forEach((li, idx) => {
-      if (isOl) prependMarkerToLI(doc, li, buildListPrefix(selfMarker, idx, type, depth));
-      else prependBulletMarker(doc, li, depth, selfMarker);
+      // 与 RichTextEditor.vue 一致：条目文本已自带序号 → 转换时剥离列表符号/编号
+      const selfNumbered = RE_SELF_NUMBERED.test(li.textContent || '');
+      if (!selfNumbered) {
+        if (isOl) prependMarkerToLI(doc, li, buildListPrefix(selfMarker, idx, type, depth));
+        else prependBulletMarker(doc, li, depth, selfMarker);
+      }
       li.replaceWith(...Array.from(li.childNodes));
     });
     list.replaceWith(...Array.from(list.childNodes));
@@ -134,5 +139,23 @@ describe('convertListToMarkedParagraphs（自动编号→文本前缀）', () =>
     const ol = convert('<ol type="A"><li><p>步骤</p></li></ol>', 'ol', null);
     expect(ol).not.toContain('list-marker');
     expect(ol).toContain('A. 步骤');
+  });
+
+  it('条目文本已自带序号(① ②) → 转换时剥离列表圆点，仅保留文本序号（小数乘法知识框架场景）', () => {
+    const src = '<ul><li><p><strong>小数乘法</strong></p><ul><li><p>① 意义</p></li><li><p>② 方法</p></li></ul></li></ul>';
+    const out = convert(src, 'ul');
+    // 内层 ①/② 项不再叠加列表符号（未出现 ○ 圆点与 list-marker）
+    expect(out).toContain('<p>① 意义</p>');
+    expect(out).toContain('<p>② 方法</p>');
+    expect(out).not.toContain('○ ①');
+    expect(out).not.toContain('list-marker');
+    // 无自带序号的外层条目仍补 • 项目符号
+    expect(out).toContain('<p>• <strong>小数乘法</strong></p>');
+  });
+
+  it('条目文本已自带字母/数字/中文序号 → 同样剥离，不双叠', () => {
+    expect(convert('<ul><li><p>1. 甲</p></li></ul>', 'ul')).not.toContain('• 1.');
+    expect(convert('<ul><li><p>一、甲</p></li></ul>', 'ul')).not.toContain('• 一、');
+    expect(convert('<ul><li><p>A. 甲</p></li></ul>', 'ul')).not.toContain('• A.');
   });
 });
