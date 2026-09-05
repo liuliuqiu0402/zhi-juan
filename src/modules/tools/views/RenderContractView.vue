@@ -177,7 +177,8 @@
         v-for="c in contractList"
         :key="c.subject"
         class="rc-card"
-        :class="{ open: openSub === c.subject, editing: editingSub === c.subject, disabled: subOff(c.subject) }"
+        :data-sub="c.subject"
+        :class="{ open: openSub === c.subject, editing: editingSub === c.subject, disabled: subOff(c.subject), flash: flashKey === c.subject }"
       >
         <div
           class="rc-head"
@@ -431,7 +432,8 @@
 </template>
 
 <script setup>
-import { computed, inject, ref } from 'vue';
+import { computed, inject, ref, watch, nextTick } from 'vue';
+import { useRoute } from 'vue-router'; // 来源分段标注 → /tools/render-contract?focus=<学科>
 import { GRAPH_TYPES, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES, GRAPH_SAMPLES, needsImageHint } from '../../../config/eduRenderContract.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
@@ -560,6 +562,27 @@ const openSub = ref('');
 const toggleSub = (s) => { openSub.value = openSub.value === s ? '' : s; };
 const gapCount = computed(() => allContract.filter((c) => c.missing).length);
 
+/* ===== 外部跳转定位（来源分段标注 → /tools/render-contract?focus=<学科>） ===== */
+const route = useRoute();
+const flashKey = ref('');
+watch(
+  () => route.query.focus,
+  async (f) => {
+    if (!f) return;
+    const subject = String(f);
+    const hit = allContract.find((c) => c.subject === subject);
+    if (!hit) { console.warn('[render-contract] focus 未命中学科:', subject); return; }
+    subStatusFilter.value = 'all';
+    openSub.value = subject;
+    flashKey.value = subject;
+    setTimeout(() => { flashKey.value = ''; }, 2600);
+    await nextTick();
+    const el = document.querySelector(`[data-sub="${CSS.escape(subject)}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  },
+  { immediate: true }
+);
+
 /* ===== 校验 ===== */
 const validateMsgs = computed(() => {
   const msgs = [];
@@ -677,6 +700,8 @@ const copyContract = (c) => {
 .rc-list { display: flex; flex-direction: column; gap: 8px; }
 .rc-card { background: #fff; border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; }
 .rc-card.open { border-color: var(--primary-light); box-shadow: 0 2px 10px rgba(30,58,111,.08); }
+.rc-card.flash { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(244,140,6,.35); animation: rc-flash 2.4s ease; }
+@keyframes rc-flash { 0% { box-shadow: 0 0 0 6px rgba(244,140,6,.55); } 100% { box-shadow: 0 0 0 3px rgba(244,140,6,.25); } }
 .rc-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; flex-wrap: wrap; }
 .rc-head:hover { background: var(--primary-lighter); }
 .arrow { color: var(--accent); font-weight: 700; }

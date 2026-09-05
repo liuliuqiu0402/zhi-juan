@@ -141,7 +141,8 @@
         v-for="bp in examList"
         :key="bp.key"
         class="bp-card"
-        :class="{ open: openKey === bp.key, editing: editingKey === bp.key, disabled: bpOff(bp.key) }"
+        :data-bp="bp.key"
+        :class="{ open: openKey === bp.key, editing: editingKey === bp.key, disabled: bpOff(bp.key), flash: flashKey === bp.key }"
       >
         <!-- 卡片头：点击切换展开 -->
         <div
@@ -332,7 +333,8 @@
         v-for="bp in teachList"
         :key="bp.key"
         class="bp-card"
-        :class="{ open: openTeach === bp.key, disabled: bpOff(bp.key) }"
+        :data-bp="bp.key"
+        :class="{ open: openTeach === bp.key, disabled: bpOff(bp.key), flash: flashKey === bp.key }"
       >
         <div
           class="bp-head"
@@ -560,7 +562,8 @@
 </template>
 
 <script setup>
-import { computed, inject, ref } from 'vue';
+import { computed, inject, ref, watch, nextTick } from 'vue';
+import { useRoute } from 'vue-router'; // 来源分段标注 → /tools/blueprint?focus=<学科|学段 或 学科|类型>
 import { EXAM_BLUEPRINTS } from '../../../config/examPaperBlueprints.js';
 import { TEACHING_BLUEPRINTS, TEACHING_GEN_TYPES, TEACHING_SUBJECT_BLUEPRINTS } from '../../../config/teachingBlueprints.js';
 import { validateAllBlueprints } from '../../../config/blueprintGuard.js';
@@ -620,6 +623,31 @@ const openKey = ref('');
 const openTeach = ref('');
 const toggle = (key) => { openKey.value = openKey.value === key ? '' : key; };
 const toggleTeach = (key) => { openTeach.value = openTeach.value === key ? '' : key; };
+
+/* ===== 外部跳转定位（来源分段标注 → /tools/blueprint?focus=<学科|学段 或 学科|类型>） ===== */
+const route = useRoute();
+const flashKey = ref('');
+watch(
+  () => route.query.focus,
+  async (f) => {
+    if (!f) return;
+    const key = String(f);
+    const examHit = allExam.value.find((b) => b.key === key);
+    const teachHit = allTeach.find((b) => b.key === key);
+    if (!examHit && !teachHit) { console.warn('[blueprint] focus 未命中条目:', key); return; }
+    // 恢复全量显示并展开目标卡（真题蓝本 / 教辅结构二选一）
+    examFilter.value = 'all';
+    teachFilter.value = 'all';
+    if (examHit) { openKey.value = key; openTeach.value = ''; }
+    else { openTeach.value = key; openKey.value = ''; }
+    flashKey.value = key;
+    setTimeout(() => { flashKey.value = ''; }, 2600);
+    await nextTick();
+    const el = document.querySelector(`[data-bp="${CSS.escape(key)}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  },
+  { immediate: true }
+);
 
 /* ===== 全部/启用/停用 状态筛选（停用条目灰显，点击计数过滤列表） ===== */
 const examFilter = ref('all'); // all | on | off
@@ -884,6 +912,8 @@ const doImport = async (e) => {
 .bp-list { display: flex; flex-direction: column; gap: 8px; }
 .bp-card { background: #fff; border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; }
 .bp-card.open { border-color: var(--primary-light); box-shadow: 0 2px 10px rgba(30,58,111,.08); }
+.bp-card.flash { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(244,140,6,.35); animation: bp-flash 2.4s ease; }
+@keyframes bp-flash { 0% { box-shadow: 0 0 0 6px rgba(244,140,6,.55); } 100% { box-shadow: 0 0 0 3px rgba(244,140,6,.25); } }
 .bp-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; flex-wrap: wrap; }
 .bp-head:hover { background: var(--primary-lighter); }
 .arrow { color: var(--accent); font-weight: 700; }

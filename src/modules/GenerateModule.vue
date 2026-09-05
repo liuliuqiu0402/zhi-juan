@@ -401,7 +401,7 @@
             @click="showInstructionBlocks = !showInstructionBlocks"
           >
             🧭 来源分段标注
-            <span v-if="instructionBlocks.length">（{{ instructionBlocks.length }} 块{{ showInstructionBlocks ? ' ▾' : ' ▸' }}）</span>
+            <span v-if="instructionBlocks.length">（{{ libCount }} 库 · {{ instructionBlocks.length }} 区块{{ showInstructionBlocks ? ' ▾' : ' ▸' }}）</span>
             <span v-else-if="userEditedInstruction">（已手动修改，来源标注失效）</span>
             <span v-else>（暂无标注——点击「生成指令」后出现）</span>
           </div>
@@ -410,8 +410,22 @@
             class="iab-view"
             @click="onBlocksClick"
           >
+            <!-- 🗂 曾添加"逐块罗列清单"，与上方「本次注入来源（N 库）」重复，按用户反馈移除（保留着色分布+配色图例） -->
+            <div class="iab-lib-legend">
+              <span class="ill-title">库配色：</span>
+              <span
+                v-for="(lc, k) in LIB_COLORS"
+                :key="k"
+                class="ill-item"
+              >
+                <i
+                  class="ill-dot"
+                  :style="{ background: lc.badge }"
+                ></i>{{ lc.name }}
+              </span>
+            </div>
             <div v-html="annotatedBlocksHtml"></div>
-            <div class="iab-legend">着色段可点击跳转来源库；灰字为模板固有/未映射文本</div>
+            <div class="iab-legend">逐条/着色段均可点击跳转来源库；灰字为模板固有/未映射文本；子块为同色加深段</div>
           </div>
         </div>
         <div
@@ -4274,6 +4288,14 @@ const BLOCK_LIB_NAMES = {
   instruction: '指令库', 'layout-spec': '排版规格库', 'render-contract': '渲染契约库',
   rules: '规则库', blueprint: '蓝图库',
 };
+// 🔴 库配色（按来源库区分着色，一眼识别是哪个库）：父块用低透明底、子块用同色加深
+const LIB_COLORS = {
+  instruction: { name: '指令库', badge: '#588eff' },
+  'layout-spec': { name: '排版规格', badge: '#7c4dff' },
+  'render-contract': { name: '渲染契约', badge: '#ff9800' },
+  rules: { name: '规则库', badge: '#eb4034' },
+  blueprint: { name: '蓝图库', badge: '#009688' },
+};
 // 🔴 分段着色 HTML（只读旁路视图）：父块（来源段）底色、子块（BLANK/carrier/蓝图卡）细分；
 //    未映射文本灰显；块经 data-i 指向 instructionBlocks 下标，点击时跳对应工具库卡
 const annotatedBlocksHtml = computed(() => {
@@ -4292,16 +4314,19 @@ const annotatedBlocksHtml = computed(() => {
     let p2 = top.start;
     for (const s of subs) {
       if (s.start > p2) inner += escapeHtml(text.slice(p2, s.start));
-      inner += `<span class="iab-sub" data-i="${blocks.indexOf(s)}">${escapeHtml(text.slice(s.start, s.end))}</span>`;
+      inner += `<span class="iab-sub iab-sub-${s.lib}" data-i="${blocks.indexOf(s)}">${escapeHtml(text.slice(s.start, s.end))}</span>`;
       p2 = s.end;
     }
     if (p2 < top.end) inner += escapeHtml(text.slice(p2, top.end));
-    html += `<span class="iab-top" data-i="${ti}">${inner}</span>`;
+    html += `<span class="iab-top iab-top-${top.lib}" data-i="${ti}">${inner}</span>`;
     pos = top.end;
   }
   if (pos < text.length) html += `<span class="iab-plain">${escapeHtml(text.slice(pos))}</span>`;
   return html;
 });
+// 🔴 来源库计数（折叠标题用）：去重后的顶层来源库数（与「本次注入来源」库数一致）；
+//    区块数 = instructionBlocks.length（含细分到配置卡的子块，非库数）
+const libCount = computed(() => new Set(instructionBlocks.value.filter((b) => !b.parentKey).map((b) => b.lib)).size);
 // 点击来源块：确认后跳转对应工具库子页（?focus=<条目key>，视图侧定位在后续提交启用）
 const jumpToSourceBlock = async (b) => {
   if (!b) return;
@@ -8875,10 +8900,26 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 .block-toggle { cursor: pointer; user-select: none; margin-bottom: 4px; }
 .block-toggle span { font-weight: 400; color: var(--text-muted); }
 .iab-view { margin-top: 4px; border: 1px solid var(--border-light); border-radius: 8px; padding: 8px 10px; background: #fff; font-size: 12px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto; }
-.iab-top { background: rgba(88, 142, 255, 0.16); border-radius: 3px; padding: 0 1px; cursor: pointer; }
-.iab-sub { background: rgba(0, 180, 160, 0.20); border-radius: 3px; padding: 0 1px; cursor: pointer; text-decoration: underline dotted rgba(0, 120, 100, 0.5); }
-.iab-plain { color: #b0b6bf; }
-.iab-top:hover, .iab-sub:hover { outline: 1px solid #556; }
+/* 🔴 着色类须 :deep() 穿透：annotatedBlocksHtml 走 v-html 注入，子元素不带 scoped data-v 属性，
+   纯 scoped 选择器不命中（同 2026-09 carrierCss 副本教训）——必须穿透才能给来源块上底色 */
+.iab-view :deep(.iab-top), .iab-view :deep(.iab-sub) { border-radius: 3px; padding: 0 1px; cursor: pointer; }
+.iab-view :deep(.iab-sub) { text-decoration: underline dotted rgba(0, 120, 100, 0.4); }
+.iab-view :deep(.iab-plain) { color: #b0b6bf; }
+.iab-view :deep(.iab-top:hover), .iab-view :deep(.iab-sub:hover) { outline: 1px solid #556; }
+/* 按来源库配色：父块低透明底，子块同色加深（细分卡与主段同库同色，一眼识别来源库） */
+.iab-view :deep(.iab-top-instruction) { background: rgba(88, 142, 255, 0.16); }
+.iab-view :deep(.iab-top-layout-spec) { background: rgba(124, 77, 255, 0.16); }
+.iab-view :deep(.iab-top-render-contract) { background: rgba(255, 152, 0, 0.18); }
+.iab-view :deep(.iab-top-rules) { background: rgba(235, 64, 52, 0.15); }
+.iab-view :deep(.iab-top-blueprint) { background: rgba(0, 150, 136, 0.20); }
+.iab-view :deep(.iab-sub-instruction) { background: rgba(88, 142, 255, 0.30); }
+.iab-view :deep(.iab-sub-layout-spec) { background: rgba(124, 77, 255, 0.30); }
+.iab-view :deep(.iab-sub-render-contract) { background: rgba(255, 152, 0, 0.30); }
+.iab-view :deep(.iab-sub-rules) { background: rgba(235, 64, 52, 0.26); }
+.iab-view :deep(.iab-sub-blueprint) { background: rgba(0, 150, 136, 0.34); }
+.iab-lib-legend { margin-top: 4px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--text-muted); }
+.ill-item { display: inline-flex; align-items: center; gap: 4px; }
+.ill-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .iab-legend { margin-top: 6px; font-size: 11px; color: var(--text-muted); }
 
 .instruction-source { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
