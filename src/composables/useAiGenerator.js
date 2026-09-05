@@ -4482,6 +4482,11 @@ ${cardAnalysisText.substring(0, 1000)}
    * @param {Object} params { instruction, genType, selectedBooks, contentCards, knowledgeMap, contextFramework, templateInfo, diffKps }
    * @returns {Promise<{success, content, generatedQuestions, parsedBlueprint, auditWarnings}>}
    */
+
+  // 🔧 覆盖重试缓存（2026-09 缺漏处置）：记录最近一次 full/per-lesson-full 生成的对账缺漏（同范围 key），
+  //    复生成时自动携带为【本轮必覆盖】定向补齐；注入后无进展或轮数超限即停，交用户手动（防死循环）
+  const coverageRetryCache = new Map();
+
   const generateFullPaperNatural = async (params = {}) => {
     const {
       instruction = '', genType = '', selectedBooks = [], contentCards = [],
@@ -4647,6 +4652,26 @@ ${cardAnalysisText.substring(0, 1000)}
     if (diffKps?.length) {
       prompt += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}`;
     }
+    // ── 缺漏定向补齐闭环（2026-09）：同范围再次生成时携带上次对账缺漏为【本轮必覆盖】。
+    //    仅当：缓存命中同范围 key（同类型+同书+同章集合）且轮数未超限，
+    //    且缺漏考点仍属于本次已绑定锚（范围变化/缺料考点自动排除，防误伤）。
+    //    注入后由底部 recon 验证进展并更新/清除缓存（无进展即停自动，交用户手动——防死循环）。
+    //    触发面：同范围（同类型+同书+同章集合）再次生成即携带，不限于"复生成差异化"入口——
+    //    首次生成缺漏写缓存后，用户再生成同范围即自动定向补齐；注入必覆盖与"差异化（避开已覆盖）"
+    //    语义并立不冲突（避开的是已覆盖考点、必覆盖的是缺漏考点）。
+    const coverageKey = `${genType}|${book?.name || book?.subject || ''}|${(contentCards || []).map((c) => normChapter(c?.chapterTitle)).filter(Boolean).sort().join('>')}`;
+    const retryEnt = coverageRetryCache.get(coverageKey) || null;
+    let carriedKps = [];
+    let requiredKpsText = '';
+    if (retryEnt && Array.isArray(retryEnt.names) && retryEnt.names.length && (retryEnt.rounds || 0) < 2) {
+      const boundNameSet = new Set((anchors || []).filter((a) => a.bind.status !== 'missing').map((a) => a.name));
+      carriedKps = retryEnt.names.filter((n) => boundNameSet.has(n));
+    }
+    if (carriedKps.length) {
+      requiredKpsText = `\n\n【本轮必覆盖（上次同范围生成对账缺漏，重新生成定向补齐）】以下考点必须在本次内容中实际呈现/考查，不得省略：${carriedKps.join('、')}`;
+      prompt += requiredKpsText;
+      console.log(`[覆盖重试] 携带 ${carriedKps.length} 个上次缺漏考点为必覆盖：${carriedKps.join('、')}`);
+    }
     // 🔧 整卷生成方式（设置页三选一，生成端严格按设置执行，不再硬编码）：
     //    'split' 两次生成：正文一次 + 答案页独立一次（温度/角色分层，纯题型推荐）
     //    'once'  一次成型：正文+答案一次输出（上下文全程一致，知识型/错题/听写推荐）
@@ -4714,6 +4739,7 @@ ${cardAnalysisText.substring(0, 1000)}
         if (templateInfo?.trim()) fb += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
         if (contextFramework?.trim()) fb += `\n\n${contextFramework.trim()}`;
         if (diffKps?.length) fb += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}`;
+        if (requiredKpsText) fb += requiredKpsText; // 缺漏定向补齐：回退单次注入同样携带必覆盖
         fb += `\n\n${generateMode === 'once' ? PAPER_OUTPUT_CONVENTIONS.once(subject, isSelfContainedTeaching) : PAPER_OUTPUT_CONVENTIONS.split(subject, isSelfContainedTeaching)}`;
         prompt = fb;
         // 🔧 2026-09 自洽修正：回退后注入的是被 typeBudget 截断的素材块（≤ materialBlock），
@@ -4954,10 +4980,9 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
 
     // ── P2b 覆盖自动补漏（2026-09）：full/per-lesson-full 类型正文对账缺漏 ≤6 个考点时，
     //    针对缺漏考点做一次短生成（每考点一个 h2 栏目，内容贴合绑定原文片段），
-    //    插入正文（答案区之前；无答案区则插末尾）。
-    //    缺漏 >6 / 补漏失败 / 输出截断 / 无 h2 / 含答案区 / 未覆盖任何缺漏考点 → 放弃本次补漏
-    //    （不插半截栏目），由底部最终覆盖对账提示供定向重试或手动补充——宁缺毋滥，
-    //    补漏提示只允许引用绑定片段，绝不让模型凭记忆补教材。
+    //    插入正文（答案区之前；无答案区则插末尾）；补漏失败/截断/无 h2/含答案区/未覆盖缺漏考点
+    //    → 自动重试一次（第二轮提示更严），仍失败才放弃（不插半截栏目），由底部覆盖对账
+    //    提示走"复生成必覆盖"闭环或手动补充——宁缺毋滥，补漏提示只允许引用绑定片段。
     {
       const recon0 = reconcileCoverage({ genType, content, anchors });
       if (recon0.required && recon0.missing.length > 0 && recon0.missing.length <= 6) {
@@ -4969,30 +4994,35 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           return `考点：${m.name}\n所属：${m.chapter || '未标注章节'}\n教材依据：\n${frag || '（无原文片段，本次无法补漏）'}`;
         }).join('\n\n');
         const patchPrompt = `你是${contractName}编写助手。上一轮生成的${contractName}正文经程序覆盖对账，以下考点未覆盖到。请为每个考点补充一个 <h2> 栏目（栏目标题即考点名），栏目内容贴合下方给出的教材原文片段编写（归纳要点、示例或配套练习均可，风格与本资料一致）；不得重复正文已有内容，不得编写超出所给教材原文之外的新知识点。\n\n【缺漏考点】\n${missLines}\n\n只输出补漏栏目 HTML（从 <h2> 开始），不要输出整卷或其他说明。`;
-        try {
-          const thinkingMult = getGenerationThinkingEnabled() ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1;
-          const patchResp = await callAI(patchPrompt, {
-            taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
-            maxTokens: clampReq(Math.max(600, Math.min(3600, recon0.missing.length * 500)) * thinkingMult),
-            allowContinuation: false, temperature: bodyTemperature, returnMeta: true,
-          });
-          const pObj = typeof patchResp === 'string' ? { content: patchResp, finishReason: '' } : (patchResp || { content: '', finishReason: '' });
-          const patchHtml = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(pObj.content || '')))))).trim();
-          const truncated = detectTruncation(patchHtml, pObj.finishReason).truncated;
-          const hasAnyCovered = recon0.missing.some((m) => wordMatch(patchHtml, m.name));
-          const isClean = patchHtml.includes('<h2') && !/answer-section|参考答案/.test(patchHtml);
-          if (patchHtml && isClean && hasAnyCovered && !truncated) {
-            const idx = content.search(/answer-section|<h2[^>]*>\s*参考答案/i);
-            content = idx > 0
-              ? `${content.slice(0, idx).trimEnd()}\n\n${patchHtml}\n\n${content.slice(idx)}`
-              : `${content.trimEnd()}\n\n${patchHtml}`;
-            console.log(`✅ [覆盖补漏] ${genType} 已为 ${recon0.missing.length} 个缺漏考点补栏目（插入正文${idx > 0 ? '答案区前' : '末尾'}）`);
-          } else {
-            const why = !patchHtml ? '空输出' : truncated ? '输出截断' : !isClean ? '无 h2 或含答案区' : '未覆盖任何缺漏考点';
-            console.warn(`⚠️ [覆盖补漏] 放弃插入（${why}），保留覆盖对账提示`);
+        let lastWhy = '';
+        for (let ptry = 0; ptry < 2; ptry++) {
+          try {
+            const thinkingMult = getGenerationThinkingEnabled() ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1;
+            const patchResp = await callAI(ptry === 0 ? patchPrompt : `${patchPrompt}\n\n注意：上轮补漏输出未达标（${lastWhy}），请只输出每个缺漏考点的 <h2> 栏目 HTML（从 <h2> 开始到栏目结束），不要任何额外文字或整卷。`, {
+              taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
+              maxTokens: clampReq(Math.max(600, Math.min(3600, recon0.missing.length * 500)) * thinkingMult),
+              allowContinuation: false, temperature: bodyTemperature, returnMeta: true,
+            });
+            const pObj = typeof patchResp === 'string' ? { content: patchResp, finishReason: '' } : (patchResp || { content: '', finishReason: '' });
+            const patchHtml = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(pObj.content || '')))))).trim();
+            const truncated = detectTruncation(patchHtml, pObj.finishReason).truncated;
+            const hasAnyCovered = recon0.missing.some((m) => wordMatch(patchHtml, m.name));
+            const isClean = patchHtml.includes('<h2') && !/answer-section|参考答案/.test(patchHtml);
+            if (patchHtml && isClean && hasAnyCovered && !truncated) {
+              const idx = content.search(/answer-section|<h2[^>]*>\s*参考答案/i);
+              content = idx > 0
+                ? `${content.slice(0, idx).trimEnd()}\n\n${patchHtml}\n\n${content.slice(idx)}`
+                : `${content.trimEnd()}\n\n${patchHtml}`;
+              console.log(`✅ [覆盖补漏] ${genType} 已为 ${recon0.missing.length} 个缺漏考点补栏目（第 ${ptry + 1} 次尝试，插入正文${idx > 0 ? '答案区前' : '末尾'}）`);
+              lastWhy = '';
+              break;
+            }
+            lastWhy = !patchHtml ? '空输出' : truncated ? '输出截断' : !isClean ? '无 h2 或含答案区' : '未覆盖任何缺漏考点';
+            console.warn(`⚠️ [覆盖补漏] 第 ${ptry + 1} 次尝试放弃（${lastWhy}）${ptry === 0 ? '，自动重试一次' : ''}，保留覆盖对账提示`);
+          } catch (e) {
+            lastWhy = `请求异常：${e.message}`;
+            console.warn(`⚠️ [覆盖补漏] 第 ${ptry + 1} 次请求失败${ptry === 0 ? '，自动重试一次' : '，保留覆盖对账提示'}:`, e.message);
           }
-        } catch (e) {
-          console.warn('⚠️ [覆盖补漏] 请求失败，保留覆盖对账提示:', e.message);
         }
       }
     }
@@ -5049,9 +5079,36 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     //    对账对象为正文 content（不含独立答案页，防答案区单词误判"已覆盖"）。
     const reconReport = reconcileCoverage({ genType, content, anchors });
     const reconNote = coverageNoteOf(reconReport);
+    // 🔧 缺漏处置闭环（2026-09）：full/per-lesson-full 缺漏写缓存供下次复生成必覆盖；
+    //    必覆盖注入后无进展或轮数超限 → 停自动，交用户手动/调预算（防死循环）
+    let retryTail = '';
+    if (reconReport.required) {
+      const missNames = reconReport.missing.map((m) => m.name);
+      if (!missNames.length) {
+        coverageRetryCache.delete(coverageKey);
+      } else if (!carriedKps.length) {
+        coverageRetryCache.set(coverageKey, { names: missNames, rounds: 0 });
+      } else {
+        const sameNoProgress = missNames.length === carriedKps.length && missNames.every((n) => carriedKps.includes(n));
+        if (sameNoProgress) {
+          coverageRetryCache.delete(coverageKey);
+          console.warn('[覆盖重试] 必覆盖注入一轮仍无进展，停止自动携带（交用户手动补充或调整范围/预算）');
+          retryTail = '；自动定向补齐无进展已停止——请手动补充或调整勾选范围/输出预算';
+        } else {
+          const rounds = (retryEnt?.rounds || 0) + 1;
+          if (rounds >= 2) {
+            coverageRetryCache.delete(coverageKey);
+            retryTail = '；自动定向补齐两轮后仍有新缺漏，已停止——请手动补充或调整勾选范围/输出预算';
+          } else {
+            coverageRetryCache.set(coverageKey, { names: missNames, rounds });
+          }
+        }
+      }
+    }
     if (reconNote) {
       console.log(`[覆盖对账] ${genType} 正文缺漏 ${reconReport.missing.length}/${reconReport.total} 考点（${reconReport.missing.map((m) => `${m.chapter}:${m.name}`).join('、')}）`);
-      auditWarnings.push(reconNote);
+      auditWarnings.push(reconNote + (retryTail
+        || (reconReport.required && !carriedKps.length && !retryEnt ? '；已保留本结果供预览——可点"复生成"，系统将自动携带以上考点定向补齐' : '')));
     }
     const sampledStats = reconcileCoverageStats({ genType, content, anchors });
     if (sampledStats && (anchors || []).length) {
