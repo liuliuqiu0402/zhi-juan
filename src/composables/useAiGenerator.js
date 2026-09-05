@@ -6,6 +6,7 @@ import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurri
 import { getStoragePath } from '../utils/pathHelper.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
+import { buildAnchors, boundAnchorNames } from '../utils/coverageAnchor.js';
 import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
 import {
   genTypeTemplates,
@@ -787,6 +788,16 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
           knowledgePointsForTest: displayKps.slice(0, 20).map(kp => ({ name: kp, cognitiveLevel: kpCognitiveMap[kp] || '理解' })),
           adaptableMaterials: keySegments.slice(0, 5).map(s => s.text.substring(0, 100)),
           suggestedQuestionTypes: [...new Set(chapter.knowledgeHierarchy.flatMap(bc => (bc.coreKnowledge || []).flatMap(ck => ck.suggestedQuestionTypes || [])))].slice(0, 8),
+          // 🔧 覆盖锚（2026-09）：章级 knowledgeHierarchy 完整树随卡附带——考点→章归属由树结构天然成立，
+          //    不依赖 Step2 全局图谱中 AI 自由填写的 relatedChapters（无写入点、缺省高风险，曾致章节锚定失效）。
+          //    生成侧覆盖对账/检索/补漏均以本锚树为唯一事实源；knowledgeGraph 仅作跨章补充去重。
+          anchorTree: (chapter.knowledgeHierarchy || []).map(bc => ({
+            bigConcept: bc.bigConcept || bc.name || '',
+            coreKnowledge: (bc.coreKnowledge || []).map(ck => ({
+              name: ck.name || '', level: ck.level || ck.cognitiveLevel || '理解',
+              specificConcepts: ck.specificConcepts || [], suggestedQuestionTypes: ck.suggestedQuestionTypes || [],
+            })),
+          })),
           // 🔧 保留完整的 KP→片段映射，供 Step 4 精准检索（Step 2 只用 totalSegments 不遍历 segments）
           segments: segmentCards, totalSegments: segmentCards.length, tags: displayKps.slice(0, 10) });
         continue;
@@ -4023,10 +4034,14 @@ ${cardAnalysisText.substring(0, 1000)}
     for (const unit of (knowledgeMap?.knowledgeGraph || [])) {
       const unitName = unit?.unit || '';
       for (const bc of (unit.bigConcepts || [])) {
-        if (bc?.bigConcept) addKp(bc.bigConcept, unitName ? [unitName] : []);
+        // 🔧 P0-3 字段修复：Step2 图谱 bigConcept 的 schema 字段是 name（见 buildKnowledgeMap 返回 JSON），
+        //    曾误读 bc.bigConcept（恒 undefined）→ 该层考点在 browse 取料丢失；兼容读取防历史脏数据
+        const bcName = bc?.name || bc?.bigConcept;
+        if (bcName) addKp(bcName, unitName ? [unitName] : []);
         for (const ck of (bc.coreKnowledge || [])) {
           if (ck?.name) addKp(ck.name, [...(ck?.relatedChapters || []), unitName].filter(Boolean));
-          for (const sp of (ck?.specificConcepts || [])) if (sp) addKp(sp, ck?.relatedChapters || []);
+          // 🔧 P0-3 修复：具体概念须继承 unit 归属（曾只挂 ck.relatedChapters，unit 粒度考点在取料索引丢失）
+          for (const sp of (ck?.specificConcepts || [])) if (sp) addKp(sp, [...(ck?.relatedChapters || []), unitName].filter(Boolean));
         }
       }
     }
@@ -4258,7 +4273,7 @@ ${cardAnalysisText.substring(0, 1000)}
     return { content, coverageNotes };
   };
 
-  const buildMaterialBlock = ({ contentCards = [], knowledgeMap = null, maxChars = 8000 } = {}) => {
+  const buildMaterialBlock = ({ contentCards = [], knowledgeMap = null, maxChars = 8000, anchors = null, boundAnchors = null } = {}) => {
     // 1. 结构化目录（范围锚定：先给目录确定命题范围，不遗漏、不越界）
     const titles = [];
     for (const card of contentCards || []) {
@@ -4267,41 +4282,46 @@ ${cardAnalysisText.substring(0, 1000)}
     const toc = titles.length
       ? `【本资料覆盖范围·目录】（命题范围以本目录为准，覆盖全部章节，不遗漏、不越界）\n${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
       : '';
-    // 1b. 章节→原文片段索引（章节锚定直取用；key 归一化去括号空白）
+    // 1b. 章节名归一（hits 按章聚合用：去空白/括号，兼容"第1单元 小数乘法"与"第1单元 小数乘法(一)"）
     const normCh = (t) => String(t || '').replace(/\s+/g, '').replace(/[（(].*?[)）]/g, '').trim();
-    const chapterSegs = new Map();
-    for (const card of contentCards || []) {
-      const key = normCh(card?.chapterTitle);
-      if (!key || !card?.segments?.length) continue;
-      chapterSegs.set(key, card.segments);
-    }
-    // 2. 知识点清单 + 知识点→章节映射（relatedChapters/unit——出处锚点程序化，不让模型凭记忆编）
+    // 2. 检索词补充集（2026-09 P0：仅作 3c 素材增量检索词；不进可命题提示清单——清单只含已绑定锚，见下红线）。
+    //    knowledgeMap 全局细点名（知识点/大概念/核心知识/具体概念）跨章去重，用于预算内补足改编素材。
+    //    🔴 不再用 knowledgeGraph 的 relatedChapters 做章节锚定（无写入点、缺省高风险，曾致章节锚定
+    //    失效、检索静默回落）——考点→章归属由 contentCards.anchorTree 树结构天然成立（统一覆盖锚）。
     const kpSet = new Set();
-    const kpChapters = new Map(); // 知识点名 → 关联章节名[]
-    const collectKp = (name, chapters = []) => {
-      if (!name) return;
-      kpSet.add(name);
-      const list = kpChapters.get(name) || [];
-      for (const c of chapters) if (c && !list.includes(c)) list.push(c);
-      kpChapters.set(name, list);
-    };
+    const addKp = (name) => { if (name) kpSet.add(name); };
     for (const kp of (knowledgeMap?.knowledgePoints || [])) {
-      if (typeof kp === 'string') collectKp(kp);
-      else if (kp?.name) collectKp(kp.name, kp.relatedChapters || []);
+      if (typeof kp === 'string') addKp(kp);
+      else if (kp?.name) addKp(kp.name);
     }
     for (const unit of (knowledgeMap?.knowledgeGraph || [])) {
-      const unitName = unit?.unit || '';
       for (const bc of (unit.bigConcepts || [])) {
-        if (bc?.bigConcept) collectKp(bc.bigConcept, unitName ? [unitName] : []);
+        // 🔧 P0-3 字段修复：Step2 图谱 bigConcept 的 schema 字段是 name（见 buildKnowledgeMap 返回 JSON），
+        //    曾误读 bc.bigConcept（恒 undefined）；兼容读取防历史脏数据
+        addKp(bc?.name || bc?.bigConcept);
         for (const ck of (bc.coreKnowledge || [])) {
-          if (ck?.name) collectKp(ck.name, [...(ck?.relatedChapters || []), unitName].filter(Boolean));
-          for (const sp of (ck.specificConcepts || [])) if (sp) collectKp(sp, ck?.relatedChapters || []);
+          addKp(ck?.name);
+          for (const sp of (ck.specificConcepts || [])) addKp(sp);
         }
       }
     }
     const kpNames = [...kpSet].filter(Boolean);
-    const kpText = kpNames.length ? `【本资料考查知识点】${kpNames.join('、')}` : '';
-    // 3. 按知识点检索（每知识点保底 + 缺失补检 + 剩余预算增量）
+    // 🔧 覆盖锚红线（2026-09 P0）：可命题考点清单只含"已绑定片段"的章级锚考点（literal/semantic/chapter），
+    //    missing（缺料）考点不进清单——绝不让模型凭记忆补教材内容（防旧教材）。
+    //    图谱补充名（knowledgePoints/knowledgeGraph 细点）仅作检索词参与取料，不进提示清单。
+    const boundList = Array.isArray(boundAnchors) && boundAnchors.length
+      ? boundAnchors
+      : (anchors || []).filter((a) => a.bind.status !== 'missing'); // 兜底：调用方未传时自行过滤
+    const promptKpNames = boundList.length
+      ? [...new Set(boundList.map((b) => b.name))]
+      : kpNames; // 无锚（仅目录卡/未分析）时回退图谱名，保持旧行为
+    const kpText = promptKpNames.length ? `【本资料考查知识点】${promptKpNames.join('、')}` : '';
+    // 3. 素材检索（覆盖锚驱动，2026-09 P0 红线）：
+    //    - 可命题考点 = 已绑定锚（literal/semantic/chapter）。每绑定锚的支撑片段（bind.segments 已按章定位）
+    //      带分级权重直取进 hits——章节配额排序时锚素材优先，保证每考点保底落在锚上（有原文依据）
+    //    - missing（缺料）锚：不进 hits、不作任何检索/推理（无原文即无依据），汇总为缺料诊断
+    //      （console.warn + 生成报告 auditWarnings），替代旧的静默 debug"模型知识兜底"
+    //    - knowledgeMap 细点名只作 3c 增量检索词补足改编素材，不扩充可命题范围（清单见 2 红线）
     const hits = [];
     const seen = new Set();
     const hasRetriever = !!semanticRetriever?.segments?.length;
@@ -4314,45 +4334,31 @@ ${cardAnalysisText.substring(0, 1000)}
       hits.push({ text: t, score: r?.score || 1, type: r?.type || '', kp, chapter: r?.chapterTitle || '' });
       return true;
     };
-    // 3a. 第一轮：每知识点保底 top1 片段（保证每个考点都有原文依据）
-    const missingKps = [];
-    for (const kp of kpNames.slice(0, 50)) {
-      const first = findTop(kp, 1)[0];
-      if (first && pushHit(first, kp)) continue;
-      missingKps.push(kp);
-    }
-    // 3b. 覆盖度静默补检：未命中片段的知识点按子词拆检（"分数与小数"→"分数"/"小数"）；
-    //     仍无则 debug 记录（命题由模型知识兜底，不打扰用户）
-    if (hasRetriever && missingKps.length) {
-      for (const kp of missingKps) {
-        const parts = String(kp).split(/[、，,与和及]/).filter((p) => p.length >= 2);
-        let recovered = false;
-        for (const part of parts) {
-          const r = findTop(part, 1)[0];
-          if (r && pushHit({ ...r, score: (r.score || 1) * 0.95 }, kp)) { recovered = true; break; }
-        }
-        if (!recovered) {
-          // 🔧 章节锚定直取（2026-08-31）：语义检索 miss → 按知识点关联章节（relatedChapters/unit）
-          //    直接取该章节关键片段（isKeyConcept 优先），不再静默靠模型知识兜底（教材改版模型跟不上）
-          const missChapters = kpChapters.get(kp) || [];
-          let anchored = false;
-          for (const ch of missChapters) {
-            const segs = chapterSegs.get(normCh(ch)) || [];
-            if (!segs.length) continue;
-            const pick = segs
-              .filter(s => (s.text || '').trim().length >= 10)
-              .sort((a, b) => (b.isKeyConcept ? 1 : 0) - (a.isKeyConcept ? 1 : 0))
-              .slice(0, 2);
-            for (const s of pick) {
-              if (pushHit({ text: s.text, score: 0.8, type: s.type || '正文', kp, chapter: ch })) anchored = true;
-            }
-            if (anchored) break;
-          }
-          if (!anchored) console.debug(`[素材覆盖] 知识点未检索到原文且无章节锚定（静默，模型知识兜底）：${kp}`);
-        }
+    // 3a. 锚绑定段直取（每考点保底，替代旧"知识点名→语义 top1"全局循环——锚已在 buildAnchors 按章四级定位）。
+    //     权重 literal > semantic > chapter，且每考点首个落段再加 +1（主保底段）：
+    //     章节配额排序时先保证"每个绑定锚至少落上一段"，再装其余绑定段——防锚片段被高相关噪声/同锚多段挤出
+    const ANCHOR_SCORE = { literal: 2.0, semantic: 1.6, chapter: 1.2 };
+    const missingAnchors = [];
+    for (const a of anchors || []) {
+      if (a.bind.status === 'missing') {
+        missingAnchors.push(`${a.chapterTitle}:${a.name}`);
+        continue; // 红线：缺料考点不进 hits、不推理（可命题清单已在 2 红线中排除）
+      }
+      const base = ANCHOR_SCORE[a.bind.status] || 1;
+      let primaryPushed = false;
+      for (const seg of a.bind.segments || []) {
+        const ok = pushHit({
+          text: seg?.text, score: primaryPushed ? base : base + 1,
+          type: seg?.type || '正文', chapterTitle: seg?.chapterTitle || a.chapterTitle,
+        }, a.name);
+        if (ok) primaryPushed = true;
       }
     }
-    // 3c. 第二轮：剩余预算按相关度增量补充（每知识点再取 top2 中的新片段，总量受 maxChars 兜底）
+    if (missingAnchors.length) {
+      console.warn(`[考点缺料] ${missingAnchors.length} 个考点所在章无教材片段（缺料诊断，不进可命题清单）：${missingAnchors.join('、')}`);
+    }
+    // 3c. 预算内增量补充：锚素材之外，按 knowledgeMap 细点名（检索词）再取相关片段，丰富改编情境；
+    //     总量受 maxChars 兜底；仅作素材（出处锚点程序化），不扩可命题清单（清单见 2 红线）
     let usedChars = hits.reduce((s, h) => s + h.text.length, 0);
     if (usedChars < maxChars) {
       const extra = [];
@@ -4455,11 +4461,27 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔴 学科规范化（三维度答案提示词/作答载体按 subject 精确注入，避免跨学科噪音）
     const subject = normalizeSubjectName(book?.subject, book?.stage);
 
+    // ── 覆盖锚构建（2026-09 P0）：章级层级考点 → 原文片段绑定，覆盖/检索/缺料诊断的唯一事实源 ──
+    //    锚来自 contentCards.anchorTree（knowledgeHierarchy 归一树），考点→章归属由树结构成立；
+    //    绑定分四级（literal/semantic/chapter/missing），missing 即缺料信号（红线：不进可命题清单）
+    const { anchors, report: anchorReport } = buildAnchors(contentCards || [], { retriever: semanticRetriever });
+    const boundAnchors = boundAnchorNames(anchors);
+    if (anchorReport.total > 0) {
+      const bs = anchorReport.byStatus;
+      console.log(`[考点锚] ${anchorReport.total} 个考点：字面${bs.literal}/语义${bs.semantic}/章兜底${bs.chapter}/缺料${bs.missing}`
+        + (bs.missing ? '（缺料名单见素材构建 warn）' : ''));
+    }
+    // 🔴 缺料诊断上抛（2026-09 P0）：missing 考点不进可命题清单、不作推理，透出到生成报告【问题列表】，
+    //    替代旧的静默 debug"模型知识兜底"——用户必须知道哪些章缺原文、未被本次命题覆盖
+    const anchorMissingNote = anchorReport.missingList?.length
+      ? `⚠️ 覆盖缺料：${anchorReport.missingList.length} 个考点所在章节无教材片段，本次无法从教材取材（已排除在可命题范围外）：${anchorReport.missingList.map((m) => `${m.chapter}·${m.name}`).join('、')}。请检查勾选章节的原文解析/粘贴是否完整。`
+      : '';
+
     // ── 素材构建：按知识点检索（目录 + 知识点清单 + 相关片段，分级限量，非硬截断） ──
     // 素材量按类型差异化（内容型资料需充分原文、引导型资料适量即可，避免信息过载）
     const MATERIAL_CHARS = GEN_CONST.MATERIAL_CHARS;
     const materialBudget = MATERIAL_CHARS[genType] || 5000;
-    const materialBlock = buildMaterialBlock({ contentCards, knowledgeMap, maxChars: materialBudget });
+    const materialBlock = buildMaterialBlock({ contentCards, knowledgeMap, maxChars: materialBudget, anchors, boundAnchors });
     // ── 大/小范围判定（设计 v2·Q1）：不做章节数判定，按勾选区累计原文字数；
     //    超该类型素材预算（即单次注入会被 maxChars 截断）且引擎支持工具 → 走附件式浏览路径 ──
     const selectedRawChars = (contentCards || []).reduce(
@@ -4941,6 +4963,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     }
     if (answerSkipNote) auditWarnings.push(answerSkipNote);
     if (browseCoverageNotes.length) auditWarnings.push(...browseCoverageNotes);
+    if (anchorMissingNote) auditWarnings.push(anchorMissingNote);
 
     // 🔴 生成方式提示：auto 模式下告知用户本次实际走的路径，并引导其到设置固定（用户必须清楚自己配置了什么）
     if ((typeMode || 'auto') === 'auto') {
@@ -5037,30 +5060,17 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
 
           // 过滤到当前章节
           contentCards = contentCards.filter(c => c.chapterTitle === targetChapter);
-          knowledgeMap = {
-            ...knowledgeMap,
-            knowledgePoints: (knowledgeMap.knowledgePoints || []).filter(kp => kp.sourceChapter === targetChapter),
-            knowledgeGraph: (knowledgeMap.knowledgeGraph || []).filter(bc => {
-              return (bc.coreKnowledge || []).some(ck => ck.sourceChapter === targetChapter) || bc.sourceChapter === targetChapter;
-            }).map(bc => ({
-              ...bc,
-              coreKnowledge: (bc.coreKnowledge || []).filter(ck => ck.sourceChapter === targetChapter)
-            })).filter(bc => bc.coreKnowledge.length > 0)
-          };
+          // 🔧 P0-3 修复：不再按 sourceChapter 裁剪 knowledgeMap——该字段在 buildKnowledgeMap 净化后
+          //    已不存在写入点（knowledgePoints 为字符串、knowledgeGraph 节点无 sourceChapter），
+          //    旧裁剪会把图谱裁成空（逐章模式补充考点全丢）。
+          //    知识图谱是单元级全局层级结构，无逐章粒度：正文素材按章取材由 contentCards 单章过滤保证
+          //    （段落来自 card.segments，与图谱无关）；图谱仅作检索词补充/目录模式兜底，全局保留不污染。
         } else {
           // 后续调用：直接从缓存过滤
           contentCards = _cachedContentCards.filter(c => c.chapterTitle === targetChapter);
-          const fullKM = _cachedKnowledgeMap;
-          knowledgeMap = {
-            ...fullKM,
-            knowledgePoints: (fullKM.knowledgePoints || []).filter(kp => kp.sourceChapter === targetChapter),
-            knowledgeGraph: (fullKM.knowledgeGraph || []).filter(bc => {
-              return (bc.coreKnowledge || []).some(ck => ck.sourceChapter === targetChapter) || bc.sourceChapter === targetChapter;
-            }).map(bc => ({
-              ...bc,
-              coreKnowledge: (bc.coreKnowledge || []).filter(ck => ck.sourceChapter === targetChapter)
-            })).filter(bc => bc.coreKnowledge.length > 0)
-          };
+          // 🔧 P0-3 修复：同首次调用——knowledgeGraph 无 sourceChapter 字段，旧裁剪裁空图谱；
+          //    图谱全局保留（正文素材按章取材由 contentCards 单章过滤保证）
+          knowledgeMap = _cachedKnowledgeMap;
         }
         console.log(`[逐章] 「${targetChapter}」过滤后：${contentCards.length} cards, ${knowledgeMap.knowledgePoints?.length} KPs`);
       } else {
