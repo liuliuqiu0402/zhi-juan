@@ -2350,8 +2350,9 @@ defineExpose({
 .rich-text-editor :deep(ul[data-marker] > li) { position: relative; }
 .rich-text-editor :deep(ul[data-marker] > li::before) { content: var(--msym, '• '); position: absolute; left: -1.2em; color: inherit; }
 
-/* 🔧 转文本后的项目符号字形：0.75em 小字号，对齐 WPS"符号保持原大小"的视觉，与正文文字区别开 */
-.rich-text-editor :deep(.list-marker) { font-size: 0.75em; }
+/* 🔧 转文本后的项目符号字形(仅空心圆 ○/◦)：0.4em 对齐浏览器原生 disc/circle 标记的真实填充大小
+ *   （约等于内容字号的 0.3~0.4em；0.75em 偏大是此前误植）。改这里，三处出口(GM/TM/global)需同步。 */
+.rich-text-editor :deep(.list-marker) { font-size: 0.4em; }
 
 /* 🔧 作图网格区 / 花式竖式格兜底（CSS 变量取自排版规格库；主题 CSS 注入后由带 !important 的规则覆盖） */
 .rich-text-editor :deep(.square-grid) { width: var(--sg-w, 84mm); height: var(--sg-h, 56mm); border: 1.5px solid #999; margin: 8px 0; background: linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / var(--sg-bg, 7mm 7mm), linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / var(--sg-bg, 7mm 7mm); }

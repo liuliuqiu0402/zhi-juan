@@ -2256,8 +2256,8 @@ onActivated(() => {
   line-height: 0;
 }
 
-/* 🔧 转文本后的项目符号字形：0.75em 小字号，对齐 WPS"符号保持原大小"（对应编辑器 .list-marker） */
-.list-marker { font-size: 0.75em; }
+/* 🔧 转文本后的项目符号字形(仅空心圆)：0.4em 对齐浏览器原生 circle 标记真实尺寸（需与编辑器/生成/全局同步） */
+.list-marker { font-size: 0.4em; }
 
 /* ⭐ 下标样式 - 数学/物理/化学必备 */
 .subscript {
