@@ -4555,9 +4555,14 @@ ${cardAnalysisText.substring(0, 1000)}
     //    其他引擎（火山/阿里/智谱/本地）上限随模型档位未固证 → 不钳制（防误伤）。
     //    护栏效果：请求值钳到引擎上限；估算缺口由「正文截断续写链」分次补齐（见段1续写链），
     //    并在 budgetAlert 中透出"本次因引擎上限需要分次"（进入生成报告，用户可据此缩小范围或换 reasoner）。
-    const engineCap = (gateCfg?.provider === 'deepseek')
-      ? (/reasoner|r1|think/i.test(String(gateCfg?.model || '')) ? 65536 : 8192)
-      : Infinity;
+    //    🔧 独立获取引擎配置：不得引用上方 browse 探测的局部 gateCfg（try 块作用域，小范围时未执行 → ReferenceError）
+    let engineCap = Infinity;
+    try {
+      const genGate = await getCurrentEngineConfigEnhanced('generation', { promptLength: Math.min(selectedRawChars, 4000) });
+      if (genGate?.provider === 'deepseek') {
+        engineCap = /reasoner|r1|think/i.test(String(genGate?.model || '')) ? 65536 : 8192;
+      }
+    } catch { /* 引擎可配置探询失败 → 不钳制：护栏为防误伤兜底，非关键路径 */ }
     const clampReq = (tok) => Math.min(tok, engineCap);
     const bodyEngineOver = bodyDynamicCap > engineCap;
     const answerEngineOver = answerDynamicCap > engineCap;
