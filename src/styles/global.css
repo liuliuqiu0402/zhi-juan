@@ -317,6 +317,9 @@ p.blank-area {
   line-height: 0;
 }
 
+/* 转文本后的项目符号字形：0.75em 小字号，对齐 WPS"符号保持原大小" */
+.list-marker { font-size: 0.75em; }
+
 /* 下标 */
 .subscript {
   vertical-align: sub;

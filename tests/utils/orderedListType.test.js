@@ -10,13 +10,25 @@ import Document from '@tiptap/extension-document';
 import Text from '@tiptap/extension-text';
 
 // ⚠️ 与 RichTextEditor.vue 中 CustomOrderedList 定义保持一致（extend 保留 ol type 属性）
+const OL_LIST_STYLE_TYPES = {
+  'lower-alpha': 'a', 'lower-latin': 'a',
+  'upper-alpha': 'A', 'upper-latin': 'A',
+  'lower-roman': 'i', 'upper-roman': 'I',
+};
 const CustomOrderedList = OrderedList.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
       type: {
         default: null,
-        parseHTML: element => element.getAttribute('type') || null,
+        parseHTML: element => {
+          const t = element.getAttribute('type');
+          if (t) return t;
+          const style = element.getAttribute('style') || '';
+          const lm = /list-style-type\s*:\s*([a-zA-Z-]+)/.exec(style);
+          if (lm && OL_LIST_STYLE_TYPES[lm[1]] !== undefined) return OL_LIST_STYLE_TYPES[lm[1]];
+          return null;
+        },
         renderHTML: attributes => (attributes.type ? { type: attributes.type } : {}),
       },
     };
@@ -40,6 +52,35 @@ describe('OrderedList type 属性保留（字母编号联动基础）', () => {
   it('type="A" 大写保留', () => {
     const editor = makeEditor('<ol type="A"><li><p>甲</p></li></ol>');
     expect(editor.getHTML()).toContain('type="A"');
+    editor.destroy();
+  });
+
+  it('<ol style="list-style-type:upper-alpha"> 归一为 type="A"（保留大写字母，防退化为数字）', () => {
+    const editor = makeEditor('<ol style="list-style-type: upper-alpha"><li><p>甲</p></li></ol>');
+    expect(editor.getHTML()).toContain('type="A"');
+    editor.destroy();
+  });
+
+  it('<ol style="list-style-type:lower-roman"> 归一为 type="i"（保留小写罗马）', () => {
+    const editor = makeEditor('<ol style="list-style-type: lower-roman"><li><p>甲</p></li></ol>');
+    expect(editor.getHTML()).toContain('type="i"');
+    editor.destroy();
+  });
+
+  it('大小写互不误转：lower-alpha→"a" 不上台为大写、upper-alpha→"A" 不降为小写', () => {
+    const lower = makeEditor('<ol style="list-style-type: lower-alpha"><li><p>甲</p></li></ol>');
+    expect(lower.getHTML()).toContain('type="a"');
+    expect(lower.getHTML()).not.toContain('type="A"');
+    lower.destroy();
+    const upper = makeEditor('<ol style="list-style-type: upper-alpha"><li><p>乙</p></li></ol>');
+    expect(upper.getHTML()).toContain('type="A"');
+    expect(upper.getHTML()).not.toContain('type="a"');
+    upper.destroy();
+  });
+
+  it('样式类型既非字母也非罗马（如 decimal/无）不凭空造 type', () => {
+    const editor = makeEditor('<ol style="list-style-type: decimal"><li><p>甲</p></li></ol>');
+    expect(editor.getHTML()).not.toContain('type=');
     editor.destroy();
   });
 

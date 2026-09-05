@@ -338,8 +338,8 @@
         </button>
         <button
           :class="{ 'is-active': isAlphaOrderedList }"
-          title="字母编号转文本（a. b. c.）"
-          @click="convertAlphaListToText"
+          title="字母编号（再点一次转文本）"
+          @click="toggleAlphaOrderedList"
         >
           {{ alphaCase }}.
         </button>
@@ -500,6 +500,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
 import OrderedList from '@tiptap/extension-ordered-list';
+import BulletList from '@tiptap/extension-bullet-list';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
@@ -522,14 +523,66 @@ const CustomUnderline = Underline.extend({
 //    1) 编辑器按 list-style-type 正确显示 a. b. c. / A. B. C. 等
 //    2) 导出链路（docxBuilder）读取 type 输出对应字母/罗马文本前缀
 //    3) 工具栏字母按钮可通过 isActive('orderedList', { type }) 联动高亮
+// 注：type 属性之外的 list-style-type 样式形态（粘贴自浏览器/Word 时常见，如 upper-alpha / lower-roman）
+//    也归一为 type 值，与无序列表 parseListMarker 对称——避免样式形态的有序列表丢类型、转文本退化为数字。
+const OL_LIST_STYLE_TYPES = {
+  'lower-alpha': 'a', 'lower-latin': 'a',
+  'upper-alpha': 'A', 'upper-latin': 'A',
+  'lower-roman': 'i', 'upper-roman': 'I',
+};
 const CustomOrderedList = OrderedList.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
       type: {
         default: null,
-        parseHTML: element => element.getAttribute('type') || null,
+        parseHTML: (element) => {
+          const t = element.getAttribute('type');
+          if (t) return t;
+          const style = element.getAttribute('style') || '';
+          const lm = /list-style-type\s*:\s*([a-zA-Z-]+)/.exec(style);
+          if (lm && OL_LIST_STYLE_TYPES[lm[1]] !== undefined) return OL_LIST_STYLE_TYPES[lm[1]];
+          return null;
+        },
         renderHTML: attributes => (attributes.type ? { type: attributes.type } : {}),
+      },
+    };
+  },
+});
+// HTML 列表符号形态 → 文本符号映射：文档中无序列表的"各自符号"可能以多种形式出现，
+//   <ul data-marker>（本项目持久化） / <ul type="circle">（HTML 属性） / style="list-style-type:circle"，
+//   统一归一为 data-marker，编辑器显示与转文本都按此读取，实现"原文档什么符号就保留什么符号"
+const LIST_STYLE_SYMBOLS = {
+  disc: '• ', circle: '○ ', square: '▪ ', none: '',
+};
+const parseListMarker = (element) => {
+  const m = element.getAttribute('data-marker');
+  if (m) return m;
+  const typeAttr = (element.getAttribute('type') || '');
+  if (LIST_STYLE_SYMBOLS[typeAttr] !== undefined) return LIST_STYLE_SYMBOLS[typeAttr];
+  const style = element.getAttribute('style') || '';
+  const lm = /list-style-type\s*:\s*([a-zA-Z]+)/.exec(style);
+  if (lm && LIST_STYLE_SYMBOLS[lm[1]] !== undefined) return LIST_STYLE_SYMBOLS[lm[1]];
+  return null;
+};
+// 🔧 自定义 BulletList：持久化无序列表各自的符号标记（data-marker，如 •/○/▪/✎/√）——
+//    Tiptap 内置 BulletList 不保留任何符号信息，同文档多个列表即使符号不同，转文本时也会被
+//    "当前全局 bulletMarker"统一覆盖。保留 data-marker 后：
+//    1) 一份文档可并存多种项目符号（各自 data-marker，可手输/粘贴自 HTML）
+//    2) 编辑器内 ul[data-marker] 按各自符号显示（CSS）
+//    3) 转文本时各自读取自身符号，不再统一成一种
+const CustomBulletList = BulletList.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      marker: {
+        default: null,
+        parseHTML: element => parseListMarker(element),
+        // data-marker 仅存在于 <ul>；li::before 无法 attr(父级)，故同时以 CSS 变量 --msym（继承到各 li）携带符号，
+        // 使编辑器内粘贴/回填的无序列表符号立即可见（WYSIWYG）
+        renderHTML: attributes => (attributes.marker
+          ? { 'data-marker': attributes.marker, style: `--msym: '${String(attributes.marker).replace(/'/g, '')}';` }
+          : {}),
       },
     };
   },
@@ -669,7 +722,9 @@ const PRESERVE_CLASSES = [
   'stroke-order', 'underline-sentence', 'wavy-underline', 'double-line', 'single-line',
   'oral-box', 'square-box', 'score-box', 'chem-condition', 'wb-item',
   'math-circle-blank-18',  // 数学填空圈（算式中的 ○ → 1.8em 圆形边框容器，与 square-box 同性质，由 normalizeMathCircleBlanks 生成）
-  'superscript', 'subscript', 'dashed-line',
+  'superscript', 'subscript', 'dashed-line', 'list-marker',
+  // list-marker：转文本后的项目符号字形（由转换逻辑包成 span.list-marker 并借 PreserveSpan 保留，
+  //   以 0.75em 小字号渲染——对齐 WPS"符号保持原小大小"的视觉，与正文文字区别开）
   'ruby-char',  // 注音/拼音（由 transformPastedHTML / trySetContent 入口预处理 ruby → span.ruby-char）
 ];
 
@@ -1126,8 +1181,10 @@ const editor = useEditor({
       heading: false,   // 用自定义标题替换
       underline: false, // 排除内置 underline，改用 CustomUnderline（需保留 class 属性）
       orderedList: false, // 排除内置 OrderedList，改用 CustomOrderedList（保留 ol type 属性）
+      bulletList: false,  // 排除内置 BulletList，改用 CustomBulletList（保留 ul data-marker 符号）
     }),
     CustomOrderedList,
+    CustomBulletList,
     CustomParagraph,
     CustomHeading,
     Image.configure({ inline: false, allowBase64: true }),
@@ -1452,17 +1509,28 @@ const onImageUpload = (e) => {
 //    避开 ProseMirror 事务系统对 insertText+liftListItem 组合的不可靠行为
 // 🔧 项目符号形式可切换：•圆点 / ○空心圆 / ▪方块 / ✎铅笔 / √对勾（转文本时用所选符号）
 const bulletMarker = ref('• ');
+// 🔧 切换项目符号形式时，立即写入当前光标所在的无序列表（持久化为该列表自身符号 data-marker，
+//    使同一文档可并存多种符号；无选中列表则仅记录为默认，供后续开启列表沿用）
+watch(bulletMarker, (m) => {
+  const e = editor.value;
+  if (e && e.isActive('bulletList')) {
+    e.chain().focus().updateAttributes('bulletList', { marker: m }).run();
+  }
+});
 
 const toggleBulletListKeepMarkers = () => {
   if (!editor.value) return;
 
-  // 开启列表：正常行为
+  // 开启列表：正常行为，并把当前所选符号写入该列表（成为"各自"符号的起点）
   if (!editor.value.isActive('bulletList')) {
     editor.value.chain().focus().toggleBulletList().run();
+    editor.value.chain().focus().updateAttributes('bulletList', { marker: bulletMarker.value }).run();
     return;
   }
 
-  convertListToMarkedParagraphs('ul', bulletMarker.value);
+  // 关闭列表：转为文本——符号完全按文档已持久化的各自符号（data-marker/type），不受全局下
+  // 拉框影响（下拉框只负责新建列表时写默认符号，见 watch(bulletMarker)）
+  convertListToMarkedParagraphs('ul');
 };
 
 /** 当前光标是否位于字母编号列表（type="a"/"A"）——用于工具栏联动高亮 */
@@ -1483,22 +1551,72 @@ const toggleOrderedListKeepMarkers = () => {
   convertListToMarkedParagraphs('ol', null); // null = 自动序号
 };
 
-/** 字母编号转文本：把编辑器中的 <ol> 全部转成 a. b. c. 文本段落（无激活态，点击即转） */
-const convertAlphaListToText = () => {
+/** 字母编号双态（与数字「1.」「•≡」对齐）：
+ *  开启：光标处建立（或把当前数字列表切换为）type=<alphaCase> 的字母有序列表；
+ *  关闭：把当前字母有序列表转成 a. b. c. 文本段落。 */
+const toggleAlphaOrderedList = () => {
   if (!editor.value) return;
-  convertListToMarkedParagraphs('ol', alphaCase.value);
+  const listType = alphaCase.value === 'A' ? 'A' : 'a';
+
+  // 已是字母有序列表 → 转文本
+  if (isAlphaOrderedList.value) {
+    convertListToMarkedParagraphs('ol', listType);
+    return;
+  }
+  // 已是数字有序列表 → 仅改为字母类型（不破坏枚举结构）
+  if (editor.value.isActive('orderedList')) {
+    editor.value.chain().focus().updateAttributes('orderedList', { type: listType }).run();
+    return;
+  }
+  // 无列表 → 开启字母有序列表
+  editor.value.chain().focus().toggleOrderedList().updateAttributes('orderedList', { type: listType }).run();
 };
+
+// 🔧 切换字母大小写时，同步当前光标所在字母有序列表的 type（与 bulletMarker 对无序列表的写入对齐）
+watch(alphaCase, (c) => {
+  const e = editor.value;
+  if (e && isAlphaOrderedList.value) {
+    e.chain().focus().updateAttributes('orderedList', { type: c === 'A' ? 'A' : 'a' }).run();
+  }
+});
 
 /**
  * 生成列表标记前缀
  * @param {string|null} marker null=自动序号 / 'a'='A'=字母 / 其他=固定字符串
  * @param {number} idx 0 基序号
  */
-const buildListPrefix = (marker, idx) => {
-  if (marker === null) return `${idx + 1}. `;
-  if (marker === 'a') return `${String.fromCharCode(97 + (idx % 26))}. `;
-  if (marker === 'A') return `${String.fromCharCode(65 + (idx % 26))}. `;
-  return marker;
+/** 阿拉伯数字 → 罗马数字（用 `toRoman(n)`；小写 via toLowerCase） */
+const toRoman = (num) => {
+  const TABLE = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+  let n = Math.max(1, Math.floor(num));
+  let out = '';
+  for (const [v, s] of TABLE) { while (n >= v) { out += s; n -= v; } }
+  return out;
+};
+
+/**
+ * 生成列表标记前缀（保层级 + 各列表各自符号）
+ * @param {string|null} marker 无序列表固定符号（如 '• '），或字母按钮传入 'a'/'A'
+ * @param {number} idx 0 基序号
+ * @param {string|null} type 有序列表自身 type（a/A/i/I；null=数字），优先级高于 marker
+ * @param {number} depth 列表嵌套深度（0=顶层）——决定前缀缩进，保留原文层级
+ */
+/** 无序列表"默认"层级符号：无 data-marker 的 <ul> 按嵌套深度逐层取用（0/1/2…），
+ *  模拟浏览器原生嵌套列表 disc→circle→square 的层级视觉——真实文档中未显式指定符号的多级
+ *  无序列表转文本后不至于全部塌成同一种 '•'（与"按原文所见保留"一致） */
+const UL_LEVEL_MARKERS = ['• ', '○ ', '▪ ', '◦ ', '▪ '];
+
+const buildListPrefix = (marker, idx, type = null, depth = 0) => {
+  const indent = '　'.repeat(depth); // 全角空格缩进，纯文本下保留原文层级
+  // 有序：type 优先、其次字母按钮 marker；无序：固定符号。t=null 仅有序无 type 时（数字分支）
+  const t = type || marker;
+  // 仅确认为编号类型（有序 a/A/i/I）时走编号；其余（含无序符号如 '• '）一律按固定符号保留
+  if (t === null || t === undefined) return indent + `${idx + 1}. `; // 有序数字（每层独立，原文即如此）
+  if (t === 'a') return indent + `${String.fromCharCode(97 + (idx % 26))}. `;
+  if (t === 'A') return indent + `${String.fromCharCode(65 + (idx % 26))}. `;
+  if (t === 'i') return indent + toRoman(idx + 1).toLowerCase() + '. ';
+  if (t === 'I') return indent + toRoman(idx + 1) + '. ';
+  return indent + t; // 无序列表：自身符号（data-marker）或 bulletMarker 固定符号
 };
 
 /**
@@ -1520,10 +1638,26 @@ const convertListToMarkedParagraphs = (listTag, marker) => {
   });
 
   for (const list of lists) {
+    // 保层级：depth = 该列表的嵌套深度（0=顶层）→ 决定前缀缩进
+    const depth = countAncestors(list, listTag);
+    const isOl = listTag === 'ol';
+    // 各自符号：无序只认文档已持久化的自身符号 data-marker（无标记按嵌套深度取默认层级符号 •/○/▪，
+    //   模拟浏览器 disc→circle→square——真实文档多级无序列表转文本后不至全部塌成同一种 '•'）；
+    //   有序读自身 type（a/A/i/I）
+    const type = isOl ? (list.getAttribute('type') || null) : null;
+    const selfMarker = isOl
+      ? (type ? null : marker) // 有序已有 type 就不吃入参；无 type 用入参（数字按钮 null / 字母按钮 'a'）
+      : (list.getAttribute('data-marker') || UL_LEVEL_MARKERS[Math.min(depth, UL_LEVEL_MARKERS.length - 1)]);
     const lis = Array.from(list.querySelectorAll(':scope > li'));
     lis.forEach((li, idx) => {
-      const prefix = buildListPrefix(marker, idx);
-      prependMarkerToLI(li, prefix);
+      if (isOl) {
+        // 有序：字母/罗马/数字前缀按 buildListPrefix 生成纯文本前缀（字号同正文）
+        const prefix = buildListPrefix(selfMarker, idx, type, depth);
+        prependMarkerToLI(li, prefix);
+      } else {
+        // 无序：符号作为 list-marker 小字号字形（0.75em，对齐 WPS"符号保持原大小"），与正文文字区别开
+        prependBulletMarker(li, depth, selfMarker);
+      }
       // 将 <li> 的子节点搬到父级，然后移除 <li>
       const children = Array.from(li.childNodes);
       li.replaceWith(...children);
@@ -1545,6 +1679,25 @@ const countAncestors = (node, tagName) => {
     parent = parent.parentElement;
   }
   return count;
+};
+
+/** 无序列表符号转文本：把符号字形包成 <span class="list-marker">（0.75em 小字号，借 PreserveSpan 在 Tiptap 回填后保留），
+ *  缩进用全角空格、符号后跟一个正文宽度空格。与 prependMarkerToLI（有序纯文本前缀）区分。 */
+const prependBulletMarker = (li, depth, marker) => {
+  const doc = li.ownerDocument;
+  const frag = doc.createDocumentFragment();
+  if (depth > 0) frag.appendChild(doc.createTextNode('　'.repeat(depth)));
+  const glyph = String(marker).trimEnd();
+  if (glyph) {
+    const span = doc.createElement('span');
+    span.className = 'list-marker';
+    span.textContent = glyph; // textContent 而非 innerHTML，杜绝 data-marker 注入风险
+    frag.appendChild(span);
+  }
+  frag.appendChild(doc.createTextNode(' '));
+  const firstP = Array.from(li.children).find((child) => child.tagName === 'P');
+  const host = firstP || li;
+  host.insertBefore(frag, host.firstChild);
 };
 
 /** 在 <li> 的第一个段落/文本节点前插入标记 */
@@ -2179,6 +2332,17 @@ defineExpose({
 .rich-text-editor :deep(ol[type="A"]) { list-style-type: upper-alpha; }
 .rich-text-editor :deep(ol[type="i"]) { list-style-type: lower-roman; }
 .rich-text-editor :deep(ol[type="I"]) { list-style-type: upper-roman; }
+
+/* 🔧 无序列表各自符号：ul[data-marker] 用 marker 字符显示（否则用浏览器默认圆点）——
+   使同文档多种 data-marker 的列表在编辑器内所见即所导。
+   符号经 ul 内联 style="--msym:…" 继承到各 li，li::before 用 var(--msym) 显示
+   （attr(data-marker) 只能读 li 自身属性、读不到父级 ul，故不采用）。 */
+.rich-text-editor :deep(ul[data-marker]) { list-style: none; padding-left: 1.2em; }
+.rich-text-editor :deep(ul[data-marker] > li) { position: relative; }
+.rich-text-editor :deep(ul[data-marker] > li::before) { content: var(--msym, '• '); position: absolute; left: -1.2em; color: inherit; }
+
+/* 🔧 转文本后的项目符号字形：0.75em 小字号，对齐 WPS"符号保持原大小"的视觉，与正文文字区别开 */
+.rich-text-editor :deep(.list-marker) { font-size: 0.75em; }
 
 /* 🔧 作图网格区 / 花式竖式格兜底（CSS 变量取自排版规格库；主题 CSS 注入后由带 !important 的规则覆盖） */
 .rich-text-editor :deep(.square-grid) { width: var(--sg-w, 84mm); height: var(--sg-h, 56mm); border: 1.5px solid #999; margin: 8px 0; background: linear-gradient(#d5d5dc 1px, transparent 1px) 0 0 / var(--sg-bg, 7mm 7mm), linear-gradient(90deg, #d5d5dc 1px, transparent 1px) 0 0 / var(--sg-bg, 7mm 7mm); }
