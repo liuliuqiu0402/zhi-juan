@@ -5088,6 +5088,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         coverageRetryCache.delete(coverageKey);
       } else if (!carriedKps.length) {
         coverageRetryCache.set(coverageKey, { names: missNames, rounds: 0 });
+        console.log(`[覆盖重试·记录] 已记录 ${missNames.length} 个缺漏考点为下次同范围生成的必覆盖（会话级缓存，刷新页面即失效，请勿在复生成前刷新）：${missNames.join('、')}`);
       } else {
         const sameNoProgress = missNames.length === carriedKps.length && missNames.every((n) => carriedKps.includes(n));
         if (sameNoProgress) {
@@ -5108,7 +5109,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     if (reconNote) {
       console.log(`[覆盖对账] ${genType} 正文缺漏 ${reconReport.missing.length}/${reconReport.total} 考点（${reconReport.missing.map((m) => `${m.chapter}:${m.name}`).join('、')}）`);
       auditWarnings.push(reconNote + (retryTail
-        || (reconReport.required && !carriedKps.length && !retryEnt ? '；已保留本结果供预览——可点"复生成"，系统将自动携带以上考点定向补齐' : '')));
+        || (reconReport.required && !carriedKps.length && !retryEnt ? '；已保留本结果供预览——可点"复生成"，系统将自动携带以上考点定向补齐（缺漏记录为会话级，请在再次生成前不要刷新页面，刷新将丢失该记录）' : '')));
     }
     const sampledStats = reconcileCoverageStats({ genType, content, anchors });
     if (sampledStats && (anchors || []).length) {
