@@ -3024,10 +3024,6 @@ const getSelectedBookSubject = () => {
 const scopeType = ref('');
 const scopeOverride = ref('');  // 🔧 范围确认弹窗后用户选定的范围名（优先于自动推断）
 const mergeChapters = ref(true);  // 🔧 多章节合并出卷开关（默认合并；false=逐章拆分）
-// 升学考卷别（小升初/中考/高考）仅对"正式考卷"展示生效；其余资料类型不外显，且已选卷别在切换类型时重置
-const visibleScopeOptions = computed(() =>
-  (genTypes.value?.includes('exam')) ? scopeOptions : scopeOptions.filter(o => !EXAM_GRADUATION_TYPES.includes(o.value)));
-watch(genTypes, (v) => { if (!v?.includes('exam') && EXAM_GRADUATION_TYPES.includes(scopeType.value)) scopeType.value = ''; });
 /** 🔧 生成前分值微调（本次生效，不落库、不动内置/用户蓝本；键=学科|学段，值={大题名:分值}） */
 const scoreAdjust = ref({});
 const currentDimKey = () => {
@@ -3046,6 +3042,10 @@ const propositionStyle = ref('');
 const styleManuallySet = ref(false);  // 🔴 追踪用户是否手动选过命题风格——false 时切换 genType 自动覆盖
 const styleConfirmed = ref(false);    // 🔴 必选风格是否已确认（生成前弹窗确认；换类型时重置）
 const genTypes = ref([]);
+// 升学考卷别（小升初/中考/高考）仅对"正式考卷"展示生效；其余资料类型不外显，且已选卷别在切换类型时重置
+const visibleScopeOptions = computed(() =>
+  (genTypes.value?.includes('exam')) ? scopeOptions : scopeOptions.filter(o => !EXAM_GRADUATION_TYPES.includes(o.value)));
+watch(genTypes, (v) => { if (!v?.includes('exam') && EXAM_GRADUATION_TYPES.includes(scopeType.value)) scopeType.value = ''; });
 // 🔴 新架构：生成前置条件 = 已选教材章节（不再依赖指令文本）
 const hasSelectedChapters = computed(() => textbookStore.selectedChapterCount > 0);
 const specialSubType = ref('');  // 🎯 专项子类型（仅 genType=special 时生效）
