@@ -217,7 +217,7 @@ describe('作答载体规范全模板覆盖（宽度换算口径随 BLANK 注入
   it('题为主 7 类模板换算句整行逐字完整（不漏一字：前缀+按书写惯例+主句+换算括号）', () => {
     // "按这样，不能漏一个字"：整行 = 前缀 '· 作答书写载体：' + buildBlankWidthInstruction 默认句，逐字完整投递
     const FULL_LINE =
-      '· 作答书写载体：按书写惯例输出对应作答书写载体，书写空间按照答案的长度倒推，每一长度对应一个字位；并按此换算' +
+      '· 作答书写载体：按书写惯例输出对应作答书写载体，不得遗漏；书写空间按照答案的长度倒推，每一长度对应一个字位；并按此换算' +
       '（1 个全角空格≈1 个字位≈1 em 书写宽）';
     const QUESTION_TYPES = ['exam', 'practice', 'special', 'reading', 'dictation', 'errorbook', 'review'];
     for (const g of QUESTION_TYPES) {
