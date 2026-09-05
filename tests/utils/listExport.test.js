@@ -107,3 +107,50 @@ describe('列表导出：自动编号转纯文本', () => {
     }
   });
 });
+
+describe('列表转文本层级：块级 margin-left → Word 段落左缩进', () => {
+  const buildXml = async (html) => {
+    const container = document.createElement('div');
+    container.style.fontSize = '16px';
+    container.innerHTML = html;
+    document.body.appendChild(container);
+    const doc = buildDocxFromDom(container);
+    container.remove();
+    const buf = await Packer.toBuffer(doc);
+    const zip = await JSZip.loadAsync(buf);
+    return zip.file('word/document.xml').async('string');
+  };
+
+  it('带内联 margin-left 的段落导出为 w:ind w:left（em 按字号换算，折行跟随层级）', async () => {
+    const xml = await buildXml('<p style="margin-left:2em">① 意义</p><p style="margin-left:4em">② 细节</p>');
+    // 2em@16px = 32px × 15twip = 480；4em = 64px × 15 = 960
+    expect(xml).toContain('<w:ind w:left="480"');
+    expect(xml).toContain('<w:ind w:left="960"');
+  });
+
+  it('无 margin 的普通段落不被赋予 2em 左缩进', async () => {
+    const xml = await buildXml('<p>这是普通段落原样不动</p>');
+    expect(xml).not.toContain('w:left="480"');
+    expect(xml).not.toContain('w:left="960"');
+  });
+
+  it('列表转换项：左缩进与正文首行缩进叠加而非二选一（与预览同语义）', async () => {
+    // 模拟排版主题：所有 p 都带 text-indent:2em（themeConfig p{text-indent:2em}）。
+    // 预览里：父项首行 = 0 + 2em = 2em；子项首行 = 2em(margin) + 2em(text-indent) = 4em → 层级差可见。
+    // 导出若把子项 firstLine 丢弃（只留 left 2em），会与父项 firstLine 2em 撞线 → Word 看似无层级。
+    const xml = await buildXml(
+      '<p style="margin-left:0em; text-indent:2em">• 小数乘法</p>' +
+      '<p style="margin-left:2em; text-indent:2em">① 小数乘法的意义</p>'
+    );
+    // 子项：left 与 firstLine 并存（首行 = 4em 起点，与预览一致）
+    const oi = xml.indexOf('① 小数乘法的意义');
+    const childPpr = xml.slice(xml.lastIndexOf('<w:p>', oi), oi);
+    expect(childPpr).toContain('w:left="480"');
+    expect(childPpr).toContain('w:firstLine="480"');
+    // 父项：仅正文首行缩进，无左缩进
+    const topIdx = xml.indexOf('• 小数乘法');
+    const topPpr = xml.slice(xml.lastIndexOf('<w:p>', topIdx), topIdx);
+    expect(topPpr).toContain('w:firstLine="480"');
+    expect(topPpr).not.toContain('w:left=');
+  });
+});

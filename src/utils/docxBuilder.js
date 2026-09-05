@@ -84,12 +84,34 @@ const readAlignment = (el) => {
   return map[cs(el, 'text-align')] || undefined;
 };
 
-/** 计算缩进 (px → twip, 1px ≈ 15 twip @96dpi) */
+/** 计算缩进 (px → twip, 1px ≈ 15 twip @96dpi)
+ *  支持 px 与 em（jsdom 对 em 不解析成 px，返回原样 2em；真实浏览器返回计算 px） */
 const readIndent = (el) => {
   const v = cs(el, 'text-indent');
-  const px = parseFloat(v);
+  if (!v) return undefined;
+  const t = v.trim();
+  let px;
+  const emMatch = t.match(/^(-?[\d.]+)em$/i);
+  if (emMatch) px = parseFloat(emMatch[1]) * (parseFloat(cs(el, 'font-size')) || 16);
+  else px = parseFloat(t);
   if (!px || px <= 0) return undefined;
   return Math.round(px * 15); // px → twip
+};
+
+/** 读段落块级左缩进 → twip（列表转文本后的层级由内联 margin-left: Xem 表达）。
+ *  直接读内联 style（不依赖 getComputedStyle：克隆容器/主题 CSS 可能把计算样式覆盖为 0，
+ *  而内联值由转换写入、确定存在）。em 按元素字号换算；无内联值回落计算样式。 */
+const readBlockLeftIndent = (el) => {
+  let px = 0;
+  const inline = (el.style && el.style.marginLeft || '').trim();
+  const m = inline.match(/^([\d.]+)(em|px)?$/i);
+  if (m) {
+    const val = parseFloat(m[1]);
+    const unit = m[2] && m[2].toLowerCase();
+    px = unit === 'px' ? val : val * (parseFloat(cs(el, 'font-size')) || 16);
+  }
+  if (!(px > 0)) px = parseFloat(cs(el, 'margin-left')) || 0;
+  return px > 0 ? Math.max(1, Math.round(px * 15)) : undefined;
 };
 
 /** CSS 系统字体关键字 → 真实字体映射（这些关键字会让 Word 卡死） */
@@ -898,7 +920,13 @@ const splitGridAwareContent = (node, runDefaults, opts = {}) => {
     spacing = { ...spacing, line: Math.round((tzgCellMm() * 72 / 25.4 + 6) * 20), lineRule: LineRuleType.EXACT };
   }
   const baseIndent = readIndent(node) ? { firstLine: readIndent(node) } : undefined;
-  const paraIndent = extraIndent || baseIndent;
+  // 🔧 列表转换项（extraIndent=left）必须与正文首行缩进（baseIndent=firstLine）叠加而非二选一：
+  //   预览端主题 CSS 对所有 p 统一 p{text-indent:2em}，转换项首行 = margin-left + text-indent；
+  //   导出若丢弃 firstLine，子项首行(=left)会与父项首行(=firstLine)撞在同一竖线 → Word 里看似无层级。
+  //   （仅列表转换项传入 extraIndent；普通正文段 extraIndent=undefined，行为不变）
+  const paraIndent = (extraIndent && baseIndent)
+    ? { ...baseIndent, ...extraIndent }
+    : (extraIndent || baseIndent);
   const result = [];
   let textBuffer = [];
   let isFirstFlush = true;
@@ -1880,7 +1908,11 @@ const processBlockNode = (node, ctx = {}) => {
 
   // ===== 段落 =====
   if (tag === 'p' || cls.contains('normal-paragraph')) {
-    children.push(...splitGridAwareContent(node, { ...runDefaults, ...(ctx.runDefaults || {}) }, { inheritedDeco, exactLine: ctx.exactLine }));
+    // 转文本后的列表层级用块级 margin-left 表达（每层 2em）——映射为 Word 段落左缩进 indent.left，
+    // 使长条目折行后仍跟随层级（而非回到页边距）。无 margin-left 的普通正文段维持既有首行缩进路径。
+    // ⚠️ 直接读内联 style（转换时写入，确定存在、不依赖 getComputedStyle 布局计算），em 按元素字号换算。
+    const mlTwip = readBlockLeftIndent(node);
+    children.push(...splitGridAwareContent(node, { ...runDefaults, ...(ctx.runDefaults || {}) }, { inheritedDeco, exactLine: ctx.exactLine, ...(mlTwip ? { indent: { left: mlTwip } } : {}) }));
     return children;
   }
 

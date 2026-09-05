@@ -1227,7 +1227,10 @@ const exportDocument = async () => {
       //    不受 content-change 150ms 防抖/缓存时序影响），读不到才降级 v-model/缓存
       //    （降级源为 AI 原始 HTML：td 无 p → 行内田字格形态，docxBuilder 已跳过格子后残留 br）
       const liveDom = contentEditor.value?.editor?.view?.dom;
-      let sourceHtml = liveDom?.innerHTML || rawHtmlContent.value || pristineHtmlForExport.value;
+      // 🔧 源优先级：liveDom 最新实时内容 > 导出缓存 pristine（每次导出前从 liveDom 刷新，与预览同源）
+      //    > rawHtmlContent（仅加载时快照，编辑器内"列表转文本"新增的 margin-left 不会写回，会造成导出丢层级）。
+      //    必须让 pristine 先于 rawHtmlContent——否则剥离序号等"仅存于实时编辑"的样式在导出时丢失。
+      let sourceHtml = liveDom?.innerHTML || pristineHtmlForExport.value || rawHtmlContent.value;
       // 🔴 答案区兜底合并：编辑器（Tiptap）schema 不保留 answer-section 容器，liveDom 会整体丢掉答案区
       //    （生成时有答案页、导出却消失的根因）——导出时从原始生成内容提取 answer-section 补回末尾，
       //    正文以编辑器实时内容为准（含用户编辑）、答案区以生成源为准

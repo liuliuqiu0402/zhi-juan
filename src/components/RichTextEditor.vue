@@ -1606,17 +1606,20 @@ const toRoman = (num) => {
  *  无序列表转文本后不至于全部塌成同一种 '•'（与"按原文所见保留"一致） */
 const UL_LEVEL_MARKERS = ['• ', '○ ', '▪ ', '◦ ', '▪ '];
 
-const buildListPrefix = (marker, idx, type = null, depth = 0) => {
-  const indent = '　'.repeat(depth); // 全角空格缩进，纯文本下保留原文层级
-  // 有序：type 优先、其次字母按钮 marker；无序：固定符号。t=null 仅有序无 type 时（数字分支）
+/** 转文本后层级块级左缩进（每层 2 字符 = 2em，相对当前字号→自动适配不同排版主题；2 字符即全角汉字 2em）。 */
+const LIST_INDENT_EM = 2;
+
+const buildListPrefix = (marker, idx, type = null) => {
+  // 层级不再用行首全角空格（空格只缩进首行，折行会回到段落左边距）——
+  // 转为段落的块级 margin-left（buildListPrefix 只生成标记文本）
   const t = type || marker;
   // 仅确认为编号类型（有序 a/A/i/I）时走编号；其余（含无序符号如 '• '）一律按固定符号保留
-  if (t === null || t === undefined) return indent + `${idx + 1}. `; // 有序数字（每层独立，原文即如此）
-  if (t === 'a') return indent + `${String.fromCharCode(97 + (idx % 26))}. `;
-  if (t === 'A') return indent + `${String.fromCharCode(65 + (idx % 26))}. `;
-  if (t === 'i') return indent + toRoman(idx + 1).toLowerCase() + '. ';
-  if (t === 'I') return indent + toRoman(idx + 1) + '. ';
-  return indent + t; // 无序列表：自身符号（data-marker）或 bulletMarker 固定符号
+  if (t === null || t === undefined) return `${idx + 1}. `; // 有序数字（每层独立，原文即如此）
+  if (t === 'a') return `${String.fromCharCode(97 + (idx % 26))}. `;
+  if (t === 'A') return `${String.fromCharCode(65 + (idx % 26))}. `;
+  if (t === 'i') return toRoman(idx + 1).toLowerCase() + '. ';
+  if (t === 'I') return toRoman(idx + 1) + '. ';
+  return t; // 无序列表：自身符号（data-marker）或 bulletMarker 固定符号
 };
 
 /**
@@ -1650,17 +1653,28 @@ const convertListToMarkedParagraphs = (listTag, marker) => {
       : (list.getAttribute('data-marker') || UL_LEVEL_MARKERS[Math.min(depth, UL_LEVEL_MARKERS.length - 1)]);
     const lis = Array.from(list.querySelectorAll(':scope > li'));
     lis.forEach((li, idx) => {
+      // 条目内容落到稳定的 <p> 宿主体内，承载块级缩进与标记（无 <p> 时包一层）
+      let host = Array.from(li.children).find((c) => c.tagName === 'P');
+      if (!host) {
+        host = li.ownerDocument.createElement('p');
+        while (li.firstChild) host.appendChild(li.firstChild);
+        li.appendChild(host);
+      }
+      // 块级左缩进表达层级：每层 2 字符（2em，相对字号→自适应排版主题字号），折行跟随层级
+      //   （不再用行首全角空格——空格只缩进首行，折行会回到段落左边距）
+      if (depth > 0) host.style.marginLeft = (depth * LIST_INDENT_EM) + 'em';
+
       // 剥离：条目文本已自带序号（① A. 1. 一、 (1) 等）→ 列表自动符号/编号冗余，不叠加前缀（保留文本序号）
       const selfNumbered = RE_SELF_NUMBERED.test(li.textContent || '');
-      if (!selfNumbered) {
-        if (isOl) {
-          // 有序：字母/罗马/数字前缀按 buildListPrefix 生成纯文本前缀（字号同正文）
-          const prefix = buildListPrefix(selfMarker, idx, type, depth);
-          prependMarkerToLI(li, prefix);
-        } else {
-          // 无序：符号作为 list-marker 小字号字形（仅空心圆），与正文文字区别开
-          prependBulletMarker(li, depth, selfMarker);
-        }
+      if (selfNumbered) {
+        // 仅保留文本自带序号（层级缩进已由 margin 表达）
+      } else if (isOl) {
+        // 有序：字母/罗马/数字前缀按 buildListPrefix 生成纯文本前缀（字号同正文）
+        const prefix = buildListPrefix(selfMarker, idx, type);
+        prependMarkerToLI(li, prefix);
+      } else {
+        // 无序：符号作为 list-marker 小字号字形（仅空心圆），与正文文字区别开
+        prependBulletMarker(li, selfMarker);
       }
       // 将 <li> 的子节点搬到父级，然后移除 <li>
       const children = Array.from(li.childNodes);
@@ -1694,12 +1708,11 @@ const isSmallListMarkerGlyph = (glyph) => glyph === '○' || glyph === '◦';
 const RE_SELF_NUMBERED = /^[ \t\u3000\u00A0\u2003\u2002]*(?:[A-Za-z][.、．:：]|\d+[.、．:：]|[（(]\s*\d+\s*[)）]|[一二三四五六七八九十]{1,3}[.、．]|[（(][一二三四五六七八九十]{1,3}[)）]|[\u2460-\u2473\u2776-\u277F\u3251-\u325F])/;
 
 /** 无序列表符号转文本：空心圆包成 <span class="list-marker">（0.4em，借 PreserveSpan 保留），
- *  其余符号为普通文本（字号同正文）；缩进用全角空格、符号后跟一个正文宽度空格。
- *  与 prependMarkerToLI（有序纯文本前缀）区分。 */
-const prependBulletMarker = (li, depth, marker) => {
+ *  其余符号为普通文本（字号同正文）；符号后跟一个正文宽度空格。
+ *  层级缩进由 host <p> 的块级 margin-left 表达（见转换循环），此处不再加全角空格。 */
+const prependBulletMarker = (li, marker) => {
   const doc = li.ownerDocument;
   const frag = doc.createDocumentFragment();
-  if (depth > 0) frag.appendChild(doc.createTextNode('　'.repeat(depth)));
   const glyph = String(marker).trimEnd();
   if (glyph) {
     if (isSmallListMarkerGlyph(glyph)) {
