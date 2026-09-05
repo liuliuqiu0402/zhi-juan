@@ -153,7 +153,7 @@ export const themes = [
     heading2Color: '#43a047',
     heading3Color: '#66bb6a',
     bodyColor: '#000000',
-    bodySize: 12,
+    bodySize: 14, // 🔧 学段适配：小学大字（四号），与 primary_exam 及本主题正文 CSS(14pt) 对齐，防 bodySize fallback 漂移
     lineHeight: 1.8,
     pageMargin: '20px',
     tableHeaderBg: '#2e7d32',
@@ -185,7 +185,7 @@ export const themes = [
     heading2Color: '#d47a00',
     heading3Color: '#e89a00',
     bodyColor: '#000000',
-    bodySize: 12,
+    bodySize: 14, // 🔧 学段适配：小学大字（四号），与 primary_exam 及本主题正文 CSS(14pt) 对齐，防 bodySize fallback 漂移
     lineHeight: 1.8,
     pageMargin: '20px',
     tableHeaderBg: '#b85c00',

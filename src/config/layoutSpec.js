@@ -220,6 +220,9 @@ export function buildCarrierInstruction(subject = '', stage = '') {
  *     "按书写惯例"把作答载体样式交模型语感，不诱导横线/括号；换算括号仅保留
  *     "全角空格≈字位≈em"作可执行计数锚（用户口径：仅换算锚点，不作形态引导）；
  *     不再注入"单处上限/超长改用整行书写位"（曾使模型对句末短答倾向独立整行书写位）。
+ * 🔴 兼容换算句中"不得遗漏"（2026-09）：逐项作答载体（算式方框/括号/横线）一律不可漏项——
+ *    避免模型在连列题组（如"5×3＝　4×6＝…"）时末尾漏写作答载体，由模型出口自洽带全；
+ *    此处只约束"载体完整性"，不点名具体载体形态，仍不引导横线/括号。
  * 消费方：promptLibrary QUESTION_FORMAT（题为主类型统一注入；内容型不注入）
  */
 export function buildBlankWidthInstruction(spec = BLANK) {
@@ -227,7 +230,7 @@ export function buildBlankWidthInstruction(spec = BLANK) {
   const per = b.wordGap; // 1 字位 ≈ per em（字位→书写宽换算系数，渲染端参数；默认 1:1 不放大）
   const perText = String(per);
   return (
-    `按书写惯例输出对应作答书写载体，书写空间按照答案的长度倒推，每一长度对应一个字位；并按此换算` +
+    `按书写惯例输出对应作答书写载体，不得遗漏；书写空间按照答案的长度倒推，每一长度对应一个字位；并按此换算` +
     `（1 个全角空格≈1 个字位≈${perText} em 书写宽）`
   );
 }
