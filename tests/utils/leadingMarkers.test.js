@@ -91,4 +91,12 @@ describe('normalizeLeadingMarkers 行首"项目符号+序号"双标记归一', (
     const html = '<div class="answer-section"><p>• 纯文本要点</p></div>';
     expect(normalizeLeadingMarkers(html)).toBe(html);
   });
+  it('项目符号被内联标签包裹（<strong>•</strong> A.）→ 剥符号及其包裹标签', () => {
+    expect(normalizeLeadingMarkers('<p><strong>•</strong> 1. 甲</p>')).toBe('<p>1. 甲</p>');
+    expect(normalizeLeadingMarkers('<li><em>•</em> (1) 甲</li>')).toBe('<li>(1) 甲</li>');
+  });
+  it('符号被包裹但后随正文文字（非序号）→ 保守不剥', () => {
+    const html = '<p><strong>•</strong> 要点说明</p>';
+    expect(normalizeLeadingMarkers(html)).toBe(html);
+  });
 });

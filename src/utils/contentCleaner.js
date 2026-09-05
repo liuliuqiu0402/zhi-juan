@@ -675,10 +675,13 @@ const LEAD_WS = '(?:[ \\t\\u3000\\u00A0\\u2003\\u2002]|&(?:nbsp|#160|#xA0|emsp|#
 const LEAD_BULLET = '[•●○◦▪■►➤‣⁃·◆◇]';
 // 序号前可能出现的单个起始修饰标签（模型常用 <strong>/<b> 加粗要点序号；限长防失控，避免吞入正文）
 const INITIAL_TAG = '(?:<[a-zA-Z][^>]{0,80}>)';
+// 结束标签（用于包裹在项目符号"前后"的单个修饰标签，如 <strong>•</strong>；与 INITIAL_TAG 对称）
+const CLOSING_TAG = '(?:<\\/[a-zA-Z][^>]{0,80}>)';
 // 编号形式：字母/数字+分隔符、(数字)、中文数字序号、(中文数字)、带圈数字
 const LEAD_SEQ = '(?:[A-Za-z][.、．:：]|\\d+[.、．:：]|[（(]\\s*\\d+\\s*[)）]|[一二三四五六七八九十]{1,3}[.、．]|[（(][一二三四五六七八九十]{1,3}[)）]|[\\u2460-\\u2473\\u2776-\\u277F\\u3251-\\u325F])';
+// 项目符号本身可能被单个内联标签包裹（<strong>•</strong> A.）——序号被标签包裹(INITIAL_TAG)已有能力，符号端对称补齐
 const LEAD_MARKER_RE = new RegExp(
-  `^(${LEAD_WS}*)(${LEAD_BULLET})(${LEAD_WS}*)(?=${INITIAL_TAG}?${LEAD_SEQ})`
+  `^(${LEAD_WS}*)(?:${INITIAL_TAG})?(${LEAD_BULLET})(?:${CLOSING_TAG})?(${LEAD_WS}*)(?=${INITIAL_TAG}?${LEAD_SEQ})`
 );
 export function normalizeLeadingMarkers(html = '') {
   let out = String(html || '');

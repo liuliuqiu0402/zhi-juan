@@ -34,16 +34,21 @@ const prependMarkerToLI = (doc, li, prefix) => {
     else li.insertBefore(doc.createTextNode(prefix), li.firstChild);
   }
 };
-// 无序符号：包成 span.list-marker（小字号字形），与 RichTextEditor.vue prependBulletMarker 一致
+// 无序符号：仅空心圆包成 span.list-marker（小字号字形），其余为普通文本，与 RichTextEditor.vue prependBulletMarker 一致
+const isSmall = (g) => g === '○' || g === '◦';
 const prependBulletMarker = (doc, li, depth, marker) => {
   const frag = doc.createDocumentFragment();
   if (depth > 0) frag.appendChild(doc.createTextNode('　'.repeat(depth)));
   const glyph = String(marker).trimEnd();
   if (glyph) {
-    const span = doc.createElement('span');
-    span.className = 'list-marker';
-    span.textContent = glyph;
-    frag.appendChild(span);
+    if (isSmall(glyph)) {
+      const span = doc.createElement('span');
+      span.className = 'list-marker';
+      span.textContent = glyph;
+      frag.appendChild(span);
+    } else {
+      frag.appendChild(doc.createTextNode(glyph));
+    }
   }
   frag.appendChild(doc.createTextNode(' '));
   const firstP = Array.from(li.children).find(ch => ch.tagName === 'P');
@@ -118,9 +123,13 @@ describe('convertListToMarkedParagraphs（自动编号→文本前缀）', () =>
     expect(paraLines(convert(src, 'ul'))).toEqual(['这是普通段落，转换上面列表时它应原样不动。', '• 甲', '这也是段落。']);
   });
 
-  it('无序符号包成 span.list-marker（小字号字形），有序不带该 span（保持纯文本）', () => {
-    const ul = convert('<ul data-marker="○ "><li><p>子要点</p></li></ul>', 'ul');
-    expect(ul).toContain('<span class="list-marker">○</span>');
+  it('仅空心圆包成 span.list-marker（小字号），实心/其他符号为普通文本；有序不带该 span', () => {
+    const ulCircle = convert('<ul data-marker="○ "><li><p>子要点</p></li></ul>', 'ul');
+    expect(ulCircle).toContain('<span class="list-marker">○</span>');
+    // 实心 • 保持普通文本（不缩小）
+    const ulSolid = convert('<ul data-marker="• "><li><p>要点</p></li></ul>', 'ul');
+    expect(ulSolid).not.toContain('list-marker');
+    expect(ulSolid).toContain('• 要点');
     // 有序始终是纯文本前缀
     const ol = convert('<ol type="A"><li><p>步骤</p></li></ol>', 'ol', null);
     expect(ol).not.toContain('list-marker');

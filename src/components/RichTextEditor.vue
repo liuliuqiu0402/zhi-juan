@@ -1681,18 +1681,27 @@ const countAncestors = (node, tagName) => {
   return count;
 };
 
-/** 无序列表符号转文本：把符号字形包成 <span class="list-marker">（0.75em 小字号，借 PreserveSpan 在 Tiptap 回填后保留），
- *  缩进用全角空格、符号后跟一个正文宽度空格。与 prependMarkerToLI（有序纯文本前缀）区分。 */
+/** 只有"空心圆"类项目符号在浏览器/WPS 原生列表里会被画得明显偏小，转文本后按正文"全角圆"反而显大。
+ *  仅对空心圆（○/◦）包 span.list-marker 缩小；• ▪ 实心符号、✎ √ ➤ 等本就按正文字符显示，字号同正文。 */
+const isSmallListMarkerGlyph = (glyph) => glyph === '○' || glyph === '◦';
+
+/** 无序列表符号转文本：空心圆包成 <span class="list-marker">（0.75em 小字号，借 PreserveSpan 保留），
+ *  其余符号为普通文本（字号同正文）；缩进用全角空格、符号后跟一个正文宽度空格。
+ *  与 prependMarkerToLI（有序纯文本前缀）区分。 */
 const prependBulletMarker = (li, depth, marker) => {
   const doc = li.ownerDocument;
   const frag = doc.createDocumentFragment();
   if (depth > 0) frag.appendChild(doc.createTextNode('　'.repeat(depth)));
   const glyph = String(marker).trimEnd();
   if (glyph) {
-    const span = doc.createElement('span');
-    span.className = 'list-marker';
-    span.textContent = glyph; // textContent 而非 innerHTML，杜绝 data-marker 注入风险
-    frag.appendChild(span);
+    if (isSmallListMarkerGlyph(glyph)) {
+      const span = doc.createElement('span');
+      span.className = 'list-marker';
+      span.textContent = glyph; // textContent 而非 innerHTML，杜绝 data-marker 注入风险
+      frag.appendChild(span);
+    } else {
+      frag.appendChild(doc.createTextNode(glyph));
+    }
   }
   frag.appendChild(doc.createTextNode(' '));
   const firstP = Array.from(li.children).find((child) => child.tagName === 'P');
