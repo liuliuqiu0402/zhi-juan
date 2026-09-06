@@ -43,4 +43,19 @@ describe('覆盖契约 COVERAGE_CONTRACT（P1）', () => {
     expect(contractOf('unknown_type')).toMatchObject({ mode: 'none' });
     expect(contractOf('exam').mode).toBe('sampled');
   });
+
+  it('判缺分层（2026-09 审计固化）：required=full四型+practice；自动补卡仅限知识型', () => {
+    // full（summary/preview/dictation/review）+ per-lesson-full（practice）判缺（reconcileCoverage required）；
+    // focus（special/reading）/none（errorbook）/sampled（exam）不判缺
+    const required = ['summary', 'preview', 'dictation', 'review', 'practice'];
+    for (const [k, c] of Object.entries(COVERAGE_CONTRACT)) {
+      const judge = ['full', 'per-lesson-full'].includes(c.mode);
+      expect(judge, `${k} 判缺语义`).toBe(required.includes(k));
+    }
+    // 自动补卡（useAiGenerator P2b）仅 full 知识梳理型（缺考点=梳理缺块，补要点卡合理）；
+    // practice（per-lesson-full）缺漏只经覆盖对账提示——课时练插入"考点回顾卡"=形态污染（2026-09 实证）
+    expect(COVERAGE_CONTRACT.practice.mode).toBe('per-lesson-full');
+    expect(COVERAGE_CONTRACT.special.mode).toBe('focus');
+    expect(COVERAGE_CONTRACT.errorbook.mode).toBe('none');
+  });
 });
