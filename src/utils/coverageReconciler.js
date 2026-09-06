@@ -136,7 +136,7 @@ export const coverageNoteOf = (report) => {
       if (!byChapter.has(k)) byChapter.set(k, []);
       byChapter.get(k).push(m.name);
     }
-    parts.push('已识别以下未出现的概念考点：'
+    parts.push('已识别以下未呈现的概念类核心知识：'
       + [...byChapter.entries()].map(([ch, names]) => `${ch}（${names.join('、')}）`).join('；'));
   }
   if (report.missingChapters?.length) {

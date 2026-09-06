@@ -4351,7 +4351,9 @@ ${cardAnalysisText.substring(0, 1000)}
     const promptKpNames = boundList.length
       ? [...new Set(boundList.map((b) => b.name))]
       : kpNames; // 无锚（仅目录卡/未分析）时回退图谱名，保持旧行为
-    const kpText = promptKpNames.length ? `【本资料考查知识点】${promptKpNames.join('、')}` : '';
+    // 🔧 术语统一（2026-09）：清单条目 = 覆盖锚树 coreKnowledge（核心知识）名——面向模型的段头与
+    //    数据层术语对齐（大概念 → 核心知识 → 具体概念），不用扁平"考点"词（模型需知覆盖对象层级）
+    const kpText = promptKpNames.length ? `【本资料须覆盖的核心知识】${promptKpNames.join('、')}` : '';
     // 3. 素材检索（覆盖锚驱动，2026-09 P0 红线）：
     //    - 可命题考点 = 已绑定锚（literal/semantic/chapter）。每绑定锚的支撑片段（bind.segments 已按章定位）
     //      带分级权重直取进 hits——章节配额排序时锚素材优先，保证每考点保底落在锚上（有原文依据）
@@ -4515,7 +4517,7 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔴 缺料诊断上抛（2026-09 P0）：missing 考点不进可命题清单、不作推理，透出到生成报告【问题列表】，
     //    替代旧的静默 debug"模型知识兜底"——用户必须知道哪些章缺原文、未被本次命题覆盖
     const anchorMissingNote = anchorReport.missingList?.length
-      ? `⚠️ 覆盖缺料：${anchorReport.missingList.length} 个考点所在章节无教材片段，本次无法从教材取材（已排除在可命题范围外）：${anchorReport.missingList.map((m) => `${m.chapter}·${m.name}`).join('、')}。请检查勾选章节的原文解析/粘贴是否完整。`
+      ? `⚠️ 覆盖缺料：${anchorReport.missingList.length} 项核心知识所在章节无教材片段，本次无法从教材取材（已排除在可命题范围外）：${anchorReport.missingList.map((m) => `${m.chapter}·${m.name}`).join('、')}。请检查勾选章节的原文解析/粘贴是否完整。`
       : '';
 
     // ── 素材构建：按知识点检索（目录 + 知识点清单 + 相关片段，分级限量，非硬截断） ──
@@ -4670,7 +4672,7 @@ ${cardAnalysisText.substring(0, 1000)}
       carriedKps = retryEnt.names.filter((n) => boundNameSet.has(n));
     }
     if (carriedKps.length) {
-      requiredKpsText = `\n\n【本轮必覆盖（上次同范围生成对账缺漏，重新生成定向补齐）】以下考点必须在本次内容中实际呈现/考查，不得省略：${carriedKps.join('、')}`;
+      requiredKpsText = `\n\n【本轮必覆盖（上次同范围生成对账缺漏，重新生成定向补齐）】以下核心知识必须在本次内容中实际呈现/考查，不得省略：${carriedKps.join('、')}`;
       prompt += requiredKpsText;
       console.log(`[覆盖重试] 携带 ${carriedKps.length} 个上次缺漏考点为必覆盖：${carriedKps.join('、')}`);
     }
@@ -4998,14 +5000,14 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           const anchor = (anchors || []).find((a) => a.chapterTitle === m.chapter && a.name === m.name);
           const frag = (anchor?.bind?.segments || []).slice(0, 3)
             .map((s) => `· ${s.text}（出自：${s.chapterTitle || m.chapter}）`).join('\n');
-          return `考点：${m.name}\n所属：${m.chapter || '未标注章节'}\n教材依据：\n${frag || '（无原文片段，本次无法补漏）'}`;
+          return `核心知识：${m.name}\n所属：${m.chapter || '未标注章节'}\n教材依据：\n${frag || '（无原文片段，本次无法补漏）'}`;
         }).join('\n\n');
-        const patchPrompt = `你是${contractName}编写助手。上一轮生成的${contractName}正文经程序覆盖对账，以下考点未覆盖到。请为每个考点补充一个 <h2> 栏目（栏目标题即考点名），栏目内容贴合下方给出的教材原文片段编写（归纳要点、示例或配套练习均可，风格与本资料一致）；不得重复正文已有内容，不得编写超出所给教材原文之外的新知识点。\n\n【缺漏考点】\n${missLines}\n\n只输出补漏栏目 HTML（从 <h2> 开始），不要输出整卷或其他说明。`;
+        const patchPrompt = `你是${contractName}编写助手。上一轮生成的${contractName}正文经程序覆盖对账，以下核心知识未覆盖到。请为每项核心知识补充一个 <h2> 栏目（栏目标题即核心知识名），栏目内容贴合下方给出的教材原文片段编写（归纳要点、示例或配套练习均可，风格与本资料一致）；不得重复正文已有内容，不得编写超出所给教材原文之外的新知识点。\n\n【缺漏核心知识】\n${missLines}\n\n只输出补漏栏目 HTML（从 <h2> 开始），不要输出整卷或其他说明。`;
         let lastWhy = '';
         for (let ptry = 0; ptry < 2; ptry++) {
           try {
             const thinkingMult = getGenerationThinkingEnabled() ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1;
-            const patchResp = await callAI(ptry === 0 ? patchPrompt : `${patchPrompt}\n\n注意：上轮补漏输出未达标（${lastWhy}），请只输出每个缺漏考点的 <h2> 栏目 HTML（从 <h2> 开始到栏目结束），不要任何额外文字或整卷。`, {
+            const patchResp = await callAI(ptry === 0 ? patchPrompt : `${patchPrompt}\n\n注意：上轮补漏输出未达标（${lastWhy}），请只输出每项缺漏核心知识的 <h2> 栏目 HTML（从 <h2> 开始到栏目结束），不要任何额外文字或整卷。`, {
               taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
               maxTokens: clampReq(Math.max(600, Math.min(3600, recon0.missing.length * 500)) * thinkingMult),
               allowContinuation: false, temperature: bodyTemperature, returnMeta: true,
@@ -5116,7 +5118,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     if (reconNote) {
       console.log(`[覆盖对账] ${genType} 正文缺漏 ${reconReport.missing.length}/${reconReport.total} 考点（${reconReport.missing.map((m) => `${m.chapter}:${m.name}`).join('、')}）`);
       auditWarnings.push(reconNote + (retryTail
-        || (reconReport.required && !carriedKps.length && !retryEnt ? '；已保留本结果供预览——可点"复生成"，系统将自动携带以上考点定向补齐（缺漏记录为会话级，请在再次生成前不要刷新页面，刷新将丢失该记录）' : '')));
+        || (reconReport.required && !carriedKps.length && !retryEnt ? '；已保留本结果供预览——可点"复生成"，系统将自动携带以上核心知识定向补齐（缺漏记录为会话级，请在再次生成前不要刷新页面，刷新将丢失该记录）' : '')));
     }
     const sampledStats = reconcileCoverageStats({ genType, content, anchors });
     if (sampledStats && (anchors || []).length) {

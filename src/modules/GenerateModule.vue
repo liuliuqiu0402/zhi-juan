@@ -5821,7 +5821,7 @@ const buildInstruction = async () => {
     }
 
     lines.push('');
-    lines.push('（考点分配、教材素材检索、学科规范注入将在生成时按整卷自动完成）');
+    lines.push('（核心知识分配、教材素材检索、学科规范注入将在生成时按整卷自动完成）');
     instructionDraft.value = lines.join('\n');
   } catch (e) {
     console.error('[buildInstructionFromSelection] 生成方案构建失败:', e);
