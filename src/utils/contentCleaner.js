@@ -474,6 +474,15 @@ export function normalizeBlankMarkers(html = '') {
   // 🔧 拆裸 <u> 空壳：模型把下划线写进无 class 的 <u>（<u>____</u>/<u>（　　）</u>），先被上面规则转成
   //    u.blank-N/span.blank-N 后外层 <u> 仍在 → 下划线叠下划线/叠括号。外层仅包一个 blank 空位时拆壳
   out = out.replace(/<u(?![^>]*class=)[^>]*>\s*(<(u|span) class="blank-\d+">&emsp;<\/\2>)\s*<\/u>/gi, '$1');
+  // 🔧 拆裸 <u> 包整句（2026-09 语文卷实证：模型用 <u> 把题干整句/整行包起来 → 整卷画线；
+  //    系统语义 <u> 仅填空横线（带 class），画线句用 underline-sentence、强调用 <b>。
+  //    收窄拆壳条件：仅"整句/长句误画线"拆（裸 u 内 ≥10 字符且以句末标点结尾）；
+  //    短语/短词下划线强调（<u>重点词汇</u>）与单个空格场景保留（既有契约，防误伤强调语义）。
+  out = out.replace(/<u(?![^>]*class=)[^>]*>([\s\S]*?)<\/u>/gi, (m, inner) => {
+    const plain = inner.replace(/<[^>]+>/g, '').trim();
+    if (plain.length >= 10 && /[。！？；!?;]$/.test(plain)) return inner; // 整句误画线 → 拆壳
+    return m;
+  });
   // 🔧 跨类型空位叠写去重（2026-09 实证：题 10"0.86×3.2 ＿（　）"——模型把同一答案位写成
   //    "填空横线 <u class='blank-N'> + 括号空 <span class='blank-N'>"两种载体相邻叠加，导出成"横线后括号"；
   //    仅收敛"跨类型紧邻"（u↔span 间隔仅空白/实体）：保留后出现的一种形态（同题并列空位由生成语义

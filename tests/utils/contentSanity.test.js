@@ -1,4 +1,4 @@
-// 内容合理性扫描（Content Sanity）单测：确定性违规信号检测（荒谬计数倒推 / 同单位换算数值突变 / 空位宽度单一化）
+// 内容合理性扫描（Content Sanity）单测：确定性违规信号检测（荒谬计数倒推 / 同单位换算数值突变 / 空位宽度单一化 / 任务可作答性错配）
 import { describe, it, expect } from 'vitest';
 import { detectCountingFakes, detectUnitMutations, detectUniformBlankWidths, sanityScan, sanityNoteOf } from '../../src/utils/contentSanity.js';
 
@@ -66,5 +66,19 @@ describe('contentSanity 内容合理性扫描', () => {
       '<p>5. 和是 <u class="blank-2">&emsp;</u>。</p>',
     ].join('\n');
     expect(detectUniformBlankWidths(html)).toEqual([]); // 全 2 字位（答案均 2 位数）→ 正常
+  });
+
+  it('任务-可作答性错配：给加点字"选择读音"却无选项 → 检出；有 A. 选项 → 不报', () => {
+    const noOpt = '<p>1. 给加点字选择正确的读音。</p><p>孟浩然的"然"读作(　　　　)。</p>';
+    expect(sanityScan(noOpt)).toHaveLength(1);
+    const withOpt = '<p>2. 为加点字选择正确读音。</p><p>A. rán　B. zhǔ</p>';
+    expect(sanityScan(withOpt)).toEqual([]);
+  });
+
+  it('任务-载体错配：声明"写在横线上"却只有括号空 → 检出；有横线空/书写行 → 不报', () => {
+    const onlyParen = '<p>1. 把下面的字写在横线上。</p><p>（1）dé(　　　　)高望重</p>';
+    expect(sanityScan(onlyParen)).toHaveLength(1);
+    const withLine = '<p>2. 把下面的字写在横线上。</p><p>（1）dé <u class="blank-4">&emsp;</u></p>';
+    expect(sanityScan(withLine)).toEqual([]);
   });
 });

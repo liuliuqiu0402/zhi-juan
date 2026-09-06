@@ -37,4 +37,11 @@ describe('normalizeBlankMarkers 跨类型空位叠写去重', () => {
     expect((out.match(/<br\s*\/?>/gi) || []).length).toBe(4);
     expect(out).not.toContain('<u class="blank-');
   });
+
+  it('裸 <u> 包题干文字（模型误画线）→ 拆壳去画线；带 class 的空位 <u> 保留', () => {
+    const out = normalizeBlankMarkers('<p>1. <u>请写出你的感受，并结合诗句简要分析。</u></p><p>2. 填空：<u class="blank-4">&emsp;</u></p>');
+    expect(out).not.toContain('<u>请写出');
+    expect(out).toContain('请写出你的感受，并结合诗句简要分析。');
+    expect(out).toContain('<u class="blank-4">&emsp;</u>'); // 填空横线（合法）保留
+  });
 });

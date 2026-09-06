@@ -64,6 +64,40 @@ export const detectUniformBlankWidths = (html = '') => {
   return out;
 };
 
+/** 题干任务与可作答性错配（2026-09 通用词表驱动，全学科生效，只报不改）：
+ *  ① 选择类任务（选择正确读音/选出读音/给加点字选择…）但题内无任何选项 → 无从选择；
+ *  ② 声明书写载体（写在横线上/在横线上写…）但题内只有括号空而无横线空/书写行 → 无处按声明书写。
+ *  判定词表集中于此（覆盖各学科常见措辞），按题号行切块，避免跨题误报。 */
+const SELECT_NO_OPTION_WORDS = /选择(?:正确)?读音|选出.{0,4}读音|选读音|给加点字选择|为加点字选择|给[^<]{0,6}选择正确读音/;
+const WRITE_LINE_WORDS = /写在横线上|写在横线里|在横线上写|横线上写|在横线上填空/;
+const detectTaskMismatch = (html = '') => {
+  const out = [];
+  const src = String(html || '');
+  const blocks = [];
+  let cur = null;
+  const pRe = /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
+  let m;
+  while ((m = pRe.exec(src))) {
+    const inner = m[1];
+    const txt = inner.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+    if (/^\d+[.、．]/.test(txt)) { cur = { txt: '', html: '' }; blocks.push(cur); }
+    if (cur) { cur.txt += ' ' + txt; cur.html += '\n' + inner; }
+  }
+  const hasOption = (b) => /class=["'][^"']*option[^"']*["']|(?:^|\n)\s*[A-Ha-h][.、．]\s*|（\s*[A-Ha-h]\s*）/.test(b.html);
+  const hasLineBlank = (b) => /<u[^>]*class=["'][^"']*blank-|＿|blank-line/.test(b.html); // 横线空/书写行
+  for (const b of blocks) {
+    const t = b.txt;
+    if (!t || !b.html) continue;
+    if (SELECT_NO_OPTION_WORDS.test(t) && !hasOption(b)) {
+      out.push(`"选择"类题无选项可择：${t.slice(0, 40)}…（选择类须给选项，直接留空位无法选择）`);
+    }
+    if (WRITE_LINE_WORDS.test(t) && !hasLineBlank(b)) {
+      out.push(`声明"写在横线上"但题内无横线空/书写行（仅括号空不足以按声明书写）：${t.slice(0, 40)}…`);
+    }
+  }
+  return out;
+};
+
 /** 全量合理性扫描：返回违规提示语义清单（空=无违规） */
 export const sanityScan = (content = '') => {
   const html = String(content || '');
@@ -72,7 +106,12 @@ export const sanityScan = (content = '') => {
     .replace(/&nbsp;/g, ' ')
     .replace(/[　\s]+/g, ' ')
     .trim();
-  return [...detectUniformBlankWidths(html), ...detectCountingFakes(text), ...detectUnitMutations(text)];
+  return [
+    ...detectTaskMismatch(html),
+    ...detectUniformBlankWidths(html),
+    ...detectCountingFakes(text),
+    ...detectUnitMutations(text),
+  ];
 };
 
 /** 扫描结论 → 审计提示语（只陈述事实，不诱导改法） */
