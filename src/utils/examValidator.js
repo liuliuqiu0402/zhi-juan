@@ -1316,6 +1316,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const html = el.outerHTML || '';
             const txt = (el.textContent || '').trim();
             if (tag === 'p') {
+              if (txt === '' && /<br\s*\/?>/i.test(html)) { rows += 1; continue; } // 模型输出的空段落 <p><br></p> = 无线空白作答行（2026-09 反误引导：模型自出，程序只补差额）
               if (/^[＿_\s]+$/.test(txt)) { rows += 1; continue; }          // 纯横线字符行
               if (/blank-line/.test(html)) { rows += 1; continue; }         // 含横线作答 span
               if (/[＿_]{2,}/.test(txt)) { hasFillIn = true; break; }        // 内嵌填空线（如"3+5=＿＿"）

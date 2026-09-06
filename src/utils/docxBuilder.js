@@ -1908,6 +1908,14 @@ const processBlockNode = (node, ctx = {}) => {
 
   // ===== 段落 =====
   if (tag === 'p' || cls.contains('normal-paragraph')) {
+    // 🔧 无线空白作答行（2026-09 反误引导语义）：模型按新语义输出 <p><br></p> 空段落表示"一行空白作答空间"；
+    //    预览（HTML br 空段）显示正常，但导出曾整段丢弃（无文本 run → 空 children → 段落消失）→
+    //    Word 中空白区缺失。此处把"纯空 br 段"保留为单行空段落（w:br 换行 run），
+    //    每空段 = Word 一行空白，与预览逐行对应；含文字的 p 不受影响（走下方正常路径）。
+    if (tag === 'p' && !(node.textContent || '').trim() && node.querySelector('br') && !cls.contains('blank-area')) {
+      children.push(new Paragraph({ children: [new TextRun({ break: 1 })], spacing: { before: 0, after: 0 } }));
+      return children;
+    }
     // 转文本后的列表层级用块级 margin-left 表达（每层 2em）——映射为 Word 段落左缩进 indent.left，
     // 使长条目折行后仍跟随层级（而非回到页边距）。无 margin-left 的普通正文段维持既有首行缩进路径。
     // ⚠️ 直接读内联 style（转换时写入，确定存在、不依赖 getComputedStyle 布局计算），em 按元素字号换算。

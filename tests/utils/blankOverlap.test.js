@@ -27,10 +27,14 @@ describe('normalizeBlankMarkers 跨类型空位叠写去重', () => {
   });
 
   it('两空位间有文字/符号 → 不去重（相邻但不同位）', () => {
-    const out = normalizeBlankMarkers('3.2×(　　　　)<span class="blank-4">&emsp;</span>');
-    // 括号空转 span + 已有 span 紧邻（中间 ×/＝ 前？此例括号与 span 相邻）——改为中间带“＋”验证不合并
     const out2 = normalizeBlankMarkers('(　　　　)＋<u class="blank-4">&emsp;</u>');
     expect((out2.match(/<span class="blank-\d+">&emsp;<\/span>/g) || []).length).toBe(1);
     expect(out2).toContain('<u class="blank-4">&emsp;</u>'); // 中间有"＋"，不合并
+  });
+
+  it('空段落 <p><br></p>（模型输出的空白作答行）→ 保留为空行，不被转填空横线', () => {
+    const out = normalizeBlankMarkers('<p>1. 请写出计算过程。</p><p><br></p><p><br></p><p><br></p><p><br></p>');
+    expect((out.match(/<br\s*\/?>/gi) || []).length).toBe(4);
+    expect(out).not.toContain('<u class="blank-');
   });
 });
