@@ -254,11 +254,14 @@ export function buildAnswerSpaceInstruction(subject = '', stage = '') {
     '· 作答空间只以真实留白或书写载体呈现：严禁用"答：""作答区"等文字充当或预置作答空间；',
   ];
   if (subject && stage) {
-    // 🔧 算式填空位（数学专用通道，与 normalizeMathCircleBlanks 程序收口同语义）：
+    // 🔧 数学算式填空位/比大小（数学专用通道，与 normalizeMathCircleBlanks 程序收口同语义）：
     //    算式单元格的 □/○ 或邻运算符占位最终统一渲染为方框/圆圈（1.8em 容器）——
-    //    不归"填空下划线"通道，显式声明防模型把 3＋□＝8 写成下划线长空（虽程序仍会收口，语义须先对齐）
+    //    不归"填空下划线"通道，显式声明防模型把 3＋□＝8 写成下划线长空；
+    //    比较大小（填＞＜＝）卷面惯例为"在○里填符号"（圆圈内作答），非括号空——
+    //    曾因通用"判断类→圆括号"句被模型套用成括号，悖于数学惯例（2026-09 实证）
     if (subject === '数学') {
       lines.push('· 算式中的填空位（如 3＋□＝8、□×□＝12）用方框或圆圈呈现，不用下划线空位；');
+      lines.push('· 比较大小（填＞/＜/＝）用○圈出符号位作答，不用括号空位；');
     }
     const region = getAnswerRegion(subject, stage);
     if (region.carrier === 'line') {

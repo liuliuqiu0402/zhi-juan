@@ -88,12 +88,16 @@ describe('buildAnswerSpaceInstruction（学科书写形态与 ANSWER_REGION 同�
     expect(s).toContain('不画横线、不把留白圈成方框');
   });
 
-  it('算式填空位条款仅注入数学（方框/圆圈专用通道，与 normalizeMathCircleBlanks 收口同语义）', () => {
+  it('算式填空位/比大小条款仅注入数学（方框/圆圈专用通道，与 normalizeMathCircleBlanks 收口同语义）', () => {
     const math = buildAnswerSpaceInstruction('数学', 'primary_mid');
     expect(math).toContain('算式中的填空位（如 3＋□＝8、□×□＝12）用方框或圆圈呈现，不用下划线空位');
-    // 非数学学科不注入（算式填空位为数学算式惯例，防跨学科广播）
+    // 比较大小（填＞＜＝）：卷面惯例为"在○里填符号"（圆圈作答位），非括号空——数学专属，防通用"判断→圆括号"句错引
+    expect(math).toContain('比较大小（填＞/＜/＝）用○圈出符号位作答，不用括号空位');
+    // 非数学学科不注入（算式/比大小空位为数学卷面惯例，防跨学科广播）
     for (const [subject, stage] of [['英语', 'middle'], ['语文', 'middle'], ['科学', 'primary_mid'], ['物理', 'middle']]) {
-      expect(buildAnswerSpaceInstruction(subject, stage), `${subject} 不应含算式填空位条款`).not.toContain('算式中的填空位');
+      const s = buildAnswerSpaceInstruction(subject, stage);
+      expect(s, `${subject} 不应含算式填空位条款`).not.toContain('算式中的填空位');
+      expect(s, `${subject} 不应含比大小条款`).not.toContain('比较大小');
     }
   });
 

@@ -4987,7 +4987,12 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     //    提示走"复生成必覆盖"闭环或手动补充——宁缺毋滥，补漏提示只允许引用绑定片段。
     {
       const recon0 = reconcileCoverage({ genType, content, anchors });
-      if (recon0.required && recon0.missing.length > 0 && recon0.missing.length <= 6) {
+      // 🔧 2026-09 收敛：自动补漏仅对知识梳理型（full：summary/preview/dictation/review）——
+      //    缺考点=梳理缺块，补"要点卡"栏目合理；练习卷（per-lesson-full：practice 课时练等）缺漏
+      //    只经覆盖对账提示（复生成闭环/手动补充），不再自动插卡——曾实证：课时练正文被补入整段
+      //    "考点：X → 要点回顾 → 示例 → 练一练"复习卡（练习卷插入知识回顾卡 = 栏目形态污染）
+      const covMode = contractOf(genType).mode;
+      if (covMode === 'full' && recon0.required && recon0.missing.length > 0 && recon0.missing.length <= 6) {
         const contractName = contractOf(genType).name || genType;
         const missLines = recon0.missing.map((m) => {
           const anchor = (anchors || []).find((a) => a.chapterTitle === m.chapter && a.name === m.name);

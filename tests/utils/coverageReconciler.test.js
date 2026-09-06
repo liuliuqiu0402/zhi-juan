@@ -74,6 +74,8 @@ describe('coverageReconciler 对账器', () => {
 
   // 🔴 根治回归：行为/语义考点（"方法/意义/规律/应用"）正文以情境题目体现、不会逐字出现，
   //    此前逐考点词面判定导致 18/18 全误报。现行为考点 → 章级聚合：章内任一考点命中即视为该章行为族已覆盖。
+  //    🔧 2026-09 校准：正文"保留两位小数"命中近似值等价长锚（保留两位）→ 近似值族已呈现，
+  //      章非零命中（不再整章零命中双报）；概念考点"循环小数"未现 → 真缺照报。
   it('行为语义考点（计算方法/规律/应用）→ 章级聚合，不逐词误报缺漏', () => {
     const behAnchors = buildAnchors([mkCard('一 小数乘法（二）', [
       '小数乘法的计算方法',           // 行为 → 章级
@@ -87,8 +89,8 @@ describe('coverageReconciler 对账器', () => {
     // 行为考点均落地章级 → 不逐词误报；唯一精确概念"循环小数"未出现 → 准确实报
     expect(rep.missing.map((m) => m.name)).toEqual(['循环小数']);
     expect(rep.missing[0].probeable).toBe(true);
-    // 该章唯一概念考点未出现 → 章级提示必然伴随（保守双报，不新增行为考点冒充缺漏）
-    expect(rep.missingChapters.map((c) => c.chapter)).toEqual(['一 小数乘法（二）']);
+    // 近似值族已由"保留两位小数"呈现 → 章非零命中，不再整章双报
+    expect(rep.missingChapters).toEqual([]);
   });
 
   it('整章零命中 → 进入 missingChapters（章级提示），行为考点不逐条报', () => {
@@ -97,5 +99,31 @@ describe('coverageReconciler 对账器', () => {
     expect(rep.missingChapters.map((c) => c.chapter)).toEqual(['二 未知单元']);
     // 该章概念考点也进 missing（可指名补漏）；行为考点不逐条进 missing（防诱导）
     expect(rep.missing.map((m) => m.name)).toEqual(['某概念']);
+  });
+
+  // 🔴 2026-09 实证校准（课时练"小数乘法与除法（二）"判缺审计）：
+  //    · 技能考点（竖式计算）与近似值考点（积/商的近似值）正文以行为/情境考查（"用竖式计算""保留两位小数"），
+  //      考点名整串不出现 ≠ 缺漏——技能词入章级、近似值等价词用长锚直接命中，消除 3/6 误报；
+  //    · 概念考点（循环小数/有限无限小数分类）正文确未呈现 → 真缺照报（只报真缺，宁少勿滥）。
+  it('技能考点（竖式计算）章级放行：正文"用竖式计算"即覆盖，不再误报缺漏', () => {
+    const anchors = buildAnchors([mkCard('一 小数乘法和除法（二）', [
+      '小数乘小数的竖式计算',   // 技能（含"竖式/计算"）→ 章级：正文"用竖式计算"已考查
+      '循环小数',               // 概念 → 精确：正文未呈现 → 真缺
+    ], segs)], {}).anchors;
+    const html = '<h2>竖式计算</h2><p>用竖式计算下面各题，并把得数按要求保留：6.25×1.5；1.2÷0.24。</p>';
+    const rep = reconcileCoverage({ genType: 'practice', content: html, anchors });
+    expect(rep.missing.map((m) => m.name)).toEqual(['循环小数']); // 技能考点不误报
+  });
+
+  it('近似值考点等价词长锚命中："得数保留两位小数/保留整数"即覆盖积/商的近似值', () => {
+    const anchors = buildAnchors([mkCard('一 小数乘法和除法（二）', [
+      '积的近似值',             // literal + 近似族等价词（保留两位…）
+      '商的近似值',
+      '循环小数',               // 真缺对照
+    ], segs)], {}).anchors;
+    const html = '<p>1. 6.25×1.5（得数保留两位小数）。</p><p>2. 1.2÷0.24（得数保留整数）。</p>';
+    const rep = reconcileCoverage({ genType: 'practice', content: html, anchors });
+    // 积/商的近似值已由"保留两位/保留整数"等价呈现覆盖；仅循环小数真缺
+    expect(rep.missing.map((m) => m.name)).toEqual(['循环小数']);
   });
 });

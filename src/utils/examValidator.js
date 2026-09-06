@@ -1224,7 +1224,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const cm = title.match(/共\s*(\d{1,3})\s*分/);
         const sm = title.match(/[（(]\s*(\d{1,3})\s*分/);
         const scoreMatch = cm || sm;
-        if (!scoreMatch) return;
+        // 🔧 无分值大题（教辅/课时练：大题标题不标分值）不 return——进入无分值模式按题型惯例兜底补差；
+        //    曾只处理分值题 → 教辅数学解答/解决问题题整卷无任何作答空间（生成侧"无线留白"语义
+        //    要求模型留白、模型不输出载体、程序又因无分值不补 → 三环断链，2026-09 实证根治）
         const secNodes = [];
         let node = head.nextSibling;
         const end = headsK[i + 1] || null;
@@ -1263,9 +1265,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               while (sn && sn !== e2) { seg.push(sn); sn = sn.nextSibling; }
               return { p, score: m ? parseFloat(m[1]) : null, seg };
             })
-          : [{ p: head, score: parseFloat(scoreMatch[1]), seg: secNodes }];
+          : [{ p: head, score: scoreMatch ? parseFloat(scoreMatch[1]) : null, seg: secNodes }];
+        // 🔧 无分值模式兜底行数（教辅/练习主观解答题无任何载体时补此数；卷面惯例，
+        //    与 2j-5b 英语写作无分值兜底 8 行同模式——如需地区化可上收排版规格库 ANSWER_REGION）
+        const NO_SCORE_ROWS = 4;
         for (const it of items) {
-          if (it.score == null || it.score <= 0 || it.score > 15) continue;
+          const isNoScore = it.score == null;
+          if (!isNoScore && (it.score <= 0 || it.score > 15)) continue;
           // 题号行 + 作答段统一克隆扫描（含嵌套 p/div/section）
           const wrap = document.createElement('div');
           wrap.appendChild(it.p.cloneNode(true));
@@ -1278,7 +1284,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (parenBlankTest.test(segAll) || blankTagTest.test(segAll) || fullWidthBlankTest.test(segAll)) continue;
           if (/match-question|match-item|zuo-wen-ge|square-grid|bracket-grid|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge/.test(segAll)) continue;
           if (countOptions(segAll) > 0) continue;
-          if (/(?:选择|选一选|选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|写话|习作|作文|写作|填一填|填空|填字)/.test(stem)) continue;
+          if (/(?:选择|选一选|选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|写话|习作|作文|写作|填一填|填空|填字|口算|直接写得数)/.test(stem)) continue;
           // 度量有效作答行（纯空行/题间空行不计；内嵌填空下划线=已有载体 → 跳过）
           let rows = 0;
           let hasFillIn = false;
@@ -1299,7 +1305,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             }
           }
           if (hasFillIn) continue;
-          const need = needRows(it.score);
+          const need = isNoScore ? NO_SCORE_ROWS : needRows(it.score);
           if (rows >= need) continue;
           // 🔧 专用作答区语境防错配（2026-09；遵守"补差不越权 / 静默不误报"固化基准）：
           //    竖式（需格状书写区）、作图（需空白区）、填表（需表格）类题在题内确无任何作答载体时，
@@ -1343,7 +1349,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           fixedK += 1;
           issues.push({
             severity: 'info', type: 'answer-area',
-            message: `已补作答空间：大题「${title.slice(0, 14)}」某题补 ${diff} 行${region.carrier === 'line' ? '横线' : '空白'}（分值${it.score}×系数${region.linePerScore}，原有效作答行${rows}）`,
+            message: isNoScore
+              ? `已补作答空间：大题「${title.slice(0, 14)}」某题补 ${diff} 行${region.carrier === 'line' ? '横线' : '空白'}（无分值题按题型惯例兜底${NO_SCORE_ROWS}行，原有效作答行${rows}）`
+              : `已补作答空间：大题「${title.slice(0, 14)}」某题补 ${diff} 行${region.carrier === 'line' ? '横线' : '空白'}（分值${it.score}×系数${region.linePerScore}，原有效作答行${rows}）`,
           });
         }
       });

@@ -681,6 +681,44 @@ describe('examValidator 书写作答空间保障（answer-area-fix）', () => {
     expect((out.match(/blank-line/g) || []).length).toBe(0);
     expect(issues.some(i => i.type === 'answer-area')).toBe(false);
   });
+
+  it('无分值教辅（课时练）数学解答题 → 按题型惯例兜底补 4 行空白（根治整卷无作答空间）', () => {
+    const html = [
+      '<h2>一、基础建构任务</h2>',
+      '<p>1. 小明家本月的水费和电费一共 128 元，其中电费是水费的 3 倍。列方程求出水费和电费各是多少元。</p>',
+      '<p>2. 计算 0.6÷0.3，可以转化为 6÷3。请说明：为什么这样移动小数点后，商的大小不变？</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, { subject: '数学', stage: 'primary_high', genType: 'practice' });
+    // 无分值大题不进 return、每题兜底 4 行空白（blank-area，无线）
+    expect(countBlankArea(out)).toBe(8);
+    expect(out).toContain('class="blank-area" style="height:8mm"'); // primary_high 行高 8mm
+    expect(issues.some(i => i.type === 'answer-area' && i.message.includes('无分值题按题型惯例兜底'))).toBe(true);
+  });
+
+  it('无分值数学：判断（括号空）、口算（算式连列）已有作答形态 → 不补空白', () => {
+    const html = [
+      '<h2>一、基础建构任务</h2>',
+      '<p>1. 判断下面各题的商与 1 的大小关系，在括号里填"＞""＜"或"＝"：4.8÷0.6（　　）1。</p>',
+      '<h2>二、基础口算</h2>',
+      '<p>1. 0.6×0.5＝　0.2×0.3＝　1.5×0.4＝</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, { subject: '数学', stage: 'primary_high', genType: 'practice' });
+    expect(countBlankArea(out)).toBe(0);
+    expect(issues.some(i => i.type === 'answer-area')).toBe(false);
+  });
+
+  it('无分值教辅语文简答题 → 补 4 行横线（carrier=line 学科）', () => {
+    const html = ['<h2>二、阅读与理解</h2>', '<p>1. 短文主要讲了什么？</p>'].join('\n');
+    const { html: out, issues } = auditExamPaper(html, { subject: '语文', stage: 'primary_mid', genType: 'practice' });
+    expect(countBlankLine(out)).toBe(4);
+    expect(issues.some(i => i.type === 'answer-area')).toBe(true);
+  });
+
+  it('无分值竖式题 → 不落通用空白补差（竖式需专用书写区，静默抽检交人工）', () => {
+    const html = ['<h2>三、用竖式计算</h2>', '<p>1. 用竖式计算 6.25×1.5。</p>'].join('\n');
+    const { html: out } = auditExamPaper(html, { subject: '数学', stage: 'primary_high', genType: 'practice' });
+    expect(countBlankArea(out)).toBe(0);
+  });
 });
 
 describe('examValidator 英语书面表达横线补差（2j-5b，2026-08）', () => {
