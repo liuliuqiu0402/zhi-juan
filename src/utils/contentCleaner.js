@@ -58,6 +58,28 @@ export const cleanSectionHtml = (raw) => {
   return html.trim();
 };
 
+/**
+ * 剥离正文开头的"过程自述/写作计划"段（2026-09 根治：模型把"我已获取教材原文与知识点。现在依据…
+ * 围绕…核心知识…命制课时练。现在编写正文。"当正文首段输出——声明≠覆盖，罗列清单不算内容）。
+ * 只剥"首个结构块之前、逐段匹配自述特征"的 <p>（文本以 我已/已获取/现在/接下来/依据/围绕… 开头
+ * 且含 教材/知识点/课标/核心知识/命制/编写/正文 等任务自述词、非题号开头）；命中即整段删除，
+ * 连续自述段最多剥 6 段；真内容段（题号/栏目）不会被误伤（无上述组合特征）。
+ */
+export function stripPlanningPreamble(raw = '') {
+  if (!raw) return raw;
+  let out = String(raw);
+  const pHead = /^\s*(<p[^>]*>)([\s\S]*?)<\/p>/;
+  const PLAN_RE = /^(?:我已|已获取|现在|接下来|以下(?:将|是)?|根据|依据|围绕|请根据|本次)[^<\n]{0,60}?(?:教材原文|知识点|核心知识|课标|命制|编写|设计|课时练|课堂练习|试卷|正文|大纲)/;
+  for (let guard = 0; guard < 6; guard++) {
+    const m = out.match(pHead);
+    if (!m) break;
+    const text = m[2].replace(/<[^>]+>/g, '').trim();
+    if (!text || /^\d+[.、．]/.test(text) || !PLAN_RE.test(text)) break;
+    out = out.slice(m[0].length).replace(/^\s+/, '');
+  }
+  return out;
+}
+
 /** 导出端第二道防线：剥离 AI 响应残留的 markdown 代码块/对话前缀（不改 HTML 结构本身）
  * 有 ```html 代码块 → 取块内 HTML 拼接；否则无块但存在"对话前缀+HTML" → 从首个 HTML 标签截断。
  * 曾分别内联于 GenerateModule.downloadDoc 与 TypesetModule.sanitizeExportContent（两段逐字同构、各自演化），

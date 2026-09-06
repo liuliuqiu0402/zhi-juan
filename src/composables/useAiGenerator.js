@@ -412,7 +412,7 @@ import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever
 import { reconcileCoverage, reconcileCoverageStats, coverageNoteOf } from '../utils/coverageReconciler.js';
 import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { reconcileDomains, domainNoteOf } from '../utils/domainReconciler.js';
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, stripPlanningPreamble, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 
 // 别名：保持原有名称兼容
@@ -4981,6 +4981,9 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
 
     // 🔴 标题根治兜底：移除模型拼入 h1 的任务行类型词（如“ 考卷”），标题只保留命名规范占位符组合
     content = stripTypeWordFromTitle(content);
+    // 🔴 过程自述剥离（2026-09 根治"声明≠覆盖"）：模型把"我已获取教材原文…现在编写正文"当正文首段输出
+    //    ——确定性剥除开头自述段（纯文本段匹配自述特征才剥，题号/栏目开头的真内容不误伤）
+    content = stripPlanningPreamble(content);
 
     // ── P2b 覆盖自动补漏（2026-09）：full/per-lesson-full 类型正文对账缺漏 ≤6 个考点时，
     //    针对缺漏考点做一次短生成（每考点一个 h2 栏目，内容贴合绑定原文片段），
