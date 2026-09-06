@@ -44,14 +44,35 @@ export const detectUnitMutations = (text = '') => {
   return out;
 };
 
+/** 作答空位过宽统一（2026-09 实证：课时练 35 处填空横线全部 blank-8 字位档——模型未按各空答案
+ *  长度定宽，短答案也塞 8 字位。检测条件 = 空位 ≥5 处、档位全一致 且 档位 ≥6（过宽档）：
+ *  答案本来等长（如全填 2 位数 → 全 blank-2）属正常，不误报；过宽统一才提示（只报不改，去诱导基准）。
+ *  作用于 HTML（读取 blank-N 档位；排除 math-circle 算式填空圈——固定 1.8em 一格一符属正常）。 */
+export const detectUniformBlankWidths = (html = '') => {
+  const out = [];
+  const sizes = [];
+  const re = /class=["'][^"']*?blank-(\d+)[^"']*?["']/g;
+  let m;
+  while ((m = re.exec(String(html || '')))) {
+    const cls = m[0];
+    if (/math-circle/.test(cls) || /blank-line/.test(cls) || /blank-area/.test(cls)) continue;
+    sizes.push(Number(m[1]));
+  }
+  if (sizes.length >= 5 && new Set(sizes).size === 1 && sizes[0] >= 6) {
+    out.push(`全文 ${sizes.length} 处作答空位宽度均为较宽的 ${sizes[0]} 字位档——若各空答案长度短于此宽度，疑似未按答案长度定宽，请复核（答案确需如此宽时可忽略）`);
+  }
+  return out;
+};
+
 /** 全量合理性扫描：返回违规提示语义清单（空=无违规） */
 export const sanityScan = (content = '') => {
-  const text = String(content || '')
+  const html = String(content || '');
+  const text = html
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/[　\s]+/g, ' ')
     .trim();
-  return [...detectCountingFakes(text), ...detectUnitMutations(text)];
+  return [...detectUniformBlankWidths(html), ...detectCountingFakes(text), ...detectUnitMutations(text)];
 };
 
 /** 扫描结论 → 审计提示语（只陈述事实，不诱导改法） */
