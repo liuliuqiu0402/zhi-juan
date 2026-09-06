@@ -13,13 +13,14 @@ import { buildAnswerSpaceInstruction, getAnswerRegion, BLANK } from '@/config/la
 
 const OLD_VAGUE_SENTENCE = '按书写惯例输出对应作答书写载体';
 
-describe('buildAnswerSpaceInstruction（通用四行：形态按答案类型绑定）', () => {
+describe('buildAnswerSpaceInstruction（通用五行：形态按答案类型绑定，宽度/一致性并入通用层）', () => {
   const generic = buildAnswerSpaceInstruction();
-  it('通用（无学科）四行逐字完整：总句+圈选圆括号+填空下划线+禁文字占位', () => {
+  it('通用（无学科）五行逐字完整：总句+圈选(含1~2字位)+填空(含可执行换算)+同题同形态+禁文字占位', () => {
     expect(generic).toBe(
       '· 作答空间形态按答案类型匹配，不自行发明：\n' +
-      '· 圈选/判断/选择类（填字母、序号或√×）在题末或选项后用圆括号空位（　）作答；\n' +
-      '· 填空类（填词/句/数等短答）在句内或行尾写下划线空位，宽度按答案长度（1 字位≈1 个全角空格≈1 em 书写宽），连列空位全带、不得遗漏；\n' +
+      '· 圈选/判断/选择类（填字母、序号或√×）在题末或选项后用圆括号空位（　）作答，括号内宽只需容纳所填符号（1~2 字位）；\n' +
+      '· 填空类（填词/句/数等短答）在句内或行尾写下划线空位，宽度按"恰好容纳该空答案"换算：先在心里给出该空答案并数清字符数（数字/汉字/小数点各算 1 个），写等量的全角空格（1 字位≈1 个全角空格≈1 em 书写宽），连列空位全带、不得遗漏；\n' +
+      '· 同一题（含并列子题）同性质空位的形态一致（同用圆括号空或同用填空横线）、一个空位只写一种载体；宽度只由各空答案长度决定——答案等长则等宽、不等长按各自长度，不为整齐统一加宽、也不为凑差异改窄；\n' +
       '· 作答空间只以真实留白或书写载体呈现：严禁用"答：""作答区"等文字充当或预置作答空间；'
     );
   });
@@ -106,9 +107,9 @@ describe('buildAnswerSpaceInstruction（学科书写形态与 ANSWER_REGION 同�
     const en = buildAnswerSpaceInstruction('英语', 'middle');
     expect(en).toContain('写作/续写/书面表达/句子练习等）输出整行书写横线');
     expect(en).not.toContain('另有专用书写载体');
-    // 语文低段：习作/写话另有专用书写载体（作文格通道），横线句不含"写作"
+    // 语文低段：习作/看图写话另有专用书写载体（作文格通道），横线句不含"写作"
     const yw = buildAnswerSpaceInstruction('语文', 'primary_low');
-    expect(yw).toContain('习作/写话另有专用书写载体');
+    expect(yw).toContain('习作/看图写话另有专用书写载体');
     expect(yw).not.toMatch(/写作[^／]*输出整行书写横线/);
     expect(yw).not.toContain('作文格'); // 作文格名称由作文格通道管理，此处只说"另有专用书写载体"
   });

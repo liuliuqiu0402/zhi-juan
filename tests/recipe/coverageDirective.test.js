@@ -18,11 +18,13 @@ describe('前瞻覆盖指令（模板层按资料类型注入）', () => {
     expect(t.template).toContain('本课知识层级（大概念 → 核心知识）');
     expect(t.template).toContain('不得整点遗漏');
     expect(t.template).toContain('不依赖事后对账');
-    // 声明≠覆盖 生成端根治：禁任何位置罗列清单/声明；覆盖检查前置内部完成；覆盖优先于篇幅可增题
-    expect(t.template).toContain('正文任何位置（含开头/结尾）禁止罗列核心知识清单');
-    expect(t.template).toContain('声明不是内容，覆盖只以实际题目计');
-    expect(t.template).toContain('覆盖优先于篇幅');
-    expect(t.template).toContain('严禁删考点或改由声明代替');
+    // 声明≠覆盖（题类句）：禁任何位置罗列清单/声明；覆盖核对输出前内部完成
+    expect(t.template).toContain('声明≠覆盖（题类）');
+    expect(t.template).toContain('正文任何位置（含开头/结尾）不得罗列核心知识清单');
+    expect(t.template).toContain('覆盖只以实际题目计');
+    // 与全局 QUALITY_BASE 重复的"覆盖优先于篇幅"句已从 practice 删除（单一事实源）
+    expect(t.template).not.toContain('覆盖优先于篇幅');
+    expect(t.template).not.toContain('严禁删考点或改由声明代替');
   });
 
   it('full 型（preview/dictation）：全知识点覆盖且以核心知识清单为核对锚', () => {
