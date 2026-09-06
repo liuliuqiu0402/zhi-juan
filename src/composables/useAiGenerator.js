@@ -4306,6 +4306,9 @@ ${cardAnalysisText.substring(0, 1000)}
     if (hitTruncLimited) {
       coverageNotes.push('⚠️ 浏览取到的原文已充分，但生成的正文多次续写仍被截断，末尾可能不完整；请人工查看末尾是否缺题或缺内容。');
     }
+    // 🔧 过程自述剥离（与 generateFullPaperNatural 收尾同规则，本函数出口即剥一次——
+    //    覆盖 browse 正文直出/独立调用等不经 generateFullPaperNatural 收尾的路径）
+    content = stripPlanningPreamble(content);
     return { content, coverageNotes };
   };
 
