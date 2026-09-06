@@ -1,17 +1,17 @@
-// 三维度整体拼装审计（常驻回归，一条不漏）
+// 三维度整体拼装审计（常驻回归，一条不漏 · 以真实开设矩阵为口径）
 // ============================================================
-// 🔴 目的（2026-09）：不是抽样，而是 15 学科 × 5 学段 × 9 类型全部组合逐条拼装整体指令
-//   （复刻 GenerateModule 真实拼接顺序），按编辑者视角四方向逐条审计：
-//   方向1 编辑要素达标：内容要素 + 排版要素清单逐条存在（KEY_MUST/EDITOR_MUST，非单一关键词）；
-//   方向2 冗余/矛盾：整句逐字重复探测（双源冗余）+ 旧壳/外包句复活禁止（矛盾与职责错位直查）；
-//   方向3 课标：学科×学段要点注入 + 课标锚点（措辞与数据层对应由 SUBJECT_STAGE_EXTRAS 单源保证）；
-//   方向4 审核基准：单一事实源(A 重复即违)/学科学段收敛(B 泄漏即违)/模型职责(D 外包词黑名单)/
-//          去诱导禁文字占位(C)。
-// 说明（诚实的机器判定边界）：编辑"内容质量/审美"与"课标语义符合度"的最终判定仍需人工
-// 深读（已按学科审过一轮）；本矩阵保证机器可判子集一条不漏、防回归。
+// 🔴 口径（2026-09）：不是 15×5 笛卡尔积抽样，而是以 SUBJECT_STAGE_EXTRAS 的 54 个合法
+//   学科×学段 cells（与 STAGE_SUBJECTS 全覆盖对齐的事实源）为真实开设矩阵，
+//   对每个合法科段 × 9 资料类型（54×9=486 组合）逐条拼装整体指令，按编辑者视角四方向审计：
+//   方向1 编辑要素达标（内容+排版清单逐条，见 EDITOR_MUST）；
+//   方向2 冗余/矛盾（整句逐字重复 + 外包/旧壳句黑名单直查）；
+//   方向3 课标（54 cells 非空 = 学科×学段要点无缺失；课标锚点每组合含）；
+//   方向4 审核基准（单一事实源 A / 学段收敛 B / 去诱导 C / 模型职责 D）。
+// 注：非法科段（如"物理|小学低段"不存在于 54 cells）不进审计面——入口本不可达；
+//   全笛卡尔冒烟保留为防崩溃信息，不作为审计判定。
 // ============================================================
 import { describe, it, expect } from 'vitest';
-import { getPromptTemplate, GEN_TYPE_NAMES } from '@/config/promptLibrary.js';
+import { getPromptTemplate, GEN_TYPE_NAMES, SUBJECT_STAGE_EXTRAS } from '@/config/promptLibrary.js';
 import { buildRenderContract, needsImageHint } from '@/config/eduRenderContract.js';
 import { buildValidatorPrompt } from '@/config/validatorRules.js';
 import { buildTeachingInjection } from '@/config/teachingBlueprints.js';
@@ -24,6 +24,14 @@ const GEN_TYPES = Object.keys(GEN_TYPE_NAMES);
 const STAGE_LABEL = { primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中' };
 const CONTENT_TYPES = ['preview', 'summary']; // 内容型：结构化呈现、无作答空间语义/卷面自洽
 const QUESTION_TYPES = GEN_TYPES.filter((g) => !CONTENT_TYPES.includes(g));
+
+/** 合法开设矩阵：SUBJECT_STAGE_EXTRAS 的 cells（subject|stage，54 组合，事实源） */
+const LEGAL_CELLS = Object.keys(SUBJECT_STAGE_EXTRAS);
+const LEGAL_COMBOS = [];
+for (const cell of LEGAL_CELLS) {
+  const [subject, stage] = cell.split('|');
+  for (const genType of GEN_TYPES) LEGAL_COMBOS.push({ subject, stage, genType });
+}
 
 function assemble(subject, stage, genType) {
   const tpl = getPromptTemplate({ grade: stage, subject, genType });
@@ -70,26 +78,33 @@ const FORBIDDEN_SNIPPETS = [
   '书写空间按照答案的长度倒推',     // 旧换算外包句（曾与作答空间语义双轨）
 ];
 
-describe('三维度整体拼装审计（全量枚举 15×5×9）', () => {
-  const combos = [];
-  for (const subject of SUBJECTS) {
-    for (const stage of STAGES) {
-      for (const genType of GEN_TYPES) {
-        const s = normalizeSubjectName(subject, stage);
-        combos.push({ subject: s, stage, genType });
-      }
+describe('三维度整体拼装审计（真实开设矩阵 54 科段 × 9 类型 = 486，一条不漏）', () => {
+  it(`合法开设矩阵 ${LEGAL_COMBOS.length} 组合全部可拼装（${LEGAL_CELLS.length} 科段 × ${GEN_TYPES.length} 类型，逐条断言不跳过）`, () => {
+    const missing = [];
+    for (const { subject, stage, genType } of LEGAL_COMBOS) {
+      if (!assemble(subject, stage, genType)) missing.push(`${subject}|${STAGE_LABEL[stage]}|${GEN_TYPE_NAMES[genType]}`);
     }
-  }
-
-  it(`全量组合可拼装（${SUBJECTS.length}×${STAGES.length}×${GEN_TYPES.length}，有效 ${combos.filter((c) => assemble(c.subject, c.stage, c.genType)).length}）`, () => {
-    const ok = combos.filter((c) => assemble(c.subject, c.stage, c.genType));
-    expect(ok.length).toBeGreaterThan(SUBJECTS.length * 2); // 至少覆盖多学科；记录有效集
-    console.log('有效组合数', ok.length, '/', combos.length);
+    console.log('合法组合 拼装成功', LEGAL_COMBOS.length - missing.length, '/', LEGAL_COMBOS.length);
+    expect(missing, `存在 ${missing.length} 个合法组合拼装失败（须为 0）：\n${missing.slice(0, 30).join('\n')}`).toEqual([]);
   });
 
-  it('方向1 编辑要素逐条齐全 + 信息不丢（渲染契约/质检规则/教辅结构非空）+ 方向3 课标锚（逐组合断言）', () => {
+  it('防崩溃冒烟（全笛卡尔 15×5×9 含非法科段入口：仅断言不抛错，不作为审计判定）', () => {
+    let ok = 0;
+    for (const subject of SUBJECTS) {
+      for (const stage of STAGES) {
+        for (const genType of GEN_TYPES) {
+          const r = assemble(normalizeSubjectName(subject, stage), stage, genType);
+          if (r) ok += 1;
+        }
+      }
+    }
+    console.log('笛卡尔冒烟 有效', ok, '/', SUBJECTS.length * STAGES.length * GEN_TYPES.length);
+    expect(ok).toBeGreaterThan(0);
+  });
+
+  it('方向1 编辑要素逐条齐全 + 信息不丢 + 方向3 课标锚（合法 486 组合逐条断言，一条不漏）', () => {
     const fails = [];
-    for (const { subject, stage, genType } of combos) {
+    for (const { subject, stage, genType } of LEGAL_COMBOS) {
       const r = assemble(subject, stage, genType);
       if (!r) continue;
       const label = `${subject}|${STAGE_LABEL[stage]}|${GEN_TYPE_NAMES[genType]}`;
@@ -114,9 +129,9 @@ describe('三维度整体拼装审计（全量枚举 15×5×9）', () => {
     expect(fails, `共 ${fails.length} 处方向1/方向3 异常：\n${fails.slice(0, 40).join('\n')}${fails.length > 40 ? `…(共${fails.length})` : ''}`).toEqual([]);
   });
 
-  it('方向2/方向4 黑名单：职责外包句与旧空泛壳句不得在拼装中出现', () => {
+  it('方向2/方向4 黑名单：职责外包句与旧空泛壳句不得在拼装中出现（合法 486 组合）', () => {
     const hits = [];
-    for (const { subject, stage, genType } of combos) {
+    for (const { subject, stage, genType } of LEGAL_COMBOS) {
       const r = assemble(subject, stage, genType);
       if (!r) continue;
       const label = `${subject}|${STAGE_LABEL[stage]}|${GEN_TYPE_NAMES[genType]}`;
@@ -127,9 +142,9 @@ describe('三维度整体拼装审计（全量枚举 15×5×9）', () => {
     expect(hits, `共 ${hits.length} 处外包/旧壳句残留：\n${hits.slice(0, 20).join('\n')}`).toEqual([]);
   });
 
-  it('方向2 整句逐字重复探测（双源冗余自动暴露）', () => {
+  it('方向2 整句逐字重复探测（双源冗余自动暴露，合法 486 组合）', () => {
     const dups = new Map(); // 重复句 → [组合…]
-    for (const { subject, stage, genType } of combos) {
+    for (const { subject, stage, genType } of LEGAL_COMBOS) {
       const r = assemble(subject, stage, genType);
       if (!r) continue;
       const ds = dupSentences(r.full);
