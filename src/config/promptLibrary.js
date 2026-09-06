@@ -20,7 +20,7 @@
 
 import { isLibEntryEnabled } from '../utils/libToggles.js';
 import { resolveStageKey, STAGE_KEY_SET } from '../utils/gradeStage.js'; // 年级→学段唯一事实源（三维度与课标版本标签共用，禁止各自 parseInt 中文年级）
-import { buildCarrierInstruction, buildBlankWidthInstruction } from './layoutSpec.js'; // 载体条款 + 留白换算口径：均由排版规格库按 学科×学段/BLANK 动态生成（单一事实源，禁止在模板里手写死第二套数字/示例）
+import { buildCarrierInstruction, buildAnswerSpaceInstruction } from './layoutSpec.js'; // 书写载体（格子类）+ 作答空间形态语义：均由排版规格库按 学科×学段 动态生成（单一事实源，禁止在模板里手写死第二套措辞/示例）
 
 /** 资料类型中文名（模板列表展示/任务行用）
  * 🔗 命名双轨·资料类型：key 须与 expertKnowledge.genTypeTemplates/genTypeOptions、TYPE_BASES、蓝图库类型 key 完全一致。
@@ -45,13 +45,15 @@ const HAS_EXPRESSION_QUESTIONS = ['语文', '英语']; // 存在写话/写作/�
 const QUESTION_FORMAT = (ctx = {}) => {
   const carrier = (buildCarrierInstruction(ctx.subject, ctx.stage) || '').replace(/。$/, '');
   const hasEx = HAS_EXPRESSION_QUESTIONS.includes(ctx.subject);
-  // 🔧 作答空位口径（2026-09 收敛，防叠句啰嗦）：
-  //   语义句只留一句（layoutSpec BLANK 动态生成）——按答案长度倒推、字数=空格数、手写宽系数与上限属渲染参数；
-  //   客观题留白/空位位置等属模型既有能力，不再注入引导句；
-  //   载体 class 示例（田字格/拼音格/四线三格/方格纸）是"程序↔模型协议"，按 学科×学段 单独成行注入（buildCarrierInstruction）。
-  const lines = [
-    `· 作答书写载体：${buildBlankWidthInstruction()}`,
-  ];
+  // 🔧 作答空间语义（2026-09 生成侧根治）：
+  //   · 通用形态（圈选→圆括号/填空→下划线）与学科书写形态（主观书写→整行横线或无线留白，取 ANSWER_REGION）
+  //     由 layoutSpec.buildAnswerSpaceInstruction 单源生成——替换旧"按书写惯例输出对应作答书写载体"空泛句
+  //     （该句把形态整体交模型语感，是理科解答画横线/该留白画框/文字占位作答区的语义真空源头）；
+  //   · 换算锚（1 字位≈1 全角空格≈1 em）嵌入填空类条款（BLANK 动态生成），只作宽度计数锚；
+  //   · 载体 class 示例（田字格/拼音格/四线三格/方格纸）是"程序↔模型协议"，按 学科×学段 单独成行注入（buildCarrierInstruction）。
+  const lines = [];
+  const answerSpace = buildAnswerSpaceInstruction(ctx.subject, ctx.stage);
+  if (answerSpace) lines.push(answerSpace);
   if (carrier) lines.push(`· 书写载体协议：${carrier}`);
   if (hasEx) lines.push('· 写作/表达类题须完整呈现题目要求（含写作要求），不得只有标题行');
   return lines.join('\n');

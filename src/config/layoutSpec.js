@@ -214,25 +214,60 @@ export function buildCarrierInstruction(subject = '', stage = '') {
 }
 
 /**
- * 填空留白换算口径（注入给模型的语义句）
- *  🔴 单一事实源：字位宽（wordGap em/字位）由 BLANK 计算，规格调整后本句自动跟随；
- *  🔴 不引导主句（2026-09 收敛）：主句不点名任何载体形态词，只讲"书写惯例"与"答案长度↔字位"——
- *     "按书写惯例"把作答载体样式交模型语感，不诱导横线/括号；换算括号仅保留
- *     "全角空格≈字位≈em"作可执行计数锚（用户口径：仅换算锚点，不作形态引导）；
- *     不再注入"单处上限/超长改用整行书写位"（曾使模型对句末短答倾向独立整行书写位）。
- * 🔴 兼容换算句中"不得遗漏"（2026-09）：逐项作答载体（算式方框/括号/横线）一律不可漏项——
- *    避免模型在连列题组（如"5×3＝　4×6＝…"）时末尾漏写作答载体，由模型出口自洽带全；
- *    此处只约束"载体完整性"，不点名具体载体形态，仍不引导横线/括号。
- * 消费方：promptLibrary QUESTION_FORMAT（题为主类型统一注入；内容型不注入）
+ * 填空空位换算锚（注入给模型的计数锚；BLANK 单一事实源——wordGap 等规格调整后本句自动跟随）
+ *  🔴 2026-09 语义收敛：从"按书写惯例输出对应作答书写载体，不得遗漏；书写空间按照答案的长度倒推…"
+ *     收敛为纯换算锚——旧句"按书写惯例"把作答载体形态整体交给模型语感（不点名任何形态词），
+ *     正是理科解答被画横线、该留白被画框、作答区被文字占位等卷面乱象的语义真空源头；
+ *     形态归属已改由 buildAnswerSpaceInstruction 按"答案类型"绑定（圈选→圆括号/填空→下划线/
+ *     主观书写→整行横线或无线留白），本函数只保留"字位↔书写宽"这一可执行计数锚。
+ * 消费方：buildAnswerSpaceInstruction（嵌入填空类条款；单一引用点）
  */
 export function buildBlankWidthInstruction(spec = BLANK) {
   const b = sanitizeBlankSpec(spec);
   const per = b.wordGap; // 1 字位 ≈ per em（字位→书写宽换算系数，渲染端参数；默认 1:1 不放大）
   const perText = String(per);
-  return (
-    `按书写惯例输出对应作答书写载体，不得遗漏；书写空间按照答案的长度倒推，每一长度对应一个字位；并按此换算` +
-    `（1 个全角空格≈1 个字位≈${perText} em 书写宽）`
-  );
+  return `1 字位≈1 个全角空格≈${perText} em 书写宽`;
+}
+
+/**
+ * 作答空间形态语义（注入给模型；主观书写形态单一事实源 = ANSWER_REGION）
+ *  🔴 2026-09 生成侧根治：作答空位形态从"模型语感自由发挥"改为"按答案类型匹配"，且每个形态词
+ *     都绑定答案类型（可核对锚，去孤立形态诱导）：
+ *      · 圈选/判断/选择（填字母/序号/√×）→ 圆括号空位（　）；
+ *      · 填空短答（词/句/数/算式结果/默写）→ 句内或行尾下划线空位，宽度按答案长度（换算锚 BLANK）；
+ *      · 主观书写题形态 = getAnswerRegion(subject, stage).carrier（与程序补差 answer-area-fix
+ *        读同一张表，语义与补差永不打架）：
+ *          carrier='line'（英语全学段/科学全学段/语文低中段）→ 整行书写横线；
+ *          carrier='blank-area'（数学等理科、理化生、史地政、道法、语文中高段论述阅读等）→
+ *          无线留白，不画横线、不画框——对齐中高考答题卡实证（史地政/理科主观=空白作答区；
+ *          语文 middle/high 论述阅读同理改留白，见 ANSWER_REGION 注释）；
+ *      · 严禁用"答：""作答区"等文字充当或预置作答空间（作答空间只以真实留白或书写载体呈现）。
+ *  - 无 subject/stage（通用模板兜底）：只给跨学科成立的形态句，不注入学科书写行分支（防无锚广播）
+ *  - 书写格/作文格等专用载体不在此列（由 buildCarrierInstruction/作文格通道单独约束，两线不冲突）
+ * 消费方：promptLibrary QUESTION_FORMAT（题为主类型统一注入；内容型不注入）
+ */
+export function buildAnswerSpaceInstruction(subject = '', stage = '') {
+  const lines = [
+    '· 作答空间形态按答案类型匹配，不自行发明：',
+    '· 圈选/判断/选择类（填字母、序号或√×）在题末或选项后用圆括号空位（　）作答；',
+    `· 填空类（填词/句/数/默写等短答）在句内或行尾写下划线空位，宽度按答案长度（${buildBlankWidthInstruction()}），连列空位全带、不得遗漏；`,
+    '· 作答空间只以真实留白或书写载体呈现：严禁用"答：""作答区"等文字充当或预置作答空间；',
+  ];
+  if (subject && stage) {
+    // 🔧 算式填空位（数学专用通道，与 normalizeMathCircleBlanks 程序收口同语义）：
+    //    算式单元格的 □/○ 或邻运算符占位最终统一渲染为方框/圆圈（1.8em 容器）——
+    //    不归"填空下划线"通道，显式声明防模型把 3＋□＝8 写成下划线长空（虽程序仍会收口，语义须先对齐）
+    if (subject === '数学') {
+      lines.push('· 算式中的填空位（如 3＋□＝8、□×□＝12）用方框或圆圈呈现，不用下划线空位；');
+    }
+    const region = getAnswerRegion(subject, stage);
+    if (region.carrier === 'line') {
+      lines.push('· 成句成段作答的主观书写题（句子练习/仿写/简答等；写作类另有专用书写载体）按答案篇幅输出整行书写横线，每行一横，不得省略；');
+    } else {
+      lines.push('· 解答/计算/证明/论述/简答/赏析等长答题，作答空间留无线空白（按分值或答案量留足），不画横线、不把留白圈成方框；');
+    }
+  }
+  return lines.join('\n');
 }
 
 /**
@@ -241,7 +276,8 @@ export function buildBlankWidthInstruction(spec = BLANK) {
  *  - linePerScore：需求行数 = 分值 × 系数
  *  - lineHeightMm：行高
  *  - '*' = 通配默认（空白，对齐主流考试惯例——文综/理综主观题空白答题框）；
- *    语文/英语/科学 显式覆盖为横线（阅读/书面表达/简答横线书写）。
+ *    英语/科学 全学段显式覆盖为横线（英语书面表达横线行实证 17cm/行距1cm；科学简答/记录横线）；
+ *    语文 低中段横线（写话/句子练习惯例）、中高段空白（阅读/论述/简答答题卡实证空白作答区）。
  *  ⚠️ 非课标要求，属卷面惯例（各省考试院答题卡规范），可按地区在排版规格库调整。
  * 消费方：examValidator answer-area-fix（题有分值但有效作答行不足 → 按此补差）
  */
@@ -254,11 +290,14 @@ export const ANSWER_REGION = {
     high: { linePerScore: 0.8, lineHeightMm: 7, carrier: 'blank-area' },
   },
   语文: {
+    // 🔧 2026-09 学段对齐（中高考答题卡实证）：语文作文走作文格独立通道；阅读/论述/简答等主观题
+    //    在真实中高考答题卡上为空白作答区（黑色边框内无线空白，调研见 2026-09 实证）→ middle/high 改 blank-area；
+    //    小学低中段写话/句子练习等保留 line（书写横线惯例，低段卷面常见；primary_high 亦保留——小高卷面横线/空白均有，横线对短答更稳）
     primary_low: { linePerScore: 1.4, lineHeightMm: 9, carrier: 'line' },
     primary_mid: { linePerScore: 1.2, lineHeightMm: 8.5, carrier: 'line' },
     primary_high: { linePerScore: 1.0, lineHeightMm: 8, carrier: 'line' },
-    middle: { linePerScore: 0.9, lineHeightMm: 7.5, carrier: 'line' },
-    high: { linePerScore: 0.8, lineHeightMm: 7, carrier: 'line' },
+    middle: { linePerScore: 0.9, lineHeightMm: 7.5, carrier: 'blank-area' },
+    high: { linePerScore: 0.8, lineHeightMm: 7, carrier: 'blank-area' },
   },
   英语: {
     primary_low: { linePerScore: 1.4, lineHeightMm: 9, carrier: 'line' },
