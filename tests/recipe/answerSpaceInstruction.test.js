@@ -19,7 +19,7 @@ describe('buildAnswerSpaceInstruction（通用四行：形态按答案类型绑�
     expect(generic).toBe(
       '· 作答空间形态按答案类型匹配，不自行发明：\n' +
       '· 圈选/判断/选择类（填字母、序号或√×）在题末或选项后用圆括号空位（　）作答；\n' +
-      '· 填空类（填词/句/数/默写等短答）在句内或行尾写下划线空位，宽度按答案长度（1 字位≈1 个全角空格≈1 em 书写宽），连列空位全带、不得遗漏；\n' +
+      '· 填空类（填词/句/数等短答）在句内或行尾写下划线空位，宽度按答案长度（1 字位≈1 个全角空格≈1 em 书写宽），连列空位全带、不得遗漏；\n' +
       '· 作答空间只以真实留白或书写载体呈现：严禁用"答：""作答区"等文字充当或预置作答空间；'
     );
   });
@@ -31,10 +31,11 @@ describe('buildAnswerSpaceInstruction（通用四行：形态按答案类型绑�
     expect(generic).not.toContain(OLD_VAGUE_SENTENCE); // 旧空泛"按书写惯例"句已根治移除
   });
 
-  it('填空类条款不含"算式结果"（算式填空位走方框/圆圈专用通道，不归下划线）', () => {
+  it('填空类条款不含"算式结果/默写"（算式填空位走方框通道；默写形态由写字条款/专用载体管，防竞态）', () => {
     const s = buildAnswerSpaceInstruction();
     expect(s).not.toContain('算式结果');
-    expect(s).toContain('默写等短答');
+    expect(s).not.toContain('默写');
+    expect(s).toContain('填词/句/数等短答');
   });
 
   it('换算锚随 BLANK 动态注入（wordGap=3 时跟随）', () => {
@@ -96,9 +97,15 @@ describe('buildAnswerSpaceInstruction（学科书写形态与 ANSWER_REGION 同�
     }
   });
 
-  it('line 分支不诱导写作类专用载体（作文格等由作文格通道/载体协议单独约束）', () => {
-    const s = buildAnswerSpaceInstruction('英语', 'middle');
-    expect(s).toContain('写作类另有专用书写载体');
-    expect(s).not.toContain('作文格');
+  it('line 分支按学科分流：英语写作含横线引导、语文写作排除（走作文格）、不诱导作文格词', () => {
+    // 英语：写作/续写/书面表达 = 横线体系（2j-5b 程序补横线同语义）——必须含"写作"，绝不可用"另有专用载体"排除
+    const en = buildAnswerSpaceInstruction('英语', 'middle');
+    expect(en).toContain('写作/续写/书面表达/句子练习等）输出整行书写横线');
+    expect(en).not.toContain('另有专用书写载体');
+    // 语文低段：习作/写话另有专用书写载体（作文格通道），横线句不含"写作"
+    const yw = buildAnswerSpaceInstruction('语文', 'primary_low');
+    expect(yw).toContain('习作/写话另有专用书写载体');
+    expect(yw).not.toMatch(/写作[^／]*输出整行书写横线/);
+    expect(yw).not.toContain('作文格'); // 作文格名称由作文格通道管理，此处只说"另有专用书写载体"
   });
 });
