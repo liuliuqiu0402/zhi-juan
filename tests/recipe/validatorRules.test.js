@@ -39,13 +39,19 @@ describe('validatorRules 规则启停开关（双阶段生效）', () => {
 });
 
 describe('validatorRules 规则库完整性', () => {
-  it('fix 类规则必须带生成前约束文案 promptHint（阶段一注入所需）', () => {
+  it('fix 类规则：promptHint 可选（防多源重复）——有 hint 者非空、无 hint 者 description 声明单源', () => {
     const fixRules = VALIDATOR_RULES.filter(r => r.category === 'fix');
     expect(fixRules.length).toBeGreaterThanOrEqual(5);
-    for (const r of fixRules) {
-      expect(r.promptHint, `fix 规则 ${r.id} 缺 promptHint`).toBeTruthy();
+    const withHint = fixRules.filter(r => r.promptHint);
+    expect(withHint.length).toBeGreaterThanOrEqual(3);
+    for (const r of withHint) {
+      expect(r.promptHint.trim().length).toBeGreaterThan(0);
       expect(r.subjects.length).toBeGreaterThan(0);
       expect(r.stages.length).toBeGreaterThan(0);
+    }
+    // 去重后无 promptHint 的 fix（程序职责由 description 声明；注入语义由其它块单源承载）
+    for (const r of fixRules.filter(r => !r.promptHint)) {
+      expect(r.description, `${r.id} 无 promptHint 须在 description 声明单源理由`).toMatch(/单源注入|不再提供 promptHint/);
     }
   });
 
