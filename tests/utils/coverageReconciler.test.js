@@ -28,7 +28,8 @@ describe('coverageReconciler 对账器', () => {
     expect(rep.required).toBe(true);
     expect(rep.total).toBe(3);
     expect(rep.coveredCount).toBe(2); // 小数乘整数/积的近似数 已出现
-    expect(rep.missing).toEqual([{ chapter: '第1单元 小数乘法', name: '小数乘小数' }]);
+    expect(rep.missing.map((m) => m.name)).toEqual(['小数乘小数']);
+    expect(rep.missing[0].probeable).toBe(true); // 概念考点可指名补漏
     expect(rep.coverage).toBe(0.67); // reconcile 内已四舍五入到两位
   });
 
@@ -59,7 +60,8 @@ describe('coverageReconciler 对账器', () => {
     const rep = reconcileCoverage({ genType: 'practice', content: html, anchors });
     const note = coverageNoteOf(rep);
     expect(note).toContain('覆盖对账');
-    expect(note).toContain('第1单元 小数乘法：小数乘小数');
+    expect(note).toContain('第1单元 小数乘法');
+    expect(note).toContain('小数乘小数');
     expect(coverageNoteOf(reconcileCoverage({ genType: 'focus', content: html, anchors }))).toBe('');
   });
 
@@ -68,5 +70,32 @@ describe('coverageReconciler 对账器', () => {
     const rep = reconcileCoverage({ genType: 'practice', content: fullHtml, anchors });
     expect(rep.missing).toEqual([]);
     expect(coverageNoteOf(rep)).toBe('');
+  });
+
+  // 🔴 根治回归：行为/语义考点（"方法/意义/规律/应用"）正文以情境题目体现、不会逐字出现，
+  //    此前逐考点词面判定导致 18/18 全误报。现行为考点 → 章级聚合：章内任一考点命中即视为该章行为族已覆盖。
+  it('行为语义考点（计算方法/规律/应用）→ 章级聚合，不逐词误报缺漏', () => {
+    const behAnchors = buildAnchors([mkCard('一 小数乘法（二）', [
+      '小数乘法的计算方法',           // 行为 → 章级
+      '一个数乘大于1或小于1的数的规律', // 行为 → 章级
+      '估算与近似值在实际中的应用',     // 行为 → 章级
+      '循环小数',                     // 概念 → 精确
+    ], segs)], {}).anchors;
+    // 正文只"字面"出现 循环小数 之外的概念行为（情境化题目，无上述行为考点原文词）
+    const behHtml = '<h2>小数乘法</h2><p>在情境中完成小数乘法计算并验证积的大小。</p><p>练习：保留两位小数。</p>';
+    const rep = reconcileCoverage({ genType: 'practice', content: behHtml, anchors: behAnchors });
+    // 行为考点均落地章级 → 不逐词误报；唯一精确概念"循环小数"未出现 → 准确实报
+    expect(rep.missing.map((m) => m.name)).toEqual(['循环小数']);
+    expect(rep.missing[0].probeable).toBe(true);
+    // 该章唯一概念考点未出现 → 章级提示必然伴随（保守双报，不新增行为考点冒充缺漏）
+    expect(rep.missingChapters.map((c) => c.chapter)).toEqual(['一 小数乘法（二）']);
+  });
+
+  it('整章零命中 → 进入 missingChapters（章级提示），行为考点不逐条报', () => {
+    const behAnchors = buildAnchors([mkCard('二 未知单元', ['某概念', '计算的方法', '应用规律'], segs)], {}).anchors;
+    const rep = reconcileCoverage({ genType: 'practice', content: '<p>与本单元考点无关的一页。</p>', anchors: behAnchors });
+    expect(rep.missingChapters.map((c) => c.chapter)).toEqual(['二 未知单元']);
+    // 该章概念考点也进 missing（可指名补漏）；行为考点不逐条进 missing（防诱导）
+    expect(rep.missing.map((m) => m.name)).toEqual(['某概念']);
   });
 });

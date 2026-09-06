@@ -410,6 +410,7 @@ const retrieveBlueprintSegments = (contentCards, parsedBlueprint, maxChars = 150
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
 import { reconcileCoverage, reconcileCoverageStats, coverageNoteOf } from '../utils/coverageReconciler.js';
+import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { reconcileDomains, domainNoteOf } from '../utils/domainReconciler.js';
 import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
@@ -5115,6 +5116,15 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     const sampledStats = reconcileCoverageStats({ genType, content, anchors });
     if (sampledStats && (anchors || []).length) {
       console.log(`[覆盖对账·sampled] ${genType}：绑定考点在正文出现 ${sampledStats.coveredCount}/${sampledStats.total}（覆盖率 ${sampledStats.coverage}，抽样类型仅统计不补漏）`);
+    }
+
+    // 🔴 内容合理性扫描（2026-09 生成侧根治·确定性兜底）：正文+答案区做确定性违规信号检测
+    //    （荒谬计数倒推 / 同单位换算数值突变），只报不改、中性透出到问题列表，导人工修订——不自动篡改正文。
+    const sanityIssues = sanityScan(finalContent);
+    const sanityNote = sanityNoteOf(sanityIssues);
+    if (sanityNote) {
+      auditWarnings.push(sanityNote);
+      console.warn(`⚠️ [内容合理性] ${sanityIssues.length} 处数据裂缝：${sanityIssues.join('；')}`);
     }
 
     // 🔴 领域覆盖对账（2026-09 P3·机制补缺）：仅正式卷（exam）且学科已登记领域契约时执行，
