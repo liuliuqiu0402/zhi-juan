@@ -3,7 +3,8 @@
 // 🔴 口径（2026-09）：不是 15×5 笛卡尔积抽样，而是以 SUBJECT_STAGE_EXTRAS 的 54 个合法
 //   学科×学段 cells（与 STAGE_SUBJECTS 全覆盖对齐的事实源）为真实开设矩阵，
 //   对每个合法科段 × 9 资料类型（54×9=486 组合）逐条拼装整体指令，按编辑者视角四方向审计：
-//   方向1 编辑要素达标（内容+排版清单逐条，见 EDITOR_MUST）；
+//   方向1 编辑要素达标（编辑者角度：内容要素 CONTENT_MUST 与排版要素 LAYOUT_MUST 两栏逐条断言
+//       + 信息不丢（质检规则/教辅结构/卷面结构明细非空）+ 类型不串味（内容型不泄漏题类条款））；
 //   方向2 冗余/矛盾（整句逐字重复 + 外包/旧壳句黑名单直查）；
 //   方向3 课标（54 cells 非空 = 学科×学段要点无缺失；课标锚点每组合含）；
 //   方向4 审核基准（单一事实源 A / 学段收敛 B / 去诱导 C / 模型职责 D）。
@@ -62,14 +63,24 @@ function dupSentences(text) {
   return [...counts.entries()].filter(([, n]) => n > 1).map(([s, n]) => `${n}× ${s.slice(0, 60)}…`);
 }
 
-/** 方向1 编辑要素清单（内容要素 + 排版要素，按类型分检；特征词均为拼装整体指令中真实出现的稳定文本） */
-const EDITOR_MUST = {
+/** 方向1 内容要素清单（编辑者审"内容"：质量底线/课标学段锚/创作要求/作答形态自洽/教辅与内容结构）。
+ *  特征词均为拼装整体指令中真实出现的稳定条款文本；按类型分检。 */
+const CONTENT_MUST = {
   common: ['质量底线', '课标', '学段'],
-  question: ['【创作要求】', '【输出格式】', '作答空间形态按答案类型匹配', '卷面自洽（编辑自查总纲', '教辅结构'],
-  content: ['【创作要求】', '【输出格式】', '结构化呈现', '教辅结构'],
-  exam: ['【创作要求】', '【卷面结构】', '密封线', '卷面自洽（编辑自查总纲'],
+  question: ['【创作要求】', '作答空间形态按答案类型匹配', '卷面自洽（编辑自查总纲', '教辅结构'],
+  content: ['【创作要求】', '结构化呈现', '教辅结构'],
+  exam: ['【创作要求】', '卷面自洽（编辑自查总纲'],
 };
-const KEY_MUST = EDITOR_MUST;
+
+/** 方向1 排版要素清单（编辑者审"排版"：输出格式条款/卷面结构/密封线；结构明细与版面质检规则以非空断言补足）。 */
+const LAYOUT_MUST = {
+  question: ['【输出格式】'],
+  content: ['【输出格式】'],
+  exam: ['【卷面结构】', '密封线'],
+};
+
+/** 方向1 内容要素分支：content 型另有"不串味"负向断言（不泄漏题类条款），排版面由 LAYOUT_MUST + 非空断言覆盖 */
+const branchOf = (genType) => (genType === 'exam' ? 'exam' : QUESTION_TYPES.includes(genType) ? 'question' : 'content');
 
 /** 方向2/4 黑名单：职责外包句（模型该输出的内容外包给程序——违反基准 D）、旧空泛壳句复活 */
 const FORBIDDEN_SNIPPETS = [
@@ -102,28 +113,28 @@ describe('三维度整体拼装审计（真实开设矩阵 54 科段 × 9 类型
     expect(ok).toBeGreaterThan(0);
   });
 
-  it('方向1 编辑要素逐条齐全 + 信息不丢 + 方向3 课标锚（合法 486 组合逐条断言，一条不漏）', () => {
+  it('方向1 编辑要素两栏逐条：内容要素 CONTENT_MUST + 排版要素 LAYOUT_MUST + 信息不丢 + 类型不串味（合法 486 组合，一条不漏）', () => {
     const fails = [];
     for (const { subject, stage, genType } of LEGAL_COMBOS) {
       const r = assemble(subject, stage, genType);
       if (!r) continue;
       const label = `${subject}|${STAGE_LABEL[stage]}|${GEN_TYPE_NAMES[genType]}`;
       const t = r.full;
-      for (const k of KEY_MUST.common) if (!t.includes(k)) fails.push(`${label} 缺【${k}】`);
+      const branch = branchOf(genType);
+      for (const k of CONTENT_MUST.common) if (!t.includes(k)) fails.push(`${label} 内容要素缺【${k}】`);
+      for (const k of CONTENT_MUST[branch]) if (!t.includes(k)) fails.push(`${label} 内容要素缺【${k}】`);
+      for (const k of LAYOUT_MUST[branch]) if (!t.includes(k)) fails.push(`${label} 排版要素缺【${k}】`);
       if (genType === 'exam') {
-        for (const k of KEY_MUST.exam) if (!t.includes(k)) fails.push(`${label} 缺【${k}】`);
-        if (!r.vp) fails.push(`${label} exam 缺版面质检规则`);
-        if (!r.structure) fails.push(`${label} exam 缺卷面结构明细`);
+        if (!r.vp) fails.push(`${label} 排版要素缺版面质检规则`);
+        if (!r.structure) fails.push(`${label} 排版要素缺卷面结构明细`);
       } else if (QUESTION_TYPES.includes(genType)) {
-        for (const k of KEY_MUST.question) if (!t.includes(k)) fails.push(`${label} 缺【${k}】`);
-        if (!r.vp) fails.push(`${label} question 缺版面质检规则`);
-        if (!r.teaching) fails.push(`${label} 非 exam 缺教辅结构注入`);
+        if (!r.vp) fails.push(`${label} 排版要素缺版面质检规则`);
+        if (!r.teaching) fails.push(`${label} 内容要素缺教辅结构注入`);
       } else {
-        for (const k of KEY_MUST.content) if (!t.includes(k)) fails.push(`${label} 缺【${k}】`);
-        if (t.includes('卷面自洽（编辑自查总纲')) fails.push(`${label} 内容型泄漏题类条款：卷面自洽`);
-        if (t.includes('作答空间形态按答案类型匹配')) fails.push(`${label} 内容型泄漏作答空间语义`);
-        if (t.includes('· 书写载体协议：')) fails.push(`${label} 内容型泄漏书写载体协议条款`);
-        if (!r.teaching) fails.push(`${label} 内容型缺教辅结构注入`);
+        if (t.includes('卷面自洽（编辑自查总纲')) fails.push(`${label} 内容型串味：泄漏题类条款"卷面自洽"`);
+        if (t.includes('作答空间形态按答案类型匹配')) fails.push(`${label} 内容型串味：泄漏作答空间语义`);
+        if (t.includes('· 书写载体协议：')) fails.push(`${label} 内容型串味：泄漏书写载体协议条款`);
+        if (!r.teaching) fails.push(`${label} 内容要素缺教辅结构注入`);
       }
     }
     expect(fails, `共 ${fails.length} 处方向1/方向3 异常：\n${fails.slice(0, 40).join('\n')}${fails.length > 40 ? `…(共${fails.length})` : ''}`).toEqual([]);
