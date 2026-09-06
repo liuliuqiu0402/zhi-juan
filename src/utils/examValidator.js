@@ -1232,59 +1232,82 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const end = headsK[i + 1] || null;
         while (node && node !== end) { secNodes.push(node); node = node.nextSibling; }
         if (secNodes.length === 0) return;
-        // 🔧 大题级载体预检（根治"题号行只带例句被误补"）：整大题任何位置有作答载体/样题/专用格线
-        //    → 跳过补差。题号行"3. 照样子…"后只有例句"例：…"（子题 (1)(2)(3) 的空位/田字格在各自
-        //    item 的 seg 里，item 级判定看不到）——历史事故：归类/仿写/圈选类题被补 5~9 行横线
-        const secAllHtml = secNodes.map(n => n.outerHTML || n.textContent || '').join('');
-        const secAllText = (head.textContent || '') + secNodes.map(n => n.textContent || '').join('');
-        const sectionHasCarrier = parenBlankTest.test(secAllHtml)
-          || blankTagTest.test(secAllHtml)
-          || fullWidthBlankTest.test(secAllHtml)
-          || /match-question|match-item|zuo-wen-ge|square-grid|bracket-grid|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge/.test(secAllHtml)
-          || countOptions(secAllHtml) > 0
-          || /照样子|例[：:、]|圈出|归类|填一填|填空|选一选|选词|连一连|判断|选择|划出/.test(secAllText);
-        if (sectionHasCarrier) return;
-        // 大题内小题（题号行：优先"1."式顶层题号；无顶层题号时回退"（1）"式子题行）；无题号行时整大题视为一个作答项（如书面表达）
-        // 🔴 子题防误补：顶层题号与子题号并存时，子题（1）（2）归入父题作答段，不独立度量/补空间（防子题间误插横线）
-        const itemPs = (() => {
-          const top = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p'
-            && /^\s*\d+[.、．]/.test((n.textContent || '').trim()));
-          if (top.length > 0) return top;
-          return secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p'
-            && /^\s*[(（]\d+[)）]/.test((n.textContent || '').trim()));
-        })();
-        const items = itemPs.length > 0
-          ? itemPs.map((p, k) => {
-              const t = (p.textContent || '').trim();
-              const tm = t.match(/共\s*(\d+(?:\.\d+)?)\s*分/);
-              const im = t.match(/[（(][^）)]*?(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
-              const m = tm || im;
-              const seg = [];
-              let sn = p.nextSibling;
-              const e2 = itemPs[k + 1] || null;
+        // 🔧 2026-09 根治"课时练整卷无作答空间"（用户 docx 实证）：原"大题级载体预检"见段内任一处
+        //    括号空/填空/判断/“填空”字样即整段 return → 本卷三大题分别因题4“判断”、题10/11 括号空、
+        //    题18“再填空”整段跳过 → 段内所有长答主观题（写过程/说明/设计/举例）一律无作答空间。
+        //    修法：移除段级粗跳过，下沉到“题块/子题块”级——每块（顶层题或子题）独立判定，
+        //    填空块自带载体跳过、长答块独立补差，互不拖累；子题块行数给 2 行兜底（防整题四连大空白），
+        //    无子题的整题块维持 4 行兜底。
+        const NO_SCORE_ROWS = 4;       // 整题块（无子题）无分值兜底行数
+        const NO_SCORE_SUB_ROWS = 2;   // 子题块无分值兜底行数（子题粒度，防大题内连片大空白）
+        const scoreIn = (pp) => {
+          const t = (pp.textContent || '').trim();
+          const tm = t.match(/共\s*(\d+(?:\.\d+)?)\s*分/);
+          const im = t.match(/[（(][^）)]*?(\d+(?:\.\d+)?)\s*分[^）)]*?[)）]/);
+          const m = tm || im;
+          return m ? parseFloat(m[1]) : null;
+        };
+        const subRe = /^\s*[(（]\d+[)）]/;
+        const secNodesPs = (arr) => arr.filter((n) => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p');
+        const items = [];
+        const topPs = secNodesPs(secNodes).filter((n) => /^\s*\d+[.、．]/.test((n.textContent || '').trim()));
+        if (topPs.length === 0) {
+          // 无顶层题号：回退子题号行；仍无 → 整段一块（书面表达等长答形态）
+          const subPs = secNodesPs(secNodes).filter((n) => subRe.test((n.textContent || '').trim()));
+          if (subPs.length === 0) {
+            items.push({ p: head, score: scoreMatch ? parseFloat(scoreMatch[1]) : null, seg: secNodes, sub: false });
+          } else {
+            subPs.forEach((sp, k) => {
+              const seg = []; let sn = sp.nextSibling; const e2 = subPs[k + 1] || null;
               while (sn && sn !== e2) { seg.push(sn); sn = sn.nextSibling; }
-              return { p, score: m ? parseFloat(m[1]) : null, seg };
-            })
-          : [{ p: head, score: scoreMatch ? parseFloat(scoreMatch[1]) : null, seg: secNodes }];
-        // 🔧 无分值模式兜底行数（教辅/练习主观解答题无任何载体时补此数；卷面惯例，
-        //    与 2j-5b 英语写作无分值兜底 8 行同模式——如需地区化可上收排版规格库 ANSWER_REGION）
-        const NO_SCORE_ROWS = 4;
+              items.push({ p: sp, score: scoreIn(sp), seg, sub: true });
+            });
+          }
+        } else {
+          for (let k = 0; k < topPs.length; k++) {
+            const p = topPs[k];
+            const e2 = topPs[k + 1] || null;
+            const segNodes = []; let sn = p.nextSibling;
+            while (sn && sn !== e2) { segNodes.push(sn); sn = sn.nextSibling; }
+            const subPs = secNodesPs(segNodes).filter((n) => subRe.test((n.textContent || '').trim()));
+            if (subPs.length === 0) {
+              // 整题一块：题号行 + 其后全部内容（如题 19/20 长答任务、题 5/8 填空判断）
+              items.push({ p, score: scoreIn(p), seg: segNodes, sub: false });
+            } else {
+              // 子题块：每个子题行与其后段独立成块——填空/判断子题（自带载体）跳过、
+              // 长答子题（写过程/说明…）独立补差；顶层情境题干不作为作答块（无作答需求）
+              // ctx = 顶层题干文本：竖式/作图/判断等"书写形态与结构性题型"语境随子题继承
+              //（填空类不继承——填空由子题自身括号空判定，防止顶层"再填空"字样拖累长答子题）
+              const ctx = (p.textContent || '').trim();
+              subPs.forEach((sp, j) => {
+                const subSeg = []; let s2 = sp.nextSibling; const e3 = subPs[j + 1] || null;
+                while (s2 && s2 !== e3) { subSeg.push(s2); s2 = s2.nextSibling; }
+                items.push({ p: sp, score: scoreIn(sp), seg: subSeg, sub: true, ctx });
+              });
+            }
+          }
+        }
         for (const it of items) {
           const isNoScore = it.score == null;
           if (!isNoScore && (it.score <= 0 || it.score > 15)) continue;
-          // 题号行 + 作答段统一克隆扫描（含嵌套 p/div/section）
+          // 题块首行 + 作答段统一克隆扫描（含嵌套 p/div/section）
           const wrap = document.createElement('div');
           wrap.appendChild(it.p.cloneNode(true));
           for (const sn of it.seg) wrap.appendChild(sn.cloneNode(true));
           const scanEls = Array.from(wrap.querySelectorAll('p, div, section'));
           const segHtml = it.seg.map(n => n.outerHTML || n.textContent || '').join('');
-          const segAll = (it.p.outerHTML || '') + segHtml; // 题号行自身的括号空位/填空格/选项也要参与载体判定
+          const segAll = (it.p.outerHTML || '') + segHtml; // 块首行自身的括号空位/填空格/选项也要参与载体判定
           const stem = (it.p.textContent || '').trim();
-          // 已有载体/题型 → 跳过（填空括号、引号/全角空格空位、填空格、连线、专用格线、选项、圈选/判断/写作类）
+          // 已有载体/题型 → 跳过（填空括号、引号/全角空格空位、填空格、连线、专用格线、选项）
           if (parenBlankTest.test(segAll) || blankTagTest.test(segAll) || fullWidthBlankTest.test(segAll)) continue;
           if (/match-question|match-item|zuo-wen-ge|square-grid|bracket-grid|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge/.test(segAll)) continue;
           if (countOptions(segAll) > 0) continue;
-          if (/(?:选择|选一选|选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|写话|习作|作文|写作|填一填|填空|填字|口算|直接写得数)/.test(stem)) continue;
+          // 结构性题型排除（判文 = 顶层 ctx + 块首行：判断/选择/连线/圈出/口算/仿写等整题形态，
+          //    由父题语境继承——如父题"判断…在○里填"下所有子题不补）；
+          // 填空/写作类排除仅看块首行自身（填空由上方括号空判定；父题"再填空"字样不得拖累长答子题）
+          const ctxText = it.ctx || '';
+          if (/(?:选择|选一选|选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|口算|直接写得数|照样子|例[：:、]|圈出|归类|选词|划出|仿写)/.test(`${ctxText} ${stem}`)) continue;
+          if (/(?:写话|习作|作文|写作|填一填|填空|填字)/.test(stem)) continue;
           // 度量有效作答行（纯空行/题间空行不计；内嵌填空下划线=已有载体 → 跳过）
           let rows = 0;
           let hasFillIn = false;
@@ -1305,15 +1328,18 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             }
           }
           if (hasFillIn) continue;
-          const need = isNoScore ? NO_SCORE_ROWS : needRows(it.score);
+          const need = isNoScore
+            ? (it.sub ? NO_SCORE_SUB_ROWS : NO_SCORE_ROWS)
+            : needRows(it.score);
           if (rows >= need) continue;
           // 🔧 专用作答区语境防错配（2026-09；遵守"补差不越权 / 静默不误报"固化基准）：
           //    竖式（需格状书写区）、作图（需空白区）、填表（需表格）类题在题内确无任何作答载体时，
           //    generic 横线/空白行是错配兜底 → 不落通用补差，改静默抽检提示（notice）交人工确认；
           //    已有对应载体（bracket-grid/draw-area/square-grid/<table>）或已有填空位/作答行
           //    （上方已 continue）一律不打扰；"观察统计表/图表回答问题"等读表题不含作答动词，不命中。
-          //    只读题面文本（stem+题内 seg），不向模型注入任何新要求（不碰 prompt）。
-          const specText = (stem + '\n' + segHtml).replace(/\s+/g, '');
+          // 只读题面文本（ctx 顶层语境 + 块首行 + 块内段；竖式/作图/填表语境多声明在父题题干，
+          //    不向模型注入任何新要求（不碰 prompt）。
+          const specText = (ctxText + '\n' + stem + '\n' + segHtml).replace(/\s+/g, '');
           let specNeeds = '';
           if (/用竖式计算|竖式计算|列竖式|竖式/.test(specText)) specNeeds = '竖式';
           else if (/画(?:出|一画).{0,8}?(?:线段|射线|直线|对称轴?|图形|示意|光路|电路)|示意图|光路图|电路图|作图|画一画|接着画|按规律(?:接着)?画/.test(specText)) specNeeds = '作图';
@@ -1350,7 +1376,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           issues.push({
             severity: 'info', type: 'answer-area',
             message: isNoScore
-              ? `已补作答空间：大题「${title.slice(0, 14)}」某题补 ${diff} 行${region.carrier === 'line' ? '横线' : '空白'}（无分值题按题型惯例兜底${NO_SCORE_ROWS}行，原有效作答行${rows}）`
+              ? `已补作答空间：大题「${title.slice(0, 14)}」某${it.sub ? '子题' : '题'}补 ${diff} 行${region.carrier === 'line' ? '横线' : '空白'}（无分值题按题型惯例兜底${it.sub ? NO_SCORE_SUB_ROWS : NO_SCORE_ROWS}行，原有效作答行${rows}）`
               : `已补作答空间：大题「${title.slice(0, 14)}」某题补 ${diff} 行${region.carrier === 'line' ? '横线' : '空白'}（分值${it.score}×系数${region.linePerScore}，原有效作答行${rows}）`,
           });
         }

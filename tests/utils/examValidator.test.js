@@ -719,6 +719,35 @@ describe('examValidator 书写作答空间保障（answer-area-fix）', () => {
     const { html: out } = auditExamPaper(html, { subject: '数学', stage: 'primary_high', genType: 'practice' });
     expect(countBlankArea(out)).toBe(0);
   });
+
+  it('混合大题（填空/判断/竖式/长答混排）：段级不再被"填空/判断"字样拖累，长答题独立补差（根治整卷无空间）', () => {
+    const html = [
+      '<h2>一、基础建构任务</h2>',
+      '<p>1. 2.5×12 表示求(　　　　)个(　　　　)是多少。</p>',
+      '<p>2. 判断下面各题的积与第一个乘数相比，在○里填"＞"或"＜"：6.25×1.5○6.25。</p>',
+      '<p>3. 说一说：一个数乘大于1的数，积比这个数(　　　　)。</p>',
+      '<p>4. 苹果单价 6.25 元/千克，买 1.5 千克。请先用竖式算出精确结果。</p>',
+      '<p>5. 请写出这次活动的完整计算过程：先算总成本，再算收入与总利润。</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, { subject: '数学', stage: 'primary_high', genType: 'practice' });
+    // 题1/3 括号空、题2 判断、题4 竖式 → 不补；题5 长答（无子题）→ 补 4 行空白（曾因段内"填空/判断"字样整段 return）
+    expect(countBlankArea(out)).toBe(4);
+    expect(issues.some((i) => i.type === 'answer-area' && i.message.includes('兜底4行'))).toBe(true);
+  });
+
+  it('子题混合（(1)(2)填空 + (3)长答 同题）：填空子题不补、长答子题独立补 2 行（子题级根治）', () => {
+    const html = [
+      '<h2>二、探究进阶任务</h2>',
+      '<p>6. 班级义卖手工书签，每张成本 0.85 元，一共做了 50 张。</p>',
+      '<p>(1) 总成本是(　　　　)元。</p>',
+      '<p>(2) 如果全部卖出，总收入是(　　　　)元。</p>',
+      '<p>(3) 请写出这次义卖活动的完整计算过程：先算总成本，再算收入与总利润。</p>',
+      '<p>7. 说一说：解决实际问题时什么时候该"进一"？请举一个生活中的例子并写出算式。</p>',
+    ].join('\n');
+    const { html: out } = auditExamPaper(html, { subject: '数学', stage: 'primary_high', genType: 'practice' });
+    // (1)(2) 填空括号空 → 不补；(3) 长答子题 → 补 2 行；题7 整题长答（无子题）→ 补 4 行
+    expect(countBlankArea(out)).toBe(6);
+  });
 });
 
 describe('examValidator 英语书面表达横线补差（2j-5b，2026-08）', () => {

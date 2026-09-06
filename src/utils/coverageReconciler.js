@@ -95,11 +95,29 @@ export const reconcileCoverage = ({ genType = '', content = '', anchors = [] } =
 
   const total = byChapter.size ? [...byChapter.values()].reduce((n, l) => n + l.length, 0) : 0;
   const coveredCount = coveredNames.length;
+  // 🔧 同族放宽（2026-09 用户定 B·精确版）：仅"同一概念族"部分呈现时不逐条报——
+  //    如小数的分类族（循环小数/有限小数/无限小数/无限不循环小数）中任一概念已呈现，
+  //    同族其余并列概念缺漏不再逐条报（部分呈现即提示到族，防对课时练逐条打扰）；
+  //    非族内并列概念（如"小数乘整数"已现 ≠ "小数乘小数"覆盖）不受放宽，仍逐条报。
+  const CONCEPT_FAMILIES = [
+    { id: 'decimal-class', keys: ['循环小数', '有限小数', '无限小数', '无限不循环小数'] },
+  ];
+  const familyOf = (name = '') => {
+    for (const f of CONCEPT_FAMILIES) {
+      if (f.keys.some((k) => name.includes(k))) return f.id;
+    }
+    return null;
+  };
+  const finalMissing = missing.filter((m) => {
+    const fid = familyOf(m.name);
+    if (!fid) return true;                                  // 非族概念照报
+    return !coveredNames.some((n) => familyOf(n) === fid); // 族内概念：无同族覆盖才报
+  });
   return {
     genType, mode, required: true, total,
     coveredCount,
     coverage: total ? +(coveredCount / total).toFixed(2) : 1,
-    missing, missingChapters, coveredNames,
+    missing: finalMissing, missingChapters, coveredNames,
   };
 };
 

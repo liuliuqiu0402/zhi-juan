@@ -452,6 +452,15 @@ export function normalizeBlankMarkers(html = '') {
   // 🔧 拆裸 <u> 空壳：模型把下划线写进无 class 的 <u>（<u>____</u>/<u>（　　）</u>），先被上面规则转成
   //    u.blank-N/span.blank-N 后外层 <u> 仍在 → 下划线叠下划线/叠括号。外层仅包一个 blank 空位时拆壳
   out = out.replace(/<u(?![^>]*class=)[^>]*>\s*(<(u|span) class="blank-\d+">&emsp;<\/\2>)\s*<\/u>/gi, '$1');
+  // 🔧 跨类型空位叠写去重（2026-09 实证：题 10"0.86×3.2 ＿（　）"——模型把同一答案位写成
+  //    "填空横线 <u class='blank-N'> + 括号空 <span class='blank-N'>"两种载体相邻叠加，导出成"横线后括号"；
+  //    仅收敛"跨类型紧邻"（u↔span 间隔仅空白/实体）：保留后出现的一种形态（同题并列空位由生成语义
+  //    统一为多数形态，此处只是把叠写的一处去重）；连续同类型标签（"( )( )"双括号空等）是并列双空，
+  //    不去重。空位标签内含 &emsp; 实体（span.innerHTML='&emsp;' 或字面），内文不限。
+  const blankTagOne = (tag) => `<${tag}[^>]*class=["'][^"']*blank-\\d+[^"']*["'][^>]*>[\\s\\S]*?<\\/${tag}>`;
+  out = out
+    .replace(new RegExp(`(${blankTagOne('u')})((?:\\s|&emsp;|&#8195;|&#x2003;|&nbsp;)*)(${blankTagOne('span')})`, 'gi'), '$2$3')
+    .replace(new RegExp(`(${blankTagOne('span')})((?:\\s|&emsp;|&#8195;|&#x2003;|&nbsp;)*)(${blankTagOne('u')})`, 'gi'), '$2$3');
   // ④ 🔧 还原密封信息栏占位（＿ 原样保留，交给排版/导出端 sealText.normalizeSealBlanks 统一扩 8 全角）
   if (sealKeeps.length) {
     out = out.replace(/\uE000(\d+)/g, (_m, i) => '＿'.repeat(sealKeeps[Number(i)] || 0));

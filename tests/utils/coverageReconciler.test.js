@@ -126,4 +126,23 @@ describe('coverageReconciler 对账器', () => {
     // 积/商的近似值已由"保留两位/保留整数"等价呈现覆盖；仅循环小数真缺
     expect(rep.missing.map((m) => m.name)).toEqual(['循环小数']);
   });
+
+  it('同族放宽（用户定 B）：章内"循环小数"已呈现 → 同章并列概念"有限/无限小数、无限不循环小数"不再逐条报缺', () => {
+    const anchors = buildAnchors([mkCard('一 小数乘法和除法（二）', [
+      '循环小数',               // 概念 → 精确；本用例中已字面呈现
+      '有限小数与无限小数',     // 同族并列概念
+      '无限不循环小数',
+    ], segs)], {}).anchors;
+    const html = '<p>1. 1÷3＝0.333…，小数部分数字不断重复出现，像这样的小数叫作（循环小数）。请再举一个循环小数的例子。</p>';
+    const rep = reconcileCoverage({ genType: 'practice', content: html, anchors });
+    // 章内已有概念类命中（循环小数）→ 同族其余概念不逐条报（部分呈现即提示到族，防打扰）
+    expect(rep.missing).toEqual([]);
+    expect(rep.missingChapters).toEqual([]);
+  });
+
+  it('整章零命中（无任何概念呈现）→ 同族放宽不生效，概念仍逐条报缺', () => {
+    const anchors = buildAnchors([mkCard('一 未知单元', ['循环小数', '有限小数与无限小数'], segs)], {}).anchors;
+    const rep = reconcileCoverage({ genType: 'practice', content: '<p>与本单元考点无关的内容。</p>', anchors });
+    expect(rep.missing.map((m) => m.name).sort()).toEqual(['循环小数', '有限小数与无限小数']);
+  });
 });
