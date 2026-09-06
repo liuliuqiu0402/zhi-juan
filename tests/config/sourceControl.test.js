@@ -34,6 +34,20 @@ describe('课标出处受控：54 科段要点 source 单一受控清单（CI �
     expect(bad, `自造出处 ${bad.length} 处：\n${bad.slice(0, 30).join('\n')}`).toEqual([]);
   });
 
+  it('课标体系与学段匹配：义教学段（小学低/中/高段、初中）出处仅允许 2022 义教课标；高中学段仅允许 高中…课标(2017/2020)', () => {
+    const bad = [];
+    for (const [cell, v] of CELLS) {
+      const stage = cell.split('|')[1];
+      const src = (v.source || '').trim();
+      if (stage === 'high') {
+        if (!/^高中.+课标\(2017\/2020\)/.test(src)) bad.push(`${cell}: 高中学段须用高中课标(2017/2020)出处，实得：${src.slice(0, 30)}`);
+      } else if (!/^2022义教/.test(src)) {
+        bad.push(`${cell}: 义教学段(${stage})须用 2022 义教课标出处，实得：${src.slice(0, 30)}`);
+      }
+    }
+    expect(bad, `学段↔课标体系错配 ${bad.length} 处（义教=2022义教 / 高中=高中课标2017/2020，两体系素养与学段目标不同，禁止混用）：\n${bad.slice(0, 30).join('\n')}`).toEqual([]);
+  });
+
   it('科段键与 STAGE_SUBJECTS 全覆盖对齐（54 cells 事实源自洽）', () => {
     // SUBJECT_STAGE_EXTRAS 键集合即真实开设矩阵（assemblyMatrix 以此遍历 486），键须可解析为 学科|学段
     const bad = CELLS.filter(([cell]) => !/^[^|]+\|[^|]+$/.test(cell)).map(([cell]) => cell);
