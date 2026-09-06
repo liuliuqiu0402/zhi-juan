@@ -154,7 +154,7 @@ describe('promptLibrary 课标版本按学段注入', () => {
 
 /**
  * 答案区复述治理：非 exam 自包含教辅（知识总结/复习/课前预习/默写积累）正文本身即内容梳理，
- * 答案区必须只对练习/自测/例题作答，严禁把正文的知识框架/重点梳理/考点梳理整体复述——正文已提供，答案区不复述。
+ * 答案区必须只对练习/自测/例题作答，严禁把正文的知识框架/重点梳理/核心知识梳理整体复述——正文已提供，答案区不复述。
  */
 describe('非exam教辅答案区不复述正文（自包含教辅防重复）', () => {
   it('ANSWER_ROLES.other：summary/review/preview/dictation 显式"严禁复述正文梳理，仅对题目作答"，典型例题已在正文讲解展示、答案区不重复', () => {
@@ -162,7 +162,7 @@ describe('非exam教辅答案区不复述正文（自包含教辅防重复）', 
       const role = ANSWER_ROLES.other(gt);
       expect(role).toContain('仅针对正文中的练习/自测/变式逐题作答');
       expect(role).toContain('典型例题的解答与解析已在正文讲解展示');
-      expect(role).toContain('严禁将正文的知识框架/重点梳理/考点梳理/易错辨析/默写内容等梳理正文整体复述到答案区');
+      expect(role).toContain('严禁将正文的知识框架/重点梳理/核心知识梳理/易错辨析/默写内容等梳理正文整体复述到答案区');
       expect(role).not.toContain('按栏目给出要点梳理'); // 旧文案诱导复述
     }
   });
@@ -191,7 +191,7 @@ describe('非exam教辅答案区不复述正文（自包含教辅防重复）', 
     expect(conv).toContain('严禁');
     expect(conv).toContain('整体重复输出到答案区');
     expect(conv).toContain('答案区仅逐题作答');
-    expect(conv).toContain('知识框架/重点梳理/考点梳理/易错辨析/默写内容等正文内容整体重复输出到答案区');
+    expect(conv).toContain('知识框架/重点梳理/核心知识梳理/易错辨析/默写内容等正文内容整体重复输出到答案区');
   });
 
   it('PAPER_OUTPUT_CONVENTIONS.split：自包含教辅强调正文梳理不属于答案、无需答案区', () => {

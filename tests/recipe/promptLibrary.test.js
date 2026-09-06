@@ -29,12 +29,12 @@ describe('指令库三维度匹配', () => {
     expect(unknown.source).toBe('builtin');
   });
 
-  it('语文低段学段要点：表达与交流兼顾口语交际与写话（课标维度引导，非具体题型诱导）', () => {
+  it('语文低段学段要点：课标转述（口语交际敢说会听、写话写想说的话），不点单具体题型', () => {
     const tpl = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
-    expect(tpl.template).toContain('表达与交流兼顾口语交际与写话');
-    expect(tpl.template).toContain('给情境与词语支架');
-    // 口语交际的具体考查形态给自由度（情境对话/听要求选答等书面呈现），不点名单一题型
-    expect(tpl.template).toContain('口语交际可用情境对话、听要求选答等书面呈现');
+    expect(tpl.template).toContain('口语交际敢说会听、乐于表达');
+    expect(tpl.template).toContain('写自己想说的话与想象中的事物');
+    // 2026-09 裁决：课标要点段只保留课标原文转述，不保留"给情境与词语支架/听要求选答"等无原文依据的命题形态
+    expect(tpl.template).not.toContain('给情境与词语支架');
   });
 
   it('用户保存后匹配优先返回用户版（持久化自动更新）', () => {

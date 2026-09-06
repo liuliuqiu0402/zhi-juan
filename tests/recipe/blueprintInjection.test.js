@@ -330,7 +330,7 @@ describe('质量底线三维度注入（类型/学科/学段各司其职，非�
 
   it('学科维度：三维度模板携带学科要点（学段化，正面表述）', () => {
     const chinese = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' });
-    expect(chinese.template).toContain('语境句'); // 语文低段：字词在语境句中
+    expect(chinese.template).toContain('在语境中识记运用'); // 语文低段：字词在语境中识记运用（课标转述）
     const math = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'practice' });
     expect(math.template).toContain('推理链'); // 数学初中：解答过程完整
     const english = getPromptTemplate({ grade: 'middle', subject: '英语', genType: 'practice' });
@@ -344,7 +344,7 @@ describe('质量底线三维度注入（类型/学科/学段各司其职，非�
     const high = getPromptTemplate({ grade: 'high', subject: '数学', genType: 'practice' });
     expect(high.template).toContain('不超学业质量要求'); // 高段：符合课标
     // 三维度模板同时携带 学科要点 + 学段认知底线（组合验证）
-    expect(low.template).toContain('语境句');
+    expect(low.template).toContain('写自己想说的话与想象中的事物');
     expect(low.template).toContain('认知底线');
   });
 

@@ -3348,9 +3348,9 @@ ${isPrimary ? '- 🔧 小学：计算机基础操作、图形化编程、信息�
           const extractReqs = analysisExtractReqs.find(b => b.id.includes('extraction_reqs'));
 
           // 🔧 构建分析块字符串：指令库优先，硬编码兜底
-          const fmtNoteStr = fmtNote ? fmtNote.content : `- **加粗文字** 表示重点概念、关键词或考点
+          const fmtNoteStr = fmtNote ? fmtNote.content : `- **加粗文字** 表示重点概念、关键词或核心知识
 - _下划线文字_ 表示需要特别关注的部分
-- ==高亮文字== 表示极其重要的考点
+- ==高亮文字== 表示极其重要的核心知识
 - *斜体文字* 表示补充说明或注释
 - ~~删除线~~ 表示已删除或不适用的内容
 ⚠️ 重要：这些格式标记是原文的一部分，请在提取时保留它们的语义信息！`;
@@ -3550,9 +3550,9 @@ ${analysisText.substring(0, 500)}
             const corePrinciple = analysisRules.find(b => b.id.includes('core_principle'));
             const mandRules = analysisRules.find(b => b.id.includes('mandatory_rules_compact'));
             const diffRules = analysisRules.find(b => b.id.includes('difficulty_rules_compact'));
-            const fmtNoteStr = fmtNote ? fmtNote.content : `- **加粗文字** 表示重点概念、关键词或考点
+            const fmtNoteStr = fmtNote ? fmtNote.content : `- **加粗文字** 表示重点概念、关键词或核心知识
 - _下划线文字_ 表示需要特别关注的部分
-- ==高亮文字== 表示极其重要的考点
+- ==高亮文字== 表示极其重要的核心知识
 - *斜体文字* 表示补充说明或注释
 - ~~删除线~~ 表示已删除或不适用的内容
 ⚠️ 重要：这些格式标记是原文的一部分，请在提取时保留它们的语义信息！`;
@@ -4920,7 +4920,7 @@ ${cardAnalysisText.substring(0, 1000)}
         // 🔧 自包含教辅（summary/review/preview/dictation/errorbook）答案区只写练习/自测/变式解答（典型例题已在正文讲解展示，不重复），
         //    “按栏目组织答案”仅指按题目所在栏目对答案分类，绝不把正文知识梳理整体复述进答案区（防二次复述）
         const selfContainedAnsNote = isSelfContainedTeaching
-          ? '\n【自包含教辅答案原则】答案区【只】给出正文中练习/自测/变式的解答（典型例题的解答与解析已在正文讲解展示，严禁在答案区重复复述）；正文的知识框架/重点梳理/考点梳理/易错辨析/默写内容已在前文呈现，【严禁】在答案区整体重复复述。【严禁】在答案区重复呈现知识结构图、考点导图、梳理条目等正文性内容。'
+          ? '\n【自包含教辅答案原则】答案区【只】给出正文中练习/自测/变式的解答（典型例题的解答与解析已在正文讲解展示，严禁在答案区重复复述）；正文的知识框架/重点梳理/考点梳理/易错辨析/默写内容已在前文呈现，【严禁】在答案区整体重复复述。【严禁】在答案区重复呈现知识结构图、知识导图、梳理条目等正文性内容。'
           : '';
         const ansPrompt = `${ansRole}题号与试卷正文完全一致，答案按正文的大题与题号层级组织、与正文同构。不复述题干原文（含子题题干），不重现正文作答空位。
 ${selfContainedAnsNote}

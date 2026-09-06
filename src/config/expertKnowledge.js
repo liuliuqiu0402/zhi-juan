@@ -233,7 +233,7 @@ export const styleOptions = [
     tip: '以问题链驱动预习（圈画/概括/查阅/尝试），可操作可检查；适用于课前预习。',
     appliesTo: ['preview'], required: false },
   { group: 'presentation', value: 'framework', label: '框架式', desc: '框架→梳理→辨析',
-    tip: '按 知识框架→考点梳理→易错辨析→自测 组织，覆盖完整；适用于复习资料。',
+    tip: '按 知识框架→核心知识梳理→易错辨析→自测 组织，覆盖完整；适用于复习资料。',
     appliesTo: ['review'], required: false },
 ];
 
@@ -272,7 +272,7 @@ export const styleInstructions = {
   'table': '以表格对比呈现信息，清晰易读，易混点用对比突出。',
   'context_chain': '以一个贴近生活的大主题串联各知识点呈现，情境自然连贯。',
   'task_driven': '以问题链组织预习任务，可操作可检查，覆盖本课时新知识点。',
-  'framework': '按知识框架→考点梳理→易错辨析→自测组织，覆盖完整、重点突出。',
+  'framework': '按知识框架→核心知识梳理→易错辨析→自测组织，覆盖完整、重点突出。',
 };
 
 // ==================== 范围选项 ====================
