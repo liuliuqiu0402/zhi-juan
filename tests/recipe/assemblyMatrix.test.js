@@ -1,12 +1,14 @@
 // 三维度整体拼装审计（常驻回归，一条不漏）
 // ============================================================
 // 🔴 目的（2026-09）：不是抽样，而是 15 学科 × 5 学段 × 9 类型全部组合逐条拼装整体指令
-//   （复刻 GenerateModule 真实拼接顺序：模板 → 渲染契约 → 版面质检规则 → 教辅结构/卷面结构），
-//   自动检查三类编辑者视角问题：
-//   ① 必含要素（内容/排版/课标/底线按类型分检）；
-//   ② 跨型泄漏（题类条款不得进内容型 preview/summary 等）；
-//   ③ 整句逐字重复（同一拼装内 ≥24 字符长句出现 ≥2 次 = 双源重复）。
-// 每次"新问题→新句"都在此矩阵暴露同型复发，杜绝靠逐卷人工试错。
+//   （复刻 GenerateModule 真实拼接顺序），按编辑者视角四方向逐条审计：
+//   方向1 编辑要素达标：内容要素 + 排版要素清单逐条存在（KEY_MUST/EDITOR_MUST，非单一关键词）；
+//   方向2 冗余/矛盾：整句逐字重复探测（双源冗余）+ 旧壳/外包句复活禁止（矛盾与职责错位直查）；
+//   方向3 课标：学科×学段要点注入 + 课标锚点（措辞与数据层对应由 SUBJECT_STAGE_EXTRAS 单源保证）；
+//   方向4 审核基准：单一事实源(A 重复即违)/学科学段收敛(B 泄漏即违)/模型职责(D 外包词黑名单)/
+//          去诱导禁文字占位(C)。
+// 说明（诚实的机器判定边界）：编辑"内容质量/审美"与"课标语义符合度"的最终判定仍需人工
+// 深读（已按学科审过一轮）；本矩阵保证机器可判子集一条不漏、防回归。
 // ============================================================
 import { describe, it, expect } from 'vitest';
 import { getPromptTemplate, GEN_TYPE_NAMES } from '@/config/promptLibrary.js';
@@ -52,14 +54,21 @@ function dupSentences(text) {
   return [...counts.entries()].filter(([, n]) => n > 1).map(([s, n]) => `${n}× ${s.slice(0, 60)}…`);
 }
 
-const KEY_MUST = {
-  // 全部类型都必须具备的骨架（质量底线/输出格式在各模板内）
-  common: ['质量底线'],
-  question: ['作答空间形态按答案类型匹配', '卷面自洽（编辑自查总纲'],
-  content: ['结构化呈现', '栏目标题'],
-  exam: ['卷面格式', '密封线'],
-  summary: ['创作要求'],
+/** 方向1 编辑要素清单（内容要素 + 排版要素，按类型分检；特征词均为拼装整体指令中真实出现的稳定文本） */
+const EDITOR_MUST = {
+  common: ['质量底线', '课标', '学段'],
+  question: ['【创作要求】', '【输出格式】', '作答空间形态按答案类型匹配', '卷面自洽（编辑自查总纲', '教辅结构'],
+  content: ['【创作要求】', '【输出格式】', '结构化呈现', '教辅结构'],
+  exam: ['【创作要求】', '【卷面结构】', '密封线', '卷面自洽（编辑自查总纲'],
 };
+const KEY_MUST = EDITOR_MUST;
+
+/** 方向2/4 黑名单：职责外包句（模型该输出的内容外包给程序——违反基准 D）、旧空泛壳句复活 */
+const FORBIDDEN_SNIPPETS = [
+  '由排版层补足', '排版层按分值', '渲染层负责', '由程序自动补', '程序会自动',
+  '按书写惯例输出对应作答书写载体', // 旧空泛壳句（曾致载体乱象），复活即红
+  '书写空间按照答案的长度倒推',     // 旧换算外包句（曾与作答空间语义双轨）
+];
 
 describe('三维度整体拼装审计（全量枚举 15×5×9）', () => {
   const combos = [];
@@ -78,7 +87,7 @@ describe('三维度整体拼装审计（全量枚举 15×5×9）', () => {
     console.log('有效组合数', ok.length, '/', combos.length);
   });
 
-  it('必含要素 + 跨型泄漏（逐组合断言，一条不漏）', () => {
+  it('方向1 编辑要素逐条齐全 + 信息不丢（渲染契约/质检规则/教辅结构非空）+ 方向3 课标锚（逐组合断言）', () => {
     const fails = [];
     for (const { subject, stage, genType } of combos) {
       const r = assemble(subject, stage, genType);
@@ -88,21 +97,37 @@ describe('三维度整体拼装审计（全量枚举 15×5×9）', () => {
       for (const k of KEY_MUST.common) if (!t.includes(k)) fails.push(`${label} 缺【${k}】`);
       if (genType === 'exam') {
         for (const k of KEY_MUST.exam) if (!t.includes(k)) fails.push(`${label} 缺【${k}】`);
-        if (!t.includes('卷面自洽（编辑自查总纲')) fails.push(`${label} exam 缺卷面自洽`);
+        if (!r.vp) fails.push(`${label} exam 缺版面质检规则`);
+        if (!r.structure) fails.push(`${label} exam 缺卷面结构明细`);
       } else if (QUESTION_TYPES.includes(genType)) {
         for (const k of KEY_MUST.question) if (!t.includes(k)) fails.push(`${label} 缺【${k}】`);
+        if (!r.vp) fails.push(`${label} question 缺版面质检规则`);
+        if (!r.teaching) fails.push(`${label} 非 exam 缺教辅结构注入`);
       } else {
         for (const k of KEY_MUST.content) if (!t.includes(k)) fails.push(`${label} 缺【${k}】`);
         if (t.includes('卷面自洽（编辑自查总纲')) fails.push(`${label} 内容型泄漏题类条款：卷面自洽`);
         if (t.includes('作答空间形态按答案类型匹配')) fails.push(`${label} 内容型泄漏作答空间语义`);
         if (t.includes('· 书写载体协议：')) fails.push(`${label} 内容型泄漏书写载体协议条款`);
+        if (!r.teaching) fails.push(`${label} 内容型缺教辅结构注入`);
       }
-      if (genType !== 'exam' && !r.teaching) fails.push(`${label} 非 exam 缺教辅结构注入`);
     }
-    expect(fails, `共 ${fails.length} 处要素/泄漏异常：\n${fails.slice(0, 40).join('\n')}${fails.length > 40 ? `…(共${fails.length})` : ''}`).toEqual([]);
+    expect(fails, `共 ${fails.length} 处方向1/方向3 异常：\n${fails.slice(0, 40).join('\n')}${fails.length > 40 ? `…(共${fails.length})` : ''}`).toEqual([]);
   });
 
-  it('整句逐字重复探测（双源冗余自动暴露）', () => {
+  it('方向2/方向4 黑名单：职责外包句与旧空泛壳句不得在拼装中出现', () => {
+    const hits = [];
+    for (const { subject, stage, genType } of combos) {
+      const r = assemble(subject, stage, genType);
+      if (!r) continue;
+      const label = `${subject}|${STAGE_LABEL[stage]}|${GEN_TYPE_NAMES[genType]}`;
+      for (const bad of FORBIDDEN_SNIPPETS) {
+        if (r.full.includes(bad)) hits.push(`${label} 含外包/旧壳句：${bad}`);
+      }
+    }
+    expect(hits, `共 ${hits.length} 处外包/旧壳句残留：\n${hits.slice(0, 20).join('\n')}`).toEqual([]);
+  });
+
+  it('方向2 整句逐字重复探测（双源冗余自动暴露）', () => {
     const dups = new Map(); // 重复句 → [组合…]
     for (const { subject, stage, genType } of combos) {
       const r = assemble(subject, stage, genType);
