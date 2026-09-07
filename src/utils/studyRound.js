@@ -149,7 +149,18 @@ export function mergeLedger(ledger, records) {
   for (const r of records || []) {
     const name = String(r.name || '').trim();
     if (!name) continue;
-    ledger.set(name, { note: String(r.note || '').trim(), quote: String(r.quote || '').trim() });
+    const note = String(r.note || '').trim();
+    const quote = String(r.quote || '').trim();
+    const prev = ledger.get(name);
+    if (!prev) {
+      ledger.set(name, { note, quote });
+      continue;
+    }
+    // 同名多批（长锚按段切批等）：理解/引用合并保留，不覆盖前批（总账完整性）
+    ledger.set(name, {
+      note: [prev.note, note].filter(Boolean).join('；'),
+      quote: [prev.quote, quote].filter(Boolean).join('；'),
+    });
   }
   return ledger;
 }

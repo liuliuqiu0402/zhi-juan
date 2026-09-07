@@ -102,7 +102,7 @@ describe('研读轮编排器（复位阶段 2）', () => {
     expect(r.unverifiable).toEqual([{ name: '小数乘小数' }]);
   });
 
-  it('总账合并与文本化：逐点并入、覆盖同名、输出含引用', () => {
+  it('总账合并与文本化：逐点并入、同名多批合并保留（长锚按段切批）、输出含引用', () => {
     const ledger = new Map();
     mergeLedger(ledger, [
       { name: '除数是小数的除法', note: '理解v1', quote: 'q1' },
@@ -110,7 +110,8 @@ describe('研读轮编排器（复位阶段 2）', () => {
     ]);
     mergeLedger(ledger, [{ name: '除数是小数的除法', note: '理解v2', quote: 'q2' }]);
     expect(ledger.size).toBe(2);
-    expect(ledger.get('除数是小数的除法').note).toBe('理解v2');
+    expect(ledger.get('除数是小数的除法').note).toBe('理解v1；理解v2');
+    expect(ledger.get('除数是小数的除法').quote).toBe('q1；q2');
     const text = ledgerToText(ledger);
     expect(text).toContain('除数是小数的除法');
     expect(text).toContain('q2');

@@ -68,6 +68,57 @@ function summarizeValidation(v) {
 }
 
 /**
+ * 长锚按段切批展开（O2 批粒度自适应·确定性部分，2026-09）：
+ * 锚级研读单位若总字符超批预算且含 ≥2 段 → 按段顺序切片为多个同名子单位
+ * （每片子单位 ≤ 预算 0.85，点名同名；不切料——宁余勿缺）。
+ * 边界：单个片段自身超预算 → 该段独立保留（oversize 单批语义不变，段内不切）；
+ * 非长锚单位原样返回。切片后由批计划自然形成多批，批内/跨批同名点名由逐批校验
+ * 天然兼容（每批 expectedNames 独立），总账同名记录由 mergeLedger 合并保留。
+ * @param {Array} units buildStudyUnits 产物
+ * @param {number} [maxCharsPerBatch]
+ * @returns {Array} 展开后的研读单位（可能含同名多子、id 带序号；顺序稳定）
+ */
+export function expandLongStudyUnits(units = [], maxCharsPerBatch = 2500) {
+  const out = [];
+  const metaCharsOf = (u) => String(u.name || '').length
+    + String(u.level || '').length
+    + (Array.isArray(u.concepts) ? u.concepts.join('；').length : 0)
+    + String(u.curriculum || '').length;
+  for (const u of units) {
+    if (!u || (Number(u.chars) || 0) <= maxCharsPerBatch || !Array.isArray(u.segments) || u.segments.length < 2) {
+      out.push(u);
+      continue;
+    }
+    const sliceCap = Math.floor(maxCharsPerBatch * 0.85);
+    let curSegs = [];
+    let curSegChars = 0;
+    let subNo = 0;
+    const flush = () => {
+      if (!curSegs.length) return;
+      subNo += 1;
+      const segChars = curSegs.reduce((a, s) => a + String(s.text || '').length, 0);
+      out.push({ ...u, id: `${u.id}@${subNo}`, chars: metaCharsOf(u) + segChars, segments: curSegs });
+      curSegs = [];
+      curSegChars = 0;
+    };
+    for (const s of u.segments) {
+      const len = String(s.text || '').length;
+      if (len > sliceCap) {
+        flush(); // 段本身超预算：独立成批不切料
+        subNo += 1;
+        out.push({ ...u, id: `${u.id}@${subNo}`, chars: metaCharsOf(u) + len, segments: [s] });
+        continue;
+      }
+      if (curSegChars + len > sliceCap) flush();
+      curSegs.push(s);
+      curSegChars += len;
+    }
+    flush();
+  }
+  return out;
+}
+
+/**
  * 编排一轮研读推进（会话式：批素材消息只出现在本批 digest 请求，通过后压缩替换；
  * 校验失败带纠错提示回流该批重读，不静默通过、不代写笔记）。
  * @param {object} p
@@ -80,14 +131,17 @@ function summarizeValidation(v) {
  * @returns {Promise<{ok:boolean, nextStage:string, ledger:Map, report:object, digestPairs:Array, failBatch?:object}>}
  */
 export async function runStudyRound({ units, session, maxCharsPerBatch = 2500, digestFns, rereadLimit = STUDY_REREAD_LIMIT, onProgress = null }) {
-  const { batches, oversize } = planStudyBatches(units, maxCharsPerBatch);
+  // O2 批粒度（确定性部分）：长锚（多段超预算）先按段展开为同名子单位，再由批计划分批——
+  //    不再"整段单批超大"，切料只发生在"单段自身超预算"（宁余勿缺）
+  const expanded = expandLongStudyUnits(units, maxCharsPerBatch);
+  const { batches, oversize } = planStudyBatches(expanded, maxCharsPerBatch);
   const ledger = new Map();
   const report = { batches: batches.length, oversize, rereads: 0, missing: [], empty: [], unverifiable: [], digestError: '' };
   const digestPairs = []; // 已通过批的研读对（点名行+模型摘要原话）——写作与后续 digest 的引擎前缀来源
   for (let bi = 0; bi < batches.length; bi += 1) {
     const batch = batches[bi];
-    const batchUnits = batch.unitIds.map((id) => units.find((u) => u.id === id)).filter(Boolean);
-    const names = batchUnits.map((u) => u.name);
+    const batchUnits = batch.unitIds.map((id) => expanded.find((u) => u.id === id)).filter(Boolean);
+    const names = [...new Set(batchUnits.map((u) => u.name))]; // 同名子单位（长锚切批）去重，点名不重复
     const msg = buildStudyBatchMessage(batchUnits);
     // 素材批消息追加进会话（可压缩：digest 通过后即压缩替换，保证任意时刻历史内至多一条素材批原文）
     const materialMsg = appendMessage(session, { role: 'user', kind: 'user', content: msg, compressible: true });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildStudyUnits, runStudyRound, ledgerToText, buildStudyPrefix, STUDY_REREAD_LIMIT } from '../../src/utils/studyOrchestrator.js';
+import { buildStudyUnits, runStudyRound, ledgerToText, buildStudyPrefix, expandLongStudyUnits, STUDY_REREAD_LIMIT } from '../../src/utils/studyOrchestrator.js';
 import { createGenerationSession } from '../../src/utils/generationSession.js';
 
 const SEG_EXAMPLE = { text: '除数是小数的除法：把被除数与除数的小数点同时向右移动相同的位数，使除数变成整数再计算。', type: '例', isKeyConcept: true };
@@ -75,7 +75,7 @@ describe('研读编排驱动（复位阶段 2→3 衔接）', () => {
     const digestFns = {
       produce: async (msg, batchUnits) => {
         calls += 1;
-        if (calls === 1) return '【除数是小数的除法】'; // 首次：理解为空
+        if (calls === 1) return '【除数是小数的除法】'; // 首次：理解为空 → 校验失败
         return batchUnits.map((u) => GOOD_DIGEST(u.name)).join('\n'); // 回流后：覆盖全部点名
       },
     };
@@ -149,5 +149,52 @@ describe('研读编排驱动（复位阶段 2→3 衔接）', () => {
     expect(r.ok).toBe(false);
     expect(r.nextStage).toBe('need_material');
     expect(r.report.digestError).toContain('engine timeout');
+  });
+
+  it('expandLongStudyUnits：长锚多段超预算 → 按段切片为同名子单位（≤预算 0.85），超长单段独立不切料，普通单位原样', () => {
+    const longSeg = (k) => ({ text: `长课文示例段落内容用于研读切批测试第${k}段，讲述规律推导与算理应用，字数足够形成超过批预算的累计文本量以验证按段切片逻辑的正确性，本段示例用于验证锚总字数超预算时按段落自然边界切片的结构规则行为。`, type: '例' });
+    const units = [
+      { id: '长锚', name: '长锚', chars: 900, segments: [longSeg(1), longSeg(2), longSeg(3)] },
+      { id: '短锚', name: '短锚', chars: 50, segments: [longSeg(1)] },
+      { id: '超段锚', name: '超段锚', chars: 5000, segments: [{ text: 'x'.repeat(3000), type: '例' }] },
+    ];
+    const out = expandLongStudyUnits(units, 200);
+    expect(out).toHaveLength(5); // 长锚 3 段 → 3 子；短锚原样；超段锚原样
+    expect(out[0].name).toBe('长锚');
+    expect(out[0].id).toBe('长锚@1');
+    expect(out[0].chars).toBeLessThanOrEqual(200);
+    expect(out[2].id).toBe('长锚@3');
+    expect(out[3].id).toBe('短锚');
+    expect(out[4].id).toBe('超段锚');
+    expect(out[4].chars).toBeGreaterThan(3000); // 单段超预算不切料
+  });
+
+  it('长锚按段切批集成：多批 digest 同名通过、总账同名合并保留、无整段 oversize', async () => {
+    const session = createGenerationSession({ meta: { genType: 'practice' } });
+    const longSeg = (k) => ({ text: `长课文段落${k}：用于验证超预算锚自动按段分批的完整链路，内容为小数除法的算理与竖式书写规则示例说明文字，该段落需要足够的文字量来触发多批拆分与同名总账合并的校验路径。`, type: '例' });
+    const longAnchor = {
+      chapterTitle: '第1单元', bigConcept: '小数乘法和除法', name: '长锚',
+      level: '理解', specificConcepts: ['算理'], bind: { status: 'literal', segments: [longSeg(1), longSeg(2), longSeg(3)] },
+    };
+    const units = buildStudyUnits({ anchors: [longAnchor] });
+    expect(units).toHaveLength(1);
+    let calls = 0;
+    const digestFns = {
+      produce: async (msg, batchUnits) => {
+        calls += 1;
+        expect(batchUnits).toHaveLength(1);
+        return `【长锚】理解：第${calls}段批的理解\n｜引用：长课文段落${calls}：用于验证超预算`;
+      },
+    };
+    const r = await runStudyRound({ units, session, digestFns, maxCharsPerBatch: 200 });
+    expect(calls).toBeGreaterThanOrEqual(2); // 长锚被拆为多批（同名多批）
+    expect(r.ok).toBe(true);
+    expect(r.nextStage).toBe('ready');
+    expect(r.report.oversize).toEqual([]); // 已按段分批，无整段 oversize
+    expect(r.report.batches).toBe(calls);
+    const ledgerText = ledgerToText(r.ledger);
+    expect(ledgerText).toContain('长锚');
+    expect(r.ledger.get('长锚').note).toContain('第1段批');
+    expect(r.ledger.get('长锚').note).toContain('第' + calls + '段批'); // 同名多批理解合并保留
   });
 });
