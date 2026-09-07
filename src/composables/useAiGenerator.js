@@ -4,7 +4,6 @@ import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getM
 import { buildStudyUnits, runStudyRound, buildStudyPrefix } from '../utils/studyOrchestrator.js';
 import { createGenerationSession, isReturnableSegment } from '../utils/generationSession.js';
 import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'; // S4.1：段类型补"拓展/文化"（锚范围性质判定共用）
-import { buildMaterialPackage } from '../utils/materialPackage.js'; // 素材线 G7：双卡素材区（依据卡+参考卡），取代旧检索式直灌
 import { GEN_CONST } from '../config/generationConstants.js';
 import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel } from '../config/promptLibrary.js';
 import { getStoragePath } from '../utils/pathHelper.js';
@@ -4055,10 +4054,10 @@ ${cardAnalysisText.substring(0, 1000)}
    * - 考查知识点清单（尾部锚点，中性措辞不加禁令）：生成时模型眼前即是覆盖范围
    * @returns {string} 素材块文本（空串 = 无素材）
    */
-  // ── 教材附件式浏览（大范围工具路径；设计文档 v2：Q1/Q2/Q3/Q6） ─────────
-  // 触发：勾选区累计原文字数 > 该类型素材预算 且 引擎支持 tools。
-  // 前缀仅含 指令(含目录骨架)+模板对标+情境+输出约定；原文与整册知识清单不入前缀，
-  // 由模型按章 browse 后置追加进 messages 尾部（缓存前缀不被大块原文扰动）。详见 design v2。
+  // ── 教材 browse 取材（素材线 G7 终态：所有范围通用写作工具路径；引擎支持 tools 即启用）──
+  // 触发：引擎支持 tools（不再按"原文超预算"门槛——研读摘要为主、browse 按需补原文细节）。
+  // 前缀仅含 委托书(含范围目录)+研读总账(history)；原文不入前缀，由模型按章 browse 后置取，
+  // browse 返回约束按类型分流（题类=仅供理解自拟；内容型=可引用归纳）。详见 design v2/G7 终态。
   const TOOLS_SUPPORTED_PROVIDERS = ['deepseek', 'zhipu', 'volcano', 'alibaba'];
   const clampB = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   const normChapter = (t) => String(t || '').replace(/\s+/g, '').replace(/[（(].*?[)）]/g, '').trim();
@@ -4066,25 +4065,30 @@ ${cardAnalysisText.substring(0, 1000)}
     type: 'function',
     function: {
       name: 'browse_textbook',
-      description: '浏览教材：按章节名从当前所选课本中取回该章的教材原文片段与该章知识点，仅供理解该章题型结构与算理/知识梯度与覆盖范围（教材版本以所选课本为准；命题数据/情境/句式须自拟，禁止沿用原文连续字面）。',
+      description: '按需取回教材原文：从当前所选课本中取回指定章的教材原文片段与该章知识点，供核对该章题型结构、算理/知识梯度或需要引用/归纳的原文精确形态（教材版本以所选课本为准）。仅在研读总账摘要不足以支撑当前命题细节时调用，按目录中章节名取；取毕即继续正文，不反复浏览。',
       parameters: {
         type: 'object',
         properties: {
           chapter: { type: 'string', description: '章节名，须列在【本资料覆盖范围·目录】中' },
-          knowledge: { type: 'string', description: '（可选）需要的知识点关键词' },
+          knowledge: { type: 'string', description: '（可选）需要的知识点关键词，定向取该考点相关段' },
         },
         required: ['chapter'],
       },
     },
   };
-  const BROWSE_SYSTEM = [
-    '你是教材命题/教辅编辑，依据当前所选课本与相应学段课标要求，生成正式卷面的正文。',
-    '【教材浏览与命题约定】',
-    '· 需要理解某章题型结构/算理梯度或核对覆盖范围时，调用 browse_textbook，按章节名取回该章的原文片段与该章知识点；',
+  // 🔧 browse 触发与返回约束按 题类/内容型 分流（素材线 G7 终态，2026-09 用户定稿）：
+  //    browse 是写作期按需补充（研读总账已含覆盖理解），非必经步骤；触发语义=需要教材原文
+  //    精确形态时才调（题类=例题算理/结论框结构参照，内容型=需引用/归纳/默写的原文）。
+  const buildBrowseSystem = (contentMode) => [
+    '你是教材命题/教辅编辑，依据当前所选课本与相应学段课标要求，生成正式卷面的正文。研读总账已随会话前缀提供各覆盖点的理解与引用——先凭研读理解写作。',
+    '【教材 browse 与命题约定】',
+    '· browse_textbook 是补充手段，不是必经步骤：仅当需要教材原文精确形态（例题算理/结论框/课标表述核对，或本资料需引用/归纳原文）时才调用；研读摘要已足以命题的要点不要 browse、直接写作；',
     '· browse 仅限本次勾选覆盖范围内的章节（见【本资料覆盖范围·目录】）——范围外章节会被程序拒绝且不返回任何原文，不要尝试浏览范围外内容；',
     '· 每次 browse 返回该章 1 段完整示范段（段内不截断）；同一章节可多次浏览以取不同段落，已返回段落不会重复返回；',
-    '· 取到本卷所需章节的原文后，必须立即停止调用工具，依据已浏览到的结构与梯度理解与课标术语完成命题（数据/情境/句式一律自拟，不得沿用原文连续字面），不再发起任何工具调用；',
-    '· 已浏览的段落供理解该章题型结构与算理/知识梯度；仍缺理解的段落按需继续浏览本章（每次一段），不必一次取全。',
+    contentMode
+      ? '· 本资料为知识归纳型：browse 取回的原文可按学段口径归纳转写、标注出处，不得整段照录；'
+      : '· 本资料为命题/练习型：browse 取回的示范段仅供理解题型结构与算理/知识梯度，命题数据、情境、人名、句式一律自拟，禁止沿用原文连续字面；',
+    '· 取到本卷所需章节的原文后，必须立即停止调用工具，继续完成正文（不留半截、不空转）；',
     '· 不把具体选文名写进标题或大题名（大题名使用结构名）。',
   ].join('\n');
   const deriveBrowseParams = (budget, chapterCount = 1) => {
@@ -4099,12 +4103,14 @@ ${cardAnalysisText.substring(0, 1000)}
     return { perBrowseCap, maxRounds };
   };
 
-  // 大范围：程序侧确定性取料供给工具 browse_textbook；模型按章浏览、收敛后单主请求产出正文。
-  // 返回 { content, coverageNotes }——coverageNotes 为防旧教材的主编式提醒（只提示，不改写）。
+  // 写作主链（素材线 G7 终态）：程序确定性取料供给 browse_textbook；模型带研读总账前缀进入，
+  // 按需 browse 补原文细节、收敛后产出正文。返回 { content, coverageNotes }——coverageNotes 为主编式提醒（只提示，不改写）。
   const generateBodyByTextbookBrowse = async (params) => {
     const { genType, promptBase, maxTokens, temperature, contentCards = [], knowledgeMap = null, anchors = [], generateMode = 'once', studyPairs = null } = params;
     const myBudget = GEN_CONST.MATERIAL_CHARS[genType] || 5000;
     const { perBrowseCap, maxRounds } = deriveBrowseParams(myBudget, (contentCards || []).length);
+    // 🔧 browse 返回约束按类型分流（与 contentMode 同口径：full=知识归纳型可引用/其余=命题型自拟）
+    const contentMode = contractOf(genType).mode === 'full';
 
     // 章节→原文片段、章节→知识点 索引（与 buildMaterialBlock 同源，供 browse 确定性取料）
     const chapterSegsBy = new Map();
@@ -4245,11 +4251,11 @@ ${cardAnalysisText.substring(0, 1000)}
       ...(provider === 'zhipu' ? { thinking: { type: 'disabled' } } : {}),
       ...(provider === 'alibaba' ? { enable_thinking: false } : {}),
     };
-    // 🔴 S6 大范围融合：研读消化记录（点名行 user + 模型摘要 assistant，一问一答）作会话前缀，
-    //    模型带着"已研读理解"进入浏览取材与一次成稿（素材批原文不随前缀累积，仅消化记录）
+    // 🔴 研读消化记录（点名行 user + 模型摘要 assistant，一问一答）作会话前缀——
+    //    模型带着"已研读理解"进入写作（素材批原文不随前缀累积，仅消化记录；browse 按需后置取）
     const studyPrefixMsgs = buildStudyPrefix(Array.isArray(studyPairs) ? studyPairs : []);
     const messages = [
-      { role: 'system', content: BROWSE_SYSTEM
+      { role: 'system', content: buildBrowseSystem(contentMode)
         + (generateMode === 'once'
           ? '\n（本资料为一次成型：正文与答案区一次输出，答案区仅对本资料的练习/自测/例题作答，勿把正文的知识梳理整体复述到答案区。）'
           : '') },
@@ -4264,22 +4270,20 @@ ${cardAnalysisText.substring(0, 1000)}
     const BROWSE_WRITE_CAP = 3;        // 正文截断续写上界（超此视为极端，放弃并交由编辑兜底）
     let lastMsg = null;
     let lastFr = '';
-    // 🔧 问题3增强档：漏章兜底覆盖（默认开，config.generationSettings.browseAutoFill）。
-    //    模型收敛出正文时，若还有"有素材但未浏览"的章 且 数量≤上界 → 先给模型一轮主动确认
-    //    （提示漏章清单，由其判断相关性并 browse），模型仍未采用时程序才确定性兜底取料回循环。
-    //    只各做一轮，filledSkipped=true 后不再反复（防死循环/成本失控）。落实程序-模型分工：
-    //    程序负责确定性检出+有界兜底+报告，模型保有"是否取某章素材"的主动性。
+    // 🔧 未浏览章确认（默认开，config.generationSettings.browseAutoFill，语义随 G7 终态调整）：
+    //    模型收敛出正文时，若还有"有素材但未浏览"的章 → 发一轮提示交模型自判
+    //    （需要原文精确形态的 browse 取、研读摘要已够的直接出正文）；模型仍未 browse 视为
+    //    自主判定完成，不再程序兜底注入原文（直灌废除——程序预塞违背"素材唯一途径"）。
+    //    只做一轮，filledSkipped=true 后不再反复（防死循环/成本失控）。
     const cfgGS = apiConfig.generationSettings || {};
     const autoFillSkipped = cfgGS.browseAutoFill !== false;
     const fillMax = Number(cfgGS.browseAutoFillMaxSkipped) > 0 ? Number(cfgGS.browseAutoFillMaxSkipped) : 3;
-    // 🔧 P1-3 兜底护栏：漏章的程序兜底补料不再受默认 3 条砍断（那是漏章略多就"只报告不带料"的主因），
-    //    改用 maxAutoFill(≥40) 作为绝对上界；仅当极端大范围（选整册等）超过该上界时才回落为"报告提示"，
-    //    避免上下文被原文涨爆。用户配置 browseAutoFillMaxSkipped 更大时取其大。
+    // 未浏览章确认上界：极端大范围（选整册等）超过上界时不再逐章提示（回落为报告提示），避免打扰
     const autoCap = Math.max(fillMax, 40);
     let filledSkipped = false;
-    let fillQualifiedSkipped = [];       // 本次程序兜底（确定性）落到上下文的章
-    let directiveSent = false;           // 漏章确认提示是否已发过一轮（只发一次，防死循环）
-    let notedSkipPrompted = [];          // 已交由模型确认的漏章候选（供生成报告溯源）
+    let unadoptedSkipped = [];           // 模型确认后仍未 browse 的章（进报告，交编辑核对）
+    let directiveSent = false;           // 未浏览章确认提示是否已发过一轮（只发一次，防死循环）
+    let notedSkipPrompted = [];          // 已交由模型确认的未浏览章候选（供生成报告溯源）
     const computeSkipped = () => {
       const out = []; const seen = new Set();
       for (const card of contentCards || []) {
@@ -4351,48 +4355,32 @@ ${cardAnalysisText.substring(0, 1000)}
         }
         continue;
       }
-      // 无工具调用 → 模型已收敛（准备出正文）。先处理"漏章"（有素材但未浏览的章）：
-      //   不允许程序静默兜底绕过模型决策——先发一轮【漏章确认】指令让模型自行判断相关性并 browse；
-      //   模型仍未采用时，程序才确定性兜底取料（保证防旧教材覆盖），且兜底有界、报告溯源。
+      // 无工具调用 → 模型已收敛（准备出正文）。先处理"未浏览章"（有素材但未浏览的章）：
+      //   素材线 G7 终态（2026-09 用户定稿）：研读总账已提供全部覆盖点的理解与引用，
+      //   未 browse ≠ 未理解——browse 是写作期按需补充，模型自主决定；程序不再代 browse、
+      //   不再注入原文（直灌废除，程序预塞即违背"素材唯一途径"）。仅发一轮提示让模型自判：
+      //   需要原文细节的章 browse 取、研读摘要已够的章直接出正文；未浏览章进报告供人工核对。
       if (autoFillSkipped && !filledSkipped) {
         const q = computeSkipped();
         if (q.length && q.length <= autoCap) {
           if (!directiveSent) {
             directiveSent = true;
             notedSkipPrompted = q;
-            // 补 assistant（携带本轮未提交草稿，避免相邻两条 user 消息）+ 漏章确认指令
+            // 补 assistant（携带本轮未提交草稿，避免相邻两条 user 消息）+ 未浏览章确认指令
             messages.push({ role: 'assistant', content: (typeof text === 'string' && text.trim()) ? text : '' });
             messages.push({
               role: 'user',
-              content: `【取材提示·漏章确认】所选范围内以下章节含教材原文素材但你尚未 browse：${q.join('、')}。请自行判断这些章节是否与本卷命题相关：相关章节请调用 browse_textbook 取料后再出正文；无关章节请直接在正文末尾以括号注明「未采用章节：…」后出正文，不要凭训练记忆编写原文。命题坚持素养立意、以情境为载体，依据学生在真实情境下解决问题的过程和结果评定其素养水平（课标原义）；命题素材可取自教材之外的真实情境、不限于所选教材，但须主题相关、难度适切。`,
+              content: `【取材提示·未浏览章确认】所选范围内以下章节含教材原文素材，但你尚未 browse：${q.join('、')}。研读总账已含各覆盖点理解——请自行判断：需要教材原文精确形态（例题算理/结论框/需引用归纳）的，调用 browse_textbook 取对应章；研读摘要已足以命题的，直接出正文。无关章节无需浏览，不得凭训练记忆补写教材原文。命题坚持素养立意、以情境为载体，依据学生在真实情境下解决问题的过程和结果评定其素养水平（课标原义）；命题素材可取自教材之外的真实情境、不限于所选教材，但须主题相关、难度适切。`,
             });
-            statusText.value = `大范围浏览：检出 ${q.length} 个漏浏览章节，交由模型确认取材...`;
-            continue; // 给模型一轮主动决策
+            statusText.value = `写作取材：检出 ${q.length} 个未浏览章节，交由模型自判（研读摘要已覆盖，browse 按需补充）...`;
+            continue; // 给模型一轮自主决策
           }
-          // 模型被提示后仍未 browse → 程序确定性兜底补料（本地取料，不新增外部请求），有界为界
+          // 模型被提示后仍未 browse → 视为自主判定"研读摘要已够/无关"，不再程序补料注入原文；
+          // 未浏览章如实记入报告（交编辑核对），正文放行
           filledSkipped = true;
-          fillQualifiedSkipped = q.slice(); // 仅记录本轮兜底兜住的章
-          const filled = [];
-          for (let i = 0; i < q.length; i++) {
-            const ch = q[i];
-            const key = normChapter(ch);
-            if (browsed.has(key)) continue;
-            browsed.add(key);
-            const id = `fill_${round}_${i}`;
-            // O3：兜底每次 1 完整段，取 2 段（两轮 tool 消息，段级去重保证不重复）
-            filled.push({ role: 'assistant', content: null, tool_calls: [{ id, type: 'function', function: { name: 'browse_textbook', arguments: JSON.stringify({ chapter: ch }) } }] });
-            filled.push({ role: 'tool', tool_call_id: id, content: buildBrowseResult(ch) });
-            const id2 = `fill_${round}_${i}_b`;
-            filled.push({ role: 'assistant', content: null, tool_calls: [{ id: id2, type: 'function', function: { name: 'browse_textbook', arguments: JSON.stringify({ chapter: ch }) } }] });
-            filled.push({ role: 'tool', tool_call_id: id2, content: buildBrowseResult(ch) });
-          }
-          if (filled.length) {
-            messages.push(...filled);
-            statusText.value = `大范围浏览：漏浏览章节经确认后仍缺料，程序兜底补料（${q.join('、')}）后继续...`;
-            continue; // 兜底后回到循环，模型基于补料重新收敛出正文
-          }
+          unadoptedSkipped = q.slice();
         }
-        filledSkipped = true; // 无待补/超上界：本轮起不再反复处理
+        filledSkipped = true; // 无待提/超上界：本轮起不再反复处理
       }
       // 无工具调用 → 本轮即正文（进入正文输出阶段；受 maxTokens 约束，截断用独立续写计数兜底）
       if (text) content = text;
@@ -4420,21 +4408,22 @@ ${cardAnalysisText.substring(0, 1000)}
     if (noTextChapters.length) {
       coverageNotes.push(`⚠️ 以下章节无可用教材原文片段，其内容若涉及命题可能依赖训练记忆而非所选课本，请人工核对取材：${noTextChapters.slice(0, 10).join('、')}${noTextChapters.length > 10 ? '…' : ''}`);
     }
-    // 🔧 问题3：漏浏览整章校验。区分「已交模型确认」/「程序兜底补料」/「最终仍未覆盖」，报告可溯源。
+    // 🔧 未浏览章校验（G7 终态：程序不代 browse、不注入原文——研读总账已含覆盖理解）。
+    //    区分「已交模型确认」/「模型确认后仍未采用」/「最终未及浏览」，报告可溯源供编辑核对。
     {
       const skipped = computeSkipped();   // 复用同一判定（含去重），避免逻辑重复
       if (notedSkipPrompted.length) {
-        coverageNotes.push(`ℹ️ 已检出并交模型确认的漏浏览章节：${notedSkipPrompted.join('、')}——模型已按相关性取料或判定无关。`);
+        coverageNotes.push(`ℹ️ 已检出并交模型确认的未浏览章节：${notedSkipPrompted.join('、')}——模型已自行判断取料或判定研读摘要已够。`);
       }
-      if (fillQualifiedSkipped.length) {
-        coverageNotes.push(`✅ 程序兜底补料：以下章节经确认后仍未采用，已将其原文注入上下文兜底覆盖，防止依赖训练记忆：${fillQualifiedSkipped.join('、')}。`);
+      if (unadoptedSkipped.length) {
+        coverageNotes.push(`📋 以下章节模型确认后仍未 browse（视为研读摘要已支撑命题）：${unadoptedSkipped.join('、')}。如需以教材原文精确形态核对，请人工复核该章命题是否依赖非所选教材。`);
       }
       if (skipped.length) {
         coverageNotes.push(`⚠️ 以下章节虽有可用原文素材但最终未及浏览，命题可能遗漏或依赖非所选教材：${skipped.slice(0, 12).join('、')}${skipped.length > 12 ? '…' : ''}（可扩大浏览或单独为该章生成）`);
       }
     }
     if (hitRoundLimit || (!content.trim() && (lastMsg?.tool_calls || []).length)) {
-      coverageNotes.push('⚠️ 大范围教材浏览达到轮数上限，部分章节可能未及取材，请核对取材完整性。');
+      coverageNotes.push('⚠️ 写作取材达到轮数上限，部分章节可能未及浏览，请核对取材完整性。');
     }
     // 🔧 问题2兜底：正文截断续写达到上限仍不完整 → 提醒（放弃重试，交由编辑兜底）
     if (hitTruncLimited) {
@@ -4492,47 +4481,40 @@ ${cardAnalysisText.substring(0, 1000)}
       ? `⚠️ 覆盖缺料：${anchorReport.missingList.length} 项核心知识所在章节无教材片段，本次无法从教材取材（已排除在可命题范围外）：${anchorReport.missingList.map((m) => `${m.chapter}·${m.name}`).join('、')}。请检查勾选章节的原文解析/粘贴是否完整。`
       : '';
 
-    // ── 素材区构建（素材线 G7：双卡预取——依据卡覆盖保底＋参考卡示范段预算化；
-    //    废除旧"检索式全文直灌" materialBlock；旧函数保留标注弃用，待回归稳定后清理） ──
-    // 素材量按类型差异化（内容型资料需充分示范段、引导型资料适量即可）
-    const MATERIAL_CHARS = GEN_CONST.MATERIAL_CHARS;
-    const materialBudget = MATERIAL_CHARS[genType] || 5000;
-    // 🔧 b 方案（2026-09 首轮提升）：题类（copy 守门开）参考卡头=仅供理解题型结构/算理梯度、数据情境自拟；
-    //    内容型（mode=full：summary/preview/dictation/review，正文归纳转写是本职）参考卡头=归纳转写口径
-    const contentMode = contractOf(genType).mode === 'full';
-    const { basis: basisBlock, ref: refBlock } = buildMaterialPackage({ anchors, maxChars: materialBudget, contentMode });
-    // ── 大/小范围判定（素材线：素材原文总量超参考预算 → 走浏览通道，参考段不预取、browse 按需取）──
+    // ── 素材区（素材线 G7 终态，2026-09 用户定稿：废除直灌/双卡随委托拼接）──
+    // 素材唯一途径 = 研读轮分批消化（摘要汇总成研读总账，随写作 history 前缀携带）+
+    //               写作期 browse 按需（模型自主发起，白名单限定覆盖范围）；
+    // 委托书不再拼接 basis/ref 素材区——依据卡职责并入研读总账点名，参考卡原文只经 browse 返回。
     const selectedRawChars = (contentCards || []).reduce(
       (s, c) => s + (c.segments || []).reduce((ss, p) => ss + (p && p.text ? p.text.length : 0), 0), 0);
-    const largeBrowsing = selectedRawChars > materialBudget;
     const browseTitles = [];
     for (const c of contentCards || []) {
       if (c?.chapterTitle && !browseTitles.includes(c.chapterTitle)) browseTitles.push(c.chapterTitle);
     }
-    // 浏览通道前缀 = 目录骨架（范围锚）+ 依据卡（覆盖点名保底）；参考段由 browse 按需取
+    // 目录骨架 = browse 白名单可见化（模型据此发起 browse 并自校范围），非素材原文
     const browseAnchor = browseTitles.length
-      ? `【本资料覆盖范围·目录】（命题范围以本目录为准，覆盖全部章节，不遗漏、不越界）\n${browseTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
+      ? `【本资料覆盖范围·目录】（命题范围以本目录为准；如需某章教材原文细节，按目录 browse 现取，正文不预塞原文）\n${browseTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
       : '';
+    // browse 工具路径：引擎支持 tools 即启用（任何范围——研读摘要为主、browse 补细节）；
+    // 不支持 tools 的引擎 → 降级纯摘要写作（无 browse 工具，仅委托+研读总账，报告如实标注）
     let browsePath = false;
-    if (largeBrowsing) {
-      try {
-        const gateCfg = await getCurrentEngineConfigEnhanced('generation', { promptLength: Math.min(selectedRawChars, 4000) });
-        browsePath = TOOLS_SUPPORTED_PROVIDERS.includes(gateCfg?.provider);
-        if (browsePath) console.log(`📚 [教材浏览] 勾选原文 ${selectedRawChars} 字 > 参考预算 ${materialBudget}，走浏览通道（参考段 browse 按需取，依据卡仍预取）`);
-      } catch (e) {
-        browsePath = false; // 引擎可配置探询失败 → 回退单次注入（双卡素材区），不阻断生成
-      }
+    try {
+      const gateCfg = await getCurrentEngineConfigEnhanced('generation', { promptLength: Math.min(selectedRawChars, 4000) });
+      browsePath = TOOLS_SUPPORTED_PROVIDERS.includes(gateCfg?.provider);
+      if (browsePath) console.log(`📚 [写作通道] 引擎支持 browse：研读总账为前缀，写作期模型按需 browse（勾选原文 ${selectedRawChars} 字，不再直灌）`);
+      else console.log(`⚠️ [写作通道] 引擎不支持 browse 工具${gateCfg?.provider ? `（${gateCfg.provider}）` : ''}——降级纯摘要写作：仅委托书+研读总账，无法现取教材原文，报告将如实标注`);
+    } catch (e) {
+      browsePath = false; // 引擎配置探询失败 → 降级纯摘要写作，不阻断
     }
 
-    // ── 会话式研读轮（复位工程 S2/3 + S6 大范围融合）：直灌写作与浏览通道写作前统一执行研读消化。
+    // ── 会话式研读轮（素材线 G7 终态：研读是素材吸收的唯一主通道，写作依赖研读消化）──
     //    批摘要（点名⊆批清单/引用可溯源/理解非空）经程序核对，失败带纠错提示回流该批重读；
     //    全部通过后，消化记录（点名行+模型摘要原话）作写作/答案页/browse 会话的历史前缀——
-    //    同源同序携带、只追加不拼接（区别于 M1 把总账文本拼进 instruction 的旧接入）。
-    //    直灌通道：写作依赖研读消化——失败如实阻断（研读不静默通过）；
-    //    浏览通道（大范围）：研读为增强（模型随后仍 browse 亲读原文按需取材）——失败 warn 放行。
+    //    同源同序携带、只追加不拼接。研读失败一律如实阻断（直灌已废除，无"回退双卡"可走）：
+    //    素材唯一途径=研读，研读不过即无覆盖点名与理解依据，宁可阻断提示补料重试。
     //    显式"研读教材"阶段（S6）产出 digestPairs 时经 externalStudy 复用，不再重复执行研读。
-    let studyPairs = null;   // digestPairs（browse 会话 / 直灌写作前缀的同一源）
-    let studyHistory = [];   // 直灌写作历史前缀（由 studyPairs 派生）
+    let studyPairs = null;   // digestPairs（browse 会话 / 纯摘要写作前缀的同一源）
+    let studyHistory = [];   // 写作历史前缀（由 studyPairs 派生）
     let studyRoundsUsed = false;
     {
       const extPairs = (externalStudy && Array.isArray(externalStudy.digestPairs) && externalStudy.digestPairs.length)
@@ -4554,22 +4536,22 @@ ${cardAnalysisText.substring(0, 1000)}
               progress.value = 12 + Math.round((p.batchIndex / p.total) * 8);
             },
           });
-          if (!s.ok && !browsePath) throw new Error(s.error || '会话式研读轮未通过');
-          if (!s.ok && browsePath) console.warn(`[研读轮·浏览增强] 大范围研读未通过（warn 放行——模型仍经 browse 亲读原文按需取材，非静默）: ${String((s.error || '').slice(0, 400))}`);
+          // 🔴 研读失败一律阻断（2026-09 定稿：不静默通过、不回退直灌、浏览通道亦不放行——
+          //    素材唯一途径=研读，研读不过即无可写依据；如实提示补料/重试）
+          if (!s.ok) throw new Error(s.error || '会话式研读轮未通过（研读失败，请检查教材原文完整性后重试）');
           if (!s.skipped) {
             studyPairs = s.digestPairs;
             studyRoundsUsed = true;
-            console.log(`[研读轮·会话式] ${s.report.batches} 批全部核对通过（回流 ${s.report.rereads} 次），${browsePath ? '记录作浏览会话前缀（大范围融合）' : '研读记录随写作/答案请求携带'}`);
+            console.log(`[研读轮·会话式] ${s.report.batches} 批全部核对通过（回流 ${s.report.rereads} 次），研读记录随写作/答案请求携带`);
           }
         } catch (e) {
-          const isHard = String(e.message || '').startsWith('会话式研读轮未通过');
-          if (isHard && !browsePath) throw e;
-          // 浏览通道研读失败 或 引擎不可用 → 如实记录并放行（浏览通道模型仍 browse；直灌通道引擎不可用时研读未启用，非"假装完成"）
-          console.warn(`[研读轮] ${browsePath ? '浏览增强研读失败（放行）' : '引擎不可用，本次未启用会话式研读（保持直灌路径）'}: ${String((e && e.message) || e)}`);
+          throw e; // 阻断（含"会话式研读轮未通过"与引擎异常两类，错误信息已含行动建议）
         }
       }
     }
-    if (!browsePath && studyPairs && !studyHistory.length) {
+    // 🔧 研读总账→写作/答案页 history 前缀：无条件派生（browse 主路径内部用它构建会话前缀，
+    //    回退纯摘要写作与答案页独立调用同样携带——素材唯一途径=研读摘要，任何写作调用都带）
+    if (studyPairs && !studyHistory.length) {
       studyHistory = buildStudyPrefix(studyPairs);
     }
 
@@ -4672,14 +4654,12 @@ ${cardAnalysisText.substring(0, 1000)}
       return m.replace(t, cleaned);
     });
 
-    // ── 组装最终 prompt：注入指令（委托书） + 素材区（双卡分节） + 附加块（模板对标/情境/差异化，用户配置了才加） ──
-    // 素材线（G7）：直灌通道 = 委托 + 依据卡 + 参考卡（示范段预算化，供参考不照搬）；
-    //   浏览通道 = 委托 + 目录骨架 + 依据卡（覆盖点名保底；参考段由 browse 按需取）
-    const materialSection = browsePath
-      ? [browseAnchor, basisBlock].filter(Boolean).join('\n\n')
-      : [basisBlock, refBlock].filter(Boolean).join('\n\n');
+    // ── 组装最终 prompt：委托书 + 范围目录 + 附加块（模板对标/情境/差异化，用户配置了才加） ──
+    // 素材线（G7 终态，2026-09 用户定稿）：不再拼接 basis/ref 素材区（直灌废除）——
+    //   素材唯一途径=研读总账（history 前缀）+ 写作期 browse 按需；browseAnchor 仅为
+    //   browse 白名单可见化（范围目录，非素材原文），纯摘要写作路径同带（命题范围声明）。
     let prompt = instruction.trim();
-    if (materialSection) prompt += `\n\n${materialSection}`;
+    if (browseAnchor) prompt += `\n\n${browseAnchor}`;
     if (templateInfo?.trim()) prompt += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
     if (contextFramework?.trim()) prompt += `\n\n${contextFramework.trim()}`;
     if (diffKps?.length) {
@@ -4742,9 +4722,12 @@ ${cardAnalysisText.substring(0, 1000)}
     let browseCoverageNotes = [];
     // 🔧 采样用：正文是否触发过续写/截断（预算失效场，校准统计须剔除）
     let sampleTruncated = false;
-    // ── 大范围工具路径：先按章 browse 取材后再生成正文；失败自动回退单次全量注入（一次生成成功优先） ──
+    // 🔧 素材线 G7 终态：引擎不支持 browse tools → 纯摘要写作（仅研读总账+委托书），
+    //    报告如实标注（无 browse 工具无法按需现取教材原文精确形态）
+    const digestOnlyWriting = !browsePath;
+    // ── 写作主链：引擎支持 tools → browse 按需取材后成稿；不支持 → 纯摘要写作 ──
     if (browsePath) {
-      statusText.value = `整卷生成：大范围教材浏览取材中（工具路径，${modeLabel}）...`;
+      statusText.value = `整卷生成：研读总账就绪，写作期 browse 按需取材（${modeLabel}路径）...`;
       try {
         const bres = await generateBodyByTextbookBrowse({
           genType, promptBase: prompt, contentCards, knowledgeMap, anchors, // P4：章考点清单取自主路径已构建的覆盖锚（同源一致）
@@ -4764,27 +4747,13 @@ ${cardAnalysisText.substring(0, 1000)}
         }
       } catch (e) {
         lastErr = e;
-        console.warn('⚠️ 教材浏览路径失败，回退单次全量注入:', e.message);
+        console.warn('⚠️ 浏览取材路径失败，回退纯摘要写作（研读总账为唯一素材依据）:', e.message);
       }
       if (!content) {
-        // 回退单次注入：恢复双卡素材区（依据卡保底 + 参考卡示范段预算化——目录骨架不足以支撑命题）
-        const fbMaterial = [basisBlock, refBlock].filter(Boolean).join('\n\n');
-        let fb = instruction.trim();
-        if (fbMaterial) fb += `\n\n${fbMaterial}`;
-        if (templateInfo?.trim()) fb += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
-        if (contextFramework?.trim()) fb += `\n\n${contextFramework.trim()}`;
-        if (diffKps?.length) fb += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}`;
-        if (requiredKpsText) fb += requiredKpsText; // 缺漏定向补齐：回退单次注入同样携带必覆盖
-        fb += `\n\n${generateMode === 'once' ? PAPER_OUTPUT_CONVENTIONS.once(subject, isSelfContainedTeaching) : PAPER_OUTPUT_CONVENTIONS.split(subject, isSelfContainedTeaching)}`;
-        prompt = fb;
-        // 🔧 自洽修正：回退后注入的是预算化的双卡素材区（依据卡+参考卡 ≤ 预算），
-        //   而非勾选全量原文——预算若仍按 selectedRawChars 计算会虚高，诱发散写（费用+内容发散）。
-        //   按实际注入的素材区长度重算兜底预算（同样受槽 cap / 硬上界约束），与正文首次预算标尺一致。
-        const fbBlockLen = fbMaterial.length;
-        const fbNeeded = Math.round(Math.max(floorTok, fbBlockLen * bodyCfg.coef));
-        const fbOver = fbNeeded > bodyCfg.cap;
-        bodyDynamicCap = Math.round(Math.min(fbOver ? Math.min(MAIN_TOKEN_CEIL, fbNeeded) : bodyCfg.cap, fbNeeded));
-        console.warn('📚 [教材浏览] 浏览未产出合格正文，回退单次注入（双卡素材区）。');
+        // 浏览路径未产出合格正文 → 回退纯摘要写作：不再注入任何教材原文（直灌废除），
+        // 仅凭研读总账摘要（history 前缀）+ 委托书写作——素材唯一途径契约下无"回退双卡"可走。
+        // 预算沿用上方动态帽（按勾选原文量推算，非按素材区——此处无素材区），与纯摘要请求一致。
+        console.warn('📚 [浏览取材] 浏览未产出合格正文，回退纯摘要写作（研读总账摘要支撑，不预塞原文）。');
       }
     }
     // 🔴 思考模式耗尽降级：推理 chunks 巨大且正文为空（finish_reason=length 截断在推理阶段）→ 重试强制关闭思考
@@ -5190,6 +5159,11 @@ ${guardResult.bannedList.length ? guardResult.bannedList.slice(0, 15).map((b) =>
     }
     if (answerSkipNote) auditWarnings.push(answerSkipNote);
     if (browseCoverageNotes.length) auditWarnings.push(...browseCoverageNotes);
+    // 🔧 纯摘要写作标注（G7 终态）：当前引擎不支持 browse 工具 → 无法写作期按需现取教材原文，
+    //    内容基于研读总账摘要生成——如实告知，便于用户判断是否需更换支持 browse 的引擎
+    if (digestOnlyWriting) {
+      auditWarnings.push('ℹ️ 当前引擎不支持 browse 工具：本次为纯摘要写作——正文依据研读总账摘要生成，未按需现取教材原文精确形态；如需教材原文细节支撑命题，请使用支持工具调用的引擎（DeepSeek/智谱/火山/阿里云等）。');
+    }
     if (anchorMissingNote) auditWarnings.push(anchorMissingNote);
     // 📊 覆盖对账（2026-09 P2）：生成完成后按 COVERAGE_CONTRACT 对账正文考点出现度。
     //    只对 full/per-lesson-full（知识型/课时练）判缺并透出缺漏清单到生成报告【问题列表】，

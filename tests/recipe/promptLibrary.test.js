@@ -87,11 +87,12 @@ describe('注入指令组装（拼接格式与顺序）', () => {
     expect(out).toContain('多出几道情境题');
   });
 
-  it('{material} 占位符渲染为附加提示（真实素材由生成器检索后以"素材·依据/参考"注入委托末尾，不重复；禁止照搬字面）', () => {
+  it('{material} 占位符渲染为素材来源说明（G7 终态：原文不注入委托，经研读总账+browse 获取）', () => {
     const out = buildInjectionInstruction({ template: '素材：{material}', subject: '语文' });
-    expect(out).toContain('教材原文素材由系统按本资料覆盖的知识点检索后');
-    expect(out).toContain('素材·依据/参考');       // 指明真实素材形态（双卡），非原文全文随委托
-    expect(out).toContain('仅供理解结构与梯度');    // b 方案口径：素材供理解不照搬
+    expect(out).toContain('教材原文不随本委托注入');  // 原文不再随委托拼接
+    expect(out).toContain('研读总账');               // 素材经研读消化（总账随会话前缀）
+    expect(out).toContain('browse 现取');            // 写作期按需 browse
+    expect(out).toContain('禁止照搬字面');
     expect(out).not.toContain('【教材原文】\n'); // 素材块不进注入框
   });
 
