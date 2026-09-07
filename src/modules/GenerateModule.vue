@@ -328,6 +328,15 @@
         v-show="!isMobile || mobileGenTab === 'instruct'"
         class="instruction-panel"
       >
+        <div class="flow-guide">
+          <span
+            v-for="s in stepChips"
+            :key="s.n"
+            class="flow-chip"
+            :class="{ done: flowStep > s.n, cur: flowStep === s.n }"
+          >{{ s.n }} {{ s.t }}</span>
+          <span class="flow-tip">{{ guideText }}</span>
+        </div>
         <div class="panel-header">
           <h3>📝 注入指令</h3>
           <div class="header-actions">
@@ -5140,6 +5149,26 @@ const isCoveredByAnalyzedParent = (book, chapter) => {
 
 const getSelectedChapters = (nodes) => textbookStore.getSelectedChapters(nodes);
 
+// 🔴 复位工程·S6 流程引导（宽松：按钮自由、提示下一步，不强制禁用）
+//    ① 勾选教材 → ② 研读素材（会话式研读轮，可委托）→ ③ 注入指令（委托书，可编辑）→ ④ 委托生成
+const hasBooksSelected = computed(() => textbookStore.textbooks.some((b) =>
+  hasAnySelected(b.outline) && getSelectedChapters(b.outline).some((ch) => ch._selectedForAnalysis !== false)));
+const flowStep = computed(() => {
+  if (!hasBooksSelected.value) return 1;
+  if (studyPhase.value.status !== 'ready') return 2;
+  if (!String(instructionDraft.value || '').trim()) return 3;
+  return 4;
+});
+const stepChips = [
+  { n: 1, t: '勾选教材' }, { n: 2, t: '研读素材' }, { n: 3, t: '注入指令' }, { n: 4, t: '委托生成' },
+];
+const guideText = computed(() => {
+  if (!hasBooksSelected.value) return '先在教材库勾选章节（左栏），开始本次委托范围';
+  if (flowStep.value === 2) return '② 研读素材：编辑先通读勾选教材（分批消化+批摘要核对、引用可溯源），通过后才进入委托——点上方「📖 研读素材」';
+  if (flowStep.value === 3) return '③ 注入指令：研读已完成。点「🔧 生成指令」按 年级×学科×类型 组装委托书（可直接编辑；若已有委托内容可跳过，直接生成将按指令库自动组装）';
+  return '④ 委托生成：可直接点「生成」一次成稿——复用研读记录（不重复 Step1/2 提取与研读轮）；未研读直接生成会自动先研读';
+});
+
 // 🔧 缓存版本：递增以清除旧版本残留的配置值（避免旧值绕过指令库自动覆写）
 const DETAIL_CONFIG_CACHE_VERSION = 4;
 
@@ -9016,6 +9045,40 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   border-radius: 8px;
   background: var(--bg-card);
   font-size: 12.5px;
+  line-height: 1.5;
+}
+/* 🔴 复位工程·S6 四步流程引导（宽松提示，不强制禁用） */
+.flow-guide {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--bg-card);
+  font-size: 12.5px;
+}
+.flow-chip {
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #eef1f5;
+  color: #7a8699;
+  white-space: nowrap;
+}
+.flow-chip.cur {
+  background: #e3f2fd;
+  color: #1565c0;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px #90caf9;
+}
+.flow-chip.done {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.flow-tip {
+  color: #5a6b80;
   line-height: 1.5;
 }
 .src-title { font-size: 12.5px; font-weight: 700; color: #26303e; margin-bottom: 6px; }
