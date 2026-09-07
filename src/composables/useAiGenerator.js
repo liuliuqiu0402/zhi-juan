@@ -5094,9 +5094,13 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     let revisionRounds = 0;
     const REVISION_CAP = 2;
     if (apiConfig.generationSettings?.paperRevision !== false && guardResult.hits.length && copyGuardOn) {
+      // 修订总预算（2026-09 修复：此前 clampReq 把预算钳到引擎单次上限 8192，整卷全文重写
+      //   （≈10K+ token）必然超支 → 输出必短 → 判"长度异常"→ break 无第二次 → 修订轮空转失效。
+      //   修订=整卷重写，须按"原文 token 估算×1.6 + 清单开销"给足总预算，由 callAI 分次续写补齐；
+      //   总预算上界取整体允许上限（不按单次 cap 钳制），超上界才放弃整卷修订（命中进报告）。
       const bodyTxtLen = finalContent.replace(/<[^>]+>/g, '').length;
-      // 修订预算：正文+答案估算 token（中文≈0.9~1.3 token/字）1.5 倍余量 + 说明开销；整卷修订仅当单次容量可容纳
-      const needTokens = clampReq(Math.min(32000, Math.max(2600, Math.ceil(bodyTxtLen * 1.5) + 1500)));
+      const needTotal = Math.min(60000, Math.max(4200, Math.ceil(bodyTxtLen * 1.6) + 2000));
+      let lastFailWhy = '';
       for (let rv = 0; rv < REVISION_CAP && guardResult.hits.length; rv++) {
         revisionRounds += 1;
         const hitText = guardReportOf(guardResult.hits, { copyLimit: 12 }).join('\n');
@@ -5104,6 +5108,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
 程序用确定性规则（字面/词表/结构比对，非语义判断）对整卷做了检测，检出以下必须处理的问题——仅陈述字面事实与契约，不预设改法：
 【待修订问题】
 ${hitText}
+${lastFailWhy ? `【上一轮修订未采用原因】${lastFailWhy}——本轮务必完整回传整卷全文（含参考答案区），任何部分性输出/省略都会被判无效。` : ''}
 【禁用沿用名单】（正文与教材参考段字面重合的片段/算式/数据；修订不得再沿用，须换情境换数据重写）
 ${guardResult.bannedList.length ? guardResult.bannedList.slice(0, 15).map((b) => `· ${b}`).join('\n') : '（无）'}
 【修订要求】
@@ -5114,7 +5119,7 @@ ${guardResult.bannedList.length ? guardResult.bannedList.slice(0, 15).map((b) =>
           const thinkingMult = getGenerationThinkingEnabled() ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1;
           const revResp = await callAI(revPrompt, {
             taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
-            maxTokens: Math.round(needTokens * thinkingMult),
+            maxTokens: Math.round(needTotal * thinkingMult),
             allowContinuation: true, temperature: bodyTemperature, returnMeta: true,
           });
           const ro = typeof revResp === 'string' ? { content: revResp, finishReason: '' } : (revResp || { content: '', finishReason: '' });
@@ -5124,12 +5129,12 @@ ${guardResult.bannedList.length ? guardResult.bannedList.slice(0, 15).map((b) =>
             finalContent = revHtml;
             console.log(`✅ [写作修订轮] 第 ${rv + 1} 轮完成：已按命中清单修订（命中前 ${guardResult.hits.length} 处）`);
           } else {
-            console.warn(`⚠️ [写作修订轮] 第 ${rv + 1} 轮输出未采用（${!revHtml ? '空输出' : trunc ? '输出截断' : '长度异常'}），保留原稿并将命中清单进报告`);
-            break;
+            lastFailWhy = !revHtml ? '空输出（模型未返回修订正文）' : trunc ? '输出截断（未到完整结束）' : '长度异常（未回传整卷全文）';
+            console.warn(`⚠️ [写作修订轮] 第 ${rv + 1} 轮输出未采用（${lastFailWhy}），保留原稿继续下一轮`);
           }
         } catch (e) {
-          console.warn(`⚠️ [写作修订轮] 第 ${rv + 1} 轮请求异常，停止修订（命中清单进报告）:`, e.message);
-          break;
+          lastFailWhy = `请求异常：${e.message}`;
+          console.warn(`⚠️ [写作修订轮] 第 ${rv + 1} 轮请求异常（保留原稿继续下一轮）:`, e.message);
         }
         guardResult = guardPaper({ html: finalContent, corpus: refCorpus, copy: copyGuardOn });
         if (guardResult.hits.length) {

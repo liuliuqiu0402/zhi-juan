@@ -68,14 +68,25 @@ export const cleanSectionHtml = (raw) => {
 export function stripPlanningPreamble(raw = '') {
   if (!raw) return raw;
   let out = String(raw);
-  const pHead = /^\s*(<p[^>]*>)([\s\S]*?)<\/p>/;
   const PLAN_RE = /^(?:我已|已取到|已获取|已拿到|已检索到|现在|接下来|以下(?:将|是)?|根据|依据|现依据|围绕|请根据|本次)[^<\n]{0,60}?(?:教材原文|知识点|核心知识|课标|命制|编写|设计|课时练|课堂练习|试卷|正文|大纲|素材)/;
   for (let guard = 0; guard < 6; guard++) {
+    const pHead = /^\s*(<p[^>]*>)([\s\S]*?)<\/p>/;
     const m = out.match(pHead);
-    if (!m) break;
-    const text = m[2].replace(/<[^>]+>/g, '').trim();
-    if (!text || /^\d+[.、．]/.test(text) || !PLAN_RE.test(text)) break;
-    out = out.slice(m[0].length).replace(/^\s+/, '');
+    if (m) {
+      const text = m[2].replace(/<[^>]+>/g, '').trim();
+      if (!text || /^\d+[.、．]/.test(text) || !PLAN_RE.test(text)) break;
+      out = out.slice(m[0].length).replace(/^\s+/, '');
+      continue;
+    }
+    // 无 <p> 包裹的裸文本首段（浏览通道模型常在 HTML 前直出自述句，2026-09 实测形态
+    //   "已取到教材原文素材（第1~8段）…命题。" 无标签包裹 → 逐段剥；只剥 ≤160 字符、
+    //   非题号/非栏目开头的自述行，真内容不误伤
+    const bare = out.match(/^([^<\n]+)/);
+    if (!bare) break;
+    const t = bare[1].trim();
+    if (!t) { out = out.slice(bare[0].length); continue; }
+    if (t.length > 160 || /^\d+[.、．]/.test(t) || !PLAN_RE.test(t)) break;
+    out = out.slice(bare[0].length).replace(/^\s+/, '');
   }
   return out;
 }

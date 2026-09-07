@@ -201,7 +201,7 @@ export function guardReportOf(hits = [], { copyLimit = 5 } = {}) {
     const total = list.length;
     const shown = list.slice(0, cat === 'copy' ? copyLimit : total);
     const extra = total > shown.length ? `（本类共 ${total} 处，仅列前 ${shown.length} 处）` : '';
-    const body = shown.map((h) => `「${String(h.text).slice(0, 120)}」`).join('\n    · ');
+    const body = shown.map((h) => `· ${h.text}`).join('\n');
     paras.push(`⚠️ 卷面自检·${CAT_LABEL[cat]}：${extra} ${body}`);
   }
   return paras;
