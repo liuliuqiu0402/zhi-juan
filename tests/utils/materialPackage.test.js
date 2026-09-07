@@ -53,6 +53,21 @@ describe('双卡素材区构建（素材线 G7）', () => {
     expect(ref).not.toContain(practiceSeg.text);
   });
 
+  it('参考卡头按模式分流（2026-09 b 方案）：题类=仅供理解结构/梯度+数据情境自拟；内容型=归纳转写口径', () => {
+    const anchors = [mkAnchor('小数除以小数', { segs: [exampleSeg] })];
+    // 题类（默认 contentMode=false）：旧"供参考不照搬"授权式措辞收敛为"仅供理解+一律自拟"禁令
+    const { ref: refQuestion } = buildMaterialPackage({ anchors });
+    expect(refQuestion).toContain('仅供理解题型结构与算理/知识梯度');
+    expect(refQuestion).toContain('数据、情境、人名、句式一律自拟');
+    expect(refQuestion).toContain('禁止沿用参考段连续字面');
+    expect(refQuestion).not.toContain('供参考不照搬'); // 旧授权措辞已根除
+    // 内容型（contentMode=true）：正文归纳转写是本职 → 归纳口径（不整段照录）
+    const { ref: refContent } = buildMaterialPackage({ anchors, contentMode: true });
+    expect(refContent).toContain('归纳转写');
+    expect(refContent).toContain('可标注出处');
+    expect(refContent).not.toContain('一律自拟'); // 内容型不禁归纳，不误伤
+  });
+
   it('参考卡预算上限：宁缺段不切句（单段超预算 → 放弃该锚参考，依据卡仍在）', () => {
     const longSeg1 = { text: '甲'.repeat(3000), type: '正文' };
     const longSeg2 = { text: '乙'.repeat(3000), type: '正文' };

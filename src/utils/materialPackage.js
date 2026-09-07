@@ -17,9 +17,12 @@ import { isReturnableSegment } from './generationSession.js';
  * @param {object} p
  * @param {Array} [p.anchors] buildAnchors 输出（含 bind/isExtension）
  * @param {number} [p.maxChars] 参考卡预算上限（默认 5000；依据卡不受限——覆盖保底必须全）
+ * @param {boolean} [p.contentMode] 内容型（summary/preview/dictation/review：正文归纳转写是本职，素材可按学段口径归纳、
+ *   标注出处）；false=题类（exam/practice/special/reading/errorbook：素材仅供理解题型结构与算理梯度，
+ *   数据/情境/句式一律自拟——2026-09 用户定稿 b 方案，参考段不再自称"取材依据"）
  * @returns {{basis:string, ref:string, boundCount:number}}
  */
-export function buildMaterialPackage({ anchors = [], maxChars = 5000 } = {}) {
+export function buildMaterialPackage({ anchors = [], maxChars = 5000, contentMode = false } = {}) {
   const bounds = (anchors || []).filter((a) => a && a.bind && a.bind.status !== 'missing' && !a.isExtension && a.name);
   const basisLines = bounds.map((a) => {
     const concepts = (a.specificConcepts || []).filter(Boolean).slice(0, 4);
@@ -42,8 +45,13 @@ export function buildMaterialPackage({ anchors = [], maxChars = 5000 } = {}) {
       used += t.length + 6;
     }
   }
+  // 🔧 参考卡头（2026-09 b 方案落地）：题类从"示范段原文·供参考不照搬"收敛为"仅供理解题型结构与算理梯度，
+  //    数据/情境/句式一律自拟"——旧头"供参考不照搬"仍把示范段当可抄料面展示，禁令停留在口号层；
+  //    内容型（正文归纳转写是本职）保留归纳定位，措辞不同但同样禁整段照录
   const ref = refParts.length
-    ? `【素材·参考】（示范段原文——教材例题/结论框整段，供参考不照搬；练习/作业成品不提供）\n${refParts.join('\n')}`
+    ? contentMode
+      ? `【素材·参考】（示范段原文——教材例题/结论框整段；正文按学段口径归纳转写，可标注出处，不整段照录；练习/作业成品不提供）\n${refParts.join('\n')}`
+      : `【素材·参考】（仅供理解题型结构与算理/知识梯度——示范段原文见下；命题/题干的数据、情境、人名、句式一律自拟，禁止沿用参考段连续字面；练习/作业成品不提供）\n${refParts.join('\n')}`
     : '';
   return { basis, ref, boundCount: bounds.length };
 }

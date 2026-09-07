@@ -4066,7 +4066,7 @@ ${cardAnalysisText.substring(0, 1000)}
     type: 'function',
     function: {
       name: 'browse_textbook',
-      description: '浏览教材：按章节名从当前所选课本中取回该章的教材原文片段与该章知识点，作为本卷/本资料取材依据（教材版本以所选课本为准）。',
+      description: '浏览教材：按章节名从当前所选课本中取回该章的教材原文片段与该章知识点，仅供理解该章题型结构与算理/知识梯度与覆盖范围（教材版本以所选课本为准；命题数据/情境/句式须自拟，禁止沿用原文连续字面）。',
       parameters: {
         type: 'object',
         properties: {
@@ -4079,12 +4079,12 @@ ${cardAnalysisText.substring(0, 1000)}
   };
   const BROWSE_SYSTEM = [
     '你是教材命题/教辅编辑，依据当前所选课本与相应学段课标要求，生成正式卷面的正文。',
-    '【教材取材约定】',
-    '· 需要某章原文作依据时，调用 browse_textbook，按章节名取回该章的原文片段与该章知识点；',
+    '【教材浏览与命题约定】',
+    '· 需要理解某章题型结构/算理梯度或核对覆盖范围时，调用 browse_textbook，按章节名取回该章的原文片段与该章知识点；',
     '· browse 仅限本次勾选覆盖范围内的章节（见【本资料覆盖范围·目录】）——范围外章节会被程序拒绝且不返回任何原文，不要尝试浏览范围外内容；',
     '· 每次 browse 返回该章 1 段完整示范段（段内不截断）；同一章节可多次浏览以取不同段落，已返回段落不会重复返回；',
-    '· 取到本卷所需章节的原文后，必须立即停止调用工具，依据已浏览到的原文与课标术语完成命题，不再发起任何工具调用；',
-    '· 已浏览的段落可直接引用命题；仍缺的段落按需继续浏览本章（每次一段），不必一次取全。',
+    '· 取到本卷所需章节的原文后，必须立即停止调用工具，依据已浏览到的结构与梯度理解与课标术语完成命题（数据/情境/句式一律自拟，不得沿用原文连续字面），不再发起任何工具调用；',
+    '· 已浏览的段落供理解该章题型结构与算理/知识梯度；仍缺理解的段落按需继续浏览本章（每次一段），不必一次取全。',
     '· 不把具体选文名写进标题或大题名（大题名使用结构名）。',
   ].join('\n');
   const deriveBrowseParams = (budget, chapterCount = 1) => {
@@ -4497,7 +4497,10 @@ ${cardAnalysisText.substring(0, 1000)}
     // 素材量按类型差异化（内容型资料需充分示范段、引导型资料适量即可）
     const MATERIAL_CHARS = GEN_CONST.MATERIAL_CHARS;
     const materialBudget = MATERIAL_CHARS[genType] || 5000;
-    const { basis: basisBlock, ref: refBlock } = buildMaterialPackage({ anchors, maxChars: materialBudget });
+    // 🔧 b 方案（2026-09 首轮提升）：题类（copy 守门开）参考卡头=仅供理解题型结构/算理梯度、数据情境自拟；
+    //    内容型（mode=full：summary/preview/dictation/review，正文归纳转写是本职）参考卡头=归纳转写口径
+    const contentMode = contractOf(genType).mode === 'full';
+    const { basis: basisBlock, ref: refBlock } = buildMaterialPackage({ anchors, maxChars: materialBudget, contentMode });
     // ── 大/小范围判定（素材线：素材原文总量超参考预算 → 走浏览通道，参考段不预取、browse 按需取）──
     const selectedRawChars = (contentCards || []).reduce(
       (s, c) => s + (c.segments || []).reduce((ss, p) => ss + (p && p.text ? p.text.length : 0), 0), 0);
