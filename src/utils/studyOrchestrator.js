@@ -76,9 +76,10 @@ function summarizeValidation(v) {
  * @param {number} [p.maxCharsPerBatch]
  * @param {number} [p.rereadLimit] 每批回流重读上限（默认 STUDY_REREAD_LIMIT）
  * @param {object} p.digestFns 由调用方注入的"批摘要产出"（真实链路=携带此前研读前缀调用引擎并取回模型笔记文本）
+ * @param {Function} [p.onProgress] 逐批进度回调({batchIndex,total,rereads,batchNames})——供 UI 状态与排查日志
  * @returns {Promise<{ok:boolean, nextStage:string, ledger:Map, report:object, digestPairs:Array, failBatch?:object}>}
  */
-export async function runStudyRound({ units, session, maxCharsPerBatch = 2500, digestFns, rereadLimit = STUDY_REREAD_LIMIT }) {
+export async function runStudyRound({ units, session, maxCharsPerBatch = 2500, digestFns, rereadLimit = STUDY_REREAD_LIMIT, onProgress = null }) {
   const { batches, oversize } = planStudyBatches(units, maxCharsPerBatch);
   const ledger = new Map();
   const report = { batches: batches.length, oversize, rereads: 0, missing: [], empty: [], unverifiable: [], digestError: '' };
@@ -116,6 +117,7 @@ export async function runStudyRound({ units, session, maxCharsPerBatch = 2500, d
       }
       lastValidation = v;
       report.rereads += 1;
+      if (onProgress) onProgress({ batchIndex: bi + 1, total: batches.length, rereads: report.rereads, batchNames: names, attempt });
     }
     if (!ok) {
       // 回流重读超限仍失败 → 中断研读（不静默通过）：返回失败批与校验明细，由调用方如实上报
@@ -124,6 +126,7 @@ export async function runStudyRound({ units, session, maxCharsPerBatch = 2500, d
       report.unverifiable.push(...(lastValidation?.unverifiable || []));
       return { ok: false, nextStage: 'studying', ledger, report, failBatch: batch, validation: lastValidation };
     }
+    if (onProgress) onProgress({ batchIndex: bi + 1, total: batches.length, rereads: report.rereads, batchNames: names, ok: true });
     // 通过：摘要原话进会话（assistant），素材批原文压缩替换为"该批点名"摘要（审计体积；引擎历史由 digestPairs 派生）
     appendMessage(session, { role: 'assistant', kind: 'assistant', content: digestText, compressible: false });
     const compact = applyCompaction(session, {

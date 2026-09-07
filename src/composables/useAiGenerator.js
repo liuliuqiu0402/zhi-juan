@@ -4,6 +4,7 @@ import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getM
 import { buildStudyUnits, runStudyRound, buildStudyPrefix } from '../utils/studyOrchestrator.js';
 import { createGenerationSession, isReturnableSegment } from '../utils/generationSession.js';
 import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'; // S4.1：段类型补"拓展/文化"（锚范围性质判定共用）
+import { buildMaterialPackage } from '../utils/materialPackage.js'; // 素材线 G7：双卡素材区（依据卡+参考卡），取代旧检索式直灌
 import { GEN_CONST } from '../config/generationConstants.js';
 import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel } from '../config/promptLibrary.js';
 import { getStoragePath } from '../utils/pathHelper.js';
@@ -1016,7 +1017,7 @@ export async function chatStudyDigestOnce(messages = [], { maxTokens = 8000, tem
  * anchors 缺省时由 contentCards 现算（显式"研读教材"阶段无预构建锚时使用）。
  * @returns {Promise<{ok:boolean, digestPairs:Array, report:Object, unitsCount:number, error?:string}>}
  */
-async function runStudyNow({ genType = '', contentCards = [], anchors = null } = {}) {
+async function runStudyNow({ genType = '', contentCards = [], anchors = null, onProgress = null } = {}) {
   const anchorSrc = anchors && anchors.length ? anchors : buildAnchors(contentCards || [], { retriever: semanticRetriever }).anchors;
   const studyUnits = buildStudyUnits({ anchors: anchorSrc });
   if (!studyUnits.length) {
@@ -1032,6 +1033,7 @@ async function runStudyNow({ genType = '', contentCards = [], anchors = null } =
         { role: 'user', content: msg },
       ]),
     },
+    onProgress,
   });
   if (!r.ok) {
     const reason = r.report.digestError
@@ -4085,7 +4087,7 @@ ${cardAnalysisText.substring(0, 1000)}
   // 大范围：程序侧确定性取料供给工具 browse_textbook；模型按章浏览、收敛后单主请求产出正文。
   // 返回 { content, coverageNotes }——coverageNotes 为防旧教材的主编式提醒（只提示，不改写）。
   const generateBodyByTextbookBrowse = async (params) => {
-    const { genType, promptBase, maxTokens, temperature, contentCards = [], knowledgeMap = null, anchors = [], generateMode = 'once' } = params;
+    const { genType, promptBase, maxTokens, temperature, contentCards = [], knowledgeMap = null, anchors = [], generateMode = 'once', studyPairs = null } = params;
     const myBudget = GEN_CONST.MATERIAL_CHARS[genType] || 5000;
     const { perBrowseCap, maxRounds } = deriveBrowseParams(myBudget, (contentCards || []).length);
 
@@ -4225,11 +4227,15 @@ ${cardAnalysisText.substring(0, 1000)}
       ...(provider === 'zhipu' ? { thinking: { type: 'disabled' } } : {}),
       ...(provider === 'alibaba' ? { enable_thinking: false } : {}),
     };
+    // 🔴 S6 大范围融合：研读消化记录（点名行 user + 模型摘要 assistant，一问一答）作会话前缀，
+    //    模型带着"已研读理解"进入浏览取材与一次成稿（素材批原文不随前缀累积，仅消化记录）
+    const studyPrefixMsgs = buildStudyPrefix(Array.isArray(studyPairs) ? studyPairs : []);
     const messages = [
       { role: 'system', content: BROWSE_SYSTEM
         + (generateMode === 'once'
           ? '\n（本资料为一次成型：正文与答案区一次输出，答案区仅对本资料的练习/自测/例题作答，勿把正文的知识梳理整体复述到答案区。）'
           : '') },
+      ...studyPrefixMsgs,
       { role: 'user', content: promptBase },
     ];
     const browsed = new Set();
@@ -4419,6 +4425,8 @@ ${cardAnalysisText.substring(0, 1000)}
     return { content, coverageNotes };
   };
 
+  // ⚠️ 已弃用（素材线 G7，2026-09-07 用户拍板）：旧"检索式全文直灌"构建，由顶层 buildMaterialPackage
+  //     （双卡素材区：依据卡+参考卡）取代。函数保留仅为回归对照参考，不再被调用；待回归稳定后删除。
   const buildMaterialBlock = ({ contentCards = [], knowledgeMap = null, maxChars = 8000, anchors = null, boundAnchors = null } = {}) => {
     // 1. 结构化目录（范围锚定：先给目录确定命题范围，不遗漏、不越界）
     const titles = [];
@@ -4630,13 +4638,13 @@ ${cardAnalysisText.substring(0, 1000)}
       ? `⚠️ 覆盖缺料：${anchorReport.missingList.length} 项核心知识所在章节无教材片段，本次无法从教材取材（已排除在可命题范围外）：${anchorReport.missingList.map((m) => `${m.chapter}·${m.name}`).join('、')}。请检查勾选章节的原文解析/粘贴是否完整。`
       : '';
 
-    // ── 素材构建：按知识点检索（目录 + 知识点清单 + 相关片段，分级限量，非硬截断） ──
-    // 素材量按类型差异化（内容型资料需充分原文、引导型资料适量即可，避免信息过载）
+    // ── 素材区构建（素材线 G7：双卡预取——依据卡覆盖保底＋参考卡示范段预算化；
+    //    废除旧"检索式全文直灌" materialBlock；旧函数保留标注弃用，待回归稳定后清理） ──
+    // 素材量按类型差异化（内容型资料需充分示范段、引导型资料适量即可）
     const MATERIAL_CHARS = GEN_CONST.MATERIAL_CHARS;
     const materialBudget = MATERIAL_CHARS[genType] || 5000;
-    const materialBlock = buildMaterialBlock({ contentCards, knowledgeMap, maxChars: materialBudget, anchors, boundAnchors });
-    // ── 大/小范围判定（设计 v2·Q1）：不做章节数判定，按勾选区累计原文字数；
-    //    超该类型素材预算（即单次注入会被 maxChars 截断）且引擎支持工具 → 走附件式浏览路径 ──
+    const { basis: basisBlock, ref: refBlock } = buildMaterialPackage({ anchors, maxChars: materialBudget });
+    // ── 大/小范围判定（素材线：素材原文总量超参考预算 → 走浏览通道，参考段不预取、browse 按需取）──
     const selectedRawChars = (contentCards || []).reduce(
       (s, c) => s + (c.segments || []).reduce((ss, p) => ss + (p && p.text ? p.text.length : 0), 0), 0);
     const largeBrowsing = selectedRawChars > materialBudget;
@@ -4644,7 +4652,7 @@ ${cardAnalysisText.substring(0, 1000)}
     for (const c of contentCards || []) {
       if (c?.chapterTitle && !browseTitles.includes(c.chapterTitle)) browseTitles.push(c.chapterTitle);
     }
-    // 浏览路径前缀只放"目录骨架"作范围锚，不放大段原文/整册知识清单（整册清单会撑爆前缀）
+    // 浏览通道前缀 = 目录骨架（范围锚）+ 依据卡（覆盖点名保底）；参考段由 browse 按需取
     const browseAnchor = browseTitles.length
       ? `【本资料覆盖范围·目录】（命题范围以本目录为准，覆盖全部章节，不遗漏、不越界）\n${browseTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
       : '';
@@ -4653,45 +4661,59 @@ ${cardAnalysisText.substring(0, 1000)}
       try {
         const gateCfg = await getCurrentEngineConfigEnhanced('generation', { promptLength: Math.min(selectedRawChars, 4000) });
         browsePath = TOOLS_SUPPORTED_PROVIDERS.includes(gateCfg?.provider);
-        if (browsePath) console.log(`📚 [教材浏览] 勾选原文 ${selectedRawChars} 字 > ${materialBudget}，走附件式工具浏览路径`);
+        if (browsePath) console.log(`📚 [教材浏览] 勾选原文 ${selectedRawChars} 字 > 参考预算 ${materialBudget}，走浏览通道（参考段 browse 按需取，依据卡仍预取）`);
       } catch (e) {
-        browsePath = false; // 引擎可配置探询失败 → 安全回退单次注入，不阻断生成
+        browsePath = false; // 引擎可配置探询失败 → 回退单次注入（双卡素材区），不阻断生成
       }
     }
 
-    // ── 会话式研读轮（复位工程·阶段 2/3 + S6 显式阶段）：直灌路径在写作前，编辑（模型）先分批消化素材，
-    //    批摘要（点名⊆批清单 / 引用可溯源 / 理解非空）经程序核对，失败带纠错提示回流该批重读；
-    //    全部通过后，研读消化记录（点名行+模型摘要原话）作为写作/答案页请求的历史前缀——
+    // ── 会话式研读轮（复位工程 S2/3 + S6 大范围融合）：直灌写作与浏览通道写作前统一执行研读消化。
+    //    批摘要（点名⊆批清单/引用可溯源/理解非空）经程序核对，失败带纠错提示回流该批重读；
+    //    全部通过后，消化记录（点名行+模型摘要原话）作写作/答案页/browse 会话的历史前缀——
     //    同源同序携带、只追加不拼接（区别于 M1 把总账文本拼进 instruction 的旧接入）。
-    //    显式"研读教材"阶段（S6）已产出 digestPairs 时经 externalStudy 复用，不再重复执行研读。
-    //    契约：研读不静默通过——回流超限 / 引擎异常如实阻断本次生成，给编辑明确行动项。
-    let studyHistory = [];
+    //    直灌通道：写作依赖研读消化——失败如实阻断（研读不静默通过）；
+    //    浏览通道（大范围）：研读为增强（模型随后仍 browse 亲读原文按需取材）——失败 warn 放行。
+    //    显式"研读教材"阶段（S6）产出 digestPairs 时经 externalStudy 复用，不再重复执行研读。
+    let studyPairs = null;   // digestPairs（browse 会话 / 直灌写作前缀的同一源）
+    let studyHistory = [];   // 直灌写作历史前缀（由 studyPairs 派生）
     let studyRoundsUsed = false;
-    if (!browsePath) {
+    {
       const extPairs = (externalStudy && Array.isArray(externalStudy.digestPairs) && externalStudy.digestPairs.length)
         ? externalStudy.digestPairs
         : null;
       if (extPairs) {
-        studyHistory = buildStudyPrefix(extPairs);
+        studyPairs = extPairs;
         studyRoundsUsed = true;
         console.log(`[研读轮·复用] 预研读 ${extPairs.length} 批记录直接携带（未重复执行研读）`);
       } else {
         try {
           statusText.value = '研读素材：编辑通读勾选教材（分批消化+批摘要核对，会话式）...';
           progress.value = 12;
-          const s = await runStudyNow({ genType, contentCards, anchors });
-          if (!s.ok) throw new Error(s.error || '会话式研读轮未通过');
+          const s = await runStudyNow({
+            genType, contentCards, anchors,
+            onProgress: (p) => {
+              console.log(`[研读轮·批进度] ${p.batchIndex}/${p.total}${p.attempt ? `（回流第 ${p.attempt} 次）` : ''} 覆盖点 ${(p.batchNames || []).length} 个${p.ok ? ' ✓ 核对通过' : ' ⚠ 未通过回流'}：${(p.batchNames || []).slice(0, 10).join('、')}`);
+              statusText.value = `研读素材：第 ${p.batchIndex}/${p.total} 批消化与批摘要核对中...`;
+              progress.value = 12 + Math.round((p.batchIndex / p.total) * 8);
+            },
+          });
+          if (!s.ok && !browsePath) throw new Error(s.error || '会话式研读轮未通过');
+          if (!s.ok && browsePath) console.warn(`[研读轮·浏览增强] 大范围研读未通过（warn 放行——模型仍经 browse 亲读原文按需取材，非静默）: ${String((s.error || '').slice(0, 400))}`);
           if (!s.skipped) {
-            studyHistory = buildStudyPrefix(s.digestPairs);
+            studyPairs = s.digestPairs;
             studyRoundsUsed = true;
-            console.log(`[研读轮·会话式] ${s.report.batches} 批全部核对通过（回流 ${s.report.rereads} 次），研读记录 ${studyHistory.length} 条随写作/答案请求携带`);
+            console.log(`[研读轮·会话式] ${s.report.batches} 批全部核对通过（回流 ${s.report.rereads} 次），${browsePath ? '记录作浏览会话前缀（大范围融合）' : '研读记录随写作/答案请求携带'}`);
           }
         } catch (e) {
-          if (String(e.message || '').startsWith('会话式研读轮未通过')) throw e;
-          // 引擎不可用（未配置/探测失败）→ 如实记录并放行原路径（研读轮本批次未启用，非静默"假装完成"）
-          console.warn(`[研读轮] 引擎不可用，本次未启用会话式研读（保持直灌路径）: ${String((e && e.message) || e)}`);
+          const isHard = String(e.message || '').startsWith('会话式研读轮未通过');
+          if (isHard && !browsePath) throw e;
+          // 浏览通道研读失败 或 引擎不可用 → 如实记录并放行（浏览通道模型仍 browse；直灌通道引擎不可用时研读未启用，非"假装完成"）
+          console.warn(`[研读轮] ${browsePath ? '浏览增强研读失败（放行）' : '引擎不可用，本次未启用会话式研读（保持直灌路径）'}: ${String((e && e.message) || e)}`);
         }
       }
+    }
+    if (!browsePath && studyPairs && !studyHistory.length) {
+      studyHistory = buildStudyPrefix(studyPairs);
     }
 
     // ── 动态输出预算帽（2026-09）：正文 maxTokens 不再固定取用户档位，而是按
@@ -4791,11 +4813,14 @@ ${cardAnalysisText.substring(0, 1000)}
       return m.replace(t, cleaned);
     });
 
-    // ── 组装最终 prompt：注入指令 + 附加块（素材/模板对标/情境/差异化，用户配置了才加） ──
-    // 浏览路径用"目录骨架"作前缀范围锚；单次注入用完整素材块（原文/知识清单）——两者顺序与后缀块均一致
-    const activeBlock = browsePath ? browseAnchor : materialBlock;
+    // ── 组装最终 prompt：注入指令（委托书） + 素材区（双卡分节） + 附加块（模板对标/情境/差异化，用户配置了才加） ──
+    // 素材线（G7）：直灌通道 = 委托 + 依据卡 + 参考卡（示范段预算化，供参考不照搬）；
+    //   浏览通道 = 委托 + 目录骨架 + 依据卡（覆盖点名保底；参考段由 browse 按需取）
+    const materialSection = browsePath
+      ? [browseAnchor, basisBlock].filter(Boolean).join('\n\n')
+      : [basisBlock, refBlock].filter(Boolean).join('\n\n');
     let prompt = instruction.trim();
-    if (activeBlock) prompt += `\n\n${activeBlock}`;
+    if (materialSection) prompt += `\n\n${materialSection}`;
     if (templateInfo?.trim()) prompt += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
     if (contextFramework?.trim()) prompt += `\n\n${contextFramework.trim()}`;
     if (diffKps?.length) {
@@ -4864,6 +4889,7 @@ ${cardAnalysisText.substring(0, 1000)}
       try {
         const bres = await generateBodyByTextbookBrowse({
           genType, promptBase: prompt, contentCards, knowledgeMap, anchors, // P4：章考点清单取自主路径已构建的覆盖锚（同源一致）
+          studyPairs, // S6 大范围融合：研读消化记录（点名行+模型摘要）作 browse 会话前缀，模型带着"已研读理解"取材
           maxTokens: clampReq(bodyDynamicCap),
           temperature: bodyTemperature,
           generateMode,
@@ -4882,23 +4908,24 @@ ${cardAnalysisText.substring(0, 1000)}
         console.warn('⚠️ 教材浏览路径失败，回退单次全量注入:', e.message);
       }
       if (!content) {
-        // 回退单次注入：恢复完整素材块（目录骨架不足以支撑命题）
+        // 回退单次注入：恢复双卡素材区（依据卡保底 + 参考卡示范段预算化——目录骨架不足以支撑命题）
+        const fbMaterial = [basisBlock, refBlock].filter(Boolean).join('\n\n');
         let fb = instruction.trim();
-        if (materialBlock) fb += `\n\n${materialBlock}`;
+        if (fbMaterial) fb += `\n\n${fbMaterial}`;
         if (templateInfo?.trim()) fb += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
         if (contextFramework?.trim()) fb += `\n\n${contextFramework.trim()}`;
         if (diffKps?.length) fb += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}`;
         if (requiredKpsText) fb += requiredKpsText; // 缺漏定向补齐：回退单次注入同样携带必覆盖
         fb += `\n\n${generateMode === 'once' ? PAPER_OUTPUT_CONVENTIONS.once(subject, isSelfContainedTeaching) : PAPER_OUTPUT_CONVENTIONS.split(subject, isSelfContainedTeaching)}`;
         prompt = fb;
-        // 🔧 2026-09 自洽修正：回退后注入的是被 typeBudget 截断的素材块（≤ materialBlock），
+        // 🔧 自洽修正：回退后注入的是预算化的双卡素材区（依据卡+参考卡 ≤ 预算），
         //   而非勾选全量原文——预算若仍按 selectedRawChars 计算会虚高，诱发散写（费用+内容发散）。
-        //   按实际注入的素材块长度重算兜底预算（同样受槽 cap / 硬上界约束），与正文首次预算标尺一致。
-        const fbBlockLen = (materialBlock || '').length;
+        //   按实际注入的素材区长度重算兜底预算（同样受槽 cap / 硬上界约束），与正文首次预算标尺一致。
+        const fbBlockLen = fbMaterial.length;
         const fbNeeded = Math.round(Math.max(floorTok, fbBlockLen * bodyCfg.coef));
         const fbOver = fbNeeded > bodyCfg.cap;
         bodyDynamicCap = Math.round(Math.min(fbOver ? Math.min(MAIN_TOKEN_CEIL, fbNeeded) : bodyCfg.cap, fbNeeded));
-        console.warn('📚 [教材浏览] 浏览未产出合格正文，回退单次全量注入。');
+        console.warn('📚 [教材浏览] 浏览未产出合格正文，回退单次注入（双卡素材区）。');
       }
     }
     // 🔴 思考模式耗尽降级：推理 chunks 巨大且正文为空（finish_reason=length 截断在推理阶段）→ 重试强制关闭思考
@@ -5453,7 +5480,14 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         statusText.value = '研读素材：编辑通读勾选教材（分批消化+批摘要核对，会话式）...';
         progress.value = 12;
         try {
-          const s = await runStudyNow({ genType, contentCards });
+          const s = await runStudyNow({
+            genType, contentCards,
+            onProgress: (p) => {
+              console.log(`[研读轮·批进度] ${p.batchIndex}/${p.total}${p.attempt ? `（回流第 ${p.attempt} 次）` : ''} 覆盖点 ${(p.batchNames || []).length} 个${p.ok ? ' ✓ 核对通过' : ' ⚠ 未通过回流'}：${(p.batchNames || []).slice(0, 10).join('、')}`);
+              statusText.value = `研读素材：第 ${p.batchIndex}/${p.total} 批消化与批摘要核对中...`;
+              progress.value = 12 + Math.round((p.batchIndex / p.total) * 8);
+            },
+          });
           if (!s.ok) return { success: false, error: s.error || '会话式研读轮未通过', studyOnly: true, studyReport: s.report };
           return {
             success: true,
