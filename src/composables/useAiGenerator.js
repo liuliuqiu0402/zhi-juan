@@ -415,6 +415,7 @@ import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countF
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
 import { reconcileCoverage, reconcileCoverageStats, coverageNoteOf } from '../utils/coverageReconciler.js';
 import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
+import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
 import { reconcileDomains, domainNoteOf } from '../utils/domainReconciler.js';
 import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, stripPlanningPreamble, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
@@ -4068,9 +4069,9 @@ ${cardAnalysisText.substring(0, 1000)}
     '【教材取材约定】',
     '· 需要某章原文作依据时，调用 browse_textbook，按章节名取回该章的原文片段与该章知识点；',
     '· browse 仅限本次勾选覆盖范围内的章节（见【本资料覆盖范围·目录】）——范围外章节会被程序拒绝且不返回任何原文，不要尝试浏览范围外内容；',
-    '· 每个章节只需浏览一次，同一章节不可重复浏览；',
+    '· 每次 browse 返回该章 1 段完整示范段（段内不截断）；同一章节可多次浏览以取不同段落，已返回段落不会重复返回；',
     '· 取到本卷所需章节的原文后，必须立即停止调用工具，依据已浏览到的原文与课标术语完成命题，不再发起任何工具调用；',
-    '· 已浏览过的章节，直接依据已有的原文命题，不要重复调用。',
+    '· 已浏览的段落可直接引用命题；仍缺的段落按需继续浏览本章（每次一段），不必一次取全。',
     '· 不把具体选文名写进标题或大题名（大题名使用结构名）。',
   ].join('\n');
   const deriveBrowseParams = (budget, chapterCount = 1) => {
@@ -4079,8 +4080,9 @@ ${cardAnalysisText.substring(0, 1000)}
     //   - maxRounds 由固定 4~15 改为至少覆盖"每章 2 轮"(主动浏览+漏章兜底)+2 轮正文，并为多章预留足够轮数，
     //     避免多章场景未及取材就触顶（模型收敛出正文即提前 break，轮数仅作护栏，不增加正常成本）。
     const perBrowseCap = clampB(Math.round(budget / 6), 800, 1800);
-    const minRounds = Math.max(6, chapterCount * 2 + 2);
-    const maxRounds = clampB(Math.max(Math.ceil(budget / perBrowseCap) * 2, minRounds), minRounds, 40);
+    const minRounds = Math.max(8, chapterCount * 2 + 2);
+    // 🔧 O3（2026-09-07 定版）：单次返回 1 完整段 → 轮次上限放宽（段级按需多次查询；上限仅护栏，收敛即提前 break）
+    const maxRounds = clampB(Math.max(Math.ceil((budget / 800) * 2), minRounds), minRounds, 80);
     return { perBrowseCap, maxRounds };
   };
 
@@ -4170,6 +4172,11 @@ ${cardAnalysisText.substring(0, 1000)}
     if (anchors.length) {
       console.log(`[browse·章考点] 覆盖锚清单就绪：${anchoredKpBy.size} 个章节键（analyzed 章用锚清单，目录/未分析章回退图谱推断）`);
     }
+    // 🔴 O3（2026-09-07 定版）：单次浏览返回 ≤1 完整段（段内不切半），同章可多次查询取不同段——
+    //    段级去重（returnedSegKeys），已全部返回则明示；轮次上限仅作护栏，收敛即提前 break
+    const normSeg = (t) => String(t || '').replace(/\s+/g, '').slice(0, 60);
+    const returnedSegKeys = new Set();
+    const segKeyOf = (s, ch) => `${normChapter(ch || s?.chapterTitle || '')}::${normSeg(s?.text)}`;
     const buildBrowseResult = (chapter, knowledge = '') => {
       // 🔧 P2-7 索引查询容错：精确规范键 → 原始标题 → 主干名 三级命中，降低"模型传名≠卡标题"的漏检
       const segKey = normChapter(chapter) || chapter || '';
@@ -4177,10 +4184,7 @@ ${cardAnalysisText.substring(0, 1000)}
         || chapterSegsBy.get(chapter)
         || chapterSegsBy.get(chapterMain(chapter))
         || [];
-      let frag = '';
-      let used = 0;
-      // 🔧 P4：knowledge 参数（工具 schema 可选字段）命中片段优先取——模型定向取某考点时先给相关段，
-      //    不足 perBrowseCap 再补其余片段；命中判定与锚绑定同 wordMatch 口径
+      // 🔧 P4：knowledge 参数（工具 schema 可选字段）命中片段优先取——模型定向取某考点时先给相关段
       const kw = String(knowledge || '').trim();
       const longEnough = (segs || []).filter((s) => {
         const t = String(s.text || '').trim();
@@ -4193,12 +4197,7 @@ ${cardAnalysisText.substring(0, 1000)}
       const kwHits = kw ? longEnough.filter((s) => wordMatch(s.text, kw)) : [];
       const candidates = (kw ? [...kwHits, ...longEnough.filter((s) => !kwHits.includes(s))] : longEnough)
         .sort((a, b) => (b.isKeyConcept ? 1 : 0) - (a.isKeyConcept ? 1 : 0));
-      for (const s of candidates) {
-        const t = s.text.trim();
-        if (used + t.length > perBrowseCap) break;
-        frag += `\n· ${t}`;
-        used += t.length + 2;
-      }
+      const pick = candidates.find((s) => !returnedSegKeys.has(segKeyOf(s, chapter))) || null;
       // 🔧 P4：该章知识点 = 锚清单（analyzed 章）优先，锚缺（目录/未分析章）才回退图谱推断 chapterKpBy；
       //    同一章二选一、不并存，杜绝"章考点两套来源"漂移
       const kp = anchoredKpBy.get(segKey)
@@ -4207,10 +4206,16 @@ ${cardAnalysisText.substring(0, 1000)}
         || chapterKpBy.get(segKey)
         || chapterKpBy.get(chapterMain(chapter))
         || [];
-      const head = frag
-        ? `【${chapter}】教材原文（节选，教材版本以所选课本为准）：${frag}`
-        : `【${chapter}】该章未检索到可用原文片段。若非目录所列章节名，请改用目录中的章节名；确属范围内仍无片段，请跳过该章知识点，不要凭训练记忆编写。`;
-      return kp.length ? `${head}\n【该章知识点】${kp.slice(0, 20).join('、')}` : head;
+      const kpTail = kp.length ? `\n【该章知识点】${kp.slice(0, 20).join('、')}` : '';
+      if (!pick) {
+        return `【${chapter}】该章示范段已全部返回（共 ${longEnough.length} 段）。可直接依据已浏览原文与知识点命题；如需其他章节请按目录浏览。不要凭训练记忆编写。${kpTail}`;
+      }
+      returnedSegKeys.add(segKeyOf(pick, chapter));
+      const chPrefix = `${normChapter(chapter)}::`;
+      let chReturned = 0;
+      returnedSegKeys.forEach((k) => { if (k.startsWith(chPrefix)) chReturned += 1; });
+      const head = `【${chapter}】教材示范段第 ${chReturned}/${longEnough.length} 段（完整段，可继续浏览本章取下一段；教材版本以所选课本为准）：\n· ${pick.text.trim()}`;
+      return `${head}${kpTail}`;
     };
 
     const cfg = await getCurrentEngineConfigEnhanced('generation', { promptLength: estimateTokens(promptBase) });
@@ -4328,8 +4333,7 @@ ${cardAnalysisText.substring(0, 1000)}
           let resultStr;
           if (!ch) resultStr = '［拒绝］browse_textbook 必须指定 chapter 参数（本次覆盖范围内章节名，见【本资料覆盖范围·目录】）。';
           else if (!inScopeChapter(ch)) resultStr = `［拒绝·越界］章节「${ch}」不在本次覆盖范围内（白名单仅限本次勾选章节），不返回任何原文。请勿凭训练记忆编写该章内容，也不要尝试浏览范围外章节。`;
-          else if (browsed.has(normChapter(ch))) resultStr = `［提示］章节「${ch}」已浏览过，请直接依据已有原文命题，不要重复浏览。`;
-          else { browsed.add(normChapter(ch)); resultStr = buildBrowseResult(ch, kw); }
+          else { browsed.add(normChapter(ch)); resultStr = buildBrowseResult(ch, kw); } // O3：同章可多次查询取不同段（段级去重，已全部返回时函数内明示）
           messages.push({ role: 'tool', tool_call_id: tc.id || '', content: resultStr });
         }
         continue;
@@ -4362,8 +4366,12 @@ ${cardAnalysisText.substring(0, 1000)}
             if (browsed.has(key)) continue;
             browsed.add(key);
             const id = `fill_${round}_${i}`;
+            // O3：兜底每次 1 完整段，取 2 段（两轮 tool 消息，段级去重保证不重复）
             filled.push({ role: 'assistant', content: null, tool_calls: [{ id, type: 'function', function: { name: 'browse_textbook', arguments: JSON.stringify({ chapter: ch }) } }] });
             filled.push({ role: 'tool', tool_call_id: id, content: buildBrowseResult(ch) });
+            const id2 = `fill_${round}_${i}_b`;
+            filled.push({ role: 'assistant', content: null, tool_calls: [{ id: id2, type: 'function', function: { name: 'browse_textbook', arguments: JSON.stringify({ chapter: ch }) } }] });
+            filled.push({ role: 'tool', tool_call_id: id2, content: buildBrowseResult(ch) });
           }
           if (filled.length) {
             messages.push(...filled);
@@ -5319,6 +5327,21 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     if (sanityNote) {
       auditWarnings.push(sanityNote);
       console.warn(`⚠️ [内容合理性] ${sanityIssues.length} 处数据裂缝：${sanityIssues.join('；')}`);
+    }
+
+    // 🔴 防照搬护栏（底线线 O5，2026-09-07 定版）：正文与本次参考段（示范段原文）做字面命中检测——
+    //    连续 ≥8 字或同串 3 个数字命中即提示改写（只报不改、交编辑核对；程序不做语义雷同判定）。
+    //    语料=示范段（练习/作业成品段不比对——其原文本就不向模型提供）
+    const refCorpus = (anchors || []).flatMap((a) => (a.bind?.segments || [])
+      .filter((s) => s && s.text && String(s.text).trim().length >= 8 && isReturnableSegment(String(s.type || '').trim()))
+      .map((s) => String(s.text)));
+    if (refCorpus.length) {
+      const copyHits = scanCopyOverlap({ bodyHtml: content, corpus: refCorpus });
+      const copyNote = copyOverlapNote(copyHits);
+      if (copyNote) {
+        auditWarnings.push(copyNote);
+        console.warn(`⚠️ [防照搬] ${copyHits.length} 处字面重合提示（交编辑核对，程序不改写）：${copyHits.slice(0, 3).map((h) => `「${h.snippet}」`).join('、')}${copyHits.length > 3 ? '…' : ''}`);
+      }
     }
 
     // 🔴 领域覆盖对账（2026-09 P3·机制补缺）：仅正式卷（exam）且学科已登记领域契约时执行，

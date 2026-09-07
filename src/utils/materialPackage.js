@@ -6,7 +6,7 @@
  *     建议题型/程序字段剔除；拓展锚与缺料锚不进——了解性/无源不当作命题覆盖点）；
  *     依据卡必须全（覆盖保底，唯一合法出口=缺料诊断）。
  *   · 【素材·参考】= 锚绑定的示范段（教材例题/结论框整段，不切句不抽句；练习/作业成品不预取），
- *     预算化挑选（每锚 ≥1，多则按预算，每锚至多 2 段），宁缺段不切句。
+ *     预算化挑选（预算内尽量全段；超出预算宁缺段——依据卡仍在、可 browse 补），不切句。
  * 锚记录契约（coverageAnchor.buildAnchors 输出）：{ chapterTitle, name, level, specificConcepts,
  *   isExtension, bind:{ status, segments:[{type,text}] } }
  * ============================================================
@@ -35,14 +35,11 @@ export function buildMaterialPackage({ anchors = [], maxChars = 5000 } = {}) {
     const segs = (a.bind?.segments || []).filter((s) => s && s.text && String(s.text).trim()
       && isReturnableSegment(String(s.type || '').trim()));
     if (!segs.length) continue;
-    let placed = 0;
     for (const seg of segs) {
       const t = seg.text.trim();
       if (used + t.length > LIMIT) break; // 预算上限：宁缺段（依据卡仍在、可 browse 补），不切句
       refParts.push(`· ${a.name}｜${t}`);
       used += t.length + 6;
-      placed += 1;
-      if (placed >= 2) break; // 每锚至多 2 段示范（预算内）
     }
   }
   const ref = refParts.length

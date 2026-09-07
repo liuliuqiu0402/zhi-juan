@@ -41,14 +41,14 @@ describe('双卡素材区构建（素材线 G7）', () => {
     expect(ref).not.toContain('你知道吗');
   });
 
-  it('参考卡：示范段整段（练习/作业成品不预取），每锚 ≤2 段', () => {
+  it('参考卡：示范段整段预算内尽量全（练习/作业成品不预取），不切句', () => {
     const anchors = [
       mkAnchor('小数除以小数', { segs: [exampleSeg, practiceSeg, ruleSeg] }),
     ];
     const { ref } = buildMaterialPackage({ anchors });
     expect(ref).toContain('【素材·参考】');
-    expect(ref).toContain(exampleSeg.text); // 示范段完整
-    expect(ref).toContain(ruleSeg.text);     // 每锚至多 2 段：例题+正文
+    expect(ref).toContain(exampleSeg.text); // 示范段完整（例题）
+    expect(ref).toContain(ruleSeg.text);     // 预算内全给（正文结论段）
     expect(ref).not.toContain('练一练');     // 练习段不预取
     expect(ref).not.toContain(practiceSeg.text);
   });
