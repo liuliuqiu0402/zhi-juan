@@ -53,6 +53,23 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     // 卷面结构仍在
     expect(inject).toContain('一、');
   });
+
+  it('英语蓝本（听力·/笔试·前缀）→ 输出正规"第X部分"层，大题去前缀、序号全卷连续（调研对齐）', () => {
+    const bp = getExamBlueprint('英语', 'primary_high');
+    const inject = buildStructureText(bp);
+    expect(inject).toContain('第一部分 听力部分（共');
+    expect(inject).toContain('满分');
+    expect(inject).toContain('第二部分 笔试部分（共');
+    // 大题行去"听力·/笔试·"前缀
+    expect(inject).not.toContain('一、听力·');
+    expect(inject).not.toContain('一、笔试·');
+    expect(inject).toContain('一、');
+    // 部分层行位于其组内大题行之前
+    expect(inject.indexOf('第一部分 听力部分')).toBeLessThan(inject.indexOf('第二部分 笔试部分'));
+    // 语数等无前缀蓝本不受影响（无"第X部分"行）
+    const mathBp = getExamBlueprint('数学', 'primary_high');
+    expect(buildStructureText(mathBp)).not.toContain('第');
+  });
 });
 
 describe('getExamBlueprint 学段降级正确性（防跨学段错配）', () => {

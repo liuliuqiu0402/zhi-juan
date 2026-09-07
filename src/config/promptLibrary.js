@@ -112,6 +112,8 @@ const EXAM_BASE = (extra = '', ctx = {}) => `你是资深命题专家。请为{g
 【卷面格式】（正式卷面必备）
 · 卷首输出一个且仅一个 <h1> 占位标题（内容按当前范围写即可）；系统生成后统一替换为规范标题，正文不附加资料类型词
 · 标题下接一行(考试时间：{duration}　满分：{fullScore}分)，再写密封线（左侧竖排"密封线内不要答题"，含学校/班级/姓名/学号填写栏）
+· 🔴 大题标题（正规卷式）：每个大题标题用 <h2>，形如"一、〈题型名〉（分值说明）"——题型名取自【卷面结构】中"X、题型名"（不含行尾"——命题要求"段，该段仅为命题依据不得写入标题；不含"共X题"占位字面）；分值说明按该大题实际命制给出，如（每题2分，共10分）/（每空1分，共21分）/（共30分），写法与命题内容相符
+· 🔴 部分层（仅当【卷面结构】含"第X部分 听力/笔试部分（共N大题，满分M分）"行时适用）：该行作为部分标题输出为居中加粗的独立段落（不用 h1/h2 标签，避免与 h2 大题标题层级混淆；段内可用 <strong> 加粗），其后各 h2 大题标题序号保持全卷连续（一、二、…跨部分不顺延不重复）
 · 🔴 页码、分页由系统生成，正文不输出页码文字（答案归属见【输出格式】——正文严禁混入答案/解析）
 
 【教材原文（命题取材依据；⚠️ OCR识别可能有误，以学科知识纠错后再命题；可改编情境，禁止照搬原句原题）】
@@ -599,15 +601,47 @@ export function buildInjectionInstruction(opts = {}) {
 
 /** 从蓝图生成卷面结构文本（明细式，供指令注入）；参数为 findBlueprint/getExamBlueprint 返回的蓝图对象
  *  注：大题标题"共X题"的 X 由模型按实际命制题数填写（题量是命题设计结果，非程序预知值）；
- *     分值/大题固定由蓝图确定，生成后由规则库 score 系列验算账目自洽（程序职责）。 */
+ *     分值/大题固定由蓝图确定，生成后由规则库 score 系列验算账目自洽（程序职责）。
+ *  部分层（2026-09 调研对齐，docs/design/标题层级与编号规范.md）：英语蓝本大题名含"听力·/笔试·"前缀时
+ *     提升为正规"第X部分 听力/笔试部分（共N大题，满分M分）"层——组行在前、大题行去前缀，
+ *     大题序号全卷连续（南陵样例主流：一~九跨听力笔试连续）；语文/数学等无前缀蓝本输出形态不变。 */
 export function buildStructureText(bp) {
   const sections = bp?.sections;
   if (!sections?.length) return '';
-  return sections.map((s, i) => {
-    const no = '一二三四五六七八九十'[i] || String(i + 1);
-    const scorePart = s.score ? `，共${s.score}分` : '';
-    return `${no}、${s.name}(共X题${scorePart})${s.note ? `——${s.note}` : ''}`;
-  }).join('\n');
+  const PART_RE = /^(听力|笔试)[·.](.+)$/;
+  const hasPart = sections.some((s) => PART_RE.test(String(s.name || '')));
+  if (!hasPart) {
+    return sections.map((s, i) => {
+      const no = '一二三四五六七八九十'[i] || String(i + 1);
+      const scorePart = s.score ? `，共${s.score}分` : '';
+      return `${no}、${s.name}(共X题${scorePart})${s.note ? `——${s.note}` : ''}`;
+    }).join('\n');
+  }
+  // 部分层：按前缀顺序分组（听力/笔试），组内大题去前缀、序号全卷连续
+  const groups = [];
+  let cur = null;
+  for (const s of sections) {
+    const m = PART_RE.exec(String(s.name || ''));
+    if (m && (!cur || cur.part !== m[1])) {
+      cur = { part: m[1], items: [] };
+      groups.push(cur);
+    }
+    cur.items.push({ ...s, display: m ? m[2].trim() : String(s.name || '') });
+  }
+  const out = [];
+  let seq = 0;
+  for (const g of groups) {
+    const sum = g.items.reduce((a, s) => a + (Number(s.score) || 0), 0);
+    const partName = g.part === '听力' ? '听力部分' : '笔试部分';
+    out.push(`第${g.part === '听力' ? '一' : '二'}部分 ${partName}（共${g.items.length}大题，满分${sum}分）`);
+    for (const s of g.items) {
+      const no = '一二三四五六七八九十'[seq] || String(seq + 1);
+      seq += 1;
+      const scorePart = s.score ? `，共${s.score}分` : '';
+      out.push(`${no}、${s.display}(共X题${scorePart})${s.note ? `——${s.note}` : ''}`);
+    }
+  }
+  return out.join('\n');
 }
 
 /** 密封线（正式试卷卷首必备，后处理兜底注入——AI 未输出时由代码补） */
