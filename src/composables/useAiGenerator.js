@@ -991,19 +991,31 @@ export const stripLeadingAnswerTitle = (html = '') => String(html || '')
  * @param {Array<{role:string, content:string}>} messages
  * @returns {Promise<string>}
  */
-export async function chatStudyDigestOnce(messages = [], { maxTokens = 8000, temperature = 0.3 } = {}) {
+export async function chatStudyDigestOnce(messages = [], { maxTokens = 8000, temperature = 0.3, timeoutMs = 0 } = {}) {
   const cfg = await getCurrentEngineConfigEnhanced('generation', { promptLength: 0 });
   const apiUrl = (cfg.baseUrl || '').includes('/chat/completions')
     ? cfg.baseUrl
     : `${(cfg.baseUrl || '').replace(/\/$/, '')}/chat/completions`;
   const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` };
-  const resp = await axios.post(apiUrl, {
+  const provider = cfg.provider;
+  // 🔴 研读 digest 显式关闭思考（与主链 browse 同口径）：研读=消化笔记（逐点点名+引用），
+  //    不需要推理模式——引擎思考模式（qwen3/glm/deepseek-reasoner 等）会拉长响应时间，
+  //    是研读请求 120s 超时的主因之一（实测用户报 timeout of 120000ms exceeded）
+  const body = {
     model: cfg.model,
     messages,
     temperature,
     stream: false,
     max_tokens: maxTokens,
-  }, { headers, timeout: (cfg.timeoutMs || 120000) });
+    ...(provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),
+    ...(provider === 'volcano' ? { thinking: { type: 'disabled' } } : {}),
+    ...(provider === 'zhipu' ? { thinking: { type: 'disabled' } } : {}),
+    ...(provider === 'alibaba' ? { enable_thinking: false } : {}),
+  };
+  // 🔴 digest 超时放宽：研读批摘要输出短但可能受服务端排队/慢网影响——
+  //    默认 180s（比通用 120s 长），调用方可按批规模覆盖
+  const digestTimeout = Math.max(timeoutMs || 0, cfg.timeoutMs || 120000, 180000);
+  const resp = await axios.post(apiUrl, body, { headers, timeout: digestTimeout });
   const content = String(resp?.data?.choices?.[0]?.message?.content || '').trim();
   if (!content) throw new Error('研读对话返回为空（引擎无内容，可能思考配额耗尽或模型不支持）');
   return content;
@@ -1038,7 +1050,7 @@ async function runStudyNow({ genType = '', contentCards = [], anchors = null, on
   });
   if (!r.ok) {
     const reason = r.report.digestError
-      ? `研读引擎异常：${r.report.digestError}`
+      ? `研读引擎异常（已自动重试一次仍失败）：${r.report.digestError}。研读请求已显式关闭思考并放宽超时——请确认网络与所选引擎连通；仍超时建议更换响应更快的模型（研读为多轮对话请求）。`
       : `研读批"${(r.failBatch?.unitIds || [])[0] || ''}"回流重读超限仍未通过核对（点名缺漏 ${(r.report.missing || []).join('、') || '无'}；理解为空 ${(r.report.empty || []).join('、') || '无'}）`;
     return {
       ok: false,

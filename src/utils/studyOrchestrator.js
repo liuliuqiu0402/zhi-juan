@@ -102,12 +102,19 @@ export async function runStudyRound({ units, session, maxCharsPerBatch = 2500, d
         ? `${msg}\n\n【研读回流（程序只提示问题清单，不代写笔记）】上次笔记未通过核对：${summarizeValidation(lastValidation)}。请按行式契约重写该批笔记：每点一行、起于【点名】，后随一句话理解，可含「｜引用：…」；只准依据素材与课标，不要补写教材原文。`
         : msg;
       try {
-        digestText = await digestFns.produce(probeMsg, batchUnits, prefix);
-      } catch (e) {
-        report.digestError = String((e && e.message) || e);
+        try {
+          digestText = await digestFns.produce(probeMsg, batchUnits, prefix);
+        } catch (e) {
+          // 🔴 digest 引擎异常（超时/网络抖动/服务端瞬时错误）自动重试一次（同批同消息），
+          //    仍失败才记录 digestError 中断（单次超时不直接阻断整次研读）
+          console.warn(`[研读轮] digest 调用异常，自动重试一次: ${String((e && e.message) || e)}`);
+          digestText = await digestFns.produce(probeMsg, batchUnits, prefix);
+        }
+      } catch (e2) {
+        report.digestError = String((e2 && e2.message) || e2);
         return { ok: false, nextStage: 'need_material', ledger, report, failBatch: batch };
       }
-      const records = extractDigestRecords(digestText);
+      const records = extractDigestRecords(digestText, { expectedNames: names });
       const corpus = batchUnits.flatMap((u) => (u.segments || []).map((s) => s.text));
       const v = validateDigestRecords(records, { expectedNames: names, corpus });
       if (v.ok) {

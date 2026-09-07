@@ -21,13 +21,14 @@
  * @property {string} [curriculum] 该点课标要点（版本受控，由 cell 提供）
  */
 
-/** 构造研读批用户消息（角色合一说：编辑收到"这批材料"；内容仅为材料+研读要求，无题型诱导）。 */
+/** 构造研读批用户消息（角色合一说：编辑收到"这批材料"；内容仅为材料+研读要求，无题型诱导）。
+ *  指示语含行式笔记契约（首条即明确，防模型自由输出导致点名解析失败）。 */
 export function buildStudyBatchMessage(units) {
   if (!Array.isArray(units) || units.length === 0) return '';
   const lines = [];
-  lines.push('【研读批·覆盖要点与教材片段】请通读以下各点的含义与教材表述，随后在笔记中逐点给出：一句话理解（只准依据素材与课标）、可溯源引用（教材原句，不得超过一句）、易混或注意点。如有要点含义不明或片段缺失，请明确指出，不要凭记忆补写教材内容。');
+  lines.push('【研读批·覆盖要点与教材片段】请通读以下各点的含义与教材表述，随后写研读笔记。笔记必须按行式契约逐点输出：每个要点单独一行，行首【要点名】（与下方要点名完全一致、含【】），后随一句话理解（只准依据素材与课标）；如需引用教材原句，在同一行以｜引用：原句 收尾（≤1 句）。每个要点必须逐一点到、不得遗漏、不得新增范围外要点。要点含义不明或片段缺失请明确写出，不要凭记忆补写教材内容。');
   for (const u of units) {
-    const head = u.level ? `\n${u.name}（${u.level}）` : `\n${u.name}`;
+    const head = u.level ? `\n【${u.name}】（${u.level}）` : `\n【${u.name}】`;
     lines.push(head);
     if (Array.isArray(u.concepts) && u.concepts.length) {
       lines.push(`含义要点：${u.concepts.join('；')}`);
@@ -49,10 +50,16 @@ const NAME_LINE_RE = /^【\s*(.+?)\s*】/;
 /**
  * 解析批摘要为结构化记录。
  * 约定行式（编辑笔记契约，写进研读消息）：每点一行起于【点名】，后随理解句，可含"｜引用：…"。
+ * 容错（expectedNames 提供时）：模型偶发省略【】但行首为"点名："形态（与批内点名完全一致）也识别，
+ * 防"格式小偏差→整点判缺→无谓回流"（2026-09 实测：模型输出"小数乘整数的意义：…"无【】被漏解析）。
  * @param {string} digestText
+ * @param {object} [opts] { expectedNames?: string[] } 批内点名清单（宽松行识别用；未提供则仅严格【】）
  * @returns {Array<{name:string, note:string, quote:string}>}
  */
-export function extractDigestRecords(digestText) {
+export function extractDigestRecords(digestText, { expectedNames = null } = {}) {
+  const expectSet = Array.isArray(expectedNames)
+    ? new Set(expectedNames.map((n) => String(n).trim()).filter(Boolean))
+    : null;
   const out = [];
   const lines = String(digestText || '').split('\n');
   let cur = null;
@@ -66,6 +73,23 @@ export function extractDigestRecords(digestText) {
       const rest = line.slice(m[0].length).trim();
       if (rest) cur.note = rest;
       continue;
+    }
+    // 宽松点名行：行首 token（到首个 ：:｜ 或空白止，≤24 字）与批内点名完全一致 → 视为该点名行
+    // （模型省略【】的常见形态；note 内容不得被当成上一行的附加文字）
+    if (expectSet && !cur) {
+      const lm = /^([^\s：:｜|]{1,24})[：:]\s*([\s\S]*)$/.exec(line);
+      if (lm && expectSet.has(lm[1])) {
+        cur = { name: lm[1], note: lm[2] ? String(lm[2]).trim() : '', quote: '' };
+        continue;
+      }
+    } else if (expectSet && cur && !line.startsWith('【') && !/^【/.test(line)) {
+      const lm = /^([^\s：:｜|]{1,24})[：:]\s*([\s\S]*)$/.exec(line);
+      if (lm && expectSet.has(lm[1])) {
+        // 上一行已有点名且新行行首又是另一个批内点名 → 结算上一行、开新点名行
+        out.push(cur);
+        cur = { name: lm[1], note: lm[2] ? String(lm[2]).trim() : '', quote: '' };
+        continue;
+      }
     }
     if (cur) {
       const qm = /引用[：:]\s*(.+)/.exec(line);

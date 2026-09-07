@@ -116,15 +116,36 @@ describe('研读编排驱动（复位阶段 2→3 衔接）', () => {
     expect(session.messages.filter((m) => m.content.includes('教材片段')).length).toBe(0);
   });
 
-  it('digest 引擎异常 → 迁到 need_material 并携带错误信息', async () => {
+  it('digest 引擎异常：自动重试一次；重试成功则继续，仍失败才迁 need_material', async () => {
     const session = createGenerationSession();
     const units = buildStudyUnits({ anchors });
+    let calls = 0;
     const digestFns = {
-      produce: async () => {
-        throw new Error('engine timeout');
+      produce: async (msg, batchUnits) => {
+        calls += 1;
+        if (calls === 1) throw new Error('engine timeout'); // 首次：网络/超时瞬时异常
+        return batchUnits.map((u) => GOOD_DIGEST(u.name)).join('\n'); // 重试：成功
       },
     };
     const r = await runStudyRound({ units, session, digestFns });
+    expect(calls).toBe(2);
+    expect(r.ok).toBe(true);
+    expect(r.nextStage).toBe('ready');
+    expect(r.report.digestError).toBe('');
+  });
+
+  it('digest 重试仍失败 → 迁 need_material 并携带错误信息（不静默通过）', async () => {
+    const session = createGenerationSession();
+    const units = buildStudyUnits({ anchors });
+    let calls = 0;
+    const digestFns = {
+      produce: async () => {
+        calls += 1;
+        throw new Error('engine timeout twice');
+      },
+    };
+    const r = await runStudyRound({ units, session, digestFns });
+    expect(calls).toBe(2);
     expect(r.ok).toBe(false);
     expect(r.nextStage).toBe('need_material');
     expect(r.report.digestError).toContain('engine timeout');

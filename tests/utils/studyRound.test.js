@@ -27,6 +27,8 @@ describe('研读轮编排器（复位阶段 2）', () => {
     expect(msg).toContain('除数是小数的除法');
     expect(msg).toContain('课标要求：掌握小数除法计算方法');
     expect(msg).toContain('不要凭记忆补写教材内容');
+    expect(msg).toContain('行首【要点名】'); // 行式笔记契约（首条即明确，防自由输出漏解析）
+    expect(msg).toContain('【除数是小数的除法】'); // 素材点名带【】与摘要契约一致
     expect(msg).not.toContain('建议题型');
   });
 
@@ -46,6 +48,30 @@ describe('研读轮编排器（复位阶段 2）', () => {
     expect(recs[0].name).toBe('除数是小数的除法');
     expect(recs[0].quote).toContain('小数点同时向右移动');
     expect(recs[1].name).toBe('小数乘小数');
+  });
+
+  it('摘记解析容错：模型省略【】但行首"点名："与批内点名一致 → 仍识别（防无谓回流）', () => {
+    const expected = ['小数乘整数的意义', '小数乘小数'];
+    const recs = extractDigestRecords(
+      '小数乘整数的意义：就是求几个相同加数的和的简便运算\n小数乘小数：先按整数乘法算出积，再看因数中共有几位小数',
+      { expectedNames: expected },
+    );
+    expect(recs.map((r) => r.name)).toEqual(['小数乘整数的意义', '小数乘小数']);
+    expect(recs[0].note).toContain('简便运算');
+    // 无 expectedNames（未知点名池）时不宽松识别——防止普通句子被误判为点名
+    const strict = extractDigestRecords('小数乘整数的意义：就是求几个相同加数的和的简便运算');
+    expect(strict).toHaveLength(0);
+  });
+
+  it('摘记解析容错：内容行不得被误判为新点名（点名词出现在句中而非行首）', () => {
+    const expected = ['小数乘整数的意义', '积的变化规律'];
+    const recs = extractDigestRecords(
+      '【积的变化规律】一个乘数不变，另一个乘数乘几，积也乘几。\n这里的积的变化规律与小数乘整数的意义无关。',
+      { expectedNames: expected },
+    );
+    expect(recs).toHaveLength(1);
+    expect(recs[0].name).toBe('积的变化规律');
+    expect(recs[0].note).toContain('另一个乘数乘几');
   });
 
   it('引用可溯源：语料中含 8 字片段→可溯源；无源→不可溯源', () => {
