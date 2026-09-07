@@ -4591,12 +4591,6 @@ ${cardAnalysisText.substring(0, 1000)}
       ? `⚠️ 覆盖缺料：${anchorReport.missingList.length} 项核心知识所在章节无教材片段，本次无法从教材取材（已排除在可命题范围外）：${anchorReport.missingList.map((m) => `${m.chapter}·${m.name}`).join('、')}。请检查勾选章节的原文解析/粘贴是否完整。`
       : '';
 
-    // ── 生成前研读轮（复位工程·阶段 2，best-effort）：编辑先研读素材，研读总账随委托进入写作 ──
-    const preStudy = await runPreStudyOrchestrator({ contentCards, anchors });
-    if (preStudy && preStudy.ledgerText) {
-      instruction += `\n\n【研读总账（编辑交稿前自校用）】\n${preStudy.ledgerText}`;
-    }
-
     // ── 素材构建：按知识点检索（目录 + 知识点清单 + 相关片段，分级限量，非硬截断） ──
     // 素材量按类型差异化（内容型资料需充分原文、引导型资料适量即可，避免信息过载）
     const MATERIAL_CHARS = GEN_CONST.MATERIAL_CHARS;
@@ -4616,18 +4610,13 @@ ${cardAnalysisText.substring(0, 1000)}
       ? `【本资料覆盖范围·目录】（命题范围以本目录为准，覆盖全部章节，不遗漏、不越界）\n${browseTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
       : '';
     let browsePath = false;
-    // G7 统一（M2）：凡有教材语料（≥10 字段落）且引擎支持工具 → 一律走按需浏览通道（不再按"超预算"触发）；
-    //   小范围同样由模型按目录 browse 取示范/正文段（练习段已滤），素材不再随委托直灌。
-    const hasMaterial = (contentCards || []).some(
-      (c) => (c.segments || []).some((s) => s && s.text && String(s.text).trim().length >= 10),
-    );
-    if (hasMaterial) {
+    if (largeBrowsing) {
       try {
         const gateCfg = await getCurrentEngineConfigEnhanced('generation', { promptLength: Math.min(selectedRawChars, 4000) });
         browsePath = TOOLS_SUPPORTED_PROVIDERS.includes(gateCfg?.provider);
-        if (browsePath) console.log(`📚 [教材浏览] 工具通道启用（勾选原文 ${selectedRawChars} 字，全范围统一按需浏览，练习段不返回）`);
+        if (browsePath) console.log(`📚 [教材浏览] 勾选原文 ${selectedRawChars} 字 > ${materialBudget}，走附件式工具浏览路径`);
       } catch (e) {
-        browsePath = false; // 引擎可配置探询失败 → 安全回退单次注入（研读总账+覆盖清单），不阻断生成
+        browsePath = false; // 引擎可配置探询失败 → 安全回退单次注入，不阻断生成
       }
     }
 
@@ -4729,12 +4718,10 @@ ${cardAnalysisText.substring(0, 1000)}
     });
 
     // ── 组装最终 prompt：注入指令 + 附加块（素材/模板对标/情境/差异化，用户配置了才加） ──
-    // 浏览路径用"目录骨架"作前缀范围锚（G7 后素材原文不再随委托直灌；素材经研读总账+按需 browse）
+    // 浏览路径用"目录骨架"作前缀范围锚；单次注入用完整素材块（原文/知识清单）——两者顺序与后缀块均一致
+    const activeBlock = browsePath ? browseAnchor : materialBlock;
     let prompt = instruction.trim();
-    if (browsePath && browseAnchor) prompt += `\n\n${browseAnchor}`;
-    // 覆盖点名清单（≤200 字级，属委托自查部分，非素材）：正文前提示须覆盖的点
-    const kpNames = (boundAnchors || []).filter((a) => a && a.name && a.bind && a.bind.status !== 'missing').map((a) => a.name);
-    if (kpNames.length) prompt += `\n\n【本资料须覆盖的核心知识（自查用，正文须逐点实际呈现）】${kpNames.join('、')}`;
+    if (activeBlock) prompt += `\n\n${activeBlock}`;
     if (templateInfo?.trim()) prompt += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
     if (contextFramework?.trim()) prompt += `\n\n${contextFramework.trim()}`;
     if (diffKps?.length) {
