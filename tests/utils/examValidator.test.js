@@ -273,6 +273,42 @@ describe('examValidator 模板残留清理', () => {
     expect(out).not.toContain('3．。');
     expect(issues.some(i => i.type === 'empty-item')).toBe(true);
   });
+
+  it('1c-3：大类标题 h2 后的连续空作答段/空行剥离（2026-09 实测"基础建构任务(无序号)"后多空行）', () => {
+    // 模拟模型在 h2 大类标题后误插入多个空作答行 <p><br></p>（作答空行只应跟在题干后，标题后是形态错误）
+    const html = [
+      '<h2>二、基础建构任务（无序号）</h2>',
+      '<p><br></p>',
+      '<p><br></p>',
+      '<p><br></p>',
+      '<p>1．3.6×2.5＝</p>',
+      '<p>2．计算下面各题。</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    // 标题后的空作答段全被剥除
+    const afterHead = out.slice(out.indexOf('基础建构任务'));
+    expect(afterHead.split('\n').filter(l => l.includes('<br>'))).toHaveLength(0);
+    // 后续正常题目/题干不被误吞
+    expect(out).toContain('1．3.6×2.5＝');
+    expect(out).toContain('2．计算下面各题。');
+    // 报告为 info 级 blank-after-heading（可修复、非必改红项）
+    const rec = issues.filter(i => i.type === 'blank-after-heading');
+    expect(rec.length).toBeGreaterThan(0);
+    expect(rec[0].severity).toBe('info');
+  });
+
+  it('1c-3：h3 子标题后的空作答段同样剥离；但标题后紧跟真实内容段不误删', () => {
+    const html = [
+      '<h3>（一）读拼音写词语</h3>',
+      '<p><br></p>',
+      '<p>（1）táo huā　　（　　）</p>', // 紧跟题干内容，不应被当作标题后空行
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    expect(issues.filter(i => i.type === 'blank-after-heading').length).toBe(1);
+    expect(out).toContain('（1）táo huā'); // 题干未被误吞
+    const afterH3 = out.slice(out.indexOf('读拼音写词语'));
+    expect(afterH3.split('\n').filter(l => l.includes('<br>'))).toHaveLength(0);
+  });
 });
 
 describe('examValidator [IMAGE] 配图块标准化（image-block-fix）', () => {

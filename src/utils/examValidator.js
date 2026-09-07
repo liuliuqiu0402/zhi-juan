@@ -363,6 +363,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       fixed += 1;
       return '';
     });
+    // 1c-3. 标题后作答空行剥除（2026-09 实测：大类标题 h2 后被模型插入多个空 <p><br> 作答行——
+    //    作答空行只应跟在题干/要求后，标题后出现即形态错误；确定性删除标题后连续空段（不吞后续内容））
+    //    🔴 每个空段分支尾部自带 \s*（吞段间换行），(?:…)+ 才能跨 \n 连续吞多个空段——
+    //    曾把 \s* 只放分支组开头，+ 遇第一个空段后的换行即停，只剥 1 段（实测 3 空段残留 2）
+    const blankAfterHeadRe = /(<h[1-4][^>]*>[\s\S]*?<\/h[1-4]>)((?:\s*<p[^>]*>(?:\s|&nbsp;|&#160;|\u3000)*<br\s*\/?>\s*<\/p>\s*|<p[^>]*>(?:\s|&nbsp;|&#160;|\u3000)*<\/p>\s*|<br\s*\/?>\s*)+)/gi;
+    out = out.replace(blankAfterHeadRe, (m, head, blanks) => {
+      const n = (blanks.match(/<p/g) || []).length;
+      issues.push({ severity: 'info', type: 'blank-after-heading', message: `已移除标题后的作答空行（${n} 处空段/空行）` });
+      fixed += 1;
+      return `${head}\n`;
+    });
   }
 
   // ── 1.5. [IMAGE] 配图块标准化（规则 image-block-fix：AI 常漏块结构、写成一行式、参数间混入 HTML）──
