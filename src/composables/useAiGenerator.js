@@ -5251,13 +5251,16 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     //    发现靠确定性规则（照搬/算式重复/情境集中/首段自述/裂缝），修订靠模型，程序不改写内容。
     //    语料=示范段（练习/作业成品段不比对——其原文本就不向模型提供，与研读口径同源）
     let finalContent = answerHtml ? `${content}\n\n${answerHtml}` : content;
-    const refCorpus = (anchors || []).flatMap((a) => (a.bind?.segments || [])
+    // 照搬守门按类型语义分组（三维度审计 D1）：知识归纳型（mode=full：summary/preview/dictation/review）
+    // 正文=按原文归纳呈现，字面重述是本职 → copy 守门关闭；命题/抽样型全开（8 字）+修订轮。
+    const copyGuardOn = contractOf(genType).mode !== 'full';
+    const refCorpus = copyGuardOn ? (anchors || []).flatMap((a) => (a.bind?.segments || [])
       .filter((s) => s && s.text && String(s.text).trim().length >= 8 && isReturnableSegment(String(s.type || '').trim()))
-      .map((s) => String(s.text)));
-    let guardResult = guardPaper({ html: finalContent, corpus: refCorpus });
+      .map((s) => String(s.text))) : [];
+    let guardResult = guardPaper({ html: finalContent, corpus: refCorpus, copy: copyGuardOn });
     let revisionRounds = 0;
     const REVISION_CAP = 2;
-    if (apiConfig.generationSettings?.paperRevision !== false && guardResult.hits.length && refCorpus.length) {
+    if (apiConfig.generationSettings?.paperRevision !== false && guardResult.hits.length && copyGuardOn) {
       const bodyTxtLen = finalContent.replace(/<[^>]+>/g, '').length;
       // 修订预算：正文+答案估算 token（中文≈0.9~1.3 token/字）1.5 倍余量 + 说明开销；整卷修订仅当单次容量可容纳
       const needTokens = clampReq(Math.min(32000, Math.max(2600, Math.ceil(bodyTxtLen * 1.5) + 1500)));
@@ -5295,7 +5298,7 @@ ${guardResult.bannedList.length ? guardResult.bannedList.slice(0, 15).map((b) =>
           console.warn(`⚠️ [写作修订轮] 第 ${rv + 1} 轮请求异常，停止修订（命中清单进报告）:`, e.message);
           break;
         }
-        guardResult = guardPaper({ html: finalContent, corpus: refCorpus });
+        guardResult = guardPaper({ html: finalContent, corpus: refCorpus, copy: copyGuardOn });
         if (guardResult.hits.length) {
           console.warn(`⚠️ [写作修订轮] 第 ${rv + 1} 轮复检仍残留 ${guardResult.hits.length} 处（${guardResult.hits.slice(0, 3).map((h) => h.text).join('、')}…）`);
         }
@@ -5711,65 +5714,13 @@ ${(contextJson.scenes || []).map((s, i) =>
               console.warn('情境框架解析失败，模型按组织风格指令自行设计情境:', e.message);
             }
           } else if (isContextFusion) {
-            // ── 情境融合：每个模块/题型独立小情境，不强制统一故事（AI 自主设计）──
-            console.log('AI 动态生成模块情境...');
-
-            const fusionPrompt = `你是一位${stage}${grade}${subject}教学专家。请为一份教辅资料设计3个独立的小情境，每个情境对应一个题型/模块。
-
-【要求】
-1. 每个情境独立，不要求关联
-2. 情境必须与学科内容和学生生活紧密相关
-3. 情境要有真实性和任务性，考查知识迁移能力
-
-【输出格式】必须返回严格 JSON：
-{
-  "contexts": [
-    {
-      "name": "情境名称（15字以内）",
-      "description": "情境描述（40字以内）",
-      "suitableTopics": ["适合考查的知识点1", "知识点2"],
-      "suitableTypes": ["适合的题型1", "题型2"]
-    }
-  ]
-}
-
-要求 contexts 恰好3个，每个对应不同题型。只返回 JSON。`;
-
-            const fusionResult = await callAI(fusionPrompt, {
-              taskType: 'blueprint',
-              temperature: apiConfig.generationSettings.paperTemperature,
-              timeout: getTimeout('blueprint'),
-              // 🔧 情境融合框架同样属创作性任务，不进 L1 缓存（原因同统一情境）
-              skipCache: true,
-            });
-
-            try {
-              const fusionJson = await robustJsonParse(
-                fusionResult,
-                (retryPrompt) => callAI(retryPrompt, { temperature: apiConfig.generationSettings.paperTemperature, taskType: 'generation' }),
-                '情境融合框架',
-                'generation'
-              );
-
-              const ctxList = fusionJson.contexts || [];
-              contextFramework = `
-【情境融合框架——每个模块独立设计情境】
-
-📋 可用情境（每个题型/模块选择一个独立情境）：
-${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
-     → 适合题型：${(c.suitableTypes || []).join('、')}
-     → 适合知识点：${(c.suitableTopics || []).join('、')}`).join('\n')}
-
-⚠️ 【关键约束】
-1. 每个题型/模块使用一个独立情境，不同模块情境不要求关联
-2. 情境与题目高度融合，考查知识迁移能力
-3. 每个模块内的题目围绕该模块的情境展开
-4. 情境须与学科内容和学生生活紧密相关，要有真实性和任务性
-`;
-              console.log('✅ AI情境融合框架生成成功:', ctxList.length, '个情境');
-            } catch (e) {
-              console.warn('情境融合框架解析失败，模型按组织风格指令自行设计情境:', e.message);
-            }
+            // ── 情境融合（scenario_each）：不再预生成"情境池"注入委托（2026-09 系统性根治，三维度审计 D3）──
+            //    根因：固定"恰好 3 个情境"属数量型诱导（与"建议题型"同类错误，违反审核基准 C 去诱导）——
+            //    情境用几个、每个承载几题应由编辑按课标与内容需要自组织，不由程序预设配比。
+            //    本风格仅保留组织形态语义（逐题/模块独立情境、不强制统一故事），写作时由模型
+            //    按委托书条款自设计（情境按考查意图选配 / 概念题脱情境 / 卷内主题不集中），
+            //    卷内主题集中由卷级守门词频检测兜底（报+修订轮驱动），程序不再生成任何情境内容。
+            contextFramework = '';
           }
         } catch (e) {
           console.warn('情境框架生成失败，模型按组织风格指令自行设计情境:', e.message);

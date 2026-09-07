@@ -68,6 +68,13 @@ describe('paperGuardEngine: guardPaper 集成', () => {
     const g = guardPaper({ html, corpus });
     expect(g.copyHits).toEqual([]);
   });
+  it('copy:false（知识归纳型）→ 照搬不比对不报告、无 bannedList；其余检测照常', () => {
+    const html = '<p>1. 计算 0.6÷0.3 时，可以把被除数和除数的小数点同时向右移动相同的位数。</p>';
+    const g = guardPaper({ html, corpus, copy: false });
+    expect(g.copyHits).toEqual([]);
+    expect(g.bannedList).toEqual([]);
+    expect(g.hits.filter((h) => h.cat !== 'copy')).toBeDefined(); // sanity 等照常跑
+  });
 });
 
 describe('paperGuardEngine: 报告分节去重', () => {

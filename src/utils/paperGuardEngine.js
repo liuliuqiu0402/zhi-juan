@@ -144,12 +144,18 @@ export function detectOpeningMetaNarration(html = '') {
  *   bannedList: string[],
  * }}
  */
-export function guardPaper({ html = '', corpus = [], longN = 8 } = {}) {
-  const copyHits = scanCopyOverlap({ bodyHtml: html, corpus, longN }).map((h) => ({
-    cat: 'copy', level: 'warn',
-    text: `「${h.snippet}」（${h.kind === 'num' ? '数字串' : `${h.n} 字连续`}命中教材参考段）`,
-    snippet: h.snippet,
-  }));
+export function guardPaper({ html = '', corpus = [], longN = 8, copy = true } = {}) {
+  // 照搬守门按资料类型语义分组（2026-09 三维度审计 D1）：
+  //   copy=false（知识归纳型 mode=full：summary/preview/dictation/review）——正文职责=按原文归纳呈现，
+  //   字面重述是本职，任何字面阈值检测都不适用 → 不比对、不报告、不进 bannedList；
+  //   命题/抽样型（practice/special/reading/errorbook/exam）copy=true 全开（8 字）+修订。
+  const copyHits = copy
+    ? scanCopyOverlap({ bodyHtml: html, corpus, longN }).map((h) => ({
+        cat: 'copy', level: 'warn',
+        text: `「${h.snippet}」（${h.kind === 'num' ? '数字串' : `${h.n} 字连续`}命中教材参考段）`,
+        snippet: h.snippet,
+      }))
+    : [];
   const sanityHits = sanityScan(html).map((t) => ({ cat: 'sanity', level: 'warn', text: t }));
   const formulaHits = detectFormulaDuplicates(html).map((t) => ({ cat: 'formula', level: 'warn', text: t }));
   const topicHits = detectTopicRepeat(html).map((t) => ({ cat: 'topic', level: 'warn', text: t }));
