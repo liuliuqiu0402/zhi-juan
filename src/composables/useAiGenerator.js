@@ -4616,13 +4616,18 @@ ${cardAnalysisText.substring(0, 1000)}
       ? `【本资料覆盖范围·目录】（命题范围以本目录为准，覆盖全部章节，不遗漏、不越界）\n${browseTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
       : '';
     let browsePath = false;
-    if (largeBrowsing) {
+    // G7 统一（M2）：凡有教材语料（≥10 字段落）且引擎支持工具 → 一律走按需浏览通道（不再按"超预算"触发）；
+    //   小范围同样由模型按目录 browse 取示范/正文段（练习段已滤），素材不再随委托直灌。
+    const hasMaterial = (contentCards || []).some(
+      (c) => (c.segments || []).some((s) => s && s.text && String(s.text).trim().length >= 10),
+    );
+    if (hasMaterial) {
       try {
         const gateCfg = await getCurrentEngineConfigEnhanced('generation', { promptLength: Math.min(selectedRawChars, 4000) });
         browsePath = TOOLS_SUPPORTED_PROVIDERS.includes(gateCfg?.provider);
-        if (browsePath) console.log(`📚 [教材浏览] 勾选原文 ${selectedRawChars} 字 > ${materialBudget}，走附件式工具浏览路径`);
+        if (browsePath) console.log(`📚 [教材浏览] 工具通道启用（勾选原文 ${selectedRawChars} 字，全范围统一按需浏览，练习段不返回）`);
       } catch (e) {
-        browsePath = false; // 引擎可配置探询失败 → 安全回退单次注入，不阻断生成
+        browsePath = false; // 引擎可配置探询失败 → 安全回退单次注入（研读总账+覆盖清单），不阻断生成
       }
     }
 
