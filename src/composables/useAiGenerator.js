@@ -4541,7 +4541,7 @@ ${cardAnalysisText.substring(0, 1000)}
     const {
       instruction = '', genType = '', selectedBooks = [], contentCards = [],
       knowledgeMap = null, contextFramework = '', templateInfo = '', diffKps = [],
-      scopeType = '',
+      scopeType = '', programAttach = '',
     } = params;
     const book = selectedBooks?.[0];
     if (!instruction.trim()) {
@@ -4862,6 +4862,9 @@ ${cardAnalysisText.substring(0, 1000)}
           taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
           // 🔧 会话式：携带研读轮消化记录前缀（研读批点名行+模型摘要原话；直灌场景启用）
           history: studyHistory,
+          // 🔧 S3.2 委托书纯净化：程序性附加段（渲染契约/质检规则/格式兜底）以 system 角色注入——
+          //    解释权在程序侧，不进委托正文（委托正文=编辑者意志，见设计准绳"渲染契约不属于委托正文"）
+          systemMessage: programAttach.trim() ? programAttach : undefined,
           // 🔴 整卷输出预算：正文 base 取「每类型动态帽」（已含触顶升级：勾选超 cap 时自动加长到所需，
           //    不静默截断预算）；思考模式按 thinkingBudgetMultiplier 放大（推理与正文共享配额，需给推理预留余量）
           // ⚠️ once 一次成型：正文+答案同一次输出，预算由 once 槽「系数」一体核算（once 槽系数 > body 槽，
@@ -4929,6 +4932,7 @@ ${cardAnalysisText.substring(0, 1000)}
                 taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
                 // 🔧 会话式：续写请求同带研读消化记录前缀，模型续阅同一上下文
                 history: studyHistory,
+                systemMessage: programAttach.trim() ? programAttach : undefined,
                 maxTokens: contBudget,
                 allowContinuation: false, temperature: bodyTemperature,
                 thinking: retryWithoutThinking ? false : undefined,
@@ -5269,7 +5273,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
 
   // 执行生成
   // ==================== 整卷一次生成 ====================
-  const generate = async (instruction, genType, selectedBooks, selectedTemplates, retryCount = 0, scopeType = '') => {
+  const generate = async (instruction, genType, selectedBooks, selectedTemplates, retryCount = 0, scopeType = '', programAttach = '') => {
     const MAX_RETRIES = apiConfig.generationSettings?.retry?.generationRetries ?? 2;
     // 🔴 整卷质检静默明细缓存（代码确定性规则检测到的需抽检项，经 fpResult.auditWarnings 传递后展示到生成报告）
     let auditWarningsFromPaper = [];
@@ -5589,6 +5593,7 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
             contentCards, knowledgeMap, contextFramework, templateInfo,
             diffKps,
             scopeType: scopeType || '',
+            programAttach: programAttach || '', // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不属于委托正文，由程序侧 system 注入
           });
           if (!fpResult.success) {
             throw new Error(fpResult.error || '整卷生成失败');
@@ -5698,7 +5703,7 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
       // 🔴 出厂质检失败不整卷自动重试（成本高且不保证修复）——直接进入弹窗让用户选择重试/批量/取消
       if (retryCount < MAX_RETRIES && !error.qualityGate) {
         await new Promise(resolve => setTimeout(resolve, apiConfig.generationSettings?.retry?.baseDelayMs ?? 2000));
-        return generate(instruction, genType, selectedBooks, selectedTemplates, retryCount + 1);
+        return generate(instruction, genType, selectedBooks, selectedTemplates, retryCount + 1, scopeType, programAttach);
       }
 
       // 重试耗尽：弹窗让用户选择处理方式
@@ -5716,7 +5721,7 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
 
       if (choice === 'retry') {
         // 用户选择原样重试（重置重试计数）
-        return generate(instruction, genType, selectedBooks, selectedTemplates, 0);
+        return generate(instruction, genType, selectedBooks, selectedTemplates, 0, scopeType, programAttach);
       }
 
       // 🔴 分步流水线残留路径已移除：全类型一律走整卷一次生成（指令库驱动，结构由蓝图注入保证）

@@ -2989,6 +2989,7 @@ import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/l
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
 import { buildTeachingInjection } from '../config/teachingBlueprints.js';
+import { buildProgramAttach } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
@@ -4263,6 +4264,10 @@ let userEditedInstruction = false;
 // 🔴 指令来源记录（注入框展示：来自指令库哪条模板、按什么维度匹配）
 const instructionSource = ref(null);
 const injectSources = ref([]); // 本次注入来源清单（指令库/蓝图库/渲染契约/规则库）——面板可视化"读取应用了哪些库"
+// 🔴 程序性附加段（复位工程·S3.2 委托书纯净化）：渲染契约/质检规则/格式兜底等形态层知识
+//    不属于委托正文（解释权在程序侧）——与 instructionDraft 分离存储，生成时以 system 角色随写作请求注入；
+//    勾选/类型变化时随 instructionDraft 一并清空重建（与委托正文同源同次组装，防失配）
+const programAttachText = ref('');
 // 🔴 指令来源分段标注（MVP 批1）：组装后由 annotateInstructionBlocks 填充 偏移区间↔{库,key} 块；
 //    只读旁路（不参与拼装）；用户手动编辑指令后置空（watch 联动，见下），UI 据此提示"标注已失效"
 const instructionBlocks = ref([]);
@@ -5921,23 +5926,21 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     fullScore,
     duration,
   });
-  // 🔴 模板正文段文本缓存（分段标注用：在后续追加渲染契约/规则/蓝本段之前取前缀）
+  // 🔴 模板正文段文本缓存（分段标注用：在后续追加教辅结构蓝本段之前取前缀）
   const tplBodyText = instructionDraft.value;
-  // 🔴 渲染指令契约（EduRender）按 学段×学科×类型×是否配图 三维度+注入——功能闭合：
-  //    图形学科给 [GRAPH]（按学段裁剪：低段数学无函数/几何、物理化学仅中学）、
-  //    数理化学科按学段给公式、配图类题型给 [IMAGE]（EduRender 可渲染）
+  // 🔴 渲染指令契约（EduRender）按 学段×学科×类型×是否配图 三维度注入——程序性形态知识，
+  //    复位工程·S3.2 起不进委托正文（解释权在程序侧），由 buildProgramAttach 汇总后随写作请求以 system 角色注入
   const renderContractText = buildRenderContract({
     subject, genType, stage: stageKey,
     needsImage: needsImageHint(`${structure} ${genTypeLabel} ${unit}`, genType),
   });
-  if (renderContractText) instructionDraft.value += renderContractText;
-  // 🔴 卷面质检规则（规则库）按 学段×学科×类型 注入生成前约束（fix 类规则提示，防患未然；
-  //    生成后由校验器静默自动修复，无需人工处理）
+  // 🔴 卷面质检规则（规则库）按 学段×学科×类型 生成前约束（fix 类规则提示，防患未然；
+  //    生成后由校验器静默自动修复）——同上，属程序侧规则知识，不进委托正文
   const validatorPromptText = buildValidatorPrompt({ subject, stage: stageKey, genType });
-  if (validatorPromptText) instructionDraft.value += validatorPromptText;
   // 🔴 注入来源登记：exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段（单一事实源，
-  //    无重复注入）；非 exam 附加教辅结构蓝本（栏目框架 + 题量/字数底线，按 学段×类型 三维度）；
-  //    模板正文已自带【输出格式】，用户自定义模板可能缺失 → 去重兜底追加
+  //    无重复注入）；非 exam 附加教辅结构蓝本（栏目框架 + 题量/字数底线，按 学段×类型 三维度，
+  //    属委托正文"栏目骨架"保留）；
+  //    模板正文已自带【输出格式】，用户自定义模板可能缺失 → 去重兜底（程序侧格式知识，进 programAttach）
   let blueprintDetail = '';
   let teachingText = '';    // 教辅蓝本段（分段标注用）
   let outputHintText = '';  // 【输出格式】兜底段（分段标注用）
@@ -5954,9 +5957,10 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     if (!instructionDraft.value.includes('【输出格式】')) {
       // 用户自定义模板缺失【输出格式】时兜底：书写载体条款按 学科×学段 注入；内容型走结构化格式（不注作答载体）
       outputHintText = buildOutputFormatHint({ subject, stage: stageKey, genType }) || '';
-      if (outputHintText) instructionDraft.value += outputHintText;
     }
   }
+  // 🔴 程序性附加段统一汇总（渲染契约 + 质检规则 + 输出格式兜底）——随写作请求 system 注入，不进委托正文
+  programAttachText.value = [renderContractText, validatorPromptText, outputHintText].filter(Boolean).join('\n\n');
   instructionSource.value = {
     name: tpl.name || tpl.id || genType,
     source: tpl.source,
@@ -5981,11 +5985,9 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
         ...(structure ? [{ text: structure, lib: 'blueprint', key: `${subject}|${stageKey}`, name: genType === 'exam' ? '真题蓝本' : '卷面结构' }] : []),
       ],
     },
-    ...(renderContractText ? [{ text: renderContractText, lib: 'render-contract', key: subject, name: '渲染指令' }] : []),
-    ...(validatorPromptText ? [{ text: validatorPromptText, lib: 'rules', key: null, name: '生成前约束' }] : []),
     ...(teachingText ? [{ text: teachingText, lib: 'blueprint', key: `${subject}|${genType}`, name: '教辅结构' }] : []),
-    ...(outputHintText ? [{ text: outputHintText, lib: 'instruction', key: tplKey, name: '输出格式兜底' }] : []),
   ]).blocks;
+  // 🔧 程序性附加段不进委托正文 → 其分段标注由 injectSources 清单承担（渲染契约/规则/格式兜底已移出正文）
   previewHint.value = `注入指令来自指令库「${instructionSource.value.name}」，按 ${stageKey} × ${subject} × ${genType} 匹配${tpl.source === 'user' ? '（用户自定义）' : '（内置模板）'}。命题依据：${getCurriculumLabel(stageKey)}（教育部发布新课标后需人工更新，见指令库「课标版本」说明）。长期修改请到「指令库」面板编辑保存。`;
 };
 
@@ -6024,15 +6026,16 @@ const restoreDefaultInstruction = async () => {
   instructionDraft.value = buildInjectionInstruction({
     template: builtinTemplate, grade: gradeLabel, stage: stageKey, subject, genTypeLabel, label, semester: book.semester || '', structure, fullScore, duration,
   });
-  instructionDraft.value += buildRenderContract({
-    subject, genType, stage: stageKey,
-    needsImage: needsImageHint(`${structure} ${genTypeLabel} ${unit}`, genType),
-  });
-  instructionDraft.value += buildValidatorPrompt({ subject, stage: stageKey, genType });
-  // exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段，此处不重复；非 exam 追加教辅结构
+  // exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段，此处不重复；非 exam 追加教辅结构（委托正文栏目骨架）
   if (genType !== 'exam') {
     instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey, subject });
   }
+  // 🔴 程序性附加段（渲染契约/质检规则/格式兜底）不进委托正文——统一走 buildProgramAttach，随写作请求 system 注入
+  programAttachText.value = buildProgramAttach({
+    subject, stageKey, genType,
+    needsImageText: `${structure} ${genTypeLabel} ${unit}`,
+    instructionText: instructionDraft.value,
+  });
   instructionSource.value = { name: `内置默认·${genTypeLabel}`, source: 'builtin', key: genType };
   injectSources.value = [
     { lib: '指令库', name: `内置默认·${genTypeLabel}`, detail: `${stageKey} × ${subject} × ${genType}（内置模板）` },
@@ -6042,9 +6045,32 @@ const restoreDefaultInstruction = async () => {
 };
 
 // 生成前确保注入指令非空（最小场景：选教材+类型后直接生成也能跑）
+// 🔴 程序性附加段刷新（复位工程·S3.2）：按当前勾选三维度重算渲染契约/质检规则/格式兜底——
+//    委托正文（草稿/手动编辑）与 programAttach 必须同源配套：草稿非空时同样要刷新，
+//    否则生成请求缺渲染协议（配图/公式/规则注入缺失）
+const refreshProgramAttach = () => {
+  const books = textbookStore.textbooks.filter(b => hasAnySelected(b.outline));
+  if (!books.length) return;
+  const book = books[0];
+  const stageKey = resolveStageKey(book.stage, book.grade, book.name);
+  const subject = normalizeSubjectName(book.subject, stageKey);
+  const genType = genTypes.value?.[0];
+  if (!genType) return;
+  const genTypeLabel = genTypeTemplates[genType]?.name || genType;
+  const scopeSource = books.find(b => (b.selectedChapters || []).length > 0) || books[0];
+  const scopeText = (scopeSource?.outline || []).map(c => c.title || c.name || '').filter(Boolean).join(' ');
+  programAttachText.value = buildProgramAttach({
+    subject, stageKey, genType,
+    needsImageText: `${scopeText} ${genTypeLabel}`,
+    instructionText: instructionDraft.value,
+  });
+};
+
 const ensureInjectedInstruction = async () => {
   if (!instructionDraft.value.trim()) {
     await loadInstructionFromLibrary();
+  } else {
+    refreshProgramAttach(); // 草稿非空：委托正文保留用户内容，程序附加段按当前勾选刷新（防失配）
   }
   return instructionDraft.value.trim();
 };
@@ -6055,6 +6081,7 @@ const clearInstruction = async () => {
     if (!confirmed) return;
   }
   instructionDraft.value = '';
+  programAttachText.value = ''; // 程序性附加段随委托正文同清（同源配套）
   previewHint.value = '';
   injectSources.value = [];
 };
@@ -6074,6 +6101,7 @@ watch(
     scopeType.value || '',
   ].join('~~'),
   () => {
+    programAttachText.value = ''; // 程序性附加段与委托正文同源：勾选变化一并清空，生成时随 ensure 重建
     if (!instructionDraft.value.trim()) return;
     instructionDraft.value = '';
     userEditedInstruction = false;
@@ -7782,7 +7810,8 @@ const generate = async (mode) => {
           selectedBooks,
           selectedTpls,
           0,
-          scopeType.value || ''
+          scopeType.value || '',
+          programAttachText.value // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——随写作请求 system 注入
         );
 
         // 🔧 必须先保存上下文，否则 finalizeGeneration 拿不到 selectedBooks 导致标题命名缺失
