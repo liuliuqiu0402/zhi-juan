@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import axios from 'axios';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay } from '../config/apiConfig.js';
-import { buildStudyUnits, runStudyRound, ledgerToText } from '../utils/studyOrchestrator.js';
+import { buildStudyUnits, runStudyRound, buildStudyPrefix } from '../utils/studyOrchestrator.js';
 import { createGenerationSession } from '../utils/generationSession.js';
 import { GEN_CONST } from '../config/generationConstants.js';
 import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel } from '../config/promptLibrary.js';
@@ -1002,42 +1002,6 @@ export async function chatStudyDigestOnce(messages = [], { maxTokens = 8000, tem
   return content;
 }
 
-/**
- * 生成前研读轮（复位工程·阶段 2 接入，best-effort 降级）：
- * 在拼装正文前，由编辑（模型）先研读覆盖锚与绑定片段（练习段已滤/missing 已排除），
- * 产出并经程序校验的研读总账随委托书进入写作上下文。
- * 任何失败（引擎不可用/笔记校验不过）→ 记日志并放行旧路径（不阻断生产生成）。
- * @returns {Promise<{used:boolean, ok:boolean, ledgerText:string}>}
- */
-async function runPreStudyOrchestrator({ contentCards, anchors }) {
-  try {
-    const bound = (anchors || []).filter((a) => a && a.bind && a.bind.status !== 'missing' && a.name);
-    const units = buildStudyUnits({ anchors: bound });
-    if (!units.length) {
-      console.log('[研读轮] 无可研读锚（缺料已排除），跳过研读。');
-      return { used: false, ok: true, ledgerText: '' };
-    }
-    const session = createGenerationSession({ meta: { stage: 'study' } });
-    const r = await runStudyRound({
-      units,
-      session,
-      digestFns: {
-        produce: async (msg) => chatStudyDigestOnce([{ role: 'user', content: msg }]),
-      },
-    });
-    if (!r.ok) {
-      console.warn(`[研读轮] 批摘要校验未通过（缺理解 ${r.report.empty.length}、无源引用 ${r.report.unverifiable.length}、漏点 ${r.report.missing.length}），本次跳过研读总账（编辑可重试）。`);
-      return { used: true, ok: false, ledgerText: '' };
-    }
-    const ledgerText = ledgerToText(r.ledger);
-    console.log(`[研读轮] 完成：${r.report.batches} 批全部校验通过，研读总账 ${r.ledger.size} 点。`);
-    return { used: true, ok: true, ledgerText };
-  } catch (e) {
-    console.warn('[研读轮] 引擎不可用或异常，降级跳过研读（不影响生成）：', String((e && e.message) || e));
-    return { used: false, ok: false, ledgerText: '' };
-  }
-}
-
 export function useAiGenerator() {
   const isGenerating = ref(false);
   const progress = ref(0);
@@ -1564,6 +1528,13 @@ const maxInputTokens = config.engine === 'deepseek'
           if (options.systemMessage) {
             messages.push({ role: 'system', content: options.systemMessage });
           }
+          // 🔧 会话前缀（复位工程·阶段2/3）：研读轮消化记录（点名行+模型摘要）作为历史消息携带，
+          //    写作/答案页请求与研读轮同源同序（零注入、只追加；素材原文不随前缀累积）
+          if (Array.isArray(options.history) && options.history.length) {
+            for (const h of options.history) {
+              messages.push({ role: h.role === 'assistant' ? 'assistant' : 'user', content: String(h.content ?? '') });
+            }
+          }
           messages.push({ role: 'user', content: finalPrompt });
           
           const requestBody = {
@@ -1631,6 +1602,10 @@ const maxInputTokens = config.engine === 'deepseek'
 
             const tailText = content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE);
             const continuationMessages = [
+              // 🔧 会话前缀随续写链同带（与首请求一致：研读消化记录在前，任务在后，模型可续阅上下文）
+              ...(Array.isArray(options.history) && options.history.length
+                ? options.history.map((h) => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: String(h.content ?? '') }))
+                : []),
               { role: 'user', content: finalPrompt },
               { role: 'assistant', content: content },
               { role: 'user', content: `请从上一次输出的最后一个字开始，继续后面的内容。不要重复已有文字，不要重新开始。\n上一段末尾：${tailText}` }
@@ -4620,6 +4595,48 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     }
 
+    // ── 会话式研读轮（复位工程·阶段 2/3 接入）：直灌路径在写作前，编辑（模型）先分批消化素材，
+    //    批摘要（点名⊆批清单 / 引用可溯源 / 理解非空）经程序核对，失败带纠错提示回流该批重读；
+    //    全部通过后，研读消化记录（点名行+模型摘要原话）作为写作/答案页请求的历史前缀——
+    //    同源同序携带、只追加不拼接（区别于 M1 把总账文本拼进 instruction 的旧接入）。
+    //    浏览路径（大范围勾选）与素材线的会话融合属阶段 4；本课对照（小范围直灌）即走本路径。
+    //    契约：研读不静默通过——回流超限 / 引擎异常如实阻断本次生成，给编辑明确行动项。
+    let studyHistory = [];
+    let studyRoundsUsed = false;
+    if (!browsePath) {
+      const studyUnits = buildStudyUnits({ anchors });
+      if (studyUnits.length) {
+        statusText.value = `研读素材：编辑通读勾选教材（${studyUnits.length} 个覆盖点，分批消化+批摘要核对）...`;
+        progress.value = 12;
+        try {
+          const session = createGenerationSession({ meta: { stage: 'study', genType } });
+          const r = await runStudyRound({
+            units: studyUnits,
+            session,
+            digestFns: {
+              produce: async (msg, batchUnits, prefix) => chatStudyDigestOnce([
+                ...(prefix || []),
+                { role: 'user', content: msg },
+              ]),
+            },
+          });
+          if (!r.ok) {
+            const reason = r.report.digestError
+              ? `研读引擎异常：${r.report.digestError}`
+              : `研读批"${(r.failBatch?.unitIds || [])[0] || ''}"回流重读超限仍未通过核对（点名缺漏 ${(r.report.missing || []).join('、') || '无'}；理解为空 ${(r.report.empty || []).join('、') || '无'}）`;
+            throw new Error(`会话式研读轮未通过：${reason}。请检查勾选章节教材原文完整性后重试（引擎不支持时可更换支持多轮对话的引擎）。`);
+          }
+          studyHistory = buildStudyPrefix(r.digestPairs);
+          studyRoundsUsed = true;
+          console.log(`[研读轮·会话式] ${r.report.batches} 批全部核对通过（回流 ${r.report.rereads} 次），研读记录 ${studyHistory.length} 条随写作/答案请求携带`);
+        } catch (e) {
+          if (String(e.message || '').startsWith('会话式研读轮未通过')) throw e;
+          // 引擎不可用（未配置/探测失败）→ 如实记录并放行原路径（研读轮本批次未启用，非静默"假装完成"）
+          console.warn(`[研读轮] 引擎不可用，本次未启用会话式研读（保持直灌路径）: ${String((e && e.message) || e)}`);
+        }
+      }
+    }
+
     // ── 动态输出预算帽（2026-09）：正文 maxTokens 不再固定取用户档位，而是按
     //    勾选区原文字符量×类型系数推导，在用户固定档之内收紧——防止模型在小范围勾选
     //    （1课/单元）时发散写满大预算（费用虚高+内容散乱）。三档策略用户可调。
@@ -4843,6 +4860,8 @@ ${cardAnalysisText.substring(0, 1000)}
       try {
         const resp = await callAI(prompt, {
           taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
+          // 🔧 会话式：携带研读轮消化记录前缀（研读批点名行+模型摘要原话；直灌场景启用）
+          history: studyHistory,
           // 🔴 整卷输出预算：正文 base 取「每类型动态帽」（已含触顶升级：勾选超 cap 时自动加长到所需，
           //    不静默截断预算）；思考模式按 thinkingBudgetMultiplier 放大（推理与正文共享配额，需给推理预留余量）
           // ⚠️ once 一次成型：正文+答案同一次输出，预算由 once 槽「系数」一体核算（once 槽系数 > body 槽，
@@ -4908,6 +4927,8 @@ ${cardAnalysisText.substring(0, 1000)}
               `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
               {
                 taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
+                // 🔧 会话式：续写请求同带研读消化记录前缀，模型续阅同一上下文
+                history: studyHistory,
                 maxTokens: contBudget,
                 allowContinuation: false, temperature: bodyTemperature,
                 thinking: retryWithoutThinking ? false : undefined,
@@ -4999,6 +5020,8 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         const ansThinking = getGenerationThinkingEnabled();
         const ansResp = await callAI(ansPrompt, {
           taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
+          // 🔧 会话式：答案页请求同带研读消化记录前缀（研读批点名行+模型摘要原话）
+          history: studyHistory,
           // 🔴 答案页输出预算来自每类型 answer 槽的 answerDynamicCap；思考模式按 thinkingBudgetMultiplier 放大
           //    （推理预留 + 答案输出），并设 20K 推理上限流式中止止损（答案页短输出，推理可控）
           // 🔧 答案页温度走设置页（answerTemperature）
@@ -5025,6 +5048,8 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           console.warn(`⚠️ 答案页内容${ansCapped ? `思考耗尽（${ansObj.reasoningChunkCount || 0} 推理chunks）` : `过短（${aHtml?.length || 0} 字符）`}，自动重试一次${ansCapped ? '（强制关闭思考）' : ''}`);
           const ansResp2 = await callAI(ansPrompt, {
             taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
+            // 🔧 会话式：答案页重试同带研读消化记录前缀
+            history: studyHistory,
             maxTokens: clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
             maxReasoningChunks: ansThinking ? GEN_CONST.REASONING_CAP_ANSWER : GEN_CONST.REASONING_CAP_ANSWER_FORCED,
             thinking: (ansCapped || (ansObj.reasoningChunkCount || 0) > 0) ? false : undefined, // 🔴 有推理痕迹（含引擎强制推理）→ 重试强制关闭思考
