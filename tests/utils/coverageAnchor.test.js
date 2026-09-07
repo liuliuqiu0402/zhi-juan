@@ -97,6 +97,35 @@ describe('coverageAnchor 绑定四级与红线', () => {
   });
 });
 
+describe('锚范围性质判定（复位 S4.1：拓展锚不进必覆盖清单）', () => {
+  const extSeg = { text: '你知道吗：循环小数是从小数部分某一位起，一个数字或几个数字依次不断重复出现的小数。', type: '正文' };
+  const ruleSeg = { text: '小数乘小数：先按整数乘法算出积，再看两个因数中共有几位小数，就从积的右边起数出几位，点上小数点。', type: '正文', isKeyConcept: true };
+
+  it('仅绑定"你知道吗"科普框段的锚 → isExtension=true（存量 type=正文 按文本复判）', () => {
+    const card = mkCard('第2单元 小数乘法和除法', [
+      { bigConcept: '数与运算', coreKnowledge: [{ name: '循环小数', level: '了解', specificConcepts: [], suggestedQuestionTypes: [] }] },
+    ], [extSeg]);
+    const { anchors } = buildAnchors([card], {});
+    expect(anchors[0].isExtension).toBe(true);
+  });
+
+  it('绑定含正文规则句（非纯科普框）→ isExtension=false', () => {
+    const card = mkCard('第2单元 小数乘法和除法', [
+      { bigConcept: '数与运算', coreKnowledge: [{ name: '小数乘小数', level: '理解', specificConcepts: [], suggestedQuestionTypes: [] }] },
+    ], [ruleSeg]);
+    const { anchors } = buildAnchors([card], {});
+    expect(anchors[0].isExtension).toBe(false);
+  });
+
+  it('混合绑定（规则句+科普框）→ 非拓展锚（可命题可对账）', () => {
+    const card = mkCard('第2单元 小数乘法和除法', [
+      { bigConcept: '数与运算', coreKnowledge: [{ name: '小数乘小数', level: '理解', specificConcepts: [], suggestedQuestionTypes: [] }] },
+    ], [ruleSeg, extSeg]);
+    const { anchors } = buildAnchors([card], {});
+    expect(anchors[0].isExtension).toBe(false);
+  });
+});
+
 describe('护栏：建议题型不进模型注入面（boundAnchorNames 输出最小化，防锚对象整体序列化回潮）', () => {
   const segs2 = [{ text: '例题文本：0.3×3=0.9。', type: '例题', isKeyConcept: true }];
   const cardB = mkCard('第1单元 小数乘法', [

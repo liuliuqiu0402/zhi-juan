@@ -8,10 +8,8 @@
  * 准绳：missing 锚不进研读（红线）；练习段不进入研读材料；批摘要校验=点名⊆清单/引用可溯源/理解非空。
  * ============================================================
  */
-import { appendMessage, applyCompaction, planStudyBatches } from './generationSession.js';
+import { appendMessage, applyCompaction, planStudyBatches, isReturnableSegment } from './generationSession.js';
 import { buildStudyBatchMessage, extractDigestRecords, validateDigestRecords, mergeLedger, ledgerToText } from './studyRound.js';
-
-const NON_RETURNABLE_TYPES = ['练习', '作业', '习题', 'practice', 'exercise'];
 
 /** 每批回流重读上限（校验失败→带纠错提示重读该批；超出上限才中断研读）。 */
 export const STUDY_REREAD_LIMIT = 2;
@@ -22,7 +20,7 @@ export function buildStudyUnits({ anchors = [], curriculumByName = null } = {}) 
   for (const a of anchors || []) {
     if (!a || a.bind?.status === 'missing' || !a.name) continue; // 红线：缺料锚不进研读
     const segments = (a.bind?.segments || []).filter(
-      (s) => s && s.text && String(s.text).trim() && !NON_RETURNABLE_TYPES.includes(String(s.type || '').trim()),
+      (s) => s && s.text && String(s.text).trim() && isReturnableSegment(String(s.type || '').trim()),
     );
     const concepts = Array.isArray(a.specificConcepts) ? a.specificConcepts.filter(Boolean) : [];
     const chars = String(a.name || '').length

@@ -49,9 +49,12 @@ export const reconcileCoverage = ({ genType = '', content = '', anchors = [] } =
   };
   // full / per-lesson-full 才做缺漏判定；其余模式不判缺（sampled 仅统计走 reconcileCoverageStats）
   if (!['full', 'per-lesson-full'].includes(mode)) return base;
+  // 🔴 锚范围性质过滤（复位工程·S4.1）：拓展锚（仅绑定"你知道吗/数学文化"科普框，isExtension）
+  //    是了解性素材不是命题必覆盖点 → 不进对账点名（循环小数族类锚不再进必覆盖清单）
+  const coverageAnchors = (anchors || []).filter((a) => !a.isExtension);
 
   const text = stripHtmlForRecon(content);
-  const byChapter = groupByChapter(anchors);
+  const byChapter = groupByChapter(coverageAnchors);
   const hitMap = new Map(); // 命中过的同名考点（跨章聚合，防消歧误报）
   const coveredNames = [];
   const missing = [];         // literal 精确未命中（可指名补漏/重试）
@@ -126,7 +129,8 @@ export const reconcileCoverageStats = ({ genType = '', content = '', anchors = [
   const contract = contractOf(genType);
   if (contract.mode !== 'sampled') return null;
   const text = stripHtmlForRecon(content);
-  const bound = (anchors || []).filter((a) => a.bind.status !== 'missing');
+  // 🔴 口径同 reconcileCoverage：拓展锚（科普框了解性素材）不进覆盖统计分母（S4.1）
+  const bound = (anchors || []).filter((a) => a.bind.status !== 'missing' && !a.isExtension);
   const seenNames = new Set();
   let hit = 0;
   for (const a of bound) {

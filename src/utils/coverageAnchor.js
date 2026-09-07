@@ -22,6 +22,8 @@
  * ============================================================
  */
 
+import { isExtensionSegment } from './segmentTypes.js';
+
 /** 词边界命中（与 useAiGenerator.extractContentCards 内 wordBoundaryMatch 同口径；
  *  绑定模块自含一份，避免跨文件闭包依赖——两处语义保持一致，改动需同步） */
 export const wordMatch = (text, keyword) => {
@@ -95,7 +97,13 @@ const bindOneCard = (card, retriever) => {
         bind = { status: 'missing', segments: [] };
       }
     }
-    anchors.push({ ...node, chapterTitle, bind });
+    // 🔴 锚范围性质判定（复位工程·S4.1）：绑定段全部为"拓展/文化"型（你知道吗/数学文化/课外阅读等
+    //    科普框）→ 拓展锚（isExtension）——供对账/必覆盖口径排除：拓展锚是了解性素材，不是命题必覆盖点
+    //    （A-101 循环小数族类锚即在"你知道吗"科普框，此前被误纳入必覆盖对账）；
+    //    type 未标定时按文本特征复判（isExtensionSegment），兼容存量段
+    const extOnly = bind.status !== 'missing' && bind.segments.length > 0
+      && bind.segments.every((s) => isExtensionSegment(s));
+    anchors.push({ ...node, chapterTitle, bind, isExtension: Boolean(extOnly) });
   }
   return { chapterTitle, anchors };
 };

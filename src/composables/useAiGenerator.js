@@ -2,7 +2,8 @@ import { ref } from 'vue';
 import axios from 'axios';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay } from '../config/apiConfig.js';
 import { buildStudyUnits, runStudyRound, buildStudyPrefix } from '../utils/studyOrchestrator.js';
-import { createGenerationSession } from '../utils/generationSession.js';
+import { createGenerationSession, isReturnableSegment } from '../utils/generationSession.js';
+import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'; // S4.1：段类型补"拓展/文化"（锚范围性质判定共用）
 import { GEN_CONST } from '../config/generationConstants.js';
 import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel } from '../config/promptLibrary.js';
 import { getStoragePath } from '../utils/pathHelper.js';
@@ -773,9 +774,13 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
             }
           }
           // 🔧 段落类型启发式检测（对齐 AI 标注的类型）
+          //    复位工程·S4.1：补"拓展/文化"类（你知道吗/数学文化/课外阅读等科普框）——
+          //    置练习判定之后（"拓展练习"等含练习字样仍落练习段，防误标）；
+          //    锚范围性质判定据此把"仅绑定拓展框"的锚排除出必覆盖清单
           let segType = '正文';
           if (segText.includes('例') || /^例\d+/.test(segText)) segType = '例题';
           else if (segText.includes('练习') || segText.includes('习题')) segType = '练习';
+          else if (EXTENSION_TEXT_RE.test(segText)) segType = SEG_TYPE_EXTENSION;
           else if (segText.includes('小结') || segText.includes('回顾') || segText.includes('总结')) segType = '小结';
           // 英语词汇表检测：英文-中文对密集出现
           const wordPairs = segText.match(/[a-zA-Z]+[\s\-—]+[\u4e00-\u9fa5]+/g);
@@ -4019,6 +4024,7 @@ ${cardAnalysisText.substring(0, 1000)}
     '你是教材命题/教辅编辑，依据当前所选课本与相应学段课标要求，生成正式卷面的正文。',
     '【教材取材约定】',
     '· 需要某章原文作依据时，调用 browse_textbook，按章节名取回该章的原文片段与该章知识点；',
+    '· browse 仅限本次勾选覆盖范围内的章节（见【本资料覆盖范围·目录】）——范围外章节会被程序拒绝且不返回任何原文，不要尝试浏览范围外内容；',
     '· 每个章节只需浏览一次，同一章节不可重复浏览；',
     '· 取到本卷所需章节的原文后，必须立即停止调用工具，依据已浏览到的原文与课标术语完成命题，不再发起任何工具调用；',
     '· 已浏览过的章节，直接依据已有的原文命题，不要重复调用。',
@@ -4055,6 +4061,21 @@ ${cardAnalysisText.substring(0, 1000)}
       const main = chapterMain(card.chapterTitle);
       if (main && main !== key) chapterSegsBy.set(main, card.segments);
     }
+    // ── S4.3 browse 白名单：仅本次覆盖范围内章节可浏览（越界拒绝，契约层护栏）──
+    const allowedChapters = new Set();
+    for (const card of contentCards || []) {
+      if (!card?.chapterTitle) continue;
+      allowedChapters.add(card.chapterTitle);
+      const ckey = normChapter(card.chapterTitle);
+      if (ckey) allowedChapters.add(ckey);
+      const cmain = chapterMain(card.chapterTitle);
+      if (cmain) allowedChapters.add(cmain);
+    }
+    const inScopeChapter = (raw) => {
+      const name = String(raw || '').trim();
+      if (!name) return false;
+      return allowedChapters.has(name) || allowedChapters.has(normChapter(name)) || allowedChapters.has(chapterMain(name));
+    };
     const chapterKpBy = new Map();
     const addKp = (name, chs) => {
       if (!name) return;
@@ -4121,8 +4142,9 @@ ${cardAnalysisText.substring(0, 1000)}
       const longEnough = (segs || []).filter((s) => {
         const t = String(s.text || '').trim();
         const tp = String(s.type || '').trim();
-        // 素材线治理（G3）：练习/作业/习题成品段不返回（防照搬）；未知类型默认拒绝
-        if (!t || t.length < 10 || !tp || ['练习', '作业', '习题', 'practice', 'exercise'].includes(tp)) return false;
+        // 素材线治理（G3/S4.2）：练习/作业/习题成品段不返回（防照搬）；未知类型默认拒绝——
+        // 口径与研读主料共用 isReturnableSegment（单一口径防漂移）
+        if (!t || t.length < 10 || !isReturnableSegment(tp)) return false;
         return true;
       });
       const kwHits = kw ? longEnough.filter((s) => wordMatch(s.text, kw)) : [];
@@ -4257,7 +4279,8 @@ ${cardAnalysisText.substring(0, 1000)}
           const ch = String(arg.chapter || '').trim();
           const kw = String(arg.knowledge || '').trim() || undefined; // P4：可选定向取料
           let resultStr;
-          if (!ch) resultStr = buildBrowseResult('');
+          if (!ch) resultStr = '［拒绝］browse_textbook 必须指定 chapter 参数（本次覆盖范围内章节名，见【本资料覆盖范围·目录】）。';
+          else if (!inScopeChapter(ch)) resultStr = `［拒绝·越界］章节「${ch}」不在本次覆盖范围内（白名单仅限本次勾选章节），不返回任何原文。请勿凭训练记忆编写该章内容，也不要尝试浏览范围外章节。`;
           else if (browsed.has(normChapter(ch))) resultStr = `［提示］章节「${ch}」已浏览过，请直接依据已有原文命题，不要重复浏览。`;
           else { browsed.add(normChapter(ch)); resultStr = buildBrowseResult(ch, kw); }
           messages.push({ role: 'tool', tool_call_id: tc.id || '', content: resultStr });

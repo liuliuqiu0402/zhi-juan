@@ -72,6 +72,25 @@ describe('coverageReconciler 对账器', () => {
     expect(coverageNoteOf(rep)).toBe('');
   });
 
+  // 🔴 复位 S4.1：拓展锚（仅绑定"你知道吗"科普框的考点，如循环小数族）不进必覆盖对账——
+  //    它是了解性素材不是命题必覆盖点；正文未呈现时不报缺漏（A-101 循环小数族类锚回归）
+  it('拓展锚排除：正文未呈现"循环小数"不报缺漏（仅绑定科普框 → isExtension）', () => {
+    const extSeg = { text: '你知道吗：循环小数是从小数部分某一位起，一个数字或几个数字依次不断重复出现的小数。', type: '正文' };
+    const extCard = {
+      chapterTitle: '一 小数乘法（二）',
+      anchorTree: [{ bigConcept: '数与运算', coreKnowledge: [{ name: '循环小数', level: '了解', specificConcepts: [], suggestedQuestionTypes: [] }] }],
+      segments: [extSeg],
+    };
+    const { anchors: withExt } = buildAnchors([extCard], {});
+    expect(withExt[0].isExtension).toBe(true);
+    const rep = reconcileCoverage({ genType: 'practice', content: '<h1>随堂巩固</h1><p>只考了小数乘法计算。</p>', anchors: withExt });
+    expect(rep.total).toBe(0); // 拓展锚不进入对账点名（分母也不含）
+    expect(rep.missing).toEqual([]);
+    // sampled 统计口径一致：拓展锚不进统计分母
+    const st = reconcileCoverageStats({ genType: 'exam', content: '<p>任意正文。</p>', anchors: withExt });
+    expect(st.total).toBe(0);
+  });
+
   // 🔴 根治回归：行为/语义考点（"方法/意义/规律/应用"）正文以情境题目体现、不会逐字出现，
   //    此前逐考点词面判定导致 18/18 全误报。现行为考点 → 章级聚合：章内任一考点命中即视为该章行为族已覆盖。
   //    🔧 2026-09 校准：正文"保留两位小数"命中近似值等价长锚（保留两位）→ 近似值族已呈现，
