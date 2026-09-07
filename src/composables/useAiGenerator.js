@@ -1,6 +1,8 @@
 import { ref } from 'vue';
 import axios from 'axios';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay } from '../config/apiConfig.js';
+import { buildStudyUnits, runStudyRound, ledgerToText } from '../utils/studyOrchestrator.js';
+import { createGenerationSession } from '../utils/generationSession.js';
 import { GEN_CONST } from '../config/generationConstants.js';
 import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel } from '../config/promptLibrary.js';
 import { getStoragePath } from '../utils/pathHelper.js';
@@ -975,6 +977,66 @@ export const stripAnswerSection = (content) => {
  * 现允许开头先出现一层 <div>/<p> 容器后再匹配，仅剥"参考答案"标题、保留容器外壳。 */
 export const stripLeadingAnswerTitle = (html = '') => String(html || '')
   .replace(/^(\s*(?:<(?:div|p)\b[^>]*>\s*)?)<h[1-6]\b[^>]*>\s*参考答案[^<]*<\/h[1-6]>\s*/i, '$1');
+
+/**
+ * 研读轮对话助手（复位工程·阶段 2 接入）：单次非流式对话，产出研读批摘要文本。
+ * 复用应用内用户填写的生成引擎配置（P1：不外部接管凭据）；调用失败由调用方降级处理。
+ * @param {Array<{role:string, content:string}>} messages
+ * @returns {Promise<string>}
+ */
+export async function chatStudyDigestOnce(messages = [], { maxTokens = 8000, temperature = 0.3 } = {}) {
+  const cfg = await getCurrentEngineConfigEnhanced('generation', { promptLength: 0 });
+  const apiUrl = (cfg.baseUrl || '').includes('/chat/completions')
+    ? cfg.baseUrl
+    : `${(cfg.baseUrl || '').replace(/\/$/, '')}/chat/completions`;
+  const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` };
+  const resp = await axios.post(apiUrl, {
+    model: cfg.model,
+    messages,
+    temperature,
+    stream: false,
+    max_tokens: maxTokens,
+  }, { headers, timeout: (cfg.timeoutMs || 120000) });
+  const content = String(resp?.data?.choices?.[0]?.message?.content || '').trim();
+  if (!content) throw new Error('研读对话返回为空（引擎无内容，可能思考配额耗尽或模型不支持）');
+  return content;
+}
+
+/**
+ * 生成前研读轮（复位工程·阶段 2 接入，best-effort 降级）：
+ * 在拼装正文前，由编辑（模型）先研读覆盖锚与绑定片段（练习段已滤/missing 已排除），
+ * 产出并经程序校验的研读总账随委托书进入写作上下文。
+ * 任何失败（引擎不可用/笔记校验不过）→ 记日志并放行旧路径（不阻断生产生成）。
+ * @returns {Promise<{used:boolean, ok:boolean, ledgerText:string}>}
+ */
+async function runPreStudyOrchestrator({ contentCards, anchors }) {
+  try {
+    const bound = (anchors || []).filter((a) => a && a.bind && a.bind.status !== 'missing' && a.name);
+    const units = buildStudyUnits({ anchors: bound });
+    if (!units.length) {
+      console.log('[研读轮] 无可研读锚（缺料已排除），跳过研读。');
+      return { used: false, ok: true, ledgerText: '' };
+    }
+    const session = createGenerationSession({ meta: { stage: 'study' } });
+    const r = await runStudyRound({
+      units,
+      session,
+      digestFns: {
+        produce: async (msg) => chatStudyDigestOnce([{ role: 'user', content: msg }]),
+      },
+    });
+    if (!r.ok) {
+      console.warn(`[研读轮] 批摘要校验未通过（缺理解 ${r.report.empty.length}、无源引用 ${r.report.unverifiable.length}、漏点 ${r.report.missing.length}），本次跳过研读总账（编辑可重试）。`);
+      return { used: true, ok: false, ledgerText: '' };
+    }
+    const ledgerText = ledgerToText(r.ledger);
+    console.log(`[研读轮] 完成：${r.report.batches} 批全部校验通过，研读总账 ${r.ledger.size} 点。`);
+    return { used: true, ok: true, ledgerText };
+  } catch (e) {
+    console.warn('[研读轮] 引擎不可用或异常，降级跳过研读（不影响生成）：', String((e && e.message) || e));
+    return { used: false, ok: false, ledgerText: '' };
+  }
+}
 
 export function useAiGenerator() {
   const isGenerating = ref(false);
@@ -4081,7 +4143,13 @@ ${cardAnalysisText.substring(0, 1000)}
       // 🔧 P4：knowledge 参数（工具 schema 可选字段）命中片段优先取——模型定向取某考点时先给相关段，
       //    不足 perBrowseCap 再补其余片段；命中判定与锚绑定同 wordMatch 口径
       const kw = String(knowledge || '').trim();
-      const longEnough = (segs || []).filter((s) => (s.text || '').trim().length >= 10);
+      const longEnough = (segs || []).filter((s) => {
+        const t = String(s.text || '').trim();
+        const tp = String(s.type || '').trim();
+        // 素材线治理（G3）：练习/作业/习题成品段不返回（防照搬）；未知类型默认拒绝
+        if (!t || t.length < 10 || !tp || ['练习', '作业', '习题', 'practice', 'exercise'].includes(tp)) return false;
+        return true;
+      });
       const kwHits = kw ? longEnough.filter((s) => wordMatch(s.text, kw)) : [];
       const candidates = (kw ? [...kwHits, ...longEnough.filter((s) => !kwHits.includes(s))] : longEnough)
         .sort((a, b) => (b.isKeyConcept ? 1 : 0) - (a.isKeyConcept ? 1 : 0));
@@ -4523,6 +4591,12 @@ ${cardAnalysisText.substring(0, 1000)}
       ? `⚠️ 覆盖缺料：${anchorReport.missingList.length} 项核心知识所在章节无教材片段，本次无法从教材取材（已排除在可命题范围外）：${anchorReport.missingList.map((m) => `${m.chapter}·${m.name}`).join('、')}。请检查勾选章节的原文解析/粘贴是否完整。`
       : '';
 
+    // ── 生成前研读轮（复位工程·阶段 2，best-effort）：编辑先研读素材，研读总账随委托进入写作 ──
+    const preStudy = await runPreStudyOrchestrator({ contentCards, anchors });
+    if (preStudy && preStudy.ledgerText) {
+      instruction += `\n\n【研读总账（编辑交稿前自校用）】\n${preStudy.ledgerText}`;
+    }
+
     // ── 素材构建：按知识点检索（目录 + 知识点清单 + 相关片段，分级限量，非硬截断） ──
     // 素材量按类型差异化（内容型资料需充分原文、引导型资料适量即可，避免信息过载）
     const MATERIAL_CHARS = GEN_CONST.MATERIAL_CHARS;
@@ -4650,10 +4724,12 @@ ${cardAnalysisText.substring(0, 1000)}
     });
 
     // ── 组装最终 prompt：注入指令 + 附加块（素材/模板对标/情境/差异化，用户配置了才加） ──
-    // 浏览路径用"目录骨架"作前缀范围锚；单次注入用完整素材块（原文/知识清单）——两者顺序与后缀块均一致
-    const activeBlock = browsePath ? browseAnchor : materialBlock;
+    // 浏览路径用"目录骨架"作前缀范围锚（G7 后素材原文不再随委托直灌；素材经研读总账+按需 browse）
     let prompt = instruction.trim();
-    if (activeBlock) prompt += `\n\n${activeBlock}`;
+    if (browsePath && browseAnchor) prompt += `\n\n${browseAnchor}`;
+    // 覆盖点名清单（≤200 字级，属委托自查部分，非素材）：正文前提示须覆盖的点
+    const kpNames = (boundAnchors || []).filter((a) => a && a.name && a.bind && a.bind.status !== 'missing').map((a) => a.name);
+    if (kpNames.length) prompt += `\n\n【本资料须覆盖的核心知识（自查用，正文须逐点实际呈现）】${kpNames.join('、')}`;
     if (templateInfo?.trim()) prompt += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
     if (contextFramework?.trim()) prompt += `\n\n${contextFramework.trim()}`;
     if (diffKps?.length) {
