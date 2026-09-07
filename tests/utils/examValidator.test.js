@@ -309,6 +309,23 @@ describe('examValidator 模板残留清理', () => {
     const afterH3 = out.slice(out.indexOf('读拼音写词语'));
     expect(afterH3.split('\n').filter(l => l.includes('<br>'))).toHaveLength(0);
   });
+
+  it('1c-3：标题后紧跟"真实作答载体"不剥除（blank-area 带高留白/作文格/书写横线——不是纯空 <p><br>）', () => {
+    // 用户红线：不能误伤真正需要答题空间的题。1c-3 只剥"纯空作答段"（仅空白/&nbsp;/<br>），
+    // 真实载体（带 class/高度/内容的 blank-area、zuo-wen-ge、blank-line）不含在名单内
+    const html = [
+      '<h2>六、作文（30分）</h2>',
+      '<p class="blank-area" style="height:8mm"><span>&emsp;</span></p>', // 程序补差形态：带 class+height，必须保留
+      '<p>1．题目要求……</p>',
+      '<h2>三、书面表达</h2>',
+      '<div class="zuo-wen-ge"><span>&emsp;</span></div>', // 作文格（div 包裹 span），必须保留
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    expect(issues.filter(i => i.type === 'blank-after-heading')).toHaveLength(0); // 无一被当作空行剥除
+    expect(out).toContain('blank-area');
+    expect(out).toContain('zuo-wen-ge');
+    expect(out).toContain('1．题目要求');
+  });
 });
 
 describe('examValidator [IMAGE] 配图块标准化（image-block-fix）', () => {
