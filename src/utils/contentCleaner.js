@@ -464,6 +464,13 @@ export function normalizeBlankMarkers(html = '') {
     return `<u class="blank-${blankWidthForChars(em)}">&emsp;</u>`;
   });
   out = out.replace(/<div class="zuo-wen-ge">\s*<\/div>/g, `<div class="zuo-wen-ge">${'<span>&emsp;</span>'.repeat(Math.max(1, getMergedSpec().ZUOWEN_DEFAULT_SPAN))}</div>`);
+  // 🔧 空格宽+括号空 双载体剥除（2026-09 实证：0.09＝　　（　　）——模型按"答案宽度换算"先输出
+  //    全角空格串、其后又叠一个括号空 → 同一答案空两种载体（导出成"方框后括号"）。
+  //    括号空已在上方归一为 <span class="blank-N">&emsp;</span>，此处剥除其前 ≥2 字符的冗余空白宽，
+  //    只保留括号空为唯一载体；单个空格（自然间隔）不剥。u.blank 前置同类由下方跨类型去重处理。
+  out = out
+    .replace(/((?:&emsp;|&#8195;|&#x2003;|\u2003|\u3000|&nbsp;| ){2,})(?=<u class="blank-\d+">&emsp;<\/u>)/g, '')
+    .replace(/((?:&emsp;|&#8195;|&#x2003;|\u2003|\u3000|&nbsp;| ){2,})(?=<span class="blank-\d+">&emsp;<\/span>)/g, '');
   // 🔧 裸书写空跑段 → u.blank-N（wrapBareBlankRuns：整段纯空白行 + 行内前有正文的连续空位段；
   //    全角空格 \u3000 / em 空格 \u2003·&emsp; 实体同口径——曾只认 \u3000，模型 em 空格形态漏判 → 无横线）。
   //    在 <u>/括号/span.blank-N 规则之后执行（幂等）；≥2 空位才处理（单空位=列分隔/排版）；

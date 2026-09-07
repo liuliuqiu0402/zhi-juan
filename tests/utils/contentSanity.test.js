@@ -1,6 +1,6 @@
-// 内容合理性扫描（Content Sanity）单测：确定性违规信号检测（荒谬计数倒推 / 同单位换算数值突变 / 空位宽度单一化 / 任务可作答性错配）
+// 内容合理性扫描（Content Sanity）单测：确定性违规信号检测（荒谬计数倒推 / 可数对象小数直写 / 近似等号 / 同单位换算数值突变 / 空位宽度单一化 / 双载体泄漏 / 任务可作答性错配）
 import { describe, it, expect } from 'vitest';
-import { detectCountingFakes, detectUnitMutations, detectUniformBlankWidths, sanityScan, sanityNoteOf } from '../../src/utils/contentSanity.js';
+import { detectCountingFakes, detectUnitMutations, detectUniformBlankWidths, detectCountDecimals, detectApproxEqualsSign, detectDoubleCarrierLeak, sanityScan, sanityNoteOf } from '../../src/utils/contentSanity.js';
 
 describe('contentSanity 内容合理性扫描', () => {
   it('荒谬计数情境：小数 + 可数量词 + （即N）倒推 → 检出', () => {
@@ -80,5 +80,35 @@ describe('contentSanity 内容合理性扫描', () => {
     expect(sanityScan(onlyParen)).toHaveLength(1);
     const withLine = '<p>2. 把下面的字写在横线上。</p><p>（1）dé <u class="blank-4">&emsp;</u></p>';
     expect(sanityScan(withLine)).toEqual([]);
+  });
+});
+
+describe('contentSanity 2026-09 A-101 产物审计回归（可数对象小数直写 / 近似等号 / 双载体泄漏）', () => {
+  it('可数对象个数直写小数（1.5 张书签）→ 检出', () => {
+    expect(detectCountDecimals('小雅买了 1.5 张书签，一共要付多少元？')).toHaveLength(1);
+    expect(detectCountDecimals('如果卖出 2.5 件笔筒，总利润是多少元？')).toHaveLength(1);
+    // 比率/单价/连续量小数不误报（倍/元/米/千克/小时 均非可数对象量词）
+    expect(detectCountDecimals('定价为成本的 1.5 倍，每件杯垫售价 2.5 元。')).toEqual([]);
+    expect(detectCountDecimals('彩带长 1.2 米，剪成长 0.24 米的小段。')).toEqual([]);
+    // "个/名/步"高频比率共现 → 不在此检测器直报（保留在倒推检测内）
+    expect(detectCountDecimals('增长了 0.5 个百分点')).toEqual([]);
+  });
+
+  it('近似值语境（保留 X 位小数）算式用 ＝ → 检出；用 ≈ 不报；非近似句不报', () => {
+    expect(detectApproxEqualsSign('(1) 得数保留一位小数：7.2 × 0.09＝(　　　　)')).toHaveLength(1);
+    expect(detectApproxEqualsSign('(1) 得数保留一位小数：7.2 × 0.09≈(　　　　)')).toEqual([]);
+    expect(detectApproxEqualsSign('(1) 4.6 × 2.8＝(　　　　)。')).toEqual([]); // 精确计算用 ＝ 正常
+    expect(detectApproxEqualsSign('(1) 得数保留一位小数：7.2 × 0.09＝0.648≈0.6')).toEqual([]); // 结果已写、无空位
+  });
+
+  it('双载体泄漏：空位前残留 ≥2 空白宽 → 检出（归一链已剥除后的兜底）', () => {
+    expect(detectDoubleCarrierLeak('0.09＝　　　<span class="blank-8">&emsp;</span>')).toHaveLength(1);
+    expect(detectDoubleCarrierLeak('0.09＝<span class="blank-8">&emsp;</span>')).toEqual([]);
+    expect(detectDoubleCarrierLeak('0.09＝ <span class="blank-8">&emsp;</span>')).toEqual([]); // 单空格=自然间隔
+  });
+
+  it('sanityScan 汇总新信号；去重后不重复计数', () => {
+    expect(sanityScan('1. 小雅买了 1.5 张书签。(1) 得数保留一位小数：7.2 × 0.09＝(　　)')).toHaveLength(2);
+    expect(sanityScan('(1) 得数保留一位小数：7.2 × 0.09≈(　　)，买了 2 张书签。')).toEqual([]);
   });
 });

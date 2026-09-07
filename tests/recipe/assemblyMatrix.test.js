@@ -337,6 +337,17 @@ describe('三维度完整指令逐句审计（真实开设矩阵 54 科段 × 9 
     expect(hits, `共 ${hits.length} 处"考点"残留（须为 0，非卷指令面已统一核心知识/知识层级）：\n${hits.slice(0, 40).join('\n')}${hits.length > 40 ? `…(共${hits.length})` : ''}`).toEqual([]);
   });
 
+  it('护栏：模型注入面（整条拼装指令）不含"建议题型/suggested"字样——建议题型仅存数据层与 UI，防锚对象整体序列化回潮（486 组合）', () => {
+    const fails = [];
+    for (const { subject, stage, genType } of LEGAL_COMBOS) {
+      const r = assemble(subject, stage, genType);
+      if (!r) continue;
+      const label = `${GEN_TYPE_NAMES[genType]}|${subject}|${stage}`;
+      if (r.full.includes('建议题型') || r.full.includes('suggested')) fails.push(`${label} 注入面含建议题型`);
+    }
+    expect(fails, `注入面出现建议题型：\n${fails.slice(0, 20).join('\n')}`).toEqual([]);
+  });
+
   it('Q1 编辑要素逐句·空条款检测：纯标题行（【…】独占一行）后必须紧跟内容句，不得只有标题无条款（486 完整指令）', () => {
     const fails = [];
     for (const { subject, stage, genType } of LEGAL_COMBOS) {

@@ -29,6 +29,55 @@ export const detectCountingFakes = (text = '') => {
   return out;
 };
 
+/** 可数量词清单（不含"个/名/步"——与比率/约数句式高频共现易误报，保留在 ANNOT 检测内） */
+const COUNT_DIRECT = COUNT_NOUNS.split('|').filter((w) => !['个', '名', '步'].includes(w)).join('|');
+
+/** 小数直接修饰可数对象（2026-09 实证：题 1"1.5 张书签"、题 8(2)"卖出 2.5 件笔筒"——
+ *  可数对象只能用 ≥1 整数表示；小数只表示比率/单价/折扣/概率等连续量。
+ *  只报不改；命中即提示复核（若为比率语义措辞失误需人工改写，不自动篡改）。 */
+export const detectCountDecimals = (text = '') => {
+  const out = [];
+  // 排除"小数+量词+（即 N…）"倒推回译形态——由 detectCountingFakes 单独报，避免一因双报
+  const re = new RegExp(`(\\d+\\.\\d+)\\s*(${COUNT_DIRECT})(?!\\s*[（(]\\s*(?:${ANNOT_PHRASE}))`, 'g');
+  let m;
+  while ((m = re.exec(text))) {
+    out.push(`可数对象个数写成小数：${m[0].trim()}（${m[1]} ${m[2]}——${m[2]} 为可数对象，个数只能用不小于 1 的整数）`);
+  }
+  return out;
+};
+
+/** 近似值语境符号错用（2026-09 实证：题 3"得数保留一位小数：7.2 × 0.09＝(　)"——
+ *  保留位数/四舍五入属"约等于"语义，算式与结果（空位）间应写 ≈，不是 ＝；答案区正确写法
+ *  0.648≈0.6 已用 ≈，题干算式侧漏改。按句切分判定，避免跨题/跨句干扰。 */
+export const detectApproxEqualsSign = (text = '') => {
+  const out = [];
+  const approxCue = /保留(?:一|两|三|四|几)?位小数|保留整数|四舍五入|得数保留|取近似|约等于/;
+  const eqBeforeBlank = /＝(?=\s*(?:[（(]|[\u3000 ]{2,}|$))/;
+  const sentences = String(text || '').split(/(?<=[。！？；!?;])|\n|<br\s*\/?>/i);
+  for (const sent of sentences) {
+    const s = sent.trim();
+    if (!approxCue.test(s)) continue;
+    const hit = eqBeforeBlank.exec(s);
+    if (hit) {
+      out.push(`近似值语境算式用了等号 ＝（应写作约等号 ≈）：${s.slice(0, 46)}…`);
+    }
+  }
+  return out;
+};
+
+/** 双载体泄漏守卫（2026-09 实证：模型按宽度换算输出全角空格串后，又叠加一个括号空位 →
+ *  同一答案空两种载体（导出成"方框后括号"）。正常归一链应在 contentCleaner 剥除前置空白宽，
+ *  此检测器对归一后的最终 HTML 做回归兜底（只报不改）：空白宽串 ≥2 且紧邻空位标签 → 报。 */
+export const detectDoubleCarrierLeak = (html = '') => {
+  const out = [];
+  const re = /((?:&emsp;|&#8195;|&#x2003;|\u2003|\u3000|&nbsp;| ){2,})(?=<(?:u|span)\s+class=["'][^"']*blank-\d+[^"']*["'][^>]*>)/g;
+  let m;
+  while ((m = re.exec(String(html || '')))) {
+    out.push(`同一答案空位出现双载体：空位前残留空白宽度 ${m[1].replace(/\s/g, ' ').length} 字符宽（一个空位只保留一种载体，多余空白宽应已剥除）`);
+  }
+  return out;
+};
+
 /** 同单位换算却数值突变（"2.05 千米（单位换算后为 205 千米）"） */
 export const detectUnitMutations = (text = '') => {
   const out = [];
@@ -98,7 +147,7 @@ const detectTaskMismatch = (html = '') => {
   return out;
 };
 
-/** 全量合理性扫描：返回违规提示语义清单（空=无违规） */
+/** 全量合理性扫描：返回违规提示语义清单（空=无违规；跨检测器同文案去重） */
 export const sanityScan = (content = '') => {
   const html = String(content || '');
   const text = html
@@ -107,10 +156,15 @@ export const sanityScan = (content = '') => {
     .replace(/[　\s]+/g, ' ')
     .trim();
   return [
-    ...detectTaskMismatch(html),
-    ...detectUniformBlankWidths(html),
-    ...detectCountingFakes(text),
-    ...detectUnitMutations(text),
+    ...new Set([
+      ...detectTaskMismatch(html),
+      ...detectUniformBlankWidths(html),
+      ...detectCountingFakes(text),
+      ...detectCountDecimals(text),
+      ...detectApproxEqualsSign(text),
+      ...detectDoubleCarrierLeak(html),
+      ...detectUnitMutations(text),
+    ]),
   ];
 };
 

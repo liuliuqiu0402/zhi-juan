@@ -266,6 +266,10 @@ export function buildAnswerSpaceInstruction(subject = '', stage = '') {
     if (subject === '数学') {
       lines.push('· 算式中的填空位（如 3＋□＝8、□×□＝12）用方框或圆圈呈现，不用下划线空位；');
       lines.push('· 比较大小（填＞/＜/＝）用○圈出符号位作答，不用括号空位；');
+      // 🔧 2026-09 实证（A-101 产物审计）：近似值题（保留 X 位小数）算式侧误用 ＝、
+      //    答案空位叠加"空白宽 + 括号"双载体 → 数学专用条款显式收敛
+      lines.push('· 需取近似值/保留位数的算式（保留X位小数、四舍五入、得数保留、约等于语境）用约等号 ≈ 连接算式与空位结果，精确等于才用 ＝；');
+      lines.push('· 一个答案空只呈现一种载体（圆括号空/下划线空/方框空择一）；空位内不再嵌空位、空位前不叠加空白宽度或另一种载体；');
     }
     const region = getAnswerRegion(subject, stage);
     if (region.carrier === 'line') {

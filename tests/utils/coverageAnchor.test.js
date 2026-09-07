@@ -96,3 +96,26 @@ describe('coverageAnchor 绑定四级与红线', () => {
     expect(boundAnchorNames(anchors)).toHaveLength(0);
   });
 });
+
+describe('护栏：建议题型不进模型注入面（boundAnchorNames 输出最小化，防锚对象整体序列化回潮）', () => {
+  const segs2 = [{ text: '例题文本：0.3×3=0.9。', type: '例题', isKeyConcept: true }];
+  const cardB = mkCard('第1单元 小数乘法', [
+    { bigConcept: '数与运算', coreKnowledge: [
+      { name: '小数乘整数', level: '理解', specificConcepts: ['算理'], suggestedQuestionTypes: ['竖式计算', '填空'] },
+    ] },
+  ], segs2);
+
+  it('boundAnchorNames 仅含 {chapter,bigConcept,name,level}，不含 suggestedQuestionTypes/specificConcepts', () => {
+    const { anchors } = buildAnchors([cardB], {});
+    const out = boundAnchorNames(anchors);
+    expect(out).toHaveLength(1);
+    expect(Object.keys(out[0]).sort()).toEqual(['bigConcept', 'chapter', 'level', 'name']);
+    expect(JSON.stringify(out)).not.toContain('suggestedQuestionTypes');
+    expect(JSON.stringify(out)).not.toContain('suggested');
+  });
+
+  it('flattenAnchorTree 存储含建议题型（数据层保留）——与注入面最小化分界明确', () => {
+    const flat = flattenAnchorTree(cardB.anchorTree);
+    expect(flat[0].suggestedQuestionTypes).toEqual(['竖式计算', '填空']);
+  });
+});

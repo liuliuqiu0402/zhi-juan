@@ -44,4 +44,21 @@ describe('normalizeBlankMarkers 跨类型空位叠写去重', () => {
     expect(out).toContain('请写出你的感受，并结合诗句简要分析。');
     expect(out).toContain('<u class="blank-4">&emsp;</u>'); // 填空横线（合法）保留
   });
+
+  it('A-101 题 3 实证：空格宽串 + 括号空（＝　　　（　　））→ 剥空格宽、只留括号空（一位一载体）', () => {
+    const out = normalizeBlankMarkers('(1) 得数保留一位小数：7.2 × 0.09＝　　　（　　　　）');
+    expect(out).toMatch(/7\.2 × 0\.09＝<span class="blank-\d+">&emsp;<\/span>$/);
+    expect(out).not.toContain('<u class="blank-'); // 空格宽不得另行成横线
+  });
+
+  it('A-101 题 3 反向：空格宽串 + 下划线空（＝＿＿＿）→ 剥空格宽、留下划线空', () => {
+    const out = normalizeBlankMarkers('(1) 7.2 × 0.09＝　　　＿＿＿');
+    expect(out).toMatch(/＝<u class="blank-\d+">&emsp;<\/u>$/);
+    expect(out).not.toContain('　　　');
+  });
+
+  it('单个自然空格 + 空位 → 不误剥（空格为间隔非载体）', () => {
+    const out = normalizeBlankMarkers('答： （　　　　）');
+    expect(out).toContain('<span class="blank-');
+  });
 });
