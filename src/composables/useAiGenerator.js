@@ -1007,6 +1007,47 @@ export async function chatStudyDigestOnce(messages = [], { maxTokens = 8000, tem
   return content;
 }
 
+/**
+ * 研读轮执行（复位工程·S2/S6 统一入口）：
+ * 编辑（模型）分批消化素材（练习段已滤/missing 已排除），批摘要（点名⊆批清单/引用可溯源/理解非空）
+ * 经程序核对、失败带纠错提示回流该批重读；全部通过返回 digestPairs（点名行+模型摘要原话），
+ * 供写作/答案请求作历史前缀（同源同序、只追加）。digest 引擎异常或回流重读超限 → ok:false
+ * （阻断语义由调用方处理——研读不静默通过）。
+ * anchors 缺省时由 contentCards 现算（显式"研读教材"阶段无预构建锚时使用）。
+ * @returns {Promise<{ok:boolean, digestPairs:Array, report:Object, unitsCount:number, error?:string}>}
+ */
+async function runStudyNow({ genType = '', contentCards = [], anchors = null } = {}) {
+  const anchorSrc = anchors && anchors.length ? anchors : buildAnchors(contentCards || [], { retriever: semanticRetriever }).anchors;
+  const studyUnits = buildStudyUnits({ anchors: anchorSrc });
+  if (!studyUnits.length) {
+    return { ok: true, digestPairs: [], report: { batches: 0, rereads: 0, oversize: [] }, unitsCount: 0, skipped: true };
+  }
+  const session = createGenerationSession({ meta: { stage: 'study', genType } });
+  const r = await runStudyRound({
+    units: studyUnits,
+    session,
+    digestFns: {
+      produce: async (msg, batchUnits, prefix) => chatStudyDigestOnce([
+        ...(prefix || []),
+        { role: 'user', content: msg },
+      ]),
+    },
+  });
+  if (!r.ok) {
+    const reason = r.report.digestError
+      ? `研读引擎异常：${r.report.digestError}`
+      : `研读批"${(r.failBatch?.unitIds || [])[0] || ''}"回流重读超限仍未通过核对（点名缺漏 ${(r.report.missing || []).join('、') || '无'}；理解为空 ${(r.report.empty || []).join('、') || '无'}）`;
+    return {
+      ok: false,
+      digestPairs: [],
+      report: r.report,
+      unitsCount: studyUnits.length,
+      error: `会话式研读轮未通过：${reason}。请检查勾选章节教材原文完整性后重试（引擎不支持时可更换支持多轮对话的引擎）。`,
+    };
+  }
+  return { ok: true, digestPairs: r.digestPairs, report: r.report, unitsCount: studyUnits.length };
+}
+
 export function useAiGenerator() {
   const isGenerating = ref(false);
   const progress = ref(0);
@@ -4564,7 +4605,7 @@ ${cardAnalysisText.substring(0, 1000)}
     const {
       instruction = '', genType = '', selectedBooks = [], contentCards = [],
       knowledgeMap = null, contextFramework = '', templateInfo = '', diffKps = [],
-      scopeType = '', programAttach = '',
+      scopeType = '', programAttach = '', externalStudy = null,
     } = params;
     const book = selectedBooks?.[0];
     if (!instruction.trim()) {
@@ -4618,40 +4659,33 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     }
 
-    // ── 会话式研读轮（复位工程·阶段 2/3 接入）：直灌路径在写作前，编辑（模型）先分批消化素材，
+    // ── 会话式研读轮（复位工程·阶段 2/3 + S6 显式阶段）：直灌路径在写作前，编辑（模型）先分批消化素材，
     //    批摘要（点名⊆批清单 / 引用可溯源 / 理解非空）经程序核对，失败带纠错提示回流该批重读；
     //    全部通过后，研读消化记录（点名行+模型摘要原话）作为写作/答案页请求的历史前缀——
     //    同源同序携带、只追加不拼接（区别于 M1 把总账文本拼进 instruction 的旧接入）。
-    //    浏览路径（大范围勾选）与素材线的会话融合属阶段 4；本课对照（小范围直灌）即走本路径。
+    //    显式"研读教材"阶段（S6）已产出 digestPairs 时经 externalStudy 复用，不再重复执行研读。
     //    契约：研读不静默通过——回流超限 / 引擎异常如实阻断本次生成，给编辑明确行动项。
     let studyHistory = [];
     let studyRoundsUsed = false;
     if (!browsePath) {
-      const studyUnits = buildStudyUnits({ anchors });
-      if (studyUnits.length) {
-        statusText.value = `研读素材：编辑通读勾选教材（${studyUnits.length} 个覆盖点，分批消化+批摘要核对）...`;
-        progress.value = 12;
+      const extPairs = (externalStudy && Array.isArray(externalStudy.digestPairs) && externalStudy.digestPairs.length)
+        ? externalStudy.digestPairs
+        : null;
+      if (extPairs) {
+        studyHistory = buildStudyPrefix(extPairs);
+        studyRoundsUsed = true;
+        console.log(`[研读轮·复用] 预研读 ${extPairs.length} 批记录直接携带（未重复执行研读）`);
+      } else {
         try {
-          const session = createGenerationSession({ meta: { stage: 'study', genType } });
-          const r = await runStudyRound({
-            units: studyUnits,
-            session,
-            digestFns: {
-              produce: async (msg, batchUnits, prefix) => chatStudyDigestOnce([
-                ...(prefix || []),
-                { role: 'user', content: msg },
-              ]),
-            },
-          });
-          if (!r.ok) {
-            const reason = r.report.digestError
-              ? `研读引擎异常：${r.report.digestError}`
-              : `研读批"${(r.failBatch?.unitIds || [])[0] || ''}"回流重读超限仍未通过核对（点名缺漏 ${(r.report.missing || []).join('、') || '无'}；理解为空 ${(r.report.empty || []).join('、') || '无'}）`;
-            throw new Error(`会话式研读轮未通过：${reason}。请检查勾选章节教材原文完整性后重试（引擎不支持时可更换支持多轮对话的引擎）。`);
+          statusText.value = '研读素材：编辑通读勾选教材（分批消化+批摘要核对，会话式）...';
+          progress.value = 12;
+          const s = await runStudyNow({ genType, contentCards, anchors });
+          if (!s.ok) throw new Error(s.error || '会话式研读轮未通过');
+          if (!s.skipped) {
+            studyHistory = buildStudyPrefix(s.digestPairs);
+            studyRoundsUsed = true;
+            console.log(`[研读轮·会话式] ${s.report.batches} 批全部核对通过（回流 ${s.report.rereads} 次），研读记录 ${studyHistory.length} 条随写作/答案请求携带`);
           }
-          studyHistory = buildStudyPrefix(r.digestPairs);
-          studyRoundsUsed = true;
-          console.log(`[研读轮·会话式] ${r.report.batches} 批全部核对通过（回流 ${r.report.rereads} 次），研读记录 ${studyHistory.length} 条随写作/答案请求携带`);
         } catch (e) {
           if (String(e.message || '').startsWith('会话式研读轮未通过')) throw e;
           // 引擎不可用（未配置/探测失败）→ 如实记录并放行原路径（研读轮本批次未启用，非静默"假装完成"）
@@ -5296,7 +5330,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
 
   // 执行生成
   // ==================== 整卷一次生成 ====================
-  const generate = async (instruction, genType, selectedBooks, selectedTemplates, retryCount = 0, scopeType = '', programAttach = '') => {
+  const generate = async (instruction, genType, selectedBooks, selectedTemplates, retryCount = 0, scopeType = '', programAttach = '', studyOpts = {}) => {
     const MAX_RETRIES = apiConfig.generationSettings?.retry?.generationRetries ?? 2;
     // 🔴 整卷质检静默明细缓存（代码确定性规则检测到的需抽检项，经 fpResult.auditWarnings 传递后展示到生成报告）
     let auditWarningsFromPaper = [];
@@ -5330,13 +5364,30 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       
       //  学段（函数级作用域，供后续模板使用）
       const stage = selectedBooks?.[0]?.stage || '';
-      
+
+      // 🔴 复位工程·S6 预研读缓存：显式"研读教材"阶段产出的 studyCache（contentCards/knowledgeMap/
+      //    digestPairs）在勾选一致时复用——跳过 Step1/2 AI 提取与研读轮，直接进入委托写作；
+      //    失配（范围/类型变化/逐章模式）→ 忽略缓存走完整管线（自动研读保底，行为同旧）。
+      const booksKeyOf = (books = []) => (books || []).map((b) => {
+        const chs = (b?.selectedChapters || []).map((c) => `${c?.title || c?.name || ''}@${c?.start ?? ''}`).join(',');
+        return `${b?.id || b?.fileName || b?.name || ''}@${b?.subject || ''}@${chs}`;
+      }).join('||');
+      const wantStudyCache = !studyOpts.studyOnly && !_perChapterChapterTitle && studyOpts.studyCache
+        && studyOpts.studyCache.genType === genType
+        && studyOpts.studyCache.booksKey === booksKeyOf(selectedBooks);
+      const studyCache = wantStudyCache ? studyOpts.studyCache : null;
+
       // ========== 第一步：逐课提取命题素材 ==========
       // 🔧 逐章模式（_perChapterChapterTitle 跨 genType 持久，由 GenerateModule 章节循环在完成后清除）
       let contentCards;
       let knowledgeMap;
-      
-      if (_perChapterChapterTitle) {
+
+      if (studyCache) {
+        // 预研读缓存命中：直接复用 Step1/2 产物与研读消化记录（不重复 AI 提取、不重复研读）
+        contentCards = studyCache.contentCards;
+        knowledgeMap = studyCache.knowledgeMap;
+        console.log(`[复位·预研读复用] 缓存命中（${contentCards.length} cards），跳过 Step1/2 提取与研读轮`);
+      } else if (_perChapterChapterTitle) {
         const targetChapter = _perChapterChapterTitle;
 
         if (!_cachedContentCards || !_cachedKnowledgeMap) {
@@ -5394,6 +5445,32 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
 
       // 🔧 新增：初始化语义检索器
       semanticRetriever.indexContentCards(contentCards);
+
+      // 🔴 复位工程·S6 显式"研读教材"阶段（studyOnly）：Step1/2 就绪后执行研读轮即返回，
+      //    不进入命题规划/写作；研读结果（contentCards/knowledgeMap/digestPairs）封装为 studyCache
+      //    供随后【委托生成】复用（booksKey 供 generate 侧勾选一致性校验）。
+      if (studyOpts.studyOnly) {
+        statusText.value = '研读素材：编辑通读勾选教材（分批消化+批摘要核对，会话式）...';
+        progress.value = 12;
+        try {
+          const s = await runStudyNow({ genType, contentCards });
+          if (!s.ok) return { success: false, error: s.error || '会话式研读轮未通过', studyOnly: true, studyReport: s.report };
+          return {
+            success: true,
+            studyOnly: true,
+            studyCache: {
+              genType,
+              booksKey: booksKeyOf(selectedBooks),
+              contentCards,
+              knowledgeMap,
+              digestPairs: s.digestPairs,
+              report: s.report,
+            },
+          };
+        } catch (e) {
+          return { success: false, error: `研读阶段失败：${String((e && e.message) || e)}`, studyOnly: true };
+        }
+      }
 
       // ========== 第三步：命题规划 ==========
       const step3Config = await getCurrentEngineConfigEnhanced('blueprint');
@@ -5617,6 +5694,7 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
             diffKps,
             scopeType: scopeType || '',
             programAttach: programAttach || '', // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不属于委托正文，由程序侧 system 注入
+            externalStudy: studyCache ? { digestPairs: studyCache.digestPairs } : null, // S6：预研读记录复用（跳过重复研读）
           });
           if (!fpResult.success) {
             throw new Error(fpResult.error || '整卷生成失败');
@@ -5726,7 +5804,7 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
       // 🔴 出厂质检失败不整卷自动重试（成本高且不保证修复）——直接进入弹窗让用户选择重试/批量/取消
       if (retryCount < MAX_RETRIES && !error.qualityGate) {
         await new Promise(resolve => setTimeout(resolve, apiConfig.generationSettings?.retry?.baseDelayMs ?? 2000));
-        return generate(instruction, genType, selectedBooks, selectedTemplates, retryCount + 1, scopeType, programAttach);
+        return generate(instruction, genType, selectedBooks, selectedTemplates, retryCount + 1, scopeType, programAttach, studyOpts);
       }
 
       // 重试耗尽：弹窗让用户选择处理方式
@@ -5744,7 +5822,7 @@ ${ctxList.map((c, i) => `  情境${i + 1}「${c.name}」：${c.description}
 
       if (choice === 'retry') {
         // 用户选择原样重试（重置重试计数）
-        return generate(instruction, genType, selectedBooks, selectedTemplates, 0, scopeType, programAttach);
+        return generate(instruction, genType, selectedBooks, selectedTemplates, 0, scopeType, programAttach, studyOpts);
       }
 
       // 🔴 分步流水线残留路径已移除：全类型一律走整卷一次生成（指令库驱动，结构由蓝图注入保证）
