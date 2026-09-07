@@ -88,7 +88,7 @@ export function buildStudyPrefix(digestPairs = [], keepFull = Infinity) {
  * @param {number} [budgetChars] 摘要本体字符预算（默认 9000）
  * @returns {number} keepFull（批数上限；≤0 恒为 Infinity 全量）
  */
-export function planPrefixKeepFull(digestPairs = [], budgetChars = 9000) {
+function planPrefixKeepFull(digestPairs = [], budgetChars = 9000) {
   const pairs = Array.isArray(digestPairs) ? digestPairs : [];
   if (pairs.length <= 6) return Infinity; // 少量批：全量（无感）
   const budget = Math.max(2000, Number(budgetChars) || 9000);
