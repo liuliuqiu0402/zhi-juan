@@ -17,11 +17,19 @@ export const STUDY_REREAD_LIMIT = 2;
 /** 构造研读单位（调用方过滤：missing 锚已排除；练习段已滤）。 */
 export function buildStudyUnits({ anchors = [], curriculumByName = null } = {}) {
   const units = [];
+  const noSegAnchors = [];
   for (const a of anchors || []) {
     if (!a || a.bind?.status === 'missing' || !a.name) continue; // 红线：缺料锚不进研读
     const segments = (a.bind?.segments || []).filter(
       (s) => s && s.text && String(s.text).trim() && isReturnableSegment(String(s.type || '').trim()),
     );
+    // 🔴 源头预检（2026-09 回流超限根治）：绑定段经练习段过滤后为空 → 该锚无可研读素材，
+    //    模型无论回流多少次都写不出可溯源引用/理解（回流空转的根因之一）——不进研读单位，
+    //    归入缺料名单由调用方透出（与 missing 锚同语义：无可研读内容即缺料，不静默、不空转）
+    if (!segments.length) {
+      noSegAnchors.push(a.name);
+      continue;
+    }
     const concepts = Array.isArray(a.specificConcepts) ? a.specificConcepts.filter(Boolean) : [];
     const chars = String(a.name || '').length
       + String(a.level || '').length
@@ -38,6 +46,10 @@ export function buildStudyUnits({ anchors = [], curriculumByName = null } = {}) 
       segments,
     });
   }
+  if (noSegAnchors.length) {
+    console.warn(`[研读预检] ${noSegAnchors.length} 个锚绑定无可用原文片段（练习段过滤后为空），不进研读、按缺料处理：${noSegAnchors.join('、')}`);
+    units.noSegAnchors = noSegAnchors; // 随返回值透出（供调用方并入缺料诊断）
+  }
   return units;
 }
 
@@ -45,16 +57,51 @@ export function buildStudyUnits({ anchors = [], curriculumByName = null } = {}) 
  * 由已通过的研读对派生引擎侧会话前缀（digest 请求与写作请求共用）。
  * 形态=一问一答交替（点名行 user 为程序供料=该批覆盖清单；摘要 assistant=模型研读笔记原话），
  * 满足引擎消息交替规范，且素材原文只出现在发起批的 digest 请求中（不随前缀累积）。
+ * 🔧 有界化（2026-09 上界修复）：整本书/大范围批数多时，assistant 摘要本体线性累积会稀释委托书
+ *    或挤占窗口——前缀两级结构：每批点名行（user，全量保留 = 覆盖点名总账，短）始终完整；
+ *    摘要本体（assistant）仅保留最近 keepFull 批，更早批以短占位替代（覆盖点名不失；细节理解
+ *    如需可按目录 browse 对应章补——素材唯一途径契约内）。默认 keepFull=Infinity 保持既有行为。
  * @param {Array<{names:string[], digestText:string}>} digestPairs
+ * @param {number} [keepFull] 保留完整摘要的最近批数（Infinity=全部；写 6~12 启用上界）
  * @returns {Array<{role:string, content:string}>}
  */
-export function buildStudyPrefix(digestPairs = []) {
+export function buildStudyPrefix(digestPairs = [], keepFull = Infinity) {
+  const pairs = Array.isArray(digestPairs) ? digestPairs : [];
   const msgs = [];
-  digestPairs.forEach((p, i) => {
+  if (pairs.length === 0) return msgs;
+  const cap = Math.max(0, Math.floor(Number(keepFull) || Infinity));
+  const fullFrom = Math.max(0, pairs.length - cap); // 从该下标起保留完整摘要
+  const placeholder = '（该批研读细节已并入本前缀点名行；如需教材原文精确形态，可按范围目录 browse 对应章）';
+  pairs.forEach((p, i) => {
     msgs.push({ role: 'user', content: `【研读批${i + 1}·覆盖点】${(p.names || []).join('、')}` });
-    msgs.push({ role: 'assistant', content: p.digestText });
+    msgs.push({ role: 'assistant', content: (i >= fullFrom) ? p.digestText : placeholder });
   });
   return msgs;
+}
+
+/**
+ * 计算前缀的 keepFull（摘要本体字符预算驱动，2026-09 上界修复）。
+ * 点名行（user，覆盖点名总账）体积极小且永不截断；摘要本体（assistant）按预算从最近批往前保留，
+ * 超出预算的早批以占位替代——保证任意批数下前缀内摘要总量 ≤ budgetChars，覆盖点名永不丢。
+ * 批数 ≤ minKeepFull 时全量（单课/单元无感）；默认预算 9000 字符≈6k token 摘要。
+ * @param {Array<{names:string[], digestText:string}>} digestPairs
+ * @param {number} [budgetChars] 摘要本体字符预算（默认 9000）
+ * @returns {number} keepFull（批数上限；≤0 恒为 Infinity 全量）
+ */
+export function planPrefixKeepFull(digestPairs = [], budgetChars = 9000) {
+  const pairs = Array.isArray(digestPairs) ? digestPairs : [];
+  if (pairs.length <= 6) return Infinity; // 少量批：全量（无感）
+  const budget = Math.max(2000, Number(budgetChars) || 9000);
+  let used = 0;
+  let keep = 0;
+  // 从最近批向前累加摘要长度，直到预算用尽
+  for (let i = pairs.length - 1; i >= 0; i -= 1) {
+    const t = String(pairs[i]?.digestText || '');
+    if (used + t.length > budget && keep >= 4) break; // 至少留最近 4 批完整
+    used += t.length;
+    keep += 1;
+  }
+  return Math.min(pairs.length, Math.max(4, keep));
 }
 
 /** 校验失败汇总为一行纠错提示（程序只提示问题清单，不代写笔记）。 */
@@ -200,4 +247,4 @@ export async function runStudyRound({ units, session, maxCharsPerBatch = 2500, d
   return { ok: true, nextStage: 'ready', ledger, report, digestPairs };
 }
 
-export { ledgerToText };
+export { ledgerToText, planPrefixKeepFull };

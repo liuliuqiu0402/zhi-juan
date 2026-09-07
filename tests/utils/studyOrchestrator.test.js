@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildStudyUnits, runStudyRound, ledgerToText, buildStudyPrefix, expandLongStudyUnits, STUDY_REREAD_LIMIT } from '../../src/utils/studyOrchestrator.js';
+import { buildStudyUnits, runStudyRound, ledgerToText, buildStudyPrefix, planPrefixKeepFull, expandLongStudyUnits, STUDY_REREAD_LIMIT } from '../../src/utils/studyOrchestrator.js';
 import { createGenerationSession } from '../../src/utils/generationSession.js';
 
 const SEG_EXAMPLE = { text: '除数是小数的除法：把被除数与除数的小数点同时向右移动相同的位数，使除数变成整数再计算。', type: '例', isKeyConcept: true };
@@ -196,5 +196,35 @@ describe('研读编排驱动（复位阶段 2→3 衔接）', () => {
     expect(ledgerText).toContain('长锚');
     expect(r.ledger.get('长锚').note).toContain('第1段批');
     expect(r.ledger.get('长锚').note).toContain('第' + calls + '段批'); // 同名多批理解合并保留
+  });
+
+  it('研读单位源头预检：绑定段经练习过滤后为空 → 不进研读单位（按缺料，防回流空转）', () => {
+    const anchors = [
+      { chapterTitle: '第1单元', name: '有片段锚', level: '理解', bind: { status: 'literal', segments: [{ text: '有可用片段的内容说明文字', type: '例' }] } },
+      { chapterTitle: '第1单元', name: '仅练习锚', level: '理解', bind: { status: 'literal', segments: [{ text: '练一练：只算不算讲', type: '练习' }] } },
+      { chapterTitle: '第1单元', name: '空片段锚', level: '理解', bind: { status: 'literal', segments: [] } },
+    ];
+    const units = buildStudyUnits({ anchors });
+    expect(units.map((u) => u.name)).toEqual(['有片段锚']); // 仅练习/空片段锚不进研读
+    expect(units.noSegAnchors).toContain('仅练习锚');
+    expect(units.noSegAnchors).toContain('空片段锚');
+  });
+
+  it('前缀有界化 planPrefixKeepFull：批多且摘要超预算 → 限量；批少全量；点名行永不失', () => {
+    const pairs = (n, len) => Array.from({ length: n }, (_, i) => ({ names: [`点${i + 1}`], digestText: '理'.repeat(len) }));
+    // 3 批（少）→ 全量
+    expect(planPrefixKeepFull(pairs(3, 500))).toBe(Infinity);
+    // 20 批 × 1000 字摘要（2 万字符）远超默认 9000 预算 → 限量到最近若干批
+    const keep20 = planPrefixKeepFull(pairs(20, 1000));
+    expect(keep20).toBeGreaterThanOrEqual(4);
+    expect(keep20).toBeLessThan(20);
+    // 对应 buildStudyPrefix 输出：点名行全量（user 各批都在），早批摘要被占位替代
+    const prefix = buildStudyPrefix(pairs(20, 1000), keep20);
+    const userCount = prefix.filter((m) => m.role === 'user').length;
+    const fullDigests = prefix.filter((m) => m.role === 'assistant' && m.content.includes('理'.repeat(10))).length;
+    expect(userCount).toBe(20);          // 点名行 20 条全量（覆盖点名不失）
+    expect(fullDigests).toBe(keep20);    // 完整摘要仅保留最近 keep20 批
+    // 显式全量：keepFull=Infinity 保持旧行为
+    expect(buildStudyPrefix(pairs(3, 10))).toHaveLength(6);
   });
 });

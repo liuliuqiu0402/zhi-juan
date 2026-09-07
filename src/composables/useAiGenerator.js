@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import axios from 'axios';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay } from '../config/apiConfig.js';
-import { buildStudyUnits, runStudyRound, buildStudyPrefix } from '../utils/studyOrchestrator.js';
+import { buildStudyUnits, runStudyRound, buildStudyPrefix, planPrefixKeepFull } from '../utils/studyOrchestrator.js';
 import { createGenerationSession, isReturnableSegment } from '../utils/generationSession.js';
 import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'; // S4.1：段类型补"拓展/文化"（锚范围性质判定共用）
 import { GEN_CONST } from '../config/generationConstants.js';
@@ -1036,6 +1036,13 @@ async function runStudyNow({ genType = '', contentCards = [], anchors = null, on
   if (!studyUnits.length) {
     return { ok: true, digestPairs: [], report: { batches: 0, rereads: 0, oversize: [] }, unitsCount: 0, skipped: true };
   }
+  // 🔧 源头预检透出（2026-09）：绑定无可用片段（练习段过滤后为空）的锚不进研读、按缺料处理——
+  //    与 missing 锚同通道并入缺料诊断，用户可见哪些点因素材不足未研读（不静默、不空转回流）
+  const noSegMissing = (studyUnits.noSegAnchors || []).filter(Boolean);
+  const noSegNote = noSegMissing.length
+    ? `⚠️ ${noSegMissing.length} 项核心知识绑定无可研读原文片段（教材片段经练习/作业过滤后为空），本次未研读、不参与覆盖：${noSegMissing.join('、')}。请检查对应章节教材原文是否完整。`
+    : '';
+  if (noSegMissing.length) console.warn(`[研读·缺料] ${noSegMissing.length} 个锚无可研读片段：${noSegMissing.join('、')}`);
   const session = createGenerationSession({ meta: { stage: 'study', genType } });
   const r = await runStudyRound({
     units: studyUnits,
@@ -1060,7 +1067,7 @@ async function runStudyNow({ genType = '', contentCards = [], anchors = null, on
       error: `会话式研读轮未通过：${reason}。请检查勾选章节教材原文完整性后重试（引擎不支持时可更换支持多轮对话的引擎）。`,
     };
   }
-  return { ok: true, digestPairs: r.digestPairs, report: r.report, unitsCount: studyUnits.length };
+  return { ok: true, digestPairs: r.digestPairs, report: r.report, unitsCount: studyUnits.length, noSegNote: noSegNote || undefined };
 }
 
 export function useAiGenerator() {
@@ -4253,7 +4260,8 @@ ${cardAnalysisText.substring(0, 1000)}
     };
     // 🔴 研读消化记录（点名行 user + 模型摘要 assistant，一问一答）作会话前缀——
     //    模型带着"已研读理解"进入写作（素材批原文不随前缀累积，仅消化记录；browse 按需后置取）
-    const studyPrefixMsgs = buildStudyPrefix(Array.isArray(studyPairs) ? studyPairs : []);
+    //    有界化（2026-09）：大范围批数多时按摘要字符预算保留最近批，点名行全量不失覆盖
+    const studyPrefixMsgs = buildStudyPrefix(Array.isArray(studyPairs) ? studyPairs : [], planPrefixKeepFull(studyPairs));
     const messages = [
       { role: 'system', content: buildBrowseSystem(contentMode)
         + (generateMode === 'once'
@@ -4515,6 +4523,7 @@ ${cardAnalysisText.substring(0, 1000)}
     //    显式"研读教材"阶段（S6）产出 digestPairs 时经 externalStudy 复用，不再重复执行研读。
     let studyPairs = null;   // digestPairs（browse 会话 / 纯摘要写作前缀的同一源）
     let studyHistory = [];   // 写作历史前缀（由 studyPairs 派生）
+    let studyNoSegNote = ''; // 无可用片段锚的缺料透出（源头预检：素材不足不进研读，报告可见）
     let studyRoundsUsed = false;
     {
       const extPairs = (externalStudy && Array.isArray(externalStudy.digestPairs) && externalStudy.digestPairs.length)
@@ -4539,6 +4548,7 @@ ${cardAnalysisText.substring(0, 1000)}
           // 🔴 研读失败一律阻断（2026-09 定稿：不静默通过、不回退直灌、浏览通道亦不放行——
           //    素材唯一途径=研读，研读不过即无可写依据；如实提示补料/重试）
           if (!s.ok) throw new Error(s.error || '会话式研读轮未通过（研读失败，请检查教材原文完整性后重试）');
+          if (s.noSegNote) studyNoSegNote = s.noSegNote; // 无片段锚的缺料透出（进生成报告）
           if (!s.skipped) {
             studyPairs = s.digestPairs;
             studyRoundsUsed = true;
@@ -4551,8 +4561,10 @@ ${cardAnalysisText.substring(0, 1000)}
     }
     // 🔧 研读总账→写作/答案页 history 前缀：无条件派生（browse 主路径内部用它构建会话前缀，
     //    回退纯摘要写作与答案页独立调用同样携带——素材唯一途径=研读摘要，任何写作调用都带）
+    //    有界化（2026-09）：整本书大范围批数多时按摘要字符预算保留最近批，点名行全量不失覆盖；
+    //    单课/单元（≤6 批）全量无感
     if (studyPairs && !studyHistory.length) {
-      studyHistory = buildStudyPrefix(studyPairs);
+      studyHistory = buildStudyPrefix(studyPairs, planPrefixKeepFull(studyPairs));
     }
 
     // ── 动态输出预算帽（2026-09）：正文 maxTokens 不再固定取用户档位，而是按
@@ -5164,6 +5176,7 @@ ${guardResult.bannedList.length ? guardResult.bannedList.slice(0, 15).map((b) =>
     if (digestOnlyWriting) {
       auditWarnings.push('ℹ️ 当前引擎不支持 browse 工具：本次为纯摘要写作——正文依据研读总账摘要生成，未按需现取教材原文精确形态；如需教材原文细节支撑命题，请使用支持工具调用的引擎（DeepSeek/智谱/火山/阿里云等）。');
     }
+    if (studyNoSegNote) auditWarnings.push(studyNoSegNote); // 研读源头预检：无片段锚按缺料处理（不空转回流）
     if (anchorMissingNote) auditWarnings.push(anchorMissingNote);
     // 📊 覆盖对账（2026-09 P2）：生成完成后按 COVERAGE_CONTRACT 对账正文考点出现度。
     //    只对 full/per-lesson-full（知识型/课时练）判缺并透出缺漏清单到生成报告【问题列表】，
