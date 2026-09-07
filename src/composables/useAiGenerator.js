@@ -416,6 +416,7 @@ import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever
 import { reconcileCoverage, reconcileCoverageStats, coverageNoteOf } from '../utils/coverageReconciler.js';
 import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
+import { guardPaper, guardReportOf } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（收敛确定性检测+修订轮驱动）
 import { reconcileDomains, domainNoteOf } from '../utils/domainReconciler.js';
 import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, stripPlanningPreamble, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
@@ -4818,10 +4819,12 @@ ${cardAnalysisText.substring(0, 1000)}
     const clampReq = (tok) => Math.min(tok, engineCap);
     const bodyEngineOver = bodyDynamicCap > engineCap;
     const answerEngineOver = answerDynamicCap > engineCap;
-    const budgetAlert = (bodyOverCap ? `${genType}正文估算${bodyNeeded}token 超上限${bodyCfg.cap}，已自动加长预算` : '')
-      + (answerOverCap ? `；答案页估算${answerNeeded}token 超上限${answerCfg.cap}，已自动加长` : '')
-      + (bodyEngineOver ? `；正文估算超引擎单次输出上限 ${engineCap} token，将自动分次续写补齐` : '')
-      + (answerEngineOver ? `；答案页估算超引擎单次输出上限 ${engineCap} token，将自动分次续写补齐` : '');
+    const budgetAlert = [
+      (bodyOverCap ? `${genType}正文估算${bodyNeeded}token 超上限${bodyCfg.cap}，已自动加长预算` : ''),
+      (answerOverCap ? `答案页估算${answerNeeded}token 超上限${answerCfg.cap}，已自动加长` : ''),
+      (bodyEngineOver ? `正文估算超引擎单次输出上限 ${engineCap} token，将自动分次续写补齐` : ''),
+      (answerEngineOver ? `答案页估算超引擎单次输出上限 ${engineCap} token，将自动分次续写补齐` : ''),
+    ].filter(Boolean).join('；');
     console.log(`[每类型预算] ${genType}: 路径=${generateMode} 勾选原文=${selectedRawChars}字 所需=${bodyNeeded}→帽=${bodyDynamicCap}(cap=${bodyCfg.cap}${bodyOverCap ? ' 已升级' : ''}/coef=${bodyCfg.coef}) 答案帽=${answerDynamicCap}(cap=${answerCfg.cap})`);
 
     // 🔴 标题根治兜底：标题只由命名规范占位符组成——模型若把任务行类型名（如"考卷"）拼进 h1，
@@ -5243,8 +5246,63 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       }
     }
 
-    // 🔴 密封线兜底：正式试卷且 AI 未输出密封线 → 代码补（恢复原拼装器的密封线成果）
+    // 🔴 卷级守门 + 写作修订轮（2026-09 系统性根治，docs/design/卷级守门引擎与写作修订轮-根治方案.md）：
+    //    生成端内自纠（≤2 轮）：确定性守门 → 命中清单交模型（编辑）自行修订 → 复检。
+    //    发现靠确定性规则（照搬/算式重复/情境集中/首段自述/裂缝），修订靠模型，程序不改写内容。
+    //    语料=示范段（练习/作业成品段不比对——其原文本就不向模型提供，与研读口径同源）
     let finalContent = answerHtml ? `${content}\n\n${answerHtml}` : content;
+    const refCorpus = (anchors || []).flatMap((a) => (a.bind?.segments || [])
+      .filter((s) => s && s.text && String(s.text).trim().length >= 8 && isReturnableSegment(String(s.type || '').trim()))
+      .map((s) => String(s.text)));
+    let guardResult = guardPaper({ html: finalContent, corpus: refCorpus });
+    let revisionRounds = 0;
+    const REVISION_CAP = 2;
+    if (apiConfig.generationSettings?.paperRevision !== false && guardResult.hits.length && refCorpus.length) {
+      const bodyTxtLen = finalContent.replace(/<[^>]+>/g, '').length;
+      // 修订预算：正文+答案估算 token（中文≈0.9~1.3 token/字）1.5 倍余量 + 说明开销；整卷修订仅当单次容量可容纳
+      const needTokens = clampReq(Math.min(32000, Math.max(2600, Math.ceil(bodyTxtLen * 1.5) + 1500)));
+      for (let rv = 0; rv < REVISION_CAP && guardResult.hits.length; rv++) {
+        revisionRounds += 1;
+        const hitText = guardReportOf(guardResult.hits, { copyLimit: 12 }).join('\n');
+        const revPrompt = `你是这份${contractOf(genType).name || genType}的署名编辑，正在终审定稿（只许修订，不许另起炉灶、不许重新命题整卷）。
+程序用确定性规则（字面/词表/结构比对，非语义判断）对整卷做了检测，检出以下必须处理的问题——仅陈述字面事实与契约，不预设改法：
+【待修订问题】
+${hitText}
+【禁用沿用名单】（正文与教材参考段字面重合的片段/算式/数据；修订不得再沿用，须换情境换数据重写）
+${guardResult.bannedList.length ? guardResult.bannedList.slice(0, 15).map((b) => `· ${b}`).join('\n') : '（无）'}
+【修订要求】
+1. 逐项修订：与教材参考段重合处换情境换数据重写；卷内重复算式更换其中一题（连同参考答案同步改）；情境主题集中的题为其中重复题换独立情境；删除正文开头的过程性自述句；数据裂缝改数据或改单位（题干与参考答案必须同步一致、自洽可判）。
+2. 不得移除任何覆盖考点（核心知识术语须保留出现）、不得新增知识点、不得改动未命中题目；保持全文 HTML 结构与栏目完整。
+3. 直接回传修订后的完整卷（含参考答案区）HTML 本体，不要任何解释文字、前言或代码块包裹。`;
+        try {
+          const thinkingMult = getGenerationThinkingEnabled() ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1;
+          const revResp = await callAI(revPrompt, {
+            taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
+            maxTokens: Math.round(needTokens * thinkingMult),
+            allowContinuation: true, temperature: bodyTemperature, returnMeta: true,
+          });
+          const ro = typeof revResp === 'string' ? { content: revResp, finishReason: '' } : (revResp || { content: '', finishReason: '' });
+          const revHtml = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(ro.content || '')))))).trim();
+          const trunc = detectTruncation(revHtml, ro.finishReason).truncated;
+          if (revHtml && !trunc && revHtml.length > finalContent.length * 0.6) {
+            finalContent = revHtml;
+            console.log(`✅ [写作修订轮] 第 ${rv + 1} 轮完成：已按命中清单修订（命中前 ${guardResult.hits.length} 处）`);
+          } else {
+            console.warn(`⚠️ [写作修订轮] 第 ${rv + 1} 轮输出未采用（${!revHtml ? '空输出' : trunc ? '输出截断' : '长度异常'}），保留原稿并将命中清单进报告`);
+            break;
+          }
+        } catch (e) {
+          console.warn(`⚠️ [写作修订轮] 第 ${rv + 1} 轮请求异常，停止修订（命中清单进报告）:`, e.message);
+          break;
+        }
+        guardResult = guardPaper({ html: finalContent, corpus: refCorpus });
+        if (guardResult.hits.length) {
+          console.warn(`⚠️ [写作修订轮] 第 ${rv + 1} 轮复检仍残留 ${guardResult.hits.length} 处（${guardResult.hits.slice(0, 3).map((h) => h.text).join('、')}…）`);
+        }
+      }
+    }
+
+    // 🔴 密封线兜底：正式试卷且 AI 未输出密封线 → 代码补（恢复原拼装器的密封线成果）
     if (genType === 'exam' && !/<div[^>]*class="[^"]*seal-zone[^"]*"/.test(finalContent)) {
       finalContent = `${buildSealLineHeader()}\n${finalContent}`;
     }
@@ -5332,28 +5390,14 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       console.log(`[覆盖对账·sampled] ${genType}：绑定考点在正文出现 ${sampledStats.coveredCount}/${sampledStats.total}（覆盖率 ${sampledStats.coverage}，抽样类型仅统计不补漏）`);
     }
 
-    // 🔴 内容合理性扫描（2026-09 生成侧根治·确定性兜底）：正文+答案区做确定性违规信号检测
-    //    （荒谬计数倒推 / 同单位换算数值突变），只报不改、中性透出到问题列表，导人工修订——不自动篡改正文。
-    const sanityIssues = sanityScan(finalContent);
-    const sanityNote = sanityNoteOf(sanityIssues);
-    if (sanityNote) {
-      auditWarnings.push(sanityNote);
-      console.warn(`⚠️ [内容合理性] ${sanityIssues.length} 处数据裂缝：${sanityIssues.join('；')}`);
-    }
-
-    // 🔴 防照搬护栏（底线线 O5，2026-09-07 定版）：正文与本次参考段（示范段原文）做字面命中检测——
-    //    连续 ≥8 字或同串 3 个数字命中即提示改写（只报不改、交编辑核对；程序不做语义雷同判定）。
-    //    语料=示范段（练习/作业成品段不比对——其原文本就不向模型提供）
-    const refCorpus = (anchors || []).flatMap((a) => (a.bind?.segments || [])
-      .filter((s) => s && s.text && String(s.text).trim().length >= 8 && isReturnableSegment(String(s.type || '').trim()))
-      .map((s) => String(s.text)));
-    if (refCorpus.length) {
-      const copyHits = scanCopyOverlap({ bodyHtml: content, corpus: refCorpus });
-      const copyNote = copyOverlapNote(copyHits);
-      if (copyNote) {
-        auditWarnings.push(copyNote);
-        console.warn(`⚠️ [防照搬] ${copyHits.length} 处字面重合提示（交编辑核对，程序不改写）：${copyHits.slice(0, 3).map((h) => `「${h.snippet}」`).join('、')}${copyHits.length > 3 ? '…' : ''}`);
-      }
+    // 🔴 卷面自检报告（卷级守门最终状态：写作修订轮后仍残留的命中统一分节透出——
+    //    照搬/首段自述/算式重复/情境集中/数据载体裂缝；只报不改、中性表述，交编辑核对）
+    if (guardResult.hits.length) {
+      const guardParas = guardReportOf(guardResult.hits, { copyLimit: 5 });
+      guardParas.forEach((p) => auditWarnings.push(p));
+      console.warn(`⚠️ [卷面自检] ${guardResult.hits.length} 处命中（写作修订轮 ${revisionRounds}/${REVISION_CAP} 轮后仍残留）：${guardResult.hits.slice(0, 4).map((h) => h.text).join('；')}…`);
+    } else if (revisionRounds) {
+      console.log(`✅ [卷面自检] 写作修订轮 ${revisionRounds} 轮后零命中（照搬/算式/情境/自述/裂缝全部清零）`);
     }
 
     // 🔴 领域覆盖对账（2026-09 P3·机制补缺）：仅正式卷（exam）且学科已登记领域契约时执行，

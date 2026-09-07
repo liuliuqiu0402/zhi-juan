@@ -69,7 +69,7 @@ export function stripPlanningPreamble(raw = '') {
   if (!raw) return raw;
   let out = String(raw);
   const pHead = /^\s*(<p[^>]*>)([\s\S]*?)<\/p>/;
-  const PLAN_RE = /^(?:我已|已获取|现在|接下来|以下(?:将|是)?|根据|依据|围绕|请根据|本次)[^<\n]{0,60}?(?:教材原文|知识点|核心知识|课标|命制|编写|设计|课时练|课堂练习|试卷|正文|大纲)/;
+  const PLAN_RE = /^(?:我已|已取到|已获取|已拿到|已检索到|现在|接下来|以下(?:将|是)?|根据|依据|现依据|围绕|请根据|本次)[^<\n]{0,60}?(?:教材原文|知识点|核心知识|课标|命制|编写|设计|课时练|课堂练习|试卷|正文|大纲|素材)/;
   for (let guard = 0; guard < 6; guard++) {
     const m = out.match(pHead);
     if (!m) break;
