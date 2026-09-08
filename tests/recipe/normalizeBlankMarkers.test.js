@@ -41,8 +41,11 @@ describe('normalizeBlankMarkers（后处理排版兜底）', () => {
 
   it('行内裸全角空格（口诀/读作，空格后是句读或行尾）→ u.blank-N，导出 Word 有书写线', () => {
     expect(normalizeBlankMarkers('口诀：　　　　　　。')).toBe('口诀：<u class="blank-6">&emsp;</u>。');
-    // 句内"他今年　　岁。"后紧跟汉字"岁"→ 判分隔保留（书写空用＿表达；收窄口径 2026-09）
-    expect(normalizeBlankMarkers('他今年　　岁。')).toBe('他今年　　岁。');
+  });
+
+  it('句内 CJK 夹缝裸空格 = 概念/算理空位 → u.blank-N（2026-09 语义填空位兜底；"他今年　　＿岁"类填空）', () => {
+    expect(normalizeBlankMarkers('他今年　　岁。')).toBe('他今年<u class="blank-2">&emsp;</u>岁。');
+    expect(normalizeBlankMarkers('就是求 4 个　　　　相加的和是多少')).toBe('就是求 4 个<u class="blank-4">&emsp;</u>相加的和是多少');
   });
 
   it('行内裸全角空格超长同样封顶 blank-16（句读前的长书写空）', () => {

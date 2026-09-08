@@ -8882,17 +8882,11 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   }
   
   // 检测可能的不确定性表述
-  const uncertaintyPatterns = [
-    { pattern: /可能|或许|大概|应该|也许/g, message: '包含不确定性表述' },
-    { pattern: /据推测|一般认为|有观点认为/g, message: '包含非确定性学术表述' }
-  ];
-  
-  uncertaintyPatterns.forEach(({ pattern, message }) => {
-    if (pattern.test(content)) {
-      marks.push({ keyword: '不确定性', message });
-    }
-  });
-  
+  // 🔴 2026-09 摘除（用户定版）：原文=手工粘贴且经人工核对，"OCR 不确定性"前提不再成立；
+  //    且"可能/或许/大概/应该/也许"在题干/说明中是正常语义（应用情境、估计、阅读判断），
+  //    以日常语词当"不确定性表述"扫描生成卷 → 记录顶上的 ⚠️不确定性 属误标，已移除。
+  //    保留上方"学段超纲关键词"检测（与 OCR/置信度无关，仍具意义）。
+
   return marks;
 };
 

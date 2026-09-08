@@ -276,6 +276,33 @@ export const spaceBlankWidth = (emWidth) => blankWidthForChars(emWidth);
  * 消费方：normalizeBlankMarkers（生成归一）/ 编辑器装载·粘贴（RichTextEditor）/ 导出端（GenerateModule/TypesetModule）。
  */
 const blankRunEmUnits = (s) => (s.match(/[\u3000\u2003]/g) || []).length + (s.match(/&emsp;/gi) || []).length;
+
+/** 取字符串最末一个"可见字符"（跳过标签/空白/实体；空则返回 ''）。语义填空位判定用。 */
+const prevVisibleChar = (s) => {
+  let i = s.length;
+  while (i > 0) {
+    i -= 1;
+    const c = s[i];
+    if (c === '>') { const t = s.lastIndexOf('<', i - 1); if (t === -1) return ''; i = t; continue; }
+    if (c === ';') { const a = s.lastIndexOf('&', i - 8); if (a !== -1 && s.slice(a, i + 1).length <= 8) { i = a; continue; } }
+    if (/\s|[\u3000\u2003\u2002]/.test(c)) continue;
+    return c;
+  }
+  return '';
+};
+/** 取字符串起始第一个"可见字符"（跳过标签/空白/实体；空则返回 ''）。 */
+const nextVisibleChar = (s) => {
+  let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '<') { const t = s.indexOf('>', i + 1); if (t === -1) return ''; i = t; continue; }
+    if (c === '&') { const t = s.indexOf(';', i + 1); if (t !== -1 && t - i <= 8) { i = t; continue; } }
+    if (/\s|[\u3000\u2003\u2002]/.test(c)) { i += 1; continue; }
+    return c;
+  }
+  return '';
+};
+
 export function wrapBareBlankRuns(html = '') {
   let out = String(html || '');
   if (!out) return out;
@@ -301,6 +328,26 @@ export function wrapBareBlankRuns(html = '') {
     if (!tailText) return `<u class="blank-${blankWidthForChars(blankRunEmUnits(m))}">&emsp;</u>`; // 行尾书写空
     if (/^[。，、；：？！]/.test(tailText)) return `<u class="blank-${blankWidthForChars(blankRunEmUnits(m))}">&emsp;</u>`; // 句读前书写空
     return m; // 后紧跟内容 → 分隔空格保留
+  });
+  // ③ 中句"语义填空位"（2026-09 收口：概念/算理/算式题干中的答案空位被模型输出为裸空格串——
+  //    "求 4 个　　　　相加的和"、"0.6×0.3＝　×　＝　。"），规则②只覆盖行尾/句读前，中句空位此前原样保留
+  //    → docx 里只是隐形空隙、没有可书写横线。此处按"语义夹缝"两种确定性上下文兜底转 u.blank-N：
+  //    a) CJK 夹缝：前、后最近可见字符均为汉字（量词/名词后 + 动词/名词前，"个…相加""有…位""移动…位"）；
+  //    b) 算式空位链：前为 ＝×÷＋－≈ 之一、后为 ×÷＋－＝≈。或汉字（"＝　×　＝　。" 的 各 空位）。
+  //    防护（不转）：数字两侧列分隔（"12　　读作："前为数字）、图形/符号间距（"相加　　○○○"后为 ○）、
+  //    单位括号（"（人）"前导）等——前/后可见字符按最近非标签字符判定，宽度 ≥2 全角/em 单位才转。
+  out = out.replace(/(?:[\u3000\u2003]|&emsp;){2,}/g, (m, off, all) => {
+    const prev = prevVisibleChar(all.slice(0, off));
+    const next = nextVisibleChar(all.slice(off + m.length));
+    if (!prev || !next) return m;
+    const prevIsCjk = /[\u4e00-\u9fa5]/.test(prev);
+    const nextIsCjk = /[\u4e00-\u9fa5]/.test(next);
+    const prevIsOp = /[＝×÷＋－≈]/.test(prev);
+    const nextInChain = /[×÷＋－＝≈。]/.test(next);
+    if ((prevIsCjk && nextIsCjk) || (prevIsOp && (nextInChain || nextIsCjk))) {
+      return `<u class="blank-${blankWidthForChars(blankRunEmUnits(m))}">&emsp;</u>`;
+    }
+    return m;
   });
   return out;
 }

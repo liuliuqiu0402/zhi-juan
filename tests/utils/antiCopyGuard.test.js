@@ -44,4 +44,27 @@ describe('防照搬护栏（底线线 O5）', () => {
     expect(note).toContain('交编辑核对');
     expect(copyOverlapNote([])).toBe('');
   });
+
+  // ── 2026-09 收口：边界标点剥除后按白名单豁免 / 分数成分数字不报 / 长数字串仍报 ──
+  it('片段首尾被标点卷边（"？（得数保留两位"）→ 剥边后命中白名单术语 → 不报照搬', () => {
+    const c = ['例 2：每千克苹果 4.85 元，买 2.6 千克应付多少元？（得数保留两位小数）'];
+    // 题干仅与教材句共享"规范性术语带括号"片段，其余句式自拟 → 整串应豁免、零命中
+    const body = '<p>买 2.6 千克苹果。（得数保留两位小数）</p>';
+    const hits = scanCopyOverlap({ bodyHtml: body, corpus: c, subject: '数学' });
+    expect(hits.length).toBe(0);
+  });
+
+  it('分数成分数字（30/100 → "100"）不报 num（算式自身无语义照搬）', () => {
+    const c = ['0.6×0.5＝6/10×5/10＝30/100＝0.3'];
+    const body = '<p>＝30/100</p>';
+    const hits = scanCopyOverlap({ bodyHtml: body, corpus: c, subject: '数学' });
+    expect(hits.filter((h) => h.kind === 'num').length).toBe(0);
+  });
+
+  it('≥4 位数字串（无限小数示例常数）仍报 num', () => {
+    const c = ['示例：1.010010001 是一个无限不循环小数。'];
+    const body = '<p>下面哪个是无限不循环小数？1.010010001</p>';
+    const hits = scanCopyOverlap({ bodyHtml: body, corpus: c, subject: '数学' });
+    expect(hits.some((h) => h.kind === 'num' && h.snippet.length >= 4)).toBe(true);
+  });
 });

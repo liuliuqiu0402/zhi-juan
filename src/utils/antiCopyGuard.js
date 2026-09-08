@@ -18,7 +18,7 @@ const normWs = (s) => String(s || '').replace(/\s+/g, '');
 const COPY_TERM_WHITELIST = {
   '*': ['想一想，填一填', '想一想', '填一填', '算一算', '比一比', '连一连', '画一画'],
   数学: [
-    '得数保留一位小数', '保留一位小数', '保留整数',
+    '得数保留一位小数', '保留一位小数', '得数保留两位小数', '保留两位小数', '保留三位小数', '保留整数',
     '把除数转化成整数', '除数转化成整数', '转化成整数', '转化成整数再计算',
     '依次不断重复出现', '数字依次不断重复出现',
     '先按照整数乘法算出积', '按照整数乘法算出积', '再确定积的小数点位置', '确定积的小数点位置',
@@ -45,7 +45,9 @@ function longRunOverlap(body, corpus, n) {
   return hits;
 }
 
-/** 同串 3 个连续数字命中检测（正文含与参考段相同的连续 3 位数字串）。 */
+/** 同串 3 个连续数字命中检测（正文含与参考段相同的连续 3 位数字串）。
+ *  2026-09 收口：① 分数成分（前字符为 '/'，如 30/100）不报——分母/分子数字是算式自身，无语义照搬；
+ *  ② 3 位纯整数（如 356 千克）仍报（沿袭教材数字防抄意图）；≥4 位小数/整数串照报。 */
 function numberRunOverlap(body, corpus) {
   const hits = [];
   const numRe = /\d{3,}/g;
@@ -56,6 +58,10 @@ function numberRunOverlap(body, corpus) {
     while ((m = numRe.exec(c)) !== null) {
       const num = m[0];
       if (seenNums.has(num)) continue;
+      // 分数成分豁免：数字串紧贴 '/' 之后（分母 30/100→'100'）或之前（分子）均无语义抄袭
+      const before = c.slice(Math.max(0, m.index - 1), m.index);
+      const after = c.slice(m.index + num.length, m.index + num.length + 1);
+      if (before === '/' || after === '/') continue;
       if (body.includes(num)) {
         seenNums.add(num);
         hits.push({ kind: 'num', n: num.length, snippet: num, source: src.slice(0, 60) });
@@ -84,9 +90,15 @@ export function scanCopyOverlap({ bodyHtml = '', corpus = [], longN = 8, subject
   const body = normWs(text);
   if (!body || !Array.isArray(corpus) || !corpus.length) return [];
   const srcs = corpus.map((s) => String(s || '')).filter(Boolean);
-  // 术语白名单豁免（2026-09）：命中的连续字片段若整串被某无学科规范表述包含 → 属通行术语，不报照搬
+  // 术语白名单豁免（2026-09）：命中的连续字片段若整串被某无学科规范表述包含 → 属通行术语，不报照搬；
+  //   片段首尾先剥标点（比对归一去空白但保留标点，8 字边界常把相邻标点卷进来，如"？（得数保留两位"），
+  //   剥后核心串仍 ≥4 字且被白名单项包含才豁免——纯标点/过短串不因剥离而误豁免。
   const terms = [...(COPY_TERM_WHITELIST['*'] || []), ...(COPY_TERM_WHITELIST[subject] || [])].map(normWs).filter(Boolean);
-  const isTerm = (sni) => terms.some((t) => t.includes(sni));
+  const stripPunctEdges = (s) => String(s).replace(/^[^\u4e00-\u9fa5A-Za-z0-9]+|[^\u4e00-\u9fa5A-Za-z0-9]+$/g, '');
+  const isTerm = (sni) => {
+    const core = stripPunctEdges(sni);
+    return core.length >= 4 && terms.some((t) => t.includes(core));
+  };
   const longHits = longRunOverlap(body, srcs, Math.max(4, longN)).filter((h) => !isTerm(normWs(h.snippet)));
   return [...longHits, ...numberRunOverlap(body, srcs)];
 }
