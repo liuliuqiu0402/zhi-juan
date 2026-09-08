@@ -4076,7 +4076,7 @@ ${cardAnalysisText.substring(0, 1000)}
     type: 'function',
     function: {
       name: 'browse_textbook',
-      description: '按需取回教材原文：从当前所选课本中取回指定章的教材原文片段与该章知识点，供核对该章题型结构、算理/知识梯度或需要引用/归纳的原文精确形态（教材版本以所选课本为准）。仅在研读总账摘要不足以支撑当前命题细节时调用，按目录中章节名取；取毕即继续正文，不反复浏览。',
+      description: '按需取回教材原文：从当前所选课本中取回指定章的教材原文片段与该章知识点，供核对该章题型结构、算理/知识梯度或需要引用/归纳的原文精确形态（教材版本以所选课本为准）。仅在研读总账摘要不足以支撑当前资料编写/命题细节时调用，按目录中章节名取；取毕即继续正文，不反复浏览。',
       parameters: {
         type: 'object',
         properties: {
@@ -4093,7 +4093,7 @@ ${cardAnalysisText.substring(0, 1000)}
   const buildBrowseSystem = (contentMode) => [
     '你是教材命题/教辅编辑，依据当前所选课本与相应学段课标要求，撰写所委托资料（试卷或教辅）的正文。研读总账已随会话前缀提供各覆盖点的理解与引用——先凭研读理解写作。',
     '【教材 browse 与命题约定】',
-    '· browse_textbook 是补充手段，不是必经步骤：仅当需要教材原文精确形态（例题算理/结论框/课标表述核对，或本资料需引用/归纳原文）时才调用；研读摘要已足以命题的要点不要 browse、直接写作；',
+    '· browse_textbook 是补充手段，不是必经步骤：仅当需要教材原文精确形态（例题算理/结论框/课标表述核对，或本资料需引用/归纳原文）时才调用；研读摘要已足以支撑写作的要点不要 browse、直接写作；',
     '· browse 仅限本次勾选覆盖范围内的章节（见【本资料覆盖范围·目录】）——范围外章节会被程序拒绝且不返回任何原文，不要尝试浏览范围外内容；',
     '· 每次 browse 返回该章 1 段完整示范段（段内不截断）；同一章节可多次浏览以取不同段落，已返回段落不会重复返回；',
     contentMode
@@ -4238,7 +4238,7 @@ ${cardAnalysisText.substring(0, 1000)}
         || [];
       const kpTail = kp.length ? `\n【该章知识点】${kp.slice(0, 20).join('、')}` : '';
       if (!pick) {
-        return `【${chapter}】该章示范段已全部返回（共 ${longEnough.length} 段）。可直接依据已浏览原文与知识点命题；如需其他章节请按目录浏览。不要凭训练记忆编写。${kpTail}`;
+        return `【${chapter}】该章示范段已全部返回（共 ${longEnough.length} 段）。可直接依据已浏览原文与知识点编写/命题；如需其他章节请按目录浏览。不要凭训练记忆编写。${kpTail}`;
       }
       returnedSegKeys.add(segKeyOf(pick, chapter));
       const chPrefix = `${normChapter(chapter)}::`;
@@ -4269,7 +4269,7 @@ ${cardAnalysisText.substring(0, 1000)}
     const messages = [
       { role: 'system', content: buildBrowseSystem(contentMode)
         + (generateMode === 'once'
-          ? '\n（本资料为一次成型：正文与答案区一次输出，答案区仅对本资料的练习/自测/例题作答，勿把正文的知识梳理整体复述到答案区。）'
+          ? '\n（本资料为一次成型：正文与答案区一次输出；如含练习/自测/例题，答案区仅对其作答，勿把正文的知识梳理整体复述到答案区。）'
           : '') },
       ...studyPrefixMsgs,
       { role: 'user', content: promptBase },
@@ -4418,7 +4418,7 @@ ${cardAnalysisText.substring(0, 1000)}
       .filter((c) => !(c.segments || []).some((s) => (s.text || '').trim().length >= 10))
       .map((c) => c.chapterTitle).filter(Boolean);
     if (noTextChapters.length) {
-      coverageNotes.push(`⚠️ 以下章节无可用教材原文片段，其内容若涉及命题可能依赖训练记忆而非所选课本，请人工核对取材：${noTextChapters.slice(0, 10).join('、')}${noTextChapters.length > 10 ? '…' : ''}`);
+      coverageNotes.push(`⚠️ 以下章节无可用教材原文片段，其内容若涉及本资料编写/命题可能依赖训练记忆而非所选课本，请人工核对取材：${noTextChapters.slice(0, 10).join('、')}${noTextChapters.length > 10 ? '…' : ''}`);
     }
     // 🔧 未浏览章校验（G7 终态：程序不代 browse、不注入原文——研读总账已含覆盖理解）。
     //    区分「已交模型确认」/「模型确认后仍未采用」/「最终未及浏览」，报告可溯源供编辑核对。
@@ -4428,10 +4428,10 @@ ${cardAnalysisText.substring(0, 1000)}
         coverageNotes.push(`ℹ️ 已检出并交模型确认的未浏览章节：${notedSkipPrompted.join('、')}——模型已自行判断取料或判定研读摘要已够。`);
       }
       if (unadoptedSkipped.length) {
-        coverageNotes.push(`📋 以下章节模型确认后仍未 browse（视为研读摘要已支撑命题）：${unadoptedSkipped.join('、')}。如需以教材原文精确形态核对，请人工复核该章命题是否依赖非所选教材。`);
+        coverageNotes.push(`📋 以下章节模型确认后仍未 browse（视为研读摘要已支撑本资料编写/命题）：${unadoptedSkipped.join('、')}。如需以教材原文精确形态核对，请人工复核该章内容是否依赖非所选教材。`);
       }
       if (skipped.length) {
-        coverageNotes.push(`⚠️ 以下章节虽有可用原文素材但最终未及浏览，命题可能遗漏或依赖非所选教材：${skipped.slice(0, 12).join('、')}${skipped.length > 12 ? '…' : ''}（可扩大浏览或单独为该章生成）`);
+        coverageNotes.push(`⚠️ 以下章节虽有可用原文素材但最终未及浏览，本资料编写/命题可能遗漏或依赖非所选教材：${skipped.slice(0, 12).join('、')}${skipped.length > 12 ? '…' : ''}（可扩大浏览或单独为该章生成）`);
       }
     }
     if (hitRoundLimit || (!content.trim() && (lastMsg?.tool_calls || []).length)) {
@@ -4505,7 +4505,7 @@ ${cardAnalysisText.substring(0, 1000)}
     }
     // 目录骨架 = browse 白名单可见化（模型据此发起 browse 并自校范围），非素材原文
     const browseAnchor = browseTitles.length
-      ? `【本资料覆盖范围·目录】（命题范围以本目录为准；如需某章教材原文细节，按目录 browse 现取，正文不预塞原文）\n${browseTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
+      ? `【本资料覆盖范围·目录】（编写/命题范围以本目录为准；如需某章教材原文细节，按目录 browse 现取，正文不预塞原文）\n${browseTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
       : '';
     // browse 工具路径：引擎支持 tools 即启用（任何范围——研读摘要为主、browse 补细节）；
     // 不支持 tools 的引擎 → 降级纯摘要写作（无 browse 工具，仅委托+研读总账，报告如实标注）
