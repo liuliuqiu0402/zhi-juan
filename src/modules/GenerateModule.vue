@@ -3051,7 +3051,7 @@ import { useTemplateStore } from '../stores/templateStore.js';
 import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
 import { findBlueprint } from '../config/blueprintProvider.js';
 import { getPromptTemplate, buildInjectionInstruction, buildStructureText, buildOutputFormatHint, getCurriculumLabel } from '../config/promptLibrary.js';
-import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructureText, GENERIC_SPECIAL_DESC } from '../config/specialDomains.js'; // 🎯 专项领域注册库（学科×学段→栏目结构+课标语义锚）
+import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructureText, buildSpecialDomainAnchorLine } from '../config/specialDomains.js'; // 🎯 专项领域注册库（学科×学段→栏目结构+课标语义锚）
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
@@ -4866,13 +4866,8 @@ const specialSubTypeOptions = computed(() => {
   const subj = match ? match[1] : subject;
   // 学段感知：取主选教材解析出的 stageKey（小学桶→领域库小学组；中学/未知 → 暂无预置领域）
   const stageKey = getSelectedBookStageKey();
-  const opts = specialDomainOptions(subj, stageKey).map((d) => ({
-    value: d.key,
-    label: d.label,
-    desc: d.desc,
-    // 领域课标锚一并透出（选择器副文案，供用户知道语义依据）
-    curriculum: d.anchor,
-  }));
+  // 注册库已返回 value/label/desc/curriculum（课标语义锚），直接透出
+  const opts = specialDomainOptions(subj, stageKey);
   return opts;
 });
 const getSelectedBookStageKey = () => {
@@ -6063,16 +6058,15 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
       blueprintDetail = `真题蓝本「${bp.label}」· ${bp.sections.length} 个大题（大题/分值/时长）`;
     }
   } else {
-    // 🎯 专项突破：若用户选择了具体领域（且 学科×学段 有注册）→ 用领域专属 栏目结构 + 课标语义锚 覆盖通用教辅结构
-    const subjectKey = String(subject || '').split('·').pop();
-    const specialDom = genType === 'special' ? resolveSpecialDomain(subjectKey, stageKey, specialSubType.value || '') : null;
-    teachingText = specialDom
-      ? (buildSpecialDomainStructureText(specialDom) || '')
-      : (buildTeachingInjection({ genType, stage: stageKey, subject }) || '');
+    // 🎯 专项突破两档（A档=领域自带栏目；B档=通用栏目+课标语义锚；未命中=通用/学科蓝图）——loadInstruction 与 restoreDefault 共用 composeSpecialTeachingText
+    const st = composeSpecialTeachingText({ genType, stageKey, subject, domainKey: specialSubType.value || '' });
+    teachingText = st.text;
     if (teachingText) {
       instructionDraft.value += teachingText;
-      blueprintDetail = specialDom
-        ? `专项领域「${specialDom.label}」· ${specialDom.sections.length} 栏目 + 课标语义锚（${specialDom.anchor}）`
+      blueprintDetail = st.isDomain
+        ? (st.dom.sections && st.dom.sections.length
+          ? `专项领域「${st.dom.label}」· ${st.dom.sections.length} 栏目 + 课标语义锚（${st.dom.anchor}）`
+          : `专项领域「${st.dom.label}」· 通用栏目 + 课标语义锚（${st.dom.anchor}）`)
         : `教辅结构「${genTypeLabel}」· 栏目框架 + 题量底线`;
     }
     if (!instructionDraft.value.includes('【输出格式】')) {
@@ -6156,7 +6150,9 @@ const restoreDefaultInstruction = async () => {
   });
   // exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段，此处不重复；非 exam 追加教辅结构（委托正文栏目骨架）
   if (genType !== 'exam') {
-    instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey, subject });
+    // 🎯 专项突破领域两档（与 loadInstructionFromLibrary 同源 compose，修复「恢复默认」遗漏领域分支）
+    const st = composeSpecialTeachingText({ genType, stageKey, subject, domainKey: specialSubType.value || '' });
+    instructionDraft.value += st.text;
   }
   // 🔴 程序性附加段（渲染契约/质检规则/格式兜底）不进委托正文——统一走 buildProgramAttach，随写作请求 system 注入
   //    分段明细同源产出（面板逐段可点跳库），渲染契约/规则存在时注入来源清单同步展示（与 loadInstructionFromLibrary 口径一致）
@@ -6182,6 +6178,21 @@ const restoreDefaultInstruction = async () => {
     })(),
   ];
   previewHint.value = `已恢复内置默认指令（未改动你的自定义模板）。命题依据：${getCurriculumLabel(stageKey)}（新课标发布不自动更新，见指令库「课标版本」说明）。`;
+};
+
+// 🎯 专项突破两档结构合成（单一入口：loadInstructionFromLibrary / restoreDefaultInstruction 共用）
+//   A档=领域自带栏目结构；B档=通用（学科）蓝图栏目 + 课标语义锚句；未命中领域=通用（学科）蓝图
+const composeSpecialTeachingText = ({ genType, stageKey, subject, domainKey }) => {
+  const dom = genType === 'special'
+    ? resolveSpecialDomain(String(subject || '').split('·').pop(), stageKey, domainKey || '')
+    : null;
+  if (!dom) return { text: buildTeachingInjection({ genType, stage: stageKey, subject }) || '', isDomain: false };
+  if (dom.sections && dom.sections.length) {
+    return { text: buildSpecialDomainStructureText(dom, stageKey), isDomain: true, dom };
+  }
+  const anchorLine = buildSpecialDomainAnchorLine(dom);
+  const generic = buildTeachingInjection({ genType, stage: stageKey, subject }) || '';
+  return { text: generic ? `${generic}\n${anchorLine}` : anchorLine, isDomain: true, dom };
 };
 
 // 生成前确保注入指令非空（最小场景：选教材+类型后直接生成也能跑）
@@ -6245,6 +6256,7 @@ watch(
       .map(b => `${b.id}|${b.stage}|${b.subject}|${b.grade}|${getSelectedChapters(b.outline).map(c => `${c.title}@${c.start}`).join(',')}`)
       .join(';'),
     scopeType.value || '',
+    specialSubType.value || '', // 🎯 专项领域变化同样重置指令（生成时按当前领域重新组装）
   ].join('~~'),
   () => {
     programAttachText.value = ''; // 程序性附加段与委托正文同源：勾选变化一并清空，生成时随 ensure 重建
