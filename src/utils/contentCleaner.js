@@ -44,6 +44,18 @@ export const stripXss = (html) => {
   return s;
 };
 
+/** 全角/异体符号归一（教材排版口径，2026-09 学科特色预案②）
+ * 只做无歧义的字形映射，不涉内容语义：％→%、数字间 ．→.（全角小数点）、✕/✖→×、➗→÷、
+ * 3~6 个连续半角点 → 全角省略号 "……"（单个点=小数点/编号点，不受影响）。
+ * 消费方：cleanSectionHtml 收尾（生成/粘贴/装载全链路同源）。
+ */
+export const normalizeTypographicSymbols = (html = '') => String(html || '')
+  .replace(/％/g, '%')
+  .replace(/(?<=\d)．(?=\d)/g, '.')
+  .replace(/✕|✖/g, '×')
+  .replace(/➗/g, '÷')
+  .replace(/\.{3,6}/g, '……');
+
 /** 清洗 AI 输出：去 ```html 包裹、去 body 抽取、去自评残留、去 markdown 语法残留 */
 export const cleanSectionHtml = (raw) => {
   if (!raw) return '';
@@ -55,6 +67,8 @@ export const cleanSectionHtml = (raw) => {
   // 🔧 markdown 语法残留兜底（指令已禁，模型偶发违反——正文/答案页统一清理）：
   //    行首 ## 标题标记、成对 ** 加粗；保留正文中自然出现的 # / * 单字符（数学/符号场景）
   html = html.replace(/^#{1,6}\s+/gm, '').replace(/\*\*([^*\n]+)\*\*/g, '$1');
+  // 🔧 符号字形归一（全角％/．、异体乘除号、省略号点数）——教材排版口径，幂等
+  html = normalizeTypographicSymbols(html);
   return html.trim();
 };
 
@@ -1064,4 +1078,4 @@ export function stripRedundantInlineCarrierRows(html = '') {
 }
 
 
-export default { cleanSectionHtml, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, ensureCarrierContent, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };
+export default { cleanSectionHtml, normalizeTypographicSymbols, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, ensureCarrierContent, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };
