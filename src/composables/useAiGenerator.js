@@ -5089,7 +5089,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     if (copyGuardOn && guardResult.openingHits.length) {
       finalContent = stripOpeningNarration(finalContent);
       guardResult = guardPaper({ html: finalContent, corpus: refCorpus, copy: copyGuardOn, subject: book?.subject || '' });
-      console.log(`✅ [卷面自检] 程序已确定性删除正文首段过程性自述句，正文直入（残留命中仍进报告）`);
+      console.log(`✅ [出稿自检] 程序已确定性删除正文首段过程性自述句，正文直入（残留命中仍进报告）`);
     }
 
     // 🔴 密封线兜底：正式试卷且 AI 未输出密封线 → 代码补（恢复原拼装器的密封线成果）
@@ -5186,12 +5186,12 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       console.log(`[覆盖对账·sampled] ${genType}：绑定考点在正文出现 ${sampledStats.coveredCount}/${sampledStats.total}（覆盖率 ${sampledStats.coverage}，抽样类型仅统计不补漏）`);
     }
 
-    // 🔴 卷面自检报告（卷级守门最终状态：程序剔除首段自述后仍残留的命中统一分节透出——
+    // 🔴 出稿自检报告（卷级守门最终状态：程序剔除首段自述后仍残留的命中统一分节透出——
     //    照搬/算式重复/情境集中/数据载体裂缝；只报不改、中性表述，交编辑核对决断）
     if (guardResult.hits.length) {
       const guardParas = guardReportOf(guardResult.hits, { copyLimit: 5 });
       guardParas.forEach((p) => auditWarnings.push(p));
-      console.warn(`⚠️ [卷面自检] ${guardResult.hits.length} 处命中（首段自述已由程序剔除，其余待编辑核对）：${guardResult.hits.slice(0, 4).map((h) => h.text).join('；')}…`);
+      console.warn(`⚠️ [出稿自检] ${guardResult.hits.length} 处命中（首段自述已由程序剔除，其余待编辑核对）：${guardResult.hits.slice(0, 4).map((h) => h.text).join('；')}…`);
     }
 
     // 🔴 领域覆盖对账（2026-09 P3·机制补缺）：仅正式卷（exam）且学科已登记领域契约时执行，

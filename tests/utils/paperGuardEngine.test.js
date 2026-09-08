@@ -87,7 +87,7 @@ describe('paperGuardEngine: 报告分节去重', () => {
     ]);
     expect(paras).toHaveLength(3);
     for (const p of paras) {
-      expect(p.startsWith('⚠️ 卷面自检·')).toBe(true);
+      expect(p.startsWith('⚠️ 出稿自检·')).toBe(true);
       expect(p.startsWith('；')).toBe(false);
     }
   });
