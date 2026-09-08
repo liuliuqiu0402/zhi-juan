@@ -71,27 +71,28 @@
       </div>
     </div>
 
-    <!-- 校验：接线状态 -->
+    <!-- 校验：接线状态（注册表驱动：不再硬编码"永远全绿"） -->
     <div
-      v-if="holeRules.length"
+      v-if="wiringRows.length"
       class="rule-validate"
     >
       <div class="v-head">
-        🔍 接线状态自检（注册空洞 = 定义但生成端无执行点）
+        🔍 接线状态自检（注册空洞 = 已定义但无执行点；孤儿执行 = 引擎有分支但库未注册/已注销）
       </div>
       <div
-        v-for="r in holeRules"
-        :key="r.id"
-        class="v-item sev-error"
+        v-for="r in wiringRows"
+        :key="'w-' + r.id"
+        class="v-item"
+        :class="r.kind"
       >
-        <span class="v-code">{{ r.id }}</span> 注册空洞——{{ r.desc }}
+        <span class="v-code">{{ r.id }}</span> —— {{ r.desc }}
       </div>
     </div>
     <div
       v-else
       class="rule-validate ok"
     >
-      ✅ 接线状态正常（当前筛选范围内无注册空洞）
+      ✅ 接线状态正常（注册 × 执行点一一对应：无空洞、无孤儿残留）
     </div>
 
     <!-- 规则列表（手风琴） -->
@@ -329,7 +330,7 @@
 <script setup>
 import { computed, inject, ref, watch, nextTick } from 'vue';
 import { useRoute } from 'vue-router'; // 程序附加段分段标注 → /tools/rules?focus=<规则id>（与蓝图/指令/渲染契约库同机制）
-import { listValidatorRules, saveUserRule, deleteUserRule, resetUserRules } from '../../../config/validatorRules.js';
+import { listValidatorRules, saveUserRule, deleteUserRule, resetUserRules, VALIDATOR_GATES, RULE_EXEC_BY, RULE_NO_EXEC } from '../../../config/validatorRules.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 
 const dims = inject('toolDims', { value: { stage: '', subject: '', genType: '' } });
@@ -386,10 +387,31 @@ const ruleList = computed(() => dimRuleList.value.filter((r) => {
   return true;
 }));
 
-/* ===== 接线状态 ===== */
-// 规则库（validatorRules）为生成端唯一规则源：生成前 buildValidatorPrompt 注入 + 生成后 auditExamPaper 执行
-const wiredState = () => ({ label: '已接线', cls: 'ok' });
-const holeRules = computed(() => []);
+/* ===== 接线状态（执行点注册表驱动，单一事实源 = validatorRules 导出） ===== */
+// 生成前 buildValidatorPrompt 注入 + 生成后 auditExamPaper 执行；子规则经汇总执行或纯约束在此如实标注，
+// 不再对所有规则统一谎报"已接线"。完整性：注册规则必属 独立执行/经汇总/纯约束 之一，否则 = 注册空洞。
+const wiredState = (r) => {
+  if (VALIDATOR_GATES.has(r.id)) return { label: '独立执行', cls: 'ok' };
+  const via = RULE_EXEC_BY[r.id];
+  if (via) return { label: `经 ${via} 汇总`, cls: 'via' };
+  if (RULE_NO_EXEC.has(r.id)) return { label: '纯约束·无执行点', cls: 'prompt' };
+  return { label: '注册空洞', cls: 'hole' };
+};
+const wiringRows = computed(() => {
+  const rows = [];
+  const registered = new Set(allRules.value.map((r) => r.id));
+  // 孤儿执行点：引擎仍有 has('<id>') 分支但规则库未注册（去强制化收敛时移出 → 恒不命中 = 惰性残留）
+  for (const id of VALIDATOR_GATES) {
+    if (registered.has(id)) continue;
+    rows.push({ id, kind: 'sev-warn', desc: '引擎仍保留 has() 执行分支但规则库未注册该规则（已注销/移除 → 恒不命中）——惰性残留，建议随引擎清理移除' });
+  }
+  // 注册空洞：已注册但无任何执行路径（纯约束子规则已在 RULE_NO_EXEC 显式声明，不误报）
+  for (const r of allRules.value) {
+    if (VALIDATOR_GATES.has(r.id) || RULE_EXEC_BY[r.id] || RULE_NO_EXEC.has(r.id)) continue;
+    rows.push({ id: r.id, kind: 'sev-error', desc: `注册空洞——${r.category === 'fix' ? '声明"修复"但' : ''}生成端无执行点，约束仅停留注入、无人核对` });
+  }
+  return rows;
+});
 
 /* ===== 规则启用/停用开关（停用 = 双阶段均不命中，见 getValidatorRules / buildValidatorPrompt） ===== */
 const statusFilter = ref('all'); // 全部/启用/停用 状态筛选（点击计数过滤列表）
@@ -579,6 +601,11 @@ const doImport = async (e) => {
 .wired-tag { font-size: 10.5px; font-weight: 600; border-radius: 999px; padding: 1px 8px; }
 .wired-tag.ok { color: #1d7a4a; background: var(--success-light); border: 1px solid #bfe6cd; }
 .wired-tag.hole { color: #b03a2e; background: var(--danger-light); border: 1px solid #f5c2bd; }
+.wired-tag.via { color: #1565c0; background: #e3f2fd; border: 1px solid #90caf9; }
+.wired-tag.prompt { color: #8a6d1d; background: #fff8e1; border: 1px solid #ffe082; }
+.v-item.sev-error { color: var(--danger); }
+.v-item.sev-warn { color: #b45309; }
+.v-item.sev-info { color: #1565c0; }
 .rule-meta { font-size: 12px; color: var(--text-muted); margin-left: auto; }
 /* 规则启用/停用开关（停用卡片灰显） */
 .sw { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font-size: 12px; color: #2e7d32; user-select: none; white-space: nowrap; margin-left: auto; }

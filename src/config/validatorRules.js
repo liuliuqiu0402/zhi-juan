@@ -248,6 +248,34 @@ export const VALIDATOR_RULES = [
 ]
 ;
 
+// ==================== 执行点注册表（生成端接线声明，单一事实源） ====================
+// 用途：规则库面板「接线状态自检」据此推导，不再硬编码假空——
+//   - VALIDATOR_GATES  引擎（auditExamPaper）中存在 has('<id>') 独立执行分支的规则 id 全集（含已注销规则的惰性残留分支）
+//   - RULE_EXEC_BY     无独立分支、语义由某汇总/关联规则执行的子规则（key=子规则 → value=执行它的规则 id）
+//   - RULE_NO_EXEC     显式声明的纯生成前约束（fix 名不副实已豁免：无程序修复，模型自律项）
+// 完整性规则：每个已注册规则必属其一，否则 = 注册空洞；
+//             引擎分支 id 必在 VALIDATOR_GATES 内（tests/recipe/validatorWiring.test.js 以 examValidator 源码 has() 调用点
+//             自动对账两侧，防注册/执行漂移——新增 has() 分支或新增规则时该测试强制同步本表）。
+/** 引擎 has() 独立执行分支全集（由 validatorWiring 测试与 examValidator 源码自动对账） */
+export const VALIDATOR_GATES = new Set([
+  'pinyin-norm', 'template-cleanup', 'image-block-fix', 'duplicate-content-fix',
+  'text-format-fix', 'teaching-volume-guard', 'writing-grid-fix', 'title-detail-fix',
+  'option-count-guard', 'score-label-fix', 'writing-expression-fix',
+  'answer-area-fix', 'answer-section-exam', 'answer-section-teaching', 'answer-coverage-guard',
+  'text-format-sup-sub',
+  // 🔧 已注销规则的引擎惰性残留（055e198 去强制化收敛时移出规则库，has() 恒 false → 分支恒不命中）：
+  //    保留登记以便接线自检如实标注为"孤儿执行点"，待引擎清理后从本表移除
+  'score-distribute-fix', 'score-sum-guard', 'low-score-guard',
+]);
+/** 无独立分支、由汇总/关联规则执行的子规则 */
+export const RULE_EXEC_BY = {
+  'text-format-zhupoint': 'text-format-fix',
+  'text-format-underline': 'text-format-fix',
+  'text-format-zhuyin': 'pinyin-norm',
+};
+/** 显式声明的纯生成前约束（无程序执行点，模型自律） */
+export const RULE_NO_EXEC = new Set(['text-format-phonetics']);
+
 /** 全量内置规则（维护/展示用） */
 export const listValidatorRules = () => getMergedRules().map(r => ({ ...r }));
 
@@ -366,7 +394,7 @@ export const buildValidatorPrompt = ({ subject = '', stage = '', genType = '' } 
 };
 
 export default {
-  normalizeStage, VALIDATOR_RULES, RULES_STORAGE_KEY,
+  normalizeStage, VALIDATOR_RULES, VALIDATOR_GATES, RULE_EXEC_BY, RULE_NO_EXEC, RULES_STORAGE_KEY,
   listValidatorRules, getValidatorRule, getValidatorRules, getActiveFixPromptRules, buildValidatorPrompt,
   saveUserRule, deleteUserRule, resetUserRules,
 };
