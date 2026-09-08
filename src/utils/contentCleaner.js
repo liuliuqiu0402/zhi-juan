@@ -559,6 +559,9 @@ export function normalizeBlankMarkers(html = '') {
   out = wrapBareBlankRuns(out);
   // 🔧 纯空白"装饰标记"兜底（见 normalizeWhitespaceCarriers：强调类标记无字可加 → 空白实为书写空位）
   out = normalizeWhitespaceCarriers(out);
+  // 🔴 同段书写空位形态统一（2026-09 复现收口：同句混用 横线/方框/括号空 → 多数形态统一）——
+  //    在函数收尾统一执行（helper 定义见本函数之后）
+
   // 🔧 拆裸 <u> 空壳：模型把下划线写进无 class 的 <u>（<u>____</u>/<u>（　　）</u>），先被上面规则转成
   //    u.blank-N/span.blank-N 后外层 <u> 仍在 → 下划线叠下划线/叠括号。外层仅包一个 blank 空位时拆壳
   out = out.replace(/<u(?![^>]*class=)[^>]*>\s*(<(u|span) class="blank-\d+">&emsp;<\/\2>)\s*<\/u>/gi, '$1');
@@ -584,7 +587,73 @@ export function normalizeBlankMarkers(html = '') {
   if (sealKeeps.length) {
     out = out.replace(/\uE000(\d+)/g, (_m, i) => '＿'.repeat(sealKeeps[Number(i)] || 0));
   }
+  // 🔴 同段书写空位形态统一（2026-09 复现收口：模型在同一句里混用 横线/方框/括号空，
+  //    如 "0.7×0.3＝<u>＿</u>×<span square-box>＿</span>"）→ 按多数形态统一（并列取 u 下划线）。
+  //    在叠写去重/拆壳之后执行；只动形态不涉内容（helper 定义紧接本函数下方）。
+  out = unifySameParagraphWriteBlanks(out);
   return out;
+}
+
+/** 同段书写空位形态统一（2026-09 复现收口："0.7×0.3＝<u class=blank>×</u><span class=square-box>…</span>" 横线/方框混用）
+ * ============================================================
+ * 判定：同一 <p> 段内"纯书写型空位" ≥2 且形态种类 ≥2 → 全部改写为出现最多的形态
+ * （并列取 u 下划线；square-box/oral-box 无档位按 2em 折算；span.blank-N 括号空并入同宽 u）。
+ * 只统一书写空位形态，不碰：○（math-circle-blank-18，运算符选择语义不同）、
+ * 整行结构（blank-line/blank-solo/田字格/竖式格等）；"结果位书写横线"（紧邻 ＝/≈ 之后、语义为
+ * 得数留白，uCellRe/boxRe 共用 isResultPosition 判定）亦不参与合并——防破坏"口算行：方框单元 + 
+ * 结果位留白"的角色区分（2026-09 实证修正）。幂等；生成归一/编辑器装载/粘贴同源消费。
+ */
+export function unifySameParagraphWriteBlanks(html = '') {
+  const src = String(html || '');
+  if (!src || !/<(u|span)\b/i.test(src)) return src;
+  const unifyInPara = (para) => {
+    const tokens = [];
+    const push = (type, w, start, full, excluded) => tokens.push({ type, w, start, end: start + full.length, excluded: !!excluded });
+    const prevVisibleChar = (pos) => para.slice(0, pos).replace(/<[^>]+>/g, '').replace(/[　\s]+$/, '').slice(-1);
+    let m;
+    const reU = /<u\b(?=[^>]*\bclass=["'][^"']*\bblank-(\d+)\b[^"']*["'])[^>]*>[\s\S]*?<\/u>/gi;
+    while ((m = reU.exec(para)) !== null) {
+      const prev = prevVisibleChar(m.index);
+      // 结果位书写横线（＝/≈ 之后）→ 排除（角色语义=得数留白，见函数头注释）
+      push('u', Number(m[1]) || 1, m.index, m[0], prev === '＝' || prev === '≈' || prev === '=');
+    }
+    const reSpan = /<span\b(?=[^>]*\bclass=["'][^"']*\bblank-(\d+)\b[^"']*["'])(?![^>]*\bsquare-box\b)(?![^>]*\bmath-circle-blank\b)(?![^>]*\boral-box\b)[^>]*>[\s\S]*?<\/span>/gi;
+    while ((m = reSpan.exec(para)) !== null) {
+      const prev = prevVisibleChar(m.index);
+      push('span', Number(m[1]) || 1, m.index, m[0], prev === '＝' || prev === '≈' || prev === '=');
+    }
+    const reSq = /<span\b(?=[^>]*\bclass=["'][^"']*\bsquare-box\b[^"']*["'])[^>]*>[\s\S]*?<\/span>/gi;
+    while ((m = reSq.exec(para)) !== null) push('sq', 2, m.index, m[0], false);
+    const reOral = /<span\b(?=[^>]*\bclass=["'][^"']*\boral-box\b[^"']*["'])[^>]*>[\s\S]*?<\/span>/gi;
+    while ((m = reOral.exec(para)) !== null) push('oral', 2, m.index, m[0], false);
+    tokens.sort((a, b) => a.start - b.start);
+    const active = tokens.filter((t) => !t.excluded);
+    const kinds = new Set(active.map((t) => t.type));
+    if (active.length < 2 || kinds.size < 2) return para;
+    const count = {};
+    for (const t of active) count[t.type] = (count[t.type] || 0) + 1;
+    let target = 'u';
+    let best = -1;
+    for (const k of ['u', 'span', 'sq', 'oral']) {
+      if ((count[k] || 0) > best) { best = count[k]; target = k; }
+    }
+    const render = (w) => {
+      const cw = Math.min(24, Math.max(1, Math.round(w || 2)));
+      if (target === 'u') return `<u class="blank-${cw}">&emsp;</u>`;
+      if (target === 'span') return `<span class="blank-${cw}">&emsp;</span>`;
+      if (target === 'sq') return '<span class="square-box">&nbsp;</span>';
+      return '<span class="oral-box">&nbsp;</span>';
+    };
+    const rewrite = (t) => (t.excluded || t.type === target ? para.slice(t.start, t.end) : render(t.w));
+    let out = '';
+    let pos = 0;
+    for (const t of tokens) {
+      out += para.slice(pos, t.start) + rewrite(t);
+      pos = t.end;
+    }
+    return out + para.slice(pos);
+  };
+  return src.replace(/(<p\b[^>]*>[\s\S]*?<\/p>)/gi, unifyInPara);
 }
 
 /** 数学算式填空位：把"算式里做比较/填空位的 ○/□"归一为 1.8em 填空容器（○→圆圈、□→方框）。
@@ -661,6 +730,17 @@ export function normalizeMathCircleBlanks(html = '') {
     return !leftIsFill;
   };
 
+  // 🔧 改写/含义类"写算式答案"段判定（2026-09 复现收口）：段落文本含"改写…分数 / 表示求…是多少 /
+  //    算式的含义"等组织语时，其算式空位多为"写出答案"，区别于口算/直接写得数的算式填空单元。
+  const rewriteRe = /改写|表示求|的含义/;
+  const isRewriteWritePara = (all, from, to) => {
+    const pStart = all.lastIndexOf('<p', from);
+    if (pStart === -1) return false;
+    const pEnd = all.indexOf('</p>', to);
+    const seg = all.slice(all.indexOf('>', pStart) + 1, pEnd === -1 ? all.length : pEnd);
+    return rewriteRe.test(seg.replace(/<[^>]+>/g, ''));
+  };
+
   let out = src;
   // ⚙ 空白合并：结果位留白 &emsp; 之后跟的原始空格（等式分隔符）并入书写位。
   //   须在 bareSpaceRe 之前执行，否则"&emsp;＋　"拼成 ≥2 单位空格串会被误当算式填空单元回卷成方框
@@ -677,6 +757,10 @@ export function normalizeMathCircleBlanks(html = '') {
   if (uCellRe.test(out)) {
     out = out.replace(uCellRe, (m, off, all) => {
       if (isResultPosition(all, off, off + m.length)) return m;
+      // 🔧 改写/含义类"写算式答案"段（2026-09 复现收口：0.7×0.3＝(分数)×(分数)，表示求 0.7 的(几)是多少——
+      //    同句内 × 邻接空位也是"写出来的结果"（改写成分数），不是口算框；若回卷成方框会与等号后
+      //    结果位横线（u.blank）同句混用 → 该语境保持书写横线（与"空位载体同句一致"纪律对齐）
+      if (isRewriteWritePara(all, off, off + m.length)) return m;
       const prev = all.slice(0, off).replace(/<[^>]+>/g, '').replace(/[　\s]+$/, '').slice(-1);
       const next = all.slice(off + m.length).replace(/<[^>]+>/g, '').replace(/^[　\s]+/, '').slice(0, 1);
       // 🔧 空邻接守卫（2026-09 回归）：''.includes(任何)===true，prev/next 为空串时原判断恒真 →

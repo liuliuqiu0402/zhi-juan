@@ -5161,6 +5161,11 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         auditWarnings = audit.silentDetails.filter(d => d.level !== 'debug').map(d => `⚠️ ${d.message}`);
       }
       finalContent = audit.html;
+      // 🔧 2026-09 复现收口：answer-area-fix 等在整卷审计阶段可能在"题头/题干后"补入池化整行空白
+      //    （题干无载体 → 随后小题自带行内载体），视觉即"标题后空行"复发——审计输出上再跑一次确定性剥离
+      //    （幂等）：凡纯空白整行、其下一非空兄弟行已含行内作答载体 → 冗余剔除；
+      //    确属"长答书写空间"（下一兄弟无行内载体 / 无后续小题）的空行保留，符合 1c-3 保全口径。
+      finalContent = stripRedundantInlineCarrierRows(finalContent);
       // 🔴 答案区保留护栏：质检器异常丢失答案区（历史真实事故："拼接后有答案、audit 后无答案"）→
       //    从审计前内容提取答案区拼回（宁可少修复，不可丢答案）；根因待样本定位
       if (hadAnswerBeforeAudit && !/answer-section/.test(finalContent)) {
