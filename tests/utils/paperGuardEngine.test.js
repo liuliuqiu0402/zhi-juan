@@ -75,6 +75,16 @@ describe('paperGuardEngine: guardPaper 集成', () => {
     expect(g.bannedList).toEqual([]);
     expect(g.hits.filter((h) => h.cat !== 'copy')).toBeDefined(); // sanity 等照常跑
   });
+  it('类型切片（2026-09 语境词审计）：知识归纳型 copy:false → 算式重复/情境集中不报（无"题"语义，编号条目/同主题示例是正常编排）；命题型 copy:true → 照常报', () => {
+    // 数学知识总结（内容型）正文含编号条目与重复算式、同主题条目——不是"卷内两题复用"
+    const contentLike = '<p>1. 0.6÷0.3 除数是小数，先移动小数点。</p><p>2. 0.6÷0.3 也可看成 6÷3。</p><p>3. 图书馆情境示例一则。</p><p>4. 图书馆情境示例二则。</p><p>5. 图书馆情境示例三则。</p><p>6. 图书馆情境示例四则。</p><p>7. 图书馆情境示例五则。</p>';
+    const gContent = guardPaper({ html: contentLike, copy: false });
+    expect(gContent.formulaHits).toEqual([]);
+    expect(gContent.topicHits).toEqual([]);
+    const gExam = guardPaper({ html: contentLike, copy: true });
+    // 命题型下算式重复判定存在（题块语义成立）；此处只断言"检测器已随类型启用"而非具体命中数
+    expect([gExam.formulaHits, gExam.topicHits].some((arr) => arr.length > 0)).toBe(true);
+  });
 });
 
 describe('paperGuardEngine: 报告分节去重', () => {

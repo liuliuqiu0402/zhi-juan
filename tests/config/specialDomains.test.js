@@ -90,4 +90,21 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     expect(GENERIC_SPECIAL_DESC).toContain('分板块组织');
     expect(GENERIC_SPECIAL_DESC).not.toContain('方法指导→典例剖析');
   });
+
+  it('数学义教主题名按学段分写（2026-09 语境词审计）：小学/初中锚不混用课标主题名', () => {
+    const primaryAnchor = resolveSpecialDomain('数学', 'primary_high', '计算').anchor;
+    expect(primaryAnchor).toContain('数与代数·数与运算');
+    expect(primaryAnchor).not.toContain('数与式');
+    const middleCalc = resolveSpecialDomain('数学', 'middle', '计算').anchor;
+    expect(middleCalc).toContain('数与代数·数与式');
+    expect(middleCalc).not.toContain('数与运算（运算能力）');
+    const middleApp = resolveSpecialDomain('数学', 'middle', '应用题').anchor;
+    expect(middleApp).toContain('方程与不等式、函数');
+    expect(middleApp).not.toContain('数量关系（解决问题）');
+    const primaryGeo = resolveSpecialDomain('数学', 'primary_high', '几何').anchor;
+    expect(primaryGeo).toContain('图形的认识与测量');
+    const middleGeo = resolveSpecialDomain('数学', 'middle', '几何').anchor;
+    expect(middleGeo).toContain('图形的性质');
+    expect(middleGeo).not.toContain('位置与运动');
+  });
 });

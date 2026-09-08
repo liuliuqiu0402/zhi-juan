@@ -195,8 +195,12 @@ export function guardPaper({ html = '', corpus = [], longN = 8, copy = true, sub
       }))
     : [];
   const sanityHits = sanityScan(html).map((t) => ({ cat: 'sanity', level: 'warn', text: t }));
-  const formulaHits = detectFormulaDuplicates(html).map((t) => ({ cat: 'formula', level: 'warn', text: t }));
-  const topicHits = detectTopicRepeat(html).map((t) => ({ cat: 'topic', level: 'warn', text: t }));
+  // 🔧 算式重复/情境集中为"题目语义"检测（按题块判重/换情境），只对命题/抽样型适用；
+  //   知识归纳型（copy=false，正文按要点/条目归纳呈现）常含编号条目或同主题示例，
+  //   被按题块误判为"算式复用/情境集中"即假报（2026-09 全维度语境词审计）→ 与 copy 同组门控。
+  const questionBased = copy;
+  const formulaHits = questionBased ? detectFormulaDuplicates(html).map((t) => ({ cat: 'formula', level: 'warn', text: t })) : [];
+  const topicHits = questionBased ? detectTopicRepeat(html).map((t) => ({ cat: 'topic', level: 'warn', text: t })) : [];
   const openingHits = detectOpeningMetaNarration(html).map((t) => ({ cat: 'opening', level: 'warn', text: t }));
 
   // 禁用沿用名单（供修订轮与后续委托）：字面重合片段去重 + 数字串，禁止再次沿用

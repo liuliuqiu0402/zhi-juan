@@ -295,7 +295,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       sections: [
         { name: '公式法则', note: '本单元公式、法则、单位进率等必记内容，按课标要求覆盖' },
         { name: '情境填空', note: '核心概念与关键词在情境句中的填写（不孤立默写）' },
-        { name: '书写规范', note: '数字与运算符号书写规范，低段强调' },
+        { name: '书写规范', note: '数字与运算符号书写规范（低年级重点，各学段按教材要求）' },
       ],
     },
     errorbook: {

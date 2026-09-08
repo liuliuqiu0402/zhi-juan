@@ -30,7 +30,7 @@ const domain = (key, label, desc, source, anchor, opts = {}) => ({
 
 const REGISTRY = {
   语文: [
-    domain('阅读理解', '📖 阅读理解', '记叙文/说明文/议论文阅读训练', '2022义教语文·阅读与鉴赏 + 文学阅读与创意表达等任务群',
+    domain('阅读理解', '📖 阅读理解', '不同文体阅读训练（按学段选文体：儿歌/童话/记叙文/说明文/议论文等）', '2022义教语文·阅读与鉴赏 + 文学阅读与创意表达等任务群',
       '语文学习任务群·文学阅读与创意表达（实践活动·阅读与鉴赏）',
       {
         stageList: ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'],
@@ -59,8 +59,8 @@ const REGISTRY = {
           { name: '主旨迁移', note: '结合主题谈启示' },
         ],
       }),
-    domain('写作', '✍️ 写作', '写作技法与实战训练', '2022义教语文·表达与交流（书面表达）',
-      '表达与交流（书面表达）：能写记实与想象作文、条理清楚',
+    domain('写作', '✍️ 写作', '写作技法与实战训练（按学段：写话/习作/写作）', '2022义教语文·表达与交流（书面表达）',
+      '语文学习任务群·文学阅读与创意表达（书面表达：写话→习作→写作，按学段递进）',
       {
         stageList: ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'],
         anchors: { 高中: '普通高中语文·文学阅读与写作 / 思辨性阅读与表达（书面任务群）' },
@@ -72,26 +72,29 @@ const REGISTRY = {
       }),
   ],
   数学: [
-    domain('计算', '🔢 计算', '口算/笔算/简便与混合运算', '2022义教数学·数与代数·数与运算',
-      '数与代数·数与运算（运算能力）',
+    domain('计算', '🔢 计算', '数与运算基础（口算/笔算/混合运算，初中为有理数与代数式运算）', '2022义教数学·数与代数',
+      '数与代数（运算能力）',
       {
         stageList: ['primary_low', 'primary_mid', 'primary_high', 'middle'],
+        anchors: { 义教小学: '数与代数·数与运算（运算能力）', 义教初中: '数与代数·数与式（数与式运算，运算能力）' },
         sections: [
-          { name: '基础计算', note: '口算/直接写得数：结果位留白等按渲染契约' },
-          { name: '笔算过关', note: '竖式/脱式/简便：过程书写载体按载体协议' },
+          { name: '基础计算', note: '按学段呈现：口算/直接写得数结果位留白等按渲染契约（初中为数与式运算，过程按载体协议）' },
+          { name: '算理与过程', note: '竖式/脱式/代数式运算等过程书写载体按载体协议；算理辨析' },
           { name: '算理易错', note: '错因辨析与思路点拨' },
         ],
       }),
-    domain('应用题', '📐 应用题', '读题→建模→列式→求解', '2022义教数学·数与代数·数量关系',
-      '数与代数·数量关系（解决问题）',
+    domain('应用题', '📐 应用题', '实际问题解决（读题→建模→列式→求解）', '2022义教数学·数与代数',
+      '数与代数（解决问题）',
       {
         stageList: ['primary_low', 'primary_mid', 'primary_high', 'middle'],
+        anchors: { 义教小学: '数与代数·数量关系（解决问题）', 义教初中: '数与代数·方程与不等式、函数（模型观念·解决问题）' },
         // B档：栏目按数学通用（知识层级分板块），只挂语义锚
       }),
-    domain('几何', '📏 几何', '图形认识/测量/位置与运动', '2022义教数学·图形与几何',
-      '图形与几何（图形的认识与测量 / 位置与运动）',
+    domain('几何', '📏 几何', '图形性质/测量/变化与坐标（按学段）', '2022义教数学·图形与几何',
+      '图形与几何',
       {
         stageList: ['primary_low', 'primary_mid', 'primary_high', 'middle'],
+        anchors: { 义教小学: '图形与几何（图形的认识与测量 / 位置与运动）', 义教初中: '图形与几何（图形的性质 / 图形的变化 / 图形与坐标）' },
         // B档
       }),
     domain('函数', '📈 函数', '函数概念/图象与性质（高中）', '普通高中数学课标(2017/2020)·必修主题·函数',
@@ -124,10 +127,15 @@ const REGISTRY = {
 /** 允许把 verified='B' 的领域对外（默认 false：B 级课标名未复核前不入生产） */
 const ALLOW_VERIFIED_B = false;
 
-/** 语义锚按学段体系解析（高中→高中名；义教学段→义教名；未分写回退 anchor） */
+/** 语义锚按学段体系解析（高中→高中名；义教小学/义教初中→各自课标主题名；未分写回退 anchor） */
 const resolveAnchor = (d, stageKey) => {
-  if (d.anchors) return stageKey === 'high' ? (d.anchors.高中 || d.anchor) : (d.anchors.义教 || d.anchor);
-  return d.anchor;
+  if (!d.anchors) return d.anchor;
+  if (stageKey === 'high') return d.anchors.高中 || d.anchor;
+  // 义教课标主题名按学段分写（如数学：小学"数与运算/数量关系/图形的认识与测量"，
+  //   初中"数与式/方程与不等式、函数/图形的性质、变化与坐标"——主题名不同，不能混用）
+  const isPrimary = stageKey === 'primary_low' || stageKey === 'primary_mid' || stageKey === 'primary_high';
+  if (isPrimary) return d.anchors.义教小学 || d.anchors.义教 || d.anchor;
+  return d.anchors.义教初中 || d.anchors.义教 || d.anchor;
 };
 
 /** 取某学科某学段可用领域（供 UI/委托；B 级默认过滤） */
