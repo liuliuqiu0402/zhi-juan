@@ -114,7 +114,7 @@ const endCostSession = () => {
   const tokensText = `输出 ${agg.out.toLocaleString()} · 输入(命中缓存) ${agg.hit.toLocaleString()} · 输入(未命中) ${agg.miss.toLocaleString()} token（${items.length} 次计费请求）`;
   const providers = [...new Set(items.map((i) => `${i.provider}:${i.model || '?'}`))].join(' / ');
   const text = `${tokensText}${providers ? `（${providers}）` : ''}`;
-  console.log(`💰 [成本·${costSession.label}] ${text}——金额以提供方控制台为准`);
+  console.log(`💰 [成本·${costSession.label}] ${text}——口径=仅本次委托写作链（研读/浏览/正文/答案/续写中成功带回 usage 的调用），非账户全量，金额以提供方控制台为准`);
   return { hit: agg.hit, miss: agg.miss, out: agg.out, count: items.length, text, tokensText };
 };
 
@@ -1702,6 +1702,7 @@ const maxInputTokens = config.engine === 'deepseek'
             await parseSSEStream(streamResponse, abortController.value?.signal, getTimeout('sseHeartbeat'), options.maxReasoningChunks);
           // 💰 成本计量：把本次调用 usage 计入当前委托会话（含缓存命中拆分）
           if (streamedUsage) noteCostUsage({ usage: streamedUsage, taskType, provider: config.provider, model: config.model });
+          else if (costSession.active) console.warn(`⚠️ [成本·${costSession.label}] 本次流式调用未返回 usage（taskType=${taskType}, provider=${config.provider}）——该调用计费发生在官网控制台，但本链无法计入（可能网关未随流返回 usage）`);
 
           let content = streamedContent;
           let finishReason = streamedFinishReason;
@@ -5286,7 +5287,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       if (cost && res?.success) {
         res.costSummary = cost.text;
         res.auditWarnings = res.auditWarnings || [];
-        res.auditWarnings.push(`ℹ️ 本单 token 用量：${cost.tokensText}（金额以提供方控制台为准）`);
+        res.auditWarnings.push(`ℹ️ 本单 token 用量：${cost.tokensText}（口径=本次委托写作链内成功带回 usage 的调用，非账户全量；金额以提供方控制台为准）`);
       }
       return res;
     } catch (e) {
