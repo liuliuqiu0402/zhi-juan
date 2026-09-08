@@ -1,6 +1,6 @@
 // 内容合理性扫描（Content Sanity）单测：确定性违规信号检测（荒谬计数倒推 / 可数对象小数直写 / 近似等号 / 同单位换算数值突变 / 空位宽度单一化 / 双载体泄漏 / 任务可作答性错配）
 import { describe, it, expect } from 'vitest';
-import { detectCountingFakes, detectUnitMutations, detectUniformBlankWidths, detectCountDecimals, detectApproxEqualsSign, detectDoubleCarrierLeak, detectPhonemeConflicts, sanityScan, sanityNoteOf } from '../../src/utils/contentSanity.js';
+import { detectCountingFakes, detectUnitMutations, detectUniformBlankWidths, detectCountDecimals, detectApproxEqualsSign, detectDoubleCarrierLeak, detectPhonemeConflicts, detectQuoteConflicts, sanityScan, sanityNoteOf } from '../../src/utils/contentSanity.js';
 
 describe('contentSanity 内容合理性扫描', () => {
   it('荒谬计数情境：小数 + 可数量词 + （即N）倒推 → 检出', () => {
@@ -142,5 +142,33 @@ describe('contentSanity 2026-09 同词音标卷内冲突检测（如 Chinese 末
     expect(detectPhonemeConflicts('<p>Chinese /ˌtʃaɪˈniːz/ 一词中 s 发 /z/。</p>')).toEqual([]);
     expect(detectPhonemeConflicts('<p>字母 s 在不同单词中有不同发音。</p>')).toEqual([]);
     expect(detectPhonemeConflicts('')).toEqual([]);
+  });
+});
+
+describe('contentSanity 2026-09 同卷引文复现一致性检测', () => {
+  it('同一句引文两处高度近似但写法不一致（编辑距离≤2）→ 检出', () => {
+    const html = '第1题：“床前明月光，疑是地上霜”。第2题：“床前明月光，疑是地霜”。';
+    expect(detectQuoteConflicts(html)).toHaveLength(1);
+    expect(detectQuoteConflicts(html)[0]).toContain('引文复现写法不一致');
+  });
+
+  it('同一句引文两处完全一致 → 不误报；不同引文 → 不报', () => {
+    expect(detectQuoteConflicts('“春眠不觉晓”与“春眠不觉晓”都出自本诗。')).toEqual([]);
+    expect(detectQuoteConflicts('“两个黄鹂鸣翠柳”与“一行白鹭上青天”都是对仗句。')).toEqual([]);
+  });
+
+  it('引文写法差异过大（编辑距离>2，非同一句）→ 不报', () => {
+    expect(detectQuoteConflicts('“朝辞白帝彩云间”与“千里江陵一日还”同出《早发白帝城》。')).toEqual([]);
+  });
+
+  it('三种成对引号（弯引号/直双引号/单弯引号）分别识别；英文撇号不作引文', () => {
+    expect(detectQuoteConflicts('“Study hard”与 "study hard" 大小写略异。')).toEqual([]); // 弯+直各自单现，不成冲突对
+    expect(detectQuoteConflicts('“床前明月光，疑是地上霜”与 ‘床前明月光，疑是地霜’。')).toHaveLength(1);
+    expect(detectQuoteConflicts("Let's go. children's book isn't here.")).toEqual([]);
+  });
+
+  it('sanityScan 汇总含引文冲突；HTML 标签剥离后正常', () => {
+    expect(sanityScan('<p>“床前明月光，疑是地上霜”</p><p>“床前明月光，疑是地霜”</p>')).toHaveLength(1);
+    expect(sanityScan('<p>“春眠不觉晓”</p><p>“春眠不觉晓”</p>')).toEqual([]);
   });
 });

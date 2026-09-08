@@ -182,6 +182,68 @@ export const detectPhonemeConflicts = (html = '') => {
   return out;
 };
 
+/** 最小编辑距离（DP，用于引文近似比对；长度差 > max 直接剪枝） */
+const levenshtein = (a = '', b = '', max = 2) => {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    let rowMin = max + 1;
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+      if (dp[i][j] < rowMin) rowMin = dp[i][j];
+    }
+    if (rowMin > max) return max + 1; // 整行超限即剪枝
+  }
+  return dp[a.length][b.length];
+};
+
+/**
+ * 卷内"引文复现不一致"检测（2026-09，只报不改）
+ * ============================================================
+ * 同一句引文（含引号的书名号内文、诗句、名句、材料引文等）在卷内出现 ≥2 处，若字符高度近似
+ * 却不完全一致（编辑距离 ≤2 且长度 ≥6），即疑似同一引文被复述为两种写法 → 卷内不自洽，提示复核。
+ * 属"卷内一致性"探测（与 detectPhonemeConflicts 同型）：不判断引文对错，只报同卷写法冲突；
+ * 与教材逐字比对需教材库，超出文本确定性范围，由生成端"引用以教材原文为准"条款约束。
+ * 只比对"成对引号包裹"的文本（""、""、''、''），避免普通句子近似被误报。
+ */
+export const detectQuoteConflicts = (html = '') => {
+  const src = String(html || '');
+  const out = [];
+  // 三种成对引号分别扫描：中文弯引号 “”、直双引号 ""、中文单弯引号 ‘’
+  // （英文撇号 ' 不作引号处理，避免 Let's/children's 等被当成引文内容）
+  const matchers = [
+    { open: '“', re: /“([^”\n]{6,120})”/g },
+    { open: '"', re: /"([^"\n]{6,120})"/g },
+    { open: '‘', re: /‘([^’\n]{6,120})’/g },
+  ];
+  const seen = []; // 已见引文（不分引号类型，跨类型同文也算复现）
+  for (const { re } of matchers) {
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      const q = m[1].trim();
+      if (q.length < 6) continue;
+      for (const prev of seen) {
+        if (prev === q) continue; // 完全相同不算冲突
+        // 大小写变体（英文句中引用/句首大写差异）不视为冲突：比较前统一小写
+        const a = prev.toLowerCase();
+        const b = q.toLowerCase();
+        if (a === b) continue;
+        const dist = levenshtein(a, b, 2);
+        if (dist <= 2) {
+          out.push(`引文复现写法不一致："${prev}" 与 "${q}"（同一句引文在卷内出现两种写法，请统一为教材/原文一致版本）`);
+        }
+      }
+      seen.push(q);
+    }
+  }
+  return out;
+};
+
 /** 全量合理性扫描：返回违规提示语义清单（空=无违规；跨检测器同文案去重） */
 export const sanityScan = (content = '') => {
   const html = String(content || '');
@@ -200,6 +262,7 @@ export const sanityScan = (content = '') => {
       ...detectDoubleCarrierLeak(html),
       ...detectUnitMutations(text),
       ...detectPhonemeConflicts(text),
+      ...detectQuoteConflicts(text),
     ]),
   ];
 };
