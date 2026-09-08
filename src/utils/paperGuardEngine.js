@@ -132,6 +132,23 @@ export function detectOpeningMetaNarration(html = '') {
   return [];
 }
 
+/** 正文首段过程性自述句程序性删除（2026-09 用户定版·化整为零：整卷重写修订轮已砍，自述属可判定的确定性文本，由程序剔除而非模型）。
+ *  契约与检测同源：正文直入（指令库·质量底线）。只删正文开头紧邻的自述段，避免误删正文内容；未命中则原样返回。 */
+export function stripOpeningNarration(html = '') {
+  let src = String(html || '');
+  const blockRe = /<p(?:\s[^>]*)?>[\s\S]*?<\/p>/i;
+  for (let i = 0; i < 3; i += 1) {
+    const from = src.search(/<p(?:\s[^>]*)?>/i);
+    if (from < 0 || from > 400) break; // 自述只出现在正文开头
+    const m = src.slice(from).match(blockRe);
+    if (!m) break;
+    const text = m[0].replace(/<[^>]+>/g, '').replace(/&nbsp;|&emsp;|&ensp;|&#160;|&#8195;/gi, ' ').trim();
+    if (!OPENING_NARRATION_RE.test(text)) break;
+    src = src.slice(0, from) + src.slice(from + m[0].length).replace(/^\s*(?:\n|\r\n)*/, '');
+  }
+  return src;
+}
+
 /**
  * 卷级守门：统一跑全部确定性检测，返回结构化命中与禁用沿用名单。
  * @param {object} p
@@ -144,13 +161,13 @@ export function detectOpeningMetaNarration(html = '') {
  *   bannedList: string[],
  * }}
  */
-export function guardPaper({ html = '', corpus = [], longN = 8, copy = true } = {}) {
+export function guardPaper({ html = '', corpus = [], longN = 8, copy = true, subject = '' } = {}) {
   // 照搬守门按资料类型语义分组（2026-09 三维度审计 D1）：
   //   copy=false（知识归纳型 mode=full：summary/preview/dictation/review）——正文职责=按原文归纳呈现，
   //   字面重述是本职，任何字面阈值检测都不适用 → 不比对、不报告、不进 bannedList；
   //   命题/抽样型（practice/special/reading/errorbook/exam）copy=true 全开（8 字）+修订。
   const copyHits = copy
-    ? scanCopyOverlap({ bodyHtml: html, corpus, longN }).map((h) => ({
+    ? scanCopyOverlap({ bodyHtml: html, corpus, longN, subject }).map((h) => ({
         cat: 'copy', level: 'warn',
         text: `「${h.snippet}」（${h.kind === 'num' ? '数字串' : `${h.n} 字连续`}命中教材参考段）`,
         snippet: h.snippet,

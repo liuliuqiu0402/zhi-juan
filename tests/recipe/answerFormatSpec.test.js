@@ -24,6 +24,17 @@ describe('buildAnswerFormatSpec（答案页：与正文同构、不复述题干�
     expect(s).not.toContain('大题号.子题号');
   });
 
+  it('短答案紧凑密度原则（并列小题短答案同行分隔；长答案独立成行），但不给可照抄模板', () => {
+    const s = buildAnswerFormatSpec();
+    // 短数据/符号/词并列小题答案可同行分隔，不逐项独占一行（紧凑排版）
+    expect(s).toContain('由短数据/符号/词构成的并列小题答案');
+    expect(s).toContain('统排在一段内用全角空格分隔即可，不逐项独占一行');
+    // 长答案独立成行、大题分界保留
+    expect(s).toContain('含完整句子、推理步骤或解析的长答案，保持独立成行');
+    // 不写死"（1）3.84（2）0.28"形式（防模型照抄成扁平编号，诱导回归）
+    expect(s).not.toContain('3.84');
+  });
+
   it('评分标准/听力原文条款保留（回归防丢）', () => {
     const s = buildAnswerFormatSpec('英语');
     expect(s).toContain('<table>');

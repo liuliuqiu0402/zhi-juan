@@ -92,7 +92,8 @@ describe('buildAnswerSpaceInstruction（学科书写形态与 ANSWER_REGION 同�
 
   it('算式填空位/比大小条款仅注入数学（方框/圆圈专用通道，与 normalizeMathCircleBlanks 收口同语义）', () => {
     const math = buildAnswerSpaceInstruction('数学', 'primary_mid');
-    expect(math).toContain('算式中的填空位（如 3＋□＝8、□×□＝12）用方框或圆圈呈现，不用下划线空位');
+    expect(math).toContain('缺数/填数算式填空位』（如 3＋□＝8、□×□＝12 里待填的数）用方框或圆圈呈现，不用下划线空位');
+    expect(math).toContain('等号后的得数结果位』（口算直接写得数/计算题答案位）一律在等号后直接留白书写，不使用方框、不用圆圈、不用括号');
     // 比较大小（填＞＜＝）：卷面惯例为"在○里填符号"（圆圈作答位），非括号空——数学专属，防通用"判断→圆括号"句错引
     expect(math).toContain('比较大小（填＞/＜/＝）用○圈出符号位作答，不用括号空位');
     // 非数学学科不注入（算式/比大小空位为数学卷面惯例，防跨学科广播）

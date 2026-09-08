@@ -11,6 +11,23 @@
 
 const normWs = (s) => String(s || '').replace(/\s+/g, '');
 
+/** 学科规范术语/指令语/栏目题头白名单（2026-09 根治照搬误报：数学规范算法规程句、定义句、通用题型题头，
+ *  词面重复是学科应有通行表述，不属于"照搬教材原题"，应豁免）。
+ *  源=课标/教材通行表述（"得数保留一位小数""把除数转化成整数""依次不断重复出现"等），非虚构。
+ *  判定："命中 8 字连续片段整串被某白名单项包含" → 属规范表述，不报照搬；纯数字串（kind='num'）不受此豁免。 */
+const COPY_TERM_WHITELIST = {
+  '*': ['想一想，填一填', '想一想', '填一填', '算一算', '比一比', '连一连', '画一画'],
+  数学: [
+    '得数保留一位小数', '保留一位小数', '保留整数',
+    '把除数转化成整数', '除数转化成整数', '转化成整数', '转化成整数再计算',
+    '依次不断重复出现', '数字依次不断重复出现',
+    '先按照整数乘法算出积', '按照整数乘法算出积', '再确定积的小数点位置', '确定积的小数点位置',
+    '积的小数位数等于两个因数的小数位数之和',
+    '小数点同时向右移动相同的位数', '向右移动相同的位数',
+    '乘得的积的小数位数不够时', '小数末尾的零去掉',
+  ],
+};
+
 /** 汉字/可读字符连续 n 字命中检测（字面确定性；跳过标点归一后比连续片段）。 */
 function longRunOverlap(body, corpus, n) {
   const hits = [];
@@ -54,9 +71,10 @@ function numberRunOverlap(body, corpus) {
  * @param {string} p.bodyHtml 生成正文（HTML 或纯文本均可——按去标签后的文本比对）
  * @param {string[]} p.corpus 参考段原文数组（示范段文本）
  * @param {number} [p.longN] 连续字命中阈值（默认 8）
+ * @param {string} [p.subject] 学科（用于术语白名单豁免，如 '数学'；缺省仅通用题头豁免）
  * @returns {Array<{kind:'long'|'num', n:number, snippet:string, source:string}>} 命中清单（空=无命中）
  */
-export function scanCopyOverlap({ bodyHtml = '', corpus = [], longN = 8 } = {}) {
+export function scanCopyOverlap({ bodyHtml = '', corpus = [], longN = 8, subject = '' } = {}) {
   const text = String(bodyHtml || '')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;|&#160;|&#xA0;/gi, ' ')
@@ -66,7 +84,11 @@ export function scanCopyOverlap({ bodyHtml = '', corpus = [], longN = 8 } = {}) 
   const body = normWs(text);
   if (!body || !Array.isArray(corpus) || !corpus.length) return [];
   const srcs = corpus.map((s) => String(s || '')).filter(Boolean);
-  return [...longRunOverlap(body, srcs, Math.max(4, longN)), ...numberRunOverlap(body, srcs)];
+  // 术语白名单豁免（2026-09）：命中的连续字片段若整串被某无学科规范表述包含 → 属通行术语，不报照搬
+  const terms = [...(COPY_TERM_WHITELIST['*'] || []), ...(COPY_TERM_WHITELIST[subject] || [])].map(normWs).filter(Boolean);
+  const isTerm = (sni) => terms.some((t) => t.includes(sni));
+  const longHits = longRunOverlap(body, srcs, Math.max(4, longN)).filter((h) => !isTerm(normWs(h.snippet)));
+  return [...longHits, ...numberRunOverlap(body, srcs)];
 }
 
 /** 命中清单 → 一条生成报告提示（供 auditWarnings / 编辑核对，程序不改内容）。 */

@@ -545,14 +545,68 @@ export function normalizeMathCircleBlanks(html = '') {
   //    文本空位（如"我发现：＿＿＿。"两侧为汉字/句号）不受影响，保持空白横线语义。
   const uCellRe = /<u(?=[^>]*class=["'][^"']*blank-\d+[^"']*["'])[^>]*>(?:&emsp;|&#8195;|&#x2003;|[\s\u3000])*<\/u>/gi;
   const OP_SIDE = '×÷＋－＝+−<>';
+  // 既有方框/圆圈容器（处理已入库内容 + 各通路二次归一幂等解壳）
+  const boxRe = /<span class="(?:square-box|math-circle-blank-18)">(?:&nbsp;|&#160;|&#xA0;|&emsp;|&#8195;|&ensp;|&#8194;|&#x2003;|[\s\u3000\u2003\u2002\u00A0])*<\/span>/gi;
+  const bareSpaceRe = /(?:[\u3000\u2003]|&emsp;){2,}/g;
+
+  // 🔴 结果位判定（2026-09 载体根治·系统性：等号/约等号后的"得数结果位"一律留白、非方框）。
+  //   判据（真实卷面惯例，见 layoutSpec.buildAnswerSpaceInstruction 注释）：
+  //     - 空位前字符为 ＝/≈（得数位）；后接算式继续符（数字/运算符）则属"中位缺数填空"（如 3＋＿＝8）→ 非结果位；
+  //     - 得数结果位（2.4×1.6＝＿、0.35×0.8＝＿（人）、应用题算式＝＿）等号后直接留白书写，不渲染方框；
+  //     - 例外：算式左侧已现空位单元（□/○/blank-N/空白段）→ 属"填数算式/用算式表示"整式填空
+  //       （如 □×□＝□（人）、3＋□＝8）——右侧空位也是"算式填空"一环，保留方框/圆圈语义。
+  //   三通道（字面/literal、占位u、裸空格）与既有容器解壳共用同一判定，杜绝"中高段/计算题/应用题
+  //   结果位配低段方框"的学段错配；程序只做确定性判定，不语义理解。
+  const isResultPosition = (all, from, to) => {
+    const before = all.slice(0, from);
+    const prev = before.replace(/<[^>]+>/g, '').replace(/[　\s]+$/, '').slice(-1);
+    if (!'＝≈='.includes(prev)) return false;
+    // 紧邻后继：无空白分隔的数字/运算符/等号 → 算式继续（中位缺数填空），非结果位。
+    //   只取"块内、紧挨着"的一字符（不跨空白、不跨块），避免抓到同行下一等式的行首数字。
+    const after = all.slice(to);
+    const blkTag = after.match(/<(?:\/?(?:p|div|li)\b)[^>]*>/i);
+    const sameBlockAfter = blkTag ? after.slice(0, blkTag.index) : after;
+    const adj = sameBlockAfter.replace(/<[^>]+>/g, '').slice(0, 1);
+    if (/\S/.test(adj) && '0123456789×÷＋－＝+−<>'.includes(adj)) return false;
+    // 左值"算式左端"判定（结果位守卫的关键判据，全链路定界同源）：
+    //   把当前块内结果位之前的所有"填空单元"原子化为占位 □——
+    //     占位容器（blank-u / square-box / math-circle-blank-18）直接改占位 □；
+    //     ≥2单位空白串（＿＿ 填空单元）整段改为单个 □（单空格仍是等式分隔，不改）。
+    //   自尾＝向左收拢"当前等式左式"（遇 单空格 / 非数学文本 即停）：
+    //     左式含 □/○ → 整式填空（3＋□＝8、□×□＝□（人））→ 保留方框/圆圈（非结果位）；
+    //     左式仅实数（2.4×1.6、56÷4）→ 得数结果位 → 留白。二者互不跨题、互不串位。
+    const blockStart = Math.max(before.lastIndexOf('<p'), before.lastIndexOf('<div'), before.lastIndexOf('<li'));
+    const seg = blockStart === -1
+      ? before.slice(Math.max(0, from - 200))
+      : (before.slice(before.indexOf('>', blockStart) + 1, from));
+    // 🔧 注：关闭标签无法用反向引用 `\1`（与前置 lookahead 组合在 V8 会失效，2026-09 实证），
+    //   改用直接字符类 <(?:u|span)> 收口；开头 <(?:u|span) 与 class 判定已锁定标记种类，不会跨标签误吞。
+    const segMarked = seg.replace(/<(?:u|span)(?=[^>]*class=["'][^"']*(?:blank-\d+|square-box|math-circle-blank-18)[^"']*["'])[^>]*>[\s\S]*?<\/(?:u|span)>/gi, '□');
+    const body0 = segMarked.replace(/<[^>]+>/g, '').replace(/[＝≈=][　\s\u00A0]*$/, '');
+    const body = body0.replace(/(?:[　\u3000\u2003\u2002\u00A0]|&emsp;|&ensp;|&#8195;|&#8194;){2,}/g, '□');
+    let j = body.length;
+    while (j > 0 && /[0-9A-Za-z○□×÷＋－＋−<>（）()．\.、]/.test(body[j - 1])) j--;
+    const leftRun = body.slice(j);
+    const leftIsFill = /[□○]/.test(leftRun);
+    return !leftIsFill;
+  };
+
   let out = src;
-  if (literalRe.test(src)) {
-    out = out.replace(literalRe, (ch) => ch === '○'
-      ? '<span class="math-circle-blank-18">&nbsp;</span>'
-      : '<span class="square-box">&nbsp;</span>');
+  // ⚙ 空白合并：结果位留白 &emsp; 之后跟的原始空格（等式分隔符）并入书写位。
+  //   须在 bareSpaceRe 之前执行，否则"&emsp;＋　"拼成 ≥2 单位空格串会被误当算式填空单元回卷成方框
+  //   （2026-09 实证：直接写得数多算式同行时第2项起全被回卷）。
+  const mergeBlankSpaces = (s) => s.replace(/&emsp;[ \t\u3000\u2000-\u200A\u00A0\u00AD]+/g, '&emsp;');
+  // ① 字面 ○/□ → 圆圈/方框（算式语境；结果位→留白）
+  if (literalRe.test(out)) {
+    out = out.replace(literalRe, (m, off, all) =>
+      isResultPosition(all, off, off + m.length)
+        ? '&emsp;'
+        : (m === '○' ? '<span class="math-circle-blank-18">&nbsp;</span>' : '<span class="square-box">&nbsp;</span>'));
   }
+  // ② blank-N 占位 <u> 邻接运算符 → 方框；结果位保留空白书写位（不方框）
   if (uCellRe.test(out)) {
     out = out.replace(uCellRe, (m, off, all) => {
+      if (isResultPosition(all, off, off + m.length)) return m;
       const prev = all.slice(0, off).replace(/<[^>]+>/g, '').replace(/[　\s]+$/, '').slice(-1);
       const next = all.slice(off + m.length).replace(/<[^>]+>/g, '').replace(/^[　\s]+/, '').slice(0, 1);
       // 🔧 空邻接守卫（2026-09 回归）：''.includes(任何)===true，prev/next 为空串时原判断恒真 →
@@ -562,20 +616,34 @@ export function normalizeMathCircleBlanks(html = '') {
       return m;
     });
   }
-  // 🔧 字面空格段算式占位（2026-09：wrapBareBlankRuns 行内空格→u.blank 已撤——分隔空格与书写空
-  //    字符层不可区分，不再无差别转横线；但算式填空的空格占位（模型未写 □/○ 时，如
-  //    "用乘法算式表示：　　×　　＝　　（人）"）语义明确：空格段任一侧邻接运算符/等号
-  //    （×÷＋－＝+−<>）即算式单元格 → 直接收单个 <span class="square-box">（1 个数一格）；
-  //    文本/图示/分隔空格（口诀：　　。、"2个3相加　　○○○"、段尾书写行）邻接非运算符不受影响，保留原文）
-  const bareSpaceRe = /(?:[\u3000\u2003]|&emsp;){2,}/g;
+  out = mergeBlankSpaces(out);
+  // ③ 字面空格段算式占位（兜底路径）→ 方框；结果位保留原文（留白）
   if (bareSpaceRe.test(out)) {
     out = out.replace(bareSpaceRe, (m, off, all) => {
+      if (isResultPosition(all, off, off + m.length)) return m;
       const prev = all.slice(0, off).replace(/<[^>]+>/g, '').replace(/[　\s]+$/, '').slice(-1);
       const next = all.slice(off + m.length).replace(/<[^>]+>/g, '').replace(/^[　\s]+/, '').slice(0, 1);
       if ((prev && OP_SIDE.includes(prev)) || (next && OP_SIDE.includes(next))) return '<span class="square-box">&nbsp;</span>';
       return m;
     });
   }
+  // ④ 既有方框/圆圈结果位解壳（处理已入库内容 & 全链路幂等；真填空位不动）
+  if (boxRe.test(out)) {
+    out = out.replace(boxRe, (m, off, all) => (isResultPosition(all, off, off + m.length) ? '&emsp;' : m));
+  }
+  out = mergeBlankSpaces(out);
+  // ⑤ 等号后"行尾结果位"的字面 ○/□（后无算式继续项 → literalRe 的 lookahead 漏网，裸字形
+  //   渲染成方框/圆圈，2026-09 用户实证"＝□ 在源码里"）→ 留白；填数算式（□×□＝□）不误伤。
+  //   负向前瞻剔除 <（防 <\/p> 等标签起始误判为比较运算符）
+  const trailingBoxRe = /([＝≈])[　\u3000\u2003\u2002\u00A0]*(○|□)(?![0-9A-Za-z×÷＋－＝+−])/g;
+  if (trailingBoxRe.test(out)) {
+    out = out.replace(trailingBoxRe, (m, eq, ch, off, all) => {
+      const boxOffset = off + all.slice(off).indexOf(ch);
+      return isResultPosition(all, boxOffset, boxOffset + 1) ? `${eq}&emsp;` : m;
+    });
+  }
+  // ⑥ 收尾再合并一次（兜底；路径④解壳产生的 &emsp; 后分隔符已在④后合并，此为幂等保险）
+  out = mergeBlankSpaces(out);
   return out;
 }
 

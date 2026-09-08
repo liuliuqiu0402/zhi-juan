@@ -56,6 +56,13 @@ export const CHAPTER_TERMS = [...new Set([...BEHAVIOR_TERMS, ...SKILL_TERMS, ...
  *    长锚（保留两位/保留整数…）走 includes 直接命中，与"保留X位小数"真实呈现对齐 */
 export const APPROX_ALIAS = ['近似值', '四舍五入', '保留整数', '保留一位', '保留两位', '保留三位', '保留四位'];
 
+/** 概念考点的措辞等价词（2026-09 治"措辞性漏判"：正文以教材同义表述呈现、考点名不逐字出现 → 误报缺。
+ *  词源=教材/课标通行走法（如"把小数改写成分母是 10/100/1000 的分数"承载"小数化成分数"），非虚构、收敛变形。
+ *  判定走 wordMatch（≥4 字词用 includes 子串），长锚避免同音误放；仅对显式登记考点附加，不冒进广播防诱导。 */
+export const CONCEPT_ALIAS = {
+  小数化成分数: ['改写成分数', '改写成分母', '小数写成十分之几', '用分数表示'],
+};
+
 /**
  * 判定考点属"章级聚合"还是"精确判定"。
  * @param {String} name 考点名
@@ -73,6 +80,7 @@ export const literalProbeWords = (anchor = {}) => {
   const words = [name, ...(anchor?.specificConcepts || [])]
     .filter((w) => w && w.length >= 2);
   if (isApprox(name)) words.push(...APPROX_ALIAS);
+  if (CONCEPT_ALIAS[name]) words.push(...CONCEPT_ALIAS[name]);
   return [...new Set(words)];
 };
 

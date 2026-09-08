@@ -374,6 +374,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       fixed += 1;
       return `${head}\n`;
     });
+    // 🔴（2026-09 实证否决）标题后的 blank-area 一并剥离的方案已被否决：blank-area 带 class+height，
+    //   是"真实作答载体"（程序补差/卷面留白），紧随标题出现常就是该题的书写空间，误删即丢作答位。
+    //   1c-3 只剥"纯空作答段"，空行泛滥的真正根因在 answer-area-fix 把空 seg 的容器标题当长答块补差——
+    //   已在 2k 循环用"块首是标题且 seg 为空则跳过"根治，不在标题剥除端做一刀切。
   }
 
   // ── 1.5. [IMAGE] 配图块标准化（规则 image-block-fix：AI 常漏块结构、写成一行式、参数间混入 HTML）──
@@ -1299,6 +1303,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           }
         }
         for (const it of items) {
+          // 🔧 容器/章节标题不补作答空间（2026-09 系统性根治·空行泛滥）：
+          //    h2 任务容器紧跟下一个 h3 标题，块首标题后仅剩换行文本节点（无实质内容段）时，
+          //    标题会被误判"无分值长答块"补 NO_SCORE_ROWS 行空白 → 每个容器标题后凭空 4 行。
+          //    标题是结构锚，其下各题由各自标题的块迭代补齐；故"块首是标题且其后无实质内容"跳过。
+          //    （书面表达等长答块 seg 含真实题干元素 → 不计为"无实质内容"，仍正常补差，不误伤。）
+          const segHasContent = it.seg.some((n) => n.nodeType === 1 || ((n.textContent || '').trim() !== ''));
+          if (/^H[1-4]$/i.test(it.p.tagName || '') && !segHasContent) continue;
           const isNoScore = it.score == null;
           if (!isNoScore && (it.score <= 0 || it.score > 15)) continue;
           // 题块首行 + 作答段统一克隆扫描（含嵌套 p/div/section）

@@ -415,7 +415,7 @@ import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever
 import { reconcileCoverage, reconcileCoverageStats, coverageNoteOf } from '../utils/coverageReconciler.js';
 import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
-import { guardPaper, guardReportOf } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（收敛确定性检测+修订轮驱动）
+import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
 import { reconcileDomains, domainNoteOf } from '../utils/domainReconciler.js';
 import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, stripPlanningPreamble, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
@@ -5079,57 +5079,17 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     const refCorpus = copyGuardOn ? (anchors || []).flatMap((a) => (a.bind?.segments || [])
       .filter((s) => s && s.text && String(s.text).trim().length >= 8 && isReturnableSegment(String(s.type || '').trim()))
       .map((s) => String(s.text))) : [];
-    let guardResult = guardPaper({ html: finalContent, corpus: refCorpus, copy: copyGuardOn });
-    let revisionRounds = 0;
-    const REVISION_CAP = 2;
-    if (apiConfig.generationSettings?.paperRevision !== false && guardResult.hits.length && copyGuardOn) {
-      // 修订总预算（2026-09 修复：此前 clampReq 把预算钳到引擎单次上限 8192，整卷全文重写
-      //   （≈10K+ token）必然超支 → 输出必短 → 判"长度异常"→ break 无第二次 → 修订轮空转失效。
-      //   修订=整卷重写，须按"原文 token 估算×1.6 + 清单开销"给足总预算，由 callAI 分次续写补齐；
-      //   总预算上界取整体允许上限（不按单次 cap 钳制），超上界才放弃整卷修订（命中进报告）。
-      const bodyTxtLen = finalContent.replace(/<[^>]+>/g, '').length;
-      const needTotal = Math.min(60000, Math.max(4200, Math.ceil(bodyTxtLen * 1.6) + 2000));
-      let lastFailWhy = '';
-      for (let rv = 0; rv < REVISION_CAP && guardResult.hits.length; rv++) {
-        revisionRounds += 1;
-        const hitText = guardReportOf(guardResult.hits, { copyLimit: 12 }).join('\n');
-        const revPrompt = `你是这份${contractOf(genType).name || genType}的署名编辑，正在终审定稿（只许修订，不许另起炉灶、不许重新命题整卷）。
-程序用确定性规则（字面/词表/结构比对，非语义判断）对整卷做了检测，检出以下必须处理的问题——仅陈述字面事实与契约，不预设改法：
-【待修订问题】
-${hitText}
-${lastFailWhy ? `【上一轮修订未采用原因】${lastFailWhy}——本轮务必完整回传整卷全文（含参考答案区），任何部分性输出/省略都会被判无效。` : ''}
-【禁用沿用名单】（正文与教材参考段字面重合的片段/算式/数据；修订不得再沿用，须换情境换数据重写）
-${guardResult.bannedList.length ? guardResult.bannedList.slice(0, 15).map((b) => `· ${b}`).join('\n') : '（无）'}
-【修订要求】
-1. 逐项修订：与教材参考段重合处换情境换数据重写；卷内重复算式更换其中一题（连同参考答案同步改）；情境主题集中的题为其中重复题换独立情境；删除正文开头的过程性自述句；数据裂缝改数据或改单位（题干与参考答案必须同步一致、自洽可判）。
-2. 不得移除任何覆盖考点（核心知识术语须保留出现）、不得新增知识点、不得改动未命中题目；保持全文 HTML 结构与栏目完整。
-3. 直接回传修订后的完整卷（含参考答案区）HTML 本体，不要任何解释文字、前言或代码块包裹。`;
-        try {
-          const thinkingMult = getGenerationThinkingEnabled() ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1;
-          const revResp = await callAI(revPrompt, {
-            taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
-            maxTokens: Math.round(needTotal * thinkingMult),
-            allowContinuation: true, temperature: bodyTemperature, returnMeta: true,
-          });
-          const ro = typeof revResp === 'string' ? { content: revResp, finishReason: '' } : (revResp || { content: '', finishReason: '' });
-          const revHtml = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(ro.content || '')))))).trim();
-          const trunc = detectTruncation(revHtml, ro.finishReason).truncated;
-          if (revHtml && !trunc && revHtml.length > finalContent.length * 0.6) {
-            finalContent = revHtml;
-            console.log(`✅ [写作修订轮] 第 ${rv + 1} 轮完成：已按命中清单修订（命中前 ${guardResult.hits.length} 处）`);
-          } else {
-            lastFailWhy = !revHtml ? '空输出（模型未返回修订正文）' : trunc ? '输出截断（未到完整结束）' : '长度异常（未回传整卷全文）';
-            console.warn(`⚠️ [写作修订轮] 第 ${rv + 1} 轮输出未采用（${lastFailWhy}），保留原稿继续下一轮`);
-          }
-        } catch (e) {
-          lastFailWhy = `请求异常：${e.message}`;
-          console.warn(`⚠️ [写作修订轮] 第 ${rv + 1} 轮请求异常（保留原稿继续下一轮）:`, e.message);
-        }
-        guardResult = guardPaper({ html: finalContent, corpus: refCorpus, copy: copyGuardOn });
-        if (guardResult.hits.length) {
-          console.warn(`⚠️ [写作修订轮] 第 ${rv + 1} 轮复检仍残留 ${guardResult.hits.length} 处（${guardResult.hits.slice(0, 3).map((h) => h.text).join('、')}…）`);
-        }
-      }
+    let guardResult = guardPaper({ html: finalContent, corpus: refCorpus, copy: copyGuardOn, subject: book?.subject || '' });
+    // 🔴 写作修订轮（整卷重写自纠）已砍除（2026-09 实测两轮 100% 空转：让模型完整重打整卷+答案区
+    //    ≈10K+ token，总省略/截断 → 每轮判"长度异常·未回传整卷全文"→ 0 修复、白烧 2 次长调用）。
+    //    化整为零（用户定版；审核基准：程序不做内容改写，只做可确定性判定的整理）：
+    //       · 首段过程性自述句（"已获取教材原文/现依据…命题"）→ 程序确定性删除（可判定文本）；
+    //       · 照搬/算式重复/情境集中/数据裂缝等命中 → 保留进【问题列表】交编辑核对决断；
+    //    照搬守门配 antiCopyGuard 术语白名单豁免后，copy 命中仅剩真正需人工判定的风险，无需整卷重写。
+    if (copyGuardOn && guardResult.openingHits.length) {
+      finalContent = stripOpeningNarration(finalContent);
+      guardResult = guardPaper({ html: finalContent, corpus: refCorpus, copy: copyGuardOn, subject: book?.subject || '' });
+      console.log(`✅ [卷面自检] 程序已确定性删除正文首段过程性自述句，正文直入（残留命中仍进报告）`);
     }
 
     // 🔴 密封线兜底：正式试卷且 AI 未输出密封线 → 代码补（恢复原拼装器的密封线成果）
@@ -5226,14 +5186,12 @@ ${guardResult.bannedList.length ? guardResult.bannedList.slice(0, 15).map((b) =>
       console.log(`[覆盖对账·sampled] ${genType}：绑定考点在正文出现 ${sampledStats.coveredCount}/${sampledStats.total}（覆盖率 ${sampledStats.coverage}，抽样类型仅统计不补漏）`);
     }
 
-    // 🔴 卷面自检报告（卷级守门最终状态：写作修订轮后仍残留的命中统一分节透出——
-    //    照搬/首段自述/算式重复/情境集中/数据载体裂缝；只报不改、中性表述，交编辑核对）
+    // 🔴 卷面自检报告（卷级守门最终状态：程序剔除首段自述后仍残留的命中统一分节透出——
+    //    照搬/算式重复/情境集中/数据载体裂缝；只报不改、中性表述，交编辑核对决断）
     if (guardResult.hits.length) {
       const guardParas = guardReportOf(guardResult.hits, { copyLimit: 5 });
       guardParas.forEach((p) => auditWarnings.push(p));
-      console.warn(`⚠️ [卷面自检] ${guardResult.hits.length} 处命中（写作修订轮 ${revisionRounds}/${REVISION_CAP} 轮后仍残留）：${guardResult.hits.slice(0, 4).map((h) => h.text).join('；')}…`);
-    } else if (revisionRounds) {
-      console.log(`✅ [卷面自检] 写作修订轮 ${revisionRounds} 轮后零命中（照搬/算式/情境/自述/裂缝全部清零）`);
+      console.warn(`⚠️ [卷面自检] ${guardResult.hits.length} 处命中（首段自述已由程序剔除，其余待编辑核对）：${guardResult.hits.slice(0, 4).map((h) => h.text).join('；')}…`);
     }
 
     // 🔴 领域覆盖对账（2026-09 P3·机制补缺）：仅正式卷（exam）且学科已登记领域契约时执行，

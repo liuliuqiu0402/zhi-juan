@@ -60,7 +60,8 @@ describe('矩阵：算式填空位（方框/圆圈）仅数学注入', () => {
       const s = buildAnswerSpaceInstruction(subject, stage);
       if (subject === '数学') {
         it(`数学·${stage} 注入算式填空位条款`, () => {
-          expect(s).toContain('算式中的填空位（如 3＋□＝8、□×□＝12）用方框或圆圈呈现，不用下划线空位');
+          expect(s).toContain('缺数/填数算式填空位』（如 3＋□＝8、□×□＝12 里待填的数）用方框或圆圈呈现，不用下划线空位');
+          expect(s).toContain('等号后的得数结果位』（口算直接写得数/计算题答案位）一律在等号后直接留白书写，不使用方框、不用圆圈、不用括号');
         });
       } else {
         it(`${subject}·${stage} 不注入算式填空位条款（防跨学科广播）`, () => {
