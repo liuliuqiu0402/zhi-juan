@@ -923,9 +923,24 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         silentCount('match-empty', '检测到"连一连"题干但无配对内容（连一连题疑似空壳），请抽检');
       }
     }
-    // 2j-3 看图/写话缺配图标记（规则 image-block-fix）
-    if (has('image-block-fix') && /看图写话|写话|看图/.test(bodyNoAnsText) && !/\[IMAGE\]/.test(out)) {
-      silentCount('image-missing', '含"看图/写话"的题无 [IMAGE] 配图标记块，请抽检');
+    // 2j-3 看图/读图/图形类题缺图标记（规则 image-block-fix，2026-09 升级）
+    //   🔧 旧探针只认"看图写话/写话/看图"且只看 [IMAGE]、整卷无图才报——数学"观察下面的图形/看图形/统计图"
+    //     走 [GRAPH] 不命中、一个 [IMAGE] 也让他处缺失静默。升级：关键词覆盖 看图/读图/看图形/统计图/观察图形/据图，
+    //     配图标记同时认 [IMAGE]（画面）与 [GRAPH]（数据/几何图形）；整卷一个图标记都没有但存在此类题 → 必报"待补图"。
+    //     只报不改（不改内容不改分），把"题要图没图"从静默变成可核对——与 coverageProbe 同一基准。
+    if (has('image-block-fix')) {
+      const figureKeywordRe = /看图|读图|看图形|据图|统计图|观察[^\n]{0,8}图形|格图/;
+      const hasFigureAsk = figureKeywordRe.test(bodyNoAnsText);
+      const hasImgMark = /\[IMAGE\]/.test(out);
+      const hasGraphMark = /\[GRAPH\]/.test(out);
+      // 写话/看图写话必须画面（[IMAGE]），数据图形 [GRAPH] 不满足→单独强判定优先
+      const hasYwPuhtAsk = /看图写话|写话/.test(bodyNoAnsText);
+      if (hasYwPuhtAsk && !hasImgMark) {
+        silentCount('image-missing', '含"看图写话/写话"的题无 [IMAGE] 画面描述标记块，请抽检（程序只提示、不改内容）', 'warn');
+      } else if (hasFigureAsk && !hasImgMark && !hasGraphMark) {
+        // 看图/读图/看图形/统计图类题，整卷 [IMAGE]+[GRAPH] 全无 → 题干要图却没出图
+        silentCount('image-missing', '存在"看图/读图/看图形"类题，但整卷未输出任何 [IMAGE]（画面描述）或 [GRAPH]（图形/统计图）标记块——题干要图却没出图，请人工补图或核对（程序只提示、不改内容）', 'warn');
+      }
     }
     // 2j-3b 写话/作文题缺题目要求描述（仅标题行，如"15. 看图写话。（共20分）"后直接是配图/格子/下一题）
     //    ——真实事故：模型只输出标题行、无题目要求（"仔细观察下面的图画，想一想：……请你用几句话写下来"式要求描述）
@@ -1559,13 +1574,19 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       //    <p>/<li>/<h1-6>/<div> 闭合处补 \n，正文与答案区同一口径逐块计数）
       const blockToLines = (s) => String(s).replace(/<\/(?:p|li|h[1-6]|div|tr)>/gi, '\n');
       const ansText = stripTags(blockToLines(ansMatch[1]));
+      // 🔧 题号判据加固（2026-09 实锤误报根因）：行首正则原为 `\d+[.、．]`，会把行首小数
+      //    （口算/比较/分类数据行：0.35、2.5×、4.8÷、0.4×…）误计为题号——正文含 9 个这类
+      //    数据行首 → 虚高触发"答案区题号数(32)明显少于正文(41)"假告警。
+      //    判据收紧：点号后不得紧跟数字/点（"0.35""4.8÷""1.666…"均排除），题号"N."后是
+      //    题干文本或空格，不受影响。
+      const topQRe = /(?:^|\n)\s*\d+[.、．](?![.\d])/g;
       if (has('answer-coverage-guard')) {
         const bodyTextRaw = stripTags(blockToLines(out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0]));
         // 剔除"目标类板块"（学习目标/预习目标/复习目标/教学目标：标题至下一标题间的目标条目——不是题，
         // 答案区无对应，误统计会使 preview/review/summary 类资料误报"答案区题号少于正文"）
         const bodyText = bodyTextRaw.replace(/\n[一二三四五六七八九十]+\、\s*(?:学习|预习|复习|教学)目标[\s\S]*?(?=\n[一二三四五六七八九十]+\、|$)/g, '');
-        const bodyTopQ = (bodyText.match(/(?:^|\n)\s*\d+[.、．]/g) || []).length;
-        const ansTopQ = (ansText.match(/(?:^|\n)\s*\d+[.、．]/g) || []).length;
+        const bodyTopQ = (bodyText.match(topQRe) || []).length;
+        const ansTopQ = (ansText.match(topQRe) || []).length;
         if (bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
           silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})`);
         }

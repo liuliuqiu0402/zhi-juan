@@ -837,4 +837,69 @@ export function normalizeIndents(html = '') {
 }
 
 
-export default { cleanSectionHtml, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, normalizeIndents, ensureCarrierContent, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };
+/**
+ * 剥离"空位内嵌题后"的冗余整行空白作答段（2026-09 空行泛滥系统性根治）
+ * ============================================================
+ * 根因实证：无用空行不是 answer-area-fix 补的（该逻辑对空位内嵌题本就跳过），而是模型
+ *   raw 输出自带——它会为"直接写出得数/比较在○里填/转化算式"这类行内自带作答位的题，
+ *   又在题行后另起整行 <p class="blank-area">。(纸文件被"卷面自洽④"与渲染契约 system 级
+ *   通用契约约束不足；程序性确定性兜底补上：剥离"后随行内作答载体行"的纯空整行 blank-area。)
+ *
+ * 判据（确定性、保守、不误删真长答区）：
+ *   · 删除对象：<p class="blank-area"> 且内容为纯空白（仅 全角空格/&emsp;/空）——即"整行空白作答段"；
+ *   · 触发条件：该 blank-area 的"下一非空兄弟"行内已含行内作答载体
+ *     （square-box 方框 / math-circle-blank 比较圈 / blank-N 填空线 / <u class="blank-"> 结果位留白）
+ *     ——说明其后已有行内作答位，本整行空白是冗余的；
+ *   · 保全条件：若该 blank-area 的"上一非空兄弟"行含"整行撰写型长答"触发词
+ *     （竖式/递等式/脱式/解决问题/写过程/说明），则整行空白是真作答空间，不删。
+ * 遵从"补差不越权"：只删、不新造内容；与 1c-3/answer-area-fix 同属程序侧确定性整理。
+ * @param {string} html
+ * @returns {string}
+ */
+export function stripRedundantInlineCarrierRows(html = '') {
+  if (!html || typeof html !== 'string') return html;
+  const inlineCarrierRe = /square-box|math-circle-blank|blank-\d+|class=["'][^"']*blank-\d+|<\s*u[^>]*class=["'][^"']*blank-/i;
+  // 整行撰写型长答触发词（此语境的整行空白 = 真书写空间，须保全）
+  const longWriteRe = /竖式|递等式|脱式|解决问题|写过程|列竖式|竖式计算/;
+  const stripInner = (inner) => String(inner || '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&emsp;|&nbsp;|&ensp;|&#x3000;|&#160;|&#x00A0;|\u3000|\u00A0|　/g, '')
+    .trim();
+  // ① 收集所有 <p …>…</p> 块（含各类 class），保序记录”是否 blank-area / 是否纯空白 / 语义文本”
+  const blocks = [];
+  const pRe = /<p\b[^>]*>[\s\S]*?<\/p\s*>/gi;
+  let mm;
+  while ((mm = pRe.exec(html)) !== null) {
+    const full = mm[0];
+    const tag = /^<p\b([^>]*)>/.exec(full)[1] || '';
+    const isBlankArea = /class=["'][^"']*(?:^|\s)blank-area(?:\s|$)[^"']*["']/i.test(tag) || /\bblank-area\b/i.test(tag);
+    const inner = full.replace(/^<p\b[^>]*>/, '').replace(/<\/p\s*>$/, '');
+    const text = stripInner(inner);
+    const isPureBlank = text === '' || /^[　\s\u3000]*$/.test(text.replace(/&emsp;|　/g, ''));
+    blocks.push({ full, text, isBlankArea, isPureBlank, start: mm.index, end: mm.index + full.length });
+  }
+  if (!blocks.length) return html;
+  const remove = new Set();
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (!b.isBlankArea || !b.isPureBlank) continue;   // 只处理"整行纯空白作答段"
+    // 上一非空兄弟块（跳过块内连续空白段）
+    let prev = null;
+    for (let j = i - 1; j >= 0; j--) { if (!blocks[j].isPureBlank) { prev = blocks[j]; break; } }
+    if (prev && longWriteRe.test(prev.text)) continue; // 前一行是整行撰写型长答 → 保全
+    // 下一非空兄弟块
+    let next = null;
+    for (let j = i + 1; j < blocks.length; j++) { if (!blocks[j].isPureBlank) { next = blocks[j]; break; } }
+    if (next && inlineCarrierRe.test(next.full)) remove.add(i); // 后随行内作答载体 → 冗余整行
+  }
+  if (!remove.size) return html;
+  let out = html;
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    if (!remove.has(i)) continue;
+    out = out.slice(0, blocks[i].start) + out.slice(blocks[i].end);
+  }
+  return out;
+}
+
+
+export default { cleanSectionHtml, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, ensureCarrierContent, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };

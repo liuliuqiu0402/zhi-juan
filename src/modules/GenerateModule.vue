@@ -417,6 +417,22 @@
           </div>
         </div>
         <div
+          v-if="programAttachText"
+          class="inject-blocks"
+        >
+          <div
+            class="src-title block-toggle"
+            @click="showProgramAttach = !showProgramAttach"
+          >
+            🛰 程序附加段（渲染契约/质检规则/格式兜底 —— 随写作请求以 system 注入，不进委托正文）
+            <span>{{ showProgramAttach ? ' ▾' : ' ▸' }}</span>
+          </div>
+          <pre
+            v-if="showProgramAttach"
+            class="program-attach-view"
+          >{{ programAttachText }}</pre>
+        </div>
+        <div
           v-if="instructionDraft"
           class="inject-blocks"
         >
@@ -4291,6 +4307,7 @@ let userEditedInstruction = false;
 // 🔴 指令来源记录（注入框展示：来自指令库哪条模板、按什么维度匹配）
 const instructionSource = ref(null);
 const injectSources = ref([]); // 本次注入来源清单（指令库/蓝图库/渲染契约/规则库）——面板可视化"读取应用了哪些库"
+const showProgramAttach = ref(false); // 程序附加段（system 注入）折叠展开
 // 🔴 程序性附加段（复位工程·S3.2 委托书纯净化）：渲染契约/质检规则/格式兜底等形态层知识
 //    不属于委托正文（解释权在程序侧）——与 instructionDraft 分离存储，生成时以 system 角色随写作请求注入；
 //    勾选/类型变化时随 instructionDraft 一并清空重建（与委托正文同源同次组装，防失配）
@@ -9095,6 +9112,7 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 .inject-blocks { margin-top: 8px; border: 1px dashed var(--border-light); border-radius: 10px; padding: 6px 12px; background: var(--bg-card); }
 .block-toggle { cursor: pointer; user-select: none; margin-bottom: 4px; }
 .block-toggle span { font-weight: 400; color: var(--text-muted); }
+.program-attach-view { margin-top: 4px; border: 1px solid var(--border-light); border-radius: 8px; padding: 8px 10px; background: var(--bg-soft, #f7f8fa); font-size: 12px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; max-height: 280px; overflow: auto; color: var(--text-secondary); }
 .iab-view { margin-top: 4px; border: 1px solid var(--border-light); border-radius: 8px; padding: 8px 10px; background: #fff; font-size: 12px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto; }
 /* 🔴 着色类须 :deep() 穿透：annotatedBlocksHtml 走 v-html 注入，子元素不带 scoped data-v 属性，
    纯 scoped 选择器不命中（同 2026-09 carrierCss 副本教训）——必须穿透才能给来源块上底色 */
