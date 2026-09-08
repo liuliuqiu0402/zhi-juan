@@ -1240,7 +1240,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   //      （blank-line 横线行 / 纯横线字符行 / 带高空白块；纯空行与题间空行不计），
   //      不足时按排版规格库 ANSWER_REGION 补差：语文/英语/科学横线、其余空白——
   //      卷面惯例而非课标要求，参数可在排版规格库调整）──
-  if (has('answer-area-fix')) {
+  if (has('answer-area-fix') && !['summary', 'preview'].includes(genType)) {
     try {
       const region = getAnswerRegion(subject, stage);
       const lhMm = region.lineHeightMm || 8;
@@ -1308,6 +1308,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           // 无顶层题号：回退子题号行；仍无 → 整段一块（书面表达等长答形态）
           const subPs = secNodesPs(secNodes).filter((n) => subRe.test((n.textContent || '').trim()));
           if (subPs.length === 0) {
+            // 🔧 纯内容栏（无题号、无子题号）只在"栏目标题本身是长答任务"时才整块兜底补行——
+            //    知识梳理/要点/示例/词汇等"读的内容"栏不补作答行（内容型结构补整栏空行=空行噪音，
+            //    2026-09 用户实证疑问"内容型的也补了吗"；summary/preview 已在 2k 入口整类跳过，
+            //    此处防其余类型（复习/错题本等）的纯内容栏被误补——标题无作答意图词即跳过）
+            const fallbackTitle = (head.textContent || '').trim();
+            const wholeAnswerHeadingRe = /写作|习作|书面表达|写话|小练笔|作文|默写|背诵|仿写|续写|练一练|算一算|试一试|综合练习|专项练习|自测|检测|实践活动|动手做|解答|解决问题|应用题|口算|竖式/;
+            if (!wholeAnswerHeadingRe.test(fallbackTitle)) return;
             items.push({ p: head, score: scoreMatch ? parseFloat(scoreMatch[1]) : null, seg: secNodes, sub: false });
           } else {
             subPs.forEach((sp, k) => {
