@@ -35,4 +35,25 @@ describe('detectFormulaDuplicates（承上说理豁免）', () => {
     const hits = detectFormulaDuplicates(html);
     expect(hits.some((h) => h.includes('0.84÷0.28'))).toBe(true);
   });
+
+  it('行首小数的"直接写得数"行不产生幽灵题号（旧规则把 0.6÷… 当题0、1.2÷… 当题1）', () => {
+    // 直接写得数每行独立成段且行首即算式小数——应归入前一题块/被忽略，不得生成 id=0/1 幽灵块
+    const html =
+      '<p>直接写得数：</p>' +
+      '<p>0.6÷0.3＝2</p>' +
+      '<p>1.2÷0.24＝5</p>' +
+      '<p>4. 解决问题：把 1.8 元平均分成 3 份，0.6÷0.3＝2（元/份）。</p>';
+    const hits = detectFormulaDuplicates(html);
+    expect(hits).toEqual([]);
+  });
+
+  it('半角点题号（1. 计算…）仍正常识别；小数行归入当前题块后与题内其它算式共同去重', () => {
+    const html =
+      '<p>1. 算一算：</p>' +
+      '<p>0.6÷0.3＝2　1.2÷0.24＝5</p>' +
+      '<p>2. 计算：3.6÷0.9＝4</p>';
+    // 0.6÷0.3 与 1.2÷0.24 只出现在题1 → 不报；若再被误切成题0/1会产生假重复
+    const hits = detectFormulaDuplicates(html);
+    expect(hits).toEqual([]);
+  });
 });

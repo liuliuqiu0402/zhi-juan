@@ -28,18 +28,23 @@ export const htmlToLines = (html = '') =>
  * 题块切分：把正文切成 "题号 → 文本" 块，供算式/情境查重归属题号。
  * 切到"参考答案"前为止（答案区不参与卷内查重；答案区本身有独立生成+报告）。
  * 识别行首数字题号（1. 2. 3.、1、…）；未带题号的段落归入当前块。
+ * 🔧 小数点歧义（2026-09 CI/实证据实）：直接写得数常把算式单独成行且行首即数字——
+ *    "0.6÷0.3＝2"、"="、"1.2÷0.24＝5"。旧规则 /^(\d+)[.、．]/ 把 "0.6…" 认成"题号0"、
+ *    "1.2…" 认成"题号1" → 产生幽灵题块并伪造"卷内算式重复（题 4、0）"。修法：
+ *    · 、与全角 ． 仍为题号分隔符；
+ *    · 半角 . 仅当其后不是数字（非小数）才算题号（"1. 计算…"√、"1.2÷…"✗——归入上一题块）。
  */
 export function splitQuestionBlocks(html = '') {
   const lines = htmlToLines(html);
   const blocks = [];
   let cur = null;
-  const numRe = /^(\d{1,3})\s*[.、．]/;
+  const numRe = /^(\d{1,3})\s*[、．]|^(\d{1,3})\s*\.(?!\d)/;
   for (const raw of lines) {
     const line = raw.trim();
     if (/^参考答案|^参考[^0-9]{0,6}$/.test(line)) break;
     const m = numRe.exec(line);
     if (m) {
-      cur = { id: Number(m[1]), text: line, lines: [line] };
+      cur = { id: Number(m[1] ?? m[2]), text: line, lines: [line] };
       blocks.push(cur);
     } else if (cur) {
       cur.text += ' ' + line;
