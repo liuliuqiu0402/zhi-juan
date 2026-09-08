@@ -410,6 +410,64 @@ export function ensureCarrierContent(html = '') {
 }
 
 /**
+ * 英文语段省略号规范：英文省略号三点（…），不用中文六点（……）
+ * ============================================================
+ * 仅处理"省略号两侧（各 ≤10 字符窗口）无汉字"的语境——中文说明文字里的六点省略号
+ * 是合法中文标点，不受影响；英文句子/解析行里的六点省略号归一为三点。
+ * 覆盖：……（六点全角）与 3~6 个连续半角点（前面字符归一已把 3~6 点合并成 ……，此处统一收口）。
+ */
+export function normalizeEnglishEllipsis(html = '') {
+  const src = String(html || '');
+  if (!src || !/……|\.{4,8}/.test(src)) return src;
+  // 线性单次扫描：命中"六点/连点段"各只处理一次（避免全局正则在同位置双匹配）。
+  // 判定英文语段：省略号前后各 8 字符窗口内出现英文字母；纯汉字语境保持中文六点。
+  const re = /……|\.{4,8}/g;
+  let out = '';
+  let idx = 0;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    const pre = src.slice(Math.max(0, m.index - 8), m.index);
+    const post = src.slice(re.lastIndex, re.lastIndex + 8);
+    const eng = /[A-Za-z]/.test(pre) || /[A-Za-z]/.test(post);
+    out += src.slice(idx, m.index) + (eng ? '…' : m[0]);
+    idx = re.lastIndex;
+  }
+  return out + src.slice(idx);
+}
+
+/**
+ * 畸形填空载体拆壳（不变量守卫，2026-09 收口：整段正文/标题被误包进 <u class="blank-N">）
+ * ============================================================
+ * 语义不变量：blank-N 是"空书写位"——内部只允许空白/空白实体，不允许正文文字。
+ * 若 blank-N 内出现 ≥6 个非空字符（如 整句被包、答案解析整行被包），则该载体必属前置误包：
+ * 拆壳还原内部纯文本（去掉画线），保证 blank-N 不会把句子/标题画成横线、破坏对齐。
+ * 块级标题（h1~h6）内一律不允许出现填空载体（标题不是作答位）——无论内容长短都还原。
+ * 幂等；空位（&emsp; 等）与短内容载体不动；拆壳只删画线不删内容。生成归一/编辑器装载/粘贴同源消费。
+ */
+export function unwrapMalformedBlankCarriers(html = '') {
+  const src = String(html || '');
+  if (!/<(u|span)\b[^>]*class=["'][^"']*blank-\d+/i.test(src)) return src;
+  const CORE_RE = /&emsp;|&#8195;|&#x2003;|\u2003|\u3000|&nbsp;|\u00A0|&#160;/g;
+  const isRealText = (inner = '') => {
+    const core = String(inner).replace(/<[^>]+>/g, '').replace(CORE_RE, '').replace(/\s/g, '');
+    return core.length >= 6;
+  };
+  // ① 块级标题内不允许填空载体（标题不是作答位）→ 整段还原标题内容
+  let out = src.replace(/<(h[1-6])\b([^>]*)>([\s\S]*?)<\/\1>/gi, (m, tag, attrs, inner) => {
+    const hasBlank = /<(u|span)\b[^>]*class=["'][^"']*blank-\d+/i.test(inner);
+    if (!hasBlank) return m;
+    const cleaned = inner.replace(/<(u|span)\b(?=[^>]*\bclass=["'][^"']*\bblank-\d+\b[^"']*["'])[^>]*>([\s\S]*?)<\/\1>/gi, (_mm, _t, c) => c);
+    return `<${tag}${attrs}>${cleaned}</${tag}>`;
+  });
+  // ② 内容型 blank-N 误包正文（≥6 非空字符）→ 拆壳还原内部文本
+  out = out.replace(/<(u|span)((?=[^>]*\bclass=["'][^"']*\bblank-\d+\b[^"']*["'])[^>]*)>([\s\S]*?)<\/\1>/gi, (m, tag, attrs, inner) => {
+    if (!isRealText(inner)) return m;
+    return inner;
+  });
+  return out;
+}
+
+/**
  * 排版端"单独空行"字符串打标（HTML 直出/独立文档导出前调用；编辑器内由 RichTextEditor DOM 层同逻辑打标）
  * ============================================================
  * 识别"块级容器（p/div/li）内仅一条填空横线（u[class*=blank-N]）、无任何正文文字/其它元素"
@@ -605,6 +663,10 @@ export function normalizeBlankMarkers(html = '') {
   //    如 "0.7×0.3＝<u>＿</u>×<span square-box>＿</span>"）→ 按多数形态统一（并列取 u 下划线）。
   //    在叠写去重/拆壳之后执行；只动形态不涉内容（helper 定义紧接本函数下方）。
   out = unifySameParagraphWriteBlanks(out);
+  // 🔴 畸形填空载体拆壳（不变量守卫）：blank-N 内出现正文文字/标题被包 → 还原纯文本（后置于一切包裹规则之后）
+  out = unwrapMalformedBlankCarriers(out);
+  // 🔤 英文省略号三点归一（中文说明文字里的六点省略号不受影响）
+  out = normalizeEnglishEllipsis(out);
   return out;
 }
 
