@@ -155,6 +155,33 @@ const detectTaskMismatch = (html = '') => {
   return out;
 };
 
+/**
+ * 卷内"同词音标冲突"检测（2026-09，只报不改）
+ * ============================================================
+ * 抽取 词 /音标/ 对；同一词（忽略大小写）在卷内出现 ≥2 套不同音标 → 卷内自相矛盾，
+ * 提示复核。属"卷内一致性"探测——单处音标是否与词典一致（如 Chinese 末 s 实为 /z/）
+ * 超出文本比对能力，由生成端"音标须与实际发音一致且卷内自洽"条款约束。
+ */
+export const detectPhonemeConflicts = (html = '') => {
+  const src = String(html || '');
+  const out = [];
+  const re = /([A-Za-z][A-Za-z'’-]{1,30})\s*\/\s*([^/\r\n<>]{1,40}?)\s*\//g;
+  const map = new Map(); // word(lower) -> Set(transcriptions)
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    const w = m[1].toLowerCase();
+    const ph = m[2].replace(/\s+/g, ' ').trim();
+    if (!w || !ph) continue;
+    if (!map.has(w)) map.set(w, new Set());
+    map.get(w).add(ph);
+  }
+  for (const [w, set] of map) {
+    if (set.size < 2) continue;
+    out.push(`同一单词 "${w}" 在卷内出现多套音标（${[...set].join(' / ')}），卷内不自洽，请按词典实际发音统一`);
+  }
+  return out;
+};
+
 /** 全量合理性扫描：返回违规提示语义清单（空=无违规；跨检测器同文案去重） */
 export const sanityScan = (content = '') => {
   const html = String(content || '');
@@ -172,6 +199,7 @@ export const sanityScan = (content = '') => {
       ...detectApproxEqualsSign(text),
       ...detectDoubleCarrierLeak(html),
       ...detectUnitMutations(text),
+      ...detectPhonemeConflicts(text),
     ]),
   ];
 };
@@ -179,5 +207,5 @@ export const sanityScan = (content = '') => {
 /** 扫描结论 → 审计提示语（只陈述事实，不诱导改法） */
 export const sanityNoteOf = (issues) => {
   if (!issues?.length) return '';
-  return `⚠️ 数据合理性扫描：检测到 ${issues.length} 处表述中的数据裂缝（如 ${issues[0]}），请复核后调整数据或单位，使情境数量真实可感。`;
+  return `⚠️ 内容自洽性扫描：检测到 ${issues.length} 处表述不自洽/数据裂缝（如 ${issues[0]}），请复核修正，使内容准确、情境真实可感。`;
 };

@@ -1,6 +1,6 @@
 // 内容合理性扫描（Content Sanity）单测：确定性违规信号检测（荒谬计数倒推 / 可数对象小数直写 / 近似等号 / 同单位换算数值突变 / 空位宽度单一化 / 双载体泄漏 / 任务可作答性错配）
 import { describe, it, expect } from 'vitest';
-import { detectCountingFakes, detectUnitMutations, detectUniformBlankWidths, detectCountDecimals, detectApproxEqualsSign, detectDoubleCarrierLeak, sanityScan, sanityNoteOf } from '../../src/utils/contentSanity.js';
+import { detectCountingFakes, detectUnitMutations, detectUniformBlankWidths, detectCountDecimals, detectApproxEqualsSign, detectDoubleCarrierLeak, detectPhonemeConflicts, sanityScan, sanityNoteOf } from '../../src/utils/contentSanity.js';
 
 describe('contentSanity 内容合理性扫描', () => {
   it('荒谬计数情境：小数 + 可数量词 + （即N）倒推 → 检出', () => {
@@ -27,7 +27,7 @@ describe('contentSanity 内容合理性扫描', () => {
     const issues = sanityScan('买入 0.5 千克苹果（即 0.5 千克），共 2.5 元。');
     expect(sanityNoteOf(issues)).toBe('');
     const note = sanityNoteOf(['计数对象被写成小数后倒推整数：0.09人（即9人）']);
-    expect(note).toContain('数据合理性扫描');
+    expect(note).toContain('内容自洽性扫描');
     expect(note).toContain('计数对象被写成小数后倒推整数');
     expect(sanityNoteOf([])).toBe('');
   });
@@ -120,5 +120,27 @@ describe('contentSanity 2026-09 A-101 产物审计回归（可数对象小数直
   it('sanityScan 汇总新信号；去重后不重复计数', () => {
     expect(sanityScan('1. 小雅买了 1.5 张书签。(1) 得数保留一位小数：7.2 × 0.09＝(　　)')).toHaveLength(2);
     expect(sanityScan('(1) 得数保留一位小数：7.2 × 0.09≈(　　)，买了 2 张书签。')).toEqual([]);
+  });
+});
+
+describe('contentSanity 2026-09 同词音标卷内冲突检测（如 Chinese 末 s 实为 /z/ 而非 /ʃ/）', () => {
+  it('同一单词卷内出现两套不同音标 → 检出（卷内不自洽）', () => {
+    const html = '<p>school /skuːl/ 中 s 发 /s/。</p><p>比较：school /skul/ 的美式读法。</p>';
+    expect(detectPhonemeConflicts(html)).toHaveLength(1);
+    expect(detectPhonemeConflicts(html)[0]).toContain('school');
+  });
+
+  it('同词同音标重复出现 → 不误报', () => {
+    expect(detectPhonemeConflicts('school /skuːl/，go to school /skuːl/。')).toEqual([]);
+  });
+
+  it('词形大小写不同视为同词（Chinese /ˌtʃaɪˈniːz/ 与 chinese /ˈtʃaɪnəs/）→ 检出', () => {
+    expect(detectPhonemeConflicts('Chinese /ˌtʃaɪˈniːz/。chinese /ˈtʃaɪnəs/ 是误拼。')).toHaveLength(1);
+  });
+
+  it('跨行 HTML 中抽取正常；无音标或无词对 → 不报', () => {
+    expect(detectPhonemeConflicts('<p>Chinese /ˌtʃaɪˈniːz/ 一词中 s 发 /z/。</p>')).toEqual([]);
+    expect(detectPhonemeConflicts('<p>字母 s 在不同单词中有不同发音。</p>')).toEqual([]);
+    expect(detectPhonemeConflicts('')).toEqual([]);
   });
 });
