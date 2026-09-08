@@ -94,6 +94,16 @@ describe('contentSanity 2026-09 A-101 产物审计回归（可数对象小数直
     expect(detectCountDecimals('增长了 0.5 个百分点')).toEqual([]);
   });
 
+  it('取整说理与位数语境的"小数+量词"不误报（2026-09 用户实证两例）', () => {
+    // 取整说理："0.25 本不足 1 本" 是纪律要求写的取整理由（余下不足 1 个单位），非真实计数
+    expect(detectCountDecimals('估算约 6 本，因为 0.25 本不足 1 本，不能进 1，只能舍去。')).toEqual([]);
+    expect(detectCountDecimals('精确结果是 6.25 本，不够 1 本的部分舍去，取整得 6 本。')).toEqual([]);
+    // 位数语境："4.5 位数不够" = 4.5 的（小数）位数不够（省略"的"），"位数"是抽象位数
+    expect(detectCountDecimals('把 4.5 和 0.25 的小数点同时向右移动两位，4.5 位数不够，补 0 成 450。')).toEqual([]);
+    // 真违规不受影响
+    expect(detectCountDecimals('小雅买了 1.5 张书签，一共要付多少元？')).toHaveLength(1);
+  });
+
   it('近似值语境（保留 X 位小数）算式用 ＝ → 检出；用 ≈ 不报；非近似句不报', () => {
     expect(detectApproxEqualsSign('(1) 得数保留一位小数：7.2 × 0.09＝(　　　　)')).toHaveLength(1);
     expect(detectApproxEqualsSign('(1) 得数保留一位小数：7.2 × 0.09≈(　　　　)')).toEqual([]);
