@@ -34,7 +34,7 @@ export const GEN_CONST = Object.freeze({
   ANSWER_ACCEPT_MIN_LEN: 100,         // 答案页接受阈值（<此值判失败并重试）
 
   // ── 上下文裁剪 ──
-  MATERIAL_CHARS: {                   // 素材注入量（按资料类型，RAG 分级限量；期末/整本书等大范围场景会截断，见 buildMaterialBlock 检索覆盖）
+  MATERIAL_CHARS: {                   // 素材量级系数（按资料类型；素材线 G7 终态后不再"注入委托"——仅用于 browse 分批参数与动态输出预算推导）
     exam: 10000, practice: 6000, special: 5000, reading: 6000, summary: 8000, review: 8000,
     preview: 3000, dictation: 3000, errorbook: 2000,
   },

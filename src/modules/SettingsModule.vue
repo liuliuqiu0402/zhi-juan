@@ -1667,12 +1667,13 @@ const setAllPaths = (path) => {
   setTimeout(() => { saveStatus.value = ''; }, 5000);
 };
 
-// 🔧 大范围浏览·漏章自动补齐 开关（默认开）：
-//    开 = 检出漏章先交模型确认、未采用时程序有界兜底补料（报告标注程序兜底）；关 = 仅列入主编式提醒。
+// 🔧 写作取材·未浏览章自判 开关（默认开，配置键 browseAutoFill，素材线 G7 语义）：
+//    开 = 检出"有素材但未浏览"的章先发一轮提示交模型自判（需教材原文精确形态则 browse 取、研读摘要已够则直接写作；
+//        模型确认后仍未 browse 即视为判定完成），未浏览章列入生成报告供复核，程序不代 browse、不注入原文；关 = 不提示，仅列入报告。
 const toggleBrowseAutoFill = () => {
   const gs = settings.value.generationSettings || {};
   gs.browseAutoFill = (gs.browseAutoFill !== false) ? false : true;
-  saveStatus.value = gs.browseAutoFill === false ? '已切换为「仅提醒」：漏章不再交给模型确认/程序兜底，只列入主编式提醒。请点「保存设置」生效' : '已切换为「漏章覆盖」：检出漏章先交模型确认、未采用再由程序有界兜底补料。请点「保存设置」生效';
+  saveStatus.value = gs.browseAutoFill === false ? '已切换为「仅提醒」：检出未浏览章不再提示模型自判，仅列入生成报告供复核。请点「保存设置」生效' : '已切换为「未浏览章自判」：检出未浏览章先交模型自判（需要原文精确形态的章 browse 取、研读摘要已够的直接写作）。请点「保存设置」生效';
   setTimeout(() => { saveStatus.value = ''; }, 5000);
 };
 

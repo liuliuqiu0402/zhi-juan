@@ -1303,6 +1303,11 @@ const maxInputTokens = config.engine === 'deepseek'
     if (estimatedTokens > maxInputTokens) {
       console.warn(`⚠️ Prompt过长(${estimatedTokens} tokens)，正在智能压缩并保留关键指令块...`);
 
+      // 🔧 素材线 G7 终态说明：本分支的 materialParts 仅匹配"以【教材原文 开头的整段原文块"——
+      //    它是教材分析（Step1 analysis 携原文做结构提取/图谱）等带原文任务的超长压缩护栏，
+      //    非素材直灌路径：写作委托已不注入真实原文（{material} 为研读/browse 提示行），
+      //    故写作场景下此处至多压缩该提示行，素材唯一途径=研读轮+browse，与本分支互不冲突。
+
       // 分段：按 【 开头分段（保留块级边界）
       const sections = finalPrompt.split(/\n(?=【)/);
       const instructionParts = [];
@@ -4119,7 +4124,7 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔧 browse 返回约束按类型分流（与 contentMode 同口径：full=知识归纳型可引用/其余=命题型自拟）
     const contentMode = contractOf(genType).mode === 'full';
 
-    // 章节→原文片段、章节→知识点 索引（与 buildMaterialBlock 同源，供 browse 确定性取料）
+    // 章节→原文片段、章节→知识点 索引（供 browse 确定性取料）
     const chapterSegsBy = new Map();
     // 🔧 P2-7 命名匹配加强：模型 browse 时往往传"第1课"这类主干名，而章节卡标题可能是"第1课·词语盘点"。
     //    登记索引时同步注册"目录主干键"，让主干名也能命中（精确键优先，主干仅在无歧义时兜底）。
@@ -4161,9 +4166,9 @@ ${cardAnalysisText.substring(0, 1000)}
       if (typeof kp === 'string') addKp(kp, []);
       else if (kp?.name) addKp(kp.name, kp.relatedChapters || []);
     }
-    // 🔧 P1-2 统一知识点源：浏览路径与 buildMaterialBlock 同口径，同时吸收 knowledgeGraph 的细分层级知识点
+    // 🔧 P1-2 统一知识点源：浏览路径统吸收 knowledgeGraph 的细分层级知识点
     //    （bigConcept / coreKnowledge / specificConcepts），否则这些层级知识点在 browse 路径丢失，
-    //    导致"素材注入有细分考点、浏览取料没考点"，覆盖口径漂移。
+    //    导致"browse 取料考点层级不全、覆盖口径漂移"。
     for (const unit of (knowledgeMap?.knowledgeGraph || [])) {
       const unitName = unit?.unit || '';
       for (const bc of (unit.bigConcepts || [])) {
