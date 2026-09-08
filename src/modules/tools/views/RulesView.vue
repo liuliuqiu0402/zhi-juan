@@ -103,7 +103,8 @@
         v-for="r in ruleList"
         :key="r.id"
         class="rule-card"
-        :class="{ open: openKey === r.id, editing: editingKey === r.id, disabled: ruleOff(r) }"
+        :class="{ open: openKey === r.id, editing: editingKey === r.id, disabled: ruleOff(r), flash: flashKey === r.id }"
+        :data-rule="r.id"
       >
         <div
           class="rule-head"
@@ -326,7 +327,8 @@
 </template>
 
 <script setup>
-import { computed, inject, ref } from 'vue';
+import { computed, inject, ref, watch, nextTick } from 'vue';
+import { useRoute } from 'vue-router'; // 程序附加段分段标注 → /tools/rules?focus=<规则id>（与蓝图/指令/渲染契约库同机制）
 import { listValidatorRules, saveUserRule, deleteUserRule, resetUserRules } from '../../../config/validatorRules.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 
@@ -391,6 +393,30 @@ const holeRules = computed(() => []);
 
 /* ===== 规则启用/停用开关（停用 = 双阶段均不命中，见 getValidatorRules / buildValidatorPrompt） ===== */
 const statusFilter = ref('all'); // 全部/启用/停用 状态筛选（点击计数过滤列表）
+
+/* ===== 外部跳转定位（程序附加段 → /tools/rules?focus=<规则id>） ===== */
+// 放在 statusFilter 等被引用声明之后（watch immediate 同步执行，前置引用会 TDZ 崩）
+const route = useRoute();
+const flashKey = ref('');
+watch(
+  () => route.query.focus,
+  async (f) => {
+    if (!f) return;
+    const key = String(f);
+    const hit = allRules.value.find((r) => r.id === key);
+    if (!hit) { console.warn('[rules] focus 未命中规则:', key); return; }
+    // 规则 id 全局唯一：恢复全量状态筛选并展开目标规则（三维度筛选由工具容器维度条控制，通常为空=全量可见）
+    statusFilter.value = 'all';
+    openKey.value = key;
+    flashKey.value = key;
+    setTimeout(() => { flashKey.value = ''; }, 2600);
+    await nextTick();
+    const el = document.querySelector(`[data-rule="${CSS.escape(key)}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  },
+  { immediate: true }
+);
+
 const ruleOff = (r) => r.enabled === false;
 const toggleRule = (r, on) => {
   const { source, ...rest } = r;
@@ -537,6 +563,8 @@ const doImport = async (e) => {
 .rule-list { display: flex; flex-direction: column; gap: 8px; }
 .rule-card { background: #fff; border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; }
 .rule-card.open { border-color: var(--primary-light); box-shadow: 0 2px 10px rgba(30,58,111,.08); }
+.rule-card.flash { outline: 2px solid #ff9800; box-shadow: 0 0 0 4px rgba(255, 152, 0, .22); animation: rule-flash 1s ease-in-out; }
+@keyframes rule-flash { 0%, 100% { background: #fff; } 20% { background: #fff3e0; } }
 .rule-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; flex-wrap: wrap; }
 .rule-head:hover { background: var(--primary-lighter); }
 .arrow { color: var(--accent); font-weight: 700; }

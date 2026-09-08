@@ -149,7 +149,7 @@ export const VALIDATOR_RULES = [
     subjects: ['语文'],
     stages: ['*'],
     promptHint: '排版语义标记规范（语文加点）：题干要求“圈出加点字”的字用 <span class="emphasis-dot">字</span> 标记（字下加点；表示加点时不得用 <u> 下划线）；🔴 自洽性硬性：题干要求“圈出加点字”的题，正文必须恰好存在对应 emphasis-dot 标记，题干有要求而正文无标记即视为无效题。',
-    description: '语文“圈出加点字”题型的加点标记与自洽性硬性，按学科精确注入（仅语文，其他学科不注入，杜绝跨学科诱导）。',
+    description: '语文“圈出加点字”题型的加点标记与自洽性硬性，按学科精确注入（仅语文，其他学科不注入，杜绝跨学科诱导）；生成后自洽检测由汇总规则 text-format-fix 统一执行。',
     enabled: true,
   },
   {
@@ -159,7 +159,7 @@ export const VALIDATOR_RULES = [
     subjects: ['语文', '英语'],
     stages: ['*'],
     promptHint: '排版语义标记规范（画线）：题干要求“画线句子/画线词语/划出文中…句”处用 <u class="underline-sentence">…</u> 标记（划出/画出=画线用 <u>，划去/删去=删除用 <del>）；🔴 自洽性硬性：题干要求“画线句子/画线词语”的题，正文必须恰好有对应标记，题干有要求而正文无标记即视为无效题。',
-    description: '语英阅读题中“画线句子/画线词语”的标记与自洽性硬性，按学科精确注入（语文/英语，其他学科不注入）。',
+    description: '语英阅读题中“画线句子/画线词语”的标记与自洽性硬性，按学科精确注入（语文/英语，其他学科不注入）；生成后自洽检测由汇总规则 text-format-fix 统一执行。',
     enabled: true,
   },
   {
@@ -169,7 +169,7 @@ export const VALIDATOR_RULES = [
     subjects: ['数学', '化学', '物理'],
     stages: ['*'],
     promptHint: '排版语义标记规范（上下标）：上标（数学幂、面积单位、化学离子）用 <sup>…</sup>（如 x<sup>2</sup>、Na<sup>+</sup>）；下标（化学式、物理量）用 <sub>…</sub>（如 H<sub>2</sub>O、v<sub>1</sub>）；以上写法仅示意需用 <sup>/<sub> 标记，禁止直接输出 Unicode 上下标字符（²³⁺ₙ等，导出后字号/基线不统一）。',
-    description: '数理化学科的上下标语义标记（数学幂/单位、化学式/离子、物理量下标），按学科精确注入（其他学科不注入该噪音约束）。',
+    description: '数理化学科的上下标语义标记（数学幂/单位、化学式/离子、物理量下标），按学科精确注入（其他学科不注入该噪音约束）；生成后正文泄漏的 Unicode 上下标由本规则自动归一为 <sup>/<sub>（跳过 $…$ 公式区）。',
     enabled: true,
   },
   {
@@ -179,7 +179,7 @@ export const VALIDATOR_RULES = [
     subjects: ['英语'],
     stages: ['*'],
     promptHint: '排版语义标记规范（英语）：音标用斜杠包裹（/ˈæpl/）。',
-    description: '英语学科音标斜杠包裹约束，按学科精确注入（其他学科不注入）。',
+    description: '英语学科音标斜杠包裹约束，按学科精确注入（其他学科不注入）；纯生成前约束——音标形态无程序自动修复，属模型自律项（生成后不打扰）。',
     enabled: true,
   },
   {
@@ -189,7 +189,7 @@ export const VALIDATOR_RULES = [
     subjects: ['语文'],
     stages: ['primary_low', 'primary_mid'],
     promptHint: '排版语义标记规范（语文注音）：拼音注音统一英文半角括号格式，如 (háng xíng)；不得用中文全角括号做拼音注音。',
-    description: '语文低段拼音注音格式约束，按学科×学段精确注入（高段/其他学科不注入）。',
+    description: '语文低段拼音注音格式约束，按学科×学段精确注入（高段/其他学科不注入）；生成后全角注音括号归一由 pinyin-norm 规则执行（语文低段拼音场景）。',
     enabled: true,
   },
   {
@@ -335,26 +335,38 @@ export const getValidatorRules = ({ subject = '', stage = '', genType = '' } = {
 };
 
 /**
+ * 命中当前三维度、启用且带生成前约束（promptHint）的 fix 类规则明细。
+ * buildValidatorPrompt（注入文本）与生成面板「程序附加段」分段标注共用本函数——
+ * 保证"面板展示=实际注入"，点规则跳转定位到同一 id 的条目，无第二套口径。
+ * @param {Object} opts { subject, stage, genType }
+ * @returns {Array<object>} 命中规则（合并后：内置+用户自定义），按注册顺序
+ */
+export const getActiveFixPromptRules = ({ subject = '', stage = '', genType = '' } = {}) => {
+  const out = [];
+  for (const rule of getMergedRules()) {
+    if (!rule.enabled || rule.category !== 'fix' || !rule.promptHint) continue;
+    if (rule.genTypes && rule.genTypes.length && !rule.genTypes.includes(genType)) continue;
+    if (rule.subjects && rule.subjects.length && !rule.subjects.includes('*') && !rule.subjects.includes(subject)) continue;
+    if (rule.stages && rule.stages.length && !rule.stages.includes('*') && !rule.stages.includes(stage)) continue;
+    out.push(rule);
+  }
+  return out;
+};
+
+/**
  * 生成前约束文案（阶段一：随指令注入）：
  * 收集启用 fix 类规则的 promptHint，转成一段精简的【版面质检规则】约束注入指令。
  * @param {Object} opts { subject, stage, genType }
  * @returns {string} 空串 = 无 fix 规则启用
  */
 export const buildValidatorPrompt = ({ subject = '', stage = '', genType = '' } = {}) => {
-  const hints = [];
-  for (const rule of getMergedRules()) {
-    if (!rule.enabled || rule.category !== 'fix' || !rule.promptHint) continue;
-    if (rule.genTypes && rule.genTypes.length && !rule.genTypes.includes(genType)) continue;
-    if (rule.subjects && rule.subjects.length && !rule.subjects.includes('*') && !rule.subjects.includes(subject)) continue;
-    if (rule.stages && rule.stages.length && !rule.stages.includes('*') && !rule.stages.includes(stage)) continue;
-    hints.push(rule.promptHint);
-  }
+  const hints = getActiveFixPromptRules({ subject, stage, genType }).map((r) => r.promptHint);
   if (hints.length === 0) return '';
   return `\n\n【版面质检规则（生成前约束）】\n${hints.map(h => `· ${h}`).join('\n')}`;
 };
 
 export default {
   normalizeStage, VALIDATOR_RULES, RULES_STORAGE_KEY,
-  listValidatorRules, getValidatorRule, getValidatorRules, buildValidatorPrompt,
+  listValidatorRules, getValidatorRule, getValidatorRules, getActiveFixPromptRules, buildValidatorPrompt,
   saveUserRule, deleteUserRule, resetUserRules,
 };

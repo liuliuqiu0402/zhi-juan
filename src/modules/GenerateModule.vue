@@ -409,9 +409,12 @@
           <div
             v-for="s in injectSources"
             :key="s.lib"
-            class="src-item"
+            class="src-item clickable"
+            :style="{ '--lib-badge': (LIB_COLORS[s.lib] || {}).badge || 'var(--primary)' }"
+            :title="'点击跳转到' + (BLOCK_LIB_NAMES[s.lib] || s.lib) + '查看/修改'"
+            @click="onSrcRowClick(s)"
           >
-            <span class="src-lib">{{ s.lib }}</span>
+            <span class="src-lib">{{ BLOCK_LIB_NAMES[s.lib] || s.lib }}</span>
             <span class="src-name">{{ s.name }}</span>
             <span class="src-detail">{{ s.detail }}</span>
           </div>
@@ -425,10 +428,33 @@
             @click="showProgramAttach = !showProgramAttach"
           >
             🛰 程序附加段（渲染契约/质检规则/格式兜底 —— 随写作请求以 system 注入，不进委托正文）
-            <span>{{ showProgramAttach ? ' ▾' : ' ▸' }}</span>
+            <span v-if="attachBlocks.length">（{{ attachBlocks.length }} 段，点击段落跳转来源库定位修改 {{ showProgramAttach ? '▾' : '▸' }}）</span>
+            <span v-else>{{ showProgramAttach ? '▾' : '▸' }}</span>
+          </div>
+          <div
+            v-if="showProgramAttach && attachBlocks.length"
+            class="attach-view"
+            @click="onAttachClick"
+          >
+            <div
+              v-for="(bk, bi) in attachBlocks"
+              :key="bi"
+              class="attach-item"
+              :style="{ '--lib-color': (LIB_COLORS[bk.lib] || {}).badge || '#8a94a6' }"
+              :data-ai="bi"
+              :title="'点击跳转到' + (BLOCK_LIB_NAMES[bk.lib] || bk.lib) + '定位「' + (bk.name || bk.key) + '」修改'"
+            >
+              <div class="attach-head">
+                <span class="attach-lib">{{ BLOCK_LIB_NAMES[bk.lib] || bk.lib }}</span>
+                <span class="attach-name">{{ bk.name }}</span>
+                <span class="attach-key">{{ bk.key }}</span>
+              </div>
+              <div class="attach-text">{{ bk.text }}</div>
+            </div>
+            <div class="iab-legend">点击任意段落 → 跳转对应库并定位该条目修改（渲染契约→契约条款、规则→该规则、兜底→指令库模板）</div>
           </div>
           <pre
-            v-if="showProgramAttach"
+            v-else-if="showProgramAttach"
             class="program-attach-view"
           >{{ programAttachText }}</pre>
         </div>
@@ -3029,7 +3055,7 @@ import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/l
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
 import { buildTeachingInjection } from '../config/teachingBlueprints.js';
-import { buildProgramAttach } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文
+import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
@@ -4312,6 +4338,10 @@ const showProgramAttach = ref(false); // 程序附加段（system 注入）折�
 //    不属于委托正文（解释权在程序侧）——与 instructionDraft 分离存储，生成时以 system 角色随写作请求注入；
 //    勾选/类型变化时随 instructionDraft 一并清空重建（与委托正文同源同次组装，防失配）
 const programAttachText = ref('');
+// 🔴 程序附加段·分段明细（2026-09 恢复"看到问题→点击跳转修改"）：与 programAttachText 同源
+//    （buildProgramAttachBlocks 单源产出），面板逐段展示 库×条目×约束文本，点击跳对应工具库定位；
+//    与正文「来源分段标注」同一跳转机制，system 注入内容不再是不可点黑盒
+const attachBlocks = ref([]);
 // 🔴 指令来源分段标注（MVP 批1）：组装后由 annotateInstructionBlocks 填充 偏移区间↔{库,key} 块；
 //    只读旁路（不参与拼装）；用户手动编辑指令后置空（watch 联动，见下），UI 据此提示"标注已失效"
 const instructionBlocks = ref([]);
@@ -4395,6 +4425,20 @@ const onBlocksClick = (e) => {
   if (!el) return;
   const b = instructionBlocks.value[Number(el.dataset.i)];
   if (b) jumpToSourceBlock(b);
+};
+// 🔴 程序附加段点击（data-ai → attachBlocks 下标）：与正文分段标注同一跳转机制，
+//    让 system 注入内容同样可"看到→点击→跳库定位修改"（渲染契约/规则/格式兜底不再是不可点黑盒）
+const onAttachClick = (e) => {
+  const el = e.target.closest('[data-ai]');
+  if (!el) return;
+  const bk = attachBlocks.value[Number(el.dataset.ai)];
+  if (bk) jumpToSourceBlock(bk);
+};
+// 🔴 注入来源清单行点击：跳对应库首页（不带 focus，落到库内筛选视图）
+const onSrcRowClick = (s) => {
+  if (!s || !s.lib) return;
+  const libName = BLOCK_LIB_NAMES[s.lib] || s.name || s.lib;
+  jumpToSourceBlock({ lib: s.lib, name: libName, key: '' });
 };
 const analysisResult = ref(null);
 // 🔧 持久化存储：刷新不丢失
@@ -6036,11 +6080,18 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     key: tpl.id || genType,
   };
   injectSources.value = [
-    { lib: '指令库', name: tpl.name || genType, detail: `${stageKey} × ${subject} × ${genType}（${tpl.source === 'user' ? '用户自定义' : '内置模板'}）` },
-    ...(blueprintDetail ? [{ lib: '蓝图库', name: genType === 'exam' ? '真题蓝本' : '教辅结构', detail: blueprintDetail }] : []),
-    ...(renderContractText ? [{ lib: '渲染契约库', name: '渲染指令', detail: '图形 / 公式 / 配图标记协议（按学科×学段）' }] : []),
-    ...(validatorPromptText ? [{ lib: '规则库', name: '生成前约束', detail: `${countPromptHints(validatorPromptText)} 条 fix 规则` }] : []),
+    { lib: 'instruction', name: tpl.name || genType, detail: `${stageKey} × ${subject} × ${genType}（${tpl.source === 'user' ? '用户自定义' : '内置模板'}）` },
+    ...(blueprintDetail ? [{ lib: 'blueprint', name: genType === 'exam' ? '真题蓝本' : '教辅结构', detail: blueprintDetail }] : []),
+    ...(renderContractText ? [{ lib: 'render-contract', name: '渲染指令', detail: '图形 / 公式 / 配图标记协议（按学科×学段）' }] : []),
+    ...(validatorPromptText ? [{ lib: 'rules', name: '生成前约束', detail: `${countPromptHints(validatorPromptText)} 条 fix 规则` }] : []),
   ];
+  // 🔴 程序附加段·分段明细（与 programAttachText 同源）：渲染契约/规则/兜底逐段可点跳库
+  attachBlocks.value = buildProgramAttachBlocks({
+    subject, stageKey, genType,
+    needsImageText: `${structure} ${genTypeLabel} ${unit}`,
+    instructionText: instructionDraft.value,
+    attachInstructionKey: tpl.id || genType, // tplKey 在后文声明（TDZ 规避：内联同义表达式）
+  });
   // 🔴 来源分段标注（旁路 MVP 批1）：用本函数手上已有的段文本在成品全文定位 偏移区间↔{库,key}；
   //    不改 instructionDraft 任何内容（输出零变化）；换算行/协议行不命中（模板无此行）静默跳过
   const tplKey = tpl.id || genType;
@@ -6100,6 +6151,13 @@ const restoreDefaultInstruction = async () => {
     instructionDraft.value += buildTeachingInjection({ genType, stage: stageKey, subject });
   }
   // 🔴 程序性附加段（渲染契约/质检规则/格式兜底）不进委托正文——统一走 buildProgramAttach，随写作请求 system 注入
+  //    分段明细同源产出（面板逐段可点跳库），渲染契约/规则存在时注入来源清单同步展示（与 loadInstructionFromLibrary 口径一致）
+  attachBlocks.value = buildProgramAttachBlocks({
+    subject, stageKey, genType,
+    needsImageText: `${structure} ${genTypeLabel} ${unit}`,
+    instructionText: instructionDraft.value,
+    attachInstructionKey: genType,
+  });
   programAttachText.value = buildProgramAttach({
     subject, stageKey, genType,
     needsImageText: `${structure} ${genTypeLabel} ${unit}`,
@@ -6107,8 +6165,13 @@ const restoreDefaultInstruction = async () => {
   });
   instructionSource.value = { name: `内置默认·${genTypeLabel}`, source: 'builtin', key: genType };
   injectSources.value = [
-    { lib: '指令库', name: `内置默认·${genTypeLabel}`, detail: `${stageKey} × ${subject} × ${genType}（内置模板）` },
-    ...(bp ? [{ lib: '蓝图库', name: genType === 'exam' ? '真题蓝本' : '教辅结构', detail: bp.label }] : []),
+    { lib: 'instruction', name: `内置默认·${genTypeLabel}`, detail: `${stageKey} × ${subject} × ${genType}（内置模板）` },
+    ...(bp ? [{ lib: 'blueprint', name: genType === 'exam' ? '真题蓝本' : '教辅结构', detail: bp.label }] : []),
+    ...(attachBlocks.value.some(b => b.lib === 'render-contract') ? [{ lib: 'render-contract', name: '渲染指令', detail: '图形 / 公式 / 配图标记协议（按学科×学段）' }] : []),
+    ...(() => {
+      const n = attachBlocks.value.filter(b => b.lib === 'rules').length;
+      return n ? [{ lib: 'rules', name: '生成前约束', detail: `${n} 条 fix 规则` }] : [];
+    })(),
   ];
   previewHint.value = `已恢复内置默认指令（未改动你的自定义模板）。命题依据：${getCurriculumLabel(stageKey)}（新课标发布不自动更新，见指令库「课标版本」说明）。`;
 };
@@ -6128,9 +6191,14 @@ const refreshProgramAttach = () => {
   const genTypeLabel = genTypeTemplates[genType]?.name || genType;
   const scopeSource = books.find(b => (b.selectedChapters || []).length > 0) || books[0];
   const scopeText = (scopeSource?.outline || []).map(c => c.title || c.name || '').filter(Boolean).join(' ');
+  const needsImageText = `${scopeText} ${genTypeLabel}`;
+  attachBlocks.value = buildProgramAttachBlocks({
+    subject, stageKey, genType, needsImageText,
+    instructionText: instructionDraft.value,
+    attachInstructionKey: genType,
+  });
   programAttachText.value = buildProgramAttach({
-    subject, stageKey, genType,
-    needsImageText: `${scopeText} ${genTypeLabel}`,
+    subject, stageKey, genType, needsImageText,
     instructionText: instructionDraft.value,
   });
 };
@@ -6151,6 +6219,7 @@ const clearInstruction = async () => {
   }
   instructionDraft.value = '';
   programAttachText.value = ''; // 程序性附加段随委托正文同清（同源配套）
+  attachBlocks.value = [];      // 分段明细同清（同源配套）
   previewHint.value = '';
   injectSources.value = [];
 };
@@ -6171,6 +6240,7 @@ watch(
   ].join('~~'),
   () => {
     programAttachText.value = ''; // 程序性附加段与委托正文同源：勾选变化一并清空，生成时随 ensure 重建
+    attachBlocks.value = [];      // 分段明细同源：一并清空
     // 🔴 勾选范围变化 → 预研读缓存失效（booksKey 失配），研读态复位（S6）
     studyCacheRef.value = null;
     studyPhase.value = { status: 'idle', ready: false, studying: false, summary: '' };
@@ -9101,9 +9171,12 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 .src-title { font-size: 12.5px; font-weight: 700; color: #26303e; margin-bottom: 6px; }
 .src-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12.5px; }
 .src-item + .src-item { border-top: 1px dashed var(--border-light); }
+.src-item.clickable { cursor: pointer; }
+.src-item.clickable:hover .src-name { color: var(--primary); }
+.src-item.clickable:hover .src-detail { color: #37474f; }
 .src-lib {
   flex: 0 0 auto; font-size: 11px; font-weight: 700; color: #fff;
-  background: var(--primary); border-radius: 6px; padding: 1px 8px;
+  background: var(--lib-badge, var(--primary)); border-radius: 6px; padding: 1px 8px;
 }
 .src-name { flex: 0 0 auto; font-weight: 600; color: #26303e; }
 .src-detail { flex: 1 1 auto; color: var(--text-muted); font-size: 12px; }
@@ -9113,6 +9186,15 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 .block-toggle { cursor: pointer; user-select: none; margin-bottom: 4px; }
 .block-toggle span { font-weight: 400; color: var(--text-muted); }
 .program-attach-view { margin-top: 4px; border: 1px solid var(--border-light); border-radius: 8px; padding: 8px 10px; background: var(--bg-soft, #f7f8fa); font-size: 12px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; max-height: 280px; overflow: auto; color: var(--text-secondary); }
+/* 程序附加段·分段明细（2026-09：system 注入内容逐段可见可点，点击跳对应工具库定位） */
+.attach-view { margin-top: 4px; display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow: auto; padding-right: 2px; }
+.attach-item { border: 1px solid var(--border-light); border-left: 3px solid var(--lib-color, #8a94a6); border-radius: 8px; padding: 6px 10px; background: #fff; cursor: pointer; }
+.attach-item:hover { box-shadow: 0 0 0 1px var(--lib-color, #8a94a6); }
+.attach-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.attach-lib { font-size: 11px; font-weight: 700; color: #fff; background: var(--lib-color, #8a94a6); border-radius: 5px; padding: 1px 7px; }
+.attach-name { font-weight: 600; color: #26303e; font-size: 12.5px; }
+.attach-key { font-size: 11px; color: var(--text-muted); background: var(--bg-soft, #f2f4f7); border-radius: 4px; padding: 0 5px; }
+.attach-text { margin-top: 4px; font-size: 12px; line-height: 1.7; color: var(--text-secondary); white-space: pre-wrap; word-break: break-all; }
 .iab-view { margin-top: 4px; border: 1px solid var(--border-light); border-radius: 8px; padding: 8px 10px; background: #fff; font-size: 12px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto; }
 /* 🔴 着色类须 :deep() 穿透：annotatedBlocksHtml 走 v-html 注入，子元素不带 scoped data-v 属性，
    纯 scoped 选择器不命中（同 2026-09 carrierCss 副本教训）——必须穿透才能给来源块上底色 */

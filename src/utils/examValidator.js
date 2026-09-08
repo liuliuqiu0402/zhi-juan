@@ -473,6 +473,29 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
+  // ── 1.5.6b. Unicode 上下标归一（规则 text-format-sup-sub，2026-09 接线：此前仅 prompt 约束、无程序执行点）──
+  //    模型漏用 <sup>/<sub> 直接输出 Unicode 上下标（²³⁺ₙ）时确定性转标记（仅数理化卷按 subject 门控；
+  //    跳过 $…$ 公式区防破坏公式语法——公式内书写由渲染契约 FORMULA_RULES 管理）
+  if (has('text-format-sup-sub') && /数学|物理|化学/.test(subject || '')) {
+    const SUP_MAP = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁺': '+', '⁻': '-', 'ⁿ': 'n', 'ⁱ': 'i' };
+    const SUB_MAP = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9', 'ₙ': 'n', 'ₐ': 'a', 'ₓ': 'x', '₊': '+', '₋': '-' };
+    const SUP_RE = /[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿⁱ]/g;
+    const SUB_RE = /[₀-₉ₙₐₓ₊₋]/g;
+    let supFixes = 0;
+    let subFixes = 0;
+    const mapped = out.split(/(\$[^$]*\$)/g).map((seg) => {
+      if (seg.startsWith('$') && seg.endsWith('$')) return seg; // 公式区不动
+      let s2 = seg.replace(SUP_RE, (ch) => { supFixes += 1; return `<sup>${SUP_MAP[ch]}</sup>`; });
+      s2 = s2.replace(SUB_RE, (ch) => { subFixes += 1; return `<sub>${SUB_MAP[ch]}</sub>`; });
+      return s2;
+    }).join('');
+    if (supFixes + subFixes > 0) {
+      issues.push({ severity: 'info', type: 'text-format-sup-sub', message: `Unicode 上下标已自动归一为 <sup>/<sub> 标记（上标 ${supFixes} 处、下标 ${subFixes} 处）——避免导出后字号/基线不统一` });
+      fixed += 1;
+      out = mapped;
+    }
+  }
+
   // ── 1.5.7b. 教辅内容充足性（规则 teaching-volume-guard：静默）──
   if (has('teaching-volume-guard') && genType && genType !== 'exam') {
     const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
