@@ -81,12 +81,51 @@ class CircuitBreaker {
 // DeepSeek 专用熔断器单例
 const deepseekBreaker = new CircuitBreaker(3, 30000);
 
+// ==================== 委托级成本计量（usage → token → 估算费用，2026-09） ====================
+// 采集 OpenAI 兼容响应的 usage（含缓存命中拆分），按"委托/整卷"会话聚合，输出到生成日志与控制台。
+// 单价口径：DeepSeek 通用刊例 ¥0.5/1M（缓存命中）· ¥2/1M（未命中）· ¥8/1M（输出）；
+// Pro/Flash 实价以控制台为准，此表仅作估算（改本常量即全局生效）。
+const COST_UNIT_RATES = { hitPerM: 0.5, missPerM: 2, outPerM: 8 };
+const costSession = { active: false, label: '', items: [] };
+const startCostSession = (label = '委托生成') => {
+  costSession.active = true;
+  costSession.label = label;
+  costSession.items = [];
+};
+const noteCostUsage = ({ usage, taskType, provider, model }) => {
+  if (!costSession.active || !usage || typeof usage !== 'object') return;
+  costSession.items.push({ taskType: taskType || '', provider: provider || '', model: model || '', usage });
+};
+const readUsageTokens = (u = {}) => {
+  const hit = u.prompt_cache_hit_tokens ?? u.prompt_tokens_details?.cached_tokens ?? 0;
+  const miss = u.prompt_cache_miss_tokens ?? Math.max(0, (u.prompt_tokens || 0) - hit);
+  return { hit, miss, out: u.completion_tokens ?? 0 };
+};
+const endCostSession = () => {
+  if (!costSession.active) return null;
+  costSession.active = false;
+  const items = costSession.items.filter((i) => i.usage);
+  const agg = items.reduce((a, i) => {
+    const t = readUsageTokens(i.usage);
+    a.hit += t.hit;
+    a.miss += t.miss;
+    a.out += t.out;
+    return a;
+  }, { hit: 0, miss: 0, out: 0 });
+  const yuan = (agg.hit * COST_UNIT_RATES.hitPerM + agg.miss * COST_UNIT_RATES.missPerM + agg.out * COST_UNIT_RATES.outPerM) / 1e6;
+  const tokensText = `输出 ${agg.out.toLocaleString()} · 输入(命中缓存) ${agg.hit.toLocaleString()} · 输入(未命中) ${agg.miss.toLocaleString()} token（${items.length} 次计费请求）`;
+  const providers = [...new Set(items.map((i) => `${i.provider}:${i.model || '?'}`))].join(' / ');
+  const text = `${tokensText}；估算 ≈ ¥${yuan.toFixed(3)}（${providers || '未知引擎'}；单价口径 命中 ¥0.5/未命中 ¥2/输出 ¥8 每 M token，以控制台实价为准）`;
+  console.log(`💰 [成本·${costSession.label}] ${text}`);
+  return { yuan, hit: agg.hit, miss: agg.miss, out: agg.out, count: items.length, text, tokensText };
+};
+
 /**
  * 解析 DeepSeek SSE 流式响应（含心跳超时保护）
  * @param {Response} fetchResponse - fetch 返回的 Response 对象
  * @param {AbortSignal} signal - 取消信号
  * @param {number} heartbeatMs - 心跳超时(ms)，默认 60 秒无新 chunk 则判定流已死
- * @returns {Promise<{content: string, finishReason: string}>}
+ * @returns {Promise<{content: string, finishReason: string, usage: object|null}>}
  */
 const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000, maxReasoningChunks = Infinity) => {
   const reader = fetchResponse.body.getReader();
@@ -96,6 +135,7 @@ const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000, maxRea
   let buffer = '';
   let chunkCount = 0;
   let reasoningChunkCount = 0;  // 🔧 推理模型：思考链 chunk 计数
+  let usage = null;  // 💰 成本计量：include_usage 时流末段返回 usage（含缓存命中拆分）
   let capped = false;  // 🔧 思考预算上限触发（流式中止标志）
   let lastChunkTime = Date.now();
   let consecutiveParseFailures = 0;  // 🔧 SSE 连续解析失败计数器
@@ -149,6 +189,7 @@ const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000, maxRea
           try {
             const parsed = JSON.parse(jsonStr);
             consecutiveParseFailures = 0;  // 🔧 成功解析，重置计数器
+            if (parsed.usage) usage = parsed.usage; // 💰 usage 段（一般位于流末的空 choices 段）
             const delta = parsed.choices?.[0]?.delta?.content;
             const reasoningDelta = parsed.choices?.[0]?.delta?.reasoning_content;  // 🔧 推理模型思考链
             if (delta) {
@@ -189,6 +230,7 @@ const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000, maxRea
     if (buffer.trim().startsWith('data: ') && buffer.trim() !== 'data: [DONE]') {
       try {
         const parsed = JSON.parse(buffer.trim().slice(6));
+        if (parsed.usage) usage = parsed.usage;
         const delta = parsed.choices?.[0]?.delta?.content;
         if (delta) content += delta;
       } catch (e) { /* ignore */ }
@@ -198,7 +240,7 @@ const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000, maxRea
   }
 
   console.log(`📡 SSE 流式接收完成: ${chunkCount} 内容chunks + ${reasoningChunkCount} 推理chunks, ${content.length} 字符, finish_reason=${finishReason || '(无)'}`);
-  return { content, finishReason, reasoningChunkCount };
+  return { content, finishReason, reasoningChunkCount, usage };
 };
 
 /**
@@ -1617,7 +1659,8 @@ const maxInputTokens = config.engine === 'deepseek'
             max_tokens: maxTokens,
             top_p: apiConfig.generationSettings.topP || 0.9,
             stream: true,
-            // stream_options: { include_usage: true } — 部分兼容端点支持，先不加
+            // 💰 成本计量：DeepSeek 端点支持 include_usage 随流返回 usage（含缓存命中拆分）；其余兼容端点保持不加防报错
+            ...(config.provider === 'deepseek' ? { stream_options: { include_usage: true } } : {}),
             ...(options.forceJson ? { response_format: { type: 'json_object' } } : {}),
             // 🔧 各引擎思考模式统一走设置页开关（generationSettings.*GenerationThinking，按当前引擎读取）：
             //    仅整卷生成（generation）任务生效；分析/审查/格式化/提取/验算等其他任务始终关闭思考；
@@ -1657,8 +1700,10 @@ const maxInputTokens = config.engine === 'deepseek'
           // 流式成功 → 熔断器复位
           deepseekBreaker.success();
 
-          const { content: streamedContent, finishReason: streamedFinishReason, reasoningChunkCount: streamedReasoning } =
+          const { content: streamedContent, finishReason: streamedFinishReason, reasoningChunkCount: streamedReasoning, usage: streamedUsage } =
             await parseSSEStream(streamResponse, abortController.value?.signal, getTimeout('sseHeartbeat'), options.maxReasoningChunks);
+          // 💰 成本计量：把本次调用 usage 计入当前委托会话（含缓存命中拆分）
+          if (streamedUsage) noteCostUsage({ usage: streamedUsage, taskType, provider: config.provider, model: config.model });
 
           let content = streamedContent;
           let finishReason = streamedFinishReason;
@@ -1709,6 +1754,7 @@ const maxInputTokens = config.engine === 'deepseek'
 
               if (continuationResponse.ok) {
                 const contData = await continuationResponse.json();
+                if (contData?.usage) noteCostUsage({ usage: contData.usage, taskType, provider: config.provider, model: config.model });
                 const continuationText = contData.choices?.[0]?.message?.content || '';
                 if (continuationText && continuationText.length > GEN_CONST.CONT_ACCEPT_MIN_LEN) {
                   // 🔧 增强：更智能的去重
@@ -4465,7 +4511,7 @@ ${cardAnalysisText.substring(0, 1000)}
   //    复生成时自动携带为【本轮必覆盖】定向补齐；注入后无进展或轮数超限即停，交用户手动（防死循环）
   const coverageRetryCache = new Map();
 
-  const generateFullPaperNatural = async (params = {}) => {
+  const _runPaperOrder = async (params = {}) => {
     const {
       instruction = '', genType = '', selectedBooks = [], contentCards = [],
       knowledgeMap = null, contextFramework = '', templateInfo = '', diffKps = [],
@@ -5225,6 +5271,25 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       blueprint: '',
       auditWarnings,
     };
+  };
+
+  // 💰 成本计量·委托级包裹：内层 _runPaperOrder 内的所有 API 调用（研读轮/浏览/正文/答案页/续写均经
+  //    callAI 或同源 parseSSEStream）计入本次委托会话，收尾统一汇总并写入审计提示与控制台日志。
+  const generateFullPaperNatural = async (params = {}) => {
+    startCostSession(params?.genType ? `委托生成·${params.genType}` : '委托生成');
+    try {
+      const res = await _runPaperOrder(params || {});
+      const cost = endCostSession();
+      if (cost && res?.success) {
+        res.costSummary = cost.text;
+        res.auditWarnings = res.auditWarnings || [];
+        res.auditWarnings.push(`ℹ️ 本单成本：${cost.tokensText}；估算 ≈ ¥${cost.yuan.toFixed(3)}（单价口径 命中¥0.5/未命中¥2/输出¥8 每 M token，非 DeepSeek 引擎仅供参考，以控制台实价为准）`);
+      }
+      return res;
+    } catch (e) {
+      endCostSession();
+      throw e;
+    }
   };
 
 
