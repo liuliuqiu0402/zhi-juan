@@ -123,8 +123,8 @@ describe('contentSanity 2026-09 A-101 产物审计回归（可数对象小数直
   });
 });
 
-describe('contentSanity 2026-09 同词音标卷内冲突检测（如 Chinese 末 s 实为 /z/ 而非 /ʃ/）', () => {
-  it('同一单词卷内出现两套不同音标 → 检出（卷内不自洽）', () => {
+describe('contentSanity 2026-09 同词音标资料内冲突检测（如 Chinese 末 s 实为 /z/ 而非 /ʃ/）', () => {
+  it('同一单词在同一份资料内出现两套不同音标 → 检出（资料内不自洽）', () => {
     const html = '<p>school /skuːl/ 中 s 发 /s/。</p><p>比较：school /skul/ 的美式读法。</p>';
     expect(detectPhonemeConflicts(html)).toHaveLength(1);
     expect(detectPhonemeConflicts(html)[0]).toContain('school');
@@ -145,7 +145,7 @@ describe('contentSanity 2026-09 同词音标卷内冲突检测（如 Chinese 末
   });
 });
 
-describe('contentSanity 2026-09 同卷引文复现一致性检测', () => {
+describe('contentSanity 2026-09 同份资料引文复现一致性检测', () => {
   it('同一句引文两处高度近似但写法不一致（编辑距离≤2）→ 检出', () => {
     const html = '第1题：“床前明月光，疑是地上霜”。第2题：“床前明月光，疑是地霜”。';
     expect(detectQuoteConflicts(html)).toHaveLength(1);
