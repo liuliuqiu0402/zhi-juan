@@ -1369,7 +1369,7 @@
           class="empty-tip-small"
           style="padding:16px;"
         >
-          当前学科暂无专项子类型可用，将使用通用专项结构（方法指导→典例剖析→变式训练→真题实战）。
+          当前学科暂无专项子类型可用，将使用通用专项结构（分板块组织：按知识层级分板块，板块内基础→提升→拓展；每板块配解析）。
         </div>
         <div class="option-list">
           <label
@@ -1394,7 +1394,7 @@
               name="specialSubType"
             >
             <span class="option-label">🔄 通用专项</span>
-            <span class="option-desc">使用默认专项结构（方法指导→典例剖析→变式训练→真题实战）</span>
+            <span class="option-desc">使用默认专项结构（分板块组织：按知识层级分板块，板块内基础→提升→拓展；每板块配解析）</span>
           </label>
         </div>
         <div class="modal-actions">
@@ -3051,6 +3051,7 @@ import { useTemplateStore } from '../stores/templateStore.js';
 import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
 import { findBlueprint } from '../config/blueprintProvider.js';
 import { getPromptTemplate, buildInjectionInstruction, buildStructureText, buildOutputFormatHint, getCurriculumLabel } from '../config/promptLibrary.js';
+import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructureText, GENERIC_SPECIAL_DESC } from '../config/specialDomains.js'; // 🎯 专项领域注册库（学科×学段→栏目结构+课标语义锚）
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
@@ -4858,31 +4859,31 @@ const genTypeModelHint = computed(() => {
   return hints[type] || null;
 });
 
-// 🎯 专项子类型选项：根据所选学科动态提供可用的专项领域
+// 🎯 专项子类型选项：根据所选 学科×学段 从专项领域注册库动态提供（三维度单一事实源）
 const specialSubTypeOptions = computed(() => {
-  const subjectMap = {
-    '语文': [
-      { value: '阅读理解', label: '📖 阅读理解', desc: '记叙文/说明文/议论文阅读训练' },
-      { value: '古诗词', label: '🏯 古诗词', desc: '古诗词鉴赏与积累训练' },
-      { value: '文言文', label: '📜 文言文', desc: '文言文阅读与翻译训练' },
-      { value: '写作', label: '✍️ 写作', desc: '写作技法与实战训练' },
-    ],
-    '数学': [
-      { value: '计算', label: '🔢 计算', desc: '口算/竖式/巧算/混合运算训练' },
-      { value: '应用题', label: '📐 应用题', desc: '读题→建模→列式→求解训练' },
-      { value: '几何', label: '📏 几何', desc: '定理证明与几何计算训练' },
-    ],
-    '英语': [
-      { value: '阅读理解', label: '📖 阅读理解', desc: '英语阅读策略与技巧训练' },
-      { value: '语法', label: '📝 语法', desc: '语法规则精讲与阶梯训练' },
-    ],
-  };
   const subject = getSelectedBookSubject();
-  // 从 "小学·语文" 中提取学科名
   const match = subject.match(/[··](.+)/);
   const subj = match ? match[1] : subject;
-  return subjectMap[subj] || [];
+  // 学段感知：取主选教材解析出的 stageKey（小学桶→领域库小学组；中学/未知 → 暂无预置领域）
+  const stageKey = getSelectedBookStageKey();
+  const opts = specialDomainOptions(subj, stageKey).map((d) => ({
+    value: d.key,
+    label: d.label,
+    desc: d.desc,
+    // 领域课标锚一并透出（选择器副文案，供用户知道语义依据）
+    curriculum: d.anchor,
+  }));
+  return opts;
 });
+const getSelectedBookStageKey = () => {
+  const selectedBooks = textbookStore.textbooks.filter(b => hasAnySelected(b.outline)).map(b => ({
+    ...b,
+    selectedChapters: getSelectedChapters(b.outline).filter(ch => ch._selectedForAnalysis !== false)
+  })).filter(b => b.selectedChapters.length > 0);
+  const selectedBook = pickPrimaryBook(selectedBooks);
+  if (selectedBook) return resolveStageKey(selectedBook.stage, selectedBook.grade, selectedBook.name);
+  return '';
+};
 
 // 🎯 是否需要显示专项子类型选择器
 const showSpecialSubType = computed(() => genTypes.value.includes('special'));
@@ -6062,10 +6063,17 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
       blueprintDetail = `真题蓝本「${bp.label}」· ${bp.sections.length} 个大题（大题/分值/时长）`;
     }
   } else {
-    teachingText = buildTeachingInjection({ genType, stage: stageKey, subject }) || '';
+    // 🎯 专项突破：若用户选择了具体领域（且 学科×学段 有注册）→ 用领域专属 栏目结构 + 课标语义锚 覆盖通用教辅结构
+    const subjectKey = String(subject || '').split('·').pop();
+    const specialDom = genType === 'special' ? resolveSpecialDomain(subjectKey, stageKey, specialSubType.value || '') : null;
+    teachingText = specialDom
+      ? (buildSpecialDomainStructureText(specialDom) || '')
+      : (buildTeachingInjection({ genType, stage: stageKey, subject }) || '');
     if (teachingText) {
       instructionDraft.value += teachingText;
-      blueprintDetail = `教辅结构「${genTypeLabel}」· 栏目框架 + 题量底线`;
+      blueprintDetail = specialDom
+        ? `专项领域「${specialDom.label}」· ${specialDom.sections.length} 栏目 + 课标语义锚（${specialDom.anchor}）`
+        : `教辅结构「${genTypeLabel}」· 栏目框架 + 题量底线`;
     }
     if (!instructionDraft.value.includes('【输出格式】')) {
       // 用户自定义模板缺失【输出格式】时兜底：书写载体条款按 学科×学段 注入；内容型走结构化格式（不注作答载体）
