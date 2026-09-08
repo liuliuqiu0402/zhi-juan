@@ -7,10 +7,12 @@ describe('等号后得数结果位 → 留白（计算/口算/应用题结果位
     expect(normalizeMathCircleBlanks('<p>2.4×1.6＝□</p>')).toBe('<p>2.4×1.6＝&emsp;</p>');
   });
 
-  it('五年级口算结果位（等号后空格占位）→ 横向留白书写线，不转方框', () => {
+  it('五年级口算结果位（等号后空格占位）→ 结果位空白书写区（不画线、不框），不转方框', () => {
     const out = chain('<p>0.35×0.8＝' + '　'.repeat(6) + '</p>');
-    expect(out).toBe('<p>0.35×0.8＝<u class="blank-6">&emsp;</u></p>'); // 留白书写位（＝＿＿下划线惯例），非方框
+    // 2026-09 用户定稿复核（印刷排版惯例）：直接写得数"＝ 后"只留空白书写区、不加横线、不留框
+    expect(out).toBe('<p>0.35×0.8＝&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;</p>');
     expect(out).not.toContain('square-box');
+    expect(out).not.toMatch(/<u class="blank-\d+">/);
   });
 
   it('已入库的"＝<span class=square-box>"结果位 → 解壳为留白', () => {
