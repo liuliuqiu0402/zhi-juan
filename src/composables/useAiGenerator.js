@@ -81,11 +81,10 @@ class CircuitBreaker {
 // DeepSeek 专用熔断器单例
 const deepseekBreaker = new CircuitBreaker(3, 30000);
 
-// ==================== 委托级成本计量（usage → token → 估算费用，2026-09） ====================
+// ==================== 委托级成本计量（usage → token 明细，2026-09） ====================
 // 采集 OpenAI 兼容响应的 usage（含缓存命中拆分），按"委托/整卷"会话聚合，输出到生成日志与控制台。
-// 单价口径：DeepSeek 通用刊例 ¥0.5/1M（缓存命中）· ¥2/1M（未命中）· ¥8/1M（输出）；
-// Pro/Flash 实价以控制台为准，此表仅作估算（改本常量即全局生效）。
-const COST_UNIT_RATES = { hitPerM: 0.5, missPerM: 2, outPerM: 8 };
+// 🔴 只给服务端权威的 token 数（含输出/输入命中/输入未命中拆分），不做"估算 ¥"——
+//    官网无稳定可自动抓取的定价接口，猜单价只会误导；金额以提供方控制台为准。
 const costSession = { active: false, label: '', items: [] };
 const startCostSession = (label = '委托生成') => {
   costSession.active = true;
@@ -112,12 +111,11 @@ const endCostSession = () => {
     a.out += t.out;
     return a;
   }, { hit: 0, miss: 0, out: 0 });
-  const yuan = (agg.hit * COST_UNIT_RATES.hitPerM + agg.miss * COST_UNIT_RATES.missPerM + agg.out * COST_UNIT_RATES.outPerM) / 1e6;
   const tokensText = `输出 ${agg.out.toLocaleString()} · 输入(命中缓存) ${agg.hit.toLocaleString()} · 输入(未命中) ${agg.miss.toLocaleString()} token（${items.length} 次计费请求）`;
   const providers = [...new Set(items.map((i) => `${i.provider}:${i.model || '?'}`))].join(' / ');
-  const text = `${tokensText}；估算 ≈ ¥${yuan.toFixed(3)}（${providers || '未知引擎'}；单价口径 命中 ¥0.5/未命中 ¥2/输出 ¥8 每 M token，以控制台实价为准）`;
-  console.log(`💰 [成本·${costSession.label}] ${text}`);
-  return { yuan, hit: agg.hit, miss: agg.miss, out: agg.out, count: items.length, text, tokensText };
+  const text = `${tokensText}${providers ? `（${providers}）` : ''}`;
+  console.log(`💰 [成本·${costSession.label}] ${text}——金额以提供方控制台为准`);
+  return { hit: agg.hit, miss: agg.miss, out: agg.out, count: items.length, text, tokensText };
 };
 
 /**
@@ -5283,7 +5281,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       if (cost && res?.success) {
         res.costSummary = cost.text;
         res.auditWarnings = res.auditWarnings || [];
-        res.auditWarnings.push(`ℹ️ 本单成本：${cost.tokensText}；估算 ≈ ¥${cost.yuan.toFixed(3)}（单价口径 命中¥0.5/未命中¥2/输出¥8 每 M token，非 DeepSeek 引擎仅供参考，以控制台实价为准）`);
+        res.auditWarnings.push(`ℹ️ 本单 token 用量：${cost.tokensText}（金额以提供方控制台为准）`);
       }
       return res;
     } catch (e) {
