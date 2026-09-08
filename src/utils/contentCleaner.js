@@ -714,13 +714,21 @@ export function normalizeMathCircleBlanks(html = '') {
     const before = all.slice(0, from);
     const prev = before.replace(/<[^>]+>/g, '').replace(/[　\s]+$/, '').slice(-1);
     if (!'＝≈='.includes(prev)) return false;
-    // 紧邻后继：无空白分隔的数字/运算符/等号 → 算式继续（中位缺数填空），非结果位。
-    //   只取"块内、紧挨着"的一字符（不跨空白、不跨块），避免抓到同行下一等式的行首数字。
+    // 紧邻后继（＝/≈ 之后空位的邻接语义，2026-09 CI 实证收口）：
+    //   · 后续可见字符是运算符/等号（可隔排版空格）→ 算式继续（中位缺数填空链/整式填空，
+    //     如 "0.6×0.3＝＿ × ＿ ＝＿"、"3＋□＝＿"）→ 非结果位（方框/圆圈）；
+    //   · 后续是数字/算式首字符或行尾 → 本空位即当前等式"得数结果位"的收尾，交下方左值判定：
+    //     左式含 □/○（整式填空，如 "□×□＝□（人）"）→ 保框；左式纯实数 → 留白。
+    //   🔧 数字不作邻接中位依据：直接写得数同行 "1÷11＝＿　2÷11＝＿" 的分隔空格被空白合并
+    //     （mergeBlankSpaces）并入书写位后，"＿"后紧贴的是下一算式行首数字——若把数字当"中位
+    //     缺数"信号会把得数位回卷成方框（CI 实证：前两项全变方框、仅行尾留白）。
     const after = all.slice(to);
     const blkTag = after.match(/<(?:\/?(?:p|div|li)\b)[^>]*>/i);
     const sameBlockAfter = blkTag ? after.slice(0, blkTag.index) : after;
-    const adj = sameBlockAfter.replace(/<[^>]+>/g, '').slice(0, 1);
-    if (/\S/.test(adj) && '0123456789×÷＋－＝+−<>'.includes(adj)) return false;
+    const rawSeg = sameBlockAfter.replace(/<[^>]+>/g, '');
+    const nxtCh = rawSeg.replace(/^[　\s\u00A0\u2000-\u200A]*/, '').slice(0, 1);
+    if (nxtCh && '×÷＋－＝+−<>'.includes(nxtCh)) return false;
+    // 其余（数字/文本/行尾）→ 落入下方左值判定
     // 左值"算式左端"判定（结果位守卫的关键判据，全链路定界同源）：
     //   把当前块内结果位之前的所有"填空单元"原子化为占位 □——
     //     占位容器（blank-u / square-box / math-circle-blank-18）直接改占位 □；
