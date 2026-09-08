@@ -16,6 +16,19 @@ describe('wrapBareBlankRuns 中句语义填空位（规则③）', () => {
     expect(out).not.toContain('个　　　　相加'); // 原裸空格串不再原样保留
   });
 
+  it('词表/罗列分隔（"温暖　　寒冷　　明亮"同句多空位）→ 排版列分隔，不转横线（内容型排版防护）', () => {
+    const html = '<p>词语：温暖　　寒冷　　明亮　　美丽。</p>';
+    const out = wrapBareBlankRuns(html);
+    expect(out).toBe(html); // 相邻同款空位连续出现 = 罗列，任何一处都不转
+  });
+
+  it('句中有多处但被句读隔开的填空空位 → 仍各自转（"有　　位，从右起数出　　位"）', () => {
+    const html = '<p>因为两个乘数的小数部分一共有　　位，所以要从积的右边起数出　　位点上小数点。</p>';
+    const out = wrapBareBlankRuns(html);
+    const blanks = (out.match(/<u class="blank-\d+">&emsp;<\/u>/g) || []).length;
+    expect(blanks).toBe(2);
+  });
+
   it('算式空位链："＝　×　＝　。" 各空位 → u.blank-N（保留 × 运算符）', () => {
     const html = '<p>0.6×0.3＝　　　×　　　＝　　　。</p>';
     const out = wrapBareBlankRuns(html);

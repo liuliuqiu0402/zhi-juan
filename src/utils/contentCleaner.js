@@ -336,6 +336,17 @@ export function wrapBareBlankRuns(html = '') {
   //    b) 算式空位链：前为 ＝×÷＋－≈ 之一、后为 ×÷＋－＝≈。或汉字（"＝　×　＝　。" 的 各 空位）。
   //    防护（不转）：数字两侧列分隔（"12　　读作："前为数字）、图形/符号间距（"相加　　○○○"后为 ○）、
   //    单位括号（"（人）"前导）等——前/后可见字符按最近非标签字符判定，宽度 ≥2 全角/em 单位才转。
+  //    列分隔抑制（2026-09 收口·内容型排版防护）：CJK 夹缝内若同句（到句读/块边界止）还存在**同款空位**，
+  //    "温暖　　寒冷　　明亮"式词表/罗列在内容型资料中是排版列分隔而非填空位——多空位无句读连续出现视为罗列，
+  //    整体不转（编辑要留作答线时须按渲染契约给显式载体）；孤立单空位（句中仅此一处）才按语义空位转。
+  const hasSiblingGap = (win, mineLen) => {
+    const re = /(?:[\u3000\u2003]|&emsp;){2,}/g;
+    let mm;
+    while ((mm = re.exec(win)) !== null) {
+      if (Math.abs(blankRunEmUnits(mm[0]) - mineLen) <= 2) return true;
+    }
+    return false;
+  };
   out = out.replace(/(?:[\u3000\u2003]|&emsp;){2,}/g, (m, off, all) => {
     const prev = prevVisibleChar(all.slice(0, off));
     const next = nextVisibleChar(all.slice(off + m.length));
@@ -344,7 +355,19 @@ export function wrapBareBlankRuns(html = '') {
     const nextIsCjk = /[\u4e00-\u9fa5]/.test(next);
     const prevIsOp = /[＝×÷＋－≈]/.test(prev);
     const nextInChain = /[×÷＋－＝≈。]/.test(next);
-    if ((prevIsCjk && nextIsCjk) || (prevIsOp && (nextInChain || nextIsCjk))) {
+    if (prevIsCjk && nextIsCjk) {
+      // CJK 夹缝：先查同句是否另有"同款罗列空位"（排版词表/列分隔）→ 是则不转；孤立空位才转
+      const mineLen = blankRunEmUnits(m);
+      const after = all.slice(off + m.length);
+      const cut = after.search(/[。，、；：？！]|<(?:p|div|li|table)\b/i);
+      const aheadWin = cut === -1 ? after.slice(0, 80) : after.slice(0, cut);
+      const before = all.slice(0, off);
+      const pIdx = Math.max(...['。', '，', '、', '；', '：', '？', '！'].map((ch) => before.lastIndexOf(ch)), before.lastIndexOf('>'));
+      const behindWin = pIdx >= 0 ? before.slice(pIdx + 1) : before;
+      if (hasSiblingGap(aheadWin, mineLen) || hasSiblingGap(behindWin, mineLen)) return m;
+      return `<u class="blank-${blankWidthForChars(mineLen)}">&emsp;</u>`;
+    }
+    if (prevIsOp && (nextInChain || nextIsCjk)) {
       return `<u class="blank-${blankWidthForChars(blankRunEmUnits(m))}">&emsp;</u>`;
     }
     return m;
