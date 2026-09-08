@@ -45,13 +45,24 @@ describe('同句 横线/方框 混用根治（0.7×0.3＝＿×＿，表示求…
     expect(out).toContain('blank-2');
   });
 
-  it('口算/直接写得数段（无 改写/表示求 组织语）：方框单元 + 结果位留白 的角色区分不回退', () => {
-    // 规范形态：模型/归一先输出全 u 书写位 → 中间运算符邻接单元回卷为口算方框(1 个)，首尾结果位保持留白横线(2 个)
+  it('口算/直接写得数段（无 改写/表示求 组织语）：结果位留白书写区（不画线不框），中间运算符邻接单元为口算方框', () => {
+    // 用户定稿（印刷排版惯例）：直接写得数"＝ 后"留空白书写区、不加横线、不留框；中间 × 邻接单元保留方框。
+    // 规范形态：模型先输出全 u 书写位 → 首尾结果位(＝后)转 &emsp;×N 空白，中位 × 邻接单元回卷为口算方框(1 个)
     const html =
       '<p>0.6×0.3 ＝ <u class="blank-2">&emsp;</u> × <u class="blank-2">&emsp;</u> ＝ <u class="blank-4">&emsp;</u>。</p>';
     const out = fullNormalize(html);
     expect((out.match(/<span class="square-box">&nbsp;<\/span>/g) || []).length).toBe(1);
-    expect((out.match(/<u class="blank-\d+">&emsp;<\/u>/g) || []).length).toBe(2);
+    expect(out).not.toMatch(/<u class="blank-\d+">/);
+    expect(out).toContain('＝ &emsp;&emsp; × ');
+    expect(out).toContain('&emsp;&emsp;&emsp;&emsp;。');
+  });
+
+  it('改写/含义段结果位保持书写横线（0.7×0.3＝(分数)×(分数)…是多少 不受留白规则影响）', () => {
+    const html =
+      '<p>0.7×0.3 ＝ <u class="blank-1">&emsp;</u> × <u class="blank-2">&emsp;</u>，表示求 0.7 的 <u class="blank-3">&emsp;</u> 是多少。</p>';
+    const out = fullNormalize(html);
+    expect(out).not.toContain('square-box');
+    expect((out.match(/<u class="blank-\d+">&emsp;<\/u>/g) || []).length).toBe(3);
   });
 
   it('结果位书写横线（＝后）不参与形态统一（防口算行被并成整行方框）', () => {

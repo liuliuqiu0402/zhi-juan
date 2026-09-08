@@ -753,10 +753,18 @@ export function normalizeMathCircleBlanks(html = '') {
         ? '&emsp;'
         : (m === '○' ? '<span class="math-circle-blank-18">&nbsp;</span>' : '<span class="square-box">&nbsp;</span>'));
   }
-  // ② blank-N 占位 <u> 邻接运算符 → 方框；结果位保留空白书写位（不方框）
+  // ② blank-N 占位 <u> 邻接运算符 → 方框；结果位保留空白书写区（不框、不画线）
   if (uCellRe.test(out)) {
     out = out.replace(uCellRe, (m, off, all) => {
-      if (isResultPosition(all, off, off + m.length)) return m;
+      if (isResultPosition(all, off, off + m.length)) {
+        // 🔧 结果位书写留白（2026-09 用户定稿复核）：直接写得数/计算得数"＝ 后"不画横线、不留框，
+        //    只留空白书写区（宽度按答案位数 N 保留 → &emsp;×N），与印刷排版惯例一致；
+        //    改写/含义类"写算式答案"段（组织语 改写/表示求/的含义，0.7×0.3＝(分数)×(分数) 表示求…）
+        //    是"写出来的一段答案"，保持书写横线（与段语义对齐，防同句横线/方框混用见下）
+        if (isRewriteWritePara(all, off, off + m.length)) return m;
+        const w = Number((m.match(/blank-(\d+)/) || [])[1]) || 1;
+        return '&emsp;'.repeat(Math.min(12, Math.max(1, w)));
+      }
       // 🔧 改写/含义类"写算式答案"段（2026-09 复现收口：0.7×0.3＝(分数)×(分数)，表示求 0.7 的(几)是多少——
       //    同句内 × 邻接空位也是"写出来的结果"（改写成分数），不是口算框；若回卷成方框会与等号后
       //    结果位横线（u.blank）同句混用 → 该语境保持书写横线（与"空位载体同句一致"纪律对齐）
