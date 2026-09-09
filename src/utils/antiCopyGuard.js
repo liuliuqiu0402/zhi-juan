@@ -76,8 +76,12 @@ const flattenTerms = (group) => (group ? Object.values(group).flat().map(normWs)
 /** 汉字/可读字符连续 n 字命中检测（字面确定性；跳过标点归一后比连续片段）。
  *  2026-09 英文词级分流：英文行若按"8 字符连续"判定，功能句（You can do it!/Keep trying!）、
  *  单元名（Unit 1 Try your best）、单词（practise）等教学必现内容会被误报照搬——
- *  英文改为按词窗连续 ≥5 词判定（真实整句照搬才报，功能短句/标题/单词不误伤）。
+ *  英文改为按词窗连续判定（真实整句照搬才报，功能短句/标题/单词不误伤）。
+ *  🔧 英文阈值 2026-09-09 用户定版 5→10 词：题干/复述/功能句（What was difficult for Bobby、
+ *     Be the best you can、Su Hai wanted to play…）等 5 词档极易把"必须复用的教材功能句"误升格成
+ *     "照搬整句"；提到 10 词（≈完整从句/整句）才是真正要防的整句照搬，教材参考段短句不再狂曝。
  *  判定该行是否英文为主：非空拉丁词 ≥2 且中文字符为 0。 */
+const ENGLISH_LONG_WORDS = 10; // 英文整词窗连续 ≥10 词才算整句照搬
 function isEnglishLine(s) {
   const trimmed = String(s || '').trim();
   if (!trimmed) return false;
@@ -91,13 +95,14 @@ function longRunOverlap(body, corpus, n) {
   for (const src of corpus) {
     const c = normWs(src);
     if (isEnglishLine(src)) {
-      // 英文行：≥5 词连续（去空白形态拼窗比对，body 已是全去空白文本，窗口串可直接 includes）
+      // 英文行：≥10 词连续（去空白形态拼窗比对，body 已是全去空白文本，窗口串可直接 includes）
+      const W = ENGLISH_LONG_WORDS;
       const toks = (String(src).match(/[A-Za-z][A-Za-z'’]*/g) || []).filter((w) => w.length >= 2);
-      if (toks.length < 5) continue;
-      for (let i = 0; i + 5 <= toks.length; i += 1) {
-        const chunk = toks.slice(i, i + 5).join('');
+      if (toks.length < W) continue; // 参考段不足 10 词 → 不在英文长句照搬判定内
+      for (let i = 0; i + W <= toks.length; i += 1) {
+        const chunk = toks.slice(i, i + W).join('');
         if (body.includes(chunk)) {
-          hits.push({ kind: 'long', n: 5, snippet: chunk, tokens: toks.slice(i, i + 5), source: src.slice(0, 60) });
+          hits.push({ kind: 'long', n: W, snippet: chunk, tokens: toks.slice(i, i + W), source: src.slice(0, 60) });
           break; // 同源命中一次即可
         }
       }
@@ -214,6 +219,6 @@ export function scanCopyOverlap({ bodyHtml = '', corpus = [], longN = 8, subject
 /** 命中清单 → 一条生成报告提示（供 auditWarnings / 编辑核对，程序不改内容）。 */
 export function copyOverlapNote(hits = [], limit = 5) {
   if (!Array.isArray(hits) || !hits.length) return '';
-  const top = hits.slice(0, limit).map((h) => `「${h.snippet}」（${h.kind === 'num' ? '数字串' : `${h.n} 字连续`}命中参考段）`);
+  const top = hits.slice(0, limit).map((h) => `「${h.snippet}」（${h.kind === 'num' ? '数字串' : /[A-Za-z]/.test(h.snippet) ? `${h.n} 词连续` : `${h.n} 字连续`}命中参考段）`);
   return `⚠️ 防照搬提示：正文存在 ${hits.length} 处与教材示范段字面重合${hits.length > limit ? `（前 ${limit} 处）` : ''}：${top.join('、')}。请改编情境/数据后保留（交编辑核对，非程序判定雷同）。`;
 }
