@@ -25,17 +25,32 @@
 import { isExtensionSegment } from './segmentTypes.js';
 
 /** 词边界命中（与 useAiGenerator.extractContentCards 内 wordBoundaryMatch 同口径；
- *  绑定模块自含一份，避免跨文件闭包依赖——两处语义保持一致，改动需同步） */
+ *  绑定模块自含一份，避免跨文件闭包依赖——两处语义保持一致，改动需同步）
+ *  2026-09 语言口径：锚判定词若保留教材原文语言（英语资料 specificConcepts 为英文词/短语），
+ *  与英文正文匹配须拉丁大小写不敏感（正文句首大写 watched / 锚 watched）；中文不受影响 */
 export const wordMatch = (text, keyword) => {
   if (!text || !keyword) return false;
-  if (keyword.length >= 4) return text.includes(keyword);
+  // 🔧 拉丁字母大小写折叠（仅影响 A-Za-z；中文/数字无大小写概念，折叠幂等）
+  const t = String(text);
+  const k = String(keyword);
+  const hasLatin = /[A-Za-z]/.test(k);
+  const hay = hasLatin ? t.toLowerCase() : t;
+  const needle = hasLatin ? k.toLowerCase() : k;
+  if (needle.length >= 4) return hay.includes(needle);
   let searchFrom = 0;
-  while (searchFrom < text.length) {
-    const idx = text.indexOf(keyword, searchFrom);
+  while (searchFrom < hay.length) {
+    const idx = hay.indexOf(needle, searchFrom);
     if (idx === -1) return false;
-    const charBefore = idx > 0 ? text[idx - 1] : '';
-    const charAfter = idx + keyword.length < text.length ? text[idx + keyword.length] : '';
-    const isBoundary = (ch) => ch === '' || /[\s,，。；;、：:！!？?（）()【】《》""''\[\]{}]/.test(ch);
+    const charBefore = idx > 0 ? hay[idx - 1] : '';
+    const charAfter = idx + needle.length < hay.length ? hay[idx + needle.length] : '';
+    // 🔧 边界语义按关键词语言区分（2026-09 实证）：
+    //    · 英文短词（ee/ago 等）嵌中文句（"字母组合 ee 发 /iː/"）→ 汉字是自然边界，须命中；
+    //    · 纯中文短词（估算/小数）嵌中文句 → 汉字非边界（防"先估算再计算"误配"估算"、"分数"误配"分数线"），
+    //      仅空白/标点/括号作边界——与 extractContentCards 内 wordBoundaryMatch 原口径一致
+    const hasLatinKw = /[A-Za-z]/.test(needle);
+    const isBoundary = (ch) => ch === ''
+      || /[\s,，。；;、：:！!？?．.（）()【】《》""''\[\]{}]/.test(ch)
+      || (hasLatinKw && /[\u4e00-\u9fa5]/.test(ch));
     if (isBoundary(charBefore) && isBoundary(charAfter)) return true;
     searchFrom = idx + 1;
   }

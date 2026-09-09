@@ -630,6 +630,8 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
   if (!selectedBooks || selectedBooks.length === 0) return contentCards;
 
   // 🔧 词边界匹配：防止"分数"误匹配"分数线""百分数"
+  //    2026-09 同步口径：边界语义按关键词语言区分——英文短词（ee/ago）嵌中文句汉字即边界；
+  //    纯中文短词嵌中文句汉字非边界（防"先估算再计算"误配"估算"）
   const wordBoundaryMatch = (text, keyword) => {
     if (!text || !keyword) return false;
     if (keyword.length >= 4) return text.includes(keyword);
@@ -639,7 +641,10 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
       if (idx === -1) return false;
       const charBefore = idx > 0 ? text[idx - 1] : '';
       const charAfter = idx + keyword.length < text.length ? text[idx + keyword.length] : '';
-      const isBoundary = (ch) => ch === '' || /[\s,，。；;、：:！!？?（）()【】《》""''\[\]{}]/.test(ch);
+      const hasLatinKw = /[A-Za-z]/.test(keyword);
+      const isBoundary = (ch) => ch === ''
+        || /[\s,，。；;、：:！!？?．.（）()【】《》""''\[\]{}]/.test(ch)
+        || (hasLatinKw && /[\u4e00-\u9fa5]/.test(ch));
       if (isBoundary(charBefore) && isBoundary(charAfter)) return true;
       searchFrom = idx + 1;
     }
@@ -870,7 +875,9 @@ ${JSON.stringify(cardsSummary, null, 2)}
 
 🔴 目录模式说明：若某课 summary 标注"仅目录模式"（教材原文未提取），请基于该课章节标题与该学科课标（${curriculumLabel}）推断典型内容知识点（如"分数的初步认识"→ 分数的含义/几分之一/几分之几），只推断标题明确指向的知识范畴，不得臆造超出该章节标题的内容。
 
-返回JSON：{"knowledgePoints":[""],"keyDifficulties":[""],"knowledgeGraph":[{"unit":"","bigConcepts":[{"name":"","coreKnowledge":[{"name":"","cognitiveLevel":"理解","isKeyPoint":true,"isDifficulty":false,"specificConcepts":[""],"suggestedQuestionTypes":[""],"relatedChapters":[""],"testPriority":1}]}]}],"crossChapterLinks":[{"from":"","to":"","relation":"前置|并列|拓展|应用"}]}`;
+返回JSON：{"knowledgePoints":[""],"keyDifficulties":[""],"knowledgeGraph":[{"unit":"","bigConcepts":[{"name":"","coreKnowledge":[{"name":"","cognitiveLevel":"理解","isKeyPoint":true,"isDifficulty":false,"specificConcepts":[""],"suggestedQuestionTypes":[""],"relatedChapters":[""],"testPriority":1}]}]}],"crossChapterLinks":[{"from":"","to":"","relation":"前置|并列|拓展|应用"}]}
+
+🔴 语言口径（2026-09 对账口径根治）：教材为外语（英语等）时，coreKnowledge.name 用中文作教学标签，但 specificConcepts 必须是教材原文语言的词/短语（如英语：regular past tense -ed、Mulan、keep trying、first/then/finally 等），供生成正文与覆盖对账同一语言口径；禁止把 specificConcepts 翻译成中文（与英文正文词面失配则对账无法命中）。`;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const response2 = await callAI(prompt2, { taskType: attempt >= 1 ? 'blueprint' : 'analysis', temperature: apiConfig.generationSettings.analysisTemperature, retries: 0, forceJson: true });
@@ -3172,7 +3179,10 @@ ${isPrimary ? '- 🔧 小学：计算机基础操作、图形化编程、信息�
 - 🔧 粒度标准：specificConcepts 分解到"可独立教学/考查的最小知识点"粒度即可，最多4个；suggestedQuestionTypes 给出1-3个最匹配的题型
 - 🔧 主题词按原文篇幅匹配：短文（<5段）2-3个主题词，长文3-6个，以能概括全文核心内容为准
 - 🔧 JSON 字段值尽量简短，不要写长句子
-- 🔧 所有输出字段必须使用中文（教材原文为英文时，知识点/主题词用中文描述原文含义）`;
+- 🔧 覆盖口径与正文语言一致（2026-09 对账语言/内容口径根治）：教材为外语（英语等）时——
+  coreKnowledge.name 用中文作教学标签，但 specificConcepts 必须是教材原文语言的词/短语（如英语：regular past tense -ed、first/then/finally、Mulan、keep trying 等），
+  供生成正文与覆盖对账使用同一语言口径；禁止把 specificConcepts 翻译成中文（翻译后与英文正文词面失配，对账无法命中）。
+- 🔧 所有输出字段的中文要求仅约束"标签/展示层"字段（name/bigConcept/coreTopics/knowledgePoints），不约束判定词字段（specificConcepts）；判定词随教材原文语言`;
 
       // 🔧 检测文本模型状态
       console.log('🔥 教材特征分析：检查文本模型状态...');
@@ -4117,7 +4127,7 @@ ${cardAnalysisText.substring(0, 1000)}
   // 写作主链（素材线 G7 终态）：程序确定性取料供给 browse_textbook；模型带研读总账前缀进入，
   // 按需 browse 补原文细节、收敛后产出正文。返回 { content, coverageNotes }——coverageNotes 为主编式提醒（只提示，不改写）。
   const generateBodyByTextbookBrowse = async (params) => {
-    const { genType, promptBase, maxTokens, temperature, contentCards = [], knowledgeMap = null, anchors = [], generateMode = 'once', studyPairs = null } = params;
+    const { genType, promptBase, maxTokens, temperature, contentCards = [], knowledgeMap = null, anchors = [], generateMode = 'once', studyPairs = null, programAttach = '' } = params;
     const myBudget = GEN_CONST.MATERIAL_CHARS[genType] || 5000;
     const { perBrowseCap, maxRounds } = deriveBrowseParams(myBudget, (contentCards || []).length);
     // 🔧 browse 返回约束按类型分流（与 contentMode 同口径：full=知识归纳型可引用/其余=命题型自拟）
@@ -4270,7 +4280,12 @@ ${cardAnalysisText.substring(0, 1000)}
       { role: 'system', content: buildBrowseSystem(contentMode)
         + (generateMode === 'once'
           ? '\n（本资料为一次成型：正文与答案区一次输出；如含练习/自测/例题，答案区仅对其作答，勿把正文的知识梳理整体复述到答案区。）'
-          : '') },
+          : '')
+        // 🔴 程序附加段（渲染契约/质检规则/输出格式兜底）browse 主链同样必须携带（2026-09 根治：
+        //    此前 browse 自建 fetch 循环只拼 buildBrowseSystem，渲染契约/质检规则完全未注入 →
+        //    走 browse 路径的资料收不到 [IMAGE]/[GRAPH] 格式规范，图片/图形类输出无契约约束，
+        //    题 2"根据图片提示"却无 [IMAGE]、图形描述不合规均源于此。与单次注入路径同权同源。）
+        + (programAttach.trim() ? `\n\n${programAttach.trim()}` : '') },
       ...studyPrefixMsgs,
       { role: 'user', content: promptBase },
     ];
@@ -4772,6 +4787,7 @@ ${cardAnalysisText.substring(0, 1000)}
           maxTokens: clampReq(bodyDynamicCap),
           temperature: bodyTemperature,
           generateMode,
+          programAttach, // 🔴 程序附加段同权注入 browse 主链（渲染契约/质检规则/输出格式兜底，2026-09 根治）
         });
         browseCoverageNotes = bres?.coverageNotes || [];
         const bc = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(stripRedundantInlineCarrierRows(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(bres?.content || '')))))));

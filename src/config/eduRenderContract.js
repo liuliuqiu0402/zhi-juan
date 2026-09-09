@@ -22,14 +22,10 @@ export const GRAPH_TYPES = [
 /** 需要 $公式$ 的学科 */
 export const MATH_SUBJECTS = ['数学', '物理', '化学'];
 
-/** 配图类题型（看图写话/看图列式/听音选图等）关键词 */
-const IMAGE_HINT_RE = /看图|写话|配图|听音|观察|绘画|绘图|识图|读图|示意|地图|图表|结构/;
-
-/**
- * 教辅类默认配图的类型（课时练/专项/预习/阅读/默写普遍要求图文并茂/情境配图，
- * 与题型关键词无关——即使单元名不含"看图"也应注入 [IMAGE] 契约，否则 AI 配图无格式规范）
- */
-const IMAGE_DEFAULT_TYPES = new Set(['practice', 'special', 'preview', 'reading', 'dictation']);
+/** 配图/图形类题型（看图写话/看图列式/听音选图/读统计图/图形操作等）关键词：
+ *  2026-09 非必要不配图：图由题干图依赖词驱动——看图/读图/识图/统计图/图形/图表/示意/地图 等
+ *  （题干要学生依据图形/图像作答才配图；纯文字任务无图依赖不配图） */
+const IMAGE_HINT_RE = /看图|写话|配图|听音|观察|绘画|绘图|识图|读图|统计图|图形|图表|示意|地图|结构/;
 
 // ==================== EduRender Studio 完整格式骨架 ====================
 
@@ -346,10 +342,15 @@ export function buildRenderContract({ subject = '', genType = '', needsImage = f
   return `\n\n${parts.join('\n')}`;
 }
 
-/** 判定某资料/大题是否需要配图标记（教辅类默认配图；exam 按题型关键词；纯文字类不配图） */
+/**
+ * 判定某资料/大题是否需要配图标记（2026-09 非必要不配图·去诱导）：
+ * 不再按资料类型默认配图（旧 IMAGE_DEFAULT_TYPES 让课时练/预习/阅读等类型一律注入配图契约，
+ * 诱导模型"图文并茂"式凭空造图）——图只由题干是否声明图依赖决定：
+ * 题干出现看图/读图/图形/图表等图依赖词 → 配图；否则不配、也不虚构图语。
+ * 与 promptLibrary"图-题一致性"条款同口径：无图即无依赖，无依赖即无图语。
+ */
 export function needsImageHint(text = '', genType = '') {
-  if (genType && IMAGE_DEFAULT_TYPES.has(genType)) return true;
-  return IMAGE_HINT_RE.test(String(text || '')) || genType === 'dictation';
+  return IMAGE_HINT_RE.test(String(text || ''));
 }
 
 /** 导出示例骨架（渲染契约库展示用；纯导出，不影响生成逻辑） */
