@@ -83,14 +83,20 @@ export function stripPlanningPreamble(raw = '') {
   if (!raw) return raw;
   let out = String(raw);
   const PLAN_RE = /^(?:我已|已取到|已获取|已拿到|已检索到|现在|接下来|以下(?:将|是)?|根据|依据|现依据|围绕|请根据|本次)[^<\n]{0,60}?(?:教材原文|知识点|核心知识|课标|命制|编写|设计|课时练|课堂练习|试卷|正文|大纲|素材)/;
-  for (let guard = 0; guard < 6; guard++) {
+  // 🔧 2026-09 正文丢失事故辅助：模型把"覆盖自查/质量自查/内部自查确认/无需修改/正文已在上一条
+  //   消息完整输出"等自述收尾当正文输出（声明≠覆盖）——开头段含这些特征词亦整段剥除
+  const SELF_RE = /(?:覆盖自查|质量自查|内部自查|过程自查|自查确认|无需修改|正文已在上一条|无需再调用)/;
+  for (let guard = 0; guard < 8; guard++) {
     const pHead = /^\s*(<p[^>]*>)([\s\S]*?)<\/p>/;
     const m = out.match(pHead);
     if (m) {
       const text = m[2].replace(/<[^>]+>/g, '').trim();
-      if (!text || /^\d+[.、．]/.test(text) || !PLAN_RE.test(text)) break;
-      out = out.slice(m[0].length).replace(/^\s+/, '');
-      continue;
+      if (!text || /^\d+[.、．]/.test(text)) break;
+      if (PLAN_RE.test(text) || SELF_RE.test(text)) {
+        out = out.slice(m[0].length).replace(/^\s+/, '');
+        continue;
+      }
+      break;
     }
     // 无 <p> 包裹的裸文本首段（浏览通道模型常在 HTML 前直出自述句，2026-09 实测形态
     //   "已取到教材原文素材（第1~8段）…命题。" 无标签包裹 → 逐段剥；只剥 ≤160 字符、
@@ -99,10 +105,47 @@ export function stripPlanningPreamble(raw = '') {
     if (!bare) break;
     const t = bare[1].trim();
     if (!t) { out = out.slice(bare[0].length); continue; }
-    if (t.length > 160 || /^\d+[.、．]/.test(t) || !PLAN_RE.test(t)) break;
-    out = out.slice(bare[0].length).replace(/^\s+/, '');
+    if (t.length > 160 || /^\d+[.、．]/.test(t)) break;
+    if (PLAN_RE.test(t) || SELF_RE.test(t)) {
+      out = out.slice(bare[0].length).replace(/^\s+/, '');
+      continue;
+    }
+    break;
   }
   return out;
+}
+
+/**
+ * 正文结构有效性判定（2026-09 正文丢失事故根治：模型以"覆盖自查/质量自查/我已编写完…无需修改"
+ * 等过程自述长文冒充正文时，长度阈值（>200 字符）无法拦截——须判定是否含"题目/栏目/作答载体"等
+ * 真实正文结构。判定为"内容结构"（任一命中即真）：
+ *   ① 栏目标题 <h2>/<h3>/<h4>；② 题目块 <p class="question">；③ 作答载体 blank-N/blank-line/blank-area；
+ *   ④ 行首题号/条目号（^\s*\d{1,2}[.、．]\s*）；⑤ 若无上述结构但仅剩纯文本 → 判非正文（自述）。
+ * 供 generateBodyByTextbookBrowse 出口与 _runPaperOrder 正文采纳守卫复用（只判不改）。
+ */
+export function hasBodyContentStructure(html = '') {
+  const src = String(html || '');
+  if (!src.trim()) return false;
+  if (/<h[234][^>]*>/i.test(src)) return true;                       // 栏目标题
+  if (/<p[^>]*class=["'][^"']*question[^"']*["'][^>]*>/i.test(src)) return true; // 题目块
+  if (/class=["'][^"']*(?:blank-\d+|blank-line|blank-area|math-circle-blank)[^"']*["']/i.test(src)) return true; // 作答载体
+  if (/(?:^|\n)\s*\d{1,2}[.、．]\s*\S/m.test(src)) return true;      // 行首题号/条目号（正文组织特征）
+  return false;                                                      // 无结构 → 纯文本/自述，非正文
+}
+
+/**
+ * 正文"可交付结构"严格判定（2026-09 正文丢失事故根治·最终采纳守卫）：
+ * 仅凭行首编号行不足以证明是可交付正文——模型"覆盖自查"若写成"1. … 2. …"编号清单也会命中宽松版。
+ * 可交付正文必须含真实 HTML 内容结构之一：栏目标题(h2-h4)、题目块(class=question)、作答载体(blank 系)。
+ * 纯文本/纯清单（无论是否编号）一律不通过 → 交由"完整优先"守卫回退重试，绝不交付。
+ */
+export function isDeliverableBodyHtml(html = '') {
+  const src = String(html || '');
+  if (!src.trim()) return false;
+  if (/<h[234][^>]*>/i.test(src)) return true;                       // 栏目标题
+  if (/<p[^>]*class=["'][^"']*question[^"']*["'][^>]*>/i.test(src)) return true; // 题目块
+  if (/<u[^>]*class=["'][^"']*(?:blank-\d+|blank-line|blank-area|math-circle-blank)[^"']*["'][^>]*>|class=["'][^"']*blank-\d+[^"']*["']/i.test(src)) return true; // 作答载体
+  return false;
 }
 
 /** 导出端第二道防线：剥离 AI 响应残留的 markdown 代码块/对话前缀（不改 HTML 结构本身）

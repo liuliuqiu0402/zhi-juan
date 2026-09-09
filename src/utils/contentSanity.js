@@ -172,6 +172,11 @@ export const detectPhonemeConflicts = (html = '') => {
     const w = m[1].toLowerCase();
     const ph = m[2].replace(/\s+/g, ' ').trim();
     if (!w || !ph) continue;
+    // 🔴 音标形态校验（2026-09 实证误报：题干括注"圈出 ago / last month / one day 连线"以斜杠列
+    //   英文短语被误当音标 → 报"ago 多套音标"。真实音标无空白、无中文、短（≤20）；
+    //   斜杠分隔的短语/词表（"last month / one day"）必含空格、中文括注含中文 → 一律不算音标。
+    //   注意不能排除纯拉丁短串（简化音标如 /skul/ 无空格无 IPA 符号也合法）；单套音标本就不构成冲突。
+    if (/\s/.test(ph) || /[\u4e00-\u9fa5]/.test(ph) || ph.length > 20) continue;
     if (!map.has(w)) map.set(w, new Set());
     map.get(w).add(ph);
   }

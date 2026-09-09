@@ -417,7 +417,7 @@ import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
 import { reconcileDomains, domainNoteOf } from '../utils/domainReconciler.js';
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 
 // 别名：保持原有名称兼容
@@ -4367,19 +4367,31 @@ ${cardAnalysisText.substring(0, 1000)}
         }
         continue;
       }
-      // 无工具调用 → 模型已收敛（准备出正文）。先处理"未浏览章"（有素材但未浏览的章）：
-      //   素材线 G7 终态（2026-09 用户定稿）：研读总账已提供全部覆盖点的理解与引用，
+      // 无工具调用 → 模型已收敛（准备出正文）。先判定本轮 text 是否已是正文而非过程自述/确认话术：
+      //   bodyLike = 含 HTML 结构、或含题号/栏目行特征、且长度达正文量级。
+      //   （2026-09 实证事故：模型先输出完整正文草稿 → 下方"未浏览章确认"打断把草稿挤为历史消息，
+      //    模型下轮回复"正文已在上一条消息完整输出，无需修改"式自述 → 原 content=text 把自述当正文，
+      //    正文 HTML 整页丢失，交付物只剩覆盖自查自述+答案页占位。故打断仅在正文未落地时进行，
+      //    正文轮视为模型已自主决定"研读摘要已够、直接写作"，未浏览章只进报告。）
+      const rawT = (typeof text === 'string') ? text : '';
+      const bodyLike = rawT.trim().length >= 120 && (
+        /<[a-z][^>]*>/i.test(rawT)
+        || /(?:^|\n)\s*(?:一、|二、|三、|[（(]?[一二三四五六七八九十]+[）)]?[、.．]?\s*(?:基础|巩固|提升|综合|拓展|探究|迁移|创新|梳理|达标|过关|默写|积累|自测|例题))/m.test(rawT)
+        || /(?:^|\n)\s*\d{1,2}[.、．]\s*\S/m.test(rawT)
+      );
+      // 素材线 G7 终态（2026-09 用户定稿）：研读总账已提供全部覆盖点的理解与引用，
       //   未 browse ≠ 未理解——browse 是写作期按需补充，模型自主决定；程序不再代 browse、
       //   不再注入原文（直灌废除，程序预塞即违背"素材唯一途径"）。仅发一轮提示让模型自判：
       //   需要原文细节的章 browse 取、研读摘要已够的章直接出正文；未浏览章进报告供人工核对。
-      if (autoFillSkipped && !filledSkipped) {
+      //   🔧 仅当正文尚未落地（!bodyLike）才打断——正文已落地则未浏览章仅进报告，不再插话
+      if (autoFillSkipped && !filledSkipped && !bodyLike) {
         const q = computeSkipped();
         if (q.length && q.length <= autoCap) {
           if (!directiveSent) {
             directiveSent = true;
             notedSkipPrompted = q;
             // 补 assistant（携带本轮未提交草稿，避免相邻两条 user 消息）+ 未浏览章确认指令
-            messages.push({ role: 'assistant', content: (typeof text === 'string' && text.trim()) ? text : '' });
+            messages.push({ role: 'assistant', content: rawT.trim() ? rawT : '' });
             messages.push({
               role: 'user',
               content: `【取材提示·未浏览章确认】所选范围内以下章节含教材原文素材，但你尚未 browse：${q.join('、')}。研读总账已含各覆盖点理解——请自行判断：需要教材原文精确形态（例题算理/结论框/需引用归纳）的，调用 browse_textbook 取对应章；研读摘要已足以支撑写作的，直接出正文。无关章节无需浏览，不得凭训练记忆补写教材原文。内容坚持素养立意、以真实情境为载体，情境与设问服务于对知识理解与运用的考查（课标原义）；素材可取自教材之外的真实情境、不限于所选教材，但须主题相关、难度适切。`,
@@ -4394,8 +4406,10 @@ ${cardAnalysisText.substring(0, 1000)}
         }
         filledSkipped = true; // 无待提/超上界：本轮起不再反复处理
       }
-      // 无工具调用 → 本轮即正文（进入正文输出阶段；受 maxTokens 约束，截断用独立续写计数兜底）
-      if (text) content = text;
+      // 正文落地：仅当本轮确为正文才更新 content——过程自述/确认话术（如"正文已在上一条消息
+      //   完整输出"）不覆盖 content，保持其现状；content 为空时交由出口守卫与上层"完整优先"
+      //   回退重试，绝不把自述当正文交付
+      if (bodyLike) content = rawT;
       // 🔴 正文阶段续写兜底：截断（finish_reason=length）说明输出预算不够，素材已在上下文，
       //    无需重新浏览——用独立续写计数（WRITE_CAP）兜底，不受浏览轮数上限（maxRounds）约束；
       //    否则当 round==maxRounds 且正文被截断时会直接采纳半截卷面（之前的 bug）。
@@ -4444,6 +4458,13 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔧 过程自述剥离（与 generateFullPaperNatural 收尾同规则，本函数出口即剥一次——
     //    覆盖 browse 正文直出/独立调用等不经 generateFullPaperNatural 收尾的路径）
     content = stripPlanningPreamble(content);
+    // 🔴 正文结构有效性兜底（2026-09 正文丢失事故根治）：正文以"覆盖自查/质量自查/已完成编写…
+    //    无需修改"等过程自述长文冒充时，长度阈值无法拦截——browse 循环已按 bodyLike 只落地真正文，
+    //    此处对"循环未产出正文/仅剩自述"再兜一层：无可交付正文结构即置空，交上层"完整优先"守卫回退重试
+    if (!isDeliverableBodyHtml(content)) {
+      coverageNotes.push('⚠️ 写作轮未产出可交付正文结构（仅有过程自述/覆盖自查文本）——已按正文缺失处理，将回退重试整卷生成。');
+      content = '';
+    }
     return { content, coverageNotes };
   };
 
@@ -4756,10 +4777,10 @@ ${cardAnalysisText.substring(0, 1000)}
         const bc = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(stripRedundantInlineCarrierRows(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(bres?.content || '')))))));
         // 🔴 完整优先：browse 产出的正文若仍疑似截断（尾部启发式，内部多次续写未补齐时 coverageNotes 已含提醒），
         //    不作为成功内容采纳——置空走下方"单次注入 + 预算升级重试"路径，避免半截卷进入交付
-        if (bc && bc.length > GEN_CONST.BODY_VALID_MIN_LEN && !detectTruncation(bc).truncated) {
+        if (bc && isDeliverableBodyHtml(bc) && !detectTruncation(bc).truncated) {
           content = bc;
         } else if (bc) {
-          console.warn('⚠️ 浏览路径正文疑似未完整（截断启发式），改走单次注入升级预算路径重试');
+          console.warn('⚠️ 浏览路径正文疑似未完整或仅自述/无正文结构（截断启发式），改走单次注入升级预算路径重试');
         }
       } catch (e) {
         lastErr = e;
@@ -4880,8 +4901,8 @@ ${cardAnalysisText.substring(0, 1000)}
             throw new Error(truncFailNote);
           }
         }
-        if (content && content.length > GEN_CONST.BODY_VALID_MIN_LEN) break;
-        throw new Error('整卷输出过短/为空');
+        if (content && isDeliverableBodyHtml(content)) break;
+        throw new Error('整卷输出为空/过短/无正文结构（疑似仅自述）');
       } catch (e) {
         lastErr = e;
         if (abortController.value?.signal?.aborted) throw e;
@@ -4894,7 +4915,7 @@ ${cardAnalysisText.substring(0, 1000)}
     } // end if(!content) 单次注入重试循环（browse 已产出完整正文时跳过）
     // 🔴 完整优先最终守卫：两次尝试（含续写链）都未能完整输出 → 明确抛错并给行动建议，
     //    绝不把半截正文当作成功交付（generate 外层 MAX_RETRIES 会整卷级重试；再失败则由 UI 呈现此错误）
-    if (truncFailNote || !content || content.length <= GEN_CONST.BODY_VALID_MIN_LEN) {
+    if (truncFailNote || !isDeliverableBodyHtml(content)) {
       const advise = truncFailNote
         ? `${truncFailNote}。建议：① 缩小勾选范围降低单次体量；② 到「设置 → 整卷输出预算」调大该类型的「上限」或为该类型采纳「实测校准」；③ 内容较长时改用 deepseek-reasoner 等单次输出上限更高的模型（chat 单次仅 8K，长卷易截断）。`
         : `整卷生成失败: ${lastErr?.message || '未知错误'}`;

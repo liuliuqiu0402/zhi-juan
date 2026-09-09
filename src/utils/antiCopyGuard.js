@@ -73,11 +73,36 @@ const COPY_TERM_GROUPS = {
 
 const flattenTerms = (group) => (group ? Object.values(group).flat().map(normWs).filter(Boolean) : []);
 
-/** 汉字/可读字符连续 n 字命中检测（字面确定性；跳过标点归一后比连续片段）。 */
+/** 汉字/可读字符连续 n 字命中检测（字面确定性；跳过标点归一后比连续片段）。
+ *  2026-09 英文词级分流：英文行若按"8 字符连续"判定，功能句（You can do it!/Keep trying!）、
+ *  单元名（Unit 1 Try your best）、单词（practise）等教学必现内容会被误报照搬——
+ *  英文改为按词窗连续 ≥5 词判定（真实整句照搬才报，功能短句/标题/单词不误伤）。
+ *  判定该行是否英文为主：非空拉丁词 ≥2 且中文字符为 0。 */
+function isEnglishLine(s) {
+  const trimmed = String(s || '').trim();
+  if (!trimmed) return false;
+  const words = (trimmed.match(/[A-Za-z][A-Za-z'’]*/g) || []).filter((w) => w.length >= 2);
+  if (words.length < 2) return false;
+  return !/[\u4e00-\u9fa5]/.test(trimmed);
+}
+
 function longRunOverlap(body, corpus, n) {
   const hits = [];
   for (const src of corpus) {
     const c = normWs(src);
+    if (isEnglishLine(src)) {
+      // 英文行：≥5 词连续（去空白形态拼窗比对，body 已是全去空白文本，窗口串可直接 includes）
+      const toks = (String(src).match(/[A-Za-z][A-Za-z'’]*/g) || []).filter((w) => w.length >= 2);
+      if (toks.length < 5) continue;
+      for (let i = 0; i + 5 <= toks.length; i += 1) {
+        const chunk = toks.slice(i, i + 5).join('');
+        if (body.includes(chunk)) {
+          hits.push({ kind: 'long', n: 5, snippet: chunk, source: src.slice(0, 60) });
+          break; // 同源命中一次即可
+        }
+      }
+      continue;
+    }
     if (c.length < n) continue;
     for (let i = 0; i + n <= c.length; i += 1) {
       const chunk = c.slice(i, i + n);

@@ -67,4 +67,17 @@ describe('防照搬护栏（底线线 O5）', () => {
     const hits = scanCopyOverlap({ bodyHtml: body, corpus: c, subject: '数学' });
     expect(hits.some((h) => h.kind === 'num' && h.snippet.length >= 4)).toBe(true);
   });
+  it('英文行按词级判定（2026-09）：功能句/单元名/单词不因 8 字符连续被误报为照搬', () => {
+    // 教材参考段含本课功能句与单元名；正文教学必现（鼓励语/标题/目标词）——英文 ≥5 词连续才算照搬
+    const corpus = ['Unit 1 Try your best', 'You can do it! Keep trying! Have a go!', 'We should practise speaking English every day.'];
+    const body = '<p>Unit 1 Try your best</p><p>You can do it! Keep trying!</p><p>practise 的过去式是 practised。</p>';
+    const hits = scanCopyOverlap({ bodyHtml: body, corpus, subject: '英语' });
+    expect(hits.filter((h) => h.kind === 'long')).toEqual([]);
+  });
+  it('英文行真实整句照搬（≥5 词连续）仍报', () => {
+    const corpus = ['Never give up and you will succeed in the end.'];
+    const body = '<p>Never give up and you will succeed in the end.</p>';
+    const hits = scanCopyOverlap({ bodyHtml: body, corpus, subject: '英语' });
+    expect(hits.some((h) => h.kind === 'long')).toBe(true);
+  });
 });
