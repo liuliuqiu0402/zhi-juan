@@ -56,15 +56,21 @@ export const buildPaperTitle = ({ grade = '', subject = '', semester = '', scope
 };
 
 /**
- * 将卷首 h1 替换为规范标题（标题命名是确定性拼装——程序职责，不采信 AI 自由发挥的 h1）：
- *   有 h1 则整体替换文本；无 h1 则原样返回（不插入，避免卷首结构位置争议）
+ * 将卷首 h1 统一为规范标题（标题命名是确定性拼装——程序职责，不采信 AI 自由发挥、不依赖 AI 是否输出）：
+ *   有 h1 则整体替换文本；无 h1（课时练等 question 型模型常省略卷首标题）则兜底前置规范 h1，保证正文恒有规范大标题。
  * @param {string} html 生成结果 HTML
  * @param {string} title 规范标题（buildPaperTitle 输出）
  * @returns {string} 替换后的 HTML
  */
 export const applyPaperTitleToContent = (html, title) => {
   if (!html || !title) return html || '';
-  return String(html).replace(/<h1[^>]*>([\s\S]*?)<\/h1>/i, (m, t) => m.replace(t, title));
+  // 🔴 卷首标题命名是程序确定性职责，不依赖 AI 是否输出 <h1>：
+  //    有 h1（模型已写）→ 替换为规范标题；无 h1（模型省略，课时练等 question 型常见）→ 兜底前置规范 h1，
+  //    否则正文缺卷首大标题、"标题未走命名路径"（此前仅 replace 无 fallback，模型省略 h1 即整个标题消失）
+  if (/<h1[^>]*>[\s\S]*?<\/h1>/i.test(String(html))) {
+    return String(html).replace(/<h1[^>]*>([\s\S]*?)<\/h1>/i, (m, t) => m.replace(t, title));
+  }
+  return `<h1>${title}</h1>\n\n${String(html)}`;
 };
 
 /**

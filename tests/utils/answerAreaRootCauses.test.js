@@ -116,9 +116,11 @@ describe('标题命名规范 buildPaperTitle', () => {
     expect(applyPaperTitleToContent(html, '2025—2026学年度第二学期二年级语文期末综合测试'))
       .toBe('<h1>2025—2026学年度第二学期二年级语文期末综合测试</h1><p>正文</p>');
   });
-  it('applyPaperTitleToContent：无 h1 / 空标题 → 原样返回（不插入）', async () => {
+  it('applyPaperTitleToContent：无 h1 → 兜底前置规范标题（标题命名不依赖 AI 是否输出）', async () => {
     const { applyPaperTitleToContent } = await import('../../src/config/paperScope.js');
-    expect(applyPaperTitleToContent('<p>无标题正文</p>', '二年级语文上册第二单元综合检测')).toBe('<p>无标题正文</p>');
+    expect(applyPaperTitleToContent('<p>无标题正文</p>', '2025—2026学年度第一学期二年级英语第一单元课时练'))
+      .toBe('<h1>2025—2026学年度第一学期二年级英语第一单元课时练</h1>\n\n<p>无标题正文</p>');
+    // 空标题 → 原样返回（Nothing to inject）
     expect(applyPaperTitleToContent('<h1>原标题</h1>', '')).toBe('<h1>原标题</h1>');
   });
 });
