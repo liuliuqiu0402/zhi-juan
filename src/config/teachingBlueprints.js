@@ -1099,6 +1099,20 @@ export function applyColumnStyle(sections = [], genType = '', styleId = '') {
 export const TASK_COLUMN_STYLE_SETS = COLUMN_STYLE_SETS.practice;
 export const applyTaskColumnStyle = (sections = [], styleId = '') => applyColumnStyle(sections, 'practice', styleId);
 
+/** 解析实际生效的风格套 id（与名称池 labelStyle 同款逻辑：''=自动轮换，非空=手动固定）
+ * 自动：无范围键 → 默认套 a；有范围键 → 按 genType+范围 哈希稳定选 a/b/c/d——
+ * 同范围每次稳定同一套（跨稿不串套）、不同范围自动错开（消除"所有单元栏目一个样"）。 */
+export function resolveColumnStyleId(genType = '', styleVal = '', scopeKey = '') {
+  const pool = COLUMN_STYLE_SETS[genType];
+  if (!pool) return 'a';
+  if (styleVal && pool[styleVal]) return styleVal;
+  if (!scopeKey) return 'a';
+  let h = 0;
+  const s = `${genType}|${scopeKey}`;
+  for (const ch of s) h = (h * 31 + (ch.codePointAt(0) || 0)) >>> 0;
+  return ['a', 'b', 'c', 'd'][h % 4];
+}
+
 /** 学段键归一：接受学段键（primary_low 等）或中文学段/年级标签（'小学低段'/'二年级'/'高一' 等）
  * 🔴 唯一事实源：统一委托 gradeStage.resolveStageKey（'小学低/中/高段'、一~六年级、初一~初三、高一~高三、初中/高中 全覆盖），
  *    不再本地自建启发式，杜绝三处解析互相错位的风险。 */
@@ -1174,6 +1188,7 @@ export default {
   TEACHING_STAGE_NAMES,
   COLUMN_STYLE_SETS,
   applyColumnStyle,
+  resolveColumnStyleId,
   TASK_COLUMN_STYLE_SETS,
   applyTaskColumnStyle,
   stripSourceMarkNote,

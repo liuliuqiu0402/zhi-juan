@@ -6,6 +6,7 @@ import {
   COLUMN_STYLE_SETS,
   applyColumnStyle,
   applyTaskColumnStyle,
+  resolveColumnStyleId,
   buildTeachingInjection,
 } from '../../src/config/teachingBlueprints.js';
 
@@ -55,6 +56,19 @@ describe('栏目标题风格套（2026-09）', () => {
     const zhDict = buildTeachingInjection({ genType: 'dictation', stage: 'primary_low', subject: '语文', columnStyle: 'b' });
     expect(zhDict).toContain('看拼音写词语');
     expect(zhDict).not.toContain('必背闯关');
+  });
+
+  it('resolveColumnStyleId：手动固定直达；空=自动——无范围键回默认 a，同范围稳定、跨范围错开', () => {
+    expect(resolveColumnStyleId('practice', 'b', '')).toBe('b');
+    expect(resolveColumnStyleId('practice', 'c', 'Unit 1 Try your best')).toBe('c');
+    expect(resolveColumnStyleId('practice', '', '')).toBe('a');
+    expect(resolveColumnStyleId('practice', '', 'Unit 1')).toBe(resolveColumnStyleId('practice', '', 'Unit 1'));
+    const poolIds = ['a', 'b', 'c', 'd'];
+    expect(poolIds).toContain(resolveColumnStyleId('practice', '', 'Unit 1 Try your best'));
+    // 同范围稳定 → 注入两次得到同一套
+    const a = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '数学', columnStyle: resolveColumnStyleId('practice', '', 'Unit 1') });
+    const b = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '数学', columnStyle: resolveColumnStyleId('practice', '', 'Unit 1') });
+    expect(a).toBe(b);
   });
 
   it('注入清除出处措辞（2026-09 全文不标出处）：summary/review/reading/special 教辅结构不出现"出处"', () => {

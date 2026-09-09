@@ -1284,7 +1284,7 @@
           class="scope-style-block"
         >
           <p class="scope-style-title">
-            🎨 资料栏目标题风格（{{ genTypes[0] }}：选"🔄 默认"用标准栏目名；选具体套则固定该套栏目标题，跨稿不串套）
+            🎨 资料栏目标题风格（{{ genTypes[0] }}：选"🔄 自动轮换"按范围换套；选具体套则固定该套栏目标题，跨稿不串套）
           </p>
           <div class="name-chip-group">
             <label
@@ -3082,7 +3082,7 @@ import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructure
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
-import { buildTeachingInjection, COLUMN_STYLE_SETS } from '../config/teachingBlueprints.js';
+import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
@@ -6117,7 +6117,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     }
   } else {
     // 🎯 专项突破两档（A档=领域自带栏目；B档=通用栏目+课标语义锚；未命中=通用/学科蓝图）——loadInstruction 与 restoreDefault 共用 composeSpecialTeachingText
-    const st = composeSpecialTeachingText({ genType, stageKey, subject, domainKey: specialSubType.value || '' });
+    const st = composeSpecialTeachingText({ genType, stageKey, subject, domainKey: specialSubType.value || '', scopeKey: unit });
     teachingText = st.text;
     if (teachingText) {
       instructionDraft.value += teachingText;
@@ -6240,16 +6240,18 @@ const restoreDefaultInstruction = async () => {
 
 // 🎯 专项突破两档结构合成（单一入口：loadInstructionFromLibrary / restoreDefaultInstruction 共用）
 //   A档=领域自带栏目结构；B档=通用（学科）蓝图栏目 + 课标语义锚句；未命中领域=通用（学科）蓝图
-const composeSpecialTeachingText = ({ genType, stageKey, subject, domainKey }) => {
+const composeSpecialTeachingText = ({ genType, stageKey, subject, domainKey, scopeKey = '' }) => {
+  // 🎨 栏目标题风格实际生效套：''=自动轮换（按范围哈希稳定错开，同范围稳定/跨范围换套）；手动固定套直达
+  const effectiveColumnStyle = resolveColumnStyleId(genType, columnStyle.value, scopeKey);
   const dom = genType === 'special'
     ? resolveSpecialDomain(String(subject || '').split('·').pop(), stageKey, domainKey || '')
     : null;
-  if (!dom) return { text: buildTeachingInjection({ genType, stage: stageKey, subject }) || '', isDomain: false };
+  if (!dom) return { text: buildTeachingInjection({ genType, stage: stageKey, subject, columnStyle: effectiveColumnStyle }) || '', isDomain: false };
   if (dom.sections && dom.sections.length) {
     return { text: buildSpecialDomainStructureText(dom, stageKey), isDomain: true, dom };
   }
   const anchorLine = buildSpecialDomainAnchorLine(dom);
-  const generic = buildTeachingInjection({ genType, stage: stageKey, subject, columnStyle: columnStyle.value }) || '';
+  const generic = buildTeachingInjection({ genType, stage: stageKey, subject, columnStyle: effectiveColumnStyle }) || '';
   return { text: generic ? `${generic}\n${anchorLine}` : anchorLine, isDomain: true, dom };
 };
 
