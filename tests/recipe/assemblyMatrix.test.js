@@ -25,7 +25,7 @@ import { describe, it, expect } from 'vitest';
 import { getPromptTemplate, GEN_TYPE_NAMES, SUBJECT_STAGE_EXTRAS } from '@/config/promptLibrary.js';
 import { buildRenderContract, needsImageHint } from '@/config/eduRenderContract.js';
 import { buildValidatorPrompt } from '@/config/validatorRules.js';
-import { buildTeachingInjection, getTeachingBlueprint, TEACHING_SUBJECT_BLUEPRINTS, TEACHING_BLUEPRINTS } from '@/config/teachingBlueprints.js';
+import { buildTeachingInjection, getTeachingBlueprint, TEACHING_SUBJECT_BLUEPRINTS, TEACHING_BLUEPRINTS, stripSourceMarkNote } from '@/config/teachingBlueprints.js';
 import { getExamBlueprint, EXAM_BLUEPRINTS } from '@/config/examPaperBlueprints.js';
 import { normalizeSubjectName } from '@/config/expertKnowledge.js';
 
@@ -276,7 +276,7 @@ describe('三维度完整指令逐句审计（真实开设矩阵 54 科段 × 9 
       if (!r.teaching) { fails.push(`${label} 教学蓝图注入为空`); continue; }
       if (!r.full.includes(r.teaching)) fails.push(`${label} 教学蓝图注入未进完整指令`);
       for (const s of expected?.sections || []) {
-        const row = `· ${s.name}——${s.note}`;
+        const row = `· ${s.name}——${stripSourceMarkNote(s.note)}`;
         if (!r.teaching.includes(row)) fails.push(`${label} 教学蓝图栏目行缺失：${s.name}`);
       }
     }

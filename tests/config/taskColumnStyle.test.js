@@ -46,4 +46,11 @@ describe('课时练栏目标题风格套（2026-09）', () => {
     expect(rev).toContain('知识框架');
     expect(rev).not.toContain('基础过关');
   });
+
+  it('注入清除出处措辞（2026-09 全文不标出处）：summary/review/reading 教辅结构不出现"出处"', () => {
+    for (const [t, s] of [['summary', '数学'], ['review', '语文'], ['reading', '语文'], ['special', '数学']]) {
+      const inj = buildTeachingInjection({ genType: t, stage: 'primary_high', subject: s });
+      expect(inj, `${t}|${s}`).not.toContain('出处');
+    }
+  });
 });

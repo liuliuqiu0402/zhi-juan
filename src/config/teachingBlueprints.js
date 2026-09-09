@@ -1084,14 +1084,29 @@ export function getTeachingBlueprint({ genType = '', stage = '', subject = '' } 
 /**
  * 构建教辅结构注入块（供生成指令尾部附加，与 exam 的 buildStructureText 对称）
  * 只注入栏目框架 + 学段要求；题量/篇幅底线由 teaching-volume-guard 程序侧校验，不注入 prompt（防限定 AI）
- * @param {Object} opts { genType, stage, subject }
+ * @param {Object} opts { genType, stage, subject, columnStyle }
  * @returns {string} 空串 = 无蓝本
  */
+
+/** 出处标注清除（2026-09 用户定版：正文不标出处）——蓝图 note 中历史遗留的"标注出处/标注教材出处/并标注出处"等
+ * 措辞在注入前统一剥离，防止模型据此在正文写 出处/选自/章节名 等溯源字样；数据文案清理收敛在本单点 */
+export function stripSourceMarkNote(note = '') {
+  return String(note || '')
+    .replace(/标注教材出处/g, '')
+    .replace(/并标注出处/g, '')
+    .replace(/标注出处/g, '')
+    .replace(/（\s*）/g, '')
+    .replace(/，{2,}/g, '，')
+    .replace(/；{2,}/g, '；')
+    .replace(/[，；、]\s*$/, '')
+    .replace(/^\s*[，、]/, '')
+    .trim();
+}
 export function buildTeachingInjection({ genType = '', stage = '', subject = '', columnStyle = '' } = {}) {
   const bp = getTeachingBlueprint({ genType, stage, subject });
   if (!bp) return '';
   const sections = genType === 'practice' && columnStyle ? applyTaskColumnStyle(bp.sections, columnStyle) : bp.sections;
-  const sectionsText = sections.map(s => `· ${s.name}——${s.note}`).join('\n');
+  const sectionsText = sections.map(s => `· ${s.name}——${stripSourceMarkNote(s.note)}`).join('\n');
   const p = bp.stageParams;
   const scope = bp.custom ? `${bp.subject}·` : '通用·';
   const stageLine = p.note ? `\n▌学段要求（${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）\n· ${p.note}` : '';
@@ -1107,6 +1122,7 @@ export default {
   TEACHING_STAGE_NAMES,
   TASK_COLUMN_STYLE_SETS,
   applyTaskColumnStyle,
+  stripSourceMarkNote,
   getTeachingBlueprint,
   buildTeachingInjection,
 };
