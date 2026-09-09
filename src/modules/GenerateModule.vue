@@ -1278,13 +1278,13 @@
             {{ opt.label }}
           </label>
         </div>
-        <!-- 🎨 课时练栏目标题风格套（practice：默认套 / 手动固定套，与名称样式同款交互） -->
+        <!-- 🎨 资料栏目标题风格套（非 exam 类型：默认套 / 手动固定套，与名称样式同款交互） -->
         <div
-          v-if="genTypes[0] === 'practice'"
+          v-if="genTypes[0] && genTypes[0] !== 'exam' && columnStyleOptions.length"
           class="scope-style-block"
         >
           <p class="scope-style-title">
-            🎨 课时练栏目标题风格（选"🔄 默认"用标准三阶栏目名；选具体套则固定该套栏目标题，跨稿不串套）
+            🎨 资料栏目标题风格（{{ genTypes[0] }}：选"🔄 默认"用标准栏目名；选具体套则固定该套栏目标题，跨稿不串套）
           </p>
           <div class="name-chip-group">
             <label
@@ -3082,7 +3082,7 @@ import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructure
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
-import { buildTeachingInjection, TASK_COLUMN_STYLE_SETS } from '../config/teachingBlueprints.js';
+import { buildTeachingInjection, COLUMN_STYLE_SETS } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
@@ -3182,7 +3182,7 @@ const labelStyleOptions = computed(() => {
 });
 const labelStyleLabel = computed(() => labelStyle.value || '自动轮换');
 
-// 🎨 课时练栏目标题风格套（与名称样式同款：默认套 / 手动固定套 b/c/d；作用于【教辅结构】注入的三阶栏目标题字面）
+// 🎨 资料栏目标题风格套（与名称样式同款：默认套 / 手动固定套 b/c/d；作用于【教辅结构】注入的栏目标题字面）
 const COLUMN_STYLE_STORAGE_KEY = 'ww_column_style_v1';
 const columnStyle = ref(''); // ''=默认套(a)；否则固定 b/c/d 套
 const loadColumnStyle = (genType) => {
@@ -3192,10 +3192,12 @@ const loadColumnStyle = (genType) => {
   } catch { return ''; }
 };
 const columnStyleOptions = computed(() => {
-  const def = TASK_COLUMN_STYLE_SETS.a.columns.join(' / ');
+  const type = genTypes.value[0];
+  if (!type || type === 'exam' || !COLUMN_STYLE_SETS[type]) return [];
+  const pool = COLUMN_STYLE_SETS[type];
   return [
-    { value: '', label: `🔄 默认（${def}）`, desc: '使用默认栏目套，不换肤' },
-    ...Object.entries(TASK_COLUMN_STYLE_SETS)
+    { value: '', label: `🔄 默认（${pool.a.columns.join(' / ')}）`, desc: '使用默认栏目套，不换肤' },
+    ...Object.entries(pool)
       .filter(([id]) => id !== 'a')
       .map(([id, s]) => ({ value: id, label: s.columns.join(' / '), desc: '固定使用该套栏目标题' })),
   ];

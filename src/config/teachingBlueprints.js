@@ -1025,27 +1025,79 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
 //    指令库 GEN_TYPE_NAMES/TYPE_BASES 的九类 key 完全一致（本行由键推导，改蓝图顶层键时须同步另三处）。
 export const TEACHING_GEN_TYPES = Object.keys(TEACHING_BLUEPRINTS);
 
-/** 课时练三阶任务栏目标题风格套（2026-09：结构语义确定性保留，栏目标题字面可换肤，消跨稿同质感）
- * 仅作用于课时练（practice）三阶任务栏目标题（基础→进阶→创新）；note（栏目语义）不变；
- * exam 蓝本（题型名绑分值/惯例）与其他教辅类型不轮换。id：a=默认；b/c/d 为可选固定套。
- * 🔗 与名称样式（labelStyle）同款交互：用户手动指定固定套或回默认；不设自动按范围轮换（避免跨稿串套）。 */
-export const TASK_COLUMN_STYLE_SETS = {
-  a: { columns: ['基础建构任务', '探究进阶任务', '迁移创新任务'] },
-  b: { columns: ['基础过关', '能力提升', '拓展挑战'] },
-  c: { columns: ['知识奠基', '变式进阶', '综合创新'] },
-  d: { columns: ['夯实基础', '方法迁移', '实践挑战'] },
+/** 各教辅类型栏目标题风格套（2026-09：结构语义确定性保留，栏目标题字面可换肤）
+ * 作用于非 exam 教辅类型（practice/special/preview/reading/summary/dictation/errorbook/review）；
+ * 仅当该类型栏目名恰与默认套（a）逐一相同时替换字面，note（栏目语义）不变；
+ * exam 蓝本（题型名绑分值/卷面惯例）不轮换。
+ * id：a=默认；b/c/d 为可选固定套。与名称样式同款：用户手动指定固定套或回默认。 */
+export const COLUMN_STYLE_SETS = {
+  practice: {
+    a: { columns: ['基础建构任务', '探究进阶任务', '迁移创新任务'] },
+    b: { columns: ['基础过关', '能力提升', '拓展挑战'] },
+    c: { columns: ['知识奠基', '变式进阶', '综合创新'] },
+    d: { columns: ['夯实基础', '方法迁移', '实践挑战'] },
+  },
+  special: {
+    a: { columns: ['分板块组织', '每板块配解析'] },
+    b: { columns: ['板块闯关', '难题精讲'] },
+    c: { columns: ['分层板块', '错因解析'] },
+    d: { columns: ['模块练习', '易错剖析'] },
+  },
+  preview: {
+    a: { columns: ['学习目标', '预习任务', '预习检测', '我的疑问'] },
+    b: { columns: ['目标导航', '自学闯关', '试做反馈', '想问什么'] },
+    c: { columns: ['达成标尺', '先行任务', '自测互检', '疑点记录'] },
+    d: { columns: ['本节目标', '自主探索', '预习自检', '问号墙'] },
+  },
+  reading: {
+    a: { columns: ['原创选文', '分层设题'] },
+    b: { columns: ['新文赏读', '梯度设问'] },
+    c: { columns: ['课外选文', '递进练习'] },
+    d: { columns: ['主题选文', '分层闯关'] },
+  },
+  summary: {
+    a: { columns: ['知识框架', '重点梳理', '易错辨析', '典型例题'] },
+    b: { columns: ['结构导图', '要点详解', '误区警示', '示范例题'] },
+    c: { columns: ['思维地图', '考点精讲', '易错点拨', '典例解析'] },
+    d: { columns: ['脉络梳理', '重点解析', '陷阱提示', '例题示范'] },
+  },
+  dictation: {
+    a: { columns: ['基础默写', '积累内容', '书写呈现'] },
+    b: { columns: ['必背闯关', '积累盘点', '规范书写'] },
+    c: { columns: ['默写达标', '语料积累', '书写过关'] },
+    d: { columns: ['听写过关', '好词好句', '一笔一画'] },
+  },
+  errorbook: {
+    a: { columns: ['原题重现', '错误归因', '正确解法', '同类变式', '解题策略'] },
+    b: { columns: ['原题回放', '错因诊断', '订正详解', '变式训练', '方法提炼'] },
+    c: { columns: ['原题复现', '错点定位', '正确步骤', '举一反三', '通法归纳'] },
+    d: { columns: ['题目重现', '为何出错', '怎样改对', '再练一道', '通用思路'] },
+  },
+  review: {
+    a: { columns: ['知识框架', '核心知识梳理', '典型题析', '易错聚焦', '综合自测'] },
+    b: { columns: ['结构导图', '要点系统梳理', '典例精析', '误区聚焦', '分层自测'] },
+    c: { columns: ['网络梳理', '核心考点精讲', '例题剖析', '易错警示', '自我检测'] },
+    d: { columns: ['框架总览', '知识分层梳理', '解题示范', '错点提醒', '达标自测'] },
+  },
 };
 
-/** 把课时练三阶栏目标题替换为指定风格套（仅当 sections 前 3 项恰为默认三阶名时替换；未知/空 styleId → 默认套） */
-export function applyTaskColumnStyle(sections = [], styleId = '') {
-  const set = TASK_COLUMN_STYLE_SETS[styleId] || TASK_COLUMN_STYLE_SETS.a;
-  const def = TASK_COLUMN_STYLE_SETS.a.columns;
+/** 把某类型栏目标题替换为指定风格套（仅当 sections 前 N 项恰为该类型默认套时替换；类型未知/套未知 → 原样返回防误伤） */
+export function applyColumnStyle(sections = [], genType = '', styleId = '') {
+  const pool = COLUMN_STYLE_SETS[genType];
+  if (!pool) return sections;
+  const set = pool[styleId];
+  if (!set) return sections;
+  const def = pool.a.columns;
   const first = (sections || []).slice(0, def.length).map((s) => s && s.name);
   if (def.every((n, i) => first[i] === n)) {
     return sections.map((s, i) => (i < def.length ? { ...s, name: set.columns[i] } : s));
   }
   return sections;
 }
+
+// 🔗 兼容别名（旧 practice 专用名，保留防止外部引用断裂）
+export const TASK_COLUMN_STYLE_SETS = COLUMN_STYLE_SETS.practice;
+export const applyTaskColumnStyle = (sections = [], styleId = '') => applyColumnStyle(sections, 'practice', styleId);
 
 /** 学段键归一：接受学段键（primary_low 等）或中文学段/年级标签（'小学低段'/'二年级'/'高一' 等）
  * 🔴 唯一事实源：统一委托 gradeStage.resolveStageKey（'小学低/中/高段'、一~六年级、初一~初三、高一~高三、初中/高中 全覆盖），
@@ -1105,7 +1157,7 @@ export function stripSourceMarkNote(note = '') {
 export function buildTeachingInjection({ genType = '', stage = '', subject = '', columnStyle = '' } = {}) {
   const bp = getTeachingBlueprint({ genType, stage, subject });
   if (!bp) return '';
-  const sections = genType === 'practice' && columnStyle ? applyTaskColumnStyle(bp.sections, columnStyle) : bp.sections;
+  const sections = columnStyle ? applyColumnStyle(bp.sections, genType, columnStyle) : bp.sections;
   const sectionsText = sections.map(s => `· ${s.name}——${stripSourceMarkNote(s.note)}`).join('\n');
   const p = bp.stageParams;
   const scope = bp.custom ? `${bp.subject}·` : '通用·';
@@ -1120,6 +1172,8 @@ export default {
   TEACHING_SUBJECT_BLUEPRINTS,
   TEACHING_GEN_TYPES,
   TEACHING_STAGE_NAMES,
+  COLUMN_STYLE_SETS,
+  applyColumnStyle,
   TASK_COLUMN_STYLE_SETS,
   applyTaskColumnStyle,
   stripSourceMarkNote,
