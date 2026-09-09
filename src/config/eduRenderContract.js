@@ -343,13 +343,19 @@ export function buildRenderContract({ subject = '', genType = '', needsImage = f
 }
 
 /**
- * 判定某资料/大题是否需要配图标记（2026-09 非必要不配图·去诱导）：
- * 不再按资料类型默认配图（旧 IMAGE_DEFAULT_TYPES 让课时练/预习/阅读等类型一律注入配图契约，
- * 诱导模型"图文并茂"式凭空造图）——图只由题干是否声明图依赖决定：
- * 题干出现看图/读图/图形/图表等图依赖词 → 配图；否则不配、也不虚构图语。
- * 与 promptLibrary"图-题一致性"条款同口径：无图即无依赖，无依赖即无图语。
+ * 判定某资料/大题是否注入 [IMAGE] 格式契约（2026-09 解耦版，非配图诱导）：
+ *  - 格式契约 = "能力就绪"：告知模型若输出 [IMAGE] 时的标准格式（PROMPT/TYPE:ICON 骨架）。
+ *    是否真的配图由正文【图-题一致性】条款裁定（题干声明看图/读图/图表依赖 → 必须输出且要素一致；
+ *    题干未声明 → 不得输出、不虚构图语）。两者已解耦：注入契约 ≠ 要求配图。
+ *  - 题类/图文型资料（practice/special/preview/reading/dictation）在生成中可能自然出现看图/配图题
+ *    （题干由模型拟定，无法预知），故默认注入格式能力，模型"会按格式输出"；
+ *  - exam 及题干文本含图依赖词的同样注入；
+ *  - 纯文字内容型（summary/review/errorbook）不默认注入（无图题场景），命中图词才注入。
  */
+const IMAGE_CAPABLE_TYPES = new Set(['practice', 'special', 'preview', 'reading', 'dictation']);
+
 export function needsImageHint(text = '', genType = '') {
+  if (genType && IMAGE_CAPABLE_TYPES.has(genType)) return true;
   return IMAGE_HINT_RE.test(String(text || ''));
 }
 

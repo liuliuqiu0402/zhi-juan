@@ -175,22 +175,21 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     expect(yesImage).toContain('[IMAGE]');
   });
 
-  it('needsImageHint 由题干图依赖词驱动（2026-09 非必要不配图）：无图依赖词不配图，与资料类型无关', () => {
-    // 旧行为：practice/preview/reading/special 按类型默认配图（诱导"图文并茂"凭空造图）→ 已废除。
-    // 新口径：图只由题干是否声明图依赖决定——无图依赖词（课时练/词语练习等类型名、纯文字结构）一律不配
-    expect(needsImageHint('第二单元 词语练习', 'practice')).toBe(false);
-    expect(needsImageHint('第二单元 词语练习', 'preview')).toBe(false);
-    expect(needsImageHint('第二单元 词语练习', 'reading')).toBe(false);
-    expect(needsImageHint('第二单元 词语练习', 'special')).toBe(false);
-    expect(needsImageHint('第二单元 词语练习', 'dictation')).toBe(false);
+  it('needsImageHint 解耦口径（2026-09）：题类默认注入格式契约（能力就绪，非配图要求）', () => {
+    // 题类/图文型资料在生成中可能自然出现看图/配图题（题干由模型拟定、无法预知）→ 默认注入格式能力；
+    // 是否真的配图由正文"图-题一致性"条款裁定（题干声明图依赖才出图、未声明不虚构图语）
+    expect(needsImageHint('第二单元 词语练习', 'practice')).toBe(true);
+    expect(needsImageHint('第二单元 词语练习', 'preview')).toBe(true);
+    expect(needsImageHint('第二单元 词语练习', 'reading')).toBe(true);
+    expect(needsImageHint('第二单元 词语练习', 'special')).toBe(true);
+    expect(needsImageHint('第二单元 词语练习', 'dictation')).toBe(true);
+    // 纯文字内容型不默认注入；命中题干图依赖词才注入
     expect(needsImageHint('第二单元 词语练习', 'summary')).toBe(false);
     expect(needsImageHint('第二单元 词语练习', 'review')).toBe(false);
     expect(needsImageHint('第二单元 词语练习', 'errorbook')).toBe(false);
-    // 题干含图依赖词（无论何类型）→ 配图
-    expect(needsImageHint('看图写话：观察图片写几句话', 'practice')).toBe(true);
-    expect(needsImageHint('听音选图：选出与录音相符的图片', 'exam')).toBe(true);
-    expect(needsImageHint('读统计图，回答问题', 'exam')).toBe(true);
-    expect(needsImageHint('第二单元 词语练习', 'exam')).toBe(false);
+    expect(needsImageHint('看图写话：观察图片写几句话', 'summary')).toBe(true);
+    expect(needsImageHint('读统计图，回答问题', 'summary')).toBe(true);
+    expect(needsImageHint('连一连', 'exam')).toBe(false);
   });
 });
 

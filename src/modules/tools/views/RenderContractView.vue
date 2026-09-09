@@ -351,8 +351,9 @@
       <div class="rule-card">
         <b>[IMAGE] 配图</b>
         <p>触发关键词：<code>{{ IMAGE_KEYWORDS.join(' / ') }}</code></p>
+        <p>注入格式能力的类型：practice / special / preview / reading / dictation（能力就绪，非配图要求）</p>
         <p class="note">
-          配图由题干图依赖词驱动（非必要不配图）：题干含 看图/读图/识图/示意/图表/地图/结构（生物结构图、地理读图等）才注入 [IMAGE] 契约；资料类型本身不默认配图，无图依赖不虚构图语。
+          格式契约 = 能力就绪：模型"会按 [IMAGE] 格式输出"；是否真的配图由正文图-题一致性条款裁定（题干声明看图/读图/统计图/图表依赖才出图；未声明不输出、不虚构图语）。
         </p>
       </div>
       <div class="rule-card">
@@ -527,9 +528,9 @@ const getStageEffect = (subject, stage) => {
 };
 const getTypeEffect = (genType) => {
   if (!genType) return '';
-  // 2026-09 非必要不配图：类型不再默认配图——配图由题干图依赖词驱动（needsImageHint 词面判定）
-  if (genType === 'exam') return '试卷：配图随题干图依赖词';
-  return '配图随题干图依赖词（无图依赖不配图）';
+  // 2026-09 解耦：题类默认注入格式契约（能力就绪），是否出图由正文图-题一致性条款裁定
+  const capable = ['practice', 'special', 'preview', 'reading', 'dictation'].includes(genType);
+  return capable ? '注入图片格式契约（能力就绪；出图与否由题干图依赖裁定）' : '不默认注入（命中图依赖词才注入）';
 };
 
 /* 全部/启用/停用 状态筛选（点击计数过滤列表） */
