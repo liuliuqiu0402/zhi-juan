@@ -35,12 +35,16 @@ export const stripHtmlForRecon = (html) =>
 
 /**
  * 对账一次生成正文。
- * @param {Object} p { genType, content, anchors }
+ * @param {Object} p { genType, content, anchors, digestedNames? }
+ *   digestedNames: 研读总账已消化点名的 name 数组（digestPairs[].names 展开去重）。
+ *     提供时：对账范围收窄为该交集——只对"模型研读消化过"的锚判缺（研读负责让模型"会写"，
+ *     对账独立核"写了没"；未消化/缺料锚不在研读批内 → 不对账判缺，防"模型没读过却报缺"误报）。
+ *     未提供/空：维持旧行为（对全部已绑定非拓展锚判缺），兼容旧调用。
  * @returns {Object} { genType, mode, required, total, coveredCount, coverage,
  *                      missing:[{chapter,name,probeable}], missingChapters:[{chapter,names}], coveredNames }
  *   required=false 时 missing/missingChapters 恒为空（模式不要求全层级，不误报）
  */
-export const reconcileCoverage = ({ genType = '', content = '', anchors = [] } = {}) => {
+export const reconcileCoverage = ({ genType = '', content = '', anchors = [], digestedNames = null } = {}) => {
   const contract = contractOf(genType);
   const mode = contract.mode;
   const base = {
@@ -51,7 +55,18 @@ export const reconcileCoverage = ({ genType = '', content = '', anchors = [] } =
   if (!['full', 'per-lesson-full'].includes(mode)) return base;
   // 🔴 锚范围性质过滤（复位工程·S4.1）：拓展锚（仅绑定"你知道吗/数学文化"科普框，isExtension）
   //    是了解性素材不是命题必覆盖点 → 不进对账点名（循环小数族类锚不再进必覆盖清单）
-  const coverageAnchors = (anchors || []).filter((a) => !a.isExtension);
+  let coverageAnchors = (anchors || []).filter((a) => !a.isExtension);
+  // 🔴 对账范围 = 研读已消化锚（2026-09 对账口径合一·源头）：digestedNames 提供时收窄到交集——
+  //    研读 digestPairs 点名行是"模型实际被要求消化并理解"的覆盖点（每批通过校验才进总账）；
+  //    对账只核这些点是否在正文呈现 → 缺漏判定与研读口径同源，不再用"独立锚全集"去猜
+  if (Array.isArray(digestedNames) && digestedNames.length) {
+    const digestSet = new Set(digestedNames);
+    const before = coverageAnchors.length;
+    coverageAnchors = coverageAnchors.filter((a) => digestSet.has(a.name));
+    if (coverageAnchors.length !== before) {
+      console.log(`[覆盖对账] 对账范围收窄到研读已消化锚：${coverageAnchors.length}/${before}（未消化/缺料锚不计缺）`);
+    }
+  }
 
   const text = stripHtmlForRecon(content);
   const byChapter = groupByChapter(coverageAnchors);

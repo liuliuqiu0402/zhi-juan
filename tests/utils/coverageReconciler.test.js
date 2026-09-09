@@ -165,3 +165,46 @@ describe('coverageReconciler 对账器', () => {
     expect(rep.missing.map((m) => m.name).sort()).toEqual(['循环小数', '有限小数与无限小数']);
   });
 });
+
+// 🔴 2026-09 对账口径合一·源头：对账范围 = 研读已消化锚（digestedNames 交集）——
+//    研读 digestPairs 点名行是模型实际被要求消化理解的覆盖点；对账只核这些点是否在正文呈现。
+//    未消化/缺料锚不在研读批内 → 不计缺（防"模型没读过却报缺"误报）。
+describe('coverageReconciler 对账范围收窄（digestedNames=研读已消化锚）', () => {
+  // 手工构造锚：name=中文教学标签（展示层）、specificConcepts=教材原文词（判定层，2026-09 语言口径）
+  const mkAnchor = (name, sc = []) => ({
+    chapterTitle: 'Unit 1 Try your best', bigConcept: '语篇', name, level: '理解',
+    specificConcepts: sc, bind: { status: 'literal' }, isExtension: false,
+  });
+  const anchorsAll = [
+    mkAnchor('不规则动词的过去式', ['am→was', 'are→were', 'begin→began']),
+    mkAnchor('鼓励他人的表达', ['You can do it!', 'Keep trying!']),
+    mkAnchor('花木兰文化知识', ['Mulan']),
+    mkAnchor('字母组合ee的发音', ['ee', '/iː/']),
+  ];
+
+  it('传 digestedNames=研读已消化锚 → 只对交集判缺，未消化锚不计缺', () => {
+    // 研读批只消化了 2 个点（不规则动词过去式/ee发音）——对账范围收窄到这 2 个
+    const digested = ['不规则动词的过去式', '字母组合ee的发音'];
+    // 正文只呈现了"不规则动词过去式"（was/were/begin），未呈现 ee 发音考点
+    const html = '<h1>课时练</h1><h2>动词过去式</h2><p>am→was，are→were，begin→began。</p>';
+    const rep = reconcileCoverage({ genType: 'practice', content: html, anchors: anchorsAll, digestedNames: digested });
+    // 鼓励表达/花木兰未在研读消化范围（缺料或未选）→ 不参与对账，不计缺
+    expect(rep.total).toBe(2);
+    expect(rep.missing.map((m) => m.name)).toEqual(['字母组合ee的发音']);
+  });
+
+  it('digestedNames 未提供/空数组 → 维持旧行为（全部锚判缺，兼容旧调用）', () => {
+    const html = '<h1>课时练</h1><p>am→was，are→were，begin→began。</p>';
+    const rep1 = reconcileCoverage({ genType: 'practice', content: html, anchors: anchorsAll });
+    expect(rep1.total).toBe(4);
+    const rep2 = reconcileCoverage({ genType: 'practice', content: html, anchors: anchorsAll, digestedNames: [] });
+    expect(rep2.total).toBe(4);
+  });
+
+  it('正文完整呈现研读消化点 → 无缺漏（与研读口径同源后对账干净）', () => {
+    const digested = ['不规则动词的过去式', '鼓励他人的表达', '花木兰文化知识'];
+    const html = '<h1>课时练</h1><h2>过去式</h2><p>am→was，begin→began。</p><h2>鼓励</h2><p>You can do it! Keep trying!</p><h2>故事</h2><p>Mulan 替父从军。</p>';
+    const rep = reconcileCoverage({ genType: 'practice', content: html, anchors: anchorsAll, digestedNames: digested });
+    expect(rep.missing).toEqual([]);
+  });
+});

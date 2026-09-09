@@ -5055,13 +5055,19 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     //    ——确定性剥除开头自述段（纯文本段匹配自述特征才剥，题号/栏目开头的真内容不误伤）
     content = stripPlanningPreamble(content);
 
+    // 🔴 对账范围 = 研读已消化锚（2026-09 对账口径合一·源头）：digestedNames = digestPairs[].names 展开——
+    //    对账只核"模型研读消化过"的覆盖点是否在正文呈现（研读负责会写、对账独立核写了没）；
+    //    未消化/缺料锚不在研读批内 → 不计缺（防"模型没读过却报缺"误报）。studyPairs 为空时
+    //    （研读已阻断/复用空记录）不传 → reconcileCoverage 维持旧行为全锚判缺（兼容）。
+    const digestedNames = (studyPairs || []).flatMap((p) => (p.names || []).filter(Boolean));
+
     // ── P2b 覆盖自动补漏（2026-09）：full/per-lesson-full 类型正文对账缺漏 ≤6 个考点时，
     //    针对缺漏考点做一次短生成（每考点一个 h2 栏目，内容贴合绑定原文片段），
     //    插入正文（答案区之前；无答案区则插末尾）；补漏失败/截断/无 h2/含答案区/未覆盖缺漏考点
     //    → 自动重试一次（第二轮提示更严），仍失败才放弃（不插半截栏目），由底部覆盖对账
     //    提示走"复生成必覆盖"闭环或手动补充——宁缺毋滥，补漏提示只允许引用绑定片段。
     {
-      const recon0 = reconcileCoverage({ genType, content, anchors });
+      const recon0 = reconcileCoverage({ genType, content, anchors, digestedNames });
       // 🔧 2026-09 收敛：自动补漏仅对知识梳理型（full：summary/preview/dictation/review）——
       //    缺考点=梳理缺块，补"要点卡"栏目合理；练习卷（per-lesson-full：practice 课时练等）缺漏
       //    只经覆盖对账提示（复生成闭环/手动补充），不再自动插卡——曾实证：课时练正文被补入整段
@@ -5193,7 +5199,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     //    只对 full/per-lesson-full（知识型/课时练）判缺并透出缺漏清单到生成报告【问题列表】，
     //    供用户定向重试/手动补充；focus/none/sampled 不对账不补漏（契约语义，防误报与诱导）。
     //    对账对象为正文 content（不含独立答案页，防答案区单词误判"已覆盖"）。
-    const reconReport = reconcileCoverage({ genType, content, anchors });
+    const reconReport = reconcileCoverage({ genType, content, anchors, digestedNames });
     const reconNote = coverageNoteOf(reconReport);
     // 🔧 缺漏处置闭环（2026-09）：full/per-lesson-full 缺漏写缓存供下次复生成必覆盖；
     //    必覆盖注入后无进展或轮数超限 → 停自动，交用户手动/调预算（防死循环）
