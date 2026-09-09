@@ -97,7 +97,7 @@ function longRunOverlap(body, corpus, n) {
       for (let i = 0; i + 5 <= toks.length; i += 1) {
         const chunk = toks.slice(i, i + 5).join('');
         if (body.includes(chunk)) {
-          hits.push({ kind: 'long', n: 5, snippet: chunk, source: src.slice(0, 60) });
+          hits.push({ kind: 'long', n: 5, snippet: chunk, tokens: toks.slice(i, i + 5), source: src.slice(0, 60) });
           break; // 同源命中一次即可
         }
       }
@@ -113,6 +113,42 @@ function longRunOverlap(body, corpus, n) {
     }
   }
   return hits;
+}
+
+/**
+ * 连词成句/乱序词库豁免（2026-09 照搬误报根治）：连词成句题面给出乱序单词语库，
+ * 期望答案本就是把教材句逐个还原——答案与参考段完全一致是题型需求，不是照搬。
+ * 识别：正文中存在"裸英语词列表"行（≥4 个独立单词、无标点/无中文、非完整句子）→ 词库；
+ * 若某英文照搬命中的 5 个词全部落在同一词库内 → 判为该词库的连词成句目标，豁免不报。
+ * @param {string} rawText 去标签但保留空白的正文文本
+ * @param {string[]} tokens 命中的词窗
+ * @returns {boolean}
+ */
+function isUnscrambleBank(rawHtml, tokens) {
+  if (!rawHtml || !Array.isArray(tokens) || !tokens.length) return false;
+  const target = new Set(tokens.map((t) => String(t).toLowerCase()));
+  // 块级标签/换行当作行分隔；实体归一为空格；行内再取"仅空格分隔的英文词串"（避开被去标签粘连的跨块词）
+  const blockLines = String(rawHtml)
+    .replace(/<[^>]+>/g, '\n')
+    .replace(/&nbsp;|&#160;|&#xA0;/gi, ' ')
+    .replace(/&emsp;|&#8195;/gi, ' ')
+    .replace(/&ensp;|&#8194;/gi, ' ')
+    .replace(/&amp;/g, '&')
+    .split(/\r?\n/);
+  for (const raw of blockLines) {
+    let line = raw.trim();
+    if (!line) continue;
+    // 剥行首非字母前缀（题号"(1) "、中文引导语"连词成句："等），再判是否为裸英文词库——
+    // 词库主体须为纯英文词列表（无句子标点、无中文混入）
+    line = line.replace(/^[^A-Za-z]*/, '');
+    if (!line || /[\u4e00-\u9fa5]/.test(line)) continue;
+    if (/[,.!?;:。！？，、；：]/.test(line)) continue; // 含句子标点 → 是句子不是词库
+    const ws = (line.match(/[A-Za-z][A-Za-z'’]*/g) || []).filter((w) => w.length >= 2);
+    if (ws.length < 4) continue;
+    const set = new Set(ws.map((w) => String(w).toLowerCase()));
+    if ([...target].every((t) => set.has(t))) return true;
+  }
+  return false;
 }
 
 /** 同串 3 个连续数字命中检测（正文含与参考段相同的连续 3 位数字串）。
@@ -170,7 +206,9 @@ export function scanCopyOverlap({ bodyHtml = '', corpus = [], longN = 8, subject
     return core.length >= 4 && terms.some((t) => t.includes(core));
   };
   const longHits = longRunOverlap(body, srcs, Math.max(4, longN)).filter((h) => !isTerm(normWs(h.snippet)));
-  return [...longHits, ...numberRunOverlap(body, srcs)];
+  // 连词成句/乱序词库豁免：命中的英文词窗全部落在正文某"裸词乱序词库"行 → 题型所需，不报照搬
+  const unscrambleExempt = (h) => !(Array.isArray(h.tokens) && h.tokens.length && isUnscrambleBank(bodyHtml, h.tokens));
+  return [...longHits.filter(unscrambleExempt), ...numberRunOverlap(body, srcs)];
 }
 
 /** 命中清单 → 一条生成报告提示（供 auditWarnings / 编辑核对，程序不改内容）。 */

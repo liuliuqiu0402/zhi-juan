@@ -80,4 +80,19 @@ describe('防照搬护栏（底线线 O5）', () => {
     const hits = scanCopyOverlap({ bodyHtml: body, corpus, subject: '英语' });
     expect(hits.some((h) => h.kind === 'long')).toBe(true);
   });
+  it('连词成句乱序词库豁免（2026-09）：答案重构教材句是题型所需，不报照搬', () => {
+    // 题面是乱序单词语库，期望答案把教材句逐个还原 → 命中词窗全部落在词库内 → 豁免
+    const corpus = ['But then he remembered them at last.'];
+    // 连词成句题面（裸词乱序行）+ 答案（重构教材句）
+    const body = '<p>连词成句：words he the forgot first but remembered then them</p><p>答案：But then he remembered them.</p>';
+    const hits = scanCopyOverlap({ bodyHtml: body, corpus, subject: '英语' });
+    expect(hits.filter((h) => h.kind === 'long')).toEqual([]);
+  });
+  it('连词成句豁免只放行词库内单词：独立照搬句（词不在词库）仍报', () => {
+    const corpus = ['She cooked dinner for her family last night.'];
+    // 正文另有一段完整照搬教材句（非连词成句），且乱序词库单词与其不重合 → 不受豁免，仍报
+    const body = '<p>连词成句：wanted to join the English club yesterday</p><p>She cooked dinner for her family last night during the holiday.</p>';
+    const hits = scanCopyOverlap({ bodyHtml: body, corpus, subject: '英语' });
+    expect(hits.filter((h) => h.kind === 'long')).not.toEqual([]);
+  });
 });

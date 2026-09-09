@@ -123,4 +123,16 @@ describe('标题命名规范 buildPaperTitle', () => {
     // 空标题 → 原样返回（Nothing to inject）
     expect(applyPaperTitleToContent('<h1>原标题</h1>', '')).toBe('<h1>原标题</h1>');
   });
+  it('答案壳识别放宽到 h1~h6：<h3>参考答案…</h3>空壳必须被识别并剥离（空答案回归根治）', async () => {
+    const { isAnswerShell, stripAnswerSection } = await import('../../src/composables/useAiGenerator.js');
+    // 模型以 h3 写答案标题且无可作答内容 → 必须判为"空壳"（此前仅认 h2，h3 漏检 → 独立答案页被误跳过）
+    expect(isAnswerShell('<h2>基础建构任务</h2><p>1. 题</p><h3>参考答案与解析</h3>')).toBe(true);
+    // h3 空壳剥除（答案统一由独立答案页承载）
+    const stripped = stripAnswerSection('<h2>基础建构任务</h2><p>1. 题</p><h3>参考答案与解析</h3>');
+    expect(stripped).not.toMatch(/参考答案/);
+    expect(stripped).toContain('<p>1. 题</p>');
+    // 真实答案（h3 标题 + 实质作答内容）不被误判空壳（onCe 模式因此不会丢失答案；split 走独立答案页）
+    const real = '<h2>基础建构任务</h2><p>1. 题</p><h3>参考答案与解析</h3><p>1. kept trying</p><p>2. began</p>';
+    expect(isAnswerShell(real)).toBe(false);
+  });
 });

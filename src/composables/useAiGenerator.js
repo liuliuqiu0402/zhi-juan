@@ -412,7 +412,6 @@ const retrieveBlueprintSegments = (contentCards, parsedBlueprint, maxChars = 150
 
 import { postProcessOCR, _fixTemplateOptionGlue as fixTemplateOptionGlue, countFixes, _addTemplateStructureMarkers as addTemplateStructureMarkers } from '../utils/textRepair.js';
 import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever.js';
-import { reconcileCoverage, reconcileCoverageStats, coverageNoteOf } from '../utils/coverageReconciler.js';
 import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
@@ -954,8 +953,11 @@ export const detectTruncation = (content, finishReason = '') => {
  *     曾因 <40 字被误判空壳 → 剥离真实答案 → 独立补生成失败 → "步骤有答案、结果无答案"（历史事故根因） */
 const ANSWER_SHELL_RE = /略|待补充|见教材|暂无|此处留白|待填写/;
 export const isAnswerShell = (content) => {
-  if (!content || !/<h2[^>]*>参考答案/.test(content)) return false;
-  const m = String(content).match(/<h2[^>]*>参考答案[\s\S]*$/i);
+  // 🔴 答案标题层级放宽到 h1~h6（2026-09 空答案回归根治）：模型常以 <h3>参考答案…</h3>
+  //    或 <div><h3>参考答案…</h3> 结尾；此前仅认 <h2>，一旦模型用 h3 写答案标题，
+  //    空壳既不被 isAnswerShell 识别（不剥离）、又使 ansInContent=flase → 独立答案页被误"跳过"，空答案静默入库。
+  if (!content || !/<h[1-6][^>]*>参考答案/.test(content)) return false;
+  const m = String(content).match(/<h[1-6][^>]*>参考答案[\s\S]*$/i);
   if (!m) return false;
   const text = m[0].replace(/<[^>]+>/g, '').replace(/\s/g, '');
   if (ANSWER_SHELL_RE.test(text)) return true;
@@ -968,7 +970,7 @@ export const isAnswerShell = (content) => {
 /** once 模式答案区补包：<h2>参考答案… 无 answer-section 包裹 → 补包（docx 独立分节，页码不计入正文） */
 export const wrapAnswerSection = (content) => {
   if (!content || /<div[^>]*class="[^"]*answer-section"/.test(content)) return String(content);
-  return String(content).replace(/(<h2[^>]*>\s*参考答案[\s\S]*?)$/i, (m, ansPart) => `<div class="answer-section">\n${ansPart}</div>`);
+  return String(content).replace(/(<h[1-6][^>]*>\s*参考答案[\s\S]*?)$/i, (m, ansPart) => `<div class="answer-section">\n${ansPart}</div>`);
 };
 
 /** split 模式正文混答剥离：正文末尾若混入《参考答案…》区（完整或空壳）→ 整体剥离，
@@ -977,7 +979,7 @@ export const wrapAnswerSection = (content) => {
 export const stripAnswerSection = (content) => {
   let out = String(content || '');
   out = out.replace(/<div[^>]*class="[^"]*answer-section[^"]*"[^>]*>[\s\S]*?<\/div>\s*$/i, '');
-  out = out.replace(/<h2[^>]*>参考答案[\s\S]*$/i, '');
+  out = out.replace(/<h[1-6][^>]*>参考答案[\s\S]*$/i, '');
   return out;
 };
 
@@ -4100,7 +4102,22 @@ ${cardAnalysisText.substring(0, 1000)}
   // 🔧 browse 触发与返回约束按 题类/内容型 分流（素材线 G7 终态，2026-09 用户定稿）：
   //    browse 是写作期按需补充（研读总账已含覆盖理解），非必经步骤；触发语义=需要教材原文
   //    精确形态时才调（题类=例题算理/结论框结构参照，内容型=需引用/归纳/默写的原文）。
-  const buildBrowseSystem = (contentMode) => [
+  const buildBrowseSystem = (contentMode) => {
+    // 🔧 覆盖点→章节 定向索引（2026-09）：撰写中若对某覆盖点的教材原文细节把握不足，
+    //    按此索引 browse 对应章节定向取回——把"覆盖点→原文"串起来，避免模型漫无目的地按目录挑章。
+    //    来源＝已绑定锚（name→chapterTitle），只做导航、不含示例词（防止照搬、不诱导凑内容）。
+    const covIdx = [];
+    const seenIdx = new Set();
+    for (const a of (anchors || [])) {
+      if (a.isExtension || a.bind?.status === 'missing') continue;
+      const c = a.chapterTitle || '';
+      if (!c || !a.name) continue;
+      const k = `${a.name}|${c}`;
+      if (seenIdx.has(k)) continue;
+      seenIdx.add(k);
+      covIdx.push(`· ${a.name} → ${c}`);
+    }
+    const body = [
     '你是教材命题/教辅编辑，依据当前所选课本与相应学段课标要求，撰写所委托资料（试卷或教辅）的正文。研读总账已随会话前缀提供各覆盖点的理解与引用——先凭研读理解写作。',
     '【教材 browse 与命题约定】',
     '· browse_textbook 是补充手段，不是必经步骤：仅当需要教材原文精确形态（例题算理/结论框/课标表述核对，或本资料需引用/归纳原文）时才调用；研读摘要已足以支撑写作的要点不要 browse、直接写作；',
@@ -4111,7 +4128,11 @@ ${cardAnalysisText.substring(0, 1000)}
       : '· 本资料为命题/练习型：browse 取回的示范段仅供理解题型结构与算理/知识梯度，命题数据、情境、人名、句式一律自拟，禁止沿用原文连续字面；',
     '· 取到本资料所需章节的原文后，必须立即停止调用工具，继续完成正文（不留半截、不空转）；',
     '· 不把具体选文名写进标题、大题名或栏目标题（标题/大题名/栏目名使用结构名）。',
-  ].join('\n');
+    ].join('\n');
+    return covIdx.length
+      ? `${body}\n\n【覆盖点→章节 定向索引】撰写中若对某覆盖点的教材原文细节把握不足，按此索引 browse 对应章节定向取回原文：\n${covIdx.join('\n')}`
+      : body;
+  };
   const deriveBrowseParams = (budget, chapterCount = 1) => {
     // 🔧 P2-1/P2-3 单章取料与轮数按章节数适配：
     //   - perBrowseCap 由 budget/12(下限400) 提至 budget/6(下限800、上限1800)，让单章在预算允许下取到更充分的原文；
@@ -4496,10 +4517,6 @@ ${cardAnalysisText.substring(0, 1000)}
    * @returns {Promise<{success, content, generatedQuestions, parsedBlueprint, auditWarnings}>}
    */
 
-  // 🔧 覆盖重试缓存（2026-09 缺漏处置）：记录最近一次 full/per-lesson-full 生成的对账缺漏（同范围 key），
-  //    复生成时自动携带为【本轮必覆盖】定向补齐；注入后无进展或轮数超限即停，交用户手动（防死循环）
-  const coverageRetryCache = new Map();
-
   const _runPaperOrder = async (params = {}) => {
     const {
       instruction = '', genType = '', selectedBooks = [], contentCards = [],
@@ -4717,27 +4734,7 @@ ${cardAnalysisText.substring(0, 1000)}
     if (diffKps?.length) {
       prompt += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}`;
     }
-    // ── 缺漏定向补齐闭环（2026-09）：同范围再次生成时携带上次对账缺漏为【本轮必覆盖】。
-    //    仅当：缓存命中同范围 key（同类型+同书+同章集合）且轮数未超限，
-    //    且缺漏考点仍属于本次已绑定锚（范围变化/缺料考点自动排除，防误伤）。
-    //    注入后由底部 recon 验证进展并更新/清除缓存（无进展即停自动，交用户手动——防死循环）。
-    //    触发面：同范围（同类型+同书+同章集合）再次生成即携带，不限于"复生成差异化"入口——
-    //    首次生成缺漏写缓存后，用户再生成同范围即自动定向补齐；注入必覆盖与"差异化（避开已覆盖）"
-    //    语义并立不冲突（避开的是已覆盖考点、必覆盖的是缺漏考点）。
-    const coverageKey = `${genType}|${book?.name || book?.subject || ''}|${(contentCards || []).map((c) => normChapter(c?.chapterTitle)).filter(Boolean).sort().join('>')}`;
-    const retryEnt = coverageRetryCache.get(coverageKey) || null;
-    let carriedKps = [];
-    let requiredKpsText = '';
-    if (retryEnt && Array.isArray(retryEnt.names) && retryEnt.names.length && (retryEnt.rounds || 0) < 2) {
-      const boundNameSet = new Set((anchors || []).filter((a) => a.bind.status !== 'missing').map((a) => a.name));
-      carriedKps = retryEnt.names.filter((n) => boundNameSet.has(n));
-    }
-    if (carriedKps.length) {
-      requiredKpsText = `\n\n【本轮必覆盖（上次同范围生成对账缺漏，重新生成定向补齐）】以下核心知识必须在本次内容中实际呈现/考查，不得省略：${carriedKps.join('、')}`;
-      prompt += requiredKpsText;
-      console.log(`[覆盖重试] 携带 ${carriedKps.length} 个上次缺漏考点为必覆盖：${carriedKps.join('、')}`);
-    }
-    // 🔧 整卷生成方式（设置页三选一，生成端严格按设置执行，不再硬编码）：
+    // ── 整卷生成方式（设置页三选一，生成端严格按设置执行，不再硬编码）：
     //    'split' 两次生成：正文一次 + 答案页独立一次（温度/角色分层，纯题型推荐）
     //    'once'  一次成型：正文+答案一次输出（上下文全程一致，知识型/错题/听写推荐）
     //    'auto'  自动按资料类型（两条路都可用）：纯题型 → split；知识型/听写/错题 → once
@@ -4943,7 +4940,7 @@ ${cardAnalysisText.substring(0, 1000)}
     //         once 模式正文已含答案区则跳过，若模型漏输出答案区则降级补一次独立答案页） ──
     let answerHtml = '';
     let answerSkipNote = ''; // 题+解析一体资料（once）跳过独立答案页时的说明（追加到生成报告）
-    const ansInContent = /<h2[^>]*>参考答案|answer-section/.test(content);
+    const ansInContent = /<h[1-6][^>]*>参考答案|answer-section/.test(content);
     // 🔴 once 模式空壳答案区检测：模型输出 `<h2>参考答案…` 但内容是"略/待补充"或近乎空白
     //    （占位式敷衍），不能算有答案页——剥离空壳并强制走独立答案页补生成
     const ansShellInContent = isAnswerShell(content);
@@ -5055,65 +5052,14 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     //    ——确定性剥除开头自述段（纯文本段匹配自述特征才剥，题号/栏目开头的真内容不误伤）
     content = stripPlanningPreamble(content);
 
-    // 🔴 对账范围 = 研读已消化锚（2026-09 对账口径合一·源头）：digestedNames = digestPairs[].names 展开——
-    //    对账只核"模型研读消化过"的覆盖点是否在正文呈现（研读负责会写、对账独立核写了没）；
-    //    未消化/缺料锚不在研读批内 → 不计缺（防"模型没读过却报缺"误报）。studyPairs 为空时
-    //    （研读已阻断/复用空记录）不传 → reconcileCoverage 维持旧行为全锚判缺（兼容）。
+    // 🔴 覆盖点口径 = 研读已消化锚（2026-09）：digestedNames = digestPairs[].names 展开——
+    //    覆盖映射只呈现"模型研读消化过"的覆盖点落到哪些题（研读负责会写、映射独立核写了没）；
+    //    未消化/缺料锚不在研读批内 → 不进映射范围（防"模型没读过却报缺"误报）。
     const digestedNames = (studyPairs || []).flatMap((p) => (p.names || []).filter(Boolean));
 
-    // ── P2b 覆盖自动补漏（2026-09）：full/per-lesson-full 类型正文对账缺漏 ≤6 个考点时，
-    //    针对缺漏考点做一次短生成（每考点一个 h2 栏目，内容贴合绑定原文片段），
-    //    插入正文（答案区之前；无答案区则插末尾）；补漏失败/截断/无 h2/含答案区/未覆盖缺漏考点
-    //    → 自动重试一次（第二轮提示更严），仍失败才放弃（不插半截栏目），由底部覆盖对账
-    //    提示走"复生成必覆盖"闭环或手动补充——宁缺毋滥，补漏提示只允许引用绑定片段。
-    {
-      const recon0 = reconcileCoverage({ genType, content, anchors, digestedNames });
-      // 🔧 2026-09 收敛：自动补漏仅对知识梳理型（full：summary/preview/dictation/review）——
-      //    缺考点=梳理缺块，补"要点卡"栏目合理；练习卷（per-lesson-full：practice 课时练等）缺漏
-      //    只经覆盖对账提示（复生成闭环/手动补充），不再自动插卡——曾实证：课时练正文被补入整段
-      //    "考点：X → 要点回顾 → 示例 → 练一练"复习卡（练习卷插入知识回顾卡 = 栏目形态污染）
-      const covMode = contractOf(genType).mode;
-      if (covMode === 'full' && recon0.required && recon0.missing.length > 0 && recon0.missing.length <= 6) {
-        const contractName = contractOf(genType).name || genType;
-        const missLines = recon0.missing.map((m) => {
-          const anchor = (anchors || []).find((a) => a.chapterTitle === m.chapter && a.name === m.name);
-          const frag = (anchor?.bind?.segments || []).slice(0, 3)
-            .map((s) => `· ${s.text}（出自：${s.chapterTitle || m.chapter}）`).join('\n');
-          return `核心知识：${m.name}\n所属：${m.chapter || '未标注章节'}\n教材依据：\n${frag || '（无原文片段，本次无法补漏）'}`;
-        }).join('\n\n');
-        const patchPrompt = `你是${contractName}编写助手。上一轮生成的${contractName}正文经程序覆盖对账，以下核心知识未覆盖到。请为每项核心知识补充一个 <h2> 栏目（栏目标题即核心知识名），栏目内容贴合下方给出的教材原文片段编写（归纳要点、示例或配套练习均可，风格与本资料一致）；不得重复正文已有内容，不得编写超出所给教材原文之外的新知识点。\n\n【缺漏核心知识】\n${missLines}\n\n只输出补漏栏目 HTML（从 <h2> 开始），不要输出整卷或其他说明。`;
-        let lastWhy = '';
-        for (let ptry = 0; ptry < 2; ptry++) {
-          try {
-            const thinkingMult = getGenerationThinkingEnabled() ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1;
-            const patchResp = await callAI(ptry === 0 ? patchPrompt : `${patchPrompt}\n\n注意：上轮补漏输出未达标（${lastWhy}），请只输出每项缺漏核心知识的 <h2> 栏目 HTML（从 <h2> 开始到栏目结束），不要任何额外文字或整卷。`, {
-              taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
-              maxTokens: clampReq(Math.max(600, Math.min(3600, recon0.missing.length * 500)) * thinkingMult),
-              allowContinuation: false, temperature: bodyTemperature, returnMeta: true,
-            });
-            const pObj = typeof patchResp === 'string' ? { content: patchResp, finishReason: '' } : (patchResp || { content: '', finishReason: '' });
-            const patchHtml = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(pObj.content || '')))))).trim();
-            const truncated = detectTruncation(patchHtml, pObj.finishReason).truncated;
-            const hasAnyCovered = recon0.missing.some((m) => wordMatch(patchHtml, m.name));
-            const isClean = patchHtml.includes('<h2') && !/answer-section|参考答案/.test(patchHtml);
-            if (patchHtml && isClean && hasAnyCovered && !truncated) {
-              const idx = content.search(/answer-section|<h2[^>]*>\s*参考答案/i);
-              content = idx > 0
-                ? `${content.slice(0, idx).trimEnd()}\n\n${patchHtml}\n\n${content.slice(idx)}`
-                : `${content.trimEnd()}\n\n${patchHtml}`;
-              console.log(`✅ [覆盖补漏] ${genType} 已为 ${recon0.missing.length} 个缺漏考点补栏目（第 ${ptry + 1} 次尝试，插入正文${idx > 0 ? '答案区前' : '末尾'}）`);
-              lastWhy = '';
-              break;
-            }
-            lastWhy = !patchHtml ? '空输出' : truncated ? '输出截断' : !isClean ? '无 h2 或含答案区' : '未覆盖任何缺漏考点';
-            console.warn(`⚠️ [覆盖补漏] 第 ${ptry + 1} 次尝试放弃（${lastWhy}）${ptry === 0 ? '，自动重试一次' : ''}，保留覆盖对账提示`);
-          } catch (e) {
-            lastWhy = `请求异常：${e.message}`;
-            console.warn(`⚠️ [覆盖补漏] 第 ${ptry + 1} 次请求失败${ptry === 0 ? '，自动重试一次' : '，保留覆盖对账提示'}:`, e.message);
-          }
-        }
-      }
-    }
+    // ── P2b 覆盖自动补漏已废除（2026-09 用户定版·彻底不要反对账）：不再用 reconcileCoverage 判缺驱动
+    //    "复习卡补漏/定向补齐"——覆盖是否呈现由正文生成期决定，报告只如实输出「覆盖点→题映射 + 未呈现清单」，
+    //    交用户核对，不自动改写正文（防复习卡污染栏目形态、防诱导按覆盖点凑内容）。
 
     // 🔴 卷级守门 + 写作修订轮（2026-09 系统性根治，docs/design/卷级守门引擎与写作修订轮-根治方案.md）：
     //    生成端内自纠（≤2 轮）：确定性守门 → 命中清单交模型（编辑）自行修订 → 复检。
@@ -5195,48 +5141,10 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     }
     if (studyNoSegNote) auditWarnings.push(studyNoSegNote); // 研读源头预检：无片段锚按缺料处理（不空转回流）
     if (anchorMissingNote) auditWarnings.push(anchorMissingNote);
-    // 📊 覆盖对账（2026-09 P2）：生成完成后按 COVERAGE_CONTRACT 对账正文考点出现度。
-    //    只对 full/per-lesson-full（知识型/课时练）判缺并透出缺漏清单到生成报告【问题列表】，
-    //    供用户定向重试/手动补充；focus/none/sampled 不对账不补漏（契约语义，防误报与诱导）。
-    //    对账对象为正文 content（不含独立答案页，防答案区单词误判"已覆盖"）。
-    const reconReport = reconcileCoverage({ genType, content, anchors, digestedNames });
-    const reconNote = coverageNoteOf(reconReport);
-    // 🔧 缺漏处置闭环（2026-09）：full/per-lesson-full 缺漏写缓存供下次复生成必覆盖；
-    //    必覆盖注入后无进展或轮数超限 → 停自动，交用户手动/调预算（防死循环）
-    let retryTail = '';
-    if (reconReport.required) {
-      const missNames = reconReport.missing.map((m) => m.name);
-      if (!missNames.length) {
-        coverageRetryCache.delete(coverageKey);
-      } else if (!carriedKps.length) {
-        coverageRetryCache.set(coverageKey, { names: missNames, rounds: 0 });
-        console.log(`[覆盖重试·记录] 已记录 ${missNames.length} 个缺漏考点为下次同范围生成的必覆盖（会话级缓存，刷新页面即失效，请勿在复生成前刷新）：${missNames.join('、')}`);
-      } else {
-        const sameNoProgress = missNames.length === carriedKps.length && missNames.every((n) => carriedKps.includes(n));
-        if (sameNoProgress) {
-          coverageRetryCache.delete(coverageKey);
-          console.warn('[覆盖重试] 必覆盖注入一轮仍无进展，停止自动携带（交用户手动补充或调整范围/预算）');
-          retryTail = '；自动定向补齐无进展已停止——请手动补充或调整勾选范围/输出预算';
-        } else {
-          const rounds = (retryEnt?.rounds || 0) + 1;
-          if (rounds >= 2) {
-            coverageRetryCache.delete(coverageKey);
-            retryTail = '；自动定向补齐两轮后仍有新缺漏，已停止——请手动补充或调整勾选范围/输出预算';
-          } else {
-            coverageRetryCache.set(coverageKey, { names: missNames, rounds });
-          }
-        }
-      }
-    }
-    if (reconNote) {
-      console.log(`[覆盖对账] ${genType} 正文缺漏 ${reconReport.missing.length}/${reconReport.total} 考点（${reconReport.missing.map((m) => `${m.chapter}:${m.name}`).join('、')}）`);
-      auditWarnings.push(reconNote + (retryTail
-        || (reconReport.required && !carriedKps.length && !retryEnt ? '；已保留本结果供预览——可点"复生成"，系统将自动携带以上核心知识定向补齐（缺漏记录为会话级，请在再次生成前不要刷新页面，刷新将丢失该记录）' : '')));
-    }
-    const sampledStats = reconcileCoverageStats({ genType, content, anchors });
-    if (sampledStats && (anchors || []).length) {
-      console.log(`[覆盖对账·sampled] ${genType}：绑定考点在正文出现 ${sampledStats.coveredCount}/${sampledStats.total}（覆盖率 ${sampledStats.coverage}，抽样类型仅统计不补漏）`);
-    }
+    // 📊 覆盖展示口径（2026-09 用户定版）：事后"定稿后字面撮合"的覆盖点→题映射无法可靠分清
+    //    哪个对应哪个（例词只在答案区/中文名揽英文正文等边界会造成误标），故不再输出映射报告。
+    //    覆盖是否呈现交由生成期研读+browse 决定；browse 侧另以「覆盖点→章节 定向索引」导航模型。
+    //    （旧 reconcileCoverage 判缺对账、auto 补漏、必覆盖闭环均已废除）
 
     // 🔴 出稿自检报告（卷级守门最终状态：程序剔除首段自述后仍残留的命中统一分节透出——
     //    照搬/算式重复/情境集中/数据载体裂缝；只报不改、中性表述，交编辑核对决断）
