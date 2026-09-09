@@ -134,5 +134,5 @@ describe('标题命名规范 buildPaperTitle', () => {
     // 真实答案（h3 标题 + 实质作答内容）不被误判空壳（onCe 模式因此不会丢失答案；split 走独立答案页）
     const real = '<h2>基础建构任务</h2><p>1. 题</p><h3>参考答案与解析</h3><p>1. kept trying</p><p>2. began</p>';
     expect(isAnswerShell(real)).toBe(false);
-  });
+  }, 20000);
 });

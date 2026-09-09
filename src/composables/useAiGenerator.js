@@ -6,6 +6,7 @@ import { createGenerationSession, isReturnableSegment } from '../utils/generatio
 import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'; // S4.1：段类型补"拓展/文化"（锚范围性质判定共用）
 import { GEN_CONST } from '../config/generationConstants.js';
 import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel } from '../config/promptLibrary.js';
+import { isFullCoverGenType } from '../utils/covScope.js'; // 定向 browse 索引的类型分流（2026-09：仅全覆盖口径类型注入全量锚清单）
 import { getStoragePath } from '../utils/pathHelper.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
@@ -4102,11 +4103,14 @@ ${cardAnalysisText.substring(0, 1000)}
   // 🔧 browse 触发与返回约束按 题类/内容型 分流（素材线 G7 终态，2026-09 用户定稿）：
   //    browse 是写作期按需补充（研读总账已含覆盖理解），非必经步骤；触发语义=需要教材原文
   //    精确形态时才调（题类=例题算理/结论框结构参照，内容型=需引用/归纳/默写的原文）。
-  const buildBrowseSystem = (contentMode, anchorList = []) => {
+  const buildBrowseSystem = (contentMode, anchorList = [], genType = '') => {
     // 🔧 覆盖点→章节 定向索引（2026-09）：撰写中若对某覆盖点的教材原文细节把握不足，
     //    按此索引 browse 对应章节定向取回——把"覆盖点→原文"串起来，避免模型漫无目的地按目录挑章。
     //    来源＝已绑定锚（name→chapterTitle），只做导航、不含示例词（防止照搬、不诱导凑内容）。
-    //    anchorList 由调用方显式传入（勿闭包引用外层 anchors——主链在初始化前调用会触发 TDZ ReferenceError）
+    //    anchorList 由调用方显式传入（勿闭包引用外层 anchors——主链在初始化前调用会触发 TDZ ReferenceError）。
+    //    🔧 类型分流（2026-09）：仅"该范围须全覆盖"的类型（summary/review/dictation/preview/practice，
+    //    见 utils/covScope.js）注入全量锚清单；exam（蓝本抽样命题）/special/errorbook/reading 为
+    //    抽样或聚焦型，不注入——防模型把导航索引读成"必须逐一覆盖/考查"的清单压力（必覆盖闭环同源防复活）。
     const covIdx = [];
     const seenIdx = new Set();
     for (const a of (anchorList || [])) {
@@ -4130,7 +4134,7 @@ ${cardAnalysisText.substring(0, 1000)}
     '· 取到本资料所需章节的原文后，必须立即停止调用工具，继续完成正文（不留半截、不空转）；',
     '· 不把具体选文名写进标题、大题名或栏目标题（标题/大题名/栏目名使用结构名）。',
     ].join('\n');
-    return covIdx.length
+    return covIdx.length && isFullCoverGenType(genType)
       ? `${body}\n\n【覆盖点→章节 定向索引】撰写中若对某覆盖点的教材原文细节把握不足，按此索引 browse 对应章节定向取回原文：\n${covIdx.join('\n')}`
       : body;
   };
@@ -4299,7 +4303,7 @@ ${cardAnalysisText.substring(0, 1000)}
     //    有界化（2026-09）：大范围批数多时按摘要字符预算保留最近批，点名行全量不失覆盖
     const studyPrefixMsgs = buildStudyPrefix(Array.isArray(studyPairs) ? studyPairs : [], planPrefixKeepFull(studyPairs));
     const messages = [
-      { role: 'system', content: buildBrowseSystem(contentMode, anchors)
+      { role: 'system', content: buildBrowseSystem(contentMode, anchors, genType)
         + (generateMode === 'once'
           ? '\n（本资料为一次成型：正文与答案区一次输出；如含练习/自测/例题，答案区仅对其作答，勿把正文的知识梳理整体复述到答案区。）'
           : '')
