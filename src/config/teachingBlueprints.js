@@ -1025,6 +1025,28 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
 //    指令库 GEN_TYPE_NAMES/TYPE_BASES 的九类 key 完全一致（本行由键推导，改蓝图顶层键时须同步另三处）。
 export const TEACHING_GEN_TYPES = Object.keys(TEACHING_BLUEPRINTS);
 
+/** 课时练三阶任务栏目标题风格套（2026-09：结构语义确定性保留，栏目标题字面可换肤，消跨稿同质感）
+ * 仅作用于课时练（practice）三阶任务栏目标题（基础→进阶→创新）；note（栏目语义）不变；
+ * exam 蓝本（题型名绑分值/惯例）与其他教辅类型不轮换。id：a=默认；b/c/d 为可选固定套。
+ * 🔗 与名称样式（labelStyle）同款交互：用户手动指定固定套或回默认；不设自动按范围轮换（避免跨稿串套）。 */
+export const TASK_COLUMN_STYLE_SETS = {
+  a: { columns: ['基础建构任务', '探究进阶任务', '迁移创新任务'] },
+  b: { columns: ['基础过关', '能力提升', '拓展挑战'] },
+  c: { columns: ['知识奠基', '变式进阶', '综合创新'] },
+  d: { columns: ['夯实基础', '方法迁移', '实践挑战'] },
+};
+
+/** 把课时练三阶栏目标题替换为指定风格套（仅当 sections 前 3 项恰为默认三阶名时替换；未知/空 styleId → 默认套） */
+export function applyTaskColumnStyle(sections = [], styleId = '') {
+  const set = TASK_COLUMN_STYLE_SETS[styleId] || TASK_COLUMN_STYLE_SETS.a;
+  const def = TASK_COLUMN_STYLE_SETS.a.columns;
+  const first = (sections || []).slice(0, def.length).map((s) => s && s.name);
+  if (def.every((n, i) => first[i] === n)) {
+    return sections.map((s, i) => (i < def.length ? { ...s, name: set.columns[i] } : s));
+  }
+  return sections;
+}
+
 /** 学段键归一：接受学段键（primary_low 等）或中文学段/年级标签（'小学低段'/'二年级'/'高一' 等）
  * 🔴 唯一事实源：统一委托 gradeStage.resolveStageKey（'小学低/中/高段'、一~六年级、初一~初三、高一~高三、初中/高中 全覆盖），
  *    不再本地自建启发式，杜绝三处解析互相错位的风险。 */
@@ -1065,10 +1087,11 @@ export function getTeachingBlueprint({ genType = '', stage = '', subject = '' } 
  * @param {Object} opts { genType, stage, subject }
  * @returns {string} 空串 = 无蓝本
  */
-export function buildTeachingInjection({ genType = '', stage = '', subject = '' } = {}) {
+export function buildTeachingInjection({ genType = '', stage = '', subject = '', columnStyle = '' } = {}) {
   const bp = getTeachingBlueprint({ genType, stage, subject });
   if (!bp) return '';
-  const sectionsText = bp.sections.map(s => `· ${s.name}——${s.note}`).join('\n');
+  const sections = genType === 'practice' && columnStyle ? applyTaskColumnStyle(bp.sections, columnStyle) : bp.sections;
+  const sectionsText = sections.map(s => `· ${s.name}——${s.note}`).join('\n');
   const p = bp.stageParams;
   const scope = bp.custom ? `${bp.subject}·` : '通用·';
   const stageLine = p.note ? `\n▌学段要求（${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）\n· ${p.note}` : '';
@@ -1082,6 +1105,8 @@ export default {
   TEACHING_SUBJECT_BLUEPRINTS,
   TEACHING_GEN_TYPES,
   TEACHING_STAGE_NAMES,
+  TASK_COLUMN_STYLE_SETS,
+  applyTaskColumnStyle,
   getTeachingBlueprint,
   buildTeachingInjection,
 };

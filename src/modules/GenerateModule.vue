@@ -1278,6 +1278,33 @@
             {{ opt.label }}
           </label>
         </div>
+        <!-- 🎨 课时练栏目标题风格套（practice：默认套 / 手动固定套，与名称样式同款交互） -->
+        <div
+          v-if="genTypes[0] === 'practice'"
+          class="scope-style-block"
+        >
+          <p class="scope-style-title">
+            🎨 课时练栏目标题风格（选"🔄 默认"用标准三阶栏目名；选具体套则固定该套栏目标题，跨稿不串套）
+          </p>
+          <div class="name-chip-group">
+            <label
+              v-for="opt in columnStyleOptions"
+              :key="opt.value"
+              class="name-chip"
+              :class="{ active: columnStyle === opt.value }"
+              :title="opt.desc"
+            >
+              <input
+                v-model="columnStyle"
+                type="radio"
+                :value="opt.value"
+                name="columnStyle"
+                hidden
+              >
+              {{ opt.label }}
+            </label>
+          </div>
+        </div>
         <!-- 📐 考试标签名称（期中/期末/月考/综合）：每维度单选 自动轮换 / 固定名称，与资料类型名称样式统一 -->
         <div
           v-if="genTypes[0] === 'exam'"
@@ -3055,7 +3082,7 @@ import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructure
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
-import { buildTeachingInjection } from '../config/teachingBlueprints.js';
+import { buildTeachingInjection, TASK_COLUMN_STYLE_SETS } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
@@ -3154,6 +3181,25 @@ const labelStyleOptions = computed(() => {
   return [autoOpt, ...(getLabelPool(type) || []).map(n => ({ value: n, label: n, desc: '固定使用该名称作为标题' }))];
 });
 const labelStyleLabel = computed(() => labelStyle.value || '自动轮换');
+
+// 🎨 课时练栏目标题风格套（与名称样式同款：默认套 / 手动固定套 b/c/d；作用于【教辅结构】注入的三阶栏目标题字面）
+const COLUMN_STYLE_STORAGE_KEY = 'ww_column_style_v1';
+const columnStyle = ref(''); // ''=默认套(a)；否则固定 b/c/d 套
+const loadColumnStyle = (genType) => {
+  try {
+    const map = JSON.parse(localStorage.getItem(COLUMN_STYLE_STORAGE_KEY) || '{}');
+    return map[genType] || '';
+  } catch { return ''; }
+};
+const columnStyleOptions = computed(() => {
+  const def = TASK_COLUMN_STYLE_SETS.a.columns.join(' / ');
+  return [
+    { value: '', label: `🔄 默认（${def}）`, desc: '使用默认栏目套，不换肤' },
+    ...Object.entries(TASK_COLUMN_STYLE_SETS)
+      .filter(([id]) => id !== 'a')
+      .map(([id, s]) => ({ value: id, label: s.columns.join(' / '), desc: '固定使用该套栏目标题' })),
+  ];
+});
 
 /* 📐 考试标签维度固定选择（名称样式弹窗：每维度 自动轮换 / 固定某个名称；与资料类型名称样式同理） */
 const scopeLabelStyle = ref({ midterm: '', final: '', monthly: '', default: '', topic: '' }); // '' = 自动轮换
@@ -4670,6 +4716,7 @@ const { isGenerating, progress: generateProgress, statusText: generateStatus, ge
 watch(genTypes, () => {
   const type = genTypes.value[0];
   labelStyle.value = type ? loadLabelStyle(type) : '';
+  columnStyle.value = type ? loadColumnStyle(type) : '';
   // 🔧 组织风格按类型映射（收敛方案）：换类型时——当前风格不适用则该类型默认风格并重置手动标记；
   //    必选确认标记重置（需重新确认）
   if (type) {
@@ -4693,6 +4740,15 @@ watch(labelStyle, () => {
     const map = JSON.parse(localStorage.getItem(LABEL_STYLE_STORAGE_KEY) || '{}');
     map[type] = labelStyle.value || '';
     localStorage.setItem(LABEL_STYLE_STORAGE_KEY, JSON.stringify(map));
+  } catch { /* 忽略存储异常 */ }
+}, { immediate: true });
+watch(columnStyle, () => {
+  const type = genTypes.value[0];
+  if (!type) return;
+  try {
+    const map = JSON.parse(localStorage.getItem(COLUMN_STYLE_STORAGE_KEY) || '{}');
+    map[type] = columnStyle.value || '';
+    localStorage.setItem(COLUMN_STYLE_STORAGE_KEY, JSON.stringify(map));
   } catch { /* 忽略存储异常 */ }
 }, { immediate: true });
 
@@ -6191,7 +6247,7 @@ const composeSpecialTeachingText = ({ genType, stageKey, subject, domainKey }) =
     return { text: buildSpecialDomainStructureText(dom, stageKey), isDomain: true, dom };
   }
   const anchorLine = buildSpecialDomainAnchorLine(dom);
-  const generic = buildTeachingInjection({ genType, stage: stageKey, subject }) || '';
+  const generic = buildTeachingInjection({ genType, stage: stageKey, subject, columnStyle: columnStyle.value }) || '';
   return { text: generic ? `${generic}\n${anchorLine}` : anchorLine, isDomain: true, dom };
 };
 
