@@ -4737,7 +4737,7 @@ ${cardAnalysisText.substring(0, 1000)}
     if (templateInfo?.trim()) prompt += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
     if (contextFramework?.trim()) prompt += `\n\n${contextFramework.trim()}`;
     if (diffKps?.length) {
-      prompt += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}`;
+      prompt += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}。情境错峰：本次为同一范围的再次出稿，新稿的情境载体、人物/场景、数据与设问角度须与已生成稿件错开——命中已用情境即换情境、换对象、换数据、换设问角度，不得沿用上稿的情境模板与雷同句子。`;
     }
     // ── 整卷生成方式（设置页三选一，生成端严格按设置执行，不再硬编码）：
     //    'split' 两次生成：正文一次 + 答案页独立一次（温度/角色分层，纯题型推荐）
