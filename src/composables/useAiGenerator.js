@@ -4736,7 +4736,10 @@ ${cardAnalysisText.substring(0, 1000)}
     if (browseAnchor) prompt += `\n\n${browseAnchor}`;
     if (templateInfo?.trim()) prompt += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
     if (contextFramework?.trim()) prompt += `\n\n${contextFramework.trim()}`;
-    if (diffKps?.length) {
+    // 🔧 情境错峰仅对"命题出新题"的题类生效（exam/practice/special/reading）——
+    //    内容型（summary/review/dictation/preview/errorbook）无情境设问，不带此句（2026-09 收口）
+    const regenSceneType = genType === 'exam' || genType === 'practice' || genType === 'special' || genType === 'reading';
+    if (diffKps?.length && regenSceneType) {
       prompt += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}。情境错峰：本次为同一范围的再次出稿，新稿的情境载体、人物/场景、数据与设问角度须与已生成稿件错开——命中已用情境即换情境、换对象、换数据、换设问角度，不得沿用上稿的情境模板与雷同句子。`;
     }
     // ── 整卷生成方式（设置页三选一，生成端严格按设置执行，不再硬编码）：
