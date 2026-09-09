@@ -83,3 +83,8 @@ android/app/src/main/assets/public/
 # 构建诊断/测试残留（防再入 public 构建产物）
 public/diag.js
 public/test-*.html
+
+# 诊断期临时产物（勿入库）
+/_unit1_extract/
+/_unit1_text.txt
+/_unit1_timelian.docx
