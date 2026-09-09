@@ -4102,13 +4102,14 @@ ${cardAnalysisText.substring(0, 1000)}
   // 🔧 browse 触发与返回约束按 题类/内容型 分流（素材线 G7 终态，2026-09 用户定稿）：
   //    browse 是写作期按需补充（研读总账已含覆盖理解），非必经步骤；触发语义=需要教材原文
   //    精确形态时才调（题类=例题算理/结论框结构参照，内容型=需引用/归纳/默写的原文）。
-  const buildBrowseSystem = (contentMode) => {
+  const buildBrowseSystem = (contentMode, anchorList = []) => {
     // 🔧 覆盖点→章节 定向索引（2026-09）：撰写中若对某覆盖点的教材原文细节把握不足，
     //    按此索引 browse 对应章节定向取回——把"覆盖点→原文"串起来，避免模型漫无目的地按目录挑章。
     //    来源＝已绑定锚（name→chapterTitle），只做导航、不含示例词（防止照搬、不诱导凑内容）。
+    //    anchorList 由调用方显式传入（勿闭包引用外层 anchors——主链在初始化前调用会触发 TDZ ReferenceError）
     const covIdx = [];
     const seenIdx = new Set();
-    for (const a of (anchors || [])) {
+    for (const a of (anchorList || [])) {
       if (a.isExtension || a.bind?.status === 'missing') continue;
       const c = a.chapterTitle || '';
       if (!c || !a.name) continue;
@@ -4298,7 +4299,7 @@ ${cardAnalysisText.substring(0, 1000)}
     //    有界化（2026-09）：大范围批数多时按摘要字符预算保留最近批，点名行全量不失覆盖
     const studyPrefixMsgs = buildStudyPrefix(Array.isArray(studyPairs) ? studyPairs : [], planPrefixKeepFull(studyPairs));
     const messages = [
-      { role: 'system', content: buildBrowseSystem(contentMode)
+      { role: 'system', content: buildBrowseSystem(contentMode, anchors)
         + (generateMode === 'once'
           ? '\n（本资料为一次成型：正文与答案区一次输出；如含练习/自测/例题，答案区仅对其作答，勿把正文的知识梳理整体复述到答案区。）'
           : '')
