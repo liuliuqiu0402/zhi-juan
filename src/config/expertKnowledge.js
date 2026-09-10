@@ -221,7 +221,7 @@ export const styleOptions = [
     appliesTo: ['practice', 'special'], required: false },
   // ── 呈现风格组（以内容组织为主的资料：内容的呈现方式）──
   { group: 'presentation', value: 'mindmap', label: '导图式', desc: '知识分层梳理',
-    tip: '按 总主题→分主题→要点 分层组织（渲染端以层级列表呈现；关系复杂需图示化时用 [GRAPH] 占位，勿自造图形字符），层次清晰、便于记忆；适用于知识总结类资料。',
+    tip: '按概念层级的递进关系分层组织（渲染端以层级列表呈现；关系复杂需图示化时用 [GRAPH] 占位，勿自造图形字符），层次清晰、便于记忆；适用于知识总结类资料。',
     appliesTo: ['summary'], required: false },
   { group: 'presentation', value: 'table', label: '表格化', desc: '对比/表格呈现',
     tip: '以表格对比呈现易混点与分类信息，清晰易读；适用于知识总结、复习梳理。',
@@ -233,7 +233,7 @@ export const styleOptions = [
     tip: '以问题链驱动预习（圈画/概括/查阅/尝试），可操作可检查；适用于课前预习。',
     appliesTo: ['preview'], required: false },
   { group: 'presentation', value: 'framework', label: '框架式', desc: '框架→梳理→辨析',
-    tip: '按 知识框架→核心知识梳理→易错辨析→自测 组织，覆盖完整；适用于复习资料。',
+    tip: '围绕核心知识依次梳理与自测组织，覆盖完整；适用于复习资料。',
     appliesTo: ['review'], required: false },
 ];
 
@@ -268,11 +268,11 @@ export const styleInstructions = {
   'scenario_each': '每题设置贴近学生生活的独立情境设问，情境与题目内容一致。',
   'big_unit': '打破课时界限，围绕大概念整体组织，体现知识关联与递进。',
   'project_based': '以一个完整项目任务为驱动组织资料，考查真实问题中的综合能力。',
-  'mindmap': '按 总主题→分主题→要点 分层组织，条目层级清晰；关系复杂需图示化时用 [GRAPH] 占位，勿自造图形字符。',
+  'mindmap': '按概念层级的递进关系分层组织，条目层级清晰；关系复杂需图示化时用 [GRAPH] 占位，勿自造图形字符。',
   'table': '以表格对比呈现信息，清晰易读，易混点用对比突出。',
   'context_chain': '以一个贴近生活的大主题串联各知识点呈现，情境自然连贯。',
   'task_driven': '以问题链组织预习任务，可操作可检查，覆盖本课时新知识点。',
-  'framework': '按知识框架→核心知识梳理→易错辨析→自测组织，覆盖完整、重点突出。',
+  'framework': '围绕核心知识依次梳理与自测组织，覆盖完整、重点突出。',
 };
 
 // ==================== 范围选项 ====================

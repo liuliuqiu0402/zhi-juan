@@ -70,7 +70,7 @@ export const TEACHING_BLUEPRINTS = {
     label: '课前预习',
     sections: [
       { name: '学习目标', note: '明确本课时要达成的核心知识与关键能力，目标具体、可自检' },
-      { name: '预习任务', note: '分层（基础通读→重难点深入→延伸挑战），问题驱动（圈画/概括/查阅/尝试），每任务给做法与完成标准，可操作可检查，覆盖本课时全部新知识点' },
+      { name: '预习任务', note: '分层（体现由浅入深的认知进阶），问题驱动（圈画/概括/查阅/尝试），每任务给做法与完成标准，可操作可检查，覆盖本课时全部新知识点' },
       { name: '预习检测', note: '自检题（含自查要点提示），检测预习效果' },
       { name: '我的疑问', note: '必设栏目，供学生记录预习中的疑问，并给思考支架（联系旧知、圈画关键处）' },
     ],
@@ -103,14 +103,14 @@ export const TEACHING_BLUEPRINTS = {
   summary: {
     label: '知识总结',
     sections: [
-      { name: '知识框架', note: '结构化呈现（导图/表格/对比优先），覆盖本单元全部知识点' },
+      { name: '知识框架', note: '结构化呈现，覆盖本单元全部知识点' },
       { name: '重点梳理', note: '逐点梳理并标注教材出处，重点突出，每个要点给内涵、适用前提与使用注意' },
       { name: '易错辨析', note: '列出易错点并辨析，说明错因与正确思路' },
       { name: '典型例题', note: '典型例题（含解析，讲解示范）' },
     ],
     stages: {
       primary_low: { volume: '正文300-500字', note: '多用图表与图示，图文并茂' },
-      primary_mid: { volume: '正文500-800字', note: '知识框架以表格对比为主，条目清晰' },
+      primary_mid: { volume: '正文500-800字', note: '知识框架结构化呈现，条目清晰' },
       primary_high: { volume: '正文800-1200字', note: '含易错辨析，结构清晰' },
       middle: { volume: '正文800-1200字', note: '含规律与方法归纳' },
       high: { volume: '正文1200-1800字', note: '含知识网络梳理，呈现结构化' },
@@ -157,8 +157,8 @@ export const TEACHING_BLUEPRINTS = {
   review: {
     label: '复习资料',
     sections: [
-      { name: '知识框架', note: '覆盖本单元全部知识点的结构图/表格，知识网络化呈现' },
-      { name: '核心知识梳理', note: '按知识层级分层（识记→理解→运用）逐条梳理（标注教材出处），重点难点突出' },
+      { name: '知识框架', note: '结构化呈现，覆盖本单元全部知识点，知识网络化呈现' },
+      { name: '核心知识梳理', note: '按知识层级分层（体现由浅入深）逐条梳理（标注教材出处），重点难点突出' },
       { name: '典型题析', note: '典型题（含解题思路剖析，不只看式复现）' },
       { name: '易错聚焦', note: '易错点辨析，具体到易混处并给正确思路' },
       { name: '综合自测', note: '分层自测（基础/提高），按知识层级分布，覆盖本单元全部知识点' },
@@ -191,7 +191,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     special: {
       label: '专项突破',
       sections: [
-        { name: '分板块组织', note: '按本单元内容分板块，板块内由易到难；并给出具体做法与自查/完成标准' },
+        { name: '分板块组织', note: '按本单元内容分板块，板块间由浅入深；并给出具体做法与自查/完成标准' },
         { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
       ],
     },
@@ -214,7 +214,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     summary: {
       label: '知识总结',
       sections: [
-        { name: '知识框架', note: '结构化呈现本单元字词、句段、篇章知识（导图/表格/对比优先）' },
+        { name: '知识框架', note: '结构化呈现本单元字词、句段、篇章知识' },
         { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
         { name: '易错辨析', note: '本单元易错字形/读音/词义辨析' },
         { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -241,7 +241,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     review: {
       label: '复习资料',
       sections: [
-        { name: '知识框架', note: '本单元字词句段篇知识结构图/表格' },
+        { name: '知识框架', note: '结构化呈现本单元字词句段篇知识' },
         { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
         { name: '典型题析', note: '适量典型题（含解题思路分析）' },
         { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -261,7 +261,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     special: {
       label: '专项突破',
       sections: [
-        { name: '分板块组织', note: '按本单元知识层级分板块，板块内由易到难；并给出具体做法与自查/完成标准' },
+        { name: '分板块组织', note: '按本单元知识层级分板块，板块间由浅入深；并给出具体做法与自查/完成标准' },
         { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱环节' },
       ],
     },
@@ -284,7 +284,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     summary: {
       label: '知识总结',
       sections: [
-        { name: '知识框架', note: '结构化呈现本单元概念、法则、公式、方法（导图/表格/对比优先）' },
+        { name: '知识框架', note: '结构化呈现本单元概念、法则、公式、方法' },
         { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
         { name: '易错辨析', note: '本单元易混概念与易错计算辨析' },
         { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -311,7 +311,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     review: {
       label: '复习资料',
       sections: [
-        { name: '知识框架', note: '本单元概念、公式、方法结构图或表格' },
+        { name: '知识框架', note: '本单元概念、公式、方法结构化呈现' },
         { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
         { name: '典型题析', note: '适量典型题（含解题思路分析）' },
         { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -331,7 +331,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     special: {
       label: '专项突破',
       sections: [
-        { name: '分板块组织', note: '按本单元内容分板块，板块内由易到难；并给出具体做法与自查/完成标准' },
+        { name: '分板块组织', note: '按本单元内容分板块，板块间由浅入深；并给出具体做法与自查/完成标准' },
         { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
       ],
     },
@@ -354,7 +354,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     summary: {
       label: '知识总结',
       sections: [
-        { name: '知识框架', note: '结构化呈现本单元核心知识（导图/表格/对比优先）' },
+        { name: '知识框架', note: '结构化呈现本单元核心知识' },
         { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
         { name: '易错辨析', note: '本单元易混词汇、易错发音与句型辨析' },
         { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -381,7 +381,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     review: {
       label: '复习资料',
       sections: [
-        { name: '知识框架', note: '本单元核心知识结构图或表格' },
+        { name: '知识框架', note: '本单元核心知识结构化呈现' },
         { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
         { name: '典型题析', note: '适量典型题（含解题思路分析）' },
         { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -401,7 +401,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     special: {
       label: '专项突破',
       sections: [
-        { name: '分板块组织', note: '按本单元内容分板块，板块内由易到难；并给出具体做法与自查/完成标准' },
+        { name: '分板块组织', note: '按本单元内容分板块，板块间由浅入深；并给出具体做法与自查/完成标准' },
         { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
       ],
     },
@@ -424,7 +424,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     summary: {
       label: '知识总结',
       sections: [
-        { name: '知识框架', note: '结构化呈现本单元科学概念与知识（导图/表格/对比优先）' },
+        { name: '知识框架', note: '结构化呈现本单元科学概念与知识' },
         { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
         { name: '易错辨析', note: '本单元易混概念与易错观察结论辨析' },
         { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -451,7 +451,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     review: {
       label: '复习资料',
       sections: [
-        { name: '知识框架', note: '本单元科学概念与探究方法结构图或表格' },
+        { name: '知识框架', note: '本单元科学概念与探究方法结构化呈现' },
         { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
         { name: '典型题析', note: '适量典型题（含解题思路分析）' },
         { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -476,7 +476,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     special: {
       label: '专项突破',
       sections: [
-        { name: '分板块组织', note: '按本单元内容分板块（概念辨析/规律应用/实验探究），板块内由易到难；并给出具体做法与自查/完成标准' },
+        { name: '分板块组织', note: '按本单元内容分板块（概念辨析/规律应用/实验探究），板块间由浅入深；并给出具体做法与自查/完成标准' },
         { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
       ],
     },
@@ -499,7 +499,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     summary: {
       label: '知识总结',
       sections: [
-        { name: '知识框架', note: '结构化呈现本单元概念、规律、公式与实验方法（导图/表格/对比优先）' },
+        { name: '知识框架', note: '结构化呈现本单元概念、规律、公式与实验方法' },
         { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
         { name: '易错辨析', note: '本单元易混概念与易错规律应用辨析' },
         { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -526,7 +526,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     review: {
       label: '复习资料',
       sections: [
-        { name: '知识框架', note: '本单元概念、规律、公式与实验方法结构图或表格' },
+        { name: '知识框架', note: '本单元概念、规律、公式与实验方法结构化呈现' },
         { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
         { name: '典型题析', note: '适量典型题（含解题思路分析）' },
         { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -546,7 +546,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新任务', note: '生产生活应用（材料、能源、环境），含化学用语规范书写' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块（概念/化学用语/实验探究），板块内由易到难；并给出具体做法与自查/完成标准' },
+      { name: '分板块组织', note: '按本单元内容分板块（概念/化学用语/实验探究），板块间由浅入深；并给出具体做法与自查/完成标准' },
       { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
     ] },
     preview: { label: '课前预习', sections: [
@@ -560,7 +560,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '分层设题', note: '设问由浅入深、有层次，题目不可直接在原文找到原句答案；并给出具体做法与自查/完成标准' },
     ] },
     summary: { label: '知识总结', sections: [
-      { name: '知识框架', note: '结构化呈现本单元概念、物质性质、方程式与实验方法（导图/表格/对比优先）' },
+      { name: '知识框架', note: '结构化呈现本单元概念、物质性质、方程式与实验方法' },
       { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
       { name: '易错辨析', note: '本单元易混概念与易错化学用语辨析' },
       { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -578,7 +578,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '解题策略', note: '归纳本类题通用策略' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元概念、物质性质、方程式与实验方法结构图或表格' },
+      { name: '知识框架', note: '本单元概念、物质性质、方程式与实验方法结构化呈现' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -597,7 +597,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新任务', note: '健康生活与生态保护应用，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块（概念/结构功能/实验探究），板块内由易到难；并给出具体做法与自查/完成标准' },
+      { name: '分板块组织', note: '按本单元内容分板块（概念/结构功能/实验探究），板块间由浅入深；并给出具体做法与自查/完成标准' },
       { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
     ] },
     preview: { label: '课前预习', sections: [
@@ -611,7 +611,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '分层设题', note: '设问由浅入深、有层次，题目不可直接在原文找到原句答案；并给出具体做法与自查/完成标准' },
     ] },
     summary: { label: '知识总结', sections: [
-      { name: '知识框架', note: '结构化呈现本单元概念、结构与功能、实验方法（导图/表格/对比优先）' },
+      { name: '知识框架', note: '结构化呈现本单元概念、结构与功能、实验方法' },
       { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
       { name: '易错辨析', note: '本单元易混概念与易错结构功能辨析' },
       { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -629,7 +629,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '解题策略', note: '归纳本类题通用策略' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元概念、结构与功能、实验方法结构图或表格' },
+      { name: '知识框架', note: '本单元概念、结构与功能、实验方法结构化呈现' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -648,7 +648,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新任务', note: '以史鉴今与现实联系，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块（史实梳理/材料分析/阶段特征），板块内由易到难；并给出具体做法与自查/完成标准' },
+      { name: '分板块组织', note: '按本单元内容分板块（史实梳理/材料分析/阶段特征），板块间由浅入深；并给出具体做法与自查/完成标准' },
       { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
     ] },
     preview: { label: '课前预习', sections: [
@@ -662,7 +662,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '分层设题', note: '设问由浅入深、有层次，答案须由材料与所学结合得出；并给出具体做法与自查/完成标准' },
     ] },
     summary: { label: '知识总结', sections: [
-      { name: '知识框架', note: '结构化呈现本单元史实、阶段特征与线索（时间轴/表格/导图优先）' },
+      { name: '知识框架', note: '结构化呈现本单元史实、阶段特征与线索' },
       { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
       { name: '易错辨析', note: '本单元易混史实与易错表述辨析' },
       { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -680,7 +680,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '解题策略', note: '归纳本类题通用策略' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元史实、阶段特征与线索结构图或表格' },
+      { name: '知识框架', note: '本单元史实、阶段特征与线索结构化呈现' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -690,7 +690,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
   '地理': {
     /* 地理仅初中/高中开设：学科级学段要求覆盖初高中档，小学档回退通用（地理不开设） */
     stages: {
-      middle: { note: '2022年版义务教育地理课标核心素养（人地协调观/综合思维/区域认知/地理实践力）：以地图/图表为载体，综合题沿区域定位→要素分析→人地关系' },
+      middle: { note: '2022年版义务教育地理课标核心素养（人地协调观/综合思维/区域认知/地理实践力）：以地图/图表为载体，综合题体现综合思维与清晰逻辑链，分析路径依材料自定' },
       high: { note: '高中地理学科核心素养（综合思维/区域认知）：区域与要素综合分析，图表信息解读有层次；并给出具体做法与自查/完成标准' },
     },
     practice: { label: '课时练', sections: [
@@ -699,7 +699,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新任务', note: '人地关系与家乡实践，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块（地图技能/要素分析/区域认知），板块内由易到难；并给出具体做法与自查/完成标准' },
+      { name: '分板块组织', note: '按本单元内容分板块（地图技能/要素分析/区域认知），板块间由浅入深；并给出具体做法与自查/完成标准' },
       { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
     ] },
     preview: { label: '课前预习', sections: [
@@ -713,7 +713,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '分层设题', note: '设问由浅入深、有层次，题目不可直接在原文找到原句答案；并给出具体做法与自查/完成标准' },
     ] },
     summary: { label: '知识总结', sections: [
-      { name: '知识框架', note: '结构化呈现本单元地理要素与区域知识（地图/表格/对比优先）' },
+      { name: '知识框架', note: '结构化呈现本单元地理要素与区域知识' },
       { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
       { name: '易错辨析', note: '本单元易混概念与易错区域判断辨析' },
       { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -731,7 +731,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '解题策略', note: '归纳本类题通用策略' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元地理要素与区域知识结构图或表格' },
+      { name: '知识框架', note: '本单元地理要素与区域知识结构化呈现' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -741,15 +741,15 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
   '思想政治': {
     /* 思想政治仅高中开设：学科级学段要求覆盖高中档 */
     stages: {
-      high: { note: '高中思想政治学科核心素养（政治认同/科学精神/法治意识/公共参与）：以时政与生活情境为载体，材料分析沿原理→材料→结论，论述观点明确、分层论证' },
+      high: { note: '高中思想政治学科核心素养（政治认同/科学精神/法治意识/公共参与）：以时政与生活情境为载体，材料分析体现理论与材料、结论的相互印证，论述观点明确、分层论证' },
     },
     practice: { label: '课时练', sections: [
       { name: '基础建构任务', note: '覆盖本课时概念与原理等核心内容，在情境中考查' },
-      { name: '探究进阶任务', note: '材料分析任务（原理→材料→结论），变式设问，考查迁移' },
+      { name: '探究进阶任务', note: '材料分析任务（体现理论与材料、结论相互印证），变式设问，考查迁移' },
       { name: '迁移创新任务', note: '时政辨析与实践参与，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块（概念原理/材料分析/辨析论述），板块内由易到难；并给出具体做法与自查/完成标准' },
+      { name: '分板块组织', note: '按本单元内容分板块（概念原理/材料分析/辨析论述），板块间由浅入深；并给出具体做法与自查/完成标准' },
       { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
     ] },
     preview: { label: '课前预习', sections: [
@@ -763,7 +763,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '分层设题', note: '设问由浅入深、有层次，答案须由材料与所学结合得出；并给出具体做法与自查/完成标准' },
     ] },
     summary: { label: '知识总结', sections: [
-      { name: '知识框架', note: '结构化呈现本单元概念、原理与知识结构（导图/表格/对比优先）' },
+      { name: '知识框架', note: '结构化呈现本单元概念、原理与知识结构' },
       { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
       { name: '易错辨析', note: '本单元易混概念与易错表述辨析' },
       { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -781,7 +781,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '解题策略', note: '归纳本类题通用策略' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元概念、原理与知识结构图或表格' },
+      { name: '知识框架', note: '本单元概念、原理与知识结构化呈现' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -795,7 +795,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新任务', note: '生活实践与社会参与，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块（道德规范/法治常识/情境辨析），板块内由易到难；并给出具体做法与自查/完成标准' },
+      { name: '分板块组织', note: '按本单元内容分板块（道德规范/法治常识/情境辨析），板块间由浅入深；并给出具体做法与自查/完成标准' },
       { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
     ] },
     preview: { label: '课前预习', sections: [
@@ -809,7 +809,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '分层设题', note: '设问由浅入深、有层次，答案须由材料与所学结合得出；并给出具体做法与自查/完成标准' },
     ] },
     summary: { label: '知识总结', sections: [
-      { name: '知识框架', note: '结构化呈现本单元道德与法律知识（导图/表格/对比优先）' },
+      { name: '知识框架', note: '结构化呈现本单元道德与法律知识' },
       { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
       { name: '易错辨析', note: '本单元易混概念与易错行为判断辨析' },
       { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -827,7 +827,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '解题策略', note: '归纳本类题通用策略' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元道德与法律知识结构图或表格' },
+      { name: '知识框架', note: '本单元道德与法律知识结构化呈现' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -841,7 +841,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新任务', note: '数字化创作与信息社会责任，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块（概念原理/操作流程/问题解决），板块内由易到难；并给出具体做法与自查/完成标准' },
+      { name: '分板块组织', note: '按本单元内容分板块（概念原理/操作流程/问题解决），板块间由浅入深；并给出具体做法与自查/完成标准' },
       { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
     ] },
     preview: { label: '课前预习', sections: [
@@ -855,7 +855,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '分层设题', note: '设问由浅入深、有层次，题目不可直接在原文找到原句答案；并给出具体做法与自查/完成标准' },
     ] },
     summary: { label: '知识总结', sections: [
-      { name: '知识框架', note: '结构化呈现本单元概念、原理与操作要点（导图/表格/流程图优先）' },
+      { name: '知识框架', note: '结构化呈现本单元概念、原理与操作要点' },
       { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
       { name: '易错辨析', note: '本单元易混概念与易错操作辨析' },
       { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -873,7 +873,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '解题策略', note: '归纳本类题通用策略' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元概念、原理与操作要点结构图或表格' },
+      { name: '知识框架', note: '本单元概念、原理与操作要点结构化呈现' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -887,7 +887,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新任务', note: '音乐欣赏与生活联系，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块（音乐欣赏/音乐表现/音乐创造/与相关文化的联系，含乐理基础知识），板块内由易到难；并给出具体做法与自查/完成标准' },
+      { name: '分板块组织', note: '按本单元内容分板块（音乐欣赏/音乐表现/音乐创造/与相关文化的联系，含乐理基础知识），板块间由浅入深；并给出具体做法与自查/完成标准' },
       { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
     ] },
     preview: { label: '课前预习', sections: [
@@ -901,7 +901,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '分层设题', note: '设问由浅入深、有层次，题目不可直接在原文找到原句答案；并给出具体做法与自查/完成标准' },
     ] },
     summary: { label: '知识总结', sections: [
-      { name: '知识框架', note: '结构化呈现本单元乐理、作品与音乐要素（表格/对比优先）' },
+      { name: '知识框架', note: '结构化呈现本单元乐理、作品与音乐要素' },
       { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
       { name: '易错辨析', note: '本单元易混乐理与易错节奏辨析' },
       { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -919,7 +919,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '解题策略', note: '归纳本类题通用策略' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元乐理、作品与音乐要素结构图或表格' },
+      { name: '知识框架', note: '本单元乐理、作品与音乐要素结构化呈现' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -933,7 +933,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新任务', note: '欣赏评述与生活应用，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块（造型表现/设计应用/欣赏评述/综合探索），板块内由易到难；并给出具体做法与自查/完成标准' },
+      { name: '分板块组织', note: '按本单元内容分板块（造型表现/设计应用/欣赏评述/综合探索），板块间由浅入深；并给出具体做法与自查/完成标准' },
       { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
     ] },
     preview: { label: '课前预习', sections: [
@@ -947,7 +947,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '分层设题', note: '设问由浅入深、有层次，题目不可直接在原文找到原句答案；并给出具体做法与自查/完成标准' },
     ] },
     summary: { label: '知识总结', sections: [
-      { name: '知识框架', note: '结构化呈现本单元造型/色彩/构图知识与名作（表格/对比优先）' },
+      { name: '知识框架', note: '结构化呈现本单元造型/色彩/构图知识与名作' },
       { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
       { name: '易错辨析', note: '本单元易混概念与易错表现辨析' },
       { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -965,7 +965,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '解题策略', note: '归纳本类题通用策略' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元造型/色彩/构图知识与名作结构图或表格' },
+      { name: '知识框架', note: '本单元造型/色彩/构图知识与名作结构化呈现' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -979,7 +979,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新任务', note: '锻炼习惯与安全健康，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块（动作要领/规则/健康知识），板块内由易到难；并给出具体做法与自查/完成标准' },
+      { name: '分板块组织', note: '按本单元内容分板块（动作要领/规则/健康知识），板块间由浅入深；并给出具体做法与自查/完成标准' },
       { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
     ] },
     preview: { label: '课前预习', sections: [
@@ -993,7 +993,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '分层设题', note: '设问由浅入深、有层次，题目不可直接在原文找到原句答案；并给出具体做法与自查/完成标准' },
     ] },
     summary: { label: '知识总结', sections: [
-      { name: '知识框架', note: '结构化呈现本单元动作要领、规则与健康知识（表格/对比优先）' },
+      { name: '知识框架', note: '结构化呈现本单元动作要领、规则与健康知识' },
       { name: '重点梳理', note: '逐点梳理并标注教材出处，重点内容突出' },
       { name: '易错辨析', note: '本单元易混要领与易错动作辨析' },
       { name: '典型例题', note: '适量典型例题（含解析）' },
@@ -1011,7 +1011,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '解题策略', note: '归纳本类题通用策略' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元动作要领、规则与健康知识结构图或表格' },
+      { name: '知识框架', note: '本单元动作要领、规则与健康知识结构化呈现' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
