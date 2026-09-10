@@ -5041,7 +5041,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         } else {
           // 🔧 答案页为空/过短/思考耗尽 → 自动重试一次（思考耗尽时强制关闭思考，防再次空转；
           //    模型偶发输出空或"略"式敷衍内容也覆盖）
-          console.warn(`⚠️ 答案页内容${ansCapped ? `思考耗尽（${ansObj.reasoningChunkCount || 0} 推理chunks）` : `过短（${aHtml?.length || 0} 字符）`}，自动重试一次${ansCapped ? '（强制关闭思考）' : ''}`);
+          console.warn(`⚠️ 答案页内容${ansCapped ? `思考耗尽（${ansObj.reasoningChunkCount || 0} 推理chunks）` : `过短（清洗后 ${aHtml?.length || 0} / 原始 ${(ansObj.content || '').length} 字符，finish=${ansObj.finishReason || 'unknown'}）`}，自动重试一次${ansCapped ? '（强制关闭思考）' : ''}`);
           const ansResp2 = await callAI(ansPrompt, {
             taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
             // 🔧 会话式：答案页重试同带研读消化记录前缀
@@ -5057,7 +5057,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
             const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
             answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml2)}</div>`;
           } else {
-            console.warn('⚠️ 答案页重试仍为空/过短（正文仍有效）');
+            console.warn(`⚠️ 答案页重试仍为空/过短（清洗后 ${aHtml2?.length || 0} / 原始 ${(ansObj2.content || '').length} 字符，finish=${ansObj2.finishReason || 'unknown'}；正文仍有效 → 本次入库无答案区，请核对`);
           }
         }
       } catch (e) {

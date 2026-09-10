@@ -7967,6 +7967,8 @@ const generate = async (mode) => {
     : [null];
   // 🔧 逐章模式当前章节的教材过滤版（标题/指令范围名按单章）；非逐章为 null
   const perChapterBooksRef = { value: null };
+  // 🎨 栏目风格按次轮换：记录本次生成前的产出数，末尾据此判断"是否真的有产出"再推进计数
+  const docsBefore = generatedDocs.value.length;
   
   for (let chIdx = 0; chIdx < chapterTargets.length; chIdx++) {
     const chapterTarget = chapterTargets[chIdx];
@@ -8116,7 +8118,7 @@ const generate = async (mode) => {
   } // end chapterTargets loop
   // 🎨 栏目风格按次轮换：本次生成结束 → 自动轮换推进一格（下次生成换下一套）；
   //    手动固定套（columnStyle 非空）不参与计数；本次全部失败（无产出）也不推进。
-  if (!columnStyle.value && generatedTypes.length > 0) {
+  if (!columnStyle.value && generatedDocs.value.length > docsBefore) {
     for (const t of types) advanceAutoColumnStyleId(t);
   }
   if (chapterTargets.length > 1) {
