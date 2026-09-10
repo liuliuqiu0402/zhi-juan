@@ -1318,7 +1318,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             items.push({ p: head, score: scoreMatch ? parseFloat(scoreMatch[1]) : null, seg: secNodes, sub: false });
           } else {
             subPs.forEach((sp, k) => {
-              const seg = []; let sn = sp.nextSibling; const e2 = subPs[k + 1] || null;
+              const seg = []; let sn = sp.nextSibling; const e2 = subPs[k + 1] || end; // 同上：栏边界兜底
               while (sn && sn !== e2) { seg.push(sn); sn = sn.nextSibling; }
               items.push({ p: sp, score: scoreIn(sp), seg, sub: true });
             });
@@ -1326,7 +1326,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         } else {
           for (let k = 0; k < topPs.length; k++) {
             const p = topPs[k];
-            const e2 = topPs[k + 1] || null;
+            const e2 = topPs[k + 1] || end; // 🔴 2026-09-10 栏边界兜底：本栏最后一块不得越界吞后续栏（曾致下栏空白行计入本块有效作答行，该补不补）
             const segNodes = []; let sn = p.nextSibling;
             while (sn && sn !== e2) { segNodes.push(sn); sn = sn.nextSibling; }
             const subPs = secNodesPs(segNodes).filter((n) => subRe.test((n.textContent || '').trim()));
@@ -1340,7 +1340,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               //（填空类不继承——填空由子题自身括号空判定，防止顶层"再填空"字样拖累长答子题）
               const ctx = (p.textContent || '').trim();
               subPs.forEach((sp, j) => {
-                const subSeg = []; let s2 = sp.nextSibling; const e3 = subPs[j + 1] || null;
+                const subSeg = []; let s2 = sp.nextSibling; const e3 = subPs[j + 1] || e2; // 同上：顶层题块边界兜底
                 while (s2 && s2 !== e3) { subSeg.push(s2); s2 = s2.nextSibling; }
                 items.push({ p: sp, score: scoreIn(sp), seg: subSeg, sub: true, ctx });
               });

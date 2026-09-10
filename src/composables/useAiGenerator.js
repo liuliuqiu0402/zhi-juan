@@ -4522,6 +4522,7 @@ ${cardAnalysisText.substring(0, 1000)}
       if (lastFr === 'length') {
         if (writeRounds < BROWSE_WRITE_CAP) {
           writeRounds++;
+          console.warn(`⏩ 浏览写作续写 第 ${writeRounds}/${BROWSE_WRITE_CAP} 轮（当前正文 ${content.length} 字符）`);
           awaitingContinuation = true; // 🔴 下一轮为续写轮：正文落地时按"重写 vs 续写"判定，防覆盖丢前缀
           messages.push({ role: 'assistant', content: text || '' });
           // 🔴 2026-09-10 跳段根治：续写指令必须带"已输出末尾样本"（与单次链续写同口径）——
