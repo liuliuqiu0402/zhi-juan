@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import axios from 'axios';
-import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay } from '../config/apiConfig.js';
+import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay, resolveEngineOutputLimit } from '../config/apiConfig.js';
 import { buildStudyUnits, runStudyRound, buildStudyPrefix, planPrefixKeepFull } from '../utils/studyOrchestrator.js';
 import { createGenerationSession, isReturnableSegment } from '../utils/generationSession.js';
 import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'; // S4.1：段类型补"拓展/文化"（锚范围性质判定共用）
@@ -4698,18 +4698,18 @@ ${cardAnalysisText.substring(0, 1000)}
     const answerOverCap = answerNeeded > answerCfg.cap;
     const answerEffectiveCap = answerOverCap ? Math.min(MAIN_TOKEN_CEIL, answerNeeded) : answerCfg.cap;
     const answerDynamicCap = Math.round(Math.min(answerEffectiveCap, answerNeeded));
-    // 🔧 引擎单次输出上限护栏（2026-09）：请求 max_tokens 超过模型硬上限会被 API 拒绝(400)或静默截断到上限。
-    //    DeepSeek 官方口径：deepseek-chat 默认 4K、最大 8K；deepseek-reasoner 默认 32K、最大 64K。
-    //    其他引擎（火山/阿里/智谱/本地）上限随模型档位未固证 → 不钳制（防误伤）。
+    // 🔧 引擎单次输出上限护栏（2026-09 结构性修正）：请求 max_tokens 超过模型硬上限会被 API 拒绝(400)
+    //    或静默截断到上限。权威口径落在 apiConfig.resolveEngineOutputLimit（模型名匹配）：
+    //    deepseek-v4-pro / deepseek-flash 最大输出 384K（此前被 /reasoner|r1|think/ 漏判 → 一律钳到 8192
+    //    → 正文按需 11K+ 被硬钳到 8K → 截断 → "正文不完整"，app 层 cap 形同失效）。
+    //    非 deepseek 引擎上限未固证 → Infinity（不钳制，防误伤）；app 层安全上界 MAIN_TOKEN_CEIL 仍兜底。
     //    护栏效果：请求值钳到引擎上限；估算缺口由「正文截断续写链」分次补齐（见段1续写链），
     //    并在 budgetAlert 中透出"本次因引擎上限需要分次"（进入生成报告，用户可据此缩小范围或换 reasoner）。
     //    🔧 独立获取引擎配置：不得引用上方 browse 探测的局部 gateCfg（try 块作用域，小范围时未执行 → ReferenceError）
     let engineCap = Infinity;
     try {
       const genGate = await getCurrentEngineConfigEnhanced('generation', { promptLength: Math.min(selectedRawChars, 4000) });
-      if (genGate?.provider === 'deepseek') {
-        engineCap = /reasoner|r1|think/i.test(String(genGate?.model || '')) ? 65536 : 8192;
-      }
+      engineCap = resolveEngineOutputLimit(genGate?.provider, genGate?.model);
     } catch { /* 引擎可配置探询失败 → 不钳制：护栏为防误伤兜底，非关键路径 */ }
     const clampReq = (tok) => Math.min(tok, engineCap);
     const bodyEngineOver = bodyDynamicCap > engineCap;

@@ -975,6 +975,32 @@ export const getTaskMaxTokens = (taskType) => {
 };
 
 /**
+ * 🔴 引擎单次输出上限（max_tokens 硬上限；请求超限会被 API 拒绝或静默截断到上限）
+ * ============================================================
+ * 2026-09 结构性修正：
+ *   此前按 /reasoner|r1|think/ 判定 DeepSeek——非 reasoner 一律 8192。
+ *   而当前实际在用的 deepseek-v4-pro / deepseek-flash（DeepSeek V4 系列）不匹配该正则
+ *   → 全部落到 8192：正文按需 11K+ token 被引擎层硬钳到 8K → 截断 → "正文不完整"；
+ *   app 层本已按类型给到 cap=24000/上限 98304，却被引擎层误钳，属"配置自相矛盾"。
+ * 权威口径（DeepSeek 官方）：V4 系列上下文 1M、最大输出 384K（思考/非思考模式同）；
+ *   deepseek-flash = V4.1-Flash，同档；旧 deepseek-chat 默认 4K/最大 8K；旧 deepseek-reasoner 最大 64K。
+ * 其他引擎上限未固证 → Infinity（不钳制，防误伤）；app 层安全上界仍由 MAIN_TOKEN_CEIL 兜住。
+ */
+export const MODEL_OUTPUT_LIMIT_RULES = [
+  { re: /v4|flash/i, limit: 384000 },         // deepseek-v4-pro / deepseek-v4-flash / deepseek-flash（V4.1-Flash）
+  { re: /reasoner|r1|think/i, limit: 65536 }, // 旧 deepseek-reasoner / r1 系
+  { re: /^/, limit: 8192 },                   // 旧 deepseek-chat / v3（默认 4K、最大 8K）
+];
+
+/** 按 引擎 provider + 模型名 解析单次输出上限（tokens）；非 deepseek → Infinity（不钳制） */
+export const resolveEngineOutputLimit = (provider = '', model = '') => {
+  if (provider !== 'deepseek') return Infinity;
+  const m = String(model || '');
+  for (const r of MODEL_OUTPUT_LIMIT_RULES) if (r.re.test(m)) return r.limit;
+  return 8192;
+};
+
+/**
  * 🔧 当前引擎整卷生成是否启用深度思考（设置页按引擎配置的开关）
  * 生成端（整卷正文/答案页）据此决定：传 thinking 参数、放大输出预算、设置推理流式上限。
  */
