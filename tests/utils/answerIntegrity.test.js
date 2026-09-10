@@ -149,6 +149,19 @@ describe('答案页自带标题去重（stripLeadingAnswerTitle：段2 包装标
     const body = '<h2>知识奠基</h2><h3>一、新困难面前怎么说</h3><p>1. ……</p>';
     expect(stripLeadingAnswerTitle(body)).toBe(body);
   });
+
+  it('🔴 纯文本答案包裹后的 <p> 标题 → 剥除（2026-09-10 补：清零门修复后纯文本按行包裹，<p>参考答案与解析</p> 残留）', () => {
+    const a = '<p>参考答案与解析</p><p>1. 答案：A。</p><p>2. 略</p>';
+    expect(stripLeadingAnswerTitle(a)).toBe('<p>1. 答案：A。</p><p>2. 略</p>');
+  });
+
+  it('🔴 <p> 标题带单元名前缀 → 剥除；"参考答案：1. A"（冒号后有正文）→ 不剥（防吞答案）', () => {
+    expect(stripLeadingAnswerTitle('<p>Unit 1 参考答案</p><p>1. A</p>')).toBe('<p>1. A</p>');
+    const keep = '<p>参考答案：1. A</p><p>2. B</p>';
+    expect(stripLeadingAnswerTitle(keep)).toBe(keep);
+    const plainFirst = '<p>1. A</p><p>2. B</p>';
+    expect(stripLeadingAnswerTitle(plainFirst)).toBe(plainFirst);
+  });
 });
 
 describe('正文/答案 题号数双向守卫（auditExamPaper）', () => {

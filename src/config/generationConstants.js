@@ -26,6 +26,7 @@ export const GEN_CONST = Object.freeze({
   DEDUP_OVERLAP_MIN: 3,               // 渐进去重最小长度
   DEDUP_NEWLINE_MIN: 30,              // 无重叠时取换行后内容需>此值
   CONTINUE_TAIL_SAMPLE: 300,          // 续写提示取上一段末尾 N 字符
+  REWRITE_HEAD_SAMPLE: 60,            // 续写轮"重写 vs 续写"判定：取已有内容开头 N 字做包含检测（含→重写替换；不含→去重追加）
 
   // ── 正文/答案有效性 ──
   BODY_VALID_MIN_LEN: 200,            // 整卷正文有效判定（<此值视为失败）

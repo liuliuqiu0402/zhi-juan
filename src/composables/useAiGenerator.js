@@ -514,7 +514,8 @@ const convertBlankFormat = (html) => {
 
 // 此函数剥离思考块，只保留最终答案
 // 🔧 增强：同时清洗 markdown 代码块包裹和对话式前缀/后缀文本
-const cleanReasoningOutput = (text) => {
+// 🔴 2026-09-10：导出供回归测试锁死"纯文本不清零"契约（答案页静默清零事故根治）
+export const cleanReasoningOutput = (text) => {
   if (!text) return '';
   
   // 🔧 抽取统一清洗逻辑（emoji + HTML包裹 + 下划线），在所有 return 路径上调用
@@ -603,7 +604,7 @@ const cleanReasoningOutput = (text) => {
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
     return sanitize(trimmed);
   }
-  // 🔧 最终兜底：全文无任何HTML标签 → 返回空字符串（触发错误提示而非导出乱码）
+  // 🔧 最终兜底：全文无任何HTML标签 → 正常应为"格式违规"，但绝不静默清零内容
   const finalHtmlCheck = text.search(/<(!DOCTYPE|html|head|body|h[1-6]|p\b|div|table|ul|ol|span|u\b|a\b|img|br)\b/i);
   if (finalHtmlCheck === -1) {
     // 尝试更宽松的匹配：<!DOCTYPE 或 <html 出现在任意位置
@@ -611,11 +612,47 @@ const cleanReasoningOutput = (text) => {
     if (looseMatch && looseMatch.index >= 0) {
       return sanitize(text.substring(looseMatch.index));
     }
-    // 全文无HTML → 返回空，避免导出乱码
+    // 🔴 2026-09-10 回归根治（答案页"静默清零"事故）：模型偶发违规吐纯文本/Markdown（规范要求 HTML）时，
+    //    此前此处 return '' 把有效内容整段清零——答案页 SSE 明明有 1641 字符仍被判"过短（0 字符）"，
+    //    重试再次清零 → 入库无答案区。复位为"可用优先"：纯文本按行包裹 <p>（先剥行首 Markdown
+    //    标题符/加粗标记）落为合法 HTML；仅当真无有效内容（非空白字符 < 10，如空串/"好的"）才返回 ''。
+    //    原则：格式可降级，内容不清零（正文结构校验 isDeliverableBodyHtml 在近端继续把关）。
+    const plainLines = trimmed
+      .split(/\n+/)
+      .map((line) => line
+        .replace(/^\s*#{1,6}\s+/, '')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .trim())
+      .filter(Boolean);
+    if (plainLines.join('').replace(/\s+/g, '').length >= 10) {
+      return sanitize(plainLines.map((line) => `<p>${line}</p>`).join(''));
+    }
+    // 全文无有效内容 → 返回空，避免导出乱码
     return '';
   }
   
   return sanitize(text);
+};
+
+// 🔴 续写拼接（单一事实源，2026-09-10 收敛）：续写段与已有内容的拼接统一走此函数——
+//    模型续写常从上一段末尾重述（或整段重发），直接拼接会重复：先按「精确末尾 N 字 → 渐进
+//    重叠 15→3 字」去重；去重后为空（纯重复段）则不追加。绝不用续写段【覆盖】已有内容。
+//    用于：browse 写作轮续写（generateBodyByTextbookBrowse）/ 单次注入续写链（_runPaperOrder）。
+export const appendContinuationWithDedup = (base, cont) => {
+  const b = String(base || '');
+  const tail = b.slice(-GEN_CONST.DEDUP_TAIL_EXACT);
+  let clean = String(cont || '').trimStart();
+  if (tail && clean.startsWith(tail)) {
+    clean = clean.slice(tail.length);
+  } else {
+    for (let ol = GEN_CONST.DEDUP_OVERLAP_MAX; ol >= GEN_CONST.DEDUP_OVERLAP_MIN; ol--) {
+      const ov = b.slice(-ol);
+      if (ov && clean.startsWith(ov)) { clean = clean.slice(ol); break; }
+    }
+  }
+  clean = clean.trim();
+  if (!clean) return b;
+  return b + '\n' + clean;
 };
 
 
@@ -996,7 +1033,15 @@ export const stripAnswerSection = (content) => {
  * 原"标题须以'参考答案'开头"漏剥 → h2+h3 双层标题残留。现允许标题内"参考答案"前有 ≤40 字前缀
  * （锚点仍是"文档开头、且为标题块"，正文大标题如"一、基础建构任务"不含"参考答案"，不会误剥）。 */
 export const stripLeadingAnswerTitle = (html = '') => String(html || '')
-  .replace(/^(\s*(?:<(?:div|p)\b[^>]*>\s*)?)<h[1-6]\b[^>]*>\s*[^<]{0,40}?参考答案[^<]*<\/h[1-6]>\s*/i, '$1');
+  .replace(/^(\s*(?:<(?:div|p)\b[^>]*>\s*)?)<h[1-6]\b[^>]*>\s*[^<]{0,40}?参考答案[^<]*<\/h[1-6]>\s*/i, '$1')
+  // 🔴 2026-09-10 再补：纯文本答案经 cleanReasoningOutput 包裹为 <p> 后，自带首行标题以
+  //    <p>参考答案与解析</p> 形态残留——仅当 p 内文本【含"参考答案"、≤40 字、且"参考答案"后无正文】
+  //    时剥除（"参考答案：1. A"是正文答案行，冒号后有内容即不剥，防吞答案）
+  .replace(/^(\s*(?:<(?:div|p)\b[^>]*>\s*)?)<p\b[^>]*>([^<]{0,40})<\/p>\s*/i, (m, pre, inner) => {
+    const t = String(inner || '').trim();
+    const colon = t.search(/[：:]/);
+    return (t.includes('参考答案') && (colon === -1 || colon >= t.length - 1)) ? pre : m;
+  });
 
 /**
  * 研读轮对话助手（复位工程·阶段 2 接入）：单次非流式对话，产出研读批摘要文本。
@@ -4324,6 +4369,7 @@ ${cardAnalysisText.substring(0, 1000)}
     let hitTruncLimited = false;
     let writeRounds = 0;               // 正文阶段已进行的续写次数（独立于浏览轮，防死循环）
     const BROWSE_WRITE_CAP = 3;        // 正文截断续写上界（超此视为极端，放弃并交由编辑兜底）
+    let awaitingContinuation = false;  // 🔴 续写轮标记：上一轮发出了【续写】请求 → 本轮正文落地按"重写 vs 续写"判定（防覆盖丢前缀）
     let lastMsg = null;
     let lastFr = '';
     // 🔧 未浏览章确认（默认开，config.generationSettings.browseAutoFill，语义随 G7 终态调整）：
@@ -4453,13 +4499,26 @@ ${cardAnalysisText.substring(0, 1000)}
       // 正文落地：仅当本轮确为正文才更新 content——过程自述/确认话术（如"正文已在上一条消息
       //   完整输出"）不覆盖 content，保持其现状；content 为空时交由出口守卫与上层"完整优先"
       //   回退重试，绝不把自述当正文交付
-      if (bodyLike) content = rawT;
+      // 🔴 续写轮落地（2026-09-10 "断续缺块"根治）：续写轮的 rawT 只是"剩余部分"（模型按【续写】
+      //   指令不重复已有内容）——此前一律 content = rawT 覆盖写回，续写前的整段前缀被丢掉；
+      //   现按「重写 vs 续写」判定：rawT 未含已有内容开头样本 → 判为续写段 → 去重后【追加】（前缀保留）；
+      //   含开头样本（模型整卷重发）→ 仍按重写替换。非续写轮维持替换语义（覆盖浏览轮草稿/自述）。
+      if (bodyLike) {
+        const headSample = content.trim().slice(0, GEN_CONST.REWRITE_HEAD_SAMPLE);
+        if (awaitingContinuation && content && headSample && !rawT.includes(headSample)) {
+          content = appendContinuationWithDedup(content, rawT);
+        } else {
+          content = rawT;
+        }
+        awaitingContinuation = false;
+      }
       // 🔴 正文阶段续写兜底：截断（finish_reason=length）说明输出预算不够，素材已在上下文，
       //    无需重新浏览——用独立续写计数（WRITE_CAP）兜底，不受浏览轮数上限（maxRounds）约束；
       //    否则当 round==maxRounds 且正文被截断时会直接采纳半截卷面（之前的 bug）。
       if (lastFr === 'length') {
         if (writeRounds < BROWSE_WRITE_CAP) {
           writeRounds++;
+          awaitingContinuation = true; // 🔴 下一轮为续写轮：正文落地时按"重写 vs 续写"判定，防覆盖丢前缀
           messages.push({ role: 'assistant', content: text || '' });
           messages.push({ role: 'user', content: '【续写】上次输出被截断，请直接从停止处继续完成剩余内容，不要重复已有内容。' });
           continue;
@@ -4698,13 +4757,15 @@ ${cardAnalysisText.substring(0, 1000)}
     const answerOverCap = answerNeeded > answerCfg.cap;
     const answerEffectiveCap = answerOverCap ? Math.min(MAIN_TOKEN_CEIL, answerNeeded) : answerCfg.cap;
     const answerDynamicCap = Math.round(Math.min(answerEffectiveCap, answerNeeded));
-    // 🔧 引擎单次输出上限护栏（2026-09 结构性修正）：请求 max_tokens 超过模型硬上限会被 API 拒绝(400)
-    //    或静默截断到上限。权威口径落在 apiConfig.resolveEngineOutputLimit（模型名匹配）：
-    //    deepseek-v4-pro / deepseek-flash 最大输出 384K（此前被 /reasoner|r1|think/ 漏判 → 一律钳到 8192
-    //    → 正文按需 11K+ 被硬钳到 8K → 截断 → "正文不完整"，app 层 cap 形同失效）。
+    // 🔧 引擎单次输出上限护栏（2026-09 结构性修正 + 2026-09-10 成本护栏）：请求 max_tokens 超过模型
+    //    硬上限会被 API 拒绝(400)或静默截断到上限。权威口径落在 apiConfig.resolveEngineOutputLimit：
+    //    deepseek-v4-pro / deepseek-flash 官方物理上限 384K 仅作参考——产品单次帽取 64K（成本可控：
+    //    防小范围勾选也发散写满、单次费用不可控）；此前曾被 /reasoner|r1|think/ 漏判 → 一律钳到 8192
+    //    → 正文按需 11K+ 被硬钳到 8K → 截断 → "正文不完整"，app 层 cap 形同失效。
     //    非 deepseek 引擎上限未固证 → Infinity（不钳制，防误伤）；app 层安全上界 MAIN_TOKEN_CEIL 仍兜底。
-    //    护栏效果：请求值钳到引擎上限；估算缺口由「正文截断续写链」分次补齐（见段1续写链），
-    //    并在 budgetAlert 中透出"本次因引擎上限需要分次"（进入生成报告，用户可据此缩小范围或换 reasoner）。
+    //    护栏效果：请求值含思考乘数放大后仍钳到引擎档（下方 3 个请求站点做了产品级钳制）；估算缺口
+    //    由「正文截断续写链」分次补齐（见段1续写链），并在 budgetAlert 中透出"本次因引擎上限需要分次"
+    //    （进入生成报告，用户可据此缩小范围或换 reasoner）。
     //    🔧 独立获取引擎配置：不得引用上方 browse 探测的局部 gateCfg（try 块作用域，小范围时未执行 → ReferenceError）
     let engineCap = Infinity;
     try {
@@ -4856,8 +4917,10 @@ ${cardAnalysisText.substring(0, 1000)}
           //    不静默截断预算）；思考模式按 thinkingBudgetMultiplier 放大（推理与正文共享配额，需给推理预留余量）
           // ⚠️ once 一次成型：正文+答案同一次输出，预算由 once 槽「系数」一体核算（once 槽系数 > body 槽，
           //    设计上已含答案区，勿再叠加 answer 帽双重放大——此前误判叠加已回退，见 git log 2026-09）
-          maxTokens: clampReq(attemptCap)
-            * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)),
+          // 🔴 产品级钳制（2026-09-10 成本护栏）：思考乘数放大后的实际请求值仍须 ≤ 引擎档——
+          //    否则 max_tokens 超限被 API 拒绝(400)或静默截断；单次请求费用由此封顶
+          maxTokens: Math.min(clampReq(attemptCap)
+            * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)), engineCap),
           allowContinuation: false,
           // 🔧 整卷正文温度：split 用「整卷正文温度」；once 用折中温度（见上方 bodyTemperature）
           temperature: bodyTemperature,
@@ -4887,22 +4950,8 @@ ${cardAnalysisText.substring(0, 1000)}
         if (trunc.truncated) {
           sampleTruncated = true;
           console.warn(`⚠️ 整卷输出${trunc.byReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，进入续写链补齐...`);
-          // 续写拼接：去除与正文末尾的重叠段（DEDUP 常量与 callAI 内部续写同一套口径）
-          const appendContinuation = (base, cont) => {
-            const tail = base.slice(-GEN_CONST.DEDUP_TAIL_EXACT);
-            let clean = String(cont || '').trimStart();
-            if (tail && clean.startsWith(tail)) {
-              clean = clean.slice(tail.length);
-            } else {
-              for (let ol = GEN_CONST.DEDUP_OVERLAP_MAX; ol >= GEN_CONST.DEDUP_OVERLAP_MIN; ol--) {
-                const ov = base.slice(-ol);
-                if (ov && clean.startsWith(ov)) { clean = clean.slice(ol); break; }
-              }
-            }
-            clean = clean.trim();
-            if (!clean) return base;
-            return base + '\n' + clean;
-          };
+          // 续写拼接：去除与正文末尾的重叠段（统一走模块级 appendContinuationWithDedup，
+          // 与 callAI 内部续写同一套 DEDUP 口径）
           const contMult = (retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2);
           const contBudget = clampReq(attemptCap * contMult);
           // 🔧 续写次数动态化：引擎单次输出有限（如 deepseek-chat 8K），总需求 ÷ 单次上限 = 需分片数，
@@ -4929,7 +4978,7 @@ ${cardAnalysisText.substring(0, 1000)}
             const cObj = typeof contResp === 'string' ? { content: contResp, finishReason: '' } : (contResp || { content: '', finishReason: '' });
             const contHtml = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(stripRedundantInlineCarrierRows(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(cObj.content || '')))))));
             if (!contHtml || contHtml.length <= 100) break; // 续写无效（过短/重复收尾）——按未补齐处理
-            content = appendContinuation(content, contHtml);
+            content = appendContinuationWithDedup(content, contHtml);
             trunc = detectTruncation(contHtml, cObj.finishReason); // 检测本次续写是否再次被截断
           }
           if (trunc.truncated) {
@@ -5026,7 +5075,8 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           // 🔴 returnMeta:true → 带出 finishReason / reasoningChunkCount，检测"思考耗尽"（与正文 retryWithoutThinking 对称）：
           //    答案页要逐题作答+评分标准+听力原文，思考推理长，一旦推理占满 20K 上限 → 输出为空/半截；
           //    第二次重试强制关闭思考，防再次空转（此前无降级 → answerHtml='' → 入库无答案区，"无答案页"根因）
-          maxTokens: clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
+          // 🔴 产品级钳制（成本护栏）：思考乘数放大后仍 ≤ 引擎档（单次请求费用封顶）
+          maxTokens: Math.min(clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), engineCap), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
           maxReasoningChunks: ansThinking ? GEN_CONST.REASONING_CAP_ANSWER : GEN_CONST.REASONING_CAP_ANSWER_FORCED,
           returnMeta: true,
         });
@@ -5046,7 +5096,7 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
             taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
             // 🔧 会话式：答案页重试同带研读消化记录前缀
             history: studyHistory,
-            maxTokens: clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
+            maxTokens: Math.min(clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), engineCap), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
             maxReasoningChunks: ansThinking ? GEN_CONST.REASONING_CAP_ANSWER : GEN_CONST.REASONING_CAP_ANSWER_FORCED,
             thinking: (ansCapped || (ansObj.reasoningChunkCount || 0) > 0) ? false : undefined, // 🔴 有推理痕迹（含引擎强制推理）→ 重试强制关闭思考
             returnMeta: true,
