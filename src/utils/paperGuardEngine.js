@@ -1,10 +1,11 @@
 /**
  * 🛡️ 卷级守门引擎（Paper Guard Engine）——生成后确定性"命中清单"的统一收敛层
  * ============================================================
- * 🔴 定位（2026-09 系统性根治，见 docs/design/卷级守门引擎与写作修订轮-根治方案.md）：
+ * 🔴 定位（2026-09 系统性根治，见 docs/源头防线总览.md）：
  *    - 收敛全部"确定性"卷级检测（照搬命中/数据裂缝/算式重复/情境主题重复/首段过程自述/载体形态），
- *    - 统一输出结构化命中清单与禁用沿用名单（bannedList），驱动写作修订轮（模型侧自行修订）；
- *    - 只报不改（形态级 fix 仍在 examValidator，不在此层）；发现靠确定性规则、修订靠模型（编辑）。
+ *    - 统一输出结构化命中清单与禁用沿用名单（bannedList），命中清单交编辑人工核对；
+ *    - 只报不改（形态级 fix 仍在 examValidator，不在此层）；发现靠确定性规则，程序不改写内容。
+ *      注：早年"写作修订轮（模型整卷重写自纠）"已全局砍除（实测空转），本引擎不再驱动任何模型修订。
  *    - 规避"自产自评"教训：本引擎不调用 AI，全部规则为字面/词表/结构确定性判定。
  * ============================================================
  */
@@ -203,7 +204,7 @@ export function guardPaper({ html = '', corpus = [], longN = 8, copy = true, sub
   const topicHits = questionBased ? detectTopicRepeat(html).map((t) => ({ cat: 'topic', level: 'warn', text: t })) : [];
   const openingHits = detectOpeningMetaNarration(html).map((t) => ({ cat: 'opening', level: 'warn', text: t }));
 
-  // 禁用沿用名单（供修订轮与后续委托）：字面重合片段去重 + 数字串，禁止再次沿用
+  // 禁用沿用名单（供后续委托防"改完又抄新段"）：字面重合片段去重 + 数字串，禁止再次沿用
   const bannedList = [
     ...new Set(copyHits.filter((h) => h.snippet && String(h.snippet).replace(/[0-9]/g, '').length >= 4).map((h) => h.snippet)),
   ];

@@ -21,6 +21,7 @@
 - **项目结构**: [项目文件夹说明.md](./docs/项目文件夹说明.md)
 - **AI模型配置**: [模型切换配置指南.md](./docs/模型切换配置指南.md)
 - **打包发布**: [打包发布指南.md](./docs/打包发布指南.md)
+- **生成防线总览**: [源头防线总览.md](./docs/源头防线总览.md) - 源头机制/防诱导/预算防截断/只报不改
 
 ---
 
@@ -58,7 +59,7 @@ wisdom-workshop/
 - **前端**: Vue 3 + Vite + Tiptap
 - **桌面**: Electron 29
 - **状态管理**: Pinia
-- **AI引擎**: Ollama / DeepSeek
+- **AI引擎**: 多引擎可切换 —— Ollama（本地）/ DeepSeek / 火山 / 阿里 / 智谱；OCR/图片识别：PaddleOCR-VL
 - **Python**: PyMuPDF, Pillow, OpenCV
 
 ---
@@ -81,5 +82,5 @@ wisdom-workshop/
 
 ---
 
-**版本**: 2.0.0  
-**最后更新**: 2026年5月21日
+**版本**: 2.1.0  
+**最后更新**: 2026年9月10日
