@@ -22,12 +22,19 @@ pip install PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
 ```
 
 ### 可选环境（用于 AI 功能）
+应用支持**多引擎可切换**，任选其一即可（在「系统设置」中选择）：
+
 - **Ollama**: 本地 AI 引擎（支持离线使用）
   - 下载地址: https://ollama.com/download
   - 推荐模型:
     - `qwen2.5:7b` - 文本生成（约 4GB 显存）
     - `qwen3-vl:8b` - 图片识别（约 6GB 显存）
-- **DeepSeek API**: 云端 AI 服务（需要网络连接和 API Key）
+- **云端 API 引擎**（需要网络连接和 API Key，任选）:
+  - **DeepSeek**（推荐，生成主力）
+  - **火山**（Volcano）
+  - **阿里**（Alibaba）
+  - **智谱**（Zhipu）
+- **PaddleOCR-VL**: 本地 OCR / 图片识别（已随 python-scripts 提供）
 
 ---
 
@@ -52,7 +59,7 @@ pip install PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
 cd ..
 
 # 3. 验证 Python 依赖（可选）
-python check_python_deps.py
+python -c "import fitz, pypdfium2, PIL, numpy, cv2; print('依赖安装成功')"
 ```
 
 ### 2. 启动应用
@@ -101,13 +108,12 @@ ollama serve
 # 进入「系统设置」→ 点击「刷新模型列表」
 ```
 
-#### 方案 B：使用 DeepSeek（云端）
-1. 注册 DeepSeek 账号: https://platform.deepseek.com
-2. 获取 API Key
-3. 在应用中配置:
+#### 方案 B：使用云端 API（DeepSeek / 火山 / 阿里 / 智谱，任选）
+1. 注册对应平台账号并获取 API Key（如 DeepSeek: https://platform.deepseek.com）
+2. 在应用中配置:
    - 进入「系统设置」
-   - 选择 AI 引擎为 "DeepSeek"
-   - 填入 API Key
+   - 选择 AI 引擎为对应平台（"DeepSeek" / "火山" / "阿里" / "智谱"）
+   - 填入 API Key（与 Base URL，如平台要求）
    - 保存设置
 
 ### 3. 检查 GPU 状态
@@ -127,16 +133,18 @@ wisdom-workshop/
 │   ├── modules/           # 功能模块
 │   ├── stores/            # Pinia 状态管理
 │   ├── composables/       # 组合式函数
-│   └── config/            # 配置文件
+│   └── config/            # 配置文件（指令库/蓝图库/规则库等）
 ├── python-scripts/         # Python 脚本
 │   ├── pdf_to_images.py   # PDF 转图片
 │   ├── split_columns.py   # 分栏检测
 │   └── add_bookmarks.py   # PDF 书签
+├── tests/                  # Vitest 单元测试（113 文件 / 1629 用例）
+├── docs/                   # 项目文档
 ├── main.js                 # Electron 主进程
 ├── preload.js              # 预加载脚本
-├── package.json            # Node.js 依赖
-└── python-scripts/         # Python 脚本（依赖见各脚本头注释）
+└── package.json            # Node.js 依赖与脚本
 ```
+详细结构见 [项目结构.md](./项目结构.md)。
 
 ---
 
@@ -206,15 +214,17 @@ curl http://localhost:11434/api/tags
 ## 💡 使用技巧
 
 1. **目录提取**: 使用微信截图(Alt+A)框选目录页，Ctrl+C 复制后导入
-2. **模型选择**: 
-   - 重型任务（命题生成）→ 14B 模型
-   - 轻量任务（分析提取）→ 7B 模型
-   - 图片识别 → qwen3-vl:8b
+2. **模型选择**（多引擎，在「系统设置」切换）: 
+   - 本地（Ollama）：重型任务（命题生成）用较大参数模型、轻量任务（分析提取）用较小模型
+   - 云端（DeepSeek / 火山 / 阿里 / 智谱）：按平台提供的模型等级选择，生成主力建议选强模型
+   - 图片识别 → 本地 qwen3-vl:8b 或 PaddleOCR-VL
 3. **温度调节**:
    - 知识点总结 → 0.1-0.3（低温度，准确）
    - 课时练/试卷 → 0.5-0.7（中等，平衡）
    - 开放性问题 → 0.8-1.0（高温度，创意）
 
 ---
+
+**最后更新**: 2026-09-10
 
 **祝您使用愉快！** 🎉

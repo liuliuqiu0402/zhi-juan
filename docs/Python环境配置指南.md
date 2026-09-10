@@ -31,10 +31,10 @@ install.bat
 ### 方式二：手动安装
 ```bash
 # 1. 安装所有依赖
-pip install -r requirements.txt
+pip install PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
 
-# 2. 验证安装
-python check_python_deps.py
+# 2. 验证安装（导入无误即成功）
+python -c "import fitz, pypdfium2, PIL, numpy, cv2; print('依赖安装成功')"
 ```
 
 ---
@@ -50,6 +50,7 @@ python check_python_deps.py
 | Pillow | >=10.0.0, <11.0.0 | 图像处理、格式转换 | PIL |
 | numpy | >=1.24.0, <2.0.0 | 数值计算、数组处理 | numpy |
 | opencv-python | >=4.8.0, <5.0.0 | 计算机视觉、分栏检测 | cv2 |
+| paddleocr | 最新版 | OCR 识别（PaddleOCR-VL 调用） | paddleocr |
 
 ---
 
@@ -62,7 +63,7 @@ python check_python_deps.py
 **解决方案**:
 ```bash
 # 方法1: 使用 python -m pip
-python -m pip install -r requirements.txt
+python -m pip install PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
 
 # 方法2: 添加Python Scripts目录到PATH
 # 通常在: C:\Users\用户名\AppData\Local\Programs\Python\Python3xx\Scripts
@@ -79,7 +80,7 @@ pip install opencv-python-headless>=4.8.0,<5.0.0
 
 # 或者先更新pip
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
 ```
 
 ### 3. PyMuPDF安装缓慢
@@ -89,10 +90,10 @@ pip install -r requirements.txt
 **解决方案**:
 ```bash
 # 使用国内镜像源
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
 
 # 或使用其他镜像
-pip install -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
+pip install -i https://mirrors.aliyun.com/pypi/simple/ PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
 ```
 
 ### 4. 版本冲突
@@ -104,10 +105,10 @@ pip install -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
 # 创建虚拟环境（推荐）
 python -m venv venv
 venv\Scripts\activate
-pip install -r requirements.txt
+pip install PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
 
 # 或在现有环境中强制重新安装
-pip install --force-reinstall -r requirements.txt
+pip install --force-reinstall PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
 ```
 
 ### 5. numpy版本过高
@@ -124,36 +125,13 @@ pip install "numpy>=1.24.0,<2.0.0"
 
 ## ✅ 验证安装
 
-### 方法一：使用验证脚本（推荐）
+导入无误即表示依赖可用：
+
 ```bash
-python check_python_deps.py
-```
-
-**输出示例**:
-```
-============================================================
-智卷工坊 - Python依赖检查
-============================================================
-
-包名                   版本              状态           说明
-------------------------------------------------------------
-PyMuPDF              1.27.2.3        ✅ 已安装    PDF处理库
-pypdfium2            5.8.0           ✅ 已安装    PDF文本提取
-Pillow               12.2.0          ✅ 已安装    图像处理库
-numpy                2.3.5           ✅ 已安装    数值计算库
-opencv-python        4.6.0.66        ✅ 已安装    计算机视觉库
-
-============================================================
-✅ 所有依赖已正确安装！
-
-您可以正常使用智卷工坊的所有功能。
-============================================================
-```
-
-### 方法二：手动验证
-```python
 python -c "import fitz; import pypdfium2; from PIL import Image; import numpy; import cv2; print('所有依赖安装成功！')"
 ```
+
+在应用中打开任一 PDF 教材并执行"分析"或"导出"，无报错即表示 Python 侧链路可用。
 
 ---
 
@@ -174,10 +152,10 @@ venv\Scripts\activate
 source venv/bin/activate
 
 # 安装依赖
-pip install -r requirements.txt
+pip install PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
 
 # 验证
-python check_python_deps.py
+python -c "import fitz, pypdfium2, PIL, numpy, cv2; print('依赖安装成功')"
 
 # 退出虚拟环境
 deactivate
@@ -190,7 +168,7 @@ deactivate
 pip list --outdated
 
 # 更新所有包
-pip install --upgrade -r requirements.txt
+pip install --upgrade PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
 ```
 
 ### 3. 冻结当前环境
@@ -210,7 +188,7 @@ pip freeze > requirements-freeze.txt
 **症状**: 在应用中使用PDF功能时报错
 
 **排查步骤**:
-1. 运行验证脚本: `python check_python_deps.py`
+1. 运行验证脚本: `python -c "import fitz, pypdfium2, PIL, numpy, cv2; print('依赖正常')"`
 2. 检查是否有未安装的包
 3. 重新安装缺失的包
 4. 重启应用
@@ -236,7 +214,7 @@ pip install xxx
 **解决方案**:
 ```bash
 # 使用用户级安装
-pip install --user -r requirements.txt
+pip install --user PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
 
 # 或以管理员身份运行命令行
 # 右键点击cmd/PowerShell → 以管理员身份运行
@@ -246,10 +224,9 @@ pip install --user -r requirements.txt
 
 ## 📚 相关文档
 
-- [requirements.txt](requirements.txt) - Python依赖清单
-- [check_python_deps.py](check_python_deps.py) - 依赖验证脚本
-- [README.md](README.md) - 项目主文档
-- [项目文件夹说明.md](项目文件夹说明.md) - 项目结构说明
+- [README.md](./README.md) - 安装与使用指南
+- [项目文件夹说明.md](./项目文件夹说明.md) - 项目结构说明
+- [源头防线总览.md](./源头防线总览.md) - 生成机制总览
 
 ---
 
@@ -258,12 +235,12 @@ pip install --user -r requirements.txt
 如果遇到问题：
 
 1. 查看错误信息
-2. 运行 `python check_python_deps.py` 检查依赖
+2. 运行 `python -c "import fitz, pypdfium2, PIL, numpy, cv2; print('依赖正常')"` 检查依赖
 3. 查阅本文档的"常见问题"部分
 4. 在项目Issues中搜索类似问题
 5. 提交新的Issue并附上错误日志
 
 ---
 
-**最后更新**: 2026年5月21日  
+**最后更新**: 2026年9月10日  
 **维护者**: 智卷工坊开发团队
