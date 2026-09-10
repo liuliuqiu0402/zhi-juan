@@ -982,12 +982,15 @@ export const getTaskMaxTokens = (taskType) => {
  *   而当前实际在用的 deepseek-v4-pro / deepseek-flash（DeepSeek V4 系列）不匹配该正则
  *   → 全部落到 8192：正文按需 11K+ token 被引擎层硬钳到 8K → 截断 → "正文不完整"；
  *   app 层本已按类型给到 cap=24000/上限 98304，却被引擎层误钳，属"配置自相矛盾"。
- * 权威口径（DeepSeek 官方）：V4 系列上下文 1M、最大输出 384K（思考/非思考模式同）；
- *   deepseek-flash = V4.1-Flash，同档；旧 deepseek-chat 默认 4K/最大 8K；旧 deepseek-reasoner 最大 64K。
+ * 🔴 2026-09-10 成本护栏修正（用户核定）：V4 系列官方物理上限 384K 仅作参考信息——
+ *   直接按 384K 当单次输出帽会让任意小范围勾选也可发散写满、单次费用不可控（用户明确不接受）。
+ *   产品口径：单次输出一律 ≤ 64K（与 reasoner 档一致）；单次费用封顶，超出部分由
+ *   "截断续写链"分次补齐（每段独立受本上限约束，请求层另有含思考乘数的产品级钳制）。
+ *   旧 deepseek-chat/v3 默认 4K/最大 8K；旧 deepseek-reasoner 最大 64K。
  * 其他引擎上限未固证 → Infinity（不钳制，防误伤）；app 层安全上界仍由 MAIN_TOKEN_CEIL 兜住。
  */
 export const MODEL_OUTPUT_LIMIT_RULES = [
-  { re: /v4|flash/i, limit: 384000 },         // deepseek-v4-pro / deepseek-v4-flash / deepseek-flash（V4.1-Flash）
+  { re: /v4|flash/i, limit: 65536 },          // deepseek-v4-pro / deepseek-v4-flash / deepseek-flash（V4.1-Flash）：物理 384K 仅参考，产品护栏 64K
   { re: /reasoner|r1|think/i, limit: 65536 }, // 旧 deepseek-reasoner / r1 系
   { re: /^/, limit: 8192 },                   // 旧 deepseek-chat / v3（默认 4K、最大 8K）
 ];

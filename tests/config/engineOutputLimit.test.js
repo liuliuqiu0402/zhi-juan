@@ -1,7 +1,8 @@
-// 2026-09 结构性修正：引擎单次输出上限（max_tokens 硬上限）
-// 背景：DeepSeek V4 系列（deepseek-v4-pro / deepseek-flash）最大输出 384K，但旧代码用
-//      /reasoner|r1|think/ 判定，非 reasoner 一律 8192 → 正文按需 11K+ token 被硬钳到 8K
-//      → 截断 → "正文不完整"（app 层 cap 形同失效）。本测试锁死上限表与"配置自洽"不变量。
+// 2026-09 结构性修正 + 2026-09-10 成本护栏：引擎单次输出上限（max_tokens 硬上限）
+// 背景：DeepSeek V4 系列（deepseek-v4-pro / deepseek-flash）官方物理上限 384K，但产品单次帽取 64K
+//      （成本可控：防小范围勾选发散写满、单次费用不可控）；旧代码用 /reasoner|r1|think/ 判定，
+//      非 reasoner 一律 8192 → 正文按需 11K+ token 被硬钳到 8K → 截断 → "正文不完整"
+//      （app 层 cap 形同失效）。本测试锁死上限表与"配置自洽"不变量。
 import { describe, it, expect } from 'vitest';
 import {
   MODEL_OUTPUT_LIMIT_RULES,
@@ -10,11 +11,17 @@ import {
 } from '../../src/config/apiConfig.js';
 
 describe('引擎单次输出上限（2026-09 结构性修正）', () => {
-  it('🔴 DeepSeek V4 系列（当前在用）解析为 384000——不得再落到 8192（正文截断根因）', () => {
+  it('🔴 DeepSeek V4 系列（当前在用）解析为 65536（成本护栏档）——不得再落到 8192（正文截断根因）', () => {
     for (const m of ['deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-flash', 'DeepSeek-V4-Pro-0813']) {
-      expect(resolveEngineOutputLimit('deepseek', m), `模型 ${m}`).toBe(384000);
+      expect(resolveEngineOutputLimit('deepseek', m), `模型 ${m}`).toBe(65536);
     }
     expect(resolveEngineOutputLimit('deepseek', 'deepseek-v4-pro')).not.toBe(8192);
+  });
+
+  it('🔴 成本护栏：v4 档产品单次帽 ≤ 64K（官方物理 384K 不得直接作为单次帽——费用不可控）', () => {
+    for (const m of ['deepseek-v4-pro', 'deepseek-flash']) {
+      expect(resolveEngineOutputLimit('deepseek', m)).toBeLessThanOrEqual(65536);
+    }
   });
 
   it('旧模型名保持原口径：reasoner/r1 → 65536；chat/v3/空名 → 8192', () => {
@@ -56,6 +63,6 @@ describe('引擎单次输出上限（2026-09 结构性修正）', () => {
 
   it('上限表规则顺序：v4/flash 优先于 reasoner（防模型名同时命中时误判）', () => {
     expect(MODEL_OUTPUT_LIMIT_RULES[0].re.test('deepseek-v4-flash')).toBe(true);
-    expect(resolveEngineOutputLimit('deepseek', 'deepseek-v4-reasoner')).toBe(384000);
+    expect(resolveEngineOutputLimit('deepseek', 'deepseek-v4-reasoner')).toBe(65536);
   });
 });
