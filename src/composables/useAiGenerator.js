@@ -417,7 +417,7 @@ import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
 import { reconcileDomains, domainNoteOf } from '../utils/domainReconciler.js';
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, extractBodyQuestionNumbers, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 
 // 别名：保持原有名称兼容
@@ -545,7 +545,7 @@ export const cleanReasoningOutput = (text) => {
   if (/(```|```html)/.test(text)) {
     // 仅剥除 ```html?/ ``` 包裹标记词本身，标记外与标记内的全部正文一并保留
     let cleaned = text.replace(/```(?:html?|HTML?)?/gi, '');
-    cleaned = cleaned.replace(/\n\s*\n\s*\n+/g, '\n\n'); // 压缩剥标记后产生的多余空行
+    cleaned = cleaned.replace(/\n[\s]*\n[\s]*\n+/g, '\n\n'); // 压缩剥标记后产生的多余空行
     // 🔧 剥除叙述前缀：首个 HTML 标签前的对话式开场（"以下是为您生成…""这是…"）不保留，
     //    后续 body 提取/convertBlankFormat 均需相对干净的正文输入
     const pIdx = cleaned.search(/<(!DOCTYPE|html|head|body|h[1-6]|p\b|div|table|ul|ol|span|u\b)\b/i);
@@ -4511,6 +4511,10 @@ ${cardAnalysisText.substring(0, 1000)}
           content = rawT;
         }
         awaitingContinuation = false;
+        // 🔴 2026-09-10 跳段防线：正文落地即校验题号连续性——续写跳段产生的缺口在此即时可见
+        //    （采纳侧拦截 + 出口终检双兜底，绝不静默交付；正常卷面此检查零输出）
+        const gapNow = detectBodyNumberingGap(content);
+        if (gapNow) console.warn(`⚠️ 正文题号不连续（1~${gapNow.peak} 中缺：${gapNow.missing.join('、')}）——正文疑似丢题（续写跳段），采纳前将被拦截`);
       }
       // 🔴 正文阶段续写兜底：截断（finish_reason=length）说明输出预算不够，素材已在上下文，
       //    无需重新浏览——用独立续写计数（WRITE_CAP）兜底，不受浏览轮数上限（maxRounds）约束；
@@ -4520,7 +4524,9 @@ ${cardAnalysisText.substring(0, 1000)}
           writeRounds++;
           awaitingContinuation = true; // 🔴 下一轮为续写轮：正文落地时按"重写 vs 续写"判定，防覆盖丢前缀
           messages.push({ role: 'assistant', content: text || '' });
-          messages.push({ role: 'user', content: '【续写】上次输出被截断，请直接从停止处继续完成剩余内容，不要重复已有内容。' });
+          // 🔴 2026-09-10 跳段根治：续写指令必须带"已输出末尾样本"（与单次链续写同口径）——
+          //    此前不带样本，模型接不上断点、跳过剩余题目续到后面的题（实测：正文 2~6 题被跳段）
+          messages.push({ role: 'user', content: `【续写】上次输出被截断（末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。` });
           continue;
         } else {
           hitTruncLimited = true;
@@ -4876,10 +4882,13 @@ ${cardAnalysisText.substring(0, 1000)}
         const bc = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(stripRedundantInlineCarrierRows(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(bres?.content || '')))))));
         // 🔴 完整优先：browse 产出的正文若仍疑似截断（尾部启发式，内部多次续写未补齐时 coverageNotes 已含提醒），
         //    不作为成功内容采纳——置空走下方"单次注入 + 预算升级重试"路径，避免半截卷进入交付
-        if (bc && isDeliverableBodyHtml(bc) && !detectTruncation(bc).truncated) {
+        // 🔴 2026-09-10 丢题拦截：题号连续性校验——"中段跳段丢题"尾部完整收束，截断启发式测不出
+        //    （实测：正文缺 2~6 题、尾部正常）→ 缺号同样视为未完整，不采纳
+        const bcGap = bc ? detectBodyNumberingGap(bc) : null;
+        if (bc && isDeliverableBodyHtml(bc) && !detectTruncation(bc).truncated && !bcGap) {
           content = bc;
         } else if (bc) {
-          console.warn('⚠️ 浏览路径正文疑似未完整或仅自述/无正文结构（截断启发式），改走单次注入升级预算路径重试');
+          console.warn(`⚠️ 浏览路径正文疑似未完整或仅自述/无正文结构（截断启发式${bcGap ? `；题号不连续：缺 ${bcGap.missing.join('、')}` : ''}），改走单次注入升级预算路径重试`);
         }
       } catch (e) {
         lastErr = e;
@@ -4988,7 +4997,13 @@ ${cardAnalysisText.substring(0, 1000)}
             throw new Error(truncFailNote);
           }
         }
-        if (content && isDeliverableBodyHtml(content)) break;
+        // 🔴 2026-09-10 丢题拦截（严格收口·用户定版"残次品绝不放行"）：题号连续性校验（同 browse 口径）——
+        //    缺号与截断同待遇：本 attempt 判失败、升级预算重试；重试后仍缺号 → 由下方终极守卫判失败（宁失败不残缺）
+        const qGap = detectBodyNumberingGap(content);
+        if (content && isDeliverableBodyHtml(content) && !qGap) break;
+        if (qGap) {
+          throw new Error(`正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——正文疑似丢题${attempt === 0 ? '，升级预算重试' : '，重试后仍未补齐'}`);
+        }
         throw new Error('整卷输出为空/过短/无正文结构（疑似仅自述）');
       } catch (e) {
         lastErr = e;
@@ -5000,12 +5015,15 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     }
     } // end if(!content) 单次注入重试循环（browse 已产出完整正文时跳过）
-    // 🔴 完整优先最终守卫：两次尝试（含续写链）都未能完整输出 → 明确抛错并给行动建议，
-    //    绝不把半截正文当作成功交付（generate 外层 MAX_RETRIES 会整卷级重试；再失败则由 UI 呈现此错误）
-    if (truncFailNote || !isDeliverableBodyHtml(content)) {
+    // 🔴 完整优先最终守卫：两次尝试（含续写链/缺号拦截）都未能完整输出 → 明确抛错并给行动建议，
+    //    绝不把半截/缺题正文当作成功交付（generate 外层 MAX_RETRIES 会整卷级重试；再失败则由 UI 呈现此错误）
+    const finalGap = detectBodyNumberingGap(content);
+    if (truncFailNote || finalGap || !isDeliverableBodyHtml(content)) {
       const advise = truncFailNote
         ? `${truncFailNote}。建议：① 缩小勾选范围降低单次体量；② 到「设置 → 整卷输出预算」调大该类型的「上限」或为该类型采纳「实测校准」；③ 内容较长时改用 deepseek-reasoner 等单次输出上限更高的模型（chat 单次仅 8K，长卷易截断）。`
-        : `整卷生成失败: ${lastErr?.message || '未知错误'}`;
+        : finalGap
+          ? `正文题号不连续（1~${finalGap.peak} 中缺：${finalGap.missing.join('、')}）——正文疑似丢题，本次生成判失败（不交付残缺正文）。建议重试；若反复出现请到「问题列表」反馈。`
+          : `整卷生成失败: ${lastErr?.message || '未知错误'}`;
       throw new Error(advise);
     }
 
@@ -5030,6 +5048,10 @@ ${cardAnalysisText.substring(0, 1000)}
     //    正文已含解析/答案标注时不再补独立答案页（正文解析即答案，防"正文解析 + 独立答案页"重复）
     const genTypeCarriesAnswers = ['errorbook', 'summary'].includes(genType);
     const bodyCarriesAnswers = /答案[:：]|解析[:：]|解法[:：]|归因[:：]|解题思路[:：]|评析[:：]/.test(content);
+    // 🔴 正文冻结快照（2026-09-10 丢题根治）：答案生成前记录正文题号序列——交付前与最终正文比对
+    //    （见质检区"正文完整性终检"）：任何"答案生成后动正文"都会被如实告警，
+    //    "丢题是生成时还是生成后"由系统自证，不再靠人工考古；序列为空（无题号资料）不参与比对。
+    const bodyQSnapshot = extractBodyQuestionNumbers(content).join(',');
     const skipAnswerPage = generateMode === 'once' && !ansInContent && !ansShellInContent && (genTypeCarriesAnswers || bodyCarriesAnswers);
     if (skipAnswerPage) {
       answerSkipNote = `ℹ️ 正文已含解析/答案标注（${genType} 为题+解析一体资料），未单独生成答案页。`;
@@ -5042,8 +5064,9 @@ ${cardAnalysisText.substring(0, 1000)}
         //       严禁复述正文知识梳理"，根治"答案区把知识总结整体又输出一遍"
         const ansRole = genType === 'exam' ? ANSWER_ROLES.exam(subject) : ANSWER_ROLES.other(genType);
         // 🔧 上下文根治：整卷正文转纯文本作为输入（不依赖 class="question" 摘要——摘要提取失败/不全即凭记忆编造）
-        //    正文长度上限走设置项 answerContextMaxChars（默认 24000；超大卷/高中大卷可调大至 40000-60000）
-        const paperPlain = htmlToPlainText(content, apiConfig.generationSettings.answerContextMaxChars);
+        //    🔴 素材唯一性·全文口径（2026-09-10 用户定版）：正文一律全文送模型、绝不截断——
+        //    "要求就是正文要是全的、完整的"；正文若过长触及模型上下文上限，宁可失败重试不给半截。
+        const paperPlain = htmlToPlainText(content);
         // 🔧 格式根治：答案页注入与正文一致的 HTML 输出规范（此前无格式要求 → 模型直接输出 Markdown 源码）
         const ansFormat = buildAnswerFormatSpec(subject);
         // 🔧 自包含教辅（summary/review/preview/dictation/errorbook）答案区只写练习/自测/变式解答（典型例题已在正文讲解展示，不重复），
@@ -5065,8 +5088,9 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         const ansThinking = getGenerationThinkingEnabled();
         const ansResp = await callAI(ansPrompt, {
           taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
-          // 🔧 会话式：答案页请求同带研读消化记录前缀（研读批点名行+模型摘要原话）
-          history: studyHistory,
+          // 🔴 素材唯一性（2026-09-10 用户定版）：答案生成只以【正文全文】为据——不带研读记录/素材。
+          //    答案严格从正文出：正文缺 → 答案必缺，缺陷即时暴露，绝不让外部素材掩盖正文缺口
+          //    （此前携研读记录前缀 → 正文丢题时答案仍"完整"，掩盖缺口，见英语课时练实测）。
           // 🔴 答案页输出预算来自每类型 answer 槽的 answerDynamicCap；思考模式按 thinkingBudgetMultiplier 放大
           //    （推理预留 + 答案输出），并设 20K 推理上限流式中止止损（答案页短输出，推理可控）
           // 🔧 答案页温度走设置页（answerTemperature）
@@ -5094,8 +5118,8 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
           console.warn(`⚠️ 答案页内容${ansCapped ? `思考耗尽（${ansObj.reasoningChunkCount || 0} 推理chunks）` : `过短（清洗后 ${aHtml?.length || 0} / 原始 ${(ansObj.content || '').length} 字符，finish=${ansObj.finishReason || 'unknown'}）`}，自动重试一次${ansCapped ? '（强制关闭思考）' : ''}`);
           const ansResp2 = await callAI(ansPrompt, {
             taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
-            // 🔧 会话式：答案页重试同带研读消化记录前缀
-            history: studyHistory,
+            // 🔴 素材唯一性：答案页重试同口径——只带正文全文，不带研读记录
+            history: undefined,
             maxTokens: Math.min(clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), engineCap), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
             maxReasoningChunks: ansThinking ? GEN_CONST.REASONING_CAP_ANSWER : GEN_CONST.REASONING_CAP_ANSWER_FORCED,
             thinking: (ansCapped || (ansObj.reasoningChunkCount || 0) > 0) ? false : undefined, // 🔴 有推理痕迹（含引擎强制推理）→ 重试强制关闭思考
@@ -5226,6 +5250,23 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
       }
     } catch (e) {
       console.warn('⚠️ 整卷质检器异常（不影响生成结果）:', e.message);
+    }
+
+    // 🔴 正文完整性终检（2026-09-10 丢题根治：程序不改写、只如实报告）：
+    //    ① 冻结比对：答案生成前快照 vs 交付正文题号序列——不一致 = "答案生成后正文被改动"（如
+    //       质检器 DOM 重序列化损伤），直指后处理，供人工核对；
+    //    ② 缺号报告：正文题号 1~峰值 存在缺口 = 丢题（截断启发式与质检护栏均测不出的"中段丢题"），
+    //       写明缺号清单交编辑核对。两条均进【问题列表】，绝不静默。
+    {
+      const finalSeq = extractBodyQuestionNumbers(finalContent).join(',');
+      if (bodyQSnapshot && finalSeq && finalSeq !== bodyQSnapshot) {
+        auditWarnings.push(`⚠️ 答案生成后正文题号序列发生变化（[${bodyQSnapshot}] → [${finalSeq}]）——质检/后处理改动了正文，请核对正文完整性。`);
+      }
+      const gap = detectBodyNumberingGap(finalContent);
+      if (gap) {
+        const missTxt = gap.missing.length > 10 ? `${gap.missing.slice(0, 10).join('、')}…` : gap.missing.join('、');
+        auditWarnings.push(`⚠️ 正文题号不连续（1~${gap.peak} 中缺：${missTxt}）——正文疑似丢题，请核对正文是否完整。`);
+      }
     }
 
     // 🔴 答案页缺失可见性：独立调用尝试过但仍无答案区 → 透出原因到生成报告【问题列表】，

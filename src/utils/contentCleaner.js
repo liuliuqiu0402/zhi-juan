@@ -148,6 +148,37 @@ export function isDeliverableBodyHtml(html = '') {
   return false;
 }
 
+/**
+ * 正文题号提取/连续性检测（2026-09-10 正文丢题事故根治·定稿校验）：正文部分（答案区前）按
+ * 行首 `N.` 提取题号——extractBodyQuestionNumbers 返回保序数组（供"答案生成前快照 vs 交付
+ * 比对"，抓"答案生成后动正文"）；detectBodyNumberingGap 查 1~峰值 缺口，返回缺号明细
+ * （供 ①正文采纳拦截重试 ②最终报告如实输出缺号）。
+ * 口径与 useAiGenerator 正文丢失护栏 qCount 同源：块级标签闭合补换行后按行首 `N.` 计题号。
+ * gap 返回 null = 无缺口/样本不足以判定（<3 个题号、峰值<3 或 >60 不判——防小卷/条目清单误报）。
+ */
+export function extractBodyQuestionNumbers(html = '') {
+  const src = String(html || '');
+  if (!src.trim()) return [];
+  const bodyOnly = src.split(/<div[^>]*class=["'][^"']*answer-section|<h[1-6][^>]*>\s*参考答案/i)[0];
+  const text = bodyOnly.replace(/<\/(?:p|li|h[1-6]|div|tr)>/gi, '\n').replace(/<[^>]+>/g, '');
+  const out = [];
+  const re = /(?:^|\n)\s*([1-9]\d?)[.、．](?![.\d])/g;
+  let m;
+  while ((m = re.exec(text))) out.push(Number(m[1]));
+  return out;
+}
+
+export function detectBodyNumberingGap(html = '') {
+  const found = new Set(extractBodyQuestionNumbers(html));
+  if (found.size < 3) return null;
+  const peak = Math.max(...found);
+  if (peak < 3 || peak > 60) return null;
+  const missing = [];
+  for (let i = 1; i <= peak; i++) if (!found.has(i)) missing.push(i);
+  if (!missing.length) return null;
+  return { peak, found: [...found].sort((a, b) => a - b), missing };
+}
+
 /** 导出端第二道防线：剥离 AI 响应残留的 markdown 代码块/对话前缀（不改 HTML 结构本身）
  * 有 ```html 代码块 → 取块内 HTML 拼接；否则无块但存在"对话前缀+HTML" → 从首个 HTML 标签截断。
  * 曾分别内联于 GenerateModule.downloadDoc 与 TypesetModule.sanitizeExportContent（两段逐字同构、各自演化），
@@ -202,10 +233,10 @@ export function hasAnswerCarrier(inner = '') {
  * 供答案页独立调用时把完整正文作为输入上下文——模型"看着实际题目作答"，
  * 杜绝摘要提取失败后凭记忆编造（曾导致二年级试卷配五年级《将相和》答案）。
  * @param {string} html 完整 HTML
- * @param {number} [maxChars] 上限（默认 24000）
+ * @param {number} [maxChars] 上限（0/缺省 = 不截断，全文返回）
  * @returns {string} 纯文本正文
  */
-export const htmlToPlainText = (html = '', maxChars = 24000) => {
+export const htmlToPlainText = (html = '', maxChars = 0) => {
   if (!html) return '';
   let body = String(html);
   // 只取正文区（答案区之前的题目部分）
@@ -243,7 +274,7 @@ export const htmlToPlainText = (html = '', maxChars = 24000) => {
   body = body.replace(/&emsp;/g, '＿').replace(/&ensp;/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
   // 清理空行
   body = body.split('\n').map(l => l.trim()).filter(Boolean).join('\n');
-  if (body.length > maxChars) body = body.slice(0, maxChars) + '\n…（正文过长已裁剪，请按已给出的题号继续作答）';
+  if (maxChars > 0 && body.length > maxChars) body = body.slice(0, maxChars) + '\n…（正文过长已裁剪，请按已给出的题号继续作答）';
   return body;
 };
 
@@ -663,7 +694,7 @@ export function normalizeBlankMarkers(html = '') {
   // 🔧 空格宽+括号空 双载体剥除（2026-09 实证：0.09＝　　（　　）——模型按"答案宽度换算"先输出
   //    全角空格串、其后又叠一个括号空 → 同一答案空两种载体（导出成"方框后括号"）。
   //    括号空已在上方归一为 <span class="blank-N">&emsp;</span>，此处剥除其前 ≥2 字符的冗余空白宽，
-  //    只保留括号空为唯一载体；单个空格（自然间隔）不剥。u.blank 前置同类由下方跨类型去重处理。
+  //    只保留括号空为唯一载体；单个空格（自然间隔）不剥。u.blank 前置□类由下方跨类型去重处理。
   out = out
     .replace(/((?:&emsp;|&#8195;|&#x2003;|\u2003|\u3000|&nbsp;| ){2,})(?=<u class="blank-\d+">&emsp;<\/u>)/g, '')
     .replace(/((?:&emsp;|&#8195;|&#x2003;|\u2003|\u3000|&nbsp;| ){2,})(?=<span class="blank-\d+">&emsp;<\/span>)/g, '');
@@ -708,6 +739,7 @@ export function normalizeBlankMarkers(html = '') {
   out = unifySameParagraphWriteBlanks(out);
   // 🔴 畸形填空载体拆壳（不变量守卫）：blank-N 内出现正文文字/标题被包 → 还原纯文本（后置于一切包裹规则之后）
   out = unwrapMalformedBlankCarriers(out);
+
   // 🔤 英文省略号三点归一（中文说明文字里的六点省略号不受影响）
   out = normalizeEnglishEllipsis(out);
   return out;
@@ -1045,7 +1077,7 @@ export function normalizeMatchQuestions(html = '') {
   };
 
   // 题号间隔守卫：关键词与目标块之间不得跨越题号行（\n [标签] 数字 1. 等），防跨题误转
-  const hasQuestionBoundary = (gap) => /\n\s*(?:<[^>]+>\s*)?\d{1,3}\s*[.、．]/.test(gap);
+  const hasQuestionBoundary = (gap) => /\n[\s]*(?:<[^>]+>\s*)?\d{1,3}\s*[.、．]/.test(gap);
 
   // ① 两列表格转换（关键词前置、同题、幂等）
   out = out.replace(/([\s\S]*?)(<table[^>]*>[\s\S]*?<\/table>)/gi, (m, before, tableHtml) => {

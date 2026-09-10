@@ -987,12 +987,15 @@ export const getTaskMaxTokens = (taskType) => {
  *   产品口径：单次输出一律 ≤ 64K（与 reasoner 档一致）；单次费用封顶，超出部分由
  *   "截断续写链"分次补齐（每段独立受本上限约束，请求层另有含思考乘数的产品级钳制）。
  *   旧 deepseek-chat/v3 默认 4K/最大 8K；旧 deepseek-reasoner 最大 64K。
+ * 🔴 2026-09-10 复现防线（结构性）：兜底规则不再默认 8192（防未来新模型名不匹配 → 再被误钳、
+ *   正文截断事故复现）——仅"旧 chat/v3 系"落 8192，其余一切 deepseek 型号（含未来新名/空名）
+ *   一律产品护栏 64K；显性失败（API 拒超限）优于静默 8K 截断。
  * 其他引擎上限未固证 → Infinity（不钳制，防误伤）；app 层安全上界仍由 MAIN_TOKEN_CEIL 兜住。
  */
 export const MODEL_OUTPUT_LIMIT_RULES = [
-  { re: /v4|flash/i, limit: 65536 },          // deepseek-v4-pro / deepseek-v4-flash / deepseek-flash（V4.1-Flash）：物理 384K 仅参考，产品护栏 64K
-  { re: /reasoner|r1|think/i, limit: 65536 }, // 旧 deepseek-reasoner / r1 系
-  { re: /^/, limit: 8192 },                   // 旧 deepseek-chat / v3（默认 4K、最大 8K）
+  { re: /chat|v3/i, limit: 8192 },            // 旧 deepseek-chat / v3 系：真实硬限（默认 4K、最大 8K）——精确匹配，不外溢
+  { re: /.*/, limit: 65536 },                 // 其余一切 deepseek（v4/flash/reasoner/未来新名/空名）：产品护栏 64K——
+                                              //   防新模型名不匹配再落 8192 误钳（2026-09-10 正文截断根因复现防线）
 ];
 
 /** 按 引擎 provider + 模型名 解析单次输出上限（tokens）；非 deepseek → Infinity（不钳制） */
@@ -1000,7 +1003,7 @@ export const resolveEngineOutputLimit = (provider = '', model = '') => {
   if (provider !== 'deepseek') return Infinity;
   const m = String(model || '');
   for (const r of MODEL_OUTPUT_LIMIT_RULES) if (r.re.test(m)) return r.limit;
-  return 8192;
+  return 65536; // 兜底=产品护栏档（规则表末条已覆盖一切 deepseek；此处防未来规则调整再落 8192 误钳）
 };
 
 /**

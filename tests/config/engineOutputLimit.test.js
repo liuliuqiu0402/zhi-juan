@@ -1,8 +1,10 @@
-// 2026-09 结构性修正 + 2026-09-10 成本护栏：引擎单次输出上限（max_tokens 硬上限）
+// 2026-09 结构性修正 + 2026-09-10 成本护栏 + 复现防线：引擎单次输出上限（max_tokens 硬上限）
 // 背景：DeepSeek V4 系列（deepseek-v4-pro / deepseek-flash）官方物理上限 384K，但产品单次帽取 64K
 //      （成本可控：防小范围勾选发散写满、单次费用不可控）；旧代码用 /reasoner|r1|think/ 判定，
 //      非 reasoner 一律 8192 → 正文按需 11K+ token 被硬钳到 8K → 截断 → "正文不完整"
 //      （app 层 cap 形同失效）。本测试锁死上限表与"配置自洽"不变量。
+// 🔴 2026-09-10 复现防线：兜底不再默认 8192——仅"旧 chat/v3 系"精确落 8192，其余一切
+//      （含未来新名/空名）落 64K；防未来新模型名不匹配再被误钳（正文截断事故复现）。
 import { describe, it, expect } from 'vitest';
 import {
   MODEL_OUTPUT_LIMIT_RULES,
@@ -24,13 +26,15 @@ describe('引擎单次输出上限（2026-09 结构性修正）', () => {
     }
   });
 
-  it('旧模型名保持原口径：reasoner/r1 → 65536；chat/v3/空名 → 8192', () => {
-    expect(resolveEngineOutputLimit('deepseek', 'deepseek-reasoner')).toBe(65536);
-    expect(resolveEngineOutputLimit('deepseek', 'deepseek-r1')).toBe(65536);
+  it('旧 chat/v3 系精确落 8192；reasoner/r1 与空名/未知名走 64K 安全档（防误钳复现）', () => {
     expect(resolveEngineOutputLimit('deepseek', 'deepseek-chat')).toBe(8192);
     expect(resolveEngineOutputLimit('deepseek', 'deepseek-v3')).toBe(8192);
-    expect(resolveEngineOutputLimit('deepseek', '')).toBe(8192);
-    expect(resolveEngineOutputLimit('deepseek')).toBe(8192);
+    expect(resolveEngineOutputLimit('deepseek', 'deepseek-reasoner')).toBe(65536);
+    expect(resolveEngineOutputLimit('deepseek', 'deepseek-r1')).toBe(65536);
+    // 🔴 复现防线：空名（配置探测失败）与未识别的未来新名，一律 64K——不得落 8192
+    expect(resolveEngineOutputLimit('deepseek', '')).toBe(65536);
+    expect(resolveEngineOutputLimit('deepseek')).toBe(65536);
+    expect(resolveEngineOutputLimit('deepseek', 'deepseek-v9-future')).toBe(65536);
   });
 
   it('非 deepseek 引擎上限未固证 → Infinity（不钳制，防误伤）', () => {
@@ -61,8 +65,10 @@ describe('引擎单次输出上限（2026-09 结构性修正）', () => {
     expect(violations, `以下槽 cap 超过引擎上限 ${cap}：${violations.join(', ')}`).toEqual([]);
   });
 
-  it('上限表规则顺序：v4/flash 优先于 reasoner（防模型名同时命中时误判）', () => {
-    expect(MODEL_OUTPUT_LIMIT_RULES[0].re.test('deepseek-v4-flash')).toBe(true);
+  it('规则表结构：首条=chat/v3 精确分支（不外溢），末条=64K 全兜底（防再落 8192 误钳）', () => {
+    expect(MODEL_OUTPUT_LIMIT_RULES[0].re.test('deepseek-chat')).toBe(true);
+    expect(MODEL_OUTPUT_LIMIT_RULES[0].re.test('deepseek-v4-flash')).toBe(false); // v4 不被 v3 分支误捕
+    expect(MODEL_OUTPUT_LIMIT_RULES[MODEL_OUTPUT_LIMIT_RULES.length - 1].re.test('deepseek-anything')).toBe(true);
     expect(resolveEngineOutputLimit('deepseek', 'deepseek-v4-reasoner')).toBe(65536);
   });
 });
