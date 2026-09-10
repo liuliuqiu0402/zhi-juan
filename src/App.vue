@@ -584,6 +584,7 @@ const checkPythonDepsAsync = async () => {
       if (!deps.Pillow) missing.push('Pillow(PIL)');
       if (!deps.numpy) missing.push('numpy');
       if (!deps.opencv) missing.push('opencv-python(cv2)');
+      if (!deps.pythonDocx) missing.push('python-docx');
       if (missing.length > 0) {
         showToastMessage(
           `⚠️ Python 依赖缺失：${missing.join('、')}，PDF转图片等功能可能不可用。可进入「设置」点击安装`,

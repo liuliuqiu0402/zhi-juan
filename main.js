@@ -1104,27 +1104,41 @@ ipcMain.handle('check-python-deps', async () => {
       Pillow: false,
       numpy: false,
       opencv: false,
-      pythonDocx: false,   // python-docx：Word 导入（word_to_html.py）
-      paddleocr_vl: false  // PaddleOCR-VL pipeline（可选：本地 OCR / VLM 多模态引擎）
+      pythonDocx: false,    // python-docx：Word 导入（word_to_html.py）
+      paddleocr_vl: false,  // PaddleOCR-VL pipeline（可选：本地 OCR / VLM 多模态引擎）
+      pythonPath: '',       // 实际使用的解释器路径（应用未指定路径，取 PATH 中第一个 python）
+      pythonVersion: ''
     };
     
-    // 并行检查各依赖
+    // 各依赖探测 + 解释器信息探测；全部完成后统一返回
     const checks = [
       ['PyMuPDF', 'import fitz'],
       ['Pillow', 'import PIL'],
       ['numpy', 'import numpy'],
       ['opencv', 'import cv2'],
-      ['pythonDocx', 'import docx'],  // python-docx
-      ['paddleocr_vl', 'from paddleocr import PaddleOCRVL']  // PaddleOCR-VL pipeline
+      ['pythonDocx', 'import docx'],                          // python-docx
+      ['paddleocr_vl', 'from paddleocr import PaddleOCRVL']   // PaddleOCR-VL pipeline
     ];
     
+    const total = checks.length + 1;  // +1 = 解释器信息探测
     let done = 0;
+    const finish = () => { done++; if (done === total) resolve(deps); };
+    
     checks.forEach(([name, importStmt]) => {
       exec(`python -c "${importStmt}; print('OK')"`, (err) => {
         deps[name] = !err;
-        done++;
-        if (done === checks.length) resolve(deps);
+        finish();
       });
+    });
+    
+    // 解释器信息：应用使用 PATH 中第一个 python（用于排查"装了依赖却报缺失"）
+    exec(`python -c "import sys; print(sys.executable); print(sys.version.split()[0])"`, (err, stdout) => {
+      if (!err && stdout) {
+        const lines = String(stdout).trim().split(/\r?\n/);
+        deps.pythonPath = (lines[0] || '').trim();
+        deps.pythonVersion = (lines[1] || '').trim();
+      }
+      finish();
     });
   });
 });

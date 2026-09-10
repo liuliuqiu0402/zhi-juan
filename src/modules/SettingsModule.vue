@@ -1258,8 +1258,17 @@
         >
           ⚠️ 缺失：{{ missingDeps.join(', ') }}
         </p>
+        <p
+          v-if="pythonPath"
+          style="margin-top: 8px; font-size: 12px; color: var(--text-muted); word-break: break-all;"
+        >
+          🐍 当前使用的 Python：{{ pythonPath }}<span v-if="pythonVersion">（v{{ pythonVersion }}）</span>
+        </p>
+        <p v-if="pythonPath" style="margin-top: 4px; font-size: 12px; color: var(--text-muted);">
+          ℹ️ 应用调用系统 PATH 中的第一个 <code>python</code>；若你装在别处，请让该路径下的 Python 装齐依赖。
+        </p>
         <p style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
-          💡 PDF转图片、缩略图生成等功能需要以下 Python 包：PyMuPDF、Pillow、numpy、opencv-python
+          💡 必备依赖（见 requirements.txt）：PyMuPDF、Pillow、numpy、opencv-python、python-docx；本地 OCR 为可选（requirements-ocr.txt）
         </p>
       </div>
 
@@ -1354,6 +1363,8 @@ const isCheckingDeps = ref(false);
 const isInstallingDeps = ref(false);
 const missingDeps = ref([]);
 const pythonDepsStatus = ref('');
+const pythonPath = ref('');       // 应用实际使用的 Python 解释器路径（PATH 中第一个 python）
+const pythonVersion = ref('');    // 该解释器版本
 
 const checkPythonDeps = async () => {
   isCheckingDeps.value = true;
@@ -1361,6 +1372,8 @@ const checkPythonDeps = async () => {
   try {
     if (window.electronAPI?.checkPythonDeps) {
       const deps = await window.electronAPI.checkPythonDeps();
+      pythonPath.value = deps.pythonPath || '';
+      pythonVersion.value = deps.pythonVersion || '';
       missingDeps.value = [];
       if (!deps.PyMuPDF) missingDeps.value.push('PyMuPDF');
       if (!deps.Pillow) missingDeps.value.push('Pillow');
