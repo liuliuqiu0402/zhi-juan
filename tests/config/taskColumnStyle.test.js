@@ -8,6 +8,8 @@ import {
   applyTaskColumnStyle,
   resolveColumnStyleId,
   buildTeachingInjection,
+  TEACHING_STAGE_NAMES,
+  TEACHING_SUBJECT_BLUEPRINTS,
 } from '../../src/config/teachingBlueprints.js';
 
 const mkSections = (names) => names.map((name) => ({ name, note: `note-${name}` }));
@@ -76,5 +78,47 @@ describe('栏目标题风格套（2026-09）', () => {
       const inj = buildTeachingInjection({ genType: t, stage: 'primary_high', subject: s });
       expect(inj, `${t}|${s}`).not.toContain('出处');
     }
+  });
+
+  it('🔴 自动轮换落点实测（2026-09-10）：同范围稳定、跨范围错开——practice 的 Unit1→c 与产物一致', () => {
+    // 实测值：Unit 1 Try your best→c（与九年级英语 Unit1 课时练产物实际使用的套一致）
+    expect(resolveColumnStyleId('practice', '', 'Unit 1 Try your best')).toBe('c');
+    // 连续单元错开（4 个一组覆盖 a/b/c/d，不出现"所有单元一个样"）
+    const seq = ['Unit 1', 'Unit 2', 'Unit 3', 'Unit 4'].map((s) => resolveColumnStyleId('practice', '', s));
+    expect(new Set(seq).size).toBe(4);
+    // 同范围两次稳定
+    expect(resolveColumnStyleId('practice', '', 'Unit 1')).toBe(resolveColumnStyleId('practice', '', 'Unit 1'));
+    // 无范围键（整册）→ 默认套 a
+    expect(resolveColumnStyleId('practice', '', '')).toBe('a');
+  });
+
+  it('🔴 栏目说明与套名解绑：注入文本中「说明」部分不得出现任何套名（防换套后名与说明不符）', () => {
+    // 说明按"层级/位置"给（基础层→进阶→综合），对 4 套名字均成立；若把套名写进说明，
+    // 换套后就会出现"标题叫 A、说明里写着 B"的错位——此测试锁住该不变量。
+    // 全量覆盖：8 类型 × 4 套 × 全部学段 ×（各学科定制 + 通用 + 跨学科样本）。
+    const stages = Object.keys(TEACHING_STAGE_NAMES);
+    const subjects = [...Object.keys(TEACHING_SUBJECT_BLUEPRINTS), '', '物理', '数学'];
+    const combos = [];
+    for (const stage of stages) for (const subject of subjects) combos.push({ stage, subject });
+
+    let checked = 0;
+    for (const [type, pool] of Object.entries(COLUMN_STYLE_SETS)) {
+      const names = [...new Set(Object.values(pool).flatMap((s) => s.columns))];
+      for (const c of combos) {
+        for (const id of ['a', 'b', 'c', 'd']) {
+          const inj = buildTeachingInjection({ genType: type, ...c, columnStyle: id });
+          if (!inj) continue;
+          for (const line of inj.split('\n')) {
+            if (!line.startsWith('· ')) continue;
+            const note = line.includes('——') ? line.split('——').slice(1).join('——') : '';
+            for (const n of names) {
+              expect(note.includes(n), `${type}/${id} [${c.stage}/${c.subject || '-'}] 说明含套名「${n}」：${line}`).toBe(false);
+            }
+            checked++;
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(100); // 防"组合没跑满"导致空转假通过
   });
 });
