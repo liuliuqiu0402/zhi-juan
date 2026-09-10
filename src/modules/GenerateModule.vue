@@ -1284,7 +1284,7 @@
           class="scope-style-block"
         >
           <p class="scope-style-title">
-            🎨 资料栏目标题风格（{{ genTypes[0] }}：选"🔄 自动轮换"按范围换套；选具体套则固定该套栏目标题，跨稿不串套）
+            🎨 资料栏目标题风格（{{ genTypes[0] }}：选"🔄 自动轮换"按范围换套；选具体套（含默认套）则固定该套栏目标题，跨稿不串套）
           </p>
           <div class="name-chip-group">
             <label
@@ -3182,9 +3182,10 @@ const labelStyleOptions = computed(() => {
 });
 const labelStyleLabel = computed(() => labelStyle.value || '自动轮换');
 
-// 🎨 资料栏目标题风格套（与名称样式同款：默认套 / 手动固定套 b/c/d；作用于【教辅结构】注入的栏目标题字面）
+// 🎨 资料栏目标题风格套（作用于【教辅结构】注入的栏目标题字面）
+//   '' = 自动轮换（按范围哈希错开 a/b/c/d，幂等）；'a'/'b'/'c'/'d' = 固定该套
 const COLUMN_STYLE_STORAGE_KEY = 'ww_column_style_v1';
-const columnStyle = ref(''); // ''=默认套(a)；否则固定 b/c/d 套
+const columnStyle = ref(''); // ''=自动轮换；否则固定 a/b/c/d 套
 const loadColumnStyle = (genType) => {
   try {
     const map = JSON.parse(localStorage.getItem(COLUMN_STYLE_STORAGE_KEY) || '{}');
@@ -3196,10 +3197,12 @@ const columnStyleOptions = computed(() => {
   if (!type || type === 'exam' || !COLUMN_STYLE_SETS[type]) return [];
   const pool = COLUMN_STYLE_SETS[type];
   return [
-    { value: '', label: `🔄 默认（${pool.a.columns.join(' / ')}）`, desc: '使用默认栏目套，不换肤' },
-    ...Object.entries(pool)
-      .filter(([id]) => id !== 'a')
-      .map(([id, s]) => ({ value: id, label: s.columns.join(' / '), desc: '固定使用该套栏目标题' })),
+    { value: '', label: '🔄 自动轮换', desc: '按资料范围（如单元/册次）自动错开使用 a/b/c/d 套：同范围稳定、跨范围变化（幂等，同一范围重复生成不会变）' },
+    ...Object.entries(pool).map(([id, s]) => ({
+      value: id,
+      label: `${s.columns.join(' / ')}${id === 'a' ? '（默认套）' : ''}`,
+      desc: id === 'a' ? '固定使用默认套（不换肤）' : '固定使用该套栏目标题（跨稿不串套）',
+    })),
   ];
 });
 
