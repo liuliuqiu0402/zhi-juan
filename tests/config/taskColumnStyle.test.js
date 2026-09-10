@@ -1,12 +1,16 @@
 // 2026-09：各教辅类型栏目标题风格套（COLUMN_STYLE_SETS）
 // 结构语义确定性保留：仅当栏目名恰与该类型默认套（a）逐一相同时替换字面（note 不变），
-// exam 蓝本不轮换；b/c/d 为手动固定套（与名称样式同款交互）；subject 定制栏目与默认套不同名时防误伤原样返回。
+// exam 蓝本不轮换；''=自动轮换（按次：每次生成推进一格 a→b→c→d→a，持久化），a/b/c/d=手动固定套；
+// subject 定制栏目与默认套不同名时防误伤原样返回。
 import { describe, it, expect } from 'vitest';
 import {
   COLUMN_STYLE_SETS,
   applyColumnStyle,
   applyTaskColumnStyle,
   resolveColumnStyleId,
+  peekAutoColumnStyleId,
+  advanceAutoColumnStyleId,
+  __resetColumnStyleCounters,
   buildTeachingInjection,
   TEACHING_STAGE_NAMES,
   TEACHING_SUBJECT_BLUEPRINTS,
@@ -60,17 +64,22 @@ describe('栏目标题风格套（2026-09）', () => {
     expect(zhDict).not.toContain('必背闯关');
   });
 
-  it('resolveColumnStyleId：手动固定直达；空=自动——无范围键回默认 a，同范围稳定、跨范围错开', () => {
-    expect(resolveColumnStyleId('practice', 'b', '')).toBe('b');
-    expect(resolveColumnStyleId('practice', 'c', 'Unit 1 Try your best')).toBe('c');
-    expect(resolveColumnStyleId('practice', '', '')).toBe('a');
-    expect(resolveColumnStyleId('practice', '', 'Unit 1')).toBe(resolveColumnStyleId('practice', '', 'Unit 1'));
-    const poolIds = ['a', 'b', 'c', 'd'];
-    expect(poolIds).toContain(resolveColumnStyleId('practice', '', 'Unit 1 Try your best'));
-    // 同范围稳定 → 注入两次得到同一套
-    const a = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '数学', columnStyle: resolveColumnStyleId('practice', '', 'Unit 1') });
-    const b = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '数学', columnStyle: resolveColumnStyleId('practice', '', 'Unit 1') });
-    expect(a).toBe(b);
+  it('resolveColumnStyleId：手动固定直达；空=自动取「当前待用套」（不推进）', () => {
+    __resetColumnStyleCounters();
+    expect(resolveColumnStyleId('practice', 'b')).toBe('b');
+    expect(resolveColumnStyleId('practice', 'c')).toBe('c');
+    expect(resolveColumnStyleId('practice', '')).toBe('a');
+    // 手动固定不影响自动计数（peek 仍是 a）
+    expect(resolveColumnStyleId('practice', 'd')).toBe('d');
+    expect(resolveColumnStyleId('practice', '')).toBe('a');
+    // 未知类型（exam）无风格套 → a
+    expect(resolveColumnStyleId('exam', '')).toBe('a');
+    expect(resolveColumnStyleId('exam', 'b')).toBe('a');
+    // 自动取的是同一值 → 注入两次得到同一套（预览与本次生成一致）
+    const ins1 = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '数学', columnStyle: resolveColumnStyleId('practice', '') });
+    const ins2 = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '数学', columnStyle: resolveColumnStyleId('practice', '') });
+    expect(ins1).toBe(ins2);
+    expect(ins1).toContain('基础建构任务');
   });
 
   it('注入清除出处措辞（2026-09 全文不标出处）：summary/review/reading/special 教辅结构不出现"出处"', () => {
@@ -80,16 +89,41 @@ describe('栏目标题风格套（2026-09）', () => {
     }
   });
 
-  it('🔴 自动轮换落点实测（2026-09-10）：同范围稳定、跨范围错开——practice 的 Unit1→c 与产物一致', () => {
-    // 实测值：Unit 1 Try your best→c（与九年级英语 Unit1 课时练产物实际使用的套一致）
-    expect(resolveColumnStyleId('practice', '', 'Unit 1 Try your best')).toBe('c');
-    // 连续单元错开（4 个一组覆盖 a/b/c/d，不出现"所有单元一个样"）
-    const seq = ['Unit 1', 'Unit 2', 'Unit 3', 'Unit 4'].map((s) => resolveColumnStyleId('practice', '', s));
-    expect(new Set(seq).size).toBe(4);
-    // 同范围两次稳定
-    expect(resolveColumnStyleId('practice', '', 'Unit 1')).toBe(resolveColumnStyleId('practice', '', 'Unit 1'));
-    // 无范围键（整册）→ 默认套 a
-    expect(resolveColumnStyleId('practice', '', '')).toBe('a');
+  it('🔴 自动轮换=按次（2026-09-10 改）：每生成一次换下一套 a→b→c→d→a，各类型独立计数', () => {
+    __resetColumnStyleCounters();
+    // 起始待用套 = 默认套 a
+    expect(peekAutoColumnStyleId('practice')).toBe('a');
+    expect(resolveColumnStyleId('practice', '')).toBe('a');
+    // 生成一次 → 推进一格
+    expect(advanceAutoColumnStyleId('practice')).toBe('b');
+    expect(peekAutoColumnStyleId('practice')).toBe('b');
+    expect(resolveColumnStyleId('practice', '')).toBe('b');
+    expect(advanceAutoColumnStyleId('practice')).toBe('c');
+    expect(advanceAutoColumnStyleId('practice')).toBe('d');
+    // 4 套循环回起点
+    expect(advanceAutoColumnStyleId('practice')).toBe('a');
+    // 手动固定：不推进、不改变待用套
+    expect(resolveColumnStyleId('practice', 'c')).toBe('c');
+    expect(peekAutoColumnStyleId('practice')).toBe('a');
+    // 各资料类型独立计数（summary 未生成过 → 仍是 a）
+    expect(peekAutoColumnStyleId('summary')).toBe('a');
+    // 未知类型 → a，且推进无效
+    expect(peekAutoColumnStyleId('exam')).toBe('a');
+    expect(advanceAutoColumnStyleId('exam')).toBe('a');
+  });
+
+  it('🔴 按次轮换的注入效果：同一类型连续三次生成的栏目标题依次为 a/b/c 三套', () => {
+    __resetColumnStyleCounters();
+    const titles = [];
+    for (let i = 0; i < 3; i++) {
+      const id = resolveColumnStyleId('practice', '');
+      const inj = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '数学', columnStyle: id });
+      titles.push(inj.split('\n').filter((l) => l.startsWith('· '))[0]);
+      advanceAutoColumnStyleId('practice');
+    }
+    expect(titles[0]).toContain('基础建构任务');
+    expect(titles[1]).toContain('基础过关');
+    expect(titles[2]).toContain('知识奠基');
   });
 
   it('🔴 栏目说明与套名解绑：注入文本中「说明」部分不得出现任何套名（防换套后名与说明不符）', () => {

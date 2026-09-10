@@ -1099,18 +1099,57 @@ export function applyColumnStyle(sections = [], genType = '', styleId = '') {
 export const TASK_COLUMN_STYLE_SETS = COLUMN_STYLE_SETS.practice;
 export const applyTaskColumnStyle = (sections = [], styleId = '') => applyColumnStyle(sections, 'practice', styleId);
 
-/** 解析实际生效的风格套 id（与名称池 labelStyle 同款逻辑：''=自动轮换，非空=手动固定）
- * 自动：无范围键 → 默认套 a；有范围键 → 按 genType+范围 哈希稳定选 a/b/c/d——
- * 同范围每次稳定同一套（跨稿不串套）、不同范围自动错开（消除"所有单元栏目一个样"）。 */
-export function resolveColumnStyleId(genType = '', styleVal = '', scopeKey = '') {
+const COLUMN_STYLE_IDS = ['a', 'b', 'c', 'd'];
+
+// 🎨 栏目风格「自动轮换」计数器 —— 按次轮换（与名称池同款做法）
+//    每次生成推进一格（a→b→c→d→a…）；localStorage 持久化，硬刷新/重启后接着轮换；
+//    手动固定套（columnStyle 非空）完全不参与计数。
+const COLUMN_STYLE_COUNTERS_KEY = 'ww_column_style_counters_v1';
+let _columnStyleCounters = {};
+const _columnStyleStore = () => {
+  try { return typeof localStorage !== 'undefined' ? localStorage : null; } catch { return null; }
+};
+(function _restoreColumnStyleCounters() {
+  try {
+    const raw = _columnStyleStore()?.getItem(COLUMN_STYLE_COUNTERS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') _columnStyleCounters = parsed;
+    }
+  } catch { /* ignore */ }
+})();
+const _persistColumnStyleCounters = () => {
+  try { _columnStyleStore()?.setItem(COLUMN_STYLE_COUNTERS_KEY, JSON.stringify(_columnStyleCounters)); } catch { /* ignore */ }
+};
+
+/** 自动轮换：当前待用套（只读，不推进）——指令预览与实际生成取同一个值 */
+export function peekAutoColumnStyleId(genType = '') {
+  if (!COLUMN_STYLE_SETS[genType]) return 'a';
+  return COLUMN_STYLE_IDS[(_columnStyleCounters[genType] || 0) % COLUMN_STYLE_IDS.length];
+}
+
+/** 自动轮换：推进一格（每次生成结束调用一次），返回推进后的待用套 */
+export function advanceAutoColumnStyleId(genType = '') {
+  if (!COLUMN_STYLE_SETS[genType]) return 'a';
+  _columnStyleCounters[genType] = ((_columnStyleCounters[genType] || 0) + 1) % COLUMN_STYLE_IDS.length;
+  _persistColumnStyleCounters();
+  return peekAutoColumnStyleId(genType);
+}
+
+/** 🧪 测试专用：重置自动轮换计数器 */
+export function __resetColumnStyleCounters() {
+  _columnStyleCounters = {};
+  _persistColumnStyleCounters();
+}
+
+/** 解析实际生效的风格套 id（''=自动轮换，非空=手动固定）
+ * 手动固定：直达该套（跨稿不串套）；
+ * 自动轮换：取「当前待用套」（不推进）——推进发生在一次生成结束，故预览与本次生成一致。 */
+export function resolveColumnStyleId(genType = '', styleVal = '') {
   const pool = COLUMN_STYLE_SETS[genType];
   if (!pool) return 'a';
   if (styleVal && pool[styleVal]) return styleVal;
-  if (!scopeKey) return 'a';
-  let h = 0;
-  const s = `${genType}|${scopeKey}`;
-  for (const ch of s) h = (h * 31 + (ch.codePointAt(0) || 0)) >>> 0;
-  return ['a', 'b', 'c', 'd'][h % 4];
+  return peekAutoColumnStyleId(genType);
 }
 
 /** 学段键归一：接受学段键（primary_low 等）或中文学段/年级标签（'小学低段'/'二年级'/'高一' 等）
@@ -1189,6 +1228,9 @@ export default {
   COLUMN_STYLE_SETS,
   applyColumnStyle,
   resolveColumnStyleId,
+  peekAutoColumnStyleId,
+  advanceAutoColumnStyleId,
+  __resetColumnStyleCounters,
   TASK_COLUMN_STYLE_SETS,
   applyTaskColumnStyle,
   stripSourceMarkNote,

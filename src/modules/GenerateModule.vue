@@ -1284,7 +1284,7 @@
           class="scope-style-block"
         >
           <p class="scope-style-title">
-            🎨 资料栏目标题风格（{{ genTypes[0] }}：选"🔄 自动轮换"按范围换套；选具体套（含默认套）则固定该套栏目标题，跨稿不串套）
+            🎨 资料栏目标题风格（{{ genTypes[0] }}：选"🔄 自动轮换"每次生成换下一套；选具体套（含默认套）则固定该套栏目标题，跨稿不串套）
           </p>
           <div class="name-chip-group">
             <label
@@ -3082,7 +3082,7 @@ import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructure
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
-import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId } from '../config/teachingBlueprints.js';
+import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, advanceAutoColumnStyleId } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
@@ -3183,7 +3183,7 @@ const labelStyleOptions = computed(() => {
 const labelStyleLabel = computed(() => labelStyle.value || '自动轮换');
 
 // 🎨 资料栏目标题风格套（作用于【教辅结构】注入的栏目标题字面）
-//   '' = 自动轮换（按范围哈希错开 a/b/c/d，幂等）；'a'/'b'/'c'/'d' = 固定该套
+//   '' = 自动轮换（按次轮换：每次生成换下一套 a→b→c→d→a，持久化）；'a'/'b'/'c'/'d' = 固定该套
 const COLUMN_STYLE_STORAGE_KEY = 'ww_column_style_v1';
 const columnStyle = ref(''); // ''=自动轮换；否则固定 a/b/c/d 套
 const loadColumnStyle = (genType) => {
@@ -3197,7 +3197,7 @@ const columnStyleOptions = computed(() => {
   if (!type || type === 'exam' || !COLUMN_STYLE_SETS[type]) return [];
   const pool = COLUMN_STYLE_SETS[type];
   return [
-    { value: '', label: '🔄 自动轮换', desc: '按资料范围（如单元/册次）自动错开使用 a/b/c/d 套：同范围稳定、跨范围变化（幂等，同一范围重复生成不会变）' },
+    { value: '', label: '🔄 自动轮换', desc: '按次轮换：每次生成换下一套（a→b→c→d→a 循环）；生成结束才推进，故预览与本次生成一致' },
     ...Object.entries(pool).map(([id, s]) => ({
       value: id,
       label: `${s.columns.join(' / ')}${id === 'a' ? '（默认套）' : ''}`,
@@ -6120,7 +6120,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     }
   } else {
     // 🎯 专项突破两档（A档=领域自带栏目；B档=通用栏目+课标语义锚；未命中=通用/学科蓝图）——loadInstruction 与 restoreDefault 共用 composeSpecialTeachingText
-    const st = composeSpecialTeachingText({ genType, stageKey, subject, domainKey: specialSubType.value || '', scopeKey: unit });
+    const st = composeSpecialTeachingText({ genType, stageKey, subject, domainKey: specialSubType.value || '' });
     teachingText = st.text;
     if (teachingText) {
       instructionDraft.value += teachingText;
@@ -6243,9 +6243,9 @@ const restoreDefaultInstruction = async () => {
 
 // 🎯 专项突破两档结构合成（单一入口：loadInstructionFromLibrary / restoreDefaultInstruction 共用）
 //   A档=领域自带栏目结构；B档=通用（学科）蓝图栏目 + 课标语义锚句；未命中领域=通用（学科）蓝图
-const composeSpecialTeachingText = ({ genType, stageKey, subject, domainKey, scopeKey = '' }) => {
-  // 🎨 栏目标题风格实际生效套：''=自动轮换（按范围哈希稳定错开，同范围稳定/跨范围换套）；手动固定套直达
-  const effectiveColumnStyle = resolveColumnStyleId(genType, columnStyle.value, scopeKey);
+const composeSpecialTeachingText = ({ genType, stageKey, subject, domainKey }) => {
+  // 🎨 栏目标题风格实际生效套：''=自动轮换（按次轮换，生成结束才推进 → 预览与本次生成一致）；手动固定套直达
+  const effectiveColumnStyle = resolveColumnStyleId(genType, columnStyle.value);
   const dom = genType === 'special'
     ? resolveSpecialDomain(String(subject || '').split('·').pop(), stageKey, domainKey || '')
     : null;
@@ -8114,6 +8114,11 @@ const generate = async (mode) => {
     }
   }
   } // end chapterTargets loop
+  // 🎨 栏目风格按次轮换：本次生成结束 → 自动轮换推进一格（下次生成换下一套）；
+  //    手动固定套（columnStyle 非空）不参与计数；本次全部失败（无产出）也不推进。
+  if (!columnStyle.value && generatedTypes.length > 0) {
+    for (const t of types) advanceAutoColumnStyleId(t);
+  }
   if (chapterTargets.length > 1) {
     setPerChapterFilter(null); // 逐章模式结束，清除过滤器
     // 🔧 逐章结束：恢复全量教材的完整指令（此前覆盖为方案摘要 → 再次生成时指令丢失角色/卷面结构/命题要求）
