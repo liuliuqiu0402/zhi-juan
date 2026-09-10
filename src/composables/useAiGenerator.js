@@ -4417,9 +4417,11 @@ ${cardAnalysisText.substring(0, 1000)}
       try {
         // 🔴 2026-09-11 浏览续写预算升级：截断说明主请求预算低估，续写同预算大概率再截断
         //    （实测 browse 正文截断后 3 轮同预算续写补不完 → 残缺 → 降级单次生成）。
-        //    续写轮按轮次 ×1.4 升级（第 1 轮 1.4×、第 2 轮 1.96×），钳到引擎单次输出上限
+        //    续写轮按轮次 ×1.4 升级（第 1 轮 1.4×、第 2 轮 1.96×），钳到引擎单次输出上限。
+        //    ⚠️ 2026-09-11 修正：maxTokens 已由外层钳过（clampReq(bodyDynamicCap)），此处
+        //    只乘升级系数再钳引擎上限——不得引用外层局部 clampReq（作用域外，致浏览路径必抛错）
         const browseCap = Math.min(
-          clampReq(maxTokens * Math.pow(1.4, writeRounds)),
+          maxTokens * Math.pow(1.4, writeRounds),
           resolveEngineOutputLimit(provider, cfg.model),
         );
         const resp = await fetch(apiUrl, {
