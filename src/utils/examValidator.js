@@ -1620,6 +1620,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         if (bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
           silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})`);
         }
+        // 🔴 反向护栏（2026-09-10 实证补）：正文题号明显少于答案区 → 正文疑似丢题。
+        //    实测样本：英语课时练正文缺第2~5题（题号从1跳到6）、答案区却完整（一~九齐全）——
+        //    原守卫只查"答案区少于正文"这一向，此向漏检，导致正文丢题静默进交付。
+        if (ansTopQ > 3 && bodyTopQ < ansTopQ - 1) {
+          silentCount('body-coverage', `正文题号数(${bodyTopQ})明显少于答案区(${ansTopQ})——正文疑似丢题，请核对正文是否完整`);
+        }
       }
     }
   }

@@ -991,9 +991,12 @@ export const stripAnswerSection = (content) => {
  * 非"参考答案"开头的标题（如正文大题 h2"一、基础建构任务"）不动。
  * 覆盖 2026-09 缺口：模型常以 <div class="answer-page"><h3>参考答案…</h3> 开头
  * （标题被一层非标题块级容器包裹），原"^\s*<h"要求标题在最开头 → 漏剥 → h2/h3 双层残留。
- * 现允许开头先出现一层 <div>/<p> 容器后再匹配，仅剥"参考答案"标题、保留容器外壳。 */
+ * 现允许开头先出现一层 <div>/<p> 容器后再匹配，仅剥"参考答案"标题、保留容器外壳。
+ * 🔴 2026-09-10 补：模型自带标题常**带前缀**（实测 <h3>Unit 1 Try your best 课时练 参考答案与解析</h3>），
+ * 原"标题须以'参考答案'开头"漏剥 → h2+h3 双层标题残留。现允许标题内"参考答案"前有 ≤40 字前缀
+ * （锚点仍是"文档开头、且为标题块"，正文大标题如"一、基础建构任务"不含"参考答案"，不会误剥）。 */
 export const stripLeadingAnswerTitle = (html = '') => String(html || '')
-  .replace(/^(\s*(?:<(?:div|p)\b[^>]*>\s*)?)<h[1-6]\b[^>]*>\s*参考答案[^<]*<\/h[1-6]>\s*/i, '$1');
+  .replace(/^(\s*(?:<(?:div|p)\b[^>]*>\s*)?)<h[1-6]\b[^>]*>\s*[^<]{0,40}?参考答案[^<]*<\/h[1-6]>\s*/i, '$1');
 
 /**
  * 研读轮对话助手（复位工程·阶段 2 接入）：单次非流式对话，产出研读批摘要文本。
@@ -5143,6 +5146,32 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
         const ansPart = beforeAudit.match(/<div[^>]*class="[^"]*answer-section"[^>]*>[\s\S]*$/i);
         if (ansPart) {
           finalContent = finalContent + '\n\n' + ansPart[0];
+        }
+      }
+      // 🔴 正文丢失护栏（2026-09-10 实证补）：质检器以 audit.html **整体替换**正文（finalContent = audit.html），
+      //    而上面那条只保"答案区"——**正文若被误删则静默丢进交付**（实测样本：正文缺第2~5题、答案区却完整）。
+      //    判据：质检前后比较"正文部分"的**题号数**与**h3 小节数**；任一明显减少 → 判定质检损伤正文：
+      //    回退为质检前正文（答案区优先取质检后、无则取质检前），并写入【问题列表】（不静默）。
+      //    程序不改写内容，只做"发现异常即回退＋报告"，与"只报不改"一致。
+      {
+        const bodyOnly = (s) => String(s || '').split(/<div[^>]*class="[^"]*answer-section/i)[0];
+        const ansOnly = (s) => {
+          const m = String(s || '').match(/<div[^>]*class="[^"]*answer-section"[^>]*>[\s\S]*$/i);
+          return m ? m[0] : '';
+        };
+        const qCount = (s) => (String(s || '')
+          .replace(/<\/(?:p|li|h[1-6]|div)>/gi, '\n')
+          .replace(/<[^>]+>/g, '')
+          .match(/(?:^|\n)\s*\d+[.、．](?![.\d])/g) || []).length;
+        const h3Count = (s) => (String(s || '').match(/<h3\b/gi) || []).length;
+        const beforeBody = bodyOnly(beforeAudit);
+        const bq = qCount(beforeBody), aq = qCount(bodyOnly(finalContent));
+        const bh = h3Count(beforeBody), ah = h3Count(bodyOnly(finalContent));
+        if (bq > 3 && (aq < bq || ah < bh)) {
+          const restoredAns = ansOnly(finalContent) || ansOnly(beforeAudit);
+          finalContent = beforeBody + (restoredAns ? `\n\n${restoredAns}` : '');
+          auditWarnings.push(`⚠️ 整卷质检后正文疑似减少（正文题号 ${bq}→${aq}，小节标题 ${bh}→${ah}）——已回退为质检前正文（答案区保留），请人工核对正文是否完整。`);
+          console.warn(`⚠️ [正文丢失护栏] 质检后正文减少：题号 ${bq}→${aq}，h3 ${bh}→${ah}；已回退质检前正文`);
         }
       }
     } catch (e) {

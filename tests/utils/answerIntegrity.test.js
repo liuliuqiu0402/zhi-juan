@@ -1,6 +1,7 @@
 // 答案完整性判定测试（生成链路"答案是否丢失"的核心判定逻辑，与 useAiGenerator 真实调用同一函数）
 import { describe, it, expect } from 'vitest';
 import { detectTruncation, isAnswerShell, wrapAnswerSection, stripAnswerSection, stripLeadingAnswerTitle } from '../../src/composables/useAiGenerator.js';
+import { auditExamPaper } from '../../src/utils/examValidator.js';
 
 describe('答案完整性·截断判定（detectTruncation）', () => {
   it('finish_reason=length 且内容较长 → 判定截断（API 可靠信号）', () => {
@@ -137,5 +138,50 @@ describe('答案页自带标题去重（stripLeadingAnswerTitle：段2 包装标
   it('容器包裹 + <p> 对 <h1> 同样生效，且不影响后续正文大题', () => {
     expect(stripLeadingAnswerTitle('<p><h1>参考答案与评分标准</h1></p><h2>一、基础建构任务</h2><p>1. 答案：A。</p>'))
       .toBe('<p></p><h2>一、基础建构任务</h2><p>1. 答案：A。</p>');
+  });
+
+  it('🔴 带单元名前缀的自带标题 → 剥除（2026-09-10 实证：<h3>Unit 1 Try your best 课时练 参考答案与解析</h3> 原漏剥 → h2+h3 双层残留）', () => {
+    const a = '<h3>Unit 1 Try your best 课时练 参考答案与解析</h3>\n<h4>一、新困难面前怎么说</h4><p>1. A</p>';
+    expect(stripLeadingAnswerTitle(a)).toBe('<h4>一、新困难面前怎么说</h4><p>1. A</p>');
+  });
+
+  it('正文大标题（不含"参考答案"）→ 原样不动（不误剥）', () => {
+    const body = '<h2>知识奠基</h2><h3>一、新困难面前怎么说</h3><p>1. ……</p>';
+    expect(stripLeadingAnswerTitle(body)).toBe(body);
+  });
+});
+
+describe('正文/答案 题号数双向守卫（auditExamPaper）', () => {
+  const run = (html) => auditExamPaper(html, { subject: '英语', stage: 'primary_high', genType: 'practice' });
+  const msgs = (html) => (run(html).silentDetails || []).map((d) => d.message).join(' | ');
+
+  it('🔴 正文题号明显少于答案区 → 报"正文疑似丢题"（本次实测缺口：正文缺第2~5题、答案区完整）', () => {
+    const bodyShort = [
+      '<h1>六年级英语上册Unit 1 Try your best课时训练</h1>',
+      '<h2>知识奠基</h2>',
+      '<p>1. 第一题（　）</p>', '<p>2. 第二题（　）</p>', '<p>6. 第六题（　）</p>',
+      '<div class="answer-section"><h2>参考答案与解析</h2>',
+      '<p>1. A</p><p>2. B</p><p>3. C</p><p>4. A</p><p>5. B</p><p>6. C</p>',
+      '</div>',
+    ].join('\n');
+    expect(msgs(bodyShort)).toContain('正文题号数');
+  });
+
+  it('正文与答案区题号一致 → 不报该提示（防误报）', () => {
+    const ok = [
+      '<h1>标题</h1>',
+      '<p>1. A（　）</p><p>2. B（　）</p><p>3. C（　）</p><p>4. D（　）</p>',
+      '<div class="answer-section"><h2>参考答案与解析</h2><p>1. A</p><p>2. B</p><p>3. C</p><p>4. D</p></div>',
+    ].join('\n');
+    expect(msgs(ok)).not.toContain('正文题号数');
+  });
+
+  it('反向：答案区题号明显少于正文 → 仍报原"答案区题号数"提示（原功能不回归）', () => {
+    const ansShort = [
+      '<h1>标题</h1>',
+      '<p>1. A（　）</p><p>2. B（　）</p><p>3. C（　）</p><p>4. D（　）</p><p>5. E（　）</p>',
+      '<div class="answer-section"><h2>参考答案与解析</h2><p>1. A</p></div>',
+    ].join('\n');
+    expect(msgs(ansShort)).toContain('答案区题号数');
   });
 });
