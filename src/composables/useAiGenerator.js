@@ -4862,6 +4862,9 @@ ${cardAnalysisText.substring(0, 1000)}
     let content = '';
     let lastErr = null;
     let browseCoverageNotes = [];
+    // 🔧 正文路径事件（2026-09-11 用户定版"过程不静默"）：截断续写/预算升级重试/思考降级/
+    //    browse 回退等只在 console 的补救事件，成功交付后同样透出到生成报告【问题列表】
+    let bodyPathNotes = [];
     // 🔧 采样用：正文是否触发过续写/截断（预算失效场，校准统计须剔除）
     let sampleTruncated = false;
     // 🔧 素材线 G7 终态：引擎不支持 browse tools → 纯摘要写作（仅研读总账+委托书），
@@ -4890,10 +4893,12 @@ ${cardAnalysisText.substring(0, 1000)}
           content = bc;
         } else if (bc) {
           console.warn(`⚠️ 浏览路径正文疑似未完整或仅自述/无正文结构（截断启发式${bcGap ? `；题号不连续：缺 ${bcGap.missing.join('、')}` : ''}），改走单次注入升级预算路径重试`);
+          bodyPathNotes.push(`⚠️ 浏览路径正文疑似未完整${bcGap ? `（题号不连续：缺 ${bcGap.missing.join('、')}）` : '（截断或仅自述）'}——已改走单次注入升级预算重试`);
         }
       } catch (e) {
         lastErr = e;
         console.warn('⚠️ 浏览取材路径失败，回退纯摘要写作（研读总账为唯一素材依据）:', e.message);
+        bodyPathNotes.push(`⚠️ 浏览取材路径失败（${e.message}）——已回退纯摘要写作（研读总账摘要支撑，未按需现取教材原文）`);
       }
       if (!content) {
         // 浏览路径未产出合格正文 → 回退纯摘要写作：不再注入任何教材原文（直灌废除），
@@ -4910,13 +4915,20 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔧 仅当上方 browse/回退路径未产出完整正文时，才进入"单次注入 + 预算升级重试"循环
     //    （browse 已产出完整正文时跳过，避免循环首轮 content='' 清空 browse 成果）
     if (!content) {
+    // 🔧 针对性重试（2026-09-11 用户定版"第一次调用必须尽量成功"根因修复）：跳题/截断并非预算
+    //    必然可解——同 prompt 全新重试模型大概率重犯（跳题是长单次输出行为，非预算截断）。
+    //    重试时把上次失败实况（缺号清单/截断/空壳）反馈给模型，令其逐项修正，而非盲目重来
+    let lastGapNote = '';
     for (let attempt = 0; attempt < 2; attempt++) {
       content = ''; // 每次 attempt 全新整卷生成（升级预算重试不携带上次半截残留）
       // 🔧 截断重试预算升级：第 1 次按动态帽，第 2 次 ×1.4（仅截断补齐场景，篇幅纪律已防发散；
       //    仍受引擎单次输出上限 clampReq 约束，超出部分由下方续写链动态分片补齐）
       const attemptCap = Math.round(bodyDynamicCap * Math.pow(1.4, attempt));
+      const callPrompt = (attempt === 1 && lastGapNote)
+        ? `${prompt}\n\n【上一轮整卷生成复核发现的问题——本次必须修正】\n· ${lastGapNote}。本次必须逐题完整呈现全部题目：题号 1 起逐题递增、连续不得跳号，不得省略或合并任何一题；输出完成后逐题自查题号连续性。`
+        : prompt;
       try {
-        const resp = await callAI(prompt, {
+        const resp = await callAI(callPrompt, {
           taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
           // 🔧 会话式：携带研读轮消化记录前缀（研读批点名行+模型摘要原话；直灌场景启用）
           history: studyHistory,
@@ -4947,6 +4959,7 @@ ${cardAnalysisText.substring(0, 1000)}
         // 🔴 思考耗尽检测：推理 chunks 大量（≥20000）或触发推理上限（reasoning_capped）且正文为空 → 判定思考占满输出预算
         if (((respObj.reasoningChunkCount || 0) >= GEN_CONST.REASONING_EXHAUST_THRESHOLD || respObj.finishReason === 'reasoning_capped') && !content.trim()) {
           console.warn(`⚠️ 思考模式推理过长（${respObj.reasoningChunkCount || 0} chunks，finish_reason=${respObj.finishReason || 'length'}）且正文为空——本次重试将自动关闭思考`);
+          bodyPathNotes.push('⚠️ 思考模式推理过长且正文为空——已自动降级为非思考重试');
           retryWithoutThinking = true;
           throw new Error('思考模式推理耗尽输出预算，正文未输出——已自动降级为非思考重试');
         }
@@ -4960,6 +4973,7 @@ ${cardAnalysisText.substring(0, 1000)}
         if (trunc.truncated) {
           sampleTruncated = true;
           console.warn(`⚠️ 整卷输出${trunc.byReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，进入续写链补齐...`);
+          bodyPathNotes.push(`ℹ️ 整卷正文输出${trunc.byReason ? '被截断（finish_reason=length）' : '疑似截断'}——已进入续写链补齐`);
           // 续写拼接：去除与正文末尾的重叠段（统一走模块级 appendContinuationWithDedup，
           // 与 callAI 内部续写同一套 DEDUP 口径）
           const contMult = (retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2);
@@ -4995,7 +5009,11 @@ ${cardAnalysisText.substring(0, 1000)}
             // 🔴 未补齐 → 本 attempt 判失败（不交付半截）：升级预算由下一 attempt 整卷重试补齐
             truncFailNote = `正文输出被截断，经 ${contCount} 次续写（预算 ${attemptCap} token）仍未完整（当前 ${content.length} 字符）`;
             console.warn(`⚠️ ${truncFailNote}——升级预算重新整卷生成...`);
+            bodyPathNotes.push(`⚠️ ${truncFailNote}——升级预算重新整卷生成`);
+            lastGapNote = '正文输出被截断未完整（尾部未写完）——本次请规划好篇幅，确保全部题目与内容在一次输出内完整写完';
             throw new Error(truncFailNote);
+          } else if (contCount > 0) {
+            bodyPathNotes.push(`ℹ️ 正文截断经 ${contCount} 次续写已补齐（当前 ${content.length} 字符）。`);
           }
         }
         // 🔴 2026-09-10 丢题拦截（严格收口·用户定版"残次品绝不放行"）：题号连续性校验（同 browse 口径）——
@@ -5003,8 +5021,11 @@ ${cardAnalysisText.substring(0, 1000)}
         const qGap = detectBodyNumberingGap(content);
         if (content && isDeliverableBodyHtml(content) && !qGap) break;
         if (qGap) {
+          lastGapNote = `正文题号缺失：${qGap.missing.join('、')}（1~${qGap.peak} 中缺）——本次必须补全这些题，题号从 1 起逐题连续`;
+          bodyPathNotes.push(`⚠️ 正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——升级预算重新整卷生成`);
           throw new Error(`正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——正文疑似丢题${attempt === 0 ? '，升级预算重试' : '，重试后仍未补齐'}`);
         }
+        lastGapNote = '正文为空/过短/无正文结构（疑似仅自述）——本次必须输出完整正文结构';
         throw new Error('整卷输出为空/过短/无正文结构（疑似仅自述）');
       } catch (e) {
         lastErr = e;
@@ -5012,6 +5033,7 @@ ${cardAnalysisText.substring(0, 1000)}
         if (attempt === 0) {
           await new Promise(r => setTimeout(r, apiConfig.generationSettings?.retry?.baseDelayMs ?? 2000));
           console.warn('⚠️ 整卷生成第1次失败，重试:', e.message);
+          bodyPathNotes.push(`⚠️ 整卷生成第 1 次尝试失败（${e.message}）——已自动升级预算重试`);
         }
       }
     }
@@ -5277,6 +5299,9 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     }
     if (answerSkipNote) auditWarnings.push(answerSkipNote);
     if (browseCoverageNotes.length) auditWarnings.push(...browseCoverageNotes);
+    // 🔧 正文路径事件透出（2026-09-11 用户定版"过程不静默"）：截断续写/升级预算重试/思考降级/
+    //    browse 回退等补救事件不再只留 console——成功交付时用户也能看到正文曾"不全→补救"的过程
+    if (bodyPathNotes.length) auditWarnings.push(...bodyPathNotes);
     // 🔧 纯摘要写作标注（G7 终态）：当前引擎不支持 browse 工具 → 无法写作期按需现取教材原文，
     //    内容基于研读总账摘要生成——如实告知，便于用户判断是否需更换支持 browse 的引擎
     if (digestOnlyWriting) {

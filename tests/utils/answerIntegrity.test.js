@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { detectTruncation, isAnswerShell, wrapAnswerSection, stripAnswerSection, stripLeadingAnswerTitle } from '../../src/composables/useAiGenerator.js';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
+import { detectBodyNumberingGap } from '../../src/utils/contentCleaner.js';
 
 describe('答案完整性·截断判定（detectTruncation）', () => {
   it('finish_reason=length 且内容较长 → 判定截断（API 可靠信号）', () => {
@@ -209,5 +210,42 @@ describe('正文/答案 题号数双向守卫（auditExamPaper）', () => {
     const m = msgs(body + ans);
     expect(m).not.toContain('答案区题号数');
     expect(m).not.toContain('正文题号数');
+  });
+});
+
+describe('正文缺号检测（detectBodyNumberingGap）', () => {
+  const p = (i) => `<p>${i}. 第${i}题（　）</p>`;
+  const html = (...ps) => '<h1>英语课时训练</h1>\n' + ps.join('\n');
+
+  it('🔴 缺 2~5 题、只剩题号 1 与 6（2026-09-10 实测样本）→ 判缺（旧实现 found.size<3 漏检）', () => {
+    expect(detectBodyNumberingGap(html(p(1), p(6)))).toEqual({ peak: 6, found: [1, 6], missing: [2, 3, 4, 5] });
+  });
+
+  it('中段跳号（缺 3）→ 判缺', () => {
+    expect(detectBodyNumberingGap(html(p(1), p(2), p(4)))).toEqual({ peak: 4, found: [1, 2, 4], missing: [3] });
+  });
+
+  it('完整连续 1~6 → 不判（正常卷不误报）', () => {
+    expect(detectBodyNumberingGap(html(p(1), p(2), p(3), p(4), p(5), p(6)))).toBeNull();
+  });
+
+  it('小卷（峰值 <3，如 1~2 题）→ 不判（防小卷误报）', () => {
+    expect(detectBodyNumberingGap(html(p(1), p(2)))).toBeNull();
+    expect(detectBodyNumberingGap('<h2>知识梳理</h2><p>无题号内容</p>')).toBeNull();
+  });
+
+  it('清单型大卷：70 条连续 → 不判；仅 1 处缺失 → 不判（防目录/知识点清单跳号误报）', () => {
+    const cont70 = html(...Array.from({ length: 70 }, (_, i) => p(i + 1)));
+    expect(detectBodyNumberingGap(cont70)).toBeNull();
+    const skip69 = cont70.replace('<p>69. 第69题（　）</p>', '');
+    expect(detectBodyNumberingGap(skip69)).toBeNull();
+  });
+
+  it('清单型大卷连续缺失 ≥3 处 → 判缺（大卷缺题不漏检）', () => {
+    const skip668 = html(
+      ...Array.from({ length: 65 }, (_, i) => p(i + 1)),
+      p(69), p(70),
+    );
+    expect(detectBodyNumberingGap(skip668)).toEqual({ peak: 70, found: [...Array.from({ length: 65 }, (_, i) => i + 1), 69, 70], missing: [66, 67, 68] });
   });
 });

@@ -154,7 +154,11 @@ export function isDeliverableBodyHtml(html = '') {
  * 比对"，抓"答案生成后动正文"）；detectBodyNumberingGap 查 1~峰值 缺口，返回缺号明细
  * （供 ①正文采纳拦截重试 ②最终报告如实输出缺号）。
  * 口径与 useAiGenerator 正文丢失护栏 qCount 同源：块级标签闭合补换行后按行首 `N.` 计题号。
- * gap 返回 null = 无缺口/样本不足以判定（<3 个题号、峰值<3 或 >60 不判——防小卷/条目清单误报）。
+ * gap 返回 null = 无缺口/样本不足以判定（峰值 <3 不判——防小卷/条目清单误报；
+ * 峰值 >60 的清单型大卷仅个别缺失 <3 处不判，防目录/知识点清单跳号误报）。
+ * 🔴 2026-09-11 漏检补强：旧实现 `found.size < 3` 提前返回 null——"正文缺 2~5 题、只剩题号
+ * 1 与 6"（实测样本）恰落漏检区（found={1,6} → 不判 → 残卷静默交付）。改为先按峰值判定：
+ * 峰值 ≥3 即查 1~峰值缺口，高位题号存在而低位缺失同样拦截。
  */
 export function extractBodyQuestionNumbers(html = '') {
   const src = String(html || '');
@@ -170,12 +174,13 @@ export function extractBodyQuestionNumbers(html = '') {
 
 export function detectBodyNumberingGap(html = '') {
   const found = new Set(extractBodyQuestionNumbers(html));
-  if (found.size < 3) return null;
-  const peak = Math.max(...found);
-  if (peak < 3 || peak > 60) return null;
+  const peak = found.size ? Math.max(...found) : 0;
+  if (peak < 3) return null;
   const missing = [];
   for (let i = 1; i <= peak; i++) if (!found.has(i)) missing.push(i);
   if (!missing.length) return null;
+  // 峰值 >60 的清单型大卷（目录/知识点条目）：仅个别数字缺失多为行内数字干扰，≥3 处才算缺题
+  if (peak > 60 && missing.length < 3) return null;
   return { peak, found: [...found].sort((a, b) => a - b), missing };
 }
 
