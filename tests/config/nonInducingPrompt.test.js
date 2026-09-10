@@ -15,6 +15,8 @@ import {
   styleInstructions,
   styleOptionsForType,
 } from '../../src/config/expertKnowledge.js';
+import { EXAM_BLUEPRINTS } from '../../src/config/examPaperBlueprints.js';
+import { GENERIC_SPECIAL_DESC } from '../../src/config/specialDomains.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
@@ -44,6 +46,8 @@ const BANNED_ENUM = [
   '板块内由易到难', // 分板块组织 重复尾句
   '结构图或表格', // 知识框架栏 固定双形式枚举
   '知识框架以表格对比为主', // 语文中段 呈现枚举
+  '基础→提升→拓展', // 分板块组织 note/专项结构 递进链
+  '鉴赏沿', // examPaper 语文鉴赏题 答题路径链
 ];
 
 const WHITELIST_KEEP = [
@@ -87,6 +91,18 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     assertNoBanned(styleStr, 'styleInstructions');
     const options = styleOptionsForType ? JSON.stringify(styleOptionsForType('summary')) : '';
     assertNoBanned(options, 'styleOptionsForType');
+  });
+
+  it('考卷蓝本（EXAM_BLUEPRINTS）不含诱导枚举（含鉴赏路径链）', () => {
+    const raw = JSON.stringify(EXAM_BLUEPRINTS);
+    assertNoBanned(raw, 'EXAM_BLUEPRINTS');
+  });
+
+  it('专项结构说明（GENERIC_SPECIAL_DESC）无递进链且保留梯度原则', () => {
+    const raw = GENERIC_SPECIAL_DESC;
+    assertNoBanned(raw, 'GENERIC_SPECIAL_DESC');
+    expect(raw).toContain('由浅入深');
+    expect(raw).not.toContain('提升→拓展');
   });
 
   it('白名单（答题书写规范）仍保留', () => {

@@ -171,4 +171,4 @@ export const buildSpecialDomainAnchorLine = (dom = {}) =>
 
 /** 通用专项说明（与真实生效蓝图一致；供 UI/兜底展示） */
 export const GENERIC_SPECIAL_DESC =
-  '使用通用专项结构（分板块组织：按知识层级分板块，板块内基础→提升→拓展；每板块配解析）。';
+  '使用通用专项结构（分板块组织：按知识层级分板块，板块间有合理梯度、由浅入深，层次依内容自然形成；每板块配解析）。';
