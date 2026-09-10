@@ -637,7 +637,7 @@ export const cleanReasoningOutput = (text) => {
 // 🔴 续写拼接（单一事实源，2026-09-10 收敛）：续写段与已有内容的拼接统一走此函数——
 //    模型续写常从上一段末尾重述（或整段重发），直接拼接会重复：先按「精确末尾 N 字 → 渐进
 //    重叠 15→3 字」去重；去重后为空（纯重复段）则不追加。绝不用续写段【覆盖】已有内容。
-//    用于：browse 写作轮续写（generateBodyByTextbookBrowse）/ 单次注入续写链（_runPaperOrder）。
+//    用于：browse 写作轮续写（generateBodyByTextbookBrowse）/ 单次生成续写链（_runPaperOrder）。
 export const appendContinuationWithDedup = (base, cont) => {
   const b = String(base || '');
   const tail = b.slice(-GEN_CONST.DEDUP_TAIL_EXACT);
@@ -4358,7 +4358,7 @@ ${cardAnalysisText.substring(0, 1000)}
         // 🔴 程序附加段（渲染契约/质检规则/输出格式兜底）browse 主链同样必须携带（2026-09 根治：
         //    此前 browse 自建 fetch 循环只拼 buildBrowseSystem，渲染契约/质检规则完全未注入 →
         //    走 browse 路径的资料收不到 [IMAGE]/[GRAPH] 格式规范，图片/图形类输出无契约约束，
-        //    题 2"根据图片提示"却无 [IMAGE]、图形描述不合规均源于此。与单次注入路径同权同源。）
+        //    题 2"根据图片提示"却无 [IMAGE]、图形描述不合规均源于此。与单次生成路径同权同源。）
         + (programAttach.trim() ? `\n\n${programAttach.trim()}` : '') },
       ...studyPrefixMsgs,
       { role: 'user', content: promptBase },
@@ -4885,15 +4885,15 @@ ${cardAnalysisText.substring(0, 1000)}
         browseCoverageNotes = bres?.coverageNotes || [];
         const bc = normalizeIndents(normalizeLeadingMarkers(normalizeMatchQuestions(stripRedundantInlineCarrierRows(normalizeMathCircleBlanks(normalizeBlankMarkers(cleanSectionHtml(bres?.content || '')))))));
         // 🔴 完整优先：browse 产出的正文若仍疑似截断（尾部启发式，内部多次续写未补齐时 coverageNotes 已含提醒），
-        //    不作为成功内容采纳——置空走下方"单次注入 + 预算升级重试"路径，避免半截卷进入交付
+        //    不作为成功内容采纳——置空走下方"单次生成 + 预算升级重试"路径，避免半截卷进入交付
         // 🔴 2026-09-10 丢题拦截：题号连续性校验——"中段跳段丢题"尾部完整收束，截断启发式测不出
         //    （实测：正文缺 2~6 题、尾部正常）→ 缺号同样视为未完整，不采纳
         const bcGap = bc ? detectBodyNumberingGap(bc) : null;
         if (bc && isDeliverableBodyHtml(bc) && !detectTruncation(bc).truncated && !bcGap) {
           content = bc;
         } else if (bc) {
-          console.warn(`⚠️ 浏览路径正文疑似未完整或仅自述/无正文结构（截断启发式${bcGap ? `；题号不连续：缺 ${bcGap.missing.join('、')}` : ''}），改走单次注入升级预算路径重试`);
-          bodyPathNotes.push(`⚠️ 浏览路径正文疑似未完整${bcGap ? `（题号不连续：缺 ${bcGap.missing.join('、')}）` : '（截断或仅自述）'}——已改走单次注入升级预算重试`);
+          console.warn(`⚠️ 浏览路径正文疑似未完整或仅自述/无正文结构（截断启发式${bcGap ? `；题号不连续：缺 ${bcGap.missing.join('、')}` : ''}），改走单次生成升级预算路径重试（素材仍为研读总账摘要，不预塞原文）`);
+          bodyPathNotes.push(`⚠️ 浏览路径正文疑似未完整${bcGap ? `（题号不连续：缺 ${bcGap.missing.join('、')}）` : '（截断或仅自述）'}——已改走单次生成升级预算重试（不预塞原文）`);
         }
       } catch (e) {
         lastErr = e;
@@ -4912,7 +4912,7 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔧 正文"完整优先"（2026-09）：截断经续写链仍无法补齐 → 本 attempt 判失败，升级预算整卷重试；
     //    两次尝试都失败则抛错（绝不把半截正文当作成功交付——提醒半截对用户无用，宁可失败给行动建议）
     let truncFailNote = '';
-    // 🔧 仅当上方 browse/回退路径未产出完整正文时，才进入"单次注入 + 预算升级重试"循环
+    // 🔧 仅当上方 browse/回退路径未产出完整正文时，才进入"单次生成 + 预算升级重试"循环
     //    （browse 已产出完整正文时跳过，避免循环首轮 content='' 清空 browse 成果）
     if (!content) {
     // 🔧 针对性重试（2026-09-11 用户定版"第一次调用必须尽量成功"根因修复）：跳题/截断并非预算
@@ -5037,7 +5037,7 @@ ${cardAnalysisText.substring(0, 1000)}
         }
       }
     }
-    } // end if(!content) 单次注入重试循环（browse 已产出完整正文时跳过）
+    } // end if(!content) 单次生成重试循环（browse 已产出完整正文时跳过）
     // 🔴 完整优先最终守卫：两次尝试（含续写链/缺号拦截）都未能完整输出 → 明确抛错并给行动建议，
     //    绝不把半截/缺题正文当作成功交付（generate 外层 MAX_RETRIES 会整卷级重试；再失败则由 UI 呈现此错误）
     const finalGap = detectBodyNumberingGap(content);
