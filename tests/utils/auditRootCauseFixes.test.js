@@ -483,4 +483,15 @@ describe('根治回归：答案区题号覆盖度按块级行计数（不依赖�
     const d = silentDetails.find(x => x.type === 'answer-coverage' && x.message.includes('答案区题号数'));
     expect(d).toBeTruthy();
   });
+
+  it('🔴 段内小数/枚举/长数字不误计（0.35、2.5×、4.8÷、"3、4、5"与 2024.5 均不算题号）', () => {
+    const html = '<h1>口算</h1>'
+      + '<p>1. 直接写出得数：0.35+2.5=</p>'
+      + '<p>2. 比较大小：4.8÷0.6　3、4、5 三个数</p>'
+      + '<p>3. 计算：1.666…+2024.5=</p>'
+      + '<div class="answer-section"><h2>参考答案与解析</h2><p>1. 2.85　2. >　3. 2026.166…</p></div>';
+    const { silentDetails } = auditExamPaper(html, { subject: '数学', stage: 'primary_high', genType: 'practice' });
+    expect(silentDetails.some(d => d.type === 'answer-coverage' && d.message.includes('答案区题号数'))).toBe(false);
+    expect(silentDetails.some(d => d.type === 'body-coverage')).toBe(false);
+  });
 });

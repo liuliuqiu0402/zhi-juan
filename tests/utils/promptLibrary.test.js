@@ -201,11 +201,13 @@ describe('非exam教辅答案区不复述正文（自包含教辅防重复）', 
     expect(ANSWER_ROLES.other('errorbook')).not.toContain('按栏目给出要点梳理');
   });
 
-  it('ANSWER_ROLES.other：普通教辅答案与解析语义自决（按需附简要解析），不含复述诱导', () => {
+  it('ANSWER_ROLES.other：普通教辅解析下限（需解析情形必须附 + 整卷不得零解析），不含复述诱导', () => {
     const role = ANSWER_ROLES.other('practice');
-    expect(role).toContain('是否附解析由你按题目需要自行判断');
+    expect(role).toContain('必须附');
+    expect(role).toContain('不得完全没有解析');
     expect(role).toContain('点到即止');
-    expect(role).not.toContain('客观题给出正确答案'); // 旧措辞被读成"客观题一律免解析"，2026-09 已改为语义自决
+    expect(role).not.toContain('客观题给出正确答案'); // 旧措辞被读成"客观题一律免解析"
+    expect(role).not.toContain('自行判断'); // 旧"语义自决"被整卷读成"一律不写解析"（2026-09-10 用户实证）
     expect(role).not.toContain('按栏目给出要点梳理');
     expect(role).not.toContain('知识总结/预习类按栏目'); // 旧文案去净
   });

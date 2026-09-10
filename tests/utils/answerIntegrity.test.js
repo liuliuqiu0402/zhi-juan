@@ -197,4 +197,17 @@ describe('正文/答案 题号数双向守卫（auditExamPaper）', () => {
     ].join('\n');
     expect(msgs(ansShort)).toContain('答案区题号数');
   });
+
+  it('🔴 紧凑连排答案（序号顿号层级/段内题号）→ 与正文口径对齐，不误报（用户实证：答案区题号数(2) vs 正文(12)）', () => {
+    const body = '<h1>六年级英语上册Unit 1 Try your best课时训练</h1>'
+      + Array.from({ length: 12 }, (_, i) => `<p>${i + 1}. 第${i + 1}题（　）</p>`).join('');
+    const ans = '<div class="answer-section"><h2>参考答案与解析</h2>'
+      + '<p>一、1. (1) asked　(2) practised　(3) wanted　(4) remembered</p>'
+      + '<p>2. (1) was　(2) were　(3) began　(4) forgot　(5) saw</p>'
+      + Array.from({ length: 10 }, (_, i) => `<p>${i + 3}. 答案${i + 3}</p>`).join('')
+      + '</div>';
+    const m = msgs(body + ans);
+    expect(m).not.toContain('答案区题号数');
+    expect(m).not.toContain('正文题号数');
+  });
 });
