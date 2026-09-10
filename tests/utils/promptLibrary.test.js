@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS, ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS } from '../../src/config/promptLibrary.js';
 import { TEACHING_SUBJECT_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
-import { styleInstructions, styleOptions } from '../../src/config/expertKnowledge.js';
+import { styleInstructions, styleOptions, DEFAULT_STYLE_BY_TYPE } from '../../src/config/expertKnowledge.js';
 
 /**
  * 课标版本按学段注入（可查可引用）：
@@ -110,6 +110,35 @@ describe('promptLibrary 课标版本按学段注入', () => {
     // unit_context 风格 tip 同样不使用"任务群"（曾与 big_unit 同源残留）
     const unitContextTip = styleOptions.find(s => s.value === 'unit_context')?.tip || '';
     expect(unitContextTip).not.toContain('任务群');
+  });
+
+  it('🔴 组织风格完整性：每个 styleOptions.value 都必须有 styleInstructions 注入文案（缺键=withStyle 静默跳过=风格失效）', () => {
+    for (const o of styleOptions) {
+      expect(styleInstructions[o.value], `风格 ${o.value} 缺 styleInstructions 文案 → 生成时静默不注入`).toBeTruthy();
+      expect(String(styleInstructions[o.value]).trim().length).toBeGreaterThan(8);
+    }
+    // 反向：不应存在无用（无对应选项）的指令键
+    const values = new Set(styleOptions.map((o) => o.value));
+    for (const k of Object.keys(styleInstructions)) {
+      expect(values.has(k), `styleInstructions 存在无选项的孤儿键 ${k}`).toBe(true);
+    }
+  });
+
+  it('🔴 组织风格含「传统题组」（2026-09-10 用户新增）：命题组、题类资料可选、非任何类型默认', () => {
+    const t = styleOptions.find((o) => o.value === 'traditional');
+    expect(t).toBeTruthy();
+    expect(t.group).toBe('proposition');
+    for (const gt of ['practice', 'special', 'reading', 'review']) {
+      expect(t.appliesTo, `traditional 应适用于 ${gt}`).toContain(gt);
+    }
+    expect(t.required).toBe(false);
+    // 不得成为任何类型的默认（默认仍是原值）
+    expect(Object.values(DEFAULT_STYLE_BY_TYPE)).not.toContain('traditional');
+    // 文案不得点名具体题型枚举（防诱导）
+    for (const bad of ['选择题', '填空题', '判断题', '表格', '导图']) {
+      expect(`${t.desc}${t.tip}`).not.toContain(bad);
+      expect(styleInstructions.traditional).not.toContain(bad);
+    }
   });
 
   it('buildInjectionInstruction：用户自定义模板中的 {curriculum} 按学段键注入版本（全链路生效）', () => {

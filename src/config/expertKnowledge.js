@@ -219,6 +219,9 @@ export const styleOptions = [
   { group: 'proposition', value: 'project_based', label: '项目式学习', desc: '项目任务驱动',
     tip: '以一个完整项目任务为驱动，资料作为项目的一部分，考查真实问题中的综合能力；适用于特殊教学场景。',
     appliesTo: ['practice', 'special'], required: false },
+  { group: 'proposition', value: 'traditional', label: '传统题组', desc: '不设统一情境，按题组/板块组织',
+    tip: '按传统教辅体例组织：不强制统一情境、不做任务化包装，以知识板块或题组为单位逐题命制，题型按学科通行形态、作答直接；适用于希望保留传统练习形态的场景（用户显式选择，非系统默认）。',
+    appliesTo: ['practice', 'special', 'reading', 'review'], required: false },
   // ── 呈现风格组（以内容组织为主的资料：内容的呈现方式）──
   { group: 'presentation', value: 'mindmap', label: '导图式', desc: '知识分层梳理',
     tip: '按概念层级的递进关系分层组织（渲染端以层级列表呈现；关系复杂需图示化时用 [GRAPH] 占位，勿自造图形字符），层次清晰、便于记忆；适用于知识总结类资料。',
@@ -268,6 +271,7 @@ export const styleInstructions = {
   'scenario_each': '每题设置贴近学生生活的独立情境设问，情境与题目内容一致。',
   'big_unit': '打破课时界限，围绕大概念整体组织，体现知识关联与递进。',
   'project_based': '以一个完整项目任务为驱动组织资料，考查真实问题中的综合能力。',
+  'traditional': '按传统教辅体例组织：不设统一情境、不做任务化包装，以知识板块或题组为单位逐题命制，题型按学科通行形态、作答直接。',
   'mindmap': '按概念层级的递进关系分层组织，条目层级清晰；关系复杂需图示化时用 [GRAPH] 占位，勿自造图形字符。',
   'table': '以表格对比呈现信息，清晰易读，易混点用对比突出。',
   'context_chain': '以一个贴近生活的大主题串联各知识点呈现，情境自然连贯。',
