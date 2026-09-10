@@ -1,0 +1,16 @@
+# 智卷工坊 · Python 可选依赖：本地 OCR（PaddleOCR-VL）
+# ============================================================
+# 用途：仅"自动 OCR 提取"路径需要（把教材图片识别成文字）。
+#       不是必备项；应用默认走"手动粘贴"，不装也能正常使用。
+# 体积：GB 级（含 PaddlePaddle / PyTorch），首次安装较慢。
+# 安装：pip install -r requirements-ocr.txt
+# ------------------------------------------------------------
+# 对应脚本：paddleocr_vl_chat.py
+#   - pipeline 路径：paddleocr + paddlepaddle
+#   - chat 路径：torch + transformers
+# 注：本地 PaddleOCR-VL 模型（python-scripts/PaddleOCR-VL-model/）不入库，需另行放置。
+
+paddleocr
+paddlepaddle
+torch
+transformers

@@ -1,0 +1,18 @@
+# 智卷工坊 · Python 必备依赖（官方唯一清单）
+# ============================================================
+# 用途：应用运行时的"取原文 / 图片处理 / Word 导入"所需依赖。
+# 安装：pip install -r requirements.txt
+# 说明：不含本地 OCR（PaddleOCR-VL）相关重型依赖，见 requirements-ocr.txt。
+# ------------------------------------------------------------
+# 对应脚本（勿删改用途注释，便于溯源）：
+#   PyMuPDF       -> pdf_to_images.py / extract_outline.py（PDF 取字、转图）
+#   Pillow        -> pdf_to_images.py / split_columns.py / create_thumbnail.py（图像处理）
+#   numpy         -> split_columns.py（分栏检测）
+#   opencv-python -> split_columns.py（分栏检测）
+#   python-docx   -> word_to_html.py（Word 导入高保真转换）
+
+PyMuPDF>=1.23
+Pillow>=10.0
+numpy>=1.24
+opencv-python>=4.8
+python-docx>=1.0

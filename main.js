@@ -1098,12 +1098,14 @@ ipcMain.handle('check-python-deps', async () => {
   const { exec } = require('child_process');
   
   return new Promise((resolve) => {
+    // 必备 5 项（与 requirements.txt 一致）；paddleocr_vl 为可选（本地 OCR，见 requirements-ocr.txt）
     const deps = {
       PyMuPDF: false,
       Pillow: false,
       numpy: false,
       opencv: false,
-      paddleocr_vl: false  // PaddleOCR-VL pipeline（VLM 多模态引擎）
+      pythonDocx: false,   // python-docx：Word 导入（word_to_html.py）
+      paddleocr_vl: false  // PaddleOCR-VL pipeline（可选：本地 OCR / VLM 多模态引擎）
     };
     
     // 并行检查各依赖
@@ -1112,6 +1114,7 @@ ipcMain.handle('check-python-deps', async () => {
       ['Pillow', 'import PIL'],
       ['numpy', 'import numpy'],
       ['opencv', 'import cv2'],
+      ['pythonDocx', 'import docx'],  // python-docx
       ['paddleocr_vl', 'from paddleocr import PaddleOCRVL']  // PaddleOCR-VL pipeline
     ];
     

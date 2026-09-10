@@ -9,16 +9,21 @@
 - **内存**: 8GB 以上（推荐 16GB）
 - **硬盘**: 10GB 以上可用空间
 
-**Python 依赖库**:
-- PyMuPDF (fitz) - PDF处理
-- pypdfium2 - PDF文本提取
+**Python 依赖库**（官方清单见项目根目录 `requirements.txt`）:
+- PyMuPDF (fitz) - PDF 取字、转图
 - Pillow - 图像处理
 - numpy - 数值计算
-- opencv-python - 计算机视觉
+- opencv-python - 分栏检测
+- python-docx - Word 导入
 
-安装命令（在 `python-scripts/` 目录执行）:
+安装命令（在项目根目录执行）:
 ```bash
-pip install PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
+pip install -r requirements.txt
+```
+
+可选：本地 OCR（体积较大，仅"自动 OCR 提取"需要）:
+```bash
+pip install -r requirements-ocr.txt
 ```
 
 ### 可选环境（用于 AI 功能）
@@ -53,13 +58,11 @@ install.bat
 # 1. 安装 Node.js 依赖
 npm install
 
-# 2. 安装 Python 依赖（在 python-scripts/ 目录）
-cd python-scripts
-pip install PyMuPDF pypdfium2 Pillow numpy opencv-python paddleocr
-cd ..
+# 2. 安装 Python 依赖（在项目根目录执行）
+pip install -r requirements.txt
 
 # 3. 验证 Python 依赖（可选）
-python -c "import fitz, pypdfium2, PIL, numpy, cv2; print('依赖安装成功')"
+python -c "import fitz, PIL, numpy, cv2, docx; print('依赖安装成功')"
 ```
 
 ### 2. 启动应用
@@ -159,7 +162,7 @@ npm install pinia
 ### Q2: PDF 转图片失败
 **解决方案:**
 ```bash
-pip install PyMuPDF Pillow
+pip install -r requirements.txt
 ```
 
 ### Q3: Ollama 服务未运行

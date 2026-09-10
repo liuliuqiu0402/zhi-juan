@@ -4339,7 +4339,7 @@ const analysisBooks = ref([]);
 const analysisTpls = ref([]);
 const totalNewCount = ref(0);
 const analysisAction = ref('');
-const analysisInputMode = ref('ocr'); // 'ocr' | 'manual' 原文获取方式
+const analysisInputMode = ref('manual'); // 'ocr' | 'manual' 原文获取方式（默认手动粘贴；OCR 为可选路径）
 const enableColumnSplit = ref(false);    // 📐 是否启用多栏切割（用户手动勾选）
 
 // 🔧 原文编辑器相关

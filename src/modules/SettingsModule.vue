@@ -1366,6 +1366,7 @@ const checkPythonDeps = async () => {
       if (!deps.Pillow) missingDeps.value.push('Pillow');
       if (!deps.numpy) missingDeps.value.push('numpy');
       if (!deps.opencv) missingDeps.value.push('opencv-python');
+      if (!deps.pythonDocx) missingDeps.value.push('python-docx');
 
       if (missingDeps.value.length === 0) {
         pythonDepsStatus.value = '✅ 所有 Python 依赖已就绪';
@@ -1395,7 +1396,7 @@ const installPythonDeps = async () => {
         pythonDepsStatus.value = '❌ 安装失败：' + (result.error || '未知错误');
       }
     } else {
-      pythonDepsStatus.value = 'ℹ️ 请在终端手动运行：pip install pymupdf pillow numpy opencv-python';
+      pythonDepsStatus.value = 'ℹ️ 请在终端手动运行：pip install -r requirements.txt';
     }
   } catch (e) {
     pythonDepsStatus.value = '❌ 安装失败：' + e.message;
