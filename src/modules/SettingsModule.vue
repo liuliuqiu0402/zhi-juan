@@ -953,7 +953,7 @@
                   style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid #e7eef7;border-radius:6px;padding:4px 7px;margin-bottom:4px;background:#fff;"
                 >
                   <span style="font-size:10px;color:#334155;white-space:nowrap;">{{ bk.subject }} · {{ calStageName(bk.stage) }} · {{ bk.mode === 'split' ? '两次' : bk.mode === 'once' ? '一次' : bk.mode || '全部' }}</span>
-                  <span style="font-size:10px;color:#64748b;">样本 {{ bk.stats.count }}<template v-if="bk.stats.inValid">/{{ bk.stats.inValid }}失效</template></span>
+                  <span style="font-size:10px;color:#64748b;">样本 {{ bk.stats.count }}<template v-if="bk.stats.inValid">/{{ bk.stats.inValid }}失效</template><template v-if="bk.stats.truncCount">，<span style="color:#d97706;">{{ bk.stats.truncCount }}次截断续写</span></template></span>
                   <span
                     v-if="bk.stats.count"
                     style="font-size:10px;color:#94a3b8;"

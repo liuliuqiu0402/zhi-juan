@@ -4415,9 +4415,16 @@ ${cardAnalysisText.substring(0, 1000)}
       let data;
       const ab = combineAbort([abortController.value?.signal, AbortSignal.timeout(getTimeout('generation'))]);
       try {
+        // 🔴 2026-09-11 浏览续写预算升级：截断说明主请求预算低估，续写同预算大概率再截断
+        //    （实测 browse 正文截断后 3 轮同预算续写补不完 → 残缺 → 降级单次生成）。
+        //    续写轮按轮次 ×1.4 升级（第 1 轮 1.4×、第 2 轮 1.96×），钳到引擎单次输出上限
+        const browseCap = Math.min(
+          clampReq(maxTokens * Math.pow(1.4, writeRounds)),
+          resolveEngineOutputLimit(provider, cfg.model),
+        );
         const resp = await fetch(apiUrl, {
           method: 'POST', headers,
-          body: JSON.stringify({ ...baseBody, messages, max_tokens: maxTokens }),
+          body: JSON.stringify({ ...baseBody, messages, max_tokens: browseCap }),
           signal: ab.signal,
         });
         const bodyText = await resp.text();
@@ -4505,6 +4512,19 @@ ${cardAnalysisText.substring(0, 1000)}
       //   含开头样本（模型整卷重发）→ 仍按重写替换。非续写轮维持替换语义（覆盖浏览轮草稿/自述）。
       if (bodyLike) {
         const headSample = content.trim().slice(0, GEN_CONST.REWRITE_HEAD_SAMPLE);
+        // 🔴 2026-09-11 覆盖丢题根治（实测：正文只剩第1题、缺2~6、尾部半截触发"截断启发式"）：
+        //    模型在续写轮"整卷重发"而非续写剩余 → 重发全文很长，单轮预算内再次被截断在第 N 题 →
+        //    原逻辑把重发判为"重写"覆盖，完整正文被残卷换掉。判定：本轮输出被截断（length/尾部半截）
+        //    或重发版比已有正文短（残缺重发）→ 不覆盖，保留已有完整正文，转续写补全缺失部分。
+        const rawTTrunc = lastFr === 'length' || detectTruncation(rawT).truncated;
+        const shorterRewrite = content.length > 0 && rawT.trim().length < content.length;
+        if (content && headSample && rawT.includes(headSample) && (rawTTrunc || shorterRewrite)) {
+          console.warn(`⚠️ 模型整卷重发但输出${rawTTrunc ? `截断（${lastFr === 'length' ? '预算' : '尾部半截'}）` : `偏短（${rawT.trim().length}<${content.length}，疑似只重发了部分题）`}——保留上一轮完整正文，转续写补全缺失部分`);
+          awaitingContinuation = true;
+          messages.push({ role: 'assistant', content: rawT || '' });
+          messages.push({ role: 'user', content: `【续写】你刚才重发了整卷但输出被截断/不完整。请不要重发已有内容，只从上次停止处继续输出缺失的题目与内容（上次末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。` });
+          continue;
+        }
         if (awaitingContinuation && content && headSample && !rawT.includes(headSample)) {
           content = appendContinuationWithDedup(content, rawT);
         } else {
@@ -5154,11 +5174,22 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
             const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
             answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml2)}</div>`;
           } else {
-            console.warn(`⚠️ 答案页重试仍为空/过短（清洗后 ${aHtml2?.length || 0} / 原始 ${(ansObj2.content || '').length} 字符，finish=${ansObj2.finishReason || 'unknown'}；正文仍有效 → 本次入库无答案区，请核对`);
+            // 🔴 两次生成必须成功（2026-09-11 用户定版）：split 模式答案页是唯一答案源——
+            //    两次尝试仍失败且正文无答案区 → 判失败（进入外层整卷重试），绝不静默交付"正文-only"
+            //    （once 模式正文自带答案区时不判，正文即答案载体）
+            console.warn(`⚠️ 答案页重试仍为空/过短（清洗后 ${aHtml2?.length || 0} / 原始 ${(ansObj2.content || '').length} 字符，finish=${ansObj2.finishReason || 'unknown'}）`);
+            if (!/<h[1-6][^>]*>\s*参考答案|answer-section/i.test(content)) {
+              throw new Error('答案页生成失败（两次尝试均为空/过短，正文无答案区）——本次生成判失败，将自动整卷重试；若反复出现请到「问题列表」反馈');
+            }
+            console.warn('⚠️ 答案页重试仍为空/过短（正文自带答案区，本次跳过独立答案页）。');
           }
         }
       } catch (e) {
-        console.warn('⚠️ 答案页生成失败（正文仍有效）:', e.message);
+        // 🔴 同上：答案页是 split 模式唯一答案源，失败不得静默交付（正文无答案区 → 判失败重试）
+        if (!/<h[1-6][^>]*>\s*参考答案|answer-section/i.test(content)) {
+          throw new Error(`答案页生成失败（${e.message}，正文无答案区）——本次生成判失败，将自动整卷重试`);
+        }
+        console.warn('⚠️ 答案页生成失败（正文自带答案区）:', e.message);
       }
     }
 
@@ -5338,7 +5369,8 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     console.log(`✅ 整卷生成完成：${finalContent.length} 字符（${modeLabel}路径，${modeSource}${answerHtml ? '，含独立答案页' : ''}）（指令库注入）`);
     // 🔧 每类型预算·实测采样：正文产出率（字符/字符）落库，供设置页校准贴合度。
     //    只记正文 content（split 不含答案页；once 答案随正文，与 once 预算槽口径一致）；
-    //    触顶 cap / 续写截断 的样本在统计侧剔除（预算失效场，不算真实产出率）。
+    //    触顶 cap 样本在统计侧剔除；截断续写样本纳入校准（ratio=续写后完整正文/勾选，
+    //    是真实所需预算的最强证据，2026-09-11 根因修复），仅作截断计数在面板预警。
     recordSample({
       genType, subject, stage: book?.stage, grade: book?.grade, name: book?.name, scope: scopeType,
       mode: generateMode, selectedRawChars,

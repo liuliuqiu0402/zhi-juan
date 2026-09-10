@@ -68,8 +68,13 @@ export const recordSample = (s = {}) => {
   const inChars = Number(s.selectedRawChars);
   // 记录非数/无产出/无输入 → 无意义样本，跳过（避免污染均值）
   if (!Number.isFinite(outChars) || !Number.isFinite(inChars) || inChars <= 0) return;
-  // 预算失效场剔除：触顶/续写/截断/产出低于最低阈值 → 不算真实产出率
-  const invalid = Boolean(s.truncated || s.overCap) || outChars < 50;
+  // 预算失效场剔除：触顶/产出低于最低阈值 → 不算真实产出率。
+  // 🔴 2026-09-11 截断样本纳入校准（根因修复）：采样点只在"最终成功交付"后落库，outputChars
+  //    是续写链补全后的完整正文——截断样本的 ratio（完整输出/勾选字量）恰恰是"该场景真实所需
+  //    预算"的最强证据。此前把 truncated 一并剔除 → 校准永远学不到"预算不足"，播种系数低估
+  //    （英语+HTML 标签膨胀场景，split 正文尤其明显）无法自我纠正，而 once 因两段合计兜底
+  //    预算大不截断，恰好遮盖同一缺陷。截断只作标记保留（面板预警），不再剔除。
+  const invalid = Boolean(s.overCap) || outChars < 50;
   const key = bucketKey(s.genType, s.subject, s.stage, s.mode, s.grade, s.name);
   const sample = {
     t: Date.now(),
@@ -144,6 +149,10 @@ export const getBucketStats = (genType, subject, stage, mode = '', opts = {}) =>
     bucketKey(el.genType, el.subject, el.stage, el.mode) === key && !el.invalid);
   const inValid = samples.filter(el =>
     bucketKey(el.genType, el.subject, el.stage, el.mode) === key && el.invalid).length;
+  // 🔧 截断样本计数（2026-09-11）：truncated 已纳入校准不再剔除，但单独计数——
+  //    面板提示"该桶 N 条样本曾截断续写（预算偏紧）"，引导用户校准/调大系数
+  const truncCount = samples.filter(el =>
+    bucketKey(el.genType, el.subject, el.stage, el.mode) === key && el.truncated).length;
   const ratios = valid.map(el => el.ratio).filter(Number.isFinite);
   const mean = trimmedMean(ratios);
   const cv = coefficientOfVariation(ratios);
@@ -157,7 +166,7 @@ export const getBucketStats = (genType, subject, stage, mode = '', opts = {}) =>
   } else {
     ready = true; reason = '可采纳';
   }
-  return { count: ratios.length, inValid, median, mean, cv, ready, reason };
+  return { count: ratios.length, inValid, truncCount, median, mean, cv, ready, reason };
 };
 
 /** 当前桶是否可采纳（只读判断，供 UI 置灰按钮/展示进度） */
@@ -268,8 +277,9 @@ export const listTypeBuckets = (genType, opts = {}) => {
     if (s.genType !== genType) continue;
     const k = mk(s);
     if (!map.has(k)) {
-      map.set(k, { key: k, genType, subject: s.subject, stage: s.stage, mode: s.mode || '', ratios: [], inValid: 0, fromCal: false });
+      map.set(k, { key: k, genType, subject: s.subject, stage: s.stage, mode: s.mode || '', ratios: [], inValid: 0, truncated: 0, fromCal: false });
     }
+    if (s.truncated) map.get(k).truncated += 1;
     if (s.invalid) map.get(k).inValid++;
     else if (Number.isFinite(s.ratio)) map.get(k).ratios.push(s.ratio);
   }
@@ -292,11 +302,12 @@ export const listTypeBuckets = (genType, opts = {}) => {
       const sorted = [...ratios].sort((a, b) => a - b);
       const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;
       const count = ratios.length;
+      const truncCount = b.truncated ?? 0;
       let ready = false, reason = '';
       if (count < minSamples) reason = `样本不足(${count}/${minSamples})`;
       else if (cv > 0.35) reason = `波动偏大(CV=${cv.toFixed(2)})`;
       else { ready = true; reason = '可采纳'; }
-      return { count, inValid: b.inValid, median, mean, cv, ready, reason };
+      return { count, inValid: b.inValid, truncCount, median, mean, cv, ready, reason };
     })();
     const c = cal[k] || null;
     out.push({ key: k, genType, subject: b.subject, stage: b.stage, mode: b.mode, stats, calibrated: !!c, enabled: c ? c.enabled !== false : false, calBase: c?.base ?? null, samples: stats.count });
