@@ -4449,6 +4449,8 @@ ${cardAnalysisText.substring(0, 1000)}
       lastMsg = data?.choices?.[0]?.message || {};
       lastFr = data?.choices?.[0]?.finish_reason || '';
       const text = typeof lastMsg.content === 'string' ? lastMsg.content : '';
+      const tcCount = (lastMsg.tool_calls || []).length;
+      console.info(`📚 [浏览·轮${round}] fr=${lastFr || '无'} text=${text.length}字符 tool_calls=${tcCount} content=${content.length}字符`);
       if (lastMsg.tool_calls && lastMsg.tool_calls.length) {
         if (text) content += text;
         if (round >= maxRounds) hitRoundLimit = true;
@@ -4536,7 +4538,22 @@ ${cardAnalysisText.substring(0, 1000)}
         // 🔴 2026-09-10 跳段防线：正文落地即校验题号连续性——续写跳段产生的缺口在此即时可见
         //    （采纳侧拦截 + 出口终检双兜底，绝不静默交付；正常卷面此检查零输出）
         const gapNow = detectBodyNumberingGap(content);
-        if (gapNow) console.warn(`⚠️ 正文题号不连续（1~${gapNow.peak} 中缺：${gapNow.missing.join('、')}）——正文疑似丢题（续写跳段），采纳前将被拦截`);
+        if (gapNow) {
+          console.warn(`⚠️ 正文题号不连续（1~${gapNow.peak} 中缺：${gapNow.missing.join('、')}）——正文疑似丢题（续写跳段/模型过早收尾），采纳前将被拦截`);
+          // 🔴 2026-09-11 模型过早收尾根治（实测：浏览正文只写第1题、缺2~6、finish_reason=stop
+          //    → 原逻辑 stop 即 break，残卷直接出浏览路径 → 外层"浏览未产出合格正文"回退纯摘要，
+          //    纯摘要又丢题 → 整卷重试，成本高且正文素材降级）：
+          //    stop 不是"完整"信号——题号缺口是客观证据。同上下文主动续写补缺失题（指令精准
+          //    "只补缺失"，避免模型重发整卷），比外层整卷重试成本低得多；WRITE_CAP 用尽仍缺则
+          //    保留 warn，交外层"完整优先"回退重试。
+          if (writeRounds < BROWSE_WRITE_CAP) {
+            writeRounds++;
+            awaitingContinuation = true;
+            messages.push({ role: 'assistant', content: text || '' });
+            messages.push({ role: 'user', content: `【续写】你刚才输出的正文缺少题号：${gapNow.missing.join('、')}。请只输出这些缺失题目（含小题与空位），不要重复已有内容，不要重发整卷。` });
+            continue;
+          }
+        }
       }
       // 🔴 正文阶段续写兜底：截断（finish_reason=length）说明输出预算不够，素材已在上下文，
       //    无需重新浏览——用独立续写计数（WRITE_CAP）兜底，不受浏览轮数上限（maxRounds）约束；
@@ -4558,6 +4575,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
       break;
     }
+    console.info(`📚 [浏览出口] content=${content.length}字符 hitRoundLimit=${hitRoundLimit} hitTruncLimited=${hitTruncLimited} lastFr=${lastFr || '无'}`);
     // 防旧教材覆盖校验（确定性，不靠模型兜底；只提示、不改写）
     const coverageNotes = [];
     const noTextChapters = (contentCards || [])
