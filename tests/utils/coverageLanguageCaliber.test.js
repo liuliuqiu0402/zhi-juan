@@ -1,5 +1,8 @@
-// 覆盖对账语言/内容口径（2026-09 根治）测试
+// 覆盖判定语言/内容口径（2026-09 根治）测试
 // ============================================================
+// ✅ A9（2026-09-11 清理）：覆盖对账器本体已废除，本文件原「reconcileCoverage 英语场景」用例随之下线；
+//    保留的两组仍守生产在用的判定口径（coverageAnchor.wordMatch / coverageProbe.classifyProbe）。
+// ------------------------------------------------------------
 // 事故：英语课时练正文全覆盖（规则/不规则过去式、First/Then/Finally 叙事结构、Mulan、ee 发音、
 //       鼓励语 Keep trying 等），但覆盖对账 9 个考点全部报"未呈现"。根因：
 //       ① 分析阶段强制"所有输出字段中文"（含 specificConcepts 判定词）→ 锚词为中文；
@@ -9,7 +12,6 @@
 // ============================================================
 import { describe, it, expect } from 'vitest';
 import { wordMatch } from '../../src/utils/coverageAnchor.js';
-import { reconcileCoverage } from '../../src/utils/coverageReconciler.js';
 import { classifyProbe } from '../../src/utils/coverageProbe.js';
 
 describe('wordMatch 语言口径（拉丁大小写折叠）', () => {
@@ -54,23 +56,3 @@ describe('classifyProbe 英语语用行为考点归章级（内容口径）', ()
   }
 });
 
-describe('reconcileCoverage 英语场景（原文语言锚 → 命中；缺失仍报）', () => {
-  const englishBody = '<h2>一、基础建构</h2><p>1. 字母组合 ee 发 /iː/：bee, keep, tree, see 均有 ee。</p><p>2. 写出动词过去式：watch→watched, want→wanted；不规则 was/were。</p><p>3. 读故事排序：First he was afraid. Then he kept trying. Finally he succeeded.</p><h2>二、迁移创新</h2><p>4. 写鼓励语：Keep trying! You can do it!</p><p>5. 阅读 Mulan 的故事，她 brave 且 never gave up。</p>';
-  const anchors = [
-    { chapterTitle: 'Unit 1', name: '规则动词过去式', bind: { status: 'literal' }, specificConcepts: ['watched', 'practised'] },
-    { chapterTitle: 'Unit 1', name: '鼓励他人的表达', bind: { status: 'literal' }, specificConcepts: ['keep trying', 'you can do it'] },
-    { chapterTitle: 'Unit 1', name: '字母组合 ee 的发音', bind: { status: 'literal' }, specificConcepts: ['ee', '/iː/'] },
-    { chapterTitle: 'Unit 1', name: '花木兰文化知识', bind: { status: 'literal' }, specificConcepts: ['mulan', 'be brave'] },
-  ];
-  it('正文含原文语言例词 → 全部锚命中，无缺漏误报', () => {
-    const r = reconcileCoverage({ genType: 'practice', content: englishBody, anchors });
-    expect(r.missing).toEqual([]);
-    expect(r.missingChapters).toEqual([]);
-    expect(r.coveredCount).toBeGreaterThan(0);
-  });
-  it('正文完全缺失某考点（原文词亦无）→ 仍报缺（防漏报）', () => {
-    const bodyNoMulan = '<h2>一、基础建构</h2><p>watch→watched; keep trying!</p>';
-    const r = reconcileCoverage({ genType: 'practice', content: bodyNoMulan, anchors });
-    expect(r.missing.some((m) => m.name === '花木兰文化知识')).toBe(true);
-  });
-});

@@ -22,19 +22,12 @@
  */
 import { GEN_TYPE_NAMES } from './promptLibrary.js';
 
-/** 五档覆盖模式（合法值集合，测试守卫用） */
-export const COVERAGE_MODES = ['full', 'per-lesson-full', 'focus', 'none', 'sampled'];
-
-/** 五档模式语义说明（对账报告/补漏决策引用，单一描述点，不重复散布） */
-export const COVERAGE_MODE_DESC = {
-  full: '对勾选层级全覆盖：每项核心知识至少呈现一次，呈现形态不限（例题/算理内嵌/归纳条目/科普框均计入覆盖）',
-  'per-lesson-full': '以课为单元全覆盖：单次生成多课=各课并集达标；复生成单课按单课达标；每项核心知识至少呈现一次',
-  focus: '聚焦覆盖：只覆盖资料主题对应的层级核心知识，不要求全层级出现',
-  none: '不按层级覆盖：围绕用户素材组织，不与教材层级做覆盖对账',
-  sampled: '抽样覆盖：按命题蓝图抽样（双向细目表语义），允许部分层级未出现，不补漏',
-};
-
-/** 资料类型 → 覆盖契约（key 与 GEN_TYPE_NAMES 一致；新增类型须在此登记否则按 none 兜底） */
+/**
+ * 资料类型 → 覆盖契约（key 与 GEN_TYPE_NAMES 一致；新增类型须在此登记否则按 none 兜底）
+ * ✅ A9（2026-09-11 清理，依据 docs/design/极简方案-定稿.md 第三节）：原 `COVERAGE_MODES` /
+ *    `COVERAGE_MODE_DESC` 两个导出仅服务已废除的覆盖对账/补漏 UI，生产零调用 → 已移除；
+ *    五档语义保留在本文件头部注释（唯一描述点不丢），契约本体 `COVERAGE_CONTRACT` / `contractOf` 不变。
+ */
 export const COVERAGE_CONTRACT = {
   summary: { name: GEN_TYPE_NAMES.summary, mode: 'full' },
   preview: { name: GEN_TYPE_NAMES.preview, mode: 'full' },

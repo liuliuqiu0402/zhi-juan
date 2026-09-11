@@ -1,7 +1,12 @@
 // 覆盖契约（COVERAGE_CONTRACT）解析守卫：9 类型 × 契约映射的单一事实源防漂移
 import { describe, it, expect } from 'vitest';
 import { GEN_TYPE_NAMES } from '../../src/config/promptLibrary.js';
-import { COVERAGE_MODES, COVERAGE_MODE_DESC, COVERAGE_CONTRACT, contractOf } from '../../src/config/coverageContract.js';
+import { COVERAGE_CONTRACT, contractOf } from '../../src/config/coverageContract.js';
+
+// ✅ A9（2026-09-11 清理）：原 `COVERAGE_MODES` / `COVERAGE_MODE_DESC` 导出已随覆盖对账/补漏 UI 废除而移除；
+//    合法五档集合改由"测试侧独立期望"承担（测试本应独立编码期望值，不依赖被测模块自证），
+//    契约本体仍由 `COVERAGE_CONTRACT` / `contractOf` 守卫。
+const LEGAL_MODES = ['full', 'per-lesson-full', 'focus', 'none', 'sampled'];
 
 describe('覆盖契约 COVERAGE_CONTRACT（P1）', () => {
   it('契约表键与 GEN_TYPE_NAMES 完全一致（9 类，防键漂移）', () => {
@@ -13,11 +18,9 @@ describe('覆盖契约 COVERAGE_CONTRACT（P1）', () => {
     }
   });
 
-  it('所有模式均在合法五档内，且档位语义描述齐全', () => {
+  it('所有模式均在合法五档内（五档 = full / per-lesson-full / focus / none / sampled）', () => {
     for (const c of Object.values(COVERAGE_CONTRACT)) {
-      expect(COVERAGE_MODES).toContain(c.mode);
-      expect(typeof COVERAGE_MODE_DESC[c.mode]).toBe('string');
-      expect(COVERAGE_MODE_DESC[c.mode].length).toBeGreaterThan(5);
+      expect(LEGAL_MODES, `${c.name} 的 mode=${c.mode}`).toContain(c.mode);
     }
   });
 
@@ -44,16 +47,15 @@ describe('覆盖契约 COVERAGE_CONTRACT（P1）', () => {
     expect(contractOf('exam').mode).toBe('sampled');
   });
 
-  it('判缺分层（2026-09 审计固化）：required=full四型+practice；自动补卡仅限知识型', () => {
-    // full（summary/preview/dictation/review）+ per-lesson-full（practice）判缺（reconcileCoverage required）；
-    // focus（special/reading）/none（errorbook）/sampled（exam）不判缺
+  it('模式→全层级要求映射（2026-09 审计固化）：全层级 = full 四型 + practice', () => {
+    // full（summary/preview/dictation/review）+ per-lesson-full（practice）= 要求全层级覆盖；
+    // focus（special/reading）/ none（errorbook）/ sampled（exam）= 不要求全层级
     const required = ['summary', 'preview', 'dictation', 'review', 'practice'];
     for (const [k, c] of Object.entries(COVERAGE_CONTRACT)) {
       const judge = ['full', 'per-lesson-full'].includes(c.mode);
-      expect(judge, `${k} 判缺语义`).toBe(required.includes(k));
+      expect(judge, `${k} 全层级要求语义`).toBe(required.includes(k));
     }
-    // 自动补卡（useAiGenerator P2b）仅 full 知识梳理型（缺考点=梳理缺块，补要点卡合理）；
-    // practice（per-lesson-full）缺漏只经覆盖对账提示——课时练插入"考点回顾卡"=形态污染（2026-09 实证）
+    // ✅ A9：对账/自动补卡（旧 P2b）已废除，下面三条只锁定"类型→档位"映射本身不发生漂移
     expect(COVERAGE_CONTRACT.practice.mode).toBe('per-lesson-full');
     expect(COVERAGE_CONTRACT.special.mode).toBe('focus');
     expect(COVERAGE_CONTRACT.errorbook.mode).toBe('none');
