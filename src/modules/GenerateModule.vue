@@ -342,14 +342,6 @@
           <div class="header-actions">
             <button
               class="btn-primary"
-              :disabled="isGenerating || studyPhase.studying"
-              :title="studyPhase.summary || '编辑先充分了解素材：Step1/2 提取 + 会话式研读轮分批消化、批摘要核对（点名⊆批清单/引用可溯源）'"
-              @click="startStudyPhase"
-            >
-              {{ studyPhase.studying ? '⏳ 研读中…' : (studyPhase.status === 'ready' ? '✅ 已研读' : '📖 研读素材') }}
-            </button>
-            <button
-              class="btn-primary"
               @click="loadInstructionFromLibrary()"
             >
               🔧 生成指令
@@ -392,13 +384,6 @@
           class="instruction-textarea"
           @input="userEditedInstruction = true"
         />
-        <div
-          v-if="studyPhase.status === 'ready' || studyPhase.status === 'failed' || studyPhase.status === 'studying'"
-          class="study-phase-hint"
-          :style="studyPhase.status === 'failed' ? 'color:#c62828' : (studyPhase.status === 'studying' ? 'color:#1565c0' : 'color:#2e7d32')"
-        >
-          {{ studyPhase.summary }}
-        </div>
         <div
           v-if="injectSources.length"
           class="inject-sources"
@@ -3137,9 +3122,6 @@ const applyScoreAdjust = (bp) => {
 const propositionStyle = ref('');
 const styleManuallySet = ref(false);  // 🔴 追踪用户是否手动选过命题风格——false 时切换 genType 自动覆盖
 const styleConfirmed = ref(false);    // 🔴 必选风格是否已确认（生成前弹窗确认；换类型时重置）
-// 🔴 复位工程·S6 显式"研读教材"阶段：②研读（可委托态）→ ③委托生成（复用研读记录，不重复 Step1/2 与研读轮）
-const studyPhase = ref({ status: 'idle', ready: false, studying: false, summary: '' }); // idle/studying/ready/failed
-const studyCacheRef = ref(null);      // { genType, booksKey, contentCards, knowledgeMap, digestPairs, report }
 const genTypes = ref([]);
 // 升学考卷别（小升初/中考/高考）仅对"正式考卷"展示生效；其余资料类型不外显，且已选卷别在切换类型时重置
 const visibleScopeOptions = computed(() =>
@@ -4734,9 +4716,6 @@ watch(genTypes, () => {
     }
     styleConfirmed.value = false;
   }
-  // 🔴 类型变化 → 预研读缓存失效（按 genType 校验），研读态复位待重研读
-  studyCacheRef.value = null;
-  studyPhase.value = { status: 'idle', ready: false, studying: false, summary: '' };
 }, { immediate: true });
 watch(labelStyle, () => {
   const type = genTypes.value[0];
@@ -5268,24 +5247,22 @@ const isCoveredByAnalyzedParent = (book, chapter) => {
 
 const getSelectedChapters = (nodes) => textbookStore.getSelectedChapters(nodes);
 
-// 🔴 复位工程·S6 流程引导（宽松：按钮自由、提示下一步，不强制禁用）
-//    ① 勾选教材 → ② 研读素材（会话式研读轮，可委托）→ ③ 注入指令（委托书，可编辑）→ ④ 委托生成
+// 🔴 流程引导（宽松：按钮自由、提示下一步，不强制禁用）
+//    ① 勾选教材 → ② 注入指令（委托书，可编辑）→ ③ 委托生成
 const hasBooksSelected = computed(() => textbookStore.textbooks.some((b) =>
   hasAnySelected(b.outline) && getSelectedChapters(b.outline).some((ch) => ch._selectedForAnalysis !== false)));
 const flowStep = computed(() => {
   if (!hasBooksSelected.value) return 1;
-  if (studyPhase.value.status !== 'ready') return 2;
-  if (!String(instructionDraft.value || '').trim()) return 3;
-  return 4;
+  if (!String(instructionDraft.value || '').trim()) return 2;
+  return 3;
 });
 const stepChips = [
-  { n: 1, t: '勾选教材' }, { n: 2, t: '研读素材' }, { n: 3, t: '注入指令' }, { n: 4, t: '委托生成' },
+  { n: 1, t: '勾选教材' }, { n: 2, t: '注入指令' }, { n: 3, t: '委托生成' },
 ];
 const guideText = computed(() => {
   if (!hasBooksSelected.value) return '先在教材库勾选章节（左栏），开始本次委托范围';
-  if (flowStep.value === 2) return '② 研读素材：编辑先通读勾选教材（分批消化+批摘要核对、引用可溯源），通过后才进入委托——点「📖 研读素材」按钮开始';
-  if (flowStep.value === 3) return '③ 注入指令：研读已完成。点「🔧 生成指令」按 年级×学科×类型 组装委托书（可直接编辑；已有委托内容可跳过，直接生成将按指令库自动组装）';
-  return '④ 委托生成：点「生成」按钮（原整卷生成按钮）即委托一次成稿——复用研读记录（不重复 Step1/2 提取与研读轮）；未研读直接点生成会自动先研读';
+  if (flowStep.value === 2) return '② 注入指令：点「🔧 生成指令」按 年级×学科×类型 组装委托书（可直接编辑；已有委托内容可跳过，直接生成将按指令库自动组装）';
+  return '③ 委托生成：点「生成」按钮即委托一次成稿（按当前勾选与指令库自动组装）';
 });
 
 // 🔧 缓存版本：递增以清除旧版本残留的配置值（避免旧值绕过指令库自动覆写）
@@ -6325,9 +6302,6 @@ watch(
   () => {
     programAttachText.value = ''; // 程序性附加段与委托正文同源：勾选变化一并清空，生成时随 ensure 重建
     attachBlocks.value = [];      // 分段明细同源：一并清空
-    // 🔴 勾选范围变化 → 预研读缓存失效（booksKey 失配），研读态复位（S6）
-    studyCacheRef.value = null;
-    studyPhase.value = { status: 'idle', ready: false, studying: false, summary: '' };
     if (!instructionDraft.value.trim()) return;
     instructionDraft.value = '';
     userEditedInstruction = false;
@@ -7837,51 +7811,6 @@ const mergeTemplateResults = (results) => {
   return merged;
 };
 
-// 🔴 复位工程·S6 显式"研读教材"阶段（准绳流程②）：勾选后先研读素材（Step1/2 提取 + 会话式研读轮
-//   分批消化+批摘要核对），研读记录缓存 studyCacheRef → 状态"可委托"；随后点【生成】=委托写作，
-//   复用研读记录（不再重复 Step1/2 AI 提取与研读轮，省成本且编辑先看研读结果再决定委托）。
-const startStudyPhase = async () => {
-  if (isGenerating.value) return;
-  const type = genTypes.value?.[0];
-  if (!type) {
-    await showAlertDialogFn('请选择资料类型');
-    return;
-  }
-  const selectedBooks = textbookStore.textbooks.filter(b => hasAnySelected(b.outline)).map(b => ({
-    ...b,
-    selectedChapters: getSelectedChapters(b.outline).filter(ch => ch._selectedForAnalysis !== false)
-  })).filter(b => b.selectedChapters.length > 0);
-  if (selectedBooks.length === 0) {
-    await showAlertDialogFn('请先在教材库中勾选至少一个章节，再开始研读');
-    return;
-  }
-  const selectedTpls = templateStore.templates.filter(t => t.selected || hasAnySelected(t.outline)).map(t => ({
-    ...t,
-    selectedChapters: getSelectedChapters(t.outline).filter(ch => ch._selectedForAnalysis !== false)
-  }));
-  studyPhase.value = { status: 'studying', ready: false, studying: true, summary: '正在研读素材（Step1/2 提取 + 分批消化 + 批摘要核对）...' };
-  try {
-    const res = await callGenerate('', type, selectedBooks, selectedTpls, 0, scopeType.value || '', programAttachText.value, { studyOnly: true });
-    if (res?.studyOnly && res.success && res.studyCache) {
-      const cache = res.studyCache;
-      studyCacheRef.value = cache;
-      const r = cache.report || {};
-      const pts = (cache.digestPairs || []).length;
-      studyPhase.value = {
-        status: 'ready', ready: true, studying: false,
-        summary: `研读完成：${r.batches ?? 0} 批核对通过（回流 ${r.rereads ?? 0} 次，${pts} 条消化记录）——点「生成」即委托写作（复用研读结果）`,
-      };
-      console.log(`[研读教材] 完成：批次 ${r.batches ?? 0}（回流 ${r.rereads ?? 0}），digestPairs=${pts}`);
-    } else if (res?.studyOnly) {
-      studyPhase.value = { status: 'failed', ready: false, studying: false, summary: `研读未通过：${res.error || ''}` };
-      await showAlertDialogFn(`研读未通过：${res.error || ''}`);
-    }
-  } catch (e) {
-    studyPhase.value = { status: 'failed', ready: false, studying: false, summary: `研读失败：${String((e && e.message) || e)}` };
-    await showAlertDialogFn(`研读失败：${String((e && e.message) || e)}`);
-  }
-};
-
 // 生成
 const generate = async (mode) => {
   // 🔴 新架构：用户只选教材 + 资料类型即可生成（指令库自动决定角色/大题结构/题型/难度）
@@ -8115,9 +8044,6 @@ const generate = async (mode) => {
           statusText.value = `正在生成第 ${batch + 1}/${batches} 份...`;
           progress.value = Math.max(progress.value, 5);
         }
-        // 🔴 预研读缓存（复位工程·S6）：已点「研读素材」且勾选未变 → 委托生成复用研读记录
-        //    （generate 侧按 genType+booksKey 校验，失配自动忽略走完整管线）
-        const studyOptsForGen = studyCacheRef.value ? { studyCache: studyCacheRef.value } : {};
         // 🔴 整卷生成结果已含全部内容（三库约束+答案页+代码兜底），直接入库，不再弹窗确认编辑
         const result = await callGenerate(
           finalInstr,
@@ -8126,8 +8052,7 @@ const generate = async (mode) => {
           selectedTpls,
           0,
           scopeType.value || '',
-          programAttachText.value, // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——随写作请求 system 注入
-          studyOptsForGen
+          programAttachText.value // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——随写作请求 system 注入
         );
 
         // 🔧 必须先保存上下文，否则 finalizeGeneration 拿不到 selectedBooks 导致标题命名缺失
@@ -9248,17 +9173,7 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   padding: 8px 12px;
   background: var(--bg-card);
 }
-/* 🔴 复位工程·S6 研读阶段状态提示（②研读素材 → 可委托） */
-.study-phase-hint {
-  margin-top: 8px;
-  padding: 6px 12px;
-  border: 1px dashed var(--border-light);
-  border-radius: 8px;
-  background: var(--bg-card);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-/* 🔴 复位工程·S6 四步流程引导（宽松提示，不强制禁用） */
+/* 🔴 流程引导（宽松提示，不强制禁用） */
 .flow-guide {
   display: flex;
   align-items: center;

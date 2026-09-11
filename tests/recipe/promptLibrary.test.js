@@ -87,13 +87,14 @@ describe('注入指令组装（拼接格式与顺序）', () => {
     expect(out).toContain('多出几道情境题');
   });
 
-  it('{material} 占位符渲染为素材来源说明（G7 终态：原文不注入委托，经研读覆盖点名+摘要+browse 获取）', () => {
+  it('{material} 占位符渲染为素材来源说明（2026-09-11 定稿：原文以【压缩原文】随委托注入）', () => {
     const out = buildInjectionInstruction({ template: '素材：{material}', subject: '语文' });
-    expect(out).toContain('教材原文不随本委托注入');  // 原文不再随委托拼接
-    expect(out).toContain('研读覆盖点名+摘要');       // 素材经研读消化（覆盖点名+摘要随会话前缀）
-    expect(out).toContain('browse 现取');            // 写作期按需 browse
-    expect(out).toContain('禁止照搬字面');
-    expect(out).not.toContain('【教材原文】\n'); // 素材块不进注入框
+    expect(out).toContain('【压缩原文】随本委托注入'); // 素材=整章原文压缩后随委托注入
+    expect(out).toContain('【锚点清单】');             // 范围声明
+    expect(out).toContain('【素材使用约定】');         // 使用与引用约束口径
+    expect(out).not.toContain('研读');                 // 研读链已整体移除
+    expect(out).not.toContain('browse');               // browse 机制已整体移除
+    expect(out).not.toContain('【教材原文】\n');       // 素材块不进注入框
   });
 
   it('无用户附加时不输出附加块', () => {
