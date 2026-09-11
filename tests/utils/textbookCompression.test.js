@@ -12,6 +12,8 @@ import {
   estimateTokens,
   tokensToChars,
   collectChapterRawText,
+  shouldDirectInject,
+  directInjectThresholdTokens,
 } from '../../src/utils/textbookCompression.js';
 import { CHARS_PER_TOKEN } from '../../src/utils/budgetCalibration.js';
 
@@ -226,5 +228,38 @@ describe('A15/A11 程序直读整章原文（不过滤类型；空/未标注段�
     const chapters = collectChapterRawText(cards);
     expect(chapters[0].rawText).toBe('这是该课的真实教材原文，未分析但保留。');
     expect(chapters[1].rawText).toBe('纯目录文本（无原文）');
+  });
+});
+
+// ✅ A4-10（2026-09-11 用户定「不硬性压缩，按情况灵活处理」）：材料分档——小材料直放、大材料压缩
+describe('A4-10 材料分档：直放阈值与判定', () => {
+  const V4 = { contextWindow: 1000000, outputCeiling: 196608 };
+
+  it('阈值 = min(窗口×3%, 输出帽×25%)，两处均为推导量', () => {
+    expect(directInjectThresholdTokens(V4)).toBe(30000);            // min(30000, 49152)
+    expect(directInjectThresholdTokens({ contextWindow: 1000000, outputCeiling: 8192 })).toBe(2048); // 帽更紧时由帽定
+    expect(directInjectThresholdTokens({})).toBe(Infinity);          // 未知 → 不限制（调用方须自行守卫）
+  });
+
+  it('单章（5872 字 ≈ 4517 token）→ 直放：不再白花一次压缩调用', () => {
+    expect(shouldDirectInject({ rawChars: 5872, ...V4 })).toBe(true);
+  });
+
+  it('整本书（20 万字 ≈ 153847 token）→ 压缩：此时压缩才真正有价值', () => {
+    expect(shouldDirectInject({ rawChars: 200000, ...V4 })).toBe(false);
+  });
+
+  it('边界：恰好等于阈值 → 直放（≤ 判定）', () => {
+    const threshold = directInjectThresholdTokens(V4);
+    expect(shouldDirectInject({ rawChars: threshold * 1.3, ...V4 })).toBe(true);
+    expect(shouldDirectInject({ rawChars: threshold * 1.3 + 2, ...V4 })).toBe(false);
+  });
+
+  it('小输出引擎（兜底 8192）→ 单章也判为需压缩（阈值随帽收紧）', () => {
+    expect(shouldDirectInject({ rawChars: 5872, contextWindow: 131072, outputCeiling: 8192 })).toBe(false);
+  });
+
+  it('窗口未知（0）→ 函数视为直放；调用方须以"窗已知"为前置守卫（useAiGenerator 已守）', () => {
+    expect(shouldDirectInject({ rawChars: 200000, contextWindow: 0, outputCeiling: 0 })).toBe(true);
   });
 });

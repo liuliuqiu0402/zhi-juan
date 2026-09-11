@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import axios from 'axios';
-import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay, resolveEngineOutputLimit } from '../config/apiConfig.js';
+import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay, resolveEngineOutputLimit, resolveEngineCapability, resolveOutputCeiling } from '../config/apiConfig.js';
 import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'; // S4.1：段类型补"拓展/文化"（锚范围性质判定共用）
 import { GEN_CONST } from '../config/generationConstants.js';
 import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel } from '../config/promptLibrary.js';
@@ -8,7 +8,7 @@ import { getStoragePath } from '../utils/pathHelper.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
 import { buildAnchors, boundAnchorNames } from '../utils/coverageAnchor.js';
-import { collectChapterRawText, compressOriginalText } from '../utils/textbookCompression.js'; // ✅ A15/A11：程序按勾选章节直读整章原文（材料压缩 + copyGuard 语料同源）
+import { collectChapterRawText, compressOriginalText, shouldDirectInject } from '../utils/textbookCompression.js'; // ✅ A15/A11：程序按勾选章节直读整章原文（材料压缩 + copyGuard 语料同源）；✅ A4-10：材料分档（小直放/大压缩）
 import { formatAnchorListByChapter } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位）
 // ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
 import { planOutputQuota, nextContinuationBudget, isOverQuota } from '../utils/outputQuota.js';
@@ -4163,7 +4163,22 @@ ${cardAnalysisText.substring(0, 1000)}
     const rawSections = rawChapters.map((c) => ({ title: c.chapterTitle, text: c.rawText }));
     const anchorListText = formatAnchorListByChapter(anchors);
     let compressedText = '';
-    if (rawSections.length) {
+    // ✅ A4-10（2026-09-11 用户定「不硬性压缩，按情况灵活处理」）：**材料分档**——
+    //    小材料（原文 token ≤ 阈值）→ **直放原文**（保真最高、省一次压缩调用、省等待）；
+    //    大材料 → 才走 Map→Reduce 压缩（此时压缩才真正有价值：省每轮重发的输入费 + 抗"中段遗忘"）。
+    //    阈值 = min(上下文窗×3%, 单次输出帽×25%)，均由能力表/闸门推导，非拍死常量。
+    let materialContextWindow = 0;
+    try {
+      const g0 = await getCurrentEngineConfigEnhanced('generation', { promptLength: Math.min(selectedRawChars, 4000) });
+      materialContextWindow = resolveEngineCapability(g0?.provider, g0?.model)?.contextWindow || 0;
+    } catch { /* 探询失败 → 窗未知，按"需要压缩"保守处理（保持既有行为） */ }
+    const directInject = rawSections.length > 0 && materialContextWindow > 0
+      && shouldDirectInject({ rawChars: selectedRawChars, contextWindow: materialContextWindow, outputCeiling: resolveOutputCeiling() });
+    if (directInject) {
+      compressedText = rawSections.map((sec) => [sec.title, sec.text].filter(Boolean).join('\n')).join('\n\n');
+      progress.value = 14;
+      console.log(`📚 [写作通道] 材料=整章原文直放（${rawSections.length} 章，${selectedRawChars}字；≤ 直放阈值，未压缩——小材料无需压缩，更保真、省一次调用）`);
+    } else if (rawSections.length) {
       try {
         statusText.value = '压缩原文：按章节分批保真压缩勾选教材原文...';
         progress.value = 14;

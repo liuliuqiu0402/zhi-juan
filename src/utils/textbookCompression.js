@@ -29,6 +29,27 @@ import { splitTextIntoSegments } from './textSegmenter.js';    // 句子级切�
 /** 字符 → token 估算（与预算体系同口径） */
 export const estimateTokens = (chars = 0) => Math.ceil((Number(chars) || 0) / CHARS_PER_TOKEN);
 
+// ── 材料分档（✅ A4-10 · 2026-09-11 用户定：「不硬性压缩，按情况灵活处理」）──────────────
+// 背景：此前材料非空即压缩（`if (rawSections.length)`），哪怕只有一章 5872 字（≈4500 token，
+//       1M 窗口完全吃得下）——白花一次（可能多轮）压缩调用、白担一次保真损失。
+// 判据：**原文 token ≤ 阈值 → 直放原文**（保真最高、省一次调用）；超过才走 Map→Reduce 压缩
+//       （此时压缩才真正有价值：省每轮重发的输入费 + 抗"中段遗忘"）。
+// 阈值 = min(上下文窗 × 3%, 单次输出帽 × 25%)，两处都是推导量而非拍死常量。
+export const DIRECT_INJECT_WINDOW_RATIO = 0.03;
+export const DIRECT_INJECT_OUTPUT_RATIO = 0.25;
+
+/** 直放阈值（token）。窗/帽未知时返回 Infinity（不限制 → 视为小材料），由调用方决定保守策略 */
+export const directInjectThresholdTokens = ({ contextWindow = 0, outputCeiling = 0 } = {}) => {
+  const w = Number.isFinite(contextWindow) && contextWindow > 0 ? contextWindow * DIRECT_INJECT_WINDOW_RATIO : Infinity;
+  const o = Number.isFinite(outputCeiling) && outputCeiling > 0 ? outputCeiling * DIRECT_INJECT_OUTPUT_RATIO : Infinity;
+  const t = Math.min(w, o);
+  return Number.isFinite(t) ? Math.floor(t) : Infinity;
+};
+
+/** 是否直放（不压缩）：原文 token ≤ 阈值 */
+export const shouldDirectInject = ({ rawChars = 0, contextWindow = 0, outputCeiling = 0 } = {}) =>
+  estimateTokens(rawChars) <= directInjectThresholdTokens({ contextWindow, outputCeiling });
+
 /**
  * ✅ A15/A11（2026-09-11）：**程序按勾选章节直读整章原文**
  *   - 按传入卡序（= 勾选章序 = 原文章序）逐章收集原文
