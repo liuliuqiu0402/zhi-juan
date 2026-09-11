@@ -3090,6 +3090,7 @@ import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增�
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { stripXss, stripAiCodeFence, markSoloBlankLines, wrapBareBlankRuns } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（导出端第二道防线共享）
 import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
+import { diagnoseAnchorTree, logAnchorGranularity, summarizeAnchorGranularity, validateAnchorTree } from '../utils/anchorTreeContract.js';  // ✅ A1：锚树契约（入库校验 + 粒度诊断）
 import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实体解码唯一实现（曾本地 esc/escGraph 及 data-raw 解码链副本）
 import { STORAGE_KEYS } from '../constants/storageKeys.js';  // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
 import { annotateInstructionBlocks } from '../utils/instructionBlocks.js';  // 指令来源分段标注（旁路：块区间↔{库,key}，不参与拼装）
@@ -7187,6 +7188,9 @@ const executeTextbookAnalysis = async (action) => {
     let totalPages = 0;
     let donePages = 0;
     let failedPages = [];    
+    // ✅ A1-2/A1-3（2026-09-11）：锚树契约校验被拒章 + 锚粒度诊断逐章报告（可观测证据）
+    const anchorTreeRejected = [];
+    const granularityReports = [];
     
     for (const book of books) {
       const chapters = book.selectedChapters || [];
@@ -7375,6 +7379,20 @@ const executeTextbookAnalysis = async (action) => {
             ch.end - ch.start + 1
           );
           
+          // ✅ A1-2（2026-09-11）：**锚树契约校验**——分析输出即锚清单本体，结构不符 → **不落库**（重试/报错）。
+          //    铁律：只判结构、不改内容（不因"太细/太多"删条目，防削足适履）；被拒章保留原文、标记未分析，供重分析。
+          const treeCheck = validateAnchorTree(aiResult.knowledgeHierarchy);
+          if (!treeCheck.ok) {
+            ch.analyzed = false;
+            anchorTreeRejected.push({ chapter: ch.title, violations: treeCheck.violations });
+            console.error(
+              `❌ [锚树契约] ${ch.title} 结构不符（${treeCheck.violations.length} 项）→ 不落库：`,
+              treeCheck.violations.slice(0, 5).map((v) => `${v.path} ${v.code}${v.name ? `「${v.name}」` : ''}`),
+            );
+            generateStatus.value = `⚠️ ${ch.title} 锚树结构不符（${treeCheck.violations.length} 项）未入库，请重分析`;
+            continue;
+          }
+
           // 保存 AI 分析结果
           ch.visualDescription = aiResult.visualDescription || '';
           ch.formulas = aiResult.formulas || [];
@@ -7385,6 +7403,13 @@ const executeTextbookAnalysis = async (action) => {
           // 🔧 记录分析时 ch.rawText 的哈希指纹（精确对比，确保内容未变时绝对走捷径）
           ch._analyzedPlainTextLength = (ch.rawText || '').length;
           ch._analyzedTextHash = djb2(ch.rawText || '');
+
+          // ✅ A1-3（2026-09-11）：**锚粒度诊断**（可观测）——锚数 / 短锚占比 / specificConcepts 条数分布 / 绑定状态分布
+          {
+            const rep = diagnoseAnchorTree(ch.knowledgeHierarchy, { chapterTitle: ch.title });
+            logAnchorGranularity(rep);
+            granularityReports.push(rep);
+          }
           
           console.log(`✅ AI 分析完成: ${ch.knowledgePoints?.length || 0} 个知识点`);
           
@@ -7432,6 +7457,21 @@ const executeTextbookAnalysis = async (action) => {
       generateStatus.value = `⚠️ 分析完成，${failedPages.length}页失败`;
     } else {
       generateStatus.value = '分析完成';
+    }
+
+    // ✅ A1-2/A1-3（2026-09-11）：锚树契约与粒度诊断汇总（可观测；被拒章明确报出，绝不静默）
+    if (anchorTreeRejected.length > 0) {
+      console.warn(`⚠️ ${anchorTreeRejected.length}个章节锚树结构不符、未入库（请重分析）：`,
+        anchorTreeRejected.map(r => `${r.chapter}（${r.violations.length}项）`).join('、'));
+      generateStatus.value = `⚠️ 分析完成，${anchorTreeRejected.length}章锚树结构不符未入库`;
+    }
+    if (granularityReports.length > 0) {
+      const agg = summarizeAnchorGranularity(granularityReports);
+      console.log(
+        `📐 [锚粒度诊断·汇总] 章数=${agg.chapterCount} 锚数=${agg.anchorCount} `
+        + `短锚(≤3字)=${agg.shortAnchorCount}(${(agg.shortRatio * 100).toFixed(0)}%) `
+        + `最小单位违例=${agg.minUnitAnchorCount} 平均锚数/章=${agg.avgAnchorsPerChapter} specificConcepts 合计=${agg.specTotal}`,
+      );
     }
     
     // 🔧 修复L：分析失败/质量统计摘要
