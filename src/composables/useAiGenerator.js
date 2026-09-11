@@ -11,6 +11,7 @@ import { getStoragePath } from '../utils/pathHelper.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
 import { buildAnchors, boundAnchorNames, wordMatch } from '../utils/coverageAnchor.js';
+import { collectChapterRawText } from '../utils/textbookCompression.js'; // ✅ A15/A11：程序按勾选章节直读整章原文（材料压缩 + copyGuard 语料同源）
 import { contractOf } from '../config/coverageContract.js';
 import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
 import {
@@ -4810,12 +4811,26 @@ ${cardAnalysisText.substring(0, 1000)}
         console.warn(`📐 [once预算] once槽系数(${bodyCfg.coef})低于两段合计(${splitBodyNeed}+${splitAnsNeed})，按合计 ${onceNeedSum} token 兜底（防答案区截断）`);
       }
     }
+    // 🔧 引擎单次输出上限护栏（A4-9 / A14-5：护栏 = min(物理层, 偏好层)，由**能力表推导**，不再写死常量）
+    //    请求 max_tokens 超过模型硬上限会被 API 拒绝(400)或静默截断到上限；权威口径落在
+    //    apiConfig.resolveEngineOutputLimit（= min(引擎能力表物理上限, 偏好层默认 64K 可调)）。
+    //    非 deepseek 引擎上限未固证 → Infinity（不钳制，防误伤）；估算缺口由「正文截断续写链」分次补齐，
+    //    并在 budgetAlert 中透出"本次因引擎上限需要分次"（进入生成报告，用户可据此缩小范围或换引擎）。
+    //    🔧 独立获取引擎配置：不得引用上方 browse 探测的局部 gateCfg（try 块作用域，小范围时未执行 → ReferenceError）
+    let engineCap = Infinity;
+    try {
+      const genGate = await getCurrentEngineConfigEnhanced('generation', { promptLength: Math.min(selectedRawChars, 4000) });
+      engineCap = resolveEngineOutputLimit(genGate?.provider, genGate?.model);
+    } catch { /* 引擎配置探询失败 → 不钳制：护栏为防误伤兜底，非关键路径 */ }
+    const clampReq = (tok) => Math.min(tok, engineCap);
+
     const bodyOverCap = bodyNeeded > bodyCfg.cap;
     // 🔧 触顶升级（2026-09）：勾选量远超该类型预期（估算所需 > 槽 cap）时，不静默截断预算——
-    //    本次调用升级为实际所需（安全上界防发散），保证内容完整生成；提示"范围较大，已自动加长预算"。
-    //    注意：安全上界为程序侧固定常量（不进设置 UI），仅防极端发散，正常勾选不会触达。
-    const MAIN_TOKEN_CEIL = 98304;
-    const bodyEffectiveCap = bodyOverCap ? Math.min(MAIN_TOKEN_CEIL, bodyNeeded) : bodyCfg.cap;
+    //    本次调用升级为实际所需，保证内容完整生成；提示"范围较大，已自动加长预算"。
+    //    🔧 A4-9 收口（2026-09-11）：升级上界不再写死常量（原 MAIN_TOKEN_CEIL=98304，竟**高于**引擎护栏
+    //    65536 而形同虚设），改取上面推导出的**引擎护栏** `engineCap`（能力表×偏好层）——既保证完整生成，
+    //    又天然不越引擎单次上限。
+    const bodyEffectiveCap = bodyOverCap ? Math.min(engineCap, bodyNeeded) : bodyCfg.cap;
     let bodyDynamicCap = Math.round(Math.min(bodyEffectiveCap, bodyNeeded)); // 注：浏览回退兜底时会按实际素材块重算
     // 🔧 防截断安全缓冲（2026-09"一次成功优先"）：估算 ×1.25 再取帽——HTML 标签膨胀/知识展开会让实际
     //    输出 token 高于「素材×系数」估算（summary once 实证低估 ~20%）。缓冲宁多勿少，让主请求一次写完、
@@ -4827,24 +4842,8 @@ ${cardAnalysisText.substring(0, 1000)}
     const answerCfg = pickSlot('answer');
     const answerNeeded = Math.round(Math.max(floorTok, selectedRawChars * answerCfg.coef));
     const answerOverCap = answerNeeded > answerCfg.cap;
-    const answerEffectiveCap = answerOverCap ? Math.min(MAIN_TOKEN_CEIL, answerNeeded) : answerCfg.cap;
+    const answerEffectiveCap = answerOverCap ? Math.min(engineCap, answerNeeded) : answerCfg.cap;
     const answerDynamicCap = Math.round(Math.min(answerEffectiveCap, answerNeeded));
-    // 🔧 引擎单次输出上限护栏（2026-09 结构性修正 + 2026-09-10 成本护栏）：请求 max_tokens 超过模型
-    //    硬上限会被 API 拒绝(400)或静默截断到上限。权威口径落在 apiConfig.resolveEngineOutputLimit：
-    //    deepseek-v4-pro / deepseek-flash 官方物理上限 384K 仅作参考——产品单次帽取 64K（成本可控：
-    //    防小范围勾选也发散写满、单次费用不可控）；此前曾被 /reasoner|r1|think/ 漏判 → 一律钳到 8192
-    //    → 正文按需 11K+ 被硬钳到 8K → 截断 → "正文不完整"，app 层 cap 形同失效。
-    //    非 deepseek 引擎上限未固证 → Infinity（不钳制，防误伤）；app 层安全上界 MAIN_TOKEN_CEIL 仍兜底。
-    //    护栏效果：请求值含思考乘数放大后仍钳到引擎档（下方 3 个请求站点做了产品级钳制）；估算缺口
-    //    由「正文截断续写链」分次补齐（见段1续写链），并在 budgetAlert 中透出"本次因引擎上限需要分次"
-    //    （进入生成报告，用户可据此缩小范围或换 reasoner）。
-    //    🔧 独立获取引擎配置：不得引用上方 browse 探测的局部 gateCfg（try 块作用域，小范围时未执行 → ReferenceError）
-    let engineCap = Infinity;
-    try {
-      const genGate = await getCurrentEngineConfigEnhanced('generation', { promptLength: Math.min(selectedRawChars, 4000) });
-      engineCap = resolveEngineOutputLimit(genGate?.provider, genGate?.model);
-    } catch { /* 引擎可配置探询失败 → 不钳制：护栏为防误伤兜底，非关键路径 */ }
-    const clampReq = (tok) => Math.min(tok, engineCap);
     const bodyEngineOver = bodyDynamicCap > engineCap;
     const answerEngineOver = answerDynamicCap > engineCap;
     const budgetAlert = [
@@ -5265,10 +5264,13 @@ ${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
     let finalContent = answerHtml ? `${content}\n\n${answerHtml}` : content;
     // 照搬守门按类型语义分组（三维度审计 D1）：知识归纳型（mode=full：summary/preview/dictation/review）
     // 正文=按原文归纳呈现，字面重述是本职 → copy 守门关闭；命题/抽样型全开（8 字）+命中交人工核对。
+    // ✅ A11-1/A11-2（2026-09-11）：防搬抄语料 = **整章原文**（含练习/作业段、含空/未标注 type 段）。
+    //    旧口径只取"锚绑定片段 + isReturnableSegment 类型过滤"，会把练习段与未标注段漏出比对范围；
+    //    材料来源本就是整章原文 → 语料与供料同源更全，"防搬抄靠比对检出，而不是靠丢弃参考"。
     const copyGuardOn = contractOf(genType).mode !== 'full';
-    const refCorpus = copyGuardOn ? (anchors || []).flatMap((a) => (a.bind?.segments || [])
-      .filter((s) => s && s.text && String(s.text).trim().length >= 8 && isReturnableSegment(String(s.type || '').trim()))
-      .map((s) => String(s.text))) : [];
+    const refCorpus = copyGuardOn
+      ? collectChapterRawText(contentCards).flatMap((c) => c.segmentTexts.filter((t) => t.length >= 8))
+      : [];
     let guardResult = guardPaper({ html: finalContent, corpus: refCorpus, copy: copyGuardOn, subject: book?.subject || '' });
     // 🔴 写作修订轮（整卷重写自纠）已砍除（2026-09 实测两轮 100% 空转：让模型完整重打整卷+答案区
     //    ≈10K+ token，总省略/截断 → 每轮判"长度异常·未回传整卷全文"→ 0 修复、白烧 2 次长调用）。

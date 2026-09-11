@@ -11,6 +11,7 @@ import {
   compressOriginalText,
   estimateTokens,
   tokensToChars,
+  collectChapterRawText,
 } from '../../src/utils/textbookCompression.js';
 import { CHARS_PER_TOKEN } from '../../src/utils/budgetCalibration.js';
 
@@ -183,5 +184,33 @@ describe('token 换算与预算体系同口径', () => {
     expect(estimateTokens(Math.round(CHARS_PER_TOKEN))).toBe(1);
     expect(tokensToChars(1)).toBe(Math.floor(CHARS_PER_TOKEN));
     expect(tokensToChars(0)).toBe(0);
+  });
+});
+
+describe('A15/A11 程序直读整章原文（不过滤类型；空/未标注段不丢弃；章序不变）', () => {
+  it('练习段与未标注 type 段均计入，章序 = 传入卡序，无内容章整体丢弃', () => {
+    const cards = [
+      {
+        chapterTitle: '第1课',
+        segments: [
+          { text: '课文正文第一段。', type: '正文' },
+          { text: '练习题：计算 3×4。', type: '练习' },   // A11-1：练习段照收（不再被类型过滤）
+          { text: '未标注类型的段落。' },                  // A11-2：空/未标注 type 不丢弃
+          { text: '   ', type: '作业' },                   // 无内容 → 丢弃
+        ],
+      },
+      { chapterTitle: '第2课', segments: [{ text: '第二课内容。', type: '正文' }] },
+      { chapterTitle: '空章', segments: [] },
+    ];
+    const chapters = collectChapterRawText(cards);
+    expect(chapters.map(c => c.chapterTitle)).toEqual(['第1课', '第2课']);
+    expect(chapters[0].segmentTexts).toEqual(['课文正文第一段。', '练习题：计算 3×4。', '未标注类型的段落。']);
+    expect(chapters[0].rawText).toContain('练习题：计算 3×4。');
+    expect(chapters[0].rawText).toContain('未标注类型的段落。');
+  });
+
+  it('空输入/异常输入安全返回空数组', () => {
+    expect(collectChapterRawText([])).toEqual([]);
+    expect(collectChapterRawText(null)).toEqual([]);
   });
 });

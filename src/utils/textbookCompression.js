@@ -28,6 +28,28 @@ import { splitTextIntoSegments } from './textSegmenter.js';    // 句子级切�
 
 /** 字符 → token 估算（与预算体系同口径） */
 export const estimateTokens = (chars = 0) => Math.ceil((Number(chars) || 0) / CHARS_PER_TOKEN);
+
+/**
+ * ✅ A15/A11（2026-09-11）：**程序按勾选章节直读整章原文**
+ *   - 按传入卡序（= 勾选章序 = 原文章序）逐章收集该章全部片段文本
+ *   - **不做类型过滤**：练习/作业段照收（A11：防搬抄靠比对检出，不靠丢弃参考）；
+ *     空/未标注 `type` 段同样计入（A11-2：不再被静默丢弃）
+ *   - 返回 `rawText`（整章，供压缩取料）与 `segmentTexts`（段级，供 `copyGuard` 语料）
+ * @param {Array} cards contentCards
+ * @returns {Array<{chapterTitle:string, rawText:string, segmentTexts:string[]}>}
+ */
+export const collectChapterRawText = (cards = []) =>
+  (cards || []).map((c) => {
+    const segmentTexts = (c?.segments || [])
+      .map((s) => String(s?.text || '').trim())
+      .filter(Boolean);
+    return {
+      chapterTitle: String(c?.chapterTitle || '').trim(),
+      rawText: segmentTexts.join('\n'),
+      segmentTexts,
+    };
+  }).filter((x) => x.rawText);
+
 /** token → 字符（预算换算） */
 export const tokensToChars = (tokens = 0) => Math.floor((Number(tokens) || 0) * CHARS_PER_TOKEN);
 
