@@ -775,7 +775,7 @@
                   🔧 写作取材·未浏览章提示
                 </div>
                 <div style="font-size:10px;color:#8896a8;margin-top:3px;line-height:1.5;">
-                  写作期若某章<b>有教材原文素材但模型未 browse</b>（研读总账已含该章覆盖理解，browse 仅按需补原文细节）：
+                  写作期若某章<b>有教材原文素材但模型未 browse</b>（研读覆盖点名+摘要已含该章覆盖理解，browse 仅按需补原文细节）：
                   <span
                     v-if="settings.value?.generationSettings?.browseAutoFill !== false"
                     style="color:#1f6feb;"

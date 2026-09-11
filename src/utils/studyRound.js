@@ -142,7 +142,7 @@ export function validateDigestRecords(records, { expectedNames, corpus }) {
 }
 
 /**
- * 研读总账累积：把通过校验的各批记录并入总账（点名→理解/引用；供委托轮随附编辑自校用）。
+ * 研读消化记录累积（覆盖点名+摘要，不含教材原文）：把通过校验的各批记录并入（点名→理解/引用；供委托轮随附编辑自校用）。
  * @returns {Map<string,{note:string,quote:string}>}
  */
 export function mergeLedger(ledger, records) {

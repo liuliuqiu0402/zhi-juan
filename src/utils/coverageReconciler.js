@@ -36,7 +36,7 @@ export const stripHtmlForRecon = (html) =>
 /**
  * 对账一次生成正文。
  * @param {Object} p { genType, content, anchors, digestedNames? }
- *   digestedNames: 研读总账已消化点名的 name 数组（digestPairs[].names 展开去重）。
+ *   digestedNames: 研读消化记录（覆盖点名+摘要，不含教材原文）已消化点名的 name 数组（digestPairs[].names 展开去重）。
  *     提供时：对账范围收窄为该交集——只对"模型研读消化过"的锚判缺（研读负责让模型"会写"，
  *     对账独立核"写了没"；未消化/缺料锚不在研读批内 → 不对账判缺，防"模型没读过却报缺"误报）。
  *     未提供/空：维持旧行为（对全部已绑定非拓展锚判缺），兼容旧调用。

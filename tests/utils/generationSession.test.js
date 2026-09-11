@@ -65,12 +65,12 @@ describe('生成会话编排器（复位阶段 1）', () => {
     const b = appendMessage(s, { role: 'user', content: '研读批2', compressible: true });
     appendMessage(s, { role: 'user', content: '委托书', compressible: false });
     const before = s.messages.length;
-    const r = applyCompaction(s, { summary: '（研读总账摘要）', replacedIds: [a.id, b.id] });
+    const r = applyCompaction(s, { summary: '（研读覆盖点名+摘要）', replacedIds: [a.id, b.id] });
     expect(r.ok).toBe(true);
     // 2 条被替换为 1 条摘要
     expect(s.messages.length).toBe(before - 1);
     expect(s.messages[0].kind).toBe('summary');
-    expect(s.messages[0].content).toBe('（研读总账摘要）');
+    expect(s.messages[0].content).toBe('（研读覆盖点名+摘要）');
     // 委托书仍在原位且未被压缩
     expect(s.messages.some((m) => m.content === '委托书')).toBe(true);
   });

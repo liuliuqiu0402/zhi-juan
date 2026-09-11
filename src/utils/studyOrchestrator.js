@@ -2,7 +2,7 @@
  * 研读编排驱动（复位工程·阶段 2 → 3 衔接）
  * ============================================================
  * 定位：把真实数据结构（contentCards/覆盖锚/绑定片段）适配到会话编排器与研读轮模块，
- *   产出"研读单位→分批→批消息→批摘要校验→研读总账"的确定性流程；不发起引擎调用。
+ *   产出"研读单位→分批→批消息→批摘要校验→研读消化记录（覆盖点名+摘要，不含教材原文）"的确定性流程；不发起引擎调用。
  * 锚记录字段契约（与 coverageAnchor.flattenAnchorTree 输出对齐）：
  *   { chapterTitle, bigConcept, name, level, specificConcepts, bind:{status:'literal'|'semantic'|'chapter'|'missing', segments:[{text,type,isKeyConcept}]} }
  * 准绳：missing 锚不进研读（红线）；练习段不进入研读材料；批摘要校验=点名⊆清单/引用可溯源/理解非空。
