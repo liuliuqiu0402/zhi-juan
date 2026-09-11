@@ -360,29 +360,10 @@
           placeholder="https://api.deepseek.com/v1"
         >
 
-        <!-- 🔧 成本预设按钮 -->
-        <div style="display:flex;gap:6px;margin:10px 0;flex-wrap:wrap;">
-          <button
-            style="padding:5px 10px;font-size:12px;border:1px solid #4caf50;border-radius:4px;background:#e8f5e9;cursor:pointer;"
-            @click="applyModelPreset('economy')"
-          >
-            💰 经济模式
-          </button>
-          <button
-            style="padding:5px 10px;font-size:12px;border:1px solid #2196f3;border-radius:4px;background:#e3f2fd;cursor:pointer;"
-            @click="applyModelPreset('balanced')"
-          >
-            ⚖️ 均衡模式（推荐）
-          </button>
-          <button
-            style="padding:5px 10px;font-size:12px;border:1px solid #ff9800;border-radius:4px;background:#fff3e0;cursor:pointer;"
-            @click="applyModelPreset('flagship')"
-          >
-            👑 旗舰模式
-          </button>
-        </div>
+        <!-- 🔧 A13（2026-09-11）：DeepSeek 云端现仅一个模型（V4.1 Flash，正式名 deepseek-flash）——
+             原「经济/均衡/旗舰」成本预设已失去区分度（V4 Pro 自 2026-09-14 12:00 起路由到 Flash），故移除。 -->
         <p style="font-size:11px;color:#888;margin:0 0 8px;">
-          💡 一键为下方生成/分析模型选择合适的档位组合：经济=最便宜·最快，均衡=性价比平衡（推荐），旗舰=质量优先。点击后请点顶部「保存设置」生效。
+          💡 云端现仅提供 <b>DeepSeek V4.1 Flash</b>（正式名 <code>deepseek-flash</code>）：V4 Pro 已于 2026-09-14 12:00 起路由至该模型并按 Flash 计费，故生成/分析统一使用同一模型；此前的经济/均衡/旗舰成本预设已无区分度，已移除。
         </p>
 
         <label>📝 资料生成模型（generation/blueprint）</label>
@@ -405,6 +386,10 @@
             {{ formatDeepSeekModel(m) }}
           </option>
         </select>
+        <p style="font-size:11px;color:#888;margin:6px 0 0;line-height:1.6;">
+          🔄 下拉候选由云端「可用模型」自动补全：<b>后续新模型（含日后再出的 Pro 旗舰）一经云端提供即入列</b>，可直接选择切换。
+          自动发现只会在当前模型失效时回落到 <code>deepseek-flash</code>，<b>不会擅自切换到其它模型</b>（避免重演被自动改成 pro）。
+        </p>
       </div>
 
       <!-- 🔥 火山引擎（豆包）配置 -->
@@ -904,6 +889,27 @@
                     >锁定</span>
                   </div>
                 </div>
+                <!-- ✅ A14-3：系数链路「基准 → 校准 → 生效」（与生成端 pickSlot 同口径；校准自动生效但不静默） -->
+                <div style="margin-top:5px;padding-top:4px;border-top:1px dashed #e3e9f2;font-size:10px;color:#64748b;line-height:1.5;">
+                  <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+                    <span title="基准＝当前档位的播种系数（预算＝勾选原文 × 系数）">基准 <b style="color:#334155;">{{ fmtCoef(slotView(row.key, slotDef[0]).base) }}</b></span>
+                    <span style="color:#cbd5e1;">→</span>
+                    <span title="校准系数＝该类型同路径（正文/答案→两次；一次成型→一次）已启用校准桶的折算值，与生成端 getCalibratedCoef 同式">校准 <b :style="slotView(row.key, slotDef[0]).calCount ? 'color:#10b981;' : 'color:#94a3b8;'">{{ calCoefText(slotView(row.key, slotDef[0])) }}</b></span>
+                    <span style="color:#cbd5e1;">→</span>
+                    <span title="生效＝手填 > 校准 > 基准（生成端实际使用的系数）">生效 <b style="color:#1f6feb;">{{ fmtCoef(slotView(row.key, slotDef[0]).eff) }}</b></span>
+                    <button
+                      class="btn-small"
+                      style="font-size:9px;padding:0 6px;margin-left:auto;"
+                      title="清空该槽手填 + 关闭该类型同路径的校准，系数回落到档位播种基准。需点「保存设置」生效。"
+                      @click="restoreSlotBase(row.key, slotDef[0])"
+                    >
+                      恢复基准
+                    </button>
+                  </div>
+                  <div style="color:#aab6c4;font-size:9px;margin-top:2px;">
+                    校准按「学科 × 学段 × 路径」分桶：{{ calNote(slotView(row.key, slotDef[0]), row.key, slotDef[0]) }}
+                  </div>
+                </div>
               </div>
             </div>
             <!-- 🔧 实测校准（每类型×学科×学段分桶；一键采纳以样本中位产出率为基准） -->
@@ -1339,9 +1345,9 @@ import { useDialog } from '@/composables/useDialog.js';
 import { useBackup } from '@/composables/useBackup.js';
 import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
 import useLogger, { copyLogs } from '@/composables/useLogger.js';
-import { apiConfig, DEFAULT_BUDGET_BY_TYPE, normalizeBudgetByType, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel } from '@/config/apiConfig.js';
+import { apiConfig, DEFAULT_BUDGET_BY_TYPE, normalizeBudgetByType, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel, listDeepSeekModels } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
-import { listTypeBuckets, applyCalibration, clearCalibration, setCalibratedEnabled, CHARS_PER_TOKEN, CALIBRATION_THRESHOLDS } from '@/utils/budgetCalibration.js';
+import { listTypeBuckets, applyCalibration, clearCalibration, setCalibratedEnabled, CHARS_PER_TOKEN, CALIBRATION_THRESHOLDS, TIER_RATIO } from '@/utils/budgetCalibration.js';
 import { recordAudit, getAuditLogs, clearAuditLogs, getAuditCount } from '@/utils/auditLog.js';
 import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud, fetchCloudDevices, deleteDeviceFromCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
@@ -1569,8 +1575,8 @@ const settings = ref({
   multimodalEngine: apiConfig.multimodalEngine || 'paddleocr_vl',
   deepseekBaseUrl: apiConfig.deepseekBaseUrl,
   deepseekApiKey: apiConfig.deepseekApiKey,
-  deepseekGenerationModel: apiConfig.deepseekGenerationModel || 'deepseek-v4-flash',
-  deepseekAnalysisModel: apiConfig.deepseekAnalysisModel || 'deepseek-v4-pro',
+  deepseekGenerationModel: apiConfig.deepseekGenerationModel || 'deepseek-flash',
+  deepseekAnalysisModel: apiConfig.deepseekAnalysisModel || 'deepseek-flash',
   volcanoApiKey: apiConfig.volcanoApiKey || '',
   volcanoBaseUrl: apiConfig.volcanoBaseUrl || 'https://ark.cn-beijing.volces.com/api/v3',
   volcanoGenerationModel: apiConfig.volcanoGenerationModel || 'doubao-seed-2-1-turbo-260628',
@@ -1590,8 +1596,8 @@ const settings = ref({
 
 const availableTextModels = ref(['qwen2.5:7b', 'qwen2:7b']);
 
-// 🔧 DeepSeek 模型选项（优先云端发现，兜底常用列表）
-const deepseekModelOptions = ref(['deepseek-v4-flash', 'deepseek-v4-pro']);
+// 🔧 DeepSeek 模型选项（A13：云端现仅 V4.1 Flash 一个正式模型；优先云端发现，兜底同值）
+const deepseekModelOptions = ref(['deepseek-flash']);
 
 // 🔗 预算配置·资料类型表（key 与 apiConfig.budgetByType / promptLibrary.GEN_TYPE_NAMES 双轨一致）
 const BUDGET_TYPE_ORDER = [
@@ -1714,6 +1720,7 @@ const calBucketsFor = (rowKey) => {
 const adoptCalibration = (rowKey, bk) => {
   const res = applyCalibration(rowKey, bk.subject, bk.stage, bk.mode || '', CALIBRATION_THRESHOLDS.standard);
   if (res.ok) {
+    bumpCalVersion(); // ✅ A14-3：校准变更 → 三值视图重算
     const detail = `按实测采纳：基准产出率 ${res.base.toFixed(2)}，样本 ${res.stats.count}`;
     recordAudit({ action: 'adopt', operator: getDeviceName() || '本地', genType: rowKey, subject: bk.subject, stage: bk.stage, mode: bk.mode || '', detail });
     window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: `✅ 已按实测采纳「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」（基准产出率 ${res.base.toFixed(2)}，样本 ${res.stats.count}）`, type: 'info' } }));
@@ -1729,6 +1736,7 @@ const clearCalibrationRow = async (rowKey, bk) => {
   );
   if (!confirmed) return;
   clearCalibration(rowKey, bk.subject, bk.stage, bk.mode || '');
+  bumpCalVersion(); // ✅ A14-3：校准变更 → 三值视图重算
   recordAudit({ action: 'clear', operator: getDeviceName() || '本地', genType: rowKey, subject: bk.subject, stage: bk.stage, mode: bk.mode || '', detail: '清理校准：校准值+样本一并清除，回退播种默认' });
   window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: `已清理「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」（校准值+样本一并清除，回退播种默认）`, type: 'info' } }));
 };
@@ -1748,6 +1756,7 @@ const toggleCalibrated = (rowKey, bk) => {
     window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: '切换失败：该校准已不存在', type: 'warning' } }));
     return;
   }
+  bumpCalVersion(); // ✅ A14-3：校准变更 → 三值视图重算
   recordAudit({ action: 'toggle', operator: getDeviceName() || '本地', genType: rowKey, subject: bk.subject, stage: bk.stage, mode: bk.mode || '', detail: `切换启用 → ${next ? '使用校准值' : '使用播种默认'}` });
   window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: `已切换「${rowKey} · ${bk.subject} · ${calStageName(bk.stage)} · ${bk.mode === 'split' ? '两次' : '一次'}」为${next ? '使用校准值' : '使用播种默认'}`, type: 'info' } }));
 };
@@ -1784,51 +1793,113 @@ const isSlotActive = (rowKey, slot) => {
   return SLOT_PATH_MAP[slot] === effective;
 };
 
+// ── ✅ A14-3：槽「基准 → 校准 → 生效」系数链路（数值可见、校准自动生效但不静默）──
+//   口径（用户 2026-09-11 定）：显示**系数**链路，与生成端 pickSlot 完全同口径：
+//     基准 = 当前档位播种系数；校准 = 该类型**同路径**（body/answer→split、once→once）已启用校准桶的折算系数；
+//     生效 = 手填(custom) > 校准 > 基准。
+//   校准数据实为「类型 × 学科 × 学段 × 路径」分桶，槽卡片无学科/学段维度 → 取同路径已启用桶：
+//     单桶显示其系数，多桶显示区间与桶数（学科/学段维度的精确值见下方「实测校准」桶行）。
+//   折算与生成端 budgetCalibration.getCalibratedCoef 同式：coef = 基准产出率 × 档位比例 / CHARS_PER_TOKEN。
+const SLOT_MODE = { body: 'split', answer: 'split', once: 'once' };
+const calVersion = ref(0); // 校准数据存 localStorage（非响应式）→ 用版本号驱动重算
+const bumpCalVersion = () => { calVersion.value += 1; };
+const slotTierCoef = (type, slot) => {
+  const s = budgetBt()[type]?.[slot];
+  if (!s) return 1;
+  const tier = budgetBt()[type]?.tier || 'balanced';
+  return (typeof s[tier] === 'number') ? s[tier] : (typeof s.balanced === 'number' ? s.balanced : 1);
+};
+const fmtCoef = (v) => (typeof v === 'number' && isFinite(v)) ? String(+v.toFixed(3)) : '—';
+// 每类型 → 三槽视图（每类型只读一次 listTypeBuckets，9 类型 = 9 次，避免 27 次读盘）
+const coefViewsByType = computed(() => {
+  calVersion.value; // 依赖：校准变更信号
+  const out = {};
+  for (const t of BUDGET_TYPE_ORDER) {
+    const type = t.key;
+    const tier = budgetBt()[type]?.tier || 'balanced';
+    const ratio = TIER_RATIO[tier] ?? 1;
+    // 仅「已启用 + 有校准基准」的桶计入；折算成与播种同单位的 token/字符系数
+    const byMode = { split: [], once: [] };
+    for (const b of listTypeBuckets(type, { threshold: CALIBRATION_THRESHOLDS.standard })) {
+      if (!b.enabled || b.calBase == null) continue;
+      const m = b.mode || '';
+      if (!byMode[m]) continue;
+      byMode[m].push({ coef: +((b.calBase * ratio) / CHARS_PER_TOKEN).toFixed(3), samples: b.stats?.count || 0 });
+    }
+    const view = (slot) => {
+      const s = budgetBt()[type]?.[slot];
+      const base = slotTierCoef(type, slot);
+      const custom = (typeof s?.custom === 'number' && s.custom > 0) ? s.custom : null;
+      // 校准仅作用于 body/once（answer 槽无独立采样，与生成端 pickSlot 一致）
+      const calApplies = slot === 'body' || slot === 'once';
+      const buckets = calApplies ? (byMode[SLOT_MODE[slot]] || []) : [];
+      const coefs = buckets.map(b => b.coef);
+      const cal = coefs.length === 1 ? coefs[0] : null;
+      const calRange = coefs.length > 1 ? [Math.min(...coefs), Math.max(...coefs)] : null;
+      const samples = buckets.reduce((a, b) => a + b.samples, 0);
+      const eff = custom != null ? custom : (cal != null ? cal : base);
+      return {
+        base: +Number(base).toFixed(3), cal, calRange, calCount: coefs.length, samples,
+        eff: +Number(eff).toFixed(3), custom, calApplies,
+      };
+    };
+    out[type] = { body: view('body'), answer: view('answer'), once: view('once') };
+  }
+  return out;
+});
+const slotView = (type, slot) => coefViewsByType.value?.[type]?.[slot]
+  || { base: 1, cal: null, calRange: null, calCount: 0, samples: 0, eff: 1, custom: null, calApplies: false };
+const calCoefText = (v) => {
+  if (!v.calApplies || v.calCount === 0) return '—';
+  return v.calCount === 1 ? fmtCoef(v.cal) : `${fmtCoef(v.calRange[0])}~${fmtCoef(v.calRange[1])}`;
+};
+const calNote = (v, type, slot) => {
+  if (!v.calApplies) return '答案页无独立采样，不参与校准（与生成端 pickSlot 一致）';
+  const parts = [];
+  // 当前生成路径不走该槽（如知识型走"一次成型"时正文/答案槽）：数值仍按同路径桶展示，仅作参考
+  if (type && slot && !isSlotActive(type, slot)) parts.push('当前生成路径不走该槽（仅参考）');
+  if (v.calCount === 0) {
+    parts.push('同路径暂无已启用校准 → 沿用基准');
+  } else {
+    const rangeTag = v.calCount > 1 ? '，多桶取区间（精确值见下方桶行）' : '';
+    parts.push(`同路径 ${v.calCount} 个已启用校准桶，样本合计 ${v.samples}${rangeTag}`);
+  }
+  // 手填优先于校准（与生成端 pickSlot 的优先级一致：custom > 校准 > 基准）
+  if (v.custom != null) parts.push('已手填 → 生效取手填，校准不覆盖手填');
+  return parts.join('；');
+};
+// 「恢复基准」：清空该槽手填 + 关闭该类型同路径校准 → 系数回落到档位播种基准（需保存设置生效）
+const restoreSlotBase = (type, slot) => {
+  const s = budgetBt()[type]?.[slot];
+  if (s) s.custom = null;
+  const mode = SLOT_MODE[slot];
+  const targets = listTypeBuckets(type, { threshold: CALIBRATION_THRESHOLDS.standard })
+    .filter(b => b.enabled && (b.mode || '') === mode);
+  for (const b of targets) setCalibratedEnabled(type, b.subject, b.stage, b.mode || '', false);
+  bumpCalVersion();
+  recordAudit({
+    action: 'toggle', operator: getDeviceName() || '本地', genType: type, subject: '', stage: '', mode,
+    detail: `恢复基准：清空该槽手填${targets.length ? ` + 关闭同路径 ${targets.length} 个校准桶` : ''}`,
+  });
+  window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, {
+    detail: { message: `已恢复「${type} · ${slot}」系数基准（清空手填${targets.length ? ` + 关闭同路径 ${targets.length} 个校准桶` : ''}）；请点「保存设置」生效`, type: 'info' },
+  }));
+};
+
 const formatDeepSeekModel = (model) => {
   const nameMap = {
-    'deepseek-v4-pro': '🧠 deepseek-v4-pro（分析决策强·慢·思考已关）',
-    'deepseek-v4-flash': '⚡ deepseek-v4-flash（快速便宜·思考已关）',
-    'deepseek-chat': '💬 deepseek-chat（通用）',
-    'deepseek-reasoner': '🧠 deepseek-reasoner（推理）',
+    // ✅ A13（2026-09-11）：统一到 V4.1 Flash（旧名保留映射，避免历史配置显示原始串）
+    'deepseek-flash': '⚡ deepseek-flash（DeepSeek-V4.1-Flash·思考已关）',
+    'deepseek-v4-flash': '⚡ deepseek-v4-flash（遗留名→V4.1-Flash 服务）',
+    'deepseek-v4-pro': '🧠 deepseek-v4-pro（遗留名→路由至 V4.1-Flash）',
+    'deepseek-chat': '💬 deepseek-chat（旧版通用）',
+    'deepseek-reasoner': '🧠 deepseek-reasoner（旧版推理）',
   };
   return nameMap[model] || model;
 };
 
-// 🔧 成本预设：一键切换4档模型配置
-//   economy（经济）：全 Flash，约 ¥0.10/次，质量略降
-//   balanced（均衡）：分析+修复用 Pro，生成+审查用 Flash，约 ¥0.25/次（推荐）
-//   flagship（旗舰）：全 Pro，约 ¥0.60/次，质量最高
-const applyModelPreset = (preset) => {
-  const presets = {
-    economy: {
-      generation: 'deepseek-v4-flash',
-      analysis: 'deepseek-v4-flash',
-      review: 'deepseek-v4-flash',
-      repair: 'deepseek-v4-flash',
-      label: '💰 经济模式：全 Flash · 约 ¥0.10/次 · 质量略降',
-    },
-    balanced: {
-      generation: 'deepseek-v4-flash',
-      analysis: 'deepseek-v4-pro',
-      review: 'deepseek-v4-flash',
-      repair: 'deepseek-v4-pro',
-      label: '⚖️ 均衡模式：分析+修复 Pro · 约 ¥0.25/次 · 推荐',
-    },
-    flagship: {
-      generation: 'deepseek-v4-pro',
-      analysis: 'deepseek-v4-pro',
-      review: 'deepseek-v4-pro',
-      repair: 'deepseek-v4-pro',
-      label: '👑 旗舰模式：全 Pro · 约 ¥0.60/次 · 质量最高',
-    },
-  };
-  const p = presets[preset];
-  if (!p) return;
-  settings.value.deepseekGenerationModel = p.generation;
-  settings.value.deepseekAnalysisModel = p.analysis;
-  saveStatus.value = p.label;
-  setTimeout(() => { saveStatus.value = ''; }, 4000);
-};
+// ✅ A13（2026-09-11）：原「成本预设（经济/均衡/旗舰）」已移除——云端现仅一个模型（V4.1 Flash），
+//    三档预设指向同一模型、失去区分度；对应按钮也已从模板删除。历史配置经 loadConfig 归一不受影响。
 
 const saveStatus = ref('');
 
@@ -2112,12 +2183,18 @@ onMounted(async () => {
       await refreshModels();
     } catch { /* 刷新失败不影响页面 */ }
   }
-  // 🔧 DeepSeek：尝试发现云端可用模型，补充到下拉选项
+  // 🔧 DeepSeek：拉取云端**全量**可用模型补进下拉候选，并选定当前使用模型
+  //    🔑 全量列表 = 后续新模型（含日后再出的 Pro 旗舰）的**切换入口**：一出现即入下拉，用户可直接手动选用；
+  //    自动选择规则（pickDiscoveredDeepSeekModel）只会在当前模型失效时回落 flash，绝不擅自切到其它模型。
   if (settings.value.currentEngine === 'deepseek' && settings.value.deepseekApiKey) {
     try {
-      const discovered = await autoDiscoverDeepSeekModel();
-      if (discovered && !deepseekModelOptions.value.includes(discovered)) {
-        deepseekModelOptions.value.push(discovered);
+      const all = await listDeepSeekModels();
+      for (const m of all) {
+        if (m && !deepseekModelOptions.value.includes(m)) deepseekModelOptions.value.push(m);
+      }
+      const selected = await autoDiscoverDeepSeekModel();
+      if (selected && !deepseekModelOptions.value.includes(selected)) {
+        deepseekModelOptions.value.push(selected);
       }
     } catch { /* 发现失败用兜底列表 */ }
   }

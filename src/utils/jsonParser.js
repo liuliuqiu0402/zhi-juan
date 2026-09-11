@@ -15,6 +15,9 @@ export const getModelDisplayName = (modelName) => {
     'qwen3-vl:8b': 'Qwen3-VL-8B',
     'llava:13b': 'LLaVA-13B',
     'llava:7b': 'LLaVA-7B',
+    // ✅ A13（2026-09-11）：正式名 = V4.1 Flash；旧名保留映射，避免历史日志/配置显示为原始串
+    'deepseek-flash': 'DeepSeek-V4.1-Flash',
+    'deepseek-v4-flash': 'DeepSeek-V4.1-Flash',
     'deepseek-v4-pro': 'DeepSeek-V4-Pro'
   };
 

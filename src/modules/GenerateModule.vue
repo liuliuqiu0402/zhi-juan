@@ -4887,12 +4887,12 @@ const genTypeModelHint = computed(() => {
   const heavyTasks = ['exam', 'practice', 'special', 'reading', 'errorbook'];
   // 🌐 云端 DeepSeek：按任务分 Flash（生成）和 Pro（分析）
   if (apiConfig.currentEngine === 'deepseek') {
-    const genModel = apiConfig.deepseekGenerationModel || apiConfig.deepseekModel || 'deepseek-v4-flash';
-    const analysisModel = apiConfig.deepseekAnalysisModel || 'deepseek-v4-pro';
+    const genModel = apiConfig.deepseekGenerationModel || apiConfig.deepseekModel || 'deepseek-flash';
+    const analysisModel = apiConfig.deepseekAnalysisModel || 'deepseek-flash';
     if (heavyTasks.includes(type)) {
-      return { icon: '🧠', model: genModel, tip: '生成用Flash·分析用Pro' };
+      return { icon: '🧠', model: genModel, tip: '统一 DeepSeek V4.1 Flash（分析/生成同模型）' };
     }
-    return { icon: '📚', model: analysisModel, tip: '分析用Pro·精准提取' };
+    return { icon: '📚', model: analysisModel, tip: '统一 DeepSeek V4.1 Flash（分析/生成同模型）' };
   }
   // 🔥 火山 / ☁️ 阿里 / 🧠 智谱：生成/分析双模型提示
   if (apiConfig.currentEngine === 'volcano' || apiConfig.currentEngine === 'alibaba' || apiConfig.currentEngine === 'zhipu') {
@@ -4962,8 +4962,8 @@ const currentModelSummary = computed(() => {
     return { engine: engineLabel, heavy: genModel, light: analysisModel };
   }
   // 🌐 DeepSeek 云端：显示双模型配置（生成 + 分析）
-  const genModel = apiConfig.deepseekGenerationModel || apiConfig.deepseekModel || 'deepseek-v4-flash';
-  const analysisModel = apiConfig.deepseekAnalysisModel || 'deepseek-v4-pro';
+  const genModel = apiConfig.deepseekGenerationModel || apiConfig.deepseekModel || 'deepseek-flash';
+  const analysisModel = apiConfig.deepseekAnalysisModel || 'deepseek-flash';
   return { engine: '🌐 DeepSeek', heavy: genModel, light: analysisModel };
 });
 

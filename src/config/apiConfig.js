@@ -318,6 +318,11 @@ const loadConfig = async () => {
         }
       }
 
+      // ✅ A13-2：旧存档模型名归一（deepseek-v4-pro / deepseek-v4-flash → deepseek-flash）
+      config.deepseekModel = normalizeDeepSeekModelId(config.deepseekModel);
+      config.deepseekGenerationModel = normalizeDeepSeekModelId(config.deepseekGenerationModel);
+      config.deepseekAnalysisModel = normalizeDeepSeekModelId(config.deepseekAnalysisModel);
+
       return config;
     }
     
@@ -357,7 +362,7 @@ export const loadConfigSync = () => {
     if (raw) {
       const parsed = JSON.parse(raw);
       const { deepseekApiKey, ...safeFields } = parsed;
-      if (Object.keys(safeFields).length > 0) return safeFields;
+      if (Object.keys(safeFields).length > 0) return normalizeModelFields(safeFields);
     }
     
     // 🔧 Cookie 兜底（同步版）：仅返回数据，不写 localStorage
@@ -366,7 +371,7 @@ export const loadConfigSync = () => {
     if (cookieConfig && Object.keys(cookieConfig).length > 0) {
       console.log('📦 从 Cookie 恢复基础配置（iOS Safari↔PWA 桥接）');
       const { deepseekApiKey, ...safeFields } = cookieConfig;
-      if (Object.keys(safeFields).length > 0) return safeFields;
+      if (Object.keys(safeFields).length > 0) return normalizeModelFields(safeFields);
     }
   } catch { /* ignore */ }
   return {};
@@ -505,12 +510,12 @@ export const apiConfig = reactive({
   // ========== DeepSeek 云端配置 ==========
   deepseekBaseUrl: 'https://api.deepseek.com/v1',  // 🔧 修复：不要包含 /chat/completions
   deepseekApiKey: '',
-  deepseekModel: 'deepseek-v4-pro',  // 🔧 保留兼容旧数据
-  // 🔧 按任务分模型（2档独立配置）：
-  //   生成模型（generation/blueprint/formatting）→ Flash 快速便宜
-  //   分析模型（analysis/extraction）→ Pro 决策性步骤，不能省
-  deepseekGenerationModel: 'deepseek-v4-flash',
-  deepseekAnalysisModel: 'deepseek-v4-pro',
+  deepseekModel: 'deepseek-flash',  // 🔧 A13（2026-09-11）：统一正式模型名（旧值经 DEEPSEEK_MODEL_ALIASES 归一）
+  // 🔧 按任务分模型（A13 统一口径）：
+  //   DeepSeek V4.1 Flash（正式名 deepseek-flash）已全面超越 V4 Pro；V4 Pro 自 2026-09-14 12:00
+  //   起全部路由到 V4.1 Flash 并按 Flash 计费 → 三个字段统一为 deepseek-flash。
+  deepseekGenerationModel: 'deepseek-flash',
+  deepseekAnalysisModel: 'deepseek-flash',
   
   // 🔧 新增：是否分析理科图表（默认启用）
   analyzeCharts: true,
@@ -645,6 +650,48 @@ let _configCache = null;
 let _configCacheTime = 0;
 
 // ✨ 分级缓存配置：不同类型数据设置不同的 TTL
+// ✅ A13：DeepSeek 模型名归一（2026-09-11）
+//   官方口径：正式名 `deepseek-flash`（= DeepSeek-V4.1-Flash）；`deepseek-v4-flash` /
+//   `deepseek-v4-flash-vision-exp` 为遗留别名（对应模型已退役，请求由 V4.1-Flash 服务）；
+//   `deepseek-v4-pro` 自 2026-09-14 12:00 起全部路由到 V4.1-Flash。
+//   三个模型字段统一归一到 `deepseek-flash`，避免旧 localStorage 配置失效（A13-2）。
+export const DEEPSEEK_MODEL_ALIASES = {
+  'deepseek-v4-pro': 'deepseek-flash',
+  'deepseek-v4-flash': 'deepseek-flash',
+  'deepseek-v4-flash-vision-exp': 'deepseek-flash',
+};
+
+/** 归一 DeepSeek 模型 id：命中遗留别名 → `deepseek-flash`；其余原样返回。 */
+export const normalizeDeepSeekModelId = (model) => {
+  const m = String(model || '').trim();
+  if (!m) return m;
+  return DEEPSEEK_MODEL_ALIASES[m.toLowerCase()] || m;
+};
+
+/** ✅ A13-2：把配置对象里的三个 DeepSeek 模型字段归一到正式名（遗留别名 → deepseek-flash）。
+ *  同步/异步两条读盘路径共用（loadConfigSync / loadConfig），确保旧 localStorage 配置不失效。 */
+const normalizeModelFields = (cfg) => {
+  if (!cfg || typeof cfg !== 'object') return cfg;
+  const out = { ...cfg };
+  if (out.deepseekModel !== undefined) out.deepseekModel = normalizeDeepSeekModelId(out.deepseekModel);
+  if (out.deepseekGenerationModel !== undefined) out.deepseekGenerationModel = normalizeDeepSeekModelId(out.deepseekGenerationModel);
+  if (out.deepseekAnalysisModel !== undefined) out.deepseekAnalysisModel = normalizeDeepSeekModelId(out.deepseekAnalysisModel);
+  return out;
+};
+
+/** ✅ A13-4：DeepSeek 云端模型自动发现的**选择规则**（纯函数，供单测锁死"不再优先 pro"）。
+ *  规则：① 当前配置模型（先按正式名归一）若仍在可用列表 → 采用（归一后优先，即遗留别名顺势改写为
+ *        `deepseek-flash` 落地）；② 否则回落列表中首个含 `flash` 的模型；③ 再否则列表首个。
+ *  绝不"优先 pro"，也绝不把可用的用户所选模型改写掉。 */
+export const pickDiscoveredDeepSeekModel = (models = [], currentModel = '') => {
+  const list = Array.isArray(models) ? models.filter(Boolean) : [];
+  if (!list.length) return null;
+  const flashModel = list.find(m => String(m).includes('flash')) || list[0];
+  const normalizedCurrent = normalizeDeepSeekModelId(currentModel);
+  const raw = String(currentModel || '');
+  return [normalizedCurrent, raw].find(m => m && list.includes(m)) || flashModel;
+};
+
 const CACHE_CONFIG = {
   [STORAGE_KEYS.API_CONFIG]: { ttl: 60000, priority: 'high' },      // API 配置：60秒
   'modelList': { ttl: 120000, priority: 'medium' },   // 模型列表：2分钟
@@ -682,69 +729,93 @@ export const getAvailableModels = async () => {
   }
 };
 
-// 🔧 模型自动发现缓存（避免每次生成都调 /models）
-let _deepseekModelsCache = null;
-let _deepseekModelsCacheTime = 0;
+// 🔧 模型列表拉取与自动发现的缓存/去重状态（避免每次生成都调 /models）
+//    _deepseekModelListCache = /models 返回的全量 id 列表；选定结果由 pickDiscoveredDeepSeekModel 现算（无需另存）
 let _deepseekDiscoverPromise = null; // 🔧 并发去重：同一次发现共享一个进行中的请求
+let _deepseekListPromise = null;     // 🔧 并发去重：模型全量列表拉取
 let _deepseekModelsBlocked = false;  // 🔧 /models 返回 401 后不再重复请求（该端点鉴权与 chat/completions 不一致）
+let _deepseekModelListCache = null;  // 🔧 云端可用模型 id 全量列表（供设置页下拉候选）
+let _deepseekModelListCacheTime = 0;
 const MODEL_DISCOVERY_TTL = 3600000; // 1 小时
 
 /**
- * 🔧 自动发现 DeepSeek 云端最新可用模型
- * 调用 GET /models 端点，优先选择 pro 模型，其次 flash
+ * 🔧 拉取 DeepSeek 云端可用模型 id **全量列表**（GET /models）
+ * ============================================================
+ * 用途：① 自动发现的输入；② 设置页下拉候选——**为后续新模型（如日后再出 Pro 旗舰）留出切换入口**：
+ *      新模型一经云端提供即自动进入下拉，用户可直接手动选用（不依赖本文件的自动选择规则）。
+ * 返回：string[]（未配置 Key / 401 / 空列表 / 网络失败 → []，调用方保持现有配置不变）
+ * 缓存：与自动发现同 TTL（1 小时）；并发去重。
+ */
+export const listDeepSeekModels = async () => {
+  const now = Date.now();
+  if (_deepseekModelsBlocked) return [];
+  if (_deepseekModelListCache && (now - _deepseekModelListCacheTime) < MODEL_DISCOVERY_TTL) {
+    return _deepseekModelListCache;
+  }
+  if (_deepseekListPromise) return _deepseekListPromise;
+
+  _deepseekListPromise = (async () => {
+    // 🔧 防御性清洗：全角转半角 + 去非法字符（内存中可能残留脏值）
+    const apiKey = sanitizeApiKey(apiConfig.deepseekApiKey || '');
+    if (!apiKey) {
+      console.log('🔍 DeepSeek 未配置 API Key，跳过模型列表拉取');
+      return [];
+    }
+    try {
+      const baseUrl = apiConfig.deepseekBaseUrl || 'https://api.deepseek.com/v1';
+      const response = await fetch(`${baseUrl}/models`, {
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+      if (!response.ok) {
+        // 🔧 /models 401 不代表 Key 无效：该端点鉴权策略与 chat/completions 不同，
+        //    仅作辅助信息（失败用已配置模型即可），且 401 后本次会话不再重复请求
+        if (response.status === 401) _deepseekModelsBlocked = true;
+        console.log(`🔍 DeepSeek /models 返回 ${response.status}，模型列表不可用`);
+        return [];
+      }
+      const data = await response.json();
+      const models = (data.data || []).map(m => m.id).filter(Boolean);
+      _deepseekModelListCache = models;
+      _deepseekModelListCacheTime = Date.now();
+      return models;
+    } catch (e) {
+      console.warn('🔍 DeepSeek 模型列表拉取失败:', e.message);
+      return [];
+    }
+  })().finally(() => {
+    _deepseekListPromise = null;
+  });
+
+  return _deepseekListPromise;
+};
+
+/**
+ * 🔧 自动发现 DeepSeek 云端模型并**选定当前使用模型**
  * 降级：API 调用失败 / 无 API Key → 保持当前配置不变
  * 缓存：1 小时内不重复请求；并发去重：同批次并发调用共享一次拉取
+ * 选择规则见 pickDiscoveredDeepSeekModel（A13-4：不"优先 pro"、不改写可用配置）。
  */
 export const autoDiscoverDeepSeekModel = async () => {
-  const now = Date.now();
-  if (_deepseekModelsBlocked) return apiConfig.deepseekModel; // /models 曾 401，跳过发现（不影响生成）
-  if (_deepseekModelsCache && (now - _deepseekModelsCacheTime) < MODEL_DISCOVERY_TTL) {
-    return _deepseekModelsCache;
-  }
   // 🔧 并发去重：生成前多个守卫并发调用时共享同一次拉取（避免重复请求与重复日志）
   if (_deepseekDiscoverPromise) return _deepseekDiscoverPromise;
 
   _deepseekDiscoverPromise = (async () => {
-  // 无 API Key 时不调用（/models 可能需鉴权）
-  // 🔧 防御性清洗：全角转半角 + 去非法字符（内存中可能残留脏值）
-  const apiKey = sanitizeApiKey(apiConfig.deepseekApiKey || '');
-  if (!apiKey) {
-    console.log('🔍 DeepSeek 未配置 API Key，跳过模型自动发现');
-    return apiConfig.deepseekModel;
-  }
-  
-  try {
-    const baseUrl = apiConfig.deepseekBaseUrl || 'https://api.deepseek.com/v1';
-    const response = await fetch(`${baseUrl}/models`, {
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      }
-    });
-    
-    if (!response.ok) {
-      // 🔧 /models 401 不代表 Key 无效：DeepSeek 该端点鉴权策略与 chat/completions 不同，
-      //    仅作为模型自动发现的辅助（失败用已配置模型即可），且 401 后本次会话不再重复请求
-      if (response.status === 401) _deepseekModelsBlocked = true;
-      console.log(`🔍 DeepSeek /models 返回 ${response.status}，使用已配置的模型: ${apiConfig.deepseekModel}`);
-      return apiConfig.deepseekModel;
-    }
-    
-    const data = await response.json();
-    const models = (data.data || []).map(m => m.id).filter(Boolean);
-    
-    if (models.length === 0) {
-      console.warn('🔍 DeepSeek /models 返回空列表，使用已配置的模型');
-      return apiConfig.deepseekModel;
-    }
-    
+    const models = await listDeepSeekModels();
+    if (!models.length) return apiConfig.deepseekModel;
+
     console.log(`🔍 DeepSeek 云端当前可用模型: ${models.join(', ')}`);
-    
-    // 优先 pro → flash → 第一个
-    const proModel = models.find(m => m.includes('pro'));
-    const flashModel = models.find(m => m.includes('flash'));
-    const bestModel = proModel || flashModel || models[0];
-    
+
+    // ✅ A13-4（2026-09-11）不再"优先 pro"：V4.1 Flash 已超越 V4 Pro，且 Pro 自 2026-09-14 起路由到 Flash。
+    //    新规则 = **不改写已有可用配置**（尊重用户选择与统一口径）；配置模型不在列表（已失效）才回落 flash。
+    //    选择规则抽成纯函数 pickDiscoveredDeepSeekModel，便于单测锁死"不再优先 pro"。
+    //    🔑 后续新模型（含日后再出的 Pro 旗舰）：自动选择**不会**自动切换过去（防重演"被自动改成 pro"），
+    //       但 listDeepSeekModels 已把全量列表交给设置页下拉 → 用户可手动切换；本条即"切换入口"的保证。
+    const bestModel = pickDiscoveredDeepSeekModel(models, apiConfig.deepseekModel);
+    if (!bestModel) return apiConfig.deepseekModel;
+
     if (bestModel !== apiConfig.deepseekModel) {
       console.log(`🔄 DeepSeek 模型自动更新: ${apiConfig.deepseekModel} → ${bestModel}`);
       apiConfig.deepseekModel = bestModel;
@@ -757,14 +828,8 @@ export const autoDiscoverDeepSeekModel = async () => {
     } else {
       console.log(`✅ DeepSeek 模型已是最新: ${bestModel}`);
     }
-    
-    _deepseekModelsCache = bestModel;
-    _deepseekModelsCacheTime = Date.now();
+
     return bestModel;
-  } catch (e) {
-    console.warn('🔍 DeepSeek 模型自动发现失败，使用已配置的模型:', e.message);
-    return apiConfig.deepseekModel;
-  }
   })().finally(() => {
     _deepseekDiscoverPromise = null;
   });
@@ -992,18 +1057,67 @@ export const getTaskMaxTokens = (taskType) => {
  *   一律产品护栏 64K；显性失败（API 拒超限）优于静默 8K 截断。
  * 其他引擎上限未固证 → Infinity（不钳制，防误伤）；app 层安全上界仍由 MAIN_TOKEN_CEIL 兜住。
  */
+/**
+ * 🔴 引擎能力表（A14「物理层」唯一事实源，2026-09-11）
+ * ============================================================
+ * 记录各 provider/model 的**物理能力**：上下文窗与单次最大输出。
+ * 预算解析一律"由能力表 + 实际输入量推导"，不再散落写死常量（A14 参数自适应）。
+ * 依据：DeepSeek 官方 API 文档（2026-09-11 核实）——
+ *   deepseek-flash（= V4.1-Flash）/ deepseek-v4-pro：上下文 1M、最大输出 384K；
+ *   旧 deepseek-chat / v3 系：最大输出 8K；旧 reasoner 最大 64K。
+ */
+export const ENGINE_CAPABILITY = {
+  deepseek: {
+    default: { contextWindow: 1000000, maxOutput: 393216 },            // V4 系列（含未来新名/空名）
+    rules: [
+      { re: /chat|v3/i, contextWindow: 131072, maxOutput: 8192 },      // 旧 chat / v3 系
+      { re: /reasoner|r1|think/i, contextWindow: 131072, maxOutput: 65536 },
+    ],
+  },
+};
+
+/** 解析引擎能力（provider + model → { contextWindow, maxOutput }）；未知 provider → 不设限 */
+export const resolveEngineCapability = (provider = '', model = '') => {
+  const cap = ENGINE_CAPABILITY[String(provider || '').toLowerCase()];
+  if (!cap) return { contextWindow: Infinity, maxOutput: Infinity };
+  const m = String(model || '');
+  for (const r of cap.rules || []) if (r.re.test(m)) return { contextWindow: r.contextWindow, maxOutput: r.maxOutput };
+  return { ...cap.default };
+};
+
+/**
+ * 🔴 单次输出成本上限（A14「偏好层」默认值，2026-09-11）
+ *   用户核定（2026-09-10）：单次输出一律 ≤ 64K，单次费用封顶；超出由"截断续写链"分次补齐。
+ *   该值由"写死的规则表"改为**偏好层默认值**：可经 `generationSettings.outputCeilingTokens` 上调，
+ *   但**永不超过物理上限**（resolveEngineCapability().maxOutput）。
+ */
+export const DEFAULT_OUTPUT_CEILING_TOKENS = 65536;
+
+/** 偏好层输出上限（默认 64K，可调；见 A4-9 偏差修订） */
+export const resolveOutputCeiling = () => {
+  const v = apiConfig?.generationSettings?.outputCeilingTokens;
+  return (typeof v === 'number' && v > 0) ? Math.floor(v) : DEFAULT_OUTPUT_CEILING_TOKENS;
+};
+
+/**
+ * 兼容导出：旧"输出上限规则表"名（供既有测试/外部引用）。
+ * 现由**能力表派生**，其 limit 语义 = **物理上限**（不再等于产品护栏）；
+ * 实际生效护栏请用 resolveEngineOutputLimit（= min(物理上限, 偏好层上限)）。
+ */
 export const MODEL_OUTPUT_LIMIT_RULES = [
-  { re: /chat|v3/i, limit: 8192 },            // 旧 deepseek-chat / v3 系：真实硬限（默认 4K、最大 8K）——精确匹配，不外溢
-  { re: /.*/, limit: 65536 },                 // 其余一切 deepseek（v4/flash/reasoner/未来新名/空名）：产品护栏 64K——
-                                              //   防新模型名不匹配再落 8192 误钳（2026-09-10 正文截断根因复现防线）
+  ...ENGINE_CAPABILITY.deepseek.rules.map(r => ({ re: r.re, limit: r.maxOutput })),
+  { re: /.*/, limit: ENGINE_CAPABILITY.deepseek.default.maxOutput },
 ];
 
-/** 按 引擎 provider + 模型名 解析单次输出上限（tokens）；非 deepseek → Infinity（不钳制） */
+/**
+ * 按 引擎 provider + 模型名 解析**单次输出最终护栏**（tokens）
+ *   = min(物理上限（能力表）, 偏好层上限（默认 64K，可调）)
+ * 非 deepseek → Infinity（上限未固证，不钳制——保持既有行为）
+ */
 export const resolveEngineOutputLimit = (provider = '', model = '') => {
-  if (provider !== 'deepseek') return Infinity;
-  const m = String(model || '');
-  for (const r of MODEL_OUTPUT_LIMIT_RULES) if (r.re.test(m)) return r.limit;
-  return 65536; // 兜底=产品护栏档（规则表末条已覆盖一切 deepseek；此处防未来规则调整再落 8192 误钳）
+  if (String(provider || '').toLowerCase() !== 'deepseek') return Infinity;
+  const physical = resolveEngineCapability(provider, model).maxOutput;
+  return Math.min(physical, resolveOutputCeiling());
 };
 
 /**
