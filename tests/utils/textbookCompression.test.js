@@ -213,4 +213,18 @@ describe('A15/A11 程序直读整章原文（不过滤类型；空/未标注段�
     expect(collectChapterRawText([])).toEqual([]);
     expect(collectChapterRawText(null)).toEqual([]);
   });
+
+  it('A17（甲方案）：卡片自带 rawText（有原文但未分析）→ 优先取真原文，不退化成目录文本', () => {
+    const cards = [
+      {
+        chapterTitle: '第1课',
+        rawText: '这是该课的真实教材原文，未分析但保留。',
+        segments: [{ text: '第1课\n  一、子标题', type: '正文' }],
+      },
+      { chapterTitle: '第2课', segments: [{ text: '纯目录文本（无原文）', type: '正文' }] },
+    ];
+    const chapters = collectChapterRawText(cards);
+    expect(chapters[0].rawText).toBe('这是该课的真实教材原文，未分析但保留。');
+    expect(chapters[1].rawText).toBe('纯目录文本（无原文）');
+  });
 });

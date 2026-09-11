@@ -31,9 +31,11 @@ export const estimateTokens = (chars = 0) => Math.ceil((Number(chars) || 0) / CH
 
 /**
  * ✅ A15/A11（2026-09-11）：**程序按勾选章节直读整章原文**
- *   - 按传入卡序（= 勾选章序 = 原文章序）逐章收集该章全部片段文本
+ *   - 按传入卡序（= 勾选章序 = 原文章序）逐章收集原文
  *   - **不做类型过滤**：练习/作业段照收（A11：防搬抄靠比对检出，不靠丢弃参考）；
  *     空/未标注 `type` 段同样计入（A11-2：不再被静默丢弃）
+ *   - ✅ A17（甲方案）：卡片自带 `rawText`（"有原文但未分析"的目录卡）时**优先取真原文**——
+ *     与"读取勾选章节完整原文/原文压缩照旧"一致，不再退化成只剩目录文本
  *   - 返回 `rawText`（整章，供压缩取料）与 `segmentTexts`（段级，供 `copyGuard` 语料）
  * @param {Array} cards contentCards
  * @returns {Array<{chapterTitle:string, rawText:string, segmentTexts:string[]}>}
@@ -43,9 +45,10 @@ export const collectChapterRawText = (cards = []) =>
     const segmentTexts = (c?.segments || [])
       .map((s) => String(s?.text || '').trim())
       .filter(Boolean);
+    const cardRaw = String(c?.rawText || '').trim();
     return {
       chapterTitle: String(c?.chapterTitle || '').trim(),
-      rawText: segmentTexts.join('\n'),
+      rawText: cardRaw || segmentTexts.join('\n'),
       segmentTexts,
     };
   }).filter((x) => x.rawText);

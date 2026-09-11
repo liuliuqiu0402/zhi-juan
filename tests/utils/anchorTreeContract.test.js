@@ -12,6 +12,7 @@ import {
   buildAnchorListByChapter,
   formatAnchorListByChapter,
 } from '../../src/utils/anchorTreeContract.js';
+import { buildAnchors } from '../../src/utils/coverageAnchor.js';
 
 // 正确形态：最小单位在第 3 层
 const goodTree = [
@@ -166,5 +167,33 @@ describe('A1-4 锚点清单按章分组（章序与原文一致）', () => {
   it('空输入安全返回空', () => {
     expect(buildAnchorListByChapter([])).toEqual([]);
     expect(formatAnchorListByChapter(null)).toBe('');
+  });
+});
+
+describe('A16（甲方案）锚点=目录：未分析/仅目录章不再从覆盖范围消失', () => {
+  const mkTocCard = () => ({
+    chapterTitle: '第3课 桂花雨',
+    segments: [{ text: '第3课 桂花雨\n  一、摇花乐\n  二、思乡情', type: '正文' }],
+    anchorTree: [{
+      bigConcept: '第3课 桂花雨',
+      coreKnowledge: ['第3课 桂花雨', '一、摇花乐', '二、思乡情'].map(name => ({
+        name, level: '理解', specificConcepts: [], suggestedQuestionTypes: [],
+      })),
+    }],
+  });
+
+  it('目录卡 → buildAnchors 产出带章名的锚（可进【锚点清单】）', () => {
+    const { anchors } = buildAnchors([mkTocCard()], {});
+    const names = anchors.map(a => a.name);
+    expect(names).toEqual(expect.arrayContaining(['第3课 桂花雨', '一、摇花乐', '二、思乡情']));
+    expect(anchors.every(a => a.chapterTitle === '第3课 桂花雨')).toBe(true);
+  });
+
+  it('目录锚进按章分组清单（章名 → 目录标签）', () => {
+    const { anchors } = buildAnchors([mkTocCard()], {});
+    const groups = buildAnchorListByChapter(anchors);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].chapterTitle).toBe('第3课 桂花雨');
+    expect(groups[0].names).toContain('一、摇花乐');
   });
 });
