@@ -4450,9 +4450,15 @@ ${cardAnalysisText.substring(0, 1000)}
       lastFr = data?.choices?.[0]?.finish_reason || '';
       const text = typeof lastMsg.content === 'string' ? lastMsg.content : '';
       const tcCount = (lastMsg.tool_calls || []).length;
-      console.info(`📚 [浏览·轮${round}] fr=${lastFr || '无'} text=${text.length}字符 tool_calls=${tcCount} content=${content.length}字符`);
+      console.log(`📚 [浏览·轮${round}] fr=${lastFr || '无'} text=${text.length}字符 tool_calls=${tcCount} content=${content.length}字符`);
       if (lastMsg.tool_calls && lastMsg.tool_calls.length) {
         if (text) content += text;
+        // 🔴 2026-09-11 混合轮缺号防线：模型"边写正文边 browse"（text+tool_calls 同轮）时，
+        //    正文片段经本分支直接累积，bodyLike 落地后的 gapNow 检测点根本不会执行 → 缺口
+        //    绕过内部防线、只在出口被外层拦截。此处补缺号检测（≥3 题号才判，片段少不误报），
+        //    缺口来源在日志可见；待 [浏览·轮] 实测坐实后按数据补"工具轮后主动续写"。
+        const gapMix = detectBodyNumberingGap(content);
+        if (gapMix) console.warn(`⚠️ [浏览·工具轮] 正文题号不连续（1~${gapMix.peak} 中缺：${gapMix.missing.join('、')}）——工具轮片段累积缺号`);
         if (round >= maxRounds) hitRoundLimit = true;
         messages.push({ role: 'assistant', content: text || null, tool_calls: lastMsg.tool_calls.map((tc) => ({ id: tc.id || '', type: 'function', function: { name: tc.function?.name || 'browse_textbook', arguments: String(tc.function?.arguments || '{}') } })) });
         for (const tc of lastMsg.tool_calls) {
@@ -4575,7 +4581,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
       break;
     }
-    console.info(`📚 [浏览出口] content=${content.length}字符 hitRoundLimit=${hitRoundLimit} hitTruncLimited=${hitTruncLimited} lastFr=${lastFr || '无'}`);
+    console.log(`📚 [浏览出口] content=${content.length}字符 hitRoundLimit=${hitRoundLimit} hitTruncLimited=${hitTruncLimited} lastFr=${lastFr || '无'}`);
     // 防旧教材覆盖校验（确定性，不靠模型兜底；只提示、不改写）
     const coverageNotes = [];
     const noTextChapters = (contentCards || [])
