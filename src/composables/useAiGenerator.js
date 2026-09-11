@@ -11,7 +11,7 @@ import { buildAnchors, boundAnchorNames } from '../utils/coverageAnchor.js';
 import { collectChapterRawText, compressOriginalText } from '../utils/textbookCompression.js'; // ✅ A15/A11：程序按勾选章节直读整章原文（材料压缩 + copyGuard 语料同源）
 import { formatAnchorListByChapter } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位）
 // ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
-import { planOutputQuota, nextContinuationBudget } from '../utils/outputQuota.js';
+import { planOutputQuota, nextContinuationBudget, isOverQuota } from '../utils/outputQuota.js';
 import { contractOf } from '../config/coverageContract.js';
 import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
 import {
@@ -4456,27 +4456,34 @@ ${cardAnalysisText.substring(0, 1000)}
           // 续写拼接：去除与正文末尾的重叠段（统一走模块级 appendContinuationWithDedup，
           // 与 callAI 内部续写同一套 DEDUP 口径）
           const contMult = (retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2);
-          // ✅ A4-9（2026-09-11）：轮次与每轮帽均由"总输出额度"推导——
-          //    轮次 = ⌈需求 ÷ 单次帽⌉ − 1（至少留 1 轮余量；**不再写死 6**）；
-          //    每轮帽 = min(单次帽, 总额度 − 已产出) × 思考放大，**随已产出递减**（旧实现每轮都给满，
-          //    那才是"总输出/总成本失控"的真正来源）；额度用尽即停止续写。
+          // ✅ A4-9（2026-09-11 用户定「先保完整、再防失控」）：**两层额度**
+          //    · 预期额度 softQuota：只用于告警，**超了不停止**（完整性优先，超支在生成报告里可见）
+          //    · 硬顶 hardQuota = 预期 + 1 轮：**唯一叫停线**
+          //    轮次由硬顶推导（不再写死 6）；每轮帽按"硬顶 − 已产出"递减（旧实现每轮都给满 → 总输出无上界）。
+          //    停止条件只剩三个：① 写完（不再截断）② 续写无效 ③ 触硬顶。
           const MAX_CONT = bodyQuota.rounds;
           let contCount = 0;
+          let overSoftWarned = false;
           while (trunc.truncated && contCount < MAX_CONT) {
+            if (!overSoftWarned && isOverQuota({ quota: bodyQuota.softQuota, producedChars: content.length })) {
+              overSoftWarned = true;
+              bodyPathNotes.push(`ℹ️ 正文已超预期额度（预期 ${bodyQuota.softQuota} token，当前 ${content.length} 字符）——为保证完整继续补齐（硬顶 ${bodyQuota.hardQuota} token）`);
+              console.warn(`⚠️ 整卷正文已超预期额度 ${bodyQuota.softQuota} token → 继续补齐，直至写完或触硬顶 ${bodyQuota.hardQuota}`);
+            }
             const contBudget = clampReq(nextContinuationBudget({
-              totalQuota: bodyQuota.totalQuota,
+              hardQuota: bodyQuota.hardQuota,
               producedChars: content.length,
               perCall: bodyQuota.perCall,
               thinkingMultiplier: contMult,
               engineCeiling: engineCap,
             }));
             if (contBudget <= 0) {
-              // 额度用尽：不再空转续写（原实现会一直给满额，导致总输出无上界）
-              bodyPathNotes.push(`ℹ️ 正文续写额度已用尽（总额度 ${bodyQuota.totalQuota} token，当前 ${content.length} 字符），停止续写`);
+              // 触硬顶：不再空转续写（原实现每轮都给满额，导致总输出无上界）
+              bodyPathNotes.push(`ℹ️ 正文已触续写硬顶（硬顶 ${bodyQuota.hardQuota} token，当前 ${content.length} 字符），停止续写`);
               break;
             }
             contCount++;
-            console.warn(`⏩ 整卷正文第 ${contCount}/${MAX_CONT} 次续写（本轮帽 ${contBudget} token，总额度 ${bodyQuota.totalQuota}）...（当前 ${content.length} 字符）`);
+            console.warn(`⏩ 整卷正文第 ${contCount}/${MAX_CONT} 次续写（本轮帽 ${contBudget} token，预期 ${bodyQuota.softQuota}/硬顶 ${bodyQuota.hardQuota}）...（当前 ${content.length} 字符）`);
             const contResp = await callAI(
               `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
               {
