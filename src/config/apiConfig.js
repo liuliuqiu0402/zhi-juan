@@ -567,6 +567,9 @@ export const apiConfig = reactive({
     //    推理 token 与正文共享 max_tokens 配额，需给推理预留余量）
     answerContextMaxChars: 24000,       // 答案页输入：正文纯文本上限（正文超过此长度时答案只看前 N 字符；高中大卷建议调大至 40000-60000）
     thinkingBudgetMultiplier: 2,        // 思考模式输出预算放大倍数
+    // ✅ A4-9（2026-09-11 用户裁定 128K）：单次输出**成本闸门**（设置页可调）。
+    //    单次帽/续写轮次/总额度均由 outputQuota.js 推导，此项是链上唯一的可调量。
+    outputCeilingTokens: 131072,
     // ✅ A15-2（2026-09-11）：原 browse 增强档配置键 `browseAutoFill` / `browseAutoFillMaxSkipped` 已随
     //    browse 机制整体移除而删除（写作取料改"程序直读整章原文 + 压缩"，不再有"未浏览章"概念）。
     // 🔧 每类型动态输出预算（2026-09 重构）：预算 = min(槽位硬上限 cap, max(floor, 勾选字符 × 当前系数))。
@@ -1084,14 +1087,16 @@ export const resolveEngineCapability = (provider = '', model = '') => {
 };
 
 /**
- * 🔴 单次输出成本上限（A14「偏好层」默认值，2026-09-11）
- *   用户核定（2026-09-10）：单次输出一律 ≤ 64K，单次费用封顶；超出由"截断续写链"分次补齐。
- *   该值由"写死的规则表"改为**偏好层默认值**：可经 `generationSettings.outputCeilingTokens` 上调，
- *   但**永不超过物理上限**（resolveEngineCapability().maxOutput）。
+ * 🔴 单次输出**成本闸门**（偏好层默认值，2026-09-11 用户裁定 128K）
+ *   历史：2026-09-10 曾是 64K（单次费用封顶）；2026-09-11 用户裁定上调为 **128K**——
+ *   理由：整本书场景按单章实测密度推算约 12 万 token 输出，64K 会进续写链（续写要重发上下文，
+ *   输入费反升），128K 可让整本书一次写完；同时最坏总输出 = 7×64K 的 2 倍量级，仍远低于物理上限。
+ *   ✅ 性质：这是**唯一可调量**（`generationSettings.outputCeilingTokens`，设置页可改）；
+ *   单次帽/续写轮次/总额度均由 `outputQuota.js` 推导，链上不再有固定常量。
  */
-export const DEFAULT_OUTPUT_CEILING_TOKENS = 65536;
+export const DEFAULT_OUTPUT_CEILING_TOKENS = 131072;
 
-/** 偏好层输出上限（默认 64K，可调；见 A4-9 偏差修订） */
+/** 偏好层成本闸门（默认 128K，可调；未设则取默认） */
 export const resolveOutputCeiling = () => {
   const v = apiConfig?.generationSettings?.outputCeilingTokens;
   return (typeof v === 'number' && v > 0) ? Math.floor(v) : DEFAULT_OUTPUT_CEILING_TOKENS;

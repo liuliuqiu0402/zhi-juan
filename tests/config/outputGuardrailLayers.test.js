@@ -34,30 +34,30 @@ describe('A14 输出护栏分层（物理层 × 偏好层，最终取 min）', (
     expect(resolveEngineCapability('', '').maxOutput).toBe(Infinity);
   });
 
-  it('A14-1 偏好层：默认 64K，且可经 generationSettings.outputCeilingTokens 调整', () => {
+  it('A14-1 偏好层：默认 128K（2026-09-11 用户裁定），且可经 generationSettings.outputCeilingTokens 调整', () => {
     clearCeiling();
-    expect(DEFAULT_OUTPUT_CEILING_TOKENS).toBe(65536);
-    expect(resolveOutputCeiling()).toBe(65536);
-    apiConfig.generationSettings.outputCeilingTokens = 100000;
-    expect(resolveOutputCeiling()).toBe(100000);
+    expect(DEFAULT_OUTPUT_CEILING_TOKENS).toBe(131072);
+    expect(resolveOutputCeiling()).toBe(131072);
+    apiConfig.generationSettings.outputCeilingTokens = 200000;
+    expect(resolveOutputCeiling()).toBe(200000);
     // 非法值（0/负/非数）回退默认，不产生"0 帽"把输出掐死
     apiConfig.generationSettings.outputCeilingTokens = 0;
-    expect(resolveOutputCeiling()).toBe(65536);
+    expect(resolveOutputCeiling()).toBe(131072);
     apiConfig.generationSettings.outputCeilingTokens = 'x';
-    expect(resolveOutputCeiling()).toBe(65536);
+    expect(resolveOutputCeiling()).toBe(131072);
   });
 
   it('A14-1 最终护栏 = min(物理层, 偏好层)：物理不放大用户保守设置，偏好也突破不了物理', () => {
     clearCeiling();
-    // 偏好 64K < 物理 384K → 取 64K（与今日行为一致）
-    expect(resolveEngineOutputLimit('deepseek', 'deepseek-flash')).toBe(65536);
-    // 偏好上调到 100K（仍 < 384K）→ 取 100K
-    apiConfig.generationSettings.outputCeilingTokens = 100000;
-    expect(resolveEngineOutputLimit('deepseek', 'deepseek-flash')).toBe(100000);
+    // 偏好 128K < 物理 384K → 取 128K
+    expect(resolveEngineOutputLimit('deepseek', 'deepseek-flash')).toBe(131072);
+    // 偏好上调到 200K（仍 < 384K）→ 取 200K
+    apiConfig.generationSettings.outputCeilingTokens = 200000;
+    expect(resolveEngineOutputLimit('deepseek', 'deepseek-flash')).toBe(200000);
     // 偏好设为远超物理 → 被物理层挡住，绝不超过 V4 物理上限 384K
     apiConfig.generationSettings.outputCeilingTokens = 999999999;
     expect(resolveEngineOutputLimit('deepseek', 'deepseek-flash')).toBe(393216);
-    // 物理层更严时以物理层为准：旧 chat 8K，偏好 64K 不得放大
+    // 物理层更严时以物理层为准：旧 chat 8K，偏好 128K 不得放大
     expect(resolveEngineOutputLimit('deepseek', 'deepseek-chat')).toBe(8192);
   });
 

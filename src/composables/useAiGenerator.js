@@ -10,6 +10,8 @@ import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
 import { buildAnchors, boundAnchorNames } from '../utils/coverageAnchor.js';
 import { collectChapterRawText, compressOriginalText } from '../utils/textbookCompression.js'; // ✅ A15/A11：程序按勾选章节直读整章原文（材料压缩 + copyGuard 语料同源）
 import { formatAnchorListByChapter } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位）
+// ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
+import { planOutputQuota, nextContinuationBudget } from '../utils/outputQuota.js';
 import { contractOf } from '../config/coverageContract.js';
 import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
 import {
@@ -4260,7 +4262,17 @@ ${cardAnalysisText.substring(0, 1000)}
     //    尽量不触发截断续写（续写只是兜底，一次成功质量最高）；配合篇幅纪律（写到即止），
     //    模型不会因预算大而注水，费用风险可控。缓冲只作用于正文/once 主请求，答案页独立槽不受影响。
     const BUDGET_SAFETY_BUFFER = 1.25;
-    bodyDynamicCap = Math.round(Math.min(bodyEffectiveCap, bodyNeeded * BUDGET_SAFETY_BUFFER));
+    // ✅ A4-9（2026-09-11 用户定"参数类全自适应"）：单次帽/续写轮次/总额度**一次性推导**——
+    //    单次帽 = min(引擎护栏, 类型槽帽, 需求×缓冲)；轮次 = ⌈需求 ÷ 单次帽⌉ − 1（至少留 1 轮余量）；
+    //    总额度 = 单次帽 × (1 + 轮次)。链上不再有 MAIN_TOKEN_CEIL / MAX_CONT=6 这类固定量；
+    //    唯一可调量是用户侧的**成本闸门**（已并入 engineCap = min(引擎物理上限, 偏好闸门)）。
+    const bodyQuota = planOutputQuota({
+      needTokens: bodyNeeded,
+      safetyBuffer: BUDGET_SAFETY_BUFFER,
+      perCallCap: bodyEffectiveCap,
+      engineCeiling: engineCap,
+    });
+    bodyDynamicCap = bodyQuota.perCall;
     // 答案页：split 才有独立答案页调用，用 answer 槽；once 无独立答案页（答案随正文，不走 here）
     const answerCfg = pickSlot('answer');
     const answerNeeded = Math.round(Math.max(floorTok, selectedRawChars * answerCfg.coef));
@@ -4444,15 +4456,27 @@ ${cardAnalysisText.substring(0, 1000)}
           // 续写拼接：去除与正文末尾的重叠段（统一走模块级 appendContinuationWithDedup，
           // 与 callAI 内部续写同一套 DEDUP 口径）
           const contMult = (retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2);
-          const contBudget = clampReq(attemptCap * contMult);
-          // 🔧 续写次数动态化：引擎单次输出有限（如 deepseek-chat 8K），总需求 ÷ 单次上限 = 需分片数，
-          //    +1 次余量（防恰好顶满）；非受限引擎沿用 2 次。上限 6 防失控循环。
-          const engineSteps = Number.isFinite(engineCap) ? Math.max(1, Math.ceil((attemptCap * contMult) / engineCap)) : 1;
-          const MAX_CONT = Math.min(6, engineSteps + 1);
+          // ✅ A4-9（2026-09-11）：轮次与每轮帽均由"总输出额度"推导——
+          //    轮次 = ⌈需求 ÷ 单次帽⌉ − 1（至少留 1 轮余量；**不再写死 6**）；
+          //    每轮帽 = min(单次帽, 总额度 − 已产出) × 思考放大，**随已产出递减**（旧实现每轮都给满，
+          //    那才是"总输出/总成本失控"的真正来源）；额度用尽即停止续写。
+          const MAX_CONT = bodyQuota.rounds;
           let contCount = 0;
           while (trunc.truncated && contCount < MAX_CONT) {
+            const contBudget = clampReq(nextContinuationBudget({
+              totalQuota: bodyQuota.totalQuota,
+              producedChars: content.length,
+              perCall: bodyQuota.perCall,
+              thinkingMultiplier: contMult,
+              engineCeiling: engineCap,
+            }));
+            if (contBudget <= 0) {
+              // 额度用尽：不再空转续写（原实现会一直给满额，导致总输出无上界）
+              bodyPathNotes.push(`ℹ️ 正文续写额度已用尽（总额度 ${bodyQuota.totalQuota} token，当前 ${content.length} 字符），停止续写`);
+              break;
+            }
             contCount++;
-            console.warn(`⏩ 整卷正文第 ${contCount}/${MAX_CONT} 次续写...（当前 ${content.length} 字符）`);
+            console.warn(`⏩ 整卷正文第 ${contCount}/${MAX_CONT} 次续写（本轮帽 ${contBudget} token，总额度 ${bodyQuota.totalQuota}）...（当前 ${content.length} 字符）`);
             const contResp = await callAI(
               `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
               {
