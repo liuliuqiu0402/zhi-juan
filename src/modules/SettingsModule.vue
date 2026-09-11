@@ -752,35 +752,8 @@
             </div>
           </div>
 
-          <!-- 🔧 未浏览章确认增强档（提醒模型自判/关） -->
-          <div style="background:#f4f8fd;border:1px solid #dfe8f2;border-radius:8px;padding:8px 12px;margin-bottom:10px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:200px;">
-                <div style="font-size:12px;font-weight:600;color:#333;">
-                  🔧 写作取材·未浏览章提示
-                </div>
-                <div style="font-size:10px;color:#8896a8;margin-top:3px;line-height:1.5;">
-                  写作期若某章<b>有教材原文素材但模型未 browse</b>（研读覆盖点名+摘要已含该章覆盖理解，browse 仅按需补原文细节）：
-                  <span
-                    v-if="settings.value?.generationSettings?.browseAutoFill !== false"
-                    style="color:#1f6feb;"
-                  >开 = 发一轮提示交模型自判（需要原文精确形态的章 browse 取、研读摘要已够的直接写作）；模型确认后仍未 browse 即视为判定完成，未浏览章列入生成报告供核对，程序不代 browse、不注入原文；</span>
-                  <span
-                    v-else
-                    style="color:#8896a8;"
-                  >关 = 不提示，未浏览章仅列入生成报告（省成本，由命题老师复核）。</span>
-                </div>
-              </div>
-              <button
-                class="btn-small"
-                style="font-size:11px;padding:3px 12px;"
-                :style="settings.value?.generationSettings?.browseAutoFill !== false ? 'background:#eaf4ff;color:#1f6feb;border:1px solid #1f6feb;' : ''"
-                @click="toggleBrowseAutoFill"
-              >
-                {{ settings.value?.generationSettings?.browseAutoFill !== false ? '● 开（提示模型自判，默认）' : '○ 关（仅报告）' }}
-              </button>
-            </div>
-          </div>
+          <!-- ✅ A15-2（2026-09-11）：原「写作取材·未浏览章提示」开关随 browse 机制整体移除而删除——
+               写作取料已改"程序直读整章原文 + 压缩"，不存在"模型未浏览章"，故该档位失去意义。 -->
 
           <!-- 逐类型卡片 -->
           <div
@@ -1687,17 +1660,10 @@ const setAllPaths = (path) => {
   setTimeout(() => { saveStatus.value = ''; }, 5000);
 };
 
-// 🔧 写作取材·未浏览章自判 开关（默认开，配置键 browseAutoFill，素材线 G7 语义）：
-//    开 = 检出"有素材但未浏览"的章先发一轮提示交模型自判（需教材原文精确形态则 browse 取、研读摘要已够则直接写作；
-//        模型确认后仍未 browse 即视为判定完成），未浏览章列入生成报告供复核，程序不代 browse、不注入原文；关 = 不提示，仅列入报告。
-const toggleBrowseAutoFill = () => {
-  const gs = settings.value.generationSettings || {};
-  gs.browseAutoFill = (gs.browseAutoFill !== false) ? false : true;
-  saveStatus.value = gs.browseAutoFill === false ? '已切换为「仅提醒」：检出未浏览章不再提示模型自判，仅列入生成报告供复核。请点「保存设置」生效' : '已切换为「未浏览章自判」：检出未浏览章先交模型自判（需要原文精确形态的章 browse 取、研读摘要已够的直接写作）。请点「保存设置」生效';
-  setTimeout(() => { saveStatus.value = ''; }, 5000);
-};
+// ✅ A15-2（2026-09-11）：原「写作取材·未浏览章自判」开关（配置键 browseAutoFill）随 browse 机制
+//    整体移除而删除——写作取料已改"程序直读整章原文 + 压缩"，不存在"模型未浏览章"这一概念。
 
-// 生成端读取的系数在配置里，这里仅作"当前生效值"展示辅助（与生成端 pickSlot 同口径）
+// 🔧 生成端读取的系数在配置里，这里仅作"当前生效值"展示辅助（与生成端 pickSlot 同口径）
 // 纯读取：返回当前内存中的 budgetByType（无副作用，模板多读安全——不能在渲染中做补全/深拷贝）
 const budgetBt = () => settings.value.generationSettings?.budgetByType || {};
 
@@ -1978,6 +1944,9 @@ const saveSettings = async () => {
   // 🔧 写回前剔除已废弃字段（dynamicBudgetMode 已被 budgetByType 取代），避免旧配置残留
   const gsToSave = { ...settings.value.generationSettings };
   delete gsToSave.dynamicBudgetMode;
+  // ✅ A15-2：剔除随 browse 移除而废弃的字段（旧存档残留不写回）
+  delete gsToSave.browseAutoFill;
+  delete gsToSave.browseAutoFillMaxSkipped;
   apiConfig.generationSettings = gsToSave;
   await saveConfig(settings.value);
   await refreshConfigCache();

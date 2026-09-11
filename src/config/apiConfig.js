@@ -567,12 +567,8 @@ export const apiConfig = reactive({
     //    推理 token 与正文共享 max_tokens 配额，需给推理预留余量）
     answerContextMaxChars: 24000,       // 答案页输入：正文纯文本上限（正文超过此长度时答案只看前 N 字符；高中大卷建议调大至 40000-60000）
     thinkingBudgetMultiplier: 2,        // 思考模式输出预算放大倍数
-    // 🔧 大范围浏览·漏章补齐（2026-09 增强档）：
-    //    true  = 自动补齐（默认）：检测到"目录有可用原文素材、但模型本次未浏览"的章节（漏章数量 ≤ browseAutoFillMaxSkipped）
-    //            时，程序在收敛前把那批漏章的原文确定性注入上下文，让模型重新取材后收敛出正文——兜住"章节覆盖不遗漏"。
-    //    false = 仅提醒：只列入主编式提醒，不自动补料（省一次补料调用；正式卷由命题老师复核）。
-    browseAutoFill: true,
-    browseAutoFillMaxSkipped: 3,        // 漏章数量上界：超过此数退回"仅提醒"（补料过多会显著放大多轮往返成本与上下文）
+    // ✅ A15-2（2026-09-11）：原 browse 增强档配置键 `browseAutoFill` / `browseAutoFillMaxSkipped` 已随
+    //    browse 机制整体移除而删除（写作取料改"程序直读整章原文 + 压缩"，不再有"未浏览章"概念）。
     // 🔧 每类型动态输出预算（2026-09 重构）：预算 = min(槽位硬上限 cap, max(floor, 勾选字符 × 当前系数))。
     //    动态是主预算：正常勾选范围下 cap 不介入，动态系数直接生效；仅当勾选远超该类型预期才触 cap（提示范围过大）。
     //    budgetByType[type] = {

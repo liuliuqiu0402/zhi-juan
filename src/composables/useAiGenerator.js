@@ -4273,13 +4273,16 @@ ${cardAnalysisText.substring(0, 1000)}
     } catch { /* 引擎配置探询失败 → 不钳制：护栏为防误伤兜底，非关键路径 */ }
     const clampReq = (tok) => Math.min(tok, engineCap);
 
+    // ✅ A14-2（2026-09-11）：`cap` 为**硬顶**——须区分"系数/校准导致超限"与"范围性超限"：
+    //    · 系数/校准导致（原文量本身未超该槽容量）→ **取 cap**（校准/手填不得悄悄把预算顶过用户设的上限）；
+    //    · 范围性超限（原文量本身已超该槽容量）→ 走既有**显式升级**（提示"已自动加长预算"，且受引擎护栏封顶）。
+    const rangeNeed = Math.max(floorTok, selectedRawChars); // 范围性下限：1 token/字（不含任何系数放大）
     const bodyOverCap = bodyNeeded > bodyCfg.cap;
-    // 🔧 触顶升级（2026-09）：勾选量远超该类型预期（估算所需 > 槽 cap）时，不静默截断预算——
-    //    本次调用升级为实际所需，保证内容完整生成；提示"范围较大，已自动加长预算"。
+    const bodyRangeOver = bodyOverCap && rangeNeed > bodyCfg.cap;
+    // 🔧 触顶升级（2026-09）：勾选量远超该类型预期（范围性超限）时，不静默截断预算——升级为实际所需。
     //    🔧 A4-9 收口（2026-09-11）：升级上界不再写死常量（原 MAIN_TOKEN_CEIL=98304，竟**高于**引擎护栏
-    //    65536 而形同虚设），改取上面推导出的**引擎护栏** `engineCap`（能力表×偏好层）——既保证完整生成，
-    //    又天然不越引擎单次上限。
-    const bodyEffectiveCap = bodyOverCap ? Math.min(engineCap, bodyNeeded) : bodyCfg.cap;
+    //    65536 而形同虚设），改取上面推导出的**引擎护栏** `engineCap`（能力表×偏好层）。
+    const bodyEffectiveCap = bodyRangeOver ? Math.min(engineCap, bodyNeeded) : bodyCfg.cap;
     let bodyDynamicCap = Math.round(Math.min(bodyEffectiveCap, bodyNeeded));
     // 🔧 防截断安全缓冲（2026-09"一次成功优先"）：估算 ×1.25 再取帽——HTML 标签膨胀/知识展开会让实际
     //    输出 token 高于「素材×系数」估算（summary once 实证低估 ~20%）。缓冲宁多勿少，让主请求一次写完、
@@ -4291,13 +4294,18 @@ ${cardAnalysisText.substring(0, 1000)}
     const answerCfg = pickSlot('answer');
     const answerNeeded = Math.round(Math.max(floorTok, selectedRawChars * answerCfg.coef));
     const answerOverCap = answerNeeded > answerCfg.cap;
-    const answerEffectiveCap = answerOverCap ? Math.min(engineCap, answerNeeded) : answerCfg.cap;
+    const answerRangeOver = answerOverCap && rangeNeed > answerCfg.cap; // ✅ A14-2：cap 硬顶（仅范围性超限才升级）
+    const answerEffectiveCap = answerRangeOver ? Math.min(engineCap, answerNeeded) : answerCfg.cap;
     const answerDynamicCap = Math.round(Math.min(answerEffectiveCap, answerNeeded));
     const bodyEngineOver = bodyDynamicCap > engineCap;
     const answerEngineOver = answerDynamicCap > engineCap;
     const budgetAlert = [
-      (bodyOverCap ? `${genType}正文估算${bodyNeeded}token 超上限${bodyCfg.cap}，已自动加长预算` : ''),
-      (answerOverCap ? `答案页估算${answerNeeded}token 超上限${answerCfg.cap}，已自动加长` : ''),
+      (bodyOverCap ? (bodyRangeOver
+        ? `${genType}正文估算${bodyNeeded}token 超上限${bodyCfg.cap}（范围性），已自动加长预算`
+        : `${genType}正文系数/校准估算${bodyNeeded}token 超上限${bodyCfg.cap}，按 cap 硬顶收紧`) : ''),
+      (answerOverCap ? (answerRangeOver
+        ? `答案页估算${answerNeeded}token 超上限${answerCfg.cap}（范围性），已自动加长`
+        : `答案页系数/校准估算${answerNeeded}token 超上限${answerCfg.cap}，按 cap 硬顶收紧`) : ''),
       (bodyEngineOver ? `正文估算超引擎单次输出上限 ${engineCap} token，将自动分次续写补齐` : ''),
       (answerEngineOver ? `答案页估算超引擎单次输出上限 ${engineCap} token，将自动分次续写补齐` : ''),
     ].filter(Boolean).join('；');
@@ -4587,17 +4595,21 @@ ${cardAnalysisText.substring(0, 1000)}
         const ansAlignNote = isSelfContainedTeaching
           ? '答案区按正文对应的栏目与题号层级组织、与正文同构；不复述正文知识梳理，不重现正文作答空位。'
           : '题号与正文完全一致，答案按正文的大题与题号层级组织、与正文同构。不复述题干原文（含子题题干），不重现正文作答空位。';
-        const ansPrompt = `${ansRole}${ansAlignNote}
-${selfContainedAnsNote}
-${ansFormat}
-
-【正文】
-${paperPlain || '（正文为空，无法作答——请终止输出）'}`;
+        // ✅ A6（2026-09-11）：答案页前缀顺序 = **压缩原文（仅 full）→ 正文全文 → 委托书（答案规范，末尾锚定）**
+        //    · 压缩原文**仅 `mode === 'full'`** 携带（答案常需原文精确表述，如默写/原句）；
+        //      命题/练习型**不带**（题目自带情境与素材，且防"照搬原文作答"）；
+        //    · **不带锚点清单**：答案范围由正文实际题目决定，锚清单会引入"第二套组织"→ 答案与题目错位；
+        //    · 顺序依据同写作期（首尾强/中段弱）：素材在前 → 操作对象（正文）紧邻指令 → 指令末尾 recency 最强。
+        const ansMaterial = (contractOf(genType).mode === 'full' && compressedText)
+          ? `【压缩原文·答案参考】\n${compressedText}\n\n`
+          : '';
+        const ansPrompt = `${ansMaterial}【正文】\n${paperPlain || '（正文为空，无法作答——请终止输出）'}\n\n`
+          + `【答案规范】\n${ansRole}${ansAlignNote}\n${selfContainedAnsNote}\n${ansFormat}`;
         const ansThinking = getGenerationThinkingEnabled();
         const ansResp = await callAI(ansPrompt, {
           taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
-          // 🔴 素材唯一性（2026-09-10 用户定版）：答案生成只以【正文全文】为据——不带任何素材前缀。
-          //    答案严格从正文出：正文缺 → 答案必缺，缺陷即时暴露，绝不让外部素材掩盖正文缺口。
+          // 🔴 素材口径（2026-09-10 定版 + 2026-09-11 A6 修订）：答案以【正文全文】为唯一基准；`full` 另带
+          //    【压缩原文】作参考（供原文精确表述），命题型不带。答案严格从正文出：正文缺 → 答案必缺，缺陷即时暴露。
           // 🔴 答案页输出预算来自每类型 answer 槽的 answerDynamicCap；思考模式按 thinkingBudgetMultiplier 放大
           //    （推理预留 + 答案输出），并设 20K 推理上限流式中止止损（答案页短输出，推理可控）
           // 🔧 答案页温度走设置页（answerTemperature）

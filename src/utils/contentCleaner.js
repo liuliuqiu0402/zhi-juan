@@ -121,7 +121,7 @@ export function stripPlanningPreamble(raw = '') {
  * 真实正文结构。判定为"内容结构"（任一命中即真）：
  *   ① 栏目标题 <h2>/<h3>/<h4>；② 题目块 <p class="question">；③ 作答载体 blank-N/blank-line/blank-area；
  *   ④ 行首题号/条目号（^\s*\d{1,2}[.、．]\s*）；⑤ 若无上述结构但仅剩纯文本 → 判非正文（自述）。
- * 供 generateBodyByTextbookBrowse 出口与 _runPaperOrder 正文采纳守卫复用（只判不改）。
+ * 供 _runPaperOrder 正文采纳守卫复用（只判不改）。
  */
 export function hasBodyContentStructure(html = '') {
   const src = String(html || '');
