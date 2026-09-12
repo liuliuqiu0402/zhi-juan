@@ -149,4 +149,22 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(src).not.toContain('凡题干提到而卷面未给出');
     expect(src).not.toContain('使本题**仅凭本题自身即可完成**');
   });
+
+  // 🔴 2026-09-12（用户裁定）：篇幅纪律注入位置在【输出约定】尾部（注意力最高区），原句以"止"字收尾
+  //    （篇幅纪律旧句末尾那三字），与当前失效模式（过早收尾/正文丢题）同向 → 改为显式
+  //    "逐项齐全后方可收尾 + 严禁提前收尾"。本用例锁定"提示词正文"（注释留痕会引用旧词，
+  //    故按 LENGTH_DISCIPLINE 取值断言，不做整文件裸词匹配）。
+  it('篇幅纪律不得回退"以止收尾"的旧措辞，须显式禁提前收尾（上限意图不丢）', () => {
+    const srcPath = path.join(ROOT, 'src', 'config', 'promptLibrary.js');
+    const src = fs.readFileSync(srcPath, 'utf8');
+    const m = src.match(/LENGTH_DISCIPLINE:\s*'([^']+)'/);
+    expect(m).toBeTruthy();
+    const value = m[1];
+    expect(value).not.toContain('写到即止');            // 旧措辞不得回退
+    expect(value).toContain('全部栏目与题目逐项齐全后方可收尾');
+    expect(value).toContain('严禁以省略、合并或提前收尾代替内容');
+    // 上限纪律（防注水）意图不得因改写而丢失
+    expect(value).toContain('不堆砌空话套话');
+    expect(value).toContain('不为凑篇幅扩写无关或编造内容');
+  });
 });

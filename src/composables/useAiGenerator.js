@@ -4337,7 +4337,8 @@ ${cardAnalysisText.substring(0, 1000)}
     let bodyDynamicCap = Math.round(Math.min(bodyEffectiveCap, bodyNeeded));
     // 🔧 防截断安全缓冲（2026-09"一次成功优先"）：估算 ×1.25 再取帽——HTML 标签膨胀/知识展开会让实际
     //    输出 token 高于「素材×系数」估算（summary once 实证低估 ~20%）。缓冲宁多勿少，让主请求一次写完、
-    //    尽量不触发截断续写（续写只是兜底，一次成功质量最高）；配合篇幅纪律（写到即止），
+    //    尽量不触发截断续写（续写只是兜底，一次成功质量最高）；配合篇幅纪律（覆盖全部要求为准，
+    //    严禁提前收尾——2026-09-12 删"写到即止"，见 promptLibrary LENGTH_DISCIPLINE 注释），
     //    模型不会因预算大而注水，费用风险可控。缓冲只作用于正文/once 主请求，答案页独立槽不受影响。
     const BUDGET_SAFETY_BUFFER = 1.25;
     // ✅ A4-9（2026-09-11 用户定"参数类全自适应"）：单次帽/续写轮次/总额度**一次性推导**——
@@ -4612,7 +4613,9 @@ ${cardAnalysisText.substring(0, 1000)}
           }
         }
         // 🔴 2026-09-10 丢题拦截（严格收口·用户定版"残次品绝不放行"）：题号连续性校验——
-        //    缺号与截断同待遇：本 attempt 判失败、升级预算重试；重试后仍缺号 → 由下方终极守卫判失败（宁失败不残缺）
+        //    缺号与截断共用同一重试槽（第 2 次尝试），但**病因与手段不同**：截断=预算不足 → 预算 ×1.4；
+        //    缺号=生成行为 → 把缺号清单回灌模型令其逐题补全（与预算无关，勿再写成"升级预算"）。
+        //    重试后仍缺号 → 由下方终极守卫判失败（宁失败不残缺）
         const qGap = detectBodyNumberingGap(content);
         if (content && isDeliverableBodyHtml(content) && !qGap) break;
         if (qGap) {
@@ -4620,6 +4623,26 @@ ${cardAnalysisText.substring(0, 1000)}
           try {
             const d = diagnoseNumberingGap(content);
             console.warn(`🔢 [题号诊断·第${attempt + 1}次尝试] 正文${content.length}字符 行首题号=[${d.found.join(',')}] 峰值=${d?.gap?.peak} 缺=[${d.missing.join(',')}] 正文内1~2位数字总数=${d.anyDigitCount}`);
+            // 🔢 归一化前后对照取证（2026-09-12 用户裁定"从程序侧排查"）：题号诊断跑在归一化链**之后**
+            //    （content 是 4536 那一长串 normalizer 的产物），拿不出"模型到底写了什么"——
+            //    故此处用同一口径对**模型直出**（respObj.content，未含续写拼接）再量一次：
+            //      · 原始题号更全 ⇒ 程序侧削除（归一化链 bug，重试能过只是碰巧躲过触发条件）
+            //      · 原始即缺   ⇒ 模型侧行为（跳号/少写），缺号回灌重试是正解
+            //    ⚠️ 只出证据、不参与判定（判定仍由 detectBodyNumberingGap 决定）。
+            const rawSrc = String(respObj.content || '');
+            const rawNums = extractBodyQuestionNumbers(rawSrc);
+            const procNums = extractBodyQuestionNumbers(content);
+            const rawGap = detectBodyNumberingGap(rawSrc);
+            const who = rawNums.length > procNums.length
+              ? '⚠️ 程序侧削除（原始题号更全——须查归一化链）'
+              : '模型侧（原始输出即缺，非程序削除）';
+            console.warn(`🔢 [回归取证·第${attempt + 1}次尝试] 原始输出${rawSrc.length}字符/题号${rawNums.length}个=[${rawNums.join(',')}] 原始缺号=[${rawGap ? rawGap.missing.join(',') : '无'}] ｜ 归一化后${content.length}字符/题号${procNums.length}个=[${procNums.join(',')}] ｜ 判定=${who}`);
+            if (rawNums.length > procNums.length) {
+              try {
+                const rd = diagnoseNumberingGap(rawSrc);
+                rd.skeleton.forEach((s, i) => console.warn(`      原始骨架 ${String(i + 1).padStart(2, '0')}| ${s}`));
+              } catch (e2) { /* 原始骨架失败不影响主流程 */ }
+            }
             d.peek.forEach((p) => console.warn(`   ↳ 缺号 ${p.n}：${p.where}${p.sample ? ` ｜ 上下文「${p.sample}」` : ''}`));
             if (d.skeleton?.length) {
               console.warn(`   ↳ 题号骨架（行首数字/括号序号/第N题，最多 40 行，各截 44 字）——据此判定缺号是大题还是子题：`);
@@ -4627,8 +4650,8 @@ ${cardAnalysisText.substring(0, 1000)}
             }
           } catch (e) { /* 诊断失败不影响主流程 */ }
           lastGapNote = `正文题号缺失：${qGap.missing.join('、')}（1~${qGap.peak} 中缺）——本次必须补全这些题，题号从 1 起逐题连续`;
-          bodyPathNotes.push(`⚠️ 正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——升级预算重新整卷生成`);
-          throw new Error(`正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——正文疑似丢题${attempt === 0 ? '，升级预算重试' : '，重试后仍未补齐'}`);
+          bodyPathNotes.push(`⚠️ 正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——重试（缺号清单已回灌模型；非预算截断）`);
+          throw new Error(`正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——正文疑似丢题${attempt === 0 ? '，重试（缺号清单已回灌模型）' : '，重试后仍未补齐'}`);
         }
         lastGapNote = '正文为空/过短/无正文结构（疑似仅自述）——本次必须输出完整正文结构';
         throw new Error('整卷输出为空/过短/无正文结构（疑似仅自述）');
@@ -4638,7 +4661,7 @@ ${cardAnalysisText.substring(0, 1000)}
         if (attempt === 0) {
           await new Promise(r => setTimeout(r, apiConfig.generationSettings?.retry?.baseDelayMs ?? 2000));
           console.warn('⚠️ 整卷生成第1次失败，重试:', e.message);
-          bodyPathNotes.push(`⚠️ 整卷生成第 1 次尝试失败（${e.message}）——已自动升级预算重试`);
+          bodyPathNotes.push(`⚠️ 整卷生成第 1 次尝试失败（${e.message}）——已自动重试（第 2 次：预算 ×1.4 + 失败实况回灌）`);
         }
       }
     }
@@ -4935,7 +4958,7 @@ ${cardAnalysisText.substring(0, 1000)}
       auditWarnings.push('⚠️ 答案页生成失败/为空（正文已生成）。排查方向：① 引擎是否强制推理（推理会占用答案预算，可在设置关闭对应引擎思考开关）；② 「答案页输出上限」是否过小；③ 正文超「答案页上下文上限」时答案只能看到前段；④ 切换两次生成模式重试。');
     }
     if (answerSkipNote) auditWarnings.push(answerSkipNote);
-    // 🔧 正文路径事件透出（2026-09-11 用户定版"过程不静默"）：截断续写/升级预算重试/思考降级
+    // 🔧 正文路径事件透出（2026-09-11 用户定版"过程不静默"）：截断续写/题号缺失重试/思考降级
     //    等只在 console 的补救事件，成功交付时用户也能看到正文曾"不全→补救"的过程
     if (bodyPathNotes.length) auditWarnings.push(...bodyPathNotes);
     if (anchorMissingNote) auditWarnings.push(anchorMissingNote);
