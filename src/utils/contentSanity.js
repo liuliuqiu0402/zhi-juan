@@ -229,6 +229,12 @@ export const detectQuoteConflicts = (html = '') => {
     { open: '‘', re: /‘([^’\n]{6,120})’/g },
   ];
   const seen = []; // 已见引文（不分引号类型，跨类型同文也算复现）
+  // 🔴 2026-09-12（用户实测）：比较前先剥除引文**首尾句末标点**。英文把句末句号放在引号内是通行排版
+  //    （句末引用单元名/口号 → "Try your best."），与别处 "Try your best" 仅差一个尾句号，
+  //    语义上并非"两种写法"；原实现按裸编辑距离比较，≥1 即报，这类纯尾标点差异会反复打扰编辑。
+  //    只剥首尾标点，**内部标点/文字差异照报**（真·写法不一致完全不受影响）。
+  const TRIM_EDGE_PUNCT = /^[\s。．.!！?？；;，,、:：]+|[\s。．.!！?？；;，,、:：]+$/g;
+  const normQuote = (s) => String(s || '').replace(TRIM_EDGE_PUNCT, '').toLowerCase();
   for (const { re } of matchers) {
     let m;
     while ((m = re.exec(src)) !== null) {
@@ -236,9 +242,9 @@ export const detectQuoteConflicts = (html = '') => {
       if (q.length < 6) continue;
       for (const prev of seen) {
         if (prev === q) continue; // 完全相同不算冲突
-        // 大小写变体（英文句中引用/句首大写差异）不视为冲突：比较前统一小写
-        const a = prev.toLowerCase();
-        const b = q.toLowerCase();
+        // 大小写变体（英文句中引用/句首大写差异）与首尾句末标点差异均不视为冲突
+        const a = normQuote(prev);
+        const b = normQuote(q);
         if (a === b) continue;
         const dist = levenshtein(a, b, 2);
         if (dist <= 2) {

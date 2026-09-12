@@ -180,6 +180,15 @@ describe('contentSanity 2026-09 同份资料引文复现一致性检测', () => 
     expect(detectQuoteConflicts("Let's go. children's book isn't here.")).toEqual([]);
   });
 
+  // 🔴 2026-09-12（用户实测）：仅"首尾句末标点"差异不报——句末引用单元名/口号时把句号放引号内是
+  //    通行排版（"Try your best."），语义上不是"两种写法"，原实现按裸编辑距离比较会反复打扰编辑；
+  //    但**内部差异仍须报**，防把真不一致一并放过。
+  it('仅首尾句末标点差异 → 不报（通行排版）；内部差异照报', () => {
+    expect(detectQuoteConflicts('海报写着 "Try your best."，单元名叫 "Try your best"。')).toEqual([]);
+    expect(detectQuoteConflicts('引文“床前明月光，疑是地上霜。”与“床前明月光，疑是地上霜”并存。')).toEqual([]);
+    expect(detectQuoteConflicts('引文“床前明月光，疑是地上霜”与“床前明月光，疑是地上箱”并存。')).toHaveLength(1);
+  });
+
   it('sanityScan 汇总含引文冲突；HTML 标签剥离后正常', () => {
     expect(sanityScan('<p>“床前明月光，疑是地上霜”</p><p>“床前明月光，疑是地霜”</p>')).toHaveLength(1);
     expect(sanityScan('<p>“春眠不觉晓”</p><p>“春眠不觉晓”</p>')).toEqual([]);
