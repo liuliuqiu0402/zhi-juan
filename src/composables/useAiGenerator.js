@@ -940,8 +940,11 @@ ${JSON.stringify(cardsSummary, null, 2)}
 🔴 语言口径（2026-09 对账口径根治）：教材为外语（英语等）时，coreKnowledge.name 用中文作教学标签，但 specificConcepts 必须是教材原文语言的词/短语（如英语：regular past tense -ed、Mulan、keep trying、first/then/finally 等），供生成正文与覆盖对账同一语言口径；禁止把 specificConcepts 翻译成中文（与英文正文词面失配则对账无法命中）。`;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const response2 = await callAI(prompt2, { taskType: attempt >= 1 ? 'blueprint' : 'analysis', temperature: apiConfig.generationSettings.analysisTemperature, retries: 0, forceJson: true });
-      const parsed = await robustJsonParse(response2, (rp) => callAI(rp, { taskType: 'analysis', temperature: apiConfig.generationSettings.analysisTemperature }), `第二步-尝试${attempt + 1}`);
+      // 🔧 本调用点是"知识图谱"schema（与教材特征分析不同）→ 显式声明缓存有效性判据字段，
+      //    否则会被缓存守卫按"教材特征分析"字段误判为坏结果而拒缓存（2026-09-12 实证）
+      const KM_CACHE_FIELDS = ['knowledgeGraph', 'knowledgePoints', 'keyDifficulties', 'crossChapterLinks'];
+      const response2 = await callAI(prompt2, { taskType: attempt >= 1 ? 'blueprint' : 'analysis', temperature: apiConfig.generationSettings.analysisTemperature, retries: 0, forceJson: true, cacheKeyFields: KM_CACHE_FIELDS });
+      const parsed = await robustJsonParse(response2, (rp) => callAI(rp, { taskType: 'analysis', temperature: apiConfig.generationSettings.analysisTemperature, cacheKeyFields: KM_CACHE_FIELDS }), `第二步-尝试${attempt + 1}`);
       if ((parsed.knowledgeGraph && parsed.knowledgeGraph.length) || (parsed.knowledgePoints && parsed.knowledgePoints.length)) {
         // 🔧 防御：确保 knowledgePoints/keyDifficulties 只包含有效字符串
         const safeKnowledgePoints = (parsed.knowledgePoints || []).filter(kp => typeof kp === 'string' && kp.trim());
@@ -1426,7 +1429,7 @@ const maxInputTokens = config.engine === 'deepseek'
       }
       // 缓存未命中 → 继续 API 调用，成功后写入
       callAI._pendingCacheKey = cacheKey;
-      callAI._pendingCacheMeta = { taskType, model: modelName };
+      callAI._pendingCacheMeta = { taskType, model: modelName, keyFields: options.cacheKeyFields };
     } else {
       callAI._pendingCacheKey = null;
     }
@@ -3297,11 +3300,14 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
         // 引擎配置探询失败 → 回退 config 兜底（不阻断分析）
       }
 
+      // 🔧 本调用点是"教材特征分析"schema → 显式声明缓存有效性判据字段（与知识图谱区分）
+      const TEXTBOOK_FEATURE_CACHE_FIELDS = ['knowledgeHierarchy', 'coreTopics', 'visualDescription', 'formulas'];
       const callAnalysisRetry = async (retryPrompt) => callAI(retryPrompt, {
         taskType: 'analysis',
         temperature: apiConfig.generationSettings.analysisTemperature,
         maxTokens: analysisMaxTokens,
         skipCache: true,       // 重试必须重跑、不得复用坏缓存（否则死循环命中同款坏结果）
+        cacheKeyFields: TEXTBOOK_FEATURE_CACHE_FIELDS,
         timeout: getTimeout('analysis'),
       });
 
@@ -3310,6 +3316,7 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
         temperature: apiConfig.generationSettings.analysisTemperature,
         timeout: getTimeout('analysis'),
         maxTokens: analysisMaxTokens,
+        cacheKeyFields: TEXTBOOK_FEATURE_CACHE_FIELDS,
         // 🔧 用户显式「🔄 全部重新分析」时 forceRefresh=true → 绕过 L1 缓存强制真调：
         //    否则同一 prompt 命中旧缓存，"重新分析"失去意义（2026-09-12 用户指出语义冲突）
         ...(forceRefresh ? { skipCache: true } : {}),

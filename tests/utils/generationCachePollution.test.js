@@ -93,3 +93,33 @@ describe('下游缓存读取：坏缓存命中时删除并放行真调', () => {
     expect(mockStore.has(BLUEPRINT_KEY)).toBe(false);
   });
 });
+
+// 🔴 2026-09-12 实证回归：analysis 下存在**多套 schema**——教材特征分析（knowledgeHierarchy…）
+//    与知识图谱 buildKnowledgeMap（knowledgeGraph/knowledgePoints…）。守卫若写死"教材特征分析"字段，
+//    知识图谱的合法响应会被误判为坏结果而拒缓存（日志实证：🚫 拒绝写入 analysis 坏结果）。
+describe('analysis 多 schema：知识图谱响应不得被误判为坏结果', () => {
+  const KM_KEY = generatePromptCacheKey('analysis', 'deepseek-flash', '某知识图谱');
+  const KM_FIELDS = ['knowledgeGraph', 'knowledgePoints', 'keyDifficulties', 'crossChapterLinks'];
+  const kmResponse = '{"knowledgePoints":["算理"],"knowledgeGraph":[{"unit":"数与运算"}]}';
+
+  beforeEach(() => { mockStore.clear(); });
+
+  it('调用点声明知识图谱 keyFields → 可写入且可命中（不再误判）', async () => {
+    await setCachedPromptResult(KM_KEY, kmResponse, { taskType: 'analysis', model: 'deepseek-flash', keyFields: KM_FIELDS });
+    expect(mockStore.has(KM_KEY)).toBe(true);
+    expect(await getCachedPromptResult(KM_KEY)).toBe(kmResponse);
+  });
+
+  it('未声明 keyFields → 回退 taskType 默认并集，知识图谱响应仍可写入', async () => {
+    await setCachedPromptResult(KM_KEY, kmResponse, { taskType: 'analysis', model: 'deepseek-flash' });
+    expect(mockStore.has(KM_KEY)).toBe(true);
+  });
+
+  it('显式声明"教材特征分析"字段时，知识图谱响应被判为不匹配 → 拒写（schema 判据确实生效）', async () => {
+    await setCachedPromptResult(KM_KEY, kmResponse, {
+      taskType: 'analysis', model: 'deepseek-flash',
+      keyFields: ['knowledgeHierarchy', 'coreTopics', 'visualDescription', 'formulas'],
+    });
+    expect(mockStore.has(KM_KEY)).toBe(false);
+  });
+});

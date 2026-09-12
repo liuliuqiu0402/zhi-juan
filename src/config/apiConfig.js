@@ -317,7 +317,7 @@ const loadConfig = async () => {
           //    既不让旧值永久钳窄，也不抹掉用户主动的放大。
           if (config.generationSettings.maxTokensByTask) {
             config.generationSettings.maxTokensByTask = mergeMaxTokensByTask(
-              apiConfig.generationSettings?.maxTokensByTask || {},
+              FACTORY_MAX_TOKENS_BY_TASK,
               config.generationSettings.maxTokensByTask
             );
           }
@@ -655,6 +655,13 @@ export const apiConfig = reactive({
   // 此处不再展开，由 getCurrentEngineConfig 等函数内部异步处理
 });
 
+// 🔒 出厂默认「非整卷任务输出上限」快照（模块初始化即冻结，供读取合并时作"默认值"基准）。
+//    ⚠️ 必须用本快照，不能用 `apiConfig.generationSettings.maxTokensByTask`——后者会被
+//    `App.vue` 的 `Object.assign(apiConfig, loadConfigSync())` 用**旧存档**整体覆盖，
+//    使"默认值"被污染成旧值（analysis=4096），"默认与存储取较大者"随之失效（2026-09-12 实证：
+//    analysis 仍为 4096 → 知识图谱/分析输出被限）。
+export const FACTORY_MAX_TOKENS_BY_TASK = Object.freeze({ ...apiConfig.generationSettings.maxTokensByTask });
+
 // 🔧 新增：内存缓存，避免每次调用都读 localStorage
 let _configCache = null;
 let _configCacheTime = 0;
@@ -688,6 +695,15 @@ const normalizeModelFields = (cfg) => {
   if (out.deepseekModel !== undefined) out.deepseekModel = normalizeDeepSeekModelId(out.deepseekModel);
   if (out.deepseekGenerationModel !== undefined) out.deepseekGenerationModel = normalizeDeepSeekModelId(out.deepseekGenerationModel);
   if (out.deepseekAnalysisModel !== undefined) out.deepseekAnalysisModel = normalizeDeepSeekModelId(out.deepseekAnalysisModel);
+  // 🔧 非整卷任务输出上限：与出厂默认逐键"取较大者"。同步读盘路径（loadConfigSync → App.vue
+  //    Object.assign(apiConfig, …)）也必须归一，否则旧存档的 analysis=4096 会灌进 apiConfig 成为
+  //    "被污染的默认值"，后续 loadConfig 的合并随之失效（2026-09-12 实证）。
+  if (out.generationSettings?.maxTokensByTask) {
+    out.generationSettings = {
+      ...out.generationSettings,
+      maxTokensByTask: mergeMaxTokensByTask(FACTORY_MAX_TOKENS_BY_TASK, out.generationSettings.maxTokensByTask),
+    };
+  }
   return out;
 };
 

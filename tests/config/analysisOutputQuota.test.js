@@ -7,7 +7,7 @@
 //   A. loadConfig 深合并 maxTokensByTask 逐键取"默认与存储的较大者"（旧窄值不再压死新默认）。
 //   B. 分析 callAI 接生成侧"灵活模式"（planOutputQuota + 引擎护栏），maxTokens 由原文量推导，不是死数字。
 import { describe, it, expect } from 'vitest';
-import { mergeMaxTokensByTask, getTaskMaxTokens } from '../../src/config/apiConfig.js';
+import { mergeMaxTokensByTask, getTaskMaxTokens, FACTORY_MAX_TOKENS_BY_TASK } from '../../src/config/apiConfig.js';
 import { planOutputQuota, charsToTokens } from '../../src/utils/outputQuota.js';
 
 // 期望值独立编码，不引用被测模块自证
@@ -51,6 +51,21 @@ describe('默认 maxTokensByTask 表一致', () => {
   it('getTaskMaxTokens 读到 analysis=65536（新默认，非旧 4096）', () => {
     expect(getTaskMaxTokens('analysis')).toBe(65536);
     expect(getTaskMaxTokens('extraction')).toBe(2048);
+  });
+});
+
+// 🔴 2026-09-12 实证回归：App.vue 用 Object.assign(apiConfig, loadConfigSync()) 把**旧存档**灌进
+//    apiConfig（loadConfigSync 走 normalizeModelFields），若"合并基准"取自 apiConfig.generationSettings，
+//    基准就被污染成旧值 4096 → 合并失效（analysis 仍是 4096）。
+//    修复=合并基准改取**模块初始化即冻结的出厂快照** FACTORY_MAX_TOKENS_BY_TASK。
+describe('出厂快照：不随 apiConfig 被旧存档覆盖而污染', () => {
+  it('快照为出厂默认（analysis=65536），与 apiConfig 当前值无关', () => {
+    expect(FACTORY_MAX_TOKENS_BY_TASK.analysis).toBe(65536);
+    expect(Object.isFrozen(FACTORY_MAX_TOKENS_BY_TASK)).toBe(true);
+  });
+
+  it('以快照为基准合并旧存档 4096 → 仍得 65536（旧值不压死新默认）', () => {
+    expect(mergeMaxTokensByTask(FACTORY_MAX_TOKENS_BY_TASK, { analysis: 4096 }).analysis).toBe(65536);
   });
 });
 
