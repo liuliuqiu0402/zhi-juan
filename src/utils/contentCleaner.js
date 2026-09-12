@@ -1286,6 +1286,60 @@ export function stripRedundantInlineCarrierRows(html = '') {
   }
   return out;
 }
+/**
+ * 🔢 正文归一化链（顺序 = 生产链单源；2026-09-12 抽出）
+ * ============================================================
+ * 抽出的唯一目的：**逐步取证**。此前链是一行嵌套调用，出问题时无法知道"是哪一步动的"——
+ * 2026-09-12 实测（英语课时练）：模型原始输出题号 1~14 完整无缺，归一化后 3、4、5 整题消失
+ * （连题号数字本身都不在正文任何位置），直接导致整卷判失败。故把顺序固定成表，按步比对
+ * 题号数即可点名是哪一步削掉的。
+ * ⚠️ 顺序即行为，不得调整（与历史生产链逐字一致）：
+ *    cleanSectionHtml → normalizeBlankMarkers → normalizeMathCircleBlanks →
+ *    stripRedundantInlineCarrierRows → normalizeMatchQuestions →
+ *    normalizeLeadingMarkers → normalizeIndents
+ * @param {string} raw 模型直出（或续写片段）
+ * @param {{trace?:boolean,label?:string}} [opts] trace=true 时只在"题号数掉落"的步骤打日志
+ * @returns {string} 归一化后的正文
+ */
+const BODY_NORMALIZE_STEPS = [
+  ['cleanSectionHtml', cleanSectionHtml],
+  ['normalizeBlankMarkers', normalizeBlankMarkers],
+  ['normalizeMathCircleBlanks', normalizeMathCircleBlanks],
+  ['stripRedundantInlineCarrierRows', stripRedundantInlineCarrierRows],
+  ['normalizeMatchQuestions', normalizeMatchQuestions],
+  ['normalizeLeadingMarkers', normalizeLeadingMarkers],
+  ['normalizeIndents', normalizeIndents],
+];
+
+/** 首个差异下标（取证日志用：截出"被这一步动过的那一段"） */
+function firstDiffIndex(a = '', b = '') {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) if (a[i] !== b[i]) return i;
+  return n;
+}
+
+export function normalizeBodyHtml(raw = '', { trace = false, label = '' } = {}) {
+  let out = String(raw || '');
+  const notes = [];
+  let prevN = trace ? extractBodyQuestionNumbers(out).length : 0;
+  const startN = prevN;
+  for (const [name, fn] of BODY_NORMALIZE_STEPS) {
+    const before = out;
+    out = fn(out);
+    if (!trace) continue;
+    const n = extractBodyQuestionNumbers(out).length;
+    if (n < prevN) {
+      const i = firstDiffIndex(before, out);
+      const gone = before.slice(i, i + 60).replace(/\s+/g, ' ').trim();
+      notes.push(`${name} −${prevN - n} 个题号（掉出「${gone}${gone.length >= 60 ? '…' : ''}」）`);
+    }
+    prevN = n;
+  }
+  if (trace && notes.length) {
+    console.warn(`🔢 [归一化分步取证${label ? `·${label}` : ''}] 起始题号 ${startN} 个 → 结束 ${prevN} 个 ｜ 削题步骤：${notes.join(' → ')}`);
+  }
+  return out;
+}
 
 
 export default { cleanSectionHtml, normalizeTypographicSymbols, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, ensureCarrierContent, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };
