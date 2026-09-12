@@ -207,6 +207,7 @@ export function diagnoseNumberingGap(html = '') {
   const peek = [];
   for (const n of gap.missing) {
     const lineForm = new RegExp(`(?:^|\\n)\\s*${n}[.、．](?![.\\d])`);
+    const lineBracket = new RegExp(`(?:^|\\n)\\s*[(（]\\s*${n}\\s*[)）]`);
     const bracketForm = new RegExp(`[(（]\\s*${n}\\s*[)）]`);
     const bareForm = new RegExp(`(?:^|[^0-9])${n}(?![0-9])`);
     let where = '未出现（正文任何位置均无该号）→ 指向模型真跳号';
@@ -214,10 +215,17 @@ export function diagnoseNumberingGap(html = '') {
     if (lineForm.test(text)) {
       where = '行首题号形态（本应被识别，属异常）';
       idx = text.search(lineForm);
-    } else {
-      const mb = bracketForm.exec(text);
-      if (mb) { where = '括号序号形态 (N)/（N）（提取规则不认）→ 指向提取漏判'; idx = mb.index; }
-      else if (bareForm.test(text)) { where = '句中出现/裸数字（非行首题号形态）→ 指向提取漏判'; idx = text.search(bareForm); }
+    } else if (lineBracket.test(text)) {
+      // ⚠️ 题号规格（promptLibrary「输出格式」）：**题目用 `N.`，子题用 `(N)`** ——
+      //    故括号序号命中**多为同名子题**，不足以判定"缺号是提取漏判"，须以下方骨架为准。
+      where = '行首括号序号 (N)/（N）（属**子题**形态）——须以骨架判定该号是大题缺失还是子题，暂不足以归因';
+      idx = text.search(lineBracket);
+    } else if (bracketForm.test(text)) {
+      where = '句中括号序号 (N)/（N）（子题形态）——须以骨架判定，暂不足以归因';
+      idx = text.search(bracketForm);
+    } else if (bareForm.test(text)) {
+      where = '仅裸数字/句中出现（非题号形态）——可能为提取漏判，须以骨架判定';
+      idx = text.search(bareForm);
     }
     peek.push({
       n,

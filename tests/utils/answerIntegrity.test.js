@@ -260,21 +260,23 @@ describe('丢题根因诊断（diagnoseNumberingGap）：分辨"模型真跳号"
     d.peek.forEach((x) => expect(x.where).toContain('未出现'));
   });
 
-  it('提取漏判（同段连写 `… 4. …`）：缺号出现在句中 → 指向提取漏判，不误判为真跳号', () => {
+  it('提取漏判（同段连写 `… 4. …`）：缺号以"仅裸数字/句中出现"呈现 → 提示须以骨架判定', () => {
     const h = head + [p(1), p(2), p(3)].join('\n') + '\n<p>3. 计算 4. 下面各题</p>\n' + p(5);
     const d = diagnoseNumberingGap(h);
     expect(d.missing).toEqual([4]);
     const four = d.peek.find((x) => x.n === 4);
-    expect(four.where).toContain('漏判');
+    expect(four.where).toContain('仅裸数字');
     expect(four.sample).toContain('4.');
   });
 
-  it('提取漏判（括号序号 `（4）`）：括号形态 → 指向提取漏判', () => {
+  it('括号序号是**子题**形态：不得据此断言"提取漏判"（须以骨架为准）', () => {
     const h = head + [p(1), p(2), p(3)].join('\n') + '\n<p>（4）看图数一数一共有多少个</p>\n' + p(5);
     const d = diagnoseNumberingGap(h);
     expect(d.missing).toEqual([4]);
     const four = d.peek.find((x) => x.n === 4);
     expect(four.where).toContain('括号序号');
+    expect(four.where).toContain('子题');
+    expect(four.where).not.toContain('指向提取漏判');
   });
 
   it('无缺口 → 不产出诊断（gap=null，与拦截判定一致）', () => {

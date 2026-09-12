@@ -943,7 +943,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     if (/连一连|连起来/.test(bodyNoAnsText)) {
       const twoCol = (out.match(/[\u4e00-\u9fa5]{1,20}\u3000{2,}\S{1,20}/g) || []).length;
       if (!/match-question/.test(out) && twoCol === 0) {
-        silentCount('match-empty', '检测到"连一连"题干但无配对内容（连一连题疑似空壳），请抽检');
+        // 🔧 2026-09-12 措辞精准化：区分两种不同缺陷——避免一律报"疑似空壳"误导核对方向：
+        //    ① 题内给了"括号/填写位"等替代作答形态 → 属**题干与作答形态不符**（说连线须给可连线的配对内容）
+        //    ② 题内既无连线也无任何作答位 → 才是真"空壳"
+        const hasAltCarrier = /填[入一]?序号|写在横线上|blank-\d|（\s*　?\s*）|\(\s*\)/.test(bodyNoAnsText);
+        silentCount('match-empty', hasAltCarrier
+          ? '题干声明"连线/连一连"但题内无配对/连线结构，作答位却是括号或填写位——题干与作答形态不符（说"连线"须给可连线的两列配对内容，不得改为括号填空），请抽检'
+          : '检测到"连一连"题干但无配对内容（连一连题疑似空壳），请抽检');
       }
     }
     // 2j-3 看图/读图/图形类题缺图标记（规则 image-block-fix，2026-09 升级）
@@ -1622,7 +1628,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const bodyTopQ = (bodyText.match(topQRe) || []).length;
         const ansTopQ = (ansText.match(topQRe) || []).length;
         if (bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
-          silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})`);
+          // 🔍 计数口径取证（2026-09-12）：本口径只认「行首/空白/[)）、]后 + N.[、．]」。若答案区
+          //    用了括号序号（(1)）、表格单元格、或干脆没带题号，都会计得 0 → 需区分
+          //    "答案区未带题号（真缺陷）" vs "计数口径不覆盖其形态（假告警）"。
+          try {
+            const head = String(ansText).replace(/\s+/g, ' ').trim().slice(0, 200);
+            console.warn(`🔍 [答案区计数取证] 正文题号数=${bodyTopQ} 答案区题号数=${ansTopQ}`
+              + ` ｜ 答案区含括号序号=${/(?:^|\s)[(（]\s*\d{1,2}\s*[)）]/.test(ansText)}`
+              + ` 含表格=${/<table/i.test(ansMatch[1])}`
+              + ` ｜ 答案区开头「${head}」`);
+          } catch (e) { /* 取证失败不影响主流程 */ }
+          silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})——答案区可能未按与正文一致的题号逐题对齐（计数口径：行首/空白后的「1.」形式），请抽检`);
         }
         // 🔴 反向护栏（2026-09-10 实证补）：正文题号明显少于答案区 → 正文疑似丢题。
         //    实测样本：英语课时练正文缺第2~5题（题号从1跳到6）、答案区却完整（一~九齐全）——
