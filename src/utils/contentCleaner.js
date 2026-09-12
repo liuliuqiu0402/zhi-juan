@@ -678,6 +678,19 @@ const decodeCarrierNumericEntities = (s) => String(s || '').replace(/&#(?:x([0-9
   return m;
 });
 
+/**
+ * 🔴 空位载体"内部只许空白"（2026-09-12 丢题事故根治）
+ * ============================================================
+ * 病根实证：载体正则原写成 `<u|span …>[\s\S]*?</…>`——**内部允许任意内容**。一旦模型输出畸形载体
+ *   （未闭合、或把正文整句包进 blank-N），贪婪匹配会跨题吞下一大段；而"同段形态归一"
+ *   （unifySameParagraphWriteBlanks）与"跨类型叠写去重"会把命中的**整段替换成一枚短空位标签** →
+ *   该段正文连同题号一起消失（实测：英语课时练题 1~18 完整，归一化后 2、3、4 整题被吞，整卷判失败）。
+ * 约束：blank-N 语义就是"空书写位，内部只许空白"（见 unwrapMalformedBlankCarriers 注释），
+ *   故**会改写内容的**载体正则一律收窄为只认空白/空白实体；内含正文的畸形载体由
+ *   unwrapMalformedBlankCarriers 先拆壳还原为纯文本（其调用已前置到形态归一/去重之前）。
+ */
+const BLANK_INNER = '(?:&emsp;|&nbsp;|&ensp;|&#8195;|&#x2003;|&#160;|&#x00A0;|[\\s\\u3000\\u2003\\u00A0])*';
+
 export function normalizeBlankMarkers(html = '') {
   let out = String(html || '');
   // ① 数字实体解码（见 decodeCarrierNumericEntities 注释，C3-C5）
@@ -785,12 +798,17 @@ export function normalizeBlankMarkers(html = '') {
     if (plain.length >= 10 && /[。！？；!?;]$/.test(plain)) return inner; // 整句误画线 → 拆壳
     return m;
   });
+  // 🔴 畸形填空载体拆壳（不变量守卫）——**必须早于形态归一/跨类型去重**（2026-09-12 丢题事故根治）：
+  //    下面两处会把命中的载体**整段替换成一枚短空位标签**；若载体内部裹着正文（畸形），正文即随之
+  //    消失（实测：英语课时练题 1~18 完整，此处被吞掉 2、3、4 整题 → 整卷判失败）。
+  //    先拆壳还原为纯文本；且后续载体正则已收窄为"内部只许空白"，便不会再命中含正文的载体。
+  out = unwrapMalformedBlankCarriers(out);
   // 🔧 跨类型空位叠写去重（2026-09 实证：题 10"0.86×3.2 ＿（　）"——模型把同一答案位写成
   //    "填空横线 <u class='blank-N'> + 括号空 <span class='blank-N'>"两种载体相邻叠加，导出成"横线后括号"；
   //    仅收敛"跨类型紧邻"（u↔span 间隔仅空白/实体）：保留后出现的一种形态（同题并列空位由生成语义
   //    统一为多数形态，此处只是把叠写的一处去重）；连续同类型标签（"( )( )"双括号空等）是并列双空，
   //    不去重。空位标签内含 &emsp; 实体（span.innerHTML='&emsp;' 或字面），内文不限。
-  const blankTagOne = (tag) => `<${tag}[^>]*class=["'][^"']*blank-\\d+[^"']*["'][^>]*>[\\s\\S]*?<\\/${tag}>`;
+  const blankTagOne = (tag) => `<${tag}[^>]*class=["'][^"']*blank-\\d+[^"']*["'][^>]*>${BLANK_INNER}<\\/${tag}>`;
   out = out
     .replace(new RegExp(`(${blankTagOne('u')})((?:\\s|&emsp;|&#8195;|&#x2003;|&nbsp;)*)(${blankTagOne('span')})`, 'gi'), '$2$3')
     .replace(new RegExp(`(${blankTagOne('span')})((?:\\s|&emsp;|&#8195;|&#x2003;|&nbsp;)*)(${blankTagOne('u')})`, 'gi'), '$2$3');
@@ -827,20 +845,20 @@ export function unifySameParagraphWriteBlanks(html = '') {
     const push = (type, w, start, full, excluded) => tokens.push({ type, w, start, end: start + full.length, excluded: !!excluded });
     const prevVisibleChar = (pos) => para.slice(0, pos).replace(/<[^>]+>/g, '').replace(/[　\s]+$/, '').slice(-1);
     let m;
-    const reU = /<u\b(?=[^>]*\bclass=["'][^"']*\bblank-(\d+)\b[^"']*["'])[^>]*>[\s\S]*?<\/u>/gi;
+    const reU = new RegExp(`<u\\b(?=[^>]*\\bclass=["'][^"']*\\bblank-(\\d+)\\b[^"']*["'])[^>]*>${BLANK_INNER}<\\/u>`, 'gi');
     while ((m = reU.exec(para)) !== null) {
       const prev = prevVisibleChar(m.index);
       // 结果位书写横线（＝/≈ 之后）→ 排除（角色语义=得数留白，见函数头注释）
       push('u', Number(m[1]) || 1, m.index, m[0], prev === '＝' || prev === '≈' || prev === '=');
     }
-    const reSpan = /<span\b(?=[^>]*\bclass=["'][^"']*\bblank-(\d+)\b[^"']*["'])(?![^>]*\bsquare-box\b)(?![^>]*\bmath-circle-blank\b)(?![^>]*\boral-box\b)[^>]*>[\s\S]*?<\/span>/gi;
+    const reSpan = new RegExp(`<span\\b(?=[^>]*\\bclass=["'][^"']*\\bblank-(\\d+)\\b[^"']*["'])(?![^>]*\\bsquare-box\\b)(?![^>]*\\bmath-circle-blank\\b)(?![^>]*\\boral-box\\b)[^>]*>${BLANK_INNER}<\\/span>`, 'gi');
     while ((m = reSpan.exec(para)) !== null) {
       const prev = prevVisibleChar(m.index);
       push('span', Number(m[1]) || 1, m.index, m[0], prev === '＝' || prev === '≈' || prev === '=');
     }
-    const reSq = /<span\b(?=[^>]*\bclass=["'][^"']*\bsquare-box\b[^"']*["'])[^>]*>[\s\S]*?<\/span>/gi;
+    const reSq = new RegExp(`<span\\b(?=[^>]*\\bclass=["'][^"']*\\bsquare-box\\b[^"']*["'])[^>]*>${BLANK_INNER}<\\/span>`, 'gi');
     while ((m = reSq.exec(para)) !== null) push('sq', 2, m.index, m[0], false);
-    const reOral = /<span\b(?=[^>]*\bclass=["'][^"']*\boral-box\b[^"']*["'])[^>]*>[\s\S]*?<\/span>/gi;
+    const reOral = new RegExp(`<span\\b(?=[^>]*\\bclass=["'][^"']*\\boral-box\\b[^"']*["'])[^>]*>${BLANK_INNER}<\\/span>`, 'gi');
     while ((m = reOral.exec(para)) !== null) push('oral', 2, m.index, m[0], false);
     tokens.sort((a, b) => a.start - b.start);
     const active = tokens.filter((t) => !t.excluded);
