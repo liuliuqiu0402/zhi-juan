@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { detectTruncation, isAnswerShell, wrapAnswerSection, stripAnswerSection, stripLeadingAnswerTitle } from '../../src/composables/useAiGenerator.js';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
-import { detectBodyNumberingGap } from '../../src/utils/contentCleaner.js';
+import { detectBodyNumberingGap, diagnoseNumberingGap } from '../../src/utils/contentCleaner.js';
 
 describe('答案完整性·截断判定（detectTruncation）', () => {
   it('finish_reason=length 且内容较长 → 判定截断（API 可靠信号）', () => {
@@ -247,5 +247,51 @@ describe('正文缺号检测（detectBodyNumberingGap）', () => {
       p(69), p(70),
     );
     expect(detectBodyNumberingGap(skip668)).toEqual({ peak: 70, found: [...Array.from({ length: 65 }, (_, i) => i + 1), 69, 70], missing: [66, 67, 68] });
+  });
+});
+
+describe('丢题根因诊断（diagnoseNumberingGap）：分辨"模型真跳号" vs "提取规则漏判"', () => {
+  const p = (i) => `<p>${i}. 第${i}题（　）</p>`;
+  const head = '<h1>英语课时训练</h1>\n';
+
+  it('真跳号：缺号在正文任何位置都不出现 → 指向模型跳号', () => {
+    const d = diagnoseNumberingGap(head + [p(1), p(2), p(6)].join('\n'));
+    expect(d.missing).toEqual([3, 4, 5]);
+    d.peek.forEach((x) => expect(x.where).toContain('未出现'));
+  });
+
+  it('提取漏判（同段连写 `… 4. …`）：缺号出现在句中 → 指向提取漏判，不误判为真跳号', () => {
+    const h = head + [p(1), p(2), p(3)].join('\n') + '\n<p>3. 计算 4. 下面各题</p>\n' + p(5);
+    const d = diagnoseNumberingGap(h);
+    expect(d.missing).toEqual([4]);
+    const four = d.peek.find((x) => x.n === 4);
+    expect(four.where).toContain('漏判');
+    expect(four.sample).toContain('4.');
+  });
+
+  it('提取漏判（括号序号 `（4）`）：括号形态 → 指向提取漏判', () => {
+    const h = head + [p(1), p(2), p(3)].join('\n') + '\n<p>（4）看图数一数一共有多少个</p>\n' + p(5);
+    const d = diagnoseNumberingGap(h);
+    expect(d.missing).toEqual([4]);
+    const four = d.peek.find((x) => x.n === 4);
+    expect(four.where).toContain('括号序号');
+  });
+
+  it('无缺口 → 不产出诊断（gap=null，与拦截判定一致）', () => {
+    const d = diagnoseNumberingGap(head + [p(1), p(2), p(3)].join('\n'));
+    expect(d.gap).toBeNull();
+    expect(d.missing).toEqual([]);
+    expect(d.peek).toEqual([]);
+    expect(d.skeleton).toEqual([]);
+  });
+
+  it('题号骨架：列出全部"行首数字/括号序号"行，供人工判定缺号是大题还是子题', () => {
+    const h = head + [p(1)].join('\n') + '\n<p>（2）看图数一数</p>\n<p>（3）圈一圈</p>\n' + p(4);
+    const d = diagnoseNumberingGap(h);
+    expect(d.missing).toEqual([2, 3]);
+    expect(d.skeleton.some((s) => s.startsWith('1.'))).toBe(true);
+    expect(d.skeleton.some((s) => s.startsWith('（2）'))).toBe(true);
+    expect(d.skeleton.some((s) => s.startsWith('（3）'))).toBe(true);
+    expect(d.skeleton.some((s) => s.startsWith('4.'))).toBe(true);
   });
 });

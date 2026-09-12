@@ -184,6 +184,58 @@ export function detectBodyNumberingGap(html = '') {
   return { peak, found: [...found].sort((a, b) => a - b), missing };
 }
 
+/**
+ * 🔢 丢题根因诊断（2026-09-12 起；用户要求"加日志找根因，不靠猜测修复"）
+ * ============================================================
+ * 在缺号拦截处调用，产出**可定性**的证据，用于分辨两种完全不同的成因：
+ *   ① 模型真跳号      —— 缺号在正文"任何位置"都不出现（生成行为问题）
+ *   ② 提取规则漏判    —— 缺号出现了，但不在"行首 + [.、．]"这一被识别形态上
+ *        （同段连写 `3. … 4. …`、括号序号 `(4)`/`（4）`、被内联标签包裹、顿号形态等）
+ * 附加信号 anyDigitCount（正文内 1~2 位数字总数）与 lineStartCount（行首题号数）对照：
+ *   两者差距大 → 大量数字不在行首 → 佐证②方向。
+ * ⚠️ 本函数**不参与拦截判定**（判定仍由 detectBodyNumberingGap 决定），只供日志取证。
+ * @param {string} html 正文 HTML（与 detectBodyNumberingGap 同入参口径）
+ * @returns {{gap:object|null, found:number[], missing:number[], anyDigitCount:number,
+ *            peek:Array<{n:number, where:string, sample:string}>}}
+ */
+export function diagnoseNumberingGap(html = '') {
+  const gap = detectBodyNumberingGap(html);
+  if (!gap) return { gap: null, found: [], missing: [], anyDigitCount: 0, peek: [], skeleton: [] };
+  const src = String(html || '');
+  const bodyOnly = src.split(/<div[^>]*class=["'][^"']*answer-section|<h[1-6][^>]*>\s*参考答案/i)[0];
+  const text = bodyOnly.replace(/<\/(?:p|li|h[1-6]|div|tr)>/gi, '\n').replace(/<[^>]+>/g, '');
+  const peek = [];
+  for (const n of gap.missing) {
+    const lineForm = new RegExp(`(?:^|\\n)\\s*${n}[.、．](?![.\\d])`);
+    const bracketForm = new RegExp(`[(（]\\s*${n}\\s*[)）]`);
+    const bareForm = new RegExp(`(?:^|[^0-9])${n}(?![0-9])`);
+    let where = '未出现（正文任何位置均无该号）→ 指向模型真跳号';
+    let idx = -1;
+    if (lineForm.test(text)) {
+      where = '行首题号形态（本应被识别，属异常）';
+      idx = text.search(lineForm);
+    } else {
+      const mb = bracketForm.exec(text);
+      if (mb) { where = '括号序号形态 (N)/（N）（提取规则不认）→ 指向提取漏判'; idx = mb.index; }
+      else if (bareForm.test(text)) { where = '句中出现/裸数字（非行首题号形态）→ 指向提取漏判'; idx = text.search(bareForm); }
+    }
+    peek.push({
+      n,
+      where,
+      sample: idx >= 0 ? text.slice(Math.max(0, idx - 30), idx + 30).replace(/\n/g, '⏎') : '',
+    });
+  }
+  const anyDigitCount = (text.match(/(?:^|[^0-9])\d{1,2}(?![0-9])/g) || []).length;
+  // 🔢 题号骨架：正文中所有"行首 数字序号 / 括号序号 / 第N题"行（各截前 44 字，最多 40 行）——
+  //    用于判定"缺号"是**大题缺失**（真丢题）还是**子题被误当题号**（判定口径问题）。
+  const skeleton = text.split('\n')
+    .map((l) => l.trim())
+    .filter((l) => /^(?:[(（]?\d{1,2}[)）.、．]|第\s*\d{1,2}\s*[题小])/.test(l))
+    .slice(0, 40)
+    .map((l) => l.slice(0, 44));
+  return { gap, found: gap.found, missing: gap.missing, anyDigitCount, peek, skeleton };
+}
+
 /** 导出端第二道防线：剥离 AI 响应残留的 markdown 代码块/对话前缀（不改 HTML 结构本身）
  * 有 ```html 代码块 → 取块内 HTML 拼接；否则无块但存在"对话前缀+HTML" → 从首个 HTML 标签截断。
  * 曾分别内联于 GenerateModule.downloadDoc 与 TypesetModule.sanitizeExportContent（两段逐字同构、各自演化），

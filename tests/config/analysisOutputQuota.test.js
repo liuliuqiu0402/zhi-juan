@@ -7,7 +7,7 @@
 //   A. loadConfig 深合并 maxTokensByTask 逐键取"默认与存储的较大者"（旧窄值不再压死新默认）。
 //   B. 分析 callAI 接生成侧"灵活模式"（planOutputQuota + 引擎护栏），maxTokens 由原文量推导，不是死数字。
 import { describe, it, expect } from 'vitest';
-import { mergeMaxTokensByTask, getTaskMaxTokens, FACTORY_MAX_TOKENS_BY_TASK } from '../../src/config/apiConfig.js';
+import { mergeMaxTokensByTask, getTaskMaxTokens, resolveTaskMaxTokens, FACTORY_MAX_TOKENS_BY_TASK } from '../../src/config/apiConfig.js';
 import { planOutputQuota, charsToTokens } from '../../src/utils/outputQuota.js';
 
 // 期望值独立编码，不引用被测模块自证
@@ -66,6 +66,38 @@ describe('出厂快照：不随 apiConfig 被旧存档覆盖而污染', () => {
 
   it('以快照为基准合并旧存档 4096 → 仍得 65536（旧值不压死新默认）', () => {
     expect(mergeMaxTokensByTask(FACTORY_MAX_TOKENS_BY_TASK, { analysis: 4096 }).analysis).toBe(65536);
+  });
+});
+
+// 🔴 2026-09-12 二次实证：即便合并到位，若 `maxTokensByTask` 整体缺失（旧存档无此字段，
+//    或被 App.vue 的 Object.assign 覆盖成不含该字段的对象），原实现会落到通用 maxTokens(4096)。
+//    修复=解析时夹一层**出厂类型帽**。
+describe('类型上限解析：键缺失也必须走出厂帽，不得跌回通用 4096', () => {
+  const FACTORY = { analysis: 65536, extraction: 2048 };
+
+  it('byTask 缺该键（旧存档无 maxTokensByTask）→ 取出厂帽 65536', () => {
+    expect(resolveTaskMaxTokens({ byTask: {}, factory: FACTORY, generic: 4096, taskType: 'analysis' })).toBe(65536);
+  });
+
+  it('byTask 缺该键但 generic=4096 → 仍取出厂帽（不落 4096）', () => {
+    const out = resolveTaskMaxTokens({ byTask: { extraction: 2048 }, factory: FACTORY, generic: 4096, taskType: 'analysis' });
+    expect(out).toBe(65536);
+    expect(out).not.toBe(4096);
+  });
+
+  it('存档显式值优先（含用户主动收紧）', () => {
+    expect(resolveTaskMaxTokens({ byTask: { analysis: 8192 }, factory: FACTORY, generic: 4096, taskType: 'analysis' })).toBe(8192);
+  });
+
+  it('脏值（0/负/非数）→ 取出厂帽', () => {
+    expect(resolveTaskMaxTokens({ byTask: { analysis: 0 }, factory: FACTORY, generic: 4096, taskType: 'analysis' })).toBe(65536);
+    expect(resolveTaskMaxTokens({ byTask: { analysis: -1 }, factory: FACTORY, generic: 4096, taskType: 'analysis' })).toBe(65536);
+    expect(resolveTaskMaxTokens({ byTask: { analysis: 'x' }, factory: FACTORY, generic: 4096, taskType: 'analysis' })).toBe(65536);
+  });
+
+  it('两级都缺 → 落到通用 maxTokens；全缺 → 4096', () => {
+    expect(resolveTaskMaxTokens({ byTask: {}, factory: {}, generic: 8192, taskType: 'zzz' })).toBe(8192);
+    expect(resolveTaskMaxTokens({ byTask: {}, factory: {}, generic: 0, taskType: 'zzz' })).toBe(4096);
   });
 });
 

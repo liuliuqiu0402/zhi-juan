@@ -1075,9 +1075,27 @@ export const selectBestModel = (taskType, requirements = {}) => {
  *    随用户配置持久化（loadConfig 已深合并补齐新字段），代码不再硬编码生效值；
  *    极端缺省时兜底 generationSettings.maxTokens（默认 4096，同为设置项）。
  */
-export const getTaskMaxTokens = (taskType) => {
-  const byTask = apiConfig.generationSettings?.maxTokensByTask || {};
-  return byTask[taskType] || apiConfig.generationSettings?.maxTokens || 4096;
+export const getTaskMaxTokens = (taskType) => resolveTaskMaxTokens({
+  byTask: apiConfig.generationSettings?.maxTokensByTask || {},
+  factory: FACTORY_MAX_TOKENS_BY_TASK,
+  generic: apiConfig.generationSettings?.maxTokens,
+  taskType,
+});
+
+/**
+ * 🔒 类型输出上限解析（纯函数，2026-09-12 抽出以便回归锁定）
+ * 优先级：设置页/存档值（正整数）→ **出厂类型帽** → 通用 maxTokens → 4096。
+ * 为什么必须夹一层出厂帽：旧存档可能**缺 maxTokensByTask 或该键**（或被 App.vue 的
+ * `Object.assign(apiConfig, loadConfigSync())` 整体覆盖），若直接落到通用 `maxTokens`(4096)，
+ * 类型帽会被整条抹平——analysis 由 65536 跌回 4096（2026-09-12 实证）。
+ */
+export const resolveTaskMaxTokens = ({ byTask = {}, factory = {}, generic = 0, taskType = '' } = {}) => {
+  const v = Number(byTask?.[taskType]);
+  if (Number.isFinite(v) && v > 0) return v;
+  const f = Number(factory?.[taskType]);
+  if (Number.isFinite(f) && f > 0) return f;
+  const g = Number(generic);
+  return Number.isFinite(g) && g > 0 ? g : 4096;
 };
 
 /**

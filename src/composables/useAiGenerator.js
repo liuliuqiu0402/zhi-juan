@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import axios from 'axios';
-import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay, resolveEngineOutputLimit, resolveEngineCapability, resolveOutputCeiling } from '../config/apiConfig.js';
+import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay, resolveEngineOutputLimit, resolveEngineCapability, resolveOutputCeiling, FACTORY_MAX_TOKENS_BY_TASK } from '../config/apiConfig.js';
 import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'; // S4.1：段类型补"拓展/文化"（锚范围性质判定共用）
 import { GEN_CONST } from '../config/generationConstants.js';
 import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel } from '../config/promptLibrary.js';
@@ -419,7 +419,7 @@ import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
 import { reconcileDomains, domainNoteOf } from '../utils/domainReconciler.js';
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, extractBodyQuestionNumbers, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 
 // 别名：保持原有名称兼容
@@ -1278,7 +1278,9 @@ export function useAiGenerator() {
     
     // 🔧 调试日志：输出解析后的 maxTokens（便于排查 localStorage 覆盖问题）
     if (taskType === 'analysis') {
-      console.log(`🔍 解析后 maxTokens = ${maxTokens} (来源: ${options.maxTokens ? 'options' : config.maxTokens ? 'config(task)' : 'fallback(4096)'})`);
+      console.log(`🔍 解析后 maxTokens = ${maxTokens} (来源: ${options.maxTokens ? 'options' : config.maxTokens ? 'config(task)' : 'fallback(4096)'})`
+        + ` ｜ byTask.analysis=${apiConfig.generationSettings?.maxTokensByTask?.analysis ?? '(键缺失)'}`
+        + ` 出厂帽=${FACTORY_MAX_TOKENS_BY_TASK?.analysis} 通用maxTokens=${apiConfig.generationSettings?.maxTokens}`);
     }
     // ✨ 动态超时：根据 prompt 长度自动调整（32B+大模型需更长）
     const baseTimeout = options.timeout || getTimeout('base');
@@ -4471,6 +4473,20 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔧 正文"完整优先"（2026-09）：截断经续写链仍无法补齐 → 本 attempt 判失败，升级预算整卷重试；
     //    两次尝试都失败则抛错（绝不把半截正文当作成功交付——提醒半截对用户无用，宁可失败给行动建议）
     let truncFailNote = '';
+    // 🛰 注入证据（2026-09-12 用户要求"验证而非假设"，一次生成只打一条）：
+    //    用于判定【图-题一致性】要求（在 user 委托正文）与 [IMAGE]/[GRAPH] 格式契约（在 system 附加段）
+    //    是否**都真的送达模型**——若两者都在而正文仍无图标记 ⇒ 是模型遵从问题（非注入缺失）；
+    //    若某一条缺失 ⇒ 是注入侧问题（对策完全不同）。
+    {
+      const sys = String(programAttach || '');
+      const usr = String(prompt || '');
+      console.log(
+        `🛰 [注入证据] system附加段=${sys.length}字符（实际下发=${sys.trim() ? '是' : '否·空'}）`
+        + ` 含[IMAGE]契约=${sys.includes('[IMAGE]')} 含[GRAPH]契约=${sys.includes('[GRAPH]')}`
+        + ` ｜ user委托正文 含【图-题一致性】=${usr.includes('图-题一致性')} 含[IMAGE]格式说明=${usr.includes('[IMAGE]')}`
+        + ` ｜ 正文prompt=${usr.length}字符`
+      );
+    }
     // 🔧 正文"完整优先"重试循环：单次生成 + 预算升级重试（含续写链/缺号拦截/思考降级）
     if (!content) {
     // 🔧 针对性重试（2026-09-11 用户定版"第一次调用必须尽量成功"根因修复）：跳题/截断并非预算
@@ -4594,6 +4610,16 @@ ${cardAnalysisText.substring(0, 1000)}
         const qGap = detectBodyNumberingGap(content);
         if (content && isDeliverableBodyHtml(content) && !qGap) break;
         if (qGap) {
+          // 🔢 丢题根因取证（2026-09-12）：分辨"模型真跳号" vs "提取规则漏判"——只出证据、不参与判定
+          try {
+            const d = diagnoseNumberingGap(content);
+            console.warn(`🔢 [题号诊断·第${attempt + 1}次尝试] 正文${content.length}字符 行首题号=[${d.found.join(',')}] 峰值=${d?.gap?.peak} 缺=[${d.missing.join(',')}] 正文内1~2位数字总数=${d.anyDigitCount}`);
+            d.peek.forEach((p) => console.warn(`   ↳ 缺号 ${p.n}：${p.where}${p.sample ? ` ｜ 上下文「${p.sample}」` : ''}`));
+            if (d.skeleton?.length) {
+              console.warn(`   ↳ 题号骨架（行首数字/括号序号/第N题，最多 40 行，各截 44 字）——据此判定缺号是大题还是子题：`);
+              d.skeleton.forEach((s, i) => console.warn(`      ${String(i + 1).padStart(2, '0')}| ${s}`));
+            }
+          } catch (e) { /* 诊断失败不影响主流程 */ }
           lastGapNote = `正文题号缺失：${qGap.missing.join('、')}（1~${qGap.peak} 中缺）——本次必须补全这些题，题号从 1 起逐题连续`;
           bodyPathNotes.push(`⚠️ 正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——升级预算重新整卷生成`);
           throw new Error(`正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——正文疑似丢题${attempt === 0 ? '，升级预算重试' : '，重试后仍未补齐'}`);
@@ -4614,6 +4640,14 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔴 完整优先最终守卫：两次尝试（含续写链/缺号拦截）都未能完整输出 → 明确抛错并给行动建议，
     //    绝不把半截/缺题正文当作成功交付（generate 外层 MAX_RETRIES 会整卷级重试；再失败则由 UI 呈现此错误）
     const finalGap = detectBodyNumberingGap(content);
+    if (finalGap) {
+      // 🔢 终检丢题取证（同上，两次尝试都失败时再取一次证据）
+      try {
+        const d = diagnoseNumberingGap(content);
+        console.warn(`🔢 [题号诊断·终检] 正文${content.length}字符 行首题号=[${d.found.join(',')}] 峰值=${d?.gap?.peak} 缺=[${d.missing.join(',')}] 正文内1~2位数字总数=${d.anyDigitCount}`);
+        d.peek.forEach((p) => console.warn(`   ↳ 缺号 ${p.n}：${p.where}${p.sample ? ` ｜ 上下文「${p.sample}」` : ''}`));
+      } catch (e) { /* 诊断失败不影响主流程 */ }
+    }
     if (truncFailNote || finalGap || !isDeliverableBodyHtml(content)) {
       const advise = truncFailNote
         ? `${truncFailNote}。建议：① 缩小勾选范围降低单次体量；② 到「设置 → 整卷输出预算」调大该类型的「上限」或为该类型采纳「实测校准」；③ 内容较长时改用 deepseek-reasoner 等单次输出上限更高的模型（chat 单次仅 8K，长卷易截断）。`
@@ -4622,6 +4656,15 @@ ${cardAnalysisText.substring(0, 1000)}
           : `整卷生成失败: ${lastErr?.message || '未知错误'}`;
       throw new Error(advise);
     }
+
+    // 🔢 题号核对（成功路径也留证）：确认"题号连续性核验"确实执行过——避免"没报错"被误读为"没检查"
+    try {
+      const nums = extractBodyQuestionNumbers(content);
+      if (nums.length) {
+        const uniq = [...new Set(nums)].sort((a, b) => a - b);
+        console.log(`🔢 [题号核对] 正文题号 ${uniq[0]}~${uniq[uniq.length - 1]}，共 ${uniq.length} 个不同题号（连续无缺口，核验已执行）`);
+      }
+    } catch (e) { /* 诊断失败不影响主流程 */ }
 
     // ── 段2：答案页（split 模式独立调用：上下文=整卷正文全文，模型"看着实际题目作答"——
     //         杜绝摘要提取失败后凭记忆编造导致答案与正文不符；
