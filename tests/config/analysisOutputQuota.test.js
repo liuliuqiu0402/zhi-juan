@@ -7,8 +7,14 @@
 //   A. loadConfig 深合并 maxTokensByTask 逐键取"默认与存储的较大者"（旧窄值不再压死新默认）。
 //   B. 分析 callAI 接生成侧"灵活模式"（planOutputQuota + 引擎护栏），maxTokens 由原文量推导，不是死数字。
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { mergeMaxTokensByTask, getTaskMaxTokens, resolveTaskMaxTokens, FACTORY_MAX_TOKENS_BY_TASK } from '../../src/config/apiConfig.js';
 import { planOutputQuota, charsToTokens } from '../../src/utils/outputQuota.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, '../..');
 
 // 期望值独立编码，不引用被测模块自证
 const DEFAULT_BY_TASK = {
@@ -120,5 +126,49 @@ describe('analysis 灵活模式：maxTokens 由原文量推导，不再静态卡
   it('fail-safe：needTokens 极小也不落到 0（至少 1）', () => {
     const quota = planOutputQuota({ needTokens: 0, perCallCap: 65536, engineCeiling: 196608, minRounds: 0 });
     expect(quota.perCall).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// 🔴 2026-09-12 第二轮（实测事故）：短章节（Project 单元）推出 **505 token** 单次帽 →
+//   分析产物是结构化 JSON（知识层级/考点/版式/公式），体量**不与原文等比** → 输出被截断 →
+//   JSON 修复/补全在同一 505 帽内徒劳 → 残件缺 knowledgeHierarchy → 锚树判空不落库；
+//   推导是确定性的 → 重分析仍是 505 → 怎么重试都不成功。
+//   修复：推导**只许放大、不得低于类型帽**：min(引擎护栏, max(类型帽, 推导值))。
+describe('analysis 单次帽推导必须有下限（不得低于类型帽）', () => {
+  const typeCap = 65536;
+  const engineCap = 196608;
+
+  it('短章节（505 样本量级）裸推导确实远小于类型帽——即故障根因', () => {
+    const quota = planOutputQuota({ needTokens: charsToTokens(500), safetyBuffer: 1.25, engineCeiling: engineCap, minRounds: 0 });
+    expect(quota.perCall).toBeLessThan(typeCap);
+  });
+
+  it('下限生效：短章节取类型帽（不再被压到装不下完整 JSON）', () => {
+    const quota = planOutputQuota({ needTokens: charsToTokens(500), safetyBuffer: 1.25, engineCeiling: engineCap, minRounds: 0 });
+    expect(Math.min(engineCap, Math.max(typeCap, quota.perCall))).toBe(typeCap);
+  });
+
+  it('长章节仍按推导放大（灵活模式不退化）', () => {
+    // 类型帽 65536 对应约 6.8 万字原文；更长的章节才需要放大（此处取 12 万字，远超类型帽）
+    const quota = planOutputQuota({ needTokens: charsToTokens(120000), safetyBuffer: 1.25, engineCeiling: engineCap, minRounds: 0 });
+    expect(quota.perCall).toBeGreaterThan(typeCap);
+    expect(Math.min(engineCap, Math.max(typeCap, quota.perCall))).toBe(quota.perCall);
+  });
+
+  it('引擎护栏低于类型帽时以护栏为上限（不发超限请求）', () => {
+    expect(Math.min(8192, Math.max(typeCap, 4000))).toBe(8192);
+  });
+
+  it('源码接线：推导结果按下限式取值（防回退成裸推导）', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8');
+    expect(src).toContain('Math.min(engineCap, Math.max(analysisTypeCap, analysisQuota.perCall))');
+  });
+
+  it('源码接线：截断时不走 JSON 修复链（如实报因，不再伪装成"结构不符"）', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8');
+    expect(src).toContain('returnMeta: true');
+    expect(src).toContain("responseFinish === 'length'");
+    expect(src).toContain('教材特征分析结果结构不完整（缺 knowledgeHierarchy）');
   });
 });

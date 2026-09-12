@@ -3287,7 +3287,14 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
       //     max_tokens 只是"允许量"而非"目标量"，给宽不花钱；单次帽 = min(引擎护栏, 需求×安全缓冲)。
       //     ⚠️ 不得把 perCallCap 传成 getTaskMaxTokens('analysis')——旧本地值 4096 会把推导结果
       //     再次钳回 4096（曾导致"修了却在用 4096"）。analysis 无续写轮，上限只需引擎护栏兜底。
-      let analysisMaxTokens = getTaskMaxTokens('analysis');
+      //    🔴 2026-09-12（实测事故）：推导必须**有下限**——分析产物是结构化 JSON（知识层级/考点/版式/公式），
+      //     体量**不与原文等比**（一页 Project 单元照样要输出整棵层级）。实测短章节推出 505 token →
+      //     首次输出被截断 → JSON 修复/补全在同一 505 帽内徒劳 → 残件缺 knowledgeHierarchy → 锚树判空不落库；
+      //     且推导是确定性的，重分析仍是 505 → 怎么重试都不成功。
+      //     max_tokens 是"允许量"而非"目标量"，给宽不花钱（同 apiConfig 灼量注释），故推导只许**放大**、
+      //     不得低于类型帽：analysisMaxTokens = min(引擎护栏, max(类型帽, 推导值))。
+      const analysisTypeCap = getTaskMaxTokens('analysis');
+      let analysisMaxTokens = analysisTypeCap;
       try {
         const analysisGate = await getCurrentEngineConfigEnhanced('analysis');
         const engineCap = resolveEngineOutputLimit(analysisGate?.provider, analysisGate?.model);
@@ -3298,7 +3305,7 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
           engineCeiling: engineCap,
           minRounds: 0,        // 分析是单次调用、无续写轮：只取单次帽
         });
-        analysisMaxTokens = analysisQuota.perCall;
+        analysisMaxTokens = Math.min(engineCap, Math.max(analysisTypeCap, analysisQuota.perCall));
       } catch (e) {
         // 引擎配置探询失败 → 回退 config 兜底（不阻断分析）
       }
@@ -3314,33 +3321,50 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
         timeout: getTimeout('analysis'),
       });
 
-      const response = await callAI(analysisPrompt, { 
+      const respMeta = await callAI(analysisPrompt, { 
         taskType: 'analysis',
         temperature: apiConfig.generationSettings.analysisTemperature,
         timeout: getTimeout('analysis'),
         maxTokens: analysisMaxTokens,
         cacheKeyFields: TEXTBOOK_FEATURE_CACHE_FIELDS,
+        returnMeta: true,   // 🔴 2026-09-12：取 finishReason——截断时必须如实报因，不再让锚树兜底报"结构不符"
         // 🔧 用户显式「🔄 全部重新分析」时 forceRefresh=true → 绕过 L1 缓存强制真调：
         //    否则同一 prompt 命中旧缓存，"重新分析"失去意义（2026-09-12 用户指出语义冲突）
         ...(forceRefresh ? { skipCache: true } : {}),
         // 🔧 推理模型思考链+输出共享；maxTokens 由原文量推导（见上），不再被旧死值钳死
       });
+      const response = typeof respMeta === 'string' ? respMeta : (respMeta?.content || '');
+      const responseFinish = typeof respMeta === 'string' ? '' : (respMeta?.finishReason || '');
       
-      console.log(`✅ 教材特征分析完成，响应长度: ${response?.length || 0}字（maxTokens=${analysisMaxTokens}）`);
+      console.log(`✅ 教材特征分析完成，响应长度: ${response?.length || 0}字（maxTokens=${analysisMaxTokens}${responseFinish ? `，finish_reason=${responseFinish}` : ''}）`);
   
-      try {
-        const parsed = await robustJsonParse(
-          response,
-          callAnalysisRetry,
-          '教材特征分析',
-          'analysis'
-        );
-        result.visualDescription = parsed.visualDescription || '';
-        result.formulas = parsed.formulas || [];
-        result.coreTopics = parsed.coreTopics || '';
-        result.knowledgeHierarchy = parsed.knowledgeHierarchy || [];
-      } catch (e) {
-        console.error('❌ JSON 解析失败:', e.message);
+      // 🔴 截断感知（2026-09-12 实测事故加固）：被限截断时 JSON 修复/补全**注定徒劳**——残件补不出缺失
+      //    字段，原地修只会把"预算问题"伪装成"结构不符"（正是这几轮难定位的原因之一）。
+      //    故截断即跳过修复链、如实报因：省 2 次无效调用，且原因在日志里可见。
+      if (responseFinish === 'length') {
+        console.error(`❌ 教材特征分析输出被截断（maxTokens=${analysisMaxTokens}，finish_reason=length）——JSON 修复无法补齐缺失字段，请重试或改用单次输出上限更高的模型`);
+      } else {
+        try {
+          const parsed = await robustJsonParse(
+            response,
+            callAnalysisRetry,
+            '教材特征分析',
+            'analysis'
+          );
+          // 🔴 结构残件不接受（2026-09-12）：解析成功但缺判据字段（knowledgeHierarchy）多为截断/修复
+          //    残件——写入空壳只会让下游锚树报"结构不符"、掩盖真因，故丢弃并如实报因。
+          const kh = parsed?.knowledgeHierarchy;
+          if (Array.isArray(kh) && kh.length) {
+            result.visualDescription = parsed.visualDescription || '';
+            result.formulas = parsed.formulas || [];
+            result.coreTopics = parsed.coreTopics || '';
+            result.knowledgeHierarchy = kh;
+          } else {
+            console.error('❌ 教材特征分析结果结构不完整（缺 knowledgeHierarchy）——疑似输出被截断或修复残件，已丢弃，请重试');
+          }
+        } catch (e) {
+          console.error('❌ JSON 解析失败:', e.message);
+        }
       }
     } catch (e) {
       console.error('❌ AI 分析异常:', e.message);
