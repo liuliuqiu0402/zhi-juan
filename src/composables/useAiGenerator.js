@@ -2142,9 +2142,15 @@ const maxInputTokens = config.engine === 'deepseek'
             // 🔧 DeepSeek 文本模型：直接测试 API 连接
             console.log(`📡 测试 DeepSeek API 连接...`);
             
+            // 🔧 根因修复（2026-09-12）：`timeoutId` 原以 const 声明在 try 块内 → catch 块里不可见，
+            //    异常路径执行 `clearTimeout(timeoutId)` 会抛 ReferenceError，后果有二：
+            //    ① 真实报错被掩盖（"Failed to fetch" 变成 "timeoutId is not defined"），排查被带偏；
+            //    ② clearTimeout 本身抛错 → 该次遗留的 abort 定时器不被清除（定时器泄漏）。
+            //    改为在 try 外声明（与 Ollama 分支的写法对齐）。
+            let timeoutId = null;
             try {
               const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), timeoutConfig.text.callAITimeout);
+              timeoutId = setTimeout(() => controller.abort(), timeoutConfig.text.callAITimeout);
               
               // 🔧 关键修复：智能构建 API URL，避免重复拼接
               let apiUrl = textConfig.baseUrl;
@@ -2239,7 +2245,7 @@ const maxInputTokens = config.engine === 'deepseek'
                 console.log(`⚠️ 第${attemptCount}次尝试失败`);
               }
             } catch (e) {
-              clearTimeout(timeoutId);
+              if (timeoutId) clearTimeout(timeoutId);   // 🔧 修复：定时器已在 try 外声明，此处必定可见
               console.warn(`⚠️ DeepSeek API 检测失败: ${e.message}`);
               
               // 如果是网络错误或超时，提供建议
