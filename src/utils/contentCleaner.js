@@ -691,6 +691,29 @@ const decodeCarrierNumericEntities = (s) => String(s || '').replace(/&#(?:x([0-9
  */
 const BLANK_INNER = '(?:&emsp;|&nbsp;|&ensp;|&#8195;|&#x2003;|&#160;|&#x00A0;|[\\s\\u3000\\u2003\\u00A0])*';
 
+/**
+ * 🔴 双载体判据（**剥除与检测单一事实源**，2026-09-12）
+ * ============================================================
+ * 病根：剥除（本文件 normalizeBlankMarkers 内两条）按**严格形态**写（`class="blank-N"` 双引号、
+ *   不可带其它属性、内部正好是 `&emsp;`），检测（contentSanity.detectDoubleCarrierLeak）按**宽松形态**
+ *   写（单引号也行、class 后带其它属性也行、u 与 span 都算）→ **剥不掉的东西检测照样报**，
+ *   于是"空位前残留空白宽"这条提示永远报不完（用户实测多轮）。同 2026-09-12 图依赖词/载体正则
+ *   那两处"两处各写一份必然漂移"，一并收口：两边共用下面两个片段。
+ */
+const BLANK_WS_RUN = '(?:&emsp;|&#8195;|&#x2003;|\\u2003|\\u3000|&nbsp;| ){2,}';
+const BLANK_CARRIER_OPEN = '<(?:u|span)\\s+class=["\'][^"\']*blank-\\d+[^"\']*["\'][^>]*>';
+
+/** 双载体残留片段清单（**检测**用；与剥除同源，只报不改） */
+export function findDoubleCarrierResidual(html = '') {
+  const re = new RegExp(`(${BLANK_WS_RUN})(?=${BLANK_CARRIER_OPEN})`, 'g');
+  return [...String(html || '').matchAll(re)].map((m) => m[1]);
+}
+
+/** 剥除空位前残留的空白宽（**剥除**用；与检测同源：检测得到的必然剥除得了） */
+export function stripDoubleCarrierResidual(html = '') {
+  return String(html || '').replace(new RegExp(`(${BLANK_WS_RUN})(?=${BLANK_CARRIER_OPEN})`, 'g'), '');
+}
+
 export function normalizeBlankMarkers(html = '') {
   let out = String(html || '');
   // ① 数字实体解码（见 decodeCarrierNumericEntities 注释，C3-C5）
@@ -773,9 +796,9 @@ export function normalizeBlankMarkers(html = '') {
   //    全角空格串、其后又叠一个括号空 → 同一答案空两种载体（导出成"方框后括号"）。
   //    括号空已在上方归一为 <span class="blank-N">&emsp;</span>，此处剥除其前 ≥2 字符的冗余空白宽，
   //    只保留括号空为唯一载体；单个空格（自然间隔）不剥。u.blank 前置□类由下方跨类型去重处理。
-  out = out
-    .replace(/((?:&emsp;|&#8195;|&#x2003;|\u2003|\u3000|&nbsp;| ){2,})(?=<u class="blank-\d+">&emsp;<\/u>)/g, '')
-    .replace(/((?:&emsp;|&#8195;|&#x2003;|\u2003|\u3000|&nbsp;| ){2,})(?=<span class="blank-\d+">&emsp;<\/span>)/g, '');
+  //    🔴 2026-09-12：剥除与检测同源（stripDoubleCarrierResidual）——原严格形态剥不掉"单引号/
+  //    带其它属性"的载体，而检测按宽松形态照报，导致该提示永远报不完。
+  out = stripDoubleCarrierResidual(out);
   // 🔧 裸书写空跑段 → u.blank-N（wrapBareBlankRuns：整段纯空白行 + 行内前有正文的连续空位段；
   //    全角空格 \u3000 / em 空格 \u2003·&emsp; 实体同口径——曾只认 \u3000，模型 em 空格形态漏判 → 无横线）。
   //    在 <u>/括号/span.blank-N 规则之后执行（幂等）；≥2 空位才处理（单空位=列分隔/排版）；
@@ -822,6 +845,10 @@ export function normalizeBlankMarkers(html = '') {
   out = unifySameParagraphWriteBlanks(out);
   // 🔴 畸形填空载体拆壳（不变量守卫）：blank-N 内出现正文文字/标题被包 → 还原纯文本（后置于一切包裹规则之后）
   out = unwrapMalformedBlankCarriers(out);
+
+  // 🔴 收尾再剥一次双载体残留（与检测同源）：中段之后的规则（裸空跑段/装饰标记/形态归一）仍可能
+  //    在空位前留下 ≥2 空白宽——检测跑在**最终** HTML 上，故必须让"最终形态"也满足它的条件。
+  out = stripDoubleCarrierResidual(out);
 
   // 🔤 英文省略号三点归一（中文说明文字里的六点省略号不受影响）
   out = normalizeEnglishEllipsis(out);

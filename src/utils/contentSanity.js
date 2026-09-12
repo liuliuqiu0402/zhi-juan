@@ -8,6 +8,8 @@
  * ============================================================
  */
 
+import { findDoubleCarrierResidual } from './contentCleaner.js'; // 🔴 双载体判据单一事实源（与剥除同源，2026-09-12）
+
 /** 可数对象量词（计数对象的物理量——数量不得为小数） */
 const COUNT_NOUNS = '人|位|本|张|辆|件|盒|只|支|箱|棵|块|条|把|台|套|册|颗|匹|艘|户|名|个|步';
 /** 计量单位（长度/质量/容量/货币/时间等） */
@@ -75,13 +77,13 @@ export const detectApproxEqualsSign = (text = '') => {
 
 /** 双载体泄漏守卫（2026-09 实证：模型按宽度换算输出全角空格串后，又叠加一个括号空位 →
  *  同一答案空两种载体（导出成"方框后括号"）。正常归一链应在 contentCleaner 剥除前置空白宽，
- *  此检测器对归一后的最终 HTML 做回归兜底（只报不改）：空白宽串 ≥2 且紧邻空位标签 → 报。 */
+ *  此检测器对归一后的最终 HTML 做回归兜底（只报不改）：空白宽串 ≥2 且紧邻空位标签 → 报。
+ *  🔴 2026-09-12：判据改为**单一事实源**（contentCleaner.findDoubleCarrierResidual）——此前本处按
+ *  宽松形态写、剥除按严格形态写，剥不掉的检测照样报，该提示永远报不完。 */
 export const detectDoubleCarrierLeak = (html = '') => {
   const out = [];
-  const re = /((?:&emsp;|&#8195;|&#x2003;|\u2003|\u3000|&nbsp;| ){2,})(?=<(?:u|span)\s+class=["'][^"']*blank-\d+[^"']*["'][^>]*>)/g;
-  let m;
-  while ((m = re.exec(String(html || '')))) {
-    out.push(`同一答案空位出现双载体：空位前残留空白宽度 ${m[1].replace(/\s/g, ' ').length} 字符宽（一个空位只保留一种载体，多余空白宽应已剥除）`);
+  for (const run of findDoubleCarrierResidual(html)) {
+    out.push(`同一答案空位出现双载体：空位前残留空白宽度 ${run.replace(/\s/g, ' ').length} 字符宽（一个空位只保留一种载体，多余空白宽应已剥除）`);
   }
   return out;
 };

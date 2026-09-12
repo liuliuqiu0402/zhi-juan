@@ -191,7 +191,7 @@ export function guardPaper({ html = '', corpus = [], longN = 8, copy = true, sub
   const copyHits = copy
     ? scanCopyOverlap({ bodyHtml: html, corpus, longN, subject }).map((h) => ({
         cat: 'copy', level: 'warn',
-        text: `「${h.snippet}」（${h.kind === 'num' ? '数字串' : `${h.n} 字连续`}命中教材参考段）`,
+        text: `「${h.snippet}」（${h.kind === 'num' ? '数字串' : /[A-Za-z]/.test(h.snippet) ? `${h.n} 词连续` : `${h.n} 字连续`}命中教材参考段）`,
         snippet: h.snippet,
       }))
     : [];

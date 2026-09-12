@@ -1,6 +1,7 @@
 // 内容合理性扫描（Content Sanity）单测：确定性违规信号检测（荒谬计数倒推 / 可数对象小数直写 / 近似等号 / 同单位换算数值突变 / 空位宽度单一化 / 双载体泄漏 / 任务可作答性错配）
 import { describe, it, expect } from 'vitest';
 import { detectCountingFakes, detectUnitMutations, detectUniformBlankWidths, detectCountDecimals, detectApproxEqualsSign, detectDoubleCarrierLeak, detectPhonemeConflicts, detectQuoteConflicts, sanityScan, sanityNoteOf } from '../../src/utils/contentSanity.js';
+import { normalizeBlankMarkers } from '../../src/utils/contentCleaner.js';
 
 describe('contentSanity 内容合理性扫描', () => {
   it('荒谬计数情境：小数 + 可数量词 + （即N）倒推 → 检出', () => {
@@ -115,6 +116,18 @@ describe('contentSanity 2026-09 A-101 产物审计回归（可数对象小数直
     expect(detectDoubleCarrierLeak('0.09＝　　　<span class="blank-8">&emsp;</span>')).toHaveLength(1);
     expect(detectDoubleCarrierLeak('0.09＝<span class="blank-8">&emsp;</span>')).toEqual([]);
     expect(detectDoubleCarrierLeak('0.09＝ <span class="blank-8">&emsp;</span>')).toEqual([]); // 单空格=自然间隔
+  });
+
+  // 🔴 2026-09-12（用户实测多轮报不完）：剥除按**严格形态**写、检测按**宽松形态**写 → 剥不掉的检测照样报。
+  //    判据收口为单一事实源（contentCleaner BLANK_WS_RUN/BLANK_CARRIER_OPEN）后，锁定不变量：
+  //    **检测报得出的，归一链必然剥得掉**（单引号 class / class 后带其它属性 / u 与 span 一律同待）。
+  it('双载体：剥除与检测同源（检测得到的必然剥除得了）', () => {
+    const looseSpan = "0.09＝\u3000\u3000<span class='blank-8' data-w='3'>&emsp;</span>";
+    const looseU = '0.09＝　　<u class="blank-8" data-x="1">&emsp;</u>';
+    expect(detectDoubleCarrierLeak(looseSpan)).toHaveLength(1);
+    expect(detectDoubleCarrierLeak(looseU)).toHaveLength(1);
+    expect(detectDoubleCarrierLeak(normalizeBlankMarkers(looseSpan))).toEqual([]);
+    expect(detectDoubleCarrierLeak(normalizeBlankMarkers(looseU))).toEqual([]);
   });
 
   it('sanityScan 汇总新信号；去重后不重复计数', () => {
