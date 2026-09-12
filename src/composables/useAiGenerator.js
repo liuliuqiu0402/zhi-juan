@@ -421,6 +421,7 @@ import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paper
 import { reconcileDomains, domainNoteOf } from '../utils/domainReconciler.js';
 import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
+import { FIGURE_DEPENDENCY_RE } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（图标记取证用）
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -4966,6 +4967,16 @@ ${cardAnalysisText.substring(0, 1000)}
     //    哪个对应哪个（例词只在答案区/中文名揽英文正文等边界会造成误标），故不再输出映射报告。
     //    覆盖是否呈现交由正文生成期决定；锚点清单置写作前缀开头（带清单读压缩原文）。
     //    （旧 reconcileCoverage 判缺对账、auto 补漏、必覆盖闭环均已废除）
+
+    // 🖼 图标记取证（2026-09-12）：把"模型压根没写图标记"与"程序把图标记删了"分开——
+    //    与题号取证同一口径（题号取证已实证真凶是程序侧削除，图这里必须先排除同类可能，不靠猜）。
+    try {
+      const bodyTextForFig = htmlToPlainText(content);
+      const imgMarkN = (content.match(/\[IMAGE\]/g) || []).length;
+      const graphMarkN = (content.match(/\[GRAPH\]/g) || []).length;
+      const figAsked = FIGURE_DEPENDENCY_RE.test(bodyTextForFig);
+      console.warn(`🖼 [图标记取证] 正文 [IMAGE]=${imgMarkN} 个 [GRAPH]=${graphMarkN} 个 ｜ 正文命中图依赖词=${figAsked} ｜ ${figAsked && !imgMarkN && !graphMarkN ? '⚠️ 题干要图但正文无任何图标记（模型没写 or 程序删了）' : '一致（无需人工补图）'}`);
+    } catch (e) { /* 取证失败不影响主流程 */ }
 
     // 🔴 出稿自检报告（卷级守门最终状态：程序剔除首段自述后仍残留的命中统一分节透出——
     //    照搬/算式重复/情境集中/数据载体裂缝；只报不改、中性表述，交编辑核对决断）

@@ -167,4 +167,20 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(value).toContain('不堆砌空话套话');
     expect(value).toContain('不为凑篇幅扩写无关或编造内容');
   });
+
+  // 🔴 2026-09-12（用户裁定）：图-题一致性改**原则式**，且图依赖词表单一事实源。
+  //    背景实证：指令侧按措辞枚举（看图/读图/据图/如图/图表）、校验侧用更宽词表
+  //    （多"看图形/统计图/观察…图形/格图"）——两表不同源 → 模型遇"观察下面的图形/看图形/统计图"
+  //    即判"未声明图依赖"而不出图，校验侧却照报"题干要图却没出图"，多轮修不掉。
+  //    本用例锁定：①指令侧不得回退措辞枚举；②校验侧引用单一事实源，不得再自写一份。
+  it('图-题一致性为原则式（无措辞清单），且图依赖词表单一事实源', () => {
+    const lib = fs.readFileSync(path.join(ROOT, 'src', 'config', 'promptLibrary.js'), 'utf8');
+    expect(lib).toContain('不存在"图依赖措辞清单"');           // 明示无清单（原则式）
+    expect(lib).not.toContain('题干声明依赖图的（看图/读图');    // 旧枚举式判据不得回退
+    const ev = fs.readFileSync(path.join(ROOT, 'src', 'utils', 'examValidator.js'), 'utf8');
+    expect(ev).toContain("from '../config/eduRenderContract.js'");
+    expect(ev).not.toContain('看图|读图|看图形|据图|统计图');    // 校验侧不得再自维护词表
+    const rc = fs.readFileSync(path.join(ROOT, 'src', 'config', 'eduRenderContract.js'), 'utf8');
+    expect(rc).toContain('export const FIGURE_DEPENDENCY_RE');
+  });
 });

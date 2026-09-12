@@ -9,6 +9,7 @@
 import { getValidatorRules, normalizeStage } from '../config/validatorRules.js';
 import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATION } from '../config/layoutSpec.js';
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
+import { FIGURE_DEPENDENCY_RE } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（2026-09-12）
 
 // ---------- 通用正则 ----------
 // 全角拼音字符归一表（IPA 音标字符混入小学拼音、全角字母）
@@ -958,7 +959,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     //     配图标记同时认 [IMAGE]（画面）与 [GRAPH]（数据/几何图形）；整卷一个图标记都没有但存在此类题 → 必报"待补图"。
     //     只报不改（不改内容不改分），把"题要图没图"从静默变成可核对。
     if (has('image-block-fix')) {
-      const figureKeywordRe = /看图|读图|看图形|据图|统计图|观察[^\n]{0,8}图形|格图/;
+      // 🔴 2026-09-12：图依赖词改为**单一事实源**（此前本处与指令侧 promptLibrary 各自维护一份且互不相等，
+      //    模型认不出"观察下面的图形/看图形/统计图"→不出图，本处却照报缺图，两边不同源故多轮修不掉）。
+      const figureKeywordRe = FIGURE_DEPENDENCY_RE;
       const hasFigureAsk = figureKeywordRe.test(bodyNoAnsText);
       const hasImgMark = /\[IMAGE\]/.test(out);
       const hasGraphMark = /\[GRAPH\]/.test(out);
