@@ -360,10 +360,12 @@
           placeholder="https://api.deepseek.com/v1"
         >
 
-        <!-- 🔧 A13（2026-09-11）：DeepSeek 云端现仅一个模型（V4.1 Flash，正式名 deepseek-flash）——
-             原「经济/均衡/旗舰」成本预设已失去区分度（V4 Pro 自 2026-09-14 12:00 起路由到 Flash），故移除。 -->
+        <!-- 🔧 A13（2026-09-11；2026-09-12 按用户裁定「甲」更正口径）：DeepSeek 项目内统一使用 V4.1 Flash
+             （正式名 deepseek-flash）——理由是 Flash 在性能/费用/速度/总用时上全面超越 V4 Pro；
+             ⚠️ 不再声称"Pro 已下线/被路由"（该公告已被官方撤回：9/14 后继续提供、计费不变）。
+             归一映射保留 = 项目统一口径 + 旧配置兼容，故下拉不再列 Pro（避免"选了也会被改写"的假选项）。 -->
         <p style="font-size:11px;color:#888;margin:0 0 8px;">
-          💡 云端现仅提供 <b>DeepSeek V4.1 Flash</b>（正式名 <code>deepseek-flash</code>）：V4 Pro 已于 2026-09-14 12:00 起路由至该模型并按 Flash 计费，故生成/分析统一使用同一模型；此前的经济/均衡/旗舰成本预设已无区分度，已移除。
+          💡 项目统一使用 <b>DeepSeek V4.1 Flash</b>（正式名 <code>deepseek-flash</code>）：官方口径为 Flash 在性能、费用、速度与总用时上全面超越 V4 Pro，故生成/分析统一同一模型，此前的经济/均衡/旗舰成本预设已无区分度并移除。V4 Pro 官方仍在提供，但本项目不选用，其名仅作旧配置兼容。
         </p>
 
         <label>📝 资料生成模型（generation/blueprint）</label>
@@ -389,6 +391,7 @@
         <p style="font-size:11px;color:#888;margin:6px 0 0;line-height:1.6;">
           🔄 下拉候选由云端「可用模型」自动补全：<b>后续新模型（含日后再出的 Pro 旗舰）一经云端提供即入列</b>，可直接选择切换。
           自动发现只会在当前模型失效时回落到 <code>deepseek-flash</code>，<b>不会擅自切换到其它模型</b>（避免重演被自动改成 pro）。
+          已被项目归一的历史名（如 <code>deepseek-v4-pro</code>）不再列入候选，以免出现"选了也会被改写"的假选项。
         </p>
       </div>
 
@@ -1318,7 +1321,7 @@ import { useDialog } from '@/composables/useDialog.js';
 import { useBackup } from '@/composables/useBackup.js';
 import { useWebAuth, clearWebAuth } from '@/composables/useWebAuth.js';
 import useLogger, { copyLogs } from '@/composables/useLogger.js';
-import { apiConfig, DEFAULT_BUDGET_BY_TYPE, normalizeBudgetByType, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel, listDeepSeekModels } from '@/config/apiConfig.js';
+import { apiConfig, DEFAULT_BUDGET_BY_TYPE, normalizeBudgetByType, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel, listDeepSeekModels, listDeepSeekSelectableModels } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
 import { listTypeBuckets, applyCalibration, clearCalibration, setCalibratedEnabled, CHARS_PER_TOKEN, CALIBRATION_THRESHOLDS, TIER_RATIO } from '@/utils/budgetCalibration.js';
 import { recordAudit, getAuditLogs, clearAuditLogs, getAuditCount } from '@/utils/auditLog.js';
@@ -1856,16 +1859,17 @@ const formatDeepSeekModel = (model) => {
   const nameMap = {
     // ✅ A13（2026-09-11）：统一到 V4.1 Flash（旧名保留映射，避免历史配置显示原始串）
     'deepseek-flash': '⚡ deepseek-flash（DeepSeek-V4.1-Flash·思考已关）',
-    'deepseek-v4-flash': '⚡ deepseek-v4-flash（遗留名→V4.1-Flash 服务）',
-    'deepseek-v4-pro': '🧠 deepseek-v4-pro（遗留名→路由至 V4.1-Flash）',
+    'deepseek-v4-flash': '⚡ deepseek-v4-flash（遗留名·请求由 V4.1-Flash 服务）',
+    'deepseek-v4-pro': '🧠 deepseek-v4-pro（遗留名·本项目统一使用 V4.1-Flash）',
     'deepseek-chat': '💬 deepseek-chat（旧版通用）',
     'deepseek-reasoner': '🧠 deepseek-reasoner（旧版推理）',
   };
   return nameMap[model] || model;
 };
 
-// ✅ A13（2026-09-11）：原「成本预设（经济/均衡/旗舰）」已移除——云端现仅一个模型（V4.1 Flash），
-//    三档预设指向同一模型、失去区分度；对应按钮也已从模板删除。历史配置经 loadConfig 归一不受影响。
+// ✅ A13（2026-09-11；2026-09-12 更正口径）：原「成本预设（经济/均衡/旗舰）」已移除——
+//    项目统一使用 V4.1 Flash（性能/费用/速度全面优于 V4 Pro），三档预设指向同一模型、失去区分度；
+//    对应按钮也已从模板删除。历史配置经 loadConfig 归一（含 v4-pro → flash）不受影响。
 
 const saveStatus = ref('');
 
@@ -2155,9 +2159,11 @@ onMounted(async () => {
   // 🔧 DeepSeek：拉取云端**全量**可用模型补进下拉候选，并选定当前使用模型
   //    🔑 全量列表 = 后续新模型（含日后再出的 Pro 旗舰）的**切换入口**：一出现即入下拉，用户可直接手动选用；
   //    自动选择规则（pickDiscoveredDeepSeekModel）只会在当前模型失效时回落 flash，绝不擅自切到其它模型。
+  //    ✅ A13-5（2026-09-12 裁定「甲」）：候选先经 listDeepSeekSelectableModels 过滤掉已被归一的遗留别名
+  //       （否则会给出"选了也会被 loadConfig 改写成 flash"的假选项）；未归一新模型照常入列。
   if (settings.value.currentEngine === 'deepseek' && settings.value.deepseekApiKey) {
     try {
-      const all = await listDeepSeekModels();
+      const all = await listDeepSeekSelectableModels(await listDeepSeekModels());
       for (const m of all) {
         if (m && !deepseekModelOptions.value.includes(m)) deepseekModelOptions.value.push(m);
       }

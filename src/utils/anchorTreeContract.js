@@ -82,9 +82,6 @@ export const validateAnchorTree = (hierarchy) => {
       } else if (Array.isArray(ck.specificConcepts) && ck.specificConcepts.some((s) => typeof s !== 'string')) {
         push('specific-item-invalid', `${cp}.specificConcepts`, 'specificConcepts 元素必须为字符串');
       }
-      if (ck.suggestedQuestionTypes !== undefined && !Array.isArray(ck.suggestedQuestionTypes)) {
-        push('types-not-array', `${cp}.suggestedQuestionTypes`, 'suggestedQuestionTypes 必须是数组');
-      }
     });
   });
   return { ok: violations.length === 0, violations };

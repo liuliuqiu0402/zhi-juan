@@ -112,8 +112,7 @@ export const ANALYSIS_PROMPTS = [
       + '  - kpForTest：该课可考查知识点（每个对象含 名称/考查要求等）\n'
       + '  - keySegmentSamples：关键片段示例（每个对象含 type 类型、hasFormula 是否涉及公式、snippet 片段摘录）\n'
       + '  - totalSegments：该课总片段数\n'
-      + '  - tagSummary：标签摘要\n'
-      + '  - suggestedQuestionTypes：建议考查题型' },
+      + '  - tagSummary：标签摘要' },
 ];
 
 /**

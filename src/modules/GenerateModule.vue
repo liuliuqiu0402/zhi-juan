@@ -2904,12 +2904,6 @@
                         >
                           具体概念：{{ ck.specificConcepts.join('、') }}
                         </div>
-                        <div
-                          v-if="ck.suggestedQuestionTypes && ck.suggestedQuestionTypes.length > 0" 
-                          style="font-size:11px;color:var(--text-muted);margin-left:16px;margin-top:2px;"
-                        >
-                          建议题型：{{ ck.suggestedQuestionTypes.join('、') }}
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -7162,6 +7156,9 @@ const executeTextbookAnalysis = async (action) => {
     let totalPages = 0;
     let donePages = 0;
     let failedPages = [];    
+    // 🔧 复用缓存的章数（action='skip'/'new' 时已分析章直接 continue）——用于结果提示，
+    //    避免"跳过"后提示写成"0个章节已有分析结果"（让人误以为出错，2026-09-12）
+    let reusedChapters = 0;
     // ✅ A1-2/A1-3（2026-09-11）：锚树契约校验被拒章 + 锚粒度诊断逐章报告（可观测证据）
     const anchorTreeRejected = [];
     const granularityReports = [];
@@ -7182,8 +7179,8 @@ const executeTextbookAnalysis = async (action) => {
     for (const book of books) {
       const chapters = book.selectedChapters || [];
       for (const ch of chapters) {
-        if (action === 'skip' && ch.analyzed && ch.knowledgePoints?.length) continue;
-        if (action === 'new' && ch.analyzed && ch.knowledgePoints?.length) continue;
+        if (action === 'skip' && ch.analyzed && ch.knowledgePoints?.length) { reusedChapters += 1; continue; }
+        if (action === 'new' && ch.analyzed && ch.knowledgePoints?.length) { reusedChapters += 1; continue; }
         
         // 🔧 "全部重新分析"：废弃已提取的知识点（保留原文），之后跳过OCR/编辑器直接调AI重新分析
         let userRawText = '';
@@ -7470,7 +7467,8 @@ const executeTextbookAnalysis = async (action) => {
     
     if (action === 'skip') {
       await textbookStore.saveTextbooks();
-      previewHint.value = `✅ 直接使用缓存：${allResults.length}个章节已有分析结果`;
+      previewHint.value = `✅ 直接使用缓存：${reusedChapters}个章节复用已有分析结果（本次未调用 AI，知识点与上次一致）`;
+      console.log(`⏭️ [分析] 跳过：${reusedChapters} 章复用缓存、0 章重新分析（未调用 AI）——如需按最新判据重跑，请选「🔄 全部重新分析」`);
     } else {
       // 'new' 和 'all' 都走这里——弹出确认弹窗让用户查看结果
       analysisResultType.value = 'textbook';

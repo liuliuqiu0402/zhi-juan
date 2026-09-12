@@ -4,7 +4,7 @@
  * 🔴 定位（2026-09 覆盖治理 P0）：覆盖契约 / 对账 / 自动补漏 / 缺料诊断的唯一事实源。
  *
  * 锚的定义：
- *   - 锚 = 章级 knowledgeHierarchy 的 coreKnowledge（第二层，带认知层次/建议题型/具体概念）。
+ *   - 锚 = 章级 knowledgeHierarchy 的 coreKnowledge（第二层，带认知层次 / 具体概念）。
  *     contentCards.anchorTree 在 extractContentCards 捷径分支随卡附带（结构化归一，非原对象引用），
  *     考点 → 章归属由树结构天然成立，不依赖 Step2 knowledgeGraph 中 AI 自由填写的 relatedChapters
  *     （无写入点、缺省高风险，曾致章节锚定失效、检索静默回落）。
@@ -69,7 +69,6 @@ export const flattenAnchorTree = (anchorTree = []) => {
         name: ck.name,
         level: ck.level || '理解',
         specificConcepts: (ck.specificConcepts || []).filter(Boolean),
-        suggestedQuestionTypes: (ck.suggestedQuestionTypes || []).filter(Boolean),
       });
     }
   }
@@ -128,7 +127,7 @@ const bindOneCard = (card, retriever) => {
  * @param {Array} contentCards Step1 产物（须含 anchorTree + segments；目录卡/未分析卡 anchorTree 为空）
  * @param {Object} [opts] { retriever } semanticRetriever 实例（可选，缺省则跳过 semantic 级）
  * @returns {{ anchors, report }}
- *   anchors: 全量扁平 [{chapterTitle, bigConcept, name, level, specificConcepts, suggestedQuestionTypes, bind}]
+ *   anchors: 全量扁平 [{chapterTitle, bigConcept, name, level, specificConcepts, bind}]
  *   report:  { total, byStatus:{literal,semantic,chapter,missing}, bound, missingList }
  */
 export const buildAnchors = (contentCards = [], opts = {}) => {

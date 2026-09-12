@@ -337,7 +337,7 @@ describe('三维度完整指令逐句审计（真实开设矩阵 54 科段 × 9 
     expect(hits, `共 ${hits.length} 处"考点"残留（须为 0，非卷指令面已统一核心知识/知识层级）：\n${hits.slice(0, 40).join('\n')}${hits.length > 40 ? `…(共${hits.length})` : ''}`).toEqual([]);
   });
 
-  it('护栏：模型注入面（整条拼装指令）不含"建议题型/suggested"字样——建议题型仅存数据层与 UI，防锚对象整体序列化回潮（486 组合）', () => {
+  it('护栏：模型注入面（整条拼装指令）不含"建议题型/suggested"字样——✅ A1-5（2026-09-12）该字段已彻底下线，防回潮（486 组合）', () => {
     const fails = [];
     for (const { subject, stage, genType } of LEGAL_COMBOS) {
       const r = assemble(subject, stage, genType);

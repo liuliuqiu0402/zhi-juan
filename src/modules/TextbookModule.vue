@@ -1062,12 +1062,6 @@
                       >
                         具体概念：{{ ck.specificConcepts.join('、') }}
                       </div>
-                      <div
-                        v-if="ck.suggestedQuestionTypes && ck.suggestedQuestionTypes.length > 0" 
-                        style="font-size:11px;color:var(--text-muted);margin-left:16px;margin-top:2px;"
-                      >
-                        建议题型：{{ ck.suggestedQuestionTypes.join('、') }}
-                      </div>
                     </div>
                   </div>
                 </div>

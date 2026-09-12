@@ -16,10 +16,10 @@ describe('coverageAnchor 绑定四级与红线', () => {
     {
       bigConcept: '数与运算',
       coreKnowledge: [
-        { name: '小数乘整数', level: '理解', specificConcepts: ['乘数大于1的规律'], suggestedQuestionTypes: ['计算题'] },
-        { name: '小数乘小数', level: '理解', specificConcepts: [], suggestedQuestionTypes: ['计算题'] },
+        { name: '小数乘整数', level: '理解', specificConcepts: ['乘数大于1的规律'] },
+        { name: '小数乘小数', level: '理解', specificConcepts: [] },
         // 章内无字面命中、无语义检索 → 章级兜底
-        { name: '积的近似数', level: '应用', specificConcepts: [], suggestedQuestionTypes: ['解决问题'] },
+        { name: '积的近似数', level: '应用', specificConcepts: [] },
       ],
     },
   ], segs);
@@ -33,12 +33,12 @@ describe('coverageAnchor 绑定四级与红线', () => {
     expect(wordMatch('甲数是乙数的2倍', '是')).toBe(false); // 短词嵌中文不命中
   });
 
-  it('flattenAnchorTree 归一：章级锚树 → 扁平 coreKnowledge（含具体概念/题型/层级）', () => {
+  it('flattenAnchorTree 归一：章级锚树 → 扁平 coreKnowledge（含具体概念/层级）', () => {
     const flat = flattenAnchorTree(cardA.anchorTree);
     expect(flat).toHaveLength(3);
     expect(flat[0]).toMatchObject({
       bigConcept: '数与运算', name: '小数乘整数', level: '理解',
-      specificConcepts: ['乘数大于1的规律'], suggestedQuestionTypes: ['计算题'],
+      specificConcepts: ['乘数大于1的规律'],
     });
   });
 
@@ -75,7 +75,7 @@ describe('coverageAnchor 绑定四级与红线', () => {
 
   it('missing（缺料）：章无片段 → 不进可命题清单，进缺料诊断；boundAnchorNames 已过滤', () => {
     const cardEmpty = mkCard('第5单元 循环小数', [
-      { bigConcept: '数与运算', coreKnowledge: [{ name: '循环小数的意义', level: '理解', specificConcepts: [], suggestedQuestionTypes: ['选择题'] }] },
+      { bigConcept: '数与运算', coreKnowledge: [{ name: '循环小数的意义', level: '理解', specificConcepts: [] }] },
     ], []); // 无原文片段 → 缺料信号
     const { anchors, report } = buildAnchors([cardA, cardEmpty], {});
     expect(report.total).toBe(4);
@@ -103,7 +103,7 @@ describe('锚范围性质判定（复位 S4.1：拓展锚不进必覆盖清单�
 
   it('仅绑定"你知道吗"科普框段的锚 → isExtension=true（存量 type=正文 按文本复判）', () => {
     const card = mkCard('第2单元 小数乘法和除法', [
-      { bigConcept: '数与运算', coreKnowledge: [{ name: '循环小数', level: '了解', specificConcepts: [], suggestedQuestionTypes: [] }] },
+      { bigConcept: '数与运算', coreKnowledge: [{ name: '循环小数', level: '了解', specificConcepts: [] }] },
     ], [extSeg]);
     const { anchors } = buildAnchors([card], {});
     expect(anchors[0].isExtension).toBe(true);
@@ -111,7 +111,7 @@ describe('锚范围性质判定（复位 S4.1：拓展锚不进必覆盖清单�
 
   it('绑定含正文规则句（非纯科普框）→ isExtension=false', () => {
     const card = mkCard('第2单元 小数乘法和除法', [
-      { bigConcept: '数与运算', coreKnowledge: [{ name: '小数乘小数', level: '理解', specificConcepts: [], suggestedQuestionTypes: [] }] },
+      { bigConcept: '数与运算', coreKnowledge: [{ name: '小数乘小数', level: '理解', specificConcepts: [] }] },
     ], [ruleSeg]);
     const { anchors } = buildAnchors([card], {});
     expect(anchors[0].isExtension).toBe(false);
@@ -119,32 +119,34 @@ describe('锚范围性质判定（复位 S4.1：拓展锚不进必覆盖清单�
 
   it('混合绑定（规则句+科普框）→ 非拓展锚（可命题可对账）', () => {
     const card = mkCard('第2单元 小数乘法和除法', [
-      { bigConcept: '数与运算', coreKnowledge: [{ name: '小数乘小数', level: '理解', specificConcepts: [], suggestedQuestionTypes: [] }] },
+      { bigConcept: '数与运算', coreKnowledge: [{ name: '小数乘小数', level: '理解', specificConcepts: [] }] },
     ], [ruleSeg, extSeg]);
     const { anchors } = buildAnchors([card], {});
     expect(anchors[0].isExtension).toBe(false);
   });
 });
 
-describe('护栏：建议题型不进模型注入面（boundAnchorNames 输出最小化，防锚对象整体序列化回潮）', () => {
+describe('护栏：锚对象注入面最小化 + 已下线字段不回潮', () => {
   const segs2 = [{ text: '例题文本：0.3×3=0.9。', type: '例题', isKeyConcept: true }];
   const cardB = mkCard('第1单元 小数乘法', [
     { bigConcept: '数与运算', coreKnowledge: [
-      { name: '小数乘整数', level: '理解', specificConcepts: ['算理'], suggestedQuestionTypes: ['竖式计算', '填空'] },
+      { name: '小数乘整数', level: '理解', specificConcepts: ['算理'] },
     ] },
   ], segs2);
 
-  it('boundAnchorNames 仅含 {chapter,bigConcept,name,level}，不含 suggestedQuestionTypes/specificConcepts', () => {
+  it('boundAnchorNames 仅含 {chapter,bigConcept,name,level}（防锚对象整体序列化回潮）', () => {
     const { anchors } = buildAnchors([cardB], {});
     const out = boundAnchorNames(anchors);
     expect(out).toHaveLength(1);
     expect(Object.keys(out[0]).sort()).toEqual(['bigConcept', 'chapter', 'level', 'name']);
-    expect(JSON.stringify(out)).not.toContain('suggestedQuestionTypes');
-    expect(JSON.stringify(out)).not.toContain('suggested');
+    expect(JSON.stringify(out)).not.toContain('specificConcepts');
   });
 
-  it('flattenAnchorTree 存储含建议题型（数据层保留）——与注入面最小化分界明确', () => {
+  it('✅ A1-5（2026-09-12）：建议题型字段已彻底下线——锚数据层与注入面均不含', () => {
+    const { anchors } = buildAnchors([cardB], {});
     const flat = flattenAnchorTree(cardB.anchorTree);
-    expect(flat[0].suggestedQuestionTypes).toEqual(['竖式计算', '填空']);
+    expect(flat[0].suggestedQuestionTypes).toBeUndefined();
+    expect(JSON.stringify(anchors)).not.toContain('suggestedQuestionTypes');
+    expect(JSON.stringify(flat)).not.toContain('suggested');
   });
 });

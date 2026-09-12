@@ -511,9 +511,10 @@ export const apiConfig = reactive({
   deepseekBaseUrl: 'https://api.deepseek.com/v1',  // 🔧 修复：不要包含 /chat/completions
   deepseekApiKey: '',
   deepseekModel: 'deepseek-flash',  // 🔧 A13（2026-09-11）：统一正式模型名（旧值经 DEEPSEEK_MODEL_ALIASES 归一）
-  // 🔧 按任务分模型（A13 统一口径）：
-  //   DeepSeek V4.1 Flash（正式名 deepseek-flash）已全面超越 V4 Pro；V4 Pro 自 2026-09-14 12:00
-  //   起全部路由到 V4.1 Flash 并按 Flash 计费 → 三个字段统一为 deepseek-flash。
+  // 🔧 按任务分模型（A13 统一口径；2026-09-12 用户裁定「甲」）：
+  //   DeepSeek V4.1 Flash（正式名 deepseek-flash）在性能/费用/速度/总用时上全面超越 V4 Pro →
+  //   项目统一使用 deepseek-flash。⚠️ V4 Pro 仍在云端提供（官方已撤回"2026-09-14 下线"，
+  //   继续提供、计费不变），故它属"项目不选用的遗留别名"，经 DEEPSEEK_MODEL_ALIASES 归一。
   deepseekGenerationModel: 'deepseek-flash',
   deepseekAnalysisModel: 'deepseek-flash',
   
@@ -649,11 +650,13 @@ let _configCache = null;
 let _configCacheTime = 0;
 
 // ✨ 分级缓存配置：不同类型数据设置不同的 TTL
-// ✅ A13：DeepSeek 模型名归一（2026-09-11）
-//   官方口径：正式名 `deepseek-flash`（= DeepSeek-V4.1-Flash）；`deepseek-v4-flash` /
-//   `deepseek-v4-flash-vision-exp` 为遗留别名（对应模型已退役，请求由 V4.1-Flash 服务）；
-//   `deepseek-v4-pro` 自 2026-09-14 12:00 起全部路由到 V4.1-Flash。
-//   三个模型字段统一归一到 `deepseek-flash`，避免旧 localStorage 配置失效（A13-2）。
+// ✅ A13：DeepSeek 模型名归一（2026-09-11；2026-09-12 按用户裁定「甲」更正口径）
+//   正式名 `deepseek-flash`（= DeepSeek-V4.1-Flash）；`deepseek-v4-flash` /
+//   `deepseek-v4-flash-vision-exp` 为已退役模型的遗留别名（请求由 V4.1-Flash 服务）。
+//   `deepseek-v4-pro`：V4.1 Flash 在性能/费用/速度/总用时上全面超越它 → **项目统一使用 flash**；
+//   ⚠️ 注意 Pro 仍在云端提供（原"2026-09-14 12:00 下线/路由到 Flash"的说法已被官方撤回：
+//   "9 月 14 日之后继续提供 DeepSeek V4 Pro 的 API 调用服务，计费方式保持不变"）。
+//   因此这里的归一 = "项目统一口径 + 旧 localStorage 兼容"（A13-2），**不是"该模型已消失"**。
 export const DEEPSEEK_MODEL_ALIASES = {
   'deepseek-v4-pro': 'deepseek-flash',
   'deepseek-v4-flash': 'deepseek-flash',
@@ -689,6 +692,18 @@ export const pickDiscoveredDeepSeekModel = (models = [], currentModel = '') => {
   const normalizedCurrent = normalizeDeepSeekModelId(currentModel);
   const raw = String(currentModel || '');
   return [normalizedCurrent, raw].find(m => m && list.includes(m)) || flashModel;
+};
+
+/**
+ * ✅ A13-5（2026-09-12 用户裁定「甲」）：**下拉可选模型**过滤 ——
+ *   已被归一映射的遗留别名（如 `deepseek-v4-pro`）不作为候选，避免给用户一个"选了也会被改写"的假选项。
+ *   未归一的模型（含将来的新旗舰）照常入列 —— A13-4 的"切换入口"保证不受影响。
+ *   极端情况（云端只返回遗留别名）→ 回退原列表，保证下拉非空、可选项不丢。
+ */
+export const listDeepSeekSelectableModels = (models = []) => {
+  const list = (Array.isArray(models) ? models : []).filter(Boolean);
+  const selectable = list.filter((m) => !DEEPSEEK_MODEL_ALIASES[String(m).toLowerCase()]);
+  return selectable.length ? selectable : list;
 };
 
 const CACHE_CONFIG = {
@@ -807,7 +822,8 @@ export const autoDiscoverDeepSeekModel = async () => {
 
     console.log(`🔍 DeepSeek 云端当前可用模型: ${models.join(', ')}`);
 
-    // ✅ A13-4（2026-09-11）不再"优先 pro"：V4.1 Flash 已超越 V4 Pro，且 Pro 自 2026-09-14 起路由到 Flash。
+    // ✅ A13-4（2026-09-11）不再"优先 pro"：V4.1 Flash 在性能/费用/速度上已超越 V4 Pro——
+    //    这是**能力口径**的判断，与 Pro 是否下线无关（原下线公告已撤回）。
     //    新规则 = **不改写已有可用配置**（尊重用户选择与统一口径）；配置模型不在列表（已失效）才回落 flash。
     //    选择规则抽成纯函数 pickDiscoveredDeepSeekModel，便于单测锁死"不再优先 pro"。
     //    🔑 后续新模型（含日后再出的 Pro 旗舰）：自动选择**不会**自动切换过去（防重演"被自动改成 pro"），

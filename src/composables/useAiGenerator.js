@@ -9,6 +9,7 @@ import { auditExamPaper } from '../utils/examValidator.js';
 import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
 import { buildAnchors, boundAnchorNames } from '../utils/coverageAnchor.js';
 import { collectChapterRawText, compressOriginalText, shouldDirectInject } from '../utils/textbookCompression.js'; // ✅ A15/A11：程序按勾选章节直读整章原文（材料压缩 + copyGuard 语料同源）；✅ A4-10：材料分档（小直放/大压缩）
+import { buildCompressionCacheKey, readCompressionCache, writeCompressionCache } from '../utils/compressionCache.js'; // ✅ A4-11：压缩结果按勾选章节组合缓存（同批章节第二次生成直接复用）
 import { formatAnchorListByChapter, ANCHOR_LIST_ROLE_NOTE } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位）；✅ A1-4b：第1层（知识主题）入清单 + 角色说明
 // ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
 import { planOutputQuota, nextContinuationBudget, isOverQuota } from '../utils/outputQuota.js';
@@ -764,7 +765,7 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
       // ✅ A17：有原文但未分析 → 真原文随卡携带（供【压缩原文】取料；纯目录卡为空）
       rawText: realRawText,
       // ✅ A16：锚点=目录（未分析/仅目录章进【锚点清单】，不再从覆盖范围消失）
-      anchorTree: [{ bigConcept: chapter.title, coreKnowledge: anchorNames.map(name => ({ name, level: '理解', specificConcepts: [], suggestedQuestionTypes: [] })) }],
+      anchorTree: [{ bigConcept: chapter.title, coreKnowledge: anchorNames.map(name => ({ name, level: '理解', specificConcepts: [] })) }],
     };
   };
 
@@ -857,14 +858,13 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
             text: segText, knowledgePoints: matchedKps.length > 0 ? matchedKps : [chapter.title],
             type: segType,
             isKeyConcept: matchedKps.length > 0, isExample: segText.includes('例'), isExercise: segText.includes('练习'),
-            suggestedQuestionTypes: [], hasFormula: hasFormula(segText)
+            hasFormula: hasFormula(segText)
           };
         });
         const keySegments = segmentCards.filter(s => s.isKeyConcept);
         contentCards.push({ chapterTitle: chapter.title, summary: chapter.coreTopics || displayKps.slice(0, 5).join('、'),
           knowledgePointsForTest: displayKps.slice(0, 20).map(kp => ({ name: kp, cognitiveLevel: kpCognitiveMap[kp] || '理解' })),
           adaptableMaterials: keySegments.slice(0, 5).map(s => s.text.substring(0, 100)),
-          suggestedQuestionTypes: [...new Set(chapter.knowledgeHierarchy.flatMap(bc => (bc.coreKnowledge || []).flatMap(ck => ck.suggestedQuestionTypes || [])))].slice(0, 8),
           // 🔧 覆盖锚（2026-09）：章级 knowledgeHierarchy 完整树随卡附带——考点→章归属由树结构天然成立，
           //    不依赖 Step2 全局图谱中 AI 自由填写的 relatedChapters（无写入点、缺省高风险，曾致章节锚定失效）。
           //    生成侧覆盖对账/检索/补漏均以本锚树为唯一事实源；knowledgeGraph 仅作跨章补充去重。
@@ -872,7 +872,7 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
             bigConcept: bc.bigConcept || bc.name || '',
             coreKnowledge: (bc.coreKnowledge || []).map(ck => ({
               name: ck.name || '', level: ck.level || ck.cognitiveLevel || '理解',
-              specificConcepts: ck.specificConcepts || [], suggestedQuestionTypes: ck.suggestedQuestionTypes || [],
+              specificConcepts: ck.specificConcepts || [],
             })),
           })),
           // 🔧 保留完整的 KP→片段映射，供 Step 4 精准检索（Step 2 只用 totalSegments 不遍历 segments）
@@ -912,11 +912,10 @@ const buildKnowledgeMap = async (contentCards, selectedBooks, callAI, robustJson
     keySegmentSamples: (c.segments || []).filter(s => s.isKeyConcept || s.isExample || s.hasFormula).slice(0, 5)
       .map(s => ({ type: s.type, hasFormula: s.hasFormula || false, snippet: (s.text || '').substring(0, 50) })),
     totalSegments: c.totalSegments || 0, tagSummary: (c.tags || []).slice(0, 10),
-    suggestedQuestionTypes: c.suggestedQuestionTypes || []
   }));
   // 🔧 从指令库获取输入数据说明
   const inputDataDescRule = getAnalysisPrompts({ category: '分析-知识图谱构建' }).find(b => b.id.includes('input_data_desc'));
-  const inputDataDescStr = inputDataDescRule ? inputDataDescRule.content : `- 输入为"各课内容概要"数组（数组内每个元素 = 一课）：title 章节标题；summary 章节概要；kpForTest 可考查知识点；keySegmentSamples 关键片段示例（含 type/hasFormula/snippet）；totalSegments 片段数；tagSummary 标签摘要；suggestedQuestionTypes 建议考查题型`;
+  const inputDataDescStr = inputDataDescRule ? inputDataDescRule.content : `- 输入为"各课内容概要"数组（数组内每个元素 = 一课）：title 章节标题；summary 章节概要；kpForTest 可考查知识点；keySegmentSamples 关键片段示例（含 type/hasFormula/snippet）；totalSegments 片段数；tagSummary 标签摘要`;
 
   // 🔧 目录模式提示词：课标版本按学段注入（getCurriculumLabel），避免写死版本号
   const curriculumLabel = getCurriculumLabel(selectedBooks?.[0]?.stage, selectedBooks?.[0]?.grade, selectedBooks?.[0]?.name);
@@ -931,12 +930,12 @@ ${JSON.stringify(cardsSummary, null, 2)}
 请完成：
 1. 知识点清单（去重，不超过30个）
 2. 重难点判断（不超过8个）
-3. 层级知识图谱：单元→大概念(≤5)→核心知识点(≤6)→具体概念(≤4)，每个核心知识标注建议题型(suggestedQuestionTypes)
+3. 层级知识图谱：单元→大概念(≤5)→核心知识点(≤6)→具体概念(≤4)
 4. 跨章节关联（不超过10条）
 
 🔴 目录模式说明：若某课 summary 标注"仅目录模式"（教材原文未提取），请基于该课章节标题与该学科课标（${curriculumLabel}）推断典型内容知识点（如"分数的初步认识"→ 分数的含义/几分之一/几分之几），只推断标题明确指向的知识范畴，不得臆造超出该章节标题的内容。
 
-返回JSON：{"knowledgePoints":[""],"keyDifficulties":[""],"knowledgeGraph":[{"unit":"","bigConcepts":[{"name":"","coreKnowledge":[{"name":"","cognitiveLevel":"理解","isKeyPoint":true,"isDifficulty":false,"specificConcepts":[""],"suggestedQuestionTypes":[""],"relatedChapters":[""],"testPriority":1}]}]}],"crossChapterLinks":[{"from":"","to":"","relation":"前置|并列|拓展|应用"}]}
+返回JSON：{"knowledgePoints":[""],"keyDifficulties":[""],"knowledgeGraph":[{"unit":"","bigConcepts":[{"name":"","coreKnowledge":[{"name":"","cognitiveLevel":"理解","isKeyPoint":true,"isDifficulty":false,"specificConcepts":[""],"relatedChapters":[""],"testPriority":1}]}]}],"crossChapterLinks":[{"from":"","to":"","relation":"前置|并列|拓展|应用"}]}
 
 🔴 语言口径（2026-09 对账口径根治）：教材为外语（英语等）时，coreKnowledge.name 用中文作教学标签，但 specificConcepts 必须是教材原文语言的词/短语（如英语：regular past tense -ed、Mulan、keep trying、first/then/finally 等），供生成正文与覆盖对账同一语言口径；禁止把 specificConcepts 翻译成中文（与英文正文词面失配则对账无法命中）。`;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -2228,7 +2227,7 @@ const maxInputTokens = config.engine === 'deepseek'
                 if (response.status === 400) {
                   console.error('❌ DeepSeek API 配置错误（400），请检查：');
                   console.error('   1. API密钥是否正确');
-                  console.error('   2. 模型名称是否正确（应该是 deepseek-v4-pro）');
+                  console.error('   2. 模型名称是否正确（应该是 deepseek-flash）');
                   console.error('   3. API地址是否正确（应该是 https://api.deepseek.com/v1）');
                   
                   const elapsed = Date.now() - startTime;
@@ -3037,8 +3036,7 @@ ${analysisText}
         {
           "name": "学习目标或学科要素名称",
           "level": "理解",
-          "specificConcepts": ["具体知识点1", "具体知识点2"],
-          "suggestedQuestionTypes": ["适合考查的题型1", "适合考查的题型2"]
+          "specificConcepts": ["具体知识点1", "具体知识点2"]
         }
       ]
     }
@@ -3070,8 +3068,7 @@ ${analysisText}
         {
           "name": "核心知识点名称",
           "level": "识记|理解|应用|分析|评价|创造",
-          "specificConcepts": ["具体概念1", "具体概念2"],
-          "suggestedQuestionTypes": ["适合的题型1", "适合的题型2"]
+          "specificConcepts": ["具体概念1", "具体概念2"]
         }
       ]
     }
@@ -3214,7 +3211,7 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
 - 🔧 数量不设硬上限：知识点数量由原文内容密度决定，每有一个独立可教学的要点就提取一个，不遗漏、不凑数
 - 🔧 原文引证约束：每个知识点必须能在原文中找到直接依据，不得凭学科经验臆造原文未涉及的内容
 - 🔧 禁止拆分凑数：不得把同一个知识点换几种说法拆成多个条目来凑量
-- 🔧 层角色与粒度：第2层 coreKnowledge = 可独立成题 / 独立教学组织的考点（锚本体）；第3层 specificConcepts 收录该考点的最小单位（字 / 词条 / 符号 / 数值 / 术语碎片），**按原文实际数量收录，不设数量区间，也不凑数**；suggestedQuestionTypes 给出 1-3 个最匹配的题型
+- 🔧 层角色与粒度：第2层 coreKnowledge = 可独立成题 / 独立教学组织的考点（锚本体）；第3层 specificConcepts 收录该考点的最小单位（字 / 词条 / 符号 / 数值 / 术语碎片），**按原文实际数量收录，不设数量区间，也不凑数**
 - 🔧 第3层收录边界（防重复、防混入题面）：① **同一考点内去重** —— 同一单位只收一条（同一内容的不同写法/重复出现合并为一条，不得因原文多处出现就重复罗列）；② **只收"单位本身"**，不收题干/选项/例句/上下文里的整句或整段（如"下列词语中加点字的读音""读一读，记一记"这类题面、指令语、提示语不属最小单位）；③ 第2层考点名本身不再下沉重复收录
 - 🔧 主题词按原文篇幅匹配：短文（<5段）2-3个主题词，长文3-6个，以能概括全文核心内容为准
 - 🔧 JSON 字段值尽量简短，不要写长句子
@@ -4186,19 +4183,35 @@ ${cardAnalysisText.substring(0, 1000)}
       progress.value = 14;
       console.log(`📚 [写作通道] 材料=整章原文直放（${rawSections.length} 章，${selectedRawChars}字；≤ 直放阈值，未压缩——小材料无需压缩，更保真、省一次调用）`);
     } else if (rawSections.length) {
+      // ✅ A4-11（2026-09-12 用户定「按勾选章节组合缓存压缩结果」）：同批章节第二次生成**直接复用**压缩结果，
+      //    省一次压缩调用与等待。key = 章节组合/顺序 + 每章原文指纹 + mode/学科/年级 + 压缩参数 →
+      //    任一变化（换章、改原文、改资料类型/学科）即失效重压；只缓存压缩结果，不缓存生成结果。
+      const compMode = contractOf(genType).mode; // full=知识型保原文表述/其余=命题型可大压缩（A4-6）
+      const cacheKey = buildCompressionCacheKey({
+        sections: rawSections, mode: compMode, subject, grade: book?.grade || '',
+      });
+      const cachedCompressed = readCompressionCache(cacheKey);
+      progress.value = 14;
       try {
-        statusText.value = '压缩原文：按章节分批保真压缩勾选教材原文...';
-        progress.value = 14;
-        const comp = await compressOriginalText({
-          sections: rawSections,
-          mode: contractOf(genType).mode, // full=知识型保原文表述/其余=命题型可大压缩（A4-6）
-          subject,
-          grade: book?.grade || '',
-          callAI: (messages) => chatNonThinkingOnce(messages), // 注入底层非思考对话调用（单次对话、显式关闭思考）
-        });
-        compressedText = comp?.compressedText || '';
-        if (comp?.warnings?.length) console.warn(`[原文压缩] ${comp.warnings.join('；')}`);
-        console.log(`📚 [写作通道] 材料=整章原文压缩（${rawSections.length} 章，${comp?.stats?.sourceChars || 0}字 → ${comp?.stats?.compressedChars || 0}字，比 ${comp?.stats?.ratio ?? '-'}，${comp?.rounds || 1} 轮；锚点清单 ${anchorListText ? `${anchors.length} 条` : '无'}）`);
+        if (cachedCompressed) {
+          compressedText = cachedCompressed;
+          console.log(`♻️ [原文压缩] 命中缓存：同批章节已压缩过，直接复用（${rawSections.length} 章，${cachedCompressed.length}字；省一次压缩调用）`);
+        } else {
+          statusText.value = '压缩原文：按章节分批保真压缩勾选教材原文...';
+          const comp = await compressOriginalText({
+            sections: rawSections,
+            mode: compMode,
+            subject,
+            grade: book?.grade || '',
+            callAI: (messages) => chatNonThinkingOnce(messages), // 注入底层非思考对话调用（单次对话、显式关闭思考）
+          });
+          compressedText = comp?.compressedText || '';
+          if (comp?.warnings?.length) console.warn(`[原文压缩] ${comp.warnings.join('；')}`);
+          console.log(`📚 [写作通道] 材料=整章原文压缩（${rawSections.length} 章，${comp?.stats?.sourceChars || 0}字 → ${comp?.stats?.compressedChars || 0}字，比 ${comp?.stats?.ratio ?? '-'}，${comp?.rounds || 1} 轮；锚点清单 ${anchorListText ? `${anchors.length} 条` : '无'}）`);
+          if (compressedText && !writeCompressionCache(cacheKey, compressedText)) {
+            console.warn('⚠️ [原文压缩] 结果过大未入缓存（下次仍会重新压缩，不影响结果）');
+          }
+        }
       } catch (e) {
         // 🔒 绝不静默丢素材：压缩异常 → 回退整章原文（长但保真）
         compressedText = rawSections.map((sec) => [sec.title, sec.text].filter(Boolean).join('\n')).join('\n\n');

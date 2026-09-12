@@ -20,9 +20,9 @@ const goodTree = [
   {
     bigConcept: '识字与写字',
     coreKnowledge: [
-      { name: '识字与书写', level: '识记', specificConcepts: ['人', '口', '手'], suggestedQuestionTypes: ['看拼音写词语'] },
-      { name: '多音字辨析', level: '理解', specificConcepts: ['长(cháng)/长(zhǎng)'], suggestedQuestionTypes: ['选择正确读音'] },
-      { name: '词语积累与运用', level: '应用', specificConcepts: ['成语接龙', '近义词辨析'], suggestedQuestionTypes: ['选词填空'] },
+      { name: '识字与书写', level: '识记', specificConcepts: ['人', '口', '手'] },
+      { name: '多音字辨析', level: '理解', specificConcepts: ['长(cháng)/长(zhǎng)'] },
+      { name: '词语积累与运用', level: '应用', specificConcepts: ['成语接龙', '近义词辨析'] },
     ],
   },
 ];
@@ -232,7 +232,7 @@ describe('A16（甲方案）锚点=目录：未分析/仅目录章不再从覆�
     anchorTree: [{
       bigConcept: '第3课 桂花雨',
       coreKnowledge: ['第3课 桂花雨', '一、摇花乐', '二、思乡情'].map(name => ({
-        name, level: '理解', specificConcepts: [], suggestedQuestionTypes: [],
+        name, level: '理解', specificConcepts: [],
       })),
     }],
   });

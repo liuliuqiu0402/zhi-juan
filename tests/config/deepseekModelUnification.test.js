@@ -1,14 +1,17 @@
 // ✅ A13（2026-09-11）：DeepSeek 模型 id 统一为正式名 `deepseek-flash`（= DeepSeek-V4.1-Flash）
 // 背景：官方口径 `deepseek-v4-flash` / `deepseek-v4-flash-vision-exp` 为遗留别名（对应模型已退役，
-//      请求由 V4.1-Flash 服务）；`deepseek-v4-pro` 自 2026-09-14 12:00 起全部路由到 V4.1-Flash 并按 Flash 计费。
-//      项目内统一正式名，并保留「旧值 → 新值」兼容映射，避免用户 localStorage 旧配置失效（A13-2）。
+//      请求由 V4.1-Flash 服务）。`deepseek-v4-pro`：V4.1 Flash 在性能/费用/速度上全面超越它，故项目统一 flash；
+//      ⚠️ 2026-09-12 更正：官方已撤回"9-14 下线/路由"公告，Pro **继续提供、计费不变**——
+//      因此该映射属"项目统一口径 + 旧配置兼容"（A13-2），不再声称"模型已消失"。
 //      另修：模型自动发现此前"优先 pro"并写回持久化，会把统一口径改回 pro（A13-4）。
+//      ✅ A13-5（2026-09-12 用户裁定「甲」）：下拉候选过滤已被归一的遗留名，消除"选了也会被改写"的假选项。
 import { describe, it, expect } from 'vitest';
 import {
   apiConfig,
   DEEPSEEK_MODEL_ALIASES,
   normalizeDeepSeekModelId,
   pickDiscoveredDeepSeekModel,
+  listDeepSeekSelectableModels,
 } from '../../src/config/apiConfig.js';
 
 describe('A13 DeepSeek 模型 id 统一（正式名 deepseek-flash）', () => {
@@ -52,5 +55,20 @@ describe('A13 DeepSeek 模型 id 统一（正式名 deepseek-flash）', () => {
     expect(pickDiscoveredDeepSeekModel(['vendor-a', 'vendor-b'], 'deepseek-gone')).toBe('vendor-a');
     // 空列表 → null（调用方另有"使用已配置模型"兜底分支）
     expect(pickDiscoveredDeepSeekModel([], 'deepseek-flash')).toBe(null);
+  });
+
+  it('A13-5 下拉可选模型过滤：已被归一的遗留名不入候选（防"选了也会被改写"的假选项）', () => {
+    const cloud = ['deepseek-flash', 'deepseek-v4-pro', 'deepseek-v5-pro'];
+    expect(listDeepSeekSelectableModels(cloud)).toEqual(['deepseek-flash', 'deepseek-v5-pro']);
+    // 未归一新模型照常入列（A13-4 的"切换入口"保证不受影响）
+    expect(listDeepSeekSelectableModels(['deepseek-flash', 'deepseek-v9-ultra'])).toContain('deepseek-v9-ultra');
+    // 三个遗留别名全部剔除
+    expect(listDeepSeekSelectableModels(['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro']))
+      .toEqual(['deepseek-flash']);
+    // 极端情况：云端只返回遗留别名 → 回退原列表（保证下拉非空）
+    expect(listDeepSeekSelectableModels(['deepseek-v4-pro'])).toEqual(['deepseek-v4-pro']);
+    // 空输入安全
+    expect(listDeepSeekSelectableModels([])).toEqual([]);
+    expect(listDeepSeekSelectableModels(null)).toEqual([]);
   });
 });
