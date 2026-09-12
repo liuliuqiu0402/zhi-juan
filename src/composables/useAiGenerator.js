@@ -9,7 +9,7 @@ import { auditExamPaper } from '../utils/examValidator.js';
 import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
 import { buildAnchors, boundAnchorNames } from '../utils/coverageAnchor.js';
 import { collectChapterRawText, compressOriginalText, shouldDirectInject } from '../utils/textbookCompression.js'; // ✅ A15/A11：程序按勾选章节直读整章原文（材料压缩 + copyGuard 语料同源）；✅ A4-10：材料分档（小直放/大压缩）
-import { formatAnchorListByChapter } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位）
+import { formatAnchorListByChapter, ANCHOR_LIST_ROLE_NOTE } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位）；✅ A1-4b：第1层（知识主题）入清单 + 角色说明
 // ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
 import { planOutputQuota, nextContinuationBudget, isOverQuota } from '../utils/outputQuota.js';
 import { contractOf } from '../config/coverageContract.js';
@@ -3215,6 +3215,7 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
 - 🔧 原文引证约束：每个知识点必须能在原文中找到直接依据，不得凭学科经验臆造原文未涉及的内容
 - 🔧 禁止拆分凑数：不得把同一个知识点换几种说法拆成多个条目来凑量
 - 🔧 层角色与粒度：第2层 coreKnowledge = 可独立成题 / 独立教学组织的考点（锚本体）；第3层 specificConcepts 收录该考点的最小单位（字 / 词条 / 符号 / 数值 / 术语碎片），**按原文实际数量收录，不设数量区间，也不凑数**；suggestedQuestionTypes 给出 1-3 个最匹配的题型
+- 🔧 第3层收录边界（防重复、防混入题面）：① **同一考点内去重** —— 同一单位只收一条（同一内容的不同写法/重复出现合并为一条，不得因原文多处出现就重复罗列）；② **只收"单位本身"**，不收题干/选项/例句/上下文里的整句或整段（如"下列词语中加点字的读音""读一读，记一记"这类题面、指令语、提示语不属最小单位）；③ 第2层考点名本身不再下沉重复收录
 - 🔧 主题词按原文篇幅匹配：短文（<5段）2-3个主题词，长文3-6个，以能概括全文核心内容为准
 - 🔧 JSON 字段值尽量简短，不要写长句子
 - 🔧 覆盖口径与正文语言一致（2026-09 对账语言/内容口径根治）：教材为外语（英语等）时——
@@ -4331,7 +4332,8 @@ ${cardAnalysisText.substring(0, 1000)}
     //    依据 LLM 首尾强/中段弱：委托书（最高优先级指令）末尾锚定；锚点清单置开头（带清单读素材，
     //    利于锚点↔素材章级对应）；压缩原文（素材，非指令）置中段。其后附加块顺序保持既有不变。
     let prompt = '';
-    if (anchorListText) prompt += `【锚点清单】\n${anchorListText}\n\n`;
+    // ✅ A1-4b：清单首行带"角色说明"——第1层知识主题只表归属/范围，不是写作栏目、不作命题单位
+    if (anchorListText) prompt += `【锚点清单】\n${ANCHOR_LIST_ROLE_NOTE}\n${anchorListText}\n\n`;
     if (compressedText) prompt += `【压缩原文】\n${compressedText}\n\n`;
     // ✅ A15-4/A11-3（2026-09-11）：**素材使用约定**（原随 browse 系统提示携带，browse 移除后必须保留）——
     //    引用约束按契约 mode 分流；练习段仅作参考、不得照搬题目。位置贴近委托书（同为"指令"，末尾锚定）。

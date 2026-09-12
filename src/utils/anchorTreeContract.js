@@ -95,7 +95,7 @@ export const validateAnchorTree = (hierarchy) => {
  * @param {Array} anchors
  * @param {{chapterTitle?:string}} [opts]
  * @returns {Object} { chapterTitle, anchorCount, shortAnchorCount, shortRatio, minUnitAnchorCount,
- *                     specificConcepts:{total,min,max,median,zeroCount}, bindStatus }
+ *                     specificConcepts:{total,unique,dupCount,dupRatio,min,max,median,zeroCount}, bindStatus }
  */
 export const anchorGranularityReport = (anchors = [], { chapterTitle = '' } = {}) => {
   const list = Array.isArray(anchors) ? anchors : [];
@@ -104,6 +104,11 @@ export const anchorGranularityReport = (anchors = [], { chapterTitle = '' } = {}
   const shortCount = lens.filter((l) => l <= SHORT_ANCHOR_MAX_LEN).length;
   const specCounts = list.map((a) => (Array.isArray(a?.specificConcepts) ? a.specificConcepts.filter(Boolean).length : 0));
   const sortedSpec = [...specCounts].sort((a, b) => a - b);
+  // ✅ A1-3b：第3层**重复率**（可观测 —— 同名/同写法单位重复收录是本层最常见的漂移）
+  const specAll = list.flatMap((a) => (Array.isArray(a?.specificConcepts) ? a.specificConcepts : []))
+    .map((s) => String(s || '').trim()).filter(Boolean);
+  const specUnique = new Set(specAll).size;
+  const dupCount = specAll.length - specUnique;
   const bindStatus = {};
   for (const a of list) {
     const st = a?.bind?.status;
@@ -118,6 +123,9 @@ export const anchorGranularityReport = (anchors = [], { chapterTitle = '' } = {}
     minUnitAnchorCount: names.filter(isMinUnitName).length,
     specificConcepts: {
       total: specCounts.reduce((a, b) => a + b, 0),
+      unique: specUnique,
+      dupCount,
+      dupRatio: specAll.length ? +(dupCount / specAll.length).toFixed(3) : 0,
       min: sortedSpec.length ? sortedSpec[0] : 0,
       max: sortedSpec.length ? sortedSpec[sortedSpec.length - 1] : 0,
       median: sortedSpec.length ? sortedSpec[Math.floor(sortedSpec.length / 2)] : 0,
@@ -134,26 +142,67 @@ export const diagnoseAnchorTree = (hierarchy, opts = {}) =>
 /**
  * ✅ A1-4：锚点清单**按章分组**（章序 = 传入锚序，即"勾选章序 = 原文章序"。
  *   多条锚共用一个章标题是**正常形态**（锚只需知道"属于哪一章"，对应关系取章级）；同名锚去重。
- * @param {Array} anchors 锚列表（含 chapterTitle / name）
- * @returns {Array<{chapterTitle:string, names:string[]}>}
+ * ✅ A1-4b（2026-09-11 用户定「第一二层都带着」）：**同时给出第1层（bigConcept 知识主题）分组**，
+ *   让模型看到"考点归属哪个知识主题"；`names` 仍保留扁平形态（章级范围判断/兼容取用）。
+ *   ⚠️ 第1层只表**归属与范围**，不是写作栏目、不作命题单位（写作粒度以第2层考点为准）——
+ *   因此它在清单里只以「主题：」前缀出现，且**与章名相同的第1层（目录锚形态）自动省略**，避免冗余。
+ * @param {Array} anchors 锚列表（含 chapterTitle / bigConcept / name）
+ * @returns {Array<{chapterTitle:string, names:string[], themes:Array<{bigConcept:string,names:string[]}>}>}
  */
 export const buildAnchorListByChapter = (anchors = []) => {
   const groups = new Map();
   for (const a of (anchors || [])) {
     const ch = String(a?.chapterTitle || '').trim() || '未标注章节';
-    if (!groups.has(ch)) groups.set(ch, []);
+    if (!groups.has(ch)) groups.set(ch, { names: [], themeIndex: new Map() });
     const name = String(a?.name || '').trim();
-    if (name && !groups.get(ch).includes(name)) groups.get(ch).push(name);
+    if (!name) continue;
+    const g = groups.get(ch);
+    if (!g.names.includes(name)) g.names.push(name);
+    const big = String(a?.bigConcept || '').trim();
+    if (!g.themeIndex.has(big)) g.themeIndex.set(big, []);
+    const bucket = g.themeIndex.get(big);
+    if (!bucket.includes(name)) bucket.push(name);
   }
-  return [...groups.entries()].map(([chapterTitle, names]) => ({ chapterTitle, names }));
+  return [...groups.entries()].map(([chapterTitle, g]) => ({
+    chapterTitle,
+    names: g.names,
+    themes: [...g.themeIndex.entries()].map(([bigConcept, names]) => ({ bigConcept, names })),
+  }));
 };
 
-/** ✅ A1-4：锚点清单呈现形态 `【章名】考点A、考点B…`（一行一章，章序不变） */
+/** 第1层是否值得呈现：非空，且不同于章名（目录锚的 bigConcept = 章名 → 冗余，省略） */
+const isMeaningfulTheme = (bigConcept, chapterTitle) =>
+  !!bigConcept && bigConcept !== String(chapterTitle || '').trim();
+
+/**
+ * ✅ A1-4 / A1-4b：锚点清单呈现形态。
+ *   无有意义的第1层 → 紧凑单行：`【章名】考点A、考点B…`
+ *   有第1层 → 分层呈现：
+ *     【章名】
+ *     · 知识主题A：考点A、考点B
+ *     · 知识主题B：考点C
+ *   章序不变（一行一章 / 一主题一行），第1层与第2层均同名去重。
+ */
 export const formatAnchorListByChapter = (anchors = []) =>
   buildAnchorListByChapter(anchors)
     .filter((g) => g.names.length > 0)
-    .map((g) => `【${g.chapterTitle}】${g.names.join('、')}`)
+    .map((g) => {
+      const themes = (g.themes || []).filter((t) => t.names.length > 0);
+      const hasTheme = themes.some((t) => isMeaningfulTheme(t.bigConcept, g.chapterTitle));
+      if (!hasTheme) return `【${g.chapterTitle}】${g.names.join('、')}`;
+      const body = themes
+        .map((t) => (isMeaningfulTheme(t.bigConcept, g.chapterTitle)
+          ? `· ${t.bigConcept}：${t.names.join('、')}`
+          : `· ${t.names.join('、')}`))
+        .join('\n');
+      return `【${g.chapterTitle}】\n${body}`;
+    })
     .join('\n');
+
+/** ✅ A1-4b：清单的角色说明（随【锚点清单】一起注入，防模型把第1层当写作栏目/命题单位） */
+export const ANCHOR_LIST_ROLE_NOTE =
+  '说明：清单按「章 → 知识主题 → 考点」组织。**知识主题（第1层）仅表考点归属与范围，不是写作栏目、不是命题单位**；'
+  + '写作与命题的最小单位一律是各主题下的**考点**（第2层）。不带「主题：」前缀的章 = 该章考点未再分主题。';
 
 /** 单章诊断日志（A1-3 的**可观测证据**：一条含全部指标，便于日志抓取核对） */
 export const logAnchorGranularity = (report = {}) => {
@@ -165,6 +214,7 @@ export const logAnchorGranularity = (report = {}) => {
     + `最小单位违例=${r.minUnitAnchorCount} `
     + `specificConcepts 条数[最小/中位/最大]=${r.specificConcepts?.min}/${r.specificConcepts?.median}/${r.specificConcepts?.max} `
     + `空specific=${r.specificConcepts?.zeroCount} `
+    + `第3层重复=${r.specificConcepts?.dupCount || 0}(${((r.specificConcepts?.dupRatio || 0) * 100).toFixed(0)}%) `
     + `绑定=${hasBind ? JSON.stringify(r.bindStatus) : '（生成期才有）'}`,
   );
 };
@@ -176,12 +226,15 @@ export const summarizeAnchorGranularity = (reports = []) => {
   const shortAnchorCount = list.reduce((a, r) => a + (r.shortAnchorCount || 0), 0);
   const minUnitAnchorCount = list.reduce((a, r) => a + (r.minUnitAnchorCount || 0), 0);
   const specTotal = list.reduce((a, r) => a + (r.specificConcepts?.total || 0), 0);
+  const specDupCount = list.reduce((a, r) => a + (r.specificConcepts?.dupCount || 0), 0);
   return {
     chapterCount: list.length,
     anchorCount,
     shortAnchorCount,
     minUnitAnchorCount,
     specTotal,
+    specDupCount,
+    specDupRatio: specTotal ? +(specDupCount / specTotal).toFixed(3) : 0,
     shortRatio: anchorCount ? +(shortAnchorCount / anchorCount).toFixed(3) : 0,
     avgAnchorsPerChapter: list.length ? +(anchorCount / list.length).toFixed(1) : 0,
   };

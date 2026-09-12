@@ -11,6 +11,7 @@ import {
   summarizeAnchorGranularity,
   buildAnchorListByChapter,
   formatAnchorListByChapter,
+  ANCHOR_LIST_ROLE_NOTE,
 } from '../../src/utils/anchorTreeContract.js';
 import { buildAnchors } from '../../src/utils/coverageAnchor.js';
 
@@ -99,7 +100,23 @@ describe('A1-3 锚粒度诊断（锚数 / 短锚占比 / specificConcepts 条数
     expect(rep.chapterTitle).toBe('第1单元');
     expect(rep.anchorCount).toBe(3);
     expect(rep.minUnitAnchorCount).toBe(0);
-    expect(rep.specificConcepts).toEqual({ total: 6, min: 1, max: 3, median: 2, zeroCount: 0 });
+    expect(rep.specificConcepts).toEqual({
+      total: 6, unique: 6, dupCount: 0, dupRatio: 0, min: 1, max: 3, median: 2, zeroCount: 0,
+    });
+  });
+
+  it('第3层重复率（A1-3b 可观测）：同一单位重复收录 → dupCount/dupRatio 透出，且不删任何条目', () => {
+    const dup = [
+      { name: '生字识记', specificConcepts: ['人', '口', '人', '手'] },
+      { name: '词语积累', specificConcepts: ['口', '成语接龙'] },
+    ];
+    const rep = anchorGranularityReport(dup, { chapterTitle: 'T' });
+    expect(rep.specificConcepts.total).toBe(6);
+    expect(rep.specificConcepts.unique).toBe(4);   // 人/口/手/成语接龙
+    expect(rep.specificConcepts.dupCount).toBe(2);
+    expect(rep.specificConcepts.dupRatio).toBe(0.333);
+    // 🔒 只诊断、不改内容
+    expect(dup[0].specificConcepts).toEqual(['人', '口', '人', '手']);
   });
 
   it('短锚占比（名长 ≤ 3 字）：可观测，且不参与任何删除', () => {
@@ -167,6 +184,44 @@ describe('A1-4 锚点清单按章分组（章序与原文一致）', () => {
   it('空输入安全返回空', () => {
     expect(buildAnchorListByChapter([])).toEqual([]);
     expect(formatAnchorListByChapter(null)).toBe('');
+  });
+});
+
+describe('A1-4b 第1层（知识主题）入锚清单：表归属与范围，不作写作/命题单位', () => {
+  const withThemes = [
+    { chapterTitle: '第一单元 1～6的表内乘法', bigConcept: '乘法的意义', name: '认识几个几相加' },
+    { chapterTitle: '第一单元 1～6的表内乘法', bigConcept: '乘法的意义', name: '认识乘法算式' },
+    { chapterTitle: '第一单元 1～6的表内乘法', bigConcept: '1～6的乘法口诀', name: '5的乘法口诀' },
+    { chapterTitle: '第一单元 1～6的表内乘法', bigConcept: '1～6的乘法口诀', name: '5的乘法口诀' }, // 同名去重
+  ];
+
+  it('buildAnchorListByChapter：既给扁平 names，也给第1层 themes 分组（章序/主题序不变）', () => {
+    const groups = buildAnchorListByChapter(withThemes);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].names).toEqual(['认识几个几相加', '认识乘法算式', '5的乘法口诀']);
+    expect(groups[0].themes.map(t => t.bigConcept)).toEqual(['乘法的意义', '1～6的乘法口诀']);
+    expect(groups[0].themes[1].names).toEqual(['5的乘法口诀']);
+  });
+
+  it('呈现形态：有第1层 → 分层；第1层与第2层均去重', () => {
+    expect(formatAnchorListByChapter(withThemes)).toBe(
+      '【第一单元 1～6的表内乘法】\n'
+      + '· 乘法的意义：认识几个几相加、认识乘法算式\n'
+      + '· 1～6的乘法口诀：5的乘法口诀',
+    );
+  });
+
+  it('第1层 = 章名（目录锚形态）→ 省略该前缀，回退紧凑单行（不冗余）', () => {
+    const toc = [
+      { chapterTitle: '第3课 桂花雨', bigConcept: '第3课 桂花雨', name: '一、摇花乐' },
+      { chapterTitle: '第3课 桂花雨', bigConcept: '第3课 桂花雨', name: '二、思乡情' },
+    ];
+    expect(formatAnchorListByChapter(toc)).toBe('【第3课 桂花雨】一、摇花乐、二、思乡情');
+  });
+
+  it('角色说明随清单注入：明确第1层不是写作栏目/命题单位（防粒度误读）', () => {
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('不是写作栏目');
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('（第2层）');
   });
 });
 

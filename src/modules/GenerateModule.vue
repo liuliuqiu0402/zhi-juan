@@ -7444,7 +7444,8 @@ const executeTextbookAnalysis = async (action) => {
       console.log(
         `📐 [锚粒度诊断·汇总] 章数=${agg.chapterCount} 锚数=${agg.anchorCount} `
         + `短锚(≤3字)=${agg.shortAnchorCount}(${(agg.shortRatio * 100).toFixed(0)}%) `
-        + `最小单位违例=${agg.minUnitAnchorCount} 平均锚数/章=${agg.avgAnchorsPerChapter} specificConcepts 合计=${agg.specTotal}`,
+        + `最小单位违例=${agg.minUnitAnchorCount} 平均锚数/章=${agg.avgAnchorsPerChapter} specificConcepts 合计=${agg.specTotal} `
+        + `第3层重复=${agg.specDupCount}(${(agg.specDupRatio * 100).toFixed(0)}%)`,
       );
     }
     
