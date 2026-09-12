@@ -12,7 +12,7 @@ import { collectChapterRawText, compressOriginalText, shouldDirectInject } from 
 import { buildCompressionCacheKey, readCompressionCache, writeCompressionCache } from '../utils/compressionCache.js'; // ✅ A4-11：压缩结果按勾选章节组合缓存（同批章节第二次生成直接复用）
 import { formatAnchorListByChapter, ANCHOR_LIST_ROLE_NOTE } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位）；✅ A1-4b：第1层（知识主题）入清单 + 角色说明
 // ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
-import { planOutputQuota, nextContinuationBudget, isOverQuota } from '../utils/outputQuota.js';
+import { planOutputQuota, nextContinuationBudget, isOverQuota, charsToTokens } from '../utils/outputQuota.js';
 import { contractOf } from '../config/coverageContract.js';
 import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
 import {
@@ -3276,19 +3276,48 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
         };
       }
 
+      // 🔧 分析输出预算：接生成侧"灵活模式"（A4-9 planOutputQuota + 引擎护栏），
+      //     maxTokens 由原文量推导，不再被 maxTokensByTask 里的旧死值（如 4096）钳死而截断知识层级。
+      //     max_tokens 只是"允许量"而非"目标量"，给宽不花钱；单次帽 = min(引擎护栏, 需求×安全缓冲)。
+      let analysisMaxTokens = getTaskMaxTokens('analysis');
+      try {
+        const analysisGate = await getCurrentEngineConfigEnhanced('analysis');
+        const engineCap = resolveEngineOutputLimit(analysisGate?.provider, analysisGate?.model);
+        const needTokens = charsToTokens(analysisText.length);
+        const analysisQuota = planOutputQuota({
+          needTokens,
+          safetyBuffer: 1.25,
+          perCallCap: getTaskMaxTokens('analysis'),
+          engineCeiling: engineCap,
+          minRounds: 0,        // 分析是单次调用、无续写轮：只取单次帽
+        });
+        analysisMaxTokens = analysisQuota.perCall;
+      } catch (e) {
+        // 引擎配置探询失败 → 回退 config 兜底（不阻断分析）
+      }
+
+      const callAnalysisRetry = async (retryPrompt) => callAI(retryPrompt, {
+        taskType: 'analysis',
+        temperature: apiConfig.generationSettings.analysisTemperature,
+        maxTokens: analysisMaxTokens,
+        skipCache: true,       // 重试必须重跑、不得复用坏缓存（否则死循环命中同款坏结果）
+        timeout: getTimeout('analysis'),
+      });
+
       const response = await callAI(analysisPrompt, { 
         taskType: 'analysis',
         temperature: apiConfig.generationSettings.analysisTemperature,
         timeout: getTimeout('analysis'),
-        // 🔧 推理模型思考链+输出共享，不硬编码maxTokens，走config统一配置（V4 上限 384K）
+        maxTokens: analysisMaxTokens,
+        // 🔧 推理模型思考链+输出共享；maxTokens 由原文量推导（见上），不再被旧死值钳死
       });
       
-      console.log(`✅ 教材特征分析完成，响应长度: ${response?.length || 0}字`);
+      console.log(`✅ 教材特征分析完成，响应长度: ${response?.length || 0}字（maxTokens=${analysisMaxTokens}）`);
   
       try {
         const parsed = await robustJsonParse(
           response,
-          (retryPrompt) => callAI(retryPrompt, { taskType: 'analysis', temperature: apiConfig.generationSettings.analysisTemperature }),
+          callAnalysisRetry,
           '教材特征分析',
           'analysis'
         );

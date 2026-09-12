@@ -307,16 +307,26 @@ const loadConfig = async () => {
       }
       
       // 🔧 深合并 generationSettings：旧 localStorage 缺少新字段（paperBodyMaxTokens/answerMaxTokens/
-      //    volcanoGenerationThinking 等）时以当前默认值补齐，保证生成端读取的设置永远完整
-      //    （否则整块 generationSettings 会被旧对象覆盖，新设置项静默丢失）
-      if (config.generationSettings) {
-        config.generationSettings = { ...apiConfig.generationSettings, ...config.generationSettings };
-        // 🔧 生成端预算规整兜底：旧/云同步/Cookie 数据可能存了残缺 budgetByType（缺槽/缺档），
-        //    此处确定性补齐（缺槽从默认补、已有保留），避免 pickSlot 静默回退到通用 coef1.0/cap32768 的错误预算。
-        if (config.generationSettings.budgetByType) {
-          config.generationSettings.budgetByType = normalizeBudgetByType(config.generationSettings.budgetByType);
+        //    volcanoGenerationThinking 等）时以当前默认值补齐，保证生成端读取的设置永远完整
+        //    （否则整块 generationSettings 会被旧对象覆盖，新设置项静默丢失）
+        if (config.generationSettings) {
+          config.generationSettings = { ...apiConfig.generationSettings, ...config.generationSettings };
+          // 🔧 非整卷任务输出上限兜底：旧 localStorage 可能存了过窄死值（如 analysis=4096，旧默认时代），
+          //    深合并整块覆盖会让它压死新默认（65536）→ 输出被限截断（"knowledgeHierarchy empty"实因）。
+          //    逐键取"默认与存储的较大者"（此值仅是"允许量/类型帽"，给宽不花钱；真正成本闸门是 outputCeilingTokens），
+          //    既不让旧值永久钳窄，也不抹掉用户主动的放大。
+          if (config.generationSettings.maxTokensByTask) {
+            config.generationSettings.maxTokensByTask = mergeMaxTokensByTask(
+              apiConfig.generationSettings?.maxTokensByTask || {},
+              config.generationSettings.maxTokensByTask
+            );
+          }
+          // 🔧 生成端预算规整兜底：旧/云同步/Cookie 数据可能存了残缺 budgetByType（缺槽/缺档），
+          //    此处确定性补齐（缺槽从默认补、已有保留），避免 pickSlot 静默回退到通用 coef1.0/cap32768 的错误预算。
+          if (config.generationSettings.budgetByType) {
+            config.generationSettings.budgetByType = normalizeBudgetByType(config.generationSettings.budgetByType);
+          }
         }
-      }
 
       // ✅ A13-2：旧存档模型名归一（deepseek-v4-pro / deepseek-v4-flash → deepseek-flash）
       config.deepseekModel = normalizeDeepSeekModelId(config.deepseekModel);
@@ -1052,6 +1062,24 @@ export const selectBestModel = (taskType, requirements = {}) => {
 export const getTaskMaxTokens = (taskType) => {
   const byTask = apiConfig.generationSettings?.maxTokensByTask || {};
   return byTask[taskType] || apiConfig.generationSettings?.maxTokens || 4096;
+};
+
+/**
+ * 🔧 非整卷任务输出上限的深合并（逐键取"默认与存储的较大者"）。
+ * 背景：旧 localStorage 曾存过 `analysis: 4096`（旧默认时代）；loadConfig 整块覆盖会让它压死
+ *       新默认（65536）→ 输出被限截断 → robustJsonParse 补全出缺 `knowledgeHierarchy` 的对象 →
+ *       锚树判空不落库。逐键取较大：既不让旧窄值永久钳住新默认，也不抹掉用户主动的放大。
+ * 语义：此值是"允许量/类型帽"而非"目标量"，给宽不花钱；真正成本闸门是 resolveOutputCeiling。
+ */
+export const mergeMaxTokensByTask = (defaults = {}, stored = {}) => {
+  const keys = new Set([...Object.keys(defaults), ...Object.keys(stored)]);
+  const merged = {};
+  for (const k of keys) {
+    const d = Number(defaults[k]) || 0;
+    const s = Number(stored[k]) || 0;
+    merged[k] = Math.max(d, s);
+  }
+  return merged;
 };
 
 /**
