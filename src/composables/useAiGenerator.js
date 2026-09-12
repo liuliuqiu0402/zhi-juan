@@ -3342,6 +3342,9 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
       //    字段，原地修只会把"预算问题"伪装成"结构不符"（正是这几轮难定位的原因之一）。
       //    故截断即跳过修复链、如实报因：省 2 次无效调用，且原因在日志里可见。
       if (responseFinish === 'length') {
+        // 🔴 2026-09-12：把真因带出到 result——分析阶段只有日志、没有问题列表报告，故必须让**日志**
+        //    说出真因（否则上层锚树日志会把"预算不足"说成"结构不符"，多轮排障都被带偏）。
+        result.analysisFailure = `输出被截断（maxTokens=${analysisMaxTokens}，finish_reason=length）——属预算/上限不足，非模型结构问题；请重试或改用单次输出上限更高的模型`;
         console.error(`❌ 教材特征分析输出被截断（maxTokens=${analysisMaxTokens}，finish_reason=length）——JSON 修复无法补齐缺失字段，请重试或改用单次输出上限更高的模型`);
       } else {
         try {
@@ -3360,6 +3363,7 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
             result.coreTopics = parsed.coreTopics || '';
             result.knowledgeHierarchy = kh;
           } else {
+            result.analysisFailure = '结果结构不完整（缺 knowledgeHierarchy）——疑似输出被截断或修复残件，非模型结构问题；请重试';
             console.error('❌ 教材特征分析结果结构不完整（缺 knowledgeHierarchy）——疑似输出被截断或修复残件，已丢弃，请重试');
           }
         } catch (e) {

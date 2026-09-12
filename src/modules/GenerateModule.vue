@@ -7343,10 +7343,14 @@ const executeTextbookAnalysis = async (action) => {
           const treeCheck = validateAnchorTree(aiResult.knowledgeHierarchy);
           if (!treeCheck.ok) {
             ch.analyzed = false;
-            anchorTreeRejected.push({ chapter: ch.title, violations: treeCheck.violations });
+            const cause = aiResult.analysisFailure || '';
+            anchorTreeRejected.push({ chapter: ch.title, violations: treeCheck.violations, cause });
             console.error(
               `❌ [锚树契约] ${ch.title} 结构不符（${treeCheck.violations.length} 项）→ 不落库：`,
               treeCheck.violations.slice(0, 5).map((v) => `${v.path} ${v.code}${v.name ? `「${v.name}」` : ''}`),
+              // 🔴 2026-09-12（用户口径：分析阶段只有日志、没有问题列表报告）→ 真因必须在**日志**里说清，
+              //    否则"预算不足导致的截断"会被读成"模型结构不符"，多轮排障都被带偏。
+              ...(cause ? [`｜ 本次真因：${cause}`] : []),
             );
             generateStatus.value = `⚠️ ${ch.title} 锚树结构不符（${treeCheck.violations.length} 项）未入库，请重分析`;
             continue;
@@ -7421,7 +7425,7 @@ const executeTextbookAnalysis = async (action) => {
     // ✅ A1-2/A1-3（2026-09-11）：锚树契约与粒度诊断汇总（可观测；被拒章明确报出，绝不静默）
     if (anchorTreeRejected.length > 0) {
       console.warn(`⚠️ ${anchorTreeRejected.length}个章节锚树结构不符、未入库（请重分析）：`,
-        anchorTreeRejected.map(r => `${r.chapter}（${r.violations.length}项）`).join('、'));
+        anchorTreeRejected.map(r => `${r.chapter}（${r.violations.length}项${r.cause ? `｜真因：${r.cause}` : ''}）`).join('、'));
       generateStatus.value = `⚠️ 分析完成，${anchorTreeRejected.length}章锚树结构不符未入库`;
     }
     if (granularityReports.length > 0) {

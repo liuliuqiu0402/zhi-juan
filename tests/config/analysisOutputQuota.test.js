@@ -171,4 +171,14 @@ describe('analysis 单次帽推导必须有下限（不得低于类型帽）', (
     expect(src).toContain("responseFinish === 'length'");
     expect(src).toContain('教材特征分析结果结构不完整（缺 knowledgeHierarchy）');
   });
+
+  // 🔴 2026-09-12（用户口径）：分析阶段**只有日志、没有问题列表报告**，故真因必须经 result 带出、
+  //    并在锚树日志里如实报出——否则"预算不足导致的截断"会被读成"模型结构不符"。
+  it('源码接线：真因随分析结果带出，并在锚树日志中如实报出', () => {
+    const ai = fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8');
+    expect(ai).toContain('result.analysisFailure =');
+    const gm = fs.readFileSync(path.join(ROOT, 'src', 'modules', 'GenerateModule.vue'), 'utf8');
+    expect(gm).toContain('本次真因：${cause}');
+    expect(gm).toContain('｜真因：${r.cause');
+  });
 });
