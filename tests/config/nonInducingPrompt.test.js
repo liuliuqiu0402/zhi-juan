@@ -116,4 +116,30 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(src).toContain('【尾约束·资料内多样】');
     expect(src).toContain('同一份资料内各栏目呈现形式与组织顺序应有所差异，不得全份同类版式照搬');
   });
+
+  // 🔴 2026-09-12（用户实证）：题目自洽①原为"形态名列举式"，原理上不完备（题型无限，
+  //    实测漏"连线"）→ 改为**原则式**：判据=题干自身措辞，明示不存在形态清单。
+  //    本用例锁死"原则式"框架，防止回退成长清单。
+  //    （2026-09-12 改名：原称"卷面自洽"，因本块已注入全部 7 类题类资料、非仅"卷"，改类型中性名）
+  it('题目自洽①为原则式（判据=题干措辞，明示无形态清单），不得回退为列举式', () => {
+    const srcPath = path.join(ROOT, 'src', 'config', 'promptLibrary.js');
+    const src = fs.readFileSync(srcPath, 'utf8');
+    expect(src).toContain('题面与作答形态同义');
+    expect(src).toContain('允许的形态清单');
+    expect(src).toContain('题干怎么说、卷面就怎么做');
+    // 旧"列举式"表述不得回潮
+    expect(src).not.toContain('题干凡声明了作答方式或作答容器（连线/连一连、圈类');
+    expect(src).not.toContain('输出载体须与题干措辞同名一致');
+  });
+
+  // 🔴 2026-09-12（用户裁定）：末尾锚定的【尾约束·全文自洽】是「题干↔内容」的通用条款，
+  //    必须保持**原则式零列举**范式（判据=所声明内容是否足量存在/能否仅凭卷面自足完成），
+  //    不得回退为"作答要素逐项列举"（清单必不完备，且构成题型/内容诱导）。
+  it('尾约束·全文自洽为原则式（零列举）：不得回退为"作答要素逐项列举"', () => {
+    const srcPath = path.join(ROOT, 'src', 'composables', 'useAiGenerator.js');
+    const src = fs.readFileSync(srcPath, 'utf8');
+    expect(src).toContain('本题作答所必需的一切内容');
+    expect(src).toContain('仅凭卷面自身即可完成');
+    expect(src).not.toContain('题干所声明的作答要素（作答处、载体、选项、题面所用素材）');
+  });
 });

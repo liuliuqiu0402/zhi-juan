@@ -33,7 +33,7 @@ const SUBJECTS = ['语文', '数学', '英语', '科学', '物理', '化学', '�
 const STAGES = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
 const GEN_TYPES = Object.keys(GEN_TYPE_NAMES);
 const STAGE_LABEL = { primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中' };
-const CONTENT_TYPES = ['preview', 'summary']; // 内容型：结构化呈现、无作答空间语义/卷面自洽
+const CONTENT_TYPES = ['preview', 'summary']; // 内容型：结构化呈现、无作答空间语义/题目自洽
 const QUESTION_TYPES = GEN_TYPES.filter((g) => !CONTENT_TYPES.includes(g));
 
 /** 合法开设矩阵：SUBJECT_STAGE_EXTRAS 的 cells（subject|stage，54 组合，事实源） */
@@ -77,9 +77,9 @@ function dupSentences(text) {
  *  特征词均为拼装整体指令中真实出现的稳定条款文本；按类型分检。 */
 const CONTENT_MUST = {
   common: ['质量底线', '课标', '学段'],
-  question: ['【创作要求】', '作答空间形态按答案类型匹配', '卷面自洽（编辑自查总纲', '教辅结构'],
+  question: ['【创作要求】', '作答空间形态按答案类型匹配', '题目自洽（编辑自查总纲', '教辅结构'],
   content: ['【创作要求】', '结构化呈现', '教辅结构'],
-  exam: ['【创作要求】', '卷面自洽（编辑自查总纲'],
+  exam: ['【创作要求】', '题目自洽（编辑自查总纲'],
 };
 
 /** 方向1 排版要素清单（编辑者审"排版"：输出格式条款/卷面结构/密封线；结构明细与版面质检规则以非空断言补足）。 */
@@ -182,7 +182,7 @@ describe('三维度完整指令逐句审计（真实开设矩阵 54 科段 × 9 
         if (!r.vp) fails.push(`${label} 排版要素缺版面质检规则`);
         if (!r.teaching) fails.push(`${label} 内容要素缺教辅结构注入`);
       } else {
-        if (t.includes('卷面自洽（编辑自查总纲')) fails.push(`${label} 内容型串味：泄漏题类条款"卷面自洽"`);
+        if (t.includes('题目自洽（编辑自查总纲')) fails.push(`${label} 内容型串味：泄漏题类条款"题目自洽"`);
         if (t.includes('作答空间形态按答案类型匹配')) fails.push(`${label} 内容型串味：泄漏作答空间语义`);
         if (t.includes('· 书写载体协议：')) fails.push(`${label} 内容型串味：泄漏书写载体协议条款`);
         if (!r.teaching) fails.push(`${label} 内容要素缺教辅结构注入`);
