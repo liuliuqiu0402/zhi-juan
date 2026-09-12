@@ -132,6 +132,8 @@ describe('A1-3 锚粒度诊断（锚数 / 短锚占比 / specificConcepts 条数
     expect(rep.shortAnchorCount).toBe(2);
     expect(rep.shortRatio).toBe(0.5);
     expect(rep.minUnitAnchorCount).toBe(1);
+    // ✅ 新判据生效核对：minUnitAnchors 列出仍挂在第2层的最小单位锚名（本批 = ['人']）
+    expect(rep.minUnitAnchors).toEqual(['人']);
   });
 
   it('绑定状态分布：仅在有 bind 时统计（生成期锚）；分析期为空对象', () => {

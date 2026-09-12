@@ -7444,6 +7444,15 @@ const executeTextbookAnalysis = async (action) => {
         + `最小单位违例=${agg.minUnitAnchorCount} 平均锚数/章=${agg.avgAnchorsPerChapter} specificConcepts 合计=${agg.specTotal} `
         + `第3层重复=${agg.specDupCount}(${(agg.specDupRatio * 100).toFixed(0)}%)`,
       );
+      // 🔧 新判据生效核对（最小单位下沉第3层）：本批最小单位违例锚名 —— 0 即在最新判据下全部下沉
+      const minUnitNames = [
+        ...new Set(granularityReports.flatMap((r) => r.minUnitAnchors || [])),
+      ];
+      if (minUnitNames.length === 0) {
+        console.log(`✅ [新判据生效核对] 本批 ${agg.chapterCount} 章：第2层无最小单位违例锚，最小单位均已下沉第3层`);
+      } else {
+        console.warn(`⚠️ [新判据生效核对] 本批仍有 ${minUnitNames.length} 个最小单位锚挂在第2层（未下沉）：${minUnitNames.join('、')}`);
+      }
     }
     
     // 🔧 修复L：分析失败/质量统计摘要

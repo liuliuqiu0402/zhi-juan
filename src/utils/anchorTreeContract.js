@@ -112,12 +112,14 @@ export const anchorGranularityReport = (anchors = [], { chapterTitle = '' } = {}
     if (!st) continue;
     bindStatus[st] = (bindStatus[st] || 0) + 1;
   }
+  const minUnitNames = names.filter(isMinUnitName);
   return {
     chapterTitle,
     anchorCount: list.length,
     shortAnchorCount: shortCount,
     shortRatio: list.length ? +(shortCount / list.length).toFixed(3) : 0,
-    minUnitAnchorCount: names.filter(isMinUnitName).length,
+    minUnitAnchorCount: minUnitNames.length,
+    minUnitAnchors: minUnitNames,
     specificConcepts: {
       total: specCounts.reduce((a, b) => a + b, 0),
       unique: specUnique,
@@ -205,10 +207,13 @@ export const ANCHOR_LIST_ROLE_NOTE =
 export const logAnchorGranularity = (report = {}) => {
   const r = report || {};
   const hasBind = Object.keys(r.bindStatus || {}).length > 0;
+  const minUnitStr = (r.minUnitAnchors || []).length > 0
+    ? `❌ 最小单位违例[${r.minUnitAnchorCount}]：${r.minUnitAnchors.join('、')}`
+    : `✅ 最小单位违例=0（均已下沉第3层）`;
   console.log(
     `📐 [锚粒度诊断] ${r.chapterTitle || '(未标注章)'}：`
     + `锚数=${r.anchorCount} 短锚(≤${SHORT_ANCHOR_MAX_LEN}字)=${r.shortAnchorCount}(${((r.shortRatio || 0) * 100).toFixed(0)}%) `
-    + `最小单位违例=${r.minUnitAnchorCount} `
+    + `${minUnitStr} `
     + `specificConcepts 条数[最小/中位/最大]=${r.specificConcepts?.min}/${r.specificConcepts?.median}/${r.specificConcepts?.max} `
     + `空specific=${r.specificConcepts?.zeroCount} `
     + `第3层重复=${r.specificConcepts?.dupCount || 0}(${((r.specificConcepts?.dupRatio || 0) * 100).toFixed(0)}%) `
