@@ -679,20 +679,7 @@
                     🟢 {{ doc.difficulty.easy }}% · 🟡 {{ doc.difficulty.medium }}% · 🔴 {{ doc.difficulty.hard }}%
                   </span>
                 </div>
-                <!-- ✨ 新增：质量报告摘要 -->
-                <div
-                  v-if="doc.qualityReport"
-                  class="quality-summary"
-                >
-                  <span
-                    v-if="doc.qualityReport.aiReview?.details?.length"
-                    class="quality-item"
-                    :class="{ 'quality-warn': !doc.qualityReport.aiReview.passed }"
-                  >
-                    🤖 评分：{{ doc.qualityReport.aiReview.details.find(d => d.includes('综合评分')) || '' }}
-                  </span>
-                </div>
-                <!-- ✨ 新增：issues警告 -->
+                <!-- ✨ 问题列表（唯一真实的质量线索；"质量报告"死壳已于 2026-09-12 移除） -->
                 <div
                   v-if="doc.issues && doc.issues.length > 0"
                   class="issues-summary"
@@ -761,12 +748,12 @@
                 🔄 变体
               </button>
               <button
-                v-if="doc.qualityReport"
+                v-if="doc.issues && doc.issues.length > 0"
                 class="btn-small hide-on-mobile"
-                title="查看质量报告"
-                @click.stop="showQualityReport(doc)"
+                title="查看问题列表"
+                @click.stop="showIssuesReport(doc)"
               >
-                📊
+                📋
               </button>
               <span class="quality-marks hide-on-mobile">
                 <span
@@ -7347,7 +7334,8 @@ const executeTextbookAnalysis = async (action) => {
             book.grade,
             ch.title,
             !!(ch.children && ch.children.length > 0),
-            ch.end - ch.start + 1
+            ch.end - ch.start + 1,
+            action === 'all'   // 🔧 用户显式「🔄 全部重新分析」→ forceRefresh=true → 绕过 L1 缓存强制真调
           );
           
           // ✅ A1-2（2026-09-11）：**锚树契约校验**——分析输出即锚清单本体，结构不符 → **不落库**（重试/报错）。
@@ -8212,17 +8200,11 @@ const finalizeGeneration = async (result, genType) => {
       contentCards: result.contentCards,
       knowledgeMap: result.knowledgeMap,
       issues: result.issues,
-      qualityReport: result.qualityReport, // ✨ 新增
       createdAt: Date.now()
     });
     
-    // ✨ 显示质量报告提示
-    if (result.qualityReport) {
-      const report = result.qualityReport;
-      let hint = '✅ 生成完成';
-      if (!report.formatCheck?.passed) hint += ' | ⚠️ 格式问题';
-      previewHint.value = hint;
-    }
+    // ✨ 生成完成提示（质量报告死壳已移除，问题一律走 issues）
+    previewHint.value = '✅ 生成完成';
     window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: '✅ 生成完成，已保存到结果区', type: 'info' } }));
   } else {
     const errorMsg = result.retried 
@@ -8377,49 +8359,15 @@ const markQuality = (doc, q) => {
   doc.quality = doc.quality === q ? null : q;
 };
 
-// ✨ 新增：查看质量报告
-const showQualityReport = async (doc) => {
-  if (!doc.qualityReport) {
-    await showAlertDialogFn('暂无质量报告');
+// ✨ 2026-09-12：查看问题列表（原「质量报告」死壳已删——AI 质检移除后其六项检查恒为"✅通过/无明细"，
+//    无真实意义；本入口只呈现真实线索：issues 问题列表）
+const showIssuesReport = async (doc) => {
+  if (!doc.issues || doc.issues.length === 0) {
+    await showAlertDialogFn('暂无问题');
     return;
   }
-  const report = doc.qualityReport;
-  let text = '📊 质量报告\n\n';
-  
-  // 格式检查
-  text += '【格式检查】' + (report.formatCheck?.passed ? '✅ 通过' : '❌ 未通过') + '\n';
-  if (report.formatCheck?.details?.length) {
-    report.formatCheck.details.forEach(d => text += '  - ' + d + '\n');
-  }
-  
-  // 难度
-  text += '\n【难度分布】' + (report.difficultyCheck?.passed ? '✅ 通过' : '⚠️ 偏差') + '\n';
-  if (report.difficultyCheck?.details?.length) {
-    report.difficultyCheck.details.forEach(d => text += '  - ' + d + '\n');
-  }
-  
-  // AI审查
-  if (report.aiReview) {
-    text += '\n【AI审查】' + (report.aiReview.passed ? '✅ 通过' : '⚠️ 未通过') + '\n';
-    if (report.aiReview.details?.length) {
-      report.aiReview.details.forEach(d => text += '  - ' + d + '\n');
-    }
-  }
-  
-  // 模板对标
-  if (report.templateMatch) {
-    text += '\n【模板对标】' + (report.templateMatch.passed ? '✅ 通过' : '⚠️ 偏差') + '\n';
-    if (report.templateMatch.details?.length) {
-      report.templateMatch.details.forEach(d => text += '  - ' + d + '\n');
-    }
-  }
-
-  // issues
-  if (doc.issues && doc.issues.length > 0) {
-    text += '\n【问题列表】\n';
-    doc.issues.forEach(i => text += '  ' + i + '\n');
-  }
-  
+  let text = '📋 问题列表\n\n';
+  doc.issues.forEach(i => text += i + '\n');
   await showAlertDialogFn(text);
 };
 
@@ -10302,27 +10250,7 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   font-size: 13px;
 }
 
-/* ✨ 质量报告摘要样式 */
-.quality-summary {
-  margin-top: 4px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.quality-item {
-  font-size: 11px;
-  padding: 1px 6px;
-  background: var(--success-light);
-  border-radius: 10px;
-  color: #2e7d32;
-}
-
-.quality-item.quality-warn {
-  background: #fef9e7;
-  color: #b85c00;
-}
-
+/* ✨ 问题列表样式（原「质量报告摘要」样式已随死壳移除，2026-09-12） */
 .issues-summary {
   margin-top: 4px;
   display: flex;

@@ -7,7 +7,7 @@ import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurri
 import { getStoragePath } from '../utils/pathHelper.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
-import { buildAnchors, boundAnchorNames } from '../utils/coverageAnchor.js';
+import { buildAnchors } from '../utils/coverageAnchor.js';
 import { collectChapterRawText, compressOriginalText, shouldDirectInject } from '../utils/textbookCompression.js'; // ✅ A15/A11：程序按勾选章节直读整章原文（材料压缩 + copyGuard 语料同源）；✅ A4-10：材料分档（小直放/大压缩）
 import { buildCompressionCacheKey, readCompressionCache, writeCompressionCache } from '../utils/compressionCache.js'; // ✅ A4-11：压缩结果按勾选章节组合缓存（同批章节第二次生成直接复用）
 import { formatAnchorListByChapter, ANCHOR_LIST_ROLE_NOTE } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位）；✅ A1-4b：第1层（知识主题）入清单 + 角色说明
@@ -2991,7 +2991,7 @@ const maxInputTokens = config.engine === 'deepseek'
   };
 
   // ==================== 纯文本 AI 分析（跳过 OCR）====================
-  const analyzeTextbookWithText = async (text, subject, stage, grade, chapterTitle, hasChildren, pageCount) => {
+  const analyzeTextbookWithText = async (text, subject, stage, grade, chapterTitle, hasChildren, pageCount, forceRefresh = false) => {
     console.log('🧠 开始纯文本 AI 分析...');
     
     const isSummaryPage = chapterTitle && /小结|总结|整理|复习|回顾|知识归纳/.test(chapterTitle);
@@ -3279,6 +3279,8 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
       // 🔧 分析输出预算：接生成侧"灵活模式"（A4-9 planOutputQuota + 引擎护栏），
       //     maxTokens 由原文量推导，不再被 maxTokensByTask 里的旧死值（如 4096）钳死而截断知识层级。
       //     max_tokens 只是"允许量"而非"目标量"，给宽不花钱；单次帽 = min(引擎护栏, 需求×安全缓冲)。
+      //     ⚠️ 不得把 perCallCap 传成 getTaskMaxTokens('analysis')——旧本地值 4096 会把推导结果
+      //     再次钳回 4096（曾导致"修了却在用 4096"）。analysis 无续写轮，上限只需引擎护栏兜底。
       let analysisMaxTokens = getTaskMaxTokens('analysis');
       try {
         const analysisGate = await getCurrentEngineConfigEnhanced('analysis');
@@ -3287,7 +3289,6 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
         const analysisQuota = planOutputQuota({
           needTokens,
           safetyBuffer: 1.25,
-          perCallCap: getTaskMaxTokens('analysis'),
           engineCeiling: engineCap,
           minRounds: 0,        // 分析是单次调用、无续写轮：只取单次帽
         });
@@ -3309,6 +3310,9 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
         temperature: apiConfig.generationSettings.analysisTemperature,
         timeout: getTimeout('analysis'),
         maxTokens: analysisMaxTokens,
+        // 🔧 用户显式「🔄 全部重新分析」时 forceRefresh=true → 绕过 L1 缓存强制真调：
+        //    否则同一 prompt 命中旧缓存，"重新分析"失去意义（2026-09-12 用户指出语义冲突）
+        ...(forceRefresh ? { skipCache: true } : {}),
         // 🔧 推理模型思考链+输出共享；maxTokens 由原文量推导（见上），不再被旧死值钳死
       });
       
@@ -4169,9 +4173,10 @@ ${cardAnalysisText.substring(0, 1000)}
 
     // ── 覆盖锚构建（2026-09 P0）：章级层级考点 → 原文片段绑定，覆盖/检索/缺料诊断的唯一事实源 ──
     //    锚来自 contentCards.anchorTree（knowledgeHierarchy 归一树），考点→章归属由树结构成立；
-    //    绑定分四级（literal/semantic/chapter/missing），missing 即缺料信号（红线：不进可命题清单）
+    //    绑定分四级（literal/semantic/chapter/missing），missing 即缺料信号
+    //    🔧 2026-09-12 清理：原 `boundAnchorNames(anchors)` 结果（旧 browse 取料路径的"可命题清单"）
+    //       自 A15 废除 browse 后全项目再无消费方，属死变量，已删（缺料信号改由下方 anchorReport.missingList 上抛）。
     const { anchors, report: anchorReport } = buildAnchors(contentCards || [], { retriever: semanticRetriever });
-    const boundAnchors = boundAnchorNames(anchors);
     if (anchorReport.total > 0) {
       const bs = anchorReport.byStatus;
       console.log(`[考点锚] ${anchorReport.total} 个考点：字面${bs.literal}/语义${bs.semantic}/章兜底${bs.chapter}/缺料${bs.missing}`
@@ -5251,17 +5256,9 @@ ${(contextJson.scenes || []).map((s, i) =>
       //      质检误报还会中断整卷生成（实测空壳误判→两次重试→整卷失败）；
       //    - 代码确定性兜底保留（auditExamPaper 已在整卷生成内部执行：拼音/模板残留/分值对齐等 fix + guard 静默抽检）
 
-      // 初始化质量报告（最小结构，兼容 UI 展示；无检查项）
-      const qualityReport = {
-        formatCheck: { passed: true, details: [] },
-        coverageCheck: { passed: true, details: [] },
-        difficultyCheck: { passed: true, details: [] },
-        knowledgeCheck: { passed: true, details: [] },
-        templateMatch: { passed: true, details: [] },
-        semanticCheck: { passed: true, details: [] },
-        manualReview: []
-      };
-
+      // 🔧 2026-09-12 清理死壳：原 qualityReport（格式/覆盖/难度/知识/模板/语义 六项）恒为
+      //    `{passed:true, details:[]}`——AI 质检已移除、全项目再无写入点，UI 打开只显示"永远✅通过"，
+      //    无真实意义。已整体删除；生成后的真实问题一律走 `issues`（问题列表）。
       // 生成完成（不再做生成后质检）——直接进入结果返回
       
       // 🔧 生成摘要（仅过程信息，无质检结论）
@@ -5298,7 +5295,6 @@ ${(contextJson.scenes || []).map((s, i) =>
         contentCards,
         knowledgeMap,
         issues,
-        qualityReport,
         generatedQuestions,
         parsedBlueprint
       };

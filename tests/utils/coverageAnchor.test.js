@@ -1,7 +1,8 @@
-// 覆盖锚（Coverage Anchor）单测：四级绑定（literal/semantic/chapter/missing）+ 报告 + 红线过滤
-// P0 契约：可命题考点只含已绑定锚；missing（缺料）只进缺料诊断；图谱 relatedChapters 不参与锚定位。
+// 覆盖锚（Coverage Anchor）单测：四级绑定（literal/semantic/chapter/missing）+ 报告 + 字段下线护栏
+// P0 契约：missing（缺料）只进缺料诊断；图谱 relatedChapters 不参与锚定位。
+// 🔧 2026-09-12：`boundAnchorNames`（旧 browse"可命题清单"红线，已无生产调用）连同其断言删除。
 import { describe, it, expect } from 'vitest';
-import { wordMatch, flattenAnchorTree, buildAnchors, boundAnchorNames } from '../../src/utils/coverageAnchor.js';
+import { wordMatch, flattenAnchorTree, buildAnchors } from '../../src/utils/coverageAnchor.js';
 
 // 合成卡片：模拟 extractContentCards 捷径分支产物（anchorTree 归一树 + segments）
 const mkCard = (chapterTitle, anchorTree, segments) => ({ chapterTitle, anchorTree, segments });
@@ -73,18 +74,14 @@ describe('coverageAnchor 绑定四级与红线', () => {
     expect(report.byStatus).toMatchObject({ literal: 2, semantic: 1, chapter: 0, missing: 0 });
   });
 
-  it('missing（缺料）：章无片段 → 不进可命题清单，进缺料诊断；boundAnchorNames 已过滤', () => {
+  it('missing（缺料）：章无片段 → 进缺料诊断（missingList）', () => {
     const cardEmpty = mkCard('第5单元 循环小数', [
       { bigConcept: '数与运算', coreKnowledge: [{ name: '循环小数的意义', level: '理解', specificConcepts: [] }] },
     ], []); // 无原文片段 → 缺料信号
-    const { anchors, report } = buildAnchors([cardA, cardEmpty], {});
+    const { report } = buildAnchors([cardA, cardEmpty], {});
     expect(report.total).toBe(4);
     expect(report.byStatus.missing).toBe(1);
     expect(report.missingList).toEqual([{ chapter: '第5单元 循环小数', name: '循环小数的意义' }]);
-    const names = boundAnchorNames(anchors);
-    expect(names).toHaveLength(3);
-    expect(names.some((n) => n.name === '循环小数的意义')).toBe(false); // 红线：missing 不进可命题清单
-    expect(names[0]).toMatchObject({ chapter: '第1单元 小数乘法', bigConcept: '数与运算', level: '理解' });
   });
 
   it('目录卡/未分析卡（无 anchorTree）不产出锚，报告 total=0', () => {
@@ -93,7 +90,6 @@ describe('coverageAnchor 绑定四级与红线', () => {
     expect(anchors).toHaveLength(0);
     expect(report.total).toBe(0);
     expect(report.missingList).toEqual([]);
-    expect(boundAnchorNames(anchors)).toHaveLength(0);
   });
 });
 
@@ -133,14 +129,6 @@ describe('护栏：锚对象注入面最小化 + 已下线字段不回潮', () =
       { name: '小数乘整数', level: '理解', specificConcepts: ['算理'] },
     ] },
   ], segs2);
-
-  it('boundAnchorNames 仅含 {chapter,bigConcept,name,level}（防锚对象整体序列化回潮）', () => {
-    const { anchors } = buildAnchors([cardB], {});
-    const out = boundAnchorNames(anchors);
-    expect(out).toHaveLength(1);
-    expect(Object.keys(out[0]).sort()).toEqual(['bigConcept', 'chapter', 'level', 'name']);
-    expect(JSON.stringify(out)).not.toContain('specificConcepts');
-  });
 
   it('✅ A1-5（2026-09-12）：建议题型字段已彻底下线——锚数据层与注入面均不含', () => {
     const { anchors } = buildAnchors([cardB], {});

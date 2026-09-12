@@ -147,7 +147,3 @@ export const buildAnchors = (contentCards = [], opts = {}) => {
   };
   return { anchors, report };
 };
-
-/** 骨架/检索用：只含"已绑定"考点的扁平清单（红线：missing 不进可命题清单） */
-export const boundAnchorNames = (anchors = []) =>
-  anchors.filter((a) => a.bind.status !== 'missing').map((a) => ({ chapter: a.chapterTitle, bigConcept: a.bigConcept, name: a.name, level: a.level }));

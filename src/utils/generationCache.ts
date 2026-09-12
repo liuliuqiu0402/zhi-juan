@@ -215,6 +215,19 @@ export async function getCachedPromptResult(cacheKey: string): Promise<string | 
   try {
     const entry = await storage.getItem<PromptCacheEntry>(cacheKey);
     if (!entry || !entry.content) return null;
+    // 🔧 缓存污染根治（读端）：命中后校验 content 真实性。analysis/blueprint 必须是含关键结构字段的
+    //    完整响应，否则视为坏缓存 → 删除并放行真调 API（防历史污染的坏键仍被命中冻结）。
+    if (['analysis', 'blueprint'].includes(entry.taskType)) {
+      const keyFields = entry.taskType === 'analysis'
+        ? ['knowledgeHierarchy', 'coreTopics', 'visualDescription', 'formulas']
+        : ['structure', 'layout', 'blueprint', 'sections'];
+      const valid = keyFields.some((f) => entry.content.includes(f));
+      if (!valid) {
+        console.warn(`🗑️ [L1缓存] 命中 ${entry.taskType} 坏缓存（缺关键字段），删除并放行真调（key:${cacheKey.slice(0, 24)}...）`);
+        await storage.removeItem(cacheKey);
+        return null;
+      }
+    }
     if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
       await storage.removeItem(cacheKey);
       return null;
@@ -233,6 +246,21 @@ export async function setCachedPromptResult(
   meta: { taskType: string; model: string }
 ): Promise<void> {
   try {
+    // 🔧 缓存污染根治：analysis 类任务本质要产出教材特征/知识层级（含 knowledgeHierarchy 等关键字段）。
+    //    若响应缺这些结构迹象（空/截断/格式错乱），**绝不落库**——否则下次命中把坏结果当合法结果返回，
+    //    永不真调 API（2026-09-12 教材"小数乘法和除法(二)"根因即坏结果被缓存冻结）。
+    //    blueprint 同理（JSON 结构任务）。用"关键字段标记"宽松校验：能修复的合法响应含 key 字段即通过，
+    //    真正截断/空响应不含，被拦截；宁少缓存也绝不缓存坏结果。
+    if (meta?.taskType === 'analysis' || meta?.taskType === 'blueprint') {
+      const keyFields = meta?.taskType === 'analysis'
+        ? ['knowledgeHierarchy', 'coreTopics', 'visualDescription', 'formulas']
+        : ['structure', 'layout', 'blueprint', 'sections'];
+      // 空内容或缺关键字段 = 坏结果 → 拒写（空串是 falsy，不能走 `content &&` 放过）
+      if (!content || !content.trim() || !keyFields.some((f) => content.includes(f))) {
+        console.warn(`🚫 [L1缓存] 拒绝写入 ${meta?.taskType} 坏结果（空/缺关键字段），避免污染缓存（key:${cacheKey.slice(0, 24)}...）`);
+        return;
+      }
+    }
     const entry: PromptCacheEntry = {
       content,
       timestamp: Date.now(),

@@ -9,6 +9,9 @@
  * ✅ A9（2026-09-11 清理，依据 docs/design/极简方案-定稿.md 第三节）：上述三函数及其
  *    专属依赖（contractOf / classifyProbe / literalProbeWords / groupByChapter / wordMatch）
  *    已从本文件移除。
+ * ✅ 2026-09-12：`coverageProbe.js` 模块本体（生产零引用）已连同其测试删除，故上述
+ *    classifyProbe / literalProbeWords / groupByChapter 已不再存在于代码库；`wordMatch`
+ *    仍存活于 `coverageAnchor.js`（锚→片段字面绑定在用）。
  *
  * 🔒 保留项：`stripHtmlForRecon`——`domainReconciler`（域覆盖对账，"只报不改"生产防线）
  *    复用的"去标签 → 单行文本"工具（对账只看"是否出现"，不看排版形态），

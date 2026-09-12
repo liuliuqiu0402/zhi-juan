@@ -950,7 +950,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     //   🔧 旧探针只认"看图写话/写话/看图"且只看 [IMAGE]、整卷无图才报——数学"观察下面的图形/看图形/统计图"
     //     走 [GRAPH] 不命中、一个 [IMAGE] 也让他处缺失静默。升级：关键词覆盖 看图/读图/看图形/统计图/观察图形/据图，
     //     配图标记同时认 [IMAGE]（画面）与 [GRAPH]（数据/几何图形）；整卷一个图标记都没有但存在此类题 → 必报"待补图"。
-    //     只报不改（不改内容不改分），把"题要图没图"从静默变成可核对——与 coverageProbe 同一基准。
+    //     只报不改（不改内容不改分），把"题要图没图"从静默变成可核对。
     if (has('image-block-fix')) {
       const figureKeywordRe = /看图|读图|看图形|据图|统计图|观察[^\n]{0,8}图形|格图/;
       const hasFigureAsk = figureKeywordRe.test(bodyNoAnsText);
