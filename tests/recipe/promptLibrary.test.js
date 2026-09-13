@@ -91,6 +91,7 @@ describe('注入指令组装（拼接格式与顺序）', () => {
     const out = buildInjectionInstruction({ template: '素材：{material}', subject: '语文' });
     expect(out).toContain('【压缩原文】随本委托注入'); // 素材=整章原文压缩后随委托注入
     expect(out).toContain('【锚点清单】');             // 范围声明
+    expect(out).toContain('覆盖下限、非命题上限');      // 下限非上限口径（2026-09-13）
     expect(out).toContain('【素材使用约定】');         // 使用与引用约束口径
     expect(out).not.toContain('研读');                 // 研读链已整体移除
     expect(out).not.toContain('browse');               // browse 机制已整体移除

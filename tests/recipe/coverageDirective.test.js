@@ -27,13 +27,20 @@ describe('前瞻覆盖指令（模板层按资料类型注入）', () => {
     expect(t.template).not.toContain('严禁删考点或改由声明代替');
   });
 
-  it('full 型（preview/dictation）：全知识点覆盖且以核心知识清单为核对锚', () => {
+  it('full 型（preview/dictation）：全知识点覆盖且以锚点清单为核对锚（下限，非上限）', () => {
     const preview = getPromptTemplate({ genType: 'preview' });
     expect(preview.template).toContain('覆盖本课全部新知');
-    expect(preview.template).toContain('【本资料须覆盖的核心知识】');
+    expect(preview.template).toContain('【锚点清单】');
+    expect(preview.template).toContain('下限、非上限');
     const dictation = getPromptTemplate({ genType: 'dictation' });
     expect(dictation.template).toContain('覆盖本课时/单元全部要求掌握内容');
-    expect(dictation.template).toContain('【本资料须覆盖的核心知识】');
+    expect(dictation.template).toContain('【锚点清单】');
+    expect(dictation.template).toContain('下限、非上限');
+    // 悬空块名已收敛（2026-09-13）：模板引用统一为实际注入的【锚点清单】，不再引用无生产者的旧块名
+    for (const g of ['practice', 'preview', 'dictation']) {
+      expect(getPromptTemplate({ genType: g }).template, `${g} 不应再引用悬空块名`)
+        .not.toContain('【本资料须覆盖的核心知识】');
+    }
     // summary/review 覆盖句已随术语统一为"核心知识"（不回归）
     expect(getPromptTemplate({ genType: 'summary' }).template).toContain('覆盖{unit}全部核心知识');
     expect(getPromptTemplate({ genType: 'review' }).template).toContain('覆盖本单元全部核心知识');

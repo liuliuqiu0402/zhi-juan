@@ -225,6 +225,14 @@ describe('A1-4b 第1层（知识主题）入锚清单：表归属与范围，不
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('不是写作栏目');
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('（第2层）');
   });
+
+  it('角色说明含"下限非上限"口径（2026-09-13）：须全覆盖清单，但可依课标补充清单外考点', () => {
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('覆盖下限、不是命题上限');
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('全部覆盖到');
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('适当补充');
+    // 旧"一律"措辞易被读成"只能考清单内的点"，不回归
+    expect(ANCHOR_LIST_ROLE_NOTE).not.toContain('一律是各主题下的');
+  });
 });
 
 describe('A16（甲方案）锚点=目录：未分析/仅目录章不再从覆盖范围消失', () => {
