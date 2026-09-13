@@ -71,3 +71,19 @@ export const COVERAGE_EXTENT = {
 
 /** 扩展口径读取（未知类型安全兜底：从严，不扩散） */
 export const extentOf = (genType) => COVERAGE_EXTENT[genType] || 'strict';
+
+/**
+ * 📚 素材通道默认映射（2026-09-14 用户定版开关）——资料类型 × 教材素材注入口径，唯一事实源。
+ *    与 COVERAGE_CONTRACT 同源分类（知识型 vs 命题/练习型）：
+ *    'full'   全文注入（归纳/积累型默认）：整章原文 → 直放/压缩 → 全部进指令（梳理型需看原文）
+ *    'anchor' 标尺注入（命题/练习型默认）：不注入整章原文，只注入【锚点清单】+【语料锚】
+ *             （考点绑定原文片段的最小语料），抑制模型对教材原文的过度依赖，省压缩调用与输入费。
+ *    用户在设置页可选 auto（按本表）/ full / anchor（手动覆盖对所有类型生效）。
+ */
+export const MATERIAL_CHANNEL_DEFAULT = {
+  summary: 'full', review: 'full', preview: 'full', dictation: 'full',
+  exam: 'anchor', practice: 'anchor', special: 'anchor', reading: 'anchor', errorbook: 'anchor',
+};
+
+/** 素材通道读取（未知类型安全兜底：按"需要原文"的全文注入处理） */
+export const materialChannelOf = (genType) => MATERIAL_CHANNEL_DEFAULT[genType] || 'full';

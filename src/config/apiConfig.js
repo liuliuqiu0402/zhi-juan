@@ -593,6 +593,14 @@ export const apiConfig = reactive({
     budgetByType: DEFAULT_BUDGET_BY_TYPE,
     // 🔧 各类型系数内置下限（不含在界面配置，确定性兜底防异常小）；上限由每槽 cap 承担
     budgetClamp: { floorTokens: 800, },
+    // 🔧 素材通道（2026-09-14 用户定版开关）：生成时教材素材注入口径——
+    //    'auto'   按资料类型默认（单一事实源见 useAiGenerator MATERIAL_CHANNEL_DEFAULT）：
+    //             归纳/积累型（summary/review/preview/dictation）→ full 全文注入（整章原文进指令）；
+    //             命题/练习型（exam/practice/special/reading/errorbook）→ anchor 标尺注入
+    //             （仅【锚点清单】+【语料锚】，不注入整章原文，抑制模型对教材原文的过度依赖）。
+    //    'full'   全文注入（手动覆盖，对所有类型生效）
+    //    'anchor' 标尺注入（手动覆盖，对所有类型生效）
+    materialChannel: 'auto',
     // 🔧 各引擎整卷生成深度思考开关（生成端按当前引擎读取对应开关；其余任务始终关闭思考）
     deepseekGenerationThinking: false,
     volcanoGenerationThinking: false,

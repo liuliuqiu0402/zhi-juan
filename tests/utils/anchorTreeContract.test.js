@@ -11,6 +11,7 @@ import {
   summarizeAnchorGranularity,
   buildAnchorListByChapter,
   formatAnchorListByChapter,
+  formatCorpusAnchorByChapter,
   ANCHOR_LIST_ROLE_NOTE,
 } from '../../src/utils/anchorTreeContract.js';
 import { buildAnchors } from '../../src/utils/coverageAnchor.js';
@@ -262,5 +263,98 @@ describe('A16（甲方案）锚点=目录：未分析/仅目录章不再从覆�
     expect(groups).toHaveLength(1);
     expect(groups[0].chapterTitle).toBe('第3课 桂花雨');
     expect(groups[0].names).toContain('一、摇花乐');
+  });
+});
+
+// 📚 A16（2026-09-14 素材通道）：语料锚格式化 formatCorpusAnchorByChapter
+//    标尺注入通道的教材最小语料：只取考点绑定的正文/例题类片段（排除练习/习题/作业/检测段），
+//    每考点限量、每段截断、全局限量——保证"不注入整章原文"时仍有教材表述依据
+describe('A16 语料锚格式化 formatCorpusAnchorByChapter（标尺注入通道）', () => {
+  const mkAnchors = () => [
+    {
+      chapterTitle: '第2课 荷花',
+      name: '词语积累与运用',
+      bind: {
+        segments: [
+          { type: '正文', text: '清早，我到公园去玩，一进门就闻到一阵清香。' },
+          { type: '练习', text: '练习：给加点字选择正确读音。' },
+          { type: '正文', text: '荷叶挨挨挤挤的，像一个个碧绿的大圆盘。' },
+        ],
+      },
+    },
+    {
+      chapterTitle: '第2课 荷花',
+      name: '比喻句理解',
+      bind: {
+        segments: [
+          { type: '正文', text: '白荷花在这些大圆盘之间冒出来。有的才展开两三片花瓣儿。' },
+        ],
+      },
+    },
+    {
+      chapterTitle: '第3课 桂花雨',
+      name: '多音字辨析',
+      bind: {
+        segments: [
+          { type: '习题', text: '习题：读句子，用"√"选出正确的读音。' },
+        ],
+      },
+    },
+  ];
+
+  it('按章分组：正文片段入语料，练习/习题段被排除', () => {
+    const out = formatCorpusAnchorByChapter(mkAnchors());
+    expect(out).toContain('【第2课 荷花】');
+    expect(out).toContain('· 词语积累与运用：清早，我到公园去玩，一进门就闻到一阵清香。');
+    expect(out).toContain('· 比喻句理解：白荷花在这些大圆盘之间冒出来。');
+    // 练习/习题段不进入语料（防把题面当语料）
+    expect(out).not.toContain('练习：给加点字');
+    expect(out).not.toContain('习题：读句子');
+    // 全部片段均为练习/习题段的考点（多音字辨析）整条不出现
+    expect(out).not.toContain('多音字辨析');
+  });
+
+  it('每考点限量 maxSegPerAnchor 段（默认2段）', () => {
+    const anchors = [{
+      chapterTitle: '第1课',
+      name: '考点A',
+      bind: { segments: [1, 2, 3, 4, 5].map((i) => ({ type: '正文', text: `正文片段${i}号` })) },
+    }];
+    const out = formatCorpusAnchorByChapter(anchors);
+    expect(out).toContain('正文片段1号');
+    expect(out).toContain('正文片段2号');
+    expect(out).not.toContain('正文片段3号'); // 超限量截断
+  });
+
+  it('每段截断 maxCharsPerSeg 字（默认120字，保留前段）', () => {
+    const longText = '长'.repeat(200);
+    const anchors = [{ chapterTitle: '第1课', name: '考点B', bind: { segments: [{ type: '正文', text: longText }] } }];
+    const out = formatCorpusAnchorByChapter(anchors);
+    expect(out).toContain('长'.repeat(120));
+    expect(out).not.toContain('长'.repeat(121));
+  });
+
+  it('全局限量 maxTotalChars 字：超限的后续章节截断不输出', () => {
+    const anchors = [
+      { chapterTitle: '第1课', name: '考点A', bind: { segments: [{ type: '正文', text: '片段甲' }] } },
+      { chapterTitle: '第2课', name: '考点B', bind: { segments: [{ type: '正文', text: '片段乙' }] } },
+    ];
+    const out = formatCorpusAnchorByChapter(anchors, { maxTotalChars: 10 });
+    expect(out).toContain('【第1课】');
+    expect(out).not.toContain('第2课'); // 超全局上限后不再追加
+  });
+
+  it('无可用片段 / 空锚列表 → 返回空串', () => {
+    expect(formatCorpusAnchorByChapter([])).toBe('');
+    expect(formatCorpusAnchorByChapter([{ chapterTitle: '第1课', name: '考点X', bind: { segments: [] } }])).toBe('');
+    expect(formatCorpusAnchorByChapter(null)).toBe('');
+    expect(formatCorpusAnchorByChapter(undefined)).toBe('');
+    expect(formatCorpusAnchorByChapter([{ chapterTitle: '第1课', name: '考点Y' }])).toBe(''); // 无 bind
+  });
+
+  it('无章名的锚归入"未标注章节"分组', () => {
+    const anchors = [{ name: '考点Z', bind: { segments: [{ type: '正文', text: '正文片段' }] } }];
+    const out = formatCorpusAnchorByChapter(anchors);
+    expect(out).toContain('【未标注章节】');
   });
 });

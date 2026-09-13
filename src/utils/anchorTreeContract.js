@@ -210,6 +210,54 @@ export const ANCHOR_LIST_ROLE_NOTE =
   + '🔴 清单是**覆盖下限**：清单内考点须全部覆盖到（保证本单元必学知识不漏）；'
   + '它**不是命题范围的全部**——清单之外能否补充或整合，按资料类型见委托书【素材使用约定】。';
 
+/** 片段截断：优先在句末断（保留语义完整），否则硬切加省略号 */
+const trimAnchorText = (text, max) => {
+  const t = String(text || '').replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const m = cut.match(/.*[。！？；.!?;，,]/);
+  return (m && m[0].length > max * 0.5 ? m[0] : cut) + '…';
+};
+
+/**
+ * ✅ A16（2026-09-14 素材通道）：语料锚（标尺注入通道的教材最小语料）
+ *   锚点清单只给考点名；本函数把考点绑定的原文片段（bind.segments）按章分组成最小语料，
+ *   供「标尺注入」通道（命题/练习型资料默认）在**不注入整章原文**时仍保留教材表述依据。
+ *   取材口径：只取正文/例题类片段（排除练习/习题/作业/检测段——防把题面当语料）；
+ *   限量：每考点 ≤ maxSegPerAnchor 段、每段 ≤ maxCharsPerSeg 字、全局限 maxTotalChars 字。
+ * @param {Array} anchors 扁平锚列表（含 chapterTitle/name/bind.segments，见 coverageAnchor.bindOneCard）
+ * @param {{maxSegPerAnchor?:number, maxCharsPerSeg?:number, maxTotalChars?:number}} [opts]
+ * @returns {string} 按章分组的语料锚文本（无可用片段 → ''）
+ */
+export const formatCorpusAnchorByChapter = (anchors = [], opts = {}) => {
+  const maxSegPerAnchor = opts.maxSegPerAnchor || 2;
+  const maxCharsPerSeg = opts.maxCharsPerSeg || 120;
+  const maxTotalChars = opts.maxTotalChars || 2000;
+  const EXCLUDE_SEG_TYPE = /练习|习题|作业|检测/;
+  const groups = new Map();
+  for (const a of (anchors || [])) {
+    const name = String(a?.name || '').trim();
+    const segs = (a?.bind?.segments || [])
+      .filter((s) => s && s.text && !EXCLUDE_SEG_TYPE.test(String(s.type || '')));
+    if (!name || !segs.length) continue;
+    const ch = String(a?.chapterTitle || '').trim() || '未标注章节';
+    if (!groups.has(ch)) groups.set(ch, []);
+    const texts = segs.slice(0, maxSegPerAnchor)
+      .map((s) => trimAnchorText(s.text, maxCharsPerSeg))
+      .filter(Boolean);
+    if (texts.length) groups.get(ch).push(`· ${name}：${texts.join('｜')}`);
+  }
+  let total = 0;
+  const out = [];
+  for (const [ch, items] of groups) {
+    const block = `【${ch}】\n${items.join('\n')}`;
+    if (total + block.length > maxTotalChars && out.length) break;
+    out.push(block);
+    total += block.length;
+  }
+  return out.join('\n');
+};
+
 /** 单章诊断日志（A1-3 的**可观测证据**：一条含全部指标，便于日志抓取核对） */
 export const logAnchorGranularity = (report = {}) => {
   const r = report || {};

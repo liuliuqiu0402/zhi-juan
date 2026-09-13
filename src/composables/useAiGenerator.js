@@ -10,10 +10,10 @@ import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
 import { buildAnchors } from '../utils/coverageAnchor.js';
 import { collectChapterRawText, compressOriginalText, shouldDirectInject } from '../utils/textbookCompression.js'; // ✅ A15/A11：程序按勾选章节直读整章原文（材料压缩 + copyGuard 语料同源）；✅ A4-10：材料分档（小直放/大压缩）
 import { buildCompressionCacheKey, readCompressionCache, writeCompressionCache } from '../utils/compressionCache.js'; // ✅ A4-11：压缩结果按勾选章节组合缓存（同批章节第二次生成直接复用）
-import { formatAnchorListByChapter, ANCHOR_LIST_ROLE_NOTE } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位）；✅ A1-4b：第1层（知识主题）入清单 + 角色说明
+import { formatAnchorListByChapter, formatCorpusAnchorByChapter, ANCHOR_LIST_ROLE_NOTE } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位）；✅ A16：语料锚（标尺注入通道的最小教材语料）；✅ A1-4b：第1层（知识主题）入清单 + 角色说明
 // ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
 import { planOutputQuota, nextContinuationBudget, isOverQuota, charsToTokens } from '../utils/outputQuota.js';
-import { contractOf, extentOf } from '../config/coverageContract.js';
+import { contractOf, extentOf, MATERIAL_CHANNEL_DEFAULT } from '../config/coverageContract.js';
 import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
 import {
   genTypeTemplates,
@@ -4241,7 +4241,22 @@ ${cardAnalysisText.substring(0, 1000)}
     const rawChapters = collectChapterRawText(contentCards || []);
     const rawSections = rawChapters.map((c) => ({ title: c.chapterTitle, text: c.rawText }));
     const anchorListText = formatAnchorListByChapter(anchors);
+
+    // ── 素材通道（2026-09-14 用户定版开关）──
+    //    单一事实源 MATERIAL_CHANNEL_DEFAULT（coverageContract）：
+    //    'full' 全文注入（归纳/积累型默认）：整章原文 → 直放/压缩 → 全部进指令（梳理型需看原文）；
+    //    'anchor' 标尺注入（命题/练习型默认）：不注入整章原文，只注入【锚点清单】+【语料锚】
+    //    （考点绑定原文片段的最小语料），抑制模型对教材原文的过度依赖，省压缩调用与输入费。
+    const channelSel = apiConfig.generationSettings.materialChannel || 'auto';
+    const materialChannel = channelSel === 'auto' ? (MATERIAL_CHANNEL_DEFAULT[genType] || 'full') : channelSel;
+    const corpusAnchorText = materialChannel === 'anchor' ? formatCorpusAnchorByChapter(anchors) : '';
+    if (materialChannel === 'anchor') {
+      console.log(`📌 [素材通道] ${genType} → 标尺注入（锚点清单 ${anchors.length} 条 + 语料锚 ${corpusAnchorText.length} 字；不注入整章原文）`);
+    }
+    const enableFullText = materialChannel !== 'anchor';
+
     let compressedText = '';
+    if (enableFullText) {
     // ✅ A4-10（2026-09-11 用户定「不硬性压缩，按情况灵活处理」）：**材料分档**——
     //    小材料（原文 token ≤ 阈值）→ **直放原文**（保真最高、省一次压缩调用、省等待）；
     //    大材料 → 才走 Map→Reduce 压缩（此时压缩才真正有价值：省每轮重发的输入费 + 抗"中段遗忘"）。
@@ -4292,6 +4307,11 @@ ${cardAnalysisText.substring(0, 1000)}
         compressedText = rawSections.map((sec) => [sec.title, sec.text].filter(Boolean).join('\n')).join('\n\n');
         console.warn(`⚠️ [原文压缩] 异常（${e?.message || e}）→ 回退整章原文`);
       }
+    } else {
+      console.log('📚 [写作通道] 无勾选章节原文（材料为空），本次仅凭锚点清单+委托书写作');
+    }
+    } else if (rawSections.length) {
+      console.log('📚 [写作通道] 素材通道=标尺注入：不注入整章原文（仅【锚点清单】+【语料锚】）');
     } else {
       console.log('📚 [写作通道] 无勾选章节原文（材料为空），本次仅凭锚点清单+委托书写作');
     }
@@ -4423,6 +4443,7 @@ ${cardAnalysisText.substring(0, 1000)}
     let prompt = '';
     // ✅ A1-4b：清单首行带"角色说明"——第1层知识主题只表归属/范围，不是写作栏目、不作命题单位
     if (anchorListText) prompt += `【锚点清单】\n${ANCHOR_LIST_ROLE_NOTE}\n${anchorListText}\n\n`;
+    if (corpusAnchorText) prompt += `【语料锚】\n${corpusAnchorText}\n\n`; // ✅ A16（2026-09-14 素材通道）：标尺注入通道的最小教材语料（与【压缩原文】互斥，由 materialChannel 分流）
     if (compressedText) prompt += `【压缩原文】\n${compressedText}\n\n`;
     // ✅ A15-4/A11-3（2026-09-11）：**素材使用约定**（原随 browse 系统提示携带，browse 移除后必须保留）——
     //    引用约束按契约 mode 分流；练习段仅作参考、不得照搬题目。位置贴近委托书（同为"指令"，末尾锚定）。
@@ -4437,8 +4458,11 @@ ${cardAnalysisText.substring(0, 1000)}
     //       下限本身也按 mode 分档（full/per-lesson-full 全覆盖、focus 主题聚焦、sampled 抽样不补漏、none 不对账）。
     //       动因：生成后覆盖对账已整体废除（P2b，2026-09），"范围即边界"的原始用途消失；但一刀切放开会让
     //       归纳/默写类跑出课本（用户实证担忧），故不共用一句话，按型分档。
-    if (compressedText || anchorListText) {
+    if (compressedText || anchorListText || corpusAnchorText) {
       const refMode = contractOf(genType).mode;
+      // ✅ A16（2026-09-14 素材通道）：中段素材区名称按通道分流——full 全文注入=【压缩原文】；
+      //    anchor 标尺注入=【语料锚】（语料锚已排除练习/习题段，故"不得照搬题目"句在标尺通道不重复注入）
+      const materialLabel = materialChannel === 'anchor' ? '【语料锚】' : '【压缩原文】';
       // 🔴 覆盖口径按资料类型分档（2026-09-13 用户定版）：mode 定"覆盖下限"，extentOf 定"清单之外能不能加、加什么"——
       //    防一刀切放水：题类可考迁移（expand）、归纳复习类可关联已学旧知成网络（integrate）、预习默写类守本课/守教材（strict）。
       const coverageFloor = refMode === 'per-lesson-full'
@@ -4457,11 +4481,15 @@ ${cardAnalysisText.substring(0, 1000)}
           ? '清单**不是范围围墙**——可做**同类/结构关联**（把本课知识与同类概念归类、对照、勾连成网络）；也可联系**能在本次勾选范围或【锚点清单】内确认的**先行内容。**不臆断学生"是否已学"**（未经确认的旧知不引入），不超出本学段课标要求；'
           : '只按清单（本课/本单元）呈现，不做清单外的补充与整合（默写类须严格对应教材要求）；';
       prompt += '【素材使用约定】\n'
-        + `· ${coverageFloor}${coverageExtent}本条只约束"覆盖哪些知识点"，**不是素材来源限制**；中段【压缩原文】是理解教材内容与难度的**参考之一**——情境、素材、人名、数据与句式可取自教材，也可取自课外真实生活（主题相关、难度适切），**来源不限、不作指定**；\n`;
+        + `· ${coverageFloor}${coverageExtent}本条只约束"覆盖哪些知识点"，**不是素材来源限制**；中段${materialLabel}是理解教材内容与难度的**参考之一**——情境、素材、人名、数据与句式可取自教材，也可取自课外真实生活（主题相关、难度适切），**来源不限、不作指定**；\n`;
       prompt += refMode === 'full'
-        ? '· 本资料为知识归纳型：可引用、可归纳【压缩原文】，但须转写为教辅表述，不得整段照录；正文不得出现任何出处标注（"选自/单元/章节/课题/课文名/位置式指引/原文出处"等溯源字样一律不写）。\n'
-        : '· 本资料为命题/练习型：【压缩原文】供你理解题型结构、知识梯度与难度；题干、情境、人名、数据与句式由你拟定，来源按上述口径。\n';
-      prompt += '· 【压缩原文】中的练习/习题段仅供理解题型与难度，**不得照搬题目**。\n\n';
+        ? `· 本资料为知识归纳型：可引用、可归纳中段${materialLabel}，但须转写为教辅表述，不得整段照录；正文不得出现任何出处标注（"选自/单元/章节/课题/课文名/位置式指引/原文出处"等溯源字样一律不写）。\n`
+        : `· 本资料为命题/练习型：中段${materialLabel}供你理解题型结构、知识梯度与难度；题干、情境、人名、数据与句式由你拟定，来源按上述口径。\n`;
+      if (materialChannel !== 'anchor') {
+        prompt += '· 【压缩原文】中的练习/习题段仅供理解题型与难度，**不得照搬题目**。\n\n';
+      } else {
+        prompt += '\n';
+      }
       // ✅ A5-1/A12-2（2026-09-11）：输出组织一律以委托书结构序列为准——
       //    【锚点清单】只声明"写什么范围"（覆盖范围），**不是组织方式**（它是考点维度，与栏目结构是两套组织）。
       //    覆盖下限与素材来源口径已由上方【素材使用约定】单源给出，本行不复述（防逐字重复）；

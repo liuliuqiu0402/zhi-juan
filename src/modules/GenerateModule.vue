@@ -486,7 +486,7 @@
           匹配维度：{{ instructionSource.key }} · 来源：{{ instructionSource.name }}（{{ instructionSource.source === 'user' ? '用户自定义' : '内置模板' }}）
         </div>
         <div class="inject-hint">
-          📎 生成时自动附加：教材原文（按知识点检索，分级限量）、{{ templateStore.templates.some(t => t.selected) ? '模板对标、' : '' }}{{ propositionStyle ? '组织风格、' : '' }}用户附加要求
+          📎 生成时自动附加：教材素材（{{ materialChannelLabel }}）、{{ templateStore.templates.some(t => t.selected) ? '模板对标、' : '' }}{{ propositionStyle ? '组织风格、' : '' }}用户附加要求
         </div>
         
         <div
@@ -3204,6 +3204,15 @@ const labelStyleOptions = computed(() => {
   return [autoOpt, ...(getLabelPool(type) || []).map(n => ({ value: n, label: n, desc: '固定使用该名称作为标题' }))];
 });
 const labelStyleLabel = computed(() => labelStyle.value || '自动轮换');
+
+// 📚 素材通道标签（2026-09-14 用户定版开关）：提示"生成时自动附加"当前注入口径。
+//    默认映射单一事实源在 useAiGenerator MATERIAL_CHANNEL_DEFAULT，此处仅作 UI 展示口径。
+const materialChannelLabel = computed(() => {
+  const ch = apiConfig.generationSettings.materialChannel || 'auto';
+  if (ch === 'full') return '全文注入（整章原文进指令）';
+  if (ch === 'anchor') return '标尺注入（仅锚点清单+语料锚）';
+  return '自动（归纳型全文/命题型标尺）';
+});
 
 // 🎨 资料栏目标题风格套（作用于【教辅结构】注入的栏目标题字面）
 //   '' = 自动轮换（按次轮换：每次生成换下一套 a→b→c→d→a，持久化）；'a'/'b'/'c'/'d' = 固定该套

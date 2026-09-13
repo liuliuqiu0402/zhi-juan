@@ -1,7 +1,7 @@
 // 覆盖契约（COVERAGE_CONTRACT）解析守卫：9 类型 × 契约映射的单一事实源防漂移
 import { describe, it, expect } from 'vitest';
 import { GEN_TYPE_NAMES } from '../../src/config/promptLibrary.js';
-import { COVERAGE_CONTRACT, contractOf, COVERAGE_EXTENT, extentOf } from '../../src/config/coverageContract.js';
+import { COVERAGE_CONTRACT, contractOf, COVERAGE_EXTENT, extentOf, MATERIAL_CHANNEL_DEFAULT, materialChannelOf } from '../../src/config/coverageContract.js';
 
 // ✅ A9（2026-09-11 清理）：原 `COVERAGE_MODES` / `COVERAGE_MODE_DESC` 导出已随覆盖对账/补漏 UI 废除而移除；
 //    合法五档集合改由"测试侧独立期望"承担（测试本应独立编码期望值，不依赖被测模块自证），
@@ -97,6 +97,48 @@ describe('覆盖扩展口径 COVERAGE_EXTENT（清单下限之外的扩展分档
       if (v === 'integrate') {
         expect(COVERAGE_CONTRACT[k].mode, `${k} 标 integrate 但不在 full 档`).toBe('full');
       }
+    }
+  });
+});
+
+// 📚 素材通道默认映射（MATERIAL_CHANNEL_DEFAULT / materialChannelOf）——2026-09-14 用户定版开关：
+//    资料类型 × 教材素材注入口径的单一事实源（useAiGenerator 运行时按此表 + 用户手动档解析）
+describe('素材通道默认映射 MATERIAL_CHANNEL_DEFAULT（auto 口径）', () => {
+  it('契约表键与 GEN_TYPE_NAMES 完全一致（9 类，防键漂移）', () => {
+    expect(Object.keys(MATERIAL_CHANNEL_DEFAULT).sort()).toEqual(Object.keys(GEN_TYPE_NAMES).sort());
+    expect(Object.keys(MATERIAL_CHANNEL_DEFAULT)).toHaveLength(9);
+  });
+
+  it('映射符合已确认矩阵：归纳/积累型（summary/review/preview/dictation）→ full 全文注入；命题/练习型（exam/practice/special/reading/errorbook）→ anchor 标尺注入', () => {
+    // 归纳/积累型：梳理型需看整章原文（原文进指令，抑制失真）
+    for (const k of ['summary', 'review', 'preview', 'dictation']) {
+      expect(materialChannelOf(k), k).toBe('full');
+    }
+    // 命题/练习型：只给【锚点清单】+【语料锚】，不注入整章原文（抑制对教材原文的过度依赖）
+    for (const k of ['exam', 'practice', 'special', 'reading', 'errorbook']) {
+      expect(materialChannelOf(k), k).toBe('anchor');
+    }
+  });
+
+  it('通道档位合法（full / anchor 二选一，无第三态）', () => {
+    for (const [k, v] of Object.entries(MATERIAL_CHANNEL_DEFAULT)) {
+      expect(['full', 'anchor'], `${k} channel=${v}`).toContain(v);
+    }
+  });
+
+  it('materialChannelOf 未知类型安全兜底为 full（按"需要原文"处理，不静默丢素材）', () => {
+    expect(materialChannelOf('unknown_type')).toBe('full');
+    expect(materialChannelOf('')).toBe('full');
+  });
+
+  it('与覆盖契约同源分类：知识型（full 档）↔ full 通道；题类 ↔ anchor 通道', () => {
+    // 全层级覆盖档四型（summary/preview/dictation/review）与 COVERAGE_CONTRACT 的 full 档一一对应；
+    // 其余五型（practice/special/reading/errorbook/exam）均为标尺注入
+    const fullModeTypes = ['summary', 'preview', 'dictation', 'review'];
+    for (const [k, v] of Object.entries(MATERIAL_CHANNEL_DEFAULT)) {
+      const expectFull = fullModeTypes.includes(k);
+      expect(v === 'full', `${k} 通道=${v} 与覆盖档不一致`).toBe(expectFull);
+      expect(COVERAGE_CONTRACT[k].mode === 'full', `${k} 覆盖档漂移`).toBe(expectFull);
     }
   });
 });
