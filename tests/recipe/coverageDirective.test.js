@@ -14,16 +14,19 @@ import { getPromptTemplate } from '../../src/config/promptLibrary.js';
 describe('前瞻覆盖指令（模板层按资料类型注入）', () => {
   it('practice（per-lesson-full）：题目须覆盖本课全部核心知识，不得整点遗漏', () => {
     const t = getPromptTemplate({ genType: 'practice' });
-    expect(t.template).toContain('核心知识覆盖（per-lesson-full 契约');
+    expect(t.template).toContain('核心知识覆盖：题目须覆盖本课');
     expect(t.template).toContain('本课知识层级（大概念 → 核心知识）');
     expect(t.template).toContain('不得整点遗漏');
     expect(t.template).toContain('不依赖事后对账');
-    // 题类口径（2026-09-13）：清单=覆盖下限，且**不是命题上限**（题类可考迁移，可补充清单外知识点/角度）
-    expect(t.template).toContain('覆盖下限、不是命题上限');
-    // 声明≠覆盖（题类句）：禁任何位置罗列清单/声明；覆盖核对输出前内部完成
-    expect(t.template).toContain('声明≠覆盖（题类）');
-    expect(t.template).toContain('正文任何位置（含开头/结尾）不得罗列核心知识清单');
-    expect(t.template).toContain('覆盖只以实际题目计');
+    // 清单上下限/扩展口径（2026-09-13）已收敛到生成端【素材使用约定】按资料类型分档单源注入
+    // （expand 可补清单外知识点/角度、integrate 可关联已学旧知、strict 守本课），模板只保留覆盖要求本身，
+    // 不再复述"下限/上限/扩展"（防注入逐字重复）
+    expect(t.template).not.toContain('覆盖下限、不是命题上限');
+    expect(t.template).not.toContain('不是命题上限');
+    // 声明≠覆盖（题类句）已删：由全局【质量底线】承载（罗列/声明覆盖不算覆盖，覆盖只以实际呈现计），
+    // 题类模板不再重复展开
+    expect(t.template).not.toContain('声明≠覆盖（题类）');
+    expect(t.template).toContain('覆盖只以实际呈现的题目/条目计');
     // 与全局 QUALITY_BASE 重复的"覆盖优先于篇幅"句已从 practice 删除（单一事实源）
     expect(t.template).not.toContain('覆盖优先于篇幅');
     expect(t.template).not.toContain('严禁删考点或改由声明代替');

@@ -7,18 +7,20 @@ import { getPromptTemplate } from '../../src/config/promptLibrary.js';
  *    **不写正向钉死**（"须出自原文/须以原文表述"），**也不写反向钉死**（"一律自拟/禁止沿用原文连续字面"）；
  *  - 全学科（语言学科与非语言学科）统一同一句开放口径：旧口径按学科分两套措辞、两句互相矛盾（一句禁止沿用原文、
  *    一句可基于课文原句），模型只能自选 → 已收敛为一句；
+ *  - 开放句（来源不限、不作指定）由生成端【素材使用约定】单源注入（2026-09 清理：模板不复述，防注入逐字重复）；
+ *    模板【教材原文】段只承载准确性句（引用须与原文一致）+ "非指定来源"语义，故本测试以该句为统一口径锚；
  *  - 只保留与"来源"无关的判定：引用教材内容须与原文一致（准确性）；不得照搬教材原题（原创性）。
  * 另锁：质量底线不再贬抑基础题型（去"机械刷题式作答"），课时练任务化改为"优先…亦可…"。
  */
 
-const OPEN_KEY = '来源不限、不作指定';
+const OPEN_KEY = '此为准确性要求，非指定来源';
 // 钉死措辞（正反两向）——任何题类模板都不应再出现
 const BIND_KEYS = ['须出自原文', '须以原文表述', '一律自拟，禁止沿用原文连续字面'];
 
 const tpl = (subject, stage, genType) => getPromptTemplate({ grade: stage, subject, genType })?.template || '';
 
 describe('教材原文口径·双向开放（不钉死来源）', () => {
-  it('语言学科（语文/英语）课时练/专项/试卷：走统一开放句，无正向或反向钉死', () => {
+  it('语言学科（语文/英语）课时练/专项/试卷：承载统一教材口径（非指定来源），无正向或反向钉死', () => {
     const cases = [
       ['语文', 'primary_high', 'practice'],
       ['英语', 'middle', 'practice'],
@@ -27,23 +29,23 @@ describe('教材原文口径·双向开放（不钉死来源）', () => {
     ];
     for (const [s, st, t] of cases) {
       const text = tpl(s, st, t);
-      expect(text, `${s}/${t} 应含统一开放句`).toContain(OPEN_KEY);
+      expect(text, `${s}/${t} 应含统一教材口径句`).toContain(OPEN_KEY);
       for (const k of BIND_KEYS) {
         expect(text, `${s}/${t} 不应出现钉死措辞：${k}`).not.toContain(k);
       }
     }
   });
 
-  it('非语言学科（数学/物理）课时练与试卷：同样走统一开放句（不再"一律自拟/禁止沿用原文")', () => {
+  it('非语言学科（数学/物理）课时练与试卷：同样承载统一口径（不再"一律自拟/禁止沿用原文")', () => {
     for (const [s, st] of [['数学', 'primary_high'], ['物理', 'middle']]) {
       const text = tpl(s, st, 'practice');
-      expect(text, `${s} 应含统一开放句`).toContain(OPEN_KEY);
+      expect(text, `${s} 应含统一教材口径句`).toContain(OPEN_KEY);
       for (const k of BIND_KEYS) {
         expect(text, `${s} 不应出现钉死措辞：${k}`).not.toContain(k);
       }
     }
     const ex = tpl('数学', 'middle', 'exam');
-    expect(ex, '数学/exam 应含统一开放句').toContain(OPEN_KEY);
+    expect(ex, '数学/exam 应含统一教材口径句').toContain(OPEN_KEY);
     for (const k of BIND_KEYS) {
       expect(ex, `数学/exam 不应出现钉死措辞：${k}`).not.toContain(k);
     }
