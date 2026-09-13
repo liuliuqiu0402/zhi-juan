@@ -70,6 +70,16 @@ describe('教材原文口径·双向开放（不钉死来源）', () => {
     expect(t).toContain('严禁');
     expect(t).toContain('文字描述替代 [IMAGE] 块');
   });
+
+  it('阅读训练：选文须为课外语篇、不得沿用课文原文（课标课外阅读量刚需，非"限死来源"）', () => {
+    for (const [s, st] of [['语文', 'primary_high'], ['英语', 'middle']]) {
+      const t = tpl(s, st, 'reading');
+      expect(t, `${s}/reading 应要求课外语篇`).toContain('课外语篇');
+      expect(t, `${s}/reading 不得沿用课文原文`).toContain('不得沿用课文原文');
+      // 课标刚需：允许"选编/改编自课外读物"这条路（不把 AI 原创当唯一路径）
+      expect(t, `${s}/reading 应允许改编课外读物`).toContain('选编/改编自课外读物');
+    }
+  });
 });
 
 describe('质量底线不再贬抑基础题型 + 课时练任务化非唯一', () => {
