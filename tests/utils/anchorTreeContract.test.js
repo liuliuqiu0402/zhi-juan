@@ -226,12 +226,14 @@ describe('A1-4b 第1层（知识主题）入锚清单：表归属与范围，不
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('（第2层）');
   });
 
-  it('角色说明含"下限非上限"口径（2026-09-13）：须全覆盖清单，但可依课标补充清单外考点', () => {
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('覆盖下限、不是命题上限');
+  it('角色说明只报"结构性事实 + 覆盖下限"（2026-09-13）：清单外口径下沉到【素材使用约定】，防一刀切放水', () => {
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('清单是**覆盖下限**');
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('全部覆盖到');
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('适当补充');
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('【素材使用约定】');
     // 旧"一律"措辞易被读成"只能考清单内的点"，不回归
     expect(ANCHOR_LIST_ROLE_NOTE).not.toContain('一律是各主题下的');
+    // 清单外"可补充/可整合"属**按资料类型分档**的口径，不得在清单角色说明里一刀切（由 extentOf 分档决定）
+    expect(ANCHOR_LIST_ROLE_NOTE).not.toContain('适当补充');
   });
 });
 

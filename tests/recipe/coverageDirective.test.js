@@ -18,6 +18,8 @@ describe('前瞻覆盖指令（模板层按资料类型注入）', () => {
     expect(t.template).toContain('本课知识层级（大概念 → 核心知识）');
     expect(t.template).toContain('不得整点遗漏');
     expect(t.template).toContain('不依赖事后对账');
+    // 题类口径（2026-09-13）：清单=覆盖下限，且**不是命题上限**（题类可考迁移，可补充清单外知识点/角度）
+    expect(t.template).toContain('覆盖下限、不是命题上限');
     // 声明≠覆盖（题类句）：禁任何位置罗列清单/声明；覆盖核对输出前内部完成
     expect(t.template).toContain('声明≠覆盖（题类）');
     expect(t.template).toContain('正文任何位置（含开头/结尾）不得罗列核心知识清单');
@@ -27,15 +29,17 @@ describe('前瞻覆盖指令（模板层按资料类型注入）', () => {
     expect(t.template).not.toContain('严禁删考点或改由声明代替');
   });
 
-  it('full 型（preview/dictation）：全知识点覆盖且以锚点清单为核对锚（下限，非上限）', () => {
+  it('full 型（preview/dictation）：全知识点覆盖且以锚点清单为核对锚（下限；且按类型守边界）', () => {
     const preview = getPromptTemplate({ genType: 'preview' });
     expect(preview.template).toContain('覆盖本课全部新知');
     expect(preview.template).toContain('【锚点清单】');
-    expect(preview.template).toContain('下限、非上限');
+    expect(preview.template).toContain('（下限）');
+    expect(preview.template).toContain('不做清单外补充');
     const dictation = getPromptTemplate({ genType: 'dictation' });
     expect(dictation.template).toContain('覆盖本课时/单元全部要求掌握内容');
     expect(dictation.template).toContain('【锚点清单】');
-    expect(dictation.template).toContain('下限、非上限');
+    expect(dictation.template).toContain('（下限）');
+    expect(dictation.template).toContain('不做清单外补充');
     // 悬空块名已收敛（2026-09-13）：模板引用统一为实际注入的【锚点清单】，不再引用无生产者的旧块名
     for (const g of ['practice', 'preview', 'dictation']) {
       expect(getPromptTemplate({ genType: g }).template, `${g} 不应再引用悬空块名`)

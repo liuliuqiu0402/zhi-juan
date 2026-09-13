@@ -1,7 +1,7 @@
 // 覆盖契约（COVERAGE_CONTRACT）解析守卫：9 类型 × 契约映射的单一事实源防漂移
 import { describe, it, expect } from 'vitest';
 import { GEN_TYPE_NAMES } from '../../src/config/promptLibrary.js';
-import { COVERAGE_CONTRACT, contractOf } from '../../src/config/coverageContract.js';
+import { COVERAGE_CONTRACT, contractOf, COVERAGE_EXTENT, extentOf } from '../../src/config/coverageContract.js';
 
 // ✅ A9（2026-09-11 清理）：原 `COVERAGE_MODES` / `COVERAGE_MODE_DESC` 导出已随覆盖对账/补漏 UI 废除而移除；
 //    合法五档集合改由"测试侧独立期望"承担（测试本应独立编码期望值，不依赖被测模块自证），
@@ -59,5 +59,44 @@ describe('覆盖契约 COVERAGE_CONTRACT（P1）', () => {
     expect(COVERAGE_CONTRACT.practice.mode).toBe('per-lesson-full');
     expect(COVERAGE_CONTRACT.special.mode).toBe('focus');
     expect(COVERAGE_CONTRACT.errorbook.mode).toBe('none');
+  });
+});
+
+// 🧭 覆盖扩展口径（COVERAGE_EXTENT / extentOf）——2026-09-13 新增第二维：
+//    mode 回答"覆盖到什么程度"，extent 回答"清单之外还能不能加、加什么"（防一刀切放水让归纳/默写类跑出课本）
+describe('覆盖扩展口径 COVERAGE_EXTENT（清单下限之外的扩展分档）', () => {
+  it('契约表键与 GEN_TYPE_NAMES 完全一致（9 类，防键漂移）', () => {
+    expect(Object.keys(COVERAGE_EXTENT).sort()).toEqual(Object.keys(GEN_TYPE_NAMES).sort());
+    expect(Object.keys(COVERAGE_EXTENT)).toHaveLength(9);
+  });
+
+  it('分档符合已确认矩阵：题类 expand / 归纳复习 integrate / 预习默写 strict', () => {
+    // 题类：可依课标补充清单外知识点或考查角度（考迁移运用）
+    for (const k of ['exam', 'practice', 'special', 'reading', 'errorbook']) {
+      expect(extentOf(k), k).toBe('expand');
+    }
+    // 归纳/复习类：可关联"已学"旧知做结构化整合（不是无边界拓展）
+    for (const k of ['summary', 'review']) {
+      expect(extentOf(k), k).toBe('integrate');
+    }
+    // 预习/默写类：守本课/守教材，不做清单外补充
+    for (const k of ['preview', 'dictation']) {
+      expect(extentOf(k), k).toBe('strict');
+    }
+  });
+
+  it('extentOf 未知类型从严兜底为 strict（不扩散）', () => {
+    expect(extentOf('unknown_type')).toBe('strict');
+    expect(extentOf('')).toBe('strict');
+  });
+
+  it('三档取值合法，且"可整合"只落在全层级覆盖档（integrate 必须在 full 档）', () => {
+    const LEGAL = ['expand', 'integrate', 'strict'];
+    for (const [k, v] of Object.entries(COVERAGE_EXTENT)) {
+      expect(LEGAL, `${k} extent=${v}`).toContain(v);
+      if (v === 'integrate') {
+        expect(COVERAGE_CONTRACT[k].mode, `${k} 标 integrate 但不在 full 档`).toBe('full');
+      }
+    }
   });
 });

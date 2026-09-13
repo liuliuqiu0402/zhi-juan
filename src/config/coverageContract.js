@@ -43,3 +43,29 @@ export const COVERAGE_CONTRACT = {
 /** 契约读取（未知类型安全兜底：不参与层级对账） */
 export const contractOf = (genType) =>
   COVERAGE_CONTRACT[genType] || { name: GEN_TYPE_NAMES[genType] || genType || '', mode: 'none' };
+
+/**
+ * 🧭 覆盖扩展口径（2026-09-13 用户定版）——在"清单=覆盖下限"之上，能否在清单之外扩展、如何扩展。
+ * 🔴 与 mode 互补的第二维：mode 回答"覆盖到什么程度"，extent 回答"清单之外还能不能加、加什么"。
+ *    分档动因：一刀切放开会让**归纳/默写类**跑出课本（用户实证担忧）——题类要"考迁移"，归纳类要"成网络"，
+ *    预习/默写要"守本课/守教材"，三者诉求不同，故按资料类型分档，不共用一句话。
+ *   expand    命题/练习类：可依本学段课标学业要求，补充清单未涉及的**知识点或考查角度**（考迁移运用）
+ *   integrate 归纳/复习类：可联系**已学**旧知与同类知识做**结构化整合**（分类整理、前后勾连、形成知识网络）
+ *             ——课标依据：语文「梳理与探究」要求"按一定标准分类整理学过的语言材料、梳理经验、发现规律"；
+ *             数学强调"课程内容结构化/整体性关联性"，复习不止复现、要发现规律与联系。**边界=已学 + 本学段课标**。
+ *   strict    预习/默写类：只按清单（本课/本单元）呈现，不做清单外补充（默写须严格对应教材要求）
+ */
+export const COVERAGE_EXTENT = {
+  exam: 'expand',
+  practice: 'expand',
+  special: 'expand',
+  reading: 'expand',
+  errorbook: 'expand',
+  summary: 'integrate',
+  review: 'integrate',
+  preview: 'strict',
+  dictation: 'strict',
+};
+
+/** 扩展口径读取（未知类型安全兜底：从严，不扩散） */
+export const extentOf = (genType) => COVERAGE_EXTENT[genType] || 'strict';
