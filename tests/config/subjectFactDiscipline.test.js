@@ -103,4 +103,13 @@ describe('学科事实底线模板注入（builtin 三维度）', () => {
     expect(tpl).toContain('事实可信');
     expect(tpl).toContain('无把握时不虚构');
   });
+
+  it('教材版本口径（2026-09-13）：防版本张冠李戴，且**明写不限制来源**（防被读成"只能靠教材"）', () => {
+    for (const [g, s, t] of [['primary_low', '语文', 'practice'], ['middle', '数学', 'exam'], ['high', '英语', 'summary']]) {
+      const tpl = getPromptTemplate({ grade: g, subject: s, genType: t })?.template || '';
+      expect(tpl, `${s}/${t} 缺版本口径`).toContain('教材版本口径');
+      expect(tpl, `${s}/${t} 须明写只关准确性、不限制来源`).toContain('只关准确性、不限制来源');
+      expect(tpl, `${s}/${t} 须防"把其他版本当本版"`).toContain('不把其他版本的内容当作本版');
+    }
+  });
 });
