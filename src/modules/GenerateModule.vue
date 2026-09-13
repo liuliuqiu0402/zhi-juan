@@ -1250,7 +1250,7 @@
             {{ opt.label }}
           </label>
         </div>
-        <!-- 🎨 资料栏目标题风格套（非 exam 类型：默认套 / 手动固定套，与名称样式同款交互） -->
+        <!-- 🎨 资料栏目标题风格套（非 exam 类型：默认套 / 手动固定套；点开弹窗全列所有套+语义+置灰） -->
         <div
           v-if="genTypes[0] && genTypes[0] !== 'exam' && columnStyleOptions.length"
           class="scope-style-block"
@@ -1258,24 +1258,13 @@
           <p class="scope-style-title">
             🎨 资料栏目标题风格（{{ genTypes[0] }}：选"🔄 自动轮换"每次生成换下一套；选具体套（含默认套）则固定该套栏目标题，跨稿不串套）
           </p>
-          <div class="name-chip-group">
-            <label
-              v-for="opt in columnStyleOptions"
-              :key="opt.value"
-              class="name-chip"
-              :class="{ active: columnStyle === opt.value }"
-              :title="opt.desc"
-            >
-              <input
-                v-model="columnStyle"
-                type="radio"
-                :value="opt.value"
-                name="columnStyle"
-                hidden
-              >
-              {{ opt.label }}
-            </label>
-          </div>
+          <button
+            class="btn scope-style-open"
+            type="button"
+            @click="showColumnStyleModal = true"
+          >
+            {{ columnStyleLabel }} · 点开查看全部风格套
+          </button>
         </div>
         <!-- 📐 考试标签名称（期中/期末/月考/综合）：每维度单选 自动轮换 / 固定名称，与资料类型名称样式统一 -->
         <div
@@ -1345,6 +1334,76 @@
           <button
             class="btn-primary"
             @click="showLabelStyleModal = false"
+          >
+            确定
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🎨 栏目风格弹窗（仿组织风格：全列所有风格套，完整栏目名+语义；当前学科×类型不适用的置灰） -->
+    <div
+      v-if="showColumnStyleModal"
+      class="modal-mask"
+      @click.self="showColumnStyleModal = false"
+    >
+      <div class="modal">
+        <h3>🎨 资料栏目标题风格（{{ genTypes[0] ? genTypeOptions.find(o => o.value === genTypes[0])?.label : '未选类型' }}）</h3>
+        <div class="option-list">
+          <div class="style-group-title">
+            全部风格套（{{ genTypes[0] }}）：栏目标题字面可换肤，栏目语义不变
+          </div>
+          <label
+            v-for="opt in columnStyleOptions"
+            :key="opt.value"
+            class="option-item"
+            :class="{ 'opt-disabled': !opt.applicable }"
+          >
+            <input
+              v-model="columnStyle"
+              type="radio"
+              :value="opt.value"
+              :disabled="!opt.applicable"
+              name="columnStyleModal"
+            >
+            <span class="option-label">{{ opt.label }}</span>
+            <span class="option-desc">{{ opt.desc }}</span>
+            <span class="option-cols">
+              <span
+                v-for="(c, i) in opt.columns"
+                :key="i"
+                class="option-col-row"
+              >
+                <b>{{ c }}</b>
+                <span v-if="opt.semantics[i]">——{{ opt.semantics[i] }}</span>
+              </span>
+            </span>
+            <span
+              v-if="!opt.applicable"
+              class="opt-for"
+            >{{ opt.appliesToLabel }}</span>
+          </label>
+        </div>
+        <p class="hint">
+          💡 全部栏目风格套如上（当前学科×类型栏目名与默认套不一致时，换肤不生效，相关套已置灰）。系统默认"🔄 自动轮换"，按次轮换不重复串稿；固定某套则跨稿不串套。
+        </p>
+        <div class="modal-actions">
+          <button
+            v-if="columnStyle"
+            class="btn"
+            @click="columnStyle = ''"
+          >
+            ↻ 恢复自动
+          </button>
+          <button
+            class="btn"
+            @click="showColumnStyleModal = false"
+          >
+            取消
+          </button>
+          <button
+            class="btn-primary"
+            @click="showColumnStyleModal = false"
           >
             确定
           </button>
@@ -3048,7 +3107,7 @@ import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructure
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../config/validatorRules.js';
-import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, advanceAutoColumnStyleId } from '../config/teachingBlueprints.js';
+import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, advanceAutoColumnStyleId, getTeachingBlueprint, stripSourceMarkNote } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
@@ -3156,18 +3215,47 @@ const loadColumnStyle = (genType) => {
     return map[genType] || '';
   } catch { return ''; }
 };
+/** 当前选中教材的规范化学科名（用于栏目风格适用性判定；无选中/无法解析 → '' 走通用蓝图） */
+const currentColumnSubject = computed(() => {
+  const raw = getSelectedBookSubject(); // '小学低段·语文' 或 '已选'
+  const m = raw.match(/[··](.+)/);
+  const subj = m ? m[1] : '';
+  return normalizeSubjectName(subj, getSelectedBookStageKey());
+});
+/** 栏目风格套全列（弹窗用）：完整栏目名 + 语义 + 适用性（当前学科×类型栏目名与默认套不一致时置灰） */
 const columnStyleOptions = computed(() => {
   const type = genTypes.value[0];
   if (!type || type === 'exam' || !COLUMN_STYLE_SETS[type]) return [];
   const pool = COLUMN_STYLE_SETS[type];
+  const subject = currentColumnSubject.value;
+  const bp = getTeachingBlueprint({ genType: type, stage: getSelectedBookStageKey(), subject });
+  const sections = bp?.sections || [];
+  const defNames = pool.a.columns;
+  // 换肤生效守卫（与 applyColumnStyle 同判据）：当前生效蓝图的栏目名前 N 项须恰为默认套 a
+  const firstNames = sections.slice(0, defNames.length).map((s) => s && s.name);
+  const defaultMatch = defNames.every((n, i) => firstNames[i] === n);
+  const semantics = sections.map((s) => stripSourceMarkNote(s.note || ''));
+  const inapplicableReason = defaultMatch
+    ? ''
+    : `当前学科（${subject || '通用'}）该类型栏目名与默认套不同，换肤不生效，保持默认栏目名`;
   return [
-    { value: '', label: '🔄 自动轮换', desc: '按次轮换：每次生成换下一套（a→b→c→d→a 循环）；生成结束才推进，故预览与本次生成一致' },
+    { value: '', label: '🔄 自动轮换', desc: '按次轮换：每次生成换下一套（a→b→c→d→a 循环）；生成结束才推进，故预览与本次生成一致', columns: defNames, semantics: semantics.slice(0, defNames.length), applicable: true, appliesToLabel: '' },
     ...Object.entries(pool).map(([id, s]) => ({
       value: id,
-      label: `${s.columns.join(' / ')}${id === 'a' ? '（默认套）' : ''}`,
+      label: id === 'a' ? '默认套（a）' : `风格套（${id}）`,
       desc: id === 'a' ? '固定使用默认套（不换肤）' : '固定使用该套栏目标题（跨稿不串套）',
+      columns: s.columns,
+      semantics: semantics.slice(0, s.columns.length),
+      // 守卫：当前学科×类型栏目名与默认套一致才可换肤；自动/默认套在守卫失败时退化为固定默认栏目名，始终可用
+      applicable: id === 'a' || defaultMatch,
+      appliesToLabel: id === 'a' ? '' : inapplicableReason,
     })),
   ];
+});
+/** 当前栏目风格选中项的短摘要（入口按钮显示） */
+const columnStyleLabel = computed(() => {
+  const opt = columnStyleOptions.value.find((o) => o.value === columnStyle.value);
+  return opt ? opt.label : columnStyle.value ? `风格套（${columnStyle.value}）` : '🔄 自动轮换';
 });
 
 /* 📐 考试标签维度固定选择（名称样式弹窗：每维度 自动轮换 / 固定某个名称；与资料类型名称样式同理） */
@@ -3202,6 +3290,7 @@ const resetNameStyles = () => {
 // 弹窗状态
 const showScopeModal = ref(false);
 const showStyleModal = ref(false);
+const showColumnStyleModal = ref(false); // 🎨 栏目风格弹窗（全列风格套+语义+置灰）
 const showGenTypeModal = ref(false);
 const showSpecialSubTypeModal = ref(false);  // 🎯 专项子类型弹窗
 const showGranularityModal = ref(false);
@@ -9700,6 +9789,12 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 }
 .opt-disabled { opacity: 0.45; }
 .opt-for { display: block; width: 100%; font-size: 11px; color: var(--warn, #a06a10); margin-top: 2px; }
+
+/* 🎨 栏目风格弹窗：风格套内栏目清单（完整栏目名+语义） */
+.option-cols { display: block; width: 100%; margin-top: 4px; }
+.option-col-row { display: block; font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
+.option-col-row b { color: var(--text-primary); font-weight: 600; }
+.scope-style-open { width: 100%; text-align: left; font-size: 13px; }
 
 /* 分值微调弹窗 */
 .score-adjust-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow: auto; }
