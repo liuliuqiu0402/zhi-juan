@@ -199,6 +199,19 @@ describe('正文/答案 题号数双向守卫（auditExamPaper）', () => {
     expect(msgs(ansShort)).toContain('答案区题号数');
   });
 
+  it('🔴 答案区缺题号层（改用「(1)(2)」括号序号）→ 报"缺与正文一致的题号"（2026-09-13 用户实证）', () => {
+    const body = '<h1>六年级英语上册Unit 1 Try your best课堂练习</h1>'
+      + Array.from({ length: 6 }, (_, i) => `<p>${i + 1}. 第${i + 1}题（　）</p>`).join('');
+    const ans = '<div class="answer-section"><h2>参考答案与解析</h2>'
+      + '<p>一、 (1) saw　(2) wanted；asked　(3) were；practised　(4) used　(5) was；acted</p>'
+      + '</div>';
+    const m = msgs(body + ans);
+    // 根因直指"缺题号层/编号体系不同构"，不再归因成笼统的"题号数(0)明显少于正文"
+    expect(m).toContain('缺与正文一致的题号');
+    expect(m).toContain('编号体系与正文不同构');
+    expect(m).not.toContain('答案区题号数(0)');
+  });
+
   it('🔴 紧凑连排答案（序号顿号层级/段内题号）→ 与正文口径对齐，不误报（用户实证：答案区题号数(2) vs 正文(12)）', () => {
     const body = '<h1>六年级英语上册Unit 1 Try your best课时训练</h1>'
       + Array.from({ length: 12 }, (_, i) => `<p>${i + 1}. 第${i + 1}题（　）</p>`).join('');

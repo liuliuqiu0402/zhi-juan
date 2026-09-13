@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   getPromptTemplate, savePromptTemplate, deletePromptTemplate,
-  buildInjectionInstruction, buildStructureText,
+  buildInjectionInstruction, buildStructureText, PAPER_OUTPUT_CONVENTIONS,
 } from '@/config/promptLibrary.js';
 import { setLibToggle } from '@/utils/libToggles.js';
 
@@ -151,5 +151,26 @@ describe('指令库条目停用（工具库开关）', () => {
     expect(t.template).not.toContain('用户版专属内容');
     setLibToggle('instruction', '语文|exam', true);
     deletePromptTemplate('语文|exam');
+  });
+});
+
+// 📐 答案区题号体系（2026-09-13 用户实证）：答案区必须"逐题以与正文相同的题号起头"——
+//    曾出现答案区只用「一、」+「(1)(2)」而丢掉阿拉伯题号层 → 与正文无法逐题对应，程序计数对不上（真缺陷）。
+describe('答案区题号体系：逐题沿用正文题号（禁括号序号代替题号）', () => {
+  it('once（题类）：明确"每题以与正文相同的阿拉伯题号起头"并禁括号序号代替', () => {
+    const once = PAPER_OUTPUT_CONVENTIONS.once('英语', false);
+    expect(once).toContain('每题以与正文完全相同的阿拉伯题号起头');
+    expect(once).toContain('严禁省略题号层或用括号序号代替题号');
+  });
+
+  it('once（自包含教辅）：同样要求逐题沿用正文题号', () => {
+    const onceSelf = PAPER_OUTPUT_CONVENTIONS.once('语文', true);
+    expect(onceSelf).toContain('每题以与正文相同的题号起头');
+    expect(onceSelf).toContain('严禁省略题号层或用括号序号代替题号');
+  });
+
+  it('split：正文不输出答案，故不携带答案区题号条款（不误注入）', () => {
+    const split = PAPER_OUTPUT_CONVENTIONS.split('英语', false);
+    expect(split).not.toContain('答案区');
   });
 });
