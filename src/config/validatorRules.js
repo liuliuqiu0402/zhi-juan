@@ -226,6 +226,16 @@ export const VALIDATOR_RULES = [
   },
 
   {
+    id: 'choice-answer-position-guard',
+    name: '选择题作答位位置静默防护',
+    category: 'guard',
+    subjects: ['*'],
+    stages: ['*'],
+    description: '选择/判断/圈选类题的答案括号应在题干前（题首）；选项行内/选项末尾出现 blank 空位（模型常把作答位误挂选项后，2026-09 实证）时静默计数（debug 级）——不自动修复：位置矫正属生成语义，靠生成前约束（作答空间条款）根治。',
+    enabled: true,
+  },
+
+  {
     id: 'answer-coverage-guard',
     name: '答案覆盖度静默防护',
     category: 'guard',
@@ -260,7 +270,7 @@ export const VALIDATOR_RULES = [
 export const VALIDATOR_GATES = new Set([
   'pinyin-norm', 'template-cleanup', 'image-block-fix', 'duplicate-content-fix',
   'text-format-fix', 'teaching-volume-guard', 'writing-grid-fix', 'title-detail-fix',
-  'option-count-guard', 'score-label-fix', 'writing-expression-fix',
+  'option-count-guard', 'choice-answer-position-guard', 'score-label-fix', 'writing-expression-fix',
   'answer-area-fix', 'answer-section-exam', 'answer-section-teaching', 'answer-coverage-guard',
   'text-format-sup-sub',
   // 🔧 已注销规则的引擎惰性残留（055e198 去强制化收敛时移出规则库，has() 恒 false → 分支恒不命中）：

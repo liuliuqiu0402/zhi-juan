@@ -38,6 +38,14 @@ const PINYIN_OPTION_RE = new RegExp(`[（(]\\s*[${PINYIN_CHARS}]+(?:[／/、，,
 // 选项行：<p class="option"> 或行首 "A. xxx"
 const OPTION_P_RE = /<p[^>]*class=["'][^"']*option[^"']*["'][^>]*>/gi;
 const OPTION_LINE_RE = /(?:^|\n)\s*[A-H][.、．]\s*[^\n]+/g;
+// 🔧 选择题选项行内/末尾误挂作答空位（2026-09 用户实证：答案括号被模型挂到选项末尾 C. are; am＿）：
+//   ① <p class="option"> 行内出现 blank 空位；② <br> 分隔的行首 A. 式选项（题干行内、选项字母之后）出现 blank 空位。
+//   根治在生成侧（作答空间条款：选择/判断/圈选类括号在题干前），此处仅供 guard 静默计数取证。
+const CHOICE_OPTION_BLANK_RE = new RegExp(
+  `<p[^>]*class=["'][^"']*option[^"']*["'][^>]*>[\\s\\S]{0,200}?<(?:u|span)[^>]*class=["'][^"']*blank-\\d+` +
+  `|<br>\\s*[A-H][.、．][^\\n<]{0,60}<(?:u|span)[^>]*class=["'][^"']*blank-\\d+`,
+  'i'
+);
 // 连线结构
 const MATCH_ITEM_RE = /class=["'][^"']*match-item[^"']*["']/g;
 // 题组子题编号：（1）（2）或 1. 2.
@@ -641,6 +649,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         if (has('option-count-guard') && /选一选|选择|选出/.test(secText2.slice(0, 400)) && options > 0 && options < 2) {
           // 🔧 debug 级（2026-08）：行首"A."式例句/提示行会被 countOptions 误判为选项，误报侵蚀信任
           silentCount('option-missing', `大题「${title}」选项数过少(${options})`, 'debug');
+        }
+
+        // 2e3. 选择题作答位误置选项行（规则 choice-answer-position-guard：静默）
+        //      🔧 2026-09 用户实证：答案括号被模型挂在选项末尾（C. are; am＿）。
+        //      根治在生成侧（作答空间条款：选择/判断/圈选类括号在题干前）；此处只静默计数取证，
+        //      不自动修复——程序移动空位会破坏题面顺序，位置矫正属生成语义。
+        //      ⚠️ 不做"选择"关键词限定："选择"字样常只在大题标题（h2）内，secText2 不含标题，
+        //         关键词限定会漏掉实证形态；CHOICE_OPTION_BLANK_RE 本身已特化（选项行内挂空位），
+        //         直接按该异常形态检测。
+        if (has('choice-answer-position-guard') && CHOICE_OPTION_BLANK_RE.test(secHtml2)) {
+          silentCount('choice-answer-pos', `大题「${title}」选择题选项行内/末尾出现作答空位（答案括号应放题干前题首），请抽检`, 'debug');
         }
 
         // 2e2. 分值自动分配（规则 score-distribute-fix，per-section：只处理当前大题）

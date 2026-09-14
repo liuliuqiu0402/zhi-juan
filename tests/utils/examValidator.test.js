@@ -852,3 +852,38 @@ describe('examValidator 英语书面表达横线补差（2j-5b，2026-08）', ()
   });
 });
 
+describe('examValidator 选择题作答位位置静默防护（choice-answer-position-guard）', () => {
+  // 🔧 2026-09 用户实证：选择题答案括号被模型挂在选项末尾（C. are; am＿）。
+  // 根治在生成侧（作答空间条款：选择/判断/圈选类括号在题干前）；此处静默计数取证，不自动修复。
+  const CHOICE_OPTS = { subject: '英语', stage: 'primary_high', genType: 'exam' };
+
+  it('选项末尾挂 blank 空位（用户实证形态）→ 静默计数 choice-answer-pos', () => {
+    const html = [
+      '<h2>四、选择正确的答案，将字母编号填入括号内（20分）</h2>',
+      '<p class="question">4. — Where <u class="blank-4">&emsp;</u> you last Sunday?<br>— I <u class="blank-4">&emsp;</u> at the library.<br>A. was; were　　B. were; was　　C. are; am<u class="blank-2">&emsp;</u></p>',
+      '<p class="question">(1) — I can\'t do it well.<br>— <u class="blank-4">&emsp;</u> Try your best!<br>A. Don\'t worry.　　B. You\'re welcome.　　C. Thank you.<u class="blank-2">&emsp;</u></p>',
+    ].join('\n');
+    const { silentDetails } = auditExamPaper(html, CHOICE_OPTS);
+    expect(silentDetails.some(d => d.type === 'choice-answer-pos')).toBe(true);
+  });
+
+  it('答案括号在题首（题干前、题号后）→ 不计数', () => {
+    const html = [
+      '<h2>四、选择正确的答案，将字母编号填入括号内（20分）</h2>',
+      '<p class="question">4. <span class="blank-2">&emsp;</span> — Where <u class="blank-4">&emsp;</u> you last Sunday?<br>— I <u class="blank-4">&emsp;</u> at the library.<br>A. was; were　　B. were; was　　C. are; am</p>',
+    ].join('\n');
+    const { silentDetails } = auditExamPaper(html, CHOICE_OPTS);
+    expect(silentDetails.some(d => d.type === 'choice-answer-pos')).toBe(false);
+  });
+
+  it('<p class="option"> 行内挂 blank 空位 → 同样计数', () => {
+    const html = [
+      '<h2>一、选出画线部分发音不同的单词（10分）</h2>',
+      '<p class="question">1. see</p>',
+      '<p class="option">A. sea　　B. sit<u class="blank-2">&emsp;</u>　　C. bee</p>',
+    ].join('\n');
+    const { silentDetails } = auditExamPaper(html, CHOICE_OPTS);
+    expect(silentDetails.some(d => d.type === 'choice-answer-pos')).toBe(true);
+  });
+});
+
