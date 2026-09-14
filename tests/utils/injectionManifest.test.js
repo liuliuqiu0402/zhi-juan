@@ -12,7 +12,7 @@ import {
   buildAnchorListBlock, buildCompressedTextBlock,
   buildMaterialUsageBlock, buildOrganizeBlock,
   buildTemplateInfoBlock, buildContextBlock, buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,
-  TAIL_SELF_CONSISTENCY, SCENE_REGEN_TYPES,
+  TAIL_SELF_CONSISTENCY, SCENE_REGEN_TYPES, AUTONOMOUS_ITEM_TYPES,
 } from '../../src/utils/injectionManifest.js';
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -135,6 +135,49 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     // errorbook = none + expand（不对账口吻）
     const err = buildMaterialUsageBlock({ genType: 'errorbook', materialChannel: 'anchor' });
     expect(err).toContain('本资料围绕错题组织，不与开头【锚点清单】做覆盖对账；');
+  });
+
+  // 🔴 题型多样性（2026-09-14 用户定版）：题类（课时练/专项/阅读）的**题型由模型自拟**、全链路没有任何
+  //    题型来源 → 题型随内容漂移，实测整份只剩填空/朗读一类、连词成句与单项选择整份消失（跨学科同病）。
+  //    修法 = **一句全学科通用的语义**：只约束"作答形态须多样"，不列题型清单、不指定具体题型（不窄化、不诱导）。
+  it('题型须多样：题型自拟的题类注入，且明示不改覆盖/题量口径', () => {
+    for (const t of ['practice', 'special', 'reading']) {
+      const txt = buildMaterialUsageBlock({ genType: t, materialChannel: 'anchor' });
+      expect(txt, `${t} 须注入题型多样性句`).toContain('题型须多样');
+      // 判据 = 两个**全学科通用**的作答形态类别（不点名任何具体题型）
+      expect(txt).toContain('只需判断 / 择一 / 配对即可作答');
+      expect(txt).toContain('须写出文字、算式或过程');
+      // 自查句（可判定，不靠枚举）
+      expect(txt).toContain('通篇是否为同一形态');
+      // 防副作用：明示不改变覆盖与题量口径（防"为凑题型而漏项/加无关题"）
+      expect(txt).toContain('不改变覆盖范围与题量口径');
+      expect(txt).toContain('不得为凑题型而漏项或加无关题');
+    }
+  });
+
+  it('题型须多样：全学科通用——不得列具体题型名（一列就成"清单"= 窄化 + 诱导）', () => {
+    const txt = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'anchor' });
+    for (const banned of ['连词成句', '单项选择', '选出不同类', '完形填空', '书面表达', '选择题', '判断题', '填空题']) {
+      expect(txt, `不得出现具体题型名「${banned}」`).not.toContain(banned);
+    }
+  });
+
+  it('题型须多样：不越界注入（考卷有蓝图题型序列 / 错题本题型由错题决定 / 知识型不命题）', () => {
+    expect(buildMaterialUsageBlock({ genType: 'exam', materialChannel: 'anchor' })).not.toContain('题型须多样');
+    expect(buildMaterialUsageBlock({ genType: 'errorbook', materialChannel: 'anchor' })).not.toContain('题型须多样');
+    for (const t of ['summary', 'preview', 'dictation', 'review']) {
+      expect(buildMaterialUsageBlock({ genType: t, materialChannel: 'full' }), `${t} 知识型不命题`).not.toContain('题型须多样');
+    }
+    expect(AUTONOMOUS_ITEM_TYPES).toEqual(['practice', 'special', 'reading']);
+  });
+
+  it('题型须多样：全通道注入（锚清单通道与全文通道都在），且面板可见（由素材使用约定块承载）', () => {
+    for (const ch of ['anchor', 'full']) {
+      expect(buildMaterialUsageBlock({ genType: 'practice', materialChannel: ch })).toContain('题型须多样');
+    }
+    const blk = buildUserMessageBlocks({ genType: 'practice', subject: '英语', materialChannel: 'anchor', preview: true })
+      .find((b) => b.id === 'material-usage');
+    expect(blk.text).toContain('题型须多样'); // 面板"请求实发清单"里能核到这一句
   });
 
   it('尾约束×2：块内自带 \\n\\n 前缀，关键句逐字', () => {

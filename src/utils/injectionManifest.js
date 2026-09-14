@@ -26,6 +26,16 @@ export const SELF_CONTAINED_TEACHING = ['summary', 'review', 'preview', 'dictati
 /** 情境错峰仅对"命题出新题"的题类生效（exam/practice/special/reading）；内容型无情境设问 */
 export const SCENE_REGEN_TYPES = ['exam', 'practice', 'special', 'reading'];
 
+/**
+ * 题型自拟的题类（2026-09-14 用户定版）：课时练 / 专项突破 / 阅读训练 —— 这三类的**题型由模型自选**
+ * （没有任何题型序列来源）→ 需要"作答形态须多样"这一条约束；见 buildMaterialUsageBlock 内的题型多样性句。
+ * 🔴 为什么不含其余类型：
+ *   · exam     —— 题型序列由【卷面结构】蓝图给定（大题名/顺序/题量以委托书为准），再提"题型须多样"会诱它偏离蓝图；
+ *   · errorbook—— 题目形态由用户错题自身决定，不是自主命题；
+ *   · summary / preview / dictation / review —— 知识归纳型（mode=full），本就不命题、无题型可言。
+ */
+export const AUTONOMOUS_ITEM_TYPES = ['practice', 'special', 'reading'];
+
 /** 尾约束·全文自洽（原内联于 useAiGenerator.buildPrompt；块内自带 \n\n 前缀，见 buildTailBlocks） */
 export const TAIL_SELF_CONSISTENCY = `【尾约束·全文自洽】
 题干所声明的、本题作答所必需的一切内容（不论其形态），都必须在正文中真实、足量、形式吻合地存在——使本题**仅凭正文自身即可完成**；凡题干提到而正文未给出、或给出但不完整、不足以支撑该设问、或与正文不符，以及内容漏错、自相矛盾的，均属无效内容，须于定稿前修正。素材依课标可取自教材之外的真实情境、不限所选教材，但题面引用或呈现的素材必须与本题实际给出的内容完全一致；正文不得先现待作答结论；正文对知识、要点、示例、数据、结论的归纳与转述须准确、完整、不遗漏、条理清晰，各题、各要点、各结论及其答案之间前后一致、互不矛盾。`;
@@ -82,6 +92,17 @@ export const buildMaterialUsageBlock = ({ genType = '', materialChannel = 'auto'
     : (materialChannel === 'anchor'
       ? '· 本资料为命题/练习型：题型结构、知识梯度与难度按上方清单（含具体概念）把握；题干、情境、人名、数据与句式由你拟定，来源按上述口径。\n'
       : '· 本资料为命题/练习型：中段【压缩原文】供你理解题型结构、知识梯度与难度；题干、情境、人名、数据与句式由你拟定，来源按上述口径。\n'));
+  // 🔴 题型多样性（2026-09-14 用户定版 · 全学科通用一句）：
+  //    根因：这三类题类（课时练/专项/阅读）的**题型由模型自拟**，全链路没有任何题型来源 → 题型随内容漂移，
+  //      实测出现"整份只剩填空/朗读/简答一类"，连词成句/单项选择等常规题型整份消失（跨学科同病）。
+  //    写法要求：**不列题型清单、不指定具体题型**（不窄化、不诱导）——判据用两个**全学科通用**的作答形态类别
+  //      （"客观作答：只需判断/择一/配对"与"书写表达：须写出文字/算式/过程"），并给一句可自查的问句；
+  //      末句声明不改覆盖与题量口径（防"为凑题型而漏项/加无关题"）。
+  //    适用范围只到"题型自拟的题类"（AUTONOMOUS_ITEM_TYPES）——考卷有【卷面结构】题型序列、错题本题型由错题决定、
+  //      知识归纳型不命题，均不注入（注入会诱其偏离既有口径）。
+  if (AUTONOMOUS_ITEM_TYPES.includes(genType)) {
+    parts.push('· 题型须多样：同一份资料内不得通篇只用一种作答形态——既要有"只需判断 / 择一 / 配对即可作答"的题型，也要有"须写出文字、算式或过程"的题型；具体题型按本学科本学段的常规题型自选（不指定、不设清单）。自查：通篇是否为同一形态？是否缺了其中一类？缺则补。（本条只约束作答形态的多样，不改变覆盖范围与题量口径，不得为凑题型而漏项或加无关题。）\n');
+  }
   // 🔴 禁照搬（通道无关 · 2026-09-14 用户裁定）：原句「【压缩原文】中的练习/习题段仅供理解题型与难度，
   //    不得照搬题目」是**挂在【压缩原文】上**的 → 锚清单通道没有原文，整句被跳过 → 该通道下**没有任何
   //    禁止照搬的约束**，模型直接整段沿用/照录教材语篇（实测：照搬守门命中「She was afraid of acting
@@ -261,7 +282,7 @@ export function buildUserMessagePrompt(ctx = {}) {
 }
 
 export default {
-  SELF_CONTAINED_TEACHING, SCENE_REGEN_TYPES,
+  SELF_CONTAINED_TEACHING, SCENE_REGEN_TYPES, AUTONOMOUS_ITEM_TYPES,
   TAIL_SELF_CONSISTENCY, TAIL_VARIETY,
   buildAnchorListBlock, buildCompressedTextBlock, buildMaterialUsageBlock, buildOrganizeBlock,
   buildTemplateInfoBlock, buildContextBlock, buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,
