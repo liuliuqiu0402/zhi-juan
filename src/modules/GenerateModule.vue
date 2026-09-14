@@ -2890,27 +2890,13 @@
             <!-- 右栏：分析字段 -->
             <div class="chapter-analysis-right">
               <template v-if="viewingChapter._tplAnalysis">
-                <!-- ✅ 模板分析结果 - 只读显示 -->
-                <div class="detail-item">
-                  <strong>📋 结构分析：</strong>
-                  <div
-                    v-for="(section, si) in (viewingChapter._tplAnalysis.结构分析 || viewingChapter._tplAnalysis.structure || [])"
-                    :key="si"
-                    style="font-size:12px;color:#555;line-height:1.8;margin-bottom:6px;border-bottom:1px dashed var(--border-light);padding-bottom:4px;"
-                  >
-                    <div><strong>{{ section.大题 }}</strong>（{{ section.题型 }}）</div>
-                    <div>小题：{{ section.小题数量 }}道 × {{ section.每小题分值 }}分 = {{ section.大题分值 }}分</div>
-                    <div>设问：{{ section.设问风格 }} | 难度：{{ section.难度 }}</div>
-                  </div>
-                </div>
-                <div class="detail-item">
-                  <strong>📊 总题数：</strong>
-                  <span style="font-size:13px;color:#555;">{{ viewingChapter._tplAnalysis.总题数 || viewingChapter._tplAnalysis.questionCount || 0 }} 道</span>
-                </div>
-                <div class="detail-item">
-                  <strong>💯 总分：</strong>
-                  <span style="font-size:13px;color:#555;">{{ viewingChapter._tplAnalysis.总分 || viewingChapter._tplAnalysis.totalScore || 0 }} 分</span>
-                </div>
+                <!-- 📋 模板结构分析：改为**可编辑**（2026-09-14 用户同意）——与模板库共用同一个组件
+                     （同一份数据 tpl.analysis；两处各写一份必漂移，教材库/生成模块的知识层级就这样漏改过）。
+                     字段口径不变（只改可编辑性，不改生成端任何口径）；编辑即保存：@persist → saveTemplates。 -->
+                <TemplateStructureEditor
+                  :analysis="viewingChapter._tplAnalysis"
+                  @persist="persistTemplateAnalysis"
+                />
               </template>
               <template v-else>
                 <!-- ✅ 教材分析字段 - 原有字段可编辑 -->
@@ -3168,6 +3154,7 @@ import { buildUserMessageBlocks } from '../utils/injectionManifest.js'; // ✅ A
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
+import TemplateStructureEditor from '../components/TemplateStructureEditor.vue'; // 📋 模板结构分析编辑器（模板库/生成模块共用同一实现）
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { stripXss, stripAiCodeFence, markSoloBlankLines, wrapBareBlankRuns } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（导出端第二道防线共享）
 import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
@@ -5546,6 +5533,14 @@ const saveKnowledge = async () => {
 // 判断章节是否可预览详情：必须有独立分析内容（rawText），纯联动标记的不算
 const isLeafChapter = (chapter) => {
   return chapter.analyzed && chapter.rawText && chapter.rawText.trim().length > 0;
+};
+
+// 📋 模板结构分析"编辑即保存"（2026-09-14 用户同意）：模板结构是对标数据，下一份资料立刻按新值对标；
+//    在本抽屉改完不落盘、关掉就丢 = "看起来改了其实没改"（同类坑本项目已出过）。
+//    落盘走 templateStore 单点（与模板库抽屉同一函数语义），两处共用同一个编辑器组件。
+const persistTemplateAnalysis = async () => {
+  await templateStore.saveTemplates();
+  templateStore.templates = [...templateStore.templates]; // 触发引用更新（左树/抽屉同源刷新）
 };
 
 const viewChapterAnalysis = async (book, chapter) => {

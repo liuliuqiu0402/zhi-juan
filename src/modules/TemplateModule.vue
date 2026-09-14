@@ -1040,52 +1040,19 @@
                 </div>
               </div>
             
-              <div
-                v-if="viewingChapter.结构分析 && viewingChapter.结构分析.length > 0"
-                class="detail-item"
-              >
-                <strong>📝 详细结构分析：</strong>
-                <div style="margin-top:8px;background:#f8f9fa;padding:10px;border-radius:6px;">
-                  <div
-                    v-for="(section, si) in viewingChapter.结构分析"
-                    :key="si" 
-                    style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--border-light);"
-                  >
-                    <div style="font-size:13px;color:var(--primary-light);font-weight:600;margin-bottom:4px;">
-                      {{ section.大题 || section.type }}
-                    </div>
-                    <div style="font-size:12px;color:#555;margin-left:12px;">
-                      <div>题型：{{ section.题型 }}</div>
-                      <div>设问风格：{{ section.设问风格 }}</div>
-                      <div>难度：{{ section.难度 }}</div>
-                      <div>小题数量：{{ section.小题数量 }}</div>
-                      <div v-if="section.小题列表 && section.小题列表.length > 0">
-                        小题：{{ section.小题列表.map(g => `${g.小题序号}${g.分值 ? '(' + g.分值 + '分)' : ''}`).join('、') }}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <!-- 📋 模板结构分析（可编辑 · 2026-09-14 用户同意）：模板分析结果的真身在 `tpl.analysis`
+                   （结构分析/总分/总题数都在那里）——此处原先绑定 `viewingChapter.结构分析` 是**失效绑定**
+                   （模板分析从不写章节节点，只有 tpl.analysis 有）→ 该块一直渲染不出来；一并纠正为真身。
+                   可编辑字段 = 生成端真正消费的那几个（见组件注释），编辑即保存（落盘 saveTemplates）。 -->
+              <TemplateStructureEditor
+                v-if="tplAnalysis"
+                :analysis="tplAnalysis"
+                @persist="persistTemplateAnalysis"
+              />
             
-              <div
-                v-if="viewingChapter.总题数 || viewingChapter.questionCount"
-                class="detail-item"
-              >
-                <strong>🔢 总题数：</strong>
-                <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:13px;color:#555;">
-                  {{ viewingChapter.总题数 || viewingChapter.questionCount || 0 }} 道
-                </div>
-              </div>
-            
-              <div
-                v-if="viewingChapter.总分 || viewingChapter.totalScore"
-                class="detail-item"
-              >
-                <strong>💯 总分：</strong>
-                <div style="padding:6px 10px;background:#f8f9fa;border-radius:6px;font-size:13px;color:#555;">
-                  {{ viewingChapter.总分 || viewingChapter.totalScore || 0 }} 分
-                </div>
-              </div>
+              <!-- 🔢 总题数 / 💯 总分：原先另有两块只读展示，但绑的是 viewingChapter.总题数/总分（模板章节节点
+                   上从来没有这些字段 → 从不渲染）；这两项已由上方编辑器接管（可编辑 + 编辑即保存），
+                   故删除失效块，不留"看起来在处理、其实永不生效"的死代码。 -->
             
               <div
                 v-if="viewingChapter.scoreDistribution"
@@ -1240,6 +1207,7 @@ import { useAiGenerator } from '../composables/useAiGenerator.js';
 import { deepClone } from '../utils/helpers';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';
+import TemplateStructureEditor from '../components/TemplateStructureEditor.vue'; // 📋 模板结构分析编辑器（模板库/生成模块共用同一实现）
 import { APP_EVENTS } from '../constants/events.js';
 
 defineOptions({ name: 'TemplateModule' });
@@ -2750,6 +2718,16 @@ const showChapterAnalysisModal = computed({
 });
 const viewingBook = computed(() => templateStore.viewingBook);
 const viewingChapter = computed(() => templateStore.viewingChapter);
+
+// 📋 模板分析结果真身（2026-09-14 用户同意）：结构分析/总分/总题数都落在 `tpl.analysis`
+//    （模板章节节点上从来没有这些字段 → 原绑 viewingChapter.* 的展示块是失效绑定，一直渲染不出来）
+const tplAnalysis = computed(() => viewingBook.value?.analysis || null);
+// 编辑即保存：结构分析是对标数据、下一份资料立刻按新值对标；抽屉里改了不落盘、关掉就丢，
+// 等于"看起来改了其实没改"（同类坑本项目已出过）
+const persistTemplateAnalysis = async () => {
+  await templateStore.saveTemplates();
+  templateStore.templates = [...templateStore.templates]; // 触发引用更新（左树/抽屉同源刷新）
+};
 
 // ==================== 预览功能 ====================
 const handlePreview = (data) => {
