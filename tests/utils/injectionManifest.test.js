@@ -143,6 +143,24 @@ describe('buildUserMessageBlocks（面板清单）', () => {
     expect(blocks.find((b) => b.id === 'material-usage').text).toBe('');
     expect(blocks.find((b) => b.id === 'organize').text).toBe('');
   });
+
+  // 🔴 A22 补：生成期在委托正文末尾追加的【组织风格】/【差异化要求——本类型为…】既不在注入框里、
+  //    也不属程序附加段——面板若不言明，"看到的=发出去的"就有缺口。
+  it('委托正文块：生成期追加项须在面板如实说明（虚框+说明，不重复展开正文）', () => {
+    const extra = '生成期会在本块末尾追加【组织风格】「情境统一」及其实施说明';
+    const blk = buildUserMessageBlocks({
+      genType: 'practice', subject: '数学', materialChannel: 'anchor', instructionExtraNote: extra,
+    }).find((b) => b.id === 'instruction');
+    expect(blk.note).toContain(extra);
+    expect(blk.note).toContain('即上方注入框内容');   // 原有说明保留
+    expect(blk.text).toBe('');                        // pointer：不重复展开委托正文
+    expect(blk.injected).toBe(true);                  // 委托正文必发
+
+    // 无追加项时不产生多余文案
+    const plain = buildUserMessageBlocks({ genType: 'practice', subject: '数学', materialChannel: 'anchor' })
+      .find((b) => b.id === 'instruction');
+    expect(plain.note).toBe('即上方注入框内容（已按素材通道归一）；此处不重复展开');
+  });
 });
 
 describe('源码接线：生成端不再内联这些块（防两套口径回归）', () => {
@@ -176,6 +194,13 @@ describe('源码接线：生成端不再内联这些块（防两套口径回归�
     expect((s.match(/refreshUserMsgBlocks\(\{/g) || [])).toHaveLength(3); // 组装 / 恢复默认 / 生成前刷新
     expect(s).toContain('data-um');
     expect(s).toContain('onUserMsgClick');
+  });
+
+  it('面板把"生成期追加项"交代清楚（组织风格 / 本类型差异化）', () => {
+    const s = gm();
+    expect(s).toContain('instructionExtraNote');
+    expect(s).toContain('生成期会在本块末尾追加【组织风格】');
+    expect(s).toContain('【差异化要求——本类型为…】');
   });
 
   it('生成端拼接顺序与单源 BLOCK_DEFS 一致（顺序漂移同样会被逮住）', () => {

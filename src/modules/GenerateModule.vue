@@ -412,7 +412,7 @@
             class="src-title block-toggle"
             @click="showProgramAttach = !showProgramAttach"
           >
-            🛰 程序附加段（渲染契约/质检规则/格式兜底 —— 随写作请求以 system 注入，不进委托正文）
+            🛰 程序附加段（渲染契约/质检规则/守门条款兜底 —— 随写作请求以 system 注入，不进委托正文）
             <span v-if="attachBlocks.length">（{{ attachBlocks.length }} 段，点击段落跳转来源库定位修改 {{ showProgramAttach ? '▾' : '▸' }}）</span>
             <span v-else>{{ showProgramAttach ? '▾' : '▸' }}</span>
           </div>
@@ -451,7 +451,7 @@
             class="src-title block-toggle"
             @click="showUserMsgBlocks = !showUserMsgBlocks"
           >
-            📨 请求实发清单（用户消息：除委托正文外随本次请求发出的每一块，按发送顺序 —— 与生成端单源）
+            📨 请求实发清单（用户消息：本次请求逐块内容，按发送顺序 —— 与生成端单源）
             <span>（{{ userMsgBlocks.length }} 段，{{ showUserMsgBlocks ? '▾' : '▸' }}）</span>
           </div>
           <div
@@ -6174,11 +6174,21 @@ const resolveNeedsImageText = ({ books = [], genType = '' } = {}) => {
 //    面板据此逐段展示"除委托正文之外，本次请求还会发出哪些块"（板块顺序 = 实发顺序）
 const refreshUserMsgBlocks = ({ subject = '', genType = '' } = {}) => {
   if (!genType) { userMsgBlocks.value = []; return; }
+  // 🔴 A22：生成期还会在委托正文**末尾**追加两块（既不在注入框里、也不属程序附加段）——面板必须如实说明，
+  //    否则"看到的=发出去的"仍有缺口：①【组织风格】（面板所选，生成端识别并组织情境/呈现）；
+  //    ②多类型生成时，第二个类型起追加的【差异化要求——本类型为…】（含前面已覆盖的知识点清单）。
+  const styleNote = (propositionStyle.value && styleInstructions[propositionStyle.value])
+    ? `生成期会在本块末尾追加【组织风格】「${propositionStyle.value}」及其实施说明`
+    : '';
+  const diffNote = (genTypes.value || []).length > 1
+    ? '多类型生成时，第二个类型起在本块末尾再追加【差异化要求——本类型为…】（含前面已覆盖的知识点清单）'
+    : '';
   userMsgBlocks.value = buildUserMessageBlocks({
     genType,
     subject,
     materialChannel: resolveMaterialChannel(genType),
     preview: true, // 门控块（素材使用约定/组织方式）给出可先行展示的条款文本，并注明注入条件
+    instructionExtraNote: [styleNote, diffNote].filter(Boolean).join('；'),
   });
 };
 

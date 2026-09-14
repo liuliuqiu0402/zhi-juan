@@ -143,7 +143,7 @@ const BLOCK_DEFS = [
   },
   {
     id: 'compressed-text', name: '压缩原文', lib: 'builtin', scope: '用户消息·中段素材',
-    note: '生成时按勾选章节原文压缩注入；**锚清单通道不注入**（A17）',
+    note: '生成时按勾选章节原文压缩注入；锚清单通道不注入（A17）',
     build: (c) => (c.compressedText ? buildCompressedTextBlock(c.compressedText) : ''),
   },
   {
@@ -164,6 +164,9 @@ const BLOCK_DEFS = [
     // 🔴 委托正文是实发主体，必须计入 prompt（pointer 只影响面板展示，不影响拼接）
     build: (c) => (c.instructionText || ''),
     pointer: true,
+    // noteWith：面板侧追加说明——生成期还会在本块**末尾**追加什么（【组织风格】/第二类型起的
+    //   【差异化要求】）。这两块不在注入框里、也不属程序附加段，若不说明，面板就不是"实发全貌"。
+    noteWith: (c) => c.instructionExtraNote,
   },
   {
     id: 'template-info', name: '模板对标', lib: 'builtin', scope: '用户消息',
@@ -217,11 +220,13 @@ export function buildUserMessageBlocks(ctx = {}) {
   return BLOCK_DEFS.map((d) => {
     const real = String(d.build(ctx) || '');
     return {
-      id: d.id, name: d.name, lib: d.lib, scope: d.scope, note: d.note || '',
+      id: d.id, name: d.name, lib: d.lib, scope: d.scope,
+      note: [d.note, d.noteWith ? d.noteWith(ctx) : ''].filter(Boolean).join(' '),
       // text：面板展示文本（pointer 块只给说明、不重复展开；预览模式下门控块给出可先行展示的条款原文）
       text: d.pointer ? '' : (real || (ctx.preview && d.preview ? String(d.preview(ctx) || '') : '')),
-      // injected：本次请求是否真的注入（**只认门控结果**，与预览无关）
-      injected: !!real,
+      // injected：该块本次是否会随请求发出——门控块只认门控结果（与预览无关）；
+      //   pointer 块（委托正文）永远随请求发出，其内容在上方注入框/生成端拼入，不在此处重复展开
+      injected: d.pointer ? true : !!real,
     };
   });
 }
