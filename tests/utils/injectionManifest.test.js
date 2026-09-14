@@ -149,10 +149,11 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     for (const t of ['practice', 'special', 'reading']) {
       const txt = buildMaterialUsageBlock({ genType: t, materialChannel: 'anchor' });
       expect(txt, `${t} 须注入题型多样性句`).toContain('题型须多样');
-      // 依据用**课标口径**（中性转述：不点名具体题型、不给清单）
-      expect(txt).toContain('合理安排不同类型作业的比例，增强作业的可选择性');
+      // 依据用**中性语义**（不挂学科/学段课标名——义教语文课标有原话，高中无等价表述，挂名会引错出处）
+      expect(txt).toContain('作业类型比例应合理安排');
       expect(txt).toContain('不停留在单一形态');
       expect(txt).toContain('不指定、不列清单');
+      expect(txt, '不得声称是课标口径（学段不通用）').not.toContain('课标口径');
       // 防副作用：明示不改变内容范围与题量口径（防"为凑题型而漏项/加无关题"）
       expect(txt).toContain('不改变要练到的范围与题量口径');
       expect(txt).toContain('不得为凑题型而漏项或加无关题');
