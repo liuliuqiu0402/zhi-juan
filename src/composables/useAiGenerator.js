@@ -883,6 +883,10 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
             coreKnowledge: (bc.coreKnowledge || []).map(ck => ({
               name: ck.name || '', level: ck.level || ck.cognitiveLevel || '理解',
               specificConcepts: ck.specificConcepts || [],
+              // 🔬 (b) 条目性质 kind **必须在此透传**（2026-09-14 定位到的问题点）：这处"随卡附带的锚树"
+              //    原先只取 name/level/specificConcepts，把分析层产出的 kind 直接筛掉了 → 生成期分流永远
+              //    拿不到（表现：清单里从不出现◇语言材料行、题目照旧围着教材语篇）。缺字段 → knowledge。
+              kind: ck.kind === 'material' ? 'material' : 'knowledge',
             })),
           })),
           // 🔧 保留完整的 KP→片段映射，供 Step 4 精准检索（Step 2 只用 totalSegments 不遍历 segments）
