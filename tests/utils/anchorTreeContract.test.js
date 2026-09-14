@@ -266,10 +266,11 @@ describe('A16（甲方案）锚点=目录：未分析/仅目录章不再从覆�
   });
 });
 
-// ✅ A17（2026-09-14 用户定版）：第3层具体概念（specificConcepts）随考点并入锚点清单
-//    标尺注入通道的注入物收敛为"锚点清单（含第3层）+ 难度标尺"（语料锚已按用户定版移除——
-//    第3层是经粒度校验的结构化概念靶点，比原文片段绑定更可靠）
-describe('A17 第3层具体概念并入锚点清单（标尺注入通道的命题靶点）', () => {
+// ✅ A17（2026-09-14 用户定版）：第3层具体概念（specificConcepts）随知识点并入锚点清单
+//    锚清单注入通道的注入物收敛为"锚点清单（含第3层）+ 难度要求"（语料锚已按用户定版移除——
+//    第3层是经粒度校验的结构化概念明细，比原文片段绑定更可靠）
+//    2026-09-14 术语口径：面向模型/用户的措辞统一「知识点」，不用「考点」（防全指向考卷）
+describe('A17 第3层具体概念并入锚点清单（锚清单注入通道的知识明细）', () => {
   const withConcepts = [
     {
       chapterTitle: '第2课 荷花',
@@ -295,7 +296,7 @@ describe('A17 第3层具体概念并入锚点清单（标尺注入通道的命�
     },
   ];
 
-  it('buildAnchorListByChapter：考点名→具体概念映射随 themes 输出，同名锚概念合并去重', () => {
+  it('buildAnchorListByChapter：知识点名→具体概念映射随 themes 输出，同名锚概念合并去重', () => {
     const groups = buildAnchorListByChapter(withConcepts);
     expect(groups).toHaveLength(2);
     const lang = groups[0].themes[0];
@@ -304,7 +305,7 @@ describe('A17 第3层具体概念并入锚点清单（标尺注入通道的命�
     expect(groups[1].themes[0].concepts['借物抒情']).toEqual([]);
   });
 
-  it('呈现形态：考点名后括号附具体概念（紧凑），无概念的考点不带括号', () => {
+  it('呈现形态：知识点名后括号附具体概念（紧凑），无概念的条目不带括号', () => {
     const out = formatAnchorListByChapter(withConcepts);
     expect(out).toBe(
       '【第2课 荷花】\n'
@@ -313,34 +314,37 @@ describe('A17 第3层具体概念并入锚点清单（标尺注入通道的命�
     );
   });
 
-  it('每考点限量 MAX_SPECIFIC_CONCEPTS_PER_ANCHOR 条，超限加"等"（防清单膨胀）', () => {
+  it('每知识点限量 MAX_SPECIFIC_CONCEPTS_PER_ANCHOR 条，超限加"等"（防清单膨胀）', () => {
     const anchors = [{
       chapterTitle: '第1课',
-      name: '考点A',
+      name: '知识点A',
       specificConcepts: Array.from({ length: MAX_SPECIFIC_CONCEPTS_PER_ANCHOR + 3 }, (_, i) => `概念${i + 1}`),
     }];
     const out = formatAnchorListByChapter(anchors);
-    expect(out).toBe(`【第1课】考点A（概念1、概念2、概念3、概念4、概念5、概念6等）`);
+    expect(out).toBe(`【第1课】知识点A（概念1、概念2、概念3、概念4、概念5、概念6等）`);
   });
 
   it('空/非数组 specificConcepts 安全降级为无括号', () => {
     const anchors = [
-      { chapterTitle: '第1课', name: '考点A', specificConcepts: null },
-      { chapterTitle: '第1课', name: '考点B', specificConcepts: '不是数组' },
+      { chapterTitle: '第1课', name: '知识点A', specificConcepts: null },
+      { chapterTitle: '第1课', name: '知识点B', specificConcepts: '不是数组' },
     ];
-    expect(formatAnchorListByChapter(anchors)).toBe('【第1课】考点A、考点B');
+    expect(formatAnchorListByChapter(anchors)).toBe('【第1课】知识点A、知识点B');
   });
 
   it('无主题紧凑单行形态也带第3层括号（章级扁平合并）', () => {
-    const anchors = [{ chapterTitle: '第1课', name: '考点A', specificConcepts: ['甲', '乙'] }];
-    expect(formatAnchorListByChapter(anchors)).toBe('【第1课】考点A（甲、乙）');
+    const anchors = [{ chapterTitle: '第1课', name: '知识点A', specificConcepts: ['甲', '乙'] }];
+    expect(formatAnchorListByChapter(anchors)).toBe('【第1课】知识点A（甲、乙）');
   });
 
-  it('角色说明随清单注入：明确第3层是命题靶点明细，不是新栏目/新组织维度', () => {
+  it('角色说明随清单注入：第3层只细化具体概念，不是新栏目/新组织维度；措辞用「知识点」不用「考点」', () => {
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('具体概念');
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('（第3层');
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('命题靶点明细');
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('不构成新的写作栏目');
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('不得据此另立结构');
+    // 术语口径：注入文本去"考点"（防读成全指向考卷），且不含"命题靶点"式命题语汇
+    expect(ANCHOR_LIST_ROLE_NOTE).not.toContain('考点');
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('知识点');
+    expect(ANCHOR_LIST_ROLE_NOTE).not.toContain('命题靶点');
   });
 });

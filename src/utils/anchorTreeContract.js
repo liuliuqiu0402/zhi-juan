@@ -5,12 +5,12 @@
  *   - 教材分析输出**即锚清单本体**：`knowledgeHierarchy` 第 2 层 `coreKnowledge` 每条 = 一个锚；
  *     下游（锚清单呈现 / 锚清单↔原文对应 / 缺料诊断）一律"零解释余量"地直读第 2 层。
  *   - 因此第 2 层粒度必须在**分析入库**时就把住：粒度不统一（如语文低段把"人/口/手"单字
- *     提为第 2 层条目）会让锚清单失真、下游取不到真考点。回看即可发现"短锚爆炸"是被下游
+ *     提为第 2 层条目）会让锚清单失真、下游取不到真知识点。回看即可发现"短锚爆炸"是被下游
  *     反复当成"覆盖点"消费的。
  *
  * 契约三件事：
  *   ① **结构校验**：`validateAnchorTree` —— 结构不符 → **不落库**（重试/报错）。
- *   ② **粒度判据**：第 2 层 = 可独立成题 / 可独立教学组织的考点；**最小单位**（单字、单词条、
+ *   ② **粒度判据**：第 2 层 = 可独立教学组织 / 可独立成题的知识点；**最小单位**（单字、单词条、
  *      单符号、单数值、术语碎片）强制下沉第 3 层 `specificConcepts`。判据给**语义 + 反例**，
  *      **不写数量区间**（防诱导为凑数/省事而删减已提取内容）。
  *   ③ **粒度诊断**：`anchorGranularityReport` —— 锚数 / 短锚占比（名长 ≤ 3 字）/ specificConcepts
@@ -67,13 +67,13 @@ export const validateAnchorTree = (hierarchy) => {
       push('core-not-array', `${bp}.coreKnowledge`, '第2层 coreKnowledge 必须是数组');
       return;
     }
-    if (bc.coreKnowledge.length === 0) push('core-empty', `${bp}.coreKnowledge`, '第2层为空（该大概念下无考点）');
+    if (bc.coreKnowledge.length === 0) push('core-empty', `${bp}.coreKnowledge`, '第2层为空（该大概念下无知识点）');
     bc.coreKnowledge.forEach((ck, j) => {
       const cp = `${bp}.coreKnowledge[${j}]`;
       if (!ck || typeof ck !== 'object') { push('core-invalid', cp, '第2层条目不是对象'); return; }
       const name = String(ck.name || '').trim();
       if (!name) {
-        push('core-missing-name', cp, '第2层考点名称为空');
+        push('core-missing-name', cp, '第2层知识点名称为空');
       } else if (isMinUnitName(name)) {
         push('core-is-min-unit', cp, `第2层出现最小单位「${name}」——须下沉第3层 specificConcepts`, name);
       }
@@ -142,12 +142,14 @@ export const diagnoseAnchorTree = (hierarchy, opts = {}) =>
  * ✅ A1-4：锚点清单**按章分组**（章序 = 传入锚序，即"勾选章序 = 原文章序"。
  *   多条锚共用一个章标题是**正常形态**（锚只需知道"属于哪一章"，对应关系取章级）；同名锚去重。
  * ✅ A1-4b（2026-09-11 用户定「第一二层都带着」）：**同时给出第1层（bigConcept 知识主题）分组**，
- *   让模型看到"考点归属哪个知识主题"；`names` 仍保留扁平形态（章级范围判断/兼容取用）。
- *   ⚠️ 第1层只表**归属与范围**，不是写作栏目、不作命题单位（写作粒度以第2层考点为准）——
+ *   让模型看到"知识点归属哪个知识主题"；`names` 仍保留扁平形态（章级范围判断/兼容取用）。
+ *   ⚠️ 第1层只表**归属与范围**，不是写作栏目、不作命题单位（写作粒度以第2层知识点为准）——
  *   因此它在清单里只以「主题：」前缀出现，且**与章名相同的第1层（目录锚形态）自动省略**，避免冗余。
- * ✅ A17（2026-09-14 用户定版）：**第3层具体概念（specificConcepts）随考点并入清单**——
- *   标尺注入通道（命题/练习型）的注入物收敛为"锚点清单（含第3层）+ 难度标尺"，不再另注入语料锚；
- *   第3层是经粒度校验的结构化概念靶点（如多音字辨析→长cháng/长zhǎng），比原文片段绑定更可靠。
+ * ✅ A17（2026-09-14 用户定版）：**第3层具体概念（specificConcepts）随知识点并入清单**——
+ *   锚清单注入通道（命题/练习型）的注入物收敛为"锚点清单（含第3层）+ 难度要求"，不再另注入语料锚；
+ *   第3层是经粒度校验的结构化概念明细（如多音字辨析→长cháng/长zhǎng），比原文片段绑定更可靠。
+ * ⚠️ 术语口径（2026-09-14 用户定）：面向模型与用户的措辞统一用**「知识点」**，不用「考点」——
+ *   本产品含归纳/复习/预习/默写等非命题型资料，"考点"读来全指向考卷（仅在明确命题语境的句子中保留）。
  * @param {Array} anchors 锚列表（含 chapterTitle / bigConcept / name / specificConcepts）
  * @returns {Array<{chapterTitle:string, names:string[], themes:Array<{bigConcept:string,names:string[],concepts:Object<string,string[]>}>}>}
  */
@@ -164,7 +166,7 @@ export const buildAnchorListByChapter = (anchors = []) => {
     if (!g.names.includes(name)) g.names.push(name);
     const big = String(a?.bigConcept || '').trim();
     if (!g.themeIndex.has(big)) g.themeIndex.set(big, new Map());
-    const bucket = g.themeIndex.get(big); // Map<考点名, 具体概念[]>
+    const bucket = g.themeIndex.get(big); // Map<知识点名, 具体概念[]>
     if (!bucket.has(name)) bucket.set(name, []);
     const merged = bucket.get(name);
     for (const c of concepts) if (!merged.includes(c)) merged.push(c);
@@ -184,7 +186,7 @@ export const buildAnchorListByChapter = (anchors = []) => {
 const isMeaningfulTheme = (bigConcept, chapterTitle) =>
   !!bigConcept && bigConcept !== String(chapterTitle || '').trim();
 
-/** ✅ A17：考点名后附第3层具体概念（命题靶点明细，紧凑形态）；无概念/超限量 → 不带或加"等" */
+/** ✅ A17：知识点名后附第3层具体概念（紧凑形态）；无概念/超限量 → 不带或加"等" */
 export const MAX_SPECIFIC_CONCEPTS_PER_ANCHOR = 6;
 const withConcepts = (name, concepts) => {
   const list = Array.isArray(concepts) ? concepts.filter((c) => String(c || '').trim()) : [];
@@ -195,13 +197,13 @@ const withConcepts = (name, concepts) => {
 
 /**
  * ✅ A1-4 / A1-4b / A17：锚点清单呈现形态。
- *   无有意义的第1层 → 紧凑单行：`【章名】考点A、考点B…`
+ *   无有意义的第1层 → 紧凑单行：`【章名】知识点A、知识点B…`
  *   有第1层 → 分层呈现：
  *     【章名】
- *     · 知识主题A：考点A、考点B
- *     · 知识主题B：考点C
+ *     · 知识主题A：知识点A、知识点B
+ *     · 知识主题B：知识点C
  *   章序不变（一行一章 / 一主题一行），第1层与第2层均同名去重；
- *   考点名后括号内为第3层具体概念（每考点限量，超限加"等"）。
+ *   知识点名后括号内为第3层具体概念（每知识点限量，超限加"等"）。
  */
 export const formatAnchorListByChapter = (anchors = []) =>
   buildAnchorListByChapter(anchors)
@@ -211,7 +213,7 @@ export const formatAnchorListByChapter = (anchors = []) =>
       const hasTheme = themes.some((t) => isMeaningfulTheme(t.bigConcept, g.chapterTitle));
       const fmtNames = (names, concepts) => names.map((n) => withConcepts(n, concepts?.[n])).join('、');
       if (!hasTheme) {
-        // 无主题 → 章级扁平：合并各主题下的概念映射（同名考点只归一个主题，合并仅防异常）
+        // 无主题 → 章级扁平：合并各主题下的概念映射（同名知识点只归一个主题，合并仅防异常）
         const merged = Object.fromEntries(
           themes.flatMap((t) => [...Object.entries(t.concepts || {})]),
         );
@@ -232,15 +234,15 @@ export const formatAnchorListByChapter = (anchors = []) =>
  *     （题类可补充、归纳复习类可关联已学旧知成网络、预习默写类守本课/守教材），统一口径收敛在
  *     委托书【素材使用约定】（数据源 coverageContract.extentOf），避免在此处一刀切放水。
  *     原"最小单位**一律**是考点"的"一律"易被读成"只能考清单内的点"，已去。
- *  ✅ A17（2026-09-14 用户定版）：加入第3层说明——考点名后括号内为具体概念（命题靶点明细），
+ *  ✅ A17（2026-09-14 用户定版）：加入第3层说明——知识点名后括号内为具体概念（术语口径见上：统一「知识点」），
  *     不是写作栏目、不构成新的组织维度。 */
 export const ANCHOR_LIST_ROLE_NOTE =
-  '说明：清单按「章 → 知识主题 → 考点」组织。**知识主题（第1层）仅表考点归属与范围，不是写作栏目、不是命题单位**；'
-  + '写作与命题的最小单位是各主题下的**考点**（第2层）。'
-  + '考点名后括号内为该考点的**具体概念**（第3层，命题靶点明细）：仅细化"该考点含哪些概念/词条/数值"，'
+  '说明：清单按「章 → 知识主题 → 知识点」组织。**知识主题（第1层）仅表知识点归属与范围，不是写作栏目、不是命题单位**；'
+  + '写作与命题的最小单位是各主题下的**知识点**（第2层）。'
+  + '知识点名后括号内为该知识点的**具体概念**（第3层）：仅细化"该知识点含哪些概念/词条/数值"，'
   + '不构成新的写作栏目，不得据此另立结构。'
-  + '不带「主题：」前缀的章 = 该章考点未再分主题。'
-  + '🔴 清单是**覆盖下限**：清单内考点须全部覆盖到（保证本单元必学知识不漏）；'
+  + '不带「主题：」前缀的章 = 该章知识点未再分主题。'
+  + '🔴 清单是**覆盖下限**：清单内知识点须全部覆盖到（保证本单元必学知识不漏）；'
   + '它**不是命题范围的全部**——清单之外能否补充或整合，按资料类型见委托书【素材使用约定】。';
 
 /** 单章诊断日志（A1-3 的**可观测证据**：一条含全部指标，便于日志抓取核对） */

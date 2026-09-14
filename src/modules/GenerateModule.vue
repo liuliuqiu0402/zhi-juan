@@ -3210,8 +3210,8 @@ const labelStyleLabel = computed(() => labelStyle.value || '自动轮换');
 const materialChannelLabel = computed(() => {
   const ch = apiConfig.generationSettings.materialChannel || 'auto';
   if (ch === 'full') return '全文注入（整章原文进指令）';
-  if (ch === 'anchor') return '标尺注入（仅锚点清单含具体概念）';
-  return '自动（归纳型全文/命题型标尺）';
+  if (ch === 'anchor') return '锚清单注入（仅锚点清单含具体概念）';
+  return '自动（归纳型全文/命题型锚清单）';
 });
 
 // 🎨 资料栏目标题风格套（作用于【教辅结构】注入的栏目标题字面）

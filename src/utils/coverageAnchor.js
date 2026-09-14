@@ -1,23 +1,25 @@
 /**
- * 考点覆盖锚（Coverage Anchor）—— 层级考点 ↔ 教材原文片段的统一绑定与覆盖基座
+ * 知识点覆盖锚（Coverage Anchor）—— 层级知识点 ↔ 教材原文片段的统一绑定与覆盖基座
  * ============================================================
  * 🔴 定位（2026-09 覆盖治理 P0）：覆盖契约 / 对账 / 自动补漏 / 缺料诊断的唯一事实源。
+ * ⚠️ 术语口径（2026-09-14 用户定）：面向模型/用户的措辞统一「知识点」；本文件内部注释同步，
+ *    仅在明确命题语境的表述中保留「命题」字样（清单本身服务于全部资料类型，不限考卷）。
  *
  * 锚的定义：
  *   - 锚 = 章级 knowledgeHierarchy 的 coreKnowledge（第二层，带认知层次 / 具体概念）。
  *     contentCards.anchorTree 在 extractContentCards 捷径分支随卡附带（结构化归一，非原对象引用），
- *     考点 → 章归属由树结构天然成立，不依赖 Step2 knowledgeGraph 中 AI 自由填写的 relatedChapters
+ *     知识点 → 章归属由树结构天然成立，不依赖 Step2 knowledgeGraph 中 AI 自由填写的 relatedChapters
  *     （无写入点、缺省高风险，曾致章节锚定失效、检索静默回落）。
- *   - 全局限定：knowledgeGraph 仅作跨章考点名补充去重，不作锚定位。
+ *   - 全局限定：knowledgeGraph 仅作跨章知识点名补充去重，不作锚定位。
  *
- * 绑定的定义（每考点在所属章原文中定位支撑片段，四级）：
- *   literal   字面直连：考点名/具体概念命中片段文本（词边界），或命中片段预挂的 knowledgePoints
+ * 绑定的定义（每知识点在所属章原文中定位支撑片段，四级）：
+ *   literal   字面直连：知识点名/具体概念命中片段文本（词边界），或命中片段预挂的 knowledgePoints
  *   semantic  语义检索：字面未中，经语义检索命中同章相关段（依赖外部 semanticRetriever）
- *   chapter   章级兜底：章内有原文但无精确命中 → 取章内关键片段（考点素材在本章，可取）
+ *   chapter   章级兜底：章内有原文但无精确命中 → 取章内关键片段（知识点素材在本章，可取）
  *   missing   无片段：章无原文/未分析（正常不应出现；出现即取料链路或数据侧诊断信号）
  *
  * 红线（防旧教材）：
- *   可命题考点清单只含已绑定（literal/semantic/chapter）考点；missing 考点不进可命题清单，
+ *   可命题知识点清单只含已绑定（literal/semantic/chapter）知识点；missing 知识点不进可命题清单，
  *   进缺料诊断——任何环节不让模型凭训练记忆补教材内容。
  * ============================================================
  */
@@ -103,7 +105,7 @@ const bindOneCard = (card, retriever) => {
       if (semantic.length) {
         bind = { status: 'semantic', segments: semantic.slice(0, 4).map((s) => ({ chapterTitle, type: s.type || '正文', text: s.text })) };
       } else if (segs.length) {
-        // 3) chapter 兜底：章内有原文（考点素材在本章，取关键段）
+        // 3) chapter 兜底：章内有原文（知识点素材在本章，取关键段）
         const fallback = sortSegs(segs).slice(0, 3);
         bind = { status: 'chapter', segments: fallback.map((s) => ({ chapterTitle, type: s.type || '正文', text: s.text })) };
       } else {
@@ -134,7 +136,7 @@ export const buildAnchors = (contentCards = [], opts = {}) => {
   const retriever = opts?.retriever || null;
   const anchors = [];
   for (const card of contentCards || []) {
-    if (!card?.anchorTree?.length) continue; // 目录卡/未分析卡无锚树，不产出考点
+    if (!card?.anchorTree?.length) continue; // 目录卡/未分析卡无锚树，不产出知识点
     const { anchors: cardAnchors } = bindOneCard(card, retriever);
     anchors.push(...cardAnchors);
   }

@@ -109,7 +109,7 @@ describe('素材通道默认映射 MATERIAL_CHANNEL_DEFAULT（auto 口径）', (
     expect(Object.keys(MATERIAL_CHANNEL_DEFAULT)).toHaveLength(9);
   });
 
-  it('映射符合已确认矩阵：归纳/积累型（summary/review/preview/dictation）→ full 全文注入；命题/练习型（exam/practice/special/reading/errorbook）→ anchor 标尺注入', () => {
+  it('映射符合已确认矩阵：归纳/积累型（summary/review/preview/dictation）→ full 全文注入；命题/练习型（exam/practice/special/reading/errorbook）→ anchor 锚清单注入', () => {
     // 归纳/积累型：梳理型需看整章原文（原文进指令，抑制失真）
     for (const k of ['summary', 'review', 'preview', 'dictation']) {
       expect(materialChannelOf(k), k).toBe('full');
@@ -133,7 +133,7 @@ describe('素材通道默认映射 MATERIAL_CHANNEL_DEFAULT（auto 口径）', (
 
   it('与覆盖契约同源分类：知识型（full 档）↔ full 通道；题类 ↔ anchor 通道', () => {
     // 全层级覆盖档四型（summary/preview/dictation/review）与 COVERAGE_CONTRACT 的 full 档一一对应；
-    // 其余五型（practice/special/reading/errorbook/exam）均为标尺注入
+    // 其余五型（practice/special/reading/errorbook/exam）均为锚清单注入
     const fullModeTypes = ['summary', 'preview', 'dictation', 'review'];
     for (const [k, v] of Object.entries(MATERIAL_CHANNEL_DEFAULT)) {
       const expectFull = fullModeTypes.includes(k);
