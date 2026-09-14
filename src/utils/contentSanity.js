@@ -248,7 +248,7 @@ export const detectQuoteConflicts = (html = '') => {
         if (a === b) continue;
         const dist = levenshtein(a, b, 2);
         if (dist <= 2) {
-          out.push(`引文复现写法不一致："${prev}" 与 "${q}"（同一句引文在同一份资料内出现两种写法，请统一为教材/原文一致版本）`);
+          out.push(`引文复现写法不一致："${prev}" 与 "${q}"（同一句引文在同一份资料内出现两种写法，请统一为同一种写法）`);
         }
       }
       seen.push(q);
