@@ -22,6 +22,11 @@ const ROOT = path.resolve(__dirname, '../..');
 describe('(b) 分析层 kind 契约', () => {
   it('层级图谱 schema 给出 kind 字段与判据（全学科统一）', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src/composables/useAiGenerator.js'), 'utf8');
+    // ⚠️ 同源两分支：同一个 analysisPrompt 按 isGuidePage 分「导语页版 / 正文页版」，
+    //    两分支的 schema 都必须带 kind —— 2026-09-14 实测只改了正文版，而用户分析的正是导语页
+    //    → 模型收不到 kind，`kind` 全链路为空（这次踩的坑，锁死两处必须都在）
+    const branches = src.split('"kind": "knowledge|material"').length - 1;
+    expect(branches, '导语页版与正文页版两个 schema 分支都要带 kind').toBe(2);
     expect(src, 'schema 须含 kind 字段').toContain('"kind": "knowledge|material"');
     expect(src, '须给一句可判定的判据').toContain('能不能直接变成一道题的考查点');
     expect(src, '须声明缺字段的向后兼容口径').toContain('kind 缺失时一律按 knowledge 处理');
