@@ -1,9 +1,20 @@
 name: Android Build
 
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:  # 手动触发（不受下方过滤影响，随时可出包）
   push:
     branches: [main, master]
+    # 🔧 2026-09-14（用户定）：纯文档/测试/笔记改动不触发移动端打包（与 ios-build 同口径）。
+    #    用 paths-ignore（**排除式**）而非 paths：新增构建输入照旧触发，不会漏打包——失败安全优先。
+    #    移动端构建输入（APK 内含 vite 产物）：src/** public/** index.html vite.config.*
+    #    capacitor.config.* ios/** android/** scripts/** package.json package-lock.json —— 均不在忽略之列。
+    paths-ignore:
+      - 'docs/**'
+      - 'tests/**'
+      - '**/*.md'
+      - '.trae/**'
+      - 'LICENSE'
+      - '.gitignore'
 
 jobs:
   build-android:

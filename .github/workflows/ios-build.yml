@@ -1,9 +1,23 @@
 name: iOS Build
 
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:  # 手动触发（不受下方过滤影响，随时可出包）
   push:
     branches: [main, master]
+    # 🔧 2026-09-14（用户定）：纯文档/测试/笔记改动不触发移动端打包——省 runner 时间，
+    #    也避免无关改动叠加出 CI 噪音（曾遇 runner DNS 抖动致构建失败，被误读为代码回归）。
+    #    用 paths-ignore（**排除式**）而非 paths（包含式）：以后新增任何构建输入都会照旧触发，
+    #    不会因漏配路径而静默不打包——失败安全优先。
+    #    未忽略 .github/**：CI 自身改动仍会跑一次，便于验证工作流配置有效。
+    #    移动端构建输入（IPA 内含 vite 产物）：src/** public/** index.html vite.config.*
+    #    capacitor.config.* ios/** android/** scripts/** package.json package-lock.json —— 均不在忽略之列。
+    paths-ignore:
+      - 'docs/**'
+      - 'tests/**'
+      - '**/*.md'
+      - '.trae/**'
+      - 'LICENSE'
+      - '.gitignore'
 
 jobs:
   build-ios:
