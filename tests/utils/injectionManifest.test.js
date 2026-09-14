@@ -68,14 +68,20 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     expect(buildOrganizeBlock('practice')).toContain('【教辅结构】的栏目序列组织（栏目名、顺序、题量以委托书为准）');
   });
 
-  it('素材使用约定：通道分流（锚清单通道不给"不得照搬题目"句、依据改指清单）', () => {
+  it('素材使用约定：通道分流（依据指向随通道改），禁照搬为通道无关', () => {
     const anchor = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'anchor' });
     expect(anchor).toContain('开头【锚点清单】（含各知识点具体概念）是理解教材内容、难度与版本口径的**依据**');
     expect(anchor).toContain('题型结构、知识梯度与难度按上方清单（含具体概念）把握');
-    expect(anchor).not.toContain('【压缩原文】中的练习/习题段');
     const full = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'full' });
     expect(full).toContain('中段【压缩原文】是理解教材内容与难度的**参考之一**');
-    expect(full).toContain('· 【压缩原文】中的练习/习题段仅供理解题型与难度，**不得照搬题目**。');
+    // 🔴 2026-09-14（用户裁定·实测产物）：禁照搬原句原先挂在【压缩原文】上 → 锚清单通道整句被跳过 →
+    //    该通道下没有任何禁止照搬的约束，模型整段沿用教材语篇（照搬守门命中 10 词连续重合）。
+    //    现锁死：命题型禁照搬**两通道都在**，且声明清单里的语篇类条目不作题目载体。
+    for (const t of [anchor, full]) {
+      expect(t).toContain('不得照搬教材原题');
+      expect(t).toContain('不作题目载体');
+      expect(t).toContain('连续重合即属照搬');
+    }
   });
 
   it('素材使用约定：覆盖下限按 mode 分档、能否加按 extentOf 分档', () => {
