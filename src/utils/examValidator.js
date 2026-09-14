@@ -659,7 +659,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //         关键词限定会漏掉实证形态；CHOICE_OPTION_BLANK_RE 本身已特化（选项行内挂空位），
         //         直接按该异常形态检测。
         if (has('choice-answer-position-guard') && CHOICE_OPTION_BLANK_RE.test(secHtml2)) {
-          silentCount('choice-answer-pos', `大题「${title}」选择题选项行内/末尾出现作答空位（答案括号应放题干前题首），请抽检`, 'debug');
+          silentCount('choice-answer-pos', `大题「${title}」选项行内/末尾出现作答空位（答案括号应放题干前题首），请抽检`, 'debug');
         }
 
         // 2e2. 分值自动分配（规则 score-distribute-fix，per-section：只处理当前大题）
