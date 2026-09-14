@@ -482,7 +482,7 @@
                 class="attach-note"
               >{{ bk.note }}</div>
             </div>
-            <div class="iab-legend">顺序即实发顺序。显示正文的块 = 本次确定注入的条款原文；仅显示说明的块 = 内容随勾选章节/同批产出在生成时确定，此处给出处与注入条件。点击可跳库定位修改（程序内置条款无库，点击给出来源）。</div>
+            <div class="iab-legend">顺序即实发顺序。显示正文的块 = 本次确定注入的条款原文；【锚点清单】/【压缩原文】显示的是最近一次生成真正发出去的正文（来源说明见该块下方注释）。仍仅显示说明的块 = 内容在生成时随勾选/同批产出确定，此处给出处与注入条件。点击可跳库定位修改（程序内置条款无库，点击给出来源）。</div>
           </div>
         </div>
         <div
@@ -3125,7 +3125,7 @@ import {
   granularityOptions,
   normalizeSubjectName
 } from '../config/expertKnowledge.js';
-import { useAiGenerator } from '../composables/useAiGenerator.js';
+import { useAiGenerator, lastInjectSnapshot, chapterSigOf } from '../composables/useAiGenerator.js';
 import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
 import { inferPaperScope, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES } from '../config/paperScope.js';
 
@@ -6177,6 +6177,38 @@ const resolveNeedsImageText = ({ books = [], genType = '' } = {}) => {
   });
 };
 
+// 🧾 (ii) 2026-09-14：实发素材正文的**来源说明**——面板只有在拿到"最近一次生成真正发出的"清单/原文
+//    正文时才展示该正文；展示时必须如实交代这是哪一次生成的实发原文、当时口径是否仍与当前一致。
+//    为什么必须交代：用户看到清单正文，会默认它就是"当前勾选算出来的清单"；若勾选/开关已变而正文仍是
+//    上一次的，不说明就是**新的误导**（比不显示更危险）。判据与生成端共用同一函数（chapterSigOf）。
+const resolveMaterialProvenance = (genType = '') => {
+  const snap = lastInjectSnapshot.value;
+  if (!snap) {
+    return '尚未生成过：生成一次后，此处显示实际发出的清单/原文正文（与生成端同一份，非另拼预览）。';
+  }
+  const typeName = (t) => genTypeTemplates[t]?.name || t;
+  if (snap.genType !== genType) {
+    return `无「${typeName(genType)}」的实发记录（最近一次为「${typeName(snap.genType)}」）：生成一次即可看到本类型实发的正文。`;
+  }
+  const d = new Date(snap.at);
+  const p2 = (n) => String(n).padStart(2, '0');
+  const changed = [];
+  if ((apiConfig.generationSettings.injectThirdLayer !== false) !== snap.injectThirdLayer) {
+    changed.push(`第3层开关已改（当时${snap.injectThirdLayer ? '注入' : '不注入'}）`);
+  }
+  if (chapterSigNow() !== snap.chapters) changed.push('勾选章节已改');
+  if (snap.materialChannel !== resolveMaterialChannel(genType)) changed.push('素材通道已改');
+  return `以下为最近一次生成的实发原文（${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())} 生成）。`
+    + (changed.length
+      ? `⚠️ ${changed.join('、')}，未重新生成前此处仍是那一次的口径。`
+      : '与当前设置一致。');
+};
+
+// 🧾 (ii)：当前勾选章签名（与生成端写入快照时同一函数、同一筛选口径：勾选且参与分析的章节）
+const chapterSigNow = () => chapterSigOf(textbookStore.textbooks
+  .filter((b) => hasAnySelected(b.outline))
+  .map((b) => ({ selectedChapters: getSelectedChapters(b.outline).filter((ch) => ch._selectedForAnalysis !== false) })));
+
 // ✅ A22 请求实发清单（用户消息侧）刷新：与生成端 utils/injectionManifest.js 单源——
 //    面板据此逐段展示"除委托正文之外，本次请求还会发出哪些块"（板块顺序 = 实发顺序）
 const refreshUserMsgBlocks = ({ subject = '', genType = '' } = {}) => {
@@ -6190,6 +6222,10 @@ const refreshUserMsgBlocks = ({ subject = '', genType = '' } = {}) => {
   const diffNote = (genTypes.value || []).length > 1
     ? '多类型生成时，第二个类型起在本块末尾再追加【差异化要求——本类型为…】（含前面已覆盖的知识点清单）'
     : '';
+  // 🧾 (ii) 2026-09-14：素材正文**取实发快照**（不是面板另拼）——同一类型才有意义；
+  //    类型不符时给空串（宁可不显示，也不显示另一类型/另一次的口径）。
+  const snap = lastInjectSnapshot.value;
+  const snapHit = (snap && snap.genType === genType) ? snap : null;
   userMsgBlocks.value = buildUserMessageBlocks({
     genType,
     subject,
@@ -6198,6 +6234,11 @@ const refreshUserMsgBlocks = ({ subject = '', genType = '' } = {}) => {
     instructionExtraNote: [styleNote, diffNote].filter(Boolean).join('；'),
     // 🧩 第3层（具体概念）注入开关（设置页可切）：面板如实反映当前设置
     injectThirdLayer: apiConfig.generationSettings.injectThirdLayer !== false,
+    // 🧾 (ii) 实发素材正文（快照）+ 来源说明：面板与生成端同源，做到"点开即实发正文"
+    anchorListText: snapHit?.anchorListText || '',
+    anchorListRoleNote: snapHit?.roleNote || '',
+    compressedText: snapHit?.compressedText || '',
+    materialProvenance: resolveMaterialProvenance(genType),
   });
 };
 
@@ -8334,6 +8375,15 @@ const generate = async (mode) => {
       } // end 份数循环（batchCount）
       pendingGenerateContext.value = null;
       generatedTypes.push(genTypeTemplates[genType]?.name || genType);
+      // 🧾 (ii) 2026-09-14：本次实发素材快照已由生成端写入 → 面板重刷"请求实发清单"，
+      //    让用户点开就能核对**刚刚真正发出去的**【锚点清单】/【压缩原文】正文（所见即所发）。
+      {
+        const _b = (perChapterBooksRef.value || selectedBooks)[0];
+        refreshUserMsgBlocks({
+          subject: normalizeSubjectName(_b?.subject, resolveStageKey(_b?.stage, _b?.grade, _b?.name)),
+          genType,
+        });
+      }
     } catch (e) {
       window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, { detail: { message: '❌ 生成失败：' + e.message, type: 'error' } }));
       await showAlertDialogFn(`生成出错：${e.message}`);

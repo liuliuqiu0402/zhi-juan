@@ -1120,6 +1120,27 @@ export async function chatNonThinkingOnce(messages = [], { maxTokens = 8000, tem
   return content;
 }
 
+/**
+ * 🧾 最近一次实发素材快照（2026-09-14 (ii) 用户同意）——
+ * ============================================================
+ * 目的：生成面板要展示**真正发出去的**【锚点清单】/【压缩原文】正文，而不是自己另拼一份——
+ *   两套拼装迟早漂移，这正是 A20/A21/A22 反复治理的"看到的是一套、发的是另一套"。
+ * 单一来源：只在生成端组装完成、拼 prompt 的**同一处**写入（_runPaperOrder 内，紧跟两块 prompt += 之后），
+ *   写入的值就是本次实发文本本身（同一变量）。故"面板显示的清单正文 === 实发清单正文"是**结构保证**。
+ * 面板侧：只读、不另算（GenerateModule.refreshUserMsgBlocks 直接取这里）→ 所见即所发。
+ * 字段：anchorListText/roleNote/compressedText（实发正文与角色说明）、genType、materialChannel、
+ *   injectThirdLayer、splitMaterial（当时口径）、chapters（当时勾选章签名）、at（时间戳）。
+ * 生命周期：不持久化（刷新页面即空）；每次生成覆盖为"最近一次"；逐章/多类型生成以最后一次为准。
+ * 其余用途：面板据此判断"当前设置是否已与那次不同"（第3层开关/勾选章节/素材通道）并如实提示。
+ */
+export const lastInjectSnapshot = ref(null);
+
+/** 勾选章签名（仅用于"面板展示的实发正文是否还代表当前勾选"的一致性提示，不参与生成口径）。
+ *  生成端与面板共用同一个函数——两处各写一份比较逻辑同样会漂移。 */
+export const chapterSigOf = (books = []) => (books || [])
+  .flatMap((b) => (b.selectedChapters || []).map((c) => c.title || c.name || ''))
+  .filter(Boolean).join('|');
+
 export function useAiGenerator() {
   const isGenerating = ref(false);
   const progress = ref(0);
@@ -4495,8 +4516,24 @@ ${cardAnalysisText.substring(0, 1000)}
     // ✅ A1-4b：清单首行带"角色说明"——第1层知识主题只表归属/范围，不是写作栏目、不作命题单位；
     //    A17：知识点名后附第3层具体概念（锚清单通道下即教材内容/难度依据）
     //    ⚠️ 术语口径（2026-09-14 用户定）：注入文本统一「知识点」，不用「考点」（防读成全指向考卷）
-    if (anchorListText) prompt += buildAnchorListBlock(anchorListText, anchorListRoleNote({ withConcepts: injectThirdLayer, splitMaterial }));
+    const anchorListRoleNoteText = anchorListRoleNote({ withConcepts: injectThirdLayer, splitMaterial });
+    if (anchorListText) prompt += buildAnchorListBlock(anchorListText, anchorListRoleNoteText);
     if (compressedText) prompt += buildCompressedTextBlock(compressedText);
+    // 🧾 (ii) 2026-09-14 用户同意：实发素材快照——把**本次真正发出去的**清单/原文正文留在单源持有者里，
+    //    供生成面板原样展示（面板只读、不另拼；两套拼装必漂移）。写入的就是上方两块所拼的**同一变量值**，
+    //    故"面板显示的清单正文 === 实发清单正文"由结构保证，不靠人工比对。
+    //    roleNote 一并留存：第3层关闭时实发的角色说明与默认版不同，面板若用默认版就会失真。
+    lastInjectSnapshot.value = {
+      genType,
+      materialChannel,
+      injectThirdLayer,
+      splitMaterial,
+      anchorListText,
+      roleNote: anchorListRoleNoteText,
+      compressedText,
+      chapters: chapterSigOf(selectedBooks), // 当时勾选章签名（面板据此提示"勾选已变、正文仍是那一次"）
+      at: Date.now(),
+    };
     // ✅ A15-4/A11-3（2026-09-11）：**素材使用约定**（原随 browse 系统提示携带，browse 移除后必须保留）——
     //    引用约束按契约 mode 分流；练习段仅作参考、不得照搬题目。位置贴近委托书（同为"指令"，末尾锚定）。
     //    🔴 2026-09-13（用户定版·双向开放）：区分"知识点范围"与"素材来源"——范围（覆盖哪些知识点）以【锚点清单】为准，
@@ -5737,6 +5774,8 @@ ${questionPlan.score ? `- 标注：【知识点：${questionPlan.knowledgePoint}
     smartWait,
     checkModelLoaded,
     checkModelReady,  // 🔧 新增：检测模型是否真正就绪
-    smartWaitForModel  // 🔧 新增：智能等待模型空闲
+    smartWaitForModel,  // 🔧 新增：智能等待模型空闲
+    lastInjectSnapshot, // 🧾 (ii)：最近一次实发素材正文快照（面板"请求实发清单"取用，所见即所发）
+    chapterSigOf,       // 🧾 (ii)：勾选章签名（面板判断"实发正文是否仍代表当前勾选"，与生成端同一函数）
   };
 }

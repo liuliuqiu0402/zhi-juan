@@ -146,14 +146,22 @@ const BLOCK_DEFS = [
   {
     id: 'anchor-list', name: '锚点清单', lib: 'builtin', scope: '用户消息·开头',
     note: '生成时按勾选章节的分析结果注入：第1层知识主题作分组前缀、第2层知识点为主体、第3层具体概念随各知识点括注（第1层只表归属、第2层才是命题单位）；覆盖范围以下限声明',
-    noteWith: (c) => (c.injectThirdLayer === undefined
-      ? ''
-      : `（当前设置：${c.injectThirdLayer === false ? '不注入' : '注入'}第3层具体概念，可在设置里切换）`),
-    build: (c) => (c.anchorListText ? buildAnchorListBlock(c.anchorListText) : ''),
+    noteWith: (c) => [
+      (c.injectThirdLayer === undefined
+        ? ''
+        : `（当前设置：${c.injectThirdLayer === false ? '不注入' : '注入'}第3层具体概念，可在设置里切换）`),
+      c.materialProvenance || '',
+    ].filter(Boolean).join(' '),
+    // 🧾 (ii) 2026-09-14：正文用**实发快照**（含当时实发的角色说明）——第3层关闭时实发的角色说明
+    //    与默认版不同，面板若用默认版则"看到的≠发出去的"（这一点正是 A20/A21 治理的对象）
+    build: (c) => (c.anchorListText
+      ? buildAnchorListBlock(c.anchorListText, c.anchorListRoleNote || ANCHOR_LIST_ROLE_NOTE)
+      : ''),
   },
   {
     id: 'compressed-text', name: '压缩原文', lib: 'builtin', scope: '用户消息·中段素材',
     note: '生成时按勾选章节原文压缩注入；锚清单通道不注入（A17）',
+    noteWith: (c) => c.materialProvenance || '',
     build: (c) => (c.compressedText ? buildCompressedTextBlock(c.compressedText) : ''),
   },
   {
@@ -216,8 +224,11 @@ const BLOCK_DEFS = [
  * @param {string} [ctx.genType] 资料类型键
  * @param {string} [ctx.subject] 规范化学科
  * @param {string} [ctx.materialChannel] 已解析的素材通道（full/anchor）
- * @param {string} [ctx.anchorListText] 锚点清单文本（生成时才有）
- * @param {string} [ctx.compressedText] 压缩原文文本（生成时才有）
+ * @param {string} [ctx.anchorListText] 锚点清单文本（生成时真实值；面板侧取实发快照，无快照则空）
+ * @param {string} [ctx.anchorListRoleNote] 清单角色说明（与实发逐字一致；缺省用默认版）
+ * @param {string} [ctx.compressedText] 压缩原文文本（生成时真实值；锚清单通道为空）
+ * @param {string} [ctx.materialProvenance] 素材正文来源说明（🧾 (ii)：面板展示实发正文时必须交代
+ *    "这是哪一次生成的实发原文、当时口径是否仍与当前一致"，防被误读为"当前勾选算出来的清单"）
  * @param {string} [ctx.instructionText] 已按通道归一的委托正文（生成时传入；面板侧传空即可）
  * @param {string} [ctx.templateInfo] 勾选模板信息
  * @param {string} [ctx.contextFramework] 情境框架

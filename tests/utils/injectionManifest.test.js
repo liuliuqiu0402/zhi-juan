@@ -230,10 +230,11 @@ describe('源码接线：生成端不再内联这些块（防两套口径回归�
     ]) expect(s).not.toContain(gone);
   });
 
-  it('面板消费同一份单源：申请实发清单三入口刷新 + 逐段可点', () => {
+  it('面板消费同一份单源：申请实发清单四入口刷新 + 逐段可点', () => {
     const s = gm();
     expect(s).toContain("from '../utils/injectionManifest.js'");
-    expect((s.match(/refreshUserMsgBlocks\(\{/g) || [])).toHaveLength(3); // 组装 / 恢复默认 / 生成前刷新
+    // 组装 / 恢复默认 / 生成前刷新 / 🧾(ii) 生成后刷新（让"刚发出去的那一份"立刻可见）
+    expect((s.match(/refreshUserMsgBlocks\(\{/g) || [])).toHaveLength(4);
     expect(s).toContain('data-um');
     expect(s).toContain('onUserMsgClick');
   });
@@ -272,5 +273,80 @@ describe('源码接线：生成端不再内联这些块（防两套口径回归�
     const idx = order.map((k) => s.indexOf(k));
     expect(idx.every((i) => i >= 0)).toBe(true);
     expect(idx).toEqual([...idx].sort((a, b) => a - b)); // 严格递增 = 与实发顺序一致
+  });
+});
+
+// 🧾 (ii) 2026-09-14 用户同意：面板"请求实发清单"接**实发素材正文**（所见即所发）。
+// 背景：面板原先对【锚点清单】/【压缩原文】只显示"有素材就会注入"的说明、正文不可见 →
+//   用户无法核对"到底发了什么"（排查"拽向原文"时只能靠猜）。
+// 口径：生成端在拼 prompt 的**同一处**写入实发快照（写入值=实发文本用的同一变量），
+//   面板只读取展示；🔴 面板**不得自行拼装**清单——两套拼装必漂移，正是 A20/A21/A22 治理的对象。
+describe('(ii) 面板接实发素材正文（快照单源）', () => {
+  const ai = () => fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8');
+  const gm = () => fs.readFileSync(path.join(ROOT, 'src', 'modules', 'GenerateModule.vue'), 'utf8');
+
+  it('生成端：在拼 prompt 的同一处写快照，取的就是实发用的那两个变量', () => {
+    const s = ai();
+    expect(s).toContain('export const lastInjectSnapshot = ref(null)');
+    expect(s).toContain('export const chapterSigOf');
+    const iAnchor = s.indexOf('buildAnchorListBlock(anchorListText, anchorListRoleNoteText)');
+    const iComp = s.indexOf('buildCompressedTextBlock(compressedText)');
+    const iSnap = s.indexOf('lastInjectSnapshot.value = {');
+    expect(iAnchor, '清单块拼装点须存在').toBeGreaterThan(-1);
+    expect(iComp, '原文块拼装点须存在').toBeGreaterThan(iAnchor);
+    // 快照写在两块**之后**（此时两个变量已是最终实发值；顺序反了就会存到半成品）
+    expect(iSnap, '快照须写在两块拼装之后').toBeGreaterThan(iComp);
+    const snapBody = s.slice(iSnap, s.indexOf('};', iSnap));
+    for (const f of ['anchorListText,', 'roleNote: anchorListRoleNoteText,', 'compressedText,', 'chapters: chapterSigOf(selectedBooks)']) {
+      expect(snapBody, `快照须含 ${f}`).toContain(f);
+    }
+    // 暴露给面板（面板只读）
+    expect(s).toContain('lastInjectSnapshot,'); // return 对象
+  });
+
+  it('面板：只读快照、不自行拼装清单（不得出现 formatAnchorListByChapter）', () => {
+    const s = gm();
+    expect(s).toContain('lastInjectSnapshot');
+    expect(s).toContain('anchorListText: snapHit?.anchorListText');
+    expect(s).toContain('compressedText: snapHit?.compressedText');
+    expect(s, '面板不得自行拼装清单（两套拼装必漂移）').not.toContain('formatAnchorListByChapter');
+  });
+
+  it('面板展示的清单正文 = 生成端实发正文（同一 build 函数 + 同一角色说明）', () => {
+    const body = '一、知识主题甲\n· 知识点一\n◇ 语言材料（只作理解与难度依据，不在覆盖单位之列）：故事板块';
+    const roleNote = '（第3层）…实发角色说明';
+    const blk = buildUserMessageBlocks({
+      genType: 'practice', subject: '英语', materialChannel: 'anchor',
+      anchorListText: body, anchorListRoleNote: roleNote,
+      materialProvenance: '以下为最近一次生成的实发原文（09-14 17:20 生成）。',
+    }).find((b) => b.id === 'anchor-list');
+    expect(blk.text).toBe(buildAnchorListBlock(body, roleNote)); // 与实发块逐字相同
+    expect(blk.text).toContain('◇ 语言材料');                    // 清单正文确实可见（可核对分流）
+    expect(blk.note).toContain('以下为最近一次生成的实发原文');
+    expect(blk.injected).toBe(true);
+  });
+
+  it('角色说明按实发取：第3层关闭时面板不显示默认版那句（防假指针）', () => {
+    const body = '一、主题甲\n· 知识点一';
+    const off = '说明：本次不括注具体概念。';
+    const blk = buildUserMessageBlocks({
+      genType: 'practice', subject: '数学', materialChannel: 'anchor',
+      anchorListText: body, anchorListRoleNote: off, injectThirdLayer: false,
+    }).find((b) => b.id === 'anchor-list');
+    expect(blk.text).toContain(off);
+    expect(blk.text).not.toContain('（第3层）'); // 实发没有这句，面板就不许有
+  });
+
+  it('无快照/类型不符 → 不展示正文，只给来源说明（宁可不显示，也不显示错的口径）', () => {
+    const none = buildUserMessageBlocks({
+      genType: 'practice', subject: '数学', materialChannel: 'anchor',
+      materialProvenance: '尚未生成过：生成一次后，此处显示实际发出的清单/原文正文。',
+    });
+    const al = none.find((b) => b.id === 'anchor-list');
+    expect(al.text).toBe('');
+    expect(al.injected).toBe(false);
+    expect(al.note).toContain('尚未生成过');
+    // 压缩原文块同样接来源说明（全文通道下它是素材主体）
+    expect(none.find((b) => b.id === 'compressed-text').note).toContain('尚未生成过');
   });
 });
