@@ -1137,7 +1137,7 @@
             📚 素材通道（生成时教材素材注入口径）
           </div>
           <div style="font-size:11px;color:#888;margin-bottom:6px;line-height:1.5;">
-            控制生成时教材素材如何进入指令：<b>自动</b>按资料类型默认（归纳/积累型→全文注入；命题/练习型→标尺注入）；<b>全文</b>整章原文（直放/压缩）全部注入；<b>标尺</b>仅【锚点清单】+【语料锚】，不注入整章原文（抑制模型对教材原文的过度依赖）。需点「保存设置」生效。
+            控制生成时教材素材如何进入指令：<b>自动</b>按资料类型默认（归纳/积累型→全文注入；命题/练习型→标尺注入）；<b>全文</b>整章原文（直放/压缩）全部注入；<b>标尺</b>仅【锚点清单】（含各考点具体概念）+ 难度标尺，不注入整章原文（抑制模型对教材原文的过度依赖）。需点「保存设置」生效。
           </div>
           <div style="display:flex;gap:6px;">
             <label
@@ -1605,11 +1605,11 @@ const settings = ref({
 const availableTextModels = ref(['qwen2.5:7b', 'qwen2:7b']);
 
 // 📚 素材通道三档（2026-09-14 用户定版）：auto 按资料类型默认 / full 全文注入 / anchor 标尺注入
-//    默认映射单一事实源在 useAiGenerator MATERIAL_CHANNEL_DEFAULT，此处仅作 UI 展示口径
+//    默认映射单一事实源在 coverageContract MATERIAL_CHANNEL_DEFAULT，此处仅作 UI 展示口径
 const materialChannelOptions = [
   { value: 'auto', label: '🔄 自动（按类型）', desc: '归纳/积累型（知识总结·复习·预习·默写）→ 全文注入；命题/练习型（正式卷·课时练·专项·阅读·错题本）→ 标尺注入' },
   { value: 'full', label: '📄 全文注入', desc: '整章原文（小材料直放/大材料压缩）全部注入指令，对所有资料类型生效' },
-  { value: 'anchor', label: '📌 标尺注入', desc: '仅【锚点清单】+【语料锚】（考点绑定的教材最小语料），不注入整章原文；抑制模型对教材原文的过度依赖，省压缩调用与输入费' },
+  { value: 'anchor', label: '📌 标尺注入', desc: '仅【锚点清单】（含各考点具体概念，命题靶点明细）+ 难度标尺，不注入整章原文；抑制模型对教材原文的过度依赖，省压缩调用与输入费' },
 ];
 
 // 🔧 DeepSeek 模型选项（A13：云端现仅 V4.1 Flash 一个正式模型；优先云端发现，兜底同值）

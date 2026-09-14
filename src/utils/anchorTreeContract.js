@@ -145,8 +145,11 @@ export const diagnoseAnchorTree = (hierarchy, opts = {}) =>
  *   让模型看到"考点归属哪个知识主题"；`names` 仍保留扁平形态（章级范围判断/兼容取用）。
  *   ⚠️ 第1层只表**归属与范围**，不是写作栏目、不作命题单位（写作粒度以第2层考点为准）——
  *   因此它在清单里只以「主题：」前缀出现，且**与章名相同的第1层（目录锚形态）自动省略**，避免冗余。
- * @param {Array} anchors 锚列表（含 chapterTitle / bigConcept / name）
- * @returns {Array<{chapterTitle:string, names:string[], themes:Array<{bigConcept:string,names:string[]}>}>}
+ * ✅ A17（2026-09-14 用户定版）：**第3层具体概念（specificConcepts）随考点并入清单**——
+ *   标尺注入通道（命题/练习型）的注入物收敛为"锚点清单（含第3层）+ 难度标尺"，不再另注入语料锚；
+ *   第3层是经粒度校验的结构化概念靶点（如多音字辨析→长cháng/长zhǎng），比原文片段绑定更可靠。
+ * @param {Array} anchors 锚列表（含 chapterTitle / bigConcept / name / specificConcepts）
+ * @returns {Array<{chapterTitle:string, names:string[], themes:Array<{bigConcept:string,names:string[],concepts:Object<string,string[]>}>}>}
  */
 export const buildAnchorListByChapter = (anchors = []) => {
   const groups = new Map();
@@ -155,17 +158,25 @@ export const buildAnchorListByChapter = (anchors = []) => {
     if (!groups.has(ch)) groups.set(ch, { names: [], themeIndex: new Map() });
     const name = String(a?.name || '').trim();
     if (!name) continue;
+    const concepts = (Array.isArray(a?.specificConcepts) ? a.specificConcepts : [])
+      .filter((c) => String(c || '').trim());
     const g = groups.get(ch);
     if (!g.names.includes(name)) g.names.push(name);
     const big = String(a?.bigConcept || '').trim();
-    if (!g.themeIndex.has(big)) g.themeIndex.set(big, []);
-    const bucket = g.themeIndex.get(big);
-    if (!bucket.includes(name)) bucket.push(name);
+    if (!g.themeIndex.has(big)) g.themeIndex.set(big, new Map());
+    const bucket = g.themeIndex.get(big); // Map<考点名, 具体概念[]>
+    if (!bucket.has(name)) bucket.set(name, []);
+    const merged = bucket.get(name);
+    for (const c of concepts) if (!merged.includes(c)) merged.push(c);
   }
   return [...groups.entries()].map(([chapterTitle, g]) => ({
     chapterTitle,
     names: g.names,
-    themes: [...g.themeIndex.entries()].map(([bigConcept, names]) => ({ bigConcept, names })),
+    themes: [...g.themeIndex.entries()].map(([bigConcept, m]) => ({
+      bigConcept,
+      names: [...m.keys()],
+      concepts: Object.fromEntries(m),
+    })),
   }));
 };
 
@@ -173,14 +184,24 @@ export const buildAnchorListByChapter = (anchors = []) => {
 const isMeaningfulTheme = (bigConcept, chapterTitle) =>
   !!bigConcept && bigConcept !== String(chapterTitle || '').trim();
 
+/** ✅ A17：考点名后附第3层具体概念（命题靶点明细，紧凑形态）；无概念/超限量 → 不带或加"等" */
+export const MAX_SPECIFIC_CONCEPTS_PER_ANCHOR = 6;
+const withConcepts = (name, concepts) => {
+  const list = Array.isArray(concepts) ? concepts.filter((c) => String(c || '').trim()) : [];
+  if (!list.length) return name;
+  const tail = list.length > MAX_SPECIFIC_CONCEPTS_PER_ANCHOR ? '等' : '';
+  return `${name}（${list.slice(0, MAX_SPECIFIC_CONCEPTS_PER_ANCHOR).join('、')}${tail}）`;
+};
+
 /**
- * ✅ A1-4 / A1-4b：锚点清单呈现形态。
+ * ✅ A1-4 / A1-4b / A17：锚点清单呈现形态。
  *   无有意义的第1层 → 紧凑单行：`【章名】考点A、考点B…`
  *   有第1层 → 分层呈现：
  *     【章名】
  *     · 知识主题A：考点A、考点B
  *     · 知识主题B：考点C
- *   章序不变（一行一章 / 一主题一行），第1层与第2层均同名去重。
+ *   章序不变（一行一章 / 一主题一行），第1层与第2层均同名去重；
+ *   考点名后括号内为第3层具体概念（每考点限量，超限加"等"）。
  */
 export const formatAnchorListByChapter = (anchors = []) =>
   buildAnchorListByChapter(anchors)
@@ -188,11 +209,18 @@ export const formatAnchorListByChapter = (anchors = []) =>
     .map((g) => {
       const themes = (g.themes || []).filter((t) => t.names.length > 0);
       const hasTheme = themes.some((t) => isMeaningfulTheme(t.bigConcept, g.chapterTitle));
-      if (!hasTheme) return `【${g.chapterTitle}】${g.names.join('、')}`;
+      const fmtNames = (names, concepts) => names.map((n) => withConcepts(n, concepts?.[n])).join('、');
+      if (!hasTheme) {
+        // 无主题 → 章级扁平：合并各主题下的概念映射（同名考点只归一个主题，合并仅防异常）
+        const merged = Object.fromEntries(
+          themes.flatMap((t) => [...Object.entries(t.concepts || {})]),
+        );
+        return `【${g.chapterTitle}】${fmtNames(g.names, merged)}`;
+      }
       const body = themes
         .map((t) => (isMeaningfulTheme(t.bigConcept, g.chapterTitle)
-          ? `· ${t.bigConcept}：${t.names.join('、')}`
-          : `· ${t.names.join('、')}`))
+          ? `· ${t.bigConcept}：${fmtNames(t.names, t.concepts)}`
+          : `· ${fmtNames(t.names, t.concepts)}`))
         .join('\n');
       return `【${g.chapterTitle}】\n${body}`;
     })
@@ -203,60 +231,17 @@ export const formatAnchorListByChapter = (anchors = []) =>
  *     本条只声明**结构性事实 + 覆盖下限**，**不写"可补充清单外"**——因为清单之外能否补充/整合**按资料类型而异**
  *     （题类可补充、归纳复习类可关联已学旧知成网络、预习默写类守本课/守教材），统一口径收敛在
  *     委托书【素材使用约定】（数据源 coverageContract.extentOf），避免在此处一刀切放水。
- *     原"最小单位**一律**是考点"的"一律"易被读成"只能考清单内的点"，已去。 */
+ *     原"最小单位**一律**是考点"的"一律"易被读成"只能考清单内的点"，已去。
+ *  ✅ A17（2026-09-14 用户定版）：加入第3层说明——考点名后括号内为具体概念（命题靶点明细），
+ *     不是写作栏目、不构成新的组织维度。 */
 export const ANCHOR_LIST_ROLE_NOTE =
   '说明：清单按「章 → 知识主题 → 考点」组织。**知识主题（第1层）仅表考点归属与范围，不是写作栏目、不是命题单位**；'
-  + '写作与命题的最小单位是各主题下的**考点**（第2层）。不带「主题：」前缀的章 = 该章考点未再分主题。'
+  + '写作与命题的最小单位是各主题下的**考点**（第2层）。'
+  + '考点名后括号内为该考点的**具体概念**（第3层，命题靶点明细）：仅细化"该考点含哪些概念/词条/数值"，'
+  + '不构成新的写作栏目，不得据此另立结构。'
+  + '不带「主题：」前缀的章 = 该章考点未再分主题。'
   + '🔴 清单是**覆盖下限**：清单内考点须全部覆盖到（保证本单元必学知识不漏）；'
   + '它**不是命题范围的全部**——清单之外能否补充或整合，按资料类型见委托书【素材使用约定】。';
-
-/** 片段截断：优先在句末断（保留语义完整），否则硬切加省略号 */
-const trimAnchorText = (text, max) => {
-  const t = String(text || '').replace(/\s+/g, ' ').trim();
-  if (t.length <= max) return t;
-  const cut = t.slice(0, max);
-  const m = cut.match(/.*[。！？；.!?;，,]/);
-  return (m && m[0].length > max * 0.5 ? m[0] : cut) + '…';
-};
-
-/**
- * ✅ A16（2026-09-14 素材通道）：语料锚（标尺注入通道的教材最小语料）
- *   锚点清单只给考点名；本函数把考点绑定的原文片段（bind.segments）按章分组成最小语料，
- *   供「标尺注入」通道（命题/练习型资料默认）在**不注入整章原文**时仍保留教材表述依据。
- *   取材口径：只取正文/例题类片段（排除练习/习题/作业/检测段——防把题面当语料）；
- *   限量：每考点 ≤ maxSegPerAnchor 段、每段 ≤ maxCharsPerSeg 字、全局限 maxTotalChars 字。
- * @param {Array} anchors 扁平锚列表（含 chapterTitle/name/bind.segments，见 coverageAnchor.bindOneCard）
- * @param {{maxSegPerAnchor?:number, maxCharsPerSeg?:number, maxTotalChars?:number}} [opts]
- * @returns {string} 按章分组的语料锚文本（无可用片段 → ''）
- */
-export const formatCorpusAnchorByChapter = (anchors = [], opts = {}) => {
-  const maxSegPerAnchor = opts.maxSegPerAnchor || 2;
-  const maxCharsPerSeg = opts.maxCharsPerSeg || 120;
-  const maxTotalChars = opts.maxTotalChars || 2000;
-  const EXCLUDE_SEG_TYPE = /练习|习题|作业|检测/;
-  const groups = new Map();
-  for (const a of (anchors || [])) {
-    const name = String(a?.name || '').trim();
-    const segs = (a?.bind?.segments || [])
-      .filter((s) => s && s.text && !EXCLUDE_SEG_TYPE.test(String(s.type || '')));
-    if (!name || !segs.length) continue;
-    const ch = String(a?.chapterTitle || '').trim() || '未标注章节';
-    if (!groups.has(ch)) groups.set(ch, []);
-    const texts = segs.slice(0, maxSegPerAnchor)
-      .map((s) => trimAnchorText(s.text, maxCharsPerSeg))
-      .filter(Boolean);
-    if (texts.length) groups.get(ch).push(`· ${name}：${texts.join('｜')}`);
-  }
-  let total = 0;
-  const out = [];
-  for (const [ch, items] of groups) {
-    const block = `【${ch}】\n${items.join('\n')}`;
-    if (total + block.length > maxTotalChars && out.length) break;
-    out.push(block);
-    total += block.length;
-  }
-  return out.join('\n');
-};
 
 /** 单章诊断日志（A1-3 的**可观测证据**：一条含全部指标，便于日志抓取核对） */
 export const logAnchorGranularity = (report = {}) => {

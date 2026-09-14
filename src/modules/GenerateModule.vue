@@ -3206,11 +3206,11 @@ const labelStyleOptions = computed(() => {
 const labelStyleLabel = computed(() => labelStyle.value || '自动轮换');
 
 // 📚 素材通道标签（2026-09-14 用户定版开关）：提示"生成时自动附加"当前注入口径。
-//    默认映射单一事实源在 useAiGenerator MATERIAL_CHANNEL_DEFAULT，此处仅作 UI 展示口径。
+//    默认映射单一事实源在 coverageContract MATERIAL_CHANNEL_DEFAULT，此处仅作 UI 展示口径。
 const materialChannelLabel = computed(() => {
   const ch = apiConfig.generationSettings.materialChannel || 'auto';
   if (ch === 'full') return '全文注入（整章原文进指令）';
-  if (ch === 'anchor') return '标尺注入（仅锚点清单+语料锚）';
+  if (ch === 'anchor') return '标尺注入（仅锚点清单含具体概念）';
   return '自动（归纳型全文/命题型标尺）';
 });
 

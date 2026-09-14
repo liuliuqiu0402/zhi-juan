@@ -114,7 +114,7 @@ describe('素材通道默认映射 MATERIAL_CHANNEL_DEFAULT（auto 口径）', (
     for (const k of ['summary', 'review', 'preview', 'dictation']) {
       expect(materialChannelOf(k), k).toBe('full');
     }
-    // 命题/练习型：只给【锚点清单】+【语料锚】，不注入整章原文（抑制对教材原文的过度依赖）
+    // 命题/练习型：只给【锚点清单】（含第3层具体概念 A17，命题靶点明细），不注入整章原文（抑制对教材原文的过度依赖）
     for (const k of ['exam', 'practice', 'special', 'reading', 'errorbook']) {
       expect(materialChannelOf(k), k).toBe('anchor');
     }
