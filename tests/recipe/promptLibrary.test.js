@@ -10,6 +10,7 @@ import {
   getPromptTemplate, savePromptTemplate, deletePromptTemplate,
   buildInjectionInstruction, buildStructureText, PAPER_OUTPUT_CONVENTIONS,
   applyMaterialChannel, GEN_TYPE_NAMES, SUBJECT_STAGE_EXTRAS,
+  listPromptTemplates, canonicalizeMaterialPlaceholders,
 } from '@/config/promptLibrary.js';
 import { setLibToggle } from '@/utils/libToggles.js';
 
@@ -150,6 +151,27 @@ describe('注入指令组装（拼接格式与顺序）', () => {
       }
     }
     expect(bad, bad.slice(0, 5).join('；')).toEqual([]);
+  });
+
+  it('A18 保存/导入入口规范化：硬写段头与说明句入库前换成占位符（库=注入口径同构，不留歧义字面）', () => {
+    const hardcoded = '【教材原文（仅供理解：题型结构与知识梯度）】\n'
+      + '（教材原文以【压缩原文】随本委托注入；覆盖范围见开头【锚点清单】，清单为**覆盖下限**；清单外的补充/整合口径与使用引用约束见【素材使用约定】，以该处为准）';
+    // 规范化：段头与整句说明都换占位符
+    expect(canonicalizeMaterialPlaceholders(hardcoded))
+      .toBe('【{materialHead}（仅供理解：题型结构与知识梯度）】\n{material}');
+    // 已是占位符 → 幂等；空串安全
+    expect(canonicalizeMaterialPlaceholders('【{materialHead}】\n{material}')).toBe('【{materialHead}】\n{material}');
+    expect(canonicalizeMaterialPlaceholders('')).toBe('');
+
+    // 保存入口自动规范化（库内不再存硬写段头）
+    const key = '语文|primary_high|exam';
+    expect(savePromptTemplate(key, { name: '自定义', template: hardcoded })).toBe(true);
+    const saved = listPromptTemplates().find((t) => t.key === key)?.template || '';
+    expect(saved).toContain('{materialHead}');
+    expect(saved).not.toContain('【教材原文');
+    // 渲染两通道仍正确
+    expect(buildInjectionInstruction({ template: saved, subject: '语文' })).toContain('【教材原文（仅供理解');
+    expect(buildInjectionInstruction({ template: saved, subject: '语文', materialChannel: 'anchor' })).toContain('【教材依据（仅供理解');
   });
 
   it('无用户附加时不输出附加块', () => {

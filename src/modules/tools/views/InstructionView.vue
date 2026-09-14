@@ -328,7 +328,7 @@
 <script setup>
 import { computed, inject, ref, watch, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
-import { listPromptTemplates, savePromptTemplate, deletePromptTemplate, BUILTIN_TEMPLATES, CURRICULUM_VERSION_INFO, GEN_TYPE_NAMES } from '../../../config/promptLibrary.js';
+import { listPromptTemplates, savePromptTemplate, deletePromptTemplate, BUILTIN_TEMPLATES, CURRICULUM_VERSION_INFO, GEN_TYPE_NAMES, canonicalizeMaterialPlaceholders } from '../../../config/promptLibrary.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 import { setLibToggle, listDisabledEntries } from '../../../utils/libToggles.js';
@@ -575,8 +575,14 @@ const doImport = async (e) => {
   try {
     const data = await importLibrary(file);
     if (typeof data !== 'object' || data === null) throw new Error('数据格式不正确');
-    writeLib(TPL_USER_KEY, data);
-    window.alert(`导入成功（${Object.keys(data).length} 条自定义模板）。`);
+    // ✅ A18：导入的模板同样做素材段字面规范化（硬写段头/说明 → {materialHead}/{material}），
+    //    保证库内容通道无关——编辑器所见即库内容，库内容与真实注入口径同构（不留歧义字面）。
+    const cleaned = {};
+    for (const [k, v] of Object.entries(data)) {
+      cleaned[k] = { ...(v || {}), template: canonicalizeMaterialPlaceholders(v?.template || '') };
+    }
+    writeLib(TPL_USER_KEY, cleaned);
+    window.alert(`导入成功（${Object.keys(cleaned).length} 条自定义模板）。`);
     reload();
   } catch (err) {
     window.alert('导入失败：' + err.message);

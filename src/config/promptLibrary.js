@@ -664,11 +664,31 @@ export function getPromptTemplate({ grade = '', subject = '', genType = '' }) {
   return { id: genType, name, template: builtin, source: 'builtin' };
 }
 
-/** 保存用户模板（genType 维度或三维度精确） */
+/**
+ * 素材段字面规范化（**通道无关**，保存/导入入口用）：
+ *   把硬写的段头（「教材原文」/「教材依据」）与整句说明换成占位符 `{materialHead}` / `{material}`，
+ *   使用户库中存的就是通道无关模板。动因（2026-09-14 用户定「编辑器所见即真实注入，不能有歧义」）：
+ *   库里若留着硬写段头，编辑器显示的字面就与实际注入不符——入口处一次规范化，库内容与注入口径同构。
+ *   幂等：已是占位符的模板原样返回；对空串安全。
+ */
+export function canonicalizeMaterialPlaceholders(text = '') {
+  return String(text || '')
+    .split('【教材原文').join('【{materialHead}')
+    .split('【教材依据').join('【{materialHead}')
+    .split(MATERIAL_HINT.full).join('{material}')
+    .split(MATERIAL_HINT.anchor).join('{material}');
+}
+
+/** 保存用户模板（genType 维度或三维度精确）
+ *  ✅ A18：模板先做素材段字面规范化（硬写段头/说明 → 占位符），保证库内容通道无关（库=注入口径同构）。 */
 export function savePromptTemplate(key, { name = '', template = '' }) {
   if (!key || !template) return false;
   const lib = loadUserLibrary();
-  lib[key] = { name, template, updatedAt: Date.now() };
+  lib[key] = {
+    name,
+    template: canonicalizeMaterialPlaceholders(template),
+    updatedAt: Date.now(),
+  };
   saveUserLibrary(lib);
   return true;
 }
@@ -856,6 +876,7 @@ export default {
   listPromptTemplates,
   buildInjectionInstruction,
   applyMaterialChannel,
+  canonicalizeMaterialPlaceholders,
   MATERIAL_HEAD,
   buildStructureText,
   buildSealLineHeader,
