@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   getPromptTemplate, savePromptTemplate, deletePromptTemplate,
   buildInjectionInstruction, buildStructureText, PAPER_OUTPUT_CONVENTIONS,
-  applyMaterialChannel,
+  applyMaterialChannel, GEN_TYPE_NAMES, SUBJECT_STAGE_EXTRAS,
 } from '@/config/promptLibrary.js';
 import { setLibToggle } from '@/utils/libToggles.js';
 
@@ -119,14 +119,37 @@ describe('注入指令组装（拼接格式与顺序）', () => {
     expect(anchor).toContain('【素材使用约定】');
   });
 
-  it('A18 幂等：applyMaterialChannel 对已渲染指令二次调用不叠加、不改写（默认通道原样返回）', () => {
-    const tplText = '【教材原文（仅供理解：题型结构与知识梯度）】\n{material}';
-    const rendered = buildInjectionInstruction({ template: tplText, subject: '语文', materialChannel: 'anchor' });
-    expect(applyMaterialChannel(rendered, 'anchor')).toBe(rendered);            // 二次调用不变
-    expect(applyMaterialChannel(rendered, 'full')).not.toContain('【教材原文'); // 通道改回 full 不还原段头（只做单向改写，防误伤已渲染文本）
-    const plain = buildInjectionInstruction({ template: tplText, subject: '语文' });
-    expect(applyMaterialChannel(plain, '')).toBe(plain);                       // 空通道 = 原样返回
-    expect(applyMaterialChannel(plain, 'full')).toBe(plain);                   // full 通道 = 原样返回
+  it('A18 双向归一：通道来回切换可逆，且幂等（同一文本重复归一不变）', () => {
+    const tplText = '【{materialHead}（仅供理解：题型结构与知识梯度）】\n{material}';
+    const full = buildInjectionInstruction({ template: tplText, subject: '语文' });
+    const anchor = buildInjectionInstruction({ template: tplText, subject: '语文', materialChannel: 'anchor' });
+    expect(anchor).not.toBe(full);
+
+    // anchor → full：段头与说明都还原（双向，不只单向改写）
+    const backToFull = applyMaterialChannel(anchor, 'full');
+    expect(backToFull).toBe(full);
+    // full → anchor 再归一 = 原 anchor（可逆）
+    expect(applyMaterialChannel(backToFull, 'anchor')).toBe(anchor);
+    // 幂等：同一目标通道重复归一不变
+    expect(applyMaterialChannel(anchor, 'anchor')).toBe(anchor);
+    expect(applyMaterialChannel(full, 'full')).toBe(full);
+    // 空通道 = 按 full 兜底（与既有默认行为一致），不产生第三态
+    expect(applyMaterialChannel(full, '')).toBe(full);
+  });
+
+  it('A18 模板不得硬写素材段段头（否则指令库编辑器显示与真实注入不符）', () => {
+    const genTypes = Object.keys(GEN_TYPE_NAMES);
+    const cells = Object.keys(SUBJECT_STAGE_EXTRAS);
+    const bad = [];
+    for (const cell of cells) {
+      const [subject, stage] = cell.split('|');
+      for (const genType of genTypes) {
+        const t = getPromptTemplate({ grade: stage, subject, genType })?.template || '';
+        if (!t.includes('{materialHead}')) bad.push(`${cell}|${genType} 缺 {materialHead}`);
+        if (t.includes('【教材原文')) bad.push(`${cell}|${genType} 硬写【教材原文`);
+      }
+    }
+    expect(bad, bad.slice(0, 5).join('；')).toEqual([]);
   });
 
   it('无用户附加时不输出附加块', () => {

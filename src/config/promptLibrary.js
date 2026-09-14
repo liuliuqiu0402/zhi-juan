@@ -8,7 +8,11 @@
  *   grade×subject×genType 精确 → subject×genType → genType → 内置默认
  *
  * 模板含占位符（生成时替换）：
- *   {grade} {subject} {unit} {scope} {label} {structure} {fullScore} {duration} {material} {extra}
+ *   {grade} {subject} {unit} {scope} {label} {structure} {fullScore} {duration} {material} {materialHead} {extra}
+ *   · {material}     素材段说明（按素材通道渲染：full 指向【压缩原文】/ anchor 指向【锚点清单】）
+ *   · {materialHead} 素材段段头（full=「教材原文」/ anchor=「教材依据」）——**不得在模板里硬写段头名**，
+ *                    否则指令库编辑器会显示与真实注入不符的字面（歧义源）。两占位符由
+ *                    applyMaterialChannel 统一渲染，生成端与注入框共用同一函数（所见即所注入）。
  *
  * 单一事实源原则（2026-08 全局收敛，同义表述只留一处）：
  *   - 作答空/横线/括号/连线/排版标记规范：仅 OUTPUT_FORMAT_BLOCK 一处定义，全部模板统一引用；
@@ -47,16 +51,24 @@ const MATERIAL_HINT = {
 };
 
 /**
- * 素材通道渲染（模板/**已渲染指令**两处共用，幂等）：
- *   anchor 通道 → 段头「教材原文」改「教材依据」+ 说明句换为锚清单版（消除假指针）；
- *   其余（'' / 'auto' / 'full'）→ 原样返回（默认行为与既有完全一致）。
- * ✅ 对已渲染指令二次调用同样安全：anchor 说明句与 full 说明句互不包含，重复调用不叠加、不改写。
+ * 素材通道归一（**双向**，幂等）——把一段指令文本里的素材段（段头 + 说明句）规整到指定通道。
+ *   用途（三处共用同一函数，保证"注入框所见 = 实际注入"逐字一致）：
+ *     ① 模板渲染（buildInjectionInstruction 内，含 user 自定义模板的兜底）；
+ *     ② 注入框文本（生成模块草稿恢复/通道切换时归一，防旧通道文本残留）；
+ *     ③ 生成端发请求前兜底（幂等 → 与 ② 结果逐字相同，不产生"显示≠实发"）。
+ *   段头双向：`{materialHead}` 占位符 / 硬写的「教材原文」/ 已归一的「教材依据」→ 目标段头；
+ *   说明句双向：full 版 ↔ anchor 版 互相替换。两版说明互不包含，重复调用不叠加。
  */
 export function applyMaterialChannel(text = '', channel = '') {
   const isAnchor = channel === 'anchor';
+  const head = MATERIAL_HEAD[isAnchor ? 'anchor' : 'full'];
+  const hint = MATERIAL_HINT[isAnchor ? 'anchor' : 'full'];
   return String(text || '')
-    .split('【教材原文').join(`【${MATERIAL_HEAD[isAnchor ? 'anchor' : 'full']}`)
-    .split(MATERIAL_HINT.full).join(MATERIAL_HINT[isAnchor ? 'anchor' : 'full']);
+    .split('{materialHead}').join(head)   // 模板占位符（内置模板用）
+    .split('【教材原文').join(`【${head}`)  // 历史/用户模板硬写段头（双向归一）
+    .split('【教材依据').join(`【${head}`)
+    .split(MATERIAL_HINT.full).join(hint)  // 说明句双向归一
+    .split(MATERIAL_HINT.anchor).join(hint);
 }
 
 /** 资料类型中文名（模板列表展示/任务行用）
@@ -229,7 +241,7 @@ const EXAM_BASE = (extra = '', ctx = {}) => `你是资深命题专家。请为{g
 · 🔴 部分层（仅当【卷面结构】含"第X部分 听力/笔试部分（共N大题，满分M分）"行时适用）：该行作为部分标题输出为居中加粗的独立段落（不用 h1/h2 标签，避免与 h2 大题标题层级混淆；段内可用 <strong> 加粗），其后各 h2 大题标题序号保持全卷连续（一、二、…跨部分不顺延不重复）
 · 🔴 页码、分页由系统生成，正文不输出页码文字（答案归属见【输出格式】——正文严禁混入答案/解析）
 
-【教材原文（仅供理解：题型结构与算理/知识梯度、覆盖点核对；${MATERIAL_USAGE_CLAUSE}）】
+【{materialHead}（仅供理解：题型结构与算理/知识梯度、覆盖点核对；${MATERIAL_USAGE_CLAUSE}）】
 {material}
 
 ${OUTPUT_FORMAT_BLOCK('exam', ctx)}${extra}`;
@@ -278,7 +290,7 @@ const PRACTICE_BASE = (extra = '', ctx = {}) => `你是教辅编辑·课时练�
 · 核心知识覆盖：题目须覆盖本课【锚点清单】中的每一项——本课知识层级（大概念 → 核心知识）逐点至少以一道题或任务呈现一次（可多点综合于一题、可同点多题变式复现），不得整点遗漏；命完对照清单自查，缺漏即补题，不依赖事后对账
 · 细致与深度要求：任务间有梯度与关联，层次与顺序依内容自然形成；每个任务情境完整、步骤清晰、有过程性设问；变式换情境、换角度、换设问，不只换数字；设问指向真实思维，避免机械重复。
 
-【教材原文（仅供理解：题型结构与知识梯度、覆盖点核对；${MATERIAL_USAGE_CLAUSE}）】
+【{materialHead}（仅供理解：题型结构与知识梯度、覆盖点核对；${MATERIAL_USAGE_CLAUSE}）】
 {material}
 
 ${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`;
@@ -293,7 +305,7 @@ const TYPE_BASES = {
 【创作要求】板块划分与题量按生成时注入的【教辅结构】执行；聚焦{unit}薄弱点；题目完整可作答。
 · 细致与深度要求：按核心知识精准聚焦；板块设问有合理梯度、由浅入深；每板块含易错点辨识与思路点拨，解析讲明"错因—如何避免—正确思路"，不只给答案。
 
-【教材原文（仅供理解：题型结构与知识梯度、覆盖点核对；${MATERIAL_USAGE_CLAUSE}）】
+【{materialHead}（仅供理解：题型结构与知识梯度、覆盖点核对；${MATERIAL_USAGE_CLAUSE}）】
 {material}
 
 ${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
@@ -303,7 +315,7 @@ ${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
 【创作要求】以问题驱动预读，设计少量可操作、可检查的预读任务，任务形态灵活、不预设具体形式；栏目以注入的【教辅结构】为准（须含"我的疑问"栏目）；紧扣教材原文。
 · 细致与深度要求：任务体现由浅入深的认知进阶，覆盖本课全部新知（以【锚点清单】为覆盖清单——须**全部覆盖**（下限）；本资料为预习定位，不做清单外补充；不得整点遗漏）；每个任务写明"做什么+怎么做+完成标准（能自查）"，不写空泛的"了解/掌握"式口号；用真实情境或生活经验引出待学问题；引导用已有知识联结新知、带着问题进课堂；「我的疑问」给出思考支架（圈画关键处、联系旧知、先自查再记疑）。
 
-【教材原文】
+【{materialHead}】
 {material}
 
 ${OUTPUT_FORMAT_BLOCK('content', ctx)}${extra}`,
@@ -313,7 +325,7 @@ ${OUTPUT_FORMAT_BLOCK('content', ctx)}${extra}`,
 【创作要求】短文无语病；篇数/字数/题量按生成时注入的【教辅结构】执行。
 · 细致与深度要求：选文完整、无语病、主题与单元相关；设问由浅入深、有思维层次与梯度，引导理解；不宜在原文找现成字面答案。
 
-【教材原文（仅供理解：单元主题与相关语料风格；选文须为**课外语篇**——可原创，或选编/改编自课外读物，不得沿用课文原文，选编须改写、不得整段照录；设问自拟，不得照搬教材原题）】
+【{materialHead}（仅供理解：单元主题与相关语料风格；选文须为**课外语篇**——可原创，或选编/改编自课外读物，不得沿用课文原文，选编须改写、不得整段照录；设问自拟，不得照搬教材原题）】
 {material}
 
 ${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
@@ -324,7 +336,7 @@ ${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
 知识总结中「典型例题」栏目为讲解示范定位：典型例题给出完整题目后**立即同步给出答案与解析**，不预留学生作答空间，用于知识点应用示范讲解。
 · 细致与深度要求：围绕核心知识按有利于理解的认知层次组织，每个知识点同时给出内涵、适用前提、使用注意、常见误区，不只罗列要点；含规律与方法归纳；易错点睛到具体易混处。
 
-【教材原文】
+【{materialHead}】
 {material}
 
 ${OUTPUT_FORMAT_BLOCK('content', ctx)}${extra}`,
@@ -334,7 +346,7 @@ ${OUTPUT_FORMAT_BLOCK('content', ctx)}${extra}`,
 【创作要求】严格对应教材要求，内容准确无误；覆盖量与栏目按生成时注入的【教辅结构】执行。
 · 细致与深度要求：内容置于语境/情境呈现，不孤立罗列；覆盖本课时/单元全部要求掌握内容（以【锚点清单】为覆盖清单——须**全部覆盖**（下限）；默写严格对应教材要求，不做清单外补充；不得遗漏）；含易错点辨析；内容层次与呈现方式贴合本学段（低年级重书写规范、中高年级与初高中重语境理解与运用）。
 
-【教材原文】
+【{materialHead}】
 {material}
 
 ${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
@@ -344,7 +356,7 @@ ${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
 【创作要求】按知识点或错因分类组织（每类一个板块）；每题结构按生成时注入的【教辅结构】执行。
 · 细致与深度要求：归因具体到知识点/思维环节/易错点，不写空泛套话；正确解法分步完整并讲透思路；同类变式换情境、换设问角度；归纳可迁移的本类题通用策略。
 
-【教材原文（仅供理解：题型结构与知识梯度；错题题干/变式的数据、情境、句式一律自拟，禁止沿用原文连续字面）】
+【{materialHead}（仅供理解：题型结构与知识梯度；错题题干/变式的数据、情境、句式一律自拟，禁止沿用原文连续字面）】
 {material}
 
 ${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
@@ -354,7 +366,7 @@ ${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
 【创作要求】栏目以注入的【教辅结构】为准；核心知识覆盖完整、不遗漏。
 · 细致与深度要求：知识网络化呈现；核心知识按由浅入深的认知层次分层梳理，逐条给要点（分层切法依内容自定）；典型题给解题思路剖析；易错辨析具体到易混处；自测有梯度，覆盖本单元全部核心知识。
 
-【教材原文】
+【{materialHead}】
 {material}
 
 ${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,

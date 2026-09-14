@@ -3102,7 +3102,7 @@ import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
 import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
 import { findBlueprint } from '../config/blueprintProvider.js';
-import { getPromptTemplate, buildInjectionInstruction, buildStructureText, buildOutputFormatHint, getCurriculumLabel } from '../config/promptLibrary.js';
+import { getPromptTemplate, buildInjectionInstruction, buildStructureText, buildOutputFormatHint, getCurriculumLabel, applyMaterialChannel } from '../config/promptLibrary.js';
 import { materialChannelOf } from '../config/coverageContract.js'; // 📚 素材通道默认映射（auto 口径单一事实源，2026-09-14）
 import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructureText, buildSpecialDomainAnchorLine } from '../config/specialDomains.js'; // 🎯 专项领域注册库（学科×学段→栏目结构+课标语义锚）
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
@@ -6351,10 +6351,23 @@ const refreshProgramAttach = () => {
   });
 };
 
+// ✅ A18（2026-09-14 素材通道）：把注入框内的素材段（段头/说明）按**当前通道**归一（幂等）。
+//    为什么必须归一到框内文本：注入框就是本次实发内容（textarea 直传生成端），
+//    "看到一套、发出去另一套"是不可接受的歧义——旧通道文本（如切档前/冷启动恢复的草稿）就地纠正。
+const normalizeDraftMaterial = () => {
+  const t = (genTypes.value || [])[0];
+  if (!t || !instructionDraft.value.trim()) return;
+  const next = applyMaterialChannel(instructionDraft.value, resolveMaterialChannel(t));
+  if (next !== instructionDraft.value) instructionDraft.value = next;
+};
+
 const ensureInjectedInstruction = async () => {
   if (!instructionDraft.value.trim()) {
     await loadInstructionFromLibrary();
   } else {
+    // ✅ A18：草稿可能来自切换素材通道之前或冷启动恢复 → 发请求前先把素材段按当前通道归一到注入框本身，
+    //    归一后框内文本与生成端发送文本逐字一致（生成端同函数的归一即成为无操作）。
+    normalizeDraftMaterial();
     refreshProgramAttach(); // 草稿非空：委托正文保留用户内容，程序附加段按当前勾选刷新（防失配）
   }
   return instructionDraft.value.trim();
@@ -6377,6 +6390,8 @@ const clearInstruction = async () => {
 //    重新组装——从源头杜绝跨次生成旧类型指令残留（如先出"正式试卷"再出"课时练"仍注入 exam 角色/
 //    真题蓝本）；用户手动编辑的指令同样失效（勾选是事实源，编辑基于旧勾选无意义）。
 //    模板勾选不影响指令组装（loadInstructionFromLibrary 只用教材库），不纳入 watch 源。
+//    📚 A18（2026-09-14 素材通道）：素材通道同属"决定注入内容"的状态——切换后旧草稿的素材段
+//    （段头/说明）即与真实注入不符（注入框所见≠实发），故一并纳入失效源，随勾选变化走同一套重置。
 watch(
   () => [
     (genTypes.value || []).join(','),
@@ -6386,6 +6401,7 @@ watch(
       .join(';'),
     scopeType.value || '',
     specialSubType.value || '', // 🎯 专项领域变化同样重置指令（生成时按当前领域重新组装）
+    apiConfig.generationSettings.materialChannel || 'auto', // 📚 素材通道（A18）：切换后素材段需按新通道重渲染
   ].join('~~'),
   () => {
     programAttachText.value = ''; // 程序性附加段与委托正文同源：勾选变化一并清空，生成时随 ensure 重建
@@ -6393,7 +6409,7 @@ watch(
     if (!instructionDraft.value.trim()) return;
     instructionDraft.value = '';
     userEditedInstruction = false;
-    previewHint.value = '检测到三维度勾选变化，指令已重置——生成时将按当前勾选自动重新组装（或点「🔧 生成指令」立即预览）。';
+    previewHint.value = '检测到三维度勾选或素材通道变化，指令已重置——生成时将按当前设置自动重新组装（或点「🔧 生成指令」立即预览）。';
     injectSources.value = [];
   }
 );
@@ -8955,7 +8971,9 @@ onMounted(async () => {
 });
 
 // 🔧 KeepAlive 重新激活：重新注册事件监听 + 重载数据（同步可能在此期间发生）
-onActivated(async () => { _setupListeners(); const docs = await loadGeneratedDocs(); if (docs.length > 0) generatedDocs.value = docs; });
+// 📚 A18：从设置页切回时素材通道可能已改（watch 已清空旧草稿）；若草稿仍在（冷启动恢复等），
+//    就地按当前通道归一，保证注入框所见即实发。
+onActivated(async () => { _setupListeners(); normalizeDraftMaterial(); const docs = await loadGeneratedDocs(); if (docs.length > 0) generatedDocs.value = docs; });
 
 // 🔧 KeepAlive 停用缓存：移除监听，避免不活跃实例收到事件
 onDeactivated(() => { _teardownListeners(); });

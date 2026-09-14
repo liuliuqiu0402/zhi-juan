@@ -184,7 +184,7 @@
             v-model="draft.template"
             rows="10"
             class="tpl-editarea"
-            placeholder="模板正文（占位符 {grade}/{subject}/{unit}/{structure}/{fullScore}/{duration}/{extra} 生成时替换）"
+            placeholder="模板正文（占位符 {grade}/{subject}/{unit}/{structure}/{fullScore}/{duration}/{material}/{materialHead}/{extra} 生成时替换；素材段段头请用 {materialHead}，勿硬写「教材原文」，否则与真实注入不符）"
           />
           <div class="tpl-ops">
             <button
