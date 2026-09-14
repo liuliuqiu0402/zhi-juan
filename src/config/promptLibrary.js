@@ -246,9 +246,11 @@ const EXAM_BASE = (extra = '', ctx = {}) => `你是资深命题专家。请为{g
 
 ${OUTPUT_FORMAT_BLOCK('exam', ctx)}${extra}`;
 
-/** 输出格式块（按类型三维度：'exam' 正式卷带分值标注 / 'question' 题为主教辅 / 'content' 内容型不用题号；
- *  ctx 传 subject/stage 时书写载体条款按 学科×学段 生成（buildCarrierInstruction），无上下文走通用句） */
-const OUTPUT_FORMAT_BLOCK = (mode = 'question', ctx = {}) => {
+/** 输出格式块的分段形式（单源）：format = 【输出格式】段（含作答载体与答案区条款）；quality = 【质量底线】段
+ *  ✅ A20（2026-09-14 用户定「分开更好」）：拆段的目的是**段级兜底**——程序附加段按 marker 判缺、
+ *     缺哪段补哪段（原先兜底判据只看【输出格式】，见 programAttach.js），不再"缺一补整块"。
+ *  🔴 与 OUTPUT_FORMAT_BLOCK 同源同文：块 = `\n\n${format}\n${quality}`，模板侧逐字不变。 */
+const outputFormatSections = (mode = 'question', ctx = {}) => {
   const isContent = mode === 'content';
   // 🔴 大题名示例不带学科词（"识字与写字"只进语文蓝本明细，不广播到全学科 exam 格式示例）
   const head = mode === 'exam'
@@ -263,14 +265,21 @@ const OUTPUT_FORMAT_BLOCK = (mode = 'question', ctx = {}) => {
     // 内容型：条目/编号/标记规则统一由 CONTENT_FORMAT 单源给出（曾在此与 CONTENT_FORMAT 同义双写，批次 B 复核修）
     : '';
   const fmt = isContent ? CONTENT_FORMAT : QUESTION_FORMAT(ctx);
-  const quality = QUALITY_BASE;
-  return `
-
-【输出格式】（结构清晰，便于排版导出）
+  const format = `【输出格式】（结构清晰，便于排版导出）
 · 大标题用 <h1>；${headLabel}用 <h2>（${head}）
 ${itemRule}
 ${fmt}
-· 🔴 学生作答题目的答案/解析/评分标准${HAS_LISTENING(ctx.subject) ? '/听力原文' : ''}仅出现在独立答案区（once 模式在正文之后，split 模式由系统单独生成）；题目区严禁混入学生作答答案。例外：明确标注为「典型例题（含解析）/示例讲解」的讲解示范型栏目，可随例题即时展示解答与解析（讲解本体、不设作答空间），不属于需隐藏的学生答案
+· 🔴 学生作答题目的答案/解析/评分标准${HAS_LISTENING(ctx.subject) ? '/听力原文' : ''}仅出现在独立答案区（once 模式在正文之后，split 模式由系统单独生成）；题目区严禁混入学生作答答案。例外：明确标注为「典型例题（含解析）/示例讲解」的讲解示范型栏目，可随例题即时展示解答与解析（讲解本体、不设作答空间），不属于需隐藏的学生答案`;
+  return { format, quality: QUALITY_BASE };
+};
+
+/** 输出格式块（按类型三维度：'exam' 正式卷带分值标注 / 'question' 题为主教辅 / 'content' 内容型不用题号；
+ *  ctx 传 subject/stage 时书写载体条款按 学科×学段 生成（buildCarrierInstruction），无上下文走通用句） */
+const OUTPUT_FORMAT_BLOCK = (mode = 'question', ctx = {}) => {
+  const { format, quality } = outputFormatSections(mode, ctx);
+  return `
+
+${format}
 ${quality}`;
 };
 
@@ -376,6 +385,58 @@ ${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
 /** 数学概念考查底线（2026-09 F2 收敛：原分散于 5 档 SUBJECT_STAGE_EXTRAS 的同义长句收敛为学科级单一事实源，
  *   由 buildBuiltinTemplate 对数学学科一次注入——全类型注入与旧行为等价，防多处同义表述漂移） */
 const MATH_DISCIPLINE_LINE = '概念、法则与规律须显性考查其理解（能辨识含义、适用条件与易混区别），不以机械套算或仅作任务背景代替概念考查。';
+
+/** 内容型资料（preview/summary）走 CONTENT_FORMAT 而非作答载体条款——避免污染；
+ *  原先定义在文件后段（buildOutputFormatHint 旁），因守门条款段注册表需要提前求值，上移至此。 */
+const CONTENT_GEN_TYPES = ['preview', 'summary'];
+
+/**
+ * ✅ A20（2026-09-14 用户定「分开更好」）：**守门条款段注册表（单源）**
+ * ============================================================
+ * 为什么要有：
+ *   程序附加段的"兜底"原先只判 `【输出格式】` 在不在，但兜底内容 = 整块 OUTPUT_FORMAT_BLOCK
+ *   （格式段 +【质量底线】整段）→ 两个漏点：
+ *     ① 委托正文写了【输出格式】却删了【质量底线】时，判据认为"已有格式"→ 不兜底 →
+ *        **质量底线在委托正文与程序附加段两条通道里都不出现**（守门条款静默丢失）；
+ *     ② 委托正文缺【输出格式】时，把【质量底线】也整块重复注入（不同源，但语义重复表达）。
+ *   改为**按段判缺、缺哪段补哪段**：本表列出所有守门条款段，每段给出
+ *     `marker`（判缺依据，与注入文本段头逐字一致）+ `text`（与委托正文注入同源同文）。
+ * 🔴 只收守门条款（格式 / 质量底线 / 数·量构造纪律 / 学科事实底线 / 学科命题底线）；
+ *    **不收创作方向类**（学科×学段要点、学段特点）——后者属委托书【创作要求】语义，缺了由模板自身表达，
+ *    且体量大，纳入兜底会把 system 撑成第二个委托书（越界）。
+ * 🔗 单源约束：本表文本与 buildBuiltinTemplate / OUTPUT_FORMAT_BLOCK 注入的文本必须逐字一致，
+ *    由 tests/utils/programAttachFloorFallback.test.js 断言（防两处各自演化）。
+ * @param {{subject?:string, stage?:string, genType?:string}} ctx
+ * @returns {Array<{marker:string,name:string,group:'format'|'subject-floor',text:string}>}
+ */
+export function floorClauseSections({ subject = '', stage = '', genType = '' } = {}) {
+  const out = [];
+  // ①② 格式段 + 质量底线段（与委托正文模板同源；mode 口径与 buildOutputFormatHint 一致：内容型走 content）
+  const mode = CONTENT_GEN_TYPES.includes(genType) ? 'content' : 'question';
+  const secs = outputFormatSections(mode, { subject, stage });
+  out.push({ marker: '【输出格式】', name: '输出格式', group: 'format', text: secs.format });
+  out.push({ marker: '【质量底线】', name: '质量底线', group: 'format', text: secs.quality });
+  // ③ 数·量构造纪律：仅计量学科（真实考"可数对象 + 单位换算"），防跨学科广播学科语义
+  if (QUANTITY_SUBJECTS.has(subject)) {
+    out.push({ marker: '【数·量构造纪律】', name: '数·量构造纪律', group: 'subject-floor', text: QUANTITY_DISCIPLINE });
+  }
+  // ④ 学科事实底线：按该科 stages 白名单（缺省=全部开设学段）；stage 缺省时不注入（与无学段模板行为一致）
+  const fact = SUBJECT_FACT_DISCIPLINE[subject];
+  if (stage && fact && (!fact.stages || fact.stages.includes(stage))) {
+    out.push({
+      marker: `【${subject}学科事实底线】`, name: `${subject}学科事实底线`, group: 'subject-floor',
+      text: `【${subject}学科事实底线】\n${fact.text}`,
+    });
+  }
+  // ⑤ 数学学科命题底线：数学且该学段实际开设
+  if (subject === '数学' && (STAGE_SUBJECTS[stage] || []).includes(subject)) {
+    out.push({
+      marker: '【数学学科命题底线】', name: '数学学科命题底线', group: 'subject-floor',
+      text: `【数学学科命题底线】\n${MATH_DISCIPLINE_LINE}`,
+    });
+  }
+  return out;
+}
 
 const BUILTIN_TEMPLATES = {};
 for (const [gType, base] of Object.entries(TYPE_BASES)) {
@@ -567,21 +628,12 @@ function buildBuiltinTemplate({ stage = '', subject = '', genType = '' } = {}) {
     if (cell) extra.push(`\n\n【${subject}·${STAGE_NAMES[stage] || stage}要点】\n${cell.text}`);
     else if (import.meta.env?.DEV) console.warn(`[promptLibrary] 缺学科×学段要点：${subject}|${stage}，须补齐 SUBJECT_STAGE_EXTRAS`);
   }
-  // 🔬 数·量构造纪律（2026-09）：仅计量学科注入（防跨学科广播），学科无关学段；置于尾部与要点并列
-  if (subject && QUANTITY_SUBJECTS.has(subject)) {
-    extra.push(`\n\n${QUANTITY_DISCIPLINE}`);
-  }
-  // 🔬 学科事实底线（2026-09 分科注册表）：单点定义按 subject 注入（与 QUANTITY 同构），
-  //    仅当该学段实际开设该学科且命中该科 stages（缺省=全部开设学段）时注入——防低段广播文言/法条/协议术语等
-  if (subject && stage) {
-    const fact = SUBJECT_FACT_DISCIPLINE[subject];
-    if (fact && (!fact.stages || fact.stages.includes(stage))) {
-      extra.push(`\n\n【${subject}学科事实底线】\n${fact.text}`);
-    }
-  }
-  // 🔬 数学概念考查底线（2026-09 F2 收敛：5 档学科要点同义长句收敛为学科级一次注入，防漂移；数学学科注入，全类型与旧行为等价）
-  if (subject === '数学' && stageOpensSubject) {
-    extra.push(`\n\n【数学学科命题底线】\n${MATH_DISCIPLINE_LINE}`);
+  // 🔬 学科守门条款段（数·量构造纪律 / 学科事实底线 / 数学学科命题底线）：✅ A20 起统一取自
+  //    floorClauseSections 注册表（单源）——"委托正文注入"与"程序附加段兜底"用同一份文本，
+  //    杜绝两处各自演化漂移；注册表 ③④⑤ 的门控与原先内联逻辑等价（数量=计量学科；
+  //    事实=该科 stages 白名单；数学=该学段实际开设），注入顺序与 \n\n 前缀保持不变。
+  for (const s of floorClauseSections({ subject, stage, genType }).filter((x) => x.group === 'subject-floor')) {
+    extra.push(`\n\n${s.text}`);
   }
   // 学段特点按类型：exam 用考试结构版（对标中考/高考），教辅用组织呈现版（无考试结构语言）；
   // 认知底线为学段普适（所有学科不超本学段认知），呈现与学科差异由【学科·学段要点】承载
@@ -820,8 +872,8 @@ export function buildSealLineHeader() {
 
 /** 非考试类资料（课时练/预习/总结等）的统一输出格式要求（系统级注入，模板不必重复写）——与 OUTPUT_FORMAT_BLOCK 同源，仅一处定义；
  *  书写载体条款按 学科×学段 注入（buildCarrierInstruction），供用户自定义模板缺【输出格式】时兜底；
- *  内容型资料（preview/summary）走 CONTENT_FORMAT（结构化，不用作答载体条款），避免污染 */
-const CONTENT_GEN_TYPES = ['preview', 'summary'];
+ *  内容型资料（preview/summary）走 CONTENT_FORMAT（结构化，不用作答载体条款），避免污染。
+ *  ✅ A20：本函数 = 注册表 format 组的格式段+质量底线段拼接，兜底侧已改为按段判缺（floorClauseSections）。 */
 export function buildOutputFormatHint({ subject = '', stage = '', genType = '' } = {}) {
   const mode = CONTENT_GEN_TYPES.includes(genType) ? 'content' : 'question';
   return OUTPUT_FORMAT_BLOCK(mode, { subject, stage });

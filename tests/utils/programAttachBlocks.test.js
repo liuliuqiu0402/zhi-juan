@@ -33,16 +33,17 @@ describe('programAttachBlocks（注入文本 ↔ 面板分段同源）', () => {
     expect(text).toMatch(/· /);
   });
 
-  it('指令文本已含【输出格式】时不再追加输出格式兜底段', () => {
+  it('指令文本已含【输出格式】时不再追加格式段兜底（A20 段级：只补缺的那段）', () => {
     const withFmt = buildProgramAttachBlocks({ ...base, instructionText: '……【输出格式】\n1. 书写……' });
-    expect(withFmt.some((b) => b.name.includes('输出格式兜底'))).toBe(false);
+    expect(withFmt.some((b) => b.name.includes('缺【输出格式】'))).toBe(false);
+    expect(withFmt.some((b) => b.name.includes('缺【质量底线】'))).toBe(true);   // 缺质量底线 → 按段补
   });
 
   it('兜底段若存在，其文本必在注入文本内（面板展示=实际注入）', () => {
     const textNo = buildProgramAttach({ ...base, instructionText: '自定义模板没有输出格式' });
     const blocksNo = buildProgramAttachBlocks({ ...base, instructionText: '自定义模板没有输出格式' });
-    const hint = blocksNo.find((b) => b.name.includes('输出格式兜底'));
-    if (hint) expect(textNo).toContain(hint.text);
-    else expect(blocksNo.length).toBeGreaterThan(0); // 至少仍有渲染契约/规则段
+    const floors = blocksNo.filter((b) => b.name.includes('底线条款兜底'));
+    expect(floors.length).toBeGreaterThan(0);
+    for (const f of floors) expect(textNo).toContain(f.text);
   });
 });

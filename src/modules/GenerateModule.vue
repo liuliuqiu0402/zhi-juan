@@ -3102,12 +3102,10 @@ import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
 import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
 import { findBlueprint } from '../config/blueprintProvider.js';
-import { getPromptTemplate, buildInjectionInstruction, buildStructureText, buildOutputFormatHint, getCurriculumLabel, applyMaterialChannel } from '../config/promptLibrary.js';
+import { getPromptTemplate, buildInjectionInstruction, buildStructureText, getCurriculumLabel, applyMaterialChannel } from '../config/promptLibrary.js';
 import { materialChannelOf } from '../config/coverageContract.js'; // 📚 素材通道默认映射（auto 口径单一事实源，2026-09-14）
 import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructureText, buildSpecialDomainAnchorLine } from '../config/specialDomains.js'; // 🎯 专项领域注册库（学科×学段→栏目结构+课标语义锚）
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
-import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
-import { buildValidatorPrompt } from '../config/validatorRules.js';
 import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, advanceAutoColumnStyleId, getTeachingBlueprint, stripSourceMarkNote } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
 import { APP_EVENTS } from '../constants/events.js';
@@ -6070,8 +6068,6 @@ const buildInstruction = async () => {
 };
 
 // 🔴 生成指令：按三维度（年级×学科×资料类型）从指令库匹配模板并组装注入指令
-// 统计生成前约束文本中的 fix 规则条数（清单展示用）
-const countPromptHints = (txt) => (String(txt || '').match(/\n· /g) || []).length;
 
 const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = null) => {
   // 🔧 逐章模式：booksOverride 传入单章过滤版教材（范围名/标题按当前章节）；
@@ -6163,22 +6159,16 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   });
   // 🔴 模板正文段文本缓存（分段标注用：在后续追加教辅结构蓝本段之前取前缀）
   const tplBodyText = instructionDraft.value;
-  // 🔴 渲染指令契约（EduRender）按 学段×学科×类型×是否配图 三维度注入——程序性形态知识，
-  //    复位工程·S3.2 起不进委托正文（解释权在程序侧），由 buildProgramAttach 汇总后随写作请求以 system 角色注入
-  const renderContractText = buildRenderContract({
-    subject, genType, stage: stageKey,
-    needsImage: needsImageHint(`${structure} ${genTypeLabel} ${unit}`, genType),
-  });
-  // 🔴 卷面质检规则（规则库）按 学段×学科×类型 生成前约束（fix 类规则提示，防患未然；
-  //    生成后由校验器静默自动修复）——同上，属程序侧规则知识，不进委托正文
-  const validatorPromptText = buildValidatorPrompt({ subject, stage: stageKey, genType });
+  // 🔴 说明：渲染指令契约（EduRender）/ 卷面质检规则 / 守门条款兜底 均属程序侧形态与规则知识，
+  //    复位工程·S3.2 起统一由 buildProgramAttach 汇总、随写作请求以 system 角色注入，不进委托正文——
+  //    本函数**不再自行拼装**这三段。✅ A20：兜底"缺哪段补哪段"的唯一实现在 programAttach 单源内，
+  //    此处若再拼一份，面板分段明细（blocks）与实发文本（text）必然两套口径漂移（旧写法即如此：
+  //    有【输出格式】缺【质量底线】→ 兜底不触发静默丢条款；缺【输出格式】→ 【质量底线】整块重复）。
   // 🔴 注入来源登记：exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段（单一事实源，
   //    无重复注入）；非 exam 附加教辅结构蓝本（栏目框架 + 题量/字数底线，按 学段×类型 三维度，
-  //    属委托正文"栏目骨架"保留）；
-  //    模板正文已自带【输出格式】，用户自定义模板可能缺失 → 去重兜底（程序侧格式知识，进 programAttach）
+  //    属委托正文"栏目骨架"保留）
   let blueprintDetail = '';
   let teachingText = '';    // 教辅蓝本段（分段标注用）
-  let outputHintText = '';  // 【输出格式】兜底段（分段标注用）
   if (genType === 'exam') {
     if (bp) {
       blueprintDetail = `真题蓝本「${bp.label}」· ${bp.sections.length} 个大题（大题/分值/时长）`;
@@ -6195,13 +6185,20 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
           : `专项领域「${st.dom.label}」· 通用栏目 + 课标语义锚（${st.dom.anchor}）`)
         : `教辅结构「${genTypeLabel}」· 栏目框架 + 题量底线`;
     }
-    if (!instructionDraft.value.includes('【输出格式】')) {
-      // 用户自定义模板缺失【输出格式】时兜底：书写载体条款按 学科×学段 注入；内容型走结构化格式（不注作答载体）
-      outputHintText = buildOutputFormatHint({ subject, stage: stageKey, genType }) || '';
-    }
   }
-  // 🔴 程序性附加段统一汇总（渲染契约 + 质检规则 + 输出格式兜底）——随写作请求 system 注入，不进委托正文
-  programAttachText.value = [renderContractText, validatorPromptText, outputHintText].filter(Boolean).join('\n\n');
+  // 🔴 程序性附加段（渲染契约 + 质检规则 + 守门条款段级兜底）统一走 buildProgramAttach 单源：
+  //    blocks=面板分段明细 / text=实发文本（system 注入），两出口同一份内容 —— 面板所见即实发。
+  attachBlocks.value = buildProgramAttachBlocks({
+    subject, stageKey, genType,
+    needsImageText: `${structure} ${genTypeLabel} ${unit}`,
+    instructionText: instructionDraft.value,
+    attachInstructionKey: tpl.id || genType, // tplKey 在后文声明（TDZ 规避：内联同义表达式）
+  });
+  programAttachText.value = buildProgramAttach({
+    subject, stageKey, genType,
+    needsImageText: `${structure} ${genTypeLabel} ${unit}`,
+    instructionText: instructionDraft.value,
+  });
   instructionSource.value = {
     name: tpl.name || tpl.id || genType,
     source: tpl.source,
@@ -6210,16 +6207,12 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   injectSources.value = [
     { lib: 'instruction', name: tpl.name || genType, detail: `${stageKey} × ${subject} × ${genType}（${tpl.source === 'user' ? '用户自定义' : '内置模板'}）` },
     ...(blueprintDetail ? [{ lib: 'blueprint', name: genType === 'exam' ? '真题蓝本' : '教辅结构', detail: blueprintDetail }] : []),
-    ...(renderContractText ? [{ lib: 'render-contract', name: '渲染指令', detail: '图形 / 公式 / 配图标记协议（按学科×学段）' }] : []),
-    ...(validatorPromptText ? [{ lib: 'rules', name: '生成前约束', detail: `${countPromptHints(validatorPromptText)} 条 fix 规则` }] : []),
+    ...(attachBlocks.value.some(b => b.lib === 'render-contract') ? [{ lib: 'render-contract', name: '渲染指令', detail: '图形 / 公式 / 配图标记协议（按学科×学段）' }] : []),
+    ...(() => {
+      const n = attachBlocks.value.filter(b => b.lib === 'rules').length;
+      return n ? [{ lib: 'rules', name: '生成前约束', detail: `${n} 条 fix 规则` }] : [];
+    })(),
   ];
-  // 🔴 程序附加段·分段明细（与 programAttachText 同源）：渲染契约/规则/兜底逐段可点跳库
-  attachBlocks.value = buildProgramAttachBlocks({
-    subject, stageKey, genType,
-    needsImageText: `${structure} ${genTypeLabel} ${unit}`,
-    instructionText: instructionDraft.value,
-    attachInstructionKey: tpl.id || genType, // tplKey 在后文声明（TDZ 规避：内联同义表达式）
-  });
   // 🔴 来源分段标注（旁路 MVP 批1）：用本函数手上已有的段文本在成品全文定位 偏移区间↔{库,key}；
   //    不改 instructionDraft 任何内容（输出零变化）；换算行/协议行不命中（模板无此行）静默跳过
   const tplKey = tpl.id || genType;

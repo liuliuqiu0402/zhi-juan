@@ -12,10 +12,11 @@ describe('程序性附加段组装（复位 S3.2 委托书纯净化）', () => {
     expect(attach).not.toContain('委托正文');
   });
 
-  it('委托正文已含【输出格式】→ 不重复注入格式兜底段', () => {
+  it('委托正文已含【输出格式】→ 不重复注入格式段（但缺【质量底线】时按段补，A20）', () => {
     const attach = buildProgramAttach({ ...ctx, needsImageText: '第一单元', instructionText: '【输出格式】按空位书写' });
     const hint = buildOutputFormatHint({ subject: '数学', stage: 'primary_high', genType: 'practice' }) || '';
-    if (hint) expect(attach).not.toContain(hint.trim().slice(0, 20));
+    if (hint) expect(attach).not.toContain(hint.trim().slice(0, 20));   // 格式段不重复
+    expect(attach).toContain('【质量底线】');                            // 缺则按段补（段级兜底）
     expect(attach.length).toBeGreaterThan(0);
   });
 
