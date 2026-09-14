@@ -175,14 +175,32 @@ describe('🧩 清单第3层注入开关（2026-09-14 用户定版开关）', ()
     expect(formatAnchorListByChapter(anchors, { withConcepts: false })).toBe('【第1课】知识点A');
   });
 
-  it('角色说明随开关省略第3层那句（防"指向不存在内容"的假指针），其余不变量不变', () => {
-    expect(anchorListRoleNote()).toContain('（第3层）');
-    const off = anchorListRoleNote({ withConcepts: false });
+  it('语言材料分流（命题型）：kind=material 单列成组并标注"不在覆盖单位之列"，知识性条目留在主题行', () => {
+    const list = [
+      { chapterTitle: '第1课', bigConcept: '', name: '语音：ee 发音', specificConcepts: ['/iː/'] },
+      { chapterTitle: '第1课', bigConcept: '', name: '课文：蜗牛爬树', kind: 'material' },
+      { chapterTitle: '第1课', bigConcept: '', name: '句型：一般过去时', specificConcepts: ['was/were'] },
+    ];
+    const split = formatAnchorListByChapter(list, { splitMaterial: true });
+    expect(split).toContain('【第1课】语音：ee 发音（/iː/）、句型：一般过去时（was/were）');
+    expect(split).toContain('◇ 语言材料（只作理解与难度依据，不在覆盖单位之列）：课文：蜗牛爬树');
+    // 内容型（不拆分）→ 与分流前一致：全部混排
+    const inline = formatAnchorListByChapter(list, { splitMaterial: false });
+    expect(inline).toBe('【第1课】语音：ee 发音（/iː/）、课文：蜗牛爬树、句型：一般过去时（was/were）');
+    // 旧分析结果无 kind → 视为知识性条目（行为与分流前一致，安全无害）
+    const legacy = formatAnchorListByChapter([{ chapterTitle: '第1课', name: '知识点A' }], { splitMaterial: true });
+    expect(legacy).toBe('【第1课】知识点A');
+    // 角色说明随分流加一句（不列入覆盖单位）
+    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不列入覆盖单位');
+    expect(anchorListRoleNote({ splitMaterial: false })).not.toContain('不列入覆盖单位');
+  });
+
+  it('角色说明随后两处开关组合（第3层 × 语言材料分流）仍自洽', () => {
+    const off = anchorListRoleNote({ withConcepts: false, splitMaterial: true });
     expect(off).not.toContain('（第3层）');
-    expect(off).not.toContain('具体概念');
+    expect(off).toContain('不列入覆盖单位');
     expect(off).toContain('覆盖下限');
-    expect(off).toContain('知识点');
-    // 默认导出 = 带第3层版本（兼容既有引用点）
+    // 默认导出 = 带第3层、不分流版本（兼容既有引用点）
     expect(ANCHOR_LIST_ROLE_NOTE).toBe(anchorListRoleNote());
   });
 });

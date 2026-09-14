@@ -4262,7 +4262,11 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔧 第3层（具体概念）注入开关（2026-09-14 用户定版开关）：只影响【锚点清单】的渲染形态，
     //    分析产物不变（三层照旧落库）；关掉时角色说明里的第3层那句同步省略（防假指针）
     const injectThirdLayer = apiConfig.generationSettings.injectThirdLayer !== false;
-    const anchorListText = formatAnchorListByChapter(anchors, { withConcepts: injectThirdLayer });
+    // 🔬 语言材料分流（2026-09-14 (b)）：命题型（mode !== 'full'）把 kind='material' 的条目单列标注、
+    //    不列入覆盖单位（语言材料只作理解与难度依据）；内容型照旧混排（总结/复习/预习/默写本就围绕教材语篇）。
+    //    ⚠️ 旧分析结果无 kind 字段 → 全部按知识性条目 → 行为与分流前一致（安全无害）。
+    const splitMaterial = contractOf(genType).mode !== 'full';
+    const anchorListText = formatAnchorListByChapter(anchors, { withConcepts: injectThirdLayer, splitMaterial });
 
     // ── 素材通道（2026-09-14 用户定版开关）──
     //    单一事实源 MATERIAL_CHANNEL_DEFAULT（coverageContract）：
@@ -4476,7 +4480,7 @@ ${cardAnalysisText.substring(0, 1000)}
     // ✅ A1-4b：清单首行带"角色说明"——第1层知识主题只表归属/范围，不是写作栏目、不作命题单位；
     //    A17：知识点名后附第3层具体概念（锚清单通道下即教材内容/难度依据）
     //    ⚠️ 术语口径（2026-09-14 用户定）：注入文本统一「知识点」，不用「考点」（防读成全指向考卷）
-    if (anchorListText) prompt += buildAnchorListBlock(anchorListText, anchorListRoleNote({ withConcepts: injectThirdLayer }));
+    if (anchorListText) prompt += buildAnchorListBlock(anchorListText, anchorListRoleNote({ withConcepts: injectThirdLayer, splitMaterial }));
     if (compressedText) prompt += buildCompressedTextBlock(compressedText);
     // ✅ A15-4/A11-3（2026-09-11）：**素材使用约定**（原随 browse 系统提示携带，browse 移除后必须保留）——
     //    引用约束按契约 mode 分流；练习段仅作参考、不得照搬题目。位置贴近委托书（同为"指令"，末尾锚定）。

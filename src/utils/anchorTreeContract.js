@@ -188,6 +188,8 @@ const isMeaningfulTheme = (bigConcept, chapterTitle) =>
 
 /** ✅ A17：知识点名后附第3层具体概念（紧凑形态）；无概念/超限量 → 不带或加"等" */
 export const MAX_SPECIFIC_CONCEPTS_PER_ANCHOR = 6;
+/** 🔬 语言材料行前缀（命题型清单：语言材料单列一处，标明不作覆盖单位） */
+export const MATERIAL_LINE = '◇ 语言材料（只作理解与难度依据，不在覆盖单位之列）：';
 const withConcepts = (name, concepts, enabled = true) => {
   if (!enabled) return name;
   const list = Array.isArray(concepts) ? concepts.filter((c) => String(c || '').trim()) : [];
@@ -210,29 +212,51 @@ const withConcepts = (name, concepts, enabled = true) => {
  * @param {boolean} [o.withConcepts] 是否携带第3层具体概念（用户开关·2026-09-14）——
  *   关掉时只给第2层知识点（清单更短、更"轻"，不与教材词句绑定）；角色说明须同步省略第3层那句
  *   （见 anchorListRoleNote），防"指向不存在的内容"的假指针。
+ * @param {boolean} [o.splitMaterial] 是否把"语言材料"类条目（anchor.kind='material'）单列并标注
+ *   （命题型 true）——语言材料只作理解与难度依据、不列入覆盖单位；内容型（false）照旧混在覆盖清单里
+ *   （总结/复习/预习/默写本就该围绕教材语篇组织）。⚠️ 缺 kind 字段（旧分析结果）时视为知识性条目 →
+ *   行为与分流前完全一致（安全无害）。
  */
-export const formatAnchorListByChapter = (anchors = [], { withConcepts: withConceptsOn = true } = {}) =>
-  buildAnchorListByChapter(anchors)
+export const formatAnchorListByChapter = (anchors = [], { withConcepts: withConceptsOn = true, splitMaterial = false } = {}) => {
+  // 🔬 语言材料集合（按条目名匹配；清单渲染与角色说明共用同一口径）
+  const materialSet = new Set(
+    (Array.isArray(anchors) ? anchors : [])
+      .filter((a) => a?.kind === 'material')
+      .map((a) => String(a?.name || '').trim())
+      .filter(Boolean),
+  );
+  const isMaterial = (n) => splitMaterial && materialSet.has(String(n || '').trim());
+  return buildAnchorListByChapter(anchors)
     .filter((g) => g.names.length > 0)
     .map((g) => {
       const themes = (g.themes || []).filter((t) => t.names.length > 0);
       const hasTheme = themes.some((t) => isMeaningfulTheme(t.bigConcept, g.chapterTitle));
       const fmtNames = (names, concepts) => names.map((n) => withConcepts(n, concepts?.[n], withConceptsOn)).join('、');
+      const mergedConcepts = Object.fromEntries(themes.flatMap((t) => [...Object.entries(t.concepts || {})]));
+      const mats = [];
       if (!hasTheme) {
         // 无主题 → 章级扁平：合并各主题下的概念映射（同名知识点只归一个主题，合并仅防异常）
-        const merged = Object.fromEntries(
-          themes.flatMap((t) => [...Object.entries(t.concepts || {})]),
-        );
-        return `【${g.chapterTitle}】${fmtNames(g.names, merged)}`;
+        const keep = g.names.filter((n) => !isMaterial(n));
+        mats.push(...g.names.filter(isMaterial));
+        const head = keep.length ? `【${g.chapterTitle}】${fmtNames(keep, mergedConcepts)}` : `【${g.chapterTitle}】`;
+        return mats.length ? `${head}\n${MATERIAL_LINE}${fmtNames(mats, mergedConcepts)}` : head;
       }
-      const body = themes
-        .map((t) => (isMeaningfulTheme(t.bigConcept, g.chapterTitle)
-          ? `· ${t.bigConcept}：${fmtNames(t.names, t.concepts)}`
-          : `· ${fmtNames(t.names, t.concepts)}`))
-        .join('\n');
-      return `【${g.chapterTitle}】\n${body}`;
+      const lines = themes
+        .map((t) => {
+          const keep = t.names.filter((n) => !isMaterial(n));
+          mats.push(...t.names.filter(isMaterial));
+          if (!keep.length) return '';
+          return isMeaningfulTheme(t.bigConcept, g.chapterTitle)
+            ? `· ${t.bigConcept}：${fmtNames(keep, t.concepts)}`
+            : `· ${fmtNames(keep, t.concepts)}`;
+        })
+        .filter(Boolean);
+      // 语言材料行置于该章末尾：不占主题行位置，避免被读成"又一个栏目"
+      if (mats.length) lines.push(`${MATERIAL_LINE}${fmtNames(mats, mergedConcepts)}`);
+      return `【${g.chapterTitle}】\n${lines.join('\n')}`;
     })
     .join('\n');
+};
 
 /** ✅ A1-4b：清单的角色说明（随【锚点清单】一起注入，防模型把第1层当写作栏目/命题单位）
  *  🔴 2026-09-13（用户定版·下限非上限；同日二次修订）：清单定位由"命题范围边界"改为"覆盖下限"。
@@ -252,13 +276,14 @@ const THIRD_LAYER_NOTE =
  * @param {object} [o]
  * @param {boolean} [o.withConcepts] 清单是否携带第3层具体概念——关掉时"第3层"说明句同步省略
  */
-export const anchorListRoleNote = ({ withConcepts = true } = {}) =>
+export const anchorListRoleNote = ({ withConcepts = true, splitMaterial = false } = {}) =>
   '说明：清单按「章 → 知识主题 → 知识点」组织。**知识主题（第1层）仅表知识点归属与范围，不是写作栏目、不是命题单位**；'
   + '写作与命题的最小单位是各主题下的**知识点**（第2层）。'
   + (withConcepts ? THIRD_LAYER_NOTE : '')
   + '不带「主题：」前缀的章 = 该章知识点未再分主题。'
   + '🔴 清单是**覆盖下限**：清单内知识点须全部覆盖到（保证本单元必学知识不漏）；'
-  + '它**不是命题范围的全部**——清单之外能否补充或整合，按资料类型见委托书【素材使用约定】。';
+  + '它**不是命题范围的全部**——清单之外能否补充或整合，按资料类型见委托书【素材使用约定】。'
+  + (splitMaterial ? '标◇的**语言材料**用于把握难度与理解语境，**不列入覆盖单位**（不必为其单独设题）。' : '');
 
 /** 默认形态（带第3层）——兼容既有引用点与测试 */
 export const ANCHOR_LIST_ROLE_NOTE = anchorListRoleNote();

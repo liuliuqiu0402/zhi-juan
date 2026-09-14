@@ -88,7 +88,8 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     //    （书写载体协议、一个空位只写一种载体…），混用会让模型把"不作题目载体"误当作答载体条款。
     for (const t of [anchor, full]) {
       expect(t).toContain('不得照搬教材原题');
-      expect(t).toContain('只用于核对覆盖与理解难度');
+      expect(t).toContain('不得直接复用所选教材原有语篇的情节、篇目结构与人物设定');
+      expect(t).toContain('只作理解与难度依据，不列入覆盖单位');
       expect(t).toContain('连续重合即属照搬');
       expect(t, '禁用"载体"表示题目素材').not.toContain('题目载体');
     }
@@ -222,8 +223,9 @@ describe('源码接线：生成端不再内联这些块（防两套口径回归�
   it('第3层开关接线：生成端按设置渲染清单与角色说明（面板同步反映）', () => {
     const s = ai();
     expect(s).toContain('apiConfig.generationSettings.injectThirdLayer');
-    expect(s).toContain('formatAnchorListByChapter(anchors, { withConcepts: injectThirdLayer })');
-    expect(s).toContain('anchorListRoleNote({ withConcepts: injectThirdLayer })');
+    expect(s).toContain('formatAnchorListByChapter(anchors, { withConcepts: injectThirdLayer, splitMaterial })');
+    expect(s).toContain('anchorListRoleNote({ withConcepts: injectThirdLayer, splitMaterial })');
+    expect(s).toContain('const splitMaterial = contractOf(genType).mode !== \'full\'');
     expect(gm()).toContain('injectThirdLayer');
   });
 
