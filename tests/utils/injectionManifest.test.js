@@ -96,8 +96,13 @@ describe('buildUserMessagePrompt（实发拼接：顺序 + 逐字）', () => {
 
 describe('各块文本口径（防漂移的逐字锚点）', () => {
   it('组织方式：exam 引【卷面结构】、其余引【教辅结构】', () => {
-    expect(buildOrganizeBlock('exam')).toBe('【组织方式】输出一律以委托书【卷面结构】的大题序列组织（大题名、顺序、题量以委托书为准）；开头【锚点清单】只声明覆盖范围，不是组织方式，不得据此替代委托书结构。\n\n');
+    expect(buildOrganizeBlock('exam')).toBe('【组织方式】输出一律以委托书【卷面结构】的大题序列组织（大题名、顺序、题量以委托书为准）；开头【锚点清单】只声明要练到的范围，不是组织方式，不得据此替代委托书结构。\n\n');
     expect(buildOrganizeBlock('practice')).toContain('【教辅结构】的栏目序列组织（栏目名、顺序、题量以委托书为准）');
+    // 🔴 2026-09-14：题型自拟的题类（practice/special/reading）另加"分组依据"句；考卷不加（须守蓝图题型序列）
+    expect(buildOrganizeBlock('practice')).toContain('不以清单条目作分组或命名');
+    expect(buildOrganizeBlock('reading')).toContain('不以清单条目作分组或命名');
+    expect(buildOrganizeBlock('exam')).not.toContain('不以清单条目作分组或命名');
+    expect(buildOrganizeBlock('summary')).not.toContain('不以清单条目作分组或命名');
   });
 
   it('素材使用约定：通道分流（依据指向随通道改），禁照搬为通道无关', () => {
@@ -114,44 +119,47 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     for (const t of [anchor, full]) {
       expect(t).toContain('不得照搬教材原题');
       expect(t).toContain('不得直接复用所选教材原有语篇的情节、篇目结构与人物设定');
-      expect(t).toContain('只作理解与难度依据，不列入覆盖单位');
+      expect(t).toContain('只作理解与难度依据，不列入设题单位');
       expect(t).toContain('连续重合即属照搬');
       expect(t, '禁用"载体"表示题目素材').not.toContain('题目载体');
     }
   });
 
-  it('素材使用约定：覆盖下限按 mode 分档、能否加按 extentOf 分档', () => {
+  it('素材使用约定：下限按 mode 分档、能否加按 extentOf 分档（措辞 2026-09-14 去"覆盖"、去强硬）', () => {
     // practice = per-lesson-full + expand
     const practice = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'full' });
-    expect(practice).toContain('**至少要全部覆盖到**');
+    expect(practice).toContain('**都要练到**');
     expect(practice).toContain('清单**不是命题上限**');
     expect(practice).toContain('本资料为命题/练习型');
     // summary = full + integrate（归纳型口吻）
     const summary = buildMaterialUsageBlock({ genType: 'summary', materialChannel: 'full' });
-    expect(summary).toContain('**须全部覆盖到**');
+    expect(summary).toContain('**都要落到**');
     expect(summary).toContain('清单**不是范围围墙**');
     expect(summary).toContain('本资料为知识归纳型');
     expect(summary).not.toContain('本资料为命题/练习型');
     // errorbook = none + expand（不对账口吻）
     const err = buildMaterialUsageBlock({ genType: 'errorbook', materialChannel: 'anchor' });
-    expect(err).toContain('本资料围绕错题组织，不与开头【锚点清单】做覆盖对账；');
+    expect(err).toContain('本资料围绕错题组织，不与开头【锚点清单】逐条对账；');
   });
 
   // 🔴 题型多样性（2026-09-14 用户定版）：题类（课时练/专项/阅读）的**题型由模型自拟**、全链路没有任何
   //    题型来源 → 题型随内容漂移，实测整份只剩填空/朗读一类、连词成句与单项选择整份消失（跨学科同病）。
   //    修法 = **一句全学科通用的语义**：只约束"作答形态须多样"，不列题型清单、不指定具体题型（不窄化、不诱导）。
-  it('题型须多样：题型自拟的题类注入，且明示不改覆盖/题量口径', () => {
+  it('题型须多样：题型自拟的题类注入，且明示不改内容/题量口径', () => {
     for (const t of ['practice', 'special', 'reading']) {
       const txt = buildMaterialUsageBlock({ genType: t, materialChannel: 'anchor' });
       expect(txt, `${t} 须注入题型多样性句`).toContain('题型须多样');
-      // 判据 = 两个**全学科通用**的作答形态类别（不点名任何具体题型）
-      expect(txt).toContain('只需判断 / 择一 / 配对即可作答');
-      expect(txt).toContain('须写出文字、算式或过程');
-      // 自查句（可判定，不靠枚举）
-      expect(txt).toContain('通篇是否为同一形态');
-      // 防副作用：明示不改变覆盖与题量口径（防"为凑题型而漏项/加无关题"）
-      expect(txt).toContain('不改变覆盖范围与题量口径');
+      // 依据用**课标口径**（中性转述：不点名具体题型、不给清单）
+      expect(txt).toContain('合理安排不同类型作业的比例，增强作业的可选择性');
+      expect(txt).toContain('不停留在单一形态');
+      expect(txt).toContain('不指定、不列清单');
+      // 防副作用：明示不改变内容范围与题量口径（防"为凑题型而漏项/加无关题"）
+      expect(txt).toContain('不改变要练到的范围与题量口径');
       expect(txt).toContain('不得为凑题型而漏项或加无关题');
+      // 🔴 防诱导（2026-09-14 用户裁定）：不得用"必须出现哪几类/缺则补"的动作指令指定题型存在
+      for (const banned of ['既要有', '也要有', '缺则补', '必须出现']) {
+        expect(txt, `不得出现指定动作「${banned}」`).not.toContain(banned);
+      }
     }
   });
 
@@ -356,7 +364,7 @@ describe('(ii) 面板接实发素材正文（快照单源）', () => {
   });
 
   it('面板展示的清单正文 = 生成端实发正文（同一 build 函数 + 同一角色说明）', () => {
-    const body = '一、知识主题甲\n· 知识点一\n◇ 语言材料（只作理解与难度依据，不在覆盖单位之列）：故事板块';
+    const body = '一、知识主题甲\n· 知识点一\n◇ 语言材料（只作理解与难度依据，不在设题单位之列）：故事板块';
     const roleNote = '（第3层）…实发角色说明';
     const blk = buildUserMessageBlocks({
       genType: 'practice', subject: '英语', materialChannel: 'anchor',

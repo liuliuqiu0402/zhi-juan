@@ -189,7 +189,7 @@ const isMeaningfulTheme = (bigConcept, chapterTitle) =>
 /** ✅ A17：知识点名后附第3层具体概念（紧凑形态）；无概念/超限量 → 不带或加"等" */
 export const MAX_SPECIFIC_CONCEPTS_PER_ANCHOR = 6;
 /** 🔬 语言材料行前缀（命题型清单：语言材料单列一处，标明不作覆盖单位） */
-export const MATERIAL_LINE = '◇ 语言材料（只作理解与难度依据，不在覆盖单位之列）：';
+export const MATERIAL_LINE = '◇ 语言材料（只作理解与难度依据，不在设题单位之列）：';
 
 /**
  * 🔬 条目性质兜底判据（2026-09-14）：分析层的 `kind` 是**模型自觉输出字段**，实测常被漏掉
@@ -299,9 +299,9 @@ export const anchorListRoleNote = ({ withConcepts = true, splitMaterial = false 
   + '写作与命题的最小单位是各主题下的**知识点**（第2层）。'
   + (withConcepts ? THIRD_LAYER_NOTE : '')
   + '不带「主题：」前缀的章 = 该章知识点未再分主题。'
-  + '🔴 清单是**覆盖下限**：清单内知识点须全部覆盖到（保证本单元必学知识不漏）；'
+  + '🔴 清单是**下限**：清单内知识点**都要有落点**（保证本单元必学内容不落下）；'
   + '它**不是命题范围的全部**——清单之外能否补充或整合，按资料类型见委托书【素材使用约定】。'
-  + (splitMaterial ? '标◇的**语言材料**用于把握难度与理解语境，**不列入覆盖单位**（不必为其单独设题）。' : '');
+  + (splitMaterial ? '标◇的**语言材料**用于把握难度与理解语境，**不列入设题单位**（不必为其单独设题）。' : '');
 
 /** 默认形态（带第3层）——兼容既有引用点与测试 */
 export const ANCHOR_LIST_ROLE_NOTE = anchorListRoleNote();

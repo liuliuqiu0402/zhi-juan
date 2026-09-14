@@ -180,7 +180,7 @@ describe('🧩 清单第3层注入开关（2026-09-14 用户定版开关）', ()
     expect(formatAnchorListByChapter(anchors, { withConcepts: false })).toBe('【第1课】知识点A');
   });
 
-  it('语言材料分流（命题型）：kind=material 单列成组并标注"不在覆盖单位之列"，知识性条目留在主题行', () => {
+  it('语言材料分流（命题型）：kind=material 单列成组并标注"不在设题单位之列"，知识性条目留在主题行', () => {
     const list = [
       { chapterTitle: '第1课', bigConcept: '', name: '语音：ee 发音', specificConcepts: ['/iː/'] },
       { chapterTitle: '第1课', bigConcept: '', name: '课文：蜗牛爬树', kind: 'material' },
@@ -188,7 +188,7 @@ describe('🧩 清单第3层注入开关（2026-09-14 用户定版开关）', ()
     ];
     const split = formatAnchorListByChapter(list, { splitMaterial: true });
     expect(split).toContain('【第1课】语音：ee 发音（/iː/）、句型：一般过去时（was/were）');
-    expect(split).toContain('◇ 语言材料（只作理解与难度依据，不在覆盖单位之列）：课文：蜗牛爬树');
+    expect(split).toContain('◇ 语言材料（只作理解与难度依据，不在设题单位之列）：课文：蜗牛爬树');
     // 内容型（不拆分）→ 与分流前一致：全部混排
     const inline = formatAnchorListByChapter(list, { splitMaterial: false });
     expect(inline).toBe('【第1课】语音：ee 发音（/iː/）、课文：蜗牛爬树、句型：一般过去时（was/were）');
@@ -196,15 +196,15 @@ describe('🧩 清单第3层注入开关（2026-09-14 用户定版开关）', ()
     const legacy = formatAnchorListByChapter([{ chapterTitle: '第1课', name: '知识点A' }], { splitMaterial: true });
     expect(legacy).toBe('【第1课】知识点A');
     // 角色说明随分流加一句（不列入覆盖单位）
-    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不列入覆盖单位');
-    expect(anchorListRoleNote({ splitMaterial: false })).not.toContain('不列入覆盖单位');
+    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不列入设题单位');
+    expect(anchorListRoleNote({ splitMaterial: false })).not.toContain('不列入设题单位');
   });
 
   it('角色说明随后两处开关组合（第3层 × 语言材料分流）仍自洽', () => {
     const off = anchorListRoleNote({ withConcepts: false, splitMaterial: true });
     expect(off).not.toContain('（第3层）');
-    expect(off).toContain('不列入覆盖单位');
-    expect(off).toContain('覆盖下限');
+    expect(off).toContain('不列入设题单位');
+    expect(off).toContain('清单是**下限**');
     // 默认导出 = 带第3层、不分流版本（兼容既有引用点）
     expect(ANCHOR_LIST_ROLE_NOTE).toBe(anchorListRoleNote());
   });
@@ -274,9 +274,9 @@ describe('A1-4b 第1层（知识主题）入锚清单：表归属与范围，不
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('（第2层）');
   });
 
-  it('角色说明只报"结构性事实 + 覆盖下限"（2026-09-13）：清单外口径下沉到【素材使用约定】，防一刀切放水', () => {
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('清单是**覆盖下限**');
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('全部覆盖到');
+  it('角色说明只报"结构性事实 + 下限"（2026-09-13）：清单外口径下沉到【素材使用约定】，防一刀切放水', () => {
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('清单是**下限**');
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('都要有落点');
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('【素材使用约定】');
     // 旧"一律"措辞易被读成"只能考清单内的点"，不回归
     expect(ANCHOR_LIST_ROLE_NOTE).not.toContain('一律是各主题下的');

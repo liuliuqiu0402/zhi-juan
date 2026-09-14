@@ -132,8 +132,8 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     const practice = getPromptTemplate({ grade: 'primary_high', subject: '英语', genType: 'practice' }).template;
     expect(practice).toContain('不得直接搬用【锚点清单】的条目名或教材板块名充当栏目标题/大题标题');
     // 覆盖下限本身不得被削弱（去掉层级暗示 ≠ 去掉覆盖要求）
-    expect(practice).toContain('题目须覆盖本课【锚点清单】中的每一项');
-    expect(practice).toContain('不得有整项遗漏');
+    expect(practice).toContain('本课【锚点清单】所列内容须在资料中**真的练到**');
+    expect(practice).toContain('整份都没有落点的补上');
   });
 
   it('E：委托书尾含跨 9 类「资料内多样」自查句', () => {
@@ -195,8 +195,8 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(m).toBeTruthy();
     const value = m[1];
     expect(value).not.toContain('写到即止');            // 旧措辞不得回退
-    expect(value).toContain('全部栏目与题目逐项齐全后方可收尾');
-    expect(value).toContain('严禁以省略、合并或提前收尾代替内容');
+    expect(value).toContain('栏目与题目齐备后再收尾');
+    expect(value).toContain('不以省略、合并或提前收尾代替内容');
     // 上限纪律（防注水）意图不得因改写而丢失
     expect(value).toContain('不堆砌空话套话');
     expect(value).toContain('不为凑篇幅扩写无关或编造内容');

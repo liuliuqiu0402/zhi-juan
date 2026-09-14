@@ -103,7 +103,7 @@ describe('素材使用约定（生成端单源）：来源开放 + 禁照搬（�
     for (const ch of ['full', 'anchor']) {
       const t = buildMaterialUsageBlock({ genType: 'practice', materialChannel: ch });
       expect(t, `${ch} 命题型应含禁照搬`).toContain(COPY_BAN);
-      expect(t, `${ch} 应界定语篇类条目的作用`).toContain('只作理解与难度依据，不列入覆盖单位');
+      expect(t, `${ch} 应界定语篇类条目的作用`).toContain('只作理解与难度依据，不列入设题单位');
       expect(t, `${ch} 应含"命题载体自行组织"的原创性要求`).toContain('不得直接复用所选教材原有语篇的情节、篇目结构与人物设定');
       expect(t, `${ch} 应给出可判定的照搬判据`).toContain('连续重合即属照搬');
       // 🔴 用词红线："载体"在本项目专指作答载体/书写载体，不得用来表示题目素材（防模型混用）

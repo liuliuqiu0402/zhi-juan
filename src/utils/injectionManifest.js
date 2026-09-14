@@ -16,7 +16,10 @@
  *   由 utils/programAttach.js 单源产出，两者合起来才是"本次实发全貌"。
  * ============================================================
  */
-import { PAPER_OUTPUT_CONVENTIONS } from '../config/promptLibrary.js';
+import { PAPER_OUTPUT_CONVENTIONS, AUTONOMOUS_ITEM_TYPES } from '../config/promptLibrary.js';
+// 🔴 题型自拟的题类（AUTONOMOUS_ITEM_TYPES）：单源定义在 config/promptLibrary.js（文本层），此处反向引用——
+//    避免两处各写一份（本模块本就 import 该文件，无循环依赖）。语义与理由见该处注释。
+export { AUTONOMOUS_ITEM_TYPES };
 import { contractOf, extentOf } from '../config/coverageContract.js';
 import { ANCHOR_LIST_ROLE_NOTE } from './anchorTreeContract.js';
 
@@ -25,16 +28,6 @@ export const SELF_CONTAINED_TEACHING = ['summary', 'review', 'preview', 'dictati
 
 /** 情境错峰仅对"命题出新题"的题类生效（exam/practice/special/reading）；内容型无情境设问 */
 export const SCENE_REGEN_TYPES = ['exam', 'practice', 'special', 'reading'];
-
-/**
- * 题型自拟的题类（2026-09-14 用户定版）：课时练 / 专项突破 / 阅读训练 —— 这三类的**题型由模型自选**
- * （没有任何题型序列来源）→ 需要"作答形态须多样"这一条约束；见 buildMaterialUsageBlock 内的题型多样性句。
- * 🔴 为什么不含其余类型：
- *   · exam     —— 题型序列由【卷面结构】蓝图给定（大题名/顺序/题量以委托书为准），再提"题型须多样"会诱它偏离蓝图；
- *   · errorbook—— 题目形态由用户错题自身决定，不是自主命题；
- *   · summary / preview / dictation / review —— 知识归纳型（mode=full），本就不命题、无题型可言。
- */
-export const AUTONOMOUS_ITEM_TYPES = ['practice', 'special', 'reading'];
 
 /** 尾约束·全文自洽（原内联于 useAiGenerator.buildPrompt；块内自带 \n\n 前缀，见 buildTailBlocks） */
 export const TAIL_SELF_CONSISTENCY = `【尾约束·全文自洽】
@@ -54,7 +47,7 @@ export const buildCompressedTextBlock = (compressedText = '') =>
 
 /**
  * ③ 素材使用约定（引用约束按契约 mode 分流；口径 2026-09-13 用户定版）
- *   范围（覆盖哪些知识点）以【锚点清单】为准；**素材来源不作指定**（教材与课外真实生活等权）。
+ *   范围（要练到哪些内容）以【锚点清单】为准；**素材来源不作指定**（教材与课外真实生活等权）。
  *   下限按 mode 分档、下限之上能否"加"按资料类型分档（extentOf 单一事实源 coverageContract）。
  */
 export const buildMaterialUsageBlock = ({ genType = '', materialChannel = 'auto' } = {}) => {
@@ -69,14 +62,14 @@ export const buildMaterialUsageBlock = ({ genType = '', materialChannel = 'auto'
   // 🔴 覆盖口径按资料类型分档（2026-09-13 用户定版）：mode 定"覆盖下限"，extentOf 定"清单之外能不能加、加什么"——
   //    防一刀切放水：题类可考迁移（expand）、归纳复习类可关联已学旧知成网络（integrate）、预习默写类守本课/守教材（strict）。
   const coverageFloor = refMode === 'per-lesson-full'
-    ? '开头【锚点清单】的知识点**至少要全部覆盖到**（覆盖**下限**，保证本单元必学知识不漏）；'
+    ? '开头【锚点清单】的知识点**都要练到**（这是**下限**，本单元必学的不落下）；'
     : refMode === 'full'
-      ? '开头【锚点清单】的知识点**须全部覆盖到**（覆盖**下限**，保证本单元必学知识不漏）；'
+      ? '开头【锚点清单】的知识点**都要落到**（这是**下限**，本单元必学的不落下）；'
       : refMode === 'focus'
-        ? '覆盖开头【锚点清单】中与本资料主题对应的知识点即可（不要求清单全部出现）；'
+        ? '练到开头【锚点清单】中与本资料主题对应的知识点即可（不要求清单全部出现）；'
         : refMode === 'sampled'
-          ? '按命题蓝图抽样覆盖开头【锚点清单】（允许部分知识点未出现，不补漏）；'
-          : '本资料围绕错题组织，不与开头【锚点清单】做覆盖对账；';
+          ? '按命题蓝图抽样练到开头【锚点清单】（允许部分知识点未出现，不补漏）；'
+          : '本资料围绕错题组织，不与开头【锚点清单】逐条对账；';
   const extentKey = extentOf(genType); // expand | integrate | strict（single source：coverageContract）
   const coverageExtent = extentKey === 'expand'
     ? '清单**不是命题上限**——可依本学段课标学业要求，适当补充清单未涉及的知识点或考查角度（不超出本学段学业要求）；'
@@ -84,7 +77,7 @@ export const buildMaterialUsageBlock = ({ genType = '', materialChannel = 'auto'
       ? '清单**不是范围围墙**——可做**同类/结构关联**（把本课知识与同类概念归类、对照、勾连成网络）；也可联系**能在本次勾选范围或【锚点清单】内确认的**先行内容。**不臆断学生"是否已学"**（未经确认的旧知不引入），不超出本学段课标要求；'
       : '只按清单（本课/本单元）呈现，不做清单外的补充与整合（默写类须严格对应教材要求）；';
   parts.push('【素材使用约定】\n'
-    + `· ${coverageFloor}${coverageExtent}本条只约束"覆盖哪些知识点"，**不是素材来源限制**；${refClause}——情境、素材、人名、数据与句式可取自教材，也可取自课外真实生活（主题相关、难度适切），**来源不限、不作指定**；\n`);
+    + `· ${coverageFloor}${coverageExtent}本条只约束"要练到哪些内容"，**不是素材来源限制**；${refClause}——情境、素材、人名、数据与句式可取自教材，也可取自课外真实生活（主题相关、难度适切），**来源不限、不作指定**；\n`);
   parts.push(refMode === 'full'
     ? (materialChannel === 'anchor'
       ? '· 本资料为知识归纳型（本次按锚清单通道生成）：归纳范围以上方清单为准，可依教材事实与课外同类材料转写为教辅表述，不得整段照录；正文不得出现任何出处标注（"选自/单元/章节/课题/课文名/位置式指引/原文出处"等溯源字样一律不写）。\n'
@@ -101,7 +94,7 @@ export const buildMaterialUsageBlock = ({ genType = '', materialChannel = 'auto'
   //    适用范围只到"题型自拟的题类"（AUTONOMOUS_ITEM_TYPES）——考卷有【卷面结构】题型序列、错题本题型由错题决定、
   //      知识归纳型不命题，均不注入（注入会诱其偏离既有口径）。
   if (AUTONOMOUS_ITEM_TYPES.includes(genType)) {
-    parts.push('· 题型须多样：同一份资料内不得通篇只用一种作答形态——既要有"只需判断 / 择一 / 配对即可作答"的题型，也要有"须写出文字、算式或过程"的题型；具体题型按本学科本学段的常规题型自选（不指定、不设清单）。自查：通篇是否为同一形态？是否缺了其中一类？缺则补。（本条只约束作答形态的多样，不改变覆盖范围与题量口径，不得为凑题型而漏项或加无关题。）\n');
+    parts.push('· 题型须多样（课标口径：合理安排不同类型作业的比例，增强作业的可选择性）：同一份资料内各类作答方式按本学科课时练习的常态分布，不停留在单一形态；具体用哪些题型，按本学科本学段常规自选（不指定、不列清单）。（本条只约束作答方式的多样，不改变要练到的范围与题量口径，不得为凑题型而漏项或加无关题。）\n');
   }
   // 🔴 禁照搬（通道无关 · 2026-09-14 用户裁定）：原句「【压缩原文】中的练习/习题段仅供理解题型与难度，
   //    不得照搬题目」是**挂在【压缩原文】上**的 → 锚清单通道没有原文，整句被跳过 → 该通道下**没有任何
@@ -113,7 +106,7 @@ export const buildMaterialUsageBlock = ({ genType = '', materialChannel = 'auto'
   if (refMode === 'full') {
     parts.push('\n');
   } else {
-    parts.push('· 不得照搬教材原题，也不得整段沿用教材语篇或连续照录教材文字（与教材参考段连续重合即属照搬）；命题载体须为本资料自行组织：可取材教材话题或课外真实生活（来源不限、不作指定），但不得直接复用所选教材原有语篇的情节、篇目结构与人物设定；清单中标◇的语言材料只作理解与难度依据，不列入覆盖单位。\n\n');
+    parts.push('· 不得照搬教材原题，也不得整段沿用教材语篇或连续照录教材文字（与教材参考段连续重合即属照搬）；命题载体须为本资料自行组织：可取材教材话题或课外真实生活（来源不限、不作指定），但不得直接复用所选教材原有语篇的情节、篇目结构与人物设定；清单中标◇的语言材料只作理解与难度依据，不列入设题单位。\n\n');
   }
   return parts.join('');
 };
@@ -124,7 +117,12 @@ export const buildOrganizeBlock = (genType = '') => {
   const structRef = genType === 'exam'
     ? '【卷面结构】的大题序列组织（大题名、顺序、题量以委托书为准）'
     : '【教辅结构】的栏目序列组织（栏目名、顺序、题量以委托书为准）';
-  return `【组织方式】输出一律以委托书${structRef}；开头【锚点清单】只声明覆盖范围，不是组织方式，不得据此替代委托书结构。\n\n`;
+  // 🔴 分组依据（2026-09-14 用户定版）：题型自拟的题类（课时练/专项/阅读）——分组与命名按本学科常规
+  //    题型/任务环节来，不以清单条目作分组（练到什么属内容层、怎么分组属结构层，两层分开看）。
+  const groupClause = AUTONOMOUS_ITEM_TYPES.includes(genType)
+    ? '题组的分组与命名按本学科本学段的常规题型或任务的开展环节来（练到什么属内容层，怎么分组属结构层，两层分开看），不以清单条目作分组或命名。'
+    : '';
+  return `【组织方式】输出一律以委托书${structRef}；开头【锚点清单】只声明要练到的范围，不是组织方式，不得据此替代委托书结构。${groupClause}\n\n`;
 };
 
 /** ⑤ 模板对标（用户勾选模板，供风格/结构参考，不限制命题） */
@@ -139,7 +137,7 @@ export const buildContextBlock = (contextFramework = '') =>
 /** ⑦ 差异化（复生成）：已覆盖知识点 + 情境错峰（仅题类生效） */
 export const buildDiffRegenBlock = ({ genType = '', diffKps = [] } = {}) => {
   if (!diffKps?.length || !SCENE_REGEN_TYPES.includes(genType)) return '';
-  return `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}。情境错峰：本次为同一范围的再次出稿，新稿的情境、人物/场景、数据与设问角度须与已生成稿件错开——命中已用情境即换情境、换对象、换数据、换设问角度，不得沿用上稿的情境模板与雷同句子。`;
+  return `\n\n【差异化要求（复生成）】以下知识点已练过，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}。情境错峰：本次为同一范围的再次出稿，新稿的情境、人物/场景、数据与设问角度须与已生成稿件错开——命中已用情境即换情境、换对象、换数据、换设问角度，不得沿用上稿的情境模板与雷同句子。`;
 };
 
 /** ⑧ 输出约定（once 一次成型 / split 两次生成；正文后答案区口径随自包含教辅分档） */
@@ -166,7 +164,7 @@ export const buildTailBlocks = () => [
 const BLOCK_DEFS = [
   {
     id: 'anchor-list', name: '锚点清单', lib: 'builtin', scope: '用户消息·开头',
-    note: '生成时按勾选章节的分析结果注入：第1层知识主题作分组前缀、第2层知识点为主体、第3层具体概念随各知识点括注（第1层只表归属、第2层才是命题单位）；覆盖范围以下限声明',
+    note: '生成时按勾选章节的分析结果注入：第1层知识主题作分组前缀、第2层知识点为主体、第3层具体概念随各知识点括注（第1层只表归属、第2层才是命题单位）；要练到的范围以下限声明',
     noteWith: (c) => [
       (c.injectThirdLayer === undefined
         ? ''
@@ -219,7 +217,7 @@ const BLOCK_DEFS = [
   },
   {
     id: 'diff-regen', name: '差异化要求（复生成）', lib: 'builtin', scope: '用户消息',
-    note: '复生成且存在已覆盖知识点时注入（仅题类：考卷/课时练/专项/阅读）',
+    note: '复生成且存在已练过知识点时注入（仅题类：考卷/课时练/专项/阅读）',
     build: (c) => buildDiffRegenBlock(c),
   },
   {
@@ -253,7 +251,7 @@ const BLOCK_DEFS = [
  * @param {string} [ctx.instructionText] 已按通道归一的委托正文（生成时传入；面板侧传空即可）
  * @param {string} [ctx.templateInfo] 勾选模板信息
  * @param {string} [ctx.contextFramework] 情境框架
- * @param {string[]} [ctx.diffKps] 已覆盖知识点
+ * @param {string[]} [ctx.diffKps] 已练过知识点
  * @param {string} [ctx.outputMode] 'once' | 'split'
  * @param {boolean} [ctx.preview] 面板预览模式：门控块给出可先行展示的条款文本（不用于拼接实发）
  * @returns {Array<{id,name,lib,scope,note,text,injected:boolean}>}

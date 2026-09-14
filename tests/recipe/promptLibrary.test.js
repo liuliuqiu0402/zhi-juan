@@ -93,7 +93,7 @@ describe('注入指令组装（拼接格式与顺序）', () => {
     const out = buildInjectionInstruction({ template: '素材：{material}', subject: '语文' });
     expect(out).toContain('【压缩原文】随本委托注入'); // 素材=整章原文压缩后随委托注入
     expect(out).toContain('【锚点清单】');             // 范围声明
-    expect(out).toContain('清单为**覆盖下限**');        // 下限口径（2026-09-13）
+    expect(out).toContain('清单为**下限**');           // 下限口径（2026-09-13；措辞 2026-09-14 去"覆盖"）
     expect(out).toContain('【素材使用约定】');         // 使用与引用约束口径
     expect(out).not.toContain('研读');                 // 研读链已整体移除
     expect(out).not.toContain('browse');               // browse 机制已整体移除
@@ -104,7 +104,7 @@ describe('注入指令组装（拼接格式与顺序）', () => {
   it('A18 素材段：full 通道段头【教材原文…】指向【压缩原文】；anchor 通道段头改【教材依据…】且无假指针', () => {
     // 🔴 2026-09-14：段头括注里的"引用教材内容须与原文一致"整条已删（措辞诱导复述教材），
     //    故此处用去该句后的段头形态作为夹具
-    const tplText = '【教材原文（仅供理解：题型结构与知识梯度、覆盖点核对）】\n{material}';
+    const tplText = '【教材原文（仅供理解：题型结构与知识梯度、要点核对）】\n{material}';
 
     const full = buildInjectionInstruction({ template: tplText, subject: '语文' });
     expect(full).toContain('【教材原文（仅供理解');
@@ -158,7 +158,7 @@ describe('注入指令组装（拼接格式与顺序）', () => {
 
   it('A18 保存/导入入口规范化：硬写段头与说明句入库前换成占位符（库=注入口径同构，不留歧义字面）', () => {
     const hardcoded = '【教材原文（仅供理解：题型结构与知识梯度）】\n'
-      + '（教材原文以【压缩原文】随本委托注入；覆盖范围见开头【锚点清单】，清单为**覆盖下限**；清单外的补充/整合口径与使用引用约束见【素材使用约定】，以该处为准）';
+      + '（教材原文以【压缩原文】随本委托注入；要练到的范围见开头【锚点清单】，清单为**下限**；清单外的补充/整合口径与使用引用约束见【素材使用约定】，以该处为准）';
     // 规范化：段头与整句说明都换占位符
     expect(canonicalizeMaterialPlaceholders(hardcoded))
       .toBe('【{materialHead}（仅供理解：题型结构与知识梯度）】\n{material}');
