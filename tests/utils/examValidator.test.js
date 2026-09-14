@@ -885,5 +885,24 @@ describe('examValidator 选择题作答位位置静默防护（choice-answer-pos
     const { silentDetails } = auditExamPaper(html, CHOICE_OPTS);
     expect(silentDetails.some(d => d.type === 'choice-answer-pos')).toBe(true);
   });
+
+  it('其他既有载体不受影响：判断√×位、数学方框/比大小○、横线填空均不误报（条款只约束带选项的题）', () => {
+    // 🔒 2026-09 用户裁定：根治只针对"选项末尾挂空位"一个问题，不得触碰判断√×位/数学方框圆圈等既有条款。
+    //    本用例验证 guard 检测不误伤这些载体形态（判据=选项行内/末尾挂 blank，其余形态天然不命中）。
+    const cases = [
+      // 判断题√×位：题首括号、无选项行
+      ['<h2>三、判断对错（10分）</h2><p class="question">1. <span class="blank-2">&emsp;</span> 3×5=15。</p>'],
+      // 数学算式方框：3＋□＝8，方框在算式内、无选项行
+      ['<h2>二、填空（10分）</h2><p class="question">1. 3＋<u class="blank-2">&emsp;</u>＝8。</p>'],
+      // 比大小圆圈：题内嵌○
+      ['<h2>四、比一比（10分）</h2><p class="question">1. 12 <span class="blank-2">&emsp;</span> 21（填＞、＜或＝）</p>'],
+      // 英语横线填空：题干内横线、无选项
+      ['<h2>一、用所给词的正确形式填空（10分）</h2><p class="question">1. She <u class="blank-4">&emsp;</u> TV last night.</p>'],
+    ];
+    for (const [html] of cases) {
+      const { silentDetails } = auditExamPaper(html, CHOICE_OPTS);
+      expect(silentDetails.some(d => d.type === 'choice-answer-pos'), `不应误报：${html}`).toBe(false);
+    }
+  });
 });
 
