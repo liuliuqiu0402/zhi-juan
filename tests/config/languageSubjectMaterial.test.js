@@ -99,12 +99,14 @@ describe('素材使用约定（生成端单源）：来源开放 + 禁照搬（�
   // 🔴 2026-09-14（用户裁定·实测产物）：禁照搬原句挂在【压缩原文】上 → 锚清单通道整句被跳过 →
   //    该通道下没有任何禁止照搬的约束，模型整段沿用教材语篇（照搬守门命中 10 词连续重合）。
   //    现锁死：命题型禁照搬**通道无关**；且明确清单里的语篇类条目不作题目载体。
-  it('命题型禁照搬通道无关（两通道都在），并声明语篇类条目不作题目载体', () => {
+  it('命题型禁照搬通道无关（两通道都在），并声明语篇类条目的作用边界', () => {
     for (const ch of ['full', 'anchor']) {
       const t = buildMaterialUsageBlock({ genType: 'practice', materialChannel: ch });
       expect(t, `${ch} 命题型应含禁照搬`).toContain(COPY_BAN);
-      expect(t, `${ch} 应声明语篇条目不作题目载体`).toContain('不作题目载体');
+      expect(t, `${ch} 应界定语篇类条目的作用`).toContain('只用于核对覆盖与理解难度');
       expect(t, `${ch} 应给出可判定的照搬判据`).toContain('连续重合即属照搬');
+      // 🔴 用词红线："载体"在本项目专指作答载体/书写载体，不得用来表示题目素材（防模型混用）
+      expect(t, `${ch} 不得用"载体"表示题目素材`).not.toContain('题目载体');
     }
     // 归纳型：不复述"不得照搬原题"（其"不得整段照录"另给，单一事实源）
     const sum = buildMaterialUsageBlock({ genType: 'summary', materialChannel: 'full' });
