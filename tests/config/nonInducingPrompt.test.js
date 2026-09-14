@@ -136,6 +136,18 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(practice).toContain('整份都没有落点的补上');
   });
 
+  // 🔴 2026-09-14（用户定版）：蓝图"命题要求"（note）随【卷面结构】注入——写"（如…）"会把题目方向钉死
+  //    （如"综合运用（如制作图文卡片）"→ 题目只会往"做图文卡片"走）。要求 = 不写方向性举例，保留意图即可。
+  //    注意区分：**防错反例**（数量纪律"如把 2.05千米 写成 205千米"、术语口径"如 Chinese 末字母 s 发 /z/"）
+  //    是确定性规则的判据，不属此类，保留。
+  it('蓝图"命题要求"不写方向性举例（如…）——举例会把题目方向钉死', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'config', 'examPaperBlueprints.js'), 'utf8');
+    const notes = src.match(/note:\s*'[^']*'/g) || [];
+    expect(notes.length, '未扫到 note（防假绿）').toBeGreaterThan(20);
+    const bad = notes.filter((n) => /（如|（例如/.test(n));
+    expect(bad, `以下命题要求仍在举例：${bad.slice(0, 5).join('；')}`).toEqual([]);
+  });
+
   it('E：委托书尾含跨 9 类「资料内多样」自查句', () => {
     // ✅ A22（2026-09-14）：尾约束文本已从 useAiGenerator 内联提出到 utils/injectionManifest.js **单源**
     //    （生成端与生成面板共用），不变量不变（仍随每次请求末尾锚定注入），故断言改指单源 + 生成端引用

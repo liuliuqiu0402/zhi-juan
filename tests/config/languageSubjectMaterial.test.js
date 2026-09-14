@@ -55,18 +55,26 @@ describe('教材口径·双向开放（不钉死来源）', () => {
     }
   });
 
-  it('全库不再出现正向钉死"须出自原文/须以原文表述"（含阅读训练/错题本等其余题类）', () => {
+  it('全库不再出现正/反钉死（含阅读训练/错题本/知识型等其余题类）', () => {
     const cases = [
       ['语文', 'primary_high', 'reading'],
       ['英语', 'middle', 'reading'],
       ['语文', 'primary_high', 'errorbook'],
       ['数学', 'primary_high', 'summary'],
       ['英语', 'middle', 'review'],
+      ['语文', 'primary_high', 'preview'],
+      ['英语', 'middle', 'dictation'],
+      ['数学', 'middle', 'exam'],
     ];
     for (const [s, st, t] of cases) {
       const text = tpl(s, st, t);
-      expect(text, `${s}/${t}`).not.toContain('须出自原文');
-      expect(text, `${s}/${t}`).not.toContain('须以原文表述');
+      // 🔴 2026-09-14（用户定版）：错题本原写"错题题干/变式的数据、情境、句式**一律自拟**，
+      //    禁止沿用原文连续字面"——属反向钉死（与"双向开放"自相矛盾），已改为指向【素材使用约定】；
+      //    本用例把正/反两类钉死一起锁死（此前只锁正向，"一律自拟"漏网）。
+      for (const k of BIND_KEYS) {
+        expect(text, `${s}/${t} 不应出现钉死措辞：${k}`).not.toContain(k);
+      }
+      expect(text, `${s}/${t} 不得再出现"须出自原文"`).not.toContain('须出自原文');
     }
   });
 

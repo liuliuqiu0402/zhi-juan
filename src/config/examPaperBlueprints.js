@@ -388,7 +388,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断题', score: 16, note: '观点与行为辨析' },
       { name: '填空题', score: 16, note: '技术原理在数字化场景中运用（情境化设问）' },
       { name: '操作题', score: 32, note: '以书面形式描述操作步骤、流程设计' },
-      { name: '综合运用', score: 16, note: '解决真实数字化任务（如制作图文卡片）' },
+      { name: '综合运用', score: 16, note: '解决真实数字化任务' },
     ],
   },
   '信息科技|primary_high': {
@@ -398,7 +398,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断题', score: 16, note: '概念与行为辨析' },
       { name: '填空题', score: 16, note: '数字化场景中的原理运用' },
       { name: '操作题', score: 32, note: '流程设计、数据处理步骤描述' },
-      { name: '综合运用', score: 16, note: '真实任务（如用表格整理数据）' },
+      { name: '综合运用', score: 16, note: '真实任务' },
     ],
   },
   '信息科技|middle': {
@@ -408,7 +408,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断题', score: 12, note: '观点与行为辨析' },
       { name: '填空题', score: 16, note: '原理在场景中运用' },
       { name: '操作题', score: 28, note: '流程设计、方案描述（含算法与数据）' },
-      { name: '综合题', score: 20, note: '真实问题解决（如网络安全方案、数据可视化设计）' },
+      { name: '综合题', score: 20, note: '真实问题解决' },
     ],
   },
   '信息科技|high': {
@@ -526,7 +526,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断题', score: 20, note: '运动安全、生活习惯（情境化设问）' },
       { name: '选择题', score: 20, note: '运动情境判断' },
       { name: '连线题', score: 20, note: '动作与要领、场景与做法连线' },
-      { name: '简答题', score: 40, note: '在运动情境中描述正确做法（如"跑步时摔倒了怎么办"），配评分要点' },
+      { name: '简答题', score: 40, note: '在运动情境中描述正确做法，配评分要点' },
     ],
   },
   '体育|primary_mid': {
