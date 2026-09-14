@@ -131,7 +131,14 @@ const SELECT_NO_OPTION_WORDS = /选择(?:正确)?读音|选出.{0,4}读音|选�
 const WRITE_LINE_WORDS = /写在横线上|写在横线里|在横线上写|横线上写|在横线上填空/;
 const detectTaskMismatch = (html = '') => {
   const out = [];
-  const src = String(html || '');
+  const src0 = String(html || '');
+  // 🔴 2026-09-14（用户实证·误报根因）：只扫**正文**。答案区（answer-section）按设计没有作答空位，
+  //    而切块规则只认"行首数字题号"（`^\d+[.、．]`）——答案区的大题标题（如"二、根据中文提示，
+  //    在横线上写出正确的单词"）不以数字开头，会被并入上一题（"1. (1) T (2) T…"）的块，
+  //    于是该块文本含"在横线上写出"却无空位 → 系统性误报"声明写在横线上但题内无横线空"。
+  //    真问题（正文某题声明了书写载体却只有括号空）仍照报——切块只在正文内进行。
+  const ansIdx = src0.search(/<div[^>]*class=["'][^"']*answer-section/i);
+  const src = ansIdx >= 0 ? src0.slice(0, ansIdx) : src0;
   const blocks = [];
   let cur = null;
   const pRe = /<p\b[^>]*>([\s\S]*?)<\/p>/gi;

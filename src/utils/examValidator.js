@@ -1623,13 +1623,32 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       //    段内与连排题号逐题计入（与正文同口径，答案区紧凑排版后计数仍能对上）；
       //    位宽限 1-2 位、不以 0 开头——防长数字（2024.）/小数（21.5）误计。
       const topQRe = /(?:^|\s|[)）、])[1-9]\d?[.、．](?![.\d])/g;
+      // 🔴 2026-09-14（用户实证·误报根因）：题号计数改为**最长「1 起始连续递增」段**。
+      //    原实现只做全文匹配计数 → 题干内的**编号列举**（如写作题的"提示：1. What was…
+      //    2. What did you do? 3. … 4. …"）被算作题号，正文虚高（实测 14 题计成 18 题），
+      //    进而误报"答案区缺题号/编号体系不同构"。题号的本征特征是**从 1 起连续同序**，
+      //    题干内列举不会与主序列连续 → 取最长连续段即可精准还原真实题号数（答案区同口径，
+      //    紧凑连排、逐题计入的行为不变）。真缺陷（答案区确实没有对应题号）仍照报。
+      const topQNumbers = (text) => (String(text).match(topQRe) || [])
+        .map((s) => Number(String(s).match(/[1-9]\d?/)[0]));
+      const topQCount = (text) => {
+        let best = 0;
+        let run = 0;
+        for (const n of topQNumbers(text)) {
+          if (n === run + 1) run += 1;
+          else if (n === 1) run = 1;
+          else run = 0;
+          if (run > best) best = run;
+        }
+        return best;
+      };
       if (has('answer-coverage-guard')) {
         const bodyTextRaw = stripTags(blockToLines(out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0]));
         // 剔除"目标类板块"（学习目标/预习目标/复习目标/教学目标：标题至下一标题间的目标条目——不是题，
         // 答案区无对应，误统计会使 preview/review/summary 类资料误报"答案区题号少于正文"）
         const bodyText = bodyTextRaw.replace(/\n[一二三四五六七八九十]+\、\s*(?:学习|预习|复习|教学)目标[\s\S]*?(?=\n[一二三四五六七八九十]+\、|$)/g, '');
-        const bodyTopQ = (bodyText.match(topQRe) || []).length;
-        const ansTopQ = (ansText.match(topQRe) || []).length;
+        const bodyTopQ = topQCount(bodyText);
+        const ansTopQ = topQCount(ansText);
         if (bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
           // 🔍 计数口径取证（2026-09-12）：本口径只认「行首/空白/[)）、]后 + N.[、．]」。
           //    🔴 2026-09-13（用户实证定版·根因分型）：答案区计 0 **是真实缺陷信号**（=一个可对应的题号锚点都没有，
@@ -1638,6 +1657,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           //       ② 答案区确实未带任何题号（漏答或纯文字罗列）。
           const ansHasParen = /(?:^|\s)[(（]\s*\d{1,2}\s*[)）]/.test(ansText);
           const ansHasTable = /<table/i.test(ansMatch[1]);
+          // 🔴 2026-09-14（用户实证·误报根因）：分型判据收紧——只有答案区**几乎没有顶层题号**
+          //    （≤2 个）时才归为"用(1)(2)括号序号/表格代替题号"（编号体系不同构）；若已有与
+          //    正文同构的 `N.` 题号（只是数量偏少），属"漏答/纯文字罗列"型，不得误指为体系不同构
+          //    （实测样本：答案区 14 个 `N.` + 每题子题 `(1)(2)`，与正文完全同构，却被判"不同构"）。
+          const ansNumberingMissing = ansTopQ <= 2;
           try {
             const head = String(ansText).replace(/\s+/g, ' ').trim().slice(0, 200);
             console.warn(`🔍 [答案区计数取证] 正文题号数=${bodyTopQ} 答案区题号数=${ansTopQ}`
@@ -1645,7 +1669,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               + ` 含表格=${ansHasTable}`
               + ` ｜ 答案区开头「${head}」`);
           } catch (e) { /* 取证失败不影响主流程 */ }
-          if (ansHasParen || ansHasTable) {
+          if (ansNumberingMissing && (ansHasParen || ansHasTable)) {
             silentCount('answer-coverage', `答案区**缺与正文一致的题号**（正文题号 ${bodyTopQ} 个，答案区仅 ${ansTopQ} 个；答案区用的是「(1)(2)」括号序号${ansHasTable ? '/表格' : ''}）——编号体系与正文不同构，答案无法与正文逐题对应：请改为**与正文相同的阿拉伯题号（1. 2. 3.…，全卷连续同序；仅子题用 (1)(2)）**，请抽检`);
           } else {
             silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})——答案区可能未按与正文一致的题号逐题对齐（计数口径：行首/空白后的「1.」形式），请抽检`);

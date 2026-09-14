@@ -82,6 +82,27 @@ describe('contentSanity 内容合理性扫描', () => {
     const withLine = '<p>2. 把下面的字写在横线上。</p><p>（1）dé <u class="blank-4">&emsp;</u></p>';
     expect(sanityScan(withLine)).toEqual([]);
   });
+
+  // 🔴 2026-09-14（用户实证·误报根因）：切块只认"行首数字题号"，答案区的大题标题不以数字开头，
+  //    会被并入上一题的块 → 系统性误报。答案区按设计没有作答空位，故该探测器只扫正文。
+  it('答案区不参与该检测：答案区大题标题含"在横线上写"不得误报（实测随堂巩固样本）', () => {
+    const html = '<h1>随堂巩固</h1>'
+      + '<h2>一、判断下列每组发音是否相同，相同的写“T”，不同的写“F”</h2>'
+      + '<p>1. 读一读，判断…</p><p>(1) feel　see（　）</p>'
+      + '<h2>二、根据中文或图片提示，在横线上写出正确的单词</h2>'
+      + '<p>2. 根据中文提示，在横线上写出正确的单词。</p><p>(1) had a singing <u class="blank-4">&emsp;</u>（比赛）</p>'
+      + '<div class="answer-section"><h2>参考答案与解析</h2>'
+      + '<h2>一、判断下列每组发音是否相同，相同的写“T”，不同的写“F”</h2><p>1. (1) T　(2) T　(3) F　(4) T</p><p>解析：feel、see…</p>'
+      + '<h2>二、根据中文或图片提示，在横线上写出正确的单词</h2><p>2. (1) competition…</p>'
+      + '</div>';
+    const hits = sanityScan(html).filter((s) => s.includes('无横线空/书写行'));
+    expect(hits, '答案区（无空位）不得被判为"声明写在横线上但无横线空"').toEqual([]);
+  });
+
+  it('正文真缺陷仍报：正文某题声明"写在横线上"却只有括号空 → 检出（防护不失效）', () => {
+    const html = '<h1>练习</h1><p>1. 根据中文提示，在横线上写出正确的单词。</p><p>(1) Our school had a singing（比赛）</p>';
+    expect(sanityScan(html).some((s) => s.includes('无横线空/书写行'))).toBe(true);
+  });
 });
 
 describe('contentSanity 2026-09 A-101 产物审计回归（可数对象小数直写 / 近似等号 / 双载体泄漏）', () => {

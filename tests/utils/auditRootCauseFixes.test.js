@@ -494,4 +494,44 @@ describe('根治回归：答案区题号覆盖度按块级行计数（不依赖�
     expect(silentDetails.some(d => d.type === 'answer-coverage' && d.message.includes('答案区题号数'))).toBe(false);
     expect(silentDetails.some(d => d.type === 'body-coverage')).toBe(false);
   });
+
+  // 🔴 2026-09-14（用户实证·误报根因）：题号计数改为"最长 1 起始连续递增段"
+  it('🔴 题干内编号列举（写作题"提示：1. 2. 3. 4."）不计入题号数——不再虚高计数', () => {
+    // 实测样本：英语随堂巩固正文 14 题（1..14 连续）+ 第13题题干内"提示：1.~4."，
+    // 原全文计数口径虚计成 18，答案区 14 个 `N.`（子题用 (1)(2)，与正文同构）→ 误报"缺题号/不同构"
+    const body = Array.from({ length: 12 }, (_, i) => `<p>${i + 1}. 第${i + 1}题</p>`).join('');
+    const html = '<h1>随堂巩固</h1>'
+      + body
+      + '<p>13. 写一篇短文介绍你曾经面对困难的经历。</p><p>提示：</p>'
+      + '<p>1. What was the difficult thing?</p><p>2. What did you do?</p>'
+      + '<p>3. What was the result?</p><p>4. What did you learn from it?</p>'
+      + '<p>14. 给你的笔友回一封邮件。</p>'
+      + '<div class="answer-section"><h2>参考答案与解析</h2>'
+      + Array.from({ length: 14 }, (_, i) => `<p>${i + 1}. (1) 答案　(2) 答案</p>`).join('')
+      + '</div>';
+    const { silentDetails } = auditExamPaper(html, { subject: '英语', stage: 'primary_high', genType: 'practice' });
+    expect(silentDetails.filter(d => d.type === 'answer-coverage'), '正文 14 题、答案区 14 题号，不应告警').toEqual([]);
+  });
+
+  it('🔴 分型不误指：答案区题号偏少但已有同构 `N.` 题号 → 只报"数量少"，不得报"编号体系不同构"', () => {
+    const body = Array.from({ length: 10 }, (_, i) => `<p>${i + 1}. 第${i + 1}题</p>`).join('');
+    const html = '<h1>练习</h1>' + body
+      + '<div class="answer-section"><h2>参考答案与解析</h2>'
+      + Array.from({ length: 6 }, (_, i) => `<p>${i + 1}. (1) 答案</p>`).join('')
+      + '</div>';
+    const { silentDetails } = auditExamPaper(html, { subject: '英语', stage: 'primary_high', genType: 'practice' });
+    const msgs = silentDetails.filter(d => d.type === 'answer-coverage').map(d => d.message);
+    expect(msgs.some(m => m.includes('答案区题号数'))).toBe(true);
+    expect(msgs.some(m => m.includes('缺与正文一致的题号')), '已有同构题号时不得指为"体系不同构"').toBe(false);
+  });
+
+  it('真缺陷仍报：答案区只有「(1)(2)」括号序号、无任何顶层 `N.` 题号 → 仍报"编号体系不同构"', () => {
+    const body = Array.from({ length: 5 }, (_, i) => `<p>${i + 1}. 第${i + 1}题</p>`).join('');
+    const html = '<h1>练习</h1>' + body
+      + '<div class="answer-section"><h2>参考答案与解析</h2>'
+      + '<p>(1) 答案　(2) 答案　(3) 答案</p><p>(1) 答案　(2) 答案</p>'
+      + '</div>';
+    const { silentDetails } = auditExamPaper(html, { subject: '英语', stage: 'primary_high', genType: 'practice' });
+    expect(silentDetails.some(d => d.type === 'answer-coverage' && d.message.includes('缺与正文一致的题号'))).toBe(true);
+  });
 });
