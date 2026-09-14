@@ -1,9 +1,9 @@
 // 前瞻覆盖指令契约（2026-09：覆盖要求前移到模板创作要求，不依赖事后对账/重生成）
 // ============================================================
 // 🔴 教训：考点清单（【本资料考查知识点】）注入素材区，但模板创作要求缺"按资料类型覆盖"句——
-//    模型拿到清单却不知 practice 须逐点覆盖、full 型须全层级 → 覆盖不全只能事后对账。
+//    模型拿到清单却不知 practice 须逐项覆盖、full 型须全层级 → 覆盖不全只能事后对账。
 // 契约（与 coverageContract 模式同源）：
-//   · per-lesson-full（practice 课时练）→ "覆盖全部考点…不得整点遗漏"
+//   · per-lesson-full（practice 课时练）→ "覆盖全部核心知识…不得有整项遗漏"（🔴 2026-09-14：不再带"按层级逐点设题"暗示）
 //   · full（preview/dictation/summary/review）→ 全知识点覆盖且指向清单核对锚（summary/review 原有"全部知识点"保留）
 //   · focus（special/reading）→ 按主题聚焦（不加"全覆盖"句，防诱导硬塞）
 //   · sampled（exam）/ none（errorbook）→ 不加全覆盖句
@@ -12,12 +12,17 @@ import { describe, it, expect } from 'vitest';
 import { getPromptTemplate } from '../../src/config/promptLibrary.js';
 
 describe('前瞻覆盖指令（模板层按资料类型注入）', () => {
-  it('practice（per-lesson-full）：题目须覆盖本课全部核心知识，不得整点遗漏', () => {
+  it('practice（per-lesson-full）：题目须覆盖本课全部核心知识，不得有整项遗漏', () => {
     const t = getPromptTemplate({ genType: 'practice' });
     expect(t.template).toContain('核心知识覆盖：题目须覆盖本课');
-    expect(t.template).toContain('本课知识层级（大概念 → 核心知识）');
-    expect(t.template).toContain('不得整点遗漏');
+    expect(t.template).toContain('每一项都要有实际呈现它的题目或任务');
+    expect(t.template).toContain('不得有整项遗漏');
     expect(t.template).toContain('不依赖事后对账');
+    // 🔴 2026-09-14（用户裁定·实测产物验证）：原句"本课知识层级（大概念 → 核心知识）逐点至少以一道题…"
+    //    把清单的**层级**当成了**设题依据** → 模型把知识主题直接当大题标题（锚清单通道实测复现）。
+    //    现锁死：覆盖要求保留，但不得再出现"按层级逐点设题"的暗示。
+    expect(t.template).not.toContain('本课知识层级（大概念');
+    expect(t.template).not.toContain('逐点至少以一道题');
     // 清单上下限/扩展口径（2026-09-13）已收敛到生成端【素材使用约定】按资料类型分档单源注入
     // （expand 可补清单外知识点/角度、integrate 可关联已学旧知、strict 守本课），模板只保留覆盖要求本身，
     // 不再复述"下限/上限/扩展"（防注入逐字重复）
@@ -62,7 +67,8 @@ describe('前瞻覆盖指令（模板层按资料类型注入）', () => {
   it('focus/sampled/none 型不加"全覆盖/不得遗漏"句（防诱导硬塞无关考点）', () => {
     for (const g of ['special', 'reading', 'exam', 'errorbook']) {
       const t = getPromptTemplate({ genType: g });
-      expect(t.template, `${g} 不得注入全覆盖句`).not.toContain('不得整点遗漏');
+      // 🔴 2026-09-14：覆盖句措辞由"不得整点遗漏"改为"不得有整项遗漏"（去粒度量词），负向断言随之更新
+      expect(t.template, `${g} 不得注入全覆盖句`).not.toContain('不得有整项遗漏');
       expect(t.template, `${g} 不得注入覆盖清单核对句`).not.toMatch(/全部考点.{0,10}不得/);
     }
   });

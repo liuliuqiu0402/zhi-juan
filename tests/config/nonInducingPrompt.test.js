@@ -55,6 +55,8 @@ const WHITELIST_KEEP = [
 ];
 
 const GEN_TYPES = ['exam', 'practice', 'special', 'reading', 'summary', 'review', 'preview', 'dictation', 'errorbook'];
+const GEN_STAGES = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
+const GEN_SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '道德与法治', '科学', '信息技术', '体育', '美术', '音乐'];
 
 function assertNoBanned(str, ctx) {
   for (const w of BANNED_ENUM) {
@@ -108,6 +110,30 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
   it('白名单（答题书写规范）仍保留', () => {
     const raw = JSON.stringify(TEACHING_SUBJECT_BLUEPRINTS);
     expect(raw).toContain(WHITELIST_KEEP[0]);
+  });
+
+  // 🔴 2026-09-14（用户裁定·实测产物验证）：practice 模板原写"本课知识层级（大概念 → 核心知识）**逐点**
+  //    至少以一道题或任务呈现一次"，共享【质量底线】原写"逐点覆盖核心知识…逐点呈现"——把清单的**层级**
+  //    当成了**设题依据**，模型据此把知识主题直接当大题标题、内容围着教材转（锚清单通道实测复现）。
+  //    现锁死：三维度模板与共享块都不得用"层级/逐点"暗示设题或组织；标题来源以委托书结构+自拟概括为唯一。
+  it('清单不得被当作设题/组织依据（无"按层级逐点设题"诱导，跨 5 学段 × 14 学科 × 9 类型）', () => {
+    const BAD = ['知识层级（大概念', '逐点至少以一道题', '逐点覆盖核心知识', '逐点呈现所需的内容'];
+    for (const stage of GEN_STAGES) {
+      for (const subject of GEN_SUBJECTS) {
+        for (const genType of GEN_TYPES) {
+          const tpl = getPromptTemplate({ grade: stage, subject, genType })?.template || '';
+          for (const bad of BAD) {
+            expect(tpl, `${stage}|${subject}|${genType} 不应含诱导「${bad}」`).not.toContain(bad);
+          }
+        }
+      }
+    }
+    // 标题来源禁则须在题类【输出格式】单点声明（清单条目名/教材板块名不得当标题）
+    const practice = getPromptTemplate({ grade: 'primary_high', subject: '英语', genType: 'practice' }).template;
+    expect(practice).toContain('不得直接搬用【锚点清单】的条目名或教材板块名充当栏目标题/大题标题');
+    // 覆盖下限本身不得被削弱（去掉层级暗示 ≠ 去掉覆盖要求）
+    expect(practice).toContain('题目须覆盖本课【锚点清单】中的每一项');
+    expect(practice).toContain('不得有整项遗漏');
   });
 
   it('E：委托书尾含跨 9 类「资料内多样」自查句', () => {
