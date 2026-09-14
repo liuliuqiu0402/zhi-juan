@@ -17,6 +17,23 @@ import {
 
 const ROOT = path.resolve(__dirname, '../..');
 
+// 🔬 (b) 第二步（分析层）：条目性质 kind 的契约与透传。旧分析结果缺该字段 → 一律按 knowledge 处理，
+//    即"未重跑分析前行为与分流前完全一致"（安全无害）。
+describe('(b) 分析层 kind 契约', () => {
+  it('层级图谱 schema 给出 kind 字段与判据（全学科统一）', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/composables/useAiGenerator.js'), 'utf8');
+    expect(src, 'schema 须含 kind 字段').toContain('"kind": "knowledge|material"');
+    expect(src, '须给一句可判定的判据').toContain('能不能直接变成一道题的考查点');
+    expect(src, '须声明缺字段的向后兼容口径').toContain('kind 缺失时一律按 knowledge 处理');
+    expect(src, '另一条图谱 prompt 须同步').toContain('核心知识点[knowledge|material](≤6)');
+  });
+
+  it('锚树归一透传 kind，缺字段按 knowledge', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/utils/coverageAnchor.js'), 'utf8');
+    expect(src).toContain("kind: ck.kind === 'material' ? 'material' : 'knowledge'");
+  });
+});
+
 describe('buildUserMessagePrompt（实发拼接：顺序 + 逐字）', () => {
   const full = {
     genType: 'practice', subject: '数学', materialChannel: 'full',

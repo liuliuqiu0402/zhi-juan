@@ -69,6 +69,9 @@ export const flattenAnchorTree = (anchorTree = []) => {
       out.push({
         bigConcept: big,
         name: ck.name,
+        // 🔬 (b) 条目性质透传：'material'（语言材料/语篇条目）由生成期分流为"只作理解与难度依据"；
+        //    缺字段（旧分析结果）→ 'knowledge'，行为与分流前一致
+        kind: ck.kind === 'material' ? 'material' : 'knowledge',
         level: ck.level || '理解',
         specificConcepts: (ck.specificConcepts || []).filter(Boolean),
       });
