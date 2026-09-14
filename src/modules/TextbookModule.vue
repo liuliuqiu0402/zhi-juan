@@ -1055,6 +1055,13 @@
                           v-if="ck.level"
                           style="margin-left:8px;padding:2px 6px;background:#3498db;color:white;border-radius:3px;font-size:10px;"
                         >{{ ck.level }}</span>
+                        <!-- 🔬 (b) 条目性质可见（2026-09-14）：材料类条目生成期只作理解与难度依据、
+                             不列入命题覆盖单位——显式标出，便于人工核对分析判得对不对 -->
+                        <span
+                          v-if="ck.kind === 'material'"
+                          title="语言材料·语篇条目：生成时只作理解与难度依据，不列入命题覆盖单位（不必为其单独设题）"
+                          style="margin-left:6px;padding:2px 6px;background:#8e7cc3;color:white;border-radius:3px;font-size:10px;"
+                        >材料</span>
                       </div>
                       <div
                         v-if="ck.specificConcepts && ck.specificConcepts.length > 0" 
