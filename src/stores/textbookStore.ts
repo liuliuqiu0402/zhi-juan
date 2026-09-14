@@ -8,6 +8,8 @@ import { repairLibraryPaths } from '../utils/libraryPathRepair';
 import { hasAnySelected as hasAnySelectedTree, countSelected as countSelectedTree } from '../utils/outlineTree'; // 大纲树勾选唯一实现（曾 store 内 4 份逐字副本）
 // 🔧 文本指纹哈希唯一实现（djb2，与生成端 useAiGenerator 的"文本是否变过"判定同源，曾各自复制导致字段对不上）
 import { djb2 } from '../utils/hash';
+// @ts-ignore - anchorTreeContract.js 无类型声明
+import { resolveAnchorKind } from '../utils/anchorTreeContract'; // 🔬 (b) 条目性质判定唯一实现（显式 kind 优先 + 条目名兜底），落库归一与生成端同源
 
 export { sanitizeFsName } from '../utils/libraryPathRepair';
 
@@ -30,6 +32,9 @@ interface ChapterNode {
   knowledgeHierarchy?: Array<{
     bigConcept: string;
     coreKnowledge?: Array<{
+      // 🔬 条目性质：落库时由 store 统一补全（显式 kind 优先，缺失按条目名兜底 resolveAnchorKind），
+      //    此字段必须声明在类型上，否则落库/展示/生成三处拿到的判定会分叉。
+      kind?: string;
       name: string;
       level?: string;
       cognitiveLevel?: string;
@@ -347,7 +352,17 @@ export const useTextbookStore = defineStore('textbook', {
           : (item.coreTopics ? item.coreTopics.split(',').map(t => t.trim()) : []);
         ch.competency = item.competency || '理解';
         if (item.knowledgeHierarchy) {
-          ch.knowledgeHierarchy = item.knowledgeHierarchy;
+          // 🔬 (b) 落库归一（2026-09-14，② 全链路体检）：条目性质 kind 原先是"模型自觉输出字段"，
+          //    实测导语页分支曾整段漏掉 → 存储里没有、展示层就永远没有标签、生成端也拿不到。
+          //    这里在**唯一落库点**按同一判据补全（显式 kind 优先，缺失按条目名兜底 resolveAnchorKind），
+          //    保证「分析结果展示 = 生成端 = 面板」三处看到的是同一份判定，不再分叉。
+          ch.knowledgeHierarchy = item.knowledgeHierarchy.map((bc: any) => ({
+            ...bc,
+            coreKnowledge: (bc.coreKnowledge || []).map((ck: any) => ({
+              ...ck,
+              kind: resolveAnchorKind({ name: ck.name, kind: ck.kind }),
+            })),
+          }));
         }
         if (item.knowledgeHierarchy) {
           ch._cognitiveCorrections = [];
