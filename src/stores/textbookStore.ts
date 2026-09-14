@@ -211,6 +211,27 @@ export const useTextbookStore = defineStore('textbook', {
         for (const b of saved) {
           if (b.outline) backfillAnalyzedFingerprints(b.outline);
         }
+        // 🔬 条目性质回填（2026-09-14，② 读盘归一）：`kind` 是"模型自觉输出"字段，实测常缺
+        //    （英语单元走正文页分支、schema 早已带 kind，仍没吐）→ 旧分析结果的存储层里没有它，
+        //    展示层就永远看不到「材料」标签、生成端也只能靠名字兜底。这里**读盘时幂等回填**
+        //    （显式 kind 优先，缺失按 resolveAnchorKind 判，纯派生、成本为零），
+        //    与落库归一、生成端同一判据 → 「分析的看的 = 存的 = 生成的」三处一致。
+        const backfillAnchorKind = (nodes: ChapterNode[]) => {
+          for (const node of nodes) {
+            if (node.analyzed && Array.isArray(node.knowledgeHierarchy)) {
+              for (const bc of (node.knowledgeHierarchy as any[])) {
+                for (const ck of (bc?.coreKnowledge || [])) {
+                  const k = resolveAnchorKind({ name: ck.name, kind: ck.kind });
+                  if (ck.kind !== k) { ck.kind = k; hasChange = true; }
+                }
+              }
+            }
+            if (node.children && node.children.length > 0) backfillAnchorKind(node.children);
+          }
+        };
+        for (const b of saved) {
+          if (b.outline) backfillAnchorKind(b.outline);
+        }
         // 🔧 完成回填 & 旧路径自愈后写回，后续不再做
         this.textbooks = saved;
         if (hasChange) await storage.setItem('textbooks', saved);
