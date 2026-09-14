@@ -2964,6 +2964,7 @@
                   class="detail-item"
                 >
                   <strong>🎯 知识层级：</strong>
+                  <span style="font-size:11px;color:#8a94a6;font-weight:400;margin-left:6px;">（条目后的标签可点击改判：知识 ⇄ 材料；「材料」不计入命题覆盖单位）</span>
                   <div style="margin-top:8px;background:#f8f9fa;padding:10px;border-radius:6px;max-height:200px;overflow-y:auto;">
                     <div
                       v-for="(bc, bcIdx) in viewingChapter.knowledgeHierarchy"
@@ -2976,7 +2977,8 @@
                       
                       <div
                         v-for="(ck, ckIdx) in (bc.coreKnowledge || [])"
-                        :key="ckIdx" 
+                        :key="ckIdx"
+                        class="kind-item"
                         style="margin-left:16px;margin-bottom:6px;"
                       >
                         <div style="font-size:12px;font-weight:600;color:#34495e;">
@@ -2985,13 +2987,17 @@
                             v-if="ck.level"
                             style="margin-left:8px;padding:2px 6px;background:#3498db;color:white;border-radius:3px;font-size:10px;"
                           >{{ ck.level }}</span>
-                          <!-- 🔬 条目性质可见（与教材库同一口径）：材料类条目生成期只作理解与难度依据、
-                               不列入命题覆盖单位。kind 由读盘/落库归一保证一定存在（不再有"只有教材库看得到"的分叉） -->
+                          <!-- 🔬 条目性质·可点改判（2026-09-14）：与教材库同一口径、同一条链——
+                               点击写的就是 resolveAnchorKind 优先读的显式 kind，落盘后落库/读盘/生成端一并生效。
+                               这解决了"只有教材库看得到、改不了"与"两个界面不一致"两头问题 -->
                           <span
-                            v-if="ck.kind === 'material'"
-                            title="语言材料·语篇条目：生成时只作理解与难度依据，不列入命题覆盖单位（不必为其单独设题）"
-                            style="margin-left:6px;padding:2px 6px;background:#8e7cc3;color:white;border-radius:3px;font-size:10px;"
-                          >材料</span>
+                            class="kind-chip"
+                            :class="ck.kind === 'material' ? 'kind-chip-material' : 'kind-chip-knowledge'"
+                            :title="ck.kind === 'material'
+                              ? '当前判为「语言材料」：生成时只作理解与难度依据，不列入命题覆盖单位（不必为其单独设题）。点击改判为「知识」——写回分析结果并立即保存，生成期按新判据分流。'
+                              : '当前判为「知识」：可独立成题，列入命题覆盖单位。点击改判为「语言材料」——写回分析结果并立即保存，生成期按新判据分流。'"
+                            @click.stop="textbookStore.setAnchorKind(ck, ck.kind === 'material' ? 'knowledge' : 'material')"
+                          >{{ ck.kind === 'material' ? '材料' : '知识' }}</span>
                         </div>
                         <div
                           v-if="ck.specificConcepts && ck.specificConcepts.length > 0" 
@@ -9219,6 +9225,24 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 </script>
 
 <style scoped>
+/* 🔬 条目性质标签·可点改判（2026-09-14 (b)，与教材库同一实现）：
+   「材料」常显（紫底，例外项，点击可改回知识）；「知识」默认不渲染（display:none → 零布局影响），
+   鼠标移入该条目（.kind-item）才出现；触屏无 hover → 常显，保证双向都可改判。 */
+.kind-chip {
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 400;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.kind-chip-material { background: #8e7cc3; color: #fff; }
+.kind-chip-knowledge { display: none; background: #eceef2; color: #6b7280; }
+.kind-item:hover .kind-chip-knowledge { display: inline-block; }
+@media (hover: none) { .kind-chip-knowledge { display: inline-block; } }
+
 .generate-module {
   height: 100%;
   display: flex;

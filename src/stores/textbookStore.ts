@@ -312,6 +312,24 @@ export const useTextbookStore = defineStore('textbook', {
       this.showChapterAnalysis = false;
     },
 
+    /**
+     * 🔬 条目性质·人工改判（2026-09-14 (b) 用户同意）：把某条第2层条目的 kind 显式写成
+     * knowledge / material —— 与教材库同一条链、同一判据，没有第二套字段：
+     *   `resolveAnchorKind` 的规则是**显式 kind 优先、缺失才按条目名兜底**，
+     *   故"写显式值"本身就是人工改判，落库归一 / 读盘归一 / 生成端随卡投影 / 两个展示界面
+     *   全部沿用同一判据 → 改一次即全链路生效（无需各界面各改一遍，也不会被兜底覆盖）。
+     * 立即落盘：改判是带即时效果的纠正动作（下一份资料就按新判据分流）；若只留内存、
+     *   关闭抽屉不点保存就丢，等于"看起来改了、其实没改"——正是本项目反复治理的那类坑。
+     * @param ck 第2层条目对象（必须是 viewingChapter 同一对象图内的引用，就地写回）
+     * @param kind 'knowledge' | 'material'
+     */
+    async setAnchorKind(ck: any, kind: 'knowledge' | 'material') {
+      if (!ck || (kind !== 'knowledge' && kind !== 'material')) return;
+      ck.kind = kind;
+      await this.saveTextbooks();
+      this.textbooks = [...this.textbooks]; // 触发引用更新（左树/抽屉同源刷新）
+    },
+
     hasAnySelected(nodes?: ChapterNode[]): boolean {
       return hasAnySelectedTree(nodes); // utils/outlineTree（曾 store action 自实现副本）
     },

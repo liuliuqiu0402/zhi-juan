@@ -2,6 +2,8 @@
 // 背景：分析输出即"锚清单本体"（knowledgeHierarchy 第 2 层 = 锚），粒度不统一会让锚清单失真。
 //       典型反例：语文低段把"人/口/手"单字提为第 2 层条目 → 短锚爆炸、下游取不到真考点。
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   SHORT_ANCHOR_MAX_LEN,
   isMinUnitName,
@@ -14,8 +16,11 @@ import {
   anchorListRoleNote,
   MAX_SPECIFIC_CONCEPTS_PER_ANCHOR,
   ANCHOR_LIST_ROLE_NOTE,
+  resolveAnchorKind,
 } from '../../src/utils/anchorTreeContract.js';
 import { buildAnchors } from '../../src/utils/coverageAnchor.js';
+
+const ROOT = path.resolve(__dirname, '../..');
 
 // 正确形态：最小单位在第 3 层
 const goodTree = [
@@ -388,5 +393,72 @@ describe('A17 第3层具体概念并入锚点清单（锚清单注入通道的�
     expect(ANCHOR_LIST_ROLE_NOTE).not.toContain('考点');
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('知识点');
     expect(ANCHOR_LIST_ROLE_NOTE).not.toContain('命题靶点');
+  });
+});
+
+// 🔬 (b) 条目性质·人工改判（2026-09-14 用户同意）：界面上「材料/知识」标签可点改判。
+// 原理与教材库同一条链——`resolveAnchorKind` = **显式 kind 优先 + 条目名兜底**，
+//   所以"人工改判"就是写一个**显式 kind**（不新增第二套 override 字段）：
+//   落库归一 / 读盘归一 / 生成端随卡投影 / 两个展示界面全部沿用同一判据 →
+//   改一次即全链路生效，且不会被名字兜底拽回去（这正是"显式优先"这条规则的反向使用）。
+describe('(b) 条目性质·人工改判（显式优先的反向使用）', () => {
+  it('显式 kind 双向优先：材料改成知识、知识改成材料都算数（不被名字兜底拽回）', () => {
+    // 名字命中材料词表，但人工改判为知识 → 必须是知识（否则等于"改不动"）
+    expect(resolveAnchorKind({ name: '课文：蜗牛爬树', kind: 'knowledge' })).toBe('knowledge');
+    // 名字是普通知识点，但人工改判为材料 → 必须是材料
+    expect(resolveAnchorKind({ name: '句型：一般过去时', kind: 'material' })).toBe('material');
+  });
+
+  it('未改判（无 kind）仍走名字兜底；空值安全（改判不改变既有兜底行为）', () => {
+    expect(resolveAnchorKind({ name: '课文：蜗牛爬树' })).toBe('material');
+    expect(resolveAnchorKind({ name: '句型：一般过去时' })).toBe('knowledge');
+    expect(resolveAnchorKind({})).toBe('knowledge');
+    expect(resolveAnchorKind()).toBe('knowledge');
+  });
+
+  it('改判后端到端生效：改判写进分析结果 → 覆盖锚归一 → 清单分流（同一条链，无第二处判断）', () => {
+    // ① 分析结果里"课文：蜗牛爬树"被人工改判为知识（写显式 kind）
+    const card = {
+      chapterTitle: '第1课',
+      segments: [{ text: '课文 蜗牛爬树', type: '正文' }],
+      anchorTree: [{
+        bigConcept: '',
+        coreKnowledge: [
+          { name: '语音：ee 发音', level: '理解', specificConcepts: ['/iː/'] },
+          { name: '课文：蜗牛爬树', level: '理解', specificConcepts: [], kind: 'knowledge' }, // ← 人工改判
+        ],
+      }],
+    };
+    const { anchors } = buildAnchors([card], {});
+    expect(anchors.find((a) => a.name === '课文：蜗牛爬树').kind).toBe('knowledge');
+    const out = formatAnchorListByChapter(anchors, { splitMaterial: true });
+    expect(out).not.toContain('◇'); // 改判回知识 → 不再单列为语言材料
+    expect(out).toContain('课文：蜗牛爬树');
+
+    // ② 反向：未改判时名字兜底判为材料 → 单列 ◇ 行（证明改判确有实效，而非本来就如此）
+    const card2 = {
+      chapterTitle: '第1课',
+      segments: [],
+      anchorTree: [{ bigConcept: '', coreKnowledge: [{ name: '课文：蜗牛爬树', level: '理解' }] }],
+    };
+    const { anchors: a2 } = buildAnchors([card2], {});
+    expect(a2[0].kind).toBe('material');
+    expect(formatAnchorListByChapter(a2, { splitMaterial: true })).toContain('◇ 语言材料');
+  });
+
+  it('接线锁死：单点写回 ck.kind + 立即落盘；两个界面同一个 store action；无第二套 override 字段', () => {
+    const store = fs.readFileSync(path.join(ROOT, 'src/stores/textbookStore.ts'), 'utf8');
+    expect(store).toContain("async setAnchorKind(ck: any, kind: 'knowledge' | 'material')");
+    expect(store).toContain('ck.kind = kind;');            // 只写 resolveAnchorKind 优先读的那个字段
+    expect(store).toContain('await this.saveTextbooks();'); // 立即落盘：关闭抽屉不保存也不丢
+    expect(store).not.toContain('kindOverride');            // 不引入第二套字段（防两套口径）
+
+    for (const m of ['TextbookModule.vue', 'GenerateModule.vue']) {
+      const src = fs.readFileSync(path.join(ROOT, 'src/modules', m), 'utf8');
+      expect(src, `${m} 须可点改判`).toContain('textbookStore.setAnchorKind(ck,');
+      expect(src, `${m} 须在两个显式取值间切换`).toContain("ck.kind === 'material' ? 'knowledge' : 'material'");
+      expect(src, `${m} 须有可点标签样式`).toContain('.kind-chip');
+      expect(src, `${m} 须有改判提示`).toContain('标签可点击改判');
+    }
   });
 });
