@@ -6092,10 +6092,15 @@ const resolveNeedsImageText = ({ books = [], genType = '' } = {}) => {
   } catch { /* 无蓝图：结构留空，其余信号照给（能力注入、多注入无害） */ }
   const scopeSource = books.find(b => (b.selectedChapters || []).length > 0) || books[0];
   const titles = (list) => (list || []).map(c => c.title || c.name || '').filter(Boolean).join(' ');
+  // 范围名信号 = 范围维度名 + 用户选定/自定义的范围名（scopeOverride，可能直接写成章节名或
+  //   "看图写话专项"这类含图依赖词的自由文本）。不纳入"轮换后范围名 unit"：它仅组装路径可得，
+  //   纳入会造成"组装有、刷新无"的新漂移；scopeOverride 三处均可得，故用它。
+  const scopeName = [SCOPE_TYPE_LABELS[scopeType.value] || scopeType.value || '', scopeOverride.value]
+    .filter(Boolean).join(' ');
   return buildNeedsImageText({
     structure,
     typeLabel: genTypeTemplates[genType]?.name || genType,
-    scopeName: SCOPE_TYPE_LABELS[scopeType.value] || scopeType.value || '',
+    scopeName,
     chapters: `${titles(scopeSource?.selectedChapters)} ${titles(scopeSource?.outline)}`,
   });
 };

@@ -67,4 +67,10 @@ describe('源码接线：配图判定提示文本三入口同参（防"预览A/�
     // 刷新入口按逐章过滤版优先取书（否则逐章模式下章节名又成第二个漂移源）
     expect(s).toContain('perChapterBooksRef.value?.length');
   });
+
+  it('范围名信号含用户自定义范围名（scopeOverride），并在单源内解析（三入口同参、不新增漂移）', () => {
+    const s = gm();
+    // 单源内拼接：范围维度名 + 用户选定/自定义范围名
+    expect(s).toContain('const scopeName = [SCOPE_TYPE_LABELS[scopeType.value] || scopeType.value || \'\', scopeOverride.value]');
+  });
 });
