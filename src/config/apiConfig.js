@@ -602,6 +602,12 @@ export const apiConfig = reactive({
     //    'full'   全文注入（手动覆盖，对所有类型生效）
     //    'anchor' 锚清单注入（手动覆盖，对所有类型生效）
     materialChannel: 'auto',
+    // 🔧 清单第3层（具体概念）注入开关（2026-09-14 用户定版开关）：
+    //    true（默认）→ 【锚点清单】知识点名后括注第3层具体概念（细化"该知识点含哪些概念/词条/数值"）；
+    //    false → 只给第1层主题 + 第2层知识点名（清单更短更"轻"，不与教材词句绑定；
+    //            角色说明里的第3层那句同步省略，防指向不存在内容的假指针）。
+    //    注：分析产物不变（三层照旧落库），只影响【锚点清单】的渲染形态。
+    injectThirdLayer: true,
     // 🔧 各引擎整卷生成深度思考开关（生成端按当前引擎读取对应开关；其余任务始终关闭思考）
     deepseekGenerationThinking: false,
     volcanoGenerationThinking: false,

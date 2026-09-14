@@ -34,9 +34,9 @@ export const TAIL_SELF_CONSISTENCY = `【尾约束·全文自洽】
 export const TAIL_VARIETY = `【尾约束·资料内多样】
 同一份资料内各栏目呈现形式与组织顺序应有所差异，不得全份同类版式照搬；同一呈现方式与同一组织顺序不可逐栏、逐单元反复套用。`;
 
-/** ① 锚点清单（写作期前缀首位；含第1层知识主题 + 第3层具体概念） */
-export const buildAnchorListBlock = (anchorListText = '') =>
-  `【锚点清单】\n${ANCHOR_LIST_ROLE_NOTE}\n${anchorListText}\n\n`;
+/** ① 锚点清单（写作期前缀首位；含第1层知识主题 + 第2层知识点；第3层具体概念随用户开关） */
+export const buildAnchorListBlock = (anchorListText = '', roleNote = ANCHOR_LIST_ROLE_NOTE) =>
+  `【锚点清单】\n${roleNote}\n${anchorListText}\n\n`;
 
 /** ② 压缩原文（中段素材；锚清单通道不注入） */
 export const buildCompressedTextBlock = (compressedText = '') =>
@@ -146,6 +146,9 @@ const BLOCK_DEFS = [
   {
     id: 'anchor-list', name: '锚点清单', lib: 'builtin', scope: '用户消息·开头',
     note: '生成时按勾选章节的分析结果注入：第1层知识主题作分组前缀、第2层知识点为主体、第3层具体概念随各知识点括注（第1层只表归属、第2层才是命题单位）；覆盖范围以下限声明',
+    noteWith: (c) => (c.injectThirdLayer === undefined
+      ? ''
+      : `（当前设置：${c.injectThirdLayer === false ? '不注入' : '注入'}第3层具体概念，可在设置里切换）`),
     build: (c) => (c.anchorListText ? buildAnchorListBlock(c.anchorListText) : ''),
   },
   {

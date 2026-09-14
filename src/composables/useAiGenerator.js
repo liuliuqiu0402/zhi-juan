@@ -10,7 +10,7 @@ import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
 import { buildAnchors } from '../utils/coverageAnchor.js';
 import { collectChapterRawText, compressOriginalText, shouldDirectInject } from '../utils/textbookCompression.js'; // ✅ A15/A11：程序按勾选章节直读整章原文（材料压缩 + copyGuard 语料同源）；✅ A4-10：材料分档（小直放/大压缩）
 import { buildCompressionCacheKey, readCompressionCache, writeCompressionCache } from '../utils/compressionCache.js'; // ✅ A4-11：压缩结果按勾选章节组合缓存（同批章节第二次生成直接复用）
-import { formatAnchorListByChapter } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位，含第3层具体概念 A17）
+import { formatAnchorListByChapter, anchorListRoleNote } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位，含第3层具体概念 A17/可开关）
 // ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
 import { planOutputQuota, nextContinuationBudget, isOverQuota, charsToTokens } from '../utils/outputQuota.js';
 import { contractOf, MATERIAL_CHANNEL_DEFAULT } from '../config/coverageContract.js';
@@ -4259,7 +4259,10 @@ ${cardAnalysisText.substring(0, 1000)}
     //    压缩输入=纯教材原文（不掺锚点，防假压缩 A4-3/A4-5），压缩比按契约 mode 分流（A4-6）。
     const rawChapters = collectChapterRawText(contentCards || []);
     const rawSections = rawChapters.map((c) => ({ title: c.chapterTitle, text: c.rawText }));
-    const anchorListText = formatAnchorListByChapter(anchors);
+    // 🔧 第3层（具体概念）注入开关（2026-09-14 用户定版开关）：只影响【锚点清单】的渲染形态，
+    //    分析产物不变（三层照旧落库）；关掉时角色说明里的第3层那句同步省略（防假指针）
+    const injectThirdLayer = apiConfig.generationSettings.injectThirdLayer !== false;
+    const anchorListText = formatAnchorListByChapter(anchors, { withConcepts: injectThirdLayer });
 
     // ── 素材通道（2026-09-14 用户定版开关）──
     //    单一事实源 MATERIAL_CHANNEL_DEFAULT（coverageContract）：
@@ -4473,7 +4476,7 @@ ${cardAnalysisText.substring(0, 1000)}
     // ✅ A1-4b：清单首行带"角色说明"——第1层知识主题只表归属/范围，不是写作栏目、不作命题单位；
     //    A17：知识点名后附第3层具体概念（锚清单通道下即教材内容/难度依据）
     //    ⚠️ 术语口径（2026-09-14 用户定）：注入文本统一「知识点」，不用「考点」（防读成全指向考卷）
-    if (anchorListText) prompt += buildAnchorListBlock(anchorListText);
+    if (anchorListText) prompt += buildAnchorListBlock(anchorListText, anchorListRoleNote({ withConcepts: injectThirdLayer }));
     if (compressedText) prompt += buildCompressedTextBlock(compressedText);
     // ✅ A15-4/A11-3（2026-09-11）：**素材使用约定**（原随 browse 系统提示携带，browse 移除后必须保留）——
     //    引用约束按契约 mode 分流；练习段仅作参考、不得照搬题目。位置贴近委托书（同为"指令"，末尾锚定）。

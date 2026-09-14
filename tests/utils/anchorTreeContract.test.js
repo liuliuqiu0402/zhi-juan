@@ -11,6 +11,7 @@ import {
   summarizeAnchorGranularity,
   buildAnchorListByChapter,
   formatAnchorListByChapter,
+  anchorListRoleNote,
   MAX_SPECIFIC_CONCEPTS_PER_ANCHOR,
   ANCHOR_LIST_ROLE_NOTE,
 } from '../../src/utils/anchorTreeContract.js';
@@ -160,6 +161,29 @@ describe('A1-3 锚粒度诊断（锚数 / 短锚占比 / specificConcepts 条数
     expect(agg.minUnitAnchorCount).toBe(1);
     expect(agg.specTotal).toBe(3);
     expect(agg.avgAnchorsPerChapter).toBe(1.5);
+  });
+});
+
+describe('🧩 清单第3层注入开关（2026-09-14 用户定版开关）', () => {
+  const anchors = [{ chapterTitle: '第1课', bigConcept: '', name: '知识点A', specificConcepts: ['甲', '乙'] }];
+
+  it('默认注入：知识点名后括注第3层具体概念', () => {
+    expect(formatAnchorListByChapter(anchors)).toBe('【第1课】知识点A（甲、乙）');
+  });
+
+  it('关闭后：只给第2层知识点名，不带具体概念（清单更短、更少与教材词句绑定）', () => {
+    expect(formatAnchorListByChapter(anchors, { withConcepts: false })).toBe('【第1课】知识点A');
+  });
+
+  it('角色说明随开关省略第3层那句（防"指向不存在内容"的假指针），其余不变量不变', () => {
+    expect(anchorListRoleNote()).toContain('（第3层）');
+    const off = anchorListRoleNote({ withConcepts: false });
+    expect(off).not.toContain('（第3层）');
+    expect(off).not.toContain('具体概念');
+    expect(off).toContain('覆盖下限');
+    expect(off).toContain('知识点');
+    // 默认导出 = 带第3层版本（兼容既有引用点）
+    expect(ANCHOR_LIST_ROLE_NOTE).toBe(anchorListRoleNote());
   });
 });
 

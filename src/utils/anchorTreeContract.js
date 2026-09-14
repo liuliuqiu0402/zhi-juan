@@ -188,7 +188,8 @@ const isMeaningfulTheme = (bigConcept, chapterTitle) =>
 
 /** ✅ A17：知识点名后附第3层具体概念（紧凑形态）；无概念/超限量 → 不带或加"等" */
 export const MAX_SPECIFIC_CONCEPTS_PER_ANCHOR = 6;
-const withConcepts = (name, concepts) => {
+const withConcepts = (name, concepts, enabled = true) => {
+  if (!enabled) return name;
   const list = Array.isArray(concepts) ? concepts.filter((c) => String(c || '').trim()) : [];
   if (!list.length) return name;
   const tail = list.length > MAX_SPECIFIC_CONCEPTS_PER_ANCHOR ? '等' : '';
@@ -204,14 +205,19 @@ const withConcepts = (name, concepts) => {
  *     · 知识主题B：知识点C
  *   章序不变（一行一章 / 一主题一行），第1层与第2层均同名去重；
  *   知识点名后括号内为第3层具体概念（每知识点限量，超限加"等"）。
+ * @param {Array} anchors 锚列表
+ * @param {object} [o]
+ * @param {boolean} [o.withConcepts] 是否携带第3层具体概念（用户开关·2026-09-14）——
+ *   关掉时只给第2层知识点（清单更短、更"轻"，不与教材词句绑定）；角色说明须同步省略第3层那句
+ *   （见 anchorListRoleNote），防"指向不存在的内容"的假指针。
  */
-export const formatAnchorListByChapter = (anchors = []) =>
+export const formatAnchorListByChapter = (anchors = [], { withConcepts: withConceptsOn = true } = {}) =>
   buildAnchorListByChapter(anchors)
     .filter((g) => g.names.length > 0)
     .map((g) => {
       const themes = (g.themes || []).filter((t) => t.names.length > 0);
       const hasTheme = themes.some((t) => isMeaningfulTheme(t.bigConcept, g.chapterTitle));
-      const fmtNames = (names, concepts) => names.map((n) => withConcepts(n, concepts?.[n])).join('、');
+      const fmtNames = (names, concepts) => names.map((n) => withConcepts(n, concepts?.[n], withConceptsOn)).join('、');
       if (!hasTheme) {
         // 无主题 → 章级扁平：合并各主题下的概念映射（同名知识点只归一个主题，合并仅防异常）
         const merged = Object.fromEntries(
@@ -236,14 +242,26 @@ export const formatAnchorListByChapter = (anchors = []) =>
  *     原"最小单位**一律**是考点"的"一律"易被读成"只能考清单内的点"，已去。
  *  ✅ A17（2026-09-14 用户定版）：加入第3层说明——知识点名后括号内为具体概念（术语口径见上：统一「知识点」），
  *     不是写作栏目、不构成新的组织维度。 */
-export const ANCHOR_LIST_ROLE_NOTE =
+/** ✅ A17：第3层具体概念的说明句（随开关省略——第3层不注入时不留悬空引用） */
+const THIRD_LAYER_NOTE =
+  '知识点名后括号内为该知识点的**具体概念**（第3层）：仅细化"该知识点含哪些概念/词条/数值"，'
+  + '不构成新的写作栏目，不得据此另立结构。';
+
+/**
+ * ✅ A1-4b / A17 / 2026-09-14（用户新增开关）：清单角色说明。
+ * @param {object} [o]
+ * @param {boolean} [o.withConcepts] 清单是否携带第3层具体概念——关掉时"第3层"说明句同步省略
+ */
+export const anchorListRoleNote = ({ withConcepts = true } = {}) =>
   '说明：清单按「章 → 知识主题 → 知识点」组织。**知识主题（第1层）仅表知识点归属与范围，不是写作栏目、不是命题单位**；'
   + '写作与命题的最小单位是各主题下的**知识点**（第2层）。'
-  + '知识点名后括号内为该知识点的**具体概念**（第3层）：仅细化"该知识点含哪些概念/词条/数值"，'
-  + '不构成新的写作栏目，不得据此另立结构。'
+  + (withConcepts ? THIRD_LAYER_NOTE : '')
   + '不带「主题：」前缀的章 = 该章知识点未再分主题。'
   + '🔴 清单是**覆盖下限**：清单内知识点须全部覆盖到（保证本单元必学知识不漏）；'
   + '它**不是命题范围的全部**——清单之外能否补充或整合，按资料类型见委托书【素材使用约定】。';
+
+/** 默认形态（带第3层）——兼容既有引用点与测试 */
+export const ANCHOR_LIST_ROLE_NOTE = anchorListRoleNote();
 
 /** 单章诊断日志（A1-3 的**可观测证据**：一条含全部指标，便于日志抓取核对） */
 export const logAnchorGranularity = (report = {}) => {

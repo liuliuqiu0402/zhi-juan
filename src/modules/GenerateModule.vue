@@ -6189,6 +6189,8 @@ const refreshUserMsgBlocks = ({ subject = '', genType = '' } = {}) => {
     materialChannel: resolveMaterialChannel(genType),
     preview: true, // 门控块（素材使用约定/组织方式）给出可先行展示的条款文本，并注明注入条件
     instructionExtraNote: [styleNote, diffNote].filter(Boolean).join('；'),
+    // 🧩 第3层（具体概念）注入开关（设置页可切）：面板如实反映当前设置
+    injectThirdLayer: apiConfig.generationSettings.injectThirdLayer !== false,
   });
 };
 

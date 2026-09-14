@@ -60,6 +60,13 @@ describe('buildUserMessagePrompt（实发拼接：顺序 + 逐字）', () => {
     expect(buildTemplateInfoBlock('   ')).toBe('');
     expect(buildContextBlock('')).toBe('');
   });
+
+  it('锚点清单块：角色说明可传入（第3层关闭时用不带该句的版本，防假指针）', () => {
+    const custom = '说明：清单只给知识点，本次不括注具体概念。';
+    expect(buildAnchorListBlock('第一章\n· 甲', custom)).toContain(custom);
+    expect(buildAnchorListBlock('第一章\n· 甲', custom)).not.toContain('（第3层）');
+    expect(buildAnchorListBlock('第一章\n· 甲')).toContain('（第3层）'); // 默认仍带第3层说明
+  });
 });
 
 describe('各块文本口径（防漂移的逐字锚点）', () => {
@@ -183,7 +190,7 @@ describe('源码接线：生成端不再内联这些块（防两套口径回归�
     expect(s).toContain('buildOrganizeBlock(genType)');
     expect(s).toContain('buildTailBlocks()[0]');
     expect(s).toContain('buildTailBlocks()[1]');
-    expect(s).toContain('buildAnchorListBlock(anchorListText)');
+    expect(s).toContain('buildAnchorListBlock(anchorListText,');
     expect(s).toContain('buildCompressedTextBlock(compressedText)');
   });
 
@@ -212,10 +219,18 @@ describe('源码接线：生成端不再内联这些块（防两套口径回归�
     expect(s).toContain('【差异化要求——本类型为…】');
   });
 
+  it('第3层开关接线：生成端按设置渲染清单与角色说明（面板同步反映）', () => {
+    const s = ai();
+    expect(s).toContain('apiConfig.generationSettings.injectThirdLayer');
+    expect(s).toContain('formatAnchorListByChapter(anchors, { withConcepts: injectThirdLayer })');
+    expect(s).toContain('anchorListRoleNote({ withConcepts: injectThirdLayer })');
+    expect(gm()).toContain('injectThirdLayer');
+  });
+
   it('生成端拼接顺序与单源 BLOCK_DEFS 一致（顺序漂移同样会被逮住）', () => {
     const s = ai();
     const order = [
-      'buildAnchorListBlock(anchorListText)',
+      'buildAnchorListBlock(anchorListText,',
       'buildCompressedTextBlock(compressedText)',
       'buildMaterialUsageBlock({ genType, materialChannel })',
       'buildOrganizeBlock(genType)',

@@ -1162,6 +1162,21 @@
             📌 当前生效：归纳/积累型（知识总结·复习·预习·默写）→ 全文注入；命题/练习型（正式卷·课时练·专项·阅读·错题本）→ 锚清单注入
           </div>
         </div>
+        <div style="margin-top:12px;">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px;">
+            🧩 清单第3层（具体概念）
+          </div>
+          <div style="font-size:11px;color:#888;margin-bottom:6px;line-height:1.5;">
+            关闭后【锚点清单】只给「知识主题 → 知识点」，不再随附各知识点的具体概念（概念/词条/数值）。清单更短、更少与教材词句绑定；<b>分析结果不变</b>（三层照旧落库），随时可再打开。需点「保存设置」生效。
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+            <input
+              v-model="settings.generationSettings.injectThirdLayer"
+              type="checkbox"
+            >
+            ✅ <b>勾选 = 注入</b>第3层具体概念（默认已勾选）；<b>取消勾选 = 不注入</b>（清单只给「知识主题 → 知识点」）
+          </label>
+        </div>
 
         <p style="font-size:12px;color:#666;margin-top:8px;border-top:1px solid #eee;padding-top:8px;">
           💡 <b>0=完全确定</b>（每次输出相同），<b>0.3=低随机</b>，<b>0.5=平衡</b>，<b>1.0+=高创意</b>
