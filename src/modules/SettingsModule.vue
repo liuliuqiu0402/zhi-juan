@@ -1174,7 +1174,7 @@
               v-model="settings.generationSettings.injectThirdLayer"
               type="checkbox"
             >
-            ✅ <b>勾选 = 注入</b>第3层具体概念（默认已勾选）；<b>取消勾选 = 不注入</b>（清单只给「知识主题 → 知识点」）
+            ✅ <b>勾选 = 注入</b>第3层具体概念；<b>取消勾选 = 不注入</b>（清单只给「知识主题 → 知识点」）
           </label>
         </div>
 

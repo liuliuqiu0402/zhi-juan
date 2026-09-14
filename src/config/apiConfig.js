@@ -719,6 +719,13 @@ const normalizeModelFields = (cfg) => {
       maxTokensByTask: mergeMaxTokensByTask(FACTORY_MAX_TOKENS_BY_TASK, out.generationSettings.maxTokensByTask),
     };
   }
+  // 🔧 新增开关的"旧存档缺字段"兜底（2026-09-14 用户实测）：旧 localStorage 没有该键时，
+  //    设置页复选框（v-model）显示为**未勾选**，而生成端按"未显式关闭 = 开启"执行
+  //    （injectThirdLayer !== false）→ 出现"看到的开关状态 ≠ 实际生效状态"。
+  //    此处按当前默认值补齐缺键，保证显示与行为一致（同步读盘路径同样生效）。
+  if (out.generationSettings) {
+    out.generationSettings = { ...apiConfig.generationSettings, ...out.generationSettings };
+  }
   return out;
 };
 
