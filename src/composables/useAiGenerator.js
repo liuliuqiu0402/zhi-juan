@@ -3,7 +3,7 @@ import axios from 'axios';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay, resolveEngineOutputLimit, resolveEngineCapability, resolveOutputCeiling, FACTORY_MAX_TOKENS_BY_TASK } from '../config/apiConfig.js';
 import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'; // S4.1：段类型补"拓展/文化"（锚范围性质判定共用）
 import { GEN_CONST } from '../config/generationConstants.js';
-import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel } from '../config/promptLibrary.js';
+import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel, applyMaterialChannel } from '../config/promptLibrary.js'; // ✅ A18：applyMaterialChannel（委托书素材段按素材通道兜底渲染）
 import { getStoragePath } from '../utils/pathHelper.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
@@ -4506,7 +4506,11 @@ ${cardAnalysisText.substring(0, 1000)}
         : '【教辅结构】的栏目序列组织（栏目名、顺序、题量以委托书为准）';
       prompt += `【组织方式】输出一律以委托书${structRef}；开头【锚点清单】只声明覆盖范围，不是组织方式，不得据此替代委托书结构。\n\n`;
     }
-    prompt += instruction.trim();
+    // ✅ A18（2026-09-14 素材通道）：委托书素材段按**本次通道**兜底渲染——指令可能是切通道前组装的
+    //    （草稿复用/设置页改档后未重建），锚清单通道下必须消除"教材原文以【压缩原文】随本委托注入"
+    //    这一**假指针**（指向不存在的块，会诱导模型凭记忆重建教材原文 = 该通道要治的幻觉）。
+    //    非 anchor 通道为空操作（幂等，重复调用不叠加）。
+    prompt += applyMaterialChannel(instruction, materialChannel).trim();
     if (templateInfo?.trim()) prompt += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
     if (contextFramework?.trim()) prompt += `\n\n${contextFramework.trim()}`;
     // 🔧 情境错峰仅对"命题出新题"的题类生效（exam/practice/special/reading）——

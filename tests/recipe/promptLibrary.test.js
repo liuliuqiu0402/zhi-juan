@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   getPromptTemplate, savePromptTemplate, deletePromptTemplate,
   buildInjectionInstruction, buildStructureText, PAPER_OUTPUT_CONVENTIONS,
+  applyMaterialChannel,
 } from '@/config/promptLibrary.js';
 import { setLibToggle } from '@/utils/libToggles.js';
 
@@ -98,11 +99,40 @@ describe('注入指令组装（拼接格式与顺序）', () => {
     expect(out).not.toContain('【教材原文】\n');       // 素材块不进注入框
   });
 
+  // 📚 A18（2026-09-14 素材通道）：素材段渲染按通道分流——锚清单注入通道不留"假指针"
+  it('A18 素材段：full 通道段头【教材原文…】指向【压缩原文】；anchor 通道段头改【教材依据…】且无假指针', () => {
+    const tplText = '【教材原文（仅供理解：题型结构与知识梯度；凡引用教材内容须与原文一致（此为准确性要求，非指定来源））】\n{material}';
+
+    const full = buildInjectionInstruction({ template: tplText, subject: '语文' });
+    expect(full).toContain('【教材原文（仅供理解');
+    expect(full).toContain('教材原文以【压缩原文】随本委托注入');
+
+    const anchor = buildInjectionInstruction({ template: tplText, subject: '语文', materialChannel: 'anchor' });
+    expect(anchor).toContain('【教材依据（仅供理解');
+    expect(anchor).not.toContain('【教材原文');
+    // 假指针必须消失：锚清单通道不注入【压缩原文】，不得声称"原文随委托注入"
+    expect(anchor).not.toContain('教材原文以【压缩原文】随本委托注入');
+    expect(anchor).not.toContain('【压缩原文】');
+    // 🔴 语义保留（与"有没有注入原文"无关，两通道都在）：准确性句 + 版本口径不得凭记忆断言
+    expect(anchor).toContain('此为准确性要求，非指定来源');
+    expect(anchor).toContain('不得凭记忆断言');
+    expect(anchor).toContain('【素材使用约定】');
+  });
+
+  it('A18 幂等：applyMaterialChannel 对已渲染指令二次调用不叠加、不改写（默认通道原样返回）', () => {
+    const tplText = '【教材原文（仅供理解：题型结构与知识梯度）】\n{material}';
+    const rendered = buildInjectionInstruction({ template: tplText, subject: '语文', materialChannel: 'anchor' });
+    expect(applyMaterialChannel(rendered, 'anchor')).toBe(rendered);            // 二次调用不变
+    expect(applyMaterialChannel(rendered, 'full')).not.toContain('【教材原文'); // 通道改回 full 不还原段头（只做单向改写，防误伤已渲染文本）
+    const plain = buildInjectionInstruction({ template: tplText, subject: '语文' });
+    expect(applyMaterialChannel(plain, '')).toBe(plain);                       // 空通道 = 原样返回
+    expect(applyMaterialChannel(plain, 'full')).toBe(plain);                   // full 通道 = 原样返回
+  });
+
   it('无用户附加时不输出附加块', () => {
     const out = buildInjectionInstruction({ template: '你是专家。{subject}', subject: '语文' });
     expect(out).not.toContain('用户附加');
   });
-
   it('{label} 占位符替换为标题类型名（名称样式轮换池注入）', () => {
     const out = buildInjectionInstruction({
       template: '标题格式"{grade}{subject}{scope}{label}"', grade: '小学低段', subject: '语文', unit: '第二单元', label: '综合检测',

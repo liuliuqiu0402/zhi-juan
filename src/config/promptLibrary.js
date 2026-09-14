@@ -30,6 +30,35 @@ import { buildCarrierInstruction, buildAnswerSpaceInstruction } from './layoutSp
 const MATERIAL_USAGE_CLAUSE =
   '凡引用教材内容须与原文一致、不错引、不改写原意（此为准确性要求，非指定来源）';
 
+/* 素材段渲染口径（2026-09-14 素材通道 A18）：模板保持通道无关，**渲染期**按通道分流——
+ *  · full 全文注入：段头【教材原文…】，说明指向【压缩原文】（整章原文压缩后随委托注入）；
+ *  · anchor 锚清单注入：段头【教材依据…】，说明改为"本次不注入教材原文，其内容/难度/版本口径依据为
+ *    开头【锚点清单】；本套教材特有术语/编排/学段位置不得凭记忆断言"。
+ *  动因（用户 2026-09-14 提出）：关掉原文注入后，"教材原文以【压缩原文】随本委托注入"成了**假指针**
+ *  （指向一个不存在的块）——假指针会诱导模型"凭记忆重建教材原文"，正是该通道要治的幻觉。
+ *  🔴 语义保留（与"有没有注入原文"无关，两通道都在，不随通道删）：
+ *    ① 准确性：引用教材内容须与原文一致（MATERIAL_USAGE_CLAUSE，随段头携带，两通道同款）；
+ *    ② 版本口径：本套教材特有说法不得凭记忆断言（anchor 说明内单源给出）——原文不在场时**更需**。
+ *    ③ 不得照搬/溯源字样/来源不限 等条款由生成端【素材使用约定】单源持有，本处不复述（防逐字重复）。 */
+const MATERIAL_HEAD = { full: '教材原文', anchor: '教材依据' };
+const MATERIAL_HINT = {
+  full: '（教材原文以【压缩原文】随本委托注入；覆盖范围见开头【锚点清单】，清单为**覆盖下限**；清单外的补充/整合口径与使用引用约束见【素材使用约定】，以该处为准）',
+  anchor: '（本次**不注入**教材原文：其内容、难度与版本口径依据为开头【锚点清单】；凡涉本套教材特有术语/编排/学段位置，**不得凭记忆断言**；覆盖下限见开头清单，清单外的补充/整合与引用约束见【素材使用约定】，以该处为准）',
+};
+
+/**
+ * 素材通道渲染（模板/**已渲染指令**两处共用，幂等）：
+ *   anchor 通道 → 段头「教材原文」改「教材依据」+ 说明句换为锚清单版（消除假指针）；
+ *   其余（'' / 'auto' / 'full'）→ 原样返回（默认行为与既有完全一致）。
+ * ✅ 对已渲染指令二次调用同样安全：anchor 说明句与 full 说明句互不包含，重复调用不叠加、不改写。
+ */
+export function applyMaterialChannel(text = '', channel = '') {
+  const isAnchor = channel === 'anchor';
+  return String(text || '')
+    .split('【教材原文').join(`【${MATERIAL_HEAD[isAnchor ? 'anchor' : 'full']}`)
+    .split(MATERIAL_HINT.full).join(MATERIAL_HINT[isAnchor ? 'anchor' : 'full']);
+}
+
 /** 资料类型中文名（模板列表展示/任务行用）
  * 🔗 命名双轨·资料类型：key 须与 expertKnowledge.genTypeTemplates/genTypeOptions、TYPE_BASES、蓝图库类型 key 完全一致。
  *    新增/改名类型四处同步，否则模板命不中/面板失配。 */
@@ -677,7 +706,7 @@ export function buildInjectionInstruction(opts = {}) {
   const {
     template = '', grade = '', subject = '', unit = '', genTypeLabel = '',
     structure = '', fullScore = '', duration = '', extra = '', label = '', semester = '', academic = '',
-    stage = '',
+    stage = '', materialChannel = '',
   } = opts;
   // 1) 任务定位行（系统生成，固定最前——模型第一眼知道要干什么）
   const taskLine = `【任务】生成${genTypeLabel || '资料'}：${subject}${grade}${unit ? `·${unit}` : ''}${fullScore ? `（满分${fullScore}分${duration ? `，时长${duration}` : ''}）` : ''}`;
@@ -694,9 +723,13 @@ export function buildInjectionInstruction(opts = {}) {
     // 🔧 素材头占位渲染（2026-09-11 极简方案定稿）：教材原文以【压缩原文】随本次委托注入——
     //    素材途径 = 程序按勾选章节直读整章原文 → 压缩（不再有研读轮、不再有 browse 按需取片段）；
     //    该行仅作模板结构提示：覆盖范围（下限）见开头【锚点清单】，清单外补充/整合口径见【素材使用约定】。
-    '{material}': '（教材原文以【压缩原文】随本委托注入；覆盖范围见开头【锚点清单】，清单为**覆盖下限**；清单外的补充/整合口径与使用引用约束见【素材使用约定】，以该处为准）',
+    //    ✅ A18（2026-09-14 素材通道）：锚清单注入通道下改指【锚点清单】（不再说"原文随委托注入"），
+    //       见 MATERIAL_HINT / applyMaterialChannel。
+    '{material}': MATERIAL_HINT[materialChannel === 'anchor' ? 'anchor' : 'full'],
   };
   for (const [k, v] of Object.entries(map)) body = body.split(k).join(v);
+  // ✅ A18：素材段段头与说明按通道渲染（模板保持通道无关；非 anchor 通道为空操作）
+  body = applyMaterialChannel(body, materialChannel);
   // 3) 用户附加要求（最后，优先级最高，可覆盖前序约束）
   let extraBlock = '';
   if (extra?.trim()) extraBlock = `\n\n【用户附加要求】\n${extra.trim()}`;
@@ -810,6 +843,8 @@ export default {
   deletePromptTemplate,
   listPromptTemplates,
   buildInjectionInstruction,
+  applyMaterialChannel,
+  MATERIAL_HEAD,
   buildStructureText,
   buildSealLineHeader,
   buildOutputFormatHint,

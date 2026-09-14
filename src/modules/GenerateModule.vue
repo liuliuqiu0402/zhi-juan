@@ -3103,6 +3103,7 @@ import { useTemplateStore } from '../stores/templateStore.js';
 import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
 import { findBlueprint } from '../config/blueprintProvider.js';
 import { getPromptTemplate, buildInjectionInstruction, buildStructureText, buildOutputFormatHint, getCurriculumLabel } from '../config/promptLibrary.js';
+import { materialChannelOf } from '../config/coverageContract.js'; // 📚 素材通道默认映射（auto 口径单一事实源，2026-09-14）
 import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructureText, buildSpecialDomainAnchorLine } from '../config/specialDomains.js'; // 🎯 专项领域注册库（学科×学段→栏目结构+课标语义锚）
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
 import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
@@ -3213,6 +3214,12 @@ const materialChannelLabel = computed(() => {
   if (ch === 'anchor') return '锚清单注入（仅锚点清单含具体概念）';
   return '自动（归纳型全文/命题型锚清单）';
 });
+// 📚 素材通道解析（auto → 按资料类型默认；手动档覆盖全类型）——与生成端 useAiGenerator 同一口径，
+//    委托书组装时按此渲染素材段（'full' 段头【教材原文…】/'anchor' 段头【教材依据…】）
+const resolveMaterialChannel = (t) => {
+  const sel = apiConfig.generationSettings.materialChannel || 'auto';
+  return sel === 'auto' ? (materialChannelOf(t) || 'full') : sel;
+};
 
 // 🎨 资料栏目标题风格套（作用于【教辅结构】注入的栏目标题字面）
 //   '' = 自动轮换（按次轮换：每次生成换下一套 a→b→c→d→a，持久化）；'a'/'b'/'c'/'d' = 固定该套
@@ -6152,6 +6159,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     structure,
     fullScore,
     duration,
+    materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
   });
   // 🔴 模板正文段文本缓存（分段标注用：在后续追加教辅结构蓝本段之前取前缀）
   const tplBodyText = instructionDraft.value;
@@ -6265,6 +6273,7 @@ const restoreDefaultInstruction = async () => {
   const gradeLabel = book.grade || '';
   instructionDraft.value = buildInjectionInstruction({
     template: builtinTemplate, grade: gradeLabel, stage: stageKey, subject, genTypeLabel, label, semester: book.semester || '', structure, fullScore, duration,
+    materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
   });
   // exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段，此处不重复；非 exam 追加教辅结构（委托正文栏目骨架）
   if (genType !== 'exam') {
