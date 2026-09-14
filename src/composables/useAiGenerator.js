@@ -3,17 +3,26 @@ import axios from 'axios';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay, resolveEngineOutputLimit, resolveEngineCapability, resolveOutputCeiling, FACTORY_MAX_TOKENS_BY_TASK } from '../config/apiConfig.js';
 import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'; // S4.1：段类型补"拓展/文化"（锚范围性质判定共用）
 import { GEN_CONST } from '../config/generationConstants.js';
-import { PAPER_OUTPUT_CONVENTIONS, ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel, applyMaterialChannel } from '../config/promptLibrary.js'; // ✅ A18：applyMaterialChannel（委托书素材段按素材通道兜底渲染）
+import { ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel, applyMaterialChannel } from '../config/promptLibrary.js'; // ✅ A18：applyMaterialChannel（委托书素材段按素材通道兜底渲染）
 import { getStoragePath } from '../utils/pathHelper.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
 import { buildAnchors } from '../utils/coverageAnchor.js';
 import { collectChapterRawText, compressOriginalText, shouldDirectInject } from '../utils/textbookCompression.js'; // ✅ A15/A11：程序按勾选章节直读整章原文（材料压缩 + copyGuard 语料同源）；✅ A4-10：材料分档（小直放/大压缩）
 import { buildCompressionCacheKey, readCompressionCache, writeCompressionCache } from '../utils/compressionCache.js'; // ✅ A4-11：压缩结果按勾选章节组合缓存（同批章节第二次生成直接复用）
-import { formatAnchorListByChapter, ANCHOR_LIST_ROLE_NOTE } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位，含第3层具体概念 A17）；✅ A1-4b：第1层（知识主题）入清单 + 角色说明
+import { formatAnchorListByChapter } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位，含第3层具体概念 A17）
 // ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
 import { planOutputQuota, nextContinuationBudget, isOverQuota, charsToTokens } from '../utils/outputQuota.js';
-import { contractOf, extentOf, MATERIAL_CHANNEL_DEFAULT } from '../config/coverageContract.js';
+import { contractOf, MATERIAL_CHANNEL_DEFAULT } from '../config/coverageContract.js';
+// ✅ A22 实发注入清单·单源（2026-09-14 用户同意）：请求里除委托正文之外的每一块都集中在此定义，
+//    生成端按此拼接实发文本、生成面板按此逐段展示（"点开即实发全貌"，见 utils/injectionManifest.js）
+import {
+  SELF_CONTAINED_TEACHING, SCENE_REGEN_TYPES,
+  buildAnchorListBlock, buildCompressedTextBlock,
+  buildMaterialUsageBlock, buildOrganizeBlock,
+  buildTemplateInfoBlock, buildContextBlock,
+  buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,
+} from '../utils/injectionManifest.js';
 import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
 import {
   genTypeTemplates,
@@ -4464,8 +4473,8 @@ ${cardAnalysisText.substring(0, 1000)}
     // ✅ A1-4b：清单首行带"角色说明"——第1层知识主题只表归属/范围，不是写作栏目、不作命题单位；
     //    A17：知识点名后附第3层具体概念（锚清单通道下即教材内容/难度依据）
     //    ⚠️ 术语口径（2026-09-14 用户定）：注入文本统一「知识点」，不用「考点」（防读成全指向考卷）
-    if (anchorListText) prompt += `【锚点清单】\n${ANCHOR_LIST_ROLE_NOTE}\n${anchorListText}\n\n`;
-    if (compressedText) prompt += `【压缩原文】\n${compressedText}\n\n`;
+    if (anchorListText) prompt += buildAnchorListBlock(anchorListText);
+    if (compressedText) prompt += buildCompressedTextBlock(compressedText);
     // ✅ A15-4/A11-3（2026-09-11）：**素材使用约定**（原随 browse 系统提示携带，browse 移除后必须保留）——
     //    引用约束按契约 mode 分流；练习段仅作参考、不得照搬题目。位置贴近委托书（同为"指令"，末尾锚定）。
     //    🔴 2026-09-13（用户定版·双向开放）：区分"知识点范围"与"素材来源"——范围（覆盖哪些知识点）以【锚点清单】为准，
@@ -4480,76 +4489,33 @@ ${cardAnalysisText.substring(0, 1000)}
     //       动因：生成后覆盖对账已整体废除（P2b，2026-09），"范围即边界"的原始用途消失；但一刀切放开会让
     //       归纳/默写类跑出课本（用户实证担忧），故不共用一句话，按型分档。
     if (compressedText || anchorListText) {
-      const refMode = contractOf(genType).mode;
-      // ✅ A17（2026-09-14 用户定版）：锚清单通道不注入整章原文（语料锚已移除），"中段素材区"仅存在于全文通道；
-      //    锚清单通道的教材内容/难度/版本口径依据 = 开头【锚点清单】（含第3层具体概念）——
-      //    命题型不许照搬原文，故不引用原文语段，只锚定知识明细；"不得照搬题目"句在锚清单通道不注入。
-      const refClause = materialChannel === 'anchor'
-        ? '开头【锚点清单】（含各知识点具体概念）是理解教材内容、难度与版本口径的**依据**'
-        : '中段【压缩原文】是理解教材内容与难度的**参考之一**';
-      // 🔴 覆盖口径按资料类型分档（2026-09-13 用户定版）：mode 定"覆盖下限"，extentOf 定"清单之外能不能加、加什么"——
-      //    防一刀切放水：题类可考迁移（expand）、归纳复习类可关联已学旧知成网络（integrate）、预习默写类守本课/守教材（strict）。
-      const coverageFloor = refMode === 'per-lesson-full'
-        ? '开头【锚点清单】的知识点**至少要全部覆盖到**（覆盖**下限**，保证本单元必学知识不漏）；'
-        : refMode === 'full'
-          ? '开头【锚点清单】的知识点**须全部覆盖到**（覆盖**下限**，保证本单元必学知识不漏）；'
-          : refMode === 'focus'
-            ? '覆盖开头【锚点清单】中与本资料主题对应的知识点即可（不要求清单全部出现）；'
-            : refMode === 'sampled'
-              ? '按命题蓝图抽样覆盖开头【锚点清单】（允许部分知识点未出现，不补漏）；'
-              : '本资料围绕错题组织，不与开头【锚点清单】做覆盖对账；';
-      const extentKey = extentOf(genType); // expand | integrate | strict（single source：coverageContract）
-      const coverageExtent = extentKey === 'expand'
-        ? '清单**不是命题上限**——可依本学段课标学业要求，适当补充清单未涉及的知识点或考查角度（不超出本学段学业要求）；'
-        : extentKey === 'integrate'
-          ? '清单**不是范围围墙**——可做**同类/结构关联**（把本课知识与同类概念归类、对照、勾连成网络）；也可联系**能在本次勾选范围或【锚点清单】内确认的**先行内容。**不臆断学生"是否已学"**（未经确认的旧知不引入），不超出本学段课标要求；'
-          : '只按清单（本课/本单元）呈现，不做清单外的补充与整合（默写类须严格对应教材要求）；';
-      prompt += '【素材使用约定】\n'
-        + `· ${coverageFloor}${coverageExtent}本条只约束"覆盖哪些知识点"，**不是素材来源限制**；${refClause}——情境、素材、人名、数据与句式可取自教材，也可取自课外真实生活（主题相关、难度适切），**来源不限、不作指定**；\n`;
-      prompt += refMode === 'full'
-        ? (materialChannel === 'anchor'
-          ? '· 本资料为知识归纳型（本次按锚清单通道生成）：归纳范围以上方清单为准，可依教材事实与课外同类材料转写为教辅表述，不得整段照录；正文不得出现任何出处标注（"选自/单元/章节/课题/课文名/位置式指引/原文出处"等溯源字样一律不写）。\n'
-          : '· 本资料为知识归纳型：可引用、可归纳中段【压缩原文】，但须转写为教辅表述，不得整段照录；正文不得出现任何出处标注（"选自/单元/章节/课题/课文名/位置式指引/原文出处"等溯源字样一律不写）。\n')
-        : (materialChannel === 'anchor'
-          ? '· 本资料为命题/练习型：题型结构、知识梯度与难度按上方清单（含具体概念）把握；题干、情境、人名、数据与句式由你拟定，来源按上述口径。\n'
-          : '· 本资料为命题/练习型：中段【压缩原文】供你理解题型结构、知识梯度与难度；题干、情境、人名、数据与句式由你拟定，来源按上述口径。\n');
-      if (materialChannel !== 'anchor') {
-        prompt += '· 【压缩原文】中的练习/习题段仅供理解题型与难度，**不得照搬题目**。\n\n';
-      } else {
-        prompt += '\n';
-      }
+      // ✅ 素材使用约定 / 组织方式 的文本已提出到 utils/injectionManifest.js **单源**
+      //    （生成端与生成面板共用同一份——面板"请求实发清单"据此展示，杜绝两套口径）
+      prompt += buildMaterialUsageBlock({ genType, materialChannel });
       // ✅ A5-1/A12-2（2026-09-11）：输出组织一律以委托书结构序列为准——
       //    【锚点清单】只声明"写什么范围"（覆盖范围），**不是组织方式**（它是知识点维度，与栏目结构是两套组织）。
-      //    覆盖下限与素材来源口径已由上方【素材使用约定】单源给出，本行不复述（防逐字重复）；
-      //    结构引用按类型：exam 用【卷面结构】，其余教辅用【教辅结构】（三维度精确，2026-09 清理）。
-      const structRef = genType === 'exam'
-        ? '【卷面结构】的大题序列组织（大题名、顺序、题量以委托书为准）'
-        : '【教辅结构】的栏目序列组织（栏目名、顺序、题量以委托书为准）';
-      prompt += `【组织方式】输出一律以委托书${structRef}；开头【锚点清单】只声明覆盖范围，不是组织方式，不得据此替代委托书结构。\n\n`;
+      //    覆盖下限与素材来源口径已由上方【素材使用约定】单源给出，本行不复述（防逐字重复）。
+      prompt += buildOrganizeBlock(genType);
     }
     // ✅ A18（2026-09-14 素材通道）：委托书素材段按**本次通道**归一——注入框已是同一函数归一后的文本
     //    （GenerateModule normalizeDraftMaterial），此处为发请求前的一致性兜底（幂等 → 通常为无操作），
     //    确保"框里所见 = 本次实发"，且锚清单通道下不带"教材原文以【压缩原文】随本委托注入"这种
     //    **假指针**（指向不存在的块，会诱导模型凭记忆重建教材原文 = 该通道要治的幻觉）。
     prompt += applyMaterialChannel(instruction, materialChannel).trim();
-    if (templateInfo?.trim()) prompt += `\n\n【模板对标】（用户勾选的模板，供风格/结构参考，不限制命题）\n${templateInfo.trim()}`;
-    if (contextFramework?.trim()) prompt += `\n\n${contextFramework.trim()}`;
+    if (templateInfo?.trim()) prompt += buildTemplateInfoBlock(templateInfo);
+    if (contextFramework?.trim()) prompt += buildContextBlock(contextFramework);
     // 🔧 情境错峰仅对"命题出新题"的题类生效（exam/practice/special/reading）——
     //    内容型（summary/review/dictation/preview/errorbook）无情境设问，不带此句（2026-09 收口）
-    const regenSceneType = genType === 'exam' || genType === 'practice' || genType === 'special' || genType === 'reading';
+    const regenSceneType = SCENE_REGEN_TYPES.includes(genType);
     if (diffKps?.length && regenSceneType) {
-      prompt += `\n\n【差异化要求（复生成）】以下知识点已覆盖，请优先选择其他知识点或从不同角度考查：${diffKps.join('、')}。情境错峰：本次为同一范围的再次出稿，新稿的情境载体、人物/场景、数据与设问角度须与已生成稿件错开——命中已用情境即换情境、换对象、换数据、换设问角度，不得沿用上稿的情境模板与雷同句子。`;
+      prompt += buildDiffRegenBlock({ genType, diffKps });
     }
     // ── 整卷生成方式（设置页三选一，生成端严格按设置执行，不再硬编码）：
     //    'split' 两次生成：正文一次 + 答案页独立一次（温度/角色分层，纯题型推荐）
     //    'once'  一次成型：正文+答案一次输出（上下文全程一致，知识型/错题/听写推荐）
     //    'auto'  自动按资料类型（两条路都可用）：纯题型 → split；知识型/听写/错题 → once
     //   (PAPER_SPLIT_TYPES 与 generateMode 已在上方预算解析前声明)
-    // 🔧 自包含教辅（正文本身即内容梳理：知识总结/复习/课前预习/默写积累/错题本）：
-    //    答案区必须只对练习/自测/例题作答，严禁把正文的知识梳理整体复述到答案区。
-    //    归入此集合后：once 不再强制"另起一部分输出参考答案"而改为"答案区仅逐题作答"；
-    //    split 独立答案页角色注入"勿复述正文梳理"硬约束。
-    const SELF_CONTAINED_TEACHING = ['summary', 'review', 'preview', 'dictation', 'errorbook'];
+    // 🔧 自包含教辅集合已提出到 utils/injectionManifest.js 单源（面板"请求实发清单"共用）
     const isSelfContainedTeaching = SELF_CONTAINED_TEACHING.includes(genType);
     const modeLabel = generateMode === 'once' ? '一次成型' : '两次生成';
     const modeSource = typeMode !== 'auto' ? `每类型设置（${genType}→${modeLabel}）`
@@ -4561,13 +4527,8 @@ ${cardAnalysisText.substring(0, 1000)}
     const bodyTemperature = generateMode === 'once'
       ? (apiConfig.generationSettings.paperTemperature + apiConfig.generationSettings.answerTemperature) / 2
       : apiConfig.generationSettings.paperTemperature;
-    if (generateMode === 'once') {
-      prompt += `\n\n${PAPER_OUTPUT_CONVENTIONS.once(subject, isSelfContainedTeaching)}`;
-    } else {
-      // 🔴 答案页由系统在正文生成后单独调用生成：强制约定本次只输出正文（题目与卷面），
-      //    覆盖模板里残留的"正文后再另起一部分输出答案"旧要求，防止模型把答案混入正文（正文+答案重复）
-      prompt += `\n\n${PAPER_OUTPUT_CONVENTIONS.split(subject, isSelfContainedTeaching)}`;
-    }
+    // ✅ 输出约定块（once/split 文案 + 答案区口径）同样来自 injectionManifest 单源
+    prompt += buildOutputBlock({ subject, genType, outputMode: generateMode });
 
     // 🔧 尾约束·全文自洽锚（2026-09-09 用户定版）：题干-载体自洽 与 内容型自洽 一并约束。
     //    题型无关、也覆盖内容型（知识点梳理/总结等）——不点名任何题型/载体（防"题型诱导"红线），
@@ -4580,14 +4541,14 @@ ${cardAnalysisText.substring(0, 1000)}
     //    用词类型中性（2026-09-12）：原写"仅凭卷面自身/卷面未给出"。"卷面"是考卷专用语（模型易读成排版
     //    要求而非内容自足要求），且本块跨 9 类生效；改"正文"与本块其余措辞及项目"用资料不用卷"口径一致。
     //    🔴 不得改写成"仅凭本题自身/题干自身"——那会被读成"仅凭题干即可作答"，语义反向。
-    prompt += `\n\n【尾约束·全文自洽】
-题干所声明的、本题作答所必需的一切内容（不论其形态），都必须在正文中真实、足量、形式吻合地存在——使本题**仅凭正文自身即可完成**；凡题干提到而正文未给出、或给出但不完整、不足以支撑该设问、或与正文不符，以及内容漏错、自相矛盾的，均属无效内容，须于定稿前修正。素材依课标可取自教材之外的真实情境、不限所选教材，但题面引用或呈现的素材必须与本题实际给出的内容完全一致；正文不得先现待作答结论；正文对知识、要点、示例、数据、结论的归纳与转述须准确、完整、不遗漏、条理清晰，各题、各要点、各结论及其答案之间前后一致、互不矛盾。`;
+    //    ✅ 文本已提出到 utils/injectionManifest.js 单源（TAIL_SELF_CONSISTENCY），面板"请求实发清单"共用
+    prompt += buildTailBlocks()[0];
 
     // ── 尾约束·资料内多样：跨 9 类通用（考卷+教辅同守），与全文自洽同置委托书末尾锚定 ──
     //    只约束呈现形式/组织顺序的"多样性"，不点名任何具体形式/序列（防呈现诱导与同质化）；
     //    类型中性（用"资料"不用"卷"），对全部资料类型生效。block 名关键词"尾约束"命中 guaranteeRegex，压缩仍保留。
-    prompt += `\n\n【尾约束·资料内多样】
-同一份资料内各栏目呈现形式与组织顺序应有所差异，不得全份同类版式照搬；同一呈现方式与同一组织顺序不可逐栏、逐单元反复套用。`;
+    //    ✅ 文本同源：utils/injectionManifest.js（TAIL_VARIETY）
+    prompt += buildTailBlocks()[1];
 
     // ── 段1：整卷正文一次生成（once 模式正文+答案一次输出） ──
     statusText.value = genType === 'exam' ? `整卷生成：一次生成完整试卷（${modeLabel}路径，${modeSource}）...` : `正文生成：一次生成完整资料（${modeLabel}路径，${modeSource}）...`;

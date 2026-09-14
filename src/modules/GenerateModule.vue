@@ -444,6 +444,48 @@
           >{{ programAttachText }}</pre>
         </div>
         <div
+          v-if="userMsgBlocks.length"
+          class="inject-blocks"
+        >
+          <div
+            class="src-title block-toggle"
+            @click="showUserMsgBlocks = !showUserMsgBlocks"
+          >
+            📨 请求实发清单（用户消息：除委托正文外随本次请求发出的每一块，按发送顺序 —— 与生成端单源）
+            <span>（{{ userMsgBlocks.length }} 段，{{ showUserMsgBlocks ? '▾' : '▸' }}）</span>
+          </div>
+          <div
+            v-if="showUserMsgBlocks"
+            class="attach-view"
+            @click="onUserMsgClick"
+          >
+            <div
+              v-for="(bk, bi) in userMsgBlocks"
+              :key="bk.id"
+              class="attach-item"
+              :class="{ 'attach-item-ref': !bk.text }"
+              :style="{ '--lib-color': (LIB_COLORS[bk.lib] || {}).badge || '#8a94a6' }"
+              :data-um="bi"
+              :title="BLOCK_LIB_ROUTES[bk.lib] ? ('点击跳转到' + (BLOCK_LIB_NAMES[bk.lib] || bk.lib) + '定位修改') : '程序内置条款：定义在 utils/injectionManifest.js 单源，无对应库可编辑'"
+            >
+              <div class="attach-head">
+                <span class="attach-lib">{{ BLOCK_LIB_NAMES[bk.lib] || '内置条款' }}</span>
+                <span class="attach-name">{{ bk.name }}</span>
+                <span class="attach-key">{{ bk.scope }}</span>
+              </div>
+              <div
+                v-if="bk.text"
+                class="attach-text"
+              >{{ bk.text }}</div>
+              <div
+                v-if="bk.note"
+                class="attach-note"
+              >{{ bk.note }}</div>
+            </div>
+            <div class="iab-legend">顺序即实发顺序。显示正文的块 = 本次确定注入的条款原文；仅显示说明的块 = 内容随勾选章节/同批产出在生成时确定，此处给出处与注入条件。点击可跳库定位修改（程序内置条款无库，点击给出来源）。</div>
+          </div>
+        </div>
+        <div
           v-if="instructionDraft"
           class="inject-blocks"
         >
@@ -3109,6 +3151,7 @@ import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/l
 import { buildNeedsImageText } from '../config/eduRenderContract.js'; // ✅ A21：配图判定提示文本单源（三入口同参，防"预览不配图/实发配图"漂移）
 import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, advanceAutoColumnStyleId, getTeachingBlueprint, stripSourceMarkNote } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
+import { buildUserMessageBlocks } from '../utils/injectionManifest.js'; // ✅ A22：请求实发清单·单源（用户消息侧：锚点清单/素材约定/组织方式/输出约定/尾约束…与生成端同一份定义）
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
@@ -4462,6 +4505,12 @@ const programAttachText = ref('');
 //    （buildProgramAttachBlocks 单源产出），面板逐段展示 库×条目×约束文本，点击跳对应工具库定位；
 //    与正文「来源分段标注」同一跳转机制，system 注入内容不再是不可点黑盒
 const attachBlocks = ref([]);
+// ✅ A22 请求实发清单（用户消息侧）：与生成端 utils/injectionManifest.js 单源——
+//    把"除委托正文之外、随本次请求发出的每一块"按发送顺序列出（锚点清单/压缩原文/素材使用约定/
+//    组织方式/模板对标/情境框架/差异化/输出约定/尾约束×2），用户在面板即可看到实发全貌；
+//    运行时才定内容的块（清单/原文/对标…）给出来源与注入条件，条款类块直接给出真实文本。
+const userMsgBlocks = ref([]);
+const showUserMsgBlocks = ref(false);
 // 🔴 指令来源分段标注（MVP 批1）：组装后由 annotateInstructionBlocks 填充 偏移区间↔{库,key} 块；
 //    只读旁路（不参与拼装）；用户手动编辑指令后置空（watch 联动，见下），UI 据此提示"标注已失效"
 const instructionBlocks = ref([]);
@@ -4557,6 +4606,22 @@ const onAttachClick = (e) => {
   if (!el) return;
   const bk = attachBlocks.value[Number(el.dataset.ai)];
   if (bk) jumpToSourceBlock(bk);
+};
+// ✅ A22 请求实发清单点击（data-um → userMsgBlocks 下标）：有对应库的块（如委托正文→指令库）跳库定位；
+//    程序内置条款（lib='builtin'：【素材使用约定】【组织方式】【尾约束】等）无库可编辑 → 就地说明来源，
+//    不误导用户去 /tools 找一个不存在的条目
+const onUserMsgClick = (e) => {
+  const el = e.target.closest('[data-um]');
+  if (!el) return;
+  const bk = userMsgBlocks.value[Number(el.dataset.um)];
+  if (!bk) return;
+  if (!BLOCK_LIB_ROUTES[bk.lib]) {
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, {
+      detail: { message: `「${bk.name}」为程序内置条款（定义在 utils/injectionManifest.js 单源），无对应库可编辑`, type: 'info' },
+    }));
+    return;
+  }
+  jumpToSourceBlock({ lib: bk.lib, name: bk.name, key: '' });
 };
 // 🔴 注入来源清单行点击：跳对应库首页（不带 focus，落到库内筛选视图）
 const onSrcRowClick = (s) => {
@@ -6105,6 +6170,18 @@ const resolveNeedsImageText = ({ books = [], genType = '' } = {}) => {
   });
 };
 
+// ✅ A22 请求实发清单（用户消息侧）刷新：与生成端 utils/injectionManifest.js 单源——
+//    面板据此逐段展示"除委托正文之外，本次请求还会发出哪些块"（板块顺序 = 实发顺序）
+const refreshUserMsgBlocks = ({ subject = '', genType = '' } = {}) => {
+  if (!genType) { userMsgBlocks.value = []; return; }
+  userMsgBlocks.value = buildUserMessageBlocks({
+    genType,
+    subject,
+    materialChannel: resolveMaterialChannel(genType),
+    preview: true, // 门控块（素材使用约定/组织方式）给出可先行展示的条款文本，并注明注入条件
+  });
+};
+
 const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = null) => {
   // 🔧 逐章模式：booksOverride 传入单章过滤版教材（范围名/标题按当前章节）；
   //    空数组（章节未匹配）回退全量勾选，不阻塞
@@ -6237,6 +6314,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     needsImageText,
     instructionText: instructionDraft.value,
   });
+  refreshUserMsgBlocks({ subject, genType }); // ✅ A22：用户消息侧实发清单（与生成端单源）
   instructionSource.value = {
     name: tpl.name || tpl.id || genType,
     source: tpl.source,
@@ -6327,6 +6405,7 @@ const restoreDefaultInstruction = async () => {
     needsImageText,
     instructionText: instructionDraft.value,
   });
+  refreshUserMsgBlocks({ subject, genType }); // ✅ A22：用户消息侧实发清单（与生成端单源）
   instructionSource.value = { name: `内置默认·${genTypeLabel}`, source: 'builtin', key: genType };
   injectSources.value = [
     { lib: 'instruction', name: `内置默认·${genTypeLabel}`, detail: `${stageKey} × ${subject} × ${genType}（内置模板）` },
@@ -6384,6 +6463,7 @@ const refreshProgramAttach = () => {
     subject, stageKey, genType, needsImageText,
     instructionText: instructionDraft.value,
   });
+  refreshUserMsgBlocks({ subject, genType }); // ✅ A22：用户消息侧实发清单（与生成端单源）
 };
 
 // ✅ A18（2026-09-14 素材通道）：把注入框内的素材段（段头/说明）按**当前通道**归一（幂等）。
@@ -6416,6 +6496,7 @@ const clearInstruction = async () => {
   instructionDraft.value = '';
   programAttachText.value = ''; // 程序性附加段随委托正文同清（同源配套）
   attachBlocks.value = [];      // 分段明细同清（同源配套）
+  userMsgBlocks.value = [];     // ✅ A22：请求实发清单同清（与委托正文同源同步）
   previewHint.value = '';
   injectSources.value = [];
 };
@@ -6441,6 +6522,7 @@ watch(
   () => {
     programAttachText.value = ''; // 程序性附加段与委托正文同源：勾选变化一并清空，生成时随 ensure 重建
     attachBlocks.value = [];      // 分段明细同源：一并清空
+    userMsgBlocks.value = [];     // ✅ A22：请求实发清单同源：一并清空
     if (!instructionDraft.value.trim()) return;
     instructionDraft.value = '';
     userEditedInstruction = false;
@@ -9354,6 +9436,10 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 .attach-name { font-weight: 600; color: #26303e; font-size: 12.5px; }
 .attach-key { font-size: 11px; color: var(--text-muted); background: var(--bg-soft, #f2f4f7); border-radius: 4px; padding: 0 5px; }
 .attach-text { margin-top: 4px; font-size: 12px; line-height: 1.7; color: var(--text-secondary); white-space: pre-wrap; word-break: break-all; }
+/* ✅ A22 请求实发清单：仅给"出处 + 注入条件"的块（内容在生成时才定）用虚线边框与浅底区分，
+   一眼分辨"这块文本是本次实发条款原文"与"这块内容随勾选章节/同批产出而定" */
+.attach-note { margin-top: 3px; font-size: 11px; line-height: 1.6; color: var(--text-muted); }
+.attach-item-ref { border-left-style: dashed; background: var(--bg-soft, #f2f4f7); }
 .iab-view { margin-top: 4px; border: 1px solid var(--border-light); border-radius: 8px; padding: 8px 10px; background: #fff; font-size: 12px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto; }
 /* 🔴 着色类须 :deep() 穿透：annotatedBlocksHtml 走 v-html 注入，子元素不带 scoped data-v 属性，
    纯 scoped 选择器不命中（同 2026-09 carrierCss 副本教训）——必须穿透才能给来源块上底色 */

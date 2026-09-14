@@ -111,10 +111,14 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
   });
 
   it('E：委托书尾含跨 9 类「资料内多样」自查句', () => {
-    const srcPath = path.join(ROOT, 'src', 'composables', 'useAiGenerator.js');
+    // ✅ A22（2026-09-14）：尾约束文本已从 useAiGenerator 内联提出到 utils/injectionManifest.js **单源**
+    //    （生成端与生成面板共用），不变量不变（仍随每次请求末尾锚定注入），故断言改指单源 + 生成端引用
+    const srcPath = path.join(ROOT, 'src', 'utils', 'injectionManifest.js');
     const src = fs.readFileSync(srcPath, 'utf8');
     expect(src).toContain('【尾约束·资料内多样】');
     expect(src).toContain('同一份资料内各栏目呈现形式与组织顺序应有所差异，不得全份同类版式照搬');
+    expect(fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8'))
+      .toContain('buildTailBlocks()');
   });
 
   // 🔴 2026-09-12（用户实证）：题目自洽①原为"形态名列举式"，原理上不完备（题型无限，
@@ -138,7 +142,8 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
   //    用词须类型中性：原写"仅凭卷面自身"（卷面=考卷专用语，模型易读成排版要求），
   //    2026-09-12 改"正文"；亦不得改成"本题自身/题干自身"（会被读成"仅凭题干即可作答"，语义反向）。
   it('尾约束·全文自洽为原则式（零列举）：不得回退为"作答要素逐项列举"', () => {
-    const srcPath = path.join(ROOT, 'src', 'composables', 'useAiGenerator.js');
+    // ✅ A22：本块文本已提到 utils/injectionManifest.js 单源（生成端与面板共用），断言随之改指单源
+    const srcPath = path.join(ROOT, 'src', 'utils', 'injectionManifest.js');
     const src = fs.readFileSync(srcPath, 'utf8');
     expect(src).toContain('本题作答所必需的一切内容');
     expect(src).toContain('仅凭正文自身即可完成');
@@ -148,6 +153,9 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(src).not.toContain('使本题**仅凭卷面自身即可完成**');
     expect(src).not.toContain('凡题干提到而卷面未给出');
     expect(src).not.toContain('使本题**仅凭本题自身即可完成**');
+    // 仍随每次请求末尾锚定注入（生成端引用单源，不是只存在于库里）
+    expect(fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8'))
+      .toContain('buildTailBlocks()[0]');
   });
 
   // 🔴 2026-09-12（用户裁定）：篇幅纪律注入位置在【输出约定】尾部（注意力最高区），原句以"止"字收尾
