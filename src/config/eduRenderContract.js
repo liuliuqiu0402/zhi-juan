@@ -372,6 +372,32 @@ export function needsImageHint(text = '', genType = '') {
   return IMAGE_HINT_RE.test(String(text || ''));
 }
 
+/**
+ * 配图判定提示文本·单源（A21，2026-09-14 用户同意）
+ * ============================================================
+ * 为什么必须单源：needsImageHint 是**纯文本匹配**——喂什么文本，决定要不要注入图形/配图能力。
+ *   生成端有三个入口（组装 loadInstructionFromLibrary / 恢复默认 restoreDefaultInstruction /
+ *   生成前刷新 refreshProgramAttach），若各自拼各自的提示文本，同一份渲染契约就会在
+ *   "面板预览"与"实发"之间漂移（预览不配图、实际配图；反之亦然）——即"看到的是一套、发的是另一套"。
+ * 口径：把四类**可能含图依赖词**的信号全部拼上——卷面结构（蓝图大题序列，如"一、观察与实验"）
+ *   + 资料类型名 + 范围维度名 + 章节名（勾选章节 + 全册目录，如"图形的运动""观察物体"）。
+ *   needsImageHint 属"能力注入（注入契约 ≠ 要求配图）"，多注入无害（见上方注释）。
+ * 注意：不要把"轮换后的范围名（unit，如'期中素养检测'）"纳入——它只在组装路径可得，
+ *   纳入会造成"组装有、刷新无"的**新**漂移；范围维度名（scopeType 标签）三处均可得，故用它。
+ * @param {object} o
+ * @param {string} [o.structure] 卷面结构文本（exam 取蓝图大题序列）
+ * @param {string} [o.typeLabel] 资料类型名（如"期末考卷"/"课时练"）
+ * @param {string} [o.scopeName] 范围维度名（如"期中"/"期末"/"单元"）
+ * @param {string} [o.chapters] 章节名文本（勾选章节 + 全册目录）
+ * @returns {string} 提示文本（各段去空后用单空格连接）
+ */
+export function buildNeedsImageText({ structure = '', typeLabel = '', scopeName = '', chapters = '' } = {}) {
+  return [structure, typeLabel, scopeName, chapters]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
 /** 导出示例骨架（渲染契约库展示用；纯导出，不影响生成逻辑） */
 export const GRAPH_SAMPLES = {
   COORDINATE: GRAPH_SAMPLE_COORDINATE,
@@ -387,5 +413,5 @@ export const GRAPH_SAMPLES = {
 
 export default {
   GRAPH_TYPES, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES,
-  buildRenderContract, needsImageHint, GRAPH_SAMPLES, FIGURE_DEPENDENCY_RE,
+  buildRenderContract, needsImageHint, buildNeedsImageText, GRAPH_SAMPLES, FIGURE_DEPENDENCY_RE,
 };

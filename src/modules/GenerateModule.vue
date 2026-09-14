@@ -3106,6 +3106,7 @@ import { getPromptTemplate, buildInjectionInstruction, buildStructureText, getCu
 import { materialChannelOf } from '../config/coverageContract.js'; // 📚 素材通道默认映射（auto 口径单一事实源，2026-09-14）
 import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructureText, buildSpecialDomainAnchorLine } from '../config/specialDomains.js'; // 🎯 专项领域注册库（学科×学段→栏目结构+课标语义锚）
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
+import { buildNeedsImageText } from '../config/eduRenderContract.js'; // ✅ A21：配图判定提示文本单源（三入口同参，防"预览不配图/实发配图"漂移）
 import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, advanceAutoColumnStyleId, getTeachingBlueprint, stripSourceMarkNote } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
 import { APP_EVENTS } from '../constants/events.js';
@@ -4464,6 +4465,10 @@ const attachBlocks = ref([]);
 // 🔴 指令来源分段标注（MVP 批1）：组装后由 annotateInstructionBlocks 填充 偏移区间↔{库,key} 块；
 //    只读旁路（不参与拼装）；用户手动编辑指令后置空（watch 联动，见下），UI 据此提示"标注已失效"
 const instructionBlocks = ref([]);
+// ✅ A21：逐章模式当前章节的教材过滤版（标题/指令范围名按单章）；非逐章为 null。
+//    🔴 提到模块作用域（原先在 generate 内声明）：配图判定提示文本（resolveNeedsImageText）在
+//    "组装"与"生成前刷新"两处都要取**同一来源**的书，否则逐章模式下章节名会成为新的漂移源。
+const perChapterBooksRef = { value: null };
 // 🔴 学段显示名（原 planner 导出，planner 已删除，本地定义）
 const STAGE_LABEL_MAP = {
   primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段',
@@ -6069,6 +6074,32 @@ const buildInstruction = async () => {
 
 // 🔴 生成指令：按三维度（年级×学科×资料类型）从指令库匹配模板并组装注入指令
 
+// ✅ A21 配图判定提示文本·单源（2026-09-14 用户同意）：三个入口（组装 loadInstructionFromLibrary /
+//    恢复默认 restoreDefaultInstruction / 生成前刷新 refreshProgramAttach）必须喂**同一份**提示文本——
+//    needsImageHint 是纯文本匹配，各拼各的会让同一份渲染契约在"面板预览"与"实发"之间漂移
+//    （预览不配图而实际配图、或反之）= 看到的是一套、发的是另一套。
+//    四类信号就地解析、三处共用：卷面结构（蓝图大题序列）+ 类型名 + 范围维度名 + 章节名（勾选 + 全册）。
+//    🔴 books 必须由调用方传入**同一来源**（逐章模式传单章过滤版）——否则章节名又会成为第二个漂移源。
+const resolveNeedsImageText = ({ books = [], genType = '' } = {}) => {
+  const book = books[0];
+  if (!book || !genType) return '';
+  const stageKey = resolveStageKey(book.stage, book.grade, book.name);
+  const subject = normalizeSubjectName(book.subject, stageKey);
+  let structure = '';
+  try {
+    const bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value, scopeType: scopeType.value });
+    if (bp) structure = buildStructureText(applyScoreAdjust(bp));
+  } catch { /* 无蓝图：结构留空，其余信号照给（能力注入、多注入无害） */ }
+  const scopeSource = books.find(b => (b.selectedChapters || []).length > 0) || books[0];
+  const titles = (list) => (list || []).map(c => c.title || c.name || '').filter(Boolean).join(' ');
+  return buildNeedsImageText({
+    structure,
+    typeLabel: genTypeTemplates[genType]?.name || genType,
+    scopeName: SCOPE_TYPE_LABELS[scopeType.value] || scopeType.value || '',
+    chapters: `${titles(scopeSource?.selectedChapters)} ${titles(scopeSource?.outline)}`,
+  });
+};
+
 const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = null) => {
   // 🔧 逐章模式：booksOverride 传入单章过滤版教材（范围名/标题按当前章节）；
   //    空数组（章节未匹配）回退全量勾选，不阻塞
@@ -6188,15 +6219,17 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   }
   // 🔴 程序性附加段（渲染契约 + 质检规则 + 守门条款段级兜底）统一走 buildProgramAttach 单源：
   //    blocks=面板分段明细 / text=实发文本（system 注入），两出口同一份内容 —— 面板所见即实发。
+  //    ✅ A21：配图判定提示文本亦单源（resolveNeedsImageText），与"生成前刷新"入口同参。
+  const needsImageText = resolveNeedsImageText({ books: selectedBooks, genType });
   attachBlocks.value = buildProgramAttachBlocks({
     subject, stageKey, genType,
-    needsImageText: `${structure} ${genTypeLabel} ${unit}`,
+    needsImageText,
     instructionText: instructionDraft.value,
     attachInstructionKey: tpl.id || genType, // tplKey 在后文声明（TDZ 规避：内联同义表达式）
   });
   programAttachText.value = buildProgramAttach({
     subject, stageKey, genType,
-    needsImageText: `${structure} ${genTypeLabel} ${unit}`,
+    needsImageText,
     instructionText: instructionDraft.value,
   });
   instructionSource.value = {
@@ -6276,15 +6309,17 @@ const restoreDefaultInstruction = async () => {
   }
   // 🔴 程序性附加段（渲染契约/质检规则/格式兜底）不进委托正文——统一走 buildProgramAttach，随写作请求 system 注入
   //    分段明细同源产出（面板逐段可点跳库），渲染契约/规则存在时注入来源清单同步展示（与 loadInstructionFromLibrary 口径一致）
+  //    ✅ A21：配图判定提示文本亦单源（resolveNeedsImageText）——本入口不再自行拼文本
+  const needsImageText = resolveNeedsImageText({ books: selectedBooks, genType });
   attachBlocks.value = buildProgramAttachBlocks({
     subject, stageKey, genType,
-    needsImageText: `${structure} ${genTypeLabel} ${unit}`,
+    needsImageText,
     instructionText: instructionDraft.value,
     attachInstructionKey: genType,
   });
   programAttachText.value = buildProgramAttach({
     subject, stageKey, genType,
-    needsImageText: `${structure} ${genTypeLabel} ${unit}`,
+    needsImageText,
     instructionText: instructionDraft.value,
   });
   instructionSource.value = { name: `内置默认·${genTypeLabel}`, source: 'builtin', key: genType };
@@ -6322,17 +6357,19 @@ const composeSpecialTeachingText = ({ genType, stageKey, subject, domainKey }) =
 //    委托正文（草稿/手动编辑）与 programAttach 必须同源配套：草稿非空时同样要刷新，
 //    否则生成请求缺渲染协议（配图/公式/规则注入缺失）
 const refreshProgramAttach = () => {
-  const books = textbookStore.textbooks.filter(b => hasAnySelected(b.outline));
+  // 🔴 取书同源（A21）：逐章模式用单章过滤版，与"组装"入口一致——否则章节名会成为第二个漂移源
+  const books = perChapterBooksRef.value?.length
+    ? perChapterBooksRef.value
+    : textbookStore.textbooks.filter(b => hasAnySelected(b.outline));
   if (!books.length) return;
   const book = books[0];
   const stageKey = resolveStageKey(book.stage, book.grade, book.name);
   const subject = normalizeSubjectName(book.subject, stageKey);
   const genType = genTypes.value?.[0];
   if (!genType) return;
-  const genTypeLabel = genTypeTemplates[genType]?.name || genType;
-  const scopeSource = books.find(b => (b.selectedChapters || []).length > 0) || books[0];
-  const scopeText = (scopeSource?.outline || []).map(c => c.title || c.name || '').filter(Boolean).join(' ');
-  const needsImageText = `${scopeText} ${genTypeLabel}`;
+  // ✅ A21：配图判定提示文本单源——原先此处拼「章节名 + 类型名」、组装处拼「结构 + 类型名 + 范围名」，
+  //    同一份渲染契约会在"面板预览"与"实发"之间漂移（预览不配图、实际配图），故收敛到单源同参
+  const needsImageText = resolveNeedsImageText({ books, genType });
   attachBlocks.value = buildProgramAttachBlocks({
     subject, stageKey, genType, needsImageText,
     instructionText: instructionDraft.value,
@@ -8050,8 +8087,8 @@ const generate = async (mode) => {
   const chapterTargets = (effectiveSplit && allChapters.length > 1)
     ? allChapters
     : [null];
-  // 🔧 逐章模式当前章节的教材过滤版（标题/指令范围名按单章）；非逐章为 null
-  const perChapterBooksRef = { value: null };
+  // 🔧 逐章模式当前章节的教材过滤版：✅ A21 已提到模块作用域（供 resolveNeedsImageText 单源取书），此处只重置
+  perChapterBooksRef.value = null;
   // 🎨 栏目风格按次轮换：记录本次生成前的产出数，末尾据此判断"是否真的有产出"再推进计数
   const docsBefore = generatedDocs.value.length;
   
