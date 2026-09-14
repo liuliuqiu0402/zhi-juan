@@ -148,6 +148,25 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(bad, `以下命题要求仍在举例：${bad.slice(0, 5).join('；')}`).toEqual([]);
   });
 
+  // 🔴 2026-09-14（用户定版）：题干内的"要求/提示/步骤"分条此前无人管（题号规范管题目、CONTENT_FORMAT
+  //    管内容型知识条目），实测模型把写作要求逐条当题（`1. 2. 3.` 与题号同构 + 每条各配作答区）。
+  //    本条只定位"编号方式与作答区归属"，不涉题型、不涉覆盖；且**只进题类**（question/exam）——
+  //    内容型编号口径仍由 CONTENT_FORMAT 单源给出（（1）（2）），两套口径不同时注入 → 不打架。
+  it('a：题干内分条不与题号层混同（题类两分支注入、内容型不注入）', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'config', 'promptLibrary.js'), 'utf8');
+    expect(src.split('不与题号层混同').length - 1, 'question/exam 两分支各一处').toBe(2);
+    expect(src).toContain('这些分条不是子题，不为其另配作答区');
+    expect(src, '与题号规范划清边界（子题才用 (1)(2)）').toContain('子题用 (1)(2)');
+    expect(src, '内容型编号口径仍由 CONTENT_FORMAT 单源').toContain('条目标记与序号只取其一、严禁叠加');
+  });
+
+  // 🔴 2026-09-14：段落组织原写"每个任务（情境/活动/成果各条）独立成 <p> 段落"——
+  //    "各条独立成段"会让写作要求各占一段、进一步被当成题；现限定"各条"不含要求/提示分条。
+  it('段落组织限定"各条"不含题干内要求/提示分条（题类两分支）', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'config', 'promptLibrary.js'), 'utf8');
+    expect(src.split('不含题干内的要求/提示分条').length - 1).toBe(2);
+  });
+
   it('E：委托书尾含跨 9 类「资料内多样」自查句', () => {
     // ✅ A22（2026-09-14）：尾约束文本已从 useAiGenerator 内联提出到 utils/injectionManifest.js **单源**
     //    （生成端与生成面板共用），不变量不变（仍随每次请求末尾锚定注入），故断言改指单源 + 生成端引用
