@@ -25,6 +25,7 @@
  */
 
 import { isExtensionSegment } from './segmentTypes.js';
+import { resolveAnchorKind } from './anchorTreeContract.js'; // 🔬 (b) 条目性质双轨判定（显式 kind 优先 + 名字兜底），与生成端同一口径
 
 /** 词边界命中（与 useAiGenerator.extractContentCards 内 wordBoundaryMatch 同口径；
  *  绑定模块自含一份，避免跨文件闭包依赖——两处语义保持一致，改动需同步）
@@ -70,8 +71,9 @@ export const flattenAnchorTree = (anchorTree = []) => {
         bigConcept: big,
         name: ck.name,
         // 🔬 (b) 条目性质透传：'material'（语言材料/语篇条目）由生成期分流为"只作理解与难度依据"；
-        //    缺字段（旧分析结果）→ 'knowledge'，行为与分流前一致
-        kind: ck.kind === 'material' ? 'material' : 'knowledge',
+        //    与 useAiGenerator 同一判据（显式 kind 优先 + 名字兜底 resolveAnchorKind），避免两处口径分叉；
+        //    缺字段（旧分析结果）时由名字兜底 → 仍可能与分流前"全部按知识性"略有差异，这是分流本意
+        kind: resolveAnchorKind({ name: ck.name, kind: ck.kind }),
         level: ck.level || '理解',
         specificConcepts: (ck.specificConcepts || []).filter(Boolean),
       });

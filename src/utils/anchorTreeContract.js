@@ -190,6 +190,24 @@ const isMeaningfulTheme = (bigConcept, chapterTitle) =>
 export const MAX_SPECIFIC_CONCEPTS_PER_ANCHOR = 6;
 /** 🔬 语言材料行前缀（命题型清单：语言材料单列一处，标明不作覆盖单位） */
 export const MATERIAL_LINE = '◇ 语言材料（只作理解与难度依据，不在覆盖单位之列）：';
+
+/**
+ * 🔬 条目性质兜底判据（2026-09-14）：分析层的 `kind` 是**模型自觉输出字段**，实测常被漏掉
+ * （新旧分析结果都没有该字段）→ 不能只靠它。此处按条目名做廉价兜底判定，与显式 kind 双轨：
+ * 显式 `kind='material'` / `'knowledge'` 一律优先；缺失时按名字判（材料性命名 → material）。
+ * 兜底词表**故意保守**：只收"语篇/材料"这类明确命名，避免把语法、语音、功能句知识点误判为材料。
+ */
+const MATERIAL_NAME_RE = /故事|语篇|课文|歌谣|韵律|板块|场景|核心问题|学习目标/;
+
+/** 是否为材料性命名的条目（兜底用；显式 kind 优先，见 resolveAnchorKind） */
+export const isMaterialAnchorName = (name = '') => MATERIAL_NAME_RE.test(String(name || ''));
+
+/** 解析条目性质：显式 kind 优先，缺失按名字兜底 */
+export const resolveAnchorKind = (ck = {}) => {
+  if (ck?.kind === 'material') return 'material';
+  if (ck?.kind === 'knowledge') return 'knowledge';
+  return isMaterialAnchorName(ck?.name) ? 'material' : 'knowledge';
+};
 const withConcepts = (name, concepts, enabled = true) => {
   if (!enabled) return name;
   const list = Array.isArray(concepts) ? concepts.filter((c) => String(c || '').trim()) : [];

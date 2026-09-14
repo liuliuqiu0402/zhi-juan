@@ -28,9 +28,12 @@ describe('(b) 分析层 kind 契约', () => {
     expect(src, '另一条图谱 prompt 须同步').toContain('核心知识点[knowledge|material](≤6)');
   });
 
-  it('锚树归一透传 kind，缺字段按 knowledge', () => {
+  it('锚树归一透传 kind（双轨判定：显式 kind 优先 + 名字兜底）', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src/utils/coverageAnchor.js'), 'utf8');
-    expect(src).toContain("kind: ck.kind === 'material' ? 'material' : 'knowledge'");
+    expect(src).toContain('kind: resolveAnchorKind({ name: ck.name, kind: ck.kind })');
+    // 生成端"随卡锚树"投影同样不得漏传（曾在此把 kind 筛掉 → 分流永远拿不到）
+    const gen = fs.readFileSync(path.join(ROOT, 'src/composables/useAiGenerator.js'), 'utf8');
+    expect(gen).toContain('kind: resolveAnchorKind({ name: ck.name, kind: ck.kind })');
   });
 });
 

@@ -10,7 +10,7 @@ import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
 import { buildAnchors } from '../utils/coverageAnchor.js';
 import { collectChapterRawText, compressOriginalText, shouldDirectInject } from '../utils/textbookCompression.js'; // ✅ A15/A11：程序按勾选章节直读整章原文（材料压缩 + copyGuard 语料同源）；✅ A4-10：材料分档（小直放/大压缩）
 import { buildCompressionCacheKey, readCompressionCache, writeCompressionCache } from '../utils/compressionCache.js'; // ✅ A4-11：压缩结果按勾选章节组合缓存（同批章节第二次生成直接复用）
-import { formatAnchorListByChapter, anchorListRoleNote } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位，含第3层具体概念 A17/可开关）
+import { formatAnchorListByChapter, anchorListRoleNote, resolveAnchorKind } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位，含第3层具体概念 A17/可开关）；🔬 resolveAnchorKind：条目性质双轨判定（显式 kind 优先 + 名字兜底）
 // ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
 import { planOutputQuota, nextContinuationBudget, isOverQuota, charsToTokens } from '../utils/outputQuota.js';
 import { contractOf, MATERIAL_CHANNEL_DEFAULT } from '../config/coverageContract.js';
@@ -885,8 +885,10 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
               specificConcepts: ck.specificConcepts || [],
               // 🔬 (b) 条目性质 kind **必须在此透传**（2026-09-14 定位到的问题点）：这处"随卡附带的锚树"
               //    原先只取 name/level/specificConcepts，把分析层产出的 kind 直接筛掉了 → 生成期分流永远
-              //    拿不到（表现：清单里从不出现◇语言材料行、题目照旧围着教材语篇）。缺字段 → knowledge。
-              kind: ck.kind === 'material' ? 'material' : 'knowledge',
+              //    拿不到（表现：清单里从不出现◇语言材料行、题目照旧围着教材语篇）。
+              //    ⚠️ 实测分析层常漏输出 kind（新旧结果都没有）→ 用 resolveAnchorKind 双轨兜底：
+              //    显式 kind 优先，缺失时按条目名判（故事/语篇/课文/歌谣/韵律/板块/场景/核心问题/学习目标）。
+              kind: resolveAnchorKind({ name: ck.name, kind: ck.kind }),
             })),
           })),
           // 🔧 保留完整的 KP→片段映射，供 Step 4 精准检索（Step 2 只用 totalSegments 不遍历 segments）
