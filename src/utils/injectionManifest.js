@@ -138,7 +138,7 @@ export const buildTailBlocks = () => [
 const BLOCK_DEFS = [
   {
     id: 'anchor-list', name: '锚点清单', lib: 'builtin', scope: '用户消息·开头',
-    note: '生成时按勾选章节的分析结果注入（第1层知识主题 + 第3层具体概念；覆盖范围以下限声明）',
+    note: '生成时按勾选章节的分析结果注入：第1层知识主题作分组前缀、第2层知识点为主体、第3层具体概念随各知识点括注（第1层只表归属、第2层才是命题单位）；覆盖范围以下限声明',
     build: (c) => (c.anchorListText ? buildAnchorListBlock(c.anchorListText) : ''),
   },
   {
