@@ -386,7 +386,7 @@ export function needsImageHint(text = '', genType = '') {
  *   纳入会造成"组装有、刷新无"的**新**漂移；范围维度名（scopeType 标签）三处均可得，故用它。
  * @param {object} o
  * @param {string} [o.structure] 卷面结构文本（exam 取蓝图大题序列）
- * @param {string} [o.typeLabel] 资料类型名（如"期末考卷"/"课时练"）
+ * @param {string} [o.typeLabel] 资料类型名（如"期末考卷"/"同步练习"）
  * @param {string} [o.scopeName] 范围维度名（如"期中"/"期末"/"单元"）
  * @param {string} [o.chapters] 章节名文本（勾选章节 + 全册目录）
  * @returns {string} 提示文本（各段去空后用单空格连接）

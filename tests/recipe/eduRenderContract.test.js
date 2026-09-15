@@ -256,9 +256,9 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
       expect(t.template, `类型 ${g} 缺学科×学段要点`).toContain('【语文·小学低段要点】');
       expect(t.template).toContain('【学段特点】');
     }
-    // 类型骨架差异化：practice 三维度是课时练语料，不是试卷语料
+    // 类型骨架差异化：practice 三维度是同步练习语料，不是试卷语料
     const p = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' });
-    expect(p.template).toContain('课时练');
+    expect(p.template).toContain('同步练习');
     expect(p.template).not.toContain('满分');
   });
 

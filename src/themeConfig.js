@@ -139,8 +139,8 @@ export const themes = [
   },
   {
     id: 'primary_practice',
-    name: '📚 小学课时练',
-    description: '小学课时练习样式',
+    name: '📚 小学同步练习',
+    description: '小学同步练习样式',
     type: 'preset',
     group: '小学',
     stage: 'primary',
@@ -236,8 +236,8 @@ export const themes = [
   },
   {
     id: 'middle_practice',
-    name: '📚 初中课时练',
-    description: '初中课时练习样式',
+    name: '📚 初中同步练习',
+    description: '初中同步练习样式',
     type: 'preset',
     group: '初中',
     stage: 'middle',
@@ -333,8 +333,8 @@ export const themes = [
   },
   {
     id: 'high_practice',
-    name: '📚 高中课时练',
-    description: '高中课时练习样式',
+    name: '📚 高中同步练习',
+    description: '高中同步练习样式',
     type: 'preset',
     group: '高中',
     stage: 'high',
@@ -526,8 +526,8 @@ export const themes = [
   },
   {
     id: 'error_book',
-    name: '🔖 错题本',
-    description: '错题本样式',
+    name: '🔖 易错题本',
+    description: '易错题本样式',
     type: 'preset',
     group: '特殊',
     stage: 'high',
@@ -554,7 +554,7 @@ export const themes = [
       '.heading3': { fontSize: '12pt', fontWeight: 'bold', marginTop: '6pt', marginBottom: '3pt', color: '#ef5350' },
       '.normal-paragraph': { fontSize: '12pt', lineHeight: '1.6', marginBottom: '6pt' },
       '.indent-2': { textIndent: '2em' },
-      // 🔖 错题本专属样式
+      // 🔖 易错题本专属样式
       '.error-item': {
         border: '1px solid #e0e0e0',
         borderRadius: '6px',
@@ -1031,19 +1031,19 @@ export const themeOptions = [
   { value: 'original_fresh', label: '🌿 我的清新样式', group: '我的样式' },
   // 小学组
   { value: 'primary_exam', label: '📝 小学试卷', group: '小学' },
-  { value: 'primary_practice', label: '📚 小学课时练', group: '小学' },
+  { value: 'primary_practice', label: '📚 小学同步练习', group: '小学' },
   { value: 'primary_summary', label: '📖 小学知识点', group: '小学' },
   // 初中组
   { value: 'middle_exam', label: '📝 初中试卷', group: '初中' },
-  { value: 'middle_practice', label: '📚 初中课时练', group: '初中' },
+  { value: 'middle_practice', label: '📚 初中同步练习', group: '初中' },
   { value: 'middle_summary', label: '📖 初中知识点', group: '初中' },
   // 高中组
   { value: 'high_exam', label: '📝 高中试卷', group: '高中' },
-  { value: 'high_practice', label: '📚 高中课时练', group: '高中' },
+  { value: 'high_practice', label: '📚 高中同步练习', group: '高中' },
   { value: 'high_summary', label: '📖 高中知识点', group: '高中' },
   // 特殊类型
   { value: 'teaching_plan', label: '📋 教案设计', group: '特殊' },
-  { value: 'error_book', label: '🔖 错题本', group: '特殊' },
+  { value: 'error_book', label: '🔖 易错题本', group: '特殊' },
   { value: 'study_note', label: '📒 学霸笔记', group: '特殊' },
   { value: 'sealed_exam', label: '📜 密封线试卷', group: '特殊' }
 ];
@@ -2634,7 +2634,7 @@ export const getSpecialThemeEditorCSS = (themeId) => {
 
     case 'error_book':
       return `
-        /* 🔖 错题本 — 编辑区左侧红色标识条 + 底部订正区提示 */
+        /* 🔖 易错题本 — 编辑区左侧红色标识条 + 底部订正区提示 */
         .ProseMirror {
           position: relative !important;
           border-left: 4px solid #c62828 !important;

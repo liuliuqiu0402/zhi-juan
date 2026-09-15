@@ -570,9 +570,9 @@ export const apiConfig = reactive({
     answerTemperature: 0.3,             // 答案页（阅卷专家视角，需严谨：答案/评分标准/听力原文，低温）
     // 🔧 整卷生成方式（设置页三选一，生成端严格按此执行）：
     //    'split' 两次生成：正文一次 + 答案页独立一次（温度/角色分层，纯题型推荐）
-    //    'once'  一次成型：正文+答案一次输出（上下文全程一致；答案部分与正文共用 paperTemperature，知识型/错题/听写推荐）
+    //    'once'  一次成型：正文+答案一次输出（上下文全程一致；答案部分与正文共用 paperTemperature，知识型/错题/默写推荐）
     //    'auto'  自动按资料类型（两条路都可用）：纯题型（exam/practice/special/review）→ split；
-    //            知识型/听写/错题（reading/summary/preview/dictation/errorbook）→ once
+    //            知识型/默写/错题（reading/summary/preview/dictation/errorbook）→ once
     // 🔧 每类型输出预算见下方 budgetByType（每类型已含路径 mode 与三槽 cap，动态为主，无需全局上限）。
     // 🔧 整卷输出预算（tokens，思考模式下按 thinkingBudgetMultiplier 放大——
     //    推理 token 与正文共享 max_tokens 配额，需给推理预留余量）

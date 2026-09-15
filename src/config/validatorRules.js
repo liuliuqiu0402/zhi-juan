@@ -98,7 +98,7 @@ export const VALIDATOR_RULES = [
     subjects: ['*'],
     stages: ['*'],
     genTypes: ['practice', 'special', 'preview', 'reading', 'dictation', 'review'],
-    description: '教辅类（课时练/专项突破/课前预习/阅读训练/默写积累/复习资料）答案区标题约束（答案区 <h2> 标题由输出约定/答案页角色单源注入，本规则不再提供 promptHint）；once 模式答案区无包裹时自动补包。错题本/知识总结为"题+解析一体"资料（正文自带解析，可能跳过独立答案页），不注入"另起答案区"要求。',
+    description: '教辅类（同步练习/专项突破/预习导学/阅读训练/默写积累/复习资料）答案区标题约束（答案区 <h2> 标题由输出约定/答案页角色单源注入，本规则不再提供 promptHint）；once 模式答案区无包裹时自动补包。易错题本/知识总结为"题+解析一体"资料（正文自带解析，可能跳过独立答案页），不注入"另起答案区"要求。',
     enabled: true,
   },
   {
@@ -128,7 +128,7 @@ export const VALIDATOR_RULES = [
     category: 'guard',
     subjects: ['*'],
     stages: ['*'],
-    description: '教辅类资料（非 exam）生成后静默确认内容充足性：阅读训练须含选文（短文）且长度达标、知识总结篇幅足够、课时练/专项/复习/默写题量不单薄——缺失/过短仅 debug 计数（题量/篇幅底线由教辅结构蓝本 stages.volume 提供，程序侧校验参考，不注入 prompt 防限定 AI）。',
+    description: '教辅类资料（非 exam）生成后静默确认内容充足性：阅读训练须含选文（短文）且长度达标、知识总结篇幅足够、同步练习/专项/复习/默写题量不单薄——缺失/过短仅 debug 计数（题量/篇幅底线由教辅结构蓝本 stages.volume 提供，程序侧校验参考，不注入 prompt 防限定 AI）。',
     enabled: true,
   },
 

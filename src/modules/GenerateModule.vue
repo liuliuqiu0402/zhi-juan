@@ -5042,12 +5042,12 @@ const genTypeModelHint = computed(() => {
   // 🦙 本地 Ollama（推理已全局关闭，选大模型只为生成质量）
   const hints = {
     'exam':      { icon: '🧠', model: apiConfig.ollamaTextModel || 'deepseek-r1:14b', tip: '14B命题最优·推理已关' },
-    'practice':  { icon: '🧠', model: apiConfig.ollamaTextModel || 'deepseek-r1:14b', tip: '课时练命题生成最优' },
+    'practice':  { icon: '🧠', model: apiConfig.ollamaTextModel || 'deepseek-r1:14b', tip: '同步练习命题生成最优' },
     'summary':   { icon: '📚', model: apiConfig.ollamaLightModel || 'glm4:9b', tip: '知识点总结/学术精准' },
     'special':   { icon: '🧠', model: apiConfig.ollamaTextModel || 'deepseek-r1:14b', tip: '专项突破·大模型更稳' },
     'errorbook': { icon: '📚', model: apiConfig.ollamaLightModel || 'glm4:9b', tip: '错题分析/归因精准' },
     'preview':   { icon: '🌟', model: 'glm4:9b / qwen2.5:14b', tip: '预习资料格式驱动' },
-    'dictation': { icon: '🌟', model: 'glm4:9b / qwen2.5:14b', tip: '听写格式要求高' },
+    'dictation': { icon: '🌟', model: 'glm4:9b / qwen2.5:14b', tip: '默写格式要求高' },
     'reading':   { icon: '🧠', model: apiConfig.ollamaTextModel || 'deepseek-r1:14b', tip: '阅读理解·大模型更稳' },
     'review':    { icon: '📚', model: apiConfig.ollamaLightModel || 'glm4:9b', tip: '复习资料·综合梳理' }, // 🔧 补齐缺项（曾回落 null 无提示）
   };
@@ -6564,7 +6564,7 @@ const clearInstruction = async () => {
 
 // 🔧 三维度勾选变化 → 指令失效自动清空：教材（学段/学科/册别/勾选章节）/资料类型/范围维度任一变化，
 //    旧指令即不可用（学科/学段/范围/角色可能全变），生成时 ensureInjectedInstruction 自动按当前勾选
-//    重新组装——从源头杜绝跨次生成旧类型指令残留（如先出"正式试卷"再出"课时练"仍注入 exam 角色/
+//    重新组装——从源头杜绝跨次生成旧类型指令残留（如先出"正式试卷"再出"同步练习"仍注入 exam 角色/
 //    真题蓝本）；用户手动编辑的指令同样失效（勾选是事实源，编辑基于旧勾选无意义）。
 //    模板勾选不影响指令组装（loadInstructionFromLibrary 只用教材库），不纳入 watch 源。
 //    📚 A18（2026-09-14 素材通道）：素材通道同属"决定注入内容"的状态——切换后旧草稿的素材段
@@ -8285,7 +8285,7 @@ const generate = async (mode) => {
 
     // 🔧 多类型混合生成：第二类型起若指令为自动组装（用户未手动编辑），
     //    按当前类型重新组装（任务行/蓝本/渲染契约/规则约束三维度匹配）——
-    //    此前复用第一类型指令导致错位（如"课时练"被注入"正式试卷"角色与 exam 真题蓝本）
+    //    此前复用第一类型指令导致错位（如"同步练习"被注入"正式试卷"角色与 exam 真题蓝本）
     // 🔧 跨次生成刷新（防御纵深）：勾选变化已由 watch 自动清空指令，此处覆盖 watch 未感知的
     //    边缘变化源（如 specialSubType 等不触发清空的配置）；typeIndex=0 非逐章时同样按当前类型
     //    重新组装——逐章分支已在章节循环开头（L5955）用单章教材组装过，跳过避免重复组装
@@ -8311,8 +8311,8 @@ const generate = async (mode) => {
 已覆盖知识点：${coveredKps.join('、')}
 
 差异化策略：
-1. 如果前面已生成考卷，本次课时练应侧重基础巩固和变式训练
-2. 如果前面已生成课时练，本次专项突破应选择前面未深入的知识点
+1. 如果前面已生成考卷，本次同步练习应侧重基础巩固和变式训练
+2. 如果前面已生成同步练习，本次专项突破应选择前面未深入的知识点
 3. 如果前面已生成考卷，本次知识点总结应侧重梳理而非重复出题
 4. 允许同一知识点从不同角度考查，但避免完全相同的题型和难度`;
     }

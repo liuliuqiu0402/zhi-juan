@@ -340,8 +340,8 @@ const STAGE_LABELS = {
   primary_low: '小学低段（1-2年级）', primary_mid: '小学中段（3-4年级）', primary_high: '小学高段（5-6年级）', middle: '初中（7-9年级）', high: '高中',
 };
 const GEN_TYPE_NAME = {
-  exam: '正式试卷', practice: '课时练', special: '专项突破', preview: '课前预习',
-  reading: '阅读训练', summary: '知识总结', dictation: '默写积累', errorbook: '错题本', review: '复习资料',
+  exam: '正式试卷', practice: '同步练习', special: '专项突破', preview: '预习导学',
+  reading: '阅读训练', summary: '知识总结', dictation: '默写积累', errorbook: '易错题本', review: '复习资料',
 };
 
 /* ===== 数据源 ===== */

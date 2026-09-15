@@ -12,7 +12,7 @@ import {
   buildAnchorListBlock, buildCompressedTextBlock,
   buildMaterialUsageBlock, buildOrganizeBlock,
   buildTemplateInfoBlock, buildContextBlock, buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,
-  TAIL_SELF_CONSISTENCY, SCENE_REGEN_TYPES, AUTONOMOUS_ITEM_TYPES,
+  TAIL_SELF_CONSISTENCY, SCENE_REGEN_TYPES, AUTONOMOUS_ITEM_TYPES, TYPED_PRACTICE_ITEM_TYPES,
 } from '../../src/utils/injectionManifest.js';
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -171,13 +171,17 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     }
   });
 
-  it('题型须多样：不越界注入（考卷有蓝图题型序列 / 错题本题型由错题决定 / 知识型不命题）', () => {
+  it('题型须多样：不越界注入（考卷有蓝图题型序列 / 知识型不命题）+ 易错题本只注题型句（2026-09-15）', () => {
     expect(buildMaterialUsageBlock({ genType: 'exam', materialChannel: 'anchor' })).not.toContain('题型须多样');
-    expect(buildMaterialUsageBlock({ genType: 'errorbook', materialChannel: 'anchor' })).not.toContain('题型须多样');
+    // 🔴 2026-09-15 用户定版：易错题本题目由**本资料自行命制**（系统按本单元高频易错点出题）→ 注入"题型须多样"；
+    //    但其分组按知识点/错因 → **不**注入"题组按题型/环节分组"（那条仍只走 AUTONOMOUS_ITEM_TYPES）。
+    expect(buildMaterialUsageBlock({ genType: 'errorbook', materialChannel: 'anchor' })).toContain('题型须多样');
+    expect(buildOrganizeBlock('errorbook')).not.toContain('不以清单条目作分组或命名');
     for (const t of ['summary', 'preview', 'dictation', 'review']) {
       expect(buildMaterialUsageBlock({ genType: t, materialChannel: 'full' }), `${t} 知识型不命题`).not.toContain('题型须多样');
     }
     expect(AUTONOMOUS_ITEM_TYPES).toEqual(['practice', 'special', 'reading']);
+    expect(TYPED_PRACTICE_ITEM_TYPES).toEqual(['practice', 'special', 'reading', 'errorbook']);
   });
 
   it('题型须多样：全通道注入（锚清单通道与全文通道都在），且面板可见（由素材使用约定块承载）', () => {

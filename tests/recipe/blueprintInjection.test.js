@@ -340,7 +340,7 @@ describe('质量底线三维度注入（类型/学科/学段各司其职，非�
     const special = getPromptTemplate({ genType: 'special' });
     expect(special.template).toContain('板块划分与题量按生成时注入的【教辅结构】执行');
     const reading = getPromptTemplate({ genType: 'reading' });
-    expect(reading.template).toContain('短文无语病'); // 选文规范由教辅结构蓝本承载（单一事实源）
+    expect(reading.template).toContain('阅读材料无语病'); // 阅读材料规范由教辅结构蓝本承载（单一事实源）
     const dictation = getPromptTemplate({ genType: 'dictation' });
     expect(dictation.template).toContain('严格对应教材要求');
     const review = getPromptTemplate({ genType: 'review' });

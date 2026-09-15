@@ -417,7 +417,7 @@
                 试卷
               </option>
               <option value="practice">
-                课时练
+                同步练习
               </option>
               <option value="summary">
                 知识点总结

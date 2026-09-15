@@ -155,7 +155,7 @@ export const genTypeTemplates = {
     name: '📝 正式考卷',
   },
   'practice': {
-    name: '📚 课时练',
+    name: '📚 同步练习',
   },
   'summary': {
     name: '📖 知识总结',
@@ -164,10 +164,10 @@ export const genTypeTemplates = {
     name: '🎯 专项突破',
   },
   'errorbook': {
-    name: '🔖 错题本',
+    name: '🔖 易错题本',
   },
   'preview': {
-    name: '🔍 课前预习',
+    name: '🔍 预习导学',
   },
   'dictation': {
     name: '📝 默写积累',
@@ -183,12 +183,12 @@ export const genTypeTemplates = {
 // ==================== 资料类型选项 ====================
 export const genTypeOptions = [
   { value: 'exam', label: '📝 正式考卷', desc: '正式考试试卷' },
-  { value: 'practice', label: '📚 课时练', desc: '日常课时作业' },
+  { value: 'practice', label: '📚 同步练习', desc: '日常同步练习' },
   { value: 'summary', label: '📖 知识总结', desc: '知识归纳整理' },
-  { value: 'special', label: '🎯 专项突破', desc: '专题深度训练' },
-  { value: 'errorbook', label: '🔖 错题本', desc: '错题整理分析' },
-  { value: 'preview', label: '🔍 课前预习', desc: '自主预习引导' },
-  { value: 'dictation', label: '📝 默写积累', desc: '生字词/单词听默写' },
+  { value: 'special', label: '🎯 专项突破', desc: '专项深度训练' },
+  { value: 'errorbook', label: '🔖 易错题本', desc: '易错题命制与归因分析' },
+  { value: 'preview', label: '🔍 预习导学', desc: '自主预习导学' },
+  { value: 'dictation', label: '📝 默写积累', desc: '生字词/单词默写' },
   { value: 'reading', label: '📖 阅读训练', desc: '阅读理解专项训练' },
   { value: 'review', label: '📋 复习资料', desc: '系统化复习+自测' }
 ];
@@ -208,7 +208,7 @@ export const styleOptions = [
     tip: '整卷围绕一个核心主题情境展开，情境贯穿所有题目，对标真题卷面结构与难度分层；适用于正式考试类资料。',
     appliesTo: ['exam'], required: true },
   { group: 'proposition', value: 'unit_context', label: '单元情境卷', desc: '单元大情境贯穿栏目',
-    tip: '以本单元大情境/大任务组织，栏目间情境连贯递进，考查单元整体理解；适用于课时练、复习等以单元组织的资料。',
+    tip: '以本单元大情境/大任务组织，栏目间情境连贯递进，考查单元整体理解；适用于同步练习、复习等以单元组织的资料。',
     appliesTo: ['practice', 'review'], required: false },
   { group: 'proposition', value: 'scenario_each', label: '逐题情境', desc: '每题独立真实生活情境',
     tip: '每题自带贴近学生生活的真实情境，不强制统一主题，灵活性最高；适用于日常训练类资料。',
@@ -233,7 +233,7 @@ export const styleOptions = [
     tip: '用一个贴近生活的大主题把知识点串联呈现，符合课标情境化要求；适用于知识总结、复习资料。',
     appliesTo: ['summary', 'review'], required: false },
   { group: 'presentation', value: 'task_driven', label: '问题驱动', desc: '预习任务问题化',
-    tip: '以问题链驱动预习（圈画/概括/查阅/尝试），可操作可检查；适用于课前预习。',
+    tip: '以问题链驱动预习（圈画/概括/查阅/尝试），可操作可检查；适用于预习导学。',
     appliesTo: ['preview'], required: false },
   { group: 'presentation', value: 'framework', label: '框架式', desc: '框架→梳理→辨析',
     tip: '围绕核心知识依次梳理与自测组织，覆盖完整；适用于复习资料。',

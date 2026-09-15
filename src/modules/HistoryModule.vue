@@ -17,20 +17,14 @@
           <option value="">
             全部类型
           </option>
-          <option value="📝 考卷">
-            📝 考卷
-          </option>
-          <option value="📚 课时练">
-            📚 课时练
-          </option>
-          <option value="📖 知识点总结">
-            📖 知识点总结
-          </option>
-          <option value="🎯 专项突破">
-            🎯 专项突破
-          </option>
-          <option value="🔖 错题本">
-            🔖 错题本
+          <!-- 🔴 筛选项由 genTypeOptions 单一来源生成（勿再硬编码）：历史记录存的是类型显示名，
+               硬编码曾与实际值脱钩（"考卷/知识总结"筛不中），且类型改名后必失效。 -->
+          <option
+            v-for="opt in genTypeOptions"
+            :key="opt.value"
+            :value="opt.value"
+          >
+            {{ opt.label }}
           </option>
         </select>
         <button
@@ -129,6 +123,7 @@ import { useMobile } from '@/composables/useMobile.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import { STORAGE_KEYS } from '@/constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
 import { pushDeletedDocIds } from '@/utils/cloudStorage';
+import { genTypeOptions } from '@/config/expertKnowledge.js'; // 资料类型显示名唯一事实源（筛选项与匹配同源，防改名脱钩）
 
 const router = useRouter();
 const { showConfirmDialogFn } = useDialog();
@@ -136,12 +131,16 @@ const { isMobile } = useMobile();
 
 const historyList = ref([]);
 const historySearchKeyword = ref('');
-const historyFilterType = ref('');
+const historyFilterType = ref(''); // 存**类型 key**（显示名由 genTypeOptions 解析，改类型名不再影响筛选）
+const historyTypeNameOf = (key) => genTypeOptions.find(o => o.value === key)?.label || key;
 const filteredHistoryList = computed(() => {
   let result = historyList.value.filter(h => !h._deleted);
 
   if (historyFilterType.value) {
-    result = result.filter(item => item.genType === historyFilterType.value);
+    // 🔴 历史项的 genType 存的是**类型显示名**（GenerateModule 写入 genTypeTemplates[...].name）；
+    //    此处按显示名匹配，并兼容历史上可能直接存 key 的记录。
+    const name = historyTypeNameOf(historyFilterType.value);
+    result = result.filter(item => item.genType === name || item.genType === historyFilterType.value);
   }
 
   const keyword = historySearchKeyword.value.toLowerCase().trim();

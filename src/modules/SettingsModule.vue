@@ -769,7 +769,7 @@
               <span style="font-weight:600;color:#1f6feb;font-size:12px;white-space:nowrap;">{{ row.name }}</span>
               <span style="font-size:10px;color:#8896a8;white-space:nowrap;">路径</span>
               <label
-                :title="'自动：由程序按该类型最合适的路径决定（考卷/课时练/专项/复习→两次，阅读/总结/预习/默写/错题→一次）'"
+                :title="'自动：由程序按该类型最合适的路径决定（考卷/同步练习/专项/复习→两次，阅读/总结/预习/默写/错题→一次）'"
                 style="margin-right:4px;font-size:11px;color:#555;cursor:pointer;"
               >
                 <input
@@ -1159,7 +1159,7 @@
             v-if="settings.generationSettings.materialChannel === 'auto'"
             style="font-size:11px;color:#666;margin-top:6px;line-height:1.5;"
           >
-            📌 当前生效：归纳/积累型（知识总结·复习·预习·默写）→ 全文注入；命题/练习型（正式卷·课时练·专项·阅读·错题本）→ 锚清单注入
+            📌 当前生效：归纳/积累型（知识总结·复习·预习·默写）→ 全文注入；命题/练习型（正式卷·同步练习·专项·阅读·易错题本）→ 锚清单注入
           </div>
         </div>
         <div style="margin-top:12px;">
@@ -1623,7 +1623,7 @@ const availableTextModels = ref(['qwen2.5:7b', 'qwen2:7b']);
 //    默认映射单一事实源在 coverageContract MATERIAL_CHANNEL_DEFAULT，此处仅作 UI 展示口径
 //    术语口径：面向用户统一「知识点」（不用「考点」）；通道名用「锚清单注入」
 const materialChannelOptions = [
-  { value: 'auto', label: '🔄 自动（按类型）', desc: '归纳/积累型（知识总结·复习·预习·默写）→ 全文注入；命题/练习型（正式卷·课时练·专项·阅读·错题本）→ 锚清单注入' },
+  { value: 'auto', label: '🔄 自动（按类型）', desc: '归纳/积累型（知识总结·复习·预习·默写）→ 全文注入；命题/练习型（正式卷·同步练习·专项·阅读·易错题本）→ 锚清单注入' },
   { value: 'full', label: '📄 全文注入', desc: '整章原文（小材料直放/大材料压缩）全部注入指令，对所有资料类型生效' },
   { value: 'anchor', label: '📌 锚清单注入', desc: '仅【锚点清单】（含各知识点具体概念）+ 难度要求，不注入整章原文；抑制模型对教材原文的过度依赖，省压缩调用与输入费' },
 ];
@@ -1634,14 +1634,14 @@ const deepseekModelOptions = ref(['deepseek-flash']);
 // 🔗 预算配置·资料类型表（key 与 apiConfig.budgetByType / promptLibrary.GEN_TYPE_NAMES 双轨一致）
 const BUDGET_TYPE_ORDER = [
   { key: 'exam',     name: '正式考卷' },
-  { key: 'practice', name: '课时练' },
+  { key: 'practice', name: '同步练习' },
   { key: 'special',  name: '专项突破' },
   { key: 'reading',  name: '阅读训练' },
   { key: 'summary',  name: '知识总结' },
   { key: 'review',   name: '复习资料' },
-  { key: 'preview',  name: '课前预习' },
+  { key: 'preview',  name: '预习导学' },
   { key: 'dictation', name: '默写积累' },
-  { key: 'errorbook', name: '错题本' },
+  { key: 'errorbook', name: '易错题本' },
 ];
 const BUDGET_TIERS = [
   { key: 'economy',  name: '精简档', note: '省token·内容精简' },
@@ -1808,7 +1808,7 @@ const clearAuditFor = async (rowKey) => {
 const fmtAuditTime = (t) => new Date(t).toLocaleString('zh-CN', { hour12: false });
 
 // 🔧 槽生效态：用于高亮"生成路径下真实使用的系数槽"。
-//    body/answer 属于"两次生成"，once 属于"一次成型"。auto 按类型内置映射（考卷/课时练/专项/复习→两次，其余→一次）。
+//    body/answer 属于"两次生成"，once 属于"一次成型"。auto 按类型内置映射（考卷/同步练习/专项/复习→两次，其余→一次）。
 //    生效槽高亮、非生效槽灰显（视觉弱化，不影响编辑）。
 const SLOT_PATH_MAP = { body: 'split', answer: 'split', once: 'once' };
 const TYPE_BUILTIN_PATH = (key) => ['exam', 'practice', 'special', 'review'].includes(key) ? 'split' : 'once';
@@ -2016,7 +2016,7 @@ const saveSettings = async () => {
     const heavyModel = settings.value.ollamaTextModel || '';
     if (heavyModel.includes('deepseek-r1')) {
       qualityEstimate += '\n\n📊 质量预估：本地最高质量（DeepSeek-R1 推理模型）';
-      qualityEstimate += '\n💡 适合：考卷命题、课时练生成、复杂推理';
+      qualityEstimate += '\n💡 适合：考卷命题、同步练习生成、复杂推理';
     } else if (heavyModel.includes('glm4')) {
       qualityEstimate += '\n\n📊 质量预估：本地高质量（GLM-4 学术模型）';
       qualityEstimate += '\n💡 适合：知识点总结、错题分析、结构化输出';

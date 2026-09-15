@@ -18,7 +18,7 @@ describe('ANSWER_ROLES 答案页角色措辞（2026-09）', () => {
   });
 
   it('其他分支语义保留：errorbook 归因、summary 类不复述正文、exam 评分标准', () => {
-    expect(ANSWER_ROLES.other('errorbook')).toContain('错误归因');
+    expect(ANSWER_ROLES.other('errorbook')).toContain('错因剖析');
     expect(ANSWER_ROLES.other('summary')).toContain('严禁');
     expect(ANSWER_ROLES.exam('语文')).toContain('评分标准');
   });

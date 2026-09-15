@@ -118,25 +118,25 @@ function sentencesOf(text) {
  *  类型不同→内容不同：practice/reading/dictation 等 9 类型各有自己的内容语义，须逐条断言被携带。 */
 const TYPE_SIGNATURE = {
   exam: ['密封线', '考试'],
-  practice: ['课时'],
+  practice: ['同步'],
   special: ['专项'],
   preview: ['预习'],
-  reading: ['短文', '阅读'],
+  reading: ['阅读材料', '阅读'],
   summary: ['总结'],
   dictation: ['默写'],
-  errorbook: ['错题'],
+  errorbook: ['易错题'],
   review: ['复习'],
 };
 
 /** 审核基准 B（类型维度收敛）：实测他型 0 命中（432/432 不泄漏）的专属词——跨类型广播即红；
- *  practice/课时、dictation/默写 存在合法他型提及（课时进预习/默写积累语境），只做正向签名，不进本表。 */
+ *  practice/同步、dictation/默写 存在合法他型提及（同步进预习/默写积累语境），只做正向签名，不进本表。 */
 const TYPE_EXCLUSIVE = {
   exam: ['密封线', '考试'],
   special: ['专项'],
-  preview: ['预习', '课前'],
-  reading: ['短文'],
+  preview: ['预习'],
+  reading: ['阅读材料'],
   summary: ['总结'],
-  errorbook: ['错题'],
+  errorbook: ['易错题'],
   review: ['复习'],
 };
 

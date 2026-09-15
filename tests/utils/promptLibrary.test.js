@@ -197,7 +197,7 @@ describe('非exam教辅答案区不复述正文（自包含教辅防重复）', 
   });
 
   it('ANSWER_ROLES.other：errorbook 只附归因与解法，不复述原题', () => {
-    expect(ANSWER_ROLES.other('errorbook')).toContain('错误归因');
+    expect(ANSWER_ROLES.other('errorbook')).toContain('错因剖析');
     expect(ANSWER_ROLES.other('errorbook')).not.toContain('按栏目给出要点梳理');
   });
 

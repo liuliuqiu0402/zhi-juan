@@ -1305,7 +1305,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const cm = title.match(/共\s*(\d{1,3})\s*分/);
         const sm = title.match(/[（(]\s*(\d{1,3})\s*分/);
         const scoreMatch = cm || sm;
-        // 🔧 无分值大题（教辅/课时练：大题标题不标分值）不 return——进入无分值模式按题型惯例兜底补差；
+        // 🔧 无分值大题（教辅/同步练习：大题标题不标分值）不 return——进入无分值模式按题型惯例兜底补差；
         //    曾只处理分值题 → 教辅数学解答/解决问题题整卷无任何作答空间（生成侧"无线留白"语义
         //    要求模型留白、模型不输出载体、程序又因无分值不补 → 三环断链，2026-09 实证根治）
         const secNodes = [];
@@ -1313,7 +1313,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const end = headsK[i + 1] || null;
         while (node && node !== end) { secNodes.push(node); node = node.nextSibling; }
         if (secNodes.length === 0) return;
-        // 🔧 2026-09 根治"课时练整卷无作答空间"（用户 docx 实证）：原"大题级载体预检"见段内任一处
+        // 🔧 2026-09 根治"同步练习整卷无作答空间"（用户 docx 实证）：原"大题级载体预检"见段内任一处
         //    括号空/填空/判断/“填空”字样即整段 return → 本卷三大题分别因题4“判断”、题10/11 括号空、
         //    题18“再填空”整段跳过 → 段内所有长答主观题（写过程/说明/设计/举例）一律无作答空间。
         //    修法：移除段级粗跳过，下沉到“题块/子题块”级——每块（顶层题或子题）独立判定，
@@ -1339,7 +1339,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             // 🔧 纯内容栏（无题号、无子题号）只在"栏目标题本身是长答任务"时才整块兜底补行——
             //    知识梳理/要点/示例/词汇等"读的内容"栏不补作答行（内容型结构补整栏空行=空行噪音，
             //    2026-09 用户实证疑问"内容型的也补了吗"；summary/preview 已在 2k 入口整类跳过，
-            //    此处防其余类型（复习/错题本等）的纯内容栏被误补——标题无作答意图词即跳过）
+            //    此处防其余类型（复习/易错题本等）的纯内容栏被误补——标题无作答意图词即跳过）
             const fallbackTitle = (head.textContent || '').trim();
             const wholeAnswerHeadingRe = /写作|习作|书面表达|写话|小练笔|作文|默写|背诵|仿写|续写|练一练|算一算|试一试|综合练习|专项练习|自测|检测|实践活动|动手做|解答|解决问题|应用题|口算|竖式/;
             if (!wholeAnswerHeadingRe.test(fallbackTitle)) return;
@@ -1695,7 +1695,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           }
         }
         // 🔴 反向护栏（2026-09-10 实证补）：正文题号明显少于答案区 → 正文疑似丢题。
-        //    实测样本：英语课时练正文缺第2~5题（题号从1跳到6）、答案区却完整（一~九齐全）——
+        //    实测样本：英语同步练习正文缺第2~5题（题号从1跳到6）、答案区却完整（一~九齐全）——
         //    原守卫只查"答案区少于正文"这一向，此向漏检，导致正文丢题静默进交付。
         if (ansTopQ > 3 && bodyTopQ < ansTopQ - 1) {
           silentCount('body-coverage', `正文题号数(${bodyTopQ})明显少于答案区(${ansTopQ})——正文疑似丢题，请核对正文是否完整`);

@@ -80,7 +80,7 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
     expect(high).toContain('多角度理解与思辨');
   });
 
-  it('课时练含三段式栏目与学段要求（内容底线不注入）', () => {
+  it('同步练习含三段式栏目与学段要求（内容底线不注入）', () => {
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_mid' });
     expect(inject).toContain('基础建构任务');
     expect(inject).toContain('探究进阶任务');
@@ -95,18 +95,20 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
     expect(inject).not.toContain('4-8条');
   });
 
-  it('错题本含五段结构（原题→归因→解法→变式→策略）', () => {
+  it('易错题本含六段结构（题目→错解→错因→正解→方法→变式）', () => {
     const inject = buildTeachingInjection({ genType: 'errorbook', stage: 'middle' });
-    expect(inject).toContain('原题重现');
-    expect(inject).toContain('错误归因');
-    expect(inject).toContain('正确解法');
-    expect(inject).toContain('同类变式');
-    expect(inject).toContain('解题策略');
+    expect(inject).toContain('题目呈现');
+    expect(inject).toContain('典型错解');
+    expect(inject).toContain('错因剖析');
+    expect(inject).toContain('正确解答');
+    expect(inject).toContain('方法提炼');
+    expect(inject).toContain('变式训练');
+    expect(inject).not.toContain('原题重现');
   });
 });
 
 describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () => {
-  it('语文已定制：课时练栏目学科化（字词句/语段/写话），标记 custom', () => {
+  it('语文已定制：同步练习栏目学科化（字词句/语段/写话），标记 custom', () => {
     const bp = getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '语文' });
     expect(bp.custom).toBe(true);
     expect(bp.subject).toBe('语文');
@@ -117,9 +119,9 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(sections).toContain('迁移创新任务');
   });
 
-  it('语文课时练栏目导向含学科语义（语段阅读/写话）', () => {
+  it('语文同步练习栏目导向含学科语义（语段阅读/写话）', () => {
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_mid', subject: '语文' });
-    expect(inject).toContain('语文·课时练');
+    expect(inject).toContain('语文·同步练习');
     expect(inject).toContain('语段阅读与表达运用');
     expect(inject).toContain('生活化口语表达或写话');
   });
@@ -129,7 +131,7 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(bp.custom).toBe(false);
     expect(bp.subject).toBe('未知学科');
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '未知学科' });
-    expect(inject).toContain('通用·课时练');
+    expect(inject).toContain('通用·同步练习');
     // 学段要求仍按学段注入（初中）
     expect(inject).toContain('学段要求');
   });
@@ -142,12 +144,12 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     }
   });
 
-  it('数学已定制：课时练栏目学科化（情境考查/真实问题解决），标记 custom', () => {
+  it('数学已定制：同步练习栏目学科化（情境考查/真实问题解决），标记 custom', () => {
     const bp = getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '数学' });
     expect(bp.custom).toBe(true);
     expect(bp.subject).toBe('数学');
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_low', subject: '数学' });
-    expect(inject).toContain('数学·课时练');
+    expect(inject).toContain('数学·同步练习');
     expect(inject).toContain('核心知识点，在情境中考查');
     expect(inject).toContain('真实问题解决');
   });
@@ -164,11 +166,11 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(dict).toContain('情境填空');
   });
 
-  it('英语已定制：课时练含语篇/交际语义，默写积累为词汇句型/语音/四线三格', () => {
+  it('英语已定制：同步练习含语篇/交际语义，默写积累为词汇句型/语音/四线三格', () => {
     const bp = getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '英语' });
     expect(bp.custom).toBe(true);
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_low', subject: '英语' });
-    expect(inject).toContain('英语·课时练');
+    expect(inject).toContain('英语·同步练习');
     expect(inject).toContain('语篇语境中的综合运用');
     expect(inject).toContain('真实交际任务');
     const dict = buildTeachingInjection({ genType: 'dictation', stage: 'primary_low', subject: '英语' });
@@ -189,11 +191,11 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     }
   });
 
-  it('科学已定制：课时练含观察/实验/生活实践语义，默写积累改造为科学概念/观察记录', () => {
+  it('科学已定制：同步练习含观察/实验/生活实践语义，默写积累改造为科学概念/观察记录', () => {
     const bp = getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '科学' });
     expect(bp.custom).toBe(true);
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_low', subject: '科学' });
-    expect(inject).toContain('科学·课时练');
+    expect(inject).toContain('科学·同步练习');
     expect(inject).toContain('生活现象与观察');
     expect(inject).toContain('观察与实验任务');
     expect(inject).toContain('观察自然、制作模型');
@@ -211,11 +213,11 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     }
   });
 
-  it('物理已定制：课时练含实验探究/作图计算语义，学科级学段要求（初中/高中两档）', () => {
+  it('物理已定制：同步练习含实验探究/作图计算语义，学科级学段要求（初中/高中两档）', () => {
     const bp = getTeachingBlueprint({ genType: 'practice', stage: 'middle', subject: '物理' });
     expect(bp.custom).toBe(true);
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '物理' });
-    expect(inject).toContain('物理·课时练');
+    expect(inject).toContain('物理·同步练习');
     expect(inject).toContain('概念、规律与公式');
     expect(inject).toContain('实验探究任务');
     expect(inject).toContain('生活、科技、工程应用');
@@ -248,24 +250,24 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     }
   });
 
-  it('理科新科：化学默写积累为化学用语/概念规律，历史课时练含时间轴/论从史出，体育课时练含动作要领', () => {
+  it('理科新科：化学默写积累为化学用语/概念规律，历史同步练习含时间轴/论从史出，体育同步练习含动作要领', () => {
     const chem = buildTeachingInjection({ genType: 'dictation', stage: 'middle', subject: '化学' });
     expect(chem).toContain('化学·默写积累');
     expect(chem).toContain('化学用语');
     expect(chem).toContain('2022年版义务教育化学课标核心素养');
     const hist = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '历史' });
-    expect(hist).toContain('历史·课时练');
+    expect(hist).toContain('历史·同步练习');
     expect(hist).toContain('时间轴/地图情境');
     expect(hist).toContain('论从史出');
     const pe = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '体育' });
-    expect(pe).toContain('体育·课时练');
+    expect(pe).toContain('体育·同步练习');
     expect(pe).toContain('动作要领');
   });
 });
 
 describe('教辅结构条目停用（工具库开关）', () => {
   it('停用学科定制 → 无教辅结构注入（null）', () => {
-    // 前置：语文课时练是学科定制
+    // 前置：语文同步练习是学科定制
     expect(getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '语文' }).custom).toBe(true);
     setLibToggle('blueprint', '语文|practice', false);
     expect(getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '语文' })).toBeNull();
@@ -312,7 +314,7 @@ describe('回归：教辅结构注入无数字区间（防诱导 AI 精确计数
     expect(special).toContain('按本单元内容分板块');
     expect(special).not.toContain('2-4');
     const preview = buildTeachingInjection({ genType: 'preview', stage: 'primary_low', subject: '数学' });
-    expect(preview).toContain('明确本课时概念与技能目标');
+    expect(preview).toContain('明确本次范围概念与技能目标');
     expect(preview).toContain('自检题检测预习效果');
     expect(preview).not.toContain('1-2');
     expect(preview).not.toContain('2-4');
