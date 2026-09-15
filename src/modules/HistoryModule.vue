@@ -46,6 +46,9 @@
           <span class="history-time">{{ formatTime(item.createdAt) }}</span>
           <span class="history-type">{{ item.genType }}</span>
           <span class="history-stage" :title="`学段字段：${item?.meta?.stage || item?.stage || '（未存）'}。进入排版后作文格/书写格按此学段渲染`">{{ stageChip(item) }}</span>
+          <!-- 🎨 组织风格徽标（2026-09-15 用户要求）：与生成结果列表同一口径；
+               旧记录/免选风格类型（dictation 等）显示"风格未存"，便于一眼看出记录是否带该字段 -->
+          <span class="history-style" :title="styleTitleOf(item.style || item?.meta?.style)">🎨 {{ styleChip(item) }}</span>
         </div>
         <div class="history-actions">
           <button
@@ -123,7 +126,7 @@ import { useMobile } from '@/composables/useMobile.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import { STORAGE_KEYS } from '@/constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
 import { pushDeletedDocIds } from '@/utils/cloudStorage';
-import { genTypeOptions } from '@/config/expertKnowledge.js'; // 资料类型显示名唯一事实源（筛选项与匹配同源，防改名脱钩）
+import { genTypeOptions, styleOptions, styleInstructions } from '@/config/expertKnowledge.js'; // 资料类型/组织风格显示名唯一事实源（筛选项与匹配同源，防改名脱钩）
 
 const router = useRouter();
 const { showConfirmDialogFn } = useDialog();
@@ -255,6 +258,22 @@ const STAGE_CHIP_LABEL = {
 const stageChip = (item) => {
   const s = item?.meta?.stage || item?.stage || '';
   return s ? (STAGE_CHIP_LABEL[s] || s) : '学段未存';
+};
+
+/** 🎨 组织风格徽标（2026-09-15 用户要求，与生成结果列表同口径）：
+ *  记录里 style 存的是**风格值**（如 scenario_each），显示用人读名（styleOptions.label 唯一事实源）；
+ *  旧记录 / 免选风格的类型 → "风格未存"（与"学段未存"同口径，一眼看出该记录是否带此字段）。 */
+const styleChip = (item) => {
+  const v = item?.style || item?.meta?.style || '';
+  if (!v) return '风格未存';
+  return styleOptions.find((o) => o.value === v)?.label || v;
+};
+/** 悬停说明：值 + 实施说明（生成时逐字注入【组织风格】的那句），便于复核"这份是哪套风格出的" */
+const styleTitleOf = (style) => {
+  if (!style) return '本条记录未存组织风格字段（旧记录，或该资料类型免选风格）';
+  const label = styleOptions.find((o) => o.value === style)?.label || style;
+  const desc = styleInstructions?.[style] || '';
+  return `组织风格：${label}（${style}）${desc ? '\n' + desc : ''}`;
 };
 
 const previewHistoryItem = (item) => {
@@ -404,6 +423,18 @@ onUnmounted(() => {
   color: #8a6d3b;
 }
 
+/* 🎨 组织风格徽标（2026-09-15）：与学段徽标同级同形，颜色区分以示"生成期口径" */
+.history-style {
+  font-size: 12px;
+  padding: 2px 8px;
+  background: #f3f0ff;
+  border: 1px solid #ddd3ff;
+  border-radius: 20px;
+  color: #6b4fd8;
+  cursor: help;
+  white-space: nowrap;
+}
+
 .history-actions {
   display: flex;
   gap: 8px;
@@ -488,6 +519,10 @@ onUnmounted(() => {
     font-size: 10px;
   }
   .history-type {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+  .history-style {
     font-size: 9px;
     padding: 2px 6px;
   }

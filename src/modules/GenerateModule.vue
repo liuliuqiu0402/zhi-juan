@@ -153,10 +153,11 @@
       class="main-workspace"
       :class="{ 'mobile-workspace': isMobile }"
     >
-      <!-- 左侧：已选摘要面板 -->
+      <!-- 左侧：已选摘要面板（宽度可由右侧把手拖动；移动端不注入内联宽度，保持原移动布局） -->
       <div
         v-show="!isMobile || mobileGenTab === 'select'"
         class="selection-panel"
+        :style="panelStyle('left')"
       >
         <!-- 已选教材 -->
         <div class="panel-section">
@@ -322,6 +323,15 @@
           </div>
         </div>  
       </div>            
+
+      <!-- 🔧 左/中分隔把手（三栏可拖动调宽，2026-09-15；移动端不渲染） -->
+      <div
+        v-if="!isMobile"
+        class="panel-resizer"
+        title="拖动调整左栏宽度（双击恢复默认）"
+        @mousedown="startPanelResize('left', $event)"
+        @dblclick="resetPanelWidths"
+      />
 
       <!-- 中间：注入指令（指令库模板渲染，可见可编辑——改本次生效；长期修改去指令库面板） -->
       <div
@@ -566,10 +576,20 @@
         </div>
       </div>
 
+      <!-- 🔧 中/右分隔把手（同上） -->
+      <div
+        v-if="!isMobile"
+        class="panel-resizer"
+        title="拖动调整右栏宽度（双击恢复默认）"
+        @mousedown="startPanelResize('right', $event)"
+        @dblclick="resetPanelWidths"
+      />
+
       <!-- 右侧：生成和结果区 -->
       <div
         v-show="!isMobile || mobileGenTab === 'result'"
         class="result-panel"
+        :style="panelStyle('right')"
       >
         <!-- 💰 DeepSeek 峰谷时段提示 -->
         <div
@@ -711,7 +731,7 @@
                   {{ doc.title }}
                 </div>
                 <div class="result-meta">
-                  {{ doc.genType }}
+                  <span class="meta-type">{{ doc.genType }}</span>
                   <span
                     class="style-tag"
                     :title="styleTitleOf(doc.style)"
@@ -5154,6 +5174,74 @@ const textbookStore = useTextbookStore();
 const templateStore = useTemplateStore();
 const { isMobile } = useMobile();
 
+/* ==================== 🖱️ 三栏可拖动调宽（2026-09-15 用户要求）====================
+ *  原布局是「左 300px / 中 flex:1 / 右 400px」的固定三栏，长标题或窄屏时左栏/右栏常不够用。
+ *  设计要点（刻意最小改动，不动布局结构）：
+ *   · 只给左右两栏**宽度**；中间栏保持 flex:1 自适应 → 拖任意一侧，中间自动让位，不会出现溢出；
+ *   · 把手独立成元素（6px 热区 + 1px 视觉线），不改变原先"白底 + 细分隔线"的观感；
+ *   · 移动端**不渲染把手、也不注入内联宽度**（面板在移动端是 Tab 切换，宽度由 CSS 决定）；
+ *   · 宽度落 storage 持久化，跨会话保持；双击把手恢复默认。
+ */
+const PANEL_W = {
+  left: { min: 220, max: 640, def: 300 },
+  right: { min: 280, max: 760, def: 400 },
+};
+const PANEL_W_KEY = 'generate_panel_widths';
+const leftPanelWidth = ref(PANEL_W.left.def);
+const rightPanelWidth = ref(PANEL_W.right.def);
+const clampWidth = (v, { min, max }) => Math.min(max, Math.max(min, Math.round(v) || 0));
+/** 左右栏内联宽度：移动端返回 undefined（Vue 不渲染该 style，CSS 原规则照旧生效） */
+const panelStyle = (side) => {
+  if (isMobile.value) return undefined;
+  const w = side === 'left' ? leftPanelWidth.value : rightPanelWidth.value;
+  return { flex: `0 0 ${w}px`, width: `${w}px` };
+};
+const persistPanelWidths = () => {
+  storage.setItem(PANEL_W_KEY, { left: leftPanelWidth.value, right: rightPanelWidth.value }).catch(() => {});
+};
+const resetPanelWidths = () => {
+  leftPanelWidth.value = PANEL_W.left.def;
+  rightPanelWidth.value = PANEL_W.right.def;
+  persistPanelWidths();
+};
+let _panelResize = null;
+const onPanelResizeMove = (e) => {
+  if (!_panelResize) return;
+  const dx = e.clientX - _panelResize.startX;
+  const { side, startW } = _panelResize;
+  // 左栏向右拖变宽；右栏向左拖变宽（故取反）
+  const next = clampWidth(startW + (side === 'left' ? dx : -dx), PANEL_W[side]);
+  if (side === 'left') leftPanelWidth.value = next;
+  else rightPanelWidth.value = next;
+};
+const stopPanelResize = () => {
+  if (_panelResize) persistPanelWidths();
+  _panelResize = null;
+  window.removeEventListener('mousemove', onPanelResizeMove);
+  window.removeEventListener('mouseup', stopPanelResize);
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+};
+const startPanelResize = (side, e) => {
+  if (isMobile.value) return;
+  e.preventDefault();
+  _panelResize = { side, startX: e.clientX, startW: side === 'left' ? leftPanelWidth.value : rightPanelWidth.value };
+  window.addEventListener('mousemove', onPanelResizeMove);
+  window.addEventListener('mouseup', stopPanelResize);
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none'; // 拖动中不选中文字
+};
+// 恢复上次宽度（旧值/脏值一律夹到合法区间）
+(async () => {
+  try {
+    const saved = await storage.getItem(PANEL_W_KEY);
+    if (saved) {
+      if (saved.left) leftPanelWidth.value = clampWidth(saved.left, PANEL_W.left);
+      if (saved.right) rightPanelWidth.value = clampWidth(saved.right, PANEL_W.right);
+    }
+  } catch { /* 读取失败即用默认宽度，不影响生成 */ }
+})();
+
 // 📱 移动端 Tab 状态（刷新后保持当前 tab）
 const GEN_TAB_KEY = 'gen_mobile_tab';
 const mobileGenTab = ref(
@@ -9185,7 +9273,7 @@ onActivated(async () => { _setupListeners(); normalizeDraftMaterial(); const doc
 onDeactivated(() => { _teardownListeners(); });
 
 // 真正销毁
-onUnmounted(() => { _teardownListeners(); wakeLock.cleanup(); if (pricingTimer) clearInterval(pricingTimer); });
+onUnmounted(() => { _teardownListeners(); stopPanelResize(); wakeLock.cleanup(); if (pricingTimer) clearInterval(pricingTimer); });
 
 // 置信度检测函数
 const detectConfidenceIssues = (content, selectedBooks) => {
@@ -9368,6 +9456,35 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   min-height: 0;
   gap: 1px;
   background: var(--border-light);
+}
+
+/* 🖱️ 三栏拖动把手（2026-09-15）：6px 白底热区 + 居中 1px 视觉线 —— 观感与原先的 1px 分隔线一致，
+   但抓取区域从 1px 扩到 6px；hover/拖动时线加粗变色给出反馈。移动端不渲染（v-if）。 */
+.panel-resizer {
+  flex: 0 0 6px;
+  background: white;
+  cursor: col-resize;
+  position: relative;
+  z-index: 5;
+}
+
+.panel-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--border-light);
+  transition: width .12s, background .12s;
+}
+
+.panel-resizer:hover::after,
+.panel-resizer:active::after {
+  width: 3px;
+  background: var(--primary-lighter);
+  border-radius: 2px;
 }
 
 .selection-panel {
@@ -9806,9 +9923,19 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 
 .result-item {
   border: 1px solid var(--border-light);
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 10px;
+  padding: 12px 14px;
   background: white;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+/* 🔧 2026-09-15 结果条目排版优化（用户要求"视觉上更舒服些"）：
+ *   ① 悬停有反馈（边框染色 + 极浅投影），条目"可点"这件事一眼可见；
+ *   ② 标题 2 行截断——标题=规范名+时间戳，长标题此前会把条目撑成不等高，列表参差；
+ *   ③ 元信息行（类型/组织风格/难度）与标题留出呼吸间距、小圆角胶囊统一几何，扫读更稳。 */
+.result-item:hover {
+  border-color: var(--primary-lighter);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .05);
 }
 
 .result-item.quality-good {
@@ -9825,45 +9952,66 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 
 .result-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.result-row > input[type="checkbox"] {
+  margin-top: 3px;
+  flex-shrink: 0;
 }
 
 .result-info {
   flex: 1;
+  min-width: 0;
   cursor: pointer;
 }
 
 .result-title {
-  font-weight: 500;
-  margin-bottom: 4px;
-  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .result-meta {
   font-size: 12px;
   color: var(--text-muted);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
+}
+
+.result-meta .meta-type {
+  font-weight: 500;
+  color: var(--primary-light);
 }
 
 .difficulty-tag {
   font-size: 11px;
-  padding: 2px 6px;
+  padding: 1px 8px;
+  line-height: 18px;
   background: #f0f7ff;
-  border-radius: 4px;
+  border-radius: 999px;
   color: var(--primary-light);
   white-space: nowrap;
 }
 
-/* 🎨 组织风格标签（结果列表；与 difficulty-tag 同级同形，颜色区分以示"生成期口径"而非"质量指标"） */
+/* 🎨 组织风格标签（结果列表；与 difficulty-tag 同级同形，颜色区分以示"生成期口径"而非"质量指标"。
+   2026-09-15 排版优化：统一为胶囊几何、去掉自带的 margin-left（由 .result-meta 的 gap 统一控制间距）） */
 .style-tag {
   font-size: 11px;
-  padding: 2px 6px;
-  margin-left: 6px;
+  padding: 1px 8px;
+  line-height: 18px;
   background: #f3f0ff;
-  border-radius: 4px;
+  border-radius: 999px;
   color: #6b4fd8;
   white-space: nowrap;
   cursor: help;
@@ -10627,7 +10775,7 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 
 /* ✨ 问题列表样式（原「质量报告摘要」样式已随死壳移除，2026-09-12） */
 .issues-summary {
-  margin-top: 4px;
+  margin-top: 8px;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
