@@ -95,12 +95,12 @@ describe('buildUserMessagePrompt（实发拼接：顺序 + 逐字）', () => {
 });
 
 describe('各块文本口径（防漂移的逐字锚点）', () => {
-  it('组织方式：exam 逐字不变（守卷面结构）；其余栏目参照委托书【教辅结构】搭建（正向、零否定关联句）', () => {
+  it('组织方式：exam 逐字不变（守卷面结构）；其余按委托书序列搭好各部分（正向、零否定关联句）', () => {
     // 🔒 exam 一分不动（用户裁定：动了就不是正规卷）
     expect(buildOrganizeBlock('exam')).toBe('【组织方式】输出一律以委托书【卷面结构】的大题序列组织（大题名、顺序、题量以委托书为准）；开头【锚点清单】只声明要练到的范围，不是组织方式，不得据此替代委托书结构。\n\n');
-    // 非 exam：栏目/【教辅结构】等按课标敲定的术语照原词保留（2026-09-15 用户裁定：这些词不用动）
-    expect(buildOrganizeBlock('practice')).toContain('栏目参照委托书【教辅结构】的栏目序列与学段要求搭建');
-    expect(buildOrganizeBlock('summary')).toContain('栏目参照委托书【教辅结构】的栏目序列与学段要求搭建');
+    // 非 exam：正向动作描述，不点名块名与结构词
+    expect(buildOrganizeBlock('practice')).toContain('按委托书给出的各部分名称与先后搭好各部分');
+    expect(buildOrganizeBlock('summary')).toContain('按委托书给出的各部分名称与先后搭好各部分');
     expect(buildOrganizeBlock('summary')).not.toContain('组标题自拟');
     // 🔒 2026-09-15 去诱导（整类问题）：否定式关联句不得回潮——实证：这类句子要读懂必须先建立
     //    "内容条目 ↔ 分组/命名"的映射，等于反向植入；产物随即把内容条目当了大题标题（08e6ccd）。
@@ -169,7 +169,7 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     // 题类保留的只有正向口径"组标题自拟"（原"不以清单条目作分组或命名"否定句已撤除）
     for (const t of ['practice', 'special', 'reading']) {
       const org = buildOrganizeBlock(t);
-      expect(org).toContain('每栏内由你按内容与任务需要分组成题组，组标题自拟');
+      expect(org).toContain('每部分内由你按内容与任务需要分组成题组，组标题自拟');
       expect(org, `${t} 不得残留常规题型锚`).not.toContain('常规题型');
       expect(org, `${t} 否定式关联句不得回潮`).not.toContain('不以清单条目');
     }

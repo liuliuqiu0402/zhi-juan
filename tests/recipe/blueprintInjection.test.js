@@ -338,14 +338,13 @@ describe('质量底线三维度注入（类型/学科/学段各司其职，非�
     const practice = getPromptTemplate({ genType: 'practice' });
     expect(practice.template).toContain('不扎堆反复出现'); // 防重复语义由质量底线承载（单一事实源，QUALITY_BASE 通用一套）
     const special = getPromptTemplate({ genType: 'special' });
-    // 蓝图/栏目/【教辅结构】等按课标敲定的术语照原词保留（2026-09-15 用户裁定：这些词不用动）
-    expect(special.template).toContain('板块划分参照生成时注入的【教辅结构】（板块序列与学段要求）');
+    expect(special.template).toContain('板块按委托书给出的名称与先后搭好');
     const reading = getPromptTemplate({ genType: 'reading' });
     expect(reading.template).toContain('阅读材料无语病'); // 阅读材料规范由教辅结构蓝本承载（单一事实源）
     const dictation = getPromptTemplate({ genType: 'dictation' });
     expect(dictation.template).toContain('严格对应教材要求');
     const review = getPromptTemplate({ genType: 'review' });
-    expect(review.template).toContain('栏目参照注入的【教辅结构】搭建');
+    expect(review.template).toContain('各部分按委托书给出的名称与先后搭好');
   });
 
   it('学科维度：三维度模板携带学科要点（学段化，正面表述）', () => {
