@@ -711,9 +711,13 @@
                   {{ doc.title }}
                 </div>
                 <div class="result-meta">
-                  {{ doc.genType }}<template v-if="doc.style">
-                    | {{ doc.style }}
-                  </template>
+                  {{ doc.genType }}
+                  <span
+                    class="style-tag"
+                    :title="styleTitleOf(doc.style)"
+                  >
+                    🎨 {{ styleLabelOf(doc.style) }}
+                  </span>
                   <span
                     v-if="doc.difficulty"
                     class="difficulty-tag"
@@ -8689,6 +8693,21 @@ const getQualityClass = (q) => {
   return { good: 'quality-good', bad: 'quality-bad', star: 'quality-star' }[q] || '';
 };
 
+/** 🎨 组织风格标签（生成结果列表用，2026-09-15 用户要求）：
+ *  记录里的 style 存的是**风格值**（如 scenario_each），列表原先直接把原值挂在类型后面（`… | scenario_each`），
+ *  不易读。现改为标签 + 人读名——名取 styleOptions.label（与生成面板同一份唯一事实源，防改名脱钩）；
+ *  旧记录 / 该资料类型免选风格 → "风格未存"（与历史列表"学段未存"同口径，便于一眼看出记录是否带该字段）。 */
+const styleLabelOf = (style) => {
+  if (!style) return '风格未存';
+  return styleOptions.find((o) => o.value === style)?.label || style;
+};
+/** 悬停说明 = 值 + 实施说明（生成时逐字注入【组织风格】的那句），便于复核"这份是哪套风格出的" */
+const styleTitleOf = (style) => {
+  if (!style) return '本条记录未存组织风格字段（旧记录，或该资料类型免选风格）';
+  const desc = styleInstructions?.[style] || '';
+  return `组织风格：${styleLabelOf(style)}（${style}）${desc ? '\n' + desc : ''}`;
+};
+
 // ==================== PDF 打印降级（与 TypesetModule 一致的健壮实现） ====================
 const printPdfFallback = (htmlContent) => {
   // 🔧 密封线试卷：@page 边距归零、body 不留白（页面壳 .sealed-wrapper 提供 2cm 边距）
@@ -9836,6 +9855,18 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   border-radius: 4px;
   color: var(--primary-light);
   white-space: nowrap;
+}
+
+/* 🎨 组织风格标签（结果列表；与 difficulty-tag 同级同形，颜色区分以示"生成期口径"而非"质量指标"） */
+.style-tag {
+  font-size: 11px;
+  padding: 2px 6px;
+  margin-left: 6px;
+  background: #f3f0ff;
+  border-radius: 4px;
+  color: #6b4fd8;
+  white-space: nowrap;
+  cursor: help;
 }
 
 .result-actions {
