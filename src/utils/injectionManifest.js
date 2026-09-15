@@ -106,12 +106,17 @@ export const buildMaterialUsageBlock = ({ genType = '', materialChannel = 'auto'
   return parts.join('');
 };
 
-/** ④ 组织方式（输出组织一律以委托书结构序列为准；【锚点清单】只声明覆盖范围，不是组织方式） */
+/** ④ 组织方式（输出组织参照委托书结构序列；【锚点清单】只声明覆盖范围，不是组织方式） */
 export const buildOrganizeBlock = (genType = '') => {
   // 结构引用按类型：exam 用【卷面结构】，其余教辅用【教辅结构】（三维度精确，2026-09 清理）。
-  const structRef = genType === 'exam'
+  // 🔒 2026-09-15 用户裁定·Q2：exam 分支一个字不动（动了就不是正规卷）；非 exam 分支
+  //    把"以…为准"的授权关系降为"参照"（给栏目骨架、栏内交模型），并删去"题量"空指针
+  //    ——【教辅结构】注入只含 栏目序列 + 学段要求，题量/篇幅按设计不注入（teaching-volume-guard 生成后静默校验）。
+  const isExam = genType === 'exam';
+  const structRef = isExam
     ? '【卷面结构】的大题序列组织（大题名、顺序、题量以委托书为准）'
-    : '【教辅结构】的栏目序列组织（栏目名、顺序、题量以委托书为准）';
+    : '【教辅结构】的栏目序列与学段要求（栏目名与顺序参照它）';
+  const lead = isExam ? '输出一律以委托书' : '输出参照委托书';
   // 🔴 分组依据（2026-09-14 用户定版；2026-09-15 去锚）：题类（同步练习/专项/阅读）——题组的分组与命名
   //    **由模型按内容需要自定**，只保留"不以清单条目作分组或命名"这一结构约束
   //    （练到什么属内容层、怎么分组属结构层，两层分开看）。
@@ -119,7 +124,7 @@ export const buildOrganizeBlock = (genType = '') => {
   const groupClause = AUTONOMOUS_ITEM_TYPES.includes(genType)
     ? '题组的分组与命名由你按内容需要自定（练到什么属内容层，怎么分组属结构层，两层分开看），不以清单条目作分组或命名。'
     : '';
-  return `【组织方式】输出一律以委托书${structRef}；开头【锚点清单】只声明要练到的范围，不是组织方式，不得据此替代委托书结构。${groupClause}\n\n`;
+  return `【组织方式】${lead}${structRef}；开头【锚点清单】只声明要练到的范围，不是组织方式，不得据此替代委托书结构。${groupClause}\n\n`;
 };
 
 /** ⑤ 模板对标（用户勾选模板，供风格/结构参考，不限制命题） */

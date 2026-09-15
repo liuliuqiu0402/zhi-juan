@@ -434,6 +434,31 @@ describe('examValidator 书写格按学段（writing-grid-fix）', () => {
     expect(silent).toBe(0);
   });
 
+  // 🔒 2026-09-15（Q1 载体条款纯形态化·兜底耦合锁定）：作文格兜底（2j-5 writing-grid-fix）的判据全部取自
+  //    **产物 HTML**（题干关键词 + 题内既有载体 DOM），不读注入给模型的指令文本——故载体条款改词不会改变
+  //    兜底的触发/跳过逻辑。但有一处耦合必须锁住：兜底以"题内已有任一作答载体即视为已有作答空间"为跳过
+  //    条件（2026-08 治"口语交际横线+作文格重复"），所以模型若给成篇书写题误配横线，兜底就不再补格
+  //    → 卷面为横线而非格子（题仍可作答、不废题，但低段写话/习作卷面不规范）。下列三例固定该行为。
+  it('作文格兜底：低段写话题无任何载体 → 自动补 zuo-wen-ge（兜底有效，判据取自产物）', () => {
+    const html = '<h1>看图写话练习</h1>\n<h2>一、写话（15分）</h2>\n<p>1. 看图写话：仔细看看这幅图，再写几句话。</p>';
+    const { html: out, issues } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(out).toContain('zuo-wen-ge');
+    expect(issues.some((i) => i.type === 'writing-grid')).toBe(true);
+  });
+
+  it('作文格兜底耦合：写话题题内已有横线 → 视为已有作答空间、不再补格（既有判据，勿轻改）', () => {
+    const html = '<h1>看图写话练习</h1>\n<h2>一、写话（15分）</h2>\n<p>1. 看图写话：仔细看看这幅图，再写几句话。</p>\n<p><u class="blank-line">&emsp;&emsp;&emsp;</u></p>';
+    const { html: out } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(out).not.toContain('zuo-wen-ge');
+    expect(out).toContain('blank-line'); // 题仍可作答（有横线），不废题
+  });
+
+  it('作文格兜底：写话题已有 zuo-wen-ge → 不重复补格', () => {
+    const html = '<h1>看图写话练习</h1>\n<h2>一、写话（15分）</h2>\n<p>1. 看图写话：仔细看看这幅图，再写几句话。</p>\n<div class="zuo-wen-ge"><span>&emsp;</span></div>';
+    const { html: out } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect((out.match(/zuo-wen-ge/g) || []).length).toBe(1);
+  });
+
   it('英语/数学初中及以上用四线三格 → 越界自动剥离（学科补齐后都拦截）', () => {
     const html = '<h1>默写纸</h1>\n<p>看拼音写词语：Write: <span class="four-line-three">a</span></p>';
     const { html: out1 } = auditExamPaper(html, { subject: '英语', stage: 'middle', genType: 'dictation' });

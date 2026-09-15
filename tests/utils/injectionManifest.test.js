@@ -97,7 +97,7 @@ describe('buildUserMessagePrompt（实发拼接：顺序 + 逐字）', () => {
 describe('各块文本口径（防漂移的逐字锚点）', () => {
   it('组织方式：exam 引【卷面结构】、其余引【教辅结构】', () => {
     expect(buildOrganizeBlock('exam')).toBe('【组织方式】输出一律以委托书【卷面结构】的大题序列组织（大题名、顺序、题量以委托书为准）；开头【锚点清单】只声明要练到的范围，不是组织方式，不得据此替代委托书结构。\n\n');
-    expect(buildOrganizeBlock('practice')).toContain('【教辅结构】的栏目序列组织（栏目名、顺序、题量以委托书为准）');
+    expect(buildOrganizeBlock('practice')).toContain('【教辅结构】的栏目序列与学段要求（栏目名与顺序参照它）');
     // 🔴 2026-09-14：题型自拟的题类（practice/special/reading）另加"分组依据"句；考卷不加（须守蓝图题型序列）
     expect(buildOrganizeBlock('practice')).toContain('不以清单条目作分组或命名');
     expect(buildOrganizeBlock('reading')).toContain('不以清单条目作分组或命名');

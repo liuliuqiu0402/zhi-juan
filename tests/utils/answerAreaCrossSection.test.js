@@ -35,8 +35,8 @@ describe('作答空间补差·跨栏不传染（2026-09-10 根治回归）', () 
     expect(cnt(out.slice(i11, i12))).toBe(4);  // 11 栏：无作答行 → 兜底补 4 行（不得被 13 栏行数传染）
     expect(cnt(out.slice(i12, i13))).toBe(4);  // 12 栏：同上
     expect(cnt(out.slice(i13))).toBe(8);       // 13 栏：模型已有 8 行 → 不补
-    // 9 栏（判断题）：audit 对已有横线不增不减（若后续做"判断题剥横线"专项，此断言同步为 0——
-    // 2026-09-10 晚已加生成侧源头条款：layoutSpec「判断/选择/圈选类题…不另附长横线作答区」；程序侧剥除专项仍待做）
+    // 9 栏（√×符号作答位）：audit 对已有横线不增不减（若后续做"该位剥横线"专项，此断言同步为 0——
+    // 2026-09-10 晚已加生成侧源头条款：layoutSpec「作答位就在题面空位内…不另附长横线作答区」；程序侧剥除专项仍待做）
     expect(cnt(out.slice(i9, i11))).toBe(2);
     const msgs = (issues || []).map((i) => String(i.message || ''));
     expect(msgs.some((m) => m.includes('「十一、') && m.includes('已补作答空间'))).toBe(true);
