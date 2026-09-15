@@ -3042,6 +3042,7 @@ import storage from '../utils/storage';
 import { normalizeSealStructure, wrapContentForTheme, applyThemeToContent } from '../themeConfig.js';  // 🔧 密封线结构归一化 + 试卷主题包装（导出与排版模块一致）
 import { pushDeletedDocIds } from '../utils/cloudStorage';
 import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
+import { dropLegacyFakeDifficulty } from '../utils/legacyRecordFix.js';
 import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
 import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
@@ -4548,9 +4549,13 @@ const loadGeneratedDocs = async () => {
           needsSave = true;
         }
       }
+      // 🩹 2026-09-15 存量清理：旧记录里存下的"假难度比例"（恰好 50/30/20）
+      //   生成端已改为"无逐题数据即不显示"，但旧记录里的值不会自己消失——不清的话，
+      //   列表会一直显示那组假比例（用户看到"全是 50/30/20"就是这个）。判据见 legacyRecordFix.js
+      if (dropLegacyFakeDifficulty(decompressed)) needsSave = true;
       if (needsSave) {
         await storage.setItem(STORAGE_KEY, compressDocArray(decompressed)).catch(() => {});
-        console.log('🩹 已为 ' + decompressed.length + ' 条旧生成结果补填 savedAt');
+        console.log('🩹 旧记录已就地修正 ' + decompressed.length + ' 条（补填 savedAt / 清理历史假难度比例）');
       }
       return decompressed;
     }
@@ -9039,6 +9044,8 @@ const onCloudSync = async () => {
     const saved = await storage.getItem(STORAGE_KEY).catch(() => null);
     if (saved && Array.isArray(saved)) {
       const decompressed = decompressDocArray(saved);
+      // 🩹 云同步会把存储里的旧记录重新读回来 → 同样要清存量假难度比例，否则同步/刷新后又冒出来
+      dropLegacyFakeDifficulty(decompressed);
       // 兜底截断：上限 20 条，保留最新的
       generatedDocs.value = decompressed.length > 20 ? decompressed.slice(-20) : decompressed;
     }
