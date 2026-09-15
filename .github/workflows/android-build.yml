@@ -40,8 +40,14 @@ jobs:
           java-version: '21'
 
       - name: Setup Android SDK
-        # 🔧 ubuntu-24.04 镜像已移除预装 Android SDK（sdkmanager 不存在），
-        #    自行下载官方 cmdline-tools 安装 android-34 + build-tools 34.0.0
+        # ubuntu-24.04 镜像已移除预装 Android SDK（sdkmanager 不存在），
+        # 自行下载官方 cmdline-tools 安装 SDK。
+        # 🔴 2026-09-15 修（build-android 在 08e6ccd 上 exit 1，同配置 84868ff 刚成功过）：
+        #    组件版本必须与工程声明对齐——android/variables.gradle: compileSdkVersion=36、
+        #    AGP 8.13.0（未显式 buildToolsVersion → 默认 build-tools 36.0.0）。
+        #    原先只装 android-34 + build-tools 34.0.0 → 构建期 Gradle 只能靠 AGP 现场自动下载
+        #    android-36/build-tools-36.0.0，该下载一旦抖动/许可证失败即 exit 1（正是本次失败签名）。
+        #    改为装工程实际声明的组件 → 构建期零下载，构建结果确定。
         run: |
           SDK_ROOT="$HOME/android-sdk"
           echo "Installing Android SDK to $SDK_ROOT"
@@ -51,7 +57,7 @@ jobs:
           unzip -q /tmp/cmdline-tools.zip -d "$SDK_ROOT/cmdline-tools"
           mv "$SDK_ROOT/cmdline-tools/cmdline-tools" "$SDK_ROOT/cmdline-tools/latest"
           yes | "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
-          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0"
+          "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"
           # 写 local.properties 让 gradle 找到 SDK（runner 残留的 ANDROID_HOME 指向已不存在的旧路径）
           echo "sdk.dir=$SDK_ROOT" > android/local.properties
           echo "Android SDK ready"
