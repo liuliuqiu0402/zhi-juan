@@ -817,13 +817,6 @@
                 📕 PDF
               </button>
               <button
-                class="btn-small btn-variant hide-on-mobile"
-                title="生成变体版本"
-                @click.stop="generateVariantForDoc(doc)"
-              >
-                🔄 变体
-              </button>
-              <button
                 v-if="doc.issues && doc.issues.length > 0"
                 class="btn-small hide-on-mobile"
                 title="查看问题列表"
@@ -4748,7 +4741,7 @@ const currentChapter = ref(null);
 const editingKnowledge = ref('');
 
 // AI生成器（新架构：不再使用 buildGenerationInstruction 长指令构建）
-const { isGenerating, progress: generateProgress, statusText: generateStatus, generate: callGenerate, setPerChapterFilter, cancelGeneration: cancelGen, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, generateQuestionVariant, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool, pickLabelFromPool, pickScopeFromPool, setScopeLabelOverride } = useAiGenerator();
+const { isGenerating, progress: generateProgress, statusText: generateStatus, generate: callGenerate, setPerChapterFilter, cancelGeneration: cancelGen, extractGraphs, analyzeTextbookImage, analyzeTextbookWithText, analyzeTemplateImage, analyzeTemplateImageFull, extractKnowledgePoints, callMultimodalAI, extractTextRobustly, extractChapterTextSequentially, detectMultiColumnPages, postProcessOCR, abortController, smartWait, checkModelReady, smartWaitForModel, setLabelOverride, getLabelPool, pickLabelFromPool, pickScopeFromPool, setScopeLabelOverride } = useAiGenerator();
 
 // ✏️ 名称样式：类型切换恢复上次选择 + 当前选择同步到生成器（在 useAiGenerator 解构之后，避免 TDZ）
 //   immediate：首次进入即按当前类型落默认组织风格（DEFAULT_STYLE_BY_TYPE），
@@ -8930,89 +8923,6 @@ const sendToTypeset = async (doc) => {
   }, 150);
 };
 
-// 🔧 新增：为文档生成变体版本
-const generateVariantForDoc = async (doc) => {
-  if (!doc.content || !doc.parsedBlueprint || doc.parsedBlueprint.length === 0) {
-    await showAlertDialogFn('该文档缺少蓝图信息，无法生成变体');
-    return;
-  }
-
-  const totalQuestions = doc.parsedBlueprint.length;
-  if (totalQuestions === 0) {
-    await showAlertDialogFn('没有题目可以生成变体');
-    return;
-  }
-
-  // 让用户选择为哪些题生成变体
-  const questionNumbers = doc.parsedBlueprint.map((q, i) => `${i + 1}. ${q.type} - ${q.knowledgePoint}`);
-  const selectedIndex = await showInputDialogFn(
-    `请选择要生成变体的题目（输入序号1-${totalQuestions}，或输入"all"为全部题目生成变体）：\n\n${questionNumbers.join('\n')}`,
-    '1'
-  );
-
-  if (!selectedIndex) return;
-
-  try {
-    if (selectedIndex.toLowerCase() === 'all') {
-      // 为所有题目生成变体
-      isGenerating.value = true;
-      for (let i = 0; i < totalQuestions; i++) {
-        generateStatus.value = `正在生成第 ${i + 1}/${totalQuestions} 题的变体...`;
-        generateProgress.value = Math.round((i / totalQuestions) * 100);
-        
-        const questionPlan = doc.parsedBlueprint[i];
-        const variant = await generateQuestionVariant(
-          doc.generatedQuestions?.[i] || doc.content,
-          questionPlan,
-          { changeData: true, changeContext: true, changeOptions: true }
-        );
-        
-        if (variant && doc.generatedQuestions) {
-          doc.generatedQuestions[i] = variant;
-        }
-      }
-      
-      // 更新文档内容
-      doc.content = doc.generatedQuestions?.join('\n\n') || doc.content;
-      doc.title = `${doc.title}_变体版`;
-      generateStatus.value = '变体生成完成';
-      previewHint.value = `已为全部${totalQuestions}题生成变体版本`;
-    } else {
-      // 为单道题生成变体
-      const idx = parseInt(selectedIndex) - 1;
-      if (isNaN(idx) || idx < 0 || idx >= totalQuestions) {
-        await showAlertDialogFn('请输入有效的题目序号');
-        return;
-      }
-
-      const questionPlan = doc.parsedBlueprint[idx];
-      isGenerating.value = true;
-      generateStatus.value = `正在生成第 ${idx + 1} 题的变体...`;
-      generateProgress.value = 50;
-
-      const variant = await generateQuestionVariant(
-        doc.generatedQuestions?.[idx] || doc.content,
-        questionPlan,
-        { changeData: true, changeContext: true, changeOptions: true }
-      );
-
-      if (variant && doc.generatedQuestions) {
-        doc.generatedQuestions[idx] = variant;
-        doc.content = doc.generatedQuestions.join('\n\n');
-        doc.title = `${doc.title}_题${idx + 1}变体版`;
-        generateStatus.value = '变体生成完成';
-        previewHint.value = `已为第${idx + 1}题生成变体版本`;
-      }
-    }
-  } catch (e) {
-    console.error('生成变体失败:', e);
-    await showAlertDialogFn('生成变体失败: ' + e.message);
-  } finally {
-    isGenerating.value = false;
-    generateProgress.value = 0;
-  }
-};
-
 // 🔧 自动保存生成记录，刷新不丢失（同步期间跳过，避免与 app-refresh 的推送重复）
 watch(generatedDocs, () => {
   if (typeof _skipCloudPush !== 'undefined' && _skipCloudPush) return;
@@ -10659,17 +10569,6 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   color: var(--text-muted);
 }
 
-/* 🔧 新增：变体按钮样式 */
-.btn-variant {
-  background: #f0f7ff;
-  color: var(--primary-light);
-  border-color: #b8d4fe;
-}
-
-.btn-variant:hover {
-  background: #dceeff;
-  border-color: var(--primary-light);
-}
 
 /* 🔧 新增：快捷填充标签样式 */
 .quick-fill-tag {
