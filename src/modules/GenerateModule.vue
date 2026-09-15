@@ -764,7 +764,7 @@
                   >+{{ doc.issues.length - 2 }}条</span>
                 </div>
               </div>
-              <div class="result-actions-col">
+              <div class="result-actions-col result-actions-col-inline">
                 <button
                   class="btn-small btn-save-history"
                   title="保存到历史"
@@ -9950,26 +9950,64 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   border-left: 4px solid #f1c40f;
 }
 
+/* 🧩 2026-09-15 结果条目再排版（用户要求）：标题独占一行；元信息（类型/组织风格/难度）与问题列表
+   铺满整条宽度 → 三个胶囊同行放得下；保存/删除/预览 另起一行右对齐 → 原先"按钮竖排、其下方留白"的
+   形态消失。实现用 flex-wrap + order/flex-basis（.result-info 以 display:contents 让子项直接参与排布），
+   不改动含表情符号的那段 DOM——避免字符级改动风险。 */
 .result-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 10px;
+  gap: 6px 10px;
 }
 
 .result-row > input[type="checkbox"] {
+  order: 1;
   margin-top: 3px;
   flex-shrink: 0;
 }
 
 .result-info {
-  flex: 1;
+  display: contents;
+}
+
+/* 标题：第一行，占勾选框以外的整条宽度 */
+.result-row .result-title {
+  order: 2;
+  flex: 1 1 0;
   min-width: 0;
+}
+
+/* 置信度提醒（有才显示）：标题之下整条宽度 */
+.result-row .confidence-warning {
+  order: 3;
+  flex: 1 1 100%;
+}
+
+/* 元信息行：整条宽度 —— 类型 / 组织风格 / 难度 三个胶囊同行 */
+.result-row .result-meta {
+  order: 4;
+  flex: 1 1 100%;
   cursor: pointer;
+}
+
+/* 问题列表：整条宽度（不再挤在窄信息列里换行） */
+.result-row .issues-summary {
+  order: 5;
+  flex: 1 1 100%;
+}
+
+/* 保存/删除/预览：另起一行、右对齐（横向排列，不再竖排占一列） */
+.result-row .result-actions-col-inline {
+  order: 6;
+  flex: 1 1 100%;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 .result-title {
   font-weight: 600;
-  margin-bottom: 6px;
   font-size: 13.5px;
   line-height: 1.45;
   color: var(--primary);
@@ -9978,6 +10016,7 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
+  cursor: pointer;
 }
 
 .result-meta {
