@@ -16,7 +16,9 @@ const BIND_KEYS = ['须出自原文', '须以原文表述', '一律自拟，禁�
 // 准确性单源（质量底线·教材版本口径）与开放口径单源（素材使用约定）
 const ACCURACY_KEY = '须与所选教材实际一致';
 const REMOVED_KEY = '引用教材内容须与原文一致';
-const OPEN_KEYS = ['不是素材来源限制', '来源不限、不作指定'];
+// 🔒 2026-09-15 去诱导：原 OPEN_KEYS 含"不是素材来源限制"——那是否定定义（"X 不是 Y"要读懂
+//    必须先建立 X↔Y 的映射），已撤除；来源开放的功能由正向句承载（下方 OPEN_KEYS 单源）。
+const OPEN_KEYS = ['来源不限、不作指定', '可取自教材，也可取自课外真实生活'];
 const COPY_BAN = '不得照搬教材原题';
 
 const tpl = (subject, stage, genType) => getPromptTemplate({ grade: stage, subject, genType })?.template || '';
@@ -107,15 +109,16 @@ describe('素材使用约定（生成端单源）：来源开放 + 禁照搬（�
   // 🔴 2026-09-14（用户裁定·实测产物）：禁照搬原句挂在【压缩原文】上 → 锚清单通道整句被跳过 →
   //    该通道下没有任何禁止照搬的约束，模型整段沿用教材语篇（照搬守门命中 10 词连续重合）。
   //    现锁死：命题型禁照搬**通道无关**；且明确清单里的语篇类条目不作题目载体。
-  it('命题型禁照搬通道无关（两通道都在），并声明语篇类条目的作用边界', () => {
+  it('命题型禁照搬通道无关（两通道都在），并声明材料类条目的作用边界', () => {
     for (const ch of ['full', 'anchor']) {
       const t = buildMaterialUsageBlock({ genType: 'practice', materialChannel: ch });
       expect(t, `${ch} 命题型应含禁照搬`).toContain(COPY_BAN);
-      expect(t, `${ch} 应界定语篇类条目的作用`).toContain('只作理解与难度依据，不列入设题单位');
-      expect(t, `${ch} 应含"命题载体自行组织"的原创性要求`).toContain('不得直接复用所选教材原有语篇的情节、篇目结构与人物设定');
+      expect(t, `${ch} 应界定材料类条目的作用`).toContain('标◇的材料用于把握难度与理解语境，不必为其单独设题');
+      expect(t, `${ch} 应含"题目内容自行组织"的原创性要求`).toContain('不得直接复用所选教材原有语篇的情节、篇目结构与人物设定');
       expect(t, `${ch} 应给出可判定的照搬判据`).toContain('连续重合即属照搬');
       // 🔴 用词红线："载体"在本项目专指作答载体/书写载体，不得用来表示题目素材（防模型混用）
       expect(t, `${ch} 不得用"载体"表示题目素材`).not.toContain('题目载体');
+      expect(t, `${ch} 不得用"载体"表示题目素材`).not.toContain('命题载体');
     }
     // 归纳型：不复述"不得照搬原题"（其"不得整段照录"另给，单一事实源）
     const sum = buildMaterialUsageBlock({ genType: 'summary', materialChannel: 'full' });

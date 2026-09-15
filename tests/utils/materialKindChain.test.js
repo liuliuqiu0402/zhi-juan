@@ -52,7 +52,7 @@ describe('材料标签（kind）生成链路打通', () => {
   it('③ 清单渲染：材料单列 ◇ 行、知识留在覆盖行；知识型混排不出现 ◇', () => {
     const { anchors } = buildAnchors([card(CKS)], {});
     const split = formatAnchorListByChapter(anchors, { withConcepts: true, splitMaterial: true });
-    expect(split).toContain(MATERIAL_LINE);                               // ◇ 语言材料（…不在设题单位之列）：
+    expect(split).toContain(MATERIAL_LINE);                               // ◇ 语言材料（…不必单独设题）：
     expect(split.split(MATERIAL_LINE)[1]).toContain('课文：蜗牛爬树');      // 材料进 ◇ 行
     expect(split.split(MATERIAL_LINE)[1]).toContain('句型：一般过去时');
     expect(split.split(MATERIAL_LINE)[0]).toContain('语音：字母组合 ee');   // 知识留在正文行
@@ -61,11 +61,11 @@ describe('材料标签（kind）生成链路打通', () => {
     expect(inline).toContain('课文：蜗牛爬树');
   });
 
-  it('④ 两处声明同步：清单角色说明 + 【素材使用约定】都给出"不列入设题单位"', () => {
-    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不列入设题单位');
-    expect(anchorListRoleNote({ splitMaterial: false })).not.toContain('不列入设题单位');
+  it('④ 两处声明同步：清单角色说明 + 【素材使用约定】都给出"材料不必单独设题"', () => {
+    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不必为其单独设题');
+    expect(anchorListRoleNote({ splitMaterial: false })).not.toContain('不必为其单独设题');
     const usage = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'anchor' });
-    expect(usage).toContain('只作理解与难度依据，不列入设题单位');
+    expect(usage).toContain('标◇的材料用于把握难度与理解语境，不必为其单独设题');
   });
 
   it('⑤ 人工改判即链路生效：材料改回知识后，该条不再出现在 ◇ 行', () => {
@@ -85,6 +85,6 @@ describe('材料标签（kind）生成链路打通', () => {
     // 生成端拼 prompt 的两件：buildAnchorListBlock(anchorListText, roleNote) —— 注入文本形态
     const injected = `【锚点清单】\n${roleNote}\n${anchorListText}\n\n`;
     expect(injected).toContain(MATERIAL_LINE);
-    expect(injected).toContain('不列入设题单位');
+    expect(injected).toContain('不必为其单独设题');
   });
 });

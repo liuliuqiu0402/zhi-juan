@@ -180,7 +180,7 @@ describe('🧩 清单第3层注入开关（2026-09-14 用户定版开关）', ()
     expect(formatAnchorListByChapter(anchors, { withConcepts: false })).toBe('【第1课】知识点A');
   });
 
-  it('语言材料分流（命题型）：kind=material 单列成组并标注"不在设题单位之列"，知识性条目留在主题行', () => {
+  it('语言材料分流（命题型）：kind=material 单列成组并标注"不必单独设题"，知识性条目留在主题行', () => {
     const list = [
       { chapterTitle: '第1课', bigConcept: '', name: '语音：ee 发音', specificConcepts: ['/iː/'] },
       { chapterTitle: '第1课', bigConcept: '', name: '课文：蜗牛爬树', kind: 'material' },
@@ -188,23 +188,23 @@ describe('🧩 清单第3层注入开关（2026-09-14 用户定版开关）', ()
     ];
     const split = formatAnchorListByChapter(list, { splitMaterial: true });
     expect(split).toContain('【第1课】语音：ee 发音（/iː/）、句型：一般过去时（was/were）');
-    expect(split).toContain('◇ 语言材料（只作理解与难度依据，不在设题单位之列）：课文：蜗牛爬树');
+    expect(split).toContain('◇ 语言材料（用于把握难度与理解语境，不必单独设题）：课文：蜗牛爬树');
     // 内容型（不拆分）→ 与分流前一致：全部混排
     const inline = formatAnchorListByChapter(list, { splitMaterial: false });
     expect(inline).toBe('【第1课】语音：ee 发音（/iː/）、课文：蜗牛爬树、句型：一般过去时（was/were）');
     // 旧分析结果无 kind → 视为知识性条目（行为与分流前一致，安全无害）
     const legacy = formatAnchorListByChapter([{ chapterTitle: '第1课', name: '知识点A' }], { splitMaterial: true });
     expect(legacy).toBe('【第1课】知识点A');
-    // 角色说明随分流加一句（不列入覆盖单位）
-    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不列入设题单位');
-    expect(anchorListRoleNote({ splitMaterial: false })).not.toContain('不列入设题单位');
+    // 角色说明随分流加一句（语言材料不必单独设题）
+    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不必为其单独设题');
+    expect(anchorListRoleNote({ splitMaterial: false })).not.toContain('不必为其单独设题');
   });
 
   it('角色说明随后两处开关组合（第3层 × 语言材料分流）仍自洽', () => {
     const off = anchorListRoleNote({ withConcepts: false, splitMaterial: true });
     expect(off).not.toContain('（第3层）');
-    expect(off).toContain('不列入设题单位');
-    expect(off).toContain('清单是**下限**');
+    expect(off).toContain('不必为其单独设题');
+    expect(off).toContain('即本次资料要练到的内容范围');
     // 默认导出 = 带第3层、不分流版本（兼容既有引用点）
     expect(ANCHOR_LIST_ROLE_NOTE).toBe(anchorListRoleNote());
   });
@@ -269,39 +269,45 @@ describe('A1-4b 第1层（知识主题）入锚清单：表归属与范围，不
     expect(formatAnchorListByChapter(toc)).toBe('【第3课 桂花雨】一、摇花乐、二、思乡情');
   });
 
-  it('角色说明随清单注入：明确第1层不是写作栏目/命题单位（防粒度误读）', () => {
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('不是写作栏目');
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('（第2层）');
+  it('角色说明随清单注入：第1层只标归属、第2层是内容最小单位（正面表述，不用"不是…单位"式否定）', () => {
+    // 🔒 2026-09-15 用户裁定·去否定式关联：原句"不是写作栏目、不是命题单位"要读懂必须先建立
+    //    "知识主题 ↔ 栏目/命题单位"这条映射，等于把错误做法反向植入（产物实证：把内容条目当大题标题）。
+    //    现改为正面职责陈述，并反向锁死否定式措辞不得回潮。
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('知识主题（第1层）标示知识点的归属');
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('知识点（第2层）是内容的最小单位');
+    expect(ANCHOR_LIST_ROLE_NOTE, '否定式关联不得回潮').not.toMatch(/不是写作栏目|不是命题单位|不作命题单位|不是组织方式/);
   });
 
-  it('角色说明只报"结构性事实 + 下限"（2026-09-13）：清单外口径下沉到【素材使用约定】，防一刀切放水', () => {
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('清单是**下限**');
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('都要有落点');
+  it('角色说明只报"范围陈述"（2026-09-15 去对账语言）：无下限/落点/逐条对账语汇；范围外口径下沉到【素材使用约定】', () => {
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('即本次资料要练到的内容范围');
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('【素材使用约定】');
+    // 🔒 去对账语言（2026-09-15 用户裁定）：下限／都要有落点／落点／逐条对账 一律不得回潮——
+    //    实证：这类可逐条核对的口径会促使模型把内容条目直接升为大题标题（产物 08e6ccd）。
+    expect(ANCHOR_LIST_ROLE_NOTE, '对账语言不得回潮').not.toMatch(/下限|落点|逐条对账|不补漏|都要有/);
     // 旧"一律"措辞易被读成"只能考清单内的点"，不回归
     expect(ANCHOR_LIST_ROLE_NOTE).not.toContain('一律是各主题下的');
-    // 清单外"可补充/可整合"属**按资料类型分档**的口径，不得在清单角色说明里一刀切（由 extentOf 分档决定）
+    // 范围外口径属**按资料类型分档**（由 extentOf 分档决定），不得在角色说明里一刀切
     expect(ANCHOR_LIST_ROLE_NOTE).not.toContain('适当补充');
   });
 
-  it('🔬 不可书面直测知识点的转化口径（2026-09-15 用户定版）：以性质为判据、零枚举、零题型名', () => {
-    // 根因：清单里"书面资料上无法直接作答/检验"的知识点在书面资料中无自然落点 → 模型静默跳过
-    //    （实证场景：语文清单的朗读类要点两次产物都没有落点）。
-    // 🔒 定稿口径（用户裁定·两处否决）：
-    //    ① 判据必须是**性质**，不得写成类别枚举——枚举（朗读/口语/观察/动手实践）既是活动类型提示
-    //       （等于告诉模型"这类要有"），又必然不全（倾听、演示、合作交流、审美体验、调查探究等都漏了）；
+  it('🔬 不可书面直测内容的呈现口径（2026-09-15 用户定版）：以性质为判据、零枚举、零题型名、零强制语', () => {
+    // 根因：书面资料上无法直接作答/检验的内容在书面资料中无自然呈现 → 模型静默跳过。
+    // 🔒 定稿口径（用户裁定·三处否决）：
+    //    ① 判据必须是**性质**，不得写成类别枚举——枚举既是活动类型提示，又必然不全；
     //       "无法通过书面作答直接体现或检验"这一性质，把没想到的类别也自动纳入。
-    //    ② 只给转化方向（可写、可判的书面形态），不点任何题型名（防又成题型锚）。
+    //    ② 只给呈现方向（可写、可判的书面形态），不点任何题型名（防又成题型锚）。
+    //    ③ 用陈述式（"以…呈现"），不用强制句（"须…落到实位，不得静默略过"）——后者属对账语言。
     const note = ANCHOR_LIST_ROLE_NOTE;
-    expect(note).toContain('其中无法通过书面作答直接体现或检验的知识点，须转化成**可写、可判**的书面形态落到实位，不得静默略过');
-    // 反向锁：本句及全条角色说明都不得出现类别枚举或题型名
+    expect(note).toContain('其中无法通过书面作答直接体现或检验的内容，以**可写、可判**的书面形态呈现');
+    // 反向锁：全条角色说明都不得出现类别枚举、题型名、强制对账语
     expect(note, '不得回退为类别枚举').not.toMatch(/朗读|口语|观察|动手实践/);
     expect(note, '不得混入题型名').not.toMatch(/选择题|判断题|填空题|简答题|计算题|仿写题|连线题/);
-    // 与"语言材料不设题"两条并存不冲突：语言材料在◇行、不属"清单内知识点"，故不受本句约束
-    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不列入设题单位');
-    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不得静默略过');
+    expect(note, '不得回退为强制对账语').not.toMatch(/不得静默略过|不得遗漏|须落到实位/);
+    // 与"语言材料不必单独设题"并存不冲突：语言材料在◇行，自成一类
+    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不必为其单独设题');
+    expect(anchorListRoleNote({ splitMaterial: true })).toContain('以**可写、可判**的书面形态呈现');
     // 开关组合下恒在（第3层开关、材料分流开关都不得吞掉本句）
-    expect(anchorListRoleNote({ withConcepts: false, splitMaterial: false })).toContain('不得静默略过');
+    expect(anchorListRoleNote({ withConcepts: false, splitMaterial: false })).toContain('以**可写、可判**的书面形态呈现');
   });
 });
 
@@ -404,11 +410,12 @@ describe('A17 第3层具体概念并入锚点清单（锚清单注入通道的�
     expect(formatAnchorListByChapter(anchors)).toBe('【第1课】知识点A（甲、乙）');
   });
 
-  it('角色说明随清单注入：第3层只细化具体概念，不是新栏目/新组织维度；措辞用「知识点」不用「考点」', () => {
+  it('角色说明随清单注入：第3层只细化具体概念（正面表述）；措辞用「知识点」不用「考点」', () => {
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('具体概念');
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('（第3层');
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('不构成新的写作栏目');
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('不得据此另立结构');
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('供把握深度与范围');
+    // 🔒 去否定式关联：原"不构成新的写作栏目，不得据此另立结构"同属反向植入，不得回潮
+    expect(ANCHOR_LIST_ROLE_NOTE, '否定式关联不得回潮').not.toMatch(/不构成新的写作栏目|不得据此另立结构/);
     // 术语口径：注入文本去"考点"（防读成全指向考卷），且不含"命题靶点"式命题语汇
     expect(ANCHOR_LIST_ROLE_NOTE).not.toContain('考点');
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('知识点');

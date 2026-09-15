@@ -128,12 +128,15 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
         }
       }
     }
-    // 标题来源禁则须在题类【输出格式】单点声明（清单条目名/教材板块名不得当标题）
+    // 🔒 2026-09-15（用户裁定·翻转点）：标题来源禁则原写"不得直接搬用【锚点清单】的条目名或教材板块名
+    //    充当栏目标题/大题标题"——**已撤除**。它是"合法对象（条目名）→ 结构位置（标题）"的否定映射：
+    //    要读懂必须先建立这条映射，等于反向植入（产物实证：内容条目直接成了大题标题）。
+    //    功能改由正向口径承载：标题自拟 + 一句话概括该组实际在练什么（见下方断言）。
     const practice = getPromptTemplate({ grade: 'primary_high', subject: '英语', genType: 'practice' }).template;
-    expect(practice).toContain('不得直接搬用【锚点清单】的条目名或教材板块名充当栏目标题/大题标题');
-    // 覆盖下限本身不得被削弱（去掉层级暗示 ≠ 去掉覆盖要求）
-    expect(practice).toContain('本课【锚点清单】所列内容须在资料中**真的练到**');
-    expect(practice).toContain('整份都没有落点的补上');
+    expect(practice, '否定式关联不得回潮').not.toMatch(/不得直接搬用|不以清单条目|分组依据不是知识点清单/);
+    expect(practice).toContain('标题自拟，一句话概括该组在练什么');
+    // 覆盖要求本身不得被削弱（去掉对账语言 ≠ 去掉覆盖要求）：改由清单角色说明的范围陈述承载
+    expect(practice).toContain('只以实际呈现的题目/条目为准');
   });
 
   // 🔴 2026-09-14（用户定版）：蓝图"命题要求"（note）随【卷面结构】注入——写"（如…）"会把题目方向钉死
@@ -173,7 +176,10 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     const srcPath = path.join(ROOT, 'src', 'utils', 'injectionManifest.js');
     const src = fs.readFileSync(srcPath, 'utf8');
     expect(src).toContain('【尾约束·资料内多样】');
-    expect(src).toContain('同一份资料内各栏目呈现形式与组织顺序应有所差异，不得全份同类版式照搬');
+    // 🔒 2026-09-15 去诱导：原"不得全份同类版式照搬／同一组织顺序不可逐栏…反复套用"是
+    //    "合法对象（上一部分版式）→ 结构位置（本部分）"的否定映射，改正向陈述（换一套版式）
+    expect(src).toContain('同一份资料内各部分的形式与先后应有变化，逐部分、逐单元换一套版式');
+    expect(src, '否定式关联不得回潮').not.toMatch(/不得全份同类版式照搬|不可逐栏/);
     expect(fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8'))
       .toContain('buildTailBlocks()');
   });

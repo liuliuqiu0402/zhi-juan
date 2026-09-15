@@ -95,51 +95,63 @@ describe('buildUserMessagePrompt（实发拼接：顺序 + 逐字）', () => {
 });
 
 describe('各块文本口径（防漂移的逐字锚点）', () => {
-  it('组织方式：exam 引【卷面结构】、其余引【教辅结构】', () => {
+  it('组织方式：exam 逐字不变（守卷面结构）；其余按委托书序列搭好各部分（正向、零否定关联句）', () => {
+    // 🔒 exam 一分不动（用户裁定：动了就不是正规卷）
     expect(buildOrganizeBlock('exam')).toBe('【组织方式】输出一律以委托书【卷面结构】的大题序列组织（大题名、顺序、题量以委托书为准）；开头【锚点清单】只声明要练到的范围，不是组织方式，不得据此替代委托书结构。\n\n');
-    expect(buildOrganizeBlock('practice')).toContain('【教辅结构】的栏目序列与学段要求（栏目名与顺序参照它）');
-    // 🔴 2026-09-14：题型自拟的题类（practice/special/reading）另加"分组依据"句；考卷不加（须守蓝图题型序列）
-    expect(buildOrganizeBlock('practice')).toContain('不以清单条目作分组或命名');
-    expect(buildOrganizeBlock('reading')).toContain('不以清单条目作分组或命名');
-    expect(buildOrganizeBlock('exam')).not.toContain('不以清单条目作分组或命名');
-    expect(buildOrganizeBlock('summary')).not.toContain('不以清单条目作分组或命名');
+    // 非 exam：正向动作描述，不点名块名与结构词
+    expect(buildOrganizeBlock('practice')).toContain('按委托书给出的各部分名称与先后搭好各部分');
+    expect(buildOrganizeBlock('summary')).toContain('按委托书给出的各部分名称与先后搭好各部分');
+    expect(buildOrganizeBlock('summary')).not.toContain('组标题自拟');
+    // 🔒 2026-09-15 去诱导（整类问题）：否定式关联句不得回潮——实证：这类句子要读懂必须先建立
+    //    "内容条目 ↔ 分组/命名"的映射，等于反向植入；产物随即把内容条目当了大题标题（08e6ccd）。
+    for (const t of ['practice', 'special', 'reading', 'summary', 'preview', 'dictation', 'errorbook', 'review']) {
+      expect(buildOrganizeBlock(t), `${t} 不得出现否定式关联句`).not.toMatch(/不以清单条目|不得据此替代|不是组织方式|开头【锚点清单】/);
+    }
+    // 题类保留正向口径"组标题自拟"（分组依据交内容与任务）；非题类不注入
+    for (const t of ['practice', 'special', 'reading']) expect(buildOrganizeBlock(t)).toContain('组标题自拟——一句话概括该组在练什么');
+    for (const t of ['summary', 'preview', 'dictation', 'errorbook']) expect(buildOrganizeBlock(t)).not.toContain('组标题自拟');
   });
 
   it('素材使用约定：通道分流（依据指向随通道改），禁照搬为通道无关', () => {
     const anchor = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'anchor' });
-    expect(anchor).toContain('开头【锚点清单】（含各知识点具体概念）是理解教材内容、难度与版本口径的**依据**');
-    expect(anchor).toContain('题型结构、知识梯度与难度按上方清单（含具体概念）把握');
+    expect(anchor).toContain('以上内容（含各知识点具体概念）是理解教材内容、难度与版本口径的**依据**');
+    expect(anchor).toContain('题型、知识梯度与难度按上方内容（含具体概念）把握');
     const full = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'full' });
     expect(full).toContain('中段【压缩原文】是理解教材内容与难度的**参考之一**');
     // 🔴 2026-09-14（用户裁定·实测产物）：禁照搬原句原先挂在【压缩原文】上 → 锚清单通道整句被跳过 →
     //    该通道下没有任何禁止照搬的约束，模型整段沿用教材语篇（照搬守门命中 10 词连续重合）。
-    //    现锁死：命题型禁照搬**两通道都在**，并声明清单里的语篇类条目不作命题依据。
+    //    现锁死：命题型禁照搬**两通道都在**，并声明材料类条目的作用边界。
     //    🔴 用词红线：**不得用"载体"表示题目素材**——同一份提示词里"载体"专指作答载体/书写载体
     //    （书写载体协议、一个空位只写一种载体…），混用会让模型把"不作题目载体"误当作答载体条款。
     for (const t of [anchor, full]) {
       expect(t).toContain('不得照搬教材原题');
       expect(t).toContain('不得直接复用所选教材原有语篇的情节、篇目结构与人物设定');
-      expect(t).toContain('只作理解与难度依据，不列入设题单位');
+      expect(t).toContain('标◇的材料用于把握难度与理解语境，不必为其单独设题');
       expect(t).toContain('连续重合即属照搬');
       expect(t, '禁用"载体"表示题目素材').not.toContain('题目载体');
+      expect(t, '禁用"载体"表示题目素材').not.toContain('命题载体');
     }
   });
 
-  it('素材使用约定：下限按 mode 分档、能否加按 extentOf 分档（措辞 2026-09-14 去"覆盖"、去强硬）', () => {
+  it('素材使用约定：范围按 mode 分档、范围外按 extentOf 分档（2026-09-15 去对账语言）', () => {
     // practice = per-lesson-full + expand
     const practice = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'full' });
-    expect(practice).toContain('**都要练到**');
-    expect(practice).toContain('清单**不是命题上限**');
+    expect(practice).toContain('以上内容即本次要练到的范围（本单元必学内容）');
+    expect(practice).toContain('可依本学段课标学业要求另取其他知识点或考查角度');
     expect(practice).toContain('本资料为命题/练习型');
     // summary = full + integrate（归纳型口吻）
     const summary = buildMaterialUsageBlock({ genType: 'summary', materialChannel: 'full' });
-    expect(summary).toContain('**都要落到**');
-    expect(summary).toContain('清单**不是范围围墙**');
+    expect(summary).toContain('以上内容是本次归纳的范围');
+    expect(summary).toContain('可把本课内容与同类概念归类、对照、勾连成网络');
     expect(summary).toContain('本资料为知识归纳型');
     expect(summary).not.toContain('本资料为命题/练习型');
-    // errorbook = none + expand（不对账口吻）
+    // errorbook = none + expand（不逐条对账口吻）
     const err = buildMaterialUsageBlock({ genType: 'errorbook', materialChannel: 'anchor' });
-    expect(err).toContain('本资料围绕错题组织，不与开头【锚点清单】逐条对账；');
+    expect(err).toContain('本资料围绕错题组织；');
+    // 🔒 对账语言与否定定义不得回潮（用户裁定：这类措辞会促使模型按来源逐条铺开）
+    for (const [t, name] of [[practice, 'practice'], [summary, 'summary'], [err, 'errorbook']]) {
+      expect(t, `${name} 下限/落点/逐条对账不得回潮`).not.toMatch(/下限|落点|逐条对账|不补漏|不是命题上限|不是范围围墙|不做清单外/);
+    }
   });
 
   // 🔴 2026-09-15（用户定版·去锚）：原"题型须多样"注入（2026-09-14 版）**整条撤除**——
@@ -154,16 +166,16 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
       expect(txt, `${t} 不得残留常态分布锚`).not.toContain('常态分布');
       expect(txt, `${t} 不得残留常规自选锚`).not.toContain('常规自选');
     }
-    // 题类仍保留的只有"分组与命名交模型自定 + 不以清单条目作分组"这一结构约束
+    // 题类保留的只有正向口径"组标题自拟"（原"不以清单条目作分组或命名"否定句已撤除）
     for (const t of ['practice', 'special', 'reading']) {
       const org = buildOrganizeBlock(t);
-      expect(org).toContain('题组的分组与命名由你按内容需要自定');
-      expect(org).toContain('不以清单条目作分组或命名');
+      expect(org).toContain('每部分内由你按内容与任务需要分组成题组，组标题自拟');
       expect(org, `${t} 不得残留常规题型锚`).not.toContain('常规题型');
+      expect(org, `${t} 否定式关联句不得回潮`).not.toContain('不以清单条目');
     }
-    // 其余类型本就不注入分组约束（逐字不变）
+    // 其余类型本就不注入分组约束
     for (const t of ['exam', 'errorbook', 'summary', 'review']) {
-      expect(buildOrganizeBlock(t)).not.toContain('不以清单条目作分组或命名');
+      expect(buildOrganizeBlock(t)).not.toContain('组标题自拟');
     }
     expect(AUTONOMOUS_ITEM_TYPES).toEqual(['practice', 'special', 'reading']);
   });
@@ -173,7 +185,10 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     expect(self.startsWith('\n\n【尾约束·全文自洽】\n')).toBe(true);
     expect(self).toContain('使本题**仅凭正文自身即可完成**');
     expect(variety.startsWith('\n\n【尾约束·资料内多样】\n')).toBe(true);
-    expect(variety).toContain('同一份资料内各栏目呈现形式与组织顺序应有所差异，不得全份同类版式照搬');
+    // 🔒 2026-09-15 去诱导：原"不得全份同类版式照搬／同一呈现方式与同一组织顺序不可逐栏…反复套用"
+    //    是"合法对象（上一部分版式）→ 结构位置（本部分）"的否定映射，改正向陈述（换一套版式）。
+    expect(variety).toContain('同一份资料内各部分的形式与先后应有变化，逐部分、逐单元换一套版式');
+    expect(variety, '否定式关联不得回潮').not.toMatch(/照搬|不可逐栏|不得全份/);
     expect(TAIL_SELF_CONSISTENCY).toBe(self.slice(2));
   });
 
@@ -344,7 +359,7 @@ describe('(ii) 面板接实发素材正文（快照单源）', () => {
   });
 
   it('面板展示的清单正文 = 生成端实发正文（同一 build 函数 + 同一角色说明）', () => {
-    const body = '一、知识主题甲\n· 知识点一\n◇ 语言材料（只作理解与难度依据，不在设题单位之列）：故事板块';
+    const body = '一、知识主题甲\n· 知识点一\n◇ 语言材料（用于把握难度与理解语境，不必单独设题）：故事板块';
     const roleNote = '（第3层）…实发角色说明';
     const blk = buildUserMessageBlocks({
       genType: 'practice', subject: '英语', materialChannel: 'anchor',
@@ -368,20 +383,22 @@ describe('(ii) 面板接实发素材正文（快照单源）', () => {
     expect(blk.text).not.toContain('（第3层）'); // 实发没有这句，面板就不许有
   });
 
-  it('🔬 能力型知识点转化口径随清单注入到全部类型（题类与内容类都在，单一事实源）', () => {
-    // 2026-09-15 用户定版：不可书面直测的能力型要点须转成书面形态、不得静默略过。
+  it('🔬 不可书面直测内容的呈现口径随清单注入到全部类型（题类与内容类都在，单一事实源）', () => {
+    // 2026-09-15 用户定版（同日第二次修订）：以**性质**为判据、陈述式表达（不用强制对账语）。
     // 本句挂在清单角色说明（ANCHOR_LIST_ROLE_NOTE）上 → 凡注入【锚点清单】的资料类型都拿到，
     // 无需在 9 类模板各写一遍（防多副本漂移，也防句级查重命中）。
-    const PHRASE = '须转化成**可写、可判**的书面形态落到实位，不得静默略过';
+    const PHRASE = '以**可写、可判**的书面形态呈现';
     for (const genType of ['practice', 'special', 'reading', 'exam', 'summary', 'preview', 'dictation', 'errorbook', 'review']) {
       const blocks = buildUserMessageBlocks({
         genType, subject: '语文', materialChannel: 'anchor',
-        anchorListText: '【第一单元】\n· 识字与朗读：生字认读',
+        anchorListText: '【第一单元】\n· 识字与写字：生字认读',
       });
       const anchorBlk = blocks.find((b) => b.id === 'anchor-list');
-      expect(anchorBlk?.text, `类型 ${genType} 缺转化口径`).toContain(PHRASE);
-      // 防题型锚：本句只给转化方向，不得点名任何题型（否则又成题型锚）
-      expect(anchorBlk.text, `类型 ${genType} 转化口径混入题型名`).not.toMatch(/选择题|判断题|填空题|简答题|计算题|仿写题|连线题/);
+      expect(anchorBlk?.text, `类型 ${genType} 缺呈现口径`).toContain(PHRASE);
+      // 防题型锚：本句只给呈现方向，不得点名任何题型（否则又成题型锚）
+      expect(anchorBlk.text, `类型 ${genType} 呈现口径混入题型名`).not.toMatch(/选择题|判断题|填空题|简答题|计算题|仿写题|连线题/);
+      // 防对账语回潮
+      expect(anchorBlk.text, `类型 ${genType} 不得回潮对账语`).not.toMatch(/下限|落点|逐条对账/);
     }
   });
 
