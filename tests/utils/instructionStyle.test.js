@@ -11,7 +11,7 @@ describe('parseStyleFromInstruction（组织风格解析）', () => {
   });
 
   it('scenario_each → 命中逐题情境（情境融合）', () => {
-    const r = parseStyleFromInstruction('【组织风格】scenario_each：每题设置贴近学生生活的独立情境设问');
+    const r = parseStyleFromInstruction('【组织风格】scenario_each：每题设置独立、真实适切的情境设问（情境取向依本学科本学段的课标要求）');
     expect(r.value).toBe('scenario_each');
     expect(r.isContextFusion).toBe(true);
     expect(r.isContextStyle).toBe(true);
@@ -73,7 +73,7 @@ describe('parseStyleFromInstruction（组织风格解析）', () => {
   });
 
   it('context_chain（情境化串联）→ 统一情境类，需要情境框架', () => {
-    const r = parseStyleFromInstruction('【组织风格】context_chain：以一个贴近生活的大主题串联各知识点呈现');
+    const r = parseStyleFromInstruction('【组织风格】context_chain：以一个真实适切的大主题串联各知识点呈现');
     expect(r.value).toBe('context_chain');
     expect(r.isUnifiedContext).toBe(true);
     expect(r.isContextStyle).toBe(true);
