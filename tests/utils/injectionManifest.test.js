@@ -368,6 +368,23 @@ describe('(ii) 面板接实发素材正文（快照单源）', () => {
     expect(blk.text).not.toContain('（第3层）'); // 实发没有这句，面板就不许有
   });
 
+  it('🔬 能力型知识点转化口径随清单注入到全部类型（题类与内容类都在，单一事实源）', () => {
+    // 2026-09-15 用户定版：不可书面直测的能力型要点须转成书面形态、不得静默略过。
+    // 本句挂在清单角色说明（ANCHOR_LIST_ROLE_NOTE）上 → 凡注入【锚点清单】的资料类型都拿到，
+    // 无需在 9 类模板各写一遍（防多副本漂移，也防句级查重命中）。
+    const PHRASE = '须转化成**可写、可判**的书面形态落到实位，不得静默略过';
+    for (const genType of ['practice', 'special', 'reading', 'exam', 'summary', 'preview', 'dictation', 'errorbook', 'review']) {
+      const blocks = buildUserMessageBlocks({
+        genType, subject: '语文', materialChannel: 'anchor',
+        anchorListText: '【第一单元】\n· 识字与朗读：生字认读',
+      });
+      const anchorBlk = blocks.find((b) => b.id === 'anchor-list');
+      expect(anchorBlk?.text, `类型 ${genType} 缺转化口径`).toContain(PHRASE);
+      // 防题型锚：本句只给转化方向，不得点名任何题型（否则又成题型锚）
+      expect(anchorBlk.text, `类型 ${genType} 转化口径混入题型名`).not.toMatch(/选择题|判断题|填空题|简答题|计算题|仿写题|连线题/);
+    }
+  });
+
   it('无快照/类型不符 → 不展示正文，只给来源说明（宁可不显示，也不显示错的口径）', () => {
     const none = buildUserMessageBlocks({
       genType: 'practice', subject: '数学', materialChannel: 'anchor',

@@ -283,6 +283,19 @@ describe('A1-4b 第1层（知识主题）入锚清单：表归属与范围，不
     // 清单外"可补充/可整合"属**按资料类型分档**的口径，不得在清单角色说明里一刀切（由 extentOf 分档决定）
     expect(ANCHOR_LIST_ROLE_NOTE).not.toContain('适当补充');
   });
+
+  it('🔬 能力型知识点的转化口径（2026-09-15 用户定版）：不可书面直测的要点须转成书面形态、不得静默略过', () => {
+    // 根因：清单里的"朗读/口语/观察/动手实践"类知识点在书面资料中无自然落点 → 模型静默跳过
+    //    （实证场景：语文清单的朗读类要点两次产物都没有落点）。此处给**转化方向**而非题型清单
+    //    （只声明"转成可写、可判的书面形态"，不点名任何题型，防又成题型锚）。
+    const note = ANCHOR_LIST_ROLE_NOTE;
+    expect(note).toContain('其中无法书面直接作答的能力型知识点（朗读、口语、观察、动手实践类）须转化成**可写、可判**的书面形态落到实位，不得静默略过');
+    // 与"语言材料不设题"两条并存不冲突：语言材料在◇行、不属"清单内知识点"，故不受本句约束
+    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不列入设题单位');
+    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不得静默略过');
+    // 开关组合下恒在（第3层开关、材料分流开关都不得吞掉本句）
+    expect(anchorListRoleNote({ withConcepts: false, splitMaterial: false })).toContain('不得静默略过');
+  });
 });
 
 describe('A16（甲方案）锚点=目录：未分析/仅目录章不再从覆盖范围消失', () => {
