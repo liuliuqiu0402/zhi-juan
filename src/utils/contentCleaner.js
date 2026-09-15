@@ -150,8 +150,7 @@ export function isDeliverableBodyHtml(html = '') {
 
 /**
  * 正文题号提取/连续性检测（2026-09-10 正文丢题事故根治·定稿校验）：正文部分（答案区前）按
- * 行首 `N.` 提取题号——extractBodyQuestionNumbers 返回保序数组（供"答案生成前快照 vs 交付
- * 比对"，抓"答案生成后动正文"）；detectBodyNumberingGap 查 1~峰值 缺口，返回缺号明细
+ * 行首 `N.` 提取题号——extractBodyQuestionNumbers 返回保序数组；detectBodyNumberingGap 查 1~峰值 缺口，返回缺号明细
  * （供 ①正文采纳拦截重试 ②最终报告如实输出缺号）。
  * 口径与 useAiGenerator 正文丢失护栏 qCount 同源：块级标签闭合补换行后按行首 `N.` 计题号。
  * gap 返回 null = 无缺口/样本不足以判定（峰值 <3 不判——防小卷/条目清单误报；
@@ -170,6 +169,46 @@ export function extractBodyQuestionNumbers(html = '') {
   let m;
   while ((m = re.exec(text))) out.push(Number(m[1]));
   return out;
+}
+
+/**
+ * 正文题号序列（**冻结比对专用 · 形态归一版**，2026-09-15 用户定版）：
+ * 🔴 误报根因：extractBodyQuestionNumbers 只认"行首 `N.`"一种形态，括号序号（`（　）1.`）不计入——
+ *    同一份卷里"题首括号空位 + 序号"与"行首数字序号"两种写法并存时，只要排版类后处理
+ *    （答案区补包、序号归一、空白行补全等）让某大题的序号在两种形态间切换，序列就会"变化"，
+ *    被误报成"正文被改动"（实证：21 → 34，而正文经复算完整无缺）。
+ * 🔴 归一做法：比对前先剔除"作答空位（u/span 的 blank-N）"与"空括号（　）"，再套用与
+ *    extractBodyQuestionNumbers **完全相同的行首 `N.` 规则**——`（　）1.` 与 `　1.` 归一后同为行首 `1.`。
+ *    仅用于"答案生成前快照 vs 交付正文"的比对；**不改** extractBodyQuestionNumbers 的缺号检测口径。
+ */
+export function extractBodyQuestionSequence(html = '') {
+  const src = String(html || '');
+  if (!src.trim()) return [];
+  const bodyOnly = src.split(/<div[^>]*class=["'][^"']*answer-section|<h[1-6][^>]*>\s*参考答案/i)[0];
+  const normalized = bodyOnly
+    .replace(/<(?:u|span)[^>]*class=["'][^"']*blank-[^"']*["'][^>]*>[\s\S]*?<\/(?:u|span)>/gi, '') // 作答空位
+    .replace(/[（(][\s\u3000]*[）)]/g, '')                                                          // 空括号（　）
+    .replace(/<\/(?:p|li|h[1-6]|div|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '');
+  const out = [];
+  const re = /(?:^|\n)\s*([1-9]\d?)[.、．](?![.\d])/g;
+  let m;
+  while ((m = re.exec(normalized))) out.push(Number(m[1]));
+  return out;
+}
+
+/**
+ * 冻结比对判定（2026-09-15 用户定版）：答案生成前后两份题号序列，**是否算"正文被改动"**。
+ * 🔴 只认"题号集合或题数"变化（= 真实增删题）；纯形态/顺序差异不算——避免排版类后处理
+ *    （答案区补包、序号归一、空白行补全）触发误报。任一侧为空（无题号资料）不判。
+ */
+export function isBodyQuestionSeqChanged(snapshotSeq = [], finalSeq = []) {
+  const toArr = (x) => (Array.isArray(x) ? x : String(x || '').split(',').filter(Boolean).map(Number));
+  const a = toArr(snapshotSeq);
+  const b = toArr(finalSeq);
+  if (!a.length || !b.length) return false;
+  const setOf = (x) => [...new Set(x)].sort((m, n) => m - n).join(',');
+  return setOf(a) !== setOf(b) || a.length !== b.length;
 }
 
 export function detectBodyNumberingGap(html = '') {

@@ -12,7 +12,7 @@ import {
   buildAnchorListBlock, buildCompressedTextBlock,
   buildMaterialUsageBlock, buildOrganizeBlock,
   buildTemplateInfoBlock, buildContextBlock, buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,
-  TAIL_SELF_CONSISTENCY, SCENE_REGEN_TYPES, AUTONOMOUS_ITEM_TYPES, TYPED_PRACTICE_ITEM_TYPES,
+  TAIL_SELF_CONSISTENCY, SCENE_REGEN_TYPES, AUTONOMOUS_ITEM_TYPES,
 } from '../../src/utils/injectionManifest.js';
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -142,55 +142,30 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     expect(err).toContain('本资料围绕错题组织，不与开头【锚点清单】逐条对账；');
   });
 
-  // 🔴 题型多样性（2026-09-14 用户定版）：题类（课时练/专项/阅读）的**题型由模型自拟**、全链路没有任何
-  //    题型来源 → 题型随内容漂移，实测整份只剩填空/朗读一类、连词成句与单项选择整份消失（跨学科同病）。
-  //    修法 = **一句全学科通用的语义**：只约束"作答形态须多样"，不列题型清单、不指定具体题型（不窄化、不诱导）。
-  it('题型须多样：题型自拟的题类注入，且明示不改内容/题量口径', () => {
+  // 🔴 2026-09-15（用户定版·去锚）：原"题型须多样"注入（2026-09-14 版）**整条撤除**——
+  //    它把作答方式锚到"本学科本学段日常练习的常态分布 / 按本学段常规自选"，与模板·分组句、
+  //    输出格式·栏内组织句同向，三处合起来使**两次独立调用**产出的题型高度趋同（实证：7 类完全重合）。
+  //    用户裁定：题型与题量一律交模型侧自选、不作任何锚定 → 该句与 TYPED_PRACTICE_ITEM_TYPES 一并撤除。
+  it('题型锚定已撤除：任何类型都不再注入"题型须多样"（也不残留常态分布/常规自选）', () => {
+    for (const t of ['practice', 'special', 'reading', 'errorbook', 'exam', 'summary', 'preview', 'dictation', 'review']) {
+      const ch = ['summary', 'preview', 'dictation', 'review'].includes(t) ? 'full' : 'anchor';
+      const txt = buildMaterialUsageBlock({ genType: t, materialChannel: ch });
+      expect(txt, `${t} 不得再注入题型多样句`).not.toContain('题型须多样');
+      expect(txt, `${t} 不得残留常态分布锚`).not.toContain('常态分布');
+      expect(txt, `${t} 不得残留常规自选锚`).not.toContain('常规自选');
+    }
+    // 题类仍保留的只有"分组与命名交模型自定 + 不以清单条目作分组"这一结构约束
     for (const t of ['practice', 'special', 'reading']) {
-      const txt = buildMaterialUsageBlock({ genType: t, materialChannel: 'anchor' });
-      expect(txt, `${t} 须注入题型多样性句`).toContain('题型须多样');
-      // 依据用**中性语义**（不挂学科/学段课标名——义教语文课标有原话，高中无等价表述，挂名会引错出处）
-      expect(txt).toContain('作业类型比例应合理安排');
-      expect(txt).toContain('不停留在单一形态');
-      expect(txt).toContain('不指定、不列清单');
-      expect(txt, '不得声称是课标口径（学段不通用）').not.toContain('课标口径');
-      // 防副作用：明示不改变内容范围与题量口径（防"为凑题型而漏项/加无关题"）
-      expect(txt).toContain('不改变要练到的范围与题量口径');
-      expect(txt).toContain('不得为凑题型而漏项或加无关题');
-      // 🔴 防诱导（2026-09-14 用户裁定）：不得用"必须出现哪几类/缺则补"的动作指令指定题型存在
-      for (const banned of ['既要有', '也要有', '缺则补', '必须出现']) {
-        expect(txt, `不得出现指定动作「${banned}」`).not.toContain(banned);
-      }
+      const org = buildOrganizeBlock(t);
+      expect(org).toContain('题组的分组与命名由你按内容需要自定');
+      expect(org).toContain('不以清单条目作分组或命名');
+      expect(org, `${t} 不得残留常规题型锚`).not.toContain('常规题型');
     }
-  });
-
-  it('题型须多样：全学科通用——不得列具体题型名（一列就成"清单"= 窄化 + 诱导）', () => {
-    const txt = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'anchor' });
-    for (const banned of ['连词成句', '单项选择', '选出不同类', '完形填空', '书面表达', '选择题', '判断题', '填空题']) {
-      expect(txt, `不得出现具体题型名「${banned}」`).not.toContain(banned);
-    }
-  });
-
-  it('题型须多样：不越界注入（考卷有蓝图题型序列 / 知识型不命题）+ 易错题本只注题型句（2026-09-15）', () => {
-    expect(buildMaterialUsageBlock({ genType: 'exam', materialChannel: 'anchor' })).not.toContain('题型须多样');
-    // 🔴 2026-09-15 用户定版：易错题本题目由**本资料自行命制**（系统按本单元高频易错点出题）→ 注入"题型须多样"；
-    //    但其分组按知识点/错因 → **不**注入"题组按题型/环节分组"（那条仍只走 AUTONOMOUS_ITEM_TYPES）。
-    expect(buildMaterialUsageBlock({ genType: 'errorbook', materialChannel: 'anchor' })).toContain('题型须多样');
-    expect(buildOrganizeBlock('errorbook')).not.toContain('不以清单条目作分组或命名');
-    for (const t of ['summary', 'preview', 'dictation', 'review']) {
-      expect(buildMaterialUsageBlock({ genType: t, materialChannel: 'full' }), `${t} 知识型不命题`).not.toContain('题型须多样');
+    // 其余类型本就不注入分组约束（逐字不变）
+    for (const t of ['exam', 'errorbook', 'summary', 'review']) {
+      expect(buildOrganizeBlock(t)).not.toContain('不以清单条目作分组或命名');
     }
     expect(AUTONOMOUS_ITEM_TYPES).toEqual(['practice', 'special', 'reading']);
-    expect(TYPED_PRACTICE_ITEM_TYPES).toEqual(['practice', 'special', 'reading', 'errorbook']);
-  });
-
-  it('题型须多样：全通道注入（锚清单通道与全文通道都在），且面板可见（由素材使用约定块承载）', () => {
-    for (const ch of ['anchor', 'full']) {
-      expect(buildMaterialUsageBlock({ genType: 'practice', materialChannel: ch })).toContain('题型须多样');
-    }
-    const blk = buildUserMessageBlocks({ genType: 'practice', subject: '英语', materialChannel: 'anchor', preview: true })
-      .find((b) => b.id === 'material-usage');
-    expect(blk.text).toContain('题型须多样'); // 面板"请求实发清单"里能核到这一句
   });
 
   it('尾约束×2：块内自带 \\n\\n 前缀，关键句逐字', () => {

@@ -428,7 +428,7 @@ import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
 import { reconcileDomains, domainNoteOf } from '../utils/domainReconciler.js';
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 import { FIGURE_DEPENDENCY_RE } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（图标记取证用）
 
@@ -4863,7 +4863,9 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔴 正文冻结快照（2026-09-10 丢题根治）：答案生成前记录正文题号序列——交付前与最终正文比对
     //    （见质检区"正文完整性终检"）：任何"答案生成后动正文"都会被如实告警，
     //    "丢题是生成时还是生成后"由系统自证，不再靠人工考古；序列为空（无题号资料）不参与比对。
-    const bodyQSnapshot = extractBodyQuestionNumbers(content).join(',');
+    //    比对用 extractBodyQuestionSequence（**形态归一**：括号序号与行首序号归一后再比），
+    //    避免"排版类后处理把序号形态换了一种"被误报成正文被改动（2026-09-15 实证误报 21→34，正文实为完整）。
+    const bodyQSnapshot = extractBodyQuestionSequence(content).join(',');
     const skipAnswerPage = generateMode === 'once' && !ansInContent && !ansShellInContent && (genTypeCarriesAnswers || bodyCarriesAnswers);
     if (skipAnswerPage) {
       answerSkipNote = `ℹ️ 正文已含解析/答案标注（${genType} 为题+解析一体资料），未单独生成答案页。`;
@@ -5085,9 +5087,13 @@ ${cardAnalysisText.substring(0, 1000)}
     //    ② 缺号报告：正文题号 1~峰值 存在缺口 = 丢题（截断启发式与质检护栏均测不出的"中段丢题"），
     //       写明缺号清单交编辑核对。两条均进【问题列表】，绝不静默。
     {
-      const finalSeq = extractBodyQuestionNumbers(finalContent).join(',');
-      if (bodyQSnapshot && finalSeq && finalSeq !== bodyQSnapshot) {
+      const finalSeqArr = extractBodyQuestionSequence(finalContent);
+      const finalSeq = finalSeqArr.join(',');
+      if (finalSeq && finalSeq !== bodyQSnapshot && isBodyQuestionSeqChanged(bodyQSnapshot, finalSeqArr)) {
         auditWarnings.push(`⚠️ 答案生成后正文题号序列发生变化（[${bodyQSnapshot}] → [${finalSeq}]）——质检/后处理改动了正文，请核对正文完整性。`);
+      } else if (finalSeq && finalSeq !== bodyQSnapshot) {
+        // 🔴 2026-09-15 用户定版：仅题号形态/顺序差异（集合与题数均未变）**不算**正文被改动 → 不进【问题列表】
+        console.debug(`[正文冻结比对] 仅题号形态/顺序差异（非内容增删），不告警：[${bodyQSnapshot}] → [${finalSeq}]`);
       }
       const gap = detectBodyNumberingGap(finalContent);
       if (gap) {
