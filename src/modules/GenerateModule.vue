@@ -41,12 +41,22 @@
         >
           📏 {{ granularityLabel }}
         </button>
-        <button
-          class="ribbon-btn"
-          @click="showDetailConfigModal = true"
+        <!-- 📄 生成份数（2026-09-15 由"详细配置"弹窗迁出）：原弹窗 5 项里 4 项经核查为死控件
+             —— 总分 / 题型 / 难度 / 原题引用：生成端从不读取（options 传了但生成器不读）；
+             仅"生成份数"真生效（份数循环），故整弹窗移除、此项改为面板内联，
+             避免"看着能配、实际不生效"的误导 -->
+        <label
+          class="ribbon-field"
+          title="同类型一次出多份（大于 1 时一次生成多份不同的资料）"
         >
-          📝 详细配置
-        </button>
+          📄 份数
+          <input
+            v-model.number="batchCount"
+            type="number"
+            min="1"
+            max="10"
+          >
+        </label>
         <!-- 🖥️ 桌面端专用：同步/上推/重置（手机端走 AppHeader 全局按钮） -->
         <template v-if="!isMobile">
           <button
@@ -1578,137 +1588,6 @@
       </div>
     </div>
 
-    <!-- 详细配置弹窗 -->
-    <div
-      v-if="showDetailConfigModal"
-      class="modal-mask"
-      @click.self="showDetailConfigModal = false"
-    >
-      <div class="modal large-modal">
-        <h3>📝 详细配置</h3>
-        <div class="modal-scroll-area">
-          <div class="config-section">
-            <h4>总分设置</h4>
-            <input
-              v-model="totalScore"
-              type="number"
-              placeholder="例如：100"
-              min="0"
-            >
-          </div>
-        
-          <div class="config-section">
-            <h4>题型配置</h4>
-            <div
-              v-if="selectedTextbookCount === 0"
-              class="empty-tip-small"
-            >
-              📌 请先在左侧勾选教材，系统将根据学科和年级智能推荐题型
-            </div>
-            <div
-              v-else
-              class="hint"
-              style="margin-bottom: 10px; color: var(--primary-light);"
-            >
-              📋 当前是根据 <strong>{{ getSelectedBookSubject() }}</strong> 学科推荐的题型
-            </div>
-            <div
-              v-for="(qt, idx) in questionTypes"
-              :key="idx"
-              class="config-row"
-            >
-              <input
-                v-model="qt.selected"
-                type="checkbox"
-              >
-              <span class="qt-name">{{ qt.name }}</span>
-              <input
-                v-model="qt.count"
-                type="number"
-                placeholder="题量"
-                min="0"
-                style="width:70px"
-              >
-              <input
-                v-model="qt.score"
-                type="number"
-                placeholder="分值"
-                min="0"
-                style="width:70px"
-              >
-            </div>
-            <button
-              class="btn-small"
-              @click="addQuestionType"
-            >
-              ➕ 添加题型
-            </button>
-          </div>
-        
-          <div class="config-section">
-            <h4>难度配置（%）</h4>
-            <div
-              v-for="(dl, idx) in difficultyLevels"
-              :key="idx"
-              class="config-row"
-            >
-              <input
-                v-model="dl.selected"
-                type="checkbox"
-              >
-              <span class="dl-name">{{ dl.name }}</span>
-              <input
-                v-model="dl.percentage"
-                type="number"
-                min="0"
-                max="100"
-                style="width:70px"
-                :placeholder="dl.percentage == null ? '自动' : ''"
-              > %
-            </div>
-          </div>
-
-          <div class="config-section">
-            <h4>生成份数（同类型一次出多份）</h4>
-            <input
-              v-model.number="batchCount"
-              type="number"
-              min="1"
-              max="10"
-              placeholder="1"
-              style="width:100px"
-            >
-            <span class="hint">设置>1时，一次生成多份不同的资料</span>
-          </div>                
-        
-          <div class="config-section">
-            <h4>原题引用</h4>
-            <label class="checkbox-label">
-              <input
-                v-model="allowOriginalQuestions"
-                type="checkbox"
-              >
-              允许适量引用教材原题
-            </label>
-          </div>
-        </div>
-        
-        <div class="modal-actions">
-          <button
-            class="btn"
-            @click="showDetailConfigModal = false"
-          >
-            取消
-          </button>
-          <button
-            class="btn-primary"
-            @click="closeDetailConfigModal"
-          >
-            确定
-          </button>
-        </div>
-      </div>
-    </div>
 
     <!-- 预览弹窗（Teleport 到 body 脱离缩放容器，避免 transform:scale 导致缩小溢出） -->
     <Teleport to="body">
@@ -3238,19 +3117,10 @@ watch(genTypes, (v) => { if (!v?.includes('exam') && EXAM_GRADUATION_TYPES.inclu
 const hasSelectedChapters = computed(() => textbookStore.selectedChapterCount > 0);
 const specialSubType = ref('');  // 🎯 专项子类型（仅 genType=special 时生效）
 const generateGranularity = ref('');
-const totalScore = ref('');
-const allowOriginalQuestions = ref(true);
 const batchCount = ref(1);  // 同类型一次生成份数，默认1
 // 🔧 省市差异化：正式试卷（exam）按省市取考试时长/总分（如江苏中考语数英150分、北京100分制），默认全国通用
 const examRegion = ref('');
 const examRegionOptions = EXAM_REGION_OPTIONS;
-// 🔧 题型配置默认空，由用户手动添加（题型分布库已退役：蓝本为题型权威）
-const questionTypes = ref([]);
-const difficultyLevels = ref([
-  { name: '基础题', selected: true, percentage: null },
-  { name: '中档题', selected: true, percentage: null },
-  { name: '提高题', selected: true, percentage: null }
-]);
 
 // 命题范围命名统一由 paperScope.inferPaperScope 处理（选课→课名、整单元→单元名、跨单元/期中/期末/月考/专题→标签词）
 
@@ -3376,7 +3246,6 @@ const showColumnStyleModal = ref(false); // 🎨 栏目风格弹窗（全列风�
 const showGenTypeModal = ref(false);
 const showSpecialSubTypeModal = ref(false);  // 🎯 专项子类型弹窗
 const showGranularityModal = ref(false);
-const showDetailConfigModal = ref(false);
 const showPreview = ref(false);
 const showEditor = ref(false);
 const pendingGenerateMode = ref('single'); // 生成模式
@@ -5511,35 +5380,6 @@ const guideText = computed(() => {
   return '③ 委托生成：点「生成」按钮即委托一次成稿（按当前勾选与指令库自动组装）';
 });
 
-// 🔧 缓存版本：递增以清除旧版本残留的配置值（避免旧值绕过指令库自动覆写）
-const DETAIL_CONFIG_CACHE_VERSION = 4;
-
-// 加载保存的配置
-const loadCachedConfig = async () => {
-  const cached = await storage.getItem('cached_detail_config');
-  if (cached && cached._cacheVersion === DETAIL_CONFIG_CACHE_VERSION) {
-    questionTypes.value = cached.questionTypes || questionTypes.value;
-    difficultyLevels.value = cached.difficultyLevels || difficultyLevels.value;
-    totalScore.value = cached.totalScore || '';
-    allowOriginalQuestions.value = cached.allowOriginalQuestions ?? true;
-  } else if (cached && cached._cacheVersion !== DETAIL_CONFIG_CACHE_VERSION) {
-    // 旧版缓存不兼容，自动重建（正常行为，非错误）
-    if (import.meta.env.DEV) console.log(`[GenerateModule] 缓存版本升级 (${cached._cacheVersion || 0} → ${DETAIL_CONFIG_CACHE_VERSION})，已重建`);
-  }
-};
-
-// 保存配置
-const saveCachedConfig = async () => {
-  const config = {
-    _cacheVersion: DETAIL_CONFIG_CACHE_VERSION,
-    questionTypes: questionTypes.value,
-    difficultyLevels: difficultyLevels.value,
-    totalScore: totalScore.value,
-    allowOriginalQuestions: allowOriginalQuestions.value
-  };
-  await storage.setItem('cached_detail_config', config);
-};
-
 // 勾选操作
 const toggleSection = (type) => {
   sectionCollapsed.value[type] = !sectionCollapsed.value[type];
@@ -6150,10 +5990,6 @@ const buildInstruction = async () => {
     propositionStyle: propositionStyle.value,
     genTypes: genTypes.value,
     granularity: generateGranularity.value,
-    questionTypes: questionTypes.value,
-    difficultyLevels: difficultyLevels.value,
-    totalScore: totalScore.value,
-    allowOriginalQuestions: allowOriginalQuestions.value,
     specialSubType: specialSubType.value,  // 🎯 专项子类型
     mergeChapters: mergeChapters.value,   // 🔧 多章节合并出卷开关
     region: examRegion.value,             // 🔧 省市差异化（正式试卷按省市时长/总分出卷）
@@ -8595,12 +8431,10 @@ const finalizeGeneration = async (result, genType) => {
             };
           }
         }
-        // 降级：配置面板目标值
-        return {
-          easy: difficultyLevels.value.find(d => d.name === '基础题')?.percentage || 50,
-          medium: difficultyLevels.value.find(d => d.name === '中档题')?.percentage || 30,
-          hard: difficultyLevels.value.find(d => d.name === '提高题')?.percentage || 20
-        };
+        // 无逐题难度数据时不显示难度比例（2026-09-15 清理）：原先此处降级到"配置面板目标值"，
+        // 但该配置项经核查生成端从不读取、且默认空，实际会退回硬编码 50/30/20 的**假比例**；
+        // 现返回 null —— 模板以 v-if 保证不渲染：宁可没有，也不给假数。
+        return null;
       })(),
       blueprint: result.blueprint,
       contentCards: result.contentCards,
@@ -9174,17 +9008,6 @@ const generateVariantForDoc = async (doc) => {
   }
 };
 
-// 题型管理
-const addQuestionType = () => {
-  questionTypes.value.push({ name: '新题型', selected: true, count: 1, score: 1 });
-};
-
-// 关闭详细配置弹窗并保存
-const closeDetailConfigModal = () => {
-  saveCachedConfig();
-  showDetailConfigModal.value = false;
-};
-
 // 🔧 自动保存生成记录，刷新不丢失（同步期间跳过，避免与 app-refresh 的推送重复）
 watch(generatedDocs, () => {
   if (typeof _skipCloudPush !== 'undefined' && _skipCloudPush) return;
@@ -9252,7 +9075,6 @@ const _teardownListeners = () => {
 onMounted(async () => {
   await textbookStore.loadTextbooks();
   await templateStore.loadTemplates();
-  await loadCachedConfig();
   loadScopeLabelStyle(); // 📐 考试标签维度固定选择（恢复上次保存）
   // 🔧 同步已保存的 apiConfig 到响应式对象（否则模型芯片显示默认值而非实际配置）
   await getCurrentEngineConfig();
@@ -9448,6 +9270,29 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 .ribbon-btn:hover {
   background: var(--primary-bg);
   border-color: var(--primary-light);
+}
+
+/* 📄 面板内联字段（2026-09-15：由"详细配置"弹窗迁出的"生成份数"）——与 .ribbon-btn 同族外观 */
+.ribbon-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: white;
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.ribbon-field input[type="number"] {
+  width: 52px;
+  padding: 3px 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: center;
 }
 
 .main-workspace {
@@ -10276,25 +10121,7 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   margin-top: 24px;
 }
 
-.config-section {
-  margin-bottom: 20px;
-}
 
-.config-section h4 {
-  margin-bottom: 12px;
-  color: var(--primary);
-}
-
-.config-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.qt-name, .dl-name {
-  min-width: 80px;
-}
 
 .btn {
   padding: 8px 16px;
@@ -11535,6 +11362,18 @@ table.periodic-table .actinide { background: #e1bee7; }
     white-space: nowrap;
     flex-shrink: 0;
   }
+  .config-ribbon .ribbon-field {
+    font-size: 10px !important;
+    padding: 2px 8px !important;
+    min-height: 28px !important;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .config-ribbon .ribbon-field input[type="number"] {
+    width: 44px !important;
+    padding: 2px 4px !important;
+    font-size: 10px !important;
+  }
   .ribbon-left { flex-wrap: nowrap !important; gap: 3px !important; }
   .ribbon-right { display: none; } /* 模型信息在手机上隐藏 */
 
@@ -12106,39 +11945,6 @@ table.periodic-table .actinide { background: #e1bee7; }
   }
   .option-list .option-desc {
     font-size: 11px !important;
-  }
-  /* 详细配置弹窗 - 移动端行内紧凑布局 */
-  .config-section h4 {
-    font-size: 13px !important;
-  }
-  .config-section input[type="number"] {
-    font-size: 13px !important;
-    padding: 7px 6px !important;
-  }
-  .config-row {
-    font-size: 12px !important;
-    gap: 3px !important;
-    flex-wrap: wrap;
-    align-items: center;
-    padding: 4px 0;
-  }
-  .config-row .qt-name,
-  .config-row .dl-name {
-    font-size: 12px !important;
-    min-width: 40px;
-    flex-shrink: 0;
-  }
-  .config-row input[type="number"] {
-    width: 52px !important;
-    padding: 5px 4px !important;
-    font-size: 12px !important;
-  }
-  .config-section .hint {
-    font-size: 11px !important;
-  }
-  .config-section .btn-small {
-    font-size: 11px !important;
-    padding: 4px 8px !important;
   }
   /* 分析确认弹窗内文字缩小 */
   .chapter-analysis-left strong {

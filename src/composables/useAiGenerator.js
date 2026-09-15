@@ -4169,21 +4169,10 @@ ${cardAnalysisText.substring(0, 1000)}
   // 返回该学科在指定学段+年级的提示信息，若该年级尚未开设则返回空字符串
   // 🔑 提示文本从指令库获取，年级边界条件在代码中判断
 
-  // 🔧 试卷/同步练习题型框架：原则导向，不注入硬编码题量数字
-  // DeepSeek 根据文本内容自主决定各层级的具体题量和题型
-  // 🔧 从 stageMap 推导权威难度比例（当用户未自定义时以此为准）
-  // 🔧 值从指令库「生成-难度配置」解析，兜底保留硬编码
-
-  // 🔧 智能默认总分：对标现行考试标准
-  // 🔧 值从指令库「生成-难度配置」解析，兜底保留硬编码
-
-  // 🔧 检测 questionTypes 是否使用默认值（空数组或旧三件套）
-  const isDefaultQuestionTypes = (questionTypes) => {
-    if (!questionTypes || questionTypes.length === 0) return true;
-    if (questionTypes.length !== 3) return false;
-    const names = questionTypes.map(q => q.name).sort().join(',');
-    return names === '填空题,解答题,选择题';
-  };
+  // 🔧 题型与题量：原则导向，由模型按内容与范围自主决定（不注入硬编码题量数字）
+  // 2026-09-15 清理：此处原有四条注释（声称"从 stageMap 推导权威难度比例"、"值从指令库
+  //   「生成-难度配置」解析，兜底保留硬编码"）与 helper isDefaultQuestionTypes 均属旧机制残留
+  //   —— 指令库已无「生成-难度配置」条目、代码中也无相应解析，questionTypes 生成端从不读取。
   // ═══════════════════════════════════════
   // 🔧 教辅质量对标辅助函数（Q1-Q4）
   // ═══════════════════════════════════════
