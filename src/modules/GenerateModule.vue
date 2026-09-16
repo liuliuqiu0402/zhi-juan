@@ -188,13 +188,13 @@
               <summary
                 style="cursor:pointer;font-size:12px;color:var(--text-secondary);list-style:none;"
               >
-                ⓘ 勾选用法与学段口径（点开查看）
+                ⓘ 勾选范围与学段口径说明（点开查看）
               </summary>
               <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin:4px 0 2px;padding-left:2px;">
                 · 勾"要考的那部分内容"即可，不必整册全勾。<br>
-                · 多本教材同时勾选时，本次<b>学段口径</b>（学段要求／卷面结构／书写载体／难度基准）取<b>勾选章节最多</b>的那本所在学段。<br>
+                · 多本教材同时勾选时，本次<b>学段口径</b>（学段要求／卷面结构／书写载体／难度基准）取<b>勾选章节最多</b>的那本所在学段——所有资料类型都如此，不限升学卷。<br>
                 · 跨学段勾选时内容为各段并集，建议让目标学段那本章节最多（如小升初→五、六年级）。<br>
-                · 升学卷（小升初／中考／高考）要求教材学段与卷别相符，否则无法生成。
+                · <b>升学卷专用</b>（小升初／中考／高考）：教材学段须与卷别相符，否则无法生成。
               </div>
             </details>
             <div
