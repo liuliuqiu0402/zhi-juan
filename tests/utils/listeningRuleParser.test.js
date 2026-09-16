@@ -230,6 +230,19 @@ describe('契约 ↔ 解析器同源（源头格式契约与解析端一一对�
     expect(matchItemNumber('1. Hi').no).toBe(1);
   });
 
+  it('🔴 噪音边界：非英语全学科 + 全部注入函数都不含听力契约（逐条锁死，防跨学科污染）', () => {
+    const others = ['数学', '语文', '物理', '化学', '生物', '历史', '地理',
+      '道德与法治', '科学', '信息科技', '音乐', '美术', '体育', '劳动', ''];
+    for (const s of others) {
+      expect(buildAnswerFormatSpec(s)).not.toContain('听力原文');
+      expect(buildAnswerFormatSpec(s)).not.toContain(LISTENING_SCRIPT_FORMAT);
+      for (const self of [false, true]) {
+        expect(PAPER_OUTPUT_CONVENTIONS.once(s, self)).not.toContain('听力原文');
+        expect(PAPER_OUTPUT_CONVENTIONS.split(s, self)).not.toContain('听力原文');
+      }
+    }
+  });
+
   it('🔴 严格按契约写出的听力原文 → 解析器完美还原，且不需要 AI 兜底', () => {
     const contractCompliant = [
       '1. M: Excuse me, where is the library?',
