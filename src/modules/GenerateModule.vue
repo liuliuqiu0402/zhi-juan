@@ -1339,16 +1339,9 @@
              ① 名称池**说明内联展示**（原先只在 hover title 里，看不到）；
              ② 未选类型时不再整块不渲染（原判据 genTypes[0] && 把整个风格块挡掉了）；
              ③ "资料栏目标题风格"改**内联展开**（全部套 + 各栏语义 + 学段要求），不必再点第二层弹窗。 -->
-        <div class="option-list">
-          <div
-            v-for="opt in labelStyleOptions"
-            :key="'lbdesc' + opt.value"
-            class="option-item"
-          >
-            <span class="option-label">{{ opt.label }}</span>
-            <span class="option-desc">{{ opt.desc }}</span>
-          </div>
-        </div>
+        <p class="hint">
+          说明：🔄 自动轮换＝按名称池轮流使用、标题不重复；固定某项＝每次都用该名称（刷新不丢失）。
+        </p>
         <div
           v-if="!genTypes[0]"
           class="hint"
@@ -3405,13 +3398,19 @@ const columnStyleLabel = computed(() => {
 });
 
 /* 📐 考试标签维度固定选择（名称样式弹窗：每维度 自动轮换 / 固定某个名称；与资料类型名称样式同理） */
-const scopeLabelStyle = ref({ midterm: '', final: '', monthly: '', default: '', topic: '' }); // '' = 自动轮换
+const scopeLabelStyle = ref({ midterm: '', final: '', monthly: '', default: '', topic: '', xiaoshengchu: '', zhongkao: '', gaokao: '' }); // '' = 自动轮换（含毕业类：小升初/中考/高考）
 const SCOPE_STYLE_KEY = 'wisdom_scope_label_style_v1';
 const scopeDims = computed(() => [
   { type: 'midterm', label: '期中', pool: SCOPE_LABEL_POOLS.midterm },
   { type: 'final', label: '期末', pool: SCOPE_LABEL_POOLS.final },
   { type: 'monthly', label: '月考', pool: SCOPE_LABEL_POOLS.monthly },
   { type: 'default', label: '综合', pool: SCOPE_LABEL_POOLS.default },
+  // 🔴 2026-09-16（用户：小升初/中考/高考 的名称轮换在界面上看不到）：
+  //    这三类的名称池（SCOPE_LABEL_POOLS.xiaoshengchu/zhongkao/gaokao）与轮换分类（examLabelCats）
+  //    早已实现，只是弹窗维度表漏了它们 → 界面无从选择/固定。补进维度表即与既有轮换打通。
+  { type: 'xiaoshengchu', label: '小升初', pool: SCOPE_LABEL_POOLS.xiaoshengchu },
+  { type: 'zhongkao', label: '中考', pool: SCOPE_LABEL_POOLS.zhongkao },
+  { type: 'gaokao', label: '高考', pool: SCOPE_LABEL_POOLS.gaokao },
 ]);
 const loadScopeLabelStyle = () => {
   try {
