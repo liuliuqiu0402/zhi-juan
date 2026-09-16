@@ -1588,6 +1588,13 @@
           </div>
 
           <div
+            v-if="listeningParseMode"
+            class="copy-hint"
+          >
+            结构来源：{{ listeningParseMode }}
+          </div>
+
+          <div
             v-if="listeningStruct"
             style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:8px 0;"
           >
@@ -3179,7 +3186,7 @@ import { diagnoseAnchorTree, logAnchorGranularity, summarizeAnchorGranularity, v
 import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实体解码唯一实现（曾本地 esc/escGraph 及 data-raw 解码链副本）
 // 🎧 英语听力稿（2026-09-16）：答案页听力原文 → 结构化 → SSML/朗读稿（复制即用）
 import { buildListeningExtractMessages } from '../config/listeningExtractPrompt.js';
-import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure } from '../utils/listeningExtract.js';
+import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback } from '../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText } from '../utils/listeningScript.js';
 // 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
 import { synthesizeToFile, readAzureConfigFromApiConfig } from '../utils/azureTts.js';
@@ -8502,6 +8509,7 @@ const listeningWpmOverride = ref(null);
 const listeningAccentOverride = ref('');
 const listeningSynthLoading = ref(false);
 const listeningSynthMsg = ref('');
+const listeningParseMode = ref('');   // 本次结构来自"规则解析"还是"AI 解析"（对用户透明）
 
 /** 该条记录是否有可做音频的英语听力（"听力原文"字样按构造仅英语答案页注入） */
 const docSupportsListening = (doc) => hasEnglishListening(doc?.rawContent || doc?.content || '');
@@ -8517,6 +8525,7 @@ const closeListeningModal = () => {
   listeningNotes.value = [];
   listeningSynthMsg.value = '';
   listeningSynthLoading.value = false;
+  listeningParseMode.value = '';
 };
 
 /** 按当前结构化结果 + 覆盖参数渲染两种成品（覆盖变更时即时重跑，不重复调 AI） */
@@ -8565,6 +8574,7 @@ const openListeningTool = async (doc) => {
   listeningAccentOverride.value = '';
   listeningSynthMsg.value = '';
   listeningSynthLoading.value = false;
+  listeningParseMode.value = '';
   showListeningModal.value = true;
 
   const source = extractListeningSource(doc?.rawContent || doc?.content || '');
@@ -8575,8 +8585,28 @@ const openListeningTool = async (doc) => {
 
   listeningLoading.value = true;
   try {
-    const raw = await chatNonThinkingOnce(buildListeningExtractMessages(source), { maxTokens: 8000, temperature: 0 });
-    const struct = parseListeningStructure(raw);
+    // ① 规则解析优先（确定性）：题号/说话人/独白或对话都能直接抽出——可复现、零成本、可单测。
+    //    解析结构对不对，不能寄望于"提示词写得好、模型就乖"，所以规则能定的绝不交给模型。
+    const ruleParsed = parseListeningSourceText(source);
+    let struct = ruleParsed;
+    listeningParseMode.value = `规则解析（${ruleParsed.items.length} 段材料）`;
+
+    // ② 规则抽不动时才调 AI 兜底；AI 失败也不丢规则结果
+    if (needAiFallback(ruleParsed)) {
+      if (apiConfig.currentEngine === 'ollama') {
+        listeningError.value = '当前引擎为本地 Ollama，规则解析未取得可信结构，且该接口暂不支持本地模型——请在设置页把生成引擎切为云端（如 DeepSeek）后重试，或补充听力原文中的说话人标注。';
+      } else {
+        try {
+          const raw = await chatNonThinkingOnce(buildListeningExtractMessages(source), { maxTokens: 8000, temperature: 0 });
+          const aiParsed = parseListeningStructure(raw);
+          struct = { ...aiParsed, warnings: [...(aiParsed.warnings || [])] };
+          listeningParseMode.value = 'AI 解析（规则未取得可信结构，已由模型补充）';
+        } catch (aiErr) {
+          listeningError.value = `AI 兜底解析失败，已改用规则解析结果：${aiErr.message}`;
+        }
+      }
+    }
+
     listeningStruct.value = struct;
     listeningSummary.value = summarizeListeningStructure(struct);
     renderListeningArtifacts();

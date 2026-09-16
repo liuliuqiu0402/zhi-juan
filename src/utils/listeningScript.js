@@ -103,6 +103,20 @@ export function buildListeningStoryboard({
     if (!lines.length) return;
     const repeat = Number.isFinite(item.repeat) && item.repeat > 0 ? item.repeat : params.repeat;
 
+    // 🔴 说话人 → 音色：M/W/N 直取；**未知但可辨识的标签**（A/B、S1/S2、说话人1…）不折叠成 N——
+    //    对话里按首次出现顺序交替男/女（考试短对话惯例一男一女），独白里一律用旁白音色。
+    //    否则双人对话会退化成单一音色，听不出谁在说（听力音频最易出的错）。
+    const speakers = [...new Set(lines.map((l) => String(l.role || 'N').toUpperCase()))];
+    const isDialogue = speakers.length > 1;
+    const genderMap = new Map();
+    const voiceOf = (rawRole) => {
+      const role = String(rawRole || 'N').toUpperCase();
+      if (role === 'M' || role === 'W' || role === 'N') return voiceSet[role] || voiceSet.N;
+      if (!isDialogue) return voiceSet.N;
+      if (!genderMap.has(role)) genderMap.set(role, genderMap.size % 2 === 0 ? 'M' : 'W');
+      return voiceSet[genderMap.get(role)] || voiceSet.N;
+    };
+
     for (let pass = 1; pass <= repeat; pass++) {
       lines.forEach((ln, li) => {
         const role = String(ln.role || 'N').toUpperCase();
@@ -111,7 +125,7 @@ export function buildListeningStoryboard({
         const isPassEnd = li === lines.length - 1;
         segments.push({
           kind: pass === 1 ? 'material' : 'repeat',
-          voice: voiceSet[role] || voiceSet.N,
+          voice: voiceOf(role),
           role,
           text: String(text).trim(),
           ratePercent: params.ratePercent,
