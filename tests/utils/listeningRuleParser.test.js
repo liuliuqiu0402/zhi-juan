@@ -11,6 +11,12 @@ import {
 } from '../../src/utils/listeningExtract.js';
 import { buildListeningStoryboard, buildListeningSsml } from '../../src/utils/listeningScript.js';
 import { LISTENING_VOICES } from '../../src/config/listeningAudioProfile.js';
+import {
+  buildAnswerFormatSpec,
+  PAPER_OUTPUT_CONVENTIONS,
+  LISTENING_SCRIPT_FORMAT,
+  LISTENING_SCRIPT_FORMAT_REQUIREMENTS,
+} from '../../src/config/promptLibrary.js';
 
 /**
  * 规则解析器（确定性优先 · 2026-09-16 用户要求「确保解析结构要对」）
@@ -201,6 +207,45 @@ describe('说话人 → 音色（未知标签不得退化成单一音色）', ()
       items: [{ no: 1, lines: [{ role: 'A', text: 'Tom is a student.' }] }],
     });
     expect(segments[0].voice).toBe(LISTENING_VOICES.us.N);
+  });
+});
+
+describe('契约 ↔ 解析器同源（源头格式契约与解析端一一对应）', () => {
+  it('契约按学科门控注入：英语答案页与一次成型答案区都有，非英语没有', () => {
+    const en = buildAnswerFormatSpec('英语');
+    expect(en).toContain(LISTENING_SCRIPT_FORMAT);
+    for (const req of LISTENING_SCRIPT_FORMAT_REQUIREMENTS) expect(en).toContain(req);
+    // 防跨学科噪音
+    expect(buildAnswerFormatSpec('数学')).not.toContain('听力原文');
+    expect(PAPER_OUTPUT_CONVENTIONS.once('英语')).toContain(LISTENING_SCRIPT_FORMAT);
+    expect(PAPER_OUTPUT_CONVENTIONS.once('数学')).not.toContain('听力原文');
+  });
+
+  it('契约要求的关键标记，解析器全部支持', () => {
+    expect(LISTENING_SCRIPT_FORMAT).toContain('M:');
+    expect(LISTENING_SCRIPT_FORMAT).toContain('W:');
+    expect(LISTENING_SCRIPT_FORMAT).toContain('题号');
+    expect(splitSpeakerPrefix('M: Hi').role).toBe('M');
+    expect(splitSpeakerPrefix('W: Hi').role).toBe('W');
+    expect(matchItemNumber('1. Hi').no).toBe(1);
+  });
+
+  it('🔴 严格按契约写出的听力原文 → 解析器完美还原，且不需要 AI 兜底', () => {
+    const contractCompliant = [
+      '1. M: Excuse me, where is the library?',
+      'W: It is next to the bank.',
+      '2. M: What time does the film start?',
+      'W: At seven thirty.',
+      '3. Tom is a student. He goes to school by bus.',
+    ].join('\n');
+    const r = parseListeningSourceText(contractCompliant);
+    expect(needAiFallback(r)).toBe(false);
+    expect(r.items.map((i) => i.no)).toEqual([1, 2, 3]);
+    expect(r.items[0].lines.map((l) => l.role)).toEqual(['M', 'W']);
+    expect(r.items[1].lines.map((l) => l.role)).toEqual(['M', 'W']);
+    expect(r.items[2].lines.map((l) => l.role)).toEqual(['N']);
+    // 契约合规的输入不应触发任何"剔除/跳过"提示
+    expect(r.warnings.filter((w) => /剔除|跳过/.test(w))).toEqual([]);
   });
 });
 
