@@ -1733,6 +1733,18 @@
               📋 复制到EduRender
             </button>
             <button
+              class="btn-edurender hide-on-mobile"
+              @click="copyGraphDirectives"
+            >
+              📐 复制图形指令
+            </button>
+            <button
+              class="btn-edurender hide-on-mobile"
+              @click="copyImagePrompts"
+            >
+              🖼️ 复制配图稿
+            </button>
+            <button
               class="btn-primary hide-on-mobile"
               @click="editDoc"
             >
@@ -3172,6 +3184,8 @@ import TemplateStructureEditor from '../components/TemplateStructureEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { stripXss, stripAiCodeFence, markSoloBlankLines, wrapBareBlankRuns } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（导出端第二道防线共享）
 import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
+// 📐🖼️ 指令块抽取/配图稿清单（2026-09-16）："复制图形指令""复制配图稿"两个一键复制入口共用
+import { extractDirectiveBlocks, buildImagePromptList } from '../utils/directiveBlocks.js';
 import { diagnoseAnchorTree, logAnchorGranularity, summarizeAnchorGranularity, validateAnchorTree } from '../utils/anchorTreeContract.js';  // ✅ A1：锚树契约（入库校验 + 粒度诊断）
 import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实体解码唯一实现（曾本地 esc/escGraph 及 data-raw 解码链副本）
 // 🎧 英语听力稿（2026-09-16）：答案页听力原文 → 结构化 → SSML/朗读稿（复制即用）
@@ -8725,6 +8739,68 @@ const copyToEduRender = async () => {
   try {
     await navigator.clipboard.writeText(previewingDoc.value.content);
     previewHint.value = '✅ 已复制，可直接粘贴到 EduRender Studio';
+    setTimeout(() => { previewHint.value = ''; }, 3000);
+  } catch (e) {
+    previewHint.value = '❌ 复制失败：' + e.message;
+  }
+};
+
+/**
+ * 📐 复制图形指令（2026-09-16）
+ *
+ * 只抽 [GRAPH]…[/GRAPH] 块，供渲染端「粘贴 → 解析指令 → 批量渲染」。
+ * 为什么不复用"复制到EduRender"：那一份含全部正文，渲染端解析时会把题干里的
+ * 普通数字/坐标也当成指令候选；单发图形指令更干净、也不会误触发识别器。
+ */
+const copyGraphDirectives = async () => {
+  if (!previewingDoc.value) return;
+  const blocks = extractDirectiveBlocks(previewingDoc.value.content, 'GRAPH');
+  if (!blocks.length) {
+    previewHint.value = '⚠️ 本文档没有图形指令（[GRAPH]）';
+    setTimeout(() => { previewHint.value = ''; }, 3000);
+    return;
+  }
+  const header = `【图形指令·共 ${blocks.length} 条】${previewingDoc.value.title || ''}\n`
+    + '用法：整段粘贴到 EduRender Studio 编辑区 → 点「解析指令」→ 点「渲染全部」→ 导出 Word。\n';
+  try {
+    await navigator.clipboard.writeText(header + '\n' + blocks.join('\n\n'));
+    previewHint.value = `✅ 已复制 ${blocks.length} 条图形指令`;
+    setTimeout(() => { previewHint.value = ''; }, 3000);
+  } catch (e) {
+    previewHint.value = '❌ 复制失败：' + e.message;
+  }
+};
+
+/**
+ * 🖼️ 复制配图稿（2026-09-16）
+ *
+ * 把文档里的 [IMAGE] 块整理成"一张一张、可直接粘贴到 AI 绘图工具"的清单，并带上
+ * 该配图前面的一小段题干作为对照位置（老师需要知道这条描述对应哪道题）。
+ * 背景：渲染端已不再本地出图（SD 已弃用），配图统一走
+ * 「复制画面描述 → 外部 AI 出图 → 在渲染端『选择我生成的图片』插回 → 导出」。
+ */
+const copyImagePrompts = async () => {
+  if (!previewingDoc.value) return;
+  const items = buildImagePromptList(previewingDoc.value.content);
+  if (!items.length) {
+    previewHint.value = '⚠️ 本文档没有配图（[IMAGE]）';
+    setTimeout(() => { previewHint.value = ''; }, 3000);
+    return;
+  }
+  const lines = [
+    `【配图稿·共 ${items.length} 处】${previewingDoc.value.title || ''}`,
+    '用法：把每条"画面描述"粘贴到 AI 绘图工具生成图片；回到渲染端点该项的「📎 选择我生成的图片」插回，导出 Word 时会自动插入。',
+    '',
+  ];
+  items.forEach((it, i) => {
+    lines.push(`${i + 1}. 画面描述：${it.desc || '（空——请检查该 [IMAGE] 指令是否有 PROMPT/KEYWORDS）'}`);
+    if (it.style) lines.push(`   风格：${it.style}`);
+    if (it.where) lines.push(`   位置对照（该图前面的题干）：…${it.where}`);
+    lines.push('');
+  });
+  try {
+    await navigator.clipboard.writeText(lines.join('\n'));
+    previewHint.value = `✅ 已复制 ${items.length} 条配图稿，可直接粘贴到 AI 绘图工具`;
     setTimeout(() => { previewHint.value = ''; }, 3000);
   } catch (e) {
     previewHint.value = '❌ 复制失败：' + e.message;
