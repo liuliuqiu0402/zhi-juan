@@ -6318,7 +6318,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
         ? (st.dom.sections && st.dom.sections.length
           ? `专项领域「${st.dom.label}」· ${st.dom.sections.length} 栏目 + 课标语义锚（${st.dom.anchor}）`
           : `专项领域「${st.dom.label}」· 通用栏目 + 课标语义锚（${st.dom.anchor}）`)
-        : `教辅结构「${genTypeLabel}」· 栏目框架 + 题量底线`;
+        : `教辅结构「${genTypeLabel}」· 栏目名（作大类标题）+ 学段要求`;
     }
   }
   // 🔴 程序性附加段（渲染契约 + 质检规则 + 守门条款段级兜底）统一走 buildProgramAttach 单源：

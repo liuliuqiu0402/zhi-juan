@@ -77,8 +77,10 @@ describe('前瞻覆盖指令（模板层按资料类型注入）', () => {
   it('栏内分组：题类给正向自拟口径；否定式关联句已撤除且不得回潮', () => {
     for (const g of ['practice', 'special', 'reading']) {
       const tpl = getPromptTemplate({ genType: g }).template;
-      expect(tpl, `${g} 应给正向分组口径`).toContain('同一知识点可分布在多个大题里，一个大题也可含多个知识点');
-      expect(tpl, `${g} 应给正向标题口径`).toContain('标题自拟，一句话概括该组在练什么');
+      // 🔒 2026-09-16 用户裁定（少约束）：组织方式块对教辅整类撤除；分组/命名授权改由【输出格式】承载，
+      //    举例式分组描述（"同一知识点可分布在多个大题里…"）同批删掉。
+      expect(tpl, `${g} 应给正向标题自拟授权`).toContain('组前用 <h3> 标题（标题自拟）');
+      expect(tpl, `${g} 举例式分组描述应已删除`).not.toContain('同一知识点可分布在多个大题里');
       expect(tpl, `${g} 不得再出现"常规题型/常规写法"锚定`).not.toMatch(/常规题型|常规写法/);
       expect(tpl, `${g} 否定式关联不得回潮`).not.toMatch(/不以清单条目|分组依据不是知识点清单|不得直接搬用|这是\*\*结构\*\*要求/);
     }

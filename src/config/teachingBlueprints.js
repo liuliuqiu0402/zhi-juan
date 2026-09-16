@@ -1239,10 +1239,8 @@ export function buildTeachingInjection({ genType = '', stage = '', subject = '',
   const sections = columnStyle ? applyColumnStyle(bp.sections, genType, columnStyle) : bp.sections;
   const sectionsText = sections.map(s => `· ${s.name}——${stripSourceMarkNote(s.note)}`).join('\n');
   const p = bp.stageParams;
-  const scope = bp.custom ? `${bp.subject}·` : '通用·';
   const stageLine = p.note ? `\n▌学段要求（${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）\n· ${p.note}` : '';
-  return `\n\n【教辅结构（${scope}${bp.label}·${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）——栏目序列与学段要求，供搭建栏目时参照】
-▌栏目框架（以下即本次栏目序列；板块间不重复、不相似；各栏内容均须具体可操作，并按认知层次由浅入深递进）
+  return `\n\n【本次栏目（作大类标题用；${bp.custom ? `${bp.subject}·` : ''}${bp.label}·${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）】
 ${sectionsText}${stageLine}`;
 }
 

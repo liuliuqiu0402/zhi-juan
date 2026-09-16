@@ -156,7 +156,8 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     //    功能改由正向口径承载：标题自拟 + 一句话概括该组实际在练什么（见下方断言）。
     const practice = getPromptTemplate({ grade: 'primary_high', subject: '英语', genType: 'practice' }).template;
     expect(practice, '否定式关联不得回潮').not.toMatch(/不得直接搬用|不以清单条目|分组依据不是知识点清单/);
-    expect(practice).toContain('标题自拟，一句话概括该组在练什么');
+    // 🔒 2026-09-16 用户裁定（少约束）：口径简化为"组前用 <h3> 标题（标题自拟）"
+    expect(practice).toContain('组前用 <h3> 标题（标题自拟）');
     // 覆盖要求本身不得被削弱（去掉对账语言 ≠ 去掉覆盖要求）：改由清单角色说明的范围陈述承载
     expect(practice).toContain('只以实际呈现的题目/条目为准');
   });

@@ -175,7 +175,7 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     expect(preview).not.toContain('写汉字类题必须真实输出田字格');
     expect(preview).not.toContain('作答空间形态按答案类型匹配'); // 内容型不走 QUESTION_FORMAT，无作答空间语义
     const summary = buildOutputFormatHint({ genType: 'summary' });
-    expect(summary).toContain('知识框架');
+    expect(summary).toContain('知识梳理');
   });
 });
 
@@ -338,13 +338,13 @@ describe('质量底线三维度注入（类型/学科/学段各司其职，非�
     const practice = getPromptTemplate({ genType: 'practice' });
     expect(practice.template).toContain('不扎堆反复出现'); // 防重复语义由质量底线承载（单一事实源，QUALITY_BASE 通用一套）
     const special = getPromptTemplate({ genType: 'special' });
-    expect(special.template).toContain('板块按委托书给出的名称与先后搭好');
+    expect(special.template).toContain('每板块含易错点辨识与思路点拨'); // 🔒 2026-09-16：原锁'按委托书名称与先后搭好'已按少约束裁定撤除
     const reading = getPromptTemplate({ genType: 'reading' });
     expect(reading.template).toContain('阅读材料无语病'); // 阅读材料规范由教辅结构蓝本承载（单一事实源）
     const dictation = getPromptTemplate({ genType: 'dictation' });
     expect(dictation.template).toContain('严格对应教材要求');
     const review = getPromptTemplate({ genType: 'review' });
-    expect(review.template).toContain('各部分按委托书给出的名称与先后搭好');
+    expect(review.template).toContain('在本次勾选范围的基础上汇总核心知识');
   });
 
   it('学科维度：三维度模板携带学科要点（学段化，正面表述）', () => {

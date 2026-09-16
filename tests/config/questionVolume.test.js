@@ -40,7 +40,11 @@ describe('题量充足（语义口径 · 2026-09-15 定版）', () => {
   it('不引课标、不设硬指标（句中无"课标"字样、无题量数字上限、无"给足/单薄"等量词）', () => {
     const text = tpl('英语', 'primary_high', 'practice');
     const i = text.indexOf(KEY);
-    const clause = text.slice(Math.max(0, i - 60), i + 220);
+    // 🔧 2026-09-16：改按**所在句**判定（原 ±60/220 字符窗口，邻近行字面一变即误伤：
+    //    委托书删掉"名称与先后"半句后窗口前移，扫到了创作要求 1 的"按课标倡导的学习方式"）
+    const lineStart = text.lastIndexOf('\n', i) + 1;
+    const lineEnd = text.indexOf('\n', i);
+    const clause = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd);
     expect(clause).not.toContain('课标');
     expect(clause).not.toMatch(/不超过|最多|至少\s*\d|常规体量|给足|单薄|达不到|达标/);
   });

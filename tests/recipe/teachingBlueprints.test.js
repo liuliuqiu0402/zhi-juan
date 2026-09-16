@@ -61,10 +61,13 @@ describe('教辅蓝本三维度覆盖（类型 × 学段）', () => {
 });
 
 describe('buildTeachingInjection（教辅结构注入块）', () => {
-  it('输出栏目框架 + 学段要求（题量/时长不注入 prompt）', () => {
+  it('输出栏目名（作大类标题用）+ 学段要求（题量/时长不注入 prompt）', () => {
     const inject = buildTeachingInjection({ genType: 'reading', stage: 'middle' });
-    expect(inject).toContain('【教辅结构（通用·阅读训练·初中）');
-    expect(inject).toContain('栏目框架');
+    // 🔒 2026-09-16 少约束：外壳改为"本次栏目（作大类标题用）"，不再用"栏目序列/栏目框架"描述
+    expect(inject).toContain('【本次栏目（作大类标题用');
+    expect(inject).toContain('阅读训练');
+    expect(inject).not.toContain('栏目框架');
+    expect(inject).not.toContain('栏目序列');
     expect(inject).toContain('原创选文');
     expect(inject).toContain('分层设题');
     expect(inject).toContain('学段要求');
@@ -129,12 +132,12 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(inject).not.toContain('生活化口语表达');
   });
 
-  it('未注册学科回退通用默认：栏目为通用、注入标"通用·"', () => {
+  it('未注册学科回退通用默认：栏目走通用版（注入头不再标 scope）', () => {
     const bp = getTeachingBlueprint({ genType: 'practice', stage: 'middle', subject: '未知学科' });
     expect(bp.custom).toBe(false);
     expect(bp.subject).toBe('未知学科');
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '未知学科' });
-    expect(inject).toContain('通用·同步练习');
+    expect(inject).toContain('【本次栏目（作大类标题用；同步练习·初中）】');
     // 学段要求仍按学段注入（初中）
     expect(inject).toContain('学段要求');
   });

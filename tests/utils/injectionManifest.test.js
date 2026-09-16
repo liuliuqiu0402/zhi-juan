@@ -95,27 +95,24 @@ describe('buildUserMessagePrompt（实发拼接：顺序 + 逐字）', () => {
 });
 
 describe('各块文本口径（防漂移的逐字锚点）', () => {
-  it('组织方式：exam 逐字不变（守卷面结构）；其余按委托书序列搭好各部分（正向、零否定关联句）', () => {
+  it('组织方式：exam 逐字不变（守卷面结构）；教辅整类不再注入本块（形式全交模型）', () => {
     // 🔒 exam 一分不动（用户裁定：动了就不是正规卷）
     expect(buildOrganizeBlock('exam')).toBe('【组织方式】输出一律以委托书【卷面结构】的大题序列组织（大题名、顺序、题量以委托书为准）；开头【锚点清单】只声明要练到的范围，不是组织方式，不得据此替代委托书结构。\n\n');
-    // 非 exam：正向动作描述，不点名块名与结构词
-    expect(buildOrganizeBlock('practice')).toContain('按委托书给出的各部分名称与先后搭好各部分');
-    expect(buildOrganizeBlock('summary')).toContain('按委托书给出的各部分名称与先后搭好各部分');
-    expect(buildOrganizeBlock('summary')).not.toContain('组标题自拟');
+    // 🔒 2026-09-16 用户裁定（少约束）：教辅整类不再注入组织方式——题目怎么划分、叫什么全交模型，
+    //    形式句里不出现"名称/先后/题组"这类指向（防把教材分析的内容颗粒读成题组骨架）。
+    //    组标题的授权改由【输出格式】承载（"每栏内的题由你自行组织，组前用 <h3> 标题（标题自拟）"）。
     // 🔒 2026-09-15 去诱导（整类问题）：否定式关联句不得回潮——实证：这类句子要读懂必须先建立
     //    "内容条目 ↔ 分组/命名"的映射，等于反向植入；产物随即把内容条目当了大题标题（08e6ccd）。
     for (const t of ['practice', 'special', 'reading', 'summary', 'preview', 'dictation', 'errorbook', 'review']) {
-      expect(buildOrganizeBlock(t), `${t} 不得出现否定式关联句`).not.toMatch(/不以清单条目|不得据此替代|不是组织方式|开头【锚点清单】/);
+      expect(buildOrganizeBlock(t), `${t} 不得再注入组织方式`).toBe('');
+      expect(buildOrganizeBlock(t), `${t} 不得出现否定式关联句`).not.toMatch(/不以清单条目|不是组织方式|开头【锚点清单】/);
     }
-    // 题类保留正向口径"组标题自拟"（分组依据交内容与任务）；非题类不注入
-    for (const t of ['practice', 'special', 'reading']) expect(buildOrganizeBlock(t)).toContain('组标题自拟——一句话概括该组在练什么');
-    for (const t of ['summary', 'preview', 'dictation', 'errorbook']) expect(buildOrganizeBlock(t)).not.toContain('组标题自拟');
   });
 
   it('素材使用约定：通道分流（依据指向随通道改），禁照搬为通道无关', () => {
     const anchor = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'anchor' });
     expect(anchor).toContain('以上内容（含各知识点具体概念）是理解教材内容、难度与版本口径的**依据**');
-    expect(anchor).toContain('题型、知识梯度与难度按上方内容（含具体概念）把握');
+    expect(anchor).toContain('内容、深度与难度按上方内容（含具体概念）把握');
     const full = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'full' });
     expect(full).toContain('中段【压缩原文】是理解教材内容与难度的**参考之一**');
     // 🔴 2026-09-14（用户裁定·实测产物）：禁照搬原句原先挂在【压缩原文】上 → 锚清单通道整句被跳过 →
@@ -166,12 +163,9 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
       expect(txt, `${t} 不得残留常态分布锚`).not.toContain('常态分布');
       expect(txt, `${t} 不得残留常规自选锚`).not.toContain('常规自选');
     }
-    // 题类保留的只有正向口径"组标题自拟"（原"不以清单条目作分组或命名"否定句已撤除）
+    // 🔒 2026-09-16 用户裁定（少约束）：组织方式块对教辅整类不再注入
     for (const t of ['practice', 'special', 'reading']) {
-      const org = buildOrganizeBlock(t);
-      expect(org).toContain('每部分内由你按内容与任务需要分组成题组，组标题自拟');
-      expect(org, `${t} 不得残留常规题型锚`).not.toContain('常规题型');
-      expect(org, `${t} 否定式关联句不得回潮`).not.toContain('不以清单条目');
+      expect(buildOrganizeBlock(t)).toBe('');
     }
     // 其余类型本就不注入分组约束
     for (const t of ['exam', 'errorbook', 'summary', 'review']) {

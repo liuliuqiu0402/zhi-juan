@@ -69,8 +69,9 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
   it('A档结构文本：含栏目/课标锚/学段名，且不含数字题量占位', () => {
     const dom = resolveSpecialDomain('数学', 'primary_high', '计算');
     const text = buildSpecialDomainStructureText(dom, 'primary_high');
-    expect(text).toContain('【教辅结构（专项领域·🔢 计算·小学高段）');
-    expect(text).toContain('▌栏目框架');
+    // 🔒 2026-09-16 少约束：专项 A 档外壳同步改为"本次栏目（作大类标题用）"
+    expect(text).toContain('【本次栏目（作大类标题用；🔢 计算·小学高段）】');
+    expect(text).not.toContain('栏目框架');
     expect(text).toContain('数与代数·数与运算');
     expect(text).not.toContain('(共');
   });
