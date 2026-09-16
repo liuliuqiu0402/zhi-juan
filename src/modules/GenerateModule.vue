@@ -810,6 +810,15 @@
               >
                 📕 PDF
               </button>
+              <!-- 🎧 听力稿：仅英语听力卷出现（"听力原文"按构造只在英语答案页注入） -->
+              <button
+                v-if="docSupportsListening(doc)"
+                class="btn-small"
+                title="生成听力稿：可复制 SSML 直接出音频，或复制朗读稿给真人录音"
+                @click.stop="openListeningTool(doc)"
+              >
+                🎧 听力稿
+              </button>
               <button
                 v-if="doc.issues && doc.issues.length > 0"
                 class="btn-small hide-on-mobile"
@@ -1540,6 +1549,145 @@
         </div>
       </div>
     </div>
+
+    <!-- 🎧 听力稿弹窗：① SSML（粘进工具即出音频）② 朗读稿（真人录音/剪映分角色配音） -->
+    <Teleport to="body">
+      <div
+        v-if="showListeningModal"
+        class="modal-mask"
+        @click.self="closeListeningModal"
+      >
+        <div class="modal large-modal">
+          <h3><span class="hide-on-mobile">🎧</span> 听力稿</h3>
+          <div
+            v-if="listeningDocTitle"
+            class="copy-hint"
+          >
+            {{ listeningDocTitle }}
+          </div>
+
+          <div
+            v-if="listeningLoading"
+            class="copy-hint"
+          >
+            正在从答案页提取听力原文并结构化…
+          </div>
+          <div
+            v-if="listeningError"
+            class="copy-hint"
+            style="color:#c0392b;"
+          >
+            {{ listeningError }}
+          </div>
+
+          <div
+            v-if="listeningSummary"
+            class="copy-hint"
+          >
+            {{ listeningSummary }}
+          </div>
+
+          <div
+            v-if="listeningStruct"
+            style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:8px 0;"
+          >
+            <label style="font-size:12px;">
+              语速（词/分，留空=按学段矩阵）
+              <input
+                v-model.number="listeningWpmOverride"
+                type="number"
+                min="60"
+                max="200"
+                placeholder="默认"
+                style="width:88px;margin-left:6px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+              >
+            </label>
+            <label style="font-size:12px;">
+              口音
+              <select
+                v-model="listeningAccentOverride"
+                style="margin-left:6px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+              >
+                <option value="">
+                  跟随学段（低美高混）
+                </option>
+                <option value="us">
+                  美音
+                </option>
+                <option value="gb">
+                  英音
+                </option>
+                <option value="mixed">
+                  英音美音交替
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <div
+            v-if="listeningNotes.length"
+            class="copy-hint"
+            style="color:#8a6d3b;"
+          >
+            <div
+              v-for="(n, i) in listeningNotes"
+              :key="i"
+            >
+              · {{ n }}
+            </div>
+          </div>
+
+          <div
+            v-if="listeningSsml"
+            style="margin-top:8px;"
+          >
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <strong style="font-size:13px;">① SSML —— 粘进语音合成工具，直接出音频</strong>
+              <button
+                class="btn-small"
+                @click="copyListeningText('ssml')"
+              >
+                📋 复制 SSML
+              </button>
+            </div>
+            <textarea
+              readonly
+              :value="listeningSsml"
+              style="width:100%;height:180px;font-family:monospace;font-size:12px;margin-top:6px;padding:8px;border:1px solid #ddd;border-radius:8px;"
+            />
+          </div>
+
+          <div
+            v-if="listeningScriptText"
+            style="margin-top:10px;"
+          >
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <strong style="font-size:13px;">② 朗读稿 —— 真人录音 / 剪映分角色配音</strong>
+              <button
+                class="btn-small"
+                @click="copyListeningText('script')"
+              >
+                📋 复制朗读稿
+              </button>
+            </div>
+            <textarea
+              readonly
+              :value="listeningScriptText"
+              style="width:100%;height:180px;font-size:12px;margin-top:6px;padding:8px;border:1px solid #ddd;border-radius:8px;"
+            />
+          </div>
+
+          <div class="modal-actions">
+            <button
+              class="btn"
+              @click="closeListeningModal"
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- 预览弹窗（Teleport 到 body 脱离缩放容器，避免 transform:scale 导致缩小溢出） -->
     <Teleport to="body">
@@ -2971,7 +3119,7 @@ import {
   scopeOptions,
   normalizeSubjectName
 } from '../config/expertKnowledge.js';
-import { useAiGenerator, lastInjectSnapshot, chapterSigOf } from '../composables/useAiGenerator.js';
+import { useAiGenerator, lastInjectSnapshot, chapterSigOf, chatNonThinkingOnce } from '../composables/useAiGenerator.js';
 import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
 import { inferPaperScope, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES } from '../config/paperScope.js';
 
@@ -3015,6 +3163,10 @@ import { stripXss, stripAiCodeFence, markSoloBlankLines, wrapBareBlankRuns } fro
 import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
 import { diagnoseAnchorTree, logAnchorGranularity, summarizeAnchorGranularity, validateAnchorTree } from '../utils/anchorTreeContract.js';  // ✅ A1：锚树契约（入库校验 + 粒度诊断）
 import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实体解码唯一实现（曾本地 esc/escGraph 及 data-raw 解码链副本）
+// 🎧 英语听力稿（2026-09-16）：答案页听力原文 → 结构化 → SSML/朗读稿（复制即用）
+import { buildListeningExtractMessages } from '../config/listeningExtractPrompt.js';
+import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure } from '../utils/listeningExtract.js';
+import { buildListeningSsml, buildListeningScriptText } from '../utils/listeningScript.js';
 import { STORAGE_KEYS } from '../constants/storageKeys.js';  // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
 import { annotateInstructionBlocks } from '../utils/instructionBlocks.js';  // 指令来源分段标注（旁路：块区间↔{库,key}，不参与拼装）
 import { useRouter } from 'vue-router';  // 来源分段点击跳转（工具库子页）
@@ -8307,6 +8459,129 @@ const cancelGeneration = () => {
 };
 
 // 结果处理
+// ═══════════════════════════════════════════════════════════════
+// 🎧 英语听力稿（2026-09-16 用户定版）
+// ============================================================
+// 目的：把答案页的【听力原文】转成"复制即用"的两种成品——
+//   ① SSML   → 粘进语音合成工具（如 Azure 语音 Studio「音频内容创建」）一键出音频；
+//   ② 朗读稿 → 给人看 / 真人录音 / 剪映分角色配音。
+// 链路：记录内容 → 取听力区文本 → **一次非思考调用**做结构搬运（不改写词句）→ 校验
+//       → listeningScript 按学段参数矩阵渲染（语速/停顿/口音/音色/遍数）→ 一键复制。
+// 🔴 纯加性：不参与卷面与答案页的生成提示词，只在用户点按钮时按需调用一次。
+// 🔴 参数口径：矩阵默认 + 可覆盖（用户定版）——下面只暴露"语速/口音"两项覆盖，
+//    其余（停顿/遍数/音色）走矩阵；覆盖后即时重渲染，所见即所得。
+// ═══════════════════════════════════════════════════════════════
+const showListeningModal = ref(false);
+const listeningLoading = ref(false);
+const listeningError = ref('');
+const listeningDocTitle = ref('');
+const listeningSummary = ref('');
+const listeningNotes = ref([]);
+const listeningSsml = ref('');
+const listeningScriptText = ref('');
+const listeningStruct = ref(null);
+const listeningStageKey = ref('');
+const listeningGradeHint = ref('');
+const listeningWpmOverride = ref(null);
+const listeningAccentOverride = ref('');
+
+/** 该条记录是否有可做音频的英语听力（"听力原文"字样按构造仅英语答案页注入） */
+const docSupportsListening = (doc) => hasEnglishListening(doc?.rawContent || doc?.content || '');
+
+const closeListeningModal = () => {
+  showListeningModal.value = false;
+  listeningLoading.value = false;
+  listeningError.value = '';
+  listeningStruct.value = null;
+  listeningSsml.value = '';
+  listeningScriptText.value = '';
+  listeningSummary.value = '';
+  listeningNotes.value = [];
+};
+
+/** 按当前结构化结果 + 覆盖参数渲染两种成品（覆盖变更时即时重跑，不重复调 AI） */
+const renderListeningArtifacts = () => {
+  if (!listeningStruct.value) return;
+  const overrides = {};
+  if (Number.isFinite(listeningWpmOverride.value) && listeningWpmOverride.value > 0) {
+    overrides.wpm = listeningWpmOverride.value;
+  }
+  if (listeningAccentOverride.value) overrides.accent = listeningAccentOverride.value;
+
+  const input = {
+    items: listeningStruct.value.items,
+    intro: listeningStruct.value.intro,
+    stage: listeningStageKey.value,
+    // 🔧 记录里只持久化了五档学段键（无年级字段）：年级信号回退到标题（如"八年级"），
+    //    仅用于初中 7/8/9 年级的语速细分；标题无年级时自动落回该学段默认值。
+    grade: listeningGradeHint.value,
+    stageLabel: STAGE_LABEL_MAP[listeningStageKey.value] || listeningStageKey.value,
+    overrides,
+  };
+
+  const { ssml, risks, warnings } = buildListeningSsml(input);
+  const { text } = buildListeningScriptText(input);
+
+  listeningSsml.value = ssml;
+  listeningScriptText.value = text;
+  listeningNotes.value = [
+    ...(warnings || []),
+    ...(listeningStruct.value.warnings || []),
+    ...(risks || []).map(r => `${r.where}：${r.note}（${(r.samples || []).join('、')}）`),
+  ];
+};
+
+const openListeningTool = async (doc) => {
+  listeningDocTitle.value = doc?.title || '';
+  listeningError.value = '';
+  listeningSsml.value = '';
+  listeningScriptText.value = '';
+  listeningSummary.value = '';
+  listeningNotes.value = [];
+  listeningStruct.value = null;
+  listeningStageKey.value = doc?.stage || '';
+  listeningGradeHint.value = doc?.title || '';
+  listeningWpmOverride.value = null;
+  listeningAccentOverride.value = '';
+  showListeningModal.value = true;
+
+  const source = extractListeningSource(doc?.rawContent || doc?.content || '');
+  if (!source) {
+    listeningError.value = '未在答案页找到听力原文——听力原文仅英语卷、且需教师版（含答案）的记录。';
+    return;
+  }
+
+  listeningLoading.value = true;
+  try {
+    const raw = await chatNonThinkingOnce(buildListeningExtractMessages(source), { maxTokens: 8000, temperature: 0 });
+    const struct = parseListeningStructure(raw);
+    listeningStruct.value = struct;
+    listeningSummary.value = summarizeListeningStructure(struct);
+    renderListeningArtifacts();
+  } catch (e) {
+    listeningError.value = `听力稿生成失败：${e.message}`;
+  } finally {
+    listeningLoading.value = false;
+  }
+};
+
+const copyListeningText = async (kind) => {
+  const text = kind === 'ssml' ? listeningSsml.value : listeningScriptText.value;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, {
+      detail: { message: kind === 'ssml' ? '✅ SSML 已复制，可粘贴到语音合成工具' : '✅ 朗读稿已复制', type: 'info' },
+    }));
+  } catch (e) {
+    listeningError.value = `复制失败（剪贴板未授权）：${e.message}，请手动全选复制`;
+  }
+};
+
+watch([listeningWpmOverride, listeningAccentOverride], () => {
+  if (showListeningModal.value && listeningStruct.value) renderListeningArtifacts();
+});
+
 const previewDoc = (doc) => {
   previewingDoc.value = doc;
   
