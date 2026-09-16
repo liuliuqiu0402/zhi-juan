@@ -5335,8 +5335,7 @@ ${cardAnalysisText.substring(0, 1000)}
   "scenes": [
     {
       "name": "场景名称",
-      "description": "场景描述（20字以内）",
-      "suitableTopics": ["适合考查的知识点1", "知识点2"]
+      "description": "场景描述（20字以内）"
     }
   ],
   "narrativeArc": "情境叙事弧线描述（如何从开头发展到结尾，30字以内）"
@@ -5370,15 +5369,14 @@ ${cardAnalysisText.substring(0, 1000)}
 
 📋 可用场景：
 ${(contextJson.scenes || []).map((s, i) =>
-  `  场景${i + 1}「${s.name}」：${s.description}
-     → 适合知识点：${(s.suitableTopics || []).join('、')}`
+  `  场景${i + 1}「${s.name}」：${s.description}`
 ).join('\n')}
 
-📐 叙事弧线：${contextJson.narrativeArc || '由浅入深递进'}
+📐 叙事弧线：${contextJson.narrativeArc || '按内容自然展开'}
 
 ⚠️ 【关键约束】
 1. 同一场景内的题目要有逻辑连贯性
-2. 场景顺序宜由浅入深，与学习进阶匹配
+2. 场景顺序按内容自然展开，与学习进阶匹配
 `;
               console.log('✅ AI情境框架生成成功:', contextJson.name);
             } catch (e) {

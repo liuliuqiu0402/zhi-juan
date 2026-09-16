@@ -161,12 +161,12 @@ export const buildSpecialDomainStructureText = (dom = {}, stageKey = '') => {
   const lines = dom.sections.map((s) => `· ${s.name}——${s.note}`).join('\n');
   return `【大类标题（下面各行即本次大类标题；按本领域课标要求划分；${dom.label}·${学段名(stageKey)}）】
 ${lines}
-· 本领域课标语义锚：${dom.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料一律自拟。`;
+· 本领域课标语义锚：${dom.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料自行拟制。`;
 };
 
 /** B档锚句（追加到通用/学科蓝图结构之后） */
 export const buildSpecialDomainAnchorLine = (dom = {}) =>
-  dom.anchor ? `· 本领域课标语义锚：${dom.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料一律自拟。` : '';
+  dom.anchor ? `· 本领域课标语义锚：${dom.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料自行拟制。` : '';
 
 /** 通用专项说明（与真实生效蓝图一致；供 UI/兜底展示） */
 export const GENERIC_SPECIAL_DESC =
