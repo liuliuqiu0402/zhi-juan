@@ -819,6 +819,23 @@
               >
                 🎧 听力稿
               </button>
+              <!-- 📐 图形指令 / 🖼️ 配图稿：与听力稿同一口径 —— 该条资料里真有这类指令才出现 -->
+              <button
+                v-if="docSupportsGraph(doc)"
+                class="btn-small"
+                title="复制本资料里的 [GRAPH] 图形指令，粘到 EduRender Studio 批量出图"
+                @click.stop="copyGraphDirectives(doc)"
+              >
+                📐 图形指令
+              </button>
+              <button
+                v-if="docSupportsImage(doc)"
+                class="btn-small"
+                title="复制本资料里的配图稿（画面描述），粘到 AI 绘图工具出图"
+                @click.stop="copyImagePrompts(doc)"
+              >
+                🖼️ 配图稿
+              </button>
               <button
                 v-if="doc.issues && doc.issues.length > 0"
                 class="btn-small hide-on-mobile"
@@ -1733,14 +1750,16 @@
               📋 复制到EduRender
             </button>
             <button
+              v-if="docSupportsGraph(previewingDoc)"
               class="btn-edurender hide-on-mobile"
-              @click="copyGraphDirectives"
+              @click="copyGraphDirectives(previewingDoc)"
             >
               📐 复制图形指令
             </button>
             <button
+              v-if="docSupportsImage(previewingDoc)"
               class="btn-edurender hide-on-mobile"
-              @click="copyImagePrompts"
+              @click="copyImagePrompts(previewingDoc)"
             >
               🖼️ 复制配图稿
             </button>
@@ -3185,7 +3204,7 @@ import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { stripXss, stripAiCodeFence, markSoloBlankLines, wrapBareBlankRuns } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（导出端第二道防线共享）
 import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
 // 📐🖼️ 指令块抽取/配图稿清单（2026-09-16）："复制图形指令""复制配图稿"两个一键复制入口共用
-import { extractDirectiveBlocks, buildImagePromptList } from '../utils/directiveBlocks.js';
+import { extractDirectiveBlocks, hasDirectiveBlocks, buildImagePromptList } from '../utils/directiveBlocks.js';
 import { diagnoseAnchorTree, logAnchorGranularity, summarizeAnchorGranularity, validateAnchorTree } from '../utils/anchorTreeContract.js';  // ✅ A1：锚树契约（入库校验 + 粒度诊断）
 import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实体解码唯一实现（曾本地 esc/escGraph 及 data-raw 解码链副本）
 // 🎧 英语听力稿（2026-09-16）：答案页听力原文 → 结构化 → SSML/朗读稿（复制即用）
@@ -8518,6 +8537,17 @@ const listeningParseMode = ref('');   // 本次结构来自"规则解析"还是"
 /** 该条记录是否有可做音频的英语听力（"听力原文"字样按构造仅英语答案页注入） */
 const docSupportsListening = (doc) => hasEnglishListening(doc?.rawContent || doc?.content || '');
 
+/**
+ * 📐🖼️ "有才显示按钮"的门控（与听力稿同一口径）
+ *
+ * ⚠️ 必须读 **rawContent**：doc.content 是 renderImagePlaceholders() 处理之后的版本，
+ *    [GRAPH]/[IMAGE] 已被换成 <div class="…-placeholder" data-…-raw="…"> 占位框，
+ *    块文本本身已经不在里面了 —— 用 content 判断会永远为假、复制出去的也不是指令。
+ */
+const docSourceText = (doc) => doc?.rawContent || doc?.content || '';
+const docSupportsGraph = (doc) => hasDirectiveBlocks(docSourceText(doc), 'GRAPH');
+const docSupportsImage = (doc) => hasDirectiveBlocks(docSourceText(doc), 'IMAGE');
+
 const closeListeningModal = () => {
   showListeningModal.value = false;
   listeningLoading.value = false;
@@ -8736,12 +8766,27 @@ const saveEdit = () => {
 // 📋 复制原始源码到剪贴板（包含 $...$、[GRAPH]、[IMAGE] 标记，供 EduRender Studio 使用）
 const copyToEduRender = async () => {
   if (!previewingDoc.value) return;
+  // 🔴 2026-09-16 修复：原来复制的是 doc.content —— 那是 renderImagePlaceholders() 处理后的版本，
+  //    [GRAPH]/[IMAGE] 已被换成占位 <div data-…-raw>，粘到 EduRender 里**一条指令都解析不出来**。
+  //    指令原文在 rawContent。
+  const text = docSourceText(previewingDoc.value);
   try {
-    await navigator.clipboard.writeText(previewingDoc.value.content);
+    await navigator.clipboard.writeText(text);
     previewHint.value = '✅ 已复制，可直接粘贴到 EduRender Studio';
     setTimeout(() => { previewHint.value = ''; }, 3000);
   } catch (e) {
     previewHint.value = '❌ 复制失败：' + e.message;
+  }
+};
+
+/** 复制反馈：预览弹窗里用行内提示，列表卡片上用对话框（与听力稿/知识点的反馈方式一致） */
+const reportCopy = async (message, isError = false) => {
+  if (showPreview.value) {
+    previewHint.value = message;
+    setTimeout(() => { previewHint.value = ''; }, 3000);
+  }
+  if (!showPreview.value || isError) {
+    await showAlertDialogFn(message);
   }
 };
 
@@ -8752,22 +8797,21 @@ const copyToEduRender = async () => {
  * 为什么不复用"复制到EduRender"：那一份含全部正文，渲染端解析时会把题干里的
  * 普通数字/坐标也当成指令候选；单发图形指令更干净、也不会误触发识别器。
  */
-const copyGraphDirectives = async () => {
-  if (!previewingDoc.value) return;
-  const blocks = extractDirectiveBlocks(previewingDoc.value.content, 'GRAPH');
+const copyGraphDirectives = async (doc = null) => {
+  const target = doc || previewingDoc.value;
+  if (!target) return;
+  const blocks = extractDirectiveBlocks(docSourceText(target), 'GRAPH');
   if (!blocks.length) {
-    previewHint.value = '⚠️ 本文档没有图形指令（[GRAPH]）';
-    setTimeout(() => { previewHint.value = ''; }, 3000);
+    await reportCopy('⚠️ 本文档没有图形指令（[GRAPH]）', true);
     return;
   }
-  const header = `【图形指令·共 ${blocks.length} 条】${previewingDoc.value.title || ''}\n`
+  const header = `【图形指令·共 ${blocks.length} 条】${target.title || ''}\n`
     + '用法：整段粘贴到 EduRender Studio 编辑区 → 点「解析指令」→ 点「渲染全部」→ 导出 Word。\n';
   try {
     await navigator.clipboard.writeText(header + '\n' + blocks.join('\n\n'));
-    previewHint.value = `✅ 已复制 ${blocks.length} 条图形指令`;
-    setTimeout(() => { previewHint.value = ''; }, 3000);
+    await reportCopy(`✅ 已复制 ${blocks.length} 条图形指令，可粘贴到 EduRender Studio`);
   } catch (e) {
-    previewHint.value = '❌ 复制失败：' + e.message;
+    await reportCopy('❌ 复制失败：' + e.message, true);
   }
 };
 
@@ -8779,16 +8823,16 @@ const copyGraphDirectives = async () => {
  * 背景：渲染端已不再本地出图（SD 已弃用），配图统一走
  * 「复制画面描述 → 外部 AI 出图 → 在渲染端『选择我生成的图片』插回 → 导出」。
  */
-const copyImagePrompts = async () => {
-  if (!previewingDoc.value) return;
-  const items = buildImagePromptList(previewingDoc.value.content);
+const copyImagePrompts = async (doc = null) => {
+  const target = doc || previewingDoc.value;
+  if (!target) return;
+  const items = buildImagePromptList(docSourceText(target));
   if (!items.length) {
-    previewHint.value = '⚠️ 本文档没有配图（[IMAGE]）';
-    setTimeout(() => { previewHint.value = ''; }, 3000);
+    await reportCopy('⚠️ 本文档没有配图（[IMAGE]）', true);
     return;
   }
   const lines = [
-    `【配图稿·共 ${items.length} 处】${previewingDoc.value.title || ''}`,
+    `【配图稿·共 ${items.length} 处】${target.title || ''}`,
     '用法：把每条"画面描述"粘贴到 AI 绘图工具生成图片；回到渲染端点该项的「📎 选择我生成的图片」插回，导出 Word 时会自动插入。',
     '',
   ];
@@ -8800,10 +8844,9 @@ const copyImagePrompts = async () => {
   });
   try {
     await navigator.clipboard.writeText(lines.join('\n'));
-    previewHint.value = `✅ 已复制 ${items.length} 条配图稿，可直接粘贴到 AI 绘图工具`;
-    setTimeout(() => { previewHint.value = ''; }, 3000);
+    await reportCopy(`✅ 已复制 ${items.length} 条配图稿，可直接粘贴到 AI 绘图工具`);
   } catch (e) {
-    previewHint.value = '❌ 复制失败：' + e.message;
+    await reportCopy('❌ 复制失败：' + e.message, true);
   }
 };
 

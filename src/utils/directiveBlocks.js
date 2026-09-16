@@ -29,6 +29,18 @@ export function extractDirectiveBlocks(content = '', tag = '') {
 }
 
 /**
+ * 判断文档里是否存在某类指令块（用于"有才显示按钮"，与听力稿同一口径）。
+ * @param {string} content 文档源码（**必须传指令原文**：doc.rawContent，不是渲染成占位框后的 content）
+ * @param {string} tag 'GRAPH' | 'IMAGE'
+ * @returns {boolean}
+ */
+export function hasDirectiveBlocks(content = '', tag = '') {
+  const t = String(tag || '').trim().toUpperCase();
+  if (!content || !DIRECTIVE_TAGS.includes(t)) return false;
+  return new RegExp(`\\[${t}\\][\\s\\S]*?\\[\\/${t}\\]`, 'i').test(String(content));
+}
+
+/**
  * 解析块体里的 KEY:VALUE。
  * - 键名统一大写、去首尾空白；
  * - 值支持跨行（后续缩进行接到上一个键上），例如 GRAPH 里的多行 COMPONENTS/FORCES；
@@ -98,6 +110,7 @@ export function buildImagePromptList(content = '', options = {}) {
 export default {
   DIRECTIVE_TAGS,
   extractDirectiveBlocks,
+  hasDirectiveBlocks,
   parseDirectiveFields,
   buildImagePromptList,
 };

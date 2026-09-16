@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DIRECTIVE_TAGS,
   extractDirectiveBlocks,
+  hasDirectiveBlocks,
   parseDirectiveFields,
   buildImagePromptList,
 } from '../../src/utils/directiveBlocks.js';
@@ -56,6 +57,48 @@ describe('directiveBlocks / extractDirectiveBlocks', () => {
   it('没有指令时返回空数组（不抛错）', () => {
     expect(extractDirectiveBlocks('', 'GRAPH')).toEqual([]);
     expect(extractDirectiveBlocks('纯粹的文字，没有指令', 'GRAPH')).toEqual([]);
+  });
+});
+
+describe('directiveBlocks / hasDirectiveBlocks（按钮"有才出现"的门控口径）', () => {
+  it('含 [GRAPH] 的文档 → 显示图形指令按钮', () => {
+    expect(hasDirectiveBlocks(DOC, 'GRAPH')).toBe(true);
+  });
+
+  it('含 [IMAGE] 的文档 → 显示配图稿按钮', () => {
+    expect(hasDirectiveBlocks(DOC, 'IMAGE')).toBe(true);
+  });
+
+  it('只有图形的文档不该出现配图稿按钮', () => {
+    const graphOnly = DOC.slice(0, DOC.indexOf('2. 三只熊猫'));
+    expect(hasDirectiveBlocks(graphOnly, 'GRAPH')).toBe(true);
+    expect(hasDirectiveBlocks(graphOnly, 'IMAGE')).toBe(false);
+  });
+
+  it('纯文字 / 空值 → 两个按钮都不出现', () => {
+    expect(hasDirectiveBlocks('纯文字，没有任何指令', 'GRAPH')).toBe(false);
+    expect(hasDirectiveBlocks('纯文字，没有任何指令', 'IMAGE')).toBe(false);
+    expect(hasDirectiveBlocks('', 'GRAPH')).toBe(false);
+    expect(hasDirectiveBlocks(null, 'IMAGE')).toBe(false);
+  });
+
+  it('非法标记名不通过（防误开按钮）', () => {
+    expect(hasDirectiveBlocks(DOC, 'TABLE')).toBe(false);
+    expect(hasDirectiveBlocks(DOC, '')).toBe(false);
+  });
+
+  it('大小写不敏感', () => {
+    expect(hasDirectiveBlocks('[graph]\nTYPE:SHAPES\n[/graph]', 'GRAPH')).toBe(true);
+  });
+
+  it('占位框 HTML 里虽然还留着裸标记，但抽出来的是转义后的废数据（故调用方必须传 rawContent）', () => {
+    const placeholderHtml = '<div class="graph-placeholder" data-graph-raw="[GRAPH]&lt;TYPE:SHAPES&gt;[/GRAPH]">[图形占位]</div>';
+    // 标记本身还在属性里 → 存在性判断仍会为真（所以门控可以用 content 判断"有没有"）
+    expect(hasDirectiveBlocks(placeholderHtml, 'GRAPH')).toBe(true);
+    // 但抽出来的是被转义的 HTML，粘到渲染端解析不出东西（所以**复制**必须用 rawContent）
+    const block = extractDirectiveBlocks(placeholderHtml, 'GRAPH')[0];
+    expect(block).toContain('&lt;');
+    expect(block).toContain('&gt;');
   });
 });
 
