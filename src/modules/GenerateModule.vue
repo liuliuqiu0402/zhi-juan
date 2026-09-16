@@ -1762,6 +1762,7 @@
               >
                 <button
                   class="btn-primary"
+                  :disabled="totalCachedCount === 0"
                   style="width:100%;padding:12px;"
                   @click="runAnalysis('all')"
                 >
@@ -4294,6 +4295,7 @@ const analysisType = ref('textbook');
 const analysisBooks = ref([]);
 const analysisTpls = ref([]);
 const totalNewCount = ref(0);
+const totalCachedCount = ref(0);  // 已分析可重分析章数（用于禁用「全部重新分析」，与 totalNewCount 镜像）
 const analysisAction = ref('');
 const analysisInputMode = ref('manual'); // 'ocr' | 'manual' 原文获取方式（默认手动粘贴；OCR 为可选路径）
 const enableColumnSplit = ref(false);    // 📐 是否启用多栏切割（用户手动勾选）
@@ -6415,6 +6417,9 @@ const analyzeTextbook = async () => {
           analysisType.value = 'textbook';
           analysisBooks.value = rawList;
           totalNewCount.value = 0;
+          totalCachedCount.value = rawList.reduce((sum, b) =>
+            sum + (b.selectedChapters || []).filter(ch => ch.analyzed && ch.knowledgePoints?.length > 0 && ch.rawText?.length > 0).length
+          , 0);
           showAnalysisModal.value = true;
           return;
         }
@@ -6447,6 +6452,7 @@ const analyzeTextbook = async () => {
   analysisBooks.value = statusList;
 
   totalNewCount.value = statusList.reduce((sum, b) => sum + (b.new || 0), 0);
+  totalCachedCount.value = statusList.reduce((sum, b) => sum + (b.cached || 0), 0);
 
   showAnalysisModal.value = true;
 };
@@ -6471,6 +6477,9 @@ const analyzeTemplate = async () => {
     const newCount = (tpl.selectedChapters || []).filter(ch => !ch.analyzed).length;
     return sum + newCount;
   }, 0);
+  totalCachedCount.value = statusList.reduce((sum, tpl) =>
+    sum + (tpl.selectedChapters || []).filter(ch => ch.analyzed).length
+  , 0);
   showAnalysisModal.value = true;
 };
 
@@ -7231,7 +7240,8 @@ const executeTextbookAnalysis = async (action) => {
         if (action === 'skip' && ch.analyzed && ch.knowledgePoints?.length) { reusedChapters += 1; continue; }
         if (action === 'new' && ch.analyzed && ch.knowledgePoints?.length) { reusedChapters += 1; continue; }
         
-        // 🔧 "全部重新分析"：废弃已提取的知识点（保留原文），之后跳过OCR/编辑器直接调AI重新分析
+        // 🔧 "全部重新分析"：废弃已提取的知识点（保留原文），仅跳过 OCR；**原文编辑器不禁用**——
+        //    随后仍落到下方共用编辑器（已有原文则预填、新章为空供粘贴/修改）确认后再调 AI 重新分析。
         let userRawText = '';
         
         if (action === 'all') {
@@ -7254,7 +7264,8 @@ const executeTextbookAnalysis = async (action) => {
           generateStatus.value = `🔄 重新分析 ${ch.title}：已废弃旧知识点，原文${userRawText.length}字，正在AI提取...`;
           generateProgress.value = Math.round((donePages / totalPages) * 80);
           console.log(`🔄 已清除 ${ch.title} 知识点缓存，原文保留(${userRawText.length}字)，即将重新AI分析`);
-          // 跳过 OCR 和编辑器，直接进入下方 AI 分析（不 continue，走后面的 convert+analyze）
+          // 仅跳过 OCR（原文沿用已有 rawText）；🔴 不 continue → 仍进入下方共用的原文编辑器
+          //   （用户口径：本流程下原文的粘贴/修改能力不得禁用），确认后再走 convert+analyze
         } else {
        
         generateStatus.value = `📷 分析教材：${book.name} - ${ch.title}`;
@@ -9890,6 +9901,11 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   background: var(--primary-light);
   color: white;
   cursor: pointer;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-edurender {
