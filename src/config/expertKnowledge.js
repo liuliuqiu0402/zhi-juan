@@ -298,12 +298,6 @@ export const scopeOptions = [
   { value: 'gaokao', label: '高考', desc: '高中毕业升学考卷（新高考结构，仅正式考卷）' }
 ];
 
-// ==================== 粒度选项 ====================
-export const granularityOptions = [
-  { value: 'unit', label: '按单元', desc: '以单元为单位生成' },
-  { value: 'lesson', label: '按课', desc: '以课时为单位生成' }
-];
-
 // 🔧 学科名称别名映射（统一为 2022 新课标标准名）
 // 🔗 命名双轨·别名：别名最终归一化的目标名，必须落在上方 subjects canonical 清单内（并与指令库/载体键同名）；
 //    新增别名只加映射目标（canonical），不要为旧名另造新规范名，否则载体键/指令 key 又失配。

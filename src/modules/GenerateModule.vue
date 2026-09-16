@@ -35,12 +35,6 @@
         >
           🎯 {{ specialSubTypeLabel || '选择专项领域' }}
         </button>
-        <button
-          class="ribbon-btn"
-          @click="showGranularityModal = true"
-        >
-          📏 {{ granularityLabel }}
-        </button>
         <!-- 📄 生成份数（2026-09-15 由"详细配置"弹窗迁出）：原弹窗 5 项里 4 项经核查为死控件
              —— 总分 / 题型 / 难度 / 原题引用：生成端从不读取（options 传了但生成器不读）；
              仅"生成份数"真生效（份数循环），故整弹窗移除、此项改为面板内联，
@@ -1547,47 +1541,6 @@
       </div>
     </div>
 
-    <!-- 生成粒度弹窗 -->
-    <div
-      v-if="showGranularityModal"
-      class="modal-mask"
-      @click.self="showGranularityModal = false"
-    >
-      <div class="modal">
-        <h3>📏 选择生成粒度</h3>
-        <div class="option-list">
-          <label
-            v-for="opt in granularityOptions"
-            :key="opt.value"
-            class="option-item"
-          >
-            <input
-              v-model="generateGranularity"
-              type="radio"
-              :value="opt.value"
-            >
-            <span class="option-label">{{ opt.label }}</span>
-            <span class="option-desc">{{ opt.desc }}</span>
-          </label>
-        </div>
-        <div class="modal-actions">
-          <button
-            class="btn"
-            @click="showGranularityModal = false"
-          >
-            取消
-          </button>
-          <button
-            class="btn-primary"
-            @click="showGranularityModal = false"
-          >
-            确定
-          </button>
-        </div>
-      </div>
-    </div>
-
-
     <!-- 预览弹窗（Teleport 到 body 脱离缩放容器，避免 transform:scale 导致缩小溢出） -->
     <Teleport to="body">
       <div
@@ -3015,7 +2968,6 @@ import {
   genTypeOptions,
   genTypeTemplates,
   scopeOptions,
-  granularityOptions,
   normalizeSubjectName
 } from '../config/expertKnowledge.js';
 import { useAiGenerator, lastInjectSnapshot, chapterSigOf } from '../composables/useAiGenerator.js';
@@ -3115,7 +3067,6 @@ watch(genTypes, (v) => { if (!v?.includes('exam') && EXAM_GRADUATION_TYPES.inclu
 // 🔴 新架构：生成前置条件 = 已选教材章节（不再依赖指令文本）
 const hasSelectedChapters = computed(() => textbookStore.selectedChapterCount > 0);
 const specialSubType = ref('');  // 🎯 专项子类型（仅 genType=special 时生效）
-const generateGranularity = ref('');
 const batchCount = ref(1);  // 同类型一次生成份数，默认1
 // 🔧 省市差异化：正式试卷（exam）按省市取考试时长/总分（如江苏中考语数英150分、北京100分制），默认全国通用
 const examRegion = ref('');
@@ -3244,7 +3195,6 @@ const showStyleModal = ref(false);
 const showColumnStyleModal = ref(false); // 🎨 栏目风格弹窗（全列风格套+语义+置灰）
 const showGenTypeModal = ref(false);
 const showSpecialSubTypeModal = ref(false);  // 🎯 专项子类型弹窗
-const showGranularityModal = ref(false);
 const showPreview = ref(false);
 const showEditor = ref(false);
 const pendingGenerateMode = ref('single'); // 生成模式
@@ -4908,7 +4858,6 @@ const specialSubTypeLabel = computed(() => {
   const opt = specialSubTypeOptions.value.find(o => o.value === specialSubType.value);
   return opt ? opt.label : specialSubType.value;
 });
-const granularityLabel = computed(() => '生成粒度');
 
 // 根据当前资料类型，推荐最优模型（显示实际配置的模型名）
 const genTypeModelHint = computed(() => {
@@ -5955,126 +5904,6 @@ const exportKnowledgePoints = () => {
   a.href = URL.createObjectURL(blob);
   a.download = `${currentBook.value?.name}_${currentChapter.value?.title}_知识点.txt`;
   a.click();
-};
-
-// 指令构建
-const buildInstruction = async () => {
-  // ✅ 直接用内存中的数据，不再重复加载
-  
-  const selectedBooks = textbookStore.textbooks.filter(b => hasAnySelected(b.outline));
-  const selectedTpls = templateStore.templates.filter(t => t.selected || hasAnySelected(t.outline));
-  
-  if (selectedBooks.length === 0) {
-    await showAlertDialogFn('请先勾选教材章节');
-    return;
-  }
-  
-  const selectedBooksWithChapters = selectedBooks.map(b => ({
-    ...b,
-    region: examRegion.value,  // 🔧 省市差异化：写入教材对象，供生成/校验链路读取
-    // 🔧 只包含 _selectedForAnalysis 未取消的章节（联动生成指令）
-    selectedChapters: getSelectedChapters(b.outline).filter(ch => ch._selectedForAnalysis !== false)
-  })).filter(b => b.selectedChapters.length > 0); // 🔧 多学科修复：过滤掉无有效章节的教材（hasAnySelected=true 但 _selectedForAnalysis 全为 false）
-
-  // 🔧 二次检查：过滤后可能全部教材都无有效章节
-  if (selectedBooksWithChapters.length === 0) {
-    await showAlertDialogFn('请先勾选教材章节（当前选中教材的分析勾选已全部取消）');
-    return;
-  }
-
-  const selectedTplsWithChapters = selectedTpls.map(t => ({
-    ...t,
-    selectedChapters: getSelectedChapters(t.outline).filter(ch => ch._selectedForAnalysis !== false)
-  }));
-
-  const options = {
-    selectedBooks: selectedBooksWithChapters,
-    selectedTemplates: selectedTplsWithChapters,
-    scopeType: scopeType.value,
-    propositionStyle: propositionStyle.value,
-    genTypes: genTypes.value,
-    granularity: generateGranularity.value,
-    specialSubType: specialSubType.value,  // 🎯 专项子类型
-    mergeChapters: mergeChapters.value,   // 🔧 多章节合并出卷开关
-    region: examRegion.value,             // 🔧 省市差异化（正式试卷按省市时长/总分出卷）
-    engine: (await getCurrentEngineConfigEnhanced('generation')).engine  // 🔧 DeepSeek 噪音过滤
-  };
-  
-  // 自动匹配：根据教材的学段+学科，自动注入指令库中的片段（无需手动勾选）
-  // 🔧 多学科修复：取所有选中教材的学科并集，而非仅取第一本
-  const currentSubjects = [...new Set(selectedBooksWithChapters.map(b => b.subject).filter(Boolean))];
-  const currentSubject = currentSubjects.length === 1 ? currentSubjects[0] : '';
-  
-  // 🔍 诊断日志：多学科匹配验证
-  console.log('[buildInstruction] 选中教材:', selectedBooksWithChapters.map(b => ({ name: b.name, subject: b.subject, stage: b.stage, chCount: b.selectedChapters?.length })));
-  console.log('[buildInstruction] currentSubjects:', currentSubjects, '→ currentSubject:', JSON.stringify(currentSubject), '(多学科模式:', currentSubjects.length > 1, ')');
-
-  // 🔴 新架构：不再做 fragment/full 指令自动匹配（长指令注入已废弃）。
-  //    生成由指令库三维度注入驱动（学段×学科×类型 cell + 蓝图/契约/规则附加块）；
-  //    options 仅用于下方方案摘要展示，逐章指令由 generate 循环内按单章重新组装。
-  
-  // 🔴 新架构：方案摘要展示"三维度匹配链路"——指令库匹配 + 蓝图大题结构 + 省市差异化，
-  //    不构建长指令（生成由整卷一次生成自动完成，摘要仅供确认参数）。
-  try {
-    const genTypeName = genTypeTemplates[genTypes.value?.[0]]?.name || genTypes.value?.[0] || '';
-    const bookSummary = selectedBooksWithChapters.map(b => `${b.subject || ''}${b.grade || ''}《${b.name || ''}》`).join('、');
-    const lines = [`【生成方案】资料类型：${genTypeName}`, `教材：${bookSummary || '未选择'}`];
-
-    // ── 📐 命题范围回显：让用户一眼确认"选中/自动推断"的是 课/单元/期中/期末/月考/专题
-    try {
-      const scopeSource = selectedBooksWithChapters.find(b => (b.selectedChapters || []).length > 0) || selectedBooksWithChapters[0];
-      if (scopeSource?.outline) {
-        const scopeInfo = inferPaperScope(scopeSource.selectedChapters || [], scopeSource.outline || [], scopeType.value || '');
-        const basis = scopeType.value && scopeType.value !== 'default'
-          ? `你选择：${SCOPE_TYPE_LABELS[scopeType.value] || scopeType.value}`
-          : (SCOPE_BASIS[scopeInfo.category] || `按勾选：${SCOPE_TYPE_LABELS[scopeType.value] || '默认'}`);
-        const scopeDesc = scopeInfo.name
-          ? (scopeInfo.isScopeLabel ? scopeInfo.name : `「${scopeInfo.name}」`)
-          : '未勾选章节';
-        lines.push(`命题范围：${scopeDesc}（${basis}）`);
-      }
-    } catch (e) {
-      console.warn('[方案预览] 命题范围回显失败（不影响生成）:', e.message);
-    }
-
-    // ── 蓝图匹配预览：学科规范化 + 学段细分 → 三维度匹配蓝图大题结构 ──
-    try {
-      const firstBook = selectedBooksWithChapters[0];
-      if (firstBook?.subject) {
-        const stageKey = resolveStageKey(firstBook.stage, firstBook.grade, firstBook.name);
-        const subject = normalizeSubjectName(firstBook.subject, stageKey);
-        const region = examRegion.value || firstBook.region || '';
-        const genType = genTypes.value?.[0];
-        const stageLabel = STAGE_LABEL_MAP[stageKey] || stageKey;
-        lines.push(`学段：${stageLabel}（${stageKey}）${region ? `　地区：${region}` : ''}`);
-
-        const bp = findBlueprint({ genType, subject, stage: stageKey, region, scopeType: scopeType.value });
-        if (bp) {
-          lines.push(`匹配蓝图：${bp.fullScore ? `（总分${bp.fullScore}分 · ${bp.duration || '时长未定'}）` : ''}`);
-          // ── 大题结构预览（蓝图数据）──
-          if (bp.sections?.length) {
-            lines.push('');
-            lines.push('【大题结构】');
-            bp.sections.forEach((s, i) => {
-              lines.push(`${i + 1}. ${s.name}${s.score ? ` ${s.score}分` : ''}`);
-            });
-          }
-        } else {
-          lines.push('匹配蓝图：未找到（请检查学科/学段/资料类型组合）');
-        }
-      }
-    } catch (e) {
-      console.warn('[方案预览] 预览失败（不影响生成）:', e.message);
-    }
-
-    lines.push('');
-    lines.push('（核心知识分配、教材素材检索、学科规范注入将在生成时按整卷自动完成）');
-    instructionDraft.value = lines.join('\n');
-  } catch (e) {
-    console.error('[buildInstructionFromSelection] 生成方案构建失败:', e);
-    throw e;
-  }
-  previewHint.value = `基于 ${selectedBooksWithChapters.length} 本教材、${selectedTpls.length} 个模板构建`;
 };
 
 // 🔴 生成指令：按三维度（年级×学科×资料类型）从指令库匹配模板并组装注入指令

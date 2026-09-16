@@ -166,7 +166,7 @@ const { template, grade, subject, unit, genTypeLabel, structure, fullScore, dura
 <h3>3.3 答案页生成（段2）</h3>
 <div class="card">
   <div class="kv">
-    <b>输入</b><div class="v">正文完整转纯文本 <code>htmlToPlainText(content, answerContextMaxChars=24000)</code>，不是"空输入/凭记忆"，杜绝答案与正文不符。</div>
+    <b>输入</b><div class="v">正文完整转纯文本 <code>htmlToPlainText(content)</code> 全文送模型（2026-09-10 全文口径定版，不截断），不是"空输入/凭记忆"，杜绝答案与正文不符。</div>
     <b>提示词</b><div class="v">ANSWER_ROLES（exam=阅卷专家+评分标准，其他=教辅编辑+解析）+ ANSWER_FORMAT_SPEC（HTML 规范）。</div>
     <b>温度</b><div class="v">answerTemperature(0.3) 低温严谨。</div>
     <b>预算/续写</b><div class="v">answerMaxTokens(16384)×思考倍数，<code>allowContinuation:true</code>（截断自动续写），推理上限 20K，思考耗尽强制关思考重试一次。</div>

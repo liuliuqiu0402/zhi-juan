@@ -576,7 +576,6 @@ export const apiConfig = reactive({
     // 🔧 每类型输出预算见下方 budgetByType（每类型已含路径 mode 与三槽 cap，动态为主，无需全局上限）。
     // 🔧 整卷输出预算（tokens，思考模式下按 thinkingBudgetMultiplier 放大——
     //    推理 token 与正文共享 max_tokens 配额，需给推理预留余量）
-    answerContextMaxChars: 24000,       // 答案页输入：正文纯文本上限（正文超过此长度时答案只看前 N 字符；高中大卷建议调大至 40000-60000）
     thinkingBudgetMultiplier: 2,        // 思考模式输出预算放大倍数
     // ✅ A4-9（2026-09-11 用户裁定 192K）：单次输出**成本闸门**（设置页可调）。
     //    单次帽/预期额度/硬顶/轮次均由 outputQuota.js 推导，此项是链上唯一的可调量。

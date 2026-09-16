@@ -1038,21 +1038,11 @@
                 style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
               >
             </div>
-            <div>
-              <label style="font-size:11px;color:#666;">答案页上下文上限·字符（默认 24000）</label>
-              <input
-                v-model.number="settings.generationSettings.answerContextMaxChars"
-                type="number"
-                min="8000"
-                step="2000"
-                style="width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
-              >
-            </div>
           </div>
           <div style="font-size:10.5px;color:#8896a8;line-height:1.6;margin-top:4px;">
             预算 = 勾选原文（生成入口处勾选的教材章节原文）× 该类型系数，再封顶到该槽 token 上限。正常勾选（一课/单元/单册）动态直接生效、内容完整；勾选远超该类型上限时自动加长保证完整（生成报告会提示）。<br>
             生效槽：选「两次生成」→ 前两槽（正文·答案页）生效、第三槽灰显；选「一次成型」→ 仅第三槽生效；选「自动」→ 按该类型最合适路径。<br>
-            两处「上限」不同：<b>每类型卡片里的是「输出 token 上限」</b>（这次生成最多写多少 token）；<b>下方「答案页上下文上限」是「输入侧」字符数</b>（答案生成时能看到多少正文——正文超过此长度则后半卷题目答案会缺）。高中大卷常超 2.4 万字符——可调大该值，或改用「两次生成」。
+            每类型卡片里的数值是「输出 token 上限」——这次生成最多写多少 token。答案页输入一律采用正文全文（不截断，2026-09-10 用户定版），故无需输入侧上限。高中大卷如遇答案超长，可改用「两次生成」以独立答案页承载。
           </div>
         </div>
 
