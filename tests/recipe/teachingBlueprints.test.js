@@ -150,14 +150,14 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     }
   });
 
-  it('数学已定制：同步练习栏目学科化（情境考查/真实问题解决），标记 custom', () => {
+  it('数学已定制：同步练习栏目学科化（情境考查/问题解决），标记 custom', () => {
     const bp = getTeachingBlueprint({ genType: 'practice', stage: 'primary_low', subject: '数学' });
     expect(bp.custom).toBe(true);
     expect(bp.subject).toBe('数学');
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_low', subject: '数学' });
     expect(inject).toContain('数学·同步练习');
     expect(inject).toContain('核心知识点，在情境中考查');
-    expect(inject).toContain('真实问题解决');
+    expect(inject).toContain('问题解决'); // 2026-09-16 删自造修饰，课标原义是问题解决
   });
 
   it('数学全 8 类教辅均有学科定制栏目（默写积累改造为公式法则/情境填空）', () => {
