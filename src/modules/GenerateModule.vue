@@ -173,6 +173,11 @@
             <span>📚 已选教材章节</span>
             <span class="selected-count">{{ selectedTextbookCount }}</span>
             <span
+              title="勾选范围与学段口径说明"
+              style="cursor:pointer;margin-left:8px;font-size:13px;color:var(--text-secondary);"
+              @click.stop="showBookUsageModal = true"
+            >ⓘ 说明</span>
+            <span
               class="analysis-toggle-all"
               title="切换全选/取消分析勾选"
               @click.stop="toggleAllForAnalysis('textbook')"
@@ -182,21 +187,6 @@
             v-show="!sectionCollapsed.textbook"
             class="section-content"
           >
-            <!-- 📌 勾选用法与学段口径说明（2026-09-16 用户提出"三段都勾了怎么办"）：
-                 默认收起，点开才展开——避免常驻平铺占位 -->
-            <details style="margin:2px 0 6px;">
-              <summary
-                style="cursor:pointer;font-size:12px;color:var(--text-secondary);list-style:none;"
-              >
-                ⓘ 勾选范围与学段口径说明（点开查看）
-              </summary>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;margin:4px 0 2px;padding-left:2px;">
-                · 勾"要考的那部分内容"即可，不必整册全勾。<br>
-                · 多本教材同时勾选时，本次<b>学段口径</b>（学段要求／卷面结构／书写载体／难度基准）取<b>勾选章节最多</b>的那本所在学段——所有资料类型都如此，不限升学卷。<br>
-                · 跨学段勾选时内容为各段并集，建议让目标学段那本章节最多（如小升初→五、六年级）。<br>
-                · <b>升学卷专用</b>（小升初／中考／高考）：教材学段须与卷别相符，否则无法生成。
-              </div>
-            </details>
             <div
               v-if="selectedTextbookCount === 0"
               class="empty-tip-small"
@@ -1313,6 +1303,34 @@
             @click="showGenTypeModal = false"
           >
             确定
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 📌 勾选范围与学段口径说明弹窗（2026-09-16 用户：做成按钮弹窗，按钮在"已选教材章节"旁） -->
+    <div
+      v-if="showBookUsageModal"
+      class="modal-mask"
+      @click.self="showBookUsageModal = false"
+    >
+      <div class="modal">
+        <h3>📌 勾选范围与学段口径说明</h3>
+        <p style="color:var(--text-secondary);margin-bottom:10px;">
+          这里的勾选决定"这次要考哪些内容"，也决定本次的<b>学段口径</b>。
+        </p>
+        <ul style="color:var(--text-secondary);line-height:1.8;margin:0 0 8px 20px;padding:0;">
+          <li>勾"要考的那部分内容"即可，不必整册全勾。</li>
+          <li>多本教材同时勾选时，本次<b>学段口径</b>（学段要求／卷面结构／书写载体／难度基准）取<b>勾选章节最多</b>的那本所在学段——所有资料类型都如此，不限升学卷。</li>
+          <li>跨学段勾选时内容为各段并集，建议让目标学段那本章节最多（如小升初→五、六年级）。</li>
+          <li><b>升学卷专用</b>（小升初／中考／高考）：教材学段须与卷别相符，否则无法生成。</li>
+        </ul>
+        <div class="modal-actions">
+          <button
+            class="btn-primary"
+            @click="showBookUsageModal = false"
+          >
+            知道了
           </button>
         </div>
       </div>
@@ -3294,6 +3312,7 @@ const examRegionOptions = EXAM_REGION_OPTIONS;
 
 // ✏️ 名称样式选择（方案二）：默认自动轮换，可选池中固定名称（用户记不住池子里的名称，下拉直接展示）
 const showLabelStyleModal = ref(false);
+const showBookUsageModal = ref(false); // 📌 勾选范围与学段口径说明弹窗（标题旁 ⓘ 触发）
 const labelStyle = ref('');  // ''=自动轮换，否则为池中固定名称
 const LABEL_STYLE_STORAGE_KEY = 'ww_label_style_v1';
 const loadLabelStyle = (genType) => {
