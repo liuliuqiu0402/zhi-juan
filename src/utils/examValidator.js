@@ -40,11 +40,29 @@ const PINYIN_OPTION_RE = new RegExp(`[（(]\\s*[${PINYIN_CHARS}]+(?:[／/、，,
 const OPTION_P_RE = /<p[^>]*class=["'][^"']*option[^"']*["'][^>]*>/gi;
 const OPTION_LINE_RE = /(?:^|\n)\s*[A-H][.、．]\s*[^\n]+/g;
 // 🔧 选择题选项行内/末尾误挂作答空位（2026-09 用户实证：答案括号被模型挂到选项末尾 C. are; am＿）：
-//   ① <p class="option"> 行内出现 blank 空位；② <br> 分隔的行首 A. 式选项（题干行内、选项字母之后）出现 blank 空位。
 //   根治在生成侧（作答空间条款：选择/判断/圈选类括号在题干前），此处仅供 guard 静默计数取证。
+//   🔴 2026-09-16 形态化改写：原来只认 `<p class="option">` 或 `<br> A.`——
+//     但实测产物的选项行用的是 `<p class="question">(1) A. stop　B. run…`（根本没 class="option"），
+//     于是连"选项行内挂空位"这一类都认不出来。改为按**形态**识别：段落以选项字母开头（可带 (1) 小题号）。
+const OPTION_LINE_PARAGRAPH = String.raw`<p[^>]*>\s*(?:[(（]\s*\d+\s*[)）]\s*)?[A-H][.、．](?:[^<]|<[^>]+>)*?</p>`;
+const OPTION_LINE_INLINE = String.raw`<br\s*/?>\s*[A-H][.、．][^\n<]{0,60}`;
+const BLANK_IN_SAME_PARAGRAPH = String.raw`(?:(?!</p>)[\s\S]){0,200}?<(?:u|span)[^>]*class=["'][^"']*blank-\d+`;
 const CHOICE_OPTION_BLANK_RE = new RegExp(
-  `<p[^>]*class=["'][^"']*option[^"']*["'][^>]*>[\\s\\S]{0,200}?<(?:u|span)[^>]*class=["'][^"']*blank-\\d+` +
-  `|<br>\\s*[A-H][.、．][^\\n<]{0,60}<(?:u|span)[^>]*class=["'][^"']*blank-\\d+`,
+  String.raw`<p[^>]*>\s*(?:[(（]\s*\d+\s*[)）]\s*)?[A-H][.、．]` + BLANK_IN_SAME_PARAGRAPH +
+  `|` + OPTION_LINE_INLINE + `<(?:u|span)[^>]*class=["'][^"']*blank-\\d+`,
+  'i'
+);
+// 🔴 2026-09-16（用户实证·条款漏洞补充）：选项行**之后**紧跟独立作答载体段/裸空白段。
+//    原条款只写"选项行内与选项末尾"，模型把作答位放进选项行**之后的独立段落**里 → 字面合规，
+//    且上面那条也认不出 → 既没拦住也没取证。实测（六年级英语选词填空）：
+//    每个选项行后各挂 2 条 <p><span class="blank-line">　</span></p>（导出成 Word 是
+//    ptab + underscore leader 的整行横线）→ 卷面出现成排长横线。
+//    此处只补取证（静默 debug 级），不自动删除：作答空间属生成语义，根治在作答空间条款。
+const BLANK_CARRIER_PARAGRAPH = String.raw`<p[^>]*>(?:\s|<br\s*/?>)*<span[^>]*class=["'][^"']*(?:blank-line|blank-\d+)[^"']*["'][^>]*>[\s\S]{0,24}?</span>\s*</p>`;
+const BARE_BLANK_PARAGRAPH = String.raw`<p[^>]*>(?:\s|&nbsp;|\u3000){2,}</p>`;
+const CHOICE_OPTION_BLANK_AFTER_RE = new RegExp(
+  String.raw`(?:` + OPTION_LINE_PARAGRAPH + String.raw`|` + OPTION_LINE_INLINE + String.raw`)\s*(?:` +
+  BLANK_CARRIER_PARAGRAPH + String.raw`|` + BARE_BLANK_PARAGRAPH + String.raw`)+`,
   'i'
 );
 // 连线结构
@@ -671,6 +689,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //         直接按该异常形态检测。
         if (has('choice-answer-position-guard') && CHOICE_OPTION_BLANK_RE.test(secHtml2)) {
           silentCount('choice-answer-pos', `大题「${title}」选项行内/末尾出现作答空位（答案括号应放题干前题首），请抽检`, 'debug');
+        }
+        // 2e4. 选项行**之后**的独立作答载体段（规则 choice-answer-position-guard，静默取证）
+        //      🔴 2026-09-16 用户实证补充：条款原只约束"选项行内/末尾"，模型改把整行横线/空白作答行
+        //      放到选项行**之后**的独立段落 → 字面合规、卷面成排长横线（六年级英语选词填空每个选项后 2 条）。
+        //      仍不自动修复：作答空间属生成语义；本条只让该形态可观测（下次回归能测到）。
+        if (has('choice-answer-position-guard') && CHOICE_OPTION_BLANK_AFTER_RE.test(secHtml2)) {
+          silentCount('choice-answer-pos-after', `大题「${title}」选项行之后出现整行横线/空白作答段（题首已有作答位时属多余），请抽检`, 'debug');
         }
 
         // 2e2. 分值自动分配（规则 score-distribute-fix，per-section：只处理当前大题）
