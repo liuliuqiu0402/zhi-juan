@@ -64,7 +64,7 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
   it('输出栏目名（作大类标题用）+ 学段要求（题量/时长不注入 prompt）', () => {
     const inject = buildTeachingInjection({ genType: 'reading', stage: 'middle' });
     // 🔒 2026-09-16 少约束：外壳改为"本次栏目（作大类标题用）"，不再用"栏目序列/栏目框架"描述
-    expect(inject).toContain('【本次栏目（作大类标题用');
+    expect(inject).toContain('【大类标题（下面各行即本次大类标题');
     expect(inject).toContain('阅读训练');
     expect(inject).not.toContain('栏目框架');
     expect(inject).not.toContain('栏目序列');
@@ -137,7 +137,7 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(bp.custom).toBe(false);
     expect(bp.subject).toBe('未知学科');
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '未知学科' });
-    expect(inject).toContain('【本次栏目（作大类标题用；同步练习·初中）】');
+    expect(inject).toContain('【大类标题（下面各行即本次大类标题；按2022年版义务教育课程标准的活动类型与素养层划分；同步练习·初中）】');
     // 学段要求仍按学段注入（初中）
     expect(inject).toContain('学段要求');
   });

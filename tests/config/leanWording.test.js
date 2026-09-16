@@ -44,7 +44,7 @@ describe('少约束·委托书不再给组织形态描述（教材颗粒只作�
   it('教辅注入：只给栏目名（作大类标题用），不给"栏目序列／框架／认知层次"', () => {
     for (const genType of ['practice', 'special', 'reading', 'summary', 'preview', 'dictation', 'errorbook', 'review']) {
       const t = buildTeachingInjection({ genType, stage: 'primary_high', subject: '英语', columnStyle: 'a' });
-      expect(t, `${genType} 应注入栏目块`).toContain('【本次栏目（作大类标题用');
+      expect(t, `${genType} 应注入栏目块`).toContain('【大类标题（下面各行即本次大类标题');
       for (const w of ['栏目序列', '栏目框架', '认知层次', '教辅结构']) {
         expect(t, `${genType} 注入不得出现「${w}」`).not.toContain(w);
       }

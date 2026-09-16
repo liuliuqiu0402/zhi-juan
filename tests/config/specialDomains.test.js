@@ -69,7 +69,8 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
   it('A档结构文本：含栏目/课标锚/学段名，且不含数字题量占位', () => {
     const dom = resolveSpecialDomain('数学', 'primary_high', '计算');
     const text = buildSpecialDomainStructureText(dom, 'primary_high');
-    // 🔒 2026-09-16 少约束：专项 A 档外壳同步改为"本次栏目（作大类标题用）"
+    // 🔒 2026-09-16 少约束 + 课标挂钩：专项 A 档外壳同步为"大类标题（按课标活动类型与素养层划分）"
+    // 🔸 专项 A 档外壳的课标挂钩与通用教辅批次3一并落（本次先保持外壳字面不变）
     expect(text).toContain('【本次栏目（作大类标题用；🔢 计算·小学高段）】');
     expect(text).not.toContain('栏目框架');
     expect(text).toContain('数与代数·数与运算');

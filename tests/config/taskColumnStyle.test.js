@@ -32,11 +32,11 @@ describe('栏目标题风格套（2026-09）', () => {
   it('applyColumnStyle：命中默认套名才替换并保留 note；类型/套未知或栏目不匹配原样返回', () => {
     const trio = mkSections(['基础建构任务', '探究进阶任务', '迁移创新任务']);
     const out = applyColumnStyle(trio, 'practice', 'c');
-    expect(out.map((s) => s.name)).toEqual(['知识奠基', '变式进阶', '综合创新']);
+    expect(out.map((s) => s.name)).toEqual(['知识梳理', '变式练习', '综合提升']);
     expect(out[0].note).toBe('note-基础建构任务');
 
     const summary = mkSections(['知识框架', '重点梳理', '易错辨析', '典型例题']);
-    expect(applyColumnStyle(summary, 'summary', 'b').map((s) => s.name)).toEqual(['结构导图', '要点详解', '误区警示', '示范例题']);
+    expect(applyColumnStyle(summary, 'summary', 'b').map((s) => s.name)).toEqual(['知识梳理', '要点详解', '易错辨析', '例题解析']);
 
     // 未知类型/未知套/名称不匹配 → 原样
     expect(applyColumnStyle(trio, 'summary', 'b')[0].name).toBe('基础建构任务');
@@ -44,24 +44,24 @@ describe('栏目标题风格套（2026-09）', () => {
     const custom = mkSections(['看拼音写词语', '积累默写', '书写格']);
     expect(applyColumnStyle(custom, 'dictation', 'b').map((s) => s.name)).toEqual(['看拼音写词语', '积累默写', '书写格']);
     // 兼容别名仍指向 practice
-    expect(applyTaskColumnStyle(trio, 'd')[0].name).toBe('夯实基础');
+    expect(applyTaskColumnStyle(trio, 'd')[0].name).toBe('基础巩固');
   });
 
   it('buildTeachingInjection：非 exam 类型指定套生效、默认原样；subject 定制不同名不误伤；exam 蓝本不经此函数', () => {
     const b = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '数学', columnStyle: 'b' });
-    expect(b).toContain('基础过关');
+    expect(b).toContain('基础练习');
     expect(b).not.toContain('基础建构任务');
     const rev = buildTeachingInjection({ genType: 'review', stage: 'middle', subject: '语文', columnStyle: 'b' });
-    expect(rev).toContain('结构导图');
+    expect(rev).toContain('知识概览');
     expect(rev).not.toContain('知识框架');
     const sum = buildTeachingInjection({ genType: 'summary', stage: 'primary_high', subject: '数学', columnStyle: 'c' });
-    expect(sum).toContain('思维地图');
+    expect(sum).toContain('知识网络');
     const def = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '语文' });
     expect(def).toContain('基础建构任务');
     // 语文 dictation 定制栏目（看拼音写词语/积累默写/书写格）与默认套不同名 → 套不生效
     const zhDict = buildTeachingInjection({ genType: 'dictation', stage: 'primary_low', subject: '语文', columnStyle: 'b' });
     expect(zhDict).toContain('看拼音写词语');
-    expect(zhDict).not.toContain('必背闯关');
+    expect(zhDict).not.toContain('内容积累');
   });
 
   it('resolveColumnStyleId：手动固定直达；空=自动取「当前待用套」（不推进）', () => {
@@ -122,8 +122,8 @@ describe('栏目标题风格套（2026-09）', () => {
       advanceAutoColumnStyleId('practice');
     }
     expect(titles[0]).toContain('基础建构任务');
-    expect(titles[1]).toContain('基础过关');
-    expect(titles[2]).toContain('知识奠基');
+    expect(titles[1]).toContain('基础练习');
+    expect(titles[2]).toContain('知识梳理');
   });
 
   it('🔴 栏目说明与套名解绑：注入文本中「说明」部分不得出现任何套名（防换套后名与说明不符）', () => {

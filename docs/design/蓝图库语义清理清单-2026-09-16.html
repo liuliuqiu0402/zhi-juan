@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>蓝图库语义清理清单（2026-09-16）</title>
+<style>
+  :root { --ink:#1f2328; --muted:#5b6570; --line:#e3e6ea; --bg:#fbfcfd;
+          --red:#b42318; --redbg:#fef3f2; --amber:#8a5a00; --amberbg:#fff8e6; --green:#116329; --greenbg:#f0f9f2; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px 28px 64px; background:var(--bg); color:var(--ink);
+         font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei","PingFang SC","Microsoft YaHei",sans-serif;
+         font-size:14px; line-height:1.7; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  h2 { font-size:18px; margin:34px 0 10px; padding-bottom:6px; border-bottom:2px solid var(--line); }
+  h3 { font-size:15px; margin:22px 0 8px; }
+  .lead { color:var(--muted); margin:0 0 18px; }
+  .box { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin:10px 0 18px; }
+  .box.warn { background:var(--amberbg); border-color:#f0d9a8; }
+  .box.hot { background:var(--redbg); border-color:#f2c9c4; }
+  ul { margin:6px 0 6px 20px; padding:0; }
+  li { margin:3px 0; }
+  table { width:100%; border-collapse:collapse; background:#fff; font-size:13px; margin:8px 0 4px; }
+  th, td { border:1px solid var(--line); padding:7px 9px; vertical-align:top; text-align:left; }
+  th { background:#f4f6f8; font-weight:600; white-space:nowrap; }
+  code { background:#f3f5f7; border-radius:3px; padding:1px 4px; font-size:12.5px; }
+  .tag { display:inline-block; border-radius:3px; padding:0 6px; font-size:12px; white-space:nowrap; }
+  .t-self { background:var(--redbg); color:var(--red); }
+  .t-cn { background:var(--greenbg); color:var(--green); }
+  .t-survey { background:#eef4ff; color:#1d4ed8; }
+  .t-ask { background:var(--amberbg); color:var(--amber); }
+  .n { color:var(--muted); font-size:12.5px; }
+  .cnt { font-variant-numeric:tabular-nums; }
+</style>
+</head>
+<body>
+
+<h1>蓝图库语义清理清单</h1>
+<p class="lead">2026-09-16 · 判据：课标原词／原义 → 留；调研／真题结构口径 → 留；产品自造（取向·形态·组织描述）→ 清或中性化。<br>
+命中统计：试卷蓝图 304 行中命中 <b>40</b> 行；教辅蓝图·通用命中 <b>34</b> 行；教辅蓝图·学科定制 435 行中命中 <b>149</b> 行。</p>
+
+<div class="box">
+  <b>为什么必须清</b>：这些语义随栏目一起注入，且 <code>applyColumnStyle</code> 只重写栏目名、note 一字不动
+  （<code>{ ...s, name: set.columns[i] }</code>）——名字每轮在换、语义每次都一样，于是"呈现形态"逐次收敛。
+  它与"颗粒被逐点翻译成题"叠加，是形式同质的两条推力。
+</div>
+
+<h2>A. 试卷蓝图（examPaperBlueprints）</h2>
+<table>
+<thead><tr><th>位置</th><th>原文</th><th>命中</th><th>判定</th><th>建议改法</th></tr></thead>
+<tbody>
+<tr><td>物理·初中 选择</td><td>4选1，概念辨析与情境判断</td><td>情境判断</td><td><span class="tag t-self">自造</span></td><td>4选1，概念辨析</td></tr>
+<tr><td>化学·初中 选择</td><td>概念辨析、情境判断</td><td>情境判断</td><td><span class="tag t-self">自造</span></td><td>概念辨析</td></tr>
+<tr><td>生物·初中 选择</td><td>概念辨析、情境判断</td><td>情境判断</td><td><span class="tag t-self">自造</span></td><td>概念辨析</td></tr>
+<tr><td>科学·小低/小中/小高 选择</td><td>情境判断</td><td>情境判断</td><td><span class="tag t-self">自造</span></td><td>概念与现象判断</td></tr>
+<tr><td>科学·初中 选择</td><td>情境判断、概念应用</td><td>情境判断</td><td><span class="tag t-self">自造</span></td><td>概念应用</td></tr>
+<tr><td>信息科技·小低 选择</td><td>情境判断</td><td>情境判断</td><td><span class="tag t-self">自造</span></td><td>概念与行为判断</td></tr>
+<tr><td>体育·小低 选择</td><td>运动情境判断</td><td>情境判断</td><td><span class="tag t-ask">待确认</span></td><td>运动常识判断（体育课标确有"真实运动情境"，故请你定）</td></tr>
+<tr><td>历史·高中 选择</td><td>以史料为载体的概念辨析与情境判断</td><td>情境判断</td><td><span class="tag t-ask">待确认</span></td><td>历史课标调研稿含"命题创设新情境"，故请你定</td></tr>
+<tr><td>道德与法治·小低 选择 / 小中 选择</td><td>情境判断</td><td>情境判断</td><td><span class="tag t-ask">待确认</span></td><td>道法课标取向即"真实生活情境"，请定留或中性化</td></tr>
+<tr><td>道德与法治·小低 连线</td><td>情境与做法连线、行为与对错连线</td><td>情境</td><td><span class="tag t-ask">待确认</span></td><td>若中性化：做法与理由连线、行为与对错连线</td></tr>
+<tr><td>道德与法治·小低 情境辨析（题型名）</td><td>看图或读短文后说说该怎么做，一句话作答</td><td>情境</td><td><span class="tag t-self">自造题型名</span></td><td>题型名改「材料辨析」；语义保留</td></tr>
+<tr><td>道德与法治·小中 情境分析（题型名）</td><td>结合生活情境说明理由，简短作答</td><td>情境</td><td><span class="tag t-ask">待确认</span></td><td>题型名改「材料分析」；语义中"结合生活情境"请定</td></tr>
+<tr><td>道德与法治·小高 选择</td><td>情境与法理判断</td><td>情境</td><td><span class="tag t-self">自造</span></td><td>法理与是非判断</td></tr>
+<tr><td>道德与法治·初中 材料分析题</td><td>情境探究、法理阐释、实践应用（结合时政素材）</td><td>情境探究</td><td><span class="tag t-self">自造</span></td><td>材料探究、法理阐释、实践应用（结合时政素材）</td></tr>
+<tr><td>道德与法治·小中/小高 实践探究</td><td>安全自护、垃圾分类等真实问题／校园欺凌防范、网络文明等真实问题</td><td>真实问题</td><td><span class="tag t-self">自造</span></td><td>…等身边问题，给出做法并说明理由</td></tr>
+<tr><td>科学·小高/初中 综合运用</td><td>真实问题解决、跨学科融合，含开放性设问（与说理）</td><td>真实问题·跨学科融合·开放性</td><td><span class="tag t-self">自造</span>（"跨学科融合"待确认）</td><td>问题解决与跨学科应用，含开放性设问；科学课标有"跨学科概念"，是否留请你定</td></tr>
+<tr><td>信息科技·初中 综合题</td><td>真实问题解决</td><td>真实问题</td><td><span class="tag t-self">自造</span></td><td>任务解决</td></tr>
+<tr><td>信息科技·小低 情境操作题（题型名）</td><td>以文字/图示描述简单操作步骤，配评分要点</td><td>情境</td><td><span class="tag t-self">自造题型名</span></td><td>题型名改「操作题」；语义保留</td></tr>
+<tr><td>生物·初中 非选择题</td><td>识图题在图示情境中设问（结构→功能→原理）</td><td>情境</td><td><span class="tag t-self">自造</span></td><td>识图题按结构→功能→原理设问</td></tr>
+<tr><td>语文·小低 表达与交流</td><td>口语交际与看图写话结合本单元主题；写话给情境与词语支架</td><td>情境</td><td><span class="tag t-self">自造</span></td><td>…写话提供必要的词语支架</td></tr>
+<tr><td>语文·初中 梳理与探究</td><td>…围绕主题整理探究），在真实情境中考查梳理与探究能力</td><td>真实情境</td><td><span class="tag t-self">自造</span></td><td>删"在真实情境中"</td></tr>
+<tr><td>语文·高中 古代诗文阅读</td><td>文言文、古代诗歌鉴赏与名篇名句情境默写</td><td>情境默写</td><td><span class="tag t-ask">待确认</span></td><td>"情境默写"是通行说法、非课标原文，请定</td></tr>
+<tr><td>音乐·小中 填空</td><td>音乐术语、节奏节拍（结合作品情境）</td><td>情境</td><td><span class="tag t-ask">待确认</span></td><td>若中性化：删括注</td></tr>
+<tr><td>体育·小低/小中/小高 简答·填空</td><td>在运动情境中描述正确做法／动作要领在运动情境中描述／动作要领情境描述</td><td>情境</td><td><span class="tag t-ask">待确认</span></td><td>统一为「动作要领描述」「描述正确做法」</td></tr>
+<tr><td>音乐·高中 鉴赏题</td><td>鉴赏体现多层次审美与情感体验、由浅入深的评价递进，层次与侧重依<b>诗文</b>内容自定，配评分要点</td><td>由浅入深·层次</td><td><span class="tag t-self">自造</span><span class="tag t-self">另有串词 bug</span></td><td>鉴赏体现审美与情感体验，侧重依作品内容自定，配评分要点<br><b>必修 bug</b>：音乐题里写了"诗文"，属复制残留</td></tr>
+<tr><td>美术·高中 鉴赏题</td><td>鉴赏体现由内容到形式、由浅入深的审美鉴赏，层次与侧重依作品内容自定，配评分要点</td><td>由浅入深·层次</td><td><span class="tag t-self">自造</span></td><td>删"由浅入深…层次与侧重依…"改为「侧重依作品内容自定」</td></tr>
+<tr><td>语文 各学段 阅读与鉴赏 等</td><td>…设问有层次（5 处：语文小低/小中/小高/初中/高中）</td><td>有层次</td><td><span class="tag t-ask">待确认</span></td><td>属命题质量要求、非课标原文也非取向诱导，我倾向留，请你定</td></tr>
+</tbody>
+</table>
+<p class="n">保留不动（调研/真题结构）：题型名与分值、"4选1"、"全对得分、部分选对得部分分"、"每段材料读两遍"、"每空一词"、阅卷规则与系统渲染约定（如"竖式书写区由系统按载体渲染""配评分要点"）。</p>
+
+<h2>B. 教辅蓝图·通用（8 类）</h2>
+<table>
+<thead><tr><th>位置</th><th>原文</th><th>判定</th><th>建议改法</th></tr></thead>
+<tbody>
+<tr><td>practice 基础建构任务</td><td>学习理解类活动（感知与注意、获取与梳理、概括与整合）：覆盖本次范围全部核心知识，基础内容为主，各题/任务在情境中完整可作答</td><td><span class="tag t-self">冒号后自造</span></td><td>只留课标活动层：<code>学习理解类活动（感知与注意、获取与梳理、概括与整合）</code></td></tr>
+<tr><td>practice 探究进阶任务</td><td>应用实践类活动（…）：变式与综合运用，换情境、换角度、换设问，考查迁移运用，各题/任务步骤清晰</td><td><span class="tag t-self">冒号后自造</span></td><td>只留：<code>应用实践类活动（描述与阐释、分析与判断、内化与运用）</code></td></tr>
+<tr><td>practice 迁移创新任务</td><td>迁移创新类活动（…）：开放性/实践性内容，联系真实生活，设问指向真实思维</td><td><span class="tag t-self">冒号后自造</span></td><td>只留：<code>迁移创新类活动（推理与论证、批判与评价、想象与创造）</code></td></tr>
+<tr><td>special 分板块组织</td><td>按知识层级分板块（每个板块一个知识层级），板块内设问有合理梯度、由浅入深（学习理解→应用实践→迁移创新），层次依内容自然形成</td><td><span class="tag t-self">自造</span></td><td>栏目名改「按活动类型组织」；语义：<code>学习理解→应用实践→迁移创新，各层依内容自然形成</code></td></tr>
+<tr><td>special 每板块配解析</td><td>每板块适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点</td><td><span class="tag t-self">自造</span></td><td>栏目名改「每层配解析」；语义删"板块"→"每层"</td></tr>
+<tr><td>preview 预习任务</td><td>分层（由浅入深：感知体验→理解建构→尝试运用），问题驱动（圈画/概括/查阅/尝试），每任务给做法与完成标准…</td><td><span class="tag t-self">自造层次链</span></td><td>任务形态交模型：<code>任务形式由你按内容自定（圈画/概括/查阅/尝试），每任务给做法与完成标准，可操作可检查，覆盖本次范围全部新知识点</code></td></tr>
+<tr><td>reading 分层设题</td><td>设问由浅入深（理解字面→推断隐含→评价迁移），指向理解运用与整体感受，题目不可直接在原文找到现成字面答案</td><td><span class="tag t-self">自造层次链</span></td><td>栏目名改「设题」；语义：<code>设问指向理解运用与整体感受，题目不可直接在原文找到现成字面答案</code></td></tr>
+<tr><td>summary 知识框架 / review 知识框架</td><td>结构化呈现，覆盖本单元全部知识点（，知识网络化呈现）</td><td><span class="tag t-self">自造</span></td><td><code>覆盖本单元全部知识点</code>（"知识网络化呈现"仅 review 保留）</td></tr>
+<tr><td>summary 重点梳理</td><td>逐点梳理并标注教材出处，重点突出，每个要点给内涵、适用前提与使用注意</td><td><span class="tag t-ask">待确认</span></td><td>"逐点"是覆盖对账词（09-15 已判为诱导的一类），建议改「按要点梳理」；请你定</td></tr>
+<tr><td>review 核心知识梳理</td><td>按知识层级分层（学习理解→应用实践→迁移创新）逐条梳理（标注教材出处），重点难点突出</td><td><span class="tag t-self">自造</span></td><td><code>按学习理解→应用实践→迁移创新梳理（标注教材出处），重点难点突出</code></td></tr>
+<tr><td>dictation 基础默写</td><td>本次范围要求掌握的基础内容，置于语境或情境中呈现（不孤立罗列），含易错点</td><td><span class="tag t-self">自造</span></td><td><code>…置于语境中呈现（不孤立罗列），含易错点</code>（"语境"是课标口径，"情境"删）</td></tr>
+<tr><td>dictation 积累内容</td><td>严格对应教材要求，覆盖全部要求掌握的内容，按学段体现层次（感知记忆→理解运用→综合迁移）</td><td><span class="tag t-self">自造层次链</span></td><td>删末句：<code>严格对应教材要求，覆盖全部要求掌握的内容</code></td></tr>
+<tr><td>errorbook 错因剖析</td><td>具体到知识点或思维环节，归因明确，不写空泛套话</td><td><span class="tag t-self">自造</span></td><td><code>具体到知识点或解题步骤，归因明确，不写空泛套话</code></td></tr>
+<tr><td>errorbook 变式训练</td><td>每题 1 道变式（换情境、换设问角度，不复刻本题思路）</td><td><span class="tag t-self">自造</span></td><td><code>每题 1 道变式（不复刻本题思路）</code></td></tr>
+<tr><td>8 类 × 5 学段 note 的取向句</td><td>情境具体直观／图文并茂／任务以真实生活情境为主／板块短小，情境游戏化／题目以情境为载体／含综合变式，设问开放／内容在情境中考查／含综合情境考查／自测题情境化／框架简明，图文并茂／变式贴近本题／变式换情境换设问…</td><td><span class="tag t-self">自造取向</span></td><td>统一为"认知层次＋操作形态"的课标口径，例如：<br>感知与体验为主：认读、口答、圈画等操作型任务<br>理解与运用为主：内容在语境中呈现，书写与表达适度兼顾<br>综合运用与初步创新为主：增加开放性任务<br>探究与实践为主：含过程性要求，步骤完整、书写规范<br>迁移与创新为主：设问可思辨，指向综合运用</td></tr>
+</tbody>
+</table>
+
+<h2>C. 教辅蓝图·学科定制（15 科）</h2>
+<p class="lead">435 行源中命中 149 行，几乎都是同一批模式在 15 科上重复。按模式聚合如下（右侧为建议的统一改法）。</p>
+<table>
+<thead><tr><th>模式</th><th>命中学科数</th><th>原文示例</th><th>判定</th><th>建议改法</th></tr></thead>
+<tbody>
+<tr><td>special <code>分板块组织</code></td><td>15</td><td>按本单元内容分板块，板块间由浅入深；并给出具体做法与自查/完成标准</td><td><span class="tag t-self">自造</span></td><td>栏目名改「按活动类型组织」；语义按本学科素养层写（与本学科 practice 的层级名一致），删"板块/由浅入深"</td></tr>
+<tr><td>special <code>每板块配解析</code></td><td>15</td><td>每板块适量题目并附解析，聚焦本单元薄弱点</td><td><span class="tag t-self">自造</span></td><td>栏目名改「每层配解析」（数学"薄弱环节"保留）</td></tr>
+<tr><td>reading <code>分层设题</code></td><td>15</td><td>设问由浅入深、有层次，题目不可直接在原文找到原句答案；并给出具体做法与自查/完成标准</td><td><span class="tag t-self">自造</span></td><td>栏目名改「设题」；语义删"由浅入深、有层次"</td></tr>
+<tr><td>summary/review <code>知识框架</code></td><td>15</td><td>结构化呈现本单元…</td><td><span class="tag t-self">自造</span></td><td>删"结构化呈现"→「覆盖本单元…」</td></tr>
+<tr><td>errorbook <code>错因剖析</code></td><td>15</td><td>具体到知识点或思维环节（概念/化学用语/实验操作…），归因明确</td><td><span class="tag t-self">自造</span></td><td>"思维环节"→"解题步骤"，括注保留</td></tr>
+<tr><td>errorbook <code>变式训练</code></td><td>15</td><td>1 道变式（换情境、换设问角度）／（换数据、换情境…）／（换史料、换设问角度）</td><td><span class="tag t-self">自造</span></td><td>统一为 <code>1 道变式（不复刻本题思路）</code></td></tr>
+<tr><td>practice 探究进阶任务"变式设问，考查迁移"</td><td>15</td><td>…：语段阅读与表达运用，<b>变式设问</b>，考查知识迁移</td><td><span class="tag t-self">自造</span></td><td>删"变式设问"（"考查迁移/迁移运用"若为本学科素养表述可留）</td></tr>
+<tr><td>dictation 各科"在情境中呈现（不孤立罗列）"</td><td>11</td><td>本单元要求掌握的词汇与句型，在情境中呈现（不孤立默写）</td><td><span class="tag t-self">自造</span></td><td>改「在语境中呈现（不孤立默写）」</td></tr>
+<tr><td>practice 基础建构"在情境中考查／在图示情境中／在地图情境中"</td><td>多科</td><td>数学：覆盖本次范围核心知识点，在情境中考查；生物：在图示情境中考查；地理：在地图情境中考查</td><td><span class="tag t-ask">待确认</span></td><td>学科课标确有"真实情境/图示/地图"要求者保留；仅清"情境游戏化/情境具体直观/以真实生活情境为主"这类产品取向——请你按科圈定</td></tr>
+<tr><td>英语/practice 迁移创新任务</td><td>1</td><td>迁移创新类活动（…）：<b>真实交际任务（情境对话、介绍、交流）</b>，联系本单元主题</td><td><span class="tag t-self">自造形态枚举</span></td><td>删枚举：<code>真实交际任务，联系本单元主题</code>（这是"写一段对话/完成对话"反复出现的一处推力）</td></tr>
+<tr><td>数学/reading 阅读材料</td><td>1</td><td>数学阅读材料（生活情境、图表资料、数学故事、数学文化）</td><td><span class="tag t-cn">课标原义</span></td><td>保留</td></tr>
+<tr><td>物理/practice 迁移创新任务</td><td>1</td><td>科学思维与态度责任层：真实问题解决（生活、科技、工程应用），含作图与计算</td><td><span class="tag t-ask">待确认</span></td><td>物理课标原文"从生活走向物理，从物理走向社会"，括注可留；"真实问题解决"请定</td></tr>
+</tbody>
+</table>
+<p class="n">逐科完整改法（15 科 × 各栏目一句话）我会在改动前一并生成，你过一遍再落。</p>
+
+<h2>D. 两个控件</h2>
+<h3>D1 自动轮换（COLUMN_STYLE_SETS）</h3>
+<div class="box warn">
+  <b>它没有语义描述，只有名字。</b>弹窗里的"语义"列取的是<u>当前学科×学段蓝图</u>的 note，不是每套自己的语义——
+  这就是它"看不全"的原因（解析不出学科定制时为空白，且只取前 N 条，5 学段要求压根没进弹窗）。
+</div>
+<table>
+<thead><tr><th>类型</th><th>a 套（默认）</th><th>b / c / d 套</th><th>判定</th></tr></thead>
+<tbody>
+<tr><td>practice</td><td>基础建构任务／探究进阶任务／迁移创新任务</td><td>基础过关／能力提升／拓展挑战 · 知识奠基／变式进阶／综合创新 · 夯实基础／方法迁移／实践挑战</td><td>a 套＝课标活动层级改写（可留）；b/c/d＝教辅体例自造词（建议换成课标口径或中性名）</td></tr>
+<tr><td>special</td><td>分板块组织／每板块配解析</td><td>板块闯关／难题精讲 · 分层板块／错因解析 · 模块练习／易错剖析</td><td>含"板块"自造词</td></tr>
+<tr><td>preview</td><td>学习目标／预习任务／预习检测／我的疑问</td><td>目标导航／自学闯关／试做反馈／想问什么 · 达成标尺／先行任务／自测互检／疑点记录 · 本节目标／自主探索／预习自检／问号墙</td><td>a 套可留；b/c/d（闯关/标尺/问号墙）自造</td></tr>
+<tr><td>reading</td><td>原创选文／分层设题</td><td>新文赏读／梯度设问 · 课外选文／递进练习 · 主题选文／分层闯关</td><td>"梯度/递进/分层"自造</td></tr>
+<tr><td>summary</td><td>知识框架／重点梳理／易错辨析／典型例题</td><td>结构导图／要点详解／误区警示／示范例题 · 思维地图／… · 脉络梳理／…</td><td>含"结构/导图/地图"自造</td></tr>
+<tr><td>dictation</td><td>基础默写／积累内容／书写呈现</td><td>必背闯关／积累盘点／规范书写 · 默写达标／语料积累／书写过关 · 默写过关／好词好句／一笔一画</td><td>b/c/d 自造（好词好句/一笔一画）</td></tr>
+<tr><td>errorbook</td><td>题目呈现／典型错解／错因剖析／正确解答／方法提炼／变式训练</td><td>题目回放／典型错例／错因诊断／规范解答／方法归纳／变式演练 · … · 题目重现／常见错法／为何出错／怎样改对／通用思路／再练一道</td><td>b/c/d 自造（此题 6 栏，套间差异不小）</td></tr>
+<tr><td>review</td><td>知识框架／核心知识梳理／典型题析／易错聚焦／综合自测</td><td>结构导图／要点系统梳理／典例精析／误区聚焦／分层自测 · … · 框架总览／知识分层梳理／解题示范／错点提醒／达标自测</td><td>含"结构/分层"自造</td></tr>
+</tbody>
+</table>
+
+<h3>D2 组织风格（styleOptions，11 条）</h3>
+<table>
+<thead><tr><th>条目</th><th>desc / tip 要点</th><th>判定</th><th>建议</th></tr></thead>
+<tbody>
+<tr><td>大单元教学</td><td>跨课时大概念组织；tip 明说"课标倡导的组织方式"</td><td><span class="tag t-cn">课标原义</span></td><td>保留</td></tr>
+<tr><td>项目式学习</td><td>项目任务驱动；tip 明说"课标倡导的组织方式"</td><td><span class="tag t-cn">课标原义</span></td><td>保留</td></tr>
+<tr><td>传统题组</td><td>不设统一情境，按题组/板块组织；"以知识板块或题组为单位逐题命制"</td><td><span class="tag t-self">自造词</span></td><td>tip 里的"知识板块或题组"改「按知识条目逐题命制」</td></tr>
+<tr><td>课标卷型 / 单元情境卷 / 逐题情境</td><td>全卷统一核心情境、情境贯穿设问；单元大情境贯穿栏目；每题独立真实适切情境</td><td><span class="tag t-ask">自造情境口径</span></td><td>命名与 desc 是我们的口径（"课标卷型"名不符实）——请你定：中性化还是保留选项本身</td></tr>
+<tr><td>导图式 / 表格化 / 情境化串联 / 问题驱动 / 框架式</td><td>知识分层梳理；对比/表格呈现；真实适切主题串联知识点；预习任务问题化；框架→梳理→自测</td><td><span class="tag t-ask">呈现方式自造</span></td><td>属"呈现风格"、非组织形式，建议保留条目但 tip 里删"分层/真实适切"等词</td></tr>
+</tbody>
+</table>
+
+<h2>E. 必修 bug</h2>
+<div class="box hot">
+  音乐·高中 鉴赏题 note：<code>…层次与侧重依<b>诗文</b>内容自定…</code>——音乐题里出现"诗文"，是复制残留，必须修。
+  同批美术·高中的"由浅入深…层次"一并处理。
+</div>
+
+<h2>F. 我打算怎么落（等你圈定后执行）</h2>
+<ul>
+  <li>逐条替换：每处改动带命中次数断言，防误伤；改完把"通用 8 类 + 15 科定制 + 试卷"的注入文本重渲一遍给你对照。</li>
+  <li>补回归锁：蓝图 note 不得出现自造取向词表（情境游戏化／情境具体直观／以真实生活情境为主／图文并茂／变式设问／由浅入深／结构化呈现／思维环节／板块…），同时保留课标原词（学习理解／应用实践／迁移创新／各科素养层名）。</li>
+  <li>顺带修轮换弹窗：按套展示语义（b/c/d 只换名、语义同 a）、补"学段要求"一栏、解析失败时回退通用蓝图并如实标注。</li>
+  <li>全量回归 + 你用同一单元再生成一份产物抽检。</li>
+</ul>
+
+<h2>G. 需要你圈的三个点</h2>
+<ul>
+  <li><b>范围</b>：全清（A+B+C+D）／只清 A+B（试卷＋通用）／按上面每行的"待确认"逐条圈。</li>
+  <li><b>"情境"类</b>：物理／数学／体育／历史／道法等学科课标里确有"真实情境/情境"原文的，保留还是也中性化？</li>
+  <li><b>设为待确认的 4 项</b>：语文"设问有层次"、语文"情境默写"、summary"逐点梳理"、科学"跨学科融合"——留还是清？</li>
+</ul>
+
+</body>
+</html>

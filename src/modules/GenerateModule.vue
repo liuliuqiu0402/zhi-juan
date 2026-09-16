@@ -1335,21 +1335,100 @@
             {{ opt.label }}
           </label>
         </div>
-        <!-- 🎨 资料栏目标题风格套（非 exam 类型：默认套 / 手动固定套；点开弹窗全列所有套+语义+置灰） -->
+        <!-- 🔴 2026-09-16（用户："自动轮换点开还是只有这些，没有像组织弹窗那样全部显示"）：
+             ① 名称池**说明内联展示**（原先只在 hover title 里，看不到）；
+             ② 未选类型时不再整块不渲染（原判据 genTypes[0] && 把整个风格块挡掉了）；
+             ③ "资料栏目标题风格"改**内联展开**（全部套 + 各栏语义 + 学段要求），不必再点第二层弹窗。 -->
+        <div class="option-list">
+          <div
+            v-for="opt in labelStyleOptions"
+            :key="'lbdesc' + opt.value"
+            class="option-item"
+          >
+            <span class="option-label">{{ opt.label }}</span>
+            <span class="option-desc">{{ opt.desc }}</span>
+          </div>
+        </div>
         <div
-          v-if="genTypes[0] && genTypes[0] !== 'exam' && columnStyleOptions.length"
+          v-if="!genTypes[0]"
+          class="hint"
+        >
+          未选资料类型：名称池与栏目标题套按资料类型而定，先选类型即可看到该类型的全部可选项（下方"资料栏目标题风格"同理）。
+        </div>
+        <!-- 🎨 资料栏目标题风格（非考试类）：内联展开全部套 + 各栏语义 + 学段要求 -->
+        <div
+          v-if="genTypes[0] !== 'exam'"
           class="scope-style-block"
         >
           <p class="scope-style-title">
-            🎨 资料栏目标题风格（{{ genTypes[0] }}：选"🔄 自动轮换"每次生成换下一套；选具体套（含默认套）则固定该套栏目标题，跨稿不串套）
+            🎨 资料栏目标题风格：选"🔄 自动轮换"每次生成换下一套（a→b→c→d 循环）；选具体套则固定该套栏目标题，跨稿不串套
           </p>
-          <button
-            class="btn scope-style-open"
-            type="button"
-            @click="showColumnStyleModal = true"
+          <div
+            v-if="!columnStyleOptions.length"
+            class="hint"
           >
-            {{ columnStyleLabel }} · 点开查看全部风格套
-          </button>
+            先选资料类型（且非"正式考卷"），此处列出该类型的全部风格套与各栏语义。
+          </div>
+          <div
+            v-else
+            class="option-list"
+          >
+            <label
+              v-for="opt in columnStyleOptions"
+              :key="'cs' + opt.value"
+              class="option-item"
+              :class="{ 'opt-disabled': !opt.applicable }"
+            >
+              <input
+                v-model="columnStyle"
+                type="radio"
+                :value="opt.value"
+                :disabled="!opt.applicable"
+                name="columnStyleInline"
+              >
+              <span class="option-label">{{ opt.label }}</span>
+              <span class="option-desc">{{ opt.desc }}</span>
+              <span class="option-cols">
+                <span
+                  v-for="(c, i) in opt.columns"
+                  :key="i"
+                  class="option-col-row"
+                >
+                  <b>{{ c }}</b>
+                  <span v-if="opt.semantics[i]">——{{ opt.semantics[i] }}</span>
+                </span>
+              </span>
+              <span
+                v-if="!opt.applicable"
+                class="opt-for"
+              >{{ opt.appliesToLabel }}</span>
+            </label>
+          </div>
+          <template v-if="columnSemantics.length">
+            <div class="style-group-title">
+              各栏语义（来自当前生效蓝图；换肤只改标题字面，语义不变）
+            </div>
+            <div
+              v-if="columnSemanticsFallback"
+              class="hint"
+            >{{ columnSemanticsFallback }}</div>
+            <div class="option-list">
+              <div
+                v-for="(row, i) in columnSemantics"
+                :key="'sem' + i"
+                class="option-item"
+              >
+                <span class="option-label">{{ row.name }}</span>
+                <span class="option-desc">{{ row.note || '（无语义描述）' }}</span>
+              </div>
+            </div>
+          </template>
+          <div
+            v-if="columnStageNote"
+            class="hint"
+          >
+            ▌学段要求：{{ columnStageNote }}
+          </div>
         </div>
         <!-- 📐 考试标签名称（期中/期末/月考/综合）：每维度单选 自动轮换 / 固定名称，与资料类型名称样式统一 -->
         <div
@@ -1427,74 +1506,6 @@
     </div>
 
     <!-- 🎨 栏目风格弹窗（仿组织风格：全列所有风格套，完整栏目名+语义；当前学科×类型不适用的置灰） -->
-    <div
-      v-if="showColumnStyleModal"
-      class="modal-mask"
-      @click.self="showColumnStyleModal = false"
-    >
-      <div class="modal">
-        <h3>🎨 资料栏目标题风格（{{ genTypes[0] ? genTypeOptions.find(o => o.value === genTypes[0])?.label : '未选类型' }}）</h3>
-        <div class="option-list">
-          <div class="style-group-title">
-            全部风格套（{{ genTypes[0] }}）：栏目标题字面可换肤，栏目语义不变
-          </div>
-          <label
-            v-for="opt in columnStyleOptions"
-            :key="opt.value"
-            class="option-item"
-            :class="{ 'opt-disabled': !opt.applicable }"
-          >
-            <input
-              v-model="columnStyle"
-              type="radio"
-              :value="opt.value"
-              :disabled="!opt.applicable"
-              name="columnStyleModal"
-            >
-            <span class="option-label">{{ opt.label }}</span>
-            <span class="option-desc">{{ opt.desc }}</span>
-            <span class="option-cols">
-              <span
-                v-for="(c, i) in opt.columns"
-                :key="i"
-                class="option-col-row"
-              >
-                <b>{{ c }}</b>
-                <span v-if="opt.semantics[i]">——{{ opt.semantics[i] }}</span>
-              </span>
-            </span>
-            <span
-              v-if="!opt.applicable"
-              class="opt-for"
-            >{{ opt.appliesToLabel }}</span>
-          </label>
-        </div>
-        <p class="hint">
-          💡 全部栏目风格套如上（当前学科×类型栏目名与默认套不一致时，换肤不生效，相关套已置灰）。系统默认"🔄 自动轮换"，按次轮换不重复串稿；固定某套则跨稿不串套。
-        </p>
-        <div class="modal-actions">
-          <button
-            v-if="columnStyle"
-            class="btn"
-            @click="columnStyle = ''"
-          >
-            ↻ 恢复自动
-          </button>
-          <button
-            class="btn"
-            @click="showColumnStyleModal = false"
-          >
-            取消
-          </button>
-          <button
-            class="btn-primary"
-            @click="showColumnStyleModal = false"
-          >
-            确定
-          </button>
-        </div>
-      </div>
-    </div>
 
     <!-- 🎯 专项子类型弹窗（单选） -->
     <div
@@ -3323,19 +3334,25 @@ const currentColumnSubject = computed(() => {
   const subj = m ? m[1] : '';
   return normalizeSubjectName(subj, getSelectedBookStageKey());
 });
-/** 栏目风格套全列（弹窗用）：完整栏目名 + 语义 + 适用性（当前学科×类型栏目名与默认套不一致时置灰） */
+/** 栏目风格套全列（弹窗用）：完整栏目名 + 语义 + 适用性（当前学科×类型栏目名与默认套不一致时置灰）
+ *  🔴 2026-09-16（用户："自动轮换点开看不到全部内容，不像组织风格那样能看全"）三处修：
+ *    ① 语义来源归一：解析不到学科定制蓝图时**回退通用蓝图**并如实标注（原先留空白）；
+ *    ② 不再按套截断语义（各套只换标题字面，语义同一份）；
+ *    ③ 补"学段要求"与"各栏语义"两块完整展示——原先 5 学段要求根本不进弹窗。 */
 const columnStyleOptions = computed(() => {
   const type = genTypes.value[0];
   if (!type || type === 'exam' || !COLUMN_STYLE_SETS[type]) return [];
   const pool = COLUMN_STYLE_SETS[type];
   const subject = currentColumnSubject.value;
-  const bp = getTeachingBlueprint({ genType: type, stage: getSelectedBookStageKey(), subject });
-  const sections = bp?.sections || [];
+  const stageKey = getSelectedBookStageKey();
+  const bpSubject = getTeachingBlueprint({ genType: type, stage: stageKey, subject });
+  const bpGeneric = getTeachingBlueprint({ genType: type, stage: stageKey, subject: '' });
+  const bp = bpSubject?.sections?.length ? bpSubject : bpGeneric;
   const defNames = pool.a.columns;
   // 换肤生效守卫（与 applyColumnStyle 同判据）：当前生效蓝图的栏目名前 N 项须恰为默认套 a
-  const firstNames = sections.slice(0, defNames.length).map((s) => s && s.name);
+  const firstNames = (bp?.sections || []).slice(0, defNames.length).map((s) => s && s.name);
   const defaultMatch = defNames.every((n, i) => firstNames[i] === n);
-  const semantics = sections.map((s) => stripSourceMarkNote(s.note || ''));
+  const semantics = (bp?.sections || []).map((s) => stripSourceMarkNote(s.note || ''));
   const inapplicableReason = defaultMatch
     ? ''
     : `当前学科（${subject || '通用'}）该类型栏目名与默认套不同，换肤不生效，保持默认栏目名`;
@@ -3344,7 +3361,7 @@ const columnStyleOptions = computed(() => {
     ...Object.entries(pool).map(([id, s]) => ({
       value: id,
       label: id === 'a' ? '默认套（a）' : `风格套（${id}）`,
-      desc: id === 'a' ? '固定使用默认套（不换肤）' : '固定使用该套栏目标题（跨稿不串套）',
+      desc: id === 'a' ? '固定使用默认套（不换肤）' : '只换栏目标题字面，各栏语义同蓝图（见下方"各栏语义"）',
       columns: s.columns,
       semantics: semantics.slice(0, s.columns.length),
       // 守卫：当前学科×类型栏目名与默认套一致才可换肤；自动/默认套在守卫失败时退化为固定默认栏目名，始终可用
@@ -3352,6 +3369,34 @@ const columnStyleOptions = computed(() => {
       appliesToLabel: id === 'a' ? '' : inapplicableReason,
     })),
   ];
+});
+/** 当前生效蓝图的全栏目语义（弹窗底部完整展示，换肤不改语义） */
+const columnSemantics = computed(() => {
+  const type = genTypes.value[0];
+  if (!type || type === 'exam' || !COLUMN_STYLE_SETS[type]) return [];
+  const stageKey = getSelectedBookStageKey();
+  const subject = currentColumnSubject.value;
+  const bpSubject = getTeachingBlueprint({ genType: type, stage: stageKey, subject });
+  const bp = bpSubject?.sections?.length ? bpSubject : getTeachingBlueprint({ genType: type, stage: stageKey, subject: '' });
+  return (bp?.sections || []).map((s) => ({ name: s.name, note: stripSourceMarkNote(s.note || '') }));
+});
+/** 学段要求（原先弹窗不展示，用户只能看到栏目语义） */
+const columnStageNote = computed(() => {
+  const type = genTypes.value[0];
+  if (!type || type === 'exam' || !COLUMN_STYLE_SETS[type]) return '';
+  const stageKey = getSelectedBookStageKey();
+  const subject = currentColumnSubject.value;
+  const bpSubject = getTeachingBlueprint({ genType: type, stage: stageKey, subject });
+  const bp = bpSubject?.sections?.length ? bpSubject : getTeachingBlueprint({ genType: type, stage: stageKey, subject: '' });
+  return stripSourceMarkNote(bp?.stageParams?.note || '');
+});
+/** 语义来源说明（回退通用蓝图时如实标注，不让人误以为是本学科定制） */
+const columnSemanticsFallback = computed(() => {
+  const type = genTypes.value[0];
+  if (!type || type === 'exam' || !COLUMN_STYLE_SETS[type]) return '';
+  const subject = currentColumnSubject.value;
+  const bpSubject = getTeachingBlueprint({ genType: type, stage: getSelectedBookStageKey(), subject });
+  return bpSubject?.sections?.length ? '' : `当前学科（${subject || '通用'}）该类型未学科定制，下方语义为通用蓝图。`;
 });
 /** 当前栏目风格选中项的短摘要（入口按钮显示） */
 const columnStyleLabel = computed(() => {
@@ -3391,7 +3436,8 @@ const resetNameStyles = () => {
 // 弹窗状态
 const showScopeModal = ref(false);
 const showStyleModal = ref(false);
-const showColumnStyleModal = ref(false); // 🎨 栏目风格弹窗（全列风格套+语义+置灰）
+// 🎨 栏目风格套（2026-09-16）：原"资料栏目标题风格"第二层弹窗已取消——内容改为在「✏️ 名称样式」弹窗内**内联展开**
+//    （全部套 + 各栏语义 + 学段要求），用户点开一次即可看全；故 showColumnStyleModal 状态已移除。
 const showGenTypeModal = ref(false);
 const showSpecialSubTypeModal = ref(false);  // 🎯 专项子类型弹窗
 const showPreview = ref(false);
@@ -6318,7 +6364,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
         ? (st.dom.sections && st.dom.sections.length
           ? `专项领域「${st.dom.label}」· ${st.dom.sections.length} 栏目 + 课标语义锚（${st.dom.anchor}）`
           : `专项领域「${st.dom.label}」· 通用栏目 + 课标语义锚（${st.dom.anchor}）`)
-        : `教辅结构「${genTypeLabel}」· 栏目名（作大类标题）+ 学段要求`;
+        : `教辅结构「${genTypeLabel}」· 大类标题（按课标活动类型与素养层划分）+ 学段要求`;
     }
   }
   // 🔴 程序性附加段（渲染契约 + 质检规则 + 守门条款段级兜底）统一走 buildProgramAttach 单源：

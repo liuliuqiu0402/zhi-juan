@@ -27,8 +27,8 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '识字与写字', score: 32, note: '覆盖本单元识字与写字内容，在语境中考查。' },
       { name: '积累与运用', score: 24, note: '覆盖本单元积累与运用内容，在真实语境中选填、仿写。' },
-      { name: '阅读与鉴赏', score: 14, note: '课内课外阅读结合，设问有层次；选文标注出处。' },
-      { name: '表达与交流', score: 30, note: '口语交际与看图写话结合本单元主题；写话给情境与词语支架。' },
+      { name: '阅读与鉴赏', score: 14, note: '课内课外阅读结合；选文标注出处。' },
+      { name: '表达与交流', score: 30, note: '口语交际与看图写话结合本单元主题；写话提供词语支架。' },
     ],
   },
   '语文|primary_mid': {
@@ -36,7 +36,7 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '积累与运用', score: 30, note: '覆盖本单元积累与运用内容：字词句段在真实语境中考查，名句运用型填空。' },
       { name: '梳理与探究', score: 8, note: '对本单元字词、所读信息作归类整理、图表梳理或简要归纳，在真实语境中考查梳理与探究能力。' },
-      { name: '阅读与鉴赏', score: 26, note: '课内阅读与课外阅读结合，课外选文主题相关并标注出处；设问有层次。' },
+      { name: '阅读与鉴赏', score: 26, note: '课内阅读与课外阅读结合，课外选文主题相关并标注出处。' },
       { name: '表达与交流', score: 36, note: '口语交际与习作结合本单元主题；习作给选材支架。' },
     ],
   },
@@ -45,7 +45,7 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '积累与运用', score: 32, note: '覆盖本单元积累与运用内容：字词句段在真实语境中考查，名句运用型填空，含文言词句积累。' },
       { name: '梳理与探究', score: 10, note: '对字词、阅读或材料信息作梳理分类、图表整理与归纳概括，含跨学科学习中的信息整理，考查梳理与探究能力。' },
-      { name: '阅读与鉴赏', score: 24, note: '课内阅读与课外阅读结合，课外选文标注出处；设问有层次。' },
+      { name: '阅读与鉴赏', score: 24, note: '课内阅读与课外阅读结合，课外选文标注出处。' },
       { name: '表达与交流', score: 34, note: '跨学科学习任务群与习作结合本单元主题；习作给选材支架。' },
     ],
   },
@@ -53,17 +53,17 @@ export const EXAM_BLUEPRINTS = {
     label: '语文·初中（中考结构）', fullScore: 120, duration: '120分钟',
     sections: [
       { name: '积累与运用', score: 24, note: '名句语境默写与基础运用（字音字形、词语运用、病句等）。' },
-      { name: '梳理与探究', score: 10, note: '名著阅读与综合性学习（信息梳理、图表归纳、围绕主题整理探究），在真实情境中考查梳理与探究能力。' },
+      { name: '梳理与探究', score: 10, note: '名著阅读与综合性学习（信息梳理、图表归纳、围绕主题整理探究），考查梳理与探究能力。' },
       { name: '古诗文阅读', score: 22, note: '文言文课内外对比阅读与古诗词鉴赏，重理解与积累运用。' },
-      { name: '现代文阅读', score: 28, note: '记叙文与说明文/议论文阅读，课外选文标注出处，设问有层次。' },
+      { name: '现代文阅读', score: 28, note: '记叙文与说明文/议论文阅读，课外选文标注出处。' },
       { name: '写作', score: 36, note: '命题/半命题/材料作文，提示语与写作要求。' },
     ],
   },
   '语文|high': {
     label: '语文·高中（新高考结构）', fullScore: 150, duration: '150分钟',
     sections: [
-      { name: '现代文阅读', score: 35, note: '信息类文本与文学类文本阅读，设问有层次。' },
-      { name: '古代诗文阅读', score: 35, note: '文言文、古代诗歌鉴赏与名篇名句情境默写。' },
+      { name: '现代文阅读', score: 35, note: '信息类文本与文学类文本阅读。' },
+      { name: '古代诗文阅读', score: 35, note: '文言文、古代诗歌鉴赏与名篇名句默写。' },
       { name: '语言文字运用', score: 20, note: '词语选用、病句修改、句式变换、表达得体、补写句子等，在语境中考查。' },
       { name: '写作', score: 60, note: '材料作文，准确理解材料、立意明确、论证充分。' },
     ],
@@ -196,7 +196,7 @@ export const EXAM_BLUEPRINTS = {
   '物理|middle': {
     label: '物理·初中', fullScore: 100, duration: '90分钟',
     sections: [
-      { name: '选择题', score: 36, note: '4选1，概念辨析与情境判断' },
+      { name: '选择题', score: 36, note: '4选1，概念辨析' },
       { name: '填空题', score: 18, note: '现象分析、原理应用' },
       { name: '作图题', score: 8, note: '力的示意图、光路图、电路图；需现成图形的题配图由系统注入' },
       { name: '实验探究题', score: 14, note: '方案设计、数据分析、结论表述' },
@@ -217,7 +217,7 @@ export const EXAM_BLUEPRINTS = {
   '化学|middle': {
     label: '化学·初中', fullScore: 100, duration: '90分钟',
     sections: [
-      { name: '选择题', score: 30, note: '概念辨析、情境判断' },
+      { name: '选择题', score: 30, note: '概念辨析' },
       { name: '填空题', score: 26, note: '化学用语、物质推断、原理分析' },
       { name: '实验探究题', score: 24, note: '方案设计、现象描述、数据分析、结论与反思；实验装置图示由系统按渲染契约注入' },
       { name: '计算题', score: 20, note: '根据化学方程式计算，要求规范书写步骤' },
@@ -238,8 +238,8 @@ export const EXAM_BLUEPRINTS = {
   '生物|middle': {
     label: '生物·初中', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '选择题', score: 50, note: '概念辨析、情境判断' },
-      { name: '非选择题', score: 50, note: '识图填空、资料分析、实验探究；识图题在图示情境中设问（结构→功能→原理）；配图与数据图表由系统按渲染契约注入' },
+      { name: '选择题', score: 50, note: '概念辨析' },
+      { name: '非选择题', score: 50, note: '识图填空、资料分析、实验探究；识图题按结构→功能→原理设问；配图与数据图表由系统按渲染契约注入' },
     ],
   },
   '生物|high': {
@@ -255,28 +255,28 @@ export const EXAM_BLUEPRINTS = {
     label: '道德与法治·小学低段（1-2年级）', fullScore: 100, duration: '40分钟',
     sections: [
       { name: '判断', score: 20, note: '生活常识与行为习惯辨析' },
-      { name: '选择', score: 30, note: '情境判断' },
-      { name: '连线', score: 20, note: '情境与做法连线、行为与对错连线' },
-      { name: '情境辨析', score: 30, note: '看图或读短文后说说该怎么做，一句话作答' },
+      { name: '选择', score: 30, note: '价值判断' },
+      { name: '连线', score: 20, note: '做法与理由连线、行为与对错连线' },
+      { name: '材料辨析', score: 30, note: '看图或读短文后说说该怎么做，一句话作答' },
     ],
   },
   '道德与法治|primary_mid': {
     label: '道德与法治·小学中段（3-4年级）', fullScore: 100, duration: '50分钟',
     sections: [
       { name: '判断', score: 20, note: '行为习惯与规则意识辨析' },
-      { name: '选择', score: 30, note: '情境判断' },
+      { name: '选择', score: 30, note: '价值判断' },
       { name: '连线与分类', score: 10, note: '概念关联、行为分类' },
-      { name: '情境分析', score: 20, note: '结合生活情境说明理由，简短作答' },
-      { name: '实践探究', score: 20, note: '安全自护、垃圾分类等真实问题，给出做法并说明理由' },
+      { name: '材料分析', score: 20, note: '结合生活情境说明理由，简短作答' },
+      { name: '实践探究', score: 20, note: '安全自护、垃圾分类等身边问题，给出做法并说明理由' },
     ],
   },
   '道德与法治|primary_high': {
     label: '道德与法治·小学高段（5-6年级）', fullScore: 100, duration: '60分钟',
     sections: [
       { name: '判断', score: 16, note: '法律常识与价值判断' },
-      { name: '选择', score: 30, note: '情境与法理判断' },
+      { name: '选择', score: 30, note: '法理与是非判断' },
       { name: '材料分析', score: 24, note: '读案例或时政材料后分析说明，结合所学谈认识' },
-      { name: '实践探究', score: 30, note: '校园欺凌防范、网络文明等真实问题，提出做法并阐述理由' },
+      { name: '实践探究', score: 30, note: '校园欺凌防范、网络文明等身边问题，提出做法并阐述理由' },
     ],
   },
   '道德与法治|middle': {
@@ -284,7 +284,7 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '选择题', score: 32, note: '基础知识与价值判断' },
       { name: '判断题', score: 8, note: '观点辨析' },
-      { name: '材料分析题', score: 60, note: '情境探究、法理阐释、实践应用（结合时政素材）' },
+      { name: '材料分析题', score: 60, note: '材料探究、法理阐释、实践应用（结合时政素材）' },
     ],
   },
   '思想政治|high': {
@@ -306,7 +306,7 @@ export const EXAM_BLUEPRINTS = {
   '历史|high': {
     label: '历史·高中（新高考单科）', fullScore: 100, duration: '75分钟',
     sections: [
-      { name: '选择题', score: 48, note: '以史料为载体的概念辨析与情境判断' },
+      { name: '选择题', score: 48, note: '以史料为载体的概念辨析' },
       { name: '非选择题', score: 52, note: '材料解析、比较分析、开放论述（观点＋史料＋论证）；图表由系统按渲染契约注入' },
     ],
   },
@@ -333,7 +333,7 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '填空', score: 20, note: '结合生活情境或配图的观察发现题' },
       { name: '判断', score: 12, note: '现象辨析' },
-      { name: '选择', score: 18, note: '情境判断' },
+      { name: '选择', score: 18, note: '概念与现象判断' },
       { name: '连线', score: 10, note: '概念关联、分类匹配' },
       { name: '观察与探究', score: 20, note: '观察记录、排序、简单探究过程描述' },
       { name: '简答', score: 20, note: '用一两句话说明现象或做法' },
@@ -344,7 +344,7 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '填空', score: 16, note: '知识应用与现象解释' },
       { name: '判断', score: 10, note: '事实辨析、因果推理' },
-      { name: '选择', score: 20, note: '情境判断' },
+      { name: '选择', score: 20, note: '概念与现象判断' },
       { name: '连线与排序', score: 10, note: '概念关联、实验步骤排序' },
       { name: '实验探究', score: 24, note: '方案设计、现象记录、数据分析、结论表述' },
       { name: '简答', score: 20, note: '用所学知识解释生活现象' },
@@ -355,19 +355,19 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '填空', score: 16, note: '原理应用与综合推理' },
       { name: '判断', score: 10, note: '事实辨析、推理评价' },
-      { name: '选择', score: 20, note: '情境判断' },
+      { name: '选择', score: 20, note: '概念与现象判断' },
       { name: '实验探究', score: 24, note: '方案设计、数据分析、结论与评价' },
-      { name: '综合运用', score: 30, note: '真实问题解决、跨学科融合，含开放性设问' },
+      { name: '综合运用', score: 30, note: '问题解决与跨学科概念运用，含开放性设问' },
     ],
   },
   '科学|middle': {
     label: '科学·初中（综合理科）', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '选择', score: 20, note: '情境判断、概念应用' },
+      { name: '选择', score: 20, note: '概念应用' },
       { name: '填空', score: 16, note: '原理应用与现象解释' },
       { name: '判断', score: 10, note: '事实辨析、推理评价' },
       { name: '实验探究', score: 28, note: '方案设计、变量控制、现象记录、数据分析、结论评价（体现科学探究完整过程）' },
-      { name: '综合运用', score: 26, note: '真实问题解决、跨学科融合，含开放性设问与说理' },
+      { name: '综合运用', score: 26, note: '问题解决与跨学科概念运用，含开放性设问与说理' },
     ],
   },
 
@@ -376,9 +376,9 @@ export const EXAM_BLUEPRINTS = {
     label: '信息科技·小学低段（1-2年级）', fullScore: 100, duration: '40分钟',
     sections: [
       { name: '判断题', score: 16, note: '信息意识、数字设备初步认识、用眼卫生' },
-      { name: '选择题', score: 24, note: '情境判断' },
+      { name: '选择题', score: 24, note: '概念与行为判断' },
       { name: '连线题', score: 20, note: '设备与用途、行为与对错连线' },
-      { name: '情境操作题', score: 40, note: '以文字/图示描述简单操作步骤，配评分要点' },
+      { name: '操作题', score: 40, note: '以文字/图示描述简单操作步骤，配评分要点' },
     ],
   },
   '信息科技|primary_mid': {
@@ -408,7 +408,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断题', score: 12, note: '观点与行为辨析' },
       { name: '填空题', score: 16, note: '原理在场景中运用' },
       { name: '操作题', score: 28, note: '流程设计、方案描述（含算法与数据）' },
-      { name: '综合题', score: 20, note: '真实问题解决' },
+      { name: '综合题', score: 20, note: '任务解决' },
     ],
   },
   '信息科技|high': {
@@ -436,7 +436,7 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '选择题', score: 24, note: '乐理常识、乐器识别、名曲主题' },
       { name: '判断题', score: 16, note: '音乐常识辨析' },
-      { name: '填空题', score: 16, note: '音乐术语、节奏节拍（结合作品情境）' },
+      { name: '填空题', score: 16, note: '音乐术语、节奏节拍' },
       { name: '连线题', score: 12, note: '乐器与分类、节奏型匹配' },
       { name: '简答题', score: 32, note: '作品赏析（要素分析→情感体验），配评分要点' },
     ],
@@ -466,7 +466,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '选择题', score: 30, note: '音乐鉴赏、中外音乐史、民族音乐' },
       { name: '填空题', score: 20, note: '音乐要素、体裁与作品' },
       { name: '判断题', score: 10, note: '音乐常识辨析' },
-      { name: '鉴赏题', score: 40, note: '鉴赏体现多层次审美与情感体验、由浅入深的评价递进，层次与侧重依诗文内容自定，配评分要点' },
+      { name: '鉴赏题', score: 40, note: '鉴赏体现审美与情感体验，侧重依作品内容自定，配评分要点' },
     ],
   },
 
@@ -515,7 +515,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '选择题', score: 30, note: '美术鉴赏、中外美术史、设计原理' },
       { name: '填空题', score: 20, note: '美术术语、流派与作品' },
       { name: '判断题', score: 10, note: '美术常识辨析' },
-      { name: '鉴赏题', score: 40, note: '鉴赏体现由内容到形式、由浅入深的审美鉴赏，层次与侧重依作品内容自定，配评分要点' },
+      { name: '鉴赏题', score: 40, note: '鉴赏体现由内容到形式的审美鉴赏，侧重依作品内容自定，配评分要点' },
     ],
   },
 
@@ -524,7 +524,7 @@ export const EXAM_BLUEPRINTS = {
     label: '体育·小学低段（1-2年级）', fullScore: 100, duration: '40分钟',
     sections: [
       { name: '判断题', score: 20, note: '运动安全、生活习惯' },
-      { name: '选择题', score: 20, note: '运动情境判断' },
+      { name: '选择题', score: 20, note: '运动常识判断' },
       { name: '连线题', score: 20, note: '动作与要领、场景与做法连线' },
       { name: '简答题', score: 40, note: '在运动情境中描述正确做法，配评分要点' },
     ],

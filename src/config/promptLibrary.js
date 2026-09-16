@@ -248,7 +248,7 @@ export const SUBJECT_FACT_DISCIPLINE = {
 /** 正式考卷基础模板（extra 为学科排版附加，学科模板复用本函数） */
 const EXAM_BASE = (extra = '', ctx = {}) => `你是资深命题专家。请为{grade}{subject}命制一份{unit}正式试卷（满分{fullScore}分，考试时间{duration}）。
 
-【卷面结构】（大题结构以系统注入的【卷面结构】为准；大题标题"共X题"中的 X 按你实际命制的题数填写）
+【卷面结构（依{curriculum}的内容领域与真题结构调研拟定）】（大题结构以系统注入的【卷面结构】为准；大题标题"共X题"中的 X 按你实际命制的题数填写）
 {structure}
 
 【创作要求】
