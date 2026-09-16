@@ -1284,6 +1284,80 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         silentCount('writing-grid', '含英语书面表达/写作题但正文无横线作答区（blank-line），请抽检');
       }
     }
+    // 2j-5c 🔴 2026-09-16（用户实证·教辅场景）：大题标题式书写题缺载体 → 补横线。
+    //    2j-5b 只扫"以 数字. 开头的段落"（为编号条目式教辅设计），而实测教辅/资料的大题是
+    //    <h3>十一、根据所给情境，写一段对话</h3> + 一个题干段落 → 2j-5b 看不见，程序兜底够不着；
+    //    而模型只给"书面表达"给了横线、给"写一段对话"没给 → 该题整题无作答载体（用户实证）。
+    //    此处按**大题标题 + 题区域**识别：锚点=大题标题（或编号段落），题区域=本元素到下一个标题，
+    //    补位落在**整题之后**（题干含要求/提示分条时即在分条之后，与作答空间条款一致）。
+    //    判定用书写形态词（只做程序识别、不进提示词，无题型诱导风险），并保留既有排除项防误判。
+    if (has('writing-expression-fix') && subject === '英语') {
+      try {
+        const tplH = document.createElement('template');
+        tplH.innerHTML = out;
+        const contentH = Array.from(tplH.content.children);
+        const kwH = /书面表达|写作|小作文|看图写话|用英语|写一段|写一篇|以.{1,30}为题|不少于\s*\d+\s*[句词字]|Write\b/;
+        const banH = /选择|判断|填空|阅读|读短文|完形|改写句子|连词成句|Read\b/;
+        const regionH = getAnswerRegion('英语', stage);
+        const linePerScoreH = regionH.linePerScore || 1.0;
+        let addedH = 0;
+        for (let i = 0; i < contentH.length; i++) {
+          const el = contentH[i];
+          const tag = (el.tagName || '').toLowerCase();
+          if (tag !== 'h2' && tag !== 'h3' && tag !== 'h4' && tag !== 'p') continue;
+          if (el.closest('.answer-section')) continue;
+          const t = (el.textContent || '').trim();
+          if (!t || !kwH.test(t) || banH.test(t)) continue;
+          if (tag === 'p' && !/^\s*\d+[.、．]/.test(t)) {
+            // 普通题干段落：若其上方已有命中的书写大题标题，则该题已由标题锚点覆盖 → 跳过（防同题重复补）
+            let covered = false;
+            for (let k = i - 1; k >= 0; k--) {
+              const tg3 = (contentH[k].tagName || '').toLowerCase();
+              if (tg3 === 'h2' || tg3 === 'h3' || tg3 === 'h4') {
+                const ht = contentH[k].textContent || '';
+                covered = kwH.test(ht) && !banH.test(ht);
+                break;
+              }
+            }
+            if (covered) continue;
+          }
+          // 题区域：本元素起，到下一个标题为止
+          const region = [];
+          for (let j = i; j < contentH.length; j++) {
+            const tg2 = (contentH[j].tagName || '').toLowerCase();
+            if (j > i && (tg2 === 'h2' || tg2 === 'h3' || tg2 === 'h4')) break;
+            region.push(contentH[j]);
+          }
+          // 区域内已有任何作答载体 → 跳过（防重复；同时覆盖"模型自己已给横线"的情形）
+          const regionHtml = region.map((e2) => e2.outerHTML || '').join('');
+          if (/blank-line|zuo-wen-ge|blank-\d|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge|square-grid/.test(regionHtml)) continue;
+          const last = region[region.length - 1];
+          const wmH = t.match(/[（(][^）)]*?(\d{1,3})\s*分/);
+          const wscoreH = wmH ? parseInt(wmH[1], 10) : 0;
+          const rowsH = wscoreH > 0 ? Math.max(8, Math.ceil(wscoreH * linePerScoreH)) : 8;
+          const wrapH = document.createElement('div');
+          for (let k = 0; k < rowsH; k++) {
+            const pL = document.createElement('p');
+            const spanL = document.createElement('span');
+            spanL.innerHTML = '&emsp;';
+            spanL.className = 'blank-line';
+            pL.appendChild(spanL);
+            wrapH.appendChild(pL);
+          }
+          last.parentNode.insertBefore(wrapH, last.nextSibling);
+          addedH += 1;
+          i += region.length - 1; // 跳过本题区域，避免同一题被多次锚定
+        }
+        if (addedH > 0) {
+          out = tplH.innerHTML;
+          issues.push({ severity: 'info', type: 'writing-grid', message: `大题标题式英语书写题已自动补横线作答区（blank-line，位于整题之后，共补${addedH}题）` });
+          fixed += 1;
+        }
+      } catch (e) {
+        console.warn('⚠️ 大题标题式英语书写题横线补齐失败:', e.message);
+        silentCount('writing-grid', '含大题标题式英语书写题但正文无横线作答区（blank-line），请抽检');
+      }
+    }
     // 2j-5a 作文格位置纠正：格子出现在所属题干之前 → 移到题干之后（模型常见顺序错误：
     //    先输出 <div class="zuo-wen-ge"> 再写题干，卷面变成"格子在上、题目在下"）
     if (has('writing-expression-fix') && /<div[^>]*class=["'][^"']*zuo-wen-ge/.test(out)) {
@@ -1463,7 +1537,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           //    由父题语境继承——如父题"判断…在○里填"下所有子题不补）；
           // 填空/写作类排除仅看块首行自身（填空由上方括号空判定；父题"再填空"字样不得拖累长答子题）
           const ctxText = it.ctx || '';
-          if (/(?:选择|选一选|选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|口算|直接写得数|照样子|例[：:、]|圈出|归类|选词|划出|仿写)/.test(`${ctxText} ${stem}`)) continue;
+          // 🔴 2026-09-16（用户实证·教辅场景）：判据补入**大题标题**。
+          //    排除表里本就有"选择/选词"，但此前只测 `${ctxText} ${stem}`——
+          //    教辅的"<h3>二、读短文，选择恰当的单词，把故事补充完整</h3> + 子题"结构下
+          //    ctx 不含标题、块首行是"（1）A. stop B. run C. jump"，两者都不含"选择" →
+          //    结构判据失效，选词填空大题下**每个子题各被兜底补 2 行横线**
+          //    （实测：5 个子题 × 2 行 = 10 条长横线）。标题即父题语境，按既有设计意图
+          //    （结构性题型由父题继承）一并纳入；填空/写作类仍只看块首行（下一行，勿动）。
+          if (/(?:选择|选一选|选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|口算|直接写得数|照样子|例[：:、]|圈出|归类|选词|划出|仿写)/.test(`${title} ${ctxText} ${stem}`)) continue;
           if (/(?:写话|习作|作文|写作|填一填|填空|填字)/.test(stem)) continue;
           // 度量有效作答行（纯空行/题间空行不计；内嵌填空下划线=已有载体 → 跳过）
           let rows = 0;
