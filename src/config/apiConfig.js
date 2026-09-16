@@ -403,6 +403,8 @@ export const saveConfig = async (config) => {
     if (toSave.volcanoApiKey) toSave.volcanoApiKey = cleanAndSync('volcanoApiKey', toSave.volcanoApiKey);
     if (toSave.alibabaApiKey) toSave.alibabaApiKey = cleanAndSync('alibabaApiKey', toSave.alibabaApiKey);
     if (toSave.zhipuApiKey) toSave.zhipuApiKey = cleanAndSync('zhipuApiKey', toSave.zhipuApiKey);
+    // 🎧 Azure 语音 Key：与模型 Key 同口径清洗（全角转半角等），防脏 Key 导致请求头非法
+    if (toSave.azureSpeechKey) toSave.azureSpeechKey = cleanAndSync('azureSpeechKey', toSave.azureSpeechKey);
     // 🔧 异步加密密钥（避免二次加密：已 enc_ 开头的跳过）
     if (toSave.deepseekApiKey && !toSave.deepseekApiKey.startsWith('enc_')) {
       toSave.deepseekApiKey = await encrypt(toSave.deepseekApiKey);
@@ -416,10 +418,16 @@ export const saveConfig = async (config) => {
     if (toSave.zhipuApiKey && !toSave.zhipuApiKey.startsWith('enc_')) {
       toSave.zhipuApiKey = await encrypt(toSave.zhipuApiKey);
     }
+    // 🎧 Azure 语音 Key：同样加密落盘（复用同一 encrypt/enc_ 前缀约定）
+    if (toSave.azureSpeechKey && !toSave.azureSpeechKey.startsWith('enc_')) {
+      toSave.azureSpeechKey = await encrypt(toSave.azureSpeechKey);
+    }
     localStorage.setItem(STORAGE_KEYS.API_CONFIG, JSON.stringify(toSave));
     
     // 🔧 Cookie 桥接：仅写入跨设备同步的核心字段（避免超 4KB 上限导致静默失败）
     //    iOS Safari↔PWA 通过此机制共享 API 配置
+    // 🔴 Azure 语音 Key（azureSpeechKey）**刻意不在本白名单内**：听力 TTS 无需跨端共享，
+    //    按用户口径"不进库/不落旁路"处理，只存 localStorage（密文）。
     const cookieCore = {
       currentEngine: toSave.currentEngine,
       analysisEngine: toSave.analysisEngine || '',
@@ -495,6 +503,16 @@ export const apiConfig = reactive({
   zhipuBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
   zhipuGenerationModel: 'glm-5.3',             // 生成用：最新旗舰（2026-08）
   zhipuAnalysisModel: 'glm-5.3',               // 分析用：最新旗舰（2026-08）
+
+  // ========== Azure 语音合成（英语听力音频 · 2026-09-16） ==========
+  // 🔴 密钥安全口径（用户 2026-09-16 明确要求）：
+  //    · 与模型 Key **同样**在设置页填写、本地加密存储（saveConfig 走同一套 sanitize + encrypt）；
+  //    · 但**不上推云端（不进库）**，也不进 Cookie 桥接——听力音频合成不需要跨设备共享 Key，
+  //      少一个落点就少一处泄露面。上推白名单在 App.vue 的 dsCfg（只含 deepseek* 四项）。
+  //    · 消费端一律走 apiConfig.azureSpeechKey（已解密值），禁止再自行持久化该字段。
+  azureSpeechKey: '',
+  azureSpeechRegion: 'eastasia',  // Azure 语音资源所在区域（eastasia/japaneast/southeastasia…），决定合成端点域名
+  azureSpeechOutputFormat: 'audio-24khz-160kbitrate-mono-mp3',  // 考试音频建议 24kHz/160kbps 单声道 mp3
   
   // ========== Ollama 本地配置 ==========
   ollamaBaseUrl: 'http://localhost:11434',

@@ -30,9 +30,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 菜单事件监听
     onMenuEvent: (callback) => ipcRenderer.on('menu-event', callback),
 
-    // 新增：静默导出 PDF
+    // 🔧 新增：静默导出 PDF
     exportPdf: (htmlContent, outputPath, options = {}) => ipcRenderer.invoke('export-pdf', htmlContent, outputPath, options),
     showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
+
+    // 🎧 Azure 语音合成（英语听力音频）：主进程发请求 + 保存对话框 + 落盘，规避浏览器跨域
+    azureTtsToFile: (payload) => ipcRenderer.invoke('azure-tts-to-file', payload),
 
     // Word COM 后处理：将标记 .docx 转换为原生表格/形状（田字格、四线三格）
     wordComProcess: (buffer) => ipcRenderer.invoke('word-com-process', buffer),

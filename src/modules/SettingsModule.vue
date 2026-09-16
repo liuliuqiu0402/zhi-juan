@@ -506,6 +506,52 @@
         >
       </div>
 
+      <!-- 🎧 Azure 语音合成（英语听力音频） -->
+      <div class="settings-section">
+        <h3>🎧 Azure 语音合成（英语听力音频）</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:4px;">
+          用于把英语听力卷的听力原文合成为<strong>整卷 mp3</strong>。免费层每月 50 万字符（约合 160-250 份听力卷），超出按 $15/百万字符计费。
+        </p>
+        <p class="model-hint">
+          🔒 该 Key 与模型 Key 一样只保存在本机（加密存储），<strong>不会上传云端</strong>。Key 需与区域来自同一个 Azure 语音资源，否则会报 403。
+        </p>
+        <label>Azure 语音 Key</label>
+        <input
+          v-model="settings.azureSpeechKey"
+          type="password"
+          placeholder="Azure 语音资源的密钥"
+        >
+        <label>区域（Region）</label>
+        <input
+          v-model="settings.azureSpeechRegion"
+          type="text"
+          placeholder="eastasia"
+          list="azure-region-options"
+        >
+        <datalist id="azure-region-options">
+          <option
+            v-for="r in AZURE_SPEECH_REGIONS"
+            :key="r.value"
+            :value="r.value"
+          >
+            {{ r.label }}
+          </option>
+        </datalist>
+        <p class="model-hint">
+          填资源所在区域名即可（如 eastasia / japaneast / southeastasia）；粘贴完整端点也会自动识别区域。
+        </p>
+        <label>输出格式</label>
+        <select v-model="settings.azureSpeechOutputFormat">
+          <option
+            v-for="f in AZURE_OUTPUT_FORMATS"
+            :key="f.value"
+            :value="f.value"
+          >
+            {{ f.label }}
+          </option>
+        </select>
+      </div>
+
       <!-- 📖 API 申请指南 -->
       <div class="settings-section">
         <h3>
@@ -1367,6 +1413,8 @@ import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils
 import { STAGE_KEYS } from '@/utils/gradeStage.js'; // 五档学段键唯一事实源（CAL_STAGE_KEYS 复用，不再本地另建副本）
 import { APP_EVENTS } from '@/constants/events.js'; // 全局事件名唯一事实源（曾字面量分发 show-toast/sign-countdown-reset）
 import { STORAGE_KEYS } from '@/constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（apiConfig/storagePath/activationInfo 曾字面量）
+// 🎧 Azure 语音合成（英语听力音频）：输出格式选项与默认值单一来源
+import { AZURE_SPEECH_REGIONS, AZURE_OUTPUT_FORMATS, DEFAULT_OUTPUT_FORMAT } from '@/utils/azureTts.js';
 
 const { showAlertDialogFn, showConfirmDialogFn } = useDialog();
 const {
@@ -1602,6 +1650,11 @@ const settings = ref({
   zhipuBaseUrl: apiConfig.zhipuBaseUrl || 'https://open.bigmodel.cn/api/paas/v4',
   zhipuGenerationModel: apiConfig.zhipuGenerationModel || 'glm-5.3',
   zhipuAnalysisModel: apiConfig.zhipuAnalysisModel || 'glm-5.3',
+  // 🎧 Azure 语音合成（英语听力音频）：Key 与模型 Key 同口径——设置页填写 + 加密落盘；
+  //    但**不上传云端**（用户 2026-09-16 定版），保存时不进上推白名单。
+  azureSpeechKey: apiConfig.azureSpeechKey || '',
+  azureSpeechRegion: apiConfig.azureSpeechRegion || 'eastasia',
+  azureSpeechOutputFormat: apiConfig.azureSpeechOutputFormat || DEFAULT_OUTPUT_FORMAT,
   analyzeCharts: true,
   storagePath: localStorage.getItem(STORAGE_KEYS.STORAGE_PATH) || '智卷工坊数据',
   generationSettings: JSON.parse(JSON.stringify(apiConfig.generationSettings))
@@ -1989,6 +2042,10 @@ const saveSettings = async () => {
   apiConfig.zhipuBaseUrl = settings.value.zhipuBaseUrl;
   apiConfig.zhipuGenerationModel = settings.value.zhipuGenerationModel;
   apiConfig.zhipuAnalysisModel = settings.value.zhipuAnalysisModel;
+  // 🎧 Azure 语音合成：写回内存（saveConfig 负责清洗 + 加密落盘；不进云端白名单）
+  apiConfig.azureSpeechKey = settings.value.azureSpeechKey;
+  apiConfig.azureSpeechRegion = settings.value.azureSpeechRegion;
+  apiConfig.azureSpeechOutputFormat = settings.value.azureSpeechOutputFormat;
   apiConfig.analyzeCharts = settings.value.analyzeCharts;
   apiConfig.multimodalEngine = settings.value.multimodalEngine || 'paddleocr_vl';
   // 🔧 写回前剔除已废弃字段（dynamicBudgetMode 已被 budgetByType 取代），避免旧配置残留
@@ -2184,6 +2241,14 @@ onMounted(async () => {
         if (parsed.zhipuApiKey && !VALID_KEY_RE.test(parsed.zhipuApiKey)) {
           console.warn('⚠️ 检测到损坏的智谱 API Key，已清空，请重新填写');
           parsed.zhipuApiKey = '';
+        }
+      }
+      // 🎧 Azure 语音 Key 同口径：解密后再回显，防止密文回填被二次加密导致密钥损坏
+      if (parsed.azureSpeechKey) {
+        parsed.azureSpeechKey = await decrypt(parsed.azureSpeechKey);
+        if (parsed.azureSpeechKey && !VALID_KEY_RE.test(parsed.azureSpeechKey)) {
+          console.warn('⚠️ 检测到损坏的 Azure 语音 Key，已清空，请重新填写');
+          parsed.azureSpeechKey = '';
         }
       }
       // 🔧 深合并 generationSettings：旧 localStorage 缺少新字段（paperTemperature/answerTemperature 等）时

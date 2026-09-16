@@ -393,6 +393,74 @@ ipcMain.handle('show-save-dialog', async (event, options) => {
   return { filePath: result.filePath, canceled: result.canceled };
 });
 
+// ==================== Azure 语音合成（英语听力音频 · 2026-09-16） ====================
+// 为什么放主进程：渲染进程直连会因自定义头 Ocp-Apim-Subscription-Key 触发 CORS 预检而被拦；
+//   主进程 fetch 无同源限制，且能把音频直接写盘（避免几十 MB 二进制穿过 IPC）。
+// 🔴 Key 安全：Key 由渲染进程按次传入（来自设置页加密存储的解密值），本进程仅用于本次请求——
+//   不落盘、不写日志、不回显；日志只记结果字节数。
+ipcMain.handle('azure-tts-to-file', async (event, payload = {}) => {
+  const {
+    ssml = '', key = '', region = '',
+    outputFormat = 'audio-24khz-160kbitrate-mono-mp3',
+    suggestedName = '听力音频.mp3',
+    timeoutMs = 180000,
+  } = payload || {};
+
+  try {
+    if (!String(key).trim()) return { ok: false, error: '未配置 Azure 语音 Key（请在「设置 → Azure 语音合成」中填写）' };
+    // 🔒 区域严格格式校验：本进程具外发能力，禁止把 region 拼成任意主机
+    const r = String(region).trim().toLowerCase();
+    if (!/^[a-z0-9-]{3,30}$/.test(r)) {
+      return { ok: false, error: 'Azure 语音区域格式非法（应形如 eastasia）' };
+    }
+    if (!String(ssml).trim()) return { ok: false, error: 'SSML 内容为空' };
+
+    // 先选保存位置：用户取消则不发起请求，不浪费配额
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: '保存听力音频',
+      defaultPath: suggestedName,
+      filters: [{ name: 'MP3 音频', extensions: ['mp3'] }],
+    });
+    if (canceled || !filePath) return { ok: false, canceled: true };
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(30000, Number(timeoutMs) || 180000));
+    let resp;
+    try {
+      resp = await fetch(`https://${r}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+        method: 'POST',
+        headers: {
+          'Ocp-Apim-Subscription-Key': String(key).trim(),
+          'Content-Type': 'application/ssml+xml',
+          'X-Microsoft-OutputFormat': outputFormat,
+          'User-Agent': 'zhijuan-workshop',
+        },
+        body: String(ssml),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (!resp.ok) {
+      let detail = '';
+      try { detail = await resp.text(); } catch { /* 无响应体 */ }
+      return {
+        ok: false,
+        error: `Azure 语音合成失败（HTTP ${resp.status}）${detail ? '：' + String(detail).slice(0, 200) : ''}`,
+      };
+    }
+
+    const buf = Buffer.from(await resp.arrayBuffer());
+    await fs.promises.writeFile(filePath, buf);
+    console.log(`🎧 听力音频已保存：${filePath}（${buf.length} 字节）`);
+    return { ok: true, path: filePath, bytes: buf.length };
+  } catch (e) {
+    if (e && e.name === 'AbortError') return { ok: false, error: '合成超时，请检查网络后重试' };
+    return { ok: false, error: e?.message || '音频生成失败' };
+  }
+});
+
 // ==================== 静默生成 PDF ====================
 ipcMain.handle('export-pdf', async (event, htmlContent, outputPath, options = {}) => {
   let puppeteer = null;

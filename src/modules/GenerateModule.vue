@@ -1677,7 +1677,21 @@
             />
           </div>
 
+          <div
+            v-if="listeningSynthMsg"
+            class="copy-hint"
+          >
+            {{ listeningSynthMsg }}
+          </div>
+
           <div class="modal-actions">
+            <button
+              class="btn-primary"
+              :disabled="listeningSynthLoading || !listeningSsml"
+              @click="generateListeningAudio"
+            >
+              {{ listeningSynthLoading ? '⏳ 正在合成…' : '🎧 直接生成音频（mp3）' }}
+            </button>
             <button
               class="btn"
               @click="closeListeningModal"
@@ -3167,6 +3181,8 @@ import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实�
 import { buildListeningExtractMessages } from '../config/listeningExtractPrompt.js';
 import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure } from '../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText } from '../utils/listeningScript.js';
+// 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
+import { synthesizeToFile, readAzureConfigFromApiConfig } from '../utils/azureTts.js';
 import { STORAGE_KEYS } from '../constants/storageKeys.js';  // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
 import { annotateInstructionBlocks } from '../utils/instructionBlocks.js';  // 指令来源分段标注（旁路：块区间↔{库,key}，不参与拼装）
 import { useRouter } from 'vue-router';  // 来源分段点击跳转（工具库子页）
@@ -8484,6 +8500,8 @@ const listeningStageKey = ref('');
 const listeningGradeHint = ref('');
 const listeningWpmOverride = ref(null);
 const listeningAccentOverride = ref('');
+const listeningSynthLoading = ref(false);
+const listeningSynthMsg = ref('');
 
 /** 该条记录是否有可做音频的英语听力（"听力原文"字样按构造仅英语答案页注入） */
 const docSupportsListening = (doc) => hasEnglishListening(doc?.rawContent || doc?.content || '');
@@ -8497,6 +8515,8 @@ const closeListeningModal = () => {
   listeningScriptText.value = '';
   listeningSummary.value = '';
   listeningNotes.value = [];
+  listeningSynthMsg.value = '';
+  listeningSynthLoading.value = false;
 };
 
 /** 按当前结构化结果 + 覆盖参数渲染两种成品（覆盖变更时即时重跑，不重复调 AI） */
@@ -8543,6 +8563,8 @@ const openListeningTool = async (doc) => {
   listeningGradeHint.value = doc?.title || '';
   listeningWpmOverride.value = null;
   listeningAccentOverride.value = '';
+  listeningSynthMsg.value = '';
+  listeningSynthLoading.value = false;
   showListeningModal.value = true;
 
   const source = extractListeningSource(doc?.rawContent || doc?.content || '');
@@ -8562,6 +8584,38 @@ const openListeningTool = async (doc) => {
     listeningError.value = `听力稿生成失败：${e.message}`;
   } finally {
     listeningLoading.value = false;
+  }
+};
+
+/** 🎧 直接生成音频：把当前 SSML 交给 Azure 合成整卷 mp3 并落盘 */
+const generateListeningAudio = async () => {
+  if (!listeningSsml.value) return;
+  listeningSynthMsg.value = '';
+  const cfg = readAzureConfigFromApiConfig(apiConfig);
+  if (!cfg.key) {
+    listeningSynthMsg.value = '未配置 Azure 语音 Key：请先到「设置 → Azure 语音合成」填写。';
+    return;
+  }
+  listeningSynthLoading.value = true;
+  try {
+    const r = await synthesizeToFile(listeningSsml.value, {
+      key: cfg.key,
+      region: cfg.region,
+      outputFormat: cfg.outputFormat,
+      suggestedName: listeningDocTitle.value || '听力音频',
+    });
+    if (r && r.canceled) {
+      listeningSynthMsg.value = '已取消保存（未消耗配额）。';
+      return;
+    }
+    listeningSynthMsg.value = r && r.path ? `✅ 已生成：${r.path}` : '✅ 已生成音频';
+    window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, {
+      detail: { message: '✅ 听力音频已生成', type: 'info' },
+    }));
+  } catch (e) {
+    listeningSynthMsg.value = `音频生成失败：${e.message}`;
+  } finally {
+    listeningSynthLoading.value = false;
   }
 };
 
