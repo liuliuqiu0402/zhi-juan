@@ -70,10 +70,14 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     assertNoBanned(raw, '蓝图库');
   });
 
-  it('H 收敛后含「板块间由浅入深」且无旧「由易到难」重复尾句', () => {
+  it('学科定制 note 不再用「板块间由浅入深」等自造层次指向（2026-09-16 课标原则）', () => {
     const raw = JSON.stringify(TEACHING_SUBJECT_BLUEPRINTS);
-    expect(raw).toContain('板块间由浅入深');
+    // 🔒 2026-09-16 用户裁定：课标原文/原义留、完全自编的清——
+    //    "由浅入深/板块间"是我们自造的层次指向（课标只给"学习理解→应用实践→迁移创新"这类活动类型），
+    //    已按同批口径删除；旧句"板块内由易到难"同样不得回潮。
+    expect(raw).not.toContain('板块间由浅入深');
     expect(raw).not.toContain('板块内由易到难');
+    expect(raw).not.toContain('由浅入深');
   });
 
   it('全部 9 类提示模板不含诱导枚举', () => {
