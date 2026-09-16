@@ -92,7 +92,7 @@ describe('注入指令组装（拼接格式与顺序）', () => {
   it('{material} 占位符渲染为素材来源说明（2026-09-11 定稿：原文以【压缩原文】随委托注入）', () => {
     const out = buildInjectionInstruction({ template: '素材：{material}', subject: '语文' });
     expect(out).toContain('【压缩原文】随本委托注入'); // 素材=整章原文压缩后随委托注入
-    expect(out).toContain('本次要练到的内容见开头所列'); // 范围声明（2026-09-15 去对账语言：不再写"下限"）
+    expect(out).toContain('本次涉及的内容与材料见开头所列'); // 范围声明（2026-09-15 去对账语言：不再写"下限"）
     expect(out).not.toContain('清单为**下限**');         // 对账语言不得回潮
     expect(out).toContain('【素材使用约定】');         // 使用与引用约束口径
     expect(out).not.toContain('研读');                 // 研读链已整体移除
@@ -158,7 +158,7 @@ describe('注入指令组装（拼接格式与顺序）', () => {
 
   it('A18 保存/导入入口规范化：硬写段头与说明句入库前换成占位符（库=注入口径同构，不留歧义字面）', () => {
     const hardcoded = '【教材原文（仅供理解：题型结构与知识梯度）】\n'
-      + '（教材原文以【压缩原文】随本委托注入；本次要练到的内容见开头所列；补充/整合与使用引用约束见【素材使用约定】，以该处为准）';
+      + '（教材原文以【压缩原文】随本委托注入；本次涉及的内容与材料见开头所列；补充/整合与使用引用约束见【素材使用约定】，以该处为准）';
     // 规范化：段头与整句说明都换占位符
     expect(canonicalizeMaterialPlaceholders(hardcoded))
       .toBe('【{materialHead}（仅供理解：题型结构与知识梯度）】\n{material}');

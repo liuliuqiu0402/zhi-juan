@@ -204,7 +204,7 @@ describe('🧩 清单第3层注入开关（2026-09-14 用户定版开关）', ()
     const off = anchorListRoleNote({ withConcepts: false, splitMaterial: true });
     expect(off).not.toContain('（第3层）');
     expect(off).toContain('不必为其单独设题');
-    expect(off).toContain('即本次资料要练到的内容范围');
+    expect(off).toContain('本次涉及的内容与材料'); // 2026-09-17 去'要练到的内容范围'的抬升表述
     // 默认导出 = 带第3层、不分流版本（兼容既有引用点）
     expect(ANCHOR_LIST_ROLE_NOTE).toBe(anchorListRoleNote());
   });
@@ -269,17 +269,17 @@ describe('A1-4b 第1层（知识主题）入锚清单：表归属与范围，不
     expect(formatAnchorListByChapter(toc)).toBe('【第3课 桂花雨】一、摇花乐、二、思乡情');
   });
 
-  it('角色说明随清单注入：第1层只标归属、第2层是内容最小单位（正面表述，不用"不是…单位"式否定）', () => {
+  it('角色说明随清单注入：第1层只标归属、第2层是其中一条内容（正面表述，不用"不是…单位"式否定）', () => {
     // 🔒 2026-09-15 用户裁定·去否定式关联：原句"不是写作栏目、不是命题单位"要读懂必须先建立
     //    "知识主题 ↔ 栏目/命题单位"这条映射，等于把错误做法反向植入（产物实证：把内容条目当大题标题）。
     //    现改为正面职责陈述，并反向锁死否定式措辞不得回潮。
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('知识主题（第1层）标示知识点的归属');
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('知识点（第2层）是内容的最小单位');
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('知识点（第2层）是其中的一条内容');
     expect(ANCHOR_LIST_ROLE_NOTE, '否定式关联不得回潮').not.toMatch(/不是写作栏目|不是命题单位|不作命题单位|不是组织方式/);
   });
 
   it('角色说明只报"范围陈述"（2026-09-15 去对账语言）：无下限/落点/逐条对账语汇；范围外口径下沉到【素材使用约定】', () => {
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('即本次资料要练到的内容范围');
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('本次涉及的内容与材料');
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('【素材使用约定】');
     // 🔒 去对账语言（2026-09-15 用户裁定）：下限／都要有落点／落点／逐条对账 一律不得回潮——
     //    实证：这类可逐条核对的口径会促使模型把内容条目直接升为大题标题（产物 08e6ccd）。
@@ -413,7 +413,7 @@ describe('A17 第3层具体概念并入锚点清单（锚清单注入通道的�
   it('角色说明随清单注入：第3层只细化具体概念（正面表述）；措辞用「知识点」不用「考点」', () => {
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('具体概念');
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('（第3层');
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('供把握深度与范围');
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('供把握深度');
     // 🔒 去否定式关联：原"不构成新的写作栏目，不得据此另立结构"同属反向植入，不得回潮
     expect(ANCHOR_LIST_ROLE_NOTE, '否定式关联不得回潮').not.toMatch(/不构成新的写作栏目|不得据此另立结构/);
     // 术语口径：注入文本去"考点"（防读成全指向考卷），且不含"命题靶点"式命题语汇

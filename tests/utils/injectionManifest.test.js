@@ -111,8 +111,8 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
 
   it('素材使用约定：通道分流（依据指向随通道改），禁照搬为通道无关', () => {
     const anchor = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'anchor' });
-    expect(anchor).toContain('以上内容（含各知识点具体概念）是理解教材内容、难度与版本口径的**依据**');
-    expect(anchor).toContain('内容、深度与难度按上方内容（含具体概念）把握');
+    expect(anchor).toContain('以上内容（含各知识点具体概念）可供参考，用以把握教材内容、难度与版本口径');
+    expect(anchor).toContain('内容、深度与难度可参考上方内容（含具体概念）');
     const full = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'full' });
     expect(full).toContain('中段【压缩原文】是理解教材内容与难度的**参考之一**');
     // 🔴 2026-09-14（用户裁定·实测产物）：禁照搬原句原先挂在【压缩原文】上 → 锚清单通道整句被跳过 →
@@ -133,12 +133,12 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
   it('素材使用约定：范围按 mode 分档、范围外按 extentOf 分档（2026-09-15 去对账语言）', () => {
     // practice = per-lesson-full + expand
     const practice = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'full' });
-    expect(practice).toContain('以上内容即本次要练到的范围（本单元必学内容）');
+    expect(practice).toContain('以上内容是本次涉及的内容与材料（本单元必学内容）');
     expect(practice).toContain('可依本学段课标学业要求另取其他知识点或考查角度');
     expect(practice).toContain('本资料为命题/练习型');
     // summary = full + integrate（归纳型口吻）
     const summary = buildMaterialUsageBlock({ genType: 'summary', materialChannel: 'full' });
-    expect(summary).toContain('以上内容是本次归纳的范围');
+    expect(summary).toContain('以上内容是本次归纳的对象');
     expect(summary).toContain('可把本课内容与同类概念归类、对照、勾连成网络');
     expect(summary).toContain('本资料为知识归纳型');
     expect(summary).not.toContain('本资料为命题/练习型');
