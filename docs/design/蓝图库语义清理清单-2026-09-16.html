@@ -203,10 +203,10 @@
   <li><b>回归守卫</b>：新增 bpWordingGuard（描述不得含 13 个自造取向词；反向锁课标口径与调研结构、预习默写定位）；nonInducingPrompt 中"必须含板块间由浅入深"的旧锁转为反向锁；taskColumnStyle 的套名锁与说明-套名解绑不变量同步；leanWording 锁住块头口径。</li>
 </ul>
 
-<h3>G3 后续（本轮未做）</h3>
+<h3>G3 后续与澄清</h3>
 <ul>
   <li>跨学段勾选时"学段口径"仍按<b>勾选章节最多</b>的那本取（未改功能，按用户决定先以界面提示兜底：已选教材章节面的 ⓘ 说明弹窗）。</li>
-  <li>移动端打包产物未重建（bundle 内文本仍是整改前口径），需重建后再发布。</li>
+  <li><b>移动端包无需本地重建</b>（2026-09-16 更正）：Android／iOS 两条流水线每次 push 都会现场执行 <code>vite build → cap sync</code> 并自动发布 Release，因此 Releases 里的 APK／IPA 始终对应当次提交（例：Android #532 与 iOS #587 均对应提交 835ef93）；追溯路径为「Release 运行编号 → Actions 运行 → 提交号」。</li><li><b>不入库的大文件是「有意拦截」</b>（勿移除相应忽略规则）：编译产物与安装包（如 <code>android/app/src/main/assets/public/</code>、<code>*.apk</code>、<code>*.ipa</code>、<code>dist/</code>）一律由流水线在临时环境中生成，不进版本库；本机若存在同名目录，属本地构建残留，既不影响仓库也不影响发布。</li>
 </ul>
 
 </body>
