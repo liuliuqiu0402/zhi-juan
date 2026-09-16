@@ -123,7 +123,10 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_mid', subject: '语文' });
     expect(inject).toContain('语文·同步练习');
     expect(inject).toContain('语段阅读与表达运用');
-    expect(inject).toContain('生活化口语表达或写话');
+    // 🔧 2026-09-16 用户裁定：栏目 note 中「生活化」属产品自造的情境取向（跨学科取向推力），已删；
+    //    本句只锁"口语表达或写话 + 联系本单元主题"这一学科语义。
+    expect(inject).toContain('口语表达或写话，联系本单元主题');
+    expect(inject).not.toContain('生活化口语表达');
   });
 
   it('未注册学科回退通用默认：栏目为通用、注入标"通用·"', () => {

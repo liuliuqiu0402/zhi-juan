@@ -5362,7 +5362,7 @@ ${cardAnalysisText.substring(0, 1000)}
               );
 
               contextFramework = `
-【统一情境框架——所有命题必须在此情境下展开】
+【统一情境框架——本卷各题在此情境下展开】
 
 📖 情境名称：${contextJson.name}
 📝 背景：${contextJson.background}

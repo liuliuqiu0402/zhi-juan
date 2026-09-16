@@ -74,12 +74,12 @@ export const EXAM_BLUEPRINTS = {
     label: '数学·小学低段（1-2年级）', fullScore: 100, duration: '60分钟',
     sections: [
       { name: '直接写得数', score: 20, note: '口算，直接写得数；含加减法（二年级含表内乘法）' },
-      { name: '填空', score: 20, note: '数的组成、比大小、单位换算、找规律等基础内容，情境化设问' },
-      { name: '选择', score: 10, note: '情境化设问' },
+      { name: '填空', score: 20, note: '数的组成、比大小、单位换算、找规律等基础内容' },
+      { name: '选择', score: 10, note: '基础辨析' },
       { name: '判断', score: 10, note: '概念与算法辨析' },
       { name: '操作题', score: 10, note: '画一画、连一连、数一数、按要求涂色；需配图处由系统按渲染契约注入' },
       { name: '看图列式计算', score: 10, note: '看图列出算式并计算；配图由系统注入' },
-      { name: '解决问题', score: 20, note: '生活情境应用题，要求列式、计算并作答（写单位、写答语）' },
+      { name: '解决问题', score: 20, note: '应用题，要求列式、计算并作答（写单位、写答语）' },
     ],
   },
   '数学|primary_mid': {
@@ -87,11 +87,11 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '口算', score: 10, note: '口算，直接写得数。' },
       { name: '用竖式计算', score: 18, note: '竖式计算（含验算），三年级含三位数加减、多位数乘一位数；竖式书写区由系统按载体渲染' },
-      { name: '填空', score: 20, note: '概念、单位换算、估算、图形特征等，情境化设问' },
+      { name: '填空', score: 20, note: '概念、单位换算、估算、图形特征等' },
       { name: '判断', score: 8, note: '概念辨析' },
-      { name: '选择', score: 8, note: '情境化设问' },
+      { name: '选择', score: 8, note: '基础辨析' },
       { name: '操作题', score: 6, note: '画图、测量、平移旋转、周长面积操作；需动手画图的题留作图区域（系统渲染）' },
-      { name: '解决问题', score: 30, note: '生活情境应用题，体现问题解决过程（列式→计算→答）' },
+      { name: '解决问题', score: 30, note: '应用题，体现问题解决过程（列式→计算→答）' },
     ],
   },
   '数学|primary_high': {
@@ -99,11 +99,11 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '口算', score: 8, note: '口算，直接写得数' },
       { name: '脱式计算（能简算的要简算）', score: 18, note: '脱式计算（含简算），六年级含解方程' },
-      { name: '填空', score: 20, note: '概念、数感、几何度量、统计等，情境化设问' },
+      { name: '填空', score: 20, note: '概念、数感、几何度量、统计等' },
       { name: '判断', score: 8, note: '概念辨析' },
-      { name: '选择', score: 8, note: '情境化设问' },
+      { name: '选择', score: 8, note: '基础辨析' },
       { name: '操作题', score: 8, note: '画图、对称、面积体积操作、位置与方向；需配图处由系统按渲染契约注入' },
-      { name: '解决问题', score: 30, note: '生活情境应用题，含分数百分数、几何应用，体现建模过程' },
+      { name: '解决问题', score: 30, note: '应用题，含分数百分数、几何应用，体现建模过程' },
     ],
   },
   '数学|middle': {
@@ -173,7 +173,7 @@ export const EXAM_BLUEPRINTS = {
   '英语|middle': {
     label: '英语·初中（中考结构）', fullScore: 120, duration: '100分钟',
     sections: [
-      { name: '听力', score: 25, note: '含短对话理解、长对话理解（购物/问路/计划/校园生活/邀请等真实话题）、短文理解（通知/广播/自我介绍）、信息转换（听短文填表，每空一词）；每段材料读两遍' },
+      { name: '听力', score: 25, note: '含短对话理解、长对话理解（购物/问路/计划/出行/邀请等真实话题）、短文理解（通知/广播/自我介绍）、信息转换（听短文填表，每空一词）；每段材料读两遍' },
       { name: '完形填空', score: 10, note: '语境理解＋词法句法' },
       { name: '阅读理解', score: 40, note: '选择＋任务型阅读（还原句子/回答问题）' },
       { name: '词汇运用', score: 10, note: '根据首字母或汉语提示填词，短文语境' },
@@ -375,7 +375,7 @@ export const EXAM_BLUEPRINTS = {
   '信息科技|primary_low': {
     label: '信息科技·小学低段（1-2年级）', fullScore: 100, duration: '40分钟',
     sections: [
-      { name: '判断题', score: 16, note: '信息意识、数字设备初步认识、用眼卫生（情境化设问）' },
+      { name: '判断题', score: 16, note: '信息意识、数字设备初步认识、用眼卫生' },
       { name: '选择题', score: 24, note: '情境判断' },
       { name: '连线题', score: 20, note: '设备与用途、行为与对错连线' },
       { name: '情境操作题', score: 40, note: '以文字/图示描述简单操作步骤，配评分要点' },
@@ -386,7 +386,7 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '选择题', score: 20, note: '在线学习与生活、数字媒体初步' },
       { name: '判断题', score: 16, note: '观点与行为辨析' },
-      { name: '填空题', score: 16, note: '技术原理在数字化场景中运用（情境化设问）' },
+      { name: '填空题', score: 16, note: '技术原理在数字化场景中运用' },
       { name: '操作题', score: 32, note: '以书面形式描述操作步骤、流程设计' },
       { name: '综合运用', score: 16, note: '解决真实数字化任务' },
     ],
@@ -425,7 +425,7 @@ export const EXAM_BLUEPRINTS = {
   '音乐|primary_low': {
     label: '音乐·小学低段（1-2年级）', fullScore: 100, duration: '40分钟',
     sections: [
-      { name: '判断题', score: 20, note: '音的高低长短、节奏快慢、歌曲情绪（情境化设问）' },
+      { name: '判断题', score: 20, note: '音的高低长短、节奏快慢、歌曲情绪' },
       { name: '选择题', score: 20, note: '听辨内容以文字/图谱形式呈现（无音频环境）' },
       { name: '连线题', score: 20, note: '乐器与声音、节奏型与动作连线' },
       { name: '表现题', score: 40, note: '以文字描述演唱/律动/节奏表现（无音频以图谱/节奏型识读），配评分要点' },
@@ -455,7 +455,7 @@ export const EXAM_BLUEPRINTS = {
     label: '音乐·初中', fullScore: 100, duration: '45分钟',
     sections: [
       { name: '选择题', score: 28, note: '乐理、中外名曲、音乐体裁' },
-      { name: '填空题', score: 16, note: '音乐要素与作品背景（情境化设问）' },
+      { name: '填空题', score: 16, note: '音乐要素与作品背景' },
       { name: '判断题', score: 16, note: '音乐常识辨析' },
       { name: '简答题', score: 40, note: '作品赏析（要素分析→情感体验→文化理解），配评分要点' },
     ],
@@ -464,7 +464,7 @@ export const EXAM_BLUEPRINTS = {
     label: '音乐·高中', fullScore: 100, duration: '60分钟',
     sections: [
       { name: '选择题', score: 30, note: '音乐鉴赏、中外音乐史、民族音乐' },
-      { name: '填空题', score: 20, note: '音乐要素、体裁与作品（情境化设问）' },
+      { name: '填空题', score: 20, note: '音乐要素、体裁与作品' },
       { name: '判断题', score: 10, note: '音乐常识辨析' },
       { name: '鉴赏题', score: 40, note: '鉴赏体现多层次审美与情感体验、由浅入深的评价递进，层次与侧重依诗文内容自定，配评分要点' },
     ],
@@ -504,7 +504,7 @@ export const EXAM_BLUEPRINTS = {
     label: '美术·初中', fullScore: 100, duration: '45分钟',
     sections: [
       { name: '选择题', score: 28, note: '造型/设计/欣赏知识、中外美术名作' },
-      { name: '填空题', score: 16, note: '美术术语与流派（情境化设问）' },
+      { name: '填空题', score: 16, note: '美术术语与流派' },
       { name: '判断题', score: 16, note: '美术常识辨析' },
       { name: '赏析题', score: 40, note: '赏析（内容→形式→情感），配评分要点' },
     ],
@@ -513,7 +513,7 @@ export const EXAM_BLUEPRINTS = {
     label: '美术·高中', fullScore: 100, duration: '60分钟',
     sections: [
       { name: '选择题', score: 30, note: '美术鉴赏、中外美术史、设计原理' },
-      { name: '填空题', score: 20, note: '美术术语、流派与作品（情境化设问）' },
+      { name: '填空题', score: 20, note: '美术术语、流派与作品' },
       { name: '判断题', score: 10, note: '美术常识辨析' },
       { name: '鉴赏题', score: 40, note: '鉴赏体现由内容到形式、由浅入深的审美鉴赏，层次与侧重依作品内容自定，配评分要点' },
     ],
@@ -523,7 +523,7 @@ export const EXAM_BLUEPRINTS = {
   '体育|primary_low': {
     label: '体育·小学低段（1-2年级）', fullScore: 100, duration: '40分钟',
     sections: [
-      { name: '判断题', score: 20, note: '运动安全、生活习惯（情境化设问）' },
+      { name: '判断题', score: 20, note: '运动安全、生活习惯' },
       { name: '选择题', score: 20, note: '运动情境判断' },
       { name: '连线题', score: 20, note: '动作与要领、场景与做法连线' },
       { name: '简答题', score: 40, note: '在运动情境中描述正确做法，配评分要点' },
@@ -553,7 +553,7 @@ export const EXAM_BLUEPRINTS = {
     label: '体育·初中', fullScore: 100, duration: '45分钟',
     sections: [
       { name: '选择题', score: 28, note: '运动技能、健康知识、体育与健康常识' },
-      { name: '填空题', score: 16, note: '动作要领与运动原理（情境化设问）' },
+      { name: '填空题', score: 16, note: '动作要领与运动原理' },
       { name: '判断题', score: 16, note: '规则与健康常识辨析' },
       { name: '简答题', score: 40, note: '动作要领、锻炼方案与安全防护，配评分要点' },
     ],
@@ -562,7 +562,7 @@ export const EXAM_BLUEPRINTS = {
     label: '体育·高中', fullScore: 100, duration: '60分钟',
     sections: [
       { name: '选择题', score: 30, note: '运动技能、健康素养、体育文化' },
-      { name: '填空题', score: 20, note: '运动原理与健康知识（情境化设问）' },
+      { name: '填空题', score: 20, note: '运动原理与健康知识' },
       { name: '判断题', score: 10, note: '健康与安全常识辨析' },
       { name: '简答题', score: 40, note: '锻炼方案设计、健康素养提升，配评分要点' },
     ],

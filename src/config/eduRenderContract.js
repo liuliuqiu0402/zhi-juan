@@ -114,7 +114,7 @@ const GRAPH_SAMPLE_BAR = `[GRAPH]
 TYPE:BAR_CHART
 DATA:15,22,18,30,25
 LABELS:类别甲,类别乙,类别丙,类别丁,类别戊
-TITLE:某班数据分布
+TITLE:各组数据分布
 XLABEL:类别
 YLABEL:数量
 COLORS:#e74c3c,#3498db,#27ae60,#f1c40f,#9b59b6
