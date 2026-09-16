@@ -65,6 +65,10 @@ const CHOICE_OPTION_BLANK_AFTER_RE = new RegExp(
   BLANK_CARRIER_PARAGRAPH + String.raw`|` + BARE_BLANK_PARAGRAPH + String.raw`)+`,
   'i'
 );
+// 🔴 2k 的"写作/填空类"块级排除词（**单一事实源，勿各写一份**）：2k 见之即放过该块（不补作答空间，
+//    理由是这类题的载体应由括号空位或专用格承担）。2j-5c 反向引用它判断"这条题 2k 到底管不管"。
+//    （2026-09-16：原先只在 2k 内联一份，2j-5c 无法引用 → 两条通道对同一条编号书写题各补一次。）
+const WRITING_FILLIN_STEM_EXCLUDE = /(?:写话|习作|作文|写作|填一填|填空|填字)/;
 // 连线结构
 const MATCH_ITEM_RE = /class=["'][^"']*match-item[^"']*["']/g;
 // 题组子题编号：（1）（2）或 1. 2.
@@ -1331,6 +1335,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           // 区域内已有任何作答载体 → 跳过（防重复；同时覆盖"模型自己已给横线"的情形）
           const regionHtml = region.map((e2) => e2.outerHTML || '').join('');
           if (/blank-line|zuo-wen-ge|blank-\d|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge|square-grid/.test(regionHtml)) continue;
+          // 🔴 2026-09-16（CI 回归修复）：与 2k 的分工——题区域里带**顶层编号**的题干（如"11. …"）
+          //    属"编号条目式"结构，其作答载体由既有的 2k 兜底负责（2k 对无分值整题块补 4 行）；
+          //    本通道生来只补 2j-5b 与 2k 都够不着的"大题标题 + **无编号**题干"这个窟窿
+          //    （2j-5b 只认编号段；2k 的无题号回退分支只认标题里的固定词表，认不出"写一段对话"）。
+          //    缺此判据时，同一条编号书写题会被两条通道各补一次（本通道 8 行 + 2k 4 行 → 卷面 8 行，
+          //    与既有契约"无分值整题块 4 行"不符：tests/utils/answerAreaCrossSection.test.js 两条断言）。
+          //    例外：该编号题干命中 2k 的写作/填空类排除词时，2k 会主动放过它 → 仍由本通道接住，不留空洞
+          //    （如"11. 以 My Weekend 为题写一篇作文，不少于6句。"）。
+          const topNumP = region.find((e2) => (e2.tagName || '').toLowerCase() === 'p'
+            && /^\s*\d+[.、．]/.test((e2.textContent || '').trim()));
+          if (topNumP && !WRITING_FILLIN_STEM_EXCLUDE.test(topNumP.textContent || '')) continue;
           const last = region[region.length - 1];
           const wmH = t.match(/[（(][^）)]*?(\d{1,3})\s*分/);
           const wscoreH = wmH ? parseInt(wmH[1], 10) : 0;
@@ -1545,7 +1560,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           //    （实测：5 个子题 × 2 行 = 10 条长横线）。标题即父题语境，按既有设计意图
           //    （结构性题型由父题继承）一并纳入；填空/写作类仍只看块首行（下一行，勿动）。
           if (/(?:选择|选一选|选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|口算|直接写得数|照样子|例[：:、]|圈出|归类|选词|划出|仿写)/.test(`${title} ${ctxText} ${stem}`)) continue;
-          if (/(?:写话|习作|作文|写作|填一填|填空|填字)/.test(stem)) continue;
+          if (WRITING_FILLIN_STEM_EXCLUDE.test(stem)) continue;
+          // ↑ 排除词单源：WRITING_FILLIN_STEM_EXCLUDE（与 2j-5c 的分工判据共用同一份，防两处漂移）
           // 度量有效作答行（纯空行/题间空行不计；内嵌填空下划线=已有载体 → 跳过）
           let rows = 0;
           let hasFillIn = false;

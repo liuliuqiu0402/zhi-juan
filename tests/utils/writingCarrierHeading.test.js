@@ -77,4 +77,25 @@ describe('大题标题式英语书写题缺载体 → 自动补横线（2j-5c）
     const res = auditExamPaper(DOC, { ...OPTS, subject: '语文' });
     expect(res.issues.some((i) => i.message.includes('大题标题式英语书写题已自动补横线作答区'))).toBe(false);
   });
+
+  // ── 与 2k 的分工（2026-09-16 CI 回归修复）────────────────────────────────
+  it('分工：带顶层编号的书写题交 2k 兜底，本通道不重复补（行数按 2k 契约 4 行）', () => {
+    const html = [
+      '<h3>十一、写一段对话</h3>',
+      '<p class="question">11. 请根据情境写一段对话，不少于6句。</p>',
+    ].join('\n');
+    const res = auditExamPaper(html, OPTS);
+    expect(count(res.html), '无分值整题块由 2k 补 4 行，不得叠加本通道的 8 行').toBe(4);
+    expect(res.issues.some((i) => i.message.includes('大题标题式英语书写题已自动补横线作答区'))).toBe(false);
+  });
+
+  it('分工例外：编号题干命中 2k 的写作/填空类排除词时，本通道仍接住（不留载体空洞）', () => {
+    const html = [
+      '<h3>十一、书面表达</h3>',
+      '<p class="question">11. 以 My Weekend 为题写一篇作文，不少于6句。</p>',
+    ].join('\n');
+    const res = auditExamPaper(html, OPTS);
+    expect(count(res.html), '2k 会放过含"作文"的块 → 本通道补出横线').toBeGreaterThanOrEqual(8);
+    expect(res.issues.some((i) => i.message.includes('大题标题式英语书写题已自动补横线作答区'))).toBe(true);
+  });
 });
