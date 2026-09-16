@@ -9,7 +9,8 @@
 import { getValidatorRules, normalizeStage } from '../config/validatorRules.js';
 import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATION } from '../config/layoutSpec.js';
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
-import { FIGURE_DEPENDENCY_RE } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（2026-09-12）
+import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
+import { checkFigurePrompts } from './figurePromptCheck.js'; // 🔴 题干 ↔ 配图 PROMPT 数量交叉校验（2026-09-16）
 
 // ---------- 通用正则 ----------
 // 全角拼音字符归一表（IPA 音标字符混入小学拼音、全角字母）
@@ -177,6 +178,16 @@ export const countMatchSides = (html) => {
   if (items === 0) return null;
   return { total: items, left: items / 2 };
 };
+
+/**
+ * 该学科是否具备"结构化图形"能力（[GRAPH] 含非统计图类型）。
+ * 🔴 单一事实源：直接读 SUBJECT_GRAPH_TYPES，不另建一份学科清单——
+ *   否则日后渲染端新增图型时本处会漏跟（与 2026-09-12 图依赖词两表不同源的教训同类）。
+ * 用途：生物/地理等仅有统计图能力的学科，其结构图/示意图/地图只能由生图引擎出画面，准确性需人工把关。
+ */
+const STRUCTURAL_GRAPH_TYPES = new Set(['COORDINATE', 'SHAPES', 'FORCE', 'CIRCUIT', 'OPTICS', 'ATOM']);
+export const hasStructuralGraphSupport = (subject = '') =>
+  (SUBJECT_GRAPH_TYPES[subject] || []).some((t) => STRUCTURAL_GRAPH_TYPES.has(t));
 
 /** 统计纯文本连线行数（一行内出现 ≥2 个全角空格/tab 分隔的两列 → 计 1 条连线，AI 未按 match-item 结构输出时兜底） */
 export const countMatchLines = (text) => {
@@ -991,6 +1002,32 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       } else if (hasFigureAsk && !hasImgMark && !hasGraphMark) {
         // 看图/读图/看图形/统计图类题，整卷 [IMAGE]+[GRAPH] 全无 → 题干要图却没出图
         silentCount('image-missing', '存在"看图/读图/看图形"类题，但整卷未输出任何 [IMAGE]（画面描述）或 [GRAPH]（图形/统计图）标记块——题干要图却没出图，请人工补图或核对（程序只提示、不改内容）', 'warn');
+      }
+    }
+    // 2j-4 配图要素一致性交叉校验（2026-09-16）：把配图从"有没有图"推进到"图对不对"的可核对性
+    //   此前只有缺图探针（2j-3）：题干说"三只熊猫"、PROMPT 写"一只熊猫"这类不一致，程序发现不了。
+    //   做法：题干 ↔ PROMPT 数量交叉比对（启发式，**保守判定**：仅两侧各为唯一值且不等才报，宁漏不误）；
+    //   另对无结构化图形能力的学科（[GRAPH] 仅统计图，如生物/地理）提示画面需人工把关。
+    if (has('image-block-fix')) {
+      try {
+        const fc = checkFigurePrompts(out);
+        for (const mm of fc.mismatches.slice(0, 3)) {
+          silentCount('image-consistency',
+            `配图数量可能与题干不一致：题干为「${mm.stemSample || mm.stemCount}」，而画面描述写「${mm.promptSample || mm.promptCount}」（PROMPT：${mm.prompt}…）——请核对（程序只提示、不改内容）`,
+            'warn');
+        }
+        for (const mc of fc.missingCount.slice(0, 3)) {
+          silentCount('image-consistency',
+            `题干声明数量「${mc.stemSample || mc.stemCount}」但画面描述未写明数量（PROMPT：${mc.prompt}…）——建议写明数量以便核对`,
+            'notice');
+        }
+        if (fc.images > 0 && !hasStructuralGraphSupport(subject)) {
+          silentCount('image-engine-only',
+            `「${subject}」的结构图/示意图/地图无结构化图形能力（[GRAPH] 仅支持统计图），此类画面由生图引擎生成——主体、数量、方位、地名与题干及事实是否吻合请务必人工核对`,
+            'warn');
+        }
+      } catch (e) {
+        console.debug('🔍 [质检-image-consistency] 跳过（异常）：', e?.message || e);
       }
     }
     // 2j-3b 写话/作文题缺题目要求描述（仅标题行，如"15. 看图写话。（共20分）"后直接是配图/格子/下一题）

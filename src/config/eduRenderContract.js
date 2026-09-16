@@ -42,9 +42,13 @@ const IMAGE_HINT_RE = new RegExp(`${FIGURE_DEPENDENCY_RE.source}|写话|配图|�
 
 // ==================== EduRender Studio 完整格式骨架 ====================
 
-/** [IMAGE] 示例（画面描述 + ICON 图标检索；不指定生图引擎，渲染端按其标准处理） */
+/** [IMAGE] 示例（画面描述 + ICON 图标检索；不指定生图引擎，渲染端按其标准处理）
+ *  🔴 2026-09-16：PROMPT 要求写明**主体与数量**——数量是唯一能被程序与题干交叉核对的要素，
+ *    写明后 examValidator 2j-4 才能查出"题干三只、画面一只"这类不一致。
+ *    ⚠️ 只强化 PROMPT 文本要求，**不新增字段**：examValidator 1.5 重建 [IMAGE] 块时仅保留 PROMPT，
+ *    新增字段会被静默丢弃（既到不了渲染端也留不下供校验）。 */
 const IMAGE_SAMPLE = `[IMAGE]
-PROMPT:画面描述（主体/动作/场景，图内不出现文字）
+PROMPT:画面描述（**必须写明主体与数量**，如"三只熊猫在竹林中吃竹子"；图内不出现文字）
 [/IMAGE]`;
 
 const IMAGE_SAMPLE_ICON = `[IMAGE]
@@ -347,7 +351,7 @@ export function buildRenderContract({ subject = '', genType = '', needsImage = f
     parts.push(FORMULA_RULES);
   }
   if (image) {
-    parts.push(`· 配图（看图/配图题）用 [IMAGE]...[/IMAGE]，每图一个、单独成段，图内无字、不暗示答案，PROMPT 画面要素须与题干情境严格一致（人物/场景/数量与题干吻合，不得另起无关画面）：`);
+    parts.push(`· 配图（看图/配图题）用 [IMAGE]...[/IMAGE]，每图一个、单独成段，图内无字、不暗示答案，PROMPT 画面要素须与题干情境严格一致（人物/场景/数量与题干吻合，不得另起无关画面）——**数量必须写明且与题干一致**（如题干"三只"，画面描述须写"三只"）：`);
     parts.push(IMAGE_SAMPLE);
     parts.push(`· 或图标检索（图标/标识类场景用 TYPE:ICON）：`);
     parts.push(IMAGE_SAMPLE_ICON);
