@@ -268,7 +268,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       sections: [
         { name: '基础建构任务', note: '了解、理解水平（会用数学的眼光观察现实世界）：覆盖本次范围核心知识点，在情境中考查' },
         { name: '探究进阶任务', note: '掌握、运用水平（会用数学的思维思考现实世界）' },
-        { name: '迁移创新任务', note: '综合运用与问题解决（会用数学的语言表达现实世界）：真实问题解决，结合本单元主题' },
+        { name: '迁移创新任务', note: '综合运用与问题解决（会用数学的语言表达现实世界）：问题解决，结合本单元主题' },
       ],
     },
     special: {
@@ -325,7 +325,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     review: {
       label: '复习资料',
       sections: [
-        { name: '知识框架', note: '本单元概念、公式、方法结构化呈现' },
+        { name: '知识框架', note: '本单元概念、公式、方法覆盖' },
         { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
         { name: '典型题析', note: '适量典型题（含解题思路分析）' },
         { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -543,7 +543,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     review: {
       label: '复习资料',
       sections: [
-        { name: '知识框架', note: '本单元概念、规律、公式与实验方法结构化呈现' },
+        { name: '知识框架', note: '本单元概念、规律、公式与实验方法覆盖' },
         { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
         { name: '典型题析', note: '适量典型题（含解题思路分析）' },
         { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -596,7 +596,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元概念、物质性质、方程式与实验方法结构化呈现' },
+      { name: '知识框架', note: '本单元概念、物质性质、方程式与实验方法覆盖' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -648,7 +648,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元概念、结构与功能、实验方法结构化呈现' },
+      { name: '知识框架', note: '本单元概念、结构与功能、实验方法覆盖' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -700,7 +700,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元史实、阶段特征与线索结构化呈现' },
+      { name: '知识框架', note: '本单元史实、阶段特征与线索覆盖' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -803,7 +803,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元概念、原理与知识结构化呈现' },
+      { name: '知识框架', note: '本单元概念、原理与知识覆盖' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -844,7 +844,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     errorbook: { label: '易错题本', sections: [
       { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
       { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
-      { name: '错因剖析', note: '具体到知识点或解题步骤（概念/情境判断/表述），归因明确' },
+      { name: '错因剖析', note: '具体到知识点或解题步骤（概念/价值判断/表述），归因明确' },
       { name: '正确解答', note: '分步完整解答' },
       { name: '方法提炼', note: '归纳本类题通用策略' },
       { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
@@ -897,7 +897,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元概念、原理与操作要点结构化呈现' },
+      { name: '知识框架', note: '本单元概念、原理与操作要点覆盖' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -944,7 +944,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元乐理、作品与音乐要素结构化呈现' },
+      { name: '知识框架', note: '本单元乐理、作品与音乐要素覆盖' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
@@ -1038,7 +1038,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
     ] },
     review: { label: '复习资料', sections: [
-      { name: '知识框架', note: '本单元动作要领、规则与健康知识结构化呈现' },
+      { name: '知识框架', note: '本单元动作要领、规则与健康知识覆盖' },
       { name: '核心知识梳理', note: '按知识点逐条梳理并标注教材出处，重点难点突出' },
       { name: '典型题析', note: '适量典型题（含解题思路分析）' },
       { name: '易错聚焦', note: '本单元易错点辨析' },
