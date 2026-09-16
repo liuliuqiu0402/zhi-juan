@@ -1241,8 +1241,8 @@ export function buildTeachingInjection({ genType = '', stage = '', subject = '',
   const p = bp.stageParams;
   const scope = bp.custom ? `${bp.subject}·` : '通用·';
   const stageLine = p.note ? `\n▌学段要求（${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）\n· ${p.note}` : '';
-  return `\n\n【教辅内容要点（${scope}${bp.label}·${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）——各层要点与学段要求，供组织本资料时参照】
-▌内容层次（下列为各层要点，供你按本单元内容组织资料时参照；标题、名称与呈现方式由你按本单元内容自定；相邻部分内容不重复、按认知层次由浅入深递进；各部分内容具体可操作）
+  return `\n\n【教辅结构（${scope}${bp.label}·${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）——栏目序列与学段要求，供搭建栏目时参照】
+▌栏目框架（以下即本次栏目序列；板块间不重复、不相似；各栏内容均须具体可操作，并按认知层次由浅入深递进）
 ${sectionsText}${stageLine}`;
 }
 

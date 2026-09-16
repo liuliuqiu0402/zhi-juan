@@ -159,8 +159,8 @@ const 学段名 = (stageKey = '') => STAGE_NAMES[stageKey] || '';
 export const buildSpecialDomainStructureText = (dom = {}, stageKey = '') => {
   if (!dom.sections || !dom.sections.length) return '';
   const lines = dom.sections.map((s) => `· ${s.name}——${s.note}`).join('\n');
-  return `【教辅内容要点（专项领域·${dom.label}·${学段名(stageKey)}）——各层要点与要求，供组织本资料时参照】
-▌内容层次（下列为各层要点，供你按本专题内容组织资料时参照；标题、名称与呈现方式由你按本专题内容自定；相邻部分内容不重复、按认知层次由浅入深递进；各部分内容具体可操作）
+  return `【教辅结构（专项领域·${dom.label}·${学段名(stageKey)}）——栏目序列与要求，供搭建栏目时参照】
+▌栏目框架（以下即本次栏目序列；板块间不重复、不相似；各栏内容均须具体可操作，并按认知层次由浅入深递进）
 ${lines}
 · 本领域课标语义锚：${dom.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料一律自拟。`;
 };

@@ -63,13 +63,8 @@ describe('教辅蓝本三维度覆盖（类型 × 学段）', () => {
 describe('buildTeachingInjection（教辅结构注入块）', () => {
   it('输出栏目框架 + 学段要求（题量/时长不注入 prompt）', () => {
     const inject = buildTeachingInjection({ genType: 'reading', stage: 'middle' });
-    expect(inject).toContain('【教辅内容要点（通用·阅读训练·初中）');
-    // 🔧 2026-09-16 用户裁定：外壳不再强调「栏目/序列」（模型会当成必须遵守的重点、进而照抄栏目名当标题）；
-    //    蓝图库的栏目名与 note 数据一字未动，只改注入外壳措辞 + 明确"标题由你自定"。
-    expect(inject).toContain('内容层次');
-    expect(inject).not.toContain('栏目框架');
-    expect(inject).not.toContain('栏目序列');
-    expect(inject).toContain('标题、名称与呈现方式由你按本单元内容自定');
+    expect(inject).toContain('【教辅结构（通用·阅读训练·初中）');
+    expect(inject).toContain('栏目框架');
     expect(inject).toContain('原创选文');
     expect(inject).toContain('分层设题');
     expect(inject).toContain('学段要求');
