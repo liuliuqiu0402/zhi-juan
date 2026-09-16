@@ -5323,8 +5323,8 @@ ${cardAnalysisText.substring(0, 1000)}
             const contextPrompt = `你是一位${stage}${grade}${subject}教学专家。请为一份教辅资料设计一个贯穿全卷的统一情境/主题故事。
 
 【要求】
-1. 情境必须与学科内容和学生生活紧密相关
-2. 情境应能自然地容纳不同题型和知识点
+1. 情境须真实、适切，与学科内容一致；情境取向依本学科本学段的课标要求
+2. 情境应能自然地容纳不同设问角度与知识点
 3. 情境要有故事性或任务性，而非简单的背景装饰
 
 【输出格式】必须返回严格 JSON：
@@ -5336,14 +5336,13 @@ ${cardAnalysisText.substring(0, 1000)}
     {
       "name": "场景名称",
       "description": "场景描述（20字以内）",
-      "suitableTopics": ["适合考查的知识点1", "知识点2"],
-      "suitableTypes": ["适合的题型1", "题型2"]
+      "suitableTopics": ["适合考查的知识点1", "知识点2"]
     }
   ],
   "narrativeArc": "情境叙事弧线描述（如何从开头发展到结尾，30字以内）"
 }
 
-要求 scenes 至少3个场景，最多5个。场景之间要有逻辑递进关系。只返回 JSON。`;
+场景数量由你按内容与任务需要自定。场景之间要有逻辑递进关系。只返回 JSON。`;
 
             const contextResult = await callAI(contextPrompt, {
               taskType: 'blueprint',
@@ -5369,19 +5368,17 @@ ${cardAnalysisText.substring(0, 1000)}
 📝 背景：${contextJson.background}
 🎯 核心任务：${contextJson.mainTask}
 
-📋 可用场景（每个场景可容纳多道题）：
+📋 可用场景：
 ${(contextJson.scenes || []).map((s, i) =>
   `  场景${i + 1}「${s.name}」：${s.description}
-     → 适合题型：${(s.suitableTypes || []).join('、')}
      → 适合知识点：${(s.suitableTopics || []).join('、')}`
 ).join('\n')}
 
-📐 叙事弧线：${contextJson.narrativeArc || '从易到难递进'}
+📐 叙事弧线：${contextJson.narrativeArc || '由浅入深递进'}
 
 ⚠️ 【关键约束】
 1. 同一场景内的题目要有逻辑连贯性
-2. 场景顺序应从简单到复杂，与难度递进匹配
-3. 知识点的考查应均匀分布在不同场景中
+2. 场景顺序宜由浅入深，与学习进阶匹配
 `;
               console.log('✅ AI情境框架生成成功:', contextJson.name);
             } catch (e) {

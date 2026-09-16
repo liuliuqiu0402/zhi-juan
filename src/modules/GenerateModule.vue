@@ -1130,6 +1130,12 @@
             >适用于：{{ opt.appliesToLabel }}</span>
           </label>
         </div>
+        <p
+          v-if="noApplicableStyleForCurrent"
+          class="hint"
+        >
+          ℹ️ 当前资料类型（{{ genTypeTemplates[genTypes[0]]?.name }}）不适用组织风格，生成时不注入组织风格指令。
+        </p>
         <p class="hint">
           💡 全部组织风格如上（当前资料类型不适用的已置灰）。系统已按当前类型推荐默认风格（{{ styleLabel }}）。如需恢复自动匹配，点击"恢复自动"。
         </p>
@@ -3006,7 +3012,6 @@ import {
   styleOptionsForType,
   DEFAULT_STYLE_BY_TYPE,
   isStyleRequiredForType,
-  STYLE_GROUP,
   genTypeOptions,
   genTypeTemplates,
   scopeOptions,
@@ -4837,10 +4842,11 @@ const restoreAutoStyle = () => {
   }
   showStyleModal.value = false;
 };
-/** 当前类型应显示的风格组（命题/呈现）与选项 */
-const styleOptsForCurrent = computed(() => styleOptionsForType(genTypes.value[0]));
 /** 当前类型是否需要必选风格确认 */
 const styleRequiredForCurrent = computed(() => genTypes.value.some((t) => isStyleRequiredForType(t)));
+/** 当前类型没有任何适用风格（errorbook/dictation）→ 弹窗明示不注入组织风格 */
+const noApplicableStyleForCurrent = computed(() =>
+  propositionOptions.value.every((o) => !o.applicable) && presentationOptions.value.every((o) => !o.applicable));
 /** 全部风格分组展示（当前类型不适用的置灰，标注适用类型） */
 const styleGroupOptions = (group) => {
   const cur = genTypes.value[0] || '';

@@ -95,6 +95,28 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     assertNoBanned(options, 'styleOptionsForType');
   });
 
+  // 🔴 2026-09-16（用户裁定·情境口径归课标）：
+  //    ① 风格描述（desc/tip）曾残留产品自造的"贴近学生生活/生活主题"情境取向——跨学科把所有学科推向
+  //       "校园/家庭"（情境同质直接推力，实证：连续两稿五情境全是"参加学校活动→遇困难→被鼓励→尽力而为"）；
+  //    ② framework.desc 承诺"辨析"而注入句只讲"梳理与自测"（界面与实发不一致）；
+  //    ③ traditional 注入句"题型按学科通行形态"是注入文本中最后残留的"题型"字样。
+  //    ④ useAiGenerator 情境框架预生成段曾写"学生生活紧密相关/至少3个场景/suitableTypes 题型字段/
+  //       知识点均匀分布"——数量、配比、题型三类诱导 + 情境取向，与 09-15 从 styleInstructions 裁掉的同源。
+  it('组织风格描述与情境框架归课标：无生活取向/辨析承诺/题型词/数量配比题型诱导（2026-09-16）', () => {
+    const styleStr = JSON.stringify({ ...styleInstructions, options: styleOptionsForType('practice').options });
+    expect(styleStr).not.toContain('生活');
+    expect(styleStr).not.toContain('辨析');
+    expect(styleInstructions.context_chain).not.toContain('情境自然连贯');
+    expect(styleInstructions.traditional).not.toContain('题型');
+    const gen = fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8');
+    expect(gen).not.toContain('学生生活紧密相关');
+    expect(gen).not.toContain('贴近学生生活');
+    expect(gen).not.toContain('至少3个场景');
+    expect(gen).not.toContain('suitableTypes');
+    expect(gen).not.toContain('均匀分布');
+    expect(gen).not.toContain('适合的题型');
+  });
+
   it('考卷蓝本（EXAM_BLUEPRINTS）不含诱导枚举（含鉴赏路径链）', () => {
     const raw = JSON.stringify(EXAM_BLUEPRINTS);
     assertNoBanned(raw, 'EXAM_BLUEPRINTS');

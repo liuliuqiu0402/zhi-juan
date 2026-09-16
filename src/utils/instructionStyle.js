@@ -9,9 +9,13 @@
  * 返回：
  *   value          风格值（空串=未命中）
  *   text           风格行原文
- *   isUnifiedContext  统一情境类（unified_context / unit_context / context_chain：整卷/整单元一个核心情境）
+ *   isUnifiedContext  统一情境类（unified_context / unit_context：整卷/整单元一个核心情境，需预生成命题型情境框架）
  *   isContextFusion   逐题/模块情境（scenario_each 或旧值 context_fusion）
  *   isContextStyle    以上任一（需要情境框架预生成）
+ * ============================================================
+ * 🔒 2026-09-16：context_chain 移出统一情境类——它是**呈现风格**（主题串联知识点，用于知识
+ *   总结/复习等内容型资料），不含"命题/题目"概念；预生成的情境框架是命题型通道（场景→承载题目），
+ *   对内容型资料语义错位（实证：知识总结被注入"所有命题必须在此情境下展开"）。
  * ============================================================
  */
 
@@ -23,8 +27,8 @@ export function parseStyleFromInstruction(instruction = '') {
   if (!m) return { value: '', text: '', isUnifiedContext: false, isContextFusion: false, isContextStyle: false };
   const line = m[1].trim();
   const value = line.split(/[：:]/)[0].trim();
-  // 统一情境类：整卷/整单元围绕一个核心情境（unified_context 课标卷型、unit_context 单元情境卷、context_chain 情境化串联）
-  const isUnifiedContext = value === 'unified_context' || value === 'unit_context' || value === 'context_chain';
+  // 统一情境类：整卷/整单元围绕一个核心情境（unified_context 课标卷型、unit_context 单元情境卷）
+  const isUnifiedContext = value === 'unified_context' || value === 'unit_context';
   const isContextFusion = value === 'context_fusion' || value === 'scenario_each';
   return { value, text: line, isUnifiedContext, isContextFusion, isContextStyle: isUnifiedContext || isContextFusion };
 }

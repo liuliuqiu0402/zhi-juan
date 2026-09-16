@@ -72,11 +72,11 @@ describe('parseStyleFromInstruction（组织风格解析）', () => {
     expect(r.isContextStyle).toBe(true);
   });
 
-  it('context_chain（情境化串联）→ 统一情境类，需要情境框架', () => {
+  it('context_chain（情境化串联）→ 呈现风格：主题串联，不触发命题型情境框架', () => {
     const r = parseStyleFromInstruction('【组织风格】context_chain：以一个真实适切的大主题串联各知识点呈现');
     expect(r.value).toBe('context_chain');
-    expect(r.isUnifiedContext).toBe(true);
-    expect(r.isContextStyle).toBe(true);
+    expect(r.isUnifiedContext).toBe(false);
+    expect(r.isContextStyle).toBe(false);
   });
 
   it('big_unit / 呈现类风格 → 非情境类，不需要情境框架', () => {
