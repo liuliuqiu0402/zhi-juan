@@ -846,16 +846,6 @@
               </span>
             </div>
             <div
-              v-if="doc.graphInstructions?.length"
-              class="graph-collect"
-            >
-              <span
-                v-for="(g, gIdx) in doc.graphInstructions"
-                :key="gIdx"
-                @click.stop="collectGraph(doc, gIdx)"
-              >⭐ 收藏图形{{ gIdx + 1 }}</span>
-            </div>
-            <div
               v-if="doc.status === 'failed'"
               class="failed-tip"
             >
@@ -9105,13 +9095,6 @@ const saveToHistory = async (doc) => {
   await storage.setItem('docHistory', localTrimmed);
 };
 
-const collectGraph = async (doc, idx) => {
-  const graphs = (await storage.getItem('graphLibrary')) || [];
-  graphs.push({ ...doc.graphInstructions[idx], savedAt: Date.now(), id: 'graph_' + Date.now() });
-  await storage.setItem('graphLibrary', graphs);
-  await showAlertDialogFn('已收藏到图形库');
-};
-
 const sendToTypeset = async (doc) => {
   let content = doc.content;
   if (!teacherVersion.value) {
@@ -10019,13 +10002,6 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 
 .quality-marks span.active {
   opacity: 1;
-}
-
-.graph-collect {
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--primary-light);
-  cursor: pointer;
 }
 
 .failed-tip {

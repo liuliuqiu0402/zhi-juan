@@ -100,7 +100,6 @@ function createWindow() {
             label: '工具',
             submenu: [
                 { label: '系统设置', click: () => win.webContents.send('menu-event', 'settings') },
-                { label: '图形库', click: () => win.webContents.send('menu-event', 'graph') },
                 { label: '指令库', click: () => win.webContents.send('menu-event', 'instruction') },
                 { label: '历史记录', click: () => win.webContents.send('menu-event', 'history') }
             ]

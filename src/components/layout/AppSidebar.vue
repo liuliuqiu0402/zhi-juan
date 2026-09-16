@@ -74,15 +74,6 @@
     
     <div
       class="nav-item"
-      :class="{ disabled: !canAccessFeature('graph') }"
-      :title="!canAccessFeature('graph') ? '旗舰版功能' : ''"
-      @click="goIfAllowed('/graph', 'graph')"
-    >
-      <span>⭐</span> 图形库
-    </div>
-    
-    <div
-      class="nav-item"
       :class="{ active: $route.path === '/settings' }"
       @click="$router.push('/settings')"
     >

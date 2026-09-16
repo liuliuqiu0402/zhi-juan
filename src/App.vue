@@ -612,7 +612,6 @@ const setupMenuListeners = () => {
     window.electronAPI.onMenuEvent((_event, action) => {
       switch (action) {
         case 'settings': router.push('/settings'); break;
-        case 'graph': router.push('/graph'); break;
         case 'history': router.push('/history'); break;
         case 'guide': showGuide(); break;
       }

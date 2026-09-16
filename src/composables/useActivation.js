@@ -67,7 +67,6 @@ export function useActivation() {
       'draft': ['ultimate'],
       'typeset': ['pro', 'ultimate'],
       'history': ['ultimate'],
-      'graph': ['ultimate'],
       'instruction': ['ultimate']
     };
     

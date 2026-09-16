@@ -74,11 +74,6 @@ const routes = [
     component: () => import('@/modules/HistoryModule.vue')
   },
   {
-    path: '/graph',
-    name: 'graph',
-    component: () => import('@/modules/GraphModule.vue')
-  },
-  {
     path: '/settings',
     name: 'settings',
     component: () => import('@/modules/SettingsModule.vue')

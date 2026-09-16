@@ -43,13 +43,6 @@
       </button>
       <button
         class="header-btn"
-        :disabled="!canAccessFeature('graph')"
-        @click="$router.push('/graph')"
-      >
-        ⭐ 图形库
-      </button>
-      <button
-        class="header-btn"
         @click="$router.push('/settings')"
       >
         ⚙️ 设置
