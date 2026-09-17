@@ -246,5 +246,23 @@
 </tbody>
 </table>
 
+<h3>H8. 出稿工具按钮：指令预览（用户实证"盲复制"）</h3>
+<div class="box hot">
+  <b>问题</b>：卡片上「📐 图形指令」「🖼️ 配图稿」是**盲复制**——点完只弹一句"已复制 N 条"，看不到内容，
+  只能粘到外部工具才知道复制了什么；而同一排的「🎧 听力稿」早有弹窗可先看再复制（口径不齐）。
+</div>
+<table>
+<thead><tr><th>入口</th><th>改前</th><th>改后</th></tr></thead>
+<tbody>
+<tr><td>🎧 听力稿</td><td>弹窗（SSML／朗读稿／语速／结构来源）</td><td>不变</td></tr>
+<tr><td>📐 图形指令</td><td>直接写剪贴板 + 一句提示</td><td><b>弹窗预览</b>：逐条列出 类型／标题／数据／位置对照（前面那段题干）＋ 原文块，可"复制该条"或"复制全部"</td></tr>
+<tr><td>🖼️ 配图稿</td><td>直接写剪贴板 + 一句提示</td><td><b>弹窗预览</b>：逐条列出 画面描述／风格／位置对照（对应哪道题），可"复制该条"或"复制全部"</td></tr>
+</tbody>
+</table>
+<p class="n"><b>同源保证</b>：预览清单与剪贴板文本都由 <code>directiveBlocks.js</code> 单一实现生成
+（<code>buildGraphDirectiveList</code>／<code>buildImagePromptList</code> ＋ <code>buildGraphClipboardText</code>／<code>buildImageClipboardText</code>），
+「内容预览」弹窗里的两个复制按钮也改为读同一份函数 → <b>看到的 = 复制的</b>；剪贴板文本与原一键复制<b>逐字一致</b>（守卫已锁，防改版走样）。
+无指令/无配图时仍按原逻辑弹"本文档没有…"提示，不弹空窗。</p>
+
 </body>
 </html>

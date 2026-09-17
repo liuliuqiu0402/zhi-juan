@@ -824,20 +824,21 @@
               >
                 🎧 听力稿
               </button>
-              <!-- 📐 图形指令 / 🖼️ 配图稿：与听力稿同一口径 —— 该条资料里真有这类指令才出现 -->
+              <!-- 📐 图形指令 / 🖼️ 配图稿：与听力稿同一口径 —— 该条资料里真有这类指令才出现；
+                   2026-09-17 起改为"先预览再复制"（原为盲复制，看不到内容） -->
               <button
                 v-if="docSupportsGraph(doc)"
                 class="btn-small"
-                title="复制本资料里的 [GRAPH] 图形指令，粘到 EduRender Studio 批量出图"
-                @click.stop="copyGraphDirectives(doc)"
+                title="预览并复制本资料里的 [GRAPH] 图形指令，粘到 EduRender Studio 批量出图"
+                @click.stop="openDirectivePreview(doc, 'GRAPH')"
               >
                 📐 图形指令
               </button>
               <button
                 v-if="docSupportsImage(doc)"
                 class="btn-small"
-                title="复制本资料里的配图稿（画面描述），粘到 AI 绘图工具出图"
-                @click.stop="copyImagePrompts(doc)"
+                title="预览并复制本资料里的配图稿（画面描述），粘到 AI 绘图工具出图"
+                @click.stop="openDirectivePreview(doc, 'IMAGE')"
               >
                 🖼️ 配图稿
               </button>
@@ -1593,6 +1594,104 @@
         </div>
       </div>
     </div>
+
+    <!-- 📐🖼️ 指令预览弹窗（2026-09-17 用户实证）：原为"盲复制"，只能粘到外部工具才知道内容 →
+         与听力稿同一口径（先预览再复制）；预览与"复制全部"读同一份清单、同一份文本（directiveBlocks 单一实现） -->
+    <Teleport to="body">
+      <div
+        v-if="showDirectiveModal"
+        class="modal-mask"
+        @click.self="closeDirectiveModal"
+      >
+        <div class="modal large-modal">
+          <h3>{{ directiveKind === 'GRAPH' ? '📐 图形指令' : '🖼️ 配图稿' }}（共 {{ directiveItems.length }} 条）</h3>
+          <div
+            v-if="directiveDoc && directiveDoc.title"
+            class="copy-hint"
+          >
+            {{ directiveDoc.title }}
+          </div>
+          <div class="copy-hint">
+            {{ directiveKind === 'GRAPH'
+              ? '用法：整段粘贴到 EduRender Studio 编辑区 → 点「解析指令」→ 点「渲染全部」→ 导出 Word。'
+              : '用法：把每条"画面描述"粘到 AI 绘图工具生成图片；回到渲染端点该项的「📎 选择我生成的图片」插回，导出 Word 时自动插入。' }}
+          </div>
+          <div
+            v-if="directiveHint"
+            class="copy-hint"
+          >
+            {{ directiveHint }}
+          </div>
+          <div style="max-height:52vh;overflow:auto;margin:10px 0;">
+            <div
+              v-for="(it, i) in directiveItems"
+              :key="i"
+              style="border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;margin-bottom:8px;"
+            >
+              <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
+                <strong style="font-size:13px;">第 {{ i + 1 }} 条{{ directiveKind === 'GRAPH' && it.type ? `（${it.type}）` : '' }}</strong>
+                <button
+                  class="btn-small"
+                  @click="copyDirectiveOne(it)"
+                >
+                  📋 复制该条
+                </button>
+              </div>
+              <template v-if="directiveKind === 'GRAPH'">
+                <div
+                  v-if="it.title"
+                  style="font-size:12.5px;margin-top:4px;"
+                >
+                  标题：{{ it.title }}
+                </div>
+                <div
+                  v-if="it.data"
+                  style="font-size:12.5px;margin-top:2px;"
+                >
+                  数据：{{ it.data }}
+                </div>
+              </template>
+              <div
+                v-else
+                style="font-size:13px;margin-top:4px;white-space:pre-wrap;"
+              >
+                {{ it.desc || '（空——请检查该 [IMAGE] 指令是否有 PROMPT/KEYWORDS）' }}
+              </div>
+              <div
+                v-if="directiveKind === 'IMAGE' && it.style"
+                style="font-size:12.5px;margin-top:2px;"
+              >
+                风格：{{ it.style }}
+              </div>
+              <div
+                v-if="it.where"
+                style="font-size:12px;color:#6b7280;margin-top:4px;"
+              >
+                位置对照（前面那段题干）：…{{ it.where }}
+              </div>
+              <pre
+                v-if="directiveKind === 'GRAPH'"
+                style="font-size:11.5px;background:#f7f8fa;border-radius:6px;padding:6px;margin:6px 0 0;white-space:pre-wrap;word-break:break-all;"
+              >{{ it.raw }}</pre>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button
+              class="btn"
+              @click="closeDirectiveModal"
+            >
+              关闭
+            </button>
+            <button
+              class="btn-edurender"
+              @click="copyDirectiveAll"
+            >
+              📋 复制全部（{{ directiveItems.length }} 条）
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- 🎧 听力稿弹窗：① SSML（粘进工具即出音频）② 朗读稿（真人录音/剪映分角色配音） -->
     <Teleport to="body">
@@ -3241,7 +3340,7 @@ import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { stripXss, stripAiCodeFence, markSoloBlankLines, wrapBareBlankRuns } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（导出端第二道防线共享）
 import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
 // 📐🖼️ 指令块抽取/配图稿清单（2026-09-16）："复制图形指令""复制配图稿"两个一键复制入口共用
-import { extractDirectiveBlocks, hasDirectiveBlocks, buildImagePromptList } from '../utils/directiveBlocks.js';
+import { hasDirectiveBlocks, buildImagePromptList, buildGraphDirectiveList, buildGraphClipboardText, buildImageClipboardText } from '../utils/directiveBlocks.js';
 import { diagnoseAnchorTree, logAnchorGranularity, summarizeAnchorGranularity, validateAnchorTree } from '../utils/anchorTreeContract.js';  // ✅ A1：锚树契约（入库校验 + 粒度诊断）
 import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实体解码唯一实现（曾本地 esc/escGraph 及 data-raw 解码链副本）
 // 🎧 英语听力稿（2026-09-16）：答案页听力原文 → 结构化 → SSML/朗读稿（复制即用）
@@ -8595,6 +8694,87 @@ const docSourceText = (doc) => doc?.rawContent || doc?.content || '';
 const docSupportsGraph = (doc) => hasDirectiveBlocks(docSourceText(doc), 'GRAPH');
 const docSupportsImage = (doc) => hasDirectiveBlocks(docSourceText(doc), 'IMAGE');
 
+// ── 📐🖼️ 指令预览弹窗（2026-09-17 用户实证：原为"盲复制"，看不到内容、只能粘出去才知道复制了什么）──
+//    与听力稿同一口径：**先预览、再复制**；预览与复制共用同一份清单/文本（directiveBlocks 单一实现）。
+const showDirectiveModal = ref(false);
+const directiveKind = ref('');        // 'GRAPH' | 'IMAGE'
+const directiveDoc = ref(null);
+const directiveKindLabel = () => (directiveKind.value === 'GRAPH' ? '图形指令' : '配图稿');
+
+/** 预览清单：按当前 kind 现算（与"复制全部"读同一函数，杜绝两侧不一致） */
+const directiveItems = computed(() => {
+  const doc = directiveDoc.value;
+  if (!doc) return [];
+  return directiveKind.value === 'GRAPH'
+    ? buildGraphDirectiveList(docSourceText(doc))
+    : buildImagePromptList(docSourceText(doc));
+});
+
+/** 复制全部用的文本（与预览同源） */
+const directiveClipboardText = () => {
+  const doc = directiveDoc.value;
+  if (!doc) return '';
+  const items = directiveItems.value;
+  return directiveKind.value === 'GRAPH'
+    ? buildGraphClipboardText(items, doc.title || '')
+    : buildImageClipboardText(items, doc.title || '');
+};
+
+const openDirectivePreview = async (doc, kind) => {
+  if (!doc) return;
+  directiveKind.value = kind;
+  directiveDoc.value = doc;
+  const items = kind === 'GRAPH'
+    ? buildGraphDirectiveList(docSourceText(doc))
+    : buildImagePromptList(docSourceText(doc));
+  if (!items.length) {
+    await showAlertDialogFn(kind === 'GRAPH' ? '⚠️ 本文档没有图形指令（[GRAPH]）' : '⚠️ 本文档没有配图（[IMAGE]）');
+    return;
+  }
+  showDirectiveModal.value = true;
+};
+
+const directiveHint = ref('');
+
+const closeDirectiveModal = () => {
+  showDirectiveModal.value = false;
+  directiveKind.value = '';
+  directiveDoc.value = null;
+  directiveHint.value = '';
+};
+
+/** 复制全部（文本由 directiveBlocks 统一生成，与一键复制逐字一致） */
+const copyDirectiveAll = async () => {
+  const text = directiveClipboardText();
+  if (!text) {
+    directiveHint.value = '⚠️ 没有可复制的内容';
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    directiveHint.value = `✅ 已复制 ${directiveItems.value.length} 条${directiveKindLabel()}`;
+    setTimeout(() => { directiveHint.value = ''; }, 3000);
+  } catch (e) {
+    directiveHint.value = '❌ 复制失败：' + e.message;
+  }
+};
+
+/** 复制单条（图形指令=整段块；配图稿=该条画面描述） */
+const copyDirectiveOne = async (item) => {
+  const text = directiveKind.value === 'GRAPH' ? (item?.raw || '') : (item?.desc || '');
+  if (!text) {
+    directiveHint.value = '⚠️ 该条没有可复制的内容';
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    directiveHint.value = '✅ 已复制该条';
+    setTimeout(() => { directiveHint.value = ''; }, 3000);
+  } catch (e) {
+    directiveHint.value = '❌ 复制失败：' + e.message;
+  }
+};
+
 const closeListeningModal = () => {
   showListeningModal.value = false;
   listeningLoading.value = false;
@@ -8847,16 +9027,16 @@ const reportCopy = async (message, isError = false) => {
 const copyGraphDirectives = async (doc = null) => {
   const target = doc || previewingDoc.value;
   if (!target) return;
-  const blocks = extractDirectiveBlocks(docSourceText(target), 'GRAPH');
-  if (!blocks.length) {
+  // 🔴 2026-09-17：文本改由 directiveBlocks 单源生成（与预览弹窗"复制全部"逐字一致，杜绝两处口径）
+  const items = buildGraphDirectiveList(docSourceText(target));
+  const text = buildGraphClipboardText(items, target.title || '');
+  if (!text) {
     await reportCopy('⚠️ 本文档没有图形指令（[GRAPH]）', true);
     return;
   }
-  const header = `【图形指令·共 ${blocks.length} 条】${target.title || ''}\n`
-    + '用法：整段粘贴到 EduRender Studio 编辑区 → 点「解析指令」→ 点「渲染全部」→ 导出 Word。\n';
   try {
-    await navigator.clipboard.writeText(header + '\n' + blocks.join('\n\n'));
-    await reportCopy(`✅ 已复制 ${blocks.length} 条图形指令，可粘贴到 EduRender Studio`);
+    await navigator.clipboard.writeText(text);
+    await reportCopy(`✅ 已复制 ${items.length} 条图形指令，可粘贴到 EduRender Studio`);
   } catch (e) {
     await reportCopy('❌ 复制失败：' + e.message, true);
   }
@@ -8873,24 +9053,15 @@ const copyGraphDirectives = async (doc = null) => {
 const copyImagePrompts = async (doc = null) => {
   const target = doc || previewingDoc.value;
   if (!target) return;
+  // 🔴 2026-09-17：文本改由 directiveBlocks 单源生成（与预览弹窗"复制全部"逐字一致）
   const items = buildImagePromptList(docSourceText(target));
-  if (!items.length) {
+  const text = buildImageClipboardText(items, target.title || '');
+  if (!text) {
     await reportCopy('⚠️ 本文档没有配图（[IMAGE]）', true);
     return;
   }
-  const lines = [
-    `【配图稿·共 ${items.length} 处】${target.title || ''}`,
-    '用法：把每条"画面描述"粘贴到 AI 绘图工具生成图片；回到渲染端点该项的「📎 选择我生成的图片」插回，导出 Word 时会自动插入。',
-    '',
-  ];
-  items.forEach((it, i) => {
-    lines.push(`${i + 1}. 画面描述：${it.desc || '（空——请检查该 [IMAGE] 指令是否有 PROMPT/KEYWORDS）'}`);
-    if (it.style) lines.push(`   风格：${it.style}`);
-    if (it.where) lines.push(`   位置对照（该图前面的题干）：…${it.where}`);
-    lines.push('');
-  });
   try {
-    await navigator.clipboard.writeText(lines.join('\n'));
+    await navigator.clipboard.writeText(text);
     await reportCopy(`✅ 已复制 ${items.length} 条配图稿，可直接粘贴到 AI 绘图工具`);
   } catch (e) {
     await reportCopy('❌ 复制失败：' + e.message, true);

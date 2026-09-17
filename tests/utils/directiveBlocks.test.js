@@ -5,6 +5,9 @@ import {
   hasDirectiveBlocks,
   parseDirectiveFields,
   buildImagePromptList,
+  buildGraphDirectiveList,
+  buildGraphClipboardText,
+  buildImageClipboardText,
 } from '../../src/utils/directiveBlocks.js';
 
 const DOC = `1. 观察下面的图形。
@@ -156,5 +159,52 @@ describe('directiveBlocks / buildImagePromptList', () => {
     expect(buildImagePromptList('只有文字')).toEqual([]);
     expect(buildImagePromptList('')).toEqual([]);
     expect(buildImagePromptList(null)).toEqual([]);
+  });
+});
+
+// 🔴 2026-09-17 用户实证：卡片上「📐 图形指令」「🖼️ 配图稿」原为"盲复制"（点完只弹"已复制 N 条"，
+//    看不到内容，只能粘到外部工具才知道复制了什么）→ 改为**先预览再复制**。
+//    本组锁定：① 图形指令清单（预览用）字段/位置对照/原文；② 剪贴板文本与原一键复制**逐字一致**（防改版走样）；
+//    ③ 预览与复制**同源**（同一函数出清单与文本，杜绝"看到的≠复制的"）。
+describe('directiveBlocks / 指令预览与复制同源（2026-09-17 先预览再复制）', () => {
+  it('图形指令清单：逐条带类型/字段/位置对照/原文', () => {
+    const list = buildGraphDirectiveList(DOC);
+    expect(list).toHaveLength(extractDirectiveBlocks(DOC, 'GRAPH').length); // DOC 含 2 条图形指令（SHAPES×2）
+    expect(list).toHaveLength(2);
+    expect(list[0].type).toBe('SHAPES');
+    expect(list[0].fields.XLIM).toBe('-5,5');
+    expect(list[0].where).toContain('观察下面的图形');
+    expect(list[0].raw.startsWith('[GRAPH]')).toBe(true);
+    expect(list[0].raw.endsWith('[/GRAPH]')).toBe(true);
+    expect(list[1].type).toBe('SHAPES');
+    expect(buildGraphDirectiveList('只有文字')).toEqual([]);
+  });
+
+  it('图形指令剪贴板文本：与原一键复制逐字一致（表头 + 用法 + 空行 + 块）', () => {
+    const items = buildGraphDirectiveList(DOC);
+    const text = buildGraphClipboardText(items, '六年级数学');
+    expect(text.startsWith(`【图形指令·共 ${items.length} 条】六年级数学\n`)).toBe(true);
+    expect(text).toContain('用法：整段粘贴到 EduRender Studio 编辑区 → 点「解析指令」→ 点「渲染全部」→ 导出 Word。');
+    expect(text).toContain('\n\n[GRAPH]\nTYPE:SHAPES');
+    expect(text.trimEnd().endsWith('[/GRAPH]')).toBe(true);
+    expect(buildGraphClipboardText([], 'x')).toBe('');
+  });
+
+  it('配图稿剪贴板文本：逐条编号 + 风格/位置对照（与原一键复制逐字一致）', () => {
+    const items = buildImagePromptList(DOC);
+    const text = buildImageClipboardText(items, '六年级语文');
+    expect(text.startsWith('【配图稿·共 2 处】六年级语文\n')).toBe(true);
+    expect(text).toContain('1. 画面描述：三只熊猫在竹林中吃竹子');
+    expect(text).toContain('2. 画面描述：熊猫,竹子,卡通');
+    expect(text).toContain('   风格：flat');
+    expect(text).toContain('   位置对照（该图前面的题干）：…');
+    expect(buildImageClipboardText([], 'x')).toBe('');
+  });
+
+  it('同源不变量：预览条数 === 剪贴板文本条数（两侧读同一份清单）', () => {
+    const graphItems = buildGraphDirectiveList(DOC);
+    const imageItems = buildImagePromptList(DOC);
+    expect(buildGraphClipboardText(graphItems, 't')).toContain(`共 ${graphItems.length} 条`);
+    expect(buildImageClipboardText(imageItems, 't')).toContain(`共 ${imageItems.length} 处`);
   });
 });

@@ -107,10 +107,75 @@ export function buildImagePromptList(content = '', options = {}) {
   return out;
 }
 
+/**
+ * 把文档里的图形指令整理成"一条一条"的清单（预览与复制**同一份数据**）。
+ *
+ * 2026-09-17 用户实证：卡片上「📐 图形指令」「🖼️ 配图稿」原为"盲复制"（点完只弹一句"已复制 N 条"），
+ * 老师不知道复制的到底是什么、只能粘到外部工具才看得见 → 现改为**先预览再复制**；
+ * 预览与复制走同一份清单与同一份文本，杜绝"看到的"和"复制的"不一致。
+ * @param {string} content 文档源码
+ * @param {{contextChars?: number}} [options]
+ * @returns {Array<{type:string,title:string,data:string,fields:Record<string,string>,where:string,raw:string}>}
+ */
+export function buildGraphDirectiveList(content = '', options = {}) {
+  const contextChars = Number(options.contextChars) || 60;
+  const src = String(content || '');
+  const re = /\[GRAPH\]([\s\S]*?)\[\/GRAPH\]/gi;
+  const out = [];
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    const fields = parseDirectiveFields(m[1]);
+    const where = src.slice(Math.max(0, m.index - contextChars * 2), m.index)
+      .replace(/\[\/?(?:GRAPH|IMAGE)\]/gi, ' ')
+      .replace(/[\s\u3000]+/g, ' ')
+      .trim()
+      .slice(-contextChars);
+    out.push({
+      type: fields.TYPE || '',
+      title: fields.TITLE || fields.CAPTION || '',
+      data: fields.DATA || fields.VALUES || fields.COMPONENTS || '',
+      fields,
+      where,
+      raw: m[0].trim(),
+    });
+  }
+  return out;
+}
+
+/** 📐 图形指令的剪贴板文本（预览弹窗"复制全部"与一键复制共用，逐字一致） */
+export function buildGraphClipboardText(items = [], title = '') {
+  const blocks = (items || []).map((it) => it.raw).filter(Boolean);
+  if (!blocks.length) return '';
+  return `【图形指令·共 ${blocks.length} 条】${title || ''}\n`
+    + '用法：整段粘贴到 EduRender Studio 编辑区 → 点「解析指令」→ 点「渲染全部」→ 导出 Word。\n\n'
+    + blocks.join('\n\n');
+}
+
+/** 🖼️ 配图稿的剪贴板文本（预览弹窗"复制全部"与一键复制共用，逐字一致） */
+export function buildImageClipboardText(items = [], title = '') {
+  const list = items || [];
+  if (!list.length) return '';
+  const lines = [
+    `【配图稿·共 ${list.length} 处】${title || ''}`,
+    '用法：把每条"画面描述"粘贴到 AI 绘图工具生成图片；回到渲染端点该项的「📎 选择我生成的图片」插回，导出 Word 时会自动插入。',
+    '',
+  ];
+  list.forEach((it, i) => {
+    lines.push(`${i + 1}. 画面描述：${it.desc || '（空——请检查该 [IMAGE] 指令是否有 PROMPT/KEYWORDS）'}`);
+    if (it.style) lines.push(`   风格：${it.style}`);
+    if (it.where) lines.push(`   位置对照（该图前面的题干）：…${it.where}`);
+    lines.push('');
+  });
+  return lines.join('\n');
+}
+
 export default {
   DIRECTIVE_TAGS,
   extractDirectiveBlocks,
   hasDirectiveBlocks,
   parseDirectiveFields,
   buildImagePromptList,
+  buildGraphDirectiveList,
+  buildGraphClipboardText,
+  buildImageClipboardText,
 };
