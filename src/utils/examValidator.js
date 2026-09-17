@@ -1956,7 +1956,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           .replace(/<h[2-4][^>]*>\s*[一二三四五六七八九十]+\s*、\s*(?:学习|预习|复习|教学)目标[\s\S]*?(?=<h[2-4][^>]*>|$)/gi, '')
           .replace(/<p[^>]*>\s*[一二三四五六七八九十]+\s*、\s*(?:学习|预习|复习|教学)目标[\s\S]*?(?=<h[2-4][^>]*>|$)/gi, '');
         const bodyTopQ = topQCount(bodyHtml, 'body');
-        const ansTopQ = topQCount(ansMatch[1], 'answer');
+        // 🔴 2026-09-17（用户追问）·答案区计数**剔除听力原文/录音材料板块**：它是材料复述、不是答案条目，
+        //    而内部自带 1..N 编号（英语卷实证：听力原文重复 1~15）。与正文侧剔除"学习/预习/复习/教学目标"**对称**：
+        //    两侧都只对"题号 ↔ 题/答案"计数，材料板块一律不参与。
+        //    真实危害不是"虚高"（计数取最长 1 起连续递增段，重复序列只能把 run 重置回 1，推不高上限），
+        //    而是**遮蔽**：若某卷听力答案只写在原文里（或答案条目缺号恰被原文编号补齐），
+        //    混入计数会把"答案区未逐题给答案"判成对齐 → 漏报。剔除后该缺陷照报。
+        const stripAudioScript = (html) => String(html).replace(
+          /<\/?(?:p|h[1-6]|div)[^>]*>\s*(?:<strong>|<b>)?\s*(?:听力原文|录音原文|听力材料|录音稿|Tapescript|Listening\s*script)\s*(?:<\/strong>|<\/b>)?[\s\S]*?(?=<h[1-6][^>]*>|$)/gi,
+          '',
+        );
+        const ansTopQ = topQCount(stripAudioScript(ansMatch[1]), 'answer');
         if (bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
           // 🔍 计数口径取证（2026-09-12）：本口径只认「行首/空白/[)）、]后 + N.[、．]」。
           //    🔴 2026-09-13（用户实证定版·根因分型）：答案区计 0 **是真实缺陷信号**（=一个可对应的题号锚点都没有，

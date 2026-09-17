@@ -147,6 +147,43 @@ describe('④ 同一大题内作答位位置/形态统一（跨学科通用）',
   });
 });
 
+// ⑥ 答案区计数剔除「听力原文」板块（用户追问：英语答案区里的听力原文也有序号，会不会也算一遍）
+//   实证（六年级英语阶段测评）：答案区含**听力原文**（1~15 逐条），与答案条目编号重号。
+//   - 不会"虚高"：计数取最长 1 起连续递增段，重复序列只能把 run 重置回 1，推不高上限（该卷答案 1~56 齐全，56 来自 56. 参考范文）
+//   - 真危害是**遮蔽**：若答案条目缺号恰被原文编号补齐，会把"未逐题给答案"判成对齐 → 漏报
+//   - 处置：答案区计数前剔除"听力原文/录音原文/听力材料/录音稿/Tapescript"板块（到下一个标题或文末），
+//     与正文侧剔除"学习/预习/复习/教学目标"对称——两侧都只对"题号 ↔ 题/答案"计数
+describe('⑥ 答案区计数剔除「听力原文」板块（防遮蔽，与正文剔除目标板块对称）', () => {
+  const run = (body, ans) => auditExamPaper(body + ans, { subject: '英语', stage: 'primary_high', genType: 'exam' });
+  const notes = (r) => (r.silentDetails || []).filter((d) => d.type === 'answer-coverage').map((d) => d.message).join(' | ');
+  const body20 = `<h2>一、听力与基础（共40分）</h2>`
+    + Array.from({ length: 20 }, (_, i) => `<p class="question">${i + 1}. 题目内容</p>`).join('');
+  const ansItems = (n, from = 1) => Array.from({ length: n }, (_, i) => `<p>${from + i}. A</p>`).join('');
+
+  it('答案区含听力原文（重号 1~15）→ 计数不受其影响，不误报', () => {
+    const ans = `<div class="answer-section"><h2>参考答案</h2>${ansItems(20)}`
+      + `<p><strong>听力原文</strong></p>${ansItems(15)}</div>`;
+    expect(notes(run(body20, ans))).toBe('');
+  });
+
+  it('听力原文置于答案区末尾 → 同样剔除（不误伤前文答案）', () => {
+    const ans = `<div class="answer-section"><h2>参考答案</h2>${ansItems(20)}`
+      + `<p><strong>听力原文</strong></p>${ansItems(20)}</div>`;
+    expect(notes(run(body20, ans))).toBe('');
+  });
+
+  it('🔴 遮蔽护栏：答案只给了 1~5、其余靠听力原文凑号 → 修前会被判对齐，现须报"答案区题号少于正文"', () => {
+    const ans = `<div class="answer-section"><h2>参考答案</h2>${ansItems(5)}`
+      + `<p><strong>听力原文</strong></p>${ansItems(20)}</div>`;
+    expect(notes(run(body20, ans))).toContain('答案区');
+  });
+
+  it('反向护栏：答案区确实无题号（只有文字罗列）→ 仍报（剔除原文不掩盖真缺陷）', () => {
+    const ans = `<div class="answer-section"><h2>参考答案</h2><p>一、略</p><p>二、略</p></div>`;
+    expect(notes(run(body20, ans))).not.toBe('');
+  });
+});
+
 // ⑤ 尾约束·全文自洽的语义完善（用户追问：尾部锚定的自洽部分语义是否待完善）
 //   原文本的锚定域只有"**题干**所声明的…"，而本卷两处问题都出在**大题标题**（"根据图片提示或首字母提示…"）
 //   ——标题不在锚定域内 → 模型可把标题当另一个对象；且原文只写"内容自洽"，没写"**形式/写法**自洽"
