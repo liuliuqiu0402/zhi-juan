@@ -64,7 +64,7 @@ export const TEACHING_BLUEPRINTS = {
   special: {
     label: '专项突破',
     sections: [
-      { name: '分板块组织', note: '学习理解→应用实践→迁移创新，各活动类型依内容自然形成' },
+      { name: '分板块组织', note: '按本单元内容分板块，依内容自然形成' },
       { name: '每板块配解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
     ],
     stages: {
@@ -171,7 +171,7 @@ export const TEACHING_BLUEPRINTS = {
     label: '复习资料',
     sections: [
       { name: '知识框架', note: '本单元知识点都涉及到，知识网络化呈现' },
-      { name: '核心知识梳理', note: '按学习理解→应用实践→迁移创新梳理，重点难点突出' },
+      { name: '核心知识梳理', note: '按知识要点逐条梳理，重点难点突出' },
       { name: '典型题析', note: '典型题（含解题思路剖析，不只看式复现）' },
       { name: '易错聚焦', note: '易错点辨析，具体到易混处并给正确思路' },
       { name: '综合自测', note: '自测（基础/提高），本单元知识点都涉及到' },
@@ -776,7 +776,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     },
     practice: { label: '同步练习', sections: [
       { name: '基础建构', note: '政治认同与概念理解：涉及本次范围概念与原理等核心内容，在情境中考查' },
-      { name: '探究进阶', note: '法治观念与健全人格：材料分析题目（体现理论与材料、结论相互印证）' },
+      { name: '探究进阶', note: '科学精神：材料分析题目（体现理论与材料、结论相互印证）' },
       { name: '迁移创新', note: '法治意识与公共参与：时政辨析与实践参与，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
