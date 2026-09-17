@@ -214,7 +214,7 @@ export const hasStructuralGraphSupport = (subject = '') =>
 /** 画面"**确需**结构化图形"的需求词（2026-09-17 用户裁定·消噪音，程序侧判据、不进指令）：
  *  只有画面本身是结构图/示意图/地图一类时，"改由生图引擎出图、需人工核对方位与事实"的提示才有意义；
  *  场景图（大树+小鸟）不该被报成"结构图/示意图/地图"（实证：六年级英语卷第五题）。 */
-const STRUCTURAL_NEED_RE = /结构图|示意图|电路|光路|受力|装置图|地形|分布图|流程图|简图|地图|平面图|剖面图/;
+const STRUCTURAL_NEED_RE = /结构图|示意图|电路|光路|受力|装置|仪器|地形|分布图|流程图|简图|地图|路线图|平面图|剖面图|视野|解剖|层次|关系图|连接图/;
 
 /** 统计纯文本连线行数（一行内出现 ≥2 个全角空格/tab 分隔的两列 → 计 1 条连线，AI 未按 match-item 结构输出时兜底） */
 export const countMatchLines = (text) => {
@@ -1654,9 +1654,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             }
           }
           if (hasFillIn) continue;
-          const need = isNoScore
+          // 🔴 2026-09-17 用户裁定（补收口·规格层封顶）：主规则仍是"分值×系数"，但**短答按分会给过量空间**——
+          //    全矩阵实测（428 处受影响）真异常：语文·小低「按要求写句子（每题5分）」7 行/题、低段每题6分→9行。
+          //    上限取自规格库 ANSWER_MAX_ROWS_BY_STAGE（按学段、学科无关；按地区差异改规格库即可），
+          //    无分值兜底（4/2 行）同样受上限约束（防"两把尺子"）。**勿在此处加题型特例**。
+          const capRows = Number.isFinite(region.maxRowsPerItem) ? region.maxRowsPerItem : 8;
+          const needRaw = isNoScore
             ? (it.sub ? NO_SCORE_SUB_ROWS : NO_SCORE_ROWS)
             : needRows(it.score);
+          const need = Math.min(needRaw, capRows);
           if (rows >= need) continue;
           // 🔧 专用作答区语境防错配（2026-09；遵守"补差不越权 / 静默不误报"固化基准）：
           //    竖式（需格状书写区）、作图（需空白区）、填表（需表格）类题在题内确无任何作答载体时，
@@ -1703,7 +1709,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             severity: 'info', type: 'answer-area',
             message: isNoScore
               ? `已补作答空间：大题「${title.slice(0, 14)}」某${it.sub ? '子题' : '题'}补 ${diff} 行${region.carrier === 'line' ? '横线' : '空白'}（无分值题按题型惯例兜底${it.sub ? NO_SCORE_SUB_ROWS : NO_SCORE_ROWS}行，原有效作答行${rows}）`
-              : `已补作答空间：大题「${title.slice(0, 14)}」某题补 ${diff} 行${region.carrier === 'line' ? '横线' : '空白'}（分值${it.score}×系数${region.linePerScore}，原有效作答行${rows}）`,
+              : `已补作答空间：大题「${title.slice(0, 14)}」某题补 ${diff} 行${region.carrier === 'line' ? '横线' : '空白'}（分值${it.score}×系数${region.linePerScore}=${needRaw}行${needRaw > capRows ? `，按学段单题上限收敛为 ${capRows} 行` : ''}，原有效作答行${rows}）`,
           });
         }
       });

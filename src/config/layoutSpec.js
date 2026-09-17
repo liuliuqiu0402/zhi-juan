@@ -332,10 +332,29 @@ export function buildAnswerSpaceInstruction(subject = '', stage = '') {
 }
 
 /**
- * 解答题作答空间（学科 × 学段 → 参数）
+ * 🔴 单题作答区行数上限（规格层·单一事实源，2026-09-17 用户裁定补收口）
+ * ============================================================
+ * 为什么需要：`linePerScore`（分值×系数）是**主规则**，但它对"短答成句"这类题会按分给过量空间——
+ *   全矩阵实测（426 处受影响）里的真异常：语文·小学低段「按要求写句子（每题5分）」→ 7 行/题、
+ *   低段每题6分→9行、8分→12行（写一句话占大半页）。卷面惯例上，**低段单题作答区极少超过 4 行**，
+ *   长答（写话/作文）另走作文格通道（writing-grid-fix）与本表无关。
+ * 口径：按学段给上限（学科无关——上限是"卷面一屏能放下多少"的概念，行高已由 lineHeightMm 分学科）；
+ *   需求行数 = min(分值 × linePerScore, maxRowsPerItem)，无分值兜底（4/2 行）同样受上限约束。
+ *   调节点仍在本规格库：地区卷面差异改这里（勿在补差逻辑里加题型特例）。
+ */
+export const ANSWER_MAX_ROWS_BY_STAGE = {
+  primary_low: 4,   // 低段：单题少见超过 4 行（长答走写话/作文格通道）
+  primary_mid: 5,
+  primary_high: 6,
+  middle: 8,        // 初中：解答题按分给行，8 行≈60mm（0.9×分值 的中高值档）
+  high: 8,          // 高中：同上（0.8×分值，8 行≈56mm）
+};
+
+/** 解答题作答空间（学科 × 学段 → 参数）
  *  - carrier：'line' 横线（文字书写引导）/ 'blank' 无线空白行（答题卡风格）
  *  - linePerScore：需求行数 = 分值 × 系数
  *  - lineHeightMm：行高
+ *  - maxRowsPerItem：**单题作答区行数上限**（按学段，见 ANSWER_MAX_ROWS_BY_STAGE；学科无关——上限是"卷面空间"概念）
  *  - '*' = 通配默认（空白，对齐主流考试惯例——文综/理综主观题空白答题框）；
  *    英语/科学 全学段显式覆盖为横线（英语书面表达横线行实证 17cm/行距1cm；科学简答/记录横线）；
  *    语文 低中段横线（写话/句子练习惯例）、中高段空白（阅读/论述/简答答题卡实证空白作答区）。
@@ -378,9 +397,16 @@ export const ANSWER_REGION = {
 
 /** 查询某学科×学段的解答区参数（合并用户覆盖；未显式学科回退 '*'） */
 export function getAnswerRegion(subject = '', stage = '') {
-  const spec = getMergedSpec().ANSWER_REGION;
-  const row = spec[subject] || spec['*'] || {};
-  return row[stage] || { linePerScore: 1, lineHeightMm: 8, carrier: 'blank-area' };
+  const spec = getMergedSpec();
+  const table = spec.ANSWER_REGION || {};
+  const row = table[subject] || table['*'] || {};
+  const base = row[stage] || { linePerScore: 1, lineHeightMm: 8, carrier: 'blank-area' };
+  // 🔴 单题作答区行数上限（规格层单一事实源，2026-09-17）：学位/学科行内可显式覆盖，否则取学段表。
+  const capTable = spec.ANSWER_MAX_ROWS_BY_STAGE || ANSWER_MAX_ROWS_BY_STAGE;
+  const maxRowsPerItem = Number.isFinite(base.maxRowsPerItem)
+    ? base.maxRowsPerItem
+    : (Number.isFinite(capTable[stage]) ? capTable[stage] : 8);
+  return { ...base, maxRowsPerItem };
 }
 
 /**

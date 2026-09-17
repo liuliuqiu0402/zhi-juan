@@ -109,3 +109,50 @@ describe('④ 作答空间：分值下推（不再落"无分值 4 行兜底"）+
     expect(r.issues.some((x) => x.type === 'choice-first-blank')).toBe(false);
   });
 });
+
+// 🔴 2026-09-17 用户追问后补齐的第二步：**影响面枚举 + 规格层封顶**（此前只做了分值下推、漏了封顶）
+//   全矩阵实测（53 科段 × 9 档分值 = 477 组合）暴露真异常：语文·小低「按要求写句子（每题5分）」7 行/题、
+//   低段每题6分→9行/8分→12行/15分→21行。封顶放在规格库（ANSWER_MAX_ROWS_BY_STAGE），
+//   需求行数 = min(分值×系数, 学段上限)；调节点只有规格库一处，补差逻辑里不得加题型特例。
+import { getAnswerRegion, ANSWER_MAX_ROWS_BY_STAGE } from '../../src/config/layoutSpec.js';
+import { STAGE_SUBJECTS } from '../../src/config/promptLibrary.js';
+
+describe('⑤ 单题作答区行数上限（规格层封顶）：全矩阵不得越界', () => {
+  const SCORES = [1, 2, 3, 4, 5, 6, 8, 10, 15];
+
+  it('全学科×全学段：min(分值×系数, 上限) 恒不超过该学段上限，且上限取值合法', () => {
+    const rows = [];
+    for (const [stage, subs] of Object.entries(STAGE_SUBJECTS)) {
+      for (const subject of subs) {
+        const r = getAnswerRegion(subject, stage);
+        expect(Number.isFinite(r.maxRowsPerItem), `${subject}·${stage} 缺上限`).toBe(true);
+        expect(r.maxRowsPerItem).toBe(ANSWER_MAX_ROWS_BY_STAGE[stage]);
+        for (const s of SCORES) {
+          const need = Math.min(Math.ceil(s * r.linePerScore), r.maxRowsPerItem);
+          rows.push({ subject, stage, s, need });
+          expect(need, `${subject}·${stage} ${s}分`).toBeLessThanOrEqual(r.maxRowsPerItem);
+        }
+      }
+    }
+    // 反例锚点（原异常档）：低段 5 分短答不得再拿 7 行
+    const low = rows.filter((x) => x.stage === 'primary_low' && x.s === 5);
+    expect(low.every((x) => x.need <= 4)).toBe(true);
+    // 正向锚点：初中/高中 8 分以上长答保住 8 行（不能被压得过狠）
+    expect(Math.min(Math.ceil(8 * getAnswerRegion('数学', 'middle').linePerScore), 8)).toBe(8);
+    expect(Math.min(Math.ceil(10 * getAnswerRegion('物理', 'high').linePerScore), 8)).toBe(8);
+  });
+
+  it('上限按学段单调不减（低段最紧），且规格层可整体覆盖', () => {
+    const seq = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'].map((s) => ANSWER_MAX_ROWS_BY_STAGE[s]);
+    for (let i = 1; i < seq.length; i++) expect(seq[i]).toBeGreaterThanOrEqual(seq[i - 1]);
+  });
+
+  it('端到端：语文·小低「按要求写句子（每题5分）」→ 4 行/题（下推+封顶双生效）', () => {
+    const items = [1, 2, 3].map((n) => `<p class="question">${n}. 把下面的句子改写成拟人句。</p>`).join('');
+    const r = auditExamPaper(`<h2>三、按要求写句子（每题5分，共15分）</h2>${items}`,
+      { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    const lines = (r.html.match(/blank-line/g) || []).length;
+    expect(lines, `应为 3 题 × 4 行 = 12 条（实际 ${lines}）`).toBe(12);
+    expect(r.issues.some((x) => x.type === 'answer-area' && /上限收敛/.test(x.message))).toBe(true);
+  });
+});
