@@ -2,15 +2,23 @@
 //    课标原文/原义 → 留；调研/真题结构口径 → 留（试卷）；完全自编的取向与形式词 → 清。
 //    本文件把这两轮清掉的自造词钉成断言，防回潮（含"作为组织口径"的层次/梯度类词）。
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { EXAM_BLUEPRINTS } from '../../src/config/examPaperBlueprints.js';
 import { TEACHING_BLUEPRINTS, TEACHING_SUBJECT_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
-import { getPromptTemplate } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS } from '../../src/config/promptLibrary.js';
 
-/** 蓝图库：已清掉的自造取向/形式词（课标没有这些表述） */
+const ROOT = path.resolve(__dirname, '../..');
+
+/** 蓝图库：已清掉的自造取向/形式词（课标没有这些表述）
+ *  🔴 2026-09-17 补：'情境辨析'、'情境分析'——与'情境判断'同类（自造考查/题型名）；
+ *    试卷蓝图当轮已改"材料辨析/材料分析"，教辅描述与学科要点当时漏扫，现一并纳入。 */
 const BP_BANNED = [
   '由浅入深', '情境游戏化', '情境具体直观', '以真实生活情境为主', '图文并茂',
   '结构化呈现', '思维环节', '变式设问', '情境判断', '情境探究', '真实问题解决', '跨学科融合',
-  '设问有层次',
+  '设问有层次', '情境辨析', '情境分析',
+  // 🔴 2026-09-17 补：'必设栏目'——通用蓝图当轮已统一为"须包含此项"，15 处学科定制漏改（本轮补齐）。
+  '必设栏目',
 ];
 /** 指令库模板：同上判据（"认知层次/梯度"作为组织口径已被清） */
 const TPL_BANNED = ['由浅入深', '思维环节', '设问有梯度', '认知层次'];
@@ -81,5 +89,37 @@ describe('蓝图库与指令库措辞守卫（2026-09-16 课标原则）', () =>
     const dictation = getPromptTemplate({ grade: 'primary_high', subject: '语文', genType: 'dictation' }).template;
     expect(dictation).toContain('严格对应教材要求');
     expect(dictation).toContain('内容准确无误');
+  });
+
+  // 🔴 2026-09-17 补（同一判据的覆盖缺口）：本轮复查发现"自造取向/考查名"还有三个**当时未纳入扫描**的注入源——
+  //    学科×学段要点（SUBJECT_STAGE_EXTRAS）、学段表（STAGE_*_EXTRAS）、人文组分析提取规则（useAiGenerator）。
+  //    当时残留：道法要点"结合情境辨析"、历史要点"辨析与情境判断"、科学要点"运用于真实问题解决"、
+  //    人文组规则枚举项"情境判断"。若不清，同一条"课标没有的自造词"判据就会在这些库里留口子。
+  it('学科×学段要点与学段表不得含自造取向词（课标来源的写法保留）', () => {
+    // '情境游戏化' 例外说明：教辅表 primary_low 的该词是**既有裁定**（同源课程方案"活动化、游戏化、生活化"的
+    //   另一种摘法），由 tests/config/stageExtrasNeutral.test.js 锁定保留，故不在本表扫描范围内。
+    const words = BP_BANNED.filter((w) => w !== '情境游戏化');
+    const rows = [
+      ...Object.entries(SUBJECT_STAGE_EXTRAS).map(([k, v]) => [`学科要点 ${k}`, v.text]),
+      ...Object.entries(STAGE_EXAM_EXTRAS).map(([k, v]) => [`考卷学段特点 ${k}`, v.text]),
+      ...Object.entries(STAGE_TEACHING_EXTRAS).map(([k, v]) => [`教辅学段特点 ${k}`, v.text]),
+    ];
+    expect(rows.length).toBeGreaterThan(50);
+    for (const [label, text] of rows) {
+      for (const w of words) {
+        expect(text, `${label} 不得含「${w}」`).not.toContain(w);
+      }
+    }
+    // 课标口径的"情境"写法必须保留（防清过头：道法"生活情境"、历史"创设新情境"、地理"地图"等）
+    expect(SUBJECT_STAGE_EXTRAS['道德与法治|primary_low'].text).toContain('生活情境');
+    expect(SUBJECT_STAGE_EXTRAS['历史|high'].text).toContain('史料');
+  });
+
+  it('人文组分析提取规则的枚举项不得含自造考查名（「情境判断」类）', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/composables/useAiGenerator.js'), 'utf8');
+    for (const w of ['情境判断', '情境辨析', '情境分析', '情境探究']) {
+      expect(src, `分析提取规则不得含「${w}」`).not.toContain(w);
+    }
+    expect(src).toContain('案例分析/材料解读/材料判断'); // 中性口径在位（防回退）
   });
 });
