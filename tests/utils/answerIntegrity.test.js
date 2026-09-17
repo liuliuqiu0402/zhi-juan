@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { detectTruncation, isAnswerShell, wrapAnswerSection, stripAnswerSection, stripLeadingAnswerTitle } from '../../src/composables/useAiGenerator.js';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
-import { detectBodyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers } from '../../src/utils/contentCleaner.js';
+import { detectBodyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, classifyNumberingGap } from '../../src/utils/contentCleaner.js';
 
 describe('答案完整性·截断判定（detectTruncation）', () => {
   it('finish_reason=length 且内容较长 → 判定截断（API 可靠信号）', () => {
@@ -288,6 +288,43 @@ describe('正文缺号检测（detectBodyNumberingGap）', () => {
   it('反向：行内括号序号后无作答空位（子题形态）→ 不计入（不扩大口径）', () => {
     const doc = html('<p>1. A</p>', '<p>2. B</p>', '<p>3. 计算：（3）下列各题中说法正确的是</p>');
     expect(extractBodyQuestionNumbers(doc)).toEqual([1, 2, 3]);
+  });
+
+  // 🔴 2026-09-17（用户指正：不可假设"题号前无任何字符"，绝对化必出错）——选择题作答括号常写在题号前
+  it('题号前带作答位（（　）1.）→ 识别为编号标记，不判缺', () => {
+    const doc = html(
+      '<p>（　）1. 下列读音正确的一项是（　）</p>',
+      '<p>（　）2. 下列说法正确的是（　）</p>',
+      '<p>（　）3. 下面句子没有语病的是（　）</p>',
+    );
+    expect(extractBodyQuestionNumbers(doc)).toEqual([1, 2, 3]);
+    expect(detectBodyNumberingGap(doc)).toBeNull();
+  });
+
+  // 🔴 2026-09-17 根治：判定换代理指标——"我认得出题号" ≠ "题目存在"
+  it('根治·形态性缺号（号在正文别处以其它形态存在）→ 归 elsewhere，不定罪', () => {
+    const doc = html(
+      '<p>1. A</p>', '<p>2. B</p>',
+      '<p>本大题合计 3 处需要注意（正文写了该数字，但未作题号形态）</p>',
+      '<p>4. D</p>',
+    );
+    const cls = classifyNumberingGap(doc);
+    expect(cls.missing).toContain(3);
+    expect(cls.nowhere).toEqual([]);      // 全文能找不到该号 → 不是丢题实证
+    expect(cls.elsewhere).toContain(3);   // 属"形态未被识别"
+  });
+
+  it('根治·真丢题（缺号全文任何位置都不出现）→ 归 nowhere，仍判失败', () => {
+    const doc = html('<p>1. A</p>', '<p>2. B</p>', '<p>4. D</p>', '<p>5. E</p>');
+    const cls = classifyNumberingGap(doc);
+    expect(cls.missing).toEqual([3]);
+    expect(cls.nowhere).toEqual([3]);
+    expect(cls.elsewhere).toEqual([]);
+  });
+
+  it('根治·无缺号 → classify 返回 null（与 detect 同口径）', () => {
+    const doc = html('<p>1. A</p>', '<p>2. B</p>', '<p>3. C</p>');
+    expect(classifyNumberingGap(doc)).toBeNull();
   });
 });
 

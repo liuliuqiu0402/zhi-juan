@@ -57,11 +57,14 @@ describe('蓝图库与指令库措辞守卫（2026-09-16 课标原则）', () =>
     }
   });
 
-  it('课标口径必须保留（防清过头）：活动类型/素养层名与学段要求仍在', () => {
+  it('课标口径必须保留（防清过头）：语言实践活动写法/素养名与学段要求仍在', () => {
     const raw = JSON.stringify(TEACHING_BLUEPRINTS);
-    expect(raw).toContain('学习理解类活动');
-    expect(raw).toContain('应用实践类活动');
-    expect(raw).toContain('迁移创新类活动');
+    // 🔓 2026-09-17（用户裁定·课标回归）：活动类型名不再当"栏目分类标准"——改按课标原义写为
+    //    "基于/深入/超越语篇的语言实践活动（活动方式…）"，故锁新口径（防回退成"以活动类型为标准"的写法）。
+    expect(raw).toContain('基于语篇的语言实践活动');
+    expect(raw).toContain('深入语篇的语言实践活动');
+    expect(raw).toContain('超越语篇的语言实践活动');
+    expect(raw).not.toContain('学习理解类活动（');
     expect(raw).toContain('感知与体验');   // 学段语义（课标口径）
     const practice = getPromptTemplate({ grade: 'primary_high', subject: '英语', genType: 'practice' }).template;
     expect(practice).toContain('按课标倡导的学习方式组织');

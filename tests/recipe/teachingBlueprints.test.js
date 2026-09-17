@@ -156,7 +156,7 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(bp.subject).toBe('数学');
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_low', subject: '数学' });
     expect(inject).toContain('数学·同步练习');
-    expect(inject).toContain('核心知识点，在情境中考查');
+    expect(inject).toContain('了解、理解本次范围核心知识点（会用数学的眼光观察现实世界）');
     expect(inject).toContain('问题解决'); // 2026-09-16 删自造修饰，课标原义是问题解决
   });
 

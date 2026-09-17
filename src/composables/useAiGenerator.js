@@ -428,7 +428,7 @@ import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
 import { reconcileDomains, domainNoteOf } from '../utils/domainReconciler.js';
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, classifyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 import { FIGURE_DEPENDENCY_RE } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（图标记取证用）
 
@@ -4751,6 +4751,18 @@ ${cardAnalysisText.substring(0, 1000)}
         //    重试后仍缺号 → 由下方终极守卫判失败（宁失败不残缺）
         const qGap = detectBodyNumberingGap(content);
         if (content && isDeliverableBodyHtml(content) && !qGap) break;
+        // 🔴 2026-09-17 根治（用户裁定·多形态容忍，不再靠枚举编号形态定罪）：
+        //    "我认得出题号" ≠ "题目存在"——只有"缺号在正文任何位置都不出现"才是丢题实证；
+        //    缺号能以别的形态被找到（行内编号空位/裸数字/作答位在题号前等）→ 记警告、照常交付
+        //    （形态问题重试也修不好：模型每次写法都不同，漏判恒在）。
+        if (qGap && content && isDeliverableBodyHtml(content)) {
+          const qCls = classifyNumberingGap(content);
+          if (qCls && qCls.nowhere.length === 0) {
+            console.warn(`🔢 [题号·形态放行] 缺号 ${qCls.missing.join('、')} 均能在正文其它位置找到（${qCls.elsewhere.length} 处，非丢题）→ 不重试、照常交付`);
+            bodyPathNotes.push(`ℹ️ 正文题号形态未全部识别（缺 ${qCls.missing.join('、')}，均以其它形态存在于正文内）——按"内容完整"放行（形态问题非丢题，重试无益）`);
+            break;
+          }
+        }
         if (qGap) {
           // 🔢 丢题根因取证（2026-09-12）：分辨"模型真跳号" vs "提取规则漏判"——只出证据、不参与判定
           try {
@@ -4802,21 +4814,30 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔴 完整优先最终守卫：两次尝试（含续写链/缺号拦截）都未能完整输出 → 明确抛错并给行动建议，
     //    绝不把半截/缺题正文当作成功交付（generate 外层 MAX_RETRIES 会整卷级重试；再失败则由 UI 呈现此错误）
     const finalGap = detectBodyNumberingGap(content);
+    // 🔴 2026-09-17 根治：终检只认"全文任何位置都不出现"的实证缺号（finalLoss）；
+    //    形态性缺号（能在别处找到）不再判失败——否则完整卷会被形态漏判反复判死（重试无解）。
+    const finalCls = finalGap ? classifyNumberingGap(content) : null;
+    const finalLoss = !!(finalCls && finalCls.nowhere.length);
     if (finalGap) {
       // 🔢 终检丢题取证（同上，两次尝试都失败时再取一次证据）
       try {
         const d = diagnoseNumberingGap(content);
         console.warn(`🔢 [题号诊断·终检] 正文${content.length}字符 行首题号=[${d.found.join(',')}] 峰值=${d?.gap?.peak} 缺=[${d.missing.join(',')}] 正文内1~2位数字总数=${d.anyDigitCount}`);
         d.peek.forEach((p) => console.warn(`   ↳ 缺号 ${p.n}：${p.where}${p.sample ? ` ｜ 上下文「${p.sample}」` : ''}`));
+        if (finalCls) console.warn(`🔢 [题号·终检分类] 实证缺号(全文未出现)=[${finalCls.nowhere.join(',')}] ｜ 形态性缺号(能在别处找到)=[${finalCls.elsewhere.join(',')}]`);
       } catch (e) { /* 诊断失败不影响主流程 */ }
     }
-    if (truncFailNote || finalGap || !isDeliverableBodyHtml(content)) {
+    if (truncFailNote || finalLoss || !isDeliverableBodyHtml(content)) {
       const advise = truncFailNote
         ? `${truncFailNote}。建议：① 缩小勾选范围降低单次体量；② 到「设置 → 整卷输出预算」调大该类型的「上限」或为该类型采纳「实测校准」；③ 内容较长时改用 deepseek-reasoner 等单次输出上限更高的模型（chat 单次仅 8K，长卷易截断）。`
-        : finalGap
-          ? `正文题号不连续（1~${finalGap.peak} 中缺：${finalGap.missing.join('、')}）——正文疑似丢题，本次生成判失败（不交付残缺正文）。建议重试；若反复出现请到「问题列表」反馈。`
+        : finalLoss
+          ? `正文题号缺失且**全文任何位置都未出现**（1~${finalCls.peak} 中缺：${finalCls.nowhere.join('、')}）——判定为真丢题，本次生成判失败（不交付残缺正文）。建议重试；若反复出现请到「问题列表」反馈。`
           : `整卷生成失败: ${lastErr?.message || '未知错误'}`;
       throw new Error(advise);
+    }
+    if (finalCls && finalCls.elsewhere.length) {
+      bodyPathNotes.push(`ℹ️ 正文题号形态未全部识别（缺 ${finalCls.elsewhere.join('、')}，均以其它形态存在于正文内）——按"内容完整"放行（非丢题）`);
+      console.warn(`🔢 [题号·终检形态放行] 形态性缺号 ${finalCls.elsewhere.join('、')} 不判丢题（内容已在正文其它位置存在）`);
     }
 
     // 🔢 题号核对（成功路径也留证）：确认"题号连续性核验"确实执行过——避免"没报错"被误读为"没检查"

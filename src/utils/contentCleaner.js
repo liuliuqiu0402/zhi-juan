@@ -183,7 +183,10 @@ export function extractBodyQuestionNumbers(html = '') {
   // 🔧 2026-09-17：剥标签后先归一字面空白实体（&emsp;/&nbsp;…），否则"实体缩进"的题号不在行首而被漏计
   const text = bodyOnly.replace(/<\/(?:p|li|h[1-6]|div|tr)>/gi, '\n').replace(/<[^>]+>/g, '');
   const out = [];
-  const re = /(?:^|\n)\s*([1-9]\d?)[.、．](?![.\d])/g;
+  // 位置维度：题号可**直接起段**，也可**跟在作答位之后**——选择题的作答括号常写在题号前
+  //   （「（　）1. 下列…」；用户 2026-09-17 指正：不可假设"题号前无任何字符"，绝对化必出错），
+  //   故允许行首先出现一个**空括号作答位**；实体空白已由 decodeWsEntityLiterals 归为空白。
+  const re = /(?:^|\n)[ \t\u3000\u00A0]*(?:[(（][ \t\u3000\u00A0]*[)）])?[ \t\u3000\u00A0]*([1-9]\d?)[.、．](?![.\d])/g;
   let m;
   while ((m = re.exec(decodeWsEntityLiterals(text)))) out.push(Number(m[1]));
   // 🔧 2026-09-17（同批·实证第二形态）：**行内编号空位**——补全对话/情景交际等题型的题号就写在空位旁，
@@ -248,6 +251,38 @@ export function detectBodyNumberingGap(html = '') {
   // 峰值 >60 的清单型大卷（目录/知识点条目）：仅个别数字缺失多为行内数字干扰，≥3 处才算缺题
   if (peak > 60 && missing.length < 3) return null;
   return { peak, found: [...found].sort((a, b) => a - b), missing };
+}
+
+/**
+ * 缺号成因分类（2026-09-17 用户裁定·根治：不再靠枚举编号形态定罪）
+ * ============================================================
+ * 🔴 判据换代理指标：**"我认得出题号" ≠ "题目存在"**。
+ *    沿用旧口径（缺号即判残缺）的实证事故：英语整卷题号写成 `&emsp;4.`／对话内 `(41) &emsp;`，
+ *    30 处"缺号"里一个都没真缺 → 完整卷被判残缺、**重试永远修不好**（形态随机、漏判恒在）。
+ * ✅ 现在只认一种丢题实证：**该号在正文任何位置都不出现**（diagnoseNumberingGap 的「未出现」判定）。
+ *    缺号能以别的形态被找到（行内编号空位、裸数字等）→ 说明内容在、只是形态未被识别 → 只记警告、照常交付。
+ *    ⚠️ 多形态容忍、不做绝对契约：题号形态**不设唯一合法写法**（作答括号可在题号前、空位可内嵌等），
+ *       识别按"位置 × 序号形式 × 空白形态"的等价类扩展，判定不以单一信号定生死。
+ * @returns {null | {peak:number, missing:number[], nowhere:number[], elsewhere:number[]}}
+ *   nowhere   = 全文任何位置都找不到 → 丢题实证（可判失败）
+ *   elsewhere = 能在别的形态/位置找到 → 形态未被识别（只警告）
+ */
+export function classifyNumberingGap(html = '') {
+  const gap = detectBodyNumberingGap(html);
+  if (!gap) return null;
+  let peek = [];
+  try {
+    peek = diagnoseNumberingGap(html)?.peek || [];
+  } catch { /* 取证失败 → 保守：全部按"未出现"处理，交由既有拦截逻辑 */ }
+  const nowhere = [];
+  const elsewhere = [];
+  for (const p of peek) {
+    if (String(p?.where || '').includes('未出现')) nowhere.push(p.n);
+    else elsewhere.push(p.n);
+  }
+  // 取证不可用（peek 为空）时保守兜底：把缺号全部视为 nowhere，维持"宁失败不残缺"
+  if (!peek.length) return { peak: gap.peak, missing: gap.missing, nowhere: [...gap.missing], elsewhere: [] };
+  return { peak: gap.peak, missing: gap.missing, nowhere, elsewhere };
 }
 
 /**

@@ -22,8 +22,8 @@ const BLANK_FORM = `<h3>五、单项选择</h3>
 <p class="question"><u class="blank-2"> </u>2. — How was your weekend?<br>A. was　B. were</p>`;
 
 describe('正文题号序列 · 形态归一（extractBodyQuestionSequence）', () => {
-  it('旧规则对"题首括号空位 + 序号"不计题号（误报根因自证）', () => {
-    expect(extractBodyQuestionNumbers(PAREN_FORM)).toEqual([]);
+  it('题首"作答位 + 序号"两种形态均计入题号（2026-09-17 起：作答括号在题号前也识别；旧规则只认行首 N. 是该误报的根因）', () => {
+    expect(extractBodyQuestionNumbers(PAREN_FORM)).toEqual([1, 2]);
     expect(extractBodyQuestionNumbers(BLANK_FORM)).toEqual([1, 2]);
   });
 
