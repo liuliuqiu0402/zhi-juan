@@ -40,11 +40,17 @@ const anchorHitsDomain = (a, domain) => {
  * @returns {null | Object} 返回 null 表示不适用（非命题型 / 未登记学科 / 单领域范围）。
  *   适用时返回 { genType, subject, required:true, presentDomains, missingDomains, ok }
  */
-export const reconcileDomains = ({ genType = '', subject = '', content = '', anchors = [] } = {}) => {
+export const reconcileDomains = ({ genType = '', subject = '', stage = '', content = '', anchors = [] } = {}) => {
   if (genType !== 'exam') return null;
   const canon = normalizeSubjectName(subject);
   const def = DOMAIN_CONTRACT[canon];
-  if (!def?.domains?.length) return null;
+  // 🔴 2026-09-17 学段维度（根治「高中卷按义教领域名对账」）：课标的内容领域/模块名是**分学段**的
+  //    （如数学：义教＝数与代数/图形与几何/统计与概率/综合与实践；高中＝函数/几何与代数/概率与统计/
+  //    数学建模活动与数学探究活动）。高中一律取 highDomains；**未登记高中清单的学科 → 不做领域对账**
+  //    （宁不校验，也不用义教名单错配、不造误报）。
+  const isHigh = /高中|高一|高二|高三/.test(String(stage || ''));
+  const domains = ((isHigh ? def?.highDomains : def?.domains) || []);
+  if (!domains.length) return null;
 
   const text = stripHtmlForRecon(content);
   const bound = (anchors || []).filter((a) => a.bind?.status && a.bind.status !== 'missing');
@@ -54,7 +60,7 @@ export const reconcileDomains = ({ genType = '', subject = '', content = '', anc
     // 考点是否在正文出现（领域对账为宏观归位，用子串包含判定：比词边界更不易漏判出现 → 少报缺位，防误报）
     const appears = wordsOfAnchor(a).some((w) => w && text.includes(w));
     if (!appears) continue;
-    const hitName = def.domains.find((d) => anchorHitsDomain(a, d))?.name;
+    const hitName = domains.find((d) => anchorHitsDomain(a, d))?.name;
     if (hitName) {
       presentDomains.add(hitName);
       presentDomainCounts[hitName] = (presentDomainCounts[hitName] || 0) + 1;
@@ -69,7 +75,7 @@ export const reconcileDomains = ({ genType = '', subject = '', content = '', anc
     return { genType, subject: canon, required: false, presentDomains: presentList, missingDomains: [], ok: true, counts: presentDomainCounts };
   }
 
-  const missingDomains = def.domains.filter((d) => !presentDomains.has(d.name)).map((d) => d.name);
+  const missingDomains = domains.filter((d) => !presentDomains.has(d.name)).map((d) => d.name);
   return {
     genType, subject: canon, required: true,
     presentDomains: presentList, missingDomains, ok: missingDomains.length === 0, counts: presentDomainCounts,

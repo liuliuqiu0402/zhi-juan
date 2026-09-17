@@ -17,6 +17,33 @@ describe('领域对账器：适用性判定', () => {
   });
 });
 
+describe('领域对账器：学段维度（2026-09-17 根治「高中错用义教领域名」）', () => {
+  it('高中·数学取 highDomains（函数/几何与代数/概率与统计/数学建模活动与数学探究活动），不再套义教的"数与代数"等', () => {
+    const content = '本卷考查函数的单调性与导数、圆锥曲线。';
+    const anchors = [ax('函数的单调性'), ax('导数'), ax('圆锥曲线'), ax('向量')];
+    const rep = reconcileDomains({ genType: 'exam', subject: '数学', stage: '高中', content, anchors });
+    expect(rep).not.toBeNull();
+    expect(rep.presentDomains).toContain('函数');
+    expect(rep.presentDomains).toContain('几何与代数');
+    expect(rep.presentDomains).not.toContain('数与代数'); // 义教领域名不得出现在高中口径
+    expect(rep.missingDomains).toEqual(['概率与统计', '数学建模活动与数学探究活动']);
+  });
+
+  it('高中·未登记 highDomains 的学科 → 不做领域对账（宁不校验，也不用义教名单错配）', () => {
+    const content = '本卷考查密度与电流。';
+    const anchors = [ax('密度'), ax('电流')];
+    expect(reconcileDomains({ genType: 'exam', subject: '物理', stage: '高中', content, anchors })).toBeNull();
+  });
+
+  it('义教（小/初）仍走 domains，不受影响', () => {
+    const content = '本卷考查分数、面积与概率。';
+    const anchors = [ax('分数'), ax('面积'), ax('概率')];
+    const rep = reconcileDomains({ genType: 'exam', subject: '数学', stage: '小学高段', content, anchors });
+    expect(rep.presentDomains).toContain('数与代数');
+    expect(rep.presentDomains).not.toContain('函数');
+  });
+});
+
 describe('领域对账器：多学科登记生效', () => {
   it('物理已登记领域定义；跨领域卷某领域缺位可检出', () => {
     const content = '本卷考查密度、浮力与电流。';

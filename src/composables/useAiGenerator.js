@@ -5148,7 +5148,7 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔴 领域覆盖对账（2026-09 P3·机制补缺）：仅正式卷（exam）且学科已登记领域契约时执行，
     //    只做确定性"缺位"提示（某课标领域零命题考点），不做程序化分值/占比重算（分数由模型生成）。
     //    单领域单元卷（仅 1 领域命题）不判，防误报。
-    const domainRep = reconcileDomains({ genType, subject, content, anchors });
+    const domainRep = reconcileDomains({ genType, subject, stage: book?.stage || '', content, anchors });
     if (domainNoteOf(domainRep)) auditWarnings.push(domainNoteOf(domainRep));
 
     // 🔴 生成方式提示：auto 模式下告知用户本次实际走的路径，并引导其到设置固定（用户必须清楚自己配置了什么）
