@@ -6,7 +6,7 @@
  *    仅在明确命题语境的表述中保留「命题」字样（清单本身服务于全部资料类型，不限考卷）。
  *
  * 锚的定义：
- *   - 锚 = 章级 knowledgeHierarchy 的 coreKnowledge（第二层，带认知层次 / 具体概念）。
+ *   - 锚 = 章级 knowledgeHierarchy 的 coreKnowledge（第二层，带学习要求 / 具体概念）。
  *     contentCards.anchorTree 在 extractContentCards 捷径分支随卡附带（结构化归一，非原对象引用），
  *     知识点 → 章归属由树结构天然成立，不依赖 Step2 knowledgeGraph 中 AI 自由填写的 relatedChapters
  *     （无写入点、缺省高风险，曾致章节锚定失效、检索静默回落）。

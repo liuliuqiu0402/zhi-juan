@@ -828,7 +828,7 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
             for (const sc of (core.specificConcepts || [])) {
               if (sc && !structuredKps.includes(sc)) {
                 structuredKps.push(sc);
-                kpCognitiveMap[sc] = '识记';
+                kpCognitiveMap[sc] = '了解';
               }
             }
           }
@@ -3099,7 +3099,7 @@ ${analysisText}
 
 1. **图表描述**：如果有图表，用文字描述；如果没有，返回空字符串
 2. **公式提取**：如果有数学/物理/化学公式，用LaTeX格式描述；如果没有，返回空数组
-3. **知识点层级结构**：按"大概念 → 核心知识点 → 具体概念"三层结构提取，标注每个知识点的认知层次（识记/理解/应用/分析/评价/创造）
+3. **知识点层级结构**：按"大概念 → 核心知识点 → 具体概念"三层结构提取，标注每个知识点的学习要求（了解/理解/掌握/运用——课标通用的结果目标行为动词）
 
 必须返回以下JSON格式：
 {
@@ -3113,7 +3113,7 @@ ${analysisText}
         {
           "name": "核心知识点名称",
           "kind": "knowledge|material",
-          "level": "识记|理解|应用|分析|评价|创造",
+          "level": "了解|理解|掌握|运用",
           "specificConcepts": ["具体概念1", "具体概念2"]
         }
       ]

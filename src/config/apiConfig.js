@@ -559,7 +559,7 @@ export const apiConfig = reactive({
     // 教材原文提取 → 多模态模型（扫描件OCR，必须用视觉模型）
     contentExtraction: 'multimodal',
     
-    // 🔧 知识点分析 → 升级到重型模型（需准确判断认知层次、提取命题素材）
+    // 🔧 知识点分析 → 升级到重型模型（需准确判断学习要求、提取命题素材）
     contentAnalysis: 'heavy',
     
     // 命题规划（注入蓝图构建）→ 重型模型（最复杂的任务，需要推理能力）

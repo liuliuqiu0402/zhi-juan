@@ -65,9 +65,11 @@ describe('蓝图库与指令库措辞守卫（2026-09-16 课标原则）', () =>
     expect(raw).toContain('深入语篇的语言实践活动');
     expect(raw).toContain('超越语篇的语言实践活动');
     expect(raw).not.toContain('学习理解类活动（');
-    // ⚠️ 2026-09-17 核查更正：五档学段语义（感知与体验→理解与运用→…→迁移与创新）经核**非任何课标口径**，
-    //    系艺术/科学/英语课标术语拼接的产品自造（处置方案待定，故此处仅更正注释、暂不改值）。
-    expect(raw).toContain('感知与体验');
+    // ⚠️ 2026-09-17 核查：原五档学段起头语（以感知与体验→…→迁移与创新为主）**非任何课标口径**，
+    //    系艺术/科学/英语课标术语拼接的产品自造，且把"活动类型/素养维度"误作"学段档位"——已整批删除；
+    //    此处反向锁，防回退（学段 note 应直接给该学段的操作形态描述）。
+    expect(raw).not.toContain('以感知与体验为主');
+    expect(raw).not.toContain('以迁移与创新为主');
     const practice = getPromptTemplate({ grade: 'primary_high', subject: '英语', genType: 'practice' }).template;
     expect(practice).toContain('按课标倡导的学习方式组织');
     expect(practice).toContain('（依据2022年版义务教育课程标准）');
