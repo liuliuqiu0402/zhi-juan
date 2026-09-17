@@ -186,6 +186,17 @@ export const detectPhonemeConflicts = (html = '') => {
     //   斜杠分隔的短语/词表（"last month / one day"）必含空格、中文括注含中文 → 一律不算音标。
     //   注意不能排除纯拉丁短串（简化音标如 /skul/ 无空格无 IPA 符号也合法）；单套音标本就不构成冲突。
     if (/\s/.test(ph) || /[\u4e00-\u9fa5]/.test(ph) || ph.length > 20) continue;
+    // 🔴 2026-09-17（用户追问后·**本征化根治**）：仅"无空白/无中文/短"还不够——还得**看起来像音标**：
+    //    含 IPA 专用符号，或处于音标语境（±25 字内有"音标/发音/读作/发/pronounce"）。
+    //    病根实证（六年级英语阶段测评）：连词成句题用 `/` 分隔词表
+    //    （"46. tried / I / best / my / competition / the / in / ."），被误读成"词 /音标/ 对"——
+    //    把普通单词当音标（I、the、talent、snail…），进而报「同一单词 "the" 多套音标（talent / snail）」，
+    //    纯属乱报（"the" 的不同发音是英语本身的一词多音，题目也没标音标）。属**全类型通用**问题：
+    //    凡用斜杠列词/列短语的资料（英语连词成句、词表、语文并列短语）都会踩。
+    const IPA_RE = /[\u0250-\u02AF\u02B0-\u02FF\u1D00-\u1D7F]/; // IPA 扩展 + 修饰字母 + 语音扩展（ə ɪ ʊ æ ʌ θ ð ʃ ʒ ŋ ɒ ɔ ɜ ɑ ɡ ː ˈ ˌ 等）
+    const PHON_CONTEXT_RE = /音标|发音|读作|发\s*[\/／]|pronounc|phonetic/i;
+    const ctx = src.slice(Math.max(0, m.index - 25), Math.min(src.length, m.index + m[0].length + 25));
+    if (!IPA_RE.test(ph) && !PHON_CONTEXT_RE.test(ctx)) continue;
     if (!map.has(w)) map.set(w, new Set());
     map.get(w).add(ph);
   }

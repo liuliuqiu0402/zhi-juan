@@ -160,5 +160,47 @@
   <li>分值下推会同时改变其他类型/学科的补差行数（凡"每题X分"大题且小题行内无分值者）——若发现某类题行数偏多/偏少，调 <code>layoutSpec.ANSWER_REGION.linePerScore</code>（规格层唯一事实源），不要在 2k 里加特例。</li>
 </ul>
 
+<h2>H. 追加批次：六年级英语「阶段测评」四处追问（2026-09-17 晚）</h2>
+<p class="n">触发：用户拿第二份导出 docx（阶段测评）逐条追问 4 处 + "还有其他问题吗"，并要求**根治且核其他类型/学科是否也会出现**。</p>
+<h3>H1. 判定（真/误）</h3>
+<table>
+<thead><tr><th>用户所见</th><th>判定</th><th>根因</th></tr></thead>
+<tbody>
+<tr><td>⚠️「看图/读图」类题但整卷未输出任何 [IMAGE]/[GRAPH]</td><td><b>真问题，但根因不是漏图</b></td><td>命中的是**大题标题**里的"图片提示"（五、根据图片提示或首字母提示…；一、…单词或图片），题内实际给的是中文提示"（海报设计）"——真问题是**标题与内容不符**（旧文案把核对方向带偏成"漏图"）</td></tr>
+<tr><td>⚠️ 正文题号数(40) 明显少于答案区(56)</td><td><b>误报</b></td><td>正文侧自持的计数正则只认 `N.[、．]` 形态，**不认"空位自带括号编号"**（七、选句补全对话写作 `B: (41) ＿＿`）→ 连续段断在 40；答案区行首齐全数到 56（正文实际 1~55 齐全）。属**题类通用**</td></tr>
+<tr><td>⚠️ 同一单词 "the" 多套音标（talent / snail）</td><td><b>误报</b></td><td>八、连词成句用 `/` 分隔词表（`46. tried / I / best / my / competition / the / in / .`），被"词 /音标/ 对"正则读成音标 → 把普通单词当音标；"同一单词 the" 的锚定也随之错。属**全类型通用**（凡用斜杠列词/短语者）</td></tr>
+<tr><td>第二题括号位置不统一</td><td><b>真问题</b></td><td>6/7 作答括号在**题首**（半角）、8~10 在**句末**——同一大题内自相矛盾；且题首括号有全角（　）/半角( ) 混用。原探针只覆盖"带选项的题"，判断类无选项 → 完全没覆盖。属**全学科通用**</td></tr>
+<tr><td>第五题标题与内容不符</td><td><b>真问题</b></td><td>标题承诺"图片提示或首字母提示"，题内全是中文提示 → 与上一条 ⚠️ 同源</td></tr>
+</tbody>
+</table>
+<h3>H2. 根治落点（均为判据/口径同源，不加白名单）</h3>
+<ul>
+  <li><b>题号计数单一事实源</b>：examValidator 不再自持正则，正文与答案区都走 <code>contentCleaner.countTopQuestions</code>（= <code>extractBodyQuestionNumbers</code> + 最长 1 起始连续递增段）；提取器新增 <code>part</code>（答案区不切）与 <code>compact</code>（紧凑连排 `1. A　2. A…` 计数专用）两个开关，并把**作答载体先换成哨兵**再剥标签——交付产物里 `&emsp;` 常已被前序归一写成真实空格，靠实体字面识别作答位会漏认（本轮实测发现的真实差异）。</li>
+  <li><b>音标本征化</b>：判据加"含 IPA 专用符号，或 ±25 字内有音标语境词（音标/发音/读作/发/pronounce）"——斜杠词表里的普通单词既无 IPA 符号也无语境词，天然排除；真音标冲突（含 ə/ː/ˈ 等）照报，纯 ASCII 音标靠语境词兜住（宁漏不误）。</li>
+  <li><b>图缺失判据拆分</b>：<code>image-missing</code> 只在**题干**命中看图词时报（原判据连标题一起算）；**仅标题**命中且题内无图时改报新增 <code>title-content-mismatch</code>（并按"题内是否有替代提示形态"分型：有 → 改标题即可；无 → 标题与内容不符或漏图）。</li>
+  <li><b>同大题内作答位统一</b>：新增探针 <code>answer-blank-position</code>（题首/句末混用）与 <code>answer-blank-form</code>（全角/半角混用），按大题分段统计；生成侧在作答空间条款补一条同语义要求（与探针同源）。只报不改——作答位位置属生成语义（沿既有裁定，不做自动搬移）。</li>
+  <li><b>标题与内容一致（生成侧）</b>：试卷与教辅的标题条款各补"标题里写到的提示方式/作答方式必须与题内实际一致"。</li>
+</ul>
+<h3>H3. 影响面（这次先枚举后落地）</h3>
+<ul>
+  <li>题号口径：只把**更多真实题号形态**纳入（空位自带括号编号 ⊕ 紧凑连排），形态集合不减；缺号判定/护栏**不启用 compact**（防题干列举编号遮蔽真丢题）；反向护栏（真缺题仍报、答案区确实无题号仍报）已锁。</li>
+  <li>音标：影响面 = 全文所有 `词 /斜杠内容/` 匹配；新增两条闸门后，斜杠词表/短语全部落空，真音标不受影响。</li>
+  <li>图/标题：仅"标题命中且题干不命中"的组合被改判（原为报"整卷漏图"），题内真缺图仍报 image-missing（守卫已锁）。</li>
+  <li>作答位统一：按大题分段，阈值取"题首 ≥2 且句末 ≥2"（防单处/偶发误报）；填空/默写类行首空位不受影响（判据只看空括号）。</li>
+</ul>
+<h3>H4. 落地文件与守卫</h3>
+<table>
+<thead><tr><th>文件</th><th>改动</th></tr></thead>
+<tbody>
+<tr><td><code>src/utils/contentCleaner.js</code></td><td>提取器：哨兵化作答载体、块边界含 td/th/table/br、<code>part</code>/<code>compact</code> 开关、三形态按位置归并保序、同行同号去重；新增导出 <code>countTopQuestions</code>。</td></tr>
+<tr><td><code>src/utils/examValidator.js</code></td><td>题号计数改走单一事实源（正文/答案区）；2j-3 拆"题干/标题"命中；新增 2j-5 标题与内容不符、2j-6 作答位位置/形态不统一（分段用 match，避免 split 零宽 lookahead 丢首段）。</td></tr>
+<tr><td><code>src/utils/contentSanity.js</code></td><td>音标冲突检测本征化（IPA 符号或音标语境词）。</td></tr>
+<tr><td><code>src/config/layoutSpec.js</code></td><td>作答空间条款补"同一大题内位置与形态整段统一"。</td></tr>
+<tr><td><code>src/config/promptLibrary.js</code></td><td>试卷/教辅标题条款补"标题里的提示与作答方式必须与题内一致"。</td></tr>
+<tr><td><code>tests/utils/paperProbeConsistency.test.js</code>（新增）</td><td>15 项守卫（四组 + 反向护栏）。</td></tr>
+<tr><td><code>tests/recipe/blueprintInjection.test.js</code> / <code>answerSpaceInstruction.test.js</code></td><td>作答空间条款逐字金样本同步（新增一行）。</td></tr>
+</tbody>
+</table>
+
 </body>
 </html>

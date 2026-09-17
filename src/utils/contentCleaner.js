@@ -176,30 +176,45 @@ export function isDeliverableBodyHtml(html = '') {
  * 1 与 6"（实测样本）恰落漏检区（found={1,6} → 不判 → 残卷静默交付）。改为先按峰值判定：
  * 峰值 ≥3 即查 1~峰值缺口，高位题号存在而低位缺失同样拦截。
  */
-export function extractBodyQuestionNumbers(html = '') {
+export function extractBodyQuestionNumbers(html = '', { part = 'body', compact = false } = {}) {
   const src = String(html || '');
   if (!src.trim()) return [];
-  const bodyOnly = src.split(/<div[^>]*class=["'][^"']*answer-section|<h[1-6][^>]*>\s*参考答案/i)[0];
+  // 🔴 2026-09-17：新增 `part` 参数——答案区片段自身以"参考答案"标题开头，若仍按"正文"口径切掉答案区，
+  //    会把整段判成答案区而返回空（计数恒 0）。故答案区计数须显式传 part:'answer'（不切）。
+  const bodyOnly = part === 'answer'
+    ? src
+    : src.split(/<div[^>]*class=["'][^"']*answer-section|<h[1-6][^>]*>\s*参考答案/i)[0];
   // 🔧 2026-09-17：剥标签后**保留空白实体的字面文本**（&emsp;/&nbsp;…），靠下面各正则自带的
   //    "实体空白"分支把它们当空白处理——**不预先解码**：解码会把 `&emsp;` 变成一个普通空格，
   //    而"紧跟作答位"的判据需要区分"空位"与词间空格（解码后无法区分，实证：行内编号空位漏识别）。
   //    （历史：本轮曾先 decodeWsEntityLiterals 再匹配，导致 `(41) &emsp;` 不再被判为编号空位。）
-  const text = bodyOnly.replace(/<\/(?:p|li|h[1-6]|div|tr)>/gi, '\n').replace(/<[^>]+>/g, '');
+  // 🔴 2026-09-17（用户追问·口径同源 + 形态鲁棒）：块边界与 examValidator 计数口径**逐字一致**（含 td/th/table/<br>），
+  //    且**先把作答载体整体换成哨兵**再剥标签——交付产物里 `&emsp;` 常已被前序归一写成**真实空格**
+  //    （实证：audit 后 `<u class="blank-3">&emsp;</u>` → `<u class="blank-3"> </u>`），靠"实体字面"识别作答位会漏认。
+  const BLANK_CARRIER_RE = /<(?:u|span|div|p)[^>]*class=["'][^"']*blank-[^"']*["'][^>]*>[\s\S]*?<\/(?:u|span|div|p)>/gi;
+  const BLANK_SENTINEL = '\u0001';
+  const text = bodyOnly
+    .replace(BLANK_CARRIER_RE, BLANK_SENTINEL)
+    .replace(/<\/(?:p|li|h[1-6]|div|tr|td|th|table)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '');
   const out = [];  // 位置维度：题号可**直接起段**，也可**跟在作答位之后**——选择题的作答括号常写在题号前
   //   （「（　）1. 下列…」；用户 2026-09-17 指正：不可假设"题号前无任何字符"，绝对化必出错），
   //   故允许行首先出现一个**空括号作答位**；空白实体与普通空白等价处理。
-  const WS_ANY = String.raw`(?:[ \t\u3000\u00A0]|&(?:nbsp|#160|#xA0|#x00A0|emsp|#8195|#x2003|ensp|#8194|#x2002|thinsp|#8201|#x2009);)*`;
+  //   ⚠️ 哨兵 \u0001（作答载体占位）在各形态里一律**按空白对待**：题号可以写在作答位之后
+  //      （<u class="blank-2"> </u>1. … 与 （　）1. … 同权），否则会把行首题号整条漏掉。
+  const WS_ANY = String.raw`(?:[ \t\u3000\u00A0\u0001]|&(?:nbsp|#160|#xA0|#x00A0|emsp|#8195|#x2003|ensp|#8194|#x2002|thinsp|#8201|#x2009);)*`;
   const re = new RegExp(String.raw`(?:^|\n)` + WS_ANY + String.raw`(?:[(（]` + WS_ANY + String.raw`[)）])?` + WS_ANY + String.raw`([1-9]\d?)[.、．](?![.\d])`, 'g');
   // 🔧 2026-09-17（同批·实证第二形态）：**行内编号空位**——补全对话/情景交际等题型的题号就写在空位旁，
   //    不在行首（用户日志样本：`Jack: It was great! (41) &emsp;` / `Amy: (44) &emsp; But you did…`）。
   //    这类"空位自带编号"本身就是该题的题号，与行首题号同权计入；**仅限紧跟作答空位者**
   //    （无空位的行内括号序号仍按子题形态处理、不计入——不扩大口径）。
-  const reBlankOrdinal = /[(（]\s*([1-9]\d?)\s*[)）](?=[ \t\u3000]*(?:&(?:emsp|nbsp|#160|#xA0|#x00A0|#8195|#x2003|ensp|#8194|#x2002|thinsp|#8201|#x2009);|[_＿]{2,}))/g;
+  const reBlankOrdinal = new RegExp(String.raw`[(（]\s*([1-9]\d?)\s*[)）](?=[ \t\u3000]*(?:\u0001|&(?:emsp|nbsp|#160|#xA0|#x00A0|#8195|#x2003|ensp|#8194|#x2002|thinsp|#8201|#x2009);|[_＿]{2,}))`, 'g');
   // 🔴 2026-09-17（用户裁定·根治，消"形式性缺号"提示）：**行内 `N.` 点号形态 + 紧跟作答空位**同样计入。
   //    实证：六年级英语卷第七题补全对话 "Amy: Hi, Mike. 36. ＿＿＿＿"（题号在行内、不在行首）
   //    → 36～40 被判"未识别"，虽按"内容完整"放行，但每次都出提示。判据与上面"空位自带编号"完全同类
   //    （**必须有作答空位紧跟**才算题号），故不扩大口径：题干内的列举编号（"提示：1. What…"）后无空位，不计入。
-  const BLANK_AHEAD = String.raw`[ \t\u3000]*(?:&(?:emsp|nbsp|#160|#xA0|#x00A0|#8195|#x2003|ensp|#8194|#x2002|thinsp|#8201|#x2009);|[_＿]{2,}|[(（]\s*[)）])`;
+  const BLANK_AHEAD = String.raw`[ \t\u3000]*(?:\u0001|&(?:emsp|nbsp|#160|#xA0|#x00A0|#8195|#x2003|ensp|#8194|#x2002|thinsp|#8201|#x2009);|[_＿]{2,}|[(（]\s*[)）])`;
   const reInlineDot = new RegExp(String.raw`[^\d\n]([1-9]\d?)[.、．](?![.\d])` + BLANK_AHEAD, 'g');
   // 🔴 三套形态**按出现位置归并**（本函数承诺"返回保序数组"；多趟 append 会打乱顺序——第三形态是行内匹配，
   //    若直接 append 会出现 [37, 36] 这类逆序，影响依赖顺序的展示与冻结比对调用方）。
@@ -212,6 +227,12 @@ export function extractBodyQuestionNumbers(html = '') {
   collect(re);
   collect(reBlankOrdinal);
   collect(reInlineDot);
+  // 🔴 2026-09-17（用户追问·保能力不回归）：**紧凑连排口径**（2026-09-10 用户实证定版）——答案区常把题号
+  //    连排成一行（"1. A　2. A　3. A…"），题号前是空白/顿号/右括号也算。仅**计数**用（countTopQuestions 开），
+  //    缺号判定/护栏不启用：题干内的编号列举（"提示：1. … 2. …"）若计入，会遮蔽真实缺号（宁漏不误）。
+  if (compact) {
+    collect(/(?:^|[ \t\u3000\u00A0]|[)）、])([1-9]\d?)[.、．](?![.\d])/g);
+  }
   hits.sort((a, b) => a.at - b.at);
   // 去重：缩进行首（"\n  36." ）会被"行首"与"行内"两套形态各命中一次（位置相差 ≤3）——同一位点同号只计一次
   let prevAt = -99;
@@ -223,6 +244,31 @@ export function extractBodyQuestionNumbers(html = '') {
     prevN = h.n;
   }
   return out;
+}
+
+/**
+ * 顶层题号数（**正文/答案区共用的唯一计数口径**，2026-09-17 用户追问后同源）
+ * ============================================================
+ * 题号的**本征特征**是从 1 起连续同序（题干内的编号列举不会与主序列连续）→ 取最长「1 起始连续递增段」。
+ * 为什么必须与 extractBodyQuestionNumbers 同源：此前 examValidator 自持一份正则（只认 `N.` 形态、
+ * 不认"空位自带括号编号"），而 extractBodyQuestionNumbers 已覆盖三形态 → 正文侧漏认第七题
+ * `(41) &emsp;` 这类题号，连续段断在 40，答案区行首齐全数到 56 → 误报"正文题号数(40)明显少于
+ * 答案区(56)——正文疑似丢题"（实测：六年级英语阶段测评，正文实际 1~55 齐全）。题类通用问题。
+ * @param {string} html 含块级标签的 HTML（正文或答案区片段）
+ * @returns {number} 最长 1 起始连续递增段的长度
+ */
+export function countTopQuestions(html = '', opts = {}) {
+  // 计数口径 = 缺号判定的三形态 + **紧凑连排**（答案区"1. A　2. A…"；弃用会让连排答案区被计成 1 个 → 新误报）
+  const nums = extractBodyQuestionNumbers(html, { compact: true, ...opts });
+  let best = 0;
+  let run = 0;
+  for (const n of nums) {
+    if (n === run + 1) run += 1;
+    else if (n === 1) run = 1;
+    else run = 0;
+    if (run > best) best = run;
+  }
+  return best;
 }
 
 /**
