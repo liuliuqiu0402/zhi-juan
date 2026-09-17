@@ -11,7 +11,7 @@ import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATIO
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
 import { checkFigurePrompts } from './figurePromptCheck.js'; // 🔴 题干 ↔ 配图 PROMPT 数量交叉校验（2026-09-16）
-import { countTopQuestions } from './contentCleaner.js'; // 🔴 题号计数唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）
+import { analyzeQuestionNumbering } from './contentCleaner.js'; // 🔴 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）
 
 // ---------- 通用正则 ----------
 // 全角拼音字符归一表（IPA 音标字符混入小学拼音、全角字母）
@@ -1038,9 +1038,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     // 🔴 2026-09-17 用户追问（阶段测评实证）：「**题干**命中」与「**仅标题**命中」必须分开判——
     //    卷面写"五、根据图片提示或首字母提示，写出正确的单词…"（标题）而题内给的是中文提示"（海报设计）"时，
     //    报"整卷未输出任何 [IMAGE]"会把核对方向带偏（真问题其实是**标题与内容不符**）。
+    //    （标题侧不再用整卷单一文本：2j-5 改为**逐大题**比对，见下。）
     const bodyNoAnsHtml = out.split(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i)[0];
-    const headOnlyText = (bodyNoAnsHtml.match(/<h[2-4][^>]*>[\s\S]*?<\/h[2-4]>/gi) || [])
-      .join('\n').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
     const stemNoHeadText = bodyNoAnsHtml.replace(/<h[2-4][^>]*>[\s\S]*?<\/h[2-4]>/gi, '\n')
       .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
     // 2j-1 低段 0.5 分（规则 low-score-guard：小学卷一律整数分）
@@ -1070,11 +1069,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       // 🔴 2026-09-12：图依赖词改为**单一事实源**（此前本处与指令侧 promptLibrary 各自维护一份且互不相等，
       //    模型认不出"观察下面的图形/看图形/统计图"→不出图，本处却照报缺图，两边不同源故多轮修不掉）。
       const figureKeywordRe = FIGURE_DEPENDENCY_RE;
-      const hasFigureAsk = figureKeywordRe.test(bodyNoAnsText);
       // 🔴 2026-09-17（用户追问）：拆成"题干命中"与"仅标题命中"——仅标题命中时改报"标题与内容不符"（2j-5），
       //    不再误指"整卷漏图"（实证：本卷标题写"图片提示"，题内用中文提示，卷面根本不需要图）。
       const hasFigureAskStem = figureKeywordRe.test(stemNoHeadText);
-      const hasFigureAskHead = figureKeywordRe.test(headOnlyText);
       const hasImgMark = /\[IMAGE\]/.test(out);
       const hasGraphMark = /\[GRAPH\]/.test(out);
       // 写话/看图写话必须画面（[IMAGE]），数据图形 [GRAPH] 不满足→单独强判定优先
@@ -1090,24 +1087,43 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       //   中文提示"（海报设计）"，既无图也无首字母；同卷标题"听录音，选出你听到的单词或图片"同理。
       //   判据：标题声称图片类 → 题内既无图标记、也无任意替代提示形态（中文括注 / 首字母 / "提示"字样）时
       //   才是真缺；有替代形态 → 属**标题表述与内容不符**（改标题即可，不必补图）。只报不改。
-      if (has('image-block-fix') && hasFigureAskHead && !hasFigureAskStem && !hasImgMark && !hasGraphMark) {
-        const hasAltHint = /[（(][^）)]*[\u4e00-\u9fa5][^）)]*[）)]/.test(stemNoHeadText)
-          || /[A-Za-z][_＿]{2,}/.test(stemNoHeadText)
-          || /提示/.test(stemNoHeadText);
-        silentCount('title-content-mismatch', hasAltHint
-          ? '大题标题声称"图片提示/看图"，题内实际用的是**其它提示形态**（文字/中文/首字母提示）——标题与内容不符：请把标题改成与内容一致的写法（如"根据中文提示写单词"），或按标题补图（程序只提示、不改内容）'
-          : '大题标题声称"图片提示/看图"，但题内既无图也无其它提示形态——标题与内容不符或漏图，请核对（程序只提示、不改内容）', 'warn');
+      //   🔴 2026-09-17 用户实证第三卷（综合检测）·**判据域根治**：图标记原先按**整卷**判定
+      //      （hasImgMark = /\[IMAGE\]/.test(out)），于是"某大题标题声称看图、本大题内却没有图"会被
+      //      **别的大题真有图**遮蔽 → 静默漏报。实证：本卷第一大题标题写"选出你所听到的单词或图片"，
+      //      选项全是单词、本大题无任何图，而第五大题确有 [IMAGE] → 该不符被掩盖。
+      //      标题的管辖范围就是它自己那个大题 → 标题声称与本大题实给**同域比对**（与正文/答案区同源同一原则）。
+      if (has('image-block-fix')) {
+        const headSections = String(out).match(/<h[23][^>]*>[\s\S]*?(?=<h[23][^>]*>|$)/gi) || [];
+        for (const sec of headSections) {
+          const secStr = String(sec);
+          const headText = (secStr.match(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/i) || ['', ''])[1].replace(/<[^>]+>/g, '');
+          if (!figureKeywordRe.test(headText)) continue;
+          const secBody = secStr.replace(/<h[23][^>]*>[\s\S]*?<\/h[23]>/i, ' ').replace(/<[^>]+>/g, ' ');
+          if (/\[IMAGE\]|\[GRAPH\]/.test(secStr)) continue;   // 本大题真的给了图 → 标题与内容相符
+          if (figureKeywordRe.test(secBody)) continue;        // 题干自己也要图 → 属"漏图"，由 image-missing 报
+          const hasAltHint = /[（(][^）)]*[\u4e00-\u9fa5][^）)]*[）)]/.test(secBody)
+            || /[A-Za-z][_＿]{2,}/.test(secBody)
+            || /提示/.test(secBody);
+          silentCount('title-content-mismatch', hasAltHint
+            ? '大题标题声称"图片提示/看图"，题内实际用的是**其它提示形态**（文字/中文/首字母提示）——标题与内容不符：请把标题改成与内容一致的写法（如"根据中文提示写单词"），或按标题补图（程序只提示、不改内容）'
+            : '大题标题声称"图片提示/看图"，但题内既无图也无其它提示形态——标题与内容不符或漏图，请核对（程序只提示、不改内容）', 'warn');
+          break;   // 同类只报一处，避免多个大题重复刷屏
+        }
       }
-      // 2j-6 同一次级大题内作答位位置/形态不统一（2026-09-17 用户实证：六年级英语第二题 6/7 括号在题首、
-      //   8~10 括号在句末；且题首括号有全角（　）与半角(　)两种形态混用）。判据与生成侧条款同源
-      //   （同一大题内"所填为字母/符号"的作答位须位置与形态整段统一），**全学科通用**（判断题/选择类皆然）。
-      //   只报不改：作答位位置属生成语义（与"选择题作答位矫正"同一裁定，不做自动搬移）。
+      // 2j-6 作答位位置/形态不统一（2026-09-17 用户实证：六年级英语第二题 6/7 括号在题首、8~10 括号在句末；
+      //   且题首括号有全角（　）与半角(　)两种形态混用）。判据与生成侧条款同源，**全学科通用**（判断类/选择类皆然）。
+      //   🔴 2026-09-17 用户裁定（第三轮）：**位置混用改为程序确定性归并（fix）**——此前"只报不改"是当时
+      //      "作答位位置属生成语义、不做自动搬移"的裁定；现用户明确要求做成 fix，与既有"题首形态归一/
+      //      分值对齐/载体补差"同一范式：**只搬括号空位、不动其它文字**；方向按多数、同数时题首优先
+      //      （对齐"作答位在题干前"的主口径）。**形态（同卷全角/半角）仍只报不改**——不同题型有意区分
+      //      也属合理，交编辑判；且不复活任何已砍机制（不做整卷重写、不做字面撮合对账）。
       {
         // ⚠️ 分段用 match（不要用 split+slice(1)）：零宽 lookahead 在串首不产生空首元素，
         //    slice(1) 会把**第一个大题**整段丢掉（实测：只有含答案区的片段参与扫描 → 探针恒不触发）。
         const secs = String(out).match(/<h[23][^>]*>[\s\S]*?(?=<h[23][^>]*>|$)/gi) || [];
-        const posMixed = [];
-        const widthMixed = [];
+        let posMixedCount = 0;
+        let fullAll = 0;
+        let halfAll = 0;
         for (const sec of secs) {
           const lines = sec
             .replace(/<\/(?:p|li|h[1-6]|div|tr|td|th|table)>/gi, '\n')
@@ -1124,16 +1140,55 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             if (head) headN += 1; else tailN += 1;
             if (/[（]/.test(mark[0])) fullN += 1; else halfN += 1;
           }
-          if (headN >= 2 && tailN >= 2) posMixed.push({ headN, tailN });
-          if (fullN > 0 && halfN > 0) widthMixed.push({ fullN, halfN });
+          fullAll += fullN; halfAll += halfN;
+          if (headN >= 2 && tailN >= 2) posMixedCount += 1;
         }
-        if (posMixed.length) {
-          const s = posMixed[0];
-          silentCount('answer-blank-position', `同一大题内作答位位置不统一（题首 ${s.headN} 处、句末 ${s.tailN} 处）——同一大题内"所填为字母/符号"的作答位应**位置整段统一**（全在题首，或全在句末），不得一部分在题首一部分在句末，请抽检（程序只提示、不改内容）`, 'warn');
+        // ── 确定性归并（fix）：仅对"混用"的大题动手 ──
+        let movedTotal = 0;
+        let movedToHead = true;
+        if (posMixedCount > 0) {
+          try {
+            const tplP = document.createElement('template');
+            tplP.innerHTML = out;
+            const headsP = Array.from(tplP.content.querySelectorAll('h2, h3'));
+            for (const h of headsP) {
+              const blocks = [];
+              let nb = h.nextSibling;
+              while (nb && !(nb.nodeType === 1 && /^H[23]$/.test(nb.tagName))) { blocks.push(nb); nb = nb.nextSibling; }
+              // 只处理"纯文本段"（无子元素）：判断题类的括号位都在纯文本行里；
+              // 含作答载体（<u class="blank-N">）或其它子元素的段一律不动——那是短答载体，位置语义不同。
+              const ps = blocks.filter((x) => x.nodeType === 1 && x.tagName === 'P' && (!x.children || x.children.length === 0));
+              const isHead = (p) => /^[（(][\s\u3000]{1,}[）)]/.test((p.textContent || '').trim());
+              const isTail = (p) => /[（(][\s\u3000]{1,}[）)]\s*$/.test((p.textContent || '').trim());
+              const hN = ps.filter(isHead).length; const tN = ps.filter(isTail).length;
+              if (!(hN >= 2 && tN >= 2)) continue;
+              const toHead = hN >= tN;   // 多数方向；同数 → 题首优先
+              if (toHead) movedToHead = true; else movedToHead = false;
+              for (const p of ps) {
+                const mis = toHead ? (isTail(p) && !isHead(p)) : (isHead(p) && !isTail(p));
+                if (!mis) continue;
+                const t = p.textContent || '';
+                const m = toHead ? t.match(/([（(][\s\u3000]{1,}[）)])\s*$/) : t.match(/^([（(][\s\u3000]{1,}[）)])/);
+                if (!m) continue;
+                const paren = m[1];
+                const rest = t.replace(paren, '').replace(/\s+$/, '').trim();
+                p.textContent = toHead ? `${paren}${rest}` : `${rest} ${paren}`;   // 题首用规范式"（　）1."（不插空格）；句末保持"… （　）"的可读间隔
+                movedTotal += 1;
+              }
+            }
+            if (movedTotal > 0) {
+              out = tplP.innerHTML;
+              issues.push({ severity: 'info', type: 'answer-blank-position-fix', message: `同一大题内作答位位置已自动归并统一（${movedTotal} 处统一到${movedToHead ? '题首' : '句末'}）——只搬括号空位、未改其它文字` });
+              fixed += movedTotal;
+            }
+          } catch (e) { console.warn('⚠️ 作答位位置归并失败（不影响其它修复）:', e.message); }
         }
-        if (widthMixed.length) {
-          const s = widthMixed[0];
-          silentCount('answer-blank-form', `同一大题内作答位括号形态不统一（全角「（　）」${s.fullN} 处、半角「( )」${s.halfN} 处）——同一份资料只用一种括号空位形态（全角圆括号空位），请抽检（程序只提示、不改内容）`, 'notice');
+        // 仍报的情形：混用但**未能归并**（结构复杂/纯文本段判不出）→ 交编辑
+        if (posMixedCount > 0 && movedTotal === 0) {
+          silentCount('answer-blank-position', `同一大题内作答位位置不统一（题首/句末混用，共 ${posMixedCount} 个大题）——程序未能自动归并（该大题段落结构较复杂），请人工统一为"整段都在题首"或"整段都在句末"，请抽检（程序只提示、不改内容）`, 'warn');
+        }
+        if (fullAll > 0 && halfAll > 0) {
+          silentCount('answer-blank-form', `同卷作答位括号形态不统一（全角「（　）」${fullAll} 处、半角「( )」${halfAll} 处）——同一份资料同性质空位只用一种括号形态（全角圆括号空位），请抽检（程序只提示、不改内容）`, 'notice');
         }
       }
     }
@@ -1946,7 +2001,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       //    ——正文疑似丢题"（正文实际 1~55 齐全）。属**题类通用**问题（凡有括号编号/行内题号的资料都会遇到）。
       //    注：旧实现里"行首小数（0.35 / 4.8÷）误计"与"题干编号列举（提示：1. …）虚高"两条加固，
       //    分别由共享口径的 `(?![.\d])` 与"最长 1 起始连续递增段"覆盖，能力不降。
-      const topQCount = (html, part = 'body') => countTopQuestions(html, { part });
       if (has('answer-coverage-guard')) {
         // 🔴 计数入参改为 **HTML**（不再先 stripTags）："空位自带括号编号"（`(41) &emsp;`）判据依赖
         //    空白实体的字面文本，先剥标签 + 实体替换会把作答位吃掉 → 该形态漏认（实证误报根因之一）。
@@ -1955,7 +2009,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const bodyHtml = bodyHtmlRaw
           .replace(/<h[2-4][^>]*>\s*[一二三四五六七八九十]+\s*、\s*(?:学习|预习|复习|教学)目标[\s\S]*?(?=<h[2-4][^>]*>|$)/gi, '')
           .replace(/<p[^>]*>\s*[一二三四五六七八九十]+\s*、\s*(?:学习|预习|复习|教学)目标[\s\S]*?(?=<h[2-4][^>]*>|$)/gi, '');
-        const bodyTopQ = topQCount(bodyHtml, 'body');
         // 🔴 2026-09-17（用户追问）·答案区计数**剔除听力原文/录音材料板块**：它是材料复述、不是答案条目，
         //    而内部自带 1..N 编号（英语卷实证：听力原文重复 1~15）。与正文侧剔除"学习/预习/复习/教学目标"**对称**：
         //    两侧都只对"题号 ↔ 题/答案"计数，材料板块一律不参与。
@@ -1966,8 +2019,25 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           /<\/?(?:p|h[1-6]|div)[^>]*>\s*(?:<strong>|<b>)?\s*(?:听力原文|录音原文|听力材料|录音稿|Tapescript|Listening\s*script)\s*(?:<\/strong>|<\/b>)?[\s\S]*?(?=<h[1-6][^>]*>|$)/gi,
           '',
         );
-        const ansTopQ = topQCount(stripAudioScript(ansMatch[1]), 'answer');
-        if (bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
+        const bodyNum = analyzeQuestionNumbering(bodyHtml, { part: 'body' });
+        const ansNum = analyzeQuestionNumbering(stripAudioScript(ansMatch[1]), { part: 'answer' });
+        const bodyTopQ = bodyNum.top;
+        const ansTopQ = ansNum.top;
+        // 🔴 2026-09-17（用户实证第三卷·**改报体系问题**）：两侧任一为"分段式编号"（按大题分别从 1 重编号）时，
+        //    "最长 1 起连续段"的对比**失去意义**——实证卷：正文段长 [10,5,5,5,10,5,5,5,5]、答案区段长 [5,5,5]，
+        //    同一体系的缺陷被呈现成"答案区(5) 明显少于正文(10)，疑似未逐题对齐"，把编辑引向错误方向。
+        //    真相：题号须**全卷连续同序**（正文与答案区同一套号），两侧都违反了这条口径。
+        //    🔴 段长清单只列"大题级"段（≥3 项）：1 项长的段来自行内点号/子题括号等零散命中，
+        //       列出来只会让编辑误以为"卷面真有这么多段"（净化报告，不改变判定）。
+        const segText = (arr) => {
+          const v = arr.filter((s) => s >= 3);
+          return v.length ? `${v.length} 段（段长 ${v.join('、')}）` : '无';
+        };
+        if (bodyNum.segmented || ansNum.segmented) {
+          if (has('answer-coverage-guard')) {
+            silentCount('question-numbering-system', `题号编号体系与"全卷连续"口径不符：题号**按大题分别从 1 重新编号**（正文 ${segText(bodyNum.segments)}；答案区 ${segText(ansNum.segments)}）——全卷题号应跨大题、跨部分逐题递增、且答案区与正文用同一套号（1. 2. 3.…，全卷连续同序；仅子题用 (1)(2)）；编号体系分段时，两侧"最长连续段"的对比本身不成立（计数口径已覆盖行首、空位自带括号、行内点号、紧凑连排四种形态，故两侧差异不出在形态识别），程序据此只报编号体系、不再报"答案区少于正文"，请按编号体系整改后抽检`);
+          }
+        } else if (bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
           // 🔍 计数口径取证（2026-09-12）：本口径只认「行首/空白/[)）、]后 + N.[、．]」。
           //    🔴 2026-09-13（用户实证定版·根因分型）：答案区计 0 **是真实缺陷信号**（=一个可对应的题号锚点都没有，
           //       意味着答案与正文无法逐题对应），不是"口径不覆盖"的假告警——分型只为把排查方向说准，不改判"要修"。
@@ -1990,15 +2060,22 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (ansNumberingMissing && (ansHasParen || ansHasTable)) {
             silentCount('answer-coverage', `答案区**缺与正文一致的题号**（正文题号 ${bodyTopQ} 个，答案区仅 ${ansTopQ} 个；答案区用的是「(1)(2)」括号序号${ansHasTable ? '/表格' : ''}）——编号体系与正文不同构，答案无法与正文逐题对应：请改为**与正文相同的阿拉伯题号（1. 2. 3.…，全卷连续同序；仅子题用 (1)(2)）**，请抽检`);
           } else {
-            silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})——答案区可能未按与正文一致的题号逐题对齐（计数口径：行首/空白后的「1.」形式），请抽检`);
+            silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})——答案区可能未按与正文一致的题号逐题对齐（计数口径：两侧同源、各取"从 1 起最长连续递增段"；题号形态已覆盖行首题号、空位自带括号编号、行内点号与紧凑连排，故差异不出在形态识别），请抽检`);
           }
         }
         // 🔴 反向护栏（2026-09-10 实证补）：正文题号明显少于答案区 → 正文疑似丢题。
         //    实测样本：英语同步练习正文缺第2~5题（题号从1跳到6）、答案区却完整（一~九齐全）——
         //    原守卫只查"答案区少于正文"这一向，此向漏检，导致正文丢题静默进交付。
-        if (ansTopQ > 3 && bodyTopQ < ansTopQ - 1) {
+        //    🔴 2026-09-17：分段式编号（每大题从 1 重编号）下两侧计数不可比 → 该向同样不适用（已改报体系问题）。
+        if (!bodyNum.segmented && !ansNum.segmented && ansTopQ > 3 && bodyTopQ < ansTopQ - 1) {
           silentCount('body-coverage', `正文题号数(${bodyTopQ})明显少于答案区(${ansTopQ})——正文疑似丢题，请核对正文是否完整`);
         }
+        // 🔴 2026-09-17 用户裁定（撤除"正确答案位置成规律"探针）："程序侧报这些意义不大，不依赖程序侧"——
+        //    此类"命题技术"项（答案在选项序列中的位置分布）由**模型侧**承接：尾约束三域②要求
+        //    "由该材料唯一确定答案 / 要素之间相互一致"，②并与题目自洽总纲的命题纪律同源；
+        //    程序侧不再新增只报不改的提示（另有两点佐证该撤除：5 题样本下"同一字母 ≥80%"的偶然命中率约 7%，
+        //    达不到项目"宁漏不误"的门槛；且它属命题语义，程序本不该替编辑下结论）。
+        //    ⚠️ 若日后要恢复，须先把门槛收到"≥6 题且 100% 同字母"，并复评误报率。
       }
     }
   }

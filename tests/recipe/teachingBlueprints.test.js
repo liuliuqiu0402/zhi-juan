@@ -76,6 +76,22 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
     expect(inject).not.toContain('500-900字'); // 篇幅底线归程序护栏，不注入 AI
   });
 
+  // 🔴 2026-09-17 用户裁定："教辅 120 条应该和 54 个真题蓝本同样对待——课标要求要放到栏目里"；
+  //    "感觉这个升格比在学段要求里加'须逐项落实'强吧？" → 采纳升格（逐栏目可核对、与 exam 侧同格式）。
+  it('每个栏目行都带【要求·须逐项落实】标注（与 exam 卷面结构同口径）', () => {
+    const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_mid', subject: '语文' });
+    // 栏目行都在「▌要求落实」之前（▌学段要求 那行及其说明是学段级要求，天然不带栏目标注）
+    const sectionLines = inject.split('▌要求落实')[0].split('\n').filter((l) => l.startsWith('· '));
+    expect(sectionLines.length, '应有栏目行').toBeGreaterThan(0);
+    for (const l of sectionLines) {
+      expect(l, `栏目行缺标注：${l}`).toContain('——【要求·须逐项落实】');
+    }
+    expect(inject).toContain('▌要求落实');
+    // 效力 + 边界：注里写的内容与形态必须兑现，但**不是题组划分/命名依据**（与既有裁定不冲突）
+    expect(inject).toContain('成稿前逐栏目对照自查');
+    expect(inject).toContain('不是题组划分或命名的依据');
+  });
+
   it('学段差异化：低段与高段学段要求不同', () => {
     const low = buildTeachingInjection({ genType: 'reading', stage: 'primary_low' });
     const high = buildTeachingInjection({ genType: 'reading', stage: 'high' });

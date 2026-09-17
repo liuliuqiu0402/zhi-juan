@@ -1255,15 +1255,22 @@ export function buildTeachingInjection({ genType = '', stage = '', subject = '',
   const bp = getTeachingBlueprint({ genType, stage, subject });
   if (!bp) return '';
   const sections = columnStyle ? applyColumnStyle(bp.sections, genType, columnStyle) : bp.sections;
-  const sectionsText = sections.map(s => `· ${s.name}——${stripSourceMarkNote(s.note)}`).join('\n');
+  // 🔴 2026-09-17 用户裁定（与 exam 侧同口径）："教辅 120 条应该和 54 个真题蓝本同样对待——课标要求要放到栏目里"。
+  //    原先栏目注以 `· 栏目名——注` 呈现，读起来是**背景说明**；现与 <code>buildStructureText</code> 同格式，
+  //    每行显式标为【要求·须逐项落实】；效力与"逐栏目自查"的动作由下方 ▌要求落实 单源给出。
+  //    ⚠️ 与 2026-09-17 既有裁定不冲突：那条说的是"栏目注**不规定内容组织方式**"（不得据此划分/命名题组），
+  //    本条说的是"注里写的**内容与形态**必须兑现"——两件事，故在效力句里把这条边界写清。
+  const reqTag = (note) => (note ? `——【要求·须逐项落实】${note}` : '');
+  const sectionsText = sections.map(s => `· ${s.name}${reqTag(stripSourceMarkNote(s.note))}`).join('\n');
   const p = bp.stageParams;
   const stageLine = p.note ? `\n▌学段要求（${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）\n· ${p.note}` : '';
+  const reqLine = '\n▌要求落实\n· 每行"【要求·须逐项落实】"后是该栏目的**内容与形态要求**（本栏要练到什么、以什么形式呈现），成稿前逐栏目对照自查：凡写了而没做到的，改内容或改写法，二者取一。该要求**只管内容与形态**——它**不是题组划分或命名的依据**（组与组名仍由你按内容自定）。';
   const cur = CURRICULUM_BY_STAGE[bp.stageKey] || CURRICULUM_BY_STAGE.primary_mid;
   // 🔴 2026-09-16（用户裁定·课标↔大类挂钩）：块头显式交代"这些大类的分类依据是课标"——
   //    原先只给栏目名，模型手上唯一的分类依据只能是教材分析的颗粒 → 颗粒被读成大题骨架。
   //    措辞零自造：只出现"大类标题"与课标版本名，不出现结构/序列/栏目框架这类词。
   return `\n\n【大类标题（下面各行即本次大类标题；按${cur}的活动类型与素养划分；${bp.custom ? `${bp.subject}·` : ''}${bp.label}·${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）】
-${sectionsText}${stageLine}`;
+${sectionsText}${reqLine}${stageLine}`;
 }
 
 export default {

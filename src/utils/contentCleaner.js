@@ -167,7 +167,9 @@ export function isDeliverableBodyHtml(html = '') {
 
 /**
  * 正文题号提取/连续性检测（2026-09-10 正文丢题事故根治·定稿校验）：正文部分（答案区前）按
- * 行首 `N.` 提取题号——extractBodyQuestionNumbers 返回保序数组；detectBodyNumberingGap 查 1~峰值 缺口，返回缺号明细
+ * 行首 `N.` 提取题号——extractQuestionHits 返回**带位点与形态标记**的命中（`{at, n, compactOnly}`，
+ * 供段分析区分"真题号"与"仅连排命中"）；extractBodyQuestionNumbers 是它的数字投影（保序数组）；
+ * detectBodyNumberingGap 查 1~峰值 缺口，返回缺号明细
  * （供 ①正文采纳拦截重试 ②最终报告如实输出缺号）。
  * 口径与 useAiGenerator 正文丢失护栏 qCount 同源：块级标签闭合补换行后按行首 `N.` 计题号。
  * gap 返回 null = 无缺口/样本不足以判定（峰值 <3 不判——防小卷/条目清单误报；
@@ -176,7 +178,7 @@ export function isDeliverableBodyHtml(html = '') {
  * 1 与 6"（实测样本）恰落漏检区（found={1,6} → 不判 → 残卷静默交付）。改为先按峰值判定：
  * 峰值 ≥3 即查 1~峰值缺口，高位题号存在而低位缺失同样拦截。
  */
-export function extractBodyQuestionNumbers(html = '', { part = 'body', compact = false } = {}) {
+const extractQuestionHits = (html = '', { part = 'body', compact = false } = {}) => {
   const src = String(html || '');
   if (!src.trim()) return [];
   // 🔴 2026-09-17：新增 `part` 参数——答案区片段自身以"参考答案"标题开头，若仍按"正文"口径切掉答案区，
@@ -219,10 +221,14 @@ export function extractBodyQuestionNumbers(html = '', { part = 'body', compact =
   // 🔴 三套形态**按出现位置归并**（本函数承诺"返回保序数组"；多趟 append 会打乱顺序——第三形态是行内匹配，
   //    若直接 append 会出现 [37, 36] 这类逆序，影响依赖顺序的展示与冻结比对调用方）。
   const hits = [];
-  const collect = (rx) => {
+  // 🔴 2026-09-17（用户实证第三卷·**不得让题干列举伪造"编号段"**）：每条命中记 compactOnly——
+  //    紧凑连排口径（下面 compact 分支）只服务"计数"（答案区 `1. A　2. A…` 连排），但它的判据宽松，
+  //    会把**题干内的编号列举**（"提示：1. 2. 3. 4."）也当成题号。段分析里这类命中**只许延伸既有段、
+  //    不许起新段**（起新段=把列举伪造成"另一个大题"→ 误报"编号体系分段"，实测随堂巩固样本）。
+  const collect = (rx, compactOnly = false) => {
     rx.lastIndex = 0;
     let mm;
-    while ((mm = rx.exec(text))) hits.push({ at: mm.index, n: Number(mm[1]) });
+    while ((mm = rx.exec(text))) hits.push({ at: mm.index, n: Number(mm[1]), compactOnly });
   };
   collect(re);
   collect(reBlankOrdinal);
@@ -231,19 +237,29 @@ export function extractBodyQuestionNumbers(html = '', { part = 'body', compact =
   //    连排成一行（"1. A　2. A　3. A…"），题号前是空白/顿号/右括号也算。仅**计数**用（countTopQuestions 开），
   //    缺号判定/护栏不启用：题干内的编号列举（"提示：1. … 2. …"）若计入，会遮蔽真实缺号（宁漏不误）。
   if (compact) {
-    collect(/(?:^|[ \t\u3000\u00A0]|[)）、])([1-9]\d?)[.、．](?![.\d])/g);
+    collect(/(?:^|[ \t\u3000\u00A0]|[)）、])([1-9]\d?)[.、．](?![.\d])/g, true);
   }
   hits.sort((a, b) => a.at - b.at);
-  // 去重：缩进行首（"\n  36." ）会被"行首"与"行内"两套形态各命中一次（位置相差 ≤3）——同一位点同号只计一次
+  // 去重：缩进行首（"\n  36." ）会被"行首"与"行内"两套形态各命中一次（位置相差 ≤3）——同一位点同号只计一次。
+  // 两形态都命中同一号时**保留严格命中**（清掉 compactOnly 标记），避免把真题号降格成"只许延伸"。
   let prevAt = -99;
   let prevN = null;
   for (const h of hits) {
-    if (h.n === prevN && h.at - prevAt <= 3) { prevAt = h.at; continue; }
-    out.push(h.n);
+    if (h.n === prevN && h.at - prevAt <= 3) {
+      if (!h.compactOnly && out.length) out[out.length - 1].compactOnly = false;
+      prevAt = h.at;
+      continue;
+    }
+    out.push({ ...h });
     prevAt = h.at;
     prevN = h.n;
   }
   return out;
+};
+
+/** 正文题号序列（保序数字数组）—— `extractQuestionHits` 的数字投影，语义与历史版本逐字不变。 */
+export function extractBodyQuestionNumbers(html = '', opts = {}) {
+  return extractQuestionHits(html, opts).map((h) => h.n);
 }
 
 /**
@@ -269,6 +285,44 @@ export function countTopQuestions(html = '', opts = {}) {
     if (run > best) best = run;
   }
   return best;
+}
+
+/**
+ * 题号编号**体系**分析（2026-09-17 用户实证·第三卷）
+ * ============================================================
+ * 为什么需要：`countTopQuestions` 取"最长 1 起连续递增段"——它天然只能数到**第一段**。
+ * 若一份资料**按大题分别从 1 重新编号**（实证：六年级英语综合检测，正文各段 1~5 重来、
+ * 答案区亦然），则"最长段"会把同一体系的缺陷呈现成"答案区(5) 少于正文(10)"，
+ * 让编辑以为"答案区没逐题对齐"，而真相是**两侧都违反"题号全卷连续"口径**（分段长度还不等）。
+ * 本函数把"段"本身暴露出来：段长清单 + 是否分段式（≥2 段且段长 ≥3），供校验侧**改报体系问题**。
+ * @param {string} html 正文或答案区片段
+ * @param {{part?: 'body'|'answer', compact?: boolean}} [opts]
+ * @returns {{top:number, segments:number[], total:number, segmented:boolean}}
+ */
+export function analyzeQuestionNumbering(html = '', opts = {}) {
+  const hits = extractQuestionHits(html, { compact: true, ...opts });
+  const segments = [];
+  let cur = 0;
+  let expect = 0;
+  for (const h of hits) {
+    const n = h.n;
+    if (!cur) {
+      // 起段只认**严格命中**（行首题号／空位自带括号编号／行内点号+紧跟作答位）：紧凑连排命中不许起段，
+      // 否则题干内的编号列举（"提示：1. 2. 3. 4."）会伪造出一个"大题段"→ 误报"编号体系分段"。
+      if (n === 1 && !h.compactOnly) { cur = 1; expect = 1; }
+      continue;
+    }
+    if (n === expect + 1) { cur += 1; expect += 1; }
+    else if (n === 1 && !h.compactOnly) { segments.push(cur); cur = 1; expect = 1; }
+    // 其余（跳跃/重复/仅连排命中）忽略：只关心"从 1 起的递增段"
+  }
+  if (cur) segments.push(cur);
+  return {
+    top: segments.length ? Math.max(...segments) : 0,
+    segments,
+    total: segments.reduce((a, b) => a + b, 0),
+    segmented: segments.filter((s) => s >= 3).length >= 2,   // ≥2 段"从 1 起、长度≥3" → 判分段式
+  };
 }
 
 /**

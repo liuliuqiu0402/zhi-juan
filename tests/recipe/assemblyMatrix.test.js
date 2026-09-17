@@ -278,7 +278,9 @@ describe('三维度完整指令逐句审计（真实开设矩阵 54 科段 × 9 
       if (!r.teaching) { fails.push(`${label} 教学蓝图注入为空`); continue; }
       if (!r.full.includes(r.teaching)) fails.push(`${label} 教学蓝图注入未进完整指令`);
       for (const s of expected?.sections || []) {
-        const row = `· ${s.name}——${stripSourceMarkNote(s.note)}`;
+        // 2026-09-17 用户裁定：教辅栏目注与 exam 侧同口径，逐行带【要求·须逐项落实】标注
+        const note = stripSourceMarkNote(s.note);
+        const row = `· ${s.name}${note ? `——【要求·须逐项落实】${note}` : ''}`;
         if (!r.teaching.includes(row)) fails.push(`${label} 教学蓝图栏目行缺失：${s.name}`);
       }
     }

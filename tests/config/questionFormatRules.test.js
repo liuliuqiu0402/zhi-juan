@@ -9,7 +9,7 @@
 //    凡对答案本身的字面/形式限定与呼应关系（押韵、节奏、字数、首字母、读音、格式……）自动落入。
 // 题类格式经 QUESTION_FORMAT 注入，内容型（summary/preview）不走本块。
 import { describe, it, expect } from 'vitest';
-import { buildOutputFormatHint } from '../../src/config/promptLibrary.js';
+import { buildOutputFormatHint, floorClauseSections } from '../../src/config/promptLibrary.js';
 
 describe('题目自洽总纲 ⑪⑫⑬（2026-09）', () => {
   it('题类格式：线形名加引号 + 序号入槽默认不用圈', () => {
@@ -35,5 +35,59 @@ describe('题目自洽总纲 ⑪⑫⑬（2026-09）', () => {
     expect(c).not.toContain('不默认用圈');
     expect(c).not.toContain('题目自洽');
     expect(c, '内容型不得注入 ⑬').not.toContain('⑬题干对答案提出的');
+  });
+});
+
+// 2026-09-17 用户追问第三卷（"自洽不只是题干与内容，内容之间也要自洽吧？第一题就不自洽…后面应该还有吧？"）：
+// ⑭ 角色与语句归属自洽 —— 实证：选句补全对话第 3 空参考答案"Thank you. I'll try my best."被放在**发起方**口中
+//    （该空所在行是"A: 3. ___ You can practise with me."），致谢语只可能由对方说 → 答案与对话角色不自洽。
+// ⑮ 所给材料的穷尽与不增 —— 实证：连词成句第 5 题词表为 don't/I/can/but/I/try，参考答案却是
+//    "I can't, but I don't try."（can't 需把 don't 拆开重拼，词表里根本没有该词形；且成句语义与本单元主题相反）。
+// ⑯ 材料与答案唯一对应 —— 实证：看图写词第 5 题图面"男孩表演孙悟空动作、手持棍子"含多个可命名对象，
+//    答案却定死 monkey → 答案不由材料唯一确定。
+// 三条一律**性质表述**（不枚举具体情形、不点题型名），只进题类资料。
+describe('题目自洽总纲 ⑭⑮⑯：内容之间也要自洽（2026-09-17 用户追问第三卷）', () => {
+  const q = () => buildOutputFormatHint({ subject: '英语', stage: 'primary_high', genType: 'practice' });
+
+  it('三条补位齐备（角色归属／材料穷尽／材料-答案唯一）', () => {
+    const t = q();
+    expect(t).toContain('⑭凡以说话人/角色名义给出的内容');
+    expect(t).toContain('语句归属必须与其身份及上下文衔接自洽');
+    expect(t).toContain('⑮凡给出待用材料');
+    expect(t).toContain('恰好用尽所给材料、不增不拆不改形');
+    expect(t).toContain('⑯凡以图片、图形或其他材料为依据作答的题');
+    expect(t).toContain('确保答案由材料唯一确定');
+  });
+
+  it('仍为性质表述：不枚举具体情形、不点题型名（防题型诱导回潮）', () => {
+    const clause = q().slice(q().indexOf('⑭'));
+    expect(clause, '不得点题型/语篇名').not.toMatch(/选择题|判断题|填空题|简答题|连词成句|补全对话|看图写话/);
+    expect(clause, '不得枚举具体词形').not.toMatch(/can't|don't/);
+  });
+
+  it('内容型不注入 ⑭⑮⑯（与题类条款同一广播边界）', () => {
+    const c = buildOutputFormatHint({ subject: '语文', stage: 'primary_high', genType: 'summary' });
+    expect(c).not.toContain('⑭凡以说话人');
+    expect(c).not.toContain('⑮凡给出待用材料');
+  });
+
+  it('命题纪律（答案位置打散）随题类注入、不向内容型广播', () => {
+    // 🔴 2026-09-17 用户裁定："程序侧报这些意义不大，不依赖程序侧"——原拟做成程序探针的"答案位置成规律"
+    //    撤除探针，改由生成侧自查承接（探针在 5 题样本下 80% 门槛的偶然命中率约 7%，不达"宁漏不误"）。
+    const t = buildOutputFormatHint({ subject: '英语', stage: 'primary_high', genType: 'practice' });
+    expect(t).toContain('同一组题的正确答案在选项序列中的位置须打散');
+    const c = buildOutputFormatHint({ subject: '语文', stage: 'primary_high', genType: 'summary' });
+    expect(c).not.toContain('答案位置');
+  });
+
+  it('英语学科条款补"语音标注无歧义"（同形异读词/标注范围与解析一致）', () => {
+    // 实证：辨音题用了 read（同形异读 /iː/ 与 /e/，题面未给语境）→ 答案不唯一；
+    //      且解析写"pear 中 ear 发 /eə/"，而题面画线部分只有 ea → 解析与标注范围不一致
+    const fact = floorClauseSections({ subject: '英语', stage: 'primary_high', genType: 'practice' })
+      .find((s) => s.marker === '【英语学科事实底线】');
+    expect(fact, '英语学科事实底线段应在').toBeTruthy();
+    expect(fact.text).toContain('语音标注（发音/拼读类）须无歧义');
+    expect(fact.text).toContain('读音唯一');
+    expect(fact.text).toContain('解析里指到的字母组合须与题面标注（画线/加点）的范围逐字一致');
   });
 });

@@ -252,7 +252,7 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     // ✅ A22：本块文本已提到 utils/injectionManifest.js 单源（生成端与面板共用），断言随之改指单源
     const srcPath = path.join(ROOT, 'src', 'utils', 'injectionManifest.js');
     const src = fs.readFileSync(srcPath, 'utf8');
-    expect(src).toContain('本题作答所必需的一切内容');
+    expect(src).toContain('所点到的内容、形态与做法，都必须在正文中真实、足量、形式吻合地存在');
     expect(src).toContain('仅凭正文自身即可完成');
     expect(src).not.toContain('题干所声明的作答要素（作答处、载体、选项、题面所用素材）');
     // 类型中性用词锁定：不得回退"卷面"，也不得改成"本题自身/题干自身"。
