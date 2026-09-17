@@ -30,9 +30,10 @@ describe('领域对账器：学段维度（2026-09-17 根治「高中错用义�
   });
 
   it('高中·未登记 highDomains 的学科 → 不做领域对账（宁不校验，也不用义教名单错配）', () => {
-    const content = '本卷考查密度与电流。';
-    const anchors = [ax('密度'), ax('电流')];
-    expect(reconcileDomains({ genType: 'exam', subject: '物理', stage: '高中', content, anchors })).toBeNull();
+    // 样本取「科学」：义教-only、无 highDomains（物理等已登记高中清单，不再适用作反例）
+    const content = '本卷考查观察与实验。';
+    const anchors = [ax('观察'), ax('实验')];
+    expect(reconcileDomains({ genType: 'exam', subject: '科学', stage: '高中', content, anchors })).toBeNull();
   });
 
   it('义教（小/初）仍走 domains，不受影响', () => {
