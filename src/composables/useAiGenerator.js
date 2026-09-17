@@ -5105,10 +5105,15 @@ ${cardAnalysisText.substring(0, 1000)}
         // 🔴 2026-09-15 用户定版：仅题号形态/顺序差异（集合与题数均未变）**不算**正文被改动 → 不进【问题列表】
         console.debug(`[正文冻结比对] 仅题号形态/顺序差异（非内容增删），不告警：[${bodyQSnapshot}] → [${finalSeq}]`);
       }
-      const gap = detectBodyNumberingGap(finalContent);
-      if (gap) {
-        const missTxt = gap.missing.length > 10 ? `${gap.missing.slice(0, 10).join('、')}…` : gap.missing.join('、');
-        auditWarnings.push(`⚠️ 正文题号不连续（1~${gap.peak} 中缺：${missTxt}）——正文疑似丢题，请核对正文是否完整。`);
+      // 🔴 2026-09-17 口径统一（用户报"问题列表仍误报题号"）：问题列表与生成日志同口径——
+      //    只有"缺号在正文任何位置都不出现"（nowhere）才是丢题实证；形态性缺号（能在别处以其它形态找到）
+      //    不进问题列表（此前此处直接按缺号报警，与已改为"形态放行"的日志口径不一致 → 完整卷被误报）。
+      const cls = classifyNumberingGap(finalContent);
+      if (cls && cls.nowhere.length) {
+        const missTxt = cls.nowhere.length > 10 ? `${cls.nowhere.slice(0, 10).join('、')}…` : cls.nowhere.join('、');
+        auditWarnings.push(`⚠️ 正文题号缺失且全文任何位置都未出现（1~${cls.peak} 中缺：${missTxt}）——判定真丢题，请核对正文是否完整。`);
+      } else if (cls && cls.elsewhere.length) {
+        console.debug(`[题号] 形态性缺号 ${cls.elsewhere.join('、')}（正文其它位置存在）→ 不进问题列表`);
       }
     }
 
