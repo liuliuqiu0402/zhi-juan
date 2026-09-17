@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>课标口径治理·收口清单与变更记录（2026-09-17）</title>
+<style>
+  :root { --ink:#1f2328; --muted:#5b6570; --line:#e3e6ea; --bg:#fbfcfd;
+          --red:#b42318; --redbg:#fef3f2; --amber:#8a5a00; --amberbg:#fff8e6; --green:#116329; --greenbg:#f0f9f2; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px 28px 64px; background:var(--bg); color:var(--ink);
+         font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei","PingFang SC","Microsoft YaHei",sans-serif;
+         font-size:14px; line-height:1.7; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  h2 { font-size:18px; margin:34px 0 10px; padding-bottom:6px; border-bottom:2px solid var(--line); }
+  h3 { font-size:15px; margin:22px 0 8px; }
+  .lead { color:var(--muted); margin:0 0 18px; }
+  .box { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin:10px 0 18px; }
+  .box.warn { background:var(--amberbg); border-color:#f0d9a8; }
+  .box.hot { background:var(--redbg); border-color:#f2c9c4; }
+  .box.ok { background:var(--greenbg); border-color:#bfe3c9; }
+  ul { margin:6px 0 6px 20px; padding:0; }
+  li { margin:3px 0; }
+  table { width:100%; border-collapse:collapse; background:#fff; font-size:13px; margin:8px 0 4px; }
+  th, td { border:1px solid var(--line); padding:7px 9px; vertical-align:top; text-align:left; }
+  th { background:#f4f6f8; font-weight:600; white-space:nowrap; }
+  code { background:#f3f5f7; border-radius:3px; padding:1px 4px; font-size:12.5px; }
+  .tag { display:inline-block; border-radius:3px; padding:0 6px; font-size:12px; white-space:nowrap; }
+  .t-keep { background:var(--greenbg); color:var(--green); }
+  .t-clear { background:var(--redbg); color:var(--red); }
+  .t-wait { background:var(--amberbg); color:var(--amber); }
+</style>
+</head>
+<body>
+
+<h1>课标口径治理·收口清单与变更记录</h1>
+<p class="lead">2026-09-17 · 本文记录本轮"课标口径"专项的判据、<b>「层」字全量复核清单</b>、变更记录与待办。
+判据承接 <code>蓝图库语义清理清单-2026-09-16.html</code>（课标原文/原义 → 留；产品自造 → 清或中性化），
+本轮新增一条上位判据：<b>一切以官网为准</b>。</p>
+
+<h2>一、判据（本轮定版）</h2>
+<div class="box">
+  <ul>
+    <li><b>官网为准</b>：凡涉及课标内容（素养名、内容领域/模块名、章节名、学段要求、学业质量），必须能在
+      <code>moe.gov.cn</code>（或 gov.cn 上的教育部文件）核到原文才改代码；<b>核不到只留档、不动代码</b>；
+      不采信学科网/豆丁/教育云/教辅类转载。</li>
+    <li><b>课标原名 → 留</b>（如"生物体的结构层次""原子结构各层电子数""基层民主"）；
+      <b>产品自造 → 清或中性化</b>（如"X层""分层设题""认知层次"）。</li>
+    <li><b>非课标来源显式标注</b>：产品编辑规范（书写/拼音/标点/音标等）、命题管理要求（"不得超标命题"）等，
+      不得冒充课标条款，须在 source 标注出处类型。</li>
+  </ul>
+</div>
+
+<h2>二、「层」字全量复核清单</h2>
+<p class="lead">扫描 <code>src/</code> 全部 <code>.js/.vue/.ts/.css</code>：命中 388 条，按判据分四类。</p>
+<table>
+<thead><tr><th>类别</th><th>条数</th><th>处置</th><th>依据 / 代表位置</th></tr></thead>
+<tbody>
+<tr><td>工程注释</td><td>291</td><td><span class="tag t-keep">留</span></td><td>不进模型、非课标口径（如"分层注入""第3层开关"等实现说明）</td></tr>
+<tr><td>代码与 UI/内部机制名</td><td>69</td><td><span class="tag t-keep">留</span></td><td>产品自身结构名与界面标签：「知识层级」「能力层次」「难度层次」「批量层级」，以及锚树内部机制名「第1/2/3层」「层级知识图谱」——非课标名，亦不进写作指令（用户已裁定保留）</td></tr>
+<tr><td>注入文本候选</td><td>23</td><td><span class="tag t-clear">已清</span> / <span class="tag t-keep">留</span></td><td>其中属产品内部机制的（锚树"三层固定结构""第2/3层""层级知识图谱"）留；属自造取向或与实发不一致的**已清**（见下）</td></tr>
+<tr><td>样式（CSS）</td><td>5</td><td><span class="tag t-keep">留</span></td><td>渲染层技术词，与课标无关</td></tr>
+</tbody>
+</table>
+<h3>本轮从注入/可见文本中清掉的「层」字</h3>
+<table>
+<thead><tr><th>位置</th><th>原文</th><th>改法</th></tr></thead>
+<tbody>
+<tr><td>教辅蓝图说明 39 处</td><td>学习理解层／物理观念层／态度责任层／运动能力运用层…</td><td>去掉「层」后缀（课标原名即"学习理解""物理观念""态度责任"）</td></tr>
+<tr><td>教辅蓝图说明 2 处</td><td>了解、理解水平／掌握、运用水平</td><td>改为课标结果目标行为动词「了解、理解」「掌握、运用」</td></tr>
+<tr><td>栏目名</td><td>分层设题／分层练习／分层设问</td><td>文本设题／分项练习／文本设问</td></tr>
+<tr><td>其他说明</td><td>分层论证／各层／每层／知识分层梳理／设问分层·分层递进／素养层划分</td><td>论证充分／各活动类型／每类／知识梳理／（删除）／素养划分</td></tr>
+<tr><td>指令库模板 3 处</td><td>…知识范围与能力层次</td><td>…知识范围与能力要求</td></tr>
+<tr><td>指令库模板 1 处</td><td>按概括层级排序</td><td>按概括程度排序</td></tr>
+<tr><td>指令库渲染条款</td><td>条目用 &lt;ul&gt;&lt;li&gt; 层级嵌套／与 h2 大题标题层级混淆</td><td>嵌套／与 h2 大题标题混淆</td></tr>
+<tr><td>学科要点（音乐·初中）</td><td>鼓励多元感受并有<b>层次</b>地表达</td><td>鼓励多元感受并有依据地表达</td></tr>
+<tr><td>面板预览文案（GenerateModule）</td><td>大类标题（按课标活动类型与<b>素养层</b>划分）</td><td>…与素养划分（与实发一致；原为显示≠实发）</td></tr>
+</tbody>
+</table>
+
+<h2>三、本轮变更记录</h2>
+<table>
+<thead><tr><th>主题</th><th>变更</th></tr></thead>
+<tbody>
+<tr><td>栏目名去「任务」</td><td>practice：基础建构／探究进阶／迁移创新；preview：预习指引／预读指引（含换肤套同步）</td></tr>
+<tr><td>说明换词</td><td>命题语境用「题目」；描述语境去名词（形式灵活／每项写明／每项给做法）</td></tr>
+<tr><td>活动类型用法回归</td><td>「学习理解类活动（…）」不再当栏目分类标准 → 改为课标原义写法：基于／深入／超越语篇的语言实践活动；语文改挂语文课标（四类语文实践活动）</td></tr>
+<tr><td>课标名错配修正</td><td>物理四项／化学五项／生物四项／历史五项／地理四项／信息科技素养补全；高中信息科技模块名（删 2003 版旧称"算法与程序设计"）；专项锚（语文任务群归属、"阅读浅易文言文"、数学"图形的位置与运动""数量关系"、英语读看归语言技能）</td></tr>
+<tr><td>五档学段语义</td><td>删除「以感知与体验→…→迁移与创新为主」自造起头语 40 条（经核非任何课标口径，系艺术/科学/英语术语拼接）</td></tr>
+<tr><td>布卢姆认知层次</td><td>改为课标口径「学习要求」，取值 了解/理解/掌握/运用（原布卢姆六级非课标）</td></tr>
+<tr><td>领域契约学段维度</td><td>新增 <code>highDomains</code>（各科高中模块/主题名逐科补齐）；对账器按 stage 取用；未登记高中清单的学科高中卷不做对账（安全阀）；体育义教侧改课标「内容结构」</td></tr>
+<tr><td>题号根治</td><td>① 识别容纳多形态（题号前作答位、空白实体、行内编号空位、作答括号在题号前）；② 判定换代理指标——只有"缺号在正文任何位置都不出现"才判丢题，形态性缺号只警告并照常交付（不再出现完整卷被判残缺、重试无解）</td></tr>
+<tr><td>归因收口</td><td>「不超学段」改挂课标学业质量要求＋课程方案与命题管理要求（不得超标命题）；删「思辨性设问」泛化归因；产品编辑规范由确定性后处理自动标注「＋产品编辑规范（非课标原文）」</td></tr>
+<tr><td>按官网回退</td><td>2025「日常修订版」版本升级（revert 83547bf）、高中章节名改名、高中课程名改"信息科技"——三项官网核不到，均回退</td></tr>
+</tbody>
+</table>
+
+<h2>四、待办与留档</h2>
+<div class="box warn">
+  <b>等官网发布后再办（2 项）</b>
+  <ul>
+    <li>2025《义务教育／普通高中课程标准日常修订版》的版本口径升级——官网现仅见 2017年版2020年修订、2022年版 通知；</li>
+    <li>高中各科「学业水平考试（与命题）建议」章节名统一——需官网课标全文可核。</li>
+  </ul>
+</div>
+<div class="box">
+  <b>官网未核到、按判据暂不改（3 项）</b>
+  <ul>
+    <li>音乐／美术／体育与健康三科高中课标的该章节名；</li>
+    <li>义教版与 2022 年版的官方全量新旧对照（官方未公开）；</li>
+    <li>义教「学业水平考试命题要求」章节名是否变更。</li>
+  </ul>
+</div>
+<div class="box hot">
+  <b>待办（非课标，属交付流程）</b>
+  <ul>
+    <li>本地 2 个提交待推：<code>2b3fbbd</code>（归因收口）、<code>6d8ea0f</code>（按官网回退版本升级）；推送多次因网络（github.com:443 不通）失败。</li>
+    <li>建议复跑一次英语整卷，验证题号误判已不再复现。</li>
+  </ul>
+</div>
+
+<div class="box ok">
+  <b>状态</b>：全量测试 2039 项通过（145 个测试文件）。本专项所有改动均以提交记录为准，提交说明含逐项依据。
+</div>
+
+</body>
+</html>
