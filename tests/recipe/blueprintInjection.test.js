@@ -312,7 +312,7 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
     const t = getPromptTemplate({ grade: 'primary_low', genType: 'exam' });
     expect(t.template).not.toContain('[配图说明]');
     expect(t.template).toContain('[IMAGE] 标记');
-    expect(t.template).toContain('认知底线');
+    expect(t.template).toContain('不超学段');
     expect(t.template).not.toContain('40分钟'); // 时长由蓝图 duration 唯一源，学段特点不含分钟
   });
 
@@ -356,15 +356,15 @@ describe('质量底线三维度注入（类型/学科/学段各司其职，非�
     expect(english.template).toContain('无中式英语'); // 英语语篇底线
   });
 
-  it('学段维度：三维度模板携带认知底线（不超学段）', () => {
+  it('学段维度：三维度模板携带「不超学段」口径', () => {
     const low = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' });
-    expect(low.template).toContain('认知底线');
+    expect(low.template).toContain('不超学段');
     expect(low.template).toContain('不出现未学概念与抽象符号'); // 低段：只考已学
     const high = getPromptTemplate({ grade: 'high', subject: '数学', genType: 'practice' });
     expect(high.template).toContain('不超学业质量要求'); // 高段：符合课标
-    // 三维度模板同时携带 学科要点 + 学段认知底线（组合验证）
+    // 三维度模板同时携带 学科要点 + 学段「不超学段」口径（组合验证）
     expect(low.template).toContain('写自己想说的话与想象中的事物');
-    expect(low.template).toContain('认知底线');
+    expect(low.template).toContain('不超学段');
   });
 
   it('允许课外拓展：无"禁止教材外概念"类限死措辞', () => {

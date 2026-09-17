@@ -3,7 +3,7 @@
  * ============================================================
  * 验证（新架构：替代已删除的 recipe/blocks 规范块体系）：
  * 1) 学科×学段要点 54 组合与 STAGE_SUBJECTS 双向对齐（零缺失/零多余，text/source 非空）
- * 2) 学段要点两版（exam/teaching）× 5 学段全覆盖，含认知底线与课标出处
+ * 2) 学段要点两版（exam/teaching）× 5 学段全覆盖，含不超学段口径与课标出处
  * 3) 教辅学科定制蓝本：15 科全覆盖，定制类型合法且栏目非空
  * 4) 真题蓝本学科覆盖：全部规范化学科均有蓝本
  * ============================================================
@@ -42,7 +42,7 @@ for (const [name, stageLib] of [['STAGE_EXAM_EXTRAS', STAGE_EXAM_EXTRAS], ['STAG
   for (const stage of STAGES) {
     const se = stageLib[stage];
     if (!se) { gaps++; console.log(`❌ ${name} 缺学段: ${stage}`); continue; }
-    if (!se.text?.includes('认知底线')) { gaps++; console.log(`❌ ${name}[${stage}] 缺认知底线`); }
+    if (!se.text?.includes('不超学段')) { gaps++; console.log(`❌ ${name}[${stage}] 缺不超学段口径`); }
     if (!se.source?.trim()) { gaps++; console.log(`❌ ${name}[${stage}] 缺课标出处`); }
   }
   console.log(`${name}: ${STAGES.length} 学段齐备`);

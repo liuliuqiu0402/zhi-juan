@@ -1492,7 +1492,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             //    2026-09 用户实证疑问"内容型的也补了吗"；summary/preview 已在 2k 入口整类跳过，
             //    此处防其余类型（复习/易错题本等）的纯内容栏被误补——标题无作答意图词即跳过）
             const fallbackTitle = (head.textContent || '').trim();
-            const wholeAnswerHeadingRe = /写作|习作|书面表达|写话|小练笔|作文|默写|背诵|仿写|续写|练一练|算一算|试一试|综合练习|专项练习|自测|检测|实践活动|动手做|解答|解决问题|应用题|口算|竖式/;
+            // 🔧 2026-09-17 按学科收口（课标口径）：「实践活动/动手做」是科学、信息科技一类"探究/实践"栏目的
+            //    长答意图词，不作全学科通用词——通用化会对数学/英语等卷面的同名栏目误命中、误补作答行。
+            const practiceSubject = subject === '科学' || subject === '信息科技';
+            const wholeAnswerHeadingRe = new RegExp(
+              '写作|习作|书面表达|写话|小练笔|作文|默写|背诵|仿写|续写|练一练|算一算|试一试|综合练习|专项练习|自测|检测|解答|解决问题|应用题|口算|竖式'
+              + (practiceSubject ? '|实践活动|动手做' : '')
+            );
             if (!wholeAnswerHeadingRe.test(fallbackTitle)) return;
             items.push({ p: head, score: scoreMatch ? parseFloat(scoreMatch[1]) : null, seg: secNodes, sub: false });
           } else {

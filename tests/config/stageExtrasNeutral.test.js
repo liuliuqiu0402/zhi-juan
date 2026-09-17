@@ -34,9 +34,9 @@ describe('学段维度注入文本：情境取向中立', () => {
       expect(table.primary_low.text).toMatch(name === 'STAGE_EXAM_EXTRAS' ? KEEP : '游戏化');
     });
 
-    it(`${name} 各学段仍保留认知底线（收口不得伤及既有约束）`, () => {
+    it(`${name} 各学段仍保留「不超学段」口径（收口不得伤及既有约束）`, () => {
       for (const [stage, item] of Object.entries(table)) {
-        expect(item.text, `${name}.${stage} 应保留认知底线`).toContain('认知底线');
+        expect(item.text, `${name}.${stage} 应保留不超学段口径`).toContain('不超学段');
       }
     });
   }
