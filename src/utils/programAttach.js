@@ -16,7 +16,7 @@
  *   两出口共用 buildProgramAttachParts() 单源计算，杜绝"面板展示 ≠ 实际注入"二次口径。
  * ============================================================
  */
-import { buildRenderContract, needsImageHint } from '../config/eduRenderContract.js';
+import { buildRenderContract } from '../config/eduRenderContract.js';
 import { buildValidatorPrompt, getActiveFixPromptRules } from '../config/validatorRules.js';
 import { floorClauseSections } from '../config/promptLibrary.js';
 
@@ -26,15 +26,16 @@ import { floorClauseSections } from '../config/promptLibrary.js';
  * @param {string} p.subject 规范化学科（normalizeSubjectName 产物）
  * @param {string} p.stageKey 学段键（primary_low/primary_mid/primary_high/middle/high）
  * @param {string} p.genType 资料类型键
- * @param {string} [p.needsImageText] 配图判定提示文本（结构/类型/范围名，交给 needsImageHint 判定是否含配图类题型）
  * @param {string} [p.instructionText] 委托正文当前文本（判定守门条款各段是否需要兜底——模板已含则该段不重复）
  * @param {string} [p.attachInstructionKey] 指令库条目键（兜底段跳转定位用；缺省回落 genType）
  * @returns {{ text:string, blocks:Array<{lib,key,name,text}> }}
  */
-function buildProgramAttachParts({ subject, stageKey, genType, needsImageText = '', instructionText = '', attachInstructionKey = '' }) {
+function buildProgramAttachParts({ subject, stageKey, genType, instructionText = '', attachInstructionKey = '' }) {
   const blocks = [];
-  const needsImage = needsImageHint(String(needsImageText || ''), genType);
-  const renderContractText = buildRenderContract({ subject, genType, stage: stageKey, needsImage });
+  // 🔴 2026-09-17：渲染契约的开启与否由 buildRenderContract 内部单一判定（resolveMarkCapability：学科契约
+  //    是否被工具库停用 + 用户自定义契约），与委托正文点名哪几个标记**同一判定**。
+  //    原 needsImageText 入参（喂 needsImageHint 决定给不给 [IMAGE] 骨架）随 A21 撤除——文本信号不再是能力开关。
+  const renderContractText = buildRenderContract({ subject, stage: stageKey });
   if (renderContractText) blocks.push({ lib: 'render-contract', key: subject, name: '渲染指令契约', text: renderContractText });
   const activeRules = getActiveFixPromptRules({ subject, stage: stageKey, genType });
   for (const r of activeRules) blocks.push({ lib: 'rules', key: r.id, name: r.name || r.id, text: r.promptHint });

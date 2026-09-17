@@ -23,7 +23,7 @@
 // ============================================================
 import { describe, it, expect } from 'vitest';
 import { getPromptTemplate, GEN_TYPE_NAMES, SUBJECT_STAGE_EXTRAS } from '@/config/promptLibrary.js';
-import { buildRenderContract, needsImageHint } from '@/config/eduRenderContract.js';
+import { buildRenderContract } from '@/config/eduRenderContract.js';
 import { buildValidatorPrompt } from '@/config/validatorRules.js';
 import { buildTeachingInjection, getTeachingBlueprint, TEACHING_SUBJECT_BLUEPRINTS, TEACHING_BLUEPRINTS, stripSourceMarkNote } from '@/config/teachingBlueprints.js';
 import { getExamBlueprint, EXAM_BLUEPRINTS } from '@/config/examPaperBlueprints.js';
@@ -52,7 +52,9 @@ function assemble(subject, stage, genType) {
     const bp = getExamBlueprint(subject, stage);
     if (bp && bp.sections) structure = bp.sections.map((s) => `${s.name}(${s.score}分)`).join('；');
   }
-  const rc = buildRenderContract({ subject, genType, stage, needsImage: needsImageHint(`${GEN_TYPE_NAMES[genType]} ${structure}`, genType) });
+  // 🔴 2026-09-17：配图能力判定已单源化（resolveMarkCapability）——不再由"类型名 + 卷面结构文本"喂
+  //    needsImageHint 决定骨架；此处按真实调用口径拼装（subject/stage 即可）
+  const rc = buildRenderContract({ subject, stage });
   const vp = buildValidatorPrompt({ subject, stage, genType });
   const teaching = genType === 'exam' ? '' : (buildTeachingInjection({ genType, stage, subject }) || '');
   return { template: tpl.template, rc: rc || '', vp: vp || '', teaching, structure, full: [tpl.template, rc, vp, teaching, structure].join('\n') };
@@ -77,7 +79,7 @@ function dupSentences(text) {
  *  特征词均为拼装整体指令中真实出现的稳定条款文本；按类型分检。 */
 const CONTENT_MUST = {
   common: ['质量底线', '课标', '学段'],
-  question: ['【创作要求】', '作答空间形态按答案类型匹配', '题目自洽（编辑自查总纲', '【大类标题（下面各行即本次大类标题'],
+  question: ['【创作要求】', '作答空位形态与所填内容相称', '题目自洽（编辑自查总纲', '【大类标题（下面各行即本次大类标题'],
   content: ['【创作要求】', '结构化呈现', '【大类标题（下面各行即本次大类标题'],
   exam: ['【创作要求】', '题目自洽（编辑自查总纲'],
 };
@@ -183,7 +185,7 @@ describe('三维度完整指令逐句审计（真实开设矩阵 54 科段 × 9 
         if (!r.teaching) fails.push(`${label} 内容要素缺教辅结构注入`);
       } else {
         if (t.includes('题目自洽（编辑自查总纲')) fails.push(`${label} 内容型串味：泄漏题类条款"题目自洽"`);
-        if (t.includes('作答空间形态按答案类型匹配')) fails.push(`${label} 内容型串味：泄漏作答空间语义`);
+        if (t.includes('作答空位形态与所填内容相称')) fails.push(`${label} 内容型串味：泄漏作答空间语义`);
         if (t.includes('· 书写载体协议：')) fails.push(`${label} 内容型串味：泄漏书写载体协议条款`);
         if (!r.teaching) fails.push(`${label} 内容要素缺教辅结构注入`);
       }

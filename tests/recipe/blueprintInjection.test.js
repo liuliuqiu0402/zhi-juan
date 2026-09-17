@@ -173,7 +173,7 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     const preview = buildOutputFormatHint({ subject: '语文', stage: 'primary_low', genType: 'preview' });
     expect(preview).toContain('栏目标题');
     expect(preview).not.toContain('写汉字类题必须真实输出田字格');
-    expect(preview).not.toContain('作答空间形态按答案类型匹配'); // 内容型不走 QUESTION_FORMAT，无作答空间语义
+    expect(preview).not.toContain('作答空位形态与所填内容相称'); // 内容型不走 QUESTION_FORMAT，无作答空间语义
     const summary = buildOutputFormatHint({ genType: 'summary' });
     expect(summary).toContain('知识梳理');
   });
@@ -192,7 +192,7 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
         expect(t.template, `类型 ${g} 不应要求题号包裹`).not.toContain('以 <p class="question"> 包裹并带题号');
       } else {
-        expect(t.template, `类型 ${g} 缺作答空间语义`).toContain('作答空间形态按答案类型匹配');
+        expect(t.template, `类型 ${g} 缺作答空间语义`).toContain('作答空位形态与所填内容相称');
         expect(t.template).toContain('以 <p class="question"> 包裹并带题号');
       }
     }
@@ -221,9 +221,9 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
       const t = getPromptTemplate({ genType: g });
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
-        expect(t.template, `类型 ${g} 内容型不得注入作答空间语义`).not.toContain('作答空间形态按答案类型匹配');
+        expect(t.template, `类型 ${g} 内容型不得注入作答空间语义`).not.toContain('作答空位形态与所填内容相称');
       } else {
-        expect(t.template, `类型 ${g} 缺作答空间形态语义`).toContain('作答空间形态按答案类型匹配');
+        expect(t.template, `类型 ${g} 缺作答空间形态语义`).toContain('作答空位形态与所填内容相称');
         expect(t.template, `类型 ${g} 缺换算锚`).toContain('1 字位≈1 个全角空格≈1 em 书写宽');
         // 🔧 客观题留白/空位位置不再由"模型既有能力"放任（形态已按答案类型绑定注入），残留旧引导句仍须为零
         expect(t.template, `类型 ${g} 残留客观题引导句`).not.toContain('不再额外整行留白');
@@ -236,7 +236,7 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
   it('题为主 7 类模板作答空间语义六行逐字完整（不漏一字：总句+符号位倾向+题首括号位+短答换算+同题同形态+禁文字占位+题面空位类不另附长横线）', () => {
     // "按这样，不能漏一个字"：通用六行 = 作答空间语义块（换算锚随 BLANK 动态生成，此处锁定 wordGap=1 默认）逐字完整投递
     const FULL_LINE =
-      '· 作答空间形态按答案类型匹配，不自行发明：\n' +
+      '· 作答空位形态与所填内容相称（只在下列几种里选，不新造）：\n' +
       '· 空位具体形态（圆括号空／横线空／圈作答）由你按题干措辞与作答需要选定——所填为字母/序号/√×等符号的题多用圆括号空位（　）或圈作答，填词/句/数等短答与"列举归类"空位（如"有限小数有＿"）多用横线空位；形态真实可书写、同卷同性质空位风格统一即可，填符号类的括号内宽只须容纳所填符号（1~2 字位）；作答位就在题面空位内（括号空位/圈选位）、不另设独立作答区的题，一律不再另附长横线作答区；\n' +
       '· 题面带选项（A./B./C. 等）的题，其作答位一律在题干前（题首）且用圆括号空位（　），写成"（　）1. 题干…"——该位是填字母的括号，不用下划线空/横线空，与大题标题是否写"填入括号内"无关；选项行内、选项末尾，以及选项行之后，一律不加作答位：不给整行横线、不给空白作答行、不另设作答区，作答位只有题首那一处；\n' +
       '· 短答空位宽度按"恰好容纳该空答案"换算：先在心里给出该空答案并数清字符数（数字/汉字/小数点各算 1 个），写等量的全角空格（1 字位≈1 个全角空格≈1 em 书写宽），连列空位全带、不得遗漏；\n' +
@@ -260,7 +260,7 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
     for (const g of ALL_TYPES) {
       const t = getPromptTemplate({ genType: g });
       if (CONTENT_TYPES.includes(g)) {
-        expect(t.template, `类型 ${g}`).not.toContain('作答空间形态按答案类型匹配');
+        expect(t.template, `类型 ${g}`).not.toContain('作答空位形态与所填内容相称');
         expect(t.template, `类型 ${g} 内容型不得注入换算锚`).not.toContain('1 字位≈1 个全角空格≈1 em 书写宽');
       } else {
         // 🔧 换算锚随 BLANK 动态注入（字位→em 计数锚）；形态是"倾向引导非强制绑定"（2026-09 用户定稿：
@@ -308,10 +308,13 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
     expect(physics.template).not.toContain('<span class=');
   });
 
-  it('学段特点无旧措辞 [配图说明]，统一为 [IMAGE] 标记；时长不写入学段特点（归蓝图）', () => {
+  it('学段特点无旧措辞 [配图说明]；配图要求走正文图-题一致性条款（点名 [IMAGE] 并指向【渲染指令】）', () => {
     const t = getPromptTemplate({ grade: 'primary_low', genType: 'exam' });
     expect(t.template).not.toContain('[配图说明]');
-    expect(t.template).toContain('[IMAGE] 标记');
+    // 🔴 2026-09-17：原从 EXAM_BASE 创作要求第 4 条（"需配图处用 [IMAGE] 标记描述画面"）取字面——
+    //    该半句已删（格式归【渲染指令】单一事实源，正文只留要求与判据）；标记名仍由正文图-题一致性条款给出。
+    expect(t.template).toContain('[IMAGE]');
+    expect(t.template).toContain('图-题一致性');
     expect(t.template).toContain('不超学段');
     expect(t.template).not.toContain('40分钟'); // 时长由蓝图 duration 唯一源，学段特点不含分钟
   });

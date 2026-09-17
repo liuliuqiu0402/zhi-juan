@@ -6,12 +6,14 @@
  *    - [GRAPH]...[/GRAPH]  图形（数轴/函数/几何/统计/受力/电路/光路/原子）
  *    - [IMAGE]...[/IMAGE]  配图（画面描述 / ICON 图标检索）
  *    - $...$ / $$...$$     公式（行内 / 块级）
- * 按 学科×学段×资料类型 三维度匹配注入（需要图的学科才给 [GRAPH] 骨架、
- * 配图题才给 [IMAGE]、数理化学科才给公式）。
+ * 按 学科×学段 门控注入：[GRAPH] 骨架只给该学科×学段真有图形能力的（数理化生科史地信），
+ *   公式只给数理化且初中学段以上，[IMAGE] 为**能力就绪**（学科契约开启即给，是否真配图由正文裁定）。
+ * 🔴 判定单源：resolveMarkCapability 同时供本文件（system 注入）与 promptLibrary（委托正文点名哪几个
+ *   标记）使用——正文点名 [IMAGE]/[GRAPH] ⇔ system 必给对应骨架，任一方单独改动都会被守卫测试拦下。
  * ============================================================
  */
 
-import { isLibEntryEnabled } from '../utils/libToggles.js';
+import { isLibEntryEnabled, loadLibToggles } from '../utils/libToggles.js';
 
 /** 允许的 [GRAPH] TYPE 全集 */
 export const GRAPH_TYPES = [
@@ -29,16 +31,13 @@ export const MATH_SUBJECTS = ['数学', '物理', '化学'];
  *    观察…图形/格图"）。于是模型只认自己被枚举的那几个词，遇到"观察下面的图形/看图形/统计图"
  *    就判"题干未声明图依赖"而不出图，校验侧却照旧报"题干要图却没出图"——两边不同源，
  *    来回修了很多轮都摸不到根因（每轮只在改其中一边）。
- *  ⚠️ 用法边界：本表**只供程序侧判定/校验**使用。下发给模型的条款必须是**原则式**
+ *  ⚠️ 用法边界：本表**只供程序侧校验**使用。下发给模型的条款必须是**原则式**
  *    （判断依据=该题作答是否依赖图中信息），**严禁把本表当清单写进指令**——措辞列举不完，必有漏判。
- *  ⚠️ 判定集合 ≠ 能力注入集合：能力注入（是否给 [IMAGE] 格式骨架）刻意放宽（多注入无害），
- *    见下方 IMAGE_HINT_RE；判定/校验只认本表。
+ *    2026-09-17：原"能力注入集合"（IMAGE_HINT_RE 超集）已撤除——能力判定改为**学科契约开启即注入**
+ *    （见 resolveMarkCapability），不再由文本/类型充当第二把尺子（两把尺子必然打架：正文点名 [IMAGE]
+ *    而 system 不开骨架，或反之）。本表仍为**校验侧**唯一判据。
  */
 export const FIGURE_DEPENDENCY_RE = /看图|读图|看图形|识图|据图|依图|如图|图表|统计图|观察[^\n]{0,8}图形|格图/;
-
-/** 配图/图形类题型关键词（**能力注入**用：是 FIGURE_DEPENDENCY_RE 的超集，多注入无害）：
- *  2026-09 非必要不配图：图由题干图依赖词驱动（题干要学生依据图形/图像作答才配图；纯文字任务无图依赖不配图） */
-const IMAGE_HINT_RE = new RegExp(`${FIGURE_DEPENDENCY_RE.source}|写话|配图|听音|观察|绘画|绘图|示意|地图|结构|图形`);
 
 // ==================== EduRender Studio 完整格式骨架 ====================
 
@@ -302,12 +301,47 @@ const getFormulaNeeded = (subject, stage) => {
 };
 
 /**
+ * 🔴 标记能力判定·**单源**（2026-09-17 用户裁定：正文要求与注入能力必须同源）
+ * ============================================================
+ * 为什么必须单源：正文（QUESTION_FORMAT 的"图随题"条款、CONTENT_FORMAT 的图表句）会**点名**
+ *   [IMAGE]/[GRAPH] 并要求"按注入的【渲染指令】输出"。若正文点名而 system 不给该骨架，模型拿到的是
+ *   "必须输出一个没有格式说明的东西"——实测 675 个三维度组合里有 267 个是这种悬空（数学·初中·exam 等
+ *   needsImage=false 的卷：正文强制 [IMAGE]、system 只有 [GRAPH] 骨架），模型只能写"根据图片提示…"
+ *   文字图语或省块。反向亦然（给了骨架没要求）会诱导多配图。
+ * 口径（三处同一判定，杜绝两把尺子）：
+ *   - on：学科契约整条停用（工具库 subj:学科）→ 全关（与工具库 UI 文案"停用后生成端不输出
+ *     [GRAPH]/公式/[IMAGE]"一致；此时正文亦不再点名任何标记）；
+ *   - graph：该学科×学段有 [GRAPH] 能力（getGraphParts）或用户在渲染契约库自定义了 TYPE；
+ *   - formula：数理化学科按学段；
+ *   - image：**能力就绪默认开**（2026-09-17 起不再按资料类型/文本关键词收窄）——题类与内容型的正文都可能
+ *     出现需图的题（题干由模型拟定，程序无法预知），能力就绪只代表"会按格式输出"，是否真的配图由正文
+ *     "图随题"条款裁定；用户可在渲染契约库显式关闭（image:false）。
+ * @returns {{on:boolean, graph:boolean, graphTypes:string[], formula:boolean, image:boolean}}
+ */
+export function resolveMarkCapability({ subject = '', stage = '', userContract } = {}) {
+  const on = !subject || isLibEntryEnabled('render-contract', `subj:${subject}`);
+  const user = (userContract ?? loadUserContract())[subject] || null;
+  const filterEnabledTypes = (list) => (list || []).filter((t) => isLibEntryEnabled('render-contract', t));
+  const graphBase = on ? getGraphParts(subject, stage) : null;
+  const graphTypes = on
+    ? (user?.graphTypes && user.graphTypes.length
+      ? filterEnabledTypes(user.graphTypes)
+      : (graphBase ? filterEnabledTypes(graphBase.types) : []))
+    : [];
+  const graph = on && !!graphBase;
+  const formula = on && (user ? !!user.formula : getFormulaNeeded(subject, stage));
+  const image = on && (user && 'image' in user ? !!user.image : true);
+  return { on, graph, graphTypes, formula, image };
+}
+
+/**
  * 构建渲染指令契约段（三维度注入：学段 × 学科 × 类型/配图）
  * 用户自定义契约（RenderContractView 编辑、localStorage 存储）在此优先覆盖内置：
  *   - graphTypes：覆盖该学科的 [GRAPH] TYPE 集合
  *   - formula：覆盖是否注入 $..$ 公式
- * @param {Object} opts { subject(学科), genType(资料类型), needsImage(是否配图), stage(学段键), userContract(用户契约，默认从 localStorage 读取) }
- * @returns {string} 空串 = 无需渲染指令
+ *   - image：覆盖是否注入 [IMAGE] 配图契约
+ * @param {Object} opts { subject(学科), genType(资料类型), stage(学段键), userContract(用户契约，默认从 localStorage 读取) }
+ * @returns {string} 空串 = 无需渲染指令（仅"学科契约被停用"一种情形）
  */
 const USER_CONTRACT_KEY = 'wisdom_render_contract_v1';
 const loadUserContract = () => {
@@ -315,42 +349,30 @@ const loadUserContract = () => {
   try { return JSON.parse(localStorage.getItem(USER_CONTRACT_KEY) || '{}'); } catch { return {}; }
 };
 
-export function buildRenderContract({ subject = '', genType = '', needsImage = false, stage = '', userContract } = {}) {
-  // 工具库条目开关：学科契约整条停用（subj:学科）→ 该学科不注入任何图形/公式/配图契约
-  if (subject && !isLibEntryEnabled('render-contract', `subj:${subject}`)) return '';
+export function buildRenderContract({ subject = '', stage = '', userContract } = {}) {
+  const cap = resolveMarkCapability({ subject, stage, userContract });
+  if (!cap.on) return '';
+  const typeLabel = cap.graphTypes.length ? cap.graphTypes.join('/') : '';
+  // 无任何标记能力（用户在渲染契约库把该学科图形/公式/配图全关）→ 本段不注入；
+  // 正文侧同一判定（resolveMarkCapability）亦不提任何标记 —— 两侧恒等，不存在"要求悬空"。
+  if (!typeLabel && !cap.formula && !cap.image) return '';
   const parts = [];
-  const user = userContract ?? loadUserContract();
-  const userForSubject = user[subject] || null;
-  const graph = getGraphParts(subject, stage);
-  const formulaNeeded = getFormulaNeeded(subject, stage);
-  if (!graph && !formulaNeeded && !needsImage && !userForSubject) return '';
-
-  // 用户自定义覆盖内置（仅当用户定义了该学科的契约才生效）；TYPE 在工具库被停用时剔除
-  const filterEnabledTypes = (list) => (list || []).filter((t) => isLibEntryEnabled('render-contract', t));
-  const graphTypes = userForSubject?.graphTypes && userForSubject.graphTypes.length
-    ? filterEnabledTypes(userForSubject.graphTypes)
-    : (graph ? filterEnabledTypes(graph.types) : []);
-  const formula = userForSubject ? !!userForSubject.formula : formulaNeeded;
-  // 用户显式定义了配图开关则覆盖题型关键词判定（否则按内置 needsImage）
-  const image = userForSubject && 'image' in userForSubject ? !!userForSubject.image : needsImage;
-
-  if (graphTypes.length || graph || image || userForSubject) {
-    // 🔧 段头注入条件含"配图"场景（历史缺陷：仅 graph 时注入，配图-only 无段头 → 格式说明悬空）
-    parts.push('【渲染指令（EduRender Studio 格式，渲染端可直接解析；仅需图/公式/配图时输出，不计题量）】');
-    const typeLabel = graphTypes.length ? graphTypes.join('/') : '';
-    if (typeLabel) {
-      if (/COORDINATE|SHAPES/.test(typeLabel)) {
-        parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${typeLabel}；${GRAPH_AXIS_PARAMS}。图形数据必须与题干完全一致。`);
-      } else {
-        parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${typeLabel}。图形数据必须与题干完全一致。`);
-      }
-      parts.push(...(graph ? graph.parts : []));
+  // 🔧 段头：2026-09-17 改"按需输出，图块随题、不单独计题"——原"仅需图/公式/配图时输出，不计题量"
+  //    与正文"该图是本题必不可少的内容、无图可看则该题不可作答"语义相抵（把图讲成可挂可不挂的载荷，
+  //    模型倾向保守不出图）。图块随题、不单独计题的口径两处一致。
+  parts.push('【渲染指令（EduRender Studio 格式，渲染端可直接解析；按需输出，图块随题、不单独计题）】');
+  if (typeLabel) {
+    if (/COORDINATE|SHAPES/.test(typeLabel)) {
+      parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${typeLabel}；${GRAPH_AXIS_PARAMS}。图形数据必须与题干完全一致。`);
+    } else {
+      parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${typeLabel}。图形数据必须与题干完全一致。`);
     }
+    parts.push(...(cap.graph ? (getGraphParts(subject, stage)?.parts || []) : []));
   }
-  if (formula) {
+  if (cap.formula) {
     parts.push(FORMULA_RULES);
   }
-  if (image) {
+  if (cap.image) {
     parts.push(`· 配图（看图/配图题）用 [IMAGE]...[/IMAGE]，每图一个、单独成段，图内无字、不暗示答案，PROMPT 画面要素须与题干情境严格一致（人物/场景/数量与题干吻合，不得另起无关画面）——**数量必须写明且与题干一致**（如题干"三只"，画面描述须写"三只"）：`);
     parts.push(IMAGE_SAMPLE);
     parts.push(`· 或图标检索（图标/标识类场景用 TYPE:ICON）：`);
@@ -359,47 +381,25 @@ export function buildRenderContract({ subject = '', genType = '', needsImage = f
   return `\n\n${parts.join('\n')}`;
 }
 
-/**
- * 判定某资料/大题是否注入 [IMAGE] 格式契约（2026-09 解耦版，非配图诱导）：
- *  - 格式契约 = "能力就绪"：告知模型若输出 [IMAGE] 时的标准格式（PROMPT/TYPE:ICON 骨架）。
- *    是否真的配图由正文【图-题一致性】条款裁定（题干声明看图/读图/图表依赖 → 必须输出且要素一致；
- *    题干未声明 → 不得输出、不虚构图语）。两者已解耦：注入契约 ≠ 要求配图。
- *  - 题类/图文型资料（practice/special/preview/reading/dictation）在生成中可能自然出现看图/配图题
- *    （题干由模型拟定，无法预知），故默认注入格式能力，模型"会按格式输出"；
- *  - exam 及题干文本含图依赖词的同样注入；
- *  - 纯文字内容型（summary/review/errorbook）不默认注入（无图题场景），命中图词才注入。
- */
-const IMAGE_CAPABLE_TYPES = new Set(['practice', 'special', 'preview', 'reading', 'dictation']);
-
-export function needsImageHint(text = '', genType = '') {
-  if (genType && IMAGE_CAPABLE_TYPES.has(genType)) return true;
-  return IMAGE_HINT_RE.test(String(text || ''));
-}
+/* 🔴 2026-09-17 用户裁定：原 needsImageHint（按资料类型白名单 + 文本关键词判"要不要给 [IMAGE] 骨架"）
+ *   与 buildNeedsImageText（三入口拼提示文本）**整条撤除**——
+ *   · 病根：那是"第二把尺子"。正文对图的要求是**原则式**（该题作答是否需要图中信息，题干怎么措辞都算），
+ *     程序侧却按"结构/类型/范围/章节名有没有图词"猜，两把尺子必然错位：实测 675 组合里 267 组合
+ *     正文点名 [IMAGE]/指向【渲染指令】而 system 侧无对应骨架/整段缺失（假指针 + 悬空要求）。
+ *   · 新口径：能力就绪（resolveMarkCapability），凡学科契约开启即给骨架，与正文同一判定；
+ *     "文本是否含图词"不再是能力开关，**校验侧**仍认 FIGURE_DEPENDENCY_RE（examValidator 2j-3 缺图探针）。
+ *   · 附带收益：A21 当初的治理对象——"三入口各自拼文本 → 面板预览与实际下发漂移"——随文本信号撤除而消失。 */
 
 /**
- * 配图判定提示文本·单源（A21，2026-09-14 用户同意）
+ * 能力判定**签名**（工具库开关 + 用户自定义契约）：供 promptLibrary 的 cell 预生成缓存判新旧用。
  * ============================================================
- * 为什么必须单源：needsImageHint 是**纯文本匹配**——喂什么文本，决定要不要注入图形/配图能力。
- *   生成端有三个入口（组装 loadInstructionFromLibrary / 恢复默认 restoreDefaultInstruction /
- *   生成前刷新 refreshProgramAttach），若各自拼各自的提示文本，同一份渲染契约就会在
- *   "面板预览"与"实发"之间漂移（预览不配图、实际配图；反之亦然）——即"看到的是一套、发的是另一套"。
- * 口径：把四类**可能含图依赖词**的信号全部拼上——卷面结构（蓝图大题序列，如"一、观察与实验"）
- *   + 资料类型名 + 范围维度名 + 章节名（勾选章节 + 全册目录，如"图形的运动""观察物体"）。
- *   needsImageHint 属"能力注入（注入契约 ≠ 要求配图）"，多注入无害（见上方注释）。
- * 注意：不要把"轮换后的范围名（unit，如'期中素养检测'）"纳入——它只在组装路径可得，
- *   纳入会造成"组装有、刷新无"的**新**漂移；范围维度名（scopeType 标签）三处均可得，故用它。
- * @param {object} o
- * @param {string} [o.structure] 卷面结构文本（exam 取蓝图大题序列）
- * @param {string} [o.typeLabel] 资料类型名（如"期末考卷"/"同步练习"）
- * @param {string} [o.scopeName] 范围维度名（如"期中"/"期末"/"单元"）
- * @param {string} [o.chapters] 章节名文本（勾选章节 + 全册目录）
- * @returns {string} 提示文本（各段去空后用单空格连接）
+ * 为什么需要它：标记能力（resolveMarkCapability）现在是**委托正文**的输入之一（正文点名哪几个标记）。
+ *   而指令库 cell（486 条）是模块加载期预生成的——用户在运行期改了工具库开关或渲染契约库的自定义项后，
+ *   若 cell 不重建，"正文点名 [IMAGE]/[GRAPH]"会与"实际注入的骨架"再次不同源（正是本轮治理的不变量）。
+ *   ⚠️ 判定本身仍是单源 resolveMarkCapability；本函数只回答"能力有没有变"，不参与判定。
  */
-export function buildNeedsImageText({ structure = '', typeLabel = '', scopeName = '', chapters = '' } = {}) {
-  return [structure, typeLabel, scopeName, chapters]
-    .map((s) => String(s || '').trim())
-    .filter(Boolean)
-    .join(' ');
+export function markCapabilitySignature() {
+  return JSON.stringify([loadLibToggles(), loadUserContract()]);
 }
 
 /** 导出示例骨架（渲染契约库展示用；纯导出，不影响生成逻辑） */
@@ -417,5 +417,5 @@ export const GRAPH_SAMPLES = {
 
 export default {
   GRAPH_TYPES, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES,
-  buildRenderContract, needsImageHint, buildNeedsImageText, GRAPH_SAMPLES, FIGURE_DEPENDENCY_RE,
+  buildRenderContract, resolveMarkCapability, markCapabilitySignature, GRAPH_SAMPLES, FIGURE_DEPENDENCY_RE,
 };

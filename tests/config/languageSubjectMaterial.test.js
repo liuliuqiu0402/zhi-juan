@@ -82,9 +82,9 @@ describe('教材口径·双向开放（不钉死来源）', () => {
 
   it('图依赖题：注入"必须输出 [IMAGE] 块、不得用文字描述替代"的硬要求', () => {
     const t = tpl('英语', 'primary_high', 'practice');
-    expect(t).toContain('必须在题干后紧跟输出 [IMAGE] 块');
+    expect(t).toContain('必须在题干后按注入的【渲染指令】紧跟输出');
     expect(t).toContain('严禁');
-    expect(t).toContain('文字描述替代 [IMAGE] 块');
+    expect(t).toContain('文字描述替代图块');
   });
 
   it('阅读训练：阅读材料须为课外材料、不得沿用教材原文（课标课外阅读量刚需，非"限死来源"）', () => {

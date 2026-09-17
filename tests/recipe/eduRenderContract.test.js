@@ -5,10 +5,14 @@
 //    - 指令库内置学科×类型模板：按学科全面完善（命题要点+排版，非仅排版行）
 // ============================================================
 import { describe, it, expect } from 'vitest';
-import { buildRenderContract, needsImageHint, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES } from '@/config/eduRenderContract.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { buildRenderContract, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES } from '@/config/eduRenderContract.js';
 import { getPromptTemplate, listPromptTemplates } from '@/config/promptLibrary.js';
 import { buildValidatorPrompt } from '@/config/validatorRules.js';
 import { setLibToggle } from '@/utils/libToggles.js';
+
+const ROOT = path.resolve(__dirname, '../..');
 
 describe('EduRender 渲染契约（三维度注入）', () => {
   it('图形学科（数学）注入 [GRAPH] 说明', () => {
@@ -103,16 +107,18 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     expect(out).toContain('\\frac');
   });
 
-  it('学段门控：物理仅初中及以上注入（小学无物理）', () => {
-    expect(buildRenderContract({ subject: '物理', genType: 'exam', stage: 'primary_low' })).toBe('');
+  it('学段门控：物理/化学的 [GRAPH] 仅初中及以上（小学无物理化学）；配图能力就绪与学段无关', () => {
+    const phyLow = buildRenderContract({ subject: '物理', genType: 'exam', stage: 'primary_low' });
+    expect(phyLow, '小学无物理 → 不给 [GRAPH] 能力').not.toContain('[GRAPH]');
+    expect(phyLow, '不注入公式').not.toContain('\\frac');
     const out = buildRenderContract({ subject: '物理', genType: 'exam', stage: 'middle' });
     expect(out).toContain('TYPE:FORCE');
     expect(out).toContain('TYPE:CIRCUIT');
     expect(out).toContain('TYPE:OPTICS');
   });
 
-  it('学段门控：化学仅初中及以上注入 ATOM', () => {
-    expect(buildRenderContract({ subject: '化学', genType: 'exam', stage: 'primary_low' })).toBe('');
+  it('学段门控：化学 [GRAPH] 仅初中及以上注入 ATOM；小学段只留配图能力', () => {
+    expect(buildRenderContract({ subject: '化学', genType: 'exam', stage: 'primary_low' })).not.toContain('TYPE:ATOM');
     expect(buildRenderContract({ subject: '化学', genType: 'exam', stage: 'high' })).toContain('TYPE:ATOM');
   });
 
@@ -134,8 +140,14 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     expect(out).toContain('与题干情境严格一致');
   });
 
-  it('无需图/公式的学科（体育）不注入渲染指令（保持指令精简）', () => {
-    expect(buildRenderContract({ subject: '体育', genType: 'exam' })).toBe('');
+  it('无图形能力的学科（体育）只注入配图契约、不给 [GRAPH]（能力就绪 ≠ 无脑全给）', () => {
+    // 🔴 2026-09-17 口径：配图能力就绪（学科契约开启即给）——体育同样可能有"看动作示意图"类题，
+    //    而委托正文（QUESTION_FORMAT）对全部题类都含"图随题"原则式要求；若此处不给骨架，
+    //    就成"正文点名 [IMAGE] 而 system 无骨架"的悬空（原断言 toBe('') 即该悬空之源）。
+    //    仍不给 [GRAPH]：该学科无图形能力（SUBJECT_GRAPH_PARTS 未登记），正文侧同一判定也不点名 [GRAPH]。
+    const out = buildRenderContract({ subject: '体育', genType: 'exam' });
+    expect(out).toContain('[IMAGE]');
+    expect(out).not.toContain('[GRAPH]');
   });
 
   it('历史学科已补 GRAPH 契约（统计/数据图）', () => {
@@ -175,21 +187,17 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     expect(yesImage).toContain('[IMAGE]');
   });
 
-  it('needsImageHint 解耦口径（2026-09）：题类默认注入格式契约（能力就绪，非配图要求）', () => {
-    // 题类/图文型资料在生成中可能自然出现看图/配图题（题干由模型拟定、无法预知）→ 默认注入格式能力；
-    // 是否真的配图由正文"图-题一致性"条款裁定（题干声明图依赖才出图、未声明不虚构图语）
-    expect(needsImageHint('第二单元 词语练习', 'practice')).toBe(true);
-    expect(needsImageHint('第二单元 词语练习', 'preview')).toBe(true);
-    expect(needsImageHint('第二单元 词语练习', 'reading')).toBe(true);
-    expect(needsImageHint('第二单元 词语练习', 'special')).toBe(true);
-    expect(needsImageHint('第二单元 词语练习', 'dictation')).toBe(true);
-    // 纯文字内容型不默认注入；命中题干图依赖词才注入
-    expect(needsImageHint('第二单元 词语练习', 'summary')).toBe(false);
-    expect(needsImageHint('第二单元 词语练习', 'review')).toBe(false);
-    expect(needsImageHint('第二单元 词语练习', 'errorbook')).toBe(false);
-    expect(needsImageHint('看图写话：观察图片写几句话', 'summary')).toBe(true);
-    expect(needsImageHint('读统计图，回答问题', 'summary')).toBe(true);
-    expect(needsImageHint('连一连', 'exam')).toBe(false);
+  it('配图能力就绪口径（2026-09-17）：与资料类型、文本关键词**均无关**，仅学科契约可关', () => {
+    // 旧实现（needsImageHint：类型白名单 practice/special/preview/reading/dictation + 文本关键词）
+    // 已撤除——那是与正文"原则式判据"并存的第二把尺子，实测造成 267 组合"正文点名 [IMAGE] 而
+    // system 无骨架/整段缺失"。现口径：凡学科契约开启即给骨架，是否真配图由正文裁定。
+    for (const genType of ['practice', 'special', 'preview', 'reading', 'dictation', 'exam', 'errorbook', 'review', 'summary']) {
+      expect(buildRenderContract({ subject: '语文', genType, stage: 'primary_mid' }), `${genType} 能力就绪：应给 [IMAGE] 骨架`).toContain('[IMAGE]');
+    }
+    // 旧判定不得回退（函数与其关键词表都已从生成侧撤除；注释留痕允许，故按定义式锚定）
+    const src = fs.readFileSync(path.join(ROOT, 'src/config/eduRenderContract.js'), 'utf8');
+    expect(src).not.toMatch(/export function needsImageHint/);
+    expect(src).not.toMatch(/const IMAGE_HINT_RE\s*=/);
   });
 });
 
@@ -241,10 +249,15 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
       const math = getPromptTemplate({ grade: g, subject: '数学', genType: 'exam' });
       expect(math.template, `数学不应含拼音注音示例 (háng xíng)`).not.toContain('háng xíng');
     }
-    // 分值半角规范已收敛至规则库（score-label-fix 承载，exam 注入），模板通道不再重复（单一事实源）
+    // 分值括号规范已收敛至规则库（score-label-fix 承载，exam 注入），模板通道不再重复（单一事实源）
+    // 🔴 2026-09-17 口径改为**全角**：原"一律半角括号…不得用中文全角括号"与同一份提示词里委托正文的
+    //    两处全角示范、以及程序侧 fixScoreLabel 的确定性改写（写"（每空X分）"）三处相抵，已统一为全角。
     const eng = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'exam' });
+    const scoreRule = buildValidatorPrompt({ subject: '英语', stage: 'primary_mid', genType: 'exam' });
+    expect(scoreRule).toContain('分值标注用中文全角括号');
+    expect(scoreRule, '半角禁令不得回潮').not.toContain('不得用中文全角括号做分值标注');
+    // 模板侧与委托正文示例同形（全角），不再出现半角示例
     expect(eng.template).not.toContain('分值标注一律半角括号');
-    expect(buildValidatorPrompt({ subject: '英语', stage: 'primary_mid', genType: 'exam' })).toContain('分值标注一律半角括号');
     const yw = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
     expect(yw.template).not.toContain('háng xíng'); // 模板通道不含拼音示例（拼音约束走规则库注入）
   });

@@ -350,10 +350,13 @@
     <div class="rule-grid">
       <div class="rule-card">
         <b>[IMAGE] 配图</b>
-        <p>触发关键词：<code>{{ IMAGE_KEYWORDS.join(' / ') }}</code></p>
-        <p>注入格式能力的类型：practice / special / preview / reading / dictation（能力就绪，非配图要求）</p>
+        <p>注入条件：<b>学科契约开启即注入</b>（能力就绪；全部资料类型，不按关键词/类型收窄）</p>
+        <p>关闭方式：本页学科契约里的"配图（[IMAGE]）"关闭，或整条停用该学科契约</p>
         <p class="note">
-          格式契约 = 能力就绪：模型"会按 [IMAGE] 格式输出"；是否真的配图由正文图-题一致性条款裁定（题干声明看图/读图/统计图/图表依赖才出图；未声明不输出、不虚构图语）。
+          格式契约 = 能力就绪：模型"会按 [IMAGE] 格式输出"；是否真的配图由正文「图-题一致性」条款裁定（该题作答需要图中信息才出图、且在题干后紧跟 [IMAGE] 块；不需要则不配图、不写图语）。
+        </p>
+        <p class="note">
+          🔴 2026-09-17：原"按关键词/资料类型触发"的能力判定已撤除——判据是"该题作答是否需要图中信息"（原则式，题干怎么措辞都算），程序侧不再用关键词猜，以免出现"正文点名 [IMAGE] 而 system 不给骨架"（模型只能写文字图语）或反过来的悬空。
         </p>
       </div>
       <div class="rule-card">
@@ -434,7 +437,7 @@
 <script setup>
 import { computed, inject, ref, watch, nextTick } from 'vue';
 import { useRoute } from 'vue-router'; // 来源分段标注 → /tools/render-contract?focus=<学科>
-import { GRAPH_TYPES, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES, GRAPH_SAMPLES, needsImageHint } from '../../../config/eduRenderContract.js';
+import { GRAPH_TYPES, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES, GRAPH_SAMPLES } from '../../../config/eduRenderContract.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 import { setLibToggle, listDisabledEntries } from '../../../utils/libToggles.js';
@@ -454,7 +457,8 @@ const GRAPH_TYPE_DESC = {
   BAR_CHART: '柱状统计图', LINE_CHART: '折线统计图', PIE_CHART: '饼状统计图',
   FORCE: '受力分析图', CIRCUIT: '电路图', OPTICS: '光路图', ATOM: '原子结构图',
 };
-const IMAGE_KEYWORDS = ['看图', '写话', '配图', '听音', '观察', '绘画', '绘图', '识图', '读图', '统计图', '图形', '图表', '示意', '地图', '结构'];
+// 🔴 2026-09-17：原 IMAGE_KEYWORDS（"看图/写话/配图/听音…"关键词表，用于说明能力触发口径）**已撤**——
+//    能力注入不再由关键词判定（见下方学科契约 image 默认值与 eduRenderContract.resolveMarkCapability）。
 
 /* ===== 图形 TYPE 目录 ===== */
 const typeList = GRAPH_TYPES.map((id) => ({
@@ -507,7 +511,9 @@ const allContract = SUBJECT_KEYS.map((subject) => {
   const user = loadUser()[subject];
   const graphTypes = user ? (user.graphTypes || []) : (SUBJECT_GRAPH_TYPES[subject] || []);
   const formula = user ? !!user.formula : MATH_SUBJECTS.includes(subject);
-  const image = user ? !!user.image : needsImageHint(`${subject} 看图配图听音观察`, 'exam');
+  // 🔴 2026-09-17：配图能力默认开（能力就绪）——判据是"该题作答是否需要图中信息"（正文原则式条款裁定），
+  //    程序侧不再按关键词/资料类型猜（原 needsImageHint 已撤）；此处默认值与生成端同一口径。
+  const image = user && 'image' in user ? !!user.image : true;
   // 缺口：蓝本引用了 [GRAPH] 但学科无契约（历史已在 2026-08 补齐）
   const missing = false;
   return {
@@ -528,9 +534,10 @@ const getStageEffect = (subject, stage) => {
 };
 const getTypeEffect = (genType) => {
   if (!genType) return '';
-  // 2026-09 解耦：题类默认注入格式契约（能力就绪），是否出图由正文图-题一致性条款裁定
-  const capable = ['practice', 'special', 'preview', 'reading', 'dictation'].includes(genType);
-  return capable ? '注入图片格式契约（能力就绪；出图与否由题干图依赖裁定）' : '不默认注入（命中图依赖词才注入）';
+  // 🔴 2026-09-17：类型维度**不再影响**配图能力（原按 practice/special/preview/reading/dictation 白名单收窄，
+  //    与其正文本就带"图随着题"原则式要求相抵）——凡学科契约开启即注入格式契约（能力就绪）；
+  //    是否真出图由题干是否依赖图中信息裁定（正文条款），不由类型决定。
+  return '与资料类型无关：学科契约开启即注入图片格式契约（能力就绪；出图与否由题干是否依赖图中信息裁定）';
 };
 
 /* 全部/启用/停用 状态筛选（点击计数过滤列表） */

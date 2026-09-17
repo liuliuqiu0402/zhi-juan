@@ -1,7 +1,7 @@
 // 临时验证：生成链路拼装是否完整（不调模型，确定性检查各库注入段）
 import { describe, it, expect } from 'vitest';
 import { getPromptTemplate, buildStructureText } from '../../src/config/promptLibrary.js';
-import { buildRenderContract, needsImageHint } from '../../src/config/eduRenderContract.js';
+import { buildRenderContract } from '../../src/config/eduRenderContract.js';
 import { buildValidatorPrompt } from '../../src/config/validatorRules.js';
 import { getExamBlueprint } from '../../src/config/examPaperBlueprints.js';
 
@@ -17,7 +17,7 @@ describe('生成链路拼装验证（不调模型）', () => {
   });
 
   it('渲染契约/质检规则/蓝图注入均非空且按三维度命中', () => {
-    const rc = buildRenderContract({ subject: '语文', genType: 'exam', stage: 'primary_low', needsImage: needsImageHint('看图写话 表达与交流', 'exam') });
+    const rc = buildRenderContract({ subject: '语文', stage: 'primary_low' });
     const vp = buildValidatorPrompt({ subject: '语文', stage: 'primary_low', genType: 'exam' });
     const bp = getExamBlueprint('语文', 'primary_low');
     const bi = bp ? buildStructureText(bp) : '';

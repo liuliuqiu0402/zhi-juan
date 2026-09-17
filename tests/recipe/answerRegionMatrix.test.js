@@ -86,7 +86,7 @@ describe('矩阵：算式填空位（方框/圆圈）仅数学注入', () => {
       if (subject === '数学') {
         it(`数学·${stage} 注入算式填空位条款`, () => {
           expect(s).toContain('缺数/填数算式填空位』（如 3＋□＝8、□×□＝12 里待填的数）用方框或圆圈呈现，不用下划线空位');
-          expect(s).toContain('等号后的得数结果位』（算式求出、写在等号后的得数所在位）一律在等号后直接留白书写，不使用方框、不用圆圈、不用括号');
+          expect(s).toContain('等号后的得数结果位』（算式求出、写在等号后的得数所在位）：只需直接写出得数、无需书写过程的，在等号后直接留白书写');
         });
       } else {
         it(`${subject}·${stage} 不注入算式填空位条款（防跨学科广播）`, () => {
@@ -150,14 +150,14 @@ describe('矩阵：9 资料类型注入面（question 7 类带作答空间语义
   for (const g of QUESTION_TYPES) {
     it(`question 型 ${g}：通用模板含作答空间语义与禁占位句`, () => {
       const t = getPromptTemplate({ genType: g });
-      expect(t.template).toContain('作答空间形态按答案类型匹配');
+      expect(t.template).toContain('作答空位形态与所填内容相称');
       expect(t.template).toContain('严禁用"答：""作答区"等文字充当或预置作答空间');
     });
   }
   for (const g of CONTENT_TYPES) {
     it(`content 型 ${g}：不带作答空间语义（结构化呈现）`, () => {
       const t = getPromptTemplate({ genType: g });
-      expect(t.template).not.toContain('作答空间形态按答案类型匹配');
+      expect(t.template).not.toContain('作答空位形态与所填内容相称');
     });
   }
 });

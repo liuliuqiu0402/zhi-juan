@@ -224,7 +224,7 @@ export const styleOptions = [
     appliesTo: ['practice', 'special', 'reading', 'review'], required: false },
   // ── 呈现风格组（以内容组织为主的资料：内容的呈现方式）──
   { group: 'presentation', value: 'mindmap', label: '导图式', desc: '知识梳理',
-    tip: '按概念关系组织条目、主次分明（渲染端以嵌套列表呈现；关系复杂需图示化时用 [GRAPH] 占位，勿自造图形字符），便于记忆；适用于知识总结类资料。',
+    tip: '按概念关系组织条目、主次分明（渲染端以嵌套列表呈现；勿自造图形字符），便于记忆；适用于知识总结类资料。',
     appliesTo: ['summary'], required: false },
   { group: 'presentation', value: 'table', label: '表格化', desc: '对比/表格呈现',
     tip: '以表格对比呈现易混点与分类信息，清晰易读；适用于知识总结、复习梳理。',
@@ -278,7 +278,7 @@ export const styleInstructions = {
   'big_unit': '打破课时界限，围绕大概念整体组织，体现知识关联与递进。',
   'project_based': '以一个完整项目任务为驱动组织资料，考查真实问题中的综合能力。',
   'traditional': '按传统教辅体例组织：不设统一情境、不做形式化包装，以知识板块或题组为单位逐题命制，题目按本学科本学段通行形态设问、作答直接。',
-  'mindmap': '按概念关系组织条目、主次分明；关系复杂需图示化时用 [GRAPH] 占位，勿自造图形字符。',
+  'mindmap': '按概念关系组织条目、主次分明；勿自造图形字符。',
   'table': '以表格对比呈现信息，清晰易读，易混点用对比突出。',
   'context_chain': '以一个真实适切的大主题把各知识点串联呈现，脉络自然连贯。',
   'task_driven': '以问题链组织预习内容，可操作可检查，涉及本课时新知识点。',

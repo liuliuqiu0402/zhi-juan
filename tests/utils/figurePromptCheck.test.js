@@ -164,9 +164,11 @@ describe('契约文本锁定：PROMPT 须写明主体与数量', () => {
     expect(out).toContain('PROMPT:画面描述');
   });
 
-  it('图-题一致性条款要求写明主体与数量（且未回退成措辞清单）', () => {
+  it('数量要求只在【渲染指令】单一事实源；正文图条款只给判据与要求（不复述格式细节）', () => {
     const lib = read('src/config/promptLibrary.js');
-    expect(lib).toContain('须写明主体与数量');
+    // 🔴 2026-09-17：正文原复述"须写明主体与数量/图内无字/每图一段"等格式细节（与渲染指令双写）——已归单源
+    expect(lib, '正文不得再复述格式细节（防与渲染指令双写漂移）').not.toContain('须写明主体与数量');
+    expect(lib).toContain('按注入的【渲染指令】');
     expect(lib).toContain('不存在"图依赖措辞清单"');
   });
 

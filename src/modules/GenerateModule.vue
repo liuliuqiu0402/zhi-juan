@@ -3229,7 +3229,7 @@ import { getPromptTemplate, buildInjectionInstruction, buildStructureText, getCu
 import { materialChannelOf } from '../config/coverageContract.js'; // 📚 素材通道默认映射（auto 口径单一事实源，2026-09-14）
 import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructureText, buildSpecialDomainAnchorLine } from '../config/specialDomains.js'; // 🎯 专项领域注册库（学科×学段→栏目结构+课标语义锚）
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
-import { buildNeedsImageText } from '../config/eduRenderContract.js'; // ✅ A21：配图判定提示文本单源（三入口同参，防"预览不配图/实发配图"漂移）
+// ✅ A21 已撤（2026-09-17）：buildNeedsImageText / needsImageHint 不再参与能力判定（改为能力就绪，见 eduRenderContract.resolveMarkCapability）
 import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, advanceAutoColumnStyleId, getTeachingBlueprint, stripSourceMarkNote } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
 import { buildUserMessageBlocks } from '../utils/injectionManifest.js'; // ✅ A22：请求实发清单·单源（用户消息侧：锚点清单/素材约定/组织方式/输出约定/尾约束…与生成端同一份定义）
@@ -6187,36 +6187,12 @@ const exportKnowledgePoints = () => {
 
 // 🔴 生成指令：按三维度（年级×学科×资料类型）从指令库匹配模板并组装注入指令
 
-// ✅ A21 配图判定提示文本·单源（2026-09-14 用户同意）：三个入口（组装 loadInstructionFromLibrary /
-//    恢复默认 restoreDefaultInstruction / 生成前刷新 refreshProgramAttach）必须喂**同一份**提示文本——
-//    needsImageHint 是纯文本匹配，各拼各的会让同一份渲染契约在"面板预览"与"实发"之间漂移
-//    （预览不配图而实际配图、或反之）= 看到的是一套、发的是另一套。
-//    四类信号就地解析、三处共用：卷面结构（蓝图大题序列）+ 类型名 + 范围维度名 + 章节名（勾选 + 全册）。
-//    🔴 books 必须由调用方传入**同一来源**（逐章模式传单章过滤版）——否则章节名又会成为第二个漂移源。
-const resolveNeedsImageText = ({ books = [], genType = '' } = {}) => {
-  const book = books[0];
-  if (!book || !genType) return '';
-  const stageKey = resolveStageKey(book.stage, book.grade, book.name);
-  const subject = normalizeSubjectName(book.subject, stageKey);
-  let structure = '';
-  try {
-    const bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value, scopeType: scopeType.value });
-    if (bp) structure = buildStructureText(applyScoreAdjust(bp));
-  } catch { /* 无蓝图：结构留空，其余信号照给（能力注入、多注入无害） */ }
-  const scopeSource = books.find(b => (b.selectedChapters || []).length > 0) || books[0];
-  const titles = (list) => (list || []).map(c => c.title || c.name || '').filter(Boolean).join(' ');
-  // 范围名信号 = 范围维度名 + 用户选定/自定义的范围名（scopeOverride，可能直接写成章节名或
-  //   "看图写话专项"这类含图依赖词的自由文本）。不纳入"轮换后范围名 unit"：它仅组装路径可得，
-  //   纳入会造成"组装有、刷新无"的新漂移；scopeOverride 三处均可得，故用它。
-  const scopeName = [SCOPE_TYPE_LABELS[scopeType.value] || scopeType.value || '', scopeOverride.value]
-    .filter(Boolean).join(' ');
-  return buildNeedsImageText({
-    structure,
-    typeLabel: genTypeTemplates[genType]?.name || genType,
-    scopeName,
-    chapters: `${titles(scopeSource?.selectedChapters)} ${titles(scopeSource?.outline)}`,
-  });
-};
+// 🔴 2026-09-17（用户裁定）：原 A21「配图判定提示文本单源」（resolveNeedsImageText + buildNeedsImageText：
+//    由"卷面结构 + 类型名 + 范围维度名 + 章节名"拼文本喂 needsImageHint，决定是否注入 [IMAGE] 骨架）**整条撤除**。
+//    病因：正文对图的要求是原则式（该题作答是否需要图中信息，题干怎么措辞都算），程序侧却拿文本关键词猜，
+//    两把尺子必然错位——实测 675 个三维度组合里，115 组合"正文强制 [IMAGE] 而 system 无 [IMAGE] 骨架"、
+//    152 组合"正文说格式见【渲染指令】而该段根本没注入"。现口径：能力就绪（resolveMarkCapability）——
+//    凡学科契约开启即给骨架，与正文**同一判定**；"要不要真配图"仍由正文裁定。三个入口因此天然一致（无文本信号可漂移）。
 
 // 🧾 (ii) 2026-09-14：实发素材正文的**来源说明**——面板只有在拿到"最近一次生成真正发出的"清单/原文
 //    正文时才展示该正文；展示时必须如实交代这是哪一次生成的实发原文、当时口径是否仍与当前一致。
@@ -6402,17 +6378,14 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   }
   // 🔴 程序性附加段（渲染契约 + 质检规则 + 守门条款段级兜底）统一走 buildProgramAttach 单源：
   //    blocks=面板分段明细 / text=实发文本（system 注入），两出口同一份内容 —— 面板所见即实发。
-  //    ✅ A21：配图判定提示文本亦单源（resolveNeedsImageText），与"生成前刷新"入口同参。
-  const needsImageText = resolveNeedsImageText({ books: selectedBooks, genType });
+  //    ✅ A21 已撤（2026-09-17）：配图能力不再由"提示文本"判定，改为能力就绪（正文与 system 同一判定）
   attachBlocks.value = buildProgramAttachBlocks({
     subject, stageKey, genType,
-    needsImageText,
     instructionText: instructionDraft.value,
     attachInstructionKey: tpl.id || genType, // tplKey 在后文声明（TDZ 规避：内联同义表达式）
   });
   programAttachText.value = buildProgramAttach({
     subject, stageKey, genType,
-    needsImageText,
     instructionText: instructionDraft.value,
   });
   refreshUserMsgBlocks({ subject, genType }); // ✅ A22：用户消息侧实发清单（与生成端单源）
@@ -6493,17 +6466,14 @@ const restoreDefaultInstruction = async () => {
   }
   // 🔴 程序性附加段（渲染契约/质检规则/格式兜底）不进委托正文——统一走 buildProgramAttach，随写作请求 system 注入
   //    分段明细同源产出（面板逐段可点跳库），渲染契约/规则存在时注入来源清单同步展示（与 loadInstructionFromLibrary 口径一致）
-  //    ✅ A21：配图判定提示文本亦单源（resolveNeedsImageText）——本入口不再自行拼文本
-  const needsImageText = resolveNeedsImageText({ books: selectedBooks, genType });
+  //    ✅ A21 已撤（2026-09-17）：配图能力不再由"提示文本"判定（见文件头说明）
   attachBlocks.value = buildProgramAttachBlocks({
     subject, stageKey, genType,
-    needsImageText,
     instructionText: instructionDraft.value,
     attachInstructionKey: genType,
   });
   programAttachText.value = buildProgramAttach({
     subject, stageKey, genType,
-    needsImageText,
     instructionText: instructionDraft.value,
   });
   refreshUserMsgBlocks({ subject, genType }); // ✅ A22：用户消息侧实发清单（与生成端单源）
@@ -6552,16 +6522,14 @@ const refreshProgramAttach = () => {
   const subject = normalizeSubjectName(book.subject, stageKey);
   const genType = genTypes.value?.[0];
   if (!genType) return;
-  // ✅ A21：配图判定提示文本单源——原先此处拼「章节名 + 类型名」、组装处拼「结构 + 类型名 + 范围名」，
-  //    同一份渲染契约会在"面板预览"与"实发"之间漂移（预览不配图、实际配图），故收敛到单源同参
-  const needsImageText = resolveNeedsImageText({ books, genType });
+  // ✅ A21 已撤（2026-09-17）：配图能力不再由"提示文本"判定——三入口不再有可漂移的文本信号
   attachBlocks.value = buildProgramAttachBlocks({
-    subject, stageKey, genType, needsImageText,
+    subject, stageKey, genType,
     instructionText: instructionDraft.value,
     attachInstructionKey: genType,
   });
   programAttachText.value = buildProgramAttach({
-    subject, stageKey, genType, needsImageText,
+    subject, stageKey, genType,
     instructionText: instructionDraft.value,
   });
   refreshUserMsgBlocks({ subject, genType }); // ✅ A22：用户消息侧实发清单（与生成端单源）

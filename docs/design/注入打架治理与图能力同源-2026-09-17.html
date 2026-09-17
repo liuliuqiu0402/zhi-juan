@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>注入打架治理与图能力同源（675 组合实发审计）</title>
+<style>
+  :root { --ink:#1f2328; --muted:#5b6570; --line:#e3e6ea; --bg:#fbfcfd;
+          --red:#b42318; --redbg:#fef3f2; --amber:#8a5a00; --amberbg:#fff8e6; --green:#116329; --greenbg:#f0f9f2; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px 28px 64px; background:var(--bg); color:var(--ink);
+         font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei","PingFang SC","Microsoft YaHei",sans-serif;
+         font-size:14px; line-height:1.7; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  h2 { font-size:18px; margin:34px 0 10px; padding-bottom:6px; border-bottom:2px solid var(--line); }
+  h3 { font-size:15px; margin:22px 0 8px; }
+  .lead { color:var(--muted); margin:0 0 18px; }
+  .box { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin:10px 0 18px; }
+  .box.warn { background:var(--amberbg); border-color:#f0d9a8; }
+  .box.hot { background:var(--redbg); border-color:#f2c9c4; }
+  .box.ok { background:var(--greenbg); border-color:#bfe3c9; }
+  ul { margin:6px 0 6px 20px; padding:0; }
+  li { margin:3px 0; }
+  table { width:100%; border-collapse:collapse; background:#fff; font-size:13px; margin:8px 0 4px; }
+  th, td { border:1px solid var(--line); padding:7px 9px; vertical-align:top; text-align:left; }
+  th { background:#f4f6f8; font-weight:600; white-space:nowrap; }
+  code { background:#f3f5f7; border-radius:3px; padding:1px 4px; font-size:12.5px; }
+  .tag { display:inline-block; border-radius:3px; padding:0 6px; font-size:12px; white-space:nowrap; }
+  .t-hot { background:var(--redbg); color:var(--red); }
+  .t-mid { background:var(--amberbg); color:var(--amber); }
+  .t-ok { background:var(--greenbg); color:var(--green); }
+  .n { color:var(--muted); font-size:12.5px; }
+  del { color:#8a8f95; }
+</style>
+</head>
+<body>
+
+<h1>注入打架治理与图能力同源（675 组合实发审计）</h1>
+<p class="lead">2026-09-17 · 触发：题图一致条款"写得太复杂"之问 + 要求"实发给模型的拼接内容里有没有打架/自相矛盾/写得很复杂的地方，以三维度注入的角度实际查"。
+方法：三维度**全枚举**（15 科 × 5 学段 × 9 类型 = 675 组合）实打实拼装"委托正文 + 程序附加段"，机械比对 + 逐份读原文，再按"经得住推敲"逐条处置。</p>
+
+<div class="box ok">
+  <b>状态：已执行（2026-09-17）</b>——10 处打架全部处置（其中 4 处为高影响），全量测试 <b>2039</b> 项 / 145 文件通过。
+  新增守卫：<code>tests/recipe/injectionMarkSync.test.js</code>（7 项，把"正文点名标记 ⇔ system 给骨架"的悬空数钉死为 0）；
+  撤除：<code>tests/config/needsImageTextSingleSource.test.js</code>（其治理对象随文本信号撤除而消失，见 B3）。
+</div>
+
+<h2>A. 打架清单（实查所得 10 处）</h2>
+<p class="n">判据：同一份实发文本内，两条以上条款对同一件事给出**不能同时满足**或**互相抵消**的说法；或正文点名了 system 侧并不存在的东西（悬空／假指针）。</p>
+
+<table>
+<thead><tr><th>#</th><th>打架点</th><th>双方怎么说</th><th>影响（实测）</th><th>处置</th></tr></thead>
+<tbody>
+<tr>
+  <td>①</td><td><b>大题标题三方互斥</b><span class="tag t-hot">高</span></td>
+  <td>(a) <code>EXAM_BASE</code> 卷面结构段：大题标题须你按作答方式<b>自拟</b>、不要照抄结构名；<br>(b) 同文件卷面格式段：题型名<b>取自</b>【卷面结构】中"X、题型名"；<br>(c) <code>validatorRules</code> <code>title-detail-fix</code>：大题标题用明细式…（<b>按【卷面结构】</b>）</td>
+  <td>上一轮只改了 (a)，(b)(c) 反向拉着 → 模型走最省力路径照抄蓝图名（实测十个大题标题与蓝图逐字一致）</td>
+  <td>(b) 改为"由你按本大题实际作答方式自拟；<b>不是</b>照抄它行首的调研分类名"；(c) 删去"（按【卷面结构】）"，题量/分值改为"按你实际命制给出"</td>
+</tr>
+<tr>
+  <td>②</td><td><b>分值括注全角/半角互斥</b><span class="tag t-hot">高</span></td>
+  <td>正文两处示范全角（每题2分，共10分）、（每空1分，共21分）；<code>score-label-fix</code> 明文"一律半角括号…<b>不得用中文全角括号</b>"</td>
+  <td>同一份 prompt 一处示范、一处禁止；且程序侧 <code>fixScoreLabel</code> 的确定性改写写的正是<b>全角</b>（"（每空X分）"），解析侧 <code>themeConfig/parseSectionScore</code> 两种括号均兼容 → 禁令那条才是孤例</td>
+  <td>统一为 <b>全角</b>（3:1 且与程序实际写出形态一致）：规则句改"分值标注用中文全角括号…与卷面其余括注同形"</td>
+</tr>
+<tr>
+  <td>③</td><td><b>[IMAGE] 要求与能力不同源</b><span class="tag t-hot">高</span></td>
+  <td>正文图条款对全部题类全学科"<b>必须</b>紧跟输出 [IMAGE] 块…格式见注入的【渲染指令】"（判据还是<b>原则式</b>：题干怎么措辞都算）；骨架只在 <code>needsImageHint</code>（类型白名单+文本关键词）命中时给</td>
+  <td><b>115</b> 组合正文强制 [IMAGE] 而 system 无 [IMAGE] 骨架（数学·初中·exam、物理·高中·exam 等）→ 模型只能写"根据图片提示…"文字图语或省块 = "看图类题不出图"的<b>注入侧根因</b></td>
+  <td>能力判定单源化：<code>resolveMarkCapability</code>（正文与 system 同一判定）＋配图<b>能力就绪</b>（凡学科契约开启即给骨架）</td>
+</tr>
+<tr>
+  <td>④</td><td><b>假指针</b><span class="tag t-mid">中高</span></td>
+  <td>正文三处写"格式（细节）见注入的【渲染指令】"</td>
+  <td><b>152</b> 组合（易错题本／复习资料／知识总结 × 无图形能力学科）system 里<b>根本没有该段</b>，指针指向不存在的段</td>
+  <td>正文侧改按 <code>resolveMarkCapability</code> 条件化：无能力即不提标记、不写该指针</td>
+</tr>
+<tr>
+  <td>⑤</td><td><b>[GRAPH] 同类悬空</b><span class="tag t-mid">中</span></td>
+  <td>正文图条款同时点名 [GRAPH]；学科图形能力只覆盖 8 科</td>
+  <td><b>630</b> 组合正文提到 [GRAPH] 而 system 无 [GRAPH] 骨架（语文/英语/音乐/美术/体育/道法/思政…）</td>
+  <td>正文只列 <b>真有</b> 的标记（按 <code>graph</code>/<code>image</code> 能力拼接）</td>
+</tr>
+<tr>
+  <td>⑥</td><td><b>同一图要求说四遍</b><span class="tag t-mid">中</span></td>
+  <td>正文图条款（数量必须写明/严禁文字替代）＋<code>EXAM_BASE</code> 创作要求第 4 条"需配图处用 [IMAGE] 标记描述画面"＋渲染契约"数量必须写明"＋质检规则"配图用 [IMAGE] 标记块（每图一个、单独成段）"</td>
+  <td>"写得复杂"的直接来源；四处措辞不同、判据同一，任一处改动都留残影</td>
+  <td>格式归<b>单一事实源</b>（渲染指令段）；删 <code>EXAM_BASE</code> 第 4 条配图半句；质检规则改"<b>凡输出配图</b>，一律用 [IMAGE] 块…"（只说格式，不说"要配图"）</td>
+</tr>
+<tr>
+  <td>⑦</td><td><b>"不计题量" vs "必不可少"</b><span class="tag t-mid">中</span></td>
+  <td>渲染指令段头："仅需图/公式/配图时输出，<b>不计题量</b>"（图像可挂可不挂的载荷）；正文："该图是本题<b>必不可少</b>的内容…无图可看则该题<b>不可作答</b>"</td>
+  <td>语义相抵 → 模型倾向"少出图更安全"（与 ③ 叠加成同一事故）</td>
+  <td>段头改"<b>按需输出，图块随题、不单独计题</b>"（保住"不单独计题"原意，去掉"可挂可不挂"的读法）</td>
+</tr>
+<tr>
+  <td>⑧</td><td><b>教辅组标题同段自相矛盾</b><span class="tag t-mid">中</span></td>
+  <td>同一段里：栏目标题"<b>用注入给出的栏目名</b>（如'基础建构'）"＋组标题"<b>不要照抄注入给出的</b>知识点名或其他结构名"</td>
+  <td>两句都在说"注入给出的名字"，一句要抄、一句不许抄，模型无从分辨（用户此前已问过"教辅栏目名是大类名称，模型会不会懵"）</td>
+  <td>禁抄对象<b>限定到具体来源</b>："不要照抄<b>【锚点清单】</b>里的知识点名"（历史实证的照抄源）；大类栏目名维持"用注入的栏目名"（用户裁定：暂不动）</td>
+</tr>
+<tr>
+  <td>⑨</td><td><b>学科内重复条款 + 相抵句</b><span class="tag t-ok">低</span></td>
+  <td><code>layoutSpec</code>：数学段"一个答案空只呈现一种载体；空位内不再嵌空位、空位前不叠加空白宽度"与通用段<b>逐字重复</b>；"结果位一律留白、不用括号"与低段句"低年级可用「＝（　）」定位"<b>直接相抵</b>；首句"按答案类型匹配、<b>不自行发明</b>"与下一句"由你…<b>选定</b>"相抵</td>
+  <td>低段数学卷同时收到"可用括号"与"不得用括号"；且首句与次句读起来互相取消</td>
+  <td>结果位形态整条归<b>学段句</b>（低段/中高段各一条）、载体一致性归<b>通用段单源</b>、首句改"作答空位形态与所填内容相称（只在下列几种里选，不新造）"</td>
+</tr>
+<tr>
+  <td>⑩</td><td><b>内容型给骨架却不给判据；风格文案点名标记</b><span class="tag t-ok">低</span></td>
+  <td>预习/知识总结不走题类图条款（内容型本就不注入），却曾按类型白名单给/不给 [IMAGE] 骨架；<code>expertKnowledge</code> 的"导图式"文案写"关系复杂需图示化时用 <b>[GRAPH]</b> 占位"（全学科全类型逐字注入）</td>
+  <td>有"能力"无"何时用"→ 反向诱导多配图；语文/英语等无 [GRAPH] 能力学科的总结类资料被点名用 [GRAPH]</td>
+  <td>能力就绪 + <code>CONTENT_FORMAT</code> 按能力列标记（无能力不写该句）；风格文案去标记名（协议只在渲染指令），并加守卫</td>
+</tr>
+</tbody>
+</table>
+
+<h2>B. 图能力同源（本轮核心）</h2>
+
+<h3>B1 病根：两把尺子</h3>
+<div class="box hot">
+正文对图的要求是<b>原则式</b>（"该题作答是否需要图中信息"，题干怎么措辞都算，明示不存在措辞清单——2026-09-12 用户裁定）；
+而程序侧另有一把尺子：<code>needsImageHint</code>＝"资料类型白名单（practice/special/preview/reading/dictation）＋结构/类型名/范围名/章节名里有没有图词"。
+两把尺子必然错位：正文点名 [IMAGE]/[GRAPH]，system 却不给骨架（115 组合）、甚至整段没注入（152 组合）。
+模型于是拿到"必须输出一个没有格式说明的东西"——只能退化成文字图语。这与模型遵从无关。
+</div>
+
+<h3>B2 处置：判定单源 + 能力就绪</h3>
+<ul>
+  <li><code>resolveMarkCapability({subject, stage, userContract})</code>：<b>唯一</b>能力判定，供两侧共用。返回 <code>{on, graph, graphTypes, formula, image}</code>。
+      <code>buildRenderContract</code>（system 侧）与 <code>promptLibrary</code> 的图条款／<code>CONTENT_FORMAT</code>／教辅组标题邻段（正文侧）都用它。</li>
+  <li><b>image 能力就绪</b>：凡学科契约开启即给 [IMAGE] 骨架（不再按资料类型/关键词收窄）。理由：题类与内容型的正文都可能出现需图的题（题干由模型拟定，程序无法预知），
+      而"能力就绪"只代表"会按格式输出"，<b>是否真配图仍由正文裁定</b>（不需要图的题不得配图、不得写图语）——非必要不配图的口径未动。</li>
+  <li>停用即同步消失：学科契约被工具库停用时，两侧<b>同时</b>关闭（正文不提标记、system 不注入该段），与工具库 UI 文案"停用后生成端不输出 [GRAPH]/公式/[IMAGE]"一致。</li>
+</ul>
+
+<h3>B3 撤除 A21（旧的"配图提示文本单源"）</h3>
+<ul>
+  <li>A21 当年治理的是"三入口各自拼提示文本 → 面板预览与实发漂移"。本轮把<b>文本信号</b>从能力判定中整体撤除后，该漂移类别不复存在 → <code>needsImageHint</code>、<code>buildNeedsImageText</code>、<code>IMAGE_HINT_RE</code>、GenerateModule 的 <code>resolveNeedsImageText</code> 及其 3 处调用全部删除。</li>
+  <li>"文本是否含图词"仍是<b>校验侧</b>判据（<code>FIGURE_DEPENDENCY_RE</code> → examValidator 2j-3 缺图探针，问题列表"看图类题却无图标记"照旧保留）——校验与能力各归其位，但不再是"两把尺子对着同一个决定"。</li>
+  <li>连带：<code>RenderContractView</code> 的配图默认值改为"默认开、用户可关"，并删掉关键词表展示（口径说明同步改写）。</li>
+</ul>
+
+<h3>B4 运行期开关的同一性问题（新发现的必要补丁）</h3>
+<div class="box warn">
+指令库的 486 条 cell 是<b>模块加载期预生成</b>的。标记能力如今是 cell 正文的输入之一 → 用户在运行期改工具库开关或渲染契约库自定义项后，
+若 cell 不重建，"正文点名标记"会与"实际注入的骨架"再次不同源。
+处置：<code>eduRenderContract.markCapabilitySignature()</code>（工具库开关 + 用户契约的签名）＋ <code>promptLibrary</code> 的 <code>ensureBuiltinCells()</code>（签名变了就重建，<code>getPromptTemplate</code>/<code>listPromptTemplates</code> 入口调用）。
+守卫 <code>injectionMarkSync</code> ⑤ 用"运行期停用学科契约"实测两侧同时消失。
+</div>
+
+<h2>C. 题图一致条款：从 378 字压到 268 字</h2>
+<table>
+<thead><tr><th>保留（不可丢的三件事）</th><th>删除（格式细节归渲染指令单一事实源）</th></tr></thead>
+<tbody>
+<tr>
+  <td>
+    ① 判据仍<b>原则式</b>（该题作答是否需要图中信息，题干怎么措辞都算；明示<b>不存在"图依赖措辞清单"</b>——防枚举回退）；<br>
+    ② 需要就必须<b>紧跟输出图标记块</b>，严禁用"图中一位同学…/画面上…"文字描述替代（无图可看则该题不可作答）；<br>
+    ③ 不需要就不许写图语（无图不虚构图语）；<br>
+    ④ 指针改为"<b>按注入的【渲染指令】</b>"输出（用户原话：告诉模型按渲染指令输出就行）
+  </td>
+  <td>
+    <del>画面类/数据图形类的字段骨架与 [IMAGE]...[/IMAGE] 示例</del>；<br>
+    <del>"须写明主体与数量"</del>（保留在渲染契约段：PROMPT 必须写明主体与数量——程序侧 figurePromptCheck 交叉校验依此）；<br>
+    <del>"图内无字/每图一个、单独成段/ICON 用法"</del>；<br>
+    <del>"该块是格式载荷、它本身就是本题材料"的双重否定的自解释</del>
+  </td>
+</tr>
+</tbody>
+</table>
+<p class="n">字数：378 → <b>268</b> 字（-110，-29%）；同时它是"正文点名标记 ⇔ system 给骨架"的正文侧一环——简化后的指针句与渲染指令段由同一判定保证同时在场。</p>
+
+<h2>D. 体量对照（675 组合均值）</h2>
+<table>
+<thead><tr><th>口径</th><th>改前</th><th>改后</th><th>差</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>委托正文（模板全貌）</td><td>≈4281 字</td><td><b>4129 字</b></td><td>-152</td><td>图条款简化 + 删 EXAM_BASE 配图半句 + 作答空间去重</td></tr>
+<tr><td>程序附加段（system）</td><td>≈1189 字</td><td><b>1338 字</b></td><td>+149</td><td>配图骨架就绪化（原先 errorbook/review/summary/音体美等无骨架）</td></tr>
+<tr><td><b>合计</b></td><td>≈5470 字</td><td><b>5467 字</b></td><td>≈0</td><td>换来的不是省字，而是"要求与能力同源"（悬空 0）</td></tr>
+<tr><td>正文图-题一致性条款</td><td>378 字</td><td><b>268 字</b></td><td>-110</td><td>格式细节单源化</td></tr>
+<tr><td>悬空：正文点名 [IMAGE] 而 system 无骨架</td><td>115 组合</td><td><b>0</b></td><td>-115</td><td rowspan="3">由 <code>injectionMarkSync</code> 逐矩阵钉死</td></tr>
+<tr><td>悬空：正文点名 [GRAPH] 而 system 无骨架</td><td>630 组合</td><td><b>0</b></td><td>-630</td></tr>
+<tr><td>假指针：正文指向【渲染指令】而该段缺失</td><td>152 组合</td><td><b>0</b></td><td>-152</td></tr>
+</tbody>
+</table>
+
+<h2>E. 守卫（防回退）</h2>
+<table>
+<thead><tr><th>守卫</th><th>钉住什么</th></tr></thead>
+<tbody>
+<tr><td><code>tests/recipe/injectionMarkSync.test.js</code>（新增 7 项）</td>
+<td>①矩阵规模 675（防样本太小假绿）；②正文点名 [IMAGE] ⇒ system 必有 [IMAGE] 骨架；③正文点名 [GRAPH] ⇒ 必有 TYPE 声明；④正文指向【渲染指令】⇒ 该段必在；⑤反向：给了骨架 ⇒ 正文必有"何时用/何时不用"的裁定；⑥运行期停用学科契约 ⇒ 两侧同时消失；⑦能力判定只有一处（旧函数/关键词表/三入口文本拼装不得回潮，按定义式/调用式锚定，允许注释留痕）</td></tr>
+<tr><td><code>tests/recipe/eduRenderContract.test.js</code>（口径升级）</td><td>体育等无图形能力学科<b>只给配图契约、不给 [GRAPH]</b>；配图能力与资料类型/文本无关；分值括号统一为全角（"不得用中文全角括号"禁令不得回潮）</td></tr>
+<tr><td><code>tests/recipe/answerSpaceInstruction.test.js</code>、<code>answerRegionMatrix.test.js</code>、<code>blueprintInjection.test.js</code>、<code>assemblyMatrix.test.js</code></td><td>作答空间首句新措辞、数学结果位<b>只由学段句承载</b>（"两句并存"与"低段相抵"均判红）、"一空一载体"只出现在通用段一次</td></tr>
+<tr><td><code>tests/utils/figurePromptCheck.test.js</code></td><td>数量/格式要求只在渲染指令单一事实源，正文<b>不得再复述</b>（防双写漂移）</td></tr>
+<tr><td><code>tests/config/languageSubjectMaterial.test.js</code>、<code>imageDriveClause</code>、<code>nonInducingPrompt</code></td><td>图条款保留三件事（严禁省略／严禁文字替代／无图不虚构图语；仍为原则式零清单）</td></tr>
+</tbody>
+</table>
+
+<h2>F. 触碰文件一览</h2>
+<table>
+<thead><tr><th>文件</th><th>改动要点</th></tr></thead>
+<tbody>
+<tr><td><code>src/config/eduRenderContract.js</code></td><td>新增 <code>resolveMarkCapability</code>/<code>markCapabilitySignature</code>；段头改"按需输出，图块随题"；配图能力就绪；删 <code>needsImageHint</code>/<code>buildNeedsImageText</code>/<code>IMAGE_HINT_RE</code>；文件头与注释改写</td></tr>
+<tr><td><code>src/config/promptLibrary.js</code></td><td>图条款压成一句并按能力条件化；<code>CONTENT_FORMAT</code> 函数化（按能力列标记）；<code>EXAM_BASE</code> 大题标题句归一、删配图半句；教辅组标题禁抄对象限定为【锚点清单】；cell 预生成改 <code>ensureBuiltinCells()</code>（能力签名驱动重建）</td></tr>
+<tr><td><code>src/config/validatorRules.js</code></td><td>分值括号统一全角；<code>title-detail-fix</code> 去掉"（按【卷面结构】）"；<code>image-block-fix</code> 改格式句（"凡输出配图…"）</td></tr>
+<tr><td><code>src/config/layoutSpec.js</code></td><td>作答空间首句改中性、数学段去重、结果位形态归学段句（消低段相抵）</td></tr>
+<tr><td><code>src/config/expertKnowledge.js</code></td><td>导图式文案去 [GRAPH]（风格描述不承载标记协议）</td></tr>
+<tr><td><code>src/utils/programAttach.js</code></td><td>去掉 needsImageText 入参与 needsImageHint 调用（渲染契约由内部单源判定）</td></tr>
+<tr><td><code>src/modules/GenerateModule.vue</code></td><td>删 <code>resolveNeedsImageText</code> 及三入口传参（A21 撤除）</td></tr>
+<tr><td><code>src/modules/tools/views/RenderContractView.vue</code></td><td>配图默认值改"默认开、可关"；类型维度说明改"与类型无关"；删关键词表</td></tr>
+<tr><td><code>tests/**</code></td><td>口径升级 8 个文件；新增 <code>injectionMarkSync.test.js</code>；删 <code>needsImageTextSingleSource.test.js</code></td></tr>
+</tbody>
+</table>
+
+<h2>G. 待办与观察点</h2>
+<ul>
+  <li><b>实测复跑</b>：建议按英语整卷 + 数学卷各跑一次，核对①大题标题不再与蓝图逐字一致；②看图类题是否真的输出 [IMAGE]/[GRAPH] 块（本次修的是注入侧根因，产物侧待复看）；③分值括注全角后 <code>parseExamSections</code> 分值提取正常。</li>
+  <li><b>教辅大类栏目名</b>（"基础建构/探究进阶/迁移创新"）与名称轮换池：用户裁定"后续再说"，本轮未动。</li>
+  <li><b>官网口径待核</b>：沿用上一批——2025 日常修订版升级、高中各科"学业水平考试（与命题）建议"章节名统一等，等 moe.gov.cn 可核再改。</li>
+  <li><b>盯住 ⑥⑦ 的合并效果</b>：格式细节已单源化，若后续仍需加约束，只改渲染指令段，勿回写正文（守卫 ④ 会拦）。</li>
+</ul>
+
+</body>
+</html>
