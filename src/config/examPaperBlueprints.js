@@ -53,7 +53,7 @@ export const EXAM_BLUEPRINTS = {
     label: '语文·初中（中考结构）', fullScore: 120, duration: '120分钟',
     sections: [
       { name: '积累与运用', score: 24, note: '名句语境默写与基础运用（字音字形、词语运用、病句等）。' },
-      { name: '梳理与探究', score: 10, note: '名著阅读与综合性学习（信息梳理、图表归纳、围绕主题整理探究），考查梳理与探究能力。' },
+      { name: '梳理与探究', score: 10, note: '名著阅读与梳理探究（信息梳理、图表归纳、围绕主题整理探究），考查梳理与探究能力。' },
       { name: '古诗文阅读', score: 22, note: '文言文课内外对比阅读与古诗词鉴赏，重理解与积累运用。' },
       { name: '现代文阅读', score: 28, note: '记叙文与说明文/议论文阅读，课外选文标注出处。' },
       { name: '写作', score: 36, note: '命题/半命题/材料作文，提示语与写作要求。' },
@@ -103,7 +103,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断', score: 8, note: '概念辨析' },
       { name: '选择', score: 8, note: '基础辨析' },
       { name: '操作题', score: 8, note: '画图、对称、面积体积操作、位置与方向；需配图处由系统按渲染契约注入' },
-      { name: '解决问题', score: 30, note: '应用题，含分数百分数、几何应用，体现建模过程' },
+      { name: '解决问题', score: 30, note: '应用题，含分数百分数、几何应用，体现模型意识' },
     ],
   },
   '数学|middle': {
@@ -316,14 +316,14 @@ export const EXAM_BLUEPRINTS = {
     label: '地理·初中', fullScore: 100, duration: '60分钟',
     sections: [
       { name: '选择题', score: 50, note: '以地图/图表为载体的概念辨析与空间定位' },
-      { name: '综合题', score: 50, note: '读图分析、区域认知、人地关系，以图表为载体（示意图/统计图表由系统按渲染契约注入）；数据真实' },
+      { name: '综合题', score: 50, note: '读图分析、区域认知、人地协调观，以图表为载体（示意图/统计图表由系统按渲染契约注入）；数据真实' },
     ],
   },
   '地理|high': {
     label: '地理·高中（新高考单科）', fullScore: 100, duration: '75分钟',
     sections: [
       { name: '选择题', score: 48, note: '以地图/图表为载体的概念辨析与空间思维' },
-      { name: '综合题', score: 52, note: '多要素分析、区域比较、人地协调；示意图/统计图表由系统按渲染契约注入；数据真实' },
+      { name: '综合题', score: 52, note: '多要素分析、区域比较、人地协调观；示意图/统计图表由系统按渲染契约注入；数据真实' },
     ],
   },
 
@@ -519,7 +519,7 @@ export const EXAM_BLUEPRINTS = {
     ],
   },
 
-  // ══════════════ 体育（按学段：低段情境常识 → 高中健康素养） ══════════════
+  // ══════════════ 体育（按学段：低段情境常识 → 高中运动技能与健康行为） ══════════════
   '体育|primary_low': {
     label: '体育·小学低段（1-2年级）', fullScore: 100, duration: '40分钟',
     sections: [
@@ -561,10 +561,10 @@ export const EXAM_BLUEPRINTS = {
   '体育|high': {
     label: '体育·高中', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '选择题', score: 30, note: '运动技能、健康素养、体育文化' },
+      { name: '选择题', score: 30, note: '运动技能、健康行为、体育品德' },
       { name: '填空题', score: 20, note: '运动原理与健康知识' },
       { name: '判断题', score: 10, note: '健康与安全常识辨析' },
-      { name: '简答题', score: 40, note: '锻炼方案设计、健康素养提升，配评分要点' },
+      { name: '简答题', score: 40, note: '锻炼方案设计、健康行为养成，配评分要点' },
     ],
   },
 };
