@@ -146,3 +146,38 @@ describe('④ 同一大题内作答位位置/形态统一（跨学科通用）',
     expect(r.html).toContain('8. 句子三 ( )');
   });
 });
+
+// ⑤ 尾约束·全文自洽的语义完善（用户追问：尾部锚定的自洽部分语义是否待完善）
+//   原文本的锚定域只有"**题干**所声明的…"，而本卷两处问题都出在**大题标题**（"根据图片提示或首字母提示…"）
+//   ——标题不在锚定域内 → 模型可把标题当另一个对象；且原文只写"内容自洽"，没写"**形式/写法**自洽"
+//   （同类作答位位置与形态统一、题号与答案逐题对应）。此处锁住补完后的语义，并守"原则式零列举"不变量。
+import fs from 'node:fs';
+import path from 'node:path';
+import { TAIL_SELF_CONSISTENCY } from '../../src/utils/injectionManifest.js';
+
+describe('⑤ 尾约束·全文自洽：声明域与"写法自洽"补齐（原则式零列举不变量保持）', () => {
+  const ROOT = path.resolve(__dirname, '../..');
+
+  it('声明域扩到"题干/大题标题/栏目标题"（标题不再是法外之地）', () => {
+    expect(TAIL_SELF_CONSISTENCY).toContain('写在题干、大题标题或栏目标题里的都算');
+    expect(TAIL_SELF_CONSISTENCY).toContain('本题作答所必需的一切内容');
+    expect(TAIL_SELF_CONSISTENCY).toContain('仅凭正文自身即可完成');
+  });
+
+  it('补"声明与实给一致"与"写法自洽"两句（覆盖标题↔内容、同大题作答位统一、题号↔答案区）', () => {
+    expect(TAIL_SELF_CONSISTENCY).toContain('声明与实给一致');
+    expect(TAIL_SELF_CONSISTENCY).toContain('不得声明一样、给出另一样');
+    expect(TAIL_SELF_CONSISTENCY).toContain('写法自洽');
+    expect(TAIL_SELF_CONSISTENCY).toContain('同类作答位的位置与形态统一');
+    expect(TAIL_SELF_CONSISTENCY).toContain('题号与答案区逐题对应');
+  });
+
+  it('零列举护栏：尾约束不得出现题型/载体名清单（防题型诱导回潮）', () => {
+    expect(TAIL_SELF_CONSISTENCY).not.toMatch(/选择|判断|填空|连线|默写|简答|口算|作文格|田字格/);
+  });
+
+  it('仍随每次请求末尾锚定（生成端引用单源，不是只躺在库里）', () => {
+    expect(fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8'))
+      .toContain('buildTailBlocks()[0]');
+  });
+});
