@@ -69,7 +69,7 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
     expect(inject).not.toContain('栏目框架');
     expect(inject).not.toContain('栏目序列');
     expect(inject).toContain('原创选文');
-    expect(inject).toContain('分层设题');
+    expect(inject).toContain('文本设题');
     expect(inject).toContain('学段要求');
     expect(inject).toContain('区分观点与事实'); // 初中阅读学段要求（非连续性文本已改中性的"材料形式多样"）
     expect(inject).not.toContain('题量与时长');
@@ -85,9 +85,9 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
 
   it('同步练习含三段式栏目与学段要求（内容底线不注入）', () => {
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_mid' });
-    expect(inject).toContain('基础建构任务');
-    expect(inject).toContain('探究进阶任务');
-    expect(inject).toContain('迁移创新任务');
+    expect(inject).toContain('基础建构');
+    expect(inject).toContain('探究进阶');
+    expect(inject).toContain('迁移创新');
     expect(inject).toContain('学段要求');
     expect(inject).not.toContain('栏目完整、板块分明');
   });
@@ -117,9 +117,9 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(bp.subject).toBe('语文');
     expect(bp.key).toBe('语文|practice|primary_low');
     const sections = bp.sections.map((s) => s.name).join('|');
-    expect(sections).toContain('基础建构任务');
-    expect(sections).toContain('探究进阶任务');
-    expect(sections).toContain('迁移创新任务');
+    expect(sections).toContain('基础建构');
+    expect(sections).toContain('探究进阶');
+    expect(sections).toContain('迁移创新');
   });
 
   it('语文同步练习栏目导向含学科语义（语段阅读/写话）', () => {
@@ -137,7 +137,7 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(bp.custom).toBe(false);
     expect(bp.subject).toBe('未知学科');
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '未知学科' });
-    expect(inject).toContain('【大类标题（下面各行即本次大类标题；按2022年版义务教育课程标准的活动类型与素养层划分；同步练习·初中）】');
+    expect(inject).toContain('【大类标题（下面各行即本次大类标题；按2022年版义务教育课程标准的活动类型与素养划分；同步练习·初中）】');
     // 学段要求仍按学段注入（初中）
     expect(inject).toContain('学段要求');
   });
@@ -178,7 +178,7 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_low', subject: '英语' });
     expect(inject).toContain('英语·同步练习');
     expect(inject).toContain('语篇语境中的综合运用');
-    expect(inject).toContain('真实交际任务');
+    expect(inject).toContain('真实交际运用');
     const dict = buildTeachingInjection({ genType: 'dictation', stage: 'primary_low', subject: '英语' });
     expect(dict).toContain('英语·默写积累');
     expect(dict).toContain('词汇句型');
@@ -203,7 +203,7 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_low', subject: '科学' });
     expect(inject).toContain('科学·同步练习');
     expect(inject).toContain('生活现象与观察');
-    expect(inject).toContain('观察与实验任务');
+    expect(inject).toContain('观察与实验题目');
     expect(inject).toContain('观察自然、制作模型');
     const dict = buildTeachingInjection({ genType: 'dictation', stage: 'middle', subject: '科学' });
     expect(dict).toContain('科学·默写积累');
@@ -225,7 +225,7 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '物理' });
     expect(inject).toContain('物理·同步练习');
     expect(inject).toContain('概念、规律与公式');
-    expect(inject).toContain('实验探究任务');
+    expect(inject).toContain('实验探究题目');
     expect(inject).toContain('生活、科技、工程应用');
     expect(inject).toContain('从生活走向物理'); // 学科级学段要求·初中（课标课程理念）
     const high = buildTeachingInjection({ genType: 'practice', stage: 'high', subject: '物理' });

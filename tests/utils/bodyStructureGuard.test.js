@@ -13,7 +13,7 @@ import { detectPhonemeConflicts } from '../../src/utils/contentSanity.js';
 
 describe('isDeliverableBodyHtml（可交付正文结构·严格判定）', () => {
   it('真实课时练正文（含 h2 栏目 + 题目 + 作答载体）→ 可交付', () => {
-    const html = '<h2>一、基础建构任务</h2><p>1. watch 的过去式是 <u class="blank-2"></u>。</p><p class="question">2. 用所给词填空。</p>';
+    const html = '<h2>一、基础建构</h2><p>1. watch 的过去式是 <u class="blank-2"></u>。</p><p class="question">2. 用所给词填空。</p>';
     expect(isDeliverableBodyHtml(html)).toBe(true);
     expect(hasBodyContentStructure(html)).toBe(true);
   });

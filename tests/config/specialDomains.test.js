@@ -69,7 +69,7 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
   it('A档结构文本：含栏目/课标锚/学段名，且不含数字题量占位', () => {
     const dom = resolveSpecialDomain('数学', 'primary_high', '计算');
     const text = buildSpecialDomainStructureText(dom, 'primary_high');
-    // 🔒 2026-09-16 少约束 + 课标挂钩：专项 A 档外壳同步为"大类标题（按课标活动类型与素养层划分）"
+    // 🔒 2026-09-16 少约束 + 课标挂钩：专项 A 档外壳同步为"大类标题（按课标活动类型与素养划分）"
     // 🔒 2026-09-16：专项 A 档外壳同步课标挂钩（按本领域课标要求划分）
     expect(text).toContain('【大类标题（下面各行即本次大类标题；按本领域课标要求划分；🔢 计算·小学高段）】');
     expect(text).not.toContain('栏目框架');

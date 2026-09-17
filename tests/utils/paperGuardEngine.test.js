@@ -44,12 +44,12 @@ describe('paperGuardEngine: 情境主题集中', () => {
 
 describe('paperGuardEngine: 首段过程自述', () => {
   it('实测句式命中（2026-09-07 产物首行）', () => {
-    const html = '<p>已取到本卷所需全部教材原文素材（小数乘除法计算方法等），现依据教材原文与课标术语完成命题。</p><p>一、基础建构任务</p>';
+    const html = '<p>已取到本卷所需全部教材原文素材（小数乘除法计算方法等），现依据教材原文与课标术语完成命题。</p><p>一、基础建构</p>';
     const out = detectOpeningMetaNarration(html);
     expect(out).toHaveLength(1);
   });
   it('正常正文首段（题号开头/栏目标题）不误报', () => {
-    expect(detectOpeningMetaNarration('<h2>一、基础建构任务</h2><p>1. 计算 2.4×1.6。</p>')).toEqual([]);
+    expect(detectOpeningMetaNarration('<h2>一、基础建构</h2><p>1. 计算 2.4×1.6。</p>')).toEqual([]);
     expect(detectOpeningMetaNarration('<p>1. 图书角要买一批图书，其中一本故事书标价 12 元。</p>')).toEqual([]);
   });
 });

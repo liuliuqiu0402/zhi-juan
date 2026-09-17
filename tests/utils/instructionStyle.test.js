@@ -83,7 +83,7 @@ describe('parseStyleFromInstruction（组织风格解析）', () => {
     expect(parseStyleFromInstruction('【组织风格】big_unit：打破课时界限，围绕大概念与任务群整体组织').isContextStyle).toBe(false);
     expect(parseStyleFromInstruction('【组织风格】framework：按知识框架→考点梳理→易错辨析→自测组织').isContextStyle).toBe(false);
     expect(parseStyleFromInstruction('【组织风格】table：以表格对比呈现信息').isContextStyle).toBe(false);
-    expect(parseStyleFromInstruction('【组织风格】task_driven：以问题链组织预习任务').isContextStyle).toBe(false);
+    expect(parseStyleFromInstruction('【组织风格】task_driven：以问题链组织预习指引').isContextStyle).toBe(false);
   });
 
   it('兼容旧格式：无【】但带冒号的"组织风格：value：说明"可命中（要求冒号防正文误命中）', () => {

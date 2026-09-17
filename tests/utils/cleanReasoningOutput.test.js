@@ -37,7 +37,7 @@ describe('cleanReasoningOutput·纯文本不清零（答案页静默清零事故
   });
 
   it('正常 HTML 输出 → 原样通过（回归：不清零、不包裹）', () => {
-    const html = '<h2>一、基础建构任务</h2><p>1. 题目</p>';
+    const html = '<h2>一、基础建构</h2><p>1. 题目</p>';
     expect(cleanReasoningOutput(html)).toBe(html);
   });
 

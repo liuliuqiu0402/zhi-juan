@@ -11,19 +11,19 @@ describe('容器/章节标题后不补作答空白（空行泛滥根治）', () 
   it('h2 任务容器紧跟 h3、中间无编号题时，不把标题当长答块补空白', () => {
     const html = [
       '<h1>随堂巩固</h1>',
-      '<h2>基础建构任务</h2>',
+      '<h2>基础建构</h2>',
       '<h3>一、理解小数乘除法的意义</h3>',
       '<p>1. 填一填。</p>',
       '<p>（1）<u class="blank-4">&emsp;</u></p>',
-      '<h2>探究进阶任务</h2>',
+      '<h2>探究进阶</h2>',
       '<h3>五、积与商的变化规律</h3>',
       '<p>5. 选择。</p>',
       '<p>（1）（　　　　）</p>',
     ].join('\n');
     const { html: out } = auditExamPaper(html, OPTS);
     // 标题之后直接 h3，不得插入 blank-area（空行泛滥根因：h2 不再被当空 seg 长答块补差）
-    expect(out).toContain('<h2>基础建构任务</h2>\n<h3>一、理解小数乘除法的意义</h3>');
-    expect(out).toContain('<h2>探究进阶任务</h2>\n<h3>五、积与商的变化规律</h3>');
+    expect(out).toContain('<h2>基础建构</h2>\n<h3>一、理解小数乘除法的意义</h3>');
+    expect(out).toContain('<h2>探究进阶</h2>\n<h3>五、积与商的变化规律</h3>');
     expect(out).not.toContain('blank-area');
   });
 

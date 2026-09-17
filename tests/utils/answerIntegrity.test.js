@@ -87,13 +87,13 @@ describe('答案完整性·once 模式补包（wrapAnswerSection）', () => {
 
 describe('答案完整性·split 正文混答剥离（stripAnswerSection）', () => {
   it('正文末尾混入完整《参考答案与解析》→ 整体剥离（防"正文答案+独立答案页"重复）', () => {
-    const html = '<h2>二、基础建构任务</h2><p>1. 完成任务一。</p><h2>参考答案与解析</h2><p>1. 答案：……</p>';
-    expect(stripAnswerSection(html)).toBe('<h2>二、基础建构任务</h2><p>1. 完成任务一。</p>');
+    const html = '<h2>二、基础建构</h2><p>1. 完成任务一。</p><h2>参考答案与解析</h2><p>1. 答案：……</p>';
+    expect(stripAnswerSection(html)).toBe('<h2>二、基础建构</h2><p>1. 完成任务一。</p>');
   });
 
   it('空壳答案区（"略"占位）→ 同样剥离', () => {
-    const html = '<h2>二、基础建构任务</h2><p>1. 完成任务一。</p><h2>参考答案</h2><p>略</p>';
-    expect(stripAnswerSection(html)).toBe('<h2>二、基础建构任务</h2><p>1. 完成任务一。</p>');
+    const html = '<h2>二、基础建构</h2><p>1. 完成任务一。</p><h2>参考答案</h2><p>略</p>';
+    expect(stripAnswerSection(html)).toBe('<h2>二、基础建构</h2><p>1. 完成任务一。</p>');
   });
 
   it('answer-section 包裹的答案区 → 剥离至正文末尾', () => {
@@ -104,7 +104,7 @@ describe('答案完整性·split 正文混答剥离（stripAnswerSection）', ()
   });
 
   it('无答案区 → 原样返回（不误剥正文）', () => {
-    const html = '<h2>二、基础建构任务</h2><p>1. 完成任务一。（每空2分）</p>';
+    const html = '<h2>二、基础建构</h2><p>1. 完成任务一。（每空2分）</p>';
     expect(stripAnswerSection(html)).toBe(html);
   });
 
@@ -116,29 +116,29 @@ describe('答案完整性·split 正文混答剥离（stripAnswerSection）', ()
 
 describe('答案页自带标题去重（stripLeadingAnswerTitle：段2 包装标题不叠模型自带标题）', () => {
   it('内容开头 <h1>参考答案与解析</h1> → 剥除（保留后续内容，系统 h2 为准）', () => {
-    const a = '<h1>参考答案与解析</h1>\n<p>课时练：数学二年级</p><h2>一、基础建构任务</h2><p>1. 答案：A。</p>';
-    expect(stripLeadingAnswerTitle(a)).toBe('<p>课时练：数学二年级</p><h2>一、基础建构任务</h2><p>1. 答案：A。</p>');
+    const a = '<h1>参考答案与解析</h1>\n<p>课时练：数学二年级</p><h2>一、基础建构</h2><p>1. 答案：A。</p>';
+    expect(stripLeadingAnswerTitle(a)).toBe('<p>课时练：数学二年级</p><h2>一、基础建构</h2><p>1. 答案：A。</p>');
   });
 
   it('<h2> 同文自带标题同样剥除（含"评分标准"后缀）', () => {
     expect(stripLeadingAnswerTitle('<h2>参考答案与评分标准</h2><p>1. A</p>')).toBe('<p>1. A</p>');
-    expect(stripLeadingAnswerTitle('<h1>参考答案与解析</h1><h2>一、基础建构任务</h2>')).toBe('<h2>一、基础建构任务</h2>');
+    expect(stripLeadingAnswerTitle('<h1>参考答案与解析</h1><h2>一、基础建构</h2>')).toBe('<h2>一、基础建构</h2>');
   });
 
   it('无自带标题 / 非参考答案开头标题 → 原样不动', () => {
-    const noTitle = '<h2>一、基础建构任务</h2><p>1. 答案：A。</p>';
+    const noTitle = '<h2>一、基础建构</h2><p>1. 答案：A。</p>';
     expect(stripLeadingAnswerTitle(noTitle)).toBe(noTitle);
     expect(stripLeadingAnswerTitle('')).toBe('');
   });
 
   it('标题被一层容器包裹（<div class="answer-page"><h3>参考答案…</h3>）→ 剥标题、保留容器外壳', () => {
-    const wrapped = '<div class="answer-page"><h3>参考答案与解析</h3><div class="section"><h4>一、基础建构任务</h4><p>1. 答案：A。</p></div></div>';
-    expect(stripLeadingAnswerTitle(wrapped)).toBe('<div class="answer-page"><div class="section"><h4>一、基础建构任务</h4><p>1. 答案：A。</p></div></div>');
+    const wrapped = '<div class="answer-page"><h3>参考答案与解析</h3><div class="section"><h4>一、基础建构</h4><p>1. 答案：A。</p></div></div>';
+    expect(stripLeadingAnswerTitle(wrapped)).toBe('<div class="answer-page"><div class="section"><h4>一、基础建构</h4><p>1. 答案：A。</p></div></div>');
   });
 
   it('容器包裹 + <p> 对 <h1> 同样生效，且不影响后续正文大题', () => {
-    expect(stripLeadingAnswerTitle('<p><h1>参考答案与评分标准</h1></p><h2>一、基础建构任务</h2><p>1. 答案：A。</p>'))
-      .toBe('<p></p><h2>一、基础建构任务</h2><p>1. 答案：A。</p>');
+    expect(stripLeadingAnswerTitle('<p><h1>参考答案与评分标准</h1></p><h2>一、基础建构</h2><p>1. 答案：A。</p>'))
+      .toBe('<p></p><h2>一、基础建构</h2><p>1. 答案：A。</p>');
   });
 
   it('🔴 带单元名前缀的自带标题 → 剥除（2026-09-10 实证：<h3>Unit 1 Try your best 课时练 参考答案与解析</h3> 原漏剥 → h2+h3 双层残留）', () => {

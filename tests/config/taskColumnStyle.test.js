@@ -30,17 +30,17 @@ describe('栏目标题风格套（2026-09）', () => {
   });
 
   it('applyColumnStyle：命中默认套名才替换并保留 note；类型/套未知或栏目不匹配原样返回', () => {
-    const trio = mkSections(['基础建构任务', '探究进阶任务', '迁移创新任务']);
+    const trio = mkSections(['基础建构', '探究进阶', '迁移创新']);
     const out = applyColumnStyle(trio, 'practice', 'c');
     expect(out.map((s) => s.name)).toEqual(['知识梳理', '变式练习', '综合提升']);
-    expect(out[0].note).toBe('note-基础建构任务');
+    expect(out[0].note).toBe('note-基础建构');
 
     const summary = mkSections(['知识框架', '重点梳理', '易错辨析', '典型例题']);
     expect(applyColumnStyle(summary, 'summary', 'b').map((s) => s.name)).toEqual(['知识梳理', '要点详解', '易错辨析', '例题解析']);
 
     // 未知类型/未知套/名称不匹配 → 原样
-    expect(applyColumnStyle(trio, 'summary', 'b')[0].name).toBe('基础建构任务');
-    expect(applyColumnStyle(trio, 'practice', 'x')[0].name).toBe('基础建构任务');
+    expect(applyColumnStyle(trio, 'summary', 'b')[0].name).toBe('基础建构');
+    expect(applyColumnStyle(trio, 'practice', 'x')[0].name).toBe('基础建构');
     const custom = mkSections(['看拼音写词语', '积累默写', '书写格']);
     expect(applyColumnStyle(custom, 'dictation', 'b').map((s) => s.name)).toEqual(['看拼音写词语', '积累默写', '书写格']);
     // 兼容别名仍指向 practice
@@ -50,14 +50,14 @@ describe('栏目标题风格套（2026-09）', () => {
   it('buildTeachingInjection：非 exam 类型指定套生效、默认原样；subject 定制不同名不误伤；exam 蓝本不经此函数', () => {
     const b = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '数学', columnStyle: 'b' });
     expect(b).toContain('基础练习');
-    expect(b).not.toContain('基础建构任务');
+    expect(b).not.toContain('基础建构');
     const rev = buildTeachingInjection({ genType: 'review', stage: 'middle', subject: '语文', columnStyle: 'b' });
     expect(rev).toContain('知识概览');
     expect(rev).not.toContain('知识框架');
     const sum = buildTeachingInjection({ genType: 'summary', stage: 'primary_high', subject: '数学', columnStyle: 'c' });
     expect(sum).toContain('知识网络');
     const def = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '语文' });
-    expect(def).toContain('基础建构任务');
+    expect(def).toContain('基础建构');
     // 语文 dictation 定制栏目（看拼音写词语/积累默写/书写格）与默认套不同名 → 套不生效
     const zhDict = buildTeachingInjection({ genType: 'dictation', stage: 'primary_low', subject: '语文', columnStyle: 'b' });
     expect(zhDict).toContain('看拼音写词语');
@@ -79,7 +79,7 @@ describe('栏目标题风格套（2026-09）', () => {
     const ins1 = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '数学', columnStyle: resolveColumnStyleId('practice', '') });
     const ins2 = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '数学', columnStyle: resolveColumnStyleId('practice', '') });
     expect(ins1).toBe(ins2);
-    expect(ins1).toContain('基础建构任务');
+    expect(ins1).toContain('基础建构');
   });
 
   it('注入清除出处措辞（2026-09 全文不标出处）：summary/review/reading/special 教辅结构不出现"出处"', () => {
@@ -121,7 +121,7 @@ describe('栏目标题风格套（2026-09）', () => {
       titles.push(inj.split('\n').filter((l) => l.startsWith('· '))[0]);
       advanceAutoColumnStyleId('practice');
     }
-    expect(titles[0]).toContain('基础建构任务');
+    expect(titles[0]).toContain('基础建构');
     expect(titles[1]).toContain('基础练习');
     expect(titles[2]).toContain('知识梳理');
   });
@@ -130,6 +130,11 @@ describe('栏目标题风格套（2026-09）', () => {
     // 说明按"层级/位置"给（基础层→进阶→综合），对 4 套名字均成立；若把套名写进说明，
     // 换套后就会出现"标题叫 A、说明里写着 B"的错位——此测试锁住该不变量。
     // 全量覆盖：8 类型 × 4 套 × 全部学段 ×（各学科定制 + 通用 + 跨学科样本）。
+    // 🔓 2026-09-17（栏目名去「任务」后新增的口径）：practice 三栏改名「基础建构／探究进阶／迁移创新」后，
+    //    a 套名与**课标层名**重叠——「迁移创新」既是本栏默认名，也是英语课标活动类型名／语文课标层名，
+    //    说明里出现它属课标口径（且该栏固定承载该层，换套后说明仍与该层相符），不构成"标题与说明错位"；
+    //    纯风格套名（含 b/c/d 全部、以及 a 中非课标词的基础建构/探究进阶）仍一律禁止出现在说明里。
+    const KEEP_IN_NOTE = new Set(['迁移创新']);
     const stages = Object.keys(TEACHING_STAGE_NAMES);
     const subjects = [...Object.keys(TEACHING_SUBJECT_BLUEPRINTS), '', '物理', '数学'];
     const combos = [];
@@ -137,7 +142,7 @@ describe('栏目标题风格套（2026-09）', () => {
 
     let checked = 0;
     for (const [type, pool] of Object.entries(COLUMN_STYLE_SETS)) {
-      const names = [...new Set(Object.values(pool).flatMap((s) => s.columns))];
+      const names = [...new Set(Object.values(pool).flatMap((s) => s.columns))].filter((n) => !KEEP_IN_NOTE.has(n));
       for (const c of combos) {
         for (const id of ['a', 'b', 'c', 'd']) {
           const inj = buildTeachingInjection({ genType: type, ...c, columnStyle: id });
