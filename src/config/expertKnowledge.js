@@ -232,7 +232,9 @@ export const styleOptions = [
   { group: 'presentation', value: 'context_chain', label: '情境化串联', desc: '真实适切主题串联知识点',
     tip: '用一个真实适切的大主题把各知识点串联呈现，脉络自然连贯；适用于知识总结、复习资料。',
     appliesTo: ['summary', 'review'], required: false },
-  { group: 'presentation', value: 'task_driven', label: '问题驱动', desc: '预习内容问题化',
+  // 🔴 2026-09-17（用户裁定"三处一起清"）：标签原为自造词「问题驱动」，改为与内部 value 同名的
+  //    「任务驱动」（UI 标签，不进注入文本；注入的是 value + styleInstructions 说明）。
+  { group: 'presentation', value: 'task_driven', label: '任务驱动', desc: '预习内容问题化',
     tip: '以问题链驱动预习（圈画/概括/查阅/尝试），可操作可检查；适用于预习导学。',
     appliesTo: ['preview'], required: false },
   { group: 'presentation', value: 'framework', label: '框架式', desc: '框架→梳理→自测',
