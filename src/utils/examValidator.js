@@ -211,6 +211,11 @@ const STRUCTURAL_GRAPH_TYPES = new Set(['COORDINATE', 'SHAPES', 'FORCE', 'CIRCUI
 export const hasStructuralGraphSupport = (subject = '') =>
   (SUBJECT_GRAPH_TYPES[subject] || []).some((t) => STRUCTURAL_GRAPH_TYPES.has(t));
 
+/** 画面"**确需**结构化图形"的需求词（2026-09-17 用户裁定·消噪音，程序侧判据、不进指令）：
+ *  只有画面本身是结构图/示意图/地图一类时，"改由生图引擎出图、需人工核对方位与事实"的提示才有意义；
+ *  场景图（大树+小鸟）不该被报成"结构图/示意图/地图"（实证：六年级英语卷第五题）。 */
+const STRUCTURAL_NEED_RE = /结构图|示意图|电路|光路|受力|装置图|地形|分布图|流程图|简图|地图|平面图|剖面图/;
+
 /** 统计纯文本连线行数（一行内出现 ≥2 个全角空格/tab 分隔的两列 → 计 1 条连线，AI 未按 match-item 结构输出时兜底） */
 export const countMatchLines = (text) => {
   if (!text) return 0;
@@ -669,6 +674,41 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         for (const n of secNodes) secHtml += n.outerHTML || n.textContent || '';
         if (!secHtml) return;
 
+        // 2e0. 选择题**题首**作答位形态归一（规则 choice-first-blank-fix）
+        //   🔴 2026-09-17 用户实证（题类通用问题）：带选项的题，其作答位一律在题干前（题首）且用**圆括号空位**，
+        //      不用下划线空/横线空（作答空间条款原文）。本卷第六题（26–35）题首却写成下划线空
+        //      （`<u class="blank-N">`），而同一卷的第四/九题都是括号 → 同卷内不一致；原探针只静默计数、
+        //      不改写，错形态就留进交付。此处做**只换形态、不动位置**的确定性归一（不涉及作答空间语义：
+        //      空位仍在题首、仍是那一处，只把它从"下划线空/裸空"改成"（　）"）。
+        //   ⚠️ 触发面收窄到"该大题确实带选项"，避免误改填空/默写类题的行首空位。
+        //   ⚠️ 选项判据必须兼容**同段落内连排**（实际卷面常写 `<p>A. x　B. y　C. z</p>`，countOptions 只认
+        //      行首 A. 式 → 对它恒为 0）：故并上"段内出现 ≥2 个选项字母"。
+        const optLetters = (secHtml.match(/(?:^|[\s\u3000>])[A-H][.、．]/g) || []).length;
+        if (has('choice-first-blank-fix') && (countOptions(secHtml) > 0 || optLetters >= 2)) {
+          let fx = 0;
+          for (const n of secNodes) {
+            if (n.nodeType !== Node.ELEMENT_NODE || n.tagName.toLowerCase() !== 'p') continue;
+            const t = n.textContent || '';
+            if (!/^[\s\u3000\u2003]*\d{1,2}[.、．]/.test(t)) continue; // 段首必须是（空位 +）题号
+            const fc0 = n.firstElementChild;
+            const isCarrier = !!fc0 && (fc0.tagName === 'U' || fc0.tagName === 'SPAN')
+              && /(?:^|\s)blank-\d+/.test(fc0.getAttribute('class') || '');
+            if (isCarrier) {
+              fc0.replaceWith(document.createTextNode('（　）'));
+              fx += 1;
+            } else if (!fc0 && /^[　\u3000\s]{2,}/.test(t)) {
+              // 裸空（纯文本全角空格/空格起头）→ 同样归一为圆括号空位
+              const firstText = n.firstChild;
+              firstText.textContent = String(firstText.textContent).replace(/^[　\u3000\s]{2,}/, '（　）');
+              fx += 1;
+            }
+          }
+          if (fx > 0) {
+            issues.push({ severity: 'info', type: 'choice-first-blank', message: `大题「${title}」题首作答位已按作答空间条款归一到圆括号空位（${fx} 处）` });
+            fixed += fx;
+          }
+        }
+
         // 🔧 重算序列化与载体（后续 2b~2h 均以当前 DOM 为准）
         let secHtml2 = '';
         for (const n of secNodes) secHtml2 += n.outerHTML || n.textContent || '';
@@ -1050,9 +1090,20 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             `题干声明数量「${mc.stemSample || mc.stemCount}」但画面描述未写明数量（PROMPT：${mc.prompt}…）——建议写明数量以便核对`,
             'notice');
         }
-        if (fc.images > 0 && !hasStructuralGraphSupport(subject)) {
+        // 🔴 2026-09-17 用户裁定（根治·消噪音，全类型通用问题）：原判据"卷里有配图 + 学科无结构化图形能力"
+        //    → 凡有 [IMAGE] 就报，且文案一律套"（[GRAPH] 仅支持统计图）"：对英语/语文等**根本不注入 [GRAPH]**
+        //    的学科不成立，对场景图也文不对题（实证：六年级英语卷第五题"大树上的蜗牛"被报"结构图/示意图/地图"）。
+        //    根治两点：① 只在**画面确需结构化图形**（题干/PROMPT 命中需求词）时提示；
+        //    ② 文案按学科**真实能力**分档——能力事实源仍是 SUBJECT_GRAPH_TYPES（不另建清单）。
+        const outStr = String(out);
+        const imgNeedsStructural = [...outStr.matchAll(/\[IMAGE\]([\s\S]*?)(?:\[\/IMAGE\]|$)/gi)]
+          .some((mm) => STRUCTURAL_NEED_RE.test(String(mm[1]) + outStr.slice(Math.max(0, mm.index - 300), mm.index)));
+        if (fc.images > 0 && imgNeedsStructural && !hasStructuralGraphSupport(subject)) {
+          const ability = (SUBJECT_GRAPH_TYPES[subject] || []).length
+            ? '[GRAPH] 仅支持统计图'
+            : '本学科不注入 [GRAPH]';
           silentCount('image-engine-only',
-            `「${subject}」的结构图/示意图/地图无结构化图形能力（[GRAPH] 仅支持统计图），此类画面由生图引擎生成——主体、数量、方位、地名与题干及事实是否吻合请务必人工核对`,
+            `「${subject}」的画面涉及结构图/示意图/地图一类（${ability}）——此类画面由生图引擎生成，主体、数量、方位、地名与题干及事实是否吻合请务必人工核对`,
             'warn');
         }
       } catch (e) {
@@ -1479,6 +1530,20 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const m = tm || im;
           return m ? parseFloat(m[1]) : null;
         };
+        // 🔴 2026-09-17 用户裁定（根治·消"无分值兜底被误用"，题类通用问题）：大题标题写"每题X分"而小题行内
+        //    不标分值（"八、连词成句…（每题2分，共10分）" + "41. did / what /…"）时，原实现判该块**无分值** → 落
+        //    NO_SCORE_ROWS=4 行兜底 → 连词成句每道小题各补 4 条长横线（实测 5 题 × 4 行 = 20 条，明显过量）。
+        //    根治：把大题标题的"每题X分"**下推**为小题默认分值，need 仍由规格库算
+        //    （英语小高 linePerScore=1.0 → 2分 = 2 行），不再走"无分值 4 行"。
+        //    注："每空X分"不下推（空数不定、整题行数不可由它推出）。
+        const perItemTitleScore = (() => {
+          const m = (title || '').match(/每题\s*(\d+(?:\.\d+)?)\s*分/);
+          return m ? parseFloat(m[1]) : null;
+        })();
+        const scoreOf = (pp) => {
+          const s = scoreIn(pp);
+          return s != null ? s : perItemTitleScore;
+        };
         const subRe = /^\s*[(（]\d+[)）]/;
         const secNodesPs = (arr) => arr.filter((n) => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p');
         const items = [];
@@ -1505,7 +1570,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             subPs.forEach((sp, k) => {
               const seg = []; let sn = sp.nextSibling; const e2 = subPs[k + 1] || end; // 同上：栏边界兜底
               while (sn && sn !== e2) { seg.push(sn); sn = sn.nextSibling; }
-              items.push({ p: sp, score: scoreIn(sp), seg, sub: true });
+              items.push({ p: sp, score: scoreOf(sp), seg, sub: true });
             });
           }
         } else {
@@ -1517,7 +1582,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const subPs = secNodesPs(segNodes).filter((n) => subRe.test((n.textContent || '').trim()));
             if (subPs.length === 0) {
               // 整题一块：题号行 + 其后全部内容（如题 19/20 长答任务、题 5/8 填空判断）
-              items.push({ p, score: scoreIn(p), seg: segNodes, sub: false });
+              items.push({ p, score: scoreOf(p), seg: segNodes, sub: false });
             } else {
               // 子题块：每个子题行与其后段独立成块——填空/判断子题（自带载体）跳过、
               // 长答子题（写过程/说明…）独立补差；顶层情境题干不作为作答块（无作答需求）
@@ -1527,7 +1592,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               subPs.forEach((sp, j) => {
                 const subSeg = []; let s2 = sp.nextSibling; const e3 = subPs[j + 1] || e2; // 同上：顶层题块边界兜底
                 while (s2 && s2 !== e3) { subSeg.push(s2); s2 = s2.nextSibling; }
-                items.push({ p: sp, score: scoreIn(sp), seg: subSeg, sub: true, ctx });
+                items.push({ p: sp, score: scoreOf(sp), seg: subSeg, sub: true, ctx });
               });
             }
           }
@@ -1795,7 +1860,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       // 🔧 题号计数口径：按块级标签闭合强制补换行后再剥标签（计数不依赖模型输出文本自带的 \n——
       //    曾正文模型带换行、答案页模型不带 → stripTags 后行首数字正则只命中首行，误报"答案区题号数(0)"；
       //    <p>/<li>/<h1-6>/<div> 闭合处补 \n，正文与答案区同一口径逐块计数）
-      const blockToLines = (s) => String(s).replace(/<\/(?:p|li|h[1-6]|div|tr)>/gi, '\n');
+      // 🔴 2026-09-17 用户裁定（根治·消误报）：块边界口径补全——`td/th/table/br` 也算行界。
+      //    病根：原口径只认 p/li/h1-6/div/tr，**表格单元格与 <br> 换行不算行界** → 答案区若用表格/紧凑连排，
+      //    相邻格的题号剥标签后**无任何前界**（"…35. B36. B"），"最长 1 起始连续递增段"就在那里断掉。
+      //    实证：六年级英语卷答案区 1–51 全在且顺序一致，却被计成 35（断在 35→36）→ 误报"答案区题号数(35)
+      //    明显少于正文(51)"。补全边界后，表格化/连排答案区与正文同口径计数。
+      const blockToLines = (s) => String(s)
+        .replace(/<\/(?:p|li|h[1-6]|div|tr|td|th|table)>/gi, '\n')
+        .replace(/<br\s*\/?>/gi, '\n');
       const ansText = stripTags(blockToLines(ansMatch[1]));
       // 🔧 题号判据加固（2026-09 实锤误报根因）：行首正则原为 `\d+[.、．]`，会把行首小数
       //    （口算/比较/分类数据行：0.35、2.5×、4.8÷、0.4×…）误计为题号——正文含 9 个这类

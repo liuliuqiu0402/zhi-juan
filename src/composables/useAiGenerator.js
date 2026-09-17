@@ -4759,7 +4759,8 @@ ${cardAnalysisText.substring(0, 1000)}
           const qCls = classifyNumberingGap(content);
           if (qCls && qCls.nowhere.length === 0) {
             console.warn(`🔢 [题号·形态放行] 缺号 ${qCls.missing.join('、')} 均能在正文其它位置找到（${qCls.elsewhere.length} 处，非丢题）→ 不重试、照常交付`);
-            bodyPathNotes.push(`ℹ️ 正文题号形态未全部识别（缺 ${qCls.missing.join('、')}，均以其它形态存在于正文内）——按"内容完整"放行（形态问题非丢题，重试无益）`);
+            // 🔴 2026-09-17（用户裁定·消重复）：本处**不再**写报告条目——终检处会按实际交付内容出**一条**
+            //    "形态未全部识别"说明；原先两处各写一条（措辞还略有差异）→ 报告里看着像重复告警。
             break;
           }
         }
@@ -4836,7 +4837,8 @@ ${cardAnalysisText.substring(0, 1000)}
       throw new Error(advise);
     }
     if (finalCls && finalCls.elsewhere.length) {
-      bodyPathNotes.push(`ℹ️ 正文题号形态未全部识别（缺 ${finalCls.elsewhere.join('、')}，均以其它形态存在于正文内）——按"内容完整"放行（非丢题）`);
+      // 🔴 唯一落点（2026-09-17 用户裁定）：正文生成路径不再重复写这条，只在此按**实际交付内容**出一条。
+      bodyPathNotes.push(`ℹ️ 正文题号形态未全部识别（缺 ${finalCls.elsewhere.join('、')}，均以其它形态存在于正文内）——按"内容完整"放行（形态问题非丢题，重试无益）`);
       console.warn(`🔢 [题号·终检形态放行] 形态性缺号 ${finalCls.elsewhere.join('、')} 不判丢题（内容已在正文其它位置存在）`);
     }
 

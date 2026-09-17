@@ -180,24 +180,48 @@ export function extractBodyQuestionNumbers(html = '') {
   const src = String(html || '');
   if (!src.trim()) return [];
   const bodyOnly = src.split(/<div[^>]*class=["'][^"']*answer-section|<h[1-6][^>]*>\s*参考答案/i)[0];
-  // 🔧 2026-09-17：剥标签后先归一字面空白实体（&emsp;/&nbsp;…），否则"实体缩进"的题号不在行首而被漏计
+  // 🔧 2026-09-17：剥标签后**保留空白实体的字面文本**（&emsp;/&nbsp;…），靠下面各正则自带的
+  //    "实体空白"分支把它们当空白处理——**不预先解码**：解码会把 `&emsp;` 变成一个普通空格，
+  //    而"紧跟作答位"的判据需要区分"空位"与词间空格（解码后无法区分，实证：行内编号空位漏识别）。
+  //    （历史：本轮曾先 decodeWsEntityLiterals 再匹配，导致 `(41) &emsp;` 不再被判为编号空位。）
   const text = bodyOnly.replace(/<\/(?:p|li|h[1-6]|div|tr)>/gi, '\n').replace(/<[^>]+>/g, '');
-  const out = [];
-  // 位置维度：题号可**直接起段**，也可**跟在作答位之后**——选择题的作答括号常写在题号前
+  const out = [];  // 位置维度：题号可**直接起段**，也可**跟在作答位之后**——选择题的作答括号常写在题号前
   //   （「（　）1. 下列…」；用户 2026-09-17 指正：不可假设"题号前无任何字符"，绝对化必出错），
-  //   故允许行首先出现一个**空括号作答位**；实体空白已由 decodeWsEntityLiterals 归为空白。
-  const re = /(?:^|\n)[ \t\u3000\u00A0]*(?:[(（][ \t\u3000\u00A0]*[)）])?[ \t\u3000\u00A0]*([1-9]\d?)[.、．](?![.\d])/g;
-  let m;
-  while ((m = re.exec(decodeWsEntityLiterals(text)))) out.push(Number(m[1]));
+  //   故允许行首先出现一个**空括号作答位**；空白实体与普通空白等价处理。
+  const WS_ANY = String.raw`(?:[ \t\u3000\u00A0]|&(?:nbsp|#160|#xA0|#x00A0|emsp|#8195|#x2003|ensp|#8194|#x2002|thinsp|#8201|#x2009);)*`;
+  const re = new RegExp(String.raw`(?:^|\n)` + WS_ANY + String.raw`(?:[(（]` + WS_ANY + String.raw`[)）])?` + WS_ANY + String.raw`([1-9]\d?)[.、．](?![.\d])`, 'g');
   // 🔧 2026-09-17（同批·实证第二形态）：**行内编号空位**——补全对话/情景交际等题型的题号就写在空位旁，
   //    不在行首（用户日志样本：`Jack: It was great! (41) &emsp;` / `Amy: (44) &emsp; But you did…`）。
   //    这类"空位自带编号"本身就是该题的题号，与行首题号同权计入；**仅限紧跟作答空位者**
   //    （无空位的行内括号序号仍按子题形态处理、不计入——不扩大口径）。
-  //    注：与"行首题号"同为编号标记；若某子题的编号恰与缺失的顶层题号相同且其后带空位，
-  //    存在遮蔽可能——属既有口径（行首子题号本就同权计入）的同类容忍，非本次新增风险类别。
   const reBlankOrdinal = /[(（]\s*([1-9]\d?)\s*[)）](?=[ \t\u3000]*(?:&(?:emsp|nbsp|#160|#xA0|#x00A0|#8195|#x2003|ensp|#8194|#x2002|thinsp|#8201|#x2009);|[_＿]{2,}))/g;
-  let m2;
-  while ((m2 = reBlankOrdinal.exec(text))) out.push(Number(m2[1]));
+  // 🔴 2026-09-17（用户裁定·根治，消"形式性缺号"提示）：**行内 `N.` 点号形态 + 紧跟作答空位**同样计入。
+  //    实证：六年级英语卷第七题补全对话 "Amy: Hi, Mike. 36. ＿＿＿＿"（题号在行内、不在行首）
+  //    → 36～40 被判"未识别"，虽按"内容完整"放行，但每次都出提示。判据与上面"空位自带编号"完全同类
+  //    （**必须有作答空位紧跟**才算题号），故不扩大口径：题干内的列举编号（"提示：1. What…"）后无空位，不计入。
+  const BLANK_AHEAD = String.raw`[ \t\u3000]*(?:&(?:emsp|nbsp|#160|#xA0|#x00A0|#8195|#x2003|ensp|#8194|#x2002|thinsp|#8201|#x2009);|[_＿]{2,}|[(（]\s*[)）])`;
+  const reInlineDot = new RegExp(String.raw`[^\d\n]([1-9]\d?)[.、．](?![.\d])` + BLANK_AHEAD, 'g');
+  // 🔴 三套形态**按出现位置归并**（本函数承诺"返回保序数组"；多趟 append 会打乱顺序——第三形态是行内匹配，
+  //    若直接 append 会出现 [37, 36] 这类逆序，影响依赖顺序的展示与冻结比对调用方）。
+  const hits = [];
+  const collect = (rx) => {
+    rx.lastIndex = 0;
+    let mm;
+    while ((mm = rx.exec(text))) hits.push({ at: mm.index, n: Number(mm[1]) });
+  };
+  collect(re);
+  collect(reBlankOrdinal);
+  collect(reInlineDot);
+  hits.sort((a, b) => a.at - b.at);
+  // 去重：缩进行首（"\n  36." ）会被"行首"与"行内"两套形态各命中一次（位置相差 ≤3）——同一位点同号只计一次
+  let prevAt = -99;
+  let prevN = null;
+  for (const h of hits) {
+    if (h.n === prevN && h.at - prevAt <= 3) { prevAt = h.at; continue; }
+    out.push(h.n);
+    prevAt = h.at;
+    prevN = h.n;
+  }
   return out;
 }
 

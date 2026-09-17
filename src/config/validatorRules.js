@@ -236,6 +236,16 @@ export const VALIDATOR_RULES = [
   },
 
   {
+    id: 'choice-first-blank-fix',
+    name: '选择题题首作答位形态归一',
+    category: 'fix',
+    subjects: ['*'],
+    stages: ['*'],
+    description: '带选项的大题里，题首作答位若写成下划线空（blank-N）或裸空 → 确定性归一为圆括号空位（　）：只换形态、不动位置（空位仍在该题题首那一处），不涉及作答空间语义。2026-09-17 用户实证：六年级英语卷第六题（26–35）题首为下划线空，而同卷第四/九题（同为选择题）为括号——同卷内不一致，原探针只静默计数、错形态留进交付。生成侧条款由作答空间条款**单源注入**（题首圆括号空位），本规则不再提供 promptHint（否则同一要求两处重复）。',
+    enabled: true,
+  },
+
+  {
     id: 'answer-coverage-guard',
     name: '答案覆盖度静默防护',
     category: 'guard',
@@ -270,7 +280,7 @@ export const VALIDATOR_RULES = [
 export const VALIDATOR_GATES = new Set([
   'pinyin-norm', 'template-cleanup', 'image-block-fix', 'duplicate-content-fix',
   'text-format-fix', 'teaching-volume-guard', 'writing-grid-fix', 'title-detail-fix',
-  'option-count-guard', 'choice-answer-position-guard', 'score-label-fix', 'writing-expression-fix',
+  'option-count-guard', 'choice-answer-position-guard', 'choice-first-blank-fix', 'score-label-fix', 'writing-expression-fix',
   'answer-area-fix', 'answer-section-exam', 'answer-section-teaching', 'answer-coverage-guard',
   'text-format-sup-sub',
   // 🔧 已注销规则的引擎惰性残留（055e198 去强制化收敛时移出规则库，has() 恒 false → 分支恒不命中）：

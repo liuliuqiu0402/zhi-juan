@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>报告噪音与作答载体根治（六年级英语卷四处追问）</title>
+<style>
+  :root { --ink:#1f2328; --muted:#5b6570; --line:#e3e6ea; --bg:#fbfcfd;
+          --red:#b42318; --redbg:#fef3f2; --amber:#8a5a00; --amberbg:#fff8e6; --green:#116329; --greenbg:#f0f9f2; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px 28px 64px; background:var(--bg); color:var(--ink);
+         font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei","PingFang SC","Microsoft YaHei",sans-serif;
+         font-size:14px; line-height:1.7; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  h2 { font-size:18px; margin:34px 0 10px; padding-bottom:6px; border-bottom:2px solid var(--line); }
+  h3 { font-size:15px; margin:22px 0 8px; }
+  .lead { color:var(--muted); margin:0 0 18px; }
+  .box { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin:10px 0 18px; }
+  .box.warn { background:var(--amberbg); border-color:#f0d9a8; }
+  .box.hot { background:var(--redbg); border-color:#f2c9c4; }
+  .box.ok { background:var(--greenbg); border-color:#bfe3c9; }
+  ul { margin:6px 0 6px 20px; padding:0; }
+  li { margin:3px 0; }
+  table { width:100%; border-collapse:collapse; background:#fff; font-size:13px; margin:8px 0 4px; }
+  th, td { border:1px solid var(--line); padding:7px 9px; vertical-align:top; text-align:left; }
+  th { background:#f4f6f8; font-weight:600; white-space:nowrap; }
+  code { background:#f3f5f7; border-radius:3px; padding:1px 4px; font-size:12.5px; }
+  .tag { display:inline-block; border-radius:3px; padding:0 6px; font-size:12px; white-space:nowrap; }
+  .t-hot { background:var(--redbg); color:var(--red); }
+  .t-mid { background:var(--amberbg); color:var(--amber); }
+  .t-ok { background:var(--greenbg); color:var(--green); }
+  .n { color:var(--muted); font-size:12.5px; }
+  del { color:#8a8f95; }
+</style>
+</head>
+<body>
+
+<h1>报告噪音与作答载体根治（六年级英语卷四处追问）</h1>
+<p class="lead">2026-09-17 · 触发：用户拿《六年级英语上册 Unit 1 Try your best 测试卷》导出的 docx，逐条追问四处——
+一条图示提示、三条题号提示、第六题题首载体、第八题是否程序兜底。判据（用户定）：<b>一律根治</b>——改判据与规格的同源，
+不加白名单、不放宽阈值。本文记录四项的病根、落点、实测与守卫。</p>
+
+<div class="box ok">
+  <b>状态：已执行（2026-09-17）</b>——四项全部按根治落地；新增守卫 <code>tests/utils/reportNoiseAndCarrierFixes.test.js</code>（11 项）。
+  实测口径：连词成句每条小题 4 行 → <b>2 行</b>；答案区计数 35 → <b>与正文同口径</b>（不再误报）；36–40 行内题号 <b>计入</b>（提示不再出现）；
+  题首下划线空 → <b>归一为圆括号空位</b>。
+</div>
+
+<h2>A. 适用范围（先回答"是不是通用问题"）</h2>
+<table>
+<thead><tr><th>项</th><th>适用面</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>① 生图引擎提示</td><td><b>全 9 类型</b> × 全学科 × 全学段</td><td>挂在 <code>image-block-fix</code>（subjects/stages 通配、无 genTypes 限制）下的分支，判据是"有 [IMAGE] + 学科无结构化图形能力"→ 内容型、题类都会命中。≥12 科落在该判据内（生物/地理/历史/科学/信息科技=仅统计图；语文/英语/道法/思政/音体美=无 [GRAPH] 能力）。</td></tr>
+<tr><td>② 答案区题号计数</td><td><b>凡产出独立答案区的资料</b>（题类 once 模式为主）</td><td>计数判据 <code>topQCount</code> 与块转行口径对**正文与答案区同用**；分型/阈值逻辑同样类型无关——属题类通用问题。</td></tr>
+<tr><td>③ 行内题号识别</td><td><b>题类通用</b>（正文生成路径全类型跑，内容型无题号不命中）</td><td>提取器与判定在 contentCleaner，被生成护栏（全类型）与最终复核共用；形态"题号不在行首"在各科各类型都会出现（补全对话、连词成句、语文语段内题号等）。</td></tr>
+<tr><td>④ 作答空间兜底行数 + 题首形态</td><td><b>题类通用</b>（exam + 6 类教辅；summary/preview 在 2k 入口整类排除）</td><td>按 学科×学段 规格补差（语文/英语/科学=横线，其余=空白）；题首形态是"带选项的题"这一形态类，跨学科跨类型。</td></tr>
+</tbody>
+</table>
+
+<h2>B. 四项：病根 / 补丁式做法 / 根治落点</h2>
+<table>
+<thead><tr><th>项</th><th>病根</th><th>补丁式（未采用）</th><th>根治落点（已采用）</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>① 图示提示是噪音</b><span class="tag t-mid">报告口径</span></td>
+  <td>判据"有配图 + 学科无结构化图形能力"**不问画面是什么**；文案一律套"（[GRAPH] 仅支持统计图）"——对英语这类**根本不注入 [GRAPH]** 的学科不成立（实证：第五题"大树上的蜗牛"被报"结构图/示意图/地图"）。</td>
+  <td>给英语/语文加跳过清单；或把场景图词加白名单。</td>
+  <td>① 触发加"画面**确需**结构化图形"判据（题干/PROMPT 命中 结构图|示意图|地图|电路|光路|受力|装置|地形|分布图|流程图|简图|平面图|剖面图）；② 文案按学科**真实能力**分档（能力事实源仍是 <code>SUBJECT_GRAPH_TYPES</code>，不另建清单）。</td>
+</tr>
+<tr>
+  <td><b>② 答案区 35 vs 51</b><span class="tag t-hot">误报</span></td>
+  <td>块转行口径只认 <code>p/li/h1-6/div/tr</code>，**表格单元格与 &lt;br&gt; 不算行界** → 表格/紧凑连排的答案区里相邻题号之间没有前界（"…35. B36. B"），"最长 1 起始连续递增段"就在那里断掉。答案区实际 1–51 全在。</td>
+  <td>把告警阈值从"少 1 个"放宽到"少 5 个"。</td>
+  <td>口径与**产物块边界**同源：<code>blockToLines</code> 增补 <code>td/th/table</code> 与 <code>&lt;br&gt;</code> 作为行界（正文与答案区同一函数）。反向护栏（答案区确实几乎无题号仍报）同批加锁。</td>
+</tr>
+<tr>
+  <td><b>③ 缺 36–40 提示</b><span class="tag t-ok">形式性</span></td>
+  <td>提取器只认"行首 `N.`"（可带一个行首括号空位）→ 补全对话里 "Amy: Hi, Mike. <b>36.</b> ＿＿" 的行内题号漏识别；虽按"内容完整"放行，但每次出提示，且**两处各写一条**（措辞还不同）。</td>
+  <td>把 36–40 这类写进白名单；或删掉提示。</td>
+  <td>判据从"位置"换成"结构"：新增**行内 `N.` + 紧跟作答空位**形态（与既有"空位自带编号 <code>(41) &emsp;</code>"同一判据，故不扩大口径——题干列举编号后无空位、不计入）；三套形态**按位置归并**（本函数承诺保序，顺带修掉"多趟 append 会乱序"的旧账）；报告侧**只保留终检一条**落点。</td>
+</tr>
+<tr>
+  <td><b>④ 第八题 4 行／第六题题首</b><span class="tag t-hot">产物</span></td>
+  <td>④a 小题行内不标分值、分值写在大题标题（"每题2分"）→ 2k 判该块**无分值** → 落 <code>NO_SCORE_ROWS=4</code> 兜底，连词成句每题各补 4 条长横线（5 题 = 20 条）。<br>④b 带选项题题首要求圆括号空位，模型写成下划线空；原探针**只静默计数不改写**，错形态留进交付（同卷第四/九题却是括号）。</td>
+  <td>给"连词成句"关键词封顶行数；给"第六题"单独改一处。</td>
+  <td>④a **分值下推**：大题标题的"每题X分"下推为小题默认分值，行数仍由规格库算（英语小高 linePerScore=1.0 → 2分 = 2 行），"无分值 4 行兜底"只在**真无分值**时生效（"每空X分"不下推——空数不定）。<br>④b 新增规则 <code>choice-first-blank-fix</code>：带选项的大题里，题首的纯下划线空/裸空 → **确定性归一为（　）**，只换形态、不动位置；选项判据兼容"同段落内连排"（<code>countOptions</code> 只认行首 A. 式，对连排恒为 0）。</td>
+</tr>
+</tbody>
+</table>
+<p class="n">④b 的边界：无选项的题（填空/默写类）行首空位**不动**（守卫已锁）；生成侧条款不变（仍由作答空间条款单源注入），本规则**不提供 promptHint**，避免同一要求两处重复。</p>
+
+<h2>C. 为什么不是"打补丁"</h2>
+<ul>
+  <li><b>① / ②</b>：都是"判据与事实不同源"——① 把"学科有没有某能力"当成了"这张图要不要某能力"；② 把"行界"定义得比真实产物窄。改的都是**判据本身**，不是给结果加例外。</li>
+  <li><b>③</b>：题号的本征特征是"**编号 + 它是一道题的作答位置**"，不是"它在行首"。新增的第三种形态仍要求"紧跟作答空位"，与既有第二形态同判据 → 口径没放宽（题干列举编号天然被排除）。</li>
+  <li><b>④</b>：行数的唯一事实源应是**规格库（ANSWER_REGION：分值×系数）**，而此前"分值拿不到 → 兜底常量 4"让规格失效。下推分值让规格重新生效，才是根治；题首形态同理由"条款 + 程序确定性收敛"承载，而不是靠模型每次自觉。</li>
+</ul>
+
+<h2>D. 守卫（新增 11 项）</h2>
+<table>
+<thead><tr><th>覆盖</th><th>断言要点</th></tr></thead>
+<tbody>
+<tr><td>① 三例</td><td>英语·场景图不报；英语·地图类报且文案为"本学科不注入 [GRAPH]"（不再套"仅支持统计图"）；生物·结构图报且文案为"仅支持统计图"（该学科确有统计图能力）。既有 <code>figurePromptCheck</code> 用例（生物/数学）同步换为含需求词的夹具。</td></tr>
+<tr><td>② 两例</td><td>表格化答案区（题号跨单元格）→ 不报；反向：答案区只有 (1)(2)、无顶层题号 → 仍报（防口径放宽后静默）。</td></tr>
+<tr><td>③ 三例</td><td>行内 <code>36. ＿＿</code> 计入且**保序**（[36,37]）；题干列举编号不计入；1–35 行首 + 36–40 行内 → <code>detectBodyNumberingGap</code> 为 null（不再出提示）。</td></tr>
+<tr><td>④ 三例</td><td>英语连词成句（每题2分、小题无分值）→ 补 10 条 = 5×2（不再是 20 条）；带选项题题首下划线空 → 归一为（　）并出 info；无选项题行首空位不动。</td></tr>
+</tbody>
+</table>
+
+<h2>E. 落地文件</h2>
+<table>
+<thead><tr><th>文件</th><th>改动</th></tr></thead>
+<tbody>
+<tr><td><code>src/utils/examValidator.js</code></td><td>① 需求词判据 + 文案分档；② <code>blockToLines</code> 补块边界；④a 分值下推（<code>scoreOf</code>）；④b 新增 2e0 题首形态归一分支（含连排选项判据）。</td></tr>
+<tr><td><code>src/config/validatorRules.js</code></td><td>新增 fix 规则 <code>choice-first-blank-fix</code>（无 promptHint，description 声明单源理由）＋ 登记 <code>VALIDATOR_GATES</code>。</td></tr>
+<tr><td><code>src/utils/contentCleaner.js</code></td><td>③ 提取器：新增行内 <code>N.</code>+作答位形态、三套形态按位置归并保序、同行同号的去重；行首正则内联支持实体空白（不再预解码——解码会吞掉"空位 vs 词间距"的区分）。</td></tr>
+<tr><td><code>src/composables/useAiGenerator.js</code></td><td>③ 报告侧去重：正文路径不再写"形态未全部识别"，只留终检一条（措辞含"重试无益"）。</td></tr>
+<tr><td><code>tests/utils/reportNoiseAndCarrierFixes.test.js</code>（新增）</td><td>11 项守卫（见 D）。</td></tr>
+</tbody>
+</table>
+
+<h2>F. 待观察</h2>
+<ul>
+  <li>建议拿同一份英语卷重跑一次，核对：图示提示是否消失、题号两条提示是否消失、第六题题首是否为（　）、第八题是否 2 行。</li>
+  <li>分值下推会同时改变其他类型/学科的补差行数（凡"每题X分"大题且小题行内无分值者）——若发现某类题行数偏多/偏少，调 <code>layoutSpec.ANSWER_REGION.linePerScore</code>（规格层唯一事实源），不要在 2k 里加特例。</li>
+</ul>
+
+</body>
+</html>

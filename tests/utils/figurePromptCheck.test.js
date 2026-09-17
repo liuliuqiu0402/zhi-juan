@@ -127,19 +127,35 @@ describe('端到端：auditExamPaper 产出配图一致性提示', () => {
     + `<p>${stem}</p>[IMAGE]\nPROMPT:${prompt}\n[/IMAGE]<p>2. 下一题</p>`;
 
   it('生物卷：数量不一致 → image-consistency(warn)；且提示生图引擎需人工核对', () => {
-    const r = auditExamPaper(htmlOf('1. 观察下面的图，图中有三只熊猫在吃竹子', '一只熊猫在竹林中吃竹子'), {
+    const r = auditExamPaper(htmlOf('1. 观察下面的结构图，图中有三只熊猫在吃竹子', '一只熊猫在竹林中吃竹子'), {
       subject: '生物', stage: 'middle', genType: 'practice',
     });
     const msgs = r.silentDetails.map((d) => d.message).join(' | ');
     expect(msgs).toContain('配图数量可能与题干不一致');
     expect(msgs).toContain('三只');
     expect(msgs).toContain('一只');
-    // 生物无结构化图形能力 → 追加生图引擎核对提示
+    // 生物无结构化图形能力 + 画面涉及"结构图" → 追加生图引擎核对提示（文案按真实能力分档）
     expect(r.silentDetails.some((d) => d.type === 'image-engine-only')).toBe(true);
+    expect(msgs).toContain('[GRAPH] 仅支持统计图');
+  });
+
+  it('🔴 2026-09-17（用户裁定·消噪音）：纯场景图不报生图引擎提示（不是结构图/示意图/地图）', () => {
+    // 实证：六年级英语卷第五题"大树上的蜗牛"曾被报"结构图/示意图/地图无结构化图形能力"——文不对题；
+    // 现只在**画面确需结构化图形**（题干/PROMPT 命中需求词）时提示。
+    const scene = auditExamPaper(htmlOf('1. 根据图片提示写单词', '一棵大树上有一只蜗牛在爬，树下有一只小鸟'), {
+      subject: '英语', stage: 'primary_high', genType: 'exam',
+    });
+    expect(scene.silentDetails.some((d) => d.type === 'image-engine-only')).toBe(false);
+    // 同卷若画面确实是地图一类 → 仍提示，且文案按"本学科不注入 [GRAPH]"分档（英语无 [GRAPH] 能力）
+    const map = auditExamPaper(htmlOf('1. 看图回答问题', '一张简化的城市地图，标有三个地名'), {
+      subject: '英语', stage: 'primary_high', genType: 'exam',
+    });
+    const mapMsg = map.silentDetails.filter((d) => d.type === 'image-engine-only').map((d) => d.message).join(' | ');
+    expect(mapMsg).toContain('本学科不注入 [GRAPH]');
   });
 
   it('🔴 数学卷不报生图引擎提示（有结构化图形能力）', () => {
-    const r = auditExamPaper(htmlOf('1. 观察下面的图，图中有三只熊猫', '一只熊猫'), {
+    const r = auditExamPaper(htmlOf('1. 观察下面的结构图，图中有三只熊猫', '一只熊猫'), {
       subject: '数学', stage: 'middle', genType: 'practice',
     });
     expect(r.silentDetails.some((d) => d.type === 'image-engine-only')).toBe(false);
