@@ -123,13 +123,30 @@ export function stripPlanningPreamble(raw = '') {
  *   ④ 行首题号/条目号（^\s*\d{1,2}[.、．]\s*）；⑤ 若无上述结构但仅剩纯文本 → 判非正文（自述）。
  * 供 _runPaperOrder 正文采纳守卫复用（只判不改）。
  */
+/**
+ * 空白类 HTML 实体的**字面文本**归一（2026-09-17 正文丢题误判根治·实证定案）
+ * ============================================================
+ * 🔴 事故实况：英语整卷题号形如 `<p>&emsp;4. A. need　B. feed　C. read</p>`（AI 用实体做行首缩进/占位），
+ *    而题号提取的文本剥离**只删标签、不解码实体**——行首留下字面 `&emsp;`（6 个普通字符），
+ *    行首题号规则 `\s*([1-9]\d?)[.、．]` 的 `\s*` 匹配不到它 → 该题号不被计入 →
+ *    误报"正文题号不连续（1~61 中缺 30 处）"并**判失败不交付**；题号其实一个不少，
+ *    故重试无用（模型每次都这么写，缺号清单回灌也改不掉 = 提取侧漏判，非模型丢题）。
+ *    取证日志（用户 2026-09-17 提供）：缺号全部呈"仅裸数字/句中出现（非题号形态）"，
+ *    样本上下文均以 `&emsp;` 起行；`extractBodyQuestionNumbers` 对 `&emsp;4.` 实测返回 [1,2,3,6]（缺 4、5）。
+ * 🔧 归一做法：把空白实体的字面文本统一替换为真实空白，再套原规则——不放松任何判据
+ *    （仍是"行首 + 序号 + 分隔符"才算题号），只是让"实体缩进"与"空格缩进"等价。
+ *    实体集与 normalizeLeadingMarkers 的 LEAD_WS 同源。
+ */
+const WS_ENTITY_LITERAL_RE = /&(?:nbsp|#160|#xA0|#x00A0|emsp|#8195|#x2003|ensp|#8194|#x2002|thinsp|#8201|#x2009);/gi;
+const decodeWsEntityLiterals = (text = '') => String(text || '').replace(WS_ENTITY_LITERAL_RE, ' ');
+
 export function hasBodyContentStructure(html = '') {
   const src = String(html || '');
   if (!src.trim()) return false;
   if (/<h[234][^>]*>/i.test(src)) return true;                       // 栏目标题
   if (/<p[^>]*class=["'][^"']*question[^"']*["'][^>]*>/i.test(src)) return true; // 题目块
   if (/class=["'][^"']*(?:blank-\d+|blank-line|blank-area|math-circle-blank)[^"']*["']/i.test(src)) return true; // 作答载体
-  if (/(?:^|\n)\s*\d{1,2}[.、．]\s*\S/m.test(src)) return true;      // 行首题号/条目号（正文组织特征）
+  if (/(?:^|\n)\s*\d{1,2}[.、．]\s*\S/m.test(decodeWsEntityLiterals(src))) return true;      // 行首题号/条目号（正文组织特征）
   return false;                                                      // 无结构 → 纯文本/自述，非正文
 }
 
@@ -163,11 +180,21 @@ export function extractBodyQuestionNumbers(html = '') {
   const src = String(html || '');
   if (!src.trim()) return [];
   const bodyOnly = src.split(/<div[^>]*class=["'][^"']*answer-section|<h[1-6][^>]*>\s*参考答案/i)[0];
+  // 🔧 2026-09-17：剥标签后先归一字面空白实体（&emsp;/&nbsp;…），否则"实体缩进"的题号不在行首而被漏计
   const text = bodyOnly.replace(/<\/(?:p|li|h[1-6]|div|tr)>/gi, '\n').replace(/<[^>]+>/g, '');
   const out = [];
   const re = /(?:^|\n)\s*([1-9]\d?)[.、．](?![.\d])/g;
   let m;
-  while ((m = re.exec(text))) out.push(Number(m[1]));
+  while ((m = re.exec(decodeWsEntityLiterals(text)))) out.push(Number(m[1]));
+  // 🔧 2026-09-17（同批·实证第二形态）：**行内编号空位**——补全对话/情景交际等题型的题号就写在空位旁，
+  //    不在行首（用户日志样本：`Jack: It was great! (41) &emsp;` / `Amy: (44) &emsp; But you did…`）。
+  //    这类"空位自带编号"本身就是该题的题号，与行首题号同权计入；**仅限紧跟作答空位者**
+  //    （无空位的行内括号序号仍按子题形态处理、不计入——不扩大口径）。
+  //    注：与"行首题号"同为编号标记；若某子题的编号恰与缺失的顶层题号相同且其后带空位，
+  //    存在遮蔽可能——属既有口径（行首子题号本就同权计入）的同类容忍，非本次新增风险类别。
+  const reBlankOrdinal = /[(（]\s*([1-9]\d?)\s*[)）](?=[ \t\u3000]*(?:&(?:emsp|nbsp|#160|#xA0|#x00A0|#8195|#x2003|ensp|#8194|#x2002|thinsp|#8201|#x2009);|[_＿]{2,}))/g;
+  let m2;
+  while ((m2 = reBlankOrdinal.exec(text))) out.push(Number(m2[1]));
   return out;
 }
 
@@ -185,11 +212,11 @@ export function extractBodyQuestionSequence(html = '') {
   const src = String(html || '');
   if (!src.trim()) return [];
   const bodyOnly = src.split(/<div[^>]*class=["'][^"']*answer-section|<h[1-6][^>]*>\s*参考答案/i)[0];
-  const normalized = bodyOnly
+  const normalized = decodeWsEntityLiterals(bodyOnly
     .replace(/<(?:u|span)[^>]*class=["'][^"']*blank-[^"']*["'][^>]*>[\s\S]*?<\/(?:u|span)>/gi, '') // 作答空位
     .replace(/[（(][\s\u3000]*[）)]/g, '')                                                          // 空括号（　）
     .replace(/<\/(?:p|li|h[1-6]|div|tr)>/gi, '\n')
-    .replace(/<[^>]+>/g, '');
+    .replace(/<[^>]+>/g, ''));
   const out = [];
   const re = /(?:^|\n)\s*([1-9]\d?)[.、．](?![.\d])/g;
   let m;
@@ -242,7 +269,7 @@ export function diagnoseNumberingGap(html = '') {
   if (!gap) return { gap: null, found: [], missing: [], anyDigitCount: 0, peek: [], skeleton: [] };
   const src = String(html || '');
   const bodyOnly = src.split(/<div[^>]*class=["'][^"']*answer-section|<h[1-6][^>]*>\s*参考答案/i)[0];
-  const text = bodyOnly.replace(/<\/(?:p|li|h[1-6]|div|tr)>/gi, '\n').replace(/<[^>]+>/g, '');
+  const text = decodeWsEntityLiterals(bodyOnly.replace(/<\/(?:p|li|h[1-6]|div|tr)>/gi, '\n').replace(/<[^>]+>/g, ''));
   const peek = [];
   for (const n of gap.missing) {
     const lineForm = new RegExp(`(?:^|\\n)\\s*${n}[.、．](?![.\\d])`);

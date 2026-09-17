@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { detectTruncation, isAnswerShell, wrapAnswerSection, stripAnswerSection, stripLeadingAnswerTitle } from '../../src/composables/useAiGenerator.js';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
-import { detectBodyNumberingGap, diagnoseNumberingGap } from '../../src/utils/contentCleaner.js';
+import { detectBodyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers } from '../../src/utils/contentCleaner.js';
 
 describe('答案完整性·截断判定（detectTruncation）', () => {
   it('finish_reason=length 且内容较长 → 判定截断（API 可靠信号）', () => {
@@ -260,6 +260,34 @@ describe('正文缺号检测（detectBodyNumberingGap）', () => {
       p(69), p(70),
     );
     expect(detectBodyNumberingGap(skip668)).toEqual({ peak: 70, found: [...Array.from({ length: 65 }, (_, i) => i + 1), 69, 70], missing: [66, 67, 68] });
+  });
+
+  // 🔴 2026-09-17 用户实证（英语整卷被误判丢题·重试无效·不交付）：题号**形态未被识别** → 误报"1~61 中缺 30 处"。
+  //    取证日志：缺号全呈"仅裸数字/句中出现（非题号形态）"，样本上下文均以 `&emsp;` 起行；41-45 为对话内 `(41) &emsp;`。
+  //    根因是提取侧漏判（题号一个不少），故重试与缺号回灌都无效——以下两例锁住这两类形态。
+  it('题号前带字面空白实体（&emsp;/&nbsp;）→ 不计漏、不判缺（2026-09-17 实证）', () => {
+    const withEntity = html(
+      '<p>1. A</p>', '<p>2. B</p>', '<p>3. C</p>',
+      '<p>&emsp;4. D</p>', '<p>&nbsp;5. E</p>', '<p>6. F</p>',
+    );
+    expect(extractBodyQuestionNumbers(withEntity)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(detectBodyNumberingGap(withEntity)).toBeNull();
+  });
+
+  it('行内编号空位（补全对话 `(41) &emsp;`）→ 计为编号空位，不判缺（2026-09-17 实证）', () => {
+    const dialogue = '<p>Jack: It was great! (41) &emsp;</p><p>Amy: (42) &emsp;</p>'
+      + '<p>Jack: (43) &emsp;</p><p>Amy: (44) &emsp; But you did a good job!</p><p>Jack: (45) &emsp;</p>';
+    const doc = '<h1>英语整卷</h1>\n'
+      + Array.from({ length: 40 }, (_, i) => p(i + 1)).join('\n') + '\n'
+      + dialogue + '\n' + p(46) + p(47);
+    const found = extractBodyQuestionNumbers(doc);
+    for (const n of [41, 42, 43, 44, 45]) expect(found).toContain(n);
+    expect(detectBodyNumberingGap(doc)).toBeNull();
+  });
+
+  it('反向：行内括号序号后无作答空位（子题形态）→ 不计入（不扩大口径）', () => {
+    const doc = html('<p>1. A</p>', '<p>2. B</p>', '<p>3. 计算：（3）下列各题中说法正确的是</p>');
+    expect(extractBodyQuestionNumbers(doc)).toEqual([1, 2, 3]);
   });
 });
 
