@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { SUBJECT_STAGE_EXTRAS } from '@/config/promptLibrary.js';
 
 // 受控课标前缀：新版本课标入库须先登记到本清单，否则 CI 即红（宁缺毋滥，防伪出处）
-const SOURCE_PREFIX = /^(2022义教|高中.+课标\(2017\/2025\))/;
+const SOURCE_PREFIX = /^(2022义教|高中.+课标\(2017\/2020\))/;
 const SELF_MADE = /(自拟|据我|我认为|参考我|自编|个人理解)/;
 
 const CELLS = Object.entries(SUBJECT_STAGE_EXTRAS);
@@ -20,7 +20,7 @@ describe('课标出处受控：54 科段要点 source 单一受控清单（CI �
     expect(bad, `正文规范异常 ${bad.length} 处：\n${bad.slice(0, 30).join('\n')}`).toEqual([]);
   });
 
-  it('每条要点带出处，且出处以受控课标前缀开头（2022义教 / 高中…课标(2017/2025)）', () => {
+  it('每条要点带出处，且出处以受控课标前缀开头（2022义教 / 高中…课标(2017/2020)）', () => {
     const bad = [];
     for (const [cell, v] of CELLS) {
       if (!v.source || !v.source.trim()) bad.push(`${cell} 缺 source`);
@@ -34,13 +34,13 @@ describe('课标出处受控：54 科段要点 source 单一受控清单（CI �
     expect(bad, `自造出处 ${bad.length} 处：\n${bad.slice(0, 30).join('\n')}`).toEqual([]);
   });
 
-  it('课标体系与学段匹配：义教学段（小学低/中/高段、初中）出处仅允许 2022 义教课标；高中学段仅允许 高中…课标(2017/2025)', () => {
+  it('课标体系与学段匹配：义教学段（小学低/中/高段、初中）出处仅允许 2022 义教课标；高中学段仅允许 高中…课标(2017/2020)', () => {
     const bad = [];
     for (const [cell, v] of CELLS) {
       const stage = cell.split('|')[1];
       const src = (v.source || '').trim();
       if (stage === 'high') {
-        if (!/^高中.+课标\(2017\/2025\)/.test(src)) bad.push(`${cell}: 高中学段须用高中课标(2017/2020)出处，实得：${src.slice(0, 30)}`);
+        if (!/^高中.+课标\(2017\/2020\)/.test(src)) bad.push(`${cell}: 高中学段须用高中课标(2017/2020)出处，实得：${src.slice(0, 30)}`);
       } else if (!/^2022义教/.test(src)) {
         bad.push(`${cell}: 义教学段(${stage})须用 2022 义教课标出处，实得：${src.slice(0, 30)}`);
       }

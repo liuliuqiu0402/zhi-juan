@@ -137,7 +137,7 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(bp.custom).toBe(false);
     expect(bp.subject).toBe('未知学科');
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '未知学科' });
-    expect(inject).toContain('【大类标题（下面各行即本次大类标题；按《义务教育课程标准日常修订版（2022年版2025年修订）》的活动类型与素养划分；同步练习·初中）】');
+    expect(inject).toContain('【大类标题（下面各行即本次大类标题；按2022年版义务教育课程标准的活动类型与素养划分；同步练习·初中）】');
     // 学段要求仍按学段注入（初中）
     expect(inject).toContain('学段要求');
   });

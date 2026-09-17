@@ -72,7 +72,7 @@ describe('蓝图库与指令库措辞守卫（2026-09-16 课标原则）', () =>
     expect(raw).not.toContain('以迁移与创新为主');
     const practice = getPromptTemplate({ grade: 'primary_high', subject: '英语', genType: 'practice' }).template;
     expect(practice).toContain('按课标倡导的学习方式组织');
-    expect(practice).toContain('《义务教育课程标准日常修订版（2022年版2025年修订）》');
+    expect(practice).toContain('（依据2022年版义务教育课程标准）');
   });
 
   it('预习/默写的内容定位保留（strict 口径按类型分档，不属"锁死原文"）', () => {
