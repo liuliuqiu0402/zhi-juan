@@ -126,11 +126,17 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     assertNoBanned(raw, 'EXAM_BLUEPRINTS');
   });
 
-  it('专项结构说明（GENERIC_SPECIAL_DESC）无递进链且保留梯度原则', () => {
+  // 🔒 2026-09-17 口径升级：原断言曾锁定"由浅入深"为专项说明的"梯度原则"——与 09-16 课标原则
+  //    （自造层次/梯度取向词全清，TPL_BANNED 已禁"由浅入深/设问有梯度"）冲突，属旧裁定残留。
+  //    现改锁中性口径：保留结构名"分板块组织"，禁止 层级/梯度/由浅入深/递进链 回潮。
+  it('专项结构说明（GENERIC_SPECIAL_DESC）无递进链、无层级梯度取向词（2026-09-16 课标原则）', () => {
     const raw = GENERIC_SPECIAL_DESC;
     assertNoBanned(raw, 'GENERIC_SPECIAL_DESC');
-    expect(raw).toContain('由浅入深');
+    expect(raw).toContain('分板块组织');
+    expect(raw).not.toContain('由浅入深');
     expect(raw).not.toContain('提升→拓展');
+    expect(raw).not.toContain('层级');
+    expect(raw).not.toContain('梯度');
   });
 
   it('白名单（答题书写规范）仍保留', () => {

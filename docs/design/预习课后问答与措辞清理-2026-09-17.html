@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>预习导学·课后问答覆盖 与 09-17 措辞清理批次</title>
+<style>
+  :root { --ink:#1f2328; --muted:#5b6570; --line:#e3e6ea; --bg:#fbfcfd;
+          --red:#b42318; --redbg:#fef3f2; --amber:#8a5a00; --amberbg:#fff8e6; --green:#116329; --greenbg:#f0f9f2; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px 28px 64px; background:var(--bg); color:var(--ink);
+         font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei","PingFang SC","Microsoft YaHei",sans-serif;
+         font-size:14px; line-height:1.7; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  h2 { font-size:18px; margin:34px 0 10px; padding-bottom:6px; border-bottom:2px solid var(--line); }
+  h3 { font-size:15px; margin:22px 0 8px; }
+  .lead { color:var(--muted); margin:0 0 18px; }
+  .box { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin:10px 0 18px; }
+  .box.warn { background:var(--amberbg); border-color:#f0d9a8; }
+  .box.hot { background:var(--redbg); border-color:#f2c9c4; }
+  .box.ok { background:var(--greenbg); border-color:#bfe3c9; }
+  ul { margin:6px 0 6px 20px; padding:0; }
+  li { margin:3px 0; }
+  table { width:100%; border-collapse:collapse; background:#fff; font-size:13px; margin:8px 0 4px; }
+  th, td { border:1px solid var(--line); padding:7px 9px; vertical-align:top; text-align:left; }
+  th { background:#f4f6f8; font-weight:600; white-space:nowrap; }
+  code { background:#f3f5f7; border-radius:3px; padding:1px 4px; font-size:12.5px; }
+  .tag { display:inline-block; border-radius:3px; padding:0 6px; font-size:12px; white-space:nowrap; }
+  .t-self { background:var(--redbg); color:var(--red); }
+  .t-cn { background:var(--greenbg); color:var(--green); }
+  .t-survey { background:#eef4ff; color:#1d4ed8; }
+  .t-ask { background:var(--amberbg); color:var(--amber); }
+  .n { color:var(--muted); font-size:12.5px; }
+</style>
+</head>
+<body>
+
+<h1>预习导学·课后问答覆盖 与 09-17 措辞清理批次</h1>
+<p class="lead">2026-09-17 · 判据沿用 09-16 定案（课标原词／原义 → 留；调研／真题结构口径 → 留；产品自造 → 清或中性化），
+见 <code>蓝图库语义清理清单-2026-09-16.html</code> 之 G1。本文记录两件事：09-16 清理的收尾残留，以及预习导学新增「课后问答」覆盖能力。</p>
+
+<div class="box ok">
+  <b>状态：已执行（2026-09-17）</b>——两批改动均已落库，全量测试 <b>2029</b> 项通过（含本次新增守卫测试 5 项）。
+  回归守卫：<code>tests/config/previewHomeworkQA.test.js</code>（新增）、
+  <code>tests/config/nonInducingPrompt.test.js</code>（旧断言口径升级）、
+  以及既有 <code>bpWordingGuard.test.js</code>、<code>taskColumnStyle.test.js</code> 全程保持绿。
+</div>
+
+<h2>A. 09-16 清理的收尾残留（2026-09-17 批次）</h2>
+<p class="n">这批是 09-16 未覆盖到的同源残留：同一判据下应当清、但当时漏扫的位置。逐处改动如下。</p>
+
+<table>
+<thead><tr><th>文件</th><th>位置</th><th>原文</th><th>命中</th><th>改法</th></tr></thead>
+<tbody>
+<tr><td><code>teachingBlueprints.js</code></td><td>数学·专项「分板块组织」note</td><td>按本单元<b>知识层级</b>分板块；并给出具体做法与自查/完成标准</td><td><span class="tag t-self">自造</span></td><td>按本单元<b>内容</b>分板块；…（其余学科此处早已统一为「按本单元内容分板块」，数学是唯一残留）</td></tr>
+<tr><td><code>teachingBlueprints.js</code></td><td>默写/积累类 14 处 note</td><td>…必记内容，<b>按课标要求覆盖</b>／<b>按教材要求覆盖</b></td><td><span class="tag t-self">自造</span></td><td>…都涉及到（合规约束由默写模板已锁定的「严格对应教材要求」承载）</td></tr>
+<tr><td><code>teachingBlueprints.js</code></td><td>地理·高中 note</td><td>区域与要素综合分析，图表信息解读<b>有层次</b></td><td><span class="tag t-self">自造</span></td><td>对图表信息作<b>多角度</b>解读</td></tr>
+<tr><td><code>expertKnowledge.js</code></td><td><code>styleInstructions.mindmap</code>（逐字注入）+ 对应 UI tip</td><td>按概念<b>层级</b>的递进关系分层组织，条目<b>层级</b>清晰</td><td><span class="tag t-self">自造</span></td><td>按概念关系组织条目、主次分明</td></tr>
+<tr><td><code>expertKnowledge.js</code></td><td><code>styleInstructions.task_driven</code></td><td>可操作可检查，<b>覆盖</b>本课时新知识点</td><td><span class="tag t-self">自造</span></td><td>…<b>涉及</b>本课时新知识点</td></tr>
+<tr><td><code>expertKnowledge.js</code></td><td><code>styleInstructions.framework</code> + 对应 UI tip</td><td>围绕核心知识依次梳理与自测组织，<b>覆盖完整</b>、重点突出</td><td><span class="tag t-self">自造</span></td><td>…<b>内容完整</b>、重点突出</td></tr>
+<tr><td><code>specialDomains.js</code></td><td><code>GENERIC_SPECIAL_DESC</code>（通用专项说明）</td><td>按<b>知识层级</b>分板块，板块间有合理<b>梯度</b>、<b>由浅入深</b>，<b>层次</b>依内容自然形成</td><td><span class="tag t-self">自造</span>（且与真实生效蓝图不一致）</td><td>按本单元内容分板块，板块依内容自然形成；连带同源注释一并更正</td></tr>
+<tr><td><code>specialDomains.js</code></td><td>语文·阅读理解「分层设问」note（本轮补漏）</td><td>设问<b>由浅入深</b>、有<b>思维梯度</b></td><td><span class="tag t-self">自造</span>（由浅入深为既有禁用词）</td><td>设问角度随文本难度自然展开</td></tr>
+<tr><td><code>GenerateModule.vue</code></td><td>专项兜底 UI 文案 2 处</td><td>按<b>知识层级</b>分板块，板块内<b>基础→提升→拓展</b></td><td><span class="tag t-self">自造</span>（递进链为既有禁用枚举）</td><td>与蓝图口径一致的中性文案</td></tr>
+<tr><td><code>promptLibrary.js</code></td><td><code>STAGE_EXAM_EXTRAS.primary_low</code>、<code>STAGE_TEACHING_EXTRAS.primary_low</code></td><td>情境活动化、游戏化、生活化；<b>图文并茂</b>；难度低起点…</td><td><span class="tag t-self">自造</span></td><td>删「图文并茂」，保留有课标出处的「活动化、游戏化、生活化」</td></tr>
+</tbody>
+</table>
+
+<h3>A1 「图文并茂」为什么删</h3>
+<ul>
+  <li>它已在 <code>bpWordingGuard.test.js</code> 的禁用清单（<code>BP_BANNED</code>）内，属 09-16 判定的「完全自编的形式词」，残留在两处学段要点属漏网。</li>
+  <li>这两处是<b>全类型注入</b>（低段 9 类资料都会吃到该句），影响面比单处栏目大。</li>
+  <li>该条的 <code>source</code> 字段标注的课标出处只有「活动化、游戏化、生活化」（2022 义教课程方案原文），<b>「图文并茂」不在其中</b>——按「不得冒充课标条款」的规则，挂在课标 source 下的非课标词正是清理对象。</li>
+  <li>图片需求已由「图依赖词单一事实源 + 渲染契约」驱动，无需再给一条笼统的形态指令；该词反而可能诱导低段资料盲目插图。</li>
+</ul>
+
+<h3>A2 测试口径升级（旧断言与新口径冲突）</h3>
+<div class="box warn">
+  <code>nonInducingPrompt.test.js</code> 原有一条断言把 <code>GENERIC_SPECIAL_DESC</code> 里的<b>「由浅入深」锁为必须存在</b>的「梯度原则」——
+  这是旧裁定的残留，与 09-16 定案（自造层次／梯度取向词全清，<code>TPL_BANNED</code> 已禁「由浅入深」「设问有梯度」）直接冲突。
+  本次改为<b>反向锁</b>：保留结构名「分板块组织」，禁止「层级／梯度／由浅入深／递进链」回潮。
+</div>
+
+<h3>A3 本轮明确「不清」的项（连同判据一并留档）</h3>
+<table>
+<thead><tr><th>对象</th><th>为何保留</th></tr></thead>
+<tbody>
+<tr><td>试卷蓝图「覆盖本单元…内容」（<code>examPaperBlueprints.js</code>）</td><td>调研／真题结构口径，是卷面结构的确定性范围陈述；卷面由蓝图钉死、非 AI 组织，此处「覆盖」不构成组织诱导。</td></tr>
+<tr><td><code>promptLibrary.js</code> 中的「层级」（HTML 嵌套、题号层级、答案与正文同构）</td><td>渲染契约，描述的是输出结构协议，不是给模型的取向指令。</td></tr>
+<tr><td>「同一知识点不得重复考查」「不写覆盖/考查/练习字样」</td><td>防凑量的质量底线与元规则，其中后者本身就是禁止使用该批词的规定。</td></tr>
+<tr><td>授权词：由你自定／自行拟制／自拟</td><td>「由你自行决定」类<b>不算诱导、保留</b>：诱导的本质是给出强指向的具体形态／序列／数量／配比，授权词相反，是把选择权交回模型。唯一边界是「授权词 + 具体例子」（如"自拟图文卡片"）会变回隐性列举——该形态已在此前批次清完。</td></tr>
+</tbody>
+</table>
+
+<h2>B. 预习导学覆盖「课后问答」</h2>
+<p class="n">诉求：预习资料要覆盖教材的课后问答，并且要给出分析与答案。难点在于各版本教材的课后问答形态不一（有的叫「思考探究」「交流平台」，有的干脆只列题、无归类名），且数学等学科教材里叫「练习」的内容并不属于课后问答。</p>
+
+<h3>B1 判据：按题目功能与形态判定，不按栏目名</h3>
+<div class="box">
+  <b>算</b>：教材本次范围中<b>供学生思考、讨论作答</b>的问题类内容——课文或节末的思考题、交流讨论、想一想、研讨等；特征是问句式、开放作答、无唯一机械答案；各版本叫法不一，故<b>不依赖任何归类名</b>。<br>
+  <b>不算</b>：以确定答案的反复练习为目的的巩固训练（含数学「做一做／练一练／练习」、理科节末练习）——属课内训练，不属问答。<br>
+  <b>没有就不写</b>：教材未含此类内容，或本次素材未提供教材原文时，该栏目省略，<b>不得自行编造</b>课后问答（宁可省略、不得幻觉）。
+</div>
+<p class="n">措辞上刻意<b>不使用「填空／选择」等题型名</b>，改用「答案确定、以供反复练习为目的的巩固训练」的功能描述——与既有「作答形态条款零题型名」的裁定保持一致，避免引入题型诱导。</p>
+
+<h3>B2 落点（四处改动，均为纯提示词层）</h3>
+<table>
+<thead><tr><th>落点</th><th>改动</th></tr></thead>
+<tbody>
+<tr><td>预览蓝图 16 处</td><td>通用蓝图 + 15 个学科定制的 <code>preview.sections</code>，在「我的疑问」之前统一插入 <code>课后问答</code> 栏目；说明写明「原样引用教材原题，并配预读与尝试作答要求；无此类内容或未提供原文时省略，不得自行编造」。</td></tr>
+<tr><td>栏目风格套</td><td><code>COLUMN_STYLE_SETS.preview</code> 的 a／b／c／d 四套同步为 5 栏，第 4 栏均为「课后问答」，保证换肤后栏目不错位（说明文字不得含任何套名的不变量同时保持）。</td></tr>
+<tr><td>指令库模板</td><td><code>promptLibrary.js</code> 的 <code>preview</code> 模板新增一条判据句：原样引用教材原题转为预读与尝试作答任务并给自查要点；按功能形态判定、不按栏目名；教材未含此类内容或素材未提供教材原文时该栏目省略，不得自行编造。</td></tr>
+<tr><td>答案区角色</td><td><code>ANSWER_ROLES.other</code> 对 preview 追加「含课后问答栏目——须逐题给出答案与要点」，即课后问答进入答案区作答范围；summary／review／dictation 不受影响。</td></tr>
+</tbody>
+</table>
+
+<h3>B3 素材通道取舍（有依赖，按现状取安全侧）</h3>
+<p>课后问答需要「原样引用教材原题」，因此依赖素材通道是否注入教材原文：<b>全文通道</b>（<code>full</code>，归纳／积累型默认）下教材原文随委托注入，可正常覆盖；<b>锚清单通道</b>（<code>anchor</code>）下不注入原文，判据即让栏目<b>安全省略</b>。</p>
+<div class="box warn">
+  <b>未采纳的方案</b>：在分析层把课后问答原题提取进<b>锚清单</b>，使两条通道都能覆盖。弃用原因是风险面——锚清单是跨类型共享的注入源，为预习新增一类锚项会波及练习、试卷等全部资料类型，结构一变可能连带污染其它类型的范围与难度口径；相较收益（仅解决手动切锚清单时的单一栏目）不划算。故本轮只做<b>纯提示词层的通道感知</b>，不动分析管线与锚清单契约。若后续实测锚清单通道高频需要，再单独评估「仅预习消费、严格隔离」的试点。
+</div>
+
+<h3>B4 守卫测试（新增 <code>tests/config/previewHomeworkQA.test.js</code>，5 项）</h3>
+<ul>
+  <li>预览蓝图（通用 + 全部学科定制，≥15 份）均含「课后问答」栏目、位于「我的疑问」之前、说明含省略与禁编造。</li>
+  <li>栏目风格套 preview 四套均为 5 栏，第 4 栏与蓝图同位。</li>
+  <li>注入文本（5 学段 × 14 学科 × 4 套 &gt; 200 组合）均含课后问答栏目。</li>
+  <li>预习模板含判据：原样引用原题 / 不按栏目名 / 该栏目省略 / 未提供教材原文 / 不得自行编造。</li>
+  <li>答案区：预习资料须逐题给出课后问答的答案与要点；其余自包含教辅不被注入该口径。</li>
+</ul>
+<div class="box">
+  <b>过程中被守卫测试拦下的真实缺陷</b>：初版栏目说明里写了「…转为预读任务」，其中「预读任务」恰是栏目风格套 c 的栏名——
+  这会让「标题换名、说明没换」的错位重新出现，被既有不变量（<code>taskColumnStyle.test.js</code>「说明不得含套名」）当场拦下，随后改写为「并配预读与尝试作答要求」。
+</div>
+
+<h3>B5 已知限制</h3>
+<ul>
+  <li>锚清单通道下该栏目按判据省略——这是本轮主动选择的风险取舍，不是缺陷；行为是安全省略，不会出错、只是未覆盖。</li>
+  <li>识别前提是教材原文（含课后部分）被全文通道提取注入；若原文提取缺失课后部分，同样表现为安全省略。</li>
+  <li>栏目在输出中的位置固定为「学习目标 → 预习任务 → 预习检测 → 课后问答 → 我的疑问」（「我的疑问」保持在末，与"带着问题进课堂"的定位一致）。</li>
+</ul>
+
+</body>
+</html>

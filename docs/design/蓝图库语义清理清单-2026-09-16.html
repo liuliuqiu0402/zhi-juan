@@ -205,6 +205,7 @@
 
 <h3>G3 后续与澄清</h3>
 <ul>
+  <li><b>09-17 续批见</b> <code>预习课后问答与措辞清理-2026-09-17.html</code>：同判据下的收尾残留（数学专项「知识层级」、默写类 14 处「按课标要求覆盖」、地理高中「解读有层次」、<code>styleInstructions</code> 的层级／覆盖、<code>GENERIC_SPECIAL_DESC</code> 与语文阅读理解「分层设问」的梯度词、专项兜底文案，以及两处学段要点的「图文并茂」）；该文同时记录预习导学新增「课后问答」覆盖能力的判据与落点。</li>
   <li>跨学段勾选时"学段口径"仍按<b>勾选章节最多</b>的那本取（未改功能，按用户决定先以界面提示兜底：已选教材章节面的 ⓘ 说明弹窗）。</li>
   <li><b>移动端包无需本地重建</b>（2026-09-16 更正）：Android／iOS 两条流水线每次 push 都会现场执行 <code>vite build → cap sync</code> 并自动发布 Release，因此 Releases 里的 APK／IPA 始终对应当次提交（例：Android #532 与 iOS #587 均对应提交 835ef93）；追溯路径为「Release 运行编号 → Actions 运行 → 提交号」。</li><li><b>不入库的大文件是「有意拦截」</b>（勿移除相应忽略规则）：编译产物与安装包（如 <code>android/app/src/main/assets/public/</code>、<code>*.apk</code>、<code>*.ipa</code>、<code>dist/</code>）一律由流水线在临时环境中生成，不进版本库；本机若存在同名目录，属本地构建残留，既不影响仓库也不影响发布。</li>
 </ul>
