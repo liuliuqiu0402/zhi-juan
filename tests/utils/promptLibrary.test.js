@@ -6,34 +6,34 @@ import { styleInstructions, styleOptions, DEFAULT_STYLE_BY_TYPE } from '../../sr
 /**
  * 课标版本按学段注入（可查可引用）：
  * 义务教育（小学低/中/高段、初中）=《义务教育课程方案和课程标准（2022年版）》
- * 高中 =《普通高中课程标准（2017年版2020年修订）》
+ * 高中 =《普通高中课程标准日常修订版（2017年版2025年修订）》
  * 模板正文通过 {curriculum} 占位符注入，禁止写死版本号（防高中错用 2022 版、防"学习任务群"等
  * 语文课标概念套用到其他学科）。
  */
 describe('promptLibrary 课标版本按学段注入', () => {
-  it('CURRICULUM_BY_STAGE：义务教育 5 学段统一 2022 年版，高中为 2017/2020 修订版', () => {
-    expect(CURRICULUM_BY_STAGE.primary_low).toBe('2022年版义务教育课程标准');
-    expect(CURRICULUM_BY_STAGE.primary_mid).toBe('2022年版义务教育课程标准');
-    expect(CURRICULUM_BY_STAGE.primary_high).toBe('2022年版义务教育课程标准');
-    expect(CURRICULUM_BY_STAGE.middle).toBe('2022年版义务教育课程标准');
-    expect(CURRICULUM_BY_STAGE.high).toBe('《普通高中课程标准（2017年版2020年修订）》');
+  it('CURRICULUM_BY_STAGE：义务教育 5 学段统一为日常修订版（2022年版2025年修订），高中为日常修订版（2017年版2025年修订）', () => {
+    expect(CURRICULUM_BY_STAGE.primary_low).toBe('《义务教育课程标准日常修订版（2022年版2025年修订）》');
+    expect(CURRICULUM_BY_STAGE.primary_mid).toBe('《义务教育课程标准日常修订版（2022年版2025年修订）》');
+    expect(CURRICULUM_BY_STAGE.primary_high).toBe('《义务教育课程标准日常修订版（2022年版2025年修订）》');
+    expect(CURRICULUM_BY_STAGE.middle).toBe('《义务教育课程标准日常修订版（2022年版2025年修订）》');
+    expect(CURRICULUM_BY_STAGE.high).toBe('《普通高中课程标准日常修订版（2017年版2025年修订）》');
   });
 
-  it('高中 exam 模板：注入《普通高中课程标准（2017年版2020年修订）》', () => {
+  it('高中 exam 模板：注入《普通高中课程标准日常修订版（2017年版2025年修订）》', () => {
     const tpl = getPromptTemplate({ grade: 'high', subject: '数学', genType: 'exam' });
-    expect(tpl.template).toContain('依据《普通高中课程标准（2017年版2020年修订）》命题');
-    expect(tpl.template).not.toContain('2022年版义务教育课程标准');
+    expect(tpl.template).toContain('依据《普通高中课程标准日常修订版（2017年版2025年修订）》命题');
+    expect(tpl.template).not.toContain('《义务教育课程标准日常修订版（2022年版2025年修订）》');
   });
 
-  it('小学低段 exam 模板：注入 2022年版义务教育课程标准', () => {
+  it('小学低段 exam 模板：注入 《义务教育课程标准日常修订版（2022年版2025年修订）》', () => {
     const tpl = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
-    expect(tpl.template).toContain('依据2022年版义务教育课程标准命题');
-    expect(tpl.template).not.toContain('2017年版2020年修订');
+    expect(tpl.template).toContain('依据《义务教育课程标准日常修订版（2022年版2025年修订）》命题');
+    expect(tpl.template).not.toContain('2017年版2025年修订');
   });
 
   it('初中 practice 模板：注入 2022 版，且不含"学习任务群"（语文课标概念不套用其他学科）', () => {
     const tpl = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'practice' });
-    expect(tpl.template).toContain('依据2022年版义务教育课程标准）');
+    expect(tpl.template).toContain('依据《义务教育课程标准日常修订版（2022年版2025年修订）》）');
     expect(tpl.template).not.toContain('学习任务群');
   });
 
@@ -55,13 +55,13 @@ describe('promptLibrary 课标版本按学段注入', () => {
   });
 
   it('getCurriculumLabel：学段键/中文标签均返回对应课标版本，无法识别回退通用', () => {
-    expect(getCurriculumLabel('high')).toBe('《普通高中课程标准（2017年版2020年修订）》');
-    expect(getCurriculumLabel('高中')).toBe('《普通高中课程标准（2017年版2020年修订）》');
-    expect(getCurriculumLabel('高一')).toBe('《普通高中课程标准（2017年版2020年修订）》');
-    expect(getCurriculumLabel('middle')).toBe('2022年版义务教育课程标准');
-    expect(getCurriculumLabel('初中')).toBe('2022年版义务教育课程标准');
-    expect(getCurriculumLabel('小学')).toBe('2022年版义务教育课程标准');
-    expect(getCurriculumLabel('二年级')).toBe('2022年版义务教育课程标准');
+    expect(getCurriculumLabel('high')).toBe('《普通高中课程标准日常修订版（2017年版2025年修订）》');
+    expect(getCurriculumLabel('高中')).toBe('《普通高中课程标准日常修订版（2017年版2025年修订）》');
+    expect(getCurriculumLabel('高一')).toBe('《普通高中课程标准日常修订版（2017年版2025年修订）》');
+    expect(getCurriculumLabel('middle')).toBe('《义务教育课程标准日常修订版（2022年版2025年修订）》');
+    expect(getCurriculumLabel('初中')).toBe('《义务教育课程标准日常修订版（2022年版2025年修订）》');
+    expect(getCurriculumLabel('小学')).toBe('《义务教育课程标准日常修订版（2022年版2025年修订）》');
+    expect(getCurriculumLabel('二年级')).toBe('《义务教育课程标准日常修订版（2022年版2025年修订）》');
     expect(getCurriculumLabel('')).toBe('本学段最新课标');
     expect(getCurriculumLabel('未知学段')).toBe('本学段最新课标');
   });
@@ -144,10 +144,10 @@ describe('promptLibrary 课标版本按学段注入', () => {
   it('buildInjectionInstruction：用户自定义模板中的 {curriculum} 按学段键注入版本（全链路生效）', () => {
     const userTpl = '请依据{curriculum}命题，覆盖本单元核心知识点。';
     const high = buildInjectionInstruction({ template: userTpl, grade: '高二', stage: 'high', subject: '物理', genTypeLabel: '正式考卷' });
-    expect(high).toContain('依据《普通高中课程标准（2017年版2020年修订）》命题');
+    expect(high).toContain('依据《普通高中课程标准日常修订版（2017年版2025年修订）》命题');
     expect(high).not.toContain('{curriculum}');
     const middle = buildInjectionInstruction({ template: userTpl, grade: '初二', stage: 'middle', subject: '数学', genTypeLabel: '课时练' });
-    expect(middle).toContain('依据2022年版义务教育课程标准命题');
+    expect(middle).toContain('依据《义务教育课程标准日常修订版（2022年版2025年修订）》命题');
     // 未传学段键：保持通用表述，不残留占位符
     const generic = buildInjectionInstruction({ template: userTpl, grade: '', stage: '', subject: '语文', genTypeLabel: '专项突破' });
     expect(generic).toContain('依据本学段最新课程标准命题');
