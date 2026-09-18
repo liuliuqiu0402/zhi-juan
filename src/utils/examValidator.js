@@ -1087,6 +1087,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       //   中文提示"（海报设计）"，既无图也无首字母；同卷标题"听录音，选出你听到的单词或图片"同理。
       //   判据：标题声称图片类 → 题内既无图标记、也无任意替代提示形态（中文括注 / 首字母 / "提示"字样）时
       //   才是真缺；有替代形态 → 属**标题表述与内容不符**（改标题即可，不必补图）。只报不改。
+      //   🔴 2026-09-18 补：首字母提示须同时认「字面下划线空位」(p____) 与「blank-N 载体空位」两种形态——
+      //      载体形态须在**原始 HTML** 上识别"词首字母紧邻空位标签"（strip 后 `&emsp;` 两侧带空格，无法区分），
+      //      否则被误判成"无其它提示形态"，把"标题表述与内容不符"错报成"漏图"（用户实证卷八）。
       //   🔴 2026-09-17 用户实证第三卷（综合检测）·**判据域根治**：图标记原先按**整卷**判定
       //      （hasImgMark = /\[IMAGE\]/.test(out)），于是"某大题标题声称看图、本大题内却没有图"会被
       //      **别的大题真有图**遮蔽 → 静默漏报。实证：本卷第一大题标题写"选出你所听到的单词或图片"，
@@ -1102,7 +1105,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (/\[IMAGE\]|\[GRAPH\]/.test(secStr)) continue;   // 本大题真的给了图 → 标题与内容相符
           if (figureKeywordRe.test(secBody)) continue;        // 题干自己也要图 → 属"漏图"，由 image-missing 报
           const hasAltHint = /[（(][^）)]*[\u4e00-\u9fa5][^）)]*[）)]/.test(secBody)
-            || /[A-Za-z][_＿]{2,}/.test(secBody)
+            || /[A-Za-z][_＿]{2,}/.test(secBody)                       // 字面下划线空位（p____）
+            || /(?:^|[^A-Za-z])[A-Za-z]\s*<(?:u|span)\b[^>]*\bclass=["'][^"']*blank-\d+/i.test(secStr) // blank-N 载体首字母位（p+<u class=blank>）
             || /提示/.test(secBody);
           silentCount('title-content-mismatch', hasAltHint
             ? '大题标题声称"图片提示/看图"，题内实际用的是**其它提示形态**（文字/中文/首字母提示）——标题与内容不符：请把标题改成与内容一致的写法（如"根据中文提示写单词"），或按标题补图（程序只提示、不改内容）'
@@ -2061,13 +2065,16 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //    "最长 1 起连续段"的对比**失去意义**——实证卷：正文段长 [10,5,5,5,10,5,5,5,5]、答案区段长 [5,5,5]，
         //    同一体系的缺陷被呈现成"答案区(5) 明显少于正文(10)，疑似未逐题对齐"，把编辑引向错误方向。
         //    真相：题号须**全卷连续同序**（正文与答案区同一套号），两侧都违反了这条口径。
+        //    🔴 2026-09-18（用户裁定·口径按类型分流）："全卷连续"是**正式考卷**的口径；同步练习/课时练等
+        //      按大题分别从 1 重编号是市场教辅常态，非缺陷——故本告警仅 genType==='exam' 时触发，
+        //      其余类型走下方 answer-coverage 的长连段对比（两侧各取其最长 1 起连续段，仍可比）。
         //    🔴 段长清单只列"大题级"段（≥3 项）：1 项长的段来自行内点号/子题括号等零散命中，
         //       列出来只会让编辑误以为"卷面真有这么多段"（净化报告，不改变判定）。
         const segText = (arr) => {
           const v = arr.filter((s) => s >= 3);
           return v.length ? `${v.length} 段（段长 ${v.join('、')}）` : '无';
         };
-        if (bodyNum.segmented || ansNum.segmented) {
+        if ((bodyNum.segmented || ansNum.segmented) && genType === 'exam') {
           if (has('answer-coverage-guard')) {
             silentCount('question-numbering-system', `题号编号体系与"全卷连续"口径不符：题号**按大题分别从 1 重新编号**（正文 ${segText(bodyNum.segments)}；答案区 ${segText(ansNum.segments)}）——全卷题号应跨大题、跨部分逐题递增、且答案区与正文用同一套号（1. 2. 3.…，全卷连续同序；仅子题用 (1)(2)）；编号体系分段时，两侧"最长连续段"的对比本身不成立（计数口径已覆盖行首、空位自带括号、行内点号、紧凑连排四种形态，故两侧差异不出在形态识别），程序据此只报编号体系、不再报"答案区少于正文"，请按编号体系整改后抽检`);
           }

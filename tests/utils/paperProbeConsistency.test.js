@@ -88,6 +88,16 @@ describe('③ 标题与内容不符（图缺失的真实根因）', () => {
     expect(notes(r, 'image-missing')).toBe('');
   });
 
+  it('🔴 首字母提示用 blank-N 载体（p+&emsp;）→ 仍判"有其它提示形态"，报"标题与内容不符"而非"漏图"', () => {
+    // 2026-09-18 用户实证卷八：首字母填空位是 <u class="blank-N">&emsp;</u> 载体（非字面下划线 p____），
+    // strip 标签后成 "p&emsp;"，旧判定只认 `[A-Za-z][_＿]{2,}` → 漏判成"无其它提示形态/漏图"。
+    const html = `<h2>八、根据图片和首字母提示，补全下列句子（每题2分，共8分）</h2>`
+      + `<p class="question">1. Last week, the children p<u class="blank-6">&emsp;</u> a new play in the school hall.</p>${ANS}`;
+    const r = run(html);
+    expect(notes(r, 'title-content-mismatch')).toContain('标题与内容不符');
+    expect(notes(r, 'title-content-mismatch')).not.toContain('漏图');
+  });
+
   it('标题声称图片提示、题内既无图也无其它提示 → 报（文案提示"或漏图"）', () => {
     const html = `<h2>五、根据图片提示写出正确的单词（每题2分，共4分）</h2>`
       + `<p class="question">1. The snail kept <u class="blank-6">&emsp;</u> up the tree.</p>${ANS}`;
@@ -288,6 +298,14 @@ describe('⑦ 题号编号体系：分段式编号改报体系问题，不再用
     expect(msg).toContain('按大题分别从 1 重新编号');
     expect(msg).toContain('2 段（段长 5、10）');          // 正文段长清单（只列大题级段）
     expect(msg).toContain('全卷连续');
+  });
+
+  it('🔴 非考卷类型（同步练习/课时练等）按大题分别编号是市场常态 → 不报"编号体系与全卷连续不符"', () => {
+    // 2026-09-18 用户裁定：""全卷连续"只约束正式考卷；同步练习按大题分号不误报。
+    const r = auditExamPaper(segBody + segAns, { subject: '英语', stage: 'primary_high', genType: 'practice' });
+    expect(notes(r, 'question-numbering-system')).toBe('');
+    // 两侧各取最长 1 起连续段，仍可比（正文 10、答案区 10 → 不触发"少于正文"）
+    expect(notes(r, 'answer-coverage')).toBe('');
   });
 
   it('🔴 同一份资料不得同时报"答案区少于正文/正文少于答案区"（两侧对比在分段式下不成立）', () => {
