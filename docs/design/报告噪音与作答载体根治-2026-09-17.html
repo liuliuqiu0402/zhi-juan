@@ -618,5 +618,24 @@
 </tbody>
 </table>
 
+<h3>H18. 内容型"例题内容被加下划线"根治（用户实证·知识点总结）</h3>
+<p><b>现象（用户原话）：</b>"知识点总结里，生成的内容中例题那块中的内容全部被加下划横线了"。</p>
+<p><b>根因（生成侧条款缺位，非模型乱来）：</b>知识总结模板原写「文字精炼、<b>核心知识重点标注</b>」——只说了"标注"、<b>没定形式</b>，模型自选了下划线；而下划线与横线在<b>本产品语义里是作答载体</b>（填空横线 <code>u.blank-N</code>、画线题标记 <code>underline-sentence</code>），于是知识点总结里"重点最密集"的<b>例题块</b>看起来整块被加了横线（与作答位混淆）。同类病根此前只被"物理·单位符号"一条局部兜住（"正文不以下划线/引号等替代符号样式"），未上升为通用口径。</p>
+<table>
+<thead><tr><th>层</th><th>处置</th></tr></thead>
+<tbody>
+<tr><td>生成侧（根因）</td><td>① <code>summary</code> 创作要求改为「核心知识<b>以加粗（&lt;strong&gt;）标注重点</b>」；② <b>【输出格式】新增"强调口径（全类型）"</b>：需要突出"重点/关键"时一律用加粗；不得用下划线或横线充当标注形式——下划线与横线在本产品语义是作答载体（填空横线、画线题标记），除题目明确要求画线/划出外正文不出现 <code>&lt;u&gt;</code>。单一事实源，考试/教辅/内容型三类模板<b>同时生效</b></td></tr>
+<tr><td>程序侧（兜底·内容型）</td><td>新规则 <code>emphasis-form-fix</code>（已在 <code>VALIDATOR_GATES</code> 注册）：内容型（<code>preview</code>/<code>summary</code>）里"<b>无载体 class 且内含可见文字</b>的 <code>&lt;u&gt;</code>"→ <code>&lt;strong&gt;</code>（只换标记、不动文字），命中记 info。内容型本无画线题与作答位，故该判据安全</td></tr>
+<tr><td>防误伤（一律不动）</td><td>带载体 class（填空横线）的 ／ 画线类 class（<code>underline-sentence</code>、<code>wavy-underline</code>、<code>single-line</code>、<code>double-line</code>）的 ／ 内部只有下划线字符或空白的 ／ 题类资料（画线/标记由题目要求决定，程序不越权改形态）</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>验证</th><th>结果</th></tr></thead>
+<tbody>
+<tr><td>新增守卫 <code>tests/utils/emphasisFormFix.test.js</code></td><td>7 项：强调口径三类都带 + summary 已写明加粗（且旧句消失）／summary·preview 归一并报"3处"／题类不动／blank 载体不动／画线类与纯下划线不动</td></tr>
+<tr><td>全量回归</td><td><b>148 文件 / 2112 项全过</b>（含 <code>validatorWiring</code> 对账：新规则已在引擎分支与注册表两侧同步）</td></tr>
+</tbody>
+</table>
+
 </body>
 </html>

@@ -1543,6 +1543,40 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         silentCount('writing-grid', '含大题标题式英语书写题但正文无横线作答区（blank-line），请抽检');
       }
     }
+    // ── 2m. 强调标注形态归一（规则 emphasis-form-fix：内容型不用下划线做强调）──
+    // 🔴 2026-09-18 用户实证（知识点总结）："例题那块中的内容全部被加了下划横线"。
+    //    根因在**生成侧条款**：知识总结模板原写"核心知识重点标注"——只说了"标注"、没定形式，模型自选下划线；
+    //    而下划线与横线在本产品里是**作答载体**语义（填空横线 u.blank-N、画线题标记 underline-sentence），
+    //    于是知识点总结里"重点最密集"的例题块看起来整块被加了横线（与作答位混淆）。
+    //    生成侧已在【输出格式】补"强调口径"（全类型单源：强调一律用加粗）；此处只对**内容型**做确定性归一兜底——
+    //    内容型（预习/知识总结）本无画线题与作答位，故"无载体 class 的 <u> 且内含可见文字"必属强调误用；
+    //    带载体 class（填空横线）、画线类 class、内部只有下划线字符/空白的，一律不动（防误伤）。
+    if (has('emphasis-form-fix') && ['preview', 'summary'].includes(genType)) {
+      try {
+        const tplM = document.createElement('template');
+        tplM.innerHTML = out;
+        const usM = Array.from(tplM.content.querySelectorAll('u'));
+        let cntM = 0;
+        for (const u of usM) {
+          const cls = u.getAttribute('class') || '';
+          if (/blank-|underline-sentence|wavy-underline|single-line|double-line/.test(cls)) continue;
+          const txt = (u.textContent || '').trim();
+          if (!txt) continue;                                // 纯空白 → 空白载体形态，不动
+          if (/^[＿_\s\u3000\u00A0]+$/.test(txt)) continue;   // 纯下划线字符 → 填空横线，不动
+          const stM = document.createElement('strong');
+          stM.innerHTML = u.innerHTML;
+          u.parentNode.replaceChild(stM, u);
+          cntM += 1;
+        }
+        if (cntM > 0) {
+          out = tplM.innerHTML;
+          issues.push({ severity: 'info', type: 'emphasis-form', message: `强调标注已归一为加粗（去除下划线，共${cntM}处）——下划线与横线在本产品语义为作答载体，不作强调标注用` });
+          fixed += 1;
+        }
+      } catch (e) {
+        console.warn('⚠️ 强调标注形态归一失败:', e.message);
+      }
+    }
     // 2j-5a 作文格位置纠正：格子出现在所属题干之前 → 移到题干之后（模型常见顺序错误：
     //    先输出 <div class="zuo-wen-ge"> 再写题干，卷面变成"格子在上、题目在下"）
     if (has('writing-expression-fix') && /<div[^>]*class=["'][^"']*zuo-wen-ge/.test(out)) {

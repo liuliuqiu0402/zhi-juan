@@ -264,6 +264,16 @@ export const VALIDATOR_RULES = [
     promptHint: '作答空位/空白行紧贴所属题输出，与下一题之间留出分隔、不粘连（作答空间的形态与宽度按已注入的作答空间条款落实，不重复展开）。',
     description: '程序按 分值×学段系数 度量题后有效作答行（横线/填空线/带高空白块；纯空行不计），无分值题按题型惯例留白，不足时按学科配置（语文/英语/科学横线，其余空白）补差——卷面惯例非课标要求。',
     enabled: true,
+  },
+
+  {
+    id: 'emphasis-form-fix',
+    name: '强调标注形态归一（不用下划线）',
+    category: 'fix',
+    subjects: ['*'],
+    stages: ['*'],
+    description: '内容型资料（预习/知识总结）里模型以"无载体 class 的 <u>"充当"重点标注"时，程序归一为加粗（<strong>，只换标记、不动文字）——下划线与横线在本产品语义是作答载体（填空横线、画线题标记），拿它做强调会与作答位混淆。生成侧口径由【输出格式】的"强调口径"单源注入（全类型），本条只做确定性形态归一，不新增提示词。',
+    enabled: true,
   }
 ]
 ;
@@ -282,6 +292,7 @@ export const VALIDATOR_GATES = new Set([
   'text-format-fix', 'teaching-volume-guard', 'writing-grid-fix', 'title-detail-fix',
   'option-count-guard', 'choice-answer-position-guard', 'choice-first-blank-fix', 'score-label-fix', 'writing-expression-fix',
   'answer-area-fix', 'answer-section-exam', 'answer-section-teaching', 'answer-coverage-guard',
+  'emphasis-form-fix',
   'text-format-sup-sub',
   // 🔧 已注销规则的引擎惰性残留（055e198 去强制化收敛时移出规则库，has() 恒 false → 分支恒不命中）：
   //    保留登记以便接线自检如实标注为"孤儿执行点"，待引擎清理后从本表移除
