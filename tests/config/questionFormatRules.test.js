@@ -91,3 +91,33 @@ describe('题目自洽总纲 ⑭⑮⑯：内容之间也要自洽（2026-09-17 �
     expect(fact.text).toContain('解析里指到的字母组合须与题面标注（画线/加点）的范围逐字一致');
   });
 });
+
+// 🔴 2026-09-18 用户实证（知识总结）：小组标题写「1. 主题词汇」、其下条目又写「1. 2. 3.…」——
+//    **同一样式跨级复用** → 层级不分。用户原话："序号规则，不是通用的吗？这里的序号，不同级的内容，序号样式一样。"
+//    根因：该原则此前**只有题类**有一句局部规则（题干内分条不与题号层混同），**内容型完全没有**层级序号约束。
+//    处置：提为全类型单源 NUMBERING_HIERARCHY_RULE（同层同构、异层异构），题类那句降为该原则下的细则。
+describe('序号体系：同层同构、异层异构（全类型通用）', () => {
+  const fmtOf = (genType, subject = '英语') => buildOutputFormatHint({ subject, stage: 'primary_high', genType });
+
+  it('题类两分支与内容型都注入（内容型此前完全缺失 → 正是两层同用「1.」的来源）', () => {
+    const cases = [['practice', fmtOf('practice')], ['exam', fmtOf('exam', '语文')], ['summary', fmtOf('summary')]];
+    for (const [name, t] of cases) {
+      expect(t, `${name} 缺序号体系`).toContain('序号体系（全类型通用）');
+      expect(t, `${name} 缺判据`).toContain('同层同构、异层异构');
+      expect(t, `${name} 缺跨级改法示例`).toContain('「(1)」「①」或项目符号');
+    }
+  });
+
+  it('判据只讲层级与样式：不点资料类型名/题型名（可全类型广播、不诱导）', () => {
+    const t = fmtOf('summary');
+    const seg = t.slice(t.indexOf('序号体系（全类型通用）'), t.indexOf('序号体系（全类型通用）') + 200);
+    expect(seg).not.toMatch(/选择题|判断题|填空题|简答题|写作题|知识总结|同步练习/);
+  });
+
+  it('题类细则仍保留（分条不是子题、不另配作答区），且不与其相抵', () => {
+    const q = fmtOf('practice');
+    expect(q).toContain('不与题号层混同');
+    expect(q).toContain('这些分条不是子题，不为其另配作答区');
+    expect(q).toContain('子题用 (1)(2)');
+  });
+});
