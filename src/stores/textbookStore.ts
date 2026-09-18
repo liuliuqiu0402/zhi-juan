@@ -5,7 +5,7 @@ import { resolveStoredPath, getStoragePath } from '../utils/pathHelper';
 // @ts-ignore - libraryPathRepair.js 无类型声明
 import { repairLibraryPaths } from '../utils/libraryPathRepair';
 // @ts-ignore - outlineTree.js 无类型声明
-import { hasAnySelected as hasAnySelectedTree, countSelected as countSelectedTree } from '../utils/outlineTree'; // 大纲树勾选唯一实现（曾 store 内 4 份逐字副本）
+import { hasAnySelected as hasAnySelectedTree, countSelected as countSelectedTree, getSelected as getSelectedTree } from '../utils/outlineTree'; // 大纲树勾选唯一实现（曾 store 内 4 份逐字副本）
 // 🔧 文本指纹哈希唯一实现（djb2，与生成端 useAiGenerator 的"文本是否变过"判定同源，曾各自复制导致字段对不上）
 import { djb2 } from '../utils/hash';
 // @ts-ignore - anchorTreeContract.js 无类型声明
@@ -144,7 +144,22 @@ export const useTextbookStore = defineStore('textbook', {
 
     selectedChapterCount: (state) => {
       return state.textbooks.reduce((sum, b) => sum + countSelectedTree(b.outline), 0); // utils/outlineTree
-    }
+    },
+
+    /** 🧭 生成指令失效签名·教材侧（2026-09-18 用户裁定："勾选的教材变化时，也自动清空"）
+     * ============================================================
+     * 把"当前勾选的教材集合"折叠为一个字符串，供生成页 watch（指令失效源）直接引用。
+     *  🔴 为什么需要它：原 watch 源只列"有章节被勾选"的教材（`filter(hasAnySelected(outline))`），
+     *     若某教材**被勾选但 outline 为空**（未提取章节/目录模式），勾选前后签名字符串不变 →
+     *     指令不被清空，而它所依据的教材已经变了。用户原话即"勾选的教材变化时清空"。
+     *  口径：教材级勾选位 `b.selected` 与"任一章被勾选"取并集（都算"勾了这本"），并计入
+     *     id/学段/学科/年级/教材级勾选位/章节清单（章节以 `标题@起点` 定位——改名换起点也算变化）。
+     *     相对原串只多不少：多的是"勾了但没有章节"的教材与教材级勾选位这一维。
+     */
+    instructionBookSignature: (state) => state.textbooks
+      .filter(b => b.selected || hasAnySelectedTree(b.outline))
+      .map(b => `${b.id}|${b.stage}|${b.subject}|${b.grade}|${b.selected ? 1 : 0}|${getSelectedTree(b.outline).map(c => `${c.title}@${c.start}`).join(',')}`)
+      .join(';')
   },
 
   actions: {
@@ -335,16 +350,7 @@ export const useTextbookStore = defineStore('textbook', {
     },
 
     getSelectedChapters(nodes?: ChapterNode[]): ChapterNode[] {
-      if (!nodes) return [];
-      const all: ChapterNode[] = [];
-      const collect = (list: ChapterNode[]) => {
-        for (const node of list) {
-          if (node.selected) all.push(node);
-          if (node.children) collect(node.children);
-        }
-      };
-      collect(nodes);
-      return all;
+      return getSelectedTree(nodes) as ChapterNode[]; // utils/outlineTree（唯一实现；本处内联副本 2026-09-18 上收）
     },
 
     updateChaptersAnalysis(bookId: string, analysisResults: Array<{

@@ -252,3 +252,71 @@ describe('useTextbookStore', () => {
     expect(ck.kind).toBe('material');             // 不被污染
   });
 });
+
+// 🔴 2026-09-18 用户裁定（"生成指令的清空触发条件，可否增加一条：勾选的教材变化时也自动清空？"）
+//    生成页 watch 的失效源原样使用"有章节被勾选"的教材串 → 若教材**被勾选但 outline 为空**
+//    （未提取章节/目录模式），勾选前后串不变 → 指令不重置（依据已变、旧指令仍在）。
+//    现由 store 单源 getter `instructionBookSignature` 提供签名：教材级勾选位 ∪ 任一章被勾选。
+describe('instructionBookSignature（生成指令失效签名·教材侧）', () => {
+  const mkBook = (id: string, outline: any[], selected = false) =>
+    ({ id, title: id, stage: 'primary', subject: '语文', grade: '三年级', outline, selected } as any);
+
+  it('未勾选任何教材 → 空串（不触发重置）', () => {
+    const store = useTextbookStore();
+    store.textbooks = [mkBook('b1', [createChapter('第一课', 1, 10)])];
+    expect(store.instructionBookSignature).toBe('');
+  });
+
+  it('勾选/取消章节 → 签名随之变化（原有行为保底）', () => {
+    const store = useTextbookStore();
+    store.textbooks = [mkBook('b1', [createChapter('第一课', 1, 10)])];
+    const before = store.instructionBookSignature;
+    store.textbooks[0].outline![0].selected = true; // 经 store 改值（走响应式代理）
+    expect(store.instructionBookSignature).not.toBe(before);
+    expect(store.instructionBookSignature).toContain('b1');
+  });
+
+  it('🔴 关键口：勾选"无章节"的教材（outline 为空/目录模式）→ 签名也变化（原串不变，指令不会重置）', () => {
+    const store = useTextbookStore();
+    store.textbooks = [mkBook('b1', [])];
+    const before = store.instructionBookSignature;
+    store.textbooks[0].selected = true;        // 教材级勾选：outline 仍为空
+    const after = store.instructionBookSignature;
+    expect(after).not.toBe(before);
+    expect(after).toContain('b1');
+  });
+
+  it('教材级勾选位变化（章节未动）→ 签名变化', () => {
+    const store = useTextbookStore();
+    const ch = createChapter('第一课', 1, 10);
+    ch.selected = true;
+    store.textbooks = [mkBook('b1', [ch], false)];
+    const before = store.instructionBookSignature;
+    store.textbooks[0].selected = true;        // 勾满整本
+    expect(store.instructionBookSignature).not.toBe(before);
+  });
+
+  it('章节改名/换起点 → 签名变化（依据已变）', () => {
+    const store = useTextbookStore();
+    const ch = createChapter('第一课', 1, 10);
+    ch.selected = true;
+    store.textbooks = [mkBook('b1', [ch])];
+    const before = store.instructionBookSignature;
+    store.textbooks[0].outline![0].title = '第一课（修订）';
+    expect(store.instructionBookSignature).not.toBe(before);
+  });
+
+  it('多本教材：任一勾选状态变化都反映在签名里', () => {
+    const store = useTextbookStore();
+    store.textbooks = [
+      mkBook('b1', [createChapter('第一课', 1, 10)], true),
+      mkBook('b2', [createChapter('第二课', 11, 20)], false),
+    ];
+    const before = store.instructionBookSignature;
+    store.textbooks[1].outline![0].selected = true; // 第二本被勾选
+    const after = store.instructionBookSignature;
+    expect(after).not.toBe(before);
+    expect(after).toContain('b1');
+    expect(after).toContain('b2');
+  });
+});

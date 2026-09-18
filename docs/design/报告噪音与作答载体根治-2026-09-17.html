@@ -932,5 +932,35 @@
 <p class="n"><b>影响面</b>：题类（试卷/同步练习/专项/阅读/易错本）<b>不受影响</b>——其答案页从来不带素材（gate 本就用契约 mode，题类 mode≠'full'），正文侧块序与口径一字未改；知识总结/复习的答案页<b>少喂一份素材</b>，答案范围按其正文里的练习/自测/变式，与既有的"答案区只写题目解答"条款同向。<br>
 <b>验证</b>：全量 <b>150 文件 / 2164 项全过</b>；新增守卫 2 项（携带集合 = 仅默写/预习；mode=full 的 4 类中归纳型不再携带）钉住本次收紧。改动文件 <code>src/config/coverageContract.js</code>、<code>src/composables/useAiGenerator.js</code> + 守卫扩充。</p>
 
+<h3>H27. 生成指令清空触发：勾选的教材变化也自动清空（2026-09-18·用户追加）</h3>
+<p><b>用户追加</b>："生成指令那里，现在清空的触发条件是资料类型变化的时候，对吧？可否增加一条，<b>勾选的教材变化时也自动清空</b>？"</p>
+<p><b>核实</b>：生成页失效 watch 的源里<b>本来就有教材</b>（<code>textbooks.filter(hasAnySelected(outline)).map(id|学段|学科|年级|章节清单)</code>）——即"勾了章节"的教材变化会清空。真正的缺口只有一个窄口：</p>
+<div class="box hot">
+  <b>窄口</b>：原串只列"<b>有章节被勾选</b>"的教材。若某教材<b>被勾选但其 outline 为空</b>（未提取章节／目录模式的教材），勾选前后签名字符串<b>完全不变</b> → 指令不会清空，
+  可它依据的教材已经换了一本（<b>依据变了、旧指令留着</b>）。用户要的正是"勾选的教材变化 → 清空"。
+</div>
+<table>
+<thead><tr><th>端</th><th>改动</th><th>说明</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>utils/outlineTree.js</code></td>
+  <td>新增 <code>getSelected(nodes)</code>：已勾选节点清单（深度优先、保序）——原为 textbookStore action 内联实现，<b>上收本文件</b>与 hasAnySelected/countSelected 同源</td>
+  <td>该文件本就是"大纲树勾选唯一实现"（注释明记曾有两 store × 内部共 4 份逐字副本）——本次不新增副本，反而再收一处</td>
+</tr>
+<tr>
+  <td><code>stores/textbookStore.ts</code></td>
+  <td>新增 getter <code>instructionBookSignature</code>：教材级勾选位 ∪ 任一章被勾选，折叠为 <code>id|学段|学科|年级|勾选位|章节清单(标题@起点)</code>；action <code>getSelectedChapters</code> 改为复用同一实现</td>
+  <td>口径相对原串<b>只多不少</b>（多的是"勾了但没有章节"的教材 + 教材级勾选位这一维）→ 不会漏触发；章节改动（含改名/换起点）照旧反映</td>
+</tr>
+<tr>
+  <td><code>modules/GenerateModule.vue</code></td>
+  <td>失效 watch 源的教材侧改为直接引用该 getter（原来内联拼串）</td>
+  <td>组件不再自持一份拼串逻辑，与 store 单源；触发提示文案不变（"检测到三维度勾选或素材通道变化，指令已重置"）</td>
+</tr>
+</tbody>
+</table>
+<p class="n"><b>刻意不动</b>：<b>模板勾选</b>仍不纳入失效源（既有裁定：<code>loadInstructionFromLibrary</code> 只用教材库，模板勾选不影响指令组装）；素材通道、专项领域、范围维度等原有源一律保留。<br>
+<b>验证</b>：<code>tests/stores/textbookStore.test.ts</code> 新增 6 项（未勾选→空串；章节勾选变化；<b>勾选无章节的教材→签名变化</b>（本次修的关键口）；教材级勾选位变化；章节改名；多本教材任一变化）——<b>全量 150 文件 / 2170 项全过</b>。</p>
+
 </body>
 </html>

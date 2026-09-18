@@ -6679,10 +6679,10 @@ const clearInstruction = async () => {
 watch(
   () => [
     (genTypes.value || []).join(','),
-    textbookStore.textbooks
-      .filter(b => hasAnySelected(b.outline))
-      .map(b => `${b.id}|${b.stage}|${b.subject}|${b.grade}|${getSelectedChapters(b.outline).map(c => `${c.title}@${c.start}`).join(',')}`)
-      .join(';'),
+    // 🔴 2026-09-18 用户裁定（"勾选的教材变化时也自动清空"）：教材侧失效签名改用 store 单源
+    //    `instructionBookSignature`（= 教材级勾选位 ∪ 任一章被勾选，含 id/学段/学科/年级/章节清单）。
+    //    原串只列"有章节被勾选"的教材 → "勾了但无章节"的教材（未提取章节/目录模式）勾选后不触发清空。
+    textbookStore.instructionBookSignature,
     scopeType.value || '',
     specialSubType.value || '', // 🎯 专项领域变化同样重置指令（生成时按当前领域重新组装）
     apiConfig.generationSettings.materialChannel || 'auto', // 📚 素材通道（A18）：切换后素材段需按新通道重渲染

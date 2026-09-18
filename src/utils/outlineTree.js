@@ -28,4 +28,20 @@ export const countSelected = (nodes) => {
   return count;
 };
 
-export default { hasAnySelected, countSelected };
+/** 已勾选节点清单（深度优先、保序，含子孙）——原为 textbookStore action 内联实现，
+ *  2026-09-18 上收本文件（与 hasAnySelected/countSelected 同源），供 store action 与
+ *  "生成指令失效签名" getter 共用，避免第二份副本。 */
+export const getSelected = (nodes) => {
+  if (!nodes) return [];
+  const all = [];
+  const collect = (list) => {
+    for (const node of list) {
+      if (node.selected) all.push(node);
+      if (node.children) collect(node.children);
+    }
+  };
+  collect(nodes);
+  return all;
+};
+
+export default { hasAnySelected, countSelected, getSelected };
