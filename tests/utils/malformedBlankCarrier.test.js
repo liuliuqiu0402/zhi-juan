@@ -35,6 +35,51 @@ describe('畸形填空载体拆壳（不变量守卫）', () => {
     const once = unwrapMalformedBlankCarriers(html);
     expect(unwrapMalformedBlankCarriers(once)).toBe(once);
   });
+
+  // 🔴 2026-09-18 用户实证（知识点总结例题块"内容全被加下划线 + 排版错乱"）：
+  //    同标签嵌套的字符串正则只能配到内层闭合 → 拆外层后留下悬空标签 → 畸形残留、整段被画线。
+  //    DOM 优先拆壳后：无任何残留标签、句子与块级结构完整。
+  it('同标签嵌套 + 长句被包（用户实证形态）→ 仅拆误包载体、无悬空标签', () => {
+    const html = '<p>One day, it <u class="blank-3">&emsp;</u><u class="blank-3"> (see) a bird at the top of the tree. The snail (want) to climb the tree, but it (be) very slow.</u></p>';
+    const out = unwrapMalformedBlankCarriers(html);
+    expect(out).toMatch(/<u class="blank-3">[\s\u2003]*<\/u>/); // 真空白空位保留（载体本义）
+    expect((out.match(/<u\b/g) || []).length).toBe(1);          // 只剩那枚真空位：误包载体已拆
+    expect((out.match(/<\/u>/g) || []).length).toBe(1);         // 无悬空闭标签
+    expect(out).toContain('(see) a bird at the top of the tree.'); // 长句完整保留
+    expect(out).toContain('(be) very slow.');
+  });
+
+  it('载体包住块级内容（例题的答案/解析整块被包）→ 拆壳后块级结构归位', () => {
+    const html = '<p><strong>例 1</strong>　用括号内动词的适当形式填空。</p>'
+      + '<p>Long ago, there <u class="blank-3"> (be) a snail in a garden.</u></p>'
+      + '<u class="blank-3">\n<p><strong>答案：</strong>was</p>\n<p><strong>解析：</strong>用一般过去时。</p>\n</u>';
+    const out = unwrapMalformedBlankCarriers(html);
+    expect(out).not.toContain('blank-3');
+    expect(out).toContain('<p><strong>答案：</strong>was</p>');  // 块级仍在块级
+    expect(out).toContain('<p><strong>解析：</strong>用一般过去时。</p>');
+    expect((out.match(/<\/?u\b/g) || []).length).toBe(0);
+  });
+
+  it('用户实证整块（例1~例5 形态）→ 误包全拆、画线题标记保留', () => {
+    const html = [
+      '<h2>四、例题示范</h2>',
+      '<p><strong>例 1</strong>　用括号内动词的适当形式填空。</p>',
+      '<p>Long ago, there <strong> </strong> (be) a snail in a garden. It <u class="blank-3"> (see) a bird at the top of the tree.</u></p>',
+      '<u class="blank-3">',
+      '<p><strong>答案：</strong>was；saw</p>',
+      '<p><strong>解析：</strong>用一般过去时。</p>',
+      '</u>',
+      '<p><strong>例 5</strong>　朗读并比较下列单词中画线部分的发音。</p>',
+      '<p>A. k<u class="underline-sentence">ee</u>p　D. br<u class="underline-sentence">ea</u>d</p>',
+      '<p><strong>答案：</strong>D</p>',
+    ].join('\n');
+    const out = unwrapMalformedBlankCarriers(html);
+    expect(out).not.toContain('class="blank-3"');                   // 误包载体全拆（不再有横线外壳）
+    expect(out).toContain('<p><strong>答案：</strong>was；saw</p>'); // 块级仍在块级（排版不再错乱）
+    expect(out).toContain('<p><strong>解析：</strong>用一般过去时。</p>');
+    expect(out).toContain('<u class="underline-sentence">ee</u>');   // 画线题标记（合法语义）保留
+    expect((out.match(/<\/?u\b/g) || []).length).toBe(4);           // 仅剩两处画线标记（开+闭）
+  });
 });
 
 describe('英文省略号三点归一', () => {

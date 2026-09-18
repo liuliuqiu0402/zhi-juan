@@ -637,5 +637,31 @@
 </tbody>
 </table>
 
+<h3>H19. 例题块"内容被画线 + 排版错乱"根治（用户实证源码：畸形载体被当块级容器）</h3>
+<p><b>现象（用户贴出的源码）：</b>例题块里 <code>&lt;u class="blank-3"&gt;</code> 被当成<b>容器</b>使用——既包住了长句（<code>&lt;u class="blank-3"&gt; (see) a bird … very slow.&lt;/u&gt;</code>），也单独一行<b>包住了答案与解析整块</b>（<code>&lt;u class="blank-3"&gt;</code> … <code>&lt;/u&gt;</code> 跨多个 <code>&lt;p&gt;</code>）。</p>
+<table>
+<thead><tr><th>症状</th><th>成因</th></tr></thead>
+<tbody>
+<tr><td>① 正文被画成横线（"下划线也还有"）</td><td><code>blank-N</code> 载体语义是"空书写位"，被误包正文后按载体渲染（<code>u[class*=blank-]</code> = 1.5px 下框线）</td></tr>
+<tr><td>② 排版错乱</td><td><code>&lt;u&gt;</code> 是<b>行内元素</b>，却承担了块级容器（包住多个 <code>&lt;p&gt;</code>）→ 非法嵌套被解析器重组，块级内容错位</td></tr>
+<tr><td>③ 为什么上一轮修复没拦住</td><td>H18 的归一判据只覆盖"<b>无 class 的 <code>&lt;u&gt;</code></b>"（模型强调误用）；这里是"<b>误用 blank class 包正文</b>"，走的是畸形载体拆壳通道——而该通道旧实现是<b>字符串非贪婪正则</b>，遇"同标签嵌套"只能配到<b>内层</b>闭合，拆掉外层后留下<b>悬空开/闭标签</b>，畸形结构原样残留</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>处置</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td>程序侧（主修·<code>contentCleaner.unwrapMalformedBlankCarriers</code>）</td><td>改为 <b>DOM 优先拆壳</b>：jsdom/浏览器解析天然正确处理嵌套与块级包裹（<code>&lt;u&gt;</code> 内的 <code>&lt;p&gt;</code> 会作为其子节点挂上），拆壳＝<b>用子节点替换载体本身</b> → 块级内容回到块级、画线外壳消失、内容一字不动。判据（DOM 下更准）：去掉空白与下划线字符后仍有可见字符 → 必属误包。<b>字符串兜底保留</b>（无 DOMParser 的 Node 校验脚本）</td></tr>
+<tr><td>生成侧（<code>summary</code> 例题示范条款）</td><td>改写为：例题按<b>完整句</b>给出——待填处<b>直接写出答案</b>（如需提示只对该答案用<b>加粗</b>），<b>不出现任何作答载体</b>（填空横线/括号空位/空加粗都不算题面），答案与解析紧随其后；<b>严禁用载体把整句或整段内容包起来</b>，答案与解析也不得整块包进任何标记里</td></tr>
+<tr><td>一律不动（防误伤）</td><td>画线题标记（<code>underline-sentence</code> 等，合法语义）／真空白空位（内部仅空白或下划线字符）／题类的强调处理仍按 H18</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>验证</th><th>结果</th></tr></thead>
+<tbody>
+<tr><td><code>tests/utils/malformedBlankCarrier.test.js</code> +3</td><td>同标签嵌套 + 长句被包（仅拆误包、无悬空标签、真空位保留）／载体包住块级内容（块级归位）／<b>用户实证整块（例1~例5 形态）</b>：误包全拆、答案与解析仍在块级、<code>underline-sentence</code> 画线标记保留</td></tr>
+<tr><td>全量回归</td><td><b>148 文件 / 2115 项全过</b></td></tr>
+</tbody>
+</table>
+
 </body>
 </html>
