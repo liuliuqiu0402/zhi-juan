@@ -816,34 +816,56 @@ export function unwrapMalformedBlankCarriers(html = '') {
     const core = String(inner).replace(/<[^>]+>/g, '').replace(CORE_RE, '').replace(/\s/g, '');
     return core.length >= 6;
   };
-  // ⓪ 🔴 2026-09-18 用户实证（知识点总结例题块"内容全被加下划线 + 块级排版错乱"）：**DOM 优先拆壳**。
+  // ⓪ 🔴 2026-09-18 用户实证（知识点总结例题块"内容全被加下划线 + 块级排版错乱"）：**局部拆壳（只动误包那一处）**。
   //    旧实现是字符串非贪婪正则，遇"同标签嵌套"（<u class=blank-3> 长句 … <u class=blank-3> </u> … </u>）
-  //    只能配到**内层**闭合：拆掉外层后留下**悬空开/闭标签**，畸形结构原样残留——
-  //    ① 后续解析把"从悬空开标签到段末/块末"整段吞进空位载体 → 正文被画成横线；
-  //    ② <u>（行内元素）承担了块级容器（包住多个 <p> 与答案/解析整块）→ 排版错乱。
-  //    DOM 解析天然正确：<u> 内的 <p> 会作为其子节点挂上，拆壳＝用子节点替换载体本身，
-  //    非法嵌套随之被拆平（块级内容回到块级、画线外壳消失，内容一字不动）。
-  //    判据（DOM 下更准）：去掉空白与下划线字符后仍有可见字符 → 必属误包（真空位只有空白/＿）。
-  if (typeof DOMParser !== 'undefined') {
-    try {
-      const doc = new DOMParser().parseFromString(`<body>${src}</body>`, 'text/html');
-      const carriers = Array.from(doc.body.querySelectorAll('u[class*="blank-"], span[class*="blank-"]'));
-      let hit = 0;
-      for (const el of carriers) {
-        const visible = (el.textContent || '').replace(/[\s\u3000\u00A0\u2002\u2003\u200B\uFEFF＿_]/g, '');
-        if (!visible) continue; // 真空位（内部只有空白/下划线字符）→ 载体本义，不动
-        const frag = doc.createDocumentFragment();
-        while (el.firstChild) frag.appendChild(el.firstChild); // 只拆壳、不删内容
-        el.parentNode.replaceChild(frag, el);
-        hit += 1;
+  //    只能配到**内层**闭合：拆掉外层后留下**悬空开/闭标签** → 后续解析把"悬空标签→段末/块末"整段吞进空位载体
+  //    （正文被画成横线），且 <u>（行内元素）承担了块级容器（包住多个 <p>）→ 排版错乱。
+  //    中途曾用 DOM 拆壳（配对正确），但会**整篇重新序列化**（实体写法/属性引号归一）——
+  //    用户 2026-09-18 裁决"应该只动含畸形的那一块"，故改为**标签配对扫描 + 局部删标签**：
+  //      · 配对：u / span 各自维护开标签栈（</u> 只闭 u、</span> 只闭 span；非载体的开标签同样入栈，防错配）
+  //      · 判据：载体内部"≥6 可见字符"（去掉标签/空白实体/下划线字符后计数）→ 必属误包
+  //      · 处置：只删它自己的开/闭标签，内部内容一字不动（未闭合的载体内部视为其后全文）
+  //    无 DOMParser 亦可用（Node 校验脚本同源）；未命中的文档**逐字节不变**。
+  const drops = [];
+  {
+    const stacks = { u: [], span: [] };
+    const tagRe = /<\/?(u|span)\b[^>]*>/gi;
+    const pairs = [];
+    let m2;
+    while ((m2 = tagRe.exec(src)) !== null) {
+      const tag = m2[1].toLowerCase();
+      if (m2[0][1] === '/') {
+        const op = stacks[tag].pop();
+        if (op && op.isCarrier) pairs.push({ oStart: op.start, oEnd: op.end, cStart: m2.index, cEnd: m2.index + m2[0].length });
+        continue;
       }
-      if (hit > 0) return doc.body.innerHTML;
-    } catch (e) {
-      // 解析异常 → 落字符串兜底（下方 ①②）
+      stacks[tag].push({ start: m2.index, end: m2.index + m2[0].length, isCarrier: /\bclass=["'][^"']*blank-\d+/i.test(m2[0]) });
+    }
+    for (const tag of ['u', 'span']) {
+      for (const op of stacks[tag]) {
+        if (op.isCarrier) pairs.push({ oStart: op.start, oEnd: op.end, cStart: src.length, cEnd: src.length });
+      }
+    }
+    for (const p of pairs) {
+      if (!isRealText(src.slice(p.oEnd, p.cStart))) continue; // 真空位（仅空白/下划线字符）不动
+      drops.push([p.oStart, p.oEnd]);
+      if (p.cEnd > p.cStart) drops.push([p.cStart, p.cEnd]);
     }
   }
+  let out = src;
+  if (drops.length) {
+    drops.sort((a, b) => a[0] - b[0]);
+    let acc = '';
+    let pos = 0;
+    for (const [s2, e2] of drops) {
+      if (s2 < pos) continue;
+      acc += src.slice(pos, s2);
+      pos = e2;
+    }
+    out = acc + src.slice(pos);
+  }
   // ① 块级标题内不允许填空载体（标题不是作答位）→ 整段还原标题内容
-  let out = src.replace(/<(h[1-6])\b([^>]*)>([\s\S]*?)<\/\1>/gi, (m, tag, attrs, inner) => {
+  out = out.replace(/<(h[1-6])\b([^>]*)>([\s\S]*?)<\/\1>/gi, (m, tag, attrs, inner) => {
     const hasBlank = /<(u|span)\b[^>]*class=["'][^"']*blank-\d+/i.test(inner);
     if (!hasBlank) return m;
     const cleaned = inner.replace(/<(u|span)\b(?=[^>]*\bclass=["'][^"']*\bblank-\d+\b[^"']*["'])[^>]*>([\s\S]*?)<\/\1>/gi, (_mm, _t, c) => c);

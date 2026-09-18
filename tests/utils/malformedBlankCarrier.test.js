@@ -8,7 +8,7 @@
  *       中文说明里的六点省略号保持（中文合法标点）。
  */
 import { describe, it, expect } from 'vitest';
-import { unwrapMalformedBlankCarriers, normalizeEnglishEllipsis } from '../../src/utils/contentCleaner.js';
+import { unwrapMalformedBlankCarriers, normalizeEnglishEllipsis, normalizeBlankMarkers } from '../../src/utils/contentCleaner.js';
 
 describe('畸形填空载体拆壳（不变量守卫）', () => {
   it('整句被包进 blank-N → 拆壳还原纯文本（去掉误画线）', () => {
@@ -42,7 +42,7 @@ describe('畸形填空载体拆壳（不变量守卫）', () => {
   it('同标签嵌套 + 长句被包（用户实证形态）→ 仅拆误包载体、无悬空标签', () => {
     const html = '<p>One day, it <u class="blank-3">&emsp;</u><u class="blank-3"> (see) a bird at the top of the tree. The snail (want) to climb the tree, but it (be) very slow.</u></p>';
     const out = unwrapMalformedBlankCarriers(html);
-    expect(out).toMatch(/<u class="blank-3">[\s\u2003]*<\/u>/); // 真空白空位保留（载体本义）
+    expect(out).toMatch(/<u class="blank-3">(?:&emsp;|&#8195;|&#x2003;|[\s\u2003])*<\/u>/); // 真空白空位保留（载体本义）
     expect((out.match(/<u\b/g) || []).length).toBe(1);          // 只剩那枚真空位：误包载体已拆
     expect((out.match(/<\/u>/g) || []).length).toBe(1);         // 无悬空闭标签
     expect(out).toContain('(see) a bird at the top of the tree.'); // 长句完整保留
@@ -79,6 +79,63 @@ describe('畸形填空载体拆壳（不变量守卫）', () => {
     expect(out).toContain('<p><strong>解析：</strong>用一般过去时。</p>');
     expect(out).toContain('<u class="underline-sentence">ee</u>');   // 画线题标记（合法语义）保留
     expect((out.match(/<\/?u\b/g) || []).length).toBe(4);           // 仅剩两处画线标记（开+闭）
+  });
+
+  // 🔴 2026-09-18 用户追问"其他原来正常的有没有被碰到/破坏" → 影响面守卫（真卷形态）：
+  //    ① 无畸形载体时**逐字节不变**（原字符串路径，DOM 分支只在"确有误包"时接管）；
+  //    ② 有畸形载体时只拆误包，其余正常载体逐个存活。
+  it('无畸形载体时逐字节不变（题类实证卷：横线/括号空位/作文格/表格一字不动）', () => {
+    const html = '<h3>九、阅读理解</h3>'
+      + '<p class="question">9. 阅读短文，判断下列句子。<span class="blank-2">&emsp;</span></p>'
+      + '<p class="question">(1) The snail was fast. <u class="blank-3">&emsp;</u></p>'
+      + '<p><span class="blank-line">&emsp;</span></p>'
+      + '<p>（　）41. did / what / you / do</p>'
+      + '<div class="zuo-wen-ge"></div>'
+      + '<table><tr><td>部首</td><td></td></tr></table>';
+    expect(unwrapMalformedBlankCarriers(html)).toBe(html);
+  });
+
+  it('含畸形载体时，其余正常载体逐个存活（只拆误包、不误伤）', () => {
+    const html = '<p>It <u class="blank-3"> (see) a bird at the top of the tree.</u></p>'
+      + '<p>答案：<u class="blank-3">&emsp;</u> 与 <span class="blank-2">&emsp;</span></p>'
+      + '<p><span class="blank-line">&emsp;</span></p>'
+      + '<p>（　）41. did / what</p>'
+      + '<div class="zuo-wen-ge"></div>';
+    const out = unwrapMalformedBlankCarriers(html);
+    expect(out).not.toContain('at the top of the tree.</u>');            // 误包外壳已去
+    expect(out).toContain('(see) a bird at the top of the tree.');        // 内容一字不动
+    expect(out).toMatch(/<u class="blank-3">(?:&emsp;|&#8195;|&#x2003;|[\s\u2003])*<\/u>/);          // 真填空横线仍在
+    expect(out).toMatch(/<span class="blank-2">(?:&emsp;|&#8195;|&#x2003;|[\s\u2003])*<\/span>/);    // 括号空位仍在
+    expect(out).toMatch(/<span class="blank-line">(?:&emsp;|&#8195;|&#x2003;|[\s\u2003])*<\/span>/); // 整行横线仍在
+    expect(out).toContain('（　）41.');                                    // 题面括号空位仍在
+    expect(out).toContain('class="zuo-wen-ge"');                          // 作文格仍在
+  });
+
+  // 🔴 2026-09-18 用户裁决："应该只动含畸形的那一块" → 局部性守卫：
+  //    含畸形载体的文档里，其它部分**逐字节不变**（含实体写法，如 &nbsp;/&emsp; 不被重排）。
+  it('局部性：只动误包那一处，其余部分逐字节不变（不整篇重排）', () => {
+    const other = '<h2>一、知识梳理</h2>'
+      + '<p>核心结构：<strong>be going to</strong> 与 <u class="blank-3">&emsp;</u> 并存。</p>'
+      + '<table><tr><td>a</td><td>&nbsp;</td></tr></table>';
+    const bad = '<p>It <u class="blank-3"> (see) a bird at the top of the tree.</u></p>';
+    const out = unwrapMalformedBlankCarriers(other + bad);
+    expect(out.startsWith(other)).toBe(true);                      // 前文（含 &nbsp;/&emsp; 原文写法）一字未动
+    expect(out).not.toContain('at the top of the tree.</u>');       // 误包外壳已去
+    expect(out).toContain('(see) a bird at the top of the tree.');  // 内容一字不动
+  });
+
+  it('整链（normalizeBlankMarkers）在含畸形载体的文档上：误包拆掉、其余载体不被连带破坏', () => {
+    const html = '<h2>四、例题示范</h2>'
+      + '<p>It <u class="blank-3"> (see) a bird at the top of the tree.</u></p>'
+      + '<p>答案：<u class="blank-3">&emsp;</u> 与 <span class="blank-2">&emsp;</span></p>'
+      + '<p><span class="blank-line">&emsp;</span></p>'
+      + '<p>（　）41. did / what</p>';
+    const out = normalizeBlankMarkers(html);
+    expect(out).not.toContain('at the top of the tree.</u>');   // 误包外壳已去
+    expect(out).toContain('(see) a bird at the top of the tree.'); // 内容一字不动
+    expect(/blank-3/.test(out)).toBe(true);                     // 真填空横线存活
+    expect(/blank-line/.test(out)).toBe(true);                  // 整行横线存活
+    expect(out).toContain('41.');                               // 题面空位/题号未被吞
   });
 });
 

@@ -650,7 +650,7 @@
 <table>
 <thead><tr><th>处置</th><th>内容</th></tr></thead>
 <tbody>
-<tr><td>程序侧（主修·<code>contentCleaner.unwrapMalformedBlankCarriers</code>）</td><td>改为 <b>DOM 优先拆壳</b>：jsdom/浏览器解析天然正确处理嵌套与块级包裹（<code>&lt;u&gt;</code> 内的 <code>&lt;p&gt;</code> 会作为其子节点挂上），拆壳＝<b>用子节点替换载体本身</b> → 块级内容回到块级、画线外壳消失、内容一字不动。判据（DOM 下更准）：去掉空白与下划线字符后仍有可见字符 → 必属误包。<b>字符串兜底保留</b>（无 DOMParser 的 Node 校验脚本）</td></tr>
+<tr><td>程序侧（主修·<code>contentCleaner.unwrapMalformedBlankCarriers</code>）</td><td>改为 <b>标签配对扫描 + 局部删标签</b>（用户 2026-09-18 裁决"应只动含畸形的那一块"）：u/span 各自维护开标签栈完成配对（<code>&lt;/u&gt;</code> 只闭 u；非载体的开标签同样入栈，防错配），命中"内部 ≥6 可见字符"的载体 → <b>只删它自己的开/闭标签</b>，内部内容一字不动；未闭合的载体内部视为其后全文。判据与既有不变量一致（真空位＝内部仅空白/下划线字符 → 不动）。<b>无 DOMParser 亦可用</b>（Node 校验脚本同源）。<br><span style="color:#b00">过程记录：中途曾改用 DOM 拆壳——配对正确，但会<b>整篇重新序列化</b>（实体写法/属性引号归一）；用户追问后按裁决改为局部化，该副作用已消除。</span></td></tr>
 <tr><td>生成侧（<code>summary</code> 例题示范条款）</td><td>改写为：例题按<b>完整句</b>给出——待填处<b>直接写出答案</b>（如需提示只对该答案用<b>加粗</b>），<b>不出现任何作答载体</b>（填空横线/括号空位/空加粗都不算题面），答案与解析紧随其后；<b>严禁用载体把整句或整段内容包起来</b>，答案与解析也不得整块包进任何标记里</td></tr>
 <tr><td>一律不动（防误伤）</td><td>画线题标记（<code>underline-sentence</code> 等，合法语义）／真空白空位（内部仅空白或下划线字符）／题类的强调处理仍按 H18</td></tr>
 </tbody>
@@ -658,8 +658,8 @@
 <table>
 <thead><tr><th>验证</th><th>结果</th></tr></thead>
 <tbody>
-<tr><td><code>tests/utils/malformedBlankCarrier.test.js</code> +3</td><td>同标签嵌套 + 长句被包（仅拆误包、无悬空标签、真空位保留）／载体包住块级内容（块级归位）／<b>用户实证整块（例1~例5 形态）</b>：误包全拆、答案与解析仍在块级、<code>underline-sentence</code> 画线标记保留</td></tr>
-<tr><td>全量回归</td><td><b>148 文件 / 2115 项全过</b></td></tr>
+<tr><td><code>tests/utils/malformedBlankCarrier.test.js</code> +6</td><td>同标签嵌套 + 长句被包（仅拆误包、无悬空标签、真空位保留）／载体包住块级内容（块级归位）／<b>用户实证整块（例1~例5 形态）</b>：误包全拆、答案与解析仍在块级、<code>underline-sentence</code> 画线标记保留／<b>无畸形载体时逐字节不变</b>（题类卷：填空横线·括号空位·整行横线·作文格·表格按原文保留）／<b>含畸形载体时其余载体逐个存活</b>／<b>局部性：只动误包那一处、前文（含 <code>&amp;nbsp;</code>·<code>&amp;emsp;</code> 原文写法）逐字节不变</b>／整链 <code>normalizeBlankMarkers</code> 复核</td></tr>
+<tr><td>全量回归</td><td><b>148 文件 / 2119 项全过</b></td></tr>
 </tbody>
 </table>
 
