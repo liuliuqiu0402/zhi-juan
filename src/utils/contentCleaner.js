@@ -812,9 +812,23 @@ export function unwrapMalformedBlankCarriers(html = '') {
   const src = String(html || '');
   if (!/<(u|span)\b[^>]*class=["'][^"']*blank-\d+/i.test(src)) return src;
   const CORE_RE = /&emsp;|&#8195;|&#x2003;|\u2003|\u3000|&nbsp;|\u00A0|&#160;/g;
+  // 🔴 2026-09-18 用户裁定（例题答案回填进作答位）：载体内部**可以**是答案本身——例题保留原作答形态、
+  //    答案回填进该作答位，字面就长成 `<u class="blank-3">was</u>`。故"载体内有文字"不再一律判为误包，
+  //    判据改为**结构性**的（是否包住了本该在载体之外的内容），而不是单纯比字数：
+  //      · 误包（拆壳还原）：内部含块级标签（p/div/li/h/br/table…——载体是行内元素，包住块级必属误包）；
+  //        或含句末标点（。！？…!? 以及以英文句点收尾——那是整句被画了横线）；或可见字符 ≥24（远超一枚答案的合理长度）。
+  //      · 回填（保留载体）：其余含文字的情形（一枚词/短语的答案）。
+  //    与旧判据（≥6 即拆）的差别：`was`、`is going to play` 这类答案文字被保留（旧判据会把后者拆壳掉线）；
+  //    而历史实证的误包形态（整句/整块被包）**全部**命中上面任一条，守卫强度不降
+  //    （见 tests/utils/malformedBlankCarrier.test.js 全部既有用例）。
   const isRealText = (inner = '') => {
-    const core = String(inner).replace(/<[^>]+>/g, '').replace(CORE_RE, '').replace(/\s/g, '');
-    return core.length >= 6;
+    const raw = String(inner);
+    const plain = raw.replace(/<[^>]+>/g, '').replace(CORE_RE, '');
+    const core = plain.replace(/\s/g, '');
+    if (core.length < 6) return false;                                            // 短答案回填 → 保留载体
+    if (/<(?:p|div|li|h[1-6]|br|table|ul|ol|tr|td|th)\b/i.test(raw)) return true; // 包住块级内容 → 必属误包
+    if (/[。！？…!?]|\.\s*$/.test(plain)) return true;                            // 整句被包（含句末标点）→ 误包
+    return core.length >= 24;                                                     // 超长 → 非答案 → 误包
   };
   // ⓪ 🔴 2026-09-18 用户实证（知识点总结例题块"内容全被加下划线 + 块级排版错乱"）：**局部拆壳（只动误包那一处）**。
   //    旧实现是字符串非贪婪正则，遇"同标签嵌套"（<u class=blank-3> 长句 … <u class=blank-3> </u> … </u>）

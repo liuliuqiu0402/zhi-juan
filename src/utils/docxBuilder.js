@@ -459,7 +459,14 @@ const buildTextRuns = (node, styleOverride = {}) => {
       const blankSpanMatch = [...cls].find(c => /^blank-\d+$/.test(c));
       if (blankSpanMatch) {
         const nFromClass = parseInt(blankSpanMatch.split('-')[1]) || 2;
-        const { raw } = extractGridContent(child);
+        const { raw, text: filledSpan, hasVisible: spanHasVisible } = extractGridContent(child);
+        // 🔴 2026-09-18 用户裁定（例题答案回填进作答位）：载体内含可见文字 = 该作答位**已回填**（例题示范形态），
+        //    按"（）里装着答案"渲染（预览端 ::before/::after 画的也是括号，两侧口径一致）；
+        //    不得再按空位宽度重画——那样会把答案整段丢掉（这正是"答案看不见"的导出侧根因）。
+        if (spanHasVisible) {
+          runs.push(new TextRun({ ...ctx, text: `(${filledSpan})`, font: 'Times New Roman' }));
+          return;
+        }
         const emWidth = whitespaceEmWidth(raw);
         const effectiveN = Math.max(nFromClass, Math.round(emWidth), 2);
         const innerText = '\u00A0'.repeat(effectiveN * 4);
@@ -475,8 +482,15 @@ const buildTextRuns = (node, styleOverride = {}) => {
     if (anyBlankMatch && tag !== 'span') {
       const nFromClass = parseInt(anyBlankMatch.split('-')[1]) || 2;
       // 读实际内容宽度（同 blank-line 逻辑）
-      const { raw } = extractGridContent(child);
+      const { raw, text: filledU, hasVisible: uHasVisible } = extractGridContent(child);
       if (tag === 'u') {
+        // 🔴 2026-09-18 用户裁定（例题答案回填进作答位）：载体内含可见文字 = 该作答位**已回填**（例题示范形态），
+        //    渲染为**带下划线的答案文字**（下划线=原作答位，文字=答案，学生一眼看出本处考什么）；
+        //    不得再走下面的空位宽度分支——那里只按宽度画线，会把答案整段丢掉。
+        if (uHasVisible) {
+          runs.push(new TextRun({ ...ctx, text: filledU, underline: { type: 'single' } }));
+          return;
+        }
         // 填空横线：段落末尾 → 占位标记（后处理转 ptab 自动延伸到行尾，颜色 333333），
         //   非末尾 → 后处理退回 NBSP 固定宽度 + 下划线
         //   🔧 2026-09：显式 u.blank-N（短填空）标 editableBlank——末尾也不转 ptab，
