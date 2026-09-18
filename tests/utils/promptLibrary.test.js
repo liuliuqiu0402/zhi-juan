@@ -189,7 +189,10 @@ describe('非exam教辅答案区不复述正文（自包含教辅防重复）', 
   it('ANSWER_ROLES.other：summary/review/preview/dictation 显式"严禁复述正文梳理，仅对题目作答"，典型例题已在正文讲解展示、答案区不重复', () => {
     for (const gt of ['summary', 'review', 'preview', 'dictation']) {
       const role = ANSWER_ROLES.other(gt);
-      expect(role).toContain('仅针对正文中的练习/自测/变式逐题作答');
+      // 🔴 2026-09-18：表述加强为"仅针对**本资料正文中实际出现的**练习/自测/变式"（同义且更硬——
+      //    "正文中的"曾被读成"包括随附参考原文里的教材题目"，致答案区污染；见 answerScopeAndFalsePositives 测试）
+      expect(role).toContain('仅针对**本资料正文中实际出现的**练习/自测/变式逐题作答');
+      expect(role).toContain('正文里没出现过的题目与栏目一律不作答');
       expect(role).toContain('典型例题的解答与解析已在正文讲解展示');
       expect(role).toContain('严禁将正文的知识框架/重点梳理/核心知识梳理/易错辨析/默写内容等梳理正文整体复述到答案区');
       expect(role).not.toContain('按栏目给出要点梳理'); // 旧文案诱导复述

@@ -2061,6 +2061,36 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const ansNum = analyzeQuestionNumbering(stripAudioScript(ansMatch[1]), { part: 'answer' });
         const bodyTopQ = bodyNum.top;
         const ansTopQ = ansNum.top;
+        // 🔴 2026-09-18 用户实证（六年级英语《知识梳理》）·**判据域修正**：
+        //    内容型（知识总结/预习）**正文不用题号**——正文里的"1. 2. 3. 4."是**知识条目编号**
+        //    （该资料为"（三）一般过去时"下的"1. 规则动词过去式的构成 / 2. 不规则动词过去式 / …"），
+        //    不是题目题号（该资料的题是"例题1~例题5"，用的是非阿拉伯题标）。
+        //    旧判据把条目编号当题号基准 → 报"答案区缺与正文一致的题号（正文题号 4 个，答案区仅 0 个）"
+        //    并要求答案区改用"全卷连续阿拉伯题号"——**这条指令本身把编辑引向错方向**（正文根本没有那套号）。
+        //    处置：内容型不参与"题号↔题"双向覆盖判据（判据域修正，非特判）；题类（正式卷/同步练习/专项/
+        //    默写/易错本/复习）一律不变。
+        const isContentType = ['summary', 'preview'].includes(genType);
+        // 🔴 2026-09-18（用户实证·**改报准对象**，不静默了事）：内容型答案区的**作答对象必须来自正文**——
+        //    判据用现成口径"答案区与正文同构"（答案区按正文对应的栏目组织）：答案区的小节标题（h2~h4）须在
+        //    正文标题里出现；正文里没有的栏目出现，即答案区把**素材（教材原文）里的题目/栏目**当成了作答对象。
+        //    实证（六年级英语《知识梳理》）：答案区出现 Cartoon time / Sounds in focus / Story time / Grammar time /
+        //    Wrap-up time 等教材栏目（源码为 Heading3），而正文只有"知识框架/重点梳理/易错辨析/典型例题"。
+        //    说明：上方"阿拉伯题号同构"判据对内容型确实不成立（正文的阿拉伯编号是**知识条目编号**），
+        //    但那不等于"不报"——而是**原来报错了对象**（该警告其实在指向本处污染，只是话术指向了题号）。
+        //    故：题号向不报、本判据接手把同一缺陷报准。
+        if (isContentType) {
+          const normHead = (s) => stripTags(String(s)).replace(/[\s\u3000]+/g, '').trim();
+          // 匹配用归一形（忽略空白差异），**报告里显示原样**（便于编辑一眼对上）
+          const headsOf = (htmlStr) => [...String(htmlStr).matchAll(/<h([2-4])[^>]*>([\s\S]*?)<\/h\1>/gi)]
+            .map((m) => ({ raw: stripTags(String(m[2])).replace(/[\s\u3000]+/g, ' ').trim(), norm: normHead(m[2]) }))
+            .filter((h) => h.norm);
+          const bodyNorms = headsOf(bodyHtml).map((h) => h.norm);
+          const ansHeads = headsOf(ansMatch[1]).filter((h) => !/参考答案|答案与解析|答案与评分标准|评分标准/.test(h.norm));
+          const orphans = ansHeads.filter((h) => !bodyNorms.some((b) => b.includes(h.norm) || h.norm.includes(b)));
+          if (orphans.length) {
+            silentCount('answer-coverage', `答案区出现**正文里没有的栏目/小节**（${orphans.slice(0, 3).map((h) => h.raw).join('、')}${orphans.length > 3 ? ' 等' : ''}）——答案区只能对正文中实际出现的题作答；这些小节正文里没有，疑为把素材（教材原文）的题目当成了作答对象，请改为对正文题目作答（正文不含练习/自测时，答案区整节省略）`);
+          }
+        }
         // 🔴 2026-09-17（用户实证第三卷·**改报体系问题**）：两侧任一为"分段式编号"（按大题分别从 1 重编号）时，
         //    "最长 1 起连续段"的对比**失去意义**——实证卷：正文段长 [10,5,5,5,10,5,5,5,5]、答案区段长 [5,5,5]，
         //    同一体系的缺陷被呈现成"答案区(5) 明显少于正文(10)，疑似未逐题对齐"，把编辑引向错误方向。
@@ -2078,7 +2108,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (has('answer-coverage-guard')) {
             silentCount('question-numbering-system', `题号编号体系与"全卷连续"口径不符：题号**按大题分别从 1 重新编号**（正文 ${segText(bodyNum.segments)}；答案区 ${segText(ansNum.segments)}）——全卷题号应跨大题、跨部分逐题递增、且答案区与正文用同一套号（1. 2. 3.…，全卷连续同序；仅子题用 (1)(2)）；编号体系分段时，两侧"最长连续段"的对比本身不成立（计数口径已覆盖行首、空位自带括号、行内点号、紧凑连排四种形态，故两侧差异不出在形态识别），程序据此只报编号体系、不再报"答案区少于正文"，请按编号体系整改后抽检`);
           }
-        } else if (bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
+        } else if (!isContentType && bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
           // 🔍 计数口径取证（2026-09-12）：本口径只认「行首/空白/[)）、]后 + N.[、．]」。
           //    🔴 2026-09-13（用户实证定版·根因分型）：答案区计 0 **是真实缺陷信号**（=一个可对应的题号锚点都没有，
           //       意味着答案与正文无法逐题对应），不是"口径不覆盖"的假告警——分型只为把排查方向说准，不改判"要修"。
@@ -2108,7 +2138,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //    实测样本：英语同步练习正文缺第2~5题（题号从1跳到6）、答案区却完整（一~九齐全）——
         //    原守卫只查"答案区少于正文"这一向，此向漏检，导致正文丢题静默进交付。
         //    🔴 2026-09-17：分段式编号（每大题从 1 重编号）下两侧计数不可比 → 该向同样不适用（已改报体系问题）。
-        if (!bodyNum.segmented && !ansNum.segmented && ansTopQ > 3 && bodyTopQ < ansTopQ - 1) {
+        if (!isContentType && !bodyNum.segmented && !ansNum.segmented && ansTopQ > 3 && bodyTopQ < ansTopQ - 1) {
           silentCount('body-coverage', `正文题号数(${bodyTopQ})明显少于答案区(${ansTopQ})——正文疑似丢题，请核对正文是否完整`);
         }
         // 🔴 2026-09-17 用户裁定（撤除"正确答案位置成规律"探针）："程序侧报这些意义不大，不依赖程序侧"——

@@ -72,7 +72,7 @@ describe('预习导学·课后问答（2026-09-17）', () => {
   it('答案区：预习资料须逐题给出课后问答的答案与要点；其余自包含教辅不受影响', () => {
     const role = ANSWER_ROLES.other('preview');
     expect(role).toContain('含课后问答栏目');
-    expect(role).toContain('仅针对正文中的练习/自测/变式逐题作答');
+    expect(role).toContain('仅针对**本资料正文中实际出现的**练习/自测/变式逐题作答');
     for (const gt of ['summary', 'review', 'dictation']) {
       expect(ANSWER_ROLES.other(gt), `${gt} 不应被注入课后问答口径`).not.toContain('含课后问答栏目');
     }

@@ -795,5 +795,98 @@
 <p class="n"><b>验证</b>：全量 <b>149 文件 / 2141 项全过</b>。改动文件 <code>src/config/layoutSpec.js</code>、<code>src/config/promptLibrary.js</code>、<code>tests/utils/filledBlankCarrier.test.js</code>。<br>
 <b>遗留（如实标注）</b>：协议补上后，模型<b>照协议写</b>才有横线；若仍写裸 <code>&lt;u&gt;</code>，程序仍把线归一掉（只留加粗文字）。这是刻意保留的守卫（否则 H19 的"内容型拿下划线当强调"会回潮）。要彻底消除剩余概率，需模型稳定遵守新协议——下一份资料生成后可抽样复核。</p>
 
+<h3>H23. 实物复核（《六年级英语上册 Unit 1 Try your best 知识梳理》docx）：一污染 + 两误报（2026-09-18）</h3>
+<p><b>用户实证</b>：上传生成物 docx，"有污染；出稿自检是误报；答案区把原文内容漏进来了"。逐条查证（解 docx → <code>word/document.xml</code> 逐 run 取文本并标出下划线），三条<b>全部定性并可复现</b>。</p>
+<table>
+<thead><tr><th>现象</th><th>定性</th><th>根因（证据）</th></tr></thead>
+<tbody>
+<tr>
+  <td>答案区出现 <b>Cartoon time / Sounds in focus / Story time / Grammar time / Wrap-up time</b> 等栏目及其答案</td>
+  <td><b>真缺陷·答案区污染</b></td>
+  <td>正文只有"知识框架/重点梳理/易错辨析/典型例题"，<b>根本没有这些栏目</b>。根因=<b>作答对象界定从未写进提示词</b>：答案页在 <code>mode==='full'</code> 时携带【压缩原文·答案参考】（归纳型 default=全文注入教材原文），而"答案范围由正文实际题目决定"这句<b>只写在 useAiGenerator 的代码注释里</b>（A6 注释），提示词里没有任何一句禁止作答参考原文——模型于是把教材原文的活动/题目一并作答，连栏目名都搬了进来</td>
+</tr>
+<tr>
+  <td>⚠️ 答案区缺与正文一致的题号（正文 4 个、答案区 0 个）</td>
+  <td><b>误报·判据域错</b></td>
+  <td>正文那 4 个"题号"其实是<b>知识条目编号</b>（"（三）一般过去时"下的 1. 规则动词过去式的构成 / 2. 不规则动词过去式 / 3. be 动词过去式的用法 / 4. 时间状语与过去时搭配）；该资料的<b>题</b>是"例题1~例题5"（非阿拉伯序号）。旧判据拿条目编号当题号基准 → 要求答案区改用"全卷连续阿拉伯题号"，<b>指令本身把编辑引向错方向</b></td>
+</tr>
+<tr>
+  <td>⚠️ 同一单词 "ee" 多套音标（biː / siː / triː）</td>
+  <td><b>误报·文本化口径错</b></td>
+  <td>XML 实证：模型按教材惯例把字母组合加粗——<code>k&lt;strong&gt;ee&lt;/strong&gt;p /kiːp/、b&lt;strong&gt;ee&lt;/strong&gt; /biː/、tr&lt;strong&gt;ee&lt;/strong&gt; /triː/</code>。而 <code>sanityScan</code> 旧口径把<b>所有标签一律替换成空格</b> → 文本化成 <code>"b ee /biː/"</code>，被切断的 "ee" 成了"假词"，bee/see/tree <b>三个不同单词</b>的音标被挂到它身上（keep 因 ee 不在词尾、前面只剩单字母 "p" 而未被匹配，正好解释为何只有 3 套）</td>
+</tr>
+<tr>
+  <td>例题答案"没有横线"</td>
+  <td><b>本轮未复现（已如实回报）</b></td>
+  <td>docx 实测<b>例题答案带下划线</b>（全文 14 处 <code>&lt;w:u w:val="single"/&gt;</code>，如 <code>there <u>was</u> (be) a snail</code>）——H21/H22 的载体处置在这份实物上<b>生效</b>。无下划线的只有<b>污染进来的教材写作栏目答案</b>（成篇范文，本无作答位）。已请用户指认具体位置</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>端</th><th>改动</th><th>说明</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>模型侧</b>·<code>promptLibrary.js</code></td>
+  <td>补<b>作答对象界定</b>（两条互斥路径各一处，同一条规则）：<br>· <code>ANSWER_ROLES.other</code>（答案页调用）——"仅针对<b>本资料正文中实际出现的</b>练习/自测/变式"+【作答对象界定：正文里没出现过的题目与栏目一律不作答——素材（教材原文/随附参考原文）里的活动与题目<b>不是本资料的题</b>，既不作答、也不得借它们的栏目名组织答案区；正文不含练习/自测时答案区整节省略】<br>· <code>PAPER_OUTPUT_CONVENTIONS.once</code>（一次成型路径）——同一界定，仅自包含教辅分支</td>
+  <td>把 A6 注释里那句<b>只在代码里说过、从未下发给模型</b>的原则真正写进提示词（声明↔实给对齐）；<b>原则式</b>表述、不点任何教材栏目名（防把个案写进条款）；两条路径互斥（once 模式不生成答案页），故非双写</td>
+</tr>
+<tr>
+  <td><b>程序侧</b>·<code>examValidator.js</code></td>
+  <td>新增 <code>isContentType = ['summary','preview'].includes(genType)</code>，内容型<b>不参与</b>"题号↔题"双向覆盖判据（含 answer-coverage 与 body-coverage 两向）</td>
+  <td><b>判据域修正</b>：内容型正文不用题号（<code>CONTENT_FORMAT</code> 明写"用栏目标题、不用题号"），其阿拉伯编号是条目编号 → 不可作基准。题类（正式卷/同步练习/专项/默写/易错本/复习）一律不变</td>
+</tr>
+<tr>
+  <td><b>程序侧</b>·<code>contentSanity.js</code></td>
+  <td><code>sanityScan</code> 文本化改为：<b>行内标签删除（不插空白）</b>，只<b>块级标签</b>转空白</td>
+  <td><b>判据与事实同源</b>：行内标签把词切断是"制造假词"，凡"词被强调标签切断"的情形一并根治（该 text 同时供计数/单位/引文等检测器使用，词形还原后判定更准）；块级转空白的行界语义不变</td>
+</tr>
+</tbody>
+</table>
+<p class="n"><b>守卫</b>：新增 <code>tests/utils/answerScopeAndFalsePositives.test.js</code> 12 项（三组均带反向护栏）：①音标——加粗/下划线切断形态不报，真冲突仍报、块级仍作分隔；②题号——内容型不报，题类/正式卷照旧报；③作答对象界定——四类梳理型答案页都含界定、once 自包含分支含界定而非自包含分支不含、且<b>不得出现任何具体教材栏目名</b>。既有 2 处断言按加强后的措辞同步。<br><b>验证</b>：全量 <b>150 文件 / 2153 项全过</b>。改动文件 <code>src/config/promptLibrary.js</code>、<code>src/utils/examValidator.js</code>、<code>src/utils/contentSanity.js</code> + 新增守卫 1 文件 + 2 处断言同步。</p>
+
+<h3>H24. 内容型例题"成句成段的答案没有书写载体"根治 + 上轮"静默"处置回改（2026-09-18·用户追问）</h3>
+<p><b>用户追问</b>：①"我说的是这种题（阅读回答）没有作答的答案没有书写载体，写作题作为例题时也是同样——<b>难道这些题正常不输出载体吗？全靠程序兜底补充的吗？例题的补充不了了，因为无对应触发的条件？不能够模型侧做不到吧？</b>"；
+②"答案区题号的问题，是因为原来应该没有答案的、教材的泄露进来了……"；③"<b>请问你上一轮的修复有没有修错？</b>"</p>
+<div class="box hot">
+  <b>用户的判断完全正确（自查后确认）</b>：内容型的题成了"<b>三不管</b>"——<br>
+  · <b>模型侧无条款</b>：成句成段答案的书写载体句（"答案须成句成段书写的题，输出整行书写横线，每行一横、行数按答案篇幅"）
+  只注入题类（<code>buildAnswerSpaceInstruction</code> 的 region 分支），内容型走 <code>CONTENT_FORMAT</code>，一句都没有；<br>
+  · <b>程序侧不补</b>：补差规则 <code>answer-area-fix</code> 明文排除内容型（<code>!['summary','preview'].includes(genType)</code>）；<br>
+  · 于是"例题的补充不了了（无对应触发条件）"——用户这句判断与代码逐字吻合。<b>根因是协议缺位，不是模型做不到。</b>
+</div>
+<h4>上一轮（H23）自查：一处判据域判断对、但处置错</h4>
+<table>
+<thead><tr><th>H23 改动</th><th>自查结论</th><th>本轮处置</th></tr></thead>
+<tbody>
+<tr><td>③ 音标：行内标签删除（不插空白）</td><td><b>正确</b>（机制有 XML 实证、反向护栏齐备）</td><td>不动</td></tr>
+<tr><td>② 题号：内容型不参与题号覆盖判据</td><td><b>判据域判断对，处置错</b>——"正文的阿拉伯编号是知识条目编号"确为判据域错误（该部分保留）；但我选择了<b>静默</b>，等于把一条真缺陷的信号关掉了。用户指出该警告其实<b>在指向污染</b>（"与正文对不上，因为根本不是正文的"）——它不是"噪音"，是<b>报错了对象</b></td><td><b>改为报准对象</b>：内容型新增判据——答案区小节标题（h2~h4）须在正文标题里出现；出现正文没有的栏目即报"疑把素材（教材原文）的题目当成了作答对象"。题号向仍不报（那是判据域错），两向合力既能免噪音、又保住信号</td></tr>
+<tr><td>① 作答对象界定（不作答素材题目/栏目）</td><td><b>方向正确</b>；但只治了"答案区多说"，没治"例题答案无载体"</td><td>本轮补④（见下）</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>端</th><th>改动</th><th>说明</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>模型侧</b>·<code>layoutSpec.js</code></td>
+  <td>把题类 region 分支的成句成段载体句<b>抽为单一事实源</b> <code>buildLongAnswerCarrierInstruction(subject, stage)</code>（<b>逐字未改</b>），题类改为调用它</td>
+  <td>内容型与题类<b>共用同一批字面</b>，杜绝"题类有、内容型没有"的两套措辞漂移；载体形态仍由 <code>ANSWER_REGION</code> 单源决定（'line'→整行书写横线；其余→无线空白作答行），与程序补差读同一张表</td>
+</tr>
+<tr>
+  <td><b>模型侧</b>·<code>promptLibrary.js</code></td>
+  <td>内容型载体条款扩为<b>完整作答位</b>：空位题→空位载体（H22 已有）+ <b>成句成段书写的题→整行书写横线/无线空白作答行</b>（本轮新增，取自同一事实源，仅在有 subject/stage 时注入），并明写"<b>作答位必须真实输出、不得省略</b>——不得只把答案当普通段落平铺"；知识总结例题条款同步补"作答位须一并给出、答案落在该书写位之上"</td>
+  <td>正是用户所问"这些题正常不输出载体吗"的答案：<b>正常应当输出</b>，此前是协议缺位导致没输出；补上后由<b>模型侧</b>出载体，不再依赖程序兜底（且内容型本就没有兜底）</td>
+</tr>
+<tr>
+  <td><b>程序侧</b>·<code>examValidator.js</code></td>
+  <td>新增内容型"答案区小节须来自正文"判据（<b>报准对象</b>，见上表②）；匹配用归一形、报告显示原样</td>
+  <td>判据域限内容型（题类另有"答案区与正文同构"的组织要求），不向试卷广播</td>
+</tr>
+</tbody>
+</table>
+<p class="n"><b>如实标注的两点边界</b>：① <b>语文成篇成文</b>（作文格）走"专用书写格通道"，本轮未纳入内容型协议（语文该分支原文即"不在本列"）；如需给内容型写作例题补作文格，另立一条同源句。
+② 内容型不再校验"答案区阿拉伯题号覆盖"——<b>属刻意取舍</b>（正文不用题号，该口径不成立），信号由新的"栏目同构"判据承接。</p>
+<p class="n"><b>守卫</b>：<code>answerScopeAndFalsePositives.test.js</code> 扩至 21 项，新增两组：④载体协议（内容型含"整行书写横线"、"作答位必须真实输出"；数学等留白学科取到"无线空白作答行"；通用模板无学科不注入；例题条款含该硬约束；条件式不诱导出题）、⑤污染判据（教材栏目→报；小节来自正文→不报；preview 同口径；题类不启用）。<br>
+<b>验证</b>：全量 <b>150 文件 / 2162 项全过</b>。改动文件 <code>src/config/layoutSpec.js</code>、<code>src/config/promptLibrary.js</code>、<code>src/utils/examValidator.js</code> + 守卫扩充。</p>
+
 </body>
 </html>

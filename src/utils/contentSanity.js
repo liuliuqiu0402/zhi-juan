@@ -278,8 +278,18 @@ export const detectQuoteConflicts = (html = '') => {
 /** 全量合理性扫描：返回违规提示语义清单（空=无违规；跨检测器同文案去重） */
 export const sanityScan = (content = '') => {
   const html = String(content || '');
+  // 🔴 2026-09-18 用户实证（"同一单词 ee 多套音标（biː / siː / triː）"→ 纯误报）：
+  //    旧实现把**所有**标签一律替换成空格——行内标签夹在词中时会把一个词**切断成假词**：
+  //    模型按教材惯例把字母组合加粗写作 k<strong>ee</strong>p /kiːp/、b<strong>ee</strong> /biː/、
+  //    s<strong>ee</strong> /siː/、tr<strong>ee</strong> /triː/，文本化成 "b ee /biː/" 后，
+  //    音标检测把被切断的那一段（此处恰为字母组合 ee）当成了"单词"，
+  //    于是把 bee/see/tree **三个不同单词**的音标挂到假词 "ee" 上 → 报"ee 多套音标"。
+  //    修正（判据与事实同源）：**行内标签直接删除（不插空白）**，只有**块级标签**才转空白
+  //    （保持词与词/行与行之间的分隔，行界语义不变）。凡"词被强调标签切断"的情形一并根治，
+  //    不限于音标检测（本 text 同时供计数/单位/引文等检测器使用，词形还原后判定更准）。
+  const BLOCK_TAG_RE = /^<\/?(?:p|div|li|ul|ol|h[1-6]|tr|td|th|table|thead|tbody|section|article|blockquote|br|hr)\b/i;
   const text = html
-    .replace(/<[^>]+>/g, ' ')
+    .replace(/<[^>]+>/g, (tag) => (BLOCK_TAG_RE.test(tag) ? ' ' : ''))
     .replace(/&nbsp;/g, ' ')
     .replace(/[　\s]+/g, ' ')
     .trim();
