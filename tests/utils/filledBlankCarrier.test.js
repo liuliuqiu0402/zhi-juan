@@ -18,6 +18,7 @@ import { unwrapMalformedBlankCarriers, normalizeBlankMarkers } from '../../src/u
 import { buildDocxFromDom } from '@/utils/docxBuilder.js';
 import { injectDrawingML } from '@/utils/drawingMLShapes.js';
 import { getPromptTemplate, buildOutputFormatHint } from '../../src/config/promptLibrary.js';
+import { BLANK_CARRIER_MARKUP } from '../../src/config/layoutSpec.js';
 import { Packer } from 'docx';
 import JSZip from 'jszip';
 
@@ -145,15 +146,33 @@ describe('③ 模型侧：例题条款已反转（载体保留 + 答案回填）
   });
 });
 
-describe('④ 模型侧：内容型"内部题的作答位"为条件式、不诱导出题', () => {
+describe('④ 模型侧：内容型"内部题的作答位"为条件式、不诱导出题，且拿到真标记协议', () => {
   const TPL = (genType) => getPromptTemplate({ grade: '六年级', subject: '英语', genType }).template;
 
-  it('内容型模板含条件式作答位条款（若含…则同一规则给显式载体）', () => {
+  it('内容型模板含条件式作答位条款（若含…则同一形态给显式载体）', () => {
     for (const t of ['summary', 'preview']) {
       const s = TPL(t);
       expect(s, `${t} 缺作答位条款`).toContain('本资料若含需学生自行作答的题');
       expect(s).toContain('不因本资料以梳理为主而省略作答位');
-      expect(s).toContain('不得以空格串充当作答位');
+      expect(s).toContain('不得用无 class 的裸 <u> 或空格串充当作答位');
+    }
+  });
+
+  // 🔴 2026-09-18 用户实证"答案回填了、横线却没了，括号倒是在"：
+  //    根因=内容型**从不注入空位标记协议**，模型只能凭语感写裸 <u> 当横线空位；
+  //    裸 <u> 无空位语义 → 内容型"强调标注归一"改成加粗（横线消失）。故内容型必须真拿到标记。
+  it('内容型真拿到空位标记（横线/括号两种），且指名禁止无 class 的裸 <u>', () => {
+    for (const t of ['summary', 'preview']) {
+      const s = TPL(t);
+      expect(s, `${t} 缺横线空位标记`).toContain('<u class="blank-N">&emsp;</u>');
+      expect(s, `${t} 缺括号空位标记`).toContain('<span class="blank-N">&emsp;</span>');
+      expect(s, '须说明裸下划线会被当强调清理').toContain('没有空位语义');
+    }
+  });
+
+  it('内容型不作**假指针**（不把形态指向并不含该内容的【渲染指令】）', () => {
+    for (const t of ['summary', 'preview']) {
+      expect(TPL(t), `${t} 出现假指针`).not.toContain('形态见注入渲染指令');
     }
   });
 
@@ -162,6 +181,16 @@ describe('④ 模型侧：内容型"内部题的作答位"为条件式、不诱�
       const s = TPL(t);
       expect(s, `${t} 出现诱导出题措辞`).not.toMatch(/(必须|务必|应当|需要)(包含|安排|设置|补充|增加)(自测|练习)题?|请(补充|增加|添加)(自测|练习)/);
     }
+  });
+
+  it('题类与内容型共用同一份空位标记（单一事实源，不各写一套）', () => {
+    const q = buildOutputFormatHint({ subject: '英语', stage: 'primary_high', genType: 'practice' });
+    const c = buildOutputFormatHint({ subject: '英语', stage: 'primary_high', genType: 'summary' });
+    // 题类⑦点名横线标记（取自单一事实源；括号以文字带过——见 blueprintInjection 的"无格子学科不出现 span 示例"边界）
+    expect(q).toContain(BLANK_CARRIER_MARKUP.line);
+    // 内容型内嵌题条款两种都给（横线 + 括号）
+    expect(c).toContain(BLANK_CARRIER_MARKUP.line);
+    expect(c).toContain(BLANK_CARRIER_MARKUP.paren);
   });
 
   it('内容型不注入题类格式块（载体协议只作条件式补充，不广播题目自洽总纲）', () => {

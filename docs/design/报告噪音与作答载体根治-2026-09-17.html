@@ -744,5 +744,56 @@
 <p class="n"><b>不变量</b>：<code>BLANK_INNER</code>（只认空白）驱动的既有归一规则（同段形态统一、双载体检测、空位宽度对齐）不受影响——<b>含答案的载体本就不被这些规则匹配</b>，答案不会被覆盖成 <code>&amp;emsp;</code>；<code>hasAnswerCarrier</code> 仍认 <code>blank-N</code> → 不会误报"缺作答位"。<br>
 <b>验证</b>：全量 <b>149 文件 / 2138 项全过</b>（改动前三端逐处已核：无测试断言旧措辞）。改动文件 <code>src/config/promptLibrary.js</code>、<code>src/utils/contentCleaner.js</code>、<code>src/utils/docxBuilder.js</code> + 新增守卫 1 文件。</p>
 
+<h3>H22. 「答案回填了、横线却没了，括号倒是在」——内容型空位标记协议缺位（2026-09-18·用户实证）</h3>
+<p><b>用户实证</b>："还是答案回填，横线没有，括号载体倒是有的，横线被剥离了吗？"——同一份资料里<b>括号空位存活、横线空位消失</b>。</p>
+<div class="box hot">
+  <b>根因（探针实测，非推断）</b>：<b>内容型从来没有拿到过"空位标记"协议</b>——该协议（<code>u.blank-N</code> / <code>span.blank-N</code> 写法）
+  只注入题类格式块（<code>QUESTION_FORMAT</code>），内容型走 <code>CONTENT_FORMAT</code>，通篇没有任何空位写法可依。
+  于是模型只能凭语感写<b>裸 <code>&lt;u&gt;</code></b> 充当横线空位；而裸 <code>&lt;u&gt;</code> 在本产品<b>没有空位语义</b> →
+  内容型"强调标注归一"（前提写着"内容型本无画线题与作答位"）把它判为<b>强调误用改成加粗</b> → <b>横线消失、文字留着</b>。
+  <br><b>为什么括号独活</b>：模型写的是字面「（　）」，生成链路（useAiGenerator 步骤 3 / contentCleaner 括号归一）
+  会把它<b>字面归一</b>成<b>带 class</b> 的 <code>span.blank-N</code> → 带 class 即受豁免 → 幸存。
+  裸 <code>&lt;u&gt;</code> 则不在任何归一名单里，故被当强调清理。这正是"一活一死"的分化来源。
+  <br><b>附带发现</b>：H21 那轮我写的"形态见注入渲染指令"是<b>假指针</b>——【渲染指令】段只含 <code>[GRAPH]</code>/<code>[IMAGE]</code>/公式，<b>没有任何空位标记</b>（与本项目此前根治过的 152 组合假指针同类）。
+</div>
+<table>
+<thead><tr><th>端</th><th>改动</th><th>说明</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>模型侧</b>（根修）</td>
+  <td>新增单一事实源 <code>layoutSpec.BLANK_CARRIER_MARKUP</code>（横线 <code>line</code> / 括号 <code>paren</code>）；<br>
+      内容型条款改为<b>真给标记</b>：填空短答用横线空位 <code>&lt;u class="blank-N"&gt;&amp;emsp;&lt;/u&gt;</code>、填符号用括号空位 <code>&lt;span class="blank-N"&gt;&amp;emsp;&lt;/span&gt;</code>，
+      并显式声明<b>"不得用无 class 的裸 &lt;u&gt; 或空格串充当作答位"</b>（说明无 class 下划线会被当强调清理、横线随之丢失）；<b>删掉假指针</b></td>
+  <td>不给协议，模型就永远靠语感；给了协议才谈得上"照做"——符合本项目"根因在协议缺位则补协议，不靠事后修补"的一贯口径</td>
+</tr>
+<tr>
+  <td><b>模型侧</b>（去双写）</td>
+  <td>题类⑦的横线标记改引同一常量；⑦原有的<b>假指针</b>（"括号空位等，见注入渲染指令"）一并删除</td>
+  <td>标记字面此前散在条款里，现收敛到单一事实源；两处引用同一常量，杜绝"各写一套"的漂移</td>
+</tr>
+<tr>
+  <td><b>程序侧</b>（不动）</td>
+  <td><b>不改</b>：强调标注归一保持原样（仍是内容型"拿强调当重点标注"的正当守卫）</td>
+  <td>用户的抱怨不是"程序判错了"，而是<b>模型没按协议写</b>——判据本身无错。故不动程序侧，只补协议（"非必要不依赖程序侧"）</td>
+</tr>
+</tbody>
+</table>
+<h4>落地时撞上的既有边界（已对齐，未破）</h4>
+<p><code>blueprintInjection</code> 有守卫："<b>无格子学科（如物理）不得出现任何 <code>&lt;span class=</code> 载体示例</b>"。
+我原打算把括号标记字面也加进<b>题类⑦</b>，正好撞上这条。<b>处置</b>：题类⑦只点名<b>横线</b>标记（括号仍以"括号空位等"文字带过，保持该边界）；<b>内容型</b>条款不受此约束（内容型本就不注入格子类示例），两种标记都在那里给足。</p>
+<h4>守卫（<code>filledBlankCarrier.test.js</code> ④ 组扩至 6 项）</h4>
+<table>
+<thead><tr><th>守护</th><th>断言</th></tr></thead>
+<tbody>
+<tr><td>内容型真拿到标记</td><td>summary / preview 均含横线与括号两种标记，且含"没有空位语义"的说明</td></tr>
+<tr><td>不作假指针</td><td>内容型模板<b>不得</b>出现"形态见注入渲染指令"</td></tr>
+<tr><td>单一事实源</td><td>题类⑦含 <code>BLANK_CARRIER_MARKUP.line</code>；内容型含 <code>.line</code> 与 <code>.paren</code>（同一常量，不各写一套）</td></tr>
+<tr><td>不诱导出题</td><td>条件式仍在（"若含…"），不得出现"应当/务必包含自测题"式措辞</td></tr>
+<tr><td>端到端</td><td>探针实测：<code>u.blank-N</code> 内含答案 → 审计链路<b>逐字节不变</b>；<code>span.blank-N</code> 同理；裸 <code>&lt;u&gt;</code> → 仍被归一为加粗（那条守卫<b>照旧生效</b>，即模型若不听协议仍会丢线——协议是根治手段，守卫是兜底提示）</td></tr>
+</tbody>
+</table>
+<p class="n"><b>验证</b>：全量 <b>149 文件 / 2141 项全过</b>。改动文件 <code>src/config/layoutSpec.js</code>、<code>src/config/promptLibrary.js</code>、<code>tests/utils/filledBlankCarrier.test.js</code>。<br>
+<b>遗留（如实标注）</b>：协议补上后，模型<b>照协议写</b>才有横线；若仍写裸 <code>&lt;u&gt;</code>，程序仍把线归一掉（只留加粗文字）。这是刻意保留的守卫（否则 H19 的"内容型拿下划线当强调"会回潮）。要彻底消除剩余概率，需模型稳定遵守新协议——下一份资料生成后可抽样复核。</p>
+
 </body>
 </html>
