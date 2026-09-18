@@ -90,3 +90,22 @@ export const MATERIAL_CHANNEL_DEFAULT = {
 
 /** 素材通道读取（未知类型安全兜底：按"需要原文"的全文注入处理） */
 export const materialChannelOf = (genType) => MATERIAL_CHANNEL_DEFAULT[genType] || 'full';
+
+/**
+ * 📝 答案页是否携带【压缩原文·答案参考】（**单一事实源**，2026-09-18 用户裁定）
+ * ============================================================
+ * 🔴 用户裁定原话："生成的正文中不要把大段原文混进来，**答案模块根据正文生成**，就不会有污染风险了"——
+ *    **结构上切断，胜过再加条款**。
+ * 为什么必须收紧：答案页原先按 `contractOf(genType).mode === 'full'` 携带【压缩原文·答案参考】，
+ *    于是教材原文（含其活动与题目）一并送进答案页 → 模型把**素材里的题目/栏目**当作本资料的题作答
+ *    （实证：六年级英语《知识梳理》答案区出现 Cartoon time / Story time / Grammar time 等教材栏目）。
+ * 口径：**只有"答案本身即原文 / 即教材原题之答案"的类型**才需要携带——
+ *    · dictation（默写）：答案就是教材原文本身，不带则无法给答案；
+ *    · preview（预习）：课后问答即教材原题之答案（该栏目条款要求逐题给出答案与要点）。
+ *    其余类型（知识总结/复习等归纳型，以及命题/练习型）**一律只喂【正文】**——其答案只对正文里
+ *    实际出现的练习题，依据正文即可，结构上不可能再引用素材内容。
+ * 消费方：useAiGenerator 答案页组装（ansMaterial）。注意：injectionManifest 的**请求实发清单**描述的是
+ *    **正文调用**的块序（中段素材等），答案页是**独立调用**、不在该清单内（改本函数不影响清单口径）。
+ */
+export const ANSWER_PAGE_SOURCE_TYPES = ['dictation', 'preview'];
+export const answerPageNeedsSource = (genType) => ANSWER_PAGE_SOURCE_TYPES.includes(genType);

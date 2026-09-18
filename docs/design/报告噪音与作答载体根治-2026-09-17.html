@@ -888,5 +888,49 @@
 <p class="n"><b>守卫</b>：<code>answerScopeAndFalsePositives.test.js</code> 扩至 21 项，新增两组：④载体协议（内容型含"整行书写横线"、"作答位必须真实输出"；数学等留白学科取到"无线空白作答行"；通用模板无学科不注入；例题条款含该硬约束；条件式不诱导出题）、⑤污染判据（教材栏目→报；小节来自正文→不报；preview 同口径；题类不启用）。<br>
 <b>验证</b>：全量 <b>150 文件 / 2162 项全过</b>。改动文件 <code>src/config/layoutSpec.js</code>、<code>src/config/promptLibrary.js</code>、<code>src/utils/examValidator.js</code> + 守卫扩充。</p>
 
+<h3>H25. 影响面核实：污染面是否封全 + 题类载体是否零漂移（2026-09-18·用户追问）</h3>
+<p><b>用户追问</b>：①"其他资料类型在注入原文的时候，都不会出现这样的情况了吧？不会再出现污染了吧？"②"例题作答载体的修复，不会影响其他正常题目的载体吧？"——两条均以代码与实测作答。</p>
+<h4>① 污染面：注入原文的类型恰好就是已覆盖的那 4 类（+1 条残留路径已堵）</h4>
+<table>
+<thead><tr><th>资料类型</th><th>素材通道默认（教材原文进正文）</th><th>答案页带【压缩原文·答案参考】</th><th>是否已封</th></tr></thead>
+<tbody>
+<tr><td>summary / review / preview / dictation</td><td><b>full（注入原文）</b></td><td><b>是</b>（gate：<code>contractOf(genType).mode === 'full'</code>）</td><td><b>已封</b>：四类全在「作答对象界定」覆盖内（<code>ANSWER_ROLES.other</code> 梳理型分支 + <code>once</code> 自包含分支）</td></tr>
+<tr><td>errorbook</td><td>anchor（不注原文）</td><td>否（mode='none'）</td><td>无该风险</td></tr>
+<tr><td>practice / special / reading</td><td>anchor</td><td>否（mode≠'full'）</td><td>无该风险</td></tr>
+<tr><td>exam</td><td>anchor</td><td>否（mode='sampled'）</td><td>无该风险</td></tr>
+<tr><td><b>残留路径</b>：设置页把素材通道手动改为"全文"（该开关<b>对所有类型生效</b>）</td><td><b>题类也会拿到教材原文</b></td><td>否</td><td><b>已补</b>：<code>once</code> 的<b>题类分支</b>同样写入界定——但<b>刻意不带</b>"正文不含练习/自测时答案区整节省略"那句（试卷正文本身即题，该句会让模型误删答案区）</td></tr>
+</tbody>
+</table>
+<p class="n">结论：<b>默认配置下不会再出现该污染</b>（4 类注入原文者全部覆盖）；唯一的残留路径（手动全文通道 × 题类 × 一次成型）本轮也已堵上。</p>
+<h4>② 题类载体：抽常量前后<b>逐字节零漂移</b>（实测）</h4>
+<p>把改动前的 <code>layoutSpec.js</code> 从 git 取出、与新版做全矩阵对照：<b>11 学科 × 6 学段 = 66 组</b>，
+<code>buildAnswerSpaceInstruction</code> 与 <code>buildCarrierInstruction</code> 输出<b>逐字节一致</b>（临时对照测试，验证后已删）。
+另：内容型载体条款只进 <code>CONTENT_FORMAT</code>（<b>内容型专用</b>，题类走 <code>QUESTION_FORMAT</code>），题类题目不受影响；
+本轮对教材术语只做"迁入函数"，未改一字。</p>
+<p class="n"><b>验证</b>：全量 <b>150 文件 / 2162 项全过</b>（其中"once 题类分支含界定、且不含省略句"已入守卫，防日后回退）。改动文件 <code>src/config/promptLibrary.js</code> + 守卫断言同步。</p>
+
+<h3>H26. 用户定简化逻辑：正文不混原文 + 答案只依据正文（结构上切断，2026-09-18）</h3>
+<p><b>用户裁定</b>："不要搞复杂了，其实很简单——<b>生成的正文中不要把大段原文混进来，答案模块根据正文生成</b>，就不会有污染风险了啊。这个逻辑清晰又简单。"
+——把根治点从"加条款/加判据"移回<b>结构</b>。逐条核对后：第一条<b>本来就有</b>，第二条<b>原来没做到</b>，本轮补齐。</p>
+<table>
+<thead><tr><th>用户逻辑</th><th>核对结果（代码即证据）</th><th>处置</th></tr></thead>
+<tbody>
+<tr>
+  <td>① 生成的正文中不要把大段原文混进来</td>
+  <td><b>既有条款已覆盖</b>（且已是"通道无关"口径）：<code>injectionManifest</code> 归纳型——"可引用、可归纳中段【压缩原文】，但<b>须转写为教辅表述，不得整段照录</b>"；命题/练习型——"<b>不得照搬教材原题，也不得整段沿用教材语篇或连续照录教材文字</b>（与教材参考段连续重合即属照搬）；题目内容须为本资料自行组织"</td>
+  <td><b>不新增</b>（避免句级重复——该块本就是"禁照搬"的单一事实源）</td>
+</tr>
+<tr>
+  <td>② 答案模块根据正文生成</td>
+  <td><b>原来没做到</b>：答案页携带【压缩原文·答案参考】的条件是 <code>contractOf(genType).mode === 'full'</code> → <b>知识总结/复习也拿到了教材原文</b>（含其活动与题目）→ 模型把素材题目当成本资料的题作答。<b>这就是污染的入口</b></td>
+  <td><b>结构上切断</b>：新增单源 <code>answerPageNeedsSource(genType)</code>（<code>coverageContract</code>）——只在"<b>答案本身即原文 / 即教材原题之答案</b>"的类型携带：<b>默写</b>（答案就是原文）、<b>预习</b>（课后问答即教材原题之答案）。<b>其余类型（含知识总结/复习）一律只喂【正文】</b>，答案页结构上拿不到任何素材 → <b>不可能再引用素材内容</b></td>
+</tr>
+</tbody>
+</table>
+<p class="n"><b>与既有条款的关系（避免重复设防）</b>：H23 写的"作答对象界定"<b>保留但不再是主防线</b>——它降为两处兜底：<b>一次成型（once）路径</b>（答案区与正文在同一次调用，结构上无法分离）与仍需携带素材的<b>默写/预习</b>两类。
+这正是用户要的取向：<b>能靠结构切断的，不靠条款约束</b>。</p>
+<p class="n"><b>影响面</b>：题类（试卷/同步练习/专项/阅读/易错本）<b>不受影响</b>——其答案页从来不带素材（gate 本就用契约 mode，题类 mode≠'full'），正文侧块序与口径一字未改；知识总结/复习的答案页<b>少喂一份素材</b>，答案范围按其正文里的练习/自测/变式，与既有的"答案区只写题目解答"条款同向。<br>
+<b>验证</b>：全量 <b>150 文件 / 2164 项全过</b>；新增守卫 2 项（携带集合 = 仅默写/预习；mode=full 的 4 类中归纳型不再携带）钉住本次收紧。改动文件 <code>src/config/coverageContract.js</code>、<code>src/composables/useAiGenerator.js</code> + 守卫扩充。</p>
+
 </body>
 </html>

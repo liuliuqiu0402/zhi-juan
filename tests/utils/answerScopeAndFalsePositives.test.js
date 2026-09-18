@@ -17,6 +17,7 @@ import { describe, it, expect } from 'vitest';
 import { sanityScan } from '../../src/utils/contentSanity.js';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
 import { ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS, buildOutputFormatHint, getPromptTemplate } from '../../src/config/promptLibrary.js';
+import { answerPageNeedsSource } from '../../src/config/coverageContract.js';
 
 const notes = (r, type) => (r.silentDetails || []).filter((d) => d.type === type).map((d) => d.message).join(' | ');
 
@@ -99,8 +100,11 @@ describe('① 答案区污染根治：作答对象只有正文实际出现的题
     const s = PAPER_OUTPUT_CONVENTIONS.once('英语', true);
     expect(s).toContain('答案区的**作答对象只有正文中实际出现的题**');
     expect(s).toContain('正文不含练习/自测时，答案区整节省略');
-    // 题类（非自包含教辅）不带该界定，避免向试卷/同步练习广播
-    expect(PAPER_OUTPUT_CONVENTIONS.once('英语', false)).not.toContain('作答对象只有正文中实际出现的题');
+    // 🔴 2026-09-18：题类分支**同样**要界定（素材通道被手动设为"全文"时，试卷/练习型也会拿到教材原文
+    //    → 同源污染），但**不得**带"正文不含练习/自测则省略"那句——试卷正文本身即题，该句会让模型误删答案区。
+    const paper = PAPER_OUTPUT_CONVENTIONS.once('英语', false);
+    expect(paper).toContain('作答对象只有正文中实际出现的题');
+    expect(paper).not.toContain('正文不含练习/自测时，答案区整节省略');
   });
 
   it('界定为原则式：不得点具体教材栏目名（防把个别案例写进条款）', () => {
@@ -176,5 +180,23 @@ describe('⑤ 内容型答案区污染判据：改"报准对象"（不静默了�
   it('反向护栏：题类不启用该判据（判据域限内容型，防向试卷广播）', () => {
     const ans = '<div class="answer-section"><h2>参考答案</h2><h3>Cartoon time</h3><p>…</p></div>';
     expect(notes(run5(ans, 'practice'), 'answer-coverage')).not.toContain('正文里没有的栏目');
+  });
+});
+
+describe('⑥ 答案页作答基准：结构上只喂正文（用户裁定"答案模块根据正文生成"）', () => {
+  it('携带【压缩原文·答案参考】只限"答案本身即原文/即教材原题之答案"的类型', () => {
+    expect(answerPageNeedsSource('dictation'), '默写：答案就是原文').toBe(true);
+    expect(answerPageNeedsSource('preview'), '预习：课后问答即教材原题之答案').toBe(true);
+    for (const t of ['summary', 'review', 'errorbook', 'practice', 'special', 'reading', 'exam']) {
+      expect(answerPageNeedsSource(t), `${t} 不应携带素材（答案只依据正文）`).toBe(false);
+    }
+  });
+
+  it('收紧前后差异即为本次修复：mode=full 的 4 类里，归纳型（知识总结/复习）不再携带', () => {
+    const modeFullTypes = ['summary', 'preview', 'dictation', 'review'];
+    expect(modeFullTypes.filter((t) => answerPageNeedsSource(t))).toEqual(['preview', 'dictation']);
+    // 关键：知识总结/复习不再携带 → 教材原文（含其活动与题目）进不了答案页 → 结构上不可能污染
+    expect(answerPageNeedsSource('summary')).toBe(false);
+    expect(answerPageNeedsSource('review')).toBe(false);
   });
 });

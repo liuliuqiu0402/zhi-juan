@@ -13,7 +13,7 @@ import { buildCompressionCacheKey, readCompressionCache, writeCompressionCache }
 import { formatAnchorListByChapter, anchorListRoleNote, resolveAnchorKind } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位，含第3层具体概念 A17/可开关）；🔬 resolveAnchorKind：条目性质双轨判定（显式 kind 优先 + 名字兜底）
 // ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
 import { planOutputQuota, nextContinuationBudget, isOverQuota, charsToTokens } from '../utils/outputQuota.js';
-import { contractOf, MATERIAL_CHANNEL_DEFAULT } from '../config/coverageContract.js';
+import { contractOf, MATERIAL_CHANNEL_DEFAULT, answerPageNeedsSource } from '../config/coverageContract.js';
 // ✅ A22 实发注入清单·单源（2026-09-14 用户同意）：请求里除委托正文之外的每一块都集中在此定义，
 //    生成端按此拼接实发文本、生成面板按此逐段展示（"点开即实发全貌"，见 utils/injectionManifest.js）
 import {
@@ -4910,7 +4910,12 @@ ${cardAnalysisText.substring(0, 1000)}
         //      命题/练习型**不带**（题目自带情境与素材，且防"照搬原文作答"）；
         //    · **不带锚点清单**：答案范围由正文实际题目决定，锚清单会引入"第二套组织"→ 答案与题目错位；
         //    · 顺序依据同写作期（首尾强/中段弱）：素材在前 → 操作对象（正文）紧邻指令 → 指令末尾 recency 最强。
-        const ansMaterial = (contractOf(genType).mode === 'full' && compressedText)
+        // 🔴 2026-09-18 用户裁定（"答案模块根据正文生成，就不会有污染风险"——**结构上切断**）：
+        //    原条件"mode === 'full'"过宽：知识总结/复习也拿到了教材原文（含其活动与题目）→ 模型把素材里的
+        //    题目当成本资料的题作答（实证：答案区出现 Cartoon time / Story time 等教材栏目）。
+        //    现收紧为 `answerPageNeedsSource(genType)`（单源在 coverageContract）：只有"答案本身即原文 /
+        //    即教材原题之答案"的类型（默写、预习）才携带；其余类型**只喂【正文】**，结构上不可能再引用素材。
+        const ansMaterial = (answerPageNeedsSource(genType) && compressedText)
           ? `【压缩原文·答案参考】\n${compressedText}\n\n`
           : '';
         const ansPrompt = `${ansMaterial}【正文】\n${paperPlain || '（正文为空，无法作答——请终止输出）'}\n\n`
