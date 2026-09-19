@@ -29,18 +29,123 @@ export function htmlFragmentToText(html = '') {
     .trim();
 }
 
+/** 听力原文小节开始：行中含"听力原文/听力材料/录音稿"等（块标题标记，非材料句） */
+const LISTENING_BLOCK_HEADING = /听力原文|听力材料|听力文稿|听力录音|听力文本|录音稿/;
+
+/** 非听力内容起始标记（笔试/范文/评分/口语）：出现即截断，其后内容一律不属听力 */
+export const NON_LISTENING_RE = /(?:第[一二三四五六七八九十零百]+部分\s*)?(?:笔试部分|笔试|书面表达|参考范文|采分点|评分标准|评分说明|非听力|口语)/;
+
+/** 听力原文小节结束（下一非听力大节，**保守**）：不把"一、"之类卷面指令当边界——
+ *  卷面指令若混进小节内，交由 stripPaperNoise / isCjkNoise 解析守卫剔除，避免误截掉其后的材料行 */
+const LISTENING_BLOCK_END = NON_LISTENING_RE;
+
+/**
+ * 从答案区文本中**只保留"听力原文"小节**（2026-09-19 根因修复）：
+ *   原实现从 answer-section <div> 截到文档末尾，把整张答案页（卷面指令/答案/范文/评分）全塞进
+ *   听力管路，导致音频把非听力内容也念出来。这里定位"听力原文"标题，取其到下一非听力大节为止。
+ *   找不到标题时回退原文本（由解析守卫兜底）。
+ */
+export function sliceListeningBlock(text = '') {
+  const lines = String(text || '').split('\n');
+  let start = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (LISTENING_BLOCK_HEADING.test(lines[i])) { start = i; break; }
+  }
+  if (start < 0) return String(text || '');
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (LISTENING_BLOCK_END.test(lines[i])) { end = i; break; }
+  }
+  return lines.slice(start + 1, end).join('\n').replace(/^\s*\n+|\n+\s*$/g, '');
+}
+
 /**
  * 从生成结果中取出"听力区"文本
  * 优先取答案区（answer-section / 参考答案 标题起），因为**听力原文只在答案页**（卷面不含，防学生看到答案）。
+ * 取到整段后**再截到听力原文小节**，杜绝把整张答案页灌进听力管路。
  */
 export function extractListeningSource(content = '') {
   const html = String(content || '');
   if (!html) return '';
+  let frag = '';
   const wrapped = html.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>([\s\S]*)$/i);
-  if (wrapped) return htmlFragmentToText(wrapped[1]);
-  const bare = html.match(/<h[1-6][^>]*>\s*参考答案[\s\S]*$/i);
-  if (bare) return htmlFragmentToText(bare[0]);
-  return htmlFragmentToText(html);
+  if (wrapped) frag = wrapped[1];
+  else {
+    const bare = html.match(/<h[1-6][^>]*>\s*参考答案[\s\S]*$/i);
+    frag = bare ? bare[0] : html;
+  }
+  return sliceListeningBlock(htmlFragmentToText(frag));
+}
+
+/** CJK 占比（中文字符 / (中文+英文字母)，用于识别"卷面/答案残留"） */
+const CJK_CH_RE = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/g;
+export function cjkRatio(text = '') {
+  const s = String(text || '');
+  const cjk = s.match(CJK_CH_RE) || [];
+  const alpha = s.match(/[A-Za-z]/g) || [];
+  const total = cjk.length + alpha.length;
+  return total ? cjk.length / total : 0;
+}
+
+/** 英语听力材料不可能是中文：非导语段若以中文为主 → 卷面指令/范文/评分残留，应剔除 */
+export function isCjkNoise(text = '') {
+  return cjkRatio(text) > 0.5;
+}
+
+/** 卷面部分标题（如「第一部分 听力部分（共3大题，满分30分）」） */
+const PAPER_PART_RE = /第[一二三四五六七八九十零百]+部分[^（(]*[（(][^）)]*[）)]/g;
+/** 卷面大题题头（如「二、听录音，判断下列句子…（每题2分，共10分）」）——书面结构，不是播音指令 */
+const PAPER_ITEM_RE = /[一二三四五六七八九十]+、[^（(]*[（(][^）)]*[）)]/g;
+
+/**
+ * 卷面残留清洗（2026-09-19）：
+ *   ① 命中"笔试/范文/评分"标记 → 从该处截断，并告知调用方**其后不再有听力内容**；
+ *   ② 剔除卷面部分标题与大题题头（这些是**书面**结构，念出来就是噪音）。
+ * @returns {{ text:string, hardStop:boolean }} text 为空表示整行丢弃
+ */
+export function stripPaperNoise(text = '') {
+  let s = String(text || '');
+  let hardStop = false;
+  const m = s.match(NON_LISTENING_RE);
+  if (m) { s = s.slice(0, m.index); hardStop = true; }
+  s = s.replace(PAPER_PART_RE, ' ').replace(PAPER_ITEM_RE, ' ');
+  return { text: s.replace(/\s+/g, ' ').trim(), hardStop };
+}
+
+/**
+ * 从播音指令里解析**声明的朗读遍数**（如「每段对话仅读一遍」→1、「每段对话或独白读两遍」→2）。
+ * 🔴 为什么要解析：真题里第一节与第二节的遍数并不相同（高考第一节仅读一遍、第二节读两遍），
+ *   若音频一律读两遍而指令说"仅读一遍"，学生按指令作答就会错——这是"音频≠播报"的一致性红线。
+ *   故本值将**决定该节实际朗读遍数**（以指令为准）。
+ * @returns {number} 1/2/3/4；无法判定返回 0
+ */
+export function parseAnnouncedRepeat(text = '') {
+  const s = String(text || '');
+  const map = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 1: 1, 2: 2, 3: 3, 4: 4 };
+  const m = s.match(/([一二两三四1234])\s*遍/);
+  if (!m) return 0;
+  return map[m[1]] || 0;
+}
+
+/**
+ * 答案键行识别（如「T 7. F 8. F 9. T 10. F」「A 39. B 40. C 41. D 42. E」「May 12. three 13.…」）。
+ * 🔴 判据取**连续递增题号 ≥3**：答案键的题号必然连号，而正常听力句中即便出现数字
+ *    （如「He is 12. She is 13.」）也很少凑成三连号，以此把误伤压到最低。
+ */
+export function looksLikeAnswerKey(text = '') {
+  const t = String(text || '').trim();
+  if (!t) return false;
+  const nums = (t.match(/(?:^|[^\d])(\d{1,3})\s*[.、．)）]/g) || [])
+    .map((x) => Number((x.match(/\d{1,3}/) || [0])[0]))
+    .filter((n) => n > 0);
+  if (nums.length < 3) return false;
+  let run = 1;
+  let best = 1;
+  for (let i = 1; i < nums.length; i++) {
+    run = nums[i] === nums[i - 1] + 1 ? run + 1 : 1;
+    if (run > best) best = run;
+  }
+  return best >= 3;
 }
 
 /** 该结果是否含英语听力（"听力原文"字样按构造仅英语答案页注入，可作可靠判据） */
@@ -128,7 +233,14 @@ export function normalizeListeningStructure(obj = {}) {
     const no = Number.isFinite(Number(noRaw)) && String(noRaw).trim() !== ''
       ? Number(noRaw)
       : (noRaw != null && String(noRaw).trim()) || i + 1;
-    items.push({ no, lines });
+    items.push({
+      no,
+      lines,
+      // 分节播音指令（模型按契约给出时透传；缺省不写该字段，避免空串污染下游）
+      ...(String((it && it.instruction) || '').trim()
+        ? { instruction: String(it.instruction).trim(), repeat: parseAnnouncedRepeat(it.instruction) || undefined }
+        : {}),
+    });
   });
 
   const intro = String((obj && obj.intro) || '').trim();
@@ -221,8 +333,10 @@ export function looksLikeAnswerRow(text = '') {
   return ANSWER_ROW_RE.test(t) && /[A-D]/.test(t);
 }
 
-/** 中文播音指令行 → 归入导语（不进 lines） */
-const INSTRUCTION_RE = /^(?:听下面|请听|听录音|听一段|下面请听|听第\s*\d|请根据|根据所听|Listen\s+(?:to|carefully))/i;
+/** 中文播音指令行 → 归入导语/分节指令（不进 lines）
+ *  🔴 含「第X节」：正规听力录音以「第一节，听下面5段对话…」起头，这是**播音指令**而非材料；
+ *     「第X部分」不在此列——那是卷面结构标题（由 stripPaperNoise 剔除），音/卷两者不可混同。 */
+const INSTRUCTION_RE = /^(?:第[一二三四五六七八九十零百]+节|听下面|请听|听录音|听一段|下面请听|听第\s*\d|请根据|根据所听|Listen\s+(?:to|carefully))/i;
 
 /** 噪声行：分值/页码/解析标记/选项残留单行 */
 const NOISE_RES = [
@@ -293,6 +407,7 @@ export function parseListeningSourceText(rawText = '') {
   let hadItemNumbers = false;
   let optionDropped = 0;
   let answerRowDropped = 0;
+  let answerKeyDropped = 0;
 
   const flush = () => { if (cur && cur.lines.length) items.push(cur); cur = null; };
 
@@ -309,12 +424,32 @@ export function parseListeningSourceText(rawText = '') {
     item.lines.push({ role: null, text: t });
   };
 
-  for (const line of rawLines) {
+  let pendingInstruction = '';
+  let activeRepeat = 0;   // 当前生效的"指令声明遍数"（以指令为准，见 parseAnnouncedRepeat）
+  let stopped = false;
+  for (const rawLine of rawLines) {
+    if (stopped) break;
+    // 卷面残留清洗：命中"笔试/范文/评分"即截断（其后不再有听力），并剔除卷面题头/部分标题
+    const cleaned = stripPaperNoise(rawLine);
+    const line = cleaned.text;
+    if (cleaned.hardStop) stopped = true;
+    if (!line) continue;
     if (HEADING_RES.some((re) => re.test(line))) continue;
     if (NOISE_RES.some((re) => re.test(line))) continue;
     // 选项行必须剔除：它既不是听力材料，又会被误当说话人 A/B（把答案字母读进音频）
     if (OPTION_LINE_RE.test(line)) { optionDropped++; continue; }
-    if (INSTRUCTION_RE.test(line)) { if (!intro) intro = line; continue; }
+    // 答案键行（「T 7. F 8.…」「A 39. B 40.…」）：只有答案与题号，不是听力材料
+    if (looksLikeAnswerKey(line)) { answerKeyDropped++; continue; }
+    if (INSTRUCTION_RE.test(line)) {
+      // 首条中文指令（尚未出题）→ 开场导语；其后出现的分节指令（第一节/第二节…）→ 挂到下一题，
+      // 以保留"指令 → 该节材料"的真实先后（全部塞进导语会打乱顺序）
+      if (!intro && !hadItemNumbers && !cur) intro = line;
+      else pendingInstruction = line;
+      // 🔴 以指令为准：指令声明的遍数决定该节实际朗读遍数（高考第一节仅读一遍、第二节读两遍）
+      const announced = parseAnnouncedRepeat(line);
+      if (announced > 0) activeRepeat = announced;
+      continue;
+    }
 
     const hit = matchItemNumber(line);
     if (hit) {
@@ -323,10 +458,16 @@ export function parseListeningSourceText(rawText = '') {
       hadItemNumbers = true;
       flush();
       cur = { no: hit.no, lines: [] };
+      if (pendingInstruction) { cur.instruction = pendingInstruction; pendingInstruction = ''; }
+      if (activeRepeat > 0) cur.repeat = activeRepeat;
       if (hit.rest.trim()) addLine(cur, hit.rest);
       continue;
     }
-    if (!cur) cur = { no: items.length + 1, lines: [] };
+    if (!cur) {
+      cur = { no: items.length + 1, lines: [] };
+      if (pendingInstruction) { cur.instruction = pendingInstruction; pendingInstruction = ''; }
+      if (activeRepeat > 0) cur.repeat = activeRepeat;
+    }
     addLine(cur, line);
   }
   flush();
@@ -363,6 +504,7 @@ export function parseListeningSourceText(rawText = '') {
     hadItemNumbers,
     optionDropped,
     answerRowDropped,
+    answerKeyDropped,
   };
 
   if (optionDropped >= 2) {
@@ -370,6 +512,9 @@ export function parseListeningSourceText(rawText = '') {
   }
   if (answerRowDropped >= 1) {
     warnings.push(`已跳过 ${answerRowDropped} 行纯答案行（如「1. B」），未计入听力材料`);
+  }
+  if (answerKeyDropped >= 1) {
+    warnings.push(`已跳过 ${answerKeyDropped} 行答案键（如「T 7. F 8.」），未计入听力材料`);
   }
   if (kept.length && stats.distinctSpeakers === 1) {
     warnings.push('全篇只有一种说话人（按独白处理），若实为对话请核对原文是否标注了说话人');

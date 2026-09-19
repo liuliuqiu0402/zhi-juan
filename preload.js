@@ -37,6 +37,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 🎧 Azure 语音合成（英语听力音频）：主进程发请求 + 保存对话框 + 落盘，规避浏览器跨域
     azureTtsToFile: (payload) => ipcRenderer.invoke('azure-tts-to-file', payload),
 
+    // 🎧 Edge 免费语音合成（英语听力音频）：无需 Key，主进程逐句合成 + 帧级静音拼接 + 落盘
+    edgeTtsToFile: (payload) => ipcRenderer.invoke('edge-tts-to-file', payload),
+
     // Word COM 后处理：将标记 .docx 转换为原生表格/形状（田字格、四线三格）
     wordComProcess: (buffer) => ipcRenderer.invoke('word-com-process', buffer),
 

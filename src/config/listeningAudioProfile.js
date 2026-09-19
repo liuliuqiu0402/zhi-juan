@@ -93,11 +93,13 @@ export const LISTENING_PAUSE = {
 export const LISTENING_REPEAT_TIMES = 2;
 
 /**
- * 🔴 神经音色在 rate="0%" 下的自然语速（词/分钟）——用于把"目标 wpm"换算成 SSML 百分比。
- * ⚠️ 这是**初值估计**，不同音色/不同批次会有偏差。正式使用前请用一段已知词数的材料**实测校准一次**，
- *    校准后只改本常量，全链路（SSML/朗读稿/后续 TTS）随之生效。不要把这里的数字当成精确值对外承诺。
+ * 神经音色在 rate="0%" 下的自然语速（词/分钟）——用于把"目标 wpm"换算成 SSML 百分比。
+ * 🔧 2026-09-19 实测校准：en-US-GuyNeural 在 rate="0%" 下为 **129 词/分**（原初值 150 高估约 14%，
+ *    导致设定档位落到真实听感系统性偏慢，高中档跌破 130 下限）。
+ *    校准值 129 使 rate=0%≈129，档位词/分≈实际听感词/分；Azure 与 Edge 同音色基速一致，两通道同效。
+ * ⚠️ 各音色基速存在小差异（男/女/英音/美音），此处以主流男声为单一基准；欲更精确可后续按音色细分。
  */
-export const LISTENING_BASE_WPM = 150;
+export const LISTENING_BASE_WPM = 129;
 
 /** 朗读化·安全替换：定式缩写，替换后语义唯一，可无条件执行 */
 export const LISTENING_SAFE_ABBR = [

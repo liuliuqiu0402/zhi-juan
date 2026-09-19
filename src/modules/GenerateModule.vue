@@ -1742,16 +1742,19 @@
             style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:8px 0;"
           >
             <label style="font-size:12px;">
-              语速（词/分，留空=按学段矩阵）
+              语速（词/分）
               <input
                 v-model.number="listeningWpmOverride"
                 type="number"
                 min="60"
                 max="200"
-                placeholder="默认"
+                :placeholder="String(listeningEffectiveWpm)"
                 style="width:88px;margin-left:6px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
               >
             </label>
+            <span style="font-size:12px;color:#666;">
+              生效 {{ listeningEffectiveWpm }} 词/分（{{ listeningWpmIsManual ? '手动指定' : `${STAGE_LABEL_MAP[listeningStageKey] || '按学段矩阵'}自动` }}）
+            </span>
             <label style="font-size:12px;">
               口音
               <select
@@ -1834,7 +1837,16 @@
             {{ listeningSynthMsg }}
           </div>
 
-          <div class="modal-actions">
+          <div class="modal-actions" style="flex-wrap:wrap;row-gap:8px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-right:auto;font-size:13px;color:#555;">
+              <span>🎙 通道：</span>
+              <label style="display:flex;align-items:center;gap:3px;cursor:pointer;">
+                <input v-model="listeningChannel" type="radio" value="edge"> Edge 免费（无需 Key）
+              </label>
+              <label style="display:flex;align-items:center;gap:3px;cursor:pointer;">
+                <input v-model="listeningChannel" type="radio" value="azure"> Azure（需 Key）
+              </label>
+            </div>
             <button
               class="btn-primary"
               :disabled="listeningSynthLoading || !listeningSsml"
@@ -3332,6 +3344,7 @@ import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/l
 import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, advanceAutoColumnStyleId, getTeachingBlueprint, stripSourceMarkNote } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
 import { buildUserMessageBlocks } from '../utils/injectionManifest.js'; // ✅ A22：请求实发清单·单源（用户消息侧：锚点清单/素材约定/组织方式/输出约定/尾约束…与生成端同一份定义）
+import { syncFloorClauseSections } from '../utils/instructionFloorSync.js'; // 🔴 2026-09-18 用户实证：草稿持久化恢复会把"程序内置守门条款段"冻住 → 之后所有条款修订都进不了模型；实发前按当前单源同步该段（用户内容不动）
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
@@ -3346,9 +3359,12 @@ import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实�
 // 🎧 英语听力稿（2026-09-16）：答案页听力原文 → 结构化 → SSML/朗读稿（复制即用）
 import { buildListeningExtractMessages } from '../config/listeningExtractPrompt.js';
 import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback } from '../utils/listeningExtract.js';
-import { buildListeningSsml, buildListeningScriptText } from '../utils/listeningScript.js';
+import { buildListeningSsml, buildListeningScriptText, buildListeningStoryboard } from '../utils/listeningScript.js';
+import { resolveListeningParams } from '../config/listeningAudioProfile.js';
 // 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
 import { synthesizeToFile, readAzureConfigFromApiConfig } from '../utils/azureTts.js';
+// 🎧 Edge 免费语音：无需 Key，逐句合成 + 帧级静音拼接（主进程执行）
+import { synthesizeSegmentsToFile } from '../utils/edgeTts.js';
 import { STORAGE_KEYS } from '../constants/storageKeys.js';  // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
 import { annotateInstructionBlocks } from '../utils/instructionBlocks.js';  // 指令来源分段标注（旁路：块区间↔{库,key}，不参与拼装）
 import { useRouter } from 'vue-router';  // 来源分段点击跳转（工具库子页）
@@ -6644,10 +6660,32 @@ const normalizeDraftMaterial = () => {
   if (next !== instructionDraft.value) instructionDraft.value = next;
 };
 
+/** 当前三维度（首本勾选教材 × 首个资料类型）——实发前同步类操作用（与 loadInstructionFromLibrary 同口径） */
+const currentGenContext = () => {
+  const book = textbookStore.textbooks.filter(b => hasAnySelected(b.outline))[0];
+  const genType = (genTypes.value || [])[0] || '';
+  const stage = book ? resolveStageKey(book.stage, book.grade, book.name) : '';
+  const subject = book ? normalizeSubjectName(book.subject, stage) : '';
+  return { subject, stage, genType };
+};
+
 const ensureInjectedInstruction = async () => {
   if (!instructionDraft.value.trim()) {
     await loadInstructionFromLibrary();
   } else {
+    // 🔴 2026-09-18 用户实证（"条款改了却没生效"·根因）：
+    //    草稿持久化在 localStorage、冷启动直接恢复复用；而程序侧的"缺段兜底"**只按段头判在不在** →
+    //    旧草稿里的【输出格式】段永远"在" → 之后所有"委托正文侧"的条款修订都进不了模型
+    //    （程序侧修复照常生效，故表现为"程序侧的好了、提示词侧的没动"）。
+    //    此处按**当前单源**就地同步 builtin 守门条款段；用户手写内容与其它段一字不动；
+    //    段不存在则由 programAttach 的段级兜底按原路径追加（不双写）。
+    const { subject, stage, genType } = currentGenContext();
+    const { text: syncedText, synced } = syncFloorClauseSections(instructionDraft.value, { subject, stage, genType });
+    if (synced.length) {
+      instructionDraft.value = syncedText;
+      instructionBlocks.value = []; // 文本已变 → 分段标注重算前先清（与"手动修改即失效"同一口径，防标注与文本不符）
+      previewHint.value = `生成指令里的程序内置条款段已同步为当前版本（${synced.join('、')}）——你手写的内容未改动。`;
+    }
     // ✅ A18：草稿可能来自切换素材通道之前或冷启动恢复 → 发请求前先把素材段按当前通道归一到注入框本身，
     //    归一后框内文本与生成端发送文本逐字一致（生成端同函数的归一即成为无操作）。
     normalizeDraftMaterial();
@@ -8679,6 +8717,29 @@ const listeningAccentOverride = ref('');
 const listeningSynthLoading = ref(false);
 const listeningSynthMsg = ref('');
 const listeningParseMode = ref('');   // 本次结构来自"规则解析"还是"AI 解析"（对用户透明）
+const listeningChannel = ref(apiConfig.speechChannel || 'edge');  // 'edge' 免费（无需 Key）| 'azure'（需 Key）
+const listeningSegments = ref([]);    // storyboard 段（Edge 逐句合成用；与 SSML 同源）
+
+/**
+ * 🎚 本次录音**实际生效**的参数（学段矩阵 → 初中按年级细分 → 用户覆盖）。
+ * 用于把弹窗里"默认"这一含糊说法替换成真实数值——用户看到的就是将要听到的语速。
+ */
+const listeningEffectiveParams = computed(() => {
+  const overrides = {};
+  if (Number.isFinite(listeningWpmOverride.value) && listeningWpmOverride.value > 0) {
+    overrides.wpm = listeningWpmOverride.value;
+  }
+  if (listeningAccentOverride.value) overrides.accent = listeningAccentOverride.value;
+  return resolveListeningParams({
+    stage: listeningStageKey.value,
+    grade: listeningGradeHint.value,
+    overrides,
+  });
+});
+
+/** 实际生效语速（词/分）；用户已覆盖时标记为"手动" */
+const listeningEffectiveWpm = computed(() => listeningEffectiveParams.value.wpm);
+const listeningWpmIsManual = computed(() => Number.isFinite(listeningWpmOverride.value) && listeningWpmOverride.value > 0);
 
 /** 该条记录是否有可做音频的英语听力（"听力原文"字样按构造仅英语答案页注入） */
 const docSupportsListening = (doc) => hasEnglishListening(doc?.rawContent || doc?.content || '');
@@ -8787,6 +8848,7 @@ const closeListeningModal = () => {
   listeningSynthMsg.value = '';
   listeningSynthLoading.value = false;
   listeningParseMode.value = '';
+  listeningSegments.value = [];
 };
 
 /** 按当前结构化结果 + 覆盖参数渲染两种成品（覆盖变更时即时重跑，不重复调 AI） */
@@ -8806,11 +8868,16 @@ const renderListeningArtifacts = () => {
     //    仅用于初中 7/8/9 年级的语速细分；标题无年级时自动落回该学段默认值。
     grade: listeningGradeHint.value,
     stageLabel: STAGE_LABEL_MAP[listeningStageKey.value] || listeningStageKey.value,
+    // 🎙 试卷标题进开场白：正规音频以「听力考试现在开始」起头，校/区级考试常在其前播报考试名称，
+    //    学生据此确认"这是哪份卷的听力"（时间戳后缀由 buildOpeningAnnouncement 净化）
+    title: listeningDocTitle.value,
     overrides,
   };
 
   const { ssml, risks, warnings } = buildListeningSsml(input);
   const { text } = buildListeningScriptText(input);
+  // Edge 免费通道：与 SSML 同源重建 storyboard 段（纯函数零成本），供逐句合成
+  listeningSegments.value = buildListeningStoryboard(input).segments;
 
   listeningSsml.value = ssml;
   listeningScriptText.value = text;
@@ -8878,30 +8945,55 @@ const openListeningTool = async (doc) => {
   }
 };
 
-/** 🎧 直接生成音频：把当前 SSML 交给 Azure 合成整卷 mp3 并落盘 */
+/**
+ * 🎧 直接生成音频：按选定的语音合成通道出整卷 mp3 并落盘
+ * · Edge 通道（默认，无需 Key）：逐句合成 + 帧级静音拼接，主进程执行
+ * · Azure 通道（需 Key）：把整卷 SSML 交给 Azure 一次合成
+ */
 const generateListeningAudio = async () => {
-  if (!listeningSsml.value) return;
   listeningSynthMsg.value = '';
-  const cfg = readAzureConfigFromApiConfig(apiConfig);
-  if (!cfg.key) {
-    listeningSynthMsg.value = '未配置 Azure 语音 Key：请先到「设置 → Azure 语音合成」填写。';
+  if (!listeningSsml.value) return;
+  const suggestedName = listeningDocTitle.value || '听力音频';
+
+  if (listeningChannel.value === 'azure') {
+    const cfg = readAzureConfigFromApiConfig(apiConfig);
+    if (!cfg.key) {
+      listeningSynthMsg.value = 'Azure 通道需先到「设置 → Azure 语音合成」填写 Key；无 Key 请改用「Edge 免费语音」通道。';
+      return;
+    }
+    listeningSynthLoading.value = true;
+    try {
+      const r = await synthesizeToFile(listeningSsml.value, {
+        key: cfg.key,
+        region: cfg.region,
+        outputFormat: cfg.outputFormat,
+        suggestedName,
+      });
+      if (r && r.canceled) { listeningSynthMsg.value = '已取消保存（未消耗配额）。'; return; }
+      listeningSynthMsg.value = r && r.path ? `✅ 已生成（Azure）：${r.path}` : '✅ 已生成音频';
+      window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, {
+        detail: { message: '✅ 听力音频已生成（Azure）', type: 'info' },
+      }));
+    } catch (e) {
+      listeningSynthMsg.value = `音频生成失败：${e.message}`;
+    } finally {
+      listeningSynthLoading.value = false;
+    }
+    return;
+  }
+
+  // Edge 免费通道
+  if (!listeningSegments.value.length) {
+    listeningSynthMsg.value = '未取得可合成的分段（听力原文为空）。';
     return;
   }
   listeningSynthLoading.value = true;
   try {
-    const r = await synthesizeToFile(listeningSsml.value, {
-      key: cfg.key,
-      region: cfg.region,
-      outputFormat: cfg.outputFormat,
-      suggestedName: listeningDocTitle.value || '听力音频',
-    });
-    if (r && r.canceled) {
-      listeningSynthMsg.value = '已取消保存（未消耗配额）。';
-      return;
-    }
-    listeningSynthMsg.value = r && r.path ? `✅ 已生成：${r.path}` : '✅ 已生成音频';
+    const r = await synthesizeSegmentsToFile(listeningSegments.value, { suggestedName });
+    if (r && r.canceled) { listeningSynthMsg.value = '已取消保存。'; return; }
+    listeningSynthMsg.value = r && r.path ? `✅ 已生成（Edge 免费）：${r.path}` : '✅ 已生成音频';
     window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, {
-      detail: { message: '✅ 听力音频已生成', type: 'info' },
+      detail: { message: '✅ 听力音频已生成（Edge 免费）', type: 'info' },
     }));
   } catch (e) {
     listeningSynthMsg.value = `音频生成失败：${e.message}`;
@@ -8925,6 +9017,17 @@ const copyListeningText = async (kind) => {
 
 watch([listeningWpmOverride, listeningAccentOverride], () => {
   if (showListeningModal.value && listeningStruct.value) renderListeningArtifacts();
+});
+
+// 🎙 语音通道：全链路一致（生成面板切换即记忆），落内存 + 轻量持久化（不重加密既有 Key）
+watch(listeningChannel, (v) => {
+  if (!v) return;
+  apiConfig.speechChannel = v;
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEYS.API_CONFIG) || '{}');
+    raw.speechChannel = v;
+    localStorage.setItem(STORAGE_KEYS.API_CONFIG, JSON.stringify(raw));
+  } catch { /* 持久化失败不影响本次会话 */ }
 });
 
 const previewDoc = (doc) => {

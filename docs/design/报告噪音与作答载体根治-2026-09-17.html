@@ -992,5 +992,40 @@
 <p class="n"><b>验证</b>：新增守卫 3 项（题类两分支与内容型<b>都注入</b>、且含跨级改法示例；判据不点题型名/资料类型名；题类细则仍保留且不相抵）——既有"分条不在内容型注入"的守卫（读源码计数）同步核过（改的是注释措辞，不动判据）。<br>
 <b>全量 150 文件 / 2173 项全过</b>。改动文件 <code>src/config/promptLibrary.js</code> + 守卫扩充。</p>
 
+<h3>H29. 真根因：约定改在提示词侧却"没生效"——草稿持久化把守门条款段冻住了（2026-09-18·用户追问"编号问题没解决"）</h3>
+<p><b>用户追问</b>："编号问题没解决哦，找到根本原因了吗？<b>是措辞不对吗？还是非题类的不遵循这个规则呢？</b>"</p>
+<h4>逐条排除（都有据）</h4>
+<table>
+<thead><tr><th>候选原因</th><th>核查</th><th>结论</th></tr></thead>
+<tbody>
+<tr><td>"非题类没注入"</td><td>规则写在<b>共享格式块</b>（<code>NUMBERING_HIERARCHY_RULE</code> 紧跟"强调口径（全类型）"）→ 题类与内容型都注入；程序侧段级兜底读的是<b>同一函数</b>（<code>floorClauseSections</code> 复用 <code>outputFormatSections</code>）</td><td><b>排除</b>（有守卫钉住）</td></tr>
+<tr><td>"用了自定义模板"</td><td>用户模板库的模板来自<b>上传的外部模板文件</b>（走 OCR/分析入库），其正文不含程序侧段头 <code>【输出格式】</code></td><td><b>基本排除</b></td></tr>
+<tr><td><b>真根因</b>：草稿持久化 × 兜底按段头判缺</td><td>① 内置模板正文<b>内嵌</b> <code>【输出格式】</code>/<code>【质量底线】</code>（模板里就写着 <code>${OUTPUT_FORMAT_BLOCK(...)}</code>）；② 生成指令草稿<b>持久化在 localStorage</b>，冷启动<b>直接恢复复用</b>（<code>ensureInjectedInstruction</code> 只对"素材段"做通道归一）；③ 程序侧缺段兜底<b>只按段头 marker 判在不在</b>——旧草稿那段"在" → <b>永不补</b></td><td><b>成立</b></td></tr>
+</tbody>
+</table>
+<div class="box hot">
+  <b>这条根因解释了一整段历史</b>：只要草稿是旧版本生成的，此后所有<b>提示词侧</b>的条款修订都进不了模型，
+  而<b>程序侧</b>的修复（答案页组装、校验判据、误报修正）照常生效——正是用户反复感到的
+  "<b>程序侧的都好了、提示词侧的改了也没动</b>"（例题答案没有横线、编号体系未变、载体未生效，同源）。
+</div>
+<table>
+<thead><tr><th>端</th><th>改动</th><th>说明</th></tr></thead>
+<tbody>
+<tr>
+  <td>新增 <code>utils/instructionFloorSync.js</code></td>
+  <td><code>syncFloorClauseSections(text, ctx)</code>：按行首 <code>【…】</code> 切段，把 builtin 守门条款段（输出格式／质量底线／数·量构造纪律／学科事实底线／数学命题底线）与<b>当前单源</b>逐字比对，不一致则<b>就地替换</b>；返回 <code>{ text, synced }</code></td>
+  <td>与既有 <code>normalizeDraftMaterial</code>（草稿的素材段按通道归一）<b>同型</b>：草稿可能来自旧版本 → 程序拥有的部分归一到当前单源。<b>段不存在时不新增</b>（交由 programAttach 按原路径追加，单一职责、不双写）；幂等</td>
+</tr>
+<tr>
+  <td><code>modules/GenerateModule.vue</code></td>
+  <td>生成前（<code>ensureInjectedInstruction</code>）调用同步；有同步时更新注入框文本、清分段标注（与"手动修改即失效"同口径）、给出提示"内置条款段已同步为当前版本，你手写的内容未改动"</td>
+  <td>只动 builtin 段；用户手写内容与自写 <code>【…】</code> 段一字不动</td>
+</tr>
+</tbody>
+</table>
+<p class="n"><b>守卫</b>：新增 6 项——旧版段被同步（新增的序号体系句进得来）且<b>用户内容/自写段一字不动</b>；质量底线段同样同步；<b>段不存在不新增</b>；<b>内置模板无需同步（=单源无漂移）</b>且幂等；题类同样生效。<br>
+<b>验证</b>：全量 <b>151 文件 / 2179 项全过</b>。改动文件 <code>src/utils/instructionFloorSync.js</code>（新增）、<code>src/modules/GenerateModule.vue</code> + 守卫 1 文件。</p>
+<p class="n"><b>对你的意义</b>：H21–H28 那批"提示词侧"修订（例题载体保留＋答案回填、内容型作答位协议、作答对象界定、序号体系通用化）此前对<b>旧草稿</b>都未生效；本次修好后应<b>一并生效</b>——请重新生成一份复核（生成指令框里现在也能看到这些新条款）。</p>
+
 </body>
 </html>

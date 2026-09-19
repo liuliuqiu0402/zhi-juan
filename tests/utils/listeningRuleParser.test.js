@@ -7,6 +7,12 @@ import {
   splitSpeakerPrefix,
   splitDashPrefix,
   extractListeningSource,
+  sliceListeningBlock,
+  stripPaperNoise,
+  looksLikeAnswerKey,
+  parseAnnouncedRepeat,
+  normalizeListeningStructure,
+  isCjkNoise,
   OPTION_LINE_RE,
 } from '../../src/utils/listeningExtract.js';
 import { buildListeningStoryboard, buildListeningSsml } from '../../src/utils/listeningScript.js';
@@ -195,7 +201,8 @@ describe('说话人 → 音色（未知标签不得退化成单一音色）', ()
         { role: 'A', text: 'Bye.' },
       ] }],
     });
-    const voices = segments.map((s) => s.voice);
+    // 只看材料段：开场白/结束语属中文播报框架，不参与"说话人→音色"判定
+    const voices = segments.filter((s) => s.kind === 'material').map((s) => s.voice);
     expect(voices[0]).toBe(LISTENING_VOICES.us.M);
     expect(voices[1]).toBe(LISTENING_VOICES.us.W);
     expect(voices[2]).toBe(LISTENING_VOICES.us.M);
@@ -206,7 +213,7 @@ describe('说话人 → 音色（未知标签不得退化成单一音色）', ()
       stage: '初中', grade: '八年级',
       items: [{ no: 1, lines: [{ role: 'A', text: 'Tom is a student.' }] }],
     });
-    expect(segments[0].voice).toBe(LISTENING_VOICES.us.N);
+    expect(segments.find((s) => s.kind === 'material').voice).toBe(LISTENING_VOICES.us.N);
   });
 });
 
@@ -287,8 +294,122 @@ describe('端到端：答案页 HTML → 结构化 → SSML（规则路径，无
     expect(ssml).toContain(`<voice name="${LISTENING_VOICES.us.M}">`);
     expect(ssml).toContain(`<voice name="${LISTENING_VOICES.us.W}">`);
     expect(ssml).toContain(`<break time="${params.answerGapMs}ms"/>`);
-    // 两段材料 × 2 句 × 2 遍 = 8 个 voice 块
-    expect((ssml.match(/<voice /g) || []).length).toBe(8);
+    // 两段材料 × 2 句 × 2 遍 = 8 个 voice 块，另加开场白与结束语 2 个中文播报块 = 10
+    expect((ssml.match(/<voice /g) || []).length).toBe(10);
     expect(ssml).not.toMatch(/<prosody[^>]*>\s*[A-D]\s*[.、．]/);
+  });
+});
+
+/**
+ * 🔴 2026-09-19 根因修复：听力工具曾把**整张答案页**（卷面指令/答案键/笔试/范文/评分）
+ * 当作听力材料朗读，导致音频里中文被英文音色乱念、答案与范文一起被读出来。
+ * 以下用例锁定"源头小节截取 + 解析兜底清洗"两道防线。
+ */
+describe('🔴 只读听力原文：卷面/答案/笔试残留必须挡在音频之外', () => {
+  const fullAnswerPage = '<div class="answer-section"><h2>参考答案与评分标准</h2>'
+    + '<p>1. B 2. A 3. C 4. T 5. F</p>'
+    + '<p>听力原文</p>'
+    + '<p>第一部分 听力部分（共3大题，满分30分） 一、听录音，选出你所听到的单词或图片（每题2分，共10分）</p>'
+    + '<p>1. M: Excuse me, where is the library?</p><p>W: It&apos;s next to the bank.</p>'
+    + '<p>2. W: I keep a diary every day. 二、听录音，判断下列句子与所听内容是否相符（每题2分，共10分）</p>'
+    + '<p>第二部分 笔试部分（共7大题，满分70分） 四、选出画线部分发音不同的单词（每题1分，共5分）</p>'
+    + '<p>【参考范文】Last month, I took part in the singing competition.</p>'
+    + '<p>等级 分值 评分描述 优秀 9-10分 内容完整</p>'
+    + '</div>';
+
+  it('extractListeningSource 只取"听力原文"小节，不含笔试/范文/评分', () => {
+    const src = extractListeningSource(fullAnswerPage);
+    expect(src).toContain('where is the library');
+    expect(src).not.toContain('笔试部分');
+    expect(src).not.toContain('参考范文');
+    expect(src).not.toContain('评分描述');
+    expect(src).not.toContain('参考答案与评分标准');
+  });
+
+  it('解析结果里不残留卷面题头/答案键/中文噪音', () => {
+    const src = extractListeningSource(fullAnswerPage);
+    const parsed = parseListeningSourceText(src);
+    const all = parsed.items.flatMap((it) => it.lines.map((l) => l.text)).join('\n');
+    expect(all).not.toContain('听录音');
+    expect(all).not.toContain('每题2分');
+    expect(all).not.toContain('笔试');
+    // 题头被就地剔除后，英文材料必须仍完整保留（不能连带把句子切掉）
+    expect(all).toContain('I keep a diary every day');
+  });
+
+  it('stripPaperNoise：剔除卷面题头，并在"笔试/范文"处截断', () => {
+    const heading = stripPaperNoise('一、听录音，选出你所听到的单词或图片（每题2分，共10分）');
+    expect(heading.text).toBe('');
+    const part = stripPaperNoise('第一部分 听力部分（共3大题，满分30分）');
+    expect(part.text).toBe('');
+    const mixed = stripPaperNoise('I saw a film yesterday. 二、听录音，判断下列句子（每题2分，共10分）');
+    expect(mixed.text).toBe('I saw a film yesterday.');
+    const stop = stripPaperNoise('Thank you! 第二部分 笔试部分（共7大题，满分70分）');
+    expect(stop.hardStop).toBe(true);
+    expect(stop.text).toBe('Thank you!');
+  });
+
+  it('答案键行按"连续递增题号≥3"识别，普通含数字句不误伤', () => {
+    expect(looksLikeAnswerKey('T 7. F 8. F 9. T 10. F')).toBe(true);
+    expect(looksLikeAnswerKey('A 39. B 40. C 41. D 42. E')).toBe(true);
+    expect(looksLikeAnswerKey('May 12. three 13. school 14. practise 15. try')).toBe(true);
+    expect(looksLikeAnswerKey('1. M: Excuse me, where is the library?')).toBe(false);
+    expect(looksLikeAnswerKey('He is 12. She is 13.')).toBe(false);
+    expect(looksLikeAnswerKey('It was difficult for me to remember all the words.')).toBe(false);
+  });
+
+  it('中文占比守卫：非导语段以中文为主即判定为噪音', () => {
+    expect(isCjkNoise('听录音，判断下列句子与所听内容是否相符')).toBe(true);
+    expect(isCjkNoise('I keep a diary every day.')).toBe(false);
+    expect(isCjkNoise('Lucy took part in the school singing competition.')).toBe(false);
+  });
+});
+
+/**
+ * 🎙 分节播音指令（2026-09-19）：真题各节遍数不同（高考第一节仅读一遍、第二节读两遍），
+ *   故"以指令为准"——指令声明的遍数决定该节实际朗读遍数，音频与播报严格一致。
+ */
+describe('分节播音指令：以指令为准决定该节遍数', () => {
+  const twoSections = '第一节，听下面5段对话。每段对话后有一个小题。每段对话仅读一遍。\n'
+    + '1. M: Excuse me, where is the library?\n'
+    + 'W: It is next to the bank.\n'
+    + '第二节，听下面几段对话或独白。每段对话或独白读两遍。\n'
+    + '2. M: What time does the film start?\n'
+    + 'W: At seven thirty.';
+
+  it('解析指令声明的遍数（中文数字与阿拉伯数字皆可）', () => {
+    expect(parseAnnouncedRepeat('每段对话仅读一遍')).toBe(1);
+    expect(parseAnnouncedRepeat('每段对话或独白读两遍')).toBe(2);
+    expect(parseAnnouncedRepeat('每段材料读3遍')).toBe(3);
+    expect(parseAnnouncedRepeat('听下面一段对话，回答问题。')).toBe(0);
+  });
+
+  it('首条指令进导语、后续节指令挂到该节首题，且各自遍数落到材料上', () => {
+    const r = parseListeningSourceText(twoSections);
+    expect(r.intro).toContain('第一节');
+    expect(r.items).toHaveLength(2);
+    expect(r.items[0].repeat).toBe(1);
+    expect(r.items[1].instruction).toContain('第二节');
+    expect(r.items[1].repeat).toBe(2);
+  });
+
+  it('AI 路径：分节指令随该节首题透传，并据其解析遍数', () => {
+    const out = normalizeListeningStructure({
+      intro: '',
+      items: [
+        { no: 1, instruction: '第一节，听下面5段对话。每段对话仅读一遍。', lines: [{ role: 'M', text: 'Hi.' }] },
+        { no: 2, lines: [{ role: 'W', text: 'Hello.' }] },
+      ],
+    });
+    expect(out.items[0].instruction).toContain('第一节');
+    expect(out.items[0].repeat).toBe(1);
+    // 无指令的条目不得凭空获得 instruction/repeat
+    expect(out.items[1].instruction).toBeUndefined();
+    expect(out.items[1].repeat).toBeUndefined();
+  });
+
+  it('源头契约要求写出分节播音指令（与解析器同源）', () => {
+    expect(LISTENING_SCRIPT_FORMAT).toContain('第一节');
+    expect(LISTENING_SCRIPT_FORMAT).toContain('播音指令');
   });
 });

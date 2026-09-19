@@ -504,6 +504,11 @@ export const apiConfig = reactive({
   zhipuGenerationModel: 'glm-5.3',             // 生成用：最新旗舰（2026-08）
   zhipuAnalysisModel: 'glm-5.3',               // 分析用：最新旗舰（2026-08）
 
+  // ========== 语音合成通道（英语听力音频 · 2026-09-19） ==========
+  // 'edge'：Edge 免费语音（无需 Key，走主进程逐句合成 + 帧级静音拼接）
+  // 'azure'：Azure 语音合成（需 Key，整卷 SSML 一次合成）
+  speechChannel: 'edge',  // 默认免费通道，无 Key 也能直接出 audio；有 Azure Key 时可在设置页切回
+
   // ========== Azure 语音合成（英语听力音频 · 2026-09-16） ==========
   // 🔴 密钥安全口径（用户 2026-09-16 明确要求）：
   //    · 与模型 Key **同样**在设置页填写、本地加密存储（saveConfig 走同一套 sanitize + encrypt）；

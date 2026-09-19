@@ -1,8 +1,11 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { machineIdSync } = require('node-machine-id');
 const { exec } = require('child_process');
+// 🎧 Edge 免费语音（听力音频：逐句合成 + 帧级静音拼接）；按需 require，避免无该依赖时拖慢启动
+const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
 
 const isDev = !app.isPackaged;
 
@@ -457,6 +460,141 @@ ipcMain.handle('azure-tts-to-file', async (event, payload = {}) => {
   } catch (e) {
     if (e && e.name === 'AbortError') return { ok: false, error: '合成超时，请检查网络后重试' };
     return { ok: false, error: e?.message || '音频生成失败' };
+  }
+});
+
+// ==================== Edge 免费语音合成（英语听力音频 · 2026-09-19） ====================
+// 走免费 Edge 神经音色（无需 Azure Key）。Edge 不支持 SSML <break>（实测致 websocket 断开），
+//   故"逐句合成 + 帧级静音拼接"：每句单独合成，段间用与合成流同参数（24kHz/96kbps 单声道
+//   MPEG-2 Layer III）的静音帧字节级拼接出整卷 mp3，全程纯 Node、无 ffmpeg 依赖。
+// 🔴 参数同源：静音帧的采样率/码率必须与 OUTPUT_FORMAT 一致，否则播放端会爆音/断帧。
+
+/** Edge 固定输出：24kHz 单声道 MPEG-2 Layer III，每帧 24ms；码率决定帧长 */
+const EDGE_SILENT_FRAME = {
+  'audio-24khz-96kbitrate-mono-mp3': { bitrateIndex: 10, frameLen: 288 }, // 96kbps → 288B/帧
+  'audio-24khz-48kbitrate-mono-mp3': { bitrateIndex: 6, frameLen: 144 },  // 48kbps → 144B/帧
+};
+const EDGE_OUTPUT_FORMAT = OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3;
+const EDGE_MS_PER_FRAME = 24;
+
+/** 生成指定时长的静音 MP3 帧（纯 Node，头 FF F3 xx C4，其余全零解出静音） */
+function makeSilentMp3Frames(durationMs, format = EDGE_OUTPUT_FORMAT) {
+  const d = Number(durationMs);
+  if (!d || d <= 0) return Buffer.alloc(0);
+  const { bitrateIndex, frameLen } = EDGE_SILENT_FRAME[format] || EDGE_SILENT_FRAME[EDGE_OUTPUT_FORMAT];
+  const count = Math.max(0, Math.round(d / EDGE_MS_PER_FRAME));
+  if (!count) return Buffer.alloc(0);
+  // MPEG-2(v2) Layer III(01) mono(11)：FF F3 [idx<<4|sampIdx(1)<<2] C4
+  const header = Buffer.from([0xff, 0xf3, (bitrateIndex << 4) | 0x04, 0xc4]);
+  const frame = Buffer.alloc(frameLen);
+  header.copy(frame, 0);
+  const out = Buffer.alloc(frameLen * count);
+  for (let i = 0; i < count; i++) frame.copy(out, frameLen * i);
+  return out;
+}
+
+/** 帧计数（同时校验整段是否真 MP3）：统计可解析的合法层 III 帧 */
+function countMp3Frames(buf) {
+  const layer3v2 = [0,8000,16000,24000,32000,40000,48000,56000,64000,80000,96000,112000,128000,144000,160000];
+  let pos = 0, frames = 0;
+  while (pos < buf.length - 4) {
+    if (buf[pos] !== 0xff || (buf[pos+1] & 0xe0) !== 0xe0) { pos++; continue; }
+    const ver = (buf[pos+1] >> 3) & 3;
+    if (ver === 1) { pos++; continue; } // reserved
+    const bitrateIdx = (buf[pos+2] >> 4) & 15;
+    const sampIdx = (buf[pos+2] >> 2) & 3;
+    if (bitrateIdx === 15 || sampIdx === 3) { pos++; continue; }
+    const bps = layer3v2[bitrateIdx] || 0;
+    if (!bps) { pos++; continue; }
+    const sampRate = [44100,48000,32000][sampIdx] / (ver === 3 ? 1 : 2);
+    const padding = (buf[pos+2] >> 1) & 1;
+    const frameLen = ver === 3 ? Math.floor(144*bps/sampRate)+padding : Math.floor(72*bps/sampRate)+padding;
+    if (frameLen < 24 || pos + frameLen > buf.length) { pos++; continue; }
+    frames++;
+    pos += frameLen;
+  }
+  return frames;
+}
+
+/** 逐句合成到一个临时目录，返回该句音频 Buffer */
+async function edgeSynthesizeSegment(voice, text, ratePercent, outDir, idx) {
+  const tts = new MsEdgeTTS();
+  try {
+    await tts.setMetadata(voice, EDGE_OUTPUT_FORMAT);
+    const rate = Number(ratePercent) ? { rate: `${Math.round(Number(ratePercent))}%` } : {};
+    const { audioFilePath } = await tts.toFile(outDir, text, rate);
+    const buf = fs.readFileSync(audioFilePath);
+    try { fs.unlinkSync(audioFilePath); } catch {}
+    if (!buf.length || countMp3Frames(buf) === 0) {
+      throw new Error(`第 ${idx + 1} 句合成结果为空或帧结构异常（可能是网络/音色问题）`);
+    }
+    return buf;
+  } finally {
+    try { tts.close(); } catch {}
+  }
+}
+
+/** 文件名安全化：把 Windows 非法字符（ : \ / * ? " < > | 与换行）换成下划线，保留中文；→ 与渲染端 Azure 同规格 */
+function safeAudioFileName(name = '', fallback = '听力音频') {
+  const s = String(name || '').replace(/[\\/:*?"<>|\r\n\t]/g, '_').trim();
+  return (s || fallback).slice(0, 80);
+}
+
+ipcMain.handle('edge-tts-to-file', async (event, payload = {}) => {
+  const { segments = [], suggestedName = '听力音频.mp3' } = payload || {};
+  if (!Array.isArray(segments) || !segments.length) {
+    return { ok: false, error: '没有可合成的分段（听力原文为空）' };
+  }
+  // 逐句字段白名单校验：voice/text 必须为串，ratePercent/gapAfterMs 取有限数值，防脏 payload 注入
+  const sanitized = segments.map((s, i) => {
+    const voice = /^[a-zA-Z]{2,3}-[a-zA-Z]{2,3}-[A-Za-z0-9-]{1,60}$/.test(String(s.voice || ''))
+      ? String(s.voice) : 'en-US-AriaNeural';
+    const text = String(s.text || '').trim();
+    const ratePercent = Number.isFinite(Number(s.ratePercent)) ? Math.round(Number(s.ratePercent)) : 0;
+    const gapAfterMs = Number.isFinite(Number(s.gapAfterMs)) && Number(s.gapAfterMs) > 0 ? Math.round(Number(s.gapAfterMs)) : 0;
+    if (!text) return null;
+    return { voice, text, ratePercent, gapAfterMs, idx: i };
+  }).filter(Boolean);
+  if (!sanitized.length) return { ok: false, error: '所有分段均为空文本，无法合成' };
+
+  // 先选保存位置：用户取消则不发起请求，不浪费配额/流量
+  const safeName = safeAudioFileName(String(suggestedName).replace(/\.mp3$/i, ''), '听力音频');
+  let filePath;
+  try {
+    const { canceled, filePath: fp } = await dialog.showSaveDialog({
+      title: '保存听力音频（Edge 免费合成）',
+      defaultPath: `${safeName}.mp3`,
+      filters: [{ name: 'MP3 音频', extensions: ['mp3'] }],
+    });
+    if (canceled || !fp) return { ok: false, canceled: true };
+    filePath = fp;
+  } catch (e) {
+    return { ok: false, error: `无法打开保存对话框：${e.message}` };
+  }
+
+  // 临时目录：逐句合成落盘 + 读回字节拼接（用完即清）
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-tts-'));
+  try {
+    const parts = [];
+    for (let i = 0; i < sanitized.length; i++) {
+      const seg = sanitized[i];
+      try {
+        const buf = await edgeSynthesizeSegment(seg.voice, seg.text, seg.ratePercent, outDir, i);
+        parts.push(buf);
+        if (seg.gapAfterMs) parts.push(makeSilentMp3Frames(seg.gapAfterMs));
+      } catch (e) {
+        return { ok: false, error: `逐句合成中断：${e.message}` };
+      }
+    }
+    const total = Buffer.concat(parts);
+    if (countMp3Frames(total) === 0) {
+      return { ok: false, error: '拼接后的音频不含有效 MP3 帧，已中止落盘' };
+    }
+    await fs.promises.writeFile(filePath, total);
+    console.log(`🎧 Edge 听力音频已保存：${filePath}（${total.length} 字节，${sanitized.length} 段）`);
+    return { ok: true, path: filePath, bytes: total.length, segments: sanitized.length };
+  } finally {
+    try { fs.rmSync(outDir, { recursive: true, force: true }); } catch {}
   }
 });
 

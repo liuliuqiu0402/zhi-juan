@@ -508,9 +508,23 @@
 
       <!-- 🎧 Azure 语音合成（英语听力音频） -->
       <div class="settings-section">
-        <h3>🎧 Azure 语音合成（英语听力音频）</h3>
+        <h3>🎧 语音合成通道（英语听力音频）</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:6px;">
+          把英语听力卷的听力原文合成为<strong>整卷 mp3</strong>。无需国际卡也能直接使用——默认走<strong>Edge 免费语音</strong>（免 Key、免配置）；填了 Azure Key 时也可切回 Azure（整卷 SSML 一次合成，音质略优）。
+        </p>
+        <div style="display:flex;gap:16px;margin:8px 0;font-size:13px;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#333;">
+            <input v-model="settings.speechChannel" type="radio" value="edge">
+            <span><strong>Edge 免费语音</strong>（无需 Key，默认）</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#333;">
+            <input v-model="settings.speechChannel" type="radio" value="azure">
+            <span><strong>Azure 语音合成</strong>（需 Key）</span>
+          </label>
+        </div>
+        <div v-if="settings.speechChannel === 'azure'">
         <p style="font-size:12px;color:#666;margin-bottom:4px;">
-          用于把英语听力卷的听力原文合成为<strong>整卷 mp3</strong>。免费层每月 50 万字符（约合 160-250 份听力卷），超出按 $15/百万字符计费。
+          免费层每月 50 万字符（约合 160-250 份听力卷），超出按 $15/百万字符计费。
         </p>
         <p class="model-hint">
           🔒 该 Key 与模型 Key 一样只保存在本机（加密存储），<strong>不会上传云端</strong>。Key 需与区域来自同一个 Azure 语音资源，否则会报 403。
@@ -550,6 +564,7 @@
             {{ f.label }}
           </option>
         </select>
+        </div>
       </div>
 
       <!-- 📖 API 申请指南 -->
@@ -1650,6 +1665,8 @@ const settings = ref({
   zhipuBaseUrl: apiConfig.zhipuBaseUrl || 'https://open.bigmodel.cn/api/paas/v4',
   zhipuGenerationModel: apiConfig.zhipuGenerationModel || 'glm-5.3',
   zhipuAnalysisModel: apiConfig.zhipuAnalysisModel || 'glm-5.3',
+  // 🎧 语音合成通道（英语听力音频）：'edge' 免费（无需 Key，默认） | 'azure'（需 Key）
+  speechChannel: apiConfig.speechChannel || 'edge',
   // 🎧 Azure 语音合成（英语听力音频）：Key 与模型 Key 同口径——设置页填写 + 加密落盘；
   //    但**不上传云端**（用户 2026-09-16 定版），保存时不进上推白名单。
   azureSpeechKey: apiConfig.azureSpeechKey || '',
@@ -2042,6 +2059,8 @@ const saveSettings = async () => {
   apiConfig.zhipuBaseUrl = settings.value.zhipuBaseUrl;
   apiConfig.zhipuGenerationModel = settings.value.zhipuGenerationModel;
   apiConfig.zhipuAnalysisModel = settings.value.zhipuAnalysisModel;
+  // 🎧 语音合成通道：写回内存（saveConfig 落盘）
+  apiConfig.speechChannel = settings.value.speechChannel || 'edge';
   // 🎧 Azure 语音合成：写回内存（saveConfig 负责清洗 + 加密落盘；不进云端白名单）
   apiConfig.azureSpeechKey = settings.value.azureSpeechKey;
   apiConfig.azureSpeechRegion = settings.value.azureSpeechRegion;

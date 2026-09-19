@@ -15,6 +15,7 @@ import {
   buildListeningScriptText,
   normalizeForSpeech,
   pickAccentForItem,
+  buildOpeningAnnouncement,
   escapeXml,
 } from '../../src/utils/listeningScript.js';
 
@@ -30,6 +31,13 @@ const DIALOG = {
     { role: 'W', text: "It's next to the bank." },
   ],
 };
+
+/**
+ * 仅取**材料段**（排除开场白/分节指令/结束语等中文播报段）。
+ * 2026-09-19 起 storyboard 按正规考试音频格式补齐了中文框架段，故"材料映射"类断言须显式限定范围，
+ * 否则会被框架段的音色/间隙污染（框架段本身另有用例单独锁定）。
+ */
+const onlyMaterial = (segments = []) => segments.filter((s) => s.kind === 'material' || s.kind === 'repeat');
 
 describe('听力参数矩阵：学段必须差异化，不得千篇一律', () => {
   it('五档学段参数齐备（新增学段不漏配）', () => {
@@ -124,26 +132,29 @@ describe('对话按角色分音色且逐句保序', () => {
         { role: 'M', text: 'A2' },
       ] }],
     });
-    const voices = segments.map((s) => s.voice);
+    const material = onlyMaterial(segments);
+    const voices = material.map((s) => s.voice);
     expect(voices).toEqual([
       LISTENING_VOICES.us.M, LISTENING_VOICES.us.W, LISTENING_VOICES.us.M,
       LISTENING_VOICES.us.M, LISTENING_VOICES.us.W, LISTENING_VOICES.us.M,
     ]);
-    expect(segments.map((s) => s.text)).toEqual(['A1', 'B1', 'A2', 'A1', 'B1', 'A2']);
+    expect(material.map((s) => s.text)).toEqual(['A1', 'B1', 'A2', 'A1', 'B1', 'A2']);
   });
 
   it('每段材料读两遍；两遍之间用较长间隙、句间用短间隙', () => {
     const { segments, params } = buildListeningStoryboard({ stage: '初中', grade: '八年级', items: [DIALOG] });
     expect(params.repeat).toBe(2);
-    expect(segments.filter((s) => s.itemNo === 1)).toHaveLength(4);
-    expect(segments[0].gapAfterMs).toBe(params.pauses.sentenceGapMs);
-    expect(segments[1].gapAfterMs).toBe(params.pauses.betweenRepeatsMs);
+    const material = onlyMaterial(segments);
+    expect(material).toHaveLength(4);
+    expect(material[0].gapAfterMs).toBe(params.pauses.sentenceGapMs);
+    expect(material[1].gapAfterMs).toBe(params.pauses.betweenRepeatsMs);
   });
 
   it('作答留白挂在本题最后一段，且高段留白更长', () => {
     const low = buildListeningStoryboard({ stage: '小学', grade: '二年级', items: [DIALOG] });
     const mid = buildListeningStoryboard({ stage: '初中', grade: '八年级', items: [DIALOG] });
-    expect(low.segments[low.segments.length - 1].gapAfterMs).toBe(low.params.answerGapMs);
+    const lowMaterial = onlyMaterial(low.segments);
+    expect(lowMaterial[lowMaterial.length - 1].gapAfterMs).toBe(low.params.answerGapMs);
     expect(mid.params.answerGapMs).toBeGreaterThan(low.params.answerGapMs);
   });
 });
@@ -161,7 +172,8 @@ describe('SSML 渲染', () => {
     expect(s.startsWith('<speak version="1.0"')).toBe(true);
     expect(s.trimEnd().endsWith('</speak>')).toBe(true);
     expect(s).toContain('<voice name="en-US-GuyNeural">');
-    expect(s).toContain('<prosody rate="-20%">');
+    // 基准已实测校准（LISTENING_BASE_WPM），八年级 120 词/分 → 百分比从常量推导，避免写死
+    expect(s).toContain(`<prosody rate="${Math.round((120 / LISTENING_BASE_WPM - 1) * 100)}%">`);
     expect(s).toContain('<break time="800ms"/>');
   });
 
@@ -252,5 +264,105 @@ describe('朗读化：安全替换 + 高风险只登记不改写', () => {
 describe('转义工具', () => {
   it('覆盖 XML 五个敏感字符', () => {
     expect(escapeXml(`&<>"'`)).toBe('&amp;&lt;&gt;&quot;&apos;');
+  });
+});
+
+/**
+ * 🎙 正规考试音频格式（2026-09-19）：调研全国卷/中考听力录音原文与考务规定后补齐中文框架——
+ *   开场固定播报（校/区级考试含考试名称）→ 分节中文指令 → 英文材料 → 「听力部分到此结束」。
+ */
+describe('正规音频格式：开场白 / 分节指令 / 结束语', () => {
+  it('开场白净化标题：去掉生成时间戳与扩展名，且不朗读时间', () => {
+    expect(buildOpeningAnnouncement('六年级英语上册Unit 1 阶段测评_2026/9/19 13:20:14'))
+      .toBe('六年级英语上册Unit 1 阶段测评，听力考试现在开始。');
+    expect(buildOpeningAnnouncement('Unit 1 测评_2026-09-19')).toBe('Unit 1 测评，听力考试现在开始。');
+    expect(buildOpeningAnnouncement('听力卷.docx')).toBe('听力卷，听力考试现在开始。');
+  });
+
+  it('无标题时回退到国标固定播报', () => {
+    expect(buildOpeningAnnouncement('')).toBe('听力考试现在开始。');
+  });
+
+  it('storyboard 首段为开场白、末段为结束语，均为中文音色且不加英文慢速', () => {
+    const { segments } = buildListeningStoryboard({
+      stage: '初中', grade: '八年级', title: '八年级英语期中测评', items: [DIALOG],
+    });
+    const first = segments[0];
+    const last = segments[segments.length - 1];
+    expect(first.kind).toBe('opening');
+    expect(first.voice).toBe('zh-CN-XiaoxiaoNeural');
+    expect(first.text).toContain('八年级英语期中测评');
+    expect(first.ratePercent).toBe(0);
+    expect(last.kind).toBe('closing');
+    expect(last.text).toBe('听力部分到此结束。');
+    expect(last.voice).toBe('zh-CN-XiaoxiaoNeural');
+  });
+
+  it('分节指令用中文音色，且落在该节材料之前（不打乱先后）', () => {
+    const { segments } = buildListeningStoryboard({
+      stage: '初中', grade: '八年级',
+      items: [
+        { no: 1, instruction: '第一节，听下面5段对话。每段对话仅读一遍。', lines: [{ role: 'M', text: 'Hi.' }] },
+      ],
+    });
+    const iInstruction = segments.findIndex((s) => s.kind === 'instruction');
+    const iMaterial = segments.findIndex((s) => s.kind === 'material');
+    expect(iInstruction).toBeGreaterThan(-1);
+    expect(iInstruction).toBeLessThan(iMaterial);
+    expect(segments[iInstruction].voice).toBe('zh-CN-XiaoxiaoNeural');
+    expect(segments[iInstruction].ratePercent).toBe(0);
+  });
+
+  it('🔴 中文噪音段进不了英文材料（英语听力材料不可能是中文）', () => {
+    const { segments } = buildListeningStoryboard({
+      stage: '初中', grade: '八年级',
+      items: [{ no: 1, lines: [
+        { role: 'N', text: '第一部分 听力部分（共3大题，满分30分）' },
+        { role: 'N', text: 'Attention, please! Here is a notice.' },
+      ] }],
+    });
+    const texts = segments.filter((s) => s.kind === 'material').map((s) => s.text);
+    expect(texts).toEqual(['Attention, please! Here is a notice.']);
+  });
+
+  it('朗读稿按"开场白/结束语"单独标注，便于真人逐段录制', () => {
+    const { text } = buildListeningScriptText({
+      stage: '初中', grade: '八年级', stageLabel: '初中', title: '八年级英语期中测评', items: [DIALOG],
+    });
+    expect(text).toContain('开场白（中文播报）');
+    expect(text).toContain('八年级英语期中测评，听力考试现在开始。');
+    expect(text).toContain('结束语（中文播报）');
+    expect(text).toContain('听力部分到此结束。');
+  });
+});
+
+/**
+ * 🎙 "以指令为准"：分节指令声明的遍数决定该节实际朗读遍数
+ * （真题第一节与第二节遍数常不同，音频必须与播报一致）
+ */
+describe('以指令为准：分节遍数覆盖学段默认', () => {
+  it('指令声明"仅读一遍"时该节只读一遍，并显式登记偏离', () => {
+    const { segments, warnings } = buildListeningStoryboard({
+      stage: '初中', grade: '八年级',
+      items: [{ no: 1, repeat: 1, instruction: '第一节，听下面5段对话。每段对话仅读一遍。', lines: [{ role: 'M', text: 'Hi.' }] }],
+    });
+    // 只读一遍 → 材料段仅 1 个（默认 2 遍会是 2 个）
+    expect(segments.filter((s) => s.kind === 'material')).toHaveLength(1);
+    expect(segments.filter((s) => s.kind === 'repeat')).toHaveLength(0);
+    expect(warnings.join()).toContain('按播音指令读 1 遍');
+  });
+
+  it('朗读稿的遍数说明按实际生效值呈现（偏离时改列题号）', () => {
+    const { text } = buildListeningScriptText({
+      stage: '初中', grade: '八年级', stageLabel: '初中',
+      items: [
+        { no: 1, repeat: 1, instruction: '第一节，听下面5段对话。每段对话仅读一遍。', lines: [{ role: 'M', text: 'Hi.' }] },
+        { no: 2, repeat: 2, lines: [{ role: 'W', text: 'Hello.' }] },
+      ],
+    });
+    expect(text).toContain('第 1 题读 1 遍');
+    expect(text).toContain('第 2 题读 2 遍');
+    // 录制提示不得与正文口径打架（旧文案写死"连读 2 遍"）
+    expect(text).not.toContain('每段材料连读 2 遍');
   });
 });
