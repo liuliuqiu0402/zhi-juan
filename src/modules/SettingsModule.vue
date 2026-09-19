@@ -825,9 +825,15 @@
             :key="row.key"
             style="border:1px solid #e3e9f2;border-radius:8px;margin-bottom:8px;overflow:hidden;"
           >
-            <!-- 卡片头：类型名 + 路径 -->
-            <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:#fafcff;border-bottom:1px solid #eef2f7;flex-wrap:wrap;">
-              <span style="font-weight:600;color:#1f6feb;font-size:12px;white-space:nowrap;">{{ row.name }}</span>
+            <!-- 卡片头：类型名 + 路径 ｜ 点类型名折叠/展开（默认收起＝只留这一行） -->
+            <div
+              :style="{ display:'flex', alignItems:'center', gap:'10px', padding:'6px 10px', background:'#fafcff', flexWrap:'wrap', borderBottom: budgetTypeOpen[row.key] ? '1px solid #eef2f7' : 'none' }"
+            >
+              <span
+                :title="budgetTypeOpen[row.key] ? '收起该类型' : '展开该类型（档位 / 手填系数 / 输出上限 / 基准→校准→生效）'"
+                style="font-weight:600;color:#1f6feb;font-size:12px;white-space:nowrap;cursor:pointer;user-select:none;"
+                @click="budgetTypeOpen[row.key] = !budgetTypeOpen[row.key]"
+              >{{ budgetTypeOpen[row.key] ? '▾' : '▸' }} {{ row.name }}</span>
               <span style="font-size:10px;color:#8896a8;white-space:nowrap;">路径</span>
               <label
                 :title="'自动：由程序按该类型最合适的路径决定（考卷/同步练习/专项/复习→两次，阅读/总结/预习/默写/错题→一次）'"
@@ -863,8 +869,11 @@
                 >一次
               </label>
             </div>
-            <!-- 卡片体：三槽并排 -->
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px 10px;">
+            <!-- 卡片体：三槽并排（随类型折叠；收起时不渲染，省掉每个槽的系数链路计算） -->
+            <div
+              v-if="budgetTypeOpen[row.key]"
+              style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px 10px;"
+            >
               <div
                 v-for="slotDef in [ ['body','两次生成·正文'], ['answer','两次生成·答案页'], ['once','一次成型·正文+答案'] ]"
                 :key="slotDef[0]"
@@ -949,11 +958,22 @@
                 </div>
               </div>
             </div>
-            <!-- 🔧 实测校准（每类型×学科×学段分桶；一键采纳以样本中位产出率为基准） -->
-            <div style="padding:6px 10px;border-top:1px dashed #dbe4ee;background:#fbfdff;">
+            <!-- 🔧 实测校准（每类型×学科×学段分桶；一键采纳以样本中位产出率为基准）
+                 ｜ 卡内再折一层：点标题行展开/收起（默认收起）；随类型一起被折叠 -->
+            <div
+              v-if="budgetTypeOpen[row.key]"
+              style="padding:6px 10px;border-top:1px dashed #dbe4ee;background:#fbfdff;"
+            >
               <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:5px;">
-                <span style="font-size:10px;color:#64748b;font-weight:600;">📊 实测校准（按学科×学段×路径，门槛 {{ calThresholdLabel }}，CV&gt;0.35 拒采）</span>
-                <span style="display:flex;gap:5px;align-items:center;font-size:10px;color:#94a3b8;">
+                <span
+                  :title="calOpen[row.key] ? '收起实测校准' : '展开实测校准（分桶样本 · 一键采纳 · 操作流水）'"
+                  style="font-size:10px;color:#64748b;font-weight:600;cursor:pointer;user-select:none;"
+                  @click="calOpen[row.key] = !calOpen[row.key]"
+                >{{ calOpen[row.key] ? '▾' : '▸' }} 📊 实测校准（按学科×学段×路径，门槛 {{ calThresholdLabel }}，CV&gt;0.35 拒采<template v-if="calBucketsFor(row.key).length">，共 {{ calBucketsFor(row.key).length }} 桶</template>）</span>
+                <span
+                  v-if="calOpen[row.key]"
+                  style="display:flex;gap:5px;align-items:center;font-size:10px;color:#94a3b8;"
+                >
                   学段
                   <select
                     v-model="calStageFilter[row.key]"
@@ -989,7 +1009,7 @@
                   </select>
                 </span>
               </div>
-              <template v-if="calBucketsFor(row.key).length">
+              <template v-if="calOpen[row.key] && calBucketsFor(row.key).length">
                 <div
                   v-for="bk in calBucketsFor(row.key)"
                   :key="bk.key"
@@ -1030,16 +1050,22 @@
                 </div>
               </template>
               <div
-                v-else
+                v-else-if="calOpen[row.key]"
                 style="font-size:10px;color:#c3cdda;padding:3px 0;"
               >
                 （该类型暂无样本；完成若干次该类型生成后，这里会出现按学科×学段分桶的校准入口）
               </div>
-              <div style="font-size:9px;color:#aab6c4;margin-top:3px;">
+              <div
+                v-if="calOpen[row.key]"
+                style="font-size:9px;color:#aab6c4;margin-top:3px;"
+              >
                 产出率按 勾选原文→实际输出字符 实测；采纳即用中位数作均衡档基准，按 精简0.72/均衡1/充分1.25 展开三档。低于门槛或波动过大(CV&gt;0.35)时按钮置灰。
               </div>
               <!-- 📋 操作流水（审计日志：谁/何时/做了什么；清空只删日志，不动校准数据） -->
-              <div style="border-top:1px dashed #dbe4ee;padding:5px 0 1px;margin-top:5px;">
+              <div
+                v-if="calOpen[row.key]"
+                style="border-top:1px dashed #dbe4ee;padding:5px 0 1px;margin-top:5px;"
+              >
                 <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                   <button
                     style="font-size:10px;padding:2px 8px;border:1px solid #c2ccd9;color:#5b6b7c;background:#fff;border-radius:4px;cursor:pointer;"
@@ -1794,6 +1820,12 @@ const calThresholdLabel = `${CALIBRATION_THRESHOLDS.standard}条`;
 const calStageFilter = ref({});
 const calSubjectFilter = ref({});
 const calModeFilter = ref({});
+// 🗂 折叠状态（2026-09-19 用户要求：9 个类型卡片全展开时页面过长）：
+//    budgetTypeOpen 按类型折叠——默认收起，卡片只留"类型名那一行"；
+//    calOpen 卡内「实测校准」再折一层（样本桶 / 采纳按钮 / 操作流水都在里面）。
+//    二者均为会话内状态（与既有 auditOpen 同口径，不做持久化）。
+const budgetTypeOpen = ref({});
+const calOpen = ref({});
 // 分桶视图：返回该类型下过滤后的桶（split/once 独立分桶，绝不混算；每次读取重算）
 const calBucketsFor = (rowKey) => {
   const sf = calStageFilter.value[rowKey] || '';
