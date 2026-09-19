@@ -1775,6 +1775,22 @@
                 </option>
               </select>
             </label>
+            <label style="font-size:12px;">
+              音色预设
+              <select
+                v-model="listeningVoicePreset"
+                style="margin-left:6px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+              >
+                <option
+                  v-for="p in Object.values(LISTENING_VOICE_PRESETS)"
+                  :key="p.key"
+                  :value="p.key"
+                  :title="p.note"
+                >
+                  {{ p.name }}
+                </option>
+              </select>
+            </label>
           </div>
 
           <div
@@ -3388,7 +3404,7 @@ import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实�
 import { buildListeningExtractMessages } from '../config/listeningExtractPrompt.js';
 import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback } from '../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText, buildListeningStoryboard } from '../utils/listeningScript.js';
-import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS } from '../config/listeningAudioProfile.js';
+import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_PRESETS, LISTENING_DEFAULT_VOICE_PRESET } from '../config/listeningAudioProfile.js';
 // 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
 import { synthesizeToFile, readAzureConfigFromApiConfig } from '../utils/azureTts.js';
 // 🎧 Edge 免费语音：无需 Key，逐句合成 + 帧级静音拼接（主进程执行）
@@ -8746,6 +8762,9 @@ const listeningAccentOverride = ref('');
 //    试音段默认开（正规录音先试音再开考）；一题一材料的小题号默认关（国标第一节不播小题号）。
 const listeningSoundCheck = ref(LISTENING_FEATURE_DEFAULTS.soundCheck);
 const listeningShortItemNo = ref(LISTENING_FEATURE_DEFAULTS.announceShortItemNo);
+// 🎚 音色预设：默认"考试标准"（男 ChristopherNeural + 女 AriaNeural，最接近高考/中考播音腔）。
+//    Edge 实测可用英文音色 47 个，此处按"用途"归成三档，避免让用户面对一长串音色名。
+const listeningVoicePreset = ref(LISTENING_DEFAULT_VOICE_PRESET);
 const listeningSynthLoading = ref(false);
 const listeningSynthMsg = ref('');
 const listeningParseMode = ref('');   // 本次结构来自"规则解析"还是"AI 解析"（对用户透明）
@@ -8762,6 +8781,8 @@ const listeningEffectiveParams = computed(() => {
     overrides.wpm = listeningWpmOverride.value;
   }
   if (listeningAccentOverride.value) overrides.accent = listeningAccentOverride.value;
+  const preset = LISTENING_VOICE_PRESETS[listeningVoicePreset.value];
+  if (preset) overrides.voices = preset.voices;
   return resolveListeningParams({
     stage: listeningStageKey.value,
     grade: listeningGradeHint.value,
@@ -8891,6 +8912,9 @@ const renderListeningArtifacts = () => {
     overrides.wpm = listeningWpmOverride.value;
   }
   if (listeningAccentOverride.value) overrides.accent = listeningAccentOverride.value;
+  // 🎚 音色预设 → 覆盖音色表（resolveListeningParams 原生支持 voices 覆盖）
+  const preset = LISTENING_VOICE_PRESETS[listeningVoicePreset.value];
+  if (preset) overrides.voices = preset.voices;
 
   const input = {
     items: listeningStruct.value.items,
@@ -8937,6 +8961,7 @@ const openListeningTool = async (doc) => {
   listeningAccentOverride.value = '';
   listeningSoundCheck.value = LISTENING_FEATURE_DEFAULTS.soundCheck;
   listeningShortItemNo.value = LISTENING_FEATURE_DEFAULTS.announceShortItemNo;
+  listeningVoicePreset.value = LISTENING_DEFAULT_VOICE_PRESET;
   listeningSynthMsg.value = '';
   listeningSynthLoading.value = false;
   listeningParseMode.value = '';
@@ -9052,7 +9077,7 @@ const copyListeningText = async (kind) => {
   }
 };
 
-watch([listeningWpmOverride, listeningAccentOverride, listeningSoundCheck, listeningShortItemNo], () => {
+watch([listeningWpmOverride, listeningAccentOverride, listeningSoundCheck, listeningShortItemNo, listeningVoicePreset], () => {
   if (showListeningModal.value && listeningStruct.value) renderListeningArtifacts();
 });
 

@@ -21,6 +21,7 @@ import {
   LISTENING_ROLE_LABELS,
   LISTENING_SOUND_CHECK,
   LISTENING_FEATURE_DEFAULTS,
+  LISTENING_TRIPLE_PASS_ROTATION,
 } from '../config/listeningAudioProfile.js';
 import { isCjkNoise } from './listeningExtract.js';
 
@@ -249,7 +250,10 @@ export function buildListeningStoryboard({
         ratePercent: 0,
         // 以指令为准：声明了读题秒数就用它（真题"每小题5秒钟阅读题目"），否则用"现在开始"后的固定停顿
         gapAfterMs: Number(item.previewSec) > 0 ? item.previewSec * 1000 : params.pauses.afterSectionInstructionMs,
-        chimeBefore: true,   // 换节提示音
+        // 换节不响提示音：真题的"打点"（叮咚）只出现在**每段材料之前**，节指令本身不带
+        //   （校内正规听力稿："第一节…→停顿 5 秒（叮咚铃声）→Text 1"）。若此处也响，
+        //   会与首段材料的提示音在 2 秒内重复响两次。
+        chimeBefore: false,
         itemNo: item.no,
         pass: 0,
       });
@@ -260,10 +264,11 @@ export function buildListeningStoryboard({
     //        两项用顿号、三项及以上用「至」——**照真题书面写法**，不用「～」符号（TTS 读不稳）。
     //        拿不到题号范围就**整条不报**（宁可不报，也不报错：原实现按条数顺编，实测把第三节
     //        报成了"第七题"，而该卷第三节实为第 11~15 题）。
-    //      · 一题一材料（短材料）→ 国标第一节**不播小题号**（靠 10 秒间隔 + 卷面题号定位），
+    //      · 一题一材料（短材料）→ 国标第一节**不播小题号**（靠作答间隔 + 卷面题号定位），
     //        由 announceShortItemNo 控制，默认关；小学/校内卷可在生成面板打开。
+    //      · 措辞一律用「小题」：高考录音作答说明即"阅读**第1小题**的有关内容"、"回答第6、7**小题**"。
     const itemNoText = (() => {
-      if (!multiQ) return announceShortItemNo ? `第${item.no}题。` : '';
+      if (!multiQ) return announceShortItemNo ? `第${item.no}小题。` : '';
       const r = item.range;
       if (!r || !r.from) return '';
       const from = Number(r.from);
@@ -281,7 +286,9 @@ export function buildListeningStoryboard({
         text: itemNoText,
         ratePercent: 0,
         gapAfterMs: params.pauses.afterItemNoMs,
-        chimeBefore: !isSectionStart,
+        // 题号播报本身不响铃：提示音属于"材料起点"（题号 → 停顿 → 叮咚 → 材料），
+        //   与真题"不读小标题 Text，从打点开始"一致；此处响会导致题号与材料各响一次。
+        chimeBefore: false,
         itemNo: item.no,
         pass: 0,
       });
@@ -303,6 +310,13 @@ export function buildListeningStoryboard({
       return voiceSet[genderMap.get(role)] || voiceSet.N;
     };
 
+    // 🔴 三遍轮读音色（2026-09-19 调研新增，见 LISTENING_TRIPLE_PASS_ROTATION）：
+    //    读三遍的**单说话人**材料按 男→女→男 轮换（实证：小学听力要求原文"男、女、男声中速各读一遍"）；
+    //    读两遍仍为同一音色（同一说话人重读一遍，真题即如此，换人反而是错的）；对话按角色分音色、不轮读。
+    const rotateTriple = LISTENING_TRIPLE_PASS_ROTATION && repeat >= 3 && !isDialogue;
+    // 提示音落在"本条材料真正产出的第一段"上：题号播报可能在前（题号 → 停顿 → 叮咚 → 材料），
+    //   而首句若被中文噪音守卫剔除，也不能把提示音一起丢掉。
+    let chimePlaced = false;
     for (let pass = 1; pass <= repeat; pass++) {
       lines.forEach((ln, li) => {
         const role = String(ln.role || 'N').toUpperCase();
@@ -312,17 +326,23 @@ export function buildListeningStoryboard({
         //   不读"一、听录音…/评分/范文"这类噪音（源节截取之外的兜底，见 listeningExtract）。
         if (isCjkNoise(text)) return;
         const isPassEnd = li === lines.length - 1;
+        // 三遍轮读：奇数遍男声、偶数遍女声（男→女→男）
+        const speakRole = rotateTriple ? (pass % 2 === 1 ? 'M' : 'W') : role;
         segments.push({
           kind: pass === 1 ? 'material' : 'repeat',
-          voice: voiceOf(role),
-          role,
+          voice: voiceOf(speakRole),
+          role: speakRole,
           text: String(text).trim(),
           ratePercent: params.ratePercent,
+          // 🔴 提示音（叮咚）＝"打点"：真题"不读小标题 Text，从打点开始"，即**每段材料起点响一次**；
+          //   同一材料的第二/三遍之间**不响**（2026 新版高考明文"两遍之间无提示音"）。
+          chimeBefore: !chimePlaced,
           // 同一材料两遍之间用较长间隙；材料内部句/轮之间用短间隙（停顿的"顿挫感"主要来自这里，故取小值）
           gapAfterMs: isPassEnd && pass < repeat ? params.pauses.betweenRepeatsMs : params.pauses.sentenceGapMs,
           itemNo: item.no,
           pass,
         });
+        chimePlaced = true;
       });
     }
     // 作答留白：挂到本题最后一段。以指令为准（声明了作答秒数就用它），否则按材料形态分档。
@@ -420,6 +440,14 @@ export function buildListeningScriptText(input = {}) {
     ? `每段材料读 ${params.repeat} 遍`
     : [...byRepeat.entries()].sort((a, b) => a[0] - b[0])
       .map(([r, nos]) => `第 ${nos.join('、')} 题读 ${r} 遍`).join('；');
+  // 三遍轮读音色是否在本卷实际生效（读三遍 且 单说话人）——仅该情形才追加对应录制提示
+  const rotateTripleUsed = LISTENING_TRIPLE_PASS_ROTATION
+    && (Array.isArray(rest.items) ? rest.items : []).some((it) => {
+      const r = Number.isFinite(it.repeat) && it.repeat > 0 ? it.repeat : params.repeat;
+      if (r < 3) return false;
+      const roles = [...new Set((it.lines || []).map((l) => String((l && l.role) || 'N').toUpperCase()))];
+      return roles.length <= 1;
+    });
   out.push(`遍数：${repeatDesc}　题间作答留白：${Math.round(params.answerGapMs / 1000)} 秒`);
   const v = params.voices.us;
   out.push(`音色：男 ${v.M} ｜ 女 ${v.W} ｜ 旁白 ${v.N}`);
@@ -487,8 +515,12 @@ export function buildListeningScriptText(input = {}) {
   // 与正文同一口径：遍数按实际生效值（分节指令优先），不得写成与音频不符的"一律两遍"
   out.push(`· 遍数：${repeatDesc}；材料连读两遍之间停 ${params.pauses.betweenRepeatsMs} ms`);
   out.push(`· 换节：节间留白 ${params.pauses.betweenSectionsMs} ms、指令后停 ${params.pauses.afterSectionInstructionMs} ms；一段材料对多题（独白/短文）按"各小题 5 秒"档留作答，短材料按学段档；节指令声明了秒数则以声明为准`);
-  out.push(`· 题号播报：一段材料对多题处按真题写法读「听第X段材料，回答第X～Y小题」（见〔题号播报〕）${rest.announceShortItemNo ? '；一题一材料处读「第N题」' : '；一题一材料处**不读小题号**（国标口径，靠作答间隔与卷面题号定位）'}；题与题之间加一声"叮咚"提示音，换节处提示音加在节指令之前`);
+  out.push(`· 题号播报：一段材料对多题处按真题写法读「听第X段材料，回答第X～Y小题」（见〔题号播报〕）${rest.announceShortItemNo ? '；一题一材料处读「第N小题」' : '；一题一材料处**不读小题号**（国标口径，靠作答间隔与卷面题号定位）'}`);
+  out.push('· 提示音（叮咚）＝"打点"：**每段材料开始前响一次**（真题"不读小标题 Text，从打点开始"）；同一材料的第二/三遍之间**不响**（2026 新版高考明文"两遍之间无提示音"）；节指令与题号播报本身不响');
   out.push('· 同一角色全卷使用同一音色，保持语速一致，避免音色与语速漂移');
+  if (rotateTripleUsed) {
+    out.push('· 读三遍的单说话人材料按「男 → 女 → 男」轮换音色（依据：小学听力要求原文"男、女、男声中速各读一遍"）；读两遍仍为同一音色');
+  }
   if (params.stageKey === 'high') {
     out.push('· 高中学段不得压低语速——高考要求含自然连读、弱读，压速会消解自然语流');
   }

@@ -59,15 +59,63 @@ export const LISTENING_ACCENT_POLICY = {
   high: 'mixed',
 };
 
-/** 音色表（Azure / Edge 神经音色命名；可在设置页覆盖单项）
- *  M=男声  W=女声  N=旁白/独白 —— 同一角色全卷固定同一音色，避免音色漂移 */
-/* 🔴 2026-09-19 用户实测根治：原 N(旁白)=Aria 与 W(女声)=Jenny **同为女声** → 整卷只有女声、
-   且"播报者"与"说话人"分不出来（实测音频"全程只有一个女声"）。旁白改用**男声**后：
-   播报(男) 与 女声/独白(女) 可分辨，全卷也不再只有单一性别。 */
-export const LISTENING_VOICES = {
-  us: { M: 'en-US-GuyNeural', W: 'en-US-JennyNeural', N: 'en-US-GuyNeural' },
-  gb: { M: 'en-GB-RyanNeural', W: 'en-GB-SoniaNeural', N: 'en-GB-RyanNeural' },
+/**
+ * 音色预设（M=男声 W=女声 N=旁白/独白；同一角色全卷固定同一音色，避免音色漂移）
+ * 🔴 2026-09-19 用户实测根治：原 N(旁白)=Aria 与 W(女声)=Jenny **同为女声** → 整卷只有女声、
+ *    "播报者"与"说话人"分不出来。旁白一律取**男声**后：播报/旁白(男) 与 女声独白(女) 可分辨。
+ * ============================================================
+ * 调研依据（真题分析 · 教育部考试院研究人员文章）：
+ *   · 高考听力由考试院统一选拔**真人一男一女**录制（男播音长期稳定、女播音换过几任）；
+ *   · 语速约 137–154 词/分，**美音为主**（部分地区历史上用英音）；
+ *   · 音质风格是"**清晰规范的朗读腔**"而非自然生活对话腔——考试院改革方向之一正是
+ *     "摒弃播音腔"，反证现行录音带播音腔特征。
+ * Edge 实测（2026-09-19 用 msedge-tts 拉全量清单）：共 322 个音色、英文 47 个，
+ *   下列音色**均已确认可用**（不是照 Azure 文档推测）。
+ * 三个预设都可选，默认即"考试标准"：
+ *   · exam    考试标准：男 ChristopherNeural（官方风格标签 News/Authority"权威"）、
+ *             女 AriaNeural（风格标签含 narration-professional 专业朗读 / newscast-formal）
+ *             —— 这两个是英文音色里唯二带"正式朗读/新闻"标签的，最贴近考试录音听感。
+ *   · natural 自然对话：多语言音色（Andrew/Ava），更接近日常交际情境（适合口语化材料）。
+ *   · legacy  旧版：Guy/Jenny（2026-09-19 之前的默认，保留供对比与回退）。
+ * 旁白 N 与男声 M 取同一音色：旁白只出现在"单说话人材料"，不会与男对话者同段落出现，
+ *   同音色反而保证同卷独白/短文播报者一致。
+ */
+export const LISTENING_VOICE_PRESETS = {
+  exam: {
+    key: 'exam',
+    name: '考试标准（推荐）',
+    note: '男 ChristopherNeural（News·权威）+ 女 AriaNeural（专业朗读）——最接近高考/中考录音的播音腔',
+    voices: {
+      us: { M: 'en-US-ChristopherNeural', W: 'en-US-AriaNeural', N: 'en-US-ChristopherNeural' },
+      gb: { M: 'en-GB-RyanNeural', W: 'en-GB-SoniaNeural', N: 'en-GB-RyanNeural' },
+    },
+  },
+  natural: {
+    key: 'natural',
+    name: '自然对话',
+    note: '多语言音色（男 Andrew / 女 Ava）——更口语、更贴近日常交际情境',
+    voices: {
+      us: { M: 'en-US-AndrewMultilingualNeural', W: 'en-US-AvaMultilingualNeural', N: 'en-US-AndrewMultilingualNeural' },
+      gb: { M: 'en-GB-RyanNeural', W: 'en-GB-SoniaNeural', N: 'en-GB-RyanNeural' },
+    },
+  },
+  legacy: {
+    key: 'legacy',
+    name: '旧版（Guy / Jenny）',
+    note: '本功能最初的默认音色，保留供对比与回退',
+    voices: {
+      us: { M: 'en-US-GuyNeural', W: 'en-US-JennyNeural', N: 'en-US-GuyNeural' },
+      gb: { M: 'en-GB-RyanNeural', W: 'en-GB-SoniaNeural', N: 'en-GB-RyanNeural' },
+    },
+  },
 };
+
+/** 默认音色预设键（单一事实源；设置页/弹窗据此初始化） */
+export const LISTENING_DEFAULT_VOICE_PRESET = 'exam';
+
+/** 生效音色表（＝默认预设；习惯直接引用 LISTENING_VOICES 的代码不受影响） */
+export const LISTENING_VOICES = LISTENING_VOICE_PRESETS[LISTENING_DEFAULT_VOICE_PRESET].voices;
+
 
 /** 中文播报音色（听力导语/指令按考区规范多为中文播报，与英文音色在同一份 SSML 内混排） */
 export const LISTENING_ZH_VOICE = 'zh-CN-XiaoxiaoNeural';
@@ -122,52 +170,82 @@ export const LISTENING_FEATURE_DEFAULTS = {
 
 /** 停顿参数（毫秒）——三类停顿必须分设，不能用一个值糊过去 */
 /* 🔴 2026-09-19 用户实测根治（"间隔不是标准间隔"）：原值 句间 200 / 遍间 800 / 作答一律 10 秒，
-   且 betweenSectionsMs **配了却从未被使用**（节与节之间没有任何额外留白）。按正规音频校正：
-   · 遍间由 800 提到 2500（真题"每段材料读两遍"之间约 2~3 秒，供"初判 → 核对"）；
-   · 句间由 200 降到 120（句/轮之间的自然间隙；主要停顿交给 TTS 语流，硬加会把整段读得很"顿"）；
-   · 节间 3000 真正启用 + 指令后 2000（"现在开始"→稍停顿→材料）；
-   · 一段材料对应多题（独白/短文）的作答留白按真题口径降为 5 秒/小题档；
+   且 betweenSectionsMs **配了却从未被使用**（节与节之间没有任何额外留白）。
+   🔴 2026-09-19 二次校准（用户实测反馈"停顿间隔时间太长"）——逐项按证据收敛：
+   · 遍间：真题明文"等待 2 秒后立即播放第二遍"（2026 新版高考改革解读）→ 2500 降为 **2000**；
+   · 作答（一题一材料）：高考明文 10 秒（含"回答本题 + 阅读下一小题"两项动作）→ 中学档保持 10000；
+     **小学档下调**（5000/6000/8000）——小学以圈选/连线为主，没有"读下一题"的动作，
+     沿用中学的 10 秒会明显空等；此项为产品裁定（小学无国标明文，各卷自定）；
+   · 节间：校内正规听力稿为"停顿 2 秒"→ 3000 降为 **2000**；指令后 2000 保持不变（同稿一致）；
+   · 一段材料对多题的作答留白：高考明文"各小题 5 秒钟"→ 5000 不变；
    · 各节指令里若声明了"X 秒钟作答 / X 秒钟阅读"，**以指令为准**（见 parseAnnouncedAnswerSeconds）。 */
 export const LISTENING_PAUSE = {
   /** 材料内部句/轮之间的自然间隙 */
   sentenceGapMs: 120,
-  /** 同一材料两遍之间的间隙 */
-  betweenRepeatsMs: 2500,
+  /** 同一材料两遍之间的间隙（真题明文 2 秒） */
+  betweenRepeatsMs: 2000,
   /** 每段材料读完后留给学生作答的时间（按学段，小段短、高段长）——用于"一段对话对一题"的短材料 */
   answerGapMs: {
-    primary_low: 8000,
-    primary_mid: 8000,
-    primary_high: 10000,
+    primary_low: 5000,
+    primary_mid: 6000,
+    primary_high: 8000,
     middle: 10000,
     high: 10000,
   },
-  /** 一段材料对应多题（独白/短文）的作答留白——真题该情形给"各小题 5 秒钟"，明显短于上表 */
+  /** 一段材料对应多题（独白/短文）的作答留白——高考明文"各小题 5 秒钟"，明显短于上表 */
   longMaterialAnswerGapMs: 5000,
   /** 需**动笔写词**的题（补全短文/填空类）的作答留白——5 秒档是给"听独白做判断"的，
    *  写 5 个词根本来不及（用户实测指出）。按"每题 5 秒 × 空数"的通行量级取 30 秒档；
    *  节指令若声明了作答秒数，仍以指令为准。 */
   fillInAnswerGapMs: 30000,
-  /** 大题与大题之间 */
-  betweenSectionsMs: 3000,
+  /** 大题与大题之间（校内正规听力稿为"停顿 2 秒"） */
+  betweenSectionsMs: 2000,
   /** 分节指令播完 → 该节第一段材料之前的留白（"现在开始"后的停顿；真题此处的读题时间由指令声明） */
   afterSectionInstructionMs: 2000,
-  /** 导语播完后进入第一题前的留白 */
+  /** 试音对话播完 → "听力试音到此结束，听力考试现在开始" 之前的留白 */
   afterIntroMs: 1500,
-  /** 题号播报之后 → 材料之前的短停顿 */
+  /** 题号播报之后 → 材料（含材料前的提示音）之前的短停顿 */
   afterItemNoMs: 600,
 };
 
-/** 每段材料朗读遍数（现行考试主流为两遍；旧大纲曾为三遍，此处按现行两遍） */
+/** 每段材料朗读遍数（现行考试主流为两遍；旧大纲曾为三遍，此处按现行两遍）
+ *  🔴 2026-09-19 复核：遍数**并非一律两遍**，且随考试/题型变化——
+ *    · 高考全国卷：第一节（短对话）**仅读一遍**、第二节（对话或独白）读两遍；
+ *    · 各省学考：广西两遍、黑龙江一遍、福建两遍——**同是学考也不同**；
+ *    · 中考多数省市：全卷读两遍；
+ *    · 小学：以两遍为主，部分题型（听音辨词/听句选图/短文排序）**读三遍**。
+ *  故此处只是"源文本未声明时的兜底值"，实际一律**以节指令声明为准**（parseAnnouncedRepeat）。 */
 export const LISTENING_REPEAT_TIMES = 2;
 
 /**
- * 神经音色在 rate="0%" 下的自然语速（词/分钟）——用于把"目标 wpm"换算成 SSML 百分比。
- * 🔧 2026-09-19 实测校准：en-US-GuyNeural 在 rate="0%" 下为 **129 词/分**（原初值 150 高估约 14%，
- *    导致设定档位落到真实听感系统性偏慢，高中档跌破 130 下限）。
- *    校准值 129 使 rate=0%≈129，档位词/分≈实际听感词/分；Azure 与 Edge 同音色基速一致，两通道同效。
- * ⚠️ 各音色基速存在小差异（男/女/英音/美音），此处以主流男声为单一基准；欲更精确可后续按音色细分。
+ * 三遍及以上的**音色轮读**规则（2026-09-19 调研新增）
+ * ============================================================
+ * 用户问："不同遍数都是同一个音色吗？不要分男女吗？"
+ * 调研实证（人教 PEP 三下期末素养总练习听力要求原文）：
+ *   "听短文，将图片字母编号写在房间相应位置"本题**读三遍**，
+ *   并明确注明"**男、女、男声中速各读一遍，每遍间隔 5 秒**"。
+ * 处置：**读三遍**的单说话人材料（旁白朗读的孤词/孤句/短文，即未标注 M/W 的材料）
+ *   按 男 → 女 → 男 轮换音色；两遍仍为同一音色（同一说话人重读一遍，真题即如此，
+ *   换人反而是错的）；对话材料一律按角色分音色，不参与轮读。
+ * ⚠️ 置信度：**单一来源**（一份小学听力要求原文）。故仅在"读三遍 + 单说话人"这一窄条件下生效，
+ *   不影响两遍的主流情形；若与你的实际考试不符，改这个常量即可整体关掉。
  */
-export const LISTENING_BASE_WPM = 129;
+export const LISTENING_TRIPLE_PASS_ROTATION = true;
+
+/**
+ * 神经音色在 rate="0%" 下的自然语速（词/分钟）——用于把"目标 wpm"换算成 SSML 百分比。
+ * 🔴 2026-09-19 **重新实测**（此前记的 129 经复核为错误标定，本次用两种独立口径交叉验证）：
+ *    口径 A：文件字节数 ÷ 288 B/帧 × 24 ms/帧；口径 B：逐帧解析头部累计——两者结果**逐字节一致**。
+ *    实测（rate=0%）：语速随**句子密度**变化明显（句子多→句间停顿多→有效 wpm 低），
+ *      · 材料 T1（45 词、3 长句）：Christopher 169 / Guy 180 / Aria 170 / Jenny 168
+ *      · 材料 T2（50 词、6 短句）：Christopher 152 / Guy 153 / Aria 152 / Jenny 153
+ *    取两材料的代表值 **160** 作为基准（各音色彼此相差 <10%，单一基准足够）。
+ *    调速链路亦经实测验证：同一材料 0%→152、−12%→134、−30%→107、−50%→76、+8%→165，
+ *    **−50% 恰为半速**，说明百分比换算线性可信、且小学低段所需的 −50% 档可用。
+ * ⚠️ 真实考试录音语速（真题分析）约 137–154 词/分。按本基准换算后，
+ *    高中档 target 140 → rate −12.5% → 实际 ≈140 词/分，正落在该区间内。
+ */
+export const LISTENING_BASE_WPM = 160;
 
 /** 朗读化·安全替换：定式缩写，替换后语义唯一，可无条件执行 */
 export const LISTENING_SAFE_ABBR = [
@@ -284,11 +362,14 @@ export default {
   LISTENING_HIGH_MIN_WPM,
   LISTENING_ACCENT_POLICY,
   LISTENING_VOICES,
+  LISTENING_VOICE_PRESETS,
+  LISTENING_DEFAULT_VOICE_PRESET,
   LISTENING_ZH_VOICE,
   LISTENING_SOUND_CHECK,
   LISTENING_FEATURE_DEFAULTS,
   LISTENING_PAUSE,
   LISTENING_REPEAT_TIMES,
+  LISTENING_TRIPLE_PASS_ROTATION,
   LISTENING_BASE_WPM,
   LISTENING_SAFE_ABBR,
   LISTENING_RISK_PATTERNS,
