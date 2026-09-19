@@ -1778,6 +1778,34 @@
           </div>
 
           <div
+            v-if="listeningStruct"
+            style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:12px;"
+          >
+            <label style="display:flex;gap:6px;align-items:center;cursor:pointer;">
+              <input
+                v-model="listeningSoundCheck"
+                type="checkbox"
+              >
+              试音段
+              <span
+                title="正规考试录音先试音再开考：「下面是听力试音时间」+ 一男一女英文试音对话 + 「听力试音到此结束，听力考试现在开始」。校内小测嫌长可关掉。"
+                style="color:#999;cursor:help;"
+              >ⓘ</span>
+            </label>
+            <label style="display:flex;gap:6px;align-items:center;cursor:pointer;">
+              <input
+                v-model="listeningShortItemNo"
+                type="checkbox"
+              >
+              一题一材料处播小题号
+              <span
+                title="国标第一节不播小题号（靠作答间隔与卷面题号定位），故默认关闭；小学/校内卷若希望逐题报「第N题」可打开。一段材料对多题的「听第X段材料，回答第X～Y小题」不受此开关影响，始终按真题写法播报。"
+                style="color:#999;cursor:help;"
+              >ⓘ</span>
+            </label>
+          </div>
+
+          <div
             v-if="listeningNotes.length"
             class="copy-hint"
             style="color:#8a6d3b;"
@@ -3360,7 +3388,7 @@ import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实�
 import { buildListeningExtractMessages } from '../config/listeningExtractPrompt.js';
 import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback } from '../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText, buildListeningStoryboard } from '../utils/listeningScript.js';
-import { resolveListeningParams } from '../config/listeningAudioProfile.js';
+import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS } from '../config/listeningAudioProfile.js';
 // 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
 import { synthesizeToFile, readAzureConfigFromApiConfig } from '../utils/azureTts.js';
 // 🎧 Edge 免费语音：无需 Key，逐句合成 + 帧级静音拼接（主进程执行）
@@ -8714,6 +8742,10 @@ const listeningStageKey = ref('');
 const listeningGradeHint = ref('');
 const listeningWpmOverride = ref(null);
 const listeningAccentOverride = ref('');
+// 🎛 可选环节开关（默认值取单一事实源 LISTENING_FEATURE_DEFAULTS＝正规考试口径）：
+//    试音段默认开（正规录音先试音再开考）；一题一材料的小题号默认关（国标第一节不播小题号）。
+const listeningSoundCheck = ref(LISTENING_FEATURE_DEFAULTS.soundCheck);
+const listeningShortItemNo = ref(LISTENING_FEATURE_DEFAULTS.announceShortItemNo);
 const listeningSynthLoading = ref(false);
 const listeningSynthMsg = ref('');
 const listeningParseMode = ref('');   // 本次结构来自"规则解析"还是"AI 解析"（对用户透明）
@@ -8871,6 +8903,9 @@ const renderListeningArtifacts = () => {
     // 🎙 试卷标题进开场白：正规音频以「听力考试现在开始」起头，校/区级考试常在其前播报考试名称，
     //    学生据此确认"这是哪份卷的听力"（时间戳后缀由 buildOpeningAnnouncement 净化）
     title: listeningDocTitle.value,
+    // 🎛 可选环节（与正规录音口径一致：试音开、小题号关），用户可在弹窗内即时切换
+    soundCheck: listeningSoundCheck.value,
+    announceShortItemNo: listeningShortItemNo.value,
     overrides,
   };
 
@@ -8900,6 +8935,8 @@ const openListeningTool = async (doc) => {
   listeningGradeHint.value = doc?.title || '';
   listeningWpmOverride.value = null;
   listeningAccentOverride.value = '';
+  listeningSoundCheck.value = LISTENING_FEATURE_DEFAULTS.soundCheck;
+  listeningShortItemNo.value = LISTENING_FEATURE_DEFAULTS.announceShortItemNo;
   listeningSynthMsg.value = '';
   listeningSynthLoading.value = false;
   listeningParseMode.value = '';
@@ -9015,7 +9052,7 @@ const copyListeningText = async (kind) => {
   }
 };
 
-watch([listeningWpmOverride, listeningAccentOverride], () => {
+watch([listeningWpmOverride, listeningAccentOverride, listeningSoundCheck, listeningShortItemNo], () => {
   if (showListeningModal.value && listeningStruct.value) renderListeningArtifacts();
 });
 

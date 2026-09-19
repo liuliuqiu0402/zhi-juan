@@ -17,7 +17,7 @@ import {
   OPTION_LINE_RE,
 } from '../../src/utils/listeningExtract.js';
 import { buildListeningStoryboard, buildListeningSsml } from '../../src/utils/listeningScript.js';
-import { LISTENING_VOICES } from '../../src/config/listeningAudioProfile.js';
+import { LISTENING_VOICES, LISTENING_SOUND_CHECK } from '../../src/config/listeningAudioProfile.js';
 import {
   buildAnswerFormatSpec,
   PAPER_OUTPUT_CONVENTIONS,
@@ -295,9 +295,10 @@ describe('端到端：答案页 HTML → 结构化 → SSML（规则路径，无
     expect(ssml).toContain(`<voice name="${LISTENING_VOICES.us.M}">`);
     expect(ssml).toContain(`<voice name="${LISTENING_VOICES.us.W}">`);
     expect(ssml).toContain(`<break time="${params.answerGapMs}ms"/>`);
-    // 两段材料 × 2 句 × 2 遍 = 8；开场白 1 + 题号播报 2（每题一条）+ 结束语 1 = 12
-    // （2026-09-19 新增题号播报——标准音频每题前须报题号，学生才能把"听到的"与"卷面第几题"对上）
-    expect((ssml.match(/<voice /g) || []).length).toBe(12);
+    // 段数 = 试音段（提示语 1 + 试音对话 N + 收尾 1）+ 两段材料 × 2 句 × 2 遍（8）+ 结束语 1。
+    // （2026-09-19：新增正规试音段；一题一材料处按国标**不播小题号**，故此处无 itemno 段）
+    const soundCheckSegs = LISTENING_SOUND_CHECK.lines.length + 2;
+    expect((ssml.match(/<voice /g) || []).length).toBe(soundCheckSegs + 8 + 1);
     expect(ssml).not.toMatch(/<prosody[^>]*>\s*[A-D]\s*[.、．]/);
   });
 });

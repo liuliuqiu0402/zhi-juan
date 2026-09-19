@@ -72,6 +72,54 @@ export const LISTENING_VOICES = {
 /** 中文播报音色（听力导语/指令按考区规范多为中文播报，与英文音色在同一份 SSML 内混排） */
 export const LISTENING_ZH_VOICE = 'zh-CN-XiaoxiaoNeural';
 
+/**
+ * 听力试音环节（录音正文之前的"声音检查"段）
+ * ============================================================
+ * 🔴 2026-09-19 用户实测复核后补齐（"现在是全部按正规走的吧？"→ 裁定"做成开关，默认开"）：
+ *   正规考试录音在正文之前有**独立的试音段**——「下面是听力试音时间：」+ 一段英文对话
+ *   （一男一女，便于同时校验两个音色与音量）+「听力试音到此结束，听力考试现在开始。」
+ *   实证：广西 2019 年 6 月普通高中学业水平考试英语听力录音稿即以该结构开篇
+ *   （"下面是听力试音时间：…听力试音到此结束，听力考试现在开始。"），
+ *   高中四校联考录音稿同构。
+ * ⚠️ 试音对话为**本项目自撰**，不使用真题脚本——教辅"不照抄、不模仿"的口径同样适用于音频素材。
+ *   功能等价即可：M/W 交替、语速与正文一致、长度足够听清并调试音量。
+ */
+export const LISTENING_SOUND_CHECK = {
+  /** 试音起始提示语（中文播报，措辞同正规录音原文） */
+  intro: '下面是听力试音时间：',
+  /** 试音收尾 + 正式开考（真题把两件事放在同一句里，不拆成两句） */
+  toExam: '听力试音到此结束，听力考试现在开始。',
+  /** 试音对话（英文，M/W 交替；只读一遍） */
+  lines: [
+    { role: 'M', text: 'Hello, this is the school office calling.' },
+    { role: 'W', text: 'Hello. Is there anything I can help you with?' },
+    { role: 'M', text: "Yes, I'm calling about the English listening test next Monday." },
+    { role: 'W', text: 'I see. What time does it start?' },
+    { role: 'M', text: 'It starts at nine in the morning. Please arrive ten minutes early.' },
+    { role: 'W', text: 'Nine o\u2019clock, and arrive at ten to nine. Got it.' },
+    { role: 'M', text: 'You will also need a pencil and an eraser.' },
+    { role: 'W', text: 'A pencil and an eraser. Anything else?' },
+    { role: 'M', text: "No, that's all. Good luck with your test." },
+    { role: 'W', text: 'Thank you very much. Goodbye.' },
+    { role: 'M', text: 'Goodbye.' },
+  ],
+};
+
+/**
+ * 听力音频的**可选环节**默认值（开关默认值单一事实源）
+ * ============================================================
+ * 两项均经用户裁定，默认值即"正规考试口径"：
+ *  · soundCheck=true       —— 正规录音含独立试音段（见 LISTENING_SOUND_CHECK）；
+ *                             校内小测嫌长可在生成面板关掉。
+ *  · announceShortItemNo=false —— 国标第一节**不播小题号**，靠"10 秒间隔 + 卷面题号"定位；
+ *                             题号播报只出现在"一段材料对多题"的「听第X段材料，回答第X～Y小题」。
+ *                             小学/校内卷若希望逐题报号，可在生成面板打开。
+ */
+export const LISTENING_FEATURE_DEFAULTS = {
+  soundCheck: true,
+  announceShortItemNo: false,
+};
+
 /** 停顿参数（毫秒）——三类停顿必须分设，不能用一个值糊过去 */
 /* 🔴 2026-09-19 用户实测根治（"间隔不是标准间隔"）：原值 句间 200 / 遍间 800 / 作答一律 10 秒，
    且 betweenSectionsMs **配了却从未被使用**（节与节之间没有任何额外留白）。按正规音频校正：
@@ -237,6 +285,8 @@ export default {
   LISTENING_ACCENT_POLICY,
   LISTENING_VOICES,
   LISTENING_ZH_VOICE,
+  LISTENING_SOUND_CHECK,
+  LISTENING_FEATURE_DEFAULTS,
   LISTENING_PAUSE,
   LISTENING_REPEAT_TIMES,
   LISTENING_BASE_WPM,
