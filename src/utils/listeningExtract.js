@@ -127,6 +127,61 @@ export function parseAnnouncedRepeat(text = '') {
   return map[m[1]] || 0;
 }
 
+/** 题号范围行（如「听第6段材料，回答第6至第10题。」）——它是**元数据**：音频据此报准题号，
+ *  自身不作为材料朗读（播报文案由生成端按同一事实统一产出，避免两处各念一遍）。 */
+const MATERIAL_RANGE_RE = /^听第\s*\d{1,3}\s*段材料/;
+
+/**
+ * 解析题号范围：「听第6段材料，回答第6至第10题」→ { materialNo:6, from:6, to:10 }。
+ * 🔴 为什么必须有它：源文本不给范围时，程序只能按条数顺编题号——实测把第三节报成"第七题"，
+ *   而该卷第二节实为第 6~10 题、第三节为第 11~15 题。拿不到范围就**不报**（宁可不报，也不报错）。
+ * @returns {{materialNo:number, from:number, to:number}|null}
+ */
+export function parseQuestionRange(text = '') {
+  const s = String(text || '');
+  const mat = s.match(/听第\s*(\d{1,3})\s*段材料/);
+  // 「回答第6至第10题」——注意第二个题号通常也带"第"，故此处 第? 必须允许
+  const range = s.match(/回答第\s*(\d{1,3})\s*(?:至|到|—|-|~|～|、|,|，)\s*第?\s*(\d{1,3})\s*题/);
+  const single = s.match(/回答第\s*(\d{1,3})\s*题/);   // 「回答第6题」
+  if (!mat && !range && !single) return null;
+  const from = range ? Number(range[1]) : (single ? Number(single[1]) : 0);
+  const to = range ? Number(range[2]) : from;
+  return { materialNo: mat ? Number(mat[1]) : 0, from, to };
+}
+
+/** 题号范围归一：收"照抄的字符串"与"已结构化对象"两种形态（AI 路径两种都可能给） */
+export function normalizeRange(raw) {
+  if (!raw) return null;
+  if (typeof raw === 'object') {
+    const from = Number(raw.from ?? raw.start) || 0;
+    const to = Number(raw.to ?? raw.end) || from;
+    if (from <= 0) return null;
+    return { materialNo: Number(raw.materialNo) || 0, from, to: to >= from ? to : from };
+  }
+  return parseQuestionRange(String(raw));
+}
+
+/** 从节指令里解析**作答时间**（秒）。真题两种说法都在此列：
+ *  「听完每段对话后，你都有10秒钟的时间来回答有关小题」（秒数在"回答"前）
+ *  「各小题将给出5秒钟的作答时间」（秒数在"作答"前）→ 统一按"秒数…作答/回答"取值。
+ *  🔴 与遍数同理：**以指令为准**——指令声明了就照它给留白，不再由程序一律 10 秒。
+ *  @returns {number} 秒；未声明返回 0 */
+export function parseAnnouncedAnswerSeconds(text = '') {
+  const s = String(text || '');
+  const m = s.match(/(\d{1,3})\s*秒钟?[^。；]{0,12}?(?:作答|回答)/)
+    || s.match(/(?:作答|回答)[^。；]{0,12}?(\d{1,3})\s*秒钟?/);
+  return m ? Number(m[1]) : 0;
+}
+
+/** 从节指令里解析**读题时间**（秒）：「听每段对话或独白前，你将有时间阅读各个小题，每小题5秒钟」
+ *  @returns {number} 秒；未声明返回 0 */
+export function parseAnnouncedPreviewSeconds(text = '') {
+  const s = String(text || '');
+  const m = s.match(/(?:阅读|读题|看题)[^。；]{0,14}?(\d{1,3})\s*秒钟?/)
+    || s.match(/(\d{1,3})\s*秒钟?[^。；]{0,12}?(?:阅读|读题|看题)/);
+  return m ? Number(m[1]) : 0;
+}
+
 /**
  * 答案键行识别（如「T 7. F 8. F 9. T 10. F」「A 39. B 40. C 41. D 42. E」「May 12. three 13.…」）。
  * 🔴 判据取**连续递增题号 ≥3**：答案键的题号必然连号，而正常听力句中即便出现数字
@@ -237,9 +292,17 @@ export function normalizeListeningStructure(obj = {}) {
       no,
       lines,
       // 分节播音指令（模型按契约给出时透传；缺省不写该字段，避免空串污染下游）
+      // 指令里的遍数/作答秒数/读题秒数一并解析——与规则解析路径同一套"以指令为准"
       ...(String((it && it.instruction) || '').trim()
-        ? { instruction: String(it.instruction).trim(), repeat: parseAnnouncedRepeat(it.instruction) || undefined }
+        ? {
+          instruction: String(it.instruction).trim(),
+          repeat: parseAnnouncedRepeat(it.instruction) || undefined,
+          answerSec: parseAnnouncedAnswerSeconds(it.instruction) || undefined,
+          previewSec: parseAnnouncedPreviewSeconds(it.instruction) || undefined,
+        }
         : {}),
+      // 题号范围（"听第6段材料，回答第6至第10题"）：字符串照抄或已结构化的对象都收，供音频报准题号
+      ...(normalizeRange(it && it.range) ? { range: normalizeRange(it && it.range) } : {}),
     });
   });
 
@@ -408,6 +471,7 @@ export function parseListeningSourceText(rawText = '') {
   let optionDropped = 0;
   let answerRowDropped = 0;
   let answerKeyDropped = 0;
+  let instructionDropped = 0;
 
   const flush = () => { if (cur && cur.lines.length) items.push(cur); cur = null; };
 
@@ -425,8 +489,25 @@ export function parseListeningSourceText(rawText = '') {
   };
 
   let pendingInstruction = '';
+  let pendingRange = null;   // 待挂的题号范围（"听第6段材料，回答第6至第10题" → 供音频报准题号）
   let activeRepeat = 0;   // 当前生效的"指令声明遍数"（以指令为准，见 parseAnnouncedRepeat）
+  let activeAnswerSec = 0;   // 当前节指令声明的作答秒数（0=未声明，走学段/形态默认）
+  let activePreviewSec = 0;  // 当前节指令声明的读题秒数（0=未声明）
   let stopped = false;
+
+  /** 新材料起条：把"当前生效的节参数"落到该条（一律以指令为准，见各 parseAnnounced*） */
+  const newItem = (no) => {
+    const it = { no, lines: [] };
+    if (pendingInstruction) { it.instruction = pendingInstruction; pendingInstruction = ''; }
+    if (pendingRange) { it.range = pendingRange; pendingRange = null; }
+    if (activeRepeat > 0) it.repeat = activeRepeat;
+    if (activeAnswerSec > 0) it.answerSec = activeAnswerSec;
+    if (activePreviewSec > 0) it.previewSec = activePreviewSec;
+    return it;
+  };
+  /** 无题号材料的编号：有题号范围就用范围起点（第三节短文=第11题起），否则按条数顺延 */
+  const nextNo = () => (pendingRange && pendingRange.from > 0 ? pendingRange.from : items.length + 1);
+
   for (const rawLine of rawLines) {
     if (stopped) break;
     // 卷面残留清洗：命中"笔试/范文/评分"即截断（其后不再有听力），并剔除卷面题头/部分标题
@@ -440,14 +521,33 @@ export function parseListeningSourceText(rawText = '') {
     if (OPTION_LINE_RE.test(line)) { optionDropped++; continue; }
     // 答案键行（「T 7. F 8.…」「A 39. B 40.…」）：只有答案与题号，不是听力材料
     if (looksLikeAnswerKey(line)) { answerKeyDropped++; continue; }
+    // 🔴 题号范围行（「听第6段材料，回答第6至第10题。」）必须**先于节指令判断**：
+    //    它以"听第…"开头，否则会被 INSTRUCTION_RE 误当成节指令。本行只作元数据，不作为材料朗读。
+    if (MATERIAL_RANGE_RE.test(line)) {
+      const rg = parseQuestionRange(line);
+      if (rg) pendingRange = rg;
+      continue;
+    }
     if (INSTRUCTION_RE.test(line)) {
-      // 首条中文指令（尚未出题）→ 开场导语；其后出现的分节指令（第一节/第二节…）→ 挂到下一题，
-      // 以保留"指令 → 该节材料"的真实先后（全部塞进导语会打乱顺序）
+      // 🔴 节边界驱动起条（2026-09-19 用户实测根治）：*节指令*（「第X节/第X部分…」）意味着"上一节到此结束、
+      //    本节材料另起一条"，必须 flush。否则后续**无题号**的节材料（独白/短文）会因"当前还有题"
+      //    被并进上一题——实测第 5 题一口气吞掉了第二节独白＋第三节短文，且把两篇粘成一条女声。
+      const isSection = /^第[一二三四五六七八九十零百]+节/.test(line);
+      if (isSection) {
+        flush();
+        // 上一节的待挂指令若还没被消费（两节指令相邻、中间无材料）→ 记为丢弃，出口告警（不再静默吞掉）
+        if (pendingInstruction) { instructionDropped++; pendingInstruction = ''; }
+      }
+      // 首条中文指令（尚未出题）→ 开场导语；其后出现的分节指令 → 挂到**下一题**（保"指令 → 该节材料"先后）
       if (!intro && !hadItemNumbers && !cur) intro = line;
       else pendingInstruction = line;
-      // 🔴 以指令为准：指令声明的遍数决定该节实际朗读遍数（高考第一节仅读一遍、第二节读两遍）
+      // 🔴 以指令为准：指令声明的遍数决定该节实际朗读遍数；声明的作答/读题秒数决定该节留白
       const announced = parseAnnouncedRepeat(line);
       if (announced > 0) activeRepeat = announced;
+      const ansSec = parseAnnouncedAnswerSeconds(line);
+      if (ansSec > 0) activeAnswerSec = ansSec;
+      const preSec = parseAnnouncedPreviewSeconds(line);
+      if (preSec > 0) activePreviewSec = preSec;
       continue;
     }
 
@@ -457,20 +557,16 @@ export function parseListeningSourceText(rawText = '') {
       if (looksLikeAnswerRow(hit.rest)) { answerRowDropped++; continue; }
       hadItemNumbers = true;
       flush();
-      cur = { no: hit.no, lines: [] };
-      if (pendingInstruction) { cur.instruction = pendingInstruction; pendingInstruction = ''; }
-      if (activeRepeat > 0) cur.repeat = activeRepeat;
+      cur = newItem(hit.no);
       if (hit.rest.trim()) addLine(cur, hit.rest);
       continue;
     }
-    if (!cur) {
-      cur = { no: items.length + 1, lines: [] };
-      if (pendingInstruction) { cur.instruction = pendingInstruction; pendingInstruction = ''; }
-      if (activeRepeat > 0) cur.repeat = activeRepeat;
-    }
+    if (!cur) cur = newItem(nextNo());
     addLine(cur, line);
   }
   flush();
+  // 收尾：末节指令之后没有材料 → 待挂指令会被静默吞掉，这里记为丢弃并告警
+  if (pendingInstruction) { instructionDropped++; pendingInstruction = ''; }
 
   // 后处理：破折号交替 → A/B；无角色行合并为上一位说话人的续句；整条无角色 → 单条旁白
   for (const it of items) {
@@ -505,6 +601,7 @@ export function parseListeningSourceText(rawText = '') {
     optionDropped,
     answerRowDropped,
     answerKeyDropped,
+    instructionDropped,
   };
 
   if (optionDropped >= 2) {
@@ -515,6 +612,9 @@ export function parseListeningSourceText(rawText = '') {
   }
   if (answerKeyDropped >= 1) {
     warnings.push(`已跳过 ${answerKeyDropped} 行答案键（如「T 7. F 8.」），未计入听力材料`);
+  }
+  if (instructionDropped >= 1) {
+    warnings.push(`有 ${instructionDropped} 条分节指令没挂到任何材料（该节指令后缺材料），已丢弃——请核对听力原文"每节指令 → 该节材料"的对应`);
   }
   if (kept.length && stats.distinctSpeakers === 1) {
     warnings.push('全篇只有一种说话人（按独白处理），若实为对话请核对原文是否标注了说话人');

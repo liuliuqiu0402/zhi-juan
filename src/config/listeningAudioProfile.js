@@ -61,21 +61,31 @@ export const LISTENING_ACCENT_POLICY = {
 
 /** 音色表（Azure / Edge 神经音色命名；可在设置页覆盖单项）
  *  M=男声  W=女声  N=旁白/独白 —— 同一角色全卷固定同一音色，避免音色漂移 */
+/* 🔴 2026-09-19 用户实测根治：原 N(旁白)=Aria 与 W(女声)=Jenny **同为女声** → 整卷只有女声、
+   且"播报者"与"说话人"分不出来（实测音频"全程只有一个女声"）。旁白改用**男声**后：
+   播报(男) 与 女声/独白(女) 可分辨，全卷也不再只有单一性别。 */
 export const LISTENING_VOICES = {
-  us: { M: 'en-US-GuyNeural', W: 'en-US-JennyNeural', N: 'en-US-AriaNeural' },
-  gb: { M: 'en-GB-RyanNeural', W: 'en-GB-SoniaNeural', N: 'en-GB-LibbyNeural' },
+  us: { M: 'en-US-GuyNeural', W: 'en-US-JennyNeural', N: 'en-US-GuyNeural' },
+  gb: { M: 'en-GB-RyanNeural', W: 'en-GB-SoniaNeural', N: 'en-GB-RyanNeural' },
 };
 
 /** 中文播报音色（听力导语/指令按考区规范多为中文播报，与英文音色在同一份 SSML 内混排） */
 export const LISTENING_ZH_VOICE = 'zh-CN-XiaoxiaoNeural';
 
 /** 停顿参数（毫秒）——三类停顿必须分设，不能用一个值糊过去 */
+/* 🔴 2026-09-19 用户实测根治（"间隔不是标准间隔"）：原值 句间 200 / 遍间 800 / 作答一律 10 秒，
+   且 betweenSectionsMs **配了却从未被使用**（节与节之间没有任何额外留白）。按正规音频校正：
+   · 遍间由 800 提到 2500（真题"每段材料读两遍"之间约 2~3 秒，供"初判 → 核对"）；
+   · 句间由 200 降到 120（句/轮之间的自然间隙；主要停顿交给 TTS 语流，硬加会把整段读得很"顿"）；
+   · 节间 3000 真正启用 + 指令后 2000（"现在开始"→稍停顿→材料）；
+   · 一段材料对应多题（独白/短文）的作答留白按真题口径降为 5 秒/小题档；
+   · 各节指令里若声明了"X 秒钟作答 / X 秒钟阅读"，**以指令为准**（见 parseAnnouncedAnswerSeconds）。 */
 export const LISTENING_PAUSE = {
-  /** 材料内部句间自然停顿之上的额外间隙 */
-  sentenceGapMs: 200,
+  /** 材料内部句/轮之间的自然间隙 */
+  sentenceGapMs: 120,
   /** 同一材料两遍之间的间隙 */
-  betweenRepeatsMs: 800,
-  /** 每段材料读完后留给学生作答的时间（按学段，小段短、高段长） */
+  betweenRepeatsMs: 2500,
+  /** 每段材料读完后留给学生作答的时间（按学段，小段短、高段长）——用于"一段对话对一题"的短材料 */
   answerGapMs: {
     primary_low: 8000,
     primary_mid: 8000,
@@ -83,10 +93,20 @@ export const LISTENING_PAUSE = {
     middle: 10000,
     high: 10000,
   },
+  /** 一段材料对应多题（独白/短文）的作答留白——真题该情形给"各小题 5 秒钟"，明显短于上表 */
+  longMaterialAnswerGapMs: 5000,
+  /** 需**动笔写词**的题（补全短文/填空类）的作答留白——5 秒档是给"听独白做判断"的，
+   *  写 5 个词根本来不及（用户实测指出）。按"每题 5 秒 × 空数"的通行量级取 30 秒档；
+   *  节指令若声明了作答秒数，仍以指令为准。 */
+  fillInAnswerGapMs: 30000,
   /** 大题与大题之间 */
   betweenSectionsMs: 3000,
+  /** 分节指令播完 → 该节第一段材料之前的留白（"现在开始"后的停顿；真题此处的读题时间由指令声明） */
+  afterSectionInstructionMs: 2000,
   /** 导语播完后进入第一题前的留白 */
   afterIntroMs: 1500,
+  /** 题号播报之后 → 材料之前的短停顿 */
+  afterItemNoMs: 600,
 };
 
 /** 每段材料朗读遍数（现行考试主流为两遍；旧大纲曾为三遍，此处按现行两遍） */
@@ -121,6 +141,8 @@ export const LISTENING_RISK_PATTERNS = [
   { code: 'currency', re: /[$£€¥]/, note: '货币符号读法需确认（five dollars / five pounds）' },
   { code: 'decimal', re: /\b\d+\.\d+\b/, note: '小数点读作 point，需确认引擎读法' },
   { code: 'time', re: /\b\d{1,2}:\d{2}\b/, note: '时刻读法需确认（three thirty / half past three）' },
+  // 补全短文类若沿用卷面的下划线占位，TTS 会把 "___" 念成 underscore（实测"音频与内容对不上"的来源之一）
+  { code: 'blank-underscore', re: /_{2,}/, note: '下划线空格会被读成 underscore，须补全成完整短文或删除占位' },
 ];
 
 /** 角色标记的规范写法（朗读稿用；SSML 内**不得**出现，否则会被 TTS 念出来） */

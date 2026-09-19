@@ -16,6 +16,7 @@ import {
   normalizeForSpeech,
   pickAccentForItem,
   buildOpeningAnnouncement,
+  cnNumber,
   escapeXml,
 } from '../../src/utils/listeningScript.js';
 
@@ -169,12 +170,15 @@ describe('SSML 渲染', () => {
 
   it('结构合法：speak 根 + voice + prosody + break', () => {
     const s = ssml();
+    const { pauses } = resolveListeningParams({ stage: '初中', grade: '八年级' });
     expect(s.startsWith('<speak version="1.0"')).toBe(true);
     expect(s.trimEnd().endsWith('</speak>')).toBe(true);
+    // 旁白/播报已改男声（原 Aria 女声与女声 Jenny 同为女声 → 整卷只有女声）
     expect(s).toContain('<voice name="en-US-GuyNeural">');
     // 基准已实测校准（LISTENING_BASE_WPM），八年级 120 词/分 → 百分比从常量推导，避免写死
     expect(s).toContain(`<prosody rate="${Math.round((120 / LISTENING_BASE_WPM - 1) * 100)}%">`);
-    expect(s).toContain('<break time="800ms"/>');
+    // 两遍之间的留白从常量推导（2026-09-19 由 800ms 校正为 2500ms，防写死后再次与配置漂移）
+    expect(s).toContain(`<break time="${pauses.betweenRepeatsMs}ms"/>`);
   });
 
   it('🔴 角色标记绝不进 SSML（否则会被引擎念出来）', () => {
@@ -259,6 +263,14 @@ describe('朗读化：安全替换 + 高风险只登记不改写', () => {
     expect(risks.every((r) => r.where === '第3题')).toBe(true);
     expect(risks.flatMap((r) => r.samples).join()).toContain('$');
   });
+
+  // 🔴 2026-09-19：补全短文类若沿用卷面的下划线占位，TTS 会把 "___" 念成 underscore，
+  //    实测表现即"音频与内容对不上"。源头契约（E4）已要求写全短文，此处锁住音频侧的兜底提示。
+  it('🔴 下划线占位须登记为风险（不得静默念成 underscore）', () => {
+    const { text, risks } = normalizeForSpeech('Tom is a ___ boy.');
+    expect(text).toBe('Tom is a ___ boy.');   // 只登记、不改写
+    expect(risks.map((r) => r.code)).toContain('blank-underscore');
+  });
 });
 
 describe('转义工具', () => {
@@ -272,15 +284,21 @@ describe('转义工具', () => {
  *   开场固定播报（校/区级考试含考试名称）→ 分节中文指令 → 英文材料 → 「听力部分到此结束」。
  */
 describe('正规音频格式：开场白 / 分节指令 / 结束语', () => {
-  it('开场白净化标题：去掉生成时间戳与扩展名，且不朗读时间', () => {
-    expect(buildOpeningAnnouncement('六年级英语上册Unit 1 阶段测评_2026/9/19 13:20:14'))
-      .toBe('六年级英语上册Unit 1 阶段测评，听力考试现在开始。');
-    expect(buildOpeningAnnouncement('Unit 1 测评_2026-09-19')).toBe('Unit 1 测评，听力考试现在开始。');
-    expect(buildOpeningAnnouncement('听力卷.docx')).toBe('听力卷，听力考试现在开始。');
+  it('🔴 默认按正规（国标）开场白：只播固定播报，不朗读试卷标题', () => {
+    // 国标真题音频不读试卷标题；用户裁定"全部按正规的来" → 默认关（标题含英文时中文音色会读得怪）
+    expect(buildOpeningAnnouncement('六年级英语上册Unit 1 Try your best测试卷_2026/9/19 13:20:14'))
+      .toBe('听力考试现在开始。');
+    expect(buildOpeningAnnouncement('')).toBe('听力考试现在开始。');
   });
 
-  it('无标题时回退到国标固定播报', () => {
-    expect(buildOpeningAnnouncement('')).toBe('听力考试现在开始。');
+  it('校/区级需要播报考试名称时，announceTitle 打开并净化生成时间戳', () => {
+    expect(buildOpeningAnnouncement('六年级英语上册Unit 1 阶段测评_2026/9/19 13:20:14', { announceTitle: true }))
+      .toBe('六年级英语上册Unit 1 阶段测评，听力考试现在开始。');
+    expect(buildOpeningAnnouncement('Unit 1 测评_2026-09-19', { announceTitle: true }))
+      .toBe('Unit 1 测评，听力考试现在开始。');
+    expect(buildOpeningAnnouncement('听力卷.docx', { announceTitle: true })).toBe('听力卷，听力考试现在开始。');
+    // 无标题时仍回退固定播报
+    expect(buildOpeningAnnouncement('', { announceTitle: true })).toBe('听力考试现在开始。');
   });
 
   it('storyboard 首段为开场白、末段为结束语，均为中文音色且不加英文慢速', () => {
@@ -291,11 +309,16 @@ describe('正规音频格式：开场白 / 分节指令 / 结束语', () => {
     const last = segments[segments.length - 1];
     expect(first.kind).toBe('opening');
     expect(first.voice).toBe('zh-CN-XiaoxiaoNeural');
-    expect(first.text).toContain('八年级英语期中测评');
+    expect(first.text, '默认不读试卷标题').toBe('听力考试现在开始。');
     expect(first.ratePercent).toBe(0);
     expect(last.kind).toBe('closing');
     expect(last.text).toBe('听力部分到此结束。');
     expect(last.voice).toBe('zh-CN-XiaoxiaoNeural');
+    // 打开开关时才播报考试名称
+    const withTitle = buildListeningStoryboard({
+      stage: '初中', grade: '八年级', title: '八年级英语期中测评', items: [DIALOG], announceTitle: true,
+    });
+    expect(withTitle.segments[0].text).toContain('八年级英语期中测评');
   });
 
   it('分节指令用中文音色，且落在该节材料之前（不打乱先后）', () => {
@@ -330,9 +353,14 @@ describe('正规音频格式：开场白 / 分节指令 / 结束语', () => {
       stage: '初中', grade: '八年级', stageLabel: '初中', title: '八年级英语期中测评', items: [DIALOG],
     });
     expect(text).toContain('开场白（中文播报）');
-    expect(text).toContain('八年级英语期中测评，听力考试现在开始。');
+    expect(text, '默认不读试卷标题').toContain('听力考试现在开始。');
     expect(text).toContain('结束语（中文播报）');
     expect(text).toContain('听力部分到此结束。');
+    // 需要播报考试名称时（校/区级做法）打开开关，朗读稿同步
+    const withTitle = buildListeningScriptText({
+      stage: '初中', grade: '八年级', stageLabel: '初中', title: '八年级英语期中测评', items: [DIALOG], announceTitle: true,
+    });
+    expect(withTitle.text).toContain('八年级英语期中测评，听力考试现在开始。');
   });
 });
 
@@ -364,5 +392,121 @@ describe('以指令为准：分节遍数覆盖学段默认', () => {
     expect(text).toContain('第 2 题读 2 遍');
     // 录制提示不得与正文口径打架（旧文案写死"连读 2 遍"）
     expect(text).not.toContain('每段材料连读 2 遍');
+  });
+});
+
+/**
+ * 🔴 2026-09-19 用户实测根治（"间隔没有叮咚提示音…也没有题号提示，全程只有一个女声…要的是标准的正规考试听力音频"）：
+ *   补齐标准音频的四项必备要素——题号播报、提示音、男女音色、停顿分档。
+ */
+describe('标准音频要素：题号播报 / 提示音 / 男女音色 / 停顿分档', () => {
+  const items = [
+    { no: 1, instruction: '第一节：听录音，选出你所听到的单词或图片。每小题读两遍。', lines: [{ role: 'N', text: 'tree' }] },
+    { no: 2, lines: [{ role: 'N', text: 'forgot' }] },
+    {
+      no: 3,
+      instruction: '第二节：听录音，判断下列句子是否与录音内容相符。每小题读两遍。',
+      lines: [{ role: 'W', text: 'Last week, Lily took part in a storytelling competition. At first, she was afraid, but she practised every day and finally did her best.' }],
+    },
+  ];
+  const build = () => buildListeningStoryboard({ stage: '小学', grade: '六年级', title: '六年级英语上册Unit 1测试卷', items });
+
+  it('🔴 题号播报：短材料报"第N题"；长材料只在源文本给了题号范围时报，给不出就不报', () => {
+    const { segments } = build();
+    const nos = segments.filter((s) => s.kind === 'itemno');
+    // 第 1、2 题是一题一材料（题号来自卷面，可靠）→ 报"第N题"
+    // 第 3 题是独白（一段对多题）但没给题号范围 → **整条不报**（宁可不报，也不报错——
+    //   原实现按条数顺编，实测把这节报成了"第七题"，而它实为第 11~15 题）
+    expect(nos.map((s) => s.text)).toEqual(['第一题。', '第二题。']);
+    expect(nos.every((s) => s.voice === 'zh-CN-XiaoxiaoNeural')).toBe(true);
+    expect(segments.findIndex((s) => s.kind === 'itemno' && s.itemNo === 2))
+      .toBeLessThan(segments.findIndex((s) => s.kind === 'material' && s.itemNo === 2));
+
+    // 源文本写明题号范围后 → 报"听第N段材料，回答第X至第Y题"
+    const longLines = [{ role: 'W', text: 'Last week, Lily took part in a storytelling competition. At first, she was afraid, but she practised every day and finally did her best in front of everyone.' }];
+    const withRange = buildListeningStoryboard({
+      stage: '小学',
+      grade: '六年级',
+      items: [
+        { no: 1, instruction: '第一节：听录音，选出你所听到的单词或图片。每小题读两遍。', lines: [{ role: 'N', text: 'tree' }] },
+        { no: 6, range: { materialNo: 6, from: 6, to: 10 }, instruction: '第二节：听录音，判断下列句子是否与录音内容相符。每段对话或独白读两遍。', lines: longLines },
+      ],
+    }).segments;
+    // 题号一律转中文：TTS 朗读「第六段材料」比「6段材料」更稳，也更贴近正规音频播报
+    expect(withRange.filter((s) => s.kind === 'itemno').map((s) => s.text))
+      .toEqual(['第一题。', '听第六段材料，回答第六至第十题。']);
+  });
+
+  it('提示音：开考、换节、题与题之间都有（chimeBefore），材料段不带', () => {
+    const { segments } = build();
+    expect(segments[0].chimeBefore, '开场白＝正式开考的提示音').toBe(true);
+    expect(segments.find((s) => s.kind === 'instruction' && s.itemNo === 3).chimeBefore, '换节提示音').toBe(true);
+    const nos = segments.filter((s) => s.kind === 'itemno');
+    expect(nos.find((s) => s.itemNo === 2).chimeBefore, '题与题之间的提示音').toBe(true);
+    expect(nos.find((s) => s.itemNo === 1).chimeBefore, '节首由指令的提示音覆盖，不重复响铃').toBe(false);
+    expect(segments.filter((s) => s.kind === 'material' || s.kind === 'repeat').every((s) => !s.chimeBefore)).toBe(true);
+  });
+
+  it('🔴 音色不再全女：播报/旁白用男声、女声独白用女声，两者必须不同', () => {
+    const { segments } = build();
+    const narrator = segments.find((s) => s.kind === 'material' && s.itemNo === 1);
+    const female = segments.find((s) => s.kind === 'material' && s.itemNo === 3);
+    expect(narrator.voice).toBe(LISTENING_VOICES.us.N);
+    expect(female.voice).toBe(LISTENING_VOICES.us.W);
+    expect(narrator.voice, '旁白与女声不得同一条音色（原 Aria/Jenny 同为女声）').not.toBe(female.voice);
+  });
+
+  it('停顿分档：遍间从常量取、断句不叠大停顿、换节叠节间留白、长材料走 5 秒档', () => {
+    const { segments, params } = build();
+    expect(segments.find((s) => s.kind === 'material' && s.itemNo === 1).gapAfterMs)
+      .toBe(params.pauses.betweenRepeatsMs);
+    // 短材料（第 2 题）作答留白＝学段档；因为下一题换节，再叠一节间留白（原 betweenSectionsMs 配了没用）
+    const lastShort = segments.filter((s) => s.itemNo === 2).pop();
+    expect(lastShort.gapAfterMs).toBe(params.answerGapMs + params.pauses.betweenSectionsMs);
+    // 长材料（独白 ≥20 词，一段对多题）→ 真题"各小题 5 秒"档，不再是笼统一律 10 秒
+    const longLast = segments.filter((s) => s.itemNo === 3).pop();
+    expect(longLast.gapAfterMs).toBe(params.pauses.longMaterialAnswerGapMs);
+  });
+
+  it('题号数字转中文（含十位以上）', () => {
+    expect(cnNumber(1)).toBe('一');
+    expect(cnNumber(10)).toBe('十');
+    expect(cnNumber(11)).toBe('十一');
+    expect(cnNumber(21)).toBe('二十一');
+  });
+
+  it('🔴 补全短文（要动笔写词）给"写"的作答档，不套"听独白做判断"的 5 秒档', () => {
+    const bp = buildListeningStoryboard({
+      stage: '小学',
+      grade: '六年级',
+      items: [
+        { no: 1, instruction: '第一节：听录音，选出你所听到的单词或图片。每小题读两遍。', lines: [{ role: 'N', text: 'tree' }] },
+        {
+          no: 11,
+          range: { from: 11, to: 15 },
+          instruction: '第三节：听录音，补全短文，每空一词。短文读两遍。',
+          lines: [{ role: 'W', text: 'Last month, our school had an International Culture Festival. I wanted to be a culture ambassador and I practised speaking English every single day.' }],
+        },
+      ],
+    });
+    const last = bp.segments.filter((s) => s.itemNo === 11).pop();
+    expect(last.gapAfterMs).toBe(bp.params.pauses.fillInAnswerGapMs);
+    expect(bp.params.pauses.fillInAnswerGapMs)
+      .toBeGreaterThan(bp.params.pauses.longMaterialAnswerGapMs);
+  });
+
+  it('🔴 同卷独白/短文播报者一致：未标注的长材料沿用同卷已标注的独白音色', () => {
+    const { segments } = buildListeningStoryboard({
+      stage: '小学',
+      grade: '六年级',
+      items: [
+        { no: 6, lines: [{ role: 'W', text: 'Last week, Lily took part in a storytelling competition and she practised telling stories every day until she finally did her best in the end.' }] },
+        { no: 11, lines: [{ role: 'N', text: 'Last month, our school had an International Culture Festival and I wanted to be a culture ambassador so I practised every single day.' }] },
+      ],
+    });
+    const first = segments.find((s) => s.kind === 'material' && s.itemNo === 6);
+    const second = segments.find((s) => s.kind === 'material' && s.itemNo === 11);
+    expect(first.voice).toBe(LISTENING_VOICES.us.W);
+    expect(second.voice, '未标注的短文应与同卷独白同一播报者，不得中途换人').toBe(LISTENING_VOICES.us.W);
   });
 });

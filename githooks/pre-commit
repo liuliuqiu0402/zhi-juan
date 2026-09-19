@@ -24,6 +24,17 @@ MAX_SIZE=$((50 * 1024 * 1024))
 # 图片单独更低阈值（大图资源/素材不宜入仓，阈值 10MB）
 MAX_IMG_SIZE=$((10 * 1024 * 1024))
 
+# ── 白名单：仓库自带的极小音频素材（有意入库、体积可忽略）────────────
+# 背景：听力音频的"叮咚"提示音 assets/listening-chime.mp3 只有 8KB，且与 Edge 合成流
+#      同为 MPEG-2 Layer III，必须按字节拼接，无法改成运行时生成的文本。
+#      它由 scripts/gen-listening-chime.cjs 可复现（同脚本产出逐字节一致），
+#      属"有意入库的音效素材"，与黑名单要拦的模型权重/安装包/大媒体不是一回事。
+# 约束（只放行这一种情况，其余一律照旧拒绝）：
+#   · 仅限 assets/ 目录下的单层音频文件（mp3|wav|ogg|m4a）
+#   · 且体积 ≤ 256KB —— 超过即视为"素材/大文件"，仍被拦下
+ALLOW_ASSET_AUDIO_RE='^assets/[^/]+\.(mp3|wav|ogg|m4a)$'
+ALLOW_ASSET_AUDIO_MAX=$((256 * 1024))
+
 # 黑名单：模型权重 + 压缩包 + 安装包 + 音视频 + 镜像
 BAD_EXT='safetensors|onnx|pt|pth|ckpt|gguf|h5|pb|tflite|keras|weight|bin|'
 BAD_EXT="${BAD_EXT}zip|rar|7z|gz|bz2|xz|tar|"
@@ -43,6 +54,11 @@ while IFS= read -r -d '' file; do
   ext=$(printf '%s' "$file" | sed 's/.*\.\([^.]*\)$/\1/' | tr 'A-Z' 'a-z')
   size=$(git cat-file -s ":$file" 2>/dev/null)
   if [ -z "$size" ] || [ "$size" -le 0 ]; then
+    continue
+  fi
+
+  # 层0：白名单 —— 仓库自带的极小音频素材放行（仅 assets/ 单层 + 音频扩展名 + ≤256KB）
+  if printf '%s' "$file" | grep -Eq "$ALLOW_ASSET_AUDIO_RE" && [ "$size" -le "$ALLOW_ASSET_AUDIO_MAX" ]; then
     continue
   fi
 

@@ -553,9 +553,21 @@ ipcMain.handle('edge-tts-to-file', async (event, payload = {}) => {
     const ratePercent = Number.isFinite(Number(s.ratePercent)) ? Math.round(Number(s.ratePercent)) : 0;
     const gapAfterMs = Number.isFinite(Number(s.gapAfterMs)) && Number(s.gapAfterMs) > 0 ? Math.round(Number(s.gapAfterMs)) : 0;
     if (!text) return null;
-    return { voice, text, ratePercent, gapAfterMs, idx: i };
+    return { voice, text, ratePercent, gapAfterMs, chimeBefore: s.chimeBefore === true, idx: i };
   }).filter(Boolean);
   if (!sanitized.length) return { ok: false, error: '所有分段均为空文本，无法合成' };
+
+  // 🔴 提示音素材（"叮咚"）：正规听力音频在题与题之间、换节处必有提示音（2026-09-19 用户裁定：
+  //    用内置素材，不加编码器依赖）。素材与合成流同格式（24kHz/96kbps 单声道 MP3），字节级可拼。
+  //    缺失时降级为"无提示音"，并在返回里如实说明，不静默。
+  let chimeBuf = null;
+  try {
+    chimeBuf = fs.readFileSync(path.join(__dirname, 'assets', 'listening-chime.mp3'));
+  } catch (e) {
+    console.warn('🎧 提示音素材未找到，本次不插入提示音：', e.message);
+  }
+  const wantsChime = sanitized.some((s) => s.chimeBefore);
+  const chimeNote = wantsChime && !chimeBuf ? '（提示音素材缺失，本次未插入提示音）' : '';
 
   // 先选保存位置：用户取消则不发起请求，不浪费配额/流量
   const safeName = safeAudioFileName(String(suggestedName).replace(/\.mp3$/i, ''), '听力音频');
@@ -579,6 +591,11 @@ ipcMain.handle('edge-tts-to-file', async (event, payload = {}) => {
     for (let i = 0; i < sanitized.length; i++) {
       const seg = sanitized[i];
       try {
+        // 段前提示音：题与题的边界、换节处（素材后跟 250ms 静音，避免"叮"紧贴语音）
+        if (seg.chimeBefore && chimeBuf) {
+          parts.push(chimeBuf);
+          parts.push(makeSilentMp3Frames(250));
+        }
         const buf = await edgeSynthesizeSegment(seg.voice, seg.text, seg.ratePercent, outDir, i);
         parts.push(buf);
         if (seg.gapAfterMs) parts.push(makeSilentMp3Frames(seg.gapAfterMs));
@@ -591,8 +608,8 @@ ipcMain.handle('edge-tts-to-file', async (event, payload = {}) => {
       return { ok: false, error: '拼接后的音频不含有效 MP3 帧，已中止落盘' };
     }
     await fs.promises.writeFile(filePath, total);
-    console.log(`🎧 Edge 听力音频已保存：${filePath}（${total.length} 字节，${sanitized.length} 段）`);
-    return { ok: true, path: filePath, bytes: total.length, segments: sanitized.length };
+    console.log(`🎧 Edge 听力音频已保存：${filePath}（${total.length} 字节，${sanitized.length} 段${chimeBuf ? '，含提示音' : ''}）`);
+    return { ok: true, path: filePath, bytes: total.length, segments: sanitized.length, note: chimeNote };
   } finally {
     try { fs.rmSync(outDir, { recursive: true, force: true }); } catch {}
   }

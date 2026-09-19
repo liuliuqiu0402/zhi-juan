@@ -20,17 +20,19 @@
 
 /** Edge 支持的音色短名（与 listeningAudioProfile 的 neural 短名同源，逐句用） */
 
-/** 把 storyboard 段映射为 Edge 逐句合成所需的最小字段（voice/text/ratePercent/gapAfterMs） */
+/** 把 storyboard 段映射为 Edge 逐句合成所需的最小字段（voice/text/ratePercent/gapAfterMs/chimeBefore） */
 export function mapSegmentsForEdge(segments = []) {
   return (segments || [])
     .filter((s) => String(s && s.text || '').trim())
     .map((s) => ({
       voice: String(s.voice || 'en-US-AriaNeural'),
       text: String(s.text).trim(),
-      // 语速覆盖：intro 段 ratePercent=0（自然语流）；材料段为 wpm→百分比（可正可负）
+      // 语速覆盖：中文播报段 ratePercent=0（自然语流）；材料段为 wpm→百分比（可正可负）
       ratePercent: Number.isFinite(s.ratePercent) ? Math.round(s.ratePercent) : 0,
       // 段后留白：作答/遍间/句间停顿 → 帧级静音
       gapAfterMs: Number.isFinite(s.gapAfterMs) && s.gapAfterMs > 0 ? Math.round(s.gapAfterMs) : 0,
+      // 段前提示音（"叮咚"）：题与题的边界、换节处——正规听力音频的必备要素
+      chimeBefore: s.chimeBefore === true,
     }));
 }
 

@@ -84,6 +84,7 @@
       "dist/**/*",
       "main.js",
       "preload.js",
+      "assets/**/*",
       "python-scripts/**/*",
       "node_modules/**/*"
     ],

@@ -11,6 +11,7 @@ import {
   stripPaperNoise,
   looksLikeAnswerKey,
   parseAnnouncedRepeat,
+  parseQuestionRange,
   normalizeListeningStructure,
   isCjkNoise,
   OPTION_LINE_RE,
@@ -294,8 +295,9 @@ describe('端到端：答案页 HTML → 结构化 → SSML（规则路径，无
     expect(ssml).toContain(`<voice name="${LISTENING_VOICES.us.M}">`);
     expect(ssml).toContain(`<voice name="${LISTENING_VOICES.us.W}">`);
     expect(ssml).toContain(`<break time="${params.answerGapMs}ms"/>`);
-    // 两段材料 × 2 句 × 2 遍 = 8 个 voice 块，另加开场白与结束语 2 个中文播报块 = 10
-    expect((ssml.match(/<voice /g) || []).length).toBe(10);
+    // 两段材料 × 2 句 × 2 遍 = 8；开场白 1 + 题号播报 2（每题一条）+ 结束语 1 = 12
+    // （2026-09-19 新增题号播报——标准音频每题前须报题号，学生才能把"听到的"与"卷面第几题"对上）
+    expect((ssml.match(/<voice /g) || []).length).toBe(12);
     expect(ssml).not.toMatch(/<prosody[^>]*>\s*[A-D]\s*[.、．]/);
   });
 });
@@ -411,5 +413,84 @@ describe('分节播音指令：以指令为准决定该节遍数', () => {
   it('源头契约要求写出分节播音指令（与解析器同源）', () => {
     expect(LISTENING_SCRIPT_FORMAT).toContain('第一节');
     expect(LISTENING_SCRIPT_FORMAT).toContain('播音指令');
+  });
+});
+
+/**
+ * 🔴 2026-09-19 用户实测根治：多节听力"内容与卷面对不上"——实测第 5 题一口气吞掉了
+ *   第二节独白（并把两篇粘成一条女声），且第二、三节的**节指令全部丢失**（学生不知道要做什么）。
+ *   根因：节指令不再驱动"起新条"，无题号的节材料被并入上一题；待挂指令从未被消费还被下一节覆盖。
+ */
+describe('🔴 节边界驱动起条：多节听力不再串题、不再丢节指令', () => {
+  const threeSections = '第一节：听录音，选出你所听到的单词或图片。每小题读两遍。现在开始。\n'
+    + '1. tree\n'
+    + '2. forgot\n'
+    + '第二节：听录音，判断下列句子是否与录音内容相符。每小题读两遍。现在开始。\n'
+    + 'W: Last week, Lily took part in a storytelling competition. She was proud of herself.\n'
+    + '第三节：听录音，补全短文，每空一词。短文读两遍。现在开始。\n'
+    + 'Last month, our school had an International Culture Festival. I was happy.';
+
+  it('每条材料各归其节：节指令挂在该节首条，后节材料不再被并进上一题', () => {
+    const r = parseListeningSourceText(threeSections);
+    expect(r.intro).toContain('第一节');
+    expect(r.items).toHaveLength(4);                       // 2 短题 + 独白 + 短文
+    expect(r.items[2].instruction).toContain('第二节');
+    expect(r.items[3].instruction).toContain('第三节');
+    // 独白那条里不得混入第三节短文（原实现把两篇粘成一条女声）
+    const dialogueText = r.items[2].lines.map((l) => l.text).join(' ');
+    expect(dialogueText).toContain('storytelling competition');
+    expect(dialogueText).not.toContain('International Culture Festival');
+    expect(r.stats.instructionDropped).toBe(0);
+  });
+
+  it('节指令声明的遍数/作答秒数/读题秒数落到该节各条（以指令为准）', () => {
+    const r = parseListeningSourceText(
+      '第一节：听下面5段对话。听完每段对话后，你都有10秒钟的时间来回答有关小题。每段对话仅读一遍。\n'
+      + '1. M: Hi.\n'
+      + '第二节：听下面几段对话或独白。听每段对话或独白前，你将有时间阅读各个小题，每小题5秒钟；听完后，'
+      + '各小题将给出5秒钟的作答时间。每段对话或独白读两遍。\n'
+      + '6. W: Hello.',
+    );
+    expect(r.items[0].repeat).toBe(1);
+    expect(r.items[0].answerSec).toBe(10);
+    expect(r.items[1].repeat).toBe(2);
+    expect(r.items[1].answerSec).toBe(5);
+    expect(r.items[1].previewSec).toBe(5);
+  });
+
+  it('未挂到任何材料的节指令被计数并告警（不再静默吞掉）', () => {
+    const r = parseListeningSourceText('第二节：听录音，判断下列句子是否与录音内容相符。\n第三节：听录音，补全短文。');
+    expect(r.stats.instructionDropped).toBeGreaterThan(0);
+    expect(r.warnings.join()).toContain('分节指令');
+  });
+
+  // 🔴 E3（2026-09-19 用户实测）：源文本不给题号范围时，程序只能按条数顺编题号——
+  //   实测把第三节报成"第七题"，而该卷第二节实为第 6~10 题、第三节为第 11~15 题。
+  it('题号范围行作为元数据吸收：编号取范围起点，且不把该行当材料念出来', () => {
+    const r = parseListeningSourceText(
+      '第二节：听录音，判断下列句子是否与录音内容相符。每段对话或独白读两遍。\n'
+      + '听第6段材料，回答第6至第10题。\n'
+      + 'W: Last week, Lily took part in a storytelling competition and she did her best.',
+    );
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0].no, '无题号材料取范围起点（第 6 题起）').toBe(6);
+    expect(r.items[0].range).toEqual({ materialNo: 6, from: 6, to: 10 });
+    expect(r.items[0].lines.map((l) => l.text).join(' ')).not.toContain('听第6段材料');
+  });
+
+  it('parseQuestionRange：中文题号、起止与单题都认', () => {
+    expect(parseQuestionRange('听第6段材料，回答第6至第10题。')).toEqual({ materialNo: 6, from: 6, to: 10 });
+    expect(parseQuestionRange('听第11段材料，回答第11-15题。')).toEqual({ materialNo: 11, from: 11, to: 15 });
+    expect(parseQuestionRange('听第6段材料，回答第6题。')).toEqual({ materialNo: 6, from: 6, to: 6 });
+    expect(parseQuestionRange('M: Hello.')).toBe(null);
+  });
+
+  it('🔴 源头契约按正规补齐（E1 指令与形态相符 / E2 同节形态一致 / E3 题号范围 / 播报者标注）', () => {
+    expect(LISTENING_SCRIPT_FORMAT).toContain('题号范围');
+    expect(LISTENING_SCRIPT_FORMAT).toContain('每段对话或独白读两遍');
+    expect(LISTENING_SCRIPT_FORMAT).toContain('标注一次播报者');
+    expect(LISTENING_SCRIPT_FORMAT).toContain('材料形态须一致');
+    // 旧口径"独白/短文不标说话人"会导致同卷播报者不一致，已修订
+    expect(LISTENING_SCRIPT_FORMAT).not.toContain('不标说话人');
   });
 });

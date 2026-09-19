@@ -3,17 +3,22 @@ import { mapSegmentsForEdge } from '../../src/utils/edgeTts.js';
 
 /**
  * Edge 免费语音通道（2026-09-19）
- * 锁定：storyboard 段 → 主进程逐句合成所需最小字段的映射（voice/text/ratePercent/gapAfterMs）；
+ * 锁定：storyboard 段 → 主进程逐句合成所需最小字段的映射（voice/text/ratePercent/gapAfterMs/chimeBefore）；
  *        只透传清晰字段，空白段、非法数值一律过滤/钳制，防止脏 payload 进主进程。
  */
 describe('mapSegmentsForEdge：段映射与字段净化', () => {
-  it('映射 voice/text/ratePercent/gapAfterMs 四字段，语速四舍五入', () => {
+  it('映射 voice/text/ratePercent/gapAfterMs/chimeBefore 五字段，语速四舍五入', () => {
     const out = mapSegmentsForEdge([{
-      voice: 'en-US-GuyNeural', text: 'Hello.', ratePercent: -13.33, gapAfterMs: 8000,
+      voice: 'en-US-GuyNeural', text: 'Hello.', ratePercent: -13.33, gapAfterMs: 8000, chimeBefore: true,
     }]);
     expect(out[0]).toEqual({
-      voice: 'en-US-GuyNeural', text: 'Hello.', ratePercent: -13, gapAfterMs: 8000,
+      voice: 'en-US-GuyNeural', text: 'Hello.', ratePercent: -13, gapAfterMs: 8000, chimeBefore: true,
     });
+  });
+
+  it('chimeBefore 未给/非 true 一律归一为 false（主进程只认严格的 true）', () => {
+    expect(mapSegmentsForEdge([{ voice: 'en-US-GuyNeural', text: 'A.', gapAfterMs: 0 }])[0].chimeBefore).toBe(false);
+    expect(mapSegmentsForEdge([{ voice: 'en-US-GuyNeural', text: 'B.', gapAfterMs: 0, chimeBefore: 1 }])[0].chimeBefore).toBe(false);
   });
 
   it('intro 段 ratePercent=0 保留原样（自然语流），不误改', () => {
