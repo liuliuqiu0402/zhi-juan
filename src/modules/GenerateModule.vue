@@ -1755,48 +1755,85 @@
             <span style="font-size:12px;color:#666;">
               生效 {{ listeningEffectiveWpm }} 词/分（{{ listeningWpmIsManual ? '手动指定' : `${STAGE_LABEL_MAP[listeningStageKey] || '按学段矩阵'}自动` }}）
             </span>
-            <label style="font-size:12px;">
-              口音
-              <select
-                v-model="listeningAccentOverride"
-                style="margin-left:6px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
-              >
-                <option value="">
-                  跟随学段（低美高混）
-                </option>
-                <option value="us">
-                  美音
-                </option>
-                <option value="gb">
-                  英音
-                </option>
-                <option value="mixed">
-                  英音美音交替
-                </option>
-              </select>
-            </label>
-            <label style="font-size:12px;">
-              音色预设
-              <select
-                v-model="listeningVoicePreset"
-                style="margin-left:6px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
-              >
-                <option
-                  v-for="p in Object.values(LISTENING_VOICE_PRESETS)"
-                  :key="p.key"
-                  :value="p.key"
-                  :title="p.note"
+          </div>
+
+          <!-- 🎚 音色（2026-09-19 用户裁定：默认男声1+女声2，其余可选，每项可试听） -->
+          <div
+            v-if="listeningStruct"
+            style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:12px;"
+          >
+            <template
+              v-for="slot in LISTENING_VOICE_SLOTS"
+              :key="slot.key"
+            >
+              <label style="display:flex;gap:6px;align-items:center;">
+                <span :title="slot.optional ? '多角色对话时才会用到：三人及以上对话按顺序取用，留空则不启用' : ''">
+                  {{ slot.label }}<span
+                    v-if="slot.optional"
+                    style="color:#999;cursor:help;"
+                  >ⓘ</span>
+                </span>
+                <select
+                  v-model="listeningVoices[slot.key]"
+                  style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
                 >
-                  {{ p.name }}
-                </option>
-              </select>
-            </label>
+                  <option value="">
+                    {{ slot.optional ? '（不用）' : '默认' }}
+                  </option>
+                  <optgroup
+                    v-for="g in listeningVoiceOptions[slot.group]"
+                    :key="g.label"
+                    :label="g.label"
+                  >
+                    <option
+                      v-for="opt in g.items"
+                      :key="opt.value"
+                      :value="opt.value"
+                    >
+                      {{ opt.text }}
+                    </option>
+                  </optgroup>
+                </select>
+              </label>
+              <button
+                class="btn-small"
+                style="font-size:11px;padding:1px 7px;"
+                :disabled="!listeningVoices[slot.key] || !!listeningPreviewing"
+                :title="`试听「${listeningVoices[slot.key] || '（未选）'}」`"
+                @click="playVoicePreview(listeningVoices[slot.key])"
+              >
+                {{ listeningPreviewing === listeningVoices[slot.key] && listeningPreviewing ? '试听中…' : '▶ 试听' }}
+              </button>
+            </template>
+            <span
+              v-if="listeningVoiceHint"
+              style="color:#d9673a;font-size:11px;"
+            >{{ listeningVoiceHint }}</span>
+          </div>
+
+          <div
+            v-if="listeningStruct && listeningCastSummary"
+            class="copy-hint"
+            style="margin:2px 0 6px;"
+          >
+            🎭 {{ listeningCastSummary }}　（逐题「角色 → 音色」见下方朗读稿）
           </div>
 
           <div
             v-if="listeningStruct"
             style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:12px;"
           >
+            <label style="display:flex;gap:6px;align-items:center;cursor:pointer;">
+              <input
+                v-model="listeningAnnounceTitle"
+                type="checkbox"
+              >
+              读试卷标题
+              <span
+                title="录音最前先播报试卷标题（如「六年级英语上册Unit 1 Try your best测试卷。」），学生据此确认是哪一份卷。生成时间戳等后缀会自动净化。"
+                style="color:#999;cursor:help;"
+              >ⓘ</span>
+            </label>
             <label style="display:flex;gap:6px;align-items:center;cursor:pointer;">
               <input
                 v-model="listeningSoundCheck"
@@ -1813,9 +1850,9 @@
                 v-model="listeningShortItemNo"
                 type="checkbox"
               >
-              一题一材料处播小题号
+              一题一材料处播题号
               <span
-                title="国标第一节不播小题号（靠作答间隔与卷面题号定位），故默认关闭；小学/校内卷若希望逐题报「第N题」可打开。一段材料对多题的「听第X段材料，回答第X～Y小题」不受此开关影响，始终按真题写法播报。"
+                title="一题一材料处播英文题号「Number 1.」（学生听到后翻到对应小题）。一段材料对多题的「听第X段材料，回答第X、Y小题」不受此开关影响，始终按真题写法播报。"
                 style="color:#999;cursor:help;"
               >ⓘ</span>
             </label>
@@ -3336,7 +3373,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick, h } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick, h } from 'vue';
 import { useDialog } from '../composables/useDialog.js';
 import { useMobile } from '../composables/useMobile.js';
 import { useWakeLock } from '../composables/useWakeLock.js';
@@ -3404,11 +3441,11 @@ import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实�
 import { buildListeningExtractMessages } from '../config/listeningExtractPrompt.js';
 import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback } from '../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText, buildListeningStoryboard } from '../utils/listeningScript.js';
-import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_PRESETS, LISTENING_DEFAULT_VOICE_PRESET } from '../config/listeningAudioProfile.js';
+import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS } from '../config/listeningAudioProfile.js';
 // 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
 import { synthesizeToFile, readAzureConfigFromApiConfig } from '../utils/azureTts.js';
 // 🎧 Edge 免费语音：无需 Key，逐句合成 + 帧级静音拼接（主进程执行）
-import { synthesizeSegmentsToFile } from '../utils/edgeTts.js';
+import { synthesizeSegmentsToFile, previewVoice } from '../utils/edgeTts.js';
 import { STORAGE_KEYS } from '../constants/storageKeys.js';  // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
 import { annotateInstructionBlocks } from '../utils/instructionBlocks.js';  // 指令来源分段标注（旁路：块区间↔{库,key}，不参与拼装）
 import { useRouter } from 'vue-router';  // 来源分段点击跳转（工具库子页）
@@ -8757,14 +8794,61 @@ const listeningStruct = ref(null);
 const listeningStageKey = ref('');
 const listeningGradeHint = ref('');
 const listeningWpmOverride = ref(null);
-const listeningAccentOverride = ref('');
-// 🎛 可选环节开关（默认值取单一事实源 LISTENING_FEATURE_DEFAULTS＝正规考试口径）：
-//    试音段默认开（正规录音先试音再开考）；一题一材料的小题号默认关（国标第一节不播小题号）。
+// 🎛 可选环节开关（默认值取单一事实源 LISTENING_FEATURE_DEFAULTS）：
+//   读试卷标题默认开；试音段默认开；一题一材料处播题号（英文 Number N.）默认开。
+const listeningAnnounceTitle = ref(LISTENING_FEATURE_DEFAULTS.announceTitle);
 const listeningSoundCheck = ref(LISTENING_FEATURE_DEFAULTS.soundCheck);
 const listeningShortItemNo = ref(LISTENING_FEATURE_DEFAULTS.announceShortItemNo);
-// 🎚 音色预设：默认"考试标准"（男 ChristopherNeural + 女 AriaNeural，最接近高考/中考播音腔）。
-//    Edge 实测可用英文音色 47 个，此处按"用途"归成三档，避免让用户面对一长串音色名。
-const listeningVoicePreset = ref(LISTENING_DEFAULT_VOICE_PRESET);
+// 🎚 音色（2026-09-19 用户裁定）：
+//   · 默认 男声 1（Christopher）+ 女声 2（Jenny）；其余音色全部作为可选项；
+//   · 男声副/女声副＝**多角色对话**追加音色（留空＝不用；三人对话时才会被取到）；
+//   · 每个选项都能试听（▶ 试听 → 主进程 edge-tts-preview）。
+//   选了具体音色后即不再按口音表逐段轮换——音色本身就是"口音"。
+const listeningVoices = reactive({
+  M: LISTENING_VOICE_DEFAULTS.M,
+  W: LISTENING_VOICE_DEFAULTS.W,
+  M2: LISTENING_VOICE_DEFAULTS.M2,
+  W2: LISTENING_VOICE_DEFAULTS.W2,
+});
+/** 音色槽位（模板据此渲染四行下拉；group 决定候选取自男声表还是女声表） */
+const LISTENING_VOICE_SLOTS = [
+  { key: 'M', label: '男声', group: 'M', optional: false },
+  { key: 'W', label: '女声', group: 'W', optional: false },
+  { key: 'M2', label: '男声副', group: 'M', optional: true },
+  { key: 'W2', label: '女声副', group: 'W', optional: true },
+];
+/** 候选分组（美音/英音），文案带序号——与「音色试听对比.mp3」里的报号一致，便于按编号指定 */
+const listeningVoiceOptions = computed(() => {
+  const build = (g) => [
+    { label: '美音', items: LISTENING_VOICE_CANDIDATES.us[g].map((v, i) => ({ value: v, text: `${g === 'M' ? '男声' : '女声'} ${i + 1} · ${v.replace(/^en-US-|Neural$/g, '')}` })) },
+    { label: '英音', items: LISTENING_VOICE_CANDIDATES.gb[g].map((v, i) => ({ value: v, text: `${g === 'M' ? '男声' : '女声'} ${i + 1} · ${v.replace(/^en-GB-|Neural$/g, '')}` })) },
+  ];
+  return { M: build('M'), W: build('W') };
+});
+/** 生效音色池（喂给 storyboard：男主, 女主, 男副?, 女副? —— 空值会被剔除） */
+const listeningVoicePool = computed(() => [listeningVoices.M, listeningVoices.W, listeningVoices.M2, listeningVoices.W2].filter(Boolean));
+const listeningPreviewing = ref('');   // 正在试听的音色名（防重复点击）
+const listeningVoiceHint = ref('');
+const listeningCastSummary = ref('');  // 🎚 多角色配声摘要（当前结构下的角色数/音色数/是否够用）
+let listeningAudioEl = null;
+/** ▶ 试听：合成一句样例直接播放（不落盘、不弹保存框） */
+const playVoicePreview = async (voice) => {
+  const v = String(voice || '');
+  if (!v || listeningPreviewing.value) return;
+  listeningPreviewing.value = v;
+  listeningVoiceHint.value = '';
+  try {
+    const url = await previewVoice({ voice: v, ratePercent: listeningEffectiveParams.value.ratePercent });
+    if (typeof Audio === 'undefined') throw new Error('当前环境不支持音频播放');
+    if (!listeningAudioEl) listeningAudioEl = new Audio();
+    listeningAudioEl.src = url;
+    await listeningAudioEl.play();
+  } catch (e) {
+    listeningVoiceHint.value = `试听失败：${e.message}`;
+  } finally {
+    listeningPreviewing.value = '';
+  }
+};
 const listeningSynthLoading = ref(false);
 const listeningSynthMsg = ref('');
 const listeningParseMode = ref('');   // 本次结构来自"规则解析"还是"AI 解析"（对用户透明）
@@ -8780,9 +8864,11 @@ const listeningEffectiveParams = computed(() => {
   if (Number.isFinite(listeningWpmOverride.value) && listeningWpmOverride.value > 0) {
     overrides.wpm = listeningWpmOverride.value;
   }
-  if (listeningAccentOverride.value) overrides.accent = listeningAccentOverride.value;
-  const preset = LISTENING_VOICE_PRESETS[listeningVoicePreset.value];
-  if (preset) overrides.voices = preset.voices;
+  // 音色：显式选定的男主/女主即生效音色（不再按口音表轮换）
+  overrides.voices = {
+    us: { M: listeningVoices.M, W: listeningVoices.W, N: listeningVoices.M },
+    gb: { M: listeningVoices.M, W: listeningVoices.W, N: listeningVoices.M },
+  };
   return resolveListeningParams({
     stage: listeningStageKey.value,
     grade: listeningGradeHint.value,
@@ -8911,10 +8997,11 @@ const renderListeningArtifacts = () => {
   if (Number.isFinite(listeningWpmOverride.value) && listeningWpmOverride.value > 0) {
     overrides.wpm = listeningWpmOverride.value;
   }
-  if (listeningAccentOverride.value) overrides.accent = listeningAccentOverride.value;
-  // 🎚 音色预设 → 覆盖音色表（resolveListeningParams 原生支持 voices 覆盖）
-  const preset = LISTENING_VOICE_PRESETS[listeningVoicePreset.value];
-  if (preset) overrides.voices = preset.voices;
+  // 🎚 音色 → 覆盖音色表 + 音色池（音色池负责"多角色对话"的追加音色）
+  overrides.voices = {
+    us: { M: listeningVoices.M, W: listeningVoices.W, N: listeningVoices.M },
+    gb: { M: listeningVoices.M, W: listeningVoices.W, N: listeningVoices.M },
+  };
 
   const input = {
     items: listeningStruct.value.items,
@@ -8924,19 +9011,33 @@ const renderListeningArtifacts = () => {
     //    仅用于初中 7/8/9 年级的语速细分；标题无年级时自动落回该学段默认值。
     grade: listeningGradeHint.value,
     stageLabel: STAGE_LABEL_MAP[listeningStageKey.value] || listeningStageKey.value,
-    // 🎙 试卷标题进开场白：正规音频以「听力考试现在开始」起头，校/区级考试常在其前播报考试名称，
-    //    学生据此确认"这是哪份卷的听力"（时间戳后缀由 buildOpeningAnnouncement 净化）
+    // 🎙 试卷标题：录音最前独立播报（时间戳后缀由 buildTitleAnnouncement 净化）
     title: listeningDocTitle.value,
-    // 🎛 可选环节（与正规录音口径一致：试音开、小题号关），用户可在弹窗内即时切换
+    // 🎛 可选环节（读试卷标题 / 试音段 / 一题一材料处播题号），用户可在弹窗内即时切换
+    announceTitle: listeningAnnounceTitle.value,
     soundCheck: listeningSoundCheck.value,
     announceShortItemNo: listeningShortItemNo.value,
+    // 🎚 音色池：多角色对话按顺序取（男主、女主、男声副、女声副）
+    voicePoolInput: listeningVoicePool.value,
     overrides,
   };
 
   const { ssml, risks, warnings } = buildListeningSsml(input);
   const { text } = buildListeningScriptText(input);
   // Edge 免费通道：与 SSML 同源重建 storyboard 段（纯函数零成本），供逐句合成
-  listeningSegments.value = buildListeningStoryboard(input).segments;
+  const sb = buildListeningStoryboard(input);
+  listeningSegments.value = sb.segments;
+  // 🎚 多角色配声摘要（2026-09-19 用户要求"能立即知道是否有多角色"）：
+  //    本卷几个角色、配了几条音色、哪些题的角色数超过音色数（超了就提示去补配副音色）
+  const cast = sb.voiceCast || [];
+  const pool = sb.voicePool || [];
+  // "角色"只数真正的说话人（N＝旁白/独白，不算角色；无标注角色时按 1 个旁白计）
+  const roles = new Set(cast.flatMap((c) => (c.entries || []).map((e) => e.role)).filter((r) => r !== 'N'));
+  const roleCount = roles.size || (cast.length ? 1 : 0);
+  const over = cast.filter((c) => (c.entries || []).length > pool.length).map((c) => `第${c.itemNo}题`);
+  listeningCastSummary.value = cast.length
+    ? `说话人 ${roleCount} 个 · 音色 ${pool.length} 条${over.length ? `　⚠️ ${over.join('、')} 的角色多于音色，多出的角色会沿用已有音色（可补配"男声副/女声副"）` : ''}`
+    : '';
 
   listeningSsml.value = ssml;
   listeningScriptText.value = text;
@@ -8958,10 +9059,16 @@ const openListeningTool = async (doc) => {
   listeningStageKey.value = doc?.stage || '';
   listeningGradeHint.value = doc?.title || '';
   listeningWpmOverride.value = null;
-  listeningAccentOverride.value = '';
+  listeningAnnounceTitle.value = LISTENING_FEATURE_DEFAULTS.announceTitle;
   listeningSoundCheck.value = LISTENING_FEATURE_DEFAULTS.soundCheck;
   listeningShortItemNo.value = LISTENING_FEATURE_DEFAULTS.announceShortItemNo;
-  listeningVoicePreset.value = LISTENING_DEFAULT_VOICE_PRESET;
+  Object.assign(listeningVoices, {
+    M: LISTENING_VOICE_DEFAULTS.M,
+    W: LISTENING_VOICE_DEFAULTS.W,
+    M2: LISTENING_VOICE_DEFAULTS.M2,
+    W2: LISTENING_VOICE_DEFAULTS.W2,
+  });
+  listeningVoiceHint.value = '';
   listeningSynthMsg.value = '';
   listeningSynthLoading.value = false;
   listeningParseMode.value = '';
@@ -9077,7 +9184,7 @@ const copyListeningText = async (kind) => {
   }
 };
 
-watch([listeningWpmOverride, listeningAccentOverride, listeningSoundCheck, listeningShortItemNo, listeningVoicePreset], () => {
+watch([listeningWpmOverride, listeningAnnounceTitle, listeningSoundCheck, listeningShortItemNo, () => listeningVoices.M, () => listeningVoices.W, () => listeningVoices.M2, () => listeningVoices.W2], () => {
   if (showListeningModal.value && listeningStruct.value) renderListeningArtifacts();
 });
 

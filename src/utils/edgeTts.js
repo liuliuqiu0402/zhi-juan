@@ -56,7 +56,23 @@ export async function synthesizeSegmentsToFile(segments = [], { suggestedName = 
   return r;
 }
 
+/**
+ * 🔊 音色试听（2026-09-19）：合成一小段样例、回传可播放的 data URL。
+ * 与正式合成同一通道（主进程 Edge），但不落盘、不弹保存框 —— 供"每个音色选项都有试听"。
+ * @returns {Promise<string>} 可直接喂给 new Audio() 的 data URL
+ */
+export async function previewVoice({ voice, text = '', ratePercent = 0 } = {}) {
+  const api = typeof window !== 'undefined' ? window.electronAPI : null;
+  if (!api || typeof api.edgeTtsPreview !== 'function') {
+    throw new Error('试听仅在桌面应用内可用（需主进程连接 Edge 服务）');
+  }
+  const r = await api.edgeTtsPreview({ voice: String(voice || ''), text: String(text || ''), ratePercent: Number(ratePercent) || 0 });
+  if (!r || r.ok !== true) throw new Error((r && r.error) || '试听合成失败');
+  return `data:${r.mime || 'audio/mpeg'};base64,${r.base64}`;
+}
+
 export default {
   mapSegmentsForEdge,
   synthesizeSegmentsToFile,
+  previewVoice,
 };

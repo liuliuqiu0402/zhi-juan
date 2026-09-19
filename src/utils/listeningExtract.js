@@ -92,15 +92,22 @@ export function isCjkNoise(text = '') {
   return cjkRatio(text) > 0.5;
 }
 
-/** 卷面部分标题（如「第一部分 听力部分（共3大题，满分30分）」） */
+/** 卷面部分标题（如「第一部分 听力部分（共3大题，满分30分）」）——名称由音频按固定文案播报，
+ *  这里整段剔除（避免它被当成材料或指令）；括号里的题数/分值属书面信息 */
 const PAPER_PART_RE = /第[一二三四五六七八九十零百]+部分[^（(]*[（(][^）)]*[）)]/g;
-/** 卷面大题题头（如「二、听录音，判断下列句子…（每题2分，共10分）」）——书面结构，不是播音指令 */
+/** 卷面大题题头（如「二、听录音，判断下列句子…（每题2分，共10分）」）——标号+题干要读，分值不读 */
 const PAPER_ITEM_RE = /[一二三四五六七八九十]+、[^（(]*[（(][^）)]*[）)]/g;
+/** 整行以大题标号起头（「一、听录音…」）——这是**播音指令**（2026-09-19 用户定：音频直接读「一、」），
+ *  故保留标号与题干，只去掉括号里的题数/分值 */
+const PAPER_ITEM_HEAD_RE = /^\s*[一二三四五六七八九十]+、/;
+/** 书面信息括号（题数/分值等）：只去括号本身，保留其前的标号与题干 */
+const WRITTEN_META_PAREN_RE = /[（(][^）)]*(?:满分|每题|每小题|共\s*\d|小题|大题|分)[^）)]*[）)]/g;
 
 /**
  * 卷面残留清洗（2026-09-19）：
  *   ① 命中"笔试/范文/评分"标记 → 从该处截断，并告知调用方**其后不再有听力内容**；
- *   ② 剔除卷面部分标题与大题题头（这些是**书面**结构，念出来就是噪音）。
+ *   ② 部分标题整段剔除（其名称由音频固定播报）；
+ *   ③ 大题题头：整行以标号起头者＝**播音指令**，保留「标号+题干」只去分值括号；标号在句中者＝卷面残留，整段剔除。
  * @returns {{ text:string, hardStop:boolean }} text 为空表示整行丢弃
  */
 export function stripPaperNoise(text = '') {
@@ -108,7 +115,9 @@ export function stripPaperNoise(text = '') {
   let hardStop = false;
   const m = s.match(NON_LISTENING_RE);
   if (m) { s = s.slice(0, m.index); hardStop = true; }
-  s = s.replace(PAPER_PART_RE, ' ').replace(PAPER_ITEM_RE, ' ');
+  s = s.replace(PAPER_PART_RE, ' ');
+  if (PAPER_ITEM_HEAD_RE.test(s)) s = s.replace(WRITTEN_META_PAREN_RE, ' ');
+  else s = s.replace(PAPER_ITEM_RE, ' ');
   return { text: s.replace(/\s+/g, ' ').trim(), hardStop };
 }
 
@@ -398,8 +407,13 @@ export function looksLikeAnswerRow(text = '') {
 
 /** 中文播音指令行 → 归入导语/分节指令（不进 lines）
  *  🔴 含「第X节」：正规听力录音以「第一节，听下面5段对话…」起头，这是**播音指令**而非材料；
- *     「第X部分」不在此列——那是卷面结构标题（由 stripPaperNoise 剔除），音/卷两者不可混同。 */
-const INSTRUCTION_RE = /^(?:第[一二三四五六七八九十零百]+节|听下面|请听|听录音|听一段|下面请听|听第\s*\d|请根据|根据所听|Listen\s+(?:to|carefully))/i;
+ *     「第X部分」不在此列——那是卷面结构标题（由 stripPaperNoise 剔除），音/卷两者不可混同。
+ *  🔴 2026-09-19 用户定：小学/校内卷直接以卷面标号起头（「一、听录音，选出你所听到的单词或图片」），
+ *     故补 `[一二三四五六七八九十]+、` + 听音动词 这一支——否则该行会被当成小题材料朗读。 */
+const INSTRUCTION_RE = /^(?:第[一二三四五六七八九十零百]+节|听下面|请听|听录音|听一段|下面请听|听第\s*\d|请根据|根据所听|Listen\s+(?:to|carefully)|[一二三四五六七八九十]+、\s*(?:听|请听|下面|Listen))/i;
+
+/** 大题边界标号（「第X节」或卷面式「一、」）——命中即 flush 上一条，防止无题号材料被并入上一题 */
+const SECTION_LABEL_RE = /^(?:第[一二三四五六七八九十零百]+节|[一二三四五六七八九十]+、)/;
 
 /** 噪声行：分值/页码/解析标记/选项残留单行 */
 const NOISE_RES = [
@@ -532,7 +546,7 @@ export function parseListeningSourceText(rawText = '') {
       // 🔴 节边界驱动起条（2026-09-19 用户实测根治）：*节指令*（「第X节/第X部分…」）意味着"上一节到此结束、
       //    本节材料另起一条"，必须 flush。否则后续**无题号**的节材料（独白/短文）会因"当前还有题"
       //    被并进上一题——实测第 5 题一口气吞掉了第二节独白＋第三节短文，且把两篇粘成一条女声。
-      const isSection = /^第[一二三四五六七八九十零百]+节/.test(line);
+      const isSection = SECTION_LABEL_RE.test(line);
       if (isSection) {
         flush();
         // 上一节的待挂指令若还没被消费（两节指令相邻、中间无材料）→ 记为丢弃，出口告警（不再静默吞掉）

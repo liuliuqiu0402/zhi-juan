@@ -60,61 +60,55 @@ export const LISTENING_ACCENT_POLICY = {
 };
 
 /**
- * 音色预设（M=男声 W=女声 N=旁白/独白；同一角色全卷固定同一音色，避免音色漂移）
- * 🔴 2026-09-19 用户实测根治：原 N(旁白)=Aria 与 W(女声)=Jenny **同为女声** → 整卷只有女声、
- *    "播报者"与"说话人"分不出来。旁白一律取**男声**后：播报/旁白(男) 与 女声独白(女) 可分辨。
+ * 可配音色候选表（Edge 实测清单，2026-09-19 用 msedge-tts 拉全量确认可用）
  * ============================================================
- * 调研依据（真题分析 · 教育部考试院研究人员文章）：
- *   · 高考听力由考试院统一选拔**真人一男一女**录制（男播音长期稳定、女播音换过几任）；
- *   · 语速约 137–154 词/分，**美音为主**（部分地区历史上用英音）；
- *   · 音质风格是"**清晰规范的朗读腔**"而非自然生活对话腔——考试院改革方向之一正是
- *     "摒弃播音腔"，反证现行录音带播音腔特征。
- * Edge 实测（2026-09-19 用 msedge-tts 拉全量清单）：共 322 个音色、英文 47 个，
- *   下列音色**均已确认可用**（不是照 Azure 文档推测）。
- * 三个预设都可选，默认即"考试标准"：
- *   · exam    考试标准：男 ChristopherNeural（官方风格标签 News/Authority"权威"）、
- *             女 AriaNeural（风格标签含 narration-professional 专业朗读 / newscast-formal）
- *             —— 这两个是英文音色里唯二带"正式朗读/新闻"标签的，最贴近考试录音听感。
- *   · natural 自然对话：多语言音色（Andrew/Ava），更接近日常交际情境（适合口语化材料）。
- *   · legacy  旧版：Guy/Jenny（2026-09-19 之前的默认，保留供对比与回退）。
- * 旁白 N 与男声 M 取同一音色：旁白只出现在"单说话人材料"，不会与男对话者同段落出现，
- *   同音色反而保证同卷独白/短文播报者一致。
+ * 用户裁定（2026-09-19）：**男声 1（Christopher）+ 女声 2（Jenny）为默认，其余全部作为可选项**，
+ *   且**每个选项都要能试听**（见生成端「试听」按钮 → 主进程 edge-tts-preview）。
+ * 分组依据：真题主流为**美音**，少数地区历史上用英音，故两组并列、用户自选。
+ * 序号（男声 1..8 / 女声 1..7）与"音色试听对比.mp3"里的报号一一对应，便于用户按编号指定。
  */
-export const LISTENING_VOICE_PRESETS = {
-  exam: {
-    key: 'exam',
-    name: '考试标准（推荐）',
-    note: '男 ChristopherNeural（News·权威）+ 女 AriaNeural（专业朗读）——最接近高考/中考录音的播音腔',
-    voices: {
-      us: { M: 'en-US-ChristopherNeural', W: 'en-US-AriaNeural', N: 'en-US-ChristopherNeural' },
-      gb: { M: 'en-GB-RyanNeural', W: 'en-GB-SoniaNeural', N: 'en-GB-RyanNeural' },
-    },
+export const LISTENING_VOICE_CANDIDATES = {
+  us: {
+    M: [
+      'en-US-ChristopherNeural',          // 男声 1（默认）News·Authority，最接近播音腔
+      'en-US-GuyNeural',                  // 男声 2  News
+      'en-US-EricNeural',                 // 男声 3  News·Rational
+      'en-US-SteffanNeural',              // 男声 4  News·Rational
+      'en-US-RogerNeural',                // 男声 5
+      'en-US-BrianNeural',                // 男声 6  Conversation·Casual（偏口语）
+      'en-US-AndrewNeural',               // 男声 7  Conversation·Warm
+      'en-US-AndrewMultilingualNeural',   // 男声 8  多语言·Warm
+    ],
+    W: [
+      'en-US-AriaNeural',                 // 女声 1  narration-professional·newscast-formal
+      'en-US-JennyNeural',                // 女声 2（默认）newscast
+      'en-US-MichelleNeural',             // 女声 3
+      'en-US-AvaNeural',                  // 女声 4  Conversation
+      'en-US-EmmaNeural',                 // 女声 5  Conversation·Cheerful
+      'en-US-AvaMultilingualNeural',      // 女声 6  多语言
+      'en-US-EmmaMultilingualNeural',     // 女声 7  多语言
+    ],
   },
-  natural: {
-    key: 'natural',
-    name: '自然对话',
-    note: '多语言音色（男 Andrew / 女 Ava）——更口语、更贴近日常交际情境',
-    voices: {
-      us: { M: 'en-US-AndrewMultilingualNeural', W: 'en-US-AvaMultilingualNeural', N: 'en-US-AndrewMultilingualNeural' },
-      gb: { M: 'en-GB-RyanNeural', W: 'en-GB-SoniaNeural', N: 'en-GB-RyanNeural' },
-    },
-  },
-  legacy: {
-    key: 'legacy',
-    name: '旧版（Guy / Jenny）',
-    note: '本功能最初的默认音色，保留供对比与回退',
-    voices: {
-      us: { M: 'en-US-GuyNeural', W: 'en-US-JennyNeural', N: 'en-US-GuyNeural' },
-      gb: { M: 'en-GB-RyanNeural', W: 'en-GB-SoniaNeural', N: 'en-GB-RyanNeural' },
-    },
+  gb: {
+    M: ['en-GB-RyanNeural', 'en-GB-ThomasNeural'],
+    W: ['en-GB-SoniaNeural', 'en-GB-LibbyNeural', 'en-GB-MaisieNeural'],
   },
 };
 
-/** 默认音色预设键（单一事实源；设置页/弹窗据此初始化） */
-export const LISTENING_DEFAULT_VOICE_PRESET = 'exam';
+/** 默音色（用户裁定：男声 1 + 女声 2）；M2/W2 为"多角色追加音色"，留空＝不启用 */
+export const LISTENING_VOICE_DEFAULTS = {
+  M: 'en-US-ChristopherNeural',
+  W: 'en-US-JennyNeural',
+  M2: '',
+  W2: '',
+};
 
-/** 生效音色表（＝默认预设；习惯直接引用 LISTENING_VOICES 的代码不受影响） */
-export const LISTENING_VOICES = LISTENING_VOICE_PRESETS[LISTENING_DEFAULT_VOICE_PRESET].voices;
+/** 生效音色表（＝默认值；沿用两套口音表的老结构，习惯引用 LISTENING_VOICES 的代码不受影响） */
+export const LISTENING_VOICES = {
+  us: { M: LISTENING_VOICE_DEFAULTS.M, W: LISTENING_VOICE_DEFAULTS.W, N: LISTENING_VOICE_DEFAULTS.M },
+  gb: { M: 'en-GB-RyanNeural', W: 'en-GB-SoniaNeural', N: 'en-GB-RyanNeural' },
+};
+
 
 
 /** 中文播报音色（听力导语/指令按考区规范多为中文播报，与英文音色在同一份 SSML 内混排） */
@@ -156,17 +150,32 @@ export const LISTENING_SOUND_CHECK = {
 /**
  * 听力音频的**可选环节**默认值（开关默认值单一事实源）
  * ============================================================
- * 两项均经用户裁定，默认值即"正规考试口径"：
+ * 三项均经用户裁定：
+ *  · announceTitle=true        —— **读试卷标题**（2026-09-19 用户实测稿的顺序：
+ *                                 「六年级英语上册Unit 1 Try your best测试卷」→「第一部分 听力部分」→
+ *                                 大题指令 → 叮咚 → Number one …）。校/区级做法，学生据此确认是哪份卷。
  *  · soundCheck=true       —— 正规录音含独立试音段（见 LISTENING_SOUND_CHECK）；
  *                             校内小测嫌长可在生成面板关掉。
- *  · announceShortItemNo=false —— 国标第一节**不播小题号**，靠"10 秒间隔 + 卷面题号"定位；
- *                             题号播报只出现在"一段材料对多题"的「听第X段材料，回答第X～Y小题」。
- *                             小学/校内卷若希望逐题报号，可在生成面板打开。
+ *  · announceShortItemNo=true  —— **一题一材料处播题号**，且用英文「Number 1.」而不是中文「第1小题」
+ *                             （2026-09-19 用户定："number one 不读第一小题"）。
+ *                             注：先前按"高考第一节不播小题号"设为默认关，用户实测稿明确要求播，
+ *                             故改回开——高考那一节不播是高考的做法，小学/校内卷普遍播。
  */
 export const LISTENING_FEATURE_DEFAULTS = {
+  announceTitle: true,
   soundCheck: true,
-  announceShortItemNo: false,
+  announceShortItemNo: true,
 };
+
+/**
+ * 「第一部分 听力部分」播报语（2026-09-19 用户实测稿要求读出）
+ * ============================================================
+ * 英语卷的听力**必为第一部分**（见 promptLibrary 的卷面结构生成：听力→第一部分、笔试→第二部分），
+ * 故此处取固定播报，不依赖解析结果（AI 解析通道拿不到卷面结构，固定值反而更稳）；
+ * 若某卷的听力不是第一部分，调用方传 partTitle 覆盖即可。
+ * 只播名称，不播「（共N大题，满分M分）」——题数/分值属书面信息，不入音频。
+ */
+export const LISTENING_PART_ANNOUNCEMENT = '第一部分 听力部分。';
 
 /** 停顿参数（毫秒）——三类停顿必须分设，不能用一个值糊过去 */
 /* 🔴 2026-09-19 用户实测根治（"间隔不是标准间隔"）：原值 句间 200 / 遍间 800 / 作答一律 10 秒，
@@ -206,6 +215,8 @@ export const LISTENING_PAUSE = {
   afterIntroMs: 1500,
   /** 题号播报之后 → 材料（含材料前的提示音）之前的短停顿 */
   afterItemNoMs: 600,
+  /** 中文播报段之间（试卷标题 → 试音/开场白 → 部分标题）的短停顿——用户实测反馈"停顿太长"，取短值 */
+  afterTitleMs: 1200,
 };
 
 /** 每段材料朗读遍数（现行考试主流为两遍；旧大纲曾为三遍，此处按现行两遍）
@@ -362,8 +373,8 @@ export default {
   LISTENING_HIGH_MIN_WPM,
   LISTENING_ACCENT_POLICY,
   LISTENING_VOICES,
-  LISTENING_VOICE_PRESETS,
-  LISTENING_DEFAULT_VOICE_PRESET,
+  LISTENING_VOICE_CANDIDATES,
+  LISTENING_VOICE_DEFAULTS,
   LISTENING_ZH_VOICE,
   LISTENING_SOUND_CHECK,
   LISTENING_FEATURE_DEFAULTS,

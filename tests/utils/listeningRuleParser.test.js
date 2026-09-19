@@ -295,10 +295,11 @@ describe('端到端：答案页 HTML → 结构化 → SSML（规则路径，无
     expect(ssml).toContain(`<voice name="${LISTENING_VOICES.us.M}">`);
     expect(ssml).toContain(`<voice name="${LISTENING_VOICES.us.W}">`);
     expect(ssml).toContain(`<break time="${params.answerGapMs}ms"/>`);
-    // 段数 = 试音段（提示语 1 + 试音对话 N + 收尾 1）+ 两段材料 × 2 句 × 2 遍（8）+ 结束语 1。
-    // （2026-09-19：新增正规试音段；一题一材料处按国标**不播小题号**，故此处无 itemno 段）
+    // 段数 = 试音段（提示语 1 + 试音对话 N + 收尾 1）+ 部分标题 1 + 英文题号 2 + 材料 8 + 结束语 1
+    //   （2026-09-19：新增试音段与「第一部分 听力部分」；一题一材料处默认播英文「Number N.」；
+    //     本例未传 title，故无「试卷标题」段）
     const soundCheckSegs = LISTENING_SOUND_CHECK.lines.length + 2;
-    expect((ssml.match(/<voice /g) || []).length).toBe(soundCheckSegs + 8 + 1);
+    expect((ssml.match(/<voice /g) || []).length).toBe(soundCheckSegs + 1 + 2 + 8 + 1);
     expect(ssml).not.toMatch(/<prosody[^>]*>\s*[A-D]\s*[.、．]/);
   });
 });
@@ -340,11 +341,15 @@ describe('🔴 只读听力原文：卷面/答案/笔试残留必须挡在音频
     expect(all).toContain('I keep a diary every day');
   });
 
-  it('stripPaperNoise：剔除卷面题头，并在"笔试/范文"处截断', () => {
+  it('stripPaperNoise：大题题头保留「标号+题干」只去分值括号；部分标题整段剔除；笔试处截断', () => {
+    // 🔴 2026-09-19 用户定：音频直接读卷面「一、听录音，选出你所听到的单词或图片」——
+    //    故整行以标号起头的题头要**保留**（只去掉「（每题2分，共10分）」这类书面信息）
     const heading = stripPaperNoise('一、听录音，选出你所听到的单词或图片（每题2分，共10分）');
-    expect(heading.text).toBe('');
+    expect(heading.text).toBe('一、听录音，选出你所听到的单词或图片');
+    // 部分标题整段剔除（其名称由音频按固定文案播报）
     const part = stripPaperNoise('第一部分 听力部分（共3大题，满分30分）');
     expect(part.text).toBe('');
+    // 标号出现在句中（材料句后粘着题头）→ 仍是卷面残留，整段剔除，英文材料必须完整保留
     const mixed = stripPaperNoise('I saw a film yesterday. 二、听录音，判断下列句子（每题2分，共10分）');
     expect(mixed.text).toBe('I saw a film yesterday.');
     const stop = stripPaperNoise('Thank you! 第二部分 笔试部分（共7大题，满分70分）');

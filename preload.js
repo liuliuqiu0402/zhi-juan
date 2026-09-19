@@ -40,6 +40,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 🎧 Edge 免费语音合成（英语听力音频）：无需 Key，主进程逐句合成 + 帧级静音拼接 + 落盘
     edgeTtsToFile: (payload) => ipcRenderer.invoke('edge-tts-to-file', payload),
 
+    // 🔊 音色试听（2026-09-19）：主进程合成一小段样例，回传 base64 供界面直接播放（不落盘、不弹保存框）
+    edgeTtsPreview: (payload) => ipcRenderer.invoke('edge-tts-preview', payload),
+
     // Word COM 后处理：将标记 .docx 转换为原生表格/形状（田字格、四线三格）
     wordComProcess: (buffer) => ipcRenderer.invoke('word-com-process', buffer),
 

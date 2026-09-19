@@ -540,6 +540,27 @@ function safeAudioFileName(name = '', fallback = '听力音频') {
   return (s || fallback).slice(0, 80);
 }
 
+// 🔊 音色试听（2026-09-19 用户要求"每个音色选项都要能试听"）：
+//    合成一小段样例回传 base64，界面用 <audio> 直接播放 —— 不落盘、不弹保存框、不留临时文件。
+//    走主进程的理由与正式合成一致：规避渲染进程跨域/鉴权，且复用同一套音色校验。
+const EDGE_PREVIEW_TEXT = "Good morning, everyone. Welcome to our school radio programme.";
+ipcMain.handle('edge-tts-preview', async (event, payload = {}) => {
+  const voice = /^[a-zA-Z]{2,3}-[a-zA-Z]{2,3}-[A-Za-z0-9-]{1,60}$/.test(String(payload.voice || ''))
+    ? String(payload.voice) : '';
+  if (!voice) return { ok: false, error: '音色名不合法' };
+  const text = String(payload.text || '').trim() || EDGE_PREVIEW_TEXT;
+  const ratePercent = Number.isFinite(Number(payload.ratePercent)) ? Math.round(Number(payload.ratePercent)) : 0;
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'edge-preview-'));
+  try {
+    const buf = await edgeSynthesizeSegment(voice, text, ratePercent, outDir, 0);
+    return { ok: true, base64: buf.toString('base64'), mime: 'audio/mpeg' };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  } finally {
+    try { fs.rmSync(outDir, { recursive: true, force: true }); } catch {}
+  }
+});
+
 ipcMain.handle('edge-tts-to-file', async (event, payload = {}) => {
   const { segments = [], suggestedName = '听力音频.mp3' } = payload || {};
   if (!Array.isArray(segments) || !segments.length) {

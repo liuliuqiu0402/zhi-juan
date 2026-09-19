@@ -21,9 +21,36 @@ import {
   LISTENING_ROLE_LABELS,
   LISTENING_SOUND_CHECK,
   LISTENING_FEATURE_DEFAULTS,
+  LISTENING_PART_ANNOUNCEMENT,
   LISTENING_TRIPLE_PASS_ROTATION,
+  LISTENING_VOICE_CANDIDATES,
 } from '../config/listeningAudioProfile.js';
 import { isCjkNoise } from './listeningExtract.js';
+
+/**
+ * 音色标签：'en-US-ChristopherNeural' → '男声 1 · Christopher'
+ * 🔴 为什么需要（2026-09-19 用户问"解析的听力稿中会多音色配角色吗？要不然用户怎么能立即知道
+ *   是否有多角色呢？"）：朗读稿与界面都要能**一眼看出每个角色用了哪条音色**，
+ *   编号与弹窗下拉、音色试听文件里的报号完全一致，便于用户对着改。
+ */
+const VOICE_LABELS = (() => {
+  const map = new Map();
+  for (const accent of ['us', 'gb']) {
+    for (const g of ['M', 'W']) {
+      (LISTENING_VOICE_CANDIDATES[accent] || {})[g].forEach((v, i) => {
+        map.set(v, `${g === 'M' ? '男声' : '女声'} ${i + 1} · ${v.replace(/^en-[A-Z]{2}-|Neural$/g, '')}`);
+      });
+    }
+  }
+  return map;
+})();
+export const voiceLabel = (voice = '') => VOICE_LABELS.get(String(voice)) || String(voice || '');
+
+/** 角色标签：M/W/N 用中文规范名；A/B/C、S1 这类未知标签**照原名显示**（显示成"旁白"会误导） */
+export const roleLabel = (role = '') => {
+  const r = String(role || 'N').toUpperCase();
+  return LISTENING_ROLE_LABELS[r] || r;
+};
 
 /** XML 转义（SSML 是 XML，未转义会直接合成失败） */
 export const escapeXml = (s = '') => String(s)
@@ -111,15 +138,24 @@ function cleanTitleForAnnounce(title = '') {
     .trim();
 }
 
-export function buildOpeningAnnouncement(title = '', { announceTitle = false } = {}) {
-  const clean = announceTitle ? cleanTitleForAnnounce(title) : '';
-  return clean ? `${clean}，听力考试现在开始。` : '听力考试现在开始。';
+/**
+ * 试卷标题播报语（独立成段，放在全卷最前）。
+ * 🔴 2026-09-19 用户实测稿定版：录音顺序为「试卷标题 → 第一部分 听力部分 → 大题指令 → 叮咚 → Number 1 → 材料…」，
+ *   故标题**独立成段**、不再像早先那样并进开场白（"标题，听力考试现在开始。"）。
+ */
+export function buildTitleAnnouncement(title = '') {
+  const clean = cleanTitleForAnnounce(title);
+  return clean ? `${clean}。` : '';
 }
 
-/** 试音起始提示语；announceTitle 时在试音之前先报考试名称（校/区级做法），国标默认不报 */
-export function buildSoundCheckIntro(title = '', { announceTitle = false } = {}) {
-  const clean = announceTitle ? cleanTitleForAnnounce(title) : '';
-  return clean ? `${clean}。${LISTENING_SOUND_CHECK.intro}` : LISTENING_SOUND_CHECK.intro;
+/** 开场白文本（中文播报）：固定播报「听力考试现在开始」；标题已独立成段，不在此重复 */
+export function buildOpeningAnnouncement() {
+  return '听力考试现在开始。';
+}
+
+/** 试音起始提示语（固定文案，见 LISTENING_SOUND_CHECK.intro）；标题已独立成段，不在此重复 */
+export function buildSoundCheckIntro() {
+  return LISTENING_SOUND_CHECK.intro;
 }
 
 /**
@@ -134,32 +170,66 @@ export function buildSoundCheckIntro(title = '', { announceTitle = false } = {})
  * @param {object} o.overrides 覆盖参数（按考区）
  * @param {boolean} [o.soundCheck]          试音段开关（默认取 LISTENING_FEATURE_DEFAULTS.soundCheck=true）
  * @param {boolean} [o.announceShortItemNo] 一题一材料是否播小题号（默认 false＝国标口径）
+ * @param {Array<string>} [o.voicePoolInput] 音色池 [男主, 女主, 男副?, 女副?]（用户显式指定时全书同一套）
  */
 export function buildListeningStoryboard({
   items = [], intro = '', stage = '', grade = '', name = '', overrides = {}, title = '',
-  announceTitle = false,
+  announceTitle = LISTENING_FEATURE_DEFAULTS.announceTitle,
   soundCheck = LISTENING_FEATURE_DEFAULTS.soundCheck,
   announceShortItemNo = LISTENING_FEATURE_DEFAULTS.announceShortItemNo,
+  partTitle = '',
+  voicePoolInput = null,
 } = {}) {
   const params = resolveListeningParams({ stage, grade, name, overrides });
   const segments = [];
   const risks = [];
+  // 告警累加器（参数告警 + 材料级告警如"多角色但音色不够"）；在材料循环内即需写入，故提前声明
+  const warnings = [...params.warnings];
 
-  // ── 开场：试音段 + 正式开考（中文播报）──────────────────────────
-  // 🔴 正规依据（2026-09-19 复核）：正规考试录音**先试音、再开考**——
-  //   「下面是听力试音时间：」→ 一段英文对话（一男一女，校验音量与两个音色）→
-  //   「听力试音到此结束，听力考试现在开始。」三件套（实证：广西学考听力录音稿）。
-  //   soundCheck=false 时退回旧的单句开场（校内小测用），标题播报由 announceTitle 另控。
-  //   **国标音频不朗读试卷标题**——故 title 默认不播（announceTitle 可开）。
+  // 🎚 音色池（2026-09-19 用户裁定：男声/女声可配 + 多角色追加音色）
+  //    形如 [男主, 女主, 男副?, 女副?]；显式指定后**全书用这一套**（不再按口音表逐段轮换）。
+  //    未指定时退化为 [美音男主, 美音女主]，行为与旧版一致。
+  const voicePool = (Array.isArray(voicePoolInput) ? voicePoolInput : [])
+    .map((v) => String(v || '').trim()).filter(Boolean);
+  const effectivePool = voicePool.length ? voicePool : [params.voices.us.M, params.voices.us.W];
+  /** 对话里的英语音色：池里有就用池（男主/女主…），否则按口音表 */
+  const enVoice = (label, accentSet) => {
+    if (voicePool.length) return label === 'W' ? (voicePool[1] || voicePool[0]) : voicePool[0];
+    return accentSet[label] || accentSet.N;
+  };
+
+  // ── 开场序列（中文播报）─────────────────────────────────────────
+  // 🔴 2026-09-19 用户实测稿定版的顺序：
+  //   ① 试卷标题（「六年级英语上册Unit 1 Try your best测试卷」）
+  //   ② 试音三件套（开＝「下面是听力试音时间：」+ 一男一女试音对话 +「听力试音到此结束，听力考试现在开始。」；
+  //      关＝单句开场白「听力考试现在开始。」）
+  //   ③ 部分标题（「第一部分 听力部分。」）
+  //   之后才进入各大题指令 → 叮咚 → 题号 → 材料。
+  //   ① 与 ③ 都是用户明确要求读出的；①的标题净化沿用 cleanTitleForAnnounce（去时间戳）。
+  const titleText = announceTitle ? buildTitleAnnouncement(title) : '';
+  if (titleText) {
+    segments.push({
+      kind: 'title',
+      voice: params.zhVoice,
+      role: 'N',
+      text: titleText,
+      ratePercent: 0,
+      gapAfterMs: params.pauses.afterTitleMs,
+      chimeBefore: true,   // 全卷第一个提示音：正式开考
+      itemNo: null,
+      pass: 0,
+    });
+  }
+
   if (soundCheck) {
     segments.push({
       kind: 'soundcheck',
       voice: params.zhVoice,
       role: 'N',
-      text: buildSoundCheckIntro(title, { announceTitle }),
+      text: buildSoundCheckIntro(),
       ratePercent: 0,     // 中文播报不套用英文慢速
       gapAfterMs: 800,
-      chimeBefore: true,  // 全卷第一个提示音：开始试音
+      chimeBefore: !titleText,  // 无标题时由试音提示语承担全卷第一声
       itemNo: null,
       pass: 0,
     });
@@ -169,7 +239,7 @@ export function buildListeningStoryboard({
       risks.push(...r.map((x) => ({ ...x, where: '试音对话' })));
       segments.push({
         kind: 'soundcheck',
-        voice: params.voices[params.accent === 'gb' ? 'gb' : 'us'][ln.role] || params.voices.us.N,
+        voice: enVoice(ln.role, params.voices[params.accent === 'gb' ? 'gb' : 'us']),
         role: ln.role,
         text: String(text).trim(),
         ratePercent: params.ratePercent,   // 试音须与正文同速，学生才能据此校准
@@ -193,10 +263,28 @@ export function buildListeningStoryboard({
       kind: 'opening',
       voice: params.zhVoice,
       role: 'N',
-      text: buildOpeningAnnouncement(title, { announceTitle }),
+      text: buildOpeningAnnouncement(),
       ratePercent: 0,
       gapAfterMs: params.pauses.afterSectionInstructionMs,
-      chimeBefore: true,   // 全卷第一个提示音：正式开考
+      chimeBefore: !titleText,   // 无标题时由开场白承担全卷第一声
+      itemNo: null,
+      pass: 0,
+    });
+  }
+
+  // ── ③ 部分标题（「第一部分 听力部分。」）──────────────────────────
+  // 用户实测稿明确要求读出；英语卷听力必为第一部分，故取固定播报（见 LISTENING_PART_ANNOUNCEMENT），
+  // 调用方传 partTitle 可覆盖。
+  const partText = String(partTitle || LISTENING_PART_ANNOUNCEMENT || '').trim();
+  if (partText) {
+    segments.push({
+      kind: 'part',
+      voice: params.zhVoice,
+      role: 'N',
+      text: partText,
+      ratePercent: 0,
+      gapAfterMs: params.pauses.afterTitleMs,
+      chimeBefore: false,   // 部分标题本身不响铃；叮咚落在每段材料前
       itemNo: null,
       pass: 0,
     });
@@ -222,9 +310,14 @@ export function buildListeningStoryboard({
   }
 
   let prevItemLastSeg = -1;
+  /** 逐题的音色分配（角色 → 音色）——朗读稿据此逐题列出"多音色配角色" */
+  const voiceCast = [];
   items.forEach((item, i) => {
     const accent = pickAccentForItem(params.accent, i);
-    const voiceSet = params.voices[accent] || params.voices.us;
+    // 显式音色池优先：池存在时全书同一套音色；否则按口音表（低美高混）逐段取
+    const voiceSet = voicePool.length
+      ? { M: voicePool[0], W: voicePool[1] || voicePool[0], N: voicePool[0] }
+      : (params.voices[accent] || params.voices.us);
     const lines = Array.isArray(item.lines) ? item.lines.filter((l) => String(l && l.text || '').trim()) : [];
     if (!lines.length) return;
     const repeat = Number.isFinite(item.repeat) && item.repeat > 0 ? item.repeat : params.repeat;
@@ -259,16 +352,20 @@ export function buildListeningStoryboard({
       });
     }
 
+    // 🔴 本条"起条段"的落点：大题指令已在上方单独处理（它属大题边界，不属小题），
+    //    故此处起算的是**题号播报 / 材料**的起点——叮咚最终落在它的第一个发音段上。
+    const itemFirstSeg = segments.length;
+
     // 🔴 题号播报（2026-09-19 复核后按国标定稿）：
     //      · 一段材料对多题（独白/短文）→ 报「听第N段材料，回答第X～Y小题」（国标原文写法）。
     //        两项用顿号、三项及以上用「至」——**照真题书面写法**，不用「～」符号（TTS 读不稳）。
     //        拿不到题号范围就**整条不报**（宁可不报，也不报错：原实现按条数顺编，实测把第三节
     //        报成了"第七题"，而该卷第三节实为第 11~15 题）。
-    //      · 一题一材料（短材料）→ 国标第一节**不播小题号**（靠作答间隔 + 卷面题号定位），
-    //        由 announceShortItemNo 控制，默认关；小学/校内卷可在生成面板打开。
-    //      · 措辞一律用「小题」：高考录音作答说明即"阅读**第1小题**的有关内容"、"回答第6、7**小题**"。
+    //      · 一题一材料（短材料）→ 播**英文题号「Number 1.」**（2026-09-19 用户实测稿定：
+    //        "number one 不读第一小题"），由英语旁白音色读；由 announceShortItemNo 控制，默认开。
+    //      · 一段材料对多题 → 报中文「听第N段材料，回答第X、Y小题」（国标原文写法），不受该开关影响。
     const itemNoText = (() => {
-      if (!multiQ) return announceShortItemNo ? `第${item.no}小题。` : '';
+      if (!multiQ) return announceShortItemNo ? `Number ${item.no}.` : '';
       const r = item.range;
       if (!r || !r.from) return '';
       const from = Number(r.from);
@@ -281,42 +378,54 @@ export function buildListeningStoryboard({
     if (itemNoText) {
       segments.push({
         kind: 'itemno',
-        voice: params.zhVoice,
+        // 一题一材料的英文题号（Number 1.）由**英语旁白音色**读；一段对多题的中文范围播报由中文播报音色读
+        voice: multiQ ? params.zhVoice : voiceSet.N,
         role: 'N',
         text: itemNoText,
         ratePercent: 0,
         gapAfterMs: params.pauses.afterItemNoMs,
-        // 题号播报本身不响铃：提示音属于"材料起点"（题号 → 停顿 → 叮咚 → 材料），
-        //   与真题"不读小标题 Text，从打点开始"一致；此处响会导致题号与材料各响一次。
+        // 叮咚落点见本条末尾统一赋值（落在"本条第一个发音段"上）
         chimeBefore: false,
         itemNo: item.no,
         pass: 0,
       });
     }
 
-    // 🔴 说话人 → 音色：M/W/N 直取；**未知但可辨识的标签**（A/B、S1/S2、说话人1…）不折叠成 N——
-    //    对话里按首次出现顺序交替男/女（考试短对话惯例一男一女），独白里一律用旁白音色。
-    //    否则双人对话会退化成单一音色，听不出谁在说（听力音频最易出的错）。
+    // 🔴 说话人 → 音色（2026-09-19 用户追问"多角色怎么办"后定稿）：
+    //    · 标了 M:/W: → 男主/女主音色；
+    //    · 未标注/旁白 N → 男主音色（与男声同源，避免全书多出第三个"播音腔"）；
+    //    · **未知但可辨识的标签**（A/B/C、S1/S2、说话人1…）→ 按首次出现顺序从**音色池**里取
+    //      **尚未被占用**的那一个：两人对话＝男主+女主；三人对话且用户配了"男声副"就用第三个音色，
+    //      没配则回落到男主（真题本就是两人读全部材料，回落不算错，只是听不出第三人）。
+    //      绝不能把不同说话人折叠成同一音色——那是听力音频最易出的错。
     const speakers = [...new Set(lines.map((l) => String(l.role || 'N').toUpperCase()))];
     const isDialogue = speakers.length > 1;
-    const genderMap = new Map();
+    const usedVoices = new Set();
+    const roleVoice = new Map();
+    /** 从池里取一个"还没被占用"的音色并标记为已用；池用完则按顺序循环复用 */
+    const takeFromPool = () => {
+      const free = effectivePool.find((v) => !usedVoices.has(v));
+      const picked = free || effectivePool[usedVoices.size % effectivePool.length];
+      usedVoices.add(picked);
+      return picked;
+    };
     const voiceOf = (rawRole) => {
       const role = String(rawRole || 'N').toUpperCase();
       // 同卷独白/短文播报者一致：未标注的单一说话人长材料，沿用同卷首条已标注的播报者音色
-      if (role === 'N' && multiQ && soloLongRole) return voiceSet[soloLongRole] || voiceSet.N;
-      if (role === 'M' || role === 'W' || role === 'N') return voiceSet[role] || voiceSet.N;
-      if (!isDialogue) return voiceSet.N;
-      if (!genderMap.has(role)) genderMap.set(role, genderMap.size % 2 === 0 ? 'M' : 'W');
-      return voiceSet[genderMap.get(role)] || voiceSet.N;
+      if (role === 'N' && multiQ && soloLongRole) { const v = voiceSet[soloLongRole] || voiceSet.N; usedVoices.add(v); return v; }
+      if (role === 'M' || role === 'W' || role === 'N') { const v = voiceSet[role] || voiceSet.N; usedVoices.add(v); return v; }
+      if (!isDialogue) { usedVoices.add(voiceSet.N); return voiceSet.N; }
+      if (!roleVoice.has(role)) roleVoice.set(role, takeFromPool());
+      return roleVoice.get(role);
     };
 
     // 🔴 三遍轮读音色（2026-09-19 调研新增，见 LISTENING_TRIPLE_PASS_ROTATION）：
     //    读三遍的**单说话人**材料按 男→女→男 轮换（实证：小学听力要求原文"男、女、男声中速各读一遍"）；
     //    读两遍仍为同一音色（同一说话人重读一遍，真题即如此，换人反而是错的）；对话按角色分音色、不轮读。
     const rotateTriple = LISTENING_TRIPLE_PASS_ROTATION && repeat >= 3 && !isDialogue;
-    // 提示音落在"本条材料真正产出的第一段"上：题号播报可能在前（题号 → 停顿 → 叮咚 → 材料），
-    //   而首句若被中文噪音守卫剔除，也不能把提示音一起丢掉。
-    let chimePlaced = false;
+    /** 本条的音色分配（角色 → 音色，按首次出现顺序）——供朗读稿"多音色配角色"呈现与界面摘要 */
+    const castEntries = [];
+    const castSeen = new Set();
     for (let pass = 1; pass <= repeat; pass++) {
       lines.forEach((ln, li) => {
         const role = String(ln.role || 'N').toUpperCase();
@@ -328,22 +437,28 @@ export function buildListeningStoryboard({
         const isPassEnd = li === lines.length - 1;
         // 三遍轮读：奇数遍男声、偶数遍女声（男→女→男）
         const speakRole = rotateTriple ? (pass % 2 === 1 ? 'M' : 'W') : role;
+        const speakVoice = voiceOf(speakRole);
+        // 记录"角色 → 音色"（同一角色只记一次；三遍轮读天然会记 2 条：男、女）
+        const castKey = `${speakRole}\u0000${speakVoice}`;
+        if (!castSeen.has(castKey)) { castSeen.add(castKey); castEntries.push({ role: speakRole, voice: speakVoice }); }
         segments.push({
           kind: pass === 1 ? 'material' : 'repeat',
-          voice: voiceOf(speakRole),
+          voice: speakVoice,
           role: speakRole,
           text: String(text).trim(),
           ratePercent: params.ratePercent,
-          // 🔴 提示音（叮咚）＝"打点"：真题"不读小标题 Text，从打点开始"，即**每段材料起点响一次**；
-          //   同一材料的第二/三遍之间**不响**（2026 新版高考明文"两遍之间无提示音"）。
-          chimeBefore: !chimePlaced,
+          chimeBefore: false,   // 叮咚落点见本条末尾统一赋值
           // 同一材料两遍之间用较长间隙；材料内部句/轮之间用短间隙（停顿的"顿挫感"主要来自这里，故取小值）
           gapAfterMs: isPassEnd && pass < repeat ? params.pauses.betweenRepeatsMs : params.pauses.sentenceGapMs,
           itemNo: item.no,
           pass,
         });
-        chimePlaced = true;
       });
+    }
+    voiceCast.push({ itemNo: item.no, entries: castEntries });
+    // 🔴 多角色但音色不够：如实告警（用户据此决定是否去配"男声副/女声副"）
+    if (castEntries.length > effectivePool.length) {
+      warnings.push(`第 ${item.no} 题有 ${castEntries.length} 个角色（${castEntries.map((c) => roleLabel(c.role)).join('、')}），但只配了 ${effectivePool.length} 个音色 —— 多出的角色会沿用已有音色；如需一人一声，请在弹窗里补配"男声副/女声副"`);
     }
     // 作答留白：挂到本题最后一段。以指令为准（声明了作答秒数就用它），否则按材料形态分档。
     // 🔴 需**动笔写词**的题（补全短文/填空）单独一档：5 秒档是给"听独白做判断"的，
@@ -356,6 +471,11 @@ export function buildListeningStoryboard({
         : (multiQ ? params.pauses.longMaterialAnswerGapMs : params.answerGapMs));
     const last = segments[segments.length - 1];
     if (last && last.itemNo === item.no) last.gapAfterMs = answerGap;
+    // 🔴 提示音（叮咚）＝"一小题结束"的边界音（2026-09-19 用户实测稿定版：
+    //    "一小题结束 叮咚，遍与遍之间不叮咚"）：
+    //    落在本条的**第一个发音段**上——有题号播报就在题号之前（「…→叮咚→Number 2→材料」），
+    //    没有题号就在材料之前；同一材料的两遍之间不响；大题指令属大题边界、不在其列。
+    if (segments.length > itemFirstSeg) segments[itemFirstSeg].chimeBefore = true;
     prevItemLastSeg = segments.length - 1;
   });
 
@@ -374,7 +494,6 @@ export function buildListeningStoryboard({
 
   // 🔴 以指令为准：分节指令声明的遍数会覆盖学段默认（真题第一节与第二节遍数常不同，如高考
   //    第一节仅读一遍、第二节读两遍）。偏离必须显式登记——否则"音频遍数与播报不符"无人察觉。
-  const warnings = [...params.warnings];
   const deviated = items.filter((it) => Number.isFinite(it.repeat) && it.repeat > 0 && it.repeat !== params.repeat);
   if (deviated.length) {
     const byRepeat = new Map();
@@ -387,7 +506,7 @@ export function buildListeningStoryboard({
     }
   }
 
-  return { segments, params, risks: dedupeRisks(risks), warnings };
+  return { segments, params, risks: dedupeRisks(risks), warnings, voiceCast, voicePool: effectivePool };
 }
 
 /**
@@ -420,7 +539,7 @@ export function buildListeningSsml(input = {}) {
  */
 export function buildListeningScriptText(input = {}) {
   const { stageLabel = '', ...rest } = input;
-  const { segments, params, risks, warnings } = buildListeningStoryboard(rest);
+  const { segments, params, risks, warnings, voiceCast = [], voicePool = [] } = buildListeningStoryboard(rest);
   const out = [];
 
   const accentName = params.accent === 'mixed' ? '美音/英音交替'
@@ -449,8 +568,14 @@ export function buildListeningScriptText(input = {}) {
       return roles.length <= 1;
     });
   out.push(`遍数：${repeatDesc}　题间作答留白：${Math.round(params.answerGapMs / 1000)} 秒`);
-  const v = params.voices.us;
-  out.push(`音色：男 ${v.M} ｜ 女 ${v.W} ｜ 旁白 ${v.N}`);
+  // 🎚 音色（2026-09-19 用户要求"用户能立即知道是否有多角色"）：列出**生效音色池**，
+  //    并逐题给出"角色 → 音色"分配（见下方每题块首行），多角色题一眼可见用了几个音色。
+  out.push(`音色：${voicePool.map((v) => voiceLabel(v)).join('　｜　')}`);
+  const castByItem = new Map(voiceCast.map((c) => [c.itemNo, c.entries || []]));
+  // "角色"只数真正的说话人（N＝旁白/独白，不是角色）；若无标注角色则按 1 个（旁白）计
+  const roleSet = new Set(voiceCast.flatMap((c) => (c.entries || []).map((e) => e.role)).filter((r) => r !== 'N'));
+  const speakerCount = roleSet.size || (voiceCast.length ? 1 : 0);
+  out.push(`说话人：全书 ${speakerCount} 个角色　｜　${voicePool.length} 条音色${speakerCount > voicePool.length ? '　⚠️ 角色多于音色，多出的角色会沿用已有音色（可在弹窗补配"男声副/女声副"）' : ''}`);
   out.push('');
 
   let currentItem = '__none__';
@@ -484,6 +609,16 @@ export function buildListeningScriptText(input = {}) {
       currentItem = '__none__';
       continue;
     }
+    // 试卷标题 / 部分标题：均为中文播报，各自成段（真人录音也要照读）
+    if (s.kind === 'title' || s.kind === 'part') {
+      const label = s.kind === 'title' ? '试卷标题（中文播报）' : '部分标题（中文播报）';
+      if (out[out.length - 1] !== '') out.push('');
+      out.push(`──── ${label} ────`);
+      out.push(s.text);
+      out.push('');
+      currentItem = '__none__';
+      continue;
+    }
     // 试音段（中文播报 + 一男一女试音对话）：正规录音的独立前置环节，见 LISTENING_SOUND_CHECK
     if (s.kind === 'soundcheck') {
       if (currentItem !== '__sc__') {
@@ -491,12 +626,17 @@ export function buildListeningScriptText(input = {}) {
         out.push('──── 试音（中文播报 + 英文对话）────');
         currentItem = '__sc__';
       }
-      out.push(s.role === 'N' ? s.text : `${LISTENING_ROLE_LABELS[s.role] || '旁白'}：${s.text}`);
+      out.push(s.role === 'N' ? s.text : `${roleLabel(s.role)}：${s.text}`);
       continue;
     }
     if (s.itemNo !== currentItem) {
       if (currentItem !== '__none__') out.push('');
       out.push(`──── 第 ${s.itemNo} 题 ────`);
+      // 🎚 该题的音色分配：多角色题一眼可见"几个角色、各用哪条音色"（单角色题也标出来，便于核对）
+      const cast = castByItem.get(s.itemNo);
+      if (cast && cast.length) {
+        out.push(`（音色）${cast.map((c) => `${roleLabel(c.role)} → ${voiceLabel(c.voice)}`).join('　｜　')}`);
+      }
       currentItem = s.itemNo;
     }
     // 题号播报（中文）——真人录音也要照读，学生才知道这是第几题
@@ -504,7 +644,7 @@ export function buildListeningScriptText(input = {}) {
       out.push(`〔题号播报〕${s.text}`);
       continue;
     }
-    const roleName = LISTENING_ROLE_LABELS[s.role] || '旁白';
+    const roleName = roleLabel(s.role);
     // 第二遍起标注，避免真人/剪辑重复录
     const passTag = s.pass > 1 ? `〔第${s.pass}遍〕` : '';
     out.push(`${passTag}${roleName}：${s.text}`);
@@ -515,7 +655,7 @@ export function buildListeningScriptText(input = {}) {
   // 与正文同一口径：遍数按实际生效值（分节指令优先），不得写成与音频不符的"一律两遍"
   out.push(`· 遍数：${repeatDesc}；材料连读两遍之间停 ${params.pauses.betweenRepeatsMs} ms`);
   out.push(`· 换节：节间留白 ${params.pauses.betweenSectionsMs} ms、指令后停 ${params.pauses.afterSectionInstructionMs} ms；一段材料对多题（独白/短文）按"各小题 5 秒"档留作答，短材料按学段档；节指令声明了秒数则以声明为准`);
-  out.push(`· 题号播报：一段材料对多题处按真题写法读「听第X段材料，回答第X～Y小题」（见〔题号播报〕）${rest.announceShortItemNo ? '；一题一材料处读「第N小题」' : '；一题一材料处**不读小题号**（国标口径，靠作答间隔与卷面题号定位）'}`);
+  out.push(`· 题号播报：一段材料对多题处按真题写法读「听第X段材料，回答第X～Y小题」（见〔题号播报〕）${rest.announceShortItemNo !== false ? '；一题一材料处读英文「Number N.」' : '；一题一材料处**不读题号**'}`);
   out.push('· 提示音（叮咚）＝"打点"：**每段材料开始前响一次**（真题"不读小标题 Text，从打点开始"）；同一材料的第二/三遍之间**不响**（2026 新版高考明文"两遍之间无提示音"）；节指令与题号播报本身不响');
   out.push('· 同一角色全卷使用同一音色，保持语速一致，避免音色与语速漂移');
   if (rotateTripleUsed) {
@@ -540,8 +680,11 @@ export default {
   pickAccentForItem,
   isLongMaterial,
   isMultiQuestion,
+  voiceLabel,
+  roleLabel,
   buildOpeningAnnouncement,
   buildSoundCheckIntro,
+  buildTitleAnnouncement,
   buildListeningStoryboard,
   buildListeningSsml,
   buildListeningScriptText,
