@@ -7,6 +7,7 @@ import path from 'node:path';
 import { EXAM_BLUEPRINTS } from '../../src/config/examPaperBlueprints.js';
 import { TEACHING_BLUEPRINTS, TEACHING_SUBJECT_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
 import { getPromptTemplate, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS } from '../../src/config/promptLibrary.js';
+import { getValidatorRule } from '../../src/config/validatorRules.js';
 
 const ROOT = path.resolve(__dirname, '../..');
 
@@ -225,5 +226,48 @@ describe('蓝图库与指令库措辞守卫（2026-09-16 课标原则）', () =>
     // 低段语文写话不得按中高段习作权重给分
     expect(EXAM_BLUEPRINTS['语文|primary_low'].sections.find((s) => s.name === '表达与交流').score)
       .toBeLessThanOrEqual(20);
+  });
+
+  // 🔴 2026-09-19 用户提问："试卷的大题标题，都是直接取蓝图结构中的栏目名吗？这个不合适吧？"
+  //    确实不合适——蓝图栏目名是我们内部的**调研分类名**（如英语小段的"听音选词/选图"），
+  //    真题里并不存在这种标题；照抄会让卷面不像正规卷，也违背"不照抄、不模仿"。
+  //    该口径 2026-09-17 已修（实证：修复前"十个大题标题与蓝图逐字一致"），当时有**三处**互相打架：
+  //    ①【卷面结构】块头；②【卷面格式】大题标题条；③ validatorRules 的 title-detail-fix。
+  //    但当时**没有任何守卫锁住**——实测过"只改①、(b)(c) 反向拉着就会复发"，故本条把三处一并钉死。
+  // 🔴 同日用户补充口径（把要求说全）："不照抄、不模仿；命题者按要求**自拟**标题，并**按标题要求命符合要求的题目**"
+  //    —— 即两半必须同时成立：① 标题自拟（不照抄/不模仿/不换说法照搬）；② 标题一经拟出，题目须与标题相符，
+  //    声明了就得真有、给到了就得如实写（标题↔题目自洽）。下半截同样无守卫，故一并锁住。
+  it('🔴 大题标题：自拟（不照抄不模仿）且须按标题要求命相符题目——两半口径同源，防回潮', () => {
+    const tpl = getPromptTemplate({ grade: 'primary_high', subject: '英语', genType: 'exam' }).template;
+
+    /* ── 上半截：标题自拟，不照抄不模仿蓝图分类名 ── */
+    // ① 【卷面结构】块头：它是命题指引，不是标题清单；标题按实际作答方式自拟
+    expect(tpl).toContain('这是命题指引，不是标题清单');
+    expect(tpl).toContain('大题标题须你按本卷实际的作答方式自拟');
+    expect(tpl).toContain('不要照抄它的行首分类名与其中点到的知识点名');
+    // 带斜杠并列的调研分类名：原样照抄与"换个说法照搬"都不许
+    expect(tpl).toContain('既不得原样照抄、也不得改写成近义说法');
+    // ② 【卷面格式】大题标题条：题型名自拟，明确"不是照抄它行首的调研分类名"
+    expect(tpl).toContain('由你按本大题实际的作答方式自拟');
+    expect(tpl).toContain('照抄它行首的调研分类名');
+    // ③ 质检规则不得反向拉回"按【卷面结构】定标题"（题量/分值也须按实际命制）
+    const rule = getValidatorRule('title-detail-fix');
+    expect(rule, 'title-detail-fix 规则应注册在册').toBeTruthy();
+    expect(rule.promptHint, '质检规则不得再写"按【卷面结构】"').not.toContain('按【卷面结构】');
+    expect(rule.promptHint).toContain('按你实际命制的题数');
+
+    /* ── 下半截：标题拟出后，题目必须与标题相符（声明↔实给一致）── */
+    // 主张"标题里写到的提示方式与作答方式必须与题内实际一致"，双向都要管：
+    //   不得写题内没有的（不虚标）、不得漏写题内真给的（不隐瞒）
+    expect(tpl).toContain('标题里写到的提示方式与作答方式必须与题内实际一致');
+    expect(tpl).toContain('不得写题内没有的提示或作答形态');
+    expect(tpl).toContain('也不得漏写题内实际给的提示方式');
+    // 分值说明按实际命制给出，写法与命题内容相符
+    expect(tpl).toContain('写法与命题内容相符');
+    // 小题层面同口径
+    expect(tpl).toContain('小题标题准确描述其作答形式');
+    // 教辅侧同名口径（组标题）保持同源，防两侧分叉
+    const practice = getPromptTemplate({ grade: 'primary_high', subject: '英语', genType: 'practice' }).template;
+    expect(practice).toContain('组标题里写到的提示方式与作答方式');
   });
 });

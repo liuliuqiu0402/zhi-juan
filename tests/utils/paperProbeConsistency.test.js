@@ -226,8 +226,8 @@ describe('⑥ 答案区计数剔除「听力原文」板块（防遮蔽，与正
 //   同一范式）；此处锁住三域、动作与"原则式零列举"三条不变量。
 import fs from 'node:fs';
 import path from 'node:path';
-import { TAIL_SELF_CONSISTENCY } from '../../src/utils/injectionManifest.js';
-import { buildOutputFormatHint } from '../../src/config/promptLibrary.js';
+import { TAIL_SELF_CONSISTENCY, buildUserMessagePrompt } from '../../src/utils/injectionManifest.js';
+import { buildOutputFormatHint, getPromptTemplate } from '../../src/config/promptLibrary.js';
 
 describe('⑤ 尾约束·全文自洽：三域化 + 定稿前动作（模型侧承接，原则式零列举不变量保持）', () => {
   const ROOT = path.resolve(__dirname, '../..');
@@ -272,6 +272,48 @@ describe('⑤ 尾约束·全文自洽：三域化 + 定稿前动作（模型侧�
     const q = buildOutputFormatHint({ subject: '英语', stage: 'primary_high', genType: 'exam' });
     expect(q).toContain('以上细目即【尾约束·全文自洽】三域在题类资料的展开');
     expect(q).toContain('定稿前按三域（声明↔实给、要素之间、跨处之间）逐项复核');
+  });
+});
+
+// 🔴 2026-09-19 用户追问："刚刚这个（标题须与题目相符），自洽里应该也有语义吧？正好能对应上。
+//    所有资料类型中涉及的题类的，是否都能够遵守到？其实内容型的也是同理自洽，对吧？"
+//    审计结论：**语义已在自洽框架内、且各按其分**——"标题"本就是尾约束①的声明主体，三域全类型中性；
+//    故**不新增任何条款**（防补丁式堆叠重复语义），只把"哪类拿哪层"的注入面整体锁住：
+//    既防**缺席**（某类漏掉自洽条款），也防**越界**（题类条款广播进内容型——此前已裁定不许）。
+describe('自洽条款的注入面：9 类资料各按其分（不缺席、不越界）', () => {
+  const P = { grade: 'primary_high', subject: '英语' };
+  const QUESTION_TYPES = ['exam', 'practice', 'special', 'reading', 'dictation', 'errorbook', 'review'];
+  const CONTENT_TYPES = ['preview', 'summary'];
+  const tplOf = (genType) => getPromptTemplate({ ...P, genType }).template;
+
+  it('7 类题类一律拿到「题目自洽（编辑自查总纲）」，2 类内容型一律不拿', () => {
+    for (const g of QUESTION_TYPES) {
+      expect(tplOf(g), `${g} 应含题类自洽总纲`).toContain('题目自洽（编辑自查总纲');
+    }
+    for (const g of CONTENT_TYPES) {
+      expect(tplOf(g), `${g} 不应含题类自洽总纲（内容型另有判据）`).not.toContain('题目自洽（编辑自查总纲');
+    }
+  });
+
+  it('标题↔题内一致各按其形：exam 拿"大题标题"条，6 类教辅题类拿"组标题"条，互不串味', () => {
+    const exam = tplOf('exam');
+    expect(exam).toContain('标题里写到的提示方式与作答方式必须与题内实际一致');
+    expect(exam).toContain('照抄它行首的调研分类名');
+    expect(exam, 'exam 不走教辅的组标题条款').not.toContain('组标题里写到的提示方式与作答方式');
+    for (const g of QUESTION_TYPES.filter((x) => x !== 'exam')) {
+      const t = tplOf(g);
+      expect(t, `${g} 应含组标题↔题内一致`).toContain('组标题里写到的提示方式与作答方式');
+      expect(t, `${g} 不应出现 exam 专用的大题标题条`).not.toContain('照抄它行首的调研分类名');
+    }
+  });
+
+  it('尾约束·全文自洽对 9 类全部注入（同一份，含标题声明域与定稿前动作）', () => {
+    for (const g of [...QUESTION_TYPES, ...CONTENT_TYPES]) {
+      const msg = buildUserMessagePrompt({ genType: g, subject: '英语', materialChannel: 'full', outputMode: 'once' });
+      expect(msg, `${g} 应注入尾约束·全文自洽`).toContain('【尾约束·全文自洽】');
+      expect(msg, `${g} 应含标题声明域`).toContain('写在标题、栏目标题、题干、导语、目录、图注、注释里的都算');
+      expect(msg, `${g} 应含定稿前动作`).toContain('定稿前逐节逐题按下面三域复核');
+    }
   });
 });
 
