@@ -25,10 +25,12 @@ export const EXAM_BLUEPRINTS = {
   '语文|primary_low': {
     label: '语文·小学低段（1-2年级）', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '识字与写字', score: 32, note: '覆盖本单元识字与写字内容，在语境中考查。' },
-      { name: '积累与运用', score: 24, note: '覆盖本单元积累与运用内容，在真实语境中选填、仿写。' },
-      { name: '阅读与鉴赏', score: 14, note: '课内课外阅读结合；选文标注出处。' },
-      { name: '表达与交流', score: 30, note: '口语交际与看图写话结合本单元主题；写话提供词语支架。' },
+      // 🔴 2026-09-19 调研（一二年级实际流通纸笔卷）：低段以字词基础为主，写话仅 10-15 分且不会写的字可用拼音，
+      //    口语交际无法纸笔化。原"表达与交流 30 分"接近中高段习作权重，超出低段实际 → 下调。
+      { name: '识字与写字', score: 40, note: '覆盖本单元识字与写字内容，在语境中考查。' },
+      { name: '积累与运用', score: 28, note: '覆盖本单元积累与运用内容，在语境中选填、仿写。' },
+      { name: '阅读与鉴赏', score: 16, note: '课内课外阅读结合；选文标注出处。' },
+      { name: '表达与交流', score: 16, note: '看图写话为主，结合本单元主题；写话提供必要的词语支架，不会写的字可用拼音。' },
     ],
   },
   '语文|primary_mid': {
@@ -62,9 +64,11 @@ export const EXAM_BLUEPRINTS = {
   '语文|high': {
     label: '语文·高中（新高考结构）', fullScore: 150, duration: '150分钟',
     sections: [
-      { name: '现代文阅读', score: 35, note: '信息类文本与文学类文本阅读。' },
-      { name: '古代诗文阅读', score: 35, note: '文言文、古代诗歌鉴赏与名篇名句默写。' },
-      { name: '语言文字运用', score: 20, note: '词语选用、病句修改、句式变换、表达得体、补写句子等，在语境中考查。' },
+      // 🔴 卷面结构以 **2025 年全国卷官方卷面**为准（2026-09-19 调研）：原"现代文阅读/古代诗文阅读"
+      //    两栏自 2025 年起已整合为一个「阅读」大题（阅读Ⅰ/Ⅱ＋文言文＋古代诗歌＋名篇名句默写），
+      //    语言文字运用降为 18 分。各块分值逐年微调（如 2026 年阅读 74 分），总量稳定，故只锁总量。
+      { name: '阅读', score: 72, note: '含信息类与文学类文本阅读、文言文、古代诗歌鉴赏与名篇名句默写；各块分值随年度微调，总量稳定。' },
+      { name: '语言文字运用', score: 18, note: '在语境中考查词语选用、病句修改、句式变换、表达得体、补写句子等。' },
       { name: '写作', score: 60, note: '材料作文，准确理解材料、立意明确、论证充分。' },
     ],
   },
@@ -73,13 +77,16 @@ export const EXAM_BLUEPRINTS = {
   '数学|primary_low': {
     label: '数学·小学低段（1-2年级）', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '直接写得数', score: 20, note: '口算，直接写得数；含加减法（二年级含表内乘法）' },
-      { name: '填空', score: 20, note: '数的组成、比大小、单位换算、找规律等基础内容' },
-      { name: '选择', score: 10, note: '基础辨析' },
+      // 🔴 2026-09-19 调研（一二年级实际流通纸笔卷）：真实二年级卷**必设竖式/笔算题（8-18分）**，
+      //    原骨架整题缺失（最实质缺项）；"直接写得数 20 / 看图列式 10"偏高、"填空 20"偏低 → 一并校正。
+      { name: '直接写得数', score: 14, note: '口算，直接写得数；含加减法（二年级含表内乘法）' },
+      { name: '竖式计算', score: 12, note: '列竖式计算（一年级下册起），要求书写规范；竖式书写区由系统按载体渲染' },
+      { name: '填空', score: 24, note: '数的组成、比大小、单位换算、找规律等基础内容' },
       { name: '判断', score: 10, note: '概念与算法辨析' },
-      { name: '操作题', score: 10, note: '画一画、连一连、数一数、按要求涂色；需配图处由系统按渲染契约注入' },
-      { name: '看图列式计算', score: 10, note: '看图列出算式并计算；配图由系统注入' },
-      { name: '解决问题', score: 20, note: '应用题，要求列式、计算并作答（写单位、写答语）' },
+      { name: '选择', score: 10, note: '基础辨析' },
+      { name: '操作题', score: 8, note: '画一画、连一连、数一数、按要求涂色；需配图处由系统按渲染契约注入' },
+      { name: '看图列式计算', score: 6, note: '看图列出算式并计算；配图由系统注入' },
+      { name: '解决问题', score: 16, note: '应用题，要求列式、计算并作答（写单位、写答语）' },
     ],
   },
   '数学|primary_mid': {
@@ -126,25 +133,27 @@ export const EXAM_BLUEPRINTS = {
 
   // ══════════════ 英语 ══════════════
   '英语|primary_low': {
-    label: '英语·小学低段（1-2年级，部分地区）', fullScore: 100, duration: '40分钟',
+    label: '英语·小学低段（1-2年级，个别一年级开课地区）', fullScore: 100, duration: '40分钟',
     sections: [
-      { name: '听力·听音选图', score: 10, note: '听简短词句选对应图片（物品/动物/人物动作等），基础交际要素；每段材料读两遍' },
-      { name: '听力·听音判断', score: 10, note: '听句子判断图片或陈述正误；每段材料读两遍' },
-      { name: '听力·听音排序', score: 10, note: '听词句给图片标序号；每段材料读两遍' },
-      { name: '听力·听音选答语', score: 10, note: '听问句选正确应答（问候/喜好/年龄/物品归属等交际功能句）；每段材料读两遍' },
+      // 🔴 2026-09-19 调研（上海/深圳等一年级开课地区的真实低段卷）：**听力占 60-70 分**，笔试仅 30-40
+      //    且以"认读圈词、词图连线"为主，不设大分值抄写与选词补全对话 → 原"听力40/笔试60"权重颠倒，已校正；
+      //    原"情景对话（选词补全对话）"接近三年级要求，已删；"趣味任务 20"无真实来源，降为 10。
+      { name: '听力·听音选图', score: 20, note: '听简短词句选出对应图片；内容由你按本卷内容选用，须真实、适切；每段材料读两遍' },
+      { name: '听力·听音判断', score: 15, note: '听句子判断图片或陈述正误；每段材料读两遍' },
+      { name: '听力·听音排序', score: 15, note: '听词句给图片标序号；每段材料读两遍' },
+      { name: '听力·听音选答语', score: 10, note: '听问句选出正确应答；内容由你按本卷内容选用，须真实、适切；每段材料读两遍' },
       { name: '笔试·看图连线', score: 10, note: '单词与图片连线' },
-      { name: '笔试·字母与词汇', score: 10, note: '字母大小写、抄写单词' },
-      { name: '笔试·情景对话', score: 10, note: '选词补全对话' },
-      { name: '笔试·认读选择', score: 10, note: '看词选义、看图选词' },
-      { name: '笔试·趣味任务', score: 20, note: '涂色、圈词、走迷宫等操作型任务' },
+      { name: '笔试·认读选择', score: 15, note: '看词选义、看图选词' },
+      { name: '笔试·字母与词汇', score: 5, note: '字母大小写认读与抄写，书写规范' },
+      { name: '笔试·趣味任务', score: 10, note: '操作型任务；形式由你按本卷内容自定，须真实、适切' },
     ],
   },
   '英语|primary_mid': {
     label: '英语·小学中段（3-4年级）', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '听力·听音选词/选图', score: 10, note: '听词句选正确单词或图片；每段材料读两遍' },
+      { name: '听力·听音选词/选图', score: 10, note: '听词句完成选择；形式由你按本卷内容自定，须真实、适切；每段材料读两遍' },
       { name: '听力·听音判断', score: 5, note: '听句子/对话判断图片或句子正误；每段材料读两遍' },
-      { name: '听力·听音选答语', score: 10, note: '听问句（含简短对话语境）选正确应答（问路/购物/计划/喜好等交际功能句）；每段材料读两遍' },
+      { name: '听力·听音选答语', score: 10, note: '听问句（含简短对话语境）选出正确应答；内容由你按本卷内容选用，须真实、适切；每段材料读两遍' },
       { name: '听力·听音排序', score: 10, note: '听一段对话或独白，按顺序给图片标序号；每段材料读两遍' },
       { name: '笔试·语音辨析', score: 6, note: '选出画线部分发音不同的单词' },
       { name: '笔试·词汇运用', score: 8, note: '看图写词、词图匹配、词汇分类' },
@@ -158,16 +167,16 @@ export const EXAM_BLUEPRINTS = {
   '英语|primary_high': {
     label: '英语·小学高段（5-6年级）', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '听力·听音选词/选图', score: 10, note: '听词句选正确单词或图片；每段材料读两遍' },
+      { name: '听力·听音选词/选图', score: 10, note: '听词句完成选择；形式由你按本卷内容自定，须真实、适切；每段材料读两遍' },
       { name: '听力·听音判断', score: 10, note: '听简短对话判断句子正误；每段材料读两遍' },
-      { name: '听力·听音填空', score: 10, note: '听一篇完整短文（通知/自我介绍等），补全信息（姓名/时间/地点/活动），每空一词或短语；整篇材料读两遍' },
+      { name: '听力·听音填空', score: 10, note: '听一篇完整短文后补全信息，每空一词或短语；整篇材料读两遍；内容由你按本卷内容选用，须真实、适切' },
       { name: '笔试·语音辨析', score: 5, note: '选出画线部分发音不同的单词' },
       { name: '笔试·词汇运用', score: 10, note: '词图匹配、词汇分类、根据提示写词' },
       { name: '笔试·单项选择', score: 15, note: '语境中考查语法与交际用语' },
       { name: '笔试·情景交际', score: 10, note: '选句补全对话' },
       { name: '笔试·连词成句', score: 10, note: '按正确语序排列句子' },
       { name: '笔试·阅读理解', score: 10, note: '短文，选择与判断' },
-      { name: '笔试·书面表达', score: 10, note: '根据提示写短文（自我介绍、周末计划等）' },
+      { name: '笔试·书面表达', score: 10, note: '根据提示写短文；内容由你按本卷内容选用，须真实、适切' },
     ],
   },
   '英语|middle': {
@@ -254,10 +263,13 @@ export const EXAM_BLUEPRINTS = {
   '道德与法治|primary_low': {
     label: '道德与法治·小学低段（1-2年级）', fullScore: 100, duration: '40分钟',
     sections: [
+      // 🔴 2026-09-19 调研（统编版二年级真实纸笔卷）：以**填空（可达 30-40 分）**为主力题型，原骨架整题缺失；
+      //    对应真实题型为"写一写/画一画""补充句子"（合计 20 以内），而"材料辨析"属中段以上用语、低段不设 → 已替换。
+      { name: '填空', score: 30, note: '结合生活情境的填空题，不会写的字可用拼音' },
       { name: '判断', score: 20, note: '生活常识与行为习惯辨析' },
-      { name: '选择', score: 30, note: '价值判断' },
-      { name: '连线', score: 20, note: '做法与理由连线、行为与对错连线' },
-      { name: '材料辨析', score: 30, note: '看图或读短文后说说该怎么做，一句话作答' },
+      { name: '选择', score: 15, note: '价值判断' },
+      { name: '连线', score: 15, note: '做法与理由连线、行为与对错连线' },
+      { name: '写一写或画一画', score: 20, note: '看图或读短文后写出（或画出）该怎么做，一句话作答' },
     ],
   },
   '道德与法治|primary_mid': {
@@ -267,7 +279,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '选择', score: 30, note: '价值判断' },
       { name: '连线与分类', score: 10, note: '概念关联、行为分类' },
       { name: '材料分析', score: 20, note: '结合生活情境说明理由，简短作答' },
-      { name: '实践探究', score: 20, note: '安全自护、垃圾分类等身边问题，给出做法并说明理由' },
+      { name: '实践探究', score: 20, note: '围绕身边问题，给出做法并说明理由；问题由你按本卷内容选用，须真实、适切' },
     ],
   },
   '道德与法治|primary_high': {
@@ -276,7 +288,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断', score: 16, note: '法律常识与价值判断' },
       { name: '选择', score: 30, note: '法理与是非判断' },
       { name: '材料分析', score: 24, note: '读案例或时政材料后分析说明，结合所学谈认识' },
-      { name: '实践探究', score: 30, note: '校园欺凌防范、网络文明等身边问题，提出做法并阐述理由' },
+      { name: '实践探究', score: 30, note: '围绕身边问题，提出做法并阐述理由；问题由你按本卷内容选用，须真实、适切' },
     ],
   },
   '道德与法治|middle': {
@@ -331,12 +343,12 @@ export const EXAM_BLUEPRINTS = {
   '科学|primary_low': {
     label: '科学·小学低段（1-2年级）', fullScore: 100, duration: '50分钟',
     sections: [
-      { name: '填空', score: 20, note: '结合生活情境或配图的观察发现题' },
-      { name: '判断', score: 12, note: '现象辨析' },
-      { name: '选择', score: 18, note: '概念与现象判断' },
+      { name: '填空', score: 15, note: '结合生活情境或配图的观察发现题' },
+      { name: '选择', score: 20, note: '概念与现象判断' },
+      { name: '判断', score: 20, note: '现象辨析' },
       { name: '连线', score: 10, note: '概念关联、分类匹配' },
       { name: '观察与探究', score: 20, note: '观察记录、排序、简单探究过程描述' },
-      { name: '简答', score: 20, note: '用一两句话说明现象或做法' },
+      { name: '简答', score: 15, note: '用一两句话说明现象或做法' },
     ],
   },
   '科学|primary_mid': {
@@ -616,15 +628,44 @@ const STAGE_FALLBACK = {
     const regMap = effConfig[region] && effConfig[region][bpStage];
     const rc = regMap && (regMap[stdSubject] || regMap[subject]);
     if (rc) {
-      if (rc.fullScore && rc.fullScore !== bp.fullScore) {
+      const duration = rc.duration || bp.duration;
+      // ── 栏目级覆盖（2026-09-19 用户裁定）：省市**结构**确与全国骨架不同时才用 ──
+      //   · 写明 sections → **整组替换**该科栏目；note 缺省按**同名栏目从蓝本继承**（少写一坨文案）。
+      //   · 不写 sections → 沿用蓝本骨架，只做分值等比例缩放（原行为，覆盖绝大多数省市）。
+      //   账目自洽不变量与纯分值缩放一致：栏目分值之和 ≠ 省市总分 → 按比例缩放 + 末栏修正。
+      const regionSections = Array.isArray(rc.sections)
+        ? rc.sections.filter((s) => s && String(s.name || '').trim() && Number(s.score) > 0)
+        : [];
+      if (regionSections.length) {
+        const noteOf = (name) => {
+          const hit = bp.sections.find((d) => String(d.name || '') === name);
+          return (hit && hit.note) || '';
+        };
+        let sections = regionSections.map((s) => {
+          const name = String(s.name).trim();
+          return {
+            name,
+            score: Math.round(Number(s.score)),
+            note: String(s.note || '').trim() || noteOf(name),
+          };
+        });
+        const newTotal = Number(rc.fullScore) > 0 ? Number(rc.fullScore) : bp.fullScore;
+        const sum = sections.reduce((a, c) => a + c.score, 0);
+        if (sum !== newTotal) {
+          sections = sections.map((s) => ({ ...s, score: Math.max(1, Math.round((s.score * newTotal) / sum)) }));
+          const sum2 = sections.reduce((a, c) => a + c.score, 0);
+          sections[sections.length - 1].score += newTotal - sum2;
+        }
+        bp = { ...bp, fullScore: newTotal, duration, sections };
+      } else if (rc.fullScore && rc.fullScore !== bp.fullScore) {
         const defaultTotal = bp.fullScore || DEFAULT_EXAM_FULL_SCORE;
         const newTotal = rc.fullScore;
         const scaled = bp.sections.map(s => ({ ...s, score: Math.max(1, Math.round((s.score * newTotal) / defaultTotal)) }));
         const sum = scaled.reduce((a, c) => a + c.score, 0);
         scaled[scaled.length - 1].score += newTotal - sum; // 末大题修正
-        bp = { ...bp, fullScore: newTotal, duration: rc.duration || bp.duration, sections: scaled };
-      } else if (rc.duration) {
-        bp = { ...bp, duration: rc.duration };
+        bp = { ...bp, fullScore: newTotal, duration, sections: scaled };
+      } else {
+        bp = { ...bp, duration };
       }
     }
   }

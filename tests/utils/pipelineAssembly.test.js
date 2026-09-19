@@ -25,12 +25,16 @@ describe('生成链路拼装验证（不调模型）', () => {
     expect(rc.length).toBeGreaterThan(0);   // 语文低段：配图需要 → 有 IMAGE 契约
     expect(vp.length).toBeGreaterThan(0);   // fix 规则注入
     expect(bi.length).toBeGreaterThan(0);   // 真题蓝本注入
-    // 蓝图结构应与 docx 实际输出一致（32/24/14/30）
+    // 蓝图结构应与 docx 实际输出一致（docx 由蓝图派生，故此处锁定栏名与账目口径）
+    // 🔧 2026-09-19 按一二年级实际流通纸笔卷复核后调整（原 32/24/14/30）：
+    //    低段以字词基础为主，写话不再按中高段习作权重给分。
     const scores = bp?.sections.map((s) => `${s.name}:${s.score}`).join(' ');
     console.log('[verify] blueprint:', scores);
-    expect(scores).toContain('识字与写字:32');
-    expect(scores).toContain('积累与运用:24');
-    expect(scores).toContain('阅读与鉴赏:14');
-    expect(scores).toContain('表达与交流:30');
+    expect(scores).toContain('识字与写字:40');
+    expect(scores).toContain('积累与运用:28');
+    expect(scores).toContain('阅读与鉴赏:16');
+    expect(scores).toContain('表达与交流:16');
+    // 账目自洽：各大题之和=满分
+    expect(bp.sections.reduce((n, s) => n + s.score, 0)).toBe(bp.fullScore);
   });
 });

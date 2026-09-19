@@ -164,4 +164,66 @@ describe('蓝图库与指令库措辞守卫（2026-09-16 课标原则）', () =>
     expect(preview).toContain('紧扣教材原文');
     expect(preview).toContain('我的疑问');
   });
+
+  // 🔴 2026-09-19 用户裁定（新维度）：试卷蓝图 note 不得**列举题材/情境/交际功能/内容举例**。
+  //    为什么单列一类：这类枚举不属"自造取向词"，但危害同源且更硬——
+  //      ① 把出题内容锁死（如"（姓名/时间/地点/活动）"逼着每份卷都考这几个信息点），可能脱离本学科本年级实际；
+  //      ② 与栏目标题打架（标题已写"听音选词/选图"，note 再复述"正确单词或图片"，卷面一变形就不自洽）。
+  //    判定边界：只收**举例式枚举**（括注内以 / 或以「、」并列、且带"等"的开放举例）。
+  //    课标模块名/素养名（数据与编码、运动技能…）、真题结构（分值、遍数、每空一词、4选1）不在其列。
+  it('试卷蓝图 note 不得列举题材/情境/交际功能（防把出题内容锁死、防标题与内容不自洽）', () => {
+    const BANNED_CONTENT_ENUM = [
+      '（物品/动物/人物动作等', '（问候/喜好/年龄/物品归属等', '（问路/购物/计划/喜好等',
+      '（通知/自我介绍等', '（姓名/时间/地点/活动）', '（自我介绍、周末计划等）',
+      '涂色、圈词、走迷宫', '安全自护、垃圾分类', '校园欺凌防范、网络文明',
+      '选正确单词或图片',
+    ];
+    const raw = JSON.stringify(EXAM_BLUEPRINTS);
+    for (const w of BANNED_CONTENT_ENUM) {
+      expect(raw, `试卷蓝图不得列举题材/内容：${w}`).not.toContain(w);
+    }
+    // 内容选用授权口径必须在位（防"清过头"变成对内容毫无约束）
+    expect(raw, '应保留"内容由你按本卷内容选用"的授权口径').toContain('内容由你按本卷内容选用');
+    // 课标模块名/真题结构口径必须仍在（同一防清过头）
+    expect(raw).toContain('数据与编码');
+    expect(raw).toContain('运动技能');
+    expect(raw).toContain('每空一词');
+  });
+
+  // 🔴 2026-09-19：语文·高中卷面结构以 2025 年全国卷为准（原两栏阅读已整合，语用降为 18 分）
+  it('语文·高中栏目录自 2025 年全国卷官方结构（防回退成 2024 年前旧结构）', () => {
+    const bp = EXAM_BLUEPRINTS['语文|high'];
+    const names = bp.sections.map((s) => s.name);
+    expect(names).toEqual(['阅读', '语言文字运用', '写作']);
+    expect(bp.sections.reduce((n, s) => n + s.score, 0)).toBe(bp.fullScore);
+    expect(names).not.toContain('现代文阅读');
+    expect(names).not.toContain('古代诗文阅读');
+  });
+
+  // 🔴 2026-09-19 调研（一二年级实际流通纸笔卷，课标虽不要求纸笔考试但校内实际在用）：
+  //    低段纸笔卷有共通形态底线——必须直观可操作（看图/画/连/数），不能整卷纯文字；
+  //    且中高段才有的栏目（如"材料辨析"）与中高段习作权重不得下移到低段。
+  it('小学低段（1-2年级）栏目符合低段实际纸笔卷形态', () => {
+    const lowKeys = Object.keys(EXAM_BLUEPRINTS).filter((k) => k.endsWith('|primary_low'));
+    expect(lowKeys.length).toBe(9);
+    for (const k of lowKeys) {
+      const bp = EXAM_BLUEPRINTS[k];
+      expect(bp.sections.reduce((n, s) => n + s.score, 0), `${k} 分值合计应=满分`).toBe(bp.fullScore);
+      // 直观操作/图画类栏目必须存在（低段纸笔卷的形态底线）——语文用课标任务群名，
+      // 其"看图写话"体现在栏目要求里，故名称与要求一并检查
+      const blob = bp.sections.map((s) => `${s.name}${s.note || ''}`).join('|');
+      expect(blob, `${k} 应有图画/操作类形态`).toMatch(/看图|操作|连线|画/);
+    }
+    // 学段不适切项不得回潮
+    expect(JSON.stringify(EXAM_BLUEPRINTS['道德与法治|primary_low'])).not.toContain('材料辨析');
+    expect(JSON.stringify(EXAM_BLUEPRINTS['道德与法治|primary_low'])).toContain('填空');
+    // 一二年级数学必须有竖式/笔算（真实二年级卷必设，原骨架整题缺失）
+    expect(JSON.stringify(EXAM_BLUEPRINTS['数学|primary_low'])).toContain('竖式计算');
+    // 低段英语以听说为主：听力占比应过半（真实低段卷为 60-70）
+    const en = EXAM_BLUEPRINTS['英语|primary_low'].sections;
+    expect(en.filter((s) => s.name.startsWith('听力')).reduce((n, s) => n + s.score, 0)).toBeGreaterThanOrEqual(50);
+    // 低段语文写话不得按中高段习作权重给分
+    expect(EXAM_BLUEPRINTS['语文|primary_low'].sections.find((s) => s.name === '表达与交流').score)
+      .toBeLessThanOrEqual(20);
+  });
 });

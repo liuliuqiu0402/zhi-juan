@@ -431,7 +431,8 @@
         </div>
         <p class="modal-desc">
           内置各市中考卷总分/时长（各市中考总分 100-150 分不等）。修改后保存即覆盖（用户版优先），生成与面板"省市预览"即时生效；
-          清空总分并保存可退回内置。高考全国统一 3+1+2、小学无地区差异，无需维护。
+          清空总分并保存可退回内置。高考全国统一 3+1+2、小学无地区差异，无需维护。<br>
+          📋 可另行编辑<b>栏目</b>：仅当该省市题型结构确与全国骨架不同时用（如某省不设判断题），默认沿用全国骨架。
         </p>
         <div class="region-sel-row">
           <select
@@ -458,41 +459,122 @@
           <div class="region-row region-row-head">
             <span>学科</span><span>内置总分</span><span>内置时长</span><span>覆盖总分</span><span>覆盖时长</span><span>操作</span>
           </div>
-          <div
+          <template
             v-for="row in regionRows"
             :key="row.subject"
-            class="region-row"
           >
-            <span class="region-subject">{{ row.subject }}</span>
-            <span class="region-cell">{{ row.builtin.fullScore || '—' }}</span>
-            <span class="region-cell">{{ row.builtin.duration || '—' }}</span>
-            <input
-              v-model.number="row.override.fullScore"
-              class="filter-input region-input"
-              type="number"
-              min="1"
-              max="300"
-              :placeholder="row.builtin.fullScore || ''"
+            <div class="region-row">
+              <span class="region-subject">
+                {{ row.subject }}
+                <em
+                  v-if="row.hasSectionsOverride"
+                  class="region-sec-flag"
+                  title="该学科已自定义栏目"
+                >栏目</em>
+              </span>
+              <span class="region-cell">{{ row.builtin.fullScore || '—' }}</span>
+              <span class="region-cell">{{ row.builtin.duration || '—' }}</span>
+              <input
+                v-model.number="row.override.fullScore"
+                class="filter-input region-input"
+                type="number"
+                min="1"
+                max="300"
+                :placeholder="row.builtin.fullScore || ''"
+              >
+              <input
+                v-model="row.override.duration"
+                class="filter-input region-input"
+                :placeholder="row.builtin.duration || ''"
+              >
+              <span class="region-ops">
+                <button
+                  class="btn btn-sm"
+                  :title="regionSecSubject === row.subject ? '收起栏目' : '编辑栏目（结构确不同时才改）'"
+                  @click="openRegionSections(row)"
+                >
+                  📋
+                </button>
+                <button
+                  class="btn btn-sm"
+                  title="保存覆盖"
+                  @click="saveRegionRow(row)"
+                >
+                  💾
+                </button>
+                <button
+                  v-if="row.hasOverride"
+                  class="btn btn-sm btn-remove"
+                  title="退回内置"
+                  @click="removeRegionRow(row)"
+                >
+                  ↩️
+                </button>
+              </span>
+            </div>
+            <!-- 栏目编辑：所见即所发（生效栏目取自生成端同一函数） -->
+            <div
+              v-if="regionSecSubject === row.subject"
+              class="region-sec-editor"
             >
-            <input
-              v-model="row.override.duration"
-              class="filter-input region-input"
-              :placeholder="row.builtin.duration || ''"
-            >
-            <span class="region-ops">
-              <button
-                class="btn btn-sm"
-                title="保存覆盖"
-                @click="saveRegionRow(row)"
-              >💾</button>
-              <button
-                v-if="row.hasOverride"
-                class="btn btn-sm btn-remove"
-                title="退回内置"
-                @click="removeRegionRow(row)"
-              >↩️</button>
-            </span>
-          </div>
+              <div class="region-sec-head">
+                <span>{{ row.subject }} 栏目（{{ regionSecDraft.length }} 栏，分值之和 {{ regionSecSum }}）</span>
+                <span
+                  class="region-sec-tag"
+                  :class="{ 'region-sec-tag-on': row.hasSectionsOverride }"
+                >{{ row.hasSectionsOverride ? '已自定义栏目' : '当前为全国骨架' }}</span>
+              </div>
+              <div
+                v-for="(sec, i) in regionSecDraft"
+                :key="i"
+                class="region-sec-row"
+              >
+                <input
+                  v-model="sec.name"
+                  class="filter-input region-sec-name"
+                  placeholder="栏目名（如：选择题）"
+                >
+                <input
+                  v-model.number="sec.score"
+                  class="filter-input region-sec-score"
+                  type="number"
+                  min="1"
+                  placeholder="分值"
+                >
+                <button
+                  class="btn btn-sm btn-remove"
+                  title="删除此栏"
+                  @click="delRegionSection(i)"
+                >
+                  ✕
+                </button>
+              </div>
+              <div class="region-sec-ops">
+                <button
+                  class="btn btn-sm"
+                  @click="addRegionSection"
+                >
+                  ＋ 加一栏
+                </button>
+                <button
+                  class="btn btn-sm"
+                  @click="saveRegionSections(row)"
+                >
+                  保存栏目
+                </button>
+                <button
+                  class="btn btn-sm"
+                  @click="resetRegionSections(row)"
+                >
+                  恢复全国骨架
+                </button>
+              </div>
+              <p class="region-sec-hint">
+                只在该省市题型结构确与全国骨架不同时改（如某省不设判断题）。分值之和 ≠ 覆盖总分时，生成时按比例缩放并末栏修正；
+                 栏目名与骨架同名的，其命题要求自动沿用。
+              </p>
+            </div>
+          </template>
         </div>
         <p
           v-if="regionTip"
@@ -564,7 +646,7 @@
 <script setup>
 import { computed, inject, ref, watch, nextTick } from 'vue';
 import { useRoute } from 'vue-router'; // 来源分段标注 → /tools/blueprint?focus=<学科|学段 或 学科|类型>
-import { EXAM_BLUEPRINTS } from '../../../config/examPaperBlueprints.js';
+import { EXAM_BLUEPRINTS, getExamBlueprint } from '../../../config/examPaperBlueprints.js';
 import { TEACHING_BLUEPRINTS, TEACHING_GEN_TYPES, TEACHING_SUBJECT_BLUEPRINTS } from '../../../config/teachingBlueprints.js';
 import { validateAllBlueprints } from '../../../config/blueprintGuard.js';
 import { CARRIER_LABELS, enhanceBlueprint } from '../../../config/blueprintSchema.js';
@@ -672,22 +754,83 @@ const regionRows = computed(() => {
     builtin: { fullScore: builtinMap[subject]?.fullScore || '', duration: builtinMap[subject]?.duration || '' },
     override: { fullScore: userMap[subject]?.fullScore ?? null, duration: userMap[subject]?.duration ?? '' },
     hasOverride: !!userMap[subject],
+    // 是否已自定义栏目（写了 sections 才为真；否则沿用全国骨架）
+    hasSectionsOverride: Array.isArray(userMap[subject]?.sections) && userMap[subject].sections.length > 0,
   }));
 });
 const saveRegionRow = (row) => {
   const score = Number(row.override.fullScore);
   if (!score || score < 1) { regionTip.value = `⚠️ ${row.subject}：请填写有效的覆盖总分`; return; }
-  setRegionOverride(regionSel.value, 'middle', row.subject, { fullScore: score, duration: String(row.override.duration || '').trim() });
+  // 不传 sections = 保持原有栏目覆盖不变（不变量在 examRegionConfig.setRegionOverride，改总分不会误丢栏目）
+  setRegionOverride(regionSel.value, 'middle', row.subject, {
+    fullScore: score,
+    duration: String(row.override.duration || '').trim(),
+  });
   regionTip.value = `✅ ${row.subject}（${regionSel.value}）覆盖已保存，生成即时生效`;
   regionTick.value++;
   setTimeout(() => { regionTip.value = ''; }, 3000);
 };
 const removeRegionRow = (row) => {
   removeRegionOverride(regionSel.value, 'middle', row.subject);
+  if (regionSecSubject.value === row.subject) regionSecSubject.value = '';
   regionTip.value = `↩️ ${row.subject}（${regionSel.value}）已退回内置`;
   regionTick.value++;
   setTimeout(() => { regionTip.value = ''; }, 3000);
 };
+
+/* ── 栏目级覆盖（2026-09-19 用户裁定）：仅当该省市题型结构确与全国骨架不同时才改 ──
+ *  为什么放在这个弹窗：分值能按省缩放，但"某省不设判断题"这类**结构差异**缩放不出来，
+ *  必须整组替换栏目。默认不启用（沿用全国骨架），改过之后生成端即时生效（见 getExamBlueprint）。 */
+const regionSecSubject = ref('');     // 正在编辑栏目的学科（'' = 未展开）
+const regionSecDraft = ref([]);       // [{name, score}]
+const regionSectionsTick = ref(0);    // 保存/恢复后自增刷新
+/** 该学科在当前省市的**生效栏目**（已含覆盖；口径与生成端同一函数，所见即所发） */
+const regionSectionsOf = (subject) => {
+  regionTick.value; regionSectionsTick.value;
+  return (getExamBlueprint(subject, 'middle', regionSel.value)?.sections || [])
+    .map((s) => ({ name: s.name, score: s.score }));
+};
+const openRegionSections = (row) => {
+  const same = regionSecSubject.value === row.subject;
+  regionSecSubject.value = same ? '' : row.subject;
+  if (!same) regionSecDraft.value = regionSectionsOf(row.subject).map((s) => ({ ...s }));
+};
+const addRegionSection = () => { regionSecDraft.value.push({ name: '', score: 0 }); };
+const delRegionSection = (i) => { regionSecDraft.value.splice(i, 1); };
+const regionSecSum = computed(() => regionSecDraft.value.reduce((n, s) => n + (Number(s.score) || 0), 0));
+const saveRegionSections = (row) => {
+  const list = regionSecDraft.value
+    .map((s) => ({ name: String(s.name || '').trim(), score: Number(s.score) || 0 }))
+    .filter((s) => s.name && s.score > 0);
+  if (!list.length) { regionTip.value = `⚠️ ${row.subject}：至少要有一栏，且栏目名与分值都要有效`; return; }
+  const score = Number(row.override.fullScore) || Number(row.builtin.fullScore) || regionSecSum.value;
+  setRegionOverride(regionSel.value, 'middle', row.subject, {
+    fullScore: score,
+    duration: String(row.override.duration || '').trim() || String(row.builtin.duration || '').trim(),
+    sections: list,
+  });
+  const sum = list.reduce((n, s) => n + s.score, 0);
+  regionTip.value = `✅ ${row.subject}（${regionSel.value}）栏目已保存：${list.length} 栏，分值之和 ${sum}`
+    + (sum !== score ? `（≠ 总分 ${score}，生成时按比例缩放并末栏修正）` : '');
+  regionTick.value++; regionSectionsTick.value++;
+  setTimeout(() => { regionTip.value = ''; }, 4000);
+};
+/** 恢复全国骨架 = 显式传 sections:null 清空栏目覆盖（分值仍需覆盖） */
+const resetRegionSections = (row) => {
+  const score = Number(row.override.fullScore) || Number(row.builtin.fullScore) || 0;
+  if (!score) { regionTip.value = `⚠️ ${row.subject}：请先填写覆盖总分`; return; }
+  setRegionOverride(regionSel.value, 'middle', row.subject, {
+    fullScore: score,
+    duration: String(row.override.duration || '').trim() || String(row.builtin.duration || '').trim(),
+    sections: null,
+  });
+  regionSecDraft.value = regionSectionsOf(row.subject).map((s) => ({ ...s }));
+  regionTip.value = `↩️ ${row.subject}（${regionSel.value}）栏目已恢复全国骨架（分值仍按覆盖总分比例缩放）`;
+  regionTick.value++; regionSectionsTick.value++;
+  setTimeout(() => { regionTip.value = ''; }, 4000);
+};
+// 换省市时收起栏目编辑，避免改到别的省市去
+watch(regionSel, () => { regionSecSubject.value = ''; });
 
 /* ===== 筛选 ===== */
 const matchStage = (key) => {
@@ -906,6 +1049,16 @@ const doImport = async (e) => {
 .region-cell { color: var(--text-muted); }
 .region-input { width: 100%; min-width: 0; }
 .region-ops { display: flex; gap: 4px; }
+/* 栏目级覆盖编辑（2026-09-19）：默认收起，展开后逐栏改名/改分值/增删 */
+.region-sec-flag { display: inline-block; margin-left: 5px; padding: 1px 5px; border-radius: 4px; background: var(--primary-lighter); color: var(--primary); font-size: 10.5px; font-style: normal; vertical-align: middle; }
+.region-sec-editor { padding: 10px 12px 12px; border-bottom: 1px solid var(--border-light); background: #fafbfd; }
+.region-sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; font-weight: 600; color: #26303e; margin-bottom: 8px; }
+.region-sec-tag { font-weight: 400; font-size: 11.5px; color: var(--text-muted); }
+.region-sec-tag-on { color: var(--primary); }
+.region-sec-row { display: grid; grid-template-columns: 1fr 110px 40px; gap: 8px; align-items: center; margin-bottom: 6px; }
+.region-sec-name, .region-sec-score { width: 100%; min-width: 0; }
+.region-sec-ops { display: flex; gap: 8px; margin-top: 8px; }
+.region-sec-hint { font-size: 12px; color: var(--text-muted); margin: 8px 0 0; line-height: 1.6; }
 .btn-remove { color: var(--danger); }
 .btn-sm { padding: 4px 12px; font-size: 12px; }
 .region-tip { font-size: 12.5px; color: #1d7a4a; margin: 10px 0 0; }
