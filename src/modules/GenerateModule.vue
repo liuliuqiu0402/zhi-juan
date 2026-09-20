@@ -1767,7 +1767,7 @@
               :key="slot.key"
             >
               <label style="display:flex;gap:6px;align-items:center;">
-                <span :title="slot.optional ? '多角色对话时才会用到：三人及以上对话按顺序取用，留空则不启用' : ''">
+                <span :title="slot.hint || (slot.optional ? '多角色对话时才会用到：三人及以上对话按顺序取用，留空则不启用' : '')">
                   {{ slot.label }}<span
                     v-if="slot.optional"
                     style="color:#999;cursor:help;"
@@ -1778,7 +1778,7 @@
                   style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
                 >
                   <option value="">
-                    {{ slot.optional ? '（不用）' : '默认' }}
+                    {{ slot.emptyLabel || (slot.optional ? '（不用）' : '默认') }}
                   </option>
                   <optgroup
                     v-for="g in listeningVoiceOptions[slot.group]"
@@ -3441,7 +3441,7 @@ import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实�
 import { buildListeningExtractMessages } from '../config/listeningExtractPrompt.js';
 import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback } from '../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText, buildListeningStoryboard } from '../utils/listeningScript.js';
-import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS } from '../config/listeningAudioProfile.js';
+import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES } from '../config/listeningAudioProfile.js';
 // 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
 import { synthesizeToFile, readAzureConfigFromApiConfig } from '../utils/azureTts.js';
 // 🎧 Edge 免费语音：无需 Key，逐句合成 + 帧级静音拼接（主进程执行）
@@ -8807,23 +8807,31 @@ const listeningShortItemNo = ref(LISTENING_FEATURE_DEFAULTS.announceShortItemNo)
 const listeningVoices = reactive({
   M: LISTENING_VOICE_DEFAULTS.M,
   W: LISTENING_VOICE_DEFAULTS.W,
+  N: '',   // 🎙 英语旁白（独白/短文、英文题号、标题英文段）——留空＝跟随男声
+  Z: '',   // 🎙 中文播报（开场白/导语/分节指令/部分标题/结束语）——留空＝晓晓（默认）
   M2: LISTENING_VOICE_DEFAULTS.M2,
   W2: LISTENING_VOICE_DEFAULTS.W2,
 });
-/** 音色槽位（模板据此渲染四行下拉；group 决定候选取自男声表还是女声表） */
+/** 音色槽位（模板据此渲染下拉；group 决定候选取自男声表/女声表/中文播报表） */
 const LISTENING_VOICE_SLOTS = [
   { key: 'M', label: '男声', group: 'M', optional: false },
   { key: 'W', label: '女声', group: 'W', optional: false },
+  { key: 'N', label: '旁白', group: 'M', optional: true, emptyLabel: '跟随男声', hint: '英语旁白：独白/短文、英文题号「Number N.」、标题里的英文段用这条音色；留空＝跟随男声' },
+  { key: 'Z', label: '中文播报', group: 'Z', optional: true, emptyLabel: '晓晓（默认）', hint: '中文播报：开场白、导语、分节指令、部分标题、结束语等中文段用这条音色；留空＝晓晓（默认）' },
   { key: 'M2', label: '男声副', group: 'M', optional: true },
   { key: 'W2', label: '女声副', group: 'W', optional: true },
 ];
-/** 候选分组（美音/英音），文案带序号——与「音色试听对比.mp3」里的报号一致，便于按编号指定 */
+/** 候选分组（美音/英音），文案带序号——与「音色试听对比.mp3」里的报号一致，便于按编号指定；中文播报表单独一组 */
 const listeningVoiceOptions = computed(() => {
   const build = (g) => [
     { label: '美音', items: LISTENING_VOICE_CANDIDATES.us[g].map((v, i) => ({ value: v, text: `${g === 'M' ? '男声' : '女声'} ${i + 1} · ${v.replace(/^en-US-|Neural$/g, '')}` })) },
     { label: '英音', items: LISTENING_VOICE_CANDIDATES.gb[g].map((v, i) => ({ value: v, text: `${g === 'M' ? '男声' : '女声'} ${i + 1} · ${v.replace(/^en-GB-|Neural$/g, '')}` })) },
   ];
-  return { M: build('M'), W: build('W') };
+  return {
+    M: build('M'),
+    W: build('W'),
+    Z: [{ label: '中文播报', items: LISTENING_ZH_VOICE_CANDIDATES.map((c) => ({ value: c.voice, text: c.name })) }],
+  };
 });
 /** 生效音色池（喂给 storyboard：男主, 女主, 男副?, 女副? —— 空值会被剔除） */
 const listeningVoicePool = computed(() => [listeningVoices.M, listeningVoices.W, listeningVoices.M2, listeningVoices.W2].filter(Boolean));
@@ -8838,7 +8846,11 @@ const playVoicePreview = async (voice) => {
   listeningPreviewing.value = v;
   listeningVoiceHint.value = '';
   try {
-    const url = await previewVoice({ voice: v, ratePercent: listeningEffectiveParams.value.ratePercent });
+    // 中文播报音色用中文样例句试听，英文音色用英文样例（避免中文音色念英文样句的"怪腔"）
+    const text = /^zh-/.test(v)
+      ? '听力考试现在开始，请注意听下面的对话。'
+      : '';
+    const url = await previewVoice({ voice: v, ratePercent: listeningEffectiveParams.value.ratePercent, text });
     if (typeof Audio === 'undefined') throw new Error('当前环境不支持音频播放');
     if (!listeningAudioEl) listeningAudioEl = new Audio();
     listeningAudioEl.src = url;
@@ -8864,11 +8876,12 @@ const listeningEffectiveParams = computed(() => {
   if (Number.isFinite(listeningWpmOverride.value) && listeningWpmOverride.value > 0) {
     overrides.wpm = listeningWpmOverride.value;
   }
-  // 音色：显式选定的男主/女主即生效音色（不再按口音表轮换）
+  // 音色：显式选定的男主/女主即生效音色（不再按口音表轮换）；中文播报 Z 槽选定后同样生效
   overrides.voices = {
     us: { M: listeningVoices.M, W: listeningVoices.W, N: listeningVoices.M },
     gb: { M: listeningVoices.M, W: listeningVoices.W, N: listeningVoices.M },
   };
+  if (listeningVoices.Z) overrides.zhVoice = listeningVoices.Z;
   return resolveListeningParams({
     stage: listeningStageKey.value,
     grade: listeningGradeHint.value,
@@ -9002,6 +9015,8 @@ const renderListeningArtifacts = () => {
     us: { M: listeningVoices.M, W: listeningVoices.W, N: listeningVoices.M },
     gb: { M: listeningVoices.M, W: listeningVoices.W, N: listeningVoices.M },
   };
+  // 🎙 中文播报（2026-09-20 开放配置）：Z 槽留空＝晓晓（默认），选定后覆盖全卷中文播报段
+  if (listeningVoices.Z) overrides.zhVoice = listeningVoices.Z;
 
   const input = {
     items: listeningStruct.value.items,
@@ -9019,6 +9034,8 @@ const renderListeningArtifacts = () => {
     announceShortItemNo: listeningShortItemNo.value,
     // 🎚 音色池：多角色对话按顺序取（男主、女主、男声副、女声副）
     voicePoolInput: listeningVoicePool.value,
+    // 🎙 英语旁白（2026-09-20 开放配置）：N 槽留空＝跟随男声；标题英文段/独白短文/英文题号都用它
+    narratorVoice: listeningVoices.N || '',
     overrides,
   };
 
@@ -9065,6 +9082,8 @@ const openListeningTool = async (doc) => {
   Object.assign(listeningVoices, {
     M: LISTENING_VOICE_DEFAULTS.M,
     W: LISTENING_VOICE_DEFAULTS.W,
+    N: '',
+    Z: '',
     M2: LISTENING_VOICE_DEFAULTS.M2,
     W2: LISTENING_VOICE_DEFAULTS.W2,
   });
@@ -9184,7 +9203,7 @@ const copyListeningText = async (kind) => {
   }
 };
 
-watch([listeningWpmOverride, listeningAnnounceTitle, listeningSoundCheck, listeningShortItemNo, () => listeningVoices.M, () => listeningVoices.W, () => listeningVoices.M2, () => listeningVoices.W2], () => {
+watch([listeningWpmOverride, listeningAnnounceTitle, listeningSoundCheck, listeningShortItemNo, () => listeningVoices.M, () => listeningVoices.W, () => listeningVoices.N, () => listeningVoices.Z, () => listeningVoices.M2, () => listeningVoices.W2], () => {
   if (showListeningModal.value && listeningStruct.value) renderListeningArtifacts();
 });
 

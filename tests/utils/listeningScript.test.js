@@ -11,6 +11,7 @@ import {
   LISTENING_SOUND_CHECK,
   LISTENING_FEATURE_DEFAULTS,
   LISTENING_PART_ANNOUNCEMENT,
+  LISTENING_ZH_VOICE,
   resolveListeningParams,
   missingListeningStages,
 } from '../../src/config/listeningAudioProfile.js';
@@ -19,6 +20,10 @@ import {
   buildListeningSsml,
   buildListeningScriptText,
   normalizeForSpeech,
+  normalizeSectionLabel,
+  splitMixedLanguageRuns,
+  intToEnglishWords,
+  digitsToEnglishWords,
   pickAccentForItem,
   isMultiQuestion,
   buildOpeningAnnouncement,
@@ -879,5 +884,146 @@ describe('标准音频要素：题号播报 / 提示音 / 男女音色 / 停顿�
     const second = segments.find((s) => s.kind === 'material' && s.itemNo === 11);
     expect(first.voice).toBe(LISTENING_VOICES.us.W);
     expect(second.voice, '未标注的短文应与同卷独白同一播报者，不得中途换人').toBe(LISTENING_VOICES.us.W);
+  });
+});
+
+describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英分读 / 旁白与中文播报可配', () => {
+  describe('指令标号归一：第X节/第X大题 → 一、', () => {
+    it('「第一节，听下面5段对话」→「一、听下面5段对话」，其余题干原样保留', () => {
+      expect(normalizeSectionLabel('第一节，听下面5段对话。每段对话后有一个小题。'))
+        .toBe('一、听下面5段对话。每段对话后有一个小题。');
+    });
+
+    it('「第二大题：听录音…」→「二、听录音…」；「第三节 听短文」→「三、听短文」', () => {
+      expect(normalizeSectionLabel('第二大题：听录音，选出你所听到的单词。')).toBe('二、听录音，选出你所听到的单词。');
+      expect(normalizeSectionLabel('第三节 听短文，根据短文内容判断正误。')).toBe('三、听短文，根据短文内容判断正误。');
+    });
+
+    it('卷面本就是「一、」开头或非节指令文本不被误改', () => {
+      expect(normalizeSectionLabel('一、听下面5段对话。')).toBe('一、听下面5段对话。');
+      expect(normalizeSectionLabel('听下面5段对话，每段对话后有一个小题。')).toBe('听下面5段对话，每段对话后有一个小题。');
+    });
+
+    it('keepSectionLabel=true 时保留「第X节」原样（卷面本身就是该写法的高考卷）', () => {
+      expect(normalizeSectionLabel('第一节，听下面5段对话。', true)).toBe('第一节，听下面5段对话。');
+    });
+
+    it('storyboard 分节指令实际播报「一、」而非「第一节」', () => {
+      const { segments } = buildListeningStoryboard({
+        stage: '小学',
+        grade: '六年级',
+        announceTitle: false,
+        items: [{ no: 1, instruction: '第一节：听下面5段对话，每段对话后有一个小题。', lines: [{ role: 'W', text: 'Hello.' }] }],
+      });
+      const instr = segments.find((s) => s.kind === 'instruction');
+      expect(instr.text.startsWith('一、')).toBe(true);
+    });
+  });
+
+  describe('标题中英分读：英文段转英文词 + 英文音色', () => {
+    it('英文整数 → 英文词（Unit 1 → Unit One；Number 12. → Number twelve.）', () => {
+      expect(intToEnglishWords(1)).toBe('one');
+      expect(intToEnglishWords(12)).toBe('twelve');
+      expect(intToEnglishWords(21)).toBe('twenty one');
+      expect(intToEnglishWords(305)).toBe('three hundred five');
+      expect(digitsToEnglishWords('Unit 1 Try your best')).toBe('Unit one Try your best');
+      expect(digitsToEnglishWords('Number 12.')).toBe('Number twelve.');
+    });
+
+    it('中英混排标题按语种切段', () => {
+      expect(splitMixedLanguageRuns('六年级英语上册Unit 1 Try your best测试卷')).toEqual([
+        { text: '六年级英语上册', lang: 'zh' },
+        { text: 'Unit 1 Try your best', lang: 'en' },
+        { text: '测试卷', lang: 'zh' },
+      ]);
+    });
+
+    it('storyboard 标题：中文段用中文播报、英文段用英语旁白、数字转英文词、句号挂末段', () => {
+      const { segments } = buildListeningStoryboard({
+        stage: '小学',
+        grade: '六年级',
+        title: '六年级英语上册Unit 1 Try your best测试卷',
+        announceTitle: true,
+        items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
+      });
+      const titleSegs = segments.filter((s) => s.kind === 'title');
+      expect(titleSegs.length).toBe(3);
+      expect(titleSegs[0].voice).toBe(LISTENING_ZH_VOICE);
+      expect(titleSegs[0].text).toBe('六年级英语上册');
+      expect(titleSegs[1].voice, '英文段必须用英文音色，不得用中文音色念英文').not.toBe(LISTENING_ZH_VOICE);
+      expect(titleSegs[1].text).toBe('Unit one Try your best');
+      expect(titleSegs[2].text).toBe('测试卷。');
+      // 全卷第一声（叮咚）只挂标题首段
+      expect(titleSegs[0].chimeBefore).toBe(true);
+      expect(titleSegs[1].chimeBefore).toBe(false);
+      expect(titleSegs[2].chimeBefore).toBe(false);
+    });
+  });
+
+  describe('旁白音色独立配置（narratorVoice）', () => {
+    const TITLE = '六年级英语上册Unit 1 Try your best测试卷';
+
+    it('未指定旁白时跟随男主音色', () => {
+      const sb = buildListeningStoryboard({
+        stage: '小学',
+        grade: '六年级',
+        title: TITLE,
+        announceTitle: true,
+        items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
+      });
+      expect(sb.narratorVoice).toBe(sb.voicePool[0]);
+    });
+
+    it('指定旁白后：标题英文段 / 英文题号 / 未标注独白都改用旁白音色，中文段不变', () => {
+      const narrator = 'en-GB-SoniaNeural';
+      const { segments } = buildListeningStoryboard({
+        stage: '小学',
+        grade: '六年级',
+        title: TITLE,
+        announceTitle: true,
+        narratorVoice: narrator,
+        items: [
+          { no: 1, lines: [{ role: 'W', text: 'Hello.' }] },
+          { no: 2, lines: [{ role: 'N', text: 'Listen to the passage and choose the best answer.' }] },
+        ],
+      });
+      const titleEn = segments.find((s) => s.kind === 'title' && s.voice === narrator);
+      expect(titleEn.text).toBe('Unit one Try your best');
+      const itemNo = segments.find((s) => s.kind === 'itemno');
+      expect(itemNo.voice).toBe(narrator);
+      const mono = segments.find((s) => s.kind === 'material' && s.itemNo === 2);
+      expect(mono.voice).toBe(narrator);
+      const titleZh = segments.find((s) => s.kind === 'title' && s.voice === LISTENING_ZH_VOICE);
+      expect(titleZh.text).toBe('六年级英语上册');
+    });
+  });
+
+  describe('中文播报音色独立配置（zhVoice 覆盖）', () => {
+    it('overrides.zhVoice 生效：开场白 / 分节指令 / 部分标题 / 结束语全用所选中文音色', () => {
+      const zh = 'zh-CN-YunjianNeural';
+      const { segments } = buildListeningStoryboard({
+        stage: '小学',
+        grade: '六年级',
+        announceTitle: false,
+        soundCheck: false,
+        overrides: { zhVoice: zh },
+        items: [{ no: 1, instruction: '第一节：听下面5段对话。', lines: [{ role: 'W', text: 'Hello.' }] }],
+      });
+      const zhSegs = segments.filter((s) => s.kind === 'opening' || s.kind === 'part' || s.kind === 'instruction' || s.kind === 'closing');
+      expect(zhSegs.length).toBeGreaterThan(0);
+      for (const s of zhSegs) expect(s.voice).toBe(zh);
+    });
+
+    it('未覆盖时默认晓晓（LISTENING_ZH_VOICE）', () => {
+      const { segments } = buildListeningStoryboard({
+        stage: '小学',
+        grade: '六年级',
+        announceTitle: false,
+        soundCheck: false,
+        items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
+      });
+      const opening = segments.find((s) => s.kind === 'opening');
+      expect(opening.voice).toBe(LISTENING_ZH_VOICE);
+    });
   });
 });

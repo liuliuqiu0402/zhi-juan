@@ -24,8 +24,10 @@ import {
   LISTENING_PART_ANNOUNCEMENT,
   LISTENING_TRIPLE_PASS_ROTATION,
   LISTENING_VOICE_CANDIDATES,
+  LISTENING_ZH_VOICE,
+  LISTENING_ZH_VOICE_CANDIDATES,
 } from '../config/listeningAudioProfile.js';
-import { isCjkNoise } from './listeningExtract.js';
+import { isCjkNoise, cnNum } from './listeningExtract.js';
 
 /**
  * 音色标签：'en-US-ChristopherNeural' → '男声 1 · Christopher'
@@ -42,6 +44,7 @@ const VOICE_LABELS = (() => {
       });
     }
   }
+  for (const zh of LISTENING_ZH_VOICE_CANDIDATES) map.set(zh.voice, `中文播报 · ${zh.name.replace(/\s*（默认）/, '')}`);
   return map;
 })();
 export const voiceLabel = (voice = '') => VOICE_LABELS.get(String(voice)) || String(voice || '');
@@ -81,6 +84,79 @@ export function pickAccentForItem(policy = 'us', index = 0) {
   if (policy === 'gb') return 'gb';
   if (policy === 'mixed') return index % 2 === 0 ? 'us' : 'gb';
   return 'us';
+}
+
+/**
+ * 播音指令标号归一（2026-09-20 用户实测："还是读的第一节，不是一、"）：
+ * 「第X节/第X大题」开头的指令 → 改成卷面标号「X、」。
+ * 🔴 为什么：卷面大题题头是「一、听录音，选出…」，而录音稿常写成播音腔的「第一节/第一大题」——
+ *   学生看着卷面「一、」、听到的却是「第一节」，标号对不上。用户定版：**音频直接读卷面标号「一、」**。
+ *   · 只归一并**保留其余题干原样**（「第一节，听下面5段对话」→「一、听下面5段对话」）；
+ *   · 「第X部分」不在此列（那是部分标题，由固定播报承担，见 LISTENING_PART_ANNOUNCEMENT）；
+ *   · 卷面本身就是「第一节」的卷子（用户导入的高考卷）由调用方传 keepSectionLabel 保留，不强制改写。
+ * @returns {string} 归一后的指令文本
+ */
+export function normalizeSectionLabel(text = '', keepSectionLabel = false) {
+  const s = String(text || '').trim();
+  if (keepSectionLabel) return s;
+  // 「节」与「大题」都是双字尾缀，须整体匹配（单字字符类会把"第X大题"拆成"第X大"+"题"，见 2026-09-20 实测回归）
+  const m = s.match(/^第([一二三四五六七八九十]+)(节|大题|题)?\s*[，,、:：]?\s*/);
+  if (!m) return s;
+  const n = cnNum(m[1]); // 「第一节」→「一」；「第二大题」→「二」
+  if (!Number.isFinite(n) || n <= 0) return s;
+  const cn = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'][n] || String(n);
+  return `${cn}、${s.slice(m[0].length)}`;
+}
+
+/** 英文整数 → 英文词（"1" → "One"）；仅用于英文播报语境（标题里的 "Unit 1" 必须读 "unit one"） */
+const EN_ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+const EN_TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+export function intToEnglishWords(n = 0) {
+  const num = Math.trunc(n);
+  if (num < 20) return EN_ONES[num] || String(num);
+  if (num < 100) {
+    const t = EN_TENS[Math.floor(num / 10)];
+    const o = num % 10;
+    return o ? `${t} ${EN_ONES[o]}` : t;
+  }
+  if (num < 1000) {
+    const h = `${EN_ONES[Math.floor(num / 100)]} hundred`;
+    const r = num % 100;
+    return r ? `${h} ${intToEnglishWords(r)}` : h;
+  }
+  const th = `${EN_ONES[Math.floor(num / 1000)]} thousand`;
+  const r = num % 1000;
+  return r ? `${th} ${intToEnglishWords(r)}` : th;
+}
+export function digitsToEnglishWords(text = '') {
+  return String(text || '').replace(/\b\d{1,4}\b/g, (m) => intToEnglishWords(Number(m)));
+}
+
+/**
+ * 中英混排标题 → 分段（2026-09-20 用户实测："Unit 1 读成了 unit 1 应读 unit one，
+ * 而且读出来不是英文的感觉"）。
+ * 🔴 为什么：标题（「六年级英语上册Unit 1 Try your best测试卷」）若整段交给中文音色，
+ *   英文部分会被中文音色以中文腔念（"unit 一"、不像英文）；按语种切段后——
+ *   中文段给中文播报音色、英文段给英文旁白音色，且英文段内数字转英文词（Unit 1 → Unit One）。
+ * @returns {Array<{text:string, lang:'zh'|'en'}>}
+ */
+export function splitMixedLanguageRuns(text = '') {
+  const runs = [];
+  let cur = '';
+  let curLang = '';
+  const flush = () => {
+    if (cur.trim()) runs.push({ text: cur.trim(), lang: curLang });
+    cur = '';
+  };
+  for (const ch of String(text || '')) {
+    const lang = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(ch) ? 'zh'
+      : /[A-Za-z0-9'’-]/.test(ch) ? 'en'
+        : (curLang || 'zh');
+    if (lang !== curLang) { flush(); curLang = lang; }
+    cur += ch;
+  }
+  flush();
+  return runs;
 }
 
 /** 该条材料是否"长材料"（独白/短文）——按篇幅判定（≥20 词）。仅作**兜底**判据，
@@ -171,6 +247,8 @@ export function buildSoundCheckIntro() {
  * @param {boolean} [o.soundCheck]          试音段开关（默认取 LISTENING_FEATURE_DEFAULTS.soundCheck=true）
  * @param {boolean} [o.announceShortItemNo] 一题一材料是否播小题号（默认 false＝国标口径）
  * @param {Array<string>} [o.voicePoolInput] 音色池 [男主, 女主, 男副?, 女副?]（用户显式指定时全书同一套）
+ * @param {string} [o.narratorVoice] 英语旁白音色（未传时跟随男主；用户可单独指定，见 GenerateModule「旁白」槽）
+ * @param {boolean} [o.keepSectionLabel] 指令标号保留「第X节」原样（用户导入的卷面本身就是"第一节"时用）
  */
 export function buildListeningStoryboard({
   items = [], intro = '', stage = '', grade = '', name = '', overrides = {}, title = '',
@@ -179,6 +257,8 @@ export function buildListeningStoryboard({
   announceShortItemNo = LISTENING_FEATURE_DEFAULTS.announceShortItemNo,
   partTitle = '',
   voicePoolInput = null,
+  narratorVoice = '',
+  keepSectionLabel = false,
 } = {}) {
   const params = resolveListeningParams({ stage, grade, name, overrides });
   const segments = [];
@@ -192,6 +272,9 @@ export function buildListeningStoryboard({
   const voicePool = (Array.isArray(voicePoolInput) ? voicePoolInput : [])
     .map((v) => String(v || '').trim()).filter(Boolean);
   const effectivePool = voicePool.length ? voicePool : [params.voices.us.M, params.voices.us.W];
+  // 🎙 英语旁白音色（2026-09-20 用户实测："旁白的音色也不对"→ 开放独立配置）：
+  //    未指定时跟随男主（旧行为），指定后独白/短文、英文题号、标题里的英文段都用它。
+  const narratorVoiceEff = String(narratorVoice || '').trim() || voicePool[0] || params.voices.us.M;
   /** 对话里的英语音色：池里有就用池（男主/女主…），否则按口音表 */
   const enVoice = (label, accentSet) => {
     if (voicePool.length) return label === 'W' ? (voicePool[1] || voicePool[0]) : voicePool[0];
@@ -206,18 +289,26 @@ export function buildListeningStoryboard({
   //   ③ 部分标题（「第一部分 听力部分。」）
   //   之后才进入各大题指令 → 叮咚 → 题号 → 材料。
   //   ① 与 ③ 都是用户明确要求读出的；①的标题净化沿用 cleanTitleForAnnounce（去时间戳）。
-  const titleText = announceTitle ? buildTitleAnnouncement(title) : '';
-  if (titleText) {
-    segments.push({
-      kind: 'title',
-      voice: params.zhVoice,
-      role: 'N',
-      text: titleText,
-      ratePercent: 0,
-      gapAfterMs: params.pauses.afterTitleMs,
-      chimeBefore: true,   // 全卷第一个提示音：正式开考
-      itemNo: null,
-      pass: 0,
+  // 🔴 2026-09-20 标题**按语种切段**（用户实测："Unit 1 读成 unit 1 应读 unit one，且不像英文"）：
+  //   中文段给中文播报音色、英文段给英文旁白音色，英文段数字转英文词（Unit 1 → Unit One）。
+  //   叮咚仍只挂整段标题的第一个发音段（全卷第一声）。
+  const cleanTitle = announceTitle ? cleanTitleForAnnounce(title) : '';
+  if (cleanTitle) {
+    const runs = splitMixedLanguageRuns(cleanTitle);
+    const last = runs[runs.length - 1];
+    if (last) last.text = `${last.text}。`;   // 句号挂最后一段，朗读稿合并后还原整句
+    runs.forEach((run, i) => {
+      segments.push({
+        kind: 'title',
+        voice: run.lang === 'en' ? narratorVoiceEff : params.zhVoice,
+        role: 'N',
+        text: run.lang === 'en' ? digitsToEnglishWords(run.text) : run.text,
+        ratePercent: 0,
+        gapAfterMs: i === runs.length - 1 ? params.pauses.afterTitleMs : 350,
+        chimeBefore: i === 0,   // 全卷第一个提示音：正式开考（只挂标题首段）
+        itemNo: null,
+        pass: 0,
+      });
     });
   }
 
@@ -229,7 +320,7 @@ export function buildListeningStoryboard({
       text: buildSoundCheckIntro(),
       ratePercent: 0,     // 中文播报不套用英文慢速
       gapAfterMs: 800,
-      chimeBefore: !titleText,  // 无标题时由试音提示语承担全卷第一声
+      chimeBefore: !cleanTitle,  // 无标题时由试音提示语承担全卷第一声
       itemNo: null,
       pass: 0,
     });
@@ -266,7 +357,7 @@ export function buildListeningStoryboard({
       text: buildOpeningAnnouncement(),
       ratePercent: 0,
       gapAfterMs: params.pauses.afterSectionInstructionMs,
-      chimeBefore: !titleText,   // 无标题时由开场白承担全卷第一声
+      chimeBefore: !cleanTitle,   // 无标题时由开场白承担全卷第一声
       itemNo: null,
       pass: 0,
     });
@@ -291,10 +382,13 @@ export function buildListeningStoryboard({
   }
 
   // 节序列：首节指令来自 intro（若有），其余来自各条材料的 instruction（解析端已保证"节指令挂在该节首条"）
+  // 🔴 2026-09-20 标号归一：录音稿常写"第一节/第一大题"，音频须读卷面标号"一、"（见 normalizeSectionLabel）
   const sectionInstrAt = new Map();
-  if (intro && String(intro).trim()) sectionInstrAt.set(0, String(intro).trim());
+  if (intro && String(intro).trim()) sectionInstrAt.set(0, normalizeSectionLabel(intro, keepSectionLabel));
   items.forEach((it, i) => {
-    if (it.instruction && String(it.instruction).trim()) sectionInstrAt.set(i, String(it.instruction).trim());
+    if (it.instruction && String(it.instruction).trim()) {
+      sectionInstrAt.set(i, normalizeSectionLabel(it.instruction, keepSectionLabel));
+    }
   });
 
   // 🔴 同卷同类材料播报者一致（2026-09-19 用户实测根治）：实测第二节独白标了 W:（女声）、
@@ -314,10 +408,11 @@ export function buildListeningStoryboard({
   const voiceCast = [];
   items.forEach((item, i) => {
     const accent = pickAccentForItem(params.accent, i);
-    // 显式音色池优先：池存在时全书同一套音色；否则按口音表（低美高混）逐段取
+    // 显式音色池优先：池存在时全书同一套音色；否则按口音表（低美高混）逐段取。
+    // 旁白 N：narratorVoiceEff（用户可独立指定；未指定＝跟随男主）。
     const voiceSet = voicePool.length
-      ? { M: voicePool[0], W: voicePool[1] || voicePool[0], N: voicePool[0] }
-      : (params.voices[accent] || params.voices.us);
+      ? { M: voicePool[0], W: voicePool[1] || voicePool[0], N: narratorVoiceEff }
+      : { ...(params.voices[accent] || params.voices.us), N: narratorVoiceEff };
     const lines = Array.isArray(item.lines) ? item.lines.filter((l) => String(l && l.text || '').trim()) : [];
     if (!lines.length) return;
     const repeat = Number.isFinite(item.repeat) && item.repeat > 0 ? item.repeat : params.repeat;
@@ -506,7 +601,7 @@ export function buildListeningStoryboard({
     }
   }
 
-  return { segments, params, risks: dedupeRisks(risks), warnings, voiceCast, voicePool: effectivePool };
+  return { segments, params, risks: dedupeRisks(risks), warnings, voiceCast, voicePool: effectivePool, narratorVoice: narratorVoiceEff };
 }
 
 /**
@@ -539,7 +634,7 @@ export function buildListeningSsml(input = {}) {
  */
 export function buildListeningScriptText(input = {}) {
   const { stageLabel = '', ...rest } = input;
-  const { segments, params, risks, warnings, voiceCast = [], voicePool = [] } = buildListeningStoryboard(rest);
+  const { segments, params, risks, warnings, voiceCast = [], voicePool = [], narratorVoice = '' } = buildListeningStoryboard(rest);
   const out = [];
 
   const accentName = params.accent === 'mixed' ? '美音/英音交替'
@@ -571,6 +666,10 @@ export function buildListeningScriptText(input = {}) {
   // 🎚 音色（2026-09-19 用户要求"用户能立即知道是否有多角色"）：列出**生效音色池**，
   //    并逐题给出"角色 → 音色"分配（见下方每题块首行），多角色题一眼可见用了几个音色。
   out.push(`音色：${voicePool.map((v) => voiceLabel(v)).join('　｜　')}`);
+  // 🎙 旁白/中文播报为独立可配音色时显式列出（2026-09-20 开放配置后，朗读稿要能看出实际用的谁）
+  const defaultNarrator = voicePool[0] || params.voices.us.M;
+  if (narratorVoice && narratorVoice !== defaultNarrator) out.push(`旁白：${voiceLabel(narratorVoice)}`);
+  if (params.zhVoice && params.zhVoice !== LISTENING_ZH_VOICE) out.push(`中文播报：${voiceLabel(params.zhVoice)}`);
   const castByItem = new Map(voiceCast.map((c) => [c.itemNo, c.entries || []]));
   // "角色"只数真正的说话人（N＝旁白/独白，不是角色）；若无标注角色则按 1 个（旁白）计
   const roleSet = new Set(voiceCast.flatMap((c) => (c.entries || []).map((e) => e.role)).filter((r) => r !== 'N'));

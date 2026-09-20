@@ -115,6 +115,22 @@ export const LISTENING_VOICES = {
 export const LISTENING_ZH_VOICE = 'zh-CN-XiaoxiaoNeural';
 
 /**
+ * 中文播报音色候选表（2026-09-20 用户实测反馈"旁白的音色也不对"后开放配置）
+ * ============================================================
+ * 用户裁定：**默认仍为晓晓（Xiaoxiao）**，其余作为可选项、每项可试听——与英文音色同一套交互。
+ * 正规考试录音的中文播报通常为清晰、平稳的播音腔女声；选不出"绝对标准"的，
+ * 就把选择权交给用户（试听即知），默认值保持最通用的自然女声。
+ */
+export const LISTENING_ZH_VOICE_CANDIDATES = [
+  { voice: 'zh-CN-XiaoxiaoNeural', name: '晓晓 · 自然女声（默认）' },
+  { voice: 'zh-CN-XiaoyiNeural', name: '晓伊 · 活泼女声' },
+  { voice: 'zh-CN-XiaochenNeural', name: '晓辰 · 温暖女声' },
+  { voice: 'zh-CN-YunjianNeural', name: '云健 · 沉稳男声' },
+  { voice: 'zh-CN-YunyangNeural', name: '云扬 · 新闻男声' },
+  { voice: 'zh-CN-YunxiNeural', name: '云希 · 阳光男声' },
+];
+
+/**
  * 听力试音环节（录音正文之前的"声音检查"段）
  * ============================================================
  * 🔴 2026-09-19 用户实测复核后补齐（"现在是全部按正规走的吧？"→ 裁定"做成开关，默认开"）：
@@ -376,6 +392,7 @@ export default {
   LISTENING_VOICE_CANDIDATES,
   LISTENING_VOICE_DEFAULTS,
   LISTENING_ZH_VOICE,
+  LISTENING_ZH_VOICE_CANDIDATES,
   LISTENING_SOUND_CHECK,
   LISTENING_FEATURE_DEFAULTS,
   LISTENING_PAUSE,
