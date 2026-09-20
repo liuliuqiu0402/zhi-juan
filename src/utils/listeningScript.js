@@ -28,6 +28,8 @@ import {
   LISTENING_ZH_VOICE_CANDIDATES,
   LISTENING_MIXED_TITLE_VOICE,
   LISTENING_MIXED_TITLE_VOICE_CANDIDATES,
+  LISTENING_TITLE_MIXED_POLICY,
+  zhVoiceGender,
 } from '../config/listeningAudioProfile.js';
 import { isCjkNoise, cnNum } from './listeningExtract.js';
 
@@ -294,23 +296,36 @@ export function buildListeningStoryboard({
   //   ③ 部分标题（「第一部分 听力部分。」）
   //   之后才进入各大题指令 → 叮咚 → 题号 → 材料。
   //   ① 与 ③ 都是用户明确要求读出的；①的标题净化沿用 cleanTitleForAnnounce（去时间戳）。
-  // 🔴 2026-09-20 标题**不再按语种切段换声**（用户二次实测："虽然分中文音色和英文音色，
-  //   但是需要是同一个读，而且要衔接自然" —— 切段换声正是"一听就是两个人"的根因）：
-  //   · 中英混排 → 用**多语言音色**（默认 en-US-AndrewMultilingualNeural，微软文档确认支持
-  //     77 语种自动检测含 zh-CN）把整条标题**一次读完**：同一人、语种自动切换、衔接天然连贯，
-  //     不再有任何人工拼接痕迹与段间停顿；
-  //   · 纯中文 → 仍用中文播报音色；纯英文 → 仍用英语旁白音色（单语种无需多语言音色）；
-  //   · 英文数字仍转英文词（Unit 1 → Unit one）；
-  //   · overrides.titleMixedVoice = 'split' 可退回旧行为（中文一个声、英文一个声）。
-  //   叮咚仍只挂标题这**一段**（全卷第一声）。
+  // 🔴 2026-09-20 标题读法**二次定版**（用户实测："英文确实是英文音色了，但是中文为啥要用英文的音色读呢？
+  //   就跟外国人说中文蹩脚那样的听觉" → 单一多语言音色方案被否）：
+  //   免费 Edge 通道没有"中英都母语"的音色，故改为**双语都地道**优先：
+  //   · 'native'（默认）＝按语种分读 + **同性别匹配**——中文段用「中文播报」音色，
+  //     英文段用与其同性别的那条英文音色（中文播报是女声→女主，男声→男主），
+  //     段间不留人工停顿（用句间自然间隙）→ 听感是"同一位播音员换语言"，衔接自然；
+  //   · 'single' ＝一条多语言音色整条通读（真·同一人，但中文带外国口音，已实测否决，保留为可选项）；
+  //   · 传具体音色名 → 等同 'single' 且用该音色；
+  //   · 传 'split' → 兼容旧值，等同默认的 native。
+  //   纯中文标题仍用中文播报音色、纯英文标题仍用英语旁白音色（单语种不走本分支）。
+  //   叮咚仍只挂标题的第一段（全卷第一声）。
   const cleanTitle = announceTitle ? cleanTitleForAnnounce(title) : '';
+  // 标题读法模式（供界面摘要与朗读稿标注）：''＝单语种、'native'＝按语种分读、'single'＝多语言音色通读
+  let titleMode = '';
   if (cleanTitle) {
     const runs = splitMixedLanguageRuns(cleanTitle);
     const isMixed = runs.length > 1;
-    const titleMixedVoiceEff = String(titleMixedVoice || '').trim() || params.titleMixedVoice || LISTENING_MIXED_TITLE_VOICE;
-    const splitByLang = !isMixed || titleMixedVoiceEff === 'split';
-    if (!splitByLang) {
-      // 中英混排：整条一次读完。段间插一个空格给引擎清晰的语种边界（仍是同一口气、同一人）
+    const policyRaw = String(titleMixedVoice || '').trim()
+      || String(params.titleMixedPolicy || LISTENING_TITLE_MIXED_POLICY || 'native');
+    // single 模式下要用的多语言音色：params.titleMixedVoice 若是策略词（'single' 等）则回落默认多语言音色
+    const rawSingle = String(params.titleMixedVoice || '').trim();
+    const singleVoice = (!rawSingle || ['native', 'split', 'single', 'auto'].includes(rawSingle))
+      ? LISTENING_MIXED_TITLE_VOICE
+      : rawSingle;
+    // 'native'/'split'/'auto' → 原生分读；'single' → 用默认多语言音色；其它非空 → 视为指定音色
+    const useSingle = isMixed && (policyRaw === 'single' || !['native', 'split', 'auto'].includes(policyRaw));
+    const titleSingleVoice = policyRaw === 'single' ? singleVoice : policyRaw;
+    titleMode = isMixed ? (useSingle ? 'single' : 'native') : '';
+    if (useSingle) {
+      // 中英混排：整条一次读完。段间插一个空格给引擎清晰的语种边界（同一口气、同一人）
       const fullText = runs
         .map((r) => (r.lang === 'en' ? digitsToEnglishWords(r.text) : r.text))
         .join(' ')
@@ -318,7 +333,7 @@ export function buildListeningStoryboard({
         .trim();
       segments.push({
         kind: 'title',
-        voice: titleMixedVoiceEff,
+        voice: titleSingleVoice,
         role: 'N',
         text: `${fullText}。`,
         ratePercent: 0,
@@ -328,16 +343,24 @@ export function buildListeningStoryboard({
         pass: 0,
       });
     } else {
+      // 原生分读：中文段＝中文播报音色；英文段＝与其**同性别**的英文音色（衔接自然的关键）。
+      // ⚠️ 这里只能用 effectivePool（本作用域可得）——voiceSet 是**逐题**算的、在下方循环里，
+      //    在标题处引用它会 ReferenceError（2026-09-20 实测踩过）。
+      const zhIsFemale = zhVoiceGender(params.zhVoice) === 'F';
+      const enTitleVoice = zhIsFemale ? (effectivePool[1] || effectivePool[0]) : effectivePool[0];
       const last = runs[runs.length - 1];
       if (last) last.text = `${last.text}。`;   // 句号挂最后一段，朗读稿合并后还原整句
       runs.forEach((run, i) => {
         segments.push({
           kind: 'title',
-          voice: run.lang === 'en' ? narratorVoiceEff : params.zhVoice,
+          voice: run.lang === 'en' ? (isMixed ? enTitleVoice : narratorVoiceEff) : params.zhVoice,
           role: 'N',
           text: run.lang === 'en' ? digitsToEnglishWords(run.text) : run.text,
           ratePercent: 0,
-          gapAfterMs: i === runs.length - 1 ? params.pauses.afterTitleMs : 350,
+          // 混排时不留人工长停顿（350ms 会听出"两段拼接"），改用句间自然间隙
+          gapAfterMs: i === runs.length - 1
+            ? params.pauses.afterTitleMs
+            : (isMixed ? params.pauses.sentenceGapMs : 350),
           chimeBefore: i === 0,   // 全卷第一个提示音：正式开考（只挂标题首段）
           itemNo: null,
           pass: 0,
@@ -660,11 +683,14 @@ export function buildListeningStoryboard({
     voiceCast,
     voicePool: effectivePool,
     narratorVoice: narratorVoiceEff,
-    // 中英混合标题实际用的"同一人通读"音色（供界面摘要/朗读稿显示；未用则为空）
-    titleMixedVoice: (() => {
-      const t = segments.find((s) => s.kind === 'title');
-      return t && t.voice !== params.zhVoice && t.voice !== narratorVoiceEff ? t.voice : '';
-    })(),
+    // 中英混合标题的读法模式与实际英文段音色（供界面摘要/朗读稿标注；单语种标题为空）
+    titleMixedMode: titleMode,
+    titleMixedVoice: titleMode === 'single'
+      ? (segments.find((s) => s.kind === 'title') || {}).voice || ''
+      : '',
+    titleEnVoice: titleMode === 'native'
+      ? (segments.find((s) => s.kind === 'title' && s.voice !== params.zhVoice) || {}).voice || ''
+      : '',
   };
 }
 
@@ -698,7 +724,7 @@ export function buildListeningSsml(input = {}) {
  */
 export function buildListeningScriptText(input = {}) {
   const { stageLabel = '', ...rest } = input;
-  const { segments, params, risks, warnings, voiceCast = [], voicePool = [], narratorVoice = '' } = buildListeningStoryboard(rest);
+  const { segments, params, risks, warnings, voiceCast = [], voicePool = [], narratorVoice = '', titleMixedMode = '', titleMixedVoice = '', titleEnVoice = '' } = buildListeningStoryboard(rest);
   const out = [];
 
   const accentName = params.accent === 'mixed' ? '美音/英音交替'
@@ -737,15 +763,13 @@ export function buildListeningScriptText(input = {}) {
   const defaultNarrator = voicePool[0] || params.voices.us.M;
   if (narratorVoice && narratorVoice !== defaultNarrator) out.push(`旁白：${voiceLabel(narratorVoice)}`);
   if (params.zhVoice && params.zhVoice !== LISTENING_ZH_VOICE) out.push(`中文播报：${voiceLabel(params.zhVoice)}`);
-  // 🗣 中英混合标题＝同一人通读（多语言音色）——朗读稿要标出来，避免录制方以为要换人
-  {
-    const titleSeg = segments.find((s) => s.kind === 'title');
-    // ⚠️ 本函数里没有 narratorVoiceEff 那个局部量（它在 buildListeningStoryboard 内部）：
-    //    此处按其同口径就地推导（旁白留空＝音色池首位＝男主），否则会 ReferenceError。
-    const narratorEff = String(narratorVoice || '').trim() || voicePool[0] || params.voices.us.M;
-    if (titleSeg && titleSeg.voice !== params.zhVoice && titleSeg.voice !== narratorEff) {
-      out.push(`标题：中英混读由同一条多语言音色通读（${voiceLabel(titleSeg.voice)}）——不得切成两人分读`);
-    }
+  // 🗣 中英混排标题的读法要标出来（录制方据此安排人手，避免误分成两人/误用外语念中文）
+  if (titleMixedMode === 'native') {
+    out.push(`标题：中英混排**按语种分读**——中文段用中文播报音色（${voiceLabel(params.zhVoice)}），`
+      + `英文段用与其中文播报者**同性别**的英文音色（${voiceLabel(titleEnVoice)}），段间不留人工停顿；`
+      + '中英各由母语音色朗读，听感如同一位播音员换语言（若坚持"一条音色通读"，改用「标题」槽的多语言音色，但中文会带外国口音）');
+  } else if (titleMixedMode === 'single') {
+    out.push(`标题：中英混排由**同一条多语言音色通读**（${voiceLabel(titleMixedVoice)}）——同一人、语种自动切换，但该音色母语为英文，**中文会带外国口音**`);
   }
   const castByItem = new Map(voiceCast.map((c) => [c.itemNo, c.entries || []]));
   // "角色"只数真正的说话人（N＝旁白/独白，不是角色）；若无标注角色则按 1 个（旁白）计

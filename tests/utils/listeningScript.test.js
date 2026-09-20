@@ -977,7 +977,7 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
     });
   });
 
-  describe('标题中英混排：同一人通读（多语言音色）+ 数字转英文词', () => {
+  describe('标题中英混排：按语种分读（中文用中文音色·英文同性别匹配）+ 数字转英文词', () => {
     it('英文整数 → 英文词（Unit 1 → Unit One；Number 12. → Number twelve.）', () => {
       expect(intToEnglishWords(1)).toBe('one');
       expect(intToEnglishWords(12)).toBe('twelve');
@@ -995,8 +995,10 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
       ]);
     });
 
-    it('🔴 中英混排标题＝一段读完、一条多语言音色（同一人，不得切成两人）', () => {
-      const { segments, titleMixedVoice } = buildListeningStoryboard({
+    it('🔴 中英混排默认＝按语种分读：中文用中文音色、英文用**同性别**英文音色、段间不留人工停顿', () => {
+      // 2026-09-20 二次定版：用户实测否掉"单一多语言音色通读"（中文被英文母语者读成"外国人腔"），
+      // 改为"双语都地道"——中文段用中文音色，英文段用与中文播报者**同性别**的英文音色。
+      const { segments, titleMixedMode, titleEnVoice } = buildListeningStoryboard({
         stage: '小学',
         grade: '六年级',
         title: '六年级英语上册Unit 1 Try your best测试卷',
@@ -1004,15 +1006,37 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
         items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
       });
       const titleSegs = segments.filter((s) => s.kind === 'title');
-      // 只此一段：不再按语种切段换声（切段换声＝"一听就是两个人"）
-      expect(titleSegs).toHaveLength(1);
-      expect(titleSegs[0].voice).toBe(LISTENING_MIXED_TITLE_VOICE);
-      expect(titleSegs[0].voice, '不得用中文播报音色念英文部分').not.toBe(LISTENING_ZH_VOICE);
-      expect(titleMixedVoice).toBe(LISTENING_MIXED_TITLE_VOICE);
-      // 数字仍转英文词；整条标题一次交付、无段间停顿
-      expect(titleSegs[0].text).toBe('六年级英语上册 Unit one Try your best 测试卷。');
-      // 全卷第一声（叮咚）挂在这唯一一段上
+      expect(titleSegs).toHaveLength(3);
+      // 中文段必须是中文音色（不得用英文音色念中文——用户实测："就跟外国人说中文蹩脚那样的听觉"）
+      expect(titleSegs[0].voice).toBe(LISTENING_ZH_VOICE);
+      expect(titleSegs[0].text).toBe('六年级英语上册');
+      expect(titleSegs[2].voice).toBe(LISTENING_ZH_VOICE);
+      expect(titleSegs[2].text).toBe('测试卷。');
+      // 英文段用英文音色，且与中文播报者（晓晓·女声）同性别 → 女主音色
+      expect(titleSegs[1].voice).toBe(LISTENING_VOICES.us.W);
+      expect(titleSegs[1].voice).not.toBe(LISTENING_ZH_VOICE);
+      expect(titleSegs[1].text).toBe('Unit one Try your best');
+      expect(titleMixedMode).toBe('native');
+      expect(titleEnVoice).toBe(LISTENING_VOICES.us.W);
+      // 段间用句间自然间隙（不留 350ms 人工停顿，否则听出"两段拼接"）；末段才是标题后留白
+      expect(titleSegs[0].gapAfterMs).toBe(LISTENING_PAUSE.sentenceGapMs);
+      expect(titleSegs[1].gapAfterMs).toBe(LISTENING_PAUSE.sentenceGapMs);
+      expect(titleSegs[2].gapAfterMs).toBe(LISTENING_PAUSE.afterTitleMs);
+      // 全卷第一声（叮咚）只挂标题首段
       expect(titleSegs[0].chimeBefore).toBe(true);
+      expect(titleSegs[1].chimeBefore).toBe(false);
+      expect(titleSegs[2].chimeBefore).toBe(false);
+    });
+
+    it('中文播报换成男声时，标题英文段匹配男主音色（同性别匹配随中文播报者走）', () => {
+      const { segments } = buildListeningStoryboard({
+        stage: '小学', grade: '六年级', announceTitle: true,
+        title: '六年级英语上册Unit 1 Try your best测试卷',
+        overrides: { zhVoice: 'zh-CN-YunyangNeural' },   // 云扬 · 新闻男声
+        items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
+      });
+      const titleEn = segments.find((s) => s.kind === 'title' && s.voice !== 'zh-CN-YunyangNeural');
+      expect(titleEn.voice).toBe(LISTENING_VOICES.us.M);
     });
 
     it('纯中文/纯英文标题不受影响：仍用中文播报音色 / 英语旁白音色', () => {
@@ -1035,7 +1059,7 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
       expect(enTitle[0].text).toBe('Unit one Try your best。');
     });
 
-    it('朗读稿必须把"同一人通读"标出来（混排标题 + 朗读稿同调，防越界引用崩掉生成）', () => {
+    it('朗读稿必须写明标题读法（混排标题 + 朗读稿同调，防越界引用崩掉生成）', () => {
       // 🔴 回归：曾在朗读稿里误用 storyboard 内部的局部量，导致"听力稿生成失败：narratorVoiceEff is not defined"。
       //    故此处**必须同时开 announceTitle 且标题混排**，才能真正走到那一行。
       let text = '';
@@ -1046,32 +1070,52 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
           items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
         }));
       }).not.toThrow();
-      expect(text).toContain('中英混读由同一条多语言音色通读');
+      expect(text).toContain('标题：中英混排**按语种分读**');
+      expect(text).toContain('中文段用中文播报音色');
+      // 切到单一多语言音色时，朗读稿必须写明"中文会带外国口音"，防止录制方误用
+      const single = buildListeningScriptText({
+        stage: '小学', grade: '六年级', announceTitle: true, soundCheck: false,
+        title: '六年级英语上册Unit 1 Try your best测试卷',
+        overrides: { titleMixedVoice: 'single' },
+        items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
+      }).text;
+      expect(single).toContain('同一条多语言音色通读');
+      expect(single).toContain('中文会带外国口音');
     });
 
-    it('overrides.titleMixedVoice 可改选多语言音色；传 "split" 退回按语种分读', () => {
-      const custom = 'en-US-AvaMultilingualNeural';
-      const picked = buildListeningStoryboard({
+    it('「标题」槽可切到单一多语言音色通读（真·同一人，但中文带外国口音，故非默认）', () => {
+      const byName = buildListeningStoryboard({
         stage: '小学', grade: '六年级', announceTitle: true,
         title: '六年级英语上册Unit 1 Try your best测试卷',
         items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
-        overrides: { titleMixedVoice: custom },
-      }).segments.filter((s) => s.kind === 'title');
-      expect(picked).toHaveLength(1);
-      expect(picked[0].voice).toBe(custom);
+        overrides: { titleMixedVoice: 'en-US-AvaMultilingualNeural' },
+      });
+      const one = byName.segments.filter((s) => s.kind === 'title');
+      expect(one).toHaveLength(1);
+      expect(one[0].voice).toBe('en-US-AvaMultilingualNeural');
+      expect(one[0].text).toBe('六年级英语上册 Unit one Try your best 测试卷。');
+      expect(byName.titleMixedMode).toBe('single');
 
-      // 少数考区若坚持"中文一个声、英文一个声"，切 split 回到旧行为（3 段、按语种分音色）
-      const split = buildListeningStoryboard({
+      // 传 'single' 用配置里的默认多语言音色
+      const bySentinel = buildListeningStoryboard({
         stage: '小学', grade: '六年级', announceTitle: true,
         title: '六年级英语上册Unit 1 Try your best测试卷',
         items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
-        overrides: { titleMixedVoice: 'split' },
-      }).segments.filter((s) => s.kind === 'title');
-      expect(split).toHaveLength(3);
-      expect(split[0].voice).toBe(LISTENING_ZH_VOICE);
-      expect(split[1].voice).not.toBe(LISTENING_ZH_VOICE);
-      expect(split[1].text).toBe('Unit one Try your best');
-      expect(split[2].text).toBe('测试卷。');
+        overrides: { titleMixedVoice: 'single' },
+      });
+      expect(bySentinel.segments.filter((s) => s.kind === 'title')[0].voice).toBe(LISTENING_MIXED_TITLE_VOICE);
+
+      // 显式 'native'（含兼容旧值 'split'）＝按语种分读
+      for (const v of ['native', 'split']) {
+        const segs = buildListeningStoryboard({
+          stage: '小学', grade: '六年级', announceTitle: true,
+          title: '六年级英语上册Unit 1 Try your best测试卷',
+          items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
+          overrides: { titleMixedVoice: v },
+        }).segments.filter((s) => s.kind === 'title');
+        expect(segs, `titleMixedVoice=${v}`).toHaveLength(3);
+        expect(segs[0].voice).toBe(LISTENING_ZH_VOICE);
+      }
     });
   });
 
@@ -1089,7 +1133,7 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
       expect(sb.narratorVoice).toBe(sb.voicePool[0]);
     });
 
-    it('指定旁白后：英文题号 / 未标注独白改用旁白音色；混排标题仍走多语言音色（不受旁白影响）', () => {
+    it('指定旁白后：英文题号 / 未标注独白改用旁白音色；混排标题仍按"同性别匹配"走（不被旁白的性别带偏）', () => {
       const narrator = 'en-GB-SoniaNeural';
       const { segments } = buildListeningStoryboard({
         stage: '小学',
@@ -1106,10 +1150,12 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
       expect(itemNo.voice).toBe(narrator);
       const mono = segments.find((s) => s.kind === 'material' && s.itemNo === 2);
       expect(mono.voice).toBe(narrator);
-      // 标题中英混排 → 由多语言音色一人通读，不因改了旁白就变成"两人分读"
-      const titleSeg = segments.find((s) => s.kind === 'title');
-      expect(titleSeg.voice).toBe(LISTENING_MIXED_TITLE_VOICE);
-      expect(titleSeg.text).toBe('六年级英语上册 Unit one Try your best 测试卷。');
+      // 标题中英混排 → 中文段用中文播报音色、英文段按"与中文播报者同性别"取音色（女声→女主），
+      // 与旁白设定的性别无关（旁白只管独白/短文与英文题号）
+      const titleSegs = segments.filter((s) => s.kind === 'title');
+      expect(titleSegs).toHaveLength(3);
+      expect(titleSegs[0].voice).toBe(LISTENING_ZH_VOICE);
+      expect(titleSegs[1].voice).toBe(LISTENING_VOICES.us.W);
     });
   });
 

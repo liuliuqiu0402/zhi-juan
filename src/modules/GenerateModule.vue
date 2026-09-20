@@ -1866,7 +1866,7 @@
               <button
                 class="btn-small"
                 style="font-size:11px;padding:1px 7px;"
-                :disabled="!listeningVoices[slot.key] || listeningVoices[slot.key] === 'split' || !!listeningPreviewing"
+                :disabled="!listeningVoices[slot.key] || ['native', 'single', 'split'].includes(listeningVoices[slot.key]) || !!listeningPreviewing"
                 :title="`试听「${listeningVoices[slot.key] || '（未选）'}」`"
                 @click="playVoicePreview(listeningVoices[slot.key])"
               >
@@ -3528,7 +3528,7 @@ import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实�
 import { buildListeningExtractMessages } from '../config/listeningExtractPrompt.js';
 import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback } from '../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText, buildListeningStoryboard } from '../utils/listeningScript.js';
-import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES, LISTENING_STAGE_WPM_RANGE, LISTENING_MIXED_TITLE_VOICE_CANDIDATES, LISTENING_MIXED_TITLE_VOICE, LISTENING_ANSWER_GAP_RANGE, LISTENING_PAUSE } from '../config/listeningAudioProfile.js';
+import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES, LISTENING_ZH_VOICE, LISTENING_STAGE_WPM_RANGE, LISTENING_MIXED_TITLE_VOICE_CANDIDATES, LISTENING_MIXED_TITLE_VOICE, LISTENING_ANSWER_GAP_RANGE, LISTENING_PAUSE } from '../config/listeningAudioProfile.js';
 // 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
 import { synthesizeToFile, readAzureConfigFromApiConfig } from '../utils/azureTts.js';
 // 🎧 Edge 免费语音：无需 Key，逐句合成 + 帧级静音拼接（主进程执行）
@@ -8906,7 +8906,7 @@ const LISTENING_VOICE_SLOTS = [
   { key: 'W', label: '女声', group: 'W', optional: false },
   { key: 'N', label: '旁白', group: 'M', optional: true, emptyLabel: '跟随男声', hint: '英语旁白：独白/短文、英文题号「Number N.」用这条音色；留空＝跟随男声（标题里的英文段已改由下面的「标题」槽一人通读）' },
   { key: 'Z', label: '中文播报', group: 'Z', optional: true, emptyLabel: '晓晓（默认）', hint: '中文播报：开场白、导语、分节指令、部分标题、结束语等中文段用这条音色；留空＝晓晓（默认）' },
-  { key: 'T', label: '标题', group: 'T', optional: true, emptyLabel: '多语言音色·一人通读（默认）', hint: '中英混合标题专用：用一条多语言音色把整条标题一次读完（同一人、中英语种自动切换、衔接自然），不再中文一个声、英文一个声。纯中文标题仍用「中文播报」、纯英文标题仍用「旁白」，不受此项影响' },
+  { key: 'T', label: '标题', group: 'T', optional: true, emptyLabel: '按语种分读（默认·推荐）', hint: '中英混合标题专用。默认"按语种分读"：中文段用「中文播报」音色、英文段用与其中文播报者**同性别**的英文音色，中英各由母语音色朗读、段间不留人工停顿——免费通道下最自然（单一多语言音色会把中文读出外国口音，实测已否决，仍可在此切回）' },
   { key: 'M2', label: '男声副', group: 'M', optional: true },
   { key: 'W2', label: '女声副', group: 'W', optional: true },
 ];
@@ -8921,9 +8921,11 @@ const listeningVoiceOptions = computed(() => {
     W: build('W'),
     Z: [{ label: '中文播报', items: LISTENING_ZH_VOICE_CANDIDATES.map((c) => ({ value: c.voice, text: c.name })) }],
     T: [
-      { label: '多语言音色（中英通读）', items: LISTENING_MIXED_TITLE_VOICE_CANDIDATES.map((c) => ({ value: c.voice, text: c.name })) },
-      // 特殊值 'split'：退回旧的"中文一个声、英文一个声"（少数考区若坚持分读，可在此切回）
-      { label: '其它', items: [{ value: 'split', text: '按语种分读（中文一个声、英文一个声）' }] },
+      { label: '读法', items: [
+        { value: 'native', text: '按语种分读（中文用中文音色·英文用同性别英文音色）——推荐' },
+        { value: 'single', text: '同一人多语言音色通读（⚠️ 中文会带外国口音）' },
+      ] },
+      { label: '或直接指定通读音色（多语言）', items: LISTENING_MIXED_TITLE_VOICE_CANDIDATES.map((c) => ({ value: c.voice, text: c.name })) },
     ],
   };
 });
@@ -8936,7 +8938,8 @@ let listeningAudioEl = null;
 /** ▶ 试听：合成一句样例直接播放（不落盘、不弹保存框） */
 const playVoicePreview = async (voice) => {
   const v = String(voice || '');
-  if (!v || v === 'split' || listeningPreviewing.value) return;   // 'split' 是行为开关，不是音色，不可试听
+  // 'native'/'single'/'split' 是"读法"取值，不是音色，不可试听
+  if (!v || ['native', 'single', 'split'].includes(v) || listeningPreviewing.value) return;
   listeningPreviewing.value = v;
   listeningVoiceHint.value = '';
   try {
@@ -9112,18 +9115,27 @@ const listeningPassRotationHint = computed(() => {
 });
 
 /**
- * 🗣 标题"同一人通读"提示（2026-09-20 用户："虽然分中文音色和英文音色，但是需要是同一个读，而且要衔接自然"）
- * 仅当试卷标题**中英混排**时才有意义：此时整条标题由一条多语言音色一次读完，
- * 中英语种由引擎自动切换，不再中文一个声、英文一个声。纯中文/纯英文标题不显示本行。
+ * 🗣 标题读法提示（2026-09-20 二次定版）：中英混排标题默认"按语种分读 + 同性别匹配"。
+ * 用户实测否掉了"单条多语言音色通读"——那个方案下中文是外语母语者读的，像"外国人说中文蹩脚"。
+ * 免费通道没有中英都母语的音色，故取"双语都地道"：中文用中文播报音色、英文用与其同性的英文音色。
  */
 const listeningTitleMixedHint = computed(() => {
   const raw = String(listeningDocTitle.value || '');
   const mixed = /[\u3400-\u4dbf\u4e00-\u9fff]/.test(raw) && /[A-Za-z]/.test(raw);
   if (!mixed) return '';
-  const v = listeningVoices.T || LISTENING_MIXED_TITLE_VOICE;
-  const hit = LISTENING_MIXED_TITLE_VOICE_CANDIDATES.find((c) => c.voice === v);
-  const name = hit ? hit.name : v.replace(/^[a-z]{2}-[A-Z]{2}-/, '').replace(/Neural$/, '');
-  return `🗣 标题中英混排：由「${name}」一条音色通读（同一人、语种自动切换、衔接自然）——需要两人分读时把「标题」槽切到"按语种分读"`;
+  const t = listeningVoices.T;
+  const singleMode = t === 'single' || (!!t && !['native', 'split', 'splitByLang'].includes(t));
+  const zhName = (() => {
+    const v = listeningVoices.Z || LISTENING_ZH_VOICE;
+    const hit = LISTENING_ZH_VOICE_CANDIDATES.find((c) => c.voice === v);
+    return hit ? hit.name.replace(/（.*?）/g, '').trim() : v;
+  })();
+  if (singleMode) {
+    const v = t === 'single' ? LISTENING_MIXED_TITLE_VOICE : t;
+    const hit = LISTENING_MIXED_TITLE_VOICE_CANDIDATES.find((c) => c.voice === v);
+    return `🗣 标题中英混排：用「${hit ? hit.name.replace(/（.*?）/g, '').trim() : v}」一条音色通读 —— ⚠️ 该音色母语是英文，中文会带外国口音（如"外国人说中文"），想要地道中文请把「标题」槽切回"按语种分读"`;
+  }
+  return `🗣 标题中英混排：按语种分读 —— 中文用「${zhName}」、英文用同性别英文音色，中英各由母语音色朗读、段间无人工停顿（免费通道下最自然）`;
 });
 
 /** 该条记录是否有可做音频的英语听力（"听力原文"字样按构造仅英语答案页注入） */

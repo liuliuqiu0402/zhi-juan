@@ -131,13 +131,19 @@ export const LISTENING_ZH_VOICE = 'zh-CN-XiaoxiaoNeural';
  * 就把选择权交给用户（试听即知），默认值保持最通用的自然女声。
  */
 export const LISTENING_ZH_VOICE_CANDIDATES = [
-  { voice: 'zh-CN-XiaoxiaoNeural', name: '晓晓 · 自然女声（默认）' },
-  { voice: 'zh-CN-XiaoyiNeural', name: '晓伊 · 活泼女声' },
-  { voice: 'zh-CN-XiaochenNeural', name: '晓辰 · 温暖女声' },
-  { voice: 'zh-CN-YunjianNeural', name: '云健 · 沉稳男声' },
-  { voice: 'zh-CN-YunyangNeural', name: '云扬 · 新闻男声' },
-  { voice: 'zh-CN-YunxiNeural', name: '云希 · 阳光男声' },
+  { voice: 'zh-CN-XiaoxiaoNeural', name: '晓晓 · 自然女声（默认）', gender: 'F' },
+  { voice: 'zh-CN-XiaoyiNeural', name: '晓伊 · 活泼女声', gender: 'F' },
+  { voice: 'zh-CN-XiaochenNeural', name: '晓辰 · 温暖女声', gender: 'F' },
+  { voice: 'zh-CN-YunjianNeural', name: '云健 · 沉稳男声', gender: 'M' },
+  { voice: 'zh-CN-YunyangNeural', name: '云扬 · 新闻男声', gender: 'M' },
+  { voice: 'zh-CN-YunxiNeural', name: '云希 · 阳光男声', gender: 'M' },
 ];
+
+/** 中文播报音色的性别（供中英混排标题"同性别匹配"用；表里没有的按女声处理——默认晓晓即女声） */
+export function zhVoiceGender(voice = '') {
+  const hit = LISTENING_ZH_VOICE_CANDIDATES.find((c) => c.voice === voice);
+  return hit ? hit.gender : 'F';
+}
 
 /**
  * 中英混合标题的「同一人通读」音色（2026-09-20 用户裁定）
@@ -161,6 +167,23 @@ export const LISTENING_ZH_VOICE_CANDIDATES = [
  *   把 overrides.titleMixedVoice 设为 'split' 即回到旧的按语种切段行为。
  */
 export const LISTENING_MIXED_TITLE_VOICE = 'en-US-AndrewMultilingualNeural';
+
+/**
+ * 中英混排标题的**默认读法**（2026-09-20 二次实测后定版）
+ * ============================================================
+ * 用户先要求"同一个读、衔接自然"，实测单一多语言音色后又反馈：
+ *   "英文确实是英文音色了，但是中文为啥要用英文的音色读呢？就跟外国人说中文蹩脚那样的听觉。"
+ * 👉 免费 Edge 通道**不存在中英双语都母语的音色**（全量 322 个里无中文多语言音色），
+ *    故"同一人 + 双语都地道"不可能同时成立，必须取舍。定版取**双语都地道**：
+ *
+ *  · 'native'（默认）＝**按语种分读、同性别匹配**：中文段用「中文播报」音色，
+ *    英文段用**与其同性别**的那条英文音色（中文播报是女声→用女主音色，是男声→用男主音色），
+ *    段间不留人工停顿（用句间自然间隙）→ 中英各由母语音色朗读，听感是"同一位播音员换语言"，
+ *    这是免费通道下最自然的方案；
+ *  · 'single' ＝一条多语言音色整条通读（真·同一人），但它是英文母语，**中文会带外国口音**
+ *    ——用户实测已否决，仅作为可选（面板「标题」槽可切），供纯英文标题或不在意者使用。
+ */
+export const LISTENING_TITLE_MIXED_POLICY = 'native';
 
 /** 多语言音色候选（供"标题"槽试听与改选；均为微软文档确认支持中文的 77 语种音色） */
 export const LISTENING_MIXED_TITLE_VOICE_CANDIDATES = [
@@ -443,7 +466,17 @@ export function resolveListeningParams({ stage = '', grade = '', name = '', over
     accent,
     voices,
     zhVoice: overrides.zhVoice || LISTENING_ZH_VOICE,
-    // 中英混合标题的"同一人通读"音色（多语言音色）；传 'split' 则退回"按语种切段换声"的旧行为
+    // 中英混合标题：默认策略（'native' 按语种分读+同性别匹配 / 'single' 单一多语言音色通读）。
+    // 🔴 归一两种入口，避免"策略"与"具体音色"被混为一谈：
+    //    · overrides.titleMixedPolicy 显式给策略；
+    //    · overrides.titleMixedVoice 若给的是**具体音色名**，即隐含"single 模式 + 用这条音色"；
+    //      若给 'native'/'split'/'auto' 则隐含"按语种分读"；'single' 则用默认多语言音色。
+    titleMixedPolicy: (() => {
+      if (overrides.titleMixedPolicy) return overrides.titleMixedPolicy;
+      const s = String(overrides.titleMixedVoice === undefined ? '' : overrides.titleMixedVoice).trim();
+      if (!s) return LISTENING_TITLE_MIXED_POLICY;
+      return ['native', 'split', 'auto'].includes(s) ? 'native' : 'single';
+    })(),
     titleMixedVoice: overrides.titleMixedVoice === undefined
       ? LISTENING_MIXED_TITLE_VOICE
       : overrides.titleMixedVoice,
@@ -475,6 +508,8 @@ export default {
   LISTENING_ZH_VOICE_CANDIDATES,
   LISTENING_MIXED_TITLE_VOICE,
   LISTENING_MIXED_TITLE_VOICE_CANDIDATES,
+  LISTENING_TITLE_MIXED_POLICY,
+  zhVoiceGender,
   LISTENING_SOUND_CHECK,
   LISTENING_FEATURE_DEFAULTS,
   LISTENING_PAUSE,
