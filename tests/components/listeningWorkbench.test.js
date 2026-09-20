@@ -35,10 +35,19 @@ const parseSampleInPage = async (w) => {
 };
 /** 朗读稿的文本（只读 textarea）——断言产物必须看它，不能看整页 HTML：
  *  面板的 ⓘ 提示语里也会出现"每段材料开始前响一次"这类词，用整页 HTML 会假阳性。 */
-const scriptValue = (w) => {
+const scriptValue = (w) => textareaValue(w, '【英语听力朗读稿');
+/** SSML 的文本（只读 textarea）——停顿/语速这类逐段参数只能从它上面验 */
+const ssmlValue = (w) => textareaValue(w, '<speak');
+const textareaValue = (w, needle) => {
   const ta = [...w.element.querySelectorAll('textarea')]
-    .find((t) => String(t.value || '').includes('【英语听力朗读稿'));
+    .find((t) => String(t.value || '').includes(needle));
   return ta ? ta.value : '';
+};
+/** 按标签文字找「高级停顿」组里的数值输入框 */
+const pauseInput = (w, label) => {
+  const el = [...w.element.querySelectorAll('label')]
+    .find((l) => (l.textContent || '').trim().startsWith(label));
+  return el ? el.querySelector('input[type="number"]') : null;
 };
 /** 等重渲染落地：改动参数后的重渲染有 **200ms 去抖**（拖动滑块不卡手），故测试必须等它跑完 */
 const settle = async (w) => {
@@ -158,6 +167,60 @@ describe('独立功能页：配音配置项齐全且真的生效', () => {
     sel.dispatchEvent(new Event('change'));
     await settle(w);
     expect(scriptValue(w)).not.toContain('〔第2遍〕');
+    w.unmount();
+  });
+
+  it('🔴 选好学段就能看到配置项（不必先粘贴解析）——修"独立页只有素材框"', async () => {
+    const w = mountPage();
+    await w.vm.$nextTick();
+    // 还没选学段：配置区不出现（否则语速/停顿只能在初中兜底值上瞎调），但必须给明确提示
+    expect(w.html()).not.toContain('🔔 提示音');
+    expect(w.html()).toContain('请选择学段');
+
+    await w.find('select').setValue('primary_high');
+    await w.vm.$nextTick();
+    const html = w.html();
+    for (const item of ['语速（词/分）', '静默作答', '音色', '🔔 提示音', '默认遍数', '遍间换声', '读试卷标题', '高级停顿']) {
+      expect(html, `选好学段后仍未出现：${item}`).toContain(item);
+    }
+    // 未出稿时不得出现产物区（SSML/朗读稿/音频）
+    expect(html).not.toContain('① SSML');
+    w.unmount();
+  });
+
+  it('🕐 高级停顿真的生效：改「句间」→ SSML 的 break 时长跟着变', async () => {
+    const w = mountPage();
+    await parseSampleInPage(w);
+    expect(ssmlValue(w)).toContain('time="120ms"');   // 矩阵默认句间 120 ms
+
+    const sentence = pauseInput(w, '句间');
+    expect(sentence).toBeTruthy();
+    sentence.value = '300';
+    // 🔴 v-model.number 绑的是 **input** 事件（不是 change）——派发 change 不会更新状态，测试会假通过
+    sentence.dispatchEvent(new Event('input'));
+    await settle(w);
+    expect(ssmlValue(w)).toContain('time="300ms"');
+    w.unmount();
+  });
+
+  it('📢 关掉「结束语」/「部分标题」→ 朗读稿里那两句随之消失', async () => {
+    const w = mountPage();
+    await parseSampleInPage(w);
+    const before = scriptValue(w);
+    expect(before).toContain('听力部分到此结束');
+    expect(before).toContain('第一部分 听力部分');
+
+    const closing = labelBox(w.element, '结束语');
+    closing.checked = false;
+    closing.dispatchEvent(new Event('change'));
+    const part = labelBox(w.element, '部分标题');
+    part.checked = false;
+    part.dispatchEvent(new Event('change'));
+    await settle(w);
+    const after = scriptValue(w);
+    expect(after).not.toContain('听力部分到此结束');
+    expect(after).not.toContain('第一部分 听力部分');
+    expect(after).toContain('【英语听力朗读稿');   // 材料本身还在
     w.unmount();
   });
 });

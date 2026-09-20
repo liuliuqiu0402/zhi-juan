@@ -245,6 +245,15 @@ export const LISTENING_FEATURE_DEFAULTS = {
   announceTitle: true,
   soundCheck: true,
   announceShortItemNo: true,
+  // 📢 2026-09-20 开放配置（用户："按你的建议来"）：开场白 / 部分标题 / 结束语三个固定播报的开关。
+  //    为什么给开关而不改文案：这三句都来自考务规定或本项目既有口径，**文案不动**——
+  //    改了就不成其为正规考试录音；但粘贴自有素材做练习时，这三句确实多余，所以给"要不要播"的选择权。
+  //    · announceOpening：仅当**关闭"试音段"**时才出现（试音段自带收尾句「听力试音到此结束，听力考试现在开始。」）；
+  //    · announcePart：'第一部分 听力部分。'（英语卷听力必为第一部分，见 LISTENING_PART_ANNOUNCEMENT）；
+  //    · announceClosing：'听力部分到此结束。'（考务规定听力结束须播提示语）。
+  announceOpening: true,
+  announcePart: true,
+  announceClosing: true,
 };
 
 /**
@@ -369,6 +378,28 @@ export const LISTENING_ANSWER_GAP_RANGE = {
   short: [3, 30],
   long: [3, 20],
   fillIn: [10, 90],
+};
+
+/**
+ * 「高级停顿」各项的建议区间（毫秒）——2026-09-20 开放配置（用户："按你的建议来"）
+ * ============================================================
+ * 除已开放的"静默作答三档"（秒）之外，录音里还有 7 处停顿原先全部硬编码。
+ * 用户实测过的痛点集中在两处，故这两项最先被点名要求开放：
+ *   · sentenceGapMs    句间——材料内部句/轮的间隙，"顿挫感"主要来自它（原文"间隔不是标准间隔"）；
+ *   · betweenRepeatsMs 遍间——同一材料两遍之间的等待（真题明文"等待 2 秒后立即播放第二遍"）。
+ * 其余 5 处属"框架节奏"，一般不需要动，故与这两项一起放进**折叠的"高级停顿"组**，
+ *   不单独摆到面上（避免把面板堆成仪表盘）。
+ * 口径：留空＝矩阵默认；填写＝显式覆盖该卷；越界只橙色提示、不改写用户设定（与语速/作答留空同口径）。
+ * ⚠️ 节指令里声明了"X 秒钟作答/阅读"时**以指令为准**（考试文本优先，不被这些控件翻转）。
+ */
+export const LISTENING_PAUSE_RANGE = {
+  sentenceGapMs: [0, 500],
+  betweenRepeatsMs: [0, 10000],
+  afterItemNoMs: [0, 3000],
+  afterTitleMs: [0, 5000],
+  afterIntroMs: [0, 5000],
+  afterSectionInstructionMs: [0, 10000],
+  betweenSectionsMs: [0, 10000],
 };
 
 /** 每段材料朗读遍数（现行考试主流为两遍；旧大纲曾为三遍，此处按现行两遍）
@@ -571,6 +602,7 @@ export default {
   LISTENING_ROTATION_OPTIONS,
   LISTENING_PAUSE,
   LISTENING_ANSWER_GAP_RANGE,
+  LISTENING_PAUSE_RANGE,
   LISTENING_REPEAT_TIMES,
   LISTENING_PASS_VOICE_ROTATION,
   LISTENING_PASS_VOICE_ROTATION_STAGES,

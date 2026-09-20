@@ -39,6 +39,7 @@
                 type="text"
                 placeholder="例：六年级英语上册Unit 1测试卷"
                 style="width:220px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+                @change="syncPasteGradeHint"
               >
             </label>
             <label style="display:flex;gap:6px;align-items:center;">
@@ -84,7 +85,9 @@
             </button>
           </div>
           <div style="font-size:11px;color:#888;margin-top:6px;">
-            学段/年级决定语速与作答留白档位（与记录入口同一套矩阵）；中文翻译需云端模型，本地 Ollama 不支持
+            学段/年级决定语速、静默作答与停顿档位（与记录入口同一套矩阵）。
+            <b>选好学段后，下方的语速 / 音色 / 提示音 / 遍数 / 停顿等配置项就会出现</b>，可以先调好再解析。
+            中文翻译需云端模型，本地 Ollama 不支持。
           </div>
         </div>
         <div
@@ -94,7 +97,7 @@
           <button
             class="btn-small"
             title="改为直接粘贴文本（英文或中文）解析，不依赖本记录的听力原文"
-            @click="listeningPasteMode = true"
+            @click="switchToPasteMode()"
           >
             📋 改为粘贴文本解析
           </button>
@@ -135,7 +138,7 @@
         </div>
 
         <div
-          v-if="listeningStruct"
+          v-if="listeningConfigVisible"
           style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:12px;"
         >
           <label style="display:flex;gap:6px;align-items:center;">
@@ -185,7 +188,7 @@
         <!-- ⏳ 静默作答时间（2026-09-20 用户："静默答题的时间是用户可调吗？还是硬编码的？有范围可供用户调整吗？"）：
              此前只有矩阵默认值、面板没暴露；现按三档给默认 + 可调区间（越界只提示不拦） -->
         <div
-          v-if="listeningStruct"
+          v-if="listeningConfigVisible"
           style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:12px;"
         >
           <span style="color:#333;">⏳ 静默作答（秒）</span>
@@ -224,7 +227,7 @@
 
         <!-- 🎚 音色（2026-09-19 用户裁定：默认男声1+女声2，其余可选，每项可试听） -->
         <div
-          v-if="listeningStruct"
+          v-if="listeningConfigVisible"
           style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:12px;"
         >
           <template
@@ -287,7 +290,7 @@
         <!-- 🔁 遍间换声口径透明化（2026-09-20 用户："我确实听的是小学的，按真实调研分学段区分"）：
              小学默认换声（实证来自小学资料）；初中/高中真题惯例为同一人重读，默认不换声 -->
         <div
-          v-if="listeningStruct"
+          v-if="listeningConfigVisible"
           class="copy-hint"
           style="margin:2px 0 6px;"
         >
@@ -304,7 +307,7 @@
         </div>
 
         <div
-          v-if="listeningStruct"
+          v-if="listeningConfigVisible"
           style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:12px;"
         >
           <label style="display:flex;gap:6px;align-items:center;cursor:pointer;">
@@ -340,6 +343,41 @@
               style="color:#999;cursor:help;"
             >ⓘ</span>
           </label>
+          <!-- 📢 2026-09-20 开放：三句固定播报的开关。**文案不动**（都出自考务规定/既有口径），
+               只决定播不播——粘贴自有素材做练习时通常三句都不需要。 -->
+          <label style="display:flex;gap:6px;align-items:center;cursor:pointer;">
+            <input
+              v-model="listeningAnnounceOpening"
+              type="checkbox"
+            >
+            开场白
+            <span
+              title="「听力考试现在开始。」——注意：**只在关闭「试音段」时才会出现**；试音段打开时，它自带的收尾句「听力试音到此结束，听力考试现在开始。」已经含这句。"
+              style="color:#999;cursor:help;"
+            >ⓘ</span>
+          </label>
+          <label style="display:flex;gap:6px;align-items:center;cursor:pointer;">
+            <input
+              v-model="listeningAnnouncePart"
+              type="checkbox"
+            >
+            部分标题
+            <span
+              title="「第一部分 听力部分。」——英语卷听力必为第一部分（见矩阵里的固定播报语），故播报语固定、不可改文案。"
+              style="color:#999;cursor:help;"
+            >ⓘ</span>
+          </label>
+          <label style="display:flex;gap:6px;align-items:center;cursor:pointer;">
+            <input
+              v-model="listeningAnnounceClosing"
+              type="checkbox"
+            >
+            结束语
+            <span
+              title="「听力部分到此结束。」——考务规定听力结束须播提示语（如广东省高考外语听力考务要求），故文案固定。"
+              style="color:#999;cursor:help;"
+            >ⓘ</span>
+          </label>
         </div>
 
         <!-- 🔔🔁 提示音 / 默认遍数 / 遍间换声（2026-09-20 开放配置）：
@@ -347,7 +385,7 @@
              避免"看着能调、实际不知道在调什么"。提示音特意**分成两个开关**：正式考试要打点，
              而粘贴自有素材（多已自带序号/分隔）恰恰不需要，两者需求相反。 -->
         <div
-          v-if="listeningStruct"
+          v-if="listeningConfigVisible"
           style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:12px;"
         >
           <span style="color:#666;">🔔 提示音</span>
@@ -404,6 +442,66 @@
               style="color:#999;cursor:help;"
             >ⓘ</span>
           </label>
+        </div>
+
+        <!-- 🕐 高级停顿（2026-09-20 开放配置）：7 处停顿原先全部硬编码。
+             折起来是刻意的——痛点在"句间/遍间"两项，其余 5 处是框架节奏，不把面板堆成仪表盘。 -->
+        <details
+          v-if="listeningConfigVisible"
+          style="margin:8px 0;font-size:12px;"
+        >
+          <summary style="cursor:pointer;color:#666;">
+            🕐 高级停顿（毫秒，留空＝矩阵默认）
+            <span
+              v-if="listeningPauseIsManual"
+              style="color:#4a7cf6;"
+            >· 已手动设定</span>
+          </summary>
+          <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:8px 0;">
+            <label
+              v-for="t in LISTENING_PAUSE_TIERS"
+              :key="t.key"
+              style="display:flex;gap:5px;align-items:center;"
+              :title="t.hint"
+            >
+              <span style="color:#666;">{{ t.label }}</span>
+              <input
+                v-model.number="listeningPause[t.key]"
+                type="number"
+                :min="LISTENING_PAUSE_RANGE[t.key][0]"
+                :max="LISTENING_PAUSE_RANGE[t.key][1]"
+                :placeholder="String(listeningPauseAuto[t.key])"
+                style="width:70px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+              >
+              <span style="color:#aaa;">（{{ LISTENING_PAUSE_RANGE[t.key][0] }}–{{ LISTENING_PAUSE_RANGE[t.key][1] }}）</span>
+            </label>
+            <button
+              class="btn-small"
+              :disabled="!listeningPauseIsManual"
+              :style="{fontSize:'12px', padding:'3px 10px', borderRadius:'6px', border:'1px solid #ddd', background:listeningPauseIsManual?'#fff':'#f5f5f5', color:listeningPauseIsManual?'#333':'#aaa', cursor:listeningPauseIsManual?'pointer':'default'}"
+              title="全部回到矩阵默认（真题/正规听力稿里的口径）"
+              @click="resetListeningPause"
+            >
+              ⟲ 全部回默认
+            </button>
+            <span
+              v-if="listeningPauseOutOfRange.length"
+              style="color:#e08000;"
+            >（{{ listeningPauseOutOfRange.join('、') }} 超出建议区间，请确认是否有考区依据）</span>
+          </div>
+          <div style="color:#999;font-size:11px;line-height:1.6;">
+            节指令里写明「X 秒钟作答 / X 秒钟阅读题目」时**以指令为准**，本组对该节不生效（考试文本优先）。
+          </div>
+        </details>
+
+        <!-- ⚠️ 学段未定时的显式提示（2026-09-20）：配置项的唯一来源依赖是学段，
+             不定学段就只能在初中兜底值上瞎调，故明说而不是默默按初中算。 -->
+        <div
+          v-if="!listeningStageKey"
+          class="copy-hint"
+          style="color:#e08000;margin:2px 0 6px;text-align:left;"
+        >
+          ⚠️ 尚未选择学段：以上语速 / 静默作答 / 高级停顿暂按**初中**兜底值显示。请先选定学段（或让标题里带年级），再解析生成。
         </div>
 
         <div
@@ -537,7 +635,7 @@ import { buildListeningExtractMessages } from '../../config/listeningExtractProm
 import { buildListeningTranslateMessages } from '../../config/listeningTranslatePrompt.js';
 import { extractListeningSource, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback, detectSourceLanguage } from '../../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText, buildListeningStoryboard } from '../../utils/listeningScript.js';
-import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_CHIME_DEFAULTS, LISTENING_CHIME_ROLES, LISTENING_REPEAT_OPTIONS, LISTENING_ROTATION_OPTIONS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES, LISTENING_ZH_VOICE, LISTENING_STAGE_WPM_RANGE, LISTENING_MIXED_TITLE_VOICE_CANDIDATES, LISTENING_MIXED_TITLE_VOICE, LISTENING_ANSWER_GAP_RANGE, LISTENING_PAUSE } from '../../config/listeningAudioProfile.js';
+import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_CHIME_DEFAULTS, LISTENING_CHIME_ROLES, LISTENING_REPEAT_OPTIONS, LISTENING_ROTATION_OPTIONS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES, LISTENING_ZH_VOICE, LISTENING_STAGE_WPM_RANGE, LISTENING_MIXED_TITLE_VOICE_CANDIDATES, LISTENING_MIXED_TITLE_VOICE, LISTENING_ANSWER_GAP_RANGE, LISTENING_PAUSE_RANGE, LISTENING_PAUSE } from '../../config/listeningAudioProfile.js';
 // 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
 import { synthesizeToFile, readAzureConfigFromApiConfig } from '../../utils/azureTts.js';
 // 🎧 Edge 免费语音：无需 Key，逐句合成 + 帧级静音拼接（主进程执行）
@@ -621,15 +719,36 @@ const pasteGradeOptions = computed(() => {
   // 小学：学段本身已分低/中/高段，再选年级会出现"小学低段 + 六年级"这类自相矛盾的组合
   return ['不指定'];
 });
-/** 学段切换 → 年级候选变了，旧值可能已不在候选里，回落到「不指定」 */
+/** 学段切换 → ① 年级候选变了，旧值可能已不在候选里，回落到「不指定」；
+ *  ② 🔴 立刻落到 listeningStageKey（配置区 `listeningConfigVisible` 的唯一来源依赖）——
+ *     否则"选好学段也看不到配置项"，非要先点「解析并生成」才出现，等于把用户挡在门外。
+ *     标题/年级同理即时落到 listeningDocTitle / listeningGradeHint，让"面板选择"与"生效参数"始终一致。 */
 const onPasteStageChange = () => {
   if (!pasteGradeOptions.value.includes(listeningPasteGrade.value)) listeningPasteGrade.value = '不指定';
+  listeningStageKey.value = listeningPasteStage.value || '';
+  syncPasteGradeHint();
+};
+
+/** 把粘贴面板的「标题 + 年级」同步成生效参数（初中按年级细分语速要看它） */
+const syncPasteGradeHint = () => {
+  listeningDocTitle.value = String(listeningPasteTitle.value || '').trim();
+  listeningGradeHint.value = [listeningPasteGrade.value, listeningDocTitle.value]
+    .map((s) => String(s || '').trim())
+    .filter((s) => s && s !== '不指定')
+    .join(' ');
 };
 // 🎛 可选环节开关（默认值取单一事实源 LISTENING_FEATURE_DEFAULTS）：
 //   读试卷标题默认开；试音段默认开；一题一材料处播题号（英文 Number N.）默认开。
 const listeningAnnounceTitle = ref(LISTENING_FEATURE_DEFAULTS.announceTitle);
 const listeningSoundCheck = ref(LISTENING_FEATURE_DEFAULTS.soundCheck);
 const listeningShortItemNo = ref(LISTENING_FEATURE_DEFAULTS.announceShortItemNo);
+// 📢 三个固定播报的开关（2026-09-20 开放配置）：开场白 / 部分标题 / 结束语。
+//    ⚠️ **文案不动**——三句都来自考务规定或本项目既有口径，改了就不成其为正规考试录音；
+//       这里只给"要不要播"的选择权（粘贴自有素材做练习时通常三句都不需要）。
+//    ⚠️ 开场白只在**关闭"试音段"**时才出现：试音段自带收尾句「听力试音到此结束，听力考试现在开始。」
+const listeningAnnounceOpening = ref(LISTENING_FEATURE_DEFAULTS.announceOpening);
+const listeningAnnouncePart = ref(LISTENING_FEATURE_DEFAULTS.announcePart);
+const listeningAnnounceClosing = ref(LISTENING_FEATURE_DEFAULTS.announceClosing);
 /**
  * 🔔 提示音两落点开关（2026-09-20 用户裁定："这里是所有的都会用到叮咚音吗？要进行区分的吧？
  * 比如粘贴带序号的文本进来，这个时候用户不需要叮咚音"）
@@ -768,6 +887,71 @@ const listeningAnswerGapOverrides = () => {
 };
 
 /**
+ * 🕐 高级停顿（毫秒，2026-09-20 开放配置）
+ * ============================================================
+ * 除"静默作答三档"（秒）之外，录音里还有 7 处停顿原先全部硬编码。用户实测过的痛点集中在
+ * **句间**（顿挫感的主要来源）与**遍间**（真题明文"等待 2 秒"）两项，故这两项最先被点名要开放；
+ * 其余 5 处是"框架节奏"，一并放进**折叠的"高级停顿"组**——能配，但不把面板堆成仪表盘。
+ * 口径与语速/作答留白一致：留空＝矩阵默认；填写＝显式覆盖该卷；越界只橙色提示、不改写用户设定。
+ * ⚠️ 节指令声明了"X 秒钟作答/阅读"时**以指令为准**，本组控件对该节不生效（考试文本优先）。
+ */
+const listeningPause = reactive({
+  sentenceGapMs: null,
+  betweenRepeatsMs: null,
+  afterItemNoMs: null,
+  afterTitleMs: null,
+  afterIntroMs: null,
+  afterSectionInstructionMs: null,
+  betweenSectionsMs: null,
+});
+const LISTENING_PAUSE_TIERS = [
+  { key: 'sentenceGapMs', label: '句间', hint: '材料内部句/轮之间的自然间隙——"顿挫感"主要来自这里：调大更从容、调小更流利（默认 120 ms）' },
+  { key: 'betweenRepeatsMs', label: '遍与遍之间', hint: '同一材料两遍之间的等待；真题明文"等待 2 秒后立即播放第二遍"（默认 2000 ms）' },
+  { key: 'afterItemNoMs', label: '题号后', hint: '题号播报 → 材料之间的短停顿（默认 600 ms）' },
+  { key: 'afterTitleMs', label: '标题后', hint: '中文播报段之间（试卷标题 → 试音/开场白 → 部分标题）的短停顿（默认 1200 ms）' },
+  { key: 'afterIntroMs', label: '试音后', hint: '试音对话播完 →「听力试音到此结束，听力考试现在开始」之前的留白（默认 1500 ms）' },
+  { key: 'afterSectionInstructionMs', label: '指令后', hint: '分节指令播完 → 该节首段材料之前的留白（"现在开始"后的停顿）；节指令声明了读题秒数时以指令为准（默认 2000 ms）' },
+  { key: 'betweenSectionsMs', label: '换节', hint: '大题与大题之间补的绝对静默（校内正规听力稿为"停顿 2 秒"，默认 2000 ms）' },
+];
+/** 把高级停顿控件值转成 overrides.pauses（只带用户真正填了的项） */
+const listeningPauseOverrides = () => {
+  const pauses = {};
+  for (const t of LISTENING_PAUSE_TIERS) {
+    const v = listeningPause[t.key];
+    if (Number.isFinite(v) && v >= 0) pauses[t.key] = Math.round(v);
+  }
+  return pauses;
+};
+/** 矩阵默认的停顿值（数值框占位与 ⟲ 落点都用它，不复制常量） */
+const listeningPauseAuto = computed(() => Object.fromEntries(
+  LISTENING_PAUSE_TIERS.map((t) => [t.key, LISTENING_PAUSE[t.key]]),
+));
+const listeningPauseIsManual = computed(
+  () => LISTENING_PAUSE_TIERS.some((t) => Number.isFinite(listeningPause[t.key])),
+);
+/** 越界项（只提示，不改写用户显式设定） */
+const listeningPauseOutOfRange = computed(() => LISTENING_PAUSE_TIERS
+  .filter((t) => Number.isFinite(listeningPause[t.key])
+    && (listeningPause[t.key] < LISTENING_PAUSE_RANGE[t.key][0] || listeningPause[t.key] > LISTENING_PAUSE_RANGE[t.key][1]))
+  .map((t) => t.label));
+const resetListeningPause = () => {
+  for (const t of LISTENING_PAUSE_TIERS) listeningPause[t.key] = null;
+};
+
+/**
+ * 配置区可见性（2026-09-20 修）
+ * ============================================================
+ * 现象（用户实测）："为啥我在独立页中看不到配置项啊？要粘贴内容后才能看到吗？"
+ * 原因：配置行原先都挂在 `v-if="listeningStruct"`（＝已解析出结构）上，而独立页刚进来还没有结构，
+ *   于是整页只剩一个素材框 —— 配置项一个都看不到。
+ * 🔴 事实是：语速/音色/提示音/遍数/遍间换声/静默作答/高级停顿**都是卷级设定，与解析结果无关**，
+ *   本就该先能调（先调好再粘贴解析，比解析完再回头改更顺）。它们唯一的来源依赖是**学段**。
+ * 故改为"学段已定即可见"（记录入口 doc.stage 一般都有 → 解析期间就能调）；
+ *   而结构/产物相关（结构摘要、配声摘要、SSML/朗读稿/音频）仍按需出现。
+ */
+const listeningConfigVisible = computed(() => !!listeningStageKey.value || !!listeningStruct.value);
+
+/**
  * 🎛 覆盖参数组装（**单一实现**，2026-09-20 抽出）
  * ============================================================
  * 为什么必须单一实现：这些覆盖有两个消费方——
@@ -788,9 +972,12 @@ const buildListeningOverrides = () => {
   };
   // 🎙 中文播报：Z 槽留空＝晓晓（默认），选定后覆盖全卷中文播报段
   if (listeningVoices.Z) overrides.zhVoice = listeningVoices.Z;
-  // ⏳ 静默作答三档：填了哪档就覆盖哪档（留空＝矩阵默认）
+  // ⏳ 静默作答三档 + 🕐 高级停顿：**合并**成一份 overrides.pauses（两处各写一份会互相覆盖，
+  //    表现为"改了作答留白，句间停顿设置就失效了"）
   {
-    const pauses = listeningAnswerGapOverrides();
+    const pauses = { ...listeningPauseOverrides() };
+    const gaps = listeningAnswerGapOverrides();
+    if (Object.keys(gaps).length) Object.assign(pauses, gaps);
     if (Object.keys(pauses).length) overrides.pauses = pauses;
   }
   // 🔔 提示音两落点（2026-09-20 开放配置）：逐项覆盖，未覆盖的取矩阵默认
@@ -950,10 +1137,14 @@ const renderListeningArtifacts = () => {
     stageLabel: STAGE_LABEL_MAP[listeningStageKey.value] || listeningStageKey.value,
     // 🎙 试卷标题：录音最前独立播报（时间戳后缀由 buildTitleAnnouncement 净化）
     title: listeningDocTitle.value,
-    // 🎛 可选环节（读试卷标题 / 试音段 / 一题一材料处播题号），用户可在弹窗内即时切换
+    // 🎛 可选环节（2026-09-20 起共 6 项）：读试卷标题 / 试音段 / 一题一材料处播题号
+    //    + 开场白 / 部分标题 / 结束语（后三项文案固定，只决定播不播）
     announceTitle: listeningAnnounceTitle.value,
     soundCheck: listeningSoundCheck.value,
     announceShortItemNo: listeningShortItemNo.value,
+    announceOpening: listeningAnnounceOpening.value,
+    announcePart: listeningAnnouncePart.value,
+    announceClosing: listeningAnnounceClosing.value,
     // 🎚 音色池：多角色对话按顺序取（男主、女主、男声副、女声副）
     voicePoolInput: listeningVoicePool.value,
     // 🎙 英语旁白（2026-09-20 开放配置）：N 槽留空＝跟随男声；独白短文/英文题号都用它
@@ -1039,6 +1230,11 @@ const resetListeningPanel = () => {
   listeningAnnounceTitle.value = LISTENING_FEATURE_DEFAULTS.announceTitle;
   listeningSoundCheck.value = LISTENING_FEATURE_DEFAULTS.soundCheck;
   listeningShortItemNo.value = LISTENING_FEATURE_DEFAULTS.announceShortItemNo;
+  // 📢 三个固定播报（开场白/部分标题/结束语）回默认；🕐 高级停顿回到矩阵默认
+  listeningAnnounceOpening.value = LISTENING_FEATURE_DEFAULTS.announceOpening;
+  listeningAnnouncePart.value = LISTENING_FEATURE_DEFAULTS.announcePart;
+  listeningAnnounceClosing.value = LISTENING_FEATURE_DEFAULTS.announceClosing;
+  resetListeningPause();
   // 🔔 提示音 / 🔁 默认遍数 / 遍间换声：同样回到矩阵默认（避免上一卷的设定串到这一卷）
   Object.assign(listeningChime, LISTENING_CHIME_DEFAULTS);
   listeningRepeatOverride.value = null;
@@ -1117,11 +1313,25 @@ const openListeningTool = async (doc) => {
 const openListeningPaste = () => {
   listeningPasteMode.value = true;
   resetListeningPanel();
-  listeningDocTitle.value = '';
-  listeningStageKey.value = '';
-  listeningGradeHint.value = '';
+  // 🔴 学段/年级/标题都来自粘贴面板本身，故复位后**照面板回填**，而不是清成空串——
+  //    否则会出现"下拉显示初中、配置区却说未选学段"这种自相矛盾。
+  listeningStageKey.value = listeningPasteStage.value || '';
+  syncPasteGradeHint();
   onPasteStageChange();   // 学段仍是上次选的：把年级候选对齐（旧值不在候选里就回落「不指定」）
   showListeningModal.value = true;
+};
+
+/**
+ * 在弹窗里从"记录来源"切到"粘贴来源"（面板内那个「📋 改为粘贴文本解析」按钮）
+ * ============================================================
+ * 与 openListeningPaste 的区别：**不清空已解析结果**（用户可能只想在记录原文基础上改粘贴），
+ *   只把面板选项与当前生效参数对齐，避免"面板写着A、生效的是B"。
+ */
+const switchToPasteMode = () => {
+  listeningPasteMode.value = true;
+  if (!listeningPasteStage.value && listeningStageKey.value) listeningPasteStage.value = listeningStageKey.value;
+  if (!String(listeningPasteTitle.value || '').trim()) listeningPasteTitle.value = listeningDocTitle.value;
+  onPasteStageChange();
 };
 
 /**
@@ -1152,12 +1362,9 @@ const parseListeningPaste = async () => {
   listeningSynthMsg.value = '';
   listeningParseMode.value = '';
   // 标题 / 学段 / 年级 → 落到**与记录入口同名**的状态上，下游（renderListeningArtifacts、生成音频）零分支
-  listeningDocTitle.value = String(listeningPasteTitle.value || '').trim();
+  // （与 onPasteStageChange 共用同一实现，避免"面板改了没生效"与"解析后才生效"两套口径）
   listeningStageKey.value = listeningPasteStage.value;
-  listeningGradeHint.value = [listeningPasteGrade.value, listeningDocTitle.value]
-    .map((s) => String(s || '').trim())
-    .filter((s) => s && s !== '不指定')
-    .join(' ');
+  syncPasteGradeHint();
   const lang = detectSourceLanguage(text);
   try {
     let struct;
@@ -1311,7 +1518,7 @@ const copyListeningText = async (kind) => {
   }
 };
 
-watch([listeningWpmOverride, listeningAnnounceTitle, listeningSoundCheck, listeningShortItemNo, () => listeningChime.examStart, () => listeningChime.perItem, listeningRepeatOverride, listeningRotationOverride, () => listeningVoices.M, () => listeningVoices.W, () => listeningVoices.N, () => listeningVoices.Z, () => listeningVoices.T, () => listeningVoices.M2, () => listeningVoices.W2, () => listeningAnswerGap.short, () => listeningAnswerGap.long, () => listeningAnswerGap.fillIn], scheduleListeningRender);
+watch([listeningWpmOverride, listeningAnnounceTitle, listeningSoundCheck, listeningShortItemNo, listeningAnnounceOpening, listeningAnnouncePart, listeningAnnounceClosing, () => listeningChime.examStart, () => listeningChime.perItem, listeningRepeatOverride, listeningRotationOverride, () => listeningPause.sentenceGapMs, () => listeningPause.betweenRepeatsMs, () => listeningPause.afterItemNoMs, () => listeningPause.afterTitleMs, () => listeningPause.afterIntroMs, () => listeningPause.afterSectionInstructionMs, () => listeningPause.betweenSectionsMs, () => listeningVoices.M, () => listeningVoices.W, () => listeningVoices.N, () => listeningVoices.Z, () => listeningVoices.T, () => listeningVoices.M2, () => listeningVoices.W2, () => listeningAnswerGap.short, () => listeningAnswerGap.long, () => listeningAnswerGap.fillIn], scheduleListeningRender);
 
 // 🎙 语音通道：全链路一致（生成面板切换即记忆），落内存 + 轻量持久化（不重加密既有 Key）
 watch(listeningChannel, (v) => {

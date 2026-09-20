@@ -259,6 +259,10 @@ export function buildListeningStoryboard({
   announceTitle = LISTENING_FEATURE_DEFAULTS.announceTitle,
   soundCheck = LISTENING_FEATURE_DEFAULTS.soundCheck,
   announceShortItemNo = LISTENING_FEATURE_DEFAULTS.announceShortItemNo,
+  // 📢 2026-09-20 开放配置：三个固定播报的开关（文案不动，只决定要不要播，依据见 LISTENING_FEATURE_DEFAULTS）
+  announceOpening = LISTENING_FEATURE_DEFAULTS.announceOpening,
+  announcePart = LISTENING_FEATURE_DEFAULTS.announcePart,
+  announceClosing = LISTENING_FEATURE_DEFAULTS.announceClosing,
   partTitle = '',
   voicePoolInput = null,
   narratorVoice = '',
@@ -412,7 +416,8 @@ export function buildListeningStoryboard({
       itemNo: null,
       pass: 0,
     });
-  } else {
+  } else if (announceOpening) {
+    // 📢 开场白（仅"试音段关闭"时才是独立一段；试音段打开时其收尾句已含「听力考试现在开始」）
     segments.push({
       kind: 'opening',
       voice: params.zhVoice,
@@ -428,8 +433,8 @@ export function buildListeningStoryboard({
 
   // ── ③ 部分标题（「第一部分 听力部分。」）──────────────────────────
   // 用户实测稿明确要求读出；英语卷听力必为第一部分，故取固定播报（见 LISTENING_PART_ANNOUNCEMENT），
-  // 调用方传 partTitle 可覆盖。
-  const partText = String(partTitle || LISTENING_PART_ANNOUNCEMENT || '').trim();
+  // 调用方传 partTitle 可覆盖。2026-09-20 起可由 announcePart 关掉（文案不动，只决定播不播）。
+  const partText = announcePart ? String(partTitle || LISTENING_PART_ANNOUNCEMENT || '').trim() : '';
   if (partText) {
     segments.push({
       kind: 'part',
@@ -656,16 +661,19 @@ export function buildListeningStoryboard({
 
   // ── 结束语（中文播报）─────────────────────────────────────────────
   // 依据：考务规定听力结束时播出「听力部分到此结束」提示语（如广东省高考外语听力考务要求）。
-  segments.push({
-    kind: 'closing',
-    voice: params.zhVoice,
-    role: 'N',
-    text: '听力部分到此结束。',
-    ratePercent: 0,
-    gapAfterMs: 0,
-    itemNo: null,
-    pass: 0,
-  });
+  // 2026-09-20 起可由 announceClosing 关掉（文案不动，只决定播不播——粘贴自有素材做练习时通常不需要）。
+  if (announceClosing) {
+    segments.push({
+      kind: 'closing',
+      voice: params.zhVoice,
+      role: 'N',
+      text: '听力部分到此结束。',
+      ratePercent: 0,
+      gapAfterMs: 0,
+      itemNo: null,
+      pass: 0,
+    });
+  }
 
   // 🔴 以指令为准：分节指令声明的遍数会覆盖学段默认（真题第一节与第二节遍数常不同，如高考
   //    第一节仅读一遍、第二节读两遍）。偏离必须显式登记——否则"音频遍数与播报不符"无人察觉。

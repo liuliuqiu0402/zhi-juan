@@ -1463,3 +1463,61 @@ describe('默认遍数与遍间换声：可显式配置，但素材声明优先'
     expect(pr.voice).toBe(pm.voice);
   });
 });
+
+/**
+ * 📢 开场白 / 部分标题 / 结束语：可关，但**文案不动**（2026-09-20 开放配置）
+ * ============================================================
+ * 依据（用户"按你的建议来"）：三句都出自考务规定或本项目既有口径，**改文案会把录音变成非正规录音**，
+ *   故只给"要不要播"的开关。粘贴自有素材做练习时通常三句都不需要。
+ */
+describe('固定播报开关：开场白 / 部分标题 / 结束语', () => {
+  const ITEMS = [{ no: 1, lines: [{ role: 'W', text: 'Hello there.' }] }];
+  const kinds = (extra = {}) => buildListeningStoryboard({ items: ITEMS, stage: 'middle', ...extra })
+    .segments.map((s) => s.kind);
+
+  it('默认三句都播（正规考试口径）', () => {
+    // 试音段关闭 → 才有独立开场白
+    const k = kinds({ soundCheck: false, announcePart: true, announceClosing: true });
+    expect(k).toContain('opening');
+    expect(k).toContain('part');
+    expect(k).toContain('closing');
+  });
+
+  it('🔴 三个开关各自独立：关掉后那一段不再出现，其余照旧', () => {
+    const noOpening = kinds({ soundCheck: false, announceOpening: false });
+    expect(noOpening).not.toContain('opening');
+    expect(noOpening).toContain('part');
+    expect(noOpening).toContain('closing');
+
+    const noPart = kinds({ soundCheck: false, announcePart: false });
+    expect(noPart).not.toContain('part');
+    expect(noPart).toContain('closing');
+
+    const noClosing = kinds({ soundCheck: false, announceClosing: false });
+    expect(noClosing).not.toContain('closing');
+    expect(noClosing).toContain('part');
+  });
+
+  it('三句都关掉＝只剩材料（粘贴自有素材做练习的形态）', () => {
+    const k = kinds({ soundCheck: false, announceOpening: false, announcePart: false, announceClosing: false });
+    expect(k).not.toContain('opening');
+    expect(k).not.toContain('part');
+    expect(k).not.toContain('closing');
+    expect(k).toContain('material');
+  });
+
+  it('⚠️ 开场白只在"试音段关闭"时才存在（试音段自带收尾句已含「听力考试现在开始」）', () => {
+    expect(kinds({ soundCheck: true })).not.toContain('opening');
+    expect(kinds({ soundCheck: true })).toContain('soundcheck');
+  });
+
+  it('🔴 文案不得被改：三句仍是规定原文', () => {
+    const segs = buildListeningStoryboard({
+      items: ITEMS, stage: 'middle', soundCheck: false,
+      announceOpening: true, announcePart: true, announceClosing: true,
+    }).segments;
+    expect(segs.find((s) => s.kind === 'opening').text).toBe('听力考试现在开始。');
+    expect(segs.find((s) => s.kind === 'part').text).toBe('第一部分 听力部分。');
+    expect(segs.find((s) => s.kind === 'closing').text).toBe('听力部分到此结束。');
+  });
+});
