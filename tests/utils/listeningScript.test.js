@@ -11,6 +11,8 @@ import {
   LISTENING_VOICE_DEFAULTS,
   LISTENING_SOUND_CHECK,
   LISTENING_FEATURE_DEFAULTS,
+  LISTENING_PAUSE,
+  LISTENING_ANSWER_GAP_RANGE,
   LISTENING_PART_ANNOUNCEMENT,
   LISTENING_ZH_VOICE,
   LISTENING_MIXED_TITLE_VOICE,
@@ -1156,5 +1158,90 @@ describe('2026-09-20 语速按调研实证校准（不凭猜测）', () => {
     expect(new Set(wpms).size).toBe(3);
     expect(wpms[0]).toBeLessThan(wpms[1]);
     expect(wpms[1]).toBeLessThan(wpms[2]);
+  });
+});
+
+/**
+ * ⏳ 静默作答时间可调（2026-09-20 用户："静默答题的时间是用户可调吗？还是硬编码的？有范围可供用户调整吗？"）
+ * 修复前：只有矩阵默认值（硬编码），面板未暴露。现补"默认 + 可调区间 + 三档分别覆盖"，
+ * 并保留考试文本优先的红线：节指令写明"X 秒钟作答"的题以指令为准，不被用户设定翻转。
+ */
+describe('静默作答时间：三档默认 / 可调区间 / 覆盖生效 / 指令优先', () => {
+  it('三档各有默认值且都有建议区间，默认值落在区间内（否则一进面板就报越界）', () => {
+    for (const tier of ['short', 'long', 'fillIn']) {
+      const r = LISTENING_ANSWER_GAP_RANGE[tier];
+      expect(Array.isArray(r) && r.length === 2, `${tier} 缺区间`).toBe(true);
+      expect(r[0], `${tier} 区间下限不得大于上限`).toBeLessThan(r[1]);
+    }
+    // 三档默认：短材料按学段 5/6/8/10/10；独白对多题 5 秒（真题"各小题 5 秒钟"）；补全短文 30 秒
+    expect(LISTENING_PAUSE.answerGapMs.primary_high).toBe(8000);
+    expect(LISTENING_PAUSE.longMaterialAnswerGapMs).toBe(5000);
+    expect(LISTENING_PAUSE.fillInAnswerGapMs).toBe(30000);
+    for (const [stageKey, ms] of Object.entries(LISTENING_PAUSE.answerGapMs)) {
+      const sec = ms / 1000;
+      expect(sec, `${stageKey} 默认 ${sec} 秒不在建议区间`).toBeGreaterThanOrEqual(LISTENING_ANSWER_GAP_RANGE.short[0]);
+      expect(sec, `${stageKey} 默认 ${sec} 秒不在建议区间`).toBeLessThanOrEqual(LISTENING_ANSWER_GAP_RANGE.short[1]);
+    }
+    for (const [ms, tier] of [[LISTENING_PAUSE.longMaterialAnswerGapMs, 'long'], [LISTENING_PAUSE.fillInAnswerGapMs, 'fillIn']]) {
+      const sec = ms / 1000;
+      expect(sec).toBeGreaterThanOrEqual(LISTENING_ANSWER_GAP_RANGE[tier][0]);
+      expect(sec).toBeLessThanOrEqual(LISTENING_ANSWER_GAP_RANGE[tier][1]);
+    }
+  });
+
+  it('🔴 三档可分别覆盖：短材料 / 独白对多题 / 补全短文各走自己的覆盖值', () => {
+    const longSolo = [{ role: 'W', text: 'Last week, Lily took part in a storytelling competition and she practised telling stories every day until she finally did her best in the end.' }];
+    const PAUSES = { answerGapMs: { primary_high: 12000 }, longMaterialAnswerGapMs: 8000, fillInAnswerGapMs: 45000 };
+    // 每档单独建一份（避免"换节再叠 betweenSectionsMs"这一无关因素干扰，那是另一条不变量）
+    const gapOf = (item) => {
+      const { segments } = buildListeningStoryboard({
+        stage: '小学', grade: '六年级', overrides: { pauses: PAUSES }, items: [item],
+      });
+      return segments.filter((s) => s.itemNo === item.no).pop().gapAfterMs;
+    };
+    const short = gapOf({ no: 1, lines: [{ role: 'W', text: 'Hello there.' }] });
+    const long = gapOf({ no: 6, range: { materialNo: 6, from: 6, to: 8 }, lines: longSolo });
+    const fillIn = gapOf({ no: 11, range: { from: 11, to: 15 }, instruction: '第三节：听录音，补全短文，每空一词。短文读两遍。', lines: longSolo });
+    expect(short).toBe(12000);
+    expect(long).toBe(8000);
+    expect(fillIn).toBe(45000);
+    // 三档互不相同：证明是三条独立通道，不是一个值糊过去
+    expect(new Set([short, long, fillIn]).size).toBe(3);
+
+    // 参数层同样能看到覆盖值（面板显示的"实际生效"取自这里）
+    const { params } = buildListeningStoryboard({
+      stage: '小学', grade: '六年级', overrides: { pauses: PAUSES },
+      items: [{ no: 1, lines: [{ role: 'W', text: 'Hello there.' }] }],
+    });
+    expect(params.answerGapMs).toBe(12000);
+    expect(params.pauses.longMaterialAnswerGapMs).toBe(8000);
+    expect(params.pauses.fillInAnswerGapMs).toBe(45000);
+    // 未覆盖的学段不受影响（只覆盖了 primary_high，初中档仍是矩阵默认）
+    expect(params.pauses.answerGapMs.middle).toBe(10000);
+  });
+
+  it('🔴 考试文本优先：节指令写明"X 秒钟作答"的题以指令为准，用户覆盖对该题不生效', () => {
+    const { segments } = buildListeningStoryboard({
+      stage: '小学',
+      grade: '六年级',
+      overrides: { pauses: { answerGapMs: { primary_high: 20000 }, fillInAnswerGapMs: 60000 } },
+      items: [
+        // answerSec 由解析层从节指令"每小题 8 秒钟作答"得出（此处直接给定，等价于解析结果）
+        { no: 11, answerSec: 8, instruction: '第三节：听录音，补全短文，每空一词。每小题 8 秒钟作答。短文读两遍。', lines: [{ role: 'W', text: 'Last month our school had an International Culture Festival and I practised every single day.' }] },
+      ],
+    });
+    // 8 秒＝指令声明值，既不是 20 秒（短材料覆盖值）也不是 60 秒（补全短文覆盖值）
+    expect(segments.filter((s) => s.itemNo === 11).pop().gapAfterMs).toBe(8000);
+  });
+
+  it('朗读稿把三档实际值都写出来（供人工核对覆盖是否生效）', () => {
+    const { text } = buildListeningScriptText({
+      stage: '小学', grade: '六年级', announceTitle: false, soundCheck: false,
+      overrides: { pauses: { answerGapMs: { primary_high: 12000 }, longMaterialAnswerGapMs: 8000, fillInAnswerGapMs: 45000 } },
+      items: [{ no: 1, lines: [{ role: 'W', text: 'Hello there.' }] }],
+    });
+    expect(text).toContain('短材料 12 秒');
+    expect(text).toContain('独白/短文 8 秒');
+    expect(text).toContain('补全短文 45 秒');
   });
 });

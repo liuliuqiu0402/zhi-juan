@@ -276,6 +276,27 @@ export const LISTENING_PAUSE = {
   afterTitleMs: 1200,
 };
 
+/**
+ * 「静默作答时间」的用户可调区间（秒）——2026-09-20 新增
+ * ============================================================
+ * 用户问："静默答题的时间是用户可调吗？还是硬编码的？有范围可供用户调整吗？"
+ * 事实：此前**只有矩阵默认值**（硬编码在 LISTENING_PAUSE），面板未暴露，仅代码可覆盖。
+ * 现补齐"默认 + 可调区间"两件事，与语速同口径（矩阵给默认值、用户可覆盖、越界只提示不拦）。
+ *
+ * 三档来源不同，故区间分开给：
+ *  · short（一段材料对一题）：学段档 5/6/8/10/10 秒。小学以圈选/连线为主、中学需"回答本题 + 读下一小题"，
+ *    故下探到 3 秒（快节奏小测）、上探到 30 秒（听写式慢作答）都允许；
+ *  · long（一段材料对多题，独白/短文）：高考明文"各小题 5 秒钟"→ 默认 5000，区间取 3–20 秒；
+ *  · fillIn（需动笔写词的补全短文/填空）：默认 30 秒（每题 5 秒 × 空数的通行量级），区间取 10–90 秒。
+ * ⚠️ 各节指令里声明了"X 秒钟作答/阅读"时**以指令为准**（parseAnnouncedAnswerSeconds），
+ *   用户设定对该节不生效——这是考试文本优先的红线，此处不做翻转。
+ */
+export const LISTENING_ANSWER_GAP_RANGE = {
+  short: [3, 30],
+  long: [3, 20],
+  fillIn: [10, 90],
+};
+
 /** 每段材料朗读遍数（现行考试主流为两遍；旧大纲曾为三遍，此处按现行两遍）
  *  🔴 2026-09-19 复核：遍数**并非一律两遍**，且随考试/题型变化——
  *    · 高考全国卷：第一节（短对话）**仅读一遍**、第二节（对话或独白）读两遍；
@@ -457,6 +478,7 @@ export default {
   LISTENING_SOUND_CHECK,
   LISTENING_FEATURE_DEFAULTS,
   LISTENING_PAUSE,
+  LISTENING_ANSWER_GAP_RANGE,
   LISTENING_REPEAT_TIMES,
   LISTENING_PASS_VOICE_ROTATION,
   LISTENING_PASS_VOICE_ROTATION_STAGES,

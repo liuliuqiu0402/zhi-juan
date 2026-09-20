@@ -1785,6 +1785,46 @@
             </span>
           </div>
 
+          <!-- ⏳ 静默作答时间（2026-09-20 用户："静默答题的时间是用户可调吗？还是硬编码的？有范围可供用户调整吗？"）：
+               此前只有矩阵默认值、面板没暴露；现按三档给默认 + 可调区间（越界只提示不拦） -->
+          <div
+            v-if="listeningStruct"
+            style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:12px;"
+          >
+            <span style="color:#333;">⏳ 静默作答（秒）</span>
+            <label
+              v-for="tier in LISTENING_ANSWER_GAP_TIERS"
+              :key="tier.key"
+              style="display:flex;gap:5px;align-items:center;"
+              :title="tier.hint"
+            >
+              <span style="color:#666;">{{ tier.label }}</span>
+              <input
+                v-model.number="listeningAnswerGap[tier.key]"
+                type="number"
+                :min="tier.range[0]"
+                :max="tier.range[1]"
+                :placeholder="String(listeningAnswerGapAuto[tier.key])"
+                style="width:64px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+              >
+              <span style="color:#aaa;">（{{ tier.range[0] }}–{{ tier.range[1] }}）</span>
+            </label>
+            <button
+              type="button"
+              :disabled="!listeningAnswerGapIsManual"
+              :style="{fontSize:'12px', padding:'3px 10px', borderRadius:'6px', border:'1px solid #ddd', background:listeningAnswerGapIsManual?'#fff':'#f5f5f5', color:listeningAnswerGapIsManual?'#333':'#aaa', cursor:listeningAnswerGapIsManual?'pointer':'default'}"
+              title="回到学段/真题默认的作答留白"
+              @click="resetListeningAnswerGap"
+            >
+              ⟲ 默认 {{ listeningAnswerGapAuto.short }}/{{ listeningAnswerGapAuto.long }}/{{ listeningAnswerGapAuto.fillIn }}
+            </button>
+            <span
+              v-if="listeningAnswerGapOutOfRange.length"
+              style="color:#e08000;"
+            >（{{ listeningAnswerGapOutOfRange.join('、') }} 超出建议区间，请确认是否有考区依据）</span>
+            <span style="color:#999;">节指令写明"X 秒钟作答"的题以指令为准</span>
+          </div>
+
           <!-- 🎚 音色（2026-09-19 用户裁定：默认男声1+女声2，其余可选，每项可试听） -->
           <div
             v-if="listeningStruct"
@@ -3488,7 +3528,7 @@ import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实�
 import { buildListeningExtractMessages } from '../config/listeningExtractPrompt.js';
 import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback } from '../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText, buildListeningStoryboard } from '../utils/listeningScript.js';
-import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES, LISTENING_STAGE_WPM_RANGE, LISTENING_MIXED_TITLE_VOICE_CANDIDATES, LISTENING_MIXED_TITLE_VOICE } from '../config/listeningAudioProfile.js';
+import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES, LISTENING_STAGE_WPM_RANGE, LISTENING_MIXED_TITLE_VOICE_CANDIDATES, LISTENING_MIXED_TITLE_VOICE, LISTENING_ANSWER_GAP_RANGE, LISTENING_PAUSE } from '../config/listeningAudioProfile.js';
 // 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
 import { synthesizeToFile, readAzureConfigFromApiConfig } from '../utils/azureTts.js';
 // 🎧 Edge 免费语音：无需 Key，逐句合成 + 帧级静音拼接（主进程执行）
@@ -8925,6 +8965,43 @@ const listeningChannel = ref(apiConfig.speechChannel || 'edge');  // 'edge' 免�
 const listeningSegments = ref([]);    // storyboard 段（Edge 逐句合成用；与 SSML 同源）
 
 /**
+ * ⏳ 静默作答时间（2026-09-20 用户："静默答题的时间是用户可调吗？还是硬编码的？有范围可供用户调整吗？"）
+ * ============================================================
+ * 现状（修复前）：**硬编码**在矩阵 LISTENING_PAUSE 里，面板完全没暴露，只有改代码才能调。
+ * 现在补齐三档控件——三档语义不同，必须分开给，不能用一个值糊过去：
+ *   · short  一段材料对一题（短对话/单词）：学段档 5/6/8/10/10 秒；
+ *   · long   一段材料对多题（独白/短文）：真题"各小题 5 秒钟"；
+ *   · fillIn 需动笔写词的补全短文/填空：30 秒（每题 5 秒 × 空数量级）。
+ * 留空＝用矩阵默认；填写＝显式覆盖该卷；越界（超出建议区间）只橙色提示、不改写用户设定。
+ * ⚠️ 节指令里写明"X 秒钟作答/阅读"的题**以指令为准**（考试文本优先，不被本控件翻转）。
+ *
+ * ⚠️ 状态与档位表必须声明在 listeningEffectiveParams **之前**：后者会读取它们，
+ *   声明在后会踩 TDZ；且 overrides 组装函数只能读 listeningStageKey（普通 ref），
+ *   读 listeningEffectiveParams 会造成计算属性自我递归。
+ */
+const listeningAnswerGap = reactive({ short: null, long: null, fillIn: null });
+const LISTENING_ANSWER_GAP_TIERS = [
+  { key: 'short', label: '短材料', range: LISTENING_ANSWER_GAP_RANGE.short, hint: '一段材料对一题（短对话、单词、单句）读完后的作答留白；默认按学段 5/6/8/10/10 秒' },
+  { key: 'long', label: '独白/短文', range: LISTENING_ANSWER_GAP_RANGE.long, hint: '一段材料对多题（独白/短文）每段读完后的作答留白；真题"各小题 5 秒钟"→ 默认 5 秒' },
+  { key: 'fillIn', label: '补全短文', range: LISTENING_ANSWER_GAP_RANGE.fillIn, hint: '需动笔写词的补全短文/填空类作答留白（写 5 个词来不及）；默认 30 秒' },
+];
+/** 把三档控件值转成 overrides.pauses（只带用户真正填了的档位） */
+const listeningAnswerGapOverrides = () => {
+  const pauses = {};
+  const stageKey = listeningStageKey.value || 'middle';
+  if (Number.isFinite(listeningAnswerGap.short) && listeningAnswerGap.short > 0) {
+    pauses.answerGapMs = { [stageKey]: Math.round(listeningAnswerGap.short * 1000) };
+  }
+  if (Number.isFinite(listeningAnswerGap.long) && listeningAnswerGap.long > 0) {
+    pauses.longMaterialAnswerGapMs = Math.round(listeningAnswerGap.long * 1000);
+  }
+  if (Number.isFinite(listeningAnswerGap.fillIn) && listeningAnswerGap.fillIn > 0) {
+    pauses.fillInAnswerGapMs = Math.round(listeningAnswerGap.fillIn * 1000);
+  }
+  return pauses;
+};
+
+/**
  * 🎚 本次录音**实际生效**的参数（学段矩阵 → 初中按年级细分 → 用户覆盖）。
  * 用于把弹窗里"默认"这一含糊说法替换成真实数值——用户看到的就是将要听到的语速。
  */
@@ -8941,6 +9018,11 @@ const listeningEffectiveParams = computed(() => {
   if (listeningVoices.Z) overrides.zhVoice = listeningVoices.Z;
   // 🗣 中英混合标题：T 槽选定后生效，留空＝默认多语言音色（Andrew）
   if (listeningVoices.T) overrides.titleMixedVoice = listeningVoices.T;
+  // ⏳ 静默作答：三档控件填了哪档就覆盖哪档（留空＝矩阵默认）
+  {
+    const pauses = listeningAnswerGapOverrides();
+    if (Object.keys(pauses).length) overrides.pauses = pauses;
+  }
   return resolveListeningParams({
     stage: listeningStageKey.value,
     grade: listeningGradeHint.value,
@@ -8989,6 +9071,32 @@ const listeningWpmSlider = computed({
     listeningWpmOverride.value = Number.isFinite(n) && n > 0 ? n : null;
   },
 });
+
+/**
+ * ⏳ 静默作答时间的默认值/越界提示（状态与 overrides 组装见 listeningEffectiveParams 之前）
+ * 数值框占位与⟲按钮的落点都用矩阵默认，不复制常量。
+ */
+const listeningAnswerGapAuto = computed(() => {
+  const key = listeningStageKey.value || 'middle';
+  return {
+    short: Math.round((LISTENING_PAUSE.answerGapMs[key] || 10000) / 1000),
+    long: Math.round(LISTENING_PAUSE.longMaterialAnswerGapMs / 1000),
+    fillIn: Math.round(LISTENING_PAUSE.fillInAnswerGapMs / 1000),
+  };
+});
+const listeningAnswerGapIsManual = computed(
+  () => LISTENING_ANSWER_GAP_TIERS.some((t) => Number.isFinite(listeningAnswerGap[t.key]) && listeningAnswerGap[t.key] > 0),
+);
+/** 越界档位名（只提示，不改写用户显式设定） */
+const listeningAnswerGapOutOfRange = computed(() => LISTENING_ANSWER_GAP_TIERS
+  .filter((t) => Number.isFinite(listeningAnswerGap[t.key]) && listeningAnswerGap[t.key] > 0
+    && (listeningAnswerGap[t.key] < t.range[0] || listeningAnswerGap[t.key] > t.range[1]))
+  .map((t) => t.label));
+const resetListeningAnswerGap = () => {
+  listeningAnswerGap.short = null;
+  listeningAnswerGap.long = null;
+  listeningAnswerGap.fillIn = null;
+};
 
 /**
  * 🔁 遍间换声口径（透明化展示，2026-09-20 用户裁定"按真实调研分学段区分"）
@@ -9142,6 +9250,11 @@ const renderListeningArtifacts = () => {
   };
   // 🎙 中文播报（2026-09-20 开放配置）：Z 槽留空＝晓晓（默认），选定后覆盖全卷中文播报段
   if (listeningVoices.Z) overrides.zhVoice = listeningVoices.Z;
+  // ⏳ 静默作答三档（2026-09-20 开放配置）：填了哪档就覆盖哪档，留空＝矩阵默认
+  {
+    const pauses = listeningAnswerGapOverrides();
+    if (Object.keys(pauses).length) overrides.pauses = pauses;
+  }
 
   const input = {
     items: listeningStruct.value.items,
@@ -9203,6 +9316,8 @@ const openListeningTool = async (doc) => {
   listeningStageKey.value = doc?.stage || '';
   listeningGradeHint.value = doc?.title || '';
   listeningWpmOverride.value = null;
+  // ⏳ 静默作答三档：每次打开弹窗回到矩阵默认（留空），避免上一卷的设定串到这一卷
+  resetListeningAnswerGap();
   listeningAnnounceTitle.value = LISTENING_FEATURE_DEFAULTS.announceTitle;
   listeningSoundCheck.value = LISTENING_FEATURE_DEFAULTS.soundCheck;
   listeningShortItemNo.value = LISTENING_FEATURE_DEFAULTS.announceShortItemNo;
@@ -9331,7 +9446,7 @@ const copyListeningText = async (kind) => {
   }
 };
 
-watch([listeningWpmOverride, listeningAnnounceTitle, listeningSoundCheck, listeningShortItemNo, () => listeningVoices.M, () => listeningVoices.W, () => listeningVoices.N, () => listeningVoices.Z, () => listeningVoices.T, () => listeningVoices.M2, () => listeningVoices.W2], () => {
+watch([listeningWpmOverride, listeningAnnounceTitle, listeningSoundCheck, listeningShortItemNo, () => listeningVoices.M, () => listeningVoices.W, () => listeningVoices.N, () => listeningVoices.Z, () => listeningVoices.T, () => listeningVoices.M2, () => listeningVoices.W2, () => listeningAnswerGap.short, () => listeningAnswerGap.long, () => listeningAnswerGap.fillIn], () => {
   if (showListeningModal.value && listeningStruct.value) renderListeningArtifacts();
 });
 

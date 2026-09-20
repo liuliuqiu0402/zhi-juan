@@ -726,7 +726,10 @@ export function buildListeningScriptText(input = {}) {
       const roles = [...new Set((it.lines || []).map((l) => String((l && l.role) || 'N').toUpperCase()))];
       return roles.length <= 1;
     });
-  out.push(`遍数：${repeatDesc}　题间作答留白：${Math.round(params.answerGapMs / 1000)} 秒`);
+  // 三档作答留白都写出来（2026-09-20 起三档可被用户覆盖，朗读稿必须能看出实际值）
+  out.push(`遍数：${repeatDesc}　作答留白：短材料 ${Math.round(params.answerGapMs / 1000)} 秒`
+    + `｜独白/短文 ${Math.round(params.pauses.longMaterialAnswerGapMs / 1000)} 秒`
+    + `｜补全短文 ${Math.round(params.pauses.fillInAnswerGapMs / 1000)} 秒`);
   // 🎚 音色（2026-09-19 用户要求"用户能立即知道是否有多角色"）：列出**生效音色池**，
   //    并逐题给出"角色 → 音色"分配（见下方每题块首行），多角色题一眼可见用了几个音色。
   out.push(`音色：${voicePool.map((v) => voiceLabel(v)).join('　｜　')}`);
