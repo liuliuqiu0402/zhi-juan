@@ -1739,20 +1739,48 @@
 
           <div
             v-if="listeningStruct"
-            style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:8px 0;"
+            style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:12px;"
           >
-            <label style="font-size:12px;">
+            <label style="display:flex;gap:6px;align-items:center;">
               语速（词/分）
               <input
                 v-model.number="listeningWpmOverride"
                 type="number"
                 min="60"
                 max="200"
-                :placeholder="String(listeningEffectiveWpm)"
-                style="width:88px;margin-left:6px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+                :placeholder="String(listeningWpmAuto)"
+                style="width:80px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
               >
             </label>
-            <span style="font-size:12px;color:#666;">
+            <!-- 🎚 滑块（2026-09-20 用户："有没在设置区间的滑块或者调节按钮"）：
+                 量程＝当前学段建议区间外扩 20 词，拖动即写入上方数值框（两控件同一份状态） -->
+            <input
+              v-model.number="listeningWpmSlider"
+              type="range"
+              :min="listeningWpmSliderBounds[0]"
+              :max="listeningWpmSliderBounds[1]"
+              step="5"
+              :title="`建议 ${listeningWpmRange[0]}–${listeningWpmRange[1]} 词/分`"
+              style="width:190px;accent-color:#4a7cf6;cursor:pointer;"
+            >
+            <span style="color:#666;">
+              建议 {{ listeningWpmRange[0] }}–{{ listeningWpmRange[1] }} 词/分
+              <span
+                v-if="!listeningWpmInRange"
+                style="color:#e08000;"
+              >（当前 {{ listeningEffectiveWpm }} 超出，请确认是否有考区依据）</span>
+            </span>
+            <!-- ⟲ 一键回到学段默认（初中按年级细分）；已手动指定时才有意义 -->
+            <button
+              type="button"
+              :disabled="!listeningWpmIsManual"
+              :style="{fontSize:'12px', padding:'3px 10px', borderRadius:'6px', border:'1px solid #ddd', background:listeningWpmIsManual?'#fff':'#f5f5f5', color:listeningWpmIsManual?'#333':'#aaa', cursor:listeningWpmIsManual?'pointer':'default'}"
+              :title="`回到 ${STAGE_LABEL_MAP[listeningStageKey] || '本学段'} 默认 ${listeningWpmAuto} 词/分`"
+              @click="listeningWpmOverride = null"
+            >
+              ⟲ 学段默认 {{ listeningWpmAuto }}
+            </button>
+            <span style="color:#666;">
               生效 {{ listeningEffectiveWpm }} 词/分（{{ listeningWpmIsManual ? '手动指定' : `${STAGE_LABEL_MAP[listeningStageKey] || '按学段矩阵'}自动` }}）
             </span>
           </div>
@@ -1817,6 +1845,16 @@
             style="margin:2px 0 6px;"
           >
             🎭 {{ listeningCastSummary }}　（逐题「角色 → 音色」见下方朗读稿）
+          </div>
+
+          <!-- 🔁 遍间换声口径透明化（2026-09-20 用户："我确实听的是小学的，按真实调研分学段区分"）：
+               小学默认换声（实证来自小学资料）；初中/高中真题惯例为同一人重读，默认不换声 -->
+          <div
+            v-if="listeningStruct"
+            class="copy-hint"
+            style="margin:2px 0 6px;"
+          >
+            {{ listeningPassRotationHint }}
           </div>
 
           <div
@@ -3441,7 +3479,7 @@ import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实�
 import { buildListeningExtractMessages } from '../config/listeningExtractPrompt.js';
 import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback } from '../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText, buildListeningStoryboard } from '../utils/listeningScript.js';
-import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES } from '../config/listeningAudioProfile.js';
+import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES, LISTENING_STAGE_WPM_RANGE } from '../config/listeningAudioProfile.js';
 // 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
 import { synthesizeToFile, readAzureConfigFromApiConfig } from '../utils/azureTts.js';
 // 🎧 Edge 免费语音：无需 Key，逐句合成 + 帧级静音拼接（主进程执行）
@@ -8892,6 +8930,57 @@ const listeningEffectiveParams = computed(() => {
 /** 实际生效语速（词/分）；用户已覆盖时标记为"手动" */
 const listeningEffectiveWpm = computed(() => listeningEffectiveParams.value.wpm);
 const listeningWpmIsManual = computed(() => Number.isFinite(listeningWpmOverride.value) && listeningWpmOverride.value > 0);
+
+/**
+ * 🎚 语速调节（2026-09-20 用户："有没在设置区间的滑块或者调节按钮"）
+ * ============================================================
+ * 三个控件共用同一份状态（listeningWpmOverride），任一处改都立刻反映到另两处：
+ *   · 数值框——精确定值（60–200，可超出建议区间，越界只提示不拦）；
+ *   · 滑块——量程以**当前学段建议区间**为中心外扩 20 词，便于"略快/略慢"微调；
+ *   · ⟲ 按钮——一键回学段默认（初中还会按年级细分）。
+ * 建议区间来自 listeningAudioProfile 的单一事实源（小学低 80 / 中 90–100 / 高 110–120；
+ * 初中 100–130、高中 140–160），此处只做展示与量程，不复制数值。
+ */
+const listeningWpmRange = computed(() => {
+  const key = listeningEffectiveParams.value.stageKey || 'middle';
+  return LISTENING_STAGE_WPM_RANGE[key] || [60, 200];
+});
+/** 滑块量程：建议区间外扩 20 词（并夹在 60–200 内），使"贴着区间边缘微调"也能拖到 */
+const listeningWpmSliderBounds = computed(() => {
+  const [lo, hi] = listeningWpmRange.value;
+  return [Math.max(60, lo - 20), Math.min(200, hi + 20)];
+});
+/** 未手动指定时的学段默认语速（初中按年级细分）——数值框的占位与⟲按钮的落点都用它 */
+const listeningWpmAuto = computed(() => resolveListeningParams({
+  stage: listeningStageKey.value,
+  grade: listeningGradeHint.value,
+}).wpm);
+/** 生效值是否落在建议区间内（越界给橙色提示，但不改写用户显式设定） */
+const listeningWpmInRange = computed(() => {
+  const [lo, hi] = listeningWpmRange.value;
+  return listeningEffectiveWpm.value >= lo && listeningEffectiveWpm.value <= hi;
+});
+/** 滑块与 listeningWpmOverride 双向打通：拖动＝显式指定，清空则回到学段默认 */
+const listeningWpmSlider = computed({
+  get: () => listeningEffectiveWpm.value,
+  set: (v) => {
+    const n = Number(v);
+    listeningWpmOverride.value = Number.isFinite(n) && n > 0 ? n : null;
+  },
+});
+
+/**
+ * 🔁 遍间换声口径（透明化展示，2026-09-20 用户裁定"按真实调研分学段区分"）
+ * 小学开启——实证来自小学资料（人教 PEP CD"两遍、英音美音各一遍"；小学听力要求"男、女、男各读一遍"）；
+ * 初中/高中关闭——中考/高考真题惯例为同一人重读两遍，未见男女轮流明文，以保真为先。
+ */
+const listeningPassRotationHint = computed(() => {
+  const p = listeningEffectiveParams.value;
+  const stage = STAGE_LABEL_MAP[p.stageKey] || '本学段';
+  return p.passVoiceRotation
+    ? `🔁 遍间换声：${stage}开启 —— 重复 ≥2 遍的单说话人材料，首遍用材料原标注音色、次遍换对侧（对话按角色分声、不参与轮读）`
+    : `🔁 遍间换声：${stage}关闭 —— 真题惯例为同一人重读两遍（小学默认开启）`;
+});
 
 /** 该条记录是否有可做音频的英语听力（"听力原文"字样按构造仅英语答案页注入） */
 const docSupportsListening = (doc) => hasEnglishListening(doc?.rawContent || doc?.content || '');

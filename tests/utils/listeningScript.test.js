@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   LISTENING_STAGE_WPM,
+  LISTENING_STAGE_WPM_RANGE,
   LISTENING_GRADE_WPM,
   LISTENING_HIGH_MIN_WPM,
   LISTENING_ACCENT_POLICY,
@@ -1084,5 +1085,31 @@ describe('2026-09-20 语速按调研实证校准（不凭猜测）', () => {
   it('六年级 ratePercent 按 160 基准换算（120/160-1 = -25%，较原 -28% 提升三档）', () => {
     const p = resolveListeningParams({ stage: '小学', grade: '六年级' });
     expect(p.ratePercent).toBe(-25);
+  });
+
+  it('🔴 五档学段都有语速且有建议区间（小学低/中/高各自独立，不得漏配）', () => {
+    for (const k of ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high']) {
+      expect(Number.isFinite(LISTENING_STAGE_WPM[k]), `${k} 缺语速`).toBe(true);
+      const r = LISTENING_STAGE_WPM_RANGE[k];
+      expect(Array.isArray(r) && r.length === 2, `${k} 缺建议区间`).toBe(true);
+      // 默认值必须落在自己的建议区间内（否则一进界面就报"超出区间"）
+      expect(LISTENING_STAGE_WPM[k], `${k} 默认值不在建议区间`).toBeGreaterThanOrEqual(r[0]);
+      expect(LISTENING_STAGE_WPM[k], `${k} 默认值不在建议区间`).toBeLessThanOrEqual(r[1]);
+    }
+  });
+
+  it('小学三档语速与建议区间（低 80 / 中 95[90-100] / 高 120[110-120]）逐档可查', () => {
+    const pick = (grade) => {
+      const p = resolveListeningParams({ stage: '小学', grade });
+      return [p.stageKey, p.wpm, LISTENING_STAGE_WPM_RANGE[p.stageKey]];
+    };
+    expect(pick('二年级')).toEqual(['primary_low', 80, [80, 80]]);
+    expect(pick('四年级')).toEqual(['primary_mid', 95, [90, 100]]);
+    expect(pick('六年级')).toEqual(['primary_high', 120, [110, 120]]);
+    // 三档互不相同（低段本就该比高段慢）
+    const wpms = ['二年级', '四年级', '六年级'].map((g) => resolveListeningParams({ stage: '小学', grade: g }).wpm);
+    expect(new Set(wpms).size).toBe(3);
+    expect(wpms[0]).toBeLessThan(wpms[1]);
+    expect(wpms[1]).toBeLessThan(wpms[2]);
   });
 });
