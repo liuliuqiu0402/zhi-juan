@@ -25,6 +25,7 @@ import {
   buildListeningScriptText,
   normalizeForSpeech,
   splitLongForSpeech,
+  hasSpeakableContent,
   normalizeSectionLabel,
   splitMixedLanguageRuns,
   intToEnglishWords,
@@ -1586,5 +1587,69 @@ describe('长段切句：只切超长段，且不改变任何一个字', () => {
     }).segments.filter((s) => s.itemNo === 1);
     expect(itemSegs.filter((s) => s.chimeBefore === true).length).toBe(1);
     expect(itemSegs[0].chimeBefore).toBe(true);
+  });
+});
+
+/**
+ * 🚫「无可朗读内容」不进 TTS（2026-09-20 用户实测"逐句合成中断：No audio data received"）
+ * ============================================================
+ * 成因（已核实到库源码）：msedge-tts 在音频流写完 **0 字节**时直接 reject
+ *   `new Error("No audio data received")`（dist/MsEdgeTTS.js 的 _rawSSMLRequestToFile）——
+ *   也就是"这段文字服务端合成不出任何声音"。补全短文里的**纯占位行**（`___________`）
+ *   正是这种输入：既读不出声，又会把整卷合成打断。
+ * 口径：只挡"完全不可朗读"（无字母/数字/汉字）的段；任何含可发音字符的段照旧出声。
+ * 🔴 同时必须**登记**——跳过不等于可以静默丢内容。
+ */
+describe('无可朗读内容的段：不进 TTS，但必须如实登记', () => {
+  const ITEMS = [{
+    no: 1,
+    lines: [
+      { role: 'N', text: 'Tom goes to school ______ every day.' },
+      { role: 'N', text: '_____________' },          // 纯占位行：删占位后成了空串
+      { role: 'N', text: '＿＿＿＿' },                 // 全角占位行
+    ],
+  }];
+  const sb = buildListeningStoryboard({
+    items: ITEMS, stage: 'middle', soundCheck: false,
+    announceTitle: false, announcePart: false, announceClosing: false,
+  });
+
+  it('任何进入合成的段都必须含可发音字符（否则服务端会报 No audio data received）', () => {
+    const spoken = sb.segments.filter((s) => s.kind === 'material' || s.kind === 'repeat');
+    expect(spoken.length).toBeGreaterThan(0);
+    spoken.forEach((s) => {
+      expect(hasSpeakableContent(s.text), `不可朗读的段混进了合成：${JSON.stringify(s.text)}`).toBe(true);
+    });
+    // 纯占位行不出现在任何段里
+    expect(sb.segments.some((s) => /^[\s_＿]+$/.test(s.text))).toBe(false);
+  });
+
+  it('🔴 跳过的行必须登记为告警（不得静默丢内容）', () => {
+    const w = sb.warnings.join('\n');
+    expect(w).toContain('没有任何可朗读内容');
+    expect(w).toContain('第 1 题');
+    expect(w).toContain('请回源材料');   // 必须给出下一步动作
+  });
+
+  it('🔴 朗读稿必须写明跳过了哪些行（真人录音照读时也要知道这里为什么空着）', () => {
+    const { text } = buildListeningScriptText({
+      items: ITEMS, stage: 'middle', soundCheck: false, announceTitle: false,
+    });
+    expect(text).toContain('【已跳过的行】');
+    expect(text).toContain('没有任何可朗读内容');
+    // 材料句照读，且**读的那一句里不再带占位**
+    // （注：不去断言"全文不含下划线"——【需人工确认的朗读项】里会**故意列出**原样本 `______`
+    //   供人工核对原文，那是提示而非朗读内容）
+    expect(text).toContain('Tom goes to school every day.');
+  });
+
+  it('hasSpeakableContent：只有字母/数字/汉字算"可朗读"', () => {
+    expect(hasSpeakableContent('Hello')).toBe(true);
+    expect(hasSpeakableContent('3')).toBe(true);
+    expect(hasSpeakableContent('听力')).toBe(true);
+    expect(hasSpeakableContent('___________')).toBe(false);
+    expect(hasSpeakableContent('，。、；')).toBe(false);
+    expect(hasSpeakableContent('   ')).toBe(false);
+    expect(hasSpeakableContent('')).toBe(false);
   });
 });

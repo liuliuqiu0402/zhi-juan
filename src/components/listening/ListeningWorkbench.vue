@@ -1493,7 +1493,10 @@ const generateListeningAudio = async () => {
   try {
     const r = await synthesizeSegmentsToFile(listeningSegments.value, { suggestedName });
     if (r && r.canceled) { listeningSynthMsg.value = '已取消保存。'; return; }
-    listeningSynthMsg.value = r && r.path ? `✅ 已生成（Edge 免费）：${r.path}` : '✅ 已生成音频';
+    // 🔴 r.note 必须显示出来（如"已跳过 N 段无可朗读内容的分段/提示音素材缺失"）——
+    //    主进程如实报了，界面却吞掉的话就等于静默（2026-09-20）
+    const note = r && r.note ? `　${r.note}` : '';
+    listeningSynthMsg.value = r && r.path ? `✅ 已生成（Edge 免费）：${r.path}${note}` : `✅ 已生成音频${note}`;
     window.dispatchEvent(new CustomEvent(APP_EVENTS.SHOW_TOAST, {
       detail: { message: '✅ 听力音频已生成（Edge 免费）', type: 'info' },
     }));

@@ -96,6 +96,18 @@ export function normalizeForSpeech(text = '') {
   return { text: out, risks };
 }
 
+/**
+ * **是否有可朗读内容**（字母/数字/中日韩文字任一）——2026-09-20 新增
+ * ============================================================
+ * 用途：合成前把"读不出声"的段挡住。实测成因（msedge-tts 的 `No audio data received`）：
+ *   音频流写完 **0 字节**即判失败 —— 服务端对"只有标点/符号/下划线"的输入合成不出任何声音。
+ *   典型来源：补全短文的纯占位行（`_____________`）、删掉下划线占位后只剩逗号/空格的行。
+ * 口径：**只挡"完全不可朗读"的段**，任何含字母/数字/汉字的段照旧出声（不做"看起来像噪声"的主观判断）。
+ * ⚠️ main.js 里有一份**同源副本**（Electron 主进程是 CJS，无法 import 本 ESM 模块）——
+ *   改这里必须同步改那里，两处都写明了出处。
+ */
+export const hasSpeakableContent = (text = '') => /[A-Za-z0-9\u3400-\u4dbf\u4e00-\u9fff]/.test(String(text || ''));
+
 /** 按长度硬切（优先在空格处断，避免把单词劈开） */
 function hardSplitByLength(s, max) {
   const out = [];
@@ -525,6 +537,8 @@ export function buildListeningStoryboard({
   let prevItemLastSeg = -1;
   /** 逐题的音色分配（角色 → 音色）——朗读稿据此逐题列出"多音色配角色" */
   const voiceCast = [];
+  /** 🔴 被跳过的"无可朗读内容"行（只有标点/符号/下划线占位）——必须如实登记，不能静默丢内容 */
+  const unreadable = [];
   items.forEach((item, i) => {
     const accent = pickAccentForItem(params.accent, i);
     // 显式音色池优先：池存在时全书同一套音色；否则按口音表（低美高混）逐段取。
@@ -662,6 +676,14 @@ export function buildListeningStoryboard({
         // 🔴 卷面/答案残留守卫：英语听力材料不可能是中文——非导语段若以中文为主直接跳过，
         //   不读"一、听录音…/评分/范文"这类噪音（源节截取之外的兜底，见 listeningExtract）。
         if (isCjkNoise(text)) return;
+        // 🔴 **无可朗读内容**的段一律不进 TTS（2026-09-20 用户实测"逐句合成中断：No audio data received"）：
+        //    该错误来自 msedge-tts——音频流写完 **0 字节**即判失败，而"服务端合成不出任何声音"最常见的成因
+        //    就是这段文字**没有任何可发音字符**（只剩标点/符号/下划线占位、或删占位后成了空串/逗号）。
+        //    这类段既读不出声、又会把整卷合成打断，故在此直接跳过并登记（不是静默丢内容）。
+        if (!hasSpeakableContent(text)) {
+          unreadable.push({ no: item.no, preview: String(ln.text || '').trim().slice(0, 40) });
+          return;
+        }
         const isPassEnd = li === lines.length - 1;
         // 遍间轮读音色：旁白 ↔ 对侧交替（两遍＝首遍、对侧；三遍＝首遍、对侧、首遍）
         const speakVoice = rotatePair ? rotatePair[(pass - 1) % rotatePair.length] : voiceOf(role);
@@ -678,6 +700,8 @@ export function buildListeningStoryboard({
         const chunks = splitLongForSpeech(text);
         chunks.forEach((chunk, ci) => {
           const isLastChunk = ci === chunks.length - 1;
+          // 切句理论上也可能切出"无可朗读内容"的碎片（如整句只剩标点），同样挡住
+          if (!hasSpeakableContent(chunk)) return;
           segments.push({
             kind: pass === 1 ? 'material' : 'repeat',
             voice: speakVoice,
@@ -733,6 +757,13 @@ export function buildListeningStoryboard({
       itemNo: null,
       pass: 0,
     });
+  }
+
+  // 🔴 无可朗读内容被跳过：必须显式登记——这些行原本会进 TTS，且会让 msedge-tts 报
+  //    "No audio data received"（音频流 0 字节）把整卷合成打断（2026-09-20 用户实测）。
+  if (unreadable.length) {
+    const nos = [...new Set(unreadable.map((u) => u.no))];
+    warnings.push(`第 ${nos.join('、')} 题有 ${unreadable.length} 行**没有任何可朗读内容**（只有符号/下划线占位），已从音频中跳过——否则服务端合成不出声音、还会中断整卷。请回源材料把这些行补成完整内容。`);
   }
 
   // 🔴 以指令为准：分节指令声明的遍数会覆盖学段默认（真题第一节与第二节遍数常不同，如高考
@@ -965,6 +996,15 @@ export function buildListeningScriptText(input = {}) {
     for (const r of risks) out.push(`· ${r.where}：${r.note} —— ${r.samples.join('、')}`);
   }
 
+  // 🔴 被跳过的"无可朗读内容"行**必须写进朗读稿**：真人录音照读时原稿里这些行也在，
+  //    不说明的话录音方要么把占位念出来、要么不知道这里为什么空着（2026-09-20 新增）
+  const skipNotes = (warnings || []).filter((w) => w.includes('没有任何可朗读内容'));
+  if (skipNotes.length) {
+    out.push('');
+    out.push('【已跳过的行】');
+    for (const w of skipNotes) out.push(`· ${w}`);
+  }
+
   return { text: out.join('\n'), params, risks, warnings };
 }
 
@@ -972,6 +1012,7 @@ export default {
   escapeXml,
   normalizeForSpeech,
   splitLongForSpeech,
+  hasSpeakableContent,
   pickAccentForItem,
   isLongMaterial,
   isMultiQuestion,

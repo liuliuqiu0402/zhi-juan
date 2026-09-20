@@ -614,6 +614,11 @@ ipcMain.handle('edge-tts-to-file', async (event, payload = {}) => {
   }
   // 逐句字段白名单校验：voice/text 必须为串，ratePercent/gapAfterMs 取有限数值，防脏 payload 注入
   // itemNo/role 只为**失败时报出"卡在第几题"**用（2026-09-20），不参与合成
+  // 🔴 另有"无可朗读内容"守卫：msedge-tts 对合成不出声音的输入直接报 `No audio data received`
+  //    （音频流写完 0 字节即判失败，实测 2026-09-20），且会**打断整卷**。
+  //    ⚠️ 同源判断在 src/utils/listeningScript.js 的 hasSpeakableContent（ESM，主进程无法 import），改一处必须同步另一处。
+  const hasSpeakableContent = (t) => /[A-Za-z0-9\u3400-\u4dbf\u4e00-\u9fff]/.test(String(t || ''));
+  let skippedUnreadable = 0;
   const sanitized = segments.map((s, i) => {
     const voice = /^[a-zA-Z]{2,3}-[a-zA-Z]{2,3}-[A-Za-z0-9-]{1,60}$/.test(String(s.voice || ''))
       ? String(s.voice) : 'en-US-AriaNeural';
@@ -621,6 +626,7 @@ ipcMain.handle('edge-tts-to-file', async (event, payload = {}) => {
     const ratePercent = Number.isFinite(Number(s.ratePercent)) ? Math.round(Number(s.ratePercent)) : 0;
     const gapAfterMs = Number.isFinite(Number(s.gapAfterMs)) && Number(s.gapAfterMs) > 0 ? Math.round(Number(s.gapAfterMs)) : 0;
     if (!text) return null;
+    if (!hasSpeakableContent(text)) { skippedUnreadable++; return null; }
     return {
       voice,
       text,
@@ -644,7 +650,11 @@ ipcMain.handle('edge-tts-to-file', async (event, payload = {}) => {
     console.warn('🎧 提示音素材未找到，本次不插入提示音：', e.message);
   }
   const wantsChime = sanitized.some((s) => s.chimeBefore);
-  const chimeNote = wantsChime && !chimeBuf ? '（提示音素材缺失，本次未插入提示音）' : '';
+  // 如实汇报：跳过了几段"读不出声"的分段、提示音素材是否缺失——都不静默
+  const noteParts = [];
+  if (wantsChime && !chimeBuf) noteParts.push('提示音素材缺失，本次未插入提示音');
+  if (skippedUnreadable) noteParts.push(`已跳过 ${skippedUnreadable} 段无可朗读内容的分段（只有标点/符号，服务端合成不出声音）`);
+  const chimeNote = noteParts.length ? `（${noteParts.join('；')}）` : '';
 
   // 先选保存位置：用户取消则不发起请求，不浪费配额/流量
   const safeName = safeAudioFileName(String(suggestedName).replace(/\.mp3$/i, ''), '听力音频');
