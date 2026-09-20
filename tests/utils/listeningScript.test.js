@@ -1325,3 +1325,141 @@ describe('静默作答时间：三档默认 / 可调区间 / 覆盖生效 / 指�
     expect(text).toContain('补全短文 45 秒');
   });
 });
+
+/**
+ * 🔔 提示音（叮咚）区分与开关（2026-09-20 用户裁定）
+ * ============================================================
+ * 用户原话："这里是所有的都会用到叮咚音吗？要进行区分的吧？比如粘贴带序号的文本进来，
+ *   这个时候用户不需要叮咚音"。
+ * 锁两件事：① 提示音只有"开考第一声 / 小题边界音"两个落点，且**能分别关掉**；
+ *          ② 关掉后**全卷一处都不响**（不得因为别处的兜底逻辑又冒出来）。
+ */
+describe('提示音：两个落点可分开开关（开考第一声 / 小题边界音）', () => {
+  const ITEMS = [
+    { no: 1, lines: [{ role: 'M', text: 'Excuse me, where is the library?' }, { role: 'W', text: "It's next to the bank." }] },
+    { no: 2, lines: [{ role: 'M', text: 'How much is the ticket?' }, { role: 'W', text: 'Twenty dollars.' }] },
+  ];
+  const build = (overrides = {}, extra = {}) => buildListeningStoryboard({
+    items: ITEMS,
+    stage: 'middle',
+    title: '八年级英语听力测试卷',
+    overrides,
+    ...extra,
+  });
+  /** 某题的"起条段"（题号播报或材料；分节指令也带 itemNo，但它按真题口径不响铃） */
+  const itemStart = (segments, no) => segments.find((s) => s.itemNo === no && s.kind !== 'instruction');
+  const chimeKinds = (segments) => segments.filter((s) => s.chimeBefore === true).map((s) => s.kind);
+
+  it('默认（正式考试口径）：全卷最前一声 + 每段材料前一声', () => {
+    const { segments } = build();
+    // 开考第一声挂在标题首段
+    expect(segments.filter((s) => s.kind === 'title')[0].chimeBefore).toBe(true);
+    // 小题边界音落在"本题第一个发音段"＝题号播报（有题号时在题号之前）
+    expect(itemStart(segments, 1).kind).toBe('itemno');
+    expect(itemStart(segments, 1).chimeBefore).toBe(true);
+    expect(itemStart(segments, 2).chimeBefore).toBe(true);
+    // 分节指令处**本就不响**（否则会与首段材料的提示音在两秒内重复响两次）
+    expect(segments.filter((s) => s.kind === 'instruction').every((s) => s.chimeBefore !== true)).toBe(true);
+    // 同一材料的第二遍之间不响
+    expect(segments.filter((s) => s.kind === 'repeat').every((s) => s.chimeBefore !== true)).toBe(true);
+  });
+
+  it('🔴 关掉「小题边界音」＝粘贴带序号素材时的诉求：逐题不再响，开考第一声保留', () => {
+    const { segments } = build({ chime: { perItem: false } });
+    expect(itemStart(segments, 1).chimeBefore).toBe(false);
+    expect(itemStart(segments, 2).chimeBefore).toBe(false);
+    expect(segments.filter((s) => s.kind === 'title')[0].chimeBefore).toBe(true);
+    // 全卷只剩"开考第一声"这一处
+    expect(chimeKinds(segments)).toEqual(['title']);
+  });
+
+  it('🔴 关掉「开考第一声」：全卷最前不响，逐题打点照旧', () => {
+    const { segments } = build({ chime: { examStart: false } });
+    expect(segments.filter((s) => s.kind === 'title').every((s) => s.chimeBefore !== true)).toBe(true);
+    expect(itemStart(segments, 1).chimeBefore).toBe(true);
+    expect(itemStart(segments, 2).chimeBefore).toBe(true);
+    expect(chimeKinds(segments)).toEqual(['itemno', 'itemno']);
+  });
+
+  it('🔴 两个都关：全卷**一处都不响**（不得被别处兜底又响一声）', () => {
+    const { segments } = build({ chime: { examStart: false, perItem: false } });
+    expect(segments.some((s) => s.chimeBefore === true)).toBe(false);
+  });
+
+  it('无标题时「开考第一声」由试音提示语/开场白承担，且同样受开关控制', () => {
+    // 有试音段：落在试音提示语上
+    const withSc = build({}, { title: '' }).segments;
+    expect(withSc.filter((s) => s.kind === 'soundcheck')[0].chimeBefore).toBe(true);
+    const offSc = build({ chime: { examStart: false } }, { title: '' }).segments;
+    expect(offSc.some((s) => s.chimeBefore === true)).toBe(true);   // 逐题打点仍在
+    expect(offSc.filter((s) => s.kind === 'soundcheck')[0].chimeBefore).toBe(false);
+    // 无试音段：落在开场白上
+    const noSc = build({}, { title: '', soundCheck: false }).segments;
+    expect(noSc.filter((s) => s.kind === 'opening')[0].chimeBefore).toBe(true);
+  });
+
+  it('不播题号时，小题边界音落在材料段上（落点规则不变，只是没有题号段）', () => {
+    const { segments } = build({}, { announceShortItemNo: false });
+    const start = itemStart(segments, 1);
+    expect(start.kind).toBe('material');
+    expect(start.chimeBefore).toBe(true);
+  });
+
+  it('🔴 朗读稿的提示音说明必须与实际配置一致（不许写"每段材料前响一次"而音频根本不响）', () => {
+    const on = buildListeningScriptText({ items: ITEMS, stage: 'middle', title: '八年级英语听力测试卷' }).text;
+    expect(on).toContain('提示音（叮咚）：全卷最前响一次（开考第一声）');
+    expect(on).toContain('每段材料开始前响一次');
+
+    const off = buildListeningScriptText({
+      items: ITEMS, stage: 'middle', title: '八年级英语听力测试卷',
+      overrides: { chime: { examStart: false, perItem: false } },
+    }).text;
+    expect(off).toContain('提示音（叮咚）：**本卷不响**');
+    expect(off).not.toContain('每段材料开始前响一次');
+  });
+});
+
+/**
+ * 🔁 默认遍数 / 遍间换声开放配置（2026-09-20）
+ * ============================================================
+ * 用户场景：粘贴自有素材时素材里没有"每段对话读两遍"这类中文播音指令，遍数只能落到学段默认，
+ *   需要一个能直接设定的地方。🔴 但"以素材声明为准"是红线：素材写了就听素材的。
+ */
+describe('默认遍数与遍间换声：可显式配置，但素材声明优先', () => {
+  const SOLO = [{ no: 1, lines: [{ role: 'N', text: 'The library is next to the bank.' }] }];
+
+  it('overrides.repeat 决定"素材未声明时"读几遍', () => {
+    const one = buildListeningStoryboard({ items: SOLO, stage: 'middle', overrides: { repeat: 1 } }).segments;
+    expect(one.filter((s) => s.kind === 'material')).toHaveLength(1);
+    expect(one.filter((s) => s.kind === 'repeat')).toHaveLength(0);
+
+    const three = buildListeningStoryboard({ items: SOLO, stage: 'middle', overrides: { repeat: 3 } }).segments;
+    expect(three.filter((s) => s.kind === 'material')).toHaveLength(1);
+    expect(three.filter((s) => s.kind === 'repeat')).toHaveLength(2);
+  });
+
+  it('🔴 素材声明优先：条目自带 repeat=2 时，overrides.repeat=3 不生效（以素材为准）', () => {
+    const items = [{ ...SOLO[0], repeat: 2 }];
+    const segs = buildListeningStoryboard({ items, stage: 'middle', overrides: { repeat: 3 } }).segments;
+    expect(segs.filter((s) => s.kind === 'material')).toHaveLength(1);
+    expect(segs.filter((s) => s.kind === 'repeat')).toHaveLength(1);
+  });
+
+  it('overrides.passVoiceRotation 可显式打开高中轮读、显式关掉小学轮读', () => {
+    // 高中：矩阵默认关 → 显式打开后两遍换声
+    const highOn = buildListeningStoryboard({
+      items: SOLO, stage: 'high', overrides: { passVoiceRotation: true },
+    }).segments;
+    const hm = highOn.find((s) => s.kind === 'material');
+    const hr = highOn.find((s) => s.kind === 'repeat');
+    expect(hr.voice).not.toBe(hm.voice);
+
+    // 小学：矩阵默认开 → 显式关掉后两遍同声
+    const priOff = buildListeningStoryboard({
+      items: SOLO, stage: '小学', grade: '六年级', overrides: { passVoiceRotation: false },
+    }).segments;
+    const pm = priOff.find((s) => s.kind === 'material');
+    const pr = priOff.find((s) => s.kind === 'repeat');
+    expect(pr.voice).toBe(pm.voice);
+  });
+});

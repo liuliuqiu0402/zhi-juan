@@ -342,6 +342,70 @@
           </label>
         </div>
 
+        <!-- 🔔🔁 提示音 / 默认遍数 / 遍间换声（2026-09-20 开放配置）：
+             这三项都直接改变"学生听到什么"，却原先全部硬编码 —— 与可选环节并列成行，各带 ⓘ 写明依据，
+             避免"看着能调、实际不知道在调什么"。提示音特意**分成两个开关**：正式考试要打点，
+             而粘贴自有素材（多已自带序号/分隔）恰恰不需要，两者需求相反。 -->
+        <div
+          v-if="listeningStruct"
+          style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:12px;"
+        >
+          <span style="color:#666;">🔔 提示音</span>
+          <label
+            v-for="r in LISTENING_CHIME_ROLES"
+            :key="r.key"
+            style="display:flex;gap:6px;align-items:center;cursor:pointer;"
+          >
+            <input
+              v-model="listeningChime[r.key]"
+              type="checkbox"
+            >
+            {{ r.label }}
+            <span
+              :title="`${r.hint}（提示音只在 Edge 免费通道生效：主进程按帧拼接叮咚素材；Azure 通道交整卷 SSML，不含提示音）`"
+              style="color:#999;cursor:help;"
+            >ⓘ</span>
+          </label>
+          <label style="display:flex;gap:6px;align-items:center;">
+            默认遍数
+            <select
+              v-model="listeningRepeatOverride"
+              style="padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+            >
+              <option
+                v-for="o in LISTENING_REPEAT_OPTIONS"
+                :key="String(o.value)"
+                :value="o.value"
+              >
+                {{ o.label }}
+              </option>
+            </select>
+            <span
+              title="只决定**素材没声明遍数时**读几遍；素材里写了「每段对话读两遍」这类中文播音指令时一律以素材为准（偏离还会在下方告警里登记）。粘贴自有素材常无这类指令，故这里给一个直接设定的地方。"
+              style="color:#999;cursor:help;"
+            >ⓘ</span>
+          </label>
+          <label style="display:flex;gap:6px;align-items:center;">
+            遍间换声
+            <select
+              v-model="listeningRotationOverride"
+              style="padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+            >
+              <option
+                v-for="o in LISTENING_ROTATION_OPTIONS"
+                :key="String(o.value)"
+                :value="o.value"
+              >
+                {{ o.label }}
+              </option>
+            </select>
+            <span
+              title="重复 ≥2 遍的**单说话人**材料：开＝首遍用材料原标注音色、次遍换对侧（「遍与遍不同声」）；关＝同一人重读。矩阵默认只在小学生效（实证来自小学资料），初高中默认关闭（真题惯例为同一人重读）。对话按角色分声，不参与轮读。"
+              style="color:#999;cursor:help;"
+            >ⓘ</span>
+          </label>
+        </div>
+
         <div
           v-if="listeningNotes.length"
           class="copy-hint"
@@ -361,6 +425,10 @@
         >
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
             <strong style="font-size:13px;">① SSML —— 粘进语音合成工具，直接出音频</strong>
+            <span
+              style="font-size:11px;color:#999;"
+              title="提示音（叮咚）是本地音效素材，只能由主进程在合成时按帧拼接到音频流里；SSML 是纯文本指令，交服务端一次合成，插不进这段素材。想要提示音请用下方「🎧 直接生成音频」的 Edge 免费通道。"
+            >（不含提示音）</span>
             <button
               class="btn-small"
               @click="copyListeningText('ssml')"
@@ -469,7 +537,7 @@ import { buildListeningExtractMessages } from '../../config/listeningExtractProm
 import { buildListeningTranslateMessages } from '../../config/listeningTranslatePrompt.js';
 import { extractListeningSource, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback, detectSourceLanguage } from '../../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText, buildListeningStoryboard } from '../../utils/listeningScript.js';
-import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES, LISTENING_ZH_VOICE, LISTENING_STAGE_WPM_RANGE, LISTENING_MIXED_TITLE_VOICE_CANDIDATES, LISTENING_MIXED_TITLE_VOICE, LISTENING_ANSWER_GAP_RANGE, LISTENING_PAUSE } from '../../config/listeningAudioProfile.js';
+import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_CHIME_DEFAULTS, LISTENING_CHIME_ROLES, LISTENING_REPEAT_OPTIONS, LISTENING_ROTATION_OPTIONS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES, LISTENING_ZH_VOICE, LISTENING_STAGE_WPM_RANGE, LISTENING_MIXED_TITLE_VOICE_CANDIDATES, LISTENING_MIXED_TITLE_VOICE, LISTENING_ANSWER_GAP_RANGE, LISTENING_PAUSE } from '../../config/listeningAudioProfile.js';
 // 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
 import { synthesizeToFile, readAzureConfigFromApiConfig } from '../../utils/azureTts.js';
 // 🎧 Edge 免费语音：无需 Key，逐句合成 + 帧级静音拼接（主进程执行）
@@ -562,6 +630,25 @@ const onPasteStageChange = () => {
 const listeningAnnounceTitle = ref(LISTENING_FEATURE_DEFAULTS.announceTitle);
 const listeningSoundCheck = ref(LISTENING_FEATURE_DEFAULTS.soundCheck);
 const listeningShortItemNo = ref(LISTENING_FEATURE_DEFAULTS.announceShortItemNo);
+/**
+ * 🔔 提示音两落点开关（2026-09-20 用户裁定："这里是所有的都会用到叮咚音吗？要进行区分的吧？
+ * 比如粘贴带序号的文本进来，这个时候用户不需要叮咚音"）
+ * ============================================================
+ * 提示音在全卷只有两个落点、作用相反，故分开开关（键与 params.chime 一致，见 LISTENING_CHIME_ROLES）：
+ *   · examStart＝开考第一声（全卷最前那一下）；· perItem＝小题边界音（每段材料前那一下）。
+ * ⚠️ 只对 **Edge 免费通道**生效（主进程按帧拼接叮咚素材）；Azure 走整卷 SSML，插不进该素材。
+ */
+const listeningChime = reactive({ ...LISTENING_CHIME_DEFAULTS });
+/**
+ * 🔁 默认遍数 / 遍间换声（2026-09-20 开放配置）
+ * ============================================================
+ * · repeatOverride：只决定"**素材没声明遍数时**读几遍"——素材里写了"每段对话读两遍"仍以素材为准
+ *   （粘贴自有素材常无这类中文指令，故需要一个能直接设定的地方）；null＝跟随学段默认。
+ * · rotationOverride：null＝跟随学段（小学开、初高中关）；true/false＝显式开/关。
+ *   两者都是"学生会听出来"的口径差异，故与提示音并列开放，而不是藏在代码里。
+ */
+const listeningRepeatOverride = ref(null);
+const listeningRotationOverride = ref(null);
 // 🎚 音色（2026-09-19 用户裁定）：
 //   · 默认 男声 1（Christopher）+ 女声 2（Jenny）；其余音色全部作为可选项；
 //   · 男声副/女声副＝**多角色对话**追加音色（留空＝不用；三人对话时才会被取到）；
@@ -681,27 +768,51 @@ const listeningAnswerGapOverrides = () => {
 };
 
 /**
- * 🎚 本次录音**实际生效**的参数（学段矩阵 → 初中按年级细分 → 用户覆盖）。
- * 用于把弹窗里"默认"这一含糊说法替换成真实数值——用户看到的就是将要听到的语速。
+ * 🎛 覆盖参数组装（**单一实现**，2026-09-20 抽出）
+ * ============================================================
+ * 为什么必须单一实现：这些覆盖有两个消费方——
+ *   ① `listeningEffectiveParams`（面板上"生效 X 词/分""遍间换声：开/关"等摘要提示）；
+ *   ② `renderListeningArtifacts`（真正生成 SSML/朗读稿/storyboard 的地方）。
+ *   两处各写一份必然漂移，表现为"面板说开着、实际没开"——正是本项目最忌讳的一类不一致。
+ * 🔴 只读普通 ref，**不得读 listeningEffectiveParams 自身**（否则计算属性自我递归，实测踩过）。
  */
-const listeningEffectiveParams = computed(() => {
+const buildListeningOverrides = () => {
   const overrides = {};
   if (Number.isFinite(listeningWpmOverride.value) && listeningWpmOverride.value > 0) {
     overrides.wpm = listeningWpmOverride.value;
   }
-  // 音色：显式选定的男主/女主即生效音色（不再按口音表轮换）；中文播报 Z 槽选定后同样生效
+  // 🎚 音色：显式选定的男主/女主即生效音色（不再按口音表轮换）
   overrides.voices = {
     us: { M: listeningVoices.M, W: listeningVoices.W, N: listeningVoices.M },
     gb: { M: listeningVoices.M, W: listeningVoices.W, N: listeningVoices.M },
   };
+  // 🎙 中文播报：Z 槽留空＝晓晓（默认），选定后覆盖全卷中文播报段
   if (listeningVoices.Z) overrides.zhVoice = listeningVoices.Z;
-  // 🗣 中英混合标题：T 槽选定后生效，留空＝默认多语言音色（Andrew）
-  if (listeningVoices.T) overrides.titleMixedVoice = listeningVoices.T;
-  // ⏳ 静默作答：三档控件填了哪档就覆盖哪档（留空＝矩阵默认）
+  // ⏳ 静默作答三档：填了哪档就覆盖哪档（留空＝矩阵默认）
   {
     const pauses = listeningAnswerGapOverrides();
     if (Object.keys(pauses).length) overrides.pauses = pauses;
   }
+  // 🔔 提示音两落点（2026-09-20 开放配置）：逐项覆盖，未覆盖的取矩阵默认
+  overrides.chime = { examStart: !!listeningChime.examStart, perItem: !!listeningChime.perItem };
+  // 🔁 默认遍数（**仅素材未声明时**生效，素材写了"读两遍"仍以素材为准）/ 遍间换声
+  if (Number.isFinite(listeningRepeatOverride.value) && listeningRepeatOverride.value > 0) {
+    overrides.repeat = listeningRepeatOverride.value;
+  }
+  if (typeof listeningRotationOverride.value === 'boolean') {
+    overrides.passVoiceRotation = listeningRotationOverride.value;
+  }
+  return overrides;
+};
+
+/**
+ * 🎚 本次录音**实际生效**的参数（学段矩阵 → 初中按年级细分 → 用户覆盖）。
+ * 用于把弹窗里"默认"这一含糊说法替换成真实数值——用户看到的就是将要听到的语速。
+ */
+const listeningEffectiveParams = computed(() => {
+  const overrides = buildListeningOverrides();
+  // 🗣 中英混合标题：T 槽选定后生效，留空＝默认多语言音色（Andrew）
+  if (listeningVoices.T) overrides.titleMixedVoice = listeningVoices.T;
   return resolveListeningParams({
     stage: listeningStageKey.value,
     grade: listeningGradeHint.value,
@@ -826,22 +937,8 @@ const closeListeningModal = () => {
 /** 按当前结构化结果 + 覆盖参数渲染两种成品（覆盖变更时即时重跑，不重复调 AI） */
 const renderListeningArtifacts = () => {
   if (!listeningStruct.value) return;
-  const overrides = {};
-  if (Number.isFinite(listeningWpmOverride.value) && listeningWpmOverride.value > 0) {
-    overrides.wpm = listeningWpmOverride.value;
-  }
-  // 🎚 音色 → 覆盖音色表 + 音色池（音色池负责"多角色对话"的追加音色）
-  overrides.voices = {
-    us: { M: listeningVoices.M, W: listeningVoices.W, N: listeningVoices.M },
-    gb: { M: listeningVoices.M, W: listeningVoices.W, N: listeningVoices.M },
-  };
-  // 🎙 中文播报（2026-09-20 开放配置）：Z 槽留空＝晓晓（默认），选定后覆盖全卷中文播报段
-  if (listeningVoices.Z) overrides.zhVoice = listeningVoices.Z;
-  // ⏳ 静默作答三档（2026-09-20 开放配置）：填了哪档就覆盖哪档，留空＝矩阵默认
-  {
-    const pauses = listeningAnswerGapOverrides();
-    if (Object.keys(pauses).length) overrides.pauses = pauses;
-  }
+  // 🔴 与面板摘要**同源**：统一走 buildListeningOverrides()，杜绝"面板说开着、实际没开"
+  const overrides = buildListeningOverrides();
 
   const input = {
     items: listeningStruct.value.items,
@@ -942,6 +1039,10 @@ const resetListeningPanel = () => {
   listeningAnnounceTitle.value = LISTENING_FEATURE_DEFAULTS.announceTitle;
   listeningSoundCheck.value = LISTENING_FEATURE_DEFAULTS.soundCheck;
   listeningShortItemNo.value = LISTENING_FEATURE_DEFAULTS.announceShortItemNo;
+  // 🔔 提示音 / 🔁 默认遍数 / 遍间换声：同样回到矩阵默认（避免上一卷的设定串到这一卷）
+  Object.assign(listeningChime, LISTENING_CHIME_DEFAULTS);
+  listeningRepeatOverride.value = null;
+  listeningRotationOverride.value = null;
   Object.assign(listeningVoices, {
     M: LISTENING_VOICE_DEFAULTS.M,
     W: LISTENING_VOICE_DEFAULTS.W,
@@ -1210,7 +1311,7 @@ const copyListeningText = async (kind) => {
   }
 };
 
-watch([listeningWpmOverride, listeningAnnounceTitle, listeningSoundCheck, listeningShortItemNo, () => listeningVoices.M, () => listeningVoices.W, () => listeningVoices.N, () => listeningVoices.Z, () => listeningVoices.T, () => listeningVoices.M2, () => listeningVoices.W2, () => listeningAnswerGap.short, () => listeningAnswerGap.long, () => listeningAnswerGap.fillIn], scheduleListeningRender);
+watch([listeningWpmOverride, listeningAnnounceTitle, listeningSoundCheck, listeningShortItemNo, () => listeningChime.examStart, () => listeningChime.perItem, listeningRepeatOverride, listeningRotationOverride, () => listeningVoices.M, () => listeningVoices.W, () => listeningVoices.N, () => listeningVoices.Z, () => listeningVoices.T, () => listeningVoices.M2, () => listeningVoices.W2, () => listeningAnswerGap.short, () => listeningAnswerGap.long, () => listeningAnswerGap.fillIn], scheduleListeningRender);
 
 // 🎙 语音通道：全链路一致（生成面板切换即记忆），落内存 + 轻量持久化（不重加密既有 Key）
 watch(listeningChannel, (v) => {

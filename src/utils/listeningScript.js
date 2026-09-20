@@ -282,6 +282,12 @@ export function buildListeningStoryboard({
   // 🎙 英语旁白音色（2026-09-20 用户实测："旁白的音色也不对"→ 开放独立配置）：
   //    未指定时跟随男主（旧行为），指定后独白/短文、英文题号、标题里的英文段都用它。
   const narratorVoiceEff = String(narratorVoice || '').trim() || voicePool[0] || params.voices.us.M;
+  // 🔔 提示音（叮咚）两落点（2026-09-20 开放配置，见 LISTENING_CHIME_ROLES）：
+  //    · chimeExamStart＝全卷最前那一下（开考第一声）；· chimePerItem＝每段材料前那一下（小题边界音）。
+  //    两者需求相反（正式考试要打点；粘贴自有素材多已自带序号、不需要），故分开开关。
+  //    分节指令/部分标题处始终不响（真题口径，见下方换节注释），不受本配置影响。
+  const chimeExamStart = params.chime.examStart !== false;
+  const chimePerItem = params.chime.perItem !== false;
   /** 对话里的英语音色：池里有就用池（男主/女主…），否则按口音表 */
   const enVoice = (label, accentSet) => {
     if (voicePool.length) return label === 'W' ? (voicePool[1] || voicePool[0]) : voicePool[0];
@@ -338,7 +344,7 @@ export function buildListeningStoryboard({
         text: `${fullText}。`,
         ratePercent: 0,
         gapAfterMs: params.pauses.afterTitleMs,
-        chimeBefore: true,
+        chimeBefore: chimeExamStart,
         itemNo: null,
         pass: 0,
       });
@@ -361,7 +367,7 @@ export function buildListeningStoryboard({
           gapAfterMs: i === runs.length - 1
             ? params.pauses.afterTitleMs
             : (isMixed ? params.pauses.sentenceGapMs : 350),
-          chimeBefore: i === 0,   // 全卷第一个提示音：正式开考（只挂标题首段）
+          chimeBefore: chimeExamStart && i === 0,   // 全卷第一个提示音：正式开考（只挂标题首段）
           itemNo: null,
           pass: 0,
         });
@@ -377,7 +383,7 @@ export function buildListeningStoryboard({
       text: buildSoundCheckIntro(),
       ratePercent: 0,     // 中文播报不套用英文慢速
       gapAfterMs: 800,
-      chimeBefore: !cleanTitle,  // 无标题时由试音提示语承担全卷第一声
+      chimeBefore: chimeExamStart && !cleanTitle,  // 无标题时由试音提示语承担全卷第一声
       itemNo: null,
       pass: 0,
     });
@@ -414,7 +420,7 @@ export function buildListeningStoryboard({
       text: buildOpeningAnnouncement(),
       ratePercent: 0,
       gapAfterMs: params.pauses.afterSectionInstructionMs,
-      chimeBefore: !cleanTitle,   // 无标题时由开场白承担全卷第一声
+      chimeBefore: chimeExamStart && !cleanTitle,   // 无标题时由开场白承担全卷第一声
       itemNo: null,
       pass: 0,
     });
@@ -644,7 +650,7 @@ export function buildListeningStoryboard({
     //    "一小题结束 叮咚，遍与遍之间不叮咚"）：
     //    落在本条的**第一个发音段**上——有题号播报就在题号之前（「…→叮咚→Number 2→材料」），
     //    没有题号就在材料之前；同一材料的两遍之间不响；大题指令属大题边界、不在其列。
-    if (segments.length > itemFirstSeg) segments[itemFirstSeg].chimeBefore = true;
+    if (chimePerItem && segments.length > itemFirstSeg) segments[itemFirstSeg].chimeBefore = true;
     prevItemLastSeg = segments.length - 1;
   });
 
@@ -867,7 +873,16 @@ export function buildListeningScriptText(input = {}) {
   out.push(`· 遍数：${repeatDesc}；材料连读两遍之间停 ${params.pauses.betweenRepeatsMs} ms`);
   out.push(`· 换节：节间留白 ${params.pauses.betweenSectionsMs} ms、指令后停 ${params.pauses.afterSectionInstructionMs} ms；一段材料对多题（独白/短文）按"各小题 5 秒"档留作答，短材料按学段档；节指令声明了秒数则以声明为准`);
   out.push(`· 题号播报：一段材料对多题处按真题写法读「听第X段材料，回答第X～Y小题」（见〔题号播报〕）${rest.announceShortItemNo !== false ? '；一题一材料处读英文「Number N.」' : '；一题一材料处**不读题号**'}`);
-  out.push('· 提示音（叮咚）＝"打点"：**每段材料开始前响一次**（真题"不读小标题 Text，从打点开始"）；同一材料的第二/三遍之间**不响**（2026 新版高考明文"两遍之间无提示音"）；节指令与题号播报本身不响');
+  // 🔔 提示音说明必须与**实际生效配置**一致（2026-09-20 提示音开放区分后新增）：
+  //    稿子写"每段材料前响一次"而音频根本不响，就是"播报与事实不符"——本项目一贯红线。
+  {
+    const chimeParts = [];
+    if (params.chime.examStart !== false) chimeParts.push('全卷最前响一次（开考第一声）');
+    if (params.chime.perItem !== false) chimeParts.push('每段材料开始前响一次（"打点"，有题号播报则落在题号之前）');
+    out.push(chimeParts.length
+      ? `· 提示音（叮咚）：${chimeParts.join('；')}。同一材料的第二/三遍之间**不响**（2026 新版高考明文"两遍之间无提示音"）；分节指令与部分标题处**不响**`
+      : '· 提示音（叮咚）：**本卷不响**（面板里已把"开考第一声/小题边界音"都关掉）——粘贴自有素材常已自带序号或分隔，录音时按素材原有节奏即可');
+  }
   out.push('· 同一角色全卷使用同一音色，保持语速一致，避免音色与语速漂移');
   if (rotatePassUsed) {
     out.push('· 读两遍及以上的单说话人材料**遍与遍换声**：首遍用材料自己声明的那条音色（未标注＝旁白音色、标注了男/女＝男主/女主），次遍换对侧音色，三遍则再回首遍音色（用户 2026-09-20 裁定"遍与遍分男声/女声"；实证：人教 PEP CD"两遍、英音美音各一遍"）；对话按角色分音色、不参与轮读');

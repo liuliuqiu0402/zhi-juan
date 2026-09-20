@@ -248,6 +248,57 @@ export const LISTENING_FEATURE_DEFAULTS = {
 };
 
 /**
+ * 🔔 提示音（叮咚）的两个落点与默认开关（2026-09-20 用户裁定）
+ * ============================================================
+ * 用户原话："这里是所有的都会用到叮咚音吗？要进行区分的吧？比如粘贴带序号的文本进来，
+ *   这个时候用户不需要叮咚音"。
+ * 事实（原实现只有"响"这一种，没有任何区分与开关）：提示音在全卷只有**两个**落点，作用完全不同：
+ *   · examStart＝**开考第一声**：全卷最前那一下（读标题/试音提示语/开场白之前）——标志"正式开考"；
+ *   · perItem ＝**小题边界音**：每段材料开始前那一下（有题号播报则落在题号之前），
+ *               即"一小题结束 叮咚 → 下一题"的打点；同一材料的第二/三遍之间**不响**。
+ *   另：分节指令与部分标题处按真题口径**本就不响**（若此处也响，会与首段材料的提示音在两秒内重复，
+ *   见 listeningScript 的换节注释）——不属于可配项，故不在下表中。
+ * 为什么两者必须分开配：需求正好相反——正式考试要"打点"；而粘贴自有素材（多已自带序号/分隔）
+ *   恰恰不需要，甚至"开考第一声"在非正式练习里也是多余的。
+ * ⚠️ 提示音只在 **Edge 免费通道**生效（主进程按帧拼接 assets/listening-chime.mp3，见 main.js）；
+ *   Azure 通道把整卷 SSML 交给服务端一次合成，插不进这段素材（既有事实，本次未改，界面已注明）。
+ */
+export const LISTENING_CHIME_DEFAULTS = { examStart: true, perItem: true };
+
+/** 可配的两个提示音落点（界面据此渲染开关；键与 resolveListeningParams 返回的 params.chime 一致） */
+export const LISTENING_CHIME_ROLES = [
+  { key: 'examStart', label: '开考第一声', hint: '全卷最前响一次（读标题/开场白之前），标志"正式开考"' },
+  { key: 'perItem', label: '小题边界音', hint: '每段材料开始前响一次（有题号播报则落在题号之前）；同一材料的第二/三遍之间不响；分节指令与部分标题处本就不响' },
+];
+
+/**
+ * 每段材料的**默认**遍数选项（2026-09-20 开放配置）
+ * ============================================================
+ * 用户场景：粘贴自有素材时，素材里通常没有"每段对话读两遍"这类中文播音指令，遍数只能落到学段默认，
+ *   此处给一个能直接设定的地方。
+ * 🔴 口径**不变**：一律**以素材声明为准**（分节指令/条目里写了"读两遍"就用它，偏离还会登记告警）；
+ *   本项只决定"素材没声明时读几遍"，故默认值必须是"跟随学段"而不是写死 2。
+ */
+export const LISTENING_REPEAT_OPTIONS = [
+  { value: null, label: '跟随学段默认（现行主流：2 遍）' },
+  { value: 1, label: '1 遍（如高考第一节短对话）' },
+  { value: 2, label: '2 遍（多数中考/高考第二节）' },
+  { value: 3, label: '3 遍（部分小学题型）' },
+];
+
+/**
+ * 遍间换声的三种口径（2026-09-20 开放配置）
+ * ============================================================
+ * 矩阵默认＝按学段（小学开、初高中关，依据见 LISTING_PASS_VOICE_ROTATION 的调研注释）；
+ * 此处把"跟随学段"之外的两种显式口径也交给用户——某考区确有男女轮读做法时可直接打开。
+ */
+export const LISTENING_ROTATION_OPTIONS = [
+  { value: null, label: '跟随学段（小学开、初高中关）' },
+  { value: true, label: '开（遍与遍换声）' },
+  { value: false, label: '关（同一人重读）' },
+];
+
+/**
  * 「第一部分 听力部分」播报语（2026-09-19 用户实测稿要求读出）
  * ============================================================
  * 英语卷的听力**必为第一部分**（见 promptLibrary 的卷面结构生成：听力→第一部分、笔试→第二部分），
@@ -483,6 +534,8 @@ export function resolveListeningParams({ stage = '', grade = '', name = '', over
     // 遍间换声：默认只在小学生效（实证来自小学资料）；显式 overrides 可覆盖任一学段
     passVoiceRotation: overrides.passVoiceRotation
       ?? (LISTENING_PASS_VOICE_ROTATION && LISTENING_PASS_VOICE_ROTATION_STAGES.includes(key)),
+    // 🔔 提示音两落点（2026-09-20 开放配置）：逐项覆盖，未覆盖的取默认（见 LISTENING_CHIME_DEFAULTS）
+    chime: { ...LISTENING_CHIME_DEFAULTS, ...(overrides.chime || {}) },
     pauses,
     repeat,
     answerGapMs: pauses.answerGapMs[key] || 10000,
@@ -512,6 +565,10 @@ export default {
   zhVoiceGender,
   LISTENING_SOUND_CHECK,
   LISTENING_FEATURE_DEFAULTS,
+  LISTENING_CHIME_DEFAULTS,
+  LISTENING_CHIME_ROLES,
+  LISTENING_REPEAT_OPTIONS,
+  LISTENING_ROTATION_OPTIONS,
   LISTENING_PAUSE,
   LISTENING_ANSWER_GAP_RANGE,
   LISTENING_REPEAT_TIMES,
