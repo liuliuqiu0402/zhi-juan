@@ -1,5 +1,6 @@
 // 覆盖对账器遗留的共用文本工具单测（对账器本体已于 2026-09 废除，见 A9 清理）
-// 保留原因：`stripHtmlForRecon` 仍被生产侧的 domainReconciler（域覆盖对账）复用。
+// 保留原因：`stripHtmlForRecon` 是通用"去标签单行化"工具（域对账器已于 2026-09-20 砍除，
+// 故当前无生产消费方，暂留备用）。
 import { describe, it, expect } from 'vitest';
 import { stripHtmlForRecon } from '../../src/utils/coverageReconciler.js';
 

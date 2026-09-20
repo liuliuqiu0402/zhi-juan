@@ -13,9 +13,10 @@
  *    classifyProbe / literalProbeWords / groupByChapter 已不再存在于代码库；`wordMatch`
  *    仍存活于 `coverageAnchor.js`（锚→片段字面绑定在用）。
  *
- * 🔒 保留项：`stripHtmlForRecon`——`domainReconciler`（域覆盖对账，"只报不改"生产防线）
- *    复用的"去标签 → 单行文本"工具（对账只看"是否出现"，不看排版形态），
- *    不可随对账器一并删除。
+ * 🔒 保留项：`stripHtmlForRecon`——"去标签 → 单行文本"工具（对账只看"是否出现"，不看排版形态）。
+ *    🗑 2026-09-20 用户裁定：其**唯一生产消费方** `domainReconciler`（域覆盖对账）已按
+ *    "对不到精准、意义不大"砍除 → 本文件**当前已无生产消费方**，只余此工具与其单测。
+ *    将来若确认不再复用，可连同 coverageReconciler.test.js 一并删除；要复用直接引此工具即可。
  * ============================================================
  */
 

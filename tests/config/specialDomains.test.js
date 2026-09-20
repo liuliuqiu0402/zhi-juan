@@ -2,9 +2,11 @@
  * 专项领域注册库 · 三维度两档化链路回归（2026-09 v2）
  * ============================================================
  * 保证：①领域选项按 学科×五档学段 直列过滤（文言文=初中/高中；英语阅读小学低段不开）；
- *       ②verified='B'（高中课标名待官方复核）默认不入生产（options/resolve 均不返回）；
+ *       ②verified='B'（课标名待官方复核）默认不入生产（options/resolve 均不返回）；
+ *         🔴 2026-09-20 用户裁定：高中数学那 4 个高中领域（函数/几何与代数/概率与统计/数学建模活动）
+ *         原先全标 B → 专项候选为空、只能落回通用专项；按课标补齐专属栏目后**升 A**（下方专项断言）。
  *       ③A档自带栏目结构（数学·计算）→ 结构文本含栏目与锚、不含数字题量占位；
- *       ④B档（数学·应用题/英语·语法…）→ 无栏目，仅锚句；
+ *       ④无栏目档（数学·应用题…）→ 无栏目，仅锚句；
  *       ⑤学段体系隔离：高中语义锚走高中课标名（普通高中…），义教走 2022义教名，不混用；
  *       ⑥通用说明与真实生效蓝图一致（分板块组织，无旧四段文案）。
  */
@@ -27,12 +29,15 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     expect(specialDomainOptions('语文', 'high').map((o) => o.value)).toContain('文言文');
   });
 
-  it('数学学段直列：计算/应用题/几何限义教学段（低小~初中），高中不开', () => {
+  it('数学学段直列：计算/应用题/几何限义教学段（低小~初中）；高中另给课标五主题中的 4 个领域', () => {
     for (const k of ['primary_low', 'primary_mid', 'primary_high', 'middle']) {
       const vs = specialDomainOptions('数学', k).map((o) => o.value);
       expect(vs).toEqual(expect.arrayContaining(['计算', '应用题', '几何']));
     }
-    expect(specialDomainOptions('数学', 'high')).toEqual([]);
+    const high = specialDomainOptions('数学', 'high').map((o) => o.value);
+    expect(high).toEqual(['函数', '几何与代数', '概率与统计', '数学建模活动']);
+    // 义教三领域（计算/应用题/几何）不得串到高中
+    expect(high).not.toEqual(expect.arrayContaining(['计算', '应用题', '几何']));
   });
 
   it('英语：阅读 中高小起（低小不开）；语法 高小起', () => {
@@ -46,9 +51,48 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     );
   });
 
-  it("verified='B'（高中数学待复核领域）默认不入生产：options/resolve 均不可见", () => {
-    expect(specialDomainOptions('数学', 'high')).toEqual([]);
-    expect(resolveSpecialDomain('数学', 'high', '函数')).toBeNull();
+  it("🔴 高中数学 4 领域已升 A（2026-09-20 用户裁定）：候选可见、resolve 可见且**自带专属栏目**", () => {
+    // 升 A 前这 4 条标 verified:'B'，而 ALLOW_VERIFIED_B=false → specialDomainOptions('数学','high') 为空，
+    // 用户在「专项训练」里"没得选"、只能落回「通用专项」。按课标补齐栏目后转 A。
+    // 注：本文件现有条目中已**无** verified:'B'（闸门保留为防御性开关，不再有被它挡住的学科）。
+    const opts = specialDomainOptions('数学', 'high');
+    expect(opts.map((o) => o.value)).toEqual(['函数', '几何与代数', '概率与统计', '数学建模活动']);
+    for (const o of opts) {
+      expect(o.label).toBeTruthy();
+      expect(o.desc).toBeTruthy();
+      expect(o.curriculum).toContain('普通高中'); // 学段体系隔离：高中锚走高中课标名，不混义教名
+    }
+    const fn = resolveSpecialDomain('数学', 'high', '函数');
+    expect(fn).not.toBeNull();
+    expect(fn.sections.length).toBeGreaterThan(0); // A 档：自带专属栏目（不是只挂锚句）
+    const text = buildSpecialDomainStructureText(fn, 'high');
+    expect(text).toContain('📈 函数·高中');
+    expect(text).toContain('概念与表示');
+    expect(text).toContain('普通高中数学·函数主线');
+    expect(text).not.toContain('2022义教数学');
+    // 4 个领域的栏目都要齐（缺一个就等于该领域A档退化成只挂锚句）
+    for (const key of ['函数', '几何与代数', '概率与统计', '数学建模活动']) {
+      expect(resolveSpecialDomain('数学', 'high', key).sections.length, key).toBeGreaterThan(0);
+    }
+  });
+
+  it("🔴 英语两领域已补专属栏目（2026-09-20 用户裁定）：高中不再退到通用栏目", () => {
+    // 补栏前：阅读理解/语法 是 A 档但 sections=null → 选到后走"通用栏目 + 只挂锚句"（与数学放行前同状）
+    for (const key of ['阅读理解', '语法']) {
+      const d = resolveSpecialDomain('英语', 'high', key);
+      expect(d, key).not.toBeNull();
+      expect(d.sections.length, key).toBeGreaterThan(0);
+      const text = buildSpecialDomainStructureText(d, 'high');
+      expect(text).toContain('· 本领域课标语义锚：');
+      expect(text).toContain('普通高中英语'); // 补栏不得改动学段隔离：高中锚仍走高中课标名
+      expect(text).not.toContain('2022义教英语');
+    }
+    // 领域是学段共用的（阅读理解 中段起／语法 高小起）→ 义教学段一并拿到栏目，且锚句走义教口径
+    const yj = resolveSpecialDomain('英语', 'middle', '阅读理解');
+    expect(yj.sections.length).toBeGreaterThan(0);
+    const yjText = buildSpecialDomainStructureText(yj, 'middle');
+    expect(yjText).toContain('语言技能·理解性技能');
+    expect(yjText).not.toContain('普通高中英语');
   });
 
   it('未收录学科/未知学段 → 空清单（回退通用专项）', () => {

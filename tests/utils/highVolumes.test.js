@@ -11,7 +11,6 @@ import { HIGH_VOLUMES, highVolumeOptions, detectHighVolume, hasHighVolumePreset 
 import { autoDetectTextbookMeta } from '../../src/utils/textbookMeta.js';
 import { resolveCompetency, gradeDisplayLabel, resolveStageKey, extractGradeNum } from '../../src/utils/gradeStage.js';
 import { resolveListeningParams } from '../../src/config/listeningAudioProfile.js';
-import { reconcileDomains } from '../../src/utils/domainReconciler.js';
 
 describe('detectHighVolume：只认字面（必修/选择性必修），不做任何推测', () => {
   it('必修 的四种印法都归一到 必修N', () => {
@@ -198,24 +197,6 @@ describe('extractGradeNum：学段前缀必须一起算（初/高）', () => {
   });
 });
 
-describe('领域对账：高中判定收口到学段唯一事实源', () => {
-  const anchors = [
-    { name: '函数', specificConcepts: ['单调性'], bind: { status: 'literal' } },
-    { name: '概率', specificConcepts: ['随机事件'], bind: { status: 'literal' } },
-  ];
-  const content = '函数 单调性 概率 随机事件';
-
-  it('🔴 回归锁：stage 传五档键 high 与中文「高中」结果一致（原写法只认中文，传 high 会拿义教领域名对账）', () => {
-    const zh = reconcileDomains({ genType: 'exam', subject: '数学', stage: '高中', content, anchors });
-    const key = reconcileDomains({ genType: 'exam', subject: '数学', stage: 'high', content, anchors });
-    expect(zh).not.toBeNull();
-    expect(key).toEqual(zh);
-  });
-
-  it('高中缺位提示用高中课标领域名，绝不出现义教领域名', () => {
-    const r = reconcileDomains({ genType: 'exam', subject: '数学', stage: 'high', content, anchors });
-    expect(r.missingDomains.length).toBeGreaterThan(0);
-    expect(r.missingDomains.join('、')).not.toMatch(/数与代数|图形与几何|综合与实践/);
-    expect(r.missingDomains.join('、')).toMatch(/几何与代数/);
-  });
-});
+// 🗑 领域覆盖对账（reconcileDomains）的断言已随该功能一并砍除（2026-09-20 用户裁定"对不到精准，意义不大"）。
+//    砍除前此处锁过两条：① stage 传五档键 high 与传中文「高中」结果必须一致（它只认中文字面，
+//    传 high 会拿义教领域名对账）；② 高中缺位提示不得出现义教领域名。功能与其实现/测试均已删除。

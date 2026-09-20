@@ -427,7 +427,7 @@ import { SemanticRetriever, semanticRetriever } from '../utils/semanticRetriever
 import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
-import { reconcileDomains, domainNoteOf } from '../utils/domainReconciler.js';
+// 🗑 领域覆盖对账（reconcileDomains）已于 2026-09-20 用户裁定砍除，见下方调用点的说明；不再引入
 import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, classifyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 import { FIGURE_DEPENDENCY_RE } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（图标记取证用）
@@ -5159,11 +5159,13 @@ ${cardAnalysisText.substring(0, 1000)}
       console.warn(`⚠️ [出稿自检] ${guardResult.hits.length} 处命中（首段自述已由程序剔除，其余待编辑核对）：${guardResult.hits.slice(0, 4).map((h) => h.text).join('；')}…`);
     }
 
-    // 🔴 领域覆盖对账（2026-09 P3·机制补缺）：仅正式卷（exam）且学科已登记领域契约时执行，
-    //    只做确定性"缺位"提示（某课标领域零命题考点），不做程序化分值/占比重算（分数由模型生成）。
-    //    单领域单元卷（仅 1 领域命题）不判，防误报。
-    const domainRep = reconcileDomains({ genType, subject, stage: book?.stage || '', content, anchors });
-    if (domainNoteOf(domainRep)) auditWarnings.push(domainNoteOf(domainRep));
+    // 🗑 领域覆盖对账已砍（2026-09-20 用户裁定："对不到精准，意义不大"）：
+    //    · 白名单按**学段**给、不认册次（高中物理=6 个模块、化学=8 个主题），单册卷（如化学必修1）
+    //      极易报出"缺主题4/5"这类**假缺位**——不改正文、不算分、不阻断、不重试，留着只是一条噪音；
+    //    · 判定又只是"考点名子串命中领域关键词"，防误报全靠"命中≥2 个领域才判"一道阀；
+    //    · 与本文件上方已废除的覆盖对账（reconcileCoverage 判缺+补漏闭环）同源同病，故一并砍掉。
+    //    实现 utils/domainReconciler.js 与其测试已删除；config/domainContract.js（课标领域名+关键词白名单）
+    //    作为**参考数据**保留，不再是"唯一事实源"（已无消费方）。
 
     // 🔴 生成方式提示：auto 模式下告知用户本次实际走的路径，并引导其到设置固定（用户必须清楚自己配置了什么）
     if ((typeMode || 'auto') === 'auto') {
