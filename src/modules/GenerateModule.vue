@@ -453,9 +453,13 @@
                 <span class="attach-name">{{ bk.name }}</span>
                 <span class="attach-key">{{ bk.key }}</span>
               </div>
-              <div class="attach-text">{{ bk.text }}</div>
+              <div class="attach-text">
+                {{ bk.text }}
+              </div>
             </div>
-            <div class="iab-legend">点击任意段落 → 跳转对应库并定位该条目修改（渲染契约→契约条款、规则→该规则、兜底→指令库模板）</div>
+            <div class="iab-legend">
+              点击任意段落 → 跳转对应库并定位该条目修改（渲染契约→契约条款、规则→该规则、兜底→指令库模板）
+            </div>
           </div>
           <pre
             v-else-if="showProgramAttach"
@@ -495,13 +499,19 @@
               <div
                 v-if="bk.text"
                 class="attach-text"
-              >{{ bk.text }}</div>
+              >
+                {{ bk.text }}
+              </div>
               <div
                 v-if="bk.note"
                 class="attach-note"
-              >{{ bk.note }}</div>
+              >
+                {{ bk.note }}
+              </div>
             </div>
-            <div class="iab-legend">顺序即实发顺序。显示正文的块 = 本次确定注入的条款原文；【锚点清单】/【压缩原文】显示的是最近一次生成真正发出去的正文（来源说明见该块下方注释）。仍仅显示说明的块 = 内容在生成时随勾选/同批产出确定，此处给出处与注入条件。点击可跳库定位修改（程序内置条款无库，点击给出来源）。</div>
+            <div class="iab-legend">
+              顺序即实发顺序。显示正文的块 = 本次确定注入的条款原文；【锚点清单】/【压缩原文】显示的是最近一次生成真正发出去的正文（来源说明见该块下方注释）。仍仅显示说明的块 = 内容在生成时随勾选/同批产出确定，此处给出处与注入条件。点击可跳库定位修改（程序内置条款无库，点击给出来源）。
+            </div>
           </div>
         </div>
         <div
@@ -533,11 +543,13 @@
                 <i
                   class="ill-dot"
                   :style="{ background: lc.badge }"
-                ></i>{{ lc.name }}
+                />{{ lc.name }}
               </span>
             </div>
-            <div v-html="annotatedBlocksHtml"></div>
-            <div class="iab-legend">逐条/着色段均可点击跳转来源库；灰字为模板固有/未映射文本；子块为同色加深段</div>
+            <div v-html="annotatedBlocksHtml" />
+            <div class="iab-legend">
+              逐条/着色段均可点击跳转来源库；灰字为模板固有/未映射文本；子块为同色加深段
+            </div>
           </div>
         </div>
         <div
@@ -652,6 +664,16 @@
             @click="generate('multiple')"
           >
             📚 复生成 ({{ genTypes.length }}个)
+          </button>
+          <!-- 📋 粘贴配音（2026-09-20 新入口）：**与生成结果解耦**——没生成过记录也能用。
+               把手上现成的英语/中文听力素材直接粘进来出音频（中文会先译为英语听力稿）。
+               结果卡片里也放了一个同样的入口（教师找听力音频时顺手就能点到）。 -->
+          <button
+            class="btn"
+            title="粘贴英语或中文听力素材，直接生成听力音频（中文会先译为英语听力稿；译文可在朗读稿中核对）"
+            @click="openListeningPaste()"
+          >
+            📋 粘贴配音
           </button>
           <button
             v-if="genTypes.includes('exam')"
@@ -823,6 +845,15 @@
                 @click.stop="openListeningTool(doc)"
               >
                 🎧 听力稿
+              </button>
+              <!-- 📋 粘贴文本配音（2026-09-20 新入口）：不依赖已生成记录——直接粘贴英语或中文素材出听力音频。
+                   放在听力稿按钮旁，教师找听力音频时顺手就能看到；中文会先译为英语听力稿（见弹窗内提示）。 -->
+              <button
+                class="btn-small"
+                title="粘贴英语或中文素材直接生成听力音频：英文直接解析；中文先译为英语听力稿（译文可在朗读稿中核对）"
+                @click.stop="openListeningPaste()"
+              >
+                📋 粘贴配音
               </button>
               <!-- 📐 图形指令 / 🖼️ 配图稿：与听力稿同一口径 —— 该条资料里真有这类指令才出现；
                    2026-09-17 起改为"先预览再复制"（原为盲复制，看不到内容） -->
@@ -1438,7 +1469,9 @@
             <div
               v-if="columnSemanticsFallback"
               class="hint"
-            >{{ columnSemanticsFallback }}</div>
+            >
+              {{ columnSemanticsFallback }}
+            </div>
             <div class="option-list">
               <div
                 v-for="(row, i) in columnSemantics"
@@ -1702,6 +1735,90 @@
       >
         <div class="modal large-modal">
           <h3><span class="hide-on-mobile">🎧</span> 听力稿</h3>
+
+          <!-- 📋 粘贴文本配音（2026-09-20 新入口）：英文直接解析；中文先译为英语听力稿，共用同一 JSON 契约，
+               故下方的语速/音色/作答留白等全部控件与「生成音频」流程与老路径完全一致 -->
+          <div
+            v-if="listeningPasteMode"
+            style="margin:6px 0 8px;padding:10px;border:1px dashed #cfd8e3;border-radius:8px;background:#fafbfe;"
+          >
+            <div style="font-size:12px;color:#555;margin-bottom:6px;">
+              粘贴听力素材：<b>英文</b>直接解析；<b>中文</b>会先译为英语听力稿（译文在下方朗读稿里核对）
+            </div>
+            <textarea
+              v-model="listeningPasteText"
+              rows="6"
+              placeholder="例：&#10;第一节，听下面5段对话。每段对话后有一个小题。&#10;1. M: Excuse me, where is the library?&#10;W: It is next to the bank."
+              style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;"
+            />
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:12px;">
+              <label style="display:flex;gap:6px;align-items:center;">
+                标题
+                <input
+                  v-model="listeningPasteTitle"
+                  type="text"
+                  placeholder="例：六年级英语上册Unit 1测试卷"
+                  style="width:220px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+                >
+              </label>
+              <label style="display:flex;gap:6px;align-items:center;">
+                学段
+                <select
+                  v-model="listeningPasteStage"
+                  style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+                  @change="onPasteStageChange"
+                >
+                  <option value="">
+                    请选择学段
+                  </option>
+                  <option
+                    v-for="o in PASTE_STAGE_OPTIONS"
+                    :key="o.key"
+                    :value="o.key"
+                  >
+                    {{ o.label }}
+                  </option>
+                </select>
+              </label>
+              <label style="display:flex;gap:6px;align-items:center;">
+                年级
+                <select
+                  v-model="listeningPasteGrade"
+                  style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;"
+                >
+                  <option
+                    v-for="g in pasteGradeOptions"
+                    :key="g"
+                    :value="g"
+                  >
+                    {{ g }}
+                  </option>
+                </select>
+              </label>
+              <button
+                class="btn-small"
+                :disabled="listeningLoading || !String(listeningPasteText || '').trim()"
+                @click="parseListeningPaste()"
+              >
+                解析并生成
+              </button>
+            </div>
+            <div style="font-size:11px;color:#888;margin-top:6px;">
+              学段/年级决定语速与作答留白档位（与记录入口同一套矩阵）；中文翻译需云端模型，本地 Ollama 不支持
+            </div>
+          </div>
+          <div
+            v-else
+            style="margin:4px 0 8px;"
+          >
+            <button
+              class="btn-small"
+              title="改为直接粘贴文本（英文或中文）解析，不依赖本记录的听力原文"
+              @click="listeningPasteMode = true"
+            >
+              📋 改为粘贴文本解析
+            </button>
+          </div>
           <div
             v-if="listeningDocTitle"
             class="copy-hint"
@@ -1713,7 +1830,7 @@
             v-if="listeningLoading"
             class="copy-hint"
           >
-            正在从答案页提取听力原文并结构化…
+            {{ listeningPasteMode ? '正在解析粘贴的素材并生成听力稿…（中文素材需先译为英语，稍慢）' : '正在从答案页提取听力原文并结构化…' }}
           </div>
           <div
             v-if="listeningError"
@@ -2005,14 +2122,25 @@
             {{ listeningSynthMsg }}
           </div>
 
-          <div class="modal-actions" style="flex-wrap:wrap;row-gap:8px;">
+          <div
+            class="modal-actions"
+            style="flex-wrap:wrap;row-gap:8px;"
+          >
             <div style="display:flex;align-items:center;gap:10px;margin-right:auto;font-size:13px;color:#555;">
               <span>🎙 通道：</span>
               <label style="display:flex;align-items:center;gap:3px;cursor:pointer;">
-                <input v-model="listeningChannel" type="radio" value="edge"> Edge 免费（无需 Key）
+                <input
+                  v-model="listeningChannel"
+                  type="radio"
+                  value="edge"
+                > Edge 免费（无需 Key）
               </label>
               <label style="display:flex;align-items:center;gap:3px;cursor:pointer;">
-                <input v-model="listeningChannel" type="radio" value="azure"> Azure（需 Key）
+                <input
+                  v-model="listeningChannel"
+                  type="radio"
+                  value="azure"
+                > Azure（需 Key）
               </label>
             </div>
             <button
@@ -3526,7 +3654,9 @@ import { diagnoseAnchorTree, logAnchorGranularity, summarizeAnchorGranularity, v
 import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实体解码唯一实现（曾本地 esc/escGraph 及 data-raw 解码链副本）
 // 🎧 英语听力稿（2026-09-16）：答案页听力原文 → 结构化 → SSML/朗读稿（复制即用）
 import { buildListeningExtractMessages } from '../config/listeningExtractPrompt.js';
-import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback } from '../utils/listeningExtract.js';
+// 📋 中文素材 → 英语听力稿：与"搬运"共用同一 JSON 契约（LISTENING_STRUCT_SCHEMA），故下游零改动
+import { buildListeningTranslateMessages } from '../config/listeningTranslatePrompt.js';
+import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback, detectSourceLanguage } from '../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText, buildListeningStoryboard } from '../utils/listeningScript.js';
 import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES, LISTENING_ZH_VOICE, LISTENING_STAGE_WPM_RANGE, LISTENING_MIXED_TITLE_VOICE_CANDIDATES, LISTENING_MIXED_TITLE_VOICE, LISTENING_ANSWER_GAP_RANGE, LISTENING_PAUSE } from '../config/listeningAudioProfile.js';
 // 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
@@ -8881,6 +9011,49 @@ const listeningStruct = ref(null);
 const listeningStageKey = ref('');
 const listeningGradeHint = ref('');
 const listeningWpmOverride = ref(null);
+
+/**
+ * 📋 粘贴文本配音（2026-09-20 新入口）
+ * ============================================================
+ * 用户诉求：不想只靠"答案页听力原文"这一个来源——手上现成的素材（英文或中文）粘进来就能出音频。
+ * 两条路难度不同，故一并实现（用户："前者现在需要，后者后期会需要。如果都好实现，就一并实现了"）：
+ *   · 英文：与记录入口**同一条**路——规则解析优先，needAiFallback 才调 AI 兜底，零新增链路；
+ *   · 中文：先调一次"翻译 + 结构化"（listeningTranslatePrompt），它把中文正文译成英语、
+ *     中文导语/播音指令/题号范围**原样保留中文**，并输出**与搬运路径同一份 JSON 契约**的结构。
+ *     拿到结构后下游完全一致——语速/音色/作答留白/逐句合成一行都不用改。这是能低成本落地的关键。
+ *
+ * 🔴 学段/年级是**粘贴模式下唯一没有来源**的信息（记录入口从 doc.stage 拿），必须让用户选：
+ *   它决定语速与三档作答留白（同一份矩阵 resolveListeningParams），选错则整卷语速跑偏。
+ *   故这里只放"学段键 + 年级"两个下拉，且**年级只对初中有意义**
+ *   （见 LISTENING_GRADE_WPM：七/八/九 → 110/120/130；小学已由学段切分、高中档无年级细分）。
+ *
+ * ⚠️ 中文翻译依赖**云端**模型（与 AI 兜底同一通道）：本地 Ollama 不支持，必须明确报错、不静默失败。
+ */
+const listeningPasteMode = ref(false);
+const listeningPasteText = ref('');
+const listeningPasteTitle = ref('');
+const listeningPasteStage = ref('');
+const listeningPasteGrade = ref('不指定');
+/** 学段候选：直接给五档键（值）与中文标签（显示），避免把中文标签再解析一遍引入歧义 */
+const PASTE_STAGE_OPTIONS = [
+  { key: 'primary_low', label: '小学低段（一、二年级）' },
+  { key: 'primary_mid', label: '小学中段（三、四年级）' },
+  { key: 'primary_high', label: '小学高段（五、六年级）' },
+  { key: 'middle', label: '初中（按年级细分语速）' },
+  { key: 'high', label: '高中' },
+];
+/** 年级候选随学段变；「不指定」＝用该学段矩阵默认值（初中默认＝八年级 120 词/分） */
+const pasteGradeOptions = computed(() => {
+  const s = listeningPasteStage.value;
+  if (s === 'middle') return ['不指定', '七年级', '八年级', '九年级'];
+  if (s === 'high') return ['不指定', '高一', '高二', '高三'];
+  // 小学：学段本身已分低/中/高段，再选年级会出现"小学低段 + 六年级"这类自相矛盾的组合
+  return ['不指定'];
+});
+/** 学段切换 → 年级候选变了，旧值可能已不在候选里，回落到「不指定」 */
+const onPasteStageChange = () => {
+  if (!pasteGradeOptions.value.includes(listeningPasteGrade.value)) listeningPasteGrade.value = '不指定';
+};
 // 🎛 可选环节开关（默认值取单一事实源 LISTENING_FEATURE_DEFAULTS）：
 //   读试卷标题默认开；试音段默认开；一题一材料处播题号（英文 Number N.）默认开。
 const listeningAnnounceTitle = ref(LISTENING_FEATURE_DEFAULTS.announceTitle);
@@ -9236,16 +9409,9 @@ const copyDirectiveOne = async (item) => {
 const closeListeningModal = () => {
   showListeningModal.value = false;
   listeningLoading.value = false;
-  listeningError.value = '';
-  listeningStruct.value = null;
-  listeningSsml.value = '';
-  listeningScriptText.value = '';
-  listeningSummary.value = '';
-  listeningNotes.value = [];
-  listeningSynthMsg.value = '';
-  listeningSynthLoading.value = false;
-  listeningParseMode.value = '';
-  listeningSegments.value = [];
+  // 复用公共复位：关窗即清空结构/产物/卷级设定，避免下次打开看到上一卷的残留
+  resetListeningPanel();
+  listeningPasteMode.value = false;   // 下次从 🎧 听力稿按钮进入时默认走记录来源
 };
 
 /** 按当前结构化结果 + 覆盖参数渲染两种成品（覆盖变更时即时重跑，不重复调 AI） */
@@ -9346,18 +9512,23 @@ const renderListeningArtifacts = () => {
   ];
 };
 
-const openListeningTool = async (doc) => {
-  listeningDocTitle.value = doc?.title || '';
+/**
+ * 打开弹窗前的公共复位（2026-09-20 抽出：**记录入口**与**粘贴入口**共用）
+ * ============================================================
+ * 目的：避免上一卷的设定串到这一卷（语速覆盖、三档作答留白、音色、可选环节、上一次的结构与产物）。
+ * 🔴 只复位"卷级设定"与产物，**不动 listeningDocTitle / listeningStageKey / listeningGradeHint**——
+ *    这三项是两条入口各自的来源（记录：doc.title/doc.stage；粘贴：用户在面板填写），
+ *    由调用方在复位**之后**赋新值，顺序不能倒。
+ */
+const resetListeningPanel = () => {
   listeningError.value = '';
   listeningSsml.value = '';
   listeningScriptText.value = '';
   listeningSummary.value = '';
   listeningNotes.value = [];
   listeningStruct.value = null;
-  listeningStageKey.value = doc?.stage || '';
-  listeningGradeHint.value = doc?.title || '';
+  listeningSegments.value = [];
   listeningWpmOverride.value = null;
-  // ⏳ 静默作答三档：每次打开弹窗回到矩阵默认（留空），避免上一卷的设定串到这一卷
   resetListeningAnswerGap();
   listeningAnnounceTitle.value = LISTENING_FEATURE_DEFAULTS.announceTitle;
   listeningSoundCheck.value = LISTENING_FEATURE_DEFAULTS.soundCheck;
@@ -9375,6 +9546,14 @@ const openListeningTool = async (doc) => {
   listeningSynthMsg.value = '';
   listeningSynthLoading.value = false;
   listeningParseMode.value = '';
+};
+
+const openListeningTool = async (doc) => {
+  resetListeningPanel();
+  listeningPasteMode.value = false;   // 记录入口：从"答案页听力原文"走，不带粘贴面板
+  listeningDocTitle.value = doc?.title || '';
+  listeningStageKey.value = doc?.stage || '';
+  listeningGradeHint.value = doc?.title || '';
   showListeningModal.value = true;
 
   const source = extractListeningSource(doc?.rawContent || doc?.content || '');
@@ -9403,6 +9582,110 @@ const openListeningTool = async (doc) => {
           listeningParseMode.value = 'AI 解析（规则未取得可信结构，已由模型补充）';
         } catch (aiErr) {
           listeningError.value = `AI 兜底解析失败，已改用规则解析结果：${aiErr.message}`;
+        }
+      }
+    }
+
+    listeningStruct.value = struct;
+    listeningSummary.value = summarizeListeningStructure(struct);
+    renderListeningArtifacts();
+  } catch (e) {
+    listeningError.value = `听力稿生成失败：${e.message}`;
+  } finally {
+    listeningLoading.value = false;
+  }
+};
+
+/**
+ * 📋 打开"粘贴文本配音"（2026-09-20 新增入口）
+ * ============================================================
+ * 与记录入口的区别**只有来源**：这里没有 doc，标题/学段/年级全部来自面板输入；
+ * 一旦解析出结构，后面（语速/音色/作答留白/SSML/朗读稿/逐句合成）走**完全相同**的代码路径。
+ * 🔴 粘贴内容是**用户自己的材料**，反复调整很正常，故不复位文本框与标题；
+ *    只把"卷级产物"清空（避免残留上一次的结构与音频），并把弹窗打开。
+ */
+const openListeningPaste = () => {
+  listeningPasteMode.value = true;
+  resetListeningPanel();
+  listeningDocTitle.value = '';
+  listeningStageKey.value = '';
+  listeningGradeHint.value = '';
+  onPasteStageChange();   // 学段仍是上次选的：把年级候选对齐（旧值不在候选里就回落「不指定」）
+  showListeningModal.value = true;
+};
+
+/**
+ * 📋 解析粘贴的素材并出稿（英文直解 / 中文先译）
+ * ============================================================
+ * 分流依据：detectSourceLanguage（CJK 占比 > 0.5 → 'zh'），与解析器的中文噪声守卫**同阈值**，
+ *   避免"同一份文本两处判得不一样"。
+ * · 'en'：规则解析 → 不可信才 AI 兜底（与记录入口同一套判据 needAiFallback）；
+ * · 'zh'：**必须先翻译**——不是优化而是必需：特征锁实测中文材料直接进出声逻辑会被中文噪声守卫
+ *   整段丢弃（材料段数=0）。翻译与搬运**共用同一 JSON 契约**，故下游零改动。
+ * ⚠️ 翻译与兜底都依赖云端通道；本地 Ollama 给明确提示，不静默失败。
+ */
+const parseListeningPaste = async () => {
+  const text = String(listeningPasteText.value || '').trim();
+  if (!text || listeningLoading.value) return;
+  if (!listeningPasteStage.value) {
+    listeningError.value = '请先选择学段——它决定整卷语速与静默作答留白的档位（与记录入口同一套矩阵）。';
+    return;
+  }
+  listeningLoading.value = true;
+  listeningError.value = '';
+  listeningSsml.value = '';
+  listeningScriptText.value = '';
+  listeningSummary.value = '';
+  listeningNotes.value = [];
+  listeningStruct.value = null;
+  listeningSegments.value = [];
+  listeningSynthMsg.value = '';
+  listeningParseMode.value = '';
+  // 标题 / 学段 / 年级 → 落到**与记录入口同名**的状态上，下游（renderListeningArtifacts、生成音频）零分支
+  listeningDocTitle.value = String(listeningPasteTitle.value || '').trim();
+  listeningStageKey.value = listeningPasteStage.value;
+  listeningGradeHint.value = [listeningPasteGrade.value, listeningDocTitle.value]
+    .map((s) => String(s || '').trim())
+    .filter((s) => s && s !== '不指定')
+    .join(' ');
+  const lang = detectSourceLanguage(text);
+  try {
+    let struct;
+    if (lang === 'zh') {
+      if (apiConfig.currentEngine === 'ollama') {
+        listeningError.value = '中文素材需先译为英语听力稿，这需要云端模型；当前引擎为本地 Ollama。请在「设置」把生成引擎切为云端（如 DeepSeek）后重试；若已有英语素材，直接粘贴英文即可。';
+        return;
+      }
+      listeningParseMode.value = 'AI 翻译（中文素材 → 英语听力稿）';
+      let raw;
+      try {
+        raw = await chatNonThinkingOnce(buildListeningTranslateMessages(text), { maxTokens: 8000, temperature: 0 });
+      } catch (e) {
+        listeningError.value = `中文素材翻译失败（该步骤需云端模型）：${e.message}`;
+        return;
+      }
+      try {
+        struct = parseListeningStructure(raw);
+      } catch (e) {
+        listeningError.value = `翻译结果无法结构化为听力稿：${e.message}。请确认粘贴的是听力素材正文（只有题目/选项时无材料可译）。`;
+        return;
+      }
+    } else {
+      const ruleParsed = parseListeningSourceText(text);
+      struct = ruleParsed;
+      listeningParseMode.value = `规则解析（${ruleParsed.items.length} 段材料）`;
+      if (needAiFallback(ruleParsed)) {
+        if (apiConfig.currentEngine === 'ollama') {
+          listeningError.value = '当前引擎为本地 Ollama，规则解析未取得可信结构，且该接口暂不支持本地模型——请在设置页切为云端（如 DeepSeek）后重试，或给素材补上说话人标注（M:/W:）与题号。';
+        } else {
+          try {
+            const raw = await chatNonThinkingOnce(buildListeningExtractMessages(text), { maxTokens: 8000, temperature: 0 });
+            const aiParsed = parseListeningStructure(raw);
+            struct = { ...aiParsed, warnings: [...(aiParsed.warnings || [])] };
+            listeningParseMode.value = 'AI 解析（规则未取得可信结构，已由模型补充）';
+          } catch (aiErr) {
+            listeningError.value = `AI 兜底解析失败，已改用规则解析结果：${aiErr.message}`;
+          }
         }
       }
     }
