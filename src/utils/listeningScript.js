@@ -740,7 +740,10 @@ export function buildListeningScriptText(input = {}) {
   // 🗣 中英混合标题＝同一人通读（多语言音色）——朗读稿要标出来，避免录制方以为要换人
   {
     const titleSeg = segments.find((s) => s.kind === 'title');
-    if (titleSeg && titleSeg.voice !== params.zhVoice && titleSeg.voice !== narratorVoiceEff) {
+    // ⚠️ 本函数里没有 narratorVoiceEff 那个局部量（它在 buildListeningStoryboard 内部）：
+    //    此处按其同口径就地推导（旁白留空＝音色池首位＝男主），否则会 ReferenceError。
+    const narratorEff = String(narratorVoice || '').trim() || voicePool[0] || params.voices.us.M;
+    if (titleSeg && titleSeg.voice !== params.zhVoice && titleSeg.voice !== narratorEff) {
       out.push(`标题：中英混读由同一条多语言音色通读（${voiceLabel(titleSeg.voice)}）——不得切成两人分读`);
     }
   }

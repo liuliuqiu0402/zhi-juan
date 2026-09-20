@@ -9377,12 +9377,42 @@ const openListeningTool = async (doc) => {
 };
 
 /**
+ * 🔴 重渲染去抖（2026-09-20 用户实测："滑块调节为啥反应很慢？"）
+ * ============================================================
+ * 原因：滑块/数值框每触发一次 input 就会走下方 watch，而 renderListeningArtifacts()
+ *   要连跑 SSML + 朗读稿 + storyboard **三次全量构建**（题量和素材越大越慢）。
+ *   拖动时每挪一步全量重算一次 → 手感明显发滞。
+ * 处置：改成"停手 200ms 后再重算"——
+ *   · 拖动过程界面仍即时跟手：滑块位置与"生效 X 词/分"都来自轻量 computed，不等重活；
+ *   · 只有停下来才做全量重建；
+ *   · 真正要吃数据的地方（生成音频 / 复制）先 flush，保证拿到的是最新结果、不产生 200ms 竞态。
+ */
+let listeningRenderTimer = null;
+const runListeningRender = () => {
+  if (showListeningModal.value && listeningStruct.value) renderListeningArtifacts();
+};
+const flushListeningRender = () => {
+  if (!listeningRenderTimer) return;
+  clearTimeout(listeningRenderTimer);
+  listeningRenderTimer = null;
+  runListeningRender();
+};
+const scheduleListeningRender = () => {
+  if (listeningRenderTimer) clearTimeout(listeningRenderTimer);
+  listeningRenderTimer = setTimeout(() => {
+    listeningRenderTimer = null;
+    runListeningRender();
+  }, 200);
+};
+
+/**
  * 🎧 直接生成音频：按选定的语音合成通道出整卷 mp3 并落盘
  * · Edge 通道（默认，无需 Key）：逐句合成 + 帧级静音拼接，主进程执行
  * · Azure 通道（需 Key）：把整卷 SSML 交给 Azure 一次合成
  */
 const generateListeningAudio = async () => {
   listeningSynthMsg.value = '';
+  flushListeningRender();   // 先把挂起的重渲染落定，避免用旧参数合成
   if (!listeningSsml.value) return;
   const suggestedName = listeningDocTitle.value || '听力音频';
 
@@ -9434,6 +9464,7 @@ const generateListeningAudio = async () => {
 };
 
 const copyListeningText = async (kind) => {
+  flushListeningRender();   // 同上：复制前先把挂起的重渲染落定
   const text = kind === 'ssml' ? listeningSsml.value : listeningScriptText.value;
   if (!text) return;
   try {
@@ -9446,9 +9477,7 @@ const copyListeningText = async (kind) => {
   }
 };
 
-watch([listeningWpmOverride, listeningAnnounceTitle, listeningSoundCheck, listeningShortItemNo, () => listeningVoices.M, () => listeningVoices.W, () => listeningVoices.N, () => listeningVoices.Z, () => listeningVoices.T, () => listeningVoices.M2, () => listeningVoices.W2, () => listeningAnswerGap.short, () => listeningAnswerGap.long, () => listeningAnswerGap.fillIn], () => {
-  if (showListeningModal.value && listeningStruct.value) renderListeningArtifacts();
-});
+watch([listeningWpmOverride, listeningAnnounceTitle, listeningSoundCheck, listeningShortItemNo, () => listeningVoices.M, () => listeningVoices.W, () => listeningVoices.N, () => listeningVoices.Z, () => listeningVoices.T, () => listeningVoices.M2, () => listeningVoices.W2, () => listeningAnswerGap.short, () => listeningAnswerGap.long, () => listeningAnswerGap.fillIn], scheduleListeningRender);
 
 // 🎙 语音通道：全链路一致（生成面板切换即记忆），落内存 + 轻量持久化（不重加密既有 Key）
 watch(listeningChannel, (v) => {

@@ -1015,6 +1015,20 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
       expect(enTitle[0].text).toBe('Unit one Try your best。');
     });
 
+    it('朗读稿必须把"同一人通读"标出来（混排标题 + 朗读稿同调，防越界引用崩掉生成）', () => {
+      // 🔴 回归：曾在朗读稿里误用 storyboard 内部的局部量，导致"听力稿生成失败：narratorVoiceEff is not defined"。
+      //    故此处**必须同时开 announceTitle 且标题混排**，才能真正走到那一行。
+      let text = '';
+      expect(() => {
+        ({ text } = buildListeningScriptText({
+          stage: '小学', grade: '六年级', announceTitle: true, soundCheck: false,
+          title: '六年级英语上册Unit 1 Try your best测试卷',
+          items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
+        }));
+      }).not.toThrow();
+      expect(text).toContain('中英混读由同一条多语言音色通读');
+    });
+
     it('overrides.titleMixedVoice 可改选多语言音色；传 "split" 退回按语种分读', () => {
       const custom = 'en-US-AvaMultilingualNeural';
       const picked = buildListeningStoryboard({
