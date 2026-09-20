@@ -21,6 +21,7 @@
 import { DOMAIN_CONTRACT } from '../config/domainContract.js';
 import { normalizeSubjectName } from '../config/expertKnowledge.js';
 import { stripHtmlForRecon } from './coverageReconciler.js';
+import { resolveStageKey } from './gradeStage.js'; // 学段归一唯一事实源（高中判定不再靠中文字面）
 
 /** 将单个考点的（名称+具体概念）合并为一个可检索短语（词边界命中所需的分隔） */
 const wordsOfAnchor = (a) => [a.name, ...[...(a.specificConcepts || [])].filter((w) => w && w.length >= 2)];
@@ -48,7 +49,11 @@ export const reconcileDomains = ({ genType = '', subject = '', stage = '', conte
   //    （如数学：义教＝数与代数/图形与几何/统计与概率/综合与实践；高中＝函数/几何与代数/概率与统计/
   //    数学建模活动与数学探究活动）。高中一律取 highDomains；**未登记高中清单的学科 → 不做领域对账**
   //    （宁不校验，也不用义教名单错配、不造误报）。
-  const isHigh = /高中|高一|高二|高三/.test(String(stage || ''));
+  // 🩹 2026-09-20：高中判定从"中文字面 /高中|高一|高二|高三/"改为**委托 resolveStageKey**——
+  //    原写法只认中文标签，一旦上游传五档键 'high'（本项目其余链路一律传五档键）就 isHigh=false，
+  //    会拿**义教领域名**去对账高中卷并报出"未见命题考点——数与代数、综合与实践"这类**错误缺位**。
+  //    与本函数注释"高中一律取 highDomains"自相矛盾，故收口到唯一事实源（'高中'/'high'/'高一' 都正确）。
+  const isHigh = resolveStageKey(stage, '', '') === 'high';
   const domains = ((isHigh ? def?.highDomains : def?.domains) || []);
   if (!domains.length) return null;
 

@@ -45,12 +45,16 @@ export const useTemplateStore = defineStore('template', {
           }
           // 🔑 存量回填 volume + 清高中遗留年级：与 textbookStore 同源同口径
           //（高中按必修／选择性必修**分册**，教材本身不绑定年级——各省教学用书的「册次」与「使用年级」
-          //  是两栏并列、使用年级写的是区间；"必修＝高一"各省不成立 → 老数据里的高一/高二/高三只会误导）
+          //  是两栏并列、使用年级写的是区间；"必修＝高一"各省不成立）
+          //  🔴 判"是否高中"不能只看文件名（"高二英语.pdf"不含"必修/高中"字样会漏迁移）→ 加上记录自身 stage；
+          //     清年级要先确认拿到了册次（否则会把这本模板的标识抹成空白，比改版前更糟）。
           if (t.name) {
             const d = autoDetectTextbookMeta(t.name);
-            if (d.stage === '高中') {
+            const tStage = String(t.stage || '');
+            const isHighTpl = tStage === '高中' || tStage === 'high' || d.stage === '高中';
+            if (isHighTpl) {
               if (d.volume && t.volume !== d.volume) { t.volume = d.volume; hasChange = true; }
-              if (t.grade) { t.grade = ''; hasChange = true; }
+              if (t.volume && t.grade) { t.grade = ''; hasChange = true; }
             }
           }
           // 🔧 存储目录合并后，修复旧数据中的相对路径 → 绝对路径

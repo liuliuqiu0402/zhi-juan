@@ -4342,7 +4342,9 @@ ${cardAnalysisText.substring(0, 1000)}
             sections: rawSections,
             mode: compMode,
             subject,
-            grade: book?.grade || '',
+            // 🔴 必须与上面的 cacheKey 用同一个"年级/册次"口径：高中给册次（grade 恒空），
+            //    否则缓存键按册次区分、而压缩提示词按年级（空），两者错位。
+            grade: gradeDisplayLabel(book?.stage, book?.grade, book?.volume),
             callAI: (messages) => chatNonThinkingOnce(messages), // 注入底层非思考对话调用（单次对话、显式关闭思考）
           });
           compressedText = comp?.compressedText || '';

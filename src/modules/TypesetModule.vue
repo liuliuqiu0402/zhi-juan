@@ -1197,7 +1197,10 @@ const exportDocument = async () => {
     previewContentForExport = applyThemeToContent(wrapped, effectiveThemeFor(exportSrc), {
       isHtmlContent: true,
       forceImportant: true,
-      stage: effStage.value // 作文格/书写格按文档学段
+      stage: effStage.value || STAGE_NEUTRAL // 作文格/书写格按文档学段（未选择→中性默认，不冒充学段）
+      // 🩹 2026-09-20：原为裸 effStage.value → 空值落到 themeConfig 的 'middle' 兜底（初中 10mm 作文格），
+      //    而同一文档的编辑器(:741)/预览(:1094)/docx(:1365) 都是 `|| STAGE_NEUTRAL`（小学 12mm）
+      //    → 同一份卷"导出预览"与"导出文件"格子尺寸不一致。四处口径统一。
     });
   } else {
     // 降级：用预览流程

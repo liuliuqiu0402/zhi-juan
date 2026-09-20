@@ -182,16 +182,22 @@ export const useTextbookStore = defineStore('textbook', {
             else if (bName.includes('下册')) { b.semester = '下册'; hasChange = true; }
             else if (!b.semester) { b.semester = ''; }
           }
-          // 🔑 存量数据回填 volume + 清高中遗留年级（2026-09-20「高中按册次、不按年级」）：
-          //    老数据里的高中教材当年是硬选的"高一/高二/高三"，与册次**无官方绑定**（各省学年安排不同，
-          //    山东语文必修下在第二学年、广东思想政治/物理必修到高二上才完成），留着只会误导
-          //    （如"高一"配"选择性必修3"）→ 按名称里的"必修/选择性必修"字面回填册次，并把高中 grade 清空。
-          //    识别不到册次的（文件名没写）只清年级、volume 留空，由用户在界面补——不猜。
+          // 🔑 存量数据回填 volume + 清高中遗留年级（2026-09-20「高中按册次、不按年级」）。
+          //    🔴 两处判据都要放宽/收紧，否则迁移不完整或丢信息：
+          //    ① 判"这本是高中"**不能只看文件名**——"高二英语.pdf""英语选修7.pdf"不含"必修/高中"字样，
+          //       只看名字就漏迁移（老记录会一直带着"高二"违反新口径）→ 加上记录自身 stage
+          //       （新数据存中文'高中'，旧数据存英文'high'，见 TextbookModule 入库的 stageMap 注释）；
+          //    ② 清年级**要先确认拿到了册次**——册次才是替代品，识别不到册次就把年级一并抹掉，
+          //       只会让这本教材"改版后反而没了任何标识"（比改版前更糟）。
+          //       没有册次的保留旧年级做兜底显示（gradeDisplayLabel 以册次优先），
+          //       用户在教材库用卡片上的「📚 册次」按钮补上即可。
           if (bName) {
             const d = autoDetectTextbookMeta(bName);
-            if (d.stage === '高中') {
+            const bStage = String(b.stage || '');
+            const isHighBook = bStage === '高中' || bStage === 'high' || d.stage === '高中';
+            if (isHighBook) {
               if (d.volume && b.volume !== d.volume) { b.volume = d.volume; hasChange = true; }
-              if (b.grade) { b.grade = ''; hasChange = true; }
+              if (b.volume && b.grade) { b.grade = ''; hasChange = true; }
             }
           }
           // 🔧 存储目录合并后，修复旧数据中的相对路径 → 绝对路径

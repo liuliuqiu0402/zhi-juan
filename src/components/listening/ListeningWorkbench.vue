@@ -633,6 +633,7 @@ import { chatNonThinkingOnce } from '../../composables/useAiGenerator.js';
 import { buildListeningExtractMessages } from '../../config/listeningExtractPrompt.js';
 // 📋 中文素材 → 英语听力稿：与"搬运"共用同一 JSON 契约（LISTENING_STRUCT_SCHEMA），故下游零改动
 import { buildListeningTranslateMessages } from '../../config/listeningTranslatePrompt.js';
+import { highVolumeOptions } from '../../config/highVolumes.js'; // 高中册次候选（高中不按年级，按必修/选择性必修分册）
 import { extractListeningSource, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback, detectSourceLanguage } from '../../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText, buildListeningStoryboard } from '../../utils/listeningScript.js';
 import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_CHIME_DEFAULTS, LISTENING_CHIME_ROLES, LISTENING_REPEAT_OPTIONS, LISTENING_ROTATION_OPTIONS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES, LISTENING_ZH_VOICE, LISTENING_STAGE_WPM_RANGE, LISTENING_MIXED_TITLE_VOICE_CANDIDATES, LISTENING_MIXED_TITLE_VOICE, LISTENING_ANSWER_GAP_RANGE, LISTENING_PAUSE_RANGE, LISTENING_PAUSE } from '../../config/listeningAudioProfile.js';
@@ -711,11 +712,16 @@ const PASTE_STAGE_OPTIONS = [
   { key: 'middle', label: '初中（按年级细分语速）' },
   { key: 'high', label: '高中' },
 ];
-/** 年级候选随学段变；「不指定」＝用该学段矩阵默认值（初中默认＝八年级 120 词/分） */
+/** 年级/册次候选随学段变；「不指定」＝用该学段矩阵默认值（初中默认＝八年级 120 词/分） */
 const pasteGradeOptions = computed(() => {
   const s = listeningPasteStage.value;
   if (s === 'middle') return ['不指定', '七年级', '八年级', '九年级'];
-  if (s === 'high') return ['不指定', '高一', '高二', '高三'];
+  // 🩹 高中给**册次**而不是年级（2026-09-20 口径切换）：普通高中教材按必修／选择性必修分册、
+  //    教材本身不绑定年级（各省教学用书的「册次」与「使用年级」是两栏并列，使用年级写的是区间），
+  //    "必修＝高一"各省也不成立 → 继续给"高一/高二/高三"只会让人按一个不存在的维度选。
+  //    注：高中册次**不影响音频参数**（语速只对初中按年级细分，高中档固定 150 词/分），
+  //    它只作为该稿的标识进入 listeningGradeHint（记录/稿标题用），故列英语册次即可。
+  if (s === 'high') return ['不指定', ...highVolumeOptions('英语').map(v => v.id)];
   // 小学：学段本身已分低/中/高段，再选年级会出现"小学低段 + 六年级"这类自相矛盾的组合
   return ['不指定'];
 });

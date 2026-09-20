@@ -219,6 +219,16 @@
               <span class="chapter-count">{{ countChapters(tpl.outline) }}个章节 {{ countAnalyzed(tpl.outline) > 0 ? '· ✅' + countAnalyzed(tpl.outline) : '' }}</span>
             </div>
             <div class="item-actions">
+              <!-- 高中册次编辑入口（与教材库同源）：模板按必修／选择性必修分册，册次才是标识；
+                   文件名没写册次的老数据识别不到，这里补标（只改 volume，不碰文件）。 -->
+              <button
+                v-if="isHighStage(tpl.stage)"
+                class="icon-btn"
+                title="设置册次（必修1 / 选择性必修2 …）"
+                @click.stop="editVolume(tpl)"
+              >
+                📚
+              </button>
               <button
                 class="icon-btn"
                 title="重命名"
@@ -1974,6 +1984,27 @@ const batchExport = () => {
   a.href = URL.createObjectURL(blob);
   a.download = `模板目录_${new Date().toLocaleDateString()}.csv`;
   a.click();
+};
+
+/** 是否高中学段（模板库存中文'高中'；旧数据存英文'high'，见入库处的 stageMap 注释） */
+const isHighStage = (stage) => stage === '高中' || stage === 'high';
+
+/**
+ * 设置/修改高中**册次**（📚 按钮）。与教材库同源同口径：
+ * 🔴 只改 volume —— 不动 name / id / 路径，与重命名、改名联动完全解耦（不碰文件）。
+ * 🔴 册次与年级互斥（高中不按年级）→ 填了册次就清掉遗留的高中年级。
+ */
+const editVolume = async (tpl) => {
+  const input = await showInputDialogFn(
+    '设置册次（如：必修1 / 选择性必修第一册 / 选择性必修2）',
+    tpl.volume || ''
+  );
+  if (input === null || input === undefined) return; // 取消
+  const v = String(input).trim();
+  if (v === (tpl.volume || '')) return;
+  tpl.volume = v;
+  if (v && isHighStage(tpl.stage)) tpl.grade = '';
+  await templateStore.saveTemplates();
 };
 
 // 重命名模板（🔧 联动物理路径：显示名、id、存储目录一致——与教材库对齐；

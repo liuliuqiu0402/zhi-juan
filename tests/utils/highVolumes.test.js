@@ -9,7 +9,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { HIGH_VOLUMES, highVolumeOptions, detectHighVolume, hasHighVolumePreset } from '../../src/config/highVolumes.js';
 import { autoDetectTextbookMeta } from '../../src/utils/textbookMeta.js';
-import { resolveCompetency, gradeDisplayLabel, resolveStageKey } from '../../src/utils/gradeStage.js';
+import { resolveCompetency, gradeDisplayLabel, resolveStageKey, extractGradeNum } from '../../src/utils/gradeStage.js';
+import { resolveListeningParams } from '../../src/config/listeningAudioProfile.js';
+import { reconcileDomains } from '../../src/utils/domainReconciler.js';
 
 describe('detectHighVolume：只认字面（必修/选择性必修），不做任何推测', () => {
   it('必修 的四种印法都归一到 必修N', () => {
@@ -168,5 +170,52 @@ describe('源码锁：全项目不再有"按年级数字判认知层级"的旧�
       });
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+// ── 本轮审计发现的其它"按年级/学段"缺陷（回归锁） ──────────────────────────────
+describe('extractGradeNum：学段前缀必须一起算（初/高）', () => {
+  it('🔴 回归锁：`初一` 曾落成 1（只判了"高"没判"初"）→ 初中听力语速按年级细分取不到 7 档', () => {
+    expect(extractGradeNum('初一')).toBe(7);
+    expect(extractGradeNum('初二')).toBe(8);
+    expect(extractGradeNum('初三')).toBe(9);
+    expect(extractGradeNum('高一')).toBe(10);
+    expect(extractGradeNum('高三')).toBe(12);
+    // 小学不带学段前缀，行为不变
+    expect(extractGradeNum('一年级')).toBe(1);
+    expect(extractGradeNum('六年级')).toBe(6);
+    expect(extractGradeNum('七年级')).toBe(7);
+  });
+
+  it('听力语速：初中写"初一"与写"七年级"必须同档（110 词/分）', () => {
+    // 原缺陷：'初一' → extractGradeNum=1 → LISTENING_GRADE_WPM[1] 不存在 → 静默用八年级的 120
+    expect(resolveListeningParams({ stage: '初中', grade: '初一' }).wpm).toBe(110);
+    expect(resolveListeningParams({ stage: '初中', grade: '七年级' }).wpm).toBe(110);
+    expect(resolveListeningParams({ stage: '初中', grade: '初三' }).wpm).toBe(130);
+    // 高中不看年级（册次也不影响音频参数），固定高考档
+    expect(resolveListeningParams({ stage: '高中', grade: '必修1' }).wpm).toBe(150);
+    expect(resolveListeningParams({ stage: '高中', grade: '' }).wpm).toBe(150);
+  });
+});
+
+describe('领域对账：高中判定收口到学段唯一事实源', () => {
+  const anchors = [
+    { name: '函数', specificConcepts: ['单调性'], bind: { status: 'literal' } },
+    { name: '概率', specificConcepts: ['随机事件'], bind: { status: 'literal' } },
+  ];
+  const content = '函数 单调性 概率 随机事件';
+
+  it('🔴 回归锁：stage 传五档键 high 与中文「高中」结果一致（原写法只认中文，传 high 会拿义教领域名对账）', () => {
+    const zh = reconcileDomains({ genType: 'exam', subject: '数学', stage: '高中', content, anchors });
+    const key = reconcileDomains({ genType: 'exam', subject: '数学', stage: 'high', content, anchors });
+    expect(zh).not.toBeNull();
+    expect(key).toEqual(zh);
+  });
+
+  it('高中缺位提示用高中课标领域名，绝不出现义教领域名', () => {
+    const r = reconcileDomains({ genType: 'exam', subject: '数学', stage: 'high', content, anchors });
+    expect(r.missingDomains.length).toBeGreaterThan(0);
+    expect(r.missingDomains.join('、')).not.toMatch(/数与代数|图形与几何|综合与实践/);
+    expect(r.missingDomains.join('、')).toMatch(/几何与代数/);
   });
 });

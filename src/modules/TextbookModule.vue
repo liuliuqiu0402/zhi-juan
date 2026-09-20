@@ -241,6 +241,17 @@
               >
                 🔗
               </button>
+              <!-- 高中册次编辑入口：高中教材按必修／选择性必修分册，册次才是它的标识。
+                   导入时已按文件名自动识别；文件名里没写册次的老数据识别不到，
+                   这里给一个补标入口（只改 volume，不动 name/id/路径，与重命名互不干扰）。 -->
+              <button
+                v-if="isHighStage(book.stage)"
+                class="icon-btn"
+                title="设置册次（必修1 / 选择性必修2 …）"
+                @click.stop="editVolume(book)"
+              >
+                📚
+              </button>
               <button
                 class="icon-btn"
                 title="重命名"
@@ -2118,6 +2129,28 @@ const fixBookPaths = async (book) => {
 // 重命名（🔧 联动物理路径：显示名、id、存储目录三者保持一致——存储以名称为标识，
 //    仅改显示名会导致"名字与文件/图片对应不上"，改名时同步移动 imagesDir/pdfPath/coverPath）
 //    🔧 事务式：任一文件移动失败 → 回滚已移动的，且不更新存储记录（避免 store 指向不存在的文件导致预览空白）
+/** 是否高中学段（教材库存中文'高中'；旧数据存英文'high'，见入库处的 stageMap 注释） */
+const isHighStage = (stage) => stage === '高中' || stage === 'high';
+
+/**
+ * 设置/修改高中**册次**（📚 按钮）。
+ * 🔴 只改 volume —— 不动 name / id / 路径，与重命名、改名联动完全解耦（不碰文件，故不存在"被占用"）。
+ * 🔴 与导入侧落库同一口径：册次与年级互斥（高中不按年级）→ 填了册次就清掉遗留的高中年级。
+ * 用途：文件名里没写册次的老数据（如"高二英语.pdf"）、或导入时册次没识别出来的，在这里补标。
+ */
+const editVolume = async (book) => {
+  const input = await showInputDialogFn(
+    '设置册次（如：必修1 / 选择性必修第一册 / 选择性必修2）',
+    book.volume || ''
+  );
+  if (input === null || input === undefined) return; // 取消
+  const v = String(input).trim();
+  if (v === (book.volume || '')) return;
+  book.volume = v;
+  if (v && isHighStage(book.stage)) book.grade = '';
+  await textbookStore.saveTextbooks();
+};
+
 //    🔧 2026-09-20 两处修正：
 //      ① **动之前先诊断源文件**——源文件不存在时先跑一次路径自愈；仍缺就精确说明缺哪个，
 //         而不是像原先那样一律说"PDF 被占用"（用户实测：在本地教材库改过名后就被这句话误导）；

@@ -20,7 +20,13 @@ export const extractGradeNum = (gradeStr) => {
   if (!isNaN(num)) return num;
   const s = String(gradeStr);
   for (const [cn, n] of Object.entries(CN_MAP)) {
-    if (s.includes(cn)) return s.startsWith('高') ? 9 + n : n;
+    if (!s.includes(cn)) continue;
+    // 🔴 学段前缀必须一起算：'高一'→10、'初一'→7。曾漏 '初' 分支 → '初一' 落成 **1**，
+    //    而初中听力语速按年级细分（listeningAudioProfile.LISTENING_GRADE_WPM = {7:110,8:120,9:130}）
+    //    取 [1] 取不到 → 七年级静默用八年级的 120 词/分（听力生成链路的真实错档）。
+    if (s.startsWith('高')) return 9 + n;
+    if (s.startsWith('初')) return 6 + n;
+    return n;
   }
   for (const [cn, n] of Object.entries(CIRC_MAP)) {
     if (s.includes(cn)) return n;
