@@ -549,10 +549,13 @@ describe('可选环节开关：读标题 / 试音段 / 一题一材料题号', (
     }
   });
 
-  it('🔴 三遍轮读音色不随开关变化（始终 男→女→男）', () => {
+  it('🔴 遍间轮读音色不随开关变化（未标注材料：旁白→女→旁白，音色 男→女→男）', () => {
     for (const c of ALL_COMBOS) {
       const passes = combos(c).filter((s) => s.itemNo === 8 && (s.kind === 'material' || s.kind === 'repeat'));
-      expect(passes.map((s) => s.role), JSON.stringify(c)).toEqual(['M', 'W', 'M']);
+      // 角色标签首遍沿用材料原标注（未标注＝旁白）；音色按 旁白(男声1)→女主→旁白(男声1) 交替
+      expect(passes.map((s) => s.role), JSON.stringify(c)).toEqual(['N', 'W', 'N']);
+      expect(passes.map((s) => s.voice), JSON.stringify(c))
+        .toEqual([LISTENING_VOICES.us.M, LISTENING_VOICES.us.W, LISTENING_VOICES.us.M]);
     }
   });
 
@@ -668,23 +671,26 @@ describe('音色：默认值 / 候选 / 多角色音色池', () => {
 });
 
 /**
- * 🔊 遍数与音色（2026-09-19 用户问"两遍或者三遍的吧？分题型的吧？…不同遍数都是同一个音色吗？"）：
+ * 🔊 遍数与音色（2026-09-19 用户问"两遍或者三遍的吧？分题型的吧？…不同遍数都是同一个音色吗？"；
+ *   2026-09-20 用户实测裁定"遍与遍都是同一个声音，并没有分男声或女声" → 轮读扩展到两遍）：
  *   遍数随考试/题型变化（高考第一节一遍、第二节两遍；小学部分题型三遍），一律以节指令为准；
- *   音色方面：两遍同一音色（同一说话人重读），三遍的单说话人材料按"男、女、男"轮读
- *   （实证：小学听力要求原文"男、女、男声中速各读一遍，每遍间隔 5 秒"）。
+ *   音色方面：**重复 ≥2 遍的单说话人材料按"男、女"交替轮读**（两遍＝男、女；三遍＝男、女、男，
+ *   实证：小学听力要求原文"男、女、男声中速各读一遍，每遍间隔 5 秒"；人教 PEP CD"两遍、英音美音各一遍"；
+ *   真题"读两遍"惯例多为同一人重读，故遍间换声为**用户定制**，常量 LISTENING_PASS_VOICE_ROTATION=false 可整体关掉）；
+ *   对话材料按角色分音色、不参与轮读。
  */
 describe('遍数与音色：一遍 / 两遍 / 三遍各有对待', () => {
   const SOLO = [{ role: 'N', text: 'Tom is a good boy and he likes reading books after school.' }];
   const longSolo = [{ role: 'N', text: 'Tom is a good boy and he likes reading books after school every single day with his best friend Jack.' }];
 
-  it('读三遍的单说话人材料按 男→女→男 轮换音色，且叮咚只响一次（遍与遍之间不响）', () => {
+  it('读三遍的单说话人材料按 旁白→女→旁白 轮换音色，且叮咚只响一次（遍与遍之间不响）', () => {
     const { segments, warnings } = buildListeningStoryboard({
       stage: '小学', grade: '三年级',
       items: [{ no: 1, repeat: 3, instruction: '第一大题：听录音，选出你所听到的单词。每小题读三遍。', lines: SOLO }],
     });
     const passes = segments.filter((s) => s.itemNo === 1 && (s.kind === 'material' || s.kind === 'repeat'));
     expect(passes).toHaveLength(3);
-    expect(passes.map((s) => s.role)).toEqual(['M', 'W', 'M']);
+    expect(passes.map((s) => s.role)).toEqual(['N', 'W', 'N']);
     expect(passes.map((s) => s.voice)).toEqual([LISTENING_VOICES.us.M, LISTENING_VOICES.us.W, LISTENING_VOICES.us.M]);
     // 叮咚落"一小题结束"的边界上（默认有英文题号 → 在题号之前），三遍之间一声都不响
     expect(passes.every((s) => !s.chimeBefore), '遍与遍之间不响').toBe(true);
@@ -695,13 +701,34 @@ describe('遍数与音色：一遍 / 两遍 / 三遍各有对待', () => {
     expect(warnings.join()).toContain('按播音指令读 3 遍');
   });
 
-  it('读两遍（含一段材料对多题）仍是同一音色——同一说话人重读，换人才是错的', () => {
+  it('读两遍的单说话人材料按 旁白→女 交替（2026-09-20 用户裁定：遍与遍分男声/女声）', () => {
     const twoPass = buildListeningStoryboard({
-      stage: '初中', grade: '八年级',
+      stage: '小学', grade: '六年级',
       items: [{ no: 6, range: { materialNo: 6, from: 6, to: 7 }, lines: longSolo }],
     }).segments.filter((s) => s.itemNo === 6 && (s.kind === 'material' || s.kind === 'repeat'));
     expect(twoPass).toHaveLength(2);
-    expect(twoPass[0].voice).toBe(twoPass[1].voice);
+    expect(twoPass.map((s) => s.role)).toEqual(['N', 'W']);
+    expect(twoPass[0].voice).toBe(LISTENING_VOICES.us.M);
+    expect(twoPass[1].voice).toBe(LISTENING_VOICES.us.W);
+  });
+
+  it('🔴 换声作用域＝小学：初中/高中默认不换声（真题惯例同一人重读），overrides 可开启', () => {
+    const build = (extra) => buildListeningStoryboard({
+      stage: '初中', grade: '八年级', ...extra,
+      items: [{ no: 6, range: { materialNo: 6, from: 6, to: 7 }, lines: longSolo }],
+    }).segments.filter((s) => s.itemNo === 6 && (s.kind === 'material' || s.kind === 'repeat'));
+    // 默认：初中不换声（保真——中考真题为同一人重读两遍）
+    const mid = build({});
+    expect(mid[0].voice).toBe(mid[1].voice);
+    // 显式开启：初中也能遍间换声
+    const midOn = build({ overrides: { passVoiceRotation: true } });
+    expect(midOn[0].voice).not.toBe(midOn[1].voice);
+    // 关掉开关：小学回到同一音色（同一说话人重读）
+    const primaryOff = buildListeningStoryboard({
+      stage: '小学', grade: '六年级', overrides: { passVoiceRotation: false },
+      items: [{ no: 6, range: { materialNo: 6, from: 6, to: 7 }, lines: longSolo }],
+    }).segments.filter((s) => s.itemNo === 6 && (s.kind === 'material' || s.kind === 'repeat'));
+    expect(primaryOff[0].voice).toBe(primaryOff[1].voice);
   });
 
   it('对话材料按角色分音色、不参与三遍轮读', () => {
@@ -871,7 +898,7 @@ describe('标准音频要素：题号播报 / 提示音 / 男女音色 / 停顿�
       .toBeGreaterThan(bp.params.pauses.longMaterialAnswerGapMs);
   });
 
-  it('🔴 同卷独白/短文播报者一致：未标注的长材料沿用同卷已标注的独白音色', () => {
+  it('🔴 遍间轮读尊重材料原标注：标注了女声的独白首遍仍是女声，次遍换男声', () => {
     const { segments } = buildListeningStoryboard({
       stage: '小学',
       grade: '六年级',
@@ -880,10 +907,16 @@ describe('标准音频要素：题号播报 / 提示音 / 男女音色 / 停顿�
         { no: 11, lines: [{ role: 'N', text: 'Last month, our school had an International Culture Festival and I wanted to be a culture ambassador so I practised every single day.' }] },
       ],
     });
-    const first = segments.find((s) => s.kind === 'material' && s.itemNo === 6);
-    const second = segments.find((s) => s.kind === 'material' && s.itemNo === 11);
-    expect(first.voice).toBe(LISTENING_VOICES.us.W);
-    expect(second.voice, '未标注的短文应与同卷独白同一播报者，不得中途换人').toBe(LISTENING_VOICES.us.W);
+    const passOf = (no, kind) => segments.find((s) => s.kind === kind && s.itemNo === no);
+    // 标注女声 → 首遍女声、次遍男声（不得把它顶成男声）
+    expect(passOf(6, 'material').voice).toBe(LISTENING_VOICES.us.W);
+    expect(passOf(6, 'repeat').voice).toBe(LISTENING_VOICES.us.M);
+    // 未标注（旁白）→ 首遍旁白音色（默认＝男主）、次遍对侧（女主）
+    expect(passOf(11, 'material').voice).toBe(LISTENING_VOICES.us.N);
+    expect(passOf(11, 'repeat').voice).toBe(LISTENING_VOICES.us.W);
+    // 遍与遍必须不同声（用户 2026-09-20 裁定）
+    expect(passOf(6, 'material').voice).not.toBe(passOf(6, 'repeat').voice);
+    expect(passOf(11, 'material').voice).not.toBe(passOf(11, 'repeat').voice);
   });
 });
 
@@ -1025,5 +1058,31 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
       const opening = segments.find((s) => s.kind === 'opening');
       expect(opening.voice).toBe(LISTENING_ZH_VOICE);
     });
+  });
+});
+
+describe('2026-09-20 语速按调研实证校准（不凭猜测）', () => {
+  it('小学高段 120（调研 110-120 上沿，用户反馈"太慢"后取区间上沿）；低/中段不变', () => {
+    expect(LISTENING_STAGE_WPM.primary_low).toBe(80);
+    expect(LISTENING_STAGE_WPM.primary_mid).toBe(95);
+    expect(LISTENING_STAGE_WPM.primary_high).toBe(120);
+  });
+
+  it('初中按年级：七 110 / 八 120 / 九 130（杭州真题 128、教研"120 词/分钟"之上沿）', () => {
+    expect(LISTENING_GRADE_WPM[7]).toBe(110);
+    expect(LISTENING_GRADE_WPM[8]).toBe(120);
+    expect(LISTENING_GRADE_WPM[9]).toBe(130);
+  });
+
+  it('高中 150（2024 新课标Ⅰ卷真题 ≈154、广东高考听说 ≈150），下限 140（真题分析 137-154 下沿）', () => {
+    expect(LISTENING_STAGE_WPM.high).toBe(150);
+    expect(LISTENING_HIGH_MIN_WPM).toBe(140);
+    const p = resolveListeningParams({ stage: '高中', overrides: { wpm: 120 } });
+    expect(p.wpm).toBe(LISTENING_HIGH_MIN_WPM);
+  });
+
+  it('六年级 ratePercent 按 160 基准换算（120/160-1 = -25%，较原 -28% 提升三档）', () => {
+    const p = resolveListeningParams({ stage: '小学', grade: '六年级' });
+    expect(p.ratePercent).toBe(-25);
   });
 });

@@ -22,7 +22,7 @@ import {
   LISTENING_SOUND_CHECK,
   LISTENING_FEATURE_DEFAULTS,
   LISTENING_PART_ANNOUNCEMENT,
-  LISTENING_TRIPLE_PASS_ROTATION,
+  LISTENING_PASS_VOICE_ROTATION,
   LISTENING_VOICE_CANDIDATES,
   LISTENING_ZH_VOICE,
   LISTENING_ZH_VOICE_CANDIDATES,
@@ -514,10 +514,24 @@ export function buildListeningStoryboard({
       return roleVoice.get(role);
     };
 
-    // 🔴 三遍轮读音色（2026-09-19 调研新增，见 LISTENING_TRIPLE_PASS_ROTATION）：
-    //    读三遍的**单说话人**材料按 男→女→男 轮换（实证：小学听力要求原文"男、女、男声中速各读一遍"）；
-    //    读两遍仍为同一音色（同一说话人重读一遍，真题即如此，换人反而是错的）；对话按角色分音色、不轮读。
-    const rotateTriple = LISTENING_TRIPLE_PASS_ROTATION && repeat >= 3 && !isDialogue;
+    // 🔴 遍间轮读音色（2026-09-20 用户实测裁定，见 LISTENING_PASS_VOICE_ROTATION）：
+    //    重复 ≥2 遍的**单说话人**材料按「旁白 ↔ 对侧音色」交替——首遍用旁白音色（未指定旁白＝男主），
+    //    两遍＝旁白、对侧；三遍＝旁白、对侧、旁白。既保证"遍与遍不同声"（用户裁定），
+    //    又保住"旁白音色可配"（2026-09-20 开放配置：独白主体由旁白音色领读）；
+    //    对话按角色分音色、不轮读（对话本身已男女分声，遍间换声会打乱角色）。
+    const rotatePass = (params.passVoiceRotation ?? LISTENING_PASS_VOICE_ROTATION) && repeat >= 2 && !isDialogue;
+    // 轮读音色对：**首遍＝材料自己声明的那条音色**（未标注 N → 旁白音色；标了 M/W → 男主/女主），
+    //   次遍＝池里与首遍不同的第一条（默认即对侧性别；池只有一条则同声回落）。
+    //   这样"标注了女声独白"的题不会被旁白音色顶掉（2026-09-20 回归：item 3 女声独白必须仍是女声）。
+    const rotateFirstRole = String((lines[0] && lines[0].role) || 'N').toUpperCase();
+    const rotateFirstVoice = rotatePass
+      ? (rotateFirstRole === 'M' ? voiceSet.M
+        : rotateFirstRole === 'W' ? voiceSet.W
+          : narratorVoiceEff)
+      : '';
+    const rotatePair = rotatePass
+      ? [rotateFirstVoice, effectivePool.find((v) => v !== rotateFirstVoice) || rotateFirstVoice]
+      : null;
     /** 本条的音色分配（角色 → 音色，按首次出现顺序）——供朗读稿"多音色配角色"呈现与界面摘要 */
     const castEntries = [];
     const castSeen = new Set();
@@ -530,10 +544,13 @@ export function buildListeningStoryboard({
         //   不读"一、听录音…/评分/范文"这类噪音（源节截取之外的兜底，见 listeningExtract）。
         if (isCjkNoise(text)) return;
         const isPassEnd = li === lines.length - 1;
-        // 三遍轮读：奇数遍男声、偶数遍女声（男→女→男）
-        const speakRole = rotateTriple ? (pass % 2 === 1 ? 'M' : 'W') : role;
-        const speakVoice = voiceOf(speakRole);
-        // 记录"角色 → 音色"（同一角色只记一次；三遍轮读天然会记 2 条：男、女）
+        // 遍间轮读音色：旁白 ↔ 对侧交替（两遍＝首遍、对侧；三遍＝首遍、对侧、首遍）
+        const speakVoice = rotatePair ? rotatePair[(pass - 1) % rotatePair.length] : voiceOf(role);
+        // 角色标签：**首遍沿用材料原标注**（未标注＝旁白 N，不因实际是男声就改标"男"）；
+        //   后续遍按实际音色回标（男主音色→M、女主音色→W、旁白音色→N），使朗读稿标注与发声一致。
+        const labelOfVoice = (v) => (v === voiceSet.N ? 'N' : v === voiceSet.M ? 'M' : v === voiceSet.W ? 'W' : 'N');
+        const speakRole = rotatePair ? (pass === 1 ? rotateFirstRole : labelOfVoice(speakVoice)) : role;
+        // 记录"角色 → 音色"（同一角色只记一次；遍间轮读天然会记 2 条）
         const castKey = `${speakRole}\u0000${speakVoice}`;
         if (!castSeen.has(castKey)) { castSeen.add(castKey); castEntries.push({ role: speakRole, voice: speakVoice }); }
         segments.push({
@@ -654,11 +671,11 @@ export function buildListeningScriptText(input = {}) {
     ? `每段材料读 ${params.repeat} 遍`
     : [...byRepeat.entries()].sort((a, b) => a[0] - b[0])
       .map(([r, nos]) => `第 ${nos.join('、')} 题读 ${r} 遍`).join('；');
-  // 三遍轮读音色是否在本卷实际生效（读三遍 且 单说话人）——仅该情形才追加对应录制提示
-  const rotateTripleUsed = LISTENING_TRIPLE_PASS_ROTATION
+  // 遍间轮读音色是否在本卷实际生效（重复≥2 遍 且 单说话人）——仅该情形才追加对应录制提示
+  const rotatePassUsed = (params.passVoiceRotation ?? LISTENING_PASS_VOICE_ROTATION)
     && (Array.isArray(rest.items) ? rest.items : []).some((it) => {
       const r = Number.isFinite(it.repeat) && it.repeat > 0 ? it.repeat : params.repeat;
-      if (r < 3) return false;
+      if (r < 2) return false;
       const roles = [...new Set((it.lines || []).map((l) => String((l && l.role) || 'N').toUpperCase()))];
       return roles.length <= 1;
     });
@@ -757,8 +774,8 @@ export function buildListeningScriptText(input = {}) {
   out.push(`· 题号播报：一段材料对多题处按真题写法读「听第X段材料，回答第X～Y小题」（见〔题号播报〕）${rest.announceShortItemNo !== false ? '；一题一材料处读英文「Number N.」' : '；一题一材料处**不读题号**'}`);
   out.push('· 提示音（叮咚）＝"打点"：**每段材料开始前响一次**（真题"不读小标题 Text，从打点开始"）；同一材料的第二/三遍之间**不响**（2026 新版高考明文"两遍之间无提示音"）；节指令与题号播报本身不响');
   out.push('· 同一角色全卷使用同一音色，保持语速一致，避免音色与语速漂移');
-  if (rotateTripleUsed) {
-    out.push('· 读三遍的单说话人材料按「男 → 女 → 男」轮换音色（依据：小学听力要求原文"男、女、男声中速各读一遍"）；读两遍仍为同一音色');
+  if (rotatePassUsed) {
+    out.push('· 读两遍及以上的单说话人材料**遍与遍换声**：首遍用材料自己声明的那条音色（未标注＝旁白音色、标注了男/女＝男主/女主），次遍换对侧音色，三遍则再回首遍音色（用户 2026-09-20 裁定"遍与遍分男声/女声"；实证：人教 PEP CD"两遍、英音美音各一遍"）；对话按角色分音色、不参与轮读');
   }
   if (params.stageKey === 'high') {
     out.push('· 高中学段不得压低语速——高考要求含自然连读、弱读，压速会消解自然语流');
