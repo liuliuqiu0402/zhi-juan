@@ -751,7 +751,18 @@ export function buildListeningScriptText(input = {}) {
   // "角色"只数真正的说话人（N＝旁白/独白，不是角色）；若无标注角色则按 1 个（旁白）计
   const roleSet = new Set(voiceCast.flatMap((c) => (c.entries || []).map((e) => e.role)).filter((r) => r !== 'N'));
   const speakerCount = roleSet.size || (voiceCast.length ? 1 : 0);
-  out.push(`说话人：全书 ${speakerCount} 个角色　｜　${voicePool.length} 条音色${speakerCount > voicePool.length ? '　⚠️ 角色多于音色，多出的角色会沿用已有音色（可在弹窗补配"男声副/女声副"）' : ''}`);
+  // 🔴 说话人 ≠ 音色（2026-09-20 用户实测追问："说话人 1 个 · 音色 2 条，这是啥意思，一个人两个音色？"）：
+  //    两个数字数的是**不同的东西**——说话人＝材料里有几个角色；音色＝实际听到几条声线。
+  //    小学遍间换声开启时，同一段单说话人材料两遍就分男女两条声线，故"1 个说话人 + 2 条音色"是常态。
+  //    为避免误读，这里把**材料实际用到的音色**逐条列出来，并说明多出的一条从哪来。
+  const materialVoices = [...new Set(segments
+    .filter((s) => s.kind === 'material' || s.kind === 'repeat')
+    .map((s) => s.voice))];
+  const rotationOn = segments.some((s) => s.kind === 'repeat' && s.voice !== segments.find((x) => x.kind === 'material' && x.itemNo === s.itemNo)?.voice);
+  out.push(`说话人：全书 ${speakerCount} 个角色　｜　材料实际用到 ${materialVoices.length} 条音色（${materialVoices.map((v) => voiceLabel(v)).join('、')}）`
+    + (rotationOn ? '　↳ 单说话人材料按遍间换声分读，故声线多于说话人' : '')
+    + (materialVoices.length !== voicePool.length ? `；音色池共 ${voicePool.length} 条：${voicePool.map((v) => voiceLabel(v)).join('、')}` : '')
+    + (speakerCount > voicePool.length ? '　⚠️ 角色多于音色，多出的角色会沿用已有音色（可在弹窗补配"男声副/女声副"）' : ''));
   out.push('');
 
   let currentItem = '__none__';

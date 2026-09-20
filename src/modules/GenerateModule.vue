@@ -9284,8 +9284,34 @@ const renderListeningArtifacts = () => {
   // Edge 免费通道：与 SSML 同源重建 storyboard 段（纯函数零成本），供逐句合成
   const sb = buildListeningStoryboard(input);
   listeningSegments.value = sb.segments;
-  // 🎚 多角色配声摘要（2026-09-19 用户要求"能立即知道是否有多角色"）：
-  //    本卷几个角色、配了几条音色、哪些题的角色数超过音色数（超了就提示去补配副音色）
+  // 🎚 配声摘要（2026-09-19 用户要求"能立即知道是否有多角色"；
+  //    2026-09-20 用户追问"说话人 1 个 · 音色 2 条，这是啥意思，一个人两个音色？"后改为自解释）：
+
+  //    两个数字数的是**不同的东西**，必须分开说清：
+  //      · 说话人＝材料里有几个角色（对话里的 A/B、标注的 M/W；全篇未标注的独白算 1 个"旁白"）；
+  //      · 音色＝实际听到几条声线——把**材料真正用到的音色逐条列名**，并说明多出的从哪来；
+  //      · 音色池＝你配了几条（男主/女主/男声副/女声副），只在"配了却没用上"时才提。
+  const voicesShort = (v) => {
+    const hit = [...LISTENING_ZH_VOICE_CANDIDATES.map((c) => [c.voice, c.name]),
+      ...LISTENING_MIXED_TITLE_VOICE_CANDIDATES.map((c) => [c.voice, c.name])]
+      .find(([voice]) => voice === v);
+    if (hit) return hit[1].replace(/（.*?）/g, '').trim();
+    for (const [g, label] of [['M', '男声'], ['W', '女声']]) {
+      const us = (LISTENING_VOICE_CANDIDATES.us[g] || []).indexOf(v);
+      if (us >= 0) return `${label}${us + 1}·${v.replace(/^en-US-|Neural$/g, '')}`;
+      const gb = (LISTENING_VOICE_CANDIDATES.gb[g] || []).indexOf(v);
+      if (gb >= 0) return `${label}${gb + 1}·${v.replace(/^en-GB-|Neural$/g, '')}`;
+    }
+    return v.replace(/^[a-z]{2}-[A-Z]{2}-/, '').replace(/Neural$/, '');
+  };
+  const materialSegs = (sb.segments || []).filter((s) => s.kind === 'material' || s.kind === 'repeat');
+  const usedVoices = [...new Set(materialSegs.map((s) => s.voice))];
+  // 遍间换声生效？同一条材料的第 2 遍换了声线即成立
+  const rotationOn = materialSegs.some((s) => {
+    if (s.kind !== 'repeat') return false;
+    const first = materialSegs.find((x) => x.kind === 'material' && x.itemNo === s.itemNo);
+    return first && first.voice !== s.voice;
+  });
   const cast = sb.voiceCast || [];
   const pool = sb.voicePool || [];
   // "角色"只数真正的说话人（N＝旁白/独白，不算角色；无标注角色时按 1 个旁白计）
@@ -9293,7 +9319,10 @@ const renderListeningArtifacts = () => {
   const roleCount = roles.size || (cast.length ? 1 : 0);
   const over = cast.filter((c) => (c.entries || []).length > pool.length).map((c) => `第${c.itemNo}题`);
   listeningCastSummary.value = cast.length
-    ? `说话人 ${roleCount} 个 · 音色 ${pool.length} 条${over.length ? `　⚠️ ${over.join('、')} 的角色多于音色，多出的角色会沿用已有音色（可补配"男声副/女声副"）` : ''}`
+    ? `说话人 ${roleCount} 个 · 材料实际用到 ${usedVoices.length} 条音色：${usedVoices.map(voicesShort).join(' + ')}`
+      + (rotationOn ? '　↳ 单说话人材料按「遍间换声」分读，故声线数多于说话人数' : '')
+      + (usedVoices.length !== pool.length ? `（音色池共 ${pool.length} 条：${pool.map(voicesShort).join('、')}）` : '')
+      + (over.length ? `　⚠️ ${over.join('、')} 的角色多于音色，多出的角色会沿用已有音色（可补配"男声副/女声副"）` : '')
     : '';
 
   listeningSsml.value = ssml;

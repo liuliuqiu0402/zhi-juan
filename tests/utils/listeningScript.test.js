@@ -648,9 +648,9 @@ describe('音色：默认值 / 候选 / 多角色音色池', () => {
       ],
       voicePoolInput: ['en-US-ChristopherNeural', 'en-US-JennyNeural', 'en-US-EricNeural', ''],
     });
-    // 头部：生效音色池 + 角色/音色计数
+    // 头部：生效音色池 + 角色/声线计数（说话人 ≠ 音色，两个数字分开说清）
     expect(text).toContain('音色：男声 1 · Christopher　｜　女声 2 · Jenny　｜　男声 3 · Eric');
-    expect(text).toContain('说话人：全书 3 个角色　｜　3 条音色');
+    expect(text).toContain('说话人：全书 3 个角色　｜　材料实际用到 3 条音色（男声 1 · Christopher、女声 2 · Jenny、男声 3 · Eric）');
     // 第 1 题两个角色 → 男主 + 女主
     expect(text).toContain('（音色）A → 男声 1 · Christopher　｜　B → 女声 2 · Jenny');
     // 第 2 题三个角色 → 三条不同音色（第三人用"男声副"）
@@ -659,6 +659,26 @@ describe('音色：默认值 / 候选 / 多角色音色池', () => {
     expect(text).toMatch(/\nA：Hi\./);
     expect(text).not.toMatch(/旁白：Hi\./);
     expect(warnings.join(), '三人三音色，不该告警').not.toContain('角色多于音色');
+  });
+
+  it('🔴 「说话人 1 个 · 音色 2 条」必须自解释：单说话人 + 遍间换声＝2 条声线，且标明多出的从哪来', () => {
+    // 2026-09-20 用户追问："说话人 1 个 · 音色 2 条，这是啥意思，一个人两个音色？"
+    // 小学默认开遍间换声：同一段单说话人材料两遍分男女两条声线 → 1 个说话人 + 2 条音色的常态要能读懂
+    const primary = buildListeningScriptText({
+      stage: '小学', grade: '六年级', announceTitle: false, soundCheck: false,
+      items: [{ no: 1, lines: [{ role: 'N', text: 'Tom is a good boy and he likes reading books after school.' }] }],
+    }).text;
+    expect(primary).toContain('说话人：全书 1 个角色　｜　材料实际用到 2 条音色');
+    expect(primary).toContain('单说话人材料按遍间换声分读，故声线多于说话人');
+
+    // 初中默认不换声：同一材料两遍同一声线 → 只有 1 条被用到，池里另一条如实标注"另配"
+    const middle = buildListeningScriptText({
+      stage: '初中', grade: '八年级', announceTitle: false, soundCheck: false,
+      items: [{ no: 1, lines: [{ role: 'N', text: 'Tom is a good boy and he likes reading books after school.' }] }],
+    }).text;
+    expect(middle).toContain('说话人：全书 1 个角色　｜　材料实际用到 1 条音色');
+    expect(middle).toContain('音色池共 2 条');
+    expect(middle).not.toContain('遍间换声分读');
   });
 
   it('🔴 角色多于音色时如实告警，指明是第几题（用户据此决定是否补配副音色）', () => {
