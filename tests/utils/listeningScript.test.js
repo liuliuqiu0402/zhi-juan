@@ -24,6 +24,7 @@ import {
   buildListeningSsml,
   buildListeningScriptText,
   normalizeForSpeech,
+  splitLongForSpeech,
   normalizeSectionLabel,
   splitMixedLanguageRuns,
   intToEnglishWords,
@@ -282,12 +283,23 @@ describe('朗读化：安全替换 + 高风险只登记不改写', () => {
     expect(risks.flatMap((r) => r.samples).join()).toContain('$');
   });
 
-  // 🔴 2026-09-19：补全短文类若沿用卷面的下划线占位，TTS 会把 "___" 念成 underscore，
-  //    实测表现即"音频与内容对不上"。源头契约（E4）已要求写全短文，此处锁住音频侧的兜底提示。
-  it('🔴 下划线占位须登记为风险（不得静默念成 underscore）', () => {
+  // 🔴 2026-09-20 口径变更（用户实测第6题补全短文，同时报"逐句合成中断：Stream closed…"）：
+  //    下划线占位从"仅登记"升格为"**不朗读**"——它是唯一没有另一种合法读法的项（念出来就是 underscore），
+  //    长串占位还是免费通道中途断流的诱因。删除占位后句子读起来自然；风险提示改为
+  //    "音频已不朗读占位，但材料仍不完整，须回源补全"——**问题不能被静默抹掉**。
+  it('🔴 下划线占位：既不朗读，也不静默消失（删除占位 + 保留风险登记）', () => {
     const { text, risks } = normalizeForSpeech('Tom is a ___ boy.');
-    expect(text).toBe('Tom is a ___ boy.');   // 只登记、不改写
-    expect(risks.map((r) => r.code)).toContain('blank-underscore');
+    expect(text).not.toContain('_');        // 不进 TTS：不得念成 underscore
+    expect(text).toBe('Tom is a boy.');     // 删占位后句子仍完整可读（不留双空格）
+    const risk = risks.find((r) => r.code === 'blank-underscore');
+    expect(risk).toBeTruthy();
+    expect(risk.note).toContain('不朗读占位');
+    expect(risk.note).toContain('补全短文');
+  });
+
+  it('下划线占位：全角同样处理；单个下划线（正常命名）不得误伤', () => {
+    expect(normalizeForSpeech('Tom is ＿＿＿ years old.').text).toBe('Tom is years old.');
+    expect(normalizeForSpeech('file_name_here').text).toBe('file_name_here');
   });
 });
 
@@ -1519,5 +1531,60 @@ describe('固定播报开关：开场白 / 部分标题 / 结束语', () => {
     expect(segs.find((s) => s.kind === 'opening').text).toBe('听力考试现在开始。');
     expect(segs.find((s) => s.kind === 'part').text).toBe('第一部分 听力部分。');
     expect(segs.find((s) => s.kind === 'closing').text).toBe('听力部分到此结束。');
+  });
+});
+
+/**
+ * ✂️ 长段切句（2026-09-20 用户实测"逐句合成中断：Stream closed before the synthesis completed"）
+ * ============================================================
+ * 免费 Edge 通道是 websocket 逐句合成，单段过长（补全短文整段、长独白）时中途断流概率显著上升。
+ * 锁三件事：① 短句**不被切**（正常考题不受影响）；② 长段按句末切、**文字不丢不改**；
+ *          ③ 切出来的多段在 storyboard 里听感连续（段间仍是句间停顿、末段才吃"遍间/作答"档）。
+ */
+describe('长段切句：只切超长段，且不改变任何一个字', () => {
+  const LONG_SENTENCE = 'Tom is a student in Grade Six. He goes to school by bus every day with his sister. '
+    + 'They like English very much and they often read English stories after school in the library. '
+    + 'Last week they joined the school English club and made a lot of new friends there.';
+  const LONG_ITEM = [{ no: 1, lines: [{ role: 'N', text: LONG_SENTENCE }] }];
+
+  it('短句原样返回（正常考题单句不会被切）', () => {
+    const short = 'Excuse me, where is the library?';
+    expect(splitLongForSpeech(short)).toEqual([short]);
+  });
+
+  it('空串返回空数组；超过阈值的长段按句末切分', () => {
+    expect(splitLongForSpeech('')).toEqual([]);
+    const parts = splitLongForSpeech(LONG_SENTENCE);
+    expect(parts.length).toBeGreaterThan(1);
+    parts.forEach((p) => expect(p.length).toBeLessThanOrEqual(180));
+    // 🔴 文字不丢不改：拼回来与原文逐字一致（只差切点处的空白）
+    expect(parts.join(' ').replace(/\s+/g, ' ')).toBe(LONG_SENTENCE.replace(/\s+/g, ' '));
+  });
+
+  it('单个句子超长时按空格硬切，不把请求留成超长', () => {
+    const oneSentence = `${'word '.repeat(60)}end.`;   // 一句到底、无句末标点分隔
+    const parts = splitLongForSpeech(oneSentence);
+    expect(parts.length).toBeGreaterThan(1);
+    parts.forEach((p) => expect(p.length).toBeLessThanOrEqual(180));
+  });
+
+  it('🔴 storyboard：长材料切成多段，音色/角色一致，段间仍是句间停顿、末段才吃遍间档', () => {
+    const segs = buildListeningStoryboard({
+      items: LONG_ITEM, stage: 'middle', soundCheck: false,
+      announceTitle: false, announcePart: false, announceClosing: false,
+    }).segments.filter((s) => s.kind === 'material');
+    expect(segs.length).toBeGreaterThan(1);
+    expect(new Set(segs.map((s) => s.voice)).size).toBe(1);
+    expect(new Set(segs.map((s) => s.role)).size).toBe(1);
+    // 前几段＝句间停顿（听感连续）；最后一段＝两遍之间的等待
+    segs.slice(0, -1).forEach((s) => expect(s.gapAfterMs).toBe(LISTENING_PAUSE.sentenceGapMs));
+    expect(segs[segs.length - 1].gapAfterMs).toBe(LISTENING_PAUSE.betweenRepeatsMs);
+    // 叮咚仍只响一次（落在本条第一个发音段上），不因切句而多响
+    const itemSegs = buildListeningStoryboard({
+      items: LONG_ITEM, stage: 'middle', soundCheck: false, announceTitle: false,
+      announcePart: false, announceClosing: false,
+    }).segments.filter((s) => s.itemNo === 1);
+    expect(itemSegs.filter((s) => s.chimeBefore === true).length).toBe(1);
+    expect(itemSegs[0].chimeBefore).toBe(true);
   });
 });

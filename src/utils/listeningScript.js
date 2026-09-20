@@ -18,6 +18,8 @@ import {
   resolveListeningParams,
   LISTENING_SAFE_ABBR,
   LISTENING_RISK_PATTERNS,
+  LISTENING_BLANK_PLACEHOLDER_RE,
+  LISTENING_MAX_SPEAK_CHARS,
   LISTENING_ROLE_LABELS,
   LISTENING_SOUND_CHECK,
   LISTENING_FEATURE_DEFAULTS,
@@ -67,8 +69,11 @@ export const escapeXml = (s = '') => String(s)
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&apos;');
 
+/** 填空占位删除用（需要全局匹配；`LISTENING_BLANK_PLACEHOLDER_RE` 不带 g，专门给 test 用，避免 lastIndex 陷阱） */
+const BLANK_PLACEHOLDER_RE_G = new RegExp(LISTENING_BLANK_PLACEHOLDER_RE.source, 'g');
+
 /**
- * 朗读化预处理：只做**安全替换**（定式缩写），高风险同形多义项一律不自动改写，只登记。
+ * 朗读化预处理：安全替换（定式缩写）+ **填空占位不再进 TTS**；其余高风险同形多义项只登记不改写。
  * @returns {{ text: string, risks: Array<{code:string,note:string,samples:string[]}> }}
  */
 export function normalizeForSpeech(text = '') {
@@ -80,7 +85,53 @@ export function normalizeForSpeech(text = '') {
     const m = out.match(new RegExp(r.re.source, flags));
     if (m) risks.push({ code: r.code, note: r.note, samples: [...new Set(m)].slice(0, 5) });
   }
+  // 🔴 填空占位**直接删除、不朗读**（2026-09-20 用户实测后定）：
+  //    下划线会被 TTS 念成 "underscore"（音频与卷面内容对不上），连成长串后还极易让免费通道中途断流
+  //    （同一次实测的"逐句合成中途 Stream closed"）。它是本题材里**唯一没有另一种合法读法**的项，
+  //    故可以安全地自动删除——删除后句子读起来自然（不念任何错词）。
+  //    ⚠️ 删除只解决"不念错词"；材料本身仍不完整，风险提示会说清"须回源补全"（见 LISTENING_RISK_PATTERNS）。
+  if (LISTENING_BLANK_PLACEHOLDER_RE.test(out)) {
+    out = out.replace(BLANK_PLACEHOLDER_RE_G, ' ').replace(/[ \t]{2,}/g, ' ').trim();
+  }
   return { text: out, risks };
+}
+
+/** 按长度硬切（优先在空格处断，避免把单词劈开） */
+function hardSplitByLength(s, max) {
+  const out = [];
+  let rest = String(s || '');
+  while (rest.length > max) {
+    let cut = rest.lastIndexOf(' ', max);
+    if (cut <= 0) cut = max;
+    out.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if (rest) out.push(rest);
+  return out.filter(Boolean);
+}
+
+/**
+ * 长段切句（2026-09-20 用户实测"逐句合成中断：Stream closed before the synthesis completed"后新增）
+ * ============================================================
+ * 免费 Edge 通道是 **websocket 逐句合成**：单段过长（补全短文整段、长独白）时，服务端在中途关流的
+ * 概率显著上升，而原实现"一段＝一行"，几百字符也照发。
+ * 处置：超过 `max` 的段按**句末标点**切开，把"一次长请求"换成"几次短请求"——
+ *   · 听觉上几乎无差别（切点仍在句末，段间仍是句间停顿档）；
+ *   · 朗读稿上表现为该段按句折行（不影响真人录音照读）；
+ *   · 单个句子本身超长时再按空格硬切（保底不出现超长请求）。
+ * @returns {string[]} 至少一段（原文不长时原样返回）
+ */
+export function splitLongForSpeech(text = '', max = LISTENING_MAX_SPEAK_CHARS) {
+  const t = String(text || '').trim();
+  if (!t) return [];
+  if (t.length <= max) return [t];
+  const sentences = t.split(/(?<=[.!?…])\s+/).map((s) => s.trim()).filter(Boolean);
+  const out = [];
+  for (const s of (sentences.length ? sentences : [t])) {
+    if (s.length <= max) out.push(s);
+    else out.push(...hardSplitByLength(s, max));
+  }
+  return out.length ? out : [t];
 }
 
 /** 口音落点：'mixed' 时按题序英/美交替（对齐高考混合口音趋势）；其余按策略直取 */
@@ -621,17 +672,26 @@ export function buildListeningStoryboard({
         // 记录"角色 → 音色"（同一角色只记一次；遍间轮读天然会记 2 条）
         const castKey = `${speakRole}\u0000${speakVoice}`;
         if (!castSeen.has(castKey)) { castSeen.add(castKey); castEntries.push({ role: speakRole, voice: speakVoice }); }
-        segments.push({
-          kind: pass === 1 ? 'material' : 'repeat',
-          voice: speakVoice,
-          role: speakRole,
-          text: String(text).trim(),
-          ratePercent: params.ratePercent,
-          chimeBefore: false,   // 叮咚落点见本条末尾统一赋值
-          // 同一材料两遍之间用较长间隙；材料内部句/轮之间用短间隙（停顿的"顿挫感"主要来自这里，故取小值）
-          gapAfterMs: isPassEnd && pass < repeat ? params.pauses.betweenRepeatsMs : params.pauses.sentenceGapMs,
-          itemNo: item.no,
-          pass,
+        // 🔴 长段切句（2026-09-20）：一段＝一行的老做法，遇到补全短文整段/长独白时会让免费 Edge 通道
+        //    中途断流（实测"Stream closed before the synthesis completed"）。切点取句末标点，
+        //    段后停留沿用句间档，故**听感连续、只是请求变短**。
+        const chunks = splitLongForSpeech(text);
+        chunks.forEach((chunk, ci) => {
+          const isLastChunk = ci === chunks.length - 1;
+          segments.push({
+            kind: pass === 1 ? 'material' : 'repeat',
+            voice: speakVoice,
+            role: speakRole,
+            text: chunk,
+            ratePercent: params.ratePercent,
+            chimeBefore: false,   // 叮咚落点见本条末尾统一赋值
+            // 同一材料两遍之间用较长间隙；材料内部句/轮之间用短间隙（停顿的"顿挫感"主要来自这里，故取小值）
+            gapAfterMs: isPassEnd && isLastChunk && pass < repeat
+              ? params.pauses.betweenRepeatsMs
+              : params.pauses.sentenceGapMs,
+            itemNo: item.no,
+            pass,
+          });
         });
       });
     }
@@ -911,6 +971,7 @@ export function buildListeningScriptText(input = {}) {
 export default {
   escapeXml,
   normalizeForSpeech,
+  splitLongForSpeech,
   pickAccentForItem,
   isLongMaterial,
   isMultiQuestion,

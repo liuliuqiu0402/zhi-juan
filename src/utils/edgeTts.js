@@ -33,6 +33,10 @@ export function mapSegmentsForEdge(segments = []) {
       gapAfterMs: Number.isFinite(s.gapAfterMs) && s.gapAfterMs > 0 ? Math.round(s.gapAfterMs) : 0,
       // 段前提示音（"叮咚"）：题与题的边界、换节处——正规听力音频的必备要素
       chimeBefore: s.chimeBefore === true,
+      // 🔴 题号/角色只为**合成失败时报出"卡在第几题"**（2026-09-20）：免费通道偶发断流时，
+      //    用户需要知道改哪一句，而不是只看到一句库的英文错误。不参与合成本身。
+      itemNo: s.itemNo === null || s.itemNo === undefined ? null : s.itemNo,
+      role: String(s.role || ''),
     }));
 }
 

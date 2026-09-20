@@ -534,6 +534,52 @@ async function edgeSynthesizeSegment(voice, text, ratePercent, outDir, idx) {
   }
 }
 
+/** 逐句合成重试次数（同句重试；退避见 edgeSynthesizeSegmentWithRetry） */
+const EDGE_SYNTH_ATTEMPTS = 3;
+
+/**
+ * 🔁 逐句合成失败时的可操作报错（2026-09-20 用户实测后新增）
+ * ============================================================
+ * 原实现只把库的原始错误抛出来（"逐句合成中断：Stream closed before the synthesis completed..."），
+ * 用户既不知道卡在第几段，也不知道该改什么。这里补上"段序 / 题号 / 角色 / 音色 / 文本前 40 字"，
+ * 并给出下一步动作——这类断流多数是免费通道偶发，重试即可。
+ */
+function describeEdgeFailure(seg, index, total, err) {
+  const t = String(seg.text || '');
+  const preview = t.length > 40 ? `${t.slice(0, 40)}…` : t;
+  const where = seg.itemNo ? `第 ${seg.itemNo} 题` : '框架段（标题/指令/播报等）';
+  return [
+    `逐句合成中断：第 ${index + 1}/${total} 段重试 ${EDGE_SYNTH_ATTEMPTS} 次仍失败`,
+    `· 位置：${where}${seg.role ? `　角色：${seg.role}` : ''}　音色：${seg.voice}`,
+    `· 文本：${preview}`,
+    `· 底层错误：${err && err.message ? err.message : String(err)}`,
+    '· 处理建议：Edge 免费通道偶发断流，稍后重试通常即可；若总卡在同一段，请检查该段文本（是否超长、是否含下划线填空占位等特殊符号）。',
+  ].join('\n');
+}
+
+/**
+ * 带重试的逐句合成
+ * ============================================================
+ * 🔴 为什么必须重试：Edge 免费通道是**非官方**接口，长卷合成中偶发断流属常态
+ *   （实测错误 "Stream closed before the synthesis completed (no turn.end received)"），
+ *   原实现"一次失败＝整卷中止"，一卷 50 段录到第 48 段断掉，前功尽弃。
+ *   同句重试通常就过；仍失败才报错，且报错必须能定位到具体那一段。
+ */
+async function edgeSynthesizeSegmentWithRetry(seg, outDir, index, total) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= EDGE_SYNTH_ATTEMPTS; attempt++) {
+    try {
+      return await edgeSynthesizeSegment(seg.voice, seg.text, seg.ratePercent, outDir, index);
+    } catch (e) {
+      lastErr = e;
+      if (attempt < EDGE_SYNTH_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, attempt === 1 ? 600 : 1500));
+      }
+    }
+  }
+  throw new Error(describeEdgeFailure(seg, index, total, lastErr));
+}
+
 /** 文件名安全化：把 Windows 非法字符（ : \ / * ? " < > | 与换行）换成下划线，保留中文；→ 与渲染端 Azure 同规格 */
 function safeAudioFileName(name = '', fallback = '听力音频') {
   const s = String(name || '').replace(/[\\/:*?"<>|\r\n\t]/g, '_').trim();
@@ -567,6 +613,7 @@ ipcMain.handle('edge-tts-to-file', async (event, payload = {}) => {
     return { ok: false, error: '没有可合成的分段（听力原文为空）' };
   }
   // 逐句字段白名单校验：voice/text 必须为串，ratePercent/gapAfterMs 取有限数值，防脏 payload 注入
+  // itemNo/role 只为**失败时报出"卡在第几题"**用（2026-09-20），不参与合成
   const sanitized = segments.map((s, i) => {
     const voice = /^[a-zA-Z]{2,3}-[a-zA-Z]{2,3}-[A-Za-z0-9-]{1,60}$/.test(String(s.voice || ''))
       ? String(s.voice) : 'en-US-AriaNeural';
@@ -574,7 +621,16 @@ ipcMain.handle('edge-tts-to-file', async (event, payload = {}) => {
     const ratePercent = Number.isFinite(Number(s.ratePercent)) ? Math.round(Number(s.ratePercent)) : 0;
     const gapAfterMs = Number.isFinite(Number(s.gapAfterMs)) && Number(s.gapAfterMs) > 0 ? Math.round(Number(s.gapAfterMs)) : 0;
     if (!text) return null;
-    return { voice, text, ratePercent, gapAfterMs, chimeBefore: s.chimeBefore === true, idx: i };
+    return {
+      voice,
+      text,
+      ratePercent,
+      gapAfterMs,
+      chimeBefore: s.chimeBefore === true,
+      itemNo: s.itemNo === null || s.itemNo === undefined ? null : String(s.itemNo).slice(0, 12),
+      role: String(s.role || '').slice(0, 12),
+      idx: i,
+    };
   }).filter(Boolean);
   if (!sanitized.length) return { ok: false, error: '所有分段均为空文本，无法合成' };
 
@@ -617,11 +673,12 @@ ipcMain.handle('edge-tts-to-file', async (event, payload = {}) => {
           parts.push(chimeBuf);
           parts.push(makeSilentMp3Frames(250));
         }
-        const buf = await edgeSynthesizeSegment(seg.voice, seg.text, seg.ratePercent, outDir, i);
+        const buf = await edgeSynthesizeSegmentWithRetry(seg, outDir, i, sanitized.length);
         parts.push(buf);
         if (seg.gapAfterMs) parts.push(makeSilentMp3Frames(seg.gapAfterMs));
       } catch (e) {
-        return { ok: false, error: `逐句合成中断：${e.message}` };
+        // 已带"段序/题号/角色/文本"的可操作报错（见 describeEdgeFailure），此处不再套壳，避免信息被压扁
+        return { ok: false, error: e.message };
       }
     }
     const total = Buffer.concat(parts);

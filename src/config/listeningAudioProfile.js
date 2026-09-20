@@ -462,6 +462,28 @@ export const LISTENING_SAFE_ABBR = [
 ];
 
 /**
+ * 填空占位（半角/全角下划线，2 个及以上）——2026-09-20 **从"仅登记"升格为"自动不朗读"**
+ * ============================================================
+ * 用户实测（第6题补全短文）同时报了两件事：
+ *   ① 逐句合成中断 "Stream closed before the synthesis completed (no turn.end received)"；
+ *   ② 需人工确认项里列出「下划线空格会被读成 underscore」。
+ * 判断：下划线占位是**唯一没有"另一种合法读法"的高风险项**——任何情况下都不该念出来；
+ *   而连成长串（如 `_____________`）还会把它变成畸形输入，极易让免费通道中途断流。
+ * 故：TTS 前直接删除占位（不念任何错词），风险提示同时说明"材料仍不完整、须回源补全"。
+ * 只匹配 **2 个及以上** 连续下划线，避免误伤 `Tom_s` 这类正常下划线命名。
+ */
+export const LISTENING_BLANK_PLACEHOLDER_RE = /_{2,}|＿{2,}/;
+
+/**
+ * 长段切句阈值（字符）——2026-09-20 新增
+ * ============================================================
+ * 免费 Edge 通道是 websocket 逐句合成，**单段过长**（补全短文整段、长独白）时服务端中途关流的概率
+ * 显著上升（同一次实测的 ①）。超过本阈值即按句末标点切开，把"一次长请求"换成"几次短请求"。
+ * 180 字符约等于 1–2 个长句，正常考题单句不会被切；只有整段独白/短文才会被切成几段。
+ */
+export const LISTENING_MAX_SPEAK_CHARS = 180;
+
+/**
  * 朗读化·高风险项：**同形多义，一律不自动替换**，只登记供人工确认。
  * 原因：TTS 读错这类项会导致"学生听到的"与"答案页文本"不一致，而答案按文本批改 —— 属一致性红线。
  */
@@ -473,7 +495,10 @@ export const LISTENING_RISK_PATTERNS = [
   { code: 'decimal', re: /\b\d+\.\d+\b/, note: '小数点读作 point，需确认引擎读法' },
   { code: 'time', re: /\b\d{1,2}:\d{2}\b/, note: '时刻读法需确认（three thirty / half past three）' },
   // 补全短文类若沿用卷面的下划线占位，TTS 会把 "___" 念成 underscore（实测"音频与内容对不上"的来源之一）
-  { code: 'blank-underscore', re: /_{2,}/, note: '下划线空格会被读成 underscore，须补全成完整短文或删除占位' },
+  // 🔴 2026-09-20 起此项**已被自动处理**（normalizeForSpeech 直接删除占位，不朗读），
+  //    但仍要登记——因为删除占位只解决了"不念错词"，**材料本身不完整**这个问题依然存在，
+  //    必须让用户看到并回源补全，否则学生根本听不到该空要填的内容。
+  { code: 'blank-underscore', re: LISTENING_BLANK_PLACEHOLDER_RE, note: '下划线填空占位：音频已**不朗读占位**（自动删除，否则会念成 underscore）；但补全短文/填空类必须给出完整短文，否则学生听不到该空的内容 —— 请回源材料补全后重做' },
 ];
 
 /** 角色标记的规范写法（朗读稿用；SSML 内**不得**出现，否则会被 TTS 念出来） */
@@ -609,6 +634,8 @@ export default {
   LISTENING_BASE_WPM,
   LISTENING_SAFE_ABBR,
   LISTENING_RISK_PATTERNS,
+  LISTENING_BLANK_PLACEHOLDER_RE,
+  LISTENING_MAX_SPEAK_CHARS,
   LISTENING_ROLE_LABELS,
   resolveListeningParams,
   missingListeningStages,

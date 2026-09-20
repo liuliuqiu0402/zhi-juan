@@ -3,17 +3,29 @@ import { mapSegmentsForEdge } from '../../src/utils/edgeTts.js';
 
 /**
  * Edge 免费语音通道（2026-09-19）
- * 锁定：storyboard 段 → 主进程逐句合成所需最小字段的映射（voice/text/ratePercent/gapAfterMs/chimeBefore）；
+ * 锁定：storyboard 段 → 主进程逐句合成所需最小字段的映射
+ *      （voice/text/ratePercent/gapAfterMs/chimeBefore + 报错定位用的 itemNo/role）；
  *        只透传清晰字段，空白段、非法数值一律过滤/钳制，防止脏 payload 进主进程。
  */
 describe('mapSegmentsForEdge：段映射与字段净化', () => {
-  it('映射 voice/text/ratePercent/gapAfterMs/chimeBefore 五字段，语速四舍五入', () => {
+  it('映射 voice/text/ratePercent/gapAfterMs/chimeBefore + itemNo/role，语速四舍五入', () => {
     const out = mapSegmentsForEdge([{
       voice: 'en-US-GuyNeural', text: 'Hello.', ratePercent: -13.33, gapAfterMs: 8000, chimeBefore: true,
+      itemNo: 2, role: 'M',
     }]);
     expect(out[0]).toEqual({
       voice: 'en-US-GuyNeural', text: 'Hello.', ratePercent: -13, gapAfterMs: 8000, chimeBefore: true,
+      itemNo: 2, role: 'M',
     });
+  });
+
+  it('itemNo/role 只为"合成断流时报出卡在第几题"（2026-09-20）：缺省时给安全值，不留 undefined', () => {
+    const out = mapSegmentsForEdge([{ voice: 'en-US-GuyNeural', text: 'A.' }]);
+    expect(out[0].itemNo).toBe(null);
+    expect(out[0].role).toBe('');
+    // 框架段（标题/指令/播报，本来就没有题号）同样安全
+    const frame = mapSegmentsForEdge([{ voice: 'zh-CN-XiaoxiaoNeural', text: '听力考试现在开始。' }]);
+    expect(frame[0].itemNo).toBe(null);
   });
 
   it('chimeBefore 未给/非 true 一律归一为 false（主进程只认严格的 true）', () => {
