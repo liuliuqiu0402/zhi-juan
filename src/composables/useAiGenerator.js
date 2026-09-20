@@ -23,7 +23,7 @@ import {
   buildTemplateInfoBlock, buildContextBlock,
   buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,
 } from '../utils/injectionManifest.js';
-import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
+import { extractGradeNum, resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
 import {
   genTypeTemplates,
   normalizeSubjectName
@@ -3008,7 +3008,7 @@ const maxInputTokens = config.engine === 'deepseek'
       coreTopics: '',
       knowledgePoints: [],
       knowledgeHierarchy: [],
-      competency: extractGradeNum(grade) <= 6 ? '识记与理解' : '应用与分析',
+      competency: resolveCompetency(stage, grade),
       style: '传统',
       ocrQuality: ocrQuality.quality,
       isGuidePage
@@ -3437,7 +3437,7 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
     return {
       ...result,
       knowledgePoints: flatKnowledgePoints,
-      competency: extractGradeNum(grade) <= 6 ? '识记与理解' : '应用与分析',
+      competency: resolveCompetency(stage, grade),
       style: '传统'
     };
   };
@@ -4328,7 +4328,7 @@ ${cardAnalysisText.substring(0, 1000)}
       //    任一变化（换章、改原文、改资料类型/学科）即失效重压；只缓存压缩结果，不缓存生成结果。
       const compMode = contractOf(genType).mode; // full=知识型保原文表述/其余=命题型可大压缩（A4-6）
       const cacheKey = buildCompressionCacheKey({
-        sections: rawSections, mode: compMode, subject, grade: book?.grade || '',
+        sections: rawSections, mode: compMode, subject, grade: gradeDisplayLabel(book?.stage, book?.grade, book?.volume),
       });
       const cachedCompressed = readCompressionCache(cacheKey);
       progress.value = 14;
@@ -5346,7 +5346,8 @@ ${cardAnalysisText.substring(0, 1000)}
           const rawSubject = book?.subject || '';
           const stage = book?.stage || '';
           const subject = normalizeSubjectName(rawSubject, stage);
-          const grade = book?.grade || '';
+          // 提示文案里的"年级"：高中给**册次**（高中教材按册分、不按年级；写"高一"既不准确也误导模型）
+          const grade = gradeDisplayLabel(book?.stage, book?.grade, book?.volume);
 
           // 🔧 情境库已退役：预设素材置空，统一走 AI 自主生成（风格指令已注入 prompt）
           if (isUnifiedContext) {

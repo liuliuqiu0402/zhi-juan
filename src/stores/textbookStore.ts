@@ -10,6 +10,8 @@ import { hasAnySelected as hasAnySelectedTree, countSelected as countSelectedTre
 import { djb2 } from '../utils/hash';
 // @ts-ignore - anchorTreeContract.js 无类型声明
 import { resolveAnchorKind } from '../utils/anchorTreeContract'; // 🔬 (b) 条目性质判定唯一实现（显式 kind 优先 + 条目名兜底），落库归一与生成端同源
+// @ts-ignore - textbookMeta.js 无类型声明
+import { autoDetectTextbookMeta } from '../utils/textbookMeta'; // 存量数据回填高中册次（与导入识别同源，避免两套判据）
 
 export { sanitizeFsName } from '../utils/libraryPathRepair';
 
@@ -59,6 +61,9 @@ interface Textbook {
   subject?: string;
   stage?: string;
   grade?: string;
+  /** 高中「册次」（必修N / 选择性必修N / 必修上…）。高中教材按必修·选择性必修分册、不绑定年级，
+   *  故高中 grade 留空、册次落此字段；非高中为空。见 config/highVolumes。 */
+  volume?: string;
   selected?: boolean;
   outline?: ChapterNode[];
   [key: string]: unknown;
@@ -153,12 +158,14 @@ export const useTextbookStore = defineStore('textbook', {
      *     若某教材**被勾选但 outline 为空**（未提取章节/目录模式），勾选前后签名字符串不变 →
      *     指令不被清空，而它所依据的教材已经变了。用户原话即"勾选的教材变化时清空"。
      *  口径：教材级勾选位 `b.selected` 与"任一章被勾选"取并集（都算"勾了这本"），并计入
-     *     id/学段/学科/年级/教材级勾选位/章节清单（章节以 `标题@起点` 定位——改名换起点也算变化）。
+     *      id/学段/学科/年级/教材级勾选位/章节清单（章节以 `标题@起点` 定位——改名换起点也算变化）。
      *     相对原串只多不少：多的是"勾了但没有章节"的教材与教材级勾选位这一维。
+     *   🔴 2026-09-20 补入册次：高中改用「册次」维度后，年级恒为空，若签名仍只看 grade，
+     *      "换一本同科同段的书"（如高中英语必修1 → 选择性必修2）签名不变 → 指令不被清空，而依据的教材已换。
      */
     instructionBookSignature: (state) => state.textbooks
       .filter(b => b.selected || hasAnySelectedTree(b.outline))
-      .map(b => `${b.id}|${b.stage}|${b.subject}|${b.grade}|${b.selected ? 1 : 0}|${getSelectedTree(b.outline).map(c => `${c.title}@${c.start}`).join(',')}`)
+      .map(b => `${b.id}|${b.stage}|${b.subject}|${b.grade}|${b.volume || ''}|${b.selected ? 1 : 0}|${getSelectedTree(b.outline).map(c => `${c.title}@${c.start}`).join(',')}`)
       .join(';')
   },
 
@@ -174,6 +181,18 @@ export const useTextbookStore = defineStore('textbook', {
             if (bName.includes('上册')) { b.semester = '上册'; hasChange = true; }
             else if (bName.includes('下册')) { b.semester = '下册'; hasChange = true; }
             else if (!b.semester) { b.semester = ''; }
+          }
+          // 🔑 存量数据回填 volume + 清高中遗留年级（2026-09-20「高中按册次、不按年级」）：
+          //    老数据里的高中教材当年是硬选的"高一/高二/高三"，与册次**无官方绑定**（各省学年安排不同，
+          //    山东语文必修下在第二学年、广东思想政治/物理必修到高二上才完成），留着只会误导
+          //    （如"高一"配"选择性必修3"）→ 按名称里的"必修/选择性必修"字面回填册次，并把高中 grade 清空。
+          //    识别不到册次的（文件名没写）只清年级、volume 留空，由用户在界面补——不猜。
+          if (bName) {
+            const d = autoDetectTextbookMeta(bName);
+            if (d.stage === '高中') {
+              if (d.volume && b.volume !== d.volume) { b.volume = d.volume; hasChange = true; }
+              if (b.grade) { b.grade = ''; hasChange = true; }
+            }
           }
           // 🔧 存储目录合并后，修复旧数据中的相对路径 → 绝对路径
           if (b.coverPath) { b.coverPath = resolveStoredPath(b.coverPath as string); hasChange = true; }

@@ -3159,7 +3159,7 @@ import { useAiGenerator, lastInjectSnapshot, chapterSigOf } from '../composables
 // 🎧 听力工作台（2026-09-20）：听力配音已抽为独立功能（左侧导航「工具 → 🎧 听力配音」），
 //    生成页只保留「从本记录的答案页听力原文进入」这个便利入口，实现共用同一组件。
 import ListeningWorkbench from '../components/listening/ListeningWorkbench.vue';
-import { extractGradeNum, resolveStageKey } from '../utils/gradeStage.js';
+import { resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
 import { inferPaperScope, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES } from '../config/paperScope.js';
 
 // 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
@@ -5616,7 +5616,7 @@ const extractKnowledge = async (book, chapter) => {
       imageBase64,
       book.subject,
       book.stage,
-      book.grade,
+      gradeDisplayLabel(book.stage, book.grade, book.volume),
       chapter.title
     );    
     
@@ -5695,7 +5695,7 @@ const viewChapterAnalysis = async (book, chapter) => {
     }
     // 🔧 确保能力层次和风格有默认值
     if (!chapter.competency) {
-      chapter.competency = book.grade && extractGradeNum(book.grade) <= 6 ? '识记与理解' : '应用与分析';
+      chapter.competency = resolveCompetency(book.stage, book.grade, book.name);
     }
     if (!chapter.style) {
       chapter.style = '传统';
@@ -6284,7 +6284,8 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   }
   const academic = isLabelScope ? inferAcademicTerm() : '';
   const semester = isLabelScope ? '' : (book.semester || '');
-  const gradeLabel = book.grade || '';
+  // 年级标签：高中给册次（教材按必修/选择性必修分册、不绑定年级，写"高一"既不准确也误导模型）
+  const gradeLabel = gradeDisplayLabel(book.stage, book.grade, book.volume);
   instructionDraft.value = buildInjectionInstruction({
     template: tpl.template,
     grade: gradeLabel,
@@ -6406,7 +6407,7 @@ const restoreDefaultInstruction = async () => {
   const label = labelStyle.value || pickLabelFromPool(genType, '_all_');
   // 🔧 恢复默认无范围推断（unit 仅在 loadInstructionFromLibrary 内有定义，此处引用会 ReferenceError → 显式置空）
   const unit = '';
-  const gradeLabel = book.grade || '';
+  const gradeLabel = gradeDisplayLabel(book.stage, book.grade, book.volume);
   instructionDraft.value = buildInjectionInstruction({
     template: builtinTemplate, grade: gradeLabel, stage: stageKey, subject, genTypeLabel, label, semester: book.semester || '', structure, fullScore, duration,
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
@@ -7543,7 +7544,7 @@ const executeTextbookAnalysis = async (action) => {
                 imageBase64,
                 book.subject,
                 book.stage,
-                book.grade,
+                gradeDisplayLabel(book.stage, book.grade, book.volume),
                 imagePath,
                 {
                   hasChildren: !!(ch.children && ch.children.length > 0),
@@ -7624,7 +7625,7 @@ const executeTextbookAnalysis = async (action) => {
             plainText,
             book.subject,
             book.stage,
-            book.grade,
+            gradeDisplayLabel(book.stage, book.grade, book.volume),
             ch.title,
             !!(ch.children && ch.children.length > 0),
             ch.end - ch.start + 1,
@@ -7680,7 +7681,7 @@ const executeTextbookAnalysis = async (action) => {
             coreTopics: ch.coreTopics,
             knowledgePoints: ch.knowledgePoints,
             knowledgeHierarchy: ch.knowledgeHierarchy,
-            competency: book.grade && extractGradeNum(book.grade) <= 6 ? '识记与理解' : '应用与分析',
+            competency: resolveCompetency(book.stage, book.grade, book.name),
             style: '传统'
           });
           
@@ -8438,7 +8439,10 @@ const finalizeGeneration = async (result, genType) => {
     const paperTitle = buildPaperTitle({
       grade: gradeLabel,
       subject: subjectLabel,
-      semester: isLabelScope ? '' : (book.semester || ''),
+      // 🔴 册别槽位：非高中用"上/下册"；高中用**册次**（"必修1""选择性必修2"）——
+      //    高中教材按册分、不按年级，grade 恒空（见 gradeDisplayLabel），册别槽再空着，
+      //    卷首标题就只剩"英语 单元一 测试卷"，无法区分是哪一册。
+      semester: isLabelScope ? '' : (book.semester || book.volume || ''),
       scopeName: chapterName,
       typeLabel: label,
       academic: isLabelScope ? inferAcademicTerm() : '',

@@ -3,6 +3,7 @@ import storage from '../utils/storage';
 import { resolveStoredPath, getStoragePath } from '../utils/pathHelper';
 import { repairLibraryPaths } from '../utils/libraryPathRepair';
 import { hasAnySelected as hasAnySelectedTree, countSelected as countSelectedTree } from '../utils/outlineTree'; // 大纲树勾选唯一实现（曾 store 内 3 份逐字副本）
+import { autoDetectTextbookMeta } from '../utils/textbookMeta'; // 存量回填高中册次（与导入识别同源）
 
 export const useTemplateStore = defineStore('template', {
   state: () => ({
@@ -41,6 +42,16 @@ export const useTemplateStore = defineStore('template', {
             if (t.name.includes('上册')) { t.semester = '上册'; hasChange = true; }
             else if (t.name.includes('下册')) { t.semester = '下册'; hasChange = true; }
             else if (!t.semester) { t.semester = ''; }
+          }
+          // 🔑 存量回填 volume + 清高中遗留年级：与 textbookStore 同源同口径
+          //（高中按必修／选择性必修**分册**，教材本身不绑定年级——各省教学用书的「册次」与「使用年级」
+          //  是两栏并列、使用年级写的是区间；"必修＝高一"各省不成立 → 老数据里的高一/高二/高三只会误导）
+          if (t.name) {
+            const d = autoDetectTextbookMeta(t.name);
+            if (d.stage === '高中') {
+              if (d.volume && t.volume !== d.volume) { t.volume = d.volume; hasChange = true; }
+              if (t.grade) { t.grade = ''; hasChange = true; }
+            }
           }
           // 🔧 存储目录合并后，修复旧数据中的相对路径 → 绝对路径
           if (t.coverPath) { t.coverPath = resolveStoredPath(t.coverPath); hasChange = true; }

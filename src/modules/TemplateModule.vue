@@ -43,7 +43,24 @@
               高中
             </option>
           </select>
+          <!-- 高中：筛「册次」不筛「年级」——高中教材/模板按必修／选择性必修分册，不绑定年级 -->
           <select
+            v-if="filterStage === '高中'"
+            v-model="filterVolume"
+            class="filter-select"
+          >
+            <option value="">
+              册次
+            </option>
+            <option
+              v-for="v in filterVolumeOptions"
+              :key="v"
+            >
+              {{ v }}
+            </option>
+          </select>
+          <select
+            v-else
             v-model="filterGrade"
             :disabled="!filterStage"
             class="filter-select"
@@ -194,6 +211,11 @@
             >
               <span class="expand-icon">{{ expandedTemplates.includes(tpl.id) ? '▼' : '▶' }}</span>
               <span class="template-name">{{ tpl.name }}</span>
+              <!-- 高中：显示册次（列表不展示学段/年级，同科多册靠它区分） -->
+              <span
+                v-if="tpl.volume"
+                class="volume-tag"
+              >{{ tpl.volume }}</span>
               <span class="chapter-count">{{ countChapters(tpl.outline) }}个章节 {{ countAnalyzed(tpl.outline) > 0 ? '· ✅' + countAnalyzed(tpl.outline) : '' }}</span>
             </div>
             <div class="item-actions">
@@ -339,7 +361,23 @@
               </option>
             </select>
           </div>
-          <div class="meta-item">
+          <!-- 高中：填「册次」而不是「年级」（模板按必修／选择性必修分册、不绑定年级；
+               候选按学科给官方册次清单，识别不到也可自由填写） -->
+          <div
+            v-if="uploadStage === '高中'"
+            class="meta-item"
+          >
+            <label>册次</label>
+            <input
+              v-model="uploadVolume"
+              list="high-volume-options"
+              placeholder="如：必修1 / 选择性必修第一册"
+            >
+          </div>
+          <div
+            v-else
+            class="meta-item"
+          >
             <label>年级</label>
             <select
               v-model="uploadGrade"
@@ -356,6 +394,15 @@
               </option>
             </select>
           </div>
+          <datalist id="high-volume-options">
+            <option
+              v-for="v in uploadVolumePresets"
+              :key="v.id"
+              :value="v.id"
+            >
+              {{ v.label }}
+            </option>
+          </datalist>
           <div class="meta-item">
             <label>学科</label>
             <select v-model="uploadSubject">
@@ -1205,6 +1252,7 @@ import { convertFormulasInHtml } from '../utils/wordExporter.js';
 import { useTocParser, safeFocusOutlineInput, fastFocusInput, smartFocusInput, fastCalculatePageRanges, fastRebuildTree } from '../composables/useTocParser.js';
 import { subjects, subjectGradeSystem } from '../config/expertKnowledge.js';
 import { autoDetectTextbookMeta } from '../utils/textbookMeta.js'; // 教材/模板名元数据识别（课本库/模板库共用单一实现，曾双份逐字副本）
+import { highVolumeOptions } from '../config/highVolumes.js'; // 高中册次候选（高中按必修/选择性必修分册，不按年级）
 import { useAiGenerator } from '../composables/useAiGenerator.js';
 import { deepClone } from '../utils/helpers';
 import PdfPreview from '../components/PdfPreview.vue';
@@ -1390,6 +1438,10 @@ const searchKeyword = ref('');
 const sortBy = ref('name');
 const filterStage = ref('');
 const filterGrade = ref('');
+// 高中「册次」：普通高中教材/模板按必修／选择性必修**分册**，本身不绑定年级（各省教学用书目录的
+// 「册次」与「使用年级」是两栏并列，使用年级写的是区间；"必修＝高一"在各省并不成立）→
+// 高中一律"选册次、不选年级"，只有非高中才用 filterGrade。与 TextbookModule 同源同口径。
+const filterVolume = ref('');
 const filterSubject = ref('');
 // 🔧 stage 映射常量（UI 显示中文，存储英文）
 const stageMap = { '小学': 'primary', '初中': 'middle', '高中': 'high' };
@@ -1397,6 +1449,7 @@ const filterVersion = ref('');
 const filterSemester = ref('');
 const uploadStage = ref('');
 const uploadGrade = ref('');
+const uploadVolume = ref(''); // 高中册次（与 uploadGrade 互斥：高中只填册次）
 const uploadSubject = ref('');
 const uploadSemester = ref('');
 
@@ -1408,8 +1461,13 @@ const uploadGradeOptions = computed(() => {
   return Array.from(allGrades);
 });
 
+// 高中册次候选：按**学科**给该科官方册次清单（学科未定 → 合并全部候选）；
+// 未登记清单的学科（音乐/美术/体育等高中模块制学科）→ 空数组，界面走自由填写。
+const uploadVolumePresets = computed(() => highVolumeOptions(uploadSubject.value));
+
 const onUploadStageChange = () => {
   uploadGrade.value = '';
+  uploadVolume.value = '';
 };
 
 const versionOptions = computed(() => {
@@ -1514,7 +1572,18 @@ const gradeOptions = computed(() => {
   Object.values(stageSubjects).forEach(s => s.grades?.forEach(g => allGrades.add(g)));
   return Array.from(allGrades);
 });
-const onStageChange = () => { filterGrade.value = ''; };
+const onStageChange = () => { filterGrade.value = ''; filterVolume.value = ''; };
+
+// 筛选的册次候选：从**现有模板实际用过的册次**派生（与 versionOptions 同一口径）——
+// 存量里有什么册次就能筛什么，不硬编码清单。
+const filterVolumeOptions = computed(() => {
+  const set = new Set();
+  for (const t of templateStore.templates) {
+    const v = t.volume;
+    if (v) set.add(v);
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'zh'));
+});
 
 // 计算属性
 const selectedCount = computed(() => templateStore.selectedCount);
@@ -1527,6 +1596,7 @@ const filteredTemplates = computed(() => {
     result = result.filter(t => t.stage === filterStage.value || t.stage === enStage);
   }
   if (filterGrade.value) result = result.filter(t => t.grade === filterGrade.value);
+  if (filterVolume.value) result = result.filter(t => t.volume === filterVolume.value);
   if (filterSubject.value) result = result.filter(t => t.subject === filterSubject.value);
   if (filterSemester.value) result = result.filter(t => t.semester === filterSemester.value);
   if (filterVersion.value) {
@@ -2052,11 +2122,34 @@ const deleteTemplate = async (tpl) => {
 };
 
 // 上传弹窗
-const openUploadModal = () => { showUploadModal.value = true; selectedFilePath.value = ''; };
+const openUploadModal = () => {
+  showUploadModal.value = true;
+  selectedFilePath.value = '';
+  uploadGrade.value = '';
+  uploadVolume.value = '';
+};
 const closeUploadModal = () => { showUploadModal.value = false; };
 const selectFileHandler = async () => {
   const files = await selectFiles();
-  if (files?.length) selectedFilePath.value = files[0];
+  if (files?.length) {
+    selectedFilePath.value = files[0];
+    prefillUploadMeta(files[0]);
+  }
+};
+
+/**
+ * 选中文件后按文件名**预填**元数据（用户仍可改）。与 TextbookModule 同源同口径：
+ * 🔴 只填"高置信"项：册次是字面命中（"必修第一册""选择性必修2"），小学年级是字面命中（"X年级"）；
+ *    初中学段与初高中年级识别不到 → 留空（沿用 textbookMeta 的"不猜年级"原则，猜错比不猜更糟）。
+ */
+const prefillUploadMeta = (filePath) => {
+  const raw = String(filePath).split('\\').pop().replace(/\.[^/.]+$/, '');
+  const d = autoDetectTextbookMeta(raw);
+  if (d.stage) uploadStage.value = d.stage;
+  if (d.grade) uploadGrade.value = d.grade;
+  if (d.volume) uploadVolume.value = d.volume;
+  if (d.subject) uploadSubject.value = d.subject;
+  if (d.semester) uploadSemester.value = d.semester;
 };
 const confirmUpload = () => {
   if (!selectedFilePath.value) return;
@@ -2066,6 +2159,7 @@ const confirmUpload = () => {
   
   filterStage.value = uploadStage.value;
   filterGrade.value = uploadGrade.value;
+  filterVolume.value = uploadVolume.value;
   filterSubject.value = uploadSubject.value;
   filterSemester.value = uploadSemester.value;
   
@@ -3145,6 +3239,11 @@ const saveTemplate = async () => {
       } catch {}
     }
     
+    // 🔑 直接存中文值，不做 stageMap 映射（筛选时也用中文比对）
+    // 🔴 高中落「册次」不落「年级」（教材按必修／选择性必修分册、本身不绑定年级）→ 高中 grade 一律留空，
+    //    册次落 volume；认知层级由 gradeStage.resolveCompetency 按**学段**判，不依赖年级数字。
+    const detected = autoDetectTextbookMeta(rawName);
+    const newStage = filterStage.value || detected.stage || '';
     const newTemplate = {
       id: templateId,
       name: rawName,
@@ -3152,11 +3251,11 @@ const saveTemplate = async () => {
       filePath: ext === 'pdf' ? pdfPath : `${storagePath}/模板库/${templateId}.${ext}`,
       imagesDir,
       coverPath,
-      // 🔑 直接存中文值，不做 stageMap 映射（筛选时也用中文比对）
-      stage: filterStage.value || autoDetectTextbookMeta(rawName).stage || '',
-      grade: filterGrade.value || autoDetectTextbookMeta(rawName).grade || '',
-      subject: filterSubject.value || autoDetectTextbookMeta(rawName).subject || '',
-      semester: filterSemester.value || autoDetectTextbookMeta(rawName).semester || '',
+      stage: newStage,
+      grade: newStage === '高中' ? '' : (filterGrade.value || detected.grade || ''),
+      volume: newStage === '高中' ? (filterVolume.value || detected.volume || '') : '',
+      subject: filterSubject.value || detected.subject || '',
+      semester: filterSemester.value || detected.semester || '',
       selected: false,
       outline: outlineForSave,
       totalPages: totalPages.value,
@@ -3259,6 +3358,8 @@ const saveTemplate = async () => {
 .item-info { flex: 1; display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .expand-icon { width: 16px; color: #666; }
 .template-name { font-weight: 500; font-size: 13px; }
+/* 高中册次小标签（与 TextbookModule 同款），用于区分同科多册 */
+.volume-tag { font-size: 0.7rem; color: #2b6cb0; background: #ebf4ff; border: 1px solid #c3dafe; border-radius: 3px; padding: 0 5px; margin-left: 6px; white-space: nowrap; }
 .chapter-count { font-size: 0.75rem; color: #666; margin-left: 8px; }
 .item-actions { display: flex; gap: 4px; }
 .icon-btn { background: none; border: none; cursor: pointer; padding: 4px; font-size: 1rem; }
@@ -3888,6 +3989,15 @@ tr.row-focused td input.cell-input { background: #eef6ff; }
   border: 1px solid #ddd;
   font-size: 12px;
   background: white;
+}
+/* 高中册次走 input + datalist（可选预设、也可自由填写），样式与上面的 select 对齐 */
+.meta-item input {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  font-size: 12px;
+  background: white;
+  width: 180px;
 }
 
 .render-loading-bar {
