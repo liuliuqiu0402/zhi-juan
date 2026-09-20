@@ -62,7 +62,19 @@
     <div class="nav-category">
       🔧 工具
     </div>
-    
+
+    <!-- 🎧 听力配音（2026-09-20）：**独立功能**入口。
+         为什么不放在「生成教辅」里：那边结果列表是 20 条上限滚动的临时区，
+         记录滚走入口就没了；听力配音本就不依赖任何记录（粘贴素材即可）。
+         无需授权门控——与教材库/工具库/生成教辅同级。 -->
+    <div
+      class="nav-item"
+      :class="{ active: $route.path === '/listening' }"
+      @click="$router.push('/listening')"
+    >
+      <span>🎧</span> 听力配音
+    </div>
+
     <div
       class="nav-item"
       :class="{ disabled: !canAccessFeature('history') }"

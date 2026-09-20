@@ -64,6 +64,14 @@ const routes = [
     component: () => import('@/modules/GenerateModule.vue')
   },
   {
+    // 🎧 听力配音（2026-09-20）：**独立功能**——粘贴英语/中文素材直接出听力音频。
+    //    为什么要独立成页：结果列表是 20 条上限滚动的临时区，把入口挂在结果卡片上，
+    //    记录一滚走功能就找不到了（用户裁定："是一个功能哦，不是附属在结果列表中的"）。
+    path: '/listening',
+    name: 'listening',
+    component: () => import('@/modules/ListeningModule.vue')
+  },
+  {
     path: '/typeset',
     name: 'typeset',
     component: () => import('@/modules/TypesetModule.vue')

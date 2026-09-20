@@ -21,7 +21,10 @@ import { buildListeningStoryboard } from '../../src/utils/listeningScript.js';
 import { LISTENING_VOICE_DEFAULTS } from '../../src/config/listeningAudioProfile.js';
 
 const ROOT = path.resolve(__dirname, '../..');
-const gmSource = () => fs.readFileSync(path.join(ROOT, 'src', 'modules', 'GenerateModule.vue'), 'utf8');
+const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+const gmSource = () => read('src/modules/GenerateModule.vue');
+/** 🎧 听力工作台（2026-09-20 抽出的公共组件）：粘贴面板与全部听力逻辑现在都在这里 */
+const wbSource = () => read('src/components/listening/ListeningWorkbench.vue');
 
 describe('粘贴文本：语种分流判定', () => {
   it('英文听力原文判为 en（走规则解析）', () => {
@@ -183,30 +186,85 @@ describe('粘贴配音：面板接线（模板 ↔ 脚本一致）', () => {
   ];
 
   it('🔴 面板用到的每个标识符都在脚本里声明（防只在运行时才炸的未定义引用）', () => {
-    const src = gmSource();
+    const src = wbSource();
     for (const name of PANEL_BINDINGS) {
       expect(src, `模板用了 ${name}，但脚本里没有声明`).toMatch(new RegExp(`\\bconst\\s+${name}\\b`));
     }
   });
 
   it('两条入口共用同一份公共复位；记录入口显式关掉粘贴面板', () => {
-    const src = gmSource();
+    const src = wbSource();
     expect(src).toMatch(/\bconst resetListeningPanel\b/);
     // 记录入口不得残留粘贴态（否则从"粘贴"切到某条记录会看到旧粘贴面板）
     expect(src).toMatch(/const openListeningTool[\s\S]{0,200}listeningPasteMode\.value = false/);
   });
 
   it('中文分流与翻译提示词经 import 引入（不内联提示词，防两套契约）', () => {
-    const src = gmSource();
-    expect(src).toContain("import { buildListeningTranslateMessages } from '../config/listeningTranslatePrompt.js';");
-    expect(src).toMatch(/import \{[^}]*\bdetectSourceLanguage\b[^}]*\} from '\.\.\/utils\/listeningExtract\.js';/);
+    const src = wbSource();
+    expect(src).toContain("import { buildListeningTranslateMessages } from '../../config/listeningTranslatePrompt.js';");
+    expect(src).toMatch(/import \{[^}]*\bdetectSourceLanguage\b[^}]*\} from '\.\.\/\.\.\/utils\/listeningExtract\.js';/);
     // 分流必须走 detectSourceLanguage（与解析器的中文噪声守卫同阈值），不得自己写一套 CJK 判断
     expect(src).toMatch(/const lang = detectSourceLanguage\(text\)/);
   });
 
   it('学段为空不放行：先提示再返回（学段决定语速与作答留白，不能默认猜一个）', () => {
-    const src = gmSource();
+    const src = wbSource();
     const body = src.slice(src.indexOf('const parseListeningPaste'));
     expect(body).toMatch(/if \(!listeningPasteStage\.value\)[\s\S]{0,200}return;/);
+  });
+});
+
+/**
+ * "独立功能"形态锁（2026-09-20 用户裁定）
+ * ============================================================
+ * 用户原话："粘贴配音是一个功能哦，不是附属在结果列表中的，结果列表中的结果不会一直存在，是20条上限滚动的"。
+ * 故这里锁住形态本身：入口在**左侧导航**、有**独立路由与页面**、听力工作台已抽成**公共组件**
+ * （生成页只留"从本记录进入"这一个便利入口），且结果区里**不得再有**粘贴入口。
+ */
+describe('听力配音：独立功能形态（左侧导航入口 + 独立页面 + 公共组件）', () => {
+  it('🔴 左侧导航「工具」下有独立入口，指向 /listening', () => {
+    const sidebar = read('src/components/layout/AppSidebar.vue');
+    expect(sidebar).toMatch(/听力配音/);
+    expect(sidebar).toMatch(/\$router\.push\('\/listening'\)/);
+    // 归在「🔧 工具」分类之下（用户指定位置）
+    const toolsIdx = sidebar.indexOf('🔧 工具');
+    const entryIdx = sidebar.indexOf("'/listening'");
+    expect(toolsIdx).toBeGreaterThan(-1);
+    expect(entryIdx).toBeGreaterThan(toolsIdx);
+  });
+
+  it('🔴 有独立路由与独立页面，页面以 page 形态渲染同一个工作台', () => {
+    const router = read('src/router/index.js');
+    expect(router).toMatch(/path: '\/listening'/);
+    expect(router).toMatch(/import\('@\/modules\/ListeningModule\.vue'\)/);
+    const page = read('src/modules/ListeningModule.vue');
+    expect(page).toMatch(/<ListeningWorkbench\s+variant="page"/);
+  });
+
+  it('🔴 工作台是公共组件：生成页只是引用它，并把"从本记录进入"转发过去', () => {
+    const gm = gmSource();
+    expect(gm).toContain("import ListeningWorkbench from '../components/listening/ListeningWorkbench.vue';");
+    expect(gm).toMatch(/<ListeningWorkbench ref="listeningWorkbenchRef" \/>/);
+    expect(gm).toMatch(/openListeningForDoc = \(doc\) => listeningWorkbenchRef\.value\?\.openFromRecord\(doc\)/);
+    // 记录入口按钮已改为转发（不再直接调组件内部函数）
+    expect(gm).toMatch(/@click\.stop="openListeningForDoc\(doc\)"/);
+    // 面板本体已搬走：生成页不该再有听力弹窗与粘贴面板
+    expect(gm).not.toContain('v-if="showListeningModal"');
+    expect(gm).not.toContain('v-model="listeningPasteText"');
+  });
+
+  it('🔴 结果区不得再挂"粘贴配音"入口（入口只在左侧导航，不随结果滚动消失）', () => {
+    const gm = gmSource();
+    expect(gm).not.toContain('📋 粘贴配音');
+    // 组件对外只暴露两个动作，且两态共用同一实现
+    const wb = wbSource();
+    expect(wb).toMatch(/defineExpose\(\{[\s\S]{0,200}openFromRecord: openListeningTool[\s\S]{0,200}openPaste: openListeningPaste/);
+  });
+
+  it('弹窗形态所需的 scoped 样式已随组件自带（Teleport 后父组件样式不再命中）', () => {
+    const wb = wbSource();
+    for (const sel of ['.modal-mask {', '.modal {', '.large-modal {', '.modal-actions {', '.copy-hint {']) {
+      expect(wb, `组件缺样式 ${sel}`).toContain(sel);
+    }
   });
 });
