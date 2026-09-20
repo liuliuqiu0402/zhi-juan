@@ -8,6 +8,66 @@
 export const sanitizeFsName = (name) => (name || '').replace(/[<>:"/\\|?*]/g, '_');
 
 /**
+ * 🔑 教材/模板在磁盘上的**唯一路径公式**（2026-09-20 收口）
+ * ============================================================
+ * 为什么必须收口：改名流程（TextbookModule/TemplateModule）、加载自愈（本文件）、
+ *   以及"修复路径"动作都要回答同一个问题——"某名称对应的文件在哪"。
+ *   三处各写一遍公式 ⇒ 任一处改了后缀（`_带书签.pdf`）或子目录（`图片/`、`缩略图/`），
+ *   另外两处就会**静默指向不存在的路径**（表现正是"预览空白 / 改名说被占用"）。
+ * 口径：按**名称**（显示名 → 安全名）和按**旧 id**（历史遗留）两套候选都给出；
+ *   调用方按"该字段是否存在"决定用不用（无 PDF 的条目不该去比 PDF 路径）。
+ * @param {{name?: string, id?: string}} entry
+ * @param {string} storagePath 存储根路径
+ * @param {string} libDir '教材库' | '模板库'
+ * @returns {{ name: {imagesDir:string, pdfPath:string, coverPath:string}, id: {...} }}
+ */
+export function libraryEntryPaths(entry, storagePath, libDir = '教材库') {
+  const base = `${storagePath}/${libDir}`;
+  const build = (key) => (key
+    ? {
+      imagesDir: `${base}/图片/${key}`,
+      pdfPath: `${base}/${key}_带书签.pdf`,
+      coverPath: `${base}/缩略图/${key}.png`,
+    }
+    : { imagesDir: '', pdfPath: '', coverPath: '' });
+  return { name: build(sanitizeFsName(entry && entry.name)), id: build(String((entry && entry.id) || '')) };
+}
+
+/**
+ * 🔍 移动失败的原因归类 + 人话建议（2026-09-20）
+ * ============================================================
+ * 背景（用户实测）：改名失败时界面**一律**显示"PDF 文件被占用（可能正在阅读器中打开）"，
+ *   而真实原因常常是"源文件不存在"——用户在「本地教材库」目录里已经改过名/挪过文件。
+ *   提示张冠李戴 ⇒ 用户去关阅读器永远修不好，也想不到自己磁盘上的改动才是原因。
+ * 口径：把原始错误归类成 missing/busy/conflict/other，各给**可执行**的下一步；
+ *   other 保留原始错误原文（可诊断性优先于措辞统一）。
+ */
+export function classifyMoveError(errorMsg = '') {
+  const m = String(errorMsg || '');
+  if (/ENOENT|源文件不存在/i.test(m)) {
+    return {
+      kind: 'missing',
+      advice: '磁盘上找不到源文件：多半是已在「本地教材库」目录里改过名或移动过（也可能是存储路径被换过）。'
+        + '请到教材库列表点「🔗 修复路径」按当前名称重新指认，或把磁盘上的文件改回原名。',
+    };
+  }
+  if (/目标目录已存在/.test(m)) {
+    return {
+      kind: 'conflict',
+      advice: '目标位置已存在同名文件或目录：请换一个名称，或先清理掉同名的那一份。',
+    };
+  }
+  if (/EBUSY|EPERM|EACCES|resource busy|locked|被占用/i.test(m)) {
+    return {
+      kind: 'busy',
+      advice: '文件被其它程序占用：请关闭所有正在打开该 PDF 的窗口——'
+        + '包括本应用的预览面板 / 「PDF 对照」浮窗，以及 Acrobat、Edge 等外部阅读器，然后重试。',
+    };
+  }
+  return { kind: 'other', advice: `原始错误：${m || '（无错误信息）'}` };
+}
+
+/**
  * 对单个条目执行路径自愈
  * @param {Record<string, unknown>} entry - 教材/模板条目（会原地修改）
  * @param {{ pathExists: (p:string)=>Promise<boolean>, moveFile: (s:string,t:string)=>Promise<{success?:boolean,error?:string}> }} fs
@@ -21,13 +81,14 @@ export async function repairLibraryPaths(entry, fs, storagePath, libDir = '教�
   const oldId = String(entry.id || '');
   if (!safeName) return false;
 
-  const base = `${storagePath}/${libDir}`;
-  const nameImagesDir = entry.imagesDir ? `${base}/图片/${safeName}` : '';
-  const namePdfPath = entry.pdfPath ? `${base}/${safeName}_带书签.pdf` : '';
-  const nameCoverPath = entry.coverPath ? `${base}/缩略图/${safeName}.png` : '';
-  const idImagesDir = oldId ? `${base}/图片/${oldId}` : '';
-  const idPdfPath = oldId && entry.pdfPath ? `${base}/${oldId}_带书签.pdf` : '';
-  const idCoverPath = oldId && entry.coverPath ? `${base}/缩略图/${oldId}.png` : '';
+  // 🔑 路径公式一律取自 libraryEntryPaths（改名/自愈/修复路径三处共用同一实现，防公式漂移）
+  const p = libraryEntryPaths({ name, id: oldId }, storagePath, libDir);
+  const nameImagesDir = entry.imagesDir ? p.name.imagesDir : '';
+  const namePdfPath = entry.pdfPath ? p.name.pdfPath : '';
+  const nameCoverPath = entry.coverPath ? p.name.coverPath : '';
+  const idImagesDir = oldId ? p.id.imagesDir : '';
+  const idPdfPath = oldId && entry.pdfPath ? p.id.pdfPath : '';
+  const idCoverPath = oldId && entry.coverPath ? p.id.coverPath : '';
 
   // 现状：当前指向 / 名称名下 / 旧 id 名下 三套候选是否存在（空路径视为有效）
   const cur = {

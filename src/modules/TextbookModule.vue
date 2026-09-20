@@ -206,6 +206,18 @@
               <span class="chapter-count">{{ countChapters(book.outline) }}个章节 {{ countAnalyzed(book.outline) > 0 ? '· ✅' + countAnalyzed(book.outline) : '' }}</span>
             </div>
             <div class="item-actions">
+              <!-- 🔴 文件缺失才出现的「修复路径」（2026-09-20）：用户实测的痛点正是"目录里的文件
+                   被手动改过名之后，改名报被占用、预览空白"，却没有任何入口能把它指回原位。
+                   只在真缺文件时显示，不给正常条目添噪音。 -->
+              <button
+                v-if="brokenBooks[book.id]"
+                class="icon-btn"
+                :title="`磁盘上找不到：${brokenBooks[book.id].join('、')}　点击修复（先按当前名称找，再扫库目录把被改过名的文件配对回来）`"
+                style="color:#e08000;"
+                @click.stop="fixBookPaths(book)"
+              >
+                🔗
+              </button>
               <button
                 class="icon-btn"
                 title="重命名"
@@ -280,12 +292,28 @@
           </button>
         </div>
       </div>
+      <!-- 🔴 预览加载失败必须显性（2026-09-20）：原先是空白画布 + 只在 console 里报错，
+           用户看到的就是"预览不了了"却毫无线索；现在给出原因 + 一键按名称重新指认 -->
+      <div
+        v-if="previewLoadError"
+        class="preview-load-error"
+      >
+        <span class="preview-load-error-text">⚠️ {{ previewLoadError }}</span>
+        <button
+          class="btn-small"
+          title="按当前名称 / 旧名称在磁盘上重新指认 PDF 位置（文件被手动改名/移动后用这个）"
+          @click="repairPreviewPath()"
+        >
+          🔗 修复路径
+        </button>
+      </div>
       <PdfPreview 
         ref="pdfPreviewRef" 
         :pdf-path="pdfPath" 
         :page="currentPreviewPage"
         :large-file="true"
         @page-change="(page) => currentPreviewPage = page"
+        @load-error="(msg) => previewLoadError = msg"
       />
     </div>
 
@@ -1149,7 +1177,11 @@ import { ref, computed, onMounted, onUnmounted, shallowRef, nextTick, h, watch }
 import { useDialog } from '../composables/useDialog.js';
 import ExcelJS from 'exceljs';
 import { getStoragePath, resolveStoredPath } from '../utils/pathHelper.js';  // ✨ 存储路径工具
-import { useTextbookStore } from '../stores/textbookStore';
+import { useTextbookStore, repairLegacyRename } from '../stores/textbookStore';
+// 🔑 磁盘路径公式与"移动失败原因归类"唯一事实源（改名/自愈/修复路径三处共用，防公式漂移与误导性报错）
+import { libraryEntryPaths, classifyMoveError, sanitizeFsName } from '../utils/libraryPathRepair.js';
+// 🔄 磁盘→应用 的逆向联动配对（只做无歧义配对，见其文件头）
+import { planRelink, pdfStem, coverStem } from '../utils/libraryRelink.js';
 import { useFileHandler } from '../composables/useFileHandler.js';
 import { convertFormulasInHtml } from '../utils/wordExporter.js';
 import { useTocParser, safeFocusOutlineInput, fastFocusInput, smartFocusInput, fastCalculatePageRanges, fastRebuildTree } from '../composables/useTocParser.js';
@@ -1565,6 +1597,12 @@ const showImportModal = ref(false);
 const showPreview = ref(false);
 const previewData = ref(null);
 const currentPreviewPage = ref(1);
+/** 🔴 当前预览的教材**对象本身**（不是路径字符串）——2026-09-20 修"改名后预览空白"的根因之一。
+ *  改名会同时换掉 id 与 imagesDir/pdfPath/coverPath，所以"改名之前取到的任何字符串"在改名后都指不到东西。
+ *  而 store 的 updateTextbook 是 `Object.assign`（**原地改**同一对象），对象引用天然穿越改名。 */
+const previewBook = ref(null);
+/** 预览加载失败的原因（为空表示正常）——由 PdfPreview 的 load-error 事件回填，供界面显性提示 + 提供修复入口 */
+const previewLoadError = ref('');
 
 // 当前预览教材的 PDF 路径
 const pdfPath = computed(() => {
@@ -1573,8 +1611,10 @@ const pdfPath = computed(() => {
     const ext = tempFilePath.value.split('.').pop().toLowerCase();
     if (ext === 'pdf') return tempFilePath.value;
   }
-  // 已保存的教材用存储路径（🔧 修复旧数据中可能存的相对路径；匹配失败时按 id 兜底）
   if (!previewData.value) return '';
+  // ① 优先按**对象身份**取路径：改名后对象上的 pdfPath 已是新值，预览自动跟着走
+  if (previewBook.value) return resolveStoredPath(previewBook.value.pdfPath || '');
+  // ② 兜底：按 imagesDir/id 字符串匹配（仅在拿不到对象时用；🔧 修复旧数据中可能存的相对路径）
   const book = textbookStore.textbooks.find(b => b.imagesDir === previewData.value.imagesDir)
     || textbookStore.textbooks.find(b => b.id === previewData.value.imagesDir);
   return resolveStoredPath(book?.pdfPath || '');
@@ -1869,19 +1909,159 @@ const batchExport = () => {
   a.click();
 };
 
+/**
+ * 🔗 按当前名称/旧 id 重新指认磁盘文件（"修复路径"动作，2026-09-20）
+ * ============================================================
+ * 与**加载时自愈**用的是同一实现（repairLegacyRename → libraryPathRepair），
+ * 但它原先只在 app 启动时跑一次：用户在「本地教材库」目录里改过名之后，
+ * 必须重启才能自愈——而在此之前改名会报"PDF 被占用"、预览一片空白。
+ * 故把它做成**随时可点的动作**：改名失败时自动试一次，预览失败时由用户手动点。
+ * @returns {Promise<boolean>} 是否发生了指认修正
+ */
+const repairBookPaths = async (book) => {
+  const fs = {
+    pathExists: async (p) => { try { return !!(await window.electronAPI?.existsPath?.(p)); } catch { return false; } },
+    moveFile: async (s, t) => { try { return (await moveFile(s, t)) || { success: false }; } catch { return { success: false }; } },
+  };
+  try {
+    const changed = await repairLegacyRename(book, fs, getStoragePath());
+    if (changed) textbookStore.updateTextbook(book.id, {});   // 落盘（updateTextbook 内部会 save）
+    return changed;
+  } catch (e) {
+    console.error('教材路径修复失败:', e);
+    return false;
+  }
+};
+
+/** 逐项检查源文件是否存在（改名/预览的公共前置诊断） */
+const findMissingSources = async (book) => {
+  const checks = [['图片目录', book.imagesDir], ['PDF', book.pdfPath], ['缩略图', book.coverPath]];
+  const missing = [];
+  for (const [label, p] of checks) {
+    if (!p) continue;
+    const ok = await pathExists(p);
+    if (!ok) missing.push({ label, path: p });
+  }
+  return missing;
+};
+
+/**
+ * 🔎 库里哪些条目的磁盘文件已经找不到了（2026-09-20）
+ * ============================================================
+ * 动机：用户在「本地教材库」目录里手动改过名之后，条目在界面上**看不出任何异常**——
+ *   点预览是空白、点改名说"被占用"，看不出真正原因是"文件已经不在记录的位置上"。
+ *   故在列表里扫描一遍，缺文件的条目显示 🔗 修复入口（只有真缺时才出现，不给正常条目添噪音）。
+ * 成本：每本书 3 次同步 existsSync（主进程），几十本也只是毫秒级。
+ */
+const brokenBooks = ref({});
+const scanBrokenBooks = async () => {
+  const result = {};
+  for (const book of textbookStore.textbooks) {
+    try {
+      const missing = await findMissingSources(book);
+      if (missing.length) result[book.id] = missing.map((m) => m.label);
+    } catch { /* 单个条目检查失败不影响其它条目 */ }
+  }
+  brokenBooks.value = result;
+};
+onMounted(async () => {
+  // 逆向联动：进入教材库时先扫一遍磁盘，把"被手动改过名"的文件指回去（只在无歧义时自动，见 relinkFromDisk）
+  try { await relinkFromDisk(); } catch (e) { console.error('逆向联动失败:', e); }
+  await scanBrokenBooks();
+});
+watch(() => textbookStore.textbooks.map((b) => `${b.id}|${b.pdfPath}|${b.imagesDir}|${b.coverPath}`).join(';'),
+  () => { scanBrokenBooks(); });
+
+/**
+ * 🔄 磁盘 → 应用 的逆向联动（2026-09-20）
+ * ============================================================
+ * 用户实测的机制（原话）："可以从项目中的教材库改名，改完后本地的自动联动变更，但是逆向改不同步"。
+ *   正向（应用→磁盘）：改名流程 move 三个文件，磁盘跟着变 ✓
+ *   逆向（磁盘→应用）：以前**完全没人管** ✗ ⇒ 在「本地教材库」目录里手动改过名之后，
+ *     记录指向旧路径、改名报"被占用"（其实是找不到源文件）、预览一片空白。
+ * 这里补上：列出库目录 → 找出"没有任何条目认领"的文件组 → 与"文件缺失的条目"配对。
+ * 🔴 只在**无歧义**时自动配对（见 utils/libraryRelink：多候选一律不猜，猜错等于把两本教材对调）。
+ */
+const relinkFromDisk = async () => {
+  const api = window.electronAPI;
+  if (!api?.listDirectory) return { paired: 0, ambiguous: false, reason: '' };
+  const base = `${getStoragePath()}/教材库`;
+  const [pdfList, imgList, coverList] = await Promise.all([
+    api.listDirectory(base), api.listDirectory(`${base}/图片`), api.listDirectory(`${base}/缩略图`),
+  ]);
+  const names = (r, only) => ((r && r.entries) || []).filter(only).map((e) => e.name);
+  const listing = {
+    pdfs: names(pdfList, (e) => !e.isDirectory && /\.pdf$/i.test(e.name)),
+    imageDirs: names(imgList, (e) => e.isDirectory),
+    covers: names(coverList, (e) => !e.isDirectory && /\.png$/i.test(e.name)),
+  };
+  // 已被条目引用的 stem（含失效引用）：健康条目的文件不许被抢走
+  const stemOf = (p) => String(p || '').replace(/\\/g, '/').split('/').pop() || '';
+  const claimedStems = [];
+  for (const b of textbookStore.textbooks) {
+    if (b.pdfPath) claimedStems.push(pdfStem(stemOf(b.pdfPath)));
+    if (b.imagesDir) claimedStems.push(stemOf(b.imagesDir));
+    if (b.coverPath) claimedStems.push(coverStem(stemOf(b.coverPath)));
+  }
+  const missingEntries = [];
+  for (const b of textbookStore.textbooks) {
+    if ((await findMissingSources(b)).length) missingEntries.push(b);
+  }
+  const plan = planRelink({ missingEntries, listing, claimedStems });
+  for (const { entry, stem, assign } of plan.pairs) {
+    const p = libraryEntryPaths({ name: stem, id: stem }, getStoragePath(), '教材库').name;
+    const patch = {};
+    if (assign.pdf && entry.pdfPath) patch.pdfPath = p.pdfPath;
+    if (assign.imagesDir && entry.imagesDir) patch.imagesDir = p.imagesDir;
+    if (assign.cover && entry.coverPath) patch.coverPath = p.coverPath;
+    // ⚠️ 只改**指针**，不改 name/id：磁盘上的名字是用户自己起的，应用不替他改回去
+    if (Object.keys(patch).length) textbookStore.updateTextbook(entry.id, patch);
+  }
+  return { paired: plan.pairs.length, ambiguous: plan.ambiguous, reason: plan.reason };
+};
+
+/** 🔗 列表里的"修复路径"：先按名称/id 自愈 → 再按磁盘目录逆向找回 → 都不行则如实说明 */
+const fixBookPaths = async (book) => {
+  const byName = await repairBookPaths(book);
+  if (!byName) {
+    const r = await relinkFromDisk();
+    if (!r.paired && r.ambiguous) {
+      await scanBrokenBooks();
+      await showAlertDialogFn(`未能自动找回「${book.name}」的文件。\n\n${r.reason}\n\n`
+        + '请把该教材对应的文件（PDF / 图片目录 / 缩略图）确认好之后再点一次；'
+        + '或删除该书后重新导入。');
+      return;
+    }
+  }
+  await scanBrokenBooks();
+  if (!(await findMissingSources(book)).length) return;   // 已修好
+  await showAlertDialogFn(
+    `未能自动找回「${book.name}」的文件：磁盘上既没有「当前名称」对应的文件，也没有「未被认领」的文件可以配对。\n\n`
+    + `当前记录：\n· PDF：${book.pdfPath || '（无）'}\n· 图片目录：${book.imagesDir || '（无）'}\n\n`
+    + '请确认文件是否被移到了库目录之外，或设置里的存储路径是否被改过；'
+    + '最省事的办法是删除该书后重新导入。',
+  );
+};
+
 // 重命名（🔧 联动物理路径：显示名、id、存储目录三者保持一致——存储以名称为标识，
 //    仅改显示名会导致"名字与文件/图片对应不上"，改名时同步移动 imagesDir/pdfPath/coverPath）
 //    🔧 事务式：任一文件移动失败 → 回滚已移动的，且不更新存储记录（避免 store 指向不存在的文件导致预览空白）
+//    🔧 2026-09-20 两处修正：
+//      ① **动之前先诊断源文件**——源文件不存在时先跑一次路径自愈；仍缺就精确说明缺哪个，
+//         而不是像原先那样一律说"PDF 被占用"（用户实测：在本地教材库改过名后就被这句话误导）；
+//      ② 失败原因**如实转述**并在"被占用"类错误上重试一次（句柄常在关闭阅读器的瞬间才释放）。
 const renameTextbook = async (book) => {
   const newName = await showInputDialogFn('输入新名称', book.name);
   const name = newName?.trim();
   if (!name || name === book.name) return;
-  const safeNew = name.replace(/[<>:"/\\|?*]/g, '_');
+  const safeNew = sanitizeFsName(name);
   if (safeNew === book.id) { textbookStore.updateTextbook(book.id, { name }); return; }
   const storagePath = getStoragePath();
-  const newImagesDir = `${storagePath}/教材库/图片/${safeNew}`;
-  const newPdfPath = book.pdfPath ? `${storagePath}/教材库/${safeNew}_带书签.pdf` : '';
-  const newCoverPath = book.coverPath ? `${storagePath}/教材库/缩略图/${safeNew}.png` : '';
+  // 🔑 目标路径公式取自 libraryEntryPaths（与自愈/修复动作同一实现，防公式漂移）
+  const targets = libraryEntryPaths({ name, id: safeNew }, storagePath, '教材库').name;
+  const newImagesDir = targets.imagesDir;
+  const newPdfPath = book.pdfPath ? targets.pdfPath : '';
+  const newCoverPath = book.coverPath ? targets.coverPath : '';
   // 目标冲突预检（图片目录 + PDF + 缩略图）
   const fileExists = async (p) => { try { await window.electronAPI.readFile(p); return true; } catch { return false; } };
   if ((await pathExists(newImagesDir))
@@ -1890,12 +2070,34 @@ const renameTextbook = async (book) => {
     await showAlertDialogFn('已存在同名教材的存储文件（图片目录/PDF/缩略图），请换一个名称。');
     return;
   }
+  // ① 源文件预检 + 自愈（关键：源文件不存在 ≠ 被占用，必须分别对待）
+  let missing = await findMissingSources(book);
+  if (missing.length) {
+    const repaired = await repairBookPaths(book);
+    if (repaired) missing = await findMissingSources(book);
+    if (missing.length) {
+      await showAlertDialogFn(
+        `改名失败：磁盘上找不到该教材的文件，无法改名。\n\n`
+        + missing.map((m) => `· ${m.label}：${m.path}`).join('\n')
+        + `\n\n常见原因：已在「本地教材库」目录里手动改过名/移动过这些文件。\n`
+        + `处理办法：到教材库列表点「🔗 修复路径」重新指认，或把磁盘文件改回原名后再改名。`,
+      );
+      return;
+    }
+  }
   // 事务式移动：全部成功才更新存储；任一失败 → 回滚已移动项并中止
   const moved = [];
+  const lastError = { msg: '' };
   const doMove = async (src, dst) => {
     if (!src) return true;
-    const r = await moveFile(src, dst);
+    let r = await moveFile(src, dst);
+    if (!r?.success && classifyMoveError(r?.error).kind === 'busy') {
+      // "被占用"类错误重试一次：句柄常在关闭预览/阅读器的瞬间才释放
+      await new Promise((res) => setTimeout(res, 400));
+      r = await moveFile(src, dst);
+    }
     if (r?.success) { moved.push([src, dst]); return true; }
+    lastError.msg = r?.error || '';
     return false;
   };
   const rollbackMoves = async () => {
@@ -1903,18 +2105,24 @@ const renameTextbook = async (book) => {
       try { await moveFile(dst, src); } catch { /* 忽略回滚失败 */ }
     }
   };
+  /** 如实说明失败原因（不再一律说"被占用"） */
+  const failWith = async (what) => {
+    const c = classifyMoveError(lastError.msg);
+    await showAlertDialogFn(`改名失败：${what}无法移动。\n\n${c.advice}`
+      + (moved.length ? '\n\n（已移动的部分已自动还原，记录未改动。）' : ''));
+  };
   if (!(await doMove(book.imagesDir, newImagesDir))) {
-    await showAlertDialogFn('改名失败：图片目录被占用或无法移动，请关闭占用程序后重试。');
+    await failWith('图片目录');
     return;
   }
   if (!(await doMove(book.pdfPath, newPdfPath))) {
     await rollbackMoves();
-    await showAlertDialogFn('改名失败：PDF 文件被占用（可能正在阅读器中打开），请关闭后重试。');
+    await failWith('PDF 文件');
     return;
   }
   if (!(await doMove(book.coverPath, newCoverPath))) {
     await rollbackMoves();
-    await showAlertDialogFn('改名失败：缩略图无法移动，已自动还原，请重试。');
+    await failWith('缩略图');
     return;
   }
   textbookStore.updateTextbook(book.id, {
@@ -2723,19 +2931,51 @@ const handlePreview = (data) => {
     return;
   }
   previewData.value = data;
+  // 🔴 关键（2026-09-20）：这里把**书对象本身**记下来，而不是只记 imagesDir 字符串。
+  //    改名会同时改掉 id 与 imagesDir/pdfPath——用字符串当键的话，改名后必然查不到书，
+  //    pdfPath 变成空串，预览就一片空白（而且 PdfPreview 只在 console 里报错，界面看不到原因）。
+  previewBook.value = textbookStore.textbooks.find(b => b.imagesDir === data.imagesDir)
+    || textbookStore.textbooks.find(b => b.id === data.imagesDir)
+    || null;
+  previewLoadError.value = '';
   currentPreviewPage.value = data.start;
   showPreview.value = true;
-  
+
   // ✅ 弹出 PDF 页码提示
-  const book = textbookStore.textbooks.find(b => b.imagesDir === data.imagesDir);
   const realPage = data.start; // PDF 实际页码就是 start
   pdfPageHint.value = `📐 目录写「${data.title}」第${data.start}页 → PDF实际第${realPage}页 → 偏移量 = ${realPage - data.start}`;
   setTimeout(() => { pdfPageHint.value = ''; }, 5000);
 };
 
+/**
+ * 🔗 预览失败时的"修复路径"（2026-09-20）
+ * 场景：文件在「本地教材库」目录里被手动改过名/移动过 → store 里的路径失效 → 预览空白。
+ * 动作：按**当前名称 / 旧 id**两套候选重新指认（与加载时自愈同一实现），成功后立刻刷新预览；
+ *      找不回来则如实说明"两套候选都没有"，而不是含糊地说"文件打不开"。
+ */
+const repairPreviewPath = async () => {
+  const book = previewBook.value;
+  if (!book) return;
+  const changed = await repairBookPaths(book);
+  if (changed) {
+    previewLoadError.value = '';
+    await nextTick();               // 路径变化后由 watch 触发重新加载
+    pdfPreviewRef.value?.reload?.();  // 路径没变也要强制重读（例如文件刚被改回原名）
+    return;
+  }
+  await showAlertDialogFn(
+    '未能自动找回文件：磁盘上既没有「当前名称」对应的文件，也没有「旧名称/id」对应的文件。\n\n'
+    + `当前记录的 PDF：${book.pdfPath || '（无）'}\n\n`
+    + '请确认：① 文件是否被移到了别的目录（可重新导入或手动放回该名称对应的位置）；'
+    + '② 设置里的存储路径是否被改过。',
+  );
+};
+
 const closePreview = () => {
   showPreview.value = false;
   previewData.value = null;
+  previewBook.value = null;
+  previewLoadError.value = '';
   currentPreviewPage.value = 1;
 };
 
@@ -2982,13 +3222,12 @@ const saveTextbook = async () => {
     const ext = tempFilePath.value.split('.').pop().toLowerCase();
     
     const rawName = textbookName.value || tempFilePath.value.split('\\').pop().replace(/\.[^/.]+$/, '');
-    // 只替换文件系统不允许的字符
-    const safeName = rawName.replace(/[<>:"/\\|?*]/g, '_');
-    const textbookId = safeName;
-    
-    const imagesDir = `${storagePath}/教材库/图片/${textbookId}`;
-    const pdfPath = ext === 'pdf' ? `${storagePath}/教材库/${textbookId}_带书签.pdf` : '';
-    const coverPath = `${storagePath}/教材库/缩略图/${textbookId}.png`;
+    const textbookId = sanitizeFsName(rawName);
+    // 🔑 入库时也用同一套路径公式（与改名/自愈/逆向联动同源）——三处各写一份是本项目反复踩过的坑
+    const entryPaths = libraryEntryPaths({ name: textbookId, id: textbookId }, storagePath, '教材库').name;
+    const imagesDir = entryPaths.imagesDir;
+    const pdfPath = ext === 'pdf' ? entryPaths.pdfPath : '';
+    const coverPath = entryPaths.coverPath;
     let finalFileName = '';
     
     // 确保PDF输出目录存在
@@ -3190,6 +3429,20 @@ const saveTextbook = async () => {
 .book-name { font-weight: 500; font-size: 14px; }
 .chapter-count { font-size: 0.75rem; color: #666; margin-left: 8px; }
 .item-actions { display: flex; gap: 4px; }
+/* 🔴 预览加载失败的显性提示条（2026-09-20）：原因 + 一键按名称重新指认 */
+.preview-load-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 8px;
+  padding: 6px 10px;
+  border: 1px solid rgba(224, 128, 0, 0.5);
+  border-radius: 6px;
+  background: rgba(224, 128, 0, 0.08);
+  font-size: 12px;
+  color: #b06000;
+}
+.preview-load-error-text { flex: 1; line-height: 1.5; }
 .icon-btn { background: none; border: none; cursor: pointer; padding: 4px; font-size: 1rem; }
 .icon-btn:hover { background: #f0f0f0; border-radius: 4px; }
 .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }

@@ -232,6 +232,24 @@ ipcMain.handle('path-exists', async (event, filePath) => {
     try { return fs.existsSync(filePath); } catch { return false; }
 });
 
+/**
+ * 列目录（只返回名字与是否目录）——2026-09-20
+ * 用途：**磁盘 → 应用 的逆向联动**。用户在「本地教材库」目录里手动改过名之后，
+ *   记录里的路径就失效了；要把它们指回正确文件，必须能"看见"目录里到底有什么。
+ * 只读、只回名字，不回内容，也不递归（够用且便宜）。
+ */
+ipcMain.handle('list-directory', async (event, dirPath) => {
+    try {
+        if (!dirPath) return { success: false, error: '路径无效', entries: [] };
+        if (!fs.existsSync(dirPath)) return { success: true, entries: [] };   // 目录不存在＝空，不报错（首次使用即如此）
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+            .map((d) => ({ name: d.name, isDirectory: d.isDirectory() }));
+        return { success: true, entries };
+    } catch (e) {
+        return { success: false, error: e.message || '读取目录失败', entries: [] };
+    }
+});
+
 // 移动文件（目录安全 + 失败返回不抛错，供渲染进程做事务式改名）
 ipcMain.handle('move-file', async (event, sourcePath, targetPath) => {
     try {

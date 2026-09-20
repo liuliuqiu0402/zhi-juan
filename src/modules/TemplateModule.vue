@@ -1198,6 +1198,8 @@ import { useMobile } from '../composables/useMobile.js';
 import ExcelJS from 'exceljs';
 import { getStoragePath, resolveStoredPath } from '../utils/pathHelper.js';  // ✨ 存储路径工具
 import { useTemplateStore } from '../stores/templateStore.js';
+// 🔑 磁盘路径公式与"移动失败原因归类"唯一事实源（改名/自愈共用，防公式漂移与误导性报错）
+import { libraryEntryPaths, classifyMoveError, sanitizeFsName, repairLibraryPaths } from '../utils/libraryPathRepair.js';
 import { useFileHandler } from '../composables/useFileHandler.js';
 import { convertFormulasInHtml } from '../utils/wordExporter.js';
 import { useTocParser, safeFocusOutlineInput, fastFocusInput, smartFocusInput, fastCalculatePageRanges, fastRebuildTree } from '../composables/useTocParser.js';
@@ -1906,16 +1908,56 @@ const batchExport = () => {
 
 // 重命名模板（🔧 联动物理路径：显示名、id、存储目录一致——与教材库对齐；
 //    存储以名称为标识，仅改显示名会导致"名字与文件/图片对应不上"）
+/**
+ * 🔗 按当前名称/旧 id 重新指认模板的磁盘文件（2026-09-20，与教材库同一套做法）
+ * ============================================================
+ * 与加载时自愈共用 repairLibraryPaths，但把它从"只在启动时跑一次"变成**随时可点的动作**：
+ * 文件在「本地模板库」目录里被手动改过名之后，原先必须重启才能自愈，
+ * 而在此之前改名会报"被占用"、预览一片空白。
+ */
+const repairTemplatePaths = async (tpl) => {
+  const fs = {
+    pathExists: async (p) => { try { return !!(await window.electronAPI?.existsPath?.(p)); } catch { return false; } },
+    moveFile: async (s, t) => { try { return (await moveFile(s, t)) || { success: false }; } catch { return { success: false }; } },
+  };
+  try {
+    const changed = await repairLibraryPaths(tpl, fs, getStoragePath(), '模板库');
+    if (changed) templateStore.updateTemplate(tpl.id, {});
+    return changed;
+  } catch (e) {
+    console.error('模板路径修复失败:', e);
+    return false;
+  }
+};
+
+/** 逐项检查源文件是否存在（改名前的公共前置诊断） */
+const findMissingTemplateSources = async (tpl) => {
+  const checks = [['图片目录', tpl.imagesDir], ['PDF', tpl.pdfPath], ['源文件', tpl.filePath], ['缩略图', tpl.coverPath]];
+  const seen = new Set();
+  const missing = [];
+  for (const [label, p] of checks) {
+    if (!p || seen.has(p)) continue;   // 源文件与 PDF 可能是同一路径，去重避免重复报
+    seen.add(p);
+    if (!(await pathExists(p))) missing.push({ label, path: p });
+  }
+  return missing;
+};
+
+// 重命名模板（🔧 联动物理路径：显示名、id、存储目录一致——与教材库对齐；
+//    🔧 2026-09-20 同教材库：① 动之前先诊断源文件（源文件不存在 ≠ 被占用）；
+//    ② 失败原因如实转述并在"被占用"类错误上重试一次）
 const renameTemplate = async (tpl) => {
   const newName = await showInputDialogFn('输入新名称', tpl.name);
   const name = newName?.trim();
   if (!name || name === tpl.name) return;
-  const safeNew = name.replace(/[<>:"/\\|?*]/g, '_');
+  const safeNew = sanitizeFsName(name);
   if (safeNew === tpl.id) { templateStore.updateTemplate(tpl.id, { name }); return; }
   const storagePath = getStoragePath();
-  const newImagesDir = `${storagePath}/模板库/图片/${safeNew}`;
-  const newPdfPath = tpl.pdfPath ? `${storagePath}/模板库/${safeNew}_带书签.pdf` : '';
-  const newCoverPath = tpl.coverPath ? `${storagePath}/模板库/缩略图/${safeNew}.png` : '';
+  // 🔑 目标路径公式取自 libraryEntryPaths（与自愈同一实现，防公式漂移）
+  const targets = libraryEntryPaths({ name, id: safeNew }, storagePath, '模板库').name;
+  const newImagesDir = targets.imagesDir;
+  const newPdfPath = tpl.pdfPath ? targets.pdfPath : '';
+  const newCoverPath = tpl.coverPath ? targets.coverPath : '';
   let newFilePath = '';
   if (tpl.filePath) {
     const ext = (tpl.filePath.split('.').pop() || '').toLowerCase();
@@ -1930,12 +1972,33 @@ const renameTemplate = async (tpl) => {
     await showAlertDialogFn('已存在同名模板的存储文件（图片目录/PDF/缩略图/源文件），请换一个名称。');
     return;
   }
+  // ① 源文件预检 + 自愈（源文件不存在会被原先一律说成"被占用"，误导排查方向）
+  let missing = await findMissingTemplateSources(tpl);
+  if (missing.length) {
+    const repaired = await repairTemplatePaths(tpl);
+    if (repaired) missing = await findMissingTemplateSources(tpl);
+    if (missing.length) {
+      await showAlertDialogFn(
+        '改名失败：磁盘上找不到该模板的文件，无法改名。\n\n'
+        + missing.map((m) => `· ${m.label}：${m.path}`).join('\n')
+        + '\n\n常见原因：已在「本地模板库」目录里手动改过名/移动过这些文件。\n'
+        + '处理办法：把磁盘文件改回原名后再改名，或删除该模板后重新导入。',
+      );
+      return;
+    }
+  }
   // 🔧 事务式移动：全部成功才更新存储；任一失败 → 回滚已移动项并中止
   const moved = [];
+  const lastError = { msg: '' };
   const doMove = async (src, dst) => {
     if (!src) return true;
-    const r = await moveFile(src, dst);
+    let r = await moveFile(src, dst);
+    if (!r?.success && classifyMoveError(r?.error).kind === 'busy') {
+      await new Promise((res) => setTimeout(res, 400));   // 句柄常在关闭预览/阅读器的瞬间才释放
+      r = await moveFile(src, dst);
+    }
     if (r?.success) { moved.push([src, dst]); return true; }
+    lastError.msg = r?.error || '';
     return false;
   };
   const rollbackMoves = async () => {
@@ -1943,23 +2006,28 @@ const renameTemplate = async (tpl) => {
       try { await moveFile(dst, src); } catch { /* 忽略回滚失败 */ }
     }
   };
+  /** 如实说明失败原因（不再一律说"被占用"） */
+  const failWith = async (what) => {
+    await showAlertDialogFn(`改名失败：${what}无法移动。\n\n${classifyMoveError(lastError.msg).advice}`
+      + (moved.length ? '\n\n（已移动的部分已自动还原，记录未改动。）' : ''));
+  };
   if (!(await doMove(tpl.imagesDir, newImagesDir))) {
-    await showAlertDialogFn('改名失败：图片目录被占用或无法移动，请关闭占用程序后重试。');
+    await failWith('图片目录');
     return;
   }
   if (!(await doMove(tpl.pdfPath, newPdfPath))) {
     await rollbackMoves();
-    await showAlertDialogFn('改名失败：PDF 文件被占用（可能正在阅读器中打开），请关闭后重试。');
+    await failWith('PDF 文件');
     return;
   }
   if (tpl.filePath && tpl.filePath !== tpl.pdfPath && !(await doMove(tpl.filePath, newFilePath))) {
     await rollbackMoves();
-    await showAlertDialogFn('改名失败：源文件被占用，已自动还原，请重试。');
+    await failWith('源文件');
     return;
   }
   if (!(await doMove(tpl.coverPath, newCoverPath))) {
     await rollbackMoves();
-    await showAlertDialogFn('改名失败：缩略图无法移动，已自动还原，请重试。');
+    await failWith('缩略图');
     return;
   }
   templateStore.updateTemplate(tpl.id, {
@@ -2973,13 +3041,12 @@ const saveTemplate = async () => {
     const ext = tempFilePath.value.split('.').pop().toLowerCase();
     
     const rawName = templateName.value || tempFilePath.value.split('\\').pop().replace(/\.[^/.]+$/, '');
-    // 只替换文件系统不允许的字符
-    const safeName = rawName.replace(/[<>:"/\\|?*]/g, '_');
-    const templateId = safeName;
-    
-    const imagesDir = `${storagePath}/模板库/图片/${templateId}`;
-    const pdfPath = ext === 'pdf' ? `${storagePath}/模板库/${templateId}_带书签.pdf` : '';
-    const coverPath = `${storagePath}/模板库/缩略图/${templateId}.png`;
+    const templateId = sanitizeFsName(rawName);
+    // 🔑 入库时也用同一套路径公式（与改名/自愈同源）——三处各写一份是本项目反复踩过的坑
+    const entryPaths = libraryEntryPaths({ name: templateId, id: templateId }, storagePath, '模板库').name;
+    const imagesDir = entryPaths.imagesDir;
+    const pdfPath = ext === 'pdf' ? entryPaths.pdfPath : '';
+    const coverPath = entryPaths.coverPath;
     let finalFileName = '';
     
     // 确保PDF输出目录存在

@@ -76,6 +76,26 @@
         ref="canvasRef"
         class="pdf-canvas"
       />
+      <!-- 🔴 加载失败必须看得见（2026-09-20）：原先只在 console 里 console.error，
+           界面上就是一块空白画布 —— 用户唯一能说的是"预览不了了"，排查无从下手。
+           现在给出：原因 + 出错路径 + 下一步（父组件可选地补一个"修复路径"动作）。 -->
+      <div
+        v-if="loadError"
+        class="pdf-load-error"
+      >
+        <div class="pdf-load-error-title">
+          ⚠️ PDF 无法打开
+        </div>
+        <div class="pdf-load-error-msg">
+          {{ loadError }}
+        </div>
+        <div
+          v-if="pdfPath"
+          class="pdf-load-error-path"
+        >
+          {{ pdfPath }}
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -89,7 +109,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url
 ).toString();
 
-const emit = defineEmits(['pageChange']);
+const emit = defineEmits(['pageChange', 'loadError']);
 
 const props = defineProps({
   pdfPath: { type: String, required: true },
@@ -101,6 +121,8 @@ const containerRef = ref(null);
 const scale = ref(1);
 const currentPage = ref(1);
 const totalPages = ref(0);
+/** 加载失败的原因（空＝正常）。由本组件显示在画布区，同时通过 loadError 事件告知父组件 */
+const loadError = ref('');
 
 let pdfDoc = null;
 let lastPdfPath = '';
@@ -157,31 +179,43 @@ const cancelPageInput = () => {
 };
 
 const loadPdf = async () => {
-  if (!props.pdfPath) return;
-  
+  // 🔴 没有路径也要说清楚（2026-09-20）：原先是 `if (!props.pdfPath) return;` ——
+  //    父组件一旦没解析出路径（例如记录里的 pdfPath 为空/查不到书），这里就是**静默空白**，
+  //    用户只能说"预览不了了"，完全看不出是"根本没给路径"还是"PDF 打不开"。
+  if (!props.pdfPath) {
+    pdfDoc = null;
+    totalPages.value = 0;
+    loadError.value = '没有可用的 PDF 路径（这条教材记录里没有 PDF，或记录与文件已对不上）。';
+    emit('loadError', loadError.value);
+    return;
+  }
+
   // ✅ 如果 pdfPath 没变，且 pdfDoc 已存在，直接渲染当前页
   if (lastPdfPath === props.pdfPath && pdfDoc) {
     console.log('✅ 复用已缓存的 PDF 文档');
+    loadError.value = '';
     if (props.page > 0 && props.page <= totalPages.value) {
       currentPage.value = props.page;
     }
     await renderPage();
     return;
   }
-  
+
   try {
-    // 先关闭之前的 PDF，释放内存
+    loadError.value = '';
+    // 先关闭之前的 PDF，释放内存（destroy 是异步的，必须等它完成再读新文件，
+    // 否则大文件会出现"上一个文档还占着内存/句柄"的叠加）
     if (pdfDoc) {
-      pdfDoc.destroy();
+      try { await pdfDoc.destroy(); } catch { /* 已销毁/销毁中，忽略 */ }
       pdfDoc = null;
     }
-    
+
     console.log('📖 加载PDF:', props.pdfPath);
-    
+
     // 用 file:// 直接加载，不用 base64，避免大文件撑爆内存
     const filePath = props.pdfPath.replace(/\\/g, '/');
     const fileUrl = filePath.startsWith('file://') ? filePath : 'file:///' + filePath;
-    
+
     pdfDoc = await pdfjsLib.getDocument({
       url: fileUrl,
       disableAutoFetch: true,
@@ -189,19 +223,34 @@ const loadPdf = async () => {
       cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
       cMapPacked: true
     }).promise;
-    
+
     lastPdfPath = props.pdfPath;  // ✅ 记录当前 pdfPath
     totalPages.value = pdfDoc.numPages;
     console.log('📖 PDF页数:', totalPages.value);
-    
+
     if (props.page > 0 && props.page <= totalPages.value) {
       currentPage.value = props.page;
     }
-    
+
     await renderPage();
   } catch (e) {
-    console.error('加载 PDF 失败:', e.message);
+    const raw = (e && e.message) || '未知错误';
+    // pdf.js 对"文件不存在/读不到"报的是 Missing PDF / UnexpectedResponse / status 0，
+    // 一律翻译成用户能懂的因果，并提示下一步（路径由模板单独显示，便于对账）
+    loadError.value = /Missing|not found|ENOENT|UnexpectedResponse|status\s*0/i.test(raw)
+      ? '文件不存在或无法读取：可能已被移动、改名或删除。若你刚在教材库目录里改过名，点「🔗 修复路径」即可重新指认。'
+      : `读取失败：${raw}`;
+    pdfDoc = null;
+    totalPages.value = 0;
+    console.error('加载 PDF 失败:', raw);
+    emit('loadError', loadError.value);
   }
+};
+
+/** 供父组件强制重读（例如刚刚"修复路径"把文件指回原位，路径字符串可能没变） */
+const reload = () => {
+  lastPdfPath = '';
+  loadPdf();
 };
 
 const renderPage = async () => {
@@ -292,7 +341,10 @@ defineExpose({
   totalPages,
   setTotalPages: (pages) => {
     totalPages.value = pages;
-  }
+  },
+  // 🔁 强制重读（2026-09-20）："修复路径"把文件指回原位后，路径字符串可能没变，
+  //    此时靠 watch(pdfPath) 触发不了重载，必须由父组件显式调一次
+  reload,
 });
 
 // 组件销毁时释放 PDF 内存和定时器
@@ -382,6 +434,37 @@ onUnmounted(() => {
   background: white;
   flex-shrink: 0;
   margin: auto;
+}
+
+/* 🔴 加载失败提示（2026-09-20）：替代原先"空白画布 + 只在 console 报错"的静默失败 */
+.pdf-load-error {
+  margin: auto;
+  max-width: 520px;
+  padding: 18px 20px;
+  border: 1px solid rgba(224, 128, 0, 0.5);
+  border-radius: 10px;
+  background: rgba(224, 128, 0, 0.08);
+  color: #d0d0d0;
+  font-size: 13px;
+  line-height: 1.7;
+  text-align: left;
+}
+
+.pdf-load-error-title {
+  font-weight: 600;
+  color: #e08000;
+  margin-bottom: 6px;
+}
+
+.pdf-load-error-msg {
+  margin-bottom: 8px;
+}
+
+.pdf-load-error-path {
+  font-family: Consolas, Monaco, monospace;
+  font-size: 11px;
+  color: var(--text-muted, #999);
+  word-break: break-all;
 }
 
 .scale-editable {

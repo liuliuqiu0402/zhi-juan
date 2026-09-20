@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
     parseWord: (filePath) => ipcRenderer.invoke('parse-word', filePath),
     existsPath: (filePath) => ipcRenderer.invoke('path-exists', filePath),
+    // 列目录（只回名字与是否目录）——用于"磁盘→应用"的逆向联动（手动改过名的文件要指回去）
+    listDirectory: (dirPath) => ipcRenderer.invoke('list-directory', dirPath),
     moveFile: (source, target) => ipcRenderer.invoke('move-file', source, target),
     deleteFile: (filePath) => ipcRenderer.invoke('delete-file', filePath),
     deleteDirectory: (dirPath) => ipcRenderer.invoke('delete-directory', dirPath),
