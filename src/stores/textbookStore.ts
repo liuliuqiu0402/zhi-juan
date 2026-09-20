@@ -190,7 +190,7 @@ export const useTextbookStore = defineStore('textbook', {
           //    ② 清年级**要先确认拿到了册次**——册次才是替代品，识别不到册次就把年级一并抹掉，
           //       只会让这本教材"改版后反而没了任何标识"（比改版前更糟）。
           //       没有册次的保留旧年级做兜底显示（gradeDisplayLabel 以册次优先），
-          //       用户在教材库用卡片上的「📚 册次」按钮补上即可。
+          //       用户在教材库用卡片上的「🏷️ 编辑元数据」按钮补上即可（学段/学科/册次一起改）。
           if (bName) {
             const d = autoDetectTextbookMeta(bName);
             const bStage = String(b.stage || '');

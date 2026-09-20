@@ -1,9 +1,21 @@
 <template>
   <div class="textbook-module">
-    <!-- 左侧教材库面板 -->
-    <div class="library-panel">
+    <!-- 左侧教材库面板（宽度可由中间拖动条手调，见 useLibraryView） -->
+    <div
+      class="library-panel"
+      :style="panelWidthStyle"
+    >
       <div class="panel-header">
         <h3>📚 教材库 ({{ textbookStore.textbooks.length }})</h3>
+        <!-- 分组折叠总开关（仅桌面：移动端列表本就窄，逐组点开即可） -->
+        <button
+          v-if="!isMobile && groupedTextbooks.length > 0"
+          class="btn btn-sm"
+          :title="anyCollapsed ? '展开所有学段／学科分组' : '收起所有学段／学科分组'"
+          @click="toggleCollapseAll"
+        >
+          {{ anyCollapsed ? '🗂 全部展开' : '🗂 全部折叠' }}
+        </button>
         <button
           v-if="!isMobile"
           class="btn-primary"
@@ -190,11 +202,46 @@
             📤 上传第一本教材
           </button>
         </div>
-        <div
-          v-for="book in filteredTextbooks"
-          :key="book.id"
-          class="textbook-item"
+        <!-- 🔴 两级折叠：学段 → 学科（2026-09-20 用户："教材全部是平铺的，可否按小学折叠、
+             小学下方再按学科折叠"）。分组走 utils/libraryGrouping 纯函数；
+             **层级稳定**：只有"该维度被筛选成单一值"时才隐藏那一级的组头（如筛了学段=小学，
+             就不再套"小学"组头），未筛选时学段与学科组头**一律显示**——不按数据分了几组来变，
+             否则会看不出"这级本来没有"还是"这级被藏了"。
+             注：下方课本条目本体未改动，只在外面套了两层分组壳。 -->
+        <template
+          v-for="grp in groupedTextbooks"
+          :key="grp.key"
         >
+          <div
+            v-if="showStageLevel"
+            class="group-header group-stage"
+            :title="`${grp.label}：共 ${grp.count} 本`"
+            @click="toggleCollapse(grp.key)"
+          >
+            <span class="group-caret">{{ isCollapsed(grp.key) ? '▶' : '▼' }}</span>
+            <span class="group-name">{{ grp.label }}</span>
+            <span class="group-count">{{ grp.count }}</span>
+          </div>
+          <template
+            v-for="sub in grp.subjects"
+            :key="sub.key"
+          >
+            <div
+              v-if="showSubjectLevel && !isCollapsed(grp.key)"
+              class="group-header group-subject"
+              :title="`${sub.label}：共 ${sub.count} 本`"
+              @click="toggleCollapse(sub.key)"
+            >
+              <span class="group-caret">{{ isCollapsed(sub.key) ? '▶' : '▼' }}</span>
+              <span class="group-name">{{ sub.label }}</span>
+              <span class="group-count">{{ sub.count }}</span>
+            </div>
+            <template v-if="!isCollapsed(grp.key) && !isCollapsed(sub.key)">
+              <div
+                v-for="book in sub.items"
+                :key="book.id"
+                class="textbook-item"
+              >
           <div class="item-header">
             <input 
               type="checkbox" 
@@ -241,16 +288,18 @@
               >
                 🔗
               </button>
-              <!-- 高中册次编辑入口：高中教材按必修／选择性必修分册，册次才是它的标识。
-                   导入时已按文件名自动识别；文件名里没写册次的老数据识别不到，
-                   这里给一个补标入口（只改 volume，不动 name/id/路径，与重命名互不干扰）。 -->
+              <!-- 🏷️ 元数据补标（学段/学科/册次）：列表按「学段→学科」分组，而这两项只在导入时能选
+                   （初中不自动识别学段），老数据缺了就归不了位。缺项时标成橙色提示"这里有活要干"；
+                   只改元数据，不动 name/id/路径（不碰文件，与重命名互不干扰）。 -->
               <button
-                v-if="isHighStage(book.stage)"
                 class="icon-btn"
-                title="设置册次（必修1 / 选择性必修2 …）"
-                @click.stop="editVolume(book)"
+                :style="needsMetaBackfill(book) ? 'color:#e08000;' : ''"
+                :title="needsMetaBackfill(book)
+                  ? '编辑元数据（这条缺学段／学科，补上才能归入分组）'
+                  : '编辑元数据（学段 / 学科 / 册次）'"
+                @click.stop="openMetaDialog(book)"
               >
-                📚
+                🏷️
               </button>
               <button
                 class="icon-btn"
@@ -289,8 +338,23 @@
             />
           </div>
         </div>
+            </template>
+          </template>
+        </template>
       </div>
     </div>
+
+    <!-- 🔴 列表／预览 分栏拖动条（2026-09-20 用户："界面中列表和预览不是两个块嘛，
+         可否改为可以手动拖动调整宽？"）。仅桌面显示；宽度上下限由 useLibraryView.clampPanelWidth
+         钳制（列表最少 280px、预览区至少留 420px）；双击复位默认宽度。 -->
+    <div
+      v-if="!isMobile"
+      class="panel-splitter"
+      :class="{ 'is-dragging': resizing }"
+      title="拖动调整列表宽度（双击复位）"
+      @mousedown.prevent="startResize"
+      @dblclick="resetPanelWidth"
+    />
 
     <!-- 右侧预览面板 -->
     <div
@@ -361,6 +425,16 @@
         <p>点击左侧目录中的章节名称<br>即可在此预览内容</p>
       </div>
     </div>
+
+    <!-- 🏷️ 元数据补标弹窗（学段/学科/册次；组件与模板库共用一份实现） -->
+    <LibraryMetaDialog
+      v-model:visible="showMetaDialog"
+      :item-name="metaTarget?.name || ''"
+      :stage="metaTarget?.stage || ''"
+      :subject="metaTarget?.subject || ''"
+      :volume="metaTarget?.volume || ''"
+      @confirm="onMetaConfirm"
+    />
 
     <!-- 上传弹窗 -->
     <div
@@ -1247,6 +1321,12 @@ import { useTocParser, safeFocusOutlineInput, fastFocusInput, smartFocusInput, f
 import { subjects, subjectGradeSystem } from '../config/expertKnowledge.js';
 import { autoDetectTextbookMeta } from '../utils/textbookMeta.js'; // 教材名元数据识别（课本库/模板库共用单一实现，曾双份逐字副本）
 import { highVolumeOptions } from '../config/highVolumes.js'; // 高中册次候选（高中按必修/选择性必修分册，不按年级）
+// 📚 列表视图：学段→学科 两级分组（纯函数）+ 分栏拖动/折叠状态（两库共用同一实现）
+import { groupLibrary, needGroupHeader } from '../utils/libraryGrouping.js';
+import { useLibraryView } from '../composables/useLibraryView.js';
+// 🏷️ 元数据补标（学段/学科/册次）：规则在 utils/libraryMetaEdit（纯函数、有单测），弹窗两库共用
+import { applyLibraryMetaEdit, needsMetaBackfill } from '../utils/libraryMetaEdit.js';
+import LibraryMetaDialog from '../components/library/LibraryMetaDialog.vue';
 import { useAiGenerator } from '../composables/useAiGenerator.js';
 import { deepClone } from '../utils/helpers';
 import PdfPreview from '../components/PdfPreview.vue';
@@ -1634,6 +1714,28 @@ const filteredTextbooks = computed(() => {
     return (b.createdAt || 0) - (a.createdAt || 0);
   });
 });
+
+// ==================== 📚 列表视图：学段→学科 两级折叠 + 列表/预览分栏拖动 ====================
+// 🔴 分组走 utils/libraryGrouping 纯函数（课本库与模板库**同一份实现**，防两处规则漂移）；
+//    折叠状态与分栏宽度走 composables/useLibraryView（两库用不同 storageKey，互不串味）。
+//    折叠未标注组也不会丢书：未标注学段/学科的书照常成组显示（见 groupLibrary 的两条铁律）。
+const {
+  panelWidth, resizing, startResize, resetPanelWidth,
+  collapsed, isCollapsed, toggleCollapse, collapseAll, expandAll,
+} = useLibraryView({ storageKey: 'textbook' });
+
+const groupedTextbooks = computed(() => groupLibrary(filteredTextbooks.value));
+/** 组头显示判据：**只看该维度有没有被显式筛选**（见 libraryGrouping.needGroupHeader 里记的那次回归）——
+ *  第一版按"数据只有一组就隐藏该级"实现，出现"小学下面有学科、初高中下面没有"，结构随数据变形、无法预期。 */
+const showStageLevel = computed(() => needGroupHeader(filterStage.value));
+const showSubjectLevel = computed(() => needGroupHeader(filterSubject.value));
+const anyCollapsed = computed(() => collapsed.value.size > 0);
+const toggleCollapseAll = () => {
+  if (anyCollapsed.value) expandAll();
+  else collapseAll(groupedTextbooks.value);
+};
+/** 列表宽度按拖动值渲染；移动端不写 inline 宽度（让移动端 CSS 全权接管布局） */
+const panelWidthStyle = computed(() => (isMobile.value ? {} : { width: `${panelWidth.value}px` }));
 
 // 上传相关
 const showUploadModal = ref(false);
@@ -2129,25 +2231,22 @@ const fixBookPaths = async (book) => {
 // 重命名（🔧 联动物理路径：显示名、id、存储目录三者保持一致——存储以名称为标识，
 //    仅改显示名会导致"名字与文件/图片对应不上"，改名时同步移动 imagesDir/pdfPath/coverPath）
 //    🔧 事务式：任一文件移动失败 → 回滚已移动的，且不更新存储记录（避免 store 指向不存在的文件导致预览空白）
-/** 是否高中学段（教材库存中文'高中'；旧数据存英文'high'，见入库处的 stageMap 注释） */
-const isHighStage = (stage) => stage === '高中' || stage === 'high';
-
 /**
- * 设置/修改高中**册次**（📚 按钮）。
- * 🔴 只改 volume —— 不动 name / id / 路径，与重命名、改名联动完全解耦（不碰文件，故不存在"被占用"）。
- * 🔴 与导入侧落库同一口径：册次与年级互斥（高中不按年级）→ 填了册次就清掉遗留的高中年级。
- * 用途：文件名里没写册次的老数据（如"高二英语.pdf"）、或导入时册次没识别出来的，在这里补标。
+ * 🏷️ 编辑元数据（学段 / 学科 / 册次）——取代原先只改册次的「📚」按钮。
+ * 🔴 起因（2026-09-20 用户："要不然老数据就不能按规则归类了"）：列表按「学段→学科」两级分组，
+ *    而这两项**只在导入时能选**（初中不自动识别学段，只有小学年级与高中册次认得出来），
+ *    老数据缺了就永远落进"未标注"、归不了位，此前也没有任何入口可补。
+ * 🔴 只改元数据，**不动 name / id / 路径**（不碰文件，故与"改名被占用"无关）；
+ *    字段联动（册次只对高中有意义、填了册次清遗留年级）在 utils/libraryMetaEdit，纯函数且有单测。
  */
-const editVolume = async (book) => {
-  const input = await showInputDialogFn(
-    '设置册次（如：必修1 / 选择性必修第一册 / 选择性必修2）',
-    book.volume || ''
-  );
-  if (input === null || input === undefined) return; // 取消
-  const v = String(input).trim();
-  if (v === (book.volume || '')) return;
-  book.volume = v;
-  if (v && isHighStage(book.stage)) book.grade = '';
+const metaTarget = ref(null);
+const showMetaDialog = ref(false);
+const openMetaDialog = (book) => { metaTarget.value = book; showMetaDialog.value = true; };
+const onMetaConfirm = async (patch) => {
+  const target = metaTarget.value;
+  if (!target) return;
+  const { changed } = applyLibraryMetaEdit(target, patch);
+  if (!changed) return; // 什么都没变就不落盘（避免无意义的写入）
   await textbookStore.saveTextbooks();
 };
 
@@ -3525,9 +3624,10 @@ const saveTextbook = async () => {
 <style scoped>
 .textbook-module { height: 100%; display: flex; }
 .library-panel {
-  width: 420px;
+  width: 420px; /* 默认值；拖动后由 :style 覆盖（见 composables/useLibraryView） */
   flex-shrink: 0;
-  border-right: 1px solid var(--border-light);
+  /* 🔴 不再自画右边框（2026-09-20）：中间插了 6px 拖动条，两侧面板若各自画边框会变成"双线夹一条缝"；
+     分隔线改由 .panel-splitter 提供，移动端（无拖动条）由 .preview-panel 的左边框兜底。 */
   padding: 16px;
   overflow-y: auto;
   display: flex;
@@ -3557,6 +3657,34 @@ const saveTextbook = async () => {
 }
 .textbook-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
 .textbook-item { border: 1px solid var(--border-light); border-radius: 8px; padding: 8px; background: white; }
+
+/* === 📚 学段→学科 两级分组组头（2026-09-20）：层级靠"缩进 + 底色深浅"区分，不靠字号堆叠 === */
+.group-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px; border-radius: 6px;
+  background: #eef3fa; color: var(--primary);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; user-select: none;
+}
+.group-header:hover { background: #e2ebf7; }
+.group-stage { background: #e8f0fa; }
+.group-subject { margin-left: 10px; background: #f6f8fb; color: var(--text-secondary, #555); font-weight: 500; }
+.group-subject:hover { background: #eef3fa; }
+.group-caret { width: 10px; font-size: 10px; }
+.group-name { flex: 1; }
+.group-count { font-size: 11px; font-weight: 500; color: #8a94a6; }
+
+/* === 列表／预览 分栏拖动条（2026-09-20）：6px 抓取区 + 常显分隔线，hover/拖动时高亮 === */
+.panel-splitter {
+  position: relative; flex: 0 0 6px; width: 6px;
+  cursor: col-resize; background: #fff;
+}
+.panel-splitter::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 2px; width: 2px;
+  background: var(--border-light); transition: background .15s, width .15s, left .15s;
+}
+.panel-splitter:hover::before,
+.panel-splitter.is-dragging::before { left: 1px; width: 4px; background: var(--primary-light, #4a90d9); }
 .item-header { display: flex; align-items: center; gap: 8px; }
 .select-checkbox { width: 16px; height: 16px; cursor: pointer; }
 .book-cover { width: 32px; height: 40px; object-fit: cover; border-radius: 4px; }
