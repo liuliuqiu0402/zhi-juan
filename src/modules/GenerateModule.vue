@@ -1826,7 +1826,7 @@
               <button
                 class="btn-small"
                 style="font-size:11px;padding:1px 7px;"
-                :disabled="!listeningVoices[slot.key] || !!listeningPreviewing"
+                :disabled="!listeningVoices[slot.key] || listeningVoices[slot.key] === 'split' || !!listeningPreviewing"
                 :title="`试听「${listeningVoices[slot.key] || '（未选）'}」`"
                 @click="playVoicePreview(listeningVoices[slot.key])"
               >
@@ -1855,6 +1855,15 @@
             style="margin:2px 0 6px;"
           >
             {{ listeningPassRotationHint }}
+          </div>
+
+          <!-- 🗣 中英混排标题＝同一人通读（仅混排标题显示；纯中文/纯英文标题不显示） -->
+          <div
+            v-if="listeningStruct && listeningTitleMixedHint"
+            class="copy-hint"
+            style="margin:2px 0 6px;"
+          >
+            {{ listeningTitleMixedHint }}
           </div>
 
           <div
@@ -3479,7 +3488,7 @@ import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实�
 import { buildListeningExtractMessages } from '../config/listeningExtractPrompt.js';
 import { extractListeningSource, hasEnglishListening, parseListeningStructure, summarizeListeningStructure, parseListeningSourceText, needAiFallback } from '../utils/listeningExtract.js';
 import { buildListeningSsml, buildListeningScriptText, buildListeningStoryboard } from '../utils/listeningScript.js';
-import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES, LISTENING_STAGE_WPM_RANGE } from '../config/listeningAudioProfile.js';
+import { resolveListeningParams, LISTENING_FEATURE_DEFAULTS, LISTENING_VOICE_CANDIDATES, LISTENING_VOICE_DEFAULTS, LISTENING_ZH_VOICE_CANDIDATES, LISTENING_STAGE_WPM_RANGE, LISTENING_MIXED_TITLE_VOICE_CANDIDATES, LISTENING_MIXED_TITLE_VOICE } from '../config/listeningAudioProfile.js';
 // 🎧 Azure 语音合成：SSML → 整卷 mp3（Electron 走主进程，规避跨域）
 import { synthesizeToFile, readAzureConfigFromApiConfig } from '../utils/azureTts.js';
 // 🎧 Edge 免费语音：无需 Key，逐句合成 + 帧级静音拼接（主进程执行）
@@ -8845,21 +8854,23 @@ const listeningShortItemNo = ref(LISTENING_FEATURE_DEFAULTS.announceShortItemNo)
 const listeningVoices = reactive({
   M: LISTENING_VOICE_DEFAULTS.M,
   W: LISTENING_VOICE_DEFAULTS.W,
-  N: '',   // 🎙 英语旁白（独白/短文、英文题号、标题英文段）——留空＝跟随男声
+  N: '',   // 🎙 英语旁白（独白/短文、英文题号）——留空＝跟随男声
   Z: '',   // 🎙 中文播报（开场白/导语/分节指令/部分标题/结束语）——留空＝晓晓（默认）
+  T: '',   // 🗣 中英混合标题的"同一人通读"多语言音色——留空＝默认多语言男声（Andrew）
   M2: LISTENING_VOICE_DEFAULTS.M2,
   W2: LISTENING_VOICE_DEFAULTS.W2,
 });
-/** 音色槽位（模板据此渲染下拉；group 决定候选取自男声表/女声表/中文播报表） */
+/** 音色槽位（模板据此渲染下拉；group 决定候选取自男声表/女声表/中文播报表/多语言表） */
 const LISTENING_VOICE_SLOTS = [
   { key: 'M', label: '男声', group: 'M', optional: false },
   { key: 'W', label: '女声', group: 'W', optional: false },
-  { key: 'N', label: '旁白', group: 'M', optional: true, emptyLabel: '跟随男声', hint: '英语旁白：独白/短文、英文题号「Number N.」、标题里的英文段用这条音色；留空＝跟随男声' },
+  { key: 'N', label: '旁白', group: 'M', optional: true, emptyLabel: '跟随男声', hint: '英语旁白：独白/短文、英文题号「Number N.」用这条音色；留空＝跟随男声（标题里的英文段已改由下面的「标题」槽一人通读）' },
   { key: 'Z', label: '中文播报', group: 'Z', optional: true, emptyLabel: '晓晓（默认）', hint: '中文播报：开场白、导语、分节指令、部分标题、结束语等中文段用这条音色；留空＝晓晓（默认）' },
+  { key: 'T', label: '标题', group: 'T', optional: true, emptyLabel: '多语言音色·一人通读（默认）', hint: '中英混合标题专用：用一条多语言音色把整条标题一次读完（同一人、中英语种自动切换、衔接自然），不再中文一个声、英文一个声。纯中文标题仍用「中文播报」、纯英文标题仍用「旁白」，不受此项影响' },
   { key: 'M2', label: '男声副', group: 'M', optional: true },
   { key: 'W2', label: '女声副', group: 'W', optional: true },
 ];
-/** 候选分组（美音/英音），文案带序号——与「音色试听对比.mp3」里的报号一致，便于按编号指定；中文播报表单独一组 */
+/** 候选分组（美音/英音），文案带序号——与「音色试听对比.mp3」里的报号一致，便于按编号指定；中文播报表/多语言表各成一组 */
 const listeningVoiceOptions = computed(() => {
   const build = (g) => [
     { label: '美音', items: LISTENING_VOICE_CANDIDATES.us[g].map((v, i) => ({ value: v, text: `${g === 'M' ? '男声' : '女声'} ${i + 1} · ${v.replace(/^en-US-|Neural$/g, '')}` })) },
@@ -8869,6 +8880,11 @@ const listeningVoiceOptions = computed(() => {
     M: build('M'),
     W: build('W'),
     Z: [{ label: '中文播报', items: LISTENING_ZH_VOICE_CANDIDATES.map((c) => ({ value: c.voice, text: c.name })) }],
+    T: [
+      { label: '多语言音色（中英通读）', items: LISTENING_MIXED_TITLE_VOICE_CANDIDATES.map((c) => ({ value: c.voice, text: c.name })) },
+      // 特殊值 'split'：退回旧的"中文一个声、英文一个声"（少数考区若坚持分读，可在此切回）
+      { label: '其它', items: [{ value: 'split', text: '按语种分读（中文一个声、英文一个声）' }] },
+    ],
   };
 });
 /** 生效音色池（喂给 storyboard：男主, 女主, 男副?, 女副? —— 空值会被剔除） */
@@ -8880,14 +8896,17 @@ let listeningAudioEl = null;
 /** ▶ 试听：合成一句样例直接播放（不落盘、不弹保存框） */
 const playVoicePreview = async (voice) => {
   const v = String(voice || '');
-  if (!v || listeningPreviewing.value) return;
+  if (!v || v === 'split' || listeningPreviewing.value) return;   // 'split' 是行为开关，不是音色，不可试听
   listeningPreviewing.value = v;
   listeningVoiceHint.value = '';
   try {
-    // 中文播报音色用中文样例句试听，英文音色用英文样例（避免中文音色念英文样句的"怪腔"）
-    const text = /^zh-/.test(v)
-      ? '听力考试现在开始，请注意听下面的对话。'
-      : '';
+    // 样例句按音色类型给（否则听不出真实效果）：
+    //   · 多语言音色 → 中英混排标题样句，直接验证"同一人通读 + 衔接自然"；
+    //   · 中文播报音色 → 中文播报样句（避免中文音色念英文的怪腔）；
+    //   · 其余英文音色 → 用默认英文样句。
+    const text = LISTENING_MIXED_TITLE_VOICE_CANDIDATES.some((c) => c.voice === v)
+      ? '六年级英语上册 Unit one Try your best 测试卷。'
+      : (/^zh-/.test(v) ? '听力考试现在开始，请注意听下面的对话。' : '');
     const url = await previewVoice({ voice: v, ratePercent: listeningEffectiveParams.value.ratePercent, text });
     if (typeof Audio === 'undefined') throw new Error('当前环境不支持音频播放');
     if (!listeningAudioEl) listeningAudioEl = new Audio();
@@ -8920,6 +8939,8 @@ const listeningEffectiveParams = computed(() => {
     gb: { M: listeningVoices.M, W: listeningVoices.W, N: listeningVoices.M },
   };
   if (listeningVoices.Z) overrides.zhVoice = listeningVoices.Z;
+  // 🗣 中英混合标题：T 槽选定后生效，留空＝默认多语言音色（Andrew）
+  if (listeningVoices.T) overrides.titleMixedVoice = listeningVoices.T;
   return resolveListeningParams({
     stage: listeningStageKey.value,
     grade: listeningGradeHint.value,
@@ -8980,6 +9001,21 @@ const listeningPassRotationHint = computed(() => {
   return p.passVoiceRotation
     ? `🔁 遍间换声：${stage}开启 —— 重复 ≥2 遍的单说话人材料，首遍用材料原标注音色、次遍换对侧（对话按角色分声、不参与轮读）`
     : `🔁 遍间换声：${stage}关闭 —— 真题惯例为同一人重读两遍（小学默认开启）`;
+});
+
+/**
+ * 🗣 标题"同一人通读"提示（2026-09-20 用户："虽然分中文音色和英文音色，但是需要是同一个读，而且要衔接自然"）
+ * 仅当试卷标题**中英混排**时才有意义：此时整条标题由一条多语言音色一次读完，
+ * 中英语种由引擎自动切换，不再中文一个声、英文一个声。纯中文/纯英文标题不显示本行。
+ */
+const listeningTitleMixedHint = computed(() => {
+  const raw = String(listeningDocTitle.value || '');
+  const mixed = /[\u3400-\u4dbf\u4e00-\u9fff]/.test(raw) && /[A-Za-z]/.test(raw);
+  if (!mixed) return '';
+  const v = listeningVoices.T || LISTENING_MIXED_TITLE_VOICE;
+  const hit = LISTENING_MIXED_TITLE_VOICE_CANDIDATES.find((c) => c.voice === v);
+  const name = hit ? hit.name : v.replace(/^[a-z]{2}-[A-Z]{2}-/, '').replace(/Neural$/, '');
+  return `🗣 标题中英混排：由「${name}」一条音色通读（同一人、语种自动切换、衔接自然）——需要两人分读时把「标题」槽切到"按语种分读"`;
 });
 
 /** 该条记录是否有可做音频的英语听力（"听力原文"字样按构造仅英语答案页注入） */
@@ -9123,8 +9159,10 @@ const renderListeningArtifacts = () => {
     announceShortItemNo: listeningShortItemNo.value,
     // 🎚 音色池：多角色对话按顺序取（男主、女主、男声副、女声副）
     voicePoolInput: listeningVoicePool.value,
-    // 🎙 英语旁白（2026-09-20 开放配置）：N 槽留空＝跟随男声；标题英文段/独白短文/英文题号都用它
+    // 🎙 英语旁白（2026-09-20 开放配置）：N 槽留空＝跟随男声；独白短文/英文题号都用它
     narratorVoice: listeningVoices.N || '',
+    // 🗣 中英混合标题「同一人通读」多语言音色（T 槽留空＝默认 Andrew；'split' 可退回按语种分读）
+    titleMixedVoice: listeningVoices.T || '',
     overrides,
   };
 
@@ -9173,6 +9211,7 @@ const openListeningTool = async (doc) => {
     W: LISTENING_VOICE_DEFAULTS.W,
     N: '',
     Z: '',
+    T: '',
     M2: LISTENING_VOICE_DEFAULTS.M2,
     W2: LISTENING_VOICE_DEFAULTS.W2,
   });
@@ -9292,7 +9331,7 @@ const copyListeningText = async (kind) => {
   }
 };
 
-watch([listeningWpmOverride, listeningAnnounceTitle, listeningSoundCheck, listeningShortItemNo, () => listeningVoices.M, () => listeningVoices.W, () => listeningVoices.N, () => listeningVoices.Z, () => listeningVoices.M2, () => listeningVoices.W2], () => {
+watch([listeningWpmOverride, listeningAnnounceTitle, listeningSoundCheck, listeningShortItemNo, () => listeningVoices.M, () => listeningVoices.W, () => listeningVoices.N, () => listeningVoices.Z, () => listeningVoices.T, () => listeningVoices.M2, () => listeningVoices.W2], () => {
   if (showListeningModal.value && listeningStruct.value) renderListeningArtifacts();
 });
 

@@ -13,6 +13,7 @@ import {
   LISTENING_FEATURE_DEFAULTS,
   LISTENING_PART_ANNOUNCEMENT,
   LISTENING_ZH_VOICE,
+  LISTENING_MIXED_TITLE_VOICE,
   resolveListeningParams,
   missingListeningStages,
 } from '../../src/config/listeningAudioProfile.js';
@@ -954,7 +955,7 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
     });
   });
 
-  describe('标题中英分读：英文段转英文词 + 英文音色', () => {
+  describe('标题中英混排：同一人通读（多语言音色）+ 数字转英文词', () => {
     it('英文整数 → 英文词（Unit 1 → Unit One；Number 12. → Number twelve.）', () => {
       expect(intToEnglishWords(1)).toBe('one');
       expect(intToEnglishWords(12)).toBe('twelve');
@@ -964,7 +965,7 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
       expect(digitsToEnglishWords('Number 12.')).toBe('Number twelve.');
     });
 
-    it('中英混排标题按语种切段', () => {
+    it('中英混排标题按语种切段（切段信息仍用于分读兜底与数字转换）', () => {
       expect(splitMixedLanguageRuns('六年级英语上册Unit 1 Try your best测试卷')).toEqual([
         { text: '六年级英语上册', lang: 'zh' },
         { text: 'Unit 1 Try your best', lang: 'en' },
@@ -972,8 +973,8 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
       ]);
     });
 
-    it('storyboard 标题：中文段用中文播报、英文段用英语旁白、数字转英文词、句号挂末段', () => {
-      const { segments } = buildListeningStoryboard({
+    it('🔴 中英混排标题＝一段读完、一条多语言音色（同一人，不得切成两人）', () => {
+      const { segments, titleMixedVoice } = buildListeningStoryboard({
         stage: '小学',
         grade: '六年级',
         title: '六年级英语上册Unit 1 Try your best测试卷',
@@ -981,16 +982,60 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
         items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
       });
       const titleSegs = segments.filter((s) => s.kind === 'title');
-      expect(titleSegs.length).toBe(3);
-      expect(titleSegs[0].voice).toBe(LISTENING_ZH_VOICE);
-      expect(titleSegs[0].text).toBe('六年级英语上册');
-      expect(titleSegs[1].voice, '英文段必须用英文音色，不得用中文音色念英文').not.toBe(LISTENING_ZH_VOICE);
-      expect(titleSegs[1].text).toBe('Unit one Try your best');
-      expect(titleSegs[2].text).toBe('测试卷。');
-      // 全卷第一声（叮咚）只挂标题首段
+      // 只此一段：不再按语种切段换声（切段换声＝"一听就是两个人"）
+      expect(titleSegs).toHaveLength(1);
+      expect(titleSegs[0].voice).toBe(LISTENING_MIXED_TITLE_VOICE);
+      expect(titleSegs[0].voice, '不得用中文播报音色念英文部分').not.toBe(LISTENING_ZH_VOICE);
+      expect(titleMixedVoice).toBe(LISTENING_MIXED_TITLE_VOICE);
+      // 数字仍转英文词；整条标题一次交付、无段间停顿
+      expect(titleSegs[0].text).toBe('六年级英语上册 Unit one Try your best 测试卷。');
+      // 全卷第一声（叮咚）挂在这唯一一段上
       expect(titleSegs[0].chimeBefore).toBe(true);
-      expect(titleSegs[1].chimeBefore).toBe(false);
-      expect(titleSegs[2].chimeBefore).toBe(false);
+    });
+
+    it('纯中文/纯英文标题不受影响：仍用中文播报音色 / 英语旁白音色', () => {
+      const zh = buildListeningStoryboard({
+        stage: '小学', grade: '六年级', announceTitle: true,
+        title: '六年级英语上册期中测试卷',
+        items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
+      }).segments.filter((s) => s.kind === 'title');
+      expect(zh).toHaveLength(1);
+      expect(zh[0].voice).toBe(LISTENING_ZH_VOICE);
+
+      const en = buildListeningStoryboard({
+        stage: '小学', grade: '六年级', announceTitle: true,
+        title: 'Unit 1 Try your best',
+        items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
+      });
+      const enTitle = en.segments.filter((s) => s.kind === 'title');
+      expect(enTitle).toHaveLength(1);
+      expect(enTitle[0].voice).toBe(en.narratorVoice);
+      expect(enTitle[0].text).toBe('Unit one Try your best。');
+    });
+
+    it('overrides.titleMixedVoice 可改选多语言音色；传 "split" 退回按语种分读', () => {
+      const custom = 'en-US-AvaMultilingualNeural';
+      const picked = buildListeningStoryboard({
+        stage: '小学', grade: '六年级', announceTitle: true,
+        title: '六年级英语上册Unit 1 Try your best测试卷',
+        items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
+        overrides: { titleMixedVoice: custom },
+      }).segments.filter((s) => s.kind === 'title');
+      expect(picked).toHaveLength(1);
+      expect(picked[0].voice).toBe(custom);
+
+      // 少数考区若坚持"中文一个声、英文一个声"，切 split 回到旧行为（3 段、按语种分音色）
+      const split = buildListeningStoryboard({
+        stage: '小学', grade: '六年级', announceTitle: true,
+        title: '六年级英语上册Unit 1 Try your best测试卷',
+        items: [{ no: 1, lines: [{ role: 'W', text: 'Hello.' }] }],
+        overrides: { titleMixedVoice: 'split' },
+      }).segments.filter((s) => s.kind === 'title');
+      expect(split).toHaveLength(3);
+      expect(split[0].voice).toBe(LISTENING_ZH_VOICE);
+      expect(split[1].voice).not.toBe(LISTENING_ZH_VOICE);
+      expect(split[1].text).toBe('Unit one Try your best');
+      expect(split[2].text).toBe('测试卷。');
     });
   });
 
@@ -1008,7 +1053,7 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
       expect(sb.narratorVoice).toBe(sb.voicePool[0]);
     });
 
-    it('指定旁白后：标题英文段 / 英文题号 / 未标注独白都改用旁白音色，中文段不变', () => {
+    it('指定旁白后：英文题号 / 未标注独白改用旁白音色；混排标题仍走多语言音色（不受旁白影响）', () => {
       const narrator = 'en-GB-SoniaNeural';
       const { segments } = buildListeningStoryboard({
         stage: '小学',
@@ -1021,14 +1066,14 @@ describe('2026-09-20 实测修复回归锁：指令标号归一 / 标题中英�
           { no: 2, lines: [{ role: 'N', text: 'Listen to the passage and choose the best answer.' }] },
         ],
       });
-      const titleEn = segments.find((s) => s.kind === 'title' && s.voice === narrator);
-      expect(titleEn.text).toBe('Unit one Try your best');
       const itemNo = segments.find((s) => s.kind === 'itemno');
       expect(itemNo.voice).toBe(narrator);
       const mono = segments.find((s) => s.kind === 'material' && s.itemNo === 2);
       expect(mono.voice).toBe(narrator);
-      const titleZh = segments.find((s) => s.kind === 'title' && s.voice === LISTENING_ZH_VOICE);
-      expect(titleZh.text).toBe('六年级英语上册');
+      // 标题中英混排 → 由多语言音色一人通读，不因改了旁白就变成"两人分读"
+      const titleSeg = segments.find((s) => s.kind === 'title');
+      expect(titleSeg.voice).toBe(LISTENING_MIXED_TITLE_VOICE);
+      expect(titleSeg.text).toBe('六年级英语上册 Unit one Try your best 测试卷。');
     });
   });
 

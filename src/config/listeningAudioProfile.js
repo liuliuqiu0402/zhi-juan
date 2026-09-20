@@ -140,6 +140,38 @@ export const LISTENING_ZH_VOICE_CANDIDATES = [
 ];
 
 /**
+ * 中英混合标题的「同一人通读」音色（2026-09-20 用户裁定）
+ * ============================================================
+ * 用户实测："虽然分中文音色和英文音色，但是需要是同一个读，而且要衔接自然。"
+ * 需求拆解：① 整条标题必须**同一个人**读完（不能中文一个人、英文另一个人）；
+ *           ② 中英交界必须**自然**（不能像两段拼接）。
+ *
+ * 🔴 为什么用"多语言音色"而不是中文音色或英文音色：
+ *   · Edge 免费通道**没有中文多语言音色**（全量 322 个音色里，12 个 Multilingual 分属英/法/德/意/韩/葡，无 zh-*）；
+ *   · 而英文多语言音色（Andrew/Ava/Brian/Emma）经微软官方文档确认支持
+ *     **77 种语言自动检测（含中文普通话 zh-CN）**、共 91 个区域——
+ *     即同一条音色读中文是中文、读英文是英文，**本身就满足"同一人 + 自然衔接"**，
+ *     无需再按语种切段换声（切段换声恰恰是"一听就是两个人"的根因）。
+ *   · 实证：用 en-US-AndrewMultilingualNeural 合成中文语句可正常出声（与晓晓同量级时长，非静音）。
+ *   参考：Microsoft Learn《Customize voice and sound with SSML》多语言音色表。
+ *
+ * 口径：**仅当中英混排时**才用它把整条标题一次读完；纯中文标题仍用中文播报音色、
+ *   纯英文标题仍用英语旁白音色（单语种不需要多语言音色，且中文音色的中文更自然）。
+ *   用户可在面板"标题"槽改选其它多语言音色；某考区若坚持"中文一个声、英文一个声"，
+ *   把 overrides.titleMixedVoice 设为 'split' 即回到旧的按语种切段行为。
+ */
+export const LISTENING_MIXED_TITLE_VOICE = 'en-US-AndrewMultilingualNeural';
+
+/** 多语言音色候选（供"标题"槽试听与改选；均为微软文档确认支持中文的 77 语种音色） */
+export const LISTENING_MIXED_TITLE_VOICE_CANDIDATES = [
+  { voice: 'en-US-AndrewMultilingualNeural', name: 'Andrew · 多语言男声（默认）' },
+  { voice: 'en-US-BrianMultilingualNeural', name: 'Brian · 多语言男声' },
+  { voice: 'en-US-AvaMultilingualNeural', name: 'Ava · 多语言女声' },
+  { voice: 'en-US-EmmaMultilingualNeural', name: 'Emma · 多语言女声' },
+  { voice: 'en-US-AndrewNeural', name: 'Andrew · 普通男声（不支持中文，仅纯英文标题选）' },
+];
+
+/**
  * 听力试音环节（录音正文之前的"声音检查"段）
  * ============================================================
  * 🔴 2026-09-19 用户实测复核后补齐（"现在是全部按正规走的吧？"→ 裁定"做成开关，默认开"）：
@@ -390,6 +422,10 @@ export function resolveListeningParams({ stage = '', grade = '', name = '', over
     accent,
     voices,
     zhVoice: overrides.zhVoice || LISTENING_ZH_VOICE,
+    // 中英混合标题的"同一人通读"音色（多语言音色）；传 'split' 则退回"按语种切段换声"的旧行为
+    titleMixedVoice: overrides.titleMixedVoice === undefined
+      ? LISTENING_MIXED_TITLE_VOICE
+      : overrides.titleMixedVoice,
     // 遍间换声：默认只在小学生效（实证来自小学资料）；显式 overrides 可覆盖任一学段
     passVoiceRotation: overrides.passVoiceRotation
       ?? (LISTENING_PASS_VOICE_ROTATION && LISTENING_PASS_VOICE_ROTATION_STAGES.includes(key)),
@@ -416,6 +452,8 @@ export default {
   LISTENING_VOICE_DEFAULTS,
   LISTENING_ZH_VOICE,
   LISTENING_ZH_VOICE_CANDIDATES,
+  LISTENING_MIXED_TITLE_VOICE,
+  LISTENING_MIXED_TITLE_VOICE_CANDIDATES,
   LISTENING_SOUND_CHECK,
   LISTENING_FEATURE_DEFAULTS,
   LISTENING_PAUSE,

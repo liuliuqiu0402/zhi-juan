@@ -26,6 +26,8 @@ import {
   LISTENING_VOICE_CANDIDATES,
   LISTENING_ZH_VOICE,
   LISTENING_ZH_VOICE_CANDIDATES,
+  LISTENING_MIXED_TITLE_VOICE,
+  LISTENING_MIXED_TITLE_VOICE_CANDIDATES,
 } from '../config/listeningAudioProfile.js';
 import { isCjkNoise, cnNum } from './listeningExtract.js';
 
@@ -258,6 +260,9 @@ export function buildListeningStoryboard({
   partTitle = '',
   voicePoolInput = null,
   narratorVoice = '',
+  // 🔴 中英混合标题的"同一人通读"音色（多语言音色）；留空＝用 params.titleMixedVoice；
+  //    传 'split' 则退回"按语种切段换声"的旧行为
+  titleMixedVoice = '',
   keepSectionLabel = false,
 } = {}) {
   const params = resolveListeningParams({ stage, grade, name, overrides });
@@ -289,27 +294,56 @@ export function buildListeningStoryboard({
   //   ③ 部分标题（「第一部分 听力部分。」）
   //   之后才进入各大题指令 → 叮咚 → 题号 → 材料。
   //   ① 与 ③ 都是用户明确要求读出的；①的标题净化沿用 cleanTitleForAnnounce（去时间戳）。
-  // 🔴 2026-09-20 标题**按语种切段**（用户实测："Unit 1 读成 unit 1 应读 unit one，且不像英文"）：
-  //   中文段给中文播报音色、英文段给英文旁白音色，英文段数字转英文词（Unit 1 → Unit One）。
-  //   叮咚仍只挂整段标题的第一个发音段（全卷第一声）。
+  // 🔴 2026-09-20 标题**不再按语种切段换声**（用户二次实测："虽然分中文音色和英文音色，
+  //   但是需要是同一个读，而且要衔接自然" —— 切段换声正是"一听就是两个人"的根因）：
+  //   · 中英混排 → 用**多语言音色**（默认 en-US-AndrewMultilingualNeural，微软文档确认支持
+  //     77 语种自动检测含 zh-CN）把整条标题**一次读完**：同一人、语种自动切换、衔接天然连贯，
+  //     不再有任何人工拼接痕迹与段间停顿；
+  //   · 纯中文 → 仍用中文播报音色；纯英文 → 仍用英语旁白音色（单语种无需多语言音色）；
+  //   · 英文数字仍转英文词（Unit 1 → Unit one）；
+  //   · overrides.titleMixedVoice = 'split' 可退回旧行为（中文一个声、英文一个声）。
+  //   叮咚仍只挂标题这**一段**（全卷第一声）。
   const cleanTitle = announceTitle ? cleanTitleForAnnounce(title) : '';
   if (cleanTitle) {
     const runs = splitMixedLanguageRuns(cleanTitle);
-    const last = runs[runs.length - 1];
-    if (last) last.text = `${last.text}。`;   // 句号挂最后一段，朗读稿合并后还原整句
-    runs.forEach((run, i) => {
+    const isMixed = runs.length > 1;
+    const titleMixedVoiceEff = String(titleMixedVoice || '').trim() || params.titleMixedVoice || LISTENING_MIXED_TITLE_VOICE;
+    const splitByLang = !isMixed || titleMixedVoiceEff === 'split';
+    if (!splitByLang) {
+      // 中英混排：整条一次读完。段间插一个空格给引擎清晰的语种边界（仍是同一口气、同一人）
+      const fullText = runs
+        .map((r) => (r.lang === 'en' ? digitsToEnglishWords(r.text) : r.text))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
       segments.push({
         kind: 'title',
-        voice: run.lang === 'en' ? narratorVoiceEff : params.zhVoice,
+        voice: titleMixedVoiceEff,
         role: 'N',
-        text: run.lang === 'en' ? digitsToEnglishWords(run.text) : run.text,
+        text: `${fullText}。`,
         ratePercent: 0,
-        gapAfterMs: i === runs.length - 1 ? params.pauses.afterTitleMs : 350,
-        chimeBefore: i === 0,   // 全卷第一个提示音：正式开考（只挂标题首段）
+        gapAfterMs: params.pauses.afterTitleMs,
+        chimeBefore: true,
         itemNo: null,
         pass: 0,
       });
-    });
+    } else {
+      const last = runs[runs.length - 1];
+      if (last) last.text = `${last.text}。`;   // 句号挂最后一段，朗读稿合并后还原整句
+      runs.forEach((run, i) => {
+        segments.push({
+          kind: 'title',
+          voice: run.lang === 'en' ? narratorVoiceEff : params.zhVoice,
+          role: 'N',
+          text: run.lang === 'en' ? digitsToEnglishWords(run.text) : run.text,
+          ratePercent: 0,
+          gapAfterMs: i === runs.length - 1 ? params.pauses.afterTitleMs : 350,
+          chimeBefore: i === 0,   // 全卷第一个提示音：正式开考（只挂标题首段）
+          itemNo: null,
+          pass: 0,
+        });
+      });
+    }
   }
 
   if (soundCheck) {
@@ -618,7 +652,20 @@ export function buildListeningStoryboard({
     }
   }
 
-  return { segments, params, risks: dedupeRisks(risks), warnings, voiceCast, voicePool: effectivePool, narratorVoice: narratorVoiceEff };
+  return {
+    segments,
+    params,
+    risks: dedupeRisks(risks),
+    warnings,
+    voiceCast,
+    voicePool: effectivePool,
+    narratorVoice: narratorVoiceEff,
+    // 中英混合标题实际用的"同一人通读"音色（供界面摘要/朗读稿显示；未用则为空）
+    titleMixedVoice: (() => {
+      const t = segments.find((s) => s.kind === 'title');
+      return t && t.voice !== params.zhVoice && t.voice !== narratorVoiceEff ? t.voice : '';
+    })(),
+  };
 }
 
 /**
@@ -687,6 +734,13 @@ export function buildListeningScriptText(input = {}) {
   const defaultNarrator = voicePool[0] || params.voices.us.M;
   if (narratorVoice && narratorVoice !== defaultNarrator) out.push(`旁白：${voiceLabel(narratorVoice)}`);
   if (params.zhVoice && params.zhVoice !== LISTENING_ZH_VOICE) out.push(`中文播报：${voiceLabel(params.zhVoice)}`);
+  // 🗣 中英混合标题＝同一人通读（多语言音色）——朗读稿要标出来，避免录制方以为要换人
+  {
+    const titleSeg = segments.find((s) => s.kind === 'title');
+    if (titleSeg && titleSeg.voice !== params.zhVoice && titleSeg.voice !== narratorVoiceEff) {
+      out.push(`标题：中英混读由同一条多语言音色通读（${voiceLabel(titleSeg.voice)}）——不得切成两人分读`);
+    }
+  }
   const castByItem = new Map(voiceCast.map((c) => [c.itemNo, c.entries || []]));
   // "角色"只数真正的说话人（N＝旁白/独白，不是角色）；若无标注角色则按 1 个（旁白）计
   const roleSet = new Set(voiceCast.flatMap((c) => (c.entries || []).map((e) => e.role)).filter((r) => r !== 'N'));
