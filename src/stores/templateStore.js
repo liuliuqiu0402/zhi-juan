@@ -38,24 +38,26 @@ export const useTemplateStore = defineStore('template', {
         // 🔑 存量数据回填 semester（从名称自动检测上下册）
         let hasChange = false;
         for (const t of saved) {
-          if (!t.semester && t.name) {
+          const d = t.name ? autoDetectTextbookMeta(t.name) : null;
+          const tStage = String(t.stage || '');
+          // 🔑 "是否高中"只看 stage 或文件识别的 stage，不能只看文件名里的"必修"字样。
+          const isHighTpl = tStage === '高中' || tStage === 'high' || d?.stage === '高中';
+          // 上下册仅适用小学/初中：高中按册次，不沿用也不回填上下册。
+          //   🔴 存量里"必修（上册）"这类高中记录的 semester 是册次名的一部分，不是学期 → 一律清空。
+          if (isHighTpl) {
+            if (t.semester) { t.semester = ''; hasChange = true; }
+          } else if (!t.semester && t.name) {
             if (t.name.includes('上册')) { t.semester = '上册'; hasChange = true; }
             else if (t.name.includes('下册')) { t.semester = '下册'; hasChange = true; }
-            else if (!t.semester) { t.semester = ''; }
           }
           // 🔑 存量回填 volume + 清高中遗留年级：与 textbookStore 同源同口径
           //（高中按必修／选择性必修**分册**，教材本身不绑定年级——各省教学用书的「册次」与「使用年级」
           //  是两栏并列、使用年级写的是区间；"必修＝高一"各省不成立）
           //  🔴 判"是否高中"不能只看文件名（"高二英语.pdf"不含"必修/高中"字样会漏迁移）→ 加上记录自身 stage；
           //     清年级要先确认拿到了册次（否则会把这本模板的标识抹成空白，比改版前更糟）。
-          if (t.name) {
-            const d = autoDetectTextbookMeta(t.name);
-            const tStage = String(t.stage || '');
-            const isHighTpl = tStage === '高中' || tStage === 'high' || d.stage === '高中';
-            if (isHighTpl) {
-              if (d.volume && t.volume !== d.volume) { t.volume = d.volume; hasChange = true; }
-              if (t.volume && t.grade) { t.grade = ''; hasChange = true; }
-            }
+          if (isHighTpl) {
+            if (d?.volume && t.volume !== d.volume) { t.volume = d.volume; hasChange = true; }
+            if (t.volume && t.grade) { t.grade = ''; hasChange = true; }
           }
           // 🔧 存储目录合并后，修复旧数据中的相对路径 → 绝对路径
           if (t.coverPath) { t.coverPath = resolveStoredPath(t.coverPath); hasChange = true; }

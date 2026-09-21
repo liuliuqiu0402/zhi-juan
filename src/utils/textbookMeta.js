@@ -49,6 +49,7 @@ export const autoDetectTextbookMeta = (name = '') => {
   if (high.isHigh) {
     result.stage = '高中';
     result.volume = high.volume;
+    result.semester = ''; // 高中按册次、不按上下册（"必修（上册）"的"上册"是册次名的一部分，不能当学期）
   } else {
     const gradeMatch = normalized.match(/([1-6一二三四五六])年级/);
     if (gradeMatch) {
@@ -62,8 +63,11 @@ export const autoDetectTextbookMeta = (name = '') => {
     if (normalized.includes(keyword)) { result.subject = canonical; break; }
   }
 
-  if (normalized.includes('上册')) result.semester = '上册';
-  else if (normalized.includes('下册')) result.semester = '下册';
+  // 上下册仅适用小学/初中；高中已在上方清空，这里不再重判
+  if (result.stage !== '高中') {
+    if (normalized.includes('上册')) result.semester = '上册';
+    else if (normalized.includes('下册')) result.semester = '下册';
+  }
 
   return result;
 };

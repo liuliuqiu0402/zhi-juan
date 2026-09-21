@@ -98,6 +98,18 @@ describe('autoDetectTextbookMeta：高中认册次、不认年级', () => {
     }
   });
 
+  it('🔴 高中绝不填上下册（"必修（上册）"的"上册"是册次名的一部分，不是学期）', () => {
+    for (const n of ['统编版语文必修上册', '历史必修下册', '人教版高中数学选择性必修中册', '高中化学']) {
+      expect(autoDetectTextbookMeta(n).semester, n).toBe('');
+    }
+  });
+
+  it('小学/初中才识别上下册', () => {
+    expect(autoDetectTextbookMeta('六年级上册·语文')).toMatchObject({ semester: '上册' });
+    expect(autoDetectTextbookMeta('七年级数学下册')).toMatchObject({ semester: '下册' });
+    expect(autoDetectTextbookMeta('小学语文一年级')).toMatchObject({ semester: '' });
+  });
+
   it('小学 1-6 年级识别不受影响（册次识别不抢学段）', () => {
     // 🔴 中文数字年级是本轮一并修的缺陷：原正则只写 `([1-6])年级`，教材名常见的"六年级上册"识别不到
     expect(autoDetectTextbookMeta('六年级上册·语文')).toMatchObject({ stage: '小学', grade: '六年级', volume: '' });

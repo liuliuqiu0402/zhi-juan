@@ -177,10 +177,17 @@ export const useTextbookStore = defineStore('textbook', {
         let hasChange = false;
         for (const b of saved) {
           const bName = b.name as string;
-          if (!b.semester && bName) {
+          const d = bName ? autoDetectTextbookMeta(bName) : null;
+          const bStage = String(b.stage || '');
+          // 🔑 "是否高中"只看 stage 或文件识别的 stage，不能只看文件名里的"必修"字样（"高二英语.pdf"无该字样会漏判）。
+          const isHighBook = bStage === '高中' || bStage === 'high' || d?.stage === '高中';
+          // 上下册仅适用小学/初中：高中按册次，不沿用也不回填上下册。
+          //   🔴 存量里"思想政治必修（上册）"这类 高中 记录的 semester 是"上册"名字的一部分，不是学期 → 一律清空。
+          if (isHighBook) {
+            if (b.semester) { b.semester = ''; hasChange = true; }
+          } else if (!b.semester && bName) {
             if (bName.includes('上册')) { b.semester = '上册'; hasChange = true; }
             else if (bName.includes('下册')) { b.semester = '下册'; hasChange = true; }
-            else if (!b.semester) { b.semester = ''; }
           }
           // 🔑 存量数据回填 volume + 清高中遗留年级（2026-09-20「高中按册次、不按年级」）。
           //    🔴 两处判据都要放宽/收紧，否则迁移不完整或丢信息：
@@ -191,14 +198,9 @@ export const useTextbookStore = defineStore('textbook', {
           //       只会让这本教材"改版后反而没了任何标识"（比改版前更糟）。
           //       没有册次的保留旧年级做兜底显示（gradeDisplayLabel 以册次优先），
           //       用户在教材库用卡片上的「🏷️ 编辑元数据」按钮补上即可（学段/学科/册次一起改）。
-          if (bName) {
-            const d = autoDetectTextbookMeta(bName);
-            const bStage = String(b.stage || '');
-            const isHighBook = bStage === '高中' || bStage === 'high' || d.stage === '高中';
-            if (isHighBook) {
-              if (d.volume && b.volume !== d.volume) { b.volume = d.volume; hasChange = true; }
-              if (b.volume && b.grade) { b.grade = ''; hasChange = true; }
-            }
+          if (isHighBook) {
+            if (d?.volume && b.volume !== d.volume) { b.volume = d.volume; hasChange = true; }
+            if (b.volume && b.grade) { b.grade = ''; hasChange = true; }
           }
           // 🔧 存储目录合并后，修复旧数据中的相对路径 → 绝对路径
           if (b.coverPath) { b.coverPath = resolveStoredPath(b.coverPath as string); hasChange = true; }

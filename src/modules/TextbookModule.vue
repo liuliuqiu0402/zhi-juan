@@ -116,7 +116,9 @@
               {{ v }}
             </option>
           </select>
+          <!-- 上下册仅适用小学/初中；高中那本以「册次」筛（上方 filterStage==='高中' 已换成册次下拉） -->
           <select
+            v-if="filterStage !== '高中'"
             v-model="filterSemester"
             class="filter-select"
           >
@@ -537,7 +539,11 @@
               </option>
             </select>
           </div>
-          <div class="meta-item">
+          <!-- 上下册仅适用小学/初中；高中那本到上方「册次」输入框补册次 -->
+          <div
+            v-if="uploadStage !== '高中'"
+            class="meta-item"
+          >
             <label>上下册</label>
             <select v-model="uploadSemester">
               <option value="">
@@ -1537,6 +1543,7 @@ const uploadGradeOptions = computed(() => {
 const onUploadStageChange = () => {
   uploadGrade.value = '';
   uploadVolume.value = '';
+  uploadSemester.value = '';
 };
 
 // 高中册次候选：按**学科**给该科官方册次清单（学科未定 → 合并全部候选）；
@@ -1647,7 +1654,7 @@ const gradeOptions = computed(() => {
   Object.values(stageSubjects).forEach(s => s.grades?.forEach(g => allGrades.add(g)));
   return Array.from(allGrades);
 });
-const onStageChange = () => { filterGrade.value = ''; filterVolume.value = ''; };
+const onStageChange = () => { filterGrade.value = ''; filterVolume.value = ''; filterSemester.value = ''; };
 
 // 筛选的册次候选：从**现有教材实际用过的册次**派生（与 versionOptions 同一口径）——
 // 存量库里有什么册次就能筛什么，不硬编码清单（数学B版必修第四册、地方补充册等识别得到就一定有得选）。
@@ -3572,7 +3579,8 @@ const saveTextbook = async () => {
       grade: newStage === '高中' ? '' : (filterGrade.value || detected.grade || ''),
       volume: newStage === '高中' ? (filterVolume.value || detected.volume || '') : '',
       subject: filterSubject.value || detected.subject || '',
-      semester: filterSemester.value || detected.semester || '',
+      // 上下册仅适用小学/初中：高中按册次（volume），semester 一律留空，避免"必修（上册）"的"上册"被当学期
+      semester: newStage === '高中' ? '' : (filterSemester.value || detected.semester || ''),
       selected: false,
       outline: outlineForSave,
       totalPages: totalPages.value,
