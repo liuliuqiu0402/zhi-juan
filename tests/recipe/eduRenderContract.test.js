@@ -7,7 +7,8 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildRenderContract, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES } from '@/config/eduRenderContract.js';
+import { buildRenderContract, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES, FORMULA_RULES, getFormulaNeeded } from '@/config/eduRenderContract.js';
+import { renderMathInHtml } from '@/utils/mathRender.js'; // 契约↔渲染端一致性（防"要求悬空"）
 import { getPromptTemplate, listPromptTemplates } from '@/config/promptLibrary.js';
 import { buildValidatorPrompt } from '@/config/validatorRules.js';
 import { setLibToggle } from '@/utils/libToggles.js';
@@ -198,6 +199,46 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src/config/eduRenderContract.js'), 'utf8');
     expect(src).not.toMatch(/export function needsImageHint/);
     expect(src).not.toMatch(/const IMAGE_HINT_RE\s*=/);
+  });
+});
+
+describe('公式契约（2026-09 收口：单一判据 + 要求不再悬空）', () => {
+  it('getFormulaNeeded 由 MATH_SUBJECTS 单点判定（原硬编码第二份学科名 → 加学科不生效）', () => {
+    for (const s of MATH_SUBJECTS) {
+      expect(getFormulaNeeded(s, 'middle'), `${s}·初中应注入`).toBe(true);
+      expect(getFormulaNeeded(s, 'high'), `${s}·高中应注入`).toBe(true);
+      // 🔴 回归锁：primary_mid/primary_high 是**小学**中段/高段，原契约库文案误标"注入公式"
+      expect(getFormulaNeeded(s, 'primary_high'), `${s}·小学高段不得注入`).toBe(false);
+      expect(getFormulaNeeded(s, 'primary_mid'), `${s}·小学中段不得注入`).toBe(false);
+      expect(getFormulaNeeded(s, 'primary_low'), `${s}·小学低段不得注入`).toBe(false);
+    }
+    // 未登记学科一律不注入（补学科只需往 MATH_SUBJECTS 登记）
+    // P4（2026-09）已补「生物」：遗传图解/方程式需下标箭头排版
+    expect(getFormulaNeeded('生物', 'high'), '生物·高中应注入').toBe(true);
+    expect(getFormulaNeeded('生物', 'middle'), '生物·初中应注入').toBe(true);
+    // 「科学」不登记（小学无理化生，学段门控已挡）；「地理/信息科技」公式是平排比值与逻辑符号，
+    // 走 LaTeX 属噪音，故保持不注入
+    expect(getFormulaNeeded('科学', 'middle')).toBe(false);
+    expect(getFormulaNeeded('地理', 'middle')).toBe(false);
+    expect(getFormulaNeeded('信息科技', 'middle')).toBe(false);
+    // 源码里不得再出现按学科硬编码的公式判定（防双事实源回潮）
+    const src = fs.readFileSync(path.join(ROOT, 'src/config/eduRenderContract.js'), 'utf8');
+    expect(src).not.toMatch(/if \(subject === '数学'\) return isMiddlePlus/);
+  });
+
+  it('注入的条款与 FORMULA_RULES 同一常量（契约库展示的就是实际下发文本）', () => {
+    const out = buildRenderContract({ subject: '数学', genType: 'exam', stage: 'middle' });
+    expect(out).toContain(FORMULA_RULES);
+    expect(FORMULA_RULES).toContain('$...$');
+    expect(FORMULA_RULES).toContain('\\frac');
+  });
+
+  it('🔴 要求不再悬空：契约要求 $...$ 出印刷形态 ⇔ 渲染端真能渲染（不再是 a/b 文本）', () => {
+    // 这条守的是"契约与渲染端同源"——原实现契约要求 $…$ 且禁"文本堆砌"，
+    // 渲染端却只把 \frac{a}{b} 降级成 a/b，属要求悬空；现渲染端用 KaTeX 出叠排分式。
+    const rendered = renderMathInHtml('$\\frac{a}{b}$');
+    expect(rendered).toContain('mfrac');
+    expect(rendered, '不得退化成平排文本').not.toContain('>a/b<');
   });
 });
 

@@ -3173,7 +3173,10 @@ const SCOPE_BASIS = {
   monthly: '月考',
   topic: '专题',
 };
-import { createDefaultSectionProperties, getPrintCss, convertFormulasInHtml } from '../utils/wordExporter.js';
+import { createDefaultSectionProperties, getPrintCss } from '../utils/wordExporter.js';
+// 🔴 公式渲染出口：$…$ → KaTeX 印刷形态 + 导出时内联自带字形的样式
+//    （PDF 走 page.setContent，无 base URL / 无网络 → 相对字体解析不到，必须内联）
+import { renderMathInHtml, withKatexStyles } from '../utils/mathRender.js';
 import { htmlToDocxBlob } from '../utils/docxBuilder.js';
 import { GEN_CONST } from '../config/generationConstants.js';
 import storage from '../utils/storage';
@@ -3200,6 +3203,7 @@ import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增�
 import TemplateStructureEditor from '../components/TemplateStructureEditor.vue'; // 📋 模板结构分析编辑器（模板库/生成模块共用同一实现）
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { stripXss, stripAiCodeFence, markSoloBlankLines, wrapBareBlankRuns } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（导出端第二道防线共享）
+import { scriptsToText } from '../utils/scriptText.js'; // 上下标 → Unicode/显式写法（rawText 派生时不得把 x² 拍平成 x2）
 import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
 // 📐🖼️ 指令块抽取/配图稿清单（2026-09-16）："复制图形指令""复制配图稿"两个一键复制入口共用
 import { hasDirectiveBlocks, buildImagePromptList, buildGraphDirectiveList, buildGraphClipboardText, buildImageClipboardText } from '../utils/directiveBlocks.js';
@@ -6862,9 +6866,12 @@ const plainToHtml = (text) => {
 
 // 🔧 HTML → 纯文本（保留段落和换行结构；仅本模块 rawText 同步用——比 contentCleaner.htmlToPlainText
 //    更"简单"：不做答案节截取/表格转文/[IMAGE]描述/超长裁剪，避免同名双实现误引歧义，故命名为 simple 版）
+// 🔴 上下标转换抽到 utils/scriptText.js（单一事实源、可单测）：此前 rawText 走"清标签"通道，
+//    `x<sup>2</sup>` 被拍平成 `x2`、`H<sub>2</sub>O` 拍平成 `H2O`——喂 AI 分析时歧义。
 const simpleHtmlToPlainText = (html) => {
   if (!html) return '';
-  return html
+  // 🔴 scriptsToText 必须先于"清标签"（否则上下标先被拍平，信息不可逆丢失）
+  return scriptsToText(html)
     .replace(/<br\s*\/?>/gi, '\n')           // <br> → 换行
     .replace(/<\/p>\s*<p[^>]*>/gi, '\n\n')  // </p><p> → 段落分隔
     .replace(/<\/p>/gi, '\n')                  // </p> → 换行
@@ -8960,8 +8967,9 @@ const downloadDoc = async (doc, format) => {
       const pm = decoded.match(/PROMPT:\s*(.+)/);
       return pm ? `〔配图位置：${pm[1].trim()}〕` : '〔配图位置〕';
     });
-    // 转换 $...$ 公式标记为可读文本
-    let pdfContent = convertFormulasInHtml(pdfSrc);
+    // 🔴 公式渲染：$…$ / $$…$$ → KaTeX 印刷形态（分式叠排、根号、积分号）。
+    //    原 convertFormulasInHtml 只把它降级成 "a/b" 文本，与契约"公式禁止用文本堆砌"相矛盾。
+    let pdfContent = renderMathInHtml(pdfSrc);
     // 🔧 应用主题 CSS（与排版模块 TypesetModule 的 PDF 导出一致）：
     //    密封内容自动按 sealed_exam 注入主题样式，PDF 才有密封区/虚线/旋转文字效果；
     //    否则 puppeteer 渲染的是无样式 HTML（密封线退化为普通横排文字）。
@@ -8969,6 +8977,10 @@ const downloadDoc = async (doc, format) => {
       pdfContent = applyThemeToContent(pdfContent, 'sealed_exam', { isHtmlContent: true, forceImportant: true, stage: doc?.meta?.stage || doc?.stage });
     }
     
+    // 🔴 内联 KaTeX 样式与字体（data URL）：puppeteer 页面无 base URL/网络，
+    //    不内联则分式/根号字模缺失 → 排版走形。片段 HTML 会前置注入，全文 HTML 注入 </head> 前。
+    pdfContent = await withKatexStyles(pdfContent);
+
     // 🔧 优先使用 Electron 原生 PDF 导出
     if (window.electronAPI?.exportPdf) {
       const storagePath = getStoragePath();

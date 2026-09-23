@@ -13,6 +13,7 @@
     "start": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "lint": "eslint src --ext .js,.vue --fix",
     "format": "prettier --write \"src/**/*.{js,vue,css}\"",
+    "katex:inline": "node scripts/build-katex-inline.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "dist": "electron-builder"
@@ -42,6 +43,7 @@
     "exceljs": "^4.4.0",
     "ffmpeg-static": "^5.3.0",
     "jszip": "^3.10.1",
+    "katex": "^0.18.7",
     "mammoth": "^1.6.0",
     "msedge-tts": "^2.0.7",
     "node-machine-id": "^1.1.12",

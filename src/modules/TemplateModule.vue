@@ -1336,6 +1336,8 @@ import { useTemplateStore } from '../stores/templateStore.js';
 import { libraryEntryPaths, classifyMoveError, sanitizeFsName, repairLibraryPaths } from '../utils/libraryPathRepair.js';
 import { useFileHandler } from '../composables/useFileHandler.js';
 import { convertFormulasInHtml } from '../utils/wordExporter.js';
+import { renderMathInHtml } from '../utils/mathRender.js'; // 🔴 目录标题里的 $…$ 公式出印刷形态（P3）
+import { escapeHtml } from '../utils/escape.js'; // 转义唯一实现（标题属外部输入，注入前必须转义）
 import { useTocParser, safeFocusOutlineInput, fastFocusInput, smartFocusInput, fastCalculatePageRanges, fastRebuildTree } from '../composables/useTocParser.js';
 import { subjects, subjectGradeSystem } from '../config/expertKnowledge.js';
 import { autoDetectTextbookMeta } from '../utils/textbookMeta.js'; // 教材/模板名元数据识别（课本库/模板库共用单一实现，曾双份逐字副本）
@@ -1477,6 +1479,9 @@ const OutlineTreeNode = {
         }),
         h('span', { 
           class: 'chapter-title',
+          // 🔴 目录标题里的公式（P3）：标题是纯文本字段，此前直接当文本渲染 → 含 $…$ 时显示生 LaTeX。
+          //    现渲染为印刷形态；**先转义再渲染**（标题来自 OCR/用户，不转义等于把外部输入当 HTML 注入）。
+          innerHTML: renderMathInHtml(escapeHtml(node.title || '')),
           onClick: () => {
             this.$emit('preview', {
               title: node.title,
@@ -1485,7 +1490,7 @@ const OutlineTreeNode = {
               imagesDir: bookData.imagesDir
             });
           }
-        }, node.title || ''),
+        }),
         (node.analyzed && node.rawText && node.rawText.trim().length > 0) ? h('span', {
           style: { cursor: 'pointer', marginLeft: '4px', fontSize: '0.7rem' },
           title: '查看分析详情',

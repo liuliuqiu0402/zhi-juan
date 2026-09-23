@@ -605,6 +605,7 @@ import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table
 import { Extension, Mark, Node } from '@tiptap/core';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { normalizeWhitespaceCarriers, normalizeLeadingMarkers, normalizeMathCircleBlanks, ensureCarrierContent, wrapBareBlankRuns } from '../utils/contentCleaner.js'; // 全局归一：纯空白装饰标记→填空横线 + 行首"项目符号+序号"剥离 + 算式 ○→数学填空圈 + 空载体兜底填充（装载/粘贴统一，旧内容回改） + 裸书写空（全角/em 空格）→填空横线
+import { convertPastedMathInHtml } from '../utils/pastedMath.js'; // 粘贴公式还原：Word OMML / 网页 MathML → $…$ LaTeX（交给 KaTeX 出印刷形态）
 import { getMergedSpec } from '../config/layoutSpec.js';
 
 // ══════════════════════════════════════════
@@ -1303,7 +1304,11 @@ const editor = useEditor({
     // 🔧 粘贴 HTML 预处理：拦截所有 pasted/dropped HTML，在 ProseMirror 解析前转换 ruby 标签
     transformPastedHTML(html) {
       if (!html) return html;
-      return ensureCarrierContent(wrapBareBlankRuns(normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeMathCircleBlanks(normalizeWhitespaceCarriers(html)))))))));
+      // 🔴 公式还原**必须最先做**：Word 的 OMML 藏在 MSO 条件注释里（<!--[if gte mso 9]>…<![endif]-->），
+      //    一旦被后续任一清洗步骤或 DOM 解析动过就再也找不回（注释被丢、标签名被小写化）。
+      //    产出统一为 $…$ LaTeX，与生成端公式同源，由 mathRender 用 KaTeX 出印刷形态。
+      const withMath = convertPastedMathInHtml(html);
+      return ensureCarrierContent(wrapBareBlankRuns(normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeMathCircleBlanks(normalizeWhitespaceCarriers(withMath)))))))));
     },
     handleKeyDown: (view, event) => {
       // Escape 退出格式刷连刷模式

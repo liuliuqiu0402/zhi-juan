@@ -8,6 +8,9 @@ import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../
 import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js';
 import { PAPER_PRESETS, normalizeLayout } from '../config/paperPresets.js';
 import { decodeEntities } from './escape.js'; // 实体解码唯一实现 utils/escape（曾 data-image-raw/data-graph-raw 两条同构链 + GenerateModule 副本）
+import { splitMathSegments } from './mathSyntax.js'; // 公式定界语法（$…$ / $$…$$）单一事实源
+import { latexToDocxMath } from './latexToDocxMath.js'; // LaTeX → Word 真公式对象（不支持时返回 null）
+import { convertFormulaToText } from './wordExporter.js'; // 公式可读化降级（Word 兜底：绝不泄漏 $ / \frac）
 
 // ============ 工具函数 ============
 
@@ -325,11 +328,25 @@ const buildTextRuns = (node, styleOverride = {}) => {
               runs.push({ __blankLineTab: true, size: ctxIn.size || readFontSizeHp(node), raw: line, color: '333333' });
               return;
             }
-            const pure = { text: line };
-            // 只保留 ctx 中有值的键（避免 undefined 覆盖 docx 默认值）
+            // 🔴 公式还原（2026-09）：行内 $…$ / 块级 $$…$$ → **Word 真公式对象**（docx 内置 OMML）。
+            //    改版前只在"整个文本节点恰好是 $…$"的**元素分支**命中（真实语句「半径为 $r$ 的圆」
+            //    永不命中），命中时也只是剥掉 $ 涂成深蓝斜体 → Word 里 \frac{a}{b} 原样泄漏成乱码。
+            //    现按文本节点内的公式**分段**输出：能确定性表达 → 真公式；否则降级为可读 Unicode
+            //    （convertFormulaToText）——两条路都不泄漏 $ / \frac。
+            const runBase = {};
             const keys = ['size', 'color', 'font', 'bold', 'italics', 'underline', 'strike', 'shading', 'superScript', 'subScript'];
-            keys.forEach(k => { if (ctxIn[k] !== undefined) pure[k] = ctxIn[k]; });
-            runs.push(new TextRun(pure));
+            keys.forEach(k => { if (ctxIn[k] !== undefined) runBase[k] = ctxIn[k]; });
+            for (const seg of splitMathSegments(line)) {
+              if (!seg.math) {
+                if (!seg.text) continue;
+                // \$ 转义还原为字面美元号（正文里的价格等，不当公式定界符）
+                runs.push(new TextRun({ ...runBase, text: seg.text.replace(/\\\$/g, '$') }));
+                continue;
+              }
+              const math = latexToDocxMath(seg.latex);
+              if (math) { runs.push(math); continue; }
+              runs.push(new TextRun({ ...runBase, text: convertFormulaToText(seg.latex) }));
+            }
           }
         });
       }
@@ -679,10 +696,9 @@ const buildTextRuns = (node, styleOverride = {}) => {
       return;
     }
     // === $...$ 公式 ===
-    if (text.startsWith('$') && text.endsWith('$')) {
-      runs.push(new TextRun({ text: text.slice(1, -1), italics: true, color: '1A237E', size: ctx.size }));
-      return;
-    }
+    // 🔴 2026-09 已移除：原实现在**元素分支**用 `child.textContent` 判断"整串是否 $…$"，
+    //    真实语句（「半径为 $r$ 的圆」）永不命中，命中时也只剥 $ 涂深蓝斜体、\frac 原样泄漏。
+    //    公式现于**文本节点分支**按 $…$ 分段处理（含 Word 真公式对象与 Unicode 降级），见上方。
     // === 换行符 ===
     if (tag === 'br') {
       // 🔧 田字格 marker 后紧跟的末尾 br：AI 原始内容残留，可连续多个

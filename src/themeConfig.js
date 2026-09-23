@@ -1,5 +1,7 @@
 // ==================== 主题定义 ====================
-import { convertFormulasInHtml } from './utils/wordExporter.js';
+// 🔴 公式渲染出口：$…$ 交给 KaTeX 出印刷形态（原 convertFormulasInHtml 只降级成 a/b 文本，
+//    与渲染契约"公式禁止用文本堆砌"自相矛盾——见 utils/mathRender.js 文件头）
+import { renderMathInHtml } from './utils/mathRender.js';
 import { getMergedSpec, normalizeStage3 } from './config/layoutSpec.js';
 import { stripSealSuffix, normalizeSealBlanks } from './utils/sealText.js'; // 密封线文本规整（与 docx 导出 drawingMLShapes 共用，曾同正文双份）
 import { escapeHtml as escHtml } from './utils/escape.js'; // HTML 转义唯一实现（曾本地 escHtml 与 drawingMLShapes/GenerateModule 等 5 份同构副本）
@@ -1101,8 +1103,8 @@ export const markdownToHtml = (content) => {
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
   
-  // 转换 $...$ 公式标记为可读文本
-  html = convertFormulasInHtml(html);
+  // 🔴 渲染出口：$…$ / $$…$$ → KaTeX 印刷形态（分式叠排、根号、积分号）；非法 LaTeX 自动退回文本
+  html = renderMathInHtml(html);
   
   // 列表（🔧 修复：更精确的列表匹配）
   html = html.replace(/^\s*-\s+(.*$)/gim, '<li>$1</li>');
@@ -2090,8 +2092,8 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
     processedContent = applyIntelligentHeadings(content);
   }
   
-  // 转换 $...$ 公式标记为可读文本
-  processedContent = convertFormulasInHtml(processedContent);
+  // 🔴 渲染出口：$…$ / $$…$$ → KaTeX 印刷形态（幂等：上一处已渲染的产物内不再含 $）
+  processedContent = renderMathInHtml(processedContent);
   
   return `<!DOCTYPE html>
 <html>

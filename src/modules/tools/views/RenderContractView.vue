@@ -361,10 +361,14 @@
       </div>
       <div class="rule-card">
         <b>$..$ 公式</b>
-        <p>公式学科：<code>{{ MATH_SUBJECTS.join(' / ') }}</code></p>
-        <p>学段门控：数学低段不注入；物理/化学仅初中及以上。</p>
+        <p>公式学科：<code>{{ MATH_SUBJECTS.join(' / ') }}</code>（其余学科未启用；如需可展开上方对应学科契约勾选「公式」开启）</p>
+        <p>学段门控：<b>初中及以上</b>注入；<b>小学全学段不注入</b>——公式示例为二次函数求根公式（初中内容），小学注入即诱导超纲。</p>
+        <p class="note">实际下发给模型的条款（下方为原文，与生成端同一常量）：</p>
+        <div class="rule-body">
+          {{ FORMULA_RULES }}
+        </div>
         <p class="note">
-          图形数据必须与题干完全一致（契约强制）。
+          渲染端：行内/块级公式由 KaTeX 渲染为印刷形态（分式叠排、根号、积分号），非法 LaTeX 自动退回可读文本（见 utils/mathRender.js）。
         </p>
       </div>
     </div>
@@ -437,7 +441,7 @@
 <script setup>
 import { computed, inject, ref, watch, nextTick } from 'vue';
 import { useRoute } from 'vue-router'; // 来源分段标注 → /tools/render-contract?focus=<学科>
-import { GRAPH_TYPES, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES, GRAPH_SAMPLES } from '../../../config/eduRenderContract.js';
+import { GRAPH_TYPES, MATH_SUBJECTS, SUBJECT_GRAPH_TYPES, GRAPH_SAMPLES, FORMULA_RULES, getFormulaNeeded } from '../../../config/eduRenderContract.js';
 import { SUBJECT_KEYS } from '../../../config/toolLibrary.js';
 import { exportLibrary, importLibrary, readLib, writeLib } from '../../../utils/libraryIO.js';
 import { setLibToggle, listDisabledEntries } from '../../../utils/libToggles.js';
@@ -510,7 +514,9 @@ const loadUser = () => { try { return JSON.parse(localStorage.getItem(USER_KEY) 
 const allContract = SUBJECT_KEYS.map((subject) => {
   const user = loadUser()[subject];
   const graphTypes = user ? (user.graphTypes || []) : (SUBJECT_GRAPH_TYPES[subject] || []);
-  const formula = user ? !!user.formula : MATH_SUBJECTS.includes(subject);
+  // 🔴 公式能力判据走 getFormulaNeeded（单一事实源）——不再用 MATH_SUBJECTS.includes 另立一份；
+  //    此处不传 stage = 显示"该学科是否具备公式能力"（具体学段是否注入由下方 getStageEffect 说明）
+  const formula = user ? !!user.formula : getFormulaNeeded(subject);
   // 🔴 2026-09-17：配图能力默认开（能力就绪）——判据是"该题作答是否需要图中信息"（正文原则式条款裁定），
   //    程序侧不再按关键词/资料类型猜（原 needsImageHint 已撤）；此处默认值与生成端同一口径。
   const image = user && 'image' in user ? !!user.image : true;
@@ -525,12 +531,13 @@ const allContract = SUBJECT_KEYS.map((subject) => {
 /* ===== 三维度影响（学段/类型 → 契约状态变化） ===== */
 const getStageEffect = (subject, stage) => {
   if (!stage) return '';
-  if (subject === '数学') {
-    if (stage === 'primary_low' || stage === 'primary_mid') return '低段：不注入公式（仅数轴/统计图）';
-    return '中高段：注入公式';
-  }
-  if ((subject === '物理' || subject === '化学') && stage.startsWith('primary')) return '小学：不注入公式';
-  return '';
+  if (!MATH_SUBJECTS.includes(subject)) return ''; // 无公式能力的学科不出现公式相关提示
+  // 🔴 原实现写死"数学中高段注入公式"，但中段/高段是**小学**学段（primary_mid/primary_high），
+  //    生成端实际是初中及以上才注入 → 库里标"注入"、实际不注入，自相矛盾。
+  //    现直接问 getFormulaNeeded（单一判据），文案与生成端恒等。
+  return getFormulaNeeded(subject, stage)
+    ? '本学段：注入公式'
+    : '本学段：不注入公式（初中及以上才注入）';
 };
 const getTypeEffect = (genType) => {
   if (!genType) return '';
@@ -752,6 +759,8 @@ const copyContract = (c) => {
 .rule-card b { color: var(--primary); }
 .rule-card p { margin: 6px 0; color: #445; }
 .rule-card code { background: var(--primary-lighter); color: var(--primary); padding: 1px 6px; border-radius: 4px; font-size: 11.5px; }
+/* 实际下发给模型的条款原文（等宽、可换行；避免与说明文字混淆） */
+.rule-card .rule-body { background: #f7f8fa; border: 1px solid var(--border-light); border-radius: 6px; padding: 8px 10px; margin: 6px 0; color: #334; font-family: Consolas, Menlo, monospace; font-size: 11.5px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
 .warn-note { color: #a06a10; }
 .note { color: var(--text-muted); }
 

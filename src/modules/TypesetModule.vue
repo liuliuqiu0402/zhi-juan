@@ -492,6 +492,9 @@ import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js'; // 作
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { stripAiCodeFence, normalizeLeadingMarkers, normalizeMathCircleBlanks, markSoloBlankLines, wrapBareBlankRuns } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离 + 行首"项目符号+序号"归一 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（与 GenerateModule 共用，防同构副本各自演化）
+// 🔴 公式字体内联：PDF 走 puppeteer page.setContent（无 base URL/无网络），KaTeX 相对字体
+//    解析不到 → 分式/根号字模缺失走形；导出前把自带字形的样式注入 HTML（无公式时自动短路）
+import { withKatexStyles } from '../utils/mathRender.js';
 import storage from '../utils/storage';
 import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
 
@@ -1215,6 +1218,10 @@ const exportDocument = async () => {
   
   // 🔧 清洗 AI 对话残留和 markdown 代码块标记（第二道防线）
   previewContentForExport = sanitizeExportContent(previewContentForExport);
+  
+  // 🔴 公式字体内联（HTML / PDF / 打印三条导出路径共用）：含公式时才注入，普通文档零开销。
+  //    docx 分支走编辑器实时 DOM（sourceHtml），不受此处影响——Word 真公式属 P5。
+  previewContentForExport = await withKatexStyles(previewContentForExport);
   
   isExporting.value = true;
   exportStatus.value = '正在生成文档...';

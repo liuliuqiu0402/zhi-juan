@@ -21,8 +21,23 @@ export const GRAPH_TYPES = [
   'FORCE', 'CIRCUIT', 'OPTICS', 'ATOM',
 ];
 
-/** 需要 $公式$ 的学科 */
-export const MATH_SUBJECTS = ['数学', '物理', '化学'];
+/** 🔴 需要 $公式$ 的学科（**单一事实源**）
+ *  ============================================================
+ *  这既是"要不要注入公式"的判据，也是契约库（RenderContractView）显示"公式 ✓"的判据。
+ *  ⚠️ 2026-09 收口：原 `getFormulaNeeded` 把这三个学科**硬编码了第二份**（if 数学…if 物理…），
+ *     于是"往本数组加学科"完全不生效（双事实源）；契约库另有一处 `MATH_SUBJECTS.includes` 与
+ *     `getStageEffect` 文案又各说一套，实测出现"小学高段(primary_high)标成注入公式"与
+ *     生成端实际不注入相矛盾。现统一由本数组 + getFormulaNeeded 单点判定。
+ *  补学科只需在此登记，生成端与契约库同时生效。
+ *  🔴 2026-09 P4 补「生物」：遗传图解（Aa×Aa→F₁）、表现型比（3:1）、光合/呼吸方程式
+ *     （6CO₂+6H₂O→C₆H₁₂O₆+6O₂）都需下标与箭头排版，原缺契约只能写成平排文本。
+ *     ⚠️ 未登记「科学」：小学无理化生科目，且 getFormulaNeeded 的学段门控（初中及以上）
+ *        已把它挡在门外，登记与否效果相同 —— 不登记以免误导（"登记了却永不生效"）。
+ *     ⚠️ 未登记「地理/信息科技」：其"公式"形态是**平排比值与逻辑符号**（比例尺 1:50000、
+ *        坡度、A∧B、进制），不是叠排数学，走 LaTeX 反而给生成端注入噪音；
+ *        仍会走 <sup>/<sub> 与普通文本表达，渲染端同样保留。
+ */
+export const MATH_SUBJECTS = ['数学', '物理', '化学', '生物'];
 
 /** 🔴 图依赖词（**单一事实源**，2026-09-12）：判定"题干是否要学生依据图形/画面作答"的**程序侧**词表。
  *  ============================================================
@@ -250,8 +265,12 @@ export const SUBJECT_GRAPH_TYPES = {
 /** 坐标类图形参数说明（仅 COORDINATE/SHAPES 适用；注入一次，避免每个示例重复） */
 const GRAPH_AXIS_PARAMS = '坐标类参数：XLIM:min,max 横轴范围、YLIM:min,max 纵轴范围、GRID:TRUE/FALSE 网格、TITLE:标题';
 
-/** 公式规则（公式内分数用 \frac；非公式语境的分数标注用半角斜杠——两者分属不同标记场景） */
-const FORMULA_RULES = '· 公式：行内用 $...$、块级用 $$...$$；公式内分数用 \\frac 表示，非公式语境的分数标注用"分子/分母"半角斜杠（如 1/2）；公式禁止用文本堆砌或图片代替。';
+/** 公式规则（公式内分数用 \frac；非公式语境的分数标注用半角斜杠——两者分属不同标记场景）
+ *  🔴 导出供契约库（RenderContractView）**原样展示**实际下发给模型的条款——避免库里写一套、
+ *     实际注入另一套（此前库里这块文案是错的：把 [GRAPH] 的话串了过来，学段门控也写错）。
+ *  ⚠️ 与渲染端的绑定关系（2026-09 P1）：本条要求"公式禁止用文本堆砌"，渲染端已由
+ *     utils/mathRender.renderMathInHtml 用 KaTeX 出印刷形态（原实现只降级成 a/b 文本，属要求悬空）。 */
+export const FORMULA_RULES = '· 公式：行内用 $...$、块级用 $$...$$；公式内分数用 \\frac 表示，非公式语境的分数标注用"分子/分母"半角斜杠（如 1/2）；公式禁止用文本堆砌或图片代替。';
 
 // ==================== 学段维度门控（三维度对齐：学段 × 学科 × 类型） ====================
 
@@ -294,14 +313,15 @@ const getGraphParts = (subject, stage) => {
 };
 
 /**
- * 学科×学段 → 是否注入公式（学段门控）：
- *   - 数学：初中及以上（小学全学段无 LaTeX 公式——FORMULA_RULES 示例为二次函数求根公式，属初中内容，注入即诱导超纲）
- *   - 物理/化学：初中及以上（小学无物理化学）
+ * 学科×学段 → 是否注入公式（学段门控，**导出的单一判据**）
+ *   - 学科：MATH_SUBJECTS（需 $公式$ 的学科，单一事实源——勿在此再硬编码一份学科名）
+ *   - 学段：初中及以上（小学全学段不注入——FORMULA_RULES 示例为二次函数求根公式，属初中内容，
+ *     注入即诱导超纲；物理/化学本就在小学不存在）
+ * @returns {boolean}
  */
-const getFormulaNeeded = (subject, stage) => {
-  if (subject === '数学') return isMiddlePlus(stage);
-  if (subject === '物理' || subject === '化学') return isMiddlePlus(stage);
-  return false;
+export const getFormulaNeeded = (subject, stage) => {
+  if (!MATH_SUBJECTS.includes(subject)) return false;
+  return isMiddlePlus(stage);
 };
 
 /**
