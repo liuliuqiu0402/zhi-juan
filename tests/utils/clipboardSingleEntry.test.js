@@ -115,6 +115,11 @@ describe('⑤ 读剪贴板必须走 Electron 主进程（渲染进程 API 会被
     expect(main, '一并回可用格式清单，便于诊断"哪一份没拿到"').toMatch(/availableFormats\(\)/);
   });
 
+  it('🔴 main.js 必须另读 CF_HTML 原始字节（readHTML 会被 Chromium 剥掉条件注释 → 注释里的 OMML 丢失）', () => {
+    expect(main).toMatch(/clipboard\.readBuffer\('HTML Format'\)/);
+    expect(main).toMatch(/htmlRawBase64/);
+  });
+
   it('preload 暴露 readClipboard', () => {
     expect(preload).toMatch(/readClipboard:\s*\(\)\s*=>\s*ipcRenderer\.invoke\('read-clipboard'\)/);
   });
@@ -122,6 +127,12 @@ describe('⑤ 读剪贴板必须走 Electron 主进程（渲染进程 API 会被
   it('readClipboardRich 优先主进程通路，浏览器 API 只作兜底', () => {
     const src = FILES.find(({ file }) => file.endsWith(path.join('utils', 'pastedMath.js'))).src;
     expect(src).toMatch(/readClipboard\(\)[\s\S]{0,1200}navigator\s*\.\s*clipboard/);
+  });
+
+  it('🔴 readClipboardRich 优先用 CF_HTML 原始片段（注释完好），readHTML 版本只作兜底', () => {
+    const src = FILES.find(({ file }) => file.endsWith(path.join('utils', 'pastedMath.js'))).src;
+    expect(src).toMatch(/parseCfHtml\(bytes\)/);
+    expect(src).toMatch(/html\s*=\s*htmlFromRawBytes\s*\|\|\s*htmlFromReadHtml/);
   });
 });
 

@@ -166,14 +166,26 @@ ipcMain.handle('read-file', async (event, filePath) => {
 //    代码只能回退 `readText()` 纯文本 —— 而 Word 给纯文本时会把公式线性化成裸字符，
 //    于是"目录里的公式只剩字母和加减号"。主进程的 `clipboard.readHTML()` 不受这套权限管，
 //    并且能一并回可用格式清单（formats），让"到底哪一份没拿到"可被直接看见。
+//
+// 🔴 为什么还要回原始字节（htmlRawBase64，2026-09 用户实证二）：`clipboard.readHTML()` 拿到的
+//    是**经 Chromium 处理过的 HTML，条件注释会被丢掉**；而 Word 的公式 OMML 恰好写在
+//    `<!--[if gte msEquation 12]>…<![endif]-->` 里 → 注释一丢，公式就只剩兜底图片。
+//    `clipboard.readBuffer('HTML Format')` 给的是原始 CF_HTML 字节，注释完好，
+//    由渲染进程用 utils/cfHtml.parseCfHtml 自己解片段（解析逻辑留在 src 里，可单测）。
 ipcMain.handle('read-clipboard', async () => {
     const safeRead = (fn) => { try { return fn() || ''; } catch { return ''; } };
     let formats = [];
     try { formats = clipboard.availableFormats() || []; } catch { formats = []; }
+    let htmlRawBase64 = '';
+    try {
+        const buf = clipboard.readBuffer('HTML Format');
+        if (buf && buf.length) htmlRawBase64 = Buffer.from(buf).toString('base64');
+    } catch { htmlRawBase64 = ''; }
     return {
         formats,
         text: safeRead(() => clipboard.readText()),
         html: safeRead(() => clipboard.readHTML()),
+        htmlRawBase64,
     };
 });
 

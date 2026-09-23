@@ -181,7 +181,8 @@ describe('🔍 diagnoseClipboard：把"公式为什么没进来"一次说清', (
       readText: async () => '第1章 集合 2',
     });
     const report = await diagnoseClipboard();
-    expect(report).toContain('没有公式结构');
+    expect(report).toContain('没有找到公式结构');
+    expect(report, '要说明这是源头问题，不是本程序能补的').toContain('源头就没给');
     expect(report).toContain('从文件导入');
   });
 

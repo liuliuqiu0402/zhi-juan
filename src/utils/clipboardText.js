@@ -167,23 +167,34 @@ export const diagnoseClipboard = async () => {
   if (!clip) return '剪贴板为空，或读不到内容。\n\n请先复制内容再点诊断。';
 
   const fmt = (clip.formats || []).length ? clip.formats.join('、') : '未取到';
+  const raw = clip.htmlFromRawBytes || '';
+  const readHtml = clip.htmlFromReadHtml || '';
   const lines = [
     `读取通路：${clip.via === 'main' ? '主进程（Electron）' : '浏览器 API'}`,
     `剪贴板格式：${fmt}`,
-    `富文本(HTML)：${clip.html ? `${clip.html.length} 字` : '无'}`,
+    // 两条读法并列：raw 是 CF_HTML 原始片段（注释完好），readHTML 是经 Chromium 处理过的
+    raw
+      ? `原始片段(CF_HTML)：${raw.length} 字，含公式结构：${hasPastedMath(raw) ? '是' : '否'}`
+      : '原始片段(CF_HTML)：未取到',
+    readHtml
+      ? `readHTML() 版本：${readHtml.length} 字，含公式结构：${hasPastedMath(readHtml) ? '是' : '否'}`
+      : 'readHTML() 版本：未取到',
     `纯文本：${clip.text ? `${clip.text.length} 字` : '无'}`,
   ];
 
   if (clip.mathConverted) {
-    lines.push('', '公式结构：已还原为 LaTeX（$…$）——导入后可在目录里看到 $ 源码，展示处会渲染成印刷形态。');
-  } else if (!clip.html) {
+    lines.push('', '✅ 公式已还原为 LaTeX（$…$）。',
+      '导入目录后看到 $ 是**源码**（输入框里没法渲染公式），正式展示处——目录树、预览、PDF/Word 导出——会渲染成印刷形态。');
+  } else if (!raw && !readHtml) {
     lines.push('', '⚠️ 剪贴板里**没有富文本那一份**，只有纯文本。',
       'Word 给纯文本时会把公式线性化成裸字符（只剩字母和加减号），因此公式无法还原。',
       '建议：改用「📁 从文件导入」直接选 Word 文件——那条路拿的是文件本身，公式一定保住。');
   } else {
-    lines.push('', '剪贴板有富文本，但里面**没有公式结构**（没找到 OMML/MathML）。',
-      '若你的原文里有公式，说明复制来源给的 HTML 里公式是图片而不是公式对象。',
-      '建议：改用「📁 从文件导入」直接选 Word 文件。');
+    lines.push('',
+      '⚠️ 富文本里**没有找到公式结构**（OMML、MathML 都没有）。',
+      '两种可能：① 复制来源里的公式本来就是**图片**（不是公式对象）；② 该来源的剪贴板 HTML 不提供公式结构。',
+      '这两种都不是本程序能补的——源头就没给。',
+      '建议：改用「📁 从文件导入」直接选 Word 文件（.docx 里公式是结构化对象，能完整还原）。');
   }
   return lines.join('\n');
 };

@@ -22,6 +22,7 @@
  */
 import { ommlToLatex } from './ommlToLatex.js';
 import { mathmlToLatex } from './mathmlToLatex.js';
+import { parseCfHtml } from './cfHtml.js'; // CF_HTML 原始字节 → HTML 片段（注释完好，OMML 在里面）
 
 /** OMML 块级（oMathPara 内含 oMath，故必须先于行内处理）
  *  🔴 刻意**不加 i 标志**：OMML 元素名是大小写敏感的规范拼写（`m:oMath`）。若宽容匹配 `omath`，
@@ -111,16 +112,31 @@ export const readClipboardRich = async () => {
   let text = '';
   let formats = [];
   let via = '';
+  let htmlFromReadHtml = '';   // Chromium 处理过的那份（会丢条件注释）
+  let htmlFromRawBytes = '';   // CF_HTML 原始片段（注释完好）
 
-  // ① 首选 **Electron 主进程**剪贴板（`clipboard.readHTML()`）：
+  // ① 首选 **Electron 主进程**剪贴板：
   //    不受渲染进程剪贴板权限/焦点策略限制，实测这是唯一稳定拿到"带公式那一份"的通路。
   const api = typeof window !== 'undefined' ? window.electronAPI : null;
   if (api && typeof api.readClipboard === 'function') {
     try {
       const r = await api.readClipboard();
-      html = (r && r.html) || '';
+      htmlFromReadHtml = (r && r.html) || '';
       text = (r && r.text) || '';
       formats = (r && r.formats) || [];
+      // 🔴 CF_HTML 原始字节优先：readHTML() 已被 Chromium 处理过，**条件注释会丢**，
+      //    而 Word 的公式 OMML 就在 <!--[if gte msEquation 12]>…<![endif]--> 里（详见 main.js 注释）。
+      if (r && r.htmlRawBase64) {
+        try {
+          const bin = atob(r.htmlRawBase64);
+          const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+          htmlFromRawBytes = parseCfHtml(bytes);
+        } catch (e) {
+          console.warn('CF_HTML 原始片段解析失败，回退 readHTML:', e?.message || e);
+        }
+      }
+      // 原始片段里才可能有 OMML：两边都有时也取原始那份（含注释）
+      html = htmlFromRawBytes || htmlFromReadHtml;
       via = 'main';
     } catch (e) {
       console.warn('主进程剪贴板读取失败，回退浏览器 API:', e?.message || e);
@@ -128,6 +144,7 @@ export const readClipboardRich = async () => {
   }
 
   // ② 浏览器异步剪贴板 API（Web 端构建 / 主进程不可用时的兜底）
+  //    注：这条路拿到的 html 也归入「readHTML 版本」——诊断要如实反映"只有它、且它没公式"
   if (!html && !text) {
     const clip = typeof navigator === 'undefined' ? null : navigator.clipboard;
     if (clip) {
@@ -152,6 +169,7 @@ export const readClipboardRich = async () => {
       if (!text) {
         try { text = (await clip.readText?.()) || ''; } catch (e) { console.warn('剪贴板纯文本读取失败:', e?.message || e); }
       }
+      htmlFromReadHtml = html;
       via = 'navigator';
     }
   }
@@ -160,11 +178,13 @@ export const readClipboardRich = async () => {
   const converted = html ? convertPastedMathInHtml(html) : '';
   const mathConverted = !!converted && converted !== html;
   // 📋 诊断（2026-09）：有公式却没还原出来时，这一行是唯一线索 ——
-  //   格式清单里没有 text/html = 剪贴板压根没给富文本那份（源头问题，改代码无用）；
-  //   有 text/html 但"含公式标记"为 false = Word 那份 HTML 里没有 OMML（可能是图片公式）。
+  //    raw 与 readHTML 的**公式标记差异**尤其实用：raw 有、readHTML 没有 = Chromium 把注释丢了；
+  //    两个都没有 = 源头那份 HTML 里本来就没有公式结构（公式是图片），改代码无用。
   console.log(`📋 剪贴板[${via}]：格式=[${formats.join(', ') || '未取到'}]`
-    + ` html=${html.length}字 文本=${text.length}字 含公式标记=${hasPastedMath(html)} 已还原公式=${mathConverted}`);
-  return { html: converted, text, mathConverted, formats, via };
+    + ` raw=${htmlFromRawBytes.length}字(含公式标记=${hasPastedMath(htmlFromRawBytes)})`
+    + ` readHTML=${htmlFromReadHtml.length}字(含公式标记=${hasPastedMath(htmlFromReadHtml)})`
+    + ` 文本=${text.length}字 已还原公式=${mathConverted}`);
+  return { html: converted, text, mathConverted, formats, via, htmlFromReadHtml, htmlFromRawBytes };
 };
 
 export default { convertPastedMathInHtml, hasPastedMath, readClipboardRich };
