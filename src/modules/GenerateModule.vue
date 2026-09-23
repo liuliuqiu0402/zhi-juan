@@ -8659,7 +8659,9 @@ const previewDoc = (doc) => {
     });
   }
   
-  previewContent.value = normalizeSealStructure(renderImagePlaceholders(content));
+  // 🔴 公式渲染（2026-09 补齐）：该预览弹窗原样注入 doc.content → 含 $…$ 时显示生 LaTeX。
+  //    与排版预览/导出同一渲染出口（renderMathInHtml），公式出印刷形态。
+  previewContent.value = renderMathInHtml(normalizeSealStructure(renderImagePlaceholders(content)));
   showPreview.value = true;
 };
 

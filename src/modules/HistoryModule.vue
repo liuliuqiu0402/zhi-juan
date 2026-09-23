@@ -125,6 +125,7 @@ import { useDialog } from '@/composables/useDialog.js';
 import { useMobile } from '@/composables/useMobile.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import { STORAGE_KEYS } from '@/constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
+import { renderMathInHtml } from '@/utils/mathRender.js'; // 🔴 内容预览里的 $…$ 公式出印刷形态（2026-09 补齐）
 import { pushDeletedDocIds } from '@/utils/cloudStorage';
 import { genTypeOptions, styleOptions, styleInstructions } from '@/config/expertKnowledge.js'; // 资料类型/组织风格显示名唯一事实源（筛选项与匹配同源，防改名脱钩）
 
@@ -277,7 +278,9 @@ const styleTitleOf = (style) => {
 };
 
 const previewHistoryItem = (item) => {
-  previewContent.value = item.content || '';
+  // 🔴 公式渲染（2026-09 补齐）：预览弹窗原样注入 item.content → 含 $…$ 时显示生 LaTeX。
+  //    与排版预览/导出同一渲染出口（renderMathInHtml），公式出印刷形态。
+  previewContent.value = renderMathInHtml(item.content || '');
   showPreview.value = true;
 };
 

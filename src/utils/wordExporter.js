@@ -32,6 +32,37 @@ export const convertFormulaToText = (formula) => {
   text = text.replace(/\\leq/g, '\u2264');
   text = text.replace(/\\approx/g, '\u2248');
   text = text.replace(/\\text\{([^}]*)\}/g, '$1');
+  // 🔴 降级可用性补强（2026-09 P5 收尾）：降级路径只应产出**可读**文本，
+  //    绝不能把命令名泄漏成乱码词——实测 `\vec{F}+m\vec{a}` 曾退化成 "vecF+mveca"、
+  //    `\xrightarrow{点燃}` 曾是 "xrightarrow点燃"（印到 Word 交付物里就是错的）。
+  //    ① 环境（cases / aligned / 矩阵）：\begin{…}、\end{…} 整体去除；行分隔 \\ 与列分隔 & 转可读分隔
+  text = text.replace(/\\(?:begin|end)\{[^}]*\}/g, ' ');
+  text = text.replace(/\\\\/g, '; '); // 行分隔（cases/aligned/矩阵）→ 分号，保住"两行"的区分
+  text = text.replace(/&/g, ', ');    // 列/对齐分隔 → 逗号
+  //    ①b 重音类（docx 无 OMML 重音类，必然走降级）：用 Unicode **组合符**承载，
+  //        保住"向量/帽/横线"语义——否则 \vec{F} 只剩 F，向量含义丢失
+  text = text.replace(/\\vec\{([^}]*)\}/g, '$1\u20D7');       // ⃗ 向量
+  text = text.replace(/\\bar\{([^}]*)\}/g, '$1\u0304');       // ̄ 平均/共轭
+  text = text.replace(/\\hat\{([^}]*)\}/g, '$1\u0302');       // ̂ 估计量
+  text = text.replace(/\\tilde\{([^}]*)\}/g, '$1\u0303');     // ̃
+  text = text.replace(/\\overline\{([^}]*)\}/g, '$1\u0304');
+  text = text.replace(/\\underline\{([^}]*)\}/g, '$1\u0332'); // ̲
+  text = text.replace(/\\dot\{([^}]*)\}/g, '$1\u0307');
+  //    ② 补充常用符号与算子名（与 latexToDocxMath 的符号表同口径：集合/逻辑/关系/函数名/间距）
+  const EXTRA_SYMBOLS = {
+    '\\mid': '|', '\\vert': '|', '\\Vert': '‖', '\\in': '∈', '\\notin': '∉',
+    '\\cup': '∪', '\\cap': '∩', '\\subset': '⊂', '\\subseteq': '⊆', '\\emptyset': '∅',
+    '\\angle': '∠', '\\perp': '⊥', '\\parallel': '∥', '\\triangle': '△', '\\circ': '∘',
+    '\\sim': '∼', '\\cong': '≅', '\\propto': '∝', '\\therefore': '∴', '\\because': '∵',
+    '\\forall': '∀', '\\exists': '∃', '\\partial': '∂', '\\nabla': '∇',
+    '\\ldots': '…', '\\cdots': '⋯', '\\dots': '…', '\\int': '∫', '\\prod': '∏',
+    '\\log': 'log', '\\ln': 'ln', '\\lg': 'lg', '\\sin': 'sin', '\\cos': 'cos',
+    '\\tan': 'tan', '\\cot': 'cot', '\\lim': 'lim', '\\max': 'max', '\\min': 'min',
+    '\\left': '', '\\right': '', '\\quad': ' ', '\\qquad': ' ', '\\,': ' ', '\\;': ' ', '\\!': '',
+  };
+  for (const [cmd, ch] of Object.entries(EXTRA_SYMBOLS)) text = text.split(cmd).join(ch);
+  //    ③ 仍未识别的命令 → 连命令名一并去除，只保留其参数内容（\vec{F} → F，而非 vecF）
+  text = text.replace(/\\[a-zA-Z]+/g, '');
   // 🔧 上标符号（无 Unicode 上标版的保持原字符）
   text = text.replace(/\^\{\*\}/g, '*');        // ^{*} → *
   text = text.replace(/\^\{?\+}?/g, '\u207A');  // ^{+} → ⁺

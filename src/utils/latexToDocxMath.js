@@ -44,8 +44,17 @@ const SYMBOL_CMD = {
   leq: '≤', le: '≤', geq: '≥', ge: '≥', neq: '≠', ne: '≠', equiv: '≡', approx: '≈',
   infty: '∞', rightarrow: '→', to: '→', leftarrow: '←', Rightarrow: '⇒',
   rightleftharpoons: '⇌', leftrightarrow: '↔',
+  // 箭头族（化学方程式的 ↑↓ 沉淀/气体符号、长箭头、映射）
+  uparrow: '↑', downarrow: '↓', updownarrow: '↕',
+  longrightarrow: '⟶', Longrightarrow: '⟹', hookrightarrow: '↪', mapsto: '↦',
   in: '∈', notin: '∉', cup: '∪', cap: '∩', subset: '⊂', subseteq: '⊆', emptyset: '∅',
   angle: '∠', perp: '⊥', parallel: '∥', triangle: '△', circ: '∘', degree: '°',
+  // 集合/逻辑/关系（数学函数与集合题高频；缺则整式降级）
+  mid: '|', vert: '|', Vert: '‖', sim: '∼', cong: '≅', propto: '∝',
+  forall: '∀', exists: '∃', nabla: '∇', partial: '∂', implies: '⇒', iff: '⇔',
+  therefore: '∴', because: '∵', prime: '′', ast: '∗', star: '⋆',
+  lfloor: '⌊', rfloor: '⌋', lceil: '⌈', rceil: '⌉', langle: '⟨', rangle: '⟩',
+  ldots: '…', dots: '…',
   alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε', varepsilon: 'ε',
   zeta: 'ζ', eta: 'η', theta: 'θ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ',
   nu: 'ν', xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ',
@@ -244,6 +253,35 @@ function parseList(tks, pos) {
   return { nodes, pos: p };
 }
 
+/**
+ * cases 环境 → 行 × 单元格的节点矩阵（`\\` 分行、`&` 分列）。
+ * 返回 null 表示某个单元格无法解析（→ 整体放弃，交调用方降级，不产出半对结构）。
+ */
+const toRows = (tks) => {
+  const rows = [[]];
+  for (const tk of tks) {
+    if (tk.t === 'cmd' && tk.v === '\\') { rows.push([]); continue; }
+    rows[rows.length - 1].push(tk);
+  }
+  const out = [];
+  for (const rowTks of rows) {
+    const cells = [[]];
+    for (const tk of rowTks) {
+      if (tk.t === 'ch' && tk.v === '&') { cells.push([]); continue; }
+      cells[cells.length - 1].push(tk);
+    }
+    const cellNodes = [];
+    for (const cellTks of cells) {
+      if (!cellTks.length) { cellNodes.push([]); continue; }
+      const r = parseList(cellTks, 0);
+      if (!r || r.pos !== cellTks.length) return null; // 未完全消费 → 没理解 → 不转换
+      cellNodes.push(r.nodes);
+    }
+    out.push(cellNodes);
+  }
+  return out;
+};
+
 /** 命令分派 */
 parseCmd = (tks, pos) => {
   const name = tks[pos].v;
@@ -262,6 +300,24 @@ parseCmd = (tks, pos) => {
   }
 
   switch (name) {
+    // 分段函数（cases）：docx **未导出** OMML 的方程组/矩阵类（无 m:eqArr 对应类），
+    // 故用「真花括号 + 行分隔 '; '」的真公式对象近似——花括号是真的、内容完整，
+    // 远胜整体降级成一行纯文本。其余环境（matrix/aligned…）仍走降级（宁缺勿错）。
+    case 'begin': {
+      const envArg = parseArg(tks, p0);
+      if (!envArg) return null;
+      if (plainOf(envArg.nodes).trim() !== 'cases') return null;
+      let endIdx = -1;
+      for (let i = envArg.pos; i < tks.length; i += 1) {
+        if (tks[i].t === 'cmd' && tks[i].v === 'end') { endIdx = i; break; }
+      }
+      if (endIdx < 0) return null;
+      const endArg = parseArg(tks, endIdx + 1);
+      if (!endArg || plainOf(endArg.nodes).trim() !== 'cases') return null;
+      const rows = toRows(tks.slice(envArg.pos, endIdx));
+      if (!rows || !rows.length || !rows.some((r) => r.some((c) => c && c.length))) return null;
+      return { node: { k: 'braceRows', rows }, pos: endArg.pos };
+    }
     case 'frac': {
       const a = parseArg(tks, p0);
       if (!a) return null;
@@ -291,6 +347,17 @@ parseCmd = (tks, pos) => {
       const a = parseArg(tks, p0);
       if (!a) return null;
       return { node: { k: 'text', children: a.nodes }, pos: a.pos };
+    }
+    // 化学反应箭头（条件写在箭头上方）：`\xrightarrow{点燃}` / `\xleftarrow{…}`
+    // 🔴 docx **未导出** OMML 的"上方附加"对象（limUpp 无对应类），故用箭头**上标**承载条件：
+    //    条件文字完整保留（化学方程式的反应条件不能丢），且不伪造 limUpp 假结构。
+    //    此前该构造整体降级，且降级文本会把命令名泄漏成乱码词（"xrightarrow点燃"）。
+    case 'xrightarrow':
+    case 'xleftarrow': {
+      const a = parseArg(tks, p0);
+      if (!a) return null;
+      const arrow = name === 'xleftarrow' ? '←' : '→';
+      return { node: { k: 'sup', base: [{ k: 'run', text: arrow }], sup: a.nodes }, pos: a.pos };
     }
     case 'sum':
     case 'int': {
@@ -390,6 +457,20 @@ const toComponent = (n) => {
     }
     case 'bracket':
       return bracketOf(n.type, toComponents(n.children));
+    case 'braceRows': {
+      // 分段函数：真花括号 + 行内 '; ' 分隔（列内 ', '）——内容与结构都在，
+      // 只是行不换行（docx 无 OMML 方程组类可依）。空单元格不产出内容。
+      const children = [];
+      n.rows.forEach((row, ri) => {
+        if (ri > 0) children.push(new MathRun('; '));
+        (row || []).forEach((cell, ci) => {
+          if (ci > 0) children.push(new MathRun(', '));
+          children.push(...toComponents(cell || []));
+        });
+      });
+      if (!children.length) return null;
+      return new MathCurlyBrackets({ children });
+    }
     default:
       return null;
   }
