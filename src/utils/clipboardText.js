@@ -156,4 +156,36 @@ export const handleMathPaste = (e) => {
   return true;
 };
 
-export default { htmlToPlainLines, readTocTextFromClipboard, handleMathPaste };
+/**
+ * 剪贴板诊断（用户可自助触发）——一次说清"公式为什么没进来"。
+ * 🔴 为什么要有：导入后的结果只有"公式在/不在"两种表象，而原因分三类，
+ *    不看剪贴板内容无法区分；让用户点一下就能拿到结论，省掉反复来回。
+ * @returns {Promise<string>} 供弹窗直接显示的多行文本
+ */
+export const diagnoseClipboard = async () => {
+  const clip = await readClipboardRich();
+  if (!clip) return '剪贴板为空，或读不到内容。\n\n请先复制内容再点诊断。';
+
+  const fmt = (clip.formats || []).length ? clip.formats.join('、') : '未取到';
+  const lines = [
+    `读取通路：${clip.via === 'main' ? '主进程（Electron）' : '浏览器 API'}`,
+    `剪贴板格式：${fmt}`,
+    `富文本(HTML)：${clip.html ? `${clip.html.length} 字` : '无'}`,
+    `纯文本：${clip.text ? `${clip.text.length} 字` : '无'}`,
+  ];
+
+  if (clip.mathConverted) {
+    lines.push('', '公式结构：已还原为 LaTeX（$…$）——导入后可在目录里看到 $ 源码，展示处会渲染成印刷形态。');
+  } else if (!clip.html) {
+    lines.push('', '⚠️ 剪贴板里**没有富文本那一份**，只有纯文本。',
+      'Word 给纯文本时会把公式线性化成裸字符（只剩字母和加减号），因此公式无法还原。',
+      '建议：改用「📁 从文件导入」直接选 Word 文件——那条路拿的是文件本身，公式一定保住。');
+  } else {
+    lines.push('', '剪贴板有富文本，但里面**没有公式结构**（没找到 OMML/MathML）。',
+      '若你的原文里有公式，说明复制来源给的 HTML 里公式是图片而不是公式对象。',
+      '建议：改用「📁 从文件导入」直接选 Word 文件。');
+  }
+  return lines.join('\n');
+};
+
+export default { htmlToPlainLines, readTocTextFromClipboard, handleMathPaste, diagnoseClipboard };

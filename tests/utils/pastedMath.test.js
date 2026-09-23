@@ -266,7 +266,8 @@ describe('readClipboardRich：读剪贴板 + 公式还原（唯一入口）', ()
       readText: async () => '第1章 集合 2',
     });
     const clip = await readClipboardRich();
-    expect(clip).toEqual({ html: '', text: '第1章 集合 2', mathConverted: false });
+    expect(clip).toMatchObject({ html: '', text: '第1章 集合 2', mathConverted: false });
+    expect(clip.via, '诊断用：标明是哪条通路拿到的').toBe('navigator');
   });
 
   it('剪贴板 API 不存在 → null', async () => {

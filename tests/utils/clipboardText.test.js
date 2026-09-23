@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { htmlToPlainLines, readTocTextFromClipboard, handleMathPaste } from '@/utils/clipboardText.js';
+import { htmlToPlainLines, readTocTextFromClipboard, handleMathPaste, diagnoseClipboard } from '@/utils/clipboardText.js';
 import { useTocParser } from '@/composables/useTocParser.js';
 
 /**
@@ -161,5 +161,37 @@ describe('🔴 handleMathPaste：纯文本框粘贴保住公式', () => {
     handleMathPaste(makeEvent(el, `<p>${OMML_SQRT_FRAC}</p>`));
     expect(el.value.startsWith('A$\\sqrt{ab}')).toBe(true);
     expect(el.value.endsWith('B')).toBe(true);
+  });
+});
+
+describe('🔍 diagnoseClipboard：把"公式为什么没进来"一次说清', () => {
+  const stubClipboard = (spec) => Object.defineProperty(navigator, 'clipboard', { value: spec, configurable: true });
+  afterEach(() => { delete window.electronAPI; });
+
+  it('剪贴板只有纯文本 → 明确说"没有富文本那份"，并指向「从文件导入」', async () => {
+    stubClipboard({ read: async () => [{ types: ['text/plain'], getType: async () => ({ text: async () => 'ab a+b 2' }) }], readText: async () => 'ab a+b 2' });
+    const report = await diagnoseClipboard();
+    expect(report).toContain('没有富文本');
+    expect(report, '必须给出可执行的下一步').toContain('从文件导入');
+  });
+
+  it('剪贴板有富文本但没公式结构 → 说明"公式可能是图片"', async () => {
+    stubClipboard({
+      read: async () => [{ types: ['text/html'], getType: async () => ({ text: async () => '<p>第1章 集合 2</p>' }) }],
+      readText: async () => '第1章 集合 2',
+    });
+    const report = await diagnoseClipboard();
+    expect(report).toContain('没有公式结构');
+    expect(report).toContain('从文件导入');
+  });
+
+  it('公式已还原 → 说明"$ 源码是正常的，展示处会渲染"', async () => {
+    stubClipboard({
+      read: async () => [{ types: ['text/html'], getType: async () => ({ text: async () => `<p>${OMML_SQRT_FRAC}</p>` }) }],
+      readText: async () => 'ab a+b 2',
+    });
+    const report = await diagnoseClipboard();
+    expect(report).toContain('已还原为 LaTeX');
+    expect(report).toContain('印刷形态');
   });
 });

@@ -164,7 +164,7 @@ export const readClipboardRich = async () => {
   //   有 text/html 但"含公式标记"为 false = Word 那份 HTML 里没有 OMML（可能是图片公式）。
   console.log(`📋 剪贴板[${via}]：格式=[${formats.join(', ') || '未取到'}]`
     + ` html=${html.length}字 文本=${text.length}字 含公式标记=${hasPastedMath(html)} 已还原公式=${mathConverted}`);
-  return { html: converted, text, mathConverted };
+  return { html: converted, text, mathConverted, formats, via };
 };
 
 export default { convertPastedMathInHtml, hasPastedMath, readClipboardRich };

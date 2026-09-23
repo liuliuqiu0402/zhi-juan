@@ -142,4 +142,21 @@ describe('⑥ 目录「从文件导入」（不赌剪贴板格式）', () => {
     expect(src).toMatch(/parseWord\(filePath\)/);
     expect(src).toMatch(/htmlToPlainLines\(r\.html\)/);
   });
+
+  it('🔴 目录编辑表格含公式时给出印刷形态预览（纯文本输入框里没法渲染，用户会误判"公式没保住"）', () => {
+    for (const name of tocModules) {
+      const src = FILES.find(({ file }) => file.endsWith(name)).src;
+      expect(src, `${name} 缺公式预览`).toMatch(/v-if="hasMath\(item\.title\)"/);
+      expect(src, `${name} 预览必须"先转义再渲染"（标题是外部输入）`)
+        .toMatch(/renderMathInHtml\(escapeHtml\(item\.title\)\)/);
+    }
+  });
+
+  it('导入弹窗提供「剪贴板诊断」入口（否则用户只能看到"丢了"，无法自查原因）', () => {
+    for (const name of tocModules) {
+      const src = FILES.find(({ file }) => file.endsWith(name)).src;
+      expect(src).toMatch(/@click="showClipboardDiagnosis"/);
+      expect(src).toMatch(/await diagnoseClipboard\(\)/);
+    }
+  });
 });

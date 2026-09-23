@@ -875,6 +875,16 @@
                         @focus="focusedRow = index"
                         @blur="focusedRow = -1"
                       >
+                      <!-- 🔴 公式印刷形态预览（2026-09 用户实证）：标题是**纯文本字段**，`<input>` 里
+                           根本无法渲染公式，导入后只看得到 $…$ 源码 —— 用户会以为"公式没保住"。
+                           含公式时在下方补一行渲染结果，让"到底保住没有"当场可见。
+                           （正式展示处——教材/模板详情目录树、预览、PDF/Word 导出——本来就渲染。） -->
+                      <div
+                        v-if="hasMath(item.title)"
+                        class="title-math-preview"
+                        style="margin:2px 0 4px;padding:2px 8px;font-size:13px;line-height:1.7;color:#555;background:#f6f8fb;border-radius:4px;overflow-x:auto;"
+                        v-html="renderMathInHtml(escapeHtml(item.title))"
+                      />
                     </div>
                   </td>
                   <td>
@@ -1091,6 +1101,14 @@
           >
             📁 从文件导入
             <span class="hint">（Word / txt，公式能保住）</span>
+          </button>
+          <button
+            class="btn"
+            title="查一下剪贴板里到底有哪些格式、公式为什么没进来"
+            @click="showClipboardDiagnosis"
+          >
+            🔍 剪贴板诊断
+            <span class="hint">（公式没导入时先点这里）</span>
           </button>
           <button
             class="btn"
@@ -1331,8 +1349,8 @@ import { libraryEntryPaths, classifyMoveError, sanitizeFsName } from '../utils/l
 import { planRelink, pdfStem, coverStem } from '../utils/libraryRelink.js';
 import { useFileHandler } from '../composables/useFileHandler.js';
 import { convertFormulasInHtml } from '../utils/wordExporter.js';
-import { renderMathInHtml } from '../utils/mathRender.js'; // 🔴 目录标题里的 $…$ 公式出印刷形态（P3）
-import { readTocTextFromClipboard, handleMathPaste } from '../utils/clipboardText.js'; // 🔴 目录导入读剪贴板富文本，救回公式（纯文本只剩字母和加减号）；handleMathPaste = 纯文本框粘贴也保公式
+import { renderMathInHtml, hasMath } from '../utils/mathRender.js'; // 🔴 目录标题里的 $…$ 公式出印刷形态（P3）
+import { readTocTextFromClipboard, handleMathPaste, diagnoseClipboard } from '../utils/clipboardText.js'; // 🔴 目录导入读剪贴板富文本，救回公式（纯文本只剩字母和加减号）；handleMathPaste = 纯文本框粘贴也保公式；diagnoseClipboard = 用户可自助查"公式为什么没进来"
 import { escapeHtml } from '../utils/escape.js'; // 转义唯一实现（标题属外部输入，注入前必须转义）
 import { useTocParser, safeFocusOutlineInput, fastFocusInput, smartFocusInput, fastCalculatePageRanges, fastRebuildTree } from '../composables/useTocParser.js';
 import { useTocFileImport } from '../composables/useTocFileImport.js'; // 📁 目录「从文件导入」读文件（与模板库共用；.docx 含公式还原）
@@ -3105,6 +3123,12 @@ const importFromClipboard = async (closeModal = false) => {
     console.error('读取剪贴板失败:', e);
     if (closeModal) await showAlertDialogFn('读取剪贴板失败，请重试');
   }
+};
+
+/** 🔍 剪贴板诊断：把"读到了哪一份、有没有公式结构"直接摆在用户面前（否则只能靠猜） */
+const showClipboardDiagnosis = async () => {
+  showImportModal.value = false;
+  await showAlertDialogFn(await diagnoseClipboard());
 };
 
 /**
