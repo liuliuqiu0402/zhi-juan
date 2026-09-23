@@ -317,6 +317,32 @@ p.blank-area {
   line-height: 0;
 }
 
+/* 🔴 编辑器内公式实时渲染（ProseMirror 装饰层，2026-09）
+   装饰只改视图、不改文档：文档里仍是 $…$ 源码，下游链路零改动。
+   光标落进公式时装饰消失 → 露出源码可编辑；此处只管"渲染态"的观感。 */
+.zwg-math-preview {
+  cursor: pointer;
+  display: inline;
+}
+
+/* 行内公式与上下文对齐（避免把行高撑开） */
+.zwg-math-preview .katex {
+  font-size: 1.05em;
+}
+
+/* 块级公式在编辑器里用 inline-block：既独占视觉空间，又不会在 contenteditable
+   内造成"块元素嵌入行内"的布局错乱（预览/导出仍由 .zwg-math-display 走 block） */
+.zwg-math-preview-display .zwg-math-display {
+  display: inline-block;
+  margin: 0.35em 0;
+}
+
+/* 悬停提示可点击编辑（不改字号，只做轻量底色提示） */
+.ProseMirror .zwg-math-preview:hover {
+  background: rgba(75, 63, 227, 0.07);
+  border-radius: 3px;
+}
+
 /* 转文本后的项目符号字形(仅空心圆)：0.4em 对齐浏览器原生 circle 标记真实尺寸 */
 .list-marker { font-size: 0.4em; }
 

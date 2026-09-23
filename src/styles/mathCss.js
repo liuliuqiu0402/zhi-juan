@@ -15,6 +15,10 @@
 export const MATH_CSS =
   '.zwg-math-display{display:block}'
   + '.zwg-math-display .katex-display{margin:.55em 0}'
-  + '.zwg-math-fallback{font-style:normal}';
+  + '.zwg-math-fallback{font-style:normal}'
+  // 🔴 编辑器公式装饰层：隐藏源码的 span（DOM 仍在、仅视觉隐藏），由同级 widget 渲染公式。
+  //    放在这里（而非 global.css）是为了**应用内与导出都注入**：即使某条读取路径忘了
+  //    调 restoreMathPreviewSource，导出里也不会出现"源码与渲染并存"的重复显示。
+  + '.zwg-math-src{display:none}';
 
 export default { MATH_CSS };

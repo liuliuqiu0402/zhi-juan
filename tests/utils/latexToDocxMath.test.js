@@ -149,6 +149,47 @@ describe('自建 OMML 补齐：docx 未实现的类也能产出真结构', () =>
     expect(xml).toContain('m:val="["');
     expect(xml).toContain('m:val=")"');
   });
+
+  it('组合数 \\binom → 括号 + 无横线分式（m:f 且 m:type=noBar）', async () => {
+    const xml = await xmlOf('\\binom{n}{k}');
+    expect(xml).toContain('<m:f>');
+    expect(xml).toContain('m:val="noBar"');
+    expect(xml).toContain('<m:num>');
+    expect(xml).toContain('<m:den>');
+  });
+
+  it('上下大括号 \\underbrace / \\overbrace → m:groupChr + m:pos', async () => {
+    const under = await xmlOf('\\underbrace{a+b}');
+    expect(under).toContain('<m:groupChr>');
+    expect(under).toContain('m:val="bot"');
+    const over = await xmlOf('\\overbrace{a+b}');
+    expect(over).toContain('<m:groupChr>');
+    expect(over).toContain('m:val="top"');
+  });
+
+  it('\\dfrac / \\tfrac / \\cfrac → 与 \\frac 同为 m:f（此前会整式降级）', async () => {
+    for (const f of ['\\dfrac{a}{b}', '\\tfrac{a}{b}', '\\cfrac{a}{b}']) {
+      const xml = await xmlOf(f);
+      expect(xml, f).toContain('<m:f>');
+    }
+  });
+
+  it('\\overrightarrow → 真重音（与 \\vec 同族）', async () => {
+    const xml = await xmlOf('\\overrightarrow{AB}');
+    expect(xml).toContain('<m:acc>');
+    expect(xml).toContain('<m:chr m:val="⃗"');
+  });
+
+  it('n 元算子泛化：∏ ∮ ⋃ 都出 m:nary 且算子字符正确、上下限出 undOvr', async () => {
+    const cases = [['\\prod_{i=1}^{n}i', '∏'], ['\\oint_{L}x', '∮'], ['\\bigcup_{i=1}^{n}A_i', '⋃']];
+    for (const [latex, chr] of cases) {
+      const xml = await xmlOf(latex);
+      expect(xml, latex).toContain('<m:nary>');
+      expect(xml, `${latex} 算子字符应为 ${chr}`).toContain(`<m:chr m:val="${chr}"`);
+      expect(xml, '上下限须排在算子上下方（教材形态）').toContain('<m:limLoc m:val="undOvr"');
+      expect(xml).toContain('<m:sub>');
+    }
+  });
 });
 
 describe('端到端：打包 docx 后确实生成 OMML（Word 公式 XML）', () => {

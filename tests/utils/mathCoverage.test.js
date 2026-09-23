@@ -81,6 +81,15 @@ const WORD_MUST_BE_MATH = [
   '\\begin{aligned}a&=b\\\\c&=d\\end{aligned}',
   '\\begin{pmatrix}a&b\\\\c&d\\end{pmatrix}',
   '\\left[a,b\\right)',
+  // 本轮补齐的构造族
+  '\\dfrac{a}{b}',                       // \dfrac 在 AI 产出里很常见
+  '\\binom{n}{k}',                       // 组合数 → 无横线分式
+  '\\underbrace{a+b}',                   // 下大括号 → m:groupChr
+  '\\overbrace{a+b}',                    // 上大括号
+  '\\overrightarrow{AB}',                // 向量（与 \vec 同族）
+  '\\prod_{i=1}^{n}i',                   // ∏（docx 只有 ∑/∫）
+  '\\oint_{L}\\vec{F}\\cdot d\\vec{r}',  // ∮
+  '\\bigcup_{i=1}^{n}A_i',               // ⋃
 ];
 
 describe('屏幕端（预览 / PDF / HTML 导出）：全学科公式必须全部渲染', () => {
@@ -115,8 +124,8 @@ describe('降级路径：docx 无对应 OMML 类时不产出错公式，且绝�
   const DOCX_UNSUPPORTED = [
     ['未登记环境（带列格式）', '\\begin{array}{cc}a&b\\end{array}'],
     ['加框', '\\boxed{x}'],
-    ['下括号', '\\underbrace{x}'],
-    ['组合数', '\\binom{n}{k}'],
+    ['占位', '\\phantom{x}'],
+    ['堆叠下标', '\\substack{a\\\\b}'],
     ['未知命令', '\\unknowncmd{x}'],
   ];
 
@@ -129,7 +138,8 @@ describe('降级路径：docx 无对应 OMML 类时不产出错公式，且绝�
     expect(text.trim(), '降级不得产出空串').not.toBe('');
     // 🔴 命令名绝不能泄漏成字面词（曾出现 "xrightarrow点燃"、"vecF"、"begin…cases"）
     for (const leak of ['xrightarrow', 'vec', 'frac', 'sqrt', 'begin', 'end{', 'cases', 'left', 'right',
-      'cdot', 'alpha', 'overline', 'aligned', 'array', 'boxed', 'underbrace', 'binom', 'unknowncmd']) {
+      'cdot', 'alpha', 'overline', 'aligned', 'array', 'boxed', 'underbrace', 'binom', 'phantom',
+      'substack', 'unknowncmd']) {
       expect(text, `降级文本泄漏命令名「${leak}」：${text}`).not.toContain(leak);
     }
     expect(text, '不得残留反斜杠').not.toContain('\\');

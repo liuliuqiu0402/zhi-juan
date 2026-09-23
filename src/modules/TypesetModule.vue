@@ -495,6 +495,9 @@ import { stripAiCodeFence, normalizeLeadingMarkers, normalizeMathCircleBlanks, m
 // 🔴 公式字体内联：PDF 走 puppeteer page.setContent（无 base URL/无网络），KaTeX 相对字体
 //    解析不到 → 分式/根号字模缺失走形；导出前把自带字形的样式注入 HTML（无公式时自动短路）
 import { withKatexStyles } from '../utils/mathRender.js';
+// 🔴 编辑器公式装饰层会把 $…$ 源码换成渲染 widget，读实时 DOM 前必须还原回源码，
+//    否则 Word/预览链路拿到的是 widget 的 KaTeX 片段而不是公式（幂等：无 widget 时原样返回）
+import { restoreMathPreviewSource } from '../utils/mathPreview.js';
 import storage from '../utils/storage';
 import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
 
@@ -558,7 +561,7 @@ const onRichEditorChange = (html) => {
   //    ⚠️ Vue 模板 ref 会自动解包 defineExpose 的 ShallowRef，
   //       所以 contentEditor.value.editor 已经是 Editor 实例，不要加 .value
   if (contentEditor.value?.editor?.view?.dom) {
-    pristineHtmlForExport.value = contentEditor.value.editor.view.dom.innerHTML;
+    pristineHtmlForExport.value = restoreMathPreviewSource(contentEditor.value.editor.view.dom.innerHTML);
   } else {
     pristineHtmlForExport.value = html;
   }
@@ -1160,7 +1163,7 @@ const exportDocument = async () => {
   if (isHtmlContent.value) {
     // 🔧 优先直接读 editor.view.dom；读不到时用组件暴露的 getDomHTML（组件内部解包 editor，更可靠）
     const dom = contentEditor.value?.editor?.view?.dom;
-    const domHtml = dom?.innerHTML || contentEditor.value?.getDomHTML?.() || '';
+    const domHtml = restoreMathPreviewSource(dom?.innerHTML || '') || contentEditor.value?.getDomHTML?.() || '';
     if (domHtml) pristineHtmlForExport.value = domHtml;
   }
   // 🔧 导出前立即 flush 编辑内容到生成记录（防抖 500ms 未触发时，切回生成模块导出也能拿到最新内容）
@@ -1240,7 +1243,10 @@ const exportDocument = async () => {
       // 🔧 源优先级：liveDom 最新实时内容 > 导出缓存 pristine（每次导出前从 liveDom 刷新，与预览同源）
       //    > rawHtmlContent（仅加载时快照，编辑器内"列表转文本"新增的 margin-left 不会写回，会造成导出丢层级）。
       //    必须让 pristine 先于 rawHtmlContent——否则剥离序号等"仅存于实时编辑"的样式在导出时丢失。
-      let sourceHtml = liveDom?.innerHTML || pristineHtmlForExport.value || rawHtmlContent.value;
+      // 🔴 读实时 DOM 前还原公式源码：编辑器装饰层把 $…$ 换成了渲染 widget，
+      //    直接取 innerHTML 会拿到 KaTeX 片段而非公式（Word 导出会变成乱码文本）
+      const liveRestored = restoreMathPreviewSource(liveDom?.innerHTML || '');
+      let sourceHtml = liveRestored || pristineHtmlForExport.value || rawHtmlContent.value;
       // 🔴 答案区兜底合并：编辑器（Tiptap）schema 不保留 answer-section 容器，liveDom 会整体丢掉答案区
       //    （生成时有答案页、导出却消失的根因）——导出时从原始生成内容提取 answer-section 补回末尾，
       //    正文以编辑器实时内容为准（含用户编辑）、答案区以生成源为准

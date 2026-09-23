@@ -25,17 +25,20 @@ import {
   MathSuperScript,
   MathSubScript,
   MathSubSuperScript,
-  MathSum,
-  MathIntegral,
 } from 'docx';
-// docx 未实现的 OMML 类由本仓库自建补齐（方程数组 m:eqArr、重音 m:acc、
-// 上方附加 m:limUpp、矩阵 m:m、自定义定界符 m:d）——见 utils/ommlExtras.js 文件头
+// docx 未实现的 OMML 类由本仓库自建补齐（方程数组 m:eqArr、重音 m:acc、上方附加 m:limUpp、
+// 矩阵 m:m、自定义定界符 m:d、上下大括号 m:groupChr、无横线分式、泛化 n 元算子 m:nary）
+// ——见 utils/ommlExtras.js 文件头
 import {
   MathEquationArray,
   MathAccent,
   MathBar,
+  MathDisplay,
+  MathGroupChar,
   MathLimitUpper,
   MathMatrix,
+  MathNoBarFraction,
+  MathNary,
   MathDelimiter,
 } from './ommlExtras.js';
 // 🔴 刻意不用 docx 的 `MathText`：它**未从 ESM 入口导出**（CJS 有，属上游打包不一致），
@@ -94,6 +97,16 @@ const normalizeDelim = (ch) => {
   const c = String(ch == null ? '' : ch);
   return Object.prototype.hasOwnProperty.call(DELIM_NORMALIZE, c) ? DELIM_NORMALIZE[c] : c;
 };
+
+/** n 元算子命令 → 算子字符（docx 只实现了 ∑/∫ 且字符写死，其余靠自建 MathNary 泛化） */
+const NARY_CHAR = {
+  sum: '∑', prod: '∏', int: '∫', iint: '∬', iiint: '∭', oint: '∮',
+  bigcup: '⋃', bigcap: '⋂', bigvee: '⋁', bigwedge: '⋀',
+  bigoplus: '⨁', bigotimes: '⨂', bigodot: '⨀',
+};
+
+/** 上下大括号 */
+const GROUP_CHAR = { underbrace: ['⏟', 'bot'], overbrace: ['⏞', 'top'] };
 
 // ==================== 词法 ====================
 
@@ -329,6 +342,24 @@ parseCmd = (tks, pos) => {
     return { node: children.length > 1 ? { k: 'group', children } : children[0], pos: p0 };
   }
 
+  // n 元算子（∑ ∏ ∫ ∮ ∬ ⋃ ⋂ …）：先取上下限，再由 parseList 吸收紧随的一项作为作用对象。
+  // 🔴 不复用 docx 的 MathSum/MathIntegral：它们只支持 ∑/∫ 且算子字符写死，
+  //    而 ∏ ∮ ∬ ⋃ ⋂ 在教材/物理里真实出现。统一走自建 MathNary（同一条路径，避免两套形状）。
+  if (NARY_CHAR[name]) {
+    let sub = null;
+    let sup = null;
+    let p = p0;
+    for (let guard = 0; guard < 2; guard += 1) {
+      const q = skipSpaceBeforeScript(tks, p);
+      if (!(tks[q] && (tks[q].t === '^' || tks[q].t === '_'))) break;
+      const arg = parseArg(tks, q + 1);
+      if (!arg) return null;
+      if (tks[q].t === '^') sup = arg.nodes; else sub = arg.nodes;
+      p = arg.pos;
+    }
+    return { node: { k: 'nary', chr: NARY_CHAR[name], sub, sup, body: [] }, pos: p };
+  }
+
   switch (name) {
     // 分段函数 / 方程组 / 矩阵环境。
     // 🔴 docx **未实现** OMML 的方程数组（m:eqArr）与矩阵（m:m）——但这是**上游覆盖面取舍、
@@ -376,7 +407,12 @@ parseCmd = (tks, pos) => {
         ? { node: { k: 'delim', beg: wrap[0], end: wrap[1], children: [matNode] }, pos: endArg.pos }
         : { node: matNode, pos: endArg.pos };
     }
-    case 'frac': {
+    // 分式家族：\frac / \dfrac / \tfrac / \cfrac 数学结构相同（KaTeX 亦同），统一走 m:f。
+    // 🔴 \dfrac 在 AI 产出里很常见，此前未收录会导致整式降级
+    case 'frac':
+    case 'dfrac':
+    case 'tfrac':
+    case 'cfrac': {
       const a = parseArg(tks, p0);
       if (!a) return null;
       const b = parseArg(tks, a.pos);
@@ -419,6 +455,7 @@ parseCmd = (tks, pos) => {
     // 重音：\vec{F} \hat{x} \bar{x} \overline{AB} \tilde{x} \dot{x}
     // 🔴 docx 未实现 OMML 的重音（m:acc），由 ommlExtras 自建补齐 → 真重音而非组合字符
     case 'vec':
+    case 'overrightarrow':
     case 'hat':
     case 'widehat':
     case 'bar':
@@ -427,7 +464,9 @@ parseCmd = (tks, pos) => {
     case 'ddot': {
       const a = parseArg(tks, p0);
       if (!a) return null;
-      return { node: { k: 'acc', accent: ACCENT_CHAR[name], children: a.nodes }, pos: a.pos };
+      // \overrightarrow 与 \vec 同为"上面加箭"（物理/数学向量符号）
+      const accent = name === 'overrightarrow' ? ACCENT_CHAR.vec : ACCENT_CHAR[name];
+      return { node: { k: 'acc', accent, children: a.nodes }, pos: a.pos };
     }
     // 上/下划线：OMML 的正确表达是 m:bar（不是重音）——docx 同样未实现，由 ommlExtras 自建
     case 'overline':
@@ -436,21 +475,31 @@ parseCmd = (tks, pos) => {
       if (!a) return null;
       return { node: { k: 'bar', pos: name === 'underline' ? 'bot' : 'top', children: a.nodes }, pos: a.pos };
     }
-    case 'sum':
-    case 'int': {
-      const kind = name === 'int' ? 'int' : 'sum';
-      let sub = null;
-      let sup = null;
-      let p = p0;
-      for (let guard = 0; guard < 2; guard += 1) {
-        const q = skipSpaceBeforeScript(tks, p);
-        if (!(tks[q] && (tks[q].t === '^' || tks[q].t === '_'))) break;
-        const arg = parseArg(tks, q + 1);
-        if (!arg) return null;
-        if (tks[q].t === '^') sup = arg.nodes; else sub = arg.nodes;
-        p = arg.pos;
-      }
-      return { node: { k: 'nary', kind, sub, sup, body: [] }, pos: p };
+    // 组合数 \binom{n}{k}（排列组合章节）：括号内套"无横线分式"（m:f + m:type=noBar）
+    case 'binom':
+    case 'dbinom':
+    case 'tbinom': {
+      const a = parseArg(tks, p0);
+      if (!a) return null;
+      const b = parseArg(tks, a.pos);
+      if (!b) return null;
+      return {
+        node: {
+          k: 'delim',
+          beg: '(',
+          end: ')',
+          children: [{ k: 'noBarFrac', num: a.nodes, den: b.nodes }],
+        },
+        pos: b.pos,
+      };
+    }
+    // 上下大括号 \underbrace{…} / \overbrace{…}（推导步骤标注、二项式定理）
+    case 'underbrace':
+    case 'overbrace': {
+      const a = parseArg(tks, p0);
+      if (!a) return null;
+      const [chr, pos] = GROUP_CHAR[name];
+      return { node: { k: 'groupChr', chr, pos, children: a.nodes }, pos: a.pos };
     }
     case 'left': {
       const openCh = delimOf(tks[p0]);
@@ -539,14 +588,24 @@ const toComponent = (n) => {
         superScript: toComponents(n.sup),
       });
     }
-    case 'nary': {
-      const children = toComponents(n.body);
-      if (!children.length) return null;
-      const opts = { children };
-      if (n.sub && n.sub.length) opts.subScript = toComponents(n.sub);
-      if (n.sup && n.sup.length) opts.superScript = toComponents(n.sup);
-      return n.kind === 'int' ? new MathIntegral(opts) : new MathSum(opts);
-    }
+    case 'nary':
+      // 统一走自建 MathNary（算子字符可指定、上下限出 undOvr）；
+      // docx 的 MathSum/MathIntegral 只支持 ∑/∫ 且字符写死，故不再使用
+      return new MathNary({
+        chr: n.chr,
+        sub: toComponents(n.sub || []),
+        sup: toComponents(n.sup || []),
+        children: toComponents(n.body || []),
+      });
+    case 'noBarFrac':
+      // 组合数内核：无横线分式（m:f + m:type=noBar）
+      return new MathNoBarFraction({
+        numerator: toComponents(n.num),
+        denominator: toComponents(n.den),
+      });
+    case 'groupChr':
+      // 上下大括号（m:groupChr + m:chr/m:pos）
+      return new MathGroupChar({ chr: n.chr, pos: n.pos, children: toComponents(n.children) });
     case 'delim':
       // 任意成对定界符（含单侧、竖线、尖括号）；自建 MathDelimiter 产出 m:d + 自定义 begChr/endChr
       return new MathDelimiter({
@@ -593,12 +652,8 @@ const toComponents = (nodes) => {
   return out;
 };
 
-/**
- * LaTeX（不含 $ 定界符）→ docx Math 对象
- * @param {string} latex
- * @returns {import('docx').Math|null} 无法确定正确表达时返回 null（调用方降级为 Unicode 文本）
- */
-export const latexToDocxMath = (latex) => {
+/** 解析 LaTeX → docx Math 组件数组；无法确定性表达时返回 null（调用方降级） */
+const buildMathComponents = (latex) => {
   const src = String(latex == null ? '' : latex).trim();
   if (!src) return null;
   try {
@@ -606,11 +661,31 @@ export const latexToDocxMath = (latex) => {
     const parsed = parseList(tks, 0);
     if (!parsed || parsed.pos !== tks.length) return null; // 有残留 = 未完全理解 → 不转换
     const children = toComponents(parsed.nodes);
-    if (!children.length) return null;
-    return new DocxMath({ children });
+    return children.length ? children : null;
   } catch {
     return null;
   }
 };
 
-export default { latexToDocxMath };
+/**
+ * LaTeX（不含 $ 定界符）→ docx Math 对象（**行内**公式）
+ * @param {string} latex
+ * @returns {import('docx').Math|null} 无法确定正确表达时返回 null（调用方降级为 Unicode 文本）
+ */
+export const latexToDocxMath = (latex) => {
+  const children = buildMathComponents(latex);
+  return children ? new DocxMath({ children }) : null;
+};
+
+/**
+ * LaTeX → **展示式**（独占一行、居中）的段落级对象 `m:oMathPara`。
+ * 用于"整段就是一个块级公式（$$…$$）"的情形——教材/试卷里这类公式独占居中一行，
+ * 用行内 m:oMath 会挤在文字流中（与印刷样式不符）。
+ * @returns {import('./ommlExtras.js').MathDisplay|null}
+ */
+export const latexToDocxDisplay = (latex) => {
+  const children = buildMathComponents(latex);
+  return children ? new MathDisplay({ children }) : null;
+};
+
+export default { latexToDocxMath, latexToDocxDisplay };

@@ -14,9 +14,27 @@
 export const MATH_RE = /\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g;
 
 /**
+ * 编辑器公式装饰层 widget 的标记属性。
+ * 🔴 放在本模块（零依赖）而不是 mathPreview.js：docxBuilder 需要识别该 widget，
+ *    而 mathPreview.js 依赖 Tiptap —— 若从那边引，会把整个 Tiptap 拖进导出 chunk。
+ */
+export const MATH_PREVIEW_ATTR = 'data-math-preview';
+export const MATH_LATEX_ATTR = 'data-math-latex';
+export const MATH_DISPLAY_ATTR = 'data-math-display';
+
+/**
+ * 编辑器公式装饰层"隐藏源码"的类名。
+ * inline 装饰给 `$…$` 源码加此类（视觉隐藏、DOM 仍在），由同级 widget 渲染公式；
+ * 内容读取边界用 restoreMathPreviewSource 拆掉该 span（否则导出/预览会把公式藏起来）。
+ */
+export const MATH_SRC_CLASS = 'zwg-math-src';
+
+/**
  * 把纯文本按公式切段。
  * @param {string} text
- * @returns {Array<{text:string}|{math:true, latex:string, display:boolean}>} 顺序拼接即还原原文
+ * @returns {Array<{text:string}|{math:true, latex:string, display:boolean, raw:string}>}
+ *   `raw` 为**原始匹配文本**（含定界符与内部空白，如 `$$ x $$`）——顺序拼接即可还原原文；
+ *   编辑器公式装饰需要精确字符区间（latex 已 trim，长度与原文不等）。
  */
 export const splitMathSegments = (text) => {
   const src = String(text == null ? '' : text);
@@ -30,7 +48,7 @@ export const splitMathSegments = (text) => {
     const display = m[1] != null;
     const latex = String(display ? m[1] : m[2]).trim();
     // 空公式（如 "$$"）不成段，原样留作文本，避免产出空结构
-    if (latex) out.push({ math: true, latex, display });
+    if (latex) out.push({ math: true, latex, display, raw: m[0] });
     else out.push({ text: m[0] });
     last = m.index + m[0].length;
   }

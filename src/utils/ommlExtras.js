@@ -128,4 +128,85 @@ export class MathDelimiter extends XmlComponent {
   }
 }
 
-export default { MathEquationArray, MathAccent, MathBar, MathLimitUpper, MathMatrix, MathDelimiter };
+/**
+ * m:groupChr —— 上下大括号（`\underbrace{…}` / `\overbrace{…}`）
+ * 教材里用于"推导步骤标注"（如数列求和推导）与二项式定理。
+ */
+export class MathGroupChar extends XmlComponent {
+  constructor({ chr, pos, children }) {
+    super('m:groupChr');
+    this.root.push(container('m:groupChrPr', [
+      new CharValueElement('m:chr', chr),
+      new CharValueElement('m:pos', pos === 'top' ? 'top' : 'bot'),
+    ]));
+    this.root.push(new MathBase(asList(children)));
+  }
+}
+
+/**
+ * m:f 且 m:type="noBar" —— 无横线分式，即组合数 `\binom{n}{k}` 的数学内核。
+ * docx 的 MathFraction 不暴露 m:type，故自建。
+ */
+export class MathNoBarFraction extends XmlComponent {
+  constructor({ numerator, denominator }) {
+    super('m:f');
+    this.root.push(container('m:fPr', [new CharValueElement('m:type', 'noBar')]));
+    this.root.push(container('m:num', asList(numerator)));
+    this.root.push(container('m:den', asList(denominator)));
+  }
+}
+
+/**
+ * m:nary —— n 元算子（∑ ∏ ∫ ∮ ∬ ⋃ ⋂ …）。
+ * 🔴 docx 只实现了 ∑（MathSum）与 ∫（MathIntegral）两种、且算子字符写死；
+ *    教材/物理里 ∏、∮、∬、⋃、⋂ 都真实出现，故泛化为可指定算子字符。
+ *    子元素顺序按 ECMA-376：naryPr → sub → sup → e（sub/sup 必选，即使为空也要出）；
+ *    naryPr 内部顺序 chr → limLoc → subHide → supHide。
+ *    `m:limLoc=undOvr` 让上下限排在算子上下方（教材印刷形态，而非角标）。
+ */
+export class MathNary extends XmlComponent {
+  constructor({ chr, sub, sup, children }) {
+    super('m:nary');
+    const subList = asList(sub);
+    const supList = asList(sup);
+    const pr = [
+      new CharValueElement('m:chr', chr),
+      new CharValueElement('m:limLoc', 'undOvr'),
+    ];
+    if (!subList.length) pr.push(new CharValueElement('m:subHide', 1));
+    if (!supList.length) pr.push(new CharValueElement('m:supHide', 1));
+    this.root.push(container('m:naryPr', pr));
+    this.root.push(container('m:sub', subList));
+    this.root.push(container('m:sup', supList));
+    this.root.push(new MathBase(asList(children)));
+  }
+}
+
+/**
+ * m:oMathPara —— **展示式**（独占一行、可居中的块级公式）。
+ * 🔴 为什么必须单独有这个：`m:oMath` 放在段落里是**行内**公式，会挤在文字流中；
+ *    教材/试卷里的展示式（求根公式、分段函数、方程组）是**独占一行并居中**的，
+ *    对应 OMML 的 `m:oMathPara`（内含 `m:oMath`）——docx 同样未实现，故自建。
+ * 用法：作为某段落的**唯一子元素**（schema 上 m:oMathPara 属段落级元素）。
+ * 子元素顺序：oMathParaPr → oMath（oMathParaPr 内为 jc）。
+ */
+export class MathDisplay extends XmlComponent {
+  constructor({ children, jc = 'center' }) {
+    super('m:oMathPara');
+    this.root.push(container('m:oMathParaPr', [new CharValueElement('m:jc', jc)]));
+    this.root.push(container('m:oMath', asList(children)));
+  }
+}
+
+export default {
+  MathEquationArray,
+  MathAccent,
+  MathBar,
+  MathDisplay,
+  MathGroupChar,
+  MathLimitUpper,
+  MathMatrix,
+  MathNoBarFraction,
+  MathNary,
+  MathDelimiter,
+};

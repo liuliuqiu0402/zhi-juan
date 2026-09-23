@@ -606,6 +606,7 @@ import { Extension, Mark, Node } from '@tiptap/core';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { normalizeWhitespaceCarriers, normalizeLeadingMarkers, normalizeMathCircleBlanks, ensureCarrierContent, wrapBareBlankRuns } from '../utils/contentCleaner.js'; // 全局归一：纯空白装饰标记→填空横线 + 行首"项目符号+序号"剥离 + 算式 ○→数学填空圈 + 空载体兜底填充（装载/粘贴统一，旧内容回改） + 裸书写空（全角/em 空格）→填空横线
 import { convertPastedMathInHtml } from '../utils/pastedMath.js'; // 粘贴公式还原：Word OMML / 网页 MathML → $…$ LaTeX（交给 KaTeX 出印刷形态）
+import { createMathPreviewExtension, restoreMathPreviewSource } from '../utils/mathPreview.js'; // 编辑器内公式实时渲染（装饰层；只改视图不改文档）
 import { getMergedSpec } from '../config/layoutSpec.js';
 
 // ══════════════════════════════════════════
@@ -1205,6 +1206,9 @@ const editor = useEditor({
     TianZiGe,
     MiZiGe,
     PreserveSpan,
+    // 🔴 公式实时渲染（装饰层）：只改视图、不改文档 —— 文档里仍是 $…$ 源码，
+    //    故 rawText/清洗/docx/PDF/预览等下游链路不受影响
+    createMathPreviewExtension(),
     CustomTable.configure({ resizable: true }),
     TableRow,
     CustomTableCell,
@@ -2171,7 +2175,9 @@ defineExpose({
   getHTML: () => editor.value?.getHTML() || '',
   // 🔧 导出专用：组件内部直接解包 editor（绕开父组件对 expose 中 ShallowRef 的解包不确定性），
   //    返回编辑器实时 DOM 的 HTML（td 含 p、用户删除的内容已消失）
-  getDomHTML: () => editor.value?.view?.dom?.innerHTML || '',
+  // 🔴 公式装饰层会把源码从实时 DOM 里换掉（视图渲染 widget）→ 对外给出 HTML 前必须还原成 $…$，
+  //    否则读实时 DOM 的导出路径会拿到 widget 的 KaTeX 片段而非公式源码。
+  getDomHTML: () => restoreMathPreviewSource(editor.value?.view?.dom?.innerHTML || ''),
   getText: () => editor.value?.getText() || '',
   getImages: () => {
     const images = [];

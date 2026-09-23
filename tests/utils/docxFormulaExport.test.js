@@ -89,3 +89,40 @@ describe('Word 导出：公式落成真公式对象（OMML）', () => {
     expect(xml).toContain('没有公式');
   });
 });
+
+describe('Word 导出：块级公式出展示式（独占居中一行）', () => {
+  it('🔴 整段就是一个 $$…$$ → m:oMathPara 且居中（不再是行内公式）', async () => {
+    // 此前 $$…$$ 落成行内 m:oMath，会挤在文字流里 —— 与教材展示式排版不符
+    const xml = await getDocumentXml('<p>$$x=\\frac{-b\\pm\\sqrt{b^{2}-4ac}}{2a}$$</p>');
+    expect(xml).toContain('<m:oMathPara>');
+    expect(xml).toContain('<m:oMathParaPr>');
+    expect(xml).toContain('<m:jc m:val="center"');
+    expect(xml).toContain('<m:oMath>');   // oMathPara 内部仍是真公式
+    expect(xml).toContain('<m:f');        // 公式本体没被弄坏
+    expect(xml, '不得泄漏定界符').not.toContain('$$');
+  });
+
+  it('行内公式仍是行内（不升格成展示式）', async () => {
+    const xml = await getDocumentXml('<p>由 $a=b$ 可得结论</p>');
+    expect(xml).not.toContain('<m:oMathPara');
+    expect(xml).toContain('<m:oMath>');
+  });
+
+  it('公式与文字混排时不升格（保持行内，不破坏文字流）', async () => {
+    const xml = await getDocumentXml('<p>由 $a=b$ 可得 $$x=1$$ 成立</p>');
+    expect(xml).not.toContain('<m:oMathPara');
+    expect(xml).toContain('可得');
+    expect(xml).toContain('成立');
+  });
+
+  it('多个展示式段落各自成展示式，正文段落不受影响', async () => {
+    const xml = await getDocumentXml('<p>$$x=1$$</p><p>正文一句。</p><p>$$y=2$$</p>');
+    expect((xml.match(/<m:oMathPara>/g) || []).length).toBe(2);
+    expect(xml).toContain('正文一句');
+  });
+
+  it('展示式段落仍保留段前段后间距', async () => {
+    const xml = await getDocumentXml('<p>$$x=1$$</p>');
+    expect(xml).toContain('<w:spacing');
+  });
+});

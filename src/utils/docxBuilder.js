@@ -8,9 +8,24 @@ import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../
 import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js';
 import { PAPER_PRESETS, normalizeLayout } from '../config/paperPresets.js';
 import { decodeEntities } from './escape.js'; // 实体解码唯一实现 utils/escape（曾 data-image-raw/data-graph-raw 两条同构链 + GenerateModule 副本）
-import { splitMathSegments } from './mathSyntax.js'; // 公式定界语法（$…$ / $$…$$）单一事实源
-import { latexToDocxMath } from './latexToDocxMath.js'; // LaTeX → Word 真公式对象（不支持时返回 null）
+import { splitMathSegments, MATH_PREVIEW_ATTR, MATH_LATEX_ATTR, MATH_SRC_CLASS } from './mathSyntax.js'; // 公式定界语法与编辑器公式 widget 标记（零依赖，勿从 mathPreview 引以免拖入 Tiptap）
+import { latexToDocxMath, latexToDocxDisplay } from './latexToDocxMath.js'; // LaTeX → Word 真公式对象（行内 / 展示式；不支持时返回 null）
 import { convertFormulaToText } from './wordExporter.js'; // 公式可读化降级（Word 兜底：绝不泄漏 $ / \frac）
+
+/**
+ * 段落纯文本若"整段内容就是一个块级公式"→ 返回其 LaTeX；否则 null。
+ * 用于判定该段是否应产出**展示式**（独占居中一行）而非行内公式。
+ * 🔴 之所以按"整段文本"判定而不是按 run 数量：公式前后的空白/换行也会进 runs，
+ *    按 run 数判断会漏掉常见写法（`<p>$$…$$</p>` 里常带首尾空白）。
+ */
+const singleDisplayMath = (text) => {
+  const t = String(text == null ? '' : text).trim();
+  if (t.length < 5 || !t.startsWith('$$') || !t.endsWith('$$')) return null;
+  const meaningful = splitMathSegments(t).filter((s) => s.math || String(s.text || '').trim() !== '');
+  if (meaningful.length !== 1) return null;
+  const only = meaningful[0];
+  return only.math && only.display ? only.latex : null;
+};
 
 // ============ 工具函数 ============
 
@@ -353,6 +368,24 @@ const buildTextRuns = (node, styleOverride = {}) => {
       return;
     }
     if (child.nodeType !== Node.ELEMENT_NODE) return;
+
+    // 🔴 编辑器公式装饰层的"隐藏源码"span：其同级 widget 已承载公式，这里必须**跳过**，
+    //    否则公式会出现两次（源码一次、widget 一次）。正常路径已在读取边界还原掉该 span。
+    if (child.classList && child.classList.contains(MATH_SRC_CLASS)) return;
+
+    // 🔴 编辑器公式装饰层的 widget（第二道保险）：正常路径已在读实时 DOM 时用
+    //    restoreMathPreviewSource 还原成 $…$ 源码；万一日后新增了某条读取路径忘了还原，
+    //    这里按 data-math-latex 直接出真公式，并**不递归子节点**——
+    //    子节点是 KaTeX 的排版片段，递归会产出 "ab" 这类乱码文本（静默错内容）。
+    if (child.hasAttribute && child.hasAttribute(MATH_PREVIEW_ATTR)) {
+      const latex = child.getAttribute(MATH_LATEX_ATTR) || '';
+      if (latex) {
+        const math = latexToDocxMath(latex);
+        if (math) { runs.push(math); return; }
+        runs.push(new TextRun({ text: convertFormulaToText(latex) }));
+        return;
+      }
+    }
 
     const tag = child.tagName.toLowerCase();
     const cls = child.classList;
@@ -973,6 +1006,24 @@ const splitGridAwareContent = (node, runDefaults, opts = {}) => {
     textBuffer.forEach(c => tempEl.appendChild(c.cloneNode(true)));
     const mountTarget = node.isConnected ? node : document.body;
     mountTarget.appendChild(tempEl);
+    // 🔴 展示式（2026-09 P-B）：整段就是一个块级公式（$$…$$）时，产出**独占居中一行**的
+    //    m:oMathPara —— 行内 m:oMath 会把展示式挤进文字流（求根公式/分段函数/方程组都会走形）。
+    //    仅当该段不承载编号前缀时才转换：有前缀说明段落还有别的职责，必须保持原样。
+    if (!(isFirstFlush && prefixRuns && prefixRuns.length > 0)) {
+      const dispLatex = singleDisplayMath(tempEl.textContent);
+      const disp = dispLatex ? latexToDocxDisplay(dispLatex) : null;
+      if (disp) {
+        mountTarget.removeChild(tempEl);
+        const dispOpts = { children: [disp], spacing, indent: paraIndent };
+        if (deco.shading) dispOpts.shading = deco.shading;
+        if (deco.border) dispOpts.border = deco.border;
+        // 居中由 m:oMathParaPr/m:jc 控制，故**不设段落 alignment**（避免与 m:jc 打架）
+        result.push(new Paragraph(dispOpts));
+        isFirstFlush = false;
+        textBuffer = [];
+        return;
+      }
+    }
     const runs = buildTextRuns(tempEl, baseCtx);
     mountTarget.removeChild(tempEl);
     const allRuns = (isFirstFlush && prefixRuns && prefixRuns.length > 0)
