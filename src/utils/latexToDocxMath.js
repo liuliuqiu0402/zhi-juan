@@ -52,6 +52,10 @@ import {
 const SYMBOL_CMD = {
   cdot: '·', cdots: '⋯', times: '×', div: '÷', pm: '±', mp: '∓',
   leq: '≤', le: '≤', geq: '≥', ge: '≥', neq: '≠', ne: '≠', equiv: '≡', approx: '≈',
+  // 🔴 \leqslant / \geqslant 是**中文教材的规范写法**（人教版/苏教版印刷体就用 ⩽ ⩾）。
+  //    此前全仓库只收了 \leq/\geq，AI 产出教材原文时写 \leqslant → 整式在 Word 里降级、
+  //    符号直接丢失（用户实证：目录里"只留了字母和加减号"）。
+  leqslant: '⩽', geqslant: '⩾', nleqslant: '⩽̸', ngeqslant: '⩾̸',
   infty: '∞', rightarrow: '→', to: '→', leftarrow: '←', Rightarrow: '⇒',
   rightleftharpoons: '⇌', leftrightarrow: '↔',
   // 箭头族（化学方程式的 ↑↓ 沉淀/气体符号、长箭头、映射）

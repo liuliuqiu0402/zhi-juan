@@ -59,13 +59,15 @@ const escLatex = (t) => String(t).replace(/\\/g, '\\textbackslash ').replace(/([
 const SYMBOL_MAP = {
   '−': '-', '\u2212': '-', '⋅': '\\cdot ', '\u22c5': '\\cdot ',
   '×': '\\times ', '÷': '\\div ', '±': '\\pm ', '∓': '\\mp ',
-  '≤': '\\leq ', '≥': '\\geq ', '≠': '\\neq ', '≈': '\\approx ',
+  '≤': '\\leq ', '≥': '\\geq ', '⩽': '\\leqslant ', '⩾': '\\geqslant ', '≠': '\\neq ', '≈': '\\approx ',
   '∞': '\\infty ', '→': '\\rightarrow ', '←': '\\leftarrow ',
   '⇒': '\\Rightarrow ', '⇌': '\\rightleftharpoons ', '∈': '\\in ', '∉': '\\notin ',
   '∠': '\\angle ', '⊥': '\\perp ', '∥': '\\parallel ', '△': '\\triangle ',
   '∑': '\\sum ', '∏': '\\prod ', '∫': '\\int ', '√': '\\sqrt ', '°': '^{\\circ }',
 };
-const mapSymbols = (t) => String(t).replace(/[−⋅×÷±∓≤≥≠≈∞→←⇒⇌∈∉∠⊥∥△∑∏∫√°\u2212\u22c5]/g, (c) => SYMBOL_MAP[c] || c);
+// 🔴 ⩽/⩾（U+2A7D/U+2A7E，教材印刷体不等号）必须同时加进字符类，
+//    否则 mapSymbols 根本不会把它送进 SYMBOL_MAP（表里有、正则不认 = 静默没映射）
+const mapSymbols = (t) => String(t).replace(/[−⋅×÷±∓≤≥⩽⩾≠≈∞→←⇒⇌∈∉∠⊥∥△∑∏∫√°\u2A7D\u2A7E\u2212\u22c5]/g, (c) => SYMBOL_MAP[c] || c);
 
 /** mi/mn/mo/mtext 文本 → LaTeX（CJK 走 \text，多字符标识符走 \mathrm，保留字符转义） */
 const tokenToLatex = (el, kind) => {

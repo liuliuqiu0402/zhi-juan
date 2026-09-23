@@ -1337,6 +1337,7 @@ import { libraryEntryPaths, classifyMoveError, sanitizeFsName, repairLibraryPath
 import { useFileHandler } from '../composables/useFileHandler.js';
 import { convertFormulasInHtml } from '../utils/wordExporter.js';
 import { renderMathInHtml } from '../utils/mathRender.js'; // 🔴 目录标题里的 $…$ 公式出印刷形态（P3）
+import { readTocTextFromClipboard } from '../utils/clipboardTocText.js'; // 🔴 目录导入读剪贴板富文本，救回公式（纯文本只剩字母和加减号）
 import { escapeHtml } from '../utils/escape.js'; // 转义唯一实现（标题属外部输入，注入前必须转义）
 import { useTocParser, safeFocusOutlineInput, fastFocusInput, smartFocusInput, fastCalculatePageRanges, fastRebuildTree } from '../composables/useTocParser.js';
 import { subjects, subjectGradeSystem } from '../config/expertKnowledge.js';
@@ -2924,7 +2925,9 @@ const importFromClipboard = async (closeModal = false) => {
       await nextTick();
     }
     
-    const text = await navigator.clipboard.readText();
+    // 🔴 优先从剪贴板**富文本**版本还原公式（Word 的 text/html 里带着 OMML），
+    //    拿不到才回退纯文本（纯文本会把公式线性化成裸字符，只剩字母和加减号）
+    const text = (await readTocTextFromClipboard()) || (await navigator.clipboard.readText());
     if (!text.trim()) {
       if (closeModal) await showAlertDialogFn('剪贴板为空，请先复制目录内容');
       return;

@@ -6,10 +6,18 @@
  */
 export const convertFormulaToText = (formula) => {
   let text = formula.trim();
-  // 分数 a/b
-  text = text.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '$1/$2');
+  // 分数 a/b（含 \dfrac / \tfrac / \cfrac —— 与 latexToDocxMath 的分式家族同口径，
+  // 此前只认 \frac，`\dfrac{a+b}{2}` 会退化成 "a+b2"：分数线丢失且数字黏在一起）
+  // 分子/分母含**二元运算符**时补括号，保证线性读法不失真（\frac{a+b}{2} → (a+b)/2，而非 a+b/2）
+  // 只认加减号：`\frac{\pi}{2}` 该读作 π/2，不能被命令名误判成"需要括号"而写成 (π)/2
+  const parenIfNeeded = (s) => (/[+\-\u2212\u00B1\u2213]/.test(s) ? `(${s})` : s);
+  text = text.replace(/\\[dtc]?frac\{([^}]*)\}\{([^}]*)\}/g, (m, num, den) => `${parenIfNeeded(num)}/${parenIfNeeded(den)}`);
   // 根号 √a
   text = text.replace(/\\sqrt(?:\[([^}]*)\])?\{([^}]*)\}/g, '√$2');
+  // 🔴 \leqslant / \geqslant 必须先于 \leq / \geq 处理：否则先被 \leq 换成 ≤、
+  //    剩下的 "slant" 原样留下 → 实测产出 "≤slant" 这种乱码词（教材常用写法，命中率很高）
+  text = text.replace(/\\leqslant/g, '\u2A7D');
+  text = text.replace(/\\geqslant/g, '\u2A7E');
   // 特殊符号
   text = text.replace(/\\cdot/g, '\u00B7');
   text = text.replace(/\\pm/g, '\u00B1');

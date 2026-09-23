@@ -32,6 +32,18 @@ describe('convertFormulaToText', () => {
     expect(convertFormulaToText('\\approx')).toBe('≈');
   });
 
+  it('🔴 \\leqslant/\\geqslant（教材印刷体规范写法）不得退化成 "≤slant" 乱码词', () => {
+    // 曾被 \leq → ≤ 先命中，剩下 "slant" 原样留下，印到交付物里就是错内容
+    expect(convertFormulaToText('\\leqslant')).toBe('\u2A7D');
+    expect(convertFormulaToText('\\geqslant')).toBe('\u2A7E');
+    expect(convertFormulaToText('\\sqrt{ab}\\leqslant\\frac{a+b}{2}')).toBe('√ab\u2A7D(a+b)/2');
+  });
+
+  it('🔴 分式家族 \\dfrac/\\tfrac 与 \\frac 同口径（分数线与数字不得丢）', () => {
+    expect(convertFormulaToText('\\dfrac{a+b}{2}')).toBe('(a+b)/2');
+    expect(convertFormulaToText('\\tfrac{1}{2}')).toBe('1/2');
+  });
+
   it('上标 x^2 转换为 x²', () => {
     const result = convertFormulaToText('x^2');
     expect(result).toContain('²');

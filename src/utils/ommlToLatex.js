@@ -72,11 +72,15 @@ const escapeRunText = (raw) => {
   return text.replace(/([\\{}$&#^_%~])/g, '\\$1');
 };
 
-/** OMML 里用 Unicode 数学符号书写的运算符 → LaTeX 命令（未列出的原样透传） */
+/** OMML 里用 Unicode 数学符号书写的运算符 → LaTeX 命令（未列出的原样透传）
+ *  🔴 ⩽/⩾（U+2A7D/U+2A7E）是**中文教材印刷体的规范不等号**，Word 公式里以裸字符出现。
+ *     必须显式映射成 `\leqslant`：否则它在 LaTeX 里是"未登记的裸 Unicode"，
+ *     虽然 KaTeX 多半能认，但会与 AI 产出的 `\leqslant` 形成**两种写法**（本项目红线：一种公式一种表示）。 */
 const SYMBOL_MAP = {
   '−': '-', '\u2212': '-', '⋅': '\\cdot ', '\u22c5': '\\cdot ',
   '×': '\\times ', '÷': '\\div ', '±': '\\pm ', '∓': '\\mp ',
-  '≤': '\\leq ', '≥': '\\geq ', '≠': '\\neq ', '≈': '\\approx ',
+  '≤': '\\leq ', '≥': '\\geq ', '⩽': '\\leqslant ', '⩾': '\\geqslant ',
+  '≠': '\\neq ', '≈': '\\approx ',
   '∞': '\\infty ', '→': '\\rightarrow ', '←': '\\leftarrow ',
   '⇒': '\\Rightarrow ', '⇌': '\\rightleftharpoons ', '∈': '\\in ', '∉': '\\notin ',
   '∠': '\\angle ', '⊥': '\\perp ', '∥': '\\parallel ', '△': '\\triangle ',
