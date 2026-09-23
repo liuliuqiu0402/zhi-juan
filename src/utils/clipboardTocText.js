@@ -5,7 +5,7 @@
  *    目录里的公式只剩字母和加减号 —— `√(ab) ⩽ (a+b)/2` 变成 `ab a+b 2`，
  *    根号、分数线、不等号全丢。
  *
- *    根因：该入口此前只调 `navigator.clipboard.readText()`，拿的是剪贴板的**纯文本**版本；
+ *    根因：该入口此前只读剪贴板的**纯文本**版本（`readText()`）；
  *    而 Word 给纯文本时只会把公式线性化成裸字符（结构符号必然丢失）。
  *    但**同一份剪贴板的 `text/html` 版本里带着 OMML**（与编辑器粘贴完全同源），
  *    正是 `utils/pastedMath` 已经能还原成 `$…$` 的那份数据 —— 白白没用上。
@@ -77,24 +77,26 @@ export const htmlToPlainLines = (html) => {
 };
 
 /**
- * 尝试拿到「带公式的目录文本」。
- * 失败/不适用时返回空串（调用方回退 `navigator.clipboard.readText()`），**不抛异常**。
- * @returns {Promise<string>} 目录文本（一行一条，公式为 `$…$`）；不可用时 ''
+ * 取「用于填目录的文本」——**目录导入的唯一入口**（画面上不许再各自读剪贴板）。
+ * 优先给"带公式的 HTML 派生文本"，拿不到就给纯文本；失败/不可用时返回空串，**不抛异常**。
+ * @returns {Promise<string>} 目录文本（一行一条，公式为 `$…$`）
  */
 export const readTocTextFromClipboard = async () => {
   try {
     const clip = await readClipboardRich();
-    // 没有富文本、或这次根本没还原出公式 → 不值得换源，回退纯文本（行为与改动前一致）
-    if (!clip?.html || !clip.mathConverted) return '';
-    // 仍有公式标记残留 = 解析失败 → 宁可用纯文本，也不拿一份"看起来正常但少了公式"的文本
-    if (hasPastedMath(clip.html)) return '';
-    // 图片一律剥掉：Word 会在公式旁附兜底图，文字提取用不上，留着还会触发无谓的文件加载
-    const text = htmlToPlainLines(clip.html.replace(/<img\b[^>]*>/gi, ''));
-    if (!text) return '';
-    console.log('📐 目录导入：已从剪贴板富文本还原公式（$…$），换用 HTML 派生文本');
-    return text;
+    if (!clip) return '';
+    // 只有"确实还原出公式 + HTML 派生文本可用"时才换源（保守切换，理由见文件头）
+    if (clip.html && clip.mathConverted && !hasPastedMath(clip.html)) {
+      // 图片一律剥掉：Word 会在公式旁附兜底图，文字提取用不上，留着还会触发无谓的文件加载
+      const text = htmlToPlainLines(clip.html.replace(/<img\b[^>]*>/gi, ''));
+      if (text) {
+        console.log('📐 目录导入：已从剪贴板富文本还原公式（$…$），换用 HTML 派生文本');
+        return text;
+      }
+    }
+    return clip.text || ''; // 回退纯文本（与改动前一致）
   } catch (e) {
-    console.warn('目录导入：剪贴板富文本读取失败，回退纯文本:', e?.message || e);
+    console.warn('目录导入：剪贴板读取失败:', e?.message || e);
     return '';
   }
 };

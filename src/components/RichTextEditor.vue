@@ -1981,14 +1981,29 @@ const normalizeDoubleNumberedLists = (html) => {
 //    初始值设为 modelValue，让 editor 就绪时也能触发 ruby 预处理（首次渲染时会绕过 watch）
 let pendingContent = props.modelValue || null;
 
+/**
+ * 🔴 HTML 载入编辑器的**唯一预处理链**（`trySetContent` 与对外的 `setContent` 共用）。
+ *
+ * 此前只有 `transformPastedHTML`（Ctrl+V）做了公式还原，载入链漏了 —— 于是任何**程序化注入**
+ * （父组件 v-model 赋 HTML / 调 setContent(html)）都会把 `<m:oMath>` 当未知标签剥掉，
+ * 公式静默变成散字（"只剩字母和加减号"，2026-09 用户实证）。
+ * 收口到一处后不变量成立：**任何进入编辑器的 HTML，公式一律已还原成 `$…$`**。
+ *
+ * ① 公式还原必须**最先**做：OMML 藏在 MSO 条件注释里（`<!--[if gte mso 9]>…<![endif]-->`），
+ *    被后续任一清洗步骤或 DOM 解析动过（注释被丢、标签名被小写化）就再也找不回。
+ * ② 产出统一为 `$…$` LaTeX，由 mathRender 用 KaTeX 出印刷形态（与生成端公式同源，只有一种表示）。
+ */
+const prepareHtmlForLoad = (html) => {
+  const withMath = convertPastedMathInHtml(html == null ? '' : String(html));
+  return normalizeDoubleNumberedLists(ensureCarrierContent(wrapBareBlankRuns(normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeMathCircleBlanks(normalizeWhitespaceCarriers(withMath))))))))));
+};
+
 const trySetContent = () => {
   if (!editor.value || pendingContent === null) return;
-  // 🔧 载入前预处理：class 样式 → 内联 → ruby 标签 → span.ruby-char
+  // 🔧 载入前预处理：公式还原 → class 样式 → 内联 → ruby 标签 → span.ruby-char
   let processed;
   try {
-    processed = ensureCarrierContent(wrapBareBlankRuns(normalizeShortHexColors(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeMathCircleBlanks(normalizeWhitespaceCarriers(pendingContent)))))))));
-    // 🔧 载入前预处理：<ol> 双编号去重
-    processed = normalizeDoubleNumberedLists(processed);
+    processed = prepareHtmlForLoad(pendingContent);
   } catch (e) {
     // 🔧 防御：预处理异常时回退原始内容，确保内容始终可加载（不因单点异常导致空白）
     console.warn('编辑器内容预处理失败，使用原始内容:', e);
@@ -2200,7 +2215,8 @@ defineExpose({
       }
     });
   },
-  setContent: (html) => { editor.value?.commands.setContent(ensureCarrierContent(wrapBareBlankRuns(normalizeShortHexColors(normalizeDoubleNumberedLists(normalizeColorStyles(normalizeRubyTags(convertClassStylesToInline(normalizeLeadingMarkers(normalizeMathCircleBlanks(normalizeWhitespaceCarriers(html)))))))))), false); },
+  // 🔴 与 trySetContent 同一条预处理链（含公式还原），防止对外入口再漏一步
+  setContent: (html) => { editor.value?.commands.setContent(prepareHtmlForLoad(html), false); },
 });
 </script>
 

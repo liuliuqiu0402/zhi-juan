@@ -77,11 +77,13 @@ describe('🔴 端到端：Word 剪贴板富文本 → 目录标题里的公式�
     expect(r.flatList[0].page).toBe(55);
   });
 
-  it('剪贴板富文本里没有公式 → 返回空串（调用方回退纯文本，行为与改动前一致）', async () => {
-    const html = '<p>第1章 集合 2</p>';
-    const clip = { read: vi.fn(async () => [{ types: ['text/html'], getType: async () => ({ text: async () => html }) }]) };
+  it('剪贴板富文本里没有公式 → 回退纯文本（行为与改动前一致，不冒险换源）', async () => {
+    const clip = {
+      read: vi.fn(async () => [{ types: ['text/html'], getType: async () => ({ text: async () => '<p>第1章 集合 2</p>' }) }]),
+      readText: async () => '第1章 集合 2',
+    };
     Object.defineProperty(navigator, 'clipboard', { value: clip, configurable: true });
-    expect(await readTocTextFromClipboard()).toBe('');
+    expect(await readTocTextFromClipboard()).toBe('第1章 集合 2');
   });
 
   it('🔴 公式解析失败时不用 HTML 派生文本（宁缺勿错：绝不因公式毁掉整份目录）', async () => {

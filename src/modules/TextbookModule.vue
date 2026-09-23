@@ -3074,10 +3074,9 @@ const importFromClipboard = async (closeModal = false) => {
       await new Promise(r => setTimeout(r, 100));  // ✅ 再等100ms让焦点恢复
     }
     
-    // 🔴 优先从剪贴板**富文本**版本还原公式（Word 的 text/html 里带着 OMML），
-    //    拿不到才回退纯文本。纯文本版本会把公式线性化成裸字符（只剩字母和加减号）——
-    //    这就是"从剪贴板导入目录后公式丢符号"的根因（用户实证 2026-09）。
-    const text = (await readTocTextFromClipboard()) || (await navigator.clipboard.readText());
+    // 🔴 目录导入读剪贴板走**唯一入口**（内部优先富文本版本以救回公式，拿不到才用纯文本）。
+    //    纯文本版本会把公式线性化成裸字符（只剩字母和加减号）——这就是"目录公式丢符号"的根因。
+    const text = await readTocTextFromClipboard();
     if (!text.trim()) {
       if (closeModal) await showAlertDialogFn('剪贴板为空，请先复制目录内容');
       return;

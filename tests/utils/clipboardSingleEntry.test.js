@@ -1,0 +1,84 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { describe, it, expect } from 'vitest';
+
+/**
+ * 结构性不变量：剪贴板读取与公式还原的**唯一入口**
+ * ============================================================
+ * 2026-09 用户实证过两次"公式粘贴/导入后只剩字母和加减号"，根因都是**同一个类**：
+ *   某个"把外部内容带进来"的入口自己写了一份读取逻辑，而那份只拿得到纯文本
+ *   （Word 的纯文本版本只会把公式线性化成裸字符）。
+ * 逐个补没有意义（补了 A，B 还会漏），所以把不变量钉死：
+ *   ① 读剪贴板只允许有 utils/pastedMath.readClipboardRich 一个实现；
+ *   ② 任何把 HTML 送进编辑器的通道（Ctrl+V 粘贴 / v-model 载入 / setContent）
+ *      都必须先过 convertPastedMathInHtml；
+ *   ③ Word 导入的边界（parseWord）同样必须过。
+ * 本测试直接对源码做自动对账 —— 新加入口时若忘了接线，这里立刻红。
+ * ============================================================
+ */
+
+const ROOT = path.join(process.cwd(), 'src');
+
+/** 递归收集源码文件（只关心会写逻辑的扩展名） */
+const collect = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+  const p = path.join(dir, e.name);
+  if (e.isDirectory()) return collect(p);
+  return /\.(js|ts|vue)$/.test(e.name) ? [p] : [];
+});
+
+/** 去掉注释再匹配：说明文字里提到"某处曾直接读剪贴板"不该被判为违规 */
+const stripComments = (s) => s
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
+
+const FILES = collect(ROOT).map((f) => ({ file: f, src: stripComments(fs.readFileSync(f, 'utf8')) }));
+const rel = (f) => path.relative(process.cwd(), f).replace(/\\/g, '/');
+
+describe('① 读剪贴板只允许一个入口', () => {
+  it('除 utils/pastedMath.js 外，src 下不得直接调 clipboard.read / readText', () => {
+    const offenders = FILES
+      .filter(({ file }) => !file.endsWith(path.join('utils', 'pastedMath.js')))
+      .filter(({ src }) => /navigator\s*\.\s*clipboard\s*\.\s*(read|readText)\s*\(/.test(src))
+      .map(({ file }) => rel(file));
+    expect(offenders, `这些文件绕过了唯一入口，会只拿到纯文本（公式必丢）：\n${offenders.join('\n')}`).toEqual([]);
+  });
+
+  it('唯一入口本身必须优先取 text/html（公式只在这一份里），且回退纯文本', () => {
+    const src = FILES.find(({ file }) => file.endsWith(path.join('utils', 'pastedMath.js'))).src;
+    expect(src).toMatch(/readClipboardRich/);
+    expect(src, '必须先试 text/html').toMatch(/text\/html/);
+    expect(src, '读不到富文本时要回退纯文本').toMatch(/readText/);
+    expect(src, '读出来的 HTML 必须顺手还原公式').toMatch(/convertPastedMathInHtml\(\s*html\s*\)/);
+  });
+});
+
+describe('② HTML 入编辑器：三条通道都必须先还原公式', () => {
+  const src = FILES.find(({ file }) => file.endsWith(path.join('components', 'RichTextEditor.vue'))).src;
+
+  it('Ctrl+V 粘贴通道（transformPastedHTML）', () => {
+    expect(src).toMatch(/transformPastedHTML[\s\S]{0,800}convertPastedMathInHtml/);
+  });
+
+  it('v-model / setContent 载入通道（prepareHtmlForLoad 是唯一预处理链）', () => {
+    expect(src, '载入链必须含公式还原').toMatch(/prepareHtmlForLoad\s*=[\s\S]{0,600}convertPastedMathInHtml/);
+    // 对外 setContent 与内部 trySetContent 都必须走同一条链（防再出现"各写一份"）
+    expect(src).toMatch(/commands\.setContent\(prepareHtmlForLoad\(/);
+    expect(src).toMatch(/processed\s*=\s*prepareHtmlForLoad\(/);
+    // 旧的两处 9 段式内联预处理链应已收敛，不得复活
+    expect(src, '预处理链不得再内联重复').not.toMatch(/commands\.setContent\(ensureCarrierContent\(/);
+  });
+});
+
+describe('③ Word 导入边界（parseWord）必须还原公式', () => {
+  it('useFileHandler.parseWord 的返回值过 convertPastedMathInHtml', () => {
+    const src = FILES.find(({ file }) => file.endsWith(path.join('composables', 'useFileHandler.js'))).src;
+    expect(src).toMatch(/parseWord[\s\S]{0,900}convertPastedMathInHtml\(\s*result\.html\s*\)/);
+  });
+
+  it('word_to_html.py 必须原样输出 OMML（python-docx 读不到，只能交给 JS 侧还原）', () => {
+    const py = fs.readFileSync(path.join(process.cwd(), 'python-scripts', 'word_to_html.py'), 'utf8');
+    expect(py, '必须按文档顺序遍历子节点（否则公式与文字错位）').toMatch(/walk_inline_html/);
+    expect(py, '必须识别 oMath / oMathPara').toMatch(/_M_OMATH/);
+    expect(py, '三处调用点都要改用保序的段落行内构建').not.toMatch(/get_run_html\(run, doc_images\)\s+for run in /);
+  });
+});
