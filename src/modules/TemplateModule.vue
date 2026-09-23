@@ -1048,6 +1048,13 @@
           </button>
           <button
             class="btn"
+            @click="importTocFromFile"
+          >
+            📁 从文件导入
+            <span class="hint">（Word / txt，公式能保住）</span>
+          </button>
+          <button
+            class="btn"
             @click="showImportModal = false; importTemplateFile()"
           >
             📤 导入模板文件
@@ -1339,6 +1346,7 @@ import { useFileHandler } from '../composables/useFileHandler.js';
 import { convertFormulasInHtml } from '../utils/wordExporter.js';
 import { renderMathInHtml } from '../utils/mathRender.js'; // 🔴 目录标题里的 $…$ 公式出印刷形态（P3）
 import { readTocTextFromClipboard, handleMathPaste } from '../utils/clipboardText.js'; // 🔴 目录导入读剪贴板富文本，救回公式（纯文本只剩字母和加减号）；handleMathPaste = 纯文本框粘贴也保公式
+import { useTocFileImport } from '../composables/useTocFileImport.js'; // 📁 目录「从文件导入」读文件（与教材库共用；.docx 含公式还原）
 import { escapeHtml } from '../utils/escape.js'; // 转义唯一实现（标题属外部输入，注入前必须转义）
 import { useTocParser, safeFocusOutlineInput, fastFocusInput, smartFocusInput, fastCalculatePageRanges, fastRebuildTree } from '../composables/useTocParser.js';
 import { subjects, subjectGradeSystem } from '../config/expertKnowledge.js';
@@ -1513,6 +1521,8 @@ const OutlineTreeNode = {
 
 // Composables
 const { selectFiles, getTotalPages, pdfToImages, pdfPagesToImages, addPdfBookmarks, moveFile, pathExists, deleteFile, deleteDirectory, createDirectory, createThumbnail } = useFileHandler();
+// 📁 目录「从文件导入」：读文件 → 一行一条文本（与教材库共用同一实现）
+const { pickTocTextFromFile } = useTocFileImport();
 const templateStore = useTemplateStore();
 const { parseClipboardText, flattenOutline, countChapters, rebuildTree } = useTocParser();
 const countAnalyzed = (nodes) => {
@@ -2944,6 +2954,27 @@ const importFromClipboard = async (closeModal = false) => {
   } catch (e) {
     console.error('读取剪贴板失败:', e);
     if (closeModal) await showAlertDialogFn('读取剪贴板失败，请重试');
+  }
+};
+
+/**
+ * 📁 从文件导入目录（.docx / .txt / .md）——与教材库共用 useTocFileImport 的读文件实现。
+ * 与「从剪贴板导入」的差别只在**取数来源**：这里拿的是文件本身，不必赌剪贴板里有没有富文本那份。
+ */
+const importTocFromFile = async () => {
+  showImportModal.value = false;
+  try {
+    const text = await pickTocTextFromFile();
+    if (text === null) return; // 用户取消
+    const result = parseClipboardText(text, totalPages.value);
+    if (!result.success) {
+      await showAlertDialogFn('解析失败: ' + result.error);
+      return;
+    }
+    const count = await syncImportProcess((result.flatList || result.chapters).map(i => ({ ...i, selected: false, originalPage: i.page })));
+    console.log(`✅ 从文件导入 ${count} 个章节`);
+  } catch (e) {
+    await showAlertDialogFn(e?.message || String(e));
   }
 };
 

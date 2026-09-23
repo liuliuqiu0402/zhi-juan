@@ -9,6 +9,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     selectFiles: () => ipcRenderer.invoke('select-files'),
     selectDirectory: () => ipcRenderer.invoke('select-directory'),
     readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
+    // 🔴 读剪贴板（多格式）：主进程 clipboard.readHTML() 不受渲染进程剪贴板权限/焦点限制，
+    //    是"目录从剪贴板导入"能拿到带公式那一份的前提（详见 main.js 同名 handler 注释）
+    readClipboard: () => ipcRenderer.invoke('read-clipboard'),
     parseWord: (filePath) => ipcRenderer.invoke('parse-word', filePath),
     existsPath: (filePath) => ipcRenderer.invoke('path-exists', filePath),
     // 列目录（只回名字与是否目录）——用于"磁盘→应用"的逆向联动（手动改过名的文件要指回去）

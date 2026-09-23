@@ -107,42 +107,64 @@ export const convertPastedMathInHtml = (html) => {
  *   没还原出公式时，HTML 与纯文本在结构上可能不同，贸然换源是没必要的风险）。
  */
 export const readClipboardRich = async () => {
-  const clip = typeof navigator === 'undefined' ? null : navigator.clipboard;
-  if (!clip) return null;
-
   let html = '';
   let text = '';
-  // ① 优先 text/html：公式的 OMML/MathML 只在这个版本里
-  try {
-    if (typeof clip.read === 'function') {
-      const items = await clip.read();
-      for (const item of items || []) {
-        const types = (item && item.types) || [];
-        if (!html && types.includes('text/html')) {
-          html = await (await item.getType('text/html')).text();
-          if (html) break;
-        }
-        if (!text && types.includes('text/plain')) {
-          text = await (await item.getType('text/plain')).text();
-        }
-      }
-    }
-  } catch (e) {
-    // read() 可能因权限被拒（非 https/localhost 等）→ 回退纯文本
-    console.warn('剪贴板富文本读取失败，回退纯文本:', e?.message || e);
-  }
-  // ② 纯文本兜底
-  if (!text) {
+  let formats = [];
+  let via = '';
+
+  // ① 首选 **Electron 主进程**剪贴板（`clipboard.readHTML()`）：
+  //    不受渲染进程剪贴板权限/焦点策略限制，实测这是唯一稳定拿到"带公式那一份"的通路。
+  const api = typeof window !== 'undefined' ? window.electronAPI : null;
+  if (api && typeof api.readClipboard === 'function') {
     try {
-      text = (await clip.readText?.()) || '';
+      const r = await api.readClipboard();
+      html = (r && r.html) || '';
+      text = (r && r.text) || '';
+      formats = (r && r.formats) || [];
+      via = 'main';
     } catch (e) {
-      console.warn('剪贴板纯文本读取失败:', e?.message || e);
+      console.warn('主进程剪贴板读取失败，回退浏览器 API:', e?.message || e);
+    }
+  }
+
+  // ② 浏览器异步剪贴板 API（Web 端构建 / 主进程不可用时的兜底）
+  if (!html && !text) {
+    const clip = typeof navigator === 'undefined' ? null : navigator.clipboard;
+    if (clip) {
+      try {
+        if (typeof clip.read === 'function') {
+          const items = await clip.read();
+          for (const item of items || []) {
+            const types = (item && item.types) || [];
+            if (!html && types.includes('text/html')) {
+              html = await (await item.getType('text/html')).text();
+              if (html) break;
+            }
+            if (!text && types.includes('text/plain')) {
+              text = await (await item.getType('text/plain')).text();
+            }
+          }
+        }
+      } catch (e) {
+        // read() 可能因权限被拒（非 https/localhost 等）→ 回退纯文本
+        console.warn('剪贴板富文本读取失败，回退纯文本:', e?.message || e);
+      }
+      if (!text) {
+        try { text = (await clip.readText?.()) || ''; } catch (e) { console.warn('剪贴板纯文本读取失败:', e?.message || e); }
+      }
+      via = 'navigator';
     }
   }
 
   if (!html && !text) return null;
   const converted = html ? convertPastedMathInHtml(html) : '';
-  return { html: converted, text, mathConverted: !!converted && converted !== html };
+  const mathConverted = !!converted && converted !== html;
+  // 📋 诊断（2026-09）：有公式却没还原出来时，这一行是唯一线索 ——
+  //   格式清单里没有 text/html = 剪贴板压根没给富文本那份（源头问题，改代码无用）；
+  //   有 text/html 但"含公式标记"为 false = Word 那份 HTML 里没有 OMML（可能是图片公式）。
+  console.log(`📋 剪贴板[${via}]：格式=[${formats.join(', ') || '未取到'}]`
+    + ` html=${html.length}字 文本=${text.length}字 含公式标记=${hasPastedMath(html)} 已还原公式=${mathConverted}`);
+  return { html: converted, text, mathConverted };
 };
 
 export default { convertPastedMathInHtml, hasPastedMath, readClipboardRich };

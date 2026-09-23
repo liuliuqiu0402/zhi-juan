@@ -9,7 +9,7 @@
  *   结构与命名空间遵循 Office Math 与 MathML Core 规范；这是可确定的输入契约。
  * ============================================================
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ommlToLatex, parseOmml } from '@/utils/ommlToLatex.js';
 import { mathmlToLatex } from '@/utils/mathmlToLatex.js';
 import { convertPastedMathInHtml, hasPastedMath, readClipboardRich } from '@/utils/pastedMath.js';
@@ -207,6 +207,34 @@ describe('readClipboardRich：读剪贴板 + 公式还原（唯一入口）', ()
   const stubClipboard = (spec) => {
     Object.defineProperty(navigator, 'clipboard', { value: spec, configurable: true });
   };
+
+  afterEach(() => { delete window.electronAPI; vi.restoreAllMocks(); });
+
+  it('🔴 优先走 Electron 主进程剪贴板（渲染进程的 navigator.clipboard.read 会被权限/焦点策略拦掉）', async () => {
+    const html = `<!--[if gte mso 9]>${om(frac)}<![endif]-->`;
+    window.electronAPI = {
+      readClipboard: vi.fn(async () => ({ formats: ['text/plain', 'text/html'], text: 'a+b2', html })),
+    };
+    // 渲染进程 API 一律拒绝——主进程通路必须在它之前拿到数据
+    stubClipboard({
+      read: async () => { throw new Error('NotAllowedError'); },
+      readText: async () => '不该走到这里',
+    });
+    const clip = await readClipboardRich();
+    expect(window.electronAPI.readClipboard).toHaveBeenCalled();
+    expect(clip.html).toContain('$\\frac{a+b}{2}$');
+    expect(clip.mathConverted).toBe(true);
+    expect(clip.text, '主进程顺带回的纯文本也要带上（供回退）').toBe('a+b2');
+  });
+
+  it('主进程通路抛错 → 回退浏览器 API（不抛）', async () => {
+    window.electronAPI = { readClipboard: async () => { throw new Error('boom'); } };
+    stubClipboard({
+      read: async () => [{ types: ['text/plain'], getType: async () => ({ text: async () => '第1章 集合 2' }) }],
+      readText: async () => '第1章 集合 2',
+    });
+    expect((await readClipboardRich()).text).toBe('第1章 集合 2');
+  });
 
   it('🔴 有 text/html 时优先用它，并把 OMML 还原成 $…$（纯文本版本拿不到公式）', async () => {
     const html = `<p>基本不等式 </p><!--[if gte mso 9]>${om(frac)}<![endif]-->`;

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, protocol, net, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -158,6 +158,23 @@ ipcMain.handle('read-file', async (event, filePath) => {
     }
     const buffer = fs.readFileSync(filePath);
     return buffer.toString('base64');
+});
+
+// 读剪贴板（多格式一起回）——**渲染进程读剪贴板的唯一可靠通路**
+// 🔴 为什么必须走主进程（2026-09 用户实证）：目录「从剪贴板导入」此前用
+//    `navigator.clipboard.read()` 取富文本那份，实测在 Electron 里会被剪贴板权限/焦点策略拦掉，
+//    代码只能回退 `readText()` 纯文本 —— 而 Word 给纯文本时会把公式线性化成裸字符，
+//    于是"目录里的公式只剩字母和加减号"。主进程的 `clipboard.readHTML()` 不受这套权限管，
+//    并且能一并回可用格式清单（formats），让"到底哪一份没拿到"可被直接看见。
+ipcMain.handle('read-clipboard', async () => {
+    const safeRead = (fn) => { try { return fn() || ''; } catch { return ''; } };
+    let formats = [];
+    try { formats = clipboard.availableFormats() || []; } catch { formats = []; }
+    return {
+        formats,
+        text: safeRead(() => clipboard.readText()),
+        html: safeRead(() => clipboard.readHTML()),
+    };
 });
 
 // 解析 Word（python-docx 高保真转换，保留着重号/上下标/缩进等全部格式）

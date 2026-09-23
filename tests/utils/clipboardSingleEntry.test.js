@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
-
 /**
  * 结构性不变量：剪贴板读取与公式还原的**唯一入口**
  * ============================================================
@@ -103,5 +102,44 @@ describe('④ 纯文本框"原文"字段与「导入文件」入口', () => {
     expect(src).toMatch(/const importRawTextFile = async/);
     expect(src, '.docx 必须走已含公式还原的 parseWord（不得另写一套解析）')
       .toMatch(/importRawTextFile[\s\S]{0,1600}parseWord\(filePath\)/);
+  });
+});
+
+describe('⑤ 读剪贴板必须走 Electron 主进程（渲染进程 API 会被权限/焦点策略拦掉）', () => {
+  const main = fs.readFileSync(path.join(process.cwd(), 'main.js'), 'utf8');
+  const preload = fs.readFileSync(path.join(process.cwd(), 'preload.js'), 'utf8');
+
+  it('main.js 提供 read-clipboard handler，且用主进程 clipboard.readHTML 取富文本那份', () => {
+    expect(main).toMatch(/ipcMain\.handle\('read-clipboard'/);
+    expect(main, '必须用主进程 clipboard.readHTML（不受渲染进程权限限制）').toMatch(/clipboard\.readHTML\(\)/);
+    expect(main, '一并回可用格式清单，便于诊断"哪一份没拿到"').toMatch(/availableFormats\(\)/);
+  });
+
+  it('preload 暴露 readClipboard', () => {
+    expect(preload).toMatch(/readClipboard:\s*\(\)\s*=>\s*ipcRenderer\.invoke\('read-clipboard'\)/);
+  });
+
+  it('readClipboardRich 优先主进程通路，浏览器 API 只作兜底', () => {
+    const src = FILES.find(({ file }) => file.endsWith(path.join('utils', 'pastedMath.js'))).src;
+    expect(src).toMatch(/readClipboard\(\)[\s\S]{0,1200}navigator\s*\.\s*clipboard/);
+  });
+});
+
+describe('⑥ 目录「从文件导入」（不赌剪贴板格式）', () => {
+  const tocModules = ['TextbookModule.vue', 'TemplateModule.vue'];
+
+  it('教材库与模板库都提供入口，且共用同一读文件实现', () => {
+    for (const name of tocModules) {
+      const src = FILES.find(({ file }) => file.endsWith(name)).src;
+      expect(src, `${name} 缺少入口按钮`).toMatch(/@click="importTocFromFile"/);
+      expect(src, `${name} 未共用 useTocFileImport`).toMatch(/useTocFileImport/);
+      expect(src, `${name} 未接上处理函数`).toMatch(/const importTocFromFile = async/);
+    }
+  });
+
+  it('useTocFileImport：.docx 走 parseWord（含公式还原）+ htmlToPlainLines 压成一行一条', () => {
+    const src = fs.readFileSync(path.join(process.cwd(), 'src/composables/useTocFileImport.js'), 'utf8');
+    expect(src).toMatch(/parseWord\(filePath\)/);
+    expect(src).toMatch(/htmlToPlainLines\(r\.html\)/);
   });
 });
