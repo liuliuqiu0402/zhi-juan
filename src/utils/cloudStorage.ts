@@ -8,6 +8,8 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { compressDocArray, decompressDocArray } from './contentCompress.js';
+// 🔴 重试判据（纯函数、可单测）：区分"链路层立刻失败"与"冷启动慢失败"，见其文件头
+import { decideFetchRetry } from './netRetry.js';
 
 // ── 配置 ──
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -16,13 +18,27 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 let _client: SupabaseClient | null = null;
 
 // 🔧 自定义 fetch：240s 超时（Supabase 免费版冷启动可达 30-120s，
-//    手机端拉取多设备大 JSON payload 可达 60-180s）+ 
-//    网络错误自动重试（QUIC 协议错误等瞬时故障最多重试 3 次，指数退避）
+//    手机端拉取多设备大 JSON payload 可达 60-180s）
+// 🔴 重试策略（2026-09 修正）：**只对"冷启动型失败"重试**。
+//    判据与理由见 utils/netRetry.decideFetchRetry —— 链路层立刻失败（连接被重置/拒绝）
+//    重试没有修复价值，只会连发请求 + 连打日志刷屏（用户实测就是这个现象）。
+// 🔴 重试日志节流：同一次网络故障只提示一次，避免 3 次重试打 3 行（日志环形缓冲 500 条，
+//    刷屏会把有用的诊断日志挤掉）。
 const FETCH_TIMEOUT = 240000; // 240s
+const RETRY_WARN_THROTTLE_MS = 30000;
+let _lastRetryWarnAt = 0;
+const warnThrottled = (msg: string) => {
+  if (Date.now() - _lastRetryWarnAt < RETRY_WARN_THROTTLE_MS) return;
+  _lastRetryWarnAt = Date.now();
+  console.warn(msg);
+};
+
 const fetchWithRetry = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   const maxRetries = 3;
+  let lastErr: any = null;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController();
+    const startedAt = performance.now();
     try {
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => {
@@ -36,21 +52,25 @@ const fetchWithRetry = async (input: RequestInfo | URL, init?: RequestInit): Pro
       ]);
       return resp;
     } catch (e: any) {
-      // 判断是否值得重试的网络错误（含 AbortError——Controller.abort() 触发的超时终止）
-      const isNetErr = e?.name === 'TypeError' ||
-                       e?.name === 'TimeoutError' ||
-                       e?.name === 'AbortError' ||
-                       /fetch failed|QUIC|network|ETIMEDOUT|ECONNRESET|abort/i.test(e?.message || '');
-      if (attempt < maxRetries && isNetErr) {
-        const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
-        console.warn('⚠️ 网络瞬时故障，' + (delay / 1000).toFixed(0) + 's 后重试 (' + (attempt + 1) + '/' + maxRetries + ')');
-        await new Promise(r => setTimeout(r, delay));
-        continue;
+      const elapsedMs = performance.now() - startedAt;
+      const { retry, reason } = decideFetchRetry({
+        name: e?.name, message: e?.message || '', elapsedMs, attempt, maxRetries,
+      });
+      lastErr = e;
+      if (!retry) {
+        // 链路层问题：一次性把结论说清楚，而不是默默不再重试
+        if (reason.startsWith('fast-fail')) {
+          warnThrottled('⚠️ 云端连接被中断（连接被重置/拒绝），已停止重试：请检查本机网络或代理能否访问云端服务');
+        }
+        throw e;
       }
-      throw e;
+      const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+      warnThrottled('⚠️ 网络瞬时故障，' + (delay / 1000).toFixed(0) + 's 后重试 (最多 ' + maxRetries + ' 次)');
+      await new Promise(r => setTimeout(r, delay));
+      continue;
     }
   }
-  throw new Error('fetchWithRetry: max retries exceeded');
+  throw lastErr || new Error('fetchWithRetry: max retries exceeded');
 };
 
 function getClient(): SupabaseClient | null {
@@ -946,11 +966,15 @@ export interface CloudDeviceInfo {
   isSelf: boolean;
 }
 let _lastCloudDevices: CloudDeviceInfo[] = [];
+/** 🔴 是否已探测过（时间戳）。用于防止"探测失败 → 设备列表恒为空 → 每次进设置页又重探"的反复刷屏 */
+let _lastProbeAt = 0;
 
 /** 启动时探测云端状态，暖机后输出数据摘要，用户据此决定何时同步 */
 export async function probeCloud(showReadyHint = true): Promise<void> {
   // 🔒 并发守卫：如果已有探测在进行，等待它完成（复用结果），而非放弃
   if (_probePromise) return _probePromise;
+
+  _lastProbeAt = Date.now(); // 🔴 记下"探测过"的事实，供 fetchCloudDevices 判断是否还需要自动补一次
 
   _probePromise = (async () => {
   try {
@@ -1152,8 +1176,11 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
  * 如需最新数据，先保证 probeCloud() 已执行完成
  */
 export async function fetchCloudDevices(): Promise<CloudDeviceInfo[]> {
-  // 如果还没有探测过，先执行一次
-  if (_lastCloudDevices.length === 0) {
+  // 只在"从未探测过"时自动补一次。
+  // 🔴 原先的判据是"列表为空就重探"，但**探测失败时列表恒为空** → 每次打开设备列表都会再触发
+  //    一轮探测（云端不可达时就是反复发请求 + 反复打日志）。调用方（设置页）本来就先手动 probe 过，
+  //    这里再探一次纯属重复。
+  if (_lastCloudDevices.length === 0 && !_lastProbeAt) {
     await probeCloud(false);
   }
   return [..._lastCloudDevices];
