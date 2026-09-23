@@ -2007,8 +2007,19 @@
           </button>
         </div>
             
-        <div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center;">
+        <div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center; flex-wrap: wrap;">
           <span style="font-size: 13px; color: #666;">ℹ️ 直接粘贴图文混排内容，图片会自动提取</span>
+          <!-- 📁 导入文件（2026-09 用户提出）：整本教材靠框选复制极易漏页漏段，导入拿的是文件本身，
+               走与"排版模块上传 Word"同一条链路（公式 OMML→$…$、图片内嵌 base64 一并保留） -->
+          <button
+            class="btn"
+            style="font-size: 13px; padding: 5px 12px;"
+            title="直接读取文件内容填入原文框，比手工框选复制更完整；替换或追加会先询问"
+            @click="importRawTextFile"
+          >
+            📁 导入文件
+          </button>
+          <span style="font-size: 12px; color: var(--text-muted);">支持 .docx / .txt / .md</span>
           <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
             <input
               v-model="rawTextEditorData.analyzeCharts"
@@ -2079,6 +2090,8 @@
           <strong>💡 提示：</strong>
           <ul style="margin: 6px 0 0 20px; padding: 0;">
             <li>支持直接粘贴图文混排内容（Word、网页、PDF等）</li>
+            <li>也可点「📁 导入文件」直接读 <b>.docx / .txt / .md</b>——整本教材推荐用导入，框选复制容易漏段</li>
+            <li>公式会原样保留（Word 里的公式转成可渲染的 LaTeX，不会丢根号/分数线）</li>
             <li>图片会自动提取为 base64 格式</li>
             <li>如果启用"分析图片"，系统会用多模态模型描述每张图片并替换为文字</li>
             <li>最终生成纯文本，方便后续分析提取命题素材</li>
@@ -2224,6 +2237,7 @@
                     placeholder="逐段原文..."
                     :style="{ borderColor: item.ocrQuality === 'poor' ? 'var(--danger)' : '#ddd', width:'100%',fontSize:'11px',padding:'6px',borderRadius:'4px',resize:'vertical',fontFamily:'inherit',boxSizing:'border-box' }"
                     @click="updateUncertainForItem($event, item)"
+                    @paste="handleMathPaste"
                   />
                 </div>
                 
@@ -2371,6 +2385,7 @@
                   :style="{ borderColor: analysisResultData.ocrQuality === 'poor' ? 'var(--danger)' : '#ddd' }"
                   @click="updateUncertainList"
                   @keyup="updateUncertainList"
+                  @paste="handleMathPaste"
                 />
               </div>
 
@@ -2925,6 +2940,7 @@
                 v-model="viewingChapter.rawText"
                 rows="18" 
                 style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;overflow:auto;font-family:inherit;box-sizing:border-box;"
+                @paste="handleMathPaste"
               />
             </div>
             <!-- 右栏：分析字段 -->
@@ -3140,6 +3156,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick, h } from 'vue';
 import { useDialog } from '../composables/useDialog.js';
+import { useFileHandler } from '../composables/useFileHandler.js'; // 📁 原文编辑器「导入文件」：选文件 / Word 解析（含公式还原）/ 读文本
 import { useMobile } from '../composables/useMobile.js';
 import { useWakeLock } from '../composables/useWakeLock.js';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getDeepSeekPricingPeriod } from '../config/apiConfig.js';  // 🔧 新增：导入 apiConfig
@@ -3204,11 +3221,13 @@ import TemplateStructureEditor from '../components/TemplateStructureEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { stripXss, stripAiCodeFence, markSoloBlankLines, wrapBareBlankRuns } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（导出端第二道防线共享）
 import { scriptsToText } from '../utils/scriptText.js'; // 上下标 → Unicode/显式写法（rawText 派生时不得把 x² 拍平成 x2）
+import { handleMathPaste } from '../utils/clipboardText.js'; // 🔴 纯文本框"保公式粘贴"：textarea 只收纯文本，浏览器默认粘贴会拿到被线性化的公式（只剩字母和加减号）
 import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
 // 📐🖼️ 指令块抽取/配图稿清单（2026-09-16）："复制图形指令""复制配图稿"两个一键复制入口共用
 import { hasDirectiveBlocks, buildImagePromptList, buildGraphDirectiveList, buildGraphClipboardText, buildImageClipboardText } from '../utils/directiveBlocks.js';
 import { diagnoseAnchorTree, logAnchorGranularity, summarizeAnchorGranularity, validateAnchorTree } from '../utils/anchorTreeContract.js';  // ✅ A1：锚树契约（入库校验 + 粒度诊断）
 import { escapeHtml, decodeEntities } from '../utils/escape.js';  // 转义/实体解码唯一实现（曾本地 esc/escGraph 及 data-raw 解码链副本）
+import { plainTextToHtml } from '../utils/plainTextToHtml.js';  // 📁 导入 .txt/.md 到原文框：纯文本 → 段落 HTML（先转义再拼标签，$…$ 原样保留）
 import { hasEnglishListening } from '../utils/listeningExtract.js';
 import { STORAGE_KEYS } from '../constants/storageKeys.js';  // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
 import { annotateInstructionBlocks } from '../utils/instructionBlocks.js';  // 指令来源分段标注（旁路：块区间↔{库,key}，不参与拼装）
@@ -5008,6 +5027,9 @@ const {
   showAlertDialogFn,
   showRadioDialogFn
 } = useDialog();
+
+// 📁 原文编辑器「导入文件」：文件选择 / Word 解析（含公式还原）/ 文本读取
+const { selectFiles, parseWord, readTextFile } = useFileHandler();
 
 // 计算属性
 const scopeTypeLabel = computed(() => '命题范围');
@@ -6853,17 +6875,6 @@ const ocrMarkdownToHtml = (md) => {
   return html;
 };
 
-// 🔧 纯文本 → HTML 预览（按空行分段，不含图片）
-const plainToHtml = (text) => {
-  if (!text) return '';
-  return text
-    .split(/\n\n+/)
-    .map(p => p.trim())
-    .filter(p => p)
-    .map(p => `<p>${p.replace(/\|/g, '&#124;').replace(/\n/g, '<br>')}</p>`)
-    .join('\n');
-};
-
 // 🔧 HTML → 纯文本（保留段落和换行结构；仅本模块 rawText 同步用——比 contentCleaner.htmlToPlainText
 //    更"简单"：不做答案节截取/表格转文/[IMAGE]描述/超长裁剪，避免同名双实现误引歧义，故命名为 simple 版）
 // 🔴 上下标转换抽到 utils/scriptText.js（单一事实源、可单测）：此前 rawText 走"清标签"通道，
@@ -7164,6 +7175,67 @@ const confirmRawText = async () => {
 };
 
 // 🔧 新增：确认富文本编辑器的原文（含图片分析）
+/**
+ * 📁 导入文件到原文框（.docx / .txt / .md）
+ * ============================================================
+ * 🔴 为什么要有（2026-09 用户提出）：教材原文此前只能"在 Word 里选中→复制→粘贴"。
+ *    教材往往是**整本 Word**，靠手工框选极易漏页漏段；而"导入文件"拿到的是**文件本身**，
+ *    是最完整的数据源，且不受剪贴板格式限制（不必赌剪贴板里有没有富文本那一份）。
+ *
+ * 分流：
+ *   · .docx → 与"排版模块上传 Word"**同一条链路**（useFileHandler.parseWord）：
+ *             python-docx 转换 + 公式还原（OMML → `$…$`）+ 图片内嵌 base64
+ *   · .md   → ocrMarkdownToHtml（项目既有的 markdown→HTML，含公式块保护），与 OCR 原文同口径
+ *   · .txt  → plainTextToHtml（空行分段，先转义再拼标签）
+ *
+ * 已有内容时先问"替换还是追加"，绝不静默覆盖用户已录入的原文。
+ */
+const importRawTextFile = async () => {
+  if (!rawTextEditorData.value) return;
+  const files = await selectFiles();
+  if (!files || !files.length) return;
+  const filePath = files[0];
+  const ext = (filePath.split('.').pop() || '').toLowerCase();
+
+  let imported = '';
+  try {
+    if (ext === 'docx') {
+      const r = await parseWord(filePath);
+      if (!r || !r.success) {
+        await showAlertDialogFn('Word 解析失败：' + (r?.error || '未知错误'));
+        return;
+      }
+      imported = r.html;
+    } else if (ext === 'md') {
+      imported = ocrMarkdownToHtml(await readTextFile(filePath));
+    } else if (ext === 'txt') {
+      imported = plainTextToHtml(await readTextFile(filePath));
+    } else {
+      await showAlertDialogFn(`暂不支持该格式：.${ext}\n支持 .docx / .txt / .md`);
+      return;
+    }
+  } catch (e) {
+    await showAlertDialogFn('读取文件失败：' + (e?.message || e));
+    return;
+  }
+
+  if (!imported || !imported.trim()) {
+    await showAlertDialogFn('文件里没读到内容，请检查文件是否为空');
+    return;
+  }
+
+  const current = String(rawTextEditorData.value.rawText || '');
+  if (current.trim()) {
+    const replace = await showConfirmDialogFn(
+      `原文框里已有 ${current.length} 字内容。\n\n【确定】替换为导入内容\n【取消】把导入内容追加到末尾`
+    );
+    rawTextEditorData.value.rawText = replace ? imported : `${current}\n${imported}`;
+  } else {
+    rawTextEditorData.value.rawText = imported;
+  }
+  console.log(`📁 已导入 ${ext} 到原文框：${filePath.split('\\').pop()}`);
+};
+
 const confirmRawTextWithImages = async () => {
   if (!rawTextEditorData.value) return;
   

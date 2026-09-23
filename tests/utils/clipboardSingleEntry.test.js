@@ -82,3 +82,26 @@ describe('③ Word 导入边界（parseWord）必须还原公式', () => {
     expect(py, '三处调用点都要改用保序的段落行内构建').not.toMatch(/get_run_html\(run, doc_images\)\s+for run in /);
   });
 });
+
+describe('④ 纯文本框"原文"字段与「导入文件」入口', () => {
+  /** 取源码里所有自闭合 <textarea .../> 的开标签 */
+  const textareaTags = (src) => src.match(/<textarea\b[\s\S]*?\/>/g) || [];
+
+  it('🔴 任何绑定 rawText 的 <textarea> 都必须绑 @paste="handleMathPaste"（否则粘贴公式只剩字母）', () => {
+    const offenders = [];
+    for (const { file, src } of FILES) {
+      for (const tag of textareaTags(src)) {
+        if (/v-model="[^"]*rawText"/.test(tag) && !/@paste="handleMathPaste"/.test(tag)) offenders.push(rel(file));
+      }
+    }
+    expect(offenders, `这些原文文本框只收纯文本且没接保公式粘贴：\n${offenders.join('\n')}`).toEqual([]);
+  });
+
+  it('原文编辑器提供「📁 导入文件」入口（整本教材靠框选复制极易漏页漏段）', () => {
+    const src = FILES.find(({ file }) => file.endsWith('GenerateModule.vue')).src;
+    expect(src, '按钮必须接上处理函数').toMatch(/@click="importRawTextFile"/);
+    expect(src).toMatch(/const importRawTextFile = async/);
+    expect(src, '.docx 必须走已含公式还原的 parseWord（不得另写一套解析）')
+      .toMatch(/importRawTextFile[\s\S]{0,1600}parseWord\(filePath\)/);
+  });
+});

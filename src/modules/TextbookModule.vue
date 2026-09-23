@@ -1144,6 +1144,7 @@
                 v-model="viewingChapter.rawText"
                 rows="18"
                 style="width:100%;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;resize:vertical;overflow:auto;font-family:inherit;box-sizing:border-box;"
+                @paste="handleMathPaste"
               />
             </div>
             <div class="chapter-analysis-right">
@@ -1324,7 +1325,7 @@ import { planRelink, pdfStem, coverStem } from '../utils/libraryRelink.js';
 import { useFileHandler } from '../composables/useFileHandler.js';
 import { convertFormulasInHtml } from '../utils/wordExporter.js';
 import { renderMathInHtml } from '../utils/mathRender.js'; // 🔴 目录标题里的 $…$ 公式出印刷形态（P3）
-import { readTocTextFromClipboard } from '../utils/clipboardTocText.js'; // 🔴 目录导入读剪贴板富文本，救回公式（纯文本只剩字母和加减号）
+import { readTocTextFromClipboard, handleMathPaste } from '../utils/clipboardText.js'; // 🔴 目录导入读剪贴板富文本，救回公式（纯文本只剩字母和加减号）；handleMathPaste = 纯文本框粘贴也保公式
 import { escapeHtml } from '../utils/escape.js'; // 转义唯一实现（标题属外部输入，注入前必须转义）
 import { useTocParser, safeFocusOutlineInput, fastFocusInput, smartFocusInput, fastCalculatePageRanges, fastRebuildTree } from '../composables/useTocParser.js';
 import { subjects, subjectGradeSystem } from '../config/expertKnowledge.js';

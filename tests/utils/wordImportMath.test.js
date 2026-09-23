@@ -76,6 +76,16 @@ describe('useFileHandler.parseWord：Word 导入边界必须做公式还原', ()
   });
 });
 
+describe('useFileHandler.readTextFile：导入 .txt/.md 时 UTF-8 必须正确解码', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('🔴 base64 → 中文还原（直接 atob 得到的是 latin1 字节流，中文会全成乱码）', async () => {
+    const text = '第3章 不等式\n基本不等式：$\\sqrt{ab}\\leqslant\\frac{a+b}{2}$';
+    window.electronAPI = { readFile: vi.fn(async () => Buffer.from(text, 'utf8').toString('base64')) };
+    expect(await useFileHandler().readTextFile('C:/x/教材.txt')).toBe(text);
+  });
+});
+
 describe.skipIf(!PY)('word_to_html.py：段落内的 OMML 必须原样输出且保序', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zwg-word-'));
   const genPy = path.join(tmpDir, 'gen.py');

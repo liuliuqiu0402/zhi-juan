@@ -75,6 +75,16 @@ export function useFileHandler() {
     }
   };
 
+  // 读取文本文件（UTF-8 正确解码）
+  // 🔴 read-file IPC 返回 base64；直接 atob 拿到的是 latin1 字节流，中文会全成乱码，
+  //    必须经 TextDecoder 按字节还原（TextbookModule/TemplateModule 里旧写法就是这个坑）
+  const readTextFile = async (filePath) => {
+    const base64 = await window.electronAPI.readFile(filePath);
+    const bin = atob(base64);
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    return new TextDecoder('utf-8').decode(bytes);
+  };
+
   // 解析 Word 文档
   const parseWord = async (filePath) => {
     try {
@@ -178,6 +188,7 @@ export function useFileHandler() {
     pdfPagesToImages,
     addPdfBookmarks,
     parseWord,
+    readTextFile,
     moveFile,
     pathExists,
     deleteFile,
