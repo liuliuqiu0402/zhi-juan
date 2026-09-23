@@ -27,10 +27,17 @@ import {
   MathSubSuperScript,
   MathSum,
   MathIntegral,
-  MathRoundBrackets,
-  MathSquareBrackets,
-  MathCurlyBrackets,
 } from 'docx';
+// docx 未实现的 OMML 类由本仓库自建补齐（方程数组 m:eqArr、重音 m:acc、
+// 上方附加 m:limUpp、矩阵 m:m、自定义定界符 m:d）——见 utils/ommlExtras.js 文件头
+import {
+  MathEquationArray,
+  MathAccent,
+  MathBar,
+  MathLimitUpper,
+  MathMatrix,
+  MathDelimiter,
+} from './ommlExtras.js';
 // 🔴 刻意不用 docx 的 `MathText`：它**未从 ESM 入口导出**（CJS 有，属上游打包不一致），
 //    在 Vite/vitest 下 `MathText === undefined`，`new MathText()` 会抛错。实测由本模块单测抓出。
 //    正体文字改用 MathRun（Word 数学区里字母默认斜体，函数名如 sin 呈斜体——可接受的轻微保真损失，
@@ -75,11 +82,17 @@ const UPRIGHT_NAMES = new Set([
   'log', 'ln', 'lg', 'exp', 'det', 'dim', 'gcd', 'max', 'min', 'lim', 'mod', 'deg',
 ]);
 
-/** \\left/\\right 定界符 → 括号类（只支持成对同类） */
-const BRACKET_CLASS = {
-  '(': 'round', ')': 'round',
-  '[': 'square', ']': 'square',
-  '{': 'curly', '}': 'curly',
+/** 重音命令 → OMML `m:chr` 字符（`m:acc` 会把该字符排在基座**上方**） */
+const ACCENT_CHAR = {
+  vec: '\u20D7', hat: '\u0302', widehat: '\u0302', bar: '\u0304', tilde: '\u0303',
+  dot: '\u0307', ddot: '\u0308',
+};
+
+/** `\left`/`\right` 定界符字符归一（`\|` → ‖；`.` 表示该侧无定界符） */
+const DELIM_NORMALIZE = { '\\|': '‖', '|': '|', '.': '' };
+const normalizeDelim = (ch) => {
+  const c = String(ch == null ? '' : ch);
+  return Object.prototype.hasOwnProperty.call(DELIM_NORMALIZE, c) ? DELIM_NORMALIZE[c] : c;
 };
 
 // ==================== 词法 ====================
@@ -254,10 +267,10 @@ function parseList(tks, pos) {
 }
 
 /**
- * cases 环境 → 行 × 单元格的节点矩阵（`\\` 分行、`&` 分列）。
+ * 表格类环境 → 行 × 单元格的节点矩阵（`\\` 分行、`&` 分列）。
  * 返回 null 表示某个单元格无法解析（→ 整体放弃，交调用方降级，不产出半对结构）。
  */
-const toRows = (tks) => {
+const toCellRows = (tks) => {
   const rows = [[]];
   for (const tk of tks) {
     if (tk.t === 'cmd' && tk.v === '\\') { rows.push([]); continue; }
@@ -282,6 +295,23 @@ const toRows = (tks) => {
   return out;
 };
 
+/**
+ * cases / aligned 用：把一行的多个单元格**并成一行**（m:eqArr 的行没有列概念），
+ * 单元格之间留空隙；cases 的源码通常已带逗号（`x+1, & x>0`），故只补空白、不再补标点。
+ */
+const toRows = (tks) => {
+  const cells = toCellRows(tks);
+  if (!cells) return null;
+  return cells.map((rowCells) => {
+    const out = [];
+    rowCells.forEach((cell, i) => {
+      if (i > 0) out.push({ k: 'run', text: '  ' });
+      out.push(...cell);
+    });
+    return out;
+  });
+};
+
 /** 命令分派 */
 parseCmd = (tks, pos) => {
   const name = tks[pos].v;
@@ -300,23 +330,51 @@ parseCmd = (tks, pos) => {
   }
 
   switch (name) {
-    // 分段函数（cases）：docx **未导出** OMML 的方程组/矩阵类（无 m:eqArr 对应类），
-    // 故用「真花括号 + 行分隔 '; '」的真公式对象近似——花括号是真的、内容完整，
-    // 远胜整体降级成一行纯文本。其余环境（matrix/aligned…）仍走降级（宁缺勿错）。
+    // 分段函数 / 方程组 / 矩阵环境。
+    // 🔴 docx **未实现** OMML 的方程数组（m:eqArr）与矩阵（m:m）——但这是**上游覆盖面取舍、
+    //    不是规范限制**；本仓库用 docx 导出的 XmlComponent 扩展点自建了这两类
+    //    （见 utils/ommlExtras.js），故这里能给出**真·多行**结构而非"分号连写"近似。
     case 'begin': {
       const envArg = parseArg(tks, p0);
       if (!envArg) return null;
-      if (plainOf(envArg.nodes).trim() !== 'cases') return null;
+      const env = plainOf(envArg.nodes).trim();
+      const KIND = {
+        cases: 'cases', aligned: 'aligned', align: 'aligned', gather: 'aligned',
+        matrix: 'matrix', pmatrix: 'pmatrix', bmatrix: 'bmatrix', vmatrix: 'vmatrix',
+      };
+      const kind = KIND[env];
+      if (!kind) return null; // 未登记环境（array/eqnarray…）→ 整体降级
+      // 找配对的 \end{同名环境}
       let endIdx = -1;
       for (let i = envArg.pos; i < tks.length; i += 1) {
         if (tks[i].t === 'cmd' && tks[i].v === 'end') { endIdx = i; break; }
       }
       if (endIdx < 0) return null;
       const endArg = parseArg(tks, endIdx + 1);
-      if (!endArg || plainOf(endArg.nodes).trim() !== 'cases') return null;
-      const rows = toRows(tks.slice(envArg.pos, endIdx));
-      if (!rows || !rows.length || !rows.some((r) => r.some((c) => c && c.length))) return null;
-      return { node: { k: 'braceRows', rows }, pos: endArg.pos };
+      if (!endArg || plainOf(endArg.nodes).trim() !== env) return null;
+      const bodyTks = tks.slice(envArg.pos, endIdx);
+      // 🔴 两种行结构（eqArr 是"扁平节点"行、矩阵是"单元格"行）判空方式不同，
+      //    曾用同一判据套两种形状 → 分段函数恒被判空、整体降级（由单测抓出）
+      const hasFlatContent = (rows) => Array.isArray(rows) && rows.some((r) => Array.isArray(r) && r.length > 0);
+      const hasCellContent = (rows) => Array.isArray(rows)
+        && rows.some((r) => Array.isArray(r) && r.some((c) => Array.isArray(c) && c.length > 0));
+
+      if (kind === 'cases' || kind === 'aligned') {
+        const rows = toRows(bodyTks);
+        if (!hasFlatContent(rows)) return null;
+        const rowsNode = { k: 'eqRows', rows };
+        // cases：左花括号包住多行、右侧无定界符（教材上分段函数的标准形态）
+        return kind === 'cases'
+          ? { node: { k: 'delim', beg: '{', end: '', children: [rowsNode] }, pos: endArg.pos }
+          : { node: rowsNode, pos: endArg.pos };
+      }
+      const cellRows = toCellRows(bodyTks);
+      if (!hasCellContent(cellRows)) return null;
+      const matNode = { k: 'matRows', rows: cellRows };
+      const wrap = { pmatrix: ['(', ')'], bmatrix: ['[', ']'], vmatrix: ['|', '|'] }[kind];
+      return wrap
+        ? { node: { k: 'delim', beg: wrap[0], end: wrap[1], children: [matNode] }, pos: endArg.pos }
+        : { node: matNode, pos: endArg.pos };
     }
     case 'frac': {
       const a = parseArg(tks, p0);
@@ -349,15 +407,34 @@ parseCmd = (tks, pos) => {
       return { node: { k: 'text', children: a.nodes }, pos: a.pos };
     }
     // 化学反应箭头（条件写在箭头上方）：`\xrightarrow{点燃}` / `\xleftarrow{…}`
-    // 🔴 docx **未导出** OMML 的"上方附加"对象（limUpp 无对应类），故用箭头**上标**承载条件：
-    //    条件文字完整保留（化学方程式的反应条件不能丢），且不伪造 limUpp 假结构。
-    //    此前该构造整体降级，且降级文本会把命令名泄漏成乱码词（"xrightarrow点燃"）。
+    // 🔴 docx 未实现 OMML 的"上方附加"（m:limUpp），由 ommlExtras 自建补齐 →
+    //    条件文字**真排在箭头上方**（教材印刷形态），且不再有"条件被降级吞掉"的风险。
     case 'xrightarrow':
     case 'xleftarrow': {
       const a = parseArg(tks, p0);
       if (!a) return null;
       const arrow = name === 'xleftarrow' ? '←' : '→';
-      return { node: { k: 'sup', base: [{ k: 'run', text: arrow }], sup: a.nodes }, pos: a.pos };
+      return { node: { k: 'limUpp', children: [{ k: 'run', text: arrow }], limit: a.nodes }, pos: a.pos };
+    }
+    // 重音：\vec{F} \hat{x} \bar{x} \overline{AB} \tilde{x} \dot{x}
+    // 🔴 docx 未实现 OMML 的重音（m:acc），由 ommlExtras 自建补齐 → 真重音而非组合字符
+    case 'vec':
+    case 'hat':
+    case 'widehat':
+    case 'bar':
+    case 'tilde':
+    case 'dot':
+    case 'ddot': {
+      const a = parseArg(tks, p0);
+      if (!a) return null;
+      return { node: { k: 'acc', accent: ACCENT_CHAR[name], children: a.nodes }, pos: a.pos };
+    }
+    // 上/下划线：OMML 的正确表达是 m:bar（不是重音）——docx 同样未实现，由 ommlExtras 自建
+    case 'overline':
+    case 'underline': {
+      const a = parseArg(tks, p0);
+      if (!a) return null;
+      return { node: { k: 'bar', pos: name === 'underline' ? 'bot' : 'top', children: a.nodes }, pos: a.pos };
     }
     case 'sum':
     case 'int': {
@@ -377,15 +454,19 @@ parseCmd = (tks, pos) => {
     }
     case 'left': {
       const openCh = delimOf(tks[p0]);
-      if (!openCh) return null;
+      if (openCh == null) return null;
       const rightIdx = findRight(tks, p0 + 1);
       if (rightIdx < 0) return null;
       const inner = parseList(tks.slice(p0 + 1, rightIdx), 0);
       if (!inner) return null;
-      const closeCh = delimOf(tks[rightIdx + 1]) || ')';
-      const cls = BRACKET_CLASS[openCh];
-      if (!cls || BRACKET_CLASS[closeCh] !== cls) return null; // 只支持成对同类括号
-      return { node: { k: 'bracket', type: cls, children: inner.nodes }, pos: rightIdx + 2 };
+      const closeCh = delimOf(tks[rightIdx + 1]);
+      if (closeCh == null) return null;
+      // 任意成对定界符都支持（圆/方/花/竖线/尖括号/单侧 . ）：
+      // OMML 的 m:d 本就接受自定义 begChr/endChr，无需按"括号种类"分派
+      return {
+        node: { k: 'delim', beg: normalizeDelim(openCh), end: normalizeDelim(closeCh), children: inner.nodes },
+        pos: rightIdx + 2,
+      };
     }
     default:
       return null; // 不支持 → 整体降级（宁缺勿错）
@@ -402,21 +483,32 @@ const plainOf = (nodes) => (nodes || []).map((n) => {
   return '';
 }).join('');
 
-const bracketOf = (type, children) => {
-  if (type === 'square') return new MathSquareBrackets({ children });
-  if (type === 'curly') return new MathCurlyBrackets({ children });
-  return new MathRoundBrackets({ children });
-};
+/**
+ * 是否"纯文本"（不含任何结构节点）。
+ * 🔴 用于决定 `\mathrm{}`/`\text{}` 能否安全塌成单个 run —— 见 toComponent 的 text 分支。
+ */
+const isPlainText = (nodes) => (nodes || []).every((n) => {
+  if (!n) return true;
+  if (n.k === 'run') return true;
+  if (n.k === 'text' || n.k === 'group') return isPlainText(n.children);
+  return false;
+});
 
 /** 单节点 → docx 组件；group 返回数组（由 toComponents 摊平） */
 const toComponent = (n) => {
   switch (n.k) {
     case 'run':
       return n.text === '' ? null : new MathRun(n.text);
-    case 'text':
-      return n.children && n.children.length
-        ? new MathRun(plainOf(n.children))
-        : null;
+    case 'text': {
+      // `\mathrm{}` / `\text{}`：**只在内容确为纯文本时**才塌成单个 run（排版干净）；
+      // 含结构（上下标 / 化学箭头条件 / 分式…）时逐个保留结构。
+      // 🔴 曾一律 plainOf 塌成纯文本 → `\mathrm{H_{2}O}` 静默变成 "HO"（下标被吞）、
+      //    `\mathrm{2H_{2}+O_{2}\xrightarrow{点燃}...}` 整串结构消失 —— 静默错内容，由单测抓出。
+      const nodes = n.children || [];
+      if (isPlainText(nodes)) return new MathRun(plainOf(nodes));
+      const comps = toComponents(nodes);
+      return comps.length ? comps : null;
+    }
     case 'group':
       return toComponents(n.children);
     case 'frac':
@@ -455,22 +547,37 @@ const toComponent = (n) => {
       if (n.sup && n.sup.length) opts.superScript = toComponents(n.sup);
       return n.kind === 'int' ? new MathIntegral(opts) : new MathSum(opts);
     }
-    case 'bracket':
-      return bracketOf(n.type, toComponents(n.children));
-    case 'braceRows': {
-      // 分段函数：真花括号 + 行内 '; ' 分隔（列内 ', '）——内容与结构都在，
-      // 只是行不换行（docx 无 OMML 方程组类可依）。空单元格不产出内容。
-      const children = [];
-      n.rows.forEach((row, ri) => {
-        if (ri > 0) children.push(new MathRun('; '));
-        (row || []).forEach((cell, ci) => {
-          if (ci > 0) children.push(new MathRun(', '));
-          children.push(...toComponents(cell || []));
-        });
+    case 'delim':
+      // 任意成对定界符（含单侧、竖线、尖括号）；自建 MathDelimiter 产出 m:d + 自定义 begChr/endChr
+      return new MathDelimiter({
+        beg: n.beg,
+        end: n.end,
+        children: toComponents(n.children),
       });
-      if (!children.length) return null;
-      return new MathCurlyBrackets({ children });
+    case 'eqRows': {
+      // 分段函数 / 方程组：真·多行（m:eqArr）
+      const rows = n.rows.map((row) => toComponents(row));
+      if (!rows.some((r) => r.length)) return null;
+      return new MathEquationArray(rows);
     }
+    case 'matRows': {
+      // 矩阵：真·行列（m:m + m:mr），单元格各自成列，Word 里可对齐
+      const rows = n.rows.map((row) => row.map((cell) => toComponents(cell)));
+      if (!rows.some((r) => r.some((c) => c.length))) return null;
+      return new MathMatrix(rows);
+    }
+    case 'acc':
+      // 重音（\vec \hat \bar …）：真重音（m:acc）
+      return new MathAccent({ accent: n.accent, children: toComponents(n.children) });
+    case 'bar':
+      // 上/下划线（\overline \underline）：m:bar + m:pos
+      return new MathBar({ pos: n.pos, children: toComponents(n.children) });
+    case 'limUpp':
+      // 上方附加（化学方程式的反应条件）：条件真排在箭头上方（m:limUpp）
+      return new MathLimitUpper({
+        children: toComponents(n.children),
+        limit: toComponents(n.limit),
+      });
     default:
       return null;
   }

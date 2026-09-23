@@ -75,6 +75,12 @@ const WORD_MUST_BE_MATH = [
   '\\mathrm{SO_{4}^{2-}}', '\\mathrm{N_{2}+3H_{2}\\rightleftharpoons 2NH_{3}}',
   '\\mathrm{6CO_{2}+6H_{2}O\\xrightarrow{\\text{光照}}C_{6}H_{12}O_{6}+6O_{2}}',
   'Aa\\times Aa\\rightarrow F_{1}',
+  // 以下原为降级项，自建 OMML 组件（ommlExtras）补齐后已是真公式
+  '\\vec{F}=m\\vec{a}',
+  '\\overline{AB}',
+  '\\begin{aligned}a&=b\\\\c&=d\\end{aligned}',
+  '\\begin{pmatrix}a&b\\\\c&d\\end{pmatrix}',
+  '\\left[a,b\\right)',
 ];
 
 describe('屏幕端（预览 / PDF / HTML 导出）：全学科公式必须全部渲染', () => {
@@ -104,11 +110,14 @@ describe('Word 端：可确定表达的构造必须落成真公式对象（OMML�
 });
 
 describe('降级路径：docx 无对应 OMML 类时不产出错公式，且绝不泄漏命令名', () => {
-  // docx 未导出 m:acc（重音）与 m:eqArr（方程组），这些构造必然走文本降级
+  // 以下构造 docx 无对应类、且本仓库也未自建（环境未登记 / 命令未实现）→ 必然走文本降级。
+  // 🔴 降级只允许发生在"确实无法确定性表达"时；能确定表达的一律出真公式（见上一组）。
   const DOCX_UNSUPPORTED = [
-    ['矢量重音', '\\vec{F}=m\\vec{a}'],
-    ['上划线', '\\overline{AB}'],
-    ['方程组环境', '\\begin{aligned}a&=b\\\\c&=d\\end{aligned}'],
+    ['未登记环境（带列格式）', '\\begin{array}{cc}a&b\\end{array}'],
+    ['加框', '\\boxed{x}'],
+    ['下括号', '\\underbrace{x}'],
+    ['组合数', '\\binom{n}{k}'],
+    ['未知命令', '\\unknowncmd{x}'],
   ];
 
   it.each(DOCX_UNSUPPORTED)('%s：latexToDocxMath 返回 null（不猜着转换）', (_label, latex) => {
@@ -119,18 +128,20 @@ describe('降级路径：docx 无对应 OMML 类时不产出错公式，且绝�
     const text = convertFormulaToText(latex);
     expect(text.trim(), '降级不得产出空串').not.toBe('');
     // 🔴 命令名绝不能泄漏成字面词（曾出现 "xrightarrow点燃"、"vecF"、"begin…cases"）
-    for (const leak of ['xrightarrow', 'vec', 'frac', 'sqrt', 'begin', 'end{', 'cases', 'left', 'right', 'cdot', 'alpha', 'overline', 'aligned']) {
+    for (const leak of ['xrightarrow', 'vec', 'frac', 'sqrt', 'begin', 'end{', 'cases', 'left', 'right',
+      'cdot', 'alpha', 'overline', 'aligned', 'array', 'boxed', 'underbrace', 'binom', 'unknowncmd']) {
       expect(text, `降级文本泄漏命令名「${leak}」：${text}`).not.toContain(leak);
     }
     expect(text, '不得残留反斜杠').not.toContain('\\');
   });
 
-  it('矢量降级保留"向量"语义（组合箭头符），而非只剩字母', () => {
+  it('降级给"喂 AI 的纯文本"保留语义：矢量带组合箭头符而非只剩字母', () => {
+    // 这条守的是 rawText/AI 消费侧（convertFormulaToText），与 Word 真公式路径互不影响：
+    // Word 端 \vec 已由 m:acc 出真重音（见上一组），此处是其**文本降级**的可读性要求
     expect(convertFormulaToText('\\vec{F}')).toBe('F\u20D7');
   });
 
   it('化学方程式即使走降级也不丢反应条件文字', () => {
-    // xrightarrow 已由真公式路径承接；此处直接验降级函数自身不吞条件
     expect(convertFormulaToText('\\xrightarrow{点燃}')).toContain('点燃');
   });
 });

@@ -58,11 +58,13 @@ describe('Word 导出：公式落成真公式对象（OMML）', () => {
     expect((xml.match(/<m:oMath/g) || []).length).toBe(3);
   });
 
-  it('🔴 不支持的构造降级为可读 Unicode，绝不泄漏 $ / 反斜杠命令', async () => {
-    // \vec 不在转换子集内 → latexToDocxMath 返回 null → 走 convertFormulaToText 降级
+  it('🔴 矢量在 Word 里落成真重音（m:acc），不再是文字近似', async () => {
+    // 此前 \vec 属"确实不支持"，降级为可读 Unicode；自建 OMML 组件（ommlExtras）补齐后出真重音
     const xml = await getDocumentXml('<p>力 $\\vec{F}$ 的方向。</p>');
+    expect(xml).toContain('<m:acc>');
+    expect(xml).toContain('<m:chr m:val="⃗"');
+    expect(xml, '不得泄漏 LaTeX 命令名').not.toContain('\\vec');
     expect(xml).not.toContain('$');
-    expect(xml).not.toContain('\\vec');
     expect(xml, '正文不受影响').toContain('的方向');
   });
 
@@ -70,6 +72,15 @@ describe('Word 导出：公式落成真公式对象（OMML）', () => {
     const xml = await getDocumentXml('<p>单价 \\$5 元。</p>');
     expect(xml).toContain('$5');
     expect(xml, '不得产出公式').not.toContain('<m:oMath');
+  });
+
+  it('🔴 化学式下标在 Word 里完整保留（\\mathrm{H_{2}O} 不得塌成 HO）', async () => {
+    const xml = await getDocumentXml('<p>生成 $\\mathrm{2H_{2}O}$ 的反应。</p>');
+    expect(xml, '下标必须保留').toContain('<m:sSub');
+    for (const t of ['<m:t>2</m:t>', '<m:t>H</m:t>', '<m:t>O</m:t>']) {
+      expect(xml, `缺少 ${t}`).toContain(t);
+    }
+    expect(xml).not.toContain('\\mathrm');
   });
 
   it('无公式的普通段落不受影响（不产生任何公式结构）', async () => {
