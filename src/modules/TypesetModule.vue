@@ -495,6 +495,8 @@ import { stripAiCodeFence, normalizeLeadingMarkers, normalizeMathCircleBlanks, m
 // 🔴 公式字体内联：PDF 走 puppeteer page.setContent（无 base URL/无网络），KaTeX 相对字体
 //    解析不到 → 分式/根号字模缺失走形；导出前把自带字形的样式注入 HTML（无公式时自动短路）
 import { withKatexStyles } from '../utils/mathRender.js';
+// 🔴 读剪贴板富文本 + 公式还原的**唯一入口**（按钮式"粘贴/导入"绕不过编辑器粘贴钩子，必须自带还原）
+import { readClipboardRich } from '../utils/pastedMath.js';
 // 🔴 编辑器公式装饰层会把 $…$ 源码换成渲染 widget，读实时 DOM 前必须还原回源码，
 //    否则 Word/预览链路拿到的是 widget 的 KaTeX 片段而不是公式（幂等：无 widget 时原样返回）
 import { restoreMathPreviewSource } from '../utils/mathPreview.js';
@@ -943,41 +945,33 @@ const clearContent = async () => {
   rawHtmlContent.value = '';
 };
 
-const pasteFromClipboard = async () => {
-  try {
-    // 🔧 优先尝试读取剪贴板的 HTML 内容（从 Word/网页复制时）
-    const clipboardItems = await navigator.clipboard.read();
-    for (const item of clipboardItems) {
-      if (item.types.includes('text/html')) {
-        const blob = await item.getType('text/html');
-        const html = await blob.text();
-        if (html && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(html)) {
-          // 检测到富文本内容，切换到 HTML 模式用富文本编辑器
-          // 🔧 密封线结构归一化：模板结构（.seal-zone/.seal-note/.seal-info/.seal-char）→ 标准 sealed-wrapper，
-          //    否则预览/导出不识别（字不旋转、无虚线）
-          isHtmlContent.value = true;
-          rawHtmlContent.value = normalizeSealStructure(html);
-          pristineHtmlForExport.value = normalizeSealStructure(html);
-          currentContent.value = '';
-          return;
-        }
-      }
-    }
-  } catch (e) {
-    // clipboard.read() 可能因权限被拒，回退到纯文本读取
-    console.warn('剪贴板 HTML 读取失败，回退纯文本:', e.message);
-  }
+/** 剪贴板 HTML 里"像富文本"的判据（粘贴/导入两处共用，防两份判据各自演化） */
+const RICH_HTML_RE = /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i;
 
-  // 回退：纯文本粘贴
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text) {
-      currentContent.value = text;
-      isHtmlContent.value = false;
-      rawHtmlContent.value = '';
-    }
-  } catch (e) {
+const pasteFromClipboard = async () => {
+  // 🔴 统一走 readClipboardRich：读剪贴板**富文本**版本，并把 Word 的 OMML/MathML 还原成 $…$。
+  //    此处是把内容**程序化注入** rawHtmlContent，**不经过编辑器 transformPastedHTML 钩子**，
+  //    所以公式还原必须在这个入口自己做——否则从 Word 复制来的公式粘进来只剩散字（用户实证 2026-09）。
+  const clip = await readClipboardRich();
+  if (!clip) {
     await showAlertDialogFn('无法读取剪贴板，请手动粘贴 (Ctrl+V)');
+    return;
+  }
+  if (clip.html && RICH_HTML_RE.test(clip.html)) {
+    // 检测到富文本内容，切换到 HTML 模式用富文本编辑器
+    // 🔧 密封线结构归一化：模板结构（.seal-zone/.seal-note/.seal-info/.seal-char）→ 标准 sealed-wrapper，
+    //    否则预览/导出不识别（字不旋转、无虚线）
+    isHtmlContent.value = true;
+    rawHtmlContent.value = normalizeSealStructure(clip.html);
+    pristineHtmlForExport.value = normalizeSealStructure(clip.html);
+    currentContent.value = '';
+    return;
+  }
+  // 回退：纯文本
+  if (clip.text) {
+    currentContent.value = clip.text;
+    isHtmlContent.value = false;
+    rawHtmlContent.value = '';
   }
 };
 
@@ -986,27 +980,16 @@ const pasteFromClipboard = async () => {
 //    浏览器默认会剥离 HTML 只保留纯文本。这里拦截 paste 事件，
 //    优先读取剪贴板的 HTML 版本，有富文本则切换编辑器模式。
 const onTextareaPaste = async (e) => {
-  try {
-    const clipboardItems = await navigator.clipboard.read();
-    for (const item of clipboardItems) {
-      if (item.types.includes('text/html')) {
-        const blob = await item.getType('text/html');
-        const html = await blob.text();
-        if (html && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(html)) {
-          e.preventDefault();
-          // 🔧 密封线结构归一化：模板结构（.seal-zone 等）→ 标准 sealed-wrapper（预览/导出识别）
-          const normalized = normalizeSealStructure(html);
-          isHtmlContent.value = true;
-          rawHtmlContent.value = normalized;
-          currentContent.value = '';
-          pristineHtmlForExport.value = normalized;
-          return;
-        }
-      }
-    }
-  } catch (err) {
-    // clipboard.read() 可能因权限被拒（非 HTTPS/localhost），回退到默认纯文本粘贴
-    console.warn('textarea paste HTML 读取失败，使用默认粘贴:', err.message);
+  // 🔴 同样必须自带公式还原：拿到 HTML 后是**直接注入**状态，没有编辑器钩子替它做
+  const clip = await readClipboardRich();
+  if (clip?.html && RICH_HTML_RE.test(clip.html)) {
+    e.preventDefault();
+    // 🔧 密封线结构归一化：模板结构（.seal-zone 等）→ 标准 sealed-wrapper（预览/导出识别）
+    const normalized = normalizeSealStructure(clip.html);
+    isHtmlContent.value = true;
+    rawHtmlContent.value = normalized;
+    currentContent.value = '';
+    pristineHtmlForExport.value = normalized;
   }
   // 无富文本或读取失败 → 走浏览器默认纯文本粘贴行为
 };

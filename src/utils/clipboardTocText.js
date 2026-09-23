@@ -1,5 +1,5 @@
 /**
- * 目录导入：从剪贴板读取「带公式的目录文本」
+ * 目录导入：把剪贴板内容转成「一行一条的目录文本」
  * ============================================================
  * 🔴 解决什么（2026-09 用户实证）：上传教材 → 确认目录结构 →「📋 从剪贴板导入」，
  *    目录里的公式只剩字母和加减号 —— `√(ab) ⩽ (a+b)/2` 变成 `ab a+b 2`，
@@ -11,15 +11,15 @@
  *    正是 `utils/pastedMath` 已经能还原成 `$…$` 的那份数据 —— 白白没用上。
  *
  * 🔴 分工（单一事实源，绝不另写一套转换器）：
- *    OMML/MathML → LaTeX 由 `utils/pastedMath.convertPastedMathInHtml` 负责（有全套单测）；
- *    本模块只做两件事：① 取出剪贴板的 HTML 版本；② 把还原后的 HTML 压成"一行一条"的目录文本。
+ *    · 读剪贴板 + 公式还原 → `utils/pastedMath.readClipboardRich`（**唯一入口**，别再各写一份）；
+ *    · 本模块只负责"把还原后的 HTML 压成一行一条的目录文本"这一件事。
  *
  * 🔴 宁缺勿错（保守切换）：**只有确实从 HTML 里还原出了公式**才改用 HTML 派生文本；
  *    其余情况一律返回空串、由调用方回退纯文本 —— 不改变现有成功路径的行为，
  *    只在"能多拿回公式"时才换源。（HTML 派生文本万一结构与纯文本不同，也不会波及无公式的目录。）
  * ============================================================
  */
-import { convertPastedMathInHtml, hasPastedMath } from './pastedMath.js';
+import { readClipboardRich, hasPastedMath } from './pastedMath.js';
 
 /** 这些标签的内部文字不是正文（Word 剪贴板 HTML 里带大量 <style>/<xml> 噪声） */
 const SKIP_TAGS = new Set(['STYLE', 'SCRIPT', 'HEAD', 'TITLE', 'META', 'LINK', 'XML', 'NOSCRIPT', 'BASE']);
@@ -77,31 +77,26 @@ export const htmlToPlainLines = (html) => {
 };
 
 /**
- * 尝试从剪贴板富文本版本还原「带公式的目录文本」。
+ * 尝试拿到「带公式的目录文本」。
  * 失败/不适用时返回空串（调用方回退 `navigator.clipboard.readText()`），**不抛异常**。
  * @returns {Promise<string>} 目录文本（一行一条，公式为 `$…$`）；不可用时 ''
  */
 export const readTocTextFromClipboard = async () => {
   try {
-    if (!navigator?.clipboard?.read) return '';
-    const items = await navigator.clipboard.read();
-    for (const item of items || []) {
-      if (!item?.types?.includes('text/html')) continue;
-      const html = await (await item.getType('text/html')).text();
-      if (!html || !hasPastedMath(html)) continue; // 没有公式 → 不值得切换来源
-      const converted = convertPastedMathInHtml(html);
-      // 一个公式都没还原成功（如解析失败）→ 保持原文，不用它，回退纯文本
-      if (converted === html || hasPastedMath(converted)) continue;
-      // 图片一律剥掉：Word 会在公式旁附兜底图，文字提取用不上，留着还会触发无谓的文件加载
-      const text = htmlToPlainLines(converted.replace(/<img\b[^>]*>/gi, ''));
-      if (!text) continue;
-      console.log('📐 目录导入：已从剪贴板富文本还原公式（$…$），换用 HTML 派生文本');
-      return text;
-    }
+    const clip = await readClipboardRich();
+    // 没有富文本、或这次根本没还原出公式 → 不值得换源，回退纯文本（行为与改动前一致）
+    if (!clip?.html || !clip.mathConverted) return '';
+    // 仍有公式标记残留 = 解析失败 → 宁可用纯文本，也不拿一份"看起来正常但少了公式"的文本
+    if (hasPastedMath(clip.html)) return '';
+    // 图片一律剥掉：Word 会在公式旁附兜底图，文字提取用不上，留着还会触发无谓的文件加载
+    const text = htmlToPlainLines(clip.html.replace(/<img\b[^>]*>/gi, ''));
+    if (!text) return '';
+    console.log('📐 目录导入：已从剪贴板富文本还原公式（$…$），换用 HTML 派生文本');
+    return text;
   } catch (e) {
     console.warn('目录导入：剪贴板富文本读取失败，回退纯文本:', e?.message || e);
+    return '';
   }
-  return '';
 };
 
 export default { htmlToPlainLines, readTocTextFromClipboard };

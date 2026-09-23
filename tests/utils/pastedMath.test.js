@@ -12,7 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import { ommlToLatex, parseOmml } from '@/utils/ommlToLatex.js';
 import { mathmlToLatex } from '@/utils/mathmlToLatex.js';
-import { convertPastedMathInHtml, hasPastedMath } from '@/utils/pastedMath.js';
+import { convertPastedMathInHtml, hasPastedMath, readClipboardRich } from '@/utils/pastedMath.js';
 import { renderMathInHtml } from '@/utils/mathRender.js';
 
 /** 把 OMML 片段包成 oMath */
@@ -193,5 +193,56 @@ describe('convertPastedMathInHtml：粘贴链路端到端', () => {
     const rendered = renderMathInHtml(out);
     expect(rendered).toContain('mfrac');            // 叠排分式
     expect(rendered).not.toContain('$\\frac');      // 不复留未渲染的 LaTeX
+  });
+
+  it('⩽ / ⩾（教材印刷体不等号）映射为 \\leqslant / \\geqslant，不留裸 Unicode', () => {
+    expect(convertPastedMathInHtml(`<p>${om(r('a\u2a7db'))}</p>`)).toBe('<p>$a\\leqslant b$</p>');
+    expect(convertPastedMathInHtml(`<p>${om(r('a\u2a7eb'))}</p>`)).toBe('<p>$a\\geqslant b$</p>');
+  });
+});
+
+describe('readClipboardRich：读剪贴板 + 公式还原（唯一入口）', () => {
+  const frac = `<m:f><m:num>${r('a+b')}</m:num><m:den>${r('2')}</m:den></m:f>`;
+
+  const stubClipboard = (spec) => {
+    Object.defineProperty(navigator, 'clipboard', { value: spec, configurable: true });
+  };
+
+  it('🔴 有 text/html 时优先用它，并把 OMML 还原成 $…$（纯文本版本拿不到公式）', async () => {
+    const html = `<p>基本不等式 </p><!--[if gte mso 9]>${om(frac)}<![endif]-->`;
+    stubClipboard({
+      read: async () => [{
+        types: ['text/plain', 'text/html'],
+        getType: async (t) => ({ text: async () => (t === 'text/html' ? html : '基本不等式 a+b2') }),
+      }],
+      readText: async () => '基本不等式 a+b2',
+    });
+    const clip = await readClipboardRich();
+    expect(clip.html).toContain('$\\frac{a+b}{2}$');
+    expect(clip.mathConverted).toBe(true);
+    expect(clip.text, '纯文本也一并带回，供调用方回退').toBe('基本不等式 a+b2');
+  });
+
+  it('无公式的富文本 → mathConverted=false（调用方据此决定"不必换源"）', async () => {
+    stubClipboard({
+      read: async () => [{ types: ['text/html'], getType: async () => ({ text: async () => '<p>第1章 集合 2</p>' }) }],
+      readText: async () => '',
+    });
+    const clip = await readClipboardRich();
+    expect(clip.mathConverted).toBe(false);
+  });
+
+  it('read() 被拒（权限）→ 回退 readText，且不抛', async () => {
+    stubClipboard({
+      read: async () => { throw new Error('NotAllowedError'); },
+      readText: async () => '第1章 集合 2',
+    });
+    const clip = await readClipboardRich();
+    expect(clip).toEqual({ html: '', text: '第1章 集合 2', mathConverted: false });
+  });
+
+  it('剪贴板 API 不存在 → null', async () => {
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    expect(await readClipboardRich()).toBe(null);
   });
 });

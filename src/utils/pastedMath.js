@@ -85,4 +85,64 @@ export const convertPastedMathInHtml = (html) => {
   return out;
 };
 
-export default { convertPastedMathInHtml, hasPastedMath };
+/**
+ * 读取剪贴板内容，并把其中的公式还原好。
+ * ============================================================
+ * 🔴 为什么必须**统一走这里**（2026-09 用户实证）：
+ *    "把剪贴板内容带进来"的入口不止编辑器 Ctrl+V 一处 —— 还有按钮式的
+ *    「从剪贴板导入」（教材/模板库目录）、「粘贴」（排版模块）等。每个入口各写一份
+ *    `navigator.clipboard` 调用，就必然有人只读**纯文本**版本（`readText()`），
+ *    而 Word 给纯文本时会把公式线性化成裸字符 → 用户看到"只剩字母和加减号"。
+ *
+ * 🔴 更要紧的一点：按钮式入口是**程序化注入**（把 HTML 直接塞进 v-model / 状态），
+ *    **不经过编辑器的 `transformPastedHTML` 钩子**，没有人替它还原公式。
+ *    所以"编辑器粘贴没问题"≠"所有带入路径都没问题"。
+ *
+ * 🔴 职责边界：本函数只负责"读出剪贴板的富文本/纯文本，并把公式还原成 `$…$`"；
+ *    调用方拿到的 `html` 已是**可直接注入**的形态（公式不再是 OMML）。
+ *
+ * @returns {Promise<{html:string, text:string, mathConverted:boolean}|null>}
+ *   两者都读不到时返回 null（调用方自行决定提示/回退）。
+ *   `mathConverted` = 这次**确实**把公式还原过（供调用方判断"能不能放心改用 HTML 版本"：
+ *   没还原出公式时，HTML 与纯文本在结构上可能不同，贸然换源是没必要的风险）。
+ */
+export const readClipboardRich = async () => {
+  const clip = typeof navigator === 'undefined' ? null : navigator.clipboard;
+  if (!clip) return null;
+
+  let html = '';
+  let text = '';
+  // ① 优先 text/html：公式的 OMML/MathML 只在这个版本里
+  try {
+    if (typeof clip.read === 'function') {
+      const items = await clip.read();
+      for (const item of items || []) {
+        const types = (item && item.types) || [];
+        if (!html && types.includes('text/html')) {
+          html = await (await item.getType('text/html')).text();
+          if (html) break;
+        }
+        if (!text && types.includes('text/plain')) {
+          text = await (await item.getType('text/plain')).text();
+        }
+      }
+    }
+  } catch (e) {
+    // read() 可能因权限被拒（非 https/localhost 等）→ 回退纯文本
+    console.warn('剪贴板富文本读取失败，回退纯文本:', e?.message || e);
+  }
+  // ② 纯文本兜底
+  if (!text) {
+    try {
+      text = (await clip.readText?.()) || '';
+    } catch (e) {
+      console.warn('剪贴板纯文本读取失败:', e?.message || e);
+    }
+  }
+
+  if (!html && !text) return null;
+  const converted = html ? convertPastedMathInHtml(html) : '';
+  return { html: converted, text, mathConverted: !!converted && converted !== html };
+};
+
+export default { convertPastedMathInHtml, hasPastedMath, readClipboardRich };
