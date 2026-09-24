@@ -223,8 +223,8 @@ export const styleOptions = [
     tip: '按传统教辅体例组织：不强制统一情境、不做形式化包装，以知识板块或题组为单位逐题命制，题目按本学科本学段通行形态设问、作答直接；适用于希望保留传统练习形态的场景（用户显式选择，非系统默认）。',
     appliesTo: ['practice', 'special', 'reading', 'review'], required: false },
   // ── 呈现风格组（以内容组织为主的资料：内容的呈现方式）──
-  { group: 'presentation', value: 'mindmap', label: '导图式', desc: '知识梳理',
-    tip: '按概念关系组织条目、主次分明（渲染端以嵌套列表呈现；勿自造图形字符），便于记忆；适用于知识总结类资料。',
+  { group: 'presentation', value: 'mindmap', label: '导图式', desc: '知识梳理（真图，非列表）',
+    tip: '按概念关系组织条目、主次分明，并**输出导图块**由程序绘成印刷友好的真图（思维导图／括号图／流程图／时间轴／鱼骨图／概念关系图，按内容自选）；适用于知识总结类资料。',
     appliesTo: ['summary'], required: false },
   { group: 'presentation', value: 'table', label: '表格化', desc: '对比/表格呈现',
     tip: '以表格对比呈现易混点与分类信息，清晰易读；适用于知识总结、复习梳理。',
@@ -280,7 +280,17 @@ export const styleInstructions = {
   'big_unit': '打破课时界限，围绕大概念整体组织，体现知识关联与递进。',
   'project_based': '以一个完整项目任务为驱动组织资料，考查真实问题中的综合能力。',
   'traditional': '按传统教辅体例组织：不设统一情境、不做形式化包装，以知识板块或题组为单位逐题命制，题目按本学科本学段通行形态设问、作答直接。',
-  'mindmap': '按概念关系组织条目、主次分明；勿自造图形字符。',
+  // 🔴 2026-09-24：导图式从"用嵌套列表模拟"升级为**真图**。分工：模型只出结构化 JSON，
+  //    几何由 utils/diagrams 算（模型手写 SVG 必然歪、还会被清洗器改坏）；
+  //    约定与容错见 utils/diagramBlock.js（解析失败会原样保留那块文字，不会丢内容）。
+  'mindmap': '以「导图块」呈现知识结构（本风格的核心交付物，至少 1 张）：'
+    + '<div class="k-diagram" data-type="mindmap" data-layout="balanced">{"title":"中心主题","children":[{"title":"分支","children":[{"title":"要点"}]}]}</div>；'
+    + 'data-type 按内容自选：mindmap(概念层级，可配 data-layout="balanced" 左右分布 或 "right" 向右生长)、'
+    + 'brace(整体与部分：title,children)、flow(步骤与判定：steps[{text,kind:"start|process|decision|end",branches:[{label,steps:[…]}]}])、'
+    + 'timeline(时间顺序：items[{when,text,detail}])、fishbone(因果：effect,categories[{name,causes:[…]}])、'
+    + 'concept(带关系标注：nodes[{id,text}],links[{from,to,label}])。'
+    + 'JSON 必须合法、字段按所选图种给全；导图块独占一段，块内不要夹杂别的文字；'
+    + '条目一律写成**知识要点短语**（4~16 字，不写成整句、不带题号），层级 2~4 层、每层 2~6 个分支。',
   'table': '以表格对比呈现信息，清晰易读，易混点用对比突出。',
   'context_chain': '以一个真实适切的大主题把各知识点串联呈现，脉络自然连贯。',
   'task_driven': '以问题链组织预习内容，可操作可检查，涉及本课时新知识点。',

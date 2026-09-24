@@ -3,6 +3,9 @@
 // 输出：docx 库的 Document 对象 → Packer.toBlob()
 
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader, SimpleField } from 'docx';
+// 🔴 导图（知识梳理/括号图/流程图/时间轴/鱼骨图/概念关系图）在正文里是**内联 SVG**（PDF 通道靠它保持矢量），
+//    而 docx 的 ImageRun **不支持 svg** → Word 导出前必须把 SVG 光栅化成 PNG，否则图表在 Word 里直接消失。
+import { diagramToPngDataUrl } from './diagrams/index.js';
 import { TZG_MARKER, TZG_PINYIN_MARKER, MZG_MARKER, MZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, CIRCLE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
 import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js';
@@ -2312,6 +2315,41 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
 };
 
 
+/**
+ * 内联 `<svg>` → `<img src="data:image/png;base64,…">`（**Word 通道专用**）
+ * 🔴 为什么必须做：正文里的导图是内联 SVG（PDF 走 puppeteer，矢量最清晰），但 docx 的
+ *    ImageRun 只认光栅图（见 buildImageRun 的 typeMap：png/jpg/gif/bmp），不转就整张图消失。
+ * 做法：把每个 `<svg>` 序列化 → canvas 光栅化（2 倍采样，印刷不发虚）→ 用 `<img>` 替换原节点。
+ *    这样 buildImageRun 与整棵 walker 都不用改；调用方传的都是 clone（临时挂在 body 上），
+ *    替换不会影响屏幕上的预览。
+ * 失败（无 canvas / 解码超时）时**保留原 SVG 并只警告**：宁可 Word 里缺这一张图，
+ *    也绝不能让整个导出失败或挂死。
+ */
+const rasterizeSvgsForExport = async (container) => {
+  if (!container || typeof XMLSerializer === 'undefined') return 0;
+  const svgs = Array.from(container.querySelectorAll?.('svg') || []);
+  let done = 0;
+  for (const svgEl of svgs) {
+    try {
+      const svgText = new XMLSerializer().serializeToString(svgEl);
+      const dataUrl = await diagramToPngDataUrl(svgText, { scale: 2 });
+      if (!dataUrl) throw new Error('光栅化未返回数据');
+      const w = Number(svgEl.getAttribute('width')) || 600;
+      const h = Number(svgEl.getAttribute('height')) || 400;
+      const img = document.createElement('img');
+      img.setAttribute('src', dataUrl);
+      img.setAttribute('width', String(w));
+      img.setAttribute('height', String(h));
+      svgEl.parentNode?.replaceChild(img, svgEl);
+      done++;
+    } catch (e) {
+      console.warn('⚠️ 导图转 PNG 失败，Word 里这张图会缺失：', e?.message || e);
+    }
+  }
+  if (done) console.log(`🖼️ Word 导出：已把 ${done} 张导图从 SVG 光栅化为 PNG`);
+  return done;
+};
+
 /** HTML DOM → docx Blob（含 DrawingML 后处理 + 图片预内联）
  *  stage: primary_low~high/primary/middle/high/中文 —— 作文格格子尺寸按学段归一化
  *  （小学 12mm / 初中 10mm / 高中 7.5×8mm，来自排版规格库 ZUOWEN_CELL）
@@ -2319,6 +2357,8 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
 export const htmlToDocxBlob = async (containerEl, stage = 'middle', layout = 'a4') => {
   // 🔧 预内联外部图片：fetch → dataURL 写入 _inlined 属性
   await inlineImagesForExport(containerEl);
+  // 🔧 导图是内联 SVG（PDF 通道要矢量），Word 只认光栅图 → 先光栅化成 PNG 替成 <img>
+  await rasterizeSvgsForExport(containerEl);
   const doc = buildDocxFromDom(containerEl, stage, layout);
   const blob = await Packer.toBlob(doc);
   const buffer = await blob.arrayBuffer();

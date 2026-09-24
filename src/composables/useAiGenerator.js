@@ -5,6 +5,9 @@ import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'
 import { GEN_CONST } from '../config/generationConstants.js';
 import { ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel, applyMaterialChannel } from '../config/promptLibrary.js'; // ✅ A18：applyMaterialChannel（委托书素材段按素材通道兜底渲染）
 import { getStoragePath } from '../utils/pathHelper.js';
+// 🧩 导图块：AI 正文里的 `<div class="k-diagram" data-type=…>{JSON}</div>` → 内联 SVG
+//    （PDF 走矢量；Word 导出时由 docxBuilder 自动光栅化成 PNG）。没有导图块时行为完全不变。
+import { renderDiagramBlocks } from '../utils/diagramBlock.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
 import { buildAnchors } from '../utils/coverageAnchor.js';
@@ -522,6 +525,22 @@ const convertBlankFormat = (html) => {
   result = result.replace(/PPKS(\d+)/g, (m, idx) => preserved[parseInt(idx)] || '');
 
   return result;
+};
+
+/**
+ * 🧩 导图块 → 内联 SVG（AI 输出链路的**唯一收敛点**，两处调用 cleanReasoningOutput 后都要过这里）
+ * 🔴 为什么挂在"最后一步"：正文一旦规范化完就直接进预览 / 进 PDF / 进 Word 导出，
+ *    在这之前渲染才能保证三条出口看到的是同一份内容（一张矢量 SVG）。
+ * 🔴 失败绝不丢内容：解析不了就原样保留那块文字（renderDiagramBlocks 内部保证），只把原因报到日志。
+ */
+const renderDiagramsInContent = (html) => {
+  const r = renderDiagramBlocks(html);
+  if (r.failures.length) {
+    console.warn(`⚠️ 导图块 ${r.failures.length} 个未能渲染（已原样保留内容）：${r.failures.join('；')}`);
+  } else if (r.count) {
+    console.log(`🧩 已渲染 ${r.count} 张导图（PDF 走矢量 SVG；Word 导出时自动转 PNG）`);
+  }
+  return r.html;
 };
 
 // 此函数剥离思考块，只保留最终答案
@@ -1627,6 +1646,8 @@ const maxInputTokens = config.engine === 'deepseek'
           
           // 🔧 R1/推理模型输出清洗：去掉 <｜end▁of▁thinking｜>标签
           responseText = cleanReasoningOutput(responseText);
+          // 🧩 导图块 → 内联 SVG（无导图块则原样返回）
+          responseText = renderDiagramsInContent(responseText);
 
           // 🔧 L1 缓存写入（仅 analysis/blueprint/extraction 任务）
           if (callAI._pendingCacheKey) {
@@ -1832,6 +1853,8 @@ const maxInputTokens = config.engine === 'deepseek'
 
           // 🔧 R1/推理模型输出清洗
           content = cleanReasoningOutput(content);
+          // 🧩 导图块 → 内联 SVG（无导图块则原样返回）
+          content = renderDiagramsInContent(content);
 
           // 🔧 L1 缓存写入（仅 analysis/blueprint/extraction 任务）
           if (callAI._pendingCacheKey) {
