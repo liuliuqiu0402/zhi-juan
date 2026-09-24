@@ -14,6 +14,8 @@ import {
   collectChapterRawText,
   shouldDirectInject,
   directInjectThresholdTokens,
+  stripImagesForModel,
+  IMAGE_PLACEHOLDER,
 } from '../../src/utils/textbookCompression.js';
 import { CHARS_PER_TOKEN } from '../../src/utils/budgetCalibration.js';
 
@@ -261,5 +263,71 @@ describe('A4-10 材料分档：直放阈值与判定', () => {
 
   it('窗口未知（0）→ 函数视为直放；调用方须以"窗已知"为前置守卫（useAiGenerator 已守）', () => {
     expect(shouldDirectInject({ rawChars: 200000, contextWindow: 0, outputCeiling: 0 })).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// 🔴 2026-09-24 用户定：进模型的原文不能带图
+//    教材原文里的插图是内嵌 base64 的，而生成端引擎是纯文本模型（云端 DeepSeek 等）：
+//    读不了图，还会把 token 预算吃穿。所以在"离开本地、进 prompt 之前"换成占位。
+// ═══════════════════════════════════════════════════════════════
+
+const B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==';
+const IMG_HTML = `<p>图注文字</p><p><img src="data:image/png;base64,${B64}" style="max-width:100%"></p><p>图后文字</p>`;
+
+describe('剥图：进模型的原文不带图片数据', () => {
+  it('<img>（含 base64）整标签换成占位，前后文字一字不动', () => {
+    const out = stripImagesForModel(IMG_HTML);
+    expect(out).not.toContain('<img');
+    expect(out).not.toContain('base64');
+    expect(out).toContain('图注文字');
+    expect(out).toContain('图后文字');
+    expect(out).toContain(IMAGE_PLACEHOLDER);
+  });
+
+  it('内联样式里的 url(data:image/…) 也剥（图不一定包在 <img> 里）', () => {
+    const out = stripImagesForModel(`<div style="background-image:url(data:image/png;base64,${B64})">正文</div>`);
+    expect(out).not.toContain('base64');
+    expect(out).toContain('正文');
+  });
+
+  it('裸 base64 串（不在任何标签里）也剥干净', () => {
+    const out = stripImagesForModel(`前文 data:image/jpeg;base64,${B64} 后文`);
+    expect(out).not.toContain('base64');
+    expect(out).toContain('前文');
+    expect(out).toContain('后文');
+  });
+
+  it('挨着的多个占位并成一个（不重复占字）', () => {
+    const two = `<p><img src="data:image/png;base64,${B64}"><img src="data:image/png;base64,${B64}"></p>`;
+    expect(stripImagesForModel(two)).toBe(`<p>${IMAGE_PLACEHOLDER}</p>`);
+  });
+
+  it('纯文字（无图）原样返回，一个字符都不改', () => {
+    const raw = '第1课 草原\n草原的天空很蓝。\n羊群像白色的云。';
+    expect(stripImagesForModel(raw)).toBe(raw);
+  });
+
+  it('collectChapterRawText 出口已剥：rawText 与 segmentTexts 都不带图', () => {
+    const cards = [{
+      chapterTitle: '第1课 草原',
+      rawText: IMG_HTML,
+      segments: [{ text: '草原的天空很蓝。' }, { text: `<img src="data:image/png;base64,${B64}">` }],
+    }];
+    const [ch] = collectChapterRawText(cards);
+    expect(ch.rawText).not.toContain('base64');
+    expect(ch.rawText).not.toContain('<img');
+    expect(ch.segmentTexts.join('')).not.toContain('base64');
+    // 文字内容不许因为剥图而丢
+    expect(ch.rawText).toContain('图注文字');
+    expect(ch.segmentTexts).toContain('草原的天空很蓝。');
+  });
+
+  it('整章只有一张图时也不会被过滤掉（占位还在，章节不消失）', () => {
+    const cards = [{ chapterTitle: 'C', rawText: `<p><img src="data:image/png;base64,${B64}"></p>` }];
+    const out = collectChapterRawText(cards);
+    expect(out).toHaveLength(1);
+    // 只剥图本身，段落标签照旧（其余结构不归这一步管）
+    expect(out[0].rawText).toBe(`<p>${IMAGE_PLACEHOLDER}</p>`);
   });
 });

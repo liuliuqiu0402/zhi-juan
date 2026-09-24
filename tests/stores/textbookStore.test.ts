@@ -320,3 +320,111 @@ describe('instructionBookSignature（生成指令失效签名·教材侧）', ()
     expect(after).toContain('b2');
   });
 });
+
+// ═══════════════════════════════════════════════════════════════
+// 🔴 空值不覆盖（2026-09-24 用户定）
+//    "分析失败返回空 → 旧原文/旧结果被静默清空" 是真实风险：原文丢了要重新 OCR 才回得来。
+//    所以：本轮拿不到内容就保留旧内容；要清空请走界面上的显式清空。
+// ═══════════════════════════════════════════════════════════════
+describe('空值不覆盖（防分析失败静默清空）', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  const mkStore = (chapters: any[]) => {
+    const store = useTextbookStore();
+    store.addTextbook({ id: '1', title: '语文', outline: chapters } as any);
+    return store;
+  };
+
+  it('整条结果都空（分析失败）→ 整章一个字都不动，也不改 analyzed', () => {
+    const ch = createChapter('一、草原', 1, 10);
+    ch.rawText = '旧原文：草原的天空很蓝。';
+    ch.coreTopics = '草原风情';
+    ch.knowledgePoints = ['草原'];
+    ch.analyzed = true;
+    const store = mkStore([ch]);
+
+    store.updateChaptersAnalysis('1', [{ chapterRef: ch }] as any);
+
+    expect(ch.rawText).toBe('旧原文：草原的天空很蓝。');
+    expect(ch.coreTopics).toBe('草原风情');
+    expect(ch.knowledgePoints).toEqual(['草原']);
+    expect(ch.analyzed).toBe(true);
+  });
+
+  it('新章节 + 空结果 → 不会被凭空标成"已分析"', () => {
+    const ch = createChapter('一、草原', 1, 10);
+    const store = mkStore([ch]);
+
+    store.updateChaptersAnalysis('1', [{ chapterRef: ch, rawText: '   ' }] as any);
+
+    expect(ch.analyzed).toBeFalsy();
+    expect(ch.rawText).toBeFalsy();
+  });
+
+  it('单字段空 → 该字段保留旧值，其余字段照常更新', () => {
+    const ch = createChapter('一、草原', 1, 10);
+    ch.rawText = '旧原文';
+    ch.competency = '应用';
+    const store = mkStore([ch]);
+
+    store.updateChaptersAnalysis('1', [{ chapterRef: ch, rawText: '', coreTopics: '新主题' }] as any);
+
+    expect(ch.rawText).toBe('旧原文');       // 空值不回填
+    expect(ch.coreTopics).toBe('新主题');     // 有值照常更新
+    expect(ch.competency).toBe('应用');       // 空 → 不静默退回默认的「理解」
+  });
+
+  it('formulas / knowledgePoints 空 → 不清空旧值', () => {
+    const ch = createChapter('一、草原', 1, 10);
+    ch.rawText = '旧原文';
+    ch.formulas = ['E=mc^2'];
+    ch.knowledgePoints = ['旧知识点'];
+    const store = mkStore([ch]);
+
+    store.updateChaptersAnalysis('1', [{ chapterRef: ch, rawText: '新原文' }] as any);
+
+    expect(ch.formulas).toEqual(['E=mc^2']);
+    expect(ch.knowledgePoints).toEqual(['旧知识点']);
+    expect(ch.rawText).toBe('新原文');
+  });
+
+  it('有内容时照旧覆盖（守卫不能把正常更新也挡住）', () => {
+    const ch = createChapter('一、草原', 1, 10);
+    ch.rawText = '旧原文';
+    ch.coreTopics = '旧主题';
+    ch.formulas = ['旧公式'];
+    ch.knowledgePoints = ['旧知识点'];
+    const store = mkStore([ch]);
+
+    store.updateChaptersAnalysis('1', [{
+      chapterRef: ch,
+      rawText: '新原文',
+      coreTopics: '新主题',
+      formulasText: 'a^2+b^2=c^2',
+      knowledgePointsText: '新知识点A\n新知识点B',
+    }] as any);
+
+    expect(ch.rawText).toBe('新原文');
+    expect(ch.coreTopics).toBe('新主题');
+    expect(ch.formulas).toEqual(['a^2+b^2=c^2']);
+    expect(ch.knowledgePoints).toEqual(['新知识点A', '新知识点B']);
+  });
+
+  it('指纹按"实际留下来的原文"现算（保留旧值时不会算成空串）', () => {
+    const a = createChapter('甲', 1, 10);
+    a.rawText = '旧原文';
+    const b = createChapter('乙', 11, 20);
+    b.rawText = '旧原文';
+    const store = mkStore([a, b]);
+
+    store.updateChaptersAnalysis('1', [
+      { chapterRef: a, rawText: '旧原文', coreTopics: '主题' }, // 正常带原文
+      { chapterRef: b, coreTopics: '主题' },                    // 原文为空（模拟失败）
+    ] as any);
+
+    expect(b._analyzedPlainTextLength).toBe('旧原文'.length);
+    expect(b._analyzedTextHash).toBe(a._analyzedTextHash);
+  });
+});

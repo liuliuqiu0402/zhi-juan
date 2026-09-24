@@ -51,12 +51,41 @@ export const shouldDirectInject = ({ rawChars = 0, contextWindow = 0, outputCeil
   estimateTokens(rawChars) <= directInjectThresholdTokens({ contextWindow, outputCeiling });
 
 /**
+ * 进模型的原文里不能带图。
+ *
+ * 🔴 为什么必须有（2026-09-24 用户定）：教材原文里的插图是**内嵌 base64** 的
+ *    （见 `python-scripts/word_to_html.py`：把图片转成 `data:image/…;base64,…` 塞进 HTML）。
+ *    而生成端引擎是**纯文本模型**（云端 DeepSeek 等），读不了图：
+ *      · 那些 base64 纯属浪费——一张 100KB 的插图约 13 万字符，量级上几万 token；
+ *      · 写进 prompt 还会挤占真正有用的教材文字，甚至把预算吃穿。
+ *    所以原文在**离开本地、进 prompt 之前**把图换成人能读、模型也能读的占位。
+ *    只在 `collectChapterRawText` 出口做一次——它是"整章原文进 prompt"的唯一收集点
+ *    （直放与压缩两条路都从它取料），不散落到各处。
+ *
+ * 编辑器与教材库里**照旧显示图片**（只换"进模型的那一份"），人看的时候不丢信息。
+ */
+export const IMAGE_PLACEHOLDER = '〔插图〕';
+
+export const stripImagesForModel = (text = '') => {
+  let out = String(text || '');
+  // ① <img …>：base64 数据 URL 就在 src 里，整标签换上占位
+  out = out.replace(/<img\b[^>]*>/gi, IMAGE_PLACEHOLDER);
+  // ② 兜底：图不在 <img> 里（内联样式/裸文本/别的标签属性）时，把数据 URL 整段掐掉
+  out = out.replace(/url\(\s*["']?data:image\/[^)"']+["']?\s*\)/gi, IMAGE_PLACEHOLDER);
+  out = out.replace(/data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+/gi, IMAGE_PLACEHOLDER);
+  // ③ 挨在一起的多个占位并成一个：只说"这里有一处插图"，不重复占字
+  out = out.replace(new RegExp(`${IMAGE_PLACEHOLDER}(?:\\s*${IMAGE_PLACEHOLDER})+`, 'g'), IMAGE_PLACEHOLDER);
+  return out;
+};
+
+/**
  * ✅ A15/A11（2026-09-11）：**程序按勾选章节直读整章原文**
  *   - 按传入卡序（= 勾选章序 = 原文章序）逐章收集原文
  *   - **不做类型过滤**：练习/作业段照收（A11：防搬抄靠比对检出，不靠丢弃参考）；
  *     空/未标注 `type` 段同样计入（A11-2：不再被静默丢弃）
  *   - ✅ A17（甲方案）：卡片自带 `rawText`（"有原文但未分析"的目录卡）时**优先取真原文**——
  *     与"读取勾选章节完整原文/原文压缩照旧"一致，不再退化成只剩目录文本
+ *   - 🔴 出口统一**剥图**（含 base64）：直放与压缩都从这里取料，一处收口（见 stripImagesForModel）
  *   - 返回 `rawText`（整章，供压缩取料）与 `segmentTexts`（段级，供 `copyGuard` 语料）
  * @param {Array} cards contentCards
  * @returns {Array<{chapterTitle:string, rawText:string, segmentTexts:string[]}>}
@@ -64,9 +93,9 @@ export const shouldDirectInject = ({ rawChars = 0, contextWindow = 0, outputCeil
 export const collectChapterRawText = (cards = []) =>
   (cards || []).map((c) => {
     const segmentTexts = (c?.segments || [])
-      .map((s) => String(s?.text || '').trim())
+      .map((s) => stripImagesForModel(String(s?.text || '')).trim())
       .filter(Boolean);
-    const cardRaw = String(c?.rawText || '').trim();
+    const cardRaw = stripImagesForModel(String(c?.rawText || '')).trim();
     return {
       chapterTitle: String(c?.chapterTitle || '').trim(),
       rawText: cardRaw || segmentTexts.join('\n'),

@@ -410,20 +410,47 @@ export const useTextbookStore = defineStore('textbook', {
         }
       };
 
+      // 🔴 空值不覆盖（2026-09-24 用户定）：这一轮拿不到内容，就**保留旧内容**。
+      //    防的是"分析失败返回空 → 旧原文/旧结果被静默清空"——原文丢了要重新 OCR 才回得来。
+      //    要清空章节请走界面上的显式清空（那是明确的动作），不靠"这次跑空了"来清。
+      //    明确接受的代价：某字段这轮**确实**该为空时也会保留旧值，需要时手动清。
+      const hasText = (v: any) => String(v ?? '').trim().length > 0;
+      const hasList = (v: any) => Array.isArray(v) && v.length > 0;
+      const keptText = (next: any, prev: any) => (hasText(next) ? String(next) : (prev || ''));
+      const keptList = (next: any, prev: any) => (hasList(next) ? next : (prev || []));
+
       for (const item of analysisResults) {
         const ch = item.chapterRef;
         if (!ch) continue;
 
-        ch.rawText = item.rawText || '';
-        ch._rawTextHtml = item._rawTextHtml || '';
-        ch.visualDescription = item.visualDescription || '';
-        ch.formulas = item.formulasText ? item.formulasText.split('\n').filter(f => f.trim()) : [];
-        ch.coreTopics = item.coreTopics || '';
-        ch.knowledgePoints = item.knowledgePointsText
-          ? item.knowledgePointsText.split('\n').filter(k => k.trim())
-          : (item.coreTopics ? item.coreTopics.split(',').map(t => t.trim()) : []);
-        ch.competency = item.competency || '理解';
-        if (item.knowledgeHierarchy) {
+        // 第一道：**整条结果都空**（典型就是分析失败、被兜底成空）→ 整章一个字段都不动，
+        //        也**不把 analyzed 标成 true**（否则会显得"分析过了"，实际没内容）。
+        const produced = hasText(item.rawText) || hasText(item._rawTextHtml)
+          || hasText(item.visualDescription) || hasText(item.formulasText)
+          || hasText(item.coreTopics) || hasText(item.knowledgePointsText)
+          || hasList(item.knowledgeHierarchy);
+        if (!produced) {
+          console.warn(`[教材库] 章节「${ch.title}」本轮分析没有任何产出 → 保留原内容不动（防静默清空）`);
+          continue;
+        }
+
+        // 第二道：逐字段——空值保留旧值，绝不用空值回填
+        ch.rawText = keptText(item.rawText, ch.rawText);
+        ch._rawTextHtml = keptText(item._rawTextHtml, ch._rawTextHtml);
+        ch.visualDescription = keptText(item.visualDescription, ch.visualDescription);
+        ch.formulas = keptList(
+          item.formulasText ? item.formulasText.split('\n').filter(f => f.trim()) : [],
+          ch.formulas);
+        ch.coreTopics = keptText(item.coreTopics, ch.coreTopics);
+        ch.knowledgePoints = keptList(
+          item.knowledgePointsText
+            ? item.knowledgePointsText.split('\n').filter(k => k.trim())
+            : (item.coreTopics ? item.coreTopics.split(',').map(t => t.trim()) : []),
+          ch.knowledgePoints);
+        // 空 → 保留旧判定（别静默退回默认的「理解」）；本来就没有时仍给默认
+        const compNext = String(item.competency ?? '').trim();
+        ch.competency = compNext || ch.competency || '理解';
+        if (item.knowledgeHierarchy && item.knowledgeHierarchy.length > 0) {
           // 🔬 (b) 落库归一（2026-09-14，② 全链路体检）：条目性质 kind 原先是"模型自觉输出字段"，
           //    实测导语页分支曾整段漏掉 → 存储里没有、展示层就永远没有标签、生成端也拿不到。
           //    这里在**唯一落库点**按同一判据补全（显式 kind 优先，缺失按条目名兜底 resolveAnchorKind），
@@ -436,7 +463,7 @@ export const useTextbookStore = defineStore('textbook', {
             })),
           }));
         }
-        if (item.knowledgeHierarchy) {
+        if (item.knowledgeHierarchy && item.knowledgeHierarchy.length > 0) {
           ch._cognitiveCorrections = [];
           for (const bc of item.knowledgeHierarchy) {
             for (const ck of (bc.coreKnowledge || [])) {
