@@ -17,6 +17,10 @@ import { buildFlowSvg } from './flow.js';
 import { buildTimelineSvg } from './timeline.js';
 import { buildFishboneSvg } from './fishbone.js';
 import { buildConceptSvg } from './concept.js';
+// [GRAPH] 家族（原属 EduRender Studio，2026-09-24 收回本项目就地渲染）
+import { buildCoordinateSvg } from './coordinate.js';
+import { buildShapesSvg } from './shapes.js';
+import { buildChartsSvg } from './charts.js';
 
 /** 思维导图的两种版式（UI 里作为二级选择） */
 export const MINDMAP_LAYOUTS = [
@@ -32,6 +36,12 @@ export const DIAGRAM_TYPES = [
   { value: 'timeline', label: '时间轴', hint: '按时间或先后顺序展开的事件' },
   { value: 'fishbone', label: '鱼骨图', hint: '因果分析（结果 ← 各类原因）' },
   { value: 'concept', label: '概念关系图', hint: '带关系标注的网络图（概念 + 关系）' },
+  // ── 以下 5 种对应生成模型已在输出的 [GRAPH] 指令块（原由 EduRender Studio 出图，现就地渲染）──
+  { value: 'coordinate', label: '坐标系/函数图象', hint: '数轴、函数图象、点（数学高频）' },
+  { value: 'shapes', label: '几何与函数图', hint: '函数图象 + 点/线/多边形/圆/角（几何）' },
+  { value: 'barChart', label: '柱状图', hint: '统计图：各类别数量对比' },
+  { value: 'lineChart', label: '折线图', hint: '统计图：随顺序变化的趋势' },
+  { value: 'pieChart', label: '扇形图', hint: '统计图：各部分占比' },
 ];
 
 const BUILDERS = {
@@ -41,6 +51,12 @@ const BUILDERS = {
   timeline: (spec, opts) => buildTimelineSvg(spec, opts),
   fishbone: (spec, opts) => buildFishboneSvg(spec, opts),
   concept: (spec, opts) => buildConceptSvg(spec, opts),
+  coordinate: (spec, opts) => buildCoordinateSvg(spec, opts),
+  shapes: (spec, opts) => buildShapesSvg(spec, opts),
+  // 三种统计图共用一对导出，模块内按 spec.type 分支
+  barChart: (spec, opts) => buildChartsSvg(spec, opts),
+  lineChart: (spec, opts) => buildChartsSvg(spec, opts),
+  pieChart: (spec, opts) => buildChartsSvg(spec, opts),
 };
 
 /** 供单测/调试直接取版式几何（不出图） */
