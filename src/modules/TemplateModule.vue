@@ -3392,7 +3392,9 @@ const saveTemplate = async () => {
       }      
       
       const bookmarks = flatOutline.value.map(item => ({
-        title: item.title,
+        // 🔧 PDF 书签（Outline）是纯文本层，放不下印刷字形；含公式的标题把 $…$ 源码
+        //    转成可读公式（√(ab)⩽(a+b)/2 这类线性文本），别让 WPS 书签里露出 $…$ 源码。
+        title: hasMath(item.title) ? convertFormulasInHtml(item.title) : item.title,
         page: item.originalPage ? item.originalPage + pageOffset.value : item.page,
         level: item.level + 1
       }));
