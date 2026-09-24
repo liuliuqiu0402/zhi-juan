@@ -79,11 +79,39 @@ export const buildFigureElement = (spec, docRef, opts = {}) => {
 };
 
 /**
- * A4 竖版正文版心宽度（px @96dpi ≈ 794 - 页边距）。导图自然宽度超过它就会被等比缩小，
- * 缩到 ~0.5 时 13px 的字只相当于 4~5pt，印出来看不清 —— 这类"静默变糊"必须自己喊出来。
- * （时间轴、鱼骨图是最容易超宽的两种：横向轴天生宽。）
+ * A4 竖版正文版心宽度（px @96dpi ≈ 794 - 页边距）。导图自然宽度超过它就会被等比缩小。
+ *
+ * 🔴 2026-09-24 修正（避免误报）：告警**不应该**按"宽度超过版心"触发 —— 只超几个像素根本无所谓。
+ *    真正伤印刷的是**缩得太狠**：13px 正文被缩到 0.8 倍 = 10.4px ≈ 7.8pt，再小就吃力了。
+ *    实证：真实生成的一张思维导图宽 764px（仅超版心 4px）→ 缩到 0.99 倍（字约 9.7pt，完全能印），
+ *    旧阈值却报"印出来可能偏小"，属噪音。现改为按**缩放比**判定：
+ *      只有 `版心 ÷ 图宽 < PRINT_MIN_SCALE` 才告警 ⇔ 图宽 > PRINT_WARN_WIDTH(950)。
  */
 export const PRINT_SAFE_WIDTH = 760;
+
+/** 低于此缩放比才算"印出来看不清"（13px × 0.8 = 10.4px ≈ 7.8pt） */
+export const PRINT_MIN_SCALE = 0.8;
+
+/** 告警线：图宽超过它，才会被缩到 PRINT_MIN_SCALE 以下（760 ÷ 0.8 = 950） */
+export const PRINT_WARN_WIDTH = Math.round(PRINT_SAFE_WIDTH / PRINT_MIN_SCALE);
+
+/** 导图正文基准字号（px）——各图种共用底座 DEFAULT_FONT，用于折算"缩完相当于几 pt" */
+const BASE_FONT_PX = 13;
+
+/**
+ * 印刷可读性判定（纯函数，便于直接断言边界，不必去凑恰好 950px 的图）。
+ * @param {number} width 图的自然宽度（px）
+ * @param {string} label 图种中文名（用于日志可读性）
+ * @returns {string} 告警文案；不需要告警时返回空串
+ */
+export const printReadabilityWarning = (width, label = '') => {
+  const w = Number(width) || 0;
+  if (!(w > PRINT_WARN_WIDTH)) return '';
+  const ratio = PRINT_SAFE_WIDTH / w;
+  const px = BASE_FONT_PX * ratio;
+  return `${label}宽 ${w}px，超出 A4 版心较多，将缩到 ${ratio.toFixed(2)} 倍`
+    + `（正文约 ${px.toFixed(1)}px ≈ ${(px * 0.75).toFixed(1)}pt 字），印出来可能偏小`;
+};
 
 const VALID_TYPES = new Set(DIAGRAM_TYPES.map((t) => t.value));
 /** 日志/告警里给人看的中文图种名（内部 value 是英文，直接打日志会让人看不懂） */
@@ -122,7 +150,8 @@ export const toResponsiveSvg = (svg) =>
 /**
  * 把 HTML 里所有导图块替换成内联 SVG。
  * @param {string} html
- * @returns {{ html:string, count:number, failures:string[] }}
+ * @returns {{ html:string, count:number, failures:string[], warnings:string[] }}
+ *   failures = 未渲染成功的块（原块已原样保留）；warnings = 印刷可读性体检（缩得太狠）
  */
 export const renderDiagramBlocks = (html, opts = {}) => {
   const src = String(html == null ? '' : html);
@@ -149,11 +178,9 @@ export const renderDiagramBlocks = (html, opts = {}) => {
     try {
       const built = buildFigureElement(parsed.spec, doc, opts);
       if (!built) throw new Error('出图返回空');
-      // 印刷可读性体检：超宽会被缩到看不清（见 PRINT_SAFE_WIDTH 注释）
-      if (built.width > PRINT_SAFE_WIDTH) {
-        const ratio = (PRINT_SAFE_WIDTH / built.width).toFixed(2);
-        warnings.push(`${labelOf(parsed.type)} 宽 ${built.width}px，超出 A4 版心，将缩到 ${ratio} 倍（${(13 * Number(ratio)).toFixed(1)}px ≈ ${(13 * Number(ratio) * 0.75).toFixed(1)}pt 字），印出来可能偏小`);
-      }
+      // 印刷可读性体检：缩得太狠才告警（见 PRINT_WARN_WIDTH 注释；只超版心几个像素不算问题）
+      const warn = printReadabilityWarning(built.width, labelOf(parsed.type));
+      if (warn) warnings.push(warn);
       el.parentNode?.replaceChild(built.el, el);
       count++;
     } catch (e) {
@@ -163,4 +190,7 @@ export const renderDiagramBlocks = (html, opts = {}) => {
   return { html: root.innerHTML, count, failures, warnings };
 };
 
-export default { DIAGRAM_BLOCK_CLASS, parseDiagramBlock, renderDiagramBlocks, toResponsiveSvg };
+export default {
+  DIAGRAM_BLOCK_CLASS, parseDiagramBlock, renderDiagramBlocks, toResponsiveSvg,
+  PRINT_SAFE_WIDTH, PRINT_MIN_SCALE, PRINT_WARN_WIDTH, printReadabilityWarning,
+};

@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   renderDiagramBlocks, parseDiagramBlock, toResponsiveSvg, DIAGRAM_BLOCK_CLASS,
+  printReadabilityWarning, PRINT_WARN_WIDTH, PRINT_SAFE_WIDTH, PRINT_MIN_SCALE,
 } from '../../src/utils/diagramBlock.js';
 
 const OK_BLOCK = '<div class="k-diagram" data-type="mindmap" data-layout="balanced">'
@@ -91,8 +92,21 @@ describe('diagramBlock · 标记块渲染', () => {
     expect(parseDiagramBlock('{"title":"x"}', { type: 'timeline' }).spec.type).toBe('timeline');
   });
 
-  it('超宽导图给出印刷可读性警告（时间轴最容易命中），窄图不告警', () => {
-    const items = Array.from({ length: 9 }, (_, i) => `{"when":"191${i}年","text":"事件${i}"}`).join(',');
+  it('印刷可读性告警按**缩放比**判定：只超版心几个像素不算问题，缩得太狠才报', () => {
+    // ① 判据边界（纯函数直接断言，不必去凑恰好临界宽度的图）
+    //    🔴 实证回归：真实生成的一张思维导图宽 764px（仅超版心 4px）→ 缩到 0.99 倍、字约 9.7pt，
+    //    完全能印，旧阈值（宽 > 760 即报）却报了"印出来可能偏小"，属噪音。
+    expect(PRINT_WARN_WIDTH).toBe(Math.round(PRINT_SAFE_WIDTH / PRINT_MIN_SCALE)); // 950
+    expect(printReadabilityWarning(764, '思维导图')).toBe('');                        // 实证误报用例：不该报
+    expect(printReadabilityWarning(PRINT_SAFE_WIDTH, '思维导图')).toBe('');          // 恰在版心
+    expect(printReadabilityWarning(PRINT_WARN_WIDTH, '思维导图')).toBe('');          // 恰在告警线
+    const warn = printReadabilityWarning(PRINT_WARN_WIDTH + 1, '时间轴');
+    expect(warn).toContain('时间轴');
+    expect(warn).toContain('版心');
+    expect(warn).toContain('倍');                                                    // 必须给出"缩到几倍"
+
+    // ② 端到端：真出一张超宽图 → 有告警；窄图不告警
+    const items = Array.from({ length: 16 }, (_, i) => `{"when":"19${i}年","text":"事件${i}"}`).join(',');
     const wide = renderDiagramBlocks(`<div class="k-diagram" data-type="timeline">{"items":[${items}]}</div>`);
     expect(wide.count).toBe(1);
     expect(wide.warnings.length).toBe(1);

@@ -4666,6 +4666,17 @@ ${cardAnalysisText.substring(0, 1000)}
       // 🔧 截断重试预算升级：第 1 次按动态帽，第 2 次 ×1.4（仅截断补齐场景，篇幅纪律已防发散；
       //    仍受引擎单次输出上限 clampReq 约束，超出部分由下方续写链动态分片补齐）
       const attemptCap = Math.round(bodyDynamicCap * Math.pow(1.4, attempt));
+      // 🔴 2026-09-24 实证修复：升级预算重试必须**连续写额度一起升级**。
+      //    此前只放大了单次帽（上面的 maxTokens），而 bodyQuota（soft/hard 两层 + 轮次）仍是首轮那套
+      //    → 第 2 次尝试的硬顶与第 1 次**完全相同**：单次输出一超硬顶，续写链照样被锁死，"升级"名不副实。
+      //    现按升级后的单次帽重推额度（attempt 0 时 max(bodyEffectiveCap, attemptCap) === bodyEffectiveCap
+      //    → 结果与 bodyQuota 逐位相同，首轮行为不变）。
+      const attemptQuota = planOutputQuota({
+        needTokens: bodyNeeded,
+        safetyBuffer: BUDGET_SAFETY_BUFFER,
+        perCallCap: Math.max(bodyEffectiveCap, attemptCap),
+        engineCeiling: engineCap,
+      });
       const callPrompt = (attempt === 1 && lastGapNote)
         ? `${prompt}\n\n【上一轮整卷生成复核发现的问题——本次必须修正】\n· ${lastGapNote}。本次必须逐题完整呈现全部题目：题号 1 起逐题递增、连续不得跳号，不得省略或合并任何一题；输出完成后逐题自查题号连续性。`
         : prompt;
@@ -4722,29 +4733,39 @@ ${cardAnalysisText.substring(0, 1000)}
           //    · 硬顶 hardQuota = 预期 + 1 轮：**唯一叫停线**
           //    轮次由硬顶推导（不再写死 6）；每轮帽按"硬顶 − 已产出"递减（旧实现每轮都给满 → 总输出无上界）。
           //    停止条件只剩三个：① 写完（不再截断）② 续写无效 ③ 触硬顶。
-          const MAX_CONT = bodyQuota.rounds;
+          const MAX_CONT = attemptQuota.rounds;
           let contCount = 0;
           let overSoftWarned = false;
           while (trunc.truncated && contCount < MAX_CONT) {
-            if (!overSoftWarned && isOverQuota({ quota: bodyQuota.softQuota, producedChars: content.length })) {
+            if (!overSoftWarned && isOverQuota({ quota: attemptQuota.softQuota, producedChars: content.length })) {
               overSoftWarned = true;
-              bodyPathNotes.push(`ℹ️ 正文已超预期额度（预期 ${bodyQuota.softQuota} token，当前 ${content.length} 字符）——为保证完整继续补齐（硬顶 ${bodyQuota.hardQuota} token）`);
-              console.warn(`⚠️ 整卷正文已超预期额度 ${bodyQuota.softQuota} token → 继续补齐，直至写完或触硬顶 ${bodyQuota.hardQuota}`);
+              bodyPathNotes.push(`ℹ️ 正文已超预期额度（预期 ${attemptQuota.softQuota} token，当前 ${content.length} 字符）——为保证完整继续补齐（硬顶 ${attemptQuota.hardQuota} token）`);
+              console.warn(`⚠️ 整卷正文已超预期额度 ${attemptQuota.softQuota} token → 继续补齐，直至写完或触硬顶 ${attemptQuota.hardQuota}`);
             }
+            // 🔴 首轮保底（2026-09-24 实证修复）：模型**单次**输出就可能超过硬顶（实证：13555 字符
+            //    ÷1.3 = 10427 token > 硬顶 8532）。旧逻辑此时"余额 ≤ 0 → 返回 0 → 直接 break"，
+            //    续写链 0 轮就被锁死，只能整卷重跑（更贵更慢）。硬顶里"多留的那 1 轮余量"必须花得出去。
+            const hardOverrun = charsToTokens(content.length) >= Math.round(attemptQuota.hardQuota);
             const contBudget = clampReq(nextContinuationBudget({
-              hardQuota: bodyQuota.hardQuota,
+              hardQuota: attemptQuota.hardQuota,
               producedChars: content.length,
-              perCall: bodyQuota.perCall,
+              perCall: attemptQuota.perCall,
               thinkingMultiplier: contMult,
               engineCeiling: engineCap,
+              guaranteedRounds: 1,
+              roundsUsed: contCount,
             }));
+            if (hardOverrun && contCount === 0 && contBudget > 0) {
+              bodyPathNotes.push(`ℹ️ 首轮单次输出已超硬顶（${content.length} 字符 ≈ ${charsToTokens(content.length)} token > ${attemptQuota.hardQuota}）——启用 1 轮保底续写补齐（不再直接整卷重跑）`);
+              console.warn(`ℹ️ 首轮单次输出已超硬顶（${content.length} 字符），启用 1 轮保底续写（本轮帽 ${contBudget} token）`);
+            }
             if (contBudget <= 0) {
               // 触硬顶：不再空转续写（原实现每轮都给满额，导致总输出无上界）
-              bodyPathNotes.push(`ℹ️ 正文已触续写硬顶（硬顶 ${bodyQuota.hardQuota} token，当前 ${content.length} 字符），停止续写`);
+              bodyPathNotes.push(`ℹ️ 正文已触续写硬顶（硬顶 ${attemptQuota.hardQuota} token，当前 ${content.length} 字符），停止续写`);
               break;
             }
             contCount++;
-            console.warn(`⏩ 整卷正文第 ${contCount}/${MAX_CONT} 次续写（本轮帽 ${contBudget} token，预期 ${bodyQuota.softQuota}/硬顶 ${bodyQuota.hardQuota}）...（当前 ${content.length} 字符）`);
+            console.warn(`⏩ 整卷正文第 ${contCount}/${MAX_CONT} 次续写（本轮帽 ${contBudget} token，预期 ${attemptQuota.softQuota}/硬顶 ${attemptQuota.hardQuota}）...（当前 ${content.length} 字符）`);
             const contResp = await callAI(
               `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
               {

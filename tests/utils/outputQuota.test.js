@@ -88,6 +88,41 @@ describe('nextContinuationBudget / isOverQuota：超预期不停止，触硬顶�
     expect(nextContinuationBudget({ hardQuota: 0, producedChars: 0, perCall: 10000 })).toBe(0);
   });
 
+  // 🔴 2026-09-24 实证修复：首轮单次输出就可能超过硬顶，硬顶不得把续写链锁死。
+  //    实证现场：硬顶 8532 → 单次产出 13555 字符 ÷1.3 = 10427 token（> 硬顶）
+  //    → 旧逻辑余额为负返回 0 → 第一次续写就不跑，日志"经 0 次续写…仍未完整" → 只能整卷重跑。
+  describe('首轮保底（单次输出就超硬顶时，硬顶里那 1 轮余量必须花得出去）', () => {
+    const OVER = { hardQuota: 8532, producedChars: 13555, perCall: 2844 };   // = 真实现场数值
+
+    it('旧行为（不传保底）仍返回 0——不影响其它调用方', () => {
+      expect(nextContinuationBudget(OVER)).toBe(0);
+    });
+
+    it('给保底 1 轮：首轮给满单次帽，且受引擎闸门钳制', () => {
+      expect(nextContinuationBudget({ ...OVER, guaranteedRounds: 1, roundsUsed: 0 })).toBe(2844);
+      expect(nextContinuationBudget({ ...OVER, guaranteedRounds: 1, roundsUsed: 0, engineCeiling: 1200 })).toBe(1200);
+      // 思考放大倍数照作用（推理与正文共享配额）
+      expect(nextContinuationBudget({ ...OVER, guaranteedRounds: 1, roundsUsed: 0, thinkingMultiplier: 2 })).toBe(5688);
+    });
+
+    it('保底轮**用尽后**仍按硬顶叫停（总支出有界，不失控）', () => {
+      expect(nextContinuationBudget({ ...OVER, guaranteedRounds: 1, roundsUsed: 1 })).toBe(0);
+      expect(nextContinuationBudget({ ...OVER, guaranteedRounds: 2, roundsUsed: 1 })).toBe(2844);
+      expect(nextContinuationBudget({ ...OVER, guaranteedRounds: 2, roundsUsed: 2 })).toBe(0);
+    });
+
+    it('余额尚在时，保底参数不改变原有递减口径', () => {
+      const b = { hardQuota: 30000, producedChars: 30000, perCall: 10000, guaranteedRounds: 1, roundsUsed: 0 };
+      expect(nextContinuationBudget(b)).toBe(30000 - charsToTokens(30000));
+    });
+
+    it('异常输入安全（负数/NaN/小数轮次）', () => {
+      expect(nextContinuationBudget({ ...OVER, guaranteedRounds: 1, roundsUsed: NaN })).toBe(2844);
+      expect(nextContinuationBudget({ ...OVER, guaranteedRounds: -3, roundsUsed: 0 })).toBe(0);
+      expect(nextContinuationBudget({ ...OVER, guaranteedRounds: 1, roundsUsed: -1 })).toBe(2844);
+    });
+  });
+
   it('思考放大倍数作用于请求预算；不得越引擎上限', () => {
     expect(nextContinuationBudget({ hardQuota: 30000, producedChars: 0, perCall: 10000, thinkingMultiplier: 2 })).toBe(20000);
     expect(nextContinuationBudget({ hardQuota: 30000, producedChars: 0, perCall: 10000, thinkingMultiplier: 2, engineCeiling: 12000 })).toBe(12000);
