@@ -26,6 +26,13 @@ def add_bookmarks_pikepdf(pdf_path, bookmarks, output_path):
     total_pages = len(pdf.pages)
 
     with pdf.open_outline() as outline:
+        # 🔴 覆盖而不是追加（2026-09-24 用户实证："导出的 PDF 里有两份书签，往下滚动还有一份
+        #    带手动添加的全的"）。原因：源 PDF 常常**自带大纲**（或这份源文件本身就是上次生成的
+        #    带书签 PDF），pikepdf 的 open_outline() 拿到的是**已有**大纲，直接 append 就会把
+        #    旧的一套和新的一套叠在一起 → 阅读器里看到两份。
+        #    本工具产出的是"编辑器里那份目录"的唯一权威版本，所以先清空再写。
+        outline.root.clear()
+
         parents = {}
         for bm in bookmarks:
             title = bm.get('title', 'Untitled')
@@ -64,6 +71,8 @@ def add_bookmarks_pikepdf(pdf_path, bookmarks, output_path):
 
 def add_bookmarks_pypdf2(pdf_path, bookmarks, output_path):
     """使用 PyPDF2 添加书签"""
+    # 注：此分支是"新建 writer + 逐页搬页"，原 PDF 的大纲不会被搬过来 → 天然就是覆盖语义，
+    # 不存在 pikepdf 分支那种"旧大纲残留导致两份书签"的问题，无需额外清空。
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
     total_pages = len(reader.pages)
