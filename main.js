@@ -1331,7 +1331,11 @@ ipcMain.handle('extract-pdf-outline', async (event, pdfPath) => {
                     }
                     try {
                         const result = JSON.parse(cleanOutput);
-                        resolve(result.output);
+                        // 🔴 extract_outline.py 是把 {success, outline, count, message} 直接打在**顶层**的，
+                        //    并没有 output 包装层 —— 原先 resolve(result.output) 恒为 undefined，
+                        //    任何调用方（含保存后的"PDF 回读校验"）拿到的都是 undefined，只能报"未知"。
+                        //    这里两者都兼容：有 output 用 output，没有就用整个结果。
+                        resolve(result.output || result);
                     } catch (e) {
                         console.error('JSON解析失败，原始输出:', stdout);
                         reject(new Error('解析输出失败: ' + stdout.substring(0, 200)));

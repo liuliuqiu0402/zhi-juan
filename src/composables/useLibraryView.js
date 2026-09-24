@@ -11,7 +11,7 @@
  * 🔴 纯计算部分（clampPanelWidth / collapsedKeysOf）单独导出，便于直接单测，无需挂载组件。
  * ============================================================
  */
-import { ref, onBeforeUnmount } from 'vue';
+import { ref, nextTick, onBeforeUnmount } from 'vue';
 
 /** 默认宽度与钳制边界：列表最少 280px；预览区至少留 420px（PdfPreview 可用下限） */
 export const PANEL_MIN_WIDTH = 280;
@@ -105,11 +105,42 @@ export function useLibraryView({ storageKey = 'library', defaultWidth = PANEL_DE
   const persistCollapsed = () => write(C_KEY, JSON.stringify([...collapsed.value]));
 
   const isCollapsed = (key) => collapsed.value.has(key);
-  const toggleCollapse = (key) => {
+
+  /** 从元素向上找最近的纵向滚动容器（不写死类名：教材库 .textbook-list / 模板库 .template-list 通用） */
+  const findScrollParent = (el) => {
+    let n = el && el.parentElement;
+    while (n && n !== document.body) {
+      const oy = getComputedStyle(n).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight) return n;
+      n = n.parentElement;
+    }
+    return null;
+  };
+
+  /**
+   * 折叠/展开分组 —— **原地收，不带着滚动位置一起跳**。
+   * 🔴 起因（2026-09-24 用户）：组头吸顶后一点"收"，被收组的内容消失、列表内容总高骤减，
+   *    浏览器把 scrollTop 夹回新的最大值 → 整个列表往上蹿一段，用户说"会出现幻觉"。
+   * 做法：先把被点组头的屏幕纵坐标记下来，折叠并等布局落定后，用 scrollTop 补回同样的差值，
+   *    让这个组头**待在原地不动**；之后滚不滚动、滚到哪里，全部交给用户自己操作。
+   */
+  const toggleCollapse = async (key, ev) => {
+    const headerEl = ev && ev.currentTarget ? ev.currentTarget : null;
+    const scroller = headerEl ? findScrollParent(headerEl) : null;
+    const beforeTop = headerEl ? headerEl.getBoundingClientRect().top : 0;
+
     const next = new Set(collapsed.value);
     if (next.has(key)) next.delete(key); else next.add(key);
     collapsed.value = next;
     persistCollapsed();
+
+    if (!headerEl || !scroller) return;
+    await nextTick();
+    // 再等一帧：sticky 的吸附位置也要重算完，否则量到的是过渡中的坐标
+    await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+    if (!headerEl.isConnected) return;
+    const delta = headerEl.getBoundingClientRect().top - beforeTop;
+    if (Math.abs(delta) > 0.5) scroller.scrollTop += delta;
   };
   const collapseAll = (groups = []) => {
     collapsed.value = new Set(collapsedKeysOf(groups));

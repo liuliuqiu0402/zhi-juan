@@ -191,7 +191,10 @@
       </div>
 
       <!-- 教材列表 -->
-      <div class="textbook-list">
+      <div
+        class="textbook-list"
+        :class="{ 'with-stage': showStageLevel }"
+      >
         <div
           v-if="filteredTextbooks.length === 0"
           class="empty-tip"
@@ -214,36 +217,42 @@
           v-for="grp in groupedTextbooks"
           :key="grp.key"
         >
-          <div
-            v-if="showStageLevel"
-            class="group-header group-stage"
-            :title="`${grp.label}：共 ${grp.count} 本`"
-            @click="toggleCollapse(grp.key)"
-          >
-            <span class="group-caret">{{ isCollapsed(grp.key) ? '▶' : '▼' }}</span>
-            <span class="group-name">{{ grp.label }}</span>
-            <span class="group-count">{{ grp.count }}</span>
-          </div>
-          <template
-            v-for="sub in grp.subjects"
-            :key="sub.key"
-          >
+          <!-- 🔴 组头吸顶（2026-09-24 用户："滚动某一学科这一类的书时，学科组头能不能不跟着
+               滚上去？方便随时点收放"）。吸顶必须**按组限定作用域**——否则第一组的学科组头
+               会一直悬在第二组内容上面。故每一组各套一层 .group-block 作为 sticky 的包含块；
+               块内 gap 仍是 8px，与原先"列表直接铺子项"的间距完全一致，视觉不变。 -->
+          <div class="group-block group-block-stage">
             <div
-              v-if="showSubjectLevel && !isCollapsed(grp.key)"
-              class="group-header group-subject"
-              :title="`${sub.label}：共 ${sub.count} 本`"
-              @click="toggleCollapse(sub.key)"
+              v-if="showStageLevel"
+              class="group-header group-stage"
+              :title="`${grp.label}：共 ${grp.count} 本`"
+              @click="toggleCollapse(grp.key, $event)"
             >
-              <span class="group-caret">{{ isCollapsed(sub.key) ? '▶' : '▼' }}</span>
-              <span class="group-name">{{ sub.label }}</span>
-              <span class="group-count">{{ sub.count }}</span>
+              <span class="group-caret">{{ isCollapsed(grp.key) ? '▶' : '▼' }}</span>
+              <span class="group-name">{{ grp.label }}</span>
+              <span class="group-count">{{ grp.count }}</span>
             </div>
-            <template v-if="!isCollapsed(grp.key) && !isCollapsed(sub.key)">
-              <div
-                v-for="book in sub.items"
-                :key="book.id"
-                class="textbook-item"
-              >
+            <template
+              v-for="sub in grp.subjects"
+              :key="sub.key"
+            >
+              <div class="group-block group-block-subject">
+                <div
+                  v-if="showSubjectLevel && !isCollapsed(grp.key)"
+                  class="group-header group-subject"
+                  :title="`${sub.label}：共 ${sub.count} 本`"
+                  @click="toggleCollapse(sub.key, $event)"
+                >
+                  <span class="group-caret">{{ isCollapsed(sub.key) ? '▶' : '▼' }}</span>
+                  <span class="group-name">{{ sub.label }}</span>
+                  <span class="group-count">{{ sub.count }}</span>
+                </div>
+                <template v-if="!isCollapsed(grp.key) && !isCollapsed(sub.key)">
+                  <div
+                    v-for="book in sub.items"
+                    :key="book.id"
+                    class="textbook-item"
+                  >
           <div class="item-header">
             <input 
               type="checkbox" 
@@ -340,8 +349,10 @@
             />
           </div>
         </div>
+                </template>
+              </div>
             </template>
-          </template>
+          </div>
         </template>
       </div>
     </div>
@@ -3644,7 +3655,10 @@ const saveTextbook = async () => {
           walk(rt.outline, 0);
           console.log(`🧾 PDF 回读校验：文件内实际 ${rt.count} 条书签\n` + lines.join('\n'));
         } else {
-          console.warn('🧾 PDF 回读校验未通过：', (rt && (rt.message || rt.error)) || '未知');
+          // 返回形状不符时把原始内容打出来，避免只留一句"未知"没法排查
+          let raw = '';
+          try { raw = JSON.stringify(rt); } catch { raw = String(rt); }
+          console.warn('🧾 PDF 回读校验未通过：', (rt && (rt.message || rt.error)) || raw || '未知');
         }
       } catch (e) {
         console.warn('🧾 PDF 回读校验异常：', e?.message || e);
@@ -3773,6 +3787,10 @@ const saveTextbook = async () => {
   font-size: 11px;
   border-radius: 6px;
 }
+/* 📚 分组块：为吸顶组头提供**按组限定**的包含块——sticky 的作用域是它的包含块，
+   若组头直接铺在 .textbook-list 下，第一组的组头会一直悬在第二组内容上面。
+   块内 gap 与原列表 gap 同为 8px，间距视觉零变化。 */
+.group-block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .textbook-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
 .textbook-item { border: 1px solid var(--border-light); border-radius: 8px; padding: 8px; background: white; }
 
@@ -3781,12 +3799,20 @@ const saveTextbook = async () => {
   display: flex; align-items: center; gap: 6px;
   padding: 5px 8px; border-radius: 6px;
   background: #eef3fa; color: var(--primary);
-  font-size: 13px; font-weight: 600;
+  font-size: 13px; line-height: 16px; font-weight: 600;
   cursor: pointer; user-select: none;
+  /* 🔴 组头吸顶（2026-09-24 用户："滚动某一学科这一类的书时，学科组头能不能不跟着滚上去？
+     方便随时点收放"）。--group-header-h = line-height 16 + 上下 padding 各 5 = 26px，
+     供学科组头下移、让开吸顶的学段组头；line-height 显式写死，是为了让这个高度可预期
+     （否则字体/系统缩放差异会造成 1~2px 错位）。 */
+  --group-header-h: 26px;
+  position: sticky; top: 0; z-index: 3;
 }
 .group-header:hover { background: #e2ebf7; }
-.group-stage { background: #e8f0fa; }
+.group-stage { background: #e8f0fa; z-index: 4; }
 .group-subject { margin-left: 10px; background: #f6f8fb; color: var(--text-secondary, #555); font-weight: 500; }
+/* 学科组头默认贴顶；只有同时显示学段组头时才让位到它下方（筛到单一学段时不再套学段组头） */
+.textbook-list.with-stage .group-subject { top: var(--group-header-h); }
 .group-subject:hover { background: #eef3fa; }
 .group-caret { width: 10px; font-size: 10px; }
 .group-name { flex: 1; }
