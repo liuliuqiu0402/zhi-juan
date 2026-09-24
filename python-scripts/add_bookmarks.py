@@ -39,15 +39,23 @@ def add_bookmarks_pikepdf(pdf_path, bookmarks, output_path):
 
             if level <= 1:
                 outline.root.append(item)
+                parents.clear()          # 新的一级章节：此前所有祖先全部作废
                 parents[1] = item
-                parents.pop(2, None)
-                parents.pop(3, None)
             else:
                 parent = parents.get(level - 1)
                 if parent:
                     parent.children.append(item)
                 else:
+                    # 父级不存在（层级跳档，或首项就是子级）→ 退到顶层，
+                    # 绝不挂到"过期祖先"上
                     outline.root.append(item)
+                # 🔴 关键修正：只保留 <= 当前层级 的祖先，清掉更深的过期条目。
+                #    原实现只 pop 2/3，四级、五级祖先永远残留 —— 手动新增的章节
+                #    会继承上一章的深层 level，于是被挂到**很早已出现的过期祖先**下，
+                #    在书签树里跑到别的章节里去了；用户看到的现象就是
+                #    "编辑框里明明有、保存的 PDF 书签里却没有"。
+                for k in [k for k in parents if k > level]:
+                    parents.pop(k, None)
                 parents[level] = item
 
     pdf.save(output_path)
@@ -80,15 +88,18 @@ def add_bookmarks_pypdf2(pdf_path, bookmarks, output_path):
 
         if level <= 1:
             parent = writer.add_outline_item(title, target_page)
+            parents.clear()              # 新的一级章节：此前所有祖先全部作废
             parents[1] = parent
-            parents.pop(2, None)
-            parents.pop(3, None)
         else:
             parent_outline = parents.get(level - 1)
             if parent_outline:
                 child = writer.add_outline_item(title, target_page, parent=parent_outline)
             else:
+                # 父级不存在（层级跳档，或首项就是子级）→ 退到顶层
                 child = writer.add_outline_item(title, target_page)
+            # 同 pikepdf 分支：清掉比当前层级更深的过期祖先（原因见上）
+            for k in [k for k in parents if k > level]:
+                parents.pop(k, None)
             parents[level] = child
 
     with open(output_path, 'wb') as f:

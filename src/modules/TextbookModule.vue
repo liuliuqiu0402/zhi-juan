@@ -3520,7 +3520,19 @@ const saveTextbook = async () => {
     isSaving.value = true;
     saveStatus.value = '正在保存...';
     
-    let outlineForSave = [];
+    // 🔴 保存前先把「编辑器里看到的」冻结成一份快照树，书签与入库都只用这一份。
+    //    历史 bug（用户实测：加载原有目录后手动新增的行，编辑框里有、PDF 书签里没有）：
+    //    书签读 flatOutline、入库读 displayOutline，二者靠 updateDisplayTree 的 setTimeout
+    //    异步同步，且每次重建后 flatOutline 会变成与 displayOutline **脱钩的新副本** ——
+    //    保存发生在同步空档时，手动新增/改名的行就会漏进不了书签。
+    //    现在：flatOutline（=编辑器所见）→ 同步重建 → 同一份 committedTree 供书签 + 入库，
+    //    从结构上保证「所见即所签、所见即所存」。
+    const committedFlat = flatOutline.value.map(i => ({ ...i, children: [] }));
+    fastCalculatePageRanges(committedFlat, totalPages.value);
+    const committedTree = fastRebuildTree(committedFlat, totalPages.value);
+    displayOutline.value = committedTree;
+    originalOutline.value = JSON.parse(JSON.stringify(committedTree));
+    let outlineForSave = JSON.parse(JSON.stringify(committedTree));
     
     const storagePath = getStoragePath();
     const ext = tempFilePath.value.split('.').pop().toLowerCase();
@@ -3590,13 +3602,19 @@ const saveTextbook = async () => {
         saveStatus.value = '正在生成书签...';
       }      
       
-      const bookmarks = flatOutline.value.map(item => ({
+      const bookmarks = committedFlat.map(item => ({
         // 🔧 PDF 书签（Outline）是纯文本层，放不下印刷字形；含公式的标题把 $…$ 源码
         //    转成可读公式（√(ab)⩽(a+b)/2 这类线性文本），别让 WPS 书签里露出 $…$ 源码。
         title: hasMath(item.title) ? convertFormulasInHtml(item.title) : item.title,
         page: item.originalPage ? item.originalPage + pageOffset.value : item.page,
         level: item.level + 1
       }));
+      // 🔴 书签明细入日志（手机端无 DevTools 时的唯一对照手段）：保存后再对不上，
+      //    一眼就能判断是「书签数组里就没有」还是「数组有、PDF/WPS 里看不到」。
+      console.log(
+        `🧷 生成书签 ${bookmarks.length} 条（编辑框 ${committedFlat.length} 行）:\n` +
+        bookmarks.map(b => `${'　'.repeat(Math.max(0, b.level - 1))}${b.title} (p${b.page})`).join('\n')
+      );
       
       console.log('📍 直接生成带书签PDF到目标路径:', pdfPath);
       // 设置30秒超时
@@ -3610,7 +3628,29 @@ const saveTextbook = async () => {
         throw new Error('添加书签失败: ' + (bookmarkResult?.error || '未知错误'));
       }
       
-      outlineForSave = JSON.parse(JSON.stringify(displayOutline.value));
+      // 🔴 回读刚生成的 PDF，把「文件里实际有什么」打进日志。
+      //    用来区分两种完全不同的情况：①书签压根没写进文件；②写进去了、但阅读器里
+      //    看的是旧文件 / 条目被缩进在某个父级下不好找。没有这一步，只能靠猜。
+      try {
+        const rt = await window.electronAPI.extractPdfOutline(pdfPath);
+        if (rt && rt.success) {
+          const lines = [];
+          const walk = (nodes, depth) => {
+            for (const n of nodes || []) {
+              lines.push('　'.repeat(depth) + n.title);
+              if (n.children && n.children.length) walk(n.children, depth + 1);
+            }
+          };
+          walk(rt.outline, 0);
+          console.log(`🧾 PDF 回读校验：文件内实际 ${rt.count} 条书签\n` + lines.join('\n'));
+        } else {
+          console.warn('🧾 PDF 回读校验未通过：', (rt && (rt.message || rt.error)) || '未知');
+        }
+      } catch (e) {
+        console.warn('🧾 PDF 回读校验异常：', e?.message || e);
+      }
+      
+      outlineForSave = JSON.parse(JSON.stringify(committedTree));
       
       finalFileName = `${textbookId}_带书签.pdf`;
     } else {
@@ -3619,7 +3659,7 @@ const saveTextbook = async () => {
       totalPages.value = 1;
       finalFileName = `${textbookId}.${ext}`;
       
-      outlineForSave = JSON.parse(JSON.stringify(displayOutline.value));
+      outlineForSave = JSON.parse(JSON.stringify(committedTree));
     }
     
     if (hasExistingCover) {
