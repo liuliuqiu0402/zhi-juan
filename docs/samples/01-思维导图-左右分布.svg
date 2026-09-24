@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="453" height="187" viewBox="0 0 453 187" font-family='"Microsoft YaHei","PingFang SC","Source Han Sans SC","Noto Sans CJK SC",sans-serif' text-rendering="geometricPrecision" shape-rendering="geometricPrecision">
+<rect x="0" y="0" width="453" height="187" fill="#ffffff"/>
+<path d="M 178 94 C 168 94, 168 53, 158 53" fill="none" stroke="#1f7a5c" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>
+<path d="M 178 94 C 168 94, 168 135, 158 135" fill="none" stroke="#3d6b8a" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>
+<path d="M 275 94 C 285 94, 285 94, 295 94" fill="none" stroke="#1f7a5c" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>
+<path d="M 97 53 C 87 53, 87 32, 77 32" fill="none" stroke="#1f7a5c" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>
+<path d="M 97 53 C 87 53, 87 73, 77 73" fill="none" stroke="#1f7a5c" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>
+<path d="M 97 135 C 87 135, 87 114, 77 114" fill="none" stroke="#3d6b8a" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>
+<path d="M 97 135 C 87 135, 87 155, 77 155" fill="none" stroke="#3d6b8a" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>
+<path d="M 343 94 C 359.5 94, 359.5 73, 376 73" fill="none" stroke="#1f7a5c" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>
+<path d="M 343 94 C 359.5 94, 359.5 114, 376 114" fill="none" stroke="#1f7a5c" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>
+<rect x="178" y="78" width="97" height="32" rx="8" fill="#2b3a4a"/>
+<text x="189" y="100.9" font-size="15" font-weight="600" fill="#ffffff" text-anchor="start">函数的性质</text>
+<rect x="97" y="37" width="61" height="32" rx="6" fill="#ffffff" stroke="#1f7a5c" stroke-width="1.3"/>
+<text x="147" y="57.8" font-size="13" font-weight="500" fill="#2f3540" text-anchor="end">单调性</text>
+<rect x="16" y="16" width="61" height="32" rx="6" fill="#ffffff" stroke="#1f7a5c" stroke-width="1.3"/>
+<text x="66" y="36.8" font-size="13" font-weight="400" fill="#2f3540" text-anchor="end">增函数</text>
+<rect x="16" y="57" width="61" height="32" rx="6" fill="#ffffff" stroke="#1f7a5c" stroke-width="1.3"/>
+<text x="66" y="77.8" font-size="13" font-weight="400" fill="#2f3540" text-anchor="end">减函数</text>
+<rect x="97" y="119" width="61" height="32" rx="6" fill="#ffffff" stroke="#3d6b8a" stroke-width="1.3"/>
+<text x="147" y="139.8" font-size="13" font-weight="500" fill="#2f3540" text-anchor="end">奇偶性</text>
+<rect x="16" y="98" width="61" height="32" rx="6" fill="#ffffff" stroke="#3d6b8a" stroke-width="1.3"/>
+<text x="66" y="118.8" font-size="13" font-weight="400" fill="#2f3540" text-anchor="end">奇函数</text>
+<rect x="16" y="139" width="61" height="32" rx="6" fill="#ffffff" stroke="#3d6b8a" stroke-width="1.3"/>
+<text x="66" y="159.8" font-size="13" font-weight="400" fill="#2f3540" text-anchor="end">偶函数</text>
+<rect x="295" y="78" width="48" height="32" rx="6" fill="#ffffff" stroke="#1f7a5c" stroke-width="1.3"/>
+<text x="306" y="98.8" font-size="13" font-weight="500" fill="#2f3540" text-anchor="start">最值</text>
+<rect x="376" y="57" width="61" height="32" rx="6" fill="#ffffff" stroke="#1f7a5c" stroke-width="1.3"/>
+<text x="387" y="77.8" font-size="13" font-weight="400" fill="#2f3540" text-anchor="start">最大值</text>
+<rect x="376" y="98" width="61" height="32" rx="6" fill="#ffffff" stroke="#1f7a5c" stroke-width="1.3"/>
+<text x="387" y="118.8" font-size="13" font-weight="400" fill="#2f3540" text-anchor="start">最小值</text>
+</svg>
