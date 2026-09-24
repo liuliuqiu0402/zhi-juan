@@ -18,6 +18,7 @@
  *       多节点同属一个单元    → 单元标题（仅当公共祖先是"真容器"且处于目录层级1+，防误取书目名）
  *       跨单元多选 / 无公共祖先 → 默认标签词（综合检测）
  */
+import { getSelected } from '../utils/outlineTree.js';
 
 /** 范围标签词池（显式范围类型使用）。词条自带类型语义（…测试/测评/卷/检测） */
 export const SCOPE_LABEL_POOLS = {
@@ -156,6 +157,39 @@ export function inferPaperScope(chapters = [], outline = [], scopeType = '', pic
 
 /** 附属顶层节点正则：语文园地/综合练习/单元小结/复习等（教材中随附前一个单元，不算独立单元） */
 const ATTACHED_TOP_RE = /园地|综合练习|单元小结|复习与|总复习|整理与复习/i;
+
+/**
+ * 🔴 教材记录的"勾选章节"取数（本模块唯一口径，2026-09-24 根治）。
+ *
+ * 为什么需要它：`selectedChapters` 是 **store 的派生字段**（`getSelectedChapters(outline)` 现算），
+ * 教材库里的裸记录上**没有这个字段**。此前"组装生成指令"直接读裸记录的 `book.selectedChapters`
+ * → 恒为 undefined → 章节清单恒为空 → `inferPaperScope([])` 一路退化到 `categorizeUnits([],…)`
+ * → 范围名变成一个**与勾选无关的默认标签词**（综合检测/综合达标…）。
+ * 表现就是用户实证的"改了勾选、指令里的范围不跟着变"。
+ *
+ * 取数优先级：映射好的派生字段（调用方已算过）> 从 outline 的 `selected` 标志现推。
+ * 两种形态都成立 ⇒ 任何调用方忘了映射也不会再静默退化成标签词。
+ *
+ * @param {object} book 教材记录（可含派生字段 selectedChapters，也可只有 outline）
+ * @param {boolean} [opts.onlyAnalyzed] 是否排除"取消参与分析"的章节（默认 false = 勾选即范围）
+ */
+export const selectedChaptersOf = (book = {}, { onlyAnalyzed = false } = {}) => {
+  const own = Array.isArray(book?.selectedChapters) ? book.selectedChapters.filter(Boolean) : [];
+  const list = own.length ? own : getSelected(book?.outline || null);
+  return onlyAnalyzed ? list.filter((ch) => ch && ch._selectedForAnalysis !== false) : list;
+};
+
+/**
+ * 教材记录 → 命题范围名（`inferPaperScope` 的记录级入口，范围命名只走这一条）。
+ * 默认 `onlyAnalyzed: true`，与"卷首标题/文档命名"既有口径一致（排除取消参与分析的章节）。
+ */
+export const inferScopeFromBook = (book, scopeType = '', pickScope, { onlyAnalyzed = true } = {}) =>
+  inferPaperScope(
+    selectedChaptersOf(book, { onlyAnalyzed }),
+    book?.outline || [],
+    scopeType,
+    pickScope,
+  );
 
 /**
  * 学年度学期推断（正式考试（期中/期末/月考）卷首标题前缀用）。

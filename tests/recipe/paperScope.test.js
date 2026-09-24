@@ -1,10 +1,11 @@
 // 命题范围断言测试：单课/整单元/跨单元（期中/期末/月考/专题）命名 + 卷首标题拼装 + 避重
 import { describe, it, expect } from 'vitest';
 import {
-  inferPaperScope, findCommonAncestorIndex,
+  inferPaperScope, inferScopeFromBook, selectedChaptersOf, findCommonAncestorIndex,
   categorizeUnits, effectiveUnitIndices, buildScopeCandidates, EXPLICIT_SCOPE_TYPES, inferAcademicTerm,
   SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES,
 } from '@/config/paperScope.js';
+import { getSelected } from '@/utils/outlineTree.js';
 
 // 仿真教材目录：top 单元 → 课（叶子）
 const outline = [
@@ -264,5 +265,55 @@ describe('升学考卷别（小升初/中考/高考）—— 完整落地', () =
     expect(buildScopeCandidates([kecheng1], outline, 'xiaoshengchu')).toEqual([]);
     expect(buildScopeCandidates([kecheng1], outline, 'zhongkao')).toEqual([]);
     expect(buildScopeCandidates([kecheng1], outline, 'gaokao')).toEqual([]);
+  });
+});
+
+// 🔴 2026-09-24 根治（用户实证："改了勾选，指令里的范围不跟着变"）：
+//    `selectedChapters` 是 store 的**派生字段**，教材库裸记录上没有它。
+//    "组装生成指令"此前直接读裸记录 `book.selectedChapters` → 恒为空 → 范围名退化成默认标签词
+//    （综合检测/综合达标…），与勾选无关。本组锁住"记录级入口"两种形态都取得到真实勾选。
+describe('inferScopeFromBook / selectedChaptersOf —— 教材记录级入口', () => {
+  // 真实形态：勾选单元时，单元与其子课**都会带 selected 标志**（树的勾选是逐节点写的）
+  const mkOutline = (unitChecked, checkedLessons) => [
+    {
+      title: '第一单元',
+      selected: unitChecked,
+      children: [
+        { title: '1 草原', selected: checkedLessons.includes('1 草原') },
+        { title: '2 丁香结', selected: checkedLessons.includes('2 丁香结') },
+      ],
+    },
+    { title: '第二单元', selected: false, children: [{ title: '3 古诗词三首', selected: false }] },
+  ];
+
+  it('裸记录（无派生字段）：取消单元、只留一课 → 课名（本次修复的核心场景）', () => {
+    const book = { outline: mkOutline(false, ['2 丁香结']) };
+    expect(selectedChaptersOf(book).map(c => c.title)).toEqual(['2 丁香结']);
+    const r = inferScopeFromBook(book, 'default');
+    expect(r.name).toBe('2 丁香结');
+    expect(r.isScopeLabel).toBe(false); // 关键：不得退化成"综合检测"
+  });
+
+  it('裸记录：整单元勾选 → 单元名', () => {
+    const book = { outline: mkOutline(true, ['1 草原', '2 丁香结']) };
+    expect(inferScopeFromBook(book, 'default').name).toBe('第一单元');
+  });
+
+  it('已映射的派生记录与裸记录结果逐字一致（忘映射不再出事）', () => {
+    const outline = mkOutline(false, ['2 丁香结']);
+    expect(inferScopeFromBook({ outline }, 'default').name)
+      .toBe(inferScopeFromBook({ outline, selectedChapters: getSelected(outline) }, 'default').name);
+  });
+
+  it('onlyAnalyzed：取消"参与分析"的章节不计入范围名（与标题端既有口径一致）', () => {
+    const outline = mkOutline(false, ['2 丁香结']);
+    outline[0].children[1]._selectedForAnalysis = false;
+    expect(inferScopeFromBook({ outline }, 'default').name).not.toBe('2 丁香结'); // 默认排除
+    expect(inferScopeFromBook({ outline }, 'default', undefined, { onlyAnalyzed: false }).name).toBe('2 丁香结');
+  });
+
+  it('旧写法（直接读裸记录字段）必退化成默认标签词 —— 病因留档，防回退', () => {
+    const book = { outline: mkOutline(false, ['2 丁香结']) };
+    expect(inferPaperScope(book.selectedChapters || [], book.outline, 'default').isScopeLabel).toBe(true);
   });
 });
