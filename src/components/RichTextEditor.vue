@@ -603,6 +603,9 @@ import Superscript from '@tiptap/extension-superscript';
 import { FontFamily } from '@tiptap/extension-font-family';
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
 import { Extension, Mark, Node } from '@tiptap/core';
+// 🧩 导图透传节点：tiptap 的 schema 里没有 svg/figure，程序化注入的导图会被静默剥掉
+//    （与当年 `<div>` 被丢、公式被丢同一类问题）。见 utils/tiptapDiagramFigure 的注释与配套测试。
+import { createDiagramFigureNode } from '../utils/tiptapDiagramFigure.js';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { normalizeWhitespaceCarriers, normalizeLeadingMarkers, normalizeMathCircleBlanks, ensureCarrierContent, wrapBareBlankRuns } from '../utils/contentCleaner.js'; // 全局归一：纯空白装饰标记→填空横线 + 行首"项目符号+序号"剥离 + 算式 ○→数学填空圈 + 空载体兜底填充（装载/粘贴统一，旧内容回改） + 裸书写空（全角/em 空格）→填空横线
 import { convertPastedMathInHtml } from '../utils/pastedMath.js'; // 粘贴公式还原：Word OMML / 网页 MathML → $…$ LaTeX（交给 KaTeX 出印刷形态）
@@ -1173,9 +1176,12 @@ const layoutVars = computed(() => {
 //    定义在 useEditor 之前：onSelectionUpdate 回调会引用它，避免 TDZ 报错
 const alphaCase = ref('a');
 
+// 🧩 导图节点实例（与 pageBreak / DivWrapper / DrawArea 同一手法注册进 schema）
+const DiagramFigure = createDiagramFigureNode();
+
 const editor = useEditor({
   content: props.modelValue,
-  editable: props.editable,
+    editable: props.editable,
   extensions: [
     StarterKit.configure({
       history: { depth: 100 },
@@ -1222,6 +1228,7 @@ const editor = useEditor({
     BracketGrid,
     DrawArea,
     DivWrapper,
+    DiagramFigure,
   ],
   onUpdate: ({ editor }) => {
     isInternalUpdate = true;  // 🔧 标记内部更新，防止 watch 回弹 setContent

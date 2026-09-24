@@ -10,7 +10,8 @@
  * ============================================================
  */
 import { describe, it, expect } from 'vitest';
-import { stripXss, normalizeTypographicSymbols, stripAiCodeFence, cleanSectionHtml } from '../../src/utils/contentCleaner.js';
+import { stripXss, normalizeTypographicSymbols, stripAiCodeFence, cleanSectionHtml, wrapBareBlankRuns, normalizeMathCircleBlanks, normalizeLeadingMarkers, ensureCarrierContent, normalizeWhitespaceCarriers, normalizeIndents, normalizeBlankMarkers } from '../../src/utils/contentCleaner.js';
+import { normalizeRubyTags } from '../../src/utils/rubyNormalizer.js';
 import { buildDiagramSvg } from '../../src/utils/diagrams/index.js';
 import { toResponsiveSvg } from '../../src/utils/diagramBlock.js';
 
@@ -64,5 +65,22 @@ describe('导图 · 内容清洗链路存活', () => {
     const out = asHtml(cleanSectionHtml(`<p>前</p>${raw}<p>后</p>`));
     expect(out).toContain('k-diagram');
     expect(out).toContain('{"title":"根"}');
+  });
+
+  it('排版编辑器载入前预处理链（按 prepareHtmlForLoad 的真实顺序复刻）不误伤导图', () => {
+    // RichTextEditor.prepareHtmlForLoad 的同一批归一化，顺序按该函数由内到外。
+    // 注：其中"短十六进制色/class→内联样式/双编号列表"三个归一化未对外导出，无法在此直调，
+    //     由本文件上面的 DOM 往返用例 + tiptapDiagramFigure 的真编辑器往返用例共同覆盖。
+    const chain = [
+      normalizeWhitespaceCarriers, normalizeMathCircleBlanks, normalizeLeadingMarkers,
+      normalizeRubyTags, ensureCarrierContent, wrapBareBlankRuns,
+      normalizeIndents, normalizeBlankMarkers, stripXss,
+    ];
+    let out = DOC;
+    for (const fn of chain) {
+      const r = fn(out);
+      if (typeof r === 'string') out = r;   // 返回非字符串（对象/undefined）时按"未改动"处理
+    }
+    stillIntact(out, '载入前预处理链');
   });
 });

@@ -24,6 +24,60 @@ import { buildDiagramSvg, DIAGRAM_TYPES } from './diagrams/index.js';
 /** 导图块的标记类名（必须是 class，模型最容易稳定复现） */
 export const DIAGRAM_BLOCK_CLASS = 'k-diagram';
 
+/** 渲染产物（figure）的类名与"规格"属性名 —— 富文本编辑器与导出链路都按这两个名字认它 */
+export const FIGURE_CLASS = 'k-diagram-figure';
+export const SPEC_ATTR = 'data-k-spec';
+
+/**
+ * 🔴 为什么必须把**原始规格**留在 figure 上（2026-09-24 用户："所有生成的内容要从排版模块排版后再导出的，
+ *    所以不能让生成的内容静默丢弃"）：
+ *    导图在生成阶段就被渲染成了内联 SVG（导图块 JSON 随即消失）。一旦某个环节把 SVG 丢掉，
+ *    数据就**不可逆**没了（不像公式丢了还能从 $…$ 重渲染）。留一份规格 = 任何时候都能重画出来。
+ *    同时它也是"改版式/换图种不必重新调模型"的地基。
+ */
+
+/** 规格属性 → SVG（属性里的 JSON 坏了也不抛错：返回空串并告警，规格本身仍在图上可重画） */
+export const svgFromSpecAttr = (raw) => {
+  const spec = readSpecAttr(raw);
+  if (!spec) return '';
+  try {
+    return buildDiagramSvg(spec).svg || '';
+  } catch (e) {
+    console.warn('⚠️ 导图规格重绘失败：', e?.message || e);
+    return '';
+  }
+};
+
+/** 规格属性 → 结构化 spec 对象（坏数据返回 null，绝不抛错） */
+export const readSpecAttr = (raw) => {
+  const s = String(raw == null ? '' : raw).trim();
+  if (!s) return null;
+  try {
+    const o = JSON.parse(s);
+    return o && typeof o === 'object' ? o : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * 造一张导图 figure 元素（渲染块与富文本编辑器**共用同一实现**，避免两处各写一份样式/属性）。
+ * @param {object} spec 结构化规格（含 type）
+ * @param {Document|any} docRef 目标 document（DOM 路径传 window.document；字符串路径传 DOMParser 的文档）
+ * @param {object} opts 传给 buildDiagramSvg 的选项
+ * @returns {{el:Element, width:number, height:number} | null}
+ */
+export const buildFigureElement = (spec, docRef, opts = {}) => {
+  if (!spec || !docRef) return null;
+  const { svg, width, height } = buildDiagramSvg(spec, opts);
+  const fig = docRef.createElement('figure');
+  fig.className = FIGURE_CLASS;
+  fig.setAttribute('style', 'margin:12px 0;text-align:center;');
+  fig.setAttribute(SPEC_ATTR, JSON.stringify(spec));
+  fig.innerHTML = toResponsiveSvg(svg);
+  return { el: fig, width, height };
+};
+
 /**
  * A4 竖版正文版心宽度（px @96dpi ≈ 794 - 页边距）。导图自然宽度超过它就会被等比缩小，
  * 缩到 ~0.5 时 13px 的字只相当于 4~5pt，印出来看不清 —— 这类"静默变糊"必须自己喊出来。
@@ -93,17 +147,14 @@ export const renderDiagramBlocks = (html, opts = {}) => {
       continue; // 🔴 保留原块：宁可让 JSON 原文露出来，也不能把内容删掉
     }
     try {
-      const { svg, width, height } = buildDiagramSvg(parsed.spec, opts);
+      const built = buildFigureElement(parsed.spec, doc, opts);
+      if (!built) throw new Error('出图返回空');
       // 印刷可读性体检：超宽会被缩到看不清（见 PRINT_SAFE_WIDTH 注释）
-      if (width > PRINT_SAFE_WIDTH) {
-        const ratio = (PRINT_SAFE_WIDTH / width).toFixed(2);
-        warnings.push(`${labelOf(parsed.type)} 宽 ${width}px，超出 A4 版心，将缩到 ${ratio} 倍（${(13 * Number(ratio)).toFixed(1)}px ≈ ${(13 * Number(ratio) * 0.75).toFixed(1)}pt 字），印出来可能偏小`);
+      if (built.width > PRINT_SAFE_WIDTH) {
+        const ratio = (PRINT_SAFE_WIDTH / built.width).toFixed(2);
+        warnings.push(`${labelOf(parsed.type)} 宽 ${built.width}px，超出 A4 版心，将缩到 ${ratio} 倍（${(13 * Number(ratio)).toFixed(1)}px ≈ ${(13 * Number(ratio) * 0.75).toFixed(1)}pt 字），印出来可能偏小`);
       }
-      const figure = doc.createElement('figure');
-      figure.className = 'k-diagram-figure';
-      figure.setAttribute('style', 'margin:12px 0;text-align:center;');
-      figure.innerHTML = toResponsiveSvg(svg);
-      el.parentNode?.replaceChild(figure, el);
+      el.parentNode?.replaceChild(built.el, el);
       count++;
     } catch (e) {
       failures.push(`出图失败(${parsed.type})：${e?.message || e}`);
