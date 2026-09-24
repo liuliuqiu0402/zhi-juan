@@ -16,6 +16,8 @@
  */
 import { buildFigureElement, PRINT_SAFE_WIDTH } from './diagramBlock.js';
 import { DIAGRAM_TYPES } from './diagrams/index.js';
+// 🎚 分级开关（默认全关）：验收通过一类才开一类，见 config/graphRenderPolicy.js
+import { isGraphRenderEnabledFor } from '../config/graphRenderPolicy.js';
 
 /** 指令块颜色名 → 十六进制（[GRAPH] 契约里写的是 red/blue 这类名字，渲染器要十六进制） */
 const COLOR_NAMES = {
@@ -145,11 +147,13 @@ const labelOf = (type) => (DIAGRAM_TYPES.find((d) => d.value === type)?.label ||
  */
 export const renderGraphBlocks = (html, opts = {}) => {
   const src = String(html == null ? '' : html);
-  if (!src || !/\[GRAPH\]/i.test(src)) return { html: src, count: 0, failures: [], warnings: [] };
-  if (typeof DOMParser === 'undefined') return { html: src, count: 0, failures: [], warnings: [] };
+  if (!src || !/\[GRAPH\]/i.test(src)) return { html: src, count: 0, failures: [], warnings: [], skipped: 0 };
+  if (typeof DOMParser === 'undefined') return { html: src, count: 0, failures: [], warnings: [], skipped: 0 };
 
   const doc = new DOMParser().parseFromString('<div id="__g_root"></div>', 'text/html');
+  const policy = opts.renderPolicy;   // { enabled, types } —— 覆盖配置，供单测与调用方按需放开
   let count = 0;
+  let skipped = 0;
   const failures = [];
   const warnings = [];
 
@@ -158,6 +162,11 @@ export const renderGraphBlocks = (html, opts = {}) => {
     if (!spec) {
       const t = /TYPE\s*:\s*([A-Za-z_]+)/i.exec(body);
       failures.push(`不支持的图形类型或字段不全：${t ? t[1] : '未标 TYPE'}（已原样保留指令文本）`);
+      return whole;
+    }
+    // 🎚 该类型尚未通过对照验收 → 原样保留指令文本，用户照旧"复制该条"去 EduRender Studio 出图
+    if (!isGraphRenderEnabledFor(spec.type, policy)) {
+      skipped++;
       return whole;
     }
     try {
@@ -174,7 +183,7 @@ export const renderGraphBlocks = (html, opts = {}) => {
     }
   });
 
-  return { html: out, count, failures, warnings };
+  return { html: out, count, failures, warnings, skipped };
 };
 
 export default { parseGraphDirective, graphDirectiveToSpec, renderGraphBlocks };

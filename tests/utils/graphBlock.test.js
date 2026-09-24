@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { parseGraphDirective, graphDirectiveToSpec, renderGraphBlocks } from '../../src/utils/graphBlock.js';
+import { GRAPH_RENDER_ENABLED } from '../../src/config/graphRenderPolicy.js';
 import { createDiagramFigureNode } from '../../src/utils/tiptapDiagramFigure.js';
 import { SPEC_ATTR, FIGURE_CLASS } from '../../src/utils/diagramBlock.js';
 
@@ -46,8 +47,10 @@ YLABEL:数量
 [/GRAPH]`;
 
 const doc = (block) => `<p>题干</p><p>${block.replace(/\n/g, '<br>')}</p><p>后文</p>`;
-/** 指令块在正文里可能被 <br> 切断，这里还原成换行后交给渲染（与线上一致） */
-const render = (block) => renderGraphBlocks(`<p>题干</p>${block}<p>后文</p>`);
+/** 指令块在正文里可能被 <br> 切断，这里还原成换行后交给渲染（与线上一致）。
+ *  🔴 必须显式传策略：分级开关**默认全关**（未通过对照验收的类型不就地渲染），
+ *     不传就会走"原样保留指令文本"的分支，测不出出图能力。 */
+const render = (block) => renderGraphBlocks(`<p>题干</p>${block}<p>后文</p>`, { renderPolicy: { enabled: true } });
 
 describe('graphBlock · 指令解析', () => {
   it('键值 + 列表（SHAPES:/SERIES:）解析正确', () => {
@@ -153,5 +156,35 @@ describe('graphBlock · 就地出图', () => {
     expect(back).toContain(SPEC_ATTR);
     expect(back).toContain('后文');
     ed.destroy();
+  });
+});
+
+describe('graphBlock · 分级开关（默认全关，验收通过一类开一类）', () => {
+  it('默认策略：一律不就地渲染，指令文本原样保留（与从前行为完全一致）', () => {
+    expect(GRAPH_RENDER_ENABLED).toBe(false);
+    for (const block of [COORD, SHAPES, BAR]) {
+      const r = renderGraphBlocks(`<p>题干</p>${block}<p>后文</p>`);   // 不传 policy = 用默认配置
+      expect(r.count).toBe(0);
+      expect(r.skipped).toBe(1);
+      expect(r.failures).toEqual([]);
+      expect(r.html).toContain('[GRAPH]');       // 仍可"复制该条"去 EduRender Studio 出图
+      expect(r.html).not.toContain('<svg');
+    }
+  });
+
+  it('只放开某一类：该类出图，其它类型仍原样保留', () => {
+    const html = `<p>a</p>${BAR}<p>b</p>${COORD}<p>c</p>`;
+    const r = renderGraphBlocks(html, { renderPolicy: { enabled: true, types: ['barChart'] } });
+    expect(r.count).toBe(1);
+    expect(r.skipped).toBe(1);
+    expect(r.html).toContain('<svg');
+    expect(r.html).toContain('[GRAPH]');          // 坐标系那条没放开 → 指令仍在
+    expect((r.html.match(/\[GRAPH\]/g) || []).length).toBe(1);
+  });
+
+  it('未识别的类型（FORCE 等）仍记 failure，与开关无关', () => {
+    const r = renderGraphBlocks('<p>[GRAPH]\nTYPE:FORCE\n[/GRAPH]</p>', { renderPolicy: { enabled: true } });
+    expect(r.failures.length).toBe(1);
+    expect(r.skipped).toBe(0);
   });
 });

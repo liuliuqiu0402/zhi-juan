@@ -41,7 +41,7 @@ const KINDS = {
   '上标下标': '<p>10<sup>2</sup> 与 H<sub>2</sub>O</p>',
   '图片（data URL）': '<p><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==" alt="示意图"></p>',
   '导图（已渲染）': renderDiagramBlocks('<div class="k-diagram" data-type="mindmap">{"title":"根","children":[{"title":"枝"}]}</div>').html,
-  '图形指令（已就地渲染）': renderGraphBlocks('<p>[GRAPH]\nTYPE:BAR_CHART\nDATA:3,5,2\nLABELS:甲,乙,丙\n[/GRAPH]</p>').html,
+  '图形指令（已就地渲染）': renderGraphBlocks('<p>[GRAPH]\nTYPE:BAR_CHART\nDATA:3,5,2\nLABELS:甲,乙,丙\n[/GRAPH]</p>', { renderPolicy: { enabled: true } }).html,
 };
 
 const EXPECT = {
