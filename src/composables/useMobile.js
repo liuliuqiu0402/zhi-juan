@@ -134,11 +134,13 @@ export function useMobile() {
 
     // width/height 补偿：容器被 scale 缩小后视觉尺寸不变，
     // 防止 flex 布局因容器缩小导致内容被裁剪
+    // 🔧 2026-09 改用 zoom 而非 transform:scale：transform 是后置 GPU 像素重采样，
+    //    非整比例下发糊；zoom 走重排级布局缩放（Chromium/Safari/Firefox 均支持），
+    //    字符矢量重排保持清晰，fixed 弹窗内的文字同样干净。
     return {
       width: `${Math.ceil(_width.value / scale)}px`,
       height: `${Math.ceil(_height.value / scale)}px`,
-      transform: `scale(${scale.toFixed(4)})`,
-      transformOrigin: 'top left',
+      zoom: scale.toFixed(4),
     };
   });
 
@@ -159,8 +161,7 @@ export function useMobile() {
     return {
       width: `${Math.ceil(_width.value / scale)}px`,
       height: `${Math.ceil(_height.value / scale)}px`,
-      transform: `scale(${scale.toFixed(4)})`,
-      transformOrigin: 'top left',
+      zoom: scale.toFixed(4),
     };
   });
 
