@@ -88,3 +88,13 @@ public/test-*.html
 /_unit1_extract/
 /_unit1_text.txt
 /_unit1_timelian.docx
+
+# ── 本机留存（按裁定不入库，留在这里防误提交）──
+# 导图样张的 PNG 只是"肉眼快速看"的副本；矢量版在 docs/samples/*.svg，
+# 重跑 node scripts/gen-diagram-samples.mjs 即得（口径见 docs/samples/README.md）
+/导图样张/
+# 三项目协同评估的过程稿（边界结论已分别落在各项目 docs/协同边界.md）
+/docs/design/三项目协同评估/
+# 本机验证件
+/公式渲染效果验证.html
+/叮咚提示音试听对比.mp3
