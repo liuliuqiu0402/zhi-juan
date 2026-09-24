@@ -15,15 +15,21 @@
  *   ② 块有没有渲染：残留 class="k-diagram" = 模型出的块没渲染成功 → JSON 原文会露在正文里
  *   ③ 规格留存：data-k-spec 是否存在且是合法 JSON（排版页/换版式靠它重画）
  *   ④ 图种合法：spec.type 是否属于导图族 6 图种
- *   ⑤ 印刷可读性：SVG 宽度 > 760px 会被等比缩小，缩到多少倍、13px 字等效多少 pt（印不清就报）
+ *   ⑤ 印刷可读性：按**缩放比**判定（不是"超版心就报"）——缩到 0.8 倍以下才报，并给出等效 pt
  *   ⑥ SVG 健康度：坐标串里有没有 NaN / undefined（算坏了才会出现）
  *   ⑦ 自适应：<svg> 是否带 max-width:100%（不带会撑破 A4 版心）
+ *
+ * ⚠️ 本脚本刻意**不 import 项目模块**（项目是 Vite ESM，裸 node 跑不了），故阈值在此重复一份。
+ *    两个常量必须与 src/utils/diagramBlock.js 保持一致，由 tests/utils/diagramBlock.test.js 的
+ *    "单一事实源守卫"比对，改一边忘了另一边会立刻红。
  * ============================================================
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
-const PRINT_SAFE_WIDTH = 760;       // 与 src/utils/diagramBlock.js 的 PRINT_SAFE_WIDTH 同值
+const PRINT_SAFE_WIDTH = 760;   // = diagramBlock.PRINT_SAFE_WIDTH（A4 正文版心，px @96dpi）
+const PRINT_MIN_SCALE = 0.8;    // = diagramBlock.PRINT_MIN_SCALE（低于此缩放比才算"印出来看不清"）
+const PRINT_WARN_WIDTH = Math.round(PRINT_SAFE_WIDTH / PRINT_MIN_SCALE); // = 950
 const VALID_TYPES = ['mindmap', 'brace', 'flow', 'timeline', 'fishbone', 'concept'];
 const TYPE_LABEL = {
   mindmap: '思维导图', brace: '括号图', flow: '流程图',
@@ -104,9 +110,9 @@ function verify(file) {
   if (out.jsonLeakInBody === '发现') issues.push('正文里疑似有裸 JSON 泄漏');
   if (out.svgNaN === '疑似') issues.push('SVG 坐标串里有 NaN/undefined');
   for (const s of out.svgs) {
-    if (s.w && s.w > PRINT_SAFE_WIDTH) {
+    if (s.w && s.w > PRINT_WARN_WIDTH) {
       const ratio = PRINT_SAFE_WIDTH / s.w;
-      issues.push(`有图宽 ${s.w}px（超 A4 版心）→ 缩到 ${ratio.toFixed(2)} 倍，13px 字≈${(13 * ratio * 0.75).toFixed(1)}pt（印出来可能偏小）`);
+      issues.push(`有图宽 ${s.w}px → 缩放 ${ratio.toFixed(2)} 倍（低于 ${PRINT_MIN_SCALE}），13px 字≈${(13 * ratio * 0.75).toFixed(1)}pt（印出来可能偏小）`);
     }
     if (!s.responsive) issues.push(`有 <svg> 缺 max-width:100%（会撑破版心）`);
   }

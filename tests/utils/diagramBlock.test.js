@@ -6,6 +6,8 @@
  * ============================================================
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import {
   renderDiagramBlocks, parseDiagramBlock, toResponsiveSvg, DIAGRAM_BLOCK_CLASS,
   printReadabilityWarning, PRINT_WARN_WIDTH, PRINT_SAFE_WIDTH, PRINT_MIN_SCALE,
@@ -115,5 +117,15 @@ describe('diagramBlock · 标记块渲染', () => {
 
     const narrow = renderDiagramBlocks(OK_BLOCK);
     expect(narrow.warnings).toEqual([]);
+  });
+
+  // 🔴 核验脚本（scripts/verify-diagram-export.mjs）为了能裸 node 跑而**不 import 项目模块**，
+  //    阈值只能各写一份 → 天然会漂移。这里比对两处常量：改一边忘另一边立刻红
+  //    （曾真实发生：修好本模块的 760→950 判据后，脚本里仍是"超 760 即报"，会对同一张图给出相反结论）。
+  it('核验脚本的印刷阈值与本模块同源（防两套口径漂移）', () => {
+    const src = readFileSync(path.join(process.cwd(), 'scripts', 'verify-diagram-export.mjs'), 'utf8');
+    expect(src).toContain(`const PRINT_SAFE_WIDTH = ${PRINT_SAFE_WIDTH};`);
+    expect(src).toContain(`const PRINT_MIN_SCALE = ${PRINT_MIN_SCALE};`);
+    expect(src).toContain('const PRINT_WARN_WIDTH = Math.round(PRINT_SAFE_WIDTH / PRINT_MIN_SCALE);');
   });
 });
