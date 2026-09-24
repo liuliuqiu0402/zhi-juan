@@ -24,7 +24,16 @@ import { buildDiagramSvg, DIAGRAM_TYPES } from './diagrams/index.js';
 /** 导图块的标记类名（必须是 class，模型最容易稳定复现） */
 export const DIAGRAM_BLOCK_CLASS = 'k-diagram';
 
+/**
+ * A4 竖版正文版心宽度（px @96dpi ≈ 794 - 页边距）。导图自然宽度超过它就会被等比缩小，
+ * 缩到 ~0.5 时 13px 的字只相当于 4~5pt，印出来看不清 —— 这类"静默变糊"必须自己喊出来。
+ * （时间轴、鱼骨图是最容易超宽的两种：横向轴天生宽。）
+ */
+export const PRINT_SAFE_WIDTH = 760;
+
 const VALID_TYPES = new Set(DIAGRAM_TYPES.map((t) => t.value));
+/** 日志/告警里给人看的中文图种名（内部 value 是英文，直接打日志会让人看不懂） */
+const labelOf = (type) => (DIAGRAM_TYPES.find((d) => d.value === type)?.label || type);
 
 /** 去掉 ```json / ``` 包裹与首尾空白；模型常把 JSON 包在代码围栏里 */
 const stripFence = (raw) => String(raw || '')
@@ -73,6 +82,7 @@ export const renderDiagramBlocks = (html, opts = {}) => {
   const blocks = Array.from(root.querySelectorAll(`.${DIAGRAM_BLOCK_CLASS}`));
   let count = 0;
   const failures = [];
+  const warnings = [];
   for (const el of blocks) {
     const parsed = parseDiagramBlock(el.textContent, {
       type: el.getAttribute('data-type') || '',
@@ -83,7 +93,12 @@ export const renderDiagramBlocks = (html, opts = {}) => {
       continue; // 🔴 保留原块：宁可让 JSON 原文露出来，也不能把内容删掉
     }
     try {
-      const { svg } = buildDiagramSvg(parsed.spec, opts);
+      const { svg, width, height } = buildDiagramSvg(parsed.spec, opts);
+      // 印刷可读性体检：超宽会被缩到看不清（见 PRINT_SAFE_WIDTH 注释）
+      if (width > PRINT_SAFE_WIDTH) {
+        const ratio = (PRINT_SAFE_WIDTH / width).toFixed(2);
+        warnings.push(`${labelOf(parsed.type)} 宽 ${width}px，超出 A4 版心，将缩到 ${ratio} 倍（${(13 * Number(ratio)).toFixed(1)}px ≈ ${(13 * Number(ratio) * 0.75).toFixed(1)}pt 字），印出来可能偏小`);
+      }
       const figure = doc.createElement('figure');
       figure.className = 'k-diagram-figure';
       figure.setAttribute('style', 'margin:12px 0;text-align:center;');
@@ -94,7 +109,7 @@ export const renderDiagramBlocks = (html, opts = {}) => {
       failures.push(`出图失败(${parsed.type})：${e?.message || e}`);
     }
   }
-  return { html: root.innerHTML, count, failures };
+  return { html: root.innerHTML, count, failures, warnings };
 };
 
 export default { DIAGRAM_BLOCK_CLASS, parseDiagramBlock, renderDiagramBlocks, toResponsiveSvg };

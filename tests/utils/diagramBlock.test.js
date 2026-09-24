@@ -90,4 +90,16 @@ describe('diagramBlock · 标记块渲染', () => {
     expect(parseDiagramBlock('', {}).error).toContain('空');
     expect(parseDiagramBlock('{"title":"x"}', { type: 'timeline' }).spec.type).toBe('timeline');
   });
+
+  it('超宽导图给出印刷可读性警告（时间轴最容易命中），窄图不告警', () => {
+    const items = Array.from({ length: 9 }, (_, i) => `{"when":"191${i}年","text":"事件${i}"}`).join(',');
+    const wide = renderDiagramBlocks(`<div class="k-diagram" data-type="timeline">{"items":[${items}]}</div>`);
+    expect(wide.count).toBe(1);
+    expect(wide.warnings.length).toBe(1);
+    expect(wide.warnings[0]).toContain('时间轴');
+    expect(wide.warnings[0]).toContain('版心');
+
+    const narrow = renderDiagramBlocks(OK_BLOCK);
+    expect(narrow.warnings).toEqual([]);
+  });
 });

@@ -540,6 +540,9 @@ const renderDiagramsInContent = (html) => {
   } else if (r.count) {
     console.log(`🧩 已渲染 ${r.count} 张导图（PDF 走矢量 SVG；Word 导出时自动转 PNG）`);
   }
+  // 印刷可读性体检：宽图会被等比缩小，缩狠了字就印不清。这里主动喊出来，
+  // 而不是等到印出来才发现"图糊了"（时间轴/鱼骨图最容易命中）。
+  for (const w of r.warnings || []) console.warn(`⚠️ 导图印刷可读性：${w}`);
   return r.html;
 };
 
