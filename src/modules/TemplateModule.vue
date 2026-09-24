@@ -2846,8 +2846,12 @@ const updatePageRange = () => {
   isRendering.value = true;
   const flat = flatOutline.value;
   fastCalculatePageRanges(flat, totalPages.value);
-  // 同步 originalPage，防止后续 applyOffset 覆盖手动修改
-  for (const node of flat) { node.originalPage = node.page; }
+  // 同步 originalPage，防止后续 applyOffset 覆盖手动修改。
+  // 🔴 必须存**去掉偏移量**的基准值：page 是"PDF 实际页码"，而 originalPage 的约定是
+  //    "目录原始页码"（applyOffset 做的是 page = originalPage + pageOffset）。
+  //    原先直接存 page → 之后再动一次偏移量就等于把偏移量又加了一遍，全表页码错位；
+  //    存 page - pageOffset 后，偏移量不变时 applyOffset 结果不变，手动修改才真正不被覆盖。
+  for (const node of flat) { node.originalPage = node.page - pageOffset.value; }
   // ✅ 使用 requestAnimationFrame 避免阻塞
   requestAnimationFrame(() => {
     updateDisplayTree(fastRebuildTree([...flat], totalPages.value), focusedRow.value);
@@ -2890,6 +2894,8 @@ const parsePageRange = (event, index) => {
     node.start = start;
     node.end = end;
     node.page = start;
+    // 同 updatePageRange：originalPage 存"去掉偏移量"的基准值，否则改一次偏移量会多加一遍
+    node.originalPage = start - pageOffset.value;
   }
   
   event.target.value = start + ' - ' + end;
@@ -3025,7 +3031,10 @@ const addManualChapter = () => {
   
   flat.splice(insertIndex, 0, {
     title: '新章节', page: newPage, start: newPage, end: newPage,
-    level: newLevel, children: [], selected: false, originalPage: newPage
+    level: newLevel, children: [], selected: false,
+    // originalPage 与其它行同口径：存"目录原始页码"（= PDF 页码 - 偏移量），
+    // 否则后续每动一次偏移量，这一行的页码都会多加一遍
+    originalPage: newPage - pageOffset.value
   });
   
   fastCalculatePageRanges(flat, totalPages.value);
@@ -3417,7 +3426,12 @@ const saveTemplate = async () => {
         // 🔧 PDF 书签（Outline）是纯文本层，放不下印刷字形；含公式的标题把 $…$ 源码
         //    转成可读公式（√(ab)⩽(a+b)/2 这类线性文本），别让 WPS 书签里露出 $…$ 源码。
         title: hasMath(item.title) ? convertFormulasInHtml(item.title) : item.title,
-        page: item.originalPage ? item.originalPage + pageOffset.value : item.page,
+        // 🔴 页码直接取编辑器「页码」列里的数字（= PDF 实际页码，预览跳转用的也是它）。
+        //    原先用 originalPage + pageOffset 重算，而 originalPage 的约定是"目录原始页码"，
+        //    只有**从未手工动过**时才恰好等于 page；一旦手工加过行或在页码列改过，
+        //    再 +pageOffset 就等于**多加了一遍偏移量**，书签页码错位。
+        //    改为与编辑器所见完全一致：所见即所签。
+        page: item.page,
         level: item.level + 1
       }));
       // 🔴 书签明细入日志（手机端无 DevTools 时的唯一对照手段）：保存后再对不上，
@@ -3426,6 +3440,15 @@ const saveTemplate = async () => {
         `🧷 生成书签 ${bookmarks.length} 条（编辑框 ${committedFlat.length} 行）:\n` +
         bookmarks.map(b => `${'　'.repeat(Math.max(0, b.level - 1))}${b.title} (p${b.page})`).join('\n')
       );
+      // 🔴 越界页码会被 Python **静默夹到最后一页**（add_bookmarks.py 里 target_page 做了 min 钳制），
+      //    表现出来就是"书签页码不对"。这里提前把越界的行点名报出来，别让人对着 PDF 猜。
+      const overflowPages = bookmarks.filter((b) => b.page > totalPages.value);
+      if (overflowPages.length) {
+        console.warn(
+          `⚠️ 有 ${overflowPages.length} 条书签的页码超过总页数 ${totalPages.value}，会被夹到最后一页：` +
+          overflowPages.map((b) => `${b.title}@p${b.page}`).join('、')
+        );
+      }
       
       console.log('📍 直接生成带书签PDF到目标路径:', pdfPath);
       // 设置30秒超时
