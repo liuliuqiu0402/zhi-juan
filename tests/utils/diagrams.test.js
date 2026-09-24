@@ -79,28 +79,12 @@ const SPECS = {
       { from: 'E', to: 'A', label: '研究' },
     ],
   },
-  // ── [GRAPH] 家族（收回 EduRender Studio 后就地渲染）──
-  coordinate: {
-    type: 'coordinate', xlim: [-3, 3], ylim: [-2, 8], grid: true,
-    series: [{ expr: 'x^2 - 1', color: '#2b5ea7' }], points: [{ x: 0, y: -1, label: '顶点' }],
-  },
-  shapes: {
-    type: 'shapes', xlim: [-3, 5], ylim: [-5, 6], grid: true, title: '二次函数图象',
-    elements: [
-      { kind: 'function', expr: 'x**2 - 2*x - 3', color: '#2b5ea7' },
-      { kind: 'point', x: 1, y: -4, label: '顶点', color: '#d64541' },
-    ],
-  },
-  barChart: { type: 'barChart', data: [15, 22, 18], labels: ['甲', '乙', '丙'], title: '分布' },
-  lineChart: { type: 'lineChart', data: [3, 5, 4], labels: ['一月', '二月', '三月'] },
-  pieChart: { type: 'pieChart', data: [30, 45, 25], labels: ['甲', '乙', '丙'] },
 };
 
 describe('diagrams · 类型分发', () => {
-  it('图种清单覆盖 11 类（导图 6 + [GRAPH] 家族 5），且都能真的出图', () => {
+  it('图种清单覆盖 6 类（导图族），且都能真的出图', () => {
     expect(DIAGRAM_TYPES.map((t) => t.value)).toEqual([
       'mindmap', 'brace', 'flow', 'timeline', 'fishbone', 'concept',
-      'coordinate', 'shapes', 'barChart', 'lineChart', 'pieChart',
     ]);
     for (const t of DIAGRAM_TYPES) {
       const spec = SPECS[t.value];

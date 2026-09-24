@@ -8,8 +8,6 @@ import { getStoragePath } from '../utils/pathHelper.js';
 // 🧩 导图块：AI 正文里的 `<div class="k-diagram" data-type=…>{JSON}</div>` → 内联 SVG
 //    （PDF 走矢量；Word 导出时由 docxBuilder 自动光栅化成 PNG）。没有导图块时行为完全不变。
 import { renderDiagramBlocks } from '../utils/diagramBlock.js';
-// 📐 [GRAPH] 指令块就地渲染（收回原 EduRender Studio 那条线：模型已在输出指令，本项目自己出图）
-import { renderGraphBlocks } from '../utils/graphBlock.js';
 import { auditExamPaper } from '../utils/examValidator.js';
 import { recordSample, getCalibratedCoef } from '../utils/budgetCalibration.js';
 import { buildAnchors } from '../utils/coverageAnchor.js';
@@ -536,21 +534,16 @@ const convertBlankFormat = (html) => {
  * 🔴 失败绝不丢内容：解析不了就原样保留那块文字（renderDiagramBlocks 内部保证），只把原因报到日志。
  */
 const renderDiagramsInContent = (html) => {
-  // ① 导图块（k-diagram + JSON）→ 内联 SVG
   const d = renderDiagramBlocks(html);
-  // ② [GRAPH] 指令块 → 内联 SVG（模型已在输出该格式，本项目就地出图，不再需要拿去 EduRender Studio）
-  const g = renderGraphBlocks(d.html);
-  const failures = [...d.failures, ...g.failures];
-  const total = d.count + g.count;
-  if (failures.length) {
-    console.warn(`⚠️ 图形 ${failures.length} 个未能渲染（已原样保留内容）：${failures.join('；')}`);
-  } else if (total) {
-    console.log(`🧩 已渲染 ${total} 张图形（导图 ${d.count} + 图形指令 ${g.count}；PDF 走矢量 SVG，Word 导出时自动转 PNG）`);
+  if (d.failures.length) {
+    console.warn(`⚠️ 图形 ${d.failures.length} 个未能渲染（已原样保留内容）：${d.failures.join('；')}`);
+  } else if (d.count) {
+    console.log(`🧩 已渲染 ${d.count} 张图形（导图；PDF 走矢量 SVG，Word 导出时自动转 PNG）`);
   }
   // 印刷可读性体检：宽图会被等比缩小，缩狠了字就印不清。这里主动喊出来，
   // 而不是等到印出来才发现"图糊了"（时间轴/鱼骨图最容易命中）。
-  for (const w of [...d.warnings, ...g.warnings]) console.warn(`⚠️ 导图印刷可读性：${w}`);
-  return g.html;
+  for (const w of d.warnings) console.warn(`⚠️ 导图印刷可读性：${w}`);
+  return d.html;
 };
 
 // 此函数剥离思考块，只保留最终答案
