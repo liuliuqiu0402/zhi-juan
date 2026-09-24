@@ -16,6 +16,15 @@ import { buildCompressionCacheKey, readCompressionCache, writeCompressionCache }
 import { formatAnchorListByChapter, anchorListRoleNote, resolveAnchorKind } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位，含第3层具体概念 A17/可开关）；🔬 resolveAnchorKind：条目性质双轨判定（显式 kind 优先 + 名字兜底）
 // ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
 import { planOutputQuota, nextContinuationBudget, isOverQuota, charsToTokens } from '../utils/outputQuota.js';
+// 🔴 续写/截断的**唯一实现**（2026-09-24 用户裁定"两套必须根治"）：收敛于 utils/continuationChain.js。
+//    此前 callAI 内两条引擎分支各一份薄层续写（第三份内联去重副本、不检测续写自身再截断），
+//    与 _runPaperOrder 的正文额度链并存 → 同一个截断"正文能补齐、答案页半截放行"。
+//    现统一走 runContinuationChain + 策略回调；这里再导出两个纯函数，仅为不破既有引用面（测试）。
+import {
+  detectTruncation, appendContinuationWithDedup, runContinuationChain, SIMPLE_CONTINUATION_MAX_ROUNDS,
+} from '../utils/continuationChain.js';
+
+export { detectTruncation, appendContinuationWithDedup };
 import { contractOf, MATERIAL_CHANNEL_DEFAULT, answerPageNeedsSource } from '../config/coverageContract.js';
 // ✅ A22 实发注入清单·单源（2026-09-14 用户同意）：请求里除委托正文之外的每一块都集中在此定义，
 //    生成端按此拼接实发文本、生成面板按此逐段展示（"点开即实发全貌"，见 utils/injectionManifest.js）
@@ -668,26 +677,8 @@ export const cleanReasoningOutput = (text) => {
   return sanitize(text);
 };
 
-// 🔴 续写拼接（单一事实源，2026-09-10 收敛）：续写段与已有内容的拼接统一走此函数——
-//    模型续写常从上一段末尾重述（或整段重发），直接拼接会重复：先按「精确末尾 N 字 → 渐进
-//    重叠 15→3 字」去重；去重后为空（纯重复段）则不追加。绝不用续写段【覆盖】已有内容。
-//    用于：单次生成续写链（_runPaperOrder）。
-export const appendContinuationWithDedup = (base, cont) => {
-  const b = String(base || '');
-  const tail = b.slice(-GEN_CONST.DEDUP_TAIL_EXACT);
-  let clean = String(cont || '').trimStart();
-  if (tail && clean.startsWith(tail)) {
-    clean = clean.slice(tail.length);
-  } else {
-    for (let ol = GEN_CONST.DEDUP_OVERLAP_MAX; ol >= GEN_CONST.DEDUP_OVERLAP_MIN; ol--) {
-      const ov = b.slice(-ol);
-      if (ov && clean.startsWith(ov)) { clean = clean.slice(ol); break; }
-    }
-  }
-  clean = clean.trim();
-  if (!clean) return b;
-  return b + '\n' + clean;
-};
+// 🔴 续写拼接 appendContinuationWithDedup、截断判定 detectTruncation 已**整体迁出**到
+//    utils/continuationChain.js（2026-09-24 两套续写收敛为一条链）；本文件顶部已 import + 再导出。
 
 
 
@@ -1035,20 +1026,8 @@ const _persistLabelCounters = () => {
 
 // ============================================================
 // 🔴 答案完整性判定（模块级纯函数，供生成链路调用 + 单元测试验证"答案是否丢失"）
+//    detectTruncation 已迁至 utils/continuationChain.js（续写链唯一实现所在地）
 // ============================================================
-
-/** 截断判定：finish_reason=length/reasoning_capped（可靠）或尾部非完整句段（启发式兜底） */
-export const detectTruncation = (content, finishReason = '') => {
-  const c = String(content || '');
-  const byReason = (finishReason === 'length' || finishReason === 'reasoning_capped') && c.length > 200;
-  if (byReason) return { truncated: true, byReason: true };
-  if (c.length <= GEN_CONST.BODY_TRUNCATED_HEURISTIC) return { truncated: false, byReason: false };
-  const tail = c.slice(-GEN_CONST.TRUNCATED_TAIL_SAMPLE);
-  return {
-    truncated: !/<\/[a-z]+>$/i.test(tail) && !/[。！？；」』）)\n]$/.test(tail.trim()),
-    byReason: false,
-  };
-};
 
 /** 答案区空壳检测：<h2>参考答案… 后为占位式敷衍（"略/待补充"等）或近乎空白（<10 字且无作答痕迹）
  *  🔴 不做纯长度判据：真实答案可能很短（如纯选项 "1.A 2.B 3.C"），
@@ -1566,83 +1545,49 @@ const maxInputTokens = config.engine === 'deepseek'
           // 🔧 新增：自动续写机制
           const allowContinuation = options.allowContinuation !== false;
           const isTruncated = !ollamaDone && responseText.length > GEN_CONST.TRUNCATED_MIN_LEN;
+          // 🔴 tell-the-truth：本分支的最终 finishReason（旧实现只回字符串，调用方拿不到 → 只能靠启发式猜）
+          let ollamaFinish = isTruncated ? 'length' : 'stop';
 
           if (isTruncated && allowContinuation) {
-            console.log(`🔄 Ollama 输出被截断，尝试续写...（当前长度：${responseText.length}）`);
-            
-            // 取最后 300 字作为续写提示
-            const tailText = responseText.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE);
-            const continuationPrompt = `【继续】请从上一次输出的最后一个字开始，继续后面的内容。不要重复已有文字。\n\n上一段末尾：${tailText}\n\n继续：`;
-            
-            let continuationResponse;
-            try {
-              continuationResponse = await axios.post(
-                `${config.baseUrl}/api/generate`,
-                {
-                  model: config.textModel,
-                  prompt: continuationPrompt,
-                  stream: false,
-                  think: apiConfig.generationSettings?.ollamaGenerationThinking ?? false,  // 🔧 续写与主调用同开关（设置页 ollamaGenerationThinking）
-                  options: {
-                    temperature: Math.max(0, temperature - 0.2),
-                    num_predict: Math.floor(maxTokens * 0.5),
-                    top_p: 0.9,
-                    repeat_penalty: 1.2
-                  }
-                },
-                { 
-                  timeout: Math.floor(timeout * 0.6),
-                  signal: abortController.value?.signal  // 🔧 支持取消
-                }
-              );
-              
-              const continuationText = continuationResponse.data.response || '';
-              if (continuationText && continuationText.length > GEN_CONST.CONT_ACCEPT_MIN_LEN) {
-                // 🔧 增强：更智能的去重——找到最长公共前缀并截掉
-                let cleanContinuation = continuationText;
-                
-                // 策略1：精确匹配末尾20字
-                const tailWords = tailText.slice(-GEN_CONST.DEDUP_TAIL_EXACT);
-                if (cleanContinuation.startsWith(tailWords)) {
-                  cleanContinuation = cleanContinuation.slice(tailWords.length);
-                } else {
-                  // 策略2：渐进式匹配——从10字到3字递减
-                  let overlapFound = false;
-                  for (let overlapLen = GEN_CONST.DEDUP_OVERLAP_MAX; overlapLen >= GEN_CONST.DEDUP_OVERLAP_MIN; overlapLen--) {
-                    const tailOverlap = tailText.slice(-overlapLen);
-                    if (cleanContinuation.startsWith(tailOverlap)) {
-                      cleanContinuation = cleanContinuation.slice(overlapLen);
-                      overlapFound = true;
-                      console.log(`🔧 找到重叠(长度${overlapLen})，已去除`);
-                      break;
-                    }
-                  }
-                  if (!overlapFound && cleanContinuation.length > GEN_CONST.DEDUP_NEWLINE_MIN) {
-                    // 策略3：检查是否有换行分隔，取换行后的内容
-                    const newlineIdx = cleanContinuation.indexOf('\n');
-                    if (newlineIdx > 0 && newlineIdx < 30) {
-                      const afterNewline = cleanContinuation.slice(newlineIdx + 1).trim();
-                      if (afterNewline.length > GEN_CONST.CONT_ACCEPT_MIN_LEN) {
-                        cleanContinuation = afterNewline;
-                        console.log('🔧 取换行后内容作为续写');
-                      }
-                    }
-                  }
-                }
-                
-                // 🔧 新增：续写质量检查——如果续写内容太短或全是空白，放弃续写
-                if (cleanContinuation.trim().length < GEN_CONST.CONT_REJECT_MIN_LEN) {
-                  console.warn('⚠️ 续写内容过短，使用原输出');
-                } else {
-                  responseText += cleanContinuation;
-                  console.log(`✅ 续写完成，总长度：${responseText.length}`);
-                }
-              } else {
-                console.warn('⚠️ 续写返回内容过短，使用原输出');
-              }
-            } catch (e) {
-              console.warn('⚠️ 续写请求失败，使用原输出:', e.message);
-            }
+            // 🔴 续写链**唯一实现**（utils/continuationChain.js）。此处只注入本引擎的策略：
+            //    薄层 = 每轮帽 主请求帽 ×0.5、最多 SIMPLE_CONTINUATION_MAX_ROUNDS 轮；
+            //    引擎差异只体现在 requestNext（Ollama 原生 /api/generate + 续写提示词）。
+            const ollamaChain = await runContinuationChain({
+              content: responseText,
+              finishReason: 'length',
+              label: 'Ollama 续写',
+              maxRounds: SIMPLE_CONTINUATION_MAX_ROUNDS,
+              newlineFallback: true, // 薄层旧口径：模型"先复述一句再往下写"时取换行后内容
+              planRound: () => Math.max(1, Math.floor(Number(maxTokens) * 0.5)),
+              onRound: ({ round, budget }) => console.log(`🔄 Ollama 输出被截断，第 ${round}/${SIMPLE_CONTINUATION_MAX_ROUNDS} 轮续写...（当前长度：${responseText.length}，本轮帽 ${budget}）`),
+              requestNext: async ({ tail, budget }) => {
+                const continuationPrompt = `【继续】请从上一次输出的最后一个字开始，继续后面的内容。不要重复已有文字。\n\n上一段末尾：${tail}\n\n继续：`;
+                const resp = await axios.post(
+                  `${config.baseUrl}/api/generate`,
+                  {
+                    model: config.textModel,
+                    prompt: continuationPrompt,
+                    stream: false,
+                    think: apiConfig.generationSettings?.ollamaGenerationThinking ?? false, // 续写与主调用同开关
+                    options: {
+                      temperature: Math.max(0, temperature - 0.2),
+                      num_predict: budget,
+                      top_p: 0.9,
+                      repeat_penalty: 1.2,
+                    },
+                  },
+                  { timeout: Math.floor(timeout * 0.6), signal: abortController.value?.signal },
+                );
+                return {
+                  content: resp.data.response || '',
+                  // 🔴 Ollama 原生 done=false 即"本轮又没写完"——旧实现不看这个信号，续写半截也被当完整交付
+                  finishReason: resp.data.done === false ? 'length' : '',
+                };
+              },
+            });
+            responseText = ollamaChain.content;
+            ollamaFinish = ollamaChain.truncated ? 'length' : 'stop';
+            console.log(`✅ Ollama 续写结束（${ollamaChain.rounds} 轮，停止原因=${ollamaChain.stoppedBy}，${ollamaChain.truncated ? '仍被截断' : '已完整'}，总长度：${responseText.length}）`);
           } else if (isTruncated && !allowContinuation) {
             console.warn(`⚠️ Ollama 输出被截断但已禁用续写，长度=${responseText.length}`);
           }
@@ -1657,7 +1602,11 @@ const maxInputTokens = config.engine === 'deepseek'
             await setCachedPromptResult(callAI._pendingCacheKey, responseText, callAI._pendingCacheMeta);
           }
 
-          return responseText;
+          // 🔴 returnMeta：Ollama 分支此前只回字符串 → 正文链/答案页拿不到 finishReason，
+          //    截断判定只能退化到尾部启发式。现与 OpenAI 兼容分支对齐。
+          return options.returnMeta
+            ? { content: responseText, finishReason: ollamaFinish, reasoningChunkCount: 0 }
+            : responseText;
         } else {
           // 🔧 DeepSeek API 调用：智能构建 URL，避免重复拼接
           let apiUrl = config.baseUrl || '';
@@ -1766,90 +1715,62 @@ const maxInputTokens = config.engine === 'deepseek'
           const isTruncated = (finishReason === 'length' || finishReason === 'reasoning_capped') && content.length > GEN_CONST.TRUNCATED_MIN_LEN;
 
           if (isTruncated && allowContinuation) {
-            console.log(`🔄 DeepSeek 输出被截断，尝试续写...（当前长度：${content.length}）`);
-
-            const tailText = content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE);
-            const continuationMessages = [
-              // 🔧 会话前缀随续写链同带（与首请求一致：历史消息在前，任务在后，模型可续阅上下文）
-              ...(Array.isArray(options.history) && options.history.length
-                ? options.history.map((h) => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: String(h.content ?? '') }))
-                : []),
-              { role: 'user', content: finalPrompt },
-              { role: 'assistant', content: content },
-              { role: 'user', content: `请从上一次输出的最后一个字开始，继续后面的内容。不要重复已有文字，不要重新开始。\n上一段末尾：${tailText}` }
-            ];
-
-            try {
-              // 🔴 续写请求加 30s 超时保护（原无 timeout，API 无响应会永久挂起——实测"卡住不动"根因之一）
-              const continuationResponse = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${config.apiKey}`
-                },
-                body: JSON.stringify({
-                  model: config.model,
-                  messages: continuationMessages,
-                  temperature: Math.max(0, temperature - 0.2),
-                  max_tokens: Math.floor(maxTokens * 0.5),
-                  top_p: 0.9,
-                  stream: false,  // 续写不流式（短内容）
-                  ...(config.provider === 'alibaba' && /qwen3.*max|qwq/i.test(config.model || '') ? { enable_thinking: !!(apiConfig.generationSettings?.alibabaGenerationThinking) } : {}),
-                  ...(config.provider === 'volcano' ? { thinking: { type: (options.thinking !== undefined ? options.thinking : (taskType === 'generation' && apiConfig.generationSettings?.volcanoGenerationThinking)) ? 'enabled' : 'disabled' } } : {}),
-                  ...(config.provider === 'deepseek' ? { thinking: { type: (options.thinking !== undefined ? options.thinking : (taskType === 'generation' && apiConfig.generationSettings?.deepseekGenerationThinking)) ? 'enabled' : 'disabled' } } : {}),
-                  ...(config.provider === 'zhipu' ? { thinking: { type: (options.thinking !== undefined ? options.thinking : (taskType === 'generation' && apiConfig.generationSettings?.zhipuGenerationThinking)) ? 'enabled' : 'disabled' } } : {})
-                }),
-                signal: AbortSignal.timeout(getTimeout('continuation'))
-              });
-
-              if (continuationResponse.ok) {
+            // 🔴 续写链**唯一实现**（utils/continuationChain.js）。引擎差异只在 requestNext：
+            //    OpenAI 兼容协议用「history + 原 prompt + assistant 预填 + 续写指令」四段会话续写。
+            const dsChain = await runContinuationChain({
+              content,
+              finishReason,
+              label: 'DeepSeek 续写',
+              maxRounds: SIMPLE_CONTINUATION_MAX_ROUNDS,
+              newlineFallback: true, // 薄层旧口径
+              planRound: () => Math.max(1, Math.floor(Number(maxTokens) * 0.5)),
+              onRound: ({ round, budget }) => console.log(`🔄 DeepSeek 输出被截断，第 ${round}/${SIMPLE_CONTINUATION_MAX_ROUNDS} 轮续写...（当前长度：${content.length}，本轮帽 ${budget}）`),
+              requestNext: async ({ tail, budget, content: soFar }) => {
+                const continuationMessages = [
+                  // 🔧 会话前缀随续写链同带（与首请求一致：历史消息在前，任务在后，模型可续阅上下文）
+                  ...(Array.isArray(options.history) && options.history.length
+                    ? options.history.map((h) => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: String(h.content ?? '') }))
+                    : []),
+                  { role: 'user', content: finalPrompt },
+                  // 🔴 预填 assistant = **当前累计内容**（每轮都不同，不能沿用首轮快照）
+                  { role: 'assistant', content: soFar },
+                  { role: 'user', content: `请从上一次输出的最后一个字开始，继续后面的内容。不要重复已有文字，不要重新开始。\n上一段末尾：${tail}` },
+                ];
+                // 🔴 续写请求加超时保护（原无 timeout，API 无响应会永久挂起——实测"卡住不动"根因之一）
+                const continuationResponse = await fetch(apiUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.apiKey}`,
+                  },
+                  body: JSON.stringify({
+                    model: config.model,
+                    messages: continuationMessages,
+                    temperature: Math.max(0, temperature - 0.2),
+                    max_tokens: budget,
+                    top_p: 0.9,
+                    stream: false, // 续写不流式（短内容）
+                    ...(config.provider === 'alibaba' && /qwen3.*max|qwq/i.test(config.model || '') ? { enable_thinking: !!(apiConfig.generationSettings?.alibabaGenerationThinking) } : {}),
+                    ...(config.provider === 'volcano' ? { thinking: { type: (options.thinking !== undefined ? options.thinking : (taskType === 'generation' && apiConfig.generationSettings?.volcanoGenerationThinking)) ? 'enabled' : 'disabled' } } : {}),
+                    ...(config.provider === 'deepseek' ? { thinking: { type: (options.thinking !== undefined ? options.thinking : (taskType === 'generation' && apiConfig.generationSettings?.deepseekGenerationThinking)) ? 'enabled' : 'disabled' } } : {}),
+                    ...(config.provider === 'zhipu' ? { thinking: { type: (options.thinking !== undefined ? options.thinking : (taskType === 'generation' && apiConfig.generationSettings?.zhipuGenerationThinking)) ? 'enabled' : 'disabled' } } : {}),
+                  }),
+                  signal: AbortSignal.timeout(getTimeout('continuation')),
+                });
+                if (!continuationResponse.ok) throw new Error(`续写请求 HTTP ${continuationResponse.status}`);
                 const contData = await continuationResponse.json();
-                const continuationText = contData.choices?.[0]?.message?.content || '';
-                if (continuationText && continuationText.length > GEN_CONST.CONT_ACCEPT_MIN_LEN) {
-                  // 🔧 增强：更智能的去重
-                  let cleanContinuation = continuationText;
-
-                  const tailWords = tailText.slice(-GEN_CONST.DEDUP_TAIL_EXACT);
-                  if (cleanContinuation.startsWith(tailWords)) {
-                    cleanContinuation = cleanContinuation.slice(tailWords.length);
-                  } else {
-                    let overlapFound = false;
-                    for (let overlapLen = GEN_CONST.DEDUP_OVERLAP_MAX; overlapLen >= GEN_CONST.DEDUP_OVERLAP_MIN; overlapLen--) {
-                      const tailOverlap = tailText.slice(-overlapLen);
-                      if (cleanContinuation.startsWith(tailOverlap)) {
-                        cleanContinuation = cleanContinuation.slice(overlapLen);
-                        overlapFound = true;
-                        console.log(`🔧 找到重叠(长度${overlapLen})，已去除`);
-                        break;
-                      }
-                    }
-                    if (!overlapFound && cleanContinuation.length > GEN_CONST.DEDUP_NEWLINE_MIN) {
-                      const newlineIdx = cleanContinuation.indexOf('\n');
-                      if (newlineIdx > 0 && newlineIdx < 30) {
-                        const afterNewline = cleanContinuation.slice(newlineIdx + 1).trim();
-                        if (afterNewline.length > GEN_CONST.CONT_ACCEPT_MIN_LEN) {
-                          cleanContinuation = afterNewline;
-                          console.log('🔧 取换行后内容作为DeepSeek续写');
-                        }
-                      }
-                    }
-                  }
-
-                  if (cleanContinuation.trim().length < GEN_CONST.CONT_REJECT_MIN_LEN) {
-                    console.warn('⚠️ DeepSeek续写内容过短，使用原输出');
-                  } else {
-                    content += cleanContinuation;
-                    console.log(`✅ DeepSeek 续写完成，总长度：${content.length}`);
-                  }
-                } else {
-                  console.warn('⚠️ DeepSeek 续写返回内容过短，使用原输出');
-                }
-              } else {
-                console.warn('⚠️ DeepSeek 续写请求失败(status=' + continuationResponse.status + ')，使用原输出');
-              }
-            } catch (e) {
-              console.warn('⚠️ DeepSeek 续写请求失败，使用原输出:', e.message);
-            }
+                const choice = contData.choices?.[0] || {};
+                return {
+                  content: choice.message?.content || '',
+                  // 🔴 旧实现丢弃了本轮的 finish_reason → 续写又截断也不知情（静默半截根因）
+                  finishReason: choice.finish_reason || '',
+                };
+              },
+            });
+            content = dsChain.content;
+            // 🔴 如实上报：链跑完仍截断 → 保持 length，调用方（答案页/正文链）据此判"未完整"
+            finishReason = dsChain.truncated ? 'length' : 'stop';
+            console.log(`✅ DeepSeek 续写结束（${dsChain.rounds} 轮，停止原因=${dsChain.stoppedBy}，${dsChain.truncated ? '仍被截断' : '已完整'}，总长度：${content.length}）`);
           } else if (isTruncated && !allowContinuation) {
             console.warn(`⚠️ DeepSeek 输出被截断但已禁用续写，长度=${content.length}`);
           }
@@ -4720,72 +4641,81 @@ ${cardAnalysisText.substring(0, 1000)}
         //    仍截断则基于最新内容继续续写，直至完整或达上限。拼接前做尾部重叠去重——
         //    模型续写常从上一段末尾开始重述，直接拼接会造成重复（旧实现只续一次且不检测二次截断，
         //    续写再被截断时半截正文会被当作完整交付——summary 5080 字符截断实证根因）
-        let trunc = detectTruncation(content, respObj.finishReason);
+        const trunc = detectTruncation(content, respObj.finishReason);
         if (trunc.truncated) {
           sampleTruncated = true;
           console.warn(`⚠️ 整卷输出${trunc.byReason ? `被截断（finish_reason=length，${content.length}字符）` : '疑似截断'}，进入续写链补齐...`);
           bodyPathNotes.push(`ℹ️ 整卷正文输出${trunc.byReason ? '被截断（finish_reason=length）' : '疑似截断'}——已进入续写链补齐`);
-          // 续写拼接：去除与正文末尾的重叠段（统一走模块级 appendContinuationWithDedup，
-          // 与 callAI 内部续写同一套 DEDUP 口径）
-          const contMult = (retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2);
           // ✅ A4-9（2026-09-11 用户定「先保完整、再防失控」）：**两层额度**
           //    · 预期额度 softQuota：只用于告警，**超了不停止**（完整性优先，超支在生成报告里可见）
           //    · 硬顶 hardQuota = 预期 + 1 轮：**唯一叫停线**
           //    轮次由硬顶推导（不再写死 6）；每轮帽按"硬顶 − 已产出"递减（旧实现每轮都给满 → 总输出无上界）。
           //    停止条件只剩三个：① 写完（不再截断）② 续写无效 ③ 触硬顶。
-          const MAX_CONT = attemptQuota.rounds;
-          let contCount = 0;
+          // 🔴 2026-09-24：这段 while 循环已**并入续写链唯一实现**（utils/continuationChain.js）——
+          //    链条负责"截断检测 / 循环 / 去重追加 / 二次截断再检测 / 如实报停止原因"，
+          //    本处只注入**额度策略**（两层额度 + 首轮保底）与**正文改写请求**。与 callAI 内薄层同源，
+          //    两套实现的分叉就此消失。
+          const contMult = (retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2);
           let overSoftWarned = false;
-          while (trunc.truncated && contCount < MAX_CONT) {
-            if (!overSoftWarned && isOverQuota({ quota: attemptQuota.softQuota, producedChars: content.length })) {
-              overSoftWarned = true;
-              bodyPathNotes.push(`ℹ️ 正文已超预期额度（预期 ${attemptQuota.softQuota} token，当前 ${content.length} 字符）——为保证完整继续补齐（硬顶 ${attemptQuota.hardQuota} token）`);
-              console.warn(`⚠️ 整卷正文已超预期额度 ${attemptQuota.softQuota} token → 继续补齐，直至写完或触硬顶 ${attemptQuota.hardQuota}`);
-            }
-            // 🔴 首轮保底（2026-09-24 实证修复）：模型**单次**输出就可能超过硬顶（实证：13555 字符
-            //    ÷1.3 = 10427 token > 硬顶 8532）。旧逻辑此时"余额 ≤ 0 → 返回 0 → 直接 break"，
-            //    续写链 0 轮就被锁死，只能整卷重跑（更贵更慢）。硬顶里"多留的那 1 轮余量"必须花得出去。
-            const hardOverrun = charsToTokens(content.length) >= Math.round(attemptQuota.hardQuota);
-            const contBudget = clampReq(nextContinuationBudget({
-              hardQuota: attemptQuota.hardQuota,
-              producedChars: content.length,
-              perCall: attemptQuota.perCall,
-              thinkingMultiplier: contMult,
-              engineCeiling: engineCap,
-              guaranteedRounds: 1,
-              roundsUsed: contCount,
-            }));
-            if (hardOverrun && contCount === 0 && contBudget > 0) {
-              bodyPathNotes.push(`ℹ️ 首轮单次输出已超硬顶（${content.length} 字符 ≈ ${charsToTokens(content.length)} token > ${attemptQuota.hardQuota}）——启用 1 轮保底续写补齐（不再直接整卷重跑）`);
-              console.warn(`ℹ️ 首轮单次输出已超硬顶（${content.length} 字符），启用 1 轮保底续写（本轮帽 ${contBudget} token）`);
-            }
-            if (contBudget <= 0) {
-              // 触硬顶：不再空转续写（原实现每轮都给满额，导致总输出无上界）
-              bodyPathNotes.push(`ℹ️ 正文已触续写硬顶（硬顶 ${attemptQuota.hardQuota} token，当前 ${content.length} 字符），停止续写`);
-              break;
-            }
-            contCount++;
-            console.warn(`⏩ 整卷正文第 ${contCount}/${MAX_CONT} 次续写（本轮帽 ${contBudget} token，预期 ${attemptQuota.softQuota}/硬顶 ${attemptQuota.hardQuota}）...（当前 ${content.length} 字符）`);
-            const contResp = await callAI(
-              `${prompt}\n\n【续写】上次输出被截断（末尾：${content.slice(-GEN_CONST.CONTINUE_TAIL_SAMPLE)}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
-              {
-                taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
-                systemMessage: programAttach.trim() ? programAttach : undefined,
-                maxTokens: contBudget,
-                allowContinuation: false, temperature: bodyTemperature,
-                thinking: retryWithoutThinking ? false : undefined,
-                returnMeta: true,
+          const bodyChain = await runContinuationChain({
+            content,
+            finishReason: respObj.finishReason,
+            label: '整卷正文续写',
+            maxRounds: attemptQuota.rounds,
+            minChunkLen: 100,   // 正文链口径：碎段/重复收尾不接受（原实现"≤100 视为未补齐"）
+            planRound: ({ round, producedChars }) => {
+              if (!overSoftWarned && isOverQuota({ quota: attemptQuota.softQuota, producedChars })) {
+                overSoftWarned = true;
+                bodyPathNotes.push(`ℹ️ 正文已超预期额度（预期 ${attemptQuota.softQuota} token，当前 ${producedChars} 字符）——为保证完整继续补齐（硬顶 ${attemptQuota.hardQuota} token）`);
+                console.warn(`⚠️ 整卷正文已超预期额度 ${attemptQuota.softQuota} token → 继续补齐，直至写完或触硬顶 ${attemptQuota.hardQuota}`);
               }
-            );
-            const cObj = typeof contResp === 'string' ? { content: contResp, finishReason: '' } : (contResp || { content: '', finishReason: '' });
-            const contHtml = normalizeBodyHtml(cObj.content || '', { trace: true, label: '续写' });
-            if (!contHtml || contHtml.length <= 100) break; // 续写无效（过短/重复收尾）——按未补齐处理
-            content = appendContinuationWithDedup(content, contHtml);
-            trunc = detectTruncation(contHtml, cObj.finishReason); // 检测本次续写是否再次被截断
-          }
-          if (trunc.truncated) {
+              // 🔴 首轮保底（2026-09-24 实证修复）：模型**单次**输出就可能超过硬顶（实证：13555 字符
+              //    ÷1.3 = 10427 token > 硬顶 8532）。旧逻辑此时"余额 ≤ 0 → 返回 0 → 直接 break"，
+              //    续写链 0 轮就被锁死，只能整卷重跑（更贵更慢）。硬顶里"多留的那 1 轮余量"必须花得出去。
+              const budget = clampReq(nextContinuationBudget({
+                hardQuota: attemptQuota.hardQuota,
+                producedChars,
+                perCall: attemptQuota.perCall,
+                thinkingMultiplier: contMult,
+                engineCeiling: engineCap,
+                guaranteedRounds: 1,
+                roundsUsed: round - 1,
+              }));
+              if (round === 1 && budget > 0 && charsToTokens(producedChars) >= Math.round(attemptQuota.hardQuota)) {
+                bodyPathNotes.push(`ℹ️ 首轮单次输出已超硬顶（${producedChars} 字符 ≈ ${charsToTokens(producedChars)} token > ${attemptQuota.hardQuota}）——启用 1 轮保底续写补齐（不再直接整卷重跑）`);
+                console.warn(`ℹ️ 首轮单次输出已超硬顶（${producedChars} 字符），启用 1 轮保底续写（本轮帽 ${budget} token）`);
+              }
+              return budget;
+            },
+            onRound: ({ round, budget, producedChars }) => console.warn(`⏩ 整卷正文第 ${round}/${attemptQuota.rounds} 次续写（本轮帽 ${budget} token，预期 ${attemptQuota.softQuota}/硬顶 ${attemptQuota.hardQuota}）...（当前 ${producedChars} 字符）`),
+            onStop: ({ stoppedBy, truncated }) => {
+              if (stoppedBy === 'budget') bodyPathNotes.push(`ℹ️ 正文已触续写硬顶（硬顶 ${attemptQuota.hardQuota} token），停止续写`);
+              if (stoppedBy === 'rounds') bodyPathNotes.push(`ℹ️ 正文续写轮数已达上限（${attemptQuota.rounds} 轮）仍${truncated ? '未' : '已'}完整，停止续写`);
+            },
+            requestNext: async ({ tail, budget }) => {
+              const contResp = await callAI(
+                `${prompt}\n\n【续写】上次输出被截断（末尾：${tail}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
+                {
+                  taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
+                  systemMessage: programAttach.trim() ? programAttach : undefined,
+                  maxTokens: budget,
+                  allowContinuation: false, temperature: bodyTemperature,
+                  thinking: retryWithoutThinking ? false : undefined,
+                  returnMeta: true,
+                }
+              );
+              const cObj = typeof contResp === 'string' ? { content: contResp, finishReason: '' } : (contResp || { content: '', finishReason: '' });
+              return {
+                content: normalizeBodyHtml(cObj.content || '', { trace: true, label: '续写' }),
+                finishReason: cObj.finishReason,
+              };
+            },
+          });
+          content = bodyChain.content;
+          const contCount = bodyChain.rounds;
+          if (bodyChain.truncated) {
             // 🔴 未补齐 → 本 attempt 判失败（不交付半截）：升级预算由下一 attempt 整卷重试补齐
-            truncFailNote = `正文输出被截断，经 ${contCount} 次续写（预算 ${attemptCap} token）仍未完整（当前 ${content.length} 字符）`;
+            truncFailNote = `正文输出被截断，经 ${contCount} 次续写（停止原因=${bodyChain.stoppedBy}，预算 ${attemptCap} token）仍未完整（当前 ${content.length} 字符）`;
             console.warn(`⚠️ ${truncFailNote}——升级预算重新整卷生成...`);
             bodyPathNotes.push(`⚠️ ${truncFailNote}——升级预算重新整卷生成`);
             lastGapNote = '正文输出被截断未完整（尾部未写完）——本次请规划好篇幅，确保全部题目与内容在一次输出内完整写完';
@@ -4991,37 +4921,48 @@ ${cardAnalysisText.substring(0, 1000)}
         let aHtml = normalizeMathCircleBlanks(normalizeLeadingMarkers(cleanSectionHtml(ansObj.content || '')));
         // 🔴 思考耗尽判定：推理达到上限（reasoning_capped）或 chunk 数巨大 → 本次重试强制关闭思考
         const ansCapped = ansObj.finishReason === 'reasoning_capped' || (ansObj.reasoningChunkCount || 0) >= GEN_CONST.REASONING_EXHAUST_THRESHOLD;
-        if (aHtml && aHtml.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansCapped) {
+        // 🔴 2026-09-24 根治（用户裁定"不接受打补丁"）：续写链已能**如实上报"跑完仍被截断"**
+        //    （finishReason 保持 length）。旧实现只查"空 / 过短 / 思考耗尽"，于是一份**长度过线的半截答案**
+        //    会被静默放行 —— 这正是"答案区缺后半段"的静默路径。现口径：仍截断 = 未完整，
+        //    与"空/过短"同档：重试一次；两次都不完整 → 判失败（宁失败不残缺），绝不交付半截答案。
+        const ansTruncated = ansObj.finishReason === 'length' || ansObj.finishReason === 'reasoning_capped';
+        if (aHtml && aHtml.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansCapped && !ansTruncated) {
           const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
           // 🔧 去重：模型自带 <h1>参考答案…</h1> 头部标题剥除（系统包装已加 <h2> 标题，见 stripLeadingAnswerTitle）
           answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml)}</div>`;
         } else {
-          // 🔧 答案页为空/过短/思考耗尽 → 自动重试一次（思考耗尽时强制关闭思考，防再次空转；
+          // 🔧 答案页为空/过短/思考耗尽/续写后仍截断 → 自动重试一次（思考耗尽时强制关闭思考，防再次空转；
           //    模型偶发输出空或"略"式敷衍内容也覆盖）
-          console.warn(`⚠️ 答案页内容${ansCapped ? `思考耗尽（${ansObj.reasoningChunkCount || 0} 推理chunks）` : `过短（清洗后 ${aHtml?.length || 0} / 原始 ${(ansObj.content || '').length} 字符，finish=${ansObj.finishReason || 'unknown'}）`}，自动重试一次${ansCapped ? '（强制关闭思考）' : ''}`);
+          const ansReason = ansCapped
+            ? `思考耗尽（${ansObj.reasoningChunkCount || 0} 推理chunks）`
+            : (ansTruncated
+              ? `续写后仍被截断（finish=${ansObj.finishReason}，清洗后 ${aHtml?.length || 0} 字符）`
+              : `过短（清洗后 ${aHtml?.length || 0} / 原始 ${(ansObj.content || '').length} 字符，finish=${ansObj.finishReason || 'unknown'}）`);
+          console.warn(`⚠️ 答案页内容${ansReason}，自动重试一次${ansCapped ? '（强制关闭思考）' : ''}`);
           const ansResp2 = await callAI(ansPrompt, {
             taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
             // 🔴 素材唯一性：答案页重试同口径——只带正文全文，不带任何素材前缀
             history: undefined,
             maxTokens: Math.min(clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), engineCap), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
             maxReasoningChunks: ansThinking ? GEN_CONST.REASONING_CAP_ANSWER : GEN_CONST.REASONING_CAP_ANSWER_FORCED,
-            thinking: (ansCapped || (ansObj.reasoningChunkCount || 0) > 0) ? false : undefined, // 🔴 有推理痕迹（含引擎强制推理）→ 重试强制关闭思考
+            thinking: (ansCapped || ansTruncated || (ansObj.reasoningChunkCount || 0) > 0) ? false : undefined, // 🔴 有推理痕迹（含引擎强制推理）→ 重试强制关闭思考
             returnMeta: true,
           });
           const ansObj2 = typeof ansResp2 === 'string' ? { content: ansResp2, finishReason: '', reasoningChunkCount: 0 } : (ansResp2 || { content: '', finishReason: '', reasoningChunkCount: 0 });
           const aHtml2 = normalizeMathCircleBlanks(normalizeLeadingMarkers(cleanSectionHtml(ansObj2.content || '')));
-          if (aHtml2 && aHtml2.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN) {
+          const ansTruncated2 = ansObj2.finishReason === 'length' || ansObj2.finishReason === 'reasoning_capped';
+          if (aHtml2 && aHtml2.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansTruncated2) {
             const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
             answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml2)}</div>`;
           } else {
             // 🔴 两次生成必须成功（2026-09-11 用户定版）：split 模式答案页是唯一答案源——
             //    两次尝试仍失败且正文无答案区 → 判失败（进入外层整卷重试），绝不静默交付"正文-only"
             //    （once 模式正文自带答案区时不判，正文即答案载体）
-            console.warn(`⚠️ 答案页重试仍为空/过短（清洗后 ${aHtml2?.length || 0} / 原始 ${(ansObj2.content || '').length} 字符，finish=${ansObj2.finishReason || 'unknown'}）`);
+            console.warn(`⚠️ 答案页重试仍不可用（清洗后 ${aHtml2?.length || 0} 字符，finish=${ansObj2.finishReason || 'unknown'}${ansTruncated2 ? '，仍被截断' : ''}）`);
             if (!/<h[1-6][^>]*>\s*参考答案|answer-section/i.test(content)) {
-              throw new Error('答案页生成失败（两次尝试均为空/过短，正文无答案区）——本次生成判失败，将自动整卷重试；若反复出现请到「问题列表」反馈');
+              throw new Error('答案页生成失败（两次尝试均为空/过短/续写后仍截断，正文无答案区）——本次生成判失败，将自动整卷重试；若反复出现请到「问题列表」反馈');
             }
-            console.warn('⚠️ 答案页重试仍为空/过短（正文自带答案区，本次跳过独立答案页）。');
+            console.warn('⚠️ 答案页重试仍不可用（正文自带答案区，本次跳过独立答案页）。');
           }
         }
       } catch (e) {

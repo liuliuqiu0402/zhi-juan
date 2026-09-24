@@ -330,30 +330,27 @@
           </option>
         </select>
         <button
-          :class="{ 'is-active': editor.isActive('orderedList') && !isAlphaOrderedList }"
-          title="数字编号（再点一次转文本）"
+          :class="{ 'is-active': editor.isActive('orderedList') }"
+          title="编号列表（再点一次转文本）"
           @click="toggleOrderedListKeepMarkers"
         >
-          1.
+          {{ orderedFormSample }}
         </button>
-        <button
-          :class="{ 'is-active': isAlphaOrderedList }"
-          title="字母编号（再点一次转文本）"
-          @click="toggleAlphaOrderedList"
-        >
-          {{ alphaCase }}.
-        </button>
+        <!-- 🔴 编号形式单一事实源：src/utils/listNumberStyle.js 的 NUMBER_FORMS
+             （1. / a. / A. / i. / I. / （1） / 一、 / ① —— Word、PDF、编辑器三处同一份表） -->
         <select
-          v-model="alphaCase"
+          v-model="orderedForm"
           class="toolbar-select toolbar-select--sm"
-          title="字母编号大小写"
-          style="width:44px"
+          title="编号形式"
+          style="width:56px"
         >
-          <option value="a">
-            a.
-          </option>
-          <option value="A">
-            A.
+          <option
+            v-for="f in orderedFormOptions"
+            :key="f.value"
+            :value="f.value"
+            :title="f.label"
+          >
+            {{ f.sample }}
           </option>
         </select>
         <div class="toolbar-divider" />
@@ -529,6 +526,9 @@ const OL_LIST_STYLE_TYPES = {
   'lower-alpha': 'a', 'lower-latin': 'a',
   'upper-alpha': 'A', 'upper-latin': 'A',
   'lower-roman': 'i', 'upper-roman': 'I',
+  // 自定义形式（本项目导出会写 k-paren/k-cjk/k-circled）：粘贴回来时同样归一为 type，
+  // 否则"复制自己导出的一段"会丢编号形式（与无序列表 parseListMarker 对称）
+  'k-paren': 'paren', 'k-cjk': 'cjk', 'k-circled': 'circled',
 };
 const CustomOrderedList = OrderedList.extend({
   addAttributes() {
@@ -610,6 +610,10 @@ import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { normalizeWhitespaceCarriers, normalizeLeadingMarkers, normalizeMathCircleBlanks, ensureCarrierContent, wrapBareBlankRuns } from '../utils/contentCleaner.js'; // 全局归一：纯空白装饰标记→填空横线 + 行首"项目符号+序号"剥离 + 算式 ○→数学填空圈 + 空载体兜底填充（装载/粘贴统一，旧内容回改） + 裸书写空（全角/em 空格）→填空横线
 import { convertPastedMathInHtml } from '../utils/pastedMath.js'; // 粘贴公式还原：Word OMML / 网页 MathML → $…$ LaTeX（交给 KaTeX 出印刷形态）
 import { createMathPreviewExtension, restoreMathPreviewSource } from '../utils/mathPreview.js'; // 编辑器内公式实时渲染（装饰层；只改视图不改文档）
+// 🔴 有序列表编号形式的唯一事实源（1/a/A/i/I/（1）/一、/①）：
+//    NUMBER_FORMS 供工具栏下拉；orderedPrefix 供"转文本"；CSS 由 ensureListNumberStyleInjected 注入。
+//    Word 导出（docxBuilder）与 HTML/PDF 导出（themeConfig）共用同一份表——四处口径一致。
+import { NUMBER_FORMS, orderedPrefix, isOrderedNumberStyle, ensureListNumberStyleInjected } from '../utils/listNumberStyle.js';
 import { getMergedSpec } from '../config/layoutSpec.js';
 
 // ══════════════════════════════════════════
@@ -1171,13 +1175,23 @@ const layoutVars = computed(() => {
   } catch { return {}; }
 });
 
-// 🔧 字母编号大小写：'a' 小写 / 'A' 大写（转文本时按所选大小写生成序号；
-//    光标进入 type="a"/"A" 列表时自动同步）。
-//    定义在 useEditor 之前：onSelectionUpdate 回调会引用它，避免 TDZ 报错
-const alphaCase = ref('a');
+// 🔴 有序列表编号形式（1. / a. / A. / i. / I. / （1） / 一、 / ①）：
+//    形式表与"前缀生成/CSS"全部来自唯一事实源 utils/listNumberStyle.js——
+//    编辑器显示、HTML/PDF 导出（themeConfig 内联 CSS）、Word 导出（docxBuilder 字面前缀）三处同一份，
+//    新增一种形式只改那一处。定义在 useEditor 之前：onSelectionUpdate 回调会引用它，避免 TDZ 报错
+const orderedFormOptions = NUMBER_FORMS;
+const orderedForm = ref('1');
+/** 工具栏按钮上显示的形式样本（所见即所得：改形式按钮上的字也跟着变） */
+const orderedFormSample = computed(() =>
+  (NUMBER_FORMS.find((f) => f.value === orderedForm.value) || NUMBER_FORMS[0]).sample);
 
 // 🧩 导图节点实例（与 pageBreak / DivWrapper / DrawArea 同一手法注册进 schema）
 const DiagramFigure = createDiagramFigureNode();
+
+// 🔴 编号形式 CSS 注入编辑器文档（幂等，同 id 只注一次）：原生 1/a/A/i/I 浏览器本就能渲染，
+//    而（1）/一、/① 没有原生 type 可依，必须靠 @counter-style —— 否则编辑器里会退化成阿拉伯数字，
+//    出现"编辑器显示 1.、Word 导出却是（1）"的两套口径。样式内容与导出侧同源（listNumberStyle）。
+ensureListNumberStyleInjected(typeof document !== 'undefined' ? document : null);
 
 const editor = useEditor({
   content: props.modelValue,
@@ -1249,9 +1263,9 @@ const editor = useEditor({
     }, 150);
   },
   onSelectionUpdate: ({ editor }) => {
-    // 🔧 字母编号列表联动：光标进入 type="a"/"A" 列表时，大小写下拉自动同步
+    // 🔴 编号形式联动：光标进入某个编号形式的列表时，形式下拉自动同步（含 1/a/A/i/I/（1）/一、/①）
     const olType = editor.getAttributes('orderedList').type;
-    if (olType === 'a' || olType === 'A') alphaCase.value = olType;
+    if (olType && isOrderedNumberStyle(olType)) orderedForm.value = olType;
 
     // 格式刷应用模式：选区变化时自动应用存储的格式（支持连刷，不自动关闭）
     if (formatPainterActive.value && editor.state.selection.from !== editor.state.selection.to) {
@@ -1549,50 +1563,45 @@ const toggleBulletListKeepMarkers = () => {
   convertListToMarkedParagraphs('ul');
 };
 
-/** 当前光标是否位于字母编号列表（type="a"/"A"）——用于工具栏联动高亮 */
+/** 当前光标是否位于"非阿拉伯数字"的编号列表——用于工具栏按钮的形态提示（保留原高亮语义） */
 const isAlphaOrderedList = computed(() => {
   const e = editor.value;
   if (!e) return false;
-  return e.isActive('orderedList', { type: 'a' }) || e.isActive('orderedList', { type: 'A' });
+  const t = e.getAttributes('orderedList').type;
+  return !!t && t !== '1' && isOrderedNumberStyle(t);
 });
 
+/** 编号列表双态：
+ *  开启：光标处建立 type=当前所选形式 的有序列表（已是列表则只改形式，不破坏枚举结构）；
+ *  关闭：把当前列表转成"该形式"的编号文本段落。 */
 const toggleOrderedListKeepMarkers = () => {
   if (!editor.value) return;
+  const listType = orderedForm.value || '1';
 
   if (!editor.value.isActive('orderedList')) {
     editor.value.chain().focus().toggleOrderedList().run();
+    if (listType !== '1') {
+      editor.value.chain().focus().updateAttributes('orderedList', { type: listType }).run();
+    }
     return;
   }
 
-  convertListToMarkedParagraphs('ol', null); // null = 自动序号
-};
-
-/** 字母编号双态（与数字「1.」「•≡」对齐）：
- *  开启：光标处建立（或把当前数字列表切换为）type=<alphaCase> 的字母有序列表；
- *  关闭：把当前字母有序列表转成 a. b. c. 文本段落。 */
-const toggleAlphaOrderedList = () => {
-  if (!editor.value) return;
-  const listType = alphaCase.value === 'A' ? 'A' : 'a';
-
-  // 已是字母有序列表 → 转文本
-  if (isAlphaOrderedList.value) {
-    convertListToMarkedParagraphs('ol', listType);
-    return;
-  }
-  // 已是数字有序列表 → 仅改为字母类型（不破坏枚举结构）
-  if (editor.value.isActive('orderedList')) {
+  // 已在列表里：若形式不同 → 只改形式；形式相同 → 再点一次转文本（保留原"再点一次转文本"语义）
+  const cur = editor.value.getAttributes('orderedList').type || '1';
+  if (cur !== listType) {
     editor.value.chain().focus().updateAttributes('orderedList', { type: listType }).run();
     return;
   }
-  // 无列表 → 开启字母有序列表
-  editor.value.chain().focus().toggleOrderedList().updateAttributes('orderedList', { type: listType }).run();
+  convertListToMarkedParagraphs('ol', null); // null = 自动序号（按列表自身 type 生成）
 };
 
-// 🔧 切换字母大小写时，同步当前光标所在字母有序列表的 type（与 bulletMarker 对无序列表的写入对齐）
-watch(alphaCase, (c) => {
+// 🔧 切换编号形式时，同步当前光标所在编号列表的 type（与 bulletMarker 对无序列表的写入对齐）
+watch(orderedForm, (f) => {
   const e = editor.value;
-  if (e && isAlphaOrderedList.value) {
-    e.chain().focus().updateAttributes('orderedList', { type: c === 'A' ? 'A' : 'a' }).run();
+  if (!e) return;
+  const t = e.getAttributes('orderedList').type || '1';
+  if (e.isActive('orderedList') && t !== f) {
+    e.chain().focus().updateAttributes('orderedList', { type: f }).run();
   }
 });
 
@@ -1601,14 +1610,7 @@ watch(alphaCase, (c) => {
  * @param {string|null} marker null=自动序号 / 'a'='A'=字母 / 其他=固定字符串
  * @param {number} idx 0 基序号
  */
-/** 阿拉伯数字 → 罗马数字（用 `toRoman(n)`；小写 via toLowerCase） */
-const toRoman = (num) => {
-  const TABLE = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
-  let n = Math.max(1, Math.floor(num));
-  let out = '';
-  for (const [v, s] of TABLE) { while (n >= v) { out += s; n -= v; } }
-  return out;
-};
+/** 阿拉伯数字 → 罗马数字已上收 utils/listNumberStyle.js（唯一事实源，避免第二份表） */
 
 /**
  * 生成列表标记前缀（保层级 + 各列表各自符号）
@@ -1625,16 +1627,15 @@ const UL_LEVEL_MARKERS = ['• ', '○ ', '▪ ', '◦ ', '▪ '];
 /** 转文本后层级块级左缩进（每层 2 字符 = 2em，相对当前字号→自动适配不同排版主题；2 字符即全角汉字 2em）。 */
 const LIST_INDENT_EM = 2;
 
+/** 阿拉伯数字 → 罗马数字等编号前缀统一由 utils/listNumberStyle.js 提供（唯一事实源） */
 const buildListPrefix = (marker, idx, type = null) => {
   // 层级不再用行首全角空格（空格只缩进首行，折行会回到段落左边距）——
   // 转为段落的块级 margin-left（buildListPrefix 只生成标记文本）
   const t = type || marker;
-  // 仅确认为编号类型（有序 a/A/i/I）时走编号；其余（含无序符号如 '• '）一律按固定符号保留
-  if (t === null || t === undefined) return `${idx + 1}. `; // 有序数字（每层独立，原文即如此）
-  if (t === 'a') return `${String.fromCharCode(97 + (idx % 26))}. `;
-  if (t === 'A') return `${String.fromCharCode(65 + (idx % 26))}. `;
-  if (t === 'i') return toRoman(idx + 1).toLowerCase() + '. ';
-  if (t === 'I') return toRoman(idx + 1) + '. ';
+  // null = 有序列表自动序号（按列表自身 type）
+  if (t === null || t === undefined) return orderedPrefix('1', idx + 1);
+  // 编号形式（1/a/A/i/I/paren/cjk/circled）→ 走唯一事实源；超集之外的（即无序符号）原样保留
+  if (isOrderedNumberStyle(t)) return orderedPrefix(t, idx + 1);
   return t; // 无序列表：自身符号（data-marker）或 bulletMarker 固定符号
 };
 

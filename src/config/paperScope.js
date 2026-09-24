@@ -191,6 +191,40 @@ export const inferScopeFromBook = (book, scopeType = '', pickScope, { onlyAnalyz
     pickScope,
   );
 
+/** 范围确认弹窗的维度词 → 范围类型（弹窗确认的是"维度"，具体名称由名称池轮换组合） */
+export const SCOPE_DIM_TO_TYPE = { 期中: 'midterm', 期末: 'final', 月考: 'monthly', 专题: 'topic', 综合: 'default' };
+
+/**
+ * 🔴 范围名**唯一出口**（2026-09-24 根治）。
+ *
+ * 为什么必须唯一：范围名此前有两个出口各算一套——「组装生成指令」按 `scopeOverride`（范围确认弹窗
+ * 的确认结果）取，而「卷首标题」自己再推一次、**完全不认 scopeOverride** →
+ * 用户在弹窗里确认的范围，标题里根本不体现（两个出口必然漂移）。
+ *
+ * 现三条来源收敛到一个函数，组装指令与卷首标题**都必须调它**：
+ *   · 用户确认过（scopeOverride）→ 维度词（期中/期末/月考/专题/综合）走名称池轮换；
+ *     自定义名（如"第二单元·识字提升"）原样使用。
+ *   · 未确认 → 按勾选自动推断（单课→课名 / 整单元→单元名 / 跨单元→范围标签词）。
+ *
+ * @returns {{name:string, isScopeLabel:boolean, category:string, fromOverride:boolean}}
+ */
+export const resolveScopeName = ({ book = null, scopeType = '', scopeOverride = '', pickScope } = {}) => {
+  const base = inferScopeFromBook(book, scopeType, pickScope);
+  const over = String(scopeOverride || '').trim();
+  if (!over) return { ...base, fromOverride: false };
+  const dimType = SCOPE_DIM_TO_TYPE[over];
+  return {
+    name: dimType
+      ? (pickScope ? pickScope(dimType) : (SCOPE_LABEL_POOLS[dimType]?.[0] || over))
+      : over,
+    // 维度词是"标签"（标题按考试型拼：学年度学期+年级+学科+标签）；
+    // 自定义名是"名称"（按普通型拼：年级+学科+册别+名称+类型名）
+    isScopeLabel: !!dimType,
+    category: dimType || base.category,
+    fromOverride: true,
+  };
+};
+
 /**
  * 学年度学期推断（正式考试（期中/期末/月考）卷首标题前缀用）。
  * 规则：学年度 = 9月1日-次年8月31日；学期 = 9月-次年1月为第一学期、2月-8月为第二学期（8月视为第二学期末/暑假）。

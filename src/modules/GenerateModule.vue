@@ -3177,7 +3177,7 @@ import { useAiGenerator, lastInjectSnapshot, chapterSigOf } from '../composables
 //    生成页只保留「从本记录的答案页听力原文进入」这个便利入口，实现共用同一组件。
 import ListeningWorkbench from '../components/listening/ListeningWorkbench.vue';
 import { resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
-import { inferScopeFromBook, selectedChaptersOf, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES } from '../config/paperScope.js';
+import { resolveScopeName, selectedChaptersOf, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES } from '../config/paperScope.js';
 
 // 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
 const SCOPE_TYPE_LABELS = { default: '默认', midterm: '期中', final: '期末', monthly: '月考', topic: '专题', xiaoshengchu: '小升初', zhongkao: '中考', gaokao: '高考' };
@@ -6281,21 +6281,21 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   } catch { /* 无蓝图不影响指令注入（模板兜底） */ }
 
   // 命题范围（单元名：课/单元/期中/期末）
-  // 🔧 范围维度 → 名称池类型（弹窗确认的是"维度"，具体标题名称由名称池轮换组合）
-  const DIM_TO_TYPE = { 期中: 'midterm', 期末: 'final', 月考: 'monthly', 专题: 'topic', 综合: 'default' };
+  // 🔴 2026-09-24 根治：范围名**唯一出口** resolveScopeName——「组装指令」与「卷首标题」必须同一函数，
+  //    否则用户确认过的范围（scopeOverride）只在指令里生效、标题里不体现（两个出口各算一套）。
+  //    （范围维度→名称池类型的映射也已上收 paperScope.SCOPE_DIM_TO_TYPE，不再各写一份）
   let unit = '';
   let scopeInfo = null;
   try {
     const scopeSource = selectedBooks.find(b => (b.selectedChapters || []).length > 0) || selectedBooks[0];
     if (scopeSource?.outline) {
-      // 📐 范围标签词轮换：期中/期末/月考等考试标签逐次轮换（如 期中综合测试→期中素养检测），避免标题千篇一律
-      // 🔴 2026-09-24 根治：改走 inferScopeFromBook——`selectedChapters` 是 store 的**派生字段**，
-      //    裸教材记录上根本没有；旧实现直接读裸记录 → 章节清单恒为空 → 范围名退化成默认标签词
-      //    （综合检测/综合达标…），与勾选无关。用户实证"改了勾选，指令里的范围不跟着变"即此。
-      scopeInfo = inferScopeFromBook(scopeSource, scopeType.value || '', pickScopeFromPool);
-      unit = scopeOverride.value
-        ? (DIM_TO_TYPE[scopeOverride.value] ? pickScopeFromPool(DIM_TO_TYPE[scopeOverride.value]) : scopeOverride.value)
-        : (scopeInfo.name || '');
+      scopeInfo = resolveScopeName({
+        book: scopeSource,
+        scopeType: scopeType.value || '',
+        scopeOverride: scopeOverride.value || '',
+        pickScope: pickScopeFromPool,
+      });
+      unit = scopeInfo.name || '';
     }
   } catch { /* 范围推断失败不影响 */ }
 
@@ -8509,9 +8509,15 @@ const finalizeGeneration = async (result, genType) => {
     //    考试型（期中/期末/月考/专题）= 学年度学期 + 年级 + 学科 + 范围标签词（从名称池轮换）
     //    ——标题命名是确定性拼装（程序职责），不再采信 AI 生成的 h1（此前 AI 自由发挥导致命名规则从未生效）
     const examLabelCats = ['midterm', 'final', 'monthly', 'topic', ...EXAM_GRADUATION_TYPES];
-    // 🔴 2026-09-24 根治：范围名统一走 inferScopeFromBook（教材记录级入口，内部从 outline 现推勾选章节）。
-    //    此前直接读 `book.selectedChapters`（store 派生字段，裸记录没有）→ 清单恒空 → 退化默认标签词。
-    const scopeInfo = inferScopeFromBook(book, scopeType.value || '', pickScopeFromPool);
+    // 🔴 2026-09-24 根治：范围名**唯一出口**（与「组装指令」同一函数）——
+    //    ① 取数：从 outline 的勾选标志现推（裸记录没有派生字段 selectedChapters，此前恒为空）；
+    //    ② 来源：用户确认过的范围（scopeOverride）在这里同样生效，不再"指令认、标题不认"。
+    const scopeInfo = resolveScopeName({
+      book,
+      scopeType: scopeType.value || '',
+      scopeOverride: scopeOverride.value || '',
+      pickScope: pickScopeFromPool,
+    });
     const chapterName = scopeInfo.name;
     const isLabelScope = !!scopeInfo?.isScopeLabel
       && (examLabelCats.includes(scopeType.value || '') || examLabelCats.includes(scopeInfo.category || ''));

@@ -12,6 +12,9 @@ import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js';
 import { PAPER_PRESETS, normalizeLayout } from '../config/paperPresets.js';
 import { decodeEntities } from './escape.js'; // 实体解码唯一实现 utils/escape（曾 data-image-raw/data-graph-raw 两条同构链 + GenerateModule 副本）
 import { splitMathSegments, MATH_PREVIEW_ATTR, MATH_LATEX_ATTR, MATH_SRC_CLASS } from './mathSyntax.js'; // 公式定界语法与编辑器公式 widget 标记（零依赖，勿从 mathPreview 引以免拖入 Tiptap）
+// 🔴 有序列表编号形式的唯一事实源（1/a/A/i/I/（1）/一、/①）：Word 不认 CSS 编号，按字面前缀写；
+//    与编辑器显示、HTML/PDF 导出共用同一份形式表，四处口径不许再各写一份。
+import { orderedPrefix } from './listNumberStyle.js';
 import { latexToDocxMath, latexToDocxDisplay } from './latexToDocxMath.js'; // LaTeX → Word 真公式对象（行内 / 展示式；不支持时返回 null）
 import { convertFormulaToText } from './wordExporter.js'; // 公式可读化降级（Word 兜底：绝不泄漏 $ / \frac）
 
@@ -50,14 +53,7 @@ const zwgCellByStage = (stage) => {
   return { widthDxa: Math.round(c.widthMm * MM2DXA), heightDxa: Math.round((c.heightMm || c.widthMm) * MM2DXA), widthMm: c.widthMm };
 };
 
-/** 阿拉伯数字 → 罗马数字（列表 type="i"/"I" 导出用） */
-const romanize = (n) => {
-  const table = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
-  let r = '';
-  let v = n;
-  for (const [val, sym] of table) { while (v >= val) { r += sym; v -= val; } }
-  return r;
-};
+/* 罗马数字等编号前缀由 utils/listNumberStyle.js 唯一提供（原本地 romanize 已上收，避免第二份表） */
 
 /** px → pt（docx 原生单位） */
 const px2pt = (px) => Math.round(parseFloat(px) * 0.75) || 12;
@@ -1954,12 +1950,11 @@ const processBlockNode = (node, ctx = {}) => {
       let prefix = '';
       if (isOrdered) {
         if (!hasTextNumber) {
-          const idx0 = itemIndex - startIdx; // 0 基序号（支持 start 起始值）
-          if (listType === 'a') prefix = `${String.fromCharCode(97 + (idx0 % 26))}. `;
-          else if (listType === 'A') prefix = `${String.fromCharCode(65 + (idx0 % 26))}. `;
-          else if (listType === 'i') prefix = `${romanize(itemIndex).toLowerCase()}. `;
-          else if (listType === 'I') prefix = `${romanize(itemIndex)}. `;
-          else prefix = `${itemIndex}. `;
+          // 🔴 编号形式的**唯一事实源**（src/utils/listNumberStyle.js）：Word 不认 CSS 编号，
+          //    只能按字面前缀写；与编辑器显示、HTML/PDF 导出共用同一份形式表与前缀生成，
+          //    故「1/a/A/i/I/（1）/一、/①」四处口径天然一致（此前此处自持一份分支）。
+          //    传 `itemIndex`（含 start 起始值）——与 HTML 规范一致：<ol start="3" type="a"> 从 c. 起算。
+          prefix = orderedPrefix(listType || '1', itemIndex);
         }
         itemIndex++; // 🔧 只在此处递增：旧实现前缀里 itemIndex++ 后又自增一次 → 编号 1,3,5 跳号
       } else {

@@ -7,6 +7,9 @@ import { stripSealSuffix, normalizeSealBlanks } from './utils/sealText.js'; // �
 import { escapeHtml as escHtml } from './utils/escape.js'; // HTML 转义唯一实现（曾本地 escHtml 与 drawingMLShapes/GenerateModule 等 5 份同构副本）
 
 import { CARRIER_CSS } from './styles/carrierCss.js'; // 作答载体 CSS 单一事实源（填空横线/括号空位/整行横线/行尾延伸），与 main.js 全局注入同源
+// 🔴 有序列表编号形式（1/a/A/i/I/（1）/一、/①）的 CSS 单一事实源：HTML/PDF 导出必须内联，
+//    否则自定义形式（（1）/一、/①）无原生 type 可依 → 浏览器退化成阿拉伯数字。
+import { LIST_NUMBER_CSS } from './utils/listNumberStyle.js';
 
 export const themes = [
   // 我的样式
@@ -1463,6 +1466,8 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       ${CARRIER_CSS}
       /* 连线题 / 词库作答框（无样式主题导出兜底；与有主题分支同值，2026-09 收敛见 MATCH_WORD_BANK_CSS） */
       ${MATCH_WORD_BANK_CSS}
+      /* 有序列表编号形式（唯一事实源 listNumberStyle） */
+      ${LIST_NUMBER_CSS}
     </style>`;
     return `<!DOCTYPE html>
 <html>
@@ -1991,6 +1996,8 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   //    @page 边距必须为 0，否则 20mm + 20mm 叠加成 40mm（正文被推得太深）
   const sealTheme = themeId === 'sealed_exam';
   styleTag += `
+    /* 有序列表编号形式（唯一事实源 listNumberStyle；有主题分支同样必须内联） */
+    ${LIST_NUMBER_CSS}
     @page {
       size: A4;
       margin: ${sealTheme ? 0 : '20mm'};

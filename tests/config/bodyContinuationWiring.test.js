@@ -1,16 +1,16 @@
 /**
  * 正文截断 / 续写链 · 源码接线守卫
  * ============================================================
- * 背景（2026-09-24 · 真实云端模型实证）：知识总结单次输出 13555 字符
- *   ÷ CHARS_PER_TOKEN(1.3) = 10427 token > 硬顶 8532 → 旧逻辑"余额 ≤ 0 → 返回 0 → break"
- *   把续写链**一轮都没跑**就锁死了（日志："经 0 次续写（预算 2844 token）仍未完整"），
- *   只剩"升级预算整卷重跑"一条路（更贵、更慢、还可能撞新坑）。
+ * 背景（2026-09-24 · 真实云端模型实证 + 用户裁定"不接受打补丁，要根治"）：
+ *   ① 知识总结单次输出 13555 字符 ÷ CHARS_PER_TOKEN(1.3) = 10427 token > 硬顶 8532
+ *      → 旧逻辑"余额 ≤ 0 → 返回 0 → break" 把续写链**一轮都没跑**就锁死（"经 0 次续写…仍未完整"）；
+ *   ② 本项目曾有**两套续写**：callAI 内薄层（两条引擎分支各一份、第三份内联去重、
+ *      不检测续写自身再截断、finishReason 不回传）与正文额度链 → 同一个截断"正文能补齐、答案页半截放行"。
  *
- * 这段逻辑藏在 `_runPaperOrder` 的大闭包里，纯函数单测覆盖不到接线，故用源码守卫锁住三件事：
- *   ① 首轮保底：续写预算必须传 `guaranteedRounds` —— 硬顶里"多留的 1 轮余量"必须花得出去；
- *   ② 轮次回传：必须把已用轮数（`roundsUsed`）传进去 —— 否则保底会被无限重复消费（防失控失效）；
- *   ③ 升级预算重试：续写额度必须**跟着一起升级**（`attemptQuota`）——
- *      此前只放大了单次帽，第 2 次尝试的硬顶与第 1 次完全相同，"升级"名不副实（照样锁死）。
+ *   逻辑藏在大闭包里、纯函数单测覆盖不到接线，故用源码守卫锁住：
+ *   ① 唯一实现：所有续写都必须走 continuationChain，且**不得再出现第二/第三份内联去重**
+ *   ② 正文链：额度策略仍按 attemptQuota 推导（含首轮保底、升级预算重试跟随）
+ *   ③ 答案页：续写链"仍截断"必须被当未完整处理（不得静默放行半截答案）
  * 谁把这些改回去，这里立刻红。
  * ============================================================
  */
@@ -21,27 +21,57 @@ import path from 'node:path';
 const ROOT = process.cwd();
 const src = fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8');
 
-describe('正文续写链 · 源码接线守卫', () => {
-  it('① 续写预算带首轮保底（单次输出就超硬顶时也不能锁死续写链）', () => {
+describe('续写链 · 唯一实现（两套收敛后不得回潮）', () => {
+  it('引用了续写链唯一实现模块', () => {
+    expect(src, '续写链唯一实现未接入').toContain("from '../utils/continuationChain.js'");
+    expect(src).toContain('runContinuationChain');
+  });
+
+  it('三处续写都走同一条链（正文链 + Ollama + OpenAI 兼容）', () => {
+    const calls = (src.match(/runContinuationChain\(\{/g) || []).length;
+    expect(calls, '续写调用点少于 3 处：说明又有分支自己写了一套').toBeGreaterThanOrEqual(3);
+  });
+
+  it('不得再有第二/第三份内联去重（旧薄层各写一份的病灶）', () => {
+    expect(src, '内联去重（精确末尾）回潮了').not.toContain('GEN_CONST.DEDUP_TAIL_EXACT');
+    expect(src, '内联去重（渐进重叠）回潮了').not.toContain('GEN_CONST.DEDUP_OVERLAP_MAX');
+    expect(src, '旧薄层的"续写失败即用原输出"措辞回潮了（那正是静默半截的措辞）').not.toContain('使用原输出');
+  });
+
+  it('detectTruncation / appendContinuationWithDedup 只从链模块再导出，不再本地实现', () => {
+    expect(src).toContain('export { detectTruncation, appendContinuationWithDedup };');
+    expect(src, 'detectTruncation 本地实现又长回来了').not.toContain('export const detectTruncation =');
+    expect(src, 'appendContinuationWithDedup 本地实现又长回来了').not.toContain('export const appendContinuationWithDedup =');
+  });
+});
+
+describe('正文续写 · 额度策略接线', () => {
+  it('① 首轮保底：单次输出就超硬顶时也不能把续写链锁死', () => {
     expect(src, '续写预算丢了首轮保底 → 单次超硬顶即 0 轮续写（本次实证的病因）')
       .toContain('guaranteedRounds: 1');
   });
 
   it('② 保底必须回传已用轮数（否则每轮都能再保底 = 无界续写）', () => {
-    expect(src, '保底未回传已用轮数 → 保底被无限重复消费，防失控失效')
-      .toContain('roundsUsed: contCount');
+    expect(src).toContain('roundsUsed: round - 1');
   });
 
   it('③ 升级预算重试：续写额度跟着一起升级，而不是只放大单次帽', () => {
     expect(src, '重试未按升级后的单次帽重推额度 → 第 2 次尝试硬顶与第 1 次相同，"升级"无效')
       .toContain('const attemptQuota = planOutputQuota(');
     expect(src).toContain('Math.max(bodyEffectiveCap, attemptCap)');
+    expect(src, '正文链未使用升级后的额度轮数').toContain('maxRounds: attemptQuota.rounds');
+  });
+});
+
+describe('答案页 · 不得静默放行半截答案', () => {
+  it('续写链已如实上报 finishReason（引擎分支都要 returnMeta）', () => {
+    expect(src).toContain('finishReason: ollamaFinish');
+    expect(src).toContain('finishReason = dsChain.truncated ? \'length\' : \'stop\'');
   });
 
-  it('④ 续写链全部走升级后的额度（不得残留首轮额度，否则两套口径并存）', () => {
-    expect(src).toContain('const MAX_CONT = attemptQuota.rounds;');
-    expect(src).toContain('hardQuota: attemptQuota.hardQuota');
-    expect(src, '续写链仍在用首轮额度 bodyQuota').not.toContain('hardQuota: bodyQuota.hardQuota');
-    expect(src).not.toContain('const MAX_CONT = bodyQuota.rounds;');
+  it('答案页把"续写后仍截断"当未完整处理（重试 / 判失败），并有对应日志与报错', () => {
+    expect(src, '答案页没检查"仍被截断"→ 长度过线的半截答案会被静默放行').toContain('ansTruncated');
+    expect(src).toContain('续写后仍被截断');
+    expect(src).toContain('两次尝试均为空/过短/续写后仍截断');
   });
 });
