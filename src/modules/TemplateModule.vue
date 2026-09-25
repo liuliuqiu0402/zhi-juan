@@ -1757,9 +1757,12 @@ const filteredTemplates = computed(() => {
 const {
   panelWidth, resizing, startResize, resetPanelWidth,
   collapsed, isCollapsed, toggleCollapse, collapseAll, expandAll,
+  ensureDefaultCollapsed,
 } = useLibraryView({ storageKey: 'template' });
 
 const groupedTemplates = computed(() => groupLibrary(filteredTemplates.value));
+// 🔴 默认按类收起（与教材库同源，见 useLibraryView.ensureDefaultCollapsed）
+ensureDefaultCollapsed(groupedTemplates.value);
 /** 组头显示判据：**只看该维度有没有被显式筛选**（与教材库同一判据）——
  *  按"数据只有一组就隐藏"会让结构随数据变形（用户实测："模板库只按学科、没有先按学段"）。 */
 const showStageLevel = computed(() => needGroupHeader(filterStage.value));

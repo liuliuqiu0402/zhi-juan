@@ -1776,9 +1776,13 @@ const filteredTextbooks = computed(() => {
 const {
   panelWidth, resizing, startResize, resetPanelWidth,
   collapsed, isCollapsed, toggleCollapse, collapseAll, expandAll,
+  ensureDefaultCollapsed,
 } = useLibraryView({ storageKey: 'textbook' });
 
 const groupedTextbooks = computed(() => groupLibrary(filteredTextbooks.value));
+// 🔴 默认按类收起（2026-09-25 用户）：重启/刷新后应是"按类收起"而非全部展开；
+//    仅在从未手动设置过折叠状态时生效，之后用户展开/收起照旧被记住。
+ensureDefaultCollapsed(groupedTextbooks.value);
 /** 组头显示判据：**只看该维度有没有被显式筛选**（见 libraryGrouping.needGroupHeader 里记的那次回归）——
  *  第一版按"数据只有一组就隐藏该级"实现，出现"小学下面有学科、初高中下面没有"，结构随数据变形、无法预期。 */
 const showStageLevel = computed(() => needGroupHeader(filterStage.value));

@@ -150,11 +150,26 @@ export function useLibraryView({ storageKey = 'library', defaultWidth = PANEL_DE
   /** 是否有任何组被收起（决定按钮显示「全部展开」还是「全部折叠」） */
   const hasCollapsed = () => collapsed.value.size > 0;
 
+  /**
+   * 默认按类收起（2026-09-25 用户：教材库列表重启/刷新后应为"按类收起"而非全部展开）。
+   * 🔴 只在「从未手动设置过折叠状态」时应用——用户手动展开/收起的组合照旧被记住（持久化）。
+   *   不主动落盘，避免凭空生成"用户动过"的记录；一旦用户操作，persist 便接管后续。
+   * @param {Array<{key:string, subjects:Array<{key:string}>}>} groups 由 groupLibrary 产出
+   */
+  const ensureDefaultCollapsed = (groups = []) => {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      if (localStorage.getItem(C_KEY) !== null) return; // 有记录：尊重用户已存的状态
+    } catch { return; }
+    collapsed.value = new Set(collapsedKeysOf(groups));
+  };
+
   onBeforeUnmount(() => { if (cleanupDrag) cleanupDrag(); });
 
   return {
     panelWidth, resizing, startResize, resetPanelWidth,
     collapsed, isCollapsed, toggleCollapse, collapseAll, expandAll, hasCollapsed,
+    ensureDefaultCollapsed,
   };
 }
 
