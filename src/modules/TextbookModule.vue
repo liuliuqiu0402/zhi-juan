@@ -2325,7 +2325,9 @@ const renameTextbook = async (book) => {
   const newPdfPath = book.pdfPath ? targets.pdfPath : '';
   const newCoverPath = book.coverPath ? targets.coverPath : '';
   // 目标冲突预检（图片目录 + PDF + 缩略图）
-  const fileExists = async (p) => { try { await window.electronAPI.readFile(p); return true; } catch { return false; } };
+  // 🔴 存在性探测走 existsPath（静默返回布尔），不用 read-file——后者读不到会 throw，
+  //    主进程会把 ENOENT 当异常打印一串 [1] 噪音日志。
+  const fileExists = (p) => window.electronAPI.existsPath(p);
   if ((await pathExists(newImagesDir))
       || (newPdfPath && await fileExists(newPdfPath))
       || (newCoverPath && await fileExists(newCoverPath))) {
@@ -2557,11 +2559,8 @@ const startAiOutlineEditor = async () => {
       const paddedPage = String(page).padStart(3, '0');
       let imagePath = `${tempImagesDir}/page_${paddedPage}.png`;
 
-      // ✅ 检查文件存在
-      const checkFile = async (path) => {
-        try { await window.electronAPI.readFile(path); return true; } 
-        catch { return false; }
-      };
+      // ✅ 检查文件存在（existsPath 静默，避免 read-file 抛 ENOENT 噪音）
+      const checkFile = (p) => window.electronAPI.existsPath(p);
 
       const pngExists = await checkFile(imagePath);
       if (!pngExists) {
@@ -3583,25 +3582,15 @@ const saveTextbook = async () => {
     let hasExistingImages = false;
     let hasExistingCover = false;
     
-    try {
-      const jpgPath = `${imagesDir}/page_001.jpg`;
-      await window.electronAPI.readFile(jpgPath);
-      hasExistingImages = true;
-    } catch (_) {
-      try {
-        const pngPath = `${imagesDir}/page_001.png`;
-        await window.electronAPI.readFile(pngPath);
-        hasExistingImages = true;
-      } catch (_) {}
-    }
-    
-    try {
-      await window.electronAPI.readFile(coverPath);
-      hasExistingCover = true;
-      console.log('✅ 检测到已有缩略图缓存');
-    } catch (_) {
-      hasExistingCover = false;
-    }
+    // ✅ 存在性探测走 existsPath（静默返回布尔）——读不到图片本来就是正常结论
+    //    （这套教材可能只有文字、没有图），别再让 read-file 抛 ENOENT 刷主进程日志。
+    const jpgPath = `${imagesDir}/page_001.jpg`;
+    const pngPath = `${imagesDir}/page_001.png`;
+    hasExistingImages = await window.electronAPI.existsPath(jpgPath)
+      || await window.electronAPI.existsPath(pngPath);
+
+    hasExistingCover = await window.electronAPI.existsPath(coverPath);
+    if (hasExistingCover) console.log('✅ 检测到已有缩略图缓存');
     
     if (ext === 'pdf') {
       // 如果检测到旧文件，先删除
