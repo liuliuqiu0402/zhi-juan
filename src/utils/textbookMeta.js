@@ -5,8 +5,9 @@
  *    圈码不全等 bug 双份残留），现收敛为单一共享实现。
  *
  * 识别范围（保守策略，防误判）：
- *   - 年级：小学 1-6 年级（"X年级" + 圈码①~⑥），输出规范中文年级；教材名不标注学段/年级时留空，
- *     由用户在导入界面显式勾选（不做初中/高中年级猜测——文件名通常无学段信息，猜错比不猜更糟）。
+ *   - 年级：小学 1-6 年级、初中 7-9 年级（"X年级" + 圈码①~⑨），输出规范中文年级；
+ *     教材名不标注学段/年级时留空，由用户在导入界面显式勾选（不做高中年级猜测——
+ *     文件名通常无学段信息，猜错比不猜更糟）。
  *   - 册次：**高中**按"必修／选择性必修"分册，教材本身不绑定年级（各省教学用书的「册次」与
  *     「使用年级」是两栏并列，使用年级写的是区间），故高中**认册次、不认年级**。册次在文件名里是
  *     字面出现的（"必修第一册""选择性必修2"），照抄不会错 → 识别后回填 stage='高中' + volume。
@@ -29,12 +30,15 @@ const SUBJECT_RULES = [
   ['音乐', '音乐'], ['美术', '美术'], ['体育', '体育'],
 ];
 
-const CIRC_TO_DIGIT = { '①': '1', '②': '2', '③': '3', '④': '4', '⑤': '5', '⑥': '6' };
+const CIRC_TO_DIGIT = { '①': '1', '②': '2', '③': '3', '④': '4', '⑤': '5', '⑥': '6', '⑦': '7', '⑧': '8', '⑨': '9' };
 const GRADE_MAP = { '1': '一年级', '2': '二年级', '3': '三年级', '4': '四年级', '5': '五年级', '6': '六年级' };
+const JUNIOR_GRADE_MAP = { '7': '七年级', '8': '八年级', '9': '九年级' };
 /** 中文数字 → 年级数字。🔴 修：原正则只写 `([1-6])年级`（仅阿拉伯数字），与本文件声明的
  *  "小学 1-6 年级（"X年级" + 圈码①~⑥）"不符 —— 实际教材名绝大多数写"六年级上册"这种中文数字，
- *  结果 stage/grade 全落空、用户每次导入都要手选。圈码由上面的 CIRC_TO_DIGIT 先转成数字。 */
-const CN_GRADE_TO_DIGIT = { '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6' };
+ *  结果 stage/grade 全落空、用户每次导入都要手选。圈码由上面的 CIRC_TO_DIGIT 先转成数字。
+ *  🔴 初中：小学的 1-6 之外，7/8/9（圈码⑦⑧⑨）是初中（义务教育），需一并识别，否则"七年级上册"
+ *  这类教材 stage/grade 全空。 */
+const CN_GRADE_TO_DIGIT = { '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9' };
 
 /** 从教材/模板文件名识别 { stage, grade, volume, subject, semester } 元数据（识别不到留空，由用户界面显式勾选补全） */
 export const autoDetectTextbookMeta = (name = '') => {
@@ -51,11 +55,17 @@ export const autoDetectTextbookMeta = (name = '') => {
     result.volume = high.volume;
     result.semester = ''; // 高中按册次、不按上下册（"必修（上册）"的"上册"是册次名的一部分，不能当学期）
   } else {
-    const gradeMatch = normalized.match(/([1-6一二三四五六])年级/);
+    const gradeMatch = normalized.match(/([1-9一二三四五六七八九])年级/);
     if (gradeMatch) {
       const digit = CN_GRADE_TO_DIGIT[gradeMatch[1]] || gradeMatch[1];
-      result.stage = '小学';
-      result.grade = GRADE_MAP[digit] || '';
+      // 1-6 = 小学，7-9 = 初中（义务教育），不做高中年级猜测
+      if (JUNIOR_GRADE_MAP[digit]) {
+        result.stage = '初中';
+        result.grade = JUNIOR_GRADE_MAP[digit];
+      } else {
+        result.stage = '小学';
+        result.grade = GRADE_MAP[digit] || '';
+      }
     }
   }
 

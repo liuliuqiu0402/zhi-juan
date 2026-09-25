@@ -117,11 +117,10 @@ describe('autoDetectTextbookMeta：高中认册次、不认年级', () => {
     expect(autoDetectTextbookMeta('6年级数学下册')).toMatchObject({ stage: '小学', grade: '六年级' });
   });
 
-  it('初中仍留空（文件名无学段信息，猜错比不猜更糟）', () => {
-    const m = autoDetectTextbookMeta('七年级数学下册');
-    expect(m.stage).toBe('');
-    expect(m.grade).toBe('');
-    expect(m.volume).toBe('');
+  it('初中 7-9 年级识别（圈码⑦⑧⑨ + "X年级"，2026-09 实证真实库大量此类命名）', () => {
+    expect(autoDetectTextbookMeta('七年级数学下册')).toMatchObject({ stage: '初中', grade: '七年级', volume: '' });
+    expect(autoDetectTextbookMeta('人教版·数学⑧年级下册')).toMatchObject({ stage: '初中', grade: '八年级', volume: '' });
+    expect(autoDetectTextbookMeta('⑨年级英语上册')).toMatchObject({ stage: '初中', grade: '九年级', volume: '' });
   });
 });
 
