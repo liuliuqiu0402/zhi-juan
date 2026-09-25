@@ -2894,6 +2894,8 @@ const parsePageRange = (event, index) => {
     node.start = start;
     node.end = end;
     node.page = start;
+    // 🔴 手动优先：显式改过的页码范围不许被 fastCalculatePageRanges 重算顶回
+    node.rangeEndLocked = true;
     // 同 updatePageRange：originalPage 存"去掉偏移量"的基准值，否则改一次偏移量会多加一遍
     node.originalPage = start - pageOffset.value;
   }

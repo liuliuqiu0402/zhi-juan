@@ -251,6 +251,10 @@ export function useTocParser() {
           level: lvl,
           selected: node.selected,
           originalPage: node.originalPage,
+          // 🔴 手动优先的锁定标记必须跟着扁平化走：displayOutline 与 flatOutline 是
+          //    两批不同引用（flatten 会新建节点），不带上这里，编辑时打的 rangeEndLocked
+          //    就跨不到保存读的那份，手动改的 end 仍会被重算顶回。
+          rangeEndLocked: node.rangeEndLocked,
           children: node.children || []
         };
         result.push(flatNode);
@@ -470,6 +474,11 @@ export const fastCalculatePageRanges = (flatList, totalPages) => {
   // 第二步：计算 end（单次遍历）
   for (let i = 0; i < len; i++) {
     const current = flatList[i];
+    // 🔴 手动优先：用户在目录表里改过「页码范围」的行（rangeEndLocked=true），
+    //    它的 end 是显式给定的，重算必须跳过，否则保存时会被顶回
+    //    「下一项起始页-1 / 总页数」（最后一行尤其明显，直接跳回 totalPages）。
+    if (current.rangeEndLocked) continue;
+
     let endPage = totalPages;
     
     // 从当前位置向后查找下一个不同页码的条目
