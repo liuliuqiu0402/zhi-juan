@@ -147,12 +147,21 @@ describe('⑤ 单题作答区行数上限（规格层封顶）：全矩阵不得
     for (let i = 1; i < seq.length; i++) expect(seq[i]).toBeGreaterThanOrEqual(seq[i - 1]);
   });
 
-  it('端到端：语文·小低「按要求写句子（每题5分）」→ 4 行/题（下推+封顶双生效）', () => {
+  it('端到端：语文·小低「连词成句（每题2分）」→ 1 行/题（2026-09-26 用户实证）；高分值仍受封顶', () => {
+    // 🔴 2026-09-26 用户实证（"十一、连词成句，加上合适的标点：每小题一行就够，结果补了 3 行"）：
+    //    低段系数 1.4→0.5（2分=1行）；规格层仍是唯一点，补差逻辑不加题型特例
+    const items2 = [1, 2, 3].map((n) => `<p class="question">${n}. 连词成句，加上合适的标点。</p>`).join('');
+    const r2 = auditExamPaper(`<h2>十一、连词成句，加上合适的标点（每题2分，共6分）</h2>${items2}`,
+      { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    const lines2 = (r2.html.match(/blank-line/g) || []).length;
+    expect(lines2, `应为 3 题 × 1 行 = 3 条（实际 ${lines2}）`).toBe(3);
+
+    // 封顶仍生效（改用高分值触发：15分×0.5=7.5→8 行 → 收敛到学段上限 4）
     const items = [1, 2, 3].map((n) => `<p class="question">${n}. 把下面的句子改写成拟人句。</p>`).join('');
-    const r = auditExamPaper(`<h2>三、按要求写句子（每题5分，共15分）</h2>${items}`,
+    const r = auditExamPaper(`<h2>三、按要求写句子（每题15分，共45分）</h2>${items}`,
       { subject: '语文', stage: 'primary_low', genType: 'exam' });
     const lines = (r.html.match(/blank-line/g) || []).length;
-    expect(lines, `应为 3 题 × 4 行 = 12 条（实际 ${lines}）`).toBe(12);
+    expect(lines, `封顶生效：应为 3 题 × 4 行 = 12 条（实际 ${lines}）`).toBe(12);
     expect(r.issues.some((x) => x.type === 'answer-area' && /上限收敛/.test(x.message))).toBe(true);
   });
 });

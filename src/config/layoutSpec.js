@@ -435,7 +435,11 @@ export const ANSWER_REGION = {
     // 🔧 2026-09 学段对齐（中高考答题卡实证）：语文作文走作文格独立通道；阅读/论述/简答等主观题
     //    在真实中高考答题卡上为空白作答区（黑色边框内无线空白，调研见 2026-09 实证）→ middle/high 改 blank-area；
     //    小学低中段写话/句子练习等保留 line（书写横线惯例，低段卷面常见；primary_high 亦保留——小高卷面横线/空白均有，横线对短答更稳）
-    primary_low: { linePerScore: 1.4, lineHeightMm: 9, carrier: 'line' },
+    // 🔴 2026-09-26 用户实证（"十一、连词成句，加上合适的标点：每小题一行就够，结果补了 3 行"）：
+    //    低段 2 分题按旧系数 1.4 → ceil(2.8)=3 行（明显过量）。低段句子类作答本就是"写一句话"，
+    //    故低段系数降为 0.5（2分→1行、4分→2行、5分→3行），仍受 ANSWER_MAX_ROWS_BY_STAGE 上限约束。
+    //    ⚠️ 仅改**有实证的语文·小学低段**，中/高段与 '*' 通配不动（避免一刀切，待各自实证再调）。
+    primary_low: { linePerScore: 0.5, lineHeightMm: 9, carrier: 'line' },
     primary_mid: { linePerScore: 1.2, lineHeightMm: 8.5, carrier: 'line' },
     primary_high: { linePerScore: 1.0, lineHeightMm: 8, carrier: 'line' },
     middle: { linePerScore: 0.9, lineHeightMm: 7.5, carrier: 'blank-area' },
