@@ -281,3 +281,34 @@ describe('序号体系 · 层级样式（2026-09-26 补全：模型一次写对�
     expect(t).toContain('小组标题');
   });
 });
+
+describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户定版）', () => {
+  const examTpl = () => getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template;
+
+  it('大类层：居中加粗、**不带编号**、不得写"第X部分"、不得充当大题标题', () => {
+    const t = examTpl();
+    expect(t).toContain('大类层');
+    expect(t, '大类必须明写"不带编号"').toContain('大类不带任何编号');
+    expect(t, '不得出现"第X部分"这类字眼').toContain('不得写"第X部分"这类字样');
+    expect(t, '大类名不得充当 h2 大题标题（大题标题仍由模型自拟）').toContain('不得**充当 h2 大题标题');
+    expect(t, '旧"部分层"条款应已被大类层取代').not.toContain('部分层（仅当【卷面结构】含');
+  });
+
+  it('大类内分值自洽：该大类下各题分值合计 = 该大类分值', () => {
+    expect(examTpl()).toContain('该大类下各题分值合计必须等于该大类在【卷面结构】里的分值');
+  });
+
+  it('大题序号全卷连续、跨大类继续递增（消除旧句"全卷连续…不顺延"的自相矛盾）', () => {
+    const t = examTpl();
+    expect(t).toContain('全卷连续、跨大类/部分继续递增');
+    expect(t).toContain('不得重新从「一、」开始');
+    expect(t, '旧的"跨部分不顺延不重复"自相矛盾句须已移除').not.toContain('跨部分不顺延不重复');
+  });
+
+  it('自洽①判据域=题面（含标题/要求行/材料引导语），不再只认"题干"', () => {
+    const t = examTpl();
+    expect(t).toContain('含题干、大题标题、大类名、要求行、材料引导语');
+    expect(t).toContain('题面怎么说、卷面就怎么做');
+    expect(t, '旧判据域"只认题干"须已扩为"题面"').not.toContain('判据只有题干自身措辞');
+  });
+});

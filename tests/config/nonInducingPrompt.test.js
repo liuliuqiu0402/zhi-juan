@@ -237,7 +237,10 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     const src = fs.readFileSync(srcPath, 'utf8');
     expect(src).toContain('题面与作答形态同义');
     expect(src).toContain('允许的形态清单');
-    expect(src).toContain('题干怎么说、卷面就怎么做');
+    // 2026-09-26 判据域由"题干"扩为"题面"（含大题标题/大类名/要求行/材料引导语）——
+    //   实证：模型把作答形态声明写在 h3 标题上，而旧判据只认"题干"，该声明落在判据域之外
+    expect(src).toContain('题面怎么说、卷面就怎么做');
+    expect(src).toContain('含题干、大题标题、大类名、要求行、材料引导语');
     // 旧"列举式"表述不得回潮
     expect(src).not.toContain('题干凡声明了作答方式或作答容器（连线/连一连、圈类');
     expect(src).not.toContain('输出载体须与题干措辞同名一致');
