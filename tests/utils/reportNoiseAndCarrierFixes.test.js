@@ -165,3 +165,19 @@ describe('⑤ 单题作答区行数上限（规格层封顶）：全矩阵不得
     expect(r.issues.some((x) => x.type === 'answer-area' && /上限收敛/.test(x.message))).toBe(true);
   });
 });
+
+// 🔴 2026-09-26 用户实证：正式卷的写话是**汉字序号大题标题**（"十六、看图写话"）；旧补格判据只认
+//   "数字开头小题"或"无编号但带（X分）" → 两头落空 → kwPs=[] → debug 静默跳过（作文格没兜住）
+describe('⑥ 作文格补差：汉字序号大题标题的写话题（2026-09-26 用户实证）', () => {
+  it('「十六、看图写话」为汉字序号大题标题且无分值 → 仍能补出作文格', () => {
+    const html = '<h2>十六、看图写话</h2><p class="question">仔细看图，想一想，写几句话。</p>';
+    const r = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(r.html, '应补出作文格 zuo-wen-ge').toContain('zuo-wen-ge');
+  });
+
+  it('非写话的汉字序号大题标题不得误补作文格', () => {
+    const html = '<h2>十六、读句子（每题2分，共10分）</h2><p class="question">1. 读一读下面的句子。</p>';
+    const r = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(r.html).not.toContain('zuo-wen-ge');
+  });
+});

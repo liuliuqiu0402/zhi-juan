@@ -1338,7 +1338,19 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const t = p.textContent || '';
           return isKwText(t) && /[（(](?:共)?\s*\d{1,3}\s*分/.test(t) && !/^\s*\d+[.、．]/.test(t.trim());
         });
-        const kwPs = numberedKwPs.length ? numberedKwPs : scoredUnnumKw;
+        // 🔴 2026-09-26 用户实证（"十六、看图写话"未补格，兜底静默跳过）：正式卷的写话常以**汉字序号大题标题**
+        //    出现（如"十六、看图写话"）——它既非"数字开头小题"，也可能未标分值，**且是 <h2> 而非 <p>**
+        //    （旧判据只遍历 <p>）→ 三重落空，kwPs=[] 后走 debug 级静默跳过（连问题列表都不进）。
+        //    故补第三集合：**汉字序号大题/栏目标题（h2~h4）**。
+        const hanziKwPs = Array.from(tpl2.content.querySelectorAll('h2, h3, h4'))
+          .filter((h) => !h.closest('.answer-section'))
+          .filter((h) => {
+            const t = (h.textContent || '').trim();
+            return /^[一二三四五六七八九十百]+[、.．]/.test(t) && isKwText(t);
+          });
+        const kwPs = numberedKwPs.length
+          ? numberedKwPs
+          : (scoredUnnumKw.length ? scoredUnnumKw : hanziKwPs);
         if (kwPs.length === 0) {
           // 讲解表/非题干命中（或答案区外无编号无分值说明）→ debug 级留痕，不进用户问题列表
           silentCount('writing-grid', '关键词仅命中讲解/表内说明（无编号且无分值的写话字样），非作答写话题，不补格不报告', 'debug');
