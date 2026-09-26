@@ -10,6 +10,7 @@
 import { getRegionConfig } from './examRegionConfig.js';
 import { isLibEntryEnabled } from '../utils/libToggles.js';
 import { normalizeSubjectName } from './expertKnowledge.js'; // 学科×学段归名唯一事实源（别名+跨学段纠正，曾本地双表 SUBJECT_ALIAS/STAGE_SUBJECT_ALIAS 双轨）
+import { getUserBlueprintSections } from './userBlueprintOverrides.js'; // 🔴 用户蓝图栏目覆盖（2026-09-27 g6）：将来用户在原内置上改的条目，全链路必须读它、在其基础上改
 
 /** 蓝图默认分值/时长兜底（保存用户蓝图、省市缩放分母等共用；曾散落 100/'60分钟' 字面量于多处） */
 export const DEFAULT_EXAM_FULL_SCORE = 100;
@@ -667,6 +668,32 @@ const STAGE_FALLBACK = {
       } else {
         bp = { ...bp, duration };
       }
+    }
+  }
+  // 🔴 用户蓝图栏目覆盖（2026-09-27 g6，用户优先、后于省市覆盖）：用户在原内置上改的条目整组替换 sections。
+  //    按 **用户选择学段** 定位（不是降级后的蓝本 key），将来自定义 UI 写 storage 即自动生效，全链路无需再改。
+  //    与省市栏目覆盖同构：note 缺省按**同名栏目从内置蓝本继承**；分值之和≠当前总分 → 等比例缩放 + 末栏修正。
+  if (bp) {
+    const userKey = `${stdSubject}|${bpStage}`;
+    const userSections = getUserBlueprintSections(userKey);
+    if (userSections) {
+      const noteOf = (name) => {
+        const hit = bp.sections.find((d) => String(d.name || '') === name);
+        return (hit && hit.note) || '';
+      };
+      let sections = userSections.map((s) => ({
+        name: String(s.name).trim(),
+        score: Math.round(Number(s.score)),
+        note: String(s.note || '').trim() || noteOf(String(s.name).trim()),
+      }));
+      const total = bp.fullScore || DEFAULT_EXAM_FULL_SCORE;
+      const sum = sections.reduce((a, c) => a + c.score, 0);
+      if (sum !== total) {
+        sections = sections.map((s) => ({ ...s, score: Math.max(1, Math.round((s.score * total) / sum)) }));
+        const sum2 = sections.reduce((a, c) => a + c.score, 0);
+        sections[sections.length - 1].score += total - sum2;
+      }
+      bp = { ...bp, sections };
     }
   }
   return bp;
