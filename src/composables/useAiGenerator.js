@@ -21,7 +21,7 @@ import { planOutputQuota, nextContinuationBudget, isOverQuota, charsToTokens } f
 //    与 _runPaperOrder 的正文额度链并存 → 同一个截断"正文能补齐、答案页半截放行"。
 //    现统一走 runContinuationChain + 策略回调；这里再导出两个纯函数，仅为不破既有引用面（测试）。
 import {
-  detectTruncation, appendContinuationWithDedup, runContinuationChain, SIMPLE_CONTINUATION_MAX_ROUNDS,
+  detectTruncation, appendContinuationWithDedup, runContinuationChain, makeBudgetedPlanRound, SIMPLE_CONTINUATION_MAX_ROUNDS,
 } from '../utils/continuationChain.js';
 
 export { detectTruncation, appendContinuationWithDedup };
@@ -440,7 +440,7 @@ import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
 // 🗑 领域覆盖对账（reconcileDomains）已于 2026-09-20 用户裁定砍除，见下方调用点的说明；不再引入
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, classifyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, classifyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth, detectAnswerSectionMissing } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 import { FIGURE_DEPENDENCY_RE } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（图标记取证用）
 
@@ -1550,16 +1550,18 @@ const maxInputTokens = config.engine === 'deepseek'
 
           if (isTruncated && allowContinuation) {
             // 🔴 续写链**唯一实现**（utils/continuationChain.js）。此处只注入本引擎的策略：
-            //    薄层 = 每轮帽 主请求帽 ×0.5、最多 SIMPLE_CONTINUATION_MAX_ROUNDS 轮；
+            //    薄层 = 每轮帽 主请求帽 ×0.5、预算化续写（makeBudgetedPlanRound）；
+            //    轮数默认 2，答案页等长任务经 options.contMaxRounds 提权对齐正文（2026-09-26）。
             //    引擎差异只体现在 requestNext（Ollama 原生 /api/generate + 续写提示词）。
+            const contMaxRounds = options.contMaxRounds ?? SIMPLE_CONTINUATION_MAX_ROUNDS;
             const ollamaChain = await runContinuationChain({
               content: responseText,
               finishReason: 'length',
               label: 'Ollama 续写',
-              maxRounds: SIMPLE_CONTINUATION_MAX_ROUNDS,
+              maxRounds: contMaxRounds,
               newlineFallback: true, // 薄层旧口径：模型"先复述一句再往下写"时取换行后内容
-              planRound: () => Math.max(1, Math.floor(Number(maxTokens) * 0.5)),
-              onRound: ({ round, budget }) => console.log(`🔄 Ollama 输出被截断，第 ${round}/${SIMPLE_CONTINUATION_MAX_ROUNDS} 轮续写...（当前长度：${responseText.length}，本轮帽 ${budget}）`),
+              planRound: makeBudgetedPlanRound(maxTokens),
+              onRound: ({ round, budget }) => console.log(`🔄 Ollama 输出被截断，第 ${round}/${contMaxRounds} 轮续写...（当前长度：${responseText.length}，本轮帽 ${budget}）`),
               requestNext: async ({ tail, budget }) => {
                 const continuationPrompt = `【继续】请从上一次输出的最后一个字开始，继续后面的内容。不要重复已有文字。\n\n上一段末尾：${tail}\n\n继续：`;
                 const resp = await axios.post(
@@ -1717,14 +1719,16 @@ const maxInputTokens = config.engine === 'deepseek'
           if (isTruncated && allowContinuation) {
             // 🔴 续写链**唯一实现**（utils/continuationChain.js）。引擎差异只在 requestNext：
             //    OpenAI 兼容协议用「history + 原 prompt + assistant 预填 + 续写指令」四段会话续写。
+            //    轮数默认 2，答案页等长任务经 options.contMaxRounds 提权；每轮预算化（2026-09-26）。
+            const contMaxRounds = options.contMaxRounds ?? SIMPLE_CONTINUATION_MAX_ROUNDS;
             const dsChain = await runContinuationChain({
               content,
               finishReason,
               label: 'DeepSeek 续写',
-              maxRounds: SIMPLE_CONTINUATION_MAX_ROUNDS,
+              maxRounds: contMaxRounds,
               newlineFallback: true, // 薄层旧口径
-              planRound: () => Math.max(1, Math.floor(Number(maxTokens) * 0.5)),
-              onRound: ({ round, budget }) => console.log(`🔄 DeepSeek 输出被截断，第 ${round}/${SIMPLE_CONTINUATION_MAX_ROUNDS} 轮续写...（当前长度：${content.length}，本轮帽 ${budget}）`),
+              planRound: makeBudgetedPlanRound(maxTokens),
+              onRound: ({ round, budget }) => console.log(`🔄 DeepSeek 输出被截断，第 ${round}/${contMaxRounds} 轮续写...（当前长度：${content.length}，本轮帽 ${budget}）`),
               requestNext: async ({ tail, budget, content: soFar }) => {
                 const continuationMessages = [
                   // 🔧 会话前缀随续写链同带（与首请求一致：历史消息在前，任务在后，模型可续阅上下文）
@@ -4914,6 +4918,9 @@ ${cardAnalysisText.substring(0, 1000)}
           //    第二次重试强制关闭思考，防再次空转（此前无降级 → answerHtml='' → 入库无答案区，"无答案页"根因）
           // 🔴 产品级钳制（成本护栏）：思考乘数放大后仍 ≤ 引擎档（单次请求费用封顶）
           maxTokens: Math.min(clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), engineCap), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
+          // 🔴 2026-09-26（答案页续写对齐正文）：正文链续写轮次由额度派生、不设死；答案页曾锁死 2 轮 → 长答案页
+          //    2 轮就放弃（仍截断）→ 提权到 ANSWER_CONT_MAX_ROUNDS + 预算化 planRound（makeBudgetedPlanRound）
+          contMaxRounds: ANSWER_CONT_MAX_ROUNDS,
           maxReasoningChunks: ansThinking ? GEN_CONST.REASONING_CAP_ANSWER : GEN_CONST.REASONING_CAP_ANSWER_FORCED,
           returnMeta: true,
         });
@@ -4926,24 +4933,30 @@ ${cardAnalysisText.substring(0, 1000)}
         //    会被静默放行 —— 这正是"答案区缺后半段"的静默路径。现口径：仍截断 = 未完整，
         //    与"空/过短"同档：重试一次；两次都不完整 → 判失败（宁失败不残缺），绝不交付半截答案。
         const ansTruncated = ansObj.finishReason === 'length' || ansObj.finishReason === 'reasoning_capped';
-        if (aHtml && aHtml.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansCapped && !ansTruncated) {
+        // 🔴 2026-09-26（答案区"只剩尾部、缺前段"静默根治）：续写只治"尾部被截断"，治不了"答案区缺正文前段逐题答案"——那是"模型没写前半"，尾部完整+finish=stop 会被误判完成。现加题号缺失检测（正文顶层题号≥4 而答案区一个/顶层都无）→ severe 视同"未完整"，走重试；重试仍缺 → 告警交付（内容在但半缺，不静默）。
+        const ansGap = detectAnswerSectionMissing(content || '', aHtml);
+        if (aHtml && aHtml.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansCapped && !ansTruncated && !ansGap.severe) {
           const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
           // 🔧 去重：模型自带 <h1>参考答案…</h1> 头部标题剥除（系统包装已加 <h2> 标题，见 stripLeadingAnswerTitle）
           answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml)}</div>`;
         } else {
-          // 🔧 答案页为空/过短/思考耗尽/续写后仍截断 → 自动重试一次（思考耗尽时强制关闭思考，防再次空转；
+          // 🔧 答案页为空/过短/思考耗尽/续写后仍截断/缺正文前段题号 → 自动重试一次（思考耗尽/截断时强制关闭思考，防再次空转；
           //    模型偶发输出空或"略"式敷衍内容也覆盖）
-          const ansReason = ansCapped
-            ? `思考耗尽（${ansObj.reasoningChunkCount || 0} 推理chunks）`
-            : (ansTruncated
-              ? `续写后仍被截断（finish=${ansObj.finishReason}，清洗后 ${aHtml?.length || 0} 字符）`
-              : `过短（清洗后 ${aHtml?.length || 0} / 原始 ${(ansObj.content || '').length} 字符，finish=${ansObj.finishReason || 'unknown'}）`);
+          const ansReason = ansGap.severe
+            ? `缺正文前段逐题答案（正文顶层题号 ${ansGap.bodyTop}，答案区顶层题号 0）`
+            : (ansCapped
+              ? `思考耗尽（${ansObj.reasoningChunkCount || 0} 推理chunks）`
+              : (ansTruncated
+                ? `续写后仍被截断（finish=${ansObj.finishReason}，清洗后 ${aHtml?.length || 0} 字符）`
+                : `过短（清洗后 ${aHtml?.length || 0} / 原始 ${(ansObj.content || '').length} 字符，finish=${ansObj.finishReason || 'unknown'}）`));
           console.warn(`⚠️ 答案页内容${ansReason}，自动重试一次${ansCapped ? '（强制关闭思考）' : ''}`);
           const ansResp2 = await callAI(ansPrompt, {
             taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
             // 🔴 素材唯一性：答案页重试同口径——只带正文全文，不带任何素材前缀
             history: undefined,
             maxTokens: Math.min(clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), engineCap), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
+            // 🔴 2026-09-26（答案页续写对齐正文）：重试同样提权续写轮数 + 预算化
+            contMaxRounds: ANSWER_CONT_MAX_ROUNDS,
             maxReasoningChunks: ansThinking ? GEN_CONST.REASONING_CAP_ANSWER : GEN_CONST.REASONING_CAP_ANSWER_FORCED,
             thinking: (ansCapped || ansTruncated || (ansObj.reasoningChunkCount || 0) > 0) ? false : undefined, // 🔴 有推理痕迹（含引擎强制推理）→ 重试强制关闭思考
             returnMeta: true,
@@ -4951,9 +4964,18 @@ ${cardAnalysisText.substring(0, 1000)}
           const ansObj2 = typeof ansResp2 === 'string' ? { content: ansResp2, finishReason: '', reasoningChunkCount: 0 } : (ansResp2 || { content: '', finishReason: '', reasoningChunkCount: 0 });
           const aHtml2 = normalizeMathCircleBlanks(normalizeLeadingMarkers(cleanSectionHtml(ansObj2.content || '')));
           const ansTruncated2 = ansObj2.finishReason === 'length' || ansObj2.finishReason === 'reasoning_capped';
-          if (aHtml2 && aHtml2.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansTruncated2) {
+          const ansGap2 = detectAnswerSectionMissing(content || '', aHtml2);
+          if (aHtml2 && aHtml2.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansTruncated2 && !ansGap2.severe) {
             const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
             answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml2)}</div>`;
+          } else if (aHtml2 && aHtml2.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansTruncated2 && ansGap2.severe) {
+            // 🔴 2026-09-26：重试后内容有效但答案区仍缺正文前段题号 → **告警交付，不判整卷失败**（避免纯评分/开放表达卷被误杀）；
+            //    绝不静默——并入正文路径告警（审核报告可见），提示人工核对答案区完整性。
+            const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
+            answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml2)}</div>`;
+            const gapNote = `⚠️ 答案页两次生成仍缺正文前段逐题答案（正文顶层 ${ansGap2.bodyTop}，答案区顶层 ${ansGap2.ansTop}）——已保留现有答案内容，请人工核对该卷答案区完整性`;
+            if (typeof bodyPathNotes !== 'undefined' && Array.isArray(bodyPathNotes)) bodyPathNotes.push(gapNote);
+            console.warn(gapNote);
           } else {
             // 🔴 两次生成必须成功（2026-09-11 用户定版）：split 模式答案页是唯一答案源——
             //    两次尝试仍失败且正文无答案区 → 判失败（进入外层整卷重试），绝不静默交付"正文-only"

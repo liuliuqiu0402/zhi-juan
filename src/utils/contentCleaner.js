@@ -378,6 +378,33 @@ export function detectBodyNumberingGap(html = '') {
 }
 
 /**
+ * 答案区题号缺失检测（2026-09-26 用户实测："答案区只剩尾部评分表、缺前段逐题答案"根治）。
+ * 正文是逐题卷（顶层题号≥4）而答案区却一个顶层题号都没有 → 判"答案区前段整体缺失"（severe）。
+ * 正文顶层题数取"最长 1 起始连续段"（与 countTopQuestions 同口径，抗题干内数字列举干扰）；
+ * 答案区必须显式传 part:'answer'（否则整段被当"答案区"切掉 → 计数恒 0，恒漏判）。
+ * 判据刻意保守：正文顶层题数 <4 不判（纯写作/口语等开放表达卷），避免纯评分式答案区误报。
+ * ↔ 消费方 useAiGenerator 答案页接受判定：severe → 不静默接受，重试一次；重试仍缺 → 记告警。
+ */
+export const ANSWER_SECTION_MISSING_MIN_BODY_TOP = 4;
+export function detectAnswerSectionMissing(content = '', answerHtml = '') {
+  const peakRun = (nums) => {
+    let best = 0, run = 0;
+    for (const n of nums) {
+      if (n === run + 1) run += 1;
+      else if (n === 1) run = 1;
+      else run = 0;
+      if (run > best) best = run;
+    }
+    return best;
+  };
+  const bodyTop = peakRun(extractBodyQuestionNumbers(String(content || '')));
+  const ansTop = peakRun(extractBodyQuestionNumbers(String(answerHtml || ''), { part: 'answer' }));
+  // 答案区为空/纯空白 → 不判"前段缺失"（那是"整体缺失"，由调用方的空/过短门先拦截，与本判据无关）
+  const hasAnswer = String(answerHtml || '').trim().length > 0;
+  return { bodyTop, ansTop, severe: hasAnswer && bodyTop >= ANSWER_SECTION_MISSING_MIN_BODY_TOP && ansTop === 0 };
+}
+
+/**
  * 缺号成因分类（2026-09-17 用户裁定·根治：不再靠枚举编号形态定罪）
  * ============================================================
  * 🔴 判据换代理指标：**"我认得出题号" ≠ "题目存在"**。

@@ -85,8 +85,29 @@ export const appendContinuationWithDedup = (base, cont, { newlineFallback = fals
   return b + '\n' + clean;
 };
 
-/** 薄层续写策略：轮数上限（额度化调用方自带策略，不使用该常量） */
+/** 薄层续写策略：默认轮数上限（额度化调用方自带策略，不使用该常量） */
 export const SIMPLE_CONTINUATION_MAX_ROUNDS = 2;
+/** 答案页等长任务续写轮数上限（2026-09-26 对齐正文额度）：正文链轮次由硬顶派生、不设死，答案页曾锁死 2 轮 → 提权 */
+export const ANSWER_CONT_MAX_ROUNDS = 6;
+
+/**
+ * 预算化续写额度规划（2026-09-26 答案页续写对齐正文）。
+ * 🔴 旧薄层每轮固定"单帽×0.5、至多 SIMPLE(2) 轮" → 长答案页 2 轮就放弃（仍截断、静默放行）。
+ *    本函数把每轮帽设为"单帽×0.5"，但累计不超 totalMult×单帽 的总额度；配合更高 maxRounds，
+ *    续写可爬到总额才停 —— 与正文 bodyQuota 的"总额限制多轮"对齐，同时防无限发散。
+ *    返回 ≤0 时 runContinuationChain 判 budget 尽而停止（不等同"已完整"，调用方据 stoppedBy 判定）。
+ * @param {number} maxTokens 单次输出帽
+ * @param {{totalMult?: number}} [opts]
+ * @returns {(ctx:{round:number,producedChars:number}) => number}
+ */
+export const makeBudgetedPlanRound = (maxTokens = 0, { totalMult = 1.2 } = {}) => {
+  const singleCap = Math.max(1, Math.floor(Number(maxTokens || 0) * 0.5));
+  const totalBudget = Math.max(singleCap, Math.floor(Number(maxTokens || 0) * totalMult));
+  return (ctx) => {
+    const produced = Number(ctx?.producedChars || 0);
+    return Math.max(0, Math.min(singleCap, totalBudget - produced));
+  };
+};
 
 /**
  * 跑完一条续写链。
@@ -161,4 +182,4 @@ export const runContinuationChain = async ({
   return { content: cur, finishReason: reason, rounds, truncated: trunc.truncated, stoppedBy };
 };
 
-export default { detectTruncation, isChunkTruncated, appendContinuationWithDedup, runContinuationChain, SIMPLE_CONTINUATION_MAX_ROUNDS };
+export default { detectTruncation, isChunkTruncated, appendContinuationWithDedup, runContinuationChain, makeBudgetedPlanRound, SIMPLE_CONTINUATION_MAX_ROUNDS };

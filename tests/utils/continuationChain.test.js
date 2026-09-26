@@ -11,6 +11,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   runContinuationChain, detectTruncation, isChunkTruncated, appendContinuationWithDedup,
+  makeBudgetedPlanRound, ANSWER_CONT_MAX_ROUNDS,
 } from '../../src/utils/continuationChain.js';
 
 const LONG = '甲'.repeat(1200);          // 超 200 字 → finish=length 可判"按原因截断"
@@ -175,5 +176,50 @@ describe('appendContinuationWithDedup —— 唯一去重实现（策略开关�
   it('纯重复 → 原样返回（绝不覆盖）', () => {
     const base = '乙'.repeat(80);
     expect(appendContinuationWithDedup(base, base.slice(-20))).toBe(base);
+  });
+});
+
+describe('makeBudgetedPlanRound —— 预算化续写额度（2026-09-26 答案页对齐正文 bodyQuota）', () => {
+  it('每轮帽 = 单帽×0.5，累计产出逼近 totalBudget 后逐轮收缩直到额度尽', () => {
+    const plan = makeBudgetedPlanRound(1000); // singleCap=500, totalBudget=1200
+    expect(plan({ round: 1, producedChars: 0 })).toBe(500);
+    expect(plan({ round: 2, producedChars: 500 })).toBe(500);   // 1200-500=700 → min(500,700)
+    expect(plan({ round: 3, producedChars: 1000 })).toBe(200);  // 1200-1000=200
+    expect(plan({ round: 4, producedChars: 1200 })).toBe(0);    // 耗尽 → 0 → budget 停
+  });
+
+  it('产出超出总额度 → 0，绝不返回负值', () => {
+    const plan = makeBudgetedPlanRound(1000);
+    expect(plan({ producedChars: 1500 })).toBe(0);
+    expect(plan({ producedChars: 99999 })).toBe(0);
+  });
+
+  it('totalMult 自定义降低总额：总额 = max(单帽, 单帽×totalMult)', () => {
+    const plan = makeBudgetedPlanRound(1000, { totalMult: 1.0 }); // singleCap=500, totalBudget=1000
+    expect(plan({ producedChars: 0 })).toBe(500);
+    expect(plan({ producedChars: 600 })).toBe(400);
+    expect(plan({ producedChars: 1000 })).toBe(0);
+  });
+
+  it('maxTokens=0 → 单帽兜底 1，总额 1，首轮即耗尽', () => {
+    const plan = makeBudgetedPlanRound(0);
+    expect(plan({ producedChars: 0 })).toBe(1);
+    expect(plan({ producedChars: 1 })).toBe(0);
+  });
+
+  it('与 runContinuationChain 联跑：产出已超总额 → 首轮即 budget 停、不发请求（防发散）', async () => {
+    const req = vi.fn();
+    // LONG=1200 char 已远超 totalBudget=72（maxTokens=60）→ plan 返回 0 → 一轮不发
+    const r = await runContinuationChain({
+      content: LONG, finishReason: 'length', maxRounds: 6,
+      planRound: makeBudgetedPlanRound(60), requestNext: req,
+    });
+    expect(r.stoppedBy).toBe('budget');
+    expect(r.rounds).toBe(0);
+    expect(req).not.toHaveBeenCalled();
+  });
+
+  it('答案页续写轮数上限已提权对齐正文（数值为可断言约束）', () => {
+    expect(ANSWER_CONT_MAX_ROUNDS).toBe(6);
   });
 });
