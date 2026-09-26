@@ -60,10 +60,12 @@ describe('buildAnswerSpaceInstruction（通用六行：形态按作答需要选�
     expect(generic).toContain('它是题面的一部分、由选项作答，照常保留');
     const newLine = generic.split('\n').find((l) => l.includes('题面带选项'));
     expect(newLine, '新条款应纯形态描述、不含题型名（选择/判断/圈选/填空）').not.toMatch(/选择|判断|圈选|填空/);
-    for (const [s, st] of [['英语', 'primary_high'], ['语文', 'primary_low'], ['数学', 'primary_mid'], ['物理', 'middle']]) {
+    // 🔴 2026-09-26 用户定：按"外语类"判定（不只认"英语"）——故把日语也纳入用例，防回退成单一字面量
+    for (const [s, st] of [['英语', 'primary_high'], ['日语', 'high'], ['语文', 'primary_low'], ['数学', 'primary_mid'], ['物理', 'middle']]) {
+      const isForeign = s === '英语' || s === '日语';
       const inst = buildAnswerSpaceInstruction(s, st);
       expect(inst, `${s}·${st} 缺作答位形态条款`).toContain(CLAUSE_COMMON);
-      expect(inst, `${s}·${st} 位置未按学科分叉（外语类题首／中文科目题干末尾）`).toContain(s === '英语' ? HEAD : TAILPOS);
+      expect(inst, `${s}·${st} 位置未按学科分叉（外语类题首／中文科目题干末尾）`).toContain(isForeign ? HEAD : TAILPOS);
       expect(inst, `${s}·${st} 括号须为半角（英文状态）`).toContain(PAREN_HALF);
       expect(inst, `${s}·${st} 缺选项禁答位条款`).toContain(BAN);
     }
