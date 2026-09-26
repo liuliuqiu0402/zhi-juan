@@ -404,6 +404,31 @@ export function detectAnswerSectionMissing(content = '', answerHtml = '') {
   return { bodyTop, ansTop, severe: hasAnswer && bodyTop >= ANSWER_SECTION_MISSING_MIN_BODY_TOP && ansTop === 0 };
 }
 
+/** 试卷正文题号"全卷连续"下限（题数过少不判，防小卷/片段误报） */
+export const BODY_RESTART_MIN_TOP = 4;
+
+/**
+ * 正文题号"按小节/栏目重启"判据（2026-09-26 用户裁定：试卷正文题号必须**全卷连续、同序**，
+ * 不得按小节/栏目重新从 1 编号；重启即不合格）。
+ * ============================================================
+ * 为什么需要：答案区规范要求"逐题以与正文完全相同的题号起头、**全卷连续同序**"。若正文自己
+ *   按小节重启编号（实证：二年级语文"阅读测试卷"正文题号 `1、2、3` 之后从 1 重数到 27），
+ *   该要求**无法被满足** → 模型失去可对齐的题号基准，退化成只写尾部评分量表，逐题答案与解析全缺
+ *   （用户日志：`答案页内容缺正文前段逐题答案（正文顶层题号 5，答案区顶层题号 0）`）。
+ * 🔴 既有 `detectBodyNumberingGap`（缺号）**查不出重启**：`1,2,3,1..27` 的"已出现集合"就是 1..27、
+ *   一个不缺 → 判无缺口。故"重启"必须单独判，不能寄希望于缺号守卫。
+ * 判据沿用 `analyzeQuestionNumbering` 的"从 1 起、段长≥3 的段 ≥2 个"（与校验侧报告**同源**，不新造口径），
+ * 并加"最长段 ≥ BODY_RESTART_MIN_TOP"下限（防题量过少的片段/清单误判）。
+ * 适用范围：仅**试卷（exam）**。同步练习/课时练等教辅按大题分别从 1 编号是市场常态，不适用本判据。
+ * @param {string} html 正文（含块级标签的 HTML；答案区不参与）
+ * @returns {{top:number, segments:number[], restart:boolean}} segments=各"1 起递增段"的段长（保序）
+ */
+export function detectBodyNumberingRestart(html = '') {
+  const { top, segments } = analyzeQuestionNumbering(html, { part: 'body' });
+  const longSegs = segments.filter((s) => s >= 3);
+  return { top, segments, restart: longSegs.length >= 2 && top >= BODY_RESTART_MIN_TOP };
+}
+
 /**
  * 缺号成因分类（2026-09-17 用户裁定·根治：不再靠枚举编号形态定罪）
  * ============================================================

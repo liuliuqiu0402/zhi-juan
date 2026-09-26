@@ -97,3 +97,26 @@ describe('答案区完整性 · 源码接线守卫（2026-09-26 · 真实事故�
       .toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('正文题号"全卷连续"守卫 · 源码接线（2026-09-26 · 试卷题号重启 → 答案区无法逐题对齐）', () => {
+  it('exam 正文采纳前必须判"题号重启"，且判据从 contentCleaner 导入（非就地自造）', () => {
+    expect(src, '未接入 detectBodyNumberingRestart → 试卷题号重启不会拦').toContain('detectBodyNumberingRestart');
+    const m = src.match(/import \{[^}]*\} from '\.\.\/utils\/contentCleaner\.js';/);
+    expect(m, 'useAiGenerator 对 contentCleaner 的 import 块缺失').toBeTruthy();
+    expect(m[0]).toContain('detectBodyNumberingRestart');
+  });
+
+  it('重启 → 第 1 次回灌"全卷连续编号"并重试；第 2 次不判死（完整卷优先）+ 进报告', () => {
+    expect(src).toContain('bodyRestart');                    // 判据已接入正文采纳分支
+    expect(src).toContain('全卷连续编号');                    // 回灌给模型的要求
+    expect(src).toContain('题号·分段拦截');                   // 第 1 次拦截日志
+    expect(src).toContain('题号·分段放行');                   // 第 2 次放行日志
+    expect(src, '第 2 次仍重启须进【问题列表】交人工核对').toContain('建议人工核对题号连续性');
+  });
+
+  it('答案侧脱钩"全卷连续"假设：改为按正文实际编号对齐 + 逐题覆盖', () => {
+    expect(src, '旧硬要求"全卷连续、同序"在正文不连续时不可满足，须已移除').not.toContain('全卷连续、同序');
+    expect(src).toContain('正文怎么编号，答案就逐题用同一套号');
+    expect(src).toContain('逐题作答、全卷覆盖');
+  });
+});

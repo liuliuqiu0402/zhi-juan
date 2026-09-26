@@ -440,7 +440,7 @@ import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
 // 🗑 领域覆盖对账（reconcileDomains）已于 2026-09-20 用户裁定砍除，见下方调用点的说明；不再引入
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, classifyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth, detectAnswerSectionMissing, countTopQuestions } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, classifyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth, detectAnswerSectionMissing, countTopQuestions, detectBodyNumberingRestart } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 import { FIGURE_DEPENDENCY_RE } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（图标记取证用）
 
@@ -4733,7 +4733,14 @@ ${cardAnalysisText.substring(0, 1000)}
         //    缺号=生成行为 → 把缺号清单回灌模型令其逐题补全（与预算无关，勿再写成"升级预算"）。
         //    重试后仍缺号 → 由下方终极守卫判失败（宁失败不残缺）
         const qGap = detectBodyNumberingGap(content);
-        if (content && isDeliverableBodyHtml(content) && !qGap) break;
+        // 🔴 2026-09-26 试卷正文题号"全卷连续"守卫（用户裁定：重启即不合格）：正文按小节/栏目重新
+        //    从 1 编号时，答案区"逐题与正文同号 + 全卷连续同序"的对齐前提失效——模型失去可对齐基准，
+        //    退化成只写尾部评分量表（实测：正文 `1、2、3` 后又从 1 数到 27；日志"答案区顶层题号 0"）。
+        //    缺号守卫查不出重启（已出现集合就是 1..27、一个不缺），故此处独立判。仅试卷（exam）。
+        const bodyRestart = genType === 'exam'
+          ? detectBodyNumberingRestart(content)
+          : { restart: false, segments: [], top: 0 };
+        if (content && isDeliverableBodyHtml(content) && !qGap && !bodyRestart.restart) break;
         // 🔴 2026-09-17 根治（用户裁定·多形态容忍，不再靠枚举编号形态定罪）：
         //    "我认得出题号" ≠ "题目存在"——只有"缺号在正文任何位置都不出现"才是丢题实证；
         //    缺号能以别的形态被找到（行内编号空位/裸数字/作答位在题号前等）→ 记警告、照常交付
@@ -4781,6 +4788,21 @@ ${cardAnalysisText.substring(0, 1000)}
           lastGapNote = `正文题号缺失：${qGap.missing.join('、')}（1~${qGap.peak} 中缺）——本次必须补全这些题，题号从 1 起逐题连续`;
           bodyPathNotes.push(`⚠️ 正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——重试（缺号清单已回灌模型；非预算截断）`);
           throw new Error(`正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——正文疑似丢题${attempt === 0 ? '，重试（缺号清单已回灌模型）' : '，重试后仍未补齐'}`);
+        }
+        if (bodyRestart.restart) {
+          const segText = bodyRestart.segments.filter((s) => s >= 3).join(' / ');
+          const note = `正文题号按小节/栏目重新从 1 编号（各段题数：${segText}），非全卷连续同序`;
+          if (attempt === 0) {
+            // 第 1 次：回灌"全卷连续编号"要求后重试（与缺号同槽：病因是生成行为，非预算）
+            lastGapNote = `${note}——本次必须把全卷题目**从 1 起连续编号、逐题递增、同序**，严禁按小节/栏目重启编号`;
+            bodyPathNotes.push(`⚠️ ${note}——重试（已回灌"全卷连续编号"要求）`);
+            console.warn(`🔢 [题号·分段拦截] ${note} → 重试并回灌"全卷连续编号"（否则答案区无法逐题对齐）`);
+            throw new Error(`${note}——试卷正文题号须全卷连续同序`);
+          }
+          // 🔴 第 2 次仍重启 → **不判死**（避免把完整卷反复判失败）：如实进报告，答案侧按正文实际结构对齐
+          bodyPathNotes.push(`⚠️ ${note}——两次生成均按小节重启（不因此判失败）；答案区已按正文实际结构对齐，建议人工核对题号连续性`);
+          console.warn(`🔢 [题号·分段放行] ${note}——不判死（完整卷优先交付），答案侧按正文实际结构对齐`);
+          break;
         }
         lastGapNote = '正文为空/过短/无正文结构（疑似仅自述）——本次必须输出完整正文结构';
         throw new Error('整卷输出为空/过短/无正文结构（疑似仅自述）');
@@ -4887,7 +4909,7 @@ ${cardAnalysisText.substring(0, 1000)}
         //    preview/dictation/errorbook）按"栏目与题号"层级组织——二者均与正文同构、不复述题干/正文梳理
         const ansAlignNote = isSelfContainedTeaching
           ? '答案区按正文对应的栏目组织、并与正文同构：正文题目带题号时，答案区**逐题以与正文完全相同的题号起头**（正文用「1. 2. 3.…」则答案同用同一套题号、同序；仅**子题**用 (1)(2)）；**严禁省略题号层、严禁用「(1)(2)」括号序号或纯列表代替题目题号**。不复述正文知识梳理，不重现正文作答空位。'
-          : '**逐题对齐硬要求**：答案区**每个题目都以与正文完全相同的阿拉伯题号起头**（正文用「1. 2. 3.…」，答案也用「1. 2. 3.…」，全卷连续、同序）；大题用与正文相同的汉字序号，仅**子题**才用 (1)(2)。**严禁省略题号层、严禁用「(1)(2)」括号序号或纯列表代替题目题号**——否则答案与正文无法逐题对应。不复述题干原文（含子题题干），不重现正文作答空位。';
+          : '**逐题对齐硬要求**：答案区**每个题目都以与正文完全相同的题号起头**（正文怎么编号，答案就逐题用同一套号、同序对应；正文用「1. 2. 3.…」，答案也用「1. 2. 3.…」）；大题用与正文相同的汉字序号，仅**子题**才用 (1)(2)。**逐题作答、全卷覆盖**：正文中的每一道题都必须在答案区有对应的解答与解析，不得漏题。**严禁省略题号层、严禁用「(1)(2)」括号序号或纯列表代替题目题号**——否则答案与正文无法逐题对应。不复述题干原文（含子题题干），不重现正文作答空位。';
         // ✅ A6（2026-09-11）：答案页前缀顺序 = **压缩原文（仅 full）→ 正文全文 → 委托书（答案规范，末尾锚定）**
         //    · 压缩原文**仅 `mode === 'full'`** 携带（答案常需原文精确表述，如默写/原句）；
         //      命题/练习型**不带**（题目自带情境与素材，且防"照搬原文作答"）；
