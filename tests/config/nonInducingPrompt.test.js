@@ -17,6 +17,8 @@ import {
 } from '../../src/config/expertKnowledge.js';
 import { EXAM_BLUEPRINTS } from '../../src/config/examPaperBlueprints.js';
 import { GENERIC_SPECIAL_DESC } from '../../src/config/specialDomains.js';
+import { buildAnswerSpaceInstruction, buildCarrierInstruction } from '../../src/config/layoutSpec.js';
+import { buildMaterialUsageBlock, buildOrganizeBlock, buildTailBlocks } from '../../src/utils/injectionManifest.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
@@ -300,5 +302,81 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(ev).not.toContain('看图|读图|看图形|据图|统计图');    // 校验侧不得再自维护词表
     const rc = fs.readFileSync(path.join(ROOT, 'src', 'config', 'eduRenderContract.js'), 'utf8');
     expect(rc).toContain('export const FIGURE_DEPENDENCY_RE');
+  });
+
+  // 🔴 2026-09-27（用户裁定·全局收口）：反列举（否定式点名具体串）的守卫**由"只扫 exam 模板"扩为"扫全部进提示词的注入块"**。
+  //    原理：要理解"严禁 X"必须先激活 X，模型反而朝 X 生成（"别想大象"）；此前只锁 EXAM_BASE 一处，
+  //    其它同样进 exam/question 的注入块（作答载体条款、素材使用、组织方式、尾约束、答案页约定）若回潮即漏网。
+  //    ⚠️ 只取**无歧义的禁词**；"作答区/答："在本项目是合法用词（"不另设独立作答区""课后问答："），
+  //    不进禁词表——指向它们的那句**否定式列举原文**单独锁（见下一条），防回潮。
+  const REVERSE_PRIME = ['闯关', '集齐宝石', '第X关', '关卡包装'];
+  const assertNoReversePrime = (str, ctx) => {
+    for (const w of REVERSE_PRIME) expect(str, `${ctx} 反向植入禁词「${w}」`).not.toContain(w);
+  };
+  it('反列举守卫（全局·模板侧）：9 类模板 × 多学科/学段均不点名禁词', () => {
+    for (const g of GEN_TYPES) {
+      for (const stage of ['primary_low', 'primary_mid', 'middle', 'high']) {
+        for (const subject of ['语文', '数学', '英语']) {
+          const t = getPromptTemplate({ grade: stage, subject, genType: g })?.template || '';
+          assertNoReversePrime(t, `模板 ${stage}|${subject}|${g}`);
+        }
+      }
+    }
+  });
+  it('反列举守卫（全局·注入块侧）：素材使用/组织方式/尾约束/作答载体条款均不点名禁词', () => {
+    const blocks = [
+      buildMaterialUsageBlock({ genType: 'exam', materialChannel: 'auto' }),
+      buildOrganizeBlock('exam'),
+      ...buildTailBlocks(),
+      buildAnswerSpaceInstruction('语文', 'primary_low'),
+      buildAnswerSpaceInstruction('数学', 'middle'),
+      buildCarrierInstruction('语文', 'primary_low'),
+    ].join('\n');
+    assertNoReversePrime(blocks, '注入块集合');
+  });
+  // 🔴 2026-09-27：作答空间条款原写「严禁用"答：""作答区"等文字充当或预置作答空间」——**否定式点名具体串**（反向植入）。
+  //    已改原则式（"不得以任何文字（提示、标签、说明）充当或预置作答空间"）；本断言锁死旧列举不得回潮，且意图不丢。
+  it('作答空间条款：不得回退为"点名具体串"的否定式列举', () => {
+    const ls = fs.readFileSync(path.join(ROOT, 'src', 'config', 'layoutSpec.js'), 'utf8');
+    expect(ls, '旧否定式列举不得回潮').not.toContain('严禁用"答：""作答区"');
+    const instr = buildAnswerSpaceInstruction('语文', 'middle');
+    expect(instr, '意图不得丢：作答空间只以真实留白或书写载体呈现').toContain('作答空间只以真实留白或书写载体呈现');
+    expect(instr, '不得再点名"答："这类可被直接输出的字面串').not.toContain('"答："');
+  });
+  // 🔴 2026-09-27：EXAM_BASE 原写「不要照抄它的行首分类名…（如"听音选词/选图"…既不得原样照抄、也不得改写成近义说法）」
+  //    ——既是**否定式点名具体串**（反向植入），又与【卷面格式】的"大题标题自拟"同义双写。已改**正向角色陈述**并去重。
+  it('考卷大题标题：正向陈述（分类名只描述范围），不点名具体串、不否定映射', () => {
+    const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template;
+    expect(t, '旧否定式列举不得回潮').not.toContain('不要照抄它的行首分类名');
+    expect(t, '旧"不得改写近义"否定映射不得回潮').not.toContain('既不得原样照抄、也不得改写成近义说法');
+    expect(t, '正向角色陈述在（标题以自拟为准）').toContain('行首分类名与其中的知识点名只描述命题范围');
+    expect(t, '标题自拟要求不得丢').toContain('大题标题须你按本卷实际的作答方式自拟');
+  });
+  // 🔴 2026-09-27：蓝图"命题要求"不写"（如…）"的规则，原只扫 examPaperBlueprints——
+  //    专项领域（specialDomains）与教辅蓝本（teachingBlueprints）同属"随结构注入的 note"，同类未锁（覆盖缺口）。
+  //    现扫全库：note 一律用**范围陈述**而非**举例**（举例会把题目方向钉死）。
+  it('note 不写方向性举例（如…）：全部 note 来源（考卷/专项/教辅）', () => {
+    for (const f of ['examPaperBlueprints.js', 'specialDomains.js', 'teachingBlueprints.js']) {
+      const src = fs.readFileSync(path.join(ROOT, 'src', 'config', f), 'utf8');
+      const notes = src.match(/note:\s*'[^']*'/g) || [];
+      expect(notes.length, `${f} 未扫到 note（防假绿）`).toBeGreaterThan(0);
+      const bad = notes.filter((n) => /（如|（例如/.test(n));
+      expect(bad, `${f} 以下 note 仍在举例：${bad.slice(0, 5).join('；')}`).toEqual([]);
+    }
+  });
+  // 🔴 2026-09-27（收口·多事实源）：用户自定义蓝本的**唯一事实源**是 blueprintProvider
+  //    （saveUserBlueprint/loadUserBlueprints：键 wisdom_blueprint_library_v1；findBlueprint 第 1 步用户优先短路）。
+  //    曾另建第二套用户栏目覆盖 storage 并在 getExamBlueprint 合并 → 双事实源 + 该模块无写入方（永不生效）
+  //    + 面板预览（getExamBlueprint）与生成（findBlueprint）两路可能不一致。本断言锁死"不得再引入第二套"。
+  it('用户蓝图单事实源：examPaperBlueprints 不得再引第二套用户覆盖存储', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'config', 'examPaperBlueprints.js'), 'utf8');
+    expect(src, '不得再 import 第二套用户覆盖模块').not.toMatch(/from\s+'\.\/userBlueprintOverrides\.js'/);
+    expect(
+      fs.existsSync(path.join(ROOT, 'src', 'config', 'userBlueprintOverrides.js')),
+      '第二套用户覆盖模块已收口删除（用户条目唯一事实源=blueprintProvider）',
+    ).toBe(false);
+    const bp = fs.readFileSync(path.join(ROOT, 'src', 'config', 'blueprintProvider.js'), 'utf8');
+    expect(bp).toContain('saveUserBlueprint');
+    expect(bp, 'findBlueprint 须用户优先').toContain('loadUserBlueprints');
   });
 });
