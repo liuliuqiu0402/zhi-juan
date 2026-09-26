@@ -354,4 +354,23 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
     const practice = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' }).template;
     expect(practice, '情境边界（正式卷）不得广播到教辅').not.toContain('情境边界');
   });
+
+  // 🔴 2026-09-27（用户裁定·课标原文为首要）：低段课标原文"情境活动化、游戏化、生活化"**保留原样、不得削弱**，
+  //    只补一句**作用域界定**——取向管"情境取材与难度起点"，**不涉卷面形式**。
+  //    为什么必须界定：同一次注入里既有课标取向词、又有"严肃卷面/不作形式化包装"，不界定作用域，
+  //    模型可能把课标取向读成"卷面可以游戏化"——正是上条"正式卷禁游戏化包装"被**正向驱动项抵消**的路径。
+  it('低段情境取向：课标原文保留（首要）+ 作用域界定（只管情境取材与难度起点，不涉卷面形式）', () => {
+    const t = examTpl(); // primary_low | 语文 | exam
+    expect(t, '课标原文要求保留、不得削弱').toContain('情境活动化、游戏化、生活化');
+    expect(t, '界定：取向只管情境取材与难度起点').toContain('只作用于情境取材与难度起点');
+    expect(t, '界定：课标要求为首要').toContain('课标对该学段学习设计的要求');
+    expect(t, '界定：声明首要遵从').toContain('首要遵从');
+    expect(t, '界定：不涉卷面形式').toContain('不涉卷面形式');
+    // 界定句只在**含取向词的学段**补——中高段不注入（不把"游戏化"这类词广播到本没有它的学段，也不添噪音）
+    for (const st of ['primary_mid', 'middle', 'high']) {
+      const tm = getPromptTemplate({ grade: st, subject: '语文', genType: 'exam' }).template;
+      expect(tm, `${st} 学段要点无取向词 → 不应注入作用域界定句`).not.toContain('不涉卷面形式');
+      expect(tm, `${st} 不得被广播"游戏化"`).not.toContain('游戏化');
+    }
+  });
 });
