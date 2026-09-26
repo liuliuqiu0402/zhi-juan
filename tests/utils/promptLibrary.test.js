@@ -291,8 +291,9 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
     expect(t).toContain('课标内容领域/实践活动型名称');
     expect(t, '部分前缀也是归并来源之一（英语听力/笔试）').toContain('"部分"前缀');
     expect(t, '无上游名时不设大类层（块名本身即大题标题）').toContain('无可归并上层名的卷不设大类层');
-    expect(t, '大类不带编号').toContain('大类不带任何编号');
-    expect(t, '层级字样禁写第X部分/第X关').toContain('不得写"第X部分/第X关"这类字样');
+    // 🔴 2026-09-27 改**原则式**（原写"不得写'第X部分/第X关'这类字样"＝否定式列举，会把禁词反向植入）
+    expect(t, '大类不带编号：原则式表述').toContain('大类一律不带编号');
+    expect(t, '编号只用于大题标题与小题目').toContain('编号只用于其下的大题标题与小题目');
   });
 
   it('大类层下三层展开：大类（居中无编号）→ 大题标题（自拟、一、、分值）→ 小题（1.2.3. 连续）', () => {
@@ -339,7 +340,13 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
     const t = examTpl();
     expect(t).toContain('情境边界');
     expect(t).toContain('不得替代或改写卷面结构层');
-    expect(t, '实证病根：正式卷出现"第一关/闯关/集齐宝石"游戏化包装').toContain('严禁"第X关/闯关/集齐宝石/探险"');
+    // 🔴 2026-09-27 改**原则式**：原写"严禁'第X关/闯关/集齐宝石'"＝否定式列举（会把禁词反向植入、反而引模型往那去）
+    expect(t, '严肃卷面：原则式表述').toContain('按正规考试的严肃卷面呈现');
+    expect(t, '情境只作真实/拟真语境承载、不作形式化包装').toContain('不作任何形式化包装');
+    // 反列举守卫：这些具体词不得再出现在指令里（否则＝反向植入）
+    for (const banned of ['闯关', '集齐宝石', '第X关', '第X部分', '关卡包装']) {
+      expect(t, `不得把「${banned}」这类禁词写进指令（否定式列举＝反向植入）`).not.toContain(banned);
+    }
     const practice = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' }).template;
     expect(practice, '情境边界（正式卷）不得广播到教辅').not.toContain('情境边界');
   });
