@@ -311,4 +311,22 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
     expect(t).toContain('题面怎么说、卷面就怎么做');
     expect(t, '旧判据域"只认题干"须已扩为"题面"').not.toContain('判据只有题干自身措辞');
   });
+
+  it('大题标题分值说明为"必须项"+分值两处都标（**仅试卷**，不得外溢到教辅）', () => {
+    const t = examTpl();
+    expect(t).toContain('分值说明为必须项');
+    expect(t).toContain('分值说明必须给出、不得省略');
+    expect(t).toContain('小题级在每道题题干后给"（X分）"');
+    const practice = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' }).template;
+    expect(practice, '大题标题（分值说明）必须项只针对试卷类型').not.toContain('分值说明为必须项');
+  });
+
+  it('情境边界：情境不改写卷面结构层 + 正式卷禁游戏化包装（**仅试卷**）', () => {
+    const t = examTpl();
+    expect(t).toContain('情境边界');
+    expect(t).toContain('不得替代或改写卷面结构层');
+    expect(t, '实证病根：正式卷出现"第一关/闯关/集齐宝石"游戏化包装').toContain('严禁"第X关/闯关/集齐宝石/探险"');
+    const practice = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' }).template;
+    expect(practice, '情境边界（正式卷）不得广播到教辅').not.toContain('情境边界');
+  });
 });
