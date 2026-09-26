@@ -10,7 +10,6 @@
 import { getRegionConfig } from './examRegionConfig.js';
 import { isLibEntryEnabled } from '../utils/libToggles.js';
 import { normalizeSubjectName } from './expertKnowledge.js'; // 学科×学段归名唯一事实源（别名+跨学段纠正，曾本地双表 SUBJECT_ALIAS/STAGE_SUBJECT_ALIAS 双轨）
-import { getUserBlueprintSections } from './userBlueprintOverrides.js'; // 🔴 用户蓝图栏目覆盖（2026-09-27 g6）：将来用户在原内置上改的条目，全链路必须读它、在其基础上改
 
 /** 蓝图默认分值/时长兜底（保存用户蓝图、省市缩放分母等共用；曾散落 100/'60分钟' 字面量于多处） */
 export const DEFAULT_EXAM_FULL_SCORE = 100;
@@ -596,6 +595,12 @@ const STAGE_FALLBACK = {
  * @param {string} subject 学科名（未标准化也可：政治/道法/信息技术/体育与健康…）
  * @param {string} stage primary_low/primary_mid/primary_high/middle/high
  * @returns {{label:string, fullScore:number, duration:string, sections:Array, key:string}|null}
+ * 🔴 用户自定义蓝本的**唯一事实源**是 blueprintProvider（saveUserBlueprint / loadUserBlueprints，
+ *    localStorage 键 wisdom_blueprint_library_v1），由 findBlueprint 第 1 步**用户优先**短路命中后返回——
+ *    本函数只管**内置蓝本 + 省市覆盖**，不再读任何第二套"用户条目"存储。
+ *    （2026-09-27 收口：曾另建 userBlueprintOverrides 第二套 storage 并在本函数合并，与既有 saveUserBlueprint
+ *     构成双事实源、且该模块全项目无写入方=永不生效、还会令"面板预览走 getExamBlueprint / 生成走 findBlueprint"
+ *      两路不一致——已删除，收敛为单一事实源。）
  */
  export function getExamBlueprint(subject, stage, region) {
   if (!subject || !stage) return null;
@@ -668,32 +673,6 @@ const STAGE_FALLBACK = {
       } else {
         bp = { ...bp, duration };
       }
-    }
-  }
-  // 🔴 用户蓝图栏目覆盖（2026-09-27 g6，用户优先、后于省市覆盖）：用户在原内置上改的条目整组替换 sections。
-  //    按 **用户选择学段** 定位（不是降级后的蓝本 key），将来自定义 UI 写 storage 即自动生效，全链路无需再改。
-  //    与省市栏目覆盖同构：note 缺省按**同名栏目从内置蓝本继承**；分值之和≠当前总分 → 等比例缩放 + 末栏修正。
-  if (bp) {
-    const userKey = `${stdSubject}|${bpStage}`;
-    const userSections = getUserBlueprintSections(userKey);
-    if (userSections) {
-      const noteOf = (name) => {
-        const hit = bp.sections.find((d) => String(d.name || '') === name);
-        return (hit && hit.note) || '';
-      };
-      let sections = userSections.map((s) => ({
-        name: String(s.name).trim(),
-        score: Math.round(Number(s.score)),
-        note: String(s.note || '').trim() || noteOf(String(s.name).trim()),
-      }));
-      const total = bp.fullScore || DEFAULT_EXAM_FULL_SCORE;
-      const sum = sections.reduce((a, c) => a + c.score, 0);
-      if (sum !== total) {
-        sections = sections.map((s) => ({ ...s, score: Math.max(1, Math.round((s.score * total) / sum)) }));
-        const sum2 = sections.reduce((a, c) => a + c.score, 0);
-        sections[sections.length - 1].score += total - sum2;
-      }
-      bp = { ...bp, sections };
     }
   }
   return bp;
