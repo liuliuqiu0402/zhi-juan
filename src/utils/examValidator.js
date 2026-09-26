@@ -1733,10 +1733,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         };
         const topPs = [];
         let subSeq = 0;
+        let excludedBranches = 0; // 🔴 2026-09-27 收口：记录被"分条判据"排除的题号段数——排除后无任何题块时，
+        //    必须回退整块兜底（漏补比多补更糟：若某大题的真题号"1."紧跟在"要求："之后，会被误判为分条
+        //    首项 → 该题连同后续连续递增号全部失去题块身份 → 该大题无任何题块 → 原来只在标题含作答意图词时
+        //    才兜底，意图词未命中即静默漏补；现在"曾识别出题号段却被全排除"本身就是漏补强信号，整块兜底
+        //    不再依赖标题意图词，直接按 4 行（长答形态）回退补齐）
         for (const n of rawTopPs) {
           const num = Number((((n.textContent || '').trim().match(/^\s*(\d+)[.、．]/)) || [])[1]);
           if (subSeq && num === subSeq + 1) { subSeq = num; continue; }  // 分条续项：一并排除
-          if (num === 1 && isGuideLead(n)) { subSeq = 1; continue; }     // 分条首项：排除并开始续项
+          if (num === 1 && isGuideLead(n)) { subSeq = 1; excludedBranches += 1; continue; }     // 分条首项：排除并开始续项
           subSeq = 0;
           topPs.push(n);
         }
@@ -1744,6 +1749,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           // 无顶层题号：回退子题号行；仍无 → 整段一块（书面表达等长答形态）
           const subPs = secNodesPs(secNodes).filter((n) => subRe.test((n.textContent || '').trim()));
           if (subPs.length === 0) {
+            if (excludedBranches === 0) {
             // 🔧 纯内容栏（无题号、无子题号）只在"栏目标题本身是长答任务"时才整块兜底补行——
             //    知识梳理/要点/示例/词汇等"读的内容"栏不补作答行（内容型结构补整栏空行=空行噪音，
             //    2026-09 用户实证疑问"内容型的也补了吗"；summary/preview 已在 2k 入口整类跳过，
@@ -1757,6 +1763,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               + (practiceSubject ? '|实践活动|动手做' : '')
             );
             if (!wholeAnswerHeadingRe.test(fallbackTitle)) return;
+            }
+            // 🔴 2026-09-27 收口（分条排除的漏补回退）：excludedBranches > 0 时**不再依赖标题意图词**——
+            //    该栏本有题号段、只是被分条判据误吞，漏补比多补更糟，整块按长答形态兜底补行（4 行，与
+            //    无分值整题块一致）；此兜底覆盖"真题号 1. 紧跟要求：后被误判分条"的漏补路径。
             items.push({ p: head, score: scoreMatch ? parseFloat(scoreMatch[1]) : null, seg: secNodes, sub: false });
           } else {
             subPs.forEach((sp, k) => {
