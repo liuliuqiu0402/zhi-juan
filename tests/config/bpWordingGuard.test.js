@@ -264,8 +264,10 @@ describe('蓝图库与指令库措辞守卫（2026-09-16 课标原则）', () =>
     expect(tpl).toContain('也不得漏写题内实际给的提示方式');
     // 分值说明按实际命制给出，写法与命题内容相符
     expect(tpl).toContain('写法与命题内容相符');
-    // 小题层面同口径
-    expect(tpl).toContain('小题标题准确描述其作答形式');
+    // 小题层面同口径（2026-09-26 改为**无歧义措辞**：本项目"小题标题"在 examValidator 里另指
+    //   "带题号的题目行"（如"6. 读短文，回答问题"），模型据此曾误读出一个"小组标题"层 →
+    //   每道大题出现 h2+h3 同序号双标题（实证：一、读拼音，写词语 / 一、看拼音，把词语写在田字格里）
+    expect(tpl).toContain('带题号的题目行准确描述其作答形式');
     // 教辅侧同名口径（组标题）保持同源，防两侧分叉
     const practice = getPromptTemplate({ grade: 'primary_high', subject: '英语', genType: 'practice' }).template;
     expect(practice).toContain('组标题里写到的提示方式与作答方式');

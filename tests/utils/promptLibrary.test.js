@@ -271,4 +271,13 @@ describe('序号体系 · 层级样式（2026-09-26 补全：模型一次写对�
     expect(t, '试卷模板自查缺"是否中途重启"').toContain('是否中途重启');
     expect(t).toContain('重启即改');
   });
+
+  it('试卷大题只出一个标题：消除"小题标题"歧义（防 h2+h3 同号双标题）', () => {
+    const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template;
+    expect(t, '歧义词"小题标题"须已消除——它在本项目另指"带题号的题目行"，模型会误读出"小组标题"层，'
+      + '于是每道大题多出一个与 h2 同序号的 h3 标题（实证：一、读拼音，写词语 / 一、看拼音，把词语写在田字格里）')
+      .not.toContain('小题标题');
+    expect(t).toContain('每个大题只出一个标题');
+    expect(t).toContain('小组标题');
+  });
 });
