@@ -79,16 +79,17 @@ describe('作答空间条款：选项行之后禁挂作答位', () => {
     expect(text).toContain('作答位只有上述那一处');
   });
 
-  it('位置/形态按学科分叉（2026-09-26 调研）：外语类题首半角括号／中文科目题干末尾全角括号／禁用横线', () => {
+  it('位置按学科分叉（2026-09-26 调研）：外语类题首／中文科目题干末尾；括号一律半角（英文状态）；禁用横线', () => {
     const en = buildAnswerSpaceInstruction('英语', 'primary_mid');
-    expect(en, '外语类：作答位在题号之前的题首、半角圆括号').toContain('位置在题号之前的题首');
-    expect(en).toContain('半角');
+    expect(en, '外语类：作答位在题号之前的题首').toContain('位置在题号之前的题首');
+    expect(en).toContain('"( ) 1. 题干…"');
     const zh = buildAnswerSpaceInstruction('语文', 'primary_low');
-    expect(zh, '中文科目：作答位在题干末尾、全角圆括号').toContain('位置在题干末尾');
-    expect(zh).toContain('全角');
+    expect(zh, '中文科目：作答位在题干末尾').toContain('位置在题干末尾');
+    expect(zh).toContain('"1. ……的是( )"');
     expect(zh, '中文科目不得用题首括号').not.toContain('位置在题号之前的题首');
     for (const t of [en, zh]) {
       expect(t, '作答位形态一律圆括号').toContain('形态一律圆括号空位');
+      expect(t, '括号一律半角（英文状态）——既有用户规格').toContain('括号一律用半角（英文状态）括号');
       expect(t, '不得用横线/下划线充当作答位').toContain('不用下划线空/横线空');
       expect(t, '与自洽①冲突时以本条硬约束为准').toContain('改题面、不改本条');
     }
