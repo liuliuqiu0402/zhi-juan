@@ -1716,7 +1716,30 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const subRe = /^\s*[(（]\d+[)）]/;
         const secNodesPs = (arr) => arr.filter((n) => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p');
         const items = [];
-        const topPs = secNodesPs(secNodes).filter((n) => /^\s*\d+[.、．]/.test((n.textContent || '').trim()));
+        const rawTopPs = secNodesPs(secNodes).filter((n) => /^\s*\d+[.、．]/.test((n.textContent || '').trim()));
+        // 🔴 2026-09-26 加固（消"题干内要求/提示分条被当子题块、每条各补作答行"的残余口子）：
+        //    规范明令"分条不与题号层混同（分条改用 (1)／① 或项目符号、不得再用与题号同构的「1.」）"，
+        //    但模型偶发违反时，这些分条会被 topPs 当成独立小题 → **每条各补一处作答行**（老现象在语文/教辅侧的复现路径）。
+        //    判据（**保守·双条件**，宁漏不误）：该段以「1.」开头 **且** 其上一个非空兄弟是以
+        //    "要求/提示/注意/说明/评分/步骤/参考"等引导词**结尾且带冒号**的段落 → 判为分条首项；
+        //    其后续**连续递增**的数字段一并排除（分条列表常 1./2./3. 连排）。
+        //    排除后这些段不再作题块边界 → 整题的作答位仍落"整题之后、分条之后"（与作答空间条款一致）。
+        const guideLeadRe = /(?:要求|提示|注意|说明|评分|步骤|参考)[^。！？]{0,20}[：:]\s*$/;
+        const textKey = (el) => (el.textContent || '').replace(/[\s\u3000]/g, '');
+        const isGuideLead = (el) => {
+          let prev = el.previousElementSibling;
+          while (prev && !textKey(prev)) prev = prev.previousElementSibling;
+          return !!prev && guideLeadRe.test((prev.textContent || '').trim());
+        };
+        const topPs = [];
+        let subSeq = 0;
+        for (const n of rawTopPs) {
+          const num = Number((((n.textContent || '').trim().match(/^\s*(\d+)[.、．]/)) || [])[1]);
+          if (subSeq && num === subSeq + 1) { subSeq = num; continue; }  // 分条续项：一并排除
+          if (num === 1 && isGuideLead(n)) { subSeq = 1; continue; }     // 分条首项：排除并开始续项
+          subSeq = 0;
+          topPs.push(n);
+        }
         if (topPs.length === 0) {
           // 无顶层题号：回退子题号行；仍无 → 整段一块（书面表达等长答形态）
           const subPs = secNodesPs(secNodes).filter((n) => subRe.test((n.textContent || '').trim()));
