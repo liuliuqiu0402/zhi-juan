@@ -379,4 +379,35 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(bp).toContain('saveUserBlueprint');
     expect(bp, 'findBlueprint 须用户优先').toContain('loadUserBlueprints');
   });
+
+  // 🔴 2026-09-27（用户裁定·去数量诱导）：导图式原写死「条目 4~16 字、层级 2~4 层、每层 2~6 个分支」——
+  //    数量区间与已删除的"恰好 3 个情境"同类（写死数目会致为凑区间硬拆硬并、或为省事敷衍）；
+  //    用户指出这些是"当初弄导图时附带上的"，真实目的只是**要真的有导图**、内容要**真内容**。
+  //    现改**可读性原则 + 按真实内容呈现**；本断言锁死数量区间不得回潮、且原意图不得丢。
+  it('导图式风格：去数量区间（防凑数诱导），但"要真有导图 + 真内容"不得丢', () => {
+    const mm = styleInstructions.mindmap;
+    for (const q of ['4~16 字', '2~4 层', '每层 2~6', '至少 1 张', '至少1张']) {
+      expect(mm, `导图式不得再写死数量「${q}」`).not.toContain(q);
+    }
+    expect(mm, '意图不丢：导图块是核心交付物').toContain('核心交付物');
+    expect(mm, '意图不丢：仍须输出真导图块').toContain('k-diagram');
+    expect(mm, '意图不丢：条目为真实知识要点').toContain('真实的知识要点');
+    expect(mm, '层级/分支数量改由可读性原则承载').toContain('一眼可读');
+    expect(mm, '按真实内容呈现（内容多少就呈现多少）').toContain('内容有多少就呈现多少');
+  });
+
+  // 🔴 2026-09-27（用户裁定·甲）：撤除「每学科一句惯用标题样例」（TITLE_SAMPLE_BY_SUBJECT）——
+  //    把**具体标题文本**摆给模型，模型往往直接照用、同科各卷标题趋同（属"正向示例诱导"，
+  //    与"举例会把题目方向钉死"的既有规矩相违——蓝图 note 连"（如…）"都不许写）。
+  //    而标题**形态**句内已写明，样例对"教形态"是冗余的；只留形态范式（学科无关，未列举学科同样适用）。
+  it('大题/组标题：只留形态范式，不得回退"每科具体标题样例"', () => {
+    const lib = fs.readFileSync(path.join(ROOT, 'src', 'config', 'promptLibrary.js'), 'utf8');
+    expect(lib, '每科标题样例表应已撤除（注释留痕不算）').not.toContain('const TITLE_SAMPLE_BY_SUBJECT');
+    expect(lib).not.toContain('titleSampleFor');
+    for (const g of ['exam', 'practice']) {
+      const t = getPromptTemplate({ grade: 'middle', subject: '数学', genType: g }).template;
+      expect(t, `${g} 应保留标题形态范式`).toContain('先说做什么、再说怎么做或选什么');
+      expect(t, `${g} 不得再注入具体标题样例`).not.toContain('计算下面各题');
+    }
+  });
 });

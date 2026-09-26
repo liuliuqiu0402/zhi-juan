@@ -283,14 +283,17 @@ export const styleInstructions = {
   // 🔴 2026-09-24：导图式从"用嵌套列表模拟"升级为**真图**。分工：模型只出结构化 JSON，
   //    几何由 utils/diagrams 算（模型手写 SVG 必然歪、还会被清洗器改坏）；
   //    约定与容错见 utils/diagramBlock.js（解析失败会原样保留那块文字，不会丢内容）。
-  'mindmap': '以「导图块」呈现知识结构（本风格的核心交付物，至少 1 张）：'
+  'mindmap': '以「导图块」真实呈现知识结构（本风格的核心交付物）：'
     + '<div class="k-diagram" data-type="mindmap" data-layout="balanced">{"title":"中心主题","children":[{"title":"分支","children":[{"title":"要点"}]}]}</div>；'
     + 'data-type 按内容自选：mindmap(概念层级，可配 data-layout="balanced" 左右分布 或 "right" 向右生长)、'
     + 'brace(整体与部分：title,children)、flow(步骤与判定：steps[{text,kind:"start|process|decision|end",branches:[{label,steps:[…]}]}])、'
     + 'timeline(时间顺序：items[{when,text,detail}])、fishbone(因果：effect,categories[{name,causes:[…]}])、'
     + 'concept(带关系标注：nodes[{id,text}],links[{from,to,label}])。'
     + 'JSON 必须合法、字段按所选图种给全；导图块独占一段，块内不要夹杂别的文字；'
-    + '条目一律写成**知识要点短语**（4~16 字，不写成整句、不带题号），层级 2~4 层、每层 2~6 个分支。',
+    // 🔴 2026-09-27（用户裁定·去数量诱导）：原句写死"条目 4~16 字、层级 2~4 层、每层 2~6 个分支"——
+    //    数量区间属诱导（与已删除的"恰好 3 个情境"同类：写死数目会被为凑区间硬拆硬并、或为省事敷衍）。
+    //    现改**可读性原则 + 真实内容**：条目只要是真要点（短语）、层级/分支数随真实内容而定、以一眼可读为准。
+    + '条目一律写成**真实的知识要点短语**（不写成整句、不带题号）；层级不宜过深、每层分支数量以**一眼可读**为准——按真实内容呈现，内容有多少就呈现多少。',
   'table': '以表格对比呈现信息，清晰易读，易混点用对比突出。',
   'context_chain': '以一个真实适切的大主题把各知识点串联呈现，脉络自然连贯。',
   'task_driven': '以问题链组织预习内容，可操作可检查，涉及本课时新知识点。',
