@@ -179,44 +179,55 @@ describe('appendContinuationWithDedup —— 唯一去重实现（策略开关�
   });
 });
 
-describe('makeBudgetedPlanRound —— 预算化续写额度（2026-09-26 答案页对齐正文 bodyQuota）', () => {
-  it('每轮帽 = 单帽×0.5，累计产出逼近 totalBudget 后逐轮收缩直到额度尽', () => {
-    const plan = makeBudgetedPlanRound(1000); // singleCap=500, totalBudget=1200
+describe('makeBudgetedPlanRound —— 预算化续写额度（2026-09-26 对齐正文 bodyQuota）', () => {
+  // 语义：producedChars 是**字符**→先 charsToTokens(÷1.3 向上取整)；单帽/总额是 **token**。
+  //  unit case: makeBudgetedPlanRound(1000) → singleCap=500, totalBudget=1200, guaranteed=1
+  it('字符先换算 token 再算余额，总额逼近后逐轮收缩直到额度尽', () => {
+    const plan = makeBudgetedPlanRound(1000);
     expect(plan({ round: 1, producedChars: 0 })).toBe(500);
-    expect(plan({ round: 2, producedChars: 500 })).toBe(500);   // 1200-500=700 → min(500,700)
-    expect(plan({ round: 3, producedChars: 1000 })).toBe(200);  // 1200-1000=200
-    expect(plan({ round: 4, producedChars: 1200 })).toBe(0);    // 耗尽 → 0 → budget 停
+    // charsToTokens(500)=385 → remaining=1200-385=815 → min(500,815)=500
+    expect(plan({ round: 2, producedChars: 500 })).toBe(500);
+    // charsToTokens(1200)=924 → remaining=276 → min(500,276)=276
+    expect(plan({ round: 3, producedChars: 1200 })).toBe(276);
+    // charsToTokens(1560)=1200 → remaining=0，且 round4>guaranteed → 0
+    expect(plan({ round: 4, producedChars: 1560 })).toBe(0);
   });
 
-  it('产出超出总额度 → 0，绝不返回负值', () => {
+  it('🔴 修复点：余额为负时前 guaranteed 轮给满额（保底），用尽后不再给', () => {
     const plan = makeBudgetedPlanRound(1000);
-    expect(plan({ producedChars: 1500 })).toBe(0);
-    expect(plan({ producedChars: 99999 })).toBe(0);
+    // 大卷首轮写满后字符数恒 > 总额 token（旧实现直接 总额−字符 → 瞬时归零 → 0 轮续写）
+    expect(plan({ round: 1, producedChars: 99999 })).toBe(500); // 保底第 1 轮
+    expect(plan({ round: 2, producedChars: 99999 })).toBe(0);   // 保底用尽，余额仍负 → 停
+    expect(plan({ round: 3, producedChars: 99999 })).toBe(0);
   });
 
   it('totalMult 自定义降低总额：总额 = max(单帽, 单帽×totalMult)', () => {
     const plan = makeBudgetedPlanRound(1000, { totalMult: 1.0 }); // singleCap=500, totalBudget=1000
-    expect(plan({ producedChars: 0 })).toBe(500);
-    expect(plan({ producedChars: 600 })).toBe(400);
-    expect(plan({ producedChars: 1000 })).toBe(0);
+    expect(plan({ round: 1, producedChars: 0 })).toBe(500);
+    // charsToTokens(1000)=770 → remaining=230 → min(500,230)=230
+    expect(plan({ round: 2, producedChars: 1000 })).toBe(230);
   });
 
-  it('maxTokens=0 → 单帽兜底 1，总额 1，首轮即耗尽', () => {
+  it('maxTokens=0 → 单帽兜底 1，总额 1，保底 1 轮', () => {
     const plan = makeBudgetedPlanRound(0);
-    expect(plan({ producedChars: 0 })).toBe(1);
-    expect(plan({ producedChars: 1 })).toBe(0);
+    expect(plan({ round: 1, producedChars: 0 })).toBe(1);
+    // charsToTokens(2)=2 → remaining=-1，round2>guaranteed → 0
+    expect(plan({ round: 2, producedChars: 2 })).toBe(0);
+    expect(plan({ round: 1, producedChars: 2 })).toBe(1); // 余额负但仍在保底轮
   });
 
-  it('与 runContinuationChain 联跑：产出已超总额 → 首轮即 budget 停、不发请求（防发散）', async () => {
-    const req = vi.fn();
-    // LONG=1200 char 已远超 totalBudget=72（maxTokens=60）→ plan 返回 0 → 一轮不发
+  it('与 runContinuationChain 联跑：保底续 1 轮补齐，剩余仍负则 budget 停（防发散）', async () => {
+    const req = vi.fn(async () => ({ content: '续写的后半段答案内容，足够长不会被判无效，这里是追加的部分。', finishReason: 'length' }));
+    // maxTokens=60 → singleCap=30, totalBudget=72；LONG=1200字符 → token≈924 ≫ 72。
+    // round1（produced=LONG）余额负但 round1≤guaranteed → 保底 30 跑 1 轮；
+    // round2（produced 更大）余额仍负且 round2>guaranteed → budget 停。既不瞬停、又不发散。
     const r = await runContinuationChain({
       content: LONG, finishReason: 'length', maxRounds: 6,
       planRound: makeBudgetedPlanRound(60), requestNext: req,
     });
+    expect(r.rounds).toBe(1);
+    expect(req).toHaveBeenCalledTimes(1);
     expect(r.stoppedBy).toBe('budget');
-    expect(r.rounds).toBe(0);
-    expect(req).not.toHaveBeenCalled();
   });
 
   it('答案页续写轮数上限已提权对齐正文（数值为可断言约束）', () => {

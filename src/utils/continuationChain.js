@@ -20,6 +20,7 @@
  * ============================================================
  */
 import { GEN_CONST } from '../config/generationConstants.js';
+import { charsToTokens } from './outputQuota.js';
 
 /**
  * 截断判定：finish_reason=length/reasoning_capped（可靠）或尾部非完整句段（启发式兜底）。
@@ -93,19 +94,32 @@ export const ANSWER_CONT_MAX_ROUNDS = 6;
 /**
  * 预算化续写额度规划（2026-09-26 答案页续写对齐正文）。
  * 🔴 旧薄层每轮固定"单帽×0.5、至多 SIMPLE(2) 轮" → 长答案页 2 轮就放弃（仍截断、静默放行）。
- *    本函数把每轮帽设为"单帽×0.5"，但累计不超 totalMult×单帽 的总额度；配合更高 maxRounds，
+ *    本函数把每轮帽设为"单帽×0.5"，但累计不超 totalMult×单帽 的总额度（**token 口径**）；配合更高 maxRounds，
  *    续写可爬到总额才停 —— 与正文 bodyQuota 的"总额限制多轮"对齐，同时防无限发散。
  *    返回 ≤0 时 runContinuationChain 判 budget 尽而停止（不等同"已完整"，调用方据 stoppedBy 判定）。
- * @param {number} maxTokens 单次输出帽
- * @param {{totalMult?: number}} [opts]
- * @returns {(ctx:{round:number,producedChars:number}) => number}
+ * 🔴 2026-09-26 修复（真实运行：大卷答案页续写预算失真 → 0 轮续写 → 缺逐题答案）：
+ *   runContinuationChain 传给 planRound 的 producedChars 是**字符数**，而单帽/总额是 **token**。
+ *   旧实现直接 `总额 − producedChars`（单位错配）→ 答案页首轮若写满 maxTokens，字符数恒大于
+ *   总额token → 预算归零 → 续写一轮都不跑 → 停在首轮半截。对照正文 `nextContinuationBudget`
+ *   先 `charsToTokens(producedChars)` 再减（同口径），并借鉴其 2026-09-24 防"首轮即写满 → 锁死"的
+ *   保底：余额为负时前 `guaranteedRounds` 轮仍给满额（总支出受 guaranteedRounds×单帽 上界约束，
+ *   且链条 maxRounds 仍兜总轮数）。
+ * @param {number} maxTokens 单次输出帽（token）
+ * @param {{totalMult?: number, guaranteedRounds?: number}} [opts]
+ * @returns {(ctx:{round:number,producedChars:number}) => number} 本轮 max_tokens（token）
  */
-export const makeBudgetedPlanRound = (maxTokens = 0, { totalMult = 1.2 } = {}) => {
+export const makeBudgetedPlanRound = (maxTokens = 0, { totalMult = 1.2, guaranteedRounds = 1 } = {}) => {
   const singleCap = Math.max(1, Math.floor(Number(maxTokens || 0) * 0.5));
   const totalBudget = Math.max(singleCap, Math.floor(Number(maxTokens || 0) * totalMult));
+  const guaranteed = Math.max(0, Math.floor(Number(guaranteedRounds) || 0));
   return (ctx) => {
-    const produced = Number(ctx?.producedChars || 0);
-    return Math.max(0, Math.min(singleCap, totalBudget - produced));
+    const producedChars = Math.max(0, Number(ctx?.producedChars || 0));
+    const usedTokens = charsToTokens(producedChars);          // 字符 → token（与正文同口径）
+    const remaining = totalBudget - usedTokens;
+    const round = Math.max(0, Math.floor(Number(ctx?.round) || 0));
+    // 余额为负但仍在保底轮内 → 给满额续写（防"首轮写满 → 0 轮续写"瞬停）
+    if (remaining <= 0 && round <= guaranteed) return singleCap;
+    return Math.max(0, Math.min(singleCap, remaining));
   };
 };
 
