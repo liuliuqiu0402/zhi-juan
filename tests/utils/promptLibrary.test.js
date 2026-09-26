@@ -285,22 +285,34 @@ describe('序号体系 · 层级样式（2026-09-26 补全：模型一次写对�
 describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户定版）', () => {
   const examTpl = () => getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template;
 
-  it('大类层：居中加粗、**不带编号**、不得写"第X部分"、不得充当大题标题', () => {
+  it('试卷不设"居中大类"层（**除条件触发的部分层**）——分学科、非一刀切', () => {
     const t = examTpl();
-    expect(t).toContain('大类层');
-    expect(t, '大类必须明写"不带编号"').toContain('大类不带任何编号');
-    expect(t, '不得出现"第X部分"这类字眼').toContain('不得写"第X部分"这类字样');
-    expect(t, '大类名不得充当 h2 大题标题（大题标题仍由模型自拟）').toContain('不得**充当 h2 大题标题');
-    expect(t, '旧"部分层"条款应已被大类层取代').not.toContain('部分层（仅当【卷面结构】含');
+    expect(t, '不设居中大类层（调研：居中大字只用于卷名/册名，不用于栏目头）').toContain('不再设居中大类层');
+    expect(t, '旧"全学科大类层"条款须已移除（会与真题相悖且属一刀切）').not.toContain('大类层（**居中、加粗、不带编号**');
+    expect(t, '层级字样禁写第X部分/第X关').toContain('不得写"第X部分/第X关"这类字样');
   });
 
-  it('大类内分值自洽：该大类下各题分值合计 = 该大类分值', () => {
-    expect(examTpl()).toContain('该大类下各题分值合计必须等于该大类在【卷面结构】里的分值');
+  it('部分层为**条件触发、非全学科**：仅块名带"部分"前缀时设；无前缀的卷不设', () => {
+    const t = examTpl();
+    expect(t).toContain('条件触发、非全学科');
+    expect(t).toContain('无此前缀的卷**不设本层**');
+    expect(t, '部分层下大题序号跨部分继续递增').toContain('跨部分继续递增、全卷连续');
   });
 
-  it('大题序号全卷连续、跨大类继续递增（消除旧句"全卷连续…不顺延"的自相矛盾）', () => {
+  it('大题名称按块名性质分流：课标领域名直接用（真题即如此）；调研分类名/作答形式名不得照抄', () => {
     const t = examTpl();
-    expect(t).toContain('全卷连续、跨大类/部分继续递增');
+    expect(t).toContain('课标内容领域/实践活动型名称');
+    expect(t).toContain('直接用作大题标题');
+    expect(t).toContain('内部调研分类名或作答形式型名称');
+    expect(t).toContain('不是照抄它行首的调研分类名');
+  });
+
+  it('分值两处都标 + 大题内分值账目闭合 + 大题序号全卷连续', () => {
+    const t = examTpl();
+    expect(t).toContain('大题级必须给分值说明、不得省略');
+    expect(t).toContain('小题级在每道题题干后给"（X分）"');
+    expect(t).toContain('该大题下各题分值合计必须等于该大题在【卷面结构】里的分值');
+    expect(t).toContain('大题序号**全卷连续**');
     expect(t).toContain('不得重新从「一、」开始');
     expect(t, '旧的"跨部分不顺延不重复"自相矛盾句须已移除').not.toContain('跨部分不顺延不重复');
   });
@@ -312,13 +324,12 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
     expect(t, '旧判据域"只认题干"须已扩为"题面"').not.toContain('判据只有题干自身措辞');
   });
 
-  it('大题标题分值说明为"必须项"+分值两处都标（**仅试卷**，不得外溢到教辅）', () => {
+  it('大题级分值说明为必须项（**仅试卷**，不得外溢到教辅）', () => {
     const t = examTpl();
-    expect(t).toContain('分值说明为必须项');
-    expect(t).toContain('分值说明必须给出、不得省略');
+    expect(t).toContain('大题级必须给分值说明、不得省略');
     expect(t).toContain('小题级在每道题题干后给"（X分）"');
     const practice = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' }).template;
-    expect(practice, '大题标题（分值说明）必须项只针对试卷类型').not.toContain('分值说明为必须项');
+    expect(practice, '大题级分值说明必须项只针对试卷类型').not.toContain('大题级必须给分值说明');
   });
 
   it('情境边界：情境不改写卷面结构层 + 正式卷禁游戏化包装（**仅试卷**）', () => {
