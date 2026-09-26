@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS, ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS, ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS, buildAnswerFormatSpec } from '../../src/config/promptLibrary.js';
 import { TEACHING_SUBJECT_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
 import { styleInstructions, styleOptions, DEFAULT_STYLE_BY_TYPE } from '../../src/config/expertKnowledge.js';
 
@@ -237,7 +237,21 @@ describe('非exam教辅答案区不复述正文（自包含教辅防重复）', 
   });
 
   it('听力原文仅英语：自包含教辅 once 注入听力原文仅在英语时出现', () => {
-    expect(PAPER_OUTPUT_CONVENTIONS.once('英语', true)).toContain('听力题附完整听力原文');
-    expect(PAPER_OUTPUT_CONVENTIONS.once('数学', true)).not.toContain('听力题附完整听力原文');
+    expect(PAPER_OUTPUT_CONVENTIONS.once('英语', true)).toContain('听力题的答案应附完整听力原文');
+    expect(PAPER_OUTPUT_CONVENTIONS.once('数学', true)).not.toContain('听力题的答案应附完整听力原文');
+  });
+
+  it('答案委托不指定"评分标准/等级表"结构（去诱导：评分怎么写由模型能力产出）', () => {
+    // 根治（2026-09-26）：委托里"评分标准/等级表除外""等级表用 <table>""作文给评分标准（等级描述+采分点）"
+    // 等指定量表结构的措辞会把答案任务诱导成"产出评分量表"→ 模型只写量表、漏掉逐题答案。
+    for (const s of ['语文', '英语', '数学']) {
+      const once = PAPER_OUTPUT_CONVENTIONS.once(s, false);
+      expect(once).not.toContain('等级表');
+      expect(once).not.toContain('评分标准/等级表用');
+    }
+    expect(ANSWER_ROLES.exam('语文')).not.toContain('等级描述');
+    expect(ANSWER_ROLES.exam('语文')).not.toContain('采分点');
+    expect(buildAnswerFormatSpec('语文')).not.toContain('等级表');
+    expect(buildAnswerFormatSpec('语文')).not.toContain('评分标准/等级表');
   });
 });

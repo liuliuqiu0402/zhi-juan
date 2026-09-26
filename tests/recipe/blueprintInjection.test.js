@@ -462,7 +462,7 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
   });
 
   it('PAPER_OUTPUT_CONVENTIONS 听力原文仅英语（once/split 均按学科门控）', () => {
-    expect(PAPER_OUTPUT_CONVENTIONS.once('英语')).toContain('听力题附完整听力原文');
+    expect(PAPER_OUTPUT_CONVENTIONS.once('英语')).toContain('听力题的答案应附完整听力原文');
     expect(PAPER_OUTPUT_CONVENTIONS.once('数学')).not.toContain('听力原文');
     expect(PAPER_OUTPUT_CONVENTIONS.once('')).not.toContain('听力原文');
     expect(PAPER_OUTPUT_CONVENTIONS.split('英语')).toContain('听力原文');

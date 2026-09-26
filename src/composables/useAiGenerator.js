@@ -440,7 +440,7 @@ import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
 // 🗑 领域覆盖对账（reconcileDomains）已于 2026-09-20 用户裁定砍除，见下方调用点的说明；不再引入
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, classifyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth, detectAnswerSectionMissing } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, classifyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth, detectAnswerSectionMissing, countTopQuestions } from '../utils/contentCleaner.js';
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 import { FIGURE_DEPENDENCY_RE } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（图标记取证用）
 
@@ -4914,7 +4914,7 @@ ${cardAnalysisText.substring(0, 1000)}
           // 🔴 allowContinuation:true → 输出被截断（finish_reason=length / reasoning_capped）时自动续写补齐——
           //    此前禁用续写导致 23368 字符截断的不完整 HTML 进导出，docxBuilder 解析丢内容（答案区整体消失）
           // 🔴 returnMeta:true → 带出 finishReason / reasoningChunkCount，检测"思考耗尽"（与正文 retryWithoutThinking 对称）：
-          //    答案页要逐题作答+评分标准+听力原文，思考推理长，一旦推理占满 20K 上限 → 输出为空/半截；
+          //    答案页要逐题作答+听力原文，思考推理长，一旦推理占满 20K 上限 → 输出为空/半截；
           //    第二次重试强制关闭思考，防再次空转（此前无降级 → answerHtml='' → 入库无答案区，"无答案页"根因）
           // 🔴 产品级钳制（成本护栏）：思考乘数放大后仍 ≤ 引擎档（单次请求费用封顶）
           maxTokens: Math.min(clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), engineCap), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,

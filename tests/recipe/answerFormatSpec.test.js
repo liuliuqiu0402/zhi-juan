@@ -36,9 +36,14 @@ describe('buildAnswerFormatSpec（答案页：与正文同构、不复述题干�
     expect(s).not.toContain('3.84');
   });
 
-  it('评分标准/听力原文条款保留（回归防丢）', () => {
-    const s = buildAnswerFormatSpec('英语');
-    expect(s).toContain('<table>');
-    expect(s).toContain('听力原文');
+  it('听力原文条款保留（仅英语），且不再指定评分标准/量表结构（2026-09-26 去诱导）', () => {
+    const en = buildAnswerFormatSpec('英语');
+    expect(en).toContain('听力原文');
+    // 🔴 根治：委托不指定"评分标准/等级表"的结构——此前"评分标准/等级表用 <table>"
+    //    把答案任务诱导成"产出一个评分量表"（实证：语文卷答案区只剩最后一题等级量表）。
+    expect(en).not.toContain('评分标准');
+    expect(en).not.toContain('等级表');
+    // 非英语学科不注入听力条款
+    expect(buildAnswerFormatSpec('语文')).not.toContain('听力原文');
   });
 });
