@@ -151,7 +151,7 @@ describe('矩阵：9 资料类型注入面（question 7 类带作答空间语义
     it(`question 型 ${g}：通用模板含作答空间语义与禁占位句`, () => {
       const t = getPromptTemplate({ genType: g });
       expect(t.template).toContain('作答空位形态与所填内容相称');
-      expect(t.template).toContain('严禁用"答：""作答区"等文字充当或预置作答空间');
+      expect(t.template).toContain('不得以任何文字（提示、标签、说明）充当或预置作答空间');
     });
   }
   for (const g of CONTENT_TYPES) {

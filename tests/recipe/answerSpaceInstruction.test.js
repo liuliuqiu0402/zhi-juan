@@ -8,7 +8,7 @@
 //    - 主观书写形态 = getAnswerRegion(subject,stage).carrier（与程序补差 answer-area-fix 同表同源）：
 //        line（英语全学段/科学全学段/语文低中段）→ 整行书写横线；
 //        blank-area（数学等理科、理化生、史地政、道法、语文中高段论述阅读）→ 无线留白（不画横线不画框）；
-//    - 禁文字占位：严禁用"答：""作答区"等文字充当或预置作答空间；
+//    - 禁文字占位：不得以任何文字（提示、标签、说明）充当或预置作答空间；
 //    - 无 subject/stage（通用模板兜底）不注入学科书写形态分支（防无锚广播）。
 // ============================================================
 import { describe, it, expect } from 'vitest';
@@ -29,7 +29,7 @@ describe('buildAnswerSpaceInstruction（通用六行：形态按作答需要选�
       //    与程序侧 answer-blank-position（逐大题）/ answer-blank-form（逐卷）同域同源
       // 🔴 2026-09-26 调研修订：位置/括号形制按学科分叉（外语类题首半角、中文科目题干末尾全角）
       '· 同一大题内，"所填为字母/序号/√×等符号"的作答位**位置整段统一**（按上方学科惯例：外语类整段在题首、中文科目整段在题干末尾，不得同段混用两种位置）；括号空位**一律用半角（英文状态）括号**，同卷不得混用全角/半角；\n' +
-      '· 作答空间只以真实留白或书写载体呈现：严禁用"答：""作答区"等文字充当或预置作答空间；'
+      '· 作答空间只以真实留白或书写载体呈现：不得以任何文字（提示、标签、说明）充当或预置作答空间；'
     );
   });
 
@@ -158,7 +158,7 @@ describe('buildAnswerSpaceInstruction（学科书写形态与 ANSWER_REGION 同�
   it('禁文字占位句恒在：不输出"答：/作答区"字面充当作答空间', () => {
     for (const [subject, stage] of [['数学', 'middle'], ['语文', 'high'], ['英语', 'primary_mid']]) {
       const s = buildAnswerSpaceInstruction(subject, stage);
-      expect(s).toContain('严禁用"答：""作答区"等文字充当或预置作答空间');
+      expect(s).toContain('不得以任何文字（提示、标签、说明）充当或预置作答空间');
       expect(s).toContain('作答空间只以真实留白或书写载体呈现');
     }
   });
