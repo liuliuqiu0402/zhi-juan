@@ -75,3 +75,25 @@ describe('答案页 · 不得静默放行半截答案', () => {
     expect(src).toContain('两次尝试均为空/过短/续写后仍截断');
   });
 });
+
+describe('答案区完整性 · 源码接线守卫（2026-09-26 · 真实事故：漏 import → ReferenceError 整卷失败）', () => {
+  it('从 continuationChain 用到的导出**必须全部出现在 import 块**（漏一个 = 答案页运行时 ReferenceError）', () => {
+    const m = src.match(/import \{[^}]*\} from '\.\.\/utils\/continuationChain\.js';/);
+    expect(m, 'useAiGenerator 对 continuationChain 的 import 块缺失').toBeTruthy();
+    const importBlock = m[0];
+    // 实证：ANSWER_CONT_MAX_ROUNDS 曾只在函数体内引用、漏在 import 里，
+    // 单测（不触发答案页运行时路径）抓不到，真机语文②整卷两次重试均为 ReferenceError。
+    for (const name of [
+      'detectTruncation', 'appendContinuationWithDedup', 'runContinuationChain',
+      'makeBudgetedPlanRound', 'SIMPLE_CONTINUATION_MAX_ROUNDS', 'ANSWER_CONT_MAX_ROUNDS',
+    ]) {
+      expect(importBlock, `从 continuationChain 漏 import ${name} → 答案页运行时 ReferenceError`).toContain(name);
+    }
+  });
+
+  it('答案页首判与重试两处都要把续写轮数对齐正文（contMaxRounds 已接入）', () => {
+    expect((src.match(/contMaxRounds: ANSWER_CONT_MAX_ROUNDS/g) || []).length,
+      '答案页未把续写轮数对齐正文 → 长答案页又锁死 2 轮就放弃')
+      .toBeGreaterThanOrEqual(2);
+  });
+});

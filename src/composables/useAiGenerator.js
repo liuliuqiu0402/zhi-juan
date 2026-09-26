@@ -21,7 +21,7 @@ import { planOutputQuota, nextContinuationBudget, isOverQuota, charsToTokens } f
 //    与 _runPaperOrder 的正文额度链并存 → 同一个截断"正文能补齐、答案页半截放行"。
 //    现统一走 runContinuationChain + 策略回调；这里再导出两个纯函数，仅为不破既有引用面（测试）。
 import {
-  detectTruncation, appendContinuationWithDedup, runContinuationChain, makeBudgetedPlanRound, SIMPLE_CONTINUATION_MAX_ROUNDS,
+  detectTruncation, appendContinuationWithDedup, runContinuationChain, makeBudgetedPlanRound, SIMPLE_CONTINUATION_MAX_ROUNDS, ANSWER_CONT_MAX_ROUNDS,
 } from '../utils/continuationChain.js';
 
 export { detectTruncation, appendContinuationWithDedup };
