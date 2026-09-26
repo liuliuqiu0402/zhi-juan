@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS, ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS, buildAnswerFormatSpec } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS, ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS, buildAnswerFormatSpec, NUMBERING_HIERARCHY_RULE } from '../../src/config/promptLibrary.js';
 import { TEACHING_SUBJECT_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
 import { styleInstructions, styleOptions, DEFAULT_STYLE_BY_TYPE } from '../../src/config/expertKnowledge.js';
 
@@ -253,5 +253,22 @@ describe('非exam教辅答案区不复述正文（自包含教辅防重复）', 
     expect(ANSWER_ROLES.exam('语文')).not.toContain('采分点');
     expect(buildAnswerFormatSpec('语文')).not.toContain('等级表');
     expect(buildAnswerFormatSpec('语文')).not.toContain('评分标准/等级表');
+  });
+});
+
+describe('序号体系 · 层级样式（2026-09-26 补全：模型一次写对，不靠守卫兜底）', () => {
+  it('「一、二、三…」汉字序号被明确纳入"层级样式"词汇表（防大类与组同用汉字序号撞车）', () => {
+    expect(NUMBERING_HIERARCHY_RULE).toContain('汉字序号');
+    expect(NUMBERING_HIERARCHY_RULE).toContain('上级已用「一、」，下级就不得再用「一、」');
+    for (const form of ['一、二、三…', '1. 2. 3.…', '(1)(2)', '①②', '项目符号']) {
+      expect(NUMBERING_HIERARCHY_RULE, `层级样式词表漏了 ${form}`).toContain(form);
+    }
+  });
+
+  it('题号条款写明"全卷只此一套题号、严禁重启"，且自查含"是否中途重启"', () => {
+    const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template;
+    expect(t, '试卷模板缺"严禁按…重新从 1 编号"→ 题号重启不会被模型自查拦下').toContain('重新从 1 编号');
+    expect(t, '试卷模板自查缺"是否中途重启"').toContain('是否中途重启');
+    expect(t).toContain('重启即改');
   });
 });
