@@ -26,6 +26,7 @@ import { isLibEntryEnabled } from '../utils/libToggles.js';
 import { resolveStageKey, STAGE_KEY_SET } from '../utils/gradeStage.js'; // 年级→学段唯一事实源（三维度与课标版本标签共用，禁止各自 parseInt 中文年级）
 import { buildCarrierInstruction, buildAnswerSpaceInstruction, buildLongAnswerCarrierInstruction, BLANK_CARRIER_MARKUP } from './layoutSpec.js'; // 书写载体（格子类）+ 作答空间形态语义 + 空位载体标记 + 成句成段答案的书写载体：均由排版规格库按 学科×学段 动态生成（单一事实源，禁止在模板里手写死第二套措辞/示例）
 import { resolveMarkCapability, markCapabilitySignature } from './eduRenderContract.js'; // 🔴 标记能力判定单源（2026-09-17）：正文点名 [IMAGE]/[GRAPH] 与 system 给骨架用**同一判定**，防"正文点名而 system 无骨架"的悬空与假指针
+import { sectionKindOf } from './examPaperBlueprints.js'; // 🔴 蓝图栏目性质判定单源（2026-09-27）：域型→大类层 / 部分型→部分层 / 题型型→块名即大题标题；本处与【层级归并】条款同源，不再由模型从栏名再猜一遍
 
 /* 教材原文使用口径（2026-09-13 用户定版·双向开放，来源句单源收敛）：
  *  · 教材与课外**等权**：情境与素材取自教材或课外真实生活皆可，来源不作指定——
@@ -998,13 +999,43 @@ export function buildStructureText(bp) {
   const PART_RE = /^(听力|笔试)[·.](.+)$/;
   const hasPart = sections.some((s) => PART_RE.test(String(s.name || '')));
   if (!hasPart) {
-    return sections.map((s, i) => {
+    // 🔴 2026-09-27 收尾（g4）：把 sectionKindOf 接进【卷面结构】注入——"域型→大类层、题型型→直接作大题"
+    //    成为注入的**给定事实**，不再由模型从栏名再猜一遍（【层级归并】条款与这里的判定同源同果）。
+    //    归并判据：**相邻同性质**的栏目归并到同一个上层名；域型栏目作大类层（独立行、不带编号——
+    //    大类不带编号，编号只用于其下的大题标题与小题目）；题型型栏目不设大类层、块名即大题标题。
+    //    大类行不携带【要求·须逐项落实】（要求标注只挂在具体大题行上，防计数测试/模型误读）。
+    const kindOf = (s) => sectionKindOf(String(s.name || ''));
+    const domainName = (s) => {
+      const n = String(s.name || '');
+      const dot = n.indexOf('·');
+      return dot >= 0 ? n.slice(0, dot).trim() : n.trim();
+    };
+    const out = [];
+    for (let i = 0; i < sections.length; i++) {
+      const s = sections[i];
+      const kind = kindOf(s);
       const no = '一二三四五六七八九十'[i] || String(i + 1);
       const scorePart = s.score ? `，共${s.score}分` : '';
-      return `${no}、${s.name}(共X题${scorePart})${reqTag(s.note)}`;
-    }).join('\n');
+      // 域型：在其组第一个栏目之前输出大类行；题型型：不设大类层，块名即大题标题
+      if (kind === 'domain') {
+        const prev = sections[i - 1];
+        const isGroupStart = !prev || kindOf(prev) !== 'domain' || domainName(prev) !== domainName(s);
+        if (isGroupStart) {
+          let sum = 0;
+          for (let k = i; k < sections.length; k++) {
+            if (kindOf(sections[k]) !== 'domain' || domainName(sections[k]) !== domainName(s)) break;
+            sum += Number(sections[k].score) || 0;
+          }
+          out.push(`🔴 大类层：${domainName(s)}（其下大题总分 共${sum}分）——不带编号，居中加粗独立呈现`);
+        }
+      }
+      out.push(`${no}、${s.name}(共X题${scorePart})${reqTag(s.note)}`);
+    }
+    return out.join('\n');
   }
   // 部分层：按前缀顺序分组（听力/笔试），组内大题去前缀、序号全卷连续
+  // 🔴 2026-09-27（用户裁定）：部分层只写"听力部分/笔试部分"作大类居中，**不写"第X部分"字眼**
+  //   （真题卷面通行：听力部分/笔试部分即部分标题，不带序；下辖大题序号仍全卷连续）
   const groups = [];
   let cur = null;
   for (const s of sections) {
@@ -1020,7 +1051,7 @@ export function buildStructureText(bp) {
   for (const g of groups) {
     const sum = g.items.reduce((a, s) => a + (Number(s.score) || 0), 0);
     const partName = g.part === '听力' ? '听力部分' : '笔试部分';
-    out.push(`第${g.part === '听力' ? '一' : '二'}部分 ${partName}（共${g.items.length}大题，满分${sum}分）`);
+    out.push(`${partName}（共${g.items.length}大题，满分${sum}分）`);
     for (const s of g.items) {
       const no = '一二三四五六七八九十'[seq] || String(seq + 1);
       seq += 1;

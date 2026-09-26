@@ -349,6 +349,15 @@ describe('🔴 只读听力原文：卷面/答案/笔试残留必须挡在音频
     // 部分标题整段剔除（其名称由音频按固定文案播报）
     const part = stripPaperNoise('第一部分 听力部分（共3大题，满分30分）');
     expect(part.text).toBe('');
+    // 🔴 2026-09-27 联动（g4 收尾）：卷面部分标题按裁定去掉"第X部分"（部分标题作大类居中）——
+    //    正文出现「听力部分/笔试部分（共…）」也应整段剔除，防被当材料误读
+    const partNoSeq = stripPaperNoise('听力部分（共3大题，满分30分）');
+    expect(partNoSeq.text).toBe('');
+    const partNoSeq2 = stripPaperNoise('笔试部分（共7大题，满分70分）');
+    expect(partNoSeq2.text).toBe('');
+    // 普通文本含"听力部分/笔试部分"字样但无括号题数 → 不误剔
+    const plain = stripPaperNoise('The listening part is easy.');
+    expect(plain.text).toBe('The listening part is easy.');
     // 标号出现在句中（材料句后粘着题头）→ 仍是卷面残留，整段剔除，英文材料必须完整保留
     const mixed = stripPaperNoise('I saw a film yesterday. 二、听录音，判断下列句子（每题2分，共10分）');
     expect(mixed.text).toBe('I saw a film yesterday.');
