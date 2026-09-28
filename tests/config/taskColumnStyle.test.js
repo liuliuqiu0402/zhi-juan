@@ -8,12 +8,14 @@ import {
   applyColumnStyle,
   applyTaskColumnStyle,
   resolveColumnStyleId,
+  resolveColumnStyleChoices,
   peekAutoColumnStyleId,
   advanceAutoColumnStyleId,
   __resetColumnStyleCounters,
   buildTeachingInjection,
   TEACHING_STAGE_NAMES,
   TEACHING_SUBJECT_BLUEPRINTS,
+  ERRORBOOK_FACET_NAMES,
 } from '../../src/config/teachingBlueprints.js';
 
 const mkSections = (names) => names.map((name) => ({ name, note: `note-${name}` }));
@@ -160,5 +162,56 @@ describe('栏目标题风格套（2026-09）', () => {
       }
     }
     expect(checked).toBeGreaterThan(100); // 防"组合没跑满"导致空转假通过
+  });
+});
+
+// 2026-09-28：「名称样式/组织风格」下拉候选去重 —— 与默认套 a 逐字相同的套无信息量，应被滤除
+//   单一事实源：resolveColumnStyleChoices 只按 COLUMN_STYLE_SETS 的 columns 内容逐字比较（无类型名硬编码）；
+//   errorbook 四套同源 ERRORBOOK_FACET_NAMES → b/c/d 与 a 等价被滤除、且四套全同故「自动轮换」亦隐藏；
+//   其余类型 b/c/d 均异于 a → 候选不变，行为零变化。
+describe('栏目风格套候选去重（resolveColumnStyleChoices · 单一事实源）', () => {
+  it('errorbook：b/c/d 与默认套 a 逐字相同 → 候选中被滤除，仅剩 a（「自动轮换」亦因无套可轮换而滤除）', () => {
+    const errorbookPool = COLUMN_STYLE_SETS.errorbook;
+    // 前提核验：四套确为同一份 ERRORBOOK_FACET_NAMES（内容逐字相同，仅数组实例不同）
+    expect(errorbookPool.a.columns).toEqual(ERRORBOOK_FACET_NAMES);
+    for (const id of ['b', 'c', 'd']) {
+      expect(errorbookPool[id].columns).toEqual(errorbookPool.a.columns);
+    }
+    const { ids, autoRotatable } = resolveColumnStyleChoices(errorbookPool);
+    // 等价项已被滤除：候选只剩默认套 a
+    expect(ids).toEqual(['a']);
+    expect(ids).not.toContain('b');
+    expect(ids).not.toContain('c');
+    expect(ids).not.toContain('d');
+    // 四套全同 → 无套可轮换 → 「🔄 自动轮换」候选项一并滤除（autoRotatable=false 即调用方不产出该项）
+    expect(autoRotatable).toBe(false);
+  });
+
+  it('其它类型候选不受影响：b/c/d 均异于 a → 四套齐全且可轮换', () => {
+    const untouched = ['practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'review'];
+    for (const t of untouched) {
+      const { ids, autoRotatable } = resolveColumnStyleChoices(COLUMN_STYLE_SETS[t]);
+      expect(ids, `${t} 候选被误改`).toEqual(['a', 'b', 'c', 'd']);
+      expect(autoRotatable, `${t} 轮换开关被误改`).toBe(true);
+    }
+  });
+
+  it('滤除依据是逐字比较（非类型名硬编码）：同内容异名亦滤、仅顺序不同不滤', () => {
+    const sameCols = ['分项一', '分项二', '分项三'];
+    // 合成"易错题本式"内容池（键名与 errorbook 无关）→ 仍按内容滤除 b，保留差异套 c
+    const synthetic = { a: { columns: [...sameCols] }, b: { columns: [...sameCols] }, c: { columns: ['分项一', '分项二', '分项四'] } };
+    expect(resolveColumnStyleChoices(synthetic)).toEqual({ ids: ['a', 'c'], autoRotatable: true });
+    // 把 errorbook 那套内容原样搬到任意键名下 → 结果与 errorbook 完全一致（内容决定，与类型名无关）
+    const renamed = { a: COLUMN_STYLE_SETS.errorbook.a, b: COLUMN_STYLE_SETS.errorbook.b, c: COLUMN_STYLE_SETS.errorbook.c, d: COLUMN_STYLE_SETS.errorbook.d };
+    expect(resolveColumnStyleChoices(renamed)).toEqual({ ids: ['a'], autoRotatable: false });
+    // 逐字（含顺序）比较：栏目名仅顺序不同即视为不同套，不得误滤
+    const reordered = { a: { columns: ['甲', '乙', '丙'] }, b: { columns: ['乙', '甲', '丙'] } };
+    expect(resolveColumnStyleChoices(reordered).ids).toEqual(['a', 'b']);
+  });
+
+  it('健壮性：无 a／空池／非对象 → 空候选不轮换（不误伤调用方）', () => {
+    expect(resolveColumnStyleChoices(undefined)).toEqual({ ids: [], autoRotatable: false });
+    expect(resolveColumnStyleChoices({})).toEqual({ ids: [], autoRotatable: false });
+    expect(resolveColumnStyleChoices({ b: { columns: ['x'] } })).toEqual({ ids: [], autoRotatable: false });
   });
 });

@@ -3219,7 +3219,7 @@ import { materialChannelOf } from '../config/coverageContract.js'; // 📚 素�
 import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructureText, buildSpecialDomainAnchorLine } from '../config/specialDomains.js'; // 🎯 专项领域注册库（学科×学段→栏目结构+课标语义锚）
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
 // ✅ A21 已撤（2026-09-17）：buildNeedsImageText / needsImageHint 不再参与能力判定（改为能力就绪，见 eduRenderContract.resolveMarkCapability）
-import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, advanceAutoColumnStyleId, getTeachingBlueprint, stripSourceMarkNote } from '../config/teachingBlueprints.js';
+import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, resolveColumnStyleChoices, advanceAutoColumnStyleId, getTeachingBlueprint, stripSourceMarkNote } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
 import { buildUserMessageBlocks } from '../utils/injectionManifest.js'; // ✅ A22：请求实发清单·单源（用户消息侧：锚点清单/素材约定/组织方式/输出约定/尾约束…与生成端同一份定义）
 import { syncFloorClauseSections } from '../utils/instructionFloorSync.js'; // 🔴 2026-09-18 用户实证：草稿持久化恢复会把"程序内置守门条款段"冻住 → 之后所有条款修订都进不了模型；实发前按当前单源同步该段（用户内容不动）
@@ -3371,19 +3371,28 @@ const columnStyleOptions = computed(() => {
   const inapplicableReason = defaultMatch
     ? ''
     : `当前学科（${subject || '通用'}）该类型栏目名与默认套不同，换肤不生效，保持默认栏目名`;
-  return [
-    { value: '', label: '🔄 自动轮换', desc: '按次轮换：每次生成换下一套（a→b→c→d→a 循环）；生成结束才推进，故预览与本次生成一致', columns: defNames, semantics: semantics.slice(0, defNames.length), applicable: true, appliesToLabel: '' },
-    ...Object.entries(pool).map(([id, s]) => ({
+  // 🔴 2026-09-28（单一事实源·等价去重）：与默认套 a 逐字相同的套无信息量，从候选中剔除（errorbook 的 b/c/d 即此）；
+  //    四套全部等价时「自动轮换」亦无意义，一并隐藏。判据由 resolveColumnStyleChoices 逐字比较 pool.columns 得出，
+  //    不做任何类型名硬编码；b/c/d 均异于 a 的类型（practice 等）候选项不变。
+  const { ids: styleIds, autoRotatable } = resolveColumnStyleChoices(pool);
+  const options = [];
+  if (autoRotatable) {
+    options.push({ value: '', label: '🔄 自动轮换', desc: '按次轮换：每次生成换下一套（a→b→c→d→a 循环）；生成结束才推进，故预览与本次生成一致', columns: defNames, semantics: semantics.slice(0, defNames.length), applicable: true, appliesToLabel: '' });
+  }
+  options.push(...styleIds.map((id) => {
+    const s = pool[id];
+    return {
       value: id,
       label: id === 'a' ? '默认套（a）' : `风格套（${id}）`,
       desc: id === 'a' ? '固定使用默认套（不换肤）' : '只换栏目标题字面，各栏语义同蓝图（见下方"各栏语义"）',
       columns: s.columns,
       semantics: semantics.slice(0, s.columns.length),
-      // 守卫：当前学科×类型栏目名与默认套一致才可换肤；自动/默认套在守卫失败时退化为固定默认栏目名，始终可用
+      // 守卫：当前学科×类型栏目名与默认套一致才可换肤；默认套在守卫失败时退化为固定默认栏目名，始终可用
       applicable: id === 'a' || defaultMatch,
       appliesToLabel: id === 'a' ? '' : inapplicableReason,
-    })),
-  ];
+    };
+  }));
+  return options;
 });
 /** 当前生效蓝图的全栏目语义（弹窗底部完整展示，换肤不改语义） */
 const columnSemantics = computed(() => {

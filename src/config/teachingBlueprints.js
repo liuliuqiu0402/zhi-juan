@@ -1329,6 +1329,22 @@ export function resolveColumnStyleId(genType = '', styleVal = '') {
   return peekAutoColumnStyleId(genType);
 }
 
+/** 栏目标题风格套「去重候选」——单一事实源，判据只做**逐字比较**（无类型名硬编码）：
+ *  · 与默认套 a `columns` 逐字相同的套信息量为零，从候选中剔除（a 自身恒保留）；
+ *  · 剔除后仅剩 a（即 a/b/c/d 全部等价、无任何差异化套）→ 无套可轮换，autoRotatable=false，
+ *    调用方据此隐藏「🔄 自动轮换」项；
+ *  · 判据只读传入 pool 的 `columns` 内容，与 `genType` 无关——故 errorbook（四套同源 ERRORBOOK_FACET_NAMES）
+ *    的 b/c/d 因与 a 逐字相同被剔除，而 practice/special 等（b/c/d 均异于 a）结果恒为全部四套、autoRotatable=true，
+ *    零行为变化。 */
+export function resolveColumnStyleChoices(pool) {
+  const def = pool?.a?.columns;
+  if (!Array.isArray(def) || !def.length) return { ids: [], autoRotatable: false };
+  const sameAsDefault = (cols) =>
+    Array.isArray(cols) && cols.length === def.length && def.every((n, i) => cols[i] === n);
+  const ids = Object.keys(pool).filter((id) => id === 'a' || !sameAsDefault(pool[id]?.columns));
+  return { ids, autoRotatable: ids.length > 1 };
+}
+
 /** 学段键归一：接受学段键（primary_low 等）或中文学段/年级标签（'小学低段'/'二年级'/'高一' 等）
  * 🔴 唯一事实源：统一委托 gradeStage.resolveStageKey（'小学低/中/高段'、一~六年级、初一~初三、高一~高三、初中/高中 全覆盖），
  *    不再本地自建启发式，杜绝三处解析互相错位的风险。 */
@@ -1438,6 +1454,7 @@ export default {
   COLUMN_STYLE_SETS,
   applyColumnStyle,
   resolveColumnStyleId,
+  resolveColumnStyleChoices,
   peekAutoColumnStyleId,
   advanceAutoColumnStyleId,
   __resetColumnStyleCounters,
