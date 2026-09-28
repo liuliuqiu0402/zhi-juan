@@ -122,9 +122,11 @@ describe('④ 同一大题内作答位位置/形态统一（跨学科通用）',
   const notes = (r, type) => (r.silentDetails || []).filter((d) => d.type === type).map((d) => d.message).join(' | ');
 
   // 🔴 2026-09-17 用户裁定（第三轮）：位置混用从"只报不改"改为**程序确定性归并（fix）**——
-  //    与既有"题首形态归一/分值对齐/载体补差"同一范式：只搬括号空位、不动其它文字；
-  //    方向按多数、同数时题首优先；**形态（同卷全角/半角）仍只报不改**（不同题型有意区分也合理）。
-  it('题首与句末混用 → **自动归并到题首**（同数时题首优先；只搬括号、不动文字）', () => {
+  //    与既有"题首形态归一/分值对齐/载体补差"同一范式：只搬括号空位、不动其它文字。
+  // 🔴 2026-09-28 口径收口（唯一口径 = layoutSpec.buildAnswerSpaceInstruction）：归并**方向按学科取条款**
+  //    （外语类 → 题首；中文科目/无学科兜底 → 题干末尾），**不再按多数票、同数亦取条款**；
+  //    形态（同卷全角/半角）仍只报不改（统一基准为半角）。
+  it('题首与句末混用 → **自动归并到题首**（外语类：方向恒取条款=题首；只搬括号、不动文字）', () => {
     const html = `<h2>二、听简短对话，判断正误，正确写"T"，错误写"F"（每题2分，共10分）</h2>`
       + `<p class="question">(    )6. The festival will be held next Friday.</p>`
       + `<p class="question">(    )7. Lily made a poster.</p>`
@@ -138,7 +140,7 @@ describe('④ 同一大题内作答位位置/形态统一（跨学科通用）',
     expect(notes(r, 'answer-blank-position'), '已归并 → 不再报"位置不统一"').toBe('');
   });
 
-  it('多数在句末 → 归并到句末（题首那两处被搬走）', () => {
+  it('外语类：即便多数在句末，仍归并到题首（方向按学科条款，非多数票）', () => {
     const html = `<h2>二、判断正误（每题2分，共10分）</h2>`
       + `<p class="question">(    )6. 句子一</p>`
       + `<p class="question">(    )7. 句子二</p>`
@@ -146,8 +148,24 @@ describe('④ 同一大题内作答位位置/形态统一（跨学科通用）',
       + `<p class="question">9. 句子四 (    )</p>`
       + `<p class="question">10. 句子五 (    )</p>${ANS}`;
     const r = run('英语', html);
-    expect(r.html).toContain('6. 句子一 (    )');
-    expect(r.html).not.toContain('(    )6. 句子一');
+    expect(r.html, '外语类方向恒为题首').toContain('(    )8. 句子三');
+    expect(r.html).toContain('(    )9. 句子四');
+    expect(r.html).toContain('(    )10. 句子五');
+    expect(r.html, '句末形态应已被搬走').not.toContain('8. 句子三 (    )');
+    expect(r.issues.some((i) => i.type === 'answer-blank-position-fix')).toBe(true);
+  });
+
+  it('中文科目：题首/句末混用 → 归并到题干末尾（旧"多数票/题首优先"不得回潮）', () => {
+    const html = `<h2>二、判断正误（每题2分，共10分）</h2>`
+      + `<p class="question">6. 句子一 (    )</p>`
+      + `<p class="question">7. 句子二 (    )</p>`
+      + `<p class="question">(    )8. 句子三</p>`
+      + `<p class="question">(    )9. 句子四</p>${ANS}`;
+    const r = run('语文', html);
+    expect(r.html, '中文科目方向为题干末尾').toContain('8. 句子三 (    )');
+    expect(r.html).toContain('9. 句子四 (    )');
+    expect(r.html, '题首形态应已被搬走').not.toContain('(    )8. 句子三');
+    expect(r.issues.some((i) => i.type === 'answer-blank-position-fix')).toBe(true);
   });
 
   it('全角（　）与半角(    )混用 → 报形态不统一（形态仍只报不改）', () => {

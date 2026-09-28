@@ -88,16 +88,20 @@ describe('④ 作答空间：分值下推（不再落"无分值 4 行兜底"）+
     expect(rows, `应补 5 题 × 2 行 = 10 条（实际 ${rows} 条）`).toBe(10);
   });
 
-  it('带选项的题：题首下划线空/裸空 → 确定性归一为圆括号空位（只换形态、不动位置）', () => {
+  it('带选项的题：题首下划线空/裸空 → 确定性归一为**半角 span 空位**（只换形态、不动位置，与归一层同形）', () => {
     const html = `<h2>六、单项选择（每题1.5分，共15分）</h2>`
       + `<p><u class="blank-8">&emsp;</u>26. — I'm afraid I can't do it well.</p>`
       + `<p>A. Don't worry.　B. You're welcome.　C. Thank you.</p>`
       + `<p><u class="blank-8">&emsp;</u>27. Last Friday, Lily sang a song.</p>`
       + `<p>A. sings　B. sang　C. is singing</p>`;
     const r = auditExamPaper(html, { subject: '英语', stage: 'primary_high', genType: 'exam' });
-    expect(r.html).toContain('（　）26.');
-    expect(r.html).toContain('（　）27.');
+    // 🔴 2026-09-28 口径收口：归一目标 = 半角 span 载体（与 contentCleaner 归一同形），不再写字面全角「（　）」
+    //    ⚠️ 经 auditExamPaper 的 DOM 往返后，`&emsp;` 序列化为等价的 U+2003（同一空白字符），故匹配两种写法。
+    const SPAN2 = '<span class="blank-2">(?:&emsp;|\u2003)</span>';
+    expect(r.html).toMatch(new RegExp(`${SPAN2}26\\.`));
+    expect(r.html).toMatch(new RegExp(`${SPAN2}27\\.`));
     expect(r.html, '题首下划线空应已被替换').not.toContain('<u class="blank-8">');
+    expect(r.html, '不得再生产字面全角括号位（与归一层形态相反）').not.toContain('（　）26.');
     expect(r.issues.some((x) => x.type === 'choice-first-blank')).toBe(true);
   });
 

@@ -7,11 +7,11 @@
 //    本文件只负责规则的执行逻辑。
 // ============================================================
 import { getValidatorRules, normalizeStage } from '../config/validatorRules.js';
-import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATION } from '../config/layoutSpec.js';
+import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATION, getChoiceBlankPosition } from '../config/layoutSpec.js';
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
 import { checkFigurePrompts } from './figurePromptCheck.js'; // 🔴 题干 ↔ 配图 PROMPT 数量交叉校验（2026-09-16）
-import { analyzeQuestionNumbering, detectCnOrdinalHeadingIssues } from './contentCleaner.js'; // 🔴 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）
+import { analyzeQuestionNumbering, detectCnOrdinalHeadingIssues, spaceBlankWidth } from './contentCleaner.js'; // 🔴 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
 
 // ---------- 通用正则 ----------
 // 全角拼音字符归一表（IPA 音标字符混入小学拼音、全角字母）
@@ -31,6 +31,19 @@ const PINYIN_GROUP_RE = new RegExp(`(?<![${PINYIN_CHARS}])[${PINYIN_CHARS}]+(?![
 //    square-box（算式 □ 归一产物）无 blank- 子串曾漏计 → 与圆圈空位同口径计入（"每空X分"验证用）
 const BLANK_TAG_RE = /<span[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/span>|<u[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/u>|<span[^>]*class=["'][^"']*square-box[^"']*["'][^>]*>[\s\S]*?<\/span>/gi;
 const PAREN_BLANK_RE = /[（(]\s*[　\u3000 ]{1,12}\s*[)）]/g;
+// 🔴 2026-09-28 选择类题首作答位·归一目标形态（唯一口径 = layoutSpec.buildAnswerSpaceInstruction；半角基准）：
+//    contentCleaner.normalizeBlankMarkers 把全角字面括号空位「（　）」（1 全角空格内宽）收敛为
+//    `<span class="blank-N">&emsp;</span>`（N 由 spaceBlankWidth 按内宽换算 → blank-2）；span.blank-N
+//    渲染自带半角括号（预览 CSS ::before/::after + docx 显式补 ()）。故 2e0 的归一目标必须与它**逐字同形**
+//    （经 spaceBlankWidth 取宽，规格漂移自动跟随），**不得再写字面全角「（　）」**——否则与归一层形态相反，
+//    造成同卷"题首全角、其余半角"并存。
+const choiceBlankSpanHtml = () => `<span class="blank-${spaceBlankWidth(1)}">&emsp;</span>`;
+/** 生成半角 span 空位节点（2e0 归一用；与 choiceBlankSpanHtml 同形） */
+const makeChoiceBlankNode = () => {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = choiceBlankSpanHtml();
+  return tpl.content.firstChild;
+};
 // 空位载体补充（AI 裸输出形态，normalizeBlankMarkers 归一前的漏网）：
 //   无 class 的 <u>　　</u> / <u>&emsp;</u> 下划线载体、连续裸下划线 ___/＿＿（连续 2+，防英文单词内单下划线误数）
 const BARE_U_BLANK_RE = /<u(?![^>]*class=)[^>]*>\s*(?:[　\u3000 _]|&emsp;){1,24}\s*<\/u>/gi;
@@ -722,11 +735,16 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         if (!secHtml) return;
 
         // 2e0. 选择题**题首**作答位形态归一（规则 choice-first-blank-fix）
-        //   🔴 2026-09-17 用户实证（题类通用问题）：带选项的题，其作答位一律在题干前（题首）且用**圆括号空位**，
-        //      不用下划线空/横线空（作答空间条款原文）。本卷第六题（26–35）题首却写成下划线空
+        //   🔴 2026-09-17 用户实证（题类通用问题）：带选项的题，其作答位形态一律**半角圆括号空位**
+        //      （作答空间条款原文）。本卷第六题（26–35）题首却写成下划线空
         //      （`<u class="blank-N">`），而同一卷的第四/九题都是括号 → 同卷内不一致；原探针只静默计数、
         //      不改写，错形态就留进交付。此处做**只换形态、不动位置**的确定性归一（不涉及作答空间语义：
-        //      空位仍在题首、仍是那一处，只把它从"下划线空/裸空"改成"（　）"）。
+        //      空位仍在题首那一处）。
+        //   🔴 2026-09-28 口径收口（唯一口径 = layoutSpec.buildAnswerSpaceInstruction）：归一目标改为**半角
+        //      span 载体** `<span class="blank-N">&emsp;</span>`（与 contentCleaner 归一同形、渲染自带半角
+        //      括号；N 经 spaceBlankWidth 取），**不再写字面全角「（　）」**——后者与归一层形态相反，会造成
+        //      同卷"题首全角、其余半角"并存并自触发 2j-6 形态不统一告警。
+        //   ⚠️ 位置归并（外语题首 / 中文题干末尾按学科）由 2j-6 负责，本条**只换形态、不搬位置**。
         //   ⚠️ 触发面收窄到"该大题确实带选项"，避免误改填空/默写类题的行首空位。
         //   ⚠️ 选项判据必须兼容**同段落内连排**（实际卷面常写 `<p>A. x　B. y　C. z</p>`，countOptions 只认
         //      行首 A. 式 → 对它恒为 0）：故并上"段内出现 ≥2 个选项字母"。
@@ -741,17 +759,22 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const isCarrier = !!fc0 && (fc0.tagName === 'U' || fc0.tagName === 'SPAN')
               && /(?:^|\s)blank-\d+/.test(fc0.getAttribute('class') || '');
             if (isCarrier) {
-              fc0.replaceWith(document.createTextNode('（　）'));
+              // 下划线空 / 旧形态空位 → 半角 span 载体（保持题首位置）
+              fc0.replaceWith(makeChoiceBlankNode());
               fx += 1;
             } else if (!fc0 && /^[　\u3000\s]{2,}/.test(t)) {
-              // 裸空（纯文本全角空格/空格起头）→ 同样归一为圆括号空位
+              // 裸空（纯文本全角空格/空格起头）→ 同样归一为半角 span 载体
               const firstText = n.firstChild;
-              firstText.textContent = String(firstText.textContent).replace(/^[　\u3000\s]{2,}/, '（　）');
-              fx += 1;
+              if (firstText && firstText.nodeType === Node.TEXT_NODE) {
+                const rest = String(firstText.textContent).replace(/^[　\u3000\s]{2,}/, '');
+                n.insertBefore(makeChoiceBlankNode(), firstText);
+                firstText.textContent = rest;
+                fx += 1;
+              }
             }
           }
           if (fx > 0) {
-            issues.push({ severity: 'info', type: 'choice-first-blank', message: `大题「${title}」题首作答位已按作答空间条款归一到圆括号空位（${fx} 处）` });
+            issues.push({ severity: 'info', type: 'choice-first-blank', message: `大题「${title}」题首作答位已按作答空间条款归一到半角圆括号空位（${fx} 处）` });
             fixed += fx;
           }
         }
@@ -773,20 +796,20 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
 
         // 2e3. 选择题作答位误置选项行（规则 choice-answer-position-guard：静默）
         //      🔧 2026-09 用户实证：答案括号被模型挂在选项末尾（C. are; am＿）。
-        //      根治在生成侧（作答空间条款：选择/判断/圈选类括号在题干前）；此处只静默计数取证，
+        //      根治在生成侧（作答空间条款：作答位按学科置于题首/题干末尾、括号一律半角）；此处只静默计数取证，
         //      不自动修复——程序移动空位会破坏题面顺序，位置矫正属生成语义。
         //      ⚠️ 不做"选择"关键词限定："选择"字样常只在大题标题（h2）内，secText2 不含标题，
         //         关键词限定会漏掉实证形态；CHOICE_OPTION_BLANK_RE 本身已特化（选项行内挂空位），
         //         直接按该异常形态检测。
         if (has('choice-answer-position-guard') && CHOICE_OPTION_BLANK_RE.test(secHtml2)) {
-          silentCount('choice-answer-pos', `大题「${title}」选项行内/末尾出现作答空位（答案括号应放题干前题首），请抽检`, 'debug');
+          silentCount('choice-answer-pos', `大题「${title}」选项行内/末尾出现作答空位（作答位按学科应在题首或题干末尾），请抽检`, 'debug');
         }
         // 2e4. 选项行**之后**的独立作答载体段（规则 choice-answer-position-guard，静默取证）
         //      🔴 2026-09-16 用户实证补充：条款原只约束"选项行内/末尾"，模型改把整行横线/空白作答行
         //      放到选项行**之后**的独立段落 → 字面合规、卷面成排长横线（六年级英语选词填空每个选项后 2 条）。
         //      仍不自动修复：作答空间属生成语义；本条只让该形态可观测（下次回归能测到）。
         if (has('choice-answer-position-guard') && CHOICE_OPTION_BLANK_AFTER_RE.test(secHtml2)) {
-          silentCount('choice-answer-pos-after', `大题「${title}」选项行之后出现整行横线/空白作答段（题首已有作答位时属多余），请抽检`, 'debug');
+          silentCount('choice-answer-pos-after', `大题「${title}」选项行之后出现整行横线/空白作答段（作答位按学科应在题首或题干末尾，此处属多余），请抽检`, 'debug');
         }
 
         // 2f. 分值标注修正（规则 score-label-fix：每空/每线/每题分标注与载体数对齐）
@@ -1000,9 +1023,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       //   且题首括号有全角（　）与半角(　)两种形态混用）。判据与生成侧条款同源，**全学科通用**（判断类/选择类皆然）。
       //   🔴 2026-09-17 用户裁定（第三轮）：**位置混用改为程序确定性归并（fix）**——此前"只报不改"是当时
       //      "作答位位置属生成语义、不做自动搬移"的裁定；现用户明确要求做成 fix，与既有"题首形态归一/
-      //      分值对齐/载体补差"同一范式：**只搬括号空位、不动其它文字**；方向按多数、同数时题首优先
-      //      （对齐"作答位在题干前"的主口径）。**形态（同卷全角/半角）仍只报不改**——不同题型有意区分
-      //      也属合理，交编辑判；且不复活任何已砍机制（不做整卷重写、不做字面撮合对账）。
+      //      分值对齐/载体补差"同一范式：**只搬括号空位、不动其它文字**。
+      //   🔴 2026-09-28 口径收口（唯一口径 = layoutSpec.buildAnswerSpaceInstruction）：归并**方向按学科取条款**
+      //      ——**外语类 → 题首**（head）、**中文科目/无学科兜底 → 题干末尾**（tail）；方向经
+      //      getChoiceBlankPosition(subject) 单一出口取得。**不再按多数票、也不再把同数偏向题首**：多数票会随
+      //      题目分布漂移、把中文卷搬成题首（与条款相反）——旧的"多数方向、同数题首优先/主口径=题干前"表述已废。
+      //      **形态（同卷全角/半角）仍只报不改**——统一基准为半角；不同题型有意区分也属合理，交编辑判；
+      //      且不复活任何已砍机制（不做整卷重写、不做字面撮合对账）。
       {
         // ⚠️ 分段用 match（不要用 split+slice(1)）：零宽 lookahead 在串首不产生空首元素，
         //    slice(1) 会把**第一个大题**整段丢掉（实测：只有含答案区的片段参与扫描 → 探针恒不触发）。
@@ -1030,8 +1057,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (headN >= 2 && tailN >= 2) posMixedCount += 1;
         }
         // ── 确定性归并（fix）：仅对"混用"的大题动手 ──
+        //   方向**按学科取条款**（外语类题首 / 中文科目题干末尾）——单一出口 getChoiceBlankPosition，不再按多数票。
+        const moveDirHead = getChoiceBlankPosition(subject) === 'head';
         let movedTotal = 0;
-        let movedToHead = true;
+        let movedToHead = moveDirHead;
         if (posMixedCount > 0) {
           try {
             const tplP = document.createElement('template');
@@ -1048,8 +1077,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               const isTail = (p) => /[（(][\s\u3000]{1,}[）)]\s*$/.test((p.textContent || '').trim());
               const hN = ps.filter(isHead).length; const tN = ps.filter(isTail).length;
               if (!(hN >= 2 && tN >= 2)) continue;
-              const toHead = hN >= tN;   // 多数方向；同数 → 题首优先
-              if (toHead) movedToHead = true; else movedToHead = false;
+              const toHead = moveDirHead;   // 方向恒取条款（外语题首 / 中文题干末尾），同数亦取条款
+              movedToHead = toHead;
               for (const p of ps) {
                 const mis = toHead ? (isTail(p) && !isHead(p)) : (isHead(p) && !isTail(p));
                 if (!mis) continue;
@@ -1064,17 +1093,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             }
             if (movedTotal > 0) {
               out = tplP.innerHTML;
-              issues.push({ severity: 'info', type: 'answer-blank-position-fix', message: `同一大题内作答位位置已自动归并统一（${movedTotal} 处统一到${movedToHead ? '题首' : '句末'}）——只搬括号空位、未改其它文字` });
+              issues.push({ severity: 'info', type: 'answer-blank-position-fix', message: `同一大题内作答位位置已自动归并统一（${movedTotal} 处统一到${movedToHead ? '题首' : '题干末尾'}，按学科条款方向）——只搬括号空位、未改其它文字` });
               fixed += movedTotal;
             }
           } catch (e) { console.warn('⚠️ 作答位位置归并失败（不影响其它修复）:', e.message); }
         }
         // 仍报的情形：混用但**未能归并**（结构复杂/纯文本段判不出）→ 交编辑
         if (posMixedCount > 0 && movedTotal === 0) {
-          silentCount('answer-blank-position', `同一大题内作答位位置不统一（题首/句末混用，共 ${posMixedCount} 个大题）——程序未能自动归并（该大题段落结构较复杂），请人工统一为"整段都在题首"或"整段都在句末"，请抽检（程序只提示、不改内容）`, 'warn');
+          silentCount('answer-blank-position', `同一大题内作答位位置不统一（共 ${posMixedCount} 个大题）——程序未能自动归并（该大题段落结构较复杂），请人工按学科条款统一（外语类整段在题首、中文科目整段在题干末尾），请抽检（程序只提示、不改内容）`, 'warn');
         }
         if (fullAll > 0 && halfAll > 0) {
-          silentCount('answer-blank-form', `同卷作答位括号形态不统一（全角「（　）」${fullAll} 处、半角「( )」${halfAll} 处）——同一份资料同性质空位只用一种括号形态（全角圆括号空位），请抽检（程序只提示、不改内容）`, 'notice');
+          silentCount('answer-blank-form', `同卷作答位括号形态不统一（全角「（　）」${fullAll} 处、半角「( )」${halfAll} 处）——同一份资料同性质空位只用一种括号形态（一律半角圆括号空位），请抽检（程序只提示、不改内容）`, 'notice');
         }
       }
     }
