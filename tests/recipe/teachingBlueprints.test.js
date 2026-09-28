@@ -124,6 +124,32 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
     expect(inject).toContain('变式训练');
     expect(inject).not.toContain('原题重现');
   });
+
+  // 🔴 2026-09-28（用户裁定·资料类型「正规形态」补齐）：各类型必备栏目（通用 + 学科定制一致）
+  it('正规形态必备栏目：专项变式训练 / 阅读方法策略引导 / 预习旧知回顾 / 总结方法提炼 / 复习复习目标', () => {
+    const expectCol = (genType, subject, name) => {
+      const inject = buildTeachingInjection({ genType, stage: 'middle', subject });
+      expect(inject, `${subject || '通用'}·${genType} 缺栏目「${name}」`).toContain(name);
+    };
+    for (const subject of ['', '语文', '数学', '物理']) {
+      expectCol('special', subject, '变式训练');
+      expectCol('reading', subject, '方法策略引导');
+      expectCol('preview', subject, '旧知回顾');
+      expectCol('summary', subject, '方法提炼');
+      expectCol('review', subject, '复习目标');
+    }
+    // 阅读选文口径统一：模板允许改编，栏目 note 不得再写「原创短文」与之打架（通用 + 语文）
+    for (const subject of ['', '语文']) {
+      const inject = buildTeachingInjection({ genType: 'reading', stage: 'middle', subject });
+      expect(inject, `${subject || '通用'}·reading 选文口径应与模板一致（可改编）`).toContain('选编、改编自课外读物');
+      expect(inject).not.toContain('原创短文');
+    }
+    // 知识总结「知识框架」明确为结构化（结构图/网络）
+    for (const subject of ['', '语文', '数学']) {
+      const inject = buildTeachingInjection({ genType: 'summary', stage: 'middle', subject });
+      expect(inject, `${subject || '通用'}·summary 知识框架应结构化`).toContain('结构图或网络图');
+    }
+  });
 });
 
 describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () => {
@@ -188,14 +214,17 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(inject).toContain('问题解决'); // 2026-09-16 删自造修饰，课标原义是问题解决
   });
 
-  it('数学全 8 类教辅均有学科定制栏目（默写积累改造为公式法则/情境填空）', () => {
+  it('数学全 8 类教辅均有学科定制栏目（默写积累改口径为公式法则积累/情境填空）', () => {
     for (const g of ['practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review']) {
       const bp = getTeachingBlueprint({ genType: g, stage: 'middle', subject: '数学' });
       expect(bp?.custom, `数学 ${g} 未学科定制`).toBe(true);
       expect(bp.sections.length).toBeGreaterThanOrEqual(2);
     }
     const dict = buildTeachingInjection({ genType: 'dictation', stage: 'middle', subject: '数学' });
-    expect(dict).toContain('数学·默写积累');
+    // 🔴 2026-09-28（用户裁定·正规形态）：数学不用「默写」承载公式法则 → 改口径为「公式法则积累」
+    expect(dict).toContain('数学·公式法则积累');
+    expect(dict).not.toContain('数学·默写积累');
+    expect(dict).not.toContain('默写');
     expect(dict).toContain('公式法则');
     expect(dict).toContain('情境填空');
   });

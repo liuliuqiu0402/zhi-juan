@@ -1097,6 +1097,13 @@
             <span class="option-desc">取消勾选则逐章独立生成</span>
           </label>
         </div>
+        <!-- 🔴 2026-09-28（资料类型正规形态·卷别提示）：高中正式卷在「范围/卷别」处的水平提示（单源 config/levelMapping） -->
+        <p
+          v-if="paperKindHint"
+          class="scope-level-hint"
+        >
+          {{ paperKindHint }}
+        </p>
       </div>
     </div>
 
@@ -3179,6 +3186,7 @@ import ListeningWorkbench from '../components/listening/ListeningWorkbench.vue';
 import { resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
 import { checkMetaCompleteness, metaMissingMessage } from '../utils/libraryMetaEdit.js'; // 🔴 2026-09-28：生成前三维度（学段×学科）完整性判据——硬拦"真空"，引导去教材库补标
 import { resolveScopeName, selectedChaptersOf, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES } from '../config/paperScope.js';
+import { buildPaperKindHint } from '../config/levelMapping.js'; // 🔴 2026-09-28：高中正式卷「范围/卷别」处的卷别→水平提示（单源）
 
 // 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
 const SCOPE_TYPE_LABELS = { default: '默认', midterm: '期中', final: '期末', monthly: '月考', topic: '专题', xiaoshengchu: '小升初', zhongkao: '中考', gaokao: '高考' };
@@ -5181,6 +5189,13 @@ const getSelectedBookStageKey = () => {
   if (selectedBook) return resolveStageKey(selectedBook.stage, selectedBook.grade, selectedBook.name);
   return '';
 };
+
+// 🔴 2026-09-28（资料类型正规形态·卷别提示）：学段=高中 且 资料类型=正式考卷（exam）时，
+//    在「范围/卷别」处提示——选高考按水平四（选拔要求）、未选按水平二（合格要求）；其余情形为空（不显示）。
+const paperKindHint = computed(() => buildPaperKindHint({
+  stage: getSelectedBookStageKey(),
+  genType: genTypes.value.includes('exam') ? 'exam' : '',
+}));
 
 // 🎯 是否需要显示专项子类型选择器
 const showSpecialSubType = computed(() => genTypes.value.includes('special'));
@@ -10316,6 +10331,14 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 .option-desc {
   color: #666;
   font-size: 13px;
+}
+
+/* 🔴 2026-09-28（资料类型正规形态·卷别提示）：范围/卷别处的高中水平提示 */
+.scope-level-hint {
+  margin: 10px 2px 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #6b7280;
 }
 
 /* 🔧 组织风格弹窗：分组标题 + 提示文案 */

@@ -25,7 +25,7 @@ import { describe, it, expect } from 'vitest';
 import { getPromptTemplate, GEN_TYPE_NAMES, SUBJECT_STAGE_EXTRAS } from '@/config/promptLibrary.js';
 import { buildRenderContract } from '@/config/eduRenderContract.js';
 import { buildValidatorPrompt } from '@/config/validatorRules.js';
-import { buildTeachingInjection, getTeachingBlueprint, TEACHING_SUBJECT_BLUEPRINTS, TEACHING_BLUEPRINTS, stripSourceMarkNote } from '@/config/teachingBlueprints.js';
+import { buildTeachingInjection, getTeachingBlueprint, TEACHING_SUBJECT_BLUEPRINTS, TEACHING_BLUEPRINTS, stripSourceMarkNote, ERRORBOOK_FACET_NAMES, COLUMN_STYLE_SETS } from '@/config/teachingBlueprints.js';
 import { getExamBlueprint, EXAM_BLUEPRINTS } from '@/config/examPaperBlueprints.js';
 import { normalizeSubjectName } from '@/config/expertKnowledge.js';
 
@@ -133,7 +133,9 @@ const TYPE_SIGNATURE = {
   preview: ['预习'],
   reading: ['阅读材料', '阅读'],
   summary: ['总结'],
-  dictation: ['默写'],
+  // 🔴 2026-09-28（正规形态）：数学该类型改口径为「公式法则积累」（不再以"默写"承载公式法则）→
+  //    "默写"不再被全部 dictation 组合携带；签名改用两口径共有词「积累」（蓝本 label「默写积累/公式法则积累」+ 模板"…积累设计者"均含）。
+  dictation: ['积累'],
   errorbook: ['易错题'],
   review: ['复习'],
 };
@@ -335,15 +337,18 @@ describe('三维度完整指令逐句审计（真实开设矩阵 54 科段 × 9 
     expect(hits, `共 ${hits.length} 处句级重复（≥16 字同句 ≥2 次）：\n${hits.slice(0, 40).join('\n')}${hits.length > 40 ? `…(共${hits.length})` : ''}`).toEqual([]);
   });
 
-  it('基准G 术语逐句：非卷组合指令任何句子不得含"考点"（exam 卷面条款除外；486 组合 × 每句枚举）', () => {
+  it('基准G 术语逐句：非卷组合指令任何句子不得含"考点"（exam 卷面条款 + 专项归类锚除外；486 组合 × 每句枚举）', () => {
     const hits = [];
+    // 🔴 2026-09-28（用户裁定·专项突破正规形态）：专项按"考点/题型"归类属该类型的正规组织口径，
+    //    仅此锚句豁免；其余非卷指令面仍统一用"核心知识/知识层级"，不出现"考点"。
+    const KEEP_KIND_ANCHOR = /按考点\/题型归类|同类考点或同种题型/g;
     for (const { subject, stage, genType } of LEGAL_COMBOS) {
       if (genType === 'exam') continue;
       const r = assemble(subject, stage, genType);
       if (!r) continue;
       const label = `${subject}|${STAGE_LABEL[stage]}|${GEN_TYPE_NAMES[genType]}`;
       for (const s of sentencesOf(r.full)) {
-        if (s.includes('考点')) hits.push(`${label} 含"考点"句：${s.slice(0, 40)}…`);
+        if (s.replace(KEEP_KIND_ANCHOR, '').includes('考点')) hits.push(`${label} 含"考点"句：${s.slice(0, 40)}…`);
       }
     }
     expect(hits, `共 ${hits.length} 处"考点"残留（须为 0，非卷指令面已统一核心知识/知识层级）：\n${hits.slice(0, 40).join('\n')}${hits.length > 40 ? `…(共${hits.length})` : ''}`).toEqual([]);
@@ -398,5 +403,37 @@ describe('三维度完整指令逐句审计（真实开设矩阵 54 科段 × 9 
       }
     }
     expect(fails, `共 ${fails.length} 处课标要点句缺失（须为 0）：\n${fails.slice(0, 40).join('\n')}${fails.length > 40 ? `…(共${fails.length})` : ''}`).toEqual([]);
+  });
+});
+
+// 易错题本分项名 · 单一事实源守卫（2026-09-28 收口，防回潮）
+// ============================================================
+// 🔴 病根：六分项名曾**双轨**——注入侧 teachingBlueprints 用「题目呈现/典型错解/错因剖析/正确解答/方法提炼/变式训练」，
+//   指令库 promptLibrary 另写一份「题目/典型错法/错因/正确解答/方法提示/变式」，两处不一致（且注入侧随 columnStyle 轮换）。
+// 🔴 处置：收为**一份**——唯一定义处 errorbookFacets.js（叶子模块，打断 promptLibrary↔teachingBlueprints 循环导入）；
+//   teachingBlueprints 再导出 ERRORBOOK_FACET_NAMES，promptLibrary 引用同一常量拼装。
+// 本条守三件事：① 基准套分项名即事实源；② 注入侧逐项携带；③ 指令库引用同源、旧双轨字面不得回潮。
+// ============================================================
+describe('易错题本分项名单一事实源（promptLibrary 与 teachingBlueprints/columnStyle 同源，防回潮）', () => {
+  it('基准套分项名 = 单一事实源 ERRORBOOK_FACET_NAMES（防 teachingBlueprints 内手写第二套）', () => {
+    expect(COLUMN_STYLE_SETS.errorbook.a.columns).toEqual(ERRORBOOK_FACET_NAMES);
+  });
+
+  it('注入侧默认（a 套）：六分项名逐项携带（不丢失/不被大类化）', () => {
+    const inject = buildTeachingInjection({ genType: 'errorbook', stage: 'middle' });
+    for (const name of ERRORBOOK_FACET_NAMES) {
+      expect(inject, `易错题本注入缺分项名「${name}」`).toContain(name);
+    }
+  });
+
+  it('指令库（promptLibrary errorbook 模板）引用同一事实源：六分项名逐字命中、旧双轨字面零回潮', () => {
+    const tpl = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'errorbook' }).template;
+    for (const name of ERRORBOOK_FACET_NAMES) {
+      expect(tpl, `指令库应含分项名「${name}」（须与注入侧同源）`).toContain(name);
+    }
+    // 回潮守卫：旧双轨字面（promptLibrary 曾自写）不得再出现
+    for (const stale of ['典型错法', '方法提示']) {
+      expect(tpl, `指令库不得回潮旧分项名「${stale}」`).not.toContain(stale);
+    }
   });
 });

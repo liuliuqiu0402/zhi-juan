@@ -36,12 +36,13 @@ describe('预习导学·课后问答（2026-09-17）', () => {
     }
   });
 
-  it('栏目风格套 preview 四套均为 5 栏，第 4 栏与蓝图同位（换肤后栏目不错位）', () => {
+  it('栏目风格套 preview 四套均为 6 栏，第 5 栏与蓝图同位（换肤后栏目不错位）', () => {
     const pool = COLUMN_STYLE_SETS.preview;
-    expect(pool.a.columns).toEqual(['学习目标', '预习指引', '预习检测', '课后问答', '我的疑问']);
+    // 🔴 2026-09-28（正规形态）：补「旧知回顾」栏（学习目标之后）→ preview 由 5 栏变 6 栏
+    expect(pool.a.columns).toEqual(['学习目标', '旧知回顾', '预习指引', '预习检测', '课后问答', '我的疑问']);
     for (const id of ['a', 'b', 'c', 'd']) {
-      expect(pool[id].columns.length, `preview/${id} 栏目数应为 5`).toBe(5);
-      expect(pool[id].columns[3], `preview/${id} 第 4 栏应为「课后问答」`).toBe('课后问答');
+      expect(pool[id].columns.length, `preview/${id} 栏目数应为 6`).toBe(6);
+      expect(pool[id].columns[4], `preview/${id} 第 5 栏应为「课后问答」`).toBe('课后问答');
     }
   });
 

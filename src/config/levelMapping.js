@@ -109,6 +109,18 @@ export function buildLevelInstruction({ stage = '', subject = '', genType = '', 
   return `${LEVEL_INJECTION_MARKER}${lead}（${LEVEL_SOURCE}）；难度与情境不超该水平要求。`;
 }
 
+/**
+ * 卷别提示（UI 用，单一事实源同 LEVEL_MAP）：高中正式卷在「范围/卷别」处给一句选择提示——
+ *   「选高考按水平四（选拔要求）；未选按水平二（合格要求）」。
+ * 与 buildLevelInstruction 取同一张映射表（不另写一份水平口径）；仅 学段=高中 且 genType=exam 时返回，其余返回空串。
+ * @returns {string} 提示句；非高中 / 非正式卷 → ''
+ */
+export function buildPaperKindHint({ stage = '', genType = '' } = {}) {
+  if (!isHighStage(stage)) return '';
+  if (genType !== 'exam') return '';
+  return `选高考按${LEVEL_MAP['高考']}（选拔要求）；未选按${LEVEL_MAP['合格考']}（合格要求）`;
+}
+
 export default {
   LEVEL_SOURCE,
   LEVEL_MAP,
@@ -121,4 +133,5 @@ export default {
   resolvePaperKind,
   resolveAcademicLevel,
   buildLevelInstruction,
+  buildPaperKindHint,
 };

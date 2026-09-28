@@ -29,6 +29,11 @@ import { isLibEntryEnabled } from '../utils/libToggles.js';
 import { resolveStageKey, STAGE_KEY_SET } from '../utils/gradeStage.js';
 import { CURRICULUM_BY_STAGE } from './promptLibrary.js'; // 课标版本名唯一事实源（大类标题的分类依据要显式标注，勿另写一份） // 年级→学段唯一事实源（蓝图学段与三维度共用，禁止各自 parseInt 中文年级）
 import { normalizeSubjectName } from './expertKnowledge.js'; // 🔴 2026-09-28：学科归名唯一事实源（与 exam 侧同源；此前教辅侧漏用）
+// 🔴 2026-09-28（单一事实源·易错题本分项名）：六分项名唯一定义在 errorbookFacets.js（叶子模块，无循环导入）；
+//    本库用 ERRORBOOK_FACETS 作蓝图 sections、ERRORBOOK_FACET_NAMES 作 COLUMN_STYLE_SETS.errorbook.a，并**再导出**
+//    供指令库与守卫测试统一引用（曾双轨：本侧"题目呈现/典型错解/…" vs promptLibrary"题目/典型错法/…"，已收口）。
+import { ERRORBOOK_FACETS, ERRORBOOK_FACET_NAMES } from './errorbookFacets.js';
+export { ERRORBOOK_FACETS, ERRORBOOK_FACET_NAMES };
 
 /** 学段显示名
  * 🔗 命名双轨·学段：五档 key 须与指令库 STAGE_NAMES、layoutSpec 载体表学段 key（primary_low…high）完全一致。 */
@@ -101,7 +106,7 @@ export const TEACHING_BLUEPRINTS = {
   reading: {
     label: '阅读训练',
     sections: [
-      { name: '原创选文', note: '原创短文（不复制课文/网络文章），主题须与单元相关，短文完整呈现（不截断），无语病' },
+      { name: '原创选文', note: '选文可原创，或选编、改编自课外读物（不复制课文/网络文章），主题须与单元相关，短文完整呈现（不截断），无语病' },
       { name: '文本设题', note: '设问指向理解运用与整体感受，题目不可直接在原文找到现成字面答案' },
     ],
     stages: {
@@ -150,21 +155,15 @@ export const TEACHING_BLUEPRINTS = {
 
   // ══════════════ 易错题本 ══════════════
   // 🔴 2026-09-28（用户裁定·按"出版式易错题集"改造）：本类型 sections **不是资料的大类**，
-  //    而是**每道题的组成分项**（题目→典型错法→错因→正确解答→方法提示→变式）。
+  //    而是**每道题的组成分项**（题目呈现→典型错解→错因剖析→正确解答→方法提炼→变式训练；
+  //    分项名唯一事实源 = 上方 ERRORBOOK_FACET_NAMES）。
   //    标 shape:'perItem'（题内分项型）：注入侧据此走专属结构——按知识点/易错点分块、每块下逐题成组；
   //    **不得**再套用"下面各行即本次大类标题"（那会把六个分项读成六个跨题板块，学生无法逐题对照，
   //    且"变式训练"会独立成一栏、其答案无处安放）。
   errorbook: {
     label: '易错题本',
     shape: 'perItem',
-    sections: [
-      { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-      { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确，不写空泛套话' },
-      { name: '正确解答', note: '分步完整解答，讲透解题思路' },
-      { name: '方法提炼', note: '归纳本类题可迁移的通用策略' },
-      { name: '变式训练', note: '每题 1 道变式（不复刻本题思路）' },
-    ],
+    sections: ERRORBOOK_FACETS,
     stages: {
       primary_low: { volume: '4-6题', note: '按知识点或错因分类，每题结构完整' },
       primary_mid: { volume: '5-8题', note: '归因明确' },
@@ -237,7 +236,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     reading: {
       label: '阅读训练',
       sections: [
-        { name: '原创选文', note: '原创短文（不复制课文），文体适学段（低段儿歌童话、中段记叙文、高段散文说明文），主题与本单元相关，短文完整呈现' },
+        { name: '原创选文', note: '选文可原创，或选编、改编自课外读物（不复制课文），文体适学段（低段儿歌童话、中段记叙文、高段散文说明文），主题与本单元相关，短文完整呈现' },
         { name: '文本设题', note: '设问考查理解与感悟；并给出具体做法与自查/完成标准' },
       ],
     },
@@ -330,11 +329,13 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
         { name: '典型例题', note: '适量例题（含解析）' },
       ],
     },
+    // 🔴 2026-09-28（用户裁定·资料类型正规形态）：语文/英语保留「默写积累」口径；数学不用「默写」承载公式法则，
+    //    改口径为「公式法则积累」（以理解为先、在情境中记用）。
     dictation: {
-      label: '默写积累',
+      label: '公式法则积累',
       sections: [
         { name: '公式法则', note: '本单元公式、法则、单位进率等必记内容都涉及到' },
-        { name: '情境填空', note: '核心概念与关键词在情境句中的填写（不孤立默写）' },
+        { name: '情境填空', note: '核心概念与关键词在情境句中的填写（不孤立罗列）' },
         { name: '书写规范', note: '数字与运算符号书写规范（低年级重点，各学段按教材要求）' },
       ],
     },
@@ -1141,6 +1142,56 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
   },
 };
 
+/**
+ * 🔴 2026-09-28（用户裁定·资料类型「正规形态」补齐）：各教辅类型的**必备栏目**与**栏目语义补充**在此单点定义，
+ *   模块加载时统一注入通用蓝图与全部学科定制（15 科×8 类）——"单一事实源、能一句说清就不加第二处"：
+ *   不在 15 处学科定制里各写一遍，避免同一条要求多方漂移。
+ *   · add：新增栏目。`after`=插在该栏目之后，`before`=插在该栏目之前（未命中则追加末位）；同名已存在则幂等跳过。
+ *   · noteSuffix：给既有栏目（如 summary「知识框架」）统一补一句语义（结构化＝结构图/网络）。
+ *   · 仅对 columns 型生效（题内分项型 errorbook 的 sections 是每题的组成分项，不入本表）。
+ */
+const FORMAL_SECTIONS = {
+  // ② 专项突破：与例题对应的变式训练
+  special: { add: [{ name: '变式训练', after: '每板块配解析', note: '对每板块的例题配一一对应的变式，改情境或改设问角度（不复刻原题思路）' }] },
+  // ③ 阅读训练：方法/策略引导（选文之后、设题之前）
+  reading: { add: [{ name: '方法策略引导', before: '文本设题', note: '给出与本次选文相应的阅读方法与策略，供学生边读边用' }] },
+  // ⑤ 预习导学：旧知回顾/联结（学习目标之后）
+  preview: { add: [{ name: '旧知回顾', after: '学习目标', note: '回顾与本单元相关的旧知，建立新旧知识的联系' }] },
+  // ⑥ 知识总结：方法提炼栏 +「知识框架」明确为结构化（结构图/网络）
+  summary: {
+    add: [{ name: '方法提炼', after: '典型例题', note: '归纳本单元可迁移的学习方法与思路' }],
+    noteSuffix: { 知识框架: '，用结构图或网络图呈现知识之间的联系' },
+  },
+  // ⑦ 复习资料：复习目标（对标本单元学业要求，置于首栏）
+  review: { add: [{ name: '复习目标', before: '知识框架', note: '对本单元学业要求，写明本次复习要达成的目标' }] },
+};
+function _applyFormalSections(sections, genType) {
+  const spec = FORMAL_SECTIONS[genType];
+  if (!Array.isArray(sections) || !spec) return;
+  for (const item of spec.add || []) {
+    if (sections.some((s) => s && s.name === item.name)) continue; // 幂等
+    let at = sections.length;
+    if (item.before) {
+      const i = sections.findIndex((s) => s && s.name === item.before);
+      at = i >= 0 ? i : sections.length;
+    } else if (item.after) {
+      const i = sections.findIndex((s) => s && s.name === item.after);
+      at = i >= 0 ? i + 1 : sections.length;
+    }
+    sections.splice(at, 0, { name: item.name, note: item.note });
+  }
+  for (const [name, suffix] of Object.entries(spec.noteSuffix || {})) {
+    const sec = sections.find((s) => s && s.name === name);
+    if (sec && !String(sec.note || '').includes(suffix)) sec.note = `${sec.note || ''}${suffix}`;
+  }
+}
+(function _injectFormalSections() {
+  for (const [g, bp] of Object.entries(TEACHING_BLUEPRINTS)) _applyFormalSections(bp?.sections, g);
+  for (const subj of Object.values(TEACHING_SUBJECT_BLUEPRINTS)) {
+    for (const [g, bp] of Object.entries(subj || {})) _applyFormalSections(bp?.sections, g);
+  }
+})();
+
 /** 全部教辅类型键 */
 // 🔗 命名双轨·资料类型：TEACHING_BLUEPRINTS 的顶层 key 即教辅类型 key，须与 expertKnowledge.genTypeTemplates、
 //    指令库 GEN_TYPE_NAMES/TYPE_BASES 的九类 key 完全一致（本行由键推导，改蓝图顶层键时须同步另三处）。
@@ -1159,28 +1210,28 @@ export const COLUMN_STYLE_SETS = {
     d: { columns: ['基础巩固', '方法运用', '实践运用'] },
   },
   special: {
-    a: { columns: ['分板块组织', '每板块配解析'] },
-    b: { columns: ['分项练习', '重点讲解'] },
-    c: { columns: ['分类讲解', '错因讲解'] },
-    d: { columns: ['分类练习', '易错讲解'] },
+    a: { columns: ['分板块组织', '每板块配解析', '变式训练'] },
+    b: { columns: ['分项练习', '重点讲解', '变式训练'] },
+    c: { columns: ['分类讲解', '错因讲解', '变式训练'] },
+    d: { columns: ['分类练习', '易错讲解', '变式训练'] },
   },
   preview: {
-    a: { columns: ['学习目标', '预习指引', '预习检测', '课后问答', '我的疑问'] },
-    b: { columns: ['学习目标', '自主预习', '预习反馈', '课后问答', '疑问记录'] },
-    c: { columns: ['学习目标', '预读指引', '预习检测', '课后问答', '疑问记录'] },
-    d: { columns: ['学习目标', '预习指引', '基础检测', '课后问答', '疑问记录'] },
+    a: { columns: ['学习目标', '旧知回顾', '预习指引', '预习检测', '课后问答', '我的疑问'] },
+    b: { columns: ['学习目标', '旧知回顾', '自主预习', '预习反馈', '课后问答', '疑问记录'] },
+    c: { columns: ['学习目标', '旧知回顾', '预读指引', '预习检测', '课后问答', '疑问记录'] },
+    d: { columns: ['学习目标', '旧知回顾', '预习指引', '基础检测', '课后问答', '疑问记录'] },
   },
   reading: {
-    a: { columns: ['原创选文', '文本设题'] },
-    b: { columns: ['阅读选文', '理解设题'] },
-    c: { columns: ['课外选文', '理解设题'] },
-    d: { columns: ['主题选文', '理解设题'] },
+    a: { columns: ['原创选文', '方法策略引导', '文本设题'] },
+    b: { columns: ['阅读选文', '方法策略引导', '理解设题'] },
+    c: { columns: ['课外选文', '方法策略引导', '理解设题'] },
+    d: { columns: ['主题选文', '方法策略引导', '理解设题'] },
   },
   summary: {
-    a: { columns: ['知识框架', '重点梳理', '易错辨析', '典型例题'] },
-    b: { columns: ['知识梳理', '要点详解', '易错辨析', '例题解析'] },
-    c: { columns: ['知识网络', '知识精讲', '易错辨析', '例题解析'] },
-    d: { columns: ['知识框架', '要点归纳', '易错辨析', '例题示范'] },
+    a: { columns: ['知识框架', '重点梳理', '易错辨析', '典型例题', '方法提炼'] },
+    b: { columns: ['知识梳理', '要点详解', '易错辨析', '例题解析', '方法提炼'] },
+    c: { columns: ['知识网络', '知识精讲', '易错辨析', '例题解析', '方法提炼'] },
+    d: { columns: ['知识框架', '要点归纳', '易错辨析', '例题示范', '方法提炼'] },
   },
   dictation: {
     a: { columns: ['基础默写', '积累内容', '书写呈现'] },
@@ -1189,16 +1240,16 @@ export const COLUMN_STYLE_SETS = {
     d: { columns: ['基础默写', '积累内容', '书写要求'] },
   },
   errorbook: {
-    a: { columns: ['题目呈现', '典型错解', '错因剖析', '正确解答', '方法提炼', '变式训练'] },
+    a: { columns: [...ERRORBOOK_FACET_NAMES] },
     b: { columns: ['题目呈现', '典型错解', '错因分析', '正确解答', '方法归纳', '变式训练'] },
     c: { columns: ['题目呈现', '常见错解', '错因定位', '正确步骤', '方法提炼', '同类练习'] },
     d: { columns: ['题目呈现', '典型错误', '错因分析', '正确解答', '方法提炼', '变式练习'] },
   },
   review: {
-    a: { columns: ['知识框架', '核心知识梳理', '典型题析', '易错聚焦', '综合自测'] },
-    b: { columns: ['知识概览', '要点梳理', '例题解析', '易错聚焦', '综合自测'] },
-    c: { columns: ['知识梳理', '知识精讲', '例题解析', '易错辨析', '综合自测'] },
-    d: { columns: ['知识总览', '要点梳理', '解题示范', '易错提醒', '综合自测'] },
+    a: { columns: ['复习目标', '知识框架', '核心知识梳理', '典型题析', '易错聚焦', '综合自测'] },
+    b: { columns: ['复习目标', '知识概览', '要点梳理', '例题解析', '易错聚焦', '综合自测'] },
+    c: { columns: ['复习目标', '知识梳理', '知识精讲', '例题解析', '易错辨析', '综合自测'] },
+    d: { columns: ['复习目标', '知识总览', '要点梳理', '解题示范', '易错提醒', '综合自测'] },
   },
 };
 
@@ -1351,7 +1402,7 @@ export function buildTeachingInjection({ genType = '', stage = '', subject = '',
   const stageLine = p.note ? `\n▌学段要求（${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）\n· ${p.note}` : '';
   const cur = CURRICULUM_BY_STAGE[bp.stageKey] || CURRICULUM_BY_STAGE.primary_mid;
   // 🔴 2026-09-28（用户裁定·按"出版式易错题集"改造 · 甲方案）：perItem 型（易错题本）的 sections 是
-  //    **每道题的组成分项**（题目→典型错法→错因→正确解答→方法提示→变式），不是资料的大类。
+  //    **每道题的组成分项**（题目呈现→典型错解→错因剖析→正确解答→方法提炼→变式训练；单一事实源 ERRORBOOK_FACET_NAMES），不是资料的大类。
   //    故不走下方"下面各行即本次大类标题"（那会把六个分项读成六个跨题板块：先集中列题，再回头集中给错解/错因/正解——
   //    学生无法逐题对照，且"变式训练"独立成栏后其答案无处安放）。改为：按知识点/易错点分块 → 每块下逐题 → 每题依次成组。
   //    题号只给"变式"（学生要做的题），"题目"是讲解示范单元（解答随题展示，等同典型例题）——答案区只对变式作答（甲）。
@@ -1377,6 +1428,8 @@ export default {
   TEACHING_SUBJECT_BLUEPRINTS,
   TEACHING_GEN_TYPES,
   TEACHING_STAGE_NAMES,
+  ERRORBOOK_FACETS,
+  ERRORBOOK_FACET_NAMES,
   COLUMN_STYLE_SETS,
   applyColumnStyle,
   resolveColumnStyleId,

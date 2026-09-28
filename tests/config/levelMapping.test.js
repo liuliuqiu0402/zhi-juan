@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import {
   LEVEL_MAP, PAPER_KINDS, SUBJECT_LEVEL_KEYS, TEACHING_BASELINE,
   LEVEL_INJECTION_MARKER, LEVEL_SOURCE,
-  isHighStage, resolvePaperKind, resolveAcademicLevel, buildLevelInstruction,
+  isHighStage, resolvePaperKind, resolveAcademicLevel, buildLevelInstruction, buildPaperKindHint,
 } from '../../src/config/levelMapping.js';
 import { buildInjectionInstruction } from '../../src/config/promptLibrary.js';
 
@@ -177,5 +177,23 @@ describe('④ 资料类型缺失（genType 空/未传）时不注入（宁可缺
     // 教辅与"缺失"必须区分开：缺失为 ''、教辅有值
     expect(resolveAcademicLevel({ stage: 'high', subject: '物理', genType: 'practice' })).toBe('水平二');
     expect(resolveAcademicLevel({ stage: 'high', subject: '物理', genType: '' })).toBe('');
+  });
+});
+
+describe('⑤ 卷别提示（UI 用·单源 LEVEL_MAP，2026-09-28 资料类型正规形态）', () => {
+  it('高中 + 正式卷 → 提示「选高考按水平四（选拔要求）；未选按水平二（合格要求）」', () => {
+    const hint = buildPaperKindHint({ stage: 'high', genType: 'exam' });
+    expect(hint).toBe('选高考按水平四（选拔要求）；未选按水平二（合格要求）');
+    // 与 LEVEL_MAP 同源（不另写一份水平口径）
+    expect(hint).toContain(LEVEL_MAP['高考']);
+    expect(hint).toContain(LEVEL_MAP['合格考']);
+  });
+
+  it('非高中 / 非正式卷 / 资料类型缺失 → 不提示（空串）', () => {
+    expect(buildPaperKindHint({ stage: 'middle', genType: 'exam' })).toBe('');
+    expect(buildPaperKindHint({ stage: 'primary_high', genType: 'exam' })).toBe('');
+    expect(buildPaperKindHint({ stage: 'high', genType: 'practice' })).toBe('');
+    expect(buildPaperKindHint({ stage: 'high', genType: '' })).toBe('');
+    expect(buildPaperKindHint({})).toBe('');
   });
 });

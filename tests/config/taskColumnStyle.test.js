@@ -35,8 +35,9 @@ describe('栏目标题风格套（2026-09）', () => {
     expect(out.map((s) => s.name)).toEqual(['知识梳理', '变式练习', '综合提升']);
     expect(out[0].note).toBe('note-基础建构');
 
-    const summary = mkSections(['知识框架', '重点梳理', '易错辨析', '典型例题']);
-    expect(applyColumnStyle(summary, 'summary', 'b').map((s) => s.name)).toEqual(['知识梳理', '要点详解', '易错辨析', '例题解析']);
+    // 🔴 2026-09-28（正规形态）：summary 补「方法提炼」栏后默认套为 5 栏
+    const summary = mkSections(['知识框架', '重点梳理', '易错辨析', '典型例题', '方法提炼']);
+    expect(applyColumnStyle(summary, 'summary', 'b').map((s) => s.name)).toEqual(['知识梳理', '要点详解', '易错辨析', '例题解析', '方法提炼']);
 
     // 未知类型/未知套/名称不匹配 → 原样
     expect(applyColumnStyle(trio, 'summary', 'b')[0].name).toBe('基础建构');
