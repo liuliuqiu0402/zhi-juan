@@ -5203,10 +5203,12 @@ const getSelectedBookStageKey = () => {
 };
 
 // 🔴 2026-09-28（资料类型正规形态·卷别提示）：学段=高中 且 资料类型=正式考卷（exam）时，
-//    在「范围/卷别」处提示——选高考按水平四（选拔要求）、未选按水平二（合格要求）；其余情形为空（不显示）。
+//    在「范围/卷别」处提示——按**学科**取水平（如数学「选高考按水平二；未选按水平一」、
+//    物理「选高考按水平四；未选按水平二」，单源 config/levelMapping.js）；其余情形为空（不显示）。
 const paperKindHint = computed(() => buildPaperKindHint({
   stage: getSelectedBookStageKey(),
   genType: genTypes.value.includes('exam') ? 'exam' : '',
+  subject: getSelectedBookSubject(),
 }));
 
 // 🎯 是否需要显示专项子类型选择器

@@ -2143,6 +2143,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           //    正文同构的 `N.` 题号（只是数量偏少），属"漏答/纯文字罗列"型，不得误指为体系不同构
           //    （实测样本：答案区 14 个 `N.` + 每题子题 `(1)(2)`，与正文完全同构，却被判"不同构"）。
           const ansNumberingMissing = ansTopQ <= 2;
+          // 🔴 2026-09-28（题号编法按正规收口）：口径**按类型分流**，与正文条款同源——
+          //    正式考卷（exam）小题全卷连续；教辅（同步练习/课时练等）小题在同一大题内连续、按大题分别起编。
+          //    故本告警的"应改成什么号"须随之分型，不得对教辅也要求"全卷连续"（那会一侧禁止一侧豁免）。
+          const numCaliberWords = genType === 'exam'
+            ? '全卷连续同序'
+            : '与正文同号同序（教辅小题按大题分别起编，答案区按相同大题分组、组内同号同序）';
           try {
             const head = String(ansText).replace(/\s+/g, ' ').trim().slice(0, 200);
             console.warn(`🔍 [答案区计数取证] 正文题号数=${bodyTopQ} 答案区题号数=${ansTopQ}`
@@ -2151,7 +2157,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               + ` ｜ 答案区开头「${head}」`);
           } catch (e) { /* 取证失败不影响主流程 */ }
           if (ansNumberingMissing && (ansHasParen || ansHasTable)) {
-            silentCount('answer-coverage', `答案区**缺与正文一致的题号**（正文题号 ${bodyTopQ} 个，答案区仅 ${ansTopQ} 个；答案区用的是「(1)(2)」括号序号${ansHasTable ? '/表格' : ''}）——编号体系与正文不同构，答案无法与正文逐题对应：请改为**与正文相同的阿拉伯题号（1. 2. 3.…，全卷连续同序；仅子题用 (1)(2)）**，请抽检`);
+            silentCount('answer-coverage', `答案区**缺与正文一致的题号**（正文题号 ${bodyTopQ} 个，答案区仅 ${ansTopQ} 个；答案区用的是「(1)(2)」括号序号${ansHasTable ? '/表格' : ''}）——编号体系与正文不同构，答案无法与正文逐题对应：请改为**与正文相同的阿拉伯题号（1. 2. 3.…，${numCaliberWords}；仅子题用 (1)(2)）**，请抽检`);
           } else {
             silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})——答案区可能未按与正文一致的题号逐题对齐（计数口径：两侧同源、各取"从 1 起最长连续递增段"；题号形态已覆盖行首题号、空位自带括号编号、行内点号与紧凑连排，故差异不出在形态识别），请抽检`);
           }

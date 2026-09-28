@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildLevelInstruction } from '../../src/config/levelMapping.js';
+import { buildLevelInstruction, gaokaoLevelOf, resolveAcademicLevel } from '../../src/config/levelMapping.js';
 import { buildTeachingInjection, LEVEL_SELECTION_CAVEAT } from '../../src/config/teachingBlueprints.js';
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -86,5 +86,45 @@ describe('高中教辅"水平"口径语义分离（教学基线水平二 与 高
     expect(prompt).toContain('水平二');
     expect(prompt).not.toContain('不超水平四');
     expect(prompt).not.toContain('不超水平三');
+  });
+});
+
+/**
+ * 🔴 2026-09-28（按各科课标核正）：数学/英语为三级水平制——"高考=水平二"（单源 gaokaoLevelOf），
+ *   与"教辅基线=水平一（毕业合格要求）"分型、不互斥；且同一份高中提示词中不得出现相反表述。
+ */
+describe('数学/英语：高考对标水平二（单源·课标）与教辅基线水平一分型', () => {
+  it('high note 的选拔对标级取单源 gaokaoLevelOf（数学/英语=水平二），不出现相反水平', () => {
+    for (const subject of ['数学', '英语']) {
+      const prompt = teachingPrompt(subject);
+      expect(gaokaoLevelOf(subject), `${subject} 高考水平`).toBe('水平二');
+      expect(prompt, `${subject} 缺高考对标水平二`).toContain(gaokaoLevelOf(subject));
+      expect(prompt, `${subject} 未标注"不作为教辅要求"`).toContain(LEVEL_SELECTION_CAVEAT);
+      // 相反表述不得出现（旧"全科统一水平四"会把数学/英语误标为水平四/水平三）
+      expect(prompt, `${subject} 出现相反水平四`).not.toContain('水平四');
+      expect(prompt, `${subject} 出现相反水平三`).not.toContain('水平三');
+    }
+  });
+
+  it('教辅基线=水平一（毕业合格要求），与"高考=水平二"分型不互斥', () => {
+    for (const subject of ['数学', '英语']) {
+      expect(resolveAcademicLevel({ stage: 'high', subject, genType: 'practice' })).toBe('水平一');
+      // 基线块与高考对标块同在一份提示词里却不互相否定
+      const level = buildLevelInstruction({ stage: 'high', subject, genType: 'practice' });
+      expect(level).toContain('水平一');
+      expect(level).toContain('教学基线');
+    }
+  });
+
+  it('🔴 回潮守卫：各科 high note 的选拔对标级由单源 gaokaoLevelOf 取值，不再手写水平值', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/config/teachingBlueprints.js'), 'utf8');
+    for (const subject of ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '思想政治', '信息科技', '美术']) {
+      expect(src, `teachingBlueprints 未引用单源 gaokaoLevelOf('${subject}')`).toContain(`gaokaoLevelOf('${subject}')`);
+    }
+    // 旧"手写水平值"的回潮字面（数学/英语曾写死水平二且无"选拔对标"标注；物理等曾写死水平四）
+    expect(src).not.toContain('对标学业质量水平二（高考的要求');
+    expect(src).not.toContain('对标学业质量水平二（选择性必修');
+    expect(src).not.toContain('学业质量水平四（高等院校招生对应水平）');
+    expect(src).not.toContain('学业质量水平三（高等院校招生对应水平）');
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS, ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS, buildAnswerFormatSpec, NUMBERING_HIERARCHY_RULE } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS, ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS, buildAnswerFormatSpec, NUMBERING_HIERARCHY_RULE, QUESTION_NUMBERING_CALIBER } from '../../src/config/promptLibrary.js';
 import { TEACHING_SUBJECT_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
 import { styleInstructions, styleOptions, DEFAULT_STYLE_BY_TYPE } from '../../src/config/expertKnowledge.js';
 
@@ -279,6 +279,47 @@ describe('序号体系 · 层级样式（2026-09-26 补全：模型一次写对�
       .not.toContain('小题标题');
     expect(t).toContain('每个大题只出一个标题');
     expect(t).toContain('小组标题');
+  });
+});
+
+describe('🔢 题号编法口径（2026-09-28 按正规收口）：教辅按大题起编 / 试卷全卷连续', () => {
+  const examTpl = () => getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template;
+  const practiceTpl = () => getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' }).template;
+
+  it('教辅：小题在同一大题内连续、按大题分别从 1 起编（正规编法）', () => {
+    const p = practiceTpl();
+    expect(p).toContain('在同一大题（栏目）内连续、按大题分别从 1 起编');
+    expect(p).toContain('进入新的大题（栏目）即从 1 重新起编');
+    // 旧禁令（教辅全卷连续、严禁重启）须已移除
+    expect(p, '教辅分支不得再出现"严禁按大类/大题…重新从 1 编号"').not.toContain('严禁按大类/大题/组/栏目重新从 1 编号');
+    expect(p, '教辅分支不得再声称"全卷只此一套题号"').not.toContain('全卷只此一套题号');
+    expect(p, '保留"本大题内"逐题自查').toContain('本大题（栏目）内');
+  });
+
+  it('正式考卷：小题仍全卷连续、严禁按大题/部分重新编号（与教辅分型，不互相否定）', () => {
+    const e = examTpl();
+    expect(e).toContain('全卷连续（跨大类、大题、部分逐题递增）');
+    expect(e).toContain('严禁按大题/部分/组/栏目重新从 1 编号');
+    expect(e).toContain('全卷只此一套题号');
+    expect(e).toContain('是否中途重启');
+    expect(e).toContain('重启即改');
+    expect(e, '试卷条款须声明与教辅口径分型、不互相否定').toContain('不得互相否定');
+  });
+
+  it('答案区口径与正文同向：与正文同号同序（教辅按大题分组、试卷全卷连续）', () => {
+    const once = PAPER_OUTPUT_CONVENTIONS.once('语文', false);
+    expect(once).toContain('同号同序');
+    expect(once).toContain('教辅正文按大题分别起编则答案区按相同大题分组、组内同号同序');
+    expect(once, '旧硬要求"全卷连续同序"须已按类型分型').not.toContain('全卷连续同序；仅子题');
+    const ansSpec = buildAnswerFormatSpec('语文');
+    expect(ansSpec).toContain('与正文同号同序');
+    expect(ansSpec).toContain('教辅正文按大题分别起编时，答案区按相同大题分组、组内与正文同号同序');
+  });
+
+  it('回潮守卫：单源常量两口径各自成立；教辅分支不再出现"严禁…重新从 1 编号"', () => {
+    expect(QUESTION_NUMBERING_CALIBER.teaching).toContain('按大题分别从 1 起编');
+    expect(QUESTION_NUMBERING_CALIBER.exam).toContain('全卷连续');
+    expect(practiceTpl()).not.toMatch(/严禁按(?:大类|大题)/);
   });
 });
 
