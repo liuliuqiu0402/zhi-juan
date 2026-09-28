@@ -218,7 +218,7 @@ describe('正文/答案 题号数双向守卫（auditExamPaper）', () => {
     const ans = '<div class="answer-section"><h2>参考答案与解析</h2>'
       + '<p>一、 (1) saw　(2) wanted；asked　(3) were；practised　(4) used　(5) was；acted</p>'
       + '</div>';
-    // 教辅（practice）：给"与正文同号同序"（按大题分别起编是常态），不得再要求"全卷连续同序"
+    // 教辅（practice）：给"与正文同号同序"（按栏目（组）分别起编是常态），不得再要求"全卷连续同序"
     const pMsg = msgs(body + ans);
     expect(pMsg).toContain('与正文同号同序');
     expect(pMsg, '教辅不得被要求"全卷连续同序"（一侧禁止一侧豁免）').not.toContain('全卷连续同序');

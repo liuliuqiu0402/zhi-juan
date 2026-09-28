@@ -28,18 +28,32 @@ const walk = (dir) => {
 };
 walk(path.join(ROOT, 'src'));
 
-/** src 下包含该字面的文件（相对路径，正斜杠） */
-const ownersOf = (phrase) => SRC_FILES
-  .filter((f) => fs.readFileSync(f, 'utf8').includes(phrase))
-  .map((f) => path.relative(ROOT, f).replace(/\\/g, '/'));
+// 🔴 2026-09-28（用户裁定·扫描面扩到 docs/design）：文档不得把"大题标题命名"规则再写一份。
+//    历史审计报告（文件名含"只读"）= 只读记录，允许引用原文字面，不作为规则所有者。
+const DOC_FILES = [];
+const walkDocs = (dir) => {
+  for (const name of fs.readdirSync(dir)) {
+    const p = path.join(dir, name);
+    if (fs.statSync(p).isDirectory()) walkDocs(p);
+    else if (/\.(md|html?)$/i.test(name)) DOC_FILES.push(p);
+  }
+};
+walkDocs(path.join(ROOT, 'docs/design'));
+const isHistoricalReport = (f) => /只读/.test(path.basename(f));
+const rel = (f) => path.relative(ROOT, f).replace(/\\/g, '/');
 
-describe('大题标题命名：全库唯一一处规定（学段口径防回潮）', () => {
-  it('冲突表述全库零出现（无条件"自拟"不得回潮）', () => {
+/** src + docs/design（历史只读报告除外）下包含该字面的文件（相对路径，正斜杠） */
+const ownersOf = (phrase) => SRC_FILES.concat(DOC_FILES.filter((f) => !isHistoricalReport(f)))
+  .filter((f) => fs.readFileSync(f, 'utf8').includes(phrase))
+  .map(rel);
+
+describe('大题标题命名：全库唯一一处规定（学段口径防回潮；扫描面含 docs/design）', () => {
+  it('冲突表述全库（src + docs/design，历史只读报告除外）零出现（无条件"自拟"不得回潮）', () => {
     expect(ownersOf('卷面标题一律以你自拟的写法为准'), 'EXAM_BASE 旧冲突半句不得回潮').toEqual([]);
     expect(ownersOf('大题标题自拟带序号'), '出稿自检旧冲突表述不得回潮').toEqual([]);
   });
 
-  it('学段口径单一事实源：两条分支字面只允许出现在 promptLibrary.js', () => {
+  it('学段口径单一事实源：两条分支字面只允许出现在 promptLibrary.js（含 docs/design 扫描）', () => {
     expect(ownersOf('大题标题即【卷面结构】里的块名本身')).toEqual(['src/config/promptLibrary.js']);
     expect(ownersOf('大题标题须你按本卷实际的作答方式自拟')).toEqual(['src/config/promptLibrary.js']);
   });

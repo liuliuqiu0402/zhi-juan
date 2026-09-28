@@ -1278,7 +1278,7 @@
           </label>
         </div>
         <p class="hint">
-          💡 选择资料类型后，系统将按资料类型自动推荐匹配的组织风格（正式考卷默认不注入、其余类型各有默认）。复生成时将按顺序生成选中的多个类型。组织风格可在上方"🎨"按钮中手动调整。
+          💡 选择资料类型后，系统将按资料类型自动推荐匹配的组织风格（正式考卷默认不注入；同步练习/专项/阅读/知识总结/复习/预习各有默认；默写、易错题本无适用风格、免选择）。复生成时将按顺序生成选中的多个类型。组织风格可在上方"🎨"按钮中手动调整。
         </p>
         <!-- 🔧 省市差异化：正式试卷（exam）按省市取考试时长/总分（如江苏中考语数英150分、北京100分制），未选则全国通用默认 -->
         <div
@@ -6360,7 +6360,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     structure,
     fullScore,
     duration,
-    genType,                        // 🔴 卷别→学业质量水平（高中）：正式卷按卷别映射、教辅锚水平二（单源 config/levelMapping）
+    genType,                        // 🔴 卷别→学业质量水平（高中·按学科分型，非全科统一）：正式卷按卷别映射、教辅锚毕业合格要求（单源 config/levelMapping）
     scopeType: scopeType.value || '', // 升学卷别（gaokao=高考）→ 高考水平；其余正式卷→合格考水平
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
   });

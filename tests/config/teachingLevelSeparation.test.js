@@ -10,23 +10,25 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildLevelInstruction, gaokaoLevelOf, resolveAcademicLevel } from '../../src/config/levelMapping.js';
+import { buildLevelInstruction, gaokaoLevelOf, resolveAcademicLevel, isMultiLevel } from '../../src/config/levelMapping.js';
 import { buildTeachingInjection, LEVEL_SELECTION_CAVEAT } from '../../src/config/teachingBlueprints.js';
 
 const ROOT = path.resolve(__dirname, '../..');
 
-/** 各科高中教辅 high note 里提到的"选拔对标级"（高于教学基线水平二的那些） */
+/** 各科高中教辅 high note 里提到的"选拔对标级"（高于教学基线水平二的那些）
+ *  🔴 2026-09-28（真断言·不得靠子串侥幸）：各级一律以**单源 gaokaoLevelOf** 取值，
+ *     音乐为**多级**（"水平二与水平三"）——不得建模为单值'水平三'（那会被子串包含而"侥幸通过"）。 */
 const HIGHER_LEVEL_SUBJECTS = [
-  { subject: '语文', level: '水平四' },
-  { subject: '物理', level: '水平四' },
-  { subject: '化学', level: '水平四' },
-  { subject: '生物', level: '水平四' },
-  { subject: '历史', level: '水平四' },
-  { subject: '地理', level: '水平四' },
-  { subject: '信息科技', level: '水平四' },
-  { subject: '音乐', level: '水平三' },
-  { subject: '美术', level: '水平三' },
-  { subject: '思想政治', level: '水平三' },
+  { subject: '语文', level: gaokaoLevelOf('语文') },
+  { subject: '物理', level: gaokaoLevelOf('物理') },
+  { subject: '化学', level: gaokaoLevelOf('化学') },
+  { subject: '生物', level: gaokaoLevelOf('生物') },
+  { subject: '历史', level: gaokaoLevelOf('历史') },
+  { subject: '地理', level: gaokaoLevelOf('地理') },
+  { subject: '信息科技', level: gaokaoLevelOf('信息科技') },
+  { subject: '音乐', level: gaokaoLevelOf('音乐') },   // 多级：水平二与水平三
+  { subject: '美术', level: gaokaoLevelOf('美术') },
+  { subject: '思想政治', level: gaokaoLevelOf('思想政治') },
 ];
 
 /** 同一份高中教辅提示词 = 学业质量水平块（levelMapping 注入）＋ 教辅结构块（teachingBlueprints 注入） */
@@ -79,6 +81,17 @@ describe('高中教辅"水平"口径语义分离（教学基线水平二 与 高
       expect(prompt, `${subject} 仍以"对标学业质量${level}"作要求式表述`)
         .not.toContain(`对标学业质量${level}`);
     }
+  });
+
+  it('🔴 音乐：高考对标为多级"水平二与水平三"（单源真断言 + isMultiLevel 守卫，不得退化为单值水平三）', () => {
+    // 真断言：音乐不是单一水平——不得再以单值'水平三'建模靠子串侥幸通过
+    expect(gaokaoLevelOf('音乐'), '音乐高考对标须为两级').toBe('水平二与水平三');
+    expect(isMultiLevel(gaokaoLevelOf('音乐')), '音乐须判为多级（isMultiLevel 守卫消费方）').toBe(true);
+    // 对照：单值学科不得被判为多级
+    expect(isMultiLevel(gaokaoLevelOf('物理')), '物理应为单级').toBe(false);
+    const prompt = teachingPrompt('音乐');
+    expect(prompt, '音乐 high note 须渲染两级').toContain('水平二与水平三');
+    expect(prompt, '不得退化为单值"水平三"').not.toContain('学业质量水平三');
   });
 
   it('无选拔对标的科目（体育）：教辅提示词仍只有水平二教学基线，不引入更高要求', () => {

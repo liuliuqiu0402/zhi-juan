@@ -77,6 +77,28 @@ describe('① 2e0（choice-first-blank-fix）：输出半角 span，与 contentC
     const norm = normalizeBlankMarkers('<p>（　）26. 题干一</p>');
     expect(norm).toContain('<span class="blank-2">&emsp;</span>26.');
   });
+
+  // 🔴 2026-09-28（位置兜底根治）：中文科目题首空位——2e0 按学科方向搬到题干末尾。
+  //    此前"只换形态、不动位置"，中文题首空位换成 span.blank-N 后 2j-6 够不到 → 位置无兜底。
+  it('中文科目：题首下划线空 → 搬到题干末尾（位置按学科兜底，不再"只换形态"）', () => {
+    const html = '<h2>六、单项选择（每题1.5分，共15分）</h2>'
+      + '<p><u class="blank-8">&emsp;</u>26. 题干一</p>'
+      + '<p>A. x　B. y　C. z</p>';
+    const r = auditExamPaper(html, OPTS('语文'));
+    expect(r.html, '中文科目题首不得再留空位').not.toMatch(new RegExp(`${SPAN2}26\\.`));
+    expect(r.html, '空位应落在题干末尾').toMatch(new RegExp(`26\\. 题干一${SPAN2}`));
+    expect(r.html, '旧下划线载体应已被替换').not.toContain('<u class="blank-8">');
+    expect(r.issues.some((x) => x.type === 'choice-first-blank')).toBe(true);
+  });
+
+  it('中文科目：裸空（全角空格起头）→ 同样搬到题干末尾', () => {
+    const html = '<h2>六、单项选择（每题1.5分，共15分）</h2>'
+      + '<p>　　26. 题干一</p>'
+      + '<p>A. x　B. y　C. z</p>';
+    const r = auditExamPaper(html, OPTS('语文'));
+    expect(r.html).toMatch(new RegExp(`26\\. 题干一${SPAN2}`));
+    expect(r.html, '题首不得再留空位').not.toMatch(new RegExp(`${SPAN2}26\\.`));
+  });
 });
 
 // ── ② 2j-6：方向按学科 ──

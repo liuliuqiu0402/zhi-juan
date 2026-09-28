@@ -531,7 +531,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     const bodyPart = out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0];
     const ansPart = out.slice(bodyPart.length);
     const headRe = /<h[234][^>]*>([^<]*)<\/h[234]>/g;
-    // 🔴 2026-09-28（与组标题口径同向·按栏目块判定）：教辅组标题序号"逐栏目块起编"——同一标题可在
+    // 🔴 2026-09-28（与组标题口径同向·按栏目块判定）：教辅组标题序号"逐栏目（组）起编"——同一标题可在
     //    不同栏目块各出现一次（如两个栏目块各有"一、…"，属正常），不得据此截断；故**非 exam** 的重复
     //    判据**按栏目块分组**（块内重复才算重复）。正式考卷大题序号全卷连续、无"非序号栏目标题"，
     //    故行为与原实现逐字一致（全局唯一）。
@@ -755,12 +755,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //      span 载体** `<span class="blank-N">&emsp;</span>`（与 contentCleaner 归一同形、渲染自带半角
         //      括号；N 经 spaceBlankWidth 取），**不再写字面全角「（　）」**——后者与归一层形态相反，会造成
         //      同卷"题首全角、其余半角"并存并自触发 2j-6 形态不统一告警。
-        //   ⚠️ 位置归并（外语题首 / 中文题干末尾按学科）由 2j-6 负责，本条**只换形态、不搬位置**。
+        //   ⚠️ 位置归并（外语题首 / 中文题干末尾按学科）**由本条一并兜底**（2026-09-28 根治位置缺口）：
+        //      此前"只换形态、不搬位置"把中文题首空位留给 2j-6，但 2e0 已把载体换成 span.blank-N →
+        //      该段落有了子元素、且 textContent 无字面括号 → 2j-6 的纯文本段判据与 `（　）` 正则**都够不到**，
+        //      中文题首空位遂无兜底。现本条按学科方向 `getChoiceBlankPosition(subject)` 决定落位：
+        //      外语类 → 保留/归到题首（head）；中文科目 → 搬到题干末尾（tail）。
         //   ⚠️ 触发面收窄到"该大题确实带选项"，避免误改填空/默写类题的行首空位。
         //   ⚠️ 选项判据必须兼容**同段落内连排**（实际卷面常写 `<p>A. x　B. y　C. z</p>`，countOptions 只认
         //      行首 A. 式 → 对它恒为 0）：故并上"段内出现 ≥2 个选项字母"。
         const optLetters = (secHtml.match(/(?:^|[\s\u3000>])[A-H][.、．]/g) || []).length;
         if (has('choice-first-blank-fix') && (countOptions(secHtml) > 0 || optLetters >= 2)) {
+          const toHead = getChoiceBlankPosition(subject) === 'head';
           let fx = 0;
           for (const n of secNodes) {
             if (n.nodeType !== Node.ELEMENT_NODE || n.tagName.toLowerCase() !== 'p') continue;
@@ -770,22 +775,29 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const isCarrier = !!fc0 && (fc0.tagName === 'U' || fc0.tagName === 'SPAN')
               && /(?:^|\s)blank-\d+/.test(fc0.getAttribute('class') || '');
             if (isCarrier) {
-              // 下划线空 / 旧形态空位 → 半角 span 载体（保持题首位置）
-              fc0.replaceWith(makeChoiceBlankNode());
+              if (toHead) {
+                // 外语类：题首载体 → 半角 span 载体（保持题首位置）
+                fc0.replaceWith(makeChoiceBlankNode());
+              } else {
+                // 中文科目：题首载体搬到题干末尾（按学科条款落位，位置兜底）
+                fc0.remove();
+                n.appendChild(makeChoiceBlankNode());
+              }
               fx += 1;
             } else if (!fc0 && /^[　\u3000\s]{2,}/.test(t)) {
               // 裸空（纯文本全角空格/空格起头）→ 同样归一为半角 span 载体
               const firstText = n.firstChild;
               if (firstText && firstText.nodeType === Node.TEXT_NODE) {
                 const rest = String(firstText.textContent).replace(/^[　\u3000\s]{2,}/, '');
-                n.insertBefore(makeChoiceBlankNode(), firstText);
                 firstText.textContent = rest;
+                if (toHead) n.insertBefore(makeChoiceBlankNode(), firstText);
+                else n.appendChild(makeChoiceBlankNode());
                 fx += 1;
               }
             }
           }
           if (fx > 0) {
-            issues.push({ severity: 'info', type: 'choice-first-blank', message: `大题「${title}」题首作答位已按作答空间条款归一到半角圆括号空位（${fx} 处）` });
+            issues.push({ severity: 'info', type: 'choice-first-blank', message: `大题「${title}」作答位已按作答空间条款归一到半角圆括号空位（${fx} 处，位置${toHead ? '在题首' : '在题干末尾'}）` });
             fixed += fx;
           }
         }
@@ -2129,7 +2141,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //    同一体系的缺陷被呈现成"答案区(5) 明显少于正文(10)，疑似未逐题对齐"，把编辑引向错误方向。
         //    真相：题号须**全卷连续同序**（正文与答案区同一套号），两侧都违反了这条口径。
         //    🔴 2026-09-18（用户裁定·口径按类型分流）："全卷连续"是**正式考卷**的口径；同步练习等
-        //      按大题分别从 1 重编号是市场教辅常态，非缺陷——故本告警仅 genType==='exam' 时触发，
+        //      按栏目（组）分别从 1 重编号是市场教辅常态，非缺陷——故本告警仅 genType==='exam' 时触发，
         //      其余类型走下方 answer-coverage 的长连段对比（两侧各取其最长 1 起连续段，仍可比）。
         //    🔴 段长清单只列"大题级"段（≥3 项）：1 项长的段来自行内点号/子题括号等零散命中，
         //       列出来只会让编辑误以为"卷面真有这么多段"（净化报告，不改变判定）。
@@ -2155,11 +2167,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           //    （实测样本：答案区 14 个 `N.` + 每题子题 `(1)(2)`，与正文完全同构，却被判"不同构"）。
           const ansNumberingMissing = ansTopQ <= 2;
           // 🔴 2026-09-28（题号编法按正规收口）：口径**按类型分流**，与正文条款同源——
-          //    正式考卷（exam）小题全卷连续；教辅（同步练习等）小题在同一大题内连续、按大题分别起编。
+          //    正式考卷（exam）小题全卷连续；教辅（同步练习等）小题在同一栏目（组）内连续、按栏目（组）分别起编。
           //    故本告警的"应改成什么号"须随之分型，不得对教辅也要求"全卷连续"（那会一侧禁止一侧豁免）。
           const numCaliberWords = genType === 'exam'
             ? '全卷连续同序'
-            : '与正文同号同序（教辅小题按大题分别起编，答案区按相同栏目块分组、块内与正文同号同序）';
+            : '与正文同号同序（教辅小题按栏目（组）分别起编，答案区按相同栏目（组）分组、组内与正文同号同序）';
           try {
             const head = String(ansText).replace(/\s+/g, ' ').trim().slice(0, 200);
             console.warn(`🔍 [答案区计数取证] 正文题号数=${bodyTopQ} 答案区题号数=${ansTopQ}`

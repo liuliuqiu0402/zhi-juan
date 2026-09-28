@@ -291,14 +291,14 @@ describe('🔢 题号编法口径（2026-09-28 按正规收口）：教辅按大
   const examTpl = () => getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template;
   const practiceTpl = () => getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' }).template;
 
-  it('教辅：小题在同一大题内连续、按大题分别从 1 起编（正规编法）', () => {
+  it('教辅：小题在同一栏目（组）内连续、按栏目（组）分别从 1 起编（正规编法）', () => {
     const p = practiceTpl();
-    expect(p).toContain('在同一大题（栏目）内连续、按大题分别从 1 起编');
-    expect(p).toContain('进入新的大题（栏目）即从 1 重新起编');
+    expect(p).toContain('在同一栏目（组）内连续、按栏目（组）分别从 1 起编');
+    expect(p).toContain('进入新的栏目（组）即从 1 重新起编');
     // 旧禁令（教辅全卷连续、严禁重启）须已移除
     expect(p, '教辅分支不得再出现"严禁按大类/大题…重新从 1 编号"').not.toContain('严禁按大类/大题/组/栏目重新从 1 编号');
     expect(p, '教辅分支不得再声称"全卷只此一套题号"').not.toContain('全卷只此一套题号');
-    expect(p, '保留"本大题内"逐题自查').toContain('本大题（栏目）内');
+    expect(p, '保留"本栏目（组）内"逐题自查').toContain('本栏目（组）内');
   });
 
   it('正式考卷：小题仍全卷连续、严禁按大题/部分重新编号（与教辅分型，不互相否定）', () => {
@@ -311,18 +311,18 @@ describe('🔢 题号编法口径（2026-09-28 按正规收口）：教辅按大
     expect(e, '试卷条款须声明与教辅口径分型、不互相否定').toContain('不得互相否定');
   });
 
-  it('答案区口径与正文同向：与正文同号同序（教辅按大题分组、试卷全卷连续）', () => {
+  it('答案区口径与正文同向：与正文同号同序（教辅按栏目（组）分组、试卷全卷连续）', () => {
     const once = PAPER_OUTPUT_CONVENTIONS.once('语文', false);
     expect(once).toContain('同号同序');
-    expect(once).toContain('教辅正文按大题分别起编则答案区按相同栏目块分组、块内与正文同号同序');
+    expect(once).toContain('教辅正文按栏目（组）分别起编则答案区按相同栏目（组）分组、组内与正文同号同序');
     expect(once, '旧硬要求"全卷连续同序"须已按类型分型').not.toContain('全卷连续同序；仅子题');
     const ansSpec = buildAnswerFormatSpec('语文');
     expect(ansSpec).toContain('与正文同号同序');
-    expect(ansSpec).toContain('教辅正文按大题分别起编时，答案区按相同栏目块分组、块内与正文同号同序');
+    expect(ansSpec).toContain('教辅正文按栏目（组）分别起编时，答案区按相同栏目（组）分组、组内与正文同号同序');
   });
 
   it('回潮守卫：单源常量两口径各自成立；教辅分支不再出现"严禁…重新从 1 编号"', () => {
-    expect(QUESTION_NUMBERING_CALIBER.teaching).toContain('按大题分别从 1 起编');
+    expect(QUESTION_NUMBERING_CALIBER.teaching).toContain('按栏目（组）分别从 1 起编');
     expect(QUESTION_NUMBERING_CALIBER.exam).toContain('全卷连续');
     expect(practiceTpl()).not.toMatch(/严禁按(?:大类|大题)/);
   });
@@ -331,19 +331,19 @@ describe('🔢 题号编法口径（2026-09-28 按正规收口）：教辅按大
 /** 🔢 组标题（大题标题）中文序号口径（2026-09-28 用户裁定·按正规收口）
  * ============================================================
  * 与小题口径 QUESTION_NUMBERING_CALIBER 呼应（两层一致）：
- *   · 正式考卷（exam）：大题序号全卷连续；· 教辅（同步练习等）：组标题逐栏目块起编。
+ *   · 正式考卷（exam）：大题序号全卷连续；· 教辅（同步练习等）：组标题逐栏目（组）起编。
  * 两种口径各自成立、不得互相否定；程序侧大题级序号判据仅 exam 生效（教辅不报）。 */
-describe('🔢 组标题（大题标题）中文序号口径：教辅逐栏目块起编 / 试卷全卷连续（两层一致）', () => {
+describe('🔢 组标题（大题标题）中文序号口径：教辅逐栏目（组）起编 / 试卷全卷连续（两层一致）', () => {
   const examTpl = () => getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template;
   const practiceTpl = () => getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' }).template;
   const readSrc = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
-  it('教辅组标题：同一栏目块内 一、二、三…顺排、进入下一栏目块即从「一、」重新起编（跨栏目块不接续）', () => {
+  it('教辅组标题：同一栏目（组）内 一、二、三…顺排、进入下一栏目（组）即从「一、」重新起编（跨栏目（组）不接续）', () => {
     const p = practiceTpl();
     expect(p).toContain(GROUP_TITLE_NUMBERING_CALIBER.teaching);
-    expect(p, '组标题口径须为"逐栏目块起编"').toContain('逐栏目块起编');
-    expect(p, '进入下一栏目块即重新起编').toContain('进入下一栏目块即从「一、」重新起编');
-    expect(p, '跨栏目块不接续').toContain('跨栏目块不接续');
+    expect(p, '组标题口径须为"逐栏目（组）起编"').toContain('逐栏目（组）起编');
+    expect(p, '进入下一栏目（组）即重新起编').toContain('进入下一栏目（组）即从「一、」重新起编');
+    expect(p, '跨栏目（组）不接续').toContain('跨栏目（组）不接续');
     // 两层一致：组标题（汉字序号）与小题（阿拉伯题号）在同一份教辅模板内同源呼应
     expect(p).toContain(QUESTION_NUMBERING_CALIBER.teaching);
   });
@@ -362,24 +362,24 @@ describe('🔢 组标题（大题标题）中文序号口径：教辅逐栏目�
 
   it('两口径单源常量各自成立，且条款显式声明"各自成立、不得互相否定"', () => {
     expect(GROUP_TITLE_NUMBERING_CALIBER.exam).toContain('全卷连续');
-    expect(GROUP_TITLE_NUMBERING_CALIBER.teaching).toContain('逐栏目块起编');
-    expect(GROUP_TITLE_NUMBERING_CALIBER.teaching).toContain('进入下一栏目块即从「一、」重新起编');
+    expect(GROUP_TITLE_NUMBERING_CALIBER.teaching).toContain('逐栏目（组）起编');
+    expect(GROUP_TITLE_NUMBERING_CALIBER.teaching).toContain('进入下一栏目（组）即从「一、」重新起编');
     // 教辅条款与试卷条款都须显式声明（不得互相否定）
     expect(practiceTpl()).toContain('不得互相否定');
     expect(examTpl()).toContain('不得互相否定');
   });
 
-  it('答案区同构：教辅按相同栏目块分组、块内与正文同号同序；试卷全卷连续同序', () => {
+  it('答案区同构：教辅按相同栏目（组）分组、组内与正文同号同序；试卷全卷连续同序', () => {
     const once = PAPER_OUTPUT_CONVENTIONS.once('语文', false);
-    expect(once).toContain('教辅正文按大题分别起编则答案区按相同栏目块分组、块内与正文同号同序');
+    expect(once).toContain('教辅正文按栏目（组）分别起编则答案区按相同栏目（组）分组、组内与正文同号同序');
     expect(once).toContain('正式考卷正文全卷连续则答案区同样全卷连续');
     const ansSpec = buildAnswerFormatSpec('语文');
-    expect(ansSpec).toContain('教辅正文按大题分别起编时，答案区按相同栏目块分组、块内与正文同号同序');
+    expect(ansSpec).toContain('教辅正文按栏目（组）分别起编时，答案区按相同栏目（组）分组、组内与正文同号同序');
     expect(ansSpec).toContain('正式考卷正文题号全卷连续时，答案区同样全卷连续同序');
   });
 
   it('程序侧同向：大题级序号判据仅 exam 生效（教辅不报）', () => {
-    // 汉字序号大题级守卫：genTypes 仅 exam（教辅组标题"逐栏目块起编"是常态、非缺陷）
+    // 汉字序号大题级守卫：genTypes 仅 exam（教辅组标题"逐栏目（组）起编"是常态、非缺陷）
     const g = getValidatorRule('cn-ordinal-guard')?.genTypes || [];
     expect(g).toContain('exam');
     expect(g).not.toContain('practice');
