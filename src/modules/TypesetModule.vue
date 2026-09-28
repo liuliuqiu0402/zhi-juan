@@ -283,7 +283,7 @@
                 {{ p.label }}
               </option>
             </select>
-            <!-- 🔧 卷型选择（2026-08）：密封线卷（含密封线+考生信息栏）/ 普通卷（默认，无密封线） -->
+            <!-- 🔧 卷型选择：密封线卷（含密封线+考生信息栏）/ 普通卷（默认，无密封线；2026-09-28 用户裁定为默认） -->
             <select
               v-if="exportFormat === 'docx'"
               v-model="sealVariant"
@@ -518,10 +518,15 @@ const isExporting = ref(false);
 const exportStatus = ref('');
 const paperPresets = PAPER_PRESETS; // 🔧 纸张版式预设（A4 单栏 / A3 两栏三栏 / 8K 两栏三栏 / 4K 四栏）
 const paperLayout = ref('a4-1col'); // 🔧 纸张版式：默认 A4 单栏；多栏 = 分栏 + 每栏页码按栏计数（Word 公式域自动算）
-// 🔧 卷型：sealed（密封线卷，默认）/ plain（普通卷）
-//   默认密封线卷——正规试卷卷首必备密封线，且非试卷内容无密封结构、不受影响；
-//   曾默认 plain，导致"预览见密封线、导出被剥离"（用户 2026-09-28 报障）。
-const sealVariant = ref('sealed');
+// 🔧 卷型：plain（普通卷，默认）/ sealed（密封线卷）
+//   沿革：① 曾默认 plain；② 为修"预览见密封线、导出无密封线"（导出路径当时不走卷型判定，
+//         导致普通卷预览残留密封线而导出被剥离）改成默认 sealed——预览/导出统一按 sealVariant 走后二者一致；
+//         （用户 2026-09-28 报障）③ 2026-09-28 按用户裁定改回**普通卷为默认**。
+//   差异：plain 普通卷——预览与导出均剥离密封区（stripSealStructure 去掉 sealed-wrapper/seal-zone 等，
+//         docxBuilder 据此判 hasSealLine=false → 左右 2cm 边距、无密封线页眉），并修正"密封线内"文案；
+//         sealed 密封线卷——完整保留密封线结构（含密封线 + 考生信息栏）。
+//   注：本值仅组件内存状态、不持久化，故无历史存档旧值需兼容。
+const sealVariant = ref('plain');
 const exportFormat = ref('docx');
 
 // 🔧 处理从生成模块跳转过来的 HTML 内容
@@ -1267,7 +1272,7 @@ const exportDocument = async () => {
 
       // 🔧 卷型选择（2026-08）：普通卷 = 先按密封线卷包装（注入卷面固定件），再剥离密封线结构
       //    （sealed-wrapper/seal-zone，docxBuilder 据此判 hasSealLine=false → 左右 2cm 边距 + A3 栏距 4cm），
-      //    并同步修正注意事项第 1 条文案（去掉"密封线内"字样）；密封线卷（默认）保持原样。
+      //    并同步修正注意事项第 1 条文案（去掉"密封线内"字样）；密封线卷保持原样（非默认，需手动选择）。
       if (sealVariant.value === 'plain') {
         sourceHtml = stripSealStructure(sourceHtml);
         sourceHtml = sourceHtml.replace(/(答题前，请将)密封线内的(学校、班级、姓名、学号填写清楚。)/, '$1$2');
