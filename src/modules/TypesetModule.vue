@@ -517,7 +517,10 @@ const isExporting = ref(false);
 const exportStatus = ref('');
 const paperPresets = PAPER_PRESETS; // 🔧 纸张版式预设（A4 单栏 / A3 两栏三栏 / 8K 两栏三栏 / 4K 四栏）
 const paperLayout = ref('a4-1col'); // 🔧 纸张版式：默认 A4 单栏；多栏 = 分栏 + 每栏页码按栏计数（Word 公式域自动算）
-const sealVariant = ref('plain'); // 🔧 卷型：sealed（密封线卷）/ plain（普通卷，默认）
+// 🔧 卷型：sealed（密封线卷，默认）/ plain（普通卷）
+//   默认密封线卷——正规试卷卷首必备密封线，且非试卷内容无密封结构、不受影响；
+//   曾默认 plain，导致"预览见密封线、导出被剥离"（用户 2026-09-28 报障）。
+const sealVariant = ref('sealed');
 const exportFormat = ref('docx');
 
 // 🔧 处理从生成模块跳转过来的 HTML 内容

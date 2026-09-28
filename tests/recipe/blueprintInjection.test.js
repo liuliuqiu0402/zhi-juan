@@ -19,14 +19,18 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     // 明细由 buildStructureText 注入（蓝图数据）；分值从蓝图推导，锁定"栏名 + 注入格式"而非写死数值
     const bp = getExamBlueprint('语文', 'primary_low');
     const inject = buildStructureText(bp);
-    expect(inject).toContain(`一、识字与写字(共X题，共${bp.sections[0].score}分)——【要求·须逐项落实】`);
-    expect(inject).toContain(`二、积累与运用(共X题，共${bp.sections[1].score}分)——【要求·须逐项落实】`);
-    expect(inject).toContain(`三、阅读与鉴赏(共X题，共${bp.sections[2].score}分)——【要求·须逐项落实】`);
-    expect(inject).toContain(`四、表达与交流(共X题，共${bp.sections[3].score}分)——【要求·须逐项落实】`);
-    // 大题命题要求（note）被注入
+    // 🔴 2026-09-28：语文课标内容领域为域型栏目 → **只作大类层**（自带本大类总分 + 命题要求），
+    //    不再输出同名大题行（大类名不得充当大题标题，大题标题由模型按作答方式自拟）。
+    expect(inject).toContain(`🔴 大类层：识字与写字（本大类共${bp.sections[0].score}分）`);
+    expect(inject).toContain(`🔴 大类层：积累与运用（本大类共${bp.sections[1].score}分）`);
+    expect(inject).toContain(`🔴 大类层：阅读与鉴赏（本大类共${bp.sections[2].score}分）`);
+    expect(inject).toContain(`🔴 大类层：表达与交流（本大类共${bp.sections[3].score}分）`);
+    // 大类命题要求（note）被注入（原挂大题行，现随大类行）
     expect(inject).toContain('覆盖本单元识字与写字内容');
-    // 顺序：大题序号随位置递增
-    expect(inject.indexOf('一、识字与写字')).toBeLessThan(inject.indexOf('二、积累与运用'));
+    // 大类名不得充当大题标题：不出现"一、识字与写字"这类同名大题行
+    expect(inject, '域型栏目不得再输出同名大题行').not.toMatch(/^[一二三四五六七八九十]、/m);
+    // 顺序：大类层随位置递增
+    expect(inject.indexOf('大类层：识字与写字')).toBeLessThan(inject.indexOf('大类层：积累与运用'));
   });
 
   it('空蓝图/无 sections 返回空串', () => {
@@ -58,8 +62,8 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(inject).not.toContain('新课标命题要求');
     expect(inject).not.toContain('情境化试题占比');
     expect(inject).not.toContain('禁止孤立罗列拼音');
-    // 卷面结构仍在（大题名+分值+命题要求 note）
-    expect(inject).toContain(`一、识字与写字(共X题，共${bp.sections[0].score}分)——`);
+    // 卷面结构仍在（大类名+本大类总分+命题要求 note）
+    expect(inject).toContain(`🔴 大类层：识字与写字（本大类共${bp.sections[0].score}分）`);
   });
 
   it('不再注入分值规则（分值分配回归 AI 命题常识，账目自洽由规则库 score 系列验算）', () => {
@@ -67,8 +71,8 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     const inject = buildStructureText(bp);
     expect(inject).not.toContain('【分值规则】');
     expect(inject).not.toContain('小题数×每题分=大题分');
-    // 卷面结构仍在
-    expect(inject).toContain('一、');
+    // 卷面结构仍在（语文为域型栏目 → 大类层行）
+    expect(inject).toContain('🔴 大类层：');
   });
 
   it('英语蓝本（听力·/笔试·前缀）→ 输出部分层作大类居中（不写"第X部分"），大题去前缀、序号全卷连续', () => {
@@ -92,24 +96,26 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
 
   // 🔴 2026-09-27 收尾（g4）：sectionKindOf 接进 buildStructureText——域型→大类层（独立无编号行）、
   //    题型型→块名即大题标题（不设大类层）。成为注入的**给定事实**，与【层级归并】条款同源同果。
-  it('域型栏目（语文内容领域名）→ 输出大类层行：不带编号、带总分、要求标注仍只挂大题行', () => {
+  // 🔴 2026-09-28 用户报障根治：域型栏目**不再输出同名大题行**（原"大类行 + 一、识字与写字"双写，
+  //    与"大类名不得充当大题标题"冲突，且模型把分值挂到大类、其下大题无分值 → 注意事项/得分表不注入）。
+  it('域型栏目（语文内容领域名）→ 只出大类层行：不带编号、自带本大类总分与命题要求；不再输出同名大题行', () => {
     const bp = getExamBlueprint('语文', 'primary_low');
     const inject = buildStructureText(bp);
-    // 大类行：无编号、指明不带编号居中加粗
-    expect(inject).toContain('🔴 大类层：识字与写字（其下大题总分 共40分）');
-    expect(inject).toContain('🔴 大类层：积累与运用（其下大题总分 共28分）');
-    expect(inject).toContain('🔴 大类层：阅读与鉴赏（其下大题总分 共16分）');
-    expect(inject).toContain('🔴 大类层：表达与交流（其下大题总分 共16分）');
-    // 大类行不带"一、二、"编号
+    // 大类行：无编号、指明不带编号居中加粗，且自带本大类总分
+    expect(inject).toContain('🔴 大类层：识字与写字（本大类共40分）');
+    expect(inject).toContain('🔴 大类层：积累与运用（本大类共28分）');
+    expect(inject).toContain('🔴 大类层：阅读与鉴赏（本大类共16分）');
+    expect(inject).toContain('🔴 大类层：表达与交流（本大类共16分）');
     const domainLines = inject.split('\n').filter((l) => l.startsWith('🔴 大类层'));
+    expect(domainLines, '四个域型栏目 → 四条大类行').toHaveLength(4);
+    // 大类行不带"一、二、"编号
     for (const l of domainLines) expect(l, `大类行不得带编号：${l}`).not.toMatch(/^🔴 大类层：\s*[一二三四五六七八九十]/);
-    // 要求标注（【要求·须逐项落实】）只挂在大题行上，大类行不得携带（防计数/模型误读）
-    expect(inject).toContain('一、识字与写字(共X题，共40分)——【要求·须逐项落实】');
-    expect(domainLines.join(''), '大类行不得携带要求标注').not.toContain('【要求·须逐项落实】');
-    // 大类行位于其组第一个大题行之前
-    expect(inject.indexOf('🔴 大类层：识字与写字')).toBeLessThan(inject.indexOf('一、识字与写字'));
-    // 大题行仍在（既有契约不破坏）
-    expect(inject).toContain('四、表达与交流(共X题，共16分)——【要求·须逐项落实】');
+    // 🔴 大类名不得充当大题标题：不再输出"一、识字与写字"这类同名大题行
+    expect(inject, '域型栏目不得再输出同名大题行').not.toMatch(/^[一二三四五六七八九十]、/m);
+    // 命题要求随大类行（原挂大题行）
+    expect(domainLines.every((l) => l.includes('本大类命题要求')), '大类行须携带命题要求').toBe(true);
+    // 大类下大题自拟 + 分值合计约束
+    expect(domainLines.every((l) => l.includes('各大题分值合计须等于')), '大类行须给大题自拟与分值约束').toBe(true);
   });
 
   it('题型型栏目（数学等作答形式名）→ 不设大类层，块名即大题标题', () => {
@@ -125,7 +131,7 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     }
   });
 
-  it('大类层总分账目闭合：其下各栏目分值合计 = 大类总分', () => {
+  it('大类层总分账目闭合：本大类总分 = 其下栏目分值合计', () => {
     const bp = getExamBlueprint('语文', 'primary_mid');
     const inject = buildStructureText(bp);
     const lines = inject.split('\n').filter((l) => l.startsWith('🔴 大类层'));
@@ -133,7 +139,7 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(lines).toHaveLength(4);
     const sumOf = (name) => bp.sections.filter((s) => s.name === name).reduce((a, s) => a + s.score, 0);
     for (const l of lines) {
-      const m = l.match(/大类层：([^（]+)（其下大题总分 共(\d+)分）/);
+      const m = l.match(/大类层：([^（]+)（本大类共(\d+)分）/);
       expect(m, `大类行格式异常：${l}`).toBeTruthy();
       expect(Number(m[2]), `${m[1]} 大类总分应=其下栏目分值合计`).toBe(sumOf(m[1]));
     }

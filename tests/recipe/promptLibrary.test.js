@@ -193,7 +193,7 @@ describe('注入指令组装（拼接格式与顺序）', () => {
 });
 
 describe('卷面结构文本', () => {
-  it('从蓝图生成人话结构（板块+分值）', () => {
+  it('域型栏目（课标内容领域名）→ 大类层行（自带本大类总分，不占大题序号）', () => {
     const bp = {
       sections: [
         { name: '识字与写字', score: 32 },
@@ -201,8 +201,22 @@ describe('卷面结构文本', () => {
       ],
     };
     const text = buildStructureText(bp);
-    expect(text).toContain('一、识字与写字(共X题，共32分)');
-    expect(text).toContain('二、积累与运用(共X题，共24分)');
+    expect(text).toContain('🔴 大类层：识字与写字（本大类共32分）');
+    expect(text).toContain('🔴 大类层：积累与运用（本大类共24分）');
+    // 大类名不得充当大题标题：不输出"一、识字与写字"这类同名大题行
+    expect(text).not.toMatch(/^[一二三四五六七八九十]、/m);
+  });
+
+  it('题型型栏目（作答形式名）→ 块名即大题行（中文序号+分值）', () => {
+    const bp = {
+      sections: [
+        { name: '选择题', score: 30 },
+        { name: '填空题', score: 20 },
+      ],
+    };
+    const text = buildStructureText(bp);
+    expect(text).toContain('一、选择题(共X题，共30分)');
+    expect(text).toContain('二、填空题(共X题，共20分)');
   });
 
   it('无蓝图返回空串', () => {
