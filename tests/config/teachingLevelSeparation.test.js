@@ -118,7 +118,7 @@ describe('数学/英语：高考对标水平二（单源·课标）与教辅基�
 
   it('🔴 回潮守卫：各科 high note 的选拔对标级由单源 gaokaoLevelOf 取值，不再手写水平值', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src/config/teachingBlueprints.js'), 'utf8');
-    for (const subject of ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '思想政治', '信息科技', '美术']) {
+    for (const subject of ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '思想政治', '信息科技', '美术', '音乐']) {
       expect(src, `teachingBlueprints 未引用单源 gaokaoLevelOf('${subject}')`).toContain(`gaokaoLevelOf('${subject}')`);
     }
     // 旧"手写水平值"的回潮字面（数学/英语曾写死水平二且无"选拔对标"标注；物理等曾写死水平四）
@@ -126,5 +126,7 @@ describe('数学/英语：高考对标水平二（单源·课标）与教辅基�
     expect(src).not.toContain('对标学业质量水平二（选择性必修');
     expect(src).not.toContain('学业质量水平四（高等院校招生对应水平）');
     expect(src).not.toContain('学业质量水平三（高等院校招生对应水平）');
+    // 音乐两级须由单源渲染，不得再手写死（旧=「学业质量水平二与水平三」字面）
+    expect(src, '音乐两级水平不得手写死，须引单源 gaokaoLevelOf(\'音乐\')').not.toContain('学业质量水平二与水平三');
   });
 });

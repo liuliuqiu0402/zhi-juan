@@ -11,9 +11,12 @@ import { describe, it, expect } from 'vitest';
 import {
   LEVEL_MAP, SUBJECT_GAOKAO_LEVEL, PAPER_KINDS, SUBJECT_LEVEL_KEYS, TEACHING_BASELINE,
   LEVEL_INJECTION_MARKER, LEVEL_SOURCE,
-  isHighStage, gaokaoLevelOf, resolvePaperKind, resolveAcademicLevel, buildLevelInstruction, buildPaperKindHint,
+  isHighStage, toLevelList, isMultiLevel, formatLevels,
+  gaokaoLevelOf, hegeLevelOf, resolvePaperKind, resolveAcademicLevel, buildLevelInstruction, buildPaperKindHint,
 } from '../../src/config/levelMapping.js';
 import { buildInjectionInstruction } from '../../src/config/promptLibrary.js';
+import { buildTeachingInjection, LEVEL_SELECTION_CAVEAT } from '../../src/config/teachingBlueprints.js';
+import { normalizeSubjectName } from '../../src/config/expertKnowledge.js';
 
 /** 注入正文里"【学业质量水平】"段出现次数（用于"只注入一处"守卫） */
 const countMarker = (text) => (String(text).match(/【学业质量水平】/g) || []).length;
@@ -224,7 +227,7 @@ describe('⑤ 卷别提示（UI 用·单源 LEVEL_MAP，2026-09-28 资料类型�
  * 依据：《普通高中课程标准（2017年版2020年修订）》各科·五、学业质量·学业质量水平 原文，
  *   并经省级教育行政部门实施口径交叉核证（数学/英语=水平二、思想政治=水平三、
  *   语文/物理/化学/生物/历史/地理/信息技术=水平四、美术=水平三）。
- *   未确证项：音乐（课标为水平二与水平三两级，无单一值）、体育与健康（无等级性考试）→ 见报告。
+ *   🔴 音乐为**多级**（课标"水平二与水平三"两级共同作高考主要依据）、体育与健康不纳入单源 → 见 ⑦。
  */
 describe('⑥ 各科"高考/等级性考试对应水平"按课标分型（单一事实源 SUBJECT_GAOKAO_LEVEL）', () => {
   const GAOKAO_EXPECT = {
@@ -268,5 +271,101 @@ describe('⑥ 各科"高考/等级性考试对应水平"按课标分型（单一
     for (const subject of ['语文', '物理', '思想政治', '美术']) {
       expect(resolveAcademicLevel({ stage: 'high', subject, genType: 'practice' }), `${subject} 教辅基线=水平二`).toBe('水平二');
     }
+  });
+});
+
+/**
+ * 🔴 2026-09-28（补·多级支持·根治单源结构）：音乐课标"水平二**与**水平三"两级**共同**作为高考命题的
+ *   主要依据（非单一水平）→ 单源 SUBJECT_GAOKAO_LEVEL 取值**支持单值或多值（数组/等价字符串）**，
+ *   音乐如实填两级；出口对多值以课标口径"与"连接表达为"水平二与水平三"（不得自造新概念）。
+ *   依据：《普通高中音乐课程标准（2017年版2020年修订）》·五、学业质量·学业质量水平。
+ * 🔴 体育与健康：无等级性考试，仅合格要求水平二——**不纳入**高考对标单源（守卫防将来被手滑补入）。
+ *   依据：《普通高中体育与健康课程标准（2017年版2020年修订）》·五、学业质量·学业质量水平。
+ */
+describe('⑦ 多级水平（音乐：水平二与水平三）与体育守卫（不纳入高考对标单源）', () => {
+  /** 单值学科（值须保持单值字符串、行为与既往一致） */
+  const SINGLE_LEVEL_GAOKAO = {
+    '语文': '水平四', '数学': '水平二', '英语': '水平二',
+    '物理': '水平四', '化学': '水平四', '生物': '水平四',
+    '历史': '水平四', '地理': '水平四', '思想政治': '水平三',
+    '信息科技': '水平四', '美术': '水平三',
+  };
+
+  it('单源取值支持单值或多值：音乐为两级数组，其余学科仍为单值', () => {
+    expect(isMultiLevel(SUBJECT_GAOKAO_LEVEL['音乐']), '音乐应为多值').toBe(true);
+    expect(toLevelList(SUBJECT_GAOKAO_LEVEL['音乐'])).toEqual(['水平二', '水平三']);
+    // 其余学科保持单值（向后兼容：单值入参行为不变）
+    for (const [subject, level] of Object.entries(SINGLE_LEVEL_GAOKAO)) {
+      expect(isMultiLevel(SUBJECT_GAOKAO_LEVEL[subject]), `${subject} 应保持单值`).toBe(false);
+      expect(SUBJECT_GAOKAO_LEVEL[subject], `${subject} 单值不得变`).toBe(level);
+    }
+  });
+
+  it('formatLevels/toLevelList：单值原样、多值以"与"连接（数组与等价字符串互认）', () => {
+    // 单值：格式化为原值（向后兼容）
+    for (const level of ['水平一', '水平二', '水平三', '水平四']) {
+      expect(formatLevels(level)).toBe(level);
+      expect(toLevelList(level)).toEqual([level]);
+    }
+    // 多值：数组 / 等价字符串 皆归一为同一可读文本
+    expect(formatLevels(['水平二', '水平三'])).toBe('水平二与水平三');
+    expect(formatLevels('水平二与水平三')).toBe('水平二与水平三');
+    expect(toLevelList('水平二与水平三')).toEqual(['水平二', '水平三']);
+    expect(formatLevels(undefined)).toBe('');
+    expect(formatLevels([])).toBe('');
+  });
+
+  it('gaokaoLevelOf / resolveAcademicLevel：音乐高考正确表达"两级"', () => {
+    expect(gaokaoLevelOf('音乐')).toBe('水平二与水平三');
+    expect(gaokaoLevelOf('音乐', 'high')).toBe('水平二与水平三');
+    expect(resolveAcademicLevel({ stage: 'high', subject: '音乐', genType: 'exam', scopeType: 'gaokao' }))
+      .toBe('水平二与水平三');
+  });
+
+  it('buildLevelInstruction：音乐高考卷注入"水平二与水平三"（含课标出处，仍只一处）', () => {
+    const out = buildLevelInstruction({ stage: 'high', subject: '音乐', genType: 'exam', scopeType: 'gaokao' });
+    expect(out).toContain(LEVEL_INJECTION_MARKER);
+    expect(out).toContain('水平二与水平三');
+    expect(out).toContain(LEVEL_SOURCE);
+    expect(countMarker(out)).toBe(1);
+  });
+
+  it('buildPaperKindHint：音乐给出"选高考按水平二与水平三（选拔要求）；未选按水平二（合格要求）"', () => {
+    expect(buildPaperKindHint({ stage: 'high', genType: 'exam', subject: '音乐' }))
+      .toBe('选高考按水平二与水平三（选拔要求）；未选按水平二（合格要求）');
+  });
+
+  it('音乐教辅（无卷别）：仍按毕业合格要求锚水平二（多级只作用于高考选拔对标，不抬高教辅基线）', () => {
+    expect(resolveAcademicLevel({ stage: 'high', subject: '音乐', genType: 'practice' })).toBe('水平二');
+    const t = buildLevelInstruction({ stage: 'high', subject: '音乐', genType: 'practice' });
+    expect(t).toContain('水平二');
+    expect(t).toContain(TEACHING_BASELINE.kind);
+    expect(t, '教辅基线不得被高考两级抬高').not.toContain('水平三');
+  });
+
+  it('teachingBlueprints 音乐 high note 引单源（渲染出"水平二与水平三"且标注"不作为教辅要求"）', () => {
+    const note = buildTeachingInjection({ genType: 'practice', stage: 'high', subject: '音乐' });
+    expect(note, '音乐 high note 缺单源渲染出的两级').toContain('水平二与水平三');
+    expect(note, '音乐 high note 未标注"不作为教辅要求"').toContain(LEVEL_SELECTION_CAVEAT);
+  });
+
+  it('🔴 体育守卫：体育不纳入高考对标单源（键与别名皆无），合格考/毕业锚水平二', () => {
+    // ① 单源里不得有"体育"（直接键或任何归一化后为"体育"的别名键）——防将来被手滑补入高考水平
+    expect(Object.prototype.hasOwnProperty.call(SUBJECT_GAOKAO_LEVEL, '体育')).toBe(false);
+    for (const key of Object.keys(SUBJECT_GAOKAO_LEVEL)) {
+      expect(normalizeSubjectName(key, 'high'), `单源不得含体育键（${key}）`).not.toBe('体育');
+    }
+    // ② 出口：体育高考未纳入单源 → 按 LEVEL_MAP 兜底；合格考/毕业与教辅锚水平二
+    expect(gaokaoLevelOf('体育')).toBe(LEVEL_MAP['高考']);
+    expect(gaokaoLevelOf('体育与健康')).toBe(LEVEL_MAP['高考']); // 别名归一为"体育"后同样未纳入
+    expect(hegeLevelOf('体育')).toBe('水平二');
+    expect(resolveAcademicLevel({ stage: 'high', subject: '体育', genType: 'exam', scopeType: 'final' })).toBe('水平二');
+    expect(resolveAcademicLevel({ stage: 'high', subject: '体育', genType: 'practice' })).toBe('水平二');
+    expect(resolveAcademicLevel({ stage: 'high', subject: '体育与健康', paperKind: '合格考' })).toBe('水平二');
+    // ③ 体育教辅提示词里不得出现被"抬高"到更高的选拔级
+    const t = buildLevelInstruction({ stage: 'high', subject: '体育', genType: 'practice' });
+    expect(t).toContain('水平二');
+    expect(t).not.toContain('水平三');
+    expect(t).not.toContain('水平四');
   });
 });

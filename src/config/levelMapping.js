@@ -14,8 +14,12 @@
  *      · 美术：水平三＝对应高考或用于高等院校招生的学业水平等级性考试要求。
  *    上述映射以 SUBJECT_GAOKAO_LEVEL（高考/等级性考试）与 SUBJECT_HEGE_LEVEL（合格考/毕业要求）
  *    两张**按学科**的表为唯一事实源；LEVEL_MAP 仅作**默认/兜底**（未列入学科用）。
- *    ⚠️ 未确证项（**保持现状、未自造、待补**）：音乐（课标为"水平二与水平三"两级，无单一高考对标值）、
- *       体育与健康（无等级性考试，仅合格要求水平二）——不入 SUBJECT_GAOKAO_LEVEL，按 LEVEL_MAP 兜底。
+ *    🔴 2026-09-28（补·多级支持·根治单源结构）：音乐课标为"水平二**与**水平三"两级**共同**作为高考命题
+ *       主要依据，非单一水平——故 SUBJECT_GAOKAO_LEVEL 的取值**支持单值或多值（数组，或"水平二与水平三"
+ *       等价字符串）**；音乐如实填两级，其余学科仍为单值（行为不变）。gaokaoLevelOf() 等出口对多值以课标
+ *       口径"与"连接、统一渲染为"水平二与水平三"（不得自造新概念）。
+ *    ⚠️ 未确证项（**保持现状、未自造**）：体育与健康（无等级性考试，仅合格要求水平二）——**不入**
+ *       SUBJECT_GAOKAO_LEVEL（防将来被手滑补入一个高考水平），按 LEVEL_MAP 兜底。
  *
  * ⚠️ 与 config/teachingBlueprints.js 里各科 high note（学科蓝图栏目注）**分工不同、不互相替代**：
  *    那边写"某学科高中教辅的内容领域与素养 + 高考选拔对标（引用本模块单源）"；
@@ -57,8 +61,12 @@ export const LEVEL_MAP = {
  * ============================================================
  * 键为归一学科名（normalizeSubjectName 的规范名，如 信息技术→信息科技、体育与健康→体育）；
  * 未列入者回退 LEVEL_MAP['高考']（现状，见文件头"未确证项"）。
+ * 🔴 取值形态：**单值或多值** —— 单值为水平字符串（如 '水平四'）；若该科课标有**两级共同**作为
+ *    高考命题依据（音乐：水平二与水平三），则取值为**数组**（或等价的"水平二与水平三"字符串）。
+ *    消费方一律经 formatLevels()/gaokaoLevelOf() 统一渲染为课标口径的可读文本（多值以"与"连接），
+ *    不得在别处手写水平值或自造概念。
  * 🔴 依据 = 各科《普通高中课程标准（2017年版2020年修订）》·五、学业质量·学业质量水平 原文，
- *    并经省级教育行政部门实施口径交叉核证（数学/英语/思想政治/语文/历史/地理/物理/化学/生物）。
+ *    并经省级教育行政部门实施口径交叉核证（数学/英语/思想政治/语文/历史/地理/物理/化学/生物/音乐）。
  * ============================================================
  */
 export const SUBJECT_GAOKAO_LEVEL = {
@@ -77,6 +85,9 @@ export const SUBJECT_GAOKAO_LEVEL = {
   '信息科技': '水平四',
   // 三级水平制：水平三 = 对应高考或高等院校招生
   '美术': '水平三',
+  // 🔴 多级取值：音乐课标为"水平二与水平三"两级**共同**作为高考命题的主要依据（非单一水平）——
+  //    数组形态即"多值"，出口统一渲染为"水平二与水平三"（课标口径，不自造）。
+  '音乐': ['水平二', '水平三'],
 };
 
 /**
@@ -112,13 +123,32 @@ export const hasGenType = (genType = '') => String(genType ?? '').trim() !== '';
 /** 归一学科名（供按学科取水平；stage 缺省按高中处理） */
 const subjectKey = (subject = '', stage = 'high') => normalizeSubjectName(subject, stage) || subject;
 
-/** 某科"高考/等级性考试"对应水平（单源出口；未列入学科回退默认表） */
-export const gaokaoLevelOf = (subject = '', stage = 'high') =>
-  SUBJECT_GAOKAO_LEVEL[subjectKey(subject, stage)] || LEVEL_MAP['高考'];
+/**
+ * 归一化"水平值"为水平数组（兼容**单值或多值**三种等价形态）：
+ *   · 单值字符串 '水平四'          → ['水平四']
+ *   · 数组         ['水平二','水平三'] → ['水平二','水平三']
+ *   · 等价字符串   '水平二与水平三'   → ['水平二','水平三']（按课标连接词"与"拆分）
+ * 空值 / 未传 → []。供多值渲染与"是否多级"判定复用（水平名内不含"与"，拆分安全）。
+ */
+export const toLevelList = (value) => {
+  if (value == null) return [];
+  const parts = Array.isArray(value) ? value : String(value).split('与');
+  return parts.map((v) => String(v ?? '').trim()).filter((v) => v !== '');
+};
 
-/** 某科"合格考/毕业合格要求"对应水平（单源出口；未列入学科回退默认表） */
+/** 是否"多级"取值（≥2 个水平，如音乐"水平二与水平三"） */
+export const isMultiLevel = (value) => toLevelList(value).length > 1;
+
+/** 水平值 → 可读文本：单值原样返回（向后兼容），多值以课标口径"与"连接（如 水平二与水平三） */
+export const formatLevels = (value) => toLevelList(value).join('与');
+
+/** 某科"高考/等级性考试"对应水平（单源出口；支持单值/多值；未列入学科回退默认表） */
+export const gaokaoLevelOf = (subject = '', stage = 'high') =>
+  formatLevels(SUBJECT_GAOKAO_LEVEL[subjectKey(subject, stage)] ?? LEVEL_MAP['高考']);
+
+/** 某科"合格考/毕业合格要求"对应水平（单源出口；支持单值/多值；未列入学科回退默认表） */
 export const hegeLevelOf = (subject = '', stage = 'high') =>
-  SUBJECT_HEGE_LEVEL[subjectKey(subject, stage)] || LEVEL_MAP['合格考'];
+  formatLevels(SUBJECT_HEGE_LEVEL[subjectKey(subject, stage)] ?? LEVEL_MAP['合格考']);
 
 /**
  * 解析"卷别"。
@@ -136,21 +166,20 @@ export function resolvePaperKind({ genType = '', scopeType = '', paperKind = '' 
 }
 
 /**
- * 解析高中应注入的学业质量水平（**按学科分型**）。
- * @returns {string} '水平一' | '水平二' | '水平三' | '水平四' | ''（非高中 / 资料类型缺失 / 无法解析 → 空串，不注入）
+ * 解析高中应注入的学业质量水平（**按学科分型**，支持**单值/多值**）。
+ * @returns {string} '水平一'…'水平四'（单值学科）；多级学科（音乐）为'水平二与水平三'；
+ *                   非高中 / 资料类型缺失 / 无法解析 → 空串（不注入）
  */
 export function resolveAcademicLevel({ stage = '', subject = '', genType = '', scopeType = '', paperKind = '' } = {}) {
   if (!isHighStage(stage)) return ''; // 义务教育无水平级
   // 资料类型缺失（且未显式给 paperKind）→ 不注入：宁可缺、不误标（不再默认按教辅锚基线）
   const explicit = String(paperKind || '').trim();
   if (!explicit && !hasGenType(genType)) return '';
-  const subj = subjectKey(subject, stage);
   const kind = resolvePaperKind({ genType, scopeType, paperKind });
-  // 高考/等级性考试、合格考：均**按学科**取水平（思想政治=水平三、数学/英语=水平二/水平一…）
-  if (kind === '高考') return SUBJECT_GAOKAO_LEVEL[subj] || LEVEL_MAP['高考'];
-  if (kind === '合格考') return SUBJECT_HEGE_LEVEL[subj] || LEVEL_MAP['合格考'];
-  // 教辅（genType 为非 exam 的非空值，无卷别）→ 教学基线（毕业合格要求，按学科：数学/英语=水平一）
-  return SUBJECT_HEGE_LEVEL[subj] || TEACHING_BASELINE.level;
+  // 高考/等级性考试：按学科取水平（单源·支持单值/多值，如音乐两级=水平二与水平三）
+  if (kind === '高考') return gaokaoLevelOf(subject, stage);
+  // 合格考 / 教辅（无卷别→教学基线=毕业合格要求）：同一按学科取值（数学/英语=水平一，其余=水平二）
+  return hegeLevelOf(subject, stage);
 }
 
 /**
@@ -192,6 +221,9 @@ export default {
   LEVEL_INJECTION_MARKER,
   isHighStage,
   hasGenType,
+  toLevelList,
+  isMultiLevel,
+  formatLevels,
   gaokaoLevelOf,
   hegeLevelOf,
   resolvePaperKind,
