@@ -148,9 +148,9 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     expect(summary).toContain('可把本课内容与同类概念归类、对照、勾连成网络');
     expect(summary).toContain('本资料为知识归纳型');
     expect(summary).not.toContain('本资料为命题/练习型');
-    // errorbook = none + expand（不逐条对账口吻）
+    // errorbook = none + expand（不逐条对账口吻；2026-09-28 用户裁定：错题从勾选范围选取，非"用户错题"）
     const err = buildMaterialUsageBlock({ genType: 'errorbook', materialChannel: 'anchor' });
-    expect(err).toContain('本资料围绕错题组织；');
+    expect(err).toContain('从以上内容中选取易错点组织；');
     // 🔒 对账语言与否定定义不得回潮（用户裁定：这类措辞会促使模型按来源逐条铺开）
     for (const [t, name] of [[practice, 'practice'], [summary, 'summary'], [err, 'errorbook']]) {
       expect(t, `${name} 下限/落点/逐条对账不得回潮`).not.toMatch(/下限|落点|逐条对账|不补漏|不是命题上限|不是范围围墙|不做清单外/);

@@ -42,7 +42,7 @@ describe('少约束·委托书不再给组织形态描述（教材颗粒只作�
   });
 
   it('教辅注入：只给栏目名（作大类标题用），不给"栏目序列／框架／认知层次"', () => {
-    for (const genType of ['practice', 'special', 'reading', 'summary', 'preview', 'dictation', 'errorbook', 'review']) {
+    for (const genType of ['practice', 'special', 'reading', 'summary', 'preview', 'dictation', 'review']) {
       const t = buildTeachingInjection({ genType, stage: 'primary_high', subject: '英语', columnStyle: 'a' });
       expect(t, `${genType} 应注入栏目块`).toContain('【大类标题（下面各行即本次大类标题');
       for (const w of ['栏目序列', '栏目框架', '认知层次', '教辅结构']) {
@@ -50,6 +50,21 @@ describe('少约束·委托书不再给组织形态描述（教材颗粒只作�
       }
       // 🔴 栏目名必须照旧注入：a/b/c/d 轮换依赖模型照用注入的栏目名（动它=轮换失效）
       expect(t, `${genType} 栏目名不得丢`).toMatch(/· .+——/);
+    }
+  });
+
+  // 🔴 2026-09-28（用户裁定·出版式易错题集）：易错题本的六项是**每道题的组成分项**，不作资料的大类标题——
+  //    注入走专属结构（按知识点/易错点分块 → 每块下逐题成组），不得回落到"下面各行即本次大类标题"。
+  it('易错题本注入：题内分项结构（不作大类标题）', () => {
+    for (const stage of ['primary_high', 'middle']) {
+      const t = buildTeachingInjection({ genType: 'errorbook', stage, subject: '英语', columnStyle: 'a' });
+      expect(t).toContain('【易错题本结构');
+      expect(t).toContain('每道题在所属块内**逐题成组**');
+      expect(t, '六项不得升格为资料大类').not.toContain('下面各行即本次大类标题');
+      for (const w of ['栏目序列', '栏目框架', '认知层次', '教辅结构']) {
+        expect(t, `易错题本注入不得出现「${w}」`).not.toContain(w);
+      }
+      expect(t, '分项名不得丢（a/b/c/d 轮换依赖模型照用注入的分项名）').toMatch(/· .+——/);
     }
   });
 

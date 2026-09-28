@@ -89,7 +89,7 @@ export const buildMaterialUsageBlock = ({ genType = '', materialChannel = 'auto'
         ? '围绕与本资料主题对应的内容展开；'
         : refMode === 'sampled'
           ? '按命题蓝图从以上内容中抽样；'
-          : '本资料围绕错题组织；';
+          : '从以上内容中选取易错点组织；';
   const extentKey = extentOf(genType); // expand | integrate | strict（single source：coverageContract）
   const coverageExtent = extentKey === 'expand'
     ? '可依本学段课标学业要求另取其他知识点或考查角度（不超出本学段学业要求）；'

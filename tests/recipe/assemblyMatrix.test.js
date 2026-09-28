@@ -80,6 +80,9 @@ function dupSentences(text) {
 const CONTENT_MUST = {
   common: ['质量底线', '课标', '学段'],
   question: ['【创作要求】', '作答空位形态与所填内容相称', '题目自洽（编辑自查总纲', '【大类标题（下面各行即本次大类标题'],
+  // 🔴 2026-09-28（用户裁定·出版式易错题集）：errorbook 六项是**题内分项**，不作资料大类标题 →
+  //    注入走专属结构（【易错题本结构…块 → 逐题成组），不携带"【大类标题（下面各行即本次大类标题"。
+  errorbook: ['【创作要求】', '作答空位形态与所填内容相称', '题目自洽（编辑自查总纲', '【易错题本结构'],
   content: ['【创作要求】', '结构化呈现', '【大类标题（下面各行即本次大类标题'],
   exam: ['【创作要求】', '题目自洽（编辑自查总纲'],
 };
@@ -87,12 +90,17 @@ const CONTENT_MUST = {
 /** 方向1 排版要素清单（编辑者审"排版"：输出格式条款/卷面结构/密封线；结构明细与版面质检规则以非空断言补足）。 */
 const LAYOUT_MUST = {
   question: ['【输出格式】'],
+  errorbook: ['【输出格式】'],
   content: ['【输出格式】'],
   exam: ['【卷面结构】', '密封线'],
 };
 
 /** 方向1 内容要素分支：content 型另有"不串味"负向断言（不泄漏题类条款），排版面由 LAYOUT_MUST + 非空断言覆盖 */
-const branchOf = (genType) => (genType === 'exam' ? 'exam' : QUESTION_TYPES.includes(genType) ? 'question' : 'content');
+const branchOf = (genType) => (genType === 'exam'
+  ? 'exam'
+  : genType === 'errorbook'
+    ? 'errorbook'
+    : QUESTION_TYPES.includes(genType) ? 'question' : 'content');
 
 /** 方向2/4 黑名单：职责外包句（模型该输出的内容外包给程序——违反基准 D）、旧空泛壳句复活 */
 const FORBIDDEN_SNIPPETS = [

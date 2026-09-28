@@ -1171,7 +1171,7 @@ export function useAiGenerator() {
     reading: ['阅读理解', '阅读素养训练', '阅读训练'],
     summary: ['知识梳理', '学习总结', '知识归纳'],
     dictation: ['默写训练', '默写练习', '默写检测'],
-    errorbook: ['易错题专练', '易错题突破', '易错题通关'],
+    errorbook: ['易错题集', '高频易错题', '易错题本'],
     review: ['复习巩固', '综合复习', '复习提升'],
   };
 
@@ -4873,10 +4873,15 @@ ${cardAnalysisText.substring(0, 1000)}
     if (ansShellInContent || splitBodyHasAnswer) {
       content = stripAnswerSection(content);
     }
-    // 🔧 题+解析一体资料（易错题本/知识总结等正文自带解析）once 模式且正文无独立参考答案区：
+    // 🔧 题+解析一体资料（知识总结等正文自带解析）once 模式且正文无独立参考答案区：
     //    正文已含解析/答案标注时不再补独立答案页（正文解析即答案，防"正文解析 + 独立答案页"重复）
-    const genTypeCarriesAnswers = ['errorbook', 'summary'].includes(genType);
-    const bodyCarriesAnswers = /答案[:：]|解析[:：]|解法[:：]|归因[:：]|解题思路[:：]|评析[:：]/.test(content);
+    // 🔴 2026-09-28（用户裁定·甲方案）：**易错题本移出本表**——其"题目/典型错法/错因剖析/正确解答/方法提示"是随题讲解，
+    //    但"变式"是留给学生做的题，其答案必须由独立答案区给出；沿用"正文自带解析即跳过答案页"会让变式无答案。
+    const genTypeCarriesAnswers = ['summary'].includes(genType);
+    // 🔴 2026-09-28（甲方案配套）：易错题本**不受"正文含'答案：'即跳过答案页"影响**——正文的讲解分项
+    //    （典型错法/错因剖析/正确解答/方法提示）本就不该触发"自带答案"，且变式的答案必须由答案页给出。
+    const bodyCarriesAnswers = genType !== 'errorbook'
+      && /答案[:：]|解析[:：]|解法[:：]|归因[:：]|解题思路[:：]|评析[:：]/.test(content);
     // 🔴 正文冻结快照（2026-09-10 丢题根治）：答案生成前记录正文题号序列——交付前与最终正文比对
     //    （见质检区"正文完整性终检"）：任何"答案生成后动正文"都会被如实告警，
     //    "丢题是生成时还是生成后"由系统自证，不再靠人工考古；序列为空（无题号资料）不参与比对。

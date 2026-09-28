@@ -148,11 +148,17 @@ export const TEACHING_BLUEPRINTS = {
   },
 
   // ══════════════ 易错题本 ══════════════
+  // 🔴 2026-09-28（用户裁定·按"出版式易错题集"改造）：本类型 sections **不是资料的大类**，
+  //    而是**每道题的组成分项**（题目→典型错法→错因→正确解答→方法提示→变式）。
+  //    标 shape:'perItem'（题内分项型）：注入侧据此走专属结构——按知识点/易错点分块、每块下逐题成组；
+  //    **不得**再套用"下面各行即本次大类标题"（那会把六个分项读成六个跨题板块，学生无法逐题对照，
+  //    且"变式训练"会独立成一栏、其答案无处安放）。
   errorbook: {
     label: '易错题本',
+    shape: 'perItem',
     sections: [
       { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
       { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确，不写空泛套话' },
       { name: '正确解答', note: '分步完整解答，讲透解题思路' },
       { name: '方法提炼', note: '归纳本类题可迁移的通用策略' },
@@ -247,7 +253,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       label: '易错题本',
       sections: [
         { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-        { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+        { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
         { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
         { name: '正确解答', note: '分步完整解答' },
         { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -319,7 +325,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       label: '易错题本',
       sections: [
         { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-        { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+        { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
         { name: '错因剖析', note: '具体到知识点或解题步骤（审题/建模/计算/验证），归因明确' },
         { name: '正确解答', note: '分步完整解答' },
         { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -391,7 +397,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       label: '易错题本',
       sections: [
         { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-        { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+        { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
         { name: '错因剖析', note: '具体到知识点或解题步骤（词汇/语法/语篇理解），归因明确' },
         { name: '正确解答', note: '分步完整解答' },
         { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -463,7 +469,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       label: '易错题本',
       sections: [
         { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-        { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+        { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
         { name: '错因剖析', note: '具体到知识点或解题步骤（概念/实验操作/现象解释），归因明确' },
         { name: '正确解答', note: '分步完整解答' },
         { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -540,7 +546,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       label: '易错题本',
       sections: [
         { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-        { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+        { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
         { name: '错因剖析', note: '具体到知识点或解题步骤（概念理解/审题建模/计算/实验操作），归因明确' },
         { name: '正确解答', note: '分步完整解答' },
         { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -597,7 +603,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     errorbook: { label: '易错题本', sections: [
       { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
       { name: '错因剖析', note: '具体到知识点或解题步骤（概念/化学用语/实验操作/计算），归因明确' },
       { name: '正确解答', note: '分步完整解答' },
       { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -650,7 +656,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     errorbook: { label: '易错题本', sections: [
       { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
       { name: '错因剖析', note: '具体到知识点或解题步骤（概念/结构功能/实验/数据分析），归因明确' },
       { name: '正确解答', note: '分步完整解答' },
       { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -703,7 +709,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     errorbook: { label: '易错题本', sections: [
       { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
       { name: '错因剖析', note: '具体到知识点或解题步骤（史实/材料解读/论证），归因明确' },
       { name: '正确解答', note: '分步完整解答' },
       { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -756,7 +762,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     errorbook: { label: '易错题本', sections: [
       { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
       { name: '错因剖析', note: '具体到知识点或解题步骤（概念/地图判读/要素分析），归因明确' },
       { name: '正确解答', note: '分步完整解答' },
       { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -808,7 +814,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     errorbook: { label: '易错题本', sections: [
       { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
       { name: '错因剖析', note: '具体到知识点或解题步骤（概念/材料解读/表述），归因明确' },
       { name: '正确解答', note: '分步完整解答' },
       { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -856,7 +862,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     errorbook: { label: '易错题本', sections: [
       { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
       { name: '错因剖析', note: '具体到知识点或解题步骤（概念/价值判断/表述），归因明确' },
       { name: '正确解答', note: '分步完整解答' },
       { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -904,7 +910,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     errorbook: { label: '易错题本', sections: [
       { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
       { name: '错因剖析', note: '具体到知识点或解题步骤（概念/操作/流程设计），归因明确' },
       { name: '正确解答', note: '分步完整解答' },
       { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -952,7 +958,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     errorbook: { label: '易错题本', sections: [
       { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
       { name: '错因剖析', note: '具体到知识点或解题步骤（乐理/听辨/表现），归因明确' },
       { name: '正确解答', note: '分步完整解答' },
       { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -1000,7 +1006,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     errorbook: { label: '易错题本', sections: [
       { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
       { name: '错因剖析', note: '具体到知识点或解题步骤（概念/赏析/表现），归因明确' },
       { name: '正确解答', note: '分步完整解答' },
       { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -1048,7 +1054,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     errorbook: { label: '易错题本', sections: [
       { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '学生常见错误解法或答案，指出错在哪一步（真实高频错法，不杜撰）' },
+      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
       { name: '错因剖析', note: '具体到知识点或解题步骤（要领/规则/安全），归因明确' },
       { name: '正确解答', note: '分步完整解答' },
       { name: '方法提炼', note: '归纳本类题通用策略' },
@@ -1225,6 +1231,9 @@ export function getTeachingBlueprint({ genType = '', stage = '', subject = '' } 
   const stageParams = stages[stageKey] || stages.primary_mid;
   return {
     label: bp.label, sections: bp.sections, stageParams,
+    // 🔴 2026-09-28：shape 是**类型级**属性（不随学科定制变化）——一律取通用蓝图；缺省 'columns'（栏目标题型）。
+    //    'perItem' = 题内分项型（易错题本）：sections 是每道题的组成分项，注入侧据此走专属结构。
+    shape: def?.shape || 'columns',
     key: `${subject || '*'}|${genType}|${stageKey}`, stageKey,
     subject: subject || '*', custom: bp === custom, // 停用定制后走通用模板 → custom=false
   };
@@ -1264,8 +1273,22 @@ export function buildTeachingInjection({ genType = '', stage = '', subject = '',
   const sectionsText = sections.map(s => `· ${s.name}${reqTag(stripSourceMarkNote(s.note))}`).join('\n');
   const p = bp.stageParams;
   const stageLine = p.note ? `\n▌学段要求（${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）\n· ${p.note}` : '';
-  const reqLine = '\n▌要求落实\n· 每行"【要求·须逐项落实】"后是该栏目的**内容与形态要求**（本栏要练到什么、以什么形式呈现），成稿前逐栏目对照自查：凡写了而没做到的，改内容或改写法，二者取一。该要求**只管内容与形态**——它**不是题组划分或命名的依据**（组与组名仍由你按内容自定）。';
   const cur = CURRICULUM_BY_STAGE[bp.stageKey] || CURRICULUM_BY_STAGE.primary_mid;
+  // 🔴 2026-09-28（用户裁定·按"出版式易错题集"改造 · 甲方案）：perItem 型（易错题本）的 sections 是
+  //    **每道题的组成分项**（题目→典型错法→错因→正确解答→方法提示→变式），不是资料的大类。
+  //    故不走下方"下面各行即本次大类标题"（那会把六个分项读成六个跨题板块：先集中列题，再回头集中给错解/错因/正解——
+  //    学生无法逐题对照，且"变式训练"独立成栏后其答案无处安放）。改为：按知识点/易错点分块 → 每块下逐题 → 每题依次成组。
+  //    题号只给"变式"（学生要做的题），"题目"是讲解示范单元（解答随题展示，等同典型例题）——答案区只对变式作答（甲）。
+  if (bp.shape === 'perItem') {
+    const facetsText = sections.map(s => `  · ${s.name}${reqTag(stripSourceMarkNote(s.note))}`).join('\n');
+    const perItemReq = '\n▌要求落实\n· 上列各项是**每道题的组成分项**（每行"【要求·须逐项落实】"后是该分项的内容与形态要求），不是资料的大类；成稿前逐题逐项对照自查：凡写了而没做到的，改内容或改写法，二者取一。';
+    return `\n\n【易错题本结构（按${cur}的活动类型与素养选点；${bp.custom ? `${bp.subject}·` : ''}${bp.label}·${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）】
+· 资料按**知识点或易错点分块**：每块以一个知识点或一类易错点为单位，块标题自拟（写清本块是哪一处知识、哪一类错法）
+· 每道题在所属块内**逐题成组**：同一道题的各分项紧接在该题之下依次给出——
+${facetsText}
+· 其中"题目"是讲解示范的题（题干完整呈现，其解答随题展示）；"变式"是留给学生练的一道题，须带题号（1. 2. 3.…，全篇连续），其解答由答案区单独给出${perItemReq}${stageLine}`;
+  }
+  const reqLine = '\n▌要求落实\n· 每行"【要求·须逐项落实】"后是该栏目的**内容与形态要求**（本栏要练到什么、以什么形式呈现），成稿前逐栏目对照自查：凡写了而没做到的，改内容或改写法，二者取一。该要求**只管内容与形态**——它**不是题组划分或命名的依据**（组与组名仍由你按内容自定）。';
   // 🔴 2026-09-16（用户裁定·课标↔大类挂钩）：块头显式交代"这些大类的分类依据是课标"——
   //    原先只给栏目名，模型手上唯一的分类依据只能是教材分析的颗粒 → 颗粒被读成大题骨架。
   //    措辞零自造：只出现"大类标题"与课标版本名，不出现结构/序列/栏目框架这类词。
