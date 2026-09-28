@@ -5,9 +5,9 @@
 // 与 assemblyMatrix 的分工（不重复）：
 //   · assemblyMatrix 管"合法 486 组合**拼出来的指令**对不对"（内容/冗余/课标/基准）；
 //   · 本条管"**矩阵本身**是否四库同构 + 矩阵外行为是否留痕"——即"矩阵被谁悄悄改窄/改宽"。
-// 已知缺口显性化（D 的待办清单，补齐后本条同步收窄）：
-//   · 教辅"学科级学段要求"（stages）目前只有 6 科（物理/化学/生物/历史/地理/思想政治——恰为
-//     只在初高中开设的那 6 科）；其余 9 科的教辅学段要求取通用档（栏目已学科化，故影响有限）。
+// 已知缺口（原）：教辅"学科级学段要求"（stages）曾只有 6 科（物理/化学/生物/历史/地理/思想政治——
+//   恰为只在初高中开设的那 6 科）；2026-09-28 已补齐其余 9 科（语文/数学/英语/科学/道德与法治/信息科技/音乐/美术/体育），
+//   现 **15 科全覆盖**（各科只写该学段实际开设的档；科学不设 high、道德与法治不设 high，高中归「思想政治」）。
 // ============================================================
 import { describe, it, expect, vi } from 'vitest';
 import { STAGE_SUBJECTS, SUBJECT_STAGE_EXTRAS } from '@/config/promptLibrary.js';
@@ -85,13 +85,13 @@ describe('三维度矩阵对齐守卫（以"实际开设"为准；矩阵外不�
     }
   });
 
-  it('已知缺口显性化：教辅"学科级学段要求"缺口恰为 9 科（补齐后本条同步收窄）', () => {
+  it('教辅"学科级学段要求"已 15 科全覆盖（缺口收窄为 0）', () => {
     const withStages = Object.keys(TEACHING_SUBJECT_BLUEPRINTS)
       .filter((s) => TEACHING_SUBJECT_BLUEPRINTS[s]?.stages);
     const withoutStages = OFFERED_SUBJECTS.filter((s) => !withStages.includes(s));
-    // 已有学科级学段要求：恰为"只在初高中开设"的 6 科
-    expect(sorted(withStages)).toEqual(sorted(['物理', '化学', '生物', '历史', '地理', '思想政治']));
-    // 待补（D）：其余 9 科
-    expect(sorted(withoutStages)).toEqual(sorted(['语文', '数学', '英语', '科学', '道德与法治', '信息科技', '音乐', '美术', '体育']));
+    // 已有学科级学段要求：实际开设学科全集（15 科）
+    expect(sorted(withStages)).toEqual(sorted(OFFERED_SUBJECTS));
+    // 缺口显式清单：空（已无学科缺学科级学段要求）
+    expect(withoutStages, '15 科全覆盖：无学科缺学科级学段要求').toEqual([]);
   });
 });
