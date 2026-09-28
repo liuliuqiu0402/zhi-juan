@@ -16,7 +16,9 @@
  * 🔴 卷别口径：
  *    · 正式卷（genType='exam'）：按卷别映射——升学卷别为高考（scopeType='gaokao'）→ 高考；
  *      其余高中正式卷（期中/期末/月考/专题/综合等）→ 合格考（合格要求）。
- *    · 教辅（非 exam，无卷别）：不作卷别映射，统一锚"水平二（合格要求）"为**教学基线**。
+ *    · 教辅（genType 为非 exam 的非空值，无卷别）：不作卷别映射，统一锚"水平二（合格要求）"为**教学基线**。
+ *    · 资料类型缺失（genType 为空/未传，且未显式给 paperKind）：**不注入**水平块——宁可缺、不误标；
+ *      不得把"未传"默认当成教辅而锚水平二（那会把未知资料误标为合格要求）。
  *
  * 🔴 作用域：**仅高中生效**。义务教育（primary_* / middle）无学业质量水平级，一律返回空串、不注入。
  * ============================================================
@@ -53,6 +55,12 @@ export const LEVEL_INJECTION_MARKER = '【学业质量水平】';
 export const isHighStage = (stage = '') => resolveStageKey(stage) === 'high';
 
 /**
+ * 资料类型是否已显式提供（空串 / 未传 / 纯空白 → 视为未提供）。
+ * 供"资料类型缺失即不注入水平块"守卫使用：宁可缺、不误标，杜绝把"未传"默认当教辅。
+ */
+export const hasGenType = (genType = '') => String(genType ?? '').trim() !== '';
+
+/**
  * 解析"卷别"。
  * @param {Object} opts
  * @param {string} [opts.genType] 资料类型（'exam' = 正式卷）
@@ -69,28 +77,31 @@ export function resolvePaperKind({ genType = '', scopeType = '', paperKind = '' 
 
 /**
  * 解析高中应注入的学业质量水平。
- * @returns {string} '水平二' | '水平三' | '水平四' | ''（非高中 / 无法解析 → 空串，不注入）
+ * @returns {string} '水平二' | '水平三' | '水平四' | ''（非高中 / 资料类型缺失 / 无法解析 → 空串，不注入）
  */
 export function resolveAcademicLevel({ stage = '', subject = '', genType = '', scopeType = '', paperKind = '' } = {}) {
   if (!isHighStage(stage)) return ''; // 义务教育无水平级
+  // 资料类型缺失（且未显式给 paperKind）→ 不注入：宁可缺、不误标（不再默认按教辅锚水平二）
+  const explicit = String(paperKind || '').trim();
+  if (!explicit && !hasGenType(genType)) return '';
   const subj = normalizeSubjectName(subject, stage) || subject;
   const kind = resolvePaperKind({ genType, scopeType, paperKind });
   // 学科例外：思想政治高考卷 → 水平三（先于通用卷别判定）
   if (kind === '高考' && SUBJECT_LEVEL_KEYS.includes(subj)) return LEVEL_MAP[subj];
   if (kind && LEVEL_MAP[kind]) return LEVEL_MAP[kind];
-  // 教辅（无卷别）→ 教学基线（合格要求）
+  // 教辅（genType 为非 exam 的非空值，无卷别）→ 教学基线（合格要求）
   return TEACHING_BASELINE.level;
 }
 
 /**
  * 生成"学业质量水平"注入文本（**唯一出口**：指令正文只经此处注入一次）。
- * 非高中 / 无水平 → 返回空串（不注入）。
+ * 非高中 / 资料类型缺失 / 无水平 → 返回空串（不注入）。
  * @returns {string} 形如「【学业质量水平】本卷为高中高考卷，对标学业质量水平四（…）；难度与情境不超该水平要求。」
  */
 export function buildLevelInstruction({ stage = '', subject = '', genType = '', scopeType = '', paperKind = '' } = {}) {
   if (!isHighStage(stage)) return '';
   const level = resolveAcademicLevel({ stage, subject, genType, scopeType, paperKind });
-  if (!level) return '';
+  if (!level) return ''; // 资料类型缺失 / 无法解析 → 空串（不注入，宁可缺、不误标）
   const kind = resolvePaperKind({ genType, scopeType, paperKind });
   const lead = kind
     ? `本卷为高中${kind}卷，对标学业质量${level}`
@@ -106,6 +117,7 @@ export default {
   TEACHING_BASELINE,
   LEVEL_INJECTION_MARKER,
   isHighStage,
+  hasGenType,
   resolvePaperKind,
   resolveAcademicLevel,
   buildLevelInstruction,

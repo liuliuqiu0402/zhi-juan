@@ -3,7 +3,8 @@
 // 锁定三件事：
 //   ① 每个卷别都有映射（合格考→水平二、高考→水平四），思想政治为例外（高考→水平三）；
 //   ② 映射结果写进指令正文，且**只注入一处**（高中正式卷按卷别、教辅锚水平二合格要求）；
-//   ③ 仅高中生效——义务教育（小学/初中）无水平级，一律不注入。
+//   ③ 仅高中生效——义务教育（小学/初中）无水平级，一律不注入；
+//   ④ 资料类型缺失（genType 空/未传）时不注入——宁可缺、不误标（不得把"未传"默认当教辅锚水平二）。
 // 单一事实源：src/config/levelMapping.js（不得在别处再写一份水平口径）。
 // ============================================================
 import { describe, it, expect } from 'vitest';
@@ -131,5 +132,50 @@ describe('③ 仅高中生效（义务教育无水平级）', () => {
     expect(resolveAcademicLevel({ stage: 'high', subject: '思想政治', genType: 'exam', scopeType: 'gaokao' })).toBe('水平三');
     expect(resolveAcademicLevel({ stage: 'high', subject: '语文', genType: 'exam', scopeType: 'final' })).toBe('水平二');
     expect(resolveAcademicLevel({ stage: 'high', subject: '语文', genType: 'practice' })).toBe('水平二');
+  });
+});
+
+describe('④ 资料类型缺失（genType 空/未传）时不注入（宁可缺、不误标）', () => {
+  // 既往缺陷：genType 缺失被默认当作"教辅"，锚到"水平二（合格要求）"，把未知资料误标为合格要求。
+  const MISSING = [undefined, '', '   '];
+
+  it('genType 空/未传 → resolveAcademicLevel / buildLevelInstruction 均返回空串', () => {
+    for (const genType of MISSING) {
+      expect(resolveAcademicLevel({ stage: 'high', subject: '物理', genType }), `genType=${JSON.stringify(genType)} 不应解析出水平`).toBe('');
+      expect(buildLevelInstruction({ stage: 'high', subject: '物理', genType })).toBe('');
+    }
+  });
+
+  it('genType 空/未传 → 指令正文里不出现【学业质量水平】段', () => {
+    for (const genType of MISSING) {
+      const out = buildInjectionInstruction({
+        template: '你是命题专家。', stage: 'high', subject: '物理', genTypeLabel: '资料', genType,
+      });
+      expect(countMarker(out), `genType=${JSON.stringify(genType)} 不应注入水平段`).toBe(0);
+      expect(out).not.toContain('学业质量水平');
+      expect(out).not.toContain('水平二'); // 尤其不得默认锚"水平二"
+    }
+    // 完全不传 genType（缺省）同样不注入
+    const noGenType = buildInjectionInstruction({ template: '你是命题专家。', stage: 'high', subject: '物理' });
+    expect(countMarker(noGenType)).toBe(0);
+  });
+
+  it('显式 paperKind 属显式口径，不受 genType 缺失影响', () => {
+    expect(buildLevelInstruction({ stage: 'high', subject: '物理', paperKind: '高考' })).toContain('水平四');
+    expect(resolveAcademicLevel({ stage: 'high', subject: '物理', paperKind: '合格考' })).toBe('水平二');
+  });
+
+  it('正式卷 / 教辅两类正常路径不受影响', () => {
+    // 正式卷：按卷别映射
+    expect(buildLevelInstruction({ stage: 'high', subject: '物理', genType: 'exam', scopeType: 'gaokao' })).toContain('水平四');
+    expect(resolveAcademicLevel({ stage: 'high', subject: '物理', genType: 'exam', scopeType: 'final' })).toBe('水平二');
+    // 教辅（genType 为非 exam 的非空值）：锚教学基线（合格要求）
+    const teaching = buildLevelInstruction({ stage: 'high', subject: '物理', genType: 'practice' });
+    expect(teaching).toContain(LEVEL_INJECTION_MARKER);
+    expect(teaching).toContain('水平二');
+    expect(teaching).toContain(TEACHING_BASELINE.kind);
+    // 教辅与"缺失"必须区分开：缺失为 ''、教辅有值
+    expect(resolveAcademicLevel({ stage: 'high', subject: '物理', genType: 'practice' })).toBe('水平二');
+    expect(resolveAcademicLevel({ stage: 'high', subject: '物理', genType: '' })).toBe('');
   });
 });
