@@ -12,6 +12,7 @@ import { djb2 } from '../utils/hash';
 import { resolveAnchorKind } from '../utils/anchorTreeContract'; // 🔬 (b) 条目性质判定唯一实现（显式 kind 优先 + 条目名兜底），落库归一与生成端同源
 // @ts-ignore - textbookMeta.js 无类型声明
 import { autoDetectTextbookMeta } from '../utils/textbookMeta'; // 存量数据回填高中册次（与导入识别同源，避免两套判据）
+import { STORAGE_KEYS } from '../constants/storageKeys'; // localStorage 业务 key 唯一事实源（textbooks 曾字面量）
 
 export { sanitizeFsName } from '../utils/libraryPathRepair';
 
@@ -171,7 +172,7 @@ export const useTextbookStore = defineStore('textbook', {
 
   actions: {
     async loadTextbooks() {
-      const saved = await storage.getItem<Textbook[]>('textbooks');
+      const saved = await storage.getItem<Textbook[]>(STORAGE_KEYS.TEXTBOOKS);
       if (saved) {
         // 🔑 存量数据回填 semester（从名称自动检测上下册）
         let hasChange = false;
@@ -276,7 +277,7 @@ export const useTextbookStore = defineStore('textbook', {
         }
         // 🔧 完成回填 & 旧路径自愈后写回，后续不再做
         this.textbooks = saved;
-        if (hasChange) await storage.setItem('textbooks', saved);
+        if (hasChange) await storage.setItem(STORAGE_KEYS.TEXTBOOKS, saved);
       }
     },
 
@@ -284,7 +285,7 @@ export const useTextbookStore = defineStore('textbook', {
       this.textbooks.forEach(book => {
         if (book.outline) applyAnalyzedSync(book.outline);
       });
-      await storage.setItem('textbooks', this.textbooks);
+      await storage.setItem(STORAGE_KEYS.TEXTBOOKS, this.textbooks);
     },
 
     addTextbook(book: Textbook) {

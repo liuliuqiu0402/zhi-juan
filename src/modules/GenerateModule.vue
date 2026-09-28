@@ -4731,7 +4731,7 @@ const onSrcRowClick = (s) => {
 };
 const analysisResult = ref(null);
 // 🔧 持久化存储：刷新不丢失
-const STORAGE_KEY = 'wisdom_generated_docs';
+const STORAGE_KEY = STORAGE_KEYS.GENERATED_DOCS;
 
 // 从 id 中提取时间戳（id 格式: period_1735689600000_... 或 doc_1735689600000_...）
 const extractTimestampFromId = (id) => {
@@ -9254,10 +9254,10 @@ const retryGenerate = (doc) => {
 };
 
 const saveToHistory = async (doc) => {
-  const history = (await storage.getItem('docHistory')) || [];
+  const history = (await storage.getItem(STORAGE_KEYS.DOC_HISTORY)) || [];
   history.unshift({ ...doc, savedAt: Date.now() });
   const localTrimmed = history.slice(0, 50);
-  await storage.setItem('docHistory', localTrimmed);
+  await storage.setItem(STORAGE_KEYS.DOC_HISTORY, localTrimmed);
 };
 
 const sendToTypeset = async (doc) => {

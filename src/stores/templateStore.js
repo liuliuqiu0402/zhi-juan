@@ -4,6 +4,7 @@ import { resolveStoredPath, getStoragePath } from '../utils/pathHelper';
 import { repairLibraryPaths } from '../utils/libraryPathRepair';
 import { hasAnySelected as hasAnySelectedTree, countSelected as countSelectedTree } from '../utils/outlineTree'; // 大纲树勾选唯一实现（曾 store 内 3 份逐字副本）
 import { autoDetectTextbookMeta } from '../utils/textbookMeta'; // 存量回填高中册次（与导入识别同源）
+import { STORAGE_KEYS } from '../constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（templates 曾字面量）
 
 export const useTemplateStore = defineStore('template', {
   state: () => ({
@@ -33,7 +34,7 @@ export const useTemplateStore = defineStore('template', {
 
   actions: {
     async loadTemplates() {
-      const saved = await storage.getItem('templates');
+      const saved = await storage.getItem(STORAGE_KEYS.TEMPLATES);
       if (saved) {
         // 🔑 存量数据回填 semester（从名称自动检测上下册）
         let hasChange = false;
@@ -85,7 +86,7 @@ export const useTemplateStore = defineStore('template', {
           }
         }
         this.templates = saved;
-        if (hasChange) await storage.setItem('templates', saved);
+        if (hasChange) await storage.setItem(STORAGE_KEYS.TEMPLATES, saved);
       }
     },
 
@@ -111,7 +112,7 @@ export const useTemplateStore = defineStore('template', {
       this.templates.forEach(tpl => {
         if (tpl.outline) updateParentAnalyzed(tpl.outline);
       });
-      await storage.setItem('templates', this.templates);
+      await storage.setItem(STORAGE_KEYS.TEMPLATES, this.templates);
     },
 
     addTemplate(tpl) {

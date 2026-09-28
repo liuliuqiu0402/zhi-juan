@@ -160,7 +160,7 @@ const filteredHistoryList = computed(() => {
 });
 
 const loadHistory = async () => {
-  const saved = await storage.getItem('docHistory');
+  const saved = await storage.getItem(STORAGE_KEYS.DOC_HISTORY);
   if (saved) {
     // 🔧 加载本地墓碑，作为加载时的最后一道兜底过滤
     let tombstoneIds = {};
@@ -174,7 +174,7 @@ const loadHistory = async () => {
       }
     }
     if (needsSave) {
-      await storage.setItem('docHistory', saved).catch(() => {});
+      await storage.setItem(STORAGE_KEYS.DOC_HISTORY, saved).catch(() => {});
       console.log('🩹 已为历史记录补填 savedAt');
     }
     // 🔧 兜底过滤：排除_deleted标记 + 本地墓碑中的条目
@@ -186,7 +186,7 @@ const loadHistory = async () => {
     historyList.value = sorted.length > 50 ? sorted.slice(-50) : sorted;
     // 🔧 如果过滤了条目，回写干净数据到 storage
     if (tombstoneCount > 0) {
-      await storage.setItem('docHistory', cleanSaved).catch(() => {});
+      await storage.setItem(STORAGE_KEYS.DOC_HISTORY, cleanSaved).catch(() => {});
     }
   }
 };
@@ -208,7 +208,7 @@ const clearAllHistory = async () => {
       Object.assign(existing, deletedIds);
       localStorage.setItem(STORAGE_KEYS.DELETED_HIST_IDS, JSON.stringify(existing));
     } catch {}
-    await storage.setItem('docHistory', historyList.value);
+    await storage.setItem(STORAGE_KEYS.DOC_HISTORY, historyList.value);
     // 🔧 立即推送墓碑到云端（fire-and-forget），不等待同步流程
     pushDeletedDocIds('doc_history', deletedIds).catch(e => console.error('清空后墓碑推送失败:', e?.message || e));
   }
@@ -227,7 +227,7 @@ const deleteHistoryItem = async (id) => {
     deletedIds[id] = Date.now();
     localStorage.setItem(STORAGE_KEYS.DELETED_HIST_IDS, JSON.stringify(deletedIds));
   } catch {}
-  await storage.setItem('docHistory', historyList.value);
+  await storage.setItem(STORAGE_KEYS.DOC_HISTORY, historyList.value);
   // 🔧 立即推送墓碑到云端（fire-and-forget），不等待同步流程
   pushDeletedDocIds('doc_history', { [id]: Date.now() }).catch(e => console.error('删除后墓碑推送失败:', e?.message || e));
 };

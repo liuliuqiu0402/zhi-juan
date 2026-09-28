@@ -502,6 +502,7 @@ import { readClipboardRich } from '../utils/pastedMath.js';
 import { restoreMathPreviewSource } from '../utils/mathPreview.js';
 import storage from '../utils/storage';
 import { compressDocArray, decompressDocArray } from '../utils/contentCompress.js';
+import { STORAGE_KEYS } from '../constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（wisdom_generated_docs 曾字面量）
 
 defineOptions({ name: 'TypesetModule' });
 
@@ -584,7 +585,7 @@ const onRichEditorChange = (html) => {
 const documents = ref([]);
 
 // 🔧 生成记录：直接从 localStorage 读取，无需依赖事件推送
-const GEN_STORAGE_KEY = 'wisdom_generated_docs';
+const GEN_STORAGE_KEY = STORAGE_KEYS.GENERATED_DOCS;
 const genRecords = ref([]);
 const currentGenRecordId = ref(null);  // 🔧 跟踪当前加载的生成记录，编辑后回写
 const refreshGenRecords = async () => {
