@@ -204,9 +204,14 @@ export const STYLE_GROUP = { PROPOSITION: 'proposition', PRESENTATION: 'presenta
  */
 export const styleOptions = [
   // ── 命题风格组（以题为主的资料：题的组织方式）──
-  { group: 'proposition', value: 'unified_context', label: '课标卷型', desc: '全卷统一核心情境、情境贯穿设问',
-    tip: '整卷围绕一个核心主题情境展开，情境贯穿所有题目，设问在情境下连贯展开；适用于正式考试类资料。（卷面结构由考卷蓝本给定，不由本风格决定）',
-    appliesTo: ['exam'], required: true },
+  // 🔴 2026-09-28（用户裁定·情境口径归两课标 + 由必选降为可选）：
+  //    ① 情境取向锚到**本学科课程标准界定的情境类型**（义教课标"真实而富有意义的学习情境"；
+  //       高中课标"以具体情境为载体"），不再暗示"每一小题都被同一叙事场景包裹"；
+  //    ② 由 required:true 降为可选——不选时走**严肃卷面分支**（不注入统一情境框架、不写卷首引导语、
+  //       大题标题走严肃功能性命名；该规则的单源见 promptLibrary 的卷面格式条款，此处不再复述）。
+  { group: 'proposition', value: 'unified_context', label: '课标卷型', desc: '全卷统一核心情境、主题与设问连贯',
+    tip: '整卷围绕一个核心情境展开，主题与设问在全卷保持连贯；情境沿用本学科课程标准界定的情境类型（义教课标"真实而富有意义的学习情境"；高中课标"以具体情境为载体"），不要求每一小题都被同一叙事场景包裹。（卷面结构由考卷蓝本给定，不由本风格决定）',
+    appliesTo: ['exam'], required: false },
   { group: 'proposition', value: 'unit_context', label: '单元情境卷', desc: '单元大情境贯穿栏目',
     tip: '以本单元大情境/大任务组织，栏目间情境连贯递进，考查单元整体理解；适用于同步练习、复习等以单元组织的资料。',
     appliesTo: ['practice', 'review'], required: false },
@@ -249,9 +254,12 @@ export const styleOptionsForType = (genType = '') => {
   return { group, options: list };
 };
 
-/** 资料类型 → 默认风格（选类型未手动选时自动推荐） */
+/** 资料类型 → 默认风格（选类型未手动选时自动推荐）
+ *  🔴 2026-09-28（用户裁定）：exam **不再默认统一情境**——课标卷型由必选降为可选后，
+ *     exam 的默认落在**严肃卷面分支**（无统一情境框架注入、不写卷首引导语、大题标题走严肃功能性命名），
+ *     需要统一情境时由用户显式选「课标卷型」。 */
 export const DEFAULT_STYLE_BY_TYPE = {
-  exam: 'unified_context',
+  exam: '',
   practice: 'scenario_each',
   special: 'scenario_each',
   reading: 'scenario_each',
@@ -262,9 +270,15 @@ export const DEFAULT_STYLE_BY_TYPE = {
   errorbook: '',
 };
 
-/** 该类型是否必须在生成前确认风格（必选弹窗） */
-export const isStyleRequiredForType = (genType = '') =>
-  !!DEFAULT_STYLE_BY_TYPE[genType] && genType !== 'dictation' && genType !== 'errorbook';
+/** 该类型是否必须在生成前确认风格（必选弹窗）
+ *  🔒 单一事实源：只看该类型默认风格对应选项的 `required` 标记（不再按"类型有默认值"推断，
+ *     否则 exam 会因默认值被误判为必选）。当前全部风格 required=false → 任何类型都不强制确认。 */
+export const isStyleRequiredForType = (genType = '') => {
+  const def = DEFAULT_STYLE_BY_TYPE[genType];
+  if (!def) return false;
+  const opt = styleOptions.find((o) => o.value === def);
+  return !!(opt && opt.required);
+};
 
 // ==================== 组织风格指令（生成时注入：情境组织/呈现方式，简洁不诱导） ====================
 // 🔒 2026-09-15 用户裁定·情境口径归课标（本表 = GenerateModule 追加的【组织风格】实施说明，逐字注入）：
@@ -274,7 +288,10 @@ export const isStyleRequiredForType = (genType = '') =>
 //    课标对情境的要求是"真实、适切"，且取向**分科分档**（见 promptLibrary.SUBJECT_STAGE_EXTRAS 的 source 引用）。
 //    故本表只保留**组织形态语义**（逐题独立/大主题串联），情境取向归学科·学段要点单源承载。
 export const styleInstructions = {
-  'unified_context': '整份资料围绕一个核心主题情境展开，情境贯穿全卷，各题在此情境下连贯设问。',
+  // 🔴 2026-09-28（用户裁定·注入句同源改准）：原句"情境贯穿全卷，各题在此情境下连贯设问"会被读成
+  //    "每一小题都被同一叙事场景包裹"。改为锚到**本学科课程标准界定的情境类型**、只要求
+  //    "主题与设问在全卷连贯"，与该情境相适的题目在其下展开（与 unified_context.tip 同源）。
+  'unified_context': '整份资料围绕一个核心主题情境展开，主题与设问在全卷连贯；情境沿用本学科课程标准界定的情境类型，与该情境相适的题目在其下展开。',
   'unit_context': '以本单元大情境组织，栏目间情境连贯递进，各题在单元情境下展开。',
   'scenario_each': '每题设置独立、真实适切的情境设问（情境取向依本学科本学段的课标要求），情境与题目内容一致。',
   'big_unit': '打破课时界限，围绕大概念整体组织，体现知识关联与递进。',

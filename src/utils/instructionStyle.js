@@ -28,6 +28,9 @@ export function parseStyleFromInstruction(instruction = '') {
   const line = m[1].trim();
   const value = line.split(/[：:]/)[0].trim();
   // 统一情境类：整卷/整单元围绕一个核心情境（unified_context 课标卷型、unit_context 单元情境卷）
+  //   🔴 2026-09-28（用户裁定）：课标卷型由必选降为可选、且情境口径归**本学科课程标准界定的情境类型**
+  //   （不要求每一小题都被同一叙事场景包裹）。此处仅判"是否触发统一情境框架预生成"，措辞与风格
+  //   描述同源（见 expertKnowledge.styleInstructions.unified_context）；本函数不承载任何情境文案。
   const isUnifiedContext = value === 'unified_context' || value === 'unit_context';
   const isContextFusion = value === 'context_fusion' || value === 'scenario_each';
   return { value, text: line, isUnifiedContext, isContextFusion, isContextStyle: isUnifiedContext || isContextFusion };

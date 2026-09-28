@@ -5070,7 +5070,10 @@ const restoreAutoStyle = () => {
   }
   showStyleModal.value = false;
 };
-/** 当前类型是否需要必选风格确认 */
+/** 当前类型是否需要必选风格确认
+ *  🔴 2026-09-28（用户裁定·根治）：exam「课标卷型」由必选降为可选后，不再有类型被强制确认风格——
+ *     本计算属性完全交由 isStyleRequiredForType（单一事实源：只看选项 required，全部为 false）。
+ *     不选时＝严肃卷面分支（不注入统一情境框架、不写卷首引导语、大题标题走严肃功能性命名）。 */
 const styleRequiredForCurrent = computed(() => genTypes.value.some((t) => isStyleRequiredForType(t)));
 /** 当前类型没有任何适用风格（errorbook/dictation）→ 弹窗明示不注入组织风格 */
 const noApplicableStyleForCurrent = computed(() =>
@@ -8230,7 +8233,9 @@ const generate = async (mode) => {
     return;
   }
 
-  // 🔧 必选组织风格确认（收敛方案）：当前类型有必选风格且未确认 → 弹窗选择后才允许生成
+  // 🔧 组织风格确认（收敛方案，防御性保留）：仅当某类型存在标记为 required 的风格且未确认时才前置弹窗。
+  //    🔴 2026-09-28（用户裁定）：exam「课标卷型」已由必选降为可选（required 全为 false）——
+  //    「exam 必须选风格」的强制**取消**，不选即走严肃卷面分支；此分支对当前全部类型均为无操作。
   if (styleRequiredForCurrent.value && !styleConfirmed.value) {
     showStyleModal.value = true;
     await showAlertDialogFn('请先确认该资料类型的组织风格（已按类型推荐默认值，可在弹窗中调整）');
