@@ -388,6 +388,40 @@ describe('examValidator 正文重复内容检测截断（duplicate-content-fix�
     expect((out.match(/answer-section/g) || []).length).toBe(1);
     expect(issues.some(i => i.type === 'duplicate-content')).toBe(true);
   });
+
+  // 🔴 2026-09-28（与组标题口径同向·按栏目块判定）：教辅组标题序号"逐栏目块起编"——同一标题可在
+  //    不同栏目块各出现一次（正常），不得据此截断；仅**同一栏目块内**重复才判重复。
+  it('教辅（practice）：不同栏目块各有"一、基础练习" → 按栏目块判定，不截断', () => {
+    const OPTS_PRACTICE = { subject: '语文', stage: 'primary_low', genType: 'practice' };
+    const html = [
+      '<h2>基础建构</h2><h3>一、基础练习</h3><p>1. 题</p>',
+      '<h2>探究进阶</h2><h3>一、基础练习</h3><p>2. 题</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, OPTS_PRACTICE);
+    expect(issues.some(i => i.type === 'duplicate-content'), '跨栏目块的同号标题不得判重复').toBe(false);
+    expect(out).toContain('基础建构');
+    expect(out).toContain('探究进阶');
+  });
+
+  it('教辅（practice）：同一栏目块内"一、基础练习"重复两次 → 仍截断保留第一份', () => {
+    const OPTS_PRACTICE = { subject: '语文', stage: 'primary_low', genType: 'practice' };
+    const html = [
+      '<h2>基础建构</h2><h3>一、基础练习</h3><p>1. 题</p>',
+      '<h3>一、基础练习</h3><p>2. 题（重复）</p>',
+    ].join('\n');
+    const { issues } = auditExamPaper(html, OPTS_PRACTICE);
+    expect(issues.some(i => i.type === 'duplicate-content')).toBe(true);
+  });
+
+  it('正式考卷（exam）：仍全局唯一（两个"一、识字与写字"→ 截断），行为不回归', () => {
+    const html = [
+      '<h2>一、识字与写字（共6题，共32分）</h2><p>1. 看拼音写词语。</p>',
+      '<h2>二、积累与运用（共5题，共24分）</h2><p>7. 量词填空。</p>',
+      '<h2>一、识字与写字（共6题，共32分）</h2><p>1. 看拼音写词语。（重复内容）</p>',
+    ].join('\n');
+    const { issues } = auditExamPaper(html, OPTS);
+    expect(issues.some(i => i.type === 'duplicate-content')).toBe(true);
+  });
 });
 
 describe('examValidator 排版语义自洽（text-format-fix）', () => {

@@ -531,17 +531,28 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     const bodyPart = out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0];
     const ansPart = out.slice(bodyPart.length);
     const headRe = /<h[234][^>]*>([^<]*)<\/h[234]>/g;
+    // 🔴 2026-09-28（与组标题口径同向·按栏目块判定）：教辅组标题序号"逐栏目块起编"——同一标题可在
+    //    不同栏目块各出现一次（如两个栏目块各有"一、…"，属正常），不得据此截断；故**非 exam** 的重复
+    //    判据**按栏目块分组**（块内重复才算重复）。正式考卷大题序号全卷连续、无"非序号栏目标题"，
+    //    故行为与原实现逐字一致（全局唯一）。
+    const byBlock = !!genType && genType !== 'exam';
     const heads = [];
     let hm;
     while ((hm = headRe.exec(bodyPart)) !== null) {
       const t = (hm[1] || '').trim();
-      if (/^[一二三四五六七八九十]+、/.test(t)) heads.push({ text: t, index: hm.index });
+      if (!t) continue;
+      // 栏目标题（不以「汉字序号＋、」起头，如教辅 h2 栏目名）→ 栏目块边界
+      if (!/^[一二三四五六七八九十]+、/.test(t)) { heads.push({ kind: 'block', text: t, index: hm.index }); continue; }
+      heads.push({ kind: 'title', text: t, index: hm.index });
     }
     let dupIndex = -1;
     const seenTitles = new Set();
+    let curBlock = '';
     for (const h of heads) {
-      if (seenTitles.has(h.text)) { dupIndex = h.index; break; }
-      seenTitles.add(h.text);
+      if (h.kind === 'block') { if (byBlock) curBlock = h.text; continue; }
+      const key = byBlock ? `${curBlock}||${h.text}` : h.text;
+      if (seenTitles.has(key)) { dupIndex = h.index; break; }
+      seenTitles.add(key);
     }
     if (dupIndex > 0) {
       issues.push({ severity: 'info', type: 'duplicate-content', message: '检测到正文重复（同一大题标题出现 ≥2 次，疑截断续写重出），已截断保留第一份' });
@@ -2117,7 +2128,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //    "最长 1 起连续段"的对比**失去意义**——实证卷：正文段长 [10,5,5,5,10,5,5,5,5]、答案区段长 [5,5,5]，
         //    同一体系的缺陷被呈现成"答案区(5) 明显少于正文(10)，疑似未逐题对齐"，把编辑引向错误方向。
         //    真相：题号须**全卷连续同序**（正文与答案区同一套号），两侧都违反了这条口径。
-        //    🔴 2026-09-18（用户裁定·口径按类型分流）："全卷连续"是**正式考卷**的口径；同步练习/课时练等
+        //    🔴 2026-09-18（用户裁定·口径按类型分流）："全卷连续"是**正式考卷**的口径；同步练习等
         //      按大题分别从 1 重编号是市场教辅常态，非缺陷——故本告警仅 genType==='exam' 时触发，
         //      其余类型走下方 answer-coverage 的长连段对比（两侧各取其最长 1 起连续段，仍可比）。
         //    🔴 段长清单只列"大题级"段（≥3 项）：1 项长的段来自行内点号/子题括号等零散命中，
@@ -2144,11 +2155,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           //    （实测样本：答案区 14 个 `N.` + 每题子题 `(1)(2)`，与正文完全同构，却被判"不同构"）。
           const ansNumberingMissing = ansTopQ <= 2;
           // 🔴 2026-09-28（题号编法按正规收口）：口径**按类型分流**，与正文条款同源——
-          //    正式考卷（exam）小题全卷连续；教辅（同步练习/课时练等）小题在同一大题内连续、按大题分别起编。
+          //    正式考卷（exam）小题全卷连续；教辅（同步练习等）小题在同一大题内连续、按大题分别起编。
           //    故本告警的"应改成什么号"须随之分型，不得对教辅也要求"全卷连续"（那会一侧禁止一侧豁免）。
           const numCaliberWords = genType === 'exam'
             ? '全卷连续同序'
-            : '与正文同号同序（教辅小题按大题分别起编，答案区按相同大题分组、组内同号同序）';
+            : '与正文同号同序（教辅小题按大题分别起编，答案区按相同栏目块分组、块内与正文同号同序）';
           try {
             const head = String(ansText).replace(/\s+/g, ' ').trim().slice(0, 200);
             console.warn(`🔍 [答案区计数取证] 正文题号数=${bodyTopQ} 答案区题号数=${ansTopQ}`

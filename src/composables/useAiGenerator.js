@@ -3,7 +3,7 @@ import axios from 'axios';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay, resolveEngineOutputLimit, resolveEngineCapability, resolveOutputCeiling, FACTORY_MAX_TOKENS_BY_TASK } from '../config/apiConfig.js';
 import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'; // S4.1：段类型补"拓展/文化"（锚范围性质判定共用）
 import { GEN_CONST } from '../config/generationConstants.js';
-import { ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel, applyMaterialChannel } from '../config/promptLibrary.js'; // ✅ A18：applyMaterialChannel（委托书素材段按素材通道兜底渲染）
+import { ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel, applyMaterialChannel, GROUP_TITLE_NUMBERING_CALIBER, QUESTION_NUMBERING_CALIBER } from '../config/promptLibrary.js'; // ✅ A18：applyMaterialChannel（委托书素材段按素材通道兜底渲染）；题号口径单源（组标题/小题）供出稿自检按类型分型
 import { getStoragePath } from '../utils/pathHelper.js';
 // 🧩 导图块：AI 正文里的 `<div class="k-diagram" data-type=…>{JSON}</div>` → 内联 SVG
 //    （PDF 走矢量；Word 导出时由 docxBuilder 自动光栅化成 PNG）。没有导图块时行为完全不变。
@@ -4914,7 +4914,7 @@ ${cardAnalysisText.substring(0, 1000)}
         //    preview/dictation/errorbook）按"栏目与题号"层级组织——二者均与正文同构、不复述题干/正文梳理
         const ansAlignNote = isSelfContainedTeaching
           ? '答案区按正文对应的栏目组织、并与正文同构：正文题目带题号时，答案区**逐题以与正文完全相同的题号起头**（正文用「1. 2. 3.…」则答案同用同一套题号、同序；仅**子题**用 (1)(2)）；**严禁省略题号层、严禁用「(1)(2)」括号序号或纯列表代替题目题号**。不复述正文知识梳理，不重现正文作答空位。'
-          : '**逐题对齐硬要求**：答案区**每个题目都以与正文完全相同的题号起头**（正文怎么编号，答案就逐题用同一套号、同序对应——**正式考卷**正文题号全卷连续，则答案区同样全卷连续；**教辅**正文按大题分别起编，则答案区按相同的大题分组、组内同号同序；正文用「1. 2. 3.…」，答案也用「1. 2. 3.…」）；大题用与正文相同的汉字序号，仅**子题**才用 (1)(2)。**逐题作答、全卷覆盖**：正文中的每一道题都必须在答案区有对应的解答与解析，不得漏题。**严禁省略题号层、严禁用「(1)(2)」括号序号或纯列表代替题目题号**——否则答案与正文无法逐题对应。不复述题干原文（含子题题干），不重现正文作答空位。';
+          : '**逐题对齐硬要求**：答案区**每个题目都以与正文完全相同的题号起头**（正文怎么编号，答案就逐题用同一套号、同序对应——**正式考卷**正文题号全卷连续，则答案区同样全卷连续；**教辅**正文按大题分别起编，则答案区按相同栏目块分组、块内与正文同号同序；正文用「1. 2. 3.…」，答案也用「1. 2. 3.…」）；大题用与正文相同的汉字序号（教辅组标题逐栏目块起编，答案区亦按相同栏目块分组、组标题号与正文同号），仅**子题**才用 (1)(2)。**逐题作答、全卷覆盖**：正文中的每一道题都必须在答案区有对应的解答与解析，不得漏题。**严禁省略题号层、严禁用「(1)(2)」括号序号或纯列表代替题目题号**——否则答案与正文无法逐题对应。不复述题干原文（含子题题干），不重现正文作答空位。';
         // ✅ A6（2026-09-11）：答案页前缀顺序 = **压缩原文（仅 full）→ 正文全文 → 委托书（答案规范，末尾锚定）**
         //    · 压缩原文**仅 `mode === 'full'`** 携带（答案常需原文精确表述，如默写/原句）；
         //      命题/练习型**不带**（题目自带情境与素材，且防"照搬原文作答"）；
@@ -5539,10 +5539,14 @@ ${(contextJson.scenes || []).map((s, i) =>
       //    故凡存在抽检项时顶部给出核对指引；无抽检项则不插入（防噪音）。
       if (auditWarningsFromPaper?.length) {
         issues.push('📋 出稿自检要点（请按下表逐项核对）：'
-          + '① 大类/大题层级与编号是否与【卷面结构】一致（大类居中不带编号、大题标题命名遵卷面单源规则并带序号、大题序号全卷连续不按大类重启）；'
+          // 🔴 2026-09-28（题号口径按类型分流·与条款同源）：①④ 的编号维度**按 genType 分型**——
+          //    正式考卷大题序号/题号全卷连续；教辅组标题逐栏目块起编、题号在同一大题（栏目）内连续
+          //    （单源见 promptLibrary 的 GROUP_TITLE_NUMBERING_CALIBER / QUESTION_NUMBERING_CALIBER）。
+          //    原先两处无条件写"全卷连续"，会对教辅自检项"互相否定"。
+          + `① ${genType === 'exam' ? '大类/大题层级与编号是否与【卷面结构】一致（大类居中不带编号、大题标题命名遵卷面单源规则并带序号、大题序号' + GROUP_TITLE_NUMBERING_CALIBER.exam + '、不按大类重启）' : '大类/大题层级与编号是否与卷面结构一致（大类居中不带编号、组标题命名遵卷面单源规则并带序号、组标题' + GROUP_TITLE_NUMBERING_CALIBER.teaching + '）'}；`
           + '② 大题分值合计与卷面结构闭合、小题分值标注齐全；'
           + '③ 作答载体（横线/括号/格子）与题面声明一致、形态同卷统一；'
-          + '④ 题号全卷连续（顶层 1.2.3.…、子题 (1)(2)、不跳号不重启）；'
+          + `④ 题号连续（顶层 1.2.3.…、子题 (1)(2)、不跳号${genType === 'exam' ? '、不重启（全卷连续）' : '；教辅本题号' + QUESTION_NUMBERING_CALIBER.teaching + '，进入新的大题（栏目）即从 1 重新起编'}）；`
           + '⑤ 答案区与正文逐题对应（同号、无遗漏、无多答）；'
           + '⑥ 情境与设问真实、符合本学段课标，无照搬教材原题。');
       }

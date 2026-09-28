@@ -453,7 +453,7 @@ export const BODY_RESTART_MIN_TOP = 4;
  *   一个不缺 → 判无缺口。故"重启"必须单独判，不能寄希望于缺号守卫。
  * 判据沿用 `analyzeQuestionNumbering` 的"从 1 起、段长≥3 的段 ≥2 个"（与校验侧报告**同源**，不新造口径），
  * 并加"最长段 ≥ BODY_RESTART_MIN_TOP"下限（防题量过少的片段/清单误判）。
- * 适用范围：仅**试卷（exam）**。同步练习/课时练等教辅按大题分别从 1 编号是市场常态，不适用本判据。
+ * 适用范围：仅**试卷（exam）**。同步练习等教辅按大题分别从 1 编号是市场常态，不适用本判据。
  * @param {string} html 正文（含块级标签的 HTML；答案区不参与）
  * @returns {{top:number, segments:number[], restart:boolean}} segments=各"1 起递增段"的段长（保序）
  */
