@@ -158,6 +158,18 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(inject).toContain('学段要求');
   });
 
+  // 🔴 2026-09-28（审计发现）：教辅侧此前不做学科归名 → 传旧名（信息技术/体育与健康/政治/道法）查不到定制，
+  //    静默回退通用模板（无任何提示）。现与 exam 侧 getExamBlueprint 同源归名（expertKnowledge.normalizeSubjectName）。
+  it('学科旧名归名后可命中学科定制（归名只用于查表，返回的 subject 仍按传入值）', () => {
+    const pe = getTeachingBlueprint({ genType: 'practice', stage: 'primary_high', subject: '体育与健康' });
+    expect(pe.custom, '体育与健康 应归名为 体育 并命中定制').toBe(true);
+    expect(pe.subject, '返回的 subject 仍按传入值（不动面板显示与工具库键）').toBe('体育与健康');
+    expect(getTeachingBlueprint({ genType: 'practice', stage: 'middle', subject: '信息技术' }).custom, '信息技术 → 信息科技').toBe(true);
+    expect(getTeachingBlueprint({ genType: 'practice', stage: 'middle', subject: '政治' }).custom, '政治@初中 → 道德与法治').toBe(true);
+    // 未注册学科仍回退通用（不因归名误命中）
+    expect(getTeachingBlueprint({ genType: 'practice', stage: 'middle', subject: '未知学科' }).custom).toBe(false);
+  });
+
   it('语文全 8 类教辅均有学科定制栏目', () => {
     for (const g of ['practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review']) {
       const bp = getTeachingBlueprint({ genType: g, stage: 'primary_mid', subject: '语文' });

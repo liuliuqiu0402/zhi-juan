@@ -62,6 +62,18 @@ describe('守门条款段级兜底（缺哪段补哪段）', () => {
       expect(s.text.startsWith(s.marker)).toBe(true);
     }
   });
+  // 🔴 2026-09-28（审计发现）：exam 兜底曾降级为 question 模式——自定义 exam 模板缺【输出格式】时，
+  //    程序只补 question 版（无"大题标题（分值说明）"形态），卷面规范在兜底通道静默降级。现按 genType 三分。
+  it('exam 兜底走 exam 模式（不降级）：与委托正文逐字同源；非 exam 不受影响', () => {
+    const examFmt = floorClauseSections({ subject: '数学', stage: 'middle', genType: 'exam' })
+      .find((s) => s.marker === '【输出格式】').text;
+    expect(examFmt, 'exam 模式格式含大题标题（分值说明）形态').toContain('〈大题名〉');
+    const tpl = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'exam' }).template;
+    expect(tpl, '兜底段须与 EXAM_BASE 注入逐字同源').toContain(examFmt);
+    const qFmt = floorClauseSections({ subject: '数学', stage: 'middle', genType: 'practice' })
+      .find((s) => s.marker === '【输出格式】').text;
+    expect(qFmt, '非 exam 仍走 question 模式').not.toContain('〈大题名〉');
+  });
 
   it('注册表：marker 与段头一致、格式组含输出格式与质量底线、不含创作方向类', () => {
     const secs = floorClauseSections({ subject: '数学', stage: 'middle', genType: 'practice' });

@@ -28,6 +28,7 @@
 import { isLibEntryEnabled } from '../utils/libToggles.js';
 import { resolveStageKey, STAGE_KEY_SET } from '../utils/gradeStage.js';
 import { CURRICULUM_BY_STAGE } from './promptLibrary.js'; // 课标版本名唯一事实源（大类标题的分类依据要显式标注，勿另写一份） // 年级→学段唯一事实源（蓝图学段与三维度共用，禁止各自 parseInt 中文年级）
+import { normalizeSubjectName } from './expertKnowledge.js'; // 🔴 2026-09-28：学科归名唯一事实源（与 exam 侧同源；此前教辅侧漏用）
 
 /** 学段显示名
  * 🔗 命名双轨·学段：五档 key 须与指令库 STAGE_NAMES、layoutSpec 载体表学段 key（primary_low…high）完全一致。 */
@@ -1220,13 +1221,18 @@ function normalizeTeachingStage(stage = '') {
 export function getTeachingBlueprint({ genType = '', stage = '', subject = '' } = {}) {
   // 工具库条目开关：该 学科×类型 条目（含学科定制与通用回退行）被停用 → 无教辅结构注入
   if (!isLibEntryEnabled('blueprint', `${subject || '*'}|${genType}`)) return null;
-  const custom = TEACHING_SUBJECT_BLUEPRINTS[subject]?.[genType];
+  const stageKey = normalizeTeachingStage(stage);
+  // 🔴 2026-09-28（审计发现）：学科归名，与 exam 侧 getExamBlueprint 同源（expertKnowledge.normalizeSubjectName）——
+  //    此前不归名：传旧名（信息技术/体育与健康/政治/道法）时 TEACHING_SUBJECT_BLUEPRINTS 直接查不到，
+  //    静默回退通用模板（custom=false）且无任何提示。归名**只用于蓝图查表**；工具库键与返回的 subject
+  //    仍按传入值（不动既有启停语义与面板显示）。
+  const stdSubject = normalizeSubjectName(subject, stageKey) || subject;
+  const custom = TEACHING_SUBJECT_BLUEPRINTS[stdSubject]?.[genType];
   const def = TEACHING_BLUEPRINTS[genType];
   const bp = custom || def;
   if (!bp) return null;
-  const stageKey = normalizeTeachingStage(stage);
   // 学段要求优先级：学科级（覆盖初高中档，未覆盖档回退通用）> 类型级 custom > 通用默认
-  const subjectStages = TEACHING_SUBJECT_BLUEPRINTS[subject]?.stages;
+  const subjectStages = TEACHING_SUBJECT_BLUEPRINTS[stdSubject]?.stages;
   const stages = subjectStages ? { ...(custom?.stages || def?.stages || {}), ...subjectStages } : (custom?.stages || def?.stages || {});
   const stageParams = stages[stageKey] || stages.primary_mid;
   return {

@@ -563,8 +563,11 @@ const CONTENT_GEN_TYPES = ['preview', 'summary'];
  */
 export function floorClauseSections({ subject = '', stage = '', genType = '' } = {}) {
   const out = [];
-  // ①② 格式段 + 质量底线段（与委托正文模板同源；mode 口径与 buildOutputFormatHint 一致：内容型走 content）
-  const mode = CONTENT_GEN_TYPES.includes(genType) ? 'content' : 'question';
+  // ①② 格式段 + 质量底线段（与委托正文模板同源；mode 口径：exam 走 exam、内容型走 content、其余 question）
+  // 🔴 2026-09-28（审计发现）：原实现对非内容型一律判 'question' —— **exam 被降级**：自定义 exam 模板缺
+  //    【输出格式】时，程序兜底补的是 question 版（无"大题标题（分值说明）"形态），与内置 EXAM_BASE 的
+  //    OUTPUT_FORMAT_BLOCK('exam', ctx) 不同源 → 卷面形态规范在兜底通道静默降级。现按 genType 三分，与模板侧逐字同源。
+  const mode = genType === 'exam' ? 'exam' : CONTENT_GEN_TYPES.includes(genType) ? 'content' : 'question';
   const secs = outputFormatSections(mode, { subject, stage, genType });
   out.push({ marker: '【输出格式】', name: '输出格式', group: 'format', text: secs.format });
   out.push({ marker: '【质量底线】', name: '质量底线', group: 'format', text: secs.quality });
