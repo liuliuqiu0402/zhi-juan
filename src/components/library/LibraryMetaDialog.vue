@@ -113,6 +113,9 @@ const props = defineProps({
 const emit = defineEmits(['update:visible', 'confirm']);
 
 const form = ref({ stage: '', subject: '', volume: '' });
+// 🔴 2026-09-28：**打开弹窗时的学段不算"用户改动"**——否则一条历史/越界的"学段+学科"会在**打开瞬间**
+//    被下面的越界清理抹掉（用户还没动手值就变了）。仅用户**主动改学段**时才清理。
+let openedStage = '';
 
 // 每次打开都从条目现值重置（避免上一次编辑的残留被误当成这次的输入）
 watch(() => props.visible, (v) => {
@@ -122,6 +125,7 @@ watch(() => props.visible, (v) => {
     subject: props.subject || '',
     volume: props.volume || '',
   };
+  openedStage = form.value.stage;
 }, { immediate: true });
 
 /** 🔴 2026-09-28（用户裁定：按该学段**实际开设**的学科来）：
@@ -129,7 +133,9 @@ watch(() => props.visible, (v) => {
  *  可存出"小学+物理"这类现实不存在的组合，生成侧只好跨学段借格（静默）。 */
 const subjectOptions = computed(() => subjectChoicesForStage(form.value.stage));
 // 学段改变致当前学科不在该学段开设 → 清空（防存下矛盾组合；该行为已写进下方联动说明）
-watch(() => form.value.stage, () => {
+//   🔴 仅"用户主动改学段"才清——打开弹窗不算（openedStage 守卫），避免"一打开值就被抹"。
+watch(() => form.value.stage, (now) => {
+  if (now === openedStage) return;
   if (form.value.subject && !subjectOptions.value.includes(form.value.subject)) form.value.subject = '';
 });
 /** 册次候选按学科给（学科未定 → 合并全部）；音体美等模块制学科无预设 → 可自由填写 */

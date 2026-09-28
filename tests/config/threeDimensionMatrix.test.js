@@ -12,7 +12,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { STAGE_SUBJECTS, SUBJECT_STAGE_EXTRAS } from '@/config/promptLibrary.js';
 import { EXAM_BLUEPRINTS, getExamBlueprint } from '@/config/examPaperBlueprints.js';
-import { TEACHING_SUBJECT_BLUEPRINTS } from '@/config/teachingBlueprints.js';
+import { TEACHING_SUBJECT_BLUEPRINTS, getTeachingBlueprint } from '@/config/teachingBlueprints.js';
 import { subjectChoicesForStage } from '@/utils/libraryMetaEdit.js';
 
 const TEACHING_TYPES = ['practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
@@ -60,6 +60,26 @@ describe('三维度矩阵对齐守卫（以"实际开设"为准；矩阵外不�
       expect(spy, '借格必须留痕').toHaveBeenCalled();
       expect(bp?.borrowedFrom, '标记借自哪个学段').toBe('middle');
       expect(bp?.stage, '请求学段仍如实回填（不假装命中）').toBe('primary_high');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  // 🔴 用户 2026-09-28 明确要求：以上收口**不得挡住合法路径**——"真正的指令必须进得到对应勾选的教材"。
+  //    本用例把"合法组合绝不被误伤"钉死：54 科段逐一命中本人蓝本（不借格、不告警），教辅逐科命中学科定制。
+  it('合法组合不被误伤：54 科段逐一命中本人蓝本（不借格/不告警），教辅逐科命中学科定制', () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      for (const cell of OFFERED) {
+        const [subject, stage] = cell.split('|');
+        const bp = getExamBlueprint(subject, stage);
+        expect(bp?.key, `${cell} 须命中本人蓝本（不得落空）`).toBe(cell);
+        expect(bp?.borrowedFrom, `${cell} 不得走跨学段借格`).toBeUndefined();
+        const tp = getTeachingBlueprint({ genType: 'practice', stage, subject });
+        expect(tp?.custom, `${cell} 教辅须命中学科定制（不回退通用）`).toBe(true);
+        expect(tp?.sections?.length, `${cell} 教辅栏目须非空`).toBeGreaterThanOrEqual(2);
+      }
+      expect(spy, '合法组合不得产生借格告警（误伤即红）').not.toHaveBeenCalled();
     } finally {
       spy.mockRestore();
     }
