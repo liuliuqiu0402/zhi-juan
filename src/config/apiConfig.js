@@ -177,7 +177,9 @@ const sanitizeApiKey = (k) => {
   return out;
 };
 
-// 🔧 生成端预算规整（纯函数，与 Settings 的 normalizeBudgetSlots 逻辑同构；生成端读配置时的确定性兜底）：
+// 🔧 生成端预算规整（读配置时的确定性兜底）：唯一实现在下方 `normalizeBudgetByType`；
+//    设置页的 `normalizeBudgetSlots` 就是它的**别名**（`const normalizeBudgetSlots = normalizeBudgetByType`），
+//    **并非两份同构实现**（原注释"与 Settings 的 normalizeBudgetSlots 逻辑同构"与下方 202 行"唯一实现"相抵，已改准）：
 //    确保每个资料类型都有 mode/tier 与 body/answer/once 三槽，每槽含 economy/balanced/full/custom/cap。
 //    三档系数（economy/balanced/full）为程序内置常量且设置页不允许用户直接改数字，
 //    故一律从代码默认播种（杜绝旧存档把档位冻成恒值，如"精简=均衡=1"）；

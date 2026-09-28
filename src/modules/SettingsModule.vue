@@ -1448,7 +1448,7 @@ import useLogger, { copyLogs } from '@/composables/useLogger.js';
 import { apiConfig, DEFAULT_BUDGET_BY_TYPE, normalizeBudgetByType, getAvailableModels, refreshConfigCache, saveConfig, decrypt, autoDiscoverDeepSeekModel, listDeepSeekModels, listDeepSeekSelectableModels } from '@/config/apiConfig.js';
 import { cancelAllRequests } from '@/utils/requestManager.js';
 import { listTypeBuckets, applyCalibration, clearCalibration, setCalibratedEnabled, CHARS_PER_TOKEN, CALIBRATION_THRESHOLDS, TIER_RATIO } from '@/utils/budgetCalibration.js';
-import { recordAudit, getAuditLogs, clearAuditLogs, getAuditCount } from '@/utils/auditLog.js';
+import { recordAudit, getAuditLogs, clearAuditLogs } from '@/utils/auditLog.js';
 import { getSyncKey, setSyncKey, getDeviceName, setDeviceName, probeCloud, fetchCloudDevices, deleteDeviceFromCloud } from '@/utils/cloudStorage';
 import { getSignCountdown, resetInstallTime, formatDaysRemaining } from '@/utils/signatureCheck';
 import { STAGE_KEYS } from '@/utils/gradeStage.js'; // 五档学段键唯一事实源（CAL_STAGE_KEYS 复用，不再本地另建副本）

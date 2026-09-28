@@ -52,18 +52,6 @@ import { buildLevelInstruction } from './levelMapping.js'; // 🔴 卷别→学�
  *    2026-09-14（用户裁定）：原"① 准确性：引用教材内容须与原文一致（随段头携带）"已**整条删除** ——
  *      其措辞会诱导"复述教材"，且准确性诉求已由【质量底线】覆盖（见上 ②）。 */
 const MATERIAL_HEAD = { full: '教材原文', anchor: '教材依据' };
-/**
- * 题组"分组与命名"约束的适用题类（2026-09-14 用户定版）：同步练习 / 专项突破 / 阅读训练 ——
- * 🔒 2026-09-15 用户裁定·去诱导（第二次修订）：原**否定式关联**句"不以清单条目作分组或命名"已撤除
- *    （要读懂必须先建立"内容条目 ↔ 分组/命名"的映射 = 反向植入；产物实证：内容条目直接成了大题标题）。
- *    本集现在只承载**正向**口径的适用面：题类给"每部分内由你分组成题组，组标题自拟——一句话概括该组在练什么"。
- * 单源定义在本文件（文本层）：injectionManifest 反向引用，避免循环依赖。
- * 🔴 2026-09-15 用户定版（去锚）：原"题型自拟的题类"定位与配套的"题型须多样"注入（含"按本学科本学段
- *    日常练习的常态分布"）**已整条撤除**——题型与题量一律交模型侧自选、不作任何锚定。
- *    实证根因：多处"按常规题型 / 常态分布"锚定，使两次**独立**调用产出的题型高度趋同。
- *    本常量现**只**承载上述分组约束（exam 走蓝图题型序列、知识归纳型不命题，本就无此约束）。
- */
-export const AUTONOMOUS_ITEM_TYPES = ['practice', 'special', 'reading'];
 
 const MATERIAL_HINT = {
   full: '（教材原文以【压缩原文】随本委托注入；本次涉及的内容与材料见开头所列；补充/整合与使用引用约束见【素材使用约定】，以该处为准）',
@@ -390,10 +378,9 @@ const outputFormatSections = (mode = 'question', ctx = {}) => {
   //    ⚠️ 原"按本学科本学段的常规题型或任务的开展环节分组 / 标题即该组的题型/环节名 / 用本学段常规写法自拟"
   //    已**整条撤除**（2026-09-15）：它把题型往"常规/常态"锚定，是两次独立调用题型高度趋同的根因之一；
   //    题型与题组命名一律交模型侧自定，不作任何锚定。其余题类表述逐字未动。
-  const autonItem = AUTONOMOUS_ITEM_TYPES.includes(ctx.genType);
-  const groupRule = autonItem
-    ? '· 每栏内的题由你自行组织，组前用 <h3> 标题（标题自拟）'
-    : '· 每栏内的题由你自行组织，组前用 <h3> 标题（标题自拟）';
+  // 🔴 2026-09-28（收口·死机制清理）：原按 AUTONOMOUS_ITEM_TYPES(practice/special/reading) 分两支写
+  //    groupRule，但**两分支文案逐字相同**（该常量对输出零影响）→ 收口为单一句，常量一并移除。
+  const groupRule = '· 每栏内的题由你自行组织，组前用 <h3> 标题（标题自拟）';
   const groupAnchorWord = '本组内容概括';
   // 🔴 2026-09-17 用户裁定（消"同一段里两套抄法"的自相矛盾）：原句尾"不要照抄注入给出的知识点名**或其他结构名**"
   //    与紧邻的大类标题句"栏目标题**用注入给出的栏目名**（如'基础建构'）"相抵——两句都在说"注入给出的名字"，
@@ -616,8 +603,9 @@ export function floorClauseSections({ subject = '', stage = '', genType = '' } =
 
 const BUILTIN_TEMPLATES = {};
 for (const [gType, base] of Object.entries(TYPE_BASES)) {
-  // 🔴 genType 必须传入（2026-09-14）：模板正文里"栏内分组依据按题类分流"（AUTONOMOUS_ITEM_TYPES）
-  //    依赖 ctx.genType；漏传会让"通用模板"与"学段×学科 cell"出现两套分组口径。
+  // 🔴 genType 必须传入（2026-09-28 改准）：模板正文里**易错题本分支**（isErrorbook = ctx.genType === 'errorbook'）
+  //    依赖 ctx.genType；漏传会让"通用模板"与"学段×学科 cell"出现两套结构口径（易错题本专属的块标题/
+  //    逐题成组格式会丢失）。——原注释声称依赖"栏内分组依据按题类分流(AUTONOMOUS_ITEM_TYPES)"，该分流已收口，不再成立。
   BUILTIN_TEMPLATES[gType] = base('', { genType: gType });
 }
 
@@ -862,7 +850,7 @@ function buildBuiltinTemplate({ stage = '', subject = '', genType = '' } = {}) {
     }
     extra.push(`\n\n【学段特点】\n${seText}`);
   }
-  // 🔴 genType 一并传入 ctx：栏内分组依据按题类分流（AUTONOMOUS_ITEM_TYPES）需要它
+  // 🔴 genType 一并传入 ctx（2026-09-28 改准）：模板正文的**易错题本分支**（isErrorbook）需要它
   let tpl = base(extra.join(''), { subject, stage, genType });
   // 🔧 课标版本按学段替换（{curriculum} 占位符：义务教育=2022年版，高中=2017年版2020年修订）；
   //    通用模板（无学段）保留占位符，由注入侧 buildInjectionInstruction 兜底替换

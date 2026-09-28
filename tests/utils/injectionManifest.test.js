@@ -12,7 +12,7 @@ import {
   buildAnchorListBlock, buildCompressedTextBlock,
   buildMaterialUsageBlock, buildOrganizeBlock,
   buildTemplateInfoBlock, buildContextBlock, buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,
-  TAIL_SELF_CONSISTENCY, SCENE_REGEN_TYPES, AUTONOMOUS_ITEM_TYPES,
+  TAIL_SELF_CONSISTENCY, SCENE_REGEN_TYPES,
 } from '../../src/utils/injectionManifest.js';
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -177,7 +177,8 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     for (const t of ['exam', 'errorbook', 'summary', 'review']) {
       expect(buildOrganizeBlock(t)).not.toContain('组标题自拟');
     }
-    expect(AUTONOMOUS_ITEM_TYPES).toEqual(['practice', 'special', 'reading']);
+    // 🔴 2026-09-28：原 `AUTONOMOUS_ITEM_TYPES` 常量已随"分组两分支文案逐字相同"收口而移除
+    //    （AUTONOMOUS_ITEM_TYPES 对输出零影响，属死机制）——其值断言一并下线。
   });
 
   it('尾约束×2：块内自带 \\n\\n 前缀，关键句逐字', () => {

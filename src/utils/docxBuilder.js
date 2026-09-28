@@ -40,7 +40,9 @@ const singleDisplayMath = (text) => {
 //    必须用精确值而非 56.69 近似，否则 A4 210mm 会算成 11905 而非标准 11906）
 const MM2DXA = 1440 / 25.4;
 /** 田字格/米字格定档：仅语文低段存在（WRITING_CARRIER），统一取 GRID_CELL 'tian-zi-ge'.primary（低段 12mm），
- * 与预览/HTML/编辑器同口径——曾随字号 1.8em 或主题学段 mm 漂移（layoutSpec 注释"docx 未接入本表，待统一"即此遗留） */
+ * 与预览/HTML/编辑器同口径——曾随字号 1.8em 或主题学段 mm 漂移。
+ *  🗑 2026-09-28 清理：原文尾引"layoutSpec 注释'docx 未接入本表，待统一'"，该注释在 layoutSpec 已不存在
+ *  （现行 layoutSpec 头注已声明"docx 导出：方块格按 primary 12mm 统一"，接入点即本函数），属**悬空引用**，已去。 */
 const tzgCellMm = () => (getMergedSpec().GRID_CELL?.['tian-zi-ge']?.primary?.widthMm) || 12;
 
 // ============ 纸张版式预设 ============

@@ -16,10 +16,7 @@
  *   由 utils/programAttach.js 单源产出，两者合起来才是"本次实发全貌"。
  * ============================================================
  */
-import { PAPER_OUTPUT_CONVENTIONS, AUTONOMOUS_ITEM_TYPES } from '../config/promptLibrary.js';
-// 🔴 题组"分组与命名"约束的适用题类（AUTONOMOUS_ITEM_TYPES）：单源定义在 config/promptLibrary.js（文本层），
-//    此处反向引用——避免两处各写一份（本模块本就 import 该文件，无循环依赖）。语义与理由见该处注释。
-export { AUTONOMOUS_ITEM_TYPES };
+import { PAPER_OUTPUT_CONVENTIONS } from '../config/promptLibrary.js';
 import { contractOf, extentOf } from '../config/coverageContract.js';
 import { ANCHOR_LIST_ROLE_NOTE } from './anchorTreeContract.js';
 
@@ -305,7 +302,7 @@ export function buildUserMessagePrompt(ctx = {}) {
 }
 
 export default {
-  SELF_CONTAINED_TEACHING, SCENE_REGEN_TYPES, AUTONOMOUS_ITEM_TYPES,
+  SELF_CONTAINED_TEACHING, SCENE_REGEN_TYPES,
   TAIL_SELF_CONSISTENCY, TAIL_VARIETY,
   buildAnchorListBlock, buildCompressedTextBlock, buildMaterialUsageBlock, buildOrganizeBlock,
   buildTemplateInfoBlock, buildContextBlock, buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,

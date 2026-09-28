@@ -75,6 +75,3 @@ export const clearAuditLogs = (opts = {}) => {
   safeWrite(AUDIT_KEY, kept);
   return getAuditLogs();
 };
-
-/** 当前流水总条数（诊断用） */
-export const getAuditCount = () => safeRead(AUDIT_KEY, []).length;

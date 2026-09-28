@@ -4616,8 +4616,10 @@ const showUserMsgBlocks = ref(false);
 //    只读旁路（不参与拼装）；用户手动编辑指令后置空（watch 联动，见下），UI 据此提示"标注已失效"
 const instructionBlocks = ref([]);
 // ✅ A21：逐章模式当前章节的教材过滤版（标题/指令范围名按单章）；非逐章为 null。
-//    🔴 提到模块作用域（原先在 generate 内声明）：配图判定提示文本（resolveNeedsImageText）在
-//    "组装"与"生成前刷新"两处都要取**同一来源**的书，否则逐章模式下章节名会成为新的漂移源。
+//    🔴 提到模块作用域（原先在 generate 内声明）：逐章模式下"按单章组装指令"与"生成前刷新程序附加段"
+//    两处都要取**同一来源**的书（单章过滤版），否则章节名会成为新的漂移源。
+//    🗑 2026-09-28 清理：原注释称该提级是为"配图判定提示文本（resolveNeedsImageText）单源取书"，
+//    该函数已随 A21 撤除（配图改由 resolveMarkCapability 判定，无文本信号）——残留引用已清。
 const perChapterBooksRef = { value: null };
 // 🔴 学段显示名 STAGE_LABEL_MAP 原定义在这里，仅被听力面板消费；2026-09-20 听力工作台抽成
 //    components/listening/ListeningWorkbench.vue 后，该表随面板一起搬走，此处不再保留（避免两处漂移）。
@@ -8329,7 +8331,7 @@ const generate = async (mode) => {
   const chapterTargets = (effectiveSplit && allChapters.length > 1)
     ? allChapters
     : [null];
-  // 🔧 逐章模式当前章节的教材过滤版：✅ A21 已提到模块作用域（供 resolveNeedsImageText 单源取书），此处只重置
+  // 🔧 逐章模式当前章节的教材过滤版：✅ A21 已提到模块作用域（供逐章取书 / 指令组装两处同源），此处只重置
   perChapterBooksRef.value = null;
   // 🎨 栏目风格按次轮换：记录本次生成前的产出数，末尾据此判断"是否真的有产出"再推进计数
   const docsBefore = generatedDocs.value.length;
