@@ -71,8 +71,8 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     const inject = buildStructureText(bp);
     expect(inject).not.toContain('【分值规则】');
     expect(inject).not.toContain('小题数×每题分=大题分');
-    // 卷面结构仍在（语文为域型栏目 → 大类层行）
-    expect(inject).toContain('🔴 大类层：');
+    // 卷面结构仍在（语文·初中为域型栏目 → **中学段口径**：课标领域名直接作大题行，不设大类层）
+    expect(inject).toMatch(/^一、积累与运用\(共X题，共/m);
   });
 
   it('英语蓝本（听力·/笔试·前缀）→ 输出部分层作大类居中（不写"第X部分"），大题去前缀、序号全卷连续', () => {
@@ -119,6 +119,18 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     // 🔴 2026-09-28：域型不再由注入给定大题序号 → 大类行须补"大题序号全卷连续、不得按大类重启"
     //    （否则模型可能在大类下重启"一、"，而现有题号守卫只认阿拉伯小题号，查不出中文大题号重复）
     expect(domainLines.every((l) => l.includes('大题序号全卷连续')), '大类行须给大题序号全卷连续约束').toBe(true);
+    // 🔴 2026-09-28（去一刀切）：小学段大类（部分）层**自带序号**（真题"第一部分 积累与阅读（55分）"）
+    expect(domainLines.every((l) => l.includes('自带序号')), '小学段大类行须明示自带序号').toBe(true);
+  });
+
+  it('🔴 2026-09-28 去一刀切：中学段（语文 middle）域型栏目**直接作大题行**（不设大类层）', () => {
+    const mid = getExamBlueprint('语文', 'middle');
+    const inject = buildStructureText(mid);
+    expect(inject, '中学段不得输出大类层').not.toContain('大类层');
+    // 课标领域名即大题标题（带「一、」序号与分值），真题通行："一、积累与运用（30分）"
+    expect(inject).toMatch(/^一、积累与运用\(共X题，共24分\)/m);
+    expect(inject).toMatch(/^二、梳理与探究\(共X题，共10分\)/m);
+    expect(inject).toMatch(/^五、写作\(共X题，共36分\)/m);
   });
 
   it('题型型栏目（数学等作答形式名）→ 不设大类层，块名即大题标题', () => {
