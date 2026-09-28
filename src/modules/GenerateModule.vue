@@ -1278,7 +1278,7 @@
           </label>
         </div>
         <p class="hint">
-          💡 选择资料类型后，系统将按资料类型自动推荐匹配命题风格（考试→统一情境，其他→情境融合）。复生成时将按顺序生成选中的多个类型。命题风格可在上方"🎨"按钮中手动调整。
+          💡 选择资料类型后，系统将按资料类型自动推荐匹配的组织风格（正式考卷默认不注入、其余类型各有默认）。复生成时将按顺序生成选中的多个类型。组织风格可在上方"🎨"按钮中手动调整。
         </p>
         <!-- 🔧 省市差异化：正式试卷（exam）按省市取考试时长/总分（如江苏中考语数英150分、北京100分制），未选则全国通用默认 -->
         <div
@@ -5070,10 +5070,10 @@ const restoreAutoStyle = () => {
   }
   showStyleModal.value = false;
 };
-/** 当前类型是否需要必选风格确认
- *  🔴 2026-09-28（用户裁定·根治）：exam「课标卷型」由必选降为可选后，不再有类型被强制确认风格——
- *     本计算属性完全交由 isStyleRequiredForType（单一事实源：只看选项 required，全部为 false）。
- *     不选时＝严肃卷面分支（不注入统一情境框架、不写卷首引导语、大题标题走严肃功能性命名）。 */
+/** 当前选中类型是否需要必选组织风格确认（生成前置闸门）
+ *  🔴 2026-09-28（用户裁定·只让 exam 可选）：是否必选完全交由 isStyleRequiredForType（单一事实源
+ *     = STYLE_REQUIRED_TYPES），此处不另判。exam 可选、不选即走不注入组织风格的默认分支（卷面规则
+ *     单源见 promptLibrary）；practice/special/reading/summary/review/preview 为必选。 */
 const styleRequiredForCurrent = computed(() => genTypes.value.some((t) => isStyleRequiredForType(t)));
 /** 当前类型没有任何适用风格（errorbook/dictation）→ 弹窗明示不注入组织风格 */
 const noApplicableStyleForCurrent = computed(() =>
@@ -8233,9 +8233,11 @@ const generate = async (mode) => {
     return;
   }
 
-  // 🔧 组织风格确认（收敛方案，防御性保留）：仅当某类型存在标记为 required 的风格且未确认时才前置弹窗。
-  //    🔴 2026-09-28（用户裁定）：exam「课标卷型」已由必选降为可选（required 全为 false）——
-  //    「exam 必须选风格」的强制**取消**，不选即走严肃卷面分支；此分支对当前全部类型均为无操作。
+  // 🔧 组织风格确认闸门（针对"必选类型"）：未确认时前置弹窗，确认后方可生成。
+  //    🔴 2026-09-28（用户裁定·只让 exam 可选）：必选判定为单一事实源 isStyleRequiredForType
+  //    （STYLE_REQUIRED_TYPES）——exam 可选（仍可手动选，不选走不注入组织风格的默认分支，卷面规则单源见
+  //    promptLibrary）；practice/special/reading/summary/review/preview 为必选。
+  //    闸门按**任一选中类型必选**判（genTypes.some），故用户须经"确认"（styleConfirmed）才放行。
   if (styleRequiredForCurrent.value && !styleConfirmed.value) {
     showStyleModal.value = true;
     await showAlertDialogFn('请先确认该资料类型的组织风格（已按类型推荐默认值，可在弹窗中调整）');

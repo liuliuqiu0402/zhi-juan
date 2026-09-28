@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url';
 import {
   styleOptions,
   styleInstructions,
+  styleOptionsForType,
   DEFAULT_STYLE_BY_TYPE,
+  STYLE_REQUIRED_TYPES,
   isStyleRequiredForType,
 } from '../../src/config/expertKnowledge.js';
 import { getPromptTemplate } from '../../src/config/promptLibrary.js';
@@ -62,12 +64,41 @@ describe('课标卷型（unified_context）：情境口径归两课标 + 由必�
     }
   });
 
-  it('exam 不再强制该风格：required=false，且任何类型都不再强制确认', () => {
+  it('exam 不再强制该风格：required=false；仅 exam 可选，其余 6 类恢复必选', () => {
     expect(unifiedOption().required, '课标卷型已由必选降为可选').toBe(false);
-    expect(isStyleRequiredForType('exam')).toBe(false);
-    for (const t of Object.keys(DEFAULT_STYLE_BY_TYPE)) {
-      expect(isStyleRequiredForType(t), `${t} 不应再强制风格确认`).toBe(false);
+    // 🔴 2026-09-28（用户裁定·只让 exam 可选）：exam 保持可选（不选＝不注入组织风格的默认分支，
+    //    卷面规则单源见 promptLibrary）；其余 6 类恢复必选；dictation/errorbook 无适用风格、免强制。
+    const REQUIRED = ['practice', 'special', 'reading', 'summary', 'review', 'preview'];
+    for (const t of REQUIRED) {
+      expect(isStyleRequiredForType(t), `${t} 应恢复必选确认`).toBe(true);
     }
+    for (const t of ['exam', 'dictation', 'errorbook']) {
+      expect(isStyleRequiredForType(t), `${t} 不应强制风格确认`).toBe(false);
+    }
+    expect(isStyleRequiredForType(''), '未知类型不得强制').toBe(false);
+  });
+
+  it('必选判定单一事实源 STYLE_REQUIRED_TYPES：isStyleRequiredForType 只读该集合（防再漂移）', () => {
+    expect(STYLE_REQUIRED_TYPES).toEqual(['practice', 'special', 'reading', 'summary', 'review', 'preview']);
+    for (const t of Object.keys(DEFAULT_STYLE_BY_TYPE)) {
+      expect(isStyleRequiredForType(t), `${t} 的必选判定须与 STYLE_REQUIRED_TYPES 一致`)
+        .toBe(STYLE_REQUIRED_TYPES.includes(t));
+    }
+    // UI 生成前闸门 styleRequiredForCurrent = genTypes.some(isStyleRequiredForType)：
+    //   对 6 必选类恒可触发（不再是恒 false 的死分支）
+    for (const t of STYLE_REQUIRED_TYPES) {
+      expect(isStyleRequiredForType(t), `闸门对 ${t} 应可达`).toBe(true);
+    }
+  });
+
+  it('noApplicableStyleForCurrent 提示逻辑不变：仅 errorbook/dictation 无适用风格', () => {
+    const applicable = (t) => styleOptionsForType(t).options.length > 0;
+    expect(applicable('errorbook'), 'errorbook 无适用风格 → 弹窗显示"不适用"提示').toBe(false);
+    expect(applicable('dictation'), 'dictation 无适用风格 → 弹窗显示"不适用"提示').toBe(false);
+    // exam 仍有唯一可选项（课标卷型）→ 不显示"不适用"提示
+    expect(applicable('exam')).toBe(true);
+    expect(styleOptionsForType('exam').options.map((o) => o.value)).toEqual(['unified_context']);
+    for (const t of STYLE_REQUIRED_TYPES) expect(applicable(t), `${t} 应有适用风格`).toBe(true);
   });
 
   it('默认落在严肃卷面分支：DEFAULT_STYLE_BY_TYPE.exam 不预设统一情境', () => {

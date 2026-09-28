@@ -207,8 +207,8 @@ export const styleOptions = [
   // 🔴 2026-09-28（用户裁定·情境口径归两课标 + 由必选降为可选）：
   //    ① 情境取向锚到**本学科课程标准界定的情境类型**（义教课标"真实而富有意义的学习情境"；
   //       高中课标"以具体情境为载体"），不再暗示"每一小题都被同一叙事场景包裹"；
-  //    ② 由 required:true 降为可选——不选时走**严肃卷面分支**（不注入统一情境框架、不写卷首引导语、
-  //       大题标题走严肃功能性命名；该规则的单源见 promptLibrary 的卷面格式条款，此处不再复述）。
+  //    ② 由 required:true 降为可选——不选时走**不注入组织风格的默认分支**
+  //       （该分支的卷面规则单源见 promptLibrary 的卷面格式条款，此处不复述、不另写一份）。
   { group: 'proposition', value: 'unified_context', label: '课标卷型', desc: '全卷统一核心情境、主题与设问连贯',
     tip: '整卷围绕一个核心情境展开，主题与设问在全卷保持连贯；情境沿用本学科课程标准界定的情境类型（义教课标"真实而富有意义的学习情境"；高中课标"以具体情境为载体"），不要求每一小题都被同一叙事场景包裹。（卷面结构由考卷蓝本给定，不由本风格决定）',
     appliesTo: ['exam'], required: false },
@@ -224,8 +224,11 @@ export const styleOptions = [
   { group: 'proposition', value: 'project_based', label: '项目式学习', desc: '项目任务驱动',
     tip: '以一个完整项目任务为驱动，资料作为项目的一部分，考查真实问题中的综合能力；项目式学习是课标倡导的组织方式，适用于以项目任务组织的训练。',
     appliesTo: ['practice', 'special'], required: false },
-  { group: 'proposition', value: 'traditional', label: '传统题组', desc: '不设统一情境，按题组/板块组织',
-    tip: '按传统教辅体例组织：不强制统一情境、不做形式化包装，以知识板块或题组为单位逐题命制，题目按本学科本学段通行形态设问、作答直接；适用于希望保留传统练习形态的场景（用户显式选择，非系统默认）。',
+  // 🔴 2026-09-28（用户裁定·注入句去组织形态词）：原 label/desc/tip 把该风格写成"以…为单位"的组织口径，
+  //    正是 leanWording 守卫的禁用词（教辅形式句不得出现这类组织形态词，见 tests/config/leanWording.test.js）。
+  //    现 label/desc/tip/注入句一律只讲**呈现形态**（不设统一情境、逐题直接命制），不出现任何组织形态词。
+  { group: 'proposition', value: 'traditional', label: '传统练习', desc: '不设统一情境，逐题直接设问',
+    tip: '按传统教辅体例组织：不强制统一情境、不做形式化包装，逐题直接命制，题目按本学科本学段通行形态设问、作答直接；适用于希望保留传统练习形态的场景（用户显式选择，非系统默认）。',
     appliesTo: ['practice', 'special', 'reading', 'review'], required: false },
   // ── 呈现风格组（以内容组织为主的资料：内容的呈现方式）──
   { group: 'presentation', value: 'mindmap', label: '导图式', desc: '知识梳理（真图，非列表）',
@@ -256,7 +259,7 @@ export const styleOptionsForType = (genType = '') => {
 
 /** 资料类型 → 默认风格（选类型未手动选时自动推荐）
  *  🔴 2026-09-28（用户裁定）：exam **不再默认统一情境**——课标卷型由必选降为可选后，
- *     exam 的默认落在**严肃卷面分支**（无统一情境框架注入、不写卷首引导语、大题标题走严肃功能性命名），
+ *     exam 的默认落在**不注入组织风格的默认分支**（卷面规则单源见 promptLibrary），
  *     需要统一情境时由用户显式选「课标卷型」。 */
 export const DEFAULT_STYLE_BY_TYPE = {
   exam: '',
@@ -270,15 +273,15 @@ export const DEFAULT_STYLE_BY_TYPE = {
   errorbook: '',
 };
 
-/** 该类型是否必须在生成前确认风格（必选弹窗）
- *  🔒 单一事实源：只看该类型默认风格对应选项的 `required` 标记（不再按"类型有默认值"推断，
- *     否则 exam 会因默认值被误判为必选）。当前全部风格 required=false → 任何类型都不强制确认。 */
-export const isStyleRequiredForType = (genType = '') => {
-  const def = DEFAULT_STYLE_BY_TYPE[genType];
-  if (!def) return false;
-  const opt = styleOptions.find((o) => o.value === def);
-  return !!(opt && opt.required);
-};
+/** 生成前必须确认组织风格的资料类型（必选确认闸门 → GenerateModule 生成前置弹窗）。
+ *  🔒 单一事实源（2026-09-28 用户裁定·只让 exam 可选，其余 6 类恢复必选）：
+ *     · 本集合列出"必选"的 6 类（practice/special/reading/summary/review/preview）；
+ *     · exam 保持可选——不选＝走不注入组织风格的默认分支（卷面规则单源见 promptLibrary）；
+ *     · dictation/errorbook 无任何适用风格（appliesTo 未命中），本就免强制。
+ *  任何"是否必选"的判断只读本集合；不得再按 DEFAULT_STYLE_BY_TYPE 有无默认值、或选项 required 推断。 */
+export const STYLE_REQUIRED_TYPES = ['practice', 'special', 'reading', 'summary', 'review', 'preview'];
+
+export const isStyleRequiredForType = (genType = '') => STYLE_REQUIRED_TYPES.includes(genType);
 
 // ==================== 组织风格指令（生成时注入：情境组织/呈现方式，简洁不诱导） ====================
 // 🔒 2026-09-15 用户裁定·情境口径归课标（本表 = GenerateModule 追加的【组织风格】实施说明，逐字注入）：
@@ -292,11 +295,11 @@ export const styleInstructions = {
   //    "每一小题都被同一叙事场景包裹"。改为锚到**本学科课程标准界定的情境类型**、只要求
   //    "主题与设问在全卷连贯"，与该情境相适的题目在其下展开（与 unified_context.tip 同源）。
   'unified_context': '整份资料围绕一个核心主题情境展开，主题与设问在全卷连贯；情境沿用本学科课程标准界定的情境类型，与该情境相适的题目在其下展开。',
-  'unit_context': '以本单元大情境组织，栏目间情境连贯递进，各题在单元情境下展开。',
+  'unit_context': '以本单元大情境组织，栏目间情境连贯递进，与该单元情境相适的题目在其下展开。',
   'scenario_each': '每题设置独立、真实适切的情境设问（情境取向依本学科本学段的课标要求），情境与题目内容一致。',
   'big_unit': '打破课时界限，围绕大概念整体组织，体现知识关联与递进。',
   'project_based': '以一个完整项目任务为驱动组织资料，考查真实问题中的综合能力。',
-  'traditional': '按传统教辅体例组织：不设统一情境、不做形式化包装，以知识板块或题组为单位逐题命制，题目按本学科本学段通行形态设问、作答直接。',
+  'traditional': '按传统教辅体例组织：不设统一情境、不做形式化包装，逐题直接命制，题目按本学科本学段通行形态设问、作答直接。',
   // 🔴 2026-09-24：导图式从"用嵌套列表模拟"升级为**真图**。分工：模型只出结构化 JSON，
   //    几何由 utils/diagrams 算（模型手写 SVG 必然歪、还会被清洗器改坏）；
   //    约定与容错见 utils/diagramBlock.js（解析失败会原样保留那块文字，不会丢内容）。

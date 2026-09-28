@@ -302,7 +302,9 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
   it('🔴 2026-09-28 去一刀切：中学段（初/高）不设大类层——课标领域名直接作大题标题', () => {
     const mid = getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template;
     expect(mid).toContain('中学段（初中/高中）不设大类层');
-    expect(mid).toContain('课标内容领域名**直接作大题标题**');
+    // 🔴 2026-09-28（E1 收口·大题标题命名单源）："中学段领域名直接作大题标题"口径移到【卷面结构】条的
+    //    "大题标题命名"单源（bigTitleRule），不再在【层级归并】条并行复述——此处锁同一口径的新落点。
+    expect(mid, '中学段领域名直接作大题标题（命名单源）').toContain('领域名直接作大题标题');
     expect(mid, '中学段不作"大类名不得充当大题标题"（域型名即大题标题）').not.toContain('不得充当大题标题');
     const low = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template;
     expect(low, '小学段不得被中学口径覆盖').not.toContain('中学段（初中/高中）不设大类层');

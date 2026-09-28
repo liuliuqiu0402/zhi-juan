@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { getPromptTemplate } from '../../src/config/promptLibrary.js';
 import { buildOrganizeBlock } from '../../src/utils/injectionManifest.js';
 import { buildTeachingInjection } from '../../src/config/teachingBlueprints.js';
+import { styleInstructions, styleOptions } from '../../src/config/expertKnowledge.js';
 
 const TYPES = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
 /** 组织形态词（产品自造 / 指向形式）：不得出现在任何类型的委托正文里 */
@@ -19,6 +20,22 @@ describe('少约束·委托书不再给组织形态描述（教材颗粒只作�
         for (const w of FORM_WORDS) {
           expect(t.template, `${genType}(${grade}) 不得出现「${w}」`).not.toContain(w);
         }
+      }
+    }
+  });
+
+  // 🔴 2026-09-28（用户裁定·守卫扩面）：原守卫只扫模板产物，而组织风格注入句由 withStyle **在模板之外**
+  //    追加，故漏网——traditional 注入句曾写"以知识板块或题组为单位逐题命制"（组织形态词回潮）。
+  //    现将 styleInstructions 与 styleOptions 文案一并纳入 FORM_WORDS 扫描面，禁用词零出现。
+  it('组织风格注入句与选项文案：组织形态词零出现（styleInstructions 纳入扫描）', () => {
+    for (const [k, v] of Object.entries(styleInstructions)) {
+      for (const w of FORM_WORDS) {
+        expect(String(v), `styleInstructions.${k} 不得出现「${w}」`).not.toContain(w);
+      }
+    }
+    for (const o of styleOptions) {
+      for (const w of FORM_WORDS) {
+        expect(`${o.label}${o.desc}${o.tip}`, `风格 ${o.value} 文案不得出现「${w}」`).not.toContain(w);
       }
     }
   });
