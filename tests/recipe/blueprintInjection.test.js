@@ -116,6 +116,9 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(domainLines.every((l) => l.includes('本大类命题要求')), '大类行须携带命题要求').toBe(true);
     // 大类下大题自拟 + 分值合计约束
     expect(domainLines.every((l) => l.includes('各大题分值合计须等于')), '大类行须给大题自拟与分值约束').toBe(true);
+    // 🔴 2026-09-28：域型不再由注入给定大题序号 → 大类行须补"大题序号全卷连续、不得按大类重启"
+    //    （否则模型可能在大类下重启"一、"，而现有题号守卫只认阿拉伯小题号，查不出中文大题号重复）
+    expect(domainLines.every((l) => l.includes('大题序号全卷连续')), '大类行须给大题序号全卷连续约束').toBe(true);
   });
 
   it('题型型栏目（数学等作答形式名）→ 不设大类层，块名即大题标题', () => {
