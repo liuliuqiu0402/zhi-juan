@@ -13,7 +13,8 @@
  */
 
 import { STAGE_SUBJECTS } from '../config/promptLibrary.js';
-import { subjects } from '../config/expertKnowledge.js';
+import { subjects, normalizeSubjectName } from '../config/expertKnowledge.js';
+import { resolveStageKey } from './gradeStage.js';
 
 /** 可选学段（与 expertKnowledge.stages 同口径三档）；'' 表示未标注 */
 export const STAGE_CHOICES = ['小学', '初中', '高中'];
@@ -39,6 +40,33 @@ export const subjectChoicesForStage = (stageLabel = '') => {
   if (!keys) return subjects;
   const allowed = new Set(keys.flatMap((k) => STAGE_SUBJECTS[k] || []));
   return subjects.filter((s) => allowed.has(s));
+};
+
+/**
+ * 🔴 2026-09-28（用户裁定·C 硬拦 + 用户提醒"别把信息全的误拦"）：
+ *   生成前的**三维度完整性**判据（纯函数·单一事实源）。**只判真空**，不因字面写法不同而拦：
+ *   · 学段：显式字段与**教材名线索**都解析不出（resolveStageKey 返回空）才算缺——解析链本身宽松
+ *     （中文/阿拉伯/圈码年级、"小学低/中/高段"、"初一~初三"、"高一~高三"、教材名"六年级/第X册/六上"
+ *      均可解析；且"小学"无年级时末位宽松兜底到高段、不落低段）；
+ *   · 学科：字段为空（归名后仍为空）才算缺。
+ * @param {{stage?:string, subject?:string, grade?:string, name?:string}} meta 教材元数据
+ * @returns {{ok:boolean, missing:string[], stageKey:string, subject:string}}
+ */
+export const checkMetaCompleteness = ({ stage = '', subject = '', grade = '', name = '' } = {}) => {
+  const stageKey = resolveStageKey(stage, grade, name);
+  const stdSubject = subject ? (normalizeSubjectName(subject, stageKey) || subject) : '';
+  const missing = [];
+  if (!stageKey) missing.push('stage');
+  if (!stdSubject) missing.push('subject');
+  return { ok: missing.length === 0, missing, stageKey, subject: stdSubject };
+};
+
+/** 缺项提示文案（单一事实源，界面与生成入口共用）：把"缺什么 + 去哪儿补"说清，不做泛泛拦截 */
+export const metaMissingMessage = (missing = []) => {
+  const label = (Array.isArray(missing) ? missing : [])
+    .map((m) => (m === 'stage' ? '学段' : '学科')).join('、');
+  return `该教材缺少【${label}】，无法匹配到对应的三维度指令（学段×学科×资料类型）。`
+    + `请到「教材库」用卡片上的 🏷️「编辑元数据」补标后再生成。`;
 };
 
 /**

@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   STAGE_CHOICES, applyLibraryMetaEdit, needsMetaBackfill, subjectChoicesForStage,
+  checkMetaCompleteness, metaMissingMessage,
 } from '../../src/utils/libraryMetaEdit.js';
 
 const book = (extra = {}) => ({ id: 'b1', name: '某教材', stage: '', subject: '', ...extra });
@@ -40,6 +41,46 @@ describe('学科候选按该学段实际开设过滤（三维度：学段×学�
   it('学段未标注 → 全量（无从判断，不强行限制）', () => {
     expect(subjectChoicesForStage('').length).toBeGreaterThan(subjectChoicesForStage('小学').length);
     expect(subjectChoicesForStage('   ')).toEqual(subjectChoicesForStage(''));
+  });
+});
+
+// 🔴 2026-09-28（用户裁定·C 硬拦；用户提醒"别把信息全的误拦"）：
+//   判据只判**真空**——学段字段与教材名线索都解析不出、或学科字段为空。写法各异一律放行（解析链负责）。
+describe('三维度完整性判据（生成前硬拦：只拦真空，不拦写法）', () => {
+  it('信息全但写法各异 → 一律放行（不得误拦）', () => {
+    const cases = [
+      { stage: '小学', grade: '六年级' },
+      { stage: '小学', grade: '②' },
+      { stage: '小学低段' },
+      { stage: '小学', name: '语文六年级上册' }, // grade 空，靠教材名兜底
+      { stage: '初中', grade: '初一下' },
+      { stage: '高中', grade: '高一', volume: '必修1' },
+      { stage: 'primary_high' },
+    ];
+    for (const c of cases) {
+      const r = checkMetaCompleteness({ subject: '语文', ...c });
+      expect(r.ok, `${JSON.stringify(c)} 应放行（解析得 ${r.stageKey}）`).toBe(true);
+      expect(r.stageKey, `${JSON.stringify(c)} 须解析出学段`).toBeTruthy();
+    }
+  });
+
+  it('学科按学段归名后仍有效 → 放行（旧名不误拦）', () => {
+    expect(checkMetaCompleteness({ stage: '初中', subject: '政治' }).ok).toBe(true);
+    expect(checkMetaCompleteness({ stage: '高中', subject: '信息技术' }).ok).toBe(true);
+  });
+
+  it('真空（学段字段空且名称无线索 / 学科空）→ 拦住并给出缺项与补标入口', () => {
+    const noStage = checkMetaCompleteness({ subject: '语文', stage: '', name: '某资料' });
+    expect(noStage.ok).toBe(false);
+    expect(noStage.missing).toEqual(['stage']);
+    const noSubject = checkMetaCompleteness({ stage: '初中', subject: '' });
+    expect(noSubject.ok).toBe(false);
+    expect(noSubject.missing).toEqual(['subject']);
+    const neither = checkMetaCompleteness({});
+    expect(neither.missing).toEqual(['stage', 'subject']);
+    expect(metaMissingMessage(neither.missing)).toContain('缺少【学段、学科】');
+    expect(metaMissingMessage(['subject'])).toContain('缺少【学科】');
+    expect(metaMissingMessage(['stage'])).toContain('🏷️');
   });
 });
 

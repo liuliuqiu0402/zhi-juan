@@ -3177,6 +3177,7 @@ import { useAiGenerator, lastInjectSnapshot, chapterSigOf } from '../composables
 //    生成页只保留「从本记录的答案页听力原文进入」这个便利入口，实现共用同一组件。
 import ListeningWorkbench from '../components/listening/ListeningWorkbench.vue';
 import { resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
+import { checkMetaCompleteness, metaMissingMessage } from '../utils/libraryMetaEdit.js'; // 🔴 2026-09-28：生成前三维度（学段×学科）完整性判据——硬拦"真空"，引导去教材库补标
 import { resolveScopeName, selectedChaptersOf, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES } from '../config/paperScope.js';
 
 // 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
@@ -8219,6 +8220,20 @@ const generate = async (mode) => {
   // 🔧 检查：过滤后教材章节是否为空
   if (selectedBooks.length === 0) {
     await showAlertDialogFn('请先在教材库中勾选至少一个章节');
+    return;
+  }
+
+  // 🔴 2026-09-28（用户裁定·C 硬拦；用户提醒"别把信息全的误拦"）：三维度（学段×学科）拿不到 → 拦住并引导补标。
+  //    判据是纯函数 checkMetaCompleteness（**只判真空**：学段字段与教材名线索都解析不出、或学科字段为空；
+  //    写法各异——"六年级/②/小学低段/初一下/必修1"等——一律放行，见 libraryMetaEdit 单测）。
+  const metaIncomplete = selectedBooks.filter((b) => !checkMetaCompleteness(b).ok);
+  if (metaIncomplete.length > 0) {
+    const missingKinds = [...new Set(metaIncomplete.flatMap((b) => checkMetaCompleteness(b).missing))];
+    await showAlertDialogFn(
+      `有 ${metaIncomplete.length} 本教材缺少三维度信息（学段×学科），为避免生成"半三维度"资料，本次不生成：\n`
+      + metaIncomplete.map((b) => `• ${b.name || '（未命名）'}`).join('\n')
+      + `\n\n${metaMissingMessage(missingKinds)}`
+    );
     return;
   }
   
