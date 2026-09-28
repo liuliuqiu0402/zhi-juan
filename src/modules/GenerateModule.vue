@@ -6329,6 +6329,8 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     structure,
     fullScore,
     duration,
+    genType,                        // 🔴 卷别→学业质量水平（高中）：正式卷按卷别映射、教辅锚水平二（单源 config/levelMapping）
+    scopeType: scopeType.value || '', // 升学卷别（gaokao=高考）→ 高考水平；其余正式卷→合格考水平
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
   });
   // 🔴 模板正文段文本缓存（分段标注用：在后续追加教辅结构蓝本段之前取前缀）
@@ -6440,6 +6442,8 @@ const restoreDefaultInstruction = async () => {
   const gradeLabel = gradeDisplayLabel(book.stage, book.grade, book.volume);
   instructionDraft.value = buildInjectionInstruction({
     template: builtinTemplate, grade: gradeLabel, stage: stageKey, subject, genTypeLabel, label, semester: book.semester || '', structure, fullScore, duration,
+    genType,                        // 🔴 卷别→学业质量水平（高中）：与 loadInstructionFromLibrary 同源
+    scopeType: scopeType.value || '',
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
   });
   // exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段，此处不重复；非 exam 追加教辅结构（委托正文栏目骨架）

@@ -27,6 +27,7 @@ import { resolveStageKey, STAGE_KEY_SET } from '../utils/gradeStage.js'; // 年�
 import { buildCarrierInstruction, buildAnswerSpaceInstruction, buildLongAnswerCarrierInstruction, BLANK_CARRIER_MARKUP } from './layoutSpec.js'; // 书写载体（格子类）+ 作答空间形态语义 + 空位载体标记 + 成句成段答案的书写载体：均由排版规格库按 学科×学段 动态生成（单一事实源，禁止在模板里手写死第二套措辞/示例）
 import { resolveMarkCapability, markCapabilitySignature } from './eduRenderContract.js'; // 🔴 标记能力判定单源（2026-09-17）：正文点名 [IMAGE]/[GRAPH] 与 system 给骨架用**同一判定**，防"正文点名而 system 无骨架"的悬空与假指针
 import { sectionKindOf } from './examPaperBlueprints.js'; // 🔴 蓝图栏目性质判定单源（2026-09-27）：域型→大类层 / 部分型→部分层 / 题型型→块名即大题标题；本处与【层级归并】条款同源，不再由模型从栏名再猜一遍
+import { buildLevelInstruction } from './levelMapping.js'; // 🔴 卷别→学业质量水平 单源（2026-09-28）：高中正式卷按卷别映射、教辅锚水平二（合格要求）；指令正文**只在此处注入一次**，勿在别处再写一份水平口径
 
 /* 教材原文使用口径（2026-09-13 用户定版·双向开放，来源句单源收敛）：
  *  · 教材与课外**等权**：情境与素材取自教材或课外真实生活皆可，来源不作指定——
@@ -1006,6 +1007,7 @@ export function buildInjectionInstruction(opts = {}) {
     template = '', grade = '', subject = '', unit = '', genTypeLabel = '',
     structure = '', fullScore = '', duration = '', extra = '', label = '', semester = '', academic = '',
     stage = '', materialChannel = '',
+    genType = '', scopeType = '', paperKind = '',
   } = opts;
   // 1) 任务定位行（系统生成，固定最前——模型第一眼知道要干什么）
   const taskLine = `【任务】生成${genTypeLabel || '资料'}：${subject}${grade}${unit ? `·${unit}` : ''}${fullScore ? `（满分${fullScore}分${duration ? `，时长${duration}` : ''}）` : ''}`;
@@ -1033,7 +1035,11 @@ export function buildInjectionInstruction(opts = {}) {
   // 3) 用户附加要求（最后，优先级最高，可覆盖前序约束）
   let extraBlock = '';
   if (extra?.trim()) extraBlock = `\n\n【用户附加要求】\n${extra.trim()}`;
-  return [taskLine, body, extraBlock].filter(Boolean).join('\n').trim();
+  // 4) 学业质量水平（高中专属）：卷别→水平 的**唯一注入点**（单源在 config/levelMapping.js）。
+  //    正式卷按卷别映射（高考→水平四 / 合格考→水平二，思想政治高考→水平三）；教辅无卷别 → 锚水平二（合格要求）。
+  //    非高中（义务教育无水平级）→ 空串、不注入。置于模板正文与用户附加之间（用户附加仍最后、优先级最高）。
+  const levelBlock = buildLevelInstruction({ stage, subject, genType, scopeType, paperKind });
+  return [taskLine, body, levelBlock, extraBlock].filter(Boolean).join('\n').trim();
 }
 
 /** 从蓝图生成卷面结构文本（明细式，供指令注入）；参数为 findBlueprint/getExamBlueprint 返回的蓝图对象
