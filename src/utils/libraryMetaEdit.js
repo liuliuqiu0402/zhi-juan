@@ -12,8 +12,34 @@
  * ============================================================
  */
 
+import { STAGE_SUBJECTS } from '../config/promptLibrary.js';
+import { subjects } from '../config/expertKnowledge.js';
+
 /** 可选学段（与 expertKnowledge.stages 同口径三档）；'' 表示未标注 */
 export const STAGE_CHOICES = ['小学', '初中', '高中'];
+
+/** 中文学段标签 → 五档学段键（小学三档实际开设学科一致，取并集口径） */
+export const STAGE_LABEL_TO_KEYS = {
+  小学: ['primary_low', 'primary_mid', 'primary_high'],
+  初中: ['middle'],
+  高中: ['high'],
+};
+
+/**
+ * 🔴 2026-09-28（用户裁定：按**该学段实际开设的学科**来，非全学科 × 全学段）：
+ *   学科候选 = 该学段实际开设学科（单一事实源 STAGE_SUBJECTS，不另写一份 15 科清单）；
+ *   学段未标注 → 返回全量（无从判断，不强行限制）。
+ * 为什么要有：编辑器学科下拉原为全量 15 科，可存出"小学+物理"这类现实不存在的组合 →
+ *   生成侧查不到蓝本只好跨学段借格（静默）。入口按开设矩阵约束，从源头消灭该类组合。
+ * @param {string} stageLabel 中文学段（'小学'/'初中'/'高中'）或空
+ * @returns {string[]} 该学段可选学科（顺序随 expertKnowledge.subjects，保持稳定）
+ */
+export const subjectChoicesForStage = (stageLabel = '') => {
+  const keys = STAGE_LABEL_TO_KEYS[String(stageLabel || '').trim()];
+  if (!keys) return subjects;
+  const allowed = new Set(keys.flatMap((k) => STAGE_SUBJECTS[k] || []));
+  return subjects.filter((s) => allowed.has(s));
+};
 
 /**
  * 原地应用元数据修改（store 里的条目就是普通对象，直接改字段后由 store 落盘）。

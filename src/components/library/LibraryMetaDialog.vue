@@ -100,9 +100,8 @@
  * ============================================================
  */
 import { ref, computed, watch } from 'vue';
-import { STAGE_CHOICES } from '../../utils/libraryMetaEdit.js';
+import { STAGE_CHOICES, subjectChoicesForStage } from '../../utils/libraryMetaEdit.js';
 import { highVolumeOptions } from '../../config/highVolumes.js';
-import { subjects } from '../../config/expertKnowledge.js';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -125,20 +124,31 @@ watch(() => props.visible, (v) => {
   };
 }, { immediate: true });
 
-const subjectOptions = subjects;
+/** 🔴 2026-09-28（用户裁定：按该学段**实际开设**的学科来）：
+ *  学科候选按所选学段过滤（单一事实源 STAGE_SUBJECTS）——原先全量 15 科，
+ *  可存出"小学+物理"这类现实不存在的组合，生成侧只好跨学段借格（静默）。 */
+const subjectOptions = computed(() => subjectChoicesForStage(form.value.stage));
+// 学段改变致当前学科不在该学段开设 → 清空（防存下矛盾组合；该行为已写进下方联动说明）
+watch(() => form.value.stage, () => {
+  if (form.value.subject && !subjectOptions.value.includes(form.value.subject)) form.value.subject = '';
+});
 /** 册次候选按学科给（学科未定 → 合并全部）；音体美等模块制学科无预设 → 可自由填写 */
 const volumePresets = computed(() => highVolumeOptions(form.value.subject));
 
 /** 保存后会发生什么（与 applyLibraryMetaEdit 的三条规则一一对应，不允许说得比实现多） */
 const linkageNote = computed(() => {
+  // 🔴 2026-09-28：新增"学科候选按学段实际开设过滤"这条行为，必须如实说明（不在其中的学科会被清空）
+  const scopeNote = form.value.stage
+    ? ' 学科候选按该学段实际开设学科过滤，不在其中的学科会清空。'
+    : ' 学段未标注：学科候选为全部学科。';
   if (form.value.stage === '高中') {
-    return form.value.volume
+    return (form.value.volume
       ? '保存后：写入册次，并清空遗留的年级（高中按册次、不按年级）。'
-      : '保存后：归入「高中」分组；册次留空也没关系，可稍后在卡片上再补。';
+      : '保存后：归入「高中」分组；册次留空也没关系，可稍后在卡片上再补。') + scopeNote;
   }
-  return props.volume
+  return (props.volume
     ? '保存后：归入对应学段分组，并清空册次（册次只对高中有意义）。'
-    : '保存后：归入对应学段分组，可按学科再分组查看。';
+    : '保存后：归入对应学段分组，可按学科再分组查看。') + scopeNote;
 });
 
 const cancel = () => emit('update:visible', false);

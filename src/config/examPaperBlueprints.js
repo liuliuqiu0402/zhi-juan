@@ -613,11 +613,16 @@ const STAGE_FALLBACK = {
   if (direct) {
     bp = { ...direct, key: `${stdSubject}|${bpStage}`, subject: stdSubject, stage: bpStage };
   } else {
-    // 学段降级链
+    // 学段降级链（🔴 2026-09-28：借格**不再静默**——组合不在"实际开设矩阵"内时留痕：
+    //    入口已按 STAGE_SUBJECTS 约束学科候选，此处为兜底，防卷面骨架与所选学段不符而无人察觉）
     const chain = STAGE_FALLBACK[bpStage] || [];
     for (const st of chain) {
       const b = EXAM_BLUEPRINTS[`${stdSubject}|${st}`];
-      if (b) { bp = { ...b, key: `${stdSubject}|${st}`, subject: stdSubject, stage: bpStage }; break; }
+      if (b) {
+        bp = { ...b, key: `${stdSubject}|${st}`, subject: stdSubject, stage: bpStage, borrowedFrom: st };
+        console.warn(`[examBlueprint] ${stdSubject}|${bpStage} 不在实际开设矩阵内 → 借用 ${stdSubject}|${st} 的卷面骨架；请核对教材元数据的学段/学科`);
+        break;
+      }
     }
     // 全学段通配蓝本（如信息科技跨学段通用）
     if (!bp) {

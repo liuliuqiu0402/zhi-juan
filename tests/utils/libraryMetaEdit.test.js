@@ -5,10 +5,43 @@
 // 或者把老数据里的"高二"一并抹掉、反而比改版前更没有标识。
 import { describe, it, expect } from 'vitest';
 import {
-  STAGE_CHOICES, applyLibraryMetaEdit, needsMetaBackfill,
+  STAGE_CHOICES, applyLibraryMetaEdit, needsMetaBackfill, subjectChoicesForStage,
 } from '../../src/utils/libraryMetaEdit.js';
 
 const book = (extra = {}) => ({ id: 'b1', name: '某教材', stage: '', subject: '', ...extra });
+
+// 🔴 2026-09-28（用户裁定：按该学段**实际开设**的学科来，非全学科 × 全学段）：
+//   学科候选须按学段过滤（单一事实源 STAGE_SUBJECTS），否则入口可存出"小学+物理"这类不存在的组合，
+//   生成侧只能跨学段借格（静默）。本块把矩阵口径钉住。
+describe('学科候选按该学段实际开设过滤（三维度：学段×学科 只在真实开设组合内）', () => {
+  it('小学：只有实际开设的 9 科；物理/化学/生物/历史/地理/思想政治 不在列', () => {
+    const opts = subjectChoicesForStage('小学');
+    for (const s of ['语文', '数学', '英语', '科学', '道德与法治', '信息科技', '音乐', '美术', '体育']) {
+      expect(opts, `小学应开设 ${s}`).toContain(s);
+    }
+    for (const s of ['物理', '化学', '生物', '历史', '地理', '思想政治']) {
+      expect(opts, `小学不开设 ${s}`).not.toContain(s);
+    }
+  });
+
+  it('初中：含物理、以「道德与法治」为准（不含高中名「思想政治」）', () => {
+    const opts = subjectChoicesForStage('初中');
+    expect(opts).toContain('物理');
+    expect(opts).toContain('道德与法治');
+    expect(opts).not.toContain('思想政治');
+  });
+
+  it('高中：以「思想政治」为准（不含初中名「道德与法治」）', () => {
+    const opts = subjectChoicesForStage('高中');
+    expect(opts).toContain('思想政治');
+    expect(opts).not.toContain('道德与法治');
+  });
+
+  it('学段未标注 → 全量（无从判断，不强行限制）', () => {
+    expect(subjectChoicesForStage('').length).toBeGreaterThan(subjectChoicesForStage('小学').length);
+    expect(subjectChoicesForStage('   ')).toEqual(subjectChoicesForStage(''));
+  });
+});
 
 describe('applyLibraryMetaEdit：字段联动规则', () => {
   it('补标学段与学科（老数据最典型的用法）', () => {
