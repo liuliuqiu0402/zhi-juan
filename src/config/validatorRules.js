@@ -274,6 +274,17 @@ export const VALIDATOR_RULES = [
     stages: ['*'],
     description: '内容型资料（预习/知识总结）里模型以"无载体 class 的 <u>"充当"重点标注"时，程序归一为加粗（<strong>，只换标记、不动文字）——下划线与横线在本产品语义是作答载体（填空横线、画线题标记），拿它做强调会与作答位混淆。生成侧口径由【输出格式】的"强调口径"单源注入（全类型），本条只做确定性形态归一，不新增提示词。',
     enabled: true,
+  },
+
+  {
+    id: 'cn-ordinal-guard',
+    name: '大题汉字序号连续性静默防护',
+    category: 'guard',
+    subjects: ['*'],
+    stages: ['*'],
+    genTypes: ['exam'],
+    description: '试卷正文大题以「汉字序号＋、」（一、二、三…）编号时，序号**重复**（如两个"三、"）或**按小节重启**（如 三、之后又出现 一、）→ 静默抽检（warn 进生成报告【问题列表】）。2026-09-28 新增：**只提示不改写、不重试、不判失败**——区别于数字题号缺号/重启的拦截口径（detectBodyNumberingRestart），本判据仅如实报告交编辑核对。',
+    enabled: true,
   }
 ]
 ;
@@ -293,10 +304,7 @@ export const VALIDATOR_GATES = new Set([
   'option-count-guard', 'choice-answer-position-guard', 'choice-first-blank-fix', 'score-label-fix', 'writing-expression-fix',
   'answer-area-fix', 'answer-section-exam', 'answer-section-teaching', 'answer-coverage-guard',
   'emphasis-form-fix',
-  'text-format-sup-sub',
-  // 🔧 已注销规则的引擎惰性残留（055e198 去强制化收敛时移出规则库，has() 恒 false → 分支恒不命中）：
-  //    保留登记以便接线自检如实标注为"孤儿执行点"，待引擎清理后从本表移除
-  'score-distribute-fix', 'score-sum-guard', 'low-score-guard',
+  'text-format-sup-sub', 'cn-ordinal-guard',
 ]);
 /** 无独立分支、由汇总/关联规则执行的子规则 */
 export const RULE_EXEC_BY = {

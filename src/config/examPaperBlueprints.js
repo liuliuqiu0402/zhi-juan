@@ -17,7 +17,7 @@ export const DEFAULT_EXAM_DURATION = '60分钟';
 
 /**
  * 学科×学段 → 真题卷题型骨架
- * key: `${subject}|${stage}`，stage ∈ primary_low / primary_mid / primary_high / middle / high / all
+ * key: `${subject}|${stage}`，stage ∈ primary_low / primary_mid / primary_high / middle / high
  * sections: { name 规范题型名, score 大题分值, note 命题要求 }
  */
 export const EXAM_BLUEPRINTS = {
@@ -624,14 +624,14 @@ const STAGE_FALLBACK = {
         break;
       }
     }
-    // 全学段通配蓝本（如信息科技跨学段通用）
-    if (!bp) {
-      const all = EXAM_BLUEPRINTS[`${stdSubject}|all`];
-      if (all) bp = { ...all, key: `${stdSubject}|all`, subject: stdSubject, stage: bpStage };
-    }
   }
   // 工具库启停开关：命中蓝本被停用 → 返回 null（生成端落回兜底，见 useAiGenerator）
-  if (bp && !isLibEntryEnabled('blueprint', bp.key)) return null;
+  // 🔴 2026-09-28：不再静默——条目被停用即**无卷面结构**，必须留痕（console.warn），
+  //    否则"工具库停用某条目"与"生成端无卷面骨架"两路现象无从关联，排查只能靠猜。
+  if (bp && !isLibEntryEnabled('blueprint', bp.key)) {
+    console.warn(`[examBlueprint] 蓝图条目「${bp.key}」已在工具库被停用 → 本次 exam 无卷面结构（生成端落回兜底）；如需恢复请在工具库面板启用该条目`);
+    return null;
+  }
   // 省市差异化：命中省市配置则覆盖时长/总分，并按比例缩放题型骨架分值（末大题修正保证各大题之和=新总分）
   // 配置 = 内置 EXAM_REGION_CONFIG + 用户蓝图库"省市分值"维护的覆盖（用户优先）
   if (bp && region) {

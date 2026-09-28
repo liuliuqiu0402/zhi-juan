@@ -429,6 +429,67 @@ export function detectBodyNumberingRestart(html = '') {
   return { top, segments, restart: longSegs.length >= 2 && top >= BODY_RESTART_MIN_TOP };
 }
 
+/** 汉字序数 → 阿拉伯数字（仅覆盖试卷大题标题常见范围：一~几十九；非汉字序数返回 0） */
+const CN_ORDINAL_DIGITS = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+export function cnOrdinalToNumber(label = '') {
+  const s = String(label || '').trim();
+  if (!s) return 0;
+  let total = 0;
+  let section = 0;
+  for (const ch of s) {
+    if (ch === '十') { section = (section || 1) * 10; total += section; section = 0; }
+    else if (ch === '百') { section = (section || 1) * 100; total += section; section = 0; }
+    else if (CN_ORDINAL_DIGITS[ch] != null) { section = section * 10 + CN_ORDINAL_DIGITS[ch]; }
+    else return 0; // 含非汉字序数字符（如顿号外的字）→ 非序数
+  }
+  return total + section;
+}
+
+/**
+ * 试卷正文大题「汉字序号＋、」标题守卫（2026-09-28 新增）
+ * ============================================================
+ * 实证：试卷大题标题以「一、二、三、…」编号（与数字题号并存的**标题编号维度**），
+ *   正常应**全卷连续、不重复、不重启**。抽取行首「汉字序号＋、」标题后：
+ *     ① **重复序号**（如两个"三、"）或 ② **按小节重启**（如 三、之后又出现 一、）即异常。
+ * 🔴 与其他编号判据的分工：数字题号的 detectBodyNumberingRestart 用于**拦截/重试**；
+ *   本判据只**如实报告、交编辑核对**——**不改写、不重试、不判失败**（仅 warn）。
+ * 适用范围：仅试卷（exam）正文；答案区不参与。
+ * @param {string} html 正文 HTML（含答案区亦可，答案区自动剔除）
+ * @returns {{headings:Array<{label:string,n:number,text:string}>, duplicates:string[],
+ *            restarts:Array<{from:number,to:number}>, hasIssue:boolean}}
+ */
+export function detectCnOrdinalHeadingIssues(html = '') {
+  const src = String(html || '');
+  const empty = { headings: [], duplicates: [], restarts: [], hasIssue: false };
+  if (!src.trim()) return empty;
+  const bodyOnly = src.split(/<div[^>]*class=["'][^"']*answer-section|<h[1-6][^>]*>\s*参考答案/i)[0];
+  const lines = bodyOnly
+    .replace(/<\/(?:p|li|h[1-6]|div|tr|td|th|table)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&emsp;|&#8195;/gi, '　')
+    .split('\n')
+    .map((l) => l.replace(/[\u3000\s]+/g, ' ').trim())
+    .filter(Boolean);
+  const headings = [];
+  for (const l of lines) {
+    const m = l.match(/^([一二三四五六七八九十百]{1,4})[、]/);
+    if (!m) continue;
+    const n = cnOrdinalToNumber(m[1]);
+    if (!n) continue;
+    headings.push({ label: m[1], n, text: l.slice(0, 40) });
+  }
+  const counts = new Map();
+  for (const h of headings) counts.set(h.label, (counts.get(h.label) || 0) + 1);
+  const duplicates = [...counts.entries()].filter(([, c]) => c > 1).map(([label]) => label);
+  const restarts = [];
+  for (let i = 1; i < headings.length; i++) {
+    if (headings[i].n < headings[i - 1].n) restarts.push({ from: headings[i - 1].n, to: headings[i].n });
+  }
+  return { headings, duplicates, restarts, hasIssue: duplicates.length > 0 || restarts.length > 0 };
+}
+
 /**
  * 缺号成因分类（2026-09-17 用户裁定·根治：不再靠枚举编号形态定罪）
  * ============================================================

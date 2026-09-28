@@ -43,9 +43,21 @@ describe('validator 执行点注册表 ↔ 引擎 has() 调用点', () => {
   });
 
   it('孤儿执行点（引擎有分支但未注册）必须显式登记在 VALIDATOR_GATES 且无隐藏规则', () => {
-    // 引擎分支全集 == 已注册独立执行 + 孤儿（未注册）两部分；孤儿数量须与本表登记一致（当前 3：score-* 惰性残留）
+    // 引擎分支全集 == 已注册独立执行 + 孤儿（未注册）两部分；孤儿须与 VALIDATOR_GATES 中未注册项一致。
+    // 🔴 2026-09-28：score-distribute-fix / score-sum-guard / low-score-guard 三处惰性残留已从引擎与
+    //    VALIDATOR_GATES 一并清除（has() 恒 false 死分支），故孤儿集合此刻应为空。
     const orphans = gateIds.filter((id) => !registeredIds.has(id));
     const declared = [...VALIDATOR_GATES].filter((id) => !registeredIds.has(id)).sort();
     expect(orphans).toEqual(declared);
+  });
+
+  it('已撤规则的引擎死分支与登记均已清除（防回流）', () => {
+    // 这三条规则早已移出 VALIDATOR_RULES（has() 恒 false），其引擎分支与 VALIDATOR_GATES 登记为死代码，
+    // 2026-09-28 清理：既不该再出现在引擎源码，也不该再出现在门控表（否则接线自检会把它们当"孤儿"）。
+    const removed = ['score-distribute-fix', 'score-sum-guard', 'low-score-guard'];
+    for (const id of removed) {
+      expect(engineSrc.includes(`has('${id}')`), `引擎仍有 ${id} 死分支`).toBe(false);
+      expect(VALIDATOR_GATES.has(id), `VALIDATOR_GATES 仍登记 ${id}`).toBe(false);
+    }
   });
 });
