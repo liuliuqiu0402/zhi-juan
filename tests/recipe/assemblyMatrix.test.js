@@ -419,6 +419,27 @@ describe('易错题本分项名单一事实源（promptLibrary 与 teachingBluep
     expect(COLUMN_STYLE_SETS.errorbook.a.columns).toEqual(ERRORBOOK_FACET_NAMES);
   });
 
+  // 🔴 2026-09-28（同步遗漏修复）：errorbook 是 perItem 型，六分项名是**跨库结构单源**——
+  //   注入侧 perItem 说明用"题目/变式"指称、指令库 <h4> 与答案区口径用规范名；若 b/c/d 再各写一套
+  //   09-16 换肤名（错因分析／同类练习…）即双轨，且换肤后栏目会与"变式…须带题号"落空。
+  //   故四套一律同源、不换肤（本守卫防 b/c/d 手写套名回潮）。
+  it('errorbook 四套分项名一致且 = 单一事实源（b/c/d 不得自造换肤套名）', () => {
+    for (const id of ['a', 'b', 'c', 'd']) {
+      expect(COLUMN_STYLE_SETS.errorbook[id].columns, `errorbook/${id} 应与 ERRORBOOK_FACET_NAMES 同源`).toEqual(ERRORBOOK_FACET_NAMES);
+    }
+  });
+
+  it('errorbook 换肤后注入分项名不错位（任一套均逐项含规范名、不含旧套名）', () => {
+    for (const id of ['a', 'b', 'c', 'd']) {
+      const inject = buildTeachingInjection({ genType: 'errorbook', stage: 'middle', columnStyle: id });
+      for (const name of ERRORBOOK_FACET_NAMES) {
+        expect(inject, `errorbook/${id} 注入缺分项名「${name}」`).toContain(`· ${name}`);
+      }
+      expect(inject, `errorbook/${id} 不应回潮旧套名「同类练习」`).not.toContain('同类练习');
+      expect(inject, `errorbook/${id} 不应回潮旧套名「错因分析」`).not.toContain('错因分析');
+    }
+  });
+
   it('注入侧默认（a 套）：六分项名逐项携带（不丢失/不被大类化）', () => {
     const inject = buildTeachingInjection({ genType: 'errorbook', stage: 'middle' });
     for (const name of ERRORBOOK_FACET_NAMES) {

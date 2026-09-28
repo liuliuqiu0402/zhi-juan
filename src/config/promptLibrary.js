@@ -34,7 +34,8 @@ import { ERRORBOOK_FACET_NAMES } from './errorbookFacets.js';
 
 /* 易错题本分项名的引用取值（2026-09-28 单一事实源）：
  *  · 六分项名（题目呈现/典型错解/错因剖析/正确解答/方法提炼/变式训练）唯一定义在 errorbookFacets.js；
- *  · 本库**只引用、不重写**（随 columnStyle 轮换的具体套名由注入侧给出，本处取**基准套**名用于 <h4> 小标题与答案区口径）。 */
+ *  · 本库**只引用、不重写**；注入侧 COLUMN_STYLE_SETS.errorbook 四套同源、**不换肤**（分项名为跨库结构单源），
+ *    故 <h4> 小标题与答案区口径同注入文本逐字一致，无双轨。 */
 const EB_FACET_SEQ = ERRORBOOK_FACET_NAMES.join('→');    // 逐题成组次序（题目呈现→…→变式训练）
 const EB_FACET_SLASH = ERRORBOOK_FACET_NAMES.join('／');  // <h4> 小标题列举（题目呈现／…／变式训练）
 const EB_FACET_MIDDLE = ERRORBOOK_FACET_NAMES.slice(1, 5).join('、'); // 随题讲解项（不含首项题目、末项变式）
