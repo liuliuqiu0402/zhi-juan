@@ -577,7 +577,10 @@ const onRichEditorChange = (html) => {
   }, 500);
 };
 
-// 🔧 多文档管理：支持从生成模块传入多个文档并切换
+// 🔧 多文档登记表：loadFromGenerate 会按标题把从生成模块传入的内容登记/更新到此列表
+//    （供 currentDoc 等内部逻辑取用）。
+//    ⚠️ 声称 vs 实现（2026-09-28 校对）：**当前并无多文档切换 UI 入口**——switchToDoc/closeDoc
+//    只定义未接到任何模板/按钮，用户侧无法在多个文档间切换。此处仅维护登记表，不改行为、不补 UI。
 const documents = ref([]);
 
 // 🔧 生成记录：直接从 localStorage 读取，无需依赖事件推送
@@ -997,13 +1000,10 @@ const onTextareaPaste = async (e) => {
   // 无富文本或读取失败 → 走浏览器默认纯文本粘贴行为
 };
 
-// 🔧 contentEditable 输入事件 → 同步到 rawHtmlContent
-const onHtmlEditorInput = () => {
-  // Tiptap 通过 v-model + content-change 事件管理，此函数保留以兼容旧逻辑
-};
-
-// 🔧 将主题 CSS 字符串转为内联 style 对象（已废弃，RichTextEditor 使用 customCSS prop）
-const parseThemeCSS = (cssString) => ({});
+// 🔧 contentEditable 输入由 Tiptap 的 v-model + content-change 事件管理，
+//    旧的 onHtmlEditorInput 空壳函数与其兼容说明已于 2026-09-28 删除（无任何消费方）。
+// 🔧 主题 CSS 由 RichTextEditor 的 customCSS prop 直接消费，
+//    旧的内联 style 对象转换桩 parseThemeCSS（恒返回 {}）已于 2026-09-28 删除。
 
 // 🔧 监听 HTML 内容变化（Tiptap v-model 自动同步，这里仅做 HTML 检测兜底 + 源码编辑同步）
 watch(rawHtmlContent, (newVal) => {
@@ -1033,19 +1033,9 @@ watch(currentContent, (newVal) => {
   }
 });
 
-// Markdown 工具栏（纯文本模式保留）
-const insertMarkdown = (syntax) => {
-  const textarea = contentEditor.value;
-  if (!textarea) return;
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
-  const text = currentContent.value;
-  currentContent.value = text.substring(0, start) + syntax + text.substring(end);
-  nextTick(() => {
-    textarea.focus();
-    textarea.setSelectionRange(start + syntax.length, start + syntax.length);
-  });
-};
+// 🔧 旧 Markdown 工具栏辅助 insertMarkdown 已于 2026-09-28 删除：
+//    无任何消费方（模板无对应工具栏），且其实现按 textarea.selectionStart/End 处理，
+//    与本模块实际使用的 contentEditable/Tiptap 编辑器不符（即便接上也是错误实现）。
 
 // ==================== 预览 ====================
 const applyThemeAndPreview = async () => {

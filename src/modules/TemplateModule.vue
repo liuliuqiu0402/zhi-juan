@@ -1783,7 +1783,6 @@ const pageRange = ref('');
 const useAiRecognition = ref(false);
 const tempFilePath = ref('');
 const templateName = ref('');
-const editingExistingTpl = ref(null);  // 正在编辑的已有模板
 
 // 模态框拖动相关
 const catalogModalRef = ref(null);
@@ -1807,8 +1806,6 @@ const restoreModal = () => {
 
 const displayOutline = shallowRef([]);
 const originalOutline = ref([]);
-// ✅ 表格是否允许交互
-const isTableReady = ref(true);
 const isRendering = ref(false);
 const pageOffset = ref(0);
 const totalPages = ref(0);
@@ -1897,24 +1894,9 @@ const calculatePageRanges = (flatList) => {
   }
 };
 
-// ==================== 统一的聚焦工具函数 ====================
-// ✅ 已移除 focusFirstEditableInput，统一使用 safeFocusOutlineInput
-
-const focusInputAtRow = async (index) => {
-  await nextTick();
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      const inputs = document.querySelectorAll('.outline-editor-modal .title-input');
-      if (inputs[index]) {
-        inputs[index].focus();
-        inputs[index].select();
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    });
-  });
-};
+// ==================== 聚焦工具 ====================
+// ✅ 聚焦统一走 useTocParser 提供的 safeFocusOutlineInput / fastFocusInput / smartFocusInput；
+//    旧的 focusFirstEditableInput 此前已移除，focusInputAtRow（无任何消费方）于 2026-09-28 删除。
 
 // 同步导入处理（最终优化版）
 const syncImportProcess = async (chapters) => {  

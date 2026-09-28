@@ -316,7 +316,7 @@ import { useDialog } from '@/composables/useDialog.js';
 import { useMobile } from '@/composables/useMobile.js';
 import { useWebAuth } from '@/composables/useWebAuth.js';
 import { APP_EVENTS } from '@/constants/events.js';
-import { STORAGE_KEYS } from '@/constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（曾跨模块字面量散落）
+import { STORAGE_KEYS } from '@/constants/storageKeys.js'; // localStorage 业务 key 注册表（已登记 key 的唯一命名来源；本文件一律引用常量，不再写字面量）
 import storage from '@/utils/storage';
 import { compressDocArray, decompressDocArray } from '@/utils/contentCompress.js';
 import { isCloudConfigured, uploadTextbooks, uploadActivationInfo, pushDocHistory, pushGeneratedDocs, pullDocHistory, pullGeneratedDocs, pullDeletedDocIds, pushDeletedDocIds, uploadTemplates, uploadSettings, probeCloud, cleanupStaleDeviceRows, downloadTextbooks, downloadTemplates, pullAllSettings, warmupCloud } from '@/utils/cloudStorage';
@@ -371,8 +371,14 @@ const signInfo = ref(null);
 const signCheckLoading = ref(false);
 const isCapacitorIOS = ref(false);
 
-// 🔥 热启动检测：iOS 杀 PWA 进程后快速重启时，跳过云端下拉 + 恢复浏览状态
-//    原理：pagehide 时写时间戳 + 路由 → onMounted 时检测是否在窗口期内重启
+// 🔥 热启动标记（时间戳）：pagehide / visibilitychange(hidden) 时写入当前时刻；
+//    "窗口期"= 与写入时刻间隔在 WARM_START_WINDOW 内重启（切微信回消息/看抖音再回来）。
+//    ⚠️ 声称 vs 实现（2026-09-28 校对）：下方 _isWarmStart 只把"是否落在窗口期内"算了出来，
+//       **当前没有任何消费方**，"窗口期内跳过云端下拉"这一条并未实装；浏览状态的恢复实际由
+//       router 消费 STORAGE_KEYS.APP_ROUTE 的 redirect 完成（见下方 watch(isMobile) 注释）。
+//    保留理由（只改注释、不改行为）：该判定同时承担 WARM_START_KEY 的消费清理
+//    （命中即 localStorage.removeItem），直接删除会改变对 localStorage 的副作用；
+//    故此处仅把注释改准，代码原样保留。今后若要真正实现"跳过同步"，请显式接入同步流程。
 const WARM_START_KEY = '__app_last_pagehide';
 const WARM_START_WINDOW = 600000; // 10 分钟内重启视为热启动（切微信回消息/看抖音再回来）
 const _isWarmStart = (() => {
@@ -817,7 +823,7 @@ onMounted(async () => {
         }
 
         // ② 合并生成结果（双向，两端都做）— 使用 IndexedDB 避免 localStorage 配额溢出
-        const GEN_KEY = 'wisdom_generated_docs';
+        const GEN_KEY = STORAGE_KEYS.GENERATED_DOCS;
         let mergedGen = [];
         let genDeletedTotal = 0; // 软删除计数（_deleted 标记 + 墓碑），供同步完成日志使用
         try {
@@ -853,7 +859,7 @@ onMounted(async () => {
         let mergedHist = [];
         let histDeletedTotal = 0; // 软删除计数（_deleted 标记 + 墓碑），供同步完成日志使用
         try {
-          const localHist = await storage.getItem('docHistory') || [];
+          const localHist = await storage.getItem(STORAGE_KEYS.DOC_HISTORY) || [];
           // 软删除：_deleted 标记随数据参与合并，时间戳最新的版本自然胜出
           const map2 = new Map();
           for (const d of [...localHist, ...cloudHist]) {
@@ -872,7 +878,7 @@ onMounted(async () => {
           histDeletedTotal = mergedHist.filter(d => d._deleted || mergedDeletedHist[d.id]).length;
           mergedHist = mergedHist.filter(d => !d._deleted && !mergedDeletedHist[d.id]);
 
-          await storage.setItem('docHistory', mergedHist).catch(() => {});
+          await storage.setItem(STORAGE_KEYS.DOC_HISTORY, mergedHist).catch(() => {});
           console.log('🔄 [合并] 历史记录 ' + mergedHist.length + ' 条（有效 ' + mergedHist.length + '，软删除 ' + histDeletedTotal + '）← 本地' + localHist.length + ' + 云端' + cloudHist.length);
         } catch (e) { console.warn('合并历史记录异常', e); }
 
@@ -903,7 +909,7 @@ onMounted(async () => {
         if (isMobile && unilateralData) {
           // 教材
           if (unilateralData.textbooks !== null && unilateralData.textbooks !== undefined) {
-            await storage.setItem('textbooks', unilateralData.textbooks).catch(() => {});
+            await storage.setItem(STORAGE_KEYS.TEXTBOOKS, unilateralData.textbooks).catch(() => {});
             console.log('🔄 [写入] 教材 ' + (Array.isArray(unilateralData.textbooks) ? unilateralData.textbooks.length : 0) + '本 ✅');
             try {
               const { useTextbookStore } = await import('@/stores/textbookStore');
@@ -912,7 +918,7 @@ onMounted(async () => {
           }
           // 模板
           if (unilateralData.templates !== null && unilateralData.templates !== undefined) {
-            await storage.setItem('templates', unilateralData.templates).catch(() => {});
+            await storage.setItem(STORAGE_KEYS.TEMPLATES, unilateralData.templates).catch(() => {});
             console.log('🔄 [写入] 模板 ' + (Array.isArray(unilateralData.templates) ? unilateralData.templates.length : 0) + '个 ✅');
             try {
               const { useTemplateStore } = await import('@/stores/templateStore');
@@ -1012,10 +1018,10 @@ onMounted(async () => {
 
         // ① 并行读取全部本地数据
         const [hist, gen, tbs, tps, cfg, act] = await Promise.all([
-          storage.getItem('docHistory').catch(() => null),
-          storage.getItem('wisdom_generated_docs').catch(() => null),
-          !isMobile ? storage.getItem('textbooks').catch(() => null) : Promise.resolve(null),
-          !isMobile ? storage.getItem('templates').catch(() => null) : Promise.resolve(null),
+          storage.getItem(STORAGE_KEYS.DOC_HISTORY).catch(() => null),
+          storage.getItem(STORAGE_KEYS.GENERATED_DOCS).catch(() => null),
+          !isMobile ? storage.getItem(STORAGE_KEYS.TEXTBOOKS).catch(() => null) : Promise.resolve(null),
+          !isMobile ? storage.getItem(STORAGE_KEYS.TEMPLATES).catch(() => null) : Promise.resolve(null),
           !isMobile ? Promise.resolve().then(() => { const r = localStorage.getItem(STORAGE_KEYS.API_CONFIG); return r ? JSON.parse(r) : null; }) : Promise.resolve(null),
           !isMobile ? storage.getItem(STORAGE_KEYS.ACTIVATION_INFO).catch(() => null) : Promise.resolve(null),
         ]);
@@ -1030,7 +1036,11 @@ onMounted(async () => {
         if (Array.isArray(hist) && hist.length > 0) addTask(pushDocHistory(hist), '历史', hist.length + '条');
         if (Array.isArray(gen) && gen.length > 0) addTask(pushGeneratedDocs(gen), '生成', gen.length + '条');
         if (!isMobile) {
-          // 🔧 单向数据始终推送（含空数据）：桌面是唯一权威源，必须覆盖云端防止旧数据残留
+          // 🔧 单向数据（教材/模板/设置/激活）**仅在本地读到有效值时**才推送，空数据不推送：
+          //    上方读取失败/尚未初始化会得到 null/undefined，本守卫即用于拦下这种情况。
+          //    ⚠️ 声称 vs 实现（2026-09-28 校对）：原注释"始终推送含空数据"与实现不符——
+          //    保留该守卫是**刻意为之**：桌面端虽是唯一权威源，但"本地读取异常"≠"用户清空了数据"，
+          //    无条件下推会把云端权威数据误清空。若确需清空云端，请走专有删除/墓碑流程，勿放宽此守卫。
           if (tbs !== null && tbs !== undefined && Array.isArray(tbs)) addTask(uploadTextbooks(tbs), '教材', tbs.length + '本');
           if (tps !== null && tps !== undefined && Array.isArray(tps)) addTask(uploadTemplates(tps), '模板', tps.length + '个');
           if (cfg && typeof cfg === 'object') {
@@ -1154,7 +1164,7 @@ onMounted(async () => {
 
   // 🔧 iOS PWA 专用：localStorage 降级备份到 sessionStorage
   //    iOS 存储压力大时可能静默清空 localStorage，sessionStorage 相对稳定
-  const BACKUP_KEYS = [STORAGE_KEYS.API_CONFIG, 'wisdom_generated_docs', STORAGE_KEYS.ACTIVATION_INFO, 'textbooks', 'docHistory', 'templates'];
+  const BACKUP_KEYS = [STORAGE_KEYS.API_CONFIG, STORAGE_KEYS.GENERATED_DOCS, STORAGE_KEYS.ACTIVATION_INFO, STORAGE_KEYS.TEXTBOOKS, STORAGE_KEYS.DOC_HISTORY, STORAGE_KEYS.TEMPLATES];
   const backupToSession = () => {
     for (const k of BACKUP_KEYS) {
       try {
