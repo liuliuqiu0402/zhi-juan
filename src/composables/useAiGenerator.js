@@ -5543,7 +5543,7 @@ ${(contextJson.scenes || []).map((s, i) =>
           //    正式考卷大题序号/题号全卷连续；教辅组标题逐栏目（组）起编、题号在同一栏目（组）内连续
           //    （单源见 promptLibrary 的 GROUP_TITLE_NUMBERING_CALIBER / QUESTION_NUMBERING_CALIBER）。
           //    原先两处无条件写"全卷连续"，会对教辅自检项"互相否定"。
-          + `① ${genType === 'exam' ? '大类/大题层级与编号是否与【卷面结构】一致（大类居中不带编号、大题标题命名遵卷面单源规则并带序号、大题序号' + GROUP_TITLE_NUMBERING_CALIBER.exam + '、不按大类重启）' : '大类/栏目（组）层级与编号是否与卷面结构一致（大类居中不带编号、组标题命名遵卷面单源规则并带序号、组标题' + GROUP_TITLE_NUMBERING_CALIBER.teaching + '）'}；`
+          + `① ${genType === 'exam' ? '大类/大题层级与编号是否与【卷面结构】一致（大类层序号形态按本卷学段口径——小学段大类自带序号、中学段不设大类层；大题标题命名遵卷面单源规则并带序号、大题序号' + GROUP_TITLE_NUMBERING_CALIBER.exam + '、不按大类重启）' : '大类/栏目（组）层级与编号是否与卷面结构一致（大类居中不带编号、组标题命名遵卷面单源规则并带序号、组标题' + GROUP_TITLE_NUMBERING_CALIBER.teaching + '）'}；`
           + '② 大题分值合计与卷面结构闭合、小题分值标注齐全；'
           + '③ 作答载体（横线/括号/格子）与题面声明一致、形态同卷统一；'
           + `④ 题号连续（顶层 1.2.3.…、子题 (1)(2)、不跳号${genType === 'exam' ? '、不重启（全卷连续）' : '；教辅本题号' + QUESTION_NUMBERING_CALIBER.teaching + '，进入新的栏目（组）即从 1 重新起编'}）；`

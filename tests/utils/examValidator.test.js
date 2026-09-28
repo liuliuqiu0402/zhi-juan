@@ -389,21 +389,21 @@ describe('examValidator 正文重复内容检测截断（duplicate-content-fix�
     expect(issues.some(i => i.type === 'duplicate-content')).toBe(true);
   });
 
-  // 🔴 2026-09-28（与组标题口径同向·按栏目块判定）：教辅组标题序号"逐栏目块起编"——同一标题可在
-  //    不同栏目块各出现一次（正常），不得据此截断；仅**同一栏目块内**重复才判重复。
-  it('教辅（practice）：不同栏目块各有"一、基础练习" → 按栏目块判定，不截断', () => {
+  // 🔴 2026-09-28（与组标题口径同向·按栏目（组）判定）：教辅组标题序号"逐栏目（组）起编"——同一标题可在
+  //    不同栏目（组）各出现一次（正常），不得据此截断；仅**同一栏目（组）内**重复才判重复。
+  it('教辅（practice）：不同栏目（组）各有"一、基础练习" → 按栏目（组）判定，不截断', () => {
     const OPTS_PRACTICE = { subject: '语文', stage: 'primary_low', genType: 'practice' };
     const html = [
       '<h2>基础建构</h2><h3>一、基础练习</h3><p>1. 题</p>',
       '<h2>探究进阶</h2><h3>一、基础练习</h3><p>2. 题</p>',
     ].join('\n');
     const { html: out, issues } = auditExamPaper(html, OPTS_PRACTICE);
-    expect(issues.some(i => i.type === 'duplicate-content'), '跨栏目块的同号标题不得判重复').toBe(false);
+    expect(issues.some(i => i.type === 'duplicate-content'), '跨栏目（组）的同号标题不得判重复').toBe(false);
     expect(out).toContain('基础建构');
     expect(out).toContain('探究进阶');
   });
 
-  it('教辅（practice）：同一栏目块内"一、基础练习"重复两次 → 仍截断保留第一份', () => {
+  it('教辅（practice）：同一栏目（组）内"一、基础练习"重复两次 → 仍截断保留第一份', () => {
     const OPTS_PRACTICE = { subject: '语文', stage: 'primary_low', genType: 'practice' };
     const html = [
       '<h2>基础建构</h2><h3>一、基础练习</h3><p>1. 题</p>',

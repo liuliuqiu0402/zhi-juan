@@ -470,7 +470,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       fixed += 1;
       return '';
     });
-    // 1c-3. 标题后作答空行剥除（2026-09 实测：大类标题 h2 后被模型插入多个空 <p><br> 作答行——
+    // 1c-3. 标题后作答空行剥除（2026-09 实测：标题（大类层/大题标题）后被模型插入多个空 <p><br> 作答行——
     //    作答空行只应跟在题干/要求后，标题后出现即形态错误；确定性删除标题后连续空段（不吞后续内容））
     //    🔴 每个空段分支尾部自带 \s*（吞段间换行），(?:…)+ 才能跨 \n 连续吞多个空段——
     //    曾把 \s* 只放分支组开头，+ 遇第一个空段后的换行即停，只剥 1 段（实测 3 空段残留 2）
@@ -531,9 +531,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     const bodyPart = out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0];
     const ansPart = out.slice(bodyPart.length);
     const headRe = /<h[234][^>]*>([^<]*)<\/h[234]>/g;
-    // 🔴 2026-09-28（与组标题口径同向·按栏目块判定）：教辅组标题序号"逐栏目（组）起编"——同一标题可在
-    //    不同栏目块各出现一次（如两个栏目块各有"一、…"，属正常），不得据此截断；故**非 exam** 的重复
-    //    判据**按栏目块分组**（块内重复才算重复）。正式考卷大题序号全卷连续、无"非序号栏目标题"，
+    // 🔴 2026-09-28（与组标题口径同向·按栏目（组）判定）：教辅组标题序号"逐栏目（组）起编"——同一标题可在
+    //    不同栏目（组）各出现一次（如两个栏目（组）各有"一、…"，属正常），不得据此截断；故**非 exam** 的重复
+    //    判据**按栏目（组）分组**（组内重复才算重复）。正式考卷大题序号全卷连续、无"非序号栏目标题"，
     //    故行为与原实现逐字一致（全局唯一）。
     const byBlock = !!genType && genType !== 'exam';
     const heads = [];
@@ -541,7 +541,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     while ((hm = headRe.exec(bodyPart)) !== null) {
       const t = (hm[1] || '').trim();
       if (!t) continue;
-      // 栏目标题（不以「汉字序号＋、」起头，如教辅 h2 栏目名）→ 栏目块边界
+      // 栏目标题（不以「汉字序号＋、」起头，如教辅 h2 栏目名）→ 栏目（组）边界
       if (!/^[一二三四五六七八九十]+、/.test(t)) { heads.push({ kind: 'block', text: t, index: hm.index }); continue; }
       heads.push({ kind: 'title', text: t, index: hm.index });
     }

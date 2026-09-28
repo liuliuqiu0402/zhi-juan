@@ -94,22 +94,22 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(buildStructureText(mathBp)).not.toContain('部分');
   });
 
-  // 🔴 2026-09-27 收尾（g4）：sectionKindOf 接进 buildStructureText——域型→大类层（独立无编号行）、
+  // 🔴 2026-09-27 收尾（g4）：sectionKindOf 接进 buildStructureText——域型→大类层（独立行；序号形态按学段）、
   //    题型型→块名即大题标题（不设大类层）。成为注入的**给定事实**，与【层级归并】条款同源同果。
   // 🔴 2026-09-28 用户报障根治：域型栏目**不再输出同名大题行**（原"大类行 + 一、识字与写字"双写，
   //    与"大类名不得充当大题标题"冲突，且模型把分值挂到大类、其下大题无分值 → 注意事项/得分表不注入）。
-  it('域型栏目（语文内容领域名）→ 只出大类层行：不带编号、自带本大类总分与命题要求；不再输出同名大题行', () => {
+  it('域型栏目（语文内容领域名）→ 只出大类层行：自带本大类总分与命题要求、序号按学段；不再输出同名大题行', () => {
     const bp = getExamBlueprint('语文', 'primary_low');
     const inject = buildStructureText(bp);
-    // 大类行：无编号、指明不带编号居中加粗，且自带本大类总分
+    // 大类行：居中加粗独立呈现、自带本大类总分（序号形态按学段，小学段自带序号，见下方断言）
     expect(inject).toContain('🔴 大类层：识字与写字（本大类共40分）');
     expect(inject).toContain('🔴 大类层：积累与运用（本大类共28分）');
     expect(inject).toContain('🔴 大类层：阅读与鉴赏（本大类共16分）');
     expect(inject).toContain('🔴 大类层：表达与交流（本大类共16分）');
     const domainLines = inject.split('\n').filter((l) => l.startsWith('🔴 大类层'));
     expect(domainLines, '四个域型栏目 → 四条大类行').toHaveLength(4);
-    // 大类行不带"一、二、"编号
-    for (const l of domainLines) expect(l, `大类行不得带编号：${l}`).not.toMatch(/^🔴 大类层：\s*[一二三四五六七八九十]/);
+    // 大类行不得用与大题同构的「一、」式编号（其自带序号样式须与大题序号相区分）
+    for (const l of domainLines) expect(l, `大类行不得用大题式编号：${l}`).not.toMatch(/^🔴 大类层：\s*[一二三四五六七八九十]/);
     // 🔴 大类名不得充当大题标题：不再输出"一、识字与写字"这类同名大题行
     expect(inject, '域型栏目不得再输出同名大题行').not.toMatch(/^[一二三四五六七八九十]、/m);
     // 命题要求随大类行（原挂大题行）
