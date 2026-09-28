@@ -380,6 +380,32 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
     expect(practice, '情境边界（正式卷）不得广播到教辅').not.toContain('情境边界');
   });
 
+  // 🔴 2026-09-28 卷首导语与大题标题同进同退（用户口径）：卷首导语**可有可无**；
+  //    存在时＝全卷统一情境（各大题标题同属该情境）；不存在时大题标题必须走严肃/功能性命名
+  //    （如"看拼音写词语"），不得出现情境化名。主标题（程序拼装）不许改动。**仅 exam**。
+  it('卷首导语↔大题标题同进同退（**仅试卷**，不广播教辅）', () => {
+    const t = examTpl();
+    expect(t, '条款存在（仅 exam）').toContain('卷首导语');
+    expect(t, '同进同退：二者必居其一').toContain('同进同退');
+    expect(t, '有导语＝全卷统一情境').toContain('统一情境');
+    expect(t, '无导语＝大题标题走严肃功能性命名').toContain('功能性');
+    expect(t, '无导语时禁情境化大题标题').toContain('不得使用情境化');
+    expect(t, '主标题由程序拼装、正文不得改动').toContain('程序拼装');
+    const practice = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' }).template;
+    expect(practice, '该条款仅针对试卷、不得广播到教辅').not.toContain('同进同退');
+    expect(practice, '主标题程序拼装条款不得广播到教辅').not.toContain('程序拼装');
+  });
+
+  // 🔴 2026-09-28 卷面不输出分隔线（与内容清洗层 stripDecorRuleLines 同源）：指令端禁产出、
+  //    清洗端兜底剥离（`---` 与标题同行曾是漏网形态）。**仅 exam**。
+  it('卷面不输出分隔线（**仅试卷**）：大类层/大题标题/题干一律不加 ---/***/___/<hr>', () => {
+    const t = examTpl();
+    expect(t, '条款存在（仅 exam）').toContain('卷面不输出分隔线');
+    expect(t).toContain('不加分隔线或装饰性水平线');
+    const practice = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' }).template;
+    expect(practice, '该条款仅针对试卷、不得广播到教辅').not.toContain('卷面不输出分隔线');
+  });
+
   // 🔴 2026-09-27（用户裁定·课标原文为首要）：低段课标原文"情境活动化、游戏化、生活化"**保留原样、不得削弱**，
   //    只补一句**作用域界定**——取向管"情境取材与难度起点"，**不涉卷面形式**。
   //    为什么必须界定：同一次注入里既有课标取向词、又有"严肃卷面/不作形式化包装"，不界定作用域，

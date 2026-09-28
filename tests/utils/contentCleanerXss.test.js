@@ -3,7 +3,7 @@
 //       要求：1) 可执行向量（script/on*/javascript:/iframe 等）被剥离
 //             2) 排版结构（class/style 内联样式/表格/田字格等）完整保留 —— 负向剥离不碰排版
 import { describe, it, expect } from 'vitest';
-import { stripXss, cleanSectionHtml } from '@/utils/contentCleaner.js';
+import { stripXss, cleanSectionHtml, stripDecorRuleLines } from '@/utils/contentCleaner.js';
 
 describe('stripXss：剥离可执行向量', () => {
   it('剥离 <script> 块（含内联代码）', () => {
@@ -135,5 +135,51 @@ describe('cleanSectionHtml：markdown 语法残留清理（指令已禁，模型
     expect(out).toContain('<h2>一、识字</h2>');
     expect(out).not.toContain('```');
     expect(out).not.toContain('<body>');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// 🔴 2026-09-28 markdown 水平线消解（根治：模型把 `---` 与标题同行输出）
+//    旧清理只删"独占一行"的；现统一在内容归一/清洗层处理（独占行 + 与标题同行），幂等。
+// ══════════════════════════════════════════════════════════════════════════
+describe('cleanSectionHtml / stripDecorRuleLines：水平线消解（独占行 + 与标题同行 + 幂等）', () => {
+  it('独占一行的装饰线（---/***）→ 整段删除', () => {
+    const out = cleanSectionHtml('<p>上面一段。</p>\n<p>---</p>\n<p>***</p>\n<p>下面一段。</p>');
+    expect(out).not.toContain('---');
+    expect(out).not.toContain('***');
+    expect(out).toContain('上面一段。');
+    expect(out).toContain('下面一段。');
+  });
+
+  it('与标题同行（<p>--- <strong>…</strong></p> / <h2>--- 一、…</h2>）→ 只剥装饰线、保留标题', () => {
+    const out = cleanSectionHtml('<p>--- <strong>第一部分 积累与运用</strong></p>\n<h2>*** 一、看拼音写词语</h2>');
+    expect(out).not.toContain('---');
+    expect(out).not.toContain('***');
+    expect(out).toContain('<strong>第一部分 积累与运用</strong>');
+    expect(out).toContain('一、看拼音写词语');
+  });
+
+  it('___ 紧邻标题 → 剥离；但独立成段的 ___ 不删（可能是作答横线空位）', () => {
+    const out = cleanSectionHtml('<p>___ 一、看拼音写词语</p>\n<p>＿＿＿＿＿＿</p>');
+    expect(out).not.toContain('___');
+    expect(out).toContain('一、看拼音写词语');
+    expect(out, '独立成段的下划线空位保留').toContain('＿＿＿＿＿＿');
+  });
+
+  it('正常破折号（——/—）与行内 --- 不误删', () => {
+    const out = cleanSectionHtml('<p>他说——这是破折号。</p>\n<p>计算 3---5 的值。</p>\n<p>1. 用 a --- b 表示区间。</p>');
+    expect(out).toContain('——');
+    expect(out).toContain('3---5');
+    expect(out).toContain('a --- b');
+  });
+
+  it('幂等：连续两次处理输出不变；cleanSectionHtml 与 stripDecorRuleLines 结果自洽', () => {
+    const src = '<p>--- <strong>第一部分</strong></p>\n<p>---</p>\n<h2>*** 二、阅读</h2>';
+    const once = stripDecorRuleLines(src);
+    expect(stripDecorRuleLines(once)).toBe(once);
+    const viaClean = cleanSectionHtml(src);
+    expect(cleanSectionHtml(viaClean)).toBe(viaClean);
+    expect(viaClean).not.toContain('---');
+    expect(viaClean).not.toContain('***');
   });
 });

@@ -56,6 +56,38 @@ export const normalizeTypographicSymbols = (html = '') => String(html || '')
   .replace(/➗/g, '÷')
   .replace(/\.{3,6}/g, '……');
 
+/** 🔴 消解 markdown 水平线/装饰线残留（2026-09 根治：模型把分隔线与标题**同行**输出，
+ *  旧清理（GenerateModule 教材文本通道）只删"独占一行"的 `[*=_-]{3,}` → 同行形态漏网）
+ * ============================================================
+ * 现象：模型输出 `<p>--- <strong>第一部分 积累与运用</strong></p>`（Markdown 水平线 `---` 与标题同行），
+ *   渲染后卷面出现一串 `---` 乱码字符。
+ * 根治（在**内容归一/清洗层**统一处理、全链路同源）：
+ *   ① 独占成块的装饰线（整段仅有 `---`/`***`）→ 删除整段（含 <p>/<div>/<li> 包裹与裸行）；
+ *   ② 行首装饰线**紧邻标题**（其后为 <h1-6>/<strong>/<b>、汉字序号、第N部分、数字题号，或本块即标题标签）
+ *      → 只剥离该行首装饰线、**保留标题**；
+ *   ③ 正常破折号（—— / —）与行内 `---`（前后有文字）一律不动；
+ *   ④ 幂等：处理后不再匹配（再次调用输出不变）。
+ * 说明：**独占行处理不含 `_`/`＿`**（连续下划线可能是作答横线空位，独立成段时保留）；`___` 只在
+ *   "行首紧邻标题"（②）时剥离——该形态不可能是作答空位。
+ */
+export function stripDecorRuleLines(html = '') {
+  let out = String(html || '');
+  const TOK_HYPH_STAR = '(?:-{3,}|\\*{3,})';                       // 独占行：仅 - / *（保护下划线空位）
+  const TOK_ANY = '(?:-{3,}|\\*{3,}|_{3,})';                       // 紧邻标题：含 ___（不可能是空位）
+  const PAD = '[ \\t\\u3000\\u00A0]*';                             // 行内空白（不含换行）
+  const SP = '[\\s\\u3000\\u00A0]*';                               // 任意空白（含换行，用于整块判定）
+  // ① 独占成块的装饰线 → 删整块（p/div/li 包裹）
+  out = out.replace(new RegExp(`<(p|div|li)\\b[^>]*>${SP}${TOK_HYPH_STAR}${SP}</\\1\\s*>`, 'gi'), '');
+  // ①' 裸行装饰线（无标签）→ 删整行
+  out = out.replace(new RegExp(`^${PAD}${TOK_HYPH_STAR}${PAD}$`, 'gm'), '');
+  // ②a 标题标签内（本块即标题）行首装饰线一律剥离（<h2>--- 一、…</h2>）
+  out = out.replace(new RegExp(`(<h[1-6]\\b[^>]*>)${PAD}${TOK_ANY}${PAD}`, 'gi'), '$1');
+  // ②b p/div/li 块内行首装饰线、其后紧跟标题标记/序号 → 只剥装饰线、保留标题
+  const HEAD_AHEAD = '(?=<(?:h[1-6]|strong|b)\\b|[一二三四五六七八九十百]+[、.．]|第[一二三四五六七八九十]+部分|\\d+[.、．])';
+  out = out.replace(new RegExp(`(<(?:p|div|li)\\b[^>]*>)${PAD}${TOK_ANY}${PAD}${HEAD_AHEAD}`, 'gi'), '$1');
+  return out;
+}
+
 /** 清洗 AI 输出：去 ```html 包裹、去 body 抽取、去自评残留、去 markdown 语法残留 */
 export const cleanSectionHtml = (raw) => {
   if (!raw) return '';
@@ -67,6 +99,8 @@ export const cleanSectionHtml = (raw) => {
   // 🔧 markdown 语法残留兜底（指令已禁，模型偶发违反——正文/答案页统一清理）：
   //    行首 ## 标题标记、成对 ** 加粗；保留正文中自然出现的 # / * 单字符（数学/符号场景）
   html = html.replace(/^#{1,6}\s+/gm, '').replace(/\*\*([^*\n]+)\*\*/g, '$1');
+  // 🔴 markdown 水平线/装饰线消解（独占行 + 与标题同行；幂等）——根治"--- 与标题同行漏网"
+  html = stripDecorRuleLines(html);
   // 🔧 符号字形归一（全角％/．、异体乘除号、省略号点数）——教材排版口径，幂等
   html = normalizeTypographicSymbols(html);
   return html.trim();

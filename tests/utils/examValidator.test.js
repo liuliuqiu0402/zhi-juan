@@ -931,3 +931,106 @@ describe('examValidator 选择题作答位位置静默防护（choice-answer-pos
   });
 });
 
+// ══════════════════════════════════════════════════════════════════════════
+// 🔴 2026-09-28 书写格位置判据根治（用户口径澄清）：
+//    田字格**允许混排**（句中/句末皆可）；正确判据是"书写格必须与它所对应的那个拼音紧邻
+//    （逐词一一对应）"，**不是**"不得出现在句末"。故 2j-5d 相邻性校验必须：
+//      · 拼音位于句末而格子紧随其后 → 判**合法**、不得报错（反例，防误判）；
+//      · 多组词的格子被抽离各自位置、集中堆到句末/另起一处（无一紧邻拼音）→ 报质检可见项。
+// ══════════════════════════════════════════════════════════════════════════
+describe('examValidator 书写格相邻性校验（2j-5d：相邻判据，非"句末"判据）', () => {
+  const YW_LOW = { subject: '语文', stage: 'primary_low', genType: 'exam' };
+  const hasPos = (d) => d.type === 'writing-grid-pos';
+
+  it('🔴 反例：拼音位于句末、格子紧随其后 → 判合法，不得报 writing-grid-pos（防误判）', () => {
+    const html = [
+      '<h2>一、识字与写字（32分）</h2>',
+      '<p>1. 看拼音写词语。（共4分）</p>',
+      '<p>第一行：shān chuān<span class="tian-zi-ge"></span>；第二行：xīn kǔ<span class="tian-zi-ge"></span></p>',
+    ].join('\n');
+    const { silentDetails } = auditExamPaper(html, YW_LOW);
+    expect(silentDetails.some(hasPos), '拼音在句末、格子紧随其后属合法，不得报错').toBe(false);
+  });
+
+  it('反例：语境式空格紧邻拼音（可接受形态）→ 过检、不报错', () => {
+    const html = [
+      '<h2>一、识字与写字（32分）</h2>',
+      '<p>1. 看拼音写词语。（8分）</p>',
+      '<p>（1）tiān kōng（　　　　）</p>',
+    ].join('\n');
+    const { silentDetails } = auditExamPaper(html, YW_LOW);
+    expect(silentDetails.some(hasPos)).toBe(false);
+  });
+
+  it('违规：多组拼音 + 书写格全部堆在句末（无一紧邻拼音）→ 报 writing-grid-pos（进质检可见项）', () => {
+    const html = [
+      '<h2>一、识字与写字（32分）</h2>',
+      '<p>1. 看拼音写词语。（共4分）</p>',
+      '<p>shān chuān xīn kǔ bái yún<span class="tian-zi-ge"></span><span class="tian-zi-ge"></span><span class="tian-zi-ge"></span></p>',
+    ].join('\n');
+    const { silentDetails } = auditExamPaper(html, YW_LOW);
+    const d = silentDetails.find(hasPos);
+    expect(d, '格子集中堆放应报相邻性违规').toBeTruthy();
+    expect(d.level, '违规进质检可见项（notice 级，非 debug）').toBe('notice');
+  });
+
+  it('违规：语境式空格（可接受形态）集中堆放、无一紧邻拼音 → 同样过不了相邻性检查', () => {
+    const html = [
+      '<h2>一、识字与写字（32分）</h2>',
+      '<p>1. 看拼音写词语。（共4分）</p>',
+      '<p>tiān kōng xīn kǔ　（　　）（　　）</p>',
+    ].join('\n');
+    const { silentDetails } = auditExamPaper(html, YW_LOW);
+    expect(silentDetails.some(hasPos)).toBe(true);
+  });
+
+  it('非语文/非"看拼音"语境不触发（不跨学科广播）', () => {
+    const html = [
+      '<h2>一、计算（32分）</h2>',
+      '<p>1. 口算。（共8分）</p>',
+      '<p>3＋5＝　（　　）（　　）</p>',
+    ].join('\n');
+    const { silentDetails } = auditExamPaper(html, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
+    expect(silentDetails.some(hasPos)).toBe(false);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// 🔴 2026-09-28 2j-5a 位置纠正被"大题标题含关键词"绕过（真 bug 根治）：
+//    旧判据用 kwRe(/看图写话|写话|习作|作文|写作/) 匹配 previousElementSibling 判断"位置正确"，
+//    而大题标题本身常含"看图写话"→ 误判 continue、格子从不搬移。现锚点改为"大题标题之后的
+//    最近一个小题题干/内容块"，大题标题不作锚。
+// ══════════════════════════════════════════════════════════════════════════
+describe('examValidator 作文格位置纠正（2j-5a：不拿含关键词的大题标题当锚）', () => {
+  const YW_LOW = { subject: '语文', stage: 'primary_low', genType: 'exam' };
+
+  it('大题标题含"看图写话" + 格在小题题干之前 → 格移到小题题干之后（真 bug 回归）', () => {
+    const html = [
+      '<h2>十六、看图写话（共1题，共15分）</h2>',
+      '<div class="zuo-wen-ge"><span>&emsp;</span></div>',
+      '<p>1. 仔细看图，写几句话。（15分）</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, YW_LOW);
+    expect(out.indexOf('zuo-wen-ge')).toBeGreaterThan(out.indexOf('仔细看图'));
+    expect(issues.some(i => i.type === 'writing-grid-order')).toBe(true);
+  });
+
+  it('格已在小题题干之后 → 顺序正确、不搬移（回归不破坏正常形态）', () => {
+    const html = [
+      '<h2>四、表达与交流（共1题，共15分）</h2>',
+      '<p>1. 看图写话：仔细看看这幅图，再写几句话。（15分）</p>',
+      '<div class="zuo-wen-ge"><span>&emsp;</span></div>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, YW_LOW);
+    expect(out.indexOf('zuo-wen-ge')).toBeGreaterThan(out.indexOf('看图写话'));
+    expect(issues.some(i => i.type === 'writing-grid-order')).toBe(false);
+  });
+
+  it('大题标题即题干（无小题题干）→ 格紧随标题、无需搬移', () => {
+    const html = '<h2>三、习作。（共30分）</h2>\n<div class="zuo-wen-ge"><span>&emsp;</span></div>';
+    const { html: out, issues } = auditExamPaper(html, YW_LOW);
+    expect((out.match(/zuo-wen-ge/g) || []).length).toBe(1);
+    expect(issues.some(i => i.type === 'writing-grid-order')).toBe(false);
+  });
+});
+

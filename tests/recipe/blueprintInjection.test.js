@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { getExamBlueprint } from '@/config/examPaperBlueprints.js';
 import { getPromptTemplate, buildOutputFormatHint, buildStructureText, PAPER_OUTPUT_CONVENTIONS } from '@/config/promptLibrary.js';
-import { buildCarrierInstruction } from '@/config/layoutSpec.js';
+import { buildCarrierInstruction, buildLongAnswerCarrierInstruction } from '@/config/layoutSpec.js';
 
 describe('buildStructureText（exam 卷面结构注入段，单一事实源）', () => {
   it('块头在指令库 EXAM_BASE（含"共X题"填写说明），明细由 buildStructureText 注入（中文序号/分值/命题要求）', () => {
@@ -534,6 +534,35 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
     expect(buildCarrierInstruction('英语', 'primary_mid')).toContain('<span class="four-line-three"></span>');
     expect(buildCarrierInstruction('语文', 'primary_low')).not.toContain('>字</span>');
     expect(buildCarrierInstruction('英语', 'primary_mid')).not.toContain('>a</span>');
+  });
+
+  // 🔴 2026-09-28 书写格位置判据（根治"次次落句末"）：由"紧跟对应词"的弱句 + "不得单独成段"的
+  //    可字面满足禁令，提权为**独立 🔴 位置行**——强调"同行紧邻、逐词一一对应"、明确"多组词的格子
+  //    不得从各自位置抽出集中堆放"，并声明**优先于**"载体给在题后/整题之后集中一处"的通用表述。
+  it('书写格位置判据：独立 🔴 行（同行紧邻 + 逐词一一对应 + 禁集中堆放 + 优先于"集中一处"通用表述）', () => {
+    const clause = buildCarrierInstruction('语文', 'primary_low');
+    // 独立成行（协议行与位置行以换行分隔，位置行以 🔴 起头 → 注入时自成醒目条款）
+    const lines = clause.split('\n');
+    const posLine = lines.find(l => l.startsWith('🔴'));
+    expect(posLine, '位置判据必须是独立 🔴 行').toBeTruthy();
+    expect(posLine).toContain('同行紧邻');
+    expect(posLine).toContain('逐词一一对应');
+    expect(posLine).toContain('集中堆放');
+    expect(posLine, '必须声明优先于"给在题后/整题之后集中一处"一类通用表述').toContain('优先于');
+    // 判据是"相邻/一一对应"，不是"不得出现在句末"（用户口径澄清）
+    expect(posLine).not.toContain('不得出现在句末');
+    // 无书写格的学科（数学/中学语文）不注入该位置行（不跨学科/学段广播）
+    expect(buildCarrierInstruction('数学', 'primary_low')).not.toContain('同行紧邻');
+    expect(buildCarrierInstruction('语文', 'middle')).toBe('');
+  });
+
+  it('成段/成篇整行书写横线的"整题之后集中一处"已划清作用域（不适用于逐词书写格）', () => {
+    const s = buildLongAnswerCarrierInstruction('英语', 'primary_mid');
+    expect(s).toContain('只在整题之后集中给一处');
+    expect(s, '须划清作用域：仅限成段/成篇整行横线，不适用于逐词书写格').toContain('不适用于"逐词书写格"');
+    // 英语模板禁语文专属载体名（eduRenderContract 回归）——划作用域的措辞不得夹带"田字格/拼音格"字面
+    expect(s).not.toContain('田字格');
+    expect(s).not.toContain('拼音格');
   });
 
   it('PAPER_OUTPUT_CONVENTIONS 听力原文仅英语（once/split 均按学科门控）', () => {

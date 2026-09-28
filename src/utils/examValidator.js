@@ -176,6 +176,52 @@ export const countGridCells = (html) => {
   return n;
 };
 
+/**
+ * 书写载体相邻性度量（书写格位置判据·程序侧，2026-09-28 根治）：
+ * ============================================================
+ * 🔴 判据（用户口径澄清）：书写格必须与它所对应的**那个**拼音/词语**同行紧邻、逐词一一对应**——
+ *    **不是**"不得出现在句末"：拼音在句末而格子紧随其后，属**合法**（本函数不因"出现在句末"判违规）。
+ *    违规只指"多组词的格子被从各自位置抽出、集中堆放"——即题内既有拼音又有载体、
+ *    却**没有任何一个载体紧跟在某个拼音之后**。
+ * 口径：把**书写格类载体**（tian-zi-ge/pinyin-line/mi-zi-ge/four-line-three/sixian-ge）与
+ *    **空位类载体**（blank-N/blank-line/括号空/裸下划线——"语境式空格"亦属可接受形态、同样须过检）
+ *    标记为哨兵，度量三量：
+ *      · carriers：载体总数；
+ *      · paired：**紧前方仅隔空白即为拼音**（"拼音→该载体"逐词配对成立）的载体数；
+ *      · maxRun：连续成簇的最大载体数（两载体间仅隔空白——"格子被抽出集中堆放"的形态特征）；
+ *    "拼音在句末、格子紧随其后"→ paired 正常计入（不因出现在句末判违规）。
+ * @returns {{carriers:number, pinyinGroups:number, paired:number, maxRun:number}}
+ */
+export const analyzeCarrierAdjacency = (html = '') => {
+  const CARRIER_CLASS_RE = /(?:tian-zi-ge|pinyin-line|mi-zi-ge|four-line-three|sixian-ge|blank-\d+|blank-line)/;
+  let s = String(html || '');
+  // ① 载体开标签 → 哨兵（含格类与空位类；不含 zuo-wen-ge——作文格为整题网格，非逐词书写格）
+  s = s.replace(/<(?:span|div|u)\b[^>]*>/gi, (tag) => (CARRIER_CLASS_RE.test(tag) ? '\u0001' : tag));
+  // ② 去其余标签
+  s = s.replace(/<[^>]+>/g, '');
+  // ③ 空白实体 → 普通空白
+  s = s.replace(/&emsp;|&nbsp;|&ensp;|&#x3000;|&#160;|&#x00A0;/gi, ' ');
+  // ④ 文本型空位（括号空/裸下划线）→ 哨兵
+  s = s.replace(/[（(]\s*[　\u3000 ]{1,12}\s*[)）]/g, '\u0001').replace(/_{2,}|＿{2,}/g, '\u0001');
+  const positions = [];
+  for (let i = 0; i < s.length; i++) if (s[i] === '\u0001') positions.push(i);
+  const pinyinGroups = ((s.replace(/\u0001/g, ' ')).match(PINYIN_GROUP_RE) || []).length;
+  const pyTailRe = new RegExp(`[${PINYIN_CHARS}]+$`);
+  const stripWs = (t) => t.replace(/[\s\u3000\u00A0\u2002\u2003]+/g, '');
+  let paired = 0;
+  let maxRun = 0;
+  let run = 0;
+  for (let i = 0; i < positions.length; i++) {
+    const pos = positions[i];
+    if (pyTailRe.test(stripWs(s.slice(Math.max(0, pos - 24), pos)))) paired += 1;
+    // 成簇判定：与前一个载体之间仅隔空白（含"前一个就是载体"）→ 视为同一簇
+    const between = i === 0 ? '\u0002' : stripWs(s.slice(positions[i - 1] + 1, pos));
+    if (between === '') { run += 1; } else { run = 1; }
+    if (run > maxRun) maxRun = run;
+  }
+  return { carriers: positions.length, pinyinGroups, paired, maxRun };
+};
+
 /** 统计读音题拼音选项组数：（háng xíng）式括号 */
 export const countPinyinOptions = (html) => {
   if (!html) return 0;
@@ -1222,7 +1268,26 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             // 🔧 插入位置（根治"作文格跑到配图/题干之前"）：题干 p 之后若紧跟 [IMAGE] 配图
             //    标记（到下一道命中题为止）→ 作文格插在配图之后，卷面顺序 = 题干 → 配图 → 作文格
             let ref = p;
-            let probe2 = p.nextSibling;
+            // 🔴 2026-09-28 同步复检（与 2j-5a 同源·消"锚点是大题标题时格贴标题"）：
+            //    若锚点 p 是**大题标题**（hanziKwPs 路径：如 <h2>十六、看图写话</h2>），
+            //    格应落在"该大题标题之后的**小题题干**之后"，而不是紧贴标题——
+            //    先把 ref 前移到区域内最后一个题干内容块（跳过配图/其它载体），再由下方 [IMAGE] 扫描顺延，
+            //    使补格顺序 = 大题标题 → 小题题干 → 配图 → 作文格（与 2j-5a 的锚点判据一致，双保险）。
+            const pIsHeading = /^h[1-6]$/i.test(p.tagName || '')
+              || /^[一二三四五六七八九十百]+[、.．]/.test((p.textContent || '').trim());
+            if (pIsHeading) {
+              let probeRef = p.nextSibling;
+              while (probeRef && probeRef !== endP) {
+                if (probeRef.nodeType === 1) {
+                  const tg = probeRef.tagName.toLowerCase();
+                  const isCarrierRef = /zuo-wen-ge|tian-zi-ge|pinyin-line|mi-zi-ge|four-line-three|sixian-ge|square-grid/.test(probeRef.outerHTML || '');
+                  const visTxt = (probeRef.textContent || '').replace(/[\s\u3000\u00A0　_＿（）()]/g, '');
+                  if (['p', 'li', 'div'].includes(tg) && !isCarrierRef && visTxt.length >= 2) ref = probeRef;
+                }
+                probeRef = probeRef.nextSibling;
+              }
+            }
+            let probe2 = ref.nextSibling;
             while (probe2 && probe2 !== endP) {
               if (/\[IMAGE\]/.test(probe2.textContent || '')) ref = probe2;
               probe2 = probe2.nextSibling;
@@ -1247,6 +1312,25 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         console.warn('⚠️ 作文格自动补齐失败:', e.message);
         silentCount('writing-grid', '含写话/作文题但正文无作文格（zuo-wen-ge），请抽检');
       }
+    }
+    // 2j-5d 书写格相邻性校验（规则 writing-grid-fix；根治"多组词的格子被抽离各自位置、集中堆到句末/另起一处"）
+    //   🔴 判据（2026-09-28 用户口径澄清）：书写格必须与其所对应的**那个**拼音/词语**同行紧邻、逐词一一对应**——
+    //      "拼音在句末、格子紧随其后"是**合法**的（**不得据"格子出现在句末"报错**，防误判）；违规只有一种：
+    //      题内既有拼音又有书写载体（含书写格与括号空/裸横线等空位），却**没有任何一个载体紧跟在某个拼音之后**
+    //      （＝格子全部被抽离、集中堆放）。🔴 "语境式空格"仍属**可接受形态**，但同样**须通过相邻性检查**
+    //      （可接受 ≠ 免检——旧注释"把语境式空格当合理形态"据此收敛为"可接受但须过检"）。
+    //   🔴 只报不改、进质检可见项（notice 级，交编辑核对），与 2j 系列"程序只提示"口径一致。
+    if (has('writing-grid-fix') && subject === '语文'
+        && /看拼音|读拼音|写词语|写汉字|写音节|拼音写/.test(bodyNoAnsText)) {
+      try {
+        const adj = analyzeCarrierAdjacency(bodyNoAnsHtml);
+        // 违规判据（保守·宁漏不误）：载体≥2、拼音音节≥2，且**几乎无一载体紧邻其拼音**（paired≤1）
+        //   且载体**成簇**（maxRun≥2，即"被抽出集中堆放"的形态）——满足才报（单载体/逐词相邻/分散皆不报）。
+        if (adj.carriers >= 2 && adj.pinyinGroups >= 2 && adj.paired <= 1 && adj.maxRun >= 2) {
+          silentCount('writing-grid-pos',
+            `「看拼音写词语」类题内 ${adj.carriers} 处书写载体几乎全部未紧邻其所对应的拼音（题内共 ${adj.pinyinGroups} 个拼音音节、仅 ${adj.paired} 处紧邻）——书写格须逐词紧接对应拼音之后、不得从各自位置抽出集中堆放（即使没有"单独成段"也属违规；本条优先于"载体给在题后集中一处"的通用表述），请抽检`);
+        }
+      } catch (e) { /* 静默：相邻性检查失败不影响其他修复 */ }
     }
     // 2j-5b 英语书面表达/写作无作答载体 → 自动补横线作答区（英语写作走横线体系，与其语文补作文格对称，
     //    按关键词触发、不依赖分值——教辅/知识总结内表达题常无分值，2k answer-area-fix 依赖分值补不到，
@@ -1431,27 +1515,53 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
     // 2j-5a 作文格位置纠正：格子出现在所属题干之前 → 移到题干之后（模型常见顺序错误：
     //    先输出 <div class="zuo-wen-ge"> 再写题干，卷面变成"格子在上、题目在下"）
+    //    🔴 2026-09-28 根治（"位置纠正被大题标题绕过"的真 bug）：旧实现用 kwRe(/看图写话|写话|习作|作文|写作/)
+    //       去匹配 previousElementSibling 判断"位置正确"——而**大题标题本身常含"看图写话"**（如 <h2>十六、看图写话</h2>），
+    //       遂把"含关键词的大题标题"误当"格前已有题干" → 一律 continue、格子从不搬移（真 bug）。
+    //       现锚点改为"**该大题标题之后的最近一个**小题题干/内容块""——大题标题（h1~h6、汉字序号标题）**不作锚**：
+    //       ①"格前已就位"的判据＝格前存在**非标题、非配图、非载体**的内容块（题干段落）；
+    //       ②需搬移时，向后找"最近的内容块"（跳过配图/其它载体，遇下一个大题标题即止），把格移到其后。
     if (has('writing-expression-fix') && /<div[^>]*class=["'][^"']*zuo-wen-ge/.test(out)) {
       try {
         const tpl3 = document.createElement('template');
         tpl3.innerHTML = out;
         const zwgList = Array.from(tpl3.content.querySelectorAll('div.zuo-wen-ge'));
-        const kwRe = /看图写话|写话|习作|作文|写作/;
+        // 大题标题（h1~h6 或"汉字序号＋、"起头）：**不得当锚**（根治"标题含关键词即误判"）
+        const isHeadingEl = (el) => {
+          if (!el || el.nodeType !== 1) return false;
+          const tg = el.tagName.toLowerCase();
+          if (/^h[1-6]$/.test(tg)) return true;
+          return /^[一二三四五六七八九十百]+[、.．]/.test((el.textContent || '').trim());
+        };
+        // 配图块 / 书写载体（zuo-wen-ge 及各类格与空位）：不是"题干内容块"
+        const isFigureOrCarrierEl = (el) => /zuo-wen-ge|tian-zi-ge|pinyin-line|mi-zi-ge|four-line-three|sixian-ge|square-grid|\[IMAGE\]/.test(el.outerHTML || '');
+        // 题干/内容块：p/li/div，非标题、非配图、非载体，且有可见文字（去空白与空位字符后仍 ≥2 字）
+        const isStemEl = (el) => {
+          if (!el || el.nodeType !== 1) return false;
+          const tg = el.tagName.toLowerCase();
+          if (!['p', 'li', 'div'].includes(tg)) return false;
+          if (isHeadingEl(el)) return false;
+          if (isFigureOrCarrierEl(el)) return false;
+          const t = (el.textContent || '').replace(/[\s\u3000\u00A0　_＿（）()]/g, '');
+          return t.length >= 2;
+        };
         let moved = 0;
         for (const zwg of zwgList) {
-          // 1) 格子之前已有题干段落 → 顺序正确，跳过
+          // 1) 格前已有"小题题干/内容块"（遇大题标题即停——标题不是锚）→ 顺序正确，跳过
           let prev = zwg.previousElementSibling;
           let hasBefore = false;
           while (prev) {
-            if (kwRe.test(prev.textContent || '')) { hasBefore = true; break; }
+            if (isHeadingEl(prev)) break;              // 撞到大题标题：说明格前无内容块（格紧贴标题）
+            if (isStemEl(prev)) { hasBefore = true; break; }
             prev = prev.previousElementSibling;
           }
           if (hasBefore) continue;
-          // 2) 格子跑到了题干上方 → 向后找最近的题干段落，把格子移到其后
+          // 2) 格跑到了题干上方 → 向后找"该大题标题之后的最近一个内容块"，把格移到其后
           let next = zwg.nextElementSibling;
           let anchor = null;
           while (next) {
-            if (kwRe.test(next.textContent || '')) { anchor = next; break; }
+            if (isHeadingEl(next)) break;              // 越入下个大题标题前仍未找到 → 不搬（不跨大题）
+            if (isStemEl(next)) { anchor = next; break; }
             next = next.nextElementSibling;
           }
           if (anchor && anchor.parentNode === zwg.parentNode) {
@@ -1769,8 +1879,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
 
   // ── 2l. 载体×题型正规化（规则 writing-grid-fix 配套，小题粒度，数据源=排版规格库 CARRIER_RULES）：
   //    forbid=表达/写话/习作类题内混入书写格 → 自动剥离 class 保留文字（确定性可修复）；
-  //    🔧 2026-08 收敛：移除 must 软推断（"看拼音写→推断该有田字格"属卷面惯例非硬要求，且会误报
-  //    语境式空格“看拼音写词语”等合理形态）；载体缺失只保留无歧义强要求哨兵 2j-4
+  //    🔧 2026-08 收敛：移除 must 软推断（"看拼音写→推断该有田字格"属卷面惯例非硬要求）；
+  //    🔴 2026-09-28 口径修订：原"会误报语境式空格'看拼音写词语'等**合理形态**"改为——语境式空格属
+  //    **可接受形态，但须通过相邻性检查**（可接受 ≠ 免检）：位置判据见 2j-5d（格子须与对应拼音紧邻）。
+  //    载体缺失仍只保留无歧义强要求哨兵 2j-4
   //    （题干明确写"田字格中写/在田字格/方格中写"却没格子 → 客观缺陷才提示抽检）──
   if (has('writing-grid-fix')) {
     try {
