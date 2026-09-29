@@ -19,7 +19,7 @@ const sr = (p) => fs.readFileSync(path.resolve(process.cwd(), p), 'utf8');
 
 /** 行内载体：可混排（不得用块级容器） */
 const INLINE_IDS = ['tian-zi-ge', 'mi-zi-ge', 'four-line-three', 'sixian-ge', 'pinyin-line',
-  'blank-underline', 'blank-paren', 'square-box', 'math-circle-blank'];
+  'blank-underline', 'blank-paren', 'square-box', 'math-circle-blank', 'oral-box'];
 /** 块级作答区：本身独占空间，不是书写格 */
 const BLOCK_IDS = ['blank-line', 'blank-area', 'bracket-grid', 'square-grid', 'draw-area'];
 
@@ -122,10 +122,14 @@ describe('长度口径：一律读规格库（只校验关系）', () => {
   });
 });
 
-describe('未取证载体：不得进入按钮目录（防"预览有、导出丢"）', () => {
-  it('oral-box / match-question / english-line 均不列入', () => {
-    for (const id of ['oral-box', 'match-question', 'match-item', 'english-line']) {
-      expect(CARRIER_INSERT_IDS, `${id} 导出侧未取证，不应给按钮`).not.toContain(id);
+describe('连线题与遗留类：按取证口径处理', () => {
+  it('match-question 不列入插入目录（需项内容，空壳无意义）——改由"打乱右列"手动操作支持', () => {
+    for (const id of ['match-question', 'match-item']) {
+      expect(CARRIER_INSERT_IDS, `${id} 不插入：需项内容，空壳在编辑器中无意义`).not.toContain(id);
     }
+  });
+
+  it('english-line 不列入（遗留字体类·不画格线，独立格线用 four-line-three/sixian-ge）', () => {
+    expect(CARRIER_INSERT_IDS).not.toContain('english-line');
   });
 });

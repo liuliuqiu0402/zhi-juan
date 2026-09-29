@@ -98,6 +98,13 @@ export const CARRIER_INSERTS = {
     defaultLen: () => FALLBACK.boxCount,
     build: (n) => repeat('<span class="math-circle-blank-18">　</span>', n),
   },
+  // 口语交际/回答框：行内（carrierCss/global.css `display:inline-block; border; min-width:3em`）；
+  //   导出侧有分支（docxBuilder: contains('oral-box') || contains('score-box')）——2026-09-30 取证确认
+  'oral-box': {
+    label: '口语交际框', lenLabel: '个数', inline: true,
+    defaultLen: () => FALLBACK.boxCount,
+    build: (n) => repeat('<span class="oral-box">&emsp;</span>', n),
+  },
   'bracket-grid': {
     label: '竖式格', lenLabel: '行数', inline: false,
     defaultLen: () => FALLBACK.bracketRows,

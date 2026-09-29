@@ -30,6 +30,7 @@ const EXPORT_BRANCH = {
   'pinyin-line': /contains\('pinyin-line'\)/,
   'square-box': /square-box/,                 // 提及级：走 DrawingML 方框（SQUARE_BOX_MARKER）
   'math-circle-blank': /math-circle-blank-18/,
+  'oral-box': /contains\('oral-box'\)/,       // 2026-09-30 取证：docxBuilder 有独立分支
   'bracket-grid': /contains\('bracket-grid'\)/,
   'square-grid': /contains\('square-grid'\)/,
   'draw-area': /contains\('draw-area'\)/,
