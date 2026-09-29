@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getPromptTemplate } from '../../src/config/promptLibrary.js';
 import { buildLongAnswerCarrierInstruction } from '../../src/config/layoutSpec.js';
+import { getMergedSpec } from '../../src/config/layoutSpec.js';
 import {
   auditExamPaper,
   countGridCells,
@@ -797,5 +798,34 @@ describe('作答区行数上限（分学段·模型侧与程序侧同接规格�
     const html = '<h2>一、书面表达（20分）</h2><p>1. 请以 My School 为题写一篇短文。</p>';
     const r = auditExamPaper(html, { subject: '英语', stage: 'high', genType: 'exam' });
     expect((r.html.match(/blank-line/g) || []).length).toBeLessThanOrEqual(8);
+  });
+});
+
+// 🔴 2026-09-29（用户裁定：规格库为**源**、各端皆**消费方** → 不得有第二副本静默漂移）：
+//   渲染层（global.css / RichTextEditor）里的田字格静态尺寸必须与规格库 `GRID_CELL` 等值；
+//   日后改规格库而不改这些副本，本守卫立即转红（把"改规格库不生效"从静默变成拦截）。
+describe('守卫：渲染副本与规格库等值（防静默漂移）', () => {
+  const readSrc = (p) => fs.readFileSync(path.resolve(__dirname, '../../', p), 'utf8');
+  const widthOf = (css, cls) => {
+    const m = new RegExp(`\\.${cls}[^{]*\\{[^}]*?width:\\s*([\\d.]+)mm`).exec(css);
+    return m ? Number(m[1]) : null;
+  };
+  const spec = getMergedSpec();
+
+  it('global.css 的田字格宽 = GRID_CELL.tian-zi-ge.primary.widthMm', () => {
+    expect(widthOf(readSrc('src/styles/global.css'), 'tian-zi-ge'))
+      .toBe(spec.GRID_CELL['tian-zi-ge'].primary.widthMm);
+  });
+
+  it('RichTextEditor 的田字格宽 = GRID_CELL.tian-zi-ge.primary.widthMm', () => {
+    expect(widthOf(readSrc('src/components/RichTextEditor.vue'), 'tian-zi-ge'))
+      .toBe(spec.GRID_CELL['tian-zi-ge'].primary.widthMm);
+  });
+
+  it('米字格宽度：规格库若定义独立值则各端须与之等值（未定义时与田字格同值）', () => {
+    const tz = spec.GRID_CELL['tian-zi-ge'].primary.widthMm;
+    const mi = spec.GRID_CELL['mi-zi-ge']?.primary?.widthMm ?? tz;
+    expect(widthOf(readSrc('src/styles/global.css'), 'mi-zi-ge')).toBe(mi);
+    expect(widthOf(readSrc('src/components/RichTextEditor.vue'), 'mi-zi-ge')).toBe(mi);
   });
 });

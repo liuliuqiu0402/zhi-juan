@@ -1345,8 +1345,13 @@ export function unifySameParagraphWriteBlanks(html = '') {
     for (const k of ['u', 'span', 'sq', 'oral']) {
       if ((count[k] || 0) > best) { best = count[k]; target = k; }
     }
+    // 🔴 2026-09-29（单一事实源·用户裁定"自洽、不各写一套"）：档位上下限改读规格库 BLANK
+    //    （原自持 `Math.min(24, Math.max(1, …))` 梯形，与规格库 maxBlank/minBlank 相抵——会写出超上限档位）
+    const blankSpec = getMergedSpec().BLANK || {};
+    const maxTier = Number.isFinite(blankSpec.maxBlank) ? blankSpec.maxBlank : 24;
+    const minTier = Number.isFinite(blankSpec.minBlank) ? blankSpec.minBlank : 2;
     const render = (w) => {
-      const cw = Math.min(24, Math.max(1, Math.round(w || 2)));
+      const cw = Math.min(maxTier, Math.max(minTier, Math.round(w || minTier)));
       if (target === 'u') return `<u class="blank-${cw}">&emsp;</u>`;
       if (target === 'span') return `<span class="blank-${cw}">&emsp;</span>`;
       if (target === 'sq') return '<span class="square-box">&nbsp;</span>';

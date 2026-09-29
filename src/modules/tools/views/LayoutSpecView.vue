@@ -392,6 +392,21 @@ const SPEC_GROUPS = [
     ],
   },
   {
+    id: 'answerRows',
+    name: '作答区行数上限',
+    // 🔴 2026-09-29（补漏项·用户裁定"规格库有规则就该可调"）：本表原**无任何 UI**——规则在库里、
+    //    模型侧与程序侧都读它（buildLongAnswerCarrierInstruction ↔ examValidator），但面板改不了，
+    //    属"规格有、面板无"。学科无关（上限是"一屏能放几行"的卷面概念，行高另有 lineHeightMm 分学科）。
+    desc: '单题作答区行数上限（学科无关·按学段；模型侧注入与程序补差同读此表）',
+    fields: [
+      { path: 'ANSWER_MAX_ROWS_BY_STAGE.primary_low', label: '低段上限', unit: '行', type: 'number', min: 1, max: 20, step: 1 },
+      { path: 'ANSWER_MAX_ROWS_BY_STAGE.primary_mid', label: '中段上限', unit: '行', type: 'number', min: 1, max: 20, step: 1 },
+      { path: 'ANSWER_MAX_ROWS_BY_STAGE.primary_high', label: '高段上限', unit: '行', type: 'number', min: 1, max: 20, step: 1 },
+      { path: 'ANSWER_MAX_ROWS_BY_STAGE.middle', label: '初中上限', unit: '行', type: 'number', min: 1, max: 30, step: 1 },
+      { path: 'ANSWER_MAX_ROWS_BY_STAGE.high', label: '高中上限', unit: '行', type: 'number', min: 1, max: 30, step: 1 },
+    ],
+  },
+  {
     id: 'blank',
     name: '填空规格',
     desc: '横线宽度/字数换算（contentCleaner · normalizeBlankMarkers）',
