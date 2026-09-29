@@ -434,6 +434,47 @@ export const classifyNumberedBranches = (numberedPs = []) => {
 };
 
 /**
+ * 答案区起点 —— 单一事实源（2026-09-29｜用户追问"答案区会不会再丢"）
+ * ============================================================
+ * 病根：全流程的"答案区排除"一律依赖 `<div class="answer-section">` **容器**，而该容器由**后续步骤 3a
+ *   事后补包**（3a 之所以存在，正说明模型会漏包）→ 漏包时，步骤 1.5.2 与 2 系列的排除**同时失效**。
+ *   实测两类后果（皆为既有缺陷）：
+ *     · 1.5.2 正文重复截断：答案区里**同名大题标题**被判为"正文重复" → 在答案区中途截断
+ *       → **答案区内容整段丢失**（用户记忆中的"答案区答案丢失"即此路径）；
+ *     · 2k 补作答空间：答案区被当正文大题 → **往答案区里补作答横线**（误补）。
+ * 判据（与容器解耦）：优先容器；回退"参考答案/答案与解析/答案与评分/答案及解析"一类**标题**。
+ * 消费方：1.5.2 / 正文区文本 / 2j-3b / 2j-4 / 2j-5 / 2j-5b / 2k——一律走本处，不得再各写一遍正则。
+ */
+export const ANSWER_HEADING_RE = /参考答案|答案与解析|答案与评分|答案及解析/;
+/** 字符串切片用：返回答案区起始下标（无答案区返回 -1） */
+export const answerAreaStartIndex = (html = '') => {
+  const box = /<div[^>]*class=["'][^"']*answer-section/i.exec(html);
+  if (box) return box.index;
+  const hRe = /<h[1-6]\b[^>]*>/gi;
+  let m;
+  while ((m = hRe.exec(html)) !== null) {
+    const close = html.indexOf('</h', m.index);
+    const seg = close > m.index ? html.slice(m.index, close) : html.slice(m.index, m.index + 120);
+    if (ANSWER_HEADING_RE.test(seg)) return m.index;
+  }
+  return -1;
+};
+/** DOM 用：返回答案区边界元素（容器，或未包容器时的"参考答案"标题） */
+export const findAnswerBound = (root) => {
+  if (!root || typeof root.querySelector !== 'function') return null;
+  const box = root.querySelector('.answer-section');
+  if (box) return box;
+  return Array.from(root.querySelectorAll('h1, h2, h3, h4, h5, h6'))
+    .find((h) => ANSWER_HEADING_RE.test(h.textContent || '')) || null;
+};
+/** DOM 用：该节点是否属答案区（容器 → contains；未包容器的标题 → 该标题及其后） */
+export const isInAnswerArea = (el, bound) => {
+  if (!el || !bound) return false;
+  if (bound.classList && bound.classList.contains('answer-section')) return bound.contains(el);
+  return bound === el || !!(bound.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+};
+
+/**
  * 主入口：整卷质量校验与修复（按 学段×学科×资料类型 三维度匹配规则库执行）
  * @param {string} html 整卷 HTML（含答案区）
  * @param {Object} opts { subject(学科), stage(学段键), genType(资料类型) }
@@ -566,8 +607,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   // ── 1.5.2. 正文重复内容检测截断（规则 duplicate-content-fix：截断续写时模型从头重出整卷）──
   if (has('duplicate-content-fix')) {
     // 1) 正文区重复大题标题（同一标题第二次出现 → 保留第一份）
-    const bodyPart = out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0];
-    const ansPart = out.slice(bodyPart.length);
+    // 🔴 2026-09-29：答案区起点改用**与容器解耦**的单源（answerAreaStartIndex）——原按 `<div class="answer-section">`
+    //    切分，模型漏包容器时 bodyPart 吞掉答案区 → 答案区里的同名大题标题被判"正文重复"→ 截断 → 答案区丢失。
+    const ansIdx152 = answerAreaStartIndex(out);
+    const bodyPart = ansIdx152 >= 0 ? out.slice(0, ansIdx152) : out;
+    const ansPart = ansIdx152 >= 0 ? out.slice(ansIdx152) : '';
     const headRe = /<h[234][^>]*>([^<]*)<\/h[234]>/g;
     // 🔴 2026-09-28（与组标题口径同向·按栏目（组）判定）：教辅组标题序号"逐栏目（组）起编"——同一标题可在
     //    不同栏目（组）各出现一次（如两个栏目（组）各有"一、…"，属正常），不得据此截断；故**非 exam** 的重复
@@ -988,13 +1032,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   {
     // 🔧 正文区纯文本（排除答案区）——2j 系列关键词扫描一律用正文区文本：
     //    答案区标题（"写作/作文评分标准"等）曾命中关键词致误报（2026-08 英语"无作文格"误报根因）
-    const bodyNoAnsText = out.split(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i)[0]
+    // 🔴 2026-09-29：答案区起点走单源（answerAreaStartIndex）——原按容器切分，漏包容器时答案区文本混入正文区
+    const ansIdxBody = answerAreaStartIndex(out);
+    const bodyNoAnsHtml = ansIdxBody >= 0 ? out.slice(0, ansIdxBody) : out;
+    const bodyNoAnsText = bodyNoAnsHtml
       .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
     // 🔴 2026-09-17 用户追问（阶段测评实证）：「**题干**命中」与「**仅标题**命中」必须分开判——
     //    卷面写"五、根据图片提示或首字母提示，写出正确的单词…"（标题）而题内给的是中文提示"（海报设计）"时，
     //    报"整卷未输出任何 [IMAGE]"会把核对方向带偏（真问题其实是**标题与内容不符**）。
     //    （标题侧不再用整卷单一文本：2j-5 改为**逐大题**比对，见下。）
-    const bodyNoAnsHtml = out.split(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i)[0];
     const stemNoHeadText = bodyNoAnsHtml.replace(/<h[2-4][^>]*>[\s\S]*?<\/h[2-4]>/gi, '\n')
       .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
     // 2j-0 试卷正文大题「汉字序号＋、」守卫（规则 cn-ordinal-guard，仅 exam）
@@ -1214,7 +1260,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     //       描述段识别放宽到 P/UL/OL/TABLE（评分标准表格/要点列表也算"有内容"，非仅 P）
     if (has('writing-expression-fix') && /看图写话|写话|习作|作文|写作/.test(bodyNoAnsText)) {
       try {
-        const bodyHtml = out.split(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i)[0];
+        const ansIdxT = answerAreaStartIndex(out);
+        const bodyHtml = ansIdxT >= 0 ? out.slice(0, ansIdxT) : out;
         const tplT = document.createElement('template');
         tplT.innerHTML = bodyHtml;
         const psT = Array.from(tplT.content.querySelectorAll('p'));
@@ -1249,7 +1296,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         if (activeDecls.length) {
           const tplD = document.createElement('template');
           tplD.innerHTML = out;
-          const psD = Array.from(tplD.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
+          const ansBoundD = findAnswerBound(tplD.content);
+          const psD = Array.from(tplD.content.querySelectorAll('p')).filter((p) => !isInAnswerArea(p, ansBoundD));
           // 🔴 2026-09-29：本节边界（与 2l/2j-5 同源；含答案区起点）——钳制末题区域不越界到后续大题/答案区
           const headsSecD = Array.from(tplD.content.querySelectorAll('h2, h3, h4, .answer-section'));
           const numberedD = psD.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
@@ -1303,7 +1351,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       try {
         const tpl2 = document.createElement('template');
         tpl2.innerHTML = out;
-        const ps2 = Array.from(tpl2.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
+        const ansBound2 = findAnswerBound(tpl2.content);
+        const ps2 = Array.from(tpl2.content.querySelectorAll('p')).filter((p) => !isInAnswerArea(p, ansBound2));
         // 🔴 2026-09-29：本节边界（本元素之后最近的标题，**含答案区起点**）——钳制区域不越界到后续大题/答案区。
         //    ⚠️ 不得过滤 .answer-section：答案区标题同样是边界；曾把它滤掉 → 区域越过答案区、探针读到
         //    答案区里的括号空位 → 写话题漏补作文格、格还可能落到答案区之后（实测两例）。
@@ -1330,7 +1379,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //    （旧判据只遍历 <p>）→ 三重落空，kwPs=[] 后走 debug 级静默跳过（连问题列表都不进）。
         //    故补第三集合：**汉字序号大题/栏目标题（h2~h4）**。
         const hanziKwPs = Array.from(tpl2.content.querySelectorAll('h2, h3, h4'))
-          .filter((h) => !h.closest('.answer-section'))
+          .filter((h) => !isInAnswerArea(h, ansBound2))
           .filter((h) => {
             const t = (h.textContent || '').trim();
             return /^[一二三四五六七八九十百]+[、.．]/.test(t) && isKwText(t);
@@ -1449,7 +1498,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       try {
         const tplE = document.createElement('template');
         tplE.innerHTML = out;
-        const psE = Array.from(tplE.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
+        const ansBoundE = findAnswerBound(tplE.content);
+        const psE = Array.from(tplE.content.querySelectorAll('p')).filter((p) => !isInAnswerArea(p, ansBoundE));
         // 🔴 2026-09-29：本节边界（与 2j-5 同源；含答案区起点）——钳制末题区域不越界到后续大题/答案区
         const headsSecE = Array.from(tplE.content.querySelectorAll('h2, h3, h4, .answer-section'));
         const numberedE = psE.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
@@ -1704,9 +1754,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       const lhMm = region.lineHeightMm || 8;
       const needRows = (score) => Math.max(0, Math.ceil(score * (region.linePerScore || 1)));
       // 只处理正文区（答案区/参考答案不做补差）
-      const ansStart = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/i);
-      const bodyPart = ansStart ? out.slice(0, ansStart.index) : out;
-      const ansPart = ansStart ? out.slice(ansStart.index) : '';
+      const ansIdxK = answerAreaStartIndex(out);
+      const bodyPart = ansIdxK >= 0 ? out.slice(0, ansIdxK) : out;
+      const ansPart = ansIdxK >= 0 ? out.slice(ansIdxK) : '';
       const tplK = document.createElement('template');
       tplK.innerHTML = bodyPart;
       const headsK = Array.from(tplK.content.querySelectorAll('h2, h3, h4'));
@@ -1960,9 +2010,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         }
       });
       if (fixedK > 0) {
-        // 🔧 双保险（真实事故：2k 段后答案区消失，护栏触发）：ansStart 未匹配时 ansPart 为空、
-        //    全量序列化可能弄丢答案区 → 先保存答案区原文（至文末），序列化后拼回
-        if (!ansStart) {
+        // 🔧 双保险（真实事故：2k 段后答案区消失，护栏触发）：答案区起点未识别时 ansPart 为空、
+        //    全量序列化可能弄丢答案区 → 先保存答案区原文（至文末），序列化后拼回。
+        //    🔴 2026-09-29：判据由"容器是否匹配"改为**单源的答案区起点**（answerAreaStartIndex）——
+        //    容器漏包时同样能识别答案区，`ansPart` 不再为空，答案区不再丢。
+        if (ansIdxK < 0) {
           const savedAns = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>[\s\S]*$/i);
           out = tplK.innerHTML + ansPart;
           if (savedAns && !/answer-section/.test(out)) out = out + '\n\n' + savedAns[0];
