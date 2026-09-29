@@ -95,4 +95,20 @@ describe('修复准则守卫：渲染静态尺寸等值守卫（第二副本不�
     expect(db, '应按 N 档透传：N em = 2N 个 NBSP').toContain('effectiveN * 2');
     expect(db, 'NBSP=0.5em 的口径须与透传系数同源（改其一必改其二）').toContain("ch === '\\u00A0'");
   });
+
+  // 🔴 2026-09-29（用户裁定·③④ 零风险化）：
+  //  ③ 补差应退化为"保险"——不改逻辑，但**必须可观测**：auditExamPaper 返回 fixed 计数（出稿报告用）。
+  //  ④ 宽度档位的**上下限必须面板可调**（BLANK.minBlank/maxBlank 在合并白名单内）——数值属口径，不由代码定。
+  it('③ 补差可观测：auditExamPaper 返回 fixed 计数（供出稿报告显示"本次补差 N 处"）', async () => {
+    const { auditExamPaper } = await import('../../src/utils/examValidator.js');
+    const r = auditExamPaper('<h2>一、解答（共1题，共6分）</h2><p>1. 说说你的想法。</p>', { subject: '数学', stage: 'middle', genType: 'exam' });
+    expect(typeof r.fixed, '须返回 fixed 计数（否则无法看"补差是否已退化为保险"）').toBe('number');
+  });
+
+  it('④ 宽度档位上下限面板可调：BLANK.minBlank/maxBlank 在合并白名单内', () => {
+    const spec = getMergedSpec();
+    expect(spec.BLANK, 'BLANK 未进 getMergedSpec').toBeTruthy();
+    expect(Number.isFinite(spec.BLANK.maxBlank), 'maxBlank 应可调（面板值必须能被读取端拿到）').toBe(true);
+    expect(Number.isFinite(spec.BLANK.minBlank), 'minBlank 应可调（1 字位被抬到 2 档这一越位点靠它调）').toBe(true);
+  });
 });
