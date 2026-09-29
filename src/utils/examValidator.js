@@ -736,6 +736,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       const defaultLabel = allowed.includes('line') ? '横线' : (allowed.join('或') || '正常书写');
       // 🔧 sixian-ge 别名折叠：与 four-line-three 同格（canonical 在允许表内即合法，不再误剥）
       const stripList = Object.keys(GRID_CLASS_LABEL).filter(cls => !allowed.includes(carrierCanonical(cls)));
+      // 🔴 2026-09-29（用户实证·非语文学科误出现作文格 = 不达标）：`zuo-wen-ge` 是**语文专属**成篇书写载体，
+      //    但它不在任何学科的 WRITING_CARRIER 允许表里（作文格由专通道管理，故原清单里没有它）→
+      //    原实现**根本不检查它**，非语文卷误出现作文格时既不剥、也不清 = 留在卷面上没人管。
+      //    现单列纳入越界剥离，并**按学科门控**：非语文出现即剥离（保留文字）；语文（含答案区）不动。
+      if (subject !== '语文') stripList.push('zuo-wen-ge');
       if (stripList.length) {
         try {
           const tpl = document.createElement('template');
@@ -749,7 +754,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               el.className = (el.className || '').replace(new RegExp(`(^|\\s)${cls}(?=\\s|$)`), ' ').replace(/\s+/g, ' ').trim();
               if (!el.className) el.removeAttribute('class');
               stripped += 1;
-              strippedLabels.add(GRID_CLASS_LABEL[cls]);
+              strippedLabels.add(GRID_CLASS_LABEL[cls] || (cls === 'zuo-wen-ge' ? '作文格' : cls));
             }
           }
           if (stripped > 0) {

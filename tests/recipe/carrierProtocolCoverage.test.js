@@ -13,6 +13,7 @@ import { describe, it, expect } from 'vitest';
 import { getPromptTemplate } from '../../src/config/promptLibrary.js';
 import { WRITING_CARRIER, CARRIER_RULES, getAnswerRegion } from '../../src/config/layoutSpec.js';
 import { EXAM_BLUEPRINTS } from '../../src/config/examPaperBlueprints.js';
+import { auditExamPaper } from '../../src/utils/examValidator.js';
 import { SUBJECT_KEYS } from '../../src/config/toolLibrary.js';
 import { STAGE_KEYS } from '../../src/utils/gradeStage.js';
 
@@ -140,5 +141,24 @@ describe('验收口径自证：能抓到越界与假指针', () => {
     expect(inMatrix('语文', 'primary_low'), '语文低段在册').toBe(true);
     expect(inMatrix('物理', 'primary_low'), '小学物理不在册（借用骨架）').toBe(false);
     expect(inMatrix('科学', 'high'), '高中科学不在册（借用骨架）').toBe(false);
+  });
+});
+
+// 🔴 2026-09-29（用户实证）：`zuo-wen-ge` 是**语文专属**载体，却不在任何允许表里 → 原来**没人管它**，
+//   非语文卷误出现作文格时既不剥也不清 = 不达标。现纳入越界剥离并按学科门控（非语文剥、语文留）。
+describe('越界剥离：作文格（zuo-wen-ge）仅语文允许', () => {
+  const run = (subject, stage, html) => {
+    // eslint-disable-next-line global-require
+    return auditExamPaper(html, { subject, stage, genType: 'exam' }).html;
+  };
+
+  it('非语文学科出现作文格 → 剥离（保留文字/结构）', () => {
+    const out = run('物理', 'middle', '<p>1. 说明实验步骤。<div class="zuo-wen-ge"><span>&emsp;</span></div></p>');
+    expect(out, '非语文不得留作文格').not.toContain('zuo-wen-ge');
+  });
+
+  it('语文出现作文格 → 保留（写话类是它的正当载体）', () => {
+    const out = run('语文', 'primary_low', '<h2>九、看图写话（共1题，共16分）</h2><p>1. 看图写话。（16分）</p><div class="zuo-wen-ge"><span>&emsp;</span></div>');
+    expect(out, '语文写话类的作文格不得被剥').toContain('zuo-wen-ge');
   });
 });
