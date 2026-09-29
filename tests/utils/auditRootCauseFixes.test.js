@@ -4,6 +4,7 @@ import path from 'node:path';
 import { getPromptTemplate } from '../../src/config/promptLibrary.js';
 import { buildLongAnswerCarrierInstruction } from '../../src/config/layoutSpec.js';
 import { getMergedSpec } from '../../src/config/layoutSpec.js';
+import { buildAnswerSpaceInstruction, getAnswerRegion } from '../../src/config/layoutSpec.js';
 import {
   auditExamPaper,
   countGridCells,
@@ -827,5 +828,20 @@ describe('守卫：渲染副本与规格库等值（防静默漂移）', () => {
     const mi = spec.GRID_CELL['mi-zi-ge']?.primary?.widthMm ?? tz;
     expect(widthOf(readSrc('src/styles/global.css'), 'mi-zi-ge')).toBe(mi);
     expect(widthOf(readSrc('src/components/RichTextEditor.vue'), 'mi-zi-ge')).toBe(mi);
+  });
+});
+
+// 🔴 2026-09-29（模型侧根治·分学段）：数学"竖式过程区 每式 ≥3 行"原写死、未受单题作答区上限约束 →
+//   多式题必然越界（低段上限 4 行、两式就要 6 行）。现与规格库同源给出上限并写明按上限平摊。
+describe('注入条款：竖式过程区行数受本学段上限（规格库同源）', () => {
+  it('低段：每式 ≥3 行 + 合计不超过本学段上限（4 行）', () => {
+    const t = buildAnswerSpaceInstruction('数学', 'primary_low');
+    expect(t).toContain('每式 ≥3 行');
+    expect(t).toContain(`不超过本学段单题作答区上限 ${getAnswerRegion('数学', 'primary_low').maxRowsPerItem} 行`);
+  });
+
+  it('初中：上限随学段取值（8 行），非写死', () => {
+    const t = buildAnswerSpaceInstruction('数学', 'middle');
+    expect(t).toContain(`不超过本学段单题作答区上限 ${getAnswerRegion('数学', 'middle').maxRowsPerItem} 行`);
   });
 });
