@@ -106,10 +106,10 @@ describe('产物矩阵：已有作答形态 → 不误补（判断/口算/填空
     expect(out).toContain('four-line-three');
   });
 
-  it('英语·primary_low（无书写格学段）模型输出四线三格 → 越界剥离', () => {
+  it('英语·primary_low：四线三格属**合法载体**（2026-09-29 用户裁定）→ 不剥离', () => {
     const html = '<p>1. 抄写字母：<span class="four-line-three">a</span></p>';
     const { html: out } = produce(html, { subject: '英语', stage: 'primary_low', genType: 'practice' });
-    expect(out).not.toContain('four-line-three');
+    expect(out).toContain('four-line-three');
   });
 });
 

@@ -53,7 +53,7 @@ describe('书写载体三维度注册表（防漂移矩阵）', () => {
     expect(WRITING_CARRIER['语文'].primary_low).toContain('pinyin-line');
     expect(WRITING_CARRIER['语文'].primary_high).toContain('line');
     expect(WRITING_CARRIER['英语'].primary_mid).toContain('four-line-three');
-    expect(WRITING_CARRIER['英语'].primary_low).toEqual(['line']); // 显式声明=无书写格（3 年级起点）
+    expect(WRITING_CARRIER['英语'].primary_low).toEqual(['four-line-three']); // 2026-09-29 用户裁定：低段字母书写需四线三格（原"3 年级起点"一刀切已废）
   });
 
   it('must/declaration 引用的学科与学段键必须注册在册（防死规则）', () => {

@@ -531,11 +531,11 @@ describe('examValidator 书写格按学段（writing-grid-fix）', () => {
     expect(out2).not.toContain('mi-zi-ge');
   });
 
-  it('英语低段允许表显式声明（=line）：语文田字格/四线三格漏入英语低段卷 → 越界剥离（曾 null 漏检）', () => {
+  it('英语低段允许表：语文田字格漏入 → 越界剥离；四线三格属合法载体 → 不剥（2026-09-29 用户裁定）', () => {
     const html = '<h2>一、基础</h2>\n<p>1. 选择：<span class="tian-zi-ge">海</span> <span class="four-line-three">a</span></p>';
     const { html: out, issues } = auditExamPaper(html, { subject: '英语', stage: 'primary_low', genType: 'exam' });
     expect(out).not.toContain('tian-zi-ge');
-    expect(out).not.toContain('four-line-three');
+    expect(out).toContain('four-line-three');
     expect(issues.some((i) => i.type === 'writing-grid' && i.message.includes('剥离'))).toBe(true);
   });
 

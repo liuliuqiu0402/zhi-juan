@@ -5,6 +5,7 @@ import { getPromptTemplate } from '../../src/config/promptLibrary.js';
 import { buildLongAnswerCarrierInstruction } from '../../src/config/layoutSpec.js';
 import { getMergedSpec } from '../../src/config/layoutSpec.js';
 import { buildAnswerSpaceInstruction, getAnswerRegion } from '../../src/config/layoutSpec.js';
+import { getCarrierAllowlist } from '../../src/config/layoutSpec.js';
 import {
   auditExamPaper,
   countGridCells,
@@ -906,5 +907,25 @@ describe('学科×学段可覆盖行数上限（机制验证；数值不写死�
     } finally {
       L.resetLayoutSpecOverride();
     }
+  });
+});
+
+// 🔴 2026-09-29 用户裁定（课程口径）：英语**低段也要有字母书写题 → 需要四线三格**。原允许表按"英语 3 年级
+//   起点、1-2 年级不要求字母书写"一刀切不给低段四线格，与蓝图"低段字母抄写"相抵 → 现纳入允许表。
+describe('去一刀切·候选5：英语低段字母书写准许四线三格（用户裁定）', () => {
+  it('允许表：英语·低段含 four-line-three', () => {
+    expect(getCarrierAllowlist('英语', 'primary_low')).toContain('four-line-three');
+  });
+
+  it('行为：低段英语四线三格不被"越界剥离"（原会被剥）', () => {
+    const html = '<h2>一、字母书写（10分）</h2>'
+      + '<p>1. 照样子，在四线三格中抄写字母 Aa。</p><p><span class="four-line-three">Aa</span></p>';
+    const out = auditExamPaper(html, { subject: '英语', stage: 'primary_low', genType: 'exam' }).html;
+    expect(out, '低段英语四线三格不应被越界剥离').toContain('four-line-three');
+  });
+
+  it('收口不越界：其它学科仍不含四线三格（不得因此放松他科）', () => {
+    expect(getCarrierAllowlist('数学', 'primary_low')).not.toContain('four-line-three');
+    expect(getCarrierAllowlist('语文', 'primary_low')).not.toContain('four-line-three');
   });
 });
