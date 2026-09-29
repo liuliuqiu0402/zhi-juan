@@ -71,6 +71,12 @@ export const CARRIER_INSERTS = {
   'mi-zi-ge': { label: '米字格', lenLabel: '格数', defaultLen: () => FALLBACK.gridCells, build: (n) => `<div class="mi-zi-ge">${span(n)}</div>` },
   'four-line-three': { label: '四线三格', lenLabel: '格数', defaultLen: () => FALLBACK.gridCells, build: (n) => `<div class="four-line-three">${span(n)}</div>` },
   'sixian-ge': { label: '六线格', lenLabel: '格数', defaultLen: () => FALLBACK.gridCells, build: (n) => `<div class="sixian-ge">${span(n)}</div>` },
+  // 拼音格：**行内单格**形态（与 four-line-three/sixian-ge 共享 carrierCss 的 inline-flex 几何 --flt-h；
+  //   examValidator.countGridCells 明确把 pinyin-line 排除在"div 包 span 方块格"之外 → 它是行内格）
+  'pinyin-line': { label: '拼音格', lenLabel: '格数', defaultLen: () => FALLBACK.gridCells, build: (n) => '<span class="pinyin-line">&emsp;</span>'.repeat(Math.max(1, Math.floor(n))) },
+  // ⚠️ english-line **故意不列入**：取证（carrierCss.js:45-47 / themeConfig.js:1536）确认它是
+  //   "遗留字体修饰类"（仅设 Times 字体、**不画格线**），独立格线书写用 four-line-three/sixian-ge。
+  //   列入会插出一个"看不见的载体"，故排除。
   'bracket-grid': {
     label: '竖式格',
     lenLabel: '行数',

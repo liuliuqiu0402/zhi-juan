@@ -68,6 +68,16 @@ describe('形态契约：插入的 HTML 必须与渲染/导出端认的形态一
     expect((h.match(/<span>&emsp;<\/span>/g) || []).length).toBe(4);
   });
 
+  it('拼音格 = 行内单格 <span class="pinyin-line">×N（非 div 包 span）', () => {
+    const h = buildCarrierHtml('pinyin-line', 3);
+    expect(h).not.toContain('<div');
+    expect((h.match(/<span class="pinyin-line">&emsp;<\/span>/g) || []).length).toBe(3);
+  });
+
+  it('english-line 不得作为可插入载体（遗留字体类·不画格线）', () => {
+    expect(CARRIER_INSERT_IDS, '插入目录不得含 english-line').not.toContain('english-line');
+  });
+
   it('空盒类必须是空 div（draw-area 保留 style 高度）', () => {
     const d = buildCarrierHtml('draw-area', 30);
     expect(d).toContain('class="draw-area"');
