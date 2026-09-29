@@ -84,4 +84,15 @@ describe('修复准则守卫：渲染静态尺寸等值守卫（第二副本不�
       expect(read(file), `${label} 的档位兜底须与规格库同值（否则面板调 maxBlank 时该层不跟随）`).toContain(`: ${val};`);
     }
   });
+
+  // 🔴 2026-09-29（用户指正："作答载体空间是指令给到模型——程序侧怎么可能知道答案长度？"）：
+  //    宽度只能由模型按答案长度给出，程序侧**不得代它决定**（放大/加地板）。导出端原写 `N*4` 个 NBSP
+  //    （NBSP=0.5em → 2N em，比预览 N em 宽一倍）并设 8 NBSP 地板 → 短答横线一律偏长、与答案长度无关。
+  it('导出端空位宽度**逐档透传**（程序侧不得代模型放大宽度）', () => {
+    const db = read('src/utils/docxBuilder.js');
+    expect(db, '不得再乘 4（=2N em，比预览宽一倍）').not.toMatch(/effectiveN \* 4/);
+    expect(db, '不得再设"8 个 NBSP"的宽地板').not.toContain('Math.max(8, effectiveN');
+    expect(db, '应按 N 档透传：N em = 2N 个 NBSP').toContain('effectiveN * 2');
+    expect(db, 'NBSP=0.5em 的口径须与透传系数同源（改其一必改其二）').toContain("ch === '\\u00A0'");
+  });
 });

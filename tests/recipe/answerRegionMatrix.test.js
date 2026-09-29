@@ -100,11 +100,13 @@ describe('矩阵：算式填空位（方框/圆圈）仅数学注入', () => {
 describe('矩阵：特殊格子载体协议边界（buildCarrierInstruction 防越界）', () => {
   // 只允许表内 学科×学段 输出条款；其余学科/学段必须为空串（"其余学科显式空数组 = 禁止任何格子"）
   // 🔴 2026-09-29（**去手抄副本·防漂移**）：期望值不再手列 ALLOWED_NONEMPTY，改由**同一批事实源**推导——
-  //    "该档有条款" ⟺ 该 学科×学段 有 must 规则（按必须载体注入），或允许表含 square-grid（作图方格纸）。
+  //    "该档有条款" ⟺ 该 学科×学段 有 must 规则（按必须载体注入）、允许表含 square-grid（作图方格纸），
+  //    或该学科有"成篇成文"协议（语文：作文格 zuo-wen-ge 真协议，各学段皆注入）。
   //    原先手列一份名单，允许表放开英语低段后**没跟着改** → 本测试反倒把"协议缺位"锁死
   //    （暴露的正是"模型侧不知道该出什么载体、只能靠程序兜底"这一类缺口）。改为推导后两端永远同源。
   const hasMust = (sub, st) => CARRIER_RULES.must.some((r) => r.subject === sub && r.stages.includes(st));
-  const allowedFor = (sub, st) => hasMust(sub, st) || (getCarrierAllowlist(sub, st) || []).includes('square-grid');
+  const hasComposition = (sub) => sub === '语文'; // 成篇成文（作文格）协议：中文专属，全学段
+  const allowedFor = (sub, st) => hasMust(sub, st) || hasComposition(sub) || (getCarrierAllowlist(sub, st) || []).includes('square-grid');
   for (const subject of SUBJECTS) {
     for (const stage of STAGES) {
       const allowed = allowedFor(subject, stage);

@@ -520,7 +520,11 @@ const buildTextRuns = (node, styleOverride = {}) => {
         }
         const emWidth = whitespaceEmWidth(raw);
         const effectiveN = Math.max(nFromClass, Math.round(emWidth), 2);
-        const innerText = '\u00A0'.repeat(effectiveN * 4);
+        // 🔴 2026-09-29（用户指正："程序侧怎么可能知道答案长度？程序侧做不到"）：
+        //    宽度必须**逐档透传模型给的档位**，程序侧不得代它放大/加地板。NBSP 按本文件
+        //    whitespaceEmWidth 的口径 = 0.5em，故 N 档 = N em = 2N 个 NBSP（与预览端
+        //    `u/span.blank-N{min-width:N em}` 同宽）。原写 `N*4`（= 2N em）→ 导出比预览宽一倍。
+        const innerText = '\u00A0'.repeat(effectiveN * 2);
         runs.push(new TextRun({ text: `(${innerText})`, font: 'Times New Roman', size: ctx.size || readFontSizeHp(child) }));
         return;
       }
@@ -549,10 +553,10 @@ const buildTextRuns = (node, styleOverride = {}) => {
         //   仅 blank-line/整行兜底空白（无此标记）保留 ptab 自动延伸
         runs.push({ __blankLineTab: true, editableBlank: true, size: ctx.size || readFontSizeHp(child), raw, nFromClass, color: '333333' });
       } else {
-        // 非标标签：统一按括号处理
+        // 非标标签：统一按括号处理（宽度同样**逐档透传**：N 档 = N em = 2N 个 NBSP，见 whitespaceEmWidth）
         const emWidth = whitespaceEmWidth(raw);
         const effectiveN = Math.max(nFromClass, Math.round(emWidth), 2);
-        const innerText = '\u00A0'.repeat(effectiveN * 4);
+        const innerText = '\u00A0'.repeat(effectiveN * 2);
         runs.push(new TextRun({ text: `(${innerText})`, font: 'Times New Roman', size: ctx.size || readFontSizeHp(child) }));
       }
       return;
@@ -792,7 +796,11 @@ const buildTextRuns = (node, styleOverride = {}) => {
       const emWidth = whitespaceEmWidth(r.raw);
       const baseMin = r.minEm || (r.nFromClass ? Math.max(r.nFromClass, 2) : 2);
       const effectiveN = Math.max(baseMin, Math.round(emWidth));
-      const nbspCount = Math.max(8, effectiveN * 4);
+      // 🔴 2026-09-29（同上·**逐档透传**）：原 `Math.max(8, N*4)` 一边把宽度放大一倍（2N em）、
+      //    一边设了 4em 的地板 → 短答（1~2 字）的横线一律偏长、与答案长度无关（用户实样实证：
+      //    一排越来越长的横线）。现按 N 档透传：N em = 2N 个 NBSP，与预览端同宽；地板取 N 的下限
+      //    （minBlank=2 档 → 4 个 NBSP），不额外加宽。
+      const nbspCount = Math.max(4, effectiveN * 2);
       runs[i] = new TextRun({
         text: '\u00A0'.repeat(nbspCount),
         underline: { type: 'single', color: r.color || '666666' },
