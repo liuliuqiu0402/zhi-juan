@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { getPromptTemplate } from '../../src/config/promptLibrary.js';
 import {
   auditExamPaper,
@@ -734,5 +736,36 @@ describe('根治回归：标题锚点的题区域（不得把本题题干当边�
   it('标题锚点 + 无任何载体 → 仍照常补格（收口不破坏主功能）', () => {
     const html = '<h2>十六、看图写话（10分）</h2><p>仔细看图，写几句话。</p>';
     expect(run(html).html).toContain('zuo-wen-ge');
+  });
+});
+
+// 🔴 2026-09-29（用户裁定"全局根治、单源、防回潮"）：以下守卫钉住三条**单一事实源**，
+//   任何新增消费方若自写一份（而非走单源），此守卫立即转红。
+describe('单源守卫：全局唯一口径（防回潮）', () => {
+  const SRC = path.resolve(__dirname, '../../src');
+  const read = (p) => fs.readFileSync(path.join(SRC, p), 'utf8');
+
+  it('答案区边界：examValidator 的**代码**里不得再出现"只认容器"的 `.closest("answer-section")` 判据', () => {
+    // 只扫代码行（排除注释行）：注释里允许引用旧写法作为沿革说明
+    const codeLines = read('utils/examValidator.js')
+      .split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l));
+    expect(codeLines.some((l) => l.includes("closest('.answer-section')")), '应改走 contentCleaner 单源包装').toBe(false);
+  });
+
+  it('答案区边界：唯一口径仍在 contentCleaner，且 examValidator 不另持正则', () => {
+    expect(read('utils/contentCleaner.js')).toContain('ANSWER_SECTION_START_RE');
+    const ev = read('utils/examValidator.js');
+    expect(/ANSWER_SECTION_START_RE\s*=/.test(ev), 'examValidator 不得重新定义答案区正则').toBe(false);
+  });
+
+  it('分条判据：唯一定义在 examValidator，且 2k 与 2j-5 同走 classifyNumberedBranches', () => {
+    const ev = read('utils/examValidator.js');
+    expect((ev.match(/classifyNumberedBranches\s*=/g) || []).length, '仅允许一处定义').toBe(1);
+    expect((ev.match(/classifyNumberedBranches\(/g) || []).length, '至少两处消费（2j-5 与 2k）').toBeGreaterThanOrEqual(2);
+  });
+
+  it('学科×学段允许表：唯一定义在 layoutSpec.WRITING_CARRIER（消费方须走 getCarrierAllowlist）', () => {
+    expect(read('config/layoutSpec.js')).toContain('export const WRITING_CARRIER');
+    expect(read('utils/examValidator.js').includes('getCarrierAllowlist('), '越界剥离/声明检查须走查询入口').toBe(true);
   });
 });

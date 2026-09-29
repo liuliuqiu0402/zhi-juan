@@ -54,7 +54,8 @@ const PINYIN_OPTION_RE = new RegExp(`[（(]\\s*[${PINYIN_CHARS}]+(?:[／/、，,
 const OPTION_P_RE = /<p[^>]*class=["'][^"']*option[^"']*["'][^>]*>/gi;
 const OPTION_LINE_RE = /(?:^|\n)\s*[A-H][.、．]\s*[^\n]+/g;
 // 🔧 选择题选项行内/末尾误挂作答空位（2026-09 用户实证：答案括号被模型挂到选项末尾 C. are; am＿）：
-//   根治在生成侧（作答空间条款：选择/判断/圈选类括号在题干前），此处仅供 guard 静默计数取证。
+//   根治在生成侧（作答空间条款：选择/判断/圈选类作答位的**位置按学科**——外语类题首 / 中文科目题干末尾，
+//   见 layoutSpec.getChoiceBlankPosition 单源），此处仅供 guard 静默计数取证。
 //   🔴 2026-09-16 形态化改写：原来只认 `<p class="option">` 或 `<br> A.`——
 //     但实测产物的选项行用的是 `<p class="question">(1) A. stop　B. run…`（根本没 class="option"），
 //     于是连"选项行内挂空位"这一类都认不出来。改为按**形态**识别：段落以选项字母开头（可带 (1) 小题号）。
@@ -299,7 +300,9 @@ export const splitSections = (html) => {
     heads.forEach((h, i) => {
       const title = (h.textContent || '').trim();
       if (!title) return;
-      const scoreMatch = title.match(/[（(]\s*(\d{1,3})\s*分\s*[)）]/);
+      // 🔴 2026-09-29（单源对齐）：分值解析与 2f/2g/2k 同口径——既认旧式"（X分）"，也认明细式"共X分"；
+      //    原只认"（X分）"→ 明细式标题（"共X题，每题X分，共X分"）取不到分值（score=null），与 2k 的理解不一致。
+      const scoreMatch = title.match(/共\s*(\d{1,3})\s*分/) || title.match(/[（(]\s*(\d{1,3})\s*分\s*[)）]/);
       let raw = '';
       let node = h.nextSibling;
       const end = heads[i + 1] || null;
@@ -1591,6 +1594,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const tplH = document.createElement('template');
         tplH.innerHTML = out;
         const contentH = Array.from(tplH.content.children);
+        // 🔴 2026-09-29（单源接入）：答案区排除走 `contentCleaner` 单源包装——原只认 `.answer-section` 容器，
+        //    模型漏包容器时该排除失效 → 答案区文本可能被当正文补横线（与 2j-4/2j-5/2j-5b/2k 口径统一）。
+        const ansBoundH = findAnswerBound(tplH.content);
         const kwH = /书面表达|写作|小作文|看图写话|用英语|写一段|写一篇|以.{1,30}为题|不少于\s*\d+\s*[句词字]|Write\b/;
         const banH = /选择|判断|填空|阅读|读短文|完形|改写句子|连词成句|Read\b/;
         const regionH = getAnswerRegion('英语', stage);
@@ -1600,7 +1606,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const el = contentH[i];
           const tag = (el.tagName || '').toLowerCase();
           if (tag !== 'h2' && tag !== 'h3' && tag !== 'h4' && tag !== 'p') continue;
-          if (el.closest('.answer-section')) continue;
+          if (isInAnswerArea(el, ansBoundH)) continue;
           const t = (el.textContent || '').trim();
           if (!t || !kwH.test(t) || banH.test(t)) continue;
           if (tag === 'p' && !/^\s*\d+[.、．]/.test(t)) {
