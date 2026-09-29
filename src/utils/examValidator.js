@@ -434,7 +434,7 @@ export const classifyNumberedBranches = (numberedPs = []) => {
 };
 
 /**
- * 答案区起点 —— 单一事实源（2026-09-29｜用户追问"答案区会不会再丢"）
+ * 答案区起点 —— **包装层**（唯一口径见 `contentCleaner.ANSWER_SECTION_START_RE`；本处不持有口径）
  * ============================================================
  * 病根：全流程的"答案区排除"一律依赖 `<div class="answer-section">` **容器**，而该容器由**后续步骤 3a
  *   事后补包**（3a 之所以存在，正说明模型会漏包）→ 漏包时，步骤 1.5.2 与 2 系列的排除**同时失效**。
@@ -1413,10 +1413,16 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           for (let i = 0; i < kwPs.length; i++) {
             const p = kwPs[i];
             // 🔧 无编号但带分值的写话题：区域边界取其后第一道**真题号段**（按文档序；分条已剔除）
+            // 🔴 2026-09-29 收口（用户追问"作文题横线与格子并存"）：锚点是**大题标题**（汉字序号标题 h2~h4）时，
+            //    其后第一道数字题号段**正是本题自己的题干**（不是下一题的边界）——原写法把它当 endP，
+            //    探针区域为空 → 看不到模型已给的横线 → **叠加补格**（实测：模型 5 条横线 + 程序又补一组格）。
+            //    故标题锚点的区域一律取**本节边界**（下一个标题/答案区起点）。
+            const isHeadingAnchor = /^h[1-6]$/i.test(p.tagName || '');
             const qi = numberedQs2.indexOf(p);
-            let endP = qi >= 0
-              ? (numberedQs2[qi + 1] || null)
-              : (numberedQs2.find(n => n !== p && (p.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING)) || null);
+            let endP = isHeadingAnchor ? null
+              : (qi >= 0
+                ? (numberedQs2[qi + 1] || null)
+                : (numberedQs2.find(n => n !== p && (p.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING)) || null));
             // 🔴 2026-09-29 根治（与 2l 同源·末题区域越界）：区域不得越过**本节边界**（下一个标题/答案区起点）。
             //    原"无则到文末"使末题区域一路延伸到后续大题乃至答案区，把别处的作答载体误当"本题已有载体" →
             //    hasAnyCarrier 误判 true → 写话题漏补作文格（实测：一、看图写话因二、阅读内有横线，一格未补；
