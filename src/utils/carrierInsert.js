@@ -1,18 +1,35 @@
 /**
  * 书写载体·手动插入的**单一事实源**（编辑器按钮用）
  *
- * 背景（2026-09-29 用户裁定）：书写载体除作文格外，也要允许**用户手动插入/替换**（形状 + 长度）。
- *   本文件只做一件事：把"某类载体的标准 HTML + 长度语义"集中成一处，供编辑器按钮调用。
+ * 背景（2026-09-29/30 用户裁定）：
+ *   · 书写载体除作文格外，允许**用户手动插入/替换**（形状 + 长度）；
+ *   · 手动产物**走在生成链路之外**，不受 2j-5 系列（相邻性/插入位置）修正保护
+ *     → 必须**自带正确形态**，故形态一律按取证结果写死在此处。
  *
- * ⚠️ 形态来源（均为**取证所得**，勿凭印象改；改前先复核下列出处）：
- *   · blank-line  → `<p><span class="blank-line">　</span></p>`（examValidator 注释：p 内套 span）
- *   · blank-area  → `<p class="blank-area" style="height:Xmm">`（contentCleaner 1c-3；docxBuilder 导出侧认它）
- *   · blank-N     → `<u class="blank-N">&emsp;</u>`（N = 字位宽档位；contentCleaner.normalizeBlankMarkers）
- *   · 格类        → `<div class="X"><span>&emsp;</span>×N</div>`（examValidator.countGridCells 以 span 计格）
- *   · 空盒类      → 空格 + class（编辑器节点 squareGrid/bracketGrid/drawArea；draw-area 需保留 style 高度）
+ * ⚠️ 形态取证来源（改前先复核出处，勿凭印象改）：
+ *   行内类（必须能与文字混排，**不得用 <div>**；块级会被导出按独立段落处理 → 独立行居中）：
+ *     · 格类（田字格/米字格/四线三格/六线格/拼音格）：`<span class="X">&emsp;</span>` **一格一元素**
+ *       — 依据 docxBuilder 现成写法 `<td><span class="tian-zi-ge">X</span></td>`；
+ *         carrierCss `.four-line-three,.sixian-ge,.pinyin-line{display:inline-flex}`；
+ *         规格库 GRID_CELL 给的是**单格宽**（12mm 等）
+ *     · 横线空位：`<u class="blank-N">&emsp;</u>`（contentCleaner.normalizeBlankMarkers）
+ *     · 括号空位：`<span class="blank-N">&emsp;</span>`（carrierCss 对 span[class*="blank-"] 用
+ *       ::before/::after 自动补括号 —— 与横线空位**同 class、不同标签**，故拆成两项）
+ *     · 数学填空方框：`<span class="square-box">　</span>`（carrierCss 1.8em 等边 + 边框）
+ *     · 数学填空圈  ：`<span class="math-circle-blank-18">　</span>`（同上，圆形）
+ *   块级类（本身就是整块作答区，独占空间，**不是**书写格）：
+ *     · 整行横线：`<p><span class="blank-line">　</span></p>`
+ *     · 留白行  ：`<p class="blank-area" style="height:Xmm">`
+ *     · 竖式格  ：`<div class="bracket-grid">`（编辑器节点 bracketGrid，atom 空盒）
+ *     · 方格纸  ：`<div class="square-grid">`（编辑器节点 squareGrid，atom 空盒）
+ *     · 作图区  ：`<div class="draw-area" style="min-height:Xmm">`（编辑器节点 drawArea，style 必须保留）
  *
- * ⚠️ 长度一律**读排版规格库**（面板可调）；本文件不复制数值口径。
- *   规格库未提供该项时的兜底值集中写在 FALLBACK（**待规格库补齐后应删除**，勿当第二口径长期存在）。
+ * ⚠️ 未列入（**证据不足，暂不给按钮**；列入会造出"预览有、导出丢"的载体）：
+ *     · oral-box（口语交际框）：预览有（carrierCss/global.css），**导出侧分支未取证**；
+ *     · match-question/match-item（连线题）：结构较复杂（两列 + 项 + 引导线），需专门取证。
+ *
+ * ⚠️ 长度一律**读排版规格库**（面板可调），本文件不复制数值口径；
+ *    规格库未提供该项时的兜底值集中在 FALLBACK（**待规格库补齐后应删除**）。
  */
 import { getMergedSpec } from '../config/layoutSpec.js';
 
@@ -22,80 +39,77 @@ const FALLBACK = {
   blankAreaHeightMm: 8,  // 留白行：默认高度 mm
   blankWidth: 8,         // 空位档位：默认 8 字位
   gridCells: 4,          // 格类：默认 4 格
+  boxCount: 1,           // 数学方框/圆圈：默认 1 个
   bracketRows: 3,        // 竖式格：默认 3 行（与 bracket-grid CSS repeat(3,…) 同）
   squareCols: 12,        // 方格纸：默认列数（与 SQUARE_GRID 12列×8行 同）
   squareRows: 8,
   drawHeightMm: 40,      // 作图区：默认高度 mm
 };
 
-const span = (n) => '<span>&emsp;</span>'.repeat(Math.max(1, Math.floor(n)));
+const repeat = (frag, n) => frag.repeat(Math.max(1, Math.floor(Number(n) || 1)));
+/** 行内格：一格一 span（与导出端行内单格一致） */
+const inlineCells = (cls, n) => repeat(`<span class="${cls}">&emsp;</span>`, n);
+
+/** 空位档位：受规格库 BLANK 上下限约束（与导出/预览同源，防"预览宽、导出窄"） */
+const blankWidth = (n) => {
+  const b = (getMergedSpec() || {}).BLANK || {};
+  const cap = Number(b.maxBlank) || FALLBACK.blankWidth;
+  const lo = Number(b.minBlank) || 1;
+  return Math.min(cap, Math.max(lo, Math.floor(Number(n) || 0)));
+};
 
 /**
- * 载体目录：id → { label, lenLabel, defaultLen(), build(len) }
- * lenLabel 说明长度参数的含义（格数 / 行数 / 高度mm / 档位），供按钮提示文案使用。
+ * 载体目录：id → { label, lenLabel, inline, defaultLen(), build(len) }
+ * inline=true 表示行内载体（可混排）；false 为块级作答区。
  */
 export const CARRIER_INSERTS = {
   'blank-line': {
-    label: '整行横线',
-    lenLabel: '行数',
+    label: '整行横线', lenLabel: '行数', inline: false,
     defaultLen: () => FALLBACK.blankLineRows,
-    build: (n) => '<p><span class="blank-line">　</span></p>'.repeat(Math.max(1, Math.floor(n))),
+    build: (n) => repeat('<p><span class="blank-line">　</span></p>', n),
   },
   'blank-area': {
-    label: '留白行（无线）',
-    lenLabel: '高度(mm)',
+    label: '留白行（无线）', lenLabel: '高度(mm)', inline: false,
     defaultLen: () => FALLBACK.blankAreaHeightMm,
     build: (n) => `<p class="blank-area" style="height:${Math.max(1, Number(n) || 0)}mm"></p>`,
   },
-  'blank': {
-    label: '空位（横线空位/括号空位）',
-    lenLabel: '宽度档位（字位）',
-    defaultLen: () => {
-      const sp = getMergedSpec() || {};
-      const b = sp.BLANK || {};
-      const cap = Number(b.maxBlank) || FALLBACK.blankWidth;
-      const lo = Number(b.minBlank) || 1;
-      const def = Number(b.defaultBlank) || FALLBACK.blankWidth;
-      return Math.min(cap, Math.max(lo, def));
-    },
-    build: (n) => {
-      const sp = getMergedSpec() || {};
-      const b = sp.BLANK || {};
-      const cap = Number(b.maxBlank) || FALLBACK.blankWidth;
-      const lo = Number(b.minBlank) || 1;
-      const k = Math.min(cap, Math.max(lo, Math.floor(Number(n) || 0)));
-      return `<u class="blank-${k}">&emsp;</u>`;
-    },
+  'blank-underline': {
+    label: '横线空位（下划线）', lenLabel: '宽度档位（字位）', inline: true,
+    defaultLen: () => (getMergedSpec().BLANK || {}).defaultBlank || FALLBACK.blankWidth,
+    build: (n) => `<u class="blank-${blankWidth(n)}">&emsp;</u>`,
   },
-  'tian-zi-ge': { label: '田字格', lenLabel: '格数', defaultLen: () => FALLBACK.gridCells, build: (n) => `<div class="tian-zi-ge">${span(n)}</div>` },
-  'mi-zi-ge': { label: '米字格', lenLabel: '格数', defaultLen: () => FALLBACK.gridCells, build: (n) => `<div class="mi-zi-ge">${span(n)}</div>` },
-  'four-line-three': { label: '四线三格', lenLabel: '格数', defaultLen: () => FALLBACK.gridCells, build: (n) => `<div class="four-line-three">${span(n)}</div>` },
-  'sixian-ge': { label: '六线格', lenLabel: '格数', defaultLen: () => FALLBACK.gridCells, build: (n) => `<div class="sixian-ge">${span(n)}</div>` },
-  // 拼音格：**行内单格**形态（与 four-line-three/sixian-ge 共享 carrierCss 的 inline-flex 几何 --flt-h；
-  //   examValidator.countGridCells 明确把 pinyin-line 排除在"div 包 span 方块格"之外 → 它是行内格）
-  'pinyin-line': { label: '拼音格', lenLabel: '格数', defaultLen: () => FALLBACK.gridCells, build: (n) => '<span class="pinyin-line">&emsp;</span>'.repeat(Math.max(1, Math.floor(n))) },
-  // ⚠️ english-line **故意不列入**：取证（carrierCss.js:45-47 / themeConfig.js:1536）确认它是
-  //   "遗留字体修饰类"（仅设 Times 字体、**不画格线**），独立格线书写用 four-line-three/sixian-ge。
-  //   列入会插出一个"看不见的载体"，故排除。
+  'blank-paren': {
+    label: '括号空位（　）', lenLabel: '宽度档位（字位）', inline: true,
+    defaultLen: () => (getMergedSpec().BLANK || {}).defaultBlank || FALLBACK.blankWidth,
+    build: (n) => `<span class="blank-${blankWidth(n)}">&emsp;</span>`,
+  },
+  'tian-zi-ge': { label: '田字格', lenLabel: '格数', inline: true, defaultLen: () => FALLBACK.gridCells, build: (n) => inlineCells('tian-zi-ge', n) },
+  'mi-zi-ge': { label: '米字格', lenLabel: '格数', inline: true, defaultLen: () => FALLBACK.gridCells, build: (n) => inlineCells('mi-zi-ge', n) },
+  'four-line-three': { label: '四线三格', lenLabel: '格数', inline: true, defaultLen: () => FALLBACK.gridCells, build: (n) => inlineCells('four-line-three', n) },
+  'sixian-ge': { label: '六线格', lenLabel: '格数', inline: true, defaultLen: () => FALLBACK.gridCells, build: (n) => inlineCells('sixian-ge', n) },
+  'pinyin-line': { label: '拼音格', lenLabel: '格数', inline: true, defaultLen: () => FALLBACK.gridCells, build: (n) => inlineCells('pinyin-line', n) },
+  'square-box': {
+    label: '数学填空方框', lenLabel: '个数', inline: true,
+    defaultLen: () => FALLBACK.boxCount,
+    build: (n) => repeat('<span class="square-box">　</span>', n),
+  },
+  'math-circle-blank': {
+    label: '数学填空圈', lenLabel: '个数', inline: true,
+    defaultLen: () => FALLBACK.boxCount,
+    build: (n) => repeat('<span class="math-circle-blank-18">　</span>', n),
+  },
   'bracket-grid': {
-    label: '竖式格',
-    lenLabel: '行数',
+    label: '竖式格', lenLabel: '行数', inline: false,
     defaultLen: () => FALLBACK.bracketRows,
-    build: (n) => {
-      const rows = Math.max(1, Math.floor(Number(n) || 0));
-      // 空盒载体：必须是**空 div**（编辑器节点 bracketGrid 为 atom；CSS 画 3 行，行数由内容盒决定）
-      return `<div class="bracket-grid">${'<div></div>'.repeat(rows)}</div>`;
-    },
+    build: (n) => `<div class="bracket-grid">${repeat('<div></div>', n)}</div>`,
   },
   'square-grid': {
-    label: '方格纸（作图）',
-    lenLabel: '行列（列×行）',
+    label: '方格纸（作图）', lenLabel: '行列（列×行）', inline: false,
     defaultLen: () => FALLBACK.squareRows,
     build: (n) => `<div class="square-grid" style="--sg-cols:${FALLBACK.squareCols};--sg-rows:${Math.max(1, Math.floor(Number(n) || 0))}"></div>`,
   },
   'draw-area': {
-    label: '作图区',
-    lenLabel: '高度(mm)',
+    label: '作图区', lenLabel: '高度(mm)', inline: false,
     defaultLen: () => FALLBACK.drawHeightMm,
     build: (n) => `<div class="draw-area" style="min-height:${Math.max(1, Number(n) || 0)}mm"></div>`,
   },
@@ -113,13 +127,16 @@ export function buildCarrierHtml(id, len) {
 
 /**
  * 该 HTML 内是否已含**同类**载体（防重复插入 / 同类择一判定用）
- * ⚠️ 空盒类按精确 class 匹配；blank-N 按前缀匹配（档位不同仍属同类）
+ * ⚠️ 空位类按 blank-N 前缀匹配（档位不同仍属同类；横线空位/括号空位同 class，
+ *    故按标签区分：横线空位 = u.blank-N，括号空位 = span.blank-N）
  */
 export function hasCarrierClass(html, id) {
   const s = String(html || '');
   if (!id) return false;
-  if (id === 'blank') return /class=["'][^"']*blank-\d/.test(s);
+  if (id === 'blank-underline') return /<u[^>]*class=["'][^"']*blank-\d/.test(s);
+  if (id === 'blank-paren') return /<span[^>]*class=["'][^"']*blank-\d/.test(s);
   if (id === 'blank-line') return /class=["'][^"']*blank-line/.test(s);
+  if (id === 'math-circle-blank') return /class=["'][^"']*math-circle-blank/.test(s);
   return new RegExp(`class=["'][^"']*${id.replace(/[-]/g, '\\-')}`).test(s);
 }
 
