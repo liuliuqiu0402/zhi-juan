@@ -1528,6 +1528,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         // 🔴 2026-09-29：本节边界（与 2j-5 同源；含答案区起点）——钳制末题区域不越界到后续大题/答案区
         const headsSecE = Array.from(tplE.content.querySelectorAll('h2, h3, h4, .answer-section'));
         const numberedE = psE.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
+        // 🔴 2026-09-29（单源接入·同 2k/2j-5）：题干内"要求/提示"分条（含被误写成「1./2.」的）**不作本题边界**——
+        //    否则区域被截断在分条处 → 横线插进分条之间（与 layoutSpec"横线给在分条之后、不插在分条之间"相抵）。
+        const numberedQsE = classifyNumberedBranches(numberedE).top;
         const kwReE = /书面表达|写作|小作文|看图写话|用英语|Write\b/;
         const kwPE = numberedE.filter(p => {
           const t = p.textContent || '';
@@ -1540,8 +1543,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         let addedE = 0;
         for (let i = 0; i < kwPE.length; i++) {
           const p = kwPE[i];
-          const idx = numberedE.indexOf(p);
-          let endP = numberedE[idx + 1] || null;
+          const idx = numberedQsE.indexOf(p);
+          let endP = numberedQsE[idx + 1] || null;
           // 🔴 2026-09-29 根治（与 2l/2j-5 同源）：末题区域须止于本节边界，否则后续大题的横线会被
           //    误当本题已有载体 → 英语书面表达漏补作答横线。
           const secEndE = headsSecE.find(h => p.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
@@ -2072,6 +2075,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       const cr = getMergedSpec().CARRIER_RULES || { must: [], forbid: [] };
       const tplL = document.createElement('template');
       tplL.innerHTML = out;
+      // 🔴 2026-09-29（补漏点·全通道同源）：答案区内**不得剥离**——答案区里的书写格往往承载答案示范字，
+      //    剥离 class 会使其失去格线（内容被改坏）。原 2l 无答案区排除，是"答案区判据未全通道接入"的漏点。
+      const ansBoundL = findAnswerBound(tplL.content);
       const headsL = Array.from(tplL.content.querySelectorAll('h2, h3, h4'));
       let fixedL = 0;
       const exactCls = (el, cls) => new RegExp(`(^|\\s)${cls}(?=\\s|$)`).test(el.className || '');
@@ -2111,6 +2117,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             })
           : [{ p: head, seg: secNodes }];
         for (const it of items) {
+          if (isInAnswerArea(it.p, ansBoundL)) continue; // 答案区不参与载体×题型剥离（见上方补漏点说明）
           const scope = [it.p, ...it.seg];
           const text = scope.map(n => n.textContent || '').join('');
           // forbid：表达/写话类题内混入书写格 → 剥离保留文字
@@ -2147,11 +2154,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     try {
       const tpl6 = document.createElement('template');
       tpl6.innerHTML = out;
+      const ansBound6 = findAnswerBound(tpl6.content);
       const gridEls = Array.from(tpl6.content.querySelectorAll(
         // 🔧 行式格 span 形态补齐（four-line-three/sixian-ge/pinyin-line）：四线三格/拼音格常以行内 span 出现
         //   （<span class="four-line-three">cat</span>），曾选择器只收 div 形态与 span 田字格 → 内嵌答案字漏清
         'div.tian-zi-ge, div.mi-zi-ge, div.four-line-three, div.sixian-ge, div.pinyin-line, div.zuo-wen-ge, span.tian-zi-ge, span.mi-zi-ge, span.four-line-three, span.sixian-ge, span.pinyin-line'
-      ));
+      // 🔴 2026-09-29（补漏点·同源）：答案区内的格子**不得清空**——答案区里的格子常直接承载答案字
+      //    （答案呈现），清空即等于删答案。原 2j-6 无答案区排除，是"答案区判据未全通道接入"的漏点。
+      )).filter((g) => !isInAnswerArea(g, ansBound6));
       let cleared = 0;
       for (const g of gridEls) {
         // 🔧 示范格豁免（2026-08）：格所在题块/紧邻文本含语义引导（例：/例如/示例/照样子/仿照/示范/仿写）
