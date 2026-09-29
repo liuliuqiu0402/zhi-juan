@@ -3221,7 +3221,7 @@ import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/l
 // ✅ A21 已撤（2026-09-17）：buildNeedsImageText / needsImageHint 不再参与能力判定（改为能力就绪，见 eduRenderContract.resolveMarkCapability）
 import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, resolveColumnStyleChoices, advanceAutoColumnStyleId, getTeachingBlueprint, stripSourceMarkNote } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
-import { buildUserMessageBlocks } from '../utils/injectionManifest.js'; // ✅ A22：请求实发清单·单源（用户消息侧：锚点清单/素材约定/组织方式/输出约定/尾约束…与生成端同一份定义）
+import { buildUserMessageBlocks, buildCallLayerBlocks } from '../utils/injectionManifest.js'; // ✅ A22：请求实发清单·单源（用户消息侧：锚点清单/素材约定/组织方式/输出约定/尾约束…与生成端同一份定义）；buildCallLayerBlocks=调用层追加块（输出前自检）同源可见
 import { syncFloorClauseSections } from '../utils/instructionFloorSync.js'; // 🔴 2026-09-18 用户实证：草稿持久化恢复会把"程序内置守门条款段"冻住 → 之后所有条款修订都进不了模型；实发前按当前单源同步该段（用户内容不动）
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
@@ -6254,7 +6254,7 @@ const refreshUserMsgBlocks = ({ subject = '', genType = '' } = {}) => {
   //    类型不符时给空串（宁可不显示，也不显示另一类型/另一次的口径）。
   const snap = lastInjectSnapshot.value;
   const snapHit = (snap && snap.genType === genType) ? snap : null;
-  userMsgBlocks.value = buildUserMessageBlocks({
+  userMsgBlocks.value = withCallLayerBlocks(buildUserMessageBlocks({
     genType,
     subject,
     materialChannel: resolveMaterialChannel(genType),
@@ -6267,7 +6267,17 @@ const refreshUserMsgBlocks = ({ subject = '', genType = '' } = {}) => {
     anchorListRoleNote: snapHit?.roleNote || '',
     compressedText: snapHit?.compressedText || '',
     materialProvenance: resolveMaterialProvenance(genType),
-  });
+  }));
+};
+
+/** 把"调用层追加块"（【输出前自检】）插到**尾约束之前**——与生成端 applyCallLayerSelfReview 的插入点同口径，
+ *  保证面板块序 = 实发块序（本块不进委托书、不参与 buildUserMessagePrompt 拼接，只在调用层追加）。
+ *  🔴 2026-09-30（用户裁定）：原状态为"实发有、面板无"，与「点开即实发全貌」相抵，故在此如实补上。 */
+const withCallLayerBlocks = (blocks) => {
+  const call = buildCallLayerBlocks();
+  if (!call.length) return blocks;
+  const at = blocks.findIndex((b) => b.id === 'tail-self');
+  return at >= 0 ? [...blocks.slice(0, at), ...call, ...blocks.slice(at)] : [...blocks, ...call];
 };
 
 const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = null) => {

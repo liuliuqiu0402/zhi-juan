@@ -12,7 +12,8 @@ import {
   buildAnchorListBlock, buildCompressedTextBlock,
   buildMaterialUsageBlock, buildOrganizeBlock,
   buildTemplateInfoBlock, buildContextBlock, buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,
-  TAIL_SELF_CONSISTENCY, SCENE_REGEN_TYPES,
+  TAIL_SELF_CONSISTENCY, TAIL_VARIETY, SCENE_REGEN_TYPES,
+  SELF_REVIEW_BLOCK, applyCallLayerSelfReview, buildCallLayerBlocks,
 } from '../../src/utils/injectionManifest.js';
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -416,5 +417,76 @@ describe('(ii) 面板接实发素材正文（快照单源）', () => {
     expect(al.note).toContain('尚未生成过');
     // 压缩原文块同样接来源说明（全文通道下它是素材主体）
     expect(none.find((b) => b.id === 'compressed-text').note).toContain('尚未生成过');
+  });
+});
+
+// 🔴 2026-09-30（用户裁定）：调用层追加块【输出前自检】——尾锚复位 + 面板可见
+// 背景：该块原内联在 useAiGenerator 的 callAI 里、且**追加在尾约束之后** → ①【尾约束·全文自洽】的
+//   「末尾锚定、注意力最高区」被夺（与生成端注释及既有守卫口径不符）；②它既不在用户消息清单、
+//   也不在 system 附加段单源 → 两个"实发清单"都看不到它（实发有、面板无），与「点开即实发全貌」相抵。
+// 本组锁死三件事：插到尾约束**之前**（尾约束仍是最后一块）／无尾约束的调用（答案页）追加到末尾不丢／
+//   面板按同一插入点如实列出。
+describe('调用层追加块·输出前自检（尾锚复位 + 面板可见）', () => {
+  const ai = () => fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8');
+  const gm = () => fs.readFileSync(path.join(ROOT, 'src', 'modules', 'GenerateModule.vue'), 'utf8');
+  const fullPrompt = (instructionText = '【创作要求】…') => buildUserMessagePrompt({
+    genType: 'exam', subject: '数学', materialChannel: 'anchor',
+    anchorListText: '一、主题', instructionText,
+  });
+
+  it('插到尾约束之前：尾约束仍是实发用户消息的最后一块（末尾锚定不变量）', () => {
+    const p = fullPrompt();
+    const out = applyCallLayerSelfReview(p);
+    expect(out, '自检块须在实发文本里').toContain('【🔍 输出前自检');
+    const iSelf = out.lastIndexOf('【🔍 输出前自检');
+    // 两个尾块都必须排在自检之后——自检让位于尾锚，不夺末尾
+    expect(iSelf, '自检须在·全文自洽之前').toBeLessThan(out.lastIndexOf('【尾约束·全文自洽】'));
+    expect(iSelf, '自检须在·资料内多样之前').toBeLessThan(out.lastIndexOf('【尾约束·资料内多样】'));
+    // 除插入点外逐字节一致（不丢字符、不产生多余空行）
+    expect(out.replace(SELF_REVIEW_BLOCK, '')).toBe(p);
+    // 尾约束·资料内多样就是消息结尾（其后不再有任何块）
+    expect(out.trimEnd().endsWith(TAIL_VARIETY.trim())).toBe(true);
+  });
+
+  it('题类格式里的交叉引用不会把它错插到正文中段（按最后一次锚点插入）', () => {
+    // 委托正文含「以上细目即【尾约束·全文自洽】三域…」交叉引用 → 用 indexOf 会命中它并错插到中段
+    const p = fullPrompt('…以上细目即【尾约束·全文自洽】三域在题类资料的展开，定稿前按三域逐项复核…');
+    const out = applyCallLayerSelfReview(p);
+    expect(out.indexOf('【🔍 输出前自检'))
+      .toBeGreaterThan(out.indexOf('以上细目即【尾约束·全文自洽】三域'));
+    expect(out.trimEnd().endsWith(TAIL_VARIETY.trim())).toBe(true);
+  });
+
+  it('无尾约束的调用（答案页独立调用）→ 追加到末尾：该次调用的自检不丢', () => {
+    const p = '【正文】\n…题干…\n\n【答案规范】\n…逐题对齐…';
+    const out = applyCallLayerSelfReview(p);
+    expect(out.startsWith(p)).toBe(true);
+    expect(out.endsWith(SELF_REVIEW_BLOCK)).toBe(true);
+  });
+
+  it('生成端接线：不再内联自检文本，改调单源；预算不足不静默', () => {
+    const s = ai();
+    expect(s).toContain('applyCallLayerSelfReview(finalPrompt)');
+    expect(s, '内联副本不得回归（两套口径）').not.toContain('const selfReviewInstruction');
+    expect(s, '预算不足须交代，不得静默丢弃').toContain('本次未追加');
+  });
+
+  it('面板可见：调用层块如实列出，且插在尾约束之前（面板块序 = 实发块序）', () => {
+    const s = gm();
+    expect(s).toContain('buildCallLayerBlocks');
+    expect(s).toContain('withCallLayerBlocks');
+    const blocks = buildUserMessageBlocks({ genType: 'exam', subject: '数学', materialChannel: 'anchor' });
+    const call = buildCallLayerBlocks();
+    const at = blocks.findIndex((b) => b.id === 'tail-self');
+    expect(at, '尾约束块须在清单里').toBeGreaterThan(-1);
+    const merged = [...blocks.slice(0, at), ...call, ...blocks.slice(at)];
+    expect(merged.findIndex((b) => b.id === 'call-self-review')).toBe(at);
+    expect(merged[at + 1].id).toBe('tail-self');
+    // 面板展示的正文 = 实发文本（同一单源逐字），面板不另写一份
+    expect(call[0].text).toBe(SELF_REVIEW_BLOCK.trim());
+  });
+
+  it('零列举护栏：自检块不含题型/载体名（与尾约束同口径，防诱导）', () => {
+    expect(SELF_REVIEW_BLOCK).not.toMatch(/选择|判断|填空|连线|默写|简答|口算|作文格|田字格/);
   });
 });

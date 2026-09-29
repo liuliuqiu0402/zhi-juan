@@ -34,6 +34,7 @@ import {
   buildMaterialUsageBlock, buildOrganizeBlock,
   buildTemplateInfoBlock, buildContextBlock,
   buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,
+  applyCallLayerSelfReview, SELF_REVIEW_BLOCK,
 } from '../utils/injectionManifest.js';
 import { extractGradeNum, resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
 import {
@@ -1358,21 +1359,18 @@ const maxInputTokens = config.engine === 'deepseek'
     // 🔧 生成自审机制：在生成类任务的 prompt 末尾追加自审指令（静默内检，不输出任何自审内容；
     //    注意：答案页独立调用（taskType=generation）也会携带本块，表述不得限定"只输出正文/试卷"，
     //    否则会与答案页任务（输出《参考答案与评分标准》）冲突导致答案区缺失）
+    // 🔴 2026-09-30（用户裁定·尾锚复位 + 面板可见）：文本提为单源（injectionManifest.SELF_REVIEW_BLOCK），
+    //    并改由 applyCallLayerSelfReview 插到【尾约束·全文自洽】**之前**——原实现在此**追加到末尾**，
+    //    使尾约束的"末尾锚定/注意力最高区"被本块夺走；无尾约束的调用（答案页）仍追加到末尾。
     if (['generation', 'review'].includes(taskType) && !options.skipSelfReview) {
-      const selfReviewInstruction = `
-
-【🔍 输出前自检（静默内检，严禁输出任何检查过程、检查块或自审说明，只输出任务要求的最终内容）】
-请逐题/逐条快速自检并直接在最终内容中修正：
-1. 知识点准确性：本学科的概念、术语、事实与数据是否准确无误（不超出本学段课标要求）？
-2. 内容自洽：条件与前提表述充分、正文表述与答案/结论对应、无"略"等敷衍表述？
-3. 学段适配：知识点与能力要求不超出本学段课标学业质量要求？
-发现任何问题立即改正，然后只输出任务要求的最终内容（试卷/资料正文，或按要求输出的答案页）。`;
-      
-      // 仅在 prompt 足够容纳时才追加（预留 500 tokens 空间）
-      const selfReviewTokens = estimateTokens(selfReviewInstruction);
+      const selfReviewTokens = estimateTokens(SELF_REVIEW_BLOCK);
       const currentTokens = estimateTokens(finalPrompt);
+      // 仅在 prompt 足够容纳时才追加（预留 500 tokens 空间）
       if (currentTokens + selfReviewTokens < maxInputTokens - 500) {
-        finalPrompt += selfReviewInstruction;
+        finalPrompt = applyCallLayerSelfReview(finalPrompt);
+      } else {
+        // 预算不足不追加（防挤爆上下文）——但**不静默**（与项目"过程不静默"口径一致，便于诊断"为何没自检")
+        console.warn(`⚠️ [调用层·输出前自检] 预算不足（需 ${selfReviewTokens} tokens，余量 ${maxInputTokens - 500 - currentTokens}），本次未追加`);
       }
     }
     
@@ -4917,9 +4915,14 @@ ${cardAnalysisText.substring(0, 1000)}
           : '';
         // 🔧 组织口径按类型分流：题类（exam/同步练习/专项等）按"大题与题号"层级；自包含教辅（summary/review/
         //    preview/dictation/errorbook）按"栏目与题号"层级组织——二者均与正文同构、不复述题干/正文梳理
-        const ansAlignNote = isSelfContainedTeaching
+        // 🔴 2026-09-30（用户裁定）：ansAlignNote 是【尾约束·全文自洽】跨处域（正文 ↔ 答案区逐处对应）在
+        //    **答案页独立调用**（split 模式）里的落地形态——该调用不带尾约束块（prompt 只由【正文】+【答案规范】
+        //    两段构成），故在此**显式声明隶属关系**，防"同一条要求两处各写一段、将来改一处漏一处"。
+        //    ⚠️ 只加这一句**引用**；ansAlignNote 的细则与强度**一字不动**（它比尾约束更细更严，删并即倒退）。
+        const ANS_ALIGN_TAIL_REF = '；本条（答案区与正文逐题对齐）即【尾约束·全文自洽】三域中跨处一致一项在本模式下的落地与展开。';
+        const ansAlignNote = (isSelfContainedTeaching
           ? '答案区按正文对应的栏目组织、并与正文同构：正文题目带题号时，答案区**逐题以与正文完全相同的题号起头**（正文用「1. 2. 3.…」则答案同用同一套题号、同序；仅**子题**用 (1)(2)）；**严禁省略题号层、严禁用「(1)(2)」括号序号或纯列表代替题目题号**。不复述正文知识梳理，不重现正文作答空位。'
-          : '**逐题对齐硬要求**：答案区**每个题目都以与正文完全相同的题号起头**（正文怎么编号，答案就逐题用同一套号、同序对应——**正式考卷**正文题号全卷连续，则答案区同样全卷连续；**教辅**正文按栏目（组）分别起编，则答案区按相同栏目（组）分组、组内与正文同号同序；正文用「1. 2. 3.…」，答案也用「1. 2. 3.…」）；大题用与正文相同的汉字序号（教辅组标题逐栏目（组）起编，答案区亦按相同栏目（组）分组、组标题号与正文同号），仅**子题**才用 (1)(2)。**逐题作答、全卷覆盖**：正文中的每一道题都必须在答案区有对应的解答与解析，不得漏题。**严禁省略题号层、严禁用「(1)(2)」括号序号或纯列表代替题目题号**——否则答案与正文无法逐题对应。不复述题干原文（含子题题干），不重现正文作答空位。';
+          : '**逐题对齐硬要求**：答案区**每个题目都以与正文完全相同的题号起头**（正文怎么编号，答案就逐题用同一套号、同序对应——**正式考卷**正文题号全卷连续，则答案区同样全卷连续；**教辅**正文按栏目（组）分别起编，则答案区按相同栏目（组）分组、组内与正文同号同序；正文用「1. 2. 3.…」，答案也用「1. 2. 3.…」）；大题用与正文相同的汉字序号（教辅组标题逐栏目（组）起编，答案区亦按相同栏目（组）分组、组标题号与正文同号），仅**子题**才用 (1)(2)。**逐题作答、全卷覆盖**：正文中的每一道题都必须在答案区有对应的解答与解析，不得漏题。**严禁省略题号层、严禁用「(1)(2)」括号序号或纯列表代替题目题号**——否则答案与正文无法逐题对应。不复述题干原文（含子题题干），不重现正文作答空位。') + ANS_ALIGN_TAIL_REF;
         // ✅ A6（2026-09-11）：答案页前缀顺序 = **压缩原文（仅 full）→ 正文全文 → 委托书（答案规范，末尾锚定）**
         //    · 压缩原文**仅 `mode === 'full'`** 携带（答案常需原文精确表述，如默写/原句）；
         //      命题/练习型**不带**（题目自带情境与素材，且防"照搬原文作答"）；

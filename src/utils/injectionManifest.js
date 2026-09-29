@@ -50,6 +50,52 @@ export const TAIL_SELF_CONSISTENCY = `【尾约束·全文自洽】
 export const TAIL_VARIETY = `【尾约束·资料内多样】
 同一份资料内各部分的形式与先后应有变化，逐部分、逐单元换一套版式；**定稿前逐部分核对**这一条与下面一条是否真的落实——**同一考查点、同一情境、同一组数据、同一种设问方式不重复出现**（并列对照的孪生小题除外），相邻部分与相邻题目尤其不得雷同；凡有雷同即当场改（换情境、换数据、换设问角度），只输出改后的定稿。`;
 
+/** 尾约束锚点标记（**单一事实源**：生成端按此把"调用层追加块"插到它**之前**，保证尾约束仍是最后一块；
+ *  与 buildTailBlocks 同源——取自 TAIL_SELF_CONSISTENCY 首行，不另写一份字面，避免两处漂移）。
+ *  ⚠️ 必须取**最后一次**出现的位置（`lastIndexOf`）：题类格式块里有一句交叉引用
+ *  「以上细目即【尾约束·全文自洽】三域在题类资料的展开」，`indexOf` 会错插到委托正文中段。 */
+export const TAIL_ANCHOR_MARKER = '【尾约束·全文自洽】';
+
+/** 输出前自检（**调用层追加块** · 不属委托书、不参与 buildUserMessagePrompt 拼接）
+ *  设计定位（保留原裁定）：在生成/审查类调用末尾追加一段**静默内检**指令，让模型在同一次输出里自查后
+ *  直接改，不另起一次模型调用、也不输出检查过程——答案页独立调用同样携带。
+ *  🔴 2026-09-30（用户裁定·尾锚复位 + 面板可见）：原文本内联在 useAiGenerator（调用层），
+ *    ① 被追加到 **尾约束之后** → 实发用户消息的最后一块成了本块，【尾约束·全文自洽】的
+ *       「末尾锚定、注意力最高区」被夺（与生成端注释及 ⑤ 守卫的既定口径不符）；
+ *    ② 既不在本清单、也不在 programAttach → 两个"实发清单"单源都看不到它，与面板
+ *       「点开即实发全貌」相抵（实发有、面板无）。
+ *    现：文本提为单源（本处），由 applyCallLayerSelfReview 插到**尾约束之前**；面板经
+ *    buildCallLayerBlocks 如实列出。文本逐字保留，不改语义。 */
+export const SELF_REVIEW_BLOCK = `\n\n【🔍 输出前自检（静默内检，严禁输出任何检查过程、检查块或自审说明，只输出任务要求的最终内容）】
+请逐题/逐条快速自检并直接在最终内容中修正：
+1. 知识点准确性：本学科的概念、术语、事实与数据是否准确无误（不超出本学段课标要求）？
+2. 内容自洽：条件与前提表述充分、正文表述与答案/结论对应、无"略"等敷衍表述？
+3. 学段适配：知识点与能力要求不超出本学段课标学业质量要求？
+发现任何问题立即改正，然后只输出任务要求的最终内容（试卷/资料正文，或按要求输出的答案页）。`;
+
+/** 把调用层追加块插到**尾约束之前**（保持"尾约束必须是实发用户消息最后一块"这一不变量）。
+ *  · 无尾约束的调用（如答案页独立调用）→ 追加到末尾：该调用同样需要自检，且无尾锚可让位。
+ *  · 除插入点外与原文**逐字节一致**（前导空行让位给本块自带的 \n\n，不产生多余空行）。 */
+export const applyCallLayerSelfReview = (promptText = '', { enabled = true } = {}) => {
+  const text = String(promptText || '');
+  if (!enabled || !text) return text;
+  const i = text.lastIndexOf(TAIL_ANCHOR_MARKER);
+  if (i < 0) return text + SELF_REVIEW_BLOCK;
+  let cut = i;
+  while (cut > 0 && text[cut - 1] === '\n') cut -= 1;
+  return text.slice(0, cut) + SELF_REVIEW_BLOCK + '\n\n' + text.slice(i);
+};
+
+/** 面板用：调用层追加块（不参与 buildUserMessagePrompt 拼接；实发位置＝尾约束之前） */
+export const buildCallLayerBlocks = () => [{
+  id: 'call-self-review',
+  name: '输出前自检（调用层追加）',
+  lib: 'builtin',
+  scope: '用户消息·尾约束之前',
+  note: '本块由生成端在**调用层**追加（需覆盖答案页等全部生成调用，故不并入委托书）；此处如实列出，保证"点开即实发全貌"。',
+  text: SELF_REVIEW_BLOCK.trim(),
+}];
+
 /** ① 锚点清单（写作期前缀首位；含第1层知识主题 + 第2层知识点；第3层具体概念随用户开关） */
 export const buildAnchorListBlock = (anchorListText = '', roleNote = ANCHOR_LIST_ROLE_NOTE) =>
   `【锚点清单】\n${roleNote}\n${anchorListText}\n\n`;
@@ -303,8 +349,9 @@ export function buildUserMessagePrompt(ctx = {}) {
 
 export default {
   SELF_CONTAINED_TEACHING, SCENE_REGEN_TYPES,
-  TAIL_SELF_CONSISTENCY, TAIL_VARIETY,
+  TAIL_SELF_CONSISTENCY, TAIL_VARIETY, TAIL_ANCHOR_MARKER, SELF_REVIEW_BLOCK,
   buildAnchorListBlock, buildCompressedTextBlock, buildMaterialUsageBlock, buildOrganizeBlock,
   buildTemplateInfoBlock, buildContextBlock, buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,
+  applyCallLayerSelfReview, buildCallLayerBlocks,
   buildUserMessageBlocks, buildUserMessagePrompt,
 };
