@@ -406,6 +406,15 @@ const SPEC_GROUPS = [
       { path: 'ANSWER_MAX_ROWS_BY_STAGE.high', label: '高中上限', unit: '行', type: 'number', min: 1, max: 30, step: 1 },
       { path: 'ANSWER_NO_SCORE_ROWS.item', label: '无分值整题兜底', unit: '行', type: 'number', min: 1, max: 20, step: 1 },
       { path: 'ANSWER_NO_SCORE_ROWS.sub', label: '无分值子题兜底', unit: '行', type: 'number', min: 1, max: 20, step: 1 },
+      // 🔴 2026-09-29（去一刀切·学科×学段覆盖入口）：上限对"答案篇幅由内容长度决定"的题不成立——
+      //    下列项仅覆盖**该学科×该学段**上限（留空即沿用上面的学段默认值）；数值属卷面惯例口径。
+      { path: 'ANSWER_REGION.英语.primary_low.maxRowsPerItem', label: '英语·低段上限', unit: '行', type: 'number', min: 1, max: 40, step: 1 },
+      { path: 'ANSWER_REGION.英语.primary_mid.maxRowsPerItem', label: '英语·中段上限', unit: '行', type: 'number', min: 1, max: 40, step: 1 },
+      { path: 'ANSWER_REGION.英语.primary_high.maxRowsPerItem', label: '英语·高段上限', unit: '行', type: 'number', min: 1, max: 40, step: 1 },
+      { path: 'ANSWER_REGION.英语.middle.maxRowsPerItem', label: '英语·初中上限', unit: '行', type: 'number', min: 1, max: 40, step: 1 },
+      { path: 'ANSWER_REGION.英语.high.maxRowsPerItem', label: '英语·高中上限', unit: '行', type: 'number', min: 1, max: 40, step: 1 },
+      { path: 'ANSWER_REGION.数学.middle.maxRowsPerItem', label: '数学·初中上限', unit: '行', type: 'number', min: 1, max: 40, step: 1 },
+      { path: 'ANSWER_REGION.数学.high.maxRowsPerItem', label: '数学·高中上限', unit: '行', type: 'number', min: 1, max: 40, step: 1 },
     ],
   },
   {
