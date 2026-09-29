@@ -1957,24 +1957,43 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const segHtml = it.seg.map(n => n.outerHTML || n.textContent || '').join('');
           const segAll = (it.p.outerHTML || '') + segHtml; // 块首行自身的括号空位/填空格/选项也要参与载体判定
           const stem = (it.p.textContent || '').trim();
+          const ctxText = it.ctx || '';
           // 已有载体/题型 → 跳过（填空括号、引号/全角空格空位、填空格、连线、专用格线、选项）
           if (parenBlankTest.test(segAll) || blankTagTest.test(segAll) || fullWidthBlankTest.test(segAll)) continue;
           if (/match-question|match-item|zuo-wen-ge|square-grid|bracket-grid|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge/.test(segAll)) continue;
           if (countOptions(segAll) > 0) continue;
-          // 结构性题型排除（判文 = 顶层 ctx + 块首行：判断/选择/连线/圈出/口算/仿写等整题形态，
-          //    由父题语境继承——如父题"判断…在○里填"下所有子题不补）；
-          // 填空/写作类排除仅看块首行自身（填空由上方括号空判定；父题"再填空"字样不得拖累长答子题）
-          const ctxText = it.ctx || '';
-          // 🔴 2026-09-16（用户实证·教辅场景）：判据补入**大题标题**。
-          //    排除表里本就有"选择/选词"，但此前只测 `${ctxText} ${stem}`——
-          //    教辅的"<h3>二、读短文，选择恰当的单词，把故事补充完整</h3> + 子题"结构下
-          //    ctx 不含标题、块首行是"（1）A. stop B. run C. jump"，两者都不含"选择" →
-          //    结构判据失效，选词填空大题下**每个子题各被兜底补 2 行横线**
-          //    （实测：5 个子题 × 2 行 = 10 条长横线）。标题即父题语境，按既有设计意图
-          //    （结构性题型由父题继承）一并纳入；填空/写作类仍只看块首行（下一行，勿动）。
-          if (/(?:选择|选一选|选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|口算|直接写得数|照样子|例[：:、]|圈出|归类|选词|划出|仿写)/.test(`${title} ${ctxText} ${stem}`)) continue;
-          if (WRITING_FILLIN_STEM_EXCLUDE.test(stem)) continue;
-          // ↑ 排除词单源：WRITING_FILLIN_STEM_EXCLUDE（与 2j-5c 的分工判据共用同一份，防两处漂移）
+
+          // ── 🔴 2026-09-29（v2·专用通道优先；形态/规格词判据，不点题型名）────────────────────
+          //    先从**题面文本**探"必需专用载体"（竖式书写区 / 作图区 / 表格）。命中后**不得**再被下方
+          //    通用跳过判据短路——否则重回两类回归：竖式题被当"口算"类跳过（静默漏补）、作图题被跳过
+          //    （补不出 draw-area）。故探测提前到跳过判据**之前**，命中即绕过通用跳过（下方 `if (!specNeeds)`）。
+          //    只读题面文本（ctx 顶层语境 + 块首行 + 块内段；竖式/作图/填表语境多声明在父题题干），
+          //    不向模型注入任何新要求（不碰 prompt）。
+          const specText = (ctxText + '\n' + stem + '\n' + segHtml).replace(/\s+/g, '');
+          let specNeeds = '';
+          if (/用竖式计算|竖式计算|列竖式|竖式/.test(specText)) specNeeds = '竖式';
+          else if (/画(?:出|一画).{0,8}?(?:线段|射线|直线|对称轴?|图形|示意|光路|电路)|示意图|光路图|电路图|作图|画一画|接着画|按规律(?:接着)?画/.test(specText)) specNeeds = '作图';
+          else if (/填表|把表格|在表格(?:里|中)填|用表格(?:整理|表示|呈现)|整理成(?:统计|数位|记录|调查)?表|制作(?:统计|调查|记录|数位)表|补全(?:统计|数位|记录|调查)?表/.test(specText)) specNeeds = '填表';
+
+          if (!specNeeds) {
+            // 形态判据·**选项行**（不依赖"选择"题型词、也不依赖大题标题）：块内出现 ≥2 个**互不相同**的
+            //    行内选项标记（"A."／"B、"／"C．"，取前 6 个字母）→ 答案落在选项上，无作答行需求。
+            //    🔴 2026-09-29：此前该形态靠题型词"选择" + **大题标题**承担 → 标题含"选择"时会把该栏
+            //      下**所有**子题连带跳过（含"回答问题"等书写子题）= 漏补。改由形态判据承担后与标题解耦。
+            const optLetters = new Set((segAll.replace(/<[^>]+>/g, ' ').match(/(?:^|[\s\u3000])([A-F])[.、．]/g) || [])
+              .map((s) => s.trim().charAt(0)));
+            if (optLetters.size >= 2) continue;
+            // 结构性题型排除（判文 = 顶层 ctx + 块首行：判断/连线/圈出/口算/仿写等整题形态，
+            //    由父题语境继承——如父题"判断…在○里填"下所有子题不补）；
+            // 填空/写作类排除仅看块首行自身（填空由上方括号空判定；父题"再填空"字样不得拖累长答子题）。
+            //    🔴 2026-09-29（去题型词·去标题连带）：**不再把大题标题纳入判文**——标题是"栏名"
+            //      （如"二、读短文，选择恰当的词语，把故事补充完整"），栏名里的题型词会把该栏下
+            //      **所有**子题带走 = 漏补。选择类已由上"选项行"形态判据承担；其余类别其题面自身
+            //      （块首行）通常已含相应动作词，判文不需要标题。
+            if (/(?:选择|选一选|选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|口算|直接写得数|照样子|例[：:、]|圈出|归类|选词|划出|仿写)/.test(`${ctxText} ${stem}`)) continue;
+            if (WRITING_FILLIN_STEM_EXCLUDE.test(stem)) continue;
+            // ↑ 排除词单源：WRITING_FILLIN_STEM_EXCLUDE（与 2j-5c 的分工判据共用同一份，防两处漂移）
+          }
           // 度量有效作答行（纯空行/题间空行不计；内嵌填空下划线=已有载体 → 跳过）
           let rows = 0;
           let hasFillIn = false;
@@ -2011,13 +2030,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           //    generic 横线/空白行是错配兜底 → 不落通用补差，改静默抽检提示（notice）交人工确认；
           //    已有对应载体（bracket-grid/draw-area/square-grid/<table>）或已有填空位/作答行
           //    （上方已 continue）一律不打扰；"观察统计表/图表回答问题"等读表题不含作答动词，不命中。
-          // 只读题面文本（ctx 顶层语境 + 块首行 + 块内段；竖式/作图/填表语境多声明在父题题干，
-          //    不向模型注入任何新要求（不碰 prompt）。
-          const specText = (ctxText + '\n' + stem + '\n' + segHtml).replace(/\s+/g, '');
-          let specNeeds = '';
-          if (/用竖式计算|竖式计算|列竖式|竖式/.test(specText)) specNeeds = '竖式';
-          else if (/画(?:出|一画).{0,8}?(?:线段|射线|直线|对称轴?|图形|示意|光路|电路)|示意图|光路图|电路图|作图|画一画|接着画|按规律(?:接着)?画/.test(specText)) specNeeds = '作图';
-          else if (/填表|把表格|在表格(?:里|中)填|用表格(?:整理|表示|呈现)|整理成(?:统计|数位|记录|调查)?表|制作(?:统计|调查|记录|数位)表|补全(?:统计|数位|记录|调查)?表/.test(specText)) specNeeds = '填表';
+          // 🔴 2026-09-29（v2）：specText / specNeeds 已在跳过判据**之前**算好（见"专用通道优先"段），
+          //    此处直接复用——勿重复计算（两处判据即漂移隐患）。
           if (specNeeds === '作图') {
             // 已有作图区/方格纸 → 有作图空间，不打扰
             if (/draw-area|square-grid/.test(segAll)) continue;
