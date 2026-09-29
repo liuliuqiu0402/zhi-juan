@@ -126,7 +126,13 @@ describe('普通段落行内田字格（文字+格子同行，不再块级拆段
     expect(xml).toContain('这个字');
     // 无块级田字格段落特征（line=400 auto 仅块级段落用）
     expect(xml).not.toContain('w:line="400"');
-    // 🔧 pad 单 run + noBreak：行尾放不下时整个格子单元整体换行，避免形状压住行尾前后字
-    expect(xml).toContain('<w:noBreak/>');
+    // 🔧 换行契约（2026-09-30 修）：连续格子须能在行尾自动换行 → pad run（含 w:spacing 的那个 run）
+    //    **不得**带 noBreak（带则整行粘成不可断整体，超出页边距也不换行）；
+    //    drawing run 仍须带 noBreak（护住图形不与其 pad 分离、不在行尾被拆开）。
+    //    （按 `w:spacing w:val=` 定位字符间距 run——图形内部 textbox 的 `w:spacing w:before` 不算）
+    const padRun = (xml.match(/<w:r>(?:(?!<\/w:r>)[\s\S])*?w:spacing w:val=(?:(?!<\/w:r>)[\s\S])*?<\/w:r>/) || [''])[0];
+    expect(padRun, '文档中应存在 pad run').toContain('w:spacing w:val=');
+    expect(padRun, 'pad run 不得带 noBreak（否则连续格子无法换行）').not.toContain('noBreak');
+    expect(xml, 'drawing run 仍须带 noBreak').toContain('<w:noBreak/>');
   });
 });

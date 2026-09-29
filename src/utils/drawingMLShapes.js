@@ -393,7 +393,11 @@ const buildInlineTzg = (char, cellWEmu, idBase, rPrXml, pinyin = '', diag = fals
   //    严格，乱序元素会被静默丢弃（此前 spacing 在 noBreak 后 → Word 中 w:spacing 不生效）
   const fontRPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/>`;
   const zeroRPr = `<w:rPr>${fontRPr}</w:rPr>`;
-  const anchorRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:spacing w:val="${padSpacing}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/></w:rPr>`;
+  // 🔧 pad run 刻意**不带 noBreak**：它是整行唯一可断行处，带 noBreak 会把连续格子粘成
+  //    一个不可断整体 → 超出页边距也不换行（用户实测）。去掉后 Word 在每个格子单元的 pad 空格处
+  //    可断行；格子图形（浮动 anchor，零流宽）随其字符位置落到下一行，且 2.5em pad > 格宽，
+  //    图形恒在自己的 pad 槽内、不越右边界。drawing run 仍保留 noBreak（护住图形不与其 pad 分离）。
+  const anchorRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:spacing w:val="${padSpacing}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>`;
   // 🔧 字符由 DrawingML textbox 绘制（与 grid 同坐标系），段落只保留 pad 撑宽度
   //     前置 1em + 尾 1.5em = 2.5em（grid 延伸至 2.3em → 不压盖）
   // 🔧 行内模式 behindDoc="0"：防止网格线被段落底纹（w:shd）遮挡
@@ -448,7 +452,11 @@ const buildInlineSquareBox = (char, cellWEmu, idBase, rPrXml, geom = 'rect') => 
   const padSpacing = Math.round(sizeHp * 20); // 2em twip（同田字格 pad 2.5em：空格0.5+spacing2）
   const fontRPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/>`;
   const zeroRPr = `<w:rPr>${fontRPr}</w:rPr>`;
-  const anchorRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:spacing w:val="${padSpacing}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/></w:rPr>`;
+  // 🔧 pad run 刻意**不带 noBreak**：它是整行唯一可断行处，带 noBreak 会把连续格子粘成
+  //    一个不可断整体 → 超出页边距也不换行（用户实测）。去掉后 Word 在每个格子单元的 pad 空格处
+  //    可断行；格子图形（浮动 anchor，零流宽）随其字符位置落到下一行，且 2.5em pad > 格宽，
+  //    图形恒在自己的 pad 槽内、不越右边界。drawing run 仍保留 noBreak（护住图形不与其 pad 分离）。
+  const anchorRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:spacing w:val="${padSpacing}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>`;
   // 方框高 1.8em：line 锚定下对象顶≈行顶，中心=顶+0.9em；文字视觉中心≈行顶+0.65em
   // → 上移 0.25em 使方框中心对齐相邻文字视觉中心（Word 渲染实测线性：
   //    0em 时中心偏下 2.9pt，-0.25em 时与行文字 bbox 中心重合，-0.35em 偏上 1.3pt）
@@ -482,7 +490,11 @@ const buildInlineFlt = (letter, cellWEmu, sizeHp, idBase, rPrXml) => {
   // 🔧 前置零宽占位 run（U+200C）：WPS 锚点取前字符 → 与 Word 锚点位置重合（防多格连续时锚点重叠/丢格）
   const fontRPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/>`;
   const zeroRPr = `<w:rPr>${fontRPr}</w:rPr>`;
-  const anchorRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:spacing w:val="${padSpacing}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/></w:rPr>`;
+  // 🔧 pad run 刻意**不带 noBreak**：它是整行唯一可断行处，带 noBreak 会把连续格子粘成
+  //    一个不可断整体 → 超出页边距也不换行（用户实测）。去掉后 Word 在每个格子单元的 pad 空格处
+  //    可断行；格子图形（浮动 anchor，零流宽）随其字符位置落到下一行，且 2.5em pad > 格宽，
+  //    图形恒在自己的 pad 槽内、不越右边界。drawing run 仍保留 noBreak（护住图形不与其 pad 分离）。
+  const anchorRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:spacing w:val="${padSpacing}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>`;
   // 🔧 行内模式 behindDoc="0"：防止线条被段落底纹遮挡
   // 🔧 字母传入 fltLineAnchors → 作为 textbox 加入群组坐标系（Word 原生居中，文字右移/下移出格均修复）
   const anchors = fltLineAnchors(lineWEmu, pts, idBase, false, gapEmuOf(sizeHp), letter, sizeHp, font, colorTag, hasBold, hasItalic)
@@ -502,7 +514,11 @@ const buildInlineFltBlank = (cellWEmu, sizeHp, idBase, rPrXml) => {
   const padSpacing = Math.round(cellWEm * sizeHp * 20);
   const fontRPr = `<w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/>`;
   const zeroRPr = `<w:rPr>${fontRPr}</w:rPr>`;
-  const anchorRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:spacing w:val="${padSpacing}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/><w:noBreak/></w:rPr>`;
+  // 🔧 pad run 刻意**不带 noBreak**：它是整行唯一可断行处，带 noBreak 会把连续格子粘成
+  //    一个不可断整体 → 超出页边距也不换行（用户实测）。去掉后 Word 在每个格子单元的 pad 空格处
+  //    可断行；格子图形（浮动 anchor，零流宽）随其字符位置落到下一行，且 2.5em pad > 格宽，
+  //    图形恒在自己的 pad 槽内、不越右边界。drawing run 仍保留 noBreak（护住图形不与其 pad 分离）。
+  const anchorRPr = `<w:rPr><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="SimSun" w:hint="eastAsia"/><w:spacing w:val="${padSpacing}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>`;
   // 🔧 行内模式 behindDoc="0"：防止线条被段落底纹遮挡
   const anchors = fltLineAnchors(lineWEmu, pts, idBase, false, gapEmuOf(sizeHp))
     .replace(/behindDoc="1"/g, 'behindDoc="0"');
