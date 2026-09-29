@@ -1043,7 +1043,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     // 2j-0b 大题标题重名抽检（2026-09-29 用户实证：「三、我的新发现」与「九、我的新发现」撞名）
     //   同一份卷内，**去序号后的题名（"——"前的名字段）**不得两处相同——卷面同名易混，答案区也更难逐题对应。
     //   命名口径唯见 promptLibrary.bigTitleRule 单源；本处只报不改（notice 级，交编辑核对）。
-    if (has('cn-ordinal-guard') && genType === 'exam') {
+    //    ⚠️ 过严/噪音防线（2026-09-29 自查）：**仅小学段**报告——中学段题名取自【卷面结构】块名（不由模型自拟），
+    //    结构本身重名时模型无从改名，报了也只是噪音（模型侧条款亦已限定"小学段强制"）。
+    if (has('cn-ordinal-guard') && genType === 'exam' && /^primary/.test(String(normalizeStage(stage) || ''))) {
       try {
         const tplN = document.createElement('template');
         tplN.innerHTML = out;

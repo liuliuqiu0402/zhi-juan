@@ -717,6 +717,13 @@ describe('根治回归：大题标题重名（源头根治 = 单源条款 + 程�
     expect(silentDetails.some((d) => d.type === 'cn-ordinal' && /重名/.test(d.message))).toBe(false);
   });
 
+  it('中学段不报（防噪音：题名取自结构块名，模型无从改名——条款亦仅对小学段强制）', () => {
+    const html = '<h2>一、古典之美（共1题，共10分）</h2><p>1. 甲（　）</p>'
+      + '<h2>三、古典之美（共1题，共10分）</h2><p>2. 乙（　）</p>';
+    const { silentDetails } = auditExamPaper(html, { subject: '语文', stage: 'middle', genType: 'exam' });
+    expect(silentDetails.some((d) => d.type === 'cn-ordinal' && /重名/.test(d.message)), '中学段不应报重名噪音').toBe(false);
+  });
+
   it('命名单源已含"不得重名"条（防回潮：条款进入注入模板）', () => {
     for (const stage of ['primary_low', 'middle', 'high']) {
       const tpl = getPromptTemplate({ grade: stage, subject: '语文', genType: 'exam' });
