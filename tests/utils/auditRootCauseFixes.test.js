@@ -785,10 +785,13 @@ describe('单源守卫：全局唯一口径（防回潮）', () => {
 //   ② "该从模型侧解决的不靠程序补丁"——上限与"同题不重复给作答位"一并**注入模型侧**；
 //   ③ 程序侧补差通道一律**接入同一规格库**（原仅 2k 接，2j-5b/2j-5c 硬编码 8 行、低段会超上限）。
 describe('作答区行数上限（分学段·模型侧与程序侧同接规格库）', () => {
-  it('注入条款带本学段上限：英语低段=4 行、高中=8 行（读 ANSWER_MAX_ROWS_BY_STAGE）', () => {
-    expect(buildLongAnswerCarrierInstruction('英语', 'primary_low')).toContain('不超过本学段上限（4 行）');
-    expect(buildLongAnswerCarrierInstruction('英语', 'primary_mid')).toContain('不超过本学段上限（5 行）');
-    expect(buildLongAnswerCarrierInstruction('英语', 'high')).toContain('不超过本学段上限（8 行）');
+  it('注入条款带本学段上限：英语低段=4 行、高中=8 行（读 ANSWER_MAX_ROWS_BY_STAGE；且已声明管辖域）', () => {
+    expect(buildLongAnswerCarrierInstruction('英语', 'primary_low')).toContain('不超过本学段卷面上限（4 行）');
+    expect(buildLongAnswerCarrierInstruction('英语', 'primary_mid')).toContain('不超过本学段卷面上限（5 行）');
+    expect(buildLongAnswerCarrierInstruction('英语', 'high')).toContain('不超过本学段卷面上限（8 行）');
+    // 🔴 2026-09-29（模型侧**去限制**）：上限只声明**管辖域**——不管"篇幅由内容决定"的题
+    //    （成篇成段的整段文字、需完整展露推演步骤的题），否则会把它压到学段默认值（错限制）。
+    expect(buildLongAnswerCarrierInstruction('英语', 'high')).toContain('不受此上限约束');
   });
 
   it('注入条款含"同题同性质作答位只给一处"（模型侧消重复载体，纯形态、不点题型）', () => {

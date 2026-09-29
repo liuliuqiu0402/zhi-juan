@@ -126,6 +126,21 @@ describe('buildAnswerSpaceInstruction（通用六行：形态按作答需要选�
     // 直接验证 BLANK 联动（换算锚内嵌函数同源；wordGap 只经 BLANK 规格走，此处锁定默认 1）
     expect(BLANK.wordGap).toBe(1);
   });
+
+  // 🔴 2026-09-29（模型侧**去限制**·用户追问"模型侧有没有限制？"）：原句"单题作答区行数不超过本学段上限"
+  //   对**所有**题一律给上限——而上限本质是"卷面一屏空间"，**不成立于"答案长度由内容本身决定"的题**
+  //   （见 ANSWER_MAX_ROWS_BY_STAGE 注释：成篇成段的整段表达、需完整展露推演步骤的题，一篇远超学段默认值）。
+  //   原句把这类题也压到默认值 = 给模型下了**错限制**（且它无从知道可以超）。现只声明"管辖域"，不新增数值。
+  it('单题行数上限声明"管辖域"：不管"篇幅由内容决定"的题（不新增数值、与规格库同源）', () => {
+    for (const [s, st] of [['英语', 'high'], ['语文', 'primary_low'], ['数学', 'middle'], ['语文', 'high']]) {
+      const inst = buildAnswerSpaceInstruction(s, st);
+      expect(inst, `${s}·${st} 缺上限管辖域声明`).toContain('**常规作答区**的单题行数不超过本学段卷面上限');
+      expect(inst, `${s}·${st} 须声明该类题不受上限约束`).toContain('不受此上限约束');
+    }
+    // 上限数值仍与 getAnswerRegion 同源（不在此处编数值；需要更大空间的学科×学段走 ANSWER_MAX_ROWS_BY_SUBJECT 面板口径）
+    expect(buildAnswerSpaceInstruction('英语', 'high'))
+      .toContain(`卷面上限（${getAnswerRegion('英语', 'high').maxRowsPerItem} 行）`);
+  });
 });
 
 describe('buildAnswerSpaceInstruction（学科书写形态与 ANSWER_REGION 同源）', () => {

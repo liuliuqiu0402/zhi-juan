@@ -387,11 +387,16 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
     // 语文中段：横线惯例不注入具体格子示例
     const chineseMid = getPromptTemplate({ grade: 'primary_mid', subject: '语文', genType: 'practice' });
     expect(chineseMid.template).not.toContain('<span class="tian-zi-ge">');
-    // 英语：中段才注入四线三格示例，低段无（低段以听说认读为主）
+    // 英语：中段注入四线三格示例
     const enMid = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'practice' });
     expect(enMid.template).toContain('字母/单词抄写类题必须真实输出四线三格（示例：<span class="four-line-three"></span>）');
+    // 🔴 2026-09-29 口径订正（用户候选5裁定）：**英语低段同样要注入**——原断言"低段无（低段以听说认读为主）"
+    //    是"英语 3 年级起点、低段不要求字母书写"的一刀切，与蓝图"低段字母抄写"相抵；用户裁定
+    //    "低段要成题的、需要四线三格的书写的"，允许表已放开（WRITING_CARRIER 低段 = ['four-line-three']），
+    //    注入端必须跟上（否则 = 协议缺位：模型不知该出四线三格）。本断言随之订正。
     const enLow = getPromptTemplate({ grade: 'primary_low', subject: '英语', genType: 'practice' });
-    expect(enLow.template).not.toContain('four-line-three');
+    expect(enLow.template).toContain('字母/单词抄写类题必须真实输出四线三格');
+    expect(enLow.template).toContain('<span class="four-line-three"></span>');
     // 数学小学段：作图方格纸（作图题）
     const mathPri = getPromptTemplate({ grade: 'primary_mid', subject: '数学', genType: 'practice' });
     expect(mathPri.template).toContain('作图类题用方格纸');
@@ -520,11 +525,15 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
     expect(mid.template).toContain('写作/表达类题须完整呈现题目要求'); // hasEx 通用写作要求仍在
   });
 
-  it('英语中段保留四线三格载体条款（must 单一事实源），低段无载体条款', () => {
+  it('英语低/中段都有四线三格载体条款（must 单一事实源；低段随候选5裁定补齐）', () => {
     const enMid = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'exam' });
     expect(enMid.template).toContain('字母/单词抄写类题必须真实输出四线三格');
+    // 🔴 2026-09-29 口径订正（用户候选5裁定）：低段**也要**四线三格协议——原断言"低段无载体条款"是
+    //    已被裁定废弃的一刀切（"英语 3 年级起点"）；现允许表（WRITING_CARRIER 低段）与注入端同源。
     const enLow = getPromptTemplate({ grade: 'primary_low', subject: '英语', genType: 'exam' });
-    expect(enLow.template).not.toContain('four-line-three');
+    expect(enLow.template).toContain('字母/单词抄写类题必须真实输出四线三格');
+    expect(enLow.template).toContain('four-line-three');
+    // 旧"写字/抄写类题须真实输出对应书写载体"（无门控、跨学科广播句）仍不得回潮
     expect(enLow.template).not.toContain('写字/抄写类题须真实输出对应书写载体');
   });
 
@@ -554,6 +563,30 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
     // 无书写格的学科（数学/中学语文）不注入该位置行（不跨学科/学段广播）
     expect(buildCarrierInstruction('数学', 'primary_low')).not.toContain('同行紧邻');
     expect(buildCarrierInstruction('语文', 'middle')).toBe('');
+  });
+
+  // 🔴 2026-09-29（**模型侧补缺口**·用户追问"逐条过一遍，确认模型生成时就能输出正确载体"）：
+  //    英语**低段**必须有四线三格协议——原先 must 只有 primary_mid，低段允许表已放开
+  //    （WRITING_CARRIER['英语'].primary_low = ['four-line-three']，2026-09-29 候选5裁定）而**注入端返回空串**
+  //    = 协议缺位（模型根本不知道要出四线三格）→ 只能靠程序侧抽检/兜底。本组钉住"模型侧已知"。
+  it('英语低段：注入"必须真实输出四线三格"（与低段允许表同源，补协议缺位）', () => {
+    const low = buildCarrierInstruction('英语', 'primary_low');
+    expect(low, '英语低段缺四线三格协议（允许表已放开、注入端必须跟上）').toContain('必须真实输出四线三格');
+    expect(low).toContain('<span class="four-line-three"></span>');
+    expect(low, '示例须为空格子（不得带占位字母，防诱导模型输出已填内容）').not.toContain('>a</span>');
+    expect(low, '低段也属 hasMust → 位置行随行注入').toContain('同行紧邻');
+  });
+
+  // 🔴 2026-09-29：位置行锚点由"拼音"扩到**书写对象**——must 命中里含 抄写/默写/听写/写字/书写
+  //    （这些题没有拼音对象），原句对它们**无对应表述**，模型只能猜 → 载体位置失准。
+  //    判据（同行紧邻／逐词一一对应／禁抽出集中堆放）逐字不变。
+  it('位置行锚点是"书写对象"而非仅"拼音"（覆盖无拼音的抄写/听写/默写类）', () => {
+    const posLine = buildCarrierInstruction('语文', 'primary_low').split('\n').find((l) => l.startsWith('🔴'));
+    expect(posLine).toContain('书写对象');
+    expect(posLine, '须点明三类可写对象').toContain('拼音／词语／句子');
+    expect(posLine).toContain('同行紧邻');
+    expect(posLine).toContain('逐词一一对应');
+    expect(posLine, '判据不得退回"句末禁令"（允许混排，只要紧邻）').not.toContain('不得出现在句末');
   });
 
   it('成段/成篇整行书写横线的"整题之后集中一处"已划清作用域（不适用于逐词书写格）', () => {

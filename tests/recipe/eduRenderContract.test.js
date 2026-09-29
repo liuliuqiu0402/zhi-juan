@@ -259,10 +259,14 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(t.template).toContain('情境'); // 学科要点情境化表述（[GRAPH] 由渲染契约注入，不在要点）
   });
 
-  it('英语 exam：低段无书写格子示例（低段以听说认读为主）；中段才注入四线三格', () => {
+  it('英语 exam：低/中段都注入四线三格示例（低段随候选5裁定补齐；示例为空格子）', () => {
     const low = getPromptTemplate({ grade: '小学低段', subject: '英语', genType: 'exam' });
     expect(low.template).toContain('【英语·小学低段要点】');
-    expect(low.template).not.toContain('<span class="four-line-three">');
+    // 🔴 2026-09-29 口径订正（用户候选5裁定："低段要成题的，需要四线三格的书写的"）：
+    //    原断言"低段无书写格子示例（低段以听说认读为主）"是已被裁定废弃的一刀切
+    //    （"英语 3 年级起点、低段不要求字母书写"）——与蓝图"低段字母抄写"相抵。
+    //    现允许表（WRITING_CARRIER 低段=four-line-three）与注入端（must 规则）同源，低段同样注入。
+    expect(low.template).toContain('字母/单词抄写类题必须真实输出四线三格（示例：<span class="four-line-three"></span>）');
     const mid = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'exam' });
     expect(mid.template).toContain('字母/单词抄写类题必须真实输出四线三格（示例：<span class="four-line-three"></span>）'); // 示例为空格子（格内不填字母，与"格子为空"规则自洽）
     expect(mid.template).toContain('书写规范'); // 中段要点保留书写惯例（载体具体格式由排版规格库单通道注入）

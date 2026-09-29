@@ -12,7 +12,7 @@
 //    仅对应 学科×学段 注入（buildCarrierInstruction），其余学科必须为空（防越界）。
 // ============================================================
 import { describe, it, expect } from 'vitest';
-import { buildAnswerSpaceInstruction, buildCarrierInstruction, getAnswerRegion, getCarrierAllowlist, SQUARE_GRID } from '@/config/layoutSpec.js';
+import { buildAnswerSpaceInstruction, buildCarrierInstruction, getAnswerRegion, getCarrierAllowlist, SQUARE_GRID, CARRIER_RULES } from '@/config/layoutSpec.js';
 import { getPromptTemplate } from '@/config/promptLibrary.js';
 
 const SUBJECTS = ['语文', '数学', '英语', '科学', '物理', '化学', '生物', '道德与法治', '思想政治', '历史', '地理', '信息科技', '音乐', '美术', '体育与健康'];
@@ -99,14 +99,15 @@ describe('矩阵：算式填空位（方框/圆圈）仅数学注入', () => {
 
 describe('矩阵：特殊格子载体协议边界（buildCarrierInstruction 防越界）', () => {
   // 只允许表内 学科×学段 输出条款；其余学科/学段必须为空串（"其余学科显式空数组 = 禁止任何格子"）
-  const ALLOWED_NONEMPTY = [
-    ['语文', 'primary_low'], // 田字格/拼音格
-    ['英语', 'primary_mid'], // 四线三格
-    ['数学', 'primary_low'], ['数学', 'primary_mid'], ['数学', 'primary_high'], // 作图方格纸（小学）
-  ];
+  // 🔴 2026-09-29（**去手抄副本·防漂移**）：期望值不再手列 ALLOWED_NONEMPTY，改由**同一批事实源**推导——
+  //    "该档有条款" ⟺ 该 学科×学段 有 must 规则（按必须载体注入），或允许表含 square-grid（作图方格纸）。
+  //    原先手列一份名单，允许表放开英语低段后**没跟着改** → 本测试反倒把"协议缺位"锁死
+  //    （暴露的正是"模型侧不知道该出什么载体、只能靠程序兜底"这一类缺口）。改为推导后两端永远同源。
+  const hasMust = (sub, st) => CARRIER_RULES.must.some((r) => r.subject === sub && r.stages.includes(st));
+  const allowedFor = (sub, st) => hasMust(sub, st) || (getCarrierAllowlist(sub, st) || []).includes('square-grid');
   for (const subject of SUBJECTS) {
     for (const stage of STAGES) {
-      const allowed = ALLOWED_NONEMPTY.some(([sub, st]) => sub === subject && st === stage);
+      const allowed = allowedFor(subject, stage);
       it(`${subject}·${stage} → ${allowed ? '有条款' : '空串（不广播格子）'}`, () => {
         const c = buildCarrierInstruction(subject, stage);
         if (allowed) expect(c).not.toBe('');

@@ -33,6 +33,15 @@ describe('书写载体注入矩阵：题类 6 类', () => {
     expect(tplOf('exam', '数学', 'middle')).not.toContain('书写载体协议');
   });
 
+  // 🔴 2026-09-29（模型侧补缺口）：英语**低段**允许表已放开四线三格（用户候选5裁定），
+  //    而注入端原先返回空串 = 协议缺位（模型不知该出四线三格）。本组在**模板层**钉住"协议到位"。
+  it('英语低段：模板含"必须真实输出四线三格"（与低段允许表同源，补协议缺位）', () => {
+    const t = tplOf('exam', '英语', 'primary_low');
+    expect(t, '英语低段缺【书写载体协议】').toContain('书写载体协议');
+    expect(t, '英语低段缺四线三格必须输出条款').toContain('必须真实输出四线三格');
+    expect(t).toContain('four-line-three');
+  });
+
   it('每类都注入"作答空位显式载体化 / 严禁裸空格"（题类总纲⑦）', () => {
     for (const g of QUESTION_TYPES) {
       const t = tplOf(g);

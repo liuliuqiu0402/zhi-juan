@@ -489,6 +489,12 @@ const SPEC_GROUPS = [
       { path: 'CARRIER_RULES.must.2.stages', label: '必备规则3·学段（逗号分隔）', type: 'textArr', stageArr: true, placeholder: '学段键，如 primary_mid（小学中段）' },
       { path: 'CARRIER_RULES.must.2.keywords', label: '必备规则3·题型关键词（|分隔）', type: 'text' },
       { path: 'CARRIER_RULES.must.2.carrier', label: '必备规则3·必须载体', type: 'select', options: GRID_OPTIONS.map((o) => o.value) },
+      // 🔴 2026-09-29（清单"易漏点"第 1 条）：规格库新增 must 条目（英语低段四线三格）**必须同时进面板**，
+      //    否则"面板可调、读取端拿不到"或"读得到、面板改不了"= 死字段。守卫见 tests/config/fixChecklistGuards.test.js。
+      { path: 'CARRIER_RULES.must.3.subject', label: '必备规则4·学科', type: 'select', options: SUBJECT_OPTIONS },
+      { path: 'CARRIER_RULES.must.3.stages', label: '必备规则4·学段（逗号分隔）', type: 'textArr', stageArr: true, placeholder: '学段键，如 primary_low（小学低段）' },
+      { path: 'CARRIER_RULES.must.3.keywords', label: '必备规则4·题型关键词（|分隔）', type: 'text' },
+      { path: 'CARRIER_RULES.must.3.carrier', label: '必备规则4·必须载体', type: 'select', options: GRID_OPTIONS.map((o) => o.value) },
       { path: 'CARRIER_RULES.forbid.0.keywords', label: '禁用规则·题型关键词（|分隔）', type: 'text' },
       { path: 'CARRIER_RULES.forbid.0.carriers', label: '禁用规则·禁用的载体（多选）', type: 'carrier', chipOptions: GRID_OPTIONS },
     ],
