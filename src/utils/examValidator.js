@@ -1453,18 +1453,45 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const scoreM = (p.textContent || '').match(/[（(][^）)]*?(\d{1,3})\s*分/);
             const score = scoreM ? parseInt(scoreM[1], 10) : 0;
             const fillCells = Math.max(fillCellsBase, score * perScore);
-            // 该题区域（题干 p 到下一道写话题之间）已有任何作答载体 → 跳过补格
-            //   🔧 2026-08 根治"口语交际横线+作文格重复"：原只查 zuo-wen-ge，题内已有横线（blank-line）/
-            //    括号空位/blank 标签/书写格等其他载体仍补作文格 → 重复；现任一作答载体存在即视为已有作答空间
-            let hasAnyCarrier = false;
+            // 该题区域（题干 p 到下一道写话题之间）已有作答载体时的处理 → 见下方按载体性质分流
+            //   🔧 2026-08 曾定为"任一作答载体存在即视为已有作答空间"（根治口语交际横线+作文格重复）；
+            //   🔴 2026-09-29 起细分为"格类 / 错形态（横线·空行）/ 其它"三档（见下），
+            //      因为"任一载体即跳过"会让写话类在已有横线时**连格子都不补**（实证+全链路验收抓到）。
+            // 🔴 2026-09-29（用户实样"看图写话没有作文格子" + 全链路验收当场抓到）：
+            //    写话/习作类的**正确载体是作文格**；题内已有的"整行横线／空白作答行"对这类题是**错形态**。
+            //    原先一律按"已有任一作答载体 → continue"处理 → 作文格彻底不补；叠加既有裁定"消横线+格子并存"，
+            //    结果变成**既没有格子、又留着横线**。现按载体性质分流：
+            //      · 已有**格类**载体（作文格）→ 不重复补，跳过；
+            //      · 只有**横线/空行**类载体 → 不算"已有合适载体" → 补格，并移除这些错形态载体（消并存）；
+            //      · 括号空位等其它载体 → 保守跳过（不在此扩大既有裁定面）。
+            //    ⚠️ 这里移除的是**作答载体**（错形态的线/空行），不是删正文内容：同类载体择一、保留正确形态。
+            const GRID_CARRIER_RE = /zuo-wen-ge/;
+            const WRONG_FORM_CARRIER_RE = /blank-line|blank-\d|blank-area/;
+            let hasGridCarrier = false;
+            let hasWrongFormCarrier = false;
+            let hasOtherCarrier = false;
             let probe = p.nextSibling;
             while (probe && probe !== endP) {
               const ph = probe.outerHTML || '';
-              if (ph && CARRIER_ANY_RE.test(ph)) { hasAnyCarrier = true; break; }
-              if (/[（(]\s*[　\u3000 ]{1,12}\s*[)）]/.test(probe.textContent || '')) { hasAnyCarrier = true; break; }
+              if (ph && GRID_CARRIER_RE.test(ph)) { hasGridCarrier = true; break; }
+              if (ph && WRONG_FORM_CARRIER_RE.test(ph)) { hasWrongFormCarrier = true; }
+              else if (ph && CARRIER_ANY_RE.test(ph)) { hasOtherCarrier = true; break; }
+              else if (/[（(]\s*[　\u3000 ]{1,12}\s*[)）]/.test(probe.textContent || '')) { hasOtherCarrier = true; break; }
               probe = probe.nextSibling;
             }
-            if (hasAnyCarrier) continue;
+            if (hasGridCarrier || hasOtherCarrier) continue;
+            if (hasWrongFormCarrier) {
+              let rp = p.nextSibling;
+              while (rp && rp !== endP) {
+                const next = rp.nextSibling;
+                const rh = rp.outerHTML || '';
+                const isWrong = /blank-line|blank-\d/.test(rh) && !/blank-area/.test(rh) && !GRID_CARRIER_RE.test(rh);
+                // 注：只移除**横线/短答空位**这一档错形态；`blank-area`（无线留白行）属"空行/留白"清理域
+                //    （1c-3 与 2k 补差管），不在此越权移除——但它同样**不阻止**写话类补格（见上方分流）。
+                if (isWrong) rp.remove();
+                rp = next;
+              }
+            }
             // 🔧 插入位置（根治"作文格跑到配图/题干之前"）：题干 p 之后若紧跟 [IMAGE] 配图
             //    标记（到本题区域末为止）→ 作文格插在配图之后，卷面顺序 = 题干 → 配图 → 作文格
             let ref = p;

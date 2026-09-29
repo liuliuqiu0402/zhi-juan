@@ -480,11 +480,16 @@ describe('examValidator 书写格按学段（writing-grid-fix）', () => {
     expect(issues.some((i) => i.type === 'writing-grid')).toBe(true);
   });
 
-  it('作文格兜底耦合：写话题题内已有横线 → 视为已有作答空间、不再补格（既有判据，勿轻改）', () => {
+  it('作文格兜底：写话题题内只有横线 → 横线**换成格子**（口径修订 2026-09-29）', () => {
+    // 🔴 2026-09-29 口径修订（用户实样"看图写话没有作文格子" + 全链路验收当场抓到）：
+    //    2026-08 定的"题内已有任一作答载体即视为已有作答空间、不再补格"是为了消"横线+格子重复"，
+    //    但它把**低段写话/习作**带进了更坏的状态：**既没有格子、又留着横线**（下方原注释自己已写出该代价）。
+    //    现按载体性质分流：横线/空位对写话类是**错形态** → 移除并补格（同类载体择一、保留正确形态，仍不并存）。
+    //    注：模型侧真协议（作文格）本轮已补，模型给对时本兜底不触发。
     const html = '<h1>看图写话练习</h1>\n<h2>一、写话（15分）</h2>\n<p>1. 看图写话：仔细看看这幅图，再写几句话。</p>\n<p><u class="blank-line">&emsp;&emsp;&emsp;</u></p>';
     const { html: out } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
-    expect(out).not.toContain('zuo-wen-ge');
-    expect(out).toContain('blank-line'); // 题仍可作答（有横线），不废题
+    expect(out, '写话类应得到作文格（不该只剩横线）').toContain('zuo-wen-ge');
+    expect(out, '错形态横线应被移除（不与格子并存）').not.toContain('blank-line');
   });
 
   it('作文格兜底：写话题已有 zuo-wen-ge → 不重复补格', () => {
