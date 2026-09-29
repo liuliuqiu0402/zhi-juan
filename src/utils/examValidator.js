@@ -396,6 +396,44 @@ export const fixScoreLabel = (title, totalScore, carrierCount, subCount, opts = 
 };
 
 /**
+ * 「题干内要求/提示分条」判据 —— 单一事实源（2026-09-29 上提；原为 2k 内联）
+ * ============================================================
+ * 规范明令"分条不与题号层混同"（分条改用 (1)／① 或项目符号、不得再用与题号同构的「1.」），
+ * 但模型偶发违反时，这些分条会被当成独立小题/题块边界 → 作答载体被插到分条**之前**
+ * （真题症状：作文格落在题干与"要求：1./2./3."之间，分条跑到格子后面；横线则每条各补一处）。
+ * 判据：该段以「1.」开头 **且** 其上一个非空兄弟是以"要求/提示/注意/说明/评分/步骤/参考"
+ * 等引导词**结尾且带冒号**的段落 → 判为分条首项；其后续**连续递增**的数字段一并排除。
+ * 消费方：2k（补作答横线的题块边界）与 2j-5（作文格落点）——两处同源同果，不得各写一遍。
+ */
+const GUIDE_LEAD_RE = /(?:要求|提示|注意|说明|评分|步骤|参考)[^。！？]{0,20}[：:]\s*$/;
+const visibleTextKey = (el) => (el.textContent || '').replace(/[\s\u3000]/g, '');
+export const isGuideLeadParagraph = (el) => {
+  let prev = el.previousElementSibling;
+  while (prev && !visibleTextKey(prev)) prev = prev.previousElementSibling;
+  return !!prev && GUIDE_LEAD_RE.test((prev.textContent || '').trim());
+};
+/**
+ * 把"数字开头"的题号段分为题块与题干内分条。
+ * @param {Element[]} numberedPs 按文档序的数字开头段落
+ * @returns {{top: Element[], branch: Set<Element>, lists: number}}
+ *   top=真题号段（可作题块边界）；branch=被判为分条的段（含续项）；lists=分条列表数（首项计数）
+ */
+export const classifyNumberedBranches = (numberedPs = []) => {
+  const branch = new Set();
+  const top = [];
+  let lists = 0;
+  let subSeq = 0;
+  for (const n of numberedPs) {
+    const num = Number((((n.textContent || '').trim().match(/^\s*(\d+)[.、．]/)) || [])[1]);
+    if (subSeq && num === subSeq + 1) { subSeq = num; branch.add(n); continue; }                 // 分条续项
+    if (num === 1 && isGuideLeadParagraph(n)) { subSeq = 1; lists += 1; branch.add(n); continue; } // 分条首项
+    subSeq = 0;
+    top.push(n);
+  }
+  return { top, branch, lists };
+};
+
+/**
  * 主入口：整卷质量校验与修复（按 学段×学科×资料类型 三维度匹配规则库执行）
  * @param {string} html 整卷 HTML（含答案区）
  * @param {Object} opts { subject(学科), stage(学段键), genType(资料类型) }
@@ -878,7 +916,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const nodesBetween = [];
             let n = st.p.nextSibling;
             const idx = numberedPs.indexOf(st.p);
-            const endNode = numberedPs[idx + 1] || null;
+            // 🔴 2026-09-29 同源收口：末项必须以**本节末尾**为界（原 `|| null` → 兄弟遍历走到文末，
+            //    把后续大题乃至答案区的内容并入本题 → 载体/子题计数虚高）
+            const endNode = numberedPs[idx + 1] || end;
             while (n && n !== endNode) { nodesBetween.push(n); n = n.nextSibling; }
             let segHtml = st.p.outerHTML;
             for (const nb of nodesBetween) segHtml += nb.outerHTML || nb.textContent || '';
@@ -1210,8 +1250,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const tplD = document.createElement('template');
           tplD.innerHTML = out;
           const psD = Array.from(tplD.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
-          // 🔴 2026-09-29：本节边界（与 2l/2j-5 同源）——钳制末题区域不越界到后续大题
-          const headsSecD = Array.from(tplD.content.querySelectorAll('h2, h3, h4')).filter(h => !h.closest('.answer-section'));
+          // 🔴 2026-09-29：本节边界（与 2l/2j-5 同源；含答案区起点）——钳制末题区域不越界到后续大题/答案区
+          const headsSecD = Array.from(tplD.content.querySelectorAll('h2, h3, h4, .answer-section'));
           const numberedD = psD.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
           for (let i = 0; i < numberedD.length; i++) {
             const p = numberedD[i];
@@ -1264,12 +1304,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const tpl2 = document.createElement('template');
         tpl2.innerHTML = out;
         const ps2 = Array.from(tpl2.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
-        // 🔴 2026-09-29：本节边界（本元素之后最近的 h2/h3/h4）——用于钳制区域不越界到后续大题
-        const headsSec2 = Array.from(tpl2.content.querySelectorAll('h2, h3, h4')).filter(h => !h.closest('.answer-section'));
+        // 🔴 2026-09-29：本节边界（本元素之后最近的标题，**含答案区起点**）——钳制区域不越界到后续大题/答案区。
+        //    ⚠️ 不得过滤 .answer-section：答案区标题同样是边界；曾把它滤掉 → 区域越过答案区、探针读到
+        //    答案区里的括号空位 → 写话题漏补作文格、格还可能落到答案区之后（实测两例）。
+        const headsSec2 = Array.from(tpl2.content.querySelectorAll('h2, h3, h4, .answer-section'));
         const kwRe = /看图写话|写话|习作|作文|写作|小练笔/;
         // 🔧 区域边界用"所有数字开头小题标题"（不论是否 kw 命中）：口语交际/非写话题被排除后仍须是边界，
         //    否则其内容（如横线作答区）并入上一题区域 → 上一题被误判"已有载体"而不补格
         const numberedPs = ps2.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
+        // 🔴 2026-09-29（与 2k 同源·单源判据）：剔除"题干内要求/提示分条"（含被误写成「1./2.」的）——
+        //    分条不是题块、不得作本题区域边界，否则区域被截断在分条处 → 作文格插到分条**之前**。
+        const numberedQs2 = classifyNumberedBranches(numberedPs).top;
         const isKwText = (t) => kwRe.test(t) && !t.includes('[IMAGE]') && !/口语交际/.test(t);
         // 🔧 讲解型资料净化（2026-09）：关键词只命中"讲解表/方法说明/教材出处"行（如知识框架表内
         //    "表达训练 — 小练笔：写相聚、惜别经历（教材出处：课后小练笔）"）时不是学生写话题，
@@ -1302,14 +1347,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           let added = 0;
           for (let i = 0; i < kwPs.length; i++) {
             const p = kwPs[i];
-            const idx = numberedPs.indexOf(p);
-            // 🔧 无编号但带分值的写话题：区域边界取其后第一道编号小题（按文档序）
-            let endP = idx >= 0
-              ? (numberedPs[idx + 1] || null)
-              : (numberedPs.find(n => n !== p && (p.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING)) || null);
-            // 🔴 2026-09-29 根治（与 2l 同源·末题区域越界）：区域不得越过**本节边界**（下一个 h2/h3/h4）。
-            //    原"无则到文末"使末题区域一路延伸到后续大题，把后面大题的作答载体误当"本题已有载体" →
-            //    hasAnyCarrier 误判 true → 写话题漏补作文格（实测：一、看图写话因二、阅读内有横线，一格未补）。
+            // 🔧 无编号但带分值的写话题：区域边界取其后第一道**真题号段**（按文档序；分条已剔除）
+            const qi = numberedQs2.indexOf(p);
+            let endP = qi >= 0
+              ? (numberedQs2[qi + 1] || null)
+              : (numberedQs2.find(n => n !== p && (p.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING)) || null);
+            // 🔴 2026-09-29 根治（与 2l 同源·末题区域越界）：区域不得越过**本节边界**（下一个标题/答案区起点）。
+            //    原"无则到文末"使末题区域一路延伸到后续大题乃至答案区，把别处的作答载体误当"本题已有载体" →
+            //    hasAnyCarrier 误判 true → 写话题漏补作文格（实测：一、看图写话因二、阅读内有横线，一格未补；
+            //    答案区含括号空位时同样误判）。
             const secEnd2 = headsSec2.find(h => p.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
             if (!endP || (secEnd2 && !(endP.compareDocumentPosition(secEnd2) & Node.DOCUMENT_POSITION_FOLLOWING))) endP = secEnd2;
             // 🔧 补格数按学段×分值动态（低段8格/分…初中20、高中17；低于兜底160取兜底）：
@@ -1331,26 +1377,22 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             }
             if (hasAnyCarrier) continue;
             // 🔧 插入位置（根治"作文格跑到配图/题干之前"）：题干 p 之后若紧跟 [IMAGE] 配图
-            //    标记（到下一道命中题为止）→ 作文格插在配图之后，卷面顺序 = 题干 → 配图 → 作文格
+            //    标记（到本题区域末为止）→ 作文格插在配图之后，卷面顺序 = 题干 → 配图 → 作文格
             let ref = p;
-            // 🔴 2026-09-28 同步复检（与 2j-5a 同源·消"锚点是大题标题时格贴标题"）：
-            //    若锚点 p 是**大题标题**（hanziKwPs 路径：如 <h2>十六、看图写话</h2>），
-            //    格应落在"该大题标题之后的**小题题干**之后"，而不是紧贴标题——
-            //    先把 ref 前移到区域内最后一个题干内容块（跳过配图/其它载体），再由下方 [IMAGE] 扫描顺延，
-            //    使补格顺序 = 大题标题 → 小题题干 → 配图 → 作文格（与 2j-5a 的锚点判据一致，双保险）。
-            const pIsHeading = /^h[1-6]$/i.test(p.tagName || '')
-              || /^[一二三四五六七八九十百]+[、.．]/.test((p.textContent || '').trim());
-            if (pIsHeading) {
-              let probeRef = p.nextSibling;
-              while (probeRef && probeRef !== endP) {
-                if (probeRef.nodeType === 1) {
-                  const tg = probeRef.tagName.toLowerCase();
-                  const isCarrierRef = /zuo-wen-ge|tian-zi-ge|pinyin-line|mi-zi-ge|four-line-three|sixian-ge|square-grid/.test(probeRef.outerHTML || '');
-                  const visTxt = (probeRef.textContent || '').replace(/[\s\u3000\u00A0　_＿（）()]/g, '');
-                  if (['p', 'li', 'div'].includes(tg) && !isCarrierRef && visTxt.length >= 2) ref = probeRef;
-                }
-                probeRef = probeRef.nextSibling;
+            // 🔴 2026-09-29 扩到**全部锚点**（原仅"大题标题"锚点，见 2026-09-28 条）：格必须落在**整个题干之后**——
+            //    先把 ref 前移到本题区域内**最后一个题干内容块**（跳过配图/其它载体，遇区域边界即止），
+            //    再由下方 [IMAGE] 扫描顺延，使补格顺序 = 大题标题 → 小题题干/要求分条 → 配图 → 作文格。
+            //    原仅标题锚点前移，数字编号锚点（如"1. 习作。（50分）"）的 ref 停在题号行 →
+            //    后续"要求：…"等题干段落跑到格子**后面**（实测三例，违反 layoutSpec"横线/作答区给在分条之后"口径）。
+            let probeRef = p.nextSibling;
+            while (probeRef && probeRef !== endP) {
+              if (probeRef.nodeType === 1) {
+                const tg = probeRef.tagName.toLowerCase();
+                const isCarrierRef = /zuo-wen-ge|tian-zi-ge|pinyin-line|mi-zi-ge|four-line-three|sixian-ge|square-grid/.test(probeRef.outerHTML || '');
+                const visTxt = (probeRef.textContent || '').replace(/[\s\u3000\u00A0　_＿（）()]/g, '');
+                if (['p', 'li', 'div'].includes(tg) && !isCarrierRef && visTxt.length >= 2) ref = probeRef;
               }
+              probeRef = probeRef.nextSibling;
             }
             let probe2 = ref.nextSibling;
             while (probe2 && probe2 !== endP) {
@@ -1408,8 +1450,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const tplE = document.createElement('template');
         tplE.innerHTML = out;
         const psE = Array.from(tplE.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
-        // 🔴 2026-09-29：本节边界（与 2j-5 同源）——钳制末题区域不越界到后续大题
-        const headsSecE = Array.from(tplE.content.querySelectorAll('h2, h3, h4')).filter(h => !h.closest('.answer-section'));
+        // 🔴 2026-09-29：本节边界（与 2j-5 同源；含答案区起点）——钳制末题区域不越界到后续大题/答案区
+        const headsSecE = Array.from(tplE.content.querySelectorAll('h2, h3, h4, .answer-section'));
         const numberedE = psE.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
         const kwReE = /书面表达|写作|小作文|看图写话|用英语|Write\b/;
         const kwPE = numberedE.filter(p => {
@@ -1741,27 +1783,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //    "要求/提示/注意/说明/评分/步骤/参考"等引导词**结尾且带冒号**的段落 → 判为分条首项；
         //    其后续**连续递增**的数字段一并排除（分条列表常 1./2./3. 连排）。
         //    排除后这些段不再作题块边界 → 整题的作答位仍落"整题之后、分条之后"（与作答空间条款一致）。
-        const guideLeadRe = /(?:要求|提示|注意|说明|评分|步骤|参考)[^。！？]{0,20}[：:]\s*$/;
-        const textKey = (el) => (el.textContent || '').replace(/[\s\u3000]/g, '');
-        const isGuideLead = (el) => {
-          let prev = el.previousElementSibling;
-          while (prev && !textKey(prev)) prev = prev.previousElementSibling;
-          return !!prev && guideLeadRe.test((prev.textContent || '').trim());
-        };
-        const topPs = [];
-        let subSeq = 0;
-        let excludedBranches = 0; // 🔴 2026-09-27 收口：记录被"分条判据"排除的题号段数——排除后无任何题块时，
-        //    必须回退整块兜底（漏补比多补更糟：若某大题的真题号"1."紧跟在"要求："之后，会被误判为分条
-        //    首项 → 该题连同后续连续递增号全部失去题块身份 → 该大题无任何题块 → 原来只在标题含作答意图词时
-        //    才兜底，意图词未命中即静默漏补；现在"曾识别出题号段却被全排除"本身就是漏补强信号，整块兜底
-        //    不再依赖标题意图词，直接按 4 行（长答形态）回退补齐）
-        for (const n of rawTopPs) {
-          const num = Number((((n.textContent || '').trim().match(/^\s*(\d+)[.、．]/)) || [])[1]);
-          if (subSeq && num === subSeq + 1) { subSeq = num; continue; }  // 分条续项：一并排除
-          if (num === 1 && isGuideLead(n)) { subSeq = 1; excludedBranches += 1; continue; }     // 分条首项：排除并开始续项
-          subSeq = 0;
-          topPs.push(n);
-        }
+        //    🔴 2026-09-29：判据上提为模块级**单源**（classifyNumberedBranches），与 2j-5（作文格落点）同源同果。
+        //    excludedBranches（分条列表数）🔴 2026-09-27 收口：排除后无任何题块时，必须回退整块兜底
+        //      （漏补比多补更糟：若某大题的真题号"1."紧跟在"要求："之后会被误判为分条首项 → 该题连同后续
+        //      连续递增号全部失去题块身份 → 该大题无任何题块；"曾识别出题号段却被全排除"即漏补强信号，
+        //      整块兜底不再依赖标题意图词，直接按 4 行（长答形态）回退补齐）
+        const { top: topPs, lists: excludedBranches } = classifyNumberedBranches(rawTopPs);
         if (topPs.length === 0) {
           // 无顶层题号：回退子题号行；仍无 → 整段一块（书面表达等长答形态）
           const subPs = secNodesPs(secNodes).filter((n) => subRe.test((n.textContent || '').trim()));

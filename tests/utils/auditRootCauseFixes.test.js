@@ -592,3 +592,53 @@ describe('根治回归：末题区域越界（`|| null` 兄弟遍历把后续大
     expect(silentDetails.some(d => d.type === 'writing-grid' && d.message.includes('tian-zi-ge'))).toBe(true);
   });
 });
+
+// 🔴 2026-09-29（用户追问"作文格是否落整个题干之后 / 有无学科边界 / 区域是否越入答案区"）实测收口：
+//   ① 作文格落点：原仅"大题标题锚点"会把 ref 前移到区域内最后一个题干块，数字编号锚点（"1. 习作。（50分）"）
+//      则停在题号行 → 后续"要求：…"（含被误写成「1./2.」的分条）跑到格**后面**（违反 layoutSpec
+//      "作答区给在分条之后"口径）。现 ref 前移扩到**全部锚点**，且区域边界先剔除分条（与 2k 同源判据）。
+//   ② 区域边界：原末题区域可越过**答案区** → 探针读到答案区里的括号空位 → 写话题漏补作文格，
+//      甚至把格插到答案区之后。现三处边界（2j-4/2j-5/2j-5b）一律取"下一个标题/**答案区起点**"。
+describe('根治回归：作文格落点（整题之后）与区域边界（不越入答案区）', () => {
+  const at = (h, sub) => h.indexOf(sub);
+
+  it('落点：数字编号锚点 + "要求："分条 → 格在分条之后（原插在分条之前）', () => {
+    const html = '<h2>三、习作（10分）</h2><p>1. 习作。（10分）</p><p>要求：1. 自拟题目；2. 不少于三句话。</p>';
+    const out = run(html).html;
+    expect(at(out, 'zuo-wen-ge'), '格应在"要求："段之后').toBeGreaterThan(at(out, '要求：'));
+  });
+
+  it('落点：分条被误写成「1./2.」→ 格仍在分条之后（与 2k 同源判据）', () => {
+    const html = '<h2>三、习作（10分）</h2><p>1. 习作。（10分）</p><p>要求：</p><p>1. 自拟题目。</p><p>2. 不少于三句话。</p>';
+    const out = run(html).html;
+    expect(at(out, 'zuo-wen-ge'), '格应在最后一条分条之后').toBeGreaterThan(at(out, '不少于三句话'));
+  });
+
+  it('落点：同栏内写话为第1题、其后还有第2题 → 格在第1题题干之后、第2题之前（不跑到栏末）', () => {
+    const html = '<h2>四、阅读与写话（20分）</h2><p>1. 习作。（10分）</p><p>要求：写一件难忘的事。</p><p>2. 读短文，回答问题。（10分）</p>';
+    const out = run(html).html;
+    expect(at(out, 'zuo-wen-ge')).toBeGreaterThan(at(out, '要求：'));
+    expect(at(out, 'zuo-wen-ge'), '格不得跑到第2题之后').toBeLessThan(at(out, '2. 读短文'));
+  });
+
+  it('边界：答案区含括号空位不得掩蔽本题 → 写话题仍补作文格', () => {
+    const html = '<h2>十六、看图写话（10分）</h2><p>仔细看图，写几句话。</p>'
+      + '<div class="answer-section"><h2>参考答案与解析</h2><p>1. 评分标准：内容（　）完整。</p></div>';
+    expect(run(html).html, '答案区空位不应掩蔽正文写话题').toContain('zuo-wen-ge');
+  });
+
+  it('边界：格不得越过答案区 → 有答案区时格仍落在正文题干之后', () => {
+    const html = '<h2>十六、看图写话（10分）</h2><p>仔细看图，写几句话。</p>'
+      + '<div class="answer-section"><h2>参考答案与解析</h2><p>十六、看图写话评分标准（10分）</p></div>';
+    const out = run(html).html;
+    expect(at(out, 'zuo-wen-ge'), '格应在答案区之前').toBeLessThan(at(out, 'answer-section'));
+  });
+
+  it('防重复：英语书面表达所在栏只补一处作答横线（2j-5b 与 2j-5c 不重复补）', () => {
+    const html = '<h2>一、综合运用（10分）</h2><p>1. 书面表达：请写一篇短文介绍你的一天。</p>'
+      + '<h2>二、阅读（10分）</h2><p><span class="blank-line">&emsp;</span></p><p>2. 读短文，选择答案。</p>';
+    const r = auditExamPaper(html, { subject: '英语', stage: 'primary_high', genType: 'exam' });
+    const sec1 = r.html.split('<h2>二、')[0];
+    expect((sec1.match(/<div/g) || []).length, '一、栏应只有一处作答横线区').toBe(1);
+  });
+});
