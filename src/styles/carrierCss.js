@@ -1,4 +1,5 @@
 // ============================================================
+import { getMergedSpec } from '../config/layoutSpec.js'; // 🔴 档位上限单一事实源（BLANK.maxBlank）
 // 作答载体 CSS 单一事实源（填空横线 u.blank-N / 括号空位 span.blank-N /
 // 整行横线 .blank-line / 行尾弹性延伸 / 四线三格·六线格·拼音格格线；
 // english-line 为遗留字体修饰类（Times），不画格线，独立格线书写用 four-line-three/sixian-ge）
@@ -12,7 +13,15 @@
 //    曾按学段注入 mm（9/8），小字号时字母书写格位失真 → 2026-09 改 em，与 Word 导出口径一致）
 // ============================================================
 
-const TIERS = Array.from({ length: 24 }, (_, i) => i + 1);
+// 🔴 2026-09-29（规格库为源）：档位上限改由 `layoutSpec.BLANK.maxBlank` 派生（原直写字面 24，
+//    改面板 maxBlank 时 CSS 档位不跟随；此处为**模块加载期一次性派生**，面板改动需重载页面生效）。
+const SPEC_MAX_TIER = (() => {
+  try {
+    const s = getMergedSpec().BLANK || {};
+    return Number.isFinite(s.maxBlank) ? s.maxBlank : 24;
+  } catch { return 24; }
+})();
+const TIERS = Array.from({ length: SPEC_MAX_TIER }, (_, i) => i + 1);
 
 /** u.blank-N 宽度档位（1 档 = 1em） */
 const uWidthCss = () => TIERS.map((n) => `u.blank-${n}{min-width:${n}em;}`).join('\n');

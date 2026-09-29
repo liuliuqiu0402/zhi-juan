@@ -441,6 +441,7 @@ import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; //
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
 // 🗑 领域覆盖对账（reconcileDomains）已于 2026-09-20 用户裁定砍除，见下方调用点的说明；不再引入
 import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, classifyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth, detectAnswerSectionMissing, detectBodyNumberingRestart } from '../utils/contentCleaner.js';
+import { getMergedSpec } from '../config/layoutSpec.js'; // 🔴 2026-09-29：宽度/档位窗口一律读规格库（禁写死数字）
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 import { FIGURE_DEPENDENCY_RE } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（图标记取证用）
 
@@ -484,7 +485,11 @@ const convertBlankFormat = (html) => {
   // <span class="blank-N">&emsp;</span>，不再原样残留；纯空白括号交给步骤3处理
   // 🔧 span.blank-N 渲染自带半角括号（预览 CSS ::before/::after + docx 导出显式补 ()）——
   //    清洗器不再包外层括号，否则预览/导出会变成双层括号 ((　))
-  result = result.replace(/(?:[（(]{1,2})\s*([_\uFF3F\s\u3000]{1,24})\s*(?:[）)]{1,2})/g, (match, inner) => {
+  // 🔴 2026-09-29（规格库为源）：下划线长度窗口原写死 `{1,24}`（= BLANK.maxBlank，却直写字面）→ 改读规格库，
+  //    避免"面板调了 maxBlank，这一层窗口不跟随"。
+  const blankSpecA1 = getMergedSpec().BLANK || {};
+  const maxTierA1 = Number.isFinite(blankSpecA1.maxBlank) ? blankSpecA1.maxBlank : 24;
+  result = result.replace(new RegExp(`(?:[（(]{1,2})\\s*([_\\uFF3F\\s\\u3000]{1,${maxTierA1}})\\s*(?:[）)]{1,2})`, 'g'), (match, inner) => {
     const u = (inner.match(/[_\uFF3F]/g) || []).length;
     if (u === 0) return match; // 无下划线 → 交给步骤3（括号+纯空白）
     // 🔴 宽度换算唯一事实源 = contentCleaner 共享函数（读 layoutSpec.BLANK），不在此另建梯形

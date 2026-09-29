@@ -691,8 +691,10 @@ const EmphasisDot = Mark.create({
 });
 
 // ⭐ 田字格：与无样式模式完全一致——inline-block+relative+absolute居中（经无样式模式验证的最稳定方案）
-// 🔧 田字格/米字格仅语文低段存在 → 定档 GRID_CELL primary（12mm），与预览/HTML/docx 同尺寸（曾 1.8em 随字号漂移）
-const gridCellMm = () => (getMergedSpec().GRID_CELL?.['tian-zi-ge']?.primary?.widthMm) || 12;
+// 🔧 田字格/米字格仅语文低段存在 → 定档 GRID_CELL 各载体 primary（曾 1.8em 随字号漂移）
+// 🔴 2026-09-29（规格库为源）：改为**按载体取值**——原恒取 `tian-zi-ge` 的宽高，使规格库 `mi-zi-ge`
+//    独立字段被旁路（米字格被迫跟随田字格尺寸）。
+const gridCellMm = (cls = 'tian-zi-ge') => (getMergedSpec().GRID_CELL?.[cls]?.primary?.widthMm) || 12;
 const TianZiGe = Node.create({
   name: 'tianZiGe',
   group: 'inline',
@@ -2074,8 +2076,11 @@ const forceTianZiGeStyles = () => {
       // 🔑 从内层文字读取实际计算字号，确保字号变化时格子等比缩放
       const actualFontSize = getComputedStyle(innerSpan).fontSize;
       s.setProperty('font-size', actualFontSize, 'important');
-      s.setProperty('width', `${gridCellMm()}mm`, 'important'); // 田字格/米字格仅低段 → 定档 12mm
-      s.setProperty('height', `${gridCellMm()}mm`, 'important');
+      // 🔴 2026-09-29（规格库为源）：按**本格实际载体**取尺寸（田字格/米字格各读自己的 GRID_CELL 字段）
+      const cellCls = outer.classList.contains('mi-zi-ge') ? 'mi-zi-ge' : 'tian-zi-ge';
+      const cellMm = gridCellMm(cellCls);
+      s.setProperty('width', `${cellMm}mm`, 'important');
+      s.setProperty('height', `${cellMm}mm`, 'important');
       const si = innerSpan.style;
       si.setProperty('position', 'absolute', 'important');
       si.setProperty('top', '50%', 'important');
