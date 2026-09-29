@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getPromptTemplate } from '../../src/config/promptLibrary.js';
+import { buildLongAnswerCarrierInstruction } from '../../src/config/layoutSpec.js';
 import {
   auditExamPaper,
   countGridCells,
@@ -767,5 +768,34 @@ describe('单源守卫：全局唯一口径（防回潮）', () => {
   it('学科×学段允许表：唯一定义在 layoutSpec.WRITING_CARRIER（消费方须走 getCarrierAllowlist）', () => {
     expect(read('config/layoutSpec.js')).toContain('export const WRITING_CARRIER');
     expect(read('utils/examValidator.js').includes('getCarrierAllowlist('), '越界剥离/声明检查须走查询入口').toBe(true);
+  });
+});
+
+// 🔴 2026-09-29 用户裁定：① 作答区行数上限**必须分学段**（规格库 ANSWER_MAX_ROWS_BY_STAGE 单一事实源）；
+//   ② "该从模型侧解决的不靠程序补丁"——上限与"同题不重复给作答位"一并**注入模型侧**；
+//   ③ 程序侧补差通道一律**接入同一规格库**（原仅 2k 接，2j-5b/2j-5c 硬编码 8 行、低段会超上限）。
+describe('作答区行数上限（分学段·模型侧与程序侧同接规格库）', () => {
+  it('注入条款带本学段上限：英语低段=4 行、高中=8 行（读 ANSWER_MAX_ROWS_BY_STAGE）', () => {
+    expect(buildLongAnswerCarrierInstruction('英语', 'primary_low')).toContain('不超过本学段上限（4 行）');
+    expect(buildLongAnswerCarrierInstruction('英语', 'primary_mid')).toContain('不超过本学段上限（5 行）');
+    expect(buildLongAnswerCarrierInstruction('英语', 'high')).toContain('不超过本学段上限（8 行）');
+  });
+
+  it('注入条款含"同题同性质作答位只给一处"（模型侧消重复载体，纯形态、不点题型）', () => {
+    const t = buildLongAnswerCarrierInstruction('语文', 'primary_low');
+    expect(t).toContain('只给一处');
+    expect(t).toContain('不得再在题后另起整行作答载体');
+  });
+
+  it('程序侧补差受学段上限：英语低段书写题补出横线 ≤ 4 行（原硬编码 8 行）', () => {
+    const html = '<h2>一、书面表达（10分）</h2><p>1. 请以 My Day 为题写一篇短文。</p>';
+    const r = auditExamPaper(html, { subject: '英语', stage: 'primary_low', genType: 'exam' });
+    expect((r.html.match(/blank-line/g) || []).length).toBeLessThanOrEqual(4);
+  });
+
+  it('程序侧补差受学段上限：英语高中同为横线体系、不超过 8 行（收口不误伤高学段）', () => {
+    const html = '<h2>一、书面表达（20分）</h2><p>1. 请以 My School 为题写一篇短文。</p>';
+    const r = auditExamPaper(html, { subject: '英语', stage: 'high', genType: 'exam' });
+    expect((r.html.match(/blank-line/g) || []).length).toBeLessThanOrEqual(8);
   });
 });

@@ -5,8 +5,12 @@
 //       于是"写一段对话（不少于6句）"整题无作答载体，而"书面表达"因模型自己写了横线而正常。
 import { describe, it, expect } from 'vitest';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
+import { getAnswerRegion } from '../../src/config/layoutSpec.js';
 
 const OPTS = { subject: '英语', stage: 'primary_high', genType: 'exam' };
+// 🔴 2026-09-29（单源）：行数上限唯一定义在排版规格库 ANSWER_MAX_ROWS_BY_STAGE（学科无关、按学段），
+//    用例不再写死 8 行——原写死 ≥8 与规格库（primary_high=6）相抵，会把"按学段收口"误判为回归。
+const CAP = getAnswerRegion(OPTS.subject, OPTS.stage).maxRowsPerItem;
 const count = (html) => (html.match(/class="blank-line"/g) || []).length;
 const seg = (html, from, to) => {
   const a = html.indexOf(from);
@@ -31,7 +35,8 @@ describe('大题标题式英语书写题缺载体 → 自动补横线（2j-5c）
   it('写对话题（无载体）被补横线，且在整题之后（题干段之后）', () => {
     const { html } = auditExamPaper(DOC, OPTS);
     const eleven = seg(html, '十一、', '十二、');
-    expect(count(eleven), '十一题应补出横线作答区').toBeGreaterThanOrEqual(8);
+    expect(count(eleven), '十一题应补出横线作答区').toBeGreaterThan(0);
+    expect(count(eleven), '行数不得超过本学段上限（规格库）').toBeLessThanOrEqual(CAP);
     // 补位在题干之后：题干段落必须在横线之前
     expect(eleven.indexOf('对话不少于6句')).toBeLessThan(eleven.indexOf('blank-line'));
   });
@@ -46,7 +51,8 @@ describe('大题标题式英语书写题缺载体 → 自动补横线（2j-5c）
     const noCarrier = DOC.replace(/(<p><span class="blank-line">　<\/span><\/p>\n?)+/, '');
     const { html } = auditExamPaper(noCarrier, OPTS);
     const twelve = seg(html, '十二、', null);
-    expect(count(twelve)).toBeGreaterThanOrEqual(8);
+    expect(count(twelve)).toBeGreaterThan(0);
+    expect(count(twelve), '行数不得超过本学段上限（规格库）').toBeLessThanOrEqual(CAP);
     expect(twelve.indexOf('④文中不得出现真实的校名和人名')).toBeLessThan(twelve.indexOf('blank-line'));
   });
 
@@ -95,7 +101,8 @@ describe('大题标题式英语书写题缺载体 → 自动补横线（2j-5c）
       '<p class="question">11. 以 My Weekend 为题写一篇作文，不少于6句。</p>',
     ].join('\n');
     const res = auditExamPaper(html, OPTS);
-    expect(count(res.html), '2k 会放过含"作文"的块 → 本通道补出横线').toBeGreaterThanOrEqual(8);
+    expect(count(res.html), '2k 会放过含"作文"的块 → 本通道补出横线').toBeGreaterThan(0);
+    expect(count(res.html), '行数不得超过本学段上限（规格库）').toBeLessThanOrEqual(CAP);
     expect(res.issues.some((i) => i.message.includes('大题标题式英语书写题已自动补横线作答区'))).toBe(true);
   });
 });

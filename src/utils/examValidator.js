@@ -1558,7 +1558,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           // 补格数：有分值按 分值×横线系数；无分值（教辅/知识总结常见）兜底 8 行
           const wm = (p.textContent || '').match(/[（(][^）)]*?(\d{1,3})\s*分/);
           const wscore = wm ? parseInt(wm[1], 10) : 0;
-          const rowsE = wscore > 0 ? Math.max(8, Math.ceil(wscore * linePerScoreE)) : 8;
+          // 🔴 2026-09-29（接入规格库·分学段）：原硬编码 max(8,…)/兜底 8 行、**不受学段上限约束** →
+          //    低段英语书写题会补出 8 行（规格库低段上限仅 4 行）。现与 2k 同源取 regionE.maxRowsPerItem。
+          const capE = Number.isFinite(regionE.maxRowsPerItem) ? regionE.maxRowsPerItem : 8;
+          const rowsE = Math.min(capE, wscore > 0 ? Math.max(8, Math.ceil(wscore * linePerScoreE)) : 8);
           // 🔧 插入位置：题干 p 之后
           const wrapE = document.createElement('div');
           for (let k = 0; k < rowsE; k++) {
@@ -1646,7 +1649,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const last = region[region.length - 1];
           const wmH = t.match(/[（(][^）)]*?(\d{1,3})\s*分/);
           const wscoreH = wmH ? parseInt(wmH[1], 10) : 0;
-          const rowsH = wscoreH > 0 ? Math.max(8, Math.ceil(wscoreH * linePerScoreH)) : 8;
+          // 🔴 2026-09-29（接入规格库·分学段，与 2k/2j-5b 同源）：原硬编码 8 行、不受学段上限约束
+          const capH = Number.isFinite(regionH.maxRowsPerItem) ? regionH.maxRowsPerItem : 8;
+          const rowsH = Math.min(capH, wscoreH > 0 ? Math.max(8, Math.ceil(wscoreH * linePerScoreH)) : 8);
           const wrapH = document.createElement('div');
           for (let k = 0; k < rowsH; k++) {
             const pL = document.createElement('p');
