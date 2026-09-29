@@ -58,3 +58,30 @@ describe('修复准则守卫：一刀切防线（学段×学科门控）', () =>
     }
   });
 });
+
+// 🔴 2026-09-29（准则第 6 条"不得有第二副本静默漂移"）：渲染/导出端的**静态尺寸**确有副本
+//   （同一事实在多处各写一份字面量）。按准则：**确有副本就必须加等值守卫钉住**——本组即该守卫。
+//   说明：本轮只加守卫、**不改渲染代码**（改渲染影响导出/预览观感，按准则第 3 条后置到真机验证）；
+//   守卫的作用是"改一处必须全改"，否则转红。
+describe('修复准则守卫：渲染静态尺寸等值守卫（第二副本不得静默漂移）', () => {
+  it('四线三格/拼音格行高 --flt-h：carrierCss / themeConfig / TypesetModule 三处同值', () => {
+    const grab = (src, re, label) => {
+      const m = src.match(re);
+      expect(m, `${label} 未取到行高值（副本被改名/删掉 → 守卫失效，须同步更新本守卫）`).toBeTruthy();
+      return m[1];
+    };
+    const cc = grab(read('src/styles/carrierCss.js'), /var\(--flt-h,\s*([\d.]+em)\)/, 'carrierCss');
+    const tc = grab(read('src/themeConfig.js'), /const FLT_H_EM = '([\d.]+em)'/, 'themeConfig');
+    const ts = grab(read('src/modules/TypesetModule.vue'), /'--flt-h':\s*'([\d.]+em)'/, 'TypesetModule');
+    expect([cc, tc, ts], '三处行高必须等值：不等则预览/编辑器/导出三端格子高矮不一').toEqual([cc, cc, cc]);
+  });
+
+  it('空位档位上限兜底：规格库 BLANK.maxBlank 与两处兜底字面量同值', () => {
+    const src = read('src/config/layoutSpec.js').match(/maxBlank:\s*(\d+)/);
+    expect(src, '规格库 BLANK.maxBlank 未取到').toBeTruthy();
+    const val = src[1];
+    for (const [label, file] of [['carrierCss', 'src/styles/carrierCss.js'], ['useAiGenerator', 'src/composables/useAiGenerator.js']]) {
+      expect(read(file), `${label} 的档位兜底须与规格库同值（否则面板调 maxBlank 时该层不跟随）`).toContain(`: ${val};`);
+    }
+  });
+});
