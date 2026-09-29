@@ -1720,7 +1720,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     //       现锚点改为"**该大题标题之后的最近一个**小题题干/内容块""——大题标题（h1~h6、汉字序号标题）**不作锚**：
     //       ①"格前已就位"的判据＝格前存在**非标题、非配图、非载体**的内容块（题干段落）；
     //       ②需搬移时，向后找"最近的内容块"（跳过配图/其它载体，遇下一个大题标题即止），把格移到其后。
-    if (has('writing-expression-fix') && /<div[^>]*class=["'][^"']*zuo-wen-ge/.test(out)) {
+    // 🔴 2026-09-29（去一刀切）：书面表达/写作类**仅中文学科专属语义**（关键词是语文/英语语义词），
+      //    故定位 `writing-expression-fix` 门控的规则本就属语文/英语；此处补**学科门控**，防把语文专属
+      //    语义（写话/习作/作文/小练笔/口语交际）广播到其它学科做推理。
+      if (['语文', '英语'].includes(subject) && has('writing-expression-fix') && /<div[^>]*class=["'][^"']*zuo-wen-ge/.test(out)) {
       try {
         const tpl3 = document.createElement('template');
         tpl3.innerHTML = out;
@@ -2163,7 +2166,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         'div.tian-zi-ge, div.mi-zi-ge, div.four-line-three, div.sixian-ge, div.pinyin-line, div.zuo-wen-ge, span.tian-zi-ge, span.mi-zi-ge, span.four-line-three, span.sixian-ge, span.pinyin-line'
       // 🔴 2026-09-29（补漏点·同源）：答案区内的格子**不得清空**——答案区里的格子常直接承载答案字
       //    （答案呈现），清空即等于删答案。原 2j-6 无答案区排除，是"答案区判据未全通道接入"的漏点。
-      )).filter((g) => !isInAnswerArea(g, ansBound6));
+      //    🔴 同批去一刀切：`zuo-wen-ge` 为**语文专属**载体，非语文学科若出现属误产，**不代其清空**
+      //    （避免跨学科一刀切改动他科内容）。
+      )).filter((g) => !isInAnswerArea(g, ansBound6))
+        .filter((g) => !(subject !== '语文' && g.classList.contains('zuo-wen-ge')));
       let cleared = 0;
       for (const g of gridEls) {
         // 🔧 示范格豁免（2026-08）：格所在题块/紧邻文本含语义引导（例：/例如/示例/照样子/仿照/示范/仿写）

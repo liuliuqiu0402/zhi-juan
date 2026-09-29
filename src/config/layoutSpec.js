@@ -464,12 +464,10 @@ export const buildLongAnswerCarrierInstruction = (subject = '', stage = '') => {
  *   · 本表只作**学段默认**。上限本质是"卷面一屏能放下多少"，但它**不成立于"答案篇幅由内容长度决定"的题**
  *     （书面表达、多步解答）：这类题给同一学段所有学科一个上限，会把高中英语书面表达（25 分×0.8≈20 行）
  *     与高中多步解答压到 8 行，而语文作文走作文格通道不受此限 → 同学段不同学科需求未被建模。
- *   · 故允许**学科×学段显式覆盖**：在 `ANSWER_REGION[学科][学段].maxRowsPerItem` 写值即覆盖本表
- *     （`getAnswerRegion` 单出口：行内（学科×学段）优先，其次本表；模型侧注入与程序补差**同读该出口**）。
+ *   · 🔴 学科×学段覆盖走**独立顶层表** `ANSWER_MAX_ROWS_BY_SUBJECT`（形如 `{英语:{high:20}}`）——不能写进
+ *     `ANSWER_REGION` 条目（`mergeDeep` 只并 base 已有键，会丢弃 → 覆盖不生效，已实测并改用独立表）。
  *   · ⚠️ **覆盖数值属卷面惯例口径，不在代码里编**：需要覆盖的学科×学段由该口径决定，面板可调
  *     （规格库 UI「作答区行数上限」组，**前提：该规格组处于启用状态**），未设即沿用本表默认。
- *   · 🔴 待查（2026-09-29）：实测"写用户覆盖 → 读取端生效"这条链路**当前未生效**（疑与规格组启停/覆盖
- *     读写有关）。机制与默认值已就位，但**在该链路查清并验证前，不视为可用**。
  *   需求行数 = min(分值 × linePerScore, maxRowsPerItem)，无分值兜底（4/2 行）同样受上限约束。
  *   调节点仍在本规格库：地区卷面差异改这里（勿在补差逻辑里加题型特例）。
  */
@@ -490,6 +488,18 @@ export const ANSWER_MAX_ROWS_BY_STAGE = {
  *    ⚠️ 兜底值**仍受 `ANSWER_MAX_ROWS_BY_STAGE` 单题上限约束**（越不过本学段上限）。
  */
 export const ANSWER_NO_SCORE_ROWS = { item: 4, sub: 2 };
+
+/**
+ * 学科×学段 → 单题作答区行数上限**覆盖表**（**规格库单一事实源**；内置默认空 = 不覆盖）
+ * ============================================================
+ * 为什么单独一张表：`getAnswerRegion` 的 base 来自 `ANSWER_REGION[学科][学段]`，而 `mergeDeep` **只合并
+ *   base 已有的键**——把 `maxRowsPerItem` 写进 `ANSWER_REGION` 的条目会被合并环节丢弃（实测：覆盖不生效）。
+ *   本表为**独立顶层键**、按 `{...内置, ...覆盖}` 浅合并，故用户覆盖必定保留。
+ * 形态：`{ [学科]: { [学段]: 行数 } }`；未列即回退 `ANSWER_MAX_ROWS_BY_STAGE` 的学段默认。
+ * 🔴 数值属**卷面惯例口径**（不在代码里编），面板可调（规格库 UI「作答区行数上限」组）。
+ * 用途：对"答案篇幅由内容长度决定"的题（书面表达、多步解答）按学科×学段给恰当上限。
+ */
+export const ANSWER_MAX_ROWS_BY_SUBJECT = {};
 
 /** 解答题作答空间（学科 × 学段 → 参数）
  *  - carrier：'line' 横线（文字书写引导）/ 'blank-area' 无线空白行（答题卡风格）
@@ -547,10 +557,14 @@ export function getAnswerRegion(subject = '', stage = '') {
   const row = table[subject] || table['*'] || {};
   const base = row[stage] || { linePerScore: 1, lineHeightMm: 8, carrier: 'blank-area' };
   // 🔴 单题作答区行数上限（规格层单一事实源，2026-09-17）：学位/学科行内可显式覆盖，否则取学段表。
+  //    2026-09-29（去一刀切）：学科×学段覆盖改读独立顶层表 ANSWER_MAX_ROWS_BY_SUBJECT（浅合并、覆盖必保留；
+  //    写进 ANSWER_REGION 条目会被 mergeDeep 丢弃——实测覆盖不生效）。
   const capTable = spec.ANSWER_MAX_ROWS_BY_STAGE || ANSWER_MAX_ROWS_BY_STAGE;
+  const subjCapTable = spec.ANSWER_MAX_ROWS_BY_SUBJECT || ANSWER_MAX_ROWS_BY_SUBJECT;
+  const subjectCap = subjCapTable?.[subject]?.[stage];
   const maxRowsPerItem = Number.isFinite(base.maxRowsPerItem)
     ? base.maxRowsPerItem
-    : (Number.isFinite(capTable[stage]) ? capTable[stage] : 8);
+    : (Number.isFinite(subjectCap) ? subjectCap : (Number.isFinite(capTable[stage]) ? capTable[stage] : 8));
   return { ...base, maxRowsPerItem };
 }
 
@@ -651,6 +665,7 @@ function mergeDeep(base, override) {
 export const LAYOUT_SPEC_DEFAULTS = {
   ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, CARRIER_RULES, ANSWER_REGION, SQUARE_GRID,
   BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL, ANSWER_MAX_ROWS_BY_STAGE, ANSWER_NO_SCORE_ROWS,
+  ANSWER_MAX_ROWS_BY_SUBJECT,
 };
 
 /** BLANK 规格消毒：档位越界会导致换算产物无 CSS/无编辑器白名单（blank-25+ 宽度失效） */
@@ -667,7 +682,7 @@ export const LAYOUT_SPEC_GROUPS = {
   zuowen: ['ZUOWEN_CELL', 'ZUOWEN_MARK_STEP', 'ZUOWEN_DEFAULT_SPAN', 'ZUOWEN_CELLS_PER_SCORE'],
   blank: ['BLANK'],
   carrier: ['WRITING_CARRIER', 'GRID_CELL'],
-  answer: ['ANSWER_REGION', 'ANSWER_MAX_ROWS_BY_STAGE', 'ANSWER_NO_SCORE_ROWS'],
+  answer: ['ANSWER_REGION', 'ANSWER_MAX_ROWS_BY_STAGE', 'ANSWER_NO_SCORE_ROWS', 'ANSWER_MAX_ROWS_BY_SUBJECT'],
   square: ['SQUARE_GRID', 'BRACKET_GRID', 'ZUOWEN_FILL_CELLS'],
   'carrier-rules': ['CARRIER_RULES'],
 };
@@ -694,6 +709,8 @@ export function getMergedSpec() {
     //    （getAnswerRegion 的 `spec.ANSWER_MAX_ROWS_BY_STAGE || 内置` 会恒取内置 → UI 形同死字段）
     ANSWER_MAX_ROWS_BY_STAGE: { ...ANSWER_MAX_ROWS_BY_STAGE, ...(user.ANSWER_MAX_ROWS_BY_STAGE || {}) },
     ANSWER_NO_SCORE_ROWS: { ...ANSWER_NO_SCORE_ROWS, ...(user.ANSWER_NO_SCORE_ROWS || {}) },
+    // 学科×学段行数上限覆盖：独立顶层键 + 浅合并 → 用户覆盖必定保留（写进 ANSWER_REGION 条目会被 mergeDeep 丢弃）
+    ANSWER_MAX_ROWS_BY_SUBJECT: { ...ANSWER_MAX_ROWS_BY_SUBJECT, ...(user.ANSWER_MAX_ROWS_BY_SUBJECT || {}) },
     SQUARE_GRID: mergeDeep(SQUARE_GRID, user.SQUARE_GRID),
     BRACKET_GRID: { ...BRACKET_GRID, ...(user.BRACKET_GRID || {}) },
     ZUOWEN_FILL_CELLS: user.ZUOWEN_FILL_CELLS ?? ZUOWEN_FILL_CELLS,
@@ -705,6 +722,7 @@ export default {
   ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, CARRIER_RULES, CARRIER_DECLARATION,
   ANSWER_REGION, SQUARE_GRID,
   BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL, ANSWER_MAX_ROWS_BY_STAGE, ANSWER_NO_SCORE_ROWS,
+  ANSWER_MAX_ROWS_BY_SUBJECT,
   LAYOUT_SPEC_DEFAULTS, LAYOUT_SPEC_GROUPS,
   loadLayoutSpecOverride, saveLayoutSpecOverride, resetLayoutSpecOverride, getMergedSpec, getCarrierAllowlist,
   getAnswerRegion, normalizeStage3,

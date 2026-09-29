@@ -872,15 +872,39 @@ describe('兜底行数入库（规格库单一事实源）', () => {
 });
 
 // 🔴 2026-09-29（去一刀切·候选1）：上限原标称"学科无关"，对"答案篇幅由内容长度决定"的题不成立。
-//   机制：`ANSWER_REGION[学科][学段].maxRowsPerItem` 可显式覆盖本学段默认，`getAnswerRegion` 单出口取用
-//   （模型侧注入与程序补差同读）——**机制与规格库默认值已就位**。
-//   ⚠️ 待查（**未完成，不得当成已完成**）：实测"写入用户覆盖 → 读取端取到"这条链路**当前不生效**
-//   （疑与规格组启停或覆盖读写有关），故本批**不写会转红的用例**，把它列为下一项必查项；
-//   `ANSWER_REGION.*.maxRowsPerItem` 的面板入口以"该规格组启用"为前提（已在规格库注释写明）。
-describe('学科×学段可覆盖行数上限（机制说明；覆盖链路待查，不以未验证状态入库）', () => {
-  it('默认值来自学段表：英语高中 8 行、语文高中 8 行（未被学科覆盖时的口径）', () => {
+//   机制：学科×学段覆盖表 `ANSWER_MAX_ROWS_BY_SUBJECT`（**独立顶层键**，因写进 ANSWER_REGION 条目会被
+//   mergeDeep 丢弃 → 实测覆盖不生效，故换表），`getAnswerRegion` 单出口取用（模型侧注入与程序补差同读）；
+//   未覆盖即回退 `ANSWER_MAX_ROWS_BY_STAGE` 学段默认。数值属卷面惯例口径（不在代码里编）。
+describe('学科×学段可覆盖行数上限（机制验证；数值不写死）', () => {
+  it('未覆盖 → 取学段默认（英语高中 8 / 低段 4）', () => {
     expect(getAnswerRegion('英语', 'high').maxRowsPerItem).toBe(8);
-    expect(getAnswerRegion('语文', 'high').maxRowsPerItem).toBe(8);
     expect(getAnswerRegion('英语', 'primary_low').maxRowsPerItem).toBe(4);
+  });
+
+  it('写入覆盖 → 读取端生效；不波及其它学科；清零后回默认', async () => {
+    const L = await import('../../src/config/layoutSpec.js');
+    try {
+      L.saveLayoutSpecOverride({ ...L.loadLayoutSpecOverride(), ANSWER_MAX_ROWS_BY_SUBJECT: { 英语: { high: 20 } } });
+      expect(L.getAnswerRegion('英语', 'high').maxRowsPerItem, '覆盖未生效').toBe(20);
+      expect(L.getAnswerRegion('英语', 'primary_low').maxRowsPerItem, '同学段外的学段不应变').toBe(4);
+      expect(L.getAnswerRegion('语文', 'high').maxRowsPerItem, '不应波及其它学科').toBe(8);
+      expect(L.getMergedSpec().ANSWER_MAX_ROWS_BY_SUBJECT, '必须进合并白名单').toBeTruthy();
+    } finally {
+      L.resetLayoutSpecOverride();
+    }
+    expect(L.getAnswerRegion('英语', 'high').maxRowsPerItem, '清零后应回默认').toBe(8);
+  });
+
+  it('覆盖生效到补差链路：英语高中书面表达补差行数随覆盖上限提高（原被 8 行截断）', async () => {
+    const L = await import('../../src/config/layoutSpec.js');
+    const html = '<h2>一、书面表达（20分）</h2><p>1. 书面表达：请以 My School 为题写一篇短文。（20分）</p>';
+    const baseN = (auditExamPaper(html, { subject: '英语', stage: 'high', genType: 'exam' }).html.match(/blank-line/g) || []).length;
+    try {
+      L.saveLayoutSpecOverride({ ...L.loadLayoutSpecOverride(), ANSWER_MAX_ROWS_BY_SUBJECT: { 英语: { high: 20 } } });
+      const upN = (auditExamPaper(html, { subject: '英语', stage: 'high', genType: 'exam' }).html.match(/blank-line/g) || []).length;
+      expect(upN, '覆盖上限后应超过原值').toBeGreaterThan(baseN);
+    } finally {
+      L.resetLayoutSpecOverride();
+    }
   });
 });
