@@ -507,9 +507,9 @@
         >
           ⇄
         </button>
-        <!-- 把选中的连线题各行（左项 空位 右项）规范为两列连线结构（右列打乱、去掉空位） -->
+        <!-- 把选中的连线题各行（左项 分隔位 右项）规范为两列连线结构（右列打乱、去掉分隔位） -->
         <button
-          title="规范为连线题：框选各行（每行形如 左项 空位 右项）→ 两列连线结构（右列打乱、去掉空位）"
+          title="规范为连线题：框选各行（每行形如 左项 分隔位 右项）→ 两列连线结构（右列打乱、去掉分隔位）。分隔位可为：填空空位、空白括号（　）、≥2 全角空格、下划线 ____、破折号 —— 或箭头 →"
           @click="normalizeMatchSelection"
         >
           ⛓
@@ -1739,38 +1739,103 @@ const shuffleMatchRight = () => {
 // 手动行为（用户裁定 2026-09-30）：模型偶发把"连一连"写成**同行线性段落**
 //   （`左项 <空位> 右项`）——左|右相邻即答案、且导出端只认两列 match-question 结构
 //   （docxBuilder.js 连线分支）→ 由用户框选后一键规范。
-//   · 输入：框选的行；每行须**恰一个空位**且空位两侧各有文字，才算"可切分行"
-//   · 输出：连续可切分行 → 一个 div.match-question（左列保序、右列打乱、**去掉空位**）
+//   · 输入：框选的段落；**文本块可嵌套**（题干/连线行常被包在 <div> 里），段内又可含 <br> 多行
+//   · 每行须**恰一个分隔位**且两侧各有文字，才算"可切分行"；连续可切分行成组（≥2 行成题）
+//   · 输出：每组 → 一个 div.match-question（左列保序、右列打乱、**去掉分隔位**）
 //   · 不可切分行（题干等）原样不动 → 可整题连题干一起框选
 //   · 走编辑器事务（可撤销）；右列打乱只换顺序、不判断答案（对错人工肉眼核对）
 //   🔴 刻意**不做**关键词自动识别（"连一连"等词判据属指向性诱导），只做用户显式触发的形态转换
+//
+// 🔴 分隔位形态**必须兼容模型的多副样子**（实测 2026-09-30）：模型既不保证用 <u class="blank-N">，
+//   也不保证把分隔位单独放在一个节点里。已覆盖的分隔位形态：
+//   ① `blank-N` 标记（<u>/<span> 承载，class 可能整体丢失 → 退化为裸 <u>）
+//   ② 带下划线的纯空白（class 丢失时的兜底）
+//   ③ ≥2 连续空白（半角空格/全角空格/制表符）——含**嵌在文本节点内部**的
+//   ④ ≥2 连续下划线 ____
+//   ⑤ 空白括号：（　）/ （  ）/ (  )  ——中英全半角皆可，同样可嵌在文本节点内部
+//   ⑥ ≥2 连续破折号/连字符 —— / --  与箭头 →
+//   ⚠️ 形态 ③⑤⑥ 常**藏在一个文本节点中间**，故判定必须按"节点内部分隔符切 token"，不能只看整节点。
 const BLANK_CLS_RE = /(^|\s)blank-\d+(\s|$)/;
 const isBlankMark = (m) => (m.type.name === 'underline'
   ? BLANK_CLS_RE.test(m.attrs.class || '')
   : (m.type.name === 'preserveSpan' ? BLANK_CLS_RE.test(m.attrs.preservedClass || '') : false));
-const isBlankTextRun = (t) => /^[\s\u3000]{2,}$/.test(t || '');
+const WS_ONLY_RE = /^[\s\u3000]+$/;                 // 纯空白（配下划线即视为分隔位）
+// 行内分隔位字面形态。⚠️ 只用**不会被 HTML 空白折叠**的形态：
+//   半角连续空格/制表符在编辑器解析时会被折叠成单个空格（实测），故一律要求 ≥2 且不可依赖；
+//   真正可靠的是 全角空格 U+3000 / 不换行空格 U+00A0 的 ≥2 连续（它们不参与折叠）。
+//   括号空位、下划线串、破折号、箭头也都是逐字保留的，不受折叠影响。空白/破折号/箭头**不含换行**。
+const SEP_RE = /([（(][\u3000\t \u00a0]*[)）]|[\u3000\u00a0]{2,}|[\t ]{2,}|_{2,}|—{2,}|-{2,}|→)/;
 const escapeHtmlText = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-/** 把一行块按"空位"切成左右两项；恰一个空位且两侧非空才算可切（否则 null） */
-const splitLineByBlank = (block) => {
-  const parts = [[], []];
-  let seg = 0;
-  let blanks = 0;
-  let ok = true;
-  block.forEach((child) => {
-    if (!child.isText) { parts[seg].push(child.textContent || ''); return; }
-    if (child.marks.some(isBlankMark) || isBlankTextRun(child.text)) {
-      blanks += 1;
-      if (blanks > 1) ok = false;
-      seg = 1;
+/** 文本块 → 各行（段内按 hardBreak 切）及绝对范围（供替换用） */
+const textblockLines = (node, pos) => {
+  const lines = [];
+  let items = [];
+  let start = pos + 1;
+  let off = pos + 1;
+  node.forEach((child) => {
+    const cFrom = off;
+    off += child.nodeSize;
+    if (child.type.name === 'hardBreak') {
+      lines.push({ from: start, to: cFrom, items });
+      items = [];
+      start = off;
       return;
     }
-    parts[seg].push(child.text);
+    items.push(child);
   });
-  const left = parts[0].join('').trim();
-  const right = parts[1].join('').trim();
-  return (ok && blanks === 1 && left && right) ? { left, right } : null;
+  lines.push({ from: start, to: pos + node.nodeSize - 1, items });
+  return lines;
 };
+
+/** 一行 → token 序列（{blank:true} 为分隔位，{text} 为正文）；**文本节点内部**的分隔位也要切出来
+ *  strong=true 表示分隔位有**显式载体**（blank-N 标记 / 带下划线的空白）——高置信度；
+ *  文本内部切出来的分隔位（空白串/括号/下划线/破折号/箭头）为低置信度，另加闸门见 pairOf。 */
+const lineTokens = (items) => {
+  const tokens = [];
+  const putText = (t) => { if (t) tokens.push({ blank: false, text: t }); };
+  const putBlank = (strong) => tokens.push({ blank: true, strong: !!strong });
+  for (const child of items) {
+    if (!child.isText) { putText(child.textContent || ''); continue; }
+    const t = child.text || '';
+    const marked = child.marks.some(isBlankMark);
+    const underlined = child.marks.some((m) => m.type.name === 'underline');
+    if (marked || (WS_ONLY_RE.test(t) && underlined)) { putBlank(marked || underlined); continue; }
+    if (!SEP_RE.test(t)) { putText(t); continue; }
+    const re = new RegExp(SEP_RE.source, 'g');
+    let last = 0;
+    let m;
+    while ((m = re.exec(t)) !== null) {
+      putText(t.slice(last, m.index));
+      putBlank(false);
+      last = m.index + m[0].length;
+    }
+    putText(t.slice(last));
+  }
+  return tokens;
+};
+
+/** 一行 → {blanks, left, right, strong}；恰一个分隔位且两侧非空才可切（行首/行尾的空白不算分隔位） */
+const scanLine = (items) => {
+  const tokens = lineTokens(items);
+  let a = 0;
+  let b = tokens.length;
+  while (a < b && tokens[a].blank) a += 1;
+  while (b > a && tokens[b - 1].blank) b -= 1;
+  const core = tokens.slice(a, b);
+  const blanks = core.filter((t) => t.blank).length;
+  const idx = core.findIndex((t) => t.blank);
+  const left = core.slice(0, idx).map((t) => t.text).join('').trim();
+  const right = core.slice(idx + 1).map((t) => t.text).join('').trim();
+  const strong = idx >= 0 && !!core[idx].strong;
+  return { blanks, left, right, strong };
+};
+// 句末标点：连线项是词/短语，不以句末标点收尾。低置信度分隔位（题干里的「（　　）」等）
+// 若右侧以句末标点收尾，更像"题干/填空句"而非连线项 → 不当连线行（防误转，且不影响正常连线项）
+const SENT_END_RE = /[。！？；]$/;
+const pairOf = (s) => (s.blanks === 1 && s.left && s.right && (s.strong || !SENT_END_RE.test(s.right))
+  ? { left: s.left, right: s.right }
+  : null);
 
 const normalizeMatchSelection = () => {
   const e = editor.value;
@@ -1778,30 +1843,54 @@ const normalizeMatchSelection = () => {
   const { doc, selection } = e.state;
   const { from, to } = selection;
   if (from === to) {
-    carrierPanel.value = { kind: 'notice', tip: '请先框选连线题的各行（每行形如：左项 空位 右项）' };
+    carrierPanel.value = { kind: 'notice', tip: '请先框选连线题的各行（每行形如：左项 分隔位 右项）' };
     return;
   }
-  // 取"与选区有交集的顶层块"（⚠️ 不可用 $pos.before(1)：PM 在块边界处 resolve 落到 depth 0，会误判）
+  // 递归收集与选区有交集的**文本块**（题干/连线行可能嵌在 <div> 里，不能只看顶层）
   const blocks = [];
-  doc.forEach((child, offset) => blocks.push({ child, offset, end: offset + child.nodeSize }));
-  const picked = blocks.filter((b) => b.end > from && b.offset < to);
-  if (!picked.length) {
+  doc.descendants((node, pos) => {
+    if (node.isTextblock) {
+      if (pos + node.nodeSize > from && pos < to) blocks.push({ node, pos });
+      return false;
+    }
+    return true;
+  });
+  if (!blocks.length) {
     carrierPanel.value = { kind: 'notice', tip: '选区不在正文段落内，无法规范' };
     return;
   }
-  // 连续可切分行 → 一段（成题）；不可切分行断开分段（题干等原样不动）
-  const runs = [];
+  // 连续可切分行成组（≥2 行成题）；不可切分行断开分组（题干等原样保留）
+  // 🔴 游标必须**跨段**持有：真实连线题每行各成一段（也允许同段用 <br> 分行），
+  //    若按段重置，则每段只攒到 1 行 → 永远不满足"≥2 行成题"（已实测踩坑）。
+  const groups = [];
+  let seenLines = 0;
+  let okLines = 0;
   let cur = null;
-  for (const b of picked) {
-    const p = splitLineByBlank(b.child);
-    if (!p) { cur = null; continue; }
-    if (!cur) { cur = { from: b.offset, to: b.end, items: [] }; runs.push(cur); }
-    cur.to = b.end;
-    cur.items.push(p);
+  for (const b of blocks) {
+    const blockStart = b.pos + 1;
+    const blockEnd = b.pos + b.node.nodeSize - 1;
+    for (const ln of textblockLines(b.node, b.pos)) {
+      seenLines += 1;
+      const p = pairOf(scanLine(ln.items));
+      if (!p) { cur = null; continue; }
+      okLines += 1;
+      if (!cur) {
+        cur = { from: ln.from, to: ln.to, firstBlock: { blockStart, blockEnd }, lastBlock: { blockStart, blockEnd }, items: [] };
+        groups.push(cur);
+      } else {
+        cur.to = ln.to;
+        cur.lastBlock = { blockStart, blockEnd };
+      }
+      cur.items.push(p);
+    }
   }
-  const usable = runs.filter((r) => r.items.length >= 2);
+  const usable = groups.filter((g) => g.items.length >= 2);
   if (!usable.length) {
-    carrierPanel.value = { kind: 'notice', tip: '未识别到可规范的连线行（需 ≥2 行，每行恰一个空位、空位两侧各有文字）' };
+    carrierPanel.value = {
+      kind: 'notice',
+      tip: `未识别到可规范的连线行（选中 ${seenLines} 行，其中 ${okLines} 行可切分）。需 ≥2 行连续、每行恰一个分隔位、`
+        + `且分隔位两侧各有文字；分隔位可为：填空空位、空白括号（　）、≥2 个全角空格、下划线 ____、破折号 —— 或箭头 →`,
+    };
     return;
   }
   const matchHtml = (items) => {
@@ -1818,9 +1907,20 @@ const normalizeMatchSelection = () => {
     }
     return `<div class="match-question">${col(items.map((p) => p.left))}${col(right)}</div>`;
   };
-  // 由后往前替换（位置取自原文档，倒序避免位移漂移）；整链一次事务，失败即整体回滚
+  // 由后往前替换（倒序避免位移漂移）；整链一次事务，失败即整体回滚。
+  // 组首行铺满整段 → 连该段一起换掉（不留空段落）；组跨段时按首/末段各自判断
   const chain = e.chain();
-  for (const r of [...usable].reverse()) chain.insertContentAt({ from: r.from, to: r.to }, matchHtml(r.items));
+  for (const g of [...usable].reverse()) {
+    const wholeStart = g.from === g.firstBlock.blockStart;
+    const wholeEnd = g.to === g.lastBlock.blockEnd;
+    chain.insertContentAt(
+      {
+        from: wholeStart ? g.firstBlock.blockStart - 1 : g.from,
+        to: wholeEnd ? g.lastBlock.blockEnd + 1 : g.to,
+      },
+      matchHtml(g.items),
+    );
+  }
   chain.run();
   carrierPanel.value = { kind: 'notice', tip: `已规范 ${usable.length} 处连线题为两列结构` };
 };

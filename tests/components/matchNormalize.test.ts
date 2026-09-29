@@ -98,3 +98,194 @@ describe('连线题·规范为两列结构（编辑器手动行为）', () => {
     wrapper.unmount();
   });
 });
+
+// 2026-09-30 用户实测：样例在编辑器里点"规范为连线题"报"未识别到可规范的连线行"。
+// 根因是识别只扫**顶层块**——真实内容里连线行常被包在 <div> 里，或几行同处一段用 <br> 分行，
+// 于是整块被当成"无空位"。以下四种真实形态都必须能转。
+describe('连线题·规范（真实形态兼容：嵌套容器 / <br> 分行 / 空位形态）', () => {
+  const selectAll = (editor: any) => {
+    editor.commands.setTextSelection({ from: 1, to: editor.state.doc.content.size - 1 });
+  };
+
+  it('连线行被包在 <div> 里 → 仍能识别并规范', async () => {
+    const wrapper = await mountEditor('<div class="question-block">'
+      + '<p class="question">33. 请连一连。（4分）</p>'
+      + '<p>落进池塘<u class="blank-6"> </u>花儿露出笑脸</p>'
+      + '<p>落进田野<u class="blank-6"> </u>鱼儿摇着尾巴</p>'
+      + '<p>落进花园<u class="blank-6"> </u>麦苗张开小嘴</p>'
+      + '</div>');
+    const editor = (wrapper.vm as any).editor;
+    selectAll(editor);
+    await btn(wrapper).trigger('click');
+    await wait(50);
+
+    const html = editor.getHTML();
+    const cols = colsOf(html);
+    expect(cols.length, '应转成两列').toBe(2);
+    expect(cols[0], '左列保序').toEqual(['落进池塘', '落进田野', '落进花园']);
+    expect([...cols[1]].sort(), '右列项集合不变').toEqual(['花儿露出笑脸', '鱼儿摇着尾巴', '麦苗张开小嘴']);
+    expect(html, '空位应被去掉').not.toMatch(/blank-\d/);
+    expect(html, '题干不得受损').toContain('请连一连');
+    wrapper.unmount();
+  });
+
+  it('三行同处一段、以 <br> 分行 → 仍能识别并规范', async () => {
+    const wrapper = await mountEditor('<p>落进池塘<u class="blank-6"> </u>花儿露出笑脸<br>'
+      + '落进田野<u class="blank-6"> </u>鱼儿摇着尾巴<br>'
+      + '落进花园<u class="blank-6"> </u>麦苗张开小嘴</p>');
+    const editor = (wrapper.vm as any).editor;
+    selectAll(editor);
+    await btn(wrapper).trigger('click');
+    await wait(50);
+
+    const html = editor.getHTML();
+    const cols = colsOf(html);
+    expect(cols.length, '应转成两列').toBe(2);
+    expect(cols[0], '左列保序').toEqual(['落进池塘', '落进田野', '落进花园']);
+    expect([...cols[1]].sort(), '右列项集合不变').toEqual(['花儿露出笑脸', '鱼儿摇着尾巴', '麦苗张开小嘴']);
+    expect(html, '空位应被去掉').not.toMatch(/blank-\d/);
+    wrapper.unmount();
+  });
+
+  it('空位 class 丢失（裸 <u> 单个空白）→ 按"带下划线的纯空白"识别', async () => {
+    const wrapper = await mountEditor('<p>落进池塘<u> </u>花儿露出笑脸</p>'
+      + '<p>落进田野<u> </u>鱼儿摇着尾巴</p>');
+    const editor = (wrapper.vm as any).editor;
+    selectAll(editor);
+    await btn(wrapper).trigger('click');
+    await wait(50);
+
+    const cols = colsOf(editor.getHTML());
+    expect(cols.length, '应转成两列').toBe(2);
+    expect(cols[0], '左列保序').toEqual(['落进池塘', '落进田野']);
+    wrapper.unmount();
+  });
+
+  it('空位写作空白括号（　）→ 也能识别', async () => {
+    const wrapper = await mountEditor('<p>落进池塘（\u3000\u3000）花儿露出笑脸</p>'
+      + '<p>落进田野（\u3000\u3000）鱼儿摇着尾巴</p>');
+    const editor = (wrapper.vm as any).editor;
+    selectAll(editor);
+    await btn(wrapper).trigger('click');
+    await wait(50);
+
+    const cols = colsOf(editor.getHTML());
+    expect(cols.length, '应转成两列').toBe(2);
+    expect(cols[0], '左列保序').toEqual(['落进池塘', '落进田野']);
+    wrapper.unmount();
+  });
+});
+
+// 2026-09-30 追加：模型输出"连一连"的**分隔位形态五花八门**，且常常整行只是**一个文本节点**，
+// 分隔位藏在节点内部。以下每种形态都必须能转；同时给两类反例加锁，确保不误伤普通段落。
+describe('连线题·规范（模型输出分隔位形态兼容）', () => {
+  const selectAll = (editor: any) => {
+    editor.commands.setTextSelection({ from: 1, to: editor.state.doc.content.size - 1 });
+  };
+  const runOn = async (html: string) => {
+    const wrapper = await mountEditor(html);
+    const editor = (wrapper.vm as any).editor;
+    selectAll(editor);
+    await btn(wrapper).trigger('click');
+    await wait(50);
+    return { wrapper, editor };
+  };
+
+  it('全角空格（≥2）分隔、且嵌在文本节点内部 → 能识别', async () => {
+    const { wrapper, editor } = await runOn('<p>落进池塘\u3000\u3000花儿露出笑脸</p>'
+      + '<p>落进田野\u3000\u3000鱼儿摇着尾巴</p>'
+      + '<p>落进花园\u3000\u3000麦苗张开小嘴</p>');
+    const cols = colsOf(editor.getHTML());
+    expect(cols.length, '应转成两列').toBe(2);
+    expect(cols[0], '左列保序').toEqual(['落进池塘', '落进田野', '落进花园']);
+    expect([...cols[1]].sort()).toEqual(['花儿露出笑脸', '鱼儿摇着尾巴', '麦苗张开小嘴']);
+    wrapper.unmount();
+  });
+
+  it('半角连续空格会被编辑器折叠成单个空格 → 不当作分隔位（已知限制，如实加锁）', async () => {
+    const { wrapper, editor } = await runOn('<p>落进池塘    花儿露出笑脸</p>'
+      + '<p>落进田野    鱼儿摇着尾巴</p>');
+    expect((wrapper.vm as any).carrierPanel?.kind).toBe('notice');
+    expect(colsOf(editor.getHTML()).length, '不得产出连线题').toBe(0);
+    wrapper.unmount();
+  });
+
+  it('下划线 ____ 分隔 → 能识别', async () => {
+    const { wrapper, editor } = await runOn('<p>落进池塘____花儿露出笑脸</p>'
+      + '<p>落进田野____鱼儿摇着尾巴</p>');
+    const cols = colsOf(editor.getHTML());
+    expect(cols.length, '应转成两列').toBe(2);
+    expect(cols[0], '左列保序').toEqual(['落进池塘', '落进田野']);
+    expect(editor.getHTML(), '分隔位应被去掉').not.toContain('____');
+    wrapper.unmount();
+  });
+
+  it('箭头 → 分隔 → 能识别', async () => {
+    const { wrapper, editor } = await runOn('<p>落进池塘 → 花儿露出笑脸</p>'
+      + '<p>落进田野 → 鱼儿摇着尾巴</p>');
+    const cols = colsOf(editor.getHTML());
+    expect(cols.length, '应转成两列').toBe(2);
+    expect(cols[0], '左列保序').toEqual(['落进池塘', '落进田野']);
+    wrapper.unmount();
+  });
+
+  it('破折号 —— 分隔 → 能识别', async () => {
+    const { wrapper, editor } = await runOn('<p>落进池塘——花儿露出笑脸</p>'
+      + '<p>落进田野——鱼儿摇着尾巴</p>');
+    const cols = colsOf(editor.getHTML());
+    expect(cols.length, '应转成两列').toBe(2);
+    expect(cols[0], '左列保序').toEqual(['落进池塘', '落进田野']);
+    wrapper.unmount();
+  });
+
+  it('同一题内混用不同分隔位（括号 + 全角空格）→ 仍按连续行成一组', async () => {
+    const { wrapper, editor } = await runOn('<p>落进池塘（\u3000）花儿露出笑脸</p>'
+      + '<p>落进田野\u3000\u3000鱼儿摇着尾巴</p>');
+    const cols = colsOf(editor.getHTML());
+    expect(cols.length, '应转成两列').toBe(2);
+    expect(cols[0], '左列保序').toEqual(['落进池塘', '落进田野']);
+    wrapper.unmount();
+  });
+
+  it('两组连线行被题干行隔开 → 各成一题', async () => {
+    const { wrapper, editor } = await runOn('<p>落进池塘（\u3000\u3000）花儿露出笑脸</p>'
+      + '<p>落进田野（\u3000\u3000）鱼儿摇着尾巴</p>'
+      + '<p>4. 请再连一连。</p>'
+      + '<p>春天（\u3000\u3000）桃花开了</p>'
+      + '<p>夏天（\u3000\u3000）荷花开了</p>');
+    const html = editor.getHTML();
+    expect((html.match(/match-question/g) || []).length, '应出两处连线题').toBe(2);
+    expect(html, '中间题干行保留').toContain('请再连一连');
+    wrapper.unmount();
+  });
+
+  it('反例：普通段落每行有多个分隔位 → 不改内容、给提示', async () => {
+    const src = '<p>落进池塘\u3000\u3000花儿\u3000\u3000露出笑脸</p>'
+      + '<p>落进田野（\u3000）鱼儿（\u3000）摇着尾巴</p>';
+    const { wrapper, editor } = await runOn(src);
+    expect((wrapper.vm as any).carrierPanel?.kind).toBe('notice');
+    expect(editor.getHTML(), '不得改动内容').toBe(src);
+    expect(colsOf(editor.getHTML()).length, '不得产出连线题').toBe(0);
+    wrapper.unmount();
+  });
+
+  it('反例：填空题干含「（　　）」且右句以句末标点收尾 → 不误转', async () => {
+    const src = '<p>31. 短文中的"我"是什么（\u3000\u3000），请填在横线上。</p>'
+      + '<p>32. "我"会变成什么（\u3000\u3000），请写下来。</p>';
+    const { wrapper, editor } = await runOn(src);
+    expect((wrapper.vm as any).carrierPanel?.kind).toBe('notice');
+    expect(editor.getHTML(), '不得改动内容').toBe(src);
+    expect(colsOf(editor.getHTML()).length, '不得产出连线题').toBe(0);
+    wrapper.unmount();
+  });
+
+  it('反例：仅一行含分隔位（题干含「（　）」不算题）→ 不改内容、给提示', async () => {
+    const src = '<p>33. 小水滴落进池塘、田野和花园，分别做了什么？请连一连。（4分）</p>'
+      + '<p>落进池塘（\u3000\u3000）花儿露出笑脸</p>';
+    const { wrapper, editor } = await runOn(src);
+    expect((wrapper.vm as any).carrierPanel?.kind).toBe('notice');
+    expect(editor.getHTML(), '不得改动内容').toBe(src);
+    expect(colsOf(editor.getHTML()).length, '不得产出连线题').toBe(0);
+    wrapper.unmount();
+  });
+});
