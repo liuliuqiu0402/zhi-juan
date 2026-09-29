@@ -10,6 +10,19 @@
 import { getMergedSpec } from '../config/layoutSpec.js';
 
 /**
+ * 答案区起点 —— **唯一口径**（2026-09-17 起在本文件计数口径使用；2026-09-29 收为导出单源）
+ * ============================================================
+ * 判据：容器 `<div class="answer-section">`，**或**"参考答案"起头的 h1~h6 标题（模型漏包容器时的回退）。
+ * 消费方：本文件题号计数口径、`examValidator` 的答案区边界（1.5.2 重复截断 / 正文区文本 / 2j-3b /
+ *   2j-4 / 2j-5 / 2j-5b / 2k 补作答空间）——**各处不得再自写一份正则**。
+ * 背景：答案区容器由 examValidator 步骤 3a **事后补包**（3a 的存在即说明模型会漏包）；只认容器会让
+ *   上述排除在漏包时同时失效（实测：答案区被当正文 → 重复截断丢答案内容 / 往答案区补作答横线）。
+ */
+export const ANSWER_SECTION_START_RE = /<div[^>]*class=["'][^"']*answer-section|<h[1-6][^>]*>\s*参考答案/i;
+/** 切出"答案区之前"的正文区（无答案区则原样返回） */
+export const bodyBeforeAnswer = (src = '') => String(src || '').split(ANSWER_SECTION_START_RE)[0];
+
+/**
  * XSS 剥离（负向剥离，零排版影响）
  * ============================================================
  * 只删除"可执行向量"，保留全部排版结构（标签结构 / class / style 内联样式 / 属性）：
@@ -219,7 +232,7 @@ const extractQuestionHits = (html = '', { part = 'body', compact = false } = {})
   //    会把整段判成答案区而返回空（计数恒 0）。故答案区计数须显式传 part:'answer'（不切）。
   const bodyOnly = part === 'answer'
     ? src
-    : src.split(/<div[^>]*class=["'][^"']*answer-section|<h[1-6][^>]*>\s*参考答案/i)[0];
+    : bodyBeforeAnswer(src);
   // 🔧 2026-09-17：剥标签后**保留空白实体的字面文本**（&emsp;/&nbsp;…），靠下面各正则自带的
   //    "实体空白"分支把它们当空白处理——**不预先解码**：解码会把 `&emsp;` 变成一个普通空格，
   //    而"紧跟作答位"的判据需要区分"空位"与词间空格（解码后无法区分，实证：行内编号空位漏识别）。
@@ -372,7 +385,7 @@ export function analyzeQuestionNumbering(html = '', opts = {}) {
 export function extractBodyQuestionSequence(html = '') {
   const src = String(html || '');
   if (!src.trim()) return [];
-  const bodyOnly = src.split(/<div[^>]*class=["'][^"']*answer-section|<h[1-6][^>]*>\s*参考答案/i)[0];
+  const bodyOnly = bodyBeforeAnswer(src);
   const normalized = decodeWsEntityLiterals(bodyOnly
     .replace(/<(?:u|span)[^>]*class=["'][^"']*blank-[^"']*["'][^>]*>[\s\S]*?<\/(?:u|span)>/gi, '') // 作答空位
     .replace(/[（(][\s\u3000]*[）)]/g, '')                                                          // 空括号（　）

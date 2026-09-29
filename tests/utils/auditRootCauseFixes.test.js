@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { getPromptTemplate } from '../../src/config/promptLibrary.js';
 import {
   auditExamPaper,
   countGridCells,
@@ -687,5 +688,33 @@ describe('根治回归：答案区边界与容器解耦（漏包容器时不再�
     const out = run(`${body}<div class="answer-section"><h2>参考答案与解析</h2>${ansInner}</div>`).html;
     expect(out).toContain('1. 汽');
     expect(out).toContain('因为豆芽每天都有变化');
+  });
+});
+
+// 🔴 2026-09-29 用户实证：「三、我的新发现」与「九、我的新发现」**撞名**（同一份卷同一题名）。
+//   源头根治：① 指令侧——大题标题命名单源 `promptLibrary.bigTitleRule` 增加"不得重名"条（单源唯此一处）；
+//   ② 程序侧——2j-0b 抽检（notice 级、只报不改）：去序号后的题名（"——"前的名字段）不得两处相同。
+describe('根治回归：大题标题重名（源头根治 = 单源条款 + 程序抽检）', () => {
+  it('题名撞名 → notice 抽检（「三、我的新发现」/「九、我的新发现」）', () => {
+    const html = '<h2>三、我的新发现——读句子，选择正确的字填在括号里（共1题，共2分）</h2>'
+      + '<p>1. 甲（　）</p>'
+      + '<h2>九、我的新发现——看图写话（共1题，共16分）</h2>'
+      + '<p>2. 乙（　）</p>';
+    const { silentDetails } = run(html);
+    expect(silentDetails.some((d) => d.type === 'cn-ordinal' && /重名/.test(d.message))).toBe(true);
+  });
+
+  it('题名各不相同 → 不报（防误报：破折号前的名字段不同即视为不重名）', () => {
+    const html = '<h2>一、播下小豆种——看拼音写词语（共1题，共3分）</h2><p>1. 甲（　）</p>'
+      + '<h2>二、豆芽悄悄长——读句子（共1题，共3分）</h2><p>2. 乙（　）</p>';
+    const { silentDetails } = run(html);
+    expect(silentDetails.some((d) => d.type === 'cn-ordinal' && /重名/.test(d.message))).toBe(false);
+  });
+
+  it('命名单源已含"不得重名"条（防回潮：条款进入注入模板）', () => {
+    for (const stage of ['primary_low', 'middle', 'high']) {
+      const tpl = getPromptTemplate({ grade: stage, subject: '语文', genType: 'exam' });
+      expect(tpl.template, `学段 ${stage} 缺"大题标题不得重名"条`).toContain('大题标题不得重名');
+    }
   });
 });

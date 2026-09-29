@@ -11,7 +11,7 @@ import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATIO
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
 import { checkFigurePrompts } from './figurePromptCheck.js'; // 🔴 题干 ↔ 配图 PROMPT 数量交叉校验（2026-09-16）
-import { analyzeQuestionNumbering, detectCnOrdinalHeadingIssues, spaceBlankWidth } from './contentCleaner.js'; // 🔴 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
+import { analyzeQuestionNumbering, detectCnOrdinalHeadingIssues, spaceBlankWidth, bodyBeforeAnswer } from './contentCleaner.js'; // 🔴 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
 
 // ---------- 通用正则 ----------
 // 全角拼音字符归一表（IPA 音标字符混入小学拼音、全角字母）
@@ -442,30 +442,24 @@ export const classifyNumberedBranches = (numberedPs = []) => {
  *     · 1.5.2 正文重复截断：答案区里**同名大题标题**被判为"正文重复" → 在答案区中途截断
  *       → **答案区内容整段丢失**（用户记忆中的"答案区答案丢失"即此路径）；
  *     · 2k 补作答空间：答案区被当正文大题 → **往答案区里补作答横线**（误补）。
- * 判据（与容器解耦）：优先容器；回退"参考答案/答案与解析/答案与评分/答案及解析"一类**标题**。
- * 消费方：1.5.2 / 正文区文本 / 2j-3b / 2j-4 / 2j-5 / 2j-5b / 2k——一律走本处，不得再各写一遍正则。
+ * 判据（与容器解耦）：**唯一口径见 `contentCleaner.ANSWER_SECTION_START_RE`**——容器 `<div class="answer-section">`，
+ *   或"参考答案"起头的 h1~h6 标题；本处只做 DOM/下标包装，**不得另写一份正则**（2026-09-29 收敛：
+ *   曾自写"参考答案|答案与解析|答案与评分"宽口径，会误切含该词的普通大题标题 → 已废）。
+ * 消费方：1.5.2 / 正文区文本 / 2j-3b / 2j-4 / 2j-5 / 2j-5b / 2k——一律走本处。
  */
-export const ANSWER_HEADING_RE = /参考答案|答案与解析|答案与评分|答案及解析/;
 /** 字符串切片用：返回答案区起始下标（无答案区返回 -1） */
 export const answerAreaStartIndex = (html = '') => {
-  const box = /<div[^>]*class=["'][^"']*answer-section/i.exec(html);
-  if (box) return box.index;
-  const hRe = /<h[1-6]\b[^>]*>/gi;
-  let m;
-  while ((m = hRe.exec(html)) !== null) {
-    const close = html.indexOf('</h', m.index);
-    const seg = close > m.index ? html.slice(m.index, close) : html.slice(m.index, m.index + 120);
-    if (ANSWER_HEADING_RE.test(seg)) return m.index;
-  }
-  return -1;
+  const src = String(html || '');
+  const body = bodyBeforeAnswer(src);
+  return body.length < src.length ? body.length : -1;
 };
-/** DOM 用：返回答案区边界元素（容器，或未包容器时的"参考答案"标题） */
+/** DOM 用：返回答案区边界元素（容器，或未包容器时"参考答案"起头的标题） */
 export const findAnswerBound = (root) => {
   if (!root || typeof root.querySelector !== 'function') return null;
   const box = root.querySelector('.answer-section');
   if (box) return box;
   return Array.from(root.querySelectorAll('h1, h2, h3, h4, h5, h6'))
-    .find((h) => ANSWER_HEADING_RE.test(h.textContent || '')) || null;
+    .find((h) => /^\s*参考答案/.test(h.textContent || '')) || null;
 };
 /** DOM 用：该节点是否属答案区（容器 → contains；未包容器的标题 → 该标题及其后） */
 export const isInAnswerArea = (el, bound) => {
@@ -1043,6 +1037,28 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     //    （标题侧不再用整卷单一文本：2j-5 改为**逐大题**比对，见下。）
     const stemNoHeadText = bodyNoAnsHtml.replace(/<h[2-4][^>]*>[\s\S]*?<\/h[2-4]>/gi, '\n')
       .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
+    // 2j-0b 大题标题重名抽检（2026-09-29 用户实证：「三、我的新发现」与「九、我的新发现」撞名）
+    //   同一份卷内，**去序号后的题名（"——"前的名字段）**不得两处相同——卷面同名易混，答案区也更难逐题对应。
+    //   命名口径唯见 promptLibrary.bigTitleRule 单源；本处只报不改（notice 级，交编辑核对）。
+    if (has('cn-ordinal-guard') && genType === 'exam') {
+      try {
+        const tplN = document.createElement('template');
+        tplN.innerHTML = out;
+        const seenN = new Map();
+        const dupN = [];
+        for (const h of Array.from(tplN.content.querySelectorAll('h1, h2, h3'))) {
+          const raw = (h.textContent || '').trim();
+          const m = raw.match(/^([一二三四五六七八九十百]+)\s*[、.．]\s*([\s\S]+)$/);
+          if (!m) continue;
+          const name = m[2].split('——')[0].replace(/[（(][^）)]*分[^）)]*[）)]/g, '').trim();
+          if (!name) continue;
+          if (seenN.has(name)) dupN.push(`${seenN.get(name)}/${m[1]}`); else seenN.set(name, m[1]);
+        }
+        if (dupN.length) {
+          silentCount('cn-ordinal', `大题标题重名（${dupN.join('、')}）——同一份卷内各大题题名不得两处相同，请抽检`);
+        }
+      } catch (e) { /* 静默 */ }
+    }
     // 2j-0 试卷正文大题「汉字序号＋、」守卫（规则 cn-ordinal-guard，仅 exam）
     //   口径：大题标题「一、二、三…」应全卷连续、不重复、不重启；出现**重复序号**（如两个"三、"）或
     //   **按小节重启**（如 三、之后又出现 一、）→ **只记报告/warn、交编辑核对**：
