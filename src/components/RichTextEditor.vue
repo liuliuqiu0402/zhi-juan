@@ -458,12 +458,30 @@
              形状与长度口径的单一事实源 = src/utils/carrierInsert.js -->
         <select
           class="toolbar-select"
-          title="插入书写载体（形状可选；长度按排版规格库默认，可在弹窗内改）"
+          title="插入书写载体（形状可选；长度按排版规格库默认，可在右侧面板内改）"
           @change="insertCarrier"
         >
           <option value="">书写载体…</option>
           <option v-for="c in carrierOptions" :key="c.id" :value="c.id">{{ c.label }}</option>
         </select>
+        <!-- 长度/提示内联面板：⚠️ Electron 运行时不支持 window.prompt/alert，一律走此面板（唯一入口） -->
+        <span
+          v-if="carrierPanel"
+          class="carrier-panel"
+          style="display:inline-flex;align-items:center;gap:4px;margin-left:4px"
+        >
+          <span style="font-size:12px;color:#666">{{ carrierPanel.tip }}</span>
+          <input
+            v-if="carrierPanel.kind !== 'notice'"
+            v-model.number="carrierLen"
+            type="number"
+            min="1"
+            style="width:64px;height:24px;padding:0 4px"
+            @keyup.enter="confirmCarrier"
+          />
+          <button type="button" @click="confirmCarrier">{{ carrierPanel.kind === 'notice' ? '知道了' : '插入' }}</button>
+          <button v-if="carrierPanel.kind !== 'notice'" type="button" @click="cancelCarrier">取消</button>
+        </span>
         <button
           title="插入图片"
           @click="triggerImageUpload"
@@ -1536,26 +1554,45 @@ const setLineSpacing = (val) => {
 };
 
 // ═══════════════ 表格 ═══════════════
-// 插入书写载体（手动行为）：形状 = 载体目录，长度 = 排版规格库默认值（可在弹窗内改）——
+// 插入书写载体（手动行为）：形状 = 载体目录，长度 = 排版规格库默认值（面板内可改）——
 //   · 形态与长度口径的单一事实源 = src/utils/carrierInsert.js（编辑器不另写一套）
 //   · 光标处插入 / 选区替换；走编辑器事务（原生可撤销）；不做任何链路写回
+//   ⚠️ 运行环境为 Electron：**window.prompt 不受支持**（实测报错 "prompt() is and will not be supported."），
+//      故长度输入一律用**内联面板**（carrierPanel），不得回退到 prompt/alert。
 import { CARRIER_INSERTS, CARRIER_INSERT_IDS, buildCarrierHtml, carrierLabel } from '../utils/carrierInsert';
 const carrierOptions = CARRIER_INSERT_IDS.map((id) => ({ id, label: carrierLabel(id) }));
+// 内联面板状态：{ kind: 'carrier' | 'zuowen' | 'notice', id?, tip }
+const carrierPanel = ref(null);
+const carrierLen = ref(1);
+const cancelCarrier = () => { carrierPanel.value = null; };
+
 const insertCarrier = (e) => {
   const el = e && e.target;
   const id = el ? el.value : '';
   if (el) el.value = ''; // 复位下拉（否则再次选中同一项不触发 change）
   if (!id) return;
+  const d = CARRIER_INSERTS[id];
+  if (!d) return;
+  carrierLen.value = d.defaultLen();
+  carrierPanel.value = { kind: 'carrier', id, tip: `${carrierLabel(id)}·${d.lenLabel}` };
+};
+
+// 确认插入（两种按钮共用）：面板取长度 → 走编辑器事务插入（选区非空时即替换，消"同类并存"）
+const confirmCarrier = async () => {
+  const p = carrierPanel.value;
+  if (!p || p.kind === 'notice') { carrierPanel.value = null; return; }
   try {
-    const d = CARRIER_INSERTS[id];
-    if (!d) return;
-    const def = d.defaultLen();
-    const input = window.prompt(`${carrierLabel(id)}：${d.lenLabel}（默认取排版规格库，可改）`, String(def));
-    if (input === null) return;
-    editor.value.chain().focus().insertContent(buildCarrierHtml(id, Number(input))).run();
+    const n = Math.max(1, Math.floor(Number(carrierLen.value) || 1));
+    if (p.kind === 'zuowen') {
+      const { buildZuoWenGridHtml } = await import('../utils/zuoWenGrid');
+      editor.value.chain().focus().insertContent(buildZuoWenGridHtml({ cells: n })).run();
+    } else {
+      editor.value.chain().focus().insertContent(buildCarrierHtml(p.id, n)).run();
+    }
   } catch (err) {
     console.warn('插入书写载体失败:', (err && err.message) || err);
   }
+  carrierPanel.value = null;
 };
 
 const insertTable = () => {
@@ -1568,21 +1605,18 @@ const insertTable = () => {
 //   · 可撤销：走编辑器事务（原生 undo）；不做任何自动链路写回
 const insertZuoWenGrid = async () => {
   try {
-    // 防重复：光标/选区已在既有作文格内 → 只提示、不改（手动行为不擅自改用户内容）
+    // 防重复：光标/选区已在既有作文格内 → 面板提示、不改（手动行为不擅自改用户内容）
     const domSel = window.getSelection();
     const anchorEl = domSel && domSel.anchorNode
       ? (domSel.anchorNode.nodeType === 1 ? domSel.anchorNode : domSel.anchorNode.parentElement)
       : null;
     if (anchorEl && anchorEl.closest && anchorEl.closest('.zuo-wen-ge')) {
-      window.alert('此处已有作文格，无需重复插入。如需调整，请先选中删除再插入。');
+      carrierPanel.value = { kind: 'notice', tip: '此处已有作文格，如需调整请先选中删除再插入' };
       return;
     }
-    const { zuowenCellsForStage, buildZuoWenGridHtml } = await import('../utils/zuoWenGrid');
-    const def = zuowenCellsForStage('', 0);
-    const input = window.prompt('作文格格数（默认取排版规格库兜底值；格宽/格高由规格库 ZUOWEN_CELL 决定）', String(def));
-    if (input === null) return;
-    const cells = Math.max(1, Math.floor(Number(input) || def));
-    editor.value.chain().focus().insertContent(buildZuoWenGridHtml({ cells })).run();
+    const { zuowenCellsForStage } = await import('../utils/zuoWenGrid');
+    carrierLen.value = zuowenCellsForStage('', 0);
+    carrierPanel.value = { kind: 'zuowen', tip: '作文格·格数' };
   } catch (e) {
     console.warn('插入作文格失败:', (e && e.message) || e);
   }

@@ -33,6 +33,13 @@ describe('模块可达性：插入模块必须能被静态加载（防"动态加
     expect(src, '应有作文格插入入口').toContain('insertZuoWenGrid');
     expect(src, '应有书写载体插入入口').toContain('insertCarrier');
   });
+
+  it('不得使用 window.prompt / window.alert（Electron 运行时不支持，实测报错）', () => {
+    const src = sr('src/components/RichTextEditor.vue');
+    expect(src, 'prompt 在 Electron 不受支持（实测 "prompt() is and will not be supported."）').not.toMatch(/window\.prompt\s*\(/);
+    expect(src, 'alert 同源风险，改用内联面板').not.toMatch(/window\.alert\s*\(/);
+    expect(src, '长度输入必须走内联面板').toContain('carrierPanel');
+  });
 });
 
 describe('形态契约：插入的 HTML 必须与渲染/导出端认的形态一致', () => {
