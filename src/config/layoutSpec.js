@@ -145,7 +145,9 @@ export const CARRIER_RULES = {
   ],
   forbid: [
     // 表达/写话类：禁止混入格子（作文格 zuo-wen-ge 由 writing-grid-fix 作文格通道单独管理，不在此列）
-    { keywords: '看图写话|写话|习作|作文|写作|小练笔|口语交际', carriers: ['tian-zi-ge', 'four-line-three', 'sixian-ge', 'pinyin-line', 'mi-zi-ge'] },
+    // 🔴 2026-09-29（去一刀切）：条目**声明适用学科**（关键词"写话/习作/作文/小练笔/口语交际"是中文
+    //    学科专属语义、书面表达类以语文/英语为限）——未含该学科的卷不再据这些关键词剥离格子。
+    { keywords: '看图写话|写话|习作|作文|写作|小练笔|口语交际', carriers: ['tian-zi-ge', 'four-line-three', 'sixian-ge', 'pinyin-line', 'mi-zi-ge'], subjects: ['语文', '英语'] },
   ],
 };
 

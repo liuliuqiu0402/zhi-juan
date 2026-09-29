@@ -2127,6 +2127,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const text = scope.map(n => n.textContent || '').join('');
           // forbid：表达/写话类题内混入书写格 → 剥离保留文字
           for (const fb of cr.forbid || []) {
+            // 🔴 2026-09-29（去一刀切）：条目可声明 `subjects`——关键词本身属学科专属语义时**不得广播**到
+            //    其它学科（如"写话/习作/作文/小练笔/口语交际"）。未声明 = 保持原行为（向后兼容）。
+            if (Array.isArray(fb.subjects) && !fb.subjects.includes(subject)) continue;
             if (new RegExp(fb.keywords).test(text)) {
               for (const root of scope) {
                 if (root.nodeType !== Node.ELEMENT_NODE) continue;
