@@ -11,7 +11,7 @@ import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATIO
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
 import { checkFigurePrompts } from './figurePromptCheck.js'; // 🔴 题干 ↔ 配图 PROMPT 数量交叉校验（2026-09-16）
-import { analyzeQuestionNumbering, detectCnOrdinalHeadingIssues, spaceBlankWidth, bodyBeforeAnswer } from './contentCleaner.js'; // 🔴 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
+import { analyzeQuestionNumbering, extractBodyQuestionNumbers, detectCnOrdinalHeadingIssues, spaceBlankWidth, bodyBeforeAnswer } from './contentCleaner.js'; // 🔴 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；extractBodyQuestionNumbers=同一口径的**题号序列**投影（2026-09-29 答案区逐题对应明细取证用，不新造正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
 
 // ---------- 通用正则 ----------
 // 全角拼音字符归一表（IPA 音标字符混入小学拼音、全角字母）
@@ -2357,7 +2357,19 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (ansNumberingMissing && (ansHasParen || ansHasTable)) {
             silentCount('answer-coverage', `答案区**缺与正文一致的题号**（正文题号 ${bodyTopQ} 个，答案区仅 ${ansTopQ} 个；答案区用的是「(1)(2)」括号序号${ansHasTable ? '/表格' : ''}）——编号体系与正文不同构，答案无法与正文逐题对应：请改为**与正文相同的阿拉伯题号（1. 2. 3.…，${numCaliberWords}；仅子题用 (1)(2)）**，请抽检`);
           } else {
-            silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})——答案区可能未按与正文一致的题号逐题对齐（计数口径：两侧同源、各取"从 1 起最长连续递增段"；题号形态已覆盖行首题号、空位自带括号编号、行内点号与紧凑连排，故差异不出在形态识别），请抽检`);
+            // 🔴 2026-09-29（③ 答案区逐题对应·**报准对象**）：原话术只给"数量级"，编辑还要自己找是哪几题。
+            //    这里补**中间缺题明细**——题号取与计数**同源**（extractBodyQuestionNumbers，compact 与
+            //    countTopQuestions 一致；子题号 (1)(2)/①② 一律不计），只列"正文 1~bodyTopQ 里答案区
+            //    没有的号"；取不到明细时回退原话术。**不改触发条件、不新造正则**（仅把提示说准）。
+            let missTail = '';
+            try {
+              const ansSet = new Set(extractBodyQuestionNumbers(stripAudioScript(ansMatch[1]), { part: 'answer', compact: true })
+                .filter((n) => n >= 1 && n <= bodyTopQ));
+              const miss = [];
+              for (let i = 1; i <= bodyTopQ; i++) if (!ansSet.has(i)) miss.push(i);
+              if (miss.length) missTail = `：正文 1~${bodyTopQ} 题中，答案区未见 ${miss.length} 个题号（缺 ${miss.slice(0, 8).join('、')}${miss.length > 8 ? ' 等' : ''}）`;
+            } catch (e) { /* 取证失败不影响主流程 */ }
+            silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})${missTail}——答案区可能未按与正文一致的题号逐题对齐（计数口径：两侧同源、各取"从 1 起最长连续递增段"；题号形态已覆盖行首题号、空位自带括号编号、行内点号与紧凑连排，故差异不出在形态识别），请抽检`);
           }
         }
         // 🔴 反向护栏（2026-09-10 实证补）：正文题号明显少于答案区 → 正文疑似丢题。
@@ -2366,6 +2378,23 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //    🔴 2026-09-17：分段式编号（每大题从 1 重编号）下两侧计数不可比 → 该向同样不适用（已改报体系问题）。
         if (!isContentType && !bodyNum.segmented && !ansNum.segmented && ansTopQ > 3 && bodyTopQ < ansTopQ - 1) {
           silentCount('body-coverage', `正文题号数(${bodyTopQ})明显少于答案区(${ansTopQ})——正文疑似丢题，请核对正文是否完整`);
+        }
+        // 🔴 2026-09-29（③ 答案区逐题对应·**顺序错位**；only-report）：计数看起来对齐、但答案区题号
+        //    **次序逆序**时，上面两条都不报（计数相同 → 不触发"少于"判据）→ 逐题对应实则错位。
+        //    判据用**严格口径**（不带 compact：连排/题干内列举不入列，宁漏不误）取答案区题号序列，
+        //    去掉相邻重复后须随正文题号单调不减；出现"先大后小"只报**首处**（防长清单刷屏）。
+        //    子题号 (1)(2)/①② 不计（本口径只认顶层题号）。适用范围同题号体系判据：仅正式考卷（exam）
+        //    + 两侧均非分段式（教辅按栏目起编、分段式两侧不可比）。避免与上面"少于"告警重复。
+        if (genType === 'exam' && !bodyNum.segmented && !ansNum.segmented && bodyTopQ > 3 && !(ansTopQ < bodyTopQ - 1)) {
+          const seq = extractBodyQuestionNumbers(stripAudioScript(ansMatch[1]), { part: 'answer' })
+            .filter((n) => n >= 1 && n <= bodyTopQ);
+          const dedup = seq.filter((n, i) => i === 0 || n !== seq[i - 1]);
+          for (let i = 1; i < dedup.length; i++) {
+            if (dedup[i] < dedup[i - 1]) {
+              silentCount('answer-coverage', `答案区**题号顺序错位**：第 ${dedup[i]} 题排在第 ${dedup[i - 1]} 题之前（答案区须按与正文相同的题号顺序逐题作答），请按序重排后抽检`);
+              break;
+            }
+          }
         }
         // 🔴 2026-09-17 用户裁定（撤除"正确答案位置成规律"探针）："程序侧报这些意义不大，不依赖程序侧"——
         //    此类"命题技术"项（答案在选项序列中的位置分布）由**模型侧**承接：尾约束三域②要求

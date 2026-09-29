@@ -200,3 +200,31 @@ describe('⑥ 答案页作答基准：结构上只喂正文（用户裁定"答�
     expect(answerPageNeedsSource('review')).toBe(false);
   });
 });
+
+// 🔴 2026-09-29（③ 内容自洽·答案区逐题对应；only-report）：把"数量级"话术升级为**报准对象**——
+//   ① 中间缺题：点名"正文 1~N 里答案区未见哪几号"；② 顺序错位：答案区题号逆序（计数对齐时也能抓到）。
+//   题号一律走单一事实源（extractBodyQuestionNumbers，与计数/缺号同源），子题号 (1)(2)/①② 不计。
+describe('③ 答案区逐题对应：中间缺题明细 + 顺序错位（only-report）', () => {
+  const body6 = '<h2>一、基础（共6题，共12分）</h2>'
+    + Array.from({ length: 6 }, (_, i) => `<p class="question">${i + 1}. 第${i + 1}题</p>`).join('');
+  const run = (ans) => notes(auditExamPaper(body6 + ans, { subject: '语文', stage: 'primary_low', genType: 'exam' }), 'answer-coverage');
+
+  it('答案区缺中间某题（正文 1~6、答案区无 5）→ 提示里**点名缺哪几号**', () => {
+    const m = run('<div class="answer-section"><h2>参考答案</h2>'
+      + '<p>1. A</p><p>2. B</p><p>3. C</p><p>4. D</p><p>6. F</p></div>');
+    expect(m).toContain('未见');
+    expect(m).toContain('缺 5');
+  });
+
+  it('答案区题号顺序错位（6 排到 4/5 之前）→ 报"题号顺序错位"（点名错位处）', () => {
+    const m = run('<div class="answer-section"><h2>参考答案</h2>'
+      + '<p>1. A</p><p>2. B</p><p>3. C</p><p>6. F</p><p>4. D</p><p>5. E</p></div>');
+    expect(m).toContain('题号顺序错位');
+    expect(m).toContain('第 4 题排在第 6 题之前');
+  });
+
+  it('答案区与正文逐题对齐（1~6 齐全同序）→ 不报（不误伤正常答案区）', () => {
+    expect(run('<div class="answer-section"><h2>参考答案</h2>'
+      + '<p>1. A</p><p>2. B</p><p>3. C</p><p>4. D</p><p>5. E</p><p>6. F</p></div>')).toBe('');
+  });
+});
