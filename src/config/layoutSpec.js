@@ -462,6 +462,16 @@ export const ANSWER_MAX_ROWS_BY_STAGE = {
   high: 8,          // 高中：同上（0.8×分值，8 行≈56mm）
 };
 
+/**
+ * 无分值题的兜底行数（**规格库单一事实源**·学科无关）
+ * ============================================================
+ * 教辅/同步练习的大题常不标分值，此时按题型惯例兜底：整题块 N 行、子题块 M 行
+ * （子题给更少，防"大题内连片大空白"）。
+ * 🔴 原为 examValidator 2k 内**写死的 4 / 2** —— 属"规格库缺键、程序自持数值"，现入库以便统一调节；
+ *    ⚠️ 兜底值**仍受 `ANSWER_MAX_ROWS_BY_STAGE` 单题上限约束**（越不过本学段上限）。
+ */
+export const ANSWER_NO_SCORE_ROWS = { item: 4, sub: 2 };
+
 /** 解答题作答空间（学科 × 学段 → 参数）
  *  - carrier：'line' 横线（文字书写引导）/ 'blank-area' 无线空白行（答题卡风格）
  *  - linePerScore：需求行数 = 分值 × 系数
@@ -621,7 +631,7 @@ function mergeDeep(base, override) {
 /** 内置默认快照（只读，用于"恢复默认"比对与视图展示） */
 export const LAYOUT_SPEC_DEFAULTS = {
   ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, CARRIER_RULES, ANSWER_REGION, SQUARE_GRID,
-  BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL,
+  BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL, ANSWER_MAX_ROWS_BY_STAGE, ANSWER_NO_SCORE_ROWS,
 };
 
 /** BLANK 规格消毒：档位越界会导致换算产物无 CSS/无编辑器白名单（blank-25+ 宽度失效） */
@@ -638,7 +648,7 @@ export const LAYOUT_SPEC_GROUPS = {
   zuowen: ['ZUOWEN_CELL', 'ZUOWEN_MARK_STEP', 'ZUOWEN_DEFAULT_SPAN', 'ZUOWEN_CELLS_PER_SCORE'],
   blank: ['BLANK'],
   carrier: ['WRITING_CARRIER', 'GRID_CELL'],
-  answer: ['ANSWER_REGION'],
+  answer: ['ANSWER_REGION', 'ANSWER_MAX_ROWS_BY_STAGE', 'ANSWER_NO_SCORE_ROWS'],
   square: ['SQUARE_GRID', 'BRACKET_GRID', 'ZUOWEN_FILL_CELLS'],
   'carrier-rules': ['CARRIER_RULES'],
 };
@@ -661,6 +671,10 @@ export function getMergedSpec() {
     GRID_CELL: mergeDeep(GRID_CELL, user.GRID_CELL),
     CARRIER_RULES: mergeDeep(CARRIER_RULES, user.CARRIER_RULES),
     ANSWER_REGION: mergeDeep(ANSWER_REGION, user.ANSWER_REGION),
+    // 🔴 2026-09-29：行数上限与无分值兜底**必须进合并白名单**，否则面板可调但读取端拿不到覆盖值
+    //    （getAnswerRegion 的 `spec.ANSWER_MAX_ROWS_BY_STAGE || 内置` 会恒取内置 → UI 形同死字段）
+    ANSWER_MAX_ROWS_BY_STAGE: { ...ANSWER_MAX_ROWS_BY_STAGE, ...(user.ANSWER_MAX_ROWS_BY_STAGE || {}) },
+    ANSWER_NO_SCORE_ROWS: { ...ANSWER_NO_SCORE_ROWS, ...(user.ANSWER_NO_SCORE_ROWS || {}) },
     SQUARE_GRID: mergeDeep(SQUARE_GRID, user.SQUARE_GRID),
     BRACKET_GRID: { ...BRACKET_GRID, ...(user.BRACKET_GRID || {}) },
     ZUOWEN_FILL_CELLS: user.ZUOWEN_FILL_CELLS ?? ZUOWEN_FILL_CELLS,
@@ -671,7 +685,7 @@ export function getMergedSpec() {
 export default {
   ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, CARRIER_RULES, CARRIER_DECLARATION,
   ANSWER_REGION, SQUARE_GRID,
-  BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL,
+  BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL, ANSWER_MAX_ROWS_BY_STAGE, ANSWER_NO_SCORE_ROWS,
   LAYOUT_SPEC_DEFAULTS, LAYOUT_SPEC_GROUPS,
   loadLayoutSpecOverride, saveLayoutSpecOverride, resetLayoutSpecOverride, getMergedSpec, getCarrierAllowlist,
   getAnswerRegion, normalizeStage3,

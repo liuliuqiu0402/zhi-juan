@@ -404,6 +404,8 @@ const SPEC_GROUPS = [
       { path: 'ANSWER_MAX_ROWS_BY_STAGE.primary_high', label: '高段上限', unit: '行', type: 'number', min: 1, max: 20, step: 1 },
       { path: 'ANSWER_MAX_ROWS_BY_STAGE.middle', label: '初中上限', unit: '行', type: 'number', min: 1, max: 30, step: 1 },
       { path: 'ANSWER_MAX_ROWS_BY_STAGE.high', label: '高中上限', unit: '行', type: 'number', min: 1, max: 30, step: 1 },
+      { path: 'ANSWER_NO_SCORE_ROWS.item', label: '无分值整题兜底', unit: '行', type: 'number', min: 1, max: 20, step: 1 },
+      { path: 'ANSWER_NO_SCORE_ROWS.sub', label: '无分值子题兜底', unit: '行', type: 'number', min: 1, max: 20, step: 1 },
     ],
   },
   {

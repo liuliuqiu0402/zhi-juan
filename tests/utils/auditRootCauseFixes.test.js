@@ -845,3 +845,19 @@ describe('注入条款：竖式过程区行数受本学段上限（规格库同�
     expect(t).toContain(`不超过本学段单题作答区上限 ${getAnswerRegion('数学', 'middle').maxRowsPerItem} 行`);
   });
 });
+
+// 🔴 2026-09-29（规格库为源）：无分值兜底行数原为 2k 内写死的 4 / 2 —— 属"规格库缺键、程序自持数值"，
+//   现入库 ANSWER_NO_SCORE_ROWS 并由 2k 读取；兜底值仍受本学段单题上限约束。
+describe('兜底行数入库（规格库单一事实源）', () => {
+  it('规格库含无分值兜底键（整题 4 / 子题 2）', () => {
+    expect(getMergedSpec().ANSWER_NO_SCORE_ROWS).toEqual({ item: 4, sub: 2 });
+  });
+
+  it('无分值大题按规格库兜底补行，且不越过本学段单题上限（低段 4 行）', () => {
+    const html = '<h2>一、积累与运用</h2><p>1. 读一读，写一写。</p>';
+    const r = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    const n = (r.html.match(/blank-line/g) || []).length;
+    expect(n).toBeGreaterThan(0);
+    expect(n).toBeLessThanOrEqual(getAnswerRegion('语文', 'primary_low').maxRowsPerItem);
+  });
+});
