@@ -1249,6 +1249,31 @@ export const resolveEngineOutputLimit = (provider = '', model = '') => {
 };
 
 /**
+ * 输入上限（tokens）口径 —— **唯一出口**（调用方不得再自己拼一套）
+ * ============================================================
+ * 🔴 2026-09-30（用户裁定 · 口径收回适用域）：原实现是 `engine === 'deepseek' ? 固定值 : 0.7 × 输出预算`——
+ *    那个 0.7 的键名（`maxInputTokensOllamaRatio`）与注释（"Ollama 按输出预算反推"，紧邻 `ollamaR1NumCtx`
+ *    显存参数）都归属 **Ollama**，却被 else 分支套到了**所有非 deepseek 引擎**（volcano/alibaba/zhipu 云端）。
+ *    危害：非 deepseek 的输出上限函数返回 Infinity → 这里的 maxTokens 不被钳制、等于按勾选范围推导的
+ *    动态帽（内置下限 `budgetClamp.floorTokens: 800`）→ 阈值可低到几千，**低于实测提示词量级
+ *    （命题型 0.84万~1.09万 tokens）** → 正常请求被判"超长"并触发重排/丢段（旧实现最坏会丢答案页的【正文】）。
+ * 现按引擎分三支，且与**输出侧同口径**（`resolveEngineOutputLimit` 对非 deepseek 返回 Infinity＝未固证不钳制）：
+ *   · **deepseek**：产品封顶 `maxInputTokensDeepseek`（默认 100000）。实测最坏输入 ≈3.8 万 tokens（含素材直放
+ *     上限量级），有 2.6× 余量；与既有成本裁定"V4 官方物理上限（1M/384K）只作参考、产品口径封顶"一致，
+ *     故**不按 1M 放开**（放开会让单次费用不可控，且收益为零——实测根本到不了）。
+ *   · **ollama**：保留 `0.7 × 输出预算` 的反推（本地显存/上下文确实需要该约束，原样不动）。
+ *   · **其他云端**（volcano/alibaba/zhipu 等）：上限未固证 → **Infinity（不钳制）**；超长交由 API 显式失败，
+ *     而不是由一个借来的阈值触发"重排/丢段"（宁可失败给行动建议，不给半截内容）。
+ */
+export const resolveMaxInputTokens = ({ engine = '', maxTokens = 0, settings = {} } = {}) => {
+  const gs = settings || {};
+  const eng = String(engine || '').toLowerCase();
+  if (eng === 'deepseek') return gs.maxInputTokensDeepseek ?? 100000;
+  if (eng === 'ollama') return Math.floor((Number(maxTokens) || 0) * (gs.maxInputTokensOllamaRatio ?? 0.7));
+  return Infinity;
+};
+
+/**
  * 🔧 当前引擎整卷生成是否启用深度思考（设置页按引擎配置的开关）
  * 生成端（整卷正文/答案页）据此决定：传 thinking 参数、放大输出预算、设置推理流式上限。
  */

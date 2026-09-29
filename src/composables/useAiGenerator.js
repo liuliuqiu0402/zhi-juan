@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import axios from 'axios';
-import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay, resolveEngineOutputLimit, resolveEngineCapability, resolveOutputCeiling, FACTORY_MAX_TOKENS_BY_TASK } from '../config/apiConfig.js';
+import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay, resolveEngineOutputLimit, resolveEngineCapability, resolveOutputCeiling, resolveMaxInputTokens, FACTORY_MAX_TOKENS_BY_TASK } from '../config/apiConfig.js';
 import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'; // S4.1：段类型补"拓展/文化"（锚范围性质判定共用）
 import { GEN_CONST } from '../config/generationConstants.js';
 import { ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel, applyMaterialChannel, GROUP_TITLE_NUMBERING_CALIBER, QUESTION_NUMBERING_CALIBER } from '../config/promptLibrary.js'; // ✅ A18：applyMaterialChannel（委托书素材段按素材通道兜底渲染）；题号口径单源（组标题/小题）供出稿自检按类型分型
@@ -36,8 +36,8 @@ import {
   buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,
   applyCallLayerSelfReview, SELF_REVIEW_BLOCK,
 } from '../utils/injectionManifest.js';
-// 🔴 2026-09-30：输入超长的「关键块优先」压缩抽为纯函数（可离线验证；行为逐字节不变 + 可观测告警）
-import { compressOverlongPrompt } from '../utils/promptCompression.js';
+// 🔴 2026-09-30：输入超长改为**只体检、不改文本**（原名 promptCompression，因无法安全划界而收口，见该模块注释）
+import { inspectOverlongPrompt } from '../utils/promptOversize.js';
 import { extractGradeNum, resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
 import {
   genTypeTemplates,
@@ -1359,9 +1359,20 @@ export function useAiGenerator() {
     
     let finalPrompt = prompt;
     
-const maxInputTokens = config.engine === 'deepseek' 
-      ? (apiConfig.generationSettings.maxInputTokensDeepseek ?? 100000)
-      : Math.floor(maxTokens * (apiConfig.generationSettings.maxInputTokensOllamaRatio ?? 0.7));
+    // 🔴 2026-09-30（用户裁定 · 口径收回适用域）：原 else 把"Ollama 按输出预算反推"套到了**所有**非 deepseek
+    //    引擎（volcano/alibaba/zhipu 云端也吃 0.7×输出预算）。而该口径的键名与注释都归属 Ollama
+    //    （`maxInputTokensOllamaRatio`＋"Ollama 按输出预算反推"，紧邻者是显存参数 num_ctx 4096），
+    //    其适用域本应只有**本地模型**；且非 deepseek 的输出上限函数返回 Infinity → 此处的 maxTokens
+    //    不被钳制、等于按勾选范围推导的动态帽（下限 floorTokens 800）→ 阈值可低到几千，
+    //    **低于实测提示词量级（命题型 0.84万~1.09万 tokens）** → 会把正常请求判成"超长"并触发重排/丢段。
+    //    现按引擎分三支，且与**输出侧同口径**（`resolveEngineOutputLimit` 对非 deepseek 返回 Infinity＝未固证不钳制）：
+    //      · deepseek：产品封顶值 100000（实测最坏 3.8 万，有 2.6× 余量；与"物理上限只作参考"的既有成本裁定一致）
+    //      · ollama  ：保留 0.7×输出预算的反推（本地显存/上下文确需此约束，原样不动）
+    //      · 其他云端：上限未固证 → **不钳制**（Infinity），超长交由 API 显式失败，不由借来的阈值触发"丢段"
+    //    口径**唯一出口** = apiConfig.resolveMaxInputTokens（本处只传参，不自己拼一套）。
+    const maxInputTokens = resolveMaxInputTokens({
+      engine: config.engine, maxTokens, settings: apiConfig.generationSettings,
+    });
     
     // 🔧 生成自审机制：在生成类任务的 prompt 末尾追加自审指令（静默内检，不输出任何自审内容；
     //    注意：答案页独立调用（taskType=generation）也会携带本块，表述不得限定"只输出正文/试卷"，
@@ -1382,19 +1393,19 @@ const maxInputTokens = config.engine === 'deepseek'
     }
     
     const estimatedTokens = estimateTokens(prompt);
-    // 🔧 输入限制：DeepSeek 128K 上下文用 100K 安全线，Ollama 维持原逻辑
-    
+    // 🔧 输入限制：上限按引擎分三支（deepseek 产品封顶 / ollama 按输出预算反推 / 其他云端未固证不钳制）
     if (estimatedTokens > maxInputTokens) {
-      console.warn(`⚠️ Prompt过长(${estimatedTokens} tokens)，正在智能压缩并保留关键指令块...`);
-      // 🔴 2026-09-30（用户裁定 · 方案第二步「纯搬移重构」）：压缩逻辑抽为纯函数
-      //    `src/utils/promptCompression.js`（同一输入 → 同一 text，行为逐字节不变），
-      //    并把它"顺序反转 / 整体丢段"的既有行为如实产出为**可观测告警** →
-      //    经下方正文路径排空并入 `bodyPathNotes` → 生成报告【问题列表】。
+      // 🔴 2026-09-30（用户裁定 · 第三步）：处理方式已按裁定收口为**只体检、不改文本**——
+      //    ① 无可压缩素材（写作/答案类调用的素材块不属"教材原文"分类）→ 本就只能重排/丢段，零收益；
+      //    ② 有素材 → 素材段可能与其后的指令**同处一段**（分析任务 prompt 即此形状），逐句压缩会误伤
+      //       指令与输出格式要求 → 无法安全划界，故不改动；
+      //    ③ 长度确实超出模型上下文时**交给 API 显式报错**，宁可失败给行动建议，不静默交付半截/残缺内容。
+      //    告警经下方正文路径排空并入 `bodyPathNotes` → 生成报告【问题列表】（原先只 console = 静默）。
       //    触发判定仍留在此处（保持"按 prompt 自身长度判定"的既有语义：不含调用层追加块）。
-      const compressed = compressOverlongPrompt(finalPrompt, { maxInputTokens, estimateTokens });
-      finalPrompt = compressed.text;
-      promptShapeNotes.push(...compressed.notes);
-      console.log(`📦 智能压缩完成：指令${compressed.stats.instructionTokens}tokens + 原文${compressed.stats.usedTokens}tokens (buffered)`);
+      const oversize = inspectOverlongPrompt(finalPrompt, { maxInputTokens, estimateTokens });
+      finalPrompt = oversize.text; // 恒等于原值：本函数不改文本
+      promptShapeNotes.push(...oversize.notes);
+      console.warn(`⚠️ Prompt过长(${estimatedTokens} tokens，上限 ${maxInputTokens})：已如实告警，文本未改动`);
     }
     
     // 🔧 L1 客户端缓存：仅缓存确定性中间任务（analysis/blueprint/extraction）
