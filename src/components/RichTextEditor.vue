@@ -446,6 +446,14 @@
         >
           📊
         </button>
+        <!-- 插入作文格（手动·单一事实源 src/utils/zuoWenGrid.js）：
+             光标处插入 / 选中横线·短答空位时**替换**（消"横线与格子并存"）；浏览器原生撤销可用 -->
+        <button
+          title="插入作文格（zuo-wen-ge）"
+          @click="insertZuoWenGrid"
+        >
+          ▦
+        </button>
         <button
           title="插入图片"
           @click="triggerImageUpload"
@@ -1520,6 +1528,32 @@ const setLineSpacing = (val) => {
 // ═══════════════ 表格 ═══════════════
 const insertTable = () => {
   editor.value.chain().focus().insertTable({ rows: 3, cols: 4, withHeaderRow: true }).run();
+};
+
+// 插入作文格（手动行为）：光标处插入；**选中横线/短答空位时替换**（消"横线与格子并存"）——
+//   · 格数与形态的单一事实源 = src/utils/zuoWenGrid.js（读排版规格库；勿在编辑器内硬编码格数/形态）
+//   · 学段/分值：手动场景没有上下文 → 默认取规格库兜底格数，需要时在弹窗里改（不改全局口径）
+//   · 可撤销：走编辑器事务（原生 undo）；不做任何自动链路写回
+const insertZuoWenGrid = async () => {
+  try {
+    // 防重复：光标/选区已在既有作文格内 → 只提示、不改（手动行为不擅自改用户内容）
+    const domSel = window.getSelection();
+    const anchorEl = domSel && domSel.anchorNode
+      ? (domSel.anchorNode.nodeType === 1 ? domSel.anchorNode : domSel.anchorNode.parentElement)
+      : null;
+    if (anchorEl && anchorEl.closest && anchorEl.closest('.zuo-wen-ge')) {
+      window.alert('此处已有作文格，无需重复插入。如需调整，请先选中删除再插入。');
+      return;
+    }
+    const { zuowenCellsForStage, buildZuoWenGridHtml } = await import('../utils/zuoWenGrid');
+    const def = zuowenCellsForStage('', 0);
+    const input = window.prompt('作文格格数（默认取排版规格库兜底值；格宽/格高由规格库 ZUOWEN_CELL 决定）', String(def));
+    if (input === null) return;
+    const cells = Math.max(1, Math.floor(Number(input) || def));
+    editor.value.chain().focus().insertContent(buildZuoWenGridHtml({ cells })).run();
+  } catch (e) {
+    console.warn('插入作文格失败:', (e && e.message) || e);
+  }
 };
 
 // ═══════════════ 图片 ═══════════════
