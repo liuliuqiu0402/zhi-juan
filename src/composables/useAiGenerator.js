@@ -36,6 +36,8 @@ import {
   buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,
   applyCallLayerSelfReview, SELF_REVIEW_BLOCK,
 } from '../utils/injectionManifest.js';
+// 🔴 2026-09-30：输入超长的「关键块优先」压缩抽为纯函数（可离线验证；行为逐字节不变 + 可观测告警）
+import { compressOverlongPrompt } from '../utils/promptCompression.js';
 import { extractGradeNum, resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
 import {
   genTypeTemplates,
@@ -105,6 +107,11 @@ class CircuitBreaker {
 
 // DeepSeek 专用熔断器单例
 const deepseekBreaker = new CircuitBreaker(3, 30000);
+
+/** 调用层告警暂存（超长压缩等）：由正文生成路径排空 → 并入 `bodyPathNotes` → 生成报告【问题列表】。
+ *  为什么暂存：压缩发生在 `callAI` 内、拿不到生成路径的 `bodyPathNotes`；用模块级暂存同源传递，
+ *  不改 `callAI` 的返回值契约（改动面最小）。仅在异常分支（输入超长）才有内容。 */
+const promptShapeNotes = [];
 
 /**
  * 解析 DeepSeek SSE 流式响应（含心跳超时保护）
@@ -1379,84 +1386,15 @@ const maxInputTokens = config.engine === 'deepseek'
     
     if (estimatedTokens > maxInputTokens) {
       console.warn(`⚠️ Prompt过长(${estimatedTokens} tokens)，正在智能压缩并保留关键指令块...`);
-
-      // 🔧 输入超长压缩说明：本分支的 materialParts 仅匹配"以【教材原文/【教材参考 开头的整段原文块"——
-      //    它是教材分析（Step1 analysis 携原文做结构提取/图谱）等带原文任务的超长压缩护栏；
-      //    写作委托的素材（锚点清单+压缩原文）长度有界（压缩模块已折叠），正常不触发本分支。
-
-      // 分段：按 【 开头分段（保留块级边界）
-      const sections = finalPrompt.split(/\n(?=【)/);
-      const instructionParts = [];
-      const materialParts = [];
-      const guaranteeParts = [];
-
-      // 简单规则识别 guarantee（必须保留）的段落关键词
-      const guaranteeRegex = /角色身份|顶层约束|尾约束|答案区|强制要求|真题卷结构蓝本|骨架|真题蓝本|答案与解析/;
-
-      for (const section of sections) {
-        const s = section.trim();
-        if (/^【教材原文|^【模板参考|^【教材参考/.test(s)) {
-          materialParts.push(s);
-        } else if (guaranteeRegex.test(s) || s.length < 200 && /你是一位|请一次性生成|必须/.test(s)) {
-          // 识别为 guarantee 的关键指令块（尽量保留）
-          guaranteeParts.push(s);
-        } else {
-          instructionParts.push(s);
-        }
-      }
-
-      // 优先保留 guaranteeParts 与 instructionParts；只压缩 materialParts
-      let instructionText = [...guaranteeParts, ...instructionParts].join('\n');
-      let instructionTokens = estimateTokens(instructionText);
-
-      // 如果指令本身就超预算，尝试把 guaranteeParts 放到 systemMessage 路径（由上层调用传给模型的 system），
-      // 这里我们简化为截断非 guarantee instruction 内容并记录告警
-      if (instructionTokens > maxInputTokens - 500) {
-        console.warn('⚠️ 指令部分（含必须保留块）已超出输入上限，尝试优先保留 guarantee 块并截断其他指令');
-        // 保留 guaranteeParts，截断 instructionParts
-        instructionText = guaranteeParts.join('\n');
-        instructionTokens = estimateTokens(instructionText);
-        if (instructionTokens > maxInputTokens - 200) {
-          // 极端：连 guarantee 都超出预算，硬截断并记录
-          instructionText = instructionText.substring(0, Math.floor((maxInputTokens - 200) * 1.5));
-          console.error('🔥 关键指令块超预算，被迫截断（记录详单以便人工介入）');
-        }
-      }
-
-      const remainingBudget = maxInputTokens - instructionTokens - 200; // 留 200 tokens 缓冲
-      let materialText = '';
-      let usedTokens = 0;
-      const omittedSections = [];
-
-      if (remainingBudget > 300) {
-        for (const part of materialParts) {
-          const sentences = part.split(/(?<=[。！？\n])/);
-          let compressedPart = '';
-          for (const sent of sentences) {
-            const sentTokens = estimateTokens(sent);
-            if (usedTokens + sentTokens > remainingBudget) break;
-            compressedPart += sent;
-            usedTokens += sentTokens;
-          }
-          if (compressedPart) {
-            materialText += compressedPart + '\n';
-          } else {
-            omittedSections.push(part.slice(0, 120));
-          }
-        }
-      } else {
-        // 预算不足，全部省略 materialParts
-        for (const part of materialParts) omittedSections.push(part.slice(0, 120));
-      }
-
-      finalPrompt = instructionText + '\n' + materialText;
-      if (omittedSections.length > 0) {
-        console.warn('⚠️ 已省略/压缩以下参考段落（示例）:', omittedSections.slice(0,5));
-        // 将省略信息附加为显式告警，便于模型和日志追踪
-        finalPrompt += '\n\n【系统提示：以下若干参考段落因输入长度受限已被压缩或省略，生成时优先遵循前文关键指令块；如需完整参考请分段生成或增加上下文窗口】\n';
-      }
-
-      console.log(`📦 智能压缩完成：指令${instructionTokens}tokens + 原文${usedTokens}tokens (buffered)`);
+      // 🔴 2026-09-30（用户裁定 · 方案第二步「纯搬移重构」）：压缩逻辑抽为纯函数
+      //    `src/utils/promptCompression.js`（同一输入 → 同一 text，行为逐字节不变），
+      //    并把它"顺序反转 / 整体丢段"的既有行为如实产出为**可观测告警** →
+      //    经下方正文路径排空并入 `bodyPathNotes` → 生成报告【问题列表】。
+      //    触发判定仍留在此处（保持"按 prompt 自身长度判定"的既有语义：不含调用层追加块）。
+      const compressed = compressOverlongPrompt(finalPrompt, { maxInputTokens, estimateTokens });
+      finalPrompt = compressed.text;
+      promptShapeNotes.push(...compressed.notes);
+      console.log(`📦 智能压缩完成：指令${compressed.stats.instructionTokens}tokens + 原文${compressed.stats.usedTokens}tokens (buffered)`);
     }
     
     // 🔧 L1 客户端缓存：仅缓存确定性中间任务（analysis/blueprint/extraction）
@@ -4633,6 +4571,9 @@ ${cardAnalysisText.substring(0, 1000)}
           //    智谱/火山等引擎可能无视思考开关强制推理，推理与正文共享 max_tokens，必须限流防吃光预算
           maxReasoningChunks: (!retryWithoutThinking && getGenerationThinkingEnabled()) ? GEN_CONST.REASONING_CAP_BODY : GEN_CONST.REASONING_CAP_BODY_FORCED,
         });
+        // 🔴 2026-09-30：排空调用层告警（超长压缩的"顺序反转/整体丢段"）→ 并入正文路径事件，
+        //    经既有通道汇总进生成报告【问题列表】（原先只 console，用户侧不可见、等于静默）
+        if (promptShapeNotes.length) bodyPathNotes.push(...promptShapeNotes.splice(0));
         const respObj = typeof resp === 'string' ? { content: resp, finishReason: '' } : (resp || { content: '', finishReason: '' });
         content = normalizeBodyHtml(respObj.content || '', { trace: true, label: `第${attempt + 1}次尝试` });
         // 🔴 思考耗尽检测：推理 chunks 大量（≥20000）或触发推理上限（reasoning_capped）且正文为空 → 判定思考占满输出预算
