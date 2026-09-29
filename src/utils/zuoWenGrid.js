@@ -16,7 +16,7 @@
  *   <div class="zuo-wen-ge"><span>&emsp;</span>…</div>（每格一个 span；渲染/导出按 ZUOWEN_CELL 画格）
  *   只输出这一个形态，避免出现"同一载体两种写法"的第二个副本。
  */
-import { getMergedSpec } from './specAccess';
+import { getMergedSpec } from '../config/layoutSpec.js';
 
 /** 学段键归一到 layoutSpec 的五档键（只做**键名**归一，不改任何数值口径） */
 const STAGE_ALIAS = {

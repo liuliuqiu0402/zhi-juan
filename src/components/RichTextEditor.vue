@@ -454,6 +454,16 @@
         >
           ▦
         </button>
+        <!-- 插入书写载体（形状可选 + 长度可改·手动）：光标处插入 / 选中同类载体即替换；
+             形状与长度口径的单一事实源 = src/utils/carrierInsert.js -->
+        <select
+          class="toolbar-select"
+          title="插入书写载体（形状可选；长度按排版规格库默认，可在弹窗内改）"
+          @change="insertCarrier"
+        >
+          <option value="">书写载体…</option>
+          <option v-for="c in carrierOptions" :key="c.id" :value="c.id">{{ c.label }}</option>
+        </select>
         <button
           title="插入图片"
           @click="triggerImageUpload"
@@ -1526,6 +1536,28 @@ const setLineSpacing = (val) => {
 };
 
 // ═══════════════ 表格 ═══════════════
+// 插入书写载体（手动行为）：形状 = 载体目录，长度 = 排版规格库默认值（可在弹窗内改）——
+//   · 形态与长度口径的单一事实源 = src/utils/carrierInsert.js（编辑器不另写一套）
+//   · 光标处插入 / 选区替换；走编辑器事务（原生可撤销）；不做任何链路写回
+import { CARRIER_INSERTS, CARRIER_INSERT_IDS, buildCarrierHtml, carrierLabel } from '../utils/carrierInsert';
+const carrierOptions = CARRIER_INSERT_IDS.map((id) => ({ id, label: carrierLabel(id) }));
+const insertCarrier = (e) => {
+  const el = e && e.target;
+  const id = el ? el.value : '';
+  if (el) el.value = ''; // 复位下拉（否则再次选中同一项不触发 change）
+  if (!id) return;
+  try {
+    const d = CARRIER_INSERTS[id];
+    if (!d) return;
+    const def = d.defaultLen();
+    const input = window.prompt(`${carrierLabel(id)}：${d.lenLabel}（默认取排版规格库，可改）`, String(def));
+    if (input === null) return;
+    editor.value.chain().focus().insertContent(buildCarrierHtml(id, Number(input))).run();
+  } catch (err) {
+    console.warn('插入书写载体失败:', (err && err.message) || err);
+  }
+};
+
 const insertTable = () => {
   editor.value.chain().focus().insertTable({ rows: 3, cols: 4, withHeaderRow: true }).run();
 };
