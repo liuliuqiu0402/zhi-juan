@@ -495,6 +495,17 @@ export const ANSWER_MAX_ROWS_BY_STAGE = {
 export const ANSWER_NO_SCORE_ROWS = { item: 4, sub: 2 };
 
 /**
+ * 学科×学段 → 无分值兜底行数**覆盖表**（**规格库单一事实源**；内置默认空 = 不覆盖）
+ * ============================================================
+ * 与 `ANSWER_MAX_ROWS_BY_SUBJECT` 同模式（**独立顶层键 + 浅合并**，故覆盖必保留；写进同类嵌套对象会被
+ *   `mergeDeep` 丢弃）。形态 `{ [学科]: { [学段]: { item, sub } } }`。
+ * 为什么需要：4/2 行对低段合理（学段上限恰为 4），但中高段长答主观题（论述/说明/解答）偏小——
+ *   同学段不同学科需求未建模。
+ * 🔴 数值属**卷面惯例口径**（不在代码里编），面板可调；未列即回退 `ANSWER_NO_SCORE_ROWS`。
+ */
+export const ANSWER_NO_SCORE_ROWS_BY_SUBJECT = {};
+
+/**
  * 学科×学段 → 单题作答区行数上限**覆盖表**（**规格库单一事实源**；内置默认空 = 不覆盖）
  * ============================================================
  * 为什么单独一张表：`getAnswerRegion` 的 base 来自 `ANSWER_REGION[学科][学段]`，而 `mergeDeep` **只合并
@@ -670,7 +681,7 @@ function mergeDeep(base, override) {
 export const LAYOUT_SPEC_DEFAULTS = {
   ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, CARRIER_RULES, ANSWER_REGION, SQUARE_GRID,
   BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL, ANSWER_MAX_ROWS_BY_STAGE, ANSWER_NO_SCORE_ROWS,
-  ANSWER_MAX_ROWS_BY_SUBJECT,
+  ANSWER_MAX_ROWS_BY_SUBJECT, ANSWER_NO_SCORE_ROWS_BY_SUBJECT,
 };
 
 /** BLANK 规格消毒：档位越界会导致换算产物无 CSS/无编辑器白名单（blank-25+ 宽度失效） */
@@ -687,7 +698,7 @@ export const LAYOUT_SPEC_GROUPS = {
   zuowen: ['ZUOWEN_CELL', 'ZUOWEN_MARK_STEP', 'ZUOWEN_DEFAULT_SPAN', 'ZUOWEN_CELLS_PER_SCORE'],
   blank: ['BLANK'],
   carrier: ['WRITING_CARRIER', 'GRID_CELL'],
-  answer: ['ANSWER_REGION', 'ANSWER_MAX_ROWS_BY_STAGE', 'ANSWER_NO_SCORE_ROWS', 'ANSWER_MAX_ROWS_BY_SUBJECT'],
+  answer: ['ANSWER_REGION', 'ANSWER_MAX_ROWS_BY_STAGE', 'ANSWER_NO_SCORE_ROWS', 'ANSWER_MAX_ROWS_BY_SUBJECT', 'ANSWER_NO_SCORE_ROWS_BY_SUBJECT'],
   square: ['SQUARE_GRID', 'BRACKET_GRID', 'ZUOWEN_FILL_CELLS'],
   'carrier-rules': ['CARRIER_RULES'],
 };
@@ -716,6 +727,7 @@ export function getMergedSpec() {
     ANSWER_NO_SCORE_ROWS: { ...ANSWER_NO_SCORE_ROWS, ...(user.ANSWER_NO_SCORE_ROWS || {}) },
     // 学科×学段行数上限覆盖：独立顶层键 + 浅合并 → 用户覆盖必定保留（写进 ANSWER_REGION 条目会被 mergeDeep 丢弃）
     ANSWER_MAX_ROWS_BY_SUBJECT: { ...ANSWER_MAX_ROWS_BY_SUBJECT, ...(user.ANSWER_MAX_ROWS_BY_SUBJECT || {}) },
+    ANSWER_NO_SCORE_ROWS_BY_SUBJECT: { ...ANSWER_NO_SCORE_ROWS_BY_SUBJECT, ...(user.ANSWER_NO_SCORE_ROWS_BY_SUBJECT || {}) },
     SQUARE_GRID: mergeDeep(SQUARE_GRID, user.SQUARE_GRID),
     BRACKET_GRID: { ...BRACKET_GRID, ...(user.BRACKET_GRID || {}) },
     ZUOWEN_FILL_CELLS: user.ZUOWEN_FILL_CELLS ?? ZUOWEN_FILL_CELLS,
@@ -727,7 +739,7 @@ export default {
   ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, CARRIER_RULES, CARRIER_DECLARATION,
   ANSWER_REGION, SQUARE_GRID,
   BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL, ANSWER_MAX_ROWS_BY_STAGE, ANSWER_NO_SCORE_ROWS,
-  ANSWER_MAX_ROWS_BY_SUBJECT,
+  ANSWER_MAX_ROWS_BY_SUBJECT, ANSWER_NO_SCORE_ROWS_BY_SUBJECT,
   LAYOUT_SPEC_DEFAULTS, LAYOUT_SPEC_GROUPS,
   loadLayoutSpecOverride, saveLayoutSpecOverride, resetLayoutSpecOverride, getMergedSpec, getCarrierAllowlist,
   getAnswerRegion, normalizeStage3,

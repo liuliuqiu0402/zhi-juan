@@ -929,3 +929,29 @@ describe('去一刀切·候选5：英语低段字母书写准许四线三格（�
     expect(getCarrierAllowlist('语文', 'primary_low')).not.toContain('four-line-three');
   });
 });
+
+// 🔴 2026-09-29（去一刀切·候选2）：无分值兜底原为**学科无关**的 4/2 —— 低段合理、中高段长答主观题偏小。
+//   机制：`ANSWER_NO_SCORE_ROWS_BY_SUBJECT[学科][学段]` 覆盖（**独立顶层键**，浅合并故生效）；未覆盖回退默认。
+describe('去一刀切·候选2：无分值兜底可按学科×学段覆盖（机制验证；数值不写死）', () => {
+  it('未覆盖 → 学科无关默认 4/2', () => {
+    const s = getMergedSpec();
+    expect(s.ANSWER_NO_SCORE_ROWS).toEqual({ item: 4, sub: 2 });
+    expect(s.ANSWER_NO_SCORE_ROWS_BY_SUBJECT, '必须进合并白名单').toBeTruthy();
+    expect(s.ANSWER_NO_SCORE_ROWS_BY_SUBJECT['语文']?.high?.item).toBeUndefined();
+  });
+
+  it('覆盖 → 生效且不波及其它学科（行为级：无分值大题补出行数随之变化）', async () => {
+    const L = await import('../../src/config/layoutSpec.js');
+    const html = '<h2>一、论述</h2><p>1. 阅读下文，任选一题作答。</p>';
+    const baseN = (auditExamPaper(html, { subject: '语文', stage: 'high', genType: 'exam' }).html.match(/blank-area|blank-line/g) || []).length;
+    try {
+      L.saveLayoutSpecOverride({ ...L.loadLayoutSpecOverride(), ANSWER_NO_SCORE_ROWS_BY_SUBJECT: { 语文: { high: { item: 8 } } } });
+      const upN = (auditExamPaper(html, { subject: '语文', stage: 'high', genType: 'exam' }).html.match(/blank-area|blank-line/g) || []).length;
+      expect(upN, '覆盖后补出行数应增加').toBeGreaterThan(baseN);
+      const mathN = (auditExamPaper(html, { subject: '数学', stage: 'high', genType: 'exam' }).html.match(/blank-area|blank-line/g) || []).length;
+      expect(mathN, '不应波及其它学科').toBe(baseN);
+    } finally {
+      L.resetLayoutSpecOverride();
+    }
+  });
+});

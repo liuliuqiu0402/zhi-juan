@@ -1838,10 +1838,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //    修法：移除段级粗跳过，下沉到“题块/子题块”级——每块（顶层题或子题）独立判定，
         //    填空块自带载体跳过、长答块独立补差，互不拖累；子题块行数给 2 行兜底（防整题四连大空白），
         //    无子题的整题块维持 4 行兜底。
-        // 🔴 2026-09-29（规格库为源）：无分值兜底行数改读规格库 ANSWER_NO_SCORE_ROWS（原写死 4 / 2）
+        // 🔴 2026-09-29（去一刀切·候选2）：无分值兜底原为**学科无关**的 4/2——对低段合理（学段上限恰为 4），
+        //    但中高段长答主观题偏小。现支持 `ANSWER_NO_SCORE_ROWS_BY_SUBJECT[学科][学段]` 覆盖（独立顶层键、
+        //    浅合并故生效），未覆盖回退学科无关默认。数值属卷面惯例口径（面板可调，不在代码里编）。
         const NSR = getMergedSpec().ANSWER_NO_SCORE_ROWS || {};
-        const NO_SCORE_ROWS = Number.isFinite(NSR.item) ? NSR.item : 4;       // 整题块（无子题）无分值兜底行数
-        const NO_SCORE_SUB_ROWS = Number.isFinite(NSR.sub) ? NSR.sub : 2;     // 子题块无分值兜底行数（子题粒度，防大题内连片大空白）
+        const NSRB = (getMergedSpec().ANSWER_NO_SCORE_ROWS_BY_SUBJECT || {})[subject]?.[stage] || {};
+        const NO_SCORE_ROWS = Number.isFinite(NSRB.item) ? NSRB.item : (Number.isFinite(NSR.item) ? NSR.item : 4);
+        const NO_SCORE_SUB_ROWS = Number.isFinite(NSRB.sub) ? NSRB.sub : (Number.isFinite(NSR.sub) ? NSR.sub : 2);
         const scoreIn = (pp) => {
           const t = (pp.textContent || '').trim();
           const tm = t.match(/共\s*(\d+(?:\.\d+)?)\s*分/);

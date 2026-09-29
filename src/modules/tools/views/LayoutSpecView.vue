@@ -406,6 +406,11 @@ const SPEC_GROUPS = [
       { path: 'ANSWER_MAX_ROWS_BY_STAGE.high', label: '高中上限', unit: '行', type: 'number', min: 1, max: 30, step: 1 },
       { path: 'ANSWER_NO_SCORE_ROWS.item', label: '无分值整题兜底', unit: '行', type: 'number', min: 1, max: 20, step: 1 },
       { path: 'ANSWER_NO_SCORE_ROWS.sub', label: '无分值子题兜底', unit: '行', type: 'number', min: 1, max: 20, step: 1 },
+      // 🔴 2026-09-29（去一刀切·候选2）：中高段长答主观题的无分值兜底可按学科×学段覆盖（留空沿用上面默认）
+      { path: 'ANSWER_NO_SCORE_ROWS_BY_SUBJECT.语文.middle.item', label: '语文·初中整题兜底', unit: '行', type: 'number', min: 1, max: 30, step: 1 },
+      { path: 'ANSWER_NO_SCORE_ROWS_BY_SUBJECT.语文.high.item', label: '语文·高中整题兜底', unit: '行', type: 'number', min: 1, max: 30, step: 1 },
+      { path: 'ANSWER_NO_SCORE_ROWS_BY_SUBJECT.数学.middle.item', label: '数学·初中整题兜底', unit: '行', type: 'number', min: 1, max: 30, step: 1 },
+      { path: 'ANSWER_NO_SCORE_ROWS_BY_SUBJECT.数学.high.item', label: '数学·高中整题兜底', unit: '行', type: 'number', min: 1, max: 30, step: 1 },
       // 🔴 2026-09-29（去一刀切·学科×学段覆盖入口）：上限对"答案篇幅由内容长度决定"的题不成立——
       //    下列项仅覆盖**该学科×该学段**上限（留空即沿用上面的学段默认值）；数值属卷面惯例口径。
       { path: 'ANSWER_MAX_ROWS_BY_SUBJECT.英语.primary_low', label: '英语·低段上限', unit: '行', type: 'number', min: 1, max: 40, step: 1 },
