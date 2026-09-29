@@ -149,3 +149,53 @@ export function hasCarrierClass(html, id) {
 
 /** 载体 id → 中文标签（按钮/提示文案用） */
 export const carrierLabel = (id) => (CARRIER_INSERTS[id] || {}).label || id;
+
+/**
+ * 载体"族"（同类择一 · 单一事实源）
+ * ─────────────────────────────────────────────────────────────
+ * 用途（编辑器手动插入）：**同一处只留同族载体一种**——插入前把选区/光标处的同族载体
+ *   整体纳入替换范围，避免"两种同类载体并排"与残留空壳（空元素）。
+ * 判据按 **class** 判定（不按标签）：
+ *   · 格类：田字格/米字格/四线三格/六线格/拼音格 —— 同为写字格，一处择一；
+ *   · 空位类：`blank-N`（N 为纯数字）—— 横线空位(`<u>`) 与 括号空位(`<span>`) **同族**
+ *     （用户裁定 2026-09-30：可把原括号换成横线，反之亦然）；
+ *     ⚠️ `blank-line`（整行横线，块级作答区）**不属**空位族，故按 class 精确匹配，
+ *        不用 `[class*=blank-]`（会把整行横线误吞）。
+ *   · 填空框类：数学方框 / 填空圈。
+ * 未列入的载体（整行横线/留白行/竖式格/方格纸/作图区）各自成族：只按自身 class 唯一。
+ */
+const BLANK_CLASS_RE = /^blank-\d+$/;
+export const CARRIER_FAMILIES = {
+  grid: (el) => ['tian-zi-ge', 'mi-zi-ge', 'four-line-three', 'sixian-ge', 'pinyin-line']
+    .some((c) => !!(el.classList && el.classList.contains(c))),
+  blank: (el) => !!(el.classList && [...el.classList].some((c) => BLANK_CLASS_RE.test(c))),
+  box: (el) => !!(el.classList && (el.classList.contains('square-box') || el.classList.contains('math-circle-blank-18'))),
+  'blank-line': (el) => !!(el.classList && el.classList.contains('blank-line')),
+  'oral-box': (el) => !!(el.classList && el.classList.contains('oral-box')),
+};
+
+/** 载体 id → 族名（同类择一）；未列出的 id 无同族（各自唯一） */
+export const CARRIER_FAMILY_OF = {
+  'tian-zi-ge': 'grid', 'mi-zi-ge': 'grid', 'four-line-three': 'grid', 'sixian-ge': 'grid', 'pinyin-line': 'grid',
+  'blank-underline': 'blank', 'blank-paren': 'blank',
+  'square-box': 'box', 'math-circle-blank': 'box',
+  'blank-line': 'blank-line', 'oral-box': 'oral-box',
+};
+
+/**
+ * 从 DOM 元素向上找**同族载体**元素（同类择一用）
+ * @param {Element} el 起始元素（光标/选区端点所在；可为文本节点的父元素）
+ * @param {string} id  拟插入的载体 id
+ * @param {Element} [stopEl] 上溯边界（通常是编辑器根，避免穿出编辑区）
+ * @returns {Element|null}
+ */
+export function closestCarrierFamily(el, id, stopEl = null) {
+  const fam = CARRIER_FAMILY_OF[id];
+  const test = fam && CARRIER_FAMILIES[fam];
+  if (typeof test !== 'function') return null;
+  for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+    if (test(n)) return n;
+    if (stopEl && n === stopEl) break;
+  }
+  return null;
+}

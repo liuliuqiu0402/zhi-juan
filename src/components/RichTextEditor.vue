@@ -500,6 +500,20 @@
         >
           ⏎
         </button>
+        <!-- 打乱连线题右列顺序（手动·不判断答案）：结构 div.match-question > .match-col×2 > .match-item×N -->
+        <button
+          title="打乱连线题右列顺序（光标在题内；否则取第一处连线题）"
+          @click="shuffleMatchRight"
+        >
+          ⇄
+        </button>
+        <!-- 把选中的连线题各行（左项 空位 右项）规范为两列连线结构（右列打乱、去掉空位） -->
+        <button
+          title="规范为连线题：框选各行（每行形如 左项 空位 右项）→ 两列连线结构（右列打乱、去掉空位）"
+          @click="normalizeMatchSelection"
+        >
+          ⛓
+        </button>
         <input
           ref="imageInput"
           type="file"
@@ -1559,7 +1573,7 @@ const setLineSpacing = (val) => {
 //   · 光标处插入 / 选区替换；走编辑器事务（原生可撤销）；不做任何链路写回
 //   ⚠️ 运行环境为 Electron：**window.prompt 不受支持**（实测报错 "prompt() is and will not be supported."），
 //      故长度输入一律用**内联面板**（carrierPanel），不得回退到 prompt/alert。
-import { CARRIER_INSERTS, CARRIER_INSERT_IDS, buildCarrierHtml, carrierLabel } from '../utils/carrierInsert';
+import { CARRIER_INSERTS, CARRIER_INSERT_IDS, buildCarrierHtml, carrierLabel, closestCarrierFamily } from '../utils/carrierInsert';
 const carrierOptions = CARRIER_INSERT_IDS.map((id) => ({ id, label: carrierLabel(id) }));
 // 内联面板状态：{ kind: 'carrier' | 'zuowen' | 'notice', id?, tip }
 const carrierPanel = ref(null);
@@ -1577,7 +1591,52 @@ const insertCarrier = (e) => {
   carrierPanel.value = { kind: 'carrier', id, tip: `${carrierLabel(id)}·${d.lenLabel}` };
 };
 
-// 确认插入（两种按钮共用）：面板取长度 → 走编辑器事务插入（选区非空时即替换，消"同类并存"）
+// 同类择一：把选区/光标扩展到**同族载体**整体 → insertContent 即整体替换（不留空壳、不并排同类载体）
+//   · 族判据（哪些 class 同族）的单一事实源 = carrierInsert.js（CARRIER_FAMILIES / closestCarrierFamily）
+//   · 只在命中同族载体时扩展；文本选区/普通光标不受影响
+//   ⚠️ 两种承载形态的范围口径不同（实测踩坑）：
+//     · 内联节点 DOM（田字格/米字格）：posAtDOM(el,0) 是**节点内容起点**（=节点起点+1）
+//       → 整体范围须两侧各外扩 1 才含节点自身（否则替换只覆盖内容、节点留成空壳）；
+//     · 标记包裹 DOM（u/span 空位）：posAtDOM 两端即整体范围，外扩会吃掉邻字。
+//     判别：`view.nodeDOM(a0-1) === el` 为真 ⇒ el 是 PM 节点自身的 DOM。
+const carrierFamilyRange = (id) => {
+  const e = editor.value;
+  const view = e && e.view;
+  if (!view) return null;
+  const { from, to, empty } = view.state.selection;
+  const elAt = (pos, bias) => {
+    try {
+      const d = view.domAtPos(pos, bias);
+      const n = d && d.node;
+      return n ? (n.nodeType === 1 ? n : n.parentElement) : null;
+    } catch (_) { return null; }
+  };
+  const root = view.dom;
+  const startEl = closestCarrierFamily(elAt(from, -1) || elAt(from, 1), id, root);
+  const endEl = empty ? startEl : closestCarrierFamily(elAt(to, 1) || elAt(to, -1), id, root);
+  const els = [...new Set([startEl, endEl].filter(Boolean))];
+  if (!els.length) return null;
+  const elementRange = (el) => {
+    const a0 = view.posAtDOM(el, 0);
+    const b0 = view.posAtDOM(el, el.childNodes.length);
+    try {
+      if (a0 > 0 && view.nodeDOM(a0 - 1) === el) return { from: a0 - 1, to: b0 + 1 };
+    } catch (_) { /* nodeDOM 不可用 → 按标记形态处理 */ }
+    return { from: a0, to: b0 };
+  };
+  let a = from;
+  let b = to;
+  for (const el of els) {
+    try {
+      const r = elementRange(el);
+      a = Math.min(a, r.from);
+      b = Math.max(b, r.to);
+    } catch (_) { /* 端点跨节点等异常 → 该端不扩展 */ }
+  }
+  return (a === from && b === to) ? null : { from: a, to: b };
+};
+
+// 确认插入（两种按钮共用）：面板取长度 → 走编辑器事务插入（选区非空时即替换；同类载体整体择一）
 const confirmCarrier = async () => {
   const p = carrierPanel.value;
   if (!p || p.kind === 'notice') { carrierPanel.value = null; return; }
@@ -1587,7 +1646,10 @@ const confirmCarrier = async () => {
       const { buildZuoWenGridHtml } = await import('../utils/zuoWenGrid');
       editor.value.chain().focus().insertContent(buildZuoWenGridHtml({ cells: n })).run();
     } else {
-      editor.value.chain().focus().insertContent(buildCarrierHtml(p.id, n)).run();
+      const r = carrierFamilyRange(p.id);
+      let chain = editor.value.chain().focus();
+      if (r) chain = chain.setTextSelection(r);
+      chain.insertContent(buildCarrierHtml(p.id, n)).run();
     }
   } catch (err) {
     console.warn('插入书写载体失败:', (err && err.message) || err);
@@ -1620,6 +1682,147 @@ const insertZuoWenGrid = async () => {
   } catch (e) {
     console.warn('插入作文格失败:', (e && e.message) || e);
   }
+};
+
+// ═══════════════ 连线题 · 打乱右列 ═══════════════
+// 手动行为（用户裁定 2026-09-30）：只重排右列顺序，**不判断/不记录答案**——对错由人工肉眼核对。
+//   · 结构：div.match-question > div.match-col×2 > div.match-item×N
+//     （连线题无专用节点，由通用 divWrapper 按 divClass 承载）
+//   · 走编辑器事务（原生撤销）；不做任何链路写回
+const hasClsNode = (node, cls) => !!(node && node.type && node.type.name === 'divWrapper'
+  && new RegExp(`(^|\\s)${cls}(\\s|$)`).test((node.attrs && node.attrs.divClass) || ''));
+
+const shuffleMatchRight = () => {
+  const e = editor.value;
+  if (!e) return;
+  const { doc, selection } = e.state;
+  let hit = null;    // 选区所在的连线题
+  let first = null;  // 兜底：文档中第一处连线题
+  doc.descendants((node, pos) => {
+    if (!hasClsNode(node, 'match-question')) return true;
+    if (!first) first = { node, pos };
+    if (!hit && selection.from > pos && selection.to < pos + node.nodeSize) hit = { node, pos };
+    return true;
+  });
+  const target = hit || first;
+  if (!target) {
+    carrierPanel.value = { kind: 'notice', tip: '未找到连线题（需为两列 match-question 结构）' };
+    return;
+  }
+  const cols = [];
+  target.node.forEach((child, offset) => { if (hasClsNode(child, 'match-col')) cols.push({ child, offset }); });
+  if (cols.length < 2) {
+    carrierPanel.value = { kind: 'notice', tip: '连线题结构不完整（需左右两列）' };
+    return;
+  }
+  const right = cols[1];
+  const items = [];
+  right.child.forEach((it) => items.push(it));
+  if (items.length < 2) {
+    carrierPanel.value = { kind: 'notice', tip: '右列不足两项，无需打乱' };
+    return;
+  }
+  const out = items.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  // 随机可能撞回原序（概率 1/n!）→ 循环移位一位，保证"点一下必然可见变化"
+  if (out.every((n, i) => n.eq(items[i]))) out.push(out.shift());
+  const newRight = right.child.type.create(right.child.attrs, out, right.child.marks);
+  const at = target.pos + 1 + right.offset;
+  e.view.dispatch(e.state.tr.replaceWith(at, at + right.child.nodeSize, newRight));
+  carrierPanel.value = { kind: 'notice', tip: '已打乱右列顺序' };
+};
+
+// ═══════════════ 连线题 · 规范为两列结构 ═══════════════
+// 手动行为（用户裁定 2026-09-30）：模型偶发把"连一连"写成**同行线性段落**
+//   （`左项 <空位> 右项`）——左|右相邻即答案、且导出端只认两列 match-question 结构
+//   （docxBuilder.js 连线分支）→ 由用户框选后一键规范。
+//   · 输入：框选的行；每行须**恰一个空位**且空位两侧各有文字，才算"可切分行"
+//   · 输出：连续可切分行 → 一个 div.match-question（左列保序、右列打乱、**去掉空位**）
+//   · 不可切分行（题干等）原样不动 → 可整题连题干一起框选
+//   · 走编辑器事务（可撤销）；右列打乱只换顺序、不判断答案（对错人工肉眼核对）
+//   🔴 刻意**不做**关键词自动识别（"连一连"等词判据属指向性诱导），只做用户显式触发的形态转换
+const BLANK_CLS_RE = /(^|\s)blank-\d+(\s|$)/;
+const isBlankMark = (m) => (m.type.name === 'underline'
+  ? BLANK_CLS_RE.test(m.attrs.class || '')
+  : (m.type.name === 'preserveSpan' ? BLANK_CLS_RE.test(m.attrs.preservedClass || '') : false));
+const isBlankTextRun = (t) => /^[\s\u3000]{2,}$/.test(t || '');
+const escapeHtmlText = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** 把一行块按"空位"切成左右两项；恰一个空位且两侧非空才算可切（否则 null） */
+const splitLineByBlank = (block) => {
+  const parts = [[], []];
+  let seg = 0;
+  let blanks = 0;
+  let ok = true;
+  block.forEach((child) => {
+    if (!child.isText) { parts[seg].push(child.textContent || ''); return; }
+    if (child.marks.some(isBlankMark) || isBlankTextRun(child.text)) {
+      blanks += 1;
+      if (blanks > 1) ok = false;
+      seg = 1;
+      return;
+    }
+    parts[seg].push(child.text);
+  });
+  const left = parts[0].join('').trim();
+  const right = parts[1].join('').trim();
+  return (ok && blanks === 1 && left && right) ? { left, right } : null;
+};
+
+const normalizeMatchSelection = () => {
+  const e = editor.value;
+  if (!e) return;
+  const { doc, selection } = e.state;
+  const { from, to } = selection;
+  if (from === to) {
+    carrierPanel.value = { kind: 'notice', tip: '请先框选连线题的各行（每行形如：左项 空位 右项）' };
+    return;
+  }
+  // 取"与选区有交集的顶层块"（⚠️ 不可用 $pos.before(1)：PM 在块边界处 resolve 落到 depth 0，会误判）
+  const blocks = [];
+  doc.forEach((child, offset) => blocks.push({ child, offset, end: offset + child.nodeSize }));
+  const picked = blocks.filter((b) => b.end > from && b.offset < to);
+  if (!picked.length) {
+    carrierPanel.value = { kind: 'notice', tip: '选区不在正文段落内，无法规范' };
+    return;
+  }
+  // 连续可切分行 → 一段（成题）；不可切分行断开分段（题干等原样不动）
+  const runs = [];
+  let cur = null;
+  for (const b of picked) {
+    const p = splitLineByBlank(b.child);
+    if (!p) { cur = null; continue; }
+    if (!cur) { cur = { from: b.offset, to: b.end, items: [] }; runs.push(cur); }
+    cur.to = b.end;
+    cur.items.push(p);
+  }
+  const usable = runs.filter((r) => r.items.length >= 2);
+  if (!usable.length) {
+    carrierPanel.value = { kind: 'notice', tip: '未识别到可规范的连线行（需 ≥2 行，每行恰一个空位、空位两侧各有文字）' };
+    return;
+  }
+  const matchHtml = (items) => {
+    const col = (seq) => `<div class="match-col">${seq.map((t) => `<div class="match-item">${escapeHtmlText(t)}</div>`).join('')}</div>`;
+    const right = items.map((p) => p.right);
+    // 右列打乱（≥3 项才打乱，2 项无交叉可言）；随机撞回原序则循环移位一位
+    if (right.length >= 3) {
+      for (let i = right.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [right[i], right[j]] = [right[j], right[i]];
+      }
+      const orig = items.map((p) => p.right);
+      if (right.every((v, i) => v === orig[i])) right.push(right.shift());
+    }
+    return `<div class="match-question">${col(items.map((p) => p.left))}${col(right)}</div>`;
+  };
+  // 由后往前替换（位置取自原文档，倒序避免位移漂移）；整链一次事务，失败即整体回滚
+  const chain = e.chain();
+  for (const r of [...usable].reverse()) chain.insertContentAt({ from: r.from, to: r.to }, matchHtml(r.items));
+  chain.run();
+  carrierPanel.value = { kind: 'notice', tip: `已规范 ${usable.length} 处连线题为两列结构` };
 };
 
 // ═══════════════ 图片 ═══════════════
@@ -2288,6 +2491,9 @@ watch(() => props.customCSS, (css, oldCss) => {
 onBeforeUnmount(() => {
   // 移除缩放事件监听
   zoomWrapRef.value?.removeEventListener('wheel', onEditorWheel, { passive: false });
+  // 🔴 先撤防抖定时器再销毁编辑器：onUpdate 的 150ms 防抖回调（forceTianZiGeStyles 等）
+  //    若在 destroy 之后触发，会访问已失效的 view.dom 抛 "editor view is not available"
+  clearTimeout(updateDebounceTimer);
   editor.value?.destroy();
 });
 

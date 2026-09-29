@@ -12,7 +12,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { buildZuoWenGridHtml, zuowenCellsForStage, hasZuoWenGrid } from '../../src/utils/zuoWenGrid';
-import { CARRIER_INSERTS, CARRIER_INSERT_IDS, buildCarrierHtml, hasCarrierClass } from '../../src/utils/carrierInsert';
+import { CARRIER_INSERTS, CARRIER_INSERT_IDS, buildCarrierHtml, hasCarrierClass, CARRIER_FAMILIES, CARRIER_FAMILY_OF, closestCarrierFamily } from '../../src/utils/carrierInsert';
 import { getMergedSpec } from '../../src/config/layoutSpec.js';
 
 const sr = (p) => fs.readFileSync(path.resolve(process.cwd(), p), 'utf8');
@@ -131,5 +131,66 @@ describe('连线题与遗留类：按取证口径处理', () => {
 
   it('english-line 不列入（遗留字体类·不画格线，独立格线用 four-line-three/sixian-ge）', () => {
     expect(CARRIER_INSERT_IDS).not.toContain('english-line');
+  });
+});
+
+describe('同类择一：同族载体互斥（族判据的单一事实源）', () => {
+  const el = (tag, cls) => { const d = document.createElement(tag); d.className = cls; return d; };
+
+  it('格类五格同族：田/米/四线三/六线/拼音 互为同族', () => {
+    for (const c of ['tian-zi-ge', 'mi-zi-ge', 'four-line-three', 'sixian-ge', 'pinyin-line']) {
+      expect(closestCarrierFamily(el('span', c), 'mi-zi-ge'), c).toBeTruthy();
+      expect(closestCarrierFamily(el('span', c), 'tian-zi-ge'), c).toBeTruthy();
+    }
+  });
+
+  it('空位类同族：横线空位(u.blank-N) ↔ 括号空位(span.blank-N) 可互相替换', () => {
+    const paren = el('span', 'blank-5');
+    const underline = el('u', 'blank-3');
+    expect(closestCarrierFamily(paren, 'blank-underline')).toBe(paren);
+    expect(closestCarrierFamily(underline, 'blank-paren')).toBe(underline);
+    expect(closestCarrierFamily(underline, 'blank-underline')).toBe(underline);
+  });
+
+  it('整行横线(block 级作答区)不属空位族——不得被 blank-N 插入误吞', () => {
+    const line = el('span', 'blank-line');
+    expect(closestCarrierFamily(line, 'blank-underline')).toBeNull();
+    expect(closestCarrierFamily(line, 'blank-paren')).toBeNull();
+    expect(closestCarrierFamily(line, 'blank-line')).toBe(line);
+  });
+
+  it('数学填空框/圈同族；非载体元素（正文/其它 class）不命中', () => {
+    const box = el('span', 'square-box');
+    const circle = el('span', 'math-circle-blank-18');
+    expect(closestCarrierFamily(box, 'math-circle-blank')).toBe(box);
+    expect(closestCarrierFamily(circle, 'square-box')).toBe(circle);
+    expect(closestCarrierFamily(el('span', 'underline-sentence'), 'tian-zi-ge')).toBeNull();
+    expect(closestCarrierFamily(el('p', 'foo'), 'blank-paren')).toBeNull();
+  });
+
+  it('向上穿透嵌套（格内文本 → 命中格子）；stopEl 阻止穿出编辑区', () => {
+    const outer = el('span', 'tian-zi-ge');
+    const inner = document.createElement('span');
+    outer.appendChild(inner);
+    expect(closestCarrierFamily(inner, 'tian-zi-ge')).toBe(outer);
+    // stopEl 命中前先判自身：root 若就是同族载体则仍返回 root；否则上溯到 root 即止
+    const root = document.createElement('div');
+    const far = document.createElement('span');
+    root.appendChild(document.createElement('p')).appendChild(far);
+    expect(closestCarrierFamily(far, 'tian-zi-ge', root)).toBeNull();
+  });
+
+  it('族表与目录自洽：每个有族的 id 都真实存在，且族判据是函数', () => {
+    for (const [id, fam] of Object.entries(CARRIER_FAMILY_OF)) {
+      expect(CARRIER_INSERT_IDS, `${id} 应在插入目录内`).toContain(id);
+      expect(typeof CARRIER_FAMILIES[fam], `族 ${fam} 应有判据`).toBe('function');
+    }
+  });
+
+  it('编辑器确实接线：插入前做同族扩展 + 打乱右列入口存在', () => {
+    const src = sr('src/components/RichTextEditor.vue');
+    expect(src, '同类择一：插入前须走 carrierFamilyRange').toContain('carrierFamilyRange');
+    expect(src, '族判据须读 carrierInsert 单一源').toContain('closestCarrierFamily');
+    expect(src, '打乱右列入口').toContain('shuffleMatchRight');
   });
 });
