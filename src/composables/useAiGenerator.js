@@ -275,173 +275,18 @@ const normalizeFetchError = async (e, response) => {
 
 // ============================================================
 // 🔧 工具函数：分层注入 + 格式常量
-// 🔴 2026-09-30（注释同步）：本区原标"精准检索"，且下方两个函数（`buildKpSegmentIndex` /
-//    `retrieveBlueprintSegments`）**已无任何调用方**——它们属于旧架构（"RAG 按知识点检索原文片段"，
-//    配合已删除的 browse/配方分步流水线）。A15（2026-09-11）"取消 browse"之后，写作素材改为
-//    **程序直读勾选章节原文 → 压缩**（见下方 `collectChapterRawText` / `compressOriginalText`），
-//    以【锚点清单】+【压缩原文】注入。**本区函数不得再被当作"素材走检索"的依据**（保留待清理裁定）。
+// 🔴 2026-09-30（注释同步）：本区原标"精准检索"。**素材不走检索**——A15（2026-09-11）"取消 browse"之后
+//    写作素材改为"程序直读勾选章节原文 → 按分档直放或压缩"；原"精准检索"的函数与注释已一并清理，见下条说明。
 // ============================================================
 
-/**
- * 构建 KP→原文片段的反向索引：从 contentCards 的 segment 中提取所有 KP→segment 映射
- * 分析阶段已由 AI 标注了每个片段的知识点，这里直接建索引即可实现 O(1) 检索
- * @returns {Map<string, {chapterTitle:string, text:string, type:string}[]>}
- */
-const buildKpSegmentIndex = (contentCards) => {
-  const index = new Map();
-  for (const card of contentCards) {
-    if (!card.segments || card.segments.length === 0) continue;
-    for (const seg of card.segments) {
-      const kps = seg.knowledgePoints || [];
-      for (const kp of kps) {
-        if (!kp || typeof kp !== 'string') continue;
-        if (!index.has(kp)) index.set(kp, []);
-        const entries = index.get(kp);
-        // 去重：相同文本不重复加入
-        if (!entries.some(e => e.text === seg.text)) {
-          entries.push({ chapterTitle: card.chapterTitle, text: seg.text, type: seg.type || '' });
-        }
-      }
-    }
-  }
-  return index;
-};
-
-/**
- * 蓝图驱动的精准检索：基于分析阶段 KP→原文片段反向索引，O(1) 直接命中
- * 替代原来的 O(n×m) 全量模糊扫描，根源上解决检索不准确问题
- */
-const retrieveBlueprintSegments = (contentCards, parsedBlueprint, maxChars = 1500) => {
-  if (!contentCards?.length) return '';
-
-  // 🔧 1. 构建反向索引：KP → [{chapterTitle, text, type}]（分析阶段已标注）
-  const index = buildKpSegmentIndex(contentCards);
-  const allIndexKeys = [...index.keys()];
-
-  // 🔧 2. 从蓝图中提取知识点关键词 + 逐词分解
-  const bpKeywords = new Set();
-  const bpWordSet = new Set();
-  if (parsedBlueprint?.length) {
-    for (const bp of parsedBlueprint) {
-      if (bp.knowledgePoint) {
-        bpKeywords.add(bp.knowledgePoint);
-        const words = bp.knowledgePoint.split(/[，,、\s]+/).filter(w => w.length >= 2);
-        words.forEach(w => bpWordSet.add(w));
-      }
-    }
-  }
-
-  // 🔧 3. 索引查表：精确 KP 名称 → O(1) 直接命中，无需扫描所有 segments
-  const exactMatches = [];
-  const fuzzyMatches = [];
-  const seenTexts = new Set();
-  const matchedKeys = new Set();
-
-  for (const bk of bpKeywords) {
-    // 策略 A：精确匹配 → KP 名称直接作为索引 key
-    if (index.has(bk)) {
-      matchedKeys.add(bk);
-      for (const entry of index.get(bk)) {
-        if (!seenTexts.has(entry.text)) {
-          seenTexts.add(entry.text);
-          exactMatches.push({ ...entry, matchScore: 3 });
-        }
-      }
-      continue;
-    }
-    // 策略 B：包含匹配 → KP 名称包含/被包含于索引 key
-    for (const idxKey of allIndexKeys) {
-      if (matchedKeys.has(idxKey)) continue;
-      if (idxKey.includes(bk) || bk.includes(idxKey)) {
-        matchedKeys.add(idxKey);
-        for (const entry of index.get(idxKey)) {
-          if (!seenTexts.has(entry.text)) {
-            seenTexts.add(entry.text);
-            fuzzyMatches.push({ ...entry, matchScore: 2 });
-          }
-        }
-      }
-    }
-  }
-
-  // 🔧 4. 逐词兜底：精确匹配为空时，用逐词重叠匹配索引中的 key
-  if (exactMatches.length === 0 && fuzzyMatches.length === 0) {
-    for (const idxKey of allIndexKeys) {
-      const idxWords = idxKey.split(/[，,、\s]+/).filter(w => w.length >= 2);
-      const overlap = idxWords.filter(w => bpWordSet.has(w)).length;
-      if (overlap > 0) {
-        for (const entry of index.get(idxKey)) {
-          if (!seenTexts.has(entry.text)) {
-            seenTexts.add(entry.text);
-            fuzzyMatches.push({ ...entry, matchScore: Math.min(overlap, 3) });
-          }
-        }
-      }
-    }
-  }
-
-  // 🔧 5. 学科感知的类型加成
-  const allChapterTitles = contentCards.map(c => c.chapterTitle || '').join(' ');
-  const isEnglishBook = /英语|english|PEP/i.test(allChapterTitles);
-  const isChineseBook = /语文|课文|生字/i.test(allChapterTitles);
-  const isMathBook = /数学|math/i.test(allChapterTitles);
-
-  const allMatches = [...exactMatches, ...fuzzyMatches];
-  for (const m of allMatches) {
-    if (isEnglishBook && m.type?.includes('词汇')) m.matchScore += 2;
-    if (isChineseBook && m.type?.includes('生字')) m.matchScore += 2;
-    if (isMathBook && m.type === '例题') m.matchScore += 1;
-  }
-
-  // 🔧 6. 预算分区输出：特殊段落（词汇表/生字表）优先 + 匹配度排序
-  const specialSegments = allMatches.filter(m =>
-    m.type === '词汇表' || m.type === '生字表' || m.type?.includes('词汇') || m.type?.includes('生字')
-  );
-  const regularSegments = allMatches.filter(m => !specialSegments.includes(m));
-  regularSegments.sort((a, b) => b.matchScore - a.matchScore);
-
-  const SPECIAL_BUDGET = Math.floor(maxChars * 0.6);
-  let result = '';
-  let used = 0;
-
-  // 特殊段落（词汇表/生字表）优先
-  for (const seg of specialSegments) {
-    if (used + seg.text.length > SPECIAL_BUDGET) break;
-    const label = seg.type ? ` [${seg.type}]` : '';
-    result += `【${seg.chapterTitle}${label}】${seg.text}\n`;
-    used += seg.text.length;
-  }
-
-  // 常规段落按匹配度填充
-  const remainingBudget = maxChars - used;
-  if (remainingBudget > 0) {
-    for (const seg of regularSegments) {
-      if (used + seg.text.length > maxChars) break;
-      if (seg.matchScore === 0 && used > remainingBudget * 0.3) break;
-      const label = seg.type ? ` [${seg.type}]` : '';
-      result += `【${seg.chapterTitle}${label}】${seg.text}\n`;
-      used += seg.text.length;
-    }
-  }
-
-  // 🔧 7. 终极兜底：索引为空或全无匹配时，返回前 maxChars 原文
-  if (!result) {
-    let fallback = '';
-    let fallbackUsed = 0;
-    for (const card of contentCards) {
-      if (!card.segments || card.segments.length === 0) continue;
-      for (const seg of card.segments) {
-        if (fallbackUsed + seg.text.length > maxChars) break;
-        fallback += `【${card.chapterTitle}】${seg.text}\n`;
-        fallbackUsed += seg.text.length;
-      }
-      if (fallbackUsed >= maxChars) break;
-    }
-    return fallback;
-  }
-
-  return result;
-};
+// 🔴 2026-09-30（死码清理·用户裁定）：此处原有两个**已无任何调用方**的旧检索函数——
+//    `buildKpSegmentIndex`（KP→原文片段反向索引）与 `retrieveBlueprintSegments`（蓝图驱动的片段检索）。
+//    它们属于旧架构（"RAG 按知识点检索原文片段"，配合已删除的 browse / 配方分步流水线）；
+//    A15（2026-09-11）"取消 browse"之后，写作素材改为**程序直读勾选章节原文 →（按分档直放或
+//    Map→Reduce 压缩）**，见 `utils/textbookCompression.js` 与下方 `collectChapterRawText` /
+//    `compressOriginalText` 调用点。**素材不走检索**，故删除（准则：不留死码）。
+//    存档说明：`docs/文档索引.md` 里已标注"已废弃/冻结"的三篇旧设计文档仍会提到这两个函数名，
+//    那是历史决策记录，不代表现行实现。
 
 // ==================== 年级数字提取工具 ====================
 // 🔑 统一使用共享工具 ../utils/gradeStage.js 的 extractGradeNum（曾因本地 parseInt('六年级')
