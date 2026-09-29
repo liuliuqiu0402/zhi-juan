@@ -535,3 +535,60 @@ describe('根治回归：答案区题号覆盖度按块级行计数（不依赖�
     expect(silentDetails.some(d => d.type === 'answer-coverage' && d.message.includes('缺与正文一致的题号'))).toBe(true);
   });
 });
+
+// 🔴 2026-09-29 用户实证（语文·二年级上册第一单元试卷）：大题**最后一小题**的书写格（田字格）成稿后消失；
+//   经复核**非模型漏输出**，而是程序侧"小题作用域"以 `|| null` 收尾——末题取不到"下一小题"时，兄弟遍历
+//   （`while (n && n !== end) n = n.nextSibling`）一路走到**整篇文档末尾**，把后续大题的文本/载体并入了本题：
+//     · 2l（载体×题型正规化）：后续大题的"看图写话"关键词命中 forbid → 末题书写格被误剥离（用户主症状）；
+//     · 2j-5／2j-5b（补作文格／补横线）：后续大题的载体被误当"本题已有" → 该题漏补；
+//     · 2j-4（载体声明抽检）：同上 → 漏报"题干声明载体却未输出"。
+//   四处统一改为**本节边界**（本题之后最近的 h2/h3/h4）兜底，使"末题"不再越界（与 2j-5c 既有的"到下一标题"口径对齐）。
+describe('根治回归：末题区域越界（`|| null` 兄弟遍历把后续大题并入本题）', () => {
+  const G = '<span class="tian-zi-ge"></span>';
+
+  it('2l：大题最后一小题的书写格不因后续大题含"看图写话"而被剥离（用户主症状）', () => {
+    const html = '<h2>一、播下小豆种——看拼音写词语（共2题，每题3分，共6分）</h2>'
+      + `<p class="question">1. 太阳一晒，水就变成了qì。（3分）</p><p>${G}${G}</p>`
+      + `<p class="question">2. 豆芽长出了两片小叶子。（3分）</p><p>${G}${G}</p>`
+      + '<h2>二、看图写话（10分）</h2><p>仔细看图，写几句话。</p>';
+    expect(countGridCells(run(html).html), '第 2 题（末题）的两格不得被剥离').toBe(4);
+  });
+
+  it('2l 反向护栏：真属表达/写话类题内混入的书写格仍被剥离（收口不越界、也不失效）', () => {
+    const html = '<h2>一、看图写话（10分）</h2>'
+      + `<p class="question">1. 看图写话：仔细看图，写几句话。（10分）</p><p>${G}${G}</p>`;
+    expect(countGridCells(run(html).html), '写话类题内的书写格仍应被剥离').toBe(0);
+  });
+
+  it('2j-5：本节写话题不因后续大题已有横线而漏补作文格（一、看图写话 → 二、阅读带横线）', () => {
+    const html = '<h2>一、看图写话（10分）</h2>'
+      + '<p class="question">1. 看图写话。（10分）</p>'
+      + '<h2>二、阅读与理解（20分）</h2>'
+      + '<p>读短文，完成练习。</p><p><span class="blank-line">&emsp;</span></p>'
+      + '<p class="question">2. 短文中“它”指的是什么？（5分）</p>';
+    expect(run(html).html.split('<h2>二、')[0], '一、看图写话应补出作文格（不得被二、大题的横线掩蔽）').toContain('zuo-wen-ge');
+  });
+
+  it('2j-5b：英语书面表达所在节不被后续大题的横线掩蔽（作答横线补齐行为守卫）', () => {
+    const html = '<h2>一、综合运用（10分）</h2>'
+      + '<p class="question">1. 书面表达：请写一篇短文介绍你的一天。</p>'
+      + '<h2>二、阅读（10分）</h2>'
+      + '<p><span class="blank-line">&emsp;</span></p>'
+      + '<p class="question">2. 读短文，选择答案。</p>';
+    const r = auditExamPaper(html, { subject: '英语', stage: 'primary_high', genType: 'exam' });
+    expect(r.html.split('<h2>二、')[0], '一、书面表达所在节应有作答横线').toContain('blank-line');
+  });
+
+  it('2j-4：末题声明载体却未输出 → 仍抽检（后续大题的同类载体不得掩蔽）', () => {
+    // 布局要点：题1 声明田字格但无格子；二、大题内**题2 之前**先有一处田字格（旧代码会把它并入题1 作用域），
+    //   题2 自带格子（避免题2 自身也报警，确保命中只可能来自题1）
+    const html = '<h2>一、识字与写字（10分）</h2>'
+      + '<p class="question">1. 在田字格中写“春”。</p>'
+      + '<h2>二、识字与写字（10分）</h2>'
+      + `<p>${G}</p>`
+      + '<p class="question">2. 在田字格中写“夏”。</p>'
+      + `<p>${G}</p>`;
+    const { silentDetails } = run(html);
+    expect(silentDetails.some(d => d.type === 'writing-grid' && d.message.includes('tian-zi-ge'))).toBe(true);
+  });
+});

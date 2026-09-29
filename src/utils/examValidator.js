@@ -1210,13 +1210,19 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const tplD = document.createElement('template');
           tplD.innerHTML = out;
           const psD = Array.from(tplD.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
+          // 🔴 2026-09-29：本节边界（与 2l/2j-5 同源）——钳制末题区域不越界到后续大题
+          const headsSecD = Array.from(tplD.content.querySelectorAll('h2, h3, h4')).filter(h => !h.closest('.answer-section'));
           const numberedD = psD.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
           for (let i = 0; i < numberedD.length; i++) {
             const p = numberedD[i];
             const pText = p.textContent || '';
             const hit = activeDecls.find(r => r.re.test(pText));
             if (!hit) continue;
-            const endP = numberedD[i + 1] || null;
+            let endP = numberedD[i + 1] || null;
+            // 🔴 2026-09-29 根治（同源）：末题区域止于本节边界，否则后续大题的同类载体被误当本题已有 →
+            //    "题干声明载体却未输出"的抽检被静默吞掉（漏报真缺陷）。
+            const secEndD = headsSecD.find(h => p.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
+            if (!endP || (secEndD && !(endP.compareDocumentPosition(secEndD) & Node.DOCUMENT_POSITION_FOLLOWING))) endP = secEndD;
             const clsRe = new RegExp(`class=["'][^"']*${hit.cls}`);
             let hasCarrier = false;
             let probe = p;
@@ -1258,6 +1264,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const tpl2 = document.createElement('template');
         tpl2.innerHTML = out;
         const ps2 = Array.from(tpl2.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
+        // 🔴 2026-09-29：本节边界（本元素之后最近的 h2/h3/h4）——用于钳制区域不越界到后续大题
+        const headsSec2 = Array.from(tpl2.content.querySelectorAll('h2, h3, h4')).filter(h => !h.closest('.answer-section'));
         const kwRe = /看图写话|写话|习作|作文|写作|小练笔/;
         // 🔧 区域边界用"所有数字开头小题标题"（不论是否 kw 命中）：口语交际/非写话题被排除后仍须是边界，
         //    否则其内容（如横线作答区）并入上一题区域 → 上一题被误判"已有载体"而不补格
@@ -1295,10 +1303,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           for (let i = 0; i < kwPs.length; i++) {
             const p = kwPs[i];
             const idx = numberedPs.indexOf(p);
-            // 🔧 无编号但带分值的写话题：区域边界取其后第一道编号小题（按文档序），无则到文末
-            const endP = idx >= 0
+            // 🔧 无编号但带分值的写话题：区域边界取其后第一道编号小题（按文档序）
+            let endP = idx >= 0
               ? (numberedPs[idx + 1] || null)
               : (numberedPs.find(n => n !== p && (p.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING)) || null);
+            // 🔴 2026-09-29 根治（与 2l 同源·末题区域越界）：区域不得越过**本节边界**（下一个 h2/h3/h4）。
+            //    原"无则到文末"使末题区域一路延伸到后续大题，把后面大题的作答载体误当"本题已有载体" →
+            //    hasAnyCarrier 误判 true → 写话题漏补作文格（实测：一、看图写话因二、阅读内有横线，一格未补）。
+            const secEnd2 = headsSec2.find(h => p.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
+            if (!endP || (secEnd2 && !(endP.compareDocumentPosition(secEnd2) & Node.DOCUMENT_POSITION_FOLLOWING))) endP = secEnd2;
             // 🔧 补格数按学段×分值动态（低段8格/分…初中20、高中17；低于兜底160取兜底）：
             //    小学二年级15分写话→max(160,120)=160；初中40分作文→max(160,800)=800；高中60分→max(160,1020)=1020。
             //    不再全学段统一 160（低段足够、高段作文格子不够；字数依据见 layoutSpec ZUOWEN_CELLS_PER_SCORE）
@@ -1395,6 +1408,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const tplE = document.createElement('template');
         tplE.innerHTML = out;
         const psE = Array.from(tplE.content.querySelectorAll('p')).filter(p => !p.closest('.answer-section'));
+        // 🔴 2026-09-29：本节边界（与 2j-5 同源）——钳制末题区域不越界到后续大题
+        const headsSecE = Array.from(tplE.content.querySelectorAll('h2, h3, h4')).filter(h => !h.closest('.answer-section'));
         const numberedE = psE.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
         const kwReE = /书面表达|写作|小作文|看图写话|用英语|Write\b/;
         const kwPE = numberedE.filter(p => {
@@ -1409,7 +1424,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         for (let i = 0; i < kwPE.length; i++) {
           const p = kwPE[i];
           const idx = numberedE.indexOf(p);
-          const endP = numberedE[idx + 1] || null;
+          let endP = numberedE[idx + 1] || null;
+          // 🔴 2026-09-29 根治（与 2l/2j-5 同源）：末题区域须止于本节边界，否则后续大题的横线会被
+          //    误当本题已有载体 → 英语书面表达漏补作答横线。
+          const secEndE = headsSecE.find(h => p.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
+          if (!endP || (secEndE && !(endP.compareDocumentPosition(secEndE) & Node.DOCUMENT_POSITION_FOLLOWING))) endP = secEndE;
           // 该题区域（题干 p 到下一题之间）已有任何作答载体 → 跳过补横线（防重复）
           let hasAnyCarrierE = false;
           let probeE = p.nextSibling;
@@ -1970,7 +1989,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           ? itemPs.map((p, k) => {
               const seg = [];
               let sn = p.nextSibling;
-              const e2 = itemPs[k + 1] || null;
+              // 🔴 2026-09-29 根治：末题必须以**本节末尾**（下一个标题 end）为界。
+              //    原写 `itemPs[k+1] || null` → 末题取不到下一小题、e2=null，循环一路走到**整篇文档末尾**，
+              //    把后续大题（如"看图写话"）的文本并入末题作用域 → 命中 forbid 关键词 → 末题载体被误剥
+              //    （实测症状：每个大题最后一小题的书写格被剥离、只剩空 <p>，"次次最后一题没有格子"）。
+              const e2 = itemPs[k + 1] || end;
               while (sn && sn !== e2) { seg.push(sn); sn = sn.nextSibling; }
               return { p, seg };
             })
