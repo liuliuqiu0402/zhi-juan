@@ -786,7 +786,16 @@ describe('作答区行数上限（分学段·模型侧与程序侧同接规格�
   it('注入条款含"同题同性质作答位只给一处"（模型侧消重复载体，纯形态、不点题型）', () => {
     const t = buildLongAnswerCarrierInstruction('语文', 'primary_low');
     expect(t).toContain('只给一处');
-    expect(t).toContain('不得再在题后另起整行作答载体');
+    expect(t).toContain('不得再在题后另起同性质的整行短答载体');
+    expect(t, '非数学不得出现"过程书写区例外"').not.toContain('例外');
+  });
+
+  it('🔴 学科门控：数学支显式豁免"结果位 ↔ 过程书写区"并存（消一刀切冲突）', () => {
+    const t = buildLongAnswerCarrierInstruction('数学', 'primary_low');
+    expect(t, '数学必须带例外，否则与竖式过程区条款相抵').toContain('例外');
+    expect(t).toContain('不属重复');
+    // 语文/英语不得带该例外（避免把数学专属语义广播到其他学科）
+    expect(buildLongAnswerCarrierInstruction('英语', 'primary_mid')).not.toContain('例外');
   });
 
   it('程序侧补差受学段上限：英语低段书写题补出横线 ≤ 4 行（原硬编码 8 行）', () => {
