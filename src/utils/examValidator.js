@@ -88,6 +88,19 @@ const WRITING_FILLIN_STEM_EXCLUDE = /(?:写话|习作|作文|写作|填一填|�
 const MATCH_ITEM_RE = /class=["'][^"']*match-item[^"']*["']/g;
 // 题组子题编号：（1）（2）或 1. 2.
 const SUBQ_RE = /[(（]\s*\d+\s*[)）]/g;
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔴 2026-09-29（A7·**单一实现**，防"两套判据漂移"）：题号"行首 N."判据在模块内曾有 **10 份**内联副本
+//    （口径一改就得全改、漏一处即成两套判据）。现收敛为**唯一**常量，消费方一律引用。
+//    守卫：`tests/utils/singleImplGuards.test.js` 扫源码断言本字面量全模块**只出现一次**。
+const QNUM_LINE_RE = /^\s*\d+[.、．]/;
+// 🔴 2026-09-29（A6·**单一实现**）：作答载体探针曾有 **7 份**近似副本（含/不含 blank 系、含/不含
+//    match/bracket 结构）。按**语义分档**收敛为 4 个具名常量，消费方按用途引用（各字面量只出现一次，同上守卫）。
+//    ① 通用载体：题内"已有任一作答载体"判定（含横线/空白/空位系）
+const CARRIER_ANY_RE = /zuo-wen-ge|blank-line|blank-\d|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge|square-grid/;
+//    ② 书写格类载体：格类位置/锚点判定（**不含** blank 系——空白行不是"格"）
+const CARRIER_GRID_RE = /zuo-wen-ge|tian-zi-ge|pinyin-line|mi-zi-ge|four-line-three|sixian-ge|square-grid/;
+//    ③ 结构性作答载体：题块"已有结构性作答形态 → 不补通用补差"（连线/括号格 + 书写格，不含 blank 系）
+const CARRIER_STRUCT_RE = /match-question|match-item|zuo-wen-ge|square-grid|bracket-grid|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge/;
 // 书写格子 class → 中文标签（writing-grid-fix 越界剥离 / 载体×题型正规化共用；
 // 中文标签唯一源 = 蓝图 Schema CARRIER_LABELS，此处只取校验器需要的 6 个格子键）
 const GRID_CLASS_LABEL = {
@@ -943,7 +956,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           //    （如"4. 选一选"下 4 个（n）行），作边界会把题4 截断在子题前数不到空位（误报"数不到载体"）
           const numberedPs = subHeadPs.filter(p => {
             const t = (p.textContent || '').trim();
-            return /^\s*\d+[.、．]/.test(t)
+            return QNUM_LINE_RE.test(t)
               || (/^\s*[(（]\d+[)）]/.test(t) && /[（(][^）)]*?\d{1,3}\s*分/.test(t));
           });
           const subTitles = [];
@@ -1000,7 +1013,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const scores = [];
           for (const p of subHeadPs) {
             const t = (p.textContent || '').trim();
-            if (!/^\s*\d+[.、．]/.test(t)) continue;
+            if (!QNUM_LINE_RE.test(t)) continue;
             // 🔧 括号内任意位置取分值（兼容"（共12分）"写法）
             const sm = t.match(/[（(][^）)]*?(\d{1,3})\s*分/);
             if (sm) scores.push(parseInt(sm[1], 10));
@@ -1321,7 +1334,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const psD = Array.from(tplD.content.querySelectorAll('p')).filter((p) => !isInAnswerArea(p, ansBoundD));
           // 🔴 2026-09-29：本节边界（与 2l/2j-5 同源；含答案区起点）——钳制末题区域不越界到后续大题/答案区
           const headsSecD = Array.from(tplD.content.querySelectorAll('h2, h3, h4, .answer-section'));
-          const numberedD = psD.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
+          const numberedD = psD.filter(p => QNUM_LINE_RE.test((p.textContent || '').trim()));
           for (let i = 0; i < numberedD.length; i++) {
             const p = numberedD[i];
             const pText = p.textContent || '';
@@ -1381,7 +1394,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const kwRe = /看图写话|写话|习作|作文|写作|小练笔/;
         // 🔧 区域边界用"所有数字开头小题标题"（不论是否 kw 命中）：口语交际/非写话题被排除后仍须是边界，
         //    否则其内容（如横线作答区）并入上一题区域 → 上一题被误判"已有载体"而不补格
-        const numberedPs = ps2.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
+        const numberedPs = ps2.filter(p => QNUM_LINE_RE.test((p.textContent || '').trim()));
         // 🔴 2026-09-29（与 2k 同源·单源判据）：剔除"题干内要求/提示分条"（含被误写成「1./2.」的）——
         //    分条不是题块、不得作本题区域边界，否则区域被截断在分条处 → 作文格插到分条**之前**。
         const numberedQs2 = classifyNumberedBranches(numberedPs).top;
@@ -1393,7 +1406,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const numberedKwPs = numberedPs.filter(p => isKwText(p.textContent || ''));
         const scoredUnnumKw = ps2.filter(p => {
           const t = p.textContent || '';
-          return isKwText(t) && /[（(](?:共)?\s*\d{1,3}\s*分/.test(t) && !/^\s*\d+[.、．]/.test(t.trim());
+          return isKwText(t) && /[（(](?:共)?\s*\d{1,3}\s*分/.test(t) && !QNUM_LINE_RE.test(t.trim());
         });
         // 🔴 2026-09-26 用户实证（"十六、看图写话"未补格，兜底静默跳过）：正式卷的写话常以**汉字序号大题标题**
         //    出现（如"十六、看图写话"）——它既非"数字开头小题"，也可能未标分值，**且是 <h2> 而非 <p>**
@@ -1447,7 +1460,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             let probe = p.nextSibling;
             while (probe && probe !== endP) {
               const ph = probe.outerHTML || '';
-              if (ph && /zuo-wen-ge|blank-line|blank-\d|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge|square-grid/.test(ph)) { hasAnyCarrier = true; break; }
+              if (ph && CARRIER_ANY_RE.test(ph)) { hasAnyCarrier = true; break; }
               if (/[（(]\s*[　\u3000 ]{1,12}\s*[)）]/.test(probe.textContent || '')) { hasAnyCarrier = true; break; }
               probe = probe.nextSibling;
             }
@@ -1464,7 +1477,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             while (probeRef && probeRef !== endP) {
               if (probeRef.nodeType === 1) {
                 const tg = probeRef.tagName.toLowerCase();
-                const isCarrierRef = /zuo-wen-ge|tian-zi-ge|pinyin-line|mi-zi-ge|four-line-three|sixian-ge|square-grid/.test(probeRef.outerHTML || '');
+                const isCarrierRef = CARRIER_GRID_RE.test(probeRef.outerHTML || '');
                 const visTxt = (probeRef.textContent || '').replace(/[\s\u3000\u00A0　_＿（）()]/g, '');
                 if (['p', 'li', 'div'].includes(tg) && !isCarrierRef && visTxt.length >= 2) ref = probeRef;
               }
@@ -1529,7 +1542,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const psE = Array.from(tplE.content.querySelectorAll('p')).filter((p) => !isInAnswerArea(p, ansBoundE));
         // 🔴 2026-09-29：本节边界（与 2j-5 同源；含答案区起点）——钳制末题区域不越界到后续大题/答案区
         const headsSecE = Array.from(tplE.content.querySelectorAll('h2, h3, h4, .answer-section'));
-        const numberedE = psE.filter(p => /^\s*\d+[.、．]/.test((p.textContent || '').trim()));
+        const numberedE = psE.filter(p => QNUM_LINE_RE.test((p.textContent || '').trim()));
         // 🔴 2026-09-29（单源接入·同 2k/2j-5）：题干内"要求/提示"分条（含被误写成「1./2.」的）**不作本题边界**——
         //    否则区域被截断在分条处 → 横线插进分条之间（与 layoutSpec"横线给在分条之后、不插在分条之间"相抵）。
         const numberedQsE = classifyNumberedBranches(numberedE).top;
@@ -1556,7 +1569,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           let probeE = p.nextSibling;
           while (probeE && probeE !== endP) {
             const phE = probeE.outerHTML || '';
-            if (phE && /blank-line|zuo-wen-ge|blank-\d|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge|square-grid/.test(phE)) { hasAnyCarrierE = true; break; }
+            if (phE && CARRIER_ANY_RE.test(phE)) { hasAnyCarrierE = true; break; }
             probeE = probeE.nextSibling;
           }
           if (hasAnyCarrierE) continue;
@@ -1617,7 +1630,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (isInAnswerArea(el, ansBoundH)) continue;
           const t = (el.textContent || '').trim();
           if (!t || !kwH.test(t) || banH.test(t)) continue;
-          if (tag === 'p' && !/^\s*\d+[.、．]/.test(t)) {
+          if (tag === 'p' && !QNUM_LINE_RE.test(t)) {
             // 普通题干段落：若其上方已有命中的书写大题标题，则该题已由标题锚点覆盖 → 跳过（防同题重复补）
             let covered = false;
             for (let k = i - 1; k >= 0; k--) {
@@ -1639,7 +1652,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           }
           // 区域内已有任何作答载体 → 跳过（防重复；同时覆盖"模型自己已给横线"的情形）
           const regionHtml = region.map((e2) => e2.outerHTML || '').join('');
-          if (/blank-line|zuo-wen-ge|blank-\d|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge|square-grid/.test(regionHtml)) continue;
+          if (CARRIER_ANY_RE.test(regionHtml)) continue;
           // 🔴 2026-09-16（CI 回归修复）：与 2k 的分工——题区域里带**顶层编号**的题干（如"11. …"）
           //    属"编号条目式"结构，其作答载体由既有的 2k 兜底负责（2k 对无分值整题块补 4 行）；
           //    本通道生来只补 2j-5b 与 2k 都够不着的"大题标题 + **无编号**题干"这个窟窿
@@ -1649,7 +1662,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           //    例外：该编号题干命中 2k 的写作/填空类排除词时，2k 会主动放过它 → 仍由本通道接住，不留空洞
           //    （如"11. 以 My Weekend 为题写一篇作文，不少于6句。"）。
           const topNumP = region.find((e2) => (e2.tagName || '').toLowerCase() === 'p'
-            && /^\s*\d+[.、．]/.test((e2.textContent || '').trim()));
+            && QNUM_LINE_RE.test((e2.textContent || '').trim()));
           if (topNumP && !WRITING_FILLIN_STEM_EXCLUDE.test(topNumP.textContent || '')) continue;
           const last = region[region.length - 1];
           const wmH = t.match(/[（(][^）)]*?(\d{1,3})\s*分/);
@@ -1738,7 +1751,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           return /^[一二三四五六七八九十百]+[、.．]/.test((el.textContent || '').trim());
         };
         // 配图块 / 书写载体（zuo-wen-ge 及各类格与空位）：不是"题干内容块"
-        const isFigureOrCarrierEl = (el) => /zuo-wen-ge|tian-zi-ge|pinyin-line|mi-zi-ge|four-line-three|sixian-ge|square-grid|\[IMAGE\]/.test(el.outerHTML || '');
+        // 🔴 2026-09-29（A6 单源）：格类走 CARRIER_GRID_RE，配图标记 [IMAGE] 单独判（勿再内联一份格清单）
+        const isFigureOrCarrierEl = (el) => CARRIER_GRID_RE.test(el.outerHTML || '') || /\[IMAGE\]/.test(el.outerHTML || '');
         // 题干/内容块：p/li/div，非标题、非配图、非载体，且有可见文字（去空白与空位字符后仍 ≥2 字）
         const isStemEl = (el) => {
           if (!el || el.nodeType !== 1) return false;
@@ -1871,7 +1885,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const subRe = /^\s*[(（]\d+[)）]/;
         const secNodesPs = (arr) => arr.filter((n) => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p');
         const items = [];
-        const rawTopPs = secNodesPs(secNodes).filter((n) => /^\s*\d+[.、．]/.test((n.textContent || '').trim()));
+        const rawTopPs = secNodesPs(secNodes).filter((n) => QNUM_LINE_RE.test((n.textContent || '').trim()));
         // 🔴 2026-09-26 加固（消"题干内要求/提示分条被当子题块、每条各补作答行"的残余口子）：
         //    规范明令"分条不与题号层混同（分条改用 (1)／① 或项目符号、不得再用与题号同构的「1.」）"，
         //    但模型偶发违反时，这些分条会被 topPs 当成独立小题 → **每条各补一处作答行**（老现象在语文/教辅侧的复现路径）。
@@ -1960,7 +1974,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const ctxText = it.ctx || '';
           // 已有载体/题型 → 跳过（填空括号、引号/全角空格空位、填空格、连线、专用格线、选项）
           if (parenBlankTest.test(segAll) || blankTagTest.test(segAll) || fullWidthBlankTest.test(segAll)) continue;
-          if (/match-question|match-item|zuo-wen-ge|square-grid|bracket-grid|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge/.test(segAll)) continue;
+          if (CARRIER_STRUCT_RE.test(segAll)) continue;
           if (countOptions(segAll) > 0) continue;
 
           // ── 🔴 2026-09-29（v2·专用通道优先；形态/规格词判据，不点题型名）────────────────────
@@ -2416,7 +2430,7 @@ const countSubInNodes = (nodes = []) => {
     if (node.nodeType !== Node.ELEMENT_NODE) continue;
     const tag = node.tagName.toLowerCase();
     if (tag !== 'p' && tag !== 'li' && tag !== 'div') continue;
-    if (/^\s*\d+[.、．]/.test((node.textContent || '').trim())) n += 1;
+    if (QNUM_LINE_RE.test((node.textContent || '').trim())) n += 1;
   }
   return n;
 };
