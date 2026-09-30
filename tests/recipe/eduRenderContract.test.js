@@ -73,32 +73,46 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     expect(out).toContain('KEYWORDS:熊猫,竹子,卡通');
   });
 
-  it('学段门控：数学小学低段裁剪函数/几何（仅数轴+统计图），不注入公式', () => {
+  it('学段门控：数学小学低段裁剪函数/几何（仅数轴+统计图）；公式**注入**（2026-09-30 撤门控）', () => {
     const out = buildRenderContract({ subject: '数学', genType: 'exam', stage: 'primary_low' });
     expect(out).toContain('TYPE:COORDINATE');
     expect(out).toContain('TYPE:BAR_CHART');
     expect(out).not.toContain('TYPE:SHAPES');
     expect(out).not.toContain('FUNCTION:');
-    expect(out).not.toContain('\\frac');
+    expect(out, '小学数学也要拿到公式写法（分数叠排，原学段门控已撤）').toContain('\\frac');
   });
 
-  it('学段门控：数学小学中段裁剪函数/几何与扇形统计图（PIE 六年级内容），不注入公式', () => {
+  it('学段门控：数学小学中段裁剪函数/几何与扇形统计图（PIE 六年级内容）；公式**注入**', () => {
     const out = buildRenderContract({ subject: '数学', genType: 'exam', stage: 'primary_mid' });
     expect(out).toContain('TYPE:COORDINATE');
     expect(out).toContain('TYPE:BAR_CHART');
     expect(out).not.toContain('TYPE:SHAPES');
     expect(out).not.toContain('FUNCTION');
     expect(out).not.toContain('PIE');
-    expect(out).not.toContain('\\frac');
+    expect(out, '小学数学也要拿到公式写法').toContain('\\frac');
   });
 
-  it('学段门控：数学小学高段 SHAPES 用小学版示例（圆，无函数），保留 PIE 不注入公式', () => {
+  it('学段门控：数学小学高段 SHAPES 用小学版示例（圆，无函数），保留 PIE；公式**注入**', () => {
     const out = buildRenderContract({ subject: '数学', genType: 'exam', stage: 'primary_high' });
     expect(out).toContain('TITLE:圆');
     expect(out).not.toContain('二次函数');
     expect(out).not.toContain('FUNCTION');
     expect(out).toContain('TYPE:PIE_CHART');
-    expect(out).not.toContain('\\frac');
+    expect(out, '小学数学也要拿到公式写法').toContain('\\frac');
+  });
+
+  it('🔴 小学数学三个学段都拿到公式写法（2026-09-30 小学缺口修复）', () => {
+    // 缺口：原判据"初中及以上才注入"，理由是"示例为二次函数求根公式、注入即诱导超纲"，
+    // 但现行 FORMULA_RULES 里已无示例，且明文写着"非公式语境的分数标注用半角斜杠（如 1/2）"
+    // ——那句本就是给小学的。门控在、理由亡，导致小学数学卷拿不到公式写法、只能写平排文本。
+    for (const stage of ['primary_low', 'primary_mid', 'primary_high']) {
+      const out = buildRenderContract({ subject: '数学', genType: 'exam', stage });
+      expect(out, `${stage} 必须注入公式条款`).toContain('\\frac');
+      expect(out, `${stage} 必须保留"非公式语境分数用 1/2"这条小学口径`).toContain('1/2');
+      expect(out, `${stage} 不得混入初中示例`).not.toContain('二次函数');
+    }
+    // 无公式能力的学科不得被牵连
+    expect(buildRenderContract({ subject: '语文', genType: 'exam', stage: 'primary_low' })).not.toContain('\\frac');
   });
 
   it('学段门控：数学初中注入函数/几何与公式', () => {
@@ -207,17 +221,26 @@ describe('公式契约（2026-09 收口：单一判据 + 要求不再悬空）',
     for (const s of MATH_SUBJECTS) {
       expect(getFormulaNeeded(s, 'middle'), `${s}·初中应注入`).toBe(true);
       expect(getFormulaNeeded(s, 'high'), `${s}·高中应注入`).toBe(true);
-      // 🔴 回归锁：primary_mid/primary_high 是**小学**中段/高段，原契约库文案误标"注入公式"
-      expect(getFormulaNeeded(s, 'primary_high'), `${s}·小学高段不得注入`).toBe(false);
-      expect(getFormulaNeeded(s, 'primary_mid'), `${s}·小学中段不得注入`).toBe(false);
-      expect(getFormulaNeeded(s, 'primary_low'), `${s}·小学低段不得注入`).toBe(false);
+    }
+    // 🔴 2026-09-30 口径变更（用户裁定·小学缺口）：**数学全学段注入**。原"初中及以上"门控的理由是
+    //    "FORMULA_RULES 示例为二次函数求根公式、注入即诱导超纲"，而现行条款里已无任何示例，且明文
+    //    写着"非公式语境的分数标注用半角斜杠（如 1/2）"——那句本就是给小学的。门控在、理由亡，
+    //    后果是小学数学卷拿不到公式写法、只能写平排文本（分数叠排/面积单位都属小学课标内容）。
+    for (const st of ['primary_low', 'primary_mid', 'primary_high']) {
+      expect(getFormulaNeeded('数学', st), `数学·${st} 应注入（分数/单位写法属课标内容）`).toBe(true);
+    }
+    // 物理/化学/生物：**小学不存在这些科目**（与 getGraphParts 对物理/化学的同一口径）→ 仍不注入
+    for (const s of ['物理', '化学', '生物']) {
+      for (const st of ['primary_low', 'primary_mid', 'primary_high']) {
+        expect(getFormulaNeeded(s, st), `${s}·${st} 小学不存在该科目 → 不注入`).toBe(false);
+      }
     }
     // 未登记学科一律不注入（补学科只需往 MATH_SUBJECTS 登记）
     // P4（2026-09）已补「生物」：遗传图解/方程式需下标箭头排版
     expect(getFormulaNeeded('生物', 'high'), '生物·高中应注入').toBe(true);
     expect(getFormulaNeeded('生物', 'middle'), '生物·初中应注入').toBe(true);
-    // 「科学」不登记（小学无理化生，学段门控已挡）；「地理/信息科技」公式是平排比值与逻辑符号，
-    // 走 LaTeX 属噪音，故保持不注入
+    // 「科学」不登记（其内容形态为观察记录/数据表，无叠排公式需求）；「地理/信息科技」公式是
+    // 平排比值与逻辑符号，走 LaTeX 属噪音，故保持不注入
     expect(getFormulaNeeded('科学', 'middle')).toBe(false);
     expect(getFormulaNeeded('地理', 'middle')).toBe(false);
     expect(getFormulaNeeded('信息科技', 'middle')).toBe(false);

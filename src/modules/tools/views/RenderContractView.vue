@@ -532,12 +532,11 @@ const allContract = SUBJECT_KEYS.map((subject) => {
 const getStageEffect = (subject, stage) => {
   if (!stage) return '';
   if (!MATH_SUBJECTS.includes(subject)) return ''; // 无公式能力的学科不出现公式相关提示
-  // 🔴 原实现写死"数学中高段注入公式"，但中段/高段是**小学**学段（primary_mid/primary_high），
-  //    生成端实际是初中及以上才注入 → 库里标"注入"、实际不注入，自相矛盾。
-  //    现直接问 getFormulaNeeded（单一判据），文案与生成端恒等。
+  // 🔴 2026-09-30：数学的学段门控已撤（小学数学同样注入——分数叠排/面积单位写法属课标内容，
+  //    原门控理由是"示例为二次函数求根公式"，而现行条款里早已没有示例）。文案与生成端恒等。
   return getFormulaNeeded(subject, stage)
-    ? '本学段：注入公式'
-    : '本学段：不注入公式（初中及以上才注入）';
+    ? (subject === '数学' ? '本学段：注入公式（数学全学段，含小学）' : '本学段：注入公式')
+    : '本学段：不注入公式（该科目小学不存在）';
 };
 const getTypeEffect = (genType) => {
   if (!genType) return '';
