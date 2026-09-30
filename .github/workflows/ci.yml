@@ -1,5 +1,6 @@
 # 🔴 防回归 CI：push/PR 自动跑全量测试 + 构建，失败即阻断
-# 守卫：instructionCoverage（765组合零缺口）/ examQuality / instructionInjection / qualityChecker / 导出链路 等 387 测试
+# 守卫：instructionCoverage（全组合零缺口）/ examQuality / instructionInjection / qualityChecker / 导出链路 等**全量测试**
+#   （原注释写"等 387 测试"是当时的数目，早已过期——数目不写死，只写覆盖面）
 name: CI
 
 on:
@@ -11,16 +12,21 @@ on:
 jobs:
   test:
     name: Test & Build
+    # 🔧 2026-09-30（用户裁定·与移动端对齐）：本文件此前停在 node20 + @v4，是三个 workflow 里唯一落后的一处，
+    #    也是 GitHub 那两条提示（Node 20 弃用 / runner 迁移）的唯一来源；现与 android-build / ios-build 对齐——
+    #    checkout@v5、setup-node@v6（v6 起底层运行时为 node24）、node-version 22。
+    #    runs-on 保持 ubuntu-latest：本 job 是纯 Node 测试+构建、无 SDK 依赖，不钉镜像（android 侧因 ubuntu-24.04
+    #    缺预装 Android SDK 才特意用 latest，同一取舍）。
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: '22'
           cache: npm
 
       - name: Install dependencies
