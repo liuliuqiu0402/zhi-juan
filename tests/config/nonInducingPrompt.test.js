@@ -413,6 +413,77 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(mm, '按真实内容呈现（内容多少就呈现多少）').toContain('内容有多少就呈现多少');
   });
 
+  // 🔴 2026-09-30（用户裁定·只给课标要求、不给做法）：情境链路的**做法层**守卫。
+  //    背景：课标卷型（unified_context）链路里，程序会**运行时预生成**一段情境框架并整块注入；它还带
+  //    「场景清单 + 组织序列句」，等于把**逐题叙事骨架**递给模型（产物实证：小学低段语文读音题 4 个
+  //    小题各配一个小场景、同主题递进，正是场景数组的形状）。
+  //    ⚠️ 扫描面缺口（本轮补）：本守卫此前只扫**模板侧与注入块侧**，运行时块（useAiGenerator 内）与
+  //       风格注入句不在扫描面 → 长期漏网。
+  //    ⚠️ 扫描方式：**按"真正注入的文本"判**（从源码里抽出模板字面量），不按整文件裸词判——
+  //       否则"原写…已删"这类**留痕注释**会被误判成回潮（本项目其它守卫用过同样的取舍）。
+  const extractLiteral = (src, head) => {
+    const m = src.match(new RegExp(`${head}\\s*=\\s*\`([\\s\\S]*?)\`;`));
+    expect(m, `未扫到 ${head} 的模板字面量（防假绿）`).toBeTruthy();
+    return m[1];
+  };
+  it('情境链路：只给课标要求，不给做法（场景清单/组织序列/叙事弧线 零出现）', () => {
+    const gen = fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8');
+    const fw = extractLiteral(gen, 'contextFramework');      // 真正注入的【统一情境框架】块
+    const cp = extractLiteral(gen, 'contextPrompt');         // 预生成情境框架的提示
+    const bads = ['可用场景', '场景顺序', '叙事弧线', 'narrativeArc', '在其下展开', '故事性或任务性', 'scenes'];
+    for (const b of bads) {
+      expect(fw, `情境框架注入块不得含做法层「${b}」`).not.toContain(b);
+      expect(cp, `情境框架预生成提示不得含做法层「${b}」`).not.toContain(b);
+    }
+    // 课标要求句仍在（意图不得丢）：全卷连贯 + 情境类型沿用课标界定
+    expect(fw, '情境框架须保留课标要求句').toContain('主题与设问在全卷连贯');
+    expect(fw, '情境框架须保留情境类型锚点').toContain('本学科课程标准界定的情境类型');
+    // 风格注入句同样不得含组织做法指定
+    const styleStr = JSON.stringify(styleInstructions);
+    expect(styleStr, '风格注入句不得含"与之相适的题目在其下展开"这类做法指定').not.toContain('在其下展开');
+  });
+
+  it('否定式植入：情境口径句全链零出现（含运行时块与风格库）', () => {
+    const gen = fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8');
+    const values = [
+      extractLiteral(gen, 'contextFramework'),
+      extractLiteral(gen, 'contextPrompt'),
+      JSON.stringify(styleInstructions),
+      JSON.stringify(styleOptionsForType('practice').options),
+    ].join('\n');
+    // "不要求每一小题都被同一叙事场景包裹"＝要读懂须先激活该图式（且"不要求"是许可语气）→ 整句删除、不得回潮
+    expect(values, '否定式植入句不得回潮').not.toContain('不要求每一小题');
+    expect(values, '同义改写（叙事场景包裹）亦不得回潮').not.toContain('叙事场景包裹');
+  });
+
+  it('低段课标取向词出现时必带作用域界定（且界定写明不涉题目与卷面的呈现形态）', () => {
+    // 低段"情境活动化、游戏化、生活化"出自课程方案的**学习设计**表述；无界定会被读成"每道题都要活动化包装"。
+    // 2026-09-30：界定由"仅 exam"扩到**凡含该词即补**（教辅模板此前同词无界定＝同一缺陷）。
+    let hit = 0;
+    for (const subject of ['语文', '数学', '英语', '科学', '道德与法治', '音乐']) {
+      for (const genType of GEN_TYPES) {
+        const t = getPromptTemplate({ grade: 'primary_low', subject, genType })?.template || '';
+        if (!/活动化|游戏化|生活化/.test(t)) continue;
+        hit += 1;
+        expect(t, `primary_low|${subject}|${genType} 含低段取向词却无作用域界定`).toContain('本取向只作用于情境取材与难度起点');
+        expect(t, `primary_low|${subject}|${genType} 界定须写明不涉题目与卷面的呈现形态`).toContain('不涉题目与卷面的呈现形态');
+      }
+    }
+    expect(hit, '未扫到含取向词的组合（防假绿）').toBeGreaterThan(0);
+  });
+
+  // 🔴 2026-09-30（用户裁定·收口）：同型小题**作答说明重复**与**逐题标分**两处原为许可式（"可…""若…则…"），
+  //    产物实证：低段读音题 4 个小题各复述同一句作答要求、且逐题标分。现改要求式（保留例外与账目闭合）。
+  it('试卷卷面：组内同型小题作答说明只出一次 + 同型客观小题只在级标分值（要求式）', () => {
+    const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template;
+    expect(t, '组内同型小题作答说明只出一次（要求式）').toContain('组内同型小题：作答说明只出一次');
+    expect(t, '例外条款不得丢（作答形态不一致时仍须写明）').toContain('仅当某小题的作答形态与本组不一致时');
+    expect(t, '同型客观小题分值改为级标一次（要求式）').toContain('只在大题级标"（每题X分，共Y分）"一次、小题后不再逐个标');
+    // 账目闭合与逐题标分的通则不得被削弱
+    expect(t, '逐题标分通则不得丢').toContain('小题级在每道题题干后给"（X分）"');
+    expect(t, '分值账目闭合不得丢').toContain('该大题下各小题分值合计必须等于该大题标题所标总分');
+  });
+
   // 🔴 2026-09-27（用户裁定·甲）：撤除「每学科一句惯用标题样例」（TITLE_SAMPLE_BY_SUBJECT）——
   //    把**具体标题文本**摆给模型，模型往往直接照用、同科各卷标题趋同（属"正向示例诱导"，
   //    与"举例会把题目方向钉死"的既有规矩相违——蓝图 note 连"（如…）"都不许写）。
