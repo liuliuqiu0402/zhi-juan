@@ -20,7 +20,7 @@ import {
 import { ERRORBOOK_FACET_NAMES } from '../../src/config/errorbookFacets.js';
 import { EXAM_BLUEPRINTS } from '../../src/config/examPaperBlueprints.js';
 import { GENERIC_SPECIAL_DESC } from '../../src/config/specialDomains.js';
-import { buildAnswerSpaceInstruction, buildCarrierInstruction } from '../../src/config/layoutSpec.js';
+import { buildAnswerSpaceInstruction, buildCarrierInstruction, buildLongAnswerCarrierInstruction } from '../../src/config/layoutSpec.js';
 import { buildMaterialUsageBlock, buildOrganizeBlock, buildTailBlocks } from '../../src/utils/injectionManifest.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -655,5 +655,31 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(pr, '同步练习不得再写课时口径').not.toContain('与教材课时');
     expect(pr, '同步练习不得回退否定双写').not.toContain('不重排、不跨单元混编');
     expect(pr, '正向：内容与本次教材范围对应').toContain('内容与本次教材范围对应');
+  });
+
+  // 🔴 2026-09-30（用户裁定·载体/作答位条款的标点残留）：实发文本不得出现连续分号「；；」。
+  //    两处叠加来源：① layoutSpec 作答区上限句——非数学支以「；」结尾 + 拼接处又补「；」+ 调用方再补「；」
+  //    （语文线实测到连续 4 个）；② CONTENT_FORMAT 的作答条款（以「；」收尾）紧接 chartHint（以「；」开头）。
+  //    实测命中 1422 / 346 / 28 / 20 组合。已收口为单分号；本断言防回潮。
+  it('实发文本不得出现连续分号「；；」（作答位/载体条款标点残留·防回潮）', () => {
+    const bad = [];
+    for (const stage of GEN_STAGES) {
+      for (const subject of GEN_SUBJECTS) {
+        for (const genType of GEN_TYPES) {
+          const tpl = getPromptTemplate({ grade: stage, subject, genType })?.template || '';
+          const m = tpl.match(/；{2,}/);
+          if (m) bad.push(`${stage}|${subject}|${genType}→「${m[0]}」`);
+        }
+      }
+    }
+    expect(bad.slice(0, 5), `出现连续分号的组合：${bad.length} 个`).toEqual([]);
+    // 注入块侧同口径：作答空间条款与长答载体条款（全 15 学科 × 5 学段）
+    const blocks = [];
+    for (const stage of GEN_STAGES) {
+      for (const subject of [...GEN_SUBJECTS, '体育与健康']) {
+        blocks.push(buildAnswerSpaceInstruction(subject, stage), buildLongAnswerCarrierInstruction(subject, stage));
+      }
+    }
+    expect(blocks.join('\n').match(/；{2,}/g), '作答空间/长答载体注入块出现连续分号').toBeNull();
   });
 });
