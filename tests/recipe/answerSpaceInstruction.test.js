@@ -214,7 +214,8 @@ describe('buildAnswerSpaceInstruction（学科书写形态与 ANSWER_REGION 同�
     expect(en).not.toContain('另有专用书写载体');
     // 语文低段：成篇成文另有专用书写载体（专用书写格通道），横线句以"成句成段/成篇成文"篇幅二分、不用任何题型名
     const yw = buildAnswerSpaceInstruction('语文', 'primary_low');
-    expect(yw).toContain('（成篇成文类另有专用书写载体，由该载体通道约束，不在本列）');
+    expect(yw).toContain('不得省略\n另注：成篇成文类走专用书写载体通道，不在本列');
+    expect(yw).not.toContain('（成篇成文类另有专用书写载体'); // 3.3 三要素分离：边界件须独立成行，不得再括在正句内
     expect(yw).not.toContain('作文格'); // 专用书写格名称由该通道管理，此处只说"另有专用书写载体"
     // 三分支一律零题型名（用户裁定：载体条款纯形态描述）
     for (const [s, st] of [['语文', 'primary_low'], ['英语', 'middle'], ['科学', 'primary_mid']]) {
