@@ -98,9 +98,10 @@ describe('G2 声明↔实给判据单源', () => {
     }
   });
 
-  it('旧句（点 6 类实例的枚举式）不得回潮', () => {
+  it('旧句（点 6 类实例的枚举式）已按"不覆盖"原则回补——实例不得丢、只加"待选项"', () => {
     const lib = read('src/config/promptLibrary.js');
-    expect(lib).not.toContain('声明提供的线索（拼音、首字母、提示词、图、表、数据等）与材料必须真实、足量给出');
+    expect(DECLARATION_TRUTH_CLAUSE, '原有 6 类实例必须保留').toContain('拼音、首字母、提示词、图、表、数据、待选项');
+    expect(lib, '回补后的完整句须在库内（单源）').toContain(DECLARATION_TRUTH_CLAUSE);
   });
 
   it('零诱导：该句不点题型名、不枚举实例、不给做法', () => {
