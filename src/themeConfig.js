@@ -2407,9 +2407,14 @@ export const buildExamShell = (sections, stage) => {
 
 /**
  * 注入/重排卷面固定件（注意事项 + 题号得分表），对齐正规试卷顺序：
- *   卷首信息（标题/副标题/卷首导入语） → 注意事项 → 题号得分表 → 正文大题
- *   - 无固定件：在第一个大题标题之前新建注入（卷首语自然留在卷首区，不夹在得分框与正文之间）；
- *   - 已有固定件（旧版烘焙在内容里位置不对）：自动重排到第一个大题之前（幂等）；
+ *   卷首信息（标题/副标题/密封线/卷首导入语） → 注意事项 → 题号得分表 → 正文结构层（大类/大题）
+ *   - 无固定件：在**第一个正文结构行**之前新建注入（卷首语自然留在卷首区，不夹在得分框与正文之间）；
+ *   - 🔴 2026-09-30 用户报障根治：锚点原只认"一、二、…"大题行，**小学段的"第X部分"大类行被漏认**——
+ *     该行位于第一个大题行之前，固定件便插在它**之后**（实测顺序：第一部分 → 注意事项 → 得分表 →
+ *     一、〈大题〉），与本节声明的"固定件在正文之前"直接相悖。现锚点取**第一个正文结构行**：
+ *     大类行（"第X部分"／"第X卷"，自带分值标注）优先，无大类行时取第一个大题行（行为同旧版）。
+ *   - 已有固定件（旧版烘焙在内容里位置不对）：自动重排到该锚点之前（幂等）；
+ *   - 旧固定件去重仍只清"第一个大题行之前"的残留（保守边界，见 beforeAnchor），不改动大题之后的正文；
  *   无大题结构的普通文档不注入
  */
 export const injectExamShell = (html, stage) => {
@@ -2425,12 +2430,22 @@ export const injectExamShell = (html, stage) => {
     holder.innerHTML = buildExamShell(sections, stage);
     shellNode = holder.firstElementChild;
   }
+  // 🔴 两个锚点各司其职（2026-09-30）：
+  //   · insertPoint —— **插入点**：第一个正文结构行（大类行"第X部分/第X卷"优先，其后才是大题行），
+  //     固定件须在它上方（它就是正文的开头）；
+  //   · anchor —— **去重边界**：第一个大题行，保持旧有保守语义（只清它之前的旧固定件残留）。
+  //   二者在无大类行的卷里是同一个元素，行为与旧版逐字一致。
+  const PART_RE = /^第\s*[一二三四五六七八九十百零〇ⅠⅡⅢⅣⅤⅥ\d]+\s*(?:部分|卷)/;
   let anchor = null;
+  let insertPoint = null;
   for (const el of Array.from(tpl.content.querySelectorAll('p, h1, h2, h3, h4'))) {
     if (el.closest('.answer-section')) continue;
     const text = (el.textContent || '').trim();
-    if (/^[一二三四五六七八九十]+、/.test(text) && parseSectionScore(text) != null) {
+    const scored = parseSectionScore(text) != null; // 与大题同一判据：须自带分值标注，防误认正文里的"第一部分…"
+    if (!insertPoint && scored && PART_RE.test(text)) insertPoint = el;
+    if (/^[一二三四五六七八九十]+、/.test(text) && scored) {
       anchor = el;
+      if (!insertPoint) insertPoint = el;
       break;
     }
   }
@@ -2474,11 +2489,11 @@ export const injectExamShell = (html, stage) => {
       if (NOTICE_RE.test(text) || NOTICE_ITEM_RE.test(text)) el.remove();
     }
   }
-  // 🔧 正规试卷顺序：固定件（注意事项+得分表）紧贴第一个大题之前；
-  //    标题/副标题/卷首语等卷首内容自然在其上方（insertBefore 已就位时幂等无变化）
+  // 🔧 正规试卷顺序：固定件（注意事项+得分表）紧贴**正文结构层**之前（有"第X部分"大类行时在其上方，
+  //    否则在第一个大题之上）；标题/副标题/卷首语等卷首内容自然在其上方（insertBefore 已就位时幂等无变化）
   //    ⚠️ parentNode 兼容 DocumentFragment（template.content 顶层元素 parentElement 为 null，会抛 TypeError）
-  const parent = anchor.parentNode || tpl.content;
-  parent.insertBefore(shellNode, anchor);
+  const parent = (insertPoint || anchor).parentNode || tpl.content;
+  parent.insertBefore(shellNode, insertPoint || anchor);
   return tpl.innerHTML;
 };
 

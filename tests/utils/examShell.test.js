@@ -164,6 +164,49 @@ describe('卷面固定件：注意事项 + 题号得分表（排版模块统一�
     expect(wrapped.indexOf('class="exam-notice"')).toBeLessThan(wrapped.indexOf('一、识字与写字。'));
   });
 
+  it('🔴 小学段"第X部分"大类行：固定件须在其上方（2026-09-30 用户报障根治）', () => {
+    // 报障实证：原锚点只认"一、二、…"大题行，把"第一部分 识字与写字（40分）"这一大类行漏在固定件之上，
+    // 实测渲染顺序成了"第一部分 → 注意事项 → 得分表 → 一、〈大题〉"，与"固定件在正文之前"相悖。
+    const primary = `<h1 class="main-title">二年级语文上册第三单元阶段检测</h1>
+<p>（考试时间：60分钟　满分：100分）</p>
+<p>第一部分　识字与写字（40分）</p>
+<h2 class="heading1">一、走进拼音山谷（共4题，每题3分，共12分）</h2>
+<p>1. 给加点字选择正确的读音。（3分）</p>
+<p>第二部分　积累与运用（28分）</p>
+<h2 class="heading1">二、选词填空（共4题，每题4分，共16分）</h2>
+<p>1. 选词填空。</p>`;
+    const out = injectExamShell(primary, 'primary_low');
+    const pos = (s) => out.indexOf(s);
+    // 正规顺序：卷首标题 → 注意事项 → 题号得分表 → 第一部分（大类层） → 第一个大题
+    expect(pos('二年级语文上册第三单元阶段检测'), '标题在最上').toBeLessThan(pos('class="exam-notice"'));
+    expect(pos('class="exam-notice"'), '注意事项在得分表之前').toBeLessThan(pos('class="exam-score-table"'));
+    expect(pos('class="exam-score-table"'), '得分表在"第一部分"之前').toBeLessThan(pos('第一部分'));
+    expect(pos('第一部分'), '"第一部分"在第一个大题之前').toBeLessThan(pos('一、走进拼音山谷'));
+    // 幂等：二次注入不再移动
+    expect(injectExamShell(out, 'primary_low')).toBe(out);
+    // 得分表列仍按大题（一、二）计，不受大类行影响
+    expect(out).toContain('<th>一</th>');
+    expect(out).toContain('<th>二</th>');
+  });
+
+  it('无大类行时插入点不变：仍紧贴第一个大题之前（旧行为不回归）', () => {
+    const wrapped = wrapContentForTheme(CONTENT, 'sealed_exam');
+    const pos = (s) => wrapped.indexOf(s);
+    expect(pos('第二单元学业测评')).toBeLessThan(pos('class="exam-notice"'));
+    expect(pos('class="exam-notice"')).toBeLessThan(pos('一、识字与写字。'));
+  });
+
+  it('正文里出现"第一部分…"但无分值标注 → 不算结构行，不放行误判', () => {
+    const html = `<h1 class="main-title">测试卷</h1>
+<p>第一部分 是本次资料说明（无分值）</p>
+<h2 class="heading1">一、识字与写字。（共6题，每题5分，共30分）</h2>
+<p>1. 读拼音，写词语。</p>`;
+    const out = injectExamShell(html, 'primary_low');
+    // 无分值标注的"第一部分…"不作锚点：固定件仍紧贴第一个大题之前（行为与旧版一致）
+    expect(out.indexOf('class="exam-notice"')).toBeGreaterThan(out.indexOf('第一部分 是本次资料说明'));
+    expect(out.indexOf('class="exam-notice"')).toBeLessThan(out.indexOf('一、识字与写字。'));
+  });
+
   it('正文评分栏（score-board 多行表格）不被误删', () => {
     const withScoreBoard = `<h3 class="heading1">一、选择题。（共4题，每题5分，共20分）</h3>
 <p>1. 选择正确答案。</p>
