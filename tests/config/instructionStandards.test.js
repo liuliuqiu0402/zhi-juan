@@ -76,3 +76,35 @@ describe('标准·单源完整性', () => {
     }
   });
 });
+
+describe('标准·结构（D 三项：M4 / S6 / M5）', () => {
+  it('M4 分值只属试卷：教辅等 8 类不得注入分值条款', () => {
+    const bad = [];
+    for (const g of ['practice', 'summary', 'preview', 'reading', 'dictation', 'errorbook', 'review', 'special']) {
+      const t = tpl(g);
+      if (/小题数×每题分|账目闭合/.test(t)) bad.push(`${g} 注入了分值账目条款`);
+    }
+    expect(bad, '分值只在试卷（exam）出现；教辅不带分').toEqual([]);
+  });
+
+  it('S6 数量型判据（至少/不少于）不得作载体与作答位判据', () => {
+    const bad = [];
+    for (const s of ['语文', '数学', '英语', '物理']) {
+      for (const cl of tpl('exam', s).split(/\n(?=·|【)/)) {
+        if (!/作答位|空位|书写载体|书写格/.test(cl)) continue;
+        const m = cl.replace(/不存在["“][^"”]*["”]/g, '').match(/(至少|不少于)/g);
+        if (m) bad.push(`${s}: ${[...new Set(m)].join('/')} ← ${cl.slice(0, 36)}`);
+      }
+    }
+    expect(bad, '数量型判据（应改为判据式表述）').toEqual([]);
+  });
+
+  it('M5 渲染边界：导出/归一链不得把 [IMAGE]/[GRAPH] 转成 <img>（读图 out-project）', () => {
+    const bad = [];
+    for (const f of ['src/modules/TypesetModule.vue', 'src/utils/contentCleaner.js']) {
+      const src = read(f);
+      if (/\[(IMAGE|GRAPH)\][^\n]{0,60}<img/.test(src)) bad.push(f);
+    }
+    expect(bad, '把读图/图形指令转成图片即越界（读图在 out-project 处理）').toEqual([]);
+  });
+});
