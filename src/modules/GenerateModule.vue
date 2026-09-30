@@ -3228,6 +3228,7 @@ import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
 import TemplateStructureEditor from '../components/TemplateStructureEditor.vue'; // 📋 模板结构分析编辑器（模板库/生成模块共用同一实现）
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
+import { markExamBigCategory } from '../utils/contentCleaner.js';
 import { stripXss, stripAiCodeFence, markSoloBlankLines, wrapBareBlankRuns } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（导出端第二道防线共享）
 import { scriptsToText } from '../utils/scriptText.js'; // 上下标 → Unicode/显式写法（rawText 派生时不得把 x² 拍平成 x2）
 import { handleMathPaste } from '../utils/clipboardText.js'; // 🔴 纯文本框"保公式粘贴"：textarea 只收纯文本，浏览器默认粘贴会拿到被线性化的公式（只剩字母和加减号）
@@ -8807,7 +8808,7 @@ const previewDoc = (doc) => {
   
   // 🔴 公式渲染（2026-09 补齐）：该预览弹窗原样注入 doc.content → 含 $…$ 时显示生 LaTeX。
   //    与排版预览/导出同一渲染出口（renderMathInHtml），公式出印刷形态。
-  previewContent.value = renderMathInHtml(normalizeSealStructure(renderImagePlaceholders(content)));
+  previewContent.value = renderMathInHtml(markExamBigCategory(normalizeSealStructure(renderImagePlaceholders(content))));
   showPreview.value = true;
 };
 

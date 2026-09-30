@@ -1839,4 +1839,42 @@ export function normalizeBodyHtml(raw = '', { trace = false, label = '' } = {}) 
 }
 
 
-export default { cleanSectionHtml, normalizeTypographicSymbols, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, ensureCarrierContent, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };
+/**
+ * 🏷️ 大类层打标（**渲染实现侧**：居中由程序负责，加粗由模型侧负责）
+ * ============================================================
+ * 条款（【卷面格式】层级归并）：大类层是"**居中加粗**的独立段落（不用 h1/h2 标签，可用 <strong>）"。
+ * 模型侧能给的是**形态**（独立段落、加粗、名称），**居中是渲染**——模型写不出居中，故由本函数识别并居中，
+ * 属"渲染实现"而非"内容补差"（不补加粗：加粗在模型侧职责内，程序不代劳——见准绳"源头模型侧必须做到位"）。
+ * 只加 class="exam-bigcat" + 行内 text-align:center（行内样式同时被 docxBuilder 的 text-align 读取，
+ * 预览/HTML/PDF/DOCX 四处同口径，无需各端再写一套）。
+ * 判据（保守，防误伤正文）：① 叶子块（p/div）；② 文本以"第X部分／第I部分／活动X：／听力部分／笔试部分"开头；
+ *   ③ 长度 ≤ 40 字且**无句末标点**（。！？；）→ 判为层级行而非正文句；④ 段内含作答位载体（u/blank-N）不动。
+ * 幂等：已带 exam-bigcat 或已含 text-align 则不再改。
+ * 无 DOMParser 环境（Node 校验脚本）原样返回。
+ */
+export function markExamBigCategory(html = '') {
+  const src = String(html || '');
+  if (!src || typeof DOMParser === 'undefined') return src;
+  const RE = /^(第[一二三四五六七八九十百]+部分|第[IVXLC]+部分|活动[一二三四五六七八九十]+[：:]?|听力部分|笔试部分)/;
+  try {
+    const doc = new DOMParser().parseFromString(`<body>${src}</body>`, 'text/html');
+    let hit = 0;
+    for (const p of doc.body.querySelectorAll('p, div')) {
+      if (p.querySelector('p, div, h1, h2, h3, h4, table, ul, ol, u, [class*="blank-"]')) continue;
+      const text = (p.textContent || '').replace(/[\s\u3000]+/g, ' ').trim();
+      if (!text || text.length > 40) continue;
+      if (!RE.test(text)) continue;
+      if (/[。！？；]/.test(text)) continue;
+      if (/[，,]/.test(text)) continue; // 含逗号 → 判为正文句（层级行不带逗号）
+      const cls = p.getAttribute('class') || '';
+      if (/(^|\s)exam-bigcat(\s|$)/.test(cls)) continue;
+      p.setAttribute('class', `${cls} exam-bigcat`.trim());
+      const st = p.getAttribute('style') || '';
+      if (!/text-align/.test(st)) p.setAttribute('style', `${st ? st.replace(/;\s*$/, '') + ';' : ''}text-align:center;`);
+      hit += 1;
+    }
+    return hit ? doc.body.innerHTML : src;
+  } catch { return src; }
+}
+
+export default { cleanSectionHtml, normalizeTypographicSymbols, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, ensureCarrierContent, markExamBigCategory, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };
