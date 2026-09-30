@@ -707,6 +707,10 @@ const buildTextRuns = (node, styleOverride = {}) => {
     }
     // === 行内图片 ===
     if (tag === 'img') {
+      // 🔴 防御：编辑器自身的定位记号（ProseMirror-separator，无 src）不是内容。正常路径已在
+      //    读取边界由 restoreMathPreviewSource 剥掉；此处再兜一道，防某条路径漏了它而在 Word 里
+      //    多出"【图片】"占位文字（2026-09-30 用户实证：段末公式导出多两个字）。
+      if (/(^|\s)ProseMirror-separator(\s|$)/.test(child.getAttribute('class') || '')) return;
       const imgRun = buildImageRun(child);
       if (imgRun) runs.push(imgRun);
       else runs.push(new TextRun({ text: `【${child.getAttribute('alt') || '图片'}】`, ...ctx }));
@@ -739,6 +743,9 @@ const buildTextRuns = (node, styleOverride = {}) => {
     //    公式现于**文本节点分支**按 $…$ 分段处理（含 Word 真公式对象与 Unicode 降级），见上方。
     // === 换行符 ===
     if (tag === 'br') {
+      // 🔴 防御：ProseMirror-trailingBreak 是编辑器定位记号，**不是用户换行**（同上双保险；
+      //    漏掉它会在 Word 里多一个空行——2026-09-30 用户实证）。
+      if (/(^|\s)ProseMirror-trailingBreak(\s|$)/.test(child.getAttribute('class') || '')) return;
       // 🔧 田字格 marker 后紧跟的末尾 br：AI 原始内容残留，可连续多个
       //    （<td><span class="tian-zi-ge">X</span><br><br></td>），Tiptap 预览加载时
       //    已规范化丢弃（预览看不到该换行），导出跳过以对齐预览所见即所得。
@@ -1640,6 +1647,8 @@ const processBlockNode = (node, ctx = {}) => {
 
   // ===== 块级图片 <img> =====
   if (tag === 'img') {
+    // 🔴 防御：同"行内图片"——ProseMirror 定位记号不是内容（见 processChild 内注释）
+    if (/(^|\s)ProseMirror-separator(\s|$)/.test(node.getAttribute('class') || '')) return children;
     const imgRun = buildImageRun(node);
     if (imgRun) children.push(new Paragraph({ children: [imgRun], spacing: { before: 80, after: 80 }, alignment: AlignmentType.CENTER }));
     else children.push(new Paragraph({ text: `【${node.getAttribute('alt') || '图片'}】`, spacing: { before: 80, after: 80 } }));

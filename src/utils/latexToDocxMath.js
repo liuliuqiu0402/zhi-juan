@@ -63,6 +63,10 @@ const SYMBOL_CMD = {
   longrightarrow: '⟶', Longrightarrow: '⟹', hookrightarrow: '↪', mapsto: '↦',
   in: '∈', notin: '∉', cup: '∪', cap: '∩', subset: '⊂', subseteq: '⊆', emptyset: '∅',
   angle: '∠', perp: '⊥', parallel: '∥', triangle: '△', circ: '∘', degree: '°',
+  // 🔴 2026-09-30：`\odot`（圆心，初中几何"⊙O"高频）与 `\varnothing`（空集，与 \emptyset 同形，
+  //    教材两种写法都常见）此前未登记 → 整个公式降级，Word 里符号直接丢失
+  //    （实测 `\odot O` 只剩 "O"、`=\varnothing` 等号后面空着）。
+  odot: '⊙', varnothing: '∅',
   // 集合/逻辑/关系（数学函数与集合题高频；缺则整式降级）
   mid: '|', vert: '|', Vert: '‖', sim: '∼', cong: '≅', propto: '∝',
   forall: '∀', exists: '∃', nabla: '∇', partial: '∂', implies: '⇒', iff: '⇔',
@@ -78,8 +82,9 @@ const SYMBOL_CMD = {
   // 转义字符
   '%': '%', '&': '&', '_': '_', '#': '#', '{': '{', '}': '}', '$': '$',
   backslash: '\\', textbackslash: '\\',
-  // 间距
-  ',': ' ', ';': ' ', ':': ' ', '!': '', quad: ' ', qquad: '  ',
+  // 间距（含 `\ `＝反斜杠+空格：中文教材单位写法高频，如 3\ \text{cm}；
+  //  词法器把它切成 cmd ' '，此前未登记 → 整个公式降级成纯文本）
+  ',': ' ', ';': ' ', ':': ' ', '!': '', ' ': ' ', quad: ' ', qquad: '  ',
 };
 
 /** 函数/算子名 → 正体文本（\\sin x、\\lim_{…}）；紧随 {...} 时补一个空格避免"sinx" */

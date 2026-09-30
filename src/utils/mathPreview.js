@@ -134,18 +134,34 @@ export const collectDecorations = (doc, selection) => {
 };
 
 /**
+ * 编辑器自身的**定位记号**（不是用户内容）：ProseMirror 在"文本块末尾是 widget/叶节点"时会插入
+ *   `<img class="ProseMirror-separator">` 与 `<br class="ProseMirror-trailingBreak">` 作为光标定位锚。
+ *   🔴 2026-09-30 用户实证：段末是公式时（展示式 `$$…$$` 独占一段是最常见形态），导出 Word 后
+ *   多出两个字"【图片】"（导出器见到无 src 的 img → 回退成占位文字）+ 一个多余换行。
+ *   此前全库无任何处理（检索 ProseMirror-separator/trailingBreak：0 处）。
+ */
+const PM_ARTIFACT_RE = /ProseMirror-(separator|trailingBreak)/;
+const stripProseMirrorArtifacts = (box) => {
+  box
+    .querySelectorAll('img.ProseMirror-separator, br.ProseMirror-trailingBreak')
+    .forEach((el) => el.remove());
+};
+
+/**
  * 把 HTML 里的公式 widget 还原为原始形态（内容读取边界用）：
- * 移除 widget 元素 + 拆掉隐藏源码的 span 包裹。
- * 无 widget 时**原样返回**（零开销）；结果与"从未渲染过"的 HTML 一致。
+ * 移除 widget 元素 + 拆掉隐藏源码的 span 包裹 + **清掉 ProseMirror 自身定位记号**。
+ * 无 widget 且无定位记号时**原样返回**（零开销）；结果与"从未渲染过"的 HTML 一致。
  */
 export const restoreMathPreviewSource = (html) => {
   const src = String(html == null ? '' : html);
-  if (!src || !src.includes(MATH_PREVIEW_ATTR)) return src;
+  if (!src || (!src.includes(MATH_PREVIEW_ATTR) && !PM_ARTIFACT_RE.test(src))) return src;
   if (typeof document === 'undefined') return src;
   try {
     const box = document.createElement('div');
     box.innerHTML = src;
-    if (!box.querySelector(`[${MATH_PREVIEW_ATTR}]`)) return src;
+    // ⓪ 先清 ProseMirror 定位记号（与有没有公式 widget 无关：表格/图片等叶节点末尾同样会有）
+    stripProseMirrorArtifacts(box);
+    if (!box.querySelector(`[${MATH_PREVIEW_ATTR}]`)) return box.innerHTML;
     // ① 移除渲染 widget（源码还在隐藏 span 里，不需要补文本）
     box.querySelectorAll(`[${MATH_PREVIEW_ATTR}]`).forEach((w) => w.remove());
     // ② 拆掉隐藏源码的 span：否则导出/预览里 .zwg-math-src{display:none} 会把公式藏起来

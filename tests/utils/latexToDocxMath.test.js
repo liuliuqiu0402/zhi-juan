@@ -52,6 +52,17 @@ describe('latexToDocxMath：支持的子集产出真公式', () => {
     expect(latexToDocxMath('a\\times b\\leq c')).toBeTruthy();
   });
 
+  it('🔴 教材高频三处缺项（2026-09-30 补）：⊙圆心 / \\varnothing 空集 / 单位前 \\ 间距命令', () => {
+    // 三者此前都未登记 → 整个公式降级、符号直接丢失（用户实证：`\odot O` 在 Word 里只剩 "O"，
+    // `=\varnothing` 等号后面空着，`3\ \text{cm}` 退化成普通文本）。
+    expect(latexToDocxMath('\\odot O'), '圆的圆心符号').toBeTruthy();
+    expect(latexToDocxMath('A\\cup B=\\varnothing'), 'varnothing 空集写法').toBeTruthy();
+    expect(latexToDocxMath('\\varnothing'), '单独出现也不得降级').toBeTruthy();
+    expect(latexToDocxMath('3\\ \\text{cm}'), '数字与单位之间的 \\ 空格命令').toBeTruthy();
+    expect(latexToDocxMath('5\\ \\text{kg}')).toBeTruthy();
+    expect(latexToDocxMath('A\\cup B=\\emptyset'), '原 emptyset 写法不得回归').toBeTruthy();
+  });
+
   it('真实教材公式整串可转换', () => {
     for (const f of ['v=\\frac{s}{t}', 'E_k=\\frac{1}{2}mv^{2}', 'x=\\frac{-b\\pm\\sqrt{b^{2}-4ac}}{2a}',
       '\\frac{1}{R}=\\frac{1}{R_1}+\\frac{1}{R_2}']) {
@@ -115,6 +126,16 @@ describe('自建 OMML 补齐：docx 未实现的类也能产出真结构', () =>
     expect(xml).toContain('<m:bar>');
     expect(xml).toContain('<m:barPr>');
     expect(xml).toContain('m:val="top"');
+  });
+
+  it('🔴 ⊙ / ∅ 符号必须真的落进公式（此前被整式降级吞掉）', async () => {
+    const odot = await xmlOf('\\odot O');
+    expect(odot, '⊙ 圆心符号').toContain('⊙');
+    expect(odot, '半径的字母 O 不得丢失').toContain('<m:t>O</m:t>');
+    const empty = await xmlOf('A\\cup B=\\varnothing');
+    expect(empty, '∅ 空集符号').toContain('∅');
+    expect(empty, '∪ 与等号都必须在').toContain('∪');
+    expect(empty).toContain('=');
   });
 
   it('🔴 化学方程式（\\mathrm 包裹）必须保住下标与箭头条件，不得被塌成纯文本', async () => {
