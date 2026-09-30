@@ -1877,4 +1877,40 @@ export function markExamBigCategory(html = '') {
   } catch { return src; }
 }
 
-export default { cleanSectionHtml, normalizeTypographicSymbols, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, ensureCarrierContent, markExamBigCategory, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };
+/**
+ * 📄 卷首结构兜底（**排版模块/渲染侧的结构性保险**）
+ * ============================================================
+ * 用户裁定（2026-09-30）：卷首顺序**源头在模型侧条款**（【卷面格式】"卷首固定顺序"）；排版模块再加一道
+ * **结构性保险**——这是"结构"而非"内容"：只**重排已存在的结构件**，缺件**不补、不造**（缺件属模型侧职责）。
+ * 规范顺序：占位标题 <h1> → "(考试时间…满分…)"一行 → 密封线 → ［卷首语/导语条］ → 正文。
+ * 处置范围（保守）：仅 h1 之后**前 8 个顶层块**内查找时间行；一旦遇到大题标题（h2）或题目行（"1."）立即放弃
+ * （说明正文已开始，不去动）；时间行已紧跟 h1 时不再改（幂等）。
+ * 无 DOMParser 环境原样返回。
+ */
+export function normalizeExamHeadOrder(html = '') {
+  const src = String(html || '');
+  if (!src || typeof DOMParser === 'undefined') return src;
+  const TIME_RE = /^[（(]\s*(考试时间|考试用时|考试时长|考试时限)/;
+  if (!TIME_RE.test(src.replace(/<[^>]+>/g, ' ').replace(/[\s\u3000]+/g, ' ').replace(/^[\s\S]*?(?=[（(]\s*(?:考试时间|考试用时|考试时长|考试时限))/, ''))) return src;
+  try {
+    const doc = new DOMParser().parseFromString(`<body>${src}</body>`, 'text/html');
+    const kids = [...doc.body.children];
+    const iH1 = kids.findIndex((el) => /^H1$/.test(el.tagName));
+    if (iH1 < 0) return src;
+    const win = kids.slice(iH1 + 1, iH1 + 9);
+    let iTime = -1;
+    for (let i = 0; i < win.length; i += 1) {
+      const el = win[i];
+      const text = (el.textContent || '').replace(/[\s\u3000]+/g, ' ').trim();
+      if (/^H2$/.test(el.tagName) || /^\d+[.．]/.test(text)) break; // 正文已开始
+      if (TIME_RE.test(text)) { iTime = i; break; }
+    }
+    if (iTime <= 0) return src; // 未找到，或已紧跟标题（iTime===0）→ 不动
+    const timeEl = win[iTime];
+    timeEl.remove();
+    kids[iH1].after(timeEl);
+    return doc.body.innerHTML;
+  } catch { return src; }
+}
+
+export default { cleanSectionHtml, normalizeTypographicSymbols, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, ensureCarrierContent, markExamBigCategory, normalizeExamHeadOrder, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };
