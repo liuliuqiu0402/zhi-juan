@@ -489,7 +489,9 @@ export const isInAnswerArea = (el, bound) => {
  * @param {string} html 整卷 HTML（含答案区）
  * @param {Object} opts { subject(学科), stage(学段键), genType(资料类型) }
  * @returns {{html: string, issues: Array, fixed: number, silent: number}}
- *   issues 仅含 fix 类的修复记录（info 级）；guard 类只计数进 silent（debug 日志，不产生问题提示）
+ *   issues 仅含 fix 类的修复记录（info 级，只进 console 日志，**不进生成报告问题列表**）；
+ *   silent 为计数，明细在 silentDetails——level='notice' 者进生成报告【问题列表】（useAiGenerator 取
+ *   silentDetails.filter(level!=='debug')），level='debug' 者仅 console 诊断。guard 类规则即走这条通道。
  */
 export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } = {}) => {
   if (!html || typeof html !== 'string') return { html: html || '', issues: [], fixed: 0, silent: 0 };
@@ -703,6 +705,39 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       issues.push({ severity: 'info', type: 'text-format-sup-sub', message: `Unicode 上下标已自动归一为 <sup>/<sub> 标记（上标 ${supFixes} 处、下标 ${subFixes} 处）——避免导出后字号/基线不统一` });
       fixed += 1;
       out = mapped;
+    }
+  }
+
+  // ── 1.5.6c. 公式形态抽检（规则 formula-form-guard，2026-09-30 接线）──
+  //    模型漏用 $…$ 定界、直接把 LaTeX 命令写在正文里（如 3\frac{1}{2}）时**报警**：这类文本在 Word 里
+  //    会原样显示 LaTeX 代码、预览也不出印刷形态（渲染契约 FORMULA_RULES 明文"公式禁止用文本堆砌"，
+  //    此前无程序执行点 = 要求悬空）。
+  //    🔴 只报不改（用户裁定 2026-09-30）：公式起止需人判断，程序猜着补 $ 会把"正文在讲 LaTeX 写法"
+  //       这类正当内容改坏——自动修**必须精准**，不精准就是添乱。能自动修的一律走"扩转换器支持表"
+  //       而非改文本（⊙/∅/`\ ` 就是这么修好的，见 utils/latexToDocxMath.js）。
+  //    🔴 走 silentCount（notice 级）而非 issues：issues 是 fix 类的**修复记录**，只进 console 不进问题列表；
+  //       生成报告【问题列表】取的是 silentDetails.filter(level!=='debug')（useAiGenerator 整卷质检段）。
+  //       静默计数 → 用户看不到 = 白做，故必须走这条通道（与 teaching-volume-guard 同口径）。
+  //    门控：仅数理化生（其余学科不出现公式）；跳过 $…$ 与 $$…$$ 公式区（公式内书写由 FORMULA_RULES 管理）。
+  if (has('formula-form-guard') && /数学|物理|化学|生物/.test(subject || '')) {
+    const plain = out
+      .replace(/\$\$[\s\S]*?\$\$/g, ' ') // 先剥块级公式（$$…$$ 可跨行）
+      .replace(/\$[^$]*\$/g, ' ')        // 再剥行内公式
+      .replace(/<[^>]+>/g, ' ')          // 去标签：防属性值/样式里的反斜杠被误判
+      .replace(/&nbsp;|&emsp;/g, ' ');
+    const hits = [];
+    const CMD_RE = /\\([a-zA-Z]{2,})/g;
+    let cm = CMD_RE.exec(plain);
+    while (cm !== null) {
+      const from = Math.max(0, cm.index - 20);
+      const snippet = plain.slice(from, cm.index + cm[0].length + 14).replace(/\s+/g, ' ').trim();
+      hits.push(`\\${cm[1]}（…${snippet}…）`);
+      cm = CMD_RE.exec(plain);
+    }
+    if (hits.length) {
+      const uniq = [...new Set(hits)];
+      const shown = uniq.slice(0, 3).join('；');
+      silentCount('formula-form', `正文有 ${hits.length} 处公式疑似**未用 $…$ 包裹**：${shown}${uniq.length > 3 ? ` 等 ${uniq.length} 处` : ''}——Word 里会原样显示 LaTeX 代码、预览也不出印刷形态。请在这些公式两端补 $（行内）或 $$（独占一段）；本条只提示、未改动正文。`);
     }
   }
 

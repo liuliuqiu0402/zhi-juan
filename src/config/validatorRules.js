@@ -8,12 +8,13 @@
  *       生成前约束文案注入指令（GenerateModule 与 buildRenderContract 并列追加），
  *       让 AI 生成时就不出错（防患未然）。
  *   【阶段二 · 生成后静默】auditExamPaper(html, {subject, stage, genType})：
- *       fix 类自动修复卷面（用户无感）；guard 类静默计数（仅 debug 日志，
- *       不产生任何问题提示——靠生成前约束解决，生成后不打扰）。
+ *       fix 类自动修复卷面（用户无感，修复记录进 issues = console 日志）；
+ *       guard 类静默抽检计数——明细在 silentDetails，level='notice' 者进生成报告
+ *       【问题列表】提示用户手改，level='debug' 者仅 console 诊断（不打扰）。
  *
  * 规则类别：
- *   - fix   自动修复：生成前注入约束 + 生成后自动修正
- *   - guard 静默防护：生成后仅 debug 计数，不产生问题提示
+ *   - fix   自动修复：生成前注入约束 + 生成后自动修正（issues = 修复记录，不进问题列表）
+ *   - guard 静默防护：生成后计数抽检，需人判断的按 notice 级进问题列表，其余 debug 级仅诊断
  *
  * 字段说明：
  *   id          规则唯一标识（校验器按 id 开关对应逻辑）
@@ -22,7 +23,7 @@
  *   subjects    适用学科数组，'*' = 全学科
  *   stages      适用学段键数组（primary_low/primary_mid/primary_high/middle/high），'*' = 全学段
  *   genTypes    适用资料类型数组，空/缺省 = 全部类型
- *   promptHint  生成前约束文案（fix 类必填，注入指令时展示）
+ *   promptHint  生成前约束文案（fix 类可选，缺省须在 description 声明单源理由；guard 类一律不填）
  *   description 规则说明
  *   enabled     是否启用
  * ============================================================
@@ -173,6 +174,20 @@ export const VALIDATOR_RULES = [
     enabled: true,
   },
   {
+    id: 'formula-form-guard',
+    name: '公式形态抽检（数理化生）',
+    // 🔴 2026-09-30 类别定 guard（不是 fix）：本条**不修任何东西**，只在生成报告【问题列表】里提示用户手改，
+    //    走的是 guard 通道的 silentCount(level='notice')（同 teaching-volume-guard，见 examValidator 的
+    //    silentCount；useAiGenerator 取 silentDetails.filter(level!=='debug') → 问题列表）。
+    //    有意不给 promptHint：guard 类本就不注入生成前约束，且公式写法已由渲染契约 FORMULA_RULES 单源覆盖
+    //    （行内 $…$、块级 $$…$$、禁止文本堆砌）——再加一条就是冗余指令；实发提示词零新增。
+    category: 'guard',
+    subjects: ['数学', '物理', '化学', '生物'],
+    stages: ['*'],
+    description: '公式形态抽检：正文里出现「未用 $…$ 包裹的 LaTeX 命令」（如 3\\frac{1}{2}）时报警——Word 里会原样显示 LaTeX 代码、预览也不出印刷形态。🔴 只提示、不自动改动正文：公式起止需人判断，程序猜着补 $ 会把"讲解 LaTeX 写法"的正文改坏，属添乱；提示经 guard 通道（silentCount，notice 级）进生成报告【问题列表】。能自动修的一律走"扩转换器支持表"而非改文本（⊙/∅/`\\ ` 就是这么修好的）。公式写法已由渲染契约 FORMULA_RULES **单源注入**，故本条**不再提供 promptHint**（实发提示词零新增）。执行点：examValidator 1.5.6c。',
+    enabled: true,
+  },
+  {
     id: 'text-format-phonetics',
     name: '英语音标排版标记',
     category: 'fix',
@@ -305,6 +320,7 @@ export const VALIDATOR_GATES = new Set([
   'answer-area-fix', 'answer-section-exam', 'answer-section-teaching', 'answer-coverage-guard',
   'emphasis-form-fix',
   'text-format-sup-sub', 'cn-ordinal-guard',
+  'formula-form-guard',
 ]);
 /** 无独立分支、由汇总/关联规则执行的子规则 */
 export const RULE_EXEC_BY = {
