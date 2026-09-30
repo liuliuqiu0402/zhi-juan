@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>全学科公式样例·对照检查表</title>
+<style>
+:root{--ink:#1f2328;--muted:#6b7280;--line:#e5e7eb;--bg:#fff;--good:#0f7b46;--bad:#b42318;--warnbg:#fff7ed}
+*{box-sizing:border-box}
+body{margin:0;padding:32px 40px;font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif;color:var(--ink);background:var(--bg);line-height:1.7}
+h1{font-size:22px;margin:0 0 6px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+.stat{display:flex;gap:24px;flex-wrap:wrap;margin:0 0 20px;padding:14px 18px;border:1px solid var(--line);border-radius:10px;background:#fafafa}
+.stat b{font-size:20px}
+.stat .bad b{color:var(--bad)} .stat .good b{color:var(--good)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:8px 10px;vertical-align:top;text-align:left}
+th{background:#f6f7f9;font-weight:600;white-space:nowrap}
+td.no{text-align:right;color:var(--muted);width:38px}
+code{font-family:Consolas,Menlo,monospace;font-size:12.5px;background:#f3f4f6;padding:1px 5px;border-radius:4px;word-break:break-all}
+tr.bad{background:var(--warnbg)}
+.mark{font-weight:600;white-space:nowrap}
+.mark.ok{color:var(--good)} .mark.no{color:var(--bad)}
+.note{margin-top:18px;font-size:13px;color:var(--muted)}
+ul{margin:6px 0 0;padding-left:22px}
+</style></head><body>
+<h1>全学科公式样例 · 对照检查表</h1>
+<div class="sub">用途：粘贴到排版模块编辑器 → 预览（KaTeX 印刷形态）→ 导出 Word（OMML 真公式），逐条核对“预览与导出一致”。<br>
+「本地预跑」一列是<strong>在本机直接跑导出转换器</strong>的结果（能转成 Word 真公式 / 会降级为文本），不是推测。</div>
+<div class="stat">
+  <div>样例行数 <b>69</b></div>
+  <div>公式总数 <b>98</b></div>
+  <div class="good">预跑可转真公式 <b>97</b></div>
+  <div class="bad">预跑会降级 <b>1</b></div>
+</div>
+<table><thead><tr><th>#</th><th>学科 · 场景</th><th>源码（粘贴内容）</th><th>本地预跑（逐式）</th><th>导出后应看到的形态</th><th>降级的那一式会变成</th></tr></thead><tbody>
+<tr><td class="no">1</td><td>数学 · 分数大小比较（小学）</td><td><code>把 $\frac{3}{4}$、$\frac{5}{8}$、$\frac{7}{12}$ 按从大到小排列。</code></td><td><span class="mark ok">真公式 3 式</span></td><td>三个分式叠排（分子在上、分母在下、中间横线）</td><td>—</td></tr>
+<tr><td class="no">2</td><td>数学 · 带分数（小学）</td><td><code>把假分数 $\frac{7}{5}$ 化成带分数，结果是 $1\frac{2}{5}$。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>整数与分式并排</td><td>—</td></tr>
+<tr><td class="no">3</td><td>数学 · 异分母加减（小学）</td><td><code>计算：$\frac{1}{2}+\frac{1}{3}=\frac{5}{6}$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>三个分式叠排，等号两端对齐</td><td>—</td></tr>
+<tr><td class="no">4</td><td>数学 · 分式化简（初中）</td><td><code>化简：$\frac{x^{2}-1}{x+1}=x-1$（$x\neq -1$）。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>分式叠排 + 上标 ² 收回右上</td><td>—</td></tr>
+<tr><td class="no">5</td><td>数学 · 二次根式（初中）</td><td><code>计算 $\sqrt{2}\times\sqrt{3}=\sqrt{6}$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>根号带顶横线，被开方数在根号内</td><td>—</td></tr>
+<tr><td class="no">6</td><td>数学 · 立方根（初中）</td><td><code>求 $\sqrt[3]{8}$ 的值。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>根号左上角带小 3</td><td>—</td></tr>
+<tr><td class="no">7</td><td>数学 · 根号内分式（高中）</td><td><code>化简 $\sqrt{\frac{a}{b}}$（$a&gt;0$，$b&gt;0$）。</code></td><td><span class="mark ok">真公式 3 式</span></td><td>根号内含叠排分式</td><td>—</td></tr>
+<tr><td class="no">8</td><td>数学 · 幂与下标（初中）</td><td><code>在数列 $a_{n}=a_{n-1}+d$ 中，$a_{n}^{2}$ 表示第 $n$ 项的平方。</code></td><td><span class="mark ok">真公式 3 式</span></td><td>下标在右下、上标在右上（上下标同基座）</td><td>—</td></tr>
+<tr><td class="no">9</td><td>数学 · 科学记数法（初中）</td><td><code>地球到太阳的距离约为 $1.5\times10^{11}$ 米。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>× 与 10 的 11 次幂（上标）</td><td>—</td></tr>
+<tr><td class="no">10</td><td>数学 · 负整数指数幂（初中）</td><td><code>计算 $10^{-3}=0.001$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>负号作为上标的一部分</td><td>—</td></tr>
+<tr><td class="no">11</td><td>数学 · 教材规范不等号（初中，历史降级点）</td><td><code>因为 $5\leqslant 7$，所以 $7\geqslant 5$。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>⩽ 与 ⩾（中文教材印刷体，非 ≤/≥）</td><td>—</td></tr>
+<tr><td class="no">12</td><td>数学 · 分数比较（小学）</td><td><code>比较大小：$\frac{3}{4}\geq\frac{1}{2}$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>分式 + ⩾ 混排</td><td>—</td></tr>
+<tr><td class="no">13</td><td>数学 · 百分数（小学）</td><td><code>六（1）班今天出勤率是 $98\%$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>百分号与数字同行</td><td>—</td></tr>
+<tr><td class="no">14</td><td>数学 · 比（小学）</td><td><code>糖与水的比是 $3:4$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>比号两侧留白</td><td>—</td></tr>
+<tr><td class="no">15</td><td>数学 · 面积单位（小学，重点观察）</td><td><code>一块草地面积是 $5\text{ cm}^{2}$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>单位正体 + 平方上标</td><td>—</td></tr>
+<tr><td class="no">16</td><td>数学 · 速度单位（小学，重点观察）</td><td><code>汽车速度是 $3.5\text{ m/s}$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>单位正体，斜杠保留</td><td>—</td></tr>
+<tr><td class="no">17</td><td>数学 · 角度（初中）</td><td><code>在 $\triangle ABC$ 中，$\angle A=60^{\circ}$。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>△ 与 ∠ 符号 + 度号上标</td><td>—</td></tr>
+<tr><td class="no">18</td><td>数学 · 圆的圆心（初中，重点观察）</td><td><code>如图，$\odot O$ 的半径为 $3$。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>圆符号（odot）</td><td>—</td></tr>
+<tr><td class="no">19</td><td>数学 · 平行与垂直（初中）</td><td><code>已知 $AB\parallel CD$，$EF\perp AB$。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>∥ 与 ⊥ 符号</td><td>—</td></tr>
+<tr><td class="no">20</td><td>数学 · 全等与相似（初中）</td><td><code>$\triangle ABC\cong\triangle DEF$，$\triangle ABC\sim\triangle DEF$。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>≅ 与 ∼ 符号</td><td>—</td></tr>
+<tr><td class="no">21</td><td>数学 · 线段标记（初中，重点观察）</td><td><code>线段 $\overline{AB}$ 的长度是 $5$ cm。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>线段上方横线（overline）</td><td>—</td></tr>
+<tr><td class="no">22</td><td>数学 · 向量（高中）</td><td><code>向量 $\vec{a}$ 与 $\overrightarrow{AB}$ 相等。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>向量箭头（vec 与 overrightarrow）</td><td>—</td></tr>
+<tr><td class="no">23</td><td>数学 · 集合（高中，重点观察）</td><td><code>设 $x\in A$，$A\cup B=\varnothing$。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>∈ 与 ∪ 与空集符号（varnothing）</td><td>—</td></tr>
+<tr><td class="no">24</td><td>数学 · 对数的底数与真数（高中）</td><td><code>计算 $\log_{2}8=3$，$\ln x$ 在 $x&gt;0$ 时有意义。</code></td><td><span class="mark ok">真公式 3 式</span></td><td>log 与 ln 正体，底数记在右下</td><td>—</td></tr>
+<tr><td class="no">25</td><td>数学 · 三角函数（高中）</td><td><code>证明 $\sin^{2}\theta+\cos^{2}\theta=1$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>sin/cos 正体 + 平方上标 + θ</td><td>—</td></tr>
+<tr><td class="no">26</td><td>数学 · 组合数（高中，重点观察）</td><td><code>计算 $\binom{n}{k}$ 与 $C_{n}^{m}$ 的值。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>组合数（binom 与上下标两种写法）</td><td>—</td></tr>
+<tr><td class="no">27</td><td>数学 · 复共轭（高中，重点观察）</td><td><code>复数 $z$ 的共轭记作 $\overline{z}$。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>字母上方横线</td><td>—</td></tr>
+<tr><td class="no">28</td><td>数学 · 单位与空格命令（重点观察）</td><td><code>长度是 $3\ \text{cm}$，质量是 $5\ \text{kg}$。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>数字与单位间的空格命令（\ ）</td><td>—</td></tr>
+<tr><td class="no">29</td><td>数学 · 展示式：求根公式（初中）</td><td><code>$$x=\frac{-b\pm\sqrt{b^{2}-4ac}}{2a}$$</code></td><td><span class="mark ok">真公式 1 式</span></td><td>整行居中、独占一行的大分式</td><td>—</td></tr>
+<tr><td class="no">30</td><td>数学 · 展示式：方程组（初中）</td><td><code>$$\begin{cases}x+y=5\\ x-y=1\end{cases}$$</code></td><td><span class="mark ok">真公式 1 式</span></td><td>整行居中、左侧大花括号包两行</td><td>—</td></tr>
+<tr><td class="no">31</td><td>数学 · 展示式：分段函数（高中）</td><td><code>$$f(x)=\begin{cases}x+1, &amp; x&gt;0\\ 0, &amp; x=0\\ -x-1, &amp; x&lt;0\end{cases}$$</code></td><td><span class="mark ok">真公式 1 式</span></td><td>整行居中、三行加左花括号</td><td>—</td></tr>
+<tr><td class="no">32</td><td>数学 · 展示式：行列式（高中）</td><td><code>$$\begin{vmatrix}a &amp; b\\ c &amp; d\end{vmatrix}=ad-bc$$</code></td><td><span class="mark ok">真公式 1 式</span></td><td>整行居中、两侧竖线的行列式</td><td>—</td></tr>
+<tr><td class="no">33</td><td>数学 · 展示式：求和与积分（高中）</td><td><code>$$\sum_{i=1}^{n}i=\frac{n(n+1)}{2},\quad \int_{0}^{1}x\,dx=\frac{1}{2}$$</code></td><td><span class="mark ok">真公式 1 式</span></td><td>∑ 与 ∫ 带上下限，居中式</td><td>—</td></tr>
+<tr><td class="no">34</td><td>数学 · 展示式：极限（高中）</td><td><code>$$\lim_{x\to 0}\frac{\sin x}{x}=1$$</code></td><td><span class="mark ok">真公式 1 式</span></td><td>lim 正体 + 下方 x→0</td><td>—</td></tr>
+<tr><td class="no">35</td><td>数学 · 自定义定界符（初中）</td><td><code>计算：$\left(\frac{1}{2}+\frac{1}{3}\right)\times 6$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>括号随内容自动放大</td><td>—</td></tr>
+<tr><td class="no">36</td><td>数学 · AI 常用简写（重点观察）</td><td><code>结果写成 $\dfrac{1}{2}$ 也行。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>dfrac（显式大分式）</td><td>—</td></tr>
+<tr><td class="no">37</td><td>数学 · 中文单位在公式内（重点观察）</td><td><code>长度是 $5\text{厘米}$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>公式内中文单位</td><td>—</td></tr>
+<tr><td class="no">38</td><td>物理 · 速度公式（初中）</td><td><code>由 $v=\frac{s}{t}$ 可知，路程一定时速度与时间成反比。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>分式叠排</td><td>—</td></tr>
+<tr><td class="no">39</td><td>物理 · 密度公式（初中）</td><td><code>水的密度 $\rho=\frac{m}{V}=1.0\times10^{3}\text{ kg/m}^{3}$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>ρ + 分式 + 10 的幂 + 单位含斜杠与上标</td><td>—</td></tr>
+<tr><td class="no">40</td><td>物理 · 欧姆定律（初中）</td><td><code>根据 $I=\frac{U}{R}$，电阻增大时电流减小。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>分式叠排</td><td>—</td></tr>
+<tr><td class="no">41</td><td>物理 · 电功率与焦耳定律（初中）</td><td><code>$P=UI$，$Q=I^{2}Rt$。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>上下标与乘积混排</td><td>—</td></tr>
+<tr><td class="no">42</td><td>物理 · 压强公式（初中）</td><td><code>$p=\frac{F}{S}$，其中 $F$ 为压力。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>分式叠排</td><td>—</td></tr>
+<tr><td class="no">43</td><td>物理 · 杠杆平衡（初中）</td><td><code>杠杆平衡条件：$F_{1}l_{1}=F_{2}l_{2}$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>下标 1、2 在右下</td><td>—</td></tr>
+<tr><td class="no">44</td><td>物理 · 阿基米德原理（初中，重点观察）</td><td><code>$F_{\text{浮}}=\rho_{\text{液}}gV_{\text{排}}$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>下标里放汉字（浮/液/排）</td><td>—</td></tr>
+<tr><td class="no">45</td><td>物理 · 机械效率（初中，重点观察）</td><td><code>$\eta=\frac{W_{\text{有用}}}{W_{\text{总}}}\times100\%$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>分式的分子分母里各含中文下标</td><td>—</td></tr>
+<tr><td class="no">46</td><td>物理 · 单位换算（初中）</td><td><code>$1\text{ m/s}=3.6\text{ km/h}$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>单位正体 + 两条单位并列</td><td>—</td></tr>
+<tr><td class="no">47</td><td>物理 · 光速（初中）</td><td><code>光在真空中的传播速度约为 $3\times10^{8}\text{ m/s}$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>科学记数法 + 单位</td><td>—</td></tr>
+<tr><td class="no">48</td><td>物理 · 受力分析（初中）</td><td><code>物体受合力 $F_{\text{合}}=\vec{F}_{1}+\vec{F}_{2}$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>矢量箭头 + 下标</td><td>—</td></tr>
+<tr><td class="no">49</td><td>化学 · 化学式与离子（初中）</td><td><code>$H_{2}SO_{4}$ 与 $Fe^{3+}$、$SO_{4}^{2-}$。</code></td><td><span class="mark ok">真公式 3 式</span></td><td>下标数字在右下、离子电荷在右上</td><td>—</td></tr>
+<tr><td class="no">50</td><td>化学 · 化学方程式·普通箭头（初中）</td><td><code>$2H_{2}+O_{2}\rightarrow 2H_{2}O$</code></td><td><span class="mark ok">真公式 1 式</span></td><td>短箭头 →</td><td>—</td></tr>
+<tr><td class="no">51</td><td>化学 · 化学方程式·条件写在箭头上（初中，高危）</td><td><code>$2H_{2}+O_{2}\xrightarrow{\text{点燃}}2H_{2}O$</code></td><td><span class="mark ok">真公式 1 式</span></td><td>箭头上方写"点燃"（xrightarrow）</td><td>—</td></tr>
+<tr><td class="no">52</td><td>化学 · 气体与沉淀符号（初中）</td><td><code>$Zn+H_{2}SO_{4}\rightarrow ZnSO_{4}+H_{2}\uparrow$，$Ca(OH)_{2}+CO_{2}\rightarrow CaCO_{3}\downarrow+H_{2}O$</code></td><td><span class="mark ok">真公式 2 式</span></td><td>↑ 与 ↓ 符号</td><td>—</td></tr>
+<tr><td class="no">53</td><td>化学 · 可逆反应（高中）</td><td><code>$N_{2}+3H_{2}\rightleftharpoons 2NH_{3}$</code></td><td><span class="mark ok">真公式 1 式</span></td><td>⇌ 符号</td><td>—</td></tr>
+<tr><td class="no">54</td><td>化学 · 离子方程式（高中）</td><td><code>$H^{+}+OH^{-}\rightarrow H_{2}O$</code></td><td><span class="mark ok">真公式 1 式</span></td><td>上下标电荷</td><td>—</td></tr>
+<tr><td class="no">55</td><td>化学 · 相对分子质量（初中）</td><td><code>$CO_{2}$ 中碳的质量分数为 $\frac{12}{44}\times100\%$。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>分式 + 百分数</td><td>—</td></tr>
+<tr><td class="no">56</td><td>化学 · 溶质质量分数（初中，重点观察）</td><td><code>溶质质量分数 $=\frac{m_{\text{质}}}{m_{\text{液}}}\times100\%$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>分式 + 中文下标</td><td>—</td></tr>
+<tr class="bad"><td class="no">57</td><td>化学 · mhchem 写法（重点观察，高危）</td><td><code>$\ce{2H2 + O2 -&gt; 2H2O}$</code></td><td><span class="mark no">会降级 1/1 式</span></td><td>若模型用了 mhchem 宏，看是否降级</td><td><code>\ce{2H2 + O2 -&gt; 2H2O}</code> → <code>2H2 + O2 -&gt; 2H2O</code></td></tr>
+<tr><td class="no">58</td><td>生物 · 光合作用（初中）</td><td><code>$6CO_{2}+6H_{2}O\rightarrow C_{6}H_{12}O_{6}+6O_{2}$</code></td><td><span class="mark ok">真公式 1 式</span></td><td>下标数字 + 箭头</td><td>—</td></tr>
+<tr><td class="no">59</td><td>生物 · 呼吸作用（初中）</td><td><code>$C_{6}H_{12}O_{6}+6O_{2}\rightarrow 6CO_{2}+6H_{2}O$</code></td><td><span class="mark ok">真公式 1 式</span></td><td>下标数字 + 箭头</td><td>—</td></tr>
+<tr><td class="no">60</td><td>生物 · 遗传杂交（初中）</td><td><code>$Aa\times Aa\rightarrow 3:1$，其中 $\frac{1}{4}$ 为纯合子。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>× 与比号与分式</td><td>—</td></tr>
+<tr><td class="no">61</td><td>生物 · 显微镜放大（初中）</td><td><code>放大倍数 $=10\times40=400$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>× 乘号</td><td>—</td></tr>
+<tr><td class="no">62</td><td>地理 · 经纬度（初中）</td><td><code>北京位于 $40^{\circ}\text{N}$、$116^{\circ}\text{E}$ 附近。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>度号上标 + 字母正体</td><td>—</td></tr>
+<tr><td class="no">63</td><td>地理 · 回归线（初中）</td><td><code>北回归线约是 $23.5^{\circ}\text{N}$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>小数 + 度号 + 字母</td><td>—</td></tr>
+<tr><td class="no">64</td><td>地理 · 比例尺（初中）</td><td><code>该图比例尺为 $1:50000$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>比号</td><td>—</td></tr>
+<tr><td class="no">65</td><td>地理 · 气温与降水（初中）</td><td><code>今日气温 $18^{\circ}\text{C}$，月降水量 $800\text{ mm}$。</code></td><td><span class="mark ok">真公式 2 式</span></td><td>度号 + 字母单位</td><td>—</td></tr>
+<tr><td class="no">66</td><td>历史 · 历史年代比例（初中）</td><td><code>该时期约 $\frac{1}{3}$ 的年份处于战乱。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>分式叠排</td><td>—</td></tr>
+<tr><td class="no">67</td><td>历史 · 人口占比（初中）</td><td><code>农业人口约占 $80\%$。</code></td><td><span class="mark ok">真公式 1 式</span></td><td>百分数</td><td>—</td></tr>
+<tr><td class="no">68</td><td>语文 · 说明（无公式场景）</td><td><code>（语文科目不含数学公式；注音、笔顺、田字格、米字格属书写载体，不属于公式）</code></td><td><span class="mark">非公式</span></td><td>纯文字说明</td><td>—</td></tr>
+<tr><td class="no">69</td><td>英语 · 统计类阅读（小学）</td><td><code>About $60\%$ of the students walk to school.</code></td><td><span class="mark ok">真公式 1 式</span></td><td>百分数在英文句中</td><td>—</td></tr>
+</tbody></table>
+<div class="note"><strong>怎么用这份表：</strong>
+<ul>
+  <li>先看最后两列：标“会降级”的条目，预览会正常显示印刷形态，但导出 Word 后会退化成斜杠/文本，这就是“预览与导出一致”原则的失守点。</li>
+  <li>导出后若发现<strong>表里标“真公式”的条目也走形</strong>，说明问题不在转换器本身，而在导出链路（例如公式所在段落被判成了别的东西），属于另一类 bug，值得单独记录。</li>
+  <li>展示式（<code>$$…$$</code>）必须独占一行才走“整行居中”的展示式路径；若与文字同行，会按行内公式处理。</li>
+</ul></div>
+</body></html>

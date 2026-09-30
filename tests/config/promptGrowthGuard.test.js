@@ -23,6 +23,19 @@ const DUP_BUDGET = { 分值: 5, 同性质: 4, '同一题(?!号)': 4, 逐题: 4, 
 const clausesOf = (t) => t.split(/\n(?=·|【)/).map((s) => s.trim()).filter((s) => s.length > 12);
 
 describe('指令"只增不扩"守卫（止住越滚越长）', () => {
+  it('新增必须换旧：总量不得增加（条数/总字数 ≤ 2026-09-30 基线，用户裁定 B）', () => {
+    const cap = { 'exam|语文': [51, 11054], 'exam|数学': [63, 11901] };
+    const over = [];
+    for (const [k, [c0, n0]] of Object.entries(cap)) {
+      const [g, s] = k.split('|');
+      const items = clausesOf(tpl(g, s));
+      const n = items.reduce((a, x) => a + x.length, 0);
+      if (items.length > c0) over.push(`${k} 条数 ${items.length} > ${c0}`);
+      if (n > n0) over.push(`${k} 总字数 ${n} > ${n0}`);
+    }
+    expect(over, '新增条款必须同时删/并旧条（总量只减不增）').toEqual([]);
+  });
+
   it('单条字数不得超过基线（只减不增）', () => {
     const bad = [];
     for (const g of ['exam', 'practice', 'summary', 'preview', 'reading', 'dictation', 'errorbook', 'review', 'special']) {
