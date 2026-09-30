@@ -17,8 +17,8 @@ const tpl = (g, s = '语文', st = 'primary_low') => getPromptTemplate({ grade: 
 
 /** 单条上限（字数）——基线取 2026-09-30 实测最长条（题目自洽①–⑰，2073 字），留 6% 余量；只减不增 */
 const MAX_CLAUSE_CHARS = 2200;
-/** 同义判据指纹上限：关键词 → 允许出现的"条"数上限（不得高于 2026-09-30 实测值） */
-const DUP_BUDGET = { 分值: 5, 同性质: 4, 同一题: 4, 逐题: 4, 账目: 3, 书写载体: 3, 不得省略: 2, 自查: 2 };
+/** 同义判据指纹上限：关键词（按正则判，防子串误命中，如「同一题」不得命中「同一题号」）→ 允许出现的"条"数上限 */
+const DUP_BUDGET = { 分值: 5, 同性质: 4, '同一题(?!号)': 4, 逐题: 4, 账目: 3, 书写载体: 3, 不得省略: 2, 自查: 2 };
 
 const clausesOf = (t) => t.split(/\n(?=·|【)/).map((s) => s.trim()).filter((s) => s.length > 12);
 
@@ -35,7 +35,8 @@ describe('指令"只增不扩"守卫（止住越滚越长）', () => {
     const items = clausesOf(tpl('exam'));
     const over = [];
     for (const [k, cap] of Object.entries(DUP_BUDGET)) {
-      const n = items.filter((x) => x.includes(k)).length;
+      const re = new RegExp(k);
+      const n = items.filter((x) => re.test(x)).length;
       if (n > cap) over.push(`「${k}」${n} 条 > 上限 ${cap}`);
     }
     expect(over, '同义判据条数增加（新增即需收口或走单源）').toEqual([]);
