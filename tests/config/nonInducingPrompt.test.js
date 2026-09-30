@@ -384,6 +384,30 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
       expect(bad, `${f} 以下 note 仍在举例：${bad.slice(0, 5).join('；')}`).toEqual([]);
     }
   });
+  // 🔴 2026-09-30（用户裁定·指向性诱导）：蓝图 note 里"由系统做"的**代劳式表述**。
+  //    背景：蓝图 note 以 `——【要求·须逐项落实】<note>` **原样进实发文本**，而配图/图形/书写载体/竖式书写区
+  //    本是**模型侧产出**（配图/图形＝模型输出 [IMAGE]/[GRAPH] 标记，第十二节渲染边界准绳；书写载体＝作答载体）。
+  //    写成"由系统按渲染契约注入/按载体渲染"，等于把"你得落实"贴在"别人做"的句子上 → 模型读成"不用我管"。
+  //    判据：note 出现「由系统/由程序 + 注入|渲染|拼装|生成」或「（系统渲染）」即红；模型侧动作须留痕。
+  it('蓝图 note 不得把模型侧产出写成"由系统做"（指向性诱导·去掉代劳主语）', () => {
+    const BAD = /由系统(?:按[^，；。]*?)?(?:注入|渲染|拼装|生成)|由程序(?:绘成|渲染|生成)|（系统渲染）/;
+    for (const f of ['examPaperBlueprints.js', 'specialDomains.js', 'teachingBlueprints.js']) {
+      const src = fs.readFileSync(path.join(ROOT, 'src', 'config', f), 'utf8');
+      const notes = src.match(/note:\s*'[^']*'|note:\s*`[^`]*`/g) || [];
+      expect(notes.length, `${f} 未扫到 note（防假绿）`).toBeGreaterThan(0);
+      const bad = notes.filter((n) => BAD.test(n));
+      expect(bad, `${f} 以下 note 把模型侧产出写成"由系统做"：${bad.slice(0, 5).join('；')}`).toEqual([]);
+    }
+    // 模型侧动作不得丢（清"代劳主语"≠ 清要求）
+    const ex = fs.readFileSync(path.join(ROOT, 'src', 'config', 'examPaperBlueprints.js'), 'utf8');
+    expect(ex, '配图须由模型给出标记（原"配图由系统注入"的要求改由模型承载）').toContain('须给出配图标记');
+    expect(ex, '图形须由模型给出标记').toContain('须给出图形标记');
+    expect(ex, '竖式书写区须留出（作答载体）').toContain('竖式书写区按作答载体规范留出');
+    expect(ex, '作图区域须留出').toContain('留出作图区域');
+    const tb = fs.readFileSync(path.join(ROOT, 'src', 'config', 'teachingBlueprints.js'), 'utf8');
+    expect(tb, '书写载体须由模型给出').toContain('书写载体按学科与学段规范给出');
+  });
+
   // 🔴 2026-09-27（收口·多事实源）：用户自定义蓝本的**唯一事实源**是 blueprintProvider
   //    （saveUserBlueprint/loadUserBlueprints：键 wisdom_blueprint_library_v1；findBlueprint 第 1 步用户优先短路）。
   //    曾另建第二套用户栏目覆盖 storage 并在 getExamBlueprint 合并 → 双事实源 + 该模块无写入方（永不生效）

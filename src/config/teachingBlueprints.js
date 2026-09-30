@@ -143,7 +143,7 @@ export const TEACHING_BLUEPRINTS = {
     sections: [
       { name: '基础默写', note: '本次范围要求掌握的基础内容，置于语境中呈现（不孤立罗列），含易错点' },
       { name: '积累内容', note: '严格对应教材要求，要求掌握的内容都涉及到' },
-      { name: '书写呈现', note: '书写载体按学科与学段规范呈现，由系统渲染' },
+      { name: '书写呈现', note: '书写载体按学科与学段规范给出' },
     ],
     stages: {
       primary_low: { volume: '基础内容4-8条', note: '以本次范围核心内容为主，量小而精' },
