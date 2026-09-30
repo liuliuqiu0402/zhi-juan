@@ -98,7 +98,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断', score: 8, note: '概念辨析' },
       { name: '选择', score: 8, note: '基础辨析' },
       { name: '操作题', score: 6, note: '画图、测量、平移旋转、周长面积操作；需动手画图的题留作图区域（系统渲染）' },
-      { name: '解决问题', score: 30, note: '应用题，体现问题解决过程（列式→计算→答）' },
+      { name: '解决问题', score: 30, note: '应用题，体现问题解决过程（列式、计算、作答完整）' },
     ],
   },
   '数学|primary_high': {
@@ -209,7 +209,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '填空题', score: 18, note: '现象分析、原理应用' },
       { name: '作图题', score: 8, note: '力的示意图、光路图、电路图；需现成图形的题配图由系统注入' },
       { name: '实验探究题', score: 14, note: '方案设计、数据分析、结论表述' },
-      { name: '计算题', score: 24, note: '力学与电学综合，要求公式→代入→结果→作答完整' },
+      { name: '计算题', score: 24, note: '力学与电学综合，要求解答过程完整、步骤规范' },
     ],
   },
   '物理|high': {
@@ -248,7 +248,7 @@ export const EXAM_BLUEPRINTS = {
     label: '生物·初中', fullScore: 100, duration: '60分钟',
     sections: [
       { name: '选择题', score: 50, note: '概念辨析' },
-      { name: '非选择题', score: 50, note: '识图填空、资料分析、实验探究；识图题按结构→功能→原理设问；配图与数据图表由系统按渲染契约注入' },
+      { name: '非选择题', score: 50, note: '识图填空、资料分析、实验探究；识图题考查结构与功能的关系；配图与数据图表由系统按渲染契约注入' },
     ],
   },
   '生物|high': {
@@ -450,7 +450,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断题', score: 16, note: '音乐常识辨析' },
       { name: '填空题', score: 16, note: '音乐术语、节奏节拍' },
       { name: '连线题', score: 12, note: '乐器与分类、节奏型匹配' },
-      { name: '简答题', score: 32, note: '作品赏析（要素分析→情感体验），配评分要点' },
+      { name: '简答题', score: 32, note: '作品赏析（音乐要素感知与情感体验），配评分要点' },
     ],
   },
   '音乐|primary_high': {
@@ -460,7 +460,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断题', score: 16, note: '音乐常识辨析' },
       { name: '填空题', score: 12, note: '音乐要素与术语' },
       { name: '连线题', score: 8, note: '作品与民族/体裁连线' },
-      { name: '简答题', score: 40, note: '赏析沿要素分析→情感体验→文化理解递进，配评分要点' },
+      { name: '简答题', score: 40, note: '赏析：要素分析、情感体验与文化理解，配评分要点' },
     ],
   },
   '音乐|middle': {
@@ -469,7 +469,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '选择题', score: 28, note: '乐理、中外名曲、音乐体裁' },
       { name: '填空题', score: 16, note: '音乐要素与作品背景' },
       { name: '判断题', score: 16, note: '音乐常识辨析' },
-      { name: '简答题', score: 40, note: '作品赏析（要素分析→情感体验→文化理解），配评分要点' },
+      { name: '简答题', score: 40, note: '作品赏析（要素分析、情感体验与文化理解），配评分要点' },
     ],
   },
   '音乐|high': {
@@ -499,7 +499,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断题', score: 16, note: '美术常识辨析' },
       { name: '填空题', score: 16, note: '美术术语、造型原理' },
       { name: '连线题', score: 12, note: '作品与作者/材料与技法连线' },
-      { name: '赏析题', score: 32, note: '赏析（内容→形式→情感），配评分要点' },
+      { name: '赏析题', score: 32, note: '赏析（内容、形式、情感），配评分要点' },
     ],
   },
   '美术|primary_high': {
@@ -509,7 +509,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断题', score: 16, note: '美术常识辨析' },
       { name: '填空题', score: 12, note: '美术术语与原理' },
       { name: '连线题', score: 8, note: '作品与作者/流派连线' },
-      { name: '赏析题', score: 40, note: '赏析（内容→形式→情感），结合中华优秀传统文化，配评分要点' },
+      { name: '赏析题', score: 40, note: '赏析（内容、形式、情感），结合中华优秀传统文化，配评分要点' },
     ],
   },
   '美术|middle': {
@@ -518,7 +518,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '选择题', score: 28, note: '造型/设计/欣赏知识、中外美术名作' },
       { name: '填空题', score: 16, note: '美术术语与流派' },
       { name: '判断题', score: 16, note: '美术常识辨析' },
-      { name: '赏析题', score: 40, note: '赏析（内容→形式→情感），配评分要点' },
+      { name: '赏析题', score: 40, note: '赏析（内容、形式、情感），配评分要点' },
     ],
   },
   '美术|high': {

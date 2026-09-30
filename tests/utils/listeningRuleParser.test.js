@@ -425,9 +425,16 @@ describe('分节播音指令：以指令为准决定该节遍数', () => {
     expect(out.items[1].repeat).toBeUndefined();
   });
 
+  // 🔴 2026-09-30（用户裁定·去指向性诱导）：原断言锁字面 `第一节`——它来自当时的**否定式补丁**
+  //    （"卷面是'一、听录音…'就写这一句，不要改写成'第一大题'或'第一节'；卷面本身就是'第一节'的才写'第一节'"），
+  //    该补丁已删（反向植入；且与程序侧 `utils/listeningScript.normalizeSectionLabel` 的标号归一**双写**）。
+  //    契约意图不变：**逐节写播音指令、标号照卷面原样、遍数按节实际**——故断言改锁这些判据 + 防补丁回潮。
   it('源头契约要求写出分节播音指令（与解析器同源）', () => {
-    expect(LISTENING_SCRIPT_FORMAT).toContain('第一节');
     expect(LISTENING_SCRIPT_FORMAT).toContain('播音指令');
+    expect(LISTENING_SCRIPT_FORMAT, '每个大题前逐节写出').toContain('每个大题前写出该大题的中文播音指令');
+    expect(LISTENING_SCRIPT_FORMAT, '标号照卷面原样（防音频与卷面对不上）').toContain('照卷面该大题的标号与题干原样写');
+    expect(LISTENING_SCRIPT_FORMAT, '遍数按该大题实际、可各节不同').toContain('不同大题可以不同');
+    expect(LISTENING_SCRIPT_FORMAT, '旧否定式补丁不得回潮').not.toContain('不要改写成');
   });
 });
 

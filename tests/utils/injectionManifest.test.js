@@ -31,7 +31,11 @@ describe('(b) 分析层 kind 契约', () => {
     expect(src, 'schema 须含 kind 字段').toContain('"kind": "knowledge|material"');
     expect(src, '须给一句可判定的判据').toContain('能不能直接变成一道题的考查点');
     expect(src, '须声明缺字段的向后兼容口径').toContain('kind 缺失时一律按 knowledge 处理');
-    expect(src, '另一条图谱 prompt 须同步').toContain('核心知识点[knowledge|material](≤6)');
+    // 🔴 2026-09-30（用户裁定·去数量区间）：该断言原写 `核心知识点[knowledge|material](≤6)`——它真正要锁的是
+    //    "**另一条图谱 prompt 也带 kind 标注**"（同源两分支踩坑），`(≤6)` 只是当时顺带带上的**数量上限**；
+    //    上限已全部撤除（条目按内容实际），故断言改为只锁 kind 标注形态。
+    expect(src, '另一条图谱 prompt 须同步（带 kind 标注）').toContain('核心知识点[knowledge|material]');
+    expect(src, '本条图谱 prompt 不得再带数量上限').not.toContain('核心知识点[knowledge|material](≤6)');
   });
 
   it('锚树归一透传 kind（双轨判定：显式 kind 优先 + 名字兜底）', () => {

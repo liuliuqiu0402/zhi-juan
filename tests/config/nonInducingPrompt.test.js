@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   getPromptTemplate,
   SUBJECT_STAGE_EXTRAS,
+  LISTENING_SCRIPT_FORMAT,
 } from '../../src/config/promptLibrary.js';
 import {
   TEACHING_BLUEPRINTS,
@@ -13,8 +14,10 @@ import {
 } from '../../src/config/teachingBlueprints.js';
 import {
   styleInstructions,
+  styleOptions,
   styleOptionsForType,
 } from '../../src/config/expertKnowledge.js';
+import { ERRORBOOK_FACET_NAMES } from '../../src/config/errorbookFacets.js';
 import { EXAM_BLUEPRINTS } from '../../src/config/examPaperBlueprints.js';
 import { GENERIC_SPECIAL_DESC } from '../../src/config/specialDomains.js';
 import { buildAnswerSpaceInstruction, buildCarrierInstruction } from '../../src/config/layoutSpec.js';
@@ -523,5 +526,110 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     for (const bad of ['按难度分层', '基础→提升', '基础→进阶', '按知识点分组', '按【锚点清单】分组']) {
       expect(t, `不得指定分组依据/分层名：${bad}`).not.toContain(bad);
     }
+  });
+
+  // 🔴 2026-09-30（用户裁定·全局审计后的同类收口）：**路径链守卫**。
+  //    背景：设问/作答/呈现被写成 `A→B→C` 的"链式做法"，模型会照着走（项目已批量清过"识记→理解""信息提取→"
+  //    ""区域定位→""鉴赏沿""知识框架→核心"）；本轮为写此守卫做了**全量枚举**，又逮到 12 处同类漏网
+  //    （上轮审计按类别取样、报少了——记在检查清单第十一节）。判据：实发文本不得出现路径链式写法。
+  //    白名单（三处，均为**非命题做法**，逐条写明理由）：
+  //      ① 物理答题书写规范（教学生写过程，既有白名单）；
+  //      ② 易错题本"逐题成组"的分项次序（产品体例，测试锁定）；
+  //      ③ 数·量构造纪律里"判据→处置"的分支写法（是规则分支，不是让模型照走的做法链）。
+  //    豁免：**课标出处括注**（如"（2022义教艺术·五、课程内容→（一）…）"是引用路径，不是提示词内容）。
+  it('路径链守卫：设问/呈现路径链零出现（白名单＝答题规范/产品体例/规则分支；豁免＝课标出处括注）', () => {
+    const stripCitations = (s) => {
+      // 逐段扫"（…）"（**处理嵌套**：课标出处常写成"（2022义教艺术·五、课程内容→（一）…）"）——
+      // 含 课标/年份/学业质量 的括注整体剥除（那是**引用路径**，不是提示词内容）
+      const str = String(s);
+      let out = '';
+      let i = 0;
+      while (i < str.length) {
+        if (str[i] === '（') {
+          let depth = 1;
+          let j = i + 1;
+          while (j < str.length && depth > 0) {
+            if (str[j] === '（') depth += 1;
+            else if (str[j] === '）') depth -= 1;
+            j += 1;
+          }
+          const seg = str.slice(i, j);
+          out += /20\d\d|课标|学业质量|课程标准/.test(seg) ? '' : seg;
+          i = j;
+        } else { out += str[i]; i += 1; }
+      }
+      return out;
+    };
+    const ALLOW = [
+      '解→公式→代入→计算→答',
+      ERRORBOOK_FACET_NAMES.join('→'),
+    ];
+    const QUANTITY_BRANCH = /(?:可数|连续量)→[^，；。]*/g;
+    const CHAIN = /[\u4e00-\u9fa5A-Za-z]{1,14}→[\u4e00-\u9fa5A-Za-z(（]{1,14}/;
+    const surfaces = [
+      JSON.stringify({ EXAM_BLUEPRINTS, TEACHING_BLUEPRINTS, TEACHING_SUBJECT_BLUEPRINTS, GENERIC_SPECIAL_DESC }),
+      JSON.stringify(styleOptions),
+    ];
+    const COMBOS = [
+      ['primary_low', '语文'], ['primary_high', '数学'], ['middle', '数学'], ['middle', '生物'],
+      ['middle', '物理'], ['middle', '音乐'], ['middle', '美术'], ['middle', '地理'],
+      ['middle', '化学'], ['middle', '英语'], ['high', '信息技术'], ['high', '语文'],
+    ];
+    for (const g of GEN_TYPES) {
+      for (const [stage, subject] of COMBOS) {
+        surfaces.push(getPromptTemplate({ grade: stage, subject, genType: g })?.template || '');
+      }
+    }
+    for (const raw of surfaces) {
+      let text = stripCitations(raw).replace(QUANTITY_BRANCH, '');
+      for (const ok of ALLOW) text = text.split(ok).join('');
+      const hit = text.match(CHAIN);
+      expect(hit, `实发文本出现路径链（做法链）：${hit ? hit[0] : ''}`).toBeNull();
+    }
+    // 意图不得丢（清链≠清要求）：生物/音乐/美术/科学探究/地理的考查范围仍在
+    const bio = JSON.stringify(EXAM_BLUEPRINTS);
+    expect(bio, '生物识图题要求仍在').toContain('识图题考查结构与功能的关系');
+    expect(bio, '音乐赏析要求仍在').toContain('音乐要素感知与情感体验');
+    const tb = JSON.stringify(TEACHING_SUBJECT_BLUEPRINTS);
+    expect(tb, '科学探究要素要求仍在').toContain('提出问题、作出假设、设计方案、观察记录、得出结论');
+    expect(tb, '地理综合思维要求仍在').toContain('要素综合、区域综合');
+  });
+
+  // 🔴 2026-09-30（用户裁定·去数量区间）：知识图谱的数量上限（知识点≤30/重难点≤8/大概念≤5/核心知识点≤6/
+  //    具体概念≤4/关联≤10）**全部撤除**——教材分析产出的逐章知识树本就是完整的，再压上限＝人为砍内容，
+  //    且会诱发"为凑满硬拆/为省事硬并"。改为"按本范围实际内容 + JSON 完整闭合"（该步输出上限 65536，
+  //    历史上确有被截断的实证，故完整性要求必须同时在场）。本守卫防回潮。
+  it('知识图谱：数量上限不得回潮，改"条目按内容实际 + JSON 完整闭合"', () => {
+    const gen = fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8');
+    const m = gen.match(/const prompt2 = `([\s\S]*?)`;/);
+    expect(m, '未扫到知识图谱提示（防假绿）').toBeTruthy();
+    const p = m[1];
+    for (const bad of ['不超过30个', '不超过8个', '大概念(≤5)', '核心知识点[knowledge|material](≤6)', '具体概念(≤4)', '不超过10条']) {
+      expect(p, `数量上限不得回潮：${bad}`).not.toContain(bad);
+    }
+    expect(p, '条目数按本范围实际内容决定').toContain('条目数由本范围实际内容决定');
+    expect(p, '不合并/不拆分/不省略').toContain('不合并、不拆分、不省略');
+    expect(p, 'JSON 完整闭合要求须在场').toContain('JSON 必须完整闭合');
+    // 结构本身不得被改写（程序按此解析）
+    expect(p, '图谱结构须保留').toContain('单元→大概念→核心知识点[knowledge|material]→具体概念');
+  });
+
+  // 🔴 2026-09-30（用户裁定·去指向性诱导）：情境/标题/听力/同步练习 四处口径的**回潮守卫**。
+  it('口径守卫：自造样例与否定式点名串不得回潮；标题/听力/同步练习 意图不得丢', () => {
+    const yw = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template;
+    expect(yw, '自造样例「云朵出发」不得回潮').not.toContain('云朵出发');
+    expect(yw, '标题须功能性命名的要求仍在').toContain('功能性名称');
+    expect(yw, '不得写成场景名或故事名仍在').toContain('不写成场景名或故事名');
+    expect(yw, '大类名不得充当大题标题的边界仍在').toContain('不得充当大题标题');
+    // 英语听力原文契约（答案区口径，单源常量 LISTENING_SCRIPT_FORMAT）：照卷面原样 + 原则式否定
+    expect(LISTENING_SCRIPT_FORMAT, '播音指令仍要求照卷面原样写').toContain('照卷面该大题的标号与题干原样写');
+    expect(LISTENING_SCRIPT_FORMAT, '否定改原则式：不得改写/重拟/同义替换').toContain('不得改写、重拟或用同义说法替换');
+    // 反向植入：原补丁的两处具体串不得回潮（注意"第一大题之前"是**位置描述**、不在禁列——故只锁补丁形态）
+    expect(LISTENING_SCRIPT_FORMAT, '旧否定式补丁不得回潮').not.toContain('不要改写成');
+    expect(LISTENING_SCRIPT_FORMAT, '旧补丁例外句不得回潮').not.toContain('卷面本身就是');
+    const pr = getPromptTemplate({ grade: 'primary_high', subject: '语文', genType: 'practice' }).template;
+    expect(pr, '同步练习不得再写课时口径').not.toContain('与教材课时');
+    expect(pr, '同步练习不得回退否定双写').not.toContain('不重排、不跨单元混编');
+    expect(pr, '正向：内容与本次教材范围对应').toContain('内容与本次教材范围对应');
   });
 });

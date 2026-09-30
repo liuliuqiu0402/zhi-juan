@@ -529,7 +529,12 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
     expect(t, '同进同退：二者必居其一').toContain('同进同退');
     expect(t, '有导语＝全卷统一情境').toContain('统一情境');
     expect(t, '无导语＝大题标题走严肃功能性命名').toContain('功能性');
-    expect(t, '无导语时禁情境化大题标题').toContain('不得使用情境化');
+    // 🔴 2026-09-30（用户裁定·去指向性诱导）：原断言锁"不得使用情境化/主题化/故事化命名（…如"云朵出发"这类）"，
+    //    该写法是**否定式举例**（要读懂须先激活"云朵出发"这个形象＝反向植入，且样例自造）→ 已改正向陈述；
+    //    本断言随之改锁**正向表述**，意图不变（无导语时标题是功能性名称、不写场景名或故事名），并防样例回潮。
+    expect(t, '无导语时标题为功能性名称（正向）').toContain('功能性名称');
+    expect(t, '不得写成场景名或故事名（意图锁定）').toContain('不写成场景名或故事名');
+    expect(t, '自造样例不得回潮').not.toContain('云朵出发');
     expect(t, '主标题由程序拼装、正文不得改动').toContain('程序拼装');
     const practice = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' }).template;
     expect(practice, '该条款仅针对试卷、不得广播到教辅').not.toContain('同进同退');

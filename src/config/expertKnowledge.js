@@ -248,7 +248,7 @@ export const styleOptions = [
   { group: 'presentation', value: 'task_driven', label: '任务驱动', desc: '预习内容问题化',
     tip: '以问题链驱动预习（圈画/概括/查阅/尝试），可操作可检查；适用于预习导学。',
     appliesTo: ['preview'], required: false },
-  { group: 'presentation', value: 'framework', label: '框架式', desc: '框架→梳理→自测',
+  { group: 'presentation', value: 'framework', label: '框架式', desc: '先立框架，再逐项梳理，后自测',
     tip: '围绕核心知识依次梳理与自测组织，内容完整；适用于复习资料。',
     appliesTo: ['review'], required: false },
 ];
