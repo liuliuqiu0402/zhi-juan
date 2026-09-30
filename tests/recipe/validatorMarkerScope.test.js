@@ -21,17 +21,21 @@ describe('画线/加点真实标记规则补位（2026-09）', () => {
     expect(math).not.toContain('underline-sentence');
   });
 
-  it('zhupoint：覆盖"给加点字选择正确读音"的加点硬性；仅语文注入', () => {
+  it('zhupoint：判据为**原则式**（题干凡要求对某字加点即适用，不枚举措辞）＋加点硬性；仅语文注入', () => {
     const r = getValidatorRule('text-format-zhupoint');
     expect(r).toBeTruthy();
-    expect(r.promptHint).toContain('给加点字选择正确读音');
+    // 🔴 2026-09-30（机制 B·判据可判定化）：原断言锁"给加点字选择正确读音"这一**具体措辞**，
+    //    而正是枚举式判据导致"给加点的字选择正确的读音"（措辞一变）判据失效、加点字被写成加粗。
+    //    现改锁**原则式判据**与"加粗不是加点"的消歧句。
+    expect(r.promptHint).toContain('加点的字');
+    expect(r.promptHint).toContain('加粗不是加点');
     expect(r.promptHint).toContain('emphasis-dot');
     expect(r.promptHint).toContain('无效题');
     expect(r.subjects).toEqual(['语文']);
 
     const zh = buildValidatorPrompt({ subject: '语文', stage: 'primary_mid', genType: 'practice' });
-    expect(zh).toContain('给加点字选择正确读音');
+    expect(zh).toContain('emphasis-dot');
     const en = buildValidatorPrompt({ subject: '英语', stage: 'primary_high', genType: 'practice' });
-    expect(en).not.toContain('给加点字');
+    expect(en).not.toContain('emphasis-dot');
   });
 });

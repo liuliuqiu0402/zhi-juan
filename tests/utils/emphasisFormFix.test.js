@@ -22,13 +22,18 @@ const SUMMARY_BODY = `
 describe('① 生成侧：强调口径单源（全类型）', () => {
   const TPL = (genType) => getPromptTemplate({ grade: '六年级', subject: '英语', genType }).template;
 
-  it('强调口径进"输出格式"，且考试/教辅/内容型三类都带', () => {
-    for (const t of ['exam', 'practice', 'summary']) {
+  it('强调口径按**资料类型**分叉（2026-09-30 机制 C）：内容型"重点用加粗"；题类与试卷"题面不承载强调"', () => {
+    // 🔴 原断言要求三类都含"强调口径（全类型）"——那正是"该分叉没分叉"的一刀切：
+    //    知识总结类的口径（"突出重点一律用加粗"）被广播到试卷/题类，既无用又与语文学科"加点标记"竞争
+    //    （实证：加点字被写成加粗）。现按类型分叉断言。
+    for (const t of ['exam', 'practice']) {
       const s = TPL(t);
-      expect(s).toContain('强调口径（全类型）');
-      expect(s).toContain('一律用**加粗**');
-      expect(s).toContain('作答载体');
+      expect(s, t).toContain('题面不承载');
+      expect(s, t).toContain('作答载体');
     }
+    const c = TPL('summary');
+    expect(c).toContain('需要突出"重点/关键"时一律用**加粗**');
+    expect(c).toContain('作答载体');
   });
 
   it('知识总结创作要求已写明"以加粗标注重点"，不再是无形式的"重点标注"', () => {

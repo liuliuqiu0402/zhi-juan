@@ -133,7 +133,7 @@ describe('题目自洽总纲 ⑤⑥⑦：去相抵（同性质限定 + 学科从
 
   it('⑤同性质：性质不同的载体并存不算重复（点名"结果位↔过程书写区"）', () => {
     const t = q();
-    expect(t).toContain('行内已含**同性质**作答空位的题');
+    expect(t).toContain('行内已含**同性质**（判词：**所填内容的种类相同**');
     expect(t).toContain('性质不同者本就该并存');
     expect(t).toContain('过程书写区');
   });

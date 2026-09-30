@@ -33,8 +33,11 @@ const FIX_TYPES = {
   deferToThreeDomains: { label: '引到三域（不另立判据）', re: /以上细目即【尾约束·全文自洽】三域在题类资料的展开/ },
 };
 
-/** 「复核动作句」的形态判据：时间锚 + 30 字内出现动作词 */
-const ACTION_RE = /(?:定稿前|成稿前|输出前|输出完成后)[^，。；\n]{0,30}(?:自查|复核|核对|自检)/;
+/** 「复核动作句」的形态判据：时间锚 + 30 字内出现动作词
+ *  🔴 2026-09-30（机制 A/D·用户裁定）：增补**题内即时**形态（"每写完一题，即核该题"）——
+ *     原判据只认"定稿前/成稿前/输出前"这类**卷尾**动作；本轮把逐题核对从卷尾移进题内，
+ *     若不扩判据，新动作句会被判"未登记"（或干脆看不见），守卫失效。 */
+const ACTION_RE = /(?:定稿前|成稿前|输出前|输出完成后)[^，。；\n]{0,30}(?:自查|复核|核对|自检)|每写完一题[^。；\n]{0,14}(?:即核|核对|复核|自查)/;
 
 /**
  * 登记表（10 处）。`via`：
@@ -52,7 +55,9 @@ const REVIEW_ACTIONS = [
   },
   {
     id: 'question-format', block: '题目自洽总纲①至⑰', channel: '委托正文【输出格式】', scope: '仅题类',
-    action: '成稿前逐题核对', anchor: '成稿前逐题核对', fixType: 'deferToThreeDomains', via: 'matrix',
+    // 🔴 2026-09-30（机制 A/D）：动作由"成稿前逐题核对"（**卷尾一次性**）改为**题内即时**——
+    //    长卷到卷尾再逐题复核等于没有；现为"每写完一题，即核该题"。
+    action: '每写完一题即核该题', anchor: '每写完一题，即核该题', fixType: 'oneOfTwo', via: 'matrix',
   },
   {
     // 守卫 A 逮到的第 11 处（原审计漏登记）：总纲**结尾**还有一句"定稿前按三域…逐项复核"
@@ -60,8 +65,12 @@ const REVIEW_ACTIONS = [
     action: '定稿前按三域逐项复核', anchor: '定稿前按三域（声明↔实给、要素之间、跨处之间）逐项复核', fixType: 'deferToThreeDomains', via: 'matrix',
   },
   {
-    id: 'quality-base', block: '质量底线', channel: '委托正文（缺段则 system 兜底）', scope: '全类型',
-    action: '定稿前按底线逐条自查', anchor: '定稿前按以下底线逐条自查', fixType: 'selfRevise', via: 'matrix',
+    id: 'quality-base', block: '质量底线（判据，不含独立复核动作）', channel: '委托正文（缺段则 system 兜底）', scope: '全类型',
+    // 🔴 2026-09-30（机制 A·用户裁定）：原"定稿前按以下底线逐条自查"是**第三处**卷尾复核动作
+    //    （与【尾约束·全文自洽】、【输出前自检】三处并存，模型只做一个）——已删除该动作句，
+    //    复核动作统一由【尾约束·全文自洽】承载；本条目现只登记**改法**（不达标即自行修订），
+    //    故标 noAction：跳过"动作句形态"断言（实发文本里已无该动作句，属**有意**收口，非脱节）。
+    action: '（无独立动作——已并入尾约束三域）', anchor: '任一不达即自行修订', fixType: 'selfRevise', via: 'matrix', noAction: true,
   },
   {
     id: 'organize-exam', block: '组织方式（exam 分支）', channel: '用户消息', scope: '仅 exam',
@@ -132,6 +141,7 @@ describe('模型侧复核动作登记表：完整性', () => {
 
   it('每条的动作名本身就是"复核动作句"形态（与守卫判据同源）', () => {
     for (const a of REVIEW_ACTIONS) {
+      if (a.noAction) continue; // 动作已并入尾约束，本条目只登记改法（见该条目注释）
       expect(ACTION_RE.test(a.anchor), `${a.id} 的 anchor 不匹配动作句判据`).toBe(true);
     }
   });
