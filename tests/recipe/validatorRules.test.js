@@ -27,7 +27,7 @@ describe('validatorRules 规则启停开关（双阶段生效）', () => {
     expect(buildValidatorPrompt({ subject: '语文', stage: 'primary_low', genType: 'exam' })).not.toContain(target.promptHint.slice(0, 12));
     // 未停用规则不受影响（双阶段均保留）
     expect(getValidatorRules({ subject: '语文', stage: 'primary_low', genType: 'exam' }).has('score-label-fix')).toBe(true);
-    expect(buildValidatorPrompt({ subject: '语文', stage: 'primary_low', genType: 'exam' })).toContain('分值账目自洽');
+    expect(buildValidatorPrompt({ subject: '语文', stage: 'primary_low', genType: 'exam' })).toContain('分值标注与账目');
   });
 
   it('重新启用 → 恢复注入与执行', () => {
@@ -110,14 +110,14 @@ describe('validatorRules 生成前约束（阶段一：随指令注入）', () =
     const prompt = buildValidatorPrompt({ subject: '语文', stage: 'primary_low', genType: 'exam' });
     expect(prompt).toContain('【版面质检规则');
     expect(prompt).toContain('拼音');
-    expect(prompt).toContain('分值账目自洽');
+    expect(prompt).toContain('分值标注与账目');
     // guard 类（缺拼音选项/答案空壳）不注入生成前约束
     expect(prompt).not.toContain('空壳');
   });
 
   it('数学·初中·exam：注入分值约束，不注入拼音约束', () => {
     const prompt = buildValidatorPrompt({ subject: '数学', stage: 'middle', genType: 'exam' });
-    expect(prompt).toContain('分值账目自洽');
+    expect(prompt).toContain('分值标注与账目');
     expect(prompt).not.toContain('看拼音写词语');
   });
 
@@ -125,7 +125,7 @@ describe('validatorRules 生成前约束（阶段一：随指令注入）', () =
     // 体育命中 subjects['*'] 的通用规则（分值/残留清理），因此返回通用约束而非空串；
     // 语文拼音题专属规则（看拼音写词语）不注入
     const prompt = buildValidatorPrompt({ subject: '体育', stage: 'middle', genType: 'exam' });
-    expect(prompt).toContain('分值账目自洽');
+    expect(prompt).toContain('分值标注与账目');
     expect(prompt).not.toContain('看拼音写词语');
   });
 
@@ -231,7 +231,7 @@ describe('validatorRules 用户自定义持久化（面板维护，即时生效�
   it('停用内置规则：enabled:false 后不再注入/执行', () => {
     saveUserRule({ id: 'score-label-fix', enabled: false });
     expect(getValidatorRules({ subject: '数学', stage: 'middle', genType: 'exam' }).has('score-label-fix')).toBe(false);
-    expect(buildValidatorPrompt({ subject: '数学', stage: 'middle', genType: 'exam' })).not.toContain('分值账目自洽');
+    expect(buildValidatorPrompt({ subject: '数学', stage: 'middle', genType: 'exam' })).not.toContain('分值标注与账目');
   });
 
   it('新增自定义规则：list/get/注入均可感知', () => {
