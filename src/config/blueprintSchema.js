@@ -58,6 +58,13 @@ export const CARRIER_LABELS = {
 
 const HAS = (text, re) => re.test(String(text || ''));
 
+/** 🔴 符号作答声明（**单源**·2026-09-30 用户裁定·全局根治 G1）：
+ *  命中即"这处的作答是填符号/圈选"→ 空位形态应为**括号型**（渲染自带半角括号），而非横线型。
+ *  单源纪律：本正则**同时**供 inferCarriers（展示层载体推断）与 contentCleaner 的载体形态收口
+ *  （alignCarrierFormByDeclaration）使用——杜绝"展示一套、归一另一套"的两把尺子。
+ *  ⚠️ 措辞是**作答方式/卷面通行词**，只作程序侧判定，**不进提示词**（不构成题型诱导）。 */
+export const SYMBOL_ANSWER_DECL = /选择|判断|选字|选词|排序|涂色|打[√×✓]|单选|多选|不定项|\(　\)|（　）|填序号|序号填在|填在括号|填在（|把序号/;
+
 /**
  * 从 大题名+note 推断载体（迁移期增强；骨架编译器落地后由蓝本显式字段替代）
  * @param {string} name 大题名
@@ -91,7 +98,7 @@ export function inferCarriers(name = '', note = '') {
   // 填空横线
   if (HAS(t, /填空|横线|填词|填一填|默写|看拼音写|按课文内容填空|＿＿|___|写一写|口算|直接写得数|写出/)) out.add(CARRIERS.BLANK);
   // 括号（选择/判断/选字/排序等圈选类）
-  if (HAS(t, /选择|判断|选字|选词|排序|涂色|打[√×✓]|单选|多选|不定项|\(　\)|（　）/)) out.add(CARRIERS.BRACKET);
+  if (HAS(t, SYMBOL_ANSWER_DECL)) out.add(CARRIERS.BRACKET);
   // 空白作答区（简答/解答/赏析/理由/说明/做法/应用/材料分析/论述/综合）
   if (HAS(t, /简答|解答|赏析|鉴赏|鉴赏题|说明理由|谈(?:谈|一谈)|说说|做法|应用|材料分析|论述|计算题|解决问题|综合运用|情景分析|情景辨析|实践|探究|实验|表达|口语交际|跨学科学习|综合性学习|策略|归因|解法|预习|疑问/)) out.add(CARRIERS.BLANK_AREA);
   // 作图区（物理示意图/光路/电路）

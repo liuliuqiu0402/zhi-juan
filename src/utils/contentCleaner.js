@@ -8,6 +8,7 @@
  * ============================================================
  */
 import { getMergedSpec } from '../config/layoutSpec.js';
+import { SYMBOL_ANSWER_DECL } from '../config/blueprintSchema.js'; // 🔴 单源：符号作答声明（G1 形态收口与展示层载体推断共用同一正则）
 
 /**
  * 答案区起点 —— **唯一口径**（2026-09-17 起在本文件计数口径使用；2026-09-29 收为导出单源）
@@ -1791,16 +1792,50 @@ export function stripRedundantInlineCarrierRows(html = '') {
  * （连题号数字本身都不在正文任何位置），直接导致整卷判失败。故把顺序固定成表，按步比对
  * 题号数即可点名是哪一步削掉的。
  * ⚠️ 顺序即行为，不得调整（与历史生产链逐字一致）：
- *    cleanSectionHtml → normalizeBlankMarkers → normalizeMathCircleBlanks →
+ * 🔴 2026-09-30 新增 alignCarrierFormByDeclaration（紧跟 normalizeBlankMarkers 之后）：载体形态由题面声明收口（G1）；
+ *    **只增一步、不动既有次序**。
+ *    cleanSectionHtml → normalizeBlankMarkers → alignCarrierFormByDeclaration → normalizeMathCircleBlanks →
  *    stripRedundantInlineCarrierRows → normalizeMatchQuestions →
  *    normalizeLeadingMarkers → normalizeIndents
  * @param {string} raw 模型直出（或续写片段）
  * @param {{trace?:boolean,label?:string}} [opts] trace=true 时只在"题号数掉落"的步骤打日志
  * @returns {string} 归一化后的正文
  */
+/**
+ * 🔴 载体形态按题面声明收口（G1·2026-09-30 用户裁定）
+ * ============================================================
+ * 病根：载体形态原先由**输入长相**决定（输入下划线→横线型 u.blank-N，输入括号→括号型 span.blank-N）
+ *   ——于是"题面声明填符号、卷面却给横线"（题干说"把序号填在括号里"、卷面一条横线；2026-09-30 源码级实证）。
+ *   判定"该用哪种载体"的表本来就在（blueprintSchema 的括号判定），却只供展示层用——**两把尺子**。
+ * 本步把它接进归一键：**形态由题面声明决定**——**题块粒度**（`<h2>` 起、到下一个 `<h2>` 止；大类层与大题标题同为 h2，
+ *   与硬约束"同一大题内"同粒度）：该块题面命中"括号"/符号作答声明（SYMBOL_ANSWER_DECL）而其内空位是横线型，
+ *   即收为括号型（同 class 档位、同 &emsp; 内容）。
+ * 保守边界：① **显式"横线"声明否决**——块内含"横线"字样（如"写在横线上"）一律不动（2026-09-30 源码实证：
+ *   "选字填空…写在横线上"命中符号词"选字"，若只按符号词转会把该题错改成括号）；② 只做单向（→括号型；
+ *   不做反向，避免一刀切误伤低段"＝（　）"惯例）；③ 答案区不处理；④ 该块无声明则不动；⑤ 幂等；⑥ 已是 span 的不动。
+ * 定位：随 normalizeBodyHtml 链走（生成归一 / 编辑器装载 / 导出前同源）；**提示词零新增、零题型名**。
+ */
+export function alignCarrierFormByDeclaration(html = '') {
+  const src = String(html || '');
+  if (!src || !/<u\b[^>]*class="[^"]*\bblank-\d+/i.test(src)) return src;
+  const at = src.search(ANSWER_SECTION_START_RE);
+  const body = at >= 0 ? src.slice(0, at) : src;
+  const tail = at >= 0 ? src.slice(at) : '';
+  const blocks = body.split(/(?=<h2\b)/i);
+  const out = blocks.map((blk) => {
+    const text = blk.replace(/<[^>]+>/g, '');
+    if (/横线/.test(text)) return blk; // 显式"横线"声明 → 否决（保守不动）
+    if (!SYMBOL_ANSWER_DECL.test(text) && !/括号/.test(text)) return blk;
+    return blk.replace(/<u\b([^>]*class="[^"]*\bblank-\d+\b[^"]*"[^>]*)>[\s\S]*?<\/u>/gi,
+      (m, attrs) => '<span' + attrs + '>&emsp;</span>');
+  }).join('');
+  return out + tail;
+}
+
 const BODY_NORMALIZE_STEPS = [
   ['cleanSectionHtml', cleanSectionHtml],
   ['normalizeBlankMarkers', normalizeBlankMarkers],
+  ['alignCarrierFormByDeclaration', alignCarrierFormByDeclaration],
   ['normalizeMathCircleBlanks', normalizeMathCircleBlanks],
   ['stripRedundantInlineCarrierRows', stripRedundantInlineCarrierRows],
   ['normalizeMatchQuestions', normalizeMatchQuestions],
@@ -1913,4 +1948,4 @@ export function normalizeExamHeadOrder(html = '') {
   } catch { return src; }
 }
 
-export default { cleanSectionHtml, normalizeTypographicSymbols, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, ensureCarrierContent, markExamBigCategory, normalizeExamHeadOrder, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };
+export default { cleanSectionHtml, normalizeTypographicSymbols, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, alignCarrierFormByDeclaration, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, ensureCarrierContent, markExamBigCategory, normalizeExamHeadOrder, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };
