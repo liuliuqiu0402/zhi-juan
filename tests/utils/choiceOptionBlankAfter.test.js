@@ -90,9 +90,9 @@ describe('作答空间条款：选项行之后禁挂作答位', () => {
     expect(zh).toContain('"1. ……的是( )"');
     expect(zh, '中文科目不得用题首括号').not.toContain('位置在题号之前的题首');
     for (const t of [en, jp, zh]) {
-      expect(t, '作答位形态一律圆括号').toContain('形态一律圆括号空位');
+      expect(t, '作答位形态即判据条所指的圆括号空位').toContain('即上句判据所指的**圆括号空位**');
       expect(t, '括号一律半角（英文状态）——既有用户规格').toContain('括号一律用半角（英文状态）括号');
-      expect(t, '不得用横线/下划线充当作答位').toContain('不用下划线空/横线空');
+      expect(t, '所填符号→圆括号（不得以横线/下划线充当）').toContain('填**符号**（字母/序号/√× 等，含带选项的题）→ **圆括号空位**');
       expect(t, '与自洽①冲突时以本条硬约束为准').toContain('改题面、不改本条');
     }
   });

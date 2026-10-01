@@ -19,8 +19,8 @@ describe('书写载体注入矩阵：题类 6 类', () => {
     for (const g of QUESTION_TYPES) {
       const t = tplOf(g);
       expect(t, `${g} 缺【作答空位形态】总句`).toContain('作答空位形态与所填内容相称');
-      expect(t, `${g} 缺"带选项题作答位"硬约束`).toContain('其作答位**形态一律圆括号空位**');
-      expect(t, `${g} 缺"所填符号→圆括号/短答→横线"分流`).toContain('下划线空对应填词/句/数等短答');
+      expect(t, `${g} 缺"带选项题作答位"硬约束`).toContain('其作答位即上句判据所指的**圆括号空位**');
+      expect(t, `${g} 缺"所填符号→圆括号/短答→横线"分流`).toContain('填**短答**（词/句/数等');
       expect(t, `${g} 缺空位宽度换算锚`).toContain('短答空位宽度按"恰好容纳该空答案"换算');
     }
   });
