@@ -60,9 +60,15 @@ const REVIEW_ACTIONS = [
     action: '每写完一题即核该题', anchor: '每写完一题，即核该题', fixType: 'oneOfTwo', via: 'matrix',
   },
   {
-    // 守卫 A 逮到的第 11 处（原审计漏登记）：总纲**结尾**还有一句"定稿前按三域…逐项复核"
+    // 守卫 A 逮到的第 11 处（原审计漏登记）：总纲**结尾**的"三域交叉引用"。
+    // 🔴 2026-10-01（用户裁定："每一次三维度前提下给到模型的，不可以存在多块同义的指令"）：
+    //    该处原为**卷尾复核动作句**"定稿前按三域（声明↔实给、要素之间、跨处之间）逐项复核"，
+    //    与【尾约束·全文自洽】的"定稿前逐节逐题按下面三域复核"构成**同一件事两处各写一遍** →
+    //    动作句已删，复核动作统一由尾约束承载；本条目只登记**隶属引用**（同 quality-base 的既有处置），
+    //    故标 noAction：跳过"动作句形态"断言，anchor 改为引用句（守卫 B 仍断言该引用必须在实发文本里）。
     id: 'question-format-crossref', block: '题目自洽总纲（结尾·三域交叉引用）', channel: '委托正文【输出格式】', scope: '仅题类',
-    action: '定稿前按三域逐项复核', anchor: '定稿前按三域（声明↔实给、要素之间、跨处之间）逐项复核', fixType: 'deferToThreeDomains', via: 'matrix',
+    action: '（无独立动作——复核动作统一由尾约束三域承载，总纲只留隶属引用）',
+    anchor: '以上细目即【尾约束·全文自洽】三域在题类资料的展开', fixType: 'deferToThreeDomains', via: 'matrix', noAction: true,
   },
   {
     id: 'quality-base', block: '质量底线（判据，不含独立复核动作）', channel: '委托正文（缺段则 system 兜底）', scope: '全类型',
