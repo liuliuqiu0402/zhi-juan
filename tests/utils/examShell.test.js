@@ -189,6 +189,31 @@ describe('卷面固定件：注意事项 + 题号得分表（排版模块统一�
     expect(out).toContain('<th>二</th>');
   });
 
+  it('🔴 大类行进 <div>（非 p/标题）时同样认到：固定件仍在其上方（2026-10-03 用户报障）', () => {
+    // 报障实证：模型把大类层写成 <div> 时，旧锚点只扫 p/h1-h4 → 漏认 → 固定件落到大类行之后，
+    // 实测渲染顺序成"第一部分 → 注意事项 → 得分表 → 一、〈大题〉"（与"固定件在正文之前"相悖）。
+    const divBigCat = `<h1 class="main-title">二年级语文上册第三单元阶段检测</h1>
+<div><strong>第一部分　识字与写字（共40分）</strong></div>
+<h2 class="heading1">一、走进拼音山谷（共4题，每题3分，共12分）</h2>
+<p>1. 给加点字选择正确的读音。（3分）</p>`;
+    const out = injectExamShell(divBigCat, 'primary_low');
+    const pos = (s) => out.indexOf(s);
+    expect(pos('class="exam-notice"'), '注意事项须在 div 大类行之前').toBeLessThan(pos('第一部分'));
+    expect(pos('class="exam-score-table"'), '得分表须在 div 大类行之前').toBeLessThan(pos('第一部分'));
+    expect(pos('第一部分'), '"第一部分"仍在第一个大题之前').toBeLessThan(pos('一、走进拼音山谷'));
+    // 幂等：二次注入不再移动
+    expect(injectExamShell(out, 'primary_low')).toBe(out);
+  });
+
+  it('去重边界不被 div 容器篡改：大题行仍是 anchor（旧有保守语义保持）', () => {
+    // 大题标题外层套 div 容器时，anchor 仍取 p/标题行，不取 div（避免误删容器内旧固定件残留判定漂移）
+    const wrapInDiv = `<h1 class="main-title">卷名</h1>
+<div class="body-wrap"><h2 class="heading1">一、识字与写字。（共6题，每题5分，共30分）</h2><p>1. 读拼音。</p></div>`;
+    const out = injectExamShell(wrapInDiv, 'primary_low');
+    expect(out).toContain('class="exam-notice"');
+    expect(out.indexOf('class="exam-notice"')).toBeLessThan(out.indexOf('一、识字与写字。'));
+  });
+
   it('无大类行时插入点不变：仍紧贴第一个大题之前（旧行为不回归）', () => {
     const wrapped = wrapContentForTheme(CONTENT, 'sealed_exam');
     const pos = (s) => wrapped.indexOf(s);

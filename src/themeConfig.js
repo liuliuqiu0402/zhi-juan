@@ -2436,14 +2436,20 @@ export const injectExamShell = (html, stage) => {
   //   · anchor —— **去重边界**：第一个大题行，保持旧有保守语义（只清它之前的旧固定件残留）。
   //   二者在无大类行的卷里是同一个元素，行为与旧版逐字一致。
   const PART_RE = /^第\s*[一二三四五六七八九十百零〇ⅠⅡⅢⅣⅤⅥ\d]+\s*(?:部分|卷)/;
+  // 大类层行的**叶子块**判据（与 markExamBigCategory 同口径：大类层可以是 <p>、也可以是 <div>）——
+  //    旧实现只扫 p/h1-h4，模型把大类层写成 <div> 时被漏认 → 固定件落在大类行**之后**，
+  //    实测渲染顺序成"第一部分 → 注意事项 → 得分表 → 一、〈大题〉"（2026-10-03 用户再次报障）。
+  //    排除包装容器：含子块/表格/作答位载体者不作大类行。
+  const isBigCatLeaf = (el) => !el.querySelector('p, div, h1, h2, h3, h4, table, ul, ol, u, [class*="blank-"]');
   let anchor = null;
   let insertPoint = null;
-  for (const el of Array.from(tpl.content.querySelectorAll('p, h1, h2, h3, h4'))) {
+  for (const el of Array.from(tpl.content.querySelectorAll('p, div, h1, h2, h3, h4'))) {
     if (el.closest('.answer-section')) continue;
     const text = (el.textContent || '').trim();
     const scored = parseSectionScore(text) != null; // 与大题同一判据：须自带分值标注，防误认正文里的"第一部分…"
-    if (!insertPoint && scored && PART_RE.test(text)) insertPoint = el;
-    if (/^[一二三四五六七八九十]+、/.test(text) && scored) {
+    if (!insertPoint && scored && PART_RE.test(text) && isBigCatLeaf(el)) insertPoint = el;
+    // 去重边界仍只认大题行（p/标题，不取 div 容器）：保持旧有保守语义
+    if (el.tagName !== 'DIV' && /^[一二三四五六七八九十]+、/.test(text) && scored) {
       anchor = el;
       if (!insertPoint) insertPoint = el;
       break;

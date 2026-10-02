@@ -3,7 +3,7 @@ import axios from 'axios';
 import { apiConfig, getCurrentEngineConfig, getCurrentEngineConfigEnhanced, getMultimodalConfig, resolveProviderConfig, getTaskMaxTokens, getGenerationThinkingEnabled, getTimeout, getRetryDelay, resolveEngineOutputLimit, resolveEngineCapability, resolveOutputCeiling, resolveMaxInputTokens, FACTORY_MAX_TOKENS_BY_TASK } from '../config/apiConfig.js';
 import { EXTENSION_TEXT_RE, SEG_TYPE_EXTENSION } from '../utils/segmentTypes.js'; // S4.1：段类型补"拓展/文化"（锚范围性质判定共用）
 import { GEN_CONST } from '../config/generationConstants.js';
-import { ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel, applyMaterialChannel, GROUP_TITLE_NUMBERING_CALIBER, QUESTION_NUMBERING_CALIBER } from '../config/promptLibrary.js'; // ✅ A18：applyMaterialChannel（委托书素材段按素材通道兜底渲染）；题号口径单源（组标题/小题）供出稿自检按类型分型
+import { ANSWER_ROLES, buildAnswerFormatSpec, getCurriculumLabel, applyMaterialChannel, GROUP_TITLE_NUMBERING_CALIBER, QUESTION_NUMBERING_CALIBER, QUESTION_OBJECT_CALIBER } from '../config/promptLibrary.js'; // ✅ A18：applyMaterialChannel（委托书素材段按素材通道兜底渲染）；题号口径单源（组标题/小题/编号对象）供出稿自检按类型分型
 import { getStoragePath } from '../utils/pathHelper.js';
 // 🧩 导图块：AI 正文里的 `<div class="k-diagram" data-type=…>{JSON}</div>` → 内联 SVG
 //    （PDF 走矢量；Word 导出时由 docxBuilder 自动光栅化成 PNG）。没有导图块时行为完全不变。
@@ -5322,12 +5322,15 @@ ${cardAnalysisText.substring(0, 1000)}
         issues.push('📋 出稿自检要点（请按下表逐项核对）：'
           // 2026-09-28（题号口径按类型分流·与条款同源）：①④ 的编号维度**按 genType 分型**——
           //    正式考卷大题序号/题号全卷连续；教辅组标题逐栏目（组）起编、题号在同一栏目（组）内连续
-          //    （单源见 promptLibrary 的 GROUP_TITLE_NUMBERING_CALIBER / QUESTION_NUMBERING_CALIBER）。
+          //    （单源见 promptLibrary 的 GROUP_TITLE_NUMBERING_CALIBER / QUESTION_NUMBERING_CALIBER / QUESTION_OBJECT_CALIBER）。
           //    原先两处无条件写"全卷连续"，会对教辅自检项"互相否定"。
-          + `① ${genType === 'exam' ? '大类/大题层级与编号是否与【卷面结构】一致（大类层序号形态按本卷学段口径——小学段大类自带序号、中学段不设大类层；大题标题命名遵卷面单源规则并带序号、大题序号' + GROUP_TITLE_NUMBERING_CALIBER.exam + '、不按大类重启）' : '大类/栏目（组）层级与编号是否与卷面结构一致（大类居中不带编号、组标题命名遵卷面单源规则并带序号、组标题' + GROUP_TITLE_NUMBERING_CALIBER.teaching + '）'}；`
-          + '② 大题分值合计与卷面结构闭合、小题分值标注齐全；'
+          // 2026-10-03（用户报"问题列表内容与修复后不一致"）：①教辅分支的块名改为【教辅结构】、
+          //    "大类居中不带编号"改为与条款同源的"栏目（组）标题独立成行、不带序号"；④去掉硬编码的子题
+          //    符号"(1)(2)"（分问符号不固定），并接上编号对象口径（同型并列的一批小项不逐项编号＝禁硬凑）。
+          + `① ${genType === 'exam' ? '大类/大题层级与编号是否与【卷面结构】一致（大类层序号形态按本卷学段口径——小学段大类自带序号、中学段不设大类层；大题标题命名遵卷面单源规则并带序号、大题序号' + GROUP_TITLE_NUMBERING_CALIBER.exam + '、不按大类重启）' : '栏目（组）/组标题层级与编号是否与【教辅结构】一致（栏目（组）标题独立成行、不带序号；组标题命名遵卷面单源规则并带序号、组标题' + GROUP_TITLE_NUMBERING_CALIBER.teaching + '）'}；`
+          + `② 大题分值合计与${genType === 'exam' ? '【卷面结构】' : '【教辅结构】'}闭合、小题分值标注齐全；`
           + '③ 作答载体（横线/括号/格子）与题面声明一致、形态同卷统一；'
-          + `④ 题号连续（顶层 1.2.3.…、子题 (1)(2)、不跳号${genType === 'exam' ? '、不重启（全卷连续）' : '；教辅本题号' + QUESTION_NUMBERING_CALIBER.teaching + '，进入新的栏目（组）即从 1 重新起编'}）；`
+          + `④ 题号连续（不跳号${genType === 'exam' ? '、不重启（全卷连续）' : '；教辅本题号' + QUESTION_NUMBERING_CALIBER.teaching + '，进入新的栏目（组）即从 1 重新起编'}）；${QUESTION_OBJECT_CALIBER}；`
           + '⑤ 答案区与正文逐题对应（同号、无遗漏、无多答）；'
           + '⑥ 情境与设问真实、符合本学段课标，无照搬教材原题。');
       }
