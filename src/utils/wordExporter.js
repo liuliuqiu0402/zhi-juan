@@ -14,7 +14,7 @@ export const convertFormulaToText = (formula) => {
   text = text.replace(/\\[dtc]?frac\{([^}]*)\}\{([^}]*)\}/g, (m, num, den) => `${parenIfNeeded(num)}/${parenIfNeeded(den)}`);
   // 根号 √a
   text = text.replace(/\\sqrt(?:\[([^}]*)\])?\{([^}]*)\}/g, '√$2');
-  // 🔴 \leqslant / \geqslant 必须先于 \leq / \geq 处理：否则先被 \leq 换成 ≤、
+  // \leqslant / \geqslant 必须先于 \leq / \geq 处理：否则先被 \leq 换成 ≤、
   //    剩下的 "slant" 原样留下 → 实测产出 "≤slant" 这种乱码词（教材常用写法，命中率很高）
   text = text.replace(/\\leqslant/g, '\u2A7D');
   text = text.replace(/\\geqslant/g, '\u2A7E');
@@ -40,7 +40,7 @@ export const convertFormulaToText = (formula) => {
   text = text.replace(/\\leq/g, '\u2264');
   text = text.replace(/\\approx/g, '\u2248');
   text = text.replace(/\\text\{([^}]*)\}/g, '$1');
-  // 🔴 降级可用性补强（2026-09 P5 收尾）：降级路径只应产出**可读**文本，
+  // 降级可用性补强（2026-09 P5 收尾）：降级路径只应产出**可读**文本，
   //    绝不能把命令名泄漏成乱码词——实测 `\vec{F}+m\vec{a}` 曾退化成 "vecF+mveca"、
   //    `\xrightarrow{点燃}` 曾是 "xrightarrow点燃"（印到 Word 交付物里就是错的）。
   //    ① 环境（cases / aligned / 矩阵）：\begin{…}、\end{…} 整体去除；行分隔 \\ 与列分隔 & 转可读分隔

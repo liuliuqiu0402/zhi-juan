@@ -1,6 +1,6 @@
 // src/constants/events.js
 // 全局自定义事件名称常量（唯一事实源）
-// 🔴 跨模块协议型字符串：监听方与分发方分处不同文件，拼写漂移=事件静默失效。
+// 跨模块协议型字符串：监听方与分发方分处不同文件，拼写漂移=事件静默失效。
 //    以下常用事件曾以纯字面量散落 4-6 个文件配对（App/AppHeader/GenerateModule/Settings/History/Typeset/ToastProvider/useActivation），
 //    现统一收口本文件——新增/改名事件只改此处。
 

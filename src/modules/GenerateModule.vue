@@ -637,7 +637,7 @@
               DeepSeek 峰谷时段表（北京时间）
             </div>
             <div class="pricing-detail-row pricing-detail-peak">
-              🔴 高峰：09:00-12:00 / 14:00-18:00
+              高峰：09:00-12:00 / 14:00-18:00
             </div>
             <div class="pricing-detail-row pricing-detail-offpeak">
               🟢 谷时：00:00-09:00 / 12:00-14:00 / 18:00-24:00
@@ -763,7 +763,7 @@
                     v-if="doc.difficulty"
                     class="difficulty-tag"
                   >
-                    🟢 {{ doc.difficulty.easy }}% · 🟡 {{ doc.difficulty.medium }}% · 🔴 {{ doc.difficulty.hard }}%
+                    🟢 {{ doc.difficulty.easy }}% · 🟡 {{ doc.difficulty.medium }}% · {{ doc.difficulty.hard }}%
                   </span>
                 </div>
                 <!-- ✨ 问题列表（唯一真实的质量线索；"质量报告"死壳已于 2026-09-12 移除） -->
@@ -1097,7 +1097,7 @@
             <span class="option-desc">取消勾选则逐章独立生成</span>
           </label>
         </div>
-        <!-- 🔴 2026-09-28（资料类型正规形态·卷别提示）：高中正式卷在「范围/卷别」处的水平提示（单源 config/levelMapping） -->
+        <!-- 2026-09-28（资料类型正规形态·卷别提示）：高中正式卷在「范围/卷别」处的水平提示（单源 config/levelMapping） -->
         <p
           v-if="paperKindHint"
           class="scope-level-hint"
@@ -1388,7 +1388,7 @@
             {{ opt.label }}
           </label>
         </div>
-        <!-- 🔴 2026-09-16（用户："自动轮换点开还是只有这些，没有像组织弹窗那样全部显示"）：
+        <!-- 2026-09-16（用户："自动轮换点开还是只有这些，没有像组织弹窗那样全部显示"）：
              ① 名称池**说明内联展示**（原先只在 hover title 里，看不到）；
              ② 未选类型时不再整块不渲染（原判据 genTypes[0] && 把整个风格块挡掉了）；
              ③ "资料栏目标题风格"改**内联展开**（全部套 + 各栏语义 + 学段要求），不必再点第二层弹窗。 -->
@@ -3184,9 +3184,9 @@ import { useAiGenerator, lastInjectSnapshot, chapterSigOf } from '../composables
 //    生成页只保留「从本记录的答案页听力原文进入」这个便利入口，实现共用同一组件。
 import ListeningWorkbench from '../components/listening/ListeningWorkbench.vue';
 import { resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
-import { checkMetaCompleteness, metaMissingMessage } from '../utils/libraryMetaEdit.js'; // 🔴 2026-09-28：生成前三维度（学段×学科）完整性判据——硬拦"真空"，引导去教材库补标
+import { checkMetaCompleteness, metaMissingMessage } from '../utils/libraryMetaEdit.js'; // 2026-09-28：生成前三维度（学段×学科）完整性判据——硬拦"真空"，引导去教材库补标
 import { resolveScopeName, selectedChaptersOf, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES } from '../config/paperScope.js';
-import { buildPaperKindHint } from '../config/levelMapping.js'; // 🔴 2026-09-28：高中正式卷「范围/卷别」处的卷别→水平提示（单源）
+import { buildPaperKindHint } from '../config/levelMapping.js'; // 2026-09-28：高中正式卷「范围/卷别」处的卷别→水平提示（单源）
 
 // 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
 const SCOPE_TYPE_LABELS = { default: '默认', midterm: '期中', final: '期末', monthly: '月考', topic: '专题', xiaoshengchu: '小升初', zhongkao: '中考', gaokao: '高考' };
@@ -3200,7 +3200,7 @@ const SCOPE_BASIS = {
   topic: '专题',
 };
 import { createDefaultSectionProperties, getPrintCss } from '../utils/wordExporter.js';
-// 🔴 公式渲染出口：$…$ → KaTeX 印刷形态 + 导出时内联自带字形的样式
+// 公式渲染出口：$…$ → KaTeX 印刷形态 + 导出时内联自带字形的样式
 //    （PDF 走 page.setContent，无 base URL / 无网络 → 相对字体解析不到，必须内联）
 import { renderMathInHtml, withKatexStyles } from '../utils/mathRender.js';
 import { htmlToDocxBlob } from '../utils/docxBuilder.js';
@@ -3222,7 +3222,7 @@ import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/l
 import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, resolveColumnStyleChoices, advanceAutoColumnStyleId, getTeachingBlueprint, stripSourceMarkNote } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
 import { buildUserMessageBlocks, buildCallLayerBlocks } from '../utils/injectionManifest.js'; // ✅ A22：请求实发清单·单源（用户消息侧：锚点清单/素材约定/组织方式/输出约定/尾约束…与生成端同一份定义）；buildCallLayerBlocks=调用层追加块（输出前自检）同源可见
-import { syncFloorClauseSections } from '../utils/instructionFloorSync.js'; // 🔴 2026-09-18 用户实证：草稿持久化恢复会把"程序内置守门条款段"冻住 → 之后所有条款修订都进不了模型；实发前按当前单源同步该段（用户内容不动）
+import { syncFloorClauseSections } from '../utils/instructionFloorSync.js'; // 2026-09-18 用户实证：草稿持久化恢复会把"程序内置守门条款段"冻住 → 之后所有条款修订都进不了模型；实发前按当前单源同步该段（用户内容不动）
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
 import RichTextEditor from '../components/RichTextEditor.vue';  // 🔧 新增：富文本编辑器
@@ -3231,7 +3231,7 @@ import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { markExamBigCategory, normalizeExamHeadOrder } from '../utils/contentCleaner.js';
 import { stripXss, stripAiCodeFence, markSoloBlankLines, wrapBareBlankRuns } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（导出端第二道防线共享）
 import { scriptsToText } from '../utils/scriptText.js'; // 上下标 → Unicode/显式写法（rawText 派生时不得把 x² 拍平成 x2）
-import { handleMathPaste } from '../utils/clipboardText.js'; // 🔴 纯文本框"保公式粘贴"：textarea 只收纯文本，浏览器默认粘贴会拿到被线性化的公式（只剩字母和加减号）
+import { handleMathPaste } from '../utils/clipboardText.js'; // 纯文本框"保公式粘贴"：textarea 只收纯文本，浏览器默认粘贴会拿到被线性化的公式（只剩字母和加减号）
 import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
 // 📐🖼️ 指令块抽取/配图稿清单（2026-09-16）："复制图形指令""复制配图稿"两个一键复制入口共用
 import { hasDirectiveBlocks, buildImagePromptList, buildGraphDirectiveList, buildGraphClipboardText, buildImageClipboardText } from '../utils/directiveBlocks.js';
@@ -3282,14 +3282,14 @@ const applyScoreAdjust = (bp) => {
   return { ...bp, sections: bp.sections.map((s) => (adj[s.name] != null ? { ...s, score: adj[s.name] } : s)) };
 };
 const propositionStyle = ref('');
-const styleManuallySet = ref(false);  // 🔴 追踪用户是否手动选过命题风格——false 时切换 genType 自动覆盖
-const styleConfirmed = ref(false);    // 🔴 必选风格是否已确认（生成前弹窗确认；换类型时重置）
+const styleManuallySet = ref(false);  // 追踪用户是否手动选过命题风格——false 时切换 genType 自动覆盖
+const styleConfirmed = ref(false);    // 必选风格是否已确认（生成前弹窗确认；换类型时重置）
 const genTypes = ref([]);
 // 升学考卷别（小升初/中考/高考）仅对"正式考卷"展示生效；其余资料类型不外显，且已选卷别在切换类型时重置
 const visibleScopeOptions = computed(() =>
   (genTypes.value?.includes('exam')) ? scopeOptions : scopeOptions.filter(o => !EXAM_GRADUATION_TYPES.includes(o.value)));
 watch(genTypes, (v) => { if (!v?.includes('exam') && EXAM_GRADUATION_TYPES.includes(scopeType.value)) scopeType.value = ''; });
-// 🔴 新架构：生成前置条件 = 已选教材章节（不再依赖指令文本）
+// 新架构：生成前置条件 = 已选教材章节（不再依赖指令文本）
 const hasSelectedChapters = computed(() => textbookStore.selectedChapterCount > 0);
 const specialSubType = ref('');  // 🎯 专项子类型（仅 genType=special 时生效）
 const batchCount = ref(1);  // 同类型一次生成份数，默认1
@@ -3351,7 +3351,7 @@ const currentColumnSubject = computed(() => {
   return normalizeSubjectName(subj, getSelectedBookStageKey());
 });
 /** 栏目风格套全列（弹窗用）：完整栏目名 + 语义 + 适用性（当前学科×类型栏目名与默认套不一致时置灰）
- *  🔴 2026-09-16（用户："自动轮换点开看不到全部内容，不像组织风格那样能看全"）三处修：
+ *  2026-09-16（用户："自动轮换点开看不到全部内容，不像组织风格那样能看全"）三处修：
  *    ① 语义来源归一：解析不到学科定制蓝图时**回退通用蓝图**并如实标注（原先留空白）；
  *    ② 不再按套截断语义（各套只换标题字面，语义同一份）；
  *    ③ 补"学段要求"与"各栏语义"两块完整展示——原先 5 学段要求根本不进弹窗。 */
@@ -3372,7 +3372,7 @@ const columnStyleOptions = computed(() => {
   const inapplicableReason = defaultMatch
     ? ''
     : `当前学科（${subject || '通用'}）该类型栏目名与默认套不同，换肤不生效，保持默认栏目名`;
-  // 🔴 2026-09-28（单一事实源·等价去重）：与默认套 a 逐字相同的套无信息量，从候选中剔除（errorbook 的 b/c/d 即此）；
+  // 2026-09-28（单一事实源·等价去重）：与默认套 a 逐字相同的套无信息量，从候选中剔除（errorbook 的 b/c/d 即此）；
   //    四套全部等价时「自动轮换」亦无意义，一并隐藏。判据由 resolveColumnStyleChoices 逐字比较 pool.columns 得出，
   //    不做任何类型名硬编码；b/c/d 均异于 a 的类型（practice 等）候选项不变。
   const { ids: styleIds, autoRotatable } = resolveColumnStyleChoices(pool);
@@ -3437,7 +3437,7 @@ const scopeDims = computed(() => [
   { type: 'final', label: '期末', pool: SCOPE_LABEL_POOLS.final },
   { type: 'monthly', label: '月考', pool: SCOPE_LABEL_POOLS.monthly },
   { type: 'default', label: '综合', pool: SCOPE_LABEL_POOLS.default },
-  // 🔴 2026-09-16（用户：小升初/中考/高考 的名称轮换在界面上看不到）：
+  // 2026-09-16（用户：小升初/中考/高考 的名称轮换在界面上看不到）：
   //    这三类的名称池（SCOPE_LABEL_POOLS.xiaoshengchu/zhongkao/gaokao）与轮换分类（examLabelCats）
   //    早已实现，只是弹窗维度表漏了它们 → 界面无从选择/固定。补进维度表即与既有轮换打通。
   { type: 'xiaoshengchu', label: '小升初', pool: SCOPE_LABEL_POOLS.xiaoshengchu },
@@ -4612,15 +4612,15 @@ const instructionDraft = ref(
 // 🔧 指令是否为用户手动编辑过（多类型混合生成时：手动编辑的指令对全部类型共用；
 //    自动组装（loadInstructionFromLibrary）则按每个类型重新匹配组装，防类型错位）
 let userEditedInstruction = false;
-// 🔴 指令来源记录（注入框展示：来自指令库哪条模板、按什么维度匹配）
+// 指令来源记录（注入框展示：来自指令库哪条模板、按什么维度匹配）
 const instructionSource = ref(null);
 const injectSources = ref([]); // 本次注入来源清单（指令库/蓝图库/渲染契约/规则库）——面板可视化"读取应用了哪些库"
 const showProgramAttach = ref(false); // 程序附加段（system 注入）折叠展开
-// 🔴 程序性附加段（复位工程·S3.2 委托书纯净化）：渲染契约/质检规则/格式兜底等形态层知识
+// 程序性附加段（复位工程·S3.2 委托书纯净化）：渲染契约/质检规则/格式兜底等形态层知识
 //    不属于委托正文（解释权在程序侧）——与 instructionDraft 分离存储，生成时以 system 角色随写作请求注入；
 //    勾选/类型变化时随 instructionDraft 一并清空重建（与委托正文同源同次组装，防失配）
 const programAttachText = ref('');
-// 🔴 程序附加段·分段明细（2026-09 恢复"看到问题→点击跳转修改"）：与 programAttachText 同源
+// 程序附加段·分段明细（2026-09 恢复"看到问题→点击跳转修改"）：与 programAttachText 同源
 //    （buildProgramAttachBlocks 单源产出），面板逐段展示 库×条目×约束文本，点击跳对应工具库定位；
 //    与正文「来源分段标注」同一跳转机制，system 注入内容不再是不可点黑盒
 const attachBlocks = ref([]);
@@ -4630,23 +4630,23 @@ const attachBlocks = ref([]);
 //    运行时才定内容的块（清单/原文/对标…）给出来源与注入条件，条款类块直接给出真实文本。
 const userMsgBlocks = ref([]);
 const showUserMsgBlocks = ref(false);
-// 🔴 指令来源分段标注（MVP 批1）：组装后由 annotateInstructionBlocks 填充 偏移区间↔{库,key} 块；
+// 指令来源分段标注（MVP 批1）：组装后由 annotateInstructionBlocks 填充 偏移区间↔{库,key} 块；
 //    只读旁路（不参与拼装）；用户手动编辑指令后置空（watch 联动，见下），UI 据此提示"标注已失效"
 const instructionBlocks = ref([]);
 // ✅ A21：逐章模式当前章节的教材过滤版（标题/指令范围名按单章）；非逐章为 null。
-//    🔴 提到模块作用域（原先在 generate 内声明）：逐章模式下"按单章组装指令"与"生成前刷新程序附加段"
+//    提到模块作用域（原先在 generate 内声明）：逐章模式下"按单章组装指令"与"生成前刷新程序附加段"
 //    两处都要取**同一来源**的书（单章过滤版），否则章节名会成为新的漂移源。
 //    🗑 2026-09-28 清理：原注释称该提级是为"配图判定提示文本（resolveNeedsImageText）单源取书"，
 //    该函数已随 A21 撤除（配图改由 resolveMarkCapability 判定，无文本信号）——残留引用已清。
 const perChapterBooksRef = { value: null };
-// 🔴 学段显示名 STAGE_LABEL_MAP 原定义在这里，仅被听力面板消费；2026-09-20 听力工作台抽成
+// 学段显示名 STAGE_LABEL_MAP 原定义在这里，仅被听力面板消费；2026-09-20 听力工作台抽成
 //    components/listening/ListeningWorkbench.vue 后，该表随面板一起搬走，此处不再保留（避免两处漂移）。
 watch(instructionDraft, (val) => {
   try {
     if (val) localStorage.setItem(DRAFT_STORAGE_KEY, val);
     else localStorage.removeItem(DRAFT_STORAGE_KEY);
   } catch {}
-  // 🔴 分段标注联动：自动组装（userEditedInstruction=false）由组装函数即时重算；
+  // 分段标注联动：自动组装（userEditedInstruction=false）由组装函数即时重算；
   //    用户手动敲字（置位 true）→ 文本已偏离来源 → 标注清空（UI 显示"已手动修改，来源标注失效"）
   if (userEditedInstruction && instructionBlocks.value.length) instructionBlocks.value = [];
 });
@@ -4662,7 +4662,7 @@ const BLOCK_LIB_NAMES = {
   instruction: '指令库', 'layout-spec': '排版规格库', 'render-contract': '渲染契约库',
   rules: '规则库', blueprint: '蓝图库',
 };
-// 🔴 库配色（按来源库区分着色，一眼识别是哪个库）：父块用低透明底、子块用同色加深
+// 库配色（按来源库区分着色，一眼识别是哪个库）：父块用低透明底、子块用同色加深
 const LIB_COLORS = {
   instruction: { name: '指令库', badge: '#588eff' },
   'layout-spec': { name: '排版规格', badge: '#7c4dff' },
@@ -4670,7 +4670,7 @@ const LIB_COLORS = {
   rules: { name: '规则库', badge: '#eb4034' },
   blueprint: { name: '蓝图库', badge: '#009688' },
 };
-// 🔴 分段着色 HTML（只读旁路视图）：父块（来源段）底色、子块（BLANK/carrier/蓝图卡）细分；
+// 分段着色 HTML（只读旁路视图）：父块（来源段）底色、子块（BLANK/carrier/蓝图卡）细分；
 //    未映射文本灰显；块经 data-i 指向 instructionBlocks 下标，点击时跳对应工具库卡
 const annotatedBlocksHtml = computed(() => {
   const text = instructionDraft.value || '';
@@ -4698,7 +4698,7 @@ const annotatedBlocksHtml = computed(() => {
   if (pos < text.length) html += `<span class="iab-plain">${escapeHtml(text.slice(pos))}</span>`;
   return html;
 });
-// 🔴 来源库计数（折叠标题用）：去重后的顶层来源库数（与「本次注入来源」库数一致）；
+// 来源库计数（折叠标题用）：去重后的顶层来源库数（与「本次注入来源」库数一致）；
 //    区块数 = instructionBlocks.length（含细分到配置卡的子块，非库数）
 const libCount = computed(() => new Set(instructionBlocks.value.filter((b) => !b.parentKey).map((b) => b.lib)).size);
 // 点击来源块：确认后跳转对应工具库子页（?focus=<条目key>，视图侧定位在后续提交启用）
@@ -4717,7 +4717,7 @@ const onBlocksClick = (e) => {
   const b = instructionBlocks.value[Number(el.dataset.i)];
   if (b) jumpToSourceBlock(b);
 };
-// 🔴 程序附加段点击（data-ai → attachBlocks 下标）：与正文分段标注同一跳转机制，
+// 程序附加段点击（data-ai → attachBlocks 下标）：与正文分段标注同一跳转机制，
 //    让 system 注入内容同样可"看到→点击→跳库定位修改"（渲染契约/规则/格式兜底不再是不可点黑盒）
 const onAttachClick = (e) => {
   const el = e.target.closest('[data-ai]');
@@ -4741,7 +4741,7 @@ const onUserMsgClick = (e) => {
   }
   jumpToSourceBlock({ lib: bk.lib, name: bk.name, key: '' });
 };
-// 🔴 注入来源清单行点击：跳对应库首页（不带 focus，落到库内筛选视图）
+// 注入来源清单行点击：跳对应库首页（不带 focus，落到库内筛选视图）
 const onSrcRowClick = (s) => {
   if (!s || !s.lib) return;
   const libName = BLOCK_LIB_NAMES[s.lib] || s.name || s.lib;
@@ -4865,7 +4865,7 @@ const renderImagePlaceholders = (html) => {
     const bodyStart = s + 7;
     const e = rest.indexOf('[/IMAGE]', bodyStart);
     if (e === -1) {
-      // 🔴 未闭合兜底：模型漏写 [/IMAGE] 时，取标记后到行尾的内容作为画面描述，强制转占位框，
+      // 未闭合兜底：模型漏写 [/IMAGE] 时，取标记后到行尾的内容作为画面描述，强制转占位框，
       //    杜绝 [IMAGE] 指令原文泄漏进正文/导出（此前直接透传原文）
       const nl = rest.indexOf(NL, bodyStart);
       const partial = (nl === -1 ? rest.slice(bodyStart) : rest.slice(bodyStart, nl)).trim();
@@ -5072,7 +5072,7 @@ const restoreAutoStyle = () => {
   showStyleModal.value = false;
 };
 /** 当前选中类型是否需要必选组织风格确认（生成前置闸门）
- *  🔴 2026-09-28（用户裁定·只让 exam 可选）：是否必选完全交由 isStyleRequiredForType（单一事实源
+ *  2026-09-28（用户裁定·只让 exam 可选）：是否必选完全交由 isStyleRequiredForType（单一事实源
  *     = STYLE_REQUIRED_TYPES），此处不另判。exam 可选、不选即走不注入组织风格的默认分支（卷面规则
  *     单源见 promptLibrary）；practice/special/reading/summary/review/preview 为必选。 */
 const styleRequiredForCurrent = computed(() => genTypes.value.some((t) => isStyleRequiredForType(t)));
@@ -5203,7 +5203,7 @@ const getSelectedBookStageKey = () => {
   return '';
 };
 
-// 🔴 2026-09-28（资料类型正规形态·卷别提示）：学段=高中 且 资料类型=正式考卷（exam）时，
+// 2026-09-28（资料类型正规形态·卷别提示）：学段=高中 且 资料类型=正式考卷（exam）时，
 //    在「范围/卷别」处提示——按**学科**取水平（如数学「选高考按水平二；未选按水平一」、
 //    物理「选高考按水平四；未选按水平二」，单源 config/levelMapping.js）；其余情形为空（不显示）。
 const paperKindHint = computed(() => buildPaperKindHint({
@@ -5606,7 +5606,7 @@ const isCoveredByAnalyzedParent = (book, chapter) => {
 
 const getSelectedChapters = (nodes) => textbookStore.getSelectedChapters(nodes);
 
-// 🔴 流程引导（宽松：按钮自由、提示下一步，不强制禁用）
+// 流程引导（宽松：按钮自由、提示下一步，不强制禁用）
 //    ① 勾选教材 → ② 注入指令（委托书，可编辑）→ ③ 委托生成
 const hasBooksSelected = computed(() => textbookStore.textbooks.some((b) =>
   hasAnySelected(b.outline) && getSelectedChapters(b.outline).some((ch) => ch._selectedForAnalysis !== false)));
@@ -6197,9 +6197,9 @@ const exportKnowledgePoints = () => {
   a.click();
 };
 
-// 🔴 生成指令：按三维度（年级×学科×资料类型）从指令库匹配模板并组装注入指令
+// 生成指令：按三维度（年级×学科×资料类型）从指令库匹配模板并组装注入指令
 
-// 🔴 2026-09-17（用户裁定）：原 A21「配图判定提示文本单源」（resolveNeedsImageText + buildNeedsImageText：
+// 2026-09-17（用户裁定）：原 A21「配图判定提示文本单源」（resolveNeedsImageText + buildNeedsImageText：
 //    由"卷面结构 + 类型名 + 范围维度名 + 章节名"拼文本喂 needsImageHint，决定是否注入 [IMAGE] 骨架）**整条撤除**。
 //    病因：正文对图的要求是原则式（该题作答是否需要图中信息，题干怎么措辞都算），程序侧却拿文本关键词猜，
 //    两把尺子必然错位——实测 675 个三维度组合里，115 组合"正文强制 [IMAGE] 而 system 无 [IMAGE] 骨架"、
@@ -6242,7 +6242,7 @@ const chapterSigNow = () => chapterSigOf(textbookStore.textbooks
 //    面板据此逐段展示"除委托正文之外，本次请求还会发出哪些块"（板块顺序 = 实发顺序）
 const refreshUserMsgBlocks = ({ subject = '', genType = '' } = {}) => {
   if (!genType) { userMsgBlocks.value = []; return; }
-  // 🔴 A22：生成期还会在委托正文**末尾**追加两块（既不在注入框里、也不属程序附加段）——面板必须如实说明，
+  // A22：生成期还会在委托正文**末尾**追加两块（既不在注入框里、也不属程序附加段）——面板必须如实说明，
   //    否则"看到的=发出去的"仍有缺口：①【组织风格】（面板所选，生成端识别并组织情境/呈现）；
   //    ②多类型生成时，第二个类型起追加的【差异化要求——本类型为…】（含前面已覆盖的知识点清单）。
   const styleNote = (propositionStyle.value && styleInstructions[propositionStyle.value])
@@ -6273,7 +6273,7 @@ const refreshUserMsgBlocks = ({ subject = '', genType = '' } = {}) => {
 
 /** 把"调用层追加块"（【输出前自检】）插到**尾约束之前**——与生成端 applyCallLayerSelfReview 的插入点同口径，
  *  保证面板块序 = 实发块序（本块不进委托书、不参与 buildUserMessagePrompt 拼接，只在调用层追加）。
- *  🔴 2026-09-30（用户裁定）：原状态为"实发有、面板无"，与「点开即实发全貌」相抵，故在此如实补上。 */
+ *  2026-09-30（用户裁定）：原状态为"实发有、面板无"，与「点开即实发全貌」相抵，故在此如实补上。 */
 const withCallLayerBlocks = (blocks) => {
   const call = buildCallLayerBlocks();
   if (!call.length) return blocks;
@@ -6324,7 +6324,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   } catch { /* 无蓝图不影响指令注入（模板兜底） */ }
 
   // 命题范围（单元名：课/单元/期中/期末）
-  // 🔴 2026-09-24 根治：范围名**唯一出口** resolveScopeName——「组装指令」与「卷首标题」必须同一函数，
+  // 2026-09-24 根治：范围名**唯一出口** resolveScopeName——「组装指令」与「卷首标题」必须同一函数，
   //    否则用户确认过的范围（scopeOverride）只在指令里生效、标题里不体现（两个出口各算一套）。
   //    （范围维度→名称池类型的映射也已上收 paperScope.SCOPE_DIM_TO_TYPE，不再各写一份）
   let unit = '';
@@ -6371,18 +6371,18 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     structure,
     fullScore,
     duration,
-    genType,                        // 🔴 卷别→学业质量水平（高中·按学科分型，非全科统一）：正式卷按卷别映射、教辅锚毕业合格要求（单源 config/levelMapping）
+    genType,                        // 卷别→学业质量水平（高中·按学科分型，非全科统一）：正式卷按卷别映射、教辅锚毕业合格要求（单源 config/levelMapping）
     scopeType: scopeType.value || '', // 升学卷别（gaokao=高考）→ 高考水平；其余正式卷→合格考水平
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
   });
-  // 🔴 模板正文段文本缓存（分段标注用：在后续追加教辅结构蓝本段之前取前缀）
+  // 模板正文段文本缓存（分段标注用：在后续追加教辅结构蓝本段之前取前缀）
   const tplBodyText = instructionDraft.value;
-  // 🔴 说明：渲染指令契约（EduRender）/ 卷面质检规则 / 守门条款兜底 均属程序侧形态与规则知识，
+  // 说明：渲染指令契约（EduRender）/ 卷面质检规则 / 守门条款兜底 均属程序侧形态与规则知识，
   //    复位工程·S3.2 起统一由 buildProgramAttach 汇总、随写作请求以 system 角色注入，不进委托正文——
   //    本函数**不再自行拼装**这三段。✅ A20：兜底"缺哪段补哪段"的唯一实现在 programAttach 单源内，
   //    此处若再拼一份，面板分段明细（blocks）与实发文本（text）必然两套口径漂移（旧写法即如此：
   //    有【输出格式】缺【质量底线】→ 兜底不触发静默丢条款；缺【输出格式】→ 【质量底线】整块重复）。
-  // 🔴 注入来源登记：exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段（单一事实源，
+  // 注入来源登记：exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段（单一事实源，
   //    无重复注入）；非 exam 附加教辅结构蓝本（栏目框架 + 题量/字数底线，按 学段×类型 三维度，
   //    属委托正文"栏目骨架"保留）
   let blueprintDetail = '';
@@ -6404,7 +6404,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
         : `教辅结构「${genTypeLabel}」· 大类标题（按课标活动类型与素养划分）+ 学段要求`;
     }
   }
-  // 🔴 程序性附加段（渲染契约 + 质检规则 + 守门条款段级兜底）统一走 buildProgramAttach 单源：
+  // 程序性附加段（渲染契约 + 质检规则 + 守门条款段级兜底）统一走 buildProgramAttach 单源：
   //    blocks=面板分段明细 / text=实发文本（system 注入），两出口同一份内容 —— 面板所见即实发。
   //    ✅ A21 已撤（2026-09-17）：配图能力不再由"提示文本"判定，改为能力就绪（正文与 system 同一判定）
   attachBlocks.value = buildProgramAttachBlocks({
@@ -6431,7 +6431,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
       return n ? [{ lib: 'rules', name: '生成前约束', detail: `${n} 条 fix 规则` }] : [];
     })(),
   ];
-  // 🔴 来源分段标注（旁路 MVP 批1）：用本函数手上已有的段文本在成品全文定位 偏移区间↔{库,key}；
+  // 来源分段标注（旁路 MVP 批1）：用本函数手上已有的段文本在成品全文定位 偏移区间↔{库,key}；
   //    不改 instructionDraft 任何内容（输出零变化）；换算行/协议行不命中（模板无此行）静默跳过
   const tplKey = tpl.id || genType;
   const carrierLine = buildCarrierInstruction(subject, stageKey);
@@ -6484,7 +6484,7 @@ const restoreDefaultInstruction = async () => {
   const gradeLabel = gradeDisplayLabel(book.stage, book.grade, book.volume);
   instructionDraft.value = buildInjectionInstruction({
     template: builtinTemplate, grade: gradeLabel, stage: stageKey, subject, genTypeLabel, label, semester: book.semester || '', structure, fullScore, duration,
-    genType,                        // 🔴 卷别→学业质量水平（高中）：与 loadInstructionFromLibrary 同源
+    genType,                        // 卷别→学业质量水平（高中）：与 loadInstructionFromLibrary 同源
     scopeType: scopeType.value || '',
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
   });
@@ -6494,7 +6494,7 @@ const restoreDefaultInstruction = async () => {
     const st = composeSpecialTeachingText({ genType, stageKey, subject, domainKey: specialSubType.value || '' });
     instructionDraft.value += st.text;
   }
-  // 🔴 程序性附加段（渲染契约/质检规则/格式兜底）不进委托正文——统一走 buildProgramAttach，随写作请求 system 注入
+  // 程序性附加段（渲染契约/质检规则/格式兜底）不进委托正文——统一走 buildProgramAttach，随写作请求 system 注入
   //    分段明细同源产出（面板逐段可点跳库），渲染契约/规则存在时注入来源清单同步展示（与 loadInstructionFromLibrary 口径一致）
   //    ✅ A21 已撤（2026-09-17）：配图能力不再由"提示文本"判定（见文件头说明）
   attachBlocks.value = buildProgramAttachBlocks({
@@ -6538,11 +6538,11 @@ const composeSpecialTeachingText = ({ genType, stageKey, subject, domainKey }) =
 };
 
 // 生成前确保注入指令非空（最小场景：选教材+类型后直接生成也能跑）
-// 🔴 程序性附加段刷新（复位工程·S3.2）：按当前勾选三维度重算渲染契约/质检规则/格式兜底——
+// 程序性附加段刷新（复位工程·S3.2）：按当前勾选三维度重算渲染契约/质检规则/格式兜底——
 //    委托正文（草稿/手动编辑）与 programAttach 必须同源配套：草稿非空时同样要刷新，
 //    否则生成请求缺渲染协议（配图/公式/规则注入缺失）
 const refreshProgramAttach = () => {
-  // 🔴 取书同源（A21）：逐章模式用单章过滤版，与"组装"入口一致——否则章节名会成为第二个漂移源
+  // 取书同源（A21）：逐章模式用单章过滤版，与"组装"入口一致——否则章节名会成为第二个漂移源
   const books = perChapterBooksRef.value?.length
     ? perChapterBooksRef.value
     : textbookStore.textbooks.filter(b => hasAnySelected(b.outline));
@@ -6588,7 +6588,7 @@ const ensureInjectedInstruction = async () => {
   if (!instructionDraft.value.trim()) {
     await loadInstructionFromLibrary();
   } else {
-    // 🔴 2026-09-18 用户实证（"条款改了却没生效"·根因）：
+    // 2026-09-18 用户实证（"条款改了却没生效"·根因）：
     //    草稿持久化在 localStorage、冷启动直接恢复复用；而程序侧的"缺段兜底"**只按段头判在不在** →
     //    旧草稿里的【输出格式】段永远"在" → 之后所有"委托正文侧"的条款修订都进不了模型
     //    （程序侧修复照常生效，故表现为"程序侧的好了、提示词侧的没动"）。
@@ -6632,7 +6632,7 @@ const clearInstruction = async () => {
 watch(
   () => [
     (genTypes.value || []).join(','),
-    // 🔴 2026-09-18 用户裁定（"勾选的教材变化时也自动清空"）：教材侧失效签名改用 store 单源
+    // 2026-09-18 用户裁定（"勾选的教材变化时也自动清空"）：教材侧失效签名改用 store 单源
     //    `instructionBookSignature`（= 教材级勾选位 ∪ 任一章被勾选，含 id/学段/学科/年级/章节清单）。
     //    原串只列"有章节被勾选"的教材 → "勾了但无章节"的教材（未提取章节/目录模式）勾选后不触发清空。
     textbookStore.instructionBookSignature,
@@ -6927,11 +6927,11 @@ const ocrMarkdownToHtml = (md) => {
 
 // 🔧 HTML → 纯文本（保留段落和换行结构；仅本模块 rawText 同步用——比 contentCleaner.htmlToPlainText
 //    更"简单"：不做答案节截取/表格转文/[IMAGE]描述/超长裁剪，避免同名双实现误引歧义，故命名为 simple 版）
-// 🔴 上下标转换抽到 utils/scriptText.js（单一事实源、可单测）：此前 rawText 走"清标签"通道，
+// 上下标转换抽到 utils/scriptText.js（单一事实源、可单测）：此前 rawText 走"清标签"通道，
 //    `x<sup>2</sup>` 被拍平成 `x2`、`H<sub>2</sub>O` 拍平成 `H2O`——喂 AI 分析时歧义。
 const simpleHtmlToPlainText = (html) => {
   if (!html) return '';
-  // 🔴 scriptsToText 必须先于"清标签"（否则上下标先被拍平，信息不可逆丢失）
+  // scriptsToText 必须先于"清标签"（否则上下标先被拍平，信息不可逆丢失）
   return scriptsToText(html)
     .replace(/<br\s*\/?>/gi, '\n')           // <br> → 换行
     .replace(/<\/p>\s*<p[^>]*>/gi, '\n\n')  // </p><p> → 段落分隔
@@ -7228,7 +7228,7 @@ const confirmRawText = async () => {
 /**
  * 📁 导入文件到原文框（.docx / .txt / .md）
  * ============================================================
- * 🔴 为什么要有（2026-09 用户提出）：教材原文此前只能"在 Word 里选中→复制→粘贴"。
+ * 为什么要有（2026-09 用户提出）：教材原文此前只能"在 Word 里选中→复制→粘贴"。
  *    教材往往是**整本 Word**，靠手工框选极易漏页漏段；而"导入文件"拿到的是**文件本身**，
  *    是最完整的数据源，且不受剪贴板格式限制（不必赌剪贴板里有没有富文本那一份）。
  *
@@ -7614,7 +7614,7 @@ const executeTextbookAnalysis = async (action) => {
           generateStatus.value = `🔄 重新分析 ${ch.title}：已废弃旧知识点，原文${userRawText.length}字，正在AI提取...`;
           generateProgress.value = Math.round((donePages / totalPages) * 80);
           console.log(`🔄 已清除 ${ch.title} 知识点缓存，原文保留(${userRawText.length}字)，即将重新AI分析`);
-          // 仅跳过 OCR（原文沿用已有 rawText）；🔴 不 continue → 仍进入下方共用的原文编辑器
+          // 仅跳过 OCR（原文沿用已有 rawText）；不 continue → 仍进入下方共用的原文编辑器
           //   （用户口径：本流程下原文的粘贴/修改能力不得禁用），确认后再走 convert+analyze
         } else {
        
@@ -7771,7 +7771,7 @@ const executeTextbookAnalysis = async (action) => {
             console.error(
               `❌ [锚树契约] ${ch.title} 结构不符（${treeCheck.violations.length} 项）→ 不落库：`,
               treeCheck.violations.slice(0, 5).map((v) => `${v.path} ${v.code}${v.name ? `「${v.name}」` : ''}`),
-              // 🔴 2026-09-12（用户口径：分析阶段只有日志、没有问题列表报告）→ 真因必须在**日志**里说清，
+              // 2026-09-12（用户口径：分析阶段只有日志、没有问题列表报告）→ 真因必须在**日志**里说清，
               //    否则"预算不足导致的截断"会被读成"模型结构不符"，多轮排障都被带偏。
               ...(cause ? [`｜ 本次真因：${cause}`] : []),
             );
@@ -8236,7 +8236,7 @@ const mergeTemplateResults = (results) => {
 
 // 生成
 const generate = async (mode) => {
-  // 🔴 新架构：用户只选教材 + 资料类型即可生成（指令库自动决定角色/大题结构/题型/难度）
+  // 新架构：用户只选教材 + 资料类型即可生成（指令库自动决定角色/大题结构/题型/难度）
   // 不再要求先生成指令；指令文本仅作可选参考（传空串走指令库默认）
   scopeOverride.value = ''; // 🔧 每次生成前重置范围确认值，避免上次弹窗选择污染本次（单元/课不弹窗时用自动推断名）
   const types = mode === 'single' ? [genTypes.value[0]] : genTypes.value;
@@ -8247,7 +8247,7 @@ const generate = async (mode) => {
   }
 
   // 🔧 组织风格确认闸门（针对"必选类型"）：未确认时前置弹窗，确认后方可生成。
-  //    🔴 2026-09-28（用户裁定·只让 exam 可选）：必选判定为单一事实源 isStyleRequiredForType
+  //    2026-09-28（用户裁定·只让 exam 可选）：必选判定为单一事实源 isStyleRequiredForType
   //    （STYLE_REQUIRED_TYPES）——exam 可选（仍可手动选，不选走不注入组织风格的默认分支，卷面规则单源见
   //    promptLibrary）；practice/special/reading/summary/review/preview 为必选。
   //    闸门按**任一选中类型必选**判（genTypes.some），故用户须经"确认"（styleConfirmed）才放行。
@@ -8273,7 +8273,7 @@ const generate = async (mode) => {
     return;
   }
 
-  // 🔴 2026-09-28（用户裁定·C 硬拦；用户提醒"别把信息全的误拦"）：三维度（学段×学科）拿不到 → 拦住并引导补标。
+  // 2026-09-28（用户裁定·C 硬拦；用户提醒"别把信息全的误拦"）：三维度（学段×学科）拿不到 → 拦住并引导补标。
   //    判据是纯函数 checkMetaCompleteness（**只判真空**：学段字段与教材名线索都解析不出、或学科字段为空；
   //    写法各异——"六年级/②/小学低段/初一下/必修1"等——一律放行，见 libraryMetaEdit 单测）。
   const metaIncomplete = selectedBooks.filter((b) => !checkMetaCompleteness(b).ok);
@@ -8412,7 +8412,9 @@ const generate = async (mode) => {
   //    唯一生成入口（generate 主路径，含复生成差异化与逐章循环），防止分支漏注入
   const withStyle = (instr = '') => {
     if (!propositionStyle.value || !styleInstructions[propositionStyle.value]) return instr;
-    return `${instr}\n\n【组织风格】${propositionStyle.value}：${styleInstructions[propositionStyle.value]}`;
+    // 2026-10-02（项3·块标题独占一行）：原为「【组织风格】{value}：{说明}」——**块标题行内拖内容**，
+    //   改「【组织风格】\n· {value}：{说明}」（标签独占一行、内容另起一条）；解析器已同步兼容两种形态。
+    return `${instr}\n\n【组织风格】\n· ${propositionStyle.value}：${styleInstructions[propositionStyle.value]}`;
   };
 
   // ✨ 新增：记录已生成资料的知识点，用于差异化（逐章模式下每章独立重置）
@@ -8458,7 +8460,7 @@ const generate = async (mode) => {
     }
     
     try {
-      // 🔴 三维度一致性校验：升学考卷别必须与所选教材学段相符（小升初→小学、中考→初中、高考→高中）
+      // 三维度一致性校验：升学考卷别必须与所选教材学段相符（小升初→小学、中考→初中、高考→高中）
       if (EXAM_GRADUATION_TYPES.includes(scopeType.value)) {
         const SCOPE_EXPECT_STAGE = { xiaoshengchu: '小学', zhongkao: '初中', gaokao: '高中' };
         const expect = SCOPE_EXPECT_STAGE[scopeType.value];
@@ -8473,7 +8475,7 @@ const generate = async (mode) => {
           return;
         }
       }
-      // 🔴 整卷生成：注入指令（指令库渲染，用户可编辑）作为生成依据
+      // 整卷生成：注入指令（指令库渲染，用户可编辑）作为生成依据
       const inj = await ensureInjectedInstruction();
       let finalInstr = typeIndex > 0 ? diffInstruction : inj;
       // 🔧 组织风格注入（统一入口 withStyle）：生成端识别并组织情境/呈现
@@ -8485,7 +8487,7 @@ const generate = async (mode) => {
           statusText.value = `正在生成第 ${batch + 1}/${batches} 份...`;
           progress.value = Math.max(progress.value, 5);
         }
-        // 🔴 整卷生成结果已含全部内容（三库约束+答案页+代码兜底），直接入库，不再弹窗确认编辑
+        // 整卷生成结果已含全部内容（三库约束+答案页+代码兜底），直接入库，不再弹窗确认编辑
         const result = await callGenerate(
           finalInstr,
           genType,
@@ -8569,12 +8571,12 @@ const finalizeGeneration = async (result, genType) => {
     const book = pickPrimaryBook(ctxBooks);
     const gradeLabel = book?.grade || '';
     const subjectLabel = book?.subject || '';
-    // 🔴 卷首大标题命名规范唯一实现（buildPaperTitle，与指令注入侧同一套语义）：
+    // 卷首大标题命名规范唯一实现（buildPaperTitle，与指令注入侧同一套语义）：
     //    普通型（课/单元范围）= 年级 + 学科 + 册别 + 范围名 + 类型名（类型名从名称池轮换）
     //    考试型（期中/期末/月考/专题）= 学年度学期 + 年级 + 学科 + 范围标签词（从名称池轮换）
     //    ——标题命名是确定性拼装（程序职责），不再采信 AI 生成的 h1（此前 AI 自由发挥导致命名规则从未生效）
     const examLabelCats = ['midterm', 'final', 'monthly', 'topic', ...EXAM_GRADUATION_TYPES];
-    // 🔴 2026-09-24 根治：范围名**唯一出口**（与「组装指令」同一函数）——
+    // 2026-09-24 根治：范围名**唯一出口**（与「组装指令」同一函数）——
     //    ① 取数：从 outline 的勾选标志现推（裸记录没有派生字段 selectedChapters，此前恒为空）；
     //    ② 来源：用户确认过的范围（scopeOverride）在这里同样生效，不再"指令认、标题不认"。
     const scopeInfo = resolveScopeName({
@@ -8593,7 +8595,7 @@ const finalizeGeneration = async (result, genType) => {
     const paperTitle = buildPaperTitle({
       grade: gradeLabel,
       subject: subjectLabel,
-      // 🔴 册别槽位：非高中用"上/下册"；高中用**册次**（"必修1""选择性必修2"）——
+      // 册别槽位：非高中用"上/下册"；高中用**册次**（"必修1""选择性必修2"）——
       //    高中教材按册分、不按年级，grade 恒空（见 gradeDisplayLabel），册别槽再空着，
       //    卷首标题就只剩"英语 单元一 测试卷"，无法区分是哪一册。
       semester: isLabelScope ? '' : (book.semester || book.volume || ''),
@@ -8602,7 +8604,7 @@ const finalizeGeneration = async (result, genType) => {
       academic: isLabelScope ? inferAcademicTerm() : '',
       isExam: isLabelScope,
     });
-    // 🔴 卷首 h1 与文档标题统一为规范命名（AI 生成的 h1 一律替换为程序拼装的规范标题）
+    // 卷首 h1 与文档标题统一为规范命名（AI 生成的 h1 一律替换为程序拼装的规范标题）
     const titledContent = applyPaperTitleToContent(safeContent, paperTitle);
     const now = new Date();
     const ts = now.toLocaleDateString('zh-CN') + ' ' + now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -8806,7 +8808,7 @@ const previewDoc = (doc) => {
     });
   }
   
-  // 🔴 公式渲染（2026-09 补齐）：该预览弹窗原样注入 doc.content → 含 $…$ 时显示生 LaTeX。
+  // 公式渲染（2026-09 补齐）：该预览弹窗原样注入 doc.content → 含 $…$ 时显示生 LaTeX。
   //    与排版预览/导出同一渲染出口（renderMathInHtml），公式出印刷形态。
   previewContent.value = renderMathInHtml(normalizeExamHeadOrder(markExamBigCategory(normalizeSealStructure(renderImagePlaceholders(content)))));
   showPreview.value = true;
@@ -8860,7 +8862,7 @@ const saveEdit = () => {
 // 📋 复制原始源码到剪贴板（包含 $...$、[GRAPH]、[IMAGE] 标记，供 EduRender Studio 使用）
 const copyToEduRender = async () => {
   if (!previewingDoc.value) return;
-  // 🔴 2026-09-16 修复：原来复制的是 doc.content —— 那是 renderImagePlaceholders() 处理后的版本，
+  // 2026-09-16 修复：原来复制的是 doc.content —— 那是 renderImagePlaceholders() 处理后的版本，
   //    [GRAPH]/[IMAGE] 已被换成占位 <div data-…-raw>，粘到 EduRender 里**一条指令都解析不出来**。
   //    指令原文在 rawContent。
   const text = docSourceText(previewingDoc.value);
@@ -8894,7 +8896,7 @@ const reportCopy = async (message, isError = false) => {
 const copyGraphDirectives = async (doc = null) => {
   const target = doc || previewingDoc.value;
   if (!target) return;
-  // 🔴 2026-09-17：文本改由 directiveBlocks 单源生成（与预览弹窗"复制全部"逐字一致，杜绝两处口径）
+  // 2026-09-17：文本改由 directiveBlocks 单源生成（与预览弹窗"复制全部"逐字一致，杜绝两处口径）
   const items = buildGraphDirectiveList(docSourceText(target));
   const text = buildGraphClipboardText(items, target.title || '');
   if (!text) {
@@ -8920,7 +8922,7 @@ const copyGraphDirectives = async (doc = null) => {
 const copyImagePrompts = async (doc = null) => {
   const target = doc || previewingDoc.value;
   if (!target) return;
-  // 🔴 2026-09-17：文本改由 directiveBlocks 单源生成（与预览弹窗"复制全部"逐字一致）
+  // 2026-09-17：文本改由 directiveBlocks 单源生成（与预览弹窗"复制全部"逐字一致）
   const items = buildImagePromptList(docSourceText(target));
   const text = buildImageClipboardText(items, target.title || '');
   if (!text) {
@@ -9116,7 +9118,7 @@ const downloadDoc = async (doc, format) => {
       const pm = decoded.match(/PROMPT:\s*(.+)/);
       return pm ? `〔配图位置：${pm[1].trim()}〕` : '〔配图位置〕';
     });
-    // 🔴 公式渲染：$…$ / $$…$$ → KaTeX 印刷形态（分式叠排、根号、积分号）。
+    // 公式渲染：$…$ / $$…$$ → KaTeX 印刷形态（分式叠排、根号、积分号）。
     //    原 convertFormulasInHtml 只把它降级成 "a/b" 文本，与契约"公式禁止用文本堆砌"相矛盾。
     let pdfContent = renderMathInHtml(pdfSrc);
     // 🔧 应用主题 CSS（与排版模块 TypesetModule 的 PDF 导出一致）：
@@ -9126,7 +9128,7 @@ const downloadDoc = async (doc, format) => {
       pdfContent = applyThemeToContent(pdfContent, 'sealed_exam', { isHtmlContent: true, forceImportant: true, stage: doc?.meta?.stage || doc?.stage });
     }
     
-    // 🔴 内联 KaTeX 样式与字体（data URL）：puppeteer 页面无 base URL/网络，
+    // 内联 KaTeX 样式与字体（data URL）：puppeteer 页面无 base URL/网络，
     //    不内联则分式/根号字模缺失 → 排版走形。片段 HTML 会前置注入，全文 HTML 注入 </head> 前。
     pdfContent = await withKatexStyles(pdfContent);
 
@@ -9452,7 +9454,7 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   }
   
   // 检测可能的不确定性表述
-  // 🔴 2026-09 摘除（用户定版）：原文=手工粘贴且经人工核对，"OCR 不确定性"前提不再成立；
+  // 2026-09 摘除（用户定版）：原文=手工粘贴且经人工核对，"OCR 不确定性"前提不再成立；
   //    且"可能/或许/大概/应该/也许"在题干/说明中是正常语义（应用情境、估计、阅读判断），
   //    以日常语词当"不确定性表述"扫描生成卷 → 记录顶上的 ⚠️不确定性 属误标，已移除。
   //    保留上方"学段超纲关键词"检测（与 OCR/置信度无关，仍具意义）。
@@ -9758,7 +9760,7 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   padding: 8px 12px;
   background: var(--bg-card);
 }
-/* 🔴 流程引导（宽松提示，不强制禁用） */
+/* 流程引导（宽松提示，不强制禁用） */
 .flow-guide {
   display: flex;
   align-items: center;
@@ -9824,7 +9826,7 @@ const detectConfidenceIssues = (content, selectedBooks) => {
 .attach-note { margin-top: 3px; font-size: 11px; line-height: 1.6; color: var(--text-muted); }
 .attach-item-ref { border-left-style: dashed; background: var(--bg-soft, #f2f4f7); }
 .iab-view { margin-top: 4px; border: 1px solid var(--border-light); border-radius: 8px; padding: 8px 10px; background: #fff; font-size: 12px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto; }
-/* 🔴 着色类须 :deep() 穿透：annotatedBlocksHtml 走 v-html 注入，子元素不带 scoped data-v 属性，
+/* 着色类须 :deep() 穿透：annotatedBlocksHtml 走 v-html 注入，子元素不带 scoped data-v 属性，
    纯 scoped 选择器不命中（同 2026-09 carrierCss 副本教训）——必须穿透才能给来源块上底色 */
 .iab-view :deep(.iab-top), .iab-view :deep(.iab-sub) { border-radius: 3px; padding: 0 1px; cursor: pointer; }
 .iab-view :deep(.iab-sub) { text-decoration: underline dotted rgba(0, 120, 100, 0.4); }
@@ -10362,7 +10364,7 @@ const detectConfidenceIssues = (content, selectedBooks) => {
   font-size: 13px;
 }
 
-/* 🔴 2026-09-28（资料类型正规形态·卷别提示）：范围/卷别处的高中水平提示 */
+/* 2026-09-28（资料类型正规形态·卷别提示）：范围/卷别处的高中水平提示 */
 .scope-level-hint {
   margin: 10px 2px 0;
   font-size: 12.5px;

@@ -1,14 +1,14 @@
 /**
  * MathML → LaTeX（网页 / LibreOffice 公式粘贴还原）
  * ============================================================
- * 🔴 为什么需要：Word 的 HTML 剪贴板里没有 MathML（那是独立剪贴板格式），但**浏览器网页**
+ * 为什么需要：Word 的 HTML 剪贴板里没有 MathML（那是独立剪贴板格式），但**浏览器网页**
  *    （维基等用 <math> 的站点）与 **LibreOffice Writer** 复制公式时给的都是 MathML。
  *    此前链路不认 <math>，ProseMirror 解析后只剩标签内的散字（分式塌陷、上下标错位）。
  *
- * 🔴 与 OMML 侧同源：本模块同样只做**格式还原**，产出 LaTeX 交给既有 `$…$` 通道渲染
+ * 与 OMML 侧同源：本模块同样只做**格式还原**，产出 LaTeX 交给既有 `$…$` 通道渲染
  *    （utils/mathRender.renderMathInHtml + KaTeX）——全链路只有一种公式表示。
  *
- * 🔴 解析方式：按本地名匹配（剥掉 mml:/math: 之类的任意前缀），并**优先 XML、回退 HTML**——
+ * 解析方式：按本地名匹配（剥掉 mml:/math: 之类的任意前缀），并**优先 XML、回退 HTML**——
  *    MathML 片段自带 xmlns 时 XML 可用；若片段缺声明/含 HTML 实体则 XML 会失败，
  *    此时用宽松的 HTML 解析兜底。解析失败返回 null，调用方保留原文（绝不因公式毁掉整段粘贴）。
  *
@@ -65,7 +65,7 @@ const SYMBOL_MAP = {
   '∠': '\\angle ', '⊥': '\\perp ', '∥': '\\parallel ', '△': '\\triangle ',
   '∑': '\\sum ', '∏': '\\prod ', '∫': '\\int ', '√': '\\sqrt ', '°': '^{\\circ }',
 };
-// 🔴 ⩽/⩾（U+2A7D/U+2A7E，教材印刷体不等号）必须同时加进字符类，
+// ⩽/⩾（U+2A7D/U+2A7E，教材印刷体不等号）必须同时加进字符类，
 //    否则 mapSymbols 根本不会把它送进 SYMBOL_MAP（表里有、正则不认 = 静默没映射）
 const mapSymbols = (t) => String(t).replace(/[−⋅×÷±∓≤≥⩽⩾≠≈∞→←⇒⇌∈∉∠⊥∥△∑∏∫√°\u2A7D\u2A7E\u2212\u22c5]/g, (c) => SYMBOL_MAP[c] || c);
 
@@ -103,7 +103,7 @@ const delimToLatex = (chr) => {
 };
 
 /** 由 mfenced 的 open/close/separators 生成 \left…\right（分隔符用普通字符，
- *  🔴 不用 \middle —— \middle 专用于可伸缩定界符，逗号分隔写成 \middle, 会渲染成怪异的大逗号） */
+ *  不用 \middle —— \middle 专用于可伸缩定界符，逗号分隔写成 \middle, 会渲染成怪异的大逗号） */
 const fencedLatex = (open, close, seps, parts) => {
   const lo = delimToLatex(open);
   const ro = delimToLatex(close);
@@ -243,7 +243,7 @@ export const mathmlToLatex = (input) => {
   let root = input;
   if (typeof input === 'string') root = parseMathML(input);
   if (!root) return null;
-  // 🔴 兜底校验收窄：宽松 HTML 解析会把 `<math><mfrac>` 这类**截断片段**自动补全成
+  // 兜底校验收窄：宽松 HTML 解析会把 `<math><mfrac>` 这类**截断片段**自动补全成
   //    `<mfrac></mfrac>`，从而静默产出空结构 `\frac{}{}`（比不转换更糟——用户拿到假公式）。
   //    真公式必有可见文本；无任何文本即判不可还原，返回 null 让调用方保留原文。
   if (!String(root.textContent || '').trim()) return null;

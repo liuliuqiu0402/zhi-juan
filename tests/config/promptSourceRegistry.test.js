@@ -118,22 +118,27 @@ describe('给模型文本·源登记守卫（E 表 / 常量 / inline / 跳转不
         expect(src, `${file} 内未逐字找到 ${item.id} 的 head：${item.head}`).toContain(item.head);
       }
       // ② 区间内不得有**未登记**的长中文字面量（防悄悄新增一段无主文案）
-      const [a, b] = cfg.region;
-      const start = src.indexOf(a); const end = src.indexOf(b);
-      expect(start, `区间起点锚缺失：${a}`).toBeGreaterThan(-1);
-      expect(end, `区间终点锚缺失：${b}`).toBeGreaterThan(start);
-      const regionRaw = src.slice(start, end);
-      // 🔴 先剥注释再扫：注释**不进模型**，把注释里的引文当"未登记文案"会误报（2026-10-01 实测踩过：
-      //    `// …（"答案模块根据正文生成，就不会有污染风险"…）` 被当成了文案）
-      const region = regionRaw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-      const heads = cfg.items.map((i) => i.head);
-      // 说明：此处只自动扫 ' 与 " 包裹的字面量；多行反引号段（【正文】/【答案规范】/【压缩原文·答案参考】）
-      //   由上面的 ① 逐字断言覆盖（其 head 已登记），故不重复扫描。
-      const lits = [...region.matchAll(/'([^'\\\n]{12,})'|"([^"\\\n]{12,})"/g)]
-        .map((m) => m[1] || m[2])
-        .filter((s) => /[\u4e00-\u9fa5]/.test(s));
-      const unregistered = lits.filter((s) => !heads.some((h) => s.includes(h) || h.includes(s)));
-      expect(unregistered, `答案页区间出现未登记的中文字面量：\n${unregistered.join('\n')}`).toEqual([]);
+      //    2026-10-02：支持 `regions`（同文件多区间）——把 5 段 inline（教材分析提取／整卷与分段结构分析／
+      //    题卡提取／语言风格）一并纳入扫描；原 `region`（单区间）保持兼容。
+      const regionList = cfg.regions || (cfg.region ? [cfg.region] : []);
+      const allUnregistered = [];
+      for (const [a, b] of regionList) {
+        const start = src.indexOf(a); const end = src.indexOf(b);
+        expect(start, `区间起点锚缺失：${a}`).toBeGreaterThan(-1);
+        expect(end, `区间终点锚缺失：${b}`).toBeGreaterThan(start);
+        const regionRaw = src.slice(start, end);
+        // 🔴 先剥注释再扫：注释**不进模型**，把注释里的引文当"未登记文案"会误报（2026-10-01 实测踩过：
+        //    `// …（"答案模块根据正文生成，就不会有污染风险"…）` 被当成了文案）
+        const region = regionRaw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        const heads = cfg.items.map((i) => i.head);
+        // 说明：此处只自动扫 ' 与 " 包裹的字面量；多行反引号段（【正文】/【答案规范】/【压缩原文·答案参考】）
+        //   由上面的 ① 逐字断言覆盖（其 head 已登记），故不重复扫描。
+        const lits = [...region.matchAll(/'([^'\\\n]{12,})'|"([^"\\\n]{12,})"/g)]
+          .map((m) => m[1] || m[2])
+          .filter((s) => /[\u4e00-\u9fa5]/.test(s));
+        allUnregistered.push(...lits.filter((s) => !heads.some((h) => s.includes(h) || h.includes(s))));
+      }
+      expect(allUnregistered, `已登记区间出现未登记的中文字面量：\n${allUnregistered.join('\n')}`).toEqual([]);
     }
   });
 

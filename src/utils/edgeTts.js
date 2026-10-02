@@ -5,13 +5,13 @@
  *   把 listeningScript.js 建出的 **分段脚本(storyboard)** 逐句交给 Edge 免费神经音色合成，
  *   段间停顿用"帧级静音"插入（Edge 不支持 SSML <break>，会致 websocket 断开——见下）。
  *
- * 🔴 为什么逐句 + 帧级静音，而不是一次整卷 SSML：
+ * 为什么逐句 + 帧级静音，而不是一次整卷 SSML：
  *   · msedge-tts 已无自定义 SSML 支持；且实测 Edge 收到含 <break> 的 SSML 会
  *     "Stream closed before turn.end" 断开。
  *   · 因此采用"逐句合成 + 纯 Node 拼 MP3 静音帧"：静音帧用与合成流一致的
  *     24kHz/96kbps 单声道 MPEG-2 Layer III（24ms/帧），字节级拼接即得完整听力卷。
  *
- * 🔴 调用位置：**走主进程**（window.electronAPI.edgeTtsToFile）。
+ * 调用位置：**走主进程**（window.electronAPI.edgeTtsToFile）。
  *   逐句合成 + 拼接都在主进程（Node 常驻、无渲染层跨域与 WebSocket 瓶颈）。
  *   本模块只负责：① 把 storyboard 段映射成主进程需要的 {voice,text,ratePercent,gapAfterMs}；
  *   ② 透传给 IPC；③ 无 electronAPI 时给出降级提示。
@@ -33,7 +33,7 @@ export function mapSegmentsForEdge(segments = []) {
       gapAfterMs: Number.isFinite(s.gapAfterMs) && s.gapAfterMs > 0 ? Math.round(s.gapAfterMs) : 0,
       // 段前提示音（"叮咚"）：题与题的边界、换节处——正规听力音频的必备要素
       chimeBefore: s.chimeBefore === true,
-      // 🔴 题号/角色只为**合成失败时报出"卡在第几题"**（2026-09-20）：免费通道偶发断流时，
+      // 题号/角色只为**合成失败时报出"卡在第几题"**（2026-09-20）：免费通道偶发断流时，
       //    用户需要知道改哪一句，而不是只看到一句库的英文错误。不参与合成本身。
       itemNo: s.itemNo === null || s.itemNo === undefined ? null : s.itemNo,
       role: String(s.role || ''),

@@ -80,7 +80,8 @@ describe('中文翻译提示词：契约与关键约束', () => {
   });
 
   it('user 文本为空时也不抛错（防御空粘贴）', () => {
-    expect(buildListeningTranslateUser()).toBe('以下是用户粘贴的中文听力素材（可能含排版残留或中文播音指令）。请译为英语听力稿并按契约结构化：\n\n');
+    // 2026-10-02（③啰嗦·收口）：user 段不再重复"按契约结构化"（system 导语已声明"按契约输出"、末尾另有契约标签）
+    expect(buildListeningTranslateUser()).toBe('以下是用户粘贴的中文听力素材（可能含排版残留或中文播音指令）。请译为英语听力稿：\n\n');
     expect(() => buildListeningTranslateMessages()).not.toThrow();
   });
 });

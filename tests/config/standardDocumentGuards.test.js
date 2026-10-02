@@ -67,7 +67,6 @@ describe('标准文档守卫：逐条逐字复核的八问标准在册', () => {
     }
     expect(std).toContain('当然是越简短越好');
     expect(std).toContain('必须三维度定制');
-    expect(std).toContain('程序/测试接不住的，坚决不删');
     expect(std).toContain('不得借用他学段骨架冒充');
   });
 

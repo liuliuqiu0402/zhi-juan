@@ -492,12 +492,12 @@ import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js'; // 作
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { stripAiCodeFence, normalizeLeadingMarkers, normalizeMathCircleBlanks, markSoloBlankLines, wrapBareBlankRuns, markExamBigCategory, normalizeExamHeadOrder } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离 + 行首"项目符号+序号"归一 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（与 GenerateModule 共用，防同构副本各自演化）
-// 🔴 公式字体内联：PDF 走 puppeteer page.setContent（无 base URL/无网络），KaTeX 相对字体
+// 公式字体内联：PDF 走 puppeteer page.setContent（无 base URL/无网络），KaTeX 相对字体
 //    解析不到 → 分式/根号字模缺失走形；导出前把自带字形的样式注入 HTML（无公式时自动短路）
 import { withKatexStyles } from '../utils/mathRender.js';
-// 🔴 读剪贴板富文本 + 公式还原的**唯一入口**（按钮式"粘贴/导入"绕不过编辑器粘贴钩子，必须自带还原）
+// 读剪贴板富文本 + 公式还原的**唯一入口**（按钮式"粘贴/导入"绕不过编辑器粘贴钩子，必须自带还原）
 import { readClipboardRich } from '../utils/pastedMath.js';
-// 🔴 编辑器公式装饰层会把 $…$ 源码换成渲染 widget，读实时 DOM 前必须还原回源码，
+// 编辑器公式装饰层会把 $…$ 源码换成渲染 widget，读实时 DOM 前必须还原回源码，
 //    否则 Word/预览链路拿到的是 widget 的 KaTeX 片段而不是公式（幂等：无 widget 时原样返回）
 import { restoreMathPreviewSource } from '../utils/mathPreview.js';
 import storage from '../utils/storage';
@@ -961,7 +961,7 @@ const clearContent = async () => {
 const RICH_HTML_RE = /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i;
 
 const pasteFromClipboard = async () => {
-  // 🔴 统一走 readClipboardRich：读剪贴板**富文本**版本，并把 Word 的 OMML/MathML 还原成 $…$。
+  // 统一走 readClipboardRich：读剪贴板**富文本**版本，并把 Word 的 OMML/MathML 还原成 $…$。
   //    此处是把内容**程序化注入** rawHtmlContent，**不经过编辑器 transformPastedHTML 钩子**，
   //    所以公式还原必须在这个入口自己做——否则从 Word 复制来的公式粘进来只剩散字（用户实证 2026-09）。
   const clip = await readClipboardRich();
@@ -992,7 +992,7 @@ const pasteFromClipboard = async () => {
 //    浏览器默认会剥离 HTML 只保留纯文本。这里拦截 paste 事件，
 //    优先读取剪贴板的 HTML 版本，有富文本则切换编辑器模式。
 const onTextareaPaste = async (e) => {
-  // 🔴 同样必须自带公式还原：拿到 HTML 后是**直接注入**状态，没有编辑器钩子替它做
+  // 同样必须自带公式还原：拿到 HTML 后是**直接注入**状态，没有编辑器钩子替它做
   const clip = await readClipboardRich();
   if (clip?.html && RICH_HTML_RE.test(clip.html)) {
     e.preventDefault();
@@ -1204,7 +1204,7 @@ const exportDocument = async () => {
   // 🔧 清洗 AI 对话残留和 markdown 代码块标记（第二道防线）
   previewContentForExport = sanitizeExportContent(previewContentForExport);
   
-  // 🔴 公式字体内联（HTML / PDF / 打印三条导出路径共用）：含公式时才注入，普通文档零开销。
+  // 公式字体内联（HTML / PDF / 打印三条导出路径共用）：含公式时才注入，普通文档零开销。
   //    docx 分支走编辑器实时 DOM（sourceHtml），不受此处影响——Word 真公式属 P5。
   previewContentForExport = await withKatexStyles(previewContentForExport);
   
@@ -1225,11 +1225,11 @@ const exportDocument = async () => {
       // 🔧 源优先级：liveDom 最新实时内容 > 导出缓存 pristine（每次导出前从 liveDom 刷新，与预览同源）
       //    > rawHtmlContent（仅加载时快照，编辑器内"列表转文本"新增的 margin-left 不会写回，会造成导出丢层级）。
       //    必须让 pristine 先于 rawHtmlContent——否则剥离序号等"仅存于实时编辑"的样式在导出时丢失。
-      // 🔴 读实时 DOM 前还原公式源码：编辑器装饰层把 $…$ 换成了渲染 widget，
+      // 读实时 DOM 前还原公式源码：编辑器装饰层把 $…$ 换成了渲染 widget，
       //    直接取 innerHTML 会拿到 KaTeX 片段而非公式（Word 导出会变成乱码文本）
       const liveRestored = restoreMathPreviewSource(liveDom?.innerHTML || '');
       let sourceHtml = liveRestored || pristineHtmlForExport.value || rawHtmlContent.value;
-      // 🔴 答案区兜底合并：编辑器（Tiptap）schema 不保留 answer-section 容器，liveDom 会整体丢掉答案区
+      // 答案区兜底合并：编辑器（Tiptap）schema 不保留 answer-section 容器，liveDom 会整体丢掉答案区
       //    （生成时有答案页、导出却消失的根因）——导出时从原始生成内容提取 answer-section 补回末尾，
       //    正文以编辑器实时内容为准（含用户编辑）、答案区以生成源为准
       try {

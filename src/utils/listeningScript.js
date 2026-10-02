@@ -7,7 +7,7 @@
  * 为什么分两种：**角色标记（M:/W:）绝不能进 TTS 输入**——普通引擎会把 "M:" 念出来。
  *   故 SSML 用 <voice> 表达角色，朗读稿用中文角色名表达角色，两者互不串味。
  *
- * 🔴 已落实的口径（2026-09-16 用户定版）：
+ * 已落实的口径（2026-09-16 用户定版）：
  *   · 学段语速/停顿/口音/音色/遍数 → 全部取自 config/listeningAudioProfile.js（矩阵默认 + 可覆盖）
  *   · 对话按角色分音色且**逐句保序**（每句一个 <voice>，避免"按角色分组"打乱对话顺序）
  *   · 高中刻意不压语速（保连读/弱读自然语流），中文导语不套用英文慢速
@@ -37,7 +37,7 @@ import { isCjkNoise, cnNum } from './listeningExtract.js';
 
 /**
  * 音色标签：'en-US-ChristopherNeural' → '男声 1 · Christopher'
- * 🔴 为什么需要（2026-09-19 用户问"解析的听力稿中会多音色配角色吗？要不然用户怎么能立即知道
+ * 为什么需要（2026-09-19 用户问"解析的听力稿中会多音色配角色吗？要不然用户怎么能立即知道
  *   是否有多角色呢？"）：朗读稿与界面都要能**一眼看出每个角色用了哪条音色**，
  *   编号与弹窗下拉、音色试听文件里的报号完全一致，便于用户对着改。
  */
@@ -85,7 +85,7 @@ export function normalizeForSpeech(text = '') {
     const m = out.match(new RegExp(r.re.source, flags));
     if (m) risks.push({ code: r.code, note: r.note, samples: [...new Set(m)].slice(0, 5) });
   }
-  // 🔴 填空占位**直接删除、不朗读**（2026-09-20 用户实测后定）：
+  // 填空占位**直接删除、不朗读**（2026-09-20 用户实测后定）：
   //    下划线会被 TTS 念成 "underscore"（音频与卷面内容对不上），连成长串后还极易让免费通道中途断流
   //    （同一次实测的"逐句合成中途 Stream closed"）。它是本题材里**唯一没有另一种合法读法**的项，
   //    故可以安全地自动删除——删除后句子读起来自然（不念任何错词）。
@@ -156,7 +156,7 @@ export function pickAccentForItem(policy = 'us', index = 0) {
 /**
  * 播音指令标号归一（2026-09-20 用户实测："还是读的第一节，不是一、"）：
  * 「第X节/第X大题」开头的指令 → 改成卷面标号「X、」。
- * 🔴 为什么：卷面大题题头是「一、听录音，选出…」，而录音稿常写成播音腔的「第一节/第一大题」——
+ * 为什么：卷面大题题头是「一、听录音，选出…」，而录音稿常写成播音腔的「第一节/第一大题」——
  *   学生看着卷面「一、」、听到的却是「第一节」，标号对不上。用户定版：**音频直接读卷面标号「一、」**。
  *   · 只归一并**保留其余题干原样**（「第一节，听下面5段对话」→「一、听下面5段对话」）；
  *   · 「第X部分」不在此列（那是部分标题，由固定播报承担，见 LISTENING_PART_ANNOUNCEMENT）；
@@ -202,7 +202,7 @@ export function digitsToEnglishWords(text = '') {
 /**
  * 中英混排标题 → 分段（2026-09-20 用户实测："Unit 1 读成了 unit 1 应读 unit one，
  * 而且读出来不是英文的感觉"）。
- * 🔴 为什么：标题（「六年级英语上册Unit 1 Try your best测试卷」）若整段交给中文音色，
+ * 为什么：标题（「六年级英语上册Unit 1 Try your best测试卷」）若整段交给中文音色，
  *   英文部分会被中文音色以中文腔念（"unit 一"、不像英文）；按语种切段后——
  *   中文段给中文播报音色、英文段给英文旁白音色，且英文段内数字转英文词（Unit 1 → Unit One）。
  * @returns {Array<{text:string, lang:'zh'|'en'}>}
@@ -237,7 +237,7 @@ export const isLongMaterial = (item) => {
 /**
  * 该条材料是否"一段材料对应多题"——决定**两件事**：
  *   ① 是否播报"听第X段材料，回答第X～Y小题"；② 作答留白走"各小题 5 秒"档还是"每题 10 秒"档。
- * 🔴 判据优先级（2026-09-19 复核修正）：
+ * 判据优先级（2026-09-19 复核修正）：
  *   1) **源文本写明的题号范围（权威）**——真题原文就是靠"听第6段材料，回答第6至第10题"这一行
  *      宣告"这段材料对多题"的；范围跨 ≥2 题即成立。原实现只按篇幅判定，
  *      导致"源文本已给范围、但材料本身词数不多"时**把范围播报整条丢掉**（正是"没有题号提示"的成因）。
@@ -283,7 +283,7 @@ function cleanTitleForAnnounce(title = '') {
 
 /**
  * 试卷标题播报语（独立成段，放在全卷最前）。
- * 🔴 2026-09-19 用户实测稿定版：录音顺序为「试卷标题 → 第一部分 听力部分 → 大题指令 → 叮咚 → Number 1 → 材料…」，
+ * 2026-09-19 用户实测稿定版：录音顺序为「试卷标题 → 第一部分 听力部分 → 大题指令 → 叮咚 → Number 1 → 材料…」，
  *   故标题**独立成段**、不再像早先那样并进开场白（"标题，听力考试现在开始。"）。
  */
 export function buildTitleAnnouncement(title = '') {
@@ -329,7 +329,7 @@ export function buildListeningStoryboard({
   partTitle = '',
   voicePoolInput = null,
   narratorVoice = '',
-  // 🔴 中英混合标题的"同一人通读"音色（多语言音色）；留空＝用 params.titleMixedVoice；
+  // 中英混合标题的"同一人通读"音色（多语言音色）；留空＝用 params.titleMixedVoice；
   //    传 'split' 则退回"按语种切段换声"的旧行为
   titleMixedVoice = '',
   keepSectionLabel = false,
@@ -362,14 +362,14 @@ export function buildListeningStoryboard({
   };
 
   // ── 开场序列（中文播报）─────────────────────────────────────────
-  // 🔴 2026-09-19 用户实测稿定版的顺序：
+  // 2026-09-19 用户实测稿定版的顺序：
   //   ① 试卷标题（「六年级英语上册Unit 1 Try your best测试卷」）
   //   ② 试音三件套（开＝「下面是听力试音时间：」+ 一男一女试音对话 +「听力试音到此结束，听力考试现在开始。」；
   //      关＝单句开场白「听力考试现在开始。」）
   //   ③ 部分标题（「第一部分 听力部分。」）
   //   之后才进入各大题指令 → 叮咚 → 题号 → 材料。
   //   ① 与 ③ 都是用户明确要求读出的；①的标题净化沿用 cleanTitleForAnnounce（去时间戳）。
-  // 🔴 2026-09-20 标题读法**二次定版**（用户实测："英文确实是英文音色了，但是中文为啥要用英文的音色读呢？
+  // 2026-09-20 标题读法**二次定版**（用户实测："英文确实是英文音色了，但是中文为啥要用英文的音色读呢？
   //   就跟外国人说中文蹩脚那样的听觉" → 单一多语言音色方案被否）：
   //   免费 Edge 通道没有"中英都母语"的音色，故改为**双语都地道**优先：
   //   · 'native'（默认）＝按语种分读 + **同性别匹配**——中文段用「中文播报」音色，
@@ -513,7 +513,7 @@ export function buildListeningStoryboard({
   }
 
   // 节序列：首节指令来自 intro（若有），其余来自各条材料的 instruction（解析端已保证"节指令挂在该节首条"）
-  // 🔴 2026-09-20 标号归一：录音稿常写"第一节/第一大题"，音频须读卷面标号"一、"（见 normalizeSectionLabel）
+  // 2026-09-20 标号归一：录音稿常写"第一节/第一大题"，音频须读卷面标号"一、"（见 normalizeSectionLabel）
   const sectionInstrAt = new Map();
   if (intro && String(intro).trim()) sectionInstrAt.set(0, normalizeSectionLabel(intro, keepSectionLabel));
   items.forEach((it, i) => {
@@ -522,7 +522,7 @@ export function buildListeningStoryboard({
     }
   });
 
-  // 🔴 同卷同类材料播报者一致（2026-09-19 用户实测根治）：实测第二节独白标了 W:（女声）、
+  // 同卷同类材料播报者一致（2026-09-19 用户实测根治）：实测第二节独白标了 W:（女声）、
   //    第三节短文未标注 → 落到"旁白"（男声），同一份卷中途换人，学生会以为换了说话人。
   //    处置：先扫出"单一说话人的长材料（独白/短文）"里第一条已标注的播报者，未标注的同类的材料沿用同一条音色。
   let soloLongRole = '';
@@ -537,7 +537,7 @@ export function buildListeningStoryboard({
   let prevItemLastSeg = -1;
   /** 逐题的音色分配（角色 → 音色）——朗读稿据此逐题列出"多音色配角色" */
   const voiceCast = [];
-  /** 🔴 被跳过的"无可朗读内容"行（只有标点/符号/下划线占位）——必须如实登记，不能静默丢内容 */
+  /** 被跳过的"无可朗读内容"行（只有标点/符号/下划线占位）——必须如实登记，不能静默丢内容 */
   const unreadable = [];
   items.forEach((item, i) => {
     const accent = pickAccentForItem(params.accent, i);
@@ -553,7 +553,7 @@ export function buildListeningStoryboard({
     /** 一段材料对应多题（有题号范围＝权威；否则按篇幅兜底）→ 播题号范围 + 走"各小题 5 秒"作答档 */
     const multiQ = isMultiQuestion(item);
 
-    // 🔴 换节留白（2026-09-19）：原 betweenSectionsMs **配了却从未被使用**，节与节之间毫无分隔。
+    // 换节留白（2026-09-19）：原 betweenSectionsMs **配了却从未被使用**，节与节之间毫无分隔。
     //    换节处除了下一节指令前的提示音，再给上一节末尾补一段绝对静默。
     if (isSectionStart && prevItemLastSeg >= 0) {
       segments[prevItemLastSeg].gapAfterMs += params.pauses.betweenSectionsMs;
@@ -580,11 +580,11 @@ export function buildListeningStoryboard({
       });
     }
 
-    // 🔴 本条"起条段"的落点：大题指令已在上方单独处理（它属大题边界，不属小题），
+    // 本条"起条段"的落点：大题指令已在上方单独处理（它属大题边界，不属小题），
     //    故此处起算的是**题号播报 / 材料**的起点——叮咚最终落在它的第一个发音段上。
     const itemFirstSeg = segments.length;
 
-    // 🔴 题号播报（2026-09-19 复核后按国标定稿）：
+    // 题号播报（2026-09-19 复核后按国标定稿）：
     //      · 一段材料对多题（独白/短文）→ 报「听第N段材料，回答第X～Y小题」（国标原文写法）。
     //        两项用顿号、三项及以上用「至」——**照真题书面写法**，不用「～」符号（TTS 读不稳）。
     //        拿不到题号范围就**整条不报**（宁可不报，也不报错：原实现按条数顺编，实测把第三节
@@ -619,7 +619,7 @@ export function buildListeningStoryboard({
       });
     }
 
-    // 🔴 说话人 → 音色（2026-09-19 用户追问"多角色怎么办"后定稿）：
+    // 说话人 → 音色（2026-09-19 用户追问"多角色怎么办"后定稿）：
     //    · 标了 M:/W: → 男主/女主音色；
     //    · 未标注/旁白 N → 男主音色（与男声同源，避免全书多出第三个"播音腔"）；
     //    · **未知但可辨识的标签**（A/B/C、S1/S2、说话人1…）→ 按首次出现顺序从**音色池**里取
@@ -647,7 +647,7 @@ export function buildListeningStoryboard({
       return roleVoice.get(role);
     };
 
-    // 🔴 遍间轮读音色（2026-09-20 用户实测裁定，见 LISTENING_PASS_VOICE_ROTATION）：
+    // 遍间轮读音色（2026-09-20 用户实测裁定，见 LISTENING_PASS_VOICE_ROTATION）：
     //    重复 ≥2 遍的**单说话人**材料按「旁白 ↔ 对侧音色」交替——首遍用旁白音色（未指定旁白＝男主），
     //    两遍＝旁白、对侧；三遍＝旁白、对侧、旁白。既保证"遍与遍不同声"（用户裁定），
     //    又保住"旁白音色可配"（2026-09-20 开放配置：独白主体由旁白音色领读）；
@@ -673,10 +673,10 @@ export function buildListeningStoryboard({
         const role = String(ln.role || 'N').toUpperCase();
         const { text, risks: r } = normalizeForSpeech(ln.text);
         risks.push(...r.map((x) => ({ ...x, where: `第${item.no}题` })));
-        // 🔴 卷面/答案残留守卫：英语听力材料不可能是中文——非导语段若以中文为主直接跳过，
+        // 卷面/答案残留守卫：英语听力材料不可能是中文——非导语段若以中文为主直接跳过，
         //   不读"一、听录音…/评分/范文"这类噪音（源节截取之外的兜底，见 listeningExtract）。
         if (isCjkNoise(text)) return;
-        // 🔴 **无可朗读内容**的段一律不进 TTS（2026-09-20 用户实测"逐句合成中断：No audio data received"）：
+        // **无可朗读内容**的段一律不进 TTS（2026-09-20 用户实测"逐句合成中断：No audio data received"）：
         //    该错误来自 msedge-tts——音频流写完 **0 字节**即判失败，而"服务端合成不出任何声音"最常见的成因
         //    就是这段文字**没有任何可发音字符**（只剩标点/符号/下划线占位、或删占位后成了空串/逗号）。
         //    这类段既读不出声、又会把整卷合成打断，故在此直接跳过并登记（不是静默丢内容）。
@@ -694,7 +694,7 @@ export function buildListeningStoryboard({
         // 记录"角色 → 音色"（同一角色只记一次；遍间轮读天然会记 2 条）
         const castKey = `${speakRole}\u0000${speakVoice}`;
         if (!castSeen.has(castKey)) { castSeen.add(castKey); castEntries.push({ role: speakRole, voice: speakVoice }); }
-        // 🔴 长段切句（2026-09-20）：一段＝一行的老做法，遇到补全短文整段/长独白时会让免费 Edge 通道
+        // 长段切句（2026-09-20）：一段＝一行的老做法，遇到补全短文整段/长独白时会让免费 Edge 通道
         //    中途断流（实测"Stream closed before the synthesis completed"）。切点取句末标点，
         //    段后停留沿用句间档，故**听感连续、只是请求变短**。
         const chunks = splitLongForSpeech(text);
@@ -720,12 +720,12 @@ export function buildListeningStoryboard({
       });
     }
     voiceCast.push({ itemNo: item.no, entries: castEntries });
-    // 🔴 多角色但音色不够：如实告警（用户据此决定是否去配"男声副/女声副"）
+    // 多角色但音色不够：如实告警（用户据此决定是否去配"男声副/女声副"）
     if (castEntries.length > effectivePool.length) {
       warnings.push(`第 ${item.no} 题有 ${castEntries.length} 个角色（${castEntries.map((c) => roleLabel(c.role)).join('、')}），但只配了 ${effectivePool.length} 个音色 —— 多出的角色会沿用已有音色；如需一人一声，请在弹窗里补配"男声副/女声副"`);
     }
     // 作答留白：挂到本题最后一段。以指令为准（声明了作答秒数就用它），否则按材料形态分档。
-    // 🔴 需**动笔写词**的题（补全短文/填空）单独一档：5 秒档是给"听独白做判断"的，
+    // 需**动笔写词**的题（补全短文/填空）单独一档：5 秒档是给"听独白做判断"的，
     //    写 5 个词根本来不及（用户实测指出）——判据取本节指令里的"补全/填空/每空"。
     const declaredAnswerMs = Number(item.answerSec) > 0 ? item.answerSec * 1000 : 0;
     const isFillIn = /补全|填空|填词|每空/.test(sectionInstrAt.get(i) || '');
@@ -735,7 +735,7 @@ export function buildListeningStoryboard({
         : (multiQ ? params.pauses.longMaterialAnswerGapMs : params.answerGapMs));
     const last = segments[segments.length - 1];
     if (last && last.itemNo === item.no) last.gapAfterMs = answerGap;
-    // 🔴 提示音（叮咚）＝"一小题结束"的边界音（2026-09-19 用户实测稿定版：
+    // 提示音（叮咚）＝"一小题结束"的边界音（2026-09-19 用户实测稿定版：
     //    "一小题结束 叮咚，遍与遍之间不叮咚"）：
     //    落在本条的**第一个发音段**上——有题号播报就在题号之前（「…→叮咚→Number 2→材料」），
     //    没有题号就在材料之前；同一材料的两遍之间不响；大题指令属大题边界、不在其列。
@@ -759,14 +759,14 @@ export function buildListeningStoryboard({
     });
   }
 
-  // 🔴 无可朗读内容被跳过：必须显式登记——这些行原本会进 TTS，且会让 msedge-tts 报
+  // 无可朗读内容被跳过：必须显式登记——这些行原本会进 TTS，且会让 msedge-tts 报
   //    "No audio data received"（音频流 0 字节）把整卷合成打断（2026-09-20 用户实测）。
   if (unreadable.length) {
     const nos = [...new Set(unreadable.map((u) => u.no))];
     warnings.push(`第 ${nos.join('、')} 题有 ${unreadable.length} 行**没有任何可朗读内容**（只有符号/下划线占位），已从音频中跳过——否则服务端合成不出声音、还会中断整卷。请回源材料把这些行补成完整内容。`);
   }
 
-  // 🔴 以指令为准：分节指令声明的遍数会覆盖学段默认（真题第一节与第二节遍数常不同，如高考
+  // 以指令为准：分节指令声明的遍数会覆盖学段默认（真题第一节与第二节遍数常不同，如高考
   //    第一节仅读一遍、第二节读两遍）。偏离必须显式登记——否则"音频遍数与播报不符"无人察觉。
   const deviated = items.filter((it) => Number.isFinite(it.repeat) && it.repeat > 0 && it.repeat !== params.repeat);
   if (deviated.length) {
@@ -880,7 +880,7 @@ export function buildListeningScriptText(input = {}) {
   // "角色"只数真正的说话人（N＝旁白/独白，不是角色）；若无标注角色则按 1 个（旁白）计
   const roleSet = new Set(voiceCast.flatMap((c) => (c.entries || []).map((e) => e.role)).filter((r) => r !== 'N'));
   const speakerCount = roleSet.size || (voiceCast.length ? 1 : 0);
-  // 🔴 说话人 ≠ 音色（2026-09-20 用户实测追问："说话人 1 个 · 音色 2 条，这是啥意思，一个人两个音色？"）：
+  // 说话人 ≠ 音色（2026-09-20 用户实测追问："说话人 1 个 · 音色 2 条，这是啥意思，一个人两个音色？"）：
   //    两个数字数的是**不同的东西**——说话人＝材料里有几个角色；音色＝实际听到几条声线。
   //    小学遍间换声开启时，同一段单说话人材料两遍就分男女两条声线，故"1 个说话人 + 2 条音色"是常态。
   //    为避免误读，这里把**材料实际用到的音色**逐条列出来，并说明多出的一条从哪来。
@@ -996,7 +996,7 @@ export function buildListeningScriptText(input = {}) {
     for (const r of risks) out.push(`· ${r.where}：${r.note} —— ${r.samples.join('、')}`);
   }
 
-  // 🔴 被跳过的"无可朗读内容"行**必须写进朗读稿**：真人录音照读时原稿里这些行也在，
+  // 被跳过的"无可朗读内容"行**必须写进朗读稿**：真人录音照读时原稿里这些行也在，
   //    不说明的话录音方要么把占位念出来、要么不知道这里为什么空着（2026-09-20 新增）
   const skipNotes = (warnings || []).filter((w) => w.includes('没有任何可朗读内容'));
   if (skipNotes.length) {

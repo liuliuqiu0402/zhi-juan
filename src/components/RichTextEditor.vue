@@ -336,7 +336,7 @@
         >
           {{ orderedFormSample }}
         </button>
-        <!-- 🔴 编号形式单一事实源：src/utils/listNumberStyle.js 的 NUMBER_FORMS
+        <!-- 编号形式单一事实源：src/utils/listNumberStyle.js 的 NUMBER_FORMS
              （1. / a. / A. / i. / I. / （1） / 一、 / ① —— Word、PDF、编辑器三处同一份表） -->
         <select
           v-model="orderedForm"
@@ -660,7 +660,7 @@ import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { normalizeWhitespaceCarriers, normalizeLeadingMarkers, normalizeMathCircleBlanks, ensureCarrierContent, wrapBareBlankRuns } from '../utils/contentCleaner.js'; // 全局归一：纯空白装饰标记→填空横线 + 行首"项目符号+序号"剥离 + 算式 ○→数学填空圈 + 空载体兜底填充（装载/粘贴统一，旧内容回改） + 裸书写空（全角/em 空格）→填空横线
 import { convertPastedMathInHtml } from '../utils/pastedMath.js'; // 粘贴公式还原：Word OMML / 网页 MathML → $…$ LaTeX（交给 KaTeX 出印刷形态）
 import { createMathPreviewExtension, restoreMathPreviewSource } from '../utils/mathPreview.js'; // 编辑器内公式实时渲染（装饰层；只改视图不改文档）
-// 🔴 有序列表编号形式的唯一事实源（1/a/A/i/I/（1）/一、/①）：
+// 有序列表编号形式的唯一事实源（1/a/A/i/I/（1）/一、/①）：
 //    NUMBER_FORMS 供工具栏下拉；orderedPrefix 供"转文本"；CSS 由 ensureListNumberStyleInjected 注入。
 //    Word 导出（docxBuilder）与 HTML/PDF 导出（themeConfig）共用同一份表——四处口径一致。
 import { NUMBER_FORMS, orderedPrefix, isOrderedNumberStyle, ensureListNumberStyleInjected } from '../utils/listNumberStyle.js';
@@ -742,7 +742,7 @@ const EmphasisDot = Mark.create({
 
 // ⭐ 田字格：与无样式模式完全一致——inline-block+relative+absolute居中（经无样式模式验证的最稳定方案）
 // 🔧 田字格/米字格仅语文低段存在 → 定档 GRID_CELL 各载体 primary（曾 1.8em 随字号漂移）
-// 🔴 2026-09-29（规格库为源）：改为**按载体取值**——原恒取 `tian-zi-ge` 的宽高，使规格库 `mi-zi-ge`
+// 2026-09-29（规格库为源）：改为**按载体取值**——原恒取 `tian-zi-ge` 的宽高，使规格库 `mi-zi-ge`
 //    独立字段被旁路（米字格被迫跟随田字格尺寸）。
 const gridCellMm = (cls = 'tian-zi-ge') => (getMergedSpec().GRID_CELL?.[cls]?.primary?.widthMm) || 12;
 const TianZiGe = Node.create({
@@ -1227,7 +1227,7 @@ const layoutVars = computed(() => {
   } catch { return {}; }
 });
 
-// 🔴 有序列表编号形式（1. / a. / A. / i. / I. / （1） / 一、 / ①）：
+// 有序列表编号形式（1. / a. / A. / i. / I. / （1） / 一、 / ①）：
 //    形式表与"前缀生成/CSS"全部来自唯一事实源 utils/listNumberStyle.js——
 //    编辑器显示、HTML/PDF 导出（themeConfig 内联 CSS）、Word 导出（docxBuilder 字面前缀）三处同一份，
 //    新增一种形式只改那一处。定义在 useEditor 之前：onSelectionUpdate 回调会引用它，避免 TDZ 报错
@@ -1240,7 +1240,7 @@ const orderedFormSample = computed(() =>
 // 🧩 导图节点实例（与 pageBreak / DivWrapper / DrawArea 同一手法注册进 schema）
 const DiagramFigure = createDiagramFigureNode();
 
-// 🔴 编号形式 CSS 注入编辑器文档（幂等，同 id 只注一次）：原生 1/a/A/i/I 浏览器本就能渲染，
+// 编号形式 CSS 注入编辑器文档（幂等，同 id 只注一次）：原生 1/a/A/i/I 浏览器本就能渲染，
 //    而（1）/一、/① 没有原生 type 可依，必须靠 @counter-style —— 否则编辑器里会退化成阿拉伯数字，
 //    出现"编辑器显示 1.、Word 导出却是（1）"的两套口径。样式内容与导出侧同源（listNumberStyle）。
 ensureListNumberStyleInjected(typeof document !== 'undefined' ? document : null);
@@ -1278,7 +1278,7 @@ const editor = useEditor({
     TianZiGe,
     MiZiGe,
     PreserveSpan,
-    // 🔴 公式实时渲染（装饰层）：只改视图、不改文档 —— 文档里仍是 $…$ 源码，
+    // 公式实时渲染（装饰层）：只改视图、不改文档 —— 文档里仍是 $…$ 源码，
     //    故 rawText/清洗/docx/PDF/预览等下游链路不受影响
     createMathPreviewExtension(),
     CustomTable.configure({ resizable: true }),
@@ -1315,7 +1315,7 @@ const editor = useEditor({
     }, 150);
   },
   onSelectionUpdate: ({ editor }) => {
-    // 🔴 编号形式联动：光标进入某个编号形式的列表时，形式下拉自动同步（含 1/a/A/i/I/（1）/一、/①）
+    // 编号形式联动：光标进入某个编号形式的列表时，形式下拉自动同步（含 1/a/A/i/I/（1）/一、/①）
     const olType = editor.getAttributes('orderedList').type;
     if (olType && isOrderedNumberStyle(olType)) orderedForm.value = olType;
 
@@ -1381,7 +1381,7 @@ const editor = useEditor({
     // 🔧 粘贴 HTML 预处理：拦截所有 pasted/dropped HTML，在 ProseMirror 解析前转换 ruby 标签
     transformPastedHTML(html) {
       if (!html) return html;
-      // 🔴 公式还原**必须最先做**：Word 的 OMML 藏在 MSO 条件注释里（<!--[if gte mso 9]>…<![endif]-->），
+      // 公式还原**必须最先做**：Word 的 OMML 藏在 MSO 条件注释里（<!--[if gte mso 9]>…<![endif]-->），
       //    一旦被后续任一清洗步骤或 DOM 解析动过就再也找不回（注释被丢、标签名被小写化）。
       //    产出统一为 $…$ LaTeX，与生成端公式同源，由 mathRender 用 KaTeX 出印刷形态。
       const withMath = convertPastedMathInHtml(html);
@@ -1744,9 +1744,9 @@ const shuffleMatchRight = () => {
 //   · 输出：每组 → 一个 div.match-question（左列保序、右列打乱、**去掉分隔位**）
 //   · 不可切分行（题干等）原样不动 → 可整题连题干一起框选
 //   · 走编辑器事务（可撤销）；右列打乱只换顺序、不判断答案（对错人工肉眼核对）
-//   🔴 刻意**不做**关键词自动识别（"连一连"等词判据属指向性诱导），只做用户显式触发的形态转换
+//   刻意**不做**关键词自动识别（"连一连"等词判据属指向性诱导），只做用户显式触发的形态转换
 //
-// 🔴 分隔位形态**必须兼容模型的多副样子**（实测 2026-09-30）：模型既不保证用 <u class="blank-N">，
+// 分隔位形态**必须兼容模型的多副样子**（实测 2026-09-30）：模型既不保证用 <u class="blank-N">，
 //   也不保证把分隔位单独放在一个节点里。已覆盖的分隔位形态：
 //   ① `blank-N` 标记（<u>/<span> 承载，class 可能整体丢失 → 退化为裸 <u>）
 //   ② 带下划线的纯空白（class 丢失时的兜底）
@@ -1860,7 +1860,7 @@ const normalizeMatchSelection = () => {
     return;
   }
   // 连续可切分行成组（≥2 行成题）；不可切分行断开分组（题干等原样保留）
-  // 🔴 游标必须**跨段**持有：真实连线题每行各成一段（也允许同段用 <br> 分行），
+  // 游标必须**跨段**持有：真实连线题每行各成一段（也允许同段用 <br> 分行），
   //    若按段重置，则每段只攒到 1 行 → 永远不满足"≥2 行成题"（已实测踩坑）。
   const groups = [];
   let seenLines = 0;
@@ -2395,7 +2395,7 @@ const normalizeDoubleNumberedLists = (html) => {
 let pendingContent = props.modelValue || null;
 
 /**
- * 🔴 HTML 载入编辑器的**唯一预处理链**（`trySetContent` 与对外的 `setContent` 共用）。
+ * HTML 载入编辑器的**唯一预处理链**（`trySetContent` 与对外的 `setContent` 共用）。
  *
  * 此前只有 `transformPastedHTML`（Ctrl+V）做了公式还原，载入链漏了 —— 于是任何**程序化注入**
  * （父组件 v-model 赋 HTML / 调 setContent(html)）都会把 `<m:oMath>` 当未知标签剥掉，
@@ -2479,7 +2479,7 @@ const forceTianZiGeStyles = () => {
       // 🔑 从内层文字读取实际计算字号，确保字号变化时格子等比缩放
       const actualFontSize = getComputedStyle(innerSpan).fontSize;
       s.setProperty('font-size', actualFontSize, 'important');
-      // 🔴 2026-09-29（规格库为源）：按**本格实际载体**取尺寸（田字格/米字格各读自己的 GRID_CELL 字段）
+      // 2026-09-29（规格库为源）：按**本格实际载体**取尺寸（田字格/米字格各读自己的 GRID_CELL 字段）
       const cellCls = outer.classList.contains('mi-zi-ge') ? 'mi-zi-ge' : 'tian-zi-ge';
       const cellMm = gridCellMm(cellCls);
       s.setProperty('width', `${cellMm}mm`, 'important');
@@ -2591,7 +2591,7 @@ watch(() => props.customCSS, (css, oldCss) => {
 onBeforeUnmount(() => {
   // 移除缩放事件监听
   zoomWrapRef.value?.removeEventListener('wheel', onEditorWheel, { passive: false });
-  // 🔴 先撤防抖定时器再销毁编辑器：onUpdate 的 150ms 防抖回调（forceTianZiGeStyles 等）
+  // 先撤防抖定时器再销毁编辑器：onUpdate 的 150ms 防抖回调（forceTianZiGeStyles 等）
   //    若在 destroy 之后触发，会访问已失效的 view.dom 抛 "editor view is not available"
   clearTimeout(updateDebounceTimer);
   editor.value?.destroy();
@@ -2609,7 +2609,7 @@ defineExpose({
   getHTML: () => editor.value?.getHTML() || '',
   // 🔧 导出专用：组件内部直接解包 editor（绕开父组件对 expose 中 ShallowRef 的解包不确定性），
   //    返回编辑器实时 DOM 的 HTML（td 含 p、用户删除的内容已消失）
-  // 🔴 公式装饰层会把源码从实时 DOM 里换掉（视图渲染 widget）→ 对外给出 HTML 前必须还原成 $…$，
+  // 公式装饰层会把源码从实时 DOM 里换掉（视图渲染 widget）→ 对外给出 HTML 前必须还原成 $…$，
   //    否则读实时 DOM 的导出路径会拿到 widget 的 KaTeX 片段而非公式源码。
   getDomHTML: () => restoreMathPreviewSource(editor.value?.view?.dom?.innerHTML || ''),
   getText: () => editor.value?.getText() || '',
@@ -2634,7 +2634,7 @@ defineExpose({
       }
     });
   },
-  // 🔴 与 trySetContent 同一条预处理链（含公式还原），防止对外入口再漏一步
+  // 与 trySetContent 同一条预处理链（含公式还原），防止对外入口再漏一步
   setContent: (html) => { editor.value?.commands.setContent(prepareHtmlForLoad(html), false); },
 });
 </script>

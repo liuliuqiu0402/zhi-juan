@@ -2,7 +2,7 @@
   <!-- 听力工作台（2026-09-20 抽出为公共组件）：两种形态共用同一份实现
        · variant="modal"（默认）＝生成页从「🎧 听力稿」记录入口打开的弹窗；
        · variant="page"        ＝独立功能页（左侧导航「工具 → 🎧 听力配音」）常驻面板，不用弹窗。
-       🔴 Teleport 到 body：弹窗必须脱离缩放容器（祖先 transform:scale 会让 fixed 定位溢出/裁切）；
+       Teleport 到 body：弹窗必须脱离缩放容器（祖先 transform:scale 会让 fixed 定位溢出/裁切）；
           page 形态用 :disabled 就地渲染，免得白套一层遮罩。 -->
   <Teleport
     to="body"
@@ -650,7 +650,7 @@ const props = defineProps({
   variant: { type: String, default: 'modal' },
 });
 
-/** 🔴 学段显示名（原 planner 导出，planner 已删除；仅听力面板消费，随本组件一起搬过来） */
+/** 学段显示名（原 planner 导出，planner 已删除；仅听力面板消费，随本组件一起搬过来） */
 const STAGE_LABEL_MAP = {
   primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段',
   middle: '初中', high: '高中',
@@ -665,8 +665,8 @@ const STAGE_LABEL_MAP = {
 //   ② 朗读稿 → 给人看 / 真人录音 / 剪映分角色配音。
 // 链路：记录内容 → 取听力区文本 → **一次非思考调用**做结构搬运（不改写词句）→ 校验
 //       → listeningScript 按学段参数矩阵渲染（语速/停顿/口音/音色/遍数）→ 一键复制。
-// 🔴 纯加性：不参与卷面与答案页的生成提示词，只在用户点按钮时按需调用一次。
-// 🔴 参数口径：矩阵默认 + 可覆盖（用户定版）——下面只暴露"语速/口音"两项覆盖，
+// 纯加性：不参与卷面与答案页的生成提示词，只在用户点按钮时按需调用一次。
+// 参数口径：矩阵默认 + 可覆盖（用户定版）——下面只暴露"语速/口音"两项覆盖，
 //    其余（停顿/遍数/音色）走矩阵；覆盖后即时重渲染，所见即所得。
 // ═══════════════════════════════════════════════════════════════
 const showListeningModal = ref(false);
@@ -692,7 +692,7 @@ const listeningWpmOverride = ref(null);
  *     中文导语/播音指令/题号范围**原样保留中文**，并输出**与搬运路径同一份 JSON 契约**的结构。
  *     拿到结构后下游完全一致——语速/音色/作答留白/逐句合成一行都不用改。这是能低成本落地的关键。
  *
- * 🔴 学段/年级是**粘贴模式下唯一没有来源**的信息（记录入口从 doc.stage 拿），必须让用户选：
+ * 学段/年级是**粘贴模式下唯一没有来源**的信息（记录入口从 doc.stage 拿），必须让用户选：
  *   它决定语速与三档作答留白（同一份矩阵 resolveListeningParams），选错则整卷语速跑偏。
  *   故这里只放"学段键 + 年级"两个下拉，且**年级只对初中有意义**
  *   （见 LISTENING_GRADE_WPM：七/八/九 → 110/120/130；小学已由学段切分、高中档无年级细分）。
@@ -726,7 +726,7 @@ const pasteGradeOptions = computed(() => {
   return ['不指定'];
 });
 /** 学段切换 → ① 年级候选变了，旧值可能已不在候选里，回落到「不指定」；
- *  ② 🔴 立刻落到 listeningStageKey（配置区 `listeningConfigVisible` 的唯一来源依赖）——
+ *  ② 立刻落到 listeningStageKey（配置区 `listeningConfigVisible` 的唯一来源依赖）——
  *     否则"选好学段也看不到配置项"，非要先点「解析并生成」才出现，等于把用户挡在门外。
  *     标题/年级同理即时落到 listeningDocTitle / listeningGradeHint，让"面板选择"与"生效参数"始终一致。 */
 const onPasteStageChange = () => {
@@ -950,7 +950,7 @@ const resetListeningPause = () => {
  * 现象（用户实测）："为啥我在独立页中看不到配置项啊？要粘贴内容后才能看到吗？"
  * 原因：配置行原先都挂在 `v-if="listeningStruct"`（＝已解析出结构）上，而独立页刚进来还没有结构，
  *   于是整页只剩一个素材框 —— 配置项一个都看不到。
- * 🔴 事实是：语速/音色/提示音/遍数/遍间换声/静默作答/高级停顿**都是卷级设定，与解析结果无关**，
+ * 事实是：语速/音色/提示音/遍数/遍间换声/静默作答/高级停顿**都是卷级设定，与解析结果无关**，
  *   本就该先能调（先调好再粘贴解析，比解析完再回头改更顺）。它们唯一的来源依赖是**学段**。
  * 故改为"学段已定即可见"（记录入口 doc.stage 一般都有 → 解析期间就能调）；
  *   而结构/产物相关（结构摘要、配声摘要、SSML/朗读稿/音频）仍按需出现。
@@ -964,7 +964,7 @@ const listeningConfigVisible = computed(() => !!listeningStageKey.value || !!lis
  *   ① `listeningEffectiveParams`（面板上"生效 X 词/分""遍间换声：开/关"等摘要提示）；
  *   ② `renderListeningArtifacts`（真正生成 SSML/朗读稿/storyboard 的地方）。
  *   两处各写一份必然漂移，表现为"面板说开着、实际没开"——正是本项目最忌讳的一类不一致。
- * 🔴 只读普通 ref，**不得读 listeningEffectiveParams 自身**（否则计算属性自我递归，实测踩过）。
+ * 只读普通 ref，**不得读 listeningEffectiveParams 自身**（否则计算属性自我递归，实测踩过）。
  */
 const buildListeningOverrides = () => {
   const overrides = {};
@@ -1130,7 +1130,7 @@ const closeListeningModal = () => {
 /** 按当前结构化结果 + 覆盖参数渲染两种成品（覆盖变更时即时重跑，不重复调 AI） */
 const renderListeningArtifacts = () => {
   if (!listeningStruct.value) return;
-  // 🔴 与面板摘要**同源**：统一走 buildListeningOverrides()，杜绝"面板说开着、实际没开"
+  // 与面板摘要**同源**：统一走 buildListeningOverrides()，杜绝"面板说开着、实际没开"
   const overrides = buildListeningOverrides();
 
   const input = {
@@ -1219,7 +1219,7 @@ const renderListeningArtifacts = () => {
  * 打开弹窗前的公共复位（2026-09-20 抽出：**记录入口**与**粘贴入口**共用）
  * ============================================================
  * 目的：避免上一卷的设定串到这一卷（语速覆盖、三档作答留白、音色、可选环节、上一次的结构与产物）。
- * 🔴 只复位"卷级设定"与产物，**不动 listeningDocTitle / listeningStageKey / listeningGradeHint**——
+ * 只复位"卷级设定"与产物，**不动 listeningDocTitle / listeningStageKey / listeningGradeHint**——
  *    这三项是两条入口各自的来源（记录：doc.title/doc.stage；粘贴：用户在面板填写），
  *    由调用方在复位**之后**赋新值，顺序不能倒。
  */
@@ -1313,13 +1313,13 @@ const openListeningTool = async (doc) => {
  * ============================================================
  * 与记录入口的区别**只有来源**：这里没有 doc，标题/学段/年级全部来自面板输入；
  * 一旦解析出结构，后面（语速/音色/作答留白/SSML/朗读稿/逐句合成）走**完全相同**的代码路径。
- * 🔴 粘贴内容是**用户自己的材料**，反复调整很正常，故不复位文本框与标题；
+ * 粘贴内容是**用户自己的材料**，反复调整很正常，故不复位文本框与标题；
  *    只把"卷级产物"清空（避免残留上一次的结构与音频），并把弹窗打开。
  */
 const openListeningPaste = () => {
   listeningPasteMode.value = true;
   resetListeningPanel();
-  // 🔴 学段/年级/标题都来自粘贴面板本身，故复位后**照面板回填**，而不是清成空串——
+  // 学段/年级/标题都来自粘贴面板本身，故复位后**照面板回填**，而不是清成空串——
   //    否则会出现"下拉显示初中、配置区却说未选学段"这种自相矛盾。
   listeningStageKey.value = listeningPasteStage.value || '';
   syncPasteGradeHint();
@@ -1424,7 +1424,7 @@ const parseListeningPaste = async () => {
 };
 
 /**
- * 🔴 重渲染去抖（2026-09-20 用户实测："滑块调节为啥反应很慢？"）
+ * 重渲染去抖（2026-09-20 用户实测："滑块调节为啥反应很慢？"）
  * ============================================================
  * 原因：滑块/数值框每触发一次 input 就会走下方 watch，而 renderListeningArtifacts()
  *   要连跑 SSML + 朗读稿 + storyboard **三次全量构建**（题量和素材越大越慢）。
@@ -1499,7 +1499,7 @@ const generateListeningAudio = async () => {
   try {
     const r = await synthesizeSegmentsToFile(listeningSegments.value, { suggestedName });
     if (r && r.canceled) { listeningSynthMsg.value = '已取消保存。'; return; }
-    // 🔴 r.note 必须显示出来（如"已跳过 N 段无可朗读内容的分段/提示音素材缺失"）——
+    // r.note 必须显示出来（如"已跳过 N 段无可朗读内容的分段/提示音素材缺失"）——
     //    主进程如实报了，界面却吞掉的话就等于静默（2026-09-20）
     const note = r && r.note ? `　${r.note}` : '';
     listeningSynthMsg.value = r && r.path ? `✅ 已生成（Edge 免费）：${r.path}${note}` : `✅ 已生成音频${note}`;

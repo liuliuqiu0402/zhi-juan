@@ -1,5 +1,5 @@
 // ==================== 整卷结构质量校验器（ExamPaperAuditor）====================
-// 🔴 定位：生成后程序化质检层（所有资料类型 × 所有学科 × 所有学段通用）。
+// 定位：生成后程序化质检层（所有资料类型 × 所有学科 × 所有学段通用）。
 //    提示词规则（promptLibrary 指令库）约束 AI"应该怎么出题"，
 //    本校验器兜底"AI 没做到时怎么办"——能自动修复的修复（fix），
 //    不能修复的静默计数（guard，不产生任何问题提示）。
@@ -9,9 +9,9 @@
 import { getValidatorRules, normalizeStage } from '../config/validatorRules.js';
 import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATION, getChoiceBlankPosition } from '../config/layoutSpec.js';
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
-import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
-import { checkFigurePrompts } from './figurePromptCheck.js'; // 🔴 题干 ↔ 配图 PROMPT 数量交叉校验（2026-09-16）
-import { analyzeQuestionNumbering, extractBodyQuestionNumbers, detectCnOrdinalHeadingIssues, spaceBlankWidth, bodyBeforeAnswer } from './contentCleaner.js'; // 🔴 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；extractBodyQuestionNumbers=同一口径的**题号序列**投影（2026-09-29 答案区逐题对应明细取证用，不新造正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
+import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
+import { checkFigurePrompts } from './figurePromptCheck.js'; // 题干 ↔ 配图 PROMPT 数量交叉校验（2026-09-16）
+import { analyzeQuestionNumbering, extractBodyQuestionNumbers, detectCnOrdinalHeadingIssues, spaceBlankWidth, bodyBeforeAnswer } from './contentCleaner.js'; // 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；extractBodyQuestionNumbers=同一口径的**题号序列**投影（2026-09-29 答案区逐题对应明细取证用，不新造正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
 
 // ---------- 通用正则 ----------
 // 全角拼音字符归一表（IPA 音标字符混入小学拼音、全角字母）
@@ -31,7 +31,7 @@ const PINYIN_GROUP_RE = new RegExp(`(?<![${PINYIN_CHARS}])[${PINYIN_CHARS}]+(?![
 //    square-box（算式 □ 归一产物）无 blank- 子串曾漏计 → 与圆圈空位同口径计入（"每空X分"验证用）
 const BLANK_TAG_RE = /<span[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/span>|<u[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/u>|<span[^>]*class=["'][^"']*square-box[^"']*["'][^>]*>[\s\S]*?<\/span>/gi;
 const PAREN_BLANK_RE = /[（(]\s*[　\u3000 ]{1,12}\s*[)）]/g;
-// 🔴 2026-09-28 选择类题首作答位·归一目标形态（唯一口径 = layoutSpec.buildAnswerSpaceInstruction；半角基准）：
+// 2026-09-28 选择类题首作答位·归一目标形态（唯一口径 = layoutSpec.buildAnswerSpaceInstruction；半角基准）：
 //    contentCleaner.normalizeBlankMarkers 把全角字面括号空位「（　）」（1 全角空格内宽）收敛为
 //    `<span class="blank-N">&emsp;</span>`（N 由 spaceBlankWidth 按内宽换算 → blank-2）；span.blank-N
 //    渲染自带半角括号（预览 CSS ::before/::after + docx 显式补 ()）。故 2e0 的归一目标必须与它**逐字同形**
@@ -56,7 +56,7 @@ const OPTION_LINE_RE = /(?:^|\n)\s*[A-H][.、．]\s*[^\n]+/g;
 // 🔧 选择题选项行内/末尾误挂作答空位（2026-09 用户实证：答案括号被模型挂到选项末尾 C. are; am＿）：
 //   根治在生成侧（作答空间条款：选择/判断/圈选类作答位的**位置按学科**——外语类题首 / 中文科目题干末尾，
 //   见 layoutSpec.getChoiceBlankPosition 单源），此处仅供 guard 静默计数取证。
-//   🔴 2026-09-16 形态化改写：原来只认 `<p class="option">` 或 `<br> A.`——
+//   2026-09-16 形态化改写：原来只认 `<p class="option">` 或 `<br> A.`——
 //     但实测产物的选项行用的是 `<p class="question">(1) A. stop　B. run…`（根本没 class="option"），
 //     于是连"选项行内挂空位"这一类都认不出来。改为按**形态**识别：段落以选项字母开头（可带 (1) 小题号）。
 const OPTION_LINE_PARAGRAPH = String.raw`<p[^>]*>\s*(?:[(（]\s*\d+\s*[)）]\s*)?[A-H][.、．](?:[^<]|<[^>]+>)*?</p>`;
@@ -67,7 +67,7 @@ const CHOICE_OPTION_BLANK_RE = new RegExp(
   `|` + OPTION_LINE_INLINE + `<(?:u|span)[^>]*class=["'][^"']*blank-\\d+`,
   'i'
 );
-// 🔴 2026-09-16（用户实证·条款漏洞补充）：选项行**之后**紧跟独立作答载体段/裸空白段。
+// 2026-09-16（用户实证·条款漏洞补充）：选项行**之后**紧跟独立作答载体段/裸空白段。
 //    原条款只写"选项行内与选项末尾"，模型把作答位放进选项行**之后的独立段落**里 → 字面合规，
 //    且上面那条也认不出 → 既没拦住也没取证。实测（六年级英语选词填空）：
 //    每个选项行后各挂 2 条 <p><span class="blank-line">　</span></p>（导出成 Word 是
@@ -80,7 +80,7 @@ const CHOICE_OPTION_BLANK_AFTER_RE = new RegExp(
   BLANK_CARRIER_PARAGRAPH + String.raw`|` + BARE_BLANK_PARAGRAPH + String.raw`)+`,
   'i'
 );
-// 🔴 2k 的"写作/填空类"块级排除词（**单一事实源，勿各写一份**）：2k 见之即放过该块（不补作答空间，
+// 2k 的"写作/填空类"块级排除词（**单一事实源，勿各写一份**）：2k 见之即放过该块（不补作答空间，
 //    理由是这类题的载体应由括号空位或专用格承担）。2j-5c 反向引用它判断"这条题 2k 到底管不管"。
 //    （2026-09-16：原先只在 2k 内联一份，2j-5c 无法引用 → 两条通道对同一条编号书写题各补一次。）
 const WRITING_FILLIN_STEM_EXCLUDE = /(?:写话|习作|作文|写作|填一填|填空|填字)/;
@@ -89,11 +89,11 @@ const MATCH_ITEM_RE = /class=["'][^"']*match-item[^"']*["']/g;
 // 题组子题编号：（1）（2）或 1. 2.
 const SUBQ_RE = /[(（]\s*\d+\s*[)）]/g;
 // ─────────────────────────────────────────────────────────────────────────────
-// 🔴 2026-09-29（A7·**单一实现**，防"两套判据漂移"）：题号"行首 N."判据在模块内曾有 **10 份**内联副本
+// 2026-09-29（A7·**单一实现**，防"两套判据漂移"）：题号"行首 N."判据在模块内曾有 **10 份**内联副本
 //    （口径一改就得全改、漏一处即成两套判据）。现收敛为**唯一**常量，消费方一律引用。
 //    守卫：`tests/utils/singleImplGuards.test.js` 扫源码断言本字面量全模块**只出现一次**。
 const QNUM_LINE_RE = /^\s*\d+[.、．]/;
-// 🔴 2026-09-29（A6·**单一实现**）：作答载体探针曾有 **7 份**近似副本（含/不含 blank 系、含/不含
+// 2026-09-29（A6·**单一实现**）：作答载体探针曾有 **7 份**近似副本（含/不含 blank 系、含/不含
 //    match/bracket 结构）。按**语义分档**收敛为 4 个具名常量，消费方按用途引用（各字面量只出现一次，同上守卫）。
 //    ① 通用载体：题内"已有任一作答载体"判定（含横线/空白/空位系）
 const CARRIER_ANY_RE = /zuo-wen-ge|blank-line|blank-\d|tian-zi-ge|four-line-three|sixian-ge|pinyin-line|mi-zi-ge|square-grid/;
@@ -206,7 +206,7 @@ export const countGridCells = (html) => {
 /**
  * 书写载体相邻性度量（书写格位置判据·程序侧，2026-09-28 根治）：
  * ============================================================
- * 🔴 判据（用户口径澄清）：书写格必须与它所对应的**那个**拼音/词语**同行紧邻、逐词一一对应**——
+ * 判据（用户口径澄清）：书写格必须与它所对应的**那个**拼音/词语**同行紧邻、逐词一一对应**——
  *    **不是**"不得出现在句末"：拼音在句末而格子紧随其后，属**合法**（本函数不因"出现在句末"判违规）。
  *    违规只指"多组词的格子被从各自位置抽出、集中堆放"——即题内既有拼音又有载体、
  *    却**没有任何一个载体紧跟在某个拼音之后**。
@@ -277,7 +277,7 @@ export const countMatchSides = (html) => {
 
 /**
  * 该学科是否具备"结构化图形"能力（[GRAPH] 含非统计图类型）。
- * 🔴 单一事实源：直接读 SUBJECT_GRAPH_TYPES，不另建一份学科清单——
+ * 单一事实源：直接读 SUBJECT_GRAPH_TYPES，不另建一份学科清单——
  *   否则日后渲染端新增图型时本处会漏跟（与 2026-09-12 图依赖词两表不同源的教训同类）。
  * 用途：生物/地理等仅有统计图能力的学科，其结构图/示意图/地图只能由生图引擎出画面，准确性需人工把关。
  */
@@ -313,7 +313,7 @@ export const splitSections = (html) => {
     heads.forEach((h, i) => {
       const title = (h.textContent || '').trim();
       if (!title) return;
-      // 🔴 2026-09-29（单源对齐）：分值解析与 2f/2g/2k 同口径——既认旧式"（X分）"，也认明细式"共X分"；
+      // 2026-09-29（单源对齐）：分值解析与 2f/2g/2k 同口径——既认旧式"（X分）"，也认明细式"共X分"；
       //    原只认"（X分）"→ 明细式标题（"共X题，每题X分，共X分"）取不到分值（score=null），与 2k 的理解不一致。
       const scoreMatch = title.match(/共\s*(\d{1,3})\s*分/) || title.match(/[（(]\s*(\d{1,3})\s*分\s*[)）]/);
       let raw = '';
@@ -336,7 +336,7 @@ const fmtScore = (n) => (Number.isInteger(n) ? String(n) : String(parseFloat(n.t
 
 /**
  * 修复标题内"每X分"标注与载体数对齐（规则 score-label-fix 标注换算核心）：
- * 🔴 不凑数原则（2026-08 修订）：声称单位分（每空/每线/每组/每题 X 分）是模型的语义定价
+ * 不凑数原则（2026-08 修订）：声称单位分（每空/每线/每组/每题 X 分）是模型的语义定价
  *    （如看拼音写词语"一个词语2分"），实际载体数（空位/连线组/子题）是 DOM 实数——
  *    两者矛盾时以实际载体数为准，按「声称单位分 × 实际载体数」重算正确总分，
  *    不再保留声称总分只改措辞（历史事故："每空2分共16分"实际3空被凑成"共3空共16分"，
@@ -529,7 +529,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   // ── 1. 模板残留清理（规则 template-cleanup）──
   if (has('template-cleanup')) {
     // 1a. "【插图占位】…复制 PROMPT…"非标准块 → 整个移除（渲染链路只认 [IMAGE] 标准块）
-    //    🔴 匹配以 <p>/<div> 标签边界为限（负向前瞻），绝不跨标签吞内容——
+    //    匹配以 <p>/<div> 标签边界为限（负向前瞻），绝不跨标签吞内容——
     //    历史缺陷：占位块无"插入此处"时 [\s\S]*? 贪婪跨到答案区 </div>，误删中间全部正常题目
     const phRe = /(?:<p[^>]*>\s*)?【\s*插图占位(?:(?!<\/?p\b|<\/?div\b)[\s\S])*?(?:复制\s*PROMPT|PROMPT)(?:(?!<\/?p\b|<\/?div\b)[\s\S])*(?:插入此处|<\/p>|$)/gi;
     out = out.replace(phRe, (m) => {
@@ -538,7 +538,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       return '';
     });
     // 1b. 被转义的 HTML 标签实体残留（\</div\>、\</p>、</div\> 等形式）——
-    //    🔴 反斜杠必须出现才匹配，绝不可误删正常闭合标签（否则 DOM 结构被破坏）
+    //    反斜杠必须出现才匹配，绝不可误删正常闭合标签（否则 DOM 结构被破坏）
     const escRe = /\\<\/(div|p|span|u|h1|h2|h3|section|br)\s*\\?>|<\/(div|p|span|u|h1|h2|h3|section|br)\s*\\>/gi;
     out = out.replace(escRe, (m, tag) => {
       const t = tag || m.match(/\/(\w+)/)?.[1] || 'tag';
@@ -563,7 +563,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     });
     // 1c-3. 标题后作答空行剥除（2026-09 实测：标题（大类层/大题标题）后被模型插入多个空 <p><br> 作答行——
     //    作答空行只应跟在题干/要求后，标题后出现即形态错误；确定性删除标题后连续空段（不吞后续内容））
-    //    🔴 每个空段分支尾部自带 \s*（吞段间换行），(?:…)+ 才能跨 \n 连续吞多个空段——
+    //    每个空段分支尾部自带 \s*（吞段间换行），(?:…)+ 才能跨 \n 连续吞多个空段——
     //    曾把 \s* 只放分支组开头，+ 遇第一个空段后的换行即停，只剥 1 段（实测 3 空段残留 2）
     const blankAfterHeadRe = /(<h[1-4][^>]*>[\s\S]*?<\/h[1-4]>)((?:\s*<p[^>]*>(?:\s|&nbsp;|&#160;|\u3000)*<br\s*\/?>\s*<\/p>\s*|<p[^>]*>(?:\s|&nbsp;|&#160;|\u3000)*<\/p>\s*|<br\s*\/?>\s*)+)/gi;
     out = out.replace(blankAfterHeadRe, (m, head, blanks) => {
@@ -572,7 +572,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       fixed += 1;
       return `${head}\n`;
     });
-    // 🔴（2026-09 实证否决）标题后的 blank-area 一并剥离的方案已被否决：blank-area 带 class+height，
+    // （2026-09 实证否决）标题后的 blank-area 一并剥离的方案已被否决：blank-area 带 class+height，
     //   是"真实作答载体"（程序补差/卷面留白），紧随标题出现常就是该题的书写空间，误删即丢作答位。
     //   1c-3 只剥"纯空作答段"，空行泛滥的真正根因在 answer-area-fix 把空 seg 的容器标题当长答块补差——
     //   已在 2k 循环用"块首是标题且 seg 为空则跳过"根治，不在标题剥除端做一刀切。
@@ -619,13 +619,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   // ── 1.5.2. 正文重复内容检测截断（规则 duplicate-content-fix：截断续写时模型从头重出整卷）──
   if (has('duplicate-content-fix')) {
     // 1) 正文区重复大题标题（同一标题第二次出现 → 保留第一份）
-    // 🔴 2026-09-29：答案区起点改用**与容器解耦**的单源（answerAreaStartIndex）——原按 `<div class="answer-section">`
+    // 2026-09-29：答案区起点改用**与容器解耦**的单源（answerAreaStartIndex）——原按 `<div class="answer-section">`
     //    切分，模型漏包容器时 bodyPart 吞掉答案区 → 答案区里的同名大题标题被判"正文重复"→ 截断 → 答案区丢失。
     const ansIdx152 = answerAreaStartIndex(out);
     const bodyPart = ansIdx152 >= 0 ? out.slice(0, ansIdx152) : out;
     const ansPart = ansIdx152 >= 0 ? out.slice(ansIdx152) : '';
     const headRe = /<h[234][^>]*>([^<]*)<\/h[234]>/g;
-    // 🔴 2026-09-28（与组标题口径同向·按栏目（组）判定）：教辅组标题序号"逐栏目（组）起编"——同一标题可在
+    // 2026-09-28（与组标题口径同向·按栏目（组）判定）：教辅组标题序号"逐栏目（组）起编"——同一标题可在
     //    不同栏目（组）各出现一次（如两个栏目（组）各有"一、…"，属正常），不得据此截断；故**非 exam** 的重复
     //    判据**按栏目（组）分组**（组内重复才算重复）。正式考卷大题序号全卷连续、无"非序号栏目标题"，
     //    故行为与原实现逐字一致（全局唯一）。
@@ -712,10 +712,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   //    模型漏用 $…$ 定界、直接把 LaTeX 命令写在正文里（如 3\frac{1}{2}）时**报警**：这类文本在 Word 里
   //    会原样显示 LaTeX 代码、预览也不出印刷形态（渲染契约 FORMULA_RULES 明文"公式禁止用文本堆砌"，
   //    此前无程序执行点 = 要求悬空）。
-  //    🔴 只报不改（用户裁定 2026-09-30）：公式起止需人判断，程序猜着补 $ 会把"正文在讲 LaTeX 写法"
+  //    只报不改（用户裁定 2026-09-30）：公式起止需人判断，程序猜着补 $ 会把"正文在讲 LaTeX 写法"
   //       这类正当内容改坏——自动修**必须精准**，不精准就是添乱。能自动修的一律走"扩转换器支持表"
   //       而非改文本（⊙/∅/`\ ` 就是这么修好的，见 utils/latexToDocxMath.js）。
-  //    🔴 走 silentCount（notice 级）而非 issues：issues 是 fix 类的**修复记录**，只进 console 不进问题列表；
+  //    走 silentCount（notice 级）而非 issues：issues 是 fix 类的**修复记录**，只进 console 不进问题列表；
   //       生成报告【问题列表】取的是 silentDetails.filter(level!=='debug')（useAiGenerator 整卷质检段）。
   //       静默计数 → 用户看不到 = 白做，故必须走这条通道（与 teaching-volume-guard 同口径）。
   //    门控：仅数理化生（其余学科不出现公式）；跳过 $…$ 与 $$…$$ 公式区（公式内书写由 FORMULA_RULES 管理）。
@@ -745,15 +745,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   if (has('teaching-volume-guard') && genType && genType !== 'exam') {
     const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
     const pureLen = bodyText.replace(/\s+/g, '').length;
+    // 2026-10-02（职责归属·用户裁定）：原 reading 用关键词 /短文|阅读|选文/ 判"有没有选文"——那是**浅层语义**，
+    //   程序理解不了语义，已删；"内容里有没有选文"交模型（reading 创作要求已含"阅读材料完整、无语病、主题与单元相关"）。
+    //   程序侧只留**可数**判据：正文长度、题号数（见下）。
     const GT_CHECKS = {
-      reading: { re: /短文|阅读|选文/, label: '选文（短文）', minLen: 80 },
-      summary: { re: null, label: '正文篇幅', minLen: 200 },
+      reading: { minLen: 80 },
+      summary: { minLen: 200 },
     };
     const c = GT_CHECKS[genType];
-    if (c) {
-      if (c.re && !c.re.test(bodyText)) silentCount('teaching-volume', `「${genType}」缺少${c.label}——内容可能单薄，请抽检`);
-      if (c.minLen && pureLen < c.minLen) silentCount('teaching-volume', `「${genType}」正文过短（${pureLen}字），内容单薄，请抽检`);
-    }
+    if (c?.minLen && pureLen < c.minLen) silentCount('teaching-volume', `「${genType}」正文过短（${pureLen}字），内容单薄，请抽检`);
     // 题集类题量兜底（题量底线由教辅结构蓝本注入，此处仅静默计数防单薄）
     if (['practice', 'special', 'review', 'dictation'].includes(genType)) {
       const qCount = (bodyText.match(/\d+[.、．]/g) || []).length;
@@ -771,7 +771,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       const defaultLabel = allowed.includes('line') ? '横线' : (allowed.join('或') || '正常书写');
       // 🔧 sixian-ge 别名折叠：与 four-line-three 同格（canonical 在允许表内即合法，不再误剥）
       const stripList = Object.keys(GRID_CLASS_LABEL).filter(cls => !allowed.includes(carrierCanonical(cls)));
-      // 🔴 2026-09-29（用户实证·非语文学科误出现作文格 = 不达标）：`zuo-wen-ge` 是**语文专属**成篇书写载体，
+      // 2026-09-29（用户实证·非语文学科误出现作文格 = 不达标）：`zuo-wen-ge` 是**语文专属**成篇书写载体，
       //    但它不在任何学科的 WRITING_CARRIER 允许表里（作文格由专通道管理，故原清单里没有它）→
       //    原实现**根本不检查它**，非语文卷误出现作文格时既不剥、也不清 = 留在卷面上没人管。
       //    现单列纳入越界剥离，并**按学科门控**：非语文出现即剥离（保留文字）；语文（含答案区）不动。
@@ -878,12 +878,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         if (!secHtml) return;
 
         // 2e0. 选择题**题首**作答位形态归一（规则 choice-first-blank-fix）
-        //   🔴 2026-09-17 用户实证（题类通用问题）：带选项的题，其作答位形态一律**半角圆括号空位**
+        //   2026-09-17 用户实证（题类通用问题）：带选项的题，其作答位形态一律**半角圆括号空位**
         //      （作答空间条款原文）。本卷第六题（26–35）题首却写成下划线空
         //      （`<u class="blank-N">`），而同一卷的第四/九题都是括号 → 同卷内不一致；原探针只静默计数、
         //      不改写，错形态就留进交付。此处做**只换形态、不动位置**的确定性归一（不涉及作答空间语义：
         //      空位仍在题首那一处）。
-        //   🔴 2026-09-28 口径收口（唯一口径 = layoutSpec.buildAnswerSpaceInstruction）：归一目标改为**半角
+        //   2026-09-28 口径收口（唯一口径 = layoutSpec.buildAnswerSpaceInstruction）：归一目标改为**半角
         //      span 载体** `<span class="blank-N">&emsp;</span>`（与 contentCleaner 归一同形、渲染自带半角
         //      括号；N 经 spaceBlankWidth 取），**不再写字面全角「（　）」**——后者与归一层形态相反，会造成
         //      同卷"题首全角、其余半角"并存并自触发 2j-6 形态不统一告警。
@@ -960,7 +960,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           silentCount('choice-answer-pos', `大题「${title}」选项行内/末尾出现作答空位（作答位按学科应在题首或题干末尾），请抽检`, 'debug');
         }
         // 2e4. 选项行**之后**的独立作答载体段（规则 choice-answer-position-guard，静默取证）
-        //      🔴 2026-09-16 用户实证补充：条款原只约束"选项行内/末尾"，模型改把整行横线/空白作答行
+        //      2026-09-16 用户实证补充：条款原只约束"选项行内/末尾"，模型改把整行横线/空白作答行
         //      放到选项行**之后**的独立段落 → 字面合规、卷面成排长横线（六年级英语选词填空每个选项后 2 条）。
         //      仍不自动修复：作答空间属生成语义；本条只让该形态可观测（下次回归能测到）。
         if (has('choice-answer-position-guard') && CHOICE_OPTION_BLANK_AFTER_RE.test(secHtml2)) {
@@ -1010,7 +1010,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const nodesBetween = [];
             let n = st.p.nextSibling;
             const idx = numberedPs.indexOf(st.p);
-            // 🔴 2026-09-29 同源收口：末项必须以**本节末尾**为界（原 `|| null` → 兄弟遍历走到文末，
+            // 2026-09-29 同源收口：末项必须以**本节末尾**为界（原 `|| null` → 兄弟遍历走到文末，
             //    把后续大题乃至答案区的内容并入本题 → 载体/子题计数虚高）
             const endNode = numberedPs[idx + 1] || end;
             while (n && n !== endNode) { nodesBetween.push(n); n = n.nextSibling; }
@@ -1082,12 +1082,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   {
     // 🔧 正文区纯文本（排除答案区）——2j 系列关键词扫描一律用正文区文本：
     //    答案区标题（"写作/作文评分标准"等）曾命中关键词致误报（2026-08 英语"无作文格"误报根因）
-    // 🔴 2026-09-29：答案区起点走单源（answerAreaStartIndex）——原按容器切分，漏包容器时答案区文本混入正文区
+    // 2026-09-29：答案区起点走单源（answerAreaStartIndex）——原按容器切分，漏包容器时答案区文本混入正文区
     const ansIdxBody = answerAreaStartIndex(out);
     const bodyNoAnsHtml = ansIdxBody >= 0 ? out.slice(0, ansIdxBody) : out;
     const bodyNoAnsText = bodyNoAnsHtml
       .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
-    // 🔴 2026-09-17 用户追问（阶段测评实证）：「**题干**命中」与「**仅标题**命中」必须分开判——
+    // 2026-09-17 用户追问（阶段测评实证）：「**题干**命中」与「**仅标题**命中」必须分开判——
     //    卷面写"五、根据图片提示或首字母提示，写出正确的单词…"（标题）而题内给的是中文提示"（海报设计）"时，
     //    报"整卷未输出任何 [IMAGE]"会把核对方向带偏（真问题其实是**标题与内容不符**）。
     //    （标题侧不再用整卷单一文本：2j-5 改为**逐大题**比对，见下。）
@@ -1154,10 +1154,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     //     配图标记同时认 [IMAGE]（画面）与 [GRAPH]（数据/几何图形）；整卷一个图标记都没有但存在此类题 → 必报"待补图"。
     //     只报不改（不改内容不改分），把"题要图没图"从静默变成可核对。
     if (has('image-block-fix')) {
-      // 🔴 2026-09-12：图依赖词改为**单一事实源**（此前本处与指令侧 promptLibrary 各自维护一份且互不相等，
+      // 2026-09-12：图依赖词改为**单一事实源**（此前本处与指令侧 promptLibrary 各自维护一份且互不相等，
       //    模型认不出"观察下面的图形/看图形/统计图"→不出图，本处却照报缺图，两边不同源故多轮修不掉）。
       const figureKeywordRe = FIGURE_DEPENDENCY_RE;
-      // 🔴 2026-09-17（用户追问）：拆成"题干命中"与"仅标题命中"——仅标题命中时改报"标题与内容不符"（2j-5），
+      // 2026-09-17（用户追问）：拆成"题干命中"与"仅标题命中"——仅标题命中时改报"标题与内容不符"（2j-5），
       //    不再误指"整卷漏图"（实证：本卷标题写"图片提示"，题内用中文提示，卷面根本不需要图）。
       const hasFigureAskStem = figureKeywordRe.test(stemNoHeadText);
       const hasImgMark = /\[IMAGE\]/.test(out);
@@ -1175,10 +1175,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       //   中文提示"（海报设计）"，既无图也无首字母；同卷标题"听录音，选出你听到的单词或图片"同理。
       //   判据：标题声称图片类 → 题内既无图标记、也无任意替代提示形态（中文括注 / 首字母 / "提示"字样）时
       //   才是真缺；有替代形态 → 属**标题表述与内容不符**（改标题即可，不必补图）。只报不改。
-      //   🔴 2026-09-18 补：首字母提示须同时认「字面下划线空位」(p____) 与「blank-N 载体空位」两种形态——
+      //   2026-09-18 补：首字母提示须同时认「字面下划线空位」(p____) 与「blank-N 载体空位」两种形态——
       //      载体形态须在**原始 HTML** 上识别"词首字母紧邻空位标签"（strip 后 `&emsp;` 两侧带空格，无法区分），
       //      否则被误判成"无其它提示形态"，把"标题表述与内容不符"错报成"漏图"（用户实证卷八）。
-      //   🔴 2026-09-17 用户实证第三卷（综合检测）·**判据域根治**：图标记原先按**整卷**判定
+      //   2026-09-17 用户实证第三卷（综合检测）·**判据域根治**：图标记原先按**整卷**判定
       //      （hasImgMark = /\[IMAGE\]/.test(out)），于是"某大题标题声称看图、本大题内却没有图"会被
       //      **别的大题真有图**遮蔽 → 静默漏报。实证：本卷第一大题标题写"选出你所听到的单词或图片"，
       //      选项全是单词、本大题无任何图，而第五大题确有 [IMAGE] → 该不符被掩盖。
@@ -1204,10 +1204,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       }
       // 2j-6 作答位位置/形态不统一（2026-09-17 用户实证：六年级英语第二题 6/7 括号在题首、8~10 括号在句末；
       //   且题首括号有全角（　）与半角(　)两种形态混用）。判据与生成侧条款同源，**全学科通用**（判断类/选择类皆然）。
-      //   🔴 2026-09-17 用户裁定（第三轮）：**位置混用改为程序确定性归并（fix）**——此前"只报不改"是当时
+      //   2026-09-17 用户裁定（第三轮）：**位置混用改为程序确定性归并（fix）**——此前"只报不改"是当时
       //      "作答位位置属生成语义、不做自动搬移"的裁定；现用户明确要求做成 fix，与既有"题首形态归一/
       //      分值对齐/载体补差"同一范式：**只搬括号空位、不动其它文字**。
-      //   🔴 2026-09-28 口径收口（唯一口径 = layoutSpec.buildAnswerSpaceInstruction）：归并**方向按学科取条款**
+      //   2026-09-28 口径收口（唯一口径 = layoutSpec.buildAnswerSpaceInstruction）：归并**方向按学科取条款**
       //      ——**外语类 → 题首**（head）、**中文科目/无学科兜底 → 题干末尾**（tail）；方向经
       //      getChoiceBlankPosition(subject) 单一出口取得。**不再按多数票、也不再把同数偏向题首**：多数票会随
       //      题目分布漂移、把中文卷搬成题首（与条款相反）——旧的"多数方向、同数题首优先/主口径=题干前"表述已废。
@@ -1307,7 +1307,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             `题干声明数量「${mc.stemSample || mc.stemCount}」但画面描述未写明数量（PROMPT：${mc.prompt}…）——建议写明数量以便核对`,
             'notice');
         }
-        // 🔴 2026-09-17 用户裁定（根治·消噪音，全类型通用问题）：原判据"卷里有配图 + 学科无结构化图形能力"
+        // 2026-09-17 用户裁定（根治·消噪音，全类型通用问题）：原判据"卷里有配图 + 学科无结构化图形能力"
         //    → 凡有 [IMAGE] 就报，且文案一律套"（[GRAPH] 仅支持统计图）"：对英语/语文等**根本不注入 [GRAPH]**
         //    的学科不成立，对场景图也文不对题（实证：六年级英语卷第五题"大树上的蜗牛"被报"结构图/示意图/地图"）。
         //    根治两点：① 只在**画面确需结构化图形**（题干/PROMPT 命中需求词）时提示；
@@ -1372,7 +1372,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           tplD.innerHTML = out;
           const ansBoundD = findAnswerBound(tplD.content);
           const psD = Array.from(tplD.content.querySelectorAll('p')).filter((p) => !isInAnswerArea(p, ansBoundD));
-          // 🔴 2026-09-29：本节边界（与 2l/2j-5 同源；含答案区起点）——钳制末题区域不越界到后续大题/答案区
+          // 2026-09-29：本节边界（与 2l/2j-5 同源；含答案区起点）——钳制末题区域不越界到后续大题/答案区
           const headsSecD = Array.from(tplD.content.querySelectorAll('h2, h3, h4, .answer-section'));
           const numberedD = psD.filter(p => QNUM_LINE_RE.test((p.textContent || '').trim()));
           for (let i = 0; i < numberedD.length; i++) {
@@ -1381,7 +1381,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const hit = activeDecls.find(r => r.re.test(pText));
             if (!hit) continue;
             let endP = numberedD[i + 1] || null;
-            // 🔴 2026-09-29 根治（同源）：末题区域止于本节边界，否则后续大题的同类载体被误当本题已有 →
+            // 2026-09-29 根治（同源）：末题区域止于本节边界，否则后续大题的同类载体被误当本题已有 →
             //    "题干声明载体却未输出"的抽检被静默吞掉（漏报真缺陷）。
             const secEndD = headsSecD.find(h => p.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
             if (!endP || (secEndD && !(endP.compareDocumentPosition(secEndD) & Node.DOCUMENT_POSITION_FOLLOWING))) endP = secEndD;
@@ -1427,7 +1427,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         tpl2.innerHTML = out;
         const ansBound2 = findAnswerBound(tpl2.content);
         const ps2 = Array.from(tpl2.content.querySelectorAll('p')).filter((p) => !isInAnswerArea(p, ansBound2));
-        // 🔴 2026-09-29：本节边界（本元素之后最近的标题，**含答案区起点**）——钳制区域不越界到后续大题/答案区。
+        // 2026-09-29：本节边界（本元素之后最近的标题，**含答案区起点**）——钳制区域不越界到后续大题/答案区。
         //    ⚠️ 不得过滤 .answer-section：答案区标题同样是边界；曾把它滤掉 → 区域越过答案区、探针读到
         //    答案区里的括号空位 → 写话题漏补作文格、格还可能落到答案区之后（实测两例）。
         const headsSec2 = Array.from(tpl2.content.querySelectorAll('h2, h3, h4, .answer-section'));
@@ -1435,7 +1435,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         // 🔧 区域边界用"所有数字开头小题标题"（不论是否 kw 命中）：口语交际/非写话题被排除后仍须是边界，
         //    否则其内容（如横线作答区）并入上一题区域 → 上一题被误判"已有载体"而不补格
         const numberedPs = ps2.filter(p => QNUM_LINE_RE.test((p.textContent || '').trim()));
-        // 🔴 2026-09-29（与 2k 同源·单源判据）：剔除"题干内要求/提示分条"（含被误写成「1./2.」的）——
+        // 2026-09-29（与 2k 同源·单源判据）：剔除"题干内要求/提示分条"（含被误写成「1./2.」的）——
         //    分条不是题块、不得作本题区域边界，否则区域被截断在分条处 → 作文格插到分条**之前**。
         const numberedQs2 = classifyNumberedBranches(numberedPs).top;
         const isKwText = (t) => kwRe.test(t) && !t.includes('[IMAGE]') && !/口语交际/.test(t);
@@ -1448,7 +1448,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const t = p.textContent || '';
           return isKwText(t) && /[（(](?:共)?\s*\d{1,3}\s*分/.test(t) && !QNUM_LINE_RE.test(t.trim());
         });
-        // 🔴 2026-09-26 用户实证（"十六、看图写话"未补格，兜底静默跳过）：正式卷的写话常以**汉字序号大题标题**
+        // 2026-09-26 用户实证（"十六、看图写话"未补格，兜底静默跳过）：正式卷的写话常以**汉字序号大题标题**
         //    出现（如"十六、看图写话"）——它既非"数字开头小题"，也可能未标分值，**且是 <h2> 而非 <p>**
         //    （旧判据只遍历 <p>）→ 三重落空，kwPs=[] 后走 debug 级静默跳过（连问题列表都不进）。
         //    故补第三集合：**汉字序号大题/栏目标题（h2~h4）**。
@@ -1471,7 +1471,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           for (let i = 0; i < kwPs.length; i++) {
             const p = kwPs[i];
             // 🔧 无编号但带分值的写话题：区域边界取其后第一道**真题号段**（按文档序；分条已剔除）
-            // 🔴 2026-09-29 收口（用户追问"作文题横线与格子并存"）：锚点是**大题标题**（汉字序号标题 h2~h4）时，
+            // 2026-09-29 收口（用户追问"作文题横线与格子并存"）：锚点是**大题标题**（汉字序号标题 h2~h4）时，
             //    其后第一道数字题号段**正是本题自己的题干**（不是下一题的边界）——原写法把它当 endP，
             //    探针区域为空 → 看不到模型已给的横线 → **叠加补格**（实测：模型 5 条横线 + 程序又补一组格）。
             //    故标题锚点的区域一律取**本节边界**（下一个标题/答案区起点）。
@@ -1481,7 +1481,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               : (qi >= 0
                 ? (numberedQs2[qi + 1] || null)
                 : (numberedQs2.find(n => n !== p && (p.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING)) || null));
-            // 🔴 2026-09-29 根治（与 2l 同源·末题区域越界）：区域不得越过**本节边界**（下一个标题/答案区起点）。
+            // 2026-09-29 根治（与 2l 同源·末题区域越界）：区域不得越过**本节边界**（下一个标题/答案区起点）。
             //    原"无则到文末"使末题区域一路延伸到后续大题乃至答案区，把别处的作答载体误当"本题已有载体" →
             //    hasAnyCarrier 误判 true → 写话题漏补作文格（实测：一、看图写话因二、阅读内有横线，一格未补；
             //    答案区含括号空位时同样误判）。
@@ -1495,9 +1495,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const fillCells = Math.max(fillCellsBase, score * perScore);
             // 该题区域（题干 p 到下一道写话题之间）已有作答载体时的处理 → 见下方按载体性质分流
             //   🔧 2026-08 曾定为"任一作答载体存在即视为已有作答空间"（根治口语交际横线+作文格重复）；
-            //   🔴 2026-09-29 起细分为"格类 / 错形态（横线·空行）/ 其它"三档（见下），
+            //   2026-09-29 起细分为"格类 / 错形态（横线·空行）/ 其它"三档（见下），
             //      因为"任一载体即跳过"会让写话类在已有横线时**连格子都不补**（实证+全链路验收抓到）。
-            // 🔴 2026-09-29（用户实样"看图写话没有作文格子" + 全链路验收当场抓到）：
+            // 2026-09-29（用户实样"看图写话没有作文格子" + 全链路验收当场抓到）：
             //    写话/习作类的**正确载体是作文格**；题内已有的"整行横线／空白作答行"对这类题是**错形态**。
             //    原先一律按"已有任一作答载体 → continue"处理 → 作文格彻底不补；叠加既有裁定"消横线+格子并存"，
             //    结果变成**既没有格子、又留着横线**。现按载体性质分流：
@@ -1535,7 +1535,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             // 🔧 插入位置（根治"作文格跑到配图/题干之前"）：题干 p 之后若紧跟 [IMAGE] 配图
             //    标记（到本题区域末为止）→ 作文格插在配图之后，卷面顺序 = 题干 → 配图 → 作文格
             let ref = p;
-            // 🔴 2026-09-29 扩到**全部锚点**（原仅"大题标题"锚点，见 2026-09-28 条）：格必须落在**整个题干之后**——
+            // 2026-09-29 扩到**全部锚点**（原仅"大题标题"锚点，见 2026-09-28 条）：格必须落在**整个题干之后**——
             //    先把 ref 前移到本题区域内**最后一个题干内容块**（跳过配图/其它载体，遇区域边界即止），
             //    再由下方 [IMAGE] 扫描顺延，使补格顺序 = 大题标题 → 小题题干/要求分条 → 配图 → 作文格。
             //    原仅标题锚点前移，数字编号锚点（如"1. 习作。（50分）"）的 ref 停在题号行 →
@@ -1577,12 +1577,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       }
     }
     // 2j-5d 书写格相邻性校验（规则 writing-grid-fix；根治"多组词的格子被抽离各自位置、集中堆到句末/另起一处"）
-    //   🔴 判据（2026-09-28 用户口径澄清）：书写格必须与其所对应的**那个**拼音/词语**同行紧邻、逐词一一对应**——
+    //   判据（2026-09-28 用户口径澄清）：书写格必须与其所对应的**那个**拼音/词语**同行紧邻、逐词一一对应**——
     //      "拼音在句末、格子紧随其后"是**合法**的（**不得据"格子出现在句末"报错**，防误判）；违规只有一种：
     //      题内既有拼音又有书写载体（含书写格与括号空/裸横线等空位），却**没有任何一个载体紧跟在某个拼音之后**
-    //      （＝格子全部被抽离、集中堆放）。🔴 "语境式空格"仍属**可接受形态**，但同样**须通过相邻性检查**
+    //      （＝格子全部被抽离、集中堆放）。"语境式空格"仍属**可接受形态**，但同样**须通过相邻性检查**
     //      （可接受 ≠ 免检——旧注释"把语境式空格当合理形态"据此收敛为"可接受但须过检"）。
-    //   🔴 只报不改、进质检可见项（notice 级，交编辑核对），与 2j 系列"程序只提示"口径一致。
+    //   只报不改、进质检可见项（notice 级，交编辑核对），与 2j 系列"程序只提示"口径一致。
     if (has('writing-grid-fix') && subject === '语文'
         && /看拼音|读拼音|写词语|写汉字|写音节|拼音写/.test(bodyNoAnsText)) {
       try {
@@ -1607,10 +1607,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         tplE.innerHTML = out;
         const ansBoundE = findAnswerBound(tplE.content);
         const psE = Array.from(tplE.content.querySelectorAll('p')).filter((p) => !isInAnswerArea(p, ansBoundE));
-        // 🔴 2026-09-29：本节边界（与 2j-5 同源；含答案区起点）——钳制末题区域不越界到后续大题/答案区
+        // 2026-09-29：本节边界（与 2j-5 同源；含答案区起点）——钳制末题区域不越界到后续大题/答案区
         const headsSecE = Array.from(tplE.content.querySelectorAll('h2, h3, h4, .answer-section'));
         const numberedE = psE.filter(p => QNUM_LINE_RE.test((p.textContent || '').trim()));
-        // 🔴 2026-09-29（单源接入·同 2k/2j-5）：题干内"要求/提示"分条（含被误写成「1./2.」的）**不作本题边界**——
+        // 2026-09-29（单源接入·同 2k/2j-5）：题干内"要求/提示"分条（含被误写成「1./2.」的）**不作本题边界**——
         //    否则区域被截断在分条处 → 横线插进分条之间（与 layoutSpec"横线给在分条之后、不插在分条之间"相抵）。
         const numberedQsE = classifyNumberedBranches(numberedE).top;
         const kwReE = /书面表达|写作|小作文|看图写话|用英语|Write\b/;
@@ -1627,7 +1627,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const p = kwPE[i];
           const idx = numberedQsE.indexOf(p);
           let endP = numberedQsE[idx + 1] || null;
-          // 🔴 2026-09-29 根治（与 2l/2j-5 同源）：末题区域须止于本节边界，否则后续大题的横线会被
+          // 2026-09-29 根治（与 2l/2j-5 同源）：末题区域须止于本节边界，否则后续大题的横线会被
           //    误当本题已有载体 → 英语书面表达漏补作答横线。
           const secEndE = headsSecE.find(h => p.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
           if (!endP || (secEndE && !(endP.compareDocumentPosition(secEndE) & Node.DOCUMENT_POSITION_FOLLOWING))) endP = secEndE;
@@ -1643,7 +1643,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           // 补格数：有分值按 分值×横线系数；无分值（教辅/知识总结常见）兜底 8 行
           const wm = (p.textContent || '').match(/[（(][^）)]*?(\d{1,3})\s*分/);
           const wscore = wm ? parseInt(wm[1], 10) : 0;
-          // 🔴 2026-09-29（接入规格库·分学段）：原硬编码 max(8,…)/兜底 8 行、**不受学段上限约束** →
+          // 2026-09-29（接入规格库·分学段）：原硬编码 max(8,…)/兜底 8 行、**不受学段上限约束** →
           //    低段英语书写题会补出 8 行（规格库低段上限仅 4 行）。现与 2k 同源取 regionE.maxRowsPerItem。
           const capE = Number.isFinite(regionE.maxRowsPerItem) ? regionE.maxRowsPerItem : 8;
           const rowsE = Math.min(capE, wscore > 0 ? Math.max(8, Math.ceil(wscore * linePerScoreE)) : 8);
@@ -1670,7 +1670,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         silentCount('writing-grid', '含英语书面表达/写作题但正文无横线作答区（blank-line），请抽检');
       }
     }
-    // 2j-5c 🔴 2026-09-16（用户实证·教辅场景）：大题标题式书写题缺载体 → 补横线。
+    // 2j-5c 2026-09-16（用户实证·教辅场景）：大题标题式书写题缺载体 → 补横线。
     //    2j-5b 只扫"以 数字. 开头的段落"（为编号条目式教辅设计），而实测教辅/资料的大题是
     //    <h3>十一、根据所给情境，写一段对话</h3> + 一个题干段落 → 2j-5b 看不见，程序兜底够不着；
     //    而模型只给"书面表达"给了横线、给"写一段对话"没给 → 该题整题无作答载体（用户实证）。
@@ -1682,7 +1682,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const tplH = document.createElement('template');
         tplH.innerHTML = out;
         const contentH = Array.from(tplH.content.children);
-        // 🔴 2026-09-29（单源接入）：答案区排除走 `contentCleaner` 单源包装——原只认 `.answer-section` 容器，
+        // 2026-09-29（单源接入）：答案区排除走 `contentCleaner` 单源包装——原只认 `.answer-section` 容器，
         //    模型漏包容器时该排除失效 → 答案区文本可能被当正文补横线（与 2j-4/2j-5/2j-5b/2k 口径统一）。
         const ansBoundH = findAnswerBound(tplH.content);
         const kwH = /书面表达|写作|小作文|看图写话|用英语|写一段|写一篇|以.{1,30}为题|不少于\s*\d+\s*[句词字]|Write\b/;
@@ -1720,7 +1720,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           // 区域内已有任何作答载体 → 跳过（防重复；同时覆盖"模型自己已给横线"的情形）
           const regionHtml = region.map((e2) => e2.outerHTML || '').join('');
           if (CARRIER_ANY_RE.test(regionHtml)) continue;
-          // 🔴 2026-09-16（CI 回归修复）：与 2k 的分工——题区域里带**顶层编号**的题干（如"11. …"）
+          // 2026-09-16（CI 回归修复）：与 2k 的分工——题区域里带**顶层编号**的题干（如"11. …"）
           //    属"编号条目式"结构，其作答载体由既有的 2k 兜底负责（2k 对无分值整题块补 4 行）；
           //    本通道生来只补 2j-5b 与 2k 都够不着的"大题标题 + **无编号**题干"这个窟窿
           //    （2j-5b 只认编号段；2k 的无题号回退分支只认标题里的固定词表，认不出"写一段对话"）。
@@ -1734,7 +1734,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const last = region[region.length - 1];
           const wmH = t.match(/[（(][^）)]*?(\d{1,3})\s*分/);
           const wscoreH = wmH ? parseInt(wmH[1], 10) : 0;
-          // 🔴 2026-09-29（接入规格库·分学段，与 2k/2j-5b 同源）：原硬编码 8 行、不受学段上限约束
+          // 2026-09-29（接入规格库·分学段，与 2k/2j-5b 同源）：原硬编码 8 行、不受学段上限约束
           const capH = Number.isFinite(regionH.maxRowsPerItem) ? regionH.maxRowsPerItem : 8;
           const rowsH = Math.min(capH, wscoreH > 0 ? Math.max(8, Math.ceil(wscoreH * linePerScoreH)) : 8);
           const wrapH = document.createElement('div');
@@ -1761,7 +1761,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       }
     }
     // ── 2m. 强调标注形态归一（规则 emphasis-form-fix：内容型不用下划线做强调）──
-    // 🔴 2026-09-18 用户实证（知识点总结）："例题那块中的内容全部被加了下划横线"。
+    // 2026-09-18 用户实证（知识点总结）："例题那块中的内容全部被加了下划横线"。
     //    根因在**生成侧条款**：知识总结模板原写"核心知识重点标注"——只说了"标注"、没定形式，模型自选下划线；
     //    而下划线与横线在本产品里是**作答载体**语义（填空横线 u.blank-N、画线题标记 underline-sentence），
     //    于是知识点总结里"重点最密集"的例题块看起来整块被加了横线（与作答位混淆）。
@@ -1796,13 +1796,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
     // 2j-5a 作文格位置纠正：格子出现在所属题干之前 → 移到题干之后（模型常见顺序错误：
     //    先输出 <div class="zuo-wen-ge"> 再写题干，卷面变成"格子在上、题目在下"）
-    //    🔴 2026-09-28 根治（"位置纠正被大题标题绕过"的真 bug）：旧实现用 kwRe(/看图写话|写话|习作|作文|写作/)
+    //    2026-09-28 根治（"位置纠正被大题标题绕过"的真 bug）：旧实现用 kwRe(/看图写话|写话|习作|作文|写作/)
     //       去匹配 previousElementSibling 判断"位置正确"——而**大题标题本身常含"看图写话"**（如 <h2>十六、看图写话</h2>），
     //       遂把"含关键词的大题标题"误当"格前已有题干" → 一律 continue、格子从不搬移（真 bug）。
     //       现锚点改为"**该大题标题之后的最近一个**小题题干/内容块""——大题标题（h1~h6、汉字序号标题）**不作锚**：
     //       ①"格前已就位"的判据＝格前存在**非标题、非配图、非载体**的内容块（题干段落）；
     //       ②需搬移时，向后找"最近的内容块"（跳过配图/其它载体，遇下一个大题标题即止），把格移到其后。
-    // 🔴 2026-09-29（去一刀切）：书面表达/写作类**仅中文学科专属语义**（关键词是语文/英语语义词），
+    // 2026-09-29（去一刀切）：书面表达/写作类**仅中文学科专属语义**（关键词是语文/英语语义词），
       //    故定位 `writing-expression-fix` 门控的规则本就属语文/英语；此处补**学科门控**，防把语文专属
       //    语义（写话/习作/作文/小练笔/口语交际）广播到其它学科做推理。
       if (['语文', '英语'].includes(subject) && has('writing-expression-fix') && /<div[^>]*class=["'][^"']*zuo-wen-ge/.test(out)) {
@@ -1818,7 +1818,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           return /^[一二三四五六七八九十百]+[、.．]/.test((el.textContent || '').trim());
         };
         // 配图块 / 书写载体（zuo-wen-ge 及各类格与空位）：不是"题干内容块"
-        // 🔴 2026-09-29（A6 单源）：格类走 CARRIER_GRID_RE，配图标记 [IMAGE] 单独判（勿再内联一份格清单）
+        // 2026-09-29（A6 单源）：格类走 CARRIER_GRID_RE，配图标记 [IMAGE] 单独判（勿再内联一份格清单）
         const isFigureOrCarrierEl = (el) => CARRIER_GRID_RE.test(el.outerHTML || '') || /\[IMAGE\]/.test(el.outerHTML || '');
         // 题干/内容块：p/li/div，非标题、非配图、非载体，且有可见文字（去空白与空位字符后仍 ≥2 字）
         const isStemEl = (el) => {
@@ -1921,7 +1921,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //    修法：移除段级粗跳过，下沉到“题块/子题块”级——每块（顶层题或子题）独立判定，
         //    填空块自带载体跳过、长答块独立补差，互不拖累；子题块行数给 2 行兜底（防整题四连大空白），
         //    无子题的整题块维持 4 行兜底。
-        // 🔴 2026-09-29（去一刀切·候选2）：无分值兜底原为**学科无关**的 4/2——对低段合理（学段上限恰为 4），
+        // 2026-09-29（去一刀切·候选2）：无分值兜底原为**学科无关**的 4/2——对低段合理（学段上限恰为 4），
         //    但中高段长答主观题偏小。现支持 `ANSWER_NO_SCORE_ROWS_BY_SUBJECT[学科][学段]` 覆盖（独立顶层键、
         //    浅合并故生效），未覆盖回退学科无关默认。数值属卷面惯例口径（面板可调，不在代码里编）。
         const NSR = getMergedSpec().ANSWER_NO_SCORE_ROWS || {};
@@ -1935,7 +1935,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const m = tm || im;
           return m ? parseFloat(m[1]) : null;
         };
-        // 🔴 2026-09-17 用户裁定（根治·消"无分值兜底被误用"，题类通用问题）：大题标题写"每题X分"而小题行内
+        // 2026-09-17 用户裁定（根治·消"无分值兜底被误用"，题类通用问题）：大题标题写"每题X分"而小题行内
         //    不标分值（"八、连词成句…（每题2分，共10分）" + "41. did / what /…"）时，原实现判该块**无分值** → 落
         //    NO_SCORE_ROWS=4 行兜底 → 连词成句每道小题各补 4 条长横线（实测 5 题 × 4 行 = 20 条，明显过量）。
         //    根治：把大题标题的"每题X分"**下推**为小题默认分值，need 仍由规格库算
@@ -1953,15 +1953,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const secNodesPs = (arr) => arr.filter((n) => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p');
         const items = [];
         const rawTopPs = secNodesPs(secNodes).filter((n) => QNUM_LINE_RE.test((n.textContent || '').trim()));
-        // 🔴 2026-09-26 加固（消"题干内要求/提示分条被当子题块、每条各补作答行"的残余口子）：
+        // 2026-09-26 加固（消"题干内要求/提示分条被当子题块、每条各补作答行"的残余口子）：
         //    规范明令"分条不与题号层混同（分条改用 (1)／① 或项目符号、不得再用与题号同构的「1.」）"，
         //    但模型偶发违反时，这些分条会被 topPs 当成独立小题 → **每条各补一处作答行**（老现象在语文/教辅侧的复现路径）。
         //    判据（**保守·双条件**，宁漏不误）：该段以「1.」开头 **且** 其上一个非空兄弟是以
         //    "要求/提示/注意/说明/评分/步骤/参考"等引导词**结尾且带冒号**的段落 → 判为分条首项；
         //    其后续**连续递增**的数字段一并排除（分条列表常 1./2./3. 连排）。
         //    排除后这些段不再作题块边界 → 整题的作答位仍落"整题之后、分条之后"（与作答空间条款一致）。
-        //    🔴 2026-09-29：判据上提为模块级**单源**（classifyNumberedBranches），与 2j-5（作文格落点）同源同果。
-        //    excludedBranches（分条列表数）🔴 2026-09-27 收口：排除后无任何题块时，必须回退整块兜底
+        //    2026-09-29：判据上提为模块级**单源**（classifyNumberedBranches），与 2j-5（作文格落点）同源同果。
+        //    excludedBranches（分条列表数）2026-09-27 收口：排除后无任何题块时，必须回退整块兜底
         //      （漏补比多补更糟：若某大题的真题号"1."紧跟在"要求："之后会被误判为分条首项 → 该题连同后续
         //      连续递增号全部失去题块身份 → 该大题无任何题块；"曾识别出题号段却被全排除"即漏补强信号，
         //      整块兜底不再依赖标题意图词，直接按 4 行（长答形态）回退补齐）
@@ -1985,7 +1985,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             );
             if (!wholeAnswerHeadingRe.test(fallbackTitle)) return;
             }
-            // 🔴 2026-09-27 收口（分条排除的漏补回退）：excludedBranches > 0 时**不再依赖标题意图词**——
+            // 2026-09-27 收口（分条排除的漏补回退）：excludedBranches > 0 时**不再依赖标题意图词**——
             //    该栏本有题号段、只是被分条判据误吞，漏补比多补更糟，整块按长答形态兜底补行（4 行，与
             //    无分值整题块一致）；此兜底覆盖"真题号 1. 紧跟要求：后被误判分条"的漏补路径。
             items.push({ p: head, score: scoreMatch ? parseFloat(scoreMatch[1]) : null, seg: secNodes, sub: false });
@@ -1999,7 +1999,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         } else {
           for (let k = 0; k < topPs.length; k++) {
             const p = topPs[k];
-            const e2 = topPs[k + 1] || end; // 🔴 2026-09-10 栏边界兜底：本栏最后一块不得越界吞后续栏（曾致下栏空白行计入本块有效作答行，该补不补）
+            const e2 = topPs[k + 1] || end; // 2026-09-10 栏边界兜底：本栏最后一块不得越界吞后续栏（曾致下栏空白行计入本块有效作答行，该补不补）
             const segNodes = []; let sn = p.nextSibling;
             while (sn && sn !== e2) { segNodes.push(sn); sn = sn.nextSibling; }
             const subPs = secNodesPs(segNodes).filter((n) => subRe.test((n.textContent || '').trim()));
@@ -2044,7 +2044,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (CARRIER_STRUCT_RE.test(segAll)) continue;
           if (countOptions(segAll) > 0) continue;
 
-          // ── 🔴 2026-09-29（v2·专用通道优先；形态/规格词判据，不点题型名）────────────────────
+          // ── 2026-09-29（v2·专用通道优先；形态/规格词判据，不点题型名）────────────────────
           //    先从**题面文本**探"必需专用载体"（竖式书写区 / 作图区 / 表格）。命中后**不得**再被下方
           //    通用跳过判据短路——否则重回两类回归：竖式题被当"口算"类跳过（静默漏补）、作图题被跳过
           //    （补不出 draw-area）。故探测提前到跳过判据**之前**，命中即绕过通用跳过（下方 `if (!specNeeds)`）。
@@ -2059,7 +2059,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (!specNeeds) {
             // 形态判据·**选项行**（不依赖"选择"题型词、也不依赖大题标题）：块内出现 ≥2 个**互不相同**的
             //    行内选项标记（"A."／"B、"／"C．"，取前 6 个字母）→ 答案落在选项上，无作答行需求。
-            //    🔴 2026-09-29：此前该形态靠题型词"选择" + **大题标题**承担 → 标题含"选择"时会把该栏
+            //    2026-09-29：此前该形态靠题型词"选择" + **大题标题**承担 → 标题含"选择"时会把该栏
             //      下**所有**子题连带跳过（含"回答问题"等书写子题）= 漏补。改由形态判据承担后与标题解耦。
             const optLetters = new Set((segAll.replace(/<[^>]+>/g, ' ').match(/(?:^|[\s\u3000])([A-F])[.、．]/g) || [])
               .map((s) => s.trim().charAt(0)));
@@ -2067,11 +2067,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             // 结构性题型排除（判文 = 顶层 ctx + 块首行：判断/连线/圈出/口算/仿写等整题形态，
             //    由父题语境继承——如父题"判断…在○里填"下所有子题不补）；
             // 填空/写作类排除仅看块首行自身（填空由上方括号空判定；父题"再填空"字样不得拖累长答子题）。
-            //    🔴 2026-09-29（去题型词·去标题连带）：**不再把大题标题纳入判文**——标题是"栏名"
+            //    2026-09-29（去题型词·去标题连带）：**不再把大题标题纳入判文**——标题是"栏名"
             //      （如"二、读短文，选择恰当的词语，把故事补充完整"），栏名里的题型词会把该栏下
             //      **所有**子题带走 = 漏补。选择类已由上"选项行"形态判据承担；其余类别其题面自身
             //      （块首行）通常已含相应动作词，判文不需要标题。
-            if (/(?:选择|选一选|选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|口算|直接写得数|照样子|例[：:、]|圈出|归类|选词|划出|仿写)/.test(`${ctxText} ${stem}`)) continue;
+            // 2026-10-02（职责归属·用户裁定）：本条只认**题面自身写明的作答动作**（形态判据——题面写了动作，
+            //   作答方式即由题面确定）；**纯题型名已移出**（"选择／选一选"，选择类由上方"选项行"形态判据承担）。
+            //   程序不替模型判断"该不该有作答空间"，只排除"题面已明示动作"的确定形态。
+            if (/(?:选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|口算|直接写得数|照样子|例[：:、]|圈出|归类|选词|划出|仿写)/.test(`${ctxText} ${stem}`)) continue;
             if (WRITING_FILLIN_STEM_EXCLUDE.test(stem)) continue;
             // ↑ 排除词单源：WRITING_FILLIN_STEM_EXCLUDE（与 2j-5c 的分工判据共用同一份，防两处漂移）
           }
@@ -2096,7 +2099,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             }
           }
           if (hasFillIn) continue;
-          // 🔴 2026-09-17 用户裁定（补收口·规格层封顶）：主规则仍是"分值×系数"，但**短答按分会给过量空间**——
+          // 2026-09-17 用户裁定（补收口·规格层封顶）：主规则仍是"分值×系数"，但**短答按分会给过量空间**——
           //    全矩阵实测（428 处受影响）真异常：语文·小低「按要求写句子（每题5分）」7 行/题、低段每题6分→9行。
           //    上限取自规格库 ANSWER_MAX_ROWS_BY_STAGE（按学段、学科无关；按地区差异改规格库即可），
           //    无分值兜底（4/2 行）同样受上限约束（防"两把尺子"）。**勿在此处加题型特例**。
@@ -2111,7 +2114,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           //    generic 横线/空白行是错配兜底 → 不落通用补差，改静默抽检提示（notice）交人工确认；
           //    已有对应载体（bracket-grid/draw-area/square-grid/<table>）或已有填空位/作答行
           //    （上方已 continue）一律不打扰；"观察统计表/图表回答问题"等读表题不含作答动词，不命中。
-          // 🔴 2026-09-29（v2）：specText / specNeeds 已在跳过判据**之前**算好（见"专用通道优先"段），
+          // 2026-09-29（v2）：specText / specNeeds 已在跳过判据**之前**算好（见"专用通道优先"段），
           //    此处直接复用——勿重复计算（两处判据即漂移隐患）。
           if (specNeeds === '作图') {
             // 已有作图区/方格纸 → 有作图空间，不打扰
@@ -2153,7 +2156,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       if (fixedK > 0) {
         // 🔧 双保险（真实事故：2k 段后答案区消失，护栏触发）：答案区起点未识别时 ansPart 为空、
         //    全量序列化可能弄丢答案区 → 先保存答案区原文（至文末），序列化后拼回。
-        //    🔴 2026-09-29：判据由"容器是否匹配"改为**单源的答案区起点**（answerAreaStartIndex）——
+        //    2026-09-29：判据由"容器是否匹配"改为**单源的答案区起点**（answerAreaStartIndex）——
         //    容器漏包时同样能识别答案区，`ansPart` 不再为空，答案区不再丢。
         if (ansIdxK < 0) {
           const savedAns = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>[\s\S]*$/i);
@@ -2171,7 +2174,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   // ── 2l. 载体×题型正规化（规则 writing-grid-fix 配套，小题粒度，数据源=排版规格库 CARRIER_RULES）：
   //    forbid=表达/写话/习作类题内混入书写格 → 自动剥离 class 保留文字（确定性可修复）；
   //    🔧 2026-08 收敛：移除 must 软推断（"看拼音写→推断该有田字格"属卷面惯例非硬要求）；
-  //    🔴 2026-09-28 口径修订：原"会误报语境式空格'看拼音写词语'等**合理形态**"改为——语境式空格属
+  //    2026-09-28 口径修订：原"会误报语境式空格'看拼音写词语'等**合理形态**"改为——语境式空格属
   //    **可接受形态，但须通过相邻性检查**（可接受 ≠ 免检）：位置判据见 2j-5d（格子须与对应拼音紧邻）。
   //    载体缺失仍只保留无歧义强要求哨兵 2j-4
   //    （题干明确写"田字格中写/在田字格/方格中写"却没格子 → 客观缺陷才提示抽检）──
@@ -2180,7 +2183,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       const cr = getMergedSpec().CARRIER_RULES || { must: [], forbid: [] };
       const tplL = document.createElement('template');
       tplL.innerHTML = out;
-      // 🔴 2026-09-29（补漏点·全通道同源）：答案区内**不得剥离**——答案区里的书写格往往承载答案示范字，
+      // 2026-09-29（补漏点·全通道同源）：答案区内**不得剥离**——答案区里的书写格往往承载答案示范字，
       //    剥离 class 会使其失去格线（内容被改坏）。原 2l 无答案区排除，是"答案区判据未全通道接入"的漏点。
       const ansBoundL = findAnswerBound(tplL.content);
       const headsL = Array.from(tplL.content.querySelectorAll('h2, h3, h4'));
@@ -2212,7 +2215,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           ? itemPs.map((p, k) => {
               const seg = [];
               let sn = p.nextSibling;
-              // 🔴 2026-09-29 根治：末题必须以**本节末尾**（下一个标题 end）为界。
+              // 2026-09-29 根治：末题必须以**本节末尾**（下一个标题 end）为界。
               //    原写 `itemPs[k+1] || null` → 末题取不到下一小题、e2=null，循环一路走到**整篇文档末尾**，
               //    把后续大题（如"看图写话"）的文本并入末题作用域 → 命中 forbid 关键词 → 末题载体被误剥
               //    （实测症状：每个大题最后一小题的书写格被剥离、只剩空 <p>，"次次最后一题没有格子"）。
@@ -2227,7 +2230,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const text = scope.map(n => n.textContent || '').join('');
           // forbid：表达/写话类题内混入书写格 → 剥离保留文字
           for (const fb of cr.forbid || []) {
-            // 🔴 2026-09-29（去一刀切）：条目可声明 `subjects`——关键词本身属学科专属语义时**不得广播**到
+            // 2026-09-29（去一刀切）：条目可声明 `subjects`——关键词本身属学科专属语义时**不得广播**到
             //    其它学科（如"写话/习作/作文/小练笔/口语交际"）。未声明 = 保持原行为（向后兼容）。
             if (Array.isArray(fb.subjects) && !fb.subjects.includes(subject)) continue;
             if (new RegExp(fb.keywords).test(text)) {
@@ -2267,9 +2270,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         // 🔧 行式格 span 形态补齐（four-line-three/sixian-ge/pinyin-line）：四线三格/拼音格常以行内 span 出现
         //   （<span class="four-line-three">cat</span>），曾选择器只收 div 形态与 span 田字格 → 内嵌答案字漏清
         'div.tian-zi-ge, div.mi-zi-ge, div.four-line-three, div.sixian-ge, div.pinyin-line, div.zuo-wen-ge, span.tian-zi-ge, span.mi-zi-ge, span.four-line-three, span.sixian-ge, span.pinyin-line'
-      // 🔴 2026-09-29（补漏点·同源）：答案区内的格子**不得清空**——答案区里的格子常直接承载答案字
+      // 2026-09-29（补漏点·同源）：答案区内的格子**不得清空**——答案区里的格子常直接承载答案字
       //    （答案呈现），清空即等于删答案。原 2j-6 无答案区排除，是"答案区判据未全通道接入"的漏点。
-      //    🔴 同批去一刀切：`zuo-wen-ge` 为**语文专属**载体，非语文学科若出现属误产，**不代其清空**
+      //    同批去一刀切：`zuo-wen-ge` 为**语文专属**载体，非语文学科若出现属误产，**不代其清空**
       //    （避免跨学科一刀切改动他科内容）。
       )).filter((g) => !isInAnswerArea(g, ansBound6))
         .filter((g) => !(subject !== '语文' && g.classList.contains('zuo-wen-ge')));
@@ -2324,7 +2327,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       // 🔧 题号计数口径：按块级标签闭合强制补换行后再剥标签（计数不依赖模型输出文本自带的 \n——
       //    曾正文模型带换行、答案页模型不带 → stripTags 后行首数字正则只命中首行，误报"答案区题号数(0)"；
       //    <p>/<li>/<h1-6>/<div> 闭合处补 \n，正文与答案区同一口径逐块计数）
-      // 🔴 2026-09-17 用户裁定（根治·消误报）：块边界口径补全——`td/th/table/br` 也算行界。
+      // 2026-09-17 用户裁定（根治·消误报）：块边界口径补全——`td/th/table/br` 也算行界。
       //    病根：原口径只认 p/li/h1-6/div/tr，**表格单元格与 <br> 换行不算行界** → 答案区若用表格/紧凑连排，
       //    相邻格的题号剥标签后**无任何前界**（"…35. B36. B"），"最长 1 起始连续递增段"就在那里断掉。
       //    实证：六年级英语卷答案区 1–51 全在且顺序一致，却被计成 35（断在 35→36）→ 误报"答案区题号数(35)
@@ -2333,7 +2336,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         .replace(/<\/(?:p|li|h[1-6]|div|tr|td|th|table)>/gi, '\n')
         .replace(/<br\s*\/?>/gi, '\n');
       const ansText = stripTags(blockToLines(ansMatch[1]));
-      // 🔴 2026-09-17 用户追问后·**口径同源根治**：题号数字一律由 contentCleaner.extractBodyQuestionNumbers
+      // 2026-09-17 用户追问后·**口径同源根治**：题号数字一律由 contentCleaner.extractBodyQuestionNumbers
       //    提供（三形态：行首 `N.` / 空位自带括号编号 `(41) &emsp;` / 行内 `N.`+作答位），本处不再自持正则。
       //    病根实证（六年级英语阶段测评）：本处旧正则只认 `N.[、．]` 形态 → 第七题 `(41) &emsp;` 的题号
       //    漏认 → 正文连续段断在 40；答案区行首齐全数到 56 → 误报"正文题号数(40)明显少于答案区(56)
@@ -2341,14 +2344,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       //    注：旧实现里"行首小数（0.35 / 4.8÷）误计"与"题干编号列举（提示：1. …）虚高"两条加固，
       //    分别由共享口径的 `(?![.\d])` 与"最长 1 起始连续递增段"覆盖，能力不降。
       if (has('answer-coverage-guard')) {
-        // 🔴 计数入参改为 **HTML**（不再先 stripTags）："空位自带括号编号"（`(41) &emsp;`）判据依赖
+        // 计数入参改为 **HTML**（不再先 stripTags）："空位自带括号编号"（`(41) &emsp;`）判据依赖
         //    空白实体的字面文本，先剥标签 + 实体替换会把作答位吃掉 → 该形态漏认（实证误报根因之一）。
         const bodyHtmlRaw = out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0];
         // 剔除"目标类板块"（学习/预习/复习/教学目标：标题至下一标题间的目标条目——不是题，答案区无对应）
         const bodyHtml = bodyHtmlRaw
           .replace(/<h[2-4][^>]*>\s*[一二三四五六七八九十]+\s*、\s*(?:学习|预习|复习|教学)目标[\s\S]*?(?=<h[2-4][^>]*>|$)/gi, '')
           .replace(/<p[^>]*>\s*[一二三四五六七八九十]+\s*、\s*(?:学习|预习|复习|教学)目标[\s\S]*?(?=<h[2-4][^>]*>|$)/gi, '');
-        // 🔴 2026-09-17（用户追问）·答案区计数**剔除听力原文/录音材料板块**：它是材料复述、不是答案条目，
+        // 2026-09-17（用户追问）·答案区计数**剔除听力原文/录音材料板块**：它是材料复述、不是答案条目，
         //    而内部自带 1..N 编号（英语卷实证：听力原文重复 1~15）。与正文侧剔除"学习/预习/复习/教学目标"**对称**：
         //    两侧都只对"题号 ↔ 题/答案"计数，材料板块一律不参与。
         //    真实危害不是"虚高"（计数取最长 1 起连续递增段，重复序列只能把 run 重置回 1，推不高上限），
@@ -2362,7 +2365,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const ansNum = analyzeQuestionNumbering(stripAudioScript(ansMatch[1]), { part: 'answer' });
         const bodyTopQ = bodyNum.top;
         const ansTopQ = ansNum.top;
-        // 🔴 2026-09-18 用户实证（六年级英语《知识梳理》）·**判据域修正**：
+        // 2026-09-18 用户实证（六年级英语《知识梳理》）·**判据域修正**：
         //    内容型（知识总结/预习）**正文不用题号**——正文里的"1. 2. 3. 4."是**知识条目编号**
         //    （该资料为"（三）一般过去时"下的"1. 规则动词过去式的构成 / 2. 不规则动词过去式 / …"），
         //    不是题目题号（该资料的题是"例题1~例题5"，用的是非阿拉伯题标）。
@@ -2371,7 +2374,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //    处置：内容型不参与"题号↔题"双向覆盖判据（判据域修正，非特判）；题类（正式卷/同步练习/专项/
         //    默写/易错本/复习）一律不变。
         const isContentType = ['summary', 'preview'].includes(genType);
-        // 🔴 2026-09-18（用户实证·**改报准对象**，不静默了事）：内容型答案区的**作答对象必须来自正文**——
+        // 2026-09-18（用户实证·**改报准对象**，不静默了事）：内容型答案区的**作答对象必须来自正文**——
         //    判据用现成口径"答案区与正文同构"（答案区按正文对应的栏目组织）：答案区的小节标题（h2~h4）须在
         //    正文标题里出现；正文里没有的栏目出现，即答案区把**素材（教材原文）里的题目/栏目**当成了作答对象。
         //    实证（六年级英语《知识梳理》）：答案区出现 Cartoon time / Sounds in focus / Story time / Grammar time /
@@ -2392,14 +2395,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             silentCount('answer-coverage', `答案区出现**正文里没有的栏目/小节**（${orphans.slice(0, 3).map((h) => h.raw).join('、')}${orphans.length > 3 ? ' 等' : ''}）——答案区只能对正文中实际出现的题作答；这些小节正文里没有，疑为把素材（教材原文）的题目当成了作答对象，请改为对正文题目作答（正文不含练习/自测时，答案区整节省略）`);
           }
         }
-        // 🔴 2026-09-17（用户实证第三卷·**改报体系问题**）：两侧任一为"分段式编号"（按大题分别从 1 重编号）时，
+        // 2026-09-17（用户实证第三卷·**改报体系问题**）：两侧任一为"分段式编号"（按大题分别从 1 重编号）时，
         //    "最长 1 起连续段"的对比**失去意义**——实证卷：正文段长 [10,5,5,5,10,5,5,5,5]、答案区段长 [5,5,5]，
         //    同一体系的缺陷被呈现成"答案区(5) 明显少于正文(10)，疑似未逐题对齐"，把编辑引向错误方向。
         //    真相：题号须**全卷连续同序**（正文与答案区同一套号），两侧都违反了这条口径。
-        //    🔴 2026-09-18（用户裁定·口径按类型分流）："全卷连续"是**正式考卷**的口径；同步练习等
+        //    2026-09-18（用户裁定·口径按类型分流）："全卷连续"是**正式考卷**的口径；同步练习等
         //      按栏目（组）分别从 1 重编号是市场教辅常态，非缺陷——故本告警仅 genType==='exam' 时触发，
         //      其余类型走下方 answer-coverage 的长连段对比（两侧各取其最长 1 起连续段，仍可比）。
-        //    🔴 段长清单只列"大题级"段（≥3 项）：1 项长的段来自行内点号/子题括号等零散命中，
+        //    段长清单只列"大题级"段（≥3 项）：1 项长的段来自行内点号/子题括号等零散命中，
         //       列出来只会让编辑误以为"卷面真有这么多段"（净化报告，不改变判定）。
         const segText = (arr) => {
           const v = arr.filter((s) => s >= 3);
@@ -2411,18 +2414,18 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           }
         } else if (!isContentType && bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
           // 🔍 计数口径取证（2026-09-12）：本口径只认「行首/空白/[)）、]后 + N.[、．]」。
-          //    🔴 2026-09-13（用户实证定版·根因分型）：答案区计 0 **是真实缺陷信号**（=一个可对应的题号锚点都没有，
+          //    2026-09-13（用户实证定版·根因分型）：答案区计 0 **是真实缺陷信号**（=一个可对应的题号锚点都没有，
           //       意味着答案与正文无法逐题对应），不是"口径不覆盖"的假告警——分型只为把排查方向说准，不改判"要修"。
           //       ① 答案区用了「(1)(2)」括号序号/表格/纯列表代替题号 → **缺与正文一致的题号层**（编号体系不同构）；
           //       ② 答案区确实未带任何题号（漏答或纯文字罗列）。
           const ansHasParen = /(?:^|\s)[(（]\s*\d{1,2}\s*[)）]/.test(ansText);
           const ansHasTable = /<table/i.test(ansMatch[1]);
-          // 🔴 2026-09-14（用户实证·误报根因）：分型判据收紧——只有答案区**几乎没有顶层题号**
+          // 2026-09-14（用户实证·误报根因）：分型判据收紧——只有答案区**几乎没有顶层题号**
           //    （≤2 个）时才归为"用(1)(2)括号序号/表格代替题号"（编号体系不同构）；若已有与
           //    正文同构的 `N.` 题号（只是数量偏少），属"漏答/纯文字罗列"型，不得误指为体系不同构
           //    （实测样本：答案区 14 个 `N.` + 每题子题 `(1)(2)`，与正文完全同构，却被判"不同构"）。
           const ansNumberingMissing = ansTopQ <= 2;
-          // 🔴 2026-09-28（题号编法按正规收口）：口径**按类型分流**，与正文条款同源——
+          // 2026-09-28（题号编法按正规收口）：口径**按类型分流**，与正文条款同源——
           //    正式考卷（exam）小题全卷连续；教辅（同步练习等）小题在同一栏目（组）内连续、按栏目（组）分别起编。
           //    故本告警的"应改成什么号"须随之分型，不得对教辅也要求"全卷连续"（那会一侧禁止一侧豁免）。
           const numCaliberWords = genType === 'exam'
@@ -2438,7 +2441,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (ansNumberingMissing && (ansHasParen || ansHasTable)) {
             silentCount('answer-coverage', `答案区**缺与正文一致的题号**（正文题号 ${bodyTopQ} 个，答案区仅 ${ansTopQ} 个；答案区用的是「(1)(2)」括号序号${ansHasTable ? '/表格' : ''}）——编号体系与正文不同构，答案无法与正文逐题对应：请改为**与正文相同的阿拉伯题号（1. 2. 3.…，${numCaliberWords}；仅子题用 (1)(2)）**，请抽检`);
           } else {
-            // 🔴 2026-09-29（③ 答案区逐题对应·**报准对象**）：原话术只给"数量级"，编辑还要自己找是哪几题。
+            // 2026-09-29（③ 答案区逐题对应·**报准对象**）：原话术只给"数量级"，编辑还要自己找是哪几题。
             //    这里补**中间缺题明细**——题号取与计数**同源**（extractBodyQuestionNumbers，compact 与
             //    countTopQuestions 一致；子题号 (1)(2)/①② 一律不计），只列"正文 1~bodyTopQ 里答案区
             //    没有的号"；取不到明细时回退原话术。**不改触发条件、不新造正则**（仅把提示说准）。
@@ -2453,14 +2456,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})${missTail}——答案区可能未按与正文一致的题号逐题对齐（计数口径：两侧同源、各取"从 1 起最长连续递增段"；题号形态已覆盖行首题号、空位自带括号编号、行内点号与紧凑连排，故差异不出在形态识别），请抽检`);
           }
         }
-        // 🔴 反向护栏（2026-09-10 实证补）：正文题号明显少于答案区 → 正文疑似丢题。
+        // 反向护栏（2026-09-10 实证补）：正文题号明显少于答案区 → 正文疑似丢题。
         //    实测样本：英语同步练习正文缺第2~5题（题号从1跳到6）、答案区却完整（一~九齐全）——
         //    原守卫只查"答案区少于正文"这一向，此向漏检，导致正文丢题静默进交付。
-        //    🔴 2026-09-17：分段式编号（每大题从 1 重编号）下两侧计数不可比 → 该向同样不适用（已改报体系问题）。
+        //    2026-09-17：分段式编号（每大题从 1 重编号）下两侧计数不可比 → 该向同样不适用（已改报体系问题）。
         if (!isContentType && !bodyNum.segmented && !ansNum.segmented && ansTopQ > 3 && bodyTopQ < ansTopQ - 1) {
           silentCount('body-coverage', `正文题号数(${bodyTopQ})明显少于答案区(${ansTopQ})——正文疑似丢题，请核对正文是否完整`);
         }
-        // 🔴 2026-09-29（③ 答案区逐题对应·**顺序错位**；only-report）：计数看起来对齐、但答案区题号
+        // 2026-09-29（③ 答案区逐题对应·**顺序错位**；only-report）：计数看起来对齐、但答案区题号
         //    **次序逆序**时，上面两条都不报（计数相同 → 不触发"少于"判据）→ 逐题对应实则错位。
         //    判据用**严格口径**（不带 compact：连排/题干内列举不入列，宁漏不误）取答案区题号序列，
         //    去掉相邻重复后须随正文题号单调不减；出现"先大后小"只报**首处**（防长清单刷屏）。
@@ -2477,7 +2480,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             }
           }
         }
-        // 🔴 2026-09-17 用户裁定（撤除"正确答案位置成规律"探针）："程序侧报这些意义不大，不依赖程序侧"——
+        // 2026-09-17 用户裁定（撤除"正确答案位置成规律"探针）："程序侧报这些意义不大，不依赖程序侧"——
         //    此类"命题技术"项（答案在选项序列中的位置分布）由**模型侧**承接：尾约束三域②要求
         //    "由该材料唯一确定答案 / 要素之间相互一致"，②并与题目自洽总纲的命题纪律同源；
         //    程序侧不再新增只报不改的提示（另有两点佐证该撤除：5 题样本下"同一字母 ≥80%"的偶然命中率约 7%，

@@ -3,7 +3,7 @@ import { useTocParser, fastCalculatePageRanges } from '../useTocParser';
 
 // 目录「页码范围」自动重算 —— 手动优先语义
 // ============================================================
-// 🔴 为什么有这组测试（2026-09-25，用户实测 bug）：
+// 为什么有这组测试（2026-09-25，用户实测 bug）：
 //    在目录表里手动改「页码范围」后点保存，改的值会被 fastCalculatePageRanges
 //    静默顶回「下一项起始页-1 / 总页数」——最后一行尤其明显（无下一项 → 总页数）。
 //    修复：parsePageRange 置 rangeEndLocked=true，重算遇到锁定行跳过其 end。
@@ -53,7 +53,7 @@ describe('fastCalculatePageRanges：锁定行跳过 end，其余照常', () => {
 });
 
 describe('flattenOutline：锁定标记必须跨过扁平化派生树', () => {
-  // 🔴 本次 bug 的真凶：displayOutline（编辑打到这）与 flatOutline（渲染/保存读这）
+  // 本次 bug 的真凶：displayOutline（编辑打到这）与 flatOutline（渲染/保存读这）
   //    是两批不同引用，flatten 若不带 rangeEndLocked，标记就蒸发，重算照旧顶回。
   it('扁平化后仍保留 rangeEndLocked', () => {
     const { flattenOutline } = useTocParser();

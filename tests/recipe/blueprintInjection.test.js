@@ -1,6 +1,6 @@
-﻿// 蓝图注入 + 非 exam 输出格式 测试
+// 蓝图注入 + 非 exam 输出格式 测试
 // ============================================================
-// 🔴 目的：锁定"格式内容对全部资料类型生效"的契约——
+// 目的：锁定"格式内容对全部资料类型生效"的契约——
 //    - exam：整卷生成指令尾部注入真题蓝本题型骨架（板块+分值+命题要求）
 //    - 非 exam（课时练/预习/总结/默写等）：注入统一输出格式 buildOutputFormatHint（按 genType 分 question/content 模式）
 //    - 地区选择覆盖蓝图总分/时长/板块分值（比例缩放 + 末板块修正）
@@ -19,14 +19,16 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     // 明细由 buildStructureText 注入（蓝图数据）；分值从蓝图推导，锁定"栏名 + 注入格式"而非写死数值
     const bp = getExamBlueprint('语文', 'primary_low');
     const inject = buildStructureText(bp);
-    // 🔴 2026-09-28：语文课标内容领域为域型栏目 → **只作大类层**（自带本大类总分 + 命题要求），
+    // 2026-09-28：语文课标内容领域为域型栏目 → **只作大类层**（自带本大类总分 + 命题要求），
     //    不再输出同名大题行（大类名不得充当大题标题，大题标题由模型按作答方式自拟）。
-    expect(inject).toContain(`🔴 大类层：识字与写字（本大类共${bp.sections[0].score}分）`);
-    expect(inject).toContain(`🔴 大类层：积累与运用（本大类共${bp.sections[1].score}分）`);
-    expect(inject).toContain(`🔴 大类层：阅读与鉴赏（本大类共${bp.sections[2].score}分）`);
-    expect(inject).toContain(`🔴 大类层：表达与交流（本大类共${bp.sections[3].score}分）`);
+    expect(inject).toContain(`大类层：识字与写字（本大类共${bp.sections[0].score}分）`);
+    expect(inject).toContain(`大类层：积累与运用（本大类共${bp.sections[1].score}分）`);
+    expect(inject).toContain(`大类层：阅读与鉴赏（本大类共${bp.sections[2].score}分）`);
+    expect(inject).toContain(`大类层：表达与交流（本大类共${bp.sections[3].score}分）`);
     // 大类命题要求（note）被注入（原挂大题行，现随大类行）
-    expect(inject).toContain('覆盖本单元识字与写字内容');
+    // 2026-10-01（④精准·注入文本中性化）：原"覆盖本单元识字与写字内容"改"本单元识字与写字内容都涉及到"
+    //    ——与项目既定口径一致（避免"覆盖"的清单式暗示；蓝图库别处已用"涉及到"）。
+    expect(inject).toContain('本单元识字与写字内容都涉及到');
     // 大类名不得充当大题标题：不出现"一、识字与写字"这类同名大题行
     expect(inject, '域型栏目不得再输出同名大题行').not.toMatch(/^[一二三四五六七八九十]、/m);
     // 顺序：大类层随位置递增
@@ -38,7 +40,7 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(buildStructureText({ sections: [] })).toBe('');
   });
 
-  // 🔴 2026-09-17 用户裁定："课标里明确要求的，被写在了蓝本注里、而不是每一个栏目里的，要修正——
+  // 2026-09-17 用户裁定："课标里明确要求的，被写在了蓝本注里、而不是每一个栏目里的，要修正——
   //    这样才能确保模型知道课标的具体要求"。蓝本 note 即该大题的课标/正规卷形态要求
   //    （实证第三卷：注写"短文，选择与判断"，卷面只出"判断"一种设问——注解被当背景描述读过去了）。
   //    处置：每个栏目行显式带【要求·须逐项落实】标注（效力与自查动作在【组织方式】段单源给出）。
@@ -63,7 +65,7 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(inject).not.toContain('情境化试题占比');
     expect(inject).not.toContain('禁止孤立罗列拼音');
     // 卷面结构仍在（大类名+本大类总分+命题要求 note）
-    expect(inject).toContain(`🔴 大类层：识字与写字（本大类共${bp.sections[0].score}分）`);
+    expect(inject).toContain(`大类层：识字与写字（本大类共${bp.sections[0].score}分）`);
   });
 
   it('不再注入分值规则（分值分配回归 AI 命题常识，账目自洽由规则库 score 系列验算）', () => {
@@ -94,36 +96,36 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(buildStructureText(mathBp)).not.toContain('部分');
   });
 
-  // 🔴 2026-09-27 收尾（g4）：sectionKindOf 接进 buildStructureText——域型→大类层（独立行；序号形态按学段）、
+  // 2026-09-27 收尾（g4）：sectionKindOf 接进 buildStructureText——域型→大类层（独立行；序号形态按学段）、
   //    题型型→块名即大题标题（不设大类层）。成为注入的**给定事实**，与【层级归并】条款同源同果。
-  // 🔴 2026-09-28 用户报障根治：域型栏目**不再输出同名大题行**（原"大类行 + 一、识字与写字"双写，
+  // 2026-09-28 用户报障根治：域型栏目**不再输出同名大题行**（原"大类行 + 一、识字与写字"双写，
   //    与"大类名不得充当大题标题"冲突，且模型把分值挂到大类、其下大题无分值 → 注意事项/得分表不注入）。
   it('域型栏目（语文内容领域名）→ 只出大类层行：自带本大类总分与命题要求、序号按学段；不再输出同名大题行', () => {
     const bp = getExamBlueprint('语文', 'primary_low');
     const inject = buildStructureText(bp);
     // 大类行：居中加粗独立呈现、自带本大类总分（序号形态按学段，小学段自带序号，见下方断言）
-    expect(inject).toContain('🔴 大类层：识字与写字（本大类共40分）');
-    expect(inject).toContain('🔴 大类层：积累与运用（本大类共28分）');
-    expect(inject).toContain('🔴 大类层：阅读与鉴赏（本大类共16分）');
-    expect(inject).toContain('🔴 大类层：表达与交流（本大类共16分）');
-    const domainLines = inject.split('\n').filter((l) => l.startsWith('🔴 大类层'));
+    expect(inject).toContain('大类层：识字与写字（本大类共40分）');
+    expect(inject).toContain('大类层：积累与运用（本大类共28分）');
+    expect(inject).toContain('大类层：阅读与鉴赏（本大类共16分）');
+    expect(inject).toContain('大类层：表达与交流（本大类共16分）');
+    const domainLines = inject.split('\n').filter((l) => l.startsWith('大类层'));
     expect(domainLines, '四个域型栏目 → 四条大类行').toHaveLength(4);
     // 大类行不得用与大题同构的「一、」式编号（其自带序号样式须与大题序号相区分）
-    for (const l of domainLines) expect(l, `大类行不得用大题式编号：${l}`).not.toMatch(/^🔴 大类层：\s*[一二三四五六七八九十]/);
-    // 🔴 大类名不得充当大题标题：不再输出"一、识字与写字"这类同名大题行
+    for (const l of domainLines) expect(l, `大类行不得用大题式编号：${l}`).not.toMatch(/^大类层：\s*[一二三四五六七八九十]/);
+    // 大类名不得充当大题标题：不再输出"一、识字与写字"这类同名大题行
     expect(inject, '域型栏目不得再输出同名大题行').not.toMatch(/^[一二三四五六七八九十]、/m);
     // 命题要求随大类行（原挂大题行）
     expect(domainLines.every((l) => l.includes('本大类命题要求')), '大类行须携带命题要求').toBe(true);
     // 大类下大题自拟 + 分值合计约束
     expect(domainLines.every((l) => l.includes('各大题分值合计须等于')), '大类行须给大题自拟与分值约束').toBe(true);
-    // 🔴 2026-09-28：域型不再由注入给定大题序号 → 大类行须补"大题序号全卷连续、不得按大类重启"
+    // 2026-09-28：域型不再由注入给定大题序号 → 大类行须补"大题序号全卷连续、不得按大类重启"
     //    （否则模型可能在大类下重启"一、"，而现有题号守卫只认阿拉伯小题号，查不出中文大题号重复）
     expect(domainLines.every((l) => l.includes('大题序号全卷连续')), '大类行须给大题序号全卷连续约束').toBe(true);
-    // 🔴 2026-09-28（去一刀切）：小学段大类（部分）层**自带序号**（真题"第一部分 积累与阅读（55分）"）
+    // 2026-09-28（去一刀切）：小学段大类（部分）层**自带序号**（真题"第一部分 积累与阅读（55分）"）
     expect(domainLines.every((l) => l.includes('自带序号')), '小学段大类行须明示自带序号').toBe(true);
   });
 
-  it('🔴 2026-09-28 去一刀切：中学段（语文 middle）域型栏目**直接作大题行**（不设大类层）', () => {
+  it('2026-09-28 去一刀切：中学段（语文 middle）域型栏目**直接作大题行**（不设大类层）', () => {
     const mid = getExamBlueprint('语文', 'middle');
     const inject = buildStructureText(mid);
     expect(inject, '中学段不得输出大类层').not.toContain('大类层');
@@ -149,7 +151,7 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
   it('大类层总分账目闭合：本大类总分 = 其下栏目分值合计', () => {
     const bp = getExamBlueprint('语文', 'primary_mid');
     const inject = buildStructureText(bp);
-    const lines = inject.split('\n').filter((l) => l.startsWith('🔴 大类层'));
+    const lines = inject.split('\n').filter((l) => l.startsWith('大类层'));
     // 语文 primary_mid：积累与运用30 / 梳理与探究8 / 阅读与鉴赏26 / 表达与交流36
     expect(lines).toHaveLength(4);
     const sumOf = (name) => bp.sections.filter((s) => s.name === name).reduce((a, s) => a + s.score, 0);
@@ -296,7 +298,9 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
 
   it('exam 三维度模板自带完整卷面格式（不依赖统一块）', () => {
     const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
-    expect(t.template).toContain('【卷面格式】');
+    // 2026-10-02 按主题拆块：原【卷面格式】拆为【卷首】【卷面层级】【题号与分值】【卷面自洽】【情境与页码】
+    expect(t.template).toContain('【卷首】');
+    expect(t.template).toContain('【题号与分值】');
     expect(t.template).toContain('密封线');
     expect(t.template).toContain('【输出格式】');
   });
@@ -322,33 +326,38 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
     }
   });
 
-  it('题为主 7 类模板作答空间语义六行逐字完整（不漏一字：总句+符号位倾向+题干末尾括号位+短答换算+同题同形态+禁文字占位+题面空位类不另附长横线）', () => {
-    // "按这样，不能漏一个字"：通用六行 = 作答空间语义块（换算锚随 BLANK 动态生成，此处锁定 wordGap=1 默认）逐字完整投递
-    const FULL_LINE =
-      '· 作答空位形态与所填内容相称（只在下列几种里选，不新造）：\n' +
-      '· 空位具体形态**按所填内容定**（判据式，不写"由你选定"）：填**符号**（字母/序号/√× 等，含带选项的题）→ **圆括号空位**（括号内宽只须容纳所填符号，1~2 字位；仅题干明说"圈/○里"时用圈形空位并须真实给出 ○）；填**短答**（词/句/数等，含"列举归类"）→ **横线空位**；形态真实可书写、同卷同性质空位风格统一；作答位就在题面空位内（括号空位/圈选位）、不另设独立作答区的题，一律不再另附长横线作答区；\n' +
-      '· 题面带选项（A./B./C. 等）的题，其作答位即上句判据所指的**圆括号空位**（形态已在判据条给出，此处不复述——单一裁决）；🔴 **括号一律用半角（英文状态）括号**：**位置在题干末尾**，写成"1. ……的是( )"；选项行内、选项末尾，以及选项行之后，一律不加作答位：不给整行横线、不给空白作答行、不另设作答区，作答位只有上述那一处（题干内指示所填内容的那处空位不是作答位——它是题面的一部分、由选项作答，照常保留，不在本句限制之内）；🔴 本条是**硬约束**，题面若声明了与本条不符的形态，**改题面、不改本条**——与【题目自洽①】冲突时以本条为准；\n' +
-      '· 短答空位宽度按"恰好容纳该空答案"换算：按该空答案的字位数（数字/汉字/小数点各算 1 个字位），写等量的全角空格（1 字位≈1 个全角空格≈1 em 书写宽），连列空位全带、不得遗漏；🔴 空位载体标签里的档位号 **N 就是该空答案的字位数**，**不是空位的序号**——不同空位的宽窄必须随**各自答案**变化，**严禁按题的先后递增、也严禁全卷一律等宽**；\n' +
-      '· 同一题（含并列子题）同性质空位的形态一致；一个空位只写一种载体，空位内不再嵌空位、空位前不叠加空白宽度；\n' +
-      // 🔴 2026-09-17 用户实证新增（六年级英语阶段测评·第二题：6/7 括号在题首、8~10 在句末，且全角/半角混用）：
-      //    同一大题内跨题的作答位**位置**须整段统一（逐大题探针），**形态**须同卷统一（逐卷探针）——与程序侧同源
-      // 🔴 2026-09-26 调研修订：位置/括号形制按学科分叉（外语类题首半角、中文科目题干末尾全角）
-      '· 同一大题内，"所填为字母/序号/√×等符号"的作答位**位置整段统一**（不得同段混用两种位置）；括号空位**一律用半角（英文状态）括号**，同卷不得混用全角/半角；\n' +
-      // 🔴 2026-09-27：原句末段为「严禁用"答：""作答区"等文字充当或预置作答空间」——否定式点名具体串
-      //    （反向植入：要读懂须先激活该串，模型反易照写）；改**原则式**，意图不变（作答空间不以文字充当/预置）。
-      '· 作答空间只以真实留白或书写载体呈现：不得以任何文字（提示、标签、说明）充当或预置作答空间；';
+  it('题为主 7 类模板作答空间语义关键判据齐备（判据级断言，不再锁逐字全文）', () => {
+    // 2026-10-02（按执行文档 §4 第 6 步"逐字断言改判据级"）：原逐字 FULL_LINE 会因"删元括注"这类措辞收口而红 →
+    //   改判据级（锁判据、不锁字面）；学科分支（题首/题干末尾、书写载体）各自成行，不在此列。
+    const mustHave = [
+      '· 作答空位形态与所填内容相称',
+      '具体形态**按所填内容定**',
+      '填**符号**（字母/序号/√× 等，含带选项的题）→ **圆括号空位**',
+      '1~2 字位',
+      '填**短答**（词/句/数等，含"列举归类"）→ **横线空位**',
+      '作答位就在题面空位内（括号空位/圈选位）、不另设独立作答区的题，一律不再另附长横线作答区',
+      '· 题面带选项（A./B./C. 等）的题，其作答位即上句判据所指的**圆括号空位**',
+      '选项行内、选项末尾，以及选项行之后，一律不加作答位',
+      '与【题目自洽①】冲突时以本条为准',
+      '· 短答空位宽度按"恰好容纳该空答案"换算',
+      '严禁按题的先后递增、也严禁全卷一律等宽',
+      '· 同一题（含并列子题）同性质空位的形态一致；一个空位只写一种载体',
+      '· 作答空间只以真实留白或书写载体呈现：不得以任何文字（提示、标签、说明）充当或预置作答空间',
+    ];
     const QUESTION_TYPES = ['exam', 'practice', 'special', 'reading', 'dictation', 'errorbook', 'review'];
     for (const g of QUESTION_TYPES) {
       const t = getPromptTemplate({ genType: g });
-      expect(t.template, `类型 ${g} 作答空间语义被截断/漏字`).toContain(FULL_LINE);
+      for (const s of mustHave) {
+        expect(t.template, `类型 ${g} 作答空间语义缺判据：${s}`).toContain(s);
+      }
     }
     // 通用模板（无学科）不注入学科书写形态分支（整行横线/无线空白须按 学科×学段 锚定，防无锚广播）
     const generic = getPromptTemplate({ genType: 'practice' });
     expect(generic.template).not.toContain('整行书写横线');
     expect(generic.template).not.toContain('无线空白');
     // 已移除"单处上限/超长改用整行书写位"（曾使模型对句末短答倾向独立整行书写位，2026-09 用户定稿）
-    expect(FULL_LINE).not.toContain('单处上限');
-    expect(FULL_LINE).not.toContain('超长改用整行书写位');
+    expect(generic.template).not.toContain('单处上限');
+    expect(generic.template).not.toContain('超长改用整行书写位');
   });
 
   it('形态语义按答案类型绑定（换算锚随 BLANK 动态注入；内容型无作答空间规则）', () => {
@@ -361,7 +370,7 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
         // 🔧 换算锚随 BLANK 动态注入（字位→em 计数锚）；形态是"倾向引导非强制绑定"（2026-09 用户定稿：
         //    具体空位形态由模型按题干措辞与作答需要选定，只定死硬约束——宽度换算/同题同形态/一空一载体/禁文字占位）
         expect(t.template, `类型 ${g} 缺换算锚`).toContain('1 字位≈1 个全角空格≈1 em 书写宽');
-        // 🔴 2026-10-01 D17（用户裁定：载体语义改"判据式"、废"许可式"）：原断言锁的是"形态选择权句"
+        // 2026-10-01 D17（用户裁定：载体语义改"判据式"、废"许可式"）：原断言锁的是"形态选择权句"
         //    （`由你按题干措辞与作答需要选定`）→ 改为锁定**判据式**，并**禁止许可式回潮**（属"改准＋收紧"）
         expect(t.template, `类型 ${g} 缺载体形态判据句`).toContain('按所填内容定');
         expect(t.template, `类型 ${g} 仍存在许可式"由你选定"（D17 已废）`).not.toContain('由你按题干措辞与作答需要选定');
@@ -393,7 +402,7 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
     // 英语：中段注入四线三格示例
     const enMid = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'practice' });
     expect(enMid.template).toContain('字母/单词抄写类题必须真实输出四线三格（示例：<span class="four-line-three"></span>）');
-    // 🔴 2026-09-29 口径订正（用户候选5裁定）：**英语低段同样要注入**——原断言"低段无（低段以听说认读为主）"
+    // 2026-09-29 口径订正（用户候选5裁定）：**英语低段同样要注入**——原断言"低段无（低段以听说认读为主）"
     //    是"英语 3 年级起点、低段不要求字母书写"的一刀切，与蓝图"低段字母抄写"相抵；用户裁定
     //    "低段要成题的、需要四线三格的书写的"，允许表已放开（WRITING_CARRIER 低段 = ['four-line-three']），
     //    注入端必须跟上（否则 = 协议缺位：模型不知该出四线三格）。本断言随之订正。
@@ -414,7 +423,7 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
   it('学段特点无旧措辞 [配图说明]；配图要求走正文图-题一致性条款（点名 [IMAGE] 并指向【渲染指令】）', () => {
     const t = getPromptTemplate({ grade: 'primary_low', genType: 'exam' });
     expect(t.template).not.toContain('[配图说明]');
-    // 🔴 2026-09-17：原从 EXAM_BASE 创作要求第 4 条（"需配图处用 [IMAGE] 标记描述画面"）取字面——
+    // 2026-09-17：原从 EXAM_BASE 创作要求第 4 条（"需配图处用 [IMAGE] 标记描述画面"）取字面——
     //    该半句已删（格式归【渲染指令】单一事实源，正文只留要求与判据）；标记名仍由正文图-题一致性条款给出。
     expect(t.template).toContain('[IMAGE]');
     expect(t.template).toContain('图-题一致性');
@@ -446,7 +455,7 @@ describe('质量底线三维度注入（类型/学科/学段各司其职，非�
     const special = getPromptTemplate({ genType: 'special' });
     expect(special.template).toContain('每板块含易错点辨识与思路点拨'); // 🔒 2026-09-16：原锁'按委托书名称与先后搭好'已按少约束裁定撤除
     const reading = getPromptTemplate({ genType: 'reading' });
-    expect(reading.template).toContain('阅读材料无语病'); // 阅读材料规范由教辅结构蓝本承载（单一事实源）
+    expect(reading.template).toContain('阅读材料完整、无语病、主题与单元相关'); // 阅读材料规范由教辅结构蓝本承载（单一事实源）
     const dictation = getPromptTemplate({ genType: 'dictation' });
     expect(dictation.template).toContain('严格对应教材要求');
     const review = getPromptTemplate({ genType: 'review' });
@@ -531,7 +540,7 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
   it('英语低/中段都有四线三格载体条款（must 单一事实源；低段随候选5裁定补齐）', () => {
     const enMid = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'exam' });
     expect(enMid.template).toContain('字母/单词抄写类题必须真实输出四线三格');
-    // 🔴 2026-09-29 口径订正（用户候选5裁定）：低段**也要**四线三格协议——原断言"低段无载体条款"是
+    // 2026-09-29 口径订正（用户候选5裁定）：低段**也要**四线三格协议——原断言"低段无载体条款"是
     //    已被裁定废弃的一刀切（"英语 3 年级起点"）；现允许表（WRITING_CARRIER 低段）与注入端同源。
     const enLow = getPromptTemplate({ grade: 'primary_low', subject: '英语', genType: 'exam' });
     expect(enLow.template).toContain('字母/单词抄写类题必须真实输出四线三格');
@@ -548,15 +557,16 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
     expect(buildCarrierInstruction('英语', 'primary_mid')).not.toContain('>a</span>');
   });
 
-  // 🔴 2026-09-28 书写格位置判据（根治"次次落句末"）：由"紧跟对应词"的弱句 + "不得单独成段"的
-  //    可字面满足禁令，提权为**独立 🔴 位置行**——强调"同行紧邻、逐词一一对应"、明确"多组词的格子
+  // 2026-09-28 书写格位置判据（根治"次次落句末"）：由"紧跟对应词"的弱句 + "不得单独成段"的
+  //    可字面满足禁令，提权为**独立 位置行**——强调"同行紧邻、逐词一一对应"、明确"多组词的格子
   //    不得从各自位置抽出集中堆放"，并声明**优先于**"载体给在题后/整题之后集中一处"的通用表述。
-  it('书写格位置判据：独立 🔴 行（同行紧邻 + 逐词一一对应 + 禁集中堆放 + 优先于"集中一处"通用表述）', () => {
+  it('书写格位置判据：独立一行（同行紧邻 + 逐词一一对应 + 禁集中堆放 + 优先于"集中一处"通用表述）', () => {
     const clause = buildCarrierInstruction('语文', 'primary_low');
-    // 独立成行（协议行与位置行以换行分隔，位置行以 🔴 起头 → 注入时自成醒目条款）
+    // 独立成行（协议行与位置行以换行分隔，位置行自成醒目条款）
+    // 2026-10-01（去 emoji）：原以 `startsWith('🔴')` 定位位置行——已全局去除，改按判据内容定位。
     const lines = clause.split('\n');
-    const posLine = lines.find(l => l.startsWith('🔴'));
-    expect(posLine, '位置判据必须是独立 🔴 行').toBeTruthy();
+    const posLine = lines.find((l) => l.includes('同行紧邻'));
+    expect(posLine, '位置判据必须独立成行').toBeTruthy();
     expect(posLine).toContain('同行紧邻');
     expect(posLine).toContain('逐词一一对应');
     expect(posLine).toContain('集中堆放');
@@ -565,7 +575,7 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
     expect(posLine).not.toContain('不得出现在句末');
     // 无书写格的学科/学段不注入该位置行（不跨学科/学段广播）
     expect(buildCarrierInstruction('数学', 'primary_low')).not.toContain('同行紧邻');
-    // 🔴 2026-09-29 口径订正（用户实样实证"看图写话没有作文格子"）：语文中学段不再整串返回空——
+    // 2026-09-29 口径订正（用户实样实证"看图写话没有作文格子"）：语文中学段不再整串返回空——
     //    成篇成文类（写话/习作）的作答载体（作文格）现给出**真协议**（中文成篇书写载体，各学段皆然）；
     //    但**位置行**（同行紧邻/逐词一一对应）只随 must 命中（语文低段）注入，中学段仍不得出现。
     const ywMid = buildCarrierInstruction('语文', 'middle');
@@ -573,7 +583,7 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
     expect(ywMid, '中学语文应给成篇成文（作文格）真协议').toContain('zuo-wen-ge');
   });
 
-  // 🔴 2026-09-29（用户实样实证"看图写话没有作文格子"）：成篇成文（写话/习作）的作答载体
+  // 2026-09-29（用户实样实证"看图写话没有作文格子"）：成篇成文（写话/习作）的作答载体
   //    原先两处**都只写**"另有专用书写载体"（假指针）→ 模型端拿不到标记、只能给横线；而程序侧补格通道
   //    又以"题内已有任一作答载体即不补"为界 → 两处互指 = 谁都不输出。现给**真协议**（语文各学段；
   //    标记与 2j-5 补格产物逐字同形：<div class="zuo-wen-ge"><span>&emsp;</span></div>）。
@@ -587,17 +597,17 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
     expect(buildCarrierInstruction('数学', 'primary_low')).not.toContain('zuo-wen-ge');
   });
 
-  // 🔴 2026-09-29（用户实样实证"低年级田字格也没有了"）：must 规则要求写字类出格子，但**没有优先级** →
+  // 2026-09-29（用户实样实证"低年级田字格也没有了"）：must 规则要求写字类出格子，但**没有优先级** →
   //    被"同题/同卷短答空位形态统一、一空一载体"覆盖，模型改用下划线空位替代 → 全卷零格子。
   //    现把优先级写进位置行（判据仍是"紧邻/一一对应"，只加"谁优先"）。
   it('书写格优先于"短答空位形态统一/一空一载体"（写字类不得用横线/括号空替代格子）', () => {
-    const posLine = buildCarrierInstruction('语文', 'primary_low').split('\n').find((l) => l.startsWith('🔴'));
+    const posLine = buildCarrierInstruction('语文', 'primary_low').split('\n').find((l) => l.includes('同行紧邻'));
     expect(posLine, '须声明优先于短答空位形态统一句').toContain('还优先于"同题/同卷短答空位形态统一、一个空位只写一种载体"');
     expect(posLine).toContain('不得用下划线空/横线空/括号空去替代它');
     expect(posLine).toContain('田字格');
   });
 
-  // 🔴 2026-09-29（**模型侧补缺口**·用户追问"逐条过一遍，确认模型生成时就能输出正确载体"）：
+  // 2026-09-29（**模型侧补缺口**·用户追问"逐条过一遍，确认模型生成时就能输出正确载体"）：
   //    英语**低段**必须有四线三格协议——原先 must 只有 primary_mid，低段允许表已放开
   //    （WRITING_CARRIER['英语'].primary_low = ['four-line-three']，2026-09-29 候选5裁定）而**注入端返回空串**
   //    = 协议缺位（模型根本不知道要出四线三格）→ 只能靠程序侧抽检/兜底。本组钉住"模型侧已知"。
@@ -609,11 +619,11 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
     expect(low, '低段也属 hasMust → 位置行随行注入').toContain('同行紧邻');
   });
 
-  // 🔴 2026-09-29：位置行锚点由"拼音"扩到**书写对象**——must 命中里含 抄写/默写/听写/写字/书写
+  // 2026-09-29：位置行锚点由"拼音"扩到**书写对象**——must 命中里含 抄写/默写/听写/写字/书写
   //    （这些题没有拼音对象），原句对它们**无对应表述**，模型只能猜 → 载体位置失准。
   //    判据（同行紧邻／逐词一一对应／禁抽出集中堆放）逐字不变。
   it('位置行锚点是"书写对象"而非仅"拼音"（覆盖无拼音的抄写/听写/默写类）', () => {
-    const posLine = buildCarrierInstruction('语文', 'primary_low').split('\n').find((l) => l.startsWith('🔴'));
+    const posLine = buildCarrierInstruction('语文', 'primary_low').split('\n').find((l) => l.includes('同行紧邻'));
     expect(posLine).toContain('书写对象');
     expect(posLine, '须点明三类可写对象').toContain('拼音／词语／句子');
     expect(posLine).toContain('同行紧邻');

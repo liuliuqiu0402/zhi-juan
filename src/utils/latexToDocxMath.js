@@ -1,14 +1,14 @@
 /**
  * LaTeX → docx 公式对象（Word 真公式）
  * ============================================================
- * 🔴 为什么需要（2026-09 用户实证）：Word 导出此前对公式的处理**只在"整个文本节点恰好是 $...$"时命中**
+ * 为什么需要（2026-09 用户实证）：Word 导出此前对公式的处理**只在"整个文本节点恰好是 $...$"时命中**
  *    （真实语句「半径为 $r$ 的圆」永不命中），命中时也只是剥掉 $ 后涂成**深蓝斜体**——
  *    于是 Word 交付物里 `$\frac{a}{b}$` 原样泄漏成乱码文本，既非公式也非印刷样式。
  *    docx 库内置完整 OMML 支持（MathFraction / MathRadical / MathSubXxx / MathSum / MathIntegral /
  *    MathFunction 等），
  *    本模块把 LaTeX 解析成这些对象，产出**真正的 Word 公式**（可编辑、可重排、印刷级）。
  *
- * 🔴 宁缺勿错（本项目红线）：只转换**能确定正确表达**的子集；遇到任何不支持的构造，
+ * 宁缺勿错（本项目红线）：只转换**能确定正确表达**的子集；遇到任何不支持的构造，
  *    整体返回 null，由调用方降级为可读 Unicode 文本（`convertFormulaToText`）——
  *    绝不"猜着转换"产出错公式（错公式比纯文本更糟：看起来对、实际错了）。
  *
@@ -41,7 +41,7 @@ import {
   MathNary,
   MathDelimiter,
 } from './ommlExtras.js';
-// 🔴 刻意不用 docx 的 `MathText`：它**未从 ESM 入口导出**（CJS 有，属上游打包不一致），
+// 刻意不用 docx 的 `MathText`：它**未从 ESM 入口导出**（CJS 有，属上游打包不一致），
 //    在 Vite/vitest 下 `MathText === undefined`，`new MathText()` 会抛错。实测由本模块单测抓出。
 //    正体文字改用 MathRun（Word 数学区里字母默认斜体，函数名如 sin 呈斜体——可接受的轻微保真损失，
 //    换来的是"不依赖未导出符号、不因上游打包差异而静默降级"）。
@@ -52,7 +52,7 @@ import {
 const SYMBOL_CMD = {
   cdot: '·', cdots: '⋯', times: '×', div: '÷', pm: '±', mp: '∓',
   leq: '≤', le: '≤', geq: '≥', ge: '≥', neq: '≠', ne: '≠', equiv: '≡', approx: '≈',
-  // 🔴 \leqslant / \geqslant 是**中文教材的规范写法**（人教版/苏教版印刷体就用 ⩽ ⩾）。
+  // \leqslant / \geqslant 是**中文教材的规范写法**（人教版/苏教版印刷体就用 ⩽ ⩾）。
   //    此前全仓库只收了 \leq/\geq，AI 产出教材原文时写 \leqslant → 整式在 Word 里降级、
   //    符号直接丢失（用户实证：目录里"只留了字母和加减号"）。
   leqslant: '⩽', geqslant: '⩾', nleqslant: '⩽̸', ngeqslant: '⩾̸',
@@ -63,7 +63,7 @@ const SYMBOL_CMD = {
   longrightarrow: '⟶', Longrightarrow: '⟹', hookrightarrow: '↪', mapsto: '↦',
   in: '∈', notin: '∉', cup: '∪', cap: '∩', subset: '⊂', subseteq: '⊆', emptyset: '∅',
   angle: '∠', perp: '⊥', parallel: '∥', triangle: '△', circ: '∘', degree: '°',
-  // 🔴 2026-09-30：`\odot`（圆心，初中几何"⊙O"高频）与 `\varnothing`（空集，与 \emptyset 同形，
+  // 2026-09-30：`\odot`（圆心，初中几何"⊙O"高频）与 `\varnothing`（空集，与 \emptyset 同形，
   //    教材两种写法都常见）此前未登记 → 整个公式降级，Word 里符号直接丢失
   //    （实测 `\odot O` 只剩 "O"、`=\varnothing` 等号后面空着）。
   odot: '⊙', varnothing: '∅',
@@ -170,7 +170,7 @@ const skipSpaceBeforeScript = (tks, pos) => {
 
 /**
  * 取"定界符 token"的字符。
- * 🔴 必须同时认三种写法，否则括号类型会**静默认错**（实测由单测抓出）：
+ * 必须同时认三种写法，否则括号类型会**静默认错**（实测由单测抓出）：
  *    ① 普通字符 token（`(`, `)`）；
  *    ② `[` / `]` 被词法器单独分成 `t:'['` / `t:']'`（为解析 `\sqrt[n]` 的可选参数）——
  *       原实现只认 `t:'ch'`，于是 `\left[x\right]` 的 `]` 取不到、回退成 `)` → 方括号被错认成圆括号；
@@ -352,7 +352,7 @@ parseCmd = (tks, pos) => {
   }
 
   // n 元算子（∑ ∏ ∫ ∮ ∬ ⋃ ⋂ …）：先取上下限，再由 parseList 吸收紧随的一项作为作用对象。
-  // 🔴 不复用 docx 的 MathSum/MathIntegral：它们只支持 ∑/∫ 且算子字符写死，
+  // 不复用 docx 的 MathSum/MathIntegral：它们只支持 ∑/∫ 且算子字符写死，
   //    而 ∏ ∮ ∬ ⋃ ⋂ 在教材/物理里真实出现。统一走自建 MathNary（同一条路径，避免两套形状）。
   if (NARY_CHAR[name]) {
     let sub = null;
@@ -371,7 +371,7 @@ parseCmd = (tks, pos) => {
 
   switch (name) {
     // 分段函数 / 方程组 / 矩阵环境。
-    // 🔴 docx **未实现** OMML 的方程数组（m:eqArr）与矩阵（m:m）——但这是**上游覆盖面取舍、
+    // docx **未实现** OMML 的方程数组（m:eqArr）与矩阵（m:m）——但这是**上游覆盖面取舍、
     //    不是规范限制**；本仓库用 docx 导出的 XmlComponent 扩展点自建了这两类
     //    （见 utils/ommlExtras.js），故这里能给出**真·多行**结构而非"分号连写"近似。
     case 'begin': {
@@ -393,7 +393,7 @@ parseCmd = (tks, pos) => {
       const endArg = parseArg(tks, endIdx + 1);
       if (!endArg || plainOf(endArg.nodes).trim() !== env) return null;
       const bodyTks = tks.slice(envArg.pos, endIdx);
-      // 🔴 两种行结构（eqArr 是"扁平节点"行、矩阵是"单元格"行）判空方式不同，
+      // 两种行结构（eqArr 是"扁平节点"行、矩阵是"单元格"行）判空方式不同，
       //    曾用同一判据套两种形状 → 分段函数恒被判空、整体降级（由单测抓出）
       const hasFlatContent = (rows) => Array.isArray(rows) && rows.some((r) => Array.isArray(r) && r.length > 0);
       const hasCellContent = (rows) => Array.isArray(rows)
@@ -417,7 +417,7 @@ parseCmd = (tks, pos) => {
         : { node: matNode, pos: endArg.pos };
     }
     // 分式家族：\frac / \dfrac / \tfrac / \cfrac 数学结构相同（KaTeX 亦同），统一走 m:f。
-    // 🔴 \dfrac 在 AI 产出里很常见，此前未收录会导致整式降级
+    // \dfrac 在 AI 产出里很常见，此前未收录会导致整式降级
     case 'frac':
     case 'dfrac':
     case 'tfrac':
@@ -452,7 +452,7 @@ parseCmd = (tks, pos) => {
       return { node: { k: 'text', children: a.nodes }, pos: a.pos };
     }
     // 化学反应箭头（条件写在箭头上方）：`\xrightarrow{点燃}` / `\xleftarrow{…}`
-    // 🔴 docx 未实现 OMML 的"上方附加"（m:limUpp），由 ommlExtras 自建补齐 →
+    // docx 未实现 OMML 的"上方附加"（m:limUpp），由 ommlExtras 自建补齐 →
     //    条件文字**真排在箭头上方**（教材印刷形态），且不再有"条件被降级吞掉"的风险。
     case 'xrightarrow':
     case 'xleftarrow': {
@@ -462,7 +462,7 @@ parseCmd = (tks, pos) => {
       return { node: { k: 'limUpp', children: [{ k: 'run', text: arrow }], limit: a.nodes }, pos: a.pos };
     }
     // 重音：\vec{F} \hat{x} \bar{x} \overline{AB} \tilde{x} \dot{x}
-    // 🔴 docx 未实现 OMML 的重音（m:acc），由 ommlExtras 自建补齐 → 真重音而非组合字符
+    // docx 未实现 OMML 的重音（m:acc），由 ommlExtras 自建补齐 → 真重音而非组合字符
     case 'vec':
     case 'overrightarrow':
     case 'hat':
@@ -543,7 +543,7 @@ const plainOf = (nodes) => (nodes || []).map((n) => {
 
 /**
  * 是否"纯文本"（不含任何结构节点）。
- * 🔴 用于决定 `\mathrm{}`/`\text{}` 能否安全塌成单个 run —— 见 toComponent 的 text 分支。
+ * 用于决定 `\mathrm{}`/`\text{}` 能否安全塌成单个 run —— 见 toComponent 的 text 分支。
  */
 const isPlainText = (nodes) => (nodes || []).every((n) => {
   if (!n) return true;
@@ -560,7 +560,7 @@ const toComponent = (n) => {
     case 'text': {
       // `\mathrm{}` / `\text{}`：**只在内容确为纯文本时**才塌成单个 run（排版干净）；
       // 含结构（上下标 / 化学箭头条件 / 分式…）时逐个保留结构。
-      // 🔴 曾一律 plainOf 塌成纯文本 → `\mathrm{H_{2}O}` 静默变成 "HO"（下标被吞）、
+      // 曾一律 plainOf 塌成纯文本 → `\mathrm{H_{2}O}` 静默变成 "HO"（下标被吞）、
       //    `\mathrm{2H_{2}+O_{2}\xrightarrow{点燃}...}` 整串结构消失 —— 静默错内容，由单测抓出。
       const nodes = n.children || [];
       if (isPlainText(nodes)) return new MathRun(plainOf(nodes));

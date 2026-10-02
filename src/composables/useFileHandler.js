@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import * as pdfjsLib from 'pdfjs-dist';
-// 🔴 Word 导入的公式还原：与粘贴/剪贴板带入同一条链路（OMML → $…$）
+// Word 导入的公式还原：与粘贴/剪贴板带入同一条链路（OMML → $…$）
 import { convertPastedMathInHtml } from '../utils/pastedMath.js';
 
 // Vite 环境下正确引用 Worker 的方式
@@ -76,7 +76,7 @@ export function useFileHandler() {
   };
 
   // 读取文本文件（UTF-8 正确解码）
-  // 🔴 read-file IPC 返回 base64；直接 atob 拿到的是 latin1 字节流，中文会全成乱码，
+  // read-file IPC 返回 base64；直接 atob 拿到的是 latin1 字节流，中文会全成乱码，
   //    必须经 TextDecoder 按字节还原（TextbookModule/TemplateModule 里旧写法就是这个坑）
   const readTextFile = async (filePath) => {
     const base64 = await window.electronAPI.readFile(filePath);
@@ -89,7 +89,7 @@ export function useFileHandler() {
   const parseWord = async (filePath) => {
     try {
       const result = await window.electronAPI.parseWord(filePath);
-      // 🔴 Word 导入的公式还原（2026-09 用户实证）：
+      // Word 导入的公式还原（2026-09 用户实证）：
       //    python-docx 不支持 OMML，word_to_html.py 因此把段落里的 `<m:oMath>` **原样**输出到 HTML；
       //    这里交给与粘贴**同一条**链路（utils/pastedMath）转成 $…$ —— 全链路只有一种公式表示。
       //    必须在任何 DOM 解析之前做：OMML 一旦进了 DOM/编辑器，就被当未知标签剥掉，再也找不回。

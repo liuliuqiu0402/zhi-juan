@@ -201,8 +201,8 @@ describe('卷面结构文本', () => {
       ],
     };
     const text = buildStructureText(bp);
-    expect(text).toContain('🔴 大类层：识字与写字（本大类共32分）');
-    expect(text).toContain('🔴 大类层：积累与运用（本大类共24分）');
+    expect(text).toContain('大类层：识字与写字（本大类共32分）');
+    expect(text).toContain('大类层：积累与运用（本大类共24分）');
     // 大类名不得充当大题标题：不输出"一、识字与写字"这类同名大题行
     expect(text).not.toMatch(/^[一二三四五六七八九十]、/m);
   });

@@ -357,7 +357,7 @@ const toggleTpl = (key, on) => {
 const STAGE_LABELS = {
   primary_low: '小学低段（1-2年级）', primary_mid: '小学中段（3-4年级）', primary_high: '小学高段（5-6年级）', middle: '初中（7-9年级）', high: '高中',
 };
-// 🔴 类型中文名单一事实源 = promptLibrary.GEN_TYPE_NAMES（曾本地写"正式试卷"等异名，与正式考卷等漂移）
+// 类型中文名单一事实源 = promptLibrary.GEN_TYPE_NAMES（曾本地写"正式试卷"等异名，与正式考卷等漂移）
 const GEN_TYPE_KEYS_ALL = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
 const GEN_TYPE_LABELS = GEN_TYPE_KEYS_ALL.map((k) => ({ key: k, label: GEN_TYPE_NAMES[k] || k }));
 const GEN_TYPE_NAME = Object.fromEntries(GEN_TYPE_LABELS.map((t) => [t.key, t.label]));
@@ -469,7 +469,7 @@ const saveDraft = (key) => {
   if (ok) {
     reload();
     editingKey.value = ''; draft.value = null;
-    // 🔴 保存后触发"相同旧句批量同步"检查（行级 1:1；无命中或不可自动替换则静默）
+    // 保存后触发"相同旧句批量同步"检查（行级 1:1；无命中或不可自动替换则静默）
     runSyncCheck(key, oldText, newText);
   } else window.alert('保存失败');
 };

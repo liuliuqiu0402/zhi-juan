@@ -1,14 +1,14 @@
 /**
  * 内容清洗工具（整卷生成后处理用）
  * ============================================================
- * 🔴 定位：从原分步流水线 executor.js 中保留的通用函数（分步流水线已整体删除）：
+ * 定位：从原分步流水线 executor.js 中保留的通用函数（分步流水线已整体删除）：
  *    - cleanSectionHtml：清洗 AI 输出（去 ```html 包裹 / body 抽取 / 自评残留）
  *    - htmlToPlainText：HTML → 纯文本（答案页生成上下文，整卷路径在用）
  *    - hasAnswerCarrier：判定题内是否存在可作答载体
  * ============================================================
  */
 import { getMergedSpec } from '../config/layoutSpec.js';
-import { SYMBOL_ANSWER_DECL } from '../config/blueprintSchema.js'; // 🔴 单源：符号作答声明（G1 形态收口与展示层载体推断共用同一正则）
+import { SYMBOL_ANSWER_DECL } from '../config/blueprintSchema.js'; // 单源：符号作答声明（G1 形态收口与展示层载体推断共用同一正则）
 
 /**
  * 答案区起点 —— **唯一口径**（2026-09-17 起在本文件计数口径使用；2026-09-29 收为导出单源）
@@ -70,7 +70,7 @@ export const normalizeTypographicSymbols = (html = '') => String(html || '')
   .replace(/➗/g, '÷')
   .replace(/\.{3,6}/g, '……');
 
-/** 🔴 消解 markdown 水平线/装饰线残留（2026-09 根治：模型把分隔线与标题**同行**输出，
+/** 消解 markdown 水平线/装饰线残留（2026-09 根治：模型把分隔线与标题**同行**输出，
  *  旧清理（GenerateModule 教材文本通道）只删"独占一行"的 `[*=_-]{3,}` → 同行形态漏网）
  * ============================================================
  * 现象：模型输出 `<p>--- <strong>第一部分 积累与运用</strong></p>`（Markdown 水平线 `---` 与标题同行），
@@ -113,7 +113,7 @@ export const cleanSectionHtml = (raw) => {
   // 🔧 markdown 语法残留兜底（指令已禁，模型偶发违反——正文/答案页统一清理）：
   //    行首 ## 标题标记、成对 ** 加粗；保留正文中自然出现的 # / * 单字符（数学/符号场景）
   html = html.replace(/^#{1,6}\s+/gm, '').replace(/\*\*([^*\n]+)\*\*/g, '$1');
-  // 🔴 markdown 水平线/装饰线消解（独占行 + 与标题同行；幂等）——根治"--- 与标题同行漏网"
+  // markdown 水平线/装饰线消解（独占行 + 与标题同行；幂等）——根治"--- 与标题同行漏网"
   html = stripDecorRuleLines(html);
   // 🔧 符号字形归一（全角％/．、异体乘除号、省略号点数）——教材排版口径，幂等
   html = normalizeTypographicSymbols(html);
@@ -174,7 +174,7 @@ export function stripPlanningPreamble(raw = '') {
 /**
  * 空白类 HTML 实体的**字面文本**归一（2026-09-17 正文丢题误判根治·实证定案）
  * ============================================================
- * 🔴 事故实况：英语整卷题号形如 `<p>&emsp;4. A. need　B. feed　C. read</p>`（AI 用实体做行首缩进/占位），
+ * 事故实况：英语整卷题号形如 `<p>&emsp;4. A. need　B. feed　C. read</p>`（AI 用实体做行首缩进/占位），
  *    而题号提取的文本剥离**只删标签、不解码实体**——行首留下字面 `&emsp;`（6 个普通字符），
  *    行首题号规则 `\s*([1-9]\d?)[.、．]` 的 `\s*` 匹配不到它 → 该题号不被计入 →
  *    误报"正文题号不连续（1~61 中缺 30 处）"并**判失败不交付**；题号其实一个不少，
@@ -222,14 +222,14 @@ export function isDeliverableBodyHtml(html = '') {
  * 口径与 useAiGenerator 正文丢失护栏 qCount 同源：块级标签闭合补换行后按行首 `N.` 计题号。
  * gap 返回 null = 无缺口/样本不足以判定（峰值 <3 不判——防小卷/条目清单误报；
  * 峰值 >60 的清单型大卷仅个别缺失 <3 处不判，防目录/知识点清单跳号误报）。
- * 🔴 2026-09-11 漏检补强：旧实现 `found.size < 3` 提前返回 null——"正文缺 2~5 题、只剩题号
+ * 2026-09-11 漏检补强：旧实现 `found.size < 3` 提前返回 null——"正文缺 2~5 题、只剩题号
  * 1 与 6"（实测样本）恰落漏检区（found={1,6} → 不判 → 残卷静默交付）。改为先按峰值判定：
  * 峰值 ≥3 即查 1~峰值缺口，高位题号存在而低位缺失同样拦截。
  */
 const extractQuestionHits = (html = '', { part = 'body', compact = false } = {}) => {
   const src = String(html || '');
   if (!src.trim()) return [];
-  // 🔴 2026-09-17：新增 `part` 参数——答案区片段自身以"参考答案"标题开头，若仍按"正文"口径切掉答案区，
+  // 2026-09-17：新增 `part` 参数——答案区片段自身以"参考答案"标题开头，若仍按"正文"口径切掉答案区，
   //    会把整段判成答案区而返回空（计数恒 0）。故答案区计数须显式传 part:'answer'（不切）。
   const bodyOnly = part === 'answer'
     ? src
@@ -238,7 +238,7 @@ const extractQuestionHits = (html = '', { part = 'body', compact = false } = {})
   //    "实体空白"分支把它们当空白处理——**不预先解码**：解码会把 `&emsp;` 变成一个普通空格，
   //    而"紧跟作答位"的判据需要区分"空位"与词间空格（解码后无法区分，实证：行内编号空位漏识别）。
   //    （历史：本轮曾先 decodeWsEntityLiterals 再匹配，导致 `(41) &emsp;` 不再被判为编号空位。）
-  // 🔴 2026-09-17（用户追问·口径同源 + 形态鲁棒）：块边界与 examValidator 计数口径**逐字一致**（含 td/th/table/<br>），
+  // 2026-09-17（用户追问·口径同源 + 形态鲁棒）：块边界与 examValidator 计数口径**逐字一致**（含 td/th/table/<br>），
   //    且**先把作答载体整体换成哨兵**再剥标签——交付产物里 `&emsp;` 常已被前序归一写成**真实空格**
   //    （实证：audit 后 `<u class="blank-3">&emsp;</u>` → `<u class="blank-3"> </u>`），靠"实体字面"识别作答位会漏认。
   const BLANK_CARRIER_RE = /<(?:u|span|div|p)[^>]*class=["'][^"']*blank-[^"']*["'][^>]*>[\s\S]*?<\/(?:u|span|div|p)>/gi;
@@ -260,16 +260,16 @@ const extractQuestionHits = (html = '', { part = 'body', compact = false } = {})
   //    这类"空位自带编号"本身就是该题的题号，与行首题号同权计入；**仅限紧跟作答空位者**
   //    （无空位的行内括号序号仍按子题形态处理、不计入——不扩大口径）。
   const reBlankOrdinal = new RegExp(String.raw`[(（]\s*([1-9]\d?)\s*[)）](?=[ \t\u3000]*(?:\u0001|&(?:emsp|nbsp|#160|#xA0|#x00A0|#8195|#x2003|ensp|#8194|#x2002|thinsp|#8201|#x2009);|[_＿]{2,}))`, 'g');
-  // 🔴 2026-09-17（用户裁定·根治，消"形式性缺号"提示）：**行内 `N.` 点号形态 + 紧跟作答空位**同样计入。
+  // 2026-09-17（用户裁定·根治，消"形式性缺号"提示）：**行内 `N.` 点号形态 + 紧跟作答空位**同样计入。
   //    实证：六年级英语卷第七题补全对话 "Amy: Hi, Mike. 36. ＿＿＿＿"（题号在行内、不在行首）
   //    → 36～40 被判"未识别"，虽按"内容完整"放行，但每次都出提示。判据与上面"空位自带编号"完全同类
   //    （**必须有作答空位紧跟**才算题号），故不扩大口径：题干内的列举编号（"提示：1. What…"）后无空位，不计入。
   const BLANK_AHEAD = String.raw`[ \t\u3000]*(?:\u0001|&(?:emsp|nbsp|#160|#xA0|#x00A0|#8195|#x2003|ensp|#8194|#x2002|thinsp|#8201|#x2009);|[_＿]{2,}|[(（]\s*[)）])`;
   const reInlineDot = new RegExp(String.raw`[^\d\n]([1-9]\d?)[.、．](?![.\d])` + BLANK_AHEAD, 'g');
-  // 🔴 三套形态**按出现位置归并**（本函数承诺"返回保序数组"；多趟 append 会打乱顺序——第三形态是行内匹配，
+  // 三套形态**按出现位置归并**（本函数承诺"返回保序数组"；多趟 append 会打乱顺序——第三形态是行内匹配，
   //    若直接 append 会出现 [37, 36] 这类逆序，影响依赖顺序的展示与冻结比对调用方）。
   const hits = [];
-  // 🔴 2026-09-17（用户实证第三卷·**不得让题干列举伪造"编号段"**）：每条命中记 compactOnly——
+  // 2026-09-17（用户实证第三卷·**不得让题干列举伪造"编号段"**）：每条命中记 compactOnly——
   //    紧凑连排口径（下面 compact 分支）只服务"计数"（答案区 `1. A　2. A…` 连排），但它的判据宽松，
   //    会把**题干内的编号列举**（"提示：1. 2. 3. 4."）也当成题号。段分析里这类命中**只许延伸既有段、
   //    不许起新段**（起新段=把列举伪造成"另一个大题"→ 误报"编号体系分段"，实测随堂巩固样本）。
@@ -281,7 +281,7 @@ const extractQuestionHits = (html = '', { part = 'body', compact = false } = {})
   collect(re);
   collect(reBlankOrdinal);
   collect(reInlineDot);
-  // 🔴 2026-09-17（用户追问·保能力不回归）：**紧凑连排口径**（2026-09-10 用户实证定版）——答案区常把题号
+  // 2026-09-17（用户追问·保能力不回归）：**紧凑连排口径**（2026-09-10 用户实证定版）——答案区常把题号
   //    连排成一行（"1. A　2. A　3. A…"），题号前是空白/顿号/右括号也算。仅**计数**用（countTopQuestions 开），
   //    缺号判定/护栏不启用：题干内的编号列举（"提示：1. … 2. …"）若计入，会遮蔽真实缺号（宁漏不误）。
   if (compact) {
@@ -375,11 +375,11 @@ export function analyzeQuestionNumbering(html = '', opts = {}) {
 
 /**
  * 正文题号序列（**冻结比对专用 · 形态归一版**，2026-09-15 用户定版）：
- * 🔴 误报根因：extractBodyQuestionNumbers 只认"行首 `N.`"一种形态，括号序号（`（　）1.`）不计入——
+ * 误报根因：extractBodyQuestionNumbers 只认"行首 `N.`"一种形态，括号序号（`（　）1.`）不计入——
  *    同一份卷里"题首括号空位 + 序号"与"行首数字序号"两种写法并存时，只要排版类后处理
  *    （答案区补包、序号归一、空白行补全等）让某大题的序号在两种形态间切换，序列就会"变化"，
  *    被误报成"正文被改动"（实证：21 → 34，而正文经复算完整无缺）。
- * 🔴 归一做法：比对前先剔除"作答空位（u/span 的 blank-N）"与"空括号（　）"，再套用与
+ * 归一做法：比对前先剔除"作答空位（u/span 的 blank-N）"与"空括号（　）"，再套用与
  *    extractBodyQuestionNumbers **完全相同的行首 `N.` 规则**——`（　）1.` 与 `　1.` 归一后同为行首 `1.`。
  *    仅用于"答案生成前快照 vs 交付正文"的比对；**不改** extractBodyQuestionNumbers 的缺号检测口径。
  */
@@ -401,7 +401,7 @@ export function extractBodyQuestionSequence(html = '') {
 
 /**
  * 冻结比对判定（2026-09-15 用户定版）：答案生成前后两份题号序列，**是否算"正文被改动"**。
- * 🔴 只认"题号集合或题数"变化（= 真实增删题）；纯形态/顺序差异不算——避免排版类后处理
+ * 只认"题号集合或题数"变化（= 真实增删题）；纯形态/顺序差异不算——避免排版类后处理
  *    （答案区补包、序号归一、空白行补全）触发误报。任一侧为空（无题号资料）不判。
  */
 export function isBodyQuestionSeqChanged(snapshotSeq = [], finalSeq = []) {
@@ -463,7 +463,7 @@ export const BODY_RESTART_MIN_TOP = 4;
  *   按小节重启编号（实证：二年级语文"阅读测试卷"正文题号 `1、2、3` 之后从 1 重数到 27），
  *   该要求**无法被满足** → 模型失去可对齐的题号基准，退化成只写尾部评分量表，逐题答案与解析全缺
  *   （用户日志：`答案页内容缺正文前段逐题答案（正文顶层题号 5，答案区顶层题号 0）`）。
- * 🔴 既有 `detectBodyNumberingGap`（缺号）**查不出重启**：`1,2,3,1..27` 的"已出现集合"就是 1..27、
+ * 既有 `detectBodyNumberingGap`（缺号）**查不出重启**：`1,2,3,1..27` 的"已出现集合"就是 1..27、
  *   一个不缺 → 判无缺口。故"重启"必须单独判，不能寄希望于缺号守卫。
  * 判据沿用 `analyzeQuestionNumbering` 的"从 1 起、段长≥3 的段 ≥2 个"（与校验侧报告**同源**，不新造口径），
  * 并加"最长段 ≥ BODY_RESTART_MIN_TOP"下限（防题量过少的片段/清单误判）。
@@ -499,7 +499,7 @@ export function cnOrdinalToNumber(label = '') {
  * 实证：试卷大题标题以「一、二、三、…」编号（与数字题号并存的**标题编号维度**），
  *   正常应**全卷连续、不重复、不重启**。抽取行首「汉字序号＋、」标题后：
  *     ① **重复序号**（如两个"三、"）或 ② **按小节重启**（如 三、之后又出现 一、）即异常。
- * 🔴 与其他编号判据的分工：数字题号的 detectBodyNumberingRestart 用于**拦截/重试**；
+ * 与其他编号判据的分工：数字题号的 detectBodyNumberingRestart 用于**拦截/重试**；
  *   本判据只**如实报告、交编辑核对**——**不改写、不重试、不判失败**（仅 warn）。
  * 适用范围：仅试卷（exam）正文；答案区不参与。
  * @param {string} html 正文 HTML（含答案区亦可，答案区自动剔除）
@@ -541,7 +541,7 @@ export function detectCnOrdinalHeadingIssues(html = '') {
 /**
  * 缺号成因分类（2026-09-17 用户裁定·根治：不再靠枚举编号形态定罪）
  * ============================================================
- * 🔴 判据换代理指标：**"我认得出题号" ≠ "题目存在"**。
+ * 判据换代理指标：**"我认得出题号" ≠ "题目存在"**。
  *    沿用旧口径（缺号即判残缺）的实证事故：英语整卷题号写成 `&emsp;4.`／对话内 `(41) &emsp;`，
  *    30 处"缺号"里一个都没真缺 → 完整卷被判残缺、**重试永远修不好**（形态随机、漏判恒在）。
  * ✅ 现在只认一种丢题实证：**该号在正文任何位置都不出现**（diagnoseNumberingGap 的「未出现」判定）。
@@ -731,7 +731,7 @@ export const htmlToPlainText = (html = '', maxChars = 0) => {
 
 /**
  * 题目层级解析（顶层题干 vs 子题 (N)）
- * 🔴 子题判定：前一个标签是顶层题干、或前一个标签是序号更小的子题（(1)(2)(3) 连续递增）；
+ * 子题判定：前一个标签是顶层题干、或前一个标签是序号更小的子题（(1)(2)(3) 连续递增）；
  *    序号回退（如 (4) 后又出现 (1)）→ 判定为新的顶层题。
  * @param {string} html
  * @returns {Array<{kind:'top'|'sub', whole:string, inner:string, num?:number}>}
@@ -973,7 +973,7 @@ export function unwrapMalformedBlankCarriers(html = '') {
   const src = String(html || '');
   if (!/<(u|span)\b[^>]*class=["'][^"']*blank-\d+/i.test(src)) return src;
   const CORE_RE = /&emsp;|&#8195;|&#x2003;|\u2003|\u3000|&nbsp;|\u00A0|&#160;/g;
-  // 🔴 2026-09-18 用户裁定（例题答案回填进作答位）：载体内部**可以**是答案本身——例题保留原作答形态、
+  // 2026-09-18 用户裁定（例题答案回填进作答位）：载体内部**可以**是答案本身——例题保留原作答形态、
   //    答案回填进该作答位，字面就长成 `<u class="blank-3">was</u>`。故"载体内有文字"不再一律判为误包，
   //    判据改为**结构性**的（是否包住了本该在载体之外的内容），而不是单纯比字数：
   //      · 误包（拆壳还原）：内部含块级标签（p/div/li/h/br/table…——载体是行内元素，包住块级必属误包）；
@@ -991,7 +991,7 @@ export function unwrapMalformedBlankCarriers(html = '') {
     if (/[。！？…!?]|\.\s*$/.test(plain)) return true;                            // 整句被包（含句末标点）→ 误包
     return core.length >= 24;                                                     // 超长 → 非答案 → 误包
   };
-  // ⓪ 🔴 2026-09-18 用户实证（知识点总结例题块"内容全被加下划线 + 块级排版错乱"）：**局部拆壳（只动误包那一处）**。
+  // ⓪ 2026-09-18 用户实证（知识点总结例题块"内容全被加下划线 + 块级排版错乱"）：**局部拆壳（只动误包那一处）**。
   //    旧实现是字符串非贪婪正则，遇"同标签嵌套"（<u class=blank-3> 长句 … <u class=blank-3> </u> … </u>）
   //    只能配到**内层**闭合：拆掉外层后留下**悬空开/闭标签** → 后续解析把"悬空标签→段末/块末"整段吞进空位载体
   //    （正文被画成横线），且 <u>（行内元素）承担了块级容器（包住多个 <p>）→ 排版错乱。
@@ -1127,7 +1127,7 @@ const decodeCarrierNumericEntities = (s) => String(s || '').replace(/&#(?:x([0-9
 });
 
 /**
- * 🔴 空位载体"内部只许空白"（2026-09-12 丢题事故根治）
+ * 空位载体"内部只许空白"（2026-09-12 丢题事故根治）
  * ============================================================
  * 病根实证：载体正则原写成 `<u|span …>[\s\S]*?</…>`——**内部允许任意内容**。一旦模型输出畸形载体
  *   （未闭合、或把正文整句包进 blank-N），贪婪匹配会跨题吞下一大段；而"同段形态归一"
@@ -1140,7 +1140,7 @@ const decodeCarrierNumericEntities = (s) => String(s || '').replace(/&#(?:x([0-9
 const BLANK_INNER = '(?:&emsp;|&nbsp;|&ensp;|&#8195;|&#x2003;|&#160;|&#x00A0;|[\\s\\u3000\\u2003\\u00A0])*';
 
 /**
- * 🔴 双载体判据（**剥除与检测单一事实源**，2026-09-12）
+ * 双载体判据（**剥除与检测单一事实源**，2026-09-12）
  * ============================================================
  * 病根：剥除（本文件 normalizeBlankMarkers 内两条）按**严格形态**写（`class="blank-N"` 双引号、
  *   不可带其它属性、内部正好是 `&emsp;`），检测（contentSanity.detectDoubleCarrierLeak）按**宽松形态**
@@ -1191,7 +1191,7 @@ export function normalizeBlankMarkers(html = '') {
     }
     return m;
   });
-  // 🔴 填空横线宽度换算统一走共享函数（读排版规格库 BLANK.maxCap/wordGap/minBlank），不在此另建梯形
+  // 填空横线宽度换算统一走共享函数（读排版规格库 BLANK.maxCap/wordGap/minBlank），不在此另建梯形
   out = out.replace(/<u>\s*＿+\s*<\/u>/gi, (m) => {
     const len = (m.match(/＿/g) || []).length;
     return `<u class="blank-${blankWidthForChars(len)}">&emsp;</u>`;
@@ -1208,7 +1208,7 @@ export function normalizeBlankMarkers(html = '') {
   //    ① 括号+下划线组合（可双层括号）→ <span class="blank-N">&emsp;</span>
   //    ② 括号+纯空白（可双层括号）→ <span class="blank-N">&emsp;</span>
   //    span.blank-N 渲染自带半角括号（预览 CSS ::before/::after + docx 显式补 ()），此处不包外层括号
-  //    🔴 顺序：括号收敛必须先于下方"裸＿→u.blank"规则——曾在其后执行，连续下划线被先行转成
+  //    顺序：括号收敛必须先于下方"裸＿→u.blank"规则——曾在其后执行，连续下划线被先行转成
   //    <u class="blank-N"> 标签后括号正则只认字面字符而失配 → （＿＿＿）残留"字面括号+横线"并存、
   //    <u>（＿＿＿）</u> 残留三层叠线（2026-09 实证）。"括号与横线并存：外层括号保留括号语义
   //    （括号填空），内层横线不另成载体"——先收敛括号，裸＿ 规则只处理括号外的下划线。
@@ -1244,7 +1244,7 @@ export function normalizeBlankMarkers(html = '') {
   //    全角空格串、其后又叠一个括号空 → 同一答案空两种载体（导出成"方框后括号"）。
   //    括号空已在上方归一为 <span class="blank-N">&emsp;</span>，此处剥除其前 ≥2 字符的冗余空白宽，
   //    只保留括号空为唯一载体；单个空格（自然间隔）不剥。u.blank 前置□类由下方跨类型去重处理。
-  //    🔴 2026-09-12：剥除与检测同源（stripDoubleCarrierResidual）——原严格形态剥不掉"单引号/
+  //    2026-09-12：剥除与检测同源（stripDoubleCarrierResidual）——原严格形态剥不掉"单引号/
   //    带其它属性"的载体，而检测按宽松形态照报，导致该提示永远报不完。
   out = stripDoubleCarrierResidual(out);
   // 🔧 裸书写空跑段 → u.blank-N（wrapBareBlankRuns：整段纯空白行 + 行内前有正文的连续空位段；
@@ -1254,14 +1254,14 @@ export function normalizeBlankMarkers(html = '') {
   out = wrapBareBlankRuns(out);
   // 🔧 纯空白"装饰标记"兜底（见 normalizeWhitespaceCarriers：强调类标记无字可加 → 空白实为书写空位）
   out = normalizeWhitespaceCarriers(out);
-  // 🔴 同段书写空位形态统一（2026-09 复现收口：同句混用 横线/方框/括号空 → 多数形态统一）——
+  // 同段书写空位形态统一（2026-09 复现收口：同句混用 横线/方框/括号空 → 多数形态统一）——
   //    在函数收尾统一执行（helper 定义见本函数之后）
 
   // 🔧 拆裸 <u> 空壳：模型把下划线写进无 class 的 <u>（<u>____</u>/<u>（　　）</u>），先被上面规则转成
   //    u.blank-N/span.blank-N 后外层 <u> 仍在 → 下划线叠下划线/叠括号。外层仅包一个 blank 空位时拆壳
   out = out.replace(/<u(?![^>]*class=)[^>]*>\s*(<(u|span) class="blank-\d+">&emsp;<\/\2>)\s*<\/u>/gi, '$1');
   // 🔧 拆裸 <u> 包整句（2026-09 语文卷实证：模型用 <u> 把题干整句/整行包起来 → 整卷画线；
-  //    系统语义 <u> 仅填空横线（带 class），画线句用 underline-sentence、强调用 <b>。
+  //    系统语义 <u> 仅填空横线（带 class），画线句用 underline-sentence、强调用 <strong>。
   //    收窄拆壳条件：仅"整句/长句误画线"拆（裸 u 内 ≥10 字符且以句末标点结尾）；
   //    短语/短词下划线强调（<u>重点词汇</u>）与单个空格场景保留（既有契约，防误伤强调语义）。
   out = out.replace(/<u(?![^>]*class=)[^>]*>([\s\S]*?)<\/u>/gi, (m, inner) => {
@@ -1269,7 +1269,7 @@ export function normalizeBlankMarkers(html = '') {
     if (plain.length >= 10 && /[。！？；!?;]$/.test(plain)) return inner; // 整句误画线 → 拆壳
     return m;
   });
-  // 🔴 畸形填空载体拆壳（不变量守卫）——**必须早于形态归一/跨类型去重**（2026-09-12 丢题事故根治）：
+  // 畸形填空载体拆壳（不变量守卫）——**必须早于形态归一/跨类型去重**（2026-09-12 丢题事故根治）：
   //    下面两处会把命中的载体**整段替换成一枚短空位标签**；若载体内部裹着正文（畸形），正文即随之
   //    消失（实测：英语同步练习题 1~18 完整，此处被吞掉 2、3、4 整题 → 整卷判失败）。
   //    先拆壳还原为纯文本；且后续载体正则已收窄为"内部只许空白"，便不会再命中含正文的载体。
@@ -1287,14 +1287,14 @@ export function normalizeBlankMarkers(html = '') {
   if (sealKeeps.length) {
     out = out.replace(/\uE000(\d+)/g, (_m, i) => '＿'.repeat(sealKeeps[Number(i)] || 0));
   }
-  // 🔴 同段书写空位形态统一（2026-09 复现收口：模型在同一句里混用 横线/方框/括号空，
+  // 同段书写空位形态统一（2026-09 复现收口：模型在同一句里混用 横线/方框/括号空，
   //    如 "0.7×0.3＝<u>＿</u>×<span square-box>＿</span>"）→ 按多数形态统一（并列取 u 下划线）。
   //    在叠写去重/拆壳之后执行；只动形态不涉内容（helper 定义紧接本函数下方）。
   out = unifySameParagraphWriteBlanks(out);
-  // 🔴 畸形填空载体拆壳（不变量守卫）：blank-N 内出现正文文字/标题被包 → 还原纯文本（后置于一切包裹规则之后）
+  // 畸形填空载体拆壳（不变量守卫）：blank-N 内出现正文文字/标题被包 → 还原纯文本（后置于一切包裹规则之后）
   out = unwrapMalformedBlankCarriers(out);
 
-  // 🔴 收尾再剥一次双载体残留（与检测同源）：中段之后的规则（裸空跑段/装饰标记/形态归一）仍可能
+  // 收尾再剥一次双载体残留（与检测同源）：中段之后的规则（裸空跑段/装饰标记/形态归一）仍可能
   //    在空位前留下 ≥2 空白宽——检测跑在**最终** HTML 上，故必须让"最终形态"也满足它的条件。
   out = stripDoubleCarrierResidual(out);
 
@@ -1346,7 +1346,7 @@ export function unifySameParagraphWriteBlanks(html = '') {
     for (const k of ['u', 'span', 'sq', 'oral']) {
       if ((count[k] || 0) > best) { best = count[k]; target = k; }
     }
-    // 🔴 2026-09-29（单一事实源·用户裁定"自洽、不各写一套"）：档位上下限改读规格库 BLANK
+    // 2026-09-29（单一事实源·用户裁定"自洽、不各写一套"）：档位上下限改读规格库 BLANK
     //    （原自持 `Math.min(24, Math.max(1, …))` 梯形，与规格库 maxBlank/minBlank 相抵——会写出超上限档位）
     const blankSpec = getMergedSpec().BLANK || {};
     const maxTier = Number.isFinite(blankSpec.maxBlank) ? blankSpec.maxBlank : 24;
@@ -1402,7 +1402,7 @@ export function normalizeMathCircleBlanks(html = '') {
   const boxRe = /<span class="(?:square-box|math-circle-blank-18)">(?:&nbsp;|&#160;|&#xA0;|&emsp;|&#8195;|&ensp;|&#8194;|&#x2003;|[\s\u3000\u2003\u2002\u00A0])*<\/span>/gi;
   const bareSpaceRe = /(?:[\u3000\u2003]|&emsp;){2,}/g;
 
-  // 🔴 结果位判定（2026-09 载体根治·系统性：等号/约等号后的"得数结果位"一律留白、非方框）。
+  // 结果位判定（2026-09 载体根治·系统性：等号/约等号后的"得数结果位"一律留白、非方框）。
   //   判据（真实卷面惯例，见 layoutSpec.buildAnswerSpaceInstruction 注释）：
   //     - 空位前字符为 ＝/≈（得数位）；后接算式继续符（数字/运算符）则属"中位缺数填空"（如 3＋＿＝8）→ 非结果位；
   //     - 得数结果位（2.4×1.6＝＿、0.35×0.8＝＿（人）、应用题算式＝＿）等号后直接留白书写，不渲染方框；
@@ -1574,7 +1574,7 @@ export function normalizeWhitespaceCarriers(html = '') {
 /**
  * 配对类题（连一连/连线/配对）渲染结构归一
  * ============================================================
- * 🔴 目的：对模型形态漂移免疫——模型输出配对类题时形态不稳定（两列表格 / 两个相邻列表
+ * 目的：对模型形态漂移免疫——模型输出配对类题时形态不稳定（两列表格 / 两个相邻列表
  *    等），一律确定性转成标准连线结构（match-question：左右两列 match-item 方框），
  *    预览/编辑器/排版/导出全部按标准连线渲染（docxBuilder 两列方框 + 连线留白）。
  * 🔧 出题惯例（2026-09 用户口径）：连线题右列须与左列答案序错开（学生画斜线交叉连接），
@@ -1792,7 +1792,7 @@ export function stripRedundantInlineCarrierRows(html = '') {
  * （连题号数字本身都不在正文任何位置），直接导致整卷判失败。故把顺序固定成表，按步比对
  * 题号数即可点名是哪一步削掉的。
  * ⚠️ 顺序即行为，不得调整（与历史生产链逐字一致）：
- * 🔴 2026-09-30 新增 alignCarrierFormByDeclaration（紧跟 normalizeBlankMarkers 之后）：载体形态由题面声明收口（G1）；
+ * 2026-09-30 新增 alignCarrierFormByDeclaration（紧跟 normalizeBlankMarkers 之后）：载体形态由题面声明收口（G1）；
  *    **只增一步、不动既有次序**。
  *    cleanSectionHtml → normalizeBlankMarkers → alignCarrierFormByDeclaration → normalizeMathCircleBlanks →
  *    stripRedundantInlineCarrierRows → normalizeMatchQuestions →
@@ -1802,7 +1802,7 @@ export function stripRedundantInlineCarrierRows(html = '') {
  * @returns {string} 归一化后的正文
  */
 /**
- * 🔴 载体形态按题面声明收口（G1·2026-09-30 用户裁定）
+ * 载体形态按题面声明收口（G1·2026-09-30 用户裁定）
  * ============================================================
  * 病根：载体形态原先由**输入长相**决定（输入下划线→横线型 u.blank-N，输入括号→括号型 span.blank-N）
  *   ——于是"题面声明填符号、卷面却给横线"（题干说"把序号填在括号里"、卷面一条横线；2026-09-30 源码级实证）。

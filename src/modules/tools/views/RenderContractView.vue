@@ -356,7 +356,7 @@
           格式契约 = 能力就绪：模型"会按 [IMAGE] 格式输出"；是否真的配图由正文「图-题一致性」条款裁定（该题作答需要图中信息才出图、且在题干后紧跟 [IMAGE] 块；不需要则不配图、不写图语）。
         </p>
         <p class="note">
-          🔴 2026-09-17：原"按关键词/资料类型触发"的能力判定已撤除——判据是"该题作答是否需要图中信息"（原则式，题干怎么措辞都算），程序侧不再用关键词猜，以免出现"正文点名 [IMAGE] 而 system 不给骨架"（模型只能写文字图语）或反过来的悬空。
+          2026-09-17：原"按关键词/资料类型触发"的能力判定已撤除——判据是"该题作答是否需要图中信息"（原则式，题干怎么措辞都算），程序侧不再用关键词猜，以免出现"正文点名 [IMAGE] 而 system 不给骨架"（模型只能写文字图语）或反过来的悬空。
         </p>
       </div>
       <div class="rule-card">
@@ -461,7 +461,7 @@ const GRAPH_TYPE_DESC = {
   BAR_CHART: '柱状统计图', LINE_CHART: '折线统计图', PIE_CHART: '饼状统计图',
   FORCE: '受力分析图', CIRCUIT: '电路图', OPTICS: '光路图', ATOM: '原子结构图',
 };
-// 🔴 2026-09-17：原 IMAGE_KEYWORDS（"看图/写话/配图/听音…"关键词表，用于说明能力触发口径）**已撤**——
+// 2026-09-17：原 IMAGE_KEYWORDS（"看图/写话/配图/听音…"关键词表，用于说明能力触发口径）**已撤**——
 //    能力注入不再由关键词判定（见下方学科契约 image 默认值与 eduRenderContract.resolveMarkCapability）。
 
 /* ===== 图形 TYPE 目录 ===== */
@@ -514,10 +514,10 @@ const loadUser = () => { try { return JSON.parse(localStorage.getItem(USER_KEY) 
 const allContract = SUBJECT_KEYS.map((subject) => {
   const user = loadUser()[subject];
   const graphTypes = user ? (user.graphTypes || []) : (SUBJECT_GRAPH_TYPES[subject] || []);
-  // 🔴 公式能力判据走 getFormulaNeeded（单一事实源）——不再用 MATH_SUBJECTS.includes 另立一份；
+  // 公式能力判据走 getFormulaNeeded（单一事实源）——不再用 MATH_SUBJECTS.includes 另立一份；
   //    此处不传 stage = 显示"该学科是否具备公式能力"（具体学段是否注入由下方 getStageEffect 说明）
   const formula = user ? !!user.formula : getFormulaNeeded(subject);
-  // 🔴 2026-09-17：配图能力默认开（能力就绪）——判据是"该题作答是否需要图中信息"（正文原则式条款裁定），
+  // 2026-09-17：配图能力默认开（能力就绪）——判据是"该题作答是否需要图中信息"（正文原则式条款裁定），
   //    程序侧不再按关键词/资料类型猜（原 needsImageHint 已撤）；此处默认值与生成端同一口径。
   const image = user && 'image' in user ? !!user.image : true;
   // 缺口：蓝本引用了 [GRAPH] 但学科无契约（历史已在 2026-08 补齐）
@@ -532,7 +532,7 @@ const allContract = SUBJECT_KEYS.map((subject) => {
 const getStageEffect = (subject, stage) => {
   if (!stage) return '';
   if (!MATH_SUBJECTS.includes(subject)) return ''; // 无公式能力的学科不出现公式相关提示
-  // 🔴 2026-09-30：数学的学段门控已撤（小学数学同样注入——分数叠排/面积单位写法属课标内容，
+  // 2026-09-30：数学的学段门控已撤（小学数学同样注入——分数叠排/面积单位写法属课标内容，
   //    原门控理由是"示例为二次函数求根公式"，而现行条款里早已没有示例）。文案与生成端恒等。
   return getFormulaNeeded(subject, stage)
     ? (subject === '数学' ? '本学段：注入公式（数学全学段，含小学）' : '本学段：注入公式')
@@ -540,7 +540,7 @@ const getStageEffect = (subject, stage) => {
 };
 const getTypeEffect = (genType) => {
   if (!genType) return '';
-  // 🔴 2026-09-17：类型维度**不再影响**配图能力（原按 practice/special/preview/reading/dictation 白名单收窄，
+  // 2026-09-17：类型维度**不再影响**配图能力（原按 practice/special/preview/reading/dictation 白名单收窄，
   //    与其正文本就带"图随着题"原则式要求相抵）——凡学科契约开启即注入格式契约（能力就绪）；
   //    是否真出图由题干是否依赖图中信息裁定（正文条款），不由类型决定。
   return '与资料类型无关：学科契约开启即注入图片格式契约（能力就绪；出图与否由题干是否依赖图中信息裁定）';

@@ -90,12 +90,12 @@
 /**
  * 教材库／模板库通用的「编辑元数据」弹窗（学段 / 学科 / 册次）
  * ============================================================
- * 🔴 为什么有这个：列表已按「学段 → 学科」两级分组，但学段与学科**只在导入时能选**
+ * 为什么有这个：列表已按「学段 → 学科」两级分组，但学段与学科**只在导入时能选**
  *    （初中不自动识别学段，只有小学年级与高中册次认得出来），老数据缺这两项就永远落"未标注"、
  *    归不了位，且原先没有入口可补（册次有「📚」，学段/学科没有）。
- * 🔴 两库共用同一个组件：课本库与模板库的元数据字段、联动规则完全一致，
+ * 两库共用同一个组件：课本库与模板库的元数据字段、联动规则完全一致，
  *    各写一份必然漂移（本仓库对"双份逐字副本各自演化"有过多轮教训）。
- * 🔴 真正的字段联动规则在 utils/libraryMetaEdit.applyLibraryMetaEdit（纯函数、有单测），
+ * 真正的字段联动规则在 utils/libraryMetaEdit.applyLibraryMetaEdit（纯函数、有单测），
  *    本组件只负责收集输入 + 把"保存后会发生什么"如实说明。
  * ============================================================
  */
@@ -113,7 +113,7 @@ const props = defineProps({
 const emit = defineEmits(['update:visible', 'confirm']);
 
 const form = ref({ stage: '', subject: '', volume: '' });
-// 🔴 2026-09-28：**打开弹窗时的学段不算"用户改动"**——否则一条历史/越界的"学段+学科"会在**打开瞬间**
+// 2026-09-28：**打开弹窗时的学段不算"用户改动"**——否则一条历史/越界的"学段+学科"会在**打开瞬间**
 //    被下面的越界清理抹掉（用户还没动手值就变了）。仅用户**主动改学段**时才清理。
 let openedStage = '';
 
@@ -128,12 +128,12 @@ watch(() => props.visible, (v) => {
   openedStage = form.value.stage;
 }, { immediate: true });
 
-/** 🔴 2026-09-28（用户裁定：按该学段**实际开设**的学科来）：
+/** 2026-09-28（用户裁定：按该学段**实际开设**的学科来）：
  *  学科候选按所选学段过滤（单一事实源 STAGE_SUBJECTS）——原先全量 15 科，
  *  可存出"小学+物理"这类现实不存在的组合，生成侧只好跨学段借格（静默）。 */
 const subjectOptions = computed(() => subjectChoicesForStage(form.value.stage));
 // 学段改变致当前学科不在该学段开设 → 清空（防存下矛盾组合；该行为已写进下方联动说明）
-//   🔴 仅"用户主动改学段"才清——打开弹窗不算（openedStage 守卫），避免"一打开值就被抹"。
+//   仅"用户主动改学段"才清——打开弹窗不算（openedStage 守卫），避免"一打开值就被抹"。
 watch(() => form.value.stage, (now) => {
   if (now === openedStage) return;
   if (form.value.subject && !subjectOptions.value.includes(form.value.subject)) form.value.subject = '';
@@ -143,7 +143,7 @@ const volumePresets = computed(() => highVolumeOptions(form.value.subject));
 
 /** 保存后会发生什么（与 applyLibraryMetaEdit 的三条规则一一对应，不允许说得比实现多） */
 const linkageNote = computed(() => {
-  // 🔴 2026-09-28：新增"学科候选按学段实际开设过滤"这条行为，必须如实说明（不在其中的学科会被清空）
+  // 2026-09-28：新增"学科候选按学段实际开设过滤"这条行为，必须如实说明（不在其中的学科会被清空）
   const scopeNote = form.value.stage
     ? ' 学科候选按该学段实际开设学科过滤，不在其中的学科会清空。'
     : ' 学段未标注：学科候选为全部学科。';

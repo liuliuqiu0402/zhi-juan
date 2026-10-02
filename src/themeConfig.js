@@ -1,5 +1,5 @@
 // ==================== 主题定义 ====================
-// 🔴 公式渲染出口：$…$ 交给 KaTeX 出印刷形态（原 convertFormulasInHtml 只降级成 a/b 文本，
+// 公式渲染出口：$…$ 交给 KaTeX 出印刷形态（原 convertFormulasInHtml 只降级成 a/b 文本，
 //    与渲染契约"公式禁止用文本堆砌"自相矛盾——见 utils/mathRender.js 文件头）
 import { renderMathInHtml } from './utils/mathRender.js';
 import { getMergedSpec, normalizeStage3 } from './config/layoutSpec.js';
@@ -7,7 +7,7 @@ import { stripSealSuffix, normalizeSealBlanks } from './utils/sealText.js'; // �
 import { escapeHtml as escHtml } from './utils/escape.js'; // HTML 转义唯一实现（曾本地 escHtml 与 drawingMLShapes/GenerateModule 等 5 份同构副本）
 
 import { CARRIER_CSS } from './styles/carrierCss.js'; // 作答载体 CSS 单一事实源（填空横线/括号空位/整行横线/行尾延伸），与 main.js 全局注入同源
-// 🔴 有序列表编号形式（1/a/A/i/I/（1）/一、/①）的 CSS 单一事实源：HTML/PDF 导出必须内联，
+// 有序列表编号形式（1/a/A/i/I/（1）/一、/①）的 CSS 单一事实源：HTML/PDF 导出必须内联，
 //    否则自定义形式（（1）/一、/①）无原生 type 可依 → 浏览器退化成阿拉伯数字。
 import { LIST_NUMBER_CSS } from './utils/listNumberStyle.js';
 
@@ -47,7 +47,7 @@ export const themes = [
   },
   {
     id: 'original_warm',
-    name: '🔴 我的暖色样式',
+    name: '我的暖色样式',
     description: '暖色系样式',
     type: 'preset',
     group: '我的样式',
@@ -1032,7 +1032,7 @@ export const defaultThemeId = 'original_standard';
 export const themeOptions = [
   // 我的样式组
   { value: 'original_standard', label: '📝 我的标准样式', group: '我的样式' },
-  { value: 'original_warm', label: '🔴 我的暖色样式', group: '我的样式' },
+  { value: 'original_warm', label: '我的暖色样式', group: '我的样式' },
   { value: 'original_fresh', label: '🌿 我的清新样式', group: '我的样式' },
   // 小学组
   { value: 'primary_exam', label: '📝 小学试卷', group: '小学' },
@@ -1106,7 +1106,7 @@ export const markdownToHtml = (content) => {
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
   
-  // 🔴 渲染出口：$…$ / $$…$$ → KaTeX 印刷形态（分式叠排、根号、积分号）；非法 LaTeX 自动退回文本
+  // 渲染出口：$…$ / $$…$$ → KaTeX 印刷形态（分式叠排、根号、积分号）；非法 LaTeX 自动退回文本
   html = renderMathInHtml(html);
   
   // 列表（🔧 修复：更精确的列表匹配）
@@ -2099,7 +2099,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
     processedContent = applyIntelligentHeadings(content);
   }
   
-  // 🔴 渲染出口：$…$ / $$…$$ → KaTeX 印刷形态（幂等：上一处已渲染的产物内不再含 $）
+  // 渲染出口：$…$ / $$…$$ → KaTeX 印刷形态（幂等：上一处已渲染的产物内不再含 $）
   processedContent = renderMathInHtml(processedContent);
   
   return `<!DOCTYPE html>
@@ -2409,7 +2409,7 @@ export const buildExamShell = (sections, stage) => {
  * 注入/重排卷面固定件（注意事项 + 题号得分表），对齐正规试卷顺序：
  *   卷首信息（标题/副标题/密封线/卷首导入语） → 注意事项 → 题号得分表 → 正文结构层（大类/大题）
  *   - 无固定件：在**第一个正文结构行**之前新建注入（卷首语自然留在卷首区，不夹在得分框与正文之间）；
- *   - 🔴 2026-09-30 用户报障根治：锚点原只认"一、二、…"大题行，**小学段的"第X部分"大类行被漏认**——
+ *   - 2026-09-30 用户报障根治：锚点原只认"一、二、…"大题行，**小学段的"第X部分"大类行被漏认**——
  *     该行位于第一个大题行之前，固定件便插在它**之后**（实测顺序：第一部分 → 注意事项 → 得分表 →
  *     一、〈大题〉），与本节声明的"固定件在正文之前"直接相悖。现锚点取**第一个正文结构行**：
  *     大类行（"第X部分"／"第X卷"，自带分值标注）优先，无大类行时取第一个大题行（行为同旧版）。
@@ -2430,7 +2430,7 @@ export const injectExamShell = (html, stage) => {
     holder.innerHTML = buildExamShell(sections, stage);
     shellNode = holder.firstElementChild;
   }
-  // 🔴 两个锚点各司其职（2026-09-30）：
+  // 两个锚点各司其职（2026-09-30）：
   //   · insertPoint —— **插入点**：第一个正文结构行（大类行"第X部分/第X卷"优先，其后才是大题行），
   //     固定件须在它上方（它就是正文的开头）；
   //   · anchor —— **去重边界**：第一个大题行，保持旧有保守语义（只清它之前的旧固定件残留）。

@@ -44,7 +44,11 @@ describe('E 源登记：给模型文本的入口全部登记，新入口未登�
       if (!hits.length) continue;
       const reg = PROMPT_SOURCES[rel] || [];
       for (const h of new Set(hits)) {
-        if (!reg.includes(h)) missing.push(`${rel}: ${h}`);
+        // 2026-10-02（按 §4 第 6 步改准）：兑现本用例标题"或明确列为非模型源"——
+        //   原先实现只查 E 表、忽略 NON_MODEL_SOURCES，导致"UI-only / 下游引擎"的入口被误判为漏登记。
+        //   支持两种登记粒度：`文件`（整文件非模型源）与 `文件:导出名`（仅该导出非模型源）。
+        const nonModel = NON_MODEL_SOURCES.some((f) => f === rel || f === `${rel}:${h}`);
+        if (!reg.includes(h) && !nonModel) missing.push(`${rel}: ${h}`);
       }
     }
     expect(missing, '新增了"给模型的入口"却没登记 —— 请补进 caliberRegistry.js 的 PROMPT_SOURCES').toEqual([]);
@@ -61,6 +65,10 @@ describe('E 源登记：给模型文本的入口全部登记，新入口未登�
   });
 
   it('非模型源必须显式登记（防把"给下游引擎"误当给模型）', () => {
-    for (const f of NON_MODEL_SOURCES) expect(fs.existsSync(path.join(ROOT, f))).toBe(true);
+    // 支持 `文件` 与 `文件:导出名` 两种粒度（2026-10-02）：后者用于"同一文件里既有给模型的、又有非模型源"
+    for (const f of NON_MODEL_SOURCES) {
+      const rel = String(f).split(':')[0];
+      expect(fs.existsSync(path.join(ROOT, rel)), `${f} 不存在`).toBe(true);
+    }
   });
 });

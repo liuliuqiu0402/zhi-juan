@@ -53,7 +53,7 @@ export const shouldDirectInject = ({ rawChars = 0, contextWindow = 0, outputCeil
 /**
  * 进模型的原文里不能带图。
  *
- * 🔴 为什么必须有（2026-09-24 用户定）：教材原文里的插图是**内嵌 base64** 的
+ * 为什么必须有（2026-09-24 用户定）：教材原文里的插图是**内嵌 base64** 的
  *    （见 `python-scripts/word_to_html.py`：把图片转成 `data:image/…;base64,…` 塞进 HTML）。
  *    而生成端引擎是**纯文本模型**（云端 DeepSeek 等），读不了图：
  *      · 那些 base64 纯属浪费——一张 100KB 的插图约 13 万字符，量级上几万 token；
@@ -85,7 +85,7 @@ export const stripImagesForModel = (text = '') => {
  *     空/未标注 `type` 段同样计入（A11-2：不再被静默丢弃）
  *   - ✅ A17（甲方案）：卡片自带 `rawText`（"有原文但未分析"的目录卡）时**优先取真原文**——
  *     与"读取勾选章节完整原文/原文压缩照旧"一致，不再退化成只剩目录文本
- *   - 🔴 出口统一**剥图**（含 base64）：直放与压缩都从这里取料，一处收口（见 stripImagesForModel）
+ *   - 出口统一**剥图**（含 base64）：直放与压缩都从这里取料，一处收口（见 stripImagesForModel）
  *   - 返回 `rawText`（整章，供压缩取料）与 `segmentTexts`（段级，供 `copyGuard` 语料）
  * @param {Array} cards contentCards
  * @returns {Array<{chapterTitle:string, rawText:string, segmentTexts:string[]}>}
@@ -120,14 +120,14 @@ export const compressionSpecOf = (mode = '') => {
   if (mode === 'full') {
     return {
       fidelity: 'verbatim',
-      label: '知识型·保真压缩（保留原文表述与原句）',
-      instruction: '这是知识梳理/默写/复习类素材：必须**保留原文的表述与原句**（默写答案即原文原句），只可删去重复与无关铺陈，不得改写句式、不得替换同义说法、不得概括成自己的话。',
+      label: '知识型·保真压缩',
+      instruction: '必须保留原文的表述与原句（默写答案即原文原句），只可删去重复与无关铺陈。',
     };
   }
   return {
     fidelity: 'condense',
-    label: '命题型·大幅压缩（保结构、保关键事实）',
-    instruction: '这是命题/练习类素材：可大幅压缩，但必须**保留原文的结构与关键事实**（概念、规则、公式、结论、数据、例词），不得删掉任何栏目、不得改写事实。',
+    label: '命题型·大幅压缩',
+    instruction: '必须保留原文的结构与关键事实（概念、规则、公式、结论、数据、例词）。',
   };
 };
 
@@ -226,23 +226,21 @@ export const buildMapMessages = ({ batch, mode = '', subject = '', grade = '' } 
   return [
     {
       role: 'system',
-      content: '你是教材原文的"保真压缩器"。只做压缩：不改写事实、不增删栏目、不解释、不点评、不加任何标记或说明文字。',
+      content: '你是教材原文的"保真压缩器"。只做压缩：不改写事实、不增删栏目。',
     },
     {
       role: 'user',
       content: [
-        `【压缩任务】${spec.label}`,
-        `【保真要求】${spec.instruction}`,
-        '【硬约束】',
-        '- 只压缩下面给出的原文；不得添加原文没有的内容；',
-        '- **只保留原文已有的结构标题**（有则原样保留，没有就不要新造标题）；',
-        '- 不要输出"以下是压缩结果""压缩后如下"之类的说明，只输出压缩后的正文文本。',
-        scope ? `【范围】${scope}` : '',
-        batch?.title ? `【本节标题】${batch.title}` : '',
-        '【原文】',
-        String(batch?.text || ''),
-        '【输出】仅输出压缩后的原文文本。',
-      ].filter(Boolean).join('\n'),
+        `【压缩任务】\n· ${spec.label}`,
+        `【保真要求】\n· ${spec.instruction}`,
+        '【硬约束】\n- 不得添加原文没有的内容；\n- **只保留原文已有的结构标题**，原样保留、不新造；',
+        scope ? `【范围】\n· ${scope}` : '',
+        batch?.title ? `【本节标题】\n· ${batch.title}` : '',
+        `【原文】\n${String(batch?.text || '')}`,
+        // 2026-10-02（项3·结构化）：各块的**块标题独占一行**（原为"【标题】内容"同段），块与块之间补**恰一空行**；
+        //   文字未增未删（只把标题后的内容换行）。同轮另一处：原句点名"以下是压缩结果"这类**说明串**已按 ⑤ 改原则式。
+        '【输出】\n· 仅输出压缩后的原文文本，不要任何说明或前言。',
+      ].filter(Boolean).join('\n\n'),
     },
   ];
 };

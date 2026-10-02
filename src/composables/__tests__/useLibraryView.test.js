@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useLibraryView, collapsedKeysOf } from '../useLibraryView';
 
 // 教材库/模板库「默认按类收起」（2026-09-25 用户：重启/刷新后默认按类收起，而非全部展开）
-// 🔴 关键语义：只在「从未手动设置过折叠状态」（localStorage 无该键）时应用默认收起；
+// 关键语义：只在「从未手动设置过折叠状态」（localStorage 无该键）时应用默认收起；
 //    用户手动展开/收起的组合照旧被记住，且 ensureDefaultCollapsed 不主动落盘、不覆盖已有记录。
 // ============================================================
 

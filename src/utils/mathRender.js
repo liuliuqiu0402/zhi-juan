@@ -1,20 +1,20 @@
 /**
  * 公式渲染：LaTeX（$...$ / $$...$$）→ 印刷级 HTML
  * ============================================================
- * 🔴 背景（2026-09 用户实证）：渲染契约 FORMULA_RULES 要求模型用 $...$ / $$...$$ 输出公式，
+ * 背景（2026-09 用户实证）：渲染契约 FORMULA_RULES 要求模型用 $...$ / $$...$$ 输出公式，
  *    并明文"公式禁止用文本堆砌或图片代替"；但渲染端唯一实现 convertFormulasInHtml 恰恰把它
  *    **降级成文本堆砌**（\frac{a}{b} → a/b、\sqrt{a} → √a、x^2 → x²）——契约与实现自相矛盾
  *    （一条"要求悬空"），分式没有叠排、根号只剩字符，永远拿不到教材印刷样式。
  *    本模块用 KaTeX 把 $…$ 真正渲染为分式叠排 / 根号 / 积分号等印刷形态。
  *
- * 🔴 两个消费者的分工（**不要混用**）：
+ * 两个消费者的分工（**不要混用**）：
  *   - renderMathInHtml      → **渲染出口**（编辑器预览 / PDF / 打印 / HTML 导出）：输出 KaTeX 视觉 HTML
  *   - convertFormulasInHtml → **存储与喂 AI**（OCR 清洗 / rawText 派生）：降级为可读文本
  *     为什么不给存储链路也渲染：KaTeX 的 DOM 文本内容对 \frac{a}{b} 是"ab"（分子分母连写），
  *     比 a/b 更难读；且满屏 .katex span 会污染 rawText/纯文本抽取。故存储链路继续走文本降级，
  *     渲染链路才上 KaTeX。下游可用 data-latex 属性取回原始 LaTeX（已解码，供 P5 Word 真公式复用）。
  *
- * 🔴 字体：PDF 走 Electron 主进程 page.setContent（无 base URL、无网络），katex.min.css 里
+ * 字体：PDF 走 Electron 主进程 page.setContent（无 base URL、无网络），katex.min.css 里
  *    url(fonts/*.woff2) 的相对字体**解析不到** → 分式/根号字模缺失走形。故导出 HTML 必须内联
  *    带 data URL 字体的样式（katexInlineCss.js，由 scripts/build-katex-inline.mjs 生成），
  *    见 withKatexStyles()。样式模块**动态 import**，普通页面不背这 360KB。
@@ -64,7 +64,7 @@ const wrapMath = (inner, latex, displayMode, failed) => {
 
 /**
  * 渲染单个 LaTeX。
- * 🔴 throwOnError:true + try/catch：KaTeX 自带的 throwOnError:false 会把报错**红字印在卷面上**
+ * throwOnError:true + try/catch：KaTeX 自带的 throwOnError:false 会把报错**红字印在卷面上**
  *    （"ParseError: …"），绝不能进交付物；非法公式退回文本降级（与改版前行为一致，不产生退化）。
  */
 const renderOne = (latexRaw, displayMode) => {

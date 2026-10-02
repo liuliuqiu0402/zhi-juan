@@ -6,12 +6,12 @@
  *   一次请求出整卷；而 edge-tts 已被移除自定义 SSML 支持，只能"逐句合成再拼接"，
  *   对听力卷（多角色 + 读两遍 + 题间留白）反而更麻烦。
  *
- * 🔴 调用位置：**优先走主进程**（Electron 无跨域限制）。
+ * 调用位置：**优先走主进程**（Electron 无跨域限制）。
  *   前端直连会因自定义头 Ocp-Apim-Subscription-Key 触发 CORS 预检，浏览器可能直接拦下；
  *   故 Electron 下走 window.electronAPI.azureTtsToFile（主进程 fetch + 落盘），
  *   仅在无 electronAPI（Web/PWA）时降级为前端 fetch + Blob 下载。
  *
- * 🔴 密钥：只从 apiConfig.azureSpeechKey 读（内存中的解密值），本模块不持久化、不打印 Key。
+ * 密钥：只从 apiConfig.azureSpeechKey 读（内存中的解密值），本模块不持久化、不打印 Key。
  * ============================================================
  */
 import { STORAGE_KEYS } from '../constants/storageKeys.js';

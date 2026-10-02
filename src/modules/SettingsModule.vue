@@ -1390,7 +1390,7 @@
               全部级别
             </option>
             <option value="error">
-              🔴 错误
+              错误
             </option>
             <option value="warn">
               🟡 警告

@@ -74,7 +74,7 @@ export const diagramToPngDataUrl = (svg, { scale = 2, background = '#ffffff', ti
   const w = m ? Number(m[1]) : 800;
   const h = m ? Number(m[2]) : 600;
   return new Promise((resolve) => {
-    // 🔴 必须自带超时：某些环境（如 jsdom、或图片解码静默失败）onload/onerror 都不会触发，
+    // 必须自带超时：某些环境（如 jsdom、或图片解码静默失败）onload/onerror 都不会触发，
     //    没有超时就会把导出流程**无限挂住**（比"插图失败"糟得多）。
     let done = false;
     const finish = (v) => { if (!done) { done = true; resolve(v); } };

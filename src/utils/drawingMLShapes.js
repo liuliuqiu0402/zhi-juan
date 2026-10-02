@@ -742,7 +742,7 @@ const sealGroupOOXML = (text, idBase, lineOnly = false, mirror = false, pageW = 
 
   // 群组 extent：左版 = 整页（宽 pageW×高 pageH，锚定页面 (0,0)）；镜像版 = 右边距区（25mm×pageH，
   // 锚定页面右缘 align="right" → 群组右缘贴纸边）→ Word 更换纸张尺寸时镜像密封线自动保持贴右纸边；
-  //   🔴 cy 必须 = 页面高（旧实现硬编码 297，A2 高 420 时虚线 380mm 超出群组被裁剪）
+  //   cy 必须 = 页面高（旧实现硬编码 297，A2 高 420 时虚线 380mm 超出群组被裁剪）
   const cx = Math.round((mirror ? SEAL_RIGHT_MARGIN_MM : pageW) * EMU_PER_MM);
   const cy = Math.round(pageH * EMU_PER_MM);
   const posH = mirror
@@ -840,7 +840,7 @@ export const injectDrawingML = async (zipBuffer) => {
   //    - docx 库 SimpleField 输出 <w:fldSimple>（简化域，不带 dirty），且 fldSimple 位于外层 TextRun 内部；
   //      直接替换为 <w:r> 包裹的 run 会形成 run 嵌套（非法结构，Word 显示错乱如"共页8"）——
   //      因此输出裸元素（fldChar/instrText/text 不包 w:r），保持在外层 run 上下文内（Word 按流式解析域）。
-  //    - 🔴 Word 公式域中直接写 PAGE/SECTIONPAGES 会被当作"未定义的书签"（显示 !未定义的书签，PAGE），
+  //    - Word 公式域中直接写 PAGE/SECTIONPAGES 会被当作"未定义的书签"（显示 !未定义的书签，PAGE），
   //      必须用嵌套域语法 { PAGE }：外层公式域 = 2*{ PAGE } - 1，内层 PAGE 为独立嵌套域。
   //    - begin 无条件带 w:dirty（公式域 Word 默认不自动重算，dirty 标记后打开即按 updateFields 更新）。
   //    - 应用于 document.xml（"本试卷共X页" A3 =2*SECTIONPAGES）与 footer*.xml（A3 两栏页脚按栏页码）。

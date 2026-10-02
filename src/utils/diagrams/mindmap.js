@@ -3,7 +3,7 @@
  * ============================================================
  * 用途：把一棵 `{ title, children }` 树渲染成**印刷友好**的矢量导图。
  *
- * 🔴 为什么自己画 SVG（2026-09-24 用户：这些图是"给学生看的成品资料，要进 PDF/Word、必须印刷友好"）：
+ * 为什么自己画 SVG（2026-09-24 用户：这些图是"给学生看的成品资料，要进 PDF/Word、必须印刷友好"）：
  *   · PDF 通道 = puppeteer setContent + page.pdf → **内联 SVG 是矢量**，缩放/打印都不糊；
  *   · Word 通道 = utils/docxBuilder 的 buildImageRun，只认光栅图（png/jpg/gif/bmp，**不支持 svg**）
  *     → 由调用方把本函数产出的 SVG 光栅化成 PNG 再塞进 `<img src="data:image/png;base64,…">`。
@@ -17,7 +17,7 @@
  * ⚠️ 公式：`$…$` 属渲染层的事，本函数**不解析 LaTeX**。调用方应先用
  *    utils/wordExporter.convertFormulasInHtml 把标题线性化（√ab⩽(a+b)/2）再传进来。
  *
- * 🔴 结构上刻意拆成两个导出：
+ * 结构上刻意拆成两个导出：
  *    layoutMindmap() —— 只算版式，返回每个节点的 x/y/w/h（**可被单测直接断言**：
  *                       不重叠、不越界、父节点居中于子节点跨度……）；
  *    buildMindmapSvg() —— 只把版式画成 SVG。
@@ -147,7 +147,7 @@ export const layoutMindmap = (tree, opts = {}) => {
     leftKids = all.slice(0, cut);
     rightKids = all.slice(cut);
   }
-  // 🔴 side 必须**整棵子树继承**：连线方向（从父节点哪条边出线）和文字对齐
+  // side 必须**整棵子树继承**：连线方向（从父节点哪条边出线）和文字对齐
   //    （左半区右对齐）都靠它。只给根的一级子节点设 side，深层节点就会
   //    "人在左边、文字却按左对齐画" → 文字冲出框外。这是实测抓到过的 bug。
   const setSide = (n, s) => {
@@ -193,12 +193,12 @@ export const layoutMindmap = (tree, opts = {}) => {
   for (let d = 1; d <= 12; d++) colStep[d] = (depthW[d] || 0) + gapX;
 
   const halfW = root.w / 2;
-  // 🔴 根节点自己也要占位！它不参与 placeX（placeX 只排左右两侧的子节点），
+  // 根节点自己也要占位！它不参与 placeX（placeX 只排左右两侧的子节点），
   //    漏赋值会让 root.x 停在初始的 0，归一化后整块压到右侧分支上。
   root.x = -halfW;
   const placeX = (n, side) => {
     const d = n.depth;
-    // 🔴 左侧必须**逐层往左**排（colStep 取负），否则越深的节点越往右跑、
+    // 左侧必须**逐层往左**排（colStep 取负），否则越深的节点越往右跑、
     //    直接压到根节点和右半区上（实测 balanced 版式会出现 3200px² 的重叠）。
     const dir = side === 1 ? 1 : -1;
     let x = dir * (halfW + gapX);

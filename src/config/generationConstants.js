@@ -11,7 +11,7 @@ export const GEN_CONST = Object.freeze({
   REASONING_CAP_BODY: 40000,          // 整卷正文思考流式上限（chunks，防失控白付）
   REASONING_CAP_ANSWER: 20000,        // 答案页思考流式上限（chunks）
   REASONING_EXHAUST_THRESHOLD: 20000, // 判定"思考耗尽"的最小推理 chunks（触发关闭思考重试）
-  // 🔴 未开思考时的"防御性"推理上限：智谱/火山等引擎可能无视思考开关强制推理，
+  // 未开思考时的"防御性"推理上限：智谱/火山等引擎可能无视思考开关强制推理，
   //    推理 token 与正文共享 max_tokens——不设上限会被推理吃光预算导致输出为空（"无答案页"根因）。
   //    未开思考也始终设上限，推理一旦超限即中断并强制关思考重试。
   REASONING_CAP_BODY_FORCED: 10000,   // 未开思考：正文推理防御上限

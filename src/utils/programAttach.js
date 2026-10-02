@@ -32,14 +32,16 @@ import { floorClauseSections } from '../config/promptLibrary.js';
  */
 function buildProgramAttachParts({ subject, stageKey, genType, instructionText = '', attachInstructionKey = '' }) {
   const blocks = [];
-  // 🔴 2026-09-17：渲染契约的开启与否由 buildRenderContract 内部单一判定（resolveMarkCapability：学科契约
+  // 2026-09-17：渲染契约的开启与否由 buildRenderContract 内部单一判定（resolveMarkCapability：学科契约
   //    是否被工具库停用 + 用户自定义契约），与委托正文点名哪几个标记**同一判定**。
   //    原 needsImageText 入参（喂 needsImageHint 决定给不给 [IMAGE] 骨架）随 A21 撤除——文本信号不再是能力开关。
-  const renderContractText = buildRenderContract({ subject, stage: stageKey });
+  // 各段先 trim：一是让"块文本 == 实发里的那一段"（面板所见即所发），二是块间统一由 \n\n 相连、
+  //   不会被各段自带的前导空行叠成"3 个空行"（✅ 块与块之间恰一空行）。
+  const renderContractText = String(buildRenderContract({ subject, stage: stageKey }) || '').trim();
   if (renderContractText) blocks.push({ lib: 'render-contract', key: subject, name: '渲染指令契约', text: renderContractText });
   const activeRules = getActiveFixPromptRules({ subject, stage: stageKey, genType });
-  for (const r of activeRules) blocks.push({ lib: 'rules', key: r.id, name: r.name || r.id, text: r.promptHint });
-  const validatorPromptText = buildValidatorPrompt({ subject, stage: stageKey, genType });
+  for (const r of activeRules) blocks.push({ lib: 'rules', key: r.id, name: r.name || r.id, text: String(r.promptHint || '').trim() });
+  const validatorPromptText = String(buildValidatorPrompt({ subject, stage: stageKey, genType }) || '').trim();
   // ✅ A20（2026-09-14 用户定「分开更好」）：守门条款**段级兜底**——按段判缺、缺哪段补哪段。
   //    原先只判【输出格式】在不在、缺则补整块（格式段 +【质量底线】整段），两个漏点：
   //      ① 委托正文有【输出格式】但删了【质量底线】→ 判据认为"已有格式"→ 兜底不触发 →
@@ -50,14 +52,17 @@ function buildProgramAttachParts({ subject, stageKey, genType, instructionText =
   const fallbackTexts = [];
   for (const sec of floorClauseSections({ subject, stage: stageKey, genType })) {
     if (String(instructionText || '').includes(sec.marker)) continue;
-    fallbackTexts.push(sec.text);
+    const secText = String(sec.text || '').trim();
+    fallbackTexts.push(secText);
     blocks.push({
       lib: 'instruction', key: attachInstructionKey || genType,
-      name: `底线条款兜底（模板缺${sec.marker}段）`, text: sec.text,
+      name: `底线条款兜底（模板缺${sec.marker}段）`, text: secText,
     });
   }
   const outputHintText = fallbackTexts.join('\n\n');
-  const text = [renderContractText, validatorPromptText, outputHintText].filter(Boolean).join('\n\n');
+  // 块与块之间恰一空行：各段已 trim，此处统一以 \n\n 相连
+  const text = [renderContractText, validatorPromptText, outputHintText]
+    .filter(Boolean).join('\n\n');
   return { text, blocks };
 }
 

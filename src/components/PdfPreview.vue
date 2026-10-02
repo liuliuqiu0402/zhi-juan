@@ -76,7 +76,7 @@
         ref="canvasRef"
         class="pdf-canvas"
       />
-      <!-- 🔴 加载失败必须看得见（2026-09-20）：原先只在 console 里 console.error，
+      <!-- 加载失败必须看得见（2026-09-20）：原先只在 console 里 console.error，
            界面上就是一块空白画布 —— 用户唯一能说的是"预览不了了"，排查无从下手。
            现在给出：原因 + 出错路径 + 下一步（父组件可选地补一个"修复路径"动作）。 -->
       <div
@@ -179,7 +179,7 @@ const cancelPageInput = () => {
 };
 
 const loadPdf = async () => {
-  // 🔴 没有路径也要说清楚（2026-09-20）：原先是 `if (!props.pdfPath) return;` ——
+  // 没有路径也要说清楚（2026-09-20）：原先是 `if (!props.pdfPath) return;` ——
   //    父组件一旦没解析出路径（例如记录里的 pdfPath 为空/查不到书），这里就是**静默空白**，
   //    用户只能说"预览不了了"，完全看不出是"根本没给路径"还是"PDF 打不开"。
   if (!props.pdfPath) {
@@ -436,7 +436,7 @@ onUnmounted(() => {
   margin: auto;
 }
 
-/* 🔴 加载失败提示（2026-09-20）：替代原先"空白画布 + 只在 console 报错"的静默失败 */
+/* 加载失败提示（2026-09-20）：替代原先"空白画布 + 只在 console 报错"的静默失败 */
 .pdf-load-error {
   margin: auto;
   max-width: 520px;

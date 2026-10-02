@@ -143,7 +143,7 @@ export const subjects = [
 // 🔗 命名双轨·资料类型：'exam/practice/special/preview/reading/summary/dictation/errorbook/review' 九类 key
 //    与指令库 GEN_TYPE_NAMES、TYPE_BASES、蓝图库 TEACHING_GEN_TYPES/EXAM 类型 key 完全一致。
 //    新增/改名类型须四处同步（expertKnowledge·指令库·examPaperBlueprints·teachingBlueprints），否则模板命不中/面板失配。
-// 🔴 中文名以指令库 GEN_TYPE_NAMES 为规范（正式考卷/知识总结/复习资料…）；本表仅叠加 emoji 前缀用于 UI 卡片，
+// 中文名以指令库 GEN_TYPE_NAMES 为规范（正式考卷/知识总结/复习资料…）；本表仅叠加 emoji 前缀用于 UI 卡片，
 //    文本必须与规范名一致（tests/utils/typeNameConsistency 有断言守卫，防再漂移）。
 /**
  * @deprecated genTypeTemplates.instruction 和 .structure 字段已废弃。
@@ -204,12 +204,12 @@ export const STYLE_GROUP = { PROPOSITION: 'proposition', PRESENTATION: 'presenta
  */
 export const styleOptions = [
   // ── 命题风格组（以题为主的资料：题的组织方式）──
-  // 🔴 2026-09-28（用户裁定·情境口径归两课标 + 由必选降为可选）：
+  // 2026-09-28（用户裁定·情境口径归两课标 + 由必选降为可选）：
   //    ① 情境取向锚到**本学科课程标准界定的情境类型**（义教课标"真实而富有意义的学习情境"；
   //       高中课标"以具体情境为载体"），不再暗示"每一小题都被同一叙事场景包裹"；
   //    ② 由 required:true 降为可选——不选时走**不注入组织风格的默认分支**
   //       （该分支的卷面规则单源见 promptLibrary 的卷面格式条款，此处不复述、不另写一份）。
-  // 🔴 2026-09-30（用户裁定·只给课标要求、不给做法）：原 tip 尾句"不要求每一小题都被同一叙事场景包裹"
+  // 2026-09-30（用户裁定·只给课标要求、不给做法）：原 tip 尾句"不要求每一小题都被同一叙事场景包裹"
   //    属**否定式植入**（要读懂须先激活该图式，且"不要求"是许可语气）——**整句删除**，不做同义改写。
   //    前半句已是课标要求式（情境类型沿用课标界定、主题与设问全卷连贯），信息零损失。
   { group: 'proposition', value: 'unified_context', label: '课标卷型', desc: '全卷统一核心情境、主题与设问连贯',
@@ -227,7 +227,7 @@ export const styleOptions = [
   { group: 'proposition', value: 'project_based', label: '项目式学习', desc: '项目任务驱动',
     tip: '以一个完整项目任务为驱动，资料作为项目的一部分，考查真实问题中的综合能力；项目式学习是课标倡导的组织方式，适用于以项目任务组织的训练。',
     appliesTo: ['practice', 'special'], required: false },
-  // 🔴 2026-09-28（用户裁定·注入句去组织形态词）：原 label/desc/tip 把该风格写成"以…为单位"的组织口径，
+  // 2026-09-28（用户裁定·注入句去组织形态词）：原 label/desc/tip 把该风格写成"以…为单位"的组织口径，
   //    正是 leanWording 守卫的禁用词（教辅形式句不得出现这类组织形态词，见 tests/config/leanWording.test.js）。
   //    现 label/desc/tip/注入句一律只讲**呈现形态**（不设统一情境、逐题直接命制），不出现任何组织形态词。
   { group: 'proposition', value: 'traditional', label: '传统练习', desc: '不设统一情境，逐题直接设问',
@@ -243,7 +243,7 @@ export const styleOptions = [
   { group: 'presentation', value: 'context_chain', label: '情境化串联', desc: '真实适切主题串联知识点',
     tip: '用一个真实适切的大主题把各知识点串联呈现，脉络自然连贯；适用于知识总结、复习资料。',
     appliesTo: ['summary', 'review'], required: false },
-  // 🔴 2026-09-17（用户裁定"三处一起清"）：标签原为自造词「问题驱动」，改为与内部 value 同名的
+  // 2026-09-17（用户裁定"三处一起清"）：标签原为自造词「问题驱动」，改为与内部 value 同名的
   //    「任务驱动」（UI 标签，不进注入文本；注入的是 value + styleInstructions 说明）。
   { group: 'presentation', value: 'task_driven', label: '任务驱动', desc: '预习内容问题化',
     tip: '以问题链驱动预习（圈画/概括/查阅/尝试），可操作可检查；适用于预习导学。',
@@ -261,7 +261,7 @@ export const styleOptionsForType = (genType = '') => {
 };
 
 /** 资料类型 → 默认风格（选类型未手动选时自动推荐）
- *  🔴 2026-09-28（用户裁定）：exam **不再默认统一情境**——课标卷型由必选降为可选后，
+ *  2026-09-28（用户裁定）：exam **不再默认统一情境**——课标卷型由必选降为可选后，
  *     exam 的默认落在**不注入组织风格的默认分支**（卷面规则单源见 promptLibrary），
  *     需要统一情境时由用户显式选「课标卷型」。 */
 export const DEFAULT_STYLE_BY_TYPE = {
@@ -294,10 +294,10 @@ export const isStyleRequiredForType = (genType = '') => STYLE_REQUIRED_TYPES.inc
 //    课标对情境的要求是"真实、适切"，且取向**分科分档**（见 promptLibrary.SUBJECT_STAGE_EXTRAS 的 source 引用）。
 //    故本表只保留**组织形态语义**（逐题独立/大主题串联），情境取向归学科·学段要点单源承载。
 export const styleInstructions = {
-  // 🔴 2026-09-28（用户裁定·注入句同源改准）：原句"情境贯穿全卷，各题在此情境下连贯设问"会被读成
+  // 2026-09-28（用户裁定·注入句同源改准）：原句"情境贯穿全卷，各题在此情境下连贯设问"会被读成
   //    "每一小题都被同一叙事场景包裹"。改为锚到**本学科课程标准界定的情境类型**、只要求
   //    "主题与设问在全卷连贯"。（当时一并写的"与该情境相适的题目在其下展开"已于 2026-09-30 随做法层删除）
-  // 🔴 2026-09-30（用户裁定·只给课标要求、不给做法）：两条情境类注入句尾部落的"与该(本单元)情境相适的
+  // 2026-09-30（用户裁定·只给课标要求、不给做法）：两条情境类注入句尾部落的"与该(本单元)情境相适的
   //    题目在其下展开"是**组织做法指定**（模型据此把情境/场景逐题分配），与框架注入块同批删除；
   //    保留课标要求式陈述（围绕核心情境、主题与设问全卷连贯、情境类型沿用课标界定）。
   'unified_context': '整份资料围绕一个核心主题情境展开，主题与设问在全卷连贯；情境沿用本学科课程标准界定的情境类型。',
@@ -306,7 +306,7 @@ export const styleInstructions = {
   'big_unit': '打破课时界限，围绕大概念整体组织，体现知识关联与递进。',
   'project_based': '以一个完整项目任务为驱动组织资料，考查真实问题中的综合能力。',
   'traditional': '按传统教辅体例组织：不设统一情境、不做形式化包装，逐题直接命制，题目按本学科本学段通行形态设问、作答直接。',
-  // 🔴 2026-09-24：导图式从"用嵌套列表模拟"升级为**真图**。分工：模型只出结构化 JSON，
+  // 2026-09-24：导图式从"用嵌套列表模拟"升级为**真图**。分工：模型只出结构化 JSON，
   //    几何由 utils/diagrams 算（模型手写 SVG 必然歪、还会被清洗器改坏）；
   //    约定与容错见 utils/diagramBlock.js（解析失败会原样保留那块文字，不会丢内容）。
   'mindmap': '以「导图块」真实呈现知识结构（本风格的核心交付物）：'
@@ -316,7 +316,7 @@ export const styleInstructions = {
     + 'timeline(时间顺序：items[{when,text,detail}])、fishbone(因果：effect,categories[{name,causes:[…]}])、'
     + 'concept(带关系标注：nodes[{id,text}],links[{from,to,label}])。'
     + 'JSON 必须合法、字段按所选图种给全；导图块独占一段，块内不要夹杂别的文字；'
-    // 🔴 2026-09-27（用户裁定·去数量诱导）：原句写死"条目 4~16 字、层级 2~4 层、每层 2~6 个分支"——
+    // 2026-09-27（用户裁定·去数量诱导）：原句写死"条目 4~16 字、层级 2~4 层、每层 2~6 个分支"——
     //    数量区间属诱导（与已删除的"恰好 3 个情境"同类：写死数目会被为凑区间硬拆硬并、或为省事敷衍）。
     //    现改**可读性原则 + 真实内容**：条目只要是真要点（短语）、层级/分支数随真实内容而定、以一眼可读为准。
     + '条目一律写成**真实的知识要点短语**（不写成整句、不带题号）；层级不宜过深、每层分支数量以**一眼可读**为准——按真实内容呈现，内容有多少就呈现多少。',

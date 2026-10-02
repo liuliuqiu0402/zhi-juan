@@ -30,18 +30,23 @@ const RAW = [
 ].join('\n');
 
 describe('A4-6 压缩比按 mode 分流', () => {
+  // 2026-10-02（③啰嗦·收口）：instruction 由"同义补句堆叠"收成一句——
+  //   full 删去"不得改写句式/不得替换同义说法/不得概括成自己的话"（均被"保留原文的表述与原句"覆盖）；
+  //   condense 删去"不得删掉任何栏目/不得改写事实"（与 system 角色行重复，收口为单源）。
   it('full（知识型）→ 保原文表述与原句（verbatim）', () => {
     const spec = compressionSpecOf('full');
     expect(spec.fidelity).toBe('verbatim');
-    expect(spec.instruction).toContain('原句');
-    expect(spec.instruction).toContain('不得改写');
+    expect(spec.instruction).toContain('原文的表述与原句');
+    expect(spec.instruction).toContain('只可删去重复与无关铺陈');
   });
   it('命题型（practice/special/reading/exam）→ 可大幅压缩（condense），但保结构保事实', () => {
     for (const m of ['practice', 'special', 'reading', 'exam']) {
       const spec = compressionSpecOf(m);
       expect(spec.fidelity, m).toBe('condense');
-      expect(spec.instruction).toContain('不得删掉任何栏目');
-      expect(spec.instruction).toContain('不得改写事实');
+      expect(spec.instruction).toContain('结构与关键事实');
+      // 增删栏目/改写事实的不变式由 system 角色行**单源**承载（instruction 不再复述）
+      const sys = buildMapMessages({ batch: { title: 'x', text: 'y' }, mode: m })[0].content;
+      expect(sys).toContain('不改写事实、不增删栏目');
     }
   });
 });

@@ -1,7 +1,7 @@
 /**
  * 公式定界语法（`$…$` 行内 / `$$…$$` 块级）——**单一事实源**
  * ============================================================
- * 🔴 为什么单独立一个文件：这套定界语法有多个消费者，各写一份必然漂移
+ * 为什么单独立一个文件：这套定界语法有多个消费者，各写一份必然漂移
  *    （本项目已有"同构副本各自演化"的历史教训）。消费者：
  *      - utils/mathRender.renderMathInHtml  → 屏幕/PDF 渲染（KaTeX）
  *      - utils/docxBuilder                  → Word 导出（docx 公式对象 / Unicode 降级）
@@ -15,7 +15,7 @@ export const MATH_RE = /\$\$([\s\S]+?)\$\$|\$([^$\n]+?)\$/g;
 
 /**
  * 编辑器公式装饰层 widget 的标记属性。
- * 🔴 放在本模块（零依赖）而不是 mathPreview.js：docxBuilder 需要识别该 widget，
+ * 放在本模块（零依赖）而不是 mathPreview.js：docxBuilder 需要识别该 widget，
  *    而 mathPreview.js 依赖 Tiptap —— 若从那边引，会把整个 Tiptap 拖进导出 chunk。
  */
 export const MATH_PREVIEW_ATTR = 'data-math-preview';

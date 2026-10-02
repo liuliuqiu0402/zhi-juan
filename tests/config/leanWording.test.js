@@ -85,11 +85,17 @@ describe('少约束·委托书不再给组织形态描述（教材颗粒只作�
     }
   });
 
-  it('组织方式块：教辅整类不注入（形式全交模型）；试卷逐字守卷面结构', () => {
+  // 2026-10-02（结构化）：原断言逐字 toBe 整块——本块拆为两条 `·`（文字未增未删）→ 按 §4 第 6 步改**判据级**，并锁新结构。
+  it('组织方式块：教辅整类不注入（形式全交模型）；试卷守卷面结构（判据级）', () => {
     for (const t of ['practice', 'special', 'reading', 'summary', 'preview', 'dictation', 'errorbook', 'review']) {
       expect(buildOrganizeBlock(t), `${t} 不得再注入组织方式`).toBe('');
     }
-    expect(buildOrganizeBlock('exam')).toBe('【组织方式】输出一律以委托书【卷面结构】的大题序列组织（大题名、顺序、题量以委托书为准）；【锚点清单】陈述的是要练到的范围，供你把握本卷该覆盖什么。每行"【要求·须逐项落实】"后是该大题按**课标与正规卷**定的形态要求（设问方式、材料形态、读写方式、每空词数、材料读几遍等），**必须逐项落实**；成稿前逐栏目对照自查：凡该行写了而卷面没有照做的（如要求两种设问形态却只出一种），改题面或改内容，二者取一——把它当"背景描述"读过去，即属未落实。\n\n');
+    const org = buildOrganizeBlock('exam');
+    expect(org, '块以【】开头、块标题独立成行、首条以 · 领起').toMatch(/^【组织方式】\n· /);
+    expect(org.split('\n').filter((l) => l.startsWith('· ')), '一条一行').toHaveLength(2);
+    expect(org).toContain('输出一律以委托书【卷面结构】的大题序列组织'); // 守卷面结构
+    expect(org).toContain('**必须逐项落实**');
+    expect(org).toContain('成稿前逐栏目对照自查');
   });
 
   it('题型授权仍保留在输出格式里（删了组织方式块，不能把 <h3> 授权一起删掉）', () => {

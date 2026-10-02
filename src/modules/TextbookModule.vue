@@ -207,7 +207,7 @@
             📤 上传第一本教材
           </button>
         </div>
-        <!-- 🔴 两级折叠：学段 → 学科（2026-09-20 用户："教材全部是平铺的，可否按小学折叠、
+        <!-- 两级折叠：学段 → 学科（2026-09-20 用户："教材全部是平铺的，可否按小学折叠、
              小学下方再按学科折叠"）。分组走 utils/libraryGrouping 纯函数；
              **层级稳定**：只有"该维度被筛选成单一值"时才隐藏那一级的组头（如筛了学段=小学，
              就不再套"小学"组头），未筛选时学段与学科组头**一律显示**——不按数据分了几组来变，
@@ -217,7 +217,7 @@
           v-for="grp in groupedTextbooks"
           :key="grp.key"
         >
-          <!-- 🔴 组头吸顶（2026-09-24 用户："滚动某一学科这一类的书时，学科组头能不能不跟着
+          <!-- 组头吸顶（2026-09-24 用户："滚动某一学科这一类的书时，学科组头能不能不跟着
                滚上去？方便随时点收放"）。吸顶必须**按组限定作用域**——否则第一组的学科组头
                会一直悬在第二组内容上面。故每一组各套一层 .group-block 作为 sticky 的包含块；
                块内 gap 仍是 8px，与原先"列表直接铺子项"的间距完全一致，视觉不变。 -->
@@ -287,7 +287,7 @@
               <span class="chapter-count">{{ countChapters(book.outline) }}个章节 {{ countAnalyzed(book.outline) > 0 ? '· ✅' + countAnalyzed(book.outline) : '' }}</span>
             </div>
             <div class="item-actions">
-              <!-- 🔴 文件缺失才出现的「修复路径」（2026-09-20）：用户实测的痛点正是"目录里的文件
+              <!-- 文件缺失才出现的「修复路径」（2026-09-20）：用户实测的痛点正是"目录里的文件
                    被手动改过名之后，改名报被占用、预览空白"，却没有任何入口能把它指回原位。
                    只在真缺文件时显示，不给正常条目添噪音。 -->
               <button
@@ -357,7 +357,7 @@
       </div>
     </div>
 
-    <!-- 🔴 列表／预览 分栏拖动条（2026-09-20 用户："界面中列表和预览不是两个块嘛，
+    <!-- 列表／预览 分栏拖动条（2026-09-20 用户："界面中列表和预览不是两个块嘛，
          可否改为可以手动拖动调整宽？"）。仅桌面显示；宽度上下限由 useLibraryView.clampPanelWidth
          钳制（列表最少 280px、预览区至少留 420px）；双击复位默认宽度。 -->
     <div
@@ -403,7 +403,7 @@
           </button>
         </div>
       </div>
-      <!-- 🔴 预览加载失败必须显性（2026-09-20）：原先是空白画布 + 只在 console 里报错，
+      <!-- 预览加载失败必须显性（2026-09-20）：原先是空白画布 + 只在 console 里报错，
            用户看到的就是"预览不了了"却毫无线索；现在给出原因 + 一键按名称重新指认 -->
       <div
         v-if="previewLoadError"
@@ -886,7 +886,7 @@
                         @focus="focusedRow = index"
                         @blur="focusedRow = -1"
                       >
-                      <!-- 🔴 公式印刷形态预览（2026-09 用户实证）：标题是**纯文本字段**，`<input>` 里
+                      <!-- 公式印刷形态预览（2026-09 用户实证）：标题是**纯文本字段**，`<input>` 里
                            根本无法渲染公式，导入后只看得到 $…$ 源码 —— 用户会以为"公式没保住"。
                            含公式时在下方补一行渲染结果，让"到底保住没有"当场可见。
                            （正式展示处——教材/模板详情目录树、预览、PDF/Word 导出——本来就渲染。） -->
@@ -1360,8 +1360,8 @@ import { libraryEntryPaths, classifyMoveError, sanitizeFsName } from '../utils/l
 import { planRelink, pdfStem, coverStem } from '../utils/libraryRelink.js';
 import { useFileHandler } from '../composables/useFileHandler.js';
 import { convertFormulasInHtml } from '../utils/wordExporter.js';
-import { renderMathInHtml, hasMath } from '../utils/mathRender.js'; // 🔴 目录标题里的 $…$ 公式出印刷形态（P3）
-import { readTocTextFromClipboard, handleMathPaste, diagnoseClipboard } from '../utils/clipboardText.js'; // 🔴 目录导入读剪贴板富文本，救回公式（纯文本只剩字母和加减号）；handleMathPaste = 纯文本框粘贴也保公式；diagnoseClipboard = 用户可自助查"公式为什么没进来"
+import { renderMathInHtml, hasMath } from '../utils/mathRender.js'; // 目录标题里的 $…$ 公式出印刷形态（P3）
+import { readTocTextFromClipboard, handleMathPaste, diagnoseClipboard } from '../utils/clipboardText.js'; // 目录导入读剪贴板富文本，救回公式（纯文本只剩字母和加减号）；handleMathPaste = 纯文本框粘贴也保公式；diagnoseClipboard = 用户可自助查"公式为什么没进来"
 import { escapeHtml } from '../utils/escape.js'; // 转义唯一实现（标题属外部输入，注入前必须转义）
 import { useTocParser, safeFocusOutlineInput, fastFocusInput, smartFocusInput, fastCalculatePageRanges, fastRebuildTree } from '../composables/useTocParser.js';
 import { useTocFileImport } from '../composables/useTocFileImport.js'; // 📁 目录「从文件导入」读文件（与模板库共用；.docx 含公式还原）
@@ -1503,7 +1503,7 @@ const OutlineTreeNode = {
         }),
         h('span', { 
           class: 'chapter-title',
-          // 🔴 目录标题里的公式（P3）：标题是纯文本字段，此前直接当文本渲染 → 含 $…$ 时
+          // 目录标题里的公式（P3）：标题是纯文本字段，此前直接当文本渲染 → 含 $…$ 时
           //    目录里显示生 LaTeX。现渲染为印刷形态；**先转义再渲染**（标题来自 OCR/用户，
           //    不转义等于把外部输入当 HTML 注入）。
           innerHTML: renderMathInHtml(escapeHtml(node.title || '')),
@@ -1770,7 +1770,7 @@ const filteredTextbooks = computed(() => {
 });
 
 // ==================== 📚 列表视图：学段→学科 两级折叠 + 列表/预览分栏拖动 ====================
-// 🔴 分组走 utils/libraryGrouping 纯函数（课本库与模板库**同一份实现**，防两处规则漂移）；
+// 分组走 utils/libraryGrouping 纯函数（课本库与模板库**同一份实现**，防两处规则漂移）；
 //    折叠状态与分栏宽度走 composables/useLibraryView（两库用不同 storageKey，互不串味）。
 //    折叠未标注组也不会丢书：未标注学段/学科的书照常成组显示（见 groupLibrary 的两条铁律）。
 const {
@@ -1780,7 +1780,7 @@ const {
 } = useLibraryView({ storageKey: 'textbook' });
 
 const groupedTextbooks = computed(() => groupLibrary(filteredTextbooks.value));
-// 🔴 默认按类收起（2026-09-25 用户）：重启/刷新后应是"按类收起"而非全部展开；
+// 默认按类收起（2026-09-25 用户）：重启/刷新后应是"按类收起"而非全部展开；
 //    仅在从未手动设置过折叠状态时生效，之后用户展开/收起照旧被记住。
 ensureDefaultCollapsed(groupedTextbooks.value);
 /** 组头显示判据：**只看该维度有没有被显式筛选**（见 libraryGrouping.needGroupHeader 里记的那次回归）——
@@ -1840,7 +1840,7 @@ const showImportModal = ref(false);
 const showPreview = ref(false);
 const previewData = ref(null);
 const currentPreviewPage = ref(1);
-/** 🔴 当前预览的教材**对象本身**（不是路径字符串）——2026-09-20 修"改名后预览空白"的根因之一。
+/** 当前预览的教材**对象本身**（不是路径字符串）——2026-09-20 修"改名后预览空白"的根因之一。
  *  改名会同时换掉 id 与 imagesDir/pdfPath/coverPath，所以"改名之前取到的任何字符串"在改名后都指不到东西。
  *  而 store 的 updateTextbook 是 `Object.assign`（**原地改**同一对象），对象引用天然穿越改名。 */
 const previewBook = ref(null);
@@ -2223,7 +2223,7 @@ watch(() => textbookStore.textbooks.map((b) => `${b.id}|${b.pdfPath}|${b.imagesD
  *   逆向（磁盘→应用）：以前**完全没人管** ✗ ⇒ 在「本地教材库」目录里手动改过名之后，
  *     记录指向旧路径、改名报"被占用"（其实是找不到源文件）、预览一片空白。
  * 这里补上：列出库目录 → 找出"没有任何条目认领"的文件组 → 与"文件缺失的条目"配对。
- * 🔴 只在**无歧义**时自动配对（见 utils/libraryRelink：多候选一律不猜，猜错等于把两本教材对调）。
+ * 只在**无歧义**时自动配对（见 utils/libraryRelink：多候选一律不猜，猜错等于把两本教材对调）。
  */
 const relinkFromDisk = async () => {
   const api = window.electronAPI;
@@ -2291,10 +2291,10 @@ const fixBookPaths = async (book) => {
 //    🔧 事务式：任一文件移动失败 → 回滚已移动的，且不更新存储记录（避免 store 指向不存在的文件导致预览空白）
 /**
  * 🏷️ 编辑元数据（学段 / 学科 / 册次）——取代原先只改册次的「📚」按钮。
- * 🔴 起因（2026-09-20 用户："要不然老数据就不能按规则归类了"）：列表按「学段→学科」两级分组，
+ * 起因（2026-09-20 用户："要不然老数据就不能按规则归类了"）：列表按「学段→学科」两级分组，
  *    而这两项**只在导入时能选**（初中不自动识别学段，只有小学年级与高中册次认得出来），
  *    老数据缺了就永远落进"未标注"、归不了位，此前也没有任何入口可补。
- * 🔴 只改元数据，**不动 name / id / 路径**（不碰文件，故与"改名被占用"无关）；
+ * 只改元数据，**不动 name / id / 路径**（不碰文件，故与"改名被占用"无关）；
  *    字段联动（册次只对高中有意义、填了册次清遗留年级）在 utils/libraryMetaEdit，纯函数且有单测。
  */
 const metaTarget = ref(null);
@@ -2325,7 +2325,7 @@ const renameTextbook = async (book) => {
   const newPdfPath = book.pdfPath ? targets.pdfPath : '';
   const newCoverPath = book.coverPath ? targets.coverPath : '';
   // 目标冲突预检（图片目录 + PDF + 缩略图）
-  // 🔴 存在性探测走 existsPath（静默返回布尔），不用 read-file——后者读不到会 throw，
+  // 存在性探测走 existsPath（静默返回布尔），不用 read-file——后者读不到会 throw，
   //    主进程会把 ENOENT 当异常打印一串 [1] 噪音日志。
   const fileExists = (p) => window.electronAPI.existsPath(p);
   if ((await pathExists(newImagesDir))
@@ -2427,7 +2427,7 @@ const selectFileHandler = async () => {
 
 /**
  * 选中文件后按文件名**预填**元数据（用户仍可改）。
- * 🔴 只填"高置信"项：册次是字面命中（"必修第一册""选择性必修2"），小学年级是字面命中（"X年级"）；
+ * 只填"高置信"项：册次是字面命中（"必修第一册""选择性必修2"），小学年级是字面命中（"X年级"）；
  *    初中学段与初高中年级识别不到 → 留空（沿用 textbookMeta 的"不猜年级"原则，猜错比不猜更糟）。
  *    已有值时也覆盖（让用户核对识别结果）；识别为空则不动，避免清掉用户上一次的手动填写。
  */
@@ -3001,7 +3001,7 @@ const updatePageRange = () => {
   const flat = flatOutline.value;
   fastCalculatePageRanges(flat, totalPages.value);
   // 同步 originalPage，防止后续 applyOffset 覆盖手动修改。
-  // 🔴 必须存**去掉偏移量**的基准值：page 是"PDF 实际页码"，而 originalPage 的约定是
+  // 必须存**去掉偏移量**的基准值：page 是"PDF 实际页码"，而 originalPage 的约定是
   //    "目录原始页码"（applyOffset 做的是 page = originalPage + pageOffset）。
   //    原先直接存 page → 之后再动一次偏移量就等于把偏移量又加了一遍，全表页码错位；
   //    存 page - pageOffset 后，偏移量不变时 applyOffset 结果不变，手动修改才真正不被覆盖。
@@ -3048,7 +3048,7 @@ const parsePageRange = (event, index) => {
     node.start = start;
     node.end = end;
     node.page = start;
-    // 🔴 手动优先：显式改过的页码范围不许被 fastCalculatePageRanges 重算顶回
+    // 手动优先：显式改过的页码范围不许被 fastCalculatePageRanges 重算顶回
     node.rangeEndLocked = true;
     // 同 updatePageRange：originalPage 存"去掉偏移量"的基准值，否则改一次偏移量会多加一遍
     node.originalPage = start - pageOffset.value;
@@ -3125,7 +3125,7 @@ const importFromClipboard = async (closeModal = false) => {
       await new Promise(r => setTimeout(r, 100));  // ✅ 再等100ms让焦点恢复
     }
     
-    // 🔴 目录导入读剪贴板走**唯一入口**（内部优先富文本版本以救回公式，拿不到才用纯文本）。
+    // 目录导入读剪贴板走**唯一入口**（内部优先富文本版本以救回公式，拿不到才用纯文本）。
     //    纯文本版本会把公式线性化成裸字符（只剩字母和加减号）——这就是"目录公式丢符号"的根因。
     const text = await readTocTextFromClipboard();
     if (!text.trim()) {
@@ -3156,7 +3156,7 @@ const showClipboardDiagnosis = async () => {
 /**
  * 📁 从文件导入目录（.docx / .txt / .md）
  * ============================================================
- * 🔴 为什么要有（2026-09 用户提出）：目录里的公式在「从剪贴板导入」这条路上要赌剪贴板格式
+ * 为什么要有（2026-09 用户提出）：目录里的公式在「从剪贴板导入」这条路上要赌剪贴板格式
  *    （Word 有没有给富文本那一份）；"导入文件"拿的是**文件本身**，是最完整的数据源。
  *    "读文件 → 一行一条文本"收在 composables/useTocFileImport（两库共用同一实现，防各自演化）。
  */
@@ -3260,7 +3260,7 @@ const handlePreview = (data) => {
     return;
   }
   previewData.value = data;
-  // 🔴 关键（2026-09-20）：这里把**书对象本身**记下来，而不是只记 imagesDir 字符串。
+  // 关键（2026-09-20）：这里把**书对象本身**记下来，而不是只记 imagesDir 字符串。
   //    改名会同时改掉 id 与 imagesDir/pdfPath——用字符串当键的话，改名后必然查不到书，
   //    pdfPath 变成空串，预览就一片空白（而且 PdfPreview 只在 console 里报错，界面看不到原因）。
   previewBook.value = textbookStore.textbooks.find(b => b.imagesDir === data.imagesDir)
@@ -3545,7 +3545,7 @@ const saveTextbook = async () => {
     isSaving.value = true;
     saveStatus.value = '正在保存...';
     
-    // 🔴 保存前先把「编辑器里看到的」冻结成一份快照树，书签与入库都只用这一份。
+    // 保存前先把「编辑器里看到的」冻结成一份快照树，书签与入库都只用这一份。
     //    历史 bug（用户实测：加载原有目录后手动新增的行，编辑框里有、PDF 书签里没有）：
     //    书签读 flatOutline、入库读 displayOutline，二者靠 updateDisplayTree 的 setTimeout
     //    异步同步，且每次重建后 flatOutline 会变成与 displayOutline **脱钩的新副本** ——
@@ -3621,7 +3621,7 @@ const saveTextbook = async () => {
         // 🔧 PDF 书签（Outline）是纯文本层，放不下印刷字形；含公式的标题把 $…$ 源码
         //    转成可读公式（√(ab)⩽(a+b)/2 这类线性文本），别让 WPS 书签里露出 $…$ 源码。
         title: hasMath(item.title) ? convertFormulasInHtml(item.title) : item.title,
-        // 🔴 页码直接取编辑器「页码」列里的数字（= PDF 实际页码，预览跳转用的也是它）。
+        // 页码直接取编辑器「页码」列里的数字（= PDF 实际页码，预览跳转用的也是它）。
         //    原先用 originalPage + pageOffset 重算，而 originalPage 的约定是"目录原始页码"，
         //    只有**从未手工动过**时才恰好等于 page；一旦手工加过行（addManualChapter 把
         //    originalPage 设成了邻行的页码）或在页码列改过（updatePageRange 把 originalPage
@@ -3630,13 +3630,13 @@ const saveTextbook = async () => {
         page: item.page,
         level: item.level + 1
       }));
-      // 🔴 书签明细入日志（手机端无 DevTools 时的唯一对照手段）：保存后再对不上，
+      // 书签明细入日志（手机端无 DevTools 时的唯一对照手段）：保存后再对不上，
       //    一眼就能判断是「书签数组里就没有」还是「数组有、PDF/WPS 里看不到」。
       console.log(
         `🧷 生成书签 ${bookmarks.length} 条（编辑框 ${committedFlat.length} 行）:\n` +
         bookmarks.map(b => `${'　'.repeat(Math.max(0, b.level - 1))}${b.title} (p${b.page})`).join('\n')
       );
-      // 🔴 越界页码会被 Python **静默夹到最后一页**（add_bookmarks.py 里 target_page 做了 min 钳制），
+      // 越界页码会被 Python **静默夹到最后一页**（add_bookmarks.py 里 target_page 做了 min 钳制），
       //    表现出来就是"书签页码不对"。这里提前把越界的行点名报出来，别让人对着 PDF 猜。
       const overflowPages = bookmarks.filter((b) => b.page > totalPages.value);
       if (overflowPages.length) {
@@ -3658,7 +3658,7 @@ const saveTextbook = async () => {
         throw new Error('添加书签失败: ' + (bookmarkResult?.error || '未知错误'));
       }
       
-      // 🔴 回读刚生成的 PDF，把「文件里实际有什么」打进日志。
+      // 回读刚生成的 PDF，把「文件里实际有什么」打进日志。
       //    用来区分两种完全不同的情况：①书签压根没写进文件；②写进去了、但阅读器里
       //    看的是旧文件 / 条目被缩进在某个父级下不好找。没有这一步，只能靠猜。
       try {
@@ -3706,7 +3706,7 @@ const saveTextbook = async () => {
     }
     
     // 🔑 直接存中文值，不做 stageMap 映射（筛选时也用中文比对）
-    // 🔴 高中落「册次」不落「年级」：教材按必修／选择性必修分册、本身不绑定年级（各省教学用书目录的
+    // 高中落「册次」不落「年级」：教材按必修／选择性必修分册、本身不绑定年级（各省教学用书目录的
     //    「册次」与「使用年级」是两栏并列，使用年级写的是区间；"必修＝高一"各省不成立）→ 高中 grade 一律
     //    留空，册次落 volume。grade 留空同时依赖 gradeStage.resolveCompetency 按**学段**判认知层级，
     //    否则空的年级会被旧写法 `extractGradeNum('') <= 6` 误判成"识记与理解"（高中卷降格成小学口径）。
@@ -3777,7 +3777,7 @@ const saveTextbook = async () => {
 .library-panel {
   width: 420px; /* 默认值；拖动后由 :style 覆盖（见 composables/useLibraryView） */
   flex-shrink: 0;
-  /* 🔴 不再自画右边框（2026-09-20）：中间插了 6px 拖动条，两侧面板若各自画边框会变成"双线夹一条缝"；
+  /* 不再自画右边框（2026-09-20）：中间插了 6px 拖动条，两侧面板若各自画边框会变成"双线夹一条缝"；
      分隔线改由 .panel-splitter 提供，移动端（无拖动条）由 .preview-panel 的左边框兜底。 */
   padding: 16px;
   overflow-y: auto;
@@ -3820,7 +3820,7 @@ const saveTextbook = async () => {
   background: #eef3fa; color: var(--primary);
   font-size: 13px; line-height: 16px; font-weight: 600;
   cursor: pointer; user-select: none;
-  /* 🔴 组头吸顶（2026-09-24 用户："滚动某一学科这一类的书时，学科组头能不能不跟着滚上去？
+  /* 组头吸顶（2026-09-24 用户："滚动某一学科这一类的书时，学科组头能不能不跟着滚上去？
      方便随时点收放"）。--group-header-h = line-height 16 + 上下 padding 各 5 = 26px，
      供学科组头下移、让开吸顶的学段组头；line-height 显式写死，是为了让这个高度可预期
      （否则字体/系统缩放差异会造成 1~2px 错位）。 */
@@ -3859,7 +3859,7 @@ const saveTextbook = async () => {
 /* 高中册次小标签：与"X个章节"并排，弱化配色以免抢文件名，但要能一眼区分同科多册 */
 .volume-tag { font-size: 0.7rem; color: #2b6cb0; background: #ebf4ff; border: 1px solid #c3dafe; border-radius: 3px; padding: 0 5px; margin-left: 6px; white-space: nowrap; }
 .item-actions { display: flex; gap: 4px; }
-/* 🔴 预览加载失败的显性提示条（2026-09-20）：原因 + 一键按名称重新指认 */
+/* 预览加载失败的显性提示条（2026-09-20）：原因 + 一键按名称重新指认 */
 .preview-load-error {
   display: flex;
   align-items: center;

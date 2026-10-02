@@ -27,6 +27,10 @@ yarn-error.log*
 *.temp
 Thumbs.db
 
+# 可复现的生成产物（2026-10-02 用户定：文档类产物留本地、不入库）
+#   · 份表 1.5 MB、100% 可由 `GEN_LEDGER=1; npx vitest run tests/tools/genProgressLedger.test.js` 复现
+docs/design/实发份表-生成-*.md
+
 # Python缓存
 __pycache__/
 *.py[cod]

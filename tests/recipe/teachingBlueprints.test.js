@@ -80,13 +80,13 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
   //    "感觉这个升格比在学段要求里加'须逐项落实'强吧？" → 采纳升格（逐栏目可核对、与 exam 侧同格式）。
   it('每个栏目行都带【要求·须逐项落实】标注（与 exam 卷面结构同口径）', () => {
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_mid', subject: '语文' });
-    // 栏目行都在「▌要求落实」之前（▌学段要求 那行及其说明是学段级要求，天然不带栏目标注）
-    const sectionLines = inject.split('▌要求落实')[0].split('\n').filter((l) => l.startsWith('· '));
+    // 栏目行都在【要求落实】块之前（【学段要求（…）】块及其说明是学段级要求，天然不带栏目标注）
+    const sectionLines = inject.split('【要求落实】')[0].split('\n').filter((l) => l.startsWith('· '));
     expect(sectionLines.length, '应有栏目行').toBeGreaterThan(0);
     for (const l of sectionLines) {
       expect(l, `栏目行缺标注：${l}`).toContain('——【要求·须逐项落实】');
     }
-    expect(inject).toContain('▌要求落实');
+    expect(inject).toContain('【要求落实】');
     // 效力 + 边界：注里写的内容与形态必须兑现，但**不是题组划分/命名依据**（与既有裁定不冲突）
     expect(inject).toContain('成稿前逐栏目对照自查');
     expect(inject).toContain('不是题组划分或命名的依据');
@@ -317,7 +317,8 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     const chem = buildTeachingInjection({ genType: 'dictation', stage: 'middle', subject: '化学' });
     expect(chem).toContain('化学·默写积累');
     expect(chem).toContain('化学用语');
-    expect(chem).toContain('2022年版义务教育化学课标核心素养');
+    // 2026-10-02（②课标·出处受控）：由"课标级"出处改锁"章节级"出处（与同文件其它学科同体例；括注形式亦满足路径链守卫的出处豁免）
+    expect(chem).toContain('2022义教化学·三、课程目标→（一）核心素养内涵');
     const hist = buildTeachingInjection({ genType: 'practice', stage: 'middle', subject: '历史' });
     expect(hist).toContain('历史·同步练习');
     expect(hist).toContain('时间轴/地图情境');

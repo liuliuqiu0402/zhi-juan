@@ -1,7 +1,7 @@
 /**
  * HTML/XML 转义与实体解码（共享）
  * ============================================================
- * 🔴 曾分散于 themeConfig/drawingMLShapes/GenerateModule/docxBuilder 等 5+ 处同构实现
+ * 曾分散于 themeConfig/drawingMLShapes/GenerateModule/docxBuilder 等 5+ 处同构实现
  *    （escHtml/escXml/esc/escGraph + 3 条实体解码链），任一侧补 ' 或换行策略即分叉；
  *    现收敛为本文件唯一实现。XML 与 HTML 文本节点/双引号属性场景可共用同一 4 字符映射
  *    （& < > "；' 无需转义：XML 双引号属性与 HTML 文本均合法）。

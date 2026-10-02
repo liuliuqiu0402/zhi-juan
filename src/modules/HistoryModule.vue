@@ -17,7 +17,7 @@
           <option value="">
             全部类型
           </option>
-          <!-- 🔴 筛选项由 genTypeOptions 单一来源生成（勿再硬编码）：历史记录存的是类型显示名，
+          <!-- 筛选项由 genTypeOptions 单一来源生成（勿再硬编码）：历史记录存的是类型显示名，
                硬编码曾与实际值脱钩（"考卷/知识总结"筛不中），且类型改名后必失效。 -->
           <option
             v-for="opt in genTypeOptions"
@@ -125,7 +125,7 @@ import { useDialog } from '@/composables/useDialog.js';
 import { useMobile } from '@/composables/useMobile.js';
 import { APP_EVENTS } from '@/constants/events.js';
 import { STORAGE_KEYS } from '@/constants/storageKeys.js'; // localStorage 业务 key 唯一事实源（墓碑 key 曾字面量）
-import { renderMathInHtml } from '@/utils/mathRender.js'; // 🔴 内容预览里的 $…$ 公式出印刷形态（2026-09 补齐）
+import { renderMathInHtml } from '@/utils/mathRender.js'; // 内容预览里的 $…$ 公式出印刷形态（2026-09 补齐）
 import { pushDeletedDocIds } from '@/utils/cloudStorage';
 import { genTypeOptions, styleOptions, styleInstructions } from '@/config/expertKnowledge.js'; // 资料类型/组织风格显示名唯一事实源（筛选项与匹配同源，防改名脱钩）
 
@@ -141,7 +141,7 @@ const filteredHistoryList = computed(() => {
   let result = historyList.value.filter(h => !h._deleted);
 
   if (historyFilterType.value) {
-    // 🔴 历史项的 genType 存的是**类型显示名**（GenerateModule 写入 genTypeTemplates[...].name）；
+    // 历史项的 genType 存的是**类型显示名**（GenerateModule 写入 genTypeTemplates[...].name）；
     //    此处按显示名匹配，并兼容历史上可能直接存 key 的记录。
     const name = historyTypeNameOf(historyFilterType.value);
     result = result.filter(item => item.genType === name || item.genType === historyFilterType.value);
@@ -278,7 +278,7 @@ const styleTitleOf = (style) => {
 };
 
 const previewHistoryItem = (item) => {
-  // 🔴 公式渲染（2026-09 补齐）：预览弹窗原样注入 item.content → 含 $…$ 时显示生 LaTeX。
+  // 公式渲染（2026-09 补齐）：预览弹窗原样注入 item.content → 含 $…$ 时显示生 LaTeX。
   //    与排版预览/导出同一渲染出口（renderMathInHtml），公式出印刷形态。
   previewContent.value = renderMathInHtml(item.content || '');
   showPreview.value = true;

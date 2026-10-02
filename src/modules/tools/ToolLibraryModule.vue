@@ -181,7 +181,7 @@ const STAGE_LABELS = {
   middle: '初中（7-9年级）',
   high: '高中',
 };
-// 🔴 类型中文名单一事实源 = GEN_TYPE_NAMES（曾本地写"正式试卷"异名漂移）
+// 类型中文名单一事实源 = GEN_TYPE_NAMES（曾本地写"正式试卷"异名漂移）
 const GEN_TYPE_KEYS_ALL = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
 const GEN_TYPE_LABELS = Object.fromEntries(GEN_TYPE_KEYS_ALL.map((k) => [k, GEN_TYPE_NAMES[k] || k]));
 

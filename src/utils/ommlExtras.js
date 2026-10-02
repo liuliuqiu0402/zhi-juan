@@ -1,7 +1,7 @@
 /**
  * docx 缺失的 OMML 组件（自建补齐）
  * ============================================================
- * 🔴 为什么需要（2026-09 用户追问"docx 为啥没有方程组类、能补上吧"）：
+ * 为什么需要（2026-09 用户追问"docx 为啥没有方程组类、能补上吧"）：
  *    docx 是**按需实现**的库，不是完整 OOXML 生成器 —— 它实现了常见数学对象
  *    （分式 m:f、根式 m:rad、上下标 m:sSub/m:sSup、n 元算子 m:nary、括号 m:d），
  *    但 **方程数组 m:eqArr、重音 m:acc、上方附加 m:limUpp、矩阵 m:m 都没有对应类**。
@@ -15,7 +15,7 @@
  *      · matrix/pmatrix/bmatrix 矩阵 → m:m + m:mr
  *      · | ‖ ⟨⟩ 等定界符 → m:d + 自定 begChr/endChr
  *
- * 🔴 写法照抄 docx 自身实现（super(rootKey) + root.push），保证序列化与命名空间一致。
+ * 写法照抄 docx 自身实现（super(rootKey) + root.push），保证序列化与命名空间一致。
  *    OMML 子元素顺序按 ECMA-376 规定（Properties 在前、必选主体在后），否则 Word 会判为损坏文档。
  * ============================================================
  */
@@ -158,7 +158,7 @@ export class MathNoBarFraction extends XmlComponent {
 
 /**
  * m:nary —— n 元算子（∑ ∏ ∫ ∮ ∬ ⋃ ⋂ …）。
- * 🔴 docx 只实现了 ∑（MathSum）与 ∫（MathIntegral）两种、且算子字符写死；
+ * docx 只实现了 ∑（MathSum）与 ∫（MathIntegral）两种、且算子字符写死；
  *    教材/物理里 ∏、∮、∬、⋃、⋂ 都真实出现，故泛化为可指定算子字符。
  *    子元素顺序按 ECMA-376：naryPr → sub → sup → e（sub/sup 必选，即使为空也要出）；
  *    naryPr 内部顺序 chr → limLoc → subHide → supHide。
@@ -184,7 +184,7 @@ export class MathNary extends XmlComponent {
 
 /**
  * m:oMathPara —— **展示式**（独占一行、可居中的块级公式）。
- * 🔴 为什么必须单独有这个：`m:oMath` 放在段落里是**行内**公式，会挤在文字流中；
+ * 为什么必须单独有这个：`m:oMath` 放在段落里是**行内**公式，会挤在文字流中；
  *    教材/试卷里的展示式（求根公式、分段函数、方程组）是**独占一行并居中**的，
  *    对应 OMML 的 `m:oMathPara`（内含 `m:oMath`）——docx 同样未实现，故自建。
  * 用法：作为某段落的**唯一子元素**（schema 上 m:oMathPara 属段落级元素）。

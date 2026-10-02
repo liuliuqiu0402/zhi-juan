@@ -1,7 +1,7 @@
 /**
  * 密封线文本规整（共享）
  * ============================================================
- * 🔴 曾分别内联于 themeConfig.buildSealZoneHTML（预览）与 utils/drawingMLShapes.sealGroupOOXML（docx 导出），
+ * 曾分别内联于 themeConfig.buildSealZoneHTML（预览）与 utils/drawingMLShapes.sealGroupOOXML（docx 导出），
  *    同正文双份、改一处忘另一处即破坏"预览与导出一致"；现收敛为共享叶模块（无依赖，防环）。
  * ============================================================
  */

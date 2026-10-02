@@ -4,7 +4,7 @@ import App from '@/App.vue';
 import router from '@/router';
 import '@/styles/global.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
-import 'katex/dist/katex.min.css'; // 🔴 公式渲染基础样式+字体（应用内预览/编辑器用构建产物；导出走内联版）
+import 'katex/dist/katex.min.css'; // 公式渲染基础样式+字体（应用内预览/编辑器用构建产物；导出走内联版）
 import { CARRIER_CSS } from '@/styles/carrierCss.js'; // 作答载体 CSS 单一事实源（填空横线/括号空位/整行横线/行尾延伸）
 import { MATH_CSS } from '@/styles/mathCss.js'; // 公式补充样式单一事实源（块级公式独占一行等）
 import '@/composables/useLogger.js'; // 📋 全局日志劫持——必须在最早加载

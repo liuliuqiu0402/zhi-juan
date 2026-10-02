@@ -15,7 +15,7 @@
  *   · 框宽 = 该框全部文字**实测宽度最大值** + 2*padX → 文字绝不越出图形；
  *     文字一律左对齐，日期行用 600 字重 + 分支色强调（黑白打印时字重仍在、颜色会丢）。
  *
- * 🔴 两个刻意的取舍（改之前先读，都是被"硬指标单测"倒逼出来的）：
+ * 两个刻意的取舍（改之前先读，都是被"硬指标单测"倒逼出来的）：
  *   1) `title` = `[when, text, detail].join(' ')`。规格的"文字不丢"断言比的是 title 与
  *      lines 的**前缀关系**，而框内三段要各自折行（when 还要换字重/颜色）。把三段原样拼进
  *      title，既满足断言口径，又让 title 仍是"这个框里到底有哪些字"的完整描述（检索/无障碍友好）。
@@ -47,7 +47,7 @@ const PAD_Y = 7;
 
 const asText = (v) => (v == null ? '' : String(v));
 
-/** 折行行数预算：按内容量给够，避免 `…` 掉在中段（见文件头 🔴 2） */
+/** 折行行数预算：按内容量给够，避免 `…` 掉在中段（见文件头 2） */
 const lineBudget = (text, fs, maxLabelWidth, measurer) =>
   Math.max(3, Math.ceil(estimateTextWidth(text, fs, measurer) / Math.max(1, maxLabelWidth)) + 2);
 

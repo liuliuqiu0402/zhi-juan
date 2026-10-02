@@ -1,7 +1,7 @@
 /**
  * CF_HTML 解析（Windows 剪贴板 "HTML Format" 原始字节 → HTML 片段）
  * ============================================================
- * 🔴 为什么必须自己解原始字节（2026-09 用户实证 + 官方行为）：
+ * 为什么必须自己解原始字节（2026-09 用户实证 + 官方行为）：
  *    Word 复制公式时，HTML 那一份里 OMML 是写在**条件注释**里的：
  *        <!--[if gte msEquation 12]><m:oMath>…</m:oMath><![endif]-->
  *        <![if !msEquation]><img src="…clip_image001.png"><![endif]>
@@ -12,7 +12,7 @@
  *    注释被丢掉 → OMML 没了、只剩兜底图片 → 用户看到"公式只剩字母和加减号"。
  *    `clipboard.readBuffer('HTML Format')` 给的是**原始 CF_HTML 字节**，注释完好。
  *
- * 🔴 CF_HTML 结构：头部是 ASCII 的 `Key:Value\r\n` 列表（到空行结束），
+ * CF_HTML 结构：头部是 ASCII 的 `Key:Value\r\n` 列表（到空行结束），
  *    其中 StartHTML/EndHTML/StartFragment/EndFragment 是**字节偏移**（不是字符偏移）；
  *    正文通常是 UTF-8。所以必须先按 ASCII 解头部定位偏移，再按字节切片、按 UTF-8 解正文。
  * ============================================================

@@ -321,7 +321,7 @@ describe('自洽条款的注入面：9 类资料各按其分（不缺席、不�
 
   it('标题↔题内一致各按其形：exam 拿"大题标题"条，教辅题类拿"组标题"条，errorbook 拿"块标题"条，互不串味', () => {
     const exam = tplOf('exam');
-    expect(exam).toContain('标题里写到的提示方式与作答方式必须与题内实际一致');
+    expect(exam).toContain('标题写到的提示方式与作答形态须与题内一致');
     // 🔴 2026-09-27：原标记 '照抄它行首的调研分类名'（否定式）已改**正向陈述**——改以新句作 exam 专用标记
     expect(exam).toContain('行首分类名与其中的知识点名只描述命题范围');
     expect(exam, 'exam 不走教辅的组标题条款').not.toContain('组标题里写到的提示方式与作答方式');

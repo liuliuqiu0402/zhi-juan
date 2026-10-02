@@ -16,7 +16,7 @@ import { buildCompressionCacheKey, readCompressionCache, writeCompressionCache }
 import { formatAnchorListByChapter, anchorListRoleNote, resolveAnchorKind } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位，含第3层具体概念 A17/可开关）；🔬 resolveAnchorKind：条目性质双轨判定（显式 kind 优先 + 名字兜底）
 // ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
 import { planOutputQuota, nextContinuationBudget, isOverQuota, charsToTokens } from '../utils/outputQuota.js';
-// 🔴 续写/截断的**唯一实现**（2026-09-24 用户裁定"两套必须根治"）：收敛于 utils/continuationChain.js。
+// 续写/截断的**唯一实现**（2026-09-24 用户裁定"两套必须根治"）：收敛于 utils/continuationChain.js。
 //    此前 callAI 内两条引擎分支各一份薄层续写（第三份内联去重副本、不检测续写自身再截断），
 //    与 _runPaperOrder 的正文额度链并存 → 同一个截断"正文能补齐、答案页半截放行"。
 //    现统一走 runContinuationChain + 策略回调；这里再导出两个纯函数，仅为不破既有引用面（测试）。
@@ -34,16 +34,15 @@ import {
   buildMaterialUsageBlock, buildOrganizeBlock,
   buildTemplateInfoBlock, buildContextBlock,
   buildDiffRegenBlock, buildOutputBlock, buildTailBlocks,
-  applyCallLayerSelfReview, SELF_REVIEW_BLOCK,
 } from '../utils/injectionManifest.js';
-// 🔴 2026-09-30：输入超长改为**只体检、不改文本**（原名 promptCompression，因无法安全划界而收口，见该模块注释）
+// 2026-09-30：输入超长改为**只体检、不改文本**（原名 promptCompression，因无法安全划界而收口，见该模块注释）
 import { inspectOverlongPrompt } from '../utils/promptOversize.js';
 import { extractGradeNum, resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
 import {
   genTypeTemplates,
   normalizeSubjectName
 } from '../config/expertKnowledge.js';
-// 🔴 分析阶段 prompt 已从指令库迁出为独立配置（analysisPrompts.js），生成规范与教材分析规范解耦
+// 分析阶段 prompt 已从指令库迁出为独立配置（analysisPrompts.js），生成规范与教材分析规范解耦
 import { getAnalysisPrompts } from '../config/analysisPrompts.js';
 import { parseStyleFromInstruction } from '../utils/instructionStyle.js';
 import { SCOPE_LABEL_POOLS } from '../config/paperScope.js';
@@ -189,7 +188,7 @@ const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000, maxRea
             }
             if (reasoningDelta) {
               reasoningChunkCount++;
-              // 🔴 思考预算上限（流式中止止损）：推理 chunks 超过阈值（如 40K）立即中断——
+              // 思考预算上限（流式中止止损）：推理 chunks 超过阈值（如 40K）立即中断——
               //    防止思考失控耗尽输出预算白付费用；已接收的推理按实际计费，但不再等到 max_tokens 截断
               if (reasoningChunkCount >= maxReasoningChunks) {
                 finishReason = 'reasoning_capped';
@@ -205,7 +204,7 @@ const parseSSEStream = async (fetchResponse, signal, heartbeatMs = 60000, maxRea
             // 🔧 连续失败计数器：超过5次告警（可能流已损坏）
             consecutiveParseFailures++;
             if (consecutiveParseFailures >= 5) {
-              console.error(`🔴 SSE 流连续 ${consecutiveParseFailures} 次解析失败，流可能已损坏（最近: ${jsonStr.slice(0, 80)}）`);
+              console.error(`SSE 流连续 ${consecutiveParseFailures} 次解析失败，流可能已损坏（最近: ${jsonStr.slice(0, 80)}）`);
             } else if (jsonStr.length > 10) {
               console.warn('⚠️ SSE chunk JSON 解析失败:', jsonStr.slice(0, 80));
             }
@@ -275,11 +274,11 @@ const normalizeFetchError = async (e, response) => {
 
 // ============================================================
 // 🔧 工具函数：分层注入 + 格式常量
-// 🔴 2026-09-30（注释同步）：本区原标"精准检索"。**素材不走检索**——A15（2026-09-11）"取消 browse"之后
+// 2026-09-30（注释同步）：本区原标"精准检索"。**素材不走检索**——A15（2026-09-11）"取消 browse"之后
 //    写作素材改为"程序直读勾选章节原文 → 按分档直放或压缩"；原"精准检索"的函数与注释已一并清理，见下条说明。
 // ============================================================
 
-// 🔴 2026-09-30（死码清理·用户裁定）：此处原有两个**已无任何调用方**的旧检索函数——
+// 2026-09-30（死码清理·用户裁定）：此处原有两个**已无任何调用方**的旧检索函数——
 //    `buildKpSegmentIndex`（KP→原文片段反向索引）与 `retrieveBlueprintSegments`（蓝图驱动的片段检索）。
 //    它们属于旧架构（"RAG 按知识点检索原文片段"，配合已删除的 browse / 配方分步流水线）；
 //    A15（2026-09-11）"取消 browse"之后，写作素材改为**程序直读勾选章节原文 →（按分档直放或
@@ -299,9 +298,9 @@ import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; //
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
 // 🗑 领域覆盖对账（reconcileDomains）已于 2026-09-20 用户裁定砍除，见下方调用点的说明；不再引入
 import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, classifyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth, detectAnswerSectionMissing, detectBodyNumberingRestart } from '../utils/contentCleaner.js';
-import { getMergedSpec } from '../config/layoutSpec.js'; // 🔴 2026-09-29：宽度/档位窗口一律读规格库（禁写死数字）
+import { getMergedSpec } from '../config/layoutSpec.js'; // 2026-09-29：宽度/档位窗口一律读规格库（禁写死数字）
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
-import { FIGURE_DEPENDENCY_RE } from '../config/eduRenderContract.js'; // 🔴 图依赖词单一事实源（图标记取证用）
+import { FIGURE_DEPENDENCY_RE } from '../config/eduRenderContract.js'; // 图依赖词单一事实源（图标记取证用）
 
 // 别名：保持原有名称兼容
 const _isWordBoundaryMatch = undefined; /* replaced by isWordBoundaryMatch import */
@@ -343,14 +342,14 @@ const convertBlankFormat = (html) => {
   // <span class="blank-N">&emsp;</span>，不再原样残留；纯空白括号交给步骤3处理
   // 🔧 span.blank-N 渲染自带半角括号（预览 CSS ::before/::after + docx 导出显式补 ()）——
   //    清洗器不再包外层括号，否则预览/导出会变成双层括号 ((　))
-  // 🔴 2026-09-29（规格库为源）：下划线长度窗口原写死 `{1,24}`（= BLANK.maxBlank，却直写字面）→ 改读规格库，
+  // 2026-09-29（规格库为源）：下划线长度窗口原写死 `{1,24}`（= BLANK.maxBlank，却直写字面）→ 改读规格库，
   //    避免"面板调了 maxBlank，这一层窗口不跟随"。
   const blankSpecA1 = getMergedSpec().BLANK || {};
   const maxTierA1 = Number.isFinite(blankSpecA1.maxBlank) ? blankSpecA1.maxBlank : 24;
   result = result.replace(new RegExp(`(?:[（(]{1,2})\\s*([_\\uFF3F\\s\\u3000]{1,${maxTierA1}})\\s*(?:[）)]{1,2})`, 'g'), (match, inner) => {
     const u = (inner.match(/[_\uFF3F]/g) || []).length;
     if (u === 0) return match; // 无下划线 → 交给步骤3（括号+纯空白）
-    // 🔴 宽度换算唯一事实源 = contentCleaner 共享函数（读 layoutSpec.BLANK），不在此另建梯形
+    // 宽度换算唯一事实源 = contentCleaner 共享函数（读 layoutSpec.BLANK），不在此另建梯形
     return `<span class="blank-${shortBlankWidth(u)}">&emsp;</span>`;
   });
 
@@ -365,7 +364,7 @@ const convertBlankFormat = (html) => {
   });
 
   // ── 步骤2：裸露下划线 → <u class="blank-N">&emsp;</u>（无外壳包裹 → 横线书写区；半角/全角均支持）──
-  // 🔴 宽度换算唯一事实源 = blankWidthForChars（读 layoutSpec.BLANK：1 字位 ≈ wordGap em），与正文层 normalizeBlankMarkers 同口径；
+  // 宽度换算唯一事实源 = blankWidthForChars（读 layoutSpec.BLANK：1 字位 ≈ wordGap em），与正文层 normalizeBlankMarkers 同口径；
   //    曾用 1:1 硬编码梯形（≤4→4）导致同一 ＿ 输入两处宽度不同、排版规格对 callAI 层不生效——已收敛
   //    ≥2 即转（曾要求 ≥3，ASCII "__" 短空会漏；正文层 ≥2 同口径）；半角 _ 按 0.5 字计（视觉半宽）
   result = result.replace(/[\uFF3F_]{2,}/g, (match) => {
@@ -382,7 +381,7 @@ const convertBlankFormat = (html) => {
     const nbspCount = (inner.match(/&nbsp;| /gi) || []).length;
     const totalWidth = emspCount + nbspCount * 0.25;
     if (totalWidth <= 0) return match; // 无有效空白，保持原样
-    // 🔴 宽度换算唯一事实源 = spaceBlankWidth（与正文层 normalizeBlankMarkers 同函数），不在此另建梯形
+    // 宽度换算唯一事实源 = spaceBlankWidth（与正文层 normalizeBlankMarkers 同函数），不在此另建梯形
     return `<span class="blank-${spaceBlankWidth(totalWidth)}">&emsp;</span>`;
   });
 
@@ -401,9 +400,9 @@ const convertBlankFormat = (html) => {
 
 /**
  * 🧩 导图块 → 内联 SVG（AI 输出链路的**唯一收敛点**，两处调用 cleanReasoningOutput 后都要过这里）
- * 🔴 为什么挂在"最后一步"：正文一旦规范化完就直接进预览 / 进 PDF / 进 Word 导出，
+ * 为什么挂在"最后一步"：正文一旦规范化完就直接进预览 / 进 PDF / 进 Word 导出，
  *    在这之前渲染才能保证三条出口看到的是同一份内容（一张矢量 SVG）。
- * 🔴 失败绝不丢内容：解析不了就原样保留那块文字（renderDiagramBlocks 内部保证），只把原因报到日志。
+ * 失败绝不丢内容：解析不了就原样保留那块文字（renderDiagramBlocks 内部保证），只把原因报到日志。
  */
 const renderDiagramsInContent = (html) => {
   const d = renderDiagramBlocks(html);
@@ -420,7 +419,7 @@ const renderDiagramsInContent = (html) => {
 
 // 此函数剥离思考块，只保留最终答案
 // 🔧 增强：同时清洗 markdown 代码块包裹和对话式前缀/后缀文本
-// 🔴 2026-09-10：导出供回归测试锁死"纯文本不清零"契约（答案页静默清零事故根治）
+// 2026-09-10：导出供回归测试锁死"纯文本不清零"契约（答案页静默清零事故根治）
 export const cleanReasoningOutput = (text) => {
   if (!text) return '';
   
@@ -444,7 +443,7 @@ export const cleanReasoningOutput = (text) => {
   };
   
   // ===== 格式A：markdown 代码块处理（剥除 ``` 包裹标记，保留代码块内外的全部正文）=====
-  // 🔴 回归修复：此前"只提取代码块内内容、丢弃代码块外正文"，导致模型在"叙述＋多代码块"
+  // 回归修复：此前"只提取代码块内内容、丢弃代码块外正文"，导致模型在"叙述＋多代码块"
   //    混排输出时，代码块外的教材正文/作答横线载体被整段剥除（7万字符 → 5千，内容量不足+横线丢失）。
   //    改为：仅剥除 ```html/``` 包裹标记本身，代码块内与代码块外的内容一并保留（去对话前缀/后缀走 sanitize）。
   //    单个代码块包裹全文的形态同样成立（剥标记后即全文正文）。
@@ -518,7 +517,7 @@ export const cleanReasoningOutput = (text) => {
     if (looseMatch && looseMatch.index >= 0) {
       return sanitize(text.substring(looseMatch.index));
     }
-    // 🔴 2026-09-10 回归根治（答案页"静默清零"事故）：模型偶发违规吐纯文本/Markdown（规范要求 HTML）时，
+    // 2026-09-10 回归根治（答案页"静默清零"事故）：模型偶发违规吐纯文本/Markdown（规范要求 HTML）时，
     //    此前此处 return '' 把有效内容整段清零——答案页 SSE 明明有 1641 字符仍被判"过短（0 字符）"，
     //    重试再次清零 → 入库无答案区。复位为"可用优先"：纯文本按行包裹 <p>（先剥行首 Markdown
     //    标题符/加粗标记）落为合法 HTML；仅当真无有效内容（非空白字符 < 10，如空串/"好的"）才返回 ''。
@@ -540,7 +539,7 @@ export const cleanReasoningOutput = (text) => {
   return sanitize(text);
 };
 
-// 🔴 续写拼接 appendContinuationWithDedup、截断判定 detectTruncation 已**整体迁出**到
+// 续写拼接 appendContinuationWithDedup、截断判定 detectTruncation 已**整体迁出**到
 //    utils/continuationChain.js（2026-09-24 两套续写收敛为一条链）；本文件顶部已 import + 再导出。
 
 
@@ -640,8 +639,11 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
     return {
       chapterTitle: chapter.title,
       summary: isUnanalyzed
-        ? `【未分析·目录模式】本课有教材原文但未执行分析提取（生成时不做现场分析）。以下为该课目录结构，生成时请基于章节标题与该学科课标（${curriculumLabel}）推断典型内容命题，题目情境/数据由你合理设计，禁止编造教材版本特有内容。如需完整命题素材，请先对本课执行"分析提取"：\n${tocText}`
-        : `【仅目录模式】本课教材原文未提取（未 OCR/未分析），以下为该课目录结构。生成时请基于章节标题与该学科课标（${curriculumLabel}）推断典型内容命题，题目情境/数据由你合理设计，禁止编造教材版本特有内容：\n${tocText}`,
+        // 2026-10-02（③啰嗦·收口）：删两处"解释括注"——`（生成时不做现场分析）`／`（未 OCR/未分析）`，
+        //   它们只解释成因、模型无对应动作（判据"基于章节标题与课标推断、不得臆造"一字未动）。
+        // 2026-10-02（项3·块标题独占一行）：段首状态标签独立成行（原与后文同段，违反"块标题独占一行"）。
+        ? `【未分析·目录模式】\n本课有教材原文但未执行分析提取。以下为该课目录结构，生成时请基于章节标题与该学科课标（${curriculumLabel}）推断典型内容命题，题目情境/数据由你合理设计，禁止编造教材版本特有内容。如需完整命题素材，请先对本课执行"分析提取"：\n${tocText}`
+        : `【仅目录模式】\n本课教材原文未提取，以下为该课目录结构。生成时请基于章节标题与该学科课标（${curriculumLabel}）推断典型内容命题，题目情境/数据由你合理设计，禁止编造教材版本特有内容：\n${tocText}`,
       knowledgePointsForTest: tocKps,
       segments: segmentCards,
       totalSegments: segmentCards.length,
@@ -659,7 +661,7 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
     const chapters = book.selectedChapters || [];
     for (const chapter of chapters) {
       if (!chapter.rawText && !chapter.coreTopics) {
-        // 🔴 目录模式（TOC-only）：章节无 OCR 原文且未分析时，用目录标题构建"目录卡片"
+        // 目录模式（TOC-only）：章节无 OCR 原文且未分析时，用目录标题构建"目录卡片"
         const tocCard = buildTocCard(chapter, 'toc', book.stage);
         if (tocCard) {
           contentCards.push(tocCard);
@@ -771,7 +773,7 @@ const extractContentCards = async (selectedBooks, callAI, robustJsonParse, updat
           segments: segmentCards, totalSegments: segmentCards.length, tags: displayKps.slice(0, 10) });
         continue;
       }
-      // 🔴 方案A：有教材原文但未执行分析 → 不现场补分析（生成内补做基于不精准原文，质量不可控），
+      // 方案A：有教材原文但未执行分析 → 不现场补分析（生成内补做基于不精准原文，质量不可控），
       //    统一降级为目录模式（与无原文章节同路径）；完整命题素材需先手动执行"分析提取"。
       // ✅ A16/A17（甲方案）：降级后 **锚点=目录**（该章进【锚点清单】），且**真原文随卡携带**
       //    参与【压缩原文】——"原文压缩照旧"，不再把真原文丢掉只留目录文本。
@@ -811,7 +813,7 @@ const buildKnowledgeMap = async (contentCards, selectedBooks, callAI, robustJson
 
   // 🔧 目录模式提示词：课标版本按学段注入（getCurriculumLabel），避免写死版本号
   const curriculumLabel = getCurriculumLabel(selectedBooks?.[0]?.stage, selectedBooks?.[0]?.grade, selectedBooks?.[0]?.name);
-  // 🔴 2026-09-30（用户裁定·去数量区间）：本提示原有 6 处**数值上限**（知识点≤30／重难点≤8／大概念≤5／
+  // 2026-09-30（用户裁定·去数量区间）：本提示原有 6 处**数值上限**（知识点≤30／重难点≤8／大概念≤5／
   //    核心知识点≤6／具体概念≤4／跨章关联≤10）——**全部撤除**，改"按本范围实际内容决定"：
   //    ① 本步产物 knowledgeMap **不进生成提示词**（全库仅构建/缓存字段/存 doc/UI 展示四处使用），生成侧
   //       覆盖对账与检索的**唯一事实源**是各章自带的 anchorTree（教材分析产出的逐章知识树，本无上限）；
@@ -828,18 +830,18 @@ ${inputDataDescStr}
 ${JSON.stringify(cardsSummary, null, 2)}
 
 请完成：
-1. 知识点清单（去重，按本范围实际内容，不遗漏）
-2. 重难点判断（按本范围实际内容，不遗漏）
+1. 知识点清单（去重）
+2. 重难点判断
 3. 层级知识图谱：单元→大概念→核心知识点[knowledge|material]→具体概念
-4. 跨章节关联（按实际关联，不遗漏）
+4. 跨章节关联
 
-🔴 条目数由本范围实际内容决定——不合并、不拆分、不省略；返回的 JSON 必须完整闭合，宁可条目表述精炼，不得为压体量砍条目。
+条目数由本范围实际内容决定——不合并、不拆分、不省略；返回的 JSON 必须完整闭合，宁可条目表述精炼，不得为压体量砍条目。
 
-🔴 目录模式说明：若某课 summary 标注"仅目录模式"（教材原文未提取），请基于该课章节标题与该学科课标（${curriculumLabel}）推断典型内容知识点（如"分数的初步认识"→ 分数的含义/几分之一/几分之几），只推断标题明确指向的知识范畴，不得臆造超出该章节标题的内容。
+目录模式说明：若某课 summary 标注"仅目录模式"（教材原文未提取），请基于该课章节标题与该学科课标（${curriculumLabel}）推断典型内容知识点（如"分数的初步认识"→ 分数的含义/几分之一/几分之几），只推断标题明确指向的知识范畴，不得臆造超出该章节标题的内容。
 
 返回JSON：{"knowledgePoints":[""],"keyDifficulties":[""],"knowledgeGraph":[{"unit":"","bigConcepts":[{"name":"","coreKnowledge":[{"name":"","cognitiveLevel":"理解","isKeyPoint":true,"isDifficulty":false,"specificConcepts":[""],"relatedChapters":[""],"testPriority":1}]}]}],"crossChapterLinks":[{"from":"","to":"","relation":"前置|并列|拓展|应用"}]}
 
-🔴 语言口径与正文一致：教材为外语（英语等）时，coreKnowledge.name 用中文作教学标签，但 specificConcepts 必须是教材原文语言的词/短语（如英语：regular past tense -ed、Mulan、keep trying、first/then/finally 等），与正文词面同一语言口径；禁止把 specificConcepts 翻译成中文（与英文正文词面失配）。`;
+语言口径与正文一致：教材为外语（英语等）时，coreKnowledge.name 用中文作教学标签，但 specificConcepts 必须是教材原文语言的词/短语，与正文词面同一语言口径；禁止把 specificConcepts 翻译成对应中文（与正文词面失配）。`;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       // 🔧 本调用点是"知识图谱"schema（与教材特征分析不同）→ 显式声明缓存有效性判据字段，
@@ -898,16 +900,16 @@ const _persistLabelCounters = () => {
 
 
 // ============================================================
-// 🔴 答案完整性判定（模块级纯函数，供生成链路调用 + 单元测试验证"答案是否丢失"）
+// 答案完整性判定（模块级纯函数，供生成链路调用 + 单元测试验证"答案是否丢失"）
 //    detectTruncation 已迁至 utils/continuationChain.js（续写链唯一实现所在地）
 // ============================================================
 
 /** 答案区空壳检测：<h2>参考答案… 后为占位式敷衍（"略/待补充"等）或近乎空白（<10 字且无作答痕迹）
- *  🔴 不做纯长度判据：真实答案可能很短（如纯选项 "1.A 2.B 3.C"），
+ *  不做纯长度判据：真实答案可能很短（如纯选项 "1.A 2.B 3.C"），
  *     曾因 <40 字被误判空壳 → 剥离真实答案 → 独立补生成失败 → "步骤有答案、结果无答案"（历史事故根因） */
 const ANSWER_SHELL_RE = /略|待补充|见教材|暂无|此处留白|待填写/;
 export const isAnswerShell = (content) => {
-  // 🔴 答案标题层级放宽到 h1~h6（2026-09 空答案回归根治）：模型常以 <h3>参考答案…</h3>
+  // 答案标题层级放宽到 h1~h6（2026-09 空答案回归根治）：模型常以 <h3>参考答案…</h3>
   //    或 <div><h3>参考答案…</h3> 结尾；此前仅认 <h2>，一旦模型用 h3 写答案标题，
   //    空壳既不被 isAnswerShell 识别（不剥离）、又使 ansInContent=flase → 独立答案页被误"跳过"，空答案静默入库。
   if (!content || !/<h[1-6][^>]*>参考答案/.test(content)) return false;
@@ -945,12 +947,12 @@ export const stripAnswerSection = (content) => {
  * 覆盖 2026-09 缺口：模型常以 <div class="answer-page"><h3>参考答案…</h3> 开头
  * （标题被一层非标题块级容器包裹），原"^\s*<h"要求标题在最开头 → 漏剥 → h2/h3 双层残留。
  * 现允许开头先出现一层 <div>/<p> 容器后再匹配，仅剥"参考答案"标题、保留容器外壳。
- * 🔴 2026-09-10 补：模型自带标题常**带前缀**（实测 <h3>Unit 1 Try your best 同步练习 参考答案与解析</h3>），
+ * 2026-09-10 补：模型自带标题常**带前缀**（实测 <h3>Unit 1 Try your best 同步练习 参考答案与解析</h3>），
  * 原"标题须以'参考答案'开头"漏剥 → h2+h3 双层标题残留。现允许标题内"参考答案"前有 ≤40 字前缀
  * （锚点仍是"文档开头、且为标题块"，正文大标题如"一、基础建构任务"不含"参考答案"，不会误剥）。 */
 export const stripLeadingAnswerTitle = (html = '') => String(html || '')
   .replace(/^(\s*(?:<(?:div|p)\b[^>]*>\s*)?)<h[1-6]\b[^>]*>\s*[^<]{0,40}?参考答案[^<]*<\/h[1-6]>\s*/i, '$1')
-  // 🔴 2026-09-10 再补：纯文本答案经 cleanReasoningOutput 包裹为 <p> 后，自带首行标题以
+  // 2026-09-10 再补：纯文本答案经 cleanReasoningOutput 包裹为 <p> 后，自带首行标题以
   //    <p>参考答案与解析</p> 形态残留——仅当 p 内文本【含"参考答案"、≤40 字、且"参考答案"后无正文】
   //    时剥除（"参考答案：1. A"是正文答案行，冒号后有内容即不剥，防吞答案）
   .replace(/^(\s*(?:<(?:div|p)\b[^>]*>\s*)?)<p\b[^>]*>([^<]{0,40})<\/p>\s*/i, (m, pre, inner) => {
@@ -972,7 +974,7 @@ export async function chatNonThinkingOnce(messages = [], { maxTokens = 8000, tem
     : `${(cfg.baseUrl || '').replace(/\/$/, '')}/chat/completions`;
   const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` };
   const provider = cfg.provider;
-  // 🔴 显式关闭思考：本调用用于压缩/摘要类确定性任务，不需要推理模式——
+  // 显式关闭思考：本调用用于压缩/摘要类确定性任务，不需要推理模式——
   //    引擎思考模式（qwen3/glm/deepseek-reasoner 等）会拉长响应时间，易触发请求超时
   const body = {
     model: cfg.model,
@@ -985,7 +987,7 @@ export async function chatNonThinkingOnce(messages = [], { maxTokens = 8000, tem
     ...(provider === 'zhipu' ? { thinking: { type: 'disabled' } } : {}),
     ...(provider === 'alibaba' ? { enable_thinking: false } : {}),
   };
-  // 🔴 超时放宽：压缩/摘要输出短但可能受服务端排队/慢网影响——
+  // 超时放宽：压缩/摘要输出短但可能受服务端排队/慢网影响——
   //    默认 180s（比通用 120s 长），调用方可按批规模覆盖
   const digestTimeout = Math.max(timeoutMs || 0, cfg.timeoutMs || 120000, 180000);
   const resp = await axios.post(apiUrl, body, { headers, timeout: digestTimeout });
@@ -1219,7 +1221,7 @@ export function useAiGenerator() {
     
     let finalPrompt = prompt;
     
-    // 🔴 2026-09-30（用户裁定 · 口径收回适用域）：原 else 把"Ollama 按输出预算反推"套到了**所有**非 deepseek
+    // 2026-09-30（用户裁定 · 口径收回适用域）：原 else 把"Ollama 按输出预算反推"套到了**所有**非 deepseek
     //    引擎（volcano/alibaba/zhipu 云端也吃 0.7×输出预算）。而该口径的键名与注释都归属 Ollama
     //    （`maxInputTokensOllamaRatio`＋"Ollama 按输出预算反推"，紧邻者是显存参数 num_ctx 4096），
     //    其适用域本应只有**本地模型**；且非 deepseek 的输出上限函数返回 Infinity → 此处的 maxTokens
@@ -1234,28 +1236,13 @@ export function useAiGenerator() {
       engine: config.engine, maxTokens, settings: apiConfig.generationSettings,
     });
     
-    // 🔧 生成自审机制：在生成类任务的 prompt 末尾追加自审指令（静默内检，不输出任何自审内容；
-    //    注意：答案页独立调用（taskType=generation）也会携带本块，表述不得限定"只输出正文/试卷"，
-    //    否则会与答案页任务（输出《参考答案与评分标准》）冲突导致答案区缺失）
-    // 🔴 2026-09-30（用户裁定·尾锚复位 + 面板可见）：文本提为单源（injectionManifest.SELF_REVIEW_BLOCK），
-    //    并改由 applyCallLayerSelfReview 插到【尾约束·全文自洽】**之前**——原实现在此**追加到末尾**，
-    //    使尾约束的"末尾锚定/注意力最高区"被本块夺走；无尾约束的调用（答案页）仍追加到末尾。
-    if (['generation', 'review'].includes(taskType) && !options.skipSelfReview) {
-      const selfReviewTokens = estimateTokens(SELF_REVIEW_BLOCK);
-      const currentTokens = estimateTokens(finalPrompt);
-      // 仅在 prompt 足够容纳时才追加（预留 500 tokens 空间）
-      if (currentTokens + selfReviewTokens < maxInputTokens - 500) {
-        finalPrompt = applyCallLayerSelfReview(finalPrompt);
-      } else {
-        // 预算不足不追加（防挤爆上下文）——但**不静默**（与项目"过程不静默"口径一致，便于诊断"为何没自检")
-        console.warn(`⚠️ [调用层·输出前自检] 预算不足（需 ${selfReviewTokens} tokens，余量 ${maxInputTokens - 500 - currentTokens}），本次未追加`);
-      }
-    }
+    // 2026-10-01（重洗牌·D16）：原【输出前自检】块已删除——前置＝【尾约束·全文自洽】三域 ＋
+    //    【质量底线】（"不超本学段"＝第4条、"不省略语"＝第5条）已覆盖；自检块属 D16 优先清除对象。
     
     const estimatedTokens = estimateTokens(prompt);
     // 🔧 输入限制：上限按引擎分三支（deepseek 产品封顶 / ollama 按输出预算反推 / 其他云端未固证不钳制）
     if (estimatedTokens > maxInputTokens) {
-      // 🔴 2026-09-30（用户裁定 · 第三步）：处理方式已按裁定收口为**只体检、不改文本**——
+      // 2026-09-30（用户裁定 · 第三步）：处理方式已按裁定收口为**只体检、不改文本**——
       //    ① 无可压缩素材（写作/答案类调用的素材块不属"教材原文"分类）→ 本就只能重排/丢段，零收益；
       //    ② 有素材 → 素材段可能与其后的指令**同处一段**（分析任务 prompt 即此形状），逐句压缩会误伤
       //       指令与输出格式要求 → 无法安全划界，故不改动；
@@ -1357,11 +1344,11 @@ export function useAiGenerator() {
           // 🔧 新增：自动续写机制
           const allowContinuation = options.allowContinuation !== false;
           const isTruncated = !ollamaDone && responseText.length > GEN_CONST.TRUNCATED_MIN_LEN;
-          // 🔴 tell-the-truth：本分支的最终 finishReason（旧实现只回字符串，调用方拿不到 → 只能靠启发式猜）
+          // tell-the-truth：本分支的最终 finishReason（旧实现只回字符串，调用方拿不到 → 只能靠启发式猜）
           let ollamaFinish = isTruncated ? 'length' : 'stop';
 
           if (isTruncated && allowContinuation) {
-            // 🔴 续写链**唯一实现**（utils/continuationChain.js）。此处只注入本引擎的策略：
+            // 续写链**唯一实现**（utils/continuationChain.js）。此处只注入本引擎的策略：
             //    薄层 = 每轮帽 主请求帽 ×0.5、预算化续写（makeBudgetedPlanRound）；
             //    轮数默认 2，答案页等长任务经 options.contMaxRounds 提权对齐正文（2026-09-26）。
             //    引擎差异只体现在 requestNext（Ollama 原生 /api/generate + 续写提示词）。
@@ -1394,7 +1381,7 @@ export function useAiGenerator() {
                 );
                 return {
                   content: resp.data.response || '',
-                  // 🔴 Ollama 原生 done=false 即"本轮又没写完"——旧实现不看这个信号，续写半截也被当完整交付
+                  // Ollama 原生 done=false 即"本轮又没写完"——旧实现不看这个信号，续写半截也被当完整交付
                   finishReason: resp.data.done === false ? 'length' : '',
                 };
               },
@@ -1416,7 +1403,7 @@ export function useAiGenerator() {
             await setCachedPromptResult(callAI._pendingCacheKey, responseText, callAI._pendingCacheMeta);
           }
 
-          // 🔴 returnMeta：Ollama 分支此前只回字符串 → 正文链/答案页拿不到 finishReason，
+          // returnMeta：Ollama 分支此前只回字符串 → 正文链/答案页拿不到 finishReason，
           //    截断判定只能退化到尾部启发式。现与 OpenAI 兼容分支对齐。
           return options.returnMeta
             ? { content: responseText, finishReason: ollamaFinish, reasoningChunkCount: 0 }
@@ -1523,13 +1510,13 @@ export function useAiGenerator() {
 
           // 🔧 自动续写机制（截断检测）
           const allowContinuation = options.allowContinuation !== false;
-          // 🔴 reasoning_capped（推理达到 maxReasoningChunks 上限被流式中止）也视为截断——
+          // reasoning_capped（推理达到 maxReasoningChunks 上限被流式中止）也视为截断——
           //    此前只认 finish_reason=length：思考模式推理占满上限时 content 可能只剩半截，
           //    不续写直接返回 → 答案页/正文后半段丢失（"无答案页"嫌疑路径之一）
           const isTruncated = (finishReason === 'length' || finishReason === 'reasoning_capped') && content.length > GEN_CONST.TRUNCATED_MIN_LEN;
 
           if (isTruncated && allowContinuation) {
-            // 🔴 续写链**唯一实现**（utils/continuationChain.js）。引擎差异只在 requestNext：
+            // 续写链**唯一实现**（utils/continuationChain.js）。引擎差异只在 requestNext：
             //    OpenAI 兼容协议用「history + 原 prompt + assistant 预填 + 续写指令」四段会话续写。
             //    轮数默认 2，答案页等长任务经 options.contMaxRounds 提权；每轮预算化（2026-09-26）。
             const contMaxRounds = options.contMaxRounds ?? SIMPLE_CONTINUATION_MAX_ROUNDS;
@@ -1548,11 +1535,11 @@ export function useAiGenerator() {
                     ? options.history.map((h) => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: String(h.content ?? '') }))
                     : []),
                   { role: 'user', content: finalPrompt },
-                  // 🔴 预填 assistant = **当前累计内容**（每轮都不同，不能沿用首轮快照）
+                  // 预填 assistant = **当前累计内容**（每轮都不同，不能沿用首轮快照）
                   { role: 'assistant', content: soFar },
                   { role: 'user', content: `请从上一次输出的最后一个字开始，继续后面的内容。不要重复已有文字，不要重新开始。\n上一段末尾：${tail}` },
                 ];
-                // 🔴 续写请求加超时保护（原无 timeout，API 无响应会永久挂起——实测"卡住不动"根因之一）
+                // 续写请求加超时保护（原无 timeout，API 无响应会永久挂起——实测"卡住不动"根因之一）
                 const continuationResponse = await fetch(apiUrl, {
                   method: 'POST',
                   headers: {
@@ -1578,13 +1565,13 @@ export function useAiGenerator() {
                 const choice = contData.choices?.[0] || {};
                 return {
                   content: choice.message?.content || '',
-                  // 🔴 旧实现丢弃了本轮的 finish_reason → 续写又截断也不知情（静默半截根因）
+                  // 旧实现丢弃了本轮的 finish_reason → 续写又截断也不知情（静默半截根因）
                   finishReason: choice.finish_reason || '',
                 };
               },
             });
             content = dsChain.content;
-            // 🔴 如实上报：链跑完仍截断 → 保持 length，调用方（答案页/正文链）据此判"未完整"
+            // 如实上报：链跑完仍截断 → 保持 length，调用方（答案页/正文链）据此判"未完整"
             finishReason = dsChain.truncated ? 'length' : 'stop';
             console.log(`✅ DeepSeek 续写结束（${dsChain.rounds} 轮，停止原因=${dsChain.stoppedBy}，${dsChain.truncated ? '仍被截断' : '已完整'}，总长度：${content.length}）`);
           } else if (isTruncated && !allowContinuation) {
@@ -2504,7 +2491,7 @@ export function useAiGenerator() {
         
         // 添加错误标记
         mergedText += (mergedText ? '\n' : '') + 
-          `\n⚠️[系统错误：第${pageNum}页OCR识别失败，请对照原始PDF手动补充此部分内容]\n`;
+          `\n[系统错误：第${pageNum}页OCR识别失败，请对照原始PDF手动补充此部分内容]\n`;
       }
 
       qualityReport.pageDetails.push(pageDetail);
@@ -2780,13 +2767,13 @@ export function useAiGenerator() {
 
   // ==================== 新增：自动提取知识点 ====================
   const extractKnowledgePoints = async (imageBase64, subject, stage, grade, chapterTitle) => {
+    // 2026-10-02（③啰嗦·收口）：原分条3"每行一个知识点，不要编号"＋尾句"请直接输出知识点列表，不要其他内容"
+    //   两处都在要求"只给列表"——并入末条一句，删尾行。
     const prompt = `你是一位${stage}${grade}${subject}学科专家。请从这张教材页面（章节：${chapterTitle}）中，提取出最核心的知识点。
   要求：
   1. 每个知识点用一句话概括。
   2. 只提取最核心的3-5个知识点。
-  3. 每行一个知识点，不要编号。
-
-  请直接输出知识点列表，不要其他内容。`;
+  3. 每行一个知识点、不要编号，也不要其他内容。`;
 
     const response = await callMultimodalAI(prompt, imageBase64);
     
@@ -2887,7 +2874,7 @@ ${analysisText}
 【锚树契约——三层固定结构与粒度判据（全学科统一，不因学科而异）】
 - 结构固定：knowledgeHierarchy[] = 大概念（第1层，仅作归属分组）→ coreKnowledge[]（第2层，**锚清单本体**）→ specificConcepts[]（第3层，最小单位层）
 - 第2层 coreKnowledge = **可独立教学组织 / 可独立成题的知识点**，每条即一个锚；第1层 bigConcept **不取为锚**
-- 🔬 **条目性质 kind（必填，供生成期分流）**：每条 coreKnowledge 都须标 kind（取值二选一：knowledge / material）。
+- **条目性质 kind（必填，供生成期分流）**：每条 coreKnowledge 都须标 kind（取值二选一：knowledge / material）。
   · 判据只看一条：**这条能不能直接变成一道题的考查点？** 能 → knowledge；它本身只是材料或背景 → material。
   · **自检两类误判**：把"本身就能成题的考查点"标成 material（会造成覆盖不足）；把"只是材料或背景"当考查点（会逼着模型重述材料）。
   · 标 material **不减少任何提取内容**，仍逐条提取，只影响生成期的覆盖口径（材料只作理解与难度依据，不列入命题覆盖单位）。
@@ -2895,9 +2882,9 @@ ${analysisText}
 - **最小单位强制下沉第3层**：单个字、单个词条、单个符号、单个数值、术语碎片 → 一律放进对应知识点的 specificConcepts，**不得提为第2层条目**
 - 反例自检：第2层出现"人 / 口 / 手"这类单字名 → 违规，须改为下沉（正确形态：第2层「识字与写字」，第3层 ["人","口","手"]）
 - 学科分支（下方专项提取规则）只决定"提取哪些要点形态"，**不改层角色、不改粒度判据**；被下沉的条目照样逐个提取，信息量不减
-- 判据只给语义与反例，**不设数量区间**；不得为了"条目数好看"而合并或删减已提取内容
-- 🔴 **完整性自查（提取完成后必做，逐条核对，缺即补）**：以本课/单元的**课标要求的学业内容**为参照逐条自查——课标要求掌握的概念、规则、方法、技能、语言材料（字词句篇）、语篇要点等，是否都已有对应的第2层知识点或第3层具体概念落在树中；发现缺失即补入对应层级（宁可细、不可漏）；禁止用"概括成一个上位词"的方式把具体内容整体吞掉
-- 🔴 **防"合并吞点"**：做同义归并前，先确认没有被归并的内容是**可独立教学组织 / 可独立成题**的；归并只在不丢具体知识点的前提下进行，归并后仍须能在第3层逐项列出被并入的具体内容
+- 不设数量区间，也不得为了"条目数好看"而合并或删减已提取内容
+- **覆盖完整性**：本课/单元**课标要求掌握的学业内容**（概念、规则、方法、技能、语言材料（字词句篇）、语篇要点等）都要在树中有对应的第2层知识点或第3层具体概念（宁可细、不可漏）；禁止用"概括成一个上位词"的方式把具体内容整体吞掉
+- **防"合并吞点"**：做同义归并前，先确认没有被归并的内容是**可独立教学组织 / 可独立成题**的；归并只在不丢具体知识点的前提下进行，归并后仍须能在第3层逐项列出被并入的具体内容
 
 ${(() => {
   const s = (subject || '');
@@ -2932,85 +2919,84 @@ ${(() => {
   
   if (isChinese) {
     return `【语文学科专项提取规则——通读全文，不得遗漏任何知识内容】
-- 📝 生字/生词：逐个提取（不合并、不遗漏），但**下沉到第3层 specificConcepts**（归属第2层「识字与写字」等知识点）；单字/单词条**不得提为第2层条目**
-- 📝 多音字：标注每个读音和组词（如"长(cháng)长短/长(zhǎng)长大"）
-- 📝 近义词/反义词：成对标注，注明辨析要点
-- 📝 重点词语/成语/俗语/歇后语：逐词标注含义和用法
-- 📝 需背诵段落/古诗/名句/文言文：标注篇名和范围
-- 📝 课文内容理解：主旨、人物形象、事件脉络、道理、情感
-- 📝 修辞手法：比喻、拟人、排比、夸张、反问、设问等
-- 📝 标点符号用法与病句修改
-- 📝 阅读理解：词语理解、句子含义、内容概括、结构分析
-- 📝 写作/口语交际/跨学科学习/名著导读要求
-- 🔒 必须逐条标注，绝不将多个知识点合并为一条（如"生字5个"→逐个提取5条）；但**最小单位一律落第3层**——如生字"人""口""手"→ 第2层「识字与写字」+ 第3层 ["人","口","手"]（既不合并不遗漏，也不提为第2层条目）
-${isLowerGrade ? '- 🔧 低段(1-2)：识字与写字（汉语拼音、基本笔画、常见偏旁部首与汉字）、阅读浅近童话寓言并诵读优秀诗文、写话与口语交际、围绕身边事物提问与梳理\n' : ''}${isMidGrade ? '- 🔧 中段(3-4)：独立识字与写字、把握叙事性作品主要内容与思想感情、不拘形式写下见闻感受的习作、口语交际与有目的地搜集资料\n' : ''}${isUpperGrade ? '- 🔧 高段(5-6)：默读与浏览、阅读叙事性作品与说明性文章、诵读积累优秀诗文、写记实与想象作文并学写读书笔记和常见应用文\n' : ''}${isJunior ? '- 🔧 初中：阅读浅易文言文与古诗文、欣赏文学类作品并领悟内涵、写作（真情实感、讲求文体）、名著阅读与梳理探究\n' : ''}${isSenior ? '- 🔧 高中：核心素养（语言建构与运用、文化传承与理解）＋必修学习任务群（思辨性阅读与表达、文学阅读与写作、实用性阅读与交流）\n' : ''}`;
+- 生字/生词：逐个提取（不合并、不遗漏），但**下沉到第3层 specificConcepts**（归属第2层「识字与写字」等知识点）；单字/单词条**不得提为第2层条目**
+- 多音字：标注每个读音和组词（如"长(cháng)长短/长(zhǎng)长大"）
+- 近义词/反义词：成对标注，注明辨析要点
+- 重点词语/成语/俗语/歇后语：逐词标注含义和用法
+- 需背诵段落/古诗/名句/文言文：标注篇名和范围
+- 课文内容理解：主旨、人物形象、事件脉络、道理、情感
+- 修辞手法：比喻、拟人、排比、夸张、反问、设问等
+- 标点符号用法与病句修改
+- 阅读理解：词语理解、句子含义、内容概括、结构分析
+- 写作/口语交际/跨学科学习/名著导读要求
+${isLowerGrade ? '- 低段(1-2)：识字与写字（汉语拼音、基本笔画、常见偏旁部首与汉字）、阅读浅近童话寓言并诵读优秀诗文、写话与口语交际、围绕身边事物提问与梳理\n' : ''}${isMidGrade ? '- 中段(3-4)：独立识字与写字、把握叙事性作品主要内容与思想感情、不拘形式写下见闻感受的习作、口语交际与有目的地搜集资料\n' : ''}${isUpperGrade ? '- 高段(5-6)：默读与浏览、阅读叙事性作品与说明性文章、诵读积累优秀诗文、写记实与想象作文并学写读书笔记和常见应用文\n' : ''}${isJunior ? '- 初中：阅读浅易文言文与古诗文、欣赏文学类作品并领悟内涵、写作（真情实感、讲求文体）、名著阅读与梳理探究\n' : ''}${isSenior ? '- 高中：核心素养（语言建构与运用、文化传承与理解）＋必修学习任务群（思辨性阅读与表达、文学阅读与写作、实用性阅读与交流）\n' : ''}`;
   } else if (isMath) {
     return `【数学学科专项提取规则——通读全文，不得遗漏任何知识内容】
-- 🔢 概念/定义：每个数学概念独立标注
-- 🔢 公式/定理/运算法则/性质：逐条标注，注明适用条件
-- 🔢 计算方法/解题步骤/证明思路：标注关键步骤
-- 🔢 例题：标注考查的知识点和解题方法
-- 🔢 几何图形：性质、判定、计算公式
-- 🔢 统计与概率：数据收集、图表解读、概率计算
-- 🔢 用数学知识解决实际问题的类型与策略（数量关系）
-- 🔢 数学术语/符号/单位
-- 🔢 课后练习/习题考查的知识范围与能力要求
-- 🔒 必须逐条标注，绝不将多个知识点合并为一条
-${isLowerGrade ? '- 🔧 低段(1-2)：数的认识与简单整数四则运算（口算）、常见的量（时间/货币/方向）、图形与几何初步（辨认与测量）、数据分类\n' : ''}${isMidGrade ? '- 🔧 中段(3-4)：整数四则运算与小数分数初步、周长与面积的测量计算、平移旋转轴对称、数据收集整理与平均数、用数学解决简单实际问题\n' : ''}${isUpperGrade ? '- 🔧 高段(5-6)：小数分数四则运算与字母表示数、简易方程、图形面积体积与用数对确定位置、统计图/百分数与可能性、主题与项目学习\n' : ''}${isJunior ? '- 🔧 初中：数与式、方程与不等式、函数、图形的性质（推理与证明）与平面直角坐标系、统计与概率\n' : ''}${isSenior ? '- 🔧 高中：函数、几何与代数、概率与统计、数学建模活动与数学探究活动（四条主线）\n' : ''}`;
+- 概念/定义：每个数学概念独立标注
+- 公式/定理/运算法则/性质：逐条标注，注明适用条件
+- 计算方法/解题步骤/证明思路：标注关键步骤
+- 例题：标注考查的知识点和解题方法
+- 几何图形：性质、判定、计算公式
+- 统计与概率：数据收集、图表解读、概率计算
+- 用数学知识解决实际问题的类型与策略（数量关系）
+- 数学术语/符号/单位
+- 课后练习/习题考查的知识范围与能力要求
+- 必须逐条标注，绝不将多个知识点合并为一条
+${isLowerGrade ? '- 低段(1-2)：数的认识与简单整数四则运算（口算）、常见的量（时间/货币/方向）、图形与几何初步（辨认与测量）、数据分类\n' : ''}${isMidGrade ? '- 中段(3-4)：整数四则运算与小数分数初步、周长与面积的测量计算、平移旋转轴对称、数据收集整理与平均数、用数学解决简单实际问题\n' : ''}${isUpperGrade ? '- 高段(5-6)：小数分数四则运算与字母表示数、简易方程、图形面积体积与用数对确定位置、统计图/百分数与可能性、主题与项目学习\n' : ''}${isJunior ? '- 初中：数与式、方程与不等式、函数、图形的性质（推理与证明）与平面直角坐标系、统计与概率\n' : ''}${isSenior ? '- 高中：函数、几何与代数、概率与统计、数学建模活动与数学探究活动（四条主线）\n' : ''}`;
   } else if (isEnglish) {
     return `【英语学科专项提取规则——通读全文，不得遗漏任何知识内容】
-- 📕 词汇表/单词表：每个词条（英文+中文释义）独立标注为 specificConcept，逐条列出，不得遗漏任何一个
-- 📕 重点句型：每个句型独立标注（如"What's your name?""I like...""There be..."）
-- 📕 语法点：时态、语态、句型结构、词性、从句等逐条标注
-- 📕 对话/短文：标注主题、关键表达、交际功能
-- 📕 发音/拼读规则：自然拼读、音标、重音、连读等
-- 📕 听力材料中的关键信息与要点
-- 📕 语篇理解策略与常见语篇类型要点
-- 📕 写的话题与常用表达（描述/叙述/交流用句式）
-- 📕 文化知识/跨文化交际内容
-- 📕 教材各板块：Let's learn/Talk/Spell/Read/Write/Story等全部提取
-- 🔒 必须逐条标注，绝不将多个词条合并为一条（如"单词5个"→必须拆成5条独立知识点）
-- 🔒 先通读确认段落整体内容类型（正文/词汇表/练习/导语），再逐条精准标注
-${isLowerGrade ? '- 🔧 低段(1-2·预备级)：字母认读与书写、话题简单词汇（数字/颜色/家庭/动物）、日常问候与课堂用语、歌曲歌谣与视听（以视听说为主）\n' : ''}${isMidGrade ? '- 🔧 中段(3-4·一级)：听懂指令并简单交流、正确朗读所学对话故事、按图片/语境仿写句子、拼读规则与常用词、感知简单句与一般现在/现在进行时\n' : ''}${isUpperGrade ? '- 🔧 高段(5-6·二级)：理解常见主题语篇并提取梳理归纳信息（故事的开端发展结局）、完整朗读与简单复述、围绕主题简短叙述交流、看图/仿范文写几句连贯语句、一般过去时与一般将来时\n' : ''}${isJunior ? '- 🔧 初中(7-9·三级)：读懂故事/短文/报刊语篇（大意要点与逻辑关系）、围绕主题进行口头与书面表达（叙述/说明并表达观点理由）、构词法与话题词汇、语法"形式—意义—使用"与语篇衔接连贯、跨文化沟通\n' : ''}${isSenior ? '- 🔧 高中：必修与选择性必修——提取语篇主要信息与观点并梳理逻辑、按表达目的选择语篇类型进行口头与书面表达（描述/论证/传递信息）、三大主题语境与常见语篇类型、词块积累与语篇衔接连贯、理解多元文化并传播中华文化\n' : ''}`;
+- 词汇表/单词表：每个词条（英文+中文释义）独立标注为 specificConcept，逐条列出，不得遗漏任何一个
+- 重点句型：每个句型独立标注（如"What's your name?""I like...""There be..."）
+- 语法点：时态、语态、句型结构、词性、从句等逐条标注
+- 对话/短文：标注主题、关键表达、交际功能
+- 发音/拼读规则：自然拼读、音标、重音、连读等
+- 听力材料中的关键信息与要点
+- 语篇理解策略与常见语篇类型要点
+- 写的话题与常用表达（描述/叙述/交流用句式）
+- 文化知识/跨文化交际内容
+- 教材各板块：Let's learn/Talk/Spell/Read/Write/Story等全部提取
+- 必须逐条标注，绝不将多个词条合并为一条（如"单词5个"→必须拆成5条独立知识点）
+- 先通读确认段落整体内容类型（正文/词汇表/练习/导语），再逐条精准标注
+${isLowerGrade ? '- 低段(1-2·预备级)：字母认读与书写、话题简单词汇（数字/颜色/家庭/动物）、日常问候与课堂用语、歌曲歌谣与视听（以视听说为主）\n' : ''}${isMidGrade ? '- 中段(3-4·一级)：听懂指令并简单交流、正确朗读所学对话故事、按图片/语境仿写句子、拼读规则与常用词、感知简单句与一般现在/现在进行时\n' : ''}${isUpperGrade ? '- 高段(5-6·二级)：理解常见主题语篇并提取梳理归纳信息（故事的开端发展结局）、完整朗读与简单复述、围绕主题简短叙述交流、看图/仿范文写几句连贯语句、一般过去时与一般将来时\n' : ''}${isJunior ? '- 初中(7-9·三级)：读懂故事/短文/报刊语篇（大意要点与逻辑关系）、围绕主题进行口头与书面表达（叙述/说明并表达观点理由）、构词法与话题词汇、语法"形式—意义—使用"与语篇衔接连贯、跨文化沟通\n' : ''}${isSenior ? '- 高中：必修与选择性必修——提取语篇主要信息与观点并梳理逻辑、按表达目的选择语篇类型进行口头与书面表达（描述/论证/传递信息）、三大主题语境与常见语篇类型、词块积累与语篇衔接连贯、理解多元文化并传播中华文化\n' : ''}`;
   } else if (isScienceGroup) {
     const subjLabel = isPhysics ? '物理' : isChemistry ? '化学' : isBiology ? '生物' : '科学';
     return `【${subjLabel}学科专项提取规则——通读全文，不得遗漏任何知识内容】
-- 🔬 概念/定义/定律/原理：每个独立标注，注明内涵
-- 🔬 公式/方程式/化学式：逐条标注${isChemistry ? '，配平和反应条件' : ''}
-- 🔬 实验：目的、器材、步骤、现象、结论、注意事项
-- 🔬 定量计算与公式应用要点
-- 🔬 图表/数据/示意图的解读要点
-- 🔬 ${isPhysics ? '力学/电学/光学/热学' : isChemistry ? '物质性质、反应类型、元素周期' : isBiology ? '细胞、遗传、生态、进化' : '物质科学、生命科学、地球科学'}核心知识
-- 🔬 科学探究方法：观察、假设、实验、分析、结论
-- 🔬 ${isBiology ? '结构与功能关系、分类依据' : '物质变化规律、能量转化'}
-- 🔬 课后练习/习题考查的知识范围与能力要求
-- 🔒 必须逐条标注，绝不将多个知识点合并为一条
-- 🔒 先通读确认段落整体内容类型，再逐条精准标注
-${isPrimary ? '- 🔧 小学：观察与描述常见事物现象、比较与简单分类、提出问题并作简单猜想、动手探究与表达交流\n' : ''}${isJunior ? '- 🔧 初中：本学科核心概念（物理：物质/运动与相互作用/能量；化学：物质的性质与应用/物质的化学变化；生物：生物体的结构层次/遗传与进化等）与实验探究主题、科学探究（提出问题—制订计划—收集证据—得出结论—表达交流）、实验操作规范、跨学科实践\n' : ''}${isSenior ? '- 🔧 高中：学科核心素养（物理：物理观念/科学思维/科学探究/科学态度与责任；化学：宏观辨识与微观探析/变化观念与平衡思想/证据推理与模型认知/科学探究与创新意识/科学态度与社会责任；生物：生命观念/科学思维/科学探究/社会责任）、必修与选择性必修模块主线、实验方案设计与数据论证\n' : ''}`;
+- 概念/定义/定律/原理：每个独立标注，注明内涵
+- 公式/方程式/化学式：逐条标注${isChemistry ? '，配平和反应条件' : ''}
+- 实验：目的、器材、步骤、现象、结论、注意事项
+- 定量计算与公式应用要点
+- 图表/数据/示意图的解读要点
+- ${isPhysics ? '力学/电学/光学/热学' : isChemistry ? '物质性质、反应类型、元素周期' : isBiology ? '细胞、遗传、生态、进化' : '物质科学、生命科学、地球科学'}核心知识
+- 科学探究方法：观察、假设、实验、分析、结论
+- ${isBiology ? '结构与功能关系、分类依据' : '物质变化规律、能量转化'}
+- 课后练习/习题考查的知识范围与能力要求
+- 必须逐条标注，绝不将多个知识点合并为一条
+- 先通读确认段落整体内容类型，再逐条精准标注
+${isPrimary ? '- 小学：观察与描述常见事物现象、比较与简单分类、提出问题并作简单猜想、动手探究与表达交流\n' : ''}${isJunior ? '- 初中：本学科核心概念（物理：物质/运动与相互作用/能量；化学：物质的性质与应用/物质的化学变化；生物：生物体的结构层次/遗传与进化等）与实验探究主题、科学探究（提出问题—制订计划—收集证据—得出结论—表达交流）、实验操作规范、跨学科实践\n' : ''}${isSenior ? '- 高中：学科核心素养（物理：物理观念/科学思维/科学探究/科学态度与责任；化学：宏观辨识与微观探析/变化观念与平衡思想/证据推理与模型认知/科学探究与创新意识/科学态度与社会责任；生物：生命观念/科学思维/科学探究/社会责任）、必修与选择性必修模块主线、实验方案设计与数据论证\n' : ''}`;
   } else if (isHumanitiesGroup) {
     const subjLabel = isHistory ? '历史' : isGeography ? '地理' : '政治/道德与法治/思想政治';
     return `【${subjLabel}学科专项提取规则——通读全文，不得遗漏任何知识内容】
-- 📖 核心概念/原理/定义：每个独立标注
-- 📖 ${isHistory ? '重要事件/人物/时间/导火索/结果/意义' : isGeography ? '地理位置/地形/气候/资源/人口/经济' : '政治概念/制度/法律/权利/义务/价值观'}
-- 📖 ${isGeography ? '地图/图表/数据分析：识图、读图、绘图要点' : '材料/图表/数据解读要点'}
-- 📖 因果关系/影响意义/启示/教训
-- 📖 案例分析/材料解读/材料判断
-- 📖 比较异同/归纳总结/评价论述
-- 📖 ${isHistory ? '唯物史观/时空观念/史料实证/历史解释/家国情怀' : isGeography ? '人地协调观/综合思维/区域认知/地理实践力' : (isSenior ? '政治认同/科学精神/法治意识/公共参与（高中思想政治）' : '政治认同/道德修养/法治观念/健全人格/责任意识（道德与法治）')}
-- 📖 课后练习/习题考查的知识范围与能力要求
-- 🔒 必须逐条标注，绝不将多个知识点合并为一条
-- 🔒 先通读确认段落整体内容类型，再逐条精准标注
-${isPrimary ? '- 🔧 小学（道德与法治）：行为规范与道德品质养成、生命安全与健康教育、法治与规则常识、中华优秀传统文化与革命传统故事、身边的社会与生活现象\n' : ''}${isJunior ? '- 🔧 初中：道法（生命安全与健康教育/法治教育/中华优秀传统文化教育/革命传统教育/国情教育）、历史（中外历史脉络、"点—线"结合、唯物史观/时空观念/史料实证/历史解释/家国情怀）、地理（认识全球与认识区域、人地协调观/综合思维/区域认知/地理实践力）、跨学科主题学习\n' : ''}${isSenior ? '- 🔧 高中：思想政治（中国特色社会主义/经济与社会/政治与法治/哲学与文化）、历史（《中外历史纲要》与选择性必修专题、史料实证与历史解释）、地理（自然地理基础/区域发展/资源、环境与国家安全）、基于真实情境的辨析与论证、公共参与和社会责任\n' : ''}`;
+- 核心概念/原理/定义：每个独立标注
+- ${isHistory ? '重要事件/人物/时间/导火索/结果/意义' : isGeography ? '地理位置/地形/气候/资源/人口/经济' : '政治概念/制度/法律/权利/义务/价值观'}
+- ${isGeography ? '地图/图表/数据分析：识图、读图、绘图要点' : '材料/图表/数据解读要点'}
+- 因果关系/影响意义/启示/教训
+- 案例分析/材料解读/材料判断
+- 比较异同/归纳总结/评价论述
+- ${isHistory ? '唯物史观/时空观念/史料实证/历史解释/家国情怀' : isGeography ? '人地协调观/综合思维/区域认知/地理实践力' : (isSenior ? '政治认同/科学精神/法治意识/公共参与（高中思想政治）' : '政治认同/道德修养/法治观念/健全人格/责任意识（道德与法治）')}
+- 课后练习/习题考查的知识范围与能力要求
+- 必须逐条标注，绝不将多个知识点合并为一条
+- 先通读确认段落整体内容类型，再逐条精准标注
+${isPrimary ? '- 小学（道德与法治）：行为规范与道德品质养成、生命安全与健康教育、法治与规则常识、中华优秀传统文化与革命传统故事、身边的社会与生活现象\n' : ''}${isJunior ? '- 初中：道法（生命安全与健康教育/法治教育/中华优秀传统文化教育/革命传统教育/国情教育）、历史（中外历史脉络、"点—线"结合、唯物史观/时空观念/史料实证/历史解释/家国情怀）、地理（认识全球与认识区域、人地协调观/综合思维/区域认知/地理实践力）、跨学科主题学习\n' : ''}${isSenior ? '- 高中：思想政治（中国特色社会主义/经济与社会/政治与法治/哲学与文化）、历史（《中外历史纲要》与选择性必修专题、史料实证与历史解释）、地理（自然地理基础/区域发展/资源、环境与国家安全）、基于真实情境的辨析与论证、公共参与和社会责任\n' : ''}`;
   } else if (isIT) {
     return `【信息科技学科专项提取规则——通读全文，不得遗漏任何知识内容】
-- 💻 概念/术语：每个独立标注
-- 💻 操作步骤/流程/命令
-- 💻 编程知识点：语法、算法、数据结构
-- 💻 软件应用/工具使用
-- 💻 信息安全/网络道德
-- 💻 项目实践/案例应用
-- 🔒 必须逐条标注，绝不将多个知识点合并为一条
-${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信息隐私与安全；在线学习与生活、数据与编码；身边的算法、过程与控制\n' : ''}${isJunior ? '- 🔧 初中：互联网应用与创新、物联网实践与探索、人工智能与智慧社会、数据安全与信息社会责任（贯穿计算思维）\n' : ''}${isSenior ? '- 🔧 高中（信息技术）：数据与计算、信息系统与社会、数据与数据结构、网络基础、数据管理与分析、人工智能初步、三维设计与创意、开源硬件项目设计（信息意识、计算思维、数字化学习与创新、信息社会责任）\n' : ''}`;
+- 概念/术语：每个独立标注
+- 操作步骤/流程/命令
+- 编程知识点：语法、算法、数据结构
+- 软件应用/工具使用
+- 信息安全/网络道德
+- 项目实践/案例应用
+- 必须逐条标注，绝不将多个知识点合并为一条
+${isPrimary ? '- 小学：数字设备体验、信息交流与分享、信息隐私与安全；在线学习与生活、数据与编码；身边的算法、过程与控制\n' : ''}${isJunior ? '- 初中：互联网应用与创新、物联网实践与探索、人工智能与智慧社会、数据安全与信息社会责任（贯穿计算思维）\n' : ''}${isSenior ? '- 高中（信息技术）：数据与计算、信息系统与社会、数据与数据结构、网络基础、数据管理与分析、人工智能初步、三维设计与创意、开源硬件项目设计（信息意识、计算思维、数字化学习与创新、信息社会责任）\n' : ''}`;
   } else if (isMusic || isArt || isPE) {
     return `【${s}学科专项提取规则——通读全文，不得遗漏任何知识内容】
 - 核心概念/术语/技法：每个独立标注
@@ -3018,23 +3004,22 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
 - 鉴赏/欣赏/评价要点
 - 实践/操作/训练要求
 - 课后练习/活动考查的内容
-- 🔒 必须逐条标注，绝不将多个知识点合并为一条`;
+- 必须逐条标注，绝不将多个知识点合并为一条`;
   }
   return '';
 })()}
 
 【提取规范】
-- 🔧 数量不设硬上限：知识点数量由原文内容密度决定，每有一个独立可教学的要点就提取一个，不遗漏、不凑数
-- 🔧 原文引证约束：每个知识点必须能在原文中找到直接依据，不得凭学科经验臆造原文未涉及的内容
-- 🔧 禁止拆分凑数：不得把同一个知识点换几种说法拆成多个条目来凑量
-- 🔧 层角色与粒度：第2层 coreKnowledge = 可独立教学组织 / 可独立成题的知识点（锚本体）；第3层 specificConcepts 收录该知识点的最小单位（字 / 词条 / 符号 / 数值 / 术语碎片），**按原文实际数量收录，不设数量区间，也不凑数**
-- 🔧 第3层收录边界（防重复、防混入题面）：① **同一知识点内去重** —— 同一单位只收一条（同一内容的不同写法/重复出现合并为一条，不得因原文多处出现就重复罗列）；② **只收"单位本身"**，不收题干/选项/例句/上下文里的整句或整段（如"下列词语中加点字的读音""读一读，记一记"这类题面、指令语、提示语不属最小单位）；③ 第2层知识点名本身不再下沉重复收录；④ **整句类知识点豁免** —— 若知识点内容**只能以整句/情境形式表达**（数学结论、科学现象、情境描述、口诀、算式实例等，天然压不成字词碎片），则**保留该整句为单位收进第3层，不得丢弃，也不得硬拆成无意义的碎字词**；语义保真 > 形式最小化（防"为了符合'只收单位'而丢知识点或拆坏语义"）
-- 🔧 主题词按原文篇幅匹配：短文（<5段）2-3个主题词，长文3-6个，以能概括全文核心内容为准
-- 🔧 JSON 字段值尽量简短，不要写长句子（**例外**：收录边界④的整句类知识点为保语义可保留完整表述，不受此限）
-- 🔧 语言口径与正文一致：教材为外语（英语等）时——
+- 原文引证约束：每个知识点必须能在原文中找到直接依据，不得凭学科经验臆造原文未涉及的内容
+- 禁止拆分凑数：不得把同一个知识点换几种说法拆成多个条目来凑量
+- 第3层 specificConcepts 收录该知识点的最小单位（字 / 词条 / 符号 / 数值 / 术语碎片），按原文实际数量收录
+- 第3层收录边界（防重复、防混入题面）：① **同一知识点内去重** —— 同一单位只收一条（同一内容的不同写法/重复出现合并为一条，不得因原文多处出现就重复罗列）；② **只收"单位本身"**，不收题干/选项/例句/上下文里的整句或整段（如"下列词语中加点字的读音""读一读，记一记"这类题面、指令语、提示语不属最小单位）；③ 第2层知识点名本身不再下沉重复收录；④ **整句类知识点豁免** —— 若知识点内容**只能以整句/情境形式表达**（数学结论、科学现象、情境描述、口诀、算式实例等，天然压不成字词碎片），则**保留该整句为单位收进第3层，不得丢弃，也不得硬拆成无意义的碎字词**；语义保真 > 形式最小化（防"为了符合'只收单位'而丢知识点或拆坏语义"）
+- 主题词按原文篇幅匹配：短文（<5段）2-3个主题词，长文3-6个，以能概括全文核心内容为准
+- JSON 字段值尽量简短，不要写长句子（**例外**：收录边界④的整句类知识点为保语义可保留完整表述，不受此限）
+- 语言口径与正文一致：教材为外语（英语等）时——
   coreKnowledge.name 用中文作教学标签，但 specificConcepts 必须是教材原文语言的词/短语（如英语：regular past tense -ed、first/then/finally、Mulan、keep trying 等），
   与正文词面同一语言口径；禁止把 specificConcepts 翻译成中文（翻译后与英文正文词面失配）。
-- 🔧 所有输出字段的中文要求仅约束"标签/展示层"字段（name/bigConcept/coreTopics/knowledgePoints），不约束判定词字段（specificConcepts）；判定词随教材原文语言`;
+- 所有输出字段的中文要求仅约束"标签/展示层"字段（name/bigConcept/coreTopics/knowledgePoints），不约束判定词字段（specificConcepts）；判定词随教材原文语言`;
 
       // 🔧 检测文本模型状态
       console.log('🔥 教材特征分析：检查文本模型状态...');
@@ -3097,7 +3082,7 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
       //     max_tokens 只是"允许量"而非"目标量"，给宽不花钱；单次帽 = min(引擎护栏, 需求×安全缓冲)。
       //     ⚠️ 不得把 perCallCap 传成 getTaskMaxTokens('analysis')——旧本地值 4096 会把推导结果
       //     再次钳回 4096（曾导致"修了却在用 4096"）。analysis 无续写轮，上限只需引擎护栏兜底。
-      //    🔴 2026-09-12（实测事故）：推导必须**有下限**——分析产物是结构化 JSON（知识层级/知识点/版式/公式），
+      //    2026-09-12（实测事故）：推导必须**有下限**——分析产物是结构化 JSON（知识层级/知识点/版式/公式），
       //     体量**不与原文等比**（一页 Project 单元照样要输出整棵层级）。实测短章节推出 505 token →
       //     首次输出被截断 → JSON 修复/补全在同一 505 帽内徒劳 → 残件缺 knowledgeHierarchy → 锚树判空不落库；
       //     且推导是确定性的，重分析仍是 505 → 怎么重试都不成功。
@@ -3137,7 +3122,7 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
         timeout: getTimeout('analysis'),
         maxTokens: analysisMaxTokens,
         cacheKeyFields: TEXTBOOK_FEATURE_CACHE_FIELDS,
-        returnMeta: true,   // 🔴 2026-09-12：取 finishReason——截断时必须如实报因，不再让锚树兜底报"结构不符"
+        returnMeta: true,   // 2026-09-12：取 finishReason——截断时必须如实报因，不再让锚树兜底报"结构不符"
         // 🔧 用户显式「🔄 全部重新分析」时 forceRefresh=true → 绕过 L1 缓存强制真调：
         //    否则同一 prompt 命中旧缓存，"重新分析"失去意义（2026-09-12 用户指出语义冲突）
         ...(forceRefresh ? { skipCache: true } : {}),
@@ -3148,11 +3133,11 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
       
       console.log(`✅ 教材特征分析完成，响应长度: ${response?.length || 0}字（maxTokens=${analysisMaxTokens}${responseFinish ? `，finish_reason=${responseFinish}` : ''}）`);
   
-      // 🔴 截断感知（2026-09-12 实测事故加固）：被限截断时 JSON 修复/补全**注定徒劳**——残件补不出缺失
+      // 截断感知（2026-09-12 实测事故加固）：被限截断时 JSON 修复/补全**注定徒劳**——残件补不出缺失
       //    字段，原地修只会把"预算问题"伪装成"结构不符"（正是这几轮难定位的原因之一）。
       //    故截断即跳过修复链、如实报因：省 2 次无效调用，且原因在日志里可见。
       if (responseFinish === 'length') {
-        // 🔴 2026-09-12：把真因带出到 result——分析阶段只有日志、没有问题列表报告，故必须让**日志**
+        // 2026-09-12：把真因带出到 result——分析阶段只有日志、没有问题列表报告，故必须让**日志**
         //    说出真因（否则上层锚树日志会把"预算不足"说成"结构不符"，多轮排障都被带偏）。
         result.analysisFailure = `输出被截断（maxTokens=${analysisMaxTokens}，finish_reason=length）——属预算/上限不足，非模型结构问题；请重试或改用单次输出上限更高的模型`;
         console.error(`❌ 教材特征分析输出被截断（maxTokens=${analysisMaxTokens}，finish_reason=length）——JSON 修复无法补齐缺失字段，请重试或改用单次输出上限更高的模型`);
@@ -3164,7 +3149,7 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
             '教材特征分析',
             'analysis'
           );
-          // 🔴 结构残件不接受（2026-09-12）：解析成功但缺判据字段（knowledgeHierarchy）多为截断/修复
+          // 结构残件不接受（2026-09-12）：解析成功但缺判据字段（knowledgeHierarchy）多为截断/修复
           //    残件——写入空壳只会让下游锚树报"结构不符"、掩盖真因，故丢弃并如实报因。
           const kh = parsed?.knowledgeHierarchy;
           if (Array.isArray(kh) && kh.length) {
@@ -3389,39 +3374,39 @@ ${isPrimary ? '- 🔧 小学：数字设备体验、信息交流与分享、信�
 - ==高亮文字== 表示极其重要的核心知识
 - *斜体文字* 表示补充说明或注释
 - ~~删除线~~ 表示已删除或不适用的内容
-⚠️ 重要：这些格式标记是原文的一部分，请在提取时保留它们的语义信息！`;
-          const corePrincipleStr = corePrinciple ? corePrinciple.content : `⚠️ 严禁任何形式的归纳、改写、标准化、总结！
-⚠️ 原文写什么就填什么，一个字都不能改！`;
-          const mandRulesStr = mandRules ? mandRules.content : `1. 【大题名称】必须逐字复制原文中的原话，严禁任何归纳、改写、标准化\n   - ✅ 正确："一、按要求完成下面各题"\n   - ❌ 错误："综合题"（这是归纳，禁止！）\n   - ✅ 正确："三、生活与运用"\n   - ❌ 错误："生活应用题"（这是归纳，禁止！）\n   - ✅ 正确："四、阅读材料，完成练习"\n   - ❌ 错误："材料分析题"（这是归纳，禁止！）\n2. 【题型】必须逐字复制原文中的原话，严禁归类为标准题型\n   - ✅ 正确："按要求完成下面各题"\n   - ❌ 错误："综合题"（这是归纳，禁止！）\n   - ✅ 正确："选择正确的答案"\n   - ❌ 错误："选择题"（这是标准化，禁止！）\n3. 【设问风格】必须直接引用原文中的原句，不要改写或总结\n   - ✅ 正确："在横线上写出合适的词语"\n   - ❌ 错误："词语填空"（这是改写，禁止！）\n   - ✅ 正确："选择下面说法正确的一项"\n   - ❌ 错误："单选题"（这是归纳，禁止！）\n4. 【难度】需要根据题目内容分析判断（基础/中等/较难）← 唯一可以由AI判断的字段\n5. 【分值】只有原文明确标注了才能填写；没有标注的填0，严禁自己估算\n6. 【小题序号】必须从原文中逐题提取，原文用什么序号就用什么\n7. 【小题数量】必须从原文中逐题提取，原文有几个就填几个`;
+重要：这些格式标记是原文的一部分，请在提取时保留它们的语义信息！`;
+          const corePrincipleStr = corePrinciple ? corePrinciple.content : `严禁任何形式的归纳、改写、标准化、总结！
+原文写什么就填什么，一个字都不能改！`;
+          const mandRulesStr = mandRules ? mandRules.content : `1. 【大题名称】必须逐字复制原文中的原话，严禁任何归纳、改写、标准化\n   - 正确："一、按要求完成下面各题"\n   - 错误："综合题"（这是归纳，禁止！）\n   - 正确："三、生活与运用"\n   - 错误："生活应用题"（这是归纳，禁止！）\n   - 正确："四、阅读材料，完成练习"\n   - 错误："材料分析题"（这是归纳，禁止！）\n2. 【题型】必须逐字复制原文中的原话，严禁归类为标准题型\n   - 正确："按要求完成下面各题"\n   - 错误："综合题"（这是归纳，禁止！）\n   - 正确："选择正确的答案"\n   - 错误："选择题"（这是标准化，禁止！）\n3. 【设问风格】必须直接引用原文中的原句，不要改写或总结\n   - 正确："在横线上写出合适的词语"\n   - 错误："词语填空"（这是改写，禁止！）\n   - 正确："选择下面说法正确的一项"\n   - 错误："单选题"（这是归纳，禁止！）\n4. 【难度】需要根据题目内容分析判断（基础/中等/较难）← 唯一可以由AI判断的字段\n5. 【分值】只有原文明确标注了才能填写；没有标注的填0，严禁自己估算\n6. 【小题序号】必须从原文中逐题提取，原文用什么序号就用什么\n7. 【小题数量】必须从原文中逐题提取，原文有几个就填几个`;
           const diffRulesStr = diffRules ? diffRules.content : `难度分为三个等级：基础、中等、较难\n\n**基础题特征**：\n- 直接考查基础知识（如字词识记、概念理解、简单计算）\n- 答案唯一且明确，不需要复杂推理\n- 示例："写出指定词语的意思""计算指定算式的结果"\n\n**中等题特征**：\n- 需要理解上下文或联系多个知识点\n- 有一定推理过程，需要分析或比较\n- 示例："联系上下文理解内容含义""选择与示例特点相同的选项"\n\n**较难题特征**：\n- 需要综合运用多个知识点，创造性思维\n- 开放性较强，需要深度分析\n- 示例："概括材料的主要内容""评价材料中的观点"\n\n**判断原则**：\n1. 如果原文中有明确标注（如"提高题""拓展题"），优先使用原文标注\n2. 如果没有标注，根据上述规则分析题目内容后判断\n3. 同一道大题下的小题难度可能不同，需分别判断`;
           const examplesFullStr = examplesFull ? examplesFull.content : '';
-          const errorExStr = errorEx ? errorEx.content : `❌ "题型": "综合题" → 原文写的是"一、按要求完成下面各题"，应该完整复制\n❌ "设问风格": "词语填空" → 原文写的是"在横线上写出合适的词语"，必须逐字复制\n❌ "小题数量": 20 → 原文没有明确说明小题数量，应该根据实际提取的小题计算`;
+          const errorExStr = errorEx ? errorEx.content : `"题型": "综合题" → 原文写的是"一、按要求完成下面各题"，应该完整复制\n"设问风格": "词语填空" → 原文写的是"在横线上写出合适的词语"，必须逐字复制\n"小题数量": 20 → 原文没有明确说明小题数量，应该根据实际提取的小题计算`;
           const extractReqsStr = extractReqs ? extractReqs.content : `1. 识别每道大题：原文中标注了"一、""二、""第一部分""专项一""第五单元"或类似标记的为大题\n2. 大题下的小题逐题提取，包括每小题序号和分值\n3. 题型名称直接用原文中的说法，原文写什么就填什么\n4. 如果原文没有大题标记，整份试卷视为一道大题，各小题直接提取\n5. 所有分值、题数、风格描述都从原文直接取，不要自己编\n6. 设问风格：该题型在原文中是如何提问的，原文用什么词就提取什么词`;
 
           const step2aPrompt = `你是考试命题专家。请分析以下试卷/教辅材料的原文，提取完整结构。
 
-【格式说明——原文中的标记表示重点内容】
+【格式说明】
 ${fmtNoteStr}
 
-【核心原则——除难度外，所有字段必须逐字从原文复制】
+【核心原则】
 ${corePrincipleStr}
 
-【强制规则——违反将导致分析结果作废】
+【强制规则】
 ${mandRulesStr}
 
-【难度分析规则——需要根据题目内容判断】
+【难度分析规则】
 ${diffRulesStr}
 
 【原文内容】（共${rawTextLength}字）
 ${analysisText}
 
-【真实教辅资料示例——理解多样性】
+【真实教辅资料示例】
 ${examplesFullStr}
 
-【错误示例——以下提取全部作废】
+【错误示例】
 ${errorExStr}
 
-【提取要求——除难度外，所有字段直接从原文原样提取，一个字都不要改】
+【提取要求】
 ${extractReqsStr}
 
 只返回 JSON：
@@ -3444,8 +3429,7 @@ ${extractReqsStr}
   "总分": 所有大题分值之和
 }
 
-只返回JSON，不要其他内容。
-- 🔧 所有输出字段必须使用中文（即使原文为英文，题型名称等也请用中文描述）`;
+- 所有输出字段必须使用中文（即使原文为英文，题型名称等也请用中文描述）`;
 
           const response2a = await callAI(step2aPrompt, { 
             taskType: 'generation',
@@ -3489,9 +3473,7 @@ ${analysisText.substring(0, 500)}
     "scorePosition": "",
     "chartDescriptionFormat": ""
   }
-}
-
-只返回JSON。`;
+}`;
 
           // 🔧 优化：语言风格分析前检测模型状态
           console.log('🔥 语言风格分析：检查模型状态...');
@@ -3591,22 +3573,22 @@ ${analysisText.substring(0, 500)}
 - ==高亮文字== 表示极其重要的核心知识
 - *斜体文字* 表示补充说明或注释
 - ~~删除线~~ 表示已删除或不适用的内容
-⚠️ 重要：这些格式标记是原文的一部分，请在提取时保留它们的语义信息！`;
-            const corePrincipleStr = corePrinciple ? corePrinciple.content : `⚠️ 严禁任何形式的归纳、改写、标准化、总结！
-⚠️ 原文写什么就填什么，一个字都不能改！`;
+重要：这些格式标记是原文的一部分，请在提取时保留它们的语义信息！`;
+            const corePrincipleStr = corePrinciple ? corePrinciple.content : `严禁任何形式的归纳、改写、标准化、总结！
+原文写什么就填什么，一个字都不能改！`;
             const mandRulesStr = mandRules ? mandRules.content : `1. 【大题名称】必须逐字复制原文中的原话
-   - ✅ 正确："一、按要求完成下面各题"
-   - ❌ 错误："综合题"（这是归纳，禁止！）
-   - ✅ 正确："三、生活与运用"
-   - ❌ 错误："生活应用题"（这是归纳，禁止！）
+   - 正确："一、按要求完成下面各题"
+   - 错误："综合题"（这是归纳，禁止！）
+   - 正确："三、生活与运用"
+   - 错误："生活应用题"（这是归纳，禁止！）
 2. 【题型】必须逐字复制原文中的原话
-   - ✅ 正确："按要求完成下面各题"
-   - ❌ 错误："综合题"（这是归纳，禁止！）
-   - ✅ 正确："选择正确的答案"
-   - ❌ 错误："选择题"（这是标准化，禁止！）
+   - 正确："按要求完成下面各题"
+   - 错误："综合题"（这是归纳，禁止！）
+   - 正确："选择正确的答案"
+   - 错误："选择题"（这是标准化，禁止！）
 3. 【设问风格】必须直接引用原文中的原句
-   - ✅ 正确："在横线上写出合适的词语"
-   - ❌ 错误："词语填空"（这是改写，禁止！）
+   - 正确："在横线上写出合适的词语"
+   - 错误："词语填空"（这是改写，禁止！）
 4. 【难度】需要根据题目内容分析判断（基础/中等/较难）← 唯一可以由AI判断的字段
 5. 【分值】只有原文明确标注了才能填写，没有标注填0
 6. 【小题序号】必须从原文中逐题提取，原文用什么序号就用什么
@@ -3618,10 +3600,10 @@ ${analysisText.substring(0, 500)}
             // 每段分析结构
             const chunkPrompt = `你是考试命题专家。请分析以下试卷片段${chunkLabel}，提取基本结构。
 
-【格式说明——原文中的标记表示重点内容】
+【格式说明】
 ${fmtNoteStr}
 
-【核心原则——除难度外，所有字段必须逐字从原文复制】
+【核心原则】
 ${corePrincipleStr}
 
 【强制规则】
@@ -3651,9 +3633,7 @@ ${chunk}
   ],
   "总题数": 所有小题数量之和,
   "总分": 所有大题分值之和
-}
-
-只返回JSON，不要其他内容。`;
+}`;
 
             try {
               const chunkResponse = await callAI(chunkPrompt, { 
@@ -3830,10 +3810,10 @@ JSON格式：
 ${cardAnalysisText}
 ${typesList}
 
-【重要——提取要求】
+【提取要求】
 1. 每种题型只提取1道题（最多6道题）
 2. 优先选择题干完整、有代表性的题目
-3. 题干必须逐字复制原文，一个字都不能改
+3. 题干必须逐字复制原文
 4. options字段：选择题保留A/B/C/D选项，非选择题填空字符串数组
 5. score：原文标注了分值的按原文填，未标注的填0
 6. questionFeature：概括该题的设问特征，10字以内
@@ -3853,9 +3833,7 @@ ${typesList}
       "questionFeature": "设问特征"
     }
   ]
-}
-
-只返回JSON。`;
+}`;
 
           // 🔧 优化：题卡分析前检测模型状态
           console.log('🔥 题卡分析：检查模型状态...');
@@ -3960,26 +3938,26 @@ ${cardAnalysisText.substring(0, 1000)}
   // ==================== 指令构建 ====================
 
 
-  // 🔴 死代码已删除：performSemanticReview / repairSemanticIssues / attemptContentRepair
+  // 死代码已删除：performSemanticReview / repairSemanticIssues / attemptContentRepair
   //    （AI 语义审查 + AI 内容修复——"自产自评"质检残留，均不再被调用）
 
-  // 🔴 repairSemanticIssues / attemptContentRepair 已删除（自产自评质检残留）
+  // repairSemanticIssues / attemptContentRepair 已删除（自产自评质检残留）
 
 // ==================== 🔧 整卷生成（DeepSeek 云端主路径）====================
   // 核心任务 + 结构大纲 + 知识图谱 + 教材原文 + 格式约束 → 一次性产出整份 HTML
   // 取代原 Step3（蓝图规划）+ Step4（逐题生成），让 DeepSeek 云端模型充分发挥原生能力
 
-  // 🔴 generateByRecipe（配方/分步流水线入口）已删除：生成入口切换为整卷一次生成
+  // generateByRecipe（配方/分步流水线入口）已删除：生成入口切换为整卷一次生成
   //    （generateFullPaperNatural，指令库驱动）。分步流水线相关文件（recipe/ 目录）同步删除。
 
-  // 🔴 2026-09-30（注释同步）：此处原有整块"素材构建：按本资料覆盖的知识点**检索**教材原文片段
+  // 2026-09-30（注释同步）：此处原有整块"素材构建：按本资料覆盖的知识点**检索**教材原文片段
   //    （RAG 思路，非全量注入/硬截断）"的函数注释，但**函数体早已不存在**（该 RAG 素材构建随
   //    A15（2026-09-11）"取消 browse"一并移除），且与下方的实际实现相抵：现在的写作素材是
   //    **程序直读勾选章节原文 → 压缩**（`collectChapterRawText` + `compressOriginalText`），
   //    以【锚点清单】+【压缩原文】注入，**不是检索**。删去过期块，只留本条说明。
 
   /**
-   * 🔴 整卷一次生成（新架构主路径，指令库驱动）
+   * 整卷一次生成（新架构主路径，指令库驱动）
    * 注入指令来自指令库模板（UI"注入指令框"可见可编辑），一次生成整卷正文 + 独立生成答案页。
    * 设计原则（与"分步流水线"的本质区别）：
    *   - 指令 = 网页端级人话（角色 + 卷面结构 + 命题要求），模型按本能命题、全局自洽
@@ -4000,7 +3978,7 @@ ${cardAnalysisText.substring(0, 1000)}
     if (!instruction.trim()) {
       return { success: false, error: '注入指令为空（请点击「生成指令」从指令库注入）' };
     }
-    // 🔴 学科规范化（三维度答案提示词/作答载体按 subject 精确注入，避免跨学科噪音）
+    // 学科规范化（三维度答案提示词/作答载体按 subject 精确注入，避免跨学科噪音）
     const subject = normalizeSubjectName(book?.subject, book?.stage);
 
     // ── 覆盖锚构建（2026-09 P0）：章级层级知识点 → 原文片段绑定，覆盖/检索/缺料诊断的唯一事实源 ──
@@ -4014,7 +3992,7 @@ ${cardAnalysisText.substring(0, 1000)}
       console.log(`[知识锚] ${anchorReport.total} 个知识点：字面${bs.literal}/语义${bs.semantic}/章兜底${bs.chapter}/缺料${bs.missing}`
         + (bs.missing ? '（缺料名单见素材构建 warn）' : ''));
     }
-    // 🔴 缺料诊断上抛（2026-09 P0；2026-09-13 措辞与实现对齐）：missing 知识点**仍会进【锚点清单】**（
+    // 缺料诊断上抛（2026-09 P0；2026-09-13 措辞与实现对齐）：missing 知识点**仍会进【锚点清单】**（
     //    buildAnchorListByChapter 不过滤 bind.status），只是该章无原文片段、缺教材依据——故不能再写"已排除在可命题范围外"
     //    （与实现不符，会误导排查方向）。本告警只作"缺依据"提示：请核实该章原文解析/粘贴是否完整（补原文即恢复依据）。
     const anchorMissingNote = anchorReport.missingList?.length
@@ -4100,7 +4078,7 @@ ${cardAnalysisText.substring(0, 1000)}
             sections: rawSections,
             mode: compMode,
             subject,
-            // 🔴 必须与上面的 cacheKey 用同一个"年级/册次"口径：高中给册次（grade 恒空），
+            // 必须与上面的 cacheKey 用同一个"年级/册次"口径：高中给册次（grade 恒空），
             //    否则缓存键按册次区分、而压缩提示词按年级（空），两者错位。
             grade: gradeDisplayLabel(book?.stage, book?.grade, book?.volume),
             callAI: (messages) => chatNonThinkingOnce(messages), // 注入底层非思考对话调用（单次对话、显式关闭思考）
@@ -4146,7 +4124,7 @@ ${cardAnalysisText.substring(0, 1000)}
     // 系数"每字符产出 token 率"× 勾选原文量 → 该次预算目标；取手填 custom（tier 为 custom）或当前档位系数，
     // 再 clamp 到 [floorTokens, 该槽硬上限 cap]。动态是主预算；cap 仅在勾选远超类型预期时才触顶。
     const bbt = apiConfig.generationSettings.budgetByType?.[genType] || {};
-    // 🔴 路径决定（2026-09 重构）：优先读该类型的 mode（auto/split/once，设置页每类型可独立选）；
+    // 路径决定（2026-09 重构）：优先读该类型的 mode（auto/split/once，设置页每类型可独立选）；
     //    auto 时回退到内置类型表（纯题型→split、知识型→once）。全局"整卷生成方式"已移除，路径完全由每类型决定。
     //  ⚠️ 必须在预算解析（pickSlot/bodyNeeded）之前声明——下方按 generateMode 选择 body/once 槽。
     const PAPER_SPLIT_TYPES = ['exam', 'practice', 'special', 'review'];
@@ -4172,7 +4150,7 @@ ${cardAnalysisText.substring(0, 1000)}
     // split：正文用 body 槽（系数+cap）；once：正文+答案共用 once 槽
     const bodyCfg = pickSlot(generateMode === 'once' ? 'once' : 'body');
     let bodyNeeded = Math.round(Math.max(floorTok, selectedRawChars * bodyCfg.coef));
-    // 🔴 once 一次成型 = 正文+答案区同一输出：所需下限 = 「body 槽估算 + answer 槽估算」两段合计。
+    // once 一次成型 = 正文+答案区同一输出：所需下限 = 「body 槽估算 + answer 槽估算」两段合计。
     //    一次输出必须覆盖两段内容；once 槽系数若低于两段合计（如 summary once2.2 < body1.6+answer0.85=2.45），
     //    会在写完正文后因预算用尽截断在答案区（历史复现根因）——此处兜底抬升，宁多勿截。
     if (generateMode === 'once') {
@@ -4246,7 +4224,7 @@ ${cardAnalysisText.substring(0, 1000)}
     ].filter(Boolean).join('；');
     console.log(`[每类型预算] ${genType}: 路径=${generateMode} 勾选原文=${selectedRawChars}字 所需=${bodyNeeded}→帽=${bodyDynamicCap}(cap=${bodyCfg.cap}${bodyOverCap ? ' 已升级' : ''}/coef=${bodyCfg.coef}) 答案帽=${answerDynamicCap}(cap=${answerCfg.cap})`);
 
-    // 🔴 标题根治兜底：标题只由命名规范占位符组成——模型若把任务行类型名（如"考卷"）拼进 h1，
+    // 标题根治兜底：标题只由命名规范占位符组成——模型若把任务行类型名（如"考卷"）拼进 h1，
     //    代码强制移除（仅移除"空格/分隔符+类型词"形态，不误伤名称池合法词如"测试卷"贴正文的情况）
     const stripTypeWordFromTitle = (html) => String(html || '').replace(/<h1[^>]*>([\s\S]*?)<\/h1>/i, (m, t) => {
       const cleaned = t
@@ -4258,7 +4236,7 @@ ${cardAnalysisText.substring(0, 1000)}
     // ── 组装最终 prompt：锚点清单 + 压缩原文 + 委托书 + 附加块（模板对标/情境/差异化，用户配置了才加） ──
     // 素材来源（A15/A4，2026-09 定稿）：材料 = 程序直读整章原文压缩（见上）；不再拼接 basis/ref
     //   素材区，也无"模型按需现取原文"——单次请求、无工具轮。其后附加块顺序保持既有不变。
-    // 🔴 A4-4（2026-09）：写作期输入三件与顺序固定 = 锚点清单（开头）→ 压缩原文（中段）→ 委托书（末尾）。
+    // A4-4（2026-09）：写作期输入三件与顺序固定 = 锚点清单（开头）→ 压缩原文（中段）→ 委托书（末尾）。
     //    依据 LLM 首尾强/中段弱：委托书（最高优先级指令）末尾锚定；锚点清单置开头（带清单读素材，
     //    利于锚点↔素材章级对应）；压缩原文（素材，非指令）置中段。其后附加块顺序保持既有不变。
     let prompt = '';
@@ -4285,11 +4263,11 @@ ${cardAnalysisText.substring(0, 1000)}
     };
     // ✅ A15-4/A11-3（2026-09-11）：**素材使用约定**（原随 browse 系统提示携带，browse 移除后必须保留）——
     //    引用约束按契约 mode 分流；练习段仅作参考、不得照搬题目。位置贴近委托书（同为"指令"，末尾锚定）。
-    //    🔴 2026-09-13（用户定版·双向开放）：区分"知识点范围"与"素材来源"——范围（覆盖哪些知识点）以【锚点清单】为准，
+    //    2026-09-13（用户定版·双向开放）：区分"知识点范围"与"素材来源"——范围（覆盖哪些知识点）以【锚点清单】为准，
     //       但**素材来源不作指定**：教材与课外真实生活等权，既不写"须出自原文"，也不写"一律自拟/禁止沿用"。
     //       （旧口径"不得凭训练记忆补写范围外内容/一律自拟"用"范围"的口吻管住了"来源"，致内容被钉死在教材，
     //        且与模板【教材原文】语言学科豁免句互相矛盾，模型只能自选——两处反向钉死一并去除。）
-    //    🔴 2026-09-13（同日第三版·下限 + 按类型分档）：清单语义由"命题范围边界"改为"覆盖下限"；
+    //    2026-09-13（同日第三版·下限 + 按类型分档）：清单语义由"命题范围边界"改为"覆盖下限"；
     //       下限之上能否"加"**按资料类型分档**（extentOf，单一事实源 coverageContract）——
     //       题类 expand（补清单外知识点/角度，考迁移）／归纳复习类 integrate（联系**已学**旧知做结构化整合，
     //       课标"梳理与探究/内容结构化"要求，边界=已学+本学段课标）／预习默写类 strict（守本课、守教材，不加）；
@@ -4343,12 +4321,12 @@ ${cardAnalysisText.substring(0, 1000)}
     //    只约束"题干与正文印证、内容归纳准确一致"这一通用命题自洽原则；置于委托书最末尾锚定
     //    （模型对末尾指令注意力最高，不易忽略）。压缩期经 block 名关键词"尾约束"命中 guaranteeRegex，
     //    超长压缩亦保留，不丢锚；显式申明课标素材规则，避免歧义框死教材。
-    //    🔴 2026-09-12（用户裁定）：本句为**原则式、零列举**范式——判据=「题干所声明的、作答所必需的一切
+    //    2026-09-12（用户裁定）：本句为**原则式、零列举**范式——判据=「题干所声明的、作答所必需的一切
     //    内容是否在正文真实足量存在、本题能否仅凭正文自足完成」，**不得改回形态/内容名称清单**
     //    （清单必不完备、且构成诱导；实测曾因列举漏项而失守）。
     //    用词类型中性（2026-09-12）：原写"仅凭卷面自身/卷面未给出"。"卷面"是考卷专用语（模型易读成排版
     //    要求而非内容自足要求），且本块跨 9 类生效；改"正文"与本块其余措辞及项目"用资料不用卷"口径一致。
-    //    🔴 不得改写成"仅凭本题自身/题干自身"——那会被读成"仅凭题干即可作答"，语义反向。
+    //    不得改写成"仅凭本题自身/题干自身"——那会被读成"仅凭题干即可作答"，语义反向。
     //    ✅ 文本已提出到 utils/injectionManifest.js 单源（TAIL_SELF_CONSISTENCY），面板"请求实发清单"共用
     prompt += buildTailBlocks()[0];
 
@@ -4368,7 +4346,7 @@ ${cardAnalysisText.substring(0, 1000)}
     let bodyPathNotes = [];
     // 🔧 采样用：正文是否触发过续写/截断（预算失效场，校准统计须剔除）
     let sampleTruncated = false;
-    // 🔴 思考模式耗尽降级：推理 chunks 巨大且正文为空（finish_reason=length 截断在推理阶段）→ 重试强制关闭思考
+    // 思考模式耗尽降级：推理 chunks 巨大且正文为空（finish_reason=length 截断在推理阶段）→ 重试强制关闭思考
     let retryWithoutThinking = false;
     // 🔧 正文"完整优先"（2026-09）：截断经续写链仍无法补齐 → 本 attempt 判失败，升级预算整卷重试；
     //    两次尝试都失败则抛错（绝不把半截正文当作成功交付——提醒半截对用户无用，宁可失败给行动建议）
@@ -4398,7 +4376,7 @@ ${cardAnalysisText.substring(0, 1000)}
       // 🔧 截断重试预算升级：第 1 次按动态帽，第 2 次 ×1.4（仅截断补齐场景，篇幅纪律已防发散；
       //    仍受引擎单次输出上限 clampReq 约束，超出部分由下方续写链动态分片补齐）
       const attemptCap = Math.round(bodyDynamicCap * Math.pow(1.4, attempt));
-      // 🔴 2026-09-24 实证修复：升级预算重试必须**连续写额度一起升级**。
+      // 2026-09-24 实证修复：升级预算重试必须**连续写额度一起升级**。
       //    此前只放大了单次帽（上面的 maxTokens），而 bodyQuota（soft/hard 两层 + 轮次）仍是首轮那套
       //    → 第 2 次尝试的硬顶与第 1 次**完全相同**：单次输出一超硬顶，续写链照样被锁死，"升级"名不副实。
       //    现按升级后的单次帽重推额度（attempt 0 时 max(bodyEffectiveCap, attemptCap) === bodyEffectiveCap
@@ -4418,11 +4396,11 @@ ${cardAnalysisText.substring(0, 1000)}
           // 🔧 S3.2 委托书纯净化：程序性附加段（渲染契约/质检规则/格式兜底）以 system 角色注入——
           //    解释权在程序侧，不进委托正文（委托正文=编辑者意志，见设计准绳"渲染契约不属于委托正文"）
           systemMessage: programAttach.trim() ? programAttach : undefined,
-          // 🔴 整卷输出预算：正文 base 取「每类型动态帽」（已含触顶升级：勾选超 cap 时自动加长到所需，
+          // 整卷输出预算：正文 base 取「每类型动态帽」（已含触顶升级：勾选超 cap 时自动加长到所需，
           //    不静默截断预算）；思考模式按 thinkingBudgetMultiplier 放大（推理与正文共享配额，需给推理预留余量）
           // ⚠️ once 一次成型：正文+答案同一次输出，预算由 once 槽「系数」一体核算（once 槽系数 > body 槽，
           //    设计上已含答案区，勿再叠加 answer 帽双重放大——此前误判叠加已回退，见 git log 2026-09）
-          // 🔴 产品级钳制（2026-09-10 成本护栏）：思考乘数放大后的实际请求值仍须 ≤ 引擎档——
+          // 产品级钳制（2026-09-10 成本护栏）：思考乘数放大后的实际请求值仍须 ≤ 引擎档——
           //    否则 max_tokens 超限被 API 拒绝(400)或静默截断；单次请求费用由此封顶
           maxTokens: Math.min(clampReq(attemptCap)
             * ((retryWithoutThinking || !getGenerationThinkingEnabled()) ? 1 : (apiConfig.generationSettings.thinkingBudgetMultiplier || 2)), engineCap),
@@ -4437,19 +4415,19 @@ ${cardAnalysisText.substring(0, 1000)}
           //    智谱/火山等引擎可能无视思考开关强制推理，推理与正文共享 max_tokens，必须限流防吃光预算
           maxReasoningChunks: (!retryWithoutThinking && getGenerationThinkingEnabled()) ? GEN_CONST.REASONING_CAP_BODY : GEN_CONST.REASONING_CAP_BODY_FORCED,
         });
-        // 🔴 2026-09-30：排空调用层告警（超长压缩的"顺序反转/整体丢段"）→ 并入正文路径事件，
+        // 2026-09-30：排空调用层告警（超长压缩的"顺序反转/整体丢段"）→ 并入正文路径事件，
         //    经既有通道汇总进生成报告【问题列表】（原先只 console，用户侧不可见、等于静默）
         if (promptShapeNotes.length) bodyPathNotes.push(...promptShapeNotes.splice(0));
         const respObj = typeof resp === 'string' ? { content: resp, finishReason: '' } : (resp || { content: '', finishReason: '' });
         content = normalizeBodyHtml(respObj.content || '', { trace: true, label: `第${attempt + 1}次尝试` });
-        // 🔴 思考耗尽检测：推理 chunks 大量（≥20000）或触发推理上限（reasoning_capped）且正文为空 → 判定思考占满输出预算
+        // 思考耗尽检测：推理 chunks 大量（≥20000）或触发推理上限（reasoning_capped）且正文为空 → 判定思考占满输出预算
         if (((respObj.reasoningChunkCount || 0) >= GEN_CONST.REASONING_EXHAUST_THRESHOLD || respObj.finishReason === 'reasoning_capped') && !content.trim()) {
           console.warn(`⚠️ 思考模式推理过长（${respObj.reasoningChunkCount || 0} chunks，finish_reason=${respObj.finishReason || 'length'}）且正文为空——本次重试将自动关闭思考`);
           bodyPathNotes.push('⚠️ 思考模式推理过长且正文为空——已自动降级为非思考重试');
           retryWithoutThinking = true;
           throw new Error('思考模式推理耗尽输出预算，正文未输出——已自动降级为非思考重试');
         }
-        // 🔴 截断判定：优先用 API 的 finish_reason=length（可靠，不依赖尾部启发式）；启发式作兜底；
+        // 截断判定：优先用 API 的 finish_reason=length（可靠，不依赖尾部启发式）；启发式作兜底；
         //    reasoning_capped（推理达到 40K 上限被流式中止）也算截断——半截正文须续写补齐
         // 🔧 续写链（2026-09 重构）：至多 MAX_CONT 次。每次续写带 returnMeta，检测续写自身是否再次截断；
         //    仍截断则基于最新内容继续续写，直至完整或达上限。拼接前做尾部重叠去重——
@@ -4465,7 +4443,7 @@ ${cardAnalysisText.substring(0, 1000)}
           //    · 硬顶 hardQuota = 预期 + 1 轮：**唯一叫停线**
           //    轮次由硬顶推导（不再写死 6）；每轮帽按"硬顶 − 已产出"递减（旧实现每轮都给满 → 总输出无上界）。
           //    停止条件只剩三个：① 写完（不再截断）② 续写无效 ③ 触硬顶。
-          // 🔴 2026-09-24：这段 while 循环已**并入续写链唯一实现**（utils/continuationChain.js）——
+          // 2026-09-24：这段 while 循环已**并入续写链唯一实现**（utils/continuationChain.js）——
           //    链条负责"截断检测 / 循环 / 去重追加 / 二次截断再检测 / 如实报停止原因"，
           //    本处只注入**额度策略**（两层额度 + 首轮保底）与**正文改写请求**。与 callAI 内薄层同源，
           //    两套实现的分叉就此消失。
@@ -4483,7 +4461,7 @@ ${cardAnalysisText.substring(0, 1000)}
                 bodyPathNotes.push(`ℹ️ 正文已超预期额度（预期 ${attemptQuota.softQuota} token，当前 ${producedChars} 字符）——为保证完整继续补齐（硬顶 ${attemptQuota.hardQuota} token）`);
                 console.warn(`⚠️ 整卷正文已超预期额度 ${attemptQuota.softQuota} token → 继续补齐，直至写完或触硬顶 ${attemptQuota.hardQuota}`);
               }
-              // 🔴 首轮保底（2026-09-24 实证修复）：模型**单次**输出就可能超过硬顶（实证：13555 字符
+              // 首轮保底（2026-09-24 实证修复）：模型**单次**输出就可能超过硬顶（实证：13555 字符
               //    ÷1.3 = 10427 token > 硬顶 8532）。旧逻辑此时"余额 ≤ 0 → 返回 0 → 直接 break"，
               //    续写链 0 轮就被锁死，只能整卷重跑（更贵更慢）。硬顶里"多留的那 1 轮余量"必须花得出去。
               const budget = clampReq(nextContinuationBudget({
@@ -4528,7 +4506,7 @@ ${cardAnalysisText.substring(0, 1000)}
           content = bodyChain.content;
           const contCount = bodyChain.rounds;
           if (bodyChain.truncated) {
-            // 🔴 未补齐 → 本 attempt 判失败（不交付半截）：升级预算由下一 attempt 整卷重试补齐
+            // 未补齐 → 本 attempt 判失败（不交付半截）：升级预算由下一 attempt 整卷重试补齐
             truncFailNote = `正文输出被截断，经 ${contCount} 次续写（停止原因=${bodyChain.stoppedBy}，预算 ${attemptCap} token）仍未完整（当前 ${content.length} 字符）`;
             console.warn(`⚠️ ${truncFailNote}——升级预算重新整卷生成...`);
             bodyPathNotes.push(`⚠️ ${truncFailNote}——升级预算重新整卷生成`);
@@ -4538,12 +4516,12 @@ ${cardAnalysisText.substring(0, 1000)}
             bodyPathNotes.push(`ℹ️ 正文截断经 ${contCount} 次续写已补齐（当前 ${content.length} 字符）。`);
           }
         }
-        // 🔴 2026-09-10 丢题拦截（严格收口·用户定版"残次品绝不放行"）：题号连续性校验——
+        // 2026-09-10 丢题拦截（严格收口·用户定版"残次品绝不放行"）：题号连续性校验——
         //    缺号与截断共用同一重试槽（第 2 次尝试），但**病因与手段不同**：截断=预算不足 → 预算 ×1.4；
         //    缺号=生成行为 → 把缺号清单回灌模型令其逐题补全（与预算无关，勿再写成"升级预算"）。
         //    重试后仍缺号 → 由下方终极守卫判失败（宁失败不残缺）
         const qGap = detectBodyNumberingGap(content);
-        // 🔴 2026-09-26 试卷正文题号"全卷连续"守卫（用户裁定：重启即不合格）：正文按小节/栏目重新
+        // 2026-09-26 试卷正文题号"全卷连续"守卫（用户裁定：重启即不合格）：正文按小节/栏目重新
         //    从 1 编号时，答案区"逐题与正文同号 + 全卷连续同序"的对齐前提失效——模型失去可对齐基准，
         //    退化成只写尾部评分量表（实测：正文 `1、2、3` 后又从 1 数到 27；日志"答案区顶层题号 0"）。
         //    缺号守卫查不出重启（已出现集合就是 1..27、一个不缺），故此处独立判。仅试卷（exam）。
@@ -4551,7 +4529,7 @@ ${cardAnalysisText.substring(0, 1000)}
           ? detectBodyNumberingRestart(content)
           : { restart: false, segments: [], top: 0 };
         if (content && isDeliverableBodyHtml(content) && !qGap && !bodyRestart.restart) break;
-        // 🔴 2026-09-17 根治（用户裁定·多形态容忍，不再靠枚举编号形态定罪）：
+        // 2026-09-17 根治（用户裁定·多形态容忍，不再靠枚举编号形态定罪）：
         //    "我认得出题号" ≠ "题目存在"——只有"缺号在正文任何位置都不出现"才是丢题实证；
         //    缺号能以别的形态被找到（行内编号空位/裸数字/作答位在题号前等）→ 记警告、照常交付
         //    （形态问题重试也修不好：模型每次写法都不同，漏判恒在）。
@@ -4559,7 +4537,7 @@ ${cardAnalysisText.substring(0, 1000)}
           const qCls = classifyNumberingGap(content);
           if (qCls && qCls.nowhere.length === 0) {
             console.warn(`🔢 [题号·形态放行] 缺号 ${qCls.missing.join('、')} 均能在正文其它位置找到（${qCls.elsewhere.length} 处，非丢题）→ 不重试、照常交付`);
-            // 🔴 2026-09-17（用户裁定·消重复）：本处**不再**写报告条目——终检处会按实际交付内容出**一条**
+            // 2026-09-17（用户裁定·消重复）：本处**不再**写报告条目——终检处会按实际交付内容出**一条**
             //    "形态未全部识别"说明；原先两处各写一条（措辞还略有差异）→ 报告里看着像重复告警。
             break;
           }
@@ -4609,7 +4587,7 @@ ${cardAnalysisText.substring(0, 1000)}
             console.warn(`🔢 [题号·分段拦截] ${note} → 重试并回灌"全卷连续编号"（否则答案区无法逐题对齐）`);
             throw new Error(`${note}——试卷正文题号须全卷连续同序`);
           }
-          // 🔴 第 2 次仍重启 → **不判死**（避免把完整卷反复判失败）：如实进报告，答案侧按正文实际结构对齐
+          // 第 2 次仍重启 → **不判死**（避免把完整卷反复判失败）：如实进报告，答案侧按正文实际结构对齐
           bodyPathNotes.push(`⚠️ ${note}——两次生成均按小节重启（不因此判失败）；答案区已按正文实际结构对齐，建议人工核对题号连续性`);
           console.warn(`🔢 [题号·分段放行] ${note}——不判死（完整卷优先交付），答案侧按正文实际结构对齐`);
           break;
@@ -4627,10 +4605,10 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     }
     } // end if(!content) 单次生成 + 预算升级重试循环
-    // 🔴 完整优先最终守卫：两次尝试（含续写链/缺号拦截）都未能完整输出 → 明确抛错并给行动建议，
+    // 完整优先最终守卫：两次尝试（含续写链/缺号拦截）都未能完整输出 → 明确抛错并给行动建议，
     //    绝不把半截/缺题正文当作成功交付（generate 外层 MAX_RETRIES 会整卷级重试；再失败则由 UI 呈现此错误）
     const finalGap = detectBodyNumberingGap(content);
-    // 🔴 2026-09-17 根治：终检只认"全文任何位置都不出现"的实证缺号（finalLoss）；
+    // 2026-09-17 根治：终检只认"全文任何位置都不出现"的实证缺号（finalLoss）；
     //    形态性缺号（能在别处找到）不再判失败——否则完整卷会被形态漏判反复判死（重试无解）。
     const finalCls = finalGap ? classifyNumberingGap(content) : null;
     const finalLoss = !!(finalCls && finalCls.nowhere.length);
@@ -4652,7 +4630,7 @@ ${cardAnalysisText.substring(0, 1000)}
       throw new Error(advise);
     }
     if (finalCls && finalCls.elsewhere.length) {
-      // 🔴 唯一落点（2026-09-17 用户裁定）：正文生成路径不再重复写这条，只在此按**实际交付内容**出一条。
+      // 唯一落点（2026-09-17 用户裁定）：正文生成路径不再重复写这条，只在此按**实际交付内容**出一条。
       bodyPathNotes.push(`ℹ️ 正文题号形态未全部识别（缺 ${finalCls.elsewhere.join('、')}，均以其它形态存在于正文内）——按"内容完整"放行（形态问题非丢题，重试无益）`);
       console.warn(`🔢 [题号·终检形态放行] 形态性缺号 ${finalCls.elsewhere.join('、')} 不判丢题（内容已在正文其它位置存在）`);
     }
@@ -4672,7 +4650,7 @@ ${cardAnalysisText.substring(0, 1000)}
     let answerHtml = '';
     let answerSkipNote = ''; // 题+解析一体资料（once）跳过独立答案页时的说明（追加到生成报告）
     const ansInContent = /<h[1-6][^>]*>参考答案|answer-section/.test(content);
-    // 🔴 once 模式空壳答案区检测：模型输出 `<h2>参考答案…` 但内容是"略/待补充"或近乎空白
+    // once 模式空壳答案区检测：模型输出 `<h2>参考答案…` 但内容是"略/待补充"或近乎空白
     //    （占位式敷衍），不能算有答案页——剥离空壳并强制走独立答案页补生成
     const ansShellInContent = isAnswerShell(content);
     // 🔧 split 模式正文混答剥离（2026-08）：正文生成时即使注入"严禁输出答案"，
@@ -4685,14 +4663,14 @@ ${cardAnalysisText.substring(0, 1000)}
     }
     // 🔧 题+解析一体资料（知识总结等正文自带解析）once 模式且正文无独立参考答案区：
     //    正文已含解析/答案标注时不再补独立答案页（正文解析即答案，防"正文解析 + 独立答案页"重复）
-    // 🔴 2026-09-28（用户裁定·甲方案）：**易错题本移出本表**——其"题目/典型错法/错因剖析/正确解答/方法提示"是随题讲解，
+    // 2026-09-28（用户裁定·甲方案）：**易错题本移出本表**——其"题目/典型错法/错因剖析/正确解答/方法提示"是随题讲解，
     //    但"变式"是留给学生做的题，其答案必须由独立答案区给出；沿用"正文自带解析即跳过答案页"会让变式无答案。
     const genTypeCarriesAnswers = ['summary'].includes(genType);
-    // 🔴 2026-09-28（甲方案配套）：易错题本**不受"正文含'答案：'即跳过答案页"影响**——正文的讲解分项
+    // 2026-09-28（甲方案配套）：易错题本**不受"正文含'答案：'即跳过答案页"影响**——正文的讲解分项
     //    （典型错法/错因剖析/正确解答/方法提示）本就不该触发"自带答案"，且变式的答案必须由答案页给出。
     const bodyCarriesAnswers = genType !== 'errorbook'
       && /答案[:：]|解析[:：]|解法[:：]|归因[:：]|解题思路[:：]|评析[:：]/.test(content);
-    // 🔴 正文冻结快照（2026-09-10 丢题根治）：答案生成前记录正文题号序列——交付前与最终正文比对
+    // 正文冻结快照（2026-09-10 丢题根治）：答案生成前记录正文题号序列——交付前与最终正文比对
     //    （见质检区"正文完整性终检"）：任何"答案生成后动正文"都会被如实告警，
     //    "丢题是生成时还是生成后"由系统自证，不再靠人工考古；序列为空（无题号资料）不参与比对。
     //    比对用 extractBodyQuestionSequence（**形态归一**：括号序号与行首序号归一后再比），
@@ -4710,32 +4688,33 @@ ${cardAnalysisText.substring(0, 1000)}
         //       严禁复述正文知识梳理"，根治"答案区把知识总结整体又输出一遍"
         const ansRole = genType === 'exam' ? ANSWER_ROLES.exam(subject) : ANSWER_ROLES.other(genType);
         // 🔧 上下文根治：整卷正文转纯文本作为输入（不依赖 class="question" 摘要——摘要提取失败/不全即凭记忆编造）
-        //    🔴 素材唯一性·全文口径（2026-09-10 用户定版）：正文一律全文送模型、绝不截断——
+        //    素材唯一性·全文口径（2026-09-10 用户定版）：正文一律全文送模型、绝不截断——
         //    "要求就是正文要是全的、完整的"；正文若过长触及模型上下文上限，宁可失败重试不给半截。
         const paperPlain = htmlToPlainText(content);
         // 🔧 格式根治：答案页注入与正文一致的 HTML 输出规范（此前无格式要求 → 模型直接输出 Markdown 源码）
         const ansFormat = buildAnswerFormatSpec(subject);
-        // 🔧 自包含教辅（summary/review/preview/dictation/errorbook）答案区只写练习/自测/变式解答（典型例题已在正文讲解展示，不重复），
-        //    “按栏目组织答案”仅指按题目所在栏目对答案分类，绝不把正文知识梳理整体复述进答案区（防二次复述）
-        const selfContainedAnsNote = isSelfContainedTeaching
-          ? '\n【自包含教辅答案原则】答案区【只】给出正文中练习/自测/变式的解答（典型例题的解答与解析已在正文讲解展示，严禁在答案区重复复述）；正文的知识框架/知识梳理与精讲/易错辨析/默写内容已在前文呈现，【严禁】在答案区整体重复复述。【严禁】在答案区重复呈现知识结构图、知识导图、梳理条目等正文性内容。'
-          : '';
+        // 2026-10-02（③啰嗦·一份实发内"判据只准一处正句"）：原 `selfContainedAnsNote`（【自包含教辅答案原则】）
+        //   与**同一次调用**的 `ansRole`（ANSWER_ROLES.other 的 summary/review/preview/dictation 分支）**同义**——
+        //   后者的"仅针对本资料正文中实际出现的练习/自测/变式逐题作答（典型例题的解答与解析已在正文讲解展示，
+        //   严禁在答案区重复复述）；【严禁将正文的知识框架/重点梳理/核心知识梳理/易错辨析/默写内容等梳理正文
+        //   整体复述到答案区——正文已提供，答案区只写题目解答】"已覆盖本句全部内容（含"等"字涵盖的结构图/导图/条目）。
+        //   → 正句收口到**库内常量 ANSWER_ROLES**（E2 在册、可编辑），本调用层 inline 整块删除（不再有两处正句）。
         // 🔧 组织口径按类型分流：题类（exam/同步练习/专项等）按"大题与题号"层级；自包含教辅（summary/review/
         //    preview/dictation/errorbook）按"栏目与题号"层级组织——二者均与正文同构、不复述题干/正文梳理
-        // 🔴 2026-09-30（用户裁定）：ansAlignNote 是【尾约束·全文自洽】跨处域（正文 ↔ 答案区逐处对应）在
+        // 2026-09-30（用户裁定）：ansAlignNote 是【尾约束·全文自洽】跨处域（正文 ↔ 答案区逐处对应）在
         //    **答案页独立调用**（split 模式）里的落地形态——该调用不带尾约束块（prompt 只由【正文】+【答案规范】
         //    两段构成），故在此**显式声明隶属关系**，防"同一条要求两处各写一段、将来改一处漏一处"。
         //    ⚠️ 只加这一句**引用**；ansAlignNote 的细则与强度**一字不动**（它比尾约束更细更严，删并即倒退）。
         const ANS_ALIGN_TAIL_REF = '；本条（答案区与正文逐题对齐）即【尾约束·全文自洽】三域中跨处一致一项在本模式下的落地与展开。';
         const ansAlignNote = (isSelfContainedTeaching
-          ? '答案区按正文对应的栏目组织、并与正文同构：正文题目带题号时，答案区**逐题以与正文完全相同的题号起头**（正文用「1. 2. 3.…」则答案同用同一套题号、同序；仅**子题**用 (1)(2)）；**严禁省略题号层、严禁用「(1)(2)」括号序号或纯列表代替题目题号**。不复述正文知识梳理，不重现正文作答空位。'
-          : '**逐题对齐硬要求**：答案区**每个题目都以与正文完全相同的题号起头**（正文怎么编号，答案就逐题用同一套号、同序对应——**正式考卷**正文题号全卷连续，则答案区同样全卷连续；**教辅**正文按栏目（组）分别起编，则答案区按相同栏目（组）分组、组内与正文同号同序；正文用「1. 2. 3.…」，答案也用「1. 2. 3.…」）；大题用与正文相同的汉字序号（教辅组标题逐栏目（组）起编，答案区亦按相同栏目（组）分组、组标题号与正文同号），仅**子题**才用 (1)(2)。**逐题作答、全卷覆盖**：正文中的每一道题都必须在答案区有对应的解答与解析，不得漏题。**严禁省略题号层、严禁用「(1)(2)」括号序号或纯列表代替题目题号**——否则答案与正文无法逐题对应。不复述题干原文（含子题题干），不重现正文作答空位。') + ANS_ALIGN_TAIL_REF;
+          ? '答案区按正文对应的栏目组织、并与正文同构：正文题目带题号时，答案区**逐题以与正文完全相同的题号起头**（正文用「1. 2. 3.…」则答案同用同一套题号、同序；仅**子题**用 (1)(2)）；**严禁省略题号层、严禁用「(1)(2)」括号序号或纯列表代替题目题号**。不重现正文作答空位。'
+          : '**逐题对齐硬要求**：答案区**每个题目都以与正文完全相同的题号起头**、逐一对应（**正式考卷**正文题号全卷连续，答案区同样全卷连续；**教辅**正文按栏目（组）分别起编，答案区按相同栏目（组）分组）；大题用与正文相同的汉字序号，仅**子题**才用 (1)(2)。**逐题作答、全卷覆盖**：正文中的每一道题都必须在答案区有对应的解答与解析，不得漏题。**严禁省略题号层、严禁用「(1)(2)」括号序号或纯列表代替题目题号**。不复述题干原文（含子题题干），不重现正文作答空位。') + ANS_ALIGN_TAIL_REF;
         // ✅ A6（2026-09-11）：答案页前缀顺序 = **压缩原文（仅 full）→ 正文全文 → 委托书（答案规范，末尾锚定）**
         //    · 压缩原文**仅 `mode === 'full'`** 携带（答案常需原文精确表述，如默写/原句）；
         //      命题/练习型**不带**（题目自带情境与素材，且防"照搬原文作答"）；
         //    · **不带锚点清单**：答案范围由正文实际题目决定，锚清单会引入"第二套组织"→ 答案与题目错位；
         //    · 顺序依据同写作期（首尾强/中段弱）：素材在前 → 操作对象（正文）紧邻指令 → 指令末尾 recency 最强。
-        // 🔴 2026-09-18 用户裁定（"答案模块根据正文生成，就不会有污染风险"——**结构上切断**）：
+        // 2026-09-18 用户裁定（"答案模块根据正文生成，就不会有污染风险"——**结构上切断**）：
         //    原条件"mode === 'full'"过宽：知识总结/复习也拿到了教材原文（含其活动与题目）→ 模型把素材里的
         //    题目当成本资料的题作答（实证：答案区出现 Cartoon time / Story time 等教材栏目）。
         //    现收紧为 `answerPageNeedsSource(genType)`（单源在 coverageContract）：只有"答案本身即原文 /
@@ -4744,23 +4723,23 @@ ${cardAnalysisText.substring(0, 1000)}
           ? `【压缩原文·答案参考】\n${compressedText}\n\n`
           : '';
         const ansPrompt = `${ansMaterial}【正文】\n${paperPlain || '（正文为空，无法作答——请终止输出）'}\n\n`
-          + `【答案规范】\n${ansRole}${ansAlignNote}\n${selfContainedAnsNote}\n${ansFormat}`;
+          + `【答案规范】\n${ansRole}${ansAlignNote}\n${ansFormat}`;
         const ansThinking = getGenerationThinkingEnabled();
         const ansResp = await callAI(ansPrompt, {
           taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
-          // 🔴 素材口径（2026-09-10 定版 + 2026-09-11 A6 修订）：答案以【正文全文】为唯一基准；`full` 另带
+          // 素材口径（2026-09-10 定版 + 2026-09-11 A6 修订）：答案以【正文全文】为唯一基准；`full` 另带
           //    【压缩原文】作参考（供原文精确表述），命题型不带。答案严格从正文出：正文缺 → 答案必缺，缺陷即时暴露。
-          // 🔴 答案页输出预算来自每类型 answer 槽的 answerDynamicCap；思考模式按 thinkingBudgetMultiplier 放大
+          // 答案页输出预算来自每类型 answer 槽的 answerDynamicCap；思考模式按 thinkingBudgetMultiplier 放大
           //    （推理预留 + 答案输出），并设 20K 推理上限流式中止止损（答案页短输出，推理可控）
           // 🔧 答案页温度走设置页（answerTemperature）
-          // 🔴 allowContinuation:true → 输出被截断（finish_reason=length / reasoning_capped）时自动续写补齐——
+          // allowContinuation:true → 输出被截断（finish_reason=length / reasoning_capped）时自动续写补齐——
           //    此前禁用续写导致 23368 字符截断的不完整 HTML 进导出，docxBuilder 解析丢内容（答案区整体消失）
-          // 🔴 returnMeta:true → 带出 finishReason / reasoningChunkCount，检测"思考耗尽"（与正文 retryWithoutThinking 对称）：
+          // returnMeta:true → 带出 finishReason / reasoningChunkCount，检测"思考耗尽"（与正文 retryWithoutThinking 对称）：
           //    答案页要逐题作答+听力原文，思考推理长，一旦推理占满 20K 上限 → 输出为空/半截；
           //    第二次重试强制关闭思考，防再次空转（此前无降级 → answerHtml='' → 入库无答案区，"无答案页"根因）
-          // 🔴 产品级钳制（成本护栏）：思考乘数放大后仍 ≤ 引擎档（单次请求费用封顶）
+          // 产品级钳制（成本护栏）：思考乘数放大后仍 ≤ 引擎档（单次请求费用封顶）
           maxTokens: Math.min(clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), engineCap), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
-          // 🔴 2026-09-26（答案页续写对齐正文）：正文链续写轮次由额度派生、不设死；答案页曾锁死 2 轮 → 长答案页
+          // 2026-09-26（答案页续写对齐正文）：正文链续写轮次由额度派生、不设死；答案页曾锁死 2 轮 → 长答案页
           //    2 轮就放弃（仍截断）→ 提权到 ANSWER_CONT_MAX_ROUNDS + 预算化 planRound（makeBudgetedPlanRound）
           contMaxRounds: ANSWER_CONT_MAX_ROUNDS,
           maxReasoningChunks: ansThinking ? GEN_CONST.REASONING_CAP_ANSWER : GEN_CONST.REASONING_CAP_ANSWER_FORCED,
@@ -4768,14 +4747,14 @@ ${cardAnalysisText.substring(0, 1000)}
         });
         const ansObj = typeof ansResp === 'string' ? { content: ansResp, finishReason: '', reasoningChunkCount: 0 } : (ansResp || { content: '', finishReason: '', reasoningChunkCount: 0 });
         let aHtml = normalizeMathCircleBlanks(normalizeLeadingMarkers(cleanSectionHtml(ansObj.content || '')));
-        // 🔴 思考耗尽判定：推理达到上限（reasoning_capped）或 chunk 数巨大 → 本次重试强制关闭思考
+        // 思考耗尽判定：推理达到上限（reasoning_capped）或 chunk 数巨大 → 本次重试强制关闭思考
         const ansCapped = ansObj.finishReason === 'reasoning_capped' || (ansObj.reasoningChunkCount || 0) >= GEN_CONST.REASONING_EXHAUST_THRESHOLD;
-        // 🔴 2026-09-24 根治（用户裁定"不接受打补丁"）：续写链已能**如实上报"跑完仍被截断"**
+        // 2026-09-24 根治（用户裁定"不接受打补丁"）：续写链已能**如实上报"跑完仍被截断"**
         //    （finishReason 保持 length）。旧实现只查"空 / 过短 / 思考耗尽"，于是一份**长度过线的半截答案**
         //    会被静默放行 —— 这正是"答案区缺后半段"的静默路径。现口径：仍截断 = 未完整，
         //    与"空/过短"同档：重试一次；两次都不完整 → 判失败（宁失败不残缺），绝不交付半截答案。
         const ansTruncated = ansObj.finishReason === 'length' || ansObj.finishReason === 'reasoning_capped';
-        // 🔴 2026-09-26（答案区"只剩尾部、缺前段"静默根治）：续写只治"尾部被截断"，治不了"答案区缺正文前段逐题答案"——那是"模型没写前半"，尾部完整+finish=stop 会被误判完成。现加题号缺失检测（正文顶层题号≥4 而答案区一个/顶层都无）→ severe 视同"未完整"，走重试；重试仍缺 → 告警交付（内容在但半缺，不静默）。
+        // 2026-09-26（答案区"只剩尾部、缺前段"静默根治）：续写只治"尾部被截断"，治不了"答案区缺正文前段逐题答案"——那是"模型没写前半"，尾部完整+finish=stop 会被误判完成。现加题号缺失检测（正文顶层题号≥4 而答案区一个/顶层都无）→ severe 视同"未完整"，走重试；重试仍缺 → 告警交付（内容在但半缺，不静默）。
         const ansGap = detectAnswerSectionMissing(content || '', aHtml);
         if (aHtml && aHtml.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansCapped && !ansTruncated && !ansGap.severe) {
           const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
@@ -4794,13 +4773,13 @@ ${cardAnalysisText.substring(0, 1000)}
           console.warn(`⚠️ 答案页内容${ansReason}，自动重试一次${ansCapped ? '（强制关闭思考）' : ''}`);
           const ansResp2 = await callAI(ansPrompt, {
             taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
-            // 🔴 素材唯一性：答案页重试同口径——只带正文全文，不带任何素材前缀
+            // 素材唯一性：答案页重试同口径——只带正文全文，不带任何素材前缀
             history: undefined,
             maxTokens: Math.min(clampReq(answerDynamicCap) * (ansThinking ? (apiConfig.generationSettings.thinkingBudgetMultiplier || 2) : 1), engineCap), allowContinuation: true, temperature: apiConfig.generationSettings.answerTemperature,
-            // 🔴 2026-09-26（答案页续写对齐正文）：重试同样提权续写轮数 + 预算化
+            // 2026-09-26（答案页续写对齐正文）：重试同样提权续写轮数 + 预算化
             contMaxRounds: ANSWER_CONT_MAX_ROUNDS,
             maxReasoningChunks: ansThinking ? GEN_CONST.REASONING_CAP_ANSWER : GEN_CONST.REASONING_CAP_ANSWER_FORCED,
-            thinking: (ansCapped || ansTruncated || (ansObj.reasoningChunkCount || 0) > 0) ? false : undefined, // 🔴 有推理痕迹（含引擎强制推理）→ 重试强制关闭思考
+            thinking: (ansCapped || ansTruncated || (ansObj.reasoningChunkCount || 0) > 0) ? false : undefined, // 有推理痕迹（含引擎强制推理）→ 重试强制关闭思考
             returnMeta: true,
           });
           const ansObj2 = typeof ansResp2 === 'string' ? { content: ansResp2, finishReason: '', reasoningChunkCount: 0 } : (ansResp2 || { content: '', finishReason: '', reasoningChunkCount: 0 });
@@ -4811,7 +4790,7 @@ ${cardAnalysisText.substring(0, 1000)}
             const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
             answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml2)}</div>`;
           } else if (aHtml2 && aHtml2.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansTruncated2 && ansGap2.severe) {
-            // 🔴 2026-09-26：重试后内容有效但答案区仍缺正文前段题号 → **告警交付，不判整卷失败**（避免纯评分/开放表达卷被误杀）；
+            // 2026-09-26：重试后内容有效但答案区仍缺正文前段题号 → **告警交付，不判整卷失败**（避免纯评分/开放表达卷被误杀）；
             //    绝不静默——并入正文路径告警（审核报告可见），提示人工核对答案区完整性。
             const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
             answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml2)}</div>`;
@@ -4819,7 +4798,7 @@ ${cardAnalysisText.substring(0, 1000)}
             if (typeof bodyPathNotes !== 'undefined' && Array.isArray(bodyPathNotes)) bodyPathNotes.push(gapNote);
             console.warn(gapNote);
           } else {
-            // 🔴 两次生成必须成功（2026-09-11 用户定版）：split 模式答案页是唯一答案源——
+            // 两次生成必须成功（2026-09-11 用户定版）：split 模式答案页是唯一答案源——
             //    两次尝试仍失败且正文无答案区 → 判失败（进入外层整卷重试），绝不静默交付"正文-only"
             //    （once 模式正文自带答案区时不判，正文即答案载体）
             console.warn(`⚠️ 答案页重试仍不可用（清洗后 ${aHtml2?.length || 0} 字符，finish=${ansObj2.finishReason || 'unknown'}${ansTruncated2 ? '，仍被截断' : ''}）`);
@@ -4830,7 +4809,7 @@ ${cardAnalysisText.substring(0, 1000)}
           }
         }
       } catch (e) {
-        // 🔴 同上：答案页是 split 模式唯一答案源，失败不得静默交付（正文无答案区 → 判失败重试）
+        // 同上：答案页是 split 模式唯一答案源，失败不得静默交付（正文无答案区 → 判失败重试）
         if (!/<h[1-6][^>]*>\s*参考答案|answer-section/i.test(content)) {
           throw new Error(`答案页生成失败（${e.message}，正文无答案区）——本次生成判失败，将自动整卷重试`);
         }
@@ -4844,9 +4823,9 @@ ${cardAnalysisText.substring(0, 1000)}
       content = wrapAnswerSection(content);
     }
 
-    // 🔴 标题根治兜底：移除模型拼入 h1 的任务行类型词（如“ 考卷”），标题只保留命名规范占位符组合
+    // 标题根治兜底：移除模型拼入 h1 的任务行类型词（如“ 考卷”），标题只保留命名规范占位符组合
     content = stripTypeWordFromTitle(content);
-    // 🔴 过程自述剥离（2026-09 根治"声明≠覆盖"）：模型把"我已获取教材原文…现在编写正文"当正文首段输出
+    // 过程自述剥离（2026-09 根治"声明≠覆盖"）：模型把"我已获取教材原文…现在编写正文"当正文首段输出
     //    ——确定性剥除开头自述段（纯文本段匹配自述特征才剥，题号/栏目开头的真内容不误伤）
     content = stripPlanningPreamble(content);
 
@@ -4857,7 +4836,7 @@ ${cardAnalysisText.substring(0, 1000)}
     //    "复习卡补漏/定向补齐"——覆盖是否呈现由正文生成期决定，报告只如实输出「覆盖点→题映射 + 未呈现清单」，
     //    交用户核对，不自动改写正文（防复习卡污染栏目形态、防诱导按覆盖点凑内容）。
 
-    // 🔴 卷级守门（2026-09 系统性根治；写作修订轮已砍除，见下 5098 说明）：
+    // 卷级守门（2026-09 系统性根治；写作修订轮已砍除，见下 5098 说明）：
     //    只做确定性检测 & 出报告，不做模型重写修订：命中清单留下交编辑核对，程序不改写内容。
     //    发现靠确定性规则（照搬/算式重复/情境集中/首段自述/裂缝）。
     //    语料=整章原文（含练习/作业成品段，见下 A11-1/A11-2——供料与比对同源更全）
@@ -4872,7 +4851,7 @@ ${cardAnalysisText.substring(0, 1000)}
       ? collectChapterRawText(contentCards).flatMap((c) => c.segmentTexts.filter((t) => t.length >= 8))
       : [];
     let guardResult = guardPaper({ html: finalContent, corpus: refCorpus, copy: copyGuardOn, subject: book?.subject || '' });
-    // 🔴 写作修订轮（整卷重写自纠）已砍除（2026-09 实测两轮 100% 空转：让模型完整重打整卷+答案区
+    // 写作修订轮（整卷重写自纠）已砍除（2026-09 实测两轮 100% 空转：让模型完整重打整卷+答案区
     //    ≈10K+ token，总省略/截断 → 每轮判"长度异常·未回传整卷全文"→ 0 修复、白烧 2 次长调用）。
     //    化整为零（用户定版；审核基准：程序不做内容改写，只做可确定性判定的整理）：
     //       · 首段过程性自述句（"已获取教材原文/现依据…命题"）→ 程序确定性删除（可判定文本）；
@@ -4884,12 +4863,12 @@ ${cardAnalysisText.substring(0, 1000)}
       console.log(`✅ [出稿自检] 程序已确定性删除正文首段过程性自述句，正文直入（残留命中仍进报告）`);
     }
 
-    // 🔴 密封线兜底：正式试卷且 AI 未输出密封线 → 代码补（恢复原拼装器的密封线成果）
+    // 密封线兜底：正式试卷且 AI 未输出密封线 → 代码补（恢复原拼装器的密封线成果）
     if (genType === 'exam' && !/<div[^>]*class="[^"]*seal-zone[^"]*"/.test(finalContent)) {
       finalContent = `${buildSealLineHeader()}\n${finalContent}`;
     }
 
-    // 🔴 整卷结构质量校验（规则库三维度匹配：学段×学科×资料类型）：
+    // 整卷结构质量校验（规则库三维度匹配：学段×学科×资料类型）：
     //    fix 类自动修复（拼音归一/模板残留/分值对齐/标题明细式/作文格补格等），
     //    guard 类静默计数 → 明细转"抽检提示"展示到生成报告【问题列表】（代码确定性规则，零 AI 调用）
     let auditWarnings = [];
@@ -4914,7 +4893,7 @@ ${cardAnalysisText.substring(0, 1000)}
       //    （幂等）：凡纯空白整行、其下一非空兄弟行已含行内作答载体 → 冗余剔除；
       //    确属"长答书写空间"（下一兄弟无行内载体 / 无后续小题）的空行保留，符合 1c-3 保全口径。
       finalContent = stripRedundantInlineCarrierRows(finalContent);
-      // 🔴 答案区保留护栏：质检器异常丢失答案区（历史真实事故："拼接后有答案、audit 后无答案"）→
+      // 答案区保留护栏：质检器异常丢失答案区（历史真实事故："拼接后有答案、audit 后无答案"）→
       //    从审计前内容提取答案区拼回（宁可少修复，不可丢答案）；根因待样本定位
       if (hadAnswerBeforeAudit && !/answer-section/.test(finalContent)) {
         const ansPart = beforeAudit.match(/<div[^>]*class="[^"]*answer-section"[^>]*>[\s\S]*$/i);
@@ -4922,7 +4901,7 @@ ${cardAnalysisText.substring(0, 1000)}
           finalContent = finalContent + '\n\n' + ansPart[0];
         }
       }
-      // 🔴 正文丢失护栏（2026-09-10 实证补）：质检器以 audit.html **整体替换**正文（finalContent = audit.html），
+      // 正文丢失护栏（2026-09-10 实证补）：质检器以 audit.html **整体替换**正文（finalContent = audit.html），
       //    而上面那条只保"答案区"——**正文若被误删则静默丢进交付**（实测样本：正文缺第2~5题、答案区却完整）。
       //    判据：质检前后比较"正文部分"的**题号数**与**h3 小节数**；任一明显减少 → 判定质检损伤正文：
       //    回退为质检前正文（答案区优先取质检后、无则取质检前），并写入【问题列表】（不静默）。
@@ -4952,7 +4931,7 @@ ${cardAnalysisText.substring(0, 1000)}
       console.warn('⚠️ 整卷质检器异常（不影响生成结果）:', e.message);
     }
 
-    // 🔴 正文完整性终检（2026-09-10 丢题根治：程序不改写、只如实报告）：
+    // 正文完整性终检（2026-09-10 丢题根治：程序不改写、只如实报告）：
     //    ① 冻结比对：答案生成前快照 vs 交付正文题号序列——不一致 = "答案生成后正文被改动"（如
     //       质检器 DOM 重序列化损伤），直指后处理，供人工核对；
     //    ② 缺号报告：正文题号 1~峰值 存在缺口 = 丢题（截断启发式与质检护栏均测不出的"中段丢题"），
@@ -4963,10 +4942,10 @@ ${cardAnalysisText.substring(0, 1000)}
       if (finalSeq && finalSeq !== bodyQSnapshot && isBodyQuestionSeqChanged(bodyQSnapshot, finalSeqArr)) {
         auditWarnings.push(`⚠️ 答案生成后正文题号序列发生变化（[${bodyQSnapshot}] → [${finalSeq}]）——质检/后处理改动了正文，请核对正文完整性。`);
       } else if (finalSeq && finalSeq !== bodyQSnapshot) {
-        // 🔴 2026-09-15 用户定版：仅题号形态/顺序差异（集合与题数均未变）**不算**正文被改动 → 不进【问题列表】
+        // 2026-09-15 用户定版：仅题号形态/顺序差异（集合与题数均未变）**不算**正文被改动 → 不进【问题列表】
         console.debug(`[正文冻结比对] 仅题号形态/顺序差异（非内容增删），不告警：[${bodyQSnapshot}] → [${finalSeq}]`);
       }
-      // 🔴 2026-09-17 口径统一（用户报"问题列表仍误报题号"）：问题列表与生成日志同口径——
+      // 2026-09-17 口径统一（用户报"问题列表仍误报题号"）：问题列表与生成日志同口径——
       //    只有"缺号在正文任何位置都不出现"（nowhere）才是丢题实证；形态性缺号（能在别处以其它形态找到）
       //    不进问题列表（此前此处直接按缺号报警，与已改为"形态放行"的日志口径不一致 → 完整卷被误报）。
       const cls = classifyNumberingGap(finalContent);
@@ -4978,7 +4957,7 @@ ${cardAnalysisText.substring(0, 1000)}
       }
     }
 
-    // 🔴 答案页缺失可见性：独立调用尝试过但仍无答案区 → 透出原因到生成报告【问题列表】，
+    // 答案页缺失可见性：独立调用尝试过但仍无答案区 → 透出原因到生成报告【问题列表】，
     //    不再静默丢（用户必须清楚为什么没有答案页）；题+解析一体跳过时改为说明性提示，不误报"失败"
     if (!answerSkipNote && !answerHtml && !(/<div[^>]*class="[^"]*answer-section"/.test(finalContent))) {
       auditWarnings.push('⚠️ 答案页生成失败/为空（正文已生成）。排查方向：① 引擎是否强制推理（推理会占用答案预算，可在设置关闭对应引擎思考开关）；② 「答案页输出上限」是否过小；③ 正文超「答案页上下文上限」时答案只能看到前段；④ 切换两次生成模式重试。');
@@ -5003,7 +4982,7 @@ ${cardAnalysisText.substring(0, 1000)}
       console.warn(`🖼 [图标记取证] 正文 [IMAGE]=${imgMarkN} 个 [GRAPH]=${graphMarkN} 个 ｜ 正文命中图依赖词=${figAsked} ｜ ${figAsked && !imgMarkN && !graphMarkN ? '⚠️ 题干要图但正文无任何图标记（模型没写 or 程序删了）' : '一致（无需人工补图）'}`);
     } catch (e) { /* 取证失败不影响主流程 */ }
 
-    // 🔴 出稿自检报告（卷级守门最终状态：程序剔除首段自述后仍残留的命中统一分节透出——
+    // 出稿自检报告（卷级守门最终状态：程序剔除首段自述后仍残留的命中统一分节透出——
     //    照搬/算式重复/情境集中/数据载体裂缝；只报不改、中性表述，交编辑核对决断）
     if (guardResult.hits.length) {
       const guardParas = guardReportOf(guardResult.hits, { copyLimit: 5 });
@@ -5019,7 +4998,7 @@ ${cardAnalysisText.substring(0, 1000)}
     //    实现 utils/domainReconciler.js 与其测试已删除；config/domainContract.js（课标领域名+关键词白名单）
     //    作为**参考数据**保留，不再是"唯一事实源"（已无消费方）。
 
-    // 🔴 生成方式提示：auto 模式下告知用户本次实际走的路径，并引导其到设置固定（用户必须清楚自己配置了什么）
+    // 生成方式提示：auto 模式下告知用户本次实际走的路径，并引导其到设置固定（用户必须清楚自己配置了什么）
     if ((typeMode || 'auto') === 'auto') {
       auditWarnings.push(`ℹ️ 生成方式：${modeLabel}（自动按资料类型：${genType}）。如需固定请到「设置 → 整卷输出预算」把该类型的「生成路径」改为「两次」或「一次」。`);
     }
@@ -5054,7 +5033,7 @@ ${cardAnalysisText.substring(0, 1000)}
   // ==================== 整卷一次生成 ====================
   const generate = async (instruction, genType, selectedBooks, selectedTemplates, retryCount = 0, scopeType = '', programAttach = '') => {
     const MAX_RETRIES = apiConfig.generationSettings?.retry?.generationRetries ?? 2;
-    // 🔴 整卷质检静默明细缓存（代码确定性规则检测到的需抽检项，经 fpResult.auditWarnings 传递后展示到生成报告）
+    // 整卷质检静默明细缓存（代码确定性规则检测到的需抽检项，经 fpResult.auditWarnings 传递后展示到生成报告）
     let auditWarningsFromPaper = [];
     // 🔧 缓存管理：
     // - 逐章调用（_perChapterChapterTitle 已设置）：保留缓存供章节过滤复用
@@ -5210,7 +5189,7 @@ ${cardAnalysisText.substring(0, 1000)}
             // ── 统一情境：整卷一个核心情境，所有题目在此情境下展开（AI 自主设计）──
             console.log('AI 动态生成统一情境...');
 
-            // 🔴 2026-09-30（用户裁定·去指向性诱导）：本提示**只给课标要求、不给做法**——删除三项"做法层"：
+            // 2026-09-30（用户裁定·去指向性诱导）：本提示**只给课标要求、不给做法**——删除三项"做法层"：
             //    ① scenes 场景清单（"场景数量由你自定 + 场景之间要有逻辑递进关系"＝把**逐题叙事骨架**递给模型；
             //       产物实证：小学低段语文读音题 4 个小题各配一个小场景、同主题递进，正是 scenes 数组的形状）；
             //    ② narrativeArc 叙事弧线（"如何从开头发展到结尾"＝逐段叙事的推手）；
@@ -5222,14 +5201,13 @@ ${cardAnalysisText.substring(0, 1000)}
 1. 情境须真实、适切，与学科内容一致；情境类型沿用本学科课程标准界定的情境类型（义教课标"真实而富有意义的学习情境"；高中课标"以具体情境为载体"）
 2. 情境应能自然地容纳不同设问角度与知识点
 
-【输出格式】必须返回严格 JSON：
+【输出格式】
+必须返回严格 JSON：
 {
   "name": "情境名称（15字以内）",
   "background": "情境背景描述（50字以内）",
   "mainTask": "核心任务或问题（30字以内）"
-}
-
-只返回 JSON。`;
+}`;
 
             const contextResult = await callAI(contextPrompt, {
               taskType: 'blueprint',
@@ -5248,21 +5226,17 @@ ${cardAnalysisText.substring(0, 1000)}
                 'generation'
               );
 
-              // 🔴 2026-09-30（用户裁定·只给课标要求、不给做法）：注入块与上面的生成提示同源收口——
+              // 2026-09-30（用户裁定·只给课标要求、不给做法）：注入块与上面的生成提示同源收口——
               //    删除「📋 可用场景」清单、📐 叙事弧线、「与该情境相适的题目在其下展开」、「场景顺序按内容
               //    自然展开，与学习进阶匹配」四层**做法/组织序列指定**（模型据此把场景逐题分配＝一题一场景）；
               //    并删除「不要求每一小题都被同一叙事场景包裹」——**否定式植入**（要读懂须先激活该图式，
               //    且"不要求"是许可语气，反而把逐题包裹合法化；全项目早有"去否定式列举"同款裁定）。
               //    保留：主题方向（名称/背景/核心任务）+ 一句课标要求（全卷连贯、情境类型沿用课标界定）。
-              contextFramework = `
-【统一情境框架——本卷围绕核心主题情境组织】
-
-📖 情境名称：${contextJson.name}
-📝 背景：${contextJson.background}
-🎯 核心任务：${contextJson.mainTask}
-
-主题与设问在全卷连贯；情境沿用本学科课程标准界定的情境类型。
-`;
+              contextFramework = `【统一情境框架——本卷围绕核心主题情境组织】
+· 情境名称：${contextJson.name}
+· 背景：${contextJson.background}
+· 核心任务：${contextJson.mainTask}
+· 主题与设问在全卷连贯；情境沿用本学科课程标准界定的情境类型。`;
               console.log('✅ AI情境框架生成成功:', contextJson.name);
             } catch (e) {
               console.warn('情境框架解析失败，模型按组织风格指令自行设计情境:', e.message);
@@ -5281,19 +5255,19 @@ ${cardAnalysisText.substring(0, 1000)}
         }
       }
       
-      // ──────── 🔴 统一生成路径：所有引擎、所有资料类型一律整卷一次生成（指令库驱动） ────────
+      // ──────── 统一生成路径：所有引擎、所有资料类型一律整卷一次生成（指令库驱动） ────────
       //    用户只选教材 + 资料类型：exam 自动用真题蓝本（卷面结构固定），其余 8 类自动用教辅结构蓝本。
       // 整卷生成路径下声明的变量（供后续质量校验共享）
       let blueprint = '';
       let parsedBlueprint = [];
       let content = '';
       let generatedQuestions = [];
-      // 🔴 整卷生成路径（指令库驱动）：无分步流水线，卷面结构由蓝图注入+密封线兜底保证
+      // 整卷生成路径（指令库驱动）：无分步流水线，卷面结构由蓝图注入+密封线兜底保证
       let sectionPlans = [];
-      // 🔴 PostPass 质量门/总题量防线问题（issues 声明后展示）
+      // PostPass 质量门/总题量防线问题（issues 声明后展示）
       let postPassIssues = [];
 
-      // ========== 🔴 整卷一次生成（指令库驱动，主路径） ==========
+      // ========== 整卷一次生成（指令库驱动，主路径） ==========
       // 注入指令 = 指令库模板（UI"注入指令框"可见可编辑），一次生成整卷正文 + 独立答案页。
       // 无分块、无 byCode 拼装、无 AI 事后质检——生成质量由"人话指令 + 模型本能"保证（代码确定性兜底保留）。
       // 分步流水线（generateByRecipe/runPipeline）已整体删除。
@@ -5301,7 +5275,7 @@ ${cardAnalysisText.substring(0, 1000)}
         progress.value = 40;
 
         try {
-          // 🔴 差异化要求（复生成）：从注入指令解析"已覆盖知识点"清单 → 注入整卷生成
+          // 差异化要求（复生成）：从注入指令解析"已覆盖知识点"清单 → 注入整卷生成
           const diffMatch = String(instruction || '').match(/已覆盖知识点[：:]\s*([^\n]+)/);
           const diffKps = diffMatch
             ? diffMatch[1].split(/[、,，;；]/).map(s => s.trim()).filter(Boolean).slice(0, 20)
@@ -5322,7 +5296,7 @@ ${cardAnalysisText.substring(0, 1000)}
           blueprint = '';
           sectionPlans = [];
           postPassIssues = [];
-          // 🔴 整卷质检静默明细 → 转"抽检提示"展示到生成报告【问题列表】（代码确定性规则，零 AI 调用）
+          // 整卷质检静默明细 → 转"抽检提示"展示到生成报告【问题列表】（代码确定性规则，零 AI 调用）
           if (fpResult.auditWarnings?.length) {
             auditWarningsFromPaper = fpResult.auditWarnings;
           }
@@ -5341,12 +5315,12 @@ ${cardAnalysisText.substring(0, 1000)}
       progress.value = 85;
 
       const issues = [];
-      // 🔴 出稿自检表（2026-09-27，只进审核报告·问题列表）：程序确定性修复/检测已完成后，
+      // 出稿自检表（2026-09-27，只进审核报告·问题列表）：程序确定性修复/检测已完成后，
       //    仍需**人工核对**的维度汇总成一节清单——程序只自动修复确定性错误、无法替编辑下价值判断，
       //    故凡存在抽检项时顶部给出核对指引；无抽检项则不插入（防噪音）。
       if (auditWarningsFromPaper?.length) {
         issues.push('📋 出稿自检要点（请按下表逐项核对）：'
-          // 🔴 2026-09-28（题号口径按类型分流·与条款同源）：①④ 的编号维度**按 genType 分型**——
+          // 2026-09-28（题号口径按类型分流·与条款同源）：①④ 的编号维度**按 genType 分型**——
           //    正式考卷大题序号/题号全卷连续；教辅组标题逐栏目（组）起编、题号在同一栏目（组）内连续
           //    （单源见 promptLibrary 的 GROUP_TITLE_NUMBERING_CALIBER / QUESTION_NUMBERING_CALIBER）。
           //    原先两处无条件写"全卷连续"，会对教辅自检项"互相否定"。
@@ -5357,15 +5331,15 @@ ${cardAnalysisText.substring(0, 1000)}
           + '⑤ 答案区与正文逐题对应（同号、无遗漏、无多答）；'
           + '⑥ 情境与设问真实、符合本学段课标，无照搬教材原题。');
       }
-      // 🔴 整卷质检静默明细（代码确定性规则检测到的需抽检项）→ 展示到生成报告【问题列表】
+      // 整卷质检静默明细（代码确定性规则检测到的需抽检项）→ 展示到生成报告【问题列表】
       if (auditWarningsFromPaper?.length) {
         auditWarningsFromPaper.forEach(w => issues.push(w));
       }
-      // 🔴 PostPass 质量门/总题量防线问题 → 展示到生成报告（issues 已声明）
+      // PostPass 质量门/总题量防线问题 → 展示到生成报告（issues 已声明）
       if (postPassIssues?.length) {
         postPassIssues.forEach(q => issues.push(`❌ ${q}`));
       }
-      // 🔴 未分析/无原文章节提示 → 展示到生成报告（混合勾选时用户需知道哪些章用了目录模式）
+      // 未分析/无原文章节提示 → 展示到生成报告（混合勾选时用户需知道哪些章用了目录模式）
       const unanalyzedCardList = (contentCards || []).filter(c => c.source === 'unanalyzed').map(c => c.chapterTitle);
       const tocCardList = (contentCards || []).filter(c => c.source === 'toc').map(c => c.chapterTitle);
       if (unanalyzedCardList.length > 0) {
@@ -5375,7 +5349,7 @@ ${cardAnalysisText.substring(0, 1000)}
         issues.push(`⚠️ 以下章节未能提取到教材原文（OCR/解析无内容），已按目录模式生成：${tocCardList.join('、')}`);
       }
 
-      // 🔴 整卷质检（生成端保障）：
+      // 整卷质检（生成端保障）：
       //    - AI 质检已移除——"自产自评"无意义（同一模型检不出系统性错误），
       //      质检误报还会中断整卷生成（实测空壳误判→两次重试→整卷失败）；
       //    - 代码确定性兜底保留（auditExamPaper 已在整卷生成内部执行：拼音/模板残留/分值对齐等 fix + guard 静默抽检）
@@ -5425,7 +5399,7 @@ ${cardAnalysisText.substring(0, 1000)}
 
     } catch (error) {
       console.error('生成失败:', error);
-      // 🔴 出厂质检失败不整卷自动重试（成本高且不保证修复）——直接进入弹窗让用户选择重试/批量/取消
+      // 出厂质检失败不整卷自动重试（成本高且不保证修复）——直接进入弹窗让用户选择重试/批量/取消
       if (retryCount < MAX_RETRIES && !error.qualityGate) {
         await new Promise(resolve => setTimeout(resolve, apiConfig.generationSettings?.retry?.baseDelayMs ?? 2000));
         return generate(instruction, genType, selectedBooks, selectedTemplates, retryCount + 1, scopeType, programAttach);
@@ -5449,7 +5423,7 @@ ${cardAnalysisText.substring(0, 1000)}
         return generate(instruction, genType, selectedBooks, selectedTemplates, 0, scopeType, programAttach);
       }
 
-      // 🔴 分步流水线残留路径已移除：全类型一律走整卷一次生成（指令库驱动，结构由蓝图注入保证）
+      // 分步流水线残留路径已移除：全类型一律走整卷一次生成（指令库驱动，结构由蓝图注入保证）
 
       // 用户选择取消
       return { success: false, error: error.message, retried: retryCount > 0 };
@@ -5541,7 +5515,7 @@ ${cardAnalysisText.substring(0, 1000)}
   // ==================== 预习导学专用生成 ====================
 
 /**
-   * 🔴 残留整卷路径 generateBatchWithBlueprint 已移除（2026-08）：
+   * 残留整卷路径 generateBatchWithBlueprint 已移除（2026-08）：
    *    全类型一律走整卷一次生成（指令库驱动，蓝图注入卷面结构，无分步流水线）。
    */
 
@@ -5578,7 +5552,7 @@ ${changeContext ? `- 改变题目情境或背景描述` : ''}
 ${changeOptions ? `- 如果是选择题，改变选项内容、顺序和部分选项` : ''}
 - 保持难度不变（${questionPlan.difficulty}）
 - 保持相同的知识点覆盖
-- 必须是一道全新题目：换情境、换数据、换表述，不得与原题雷同
+- 必须是一道全新题目：不得与原题雷同
 - 保持 HTML 格式
 ${questionPlan.score ? `- 标注：【知识点：${questionPlan.knowledgePoint}】【难度：${questionPlan.difficulty}】\n` : ''}
 

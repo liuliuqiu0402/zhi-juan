@@ -1,33 +1,33 @@
 /**
  * 编辑器内公式实时渲染（KaTeX 装饰层）
  * ============================================================
- * 🔴 解决什么（2026-09 用户实证）：编辑器里公式一直显示 `$\frac{a}{b}$` 源码 —— 前面链路
+ * 解决什么（2026-09 用户实证）：编辑器里公式一直显示 `$\frac{a}{b}$` 源码 —— 前面链路
  *    （渲染/粘贴/Word）都修好了，但用户在**编辑器**这个每天打交道的界面里看不到效果，
  *    会直接判定"公式没保留"。
  *
- * 🔴 为什么用 ProseMirror **装饰（Decoration）**而不是自定义节点：
+ * 为什么用 ProseMirror **装饰（Decoration）**而不是自定义节点：
  *    装饰只影响"视图"，**不改文档内容**。文档里存的仍是 `$…$` 纯文本，
  *    因此 rawText 派生、内容清洗、docx、PDF、预览等全部下游链路**零改动**——
  *    这是本仓库最容易出连带事故的地方（编辑器 schema 一动，导出/粘贴/清洗全受牵连）。
  *
- * 🔴 为什么是「inline 隐藏源码 + widget 渲染」而不是"替换型装饰"：
+ * 为什么是「inline 隐藏源码 + widget 渲染」而不是"替换型装饰"：
  *    prosemirror-view 1.41 已**移除** `Decoration.replace`（实测只剩 widget/inline/node）。
  *    改用等价组合后反而更稳：**源码文本仍留在真实 DOM 里**，只有视觉被隐藏 ——
  *    任何尚未适配的读取路径都不会"读不到公式"。
  *
- * 🔴 三道保险（缺一就会出现重复或乱码）：
+ * 三道保险（缺一就会出现重复或乱码）：
  *    ① CSS：`.zwg-math-src{display:none}` 放在 MATH_CSS（单一事实源，应用内与导出都注入）
  *    ② `restoreMathPreviewSource()`：内容读取边界把 widget 移除、把隐藏 span 拆掉，
  *       还原成与"从未渲染过"一致的 HTML（TypesetModule / getDomHTML 已接）
  *    ③ `docxBuilder` 兜底：识别 `[data-math-preview]` 按 data-math-latex 出真公式，
  *       并跳过 `.zwg-math-src` 隐藏源码 —— 即使某条路径漏了 ②，也不会重复也不会乱码
  *
- * 🔴 编辑体验：光标/选区落在公式内时不装饰，露出源码供编辑；点击公式即把光标送进区间。
+ * 编辑体验：光标/选区落在公式内时不装饰，露出源码供编辑；点击公式即把光标送进区间。
  * ============================================================
  */
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
-// 🔴 只从 @tiptap/pm/view 取 Decoration/DecorationSet：Tiptap v3 该入口**未转出 WidgetType**
+// 只从 @tiptap/pm/view 取 Decoration/DecorationSet：Tiptap v3 该入口**未转出 WidgetType**
 //    （实测只导出 5 个符号），故自建最小基类 —— ProseMirror 对 widget 只做鸭子类型使用。
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import {
@@ -90,7 +90,7 @@ export const buildMathPreviewDom = (latex, display) => {
   const el = document.createElement('span');
   el.className = `zwg-math-preview${display ? ' zwg-math-preview-display' : ''}`;
   el.setAttribute(MATH_PREVIEW_ATTR, '1');
-  el.setAttribute(MATH_LATEX_ATTR, latex);       // 🔴 还原 / Word 导出的依据
+  el.setAttribute(MATH_LATEX_ATTR, latex);       // 还原 / Word 导出的依据
   el.setAttribute(MATH_DISPLAY_ATTR, display ? '1' : '0');
   el.setAttribute('title', '点击编辑公式源码');
   el.setAttribute('contenteditable', 'false');
@@ -136,7 +136,7 @@ export const collectDecorations = (doc, selection) => {
 /**
  * 编辑器自身的**定位记号**（不是用户内容）：ProseMirror 在"文本块末尾是 widget/叶节点"时会插入
  *   `<img class="ProseMirror-separator">` 与 `<br class="ProseMirror-trailingBreak">` 作为光标定位锚。
- *   🔴 2026-09-30 用户实证：段末是公式时（展示式 `$$…$$` 独占一段是最常见形态），导出 Word 后
+ *   2026-09-30 用户实证：段末是公式时（展示式 `$$…$$` 独占一段是最常见形态），导出 Word 后
  *   多出两个字"【图片】"（导出器见到无 src 的 img → 回退成占位文字）+ 一个多余换行。
  *   此前全库无任何处理（检索 ProseMirror-separator/trailingBreak：0 处）。
  */

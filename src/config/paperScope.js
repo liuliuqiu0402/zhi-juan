@@ -10,7 +10,7 @@
  *   1) 文件名/文档列表命名（GenerateModule，统一消解多处重复实现）
  *   2) 卷首大标题（生成标题占位符组装），让"命题范围"进入正式标题
  *
- * 🔴 范围类型分流规则（本模块的唯一判定口径，整卷生成路径共用）：
+ * 范围类型分流规则（本模块的唯一判定口径，整卷生成路径共用）：
  *   - scopeType 显式指定为非默认（midterm/final/monthly/topic）→ 一律用该类型的标签词（可轮换 override），
  *     即便勾选只是单课/单元也尊重用户显式意图（选"期中"就出"期中"）。
  *   - scopeType 为 default/空      → 按勾选集合自动推断：
@@ -41,7 +41,7 @@ export const SCOPE_DIMENSION_LABELS = {
   xiaoshengchu: '小升初', zhongkao: '中考', gaokao: '高考',
 };
 
-/** 🔴 显式范围类型：用户手动选择时应始终以标签词呈现（override 自动推断） */
+/** 显式范围类型：用户手动选择时应始终以标签词呈现（override 自动推断） */
 export const EXPLICIT_SCOPE_TYPES = ['midterm', 'final', 'monthly', 'topic', ...EXAM_GRADUATION_TYPES];
 
 /**
@@ -65,7 +65,7 @@ export const buildPaperTitle = ({ grade = '', subject = '', semester = '', scope
  */
 export const applyPaperTitleToContent = (html, title) => {
   if (!html || !title) return html || '';
-  // 🔴 卷首标题命名是程序确定性职责，不依赖 AI 是否输出 <h1>：
+  // 卷首标题命名是程序确定性职责，不依赖 AI 是否输出 <h1>：
   //    有 h1（模型已写）→ 替换为规范标题；无 h1（模型省略，同步练习等 question 型常见）→ 兜底前置规范 h1，
   //    否则正文缺卷首大标题、"标题未走命名路径"（此前仅 replace 无 fallback，模型省略 h1 即整个标题消失）
   if (/<h1[^>]*>[\s\S]*?<\/h1>/i.test(String(html))) {
@@ -111,7 +111,7 @@ export function findCommonAncestorIndex(chapters, outline) {
 export function inferPaperScope(chapters = [], outline = [], scopeType = '', pickScope) {
   const arr = (Array.isArray(chapters) ? chapters : []).filter(Boolean);
 
-  // 🔴 显式范围类型（期中/期末/月考/专题）：尊重用户意图，直接取标签词（可轮换 override）
+  // 显式范围类型（期中/期末/月考/专题）：尊重用户意图，直接取标签词（可轮换 override）
   if (EXPLICIT_SCOPE_TYPES.includes(scopeType)) {
     const label = pickScope
       ? pickScope(scopeType)
@@ -137,7 +137,7 @@ export function inferPaperScope(chapters = [], outline = [], scopeType = '', pic
     if (lca && lca.node) return { name: lca.node.title || '', isScopeLabel: false, category: 'unit' };
   }
 
-  // 🔴 多节点但 LCA 失败（常见于"语文园地"与单元平级、勾选单元课文+园地）：
+  // 多节点但 LCA 失败（常见于"语文园地"与单元平级、勾选单元课文+园地）：
   //    把"园地/综合练习/单元小结"等附属顶层节点归并到前一个有效单元，
   //    避免整单元勾选被误判为跨单元而丢单元名（用户勾"第二单元"应出"第二单元"）。
   const effectiveIdx = effectiveUnitIndices(arr, outline);
@@ -146,7 +146,7 @@ export function inferPaperScope(chapters = [], outline = [], scopeType = '', pic
     if (u?.title) return { name: u.title, isScopeLabel: false, category: 'unit' };
   }
 
-  // 🔴 真正跨单元多选 → 按所选单元在整本的覆盖位置自动归 期中/期末/综合
+  // 真正跨单元多选 → 按所选单元在整本的覆盖位置自动归 期中/期末/综合
   const category = categorizeUnits(arr, outline);
   const label = pickScope
     ? pickScope(category)
@@ -159,7 +159,7 @@ export function inferPaperScope(chapters = [], outline = [], scopeType = '', pic
 const ATTACHED_TOP_RE = /园地|综合练习|单元小结|复习与|总复习|整理与复习/i;
 
 /**
- * 🔴 教材记录的"勾选章节"取数（本模块唯一口径，2026-09-24 根治）。
+ * 教材记录的"勾选章节"取数（本模块唯一口径，2026-09-24 根治）。
  *
  * 为什么需要它：`selectedChapters` 是 **store 的派生字段**（`getSelectedChapters(outline)` 现算），
  * 教材库里的裸记录上**没有这个字段**。此前"组装生成指令"直接读裸记录的 `book.selectedChapters`
@@ -195,7 +195,7 @@ export const inferScopeFromBook = (book, scopeType = '', pickScope, { onlyAnalyz
 export const SCOPE_DIM_TO_TYPE = { 期中: 'midterm', 期末: 'final', 月考: 'monthly', 专题: 'topic', 综合: 'default' };
 
 /**
- * 🔴 范围名**唯一出口**（2026-09-24 根治）。
+ * 范围名**唯一出口**（2026-09-24 根治）。
  *
  * 为什么必须唯一：范围名此前有两个出口各算一套——「组装生成指令」按 `scopeOverride`（范围确认弹窗
  * 的确认结果）取，而「卷首标题」自己再推一次、**完全不认 scopeOverride** →

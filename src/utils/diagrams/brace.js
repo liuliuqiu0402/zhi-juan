@@ -4,7 +4,7 @@
  * 用途：把一棵 `{ title, children }` 树渲染成**印刷友好**的矢量括号图：
  *   父节点在左（“整体”），其全部子节点在右（“部分”），父子之间用一个**方括号式花括号**收束。
  *
- * 🔴 为什么自己画、为什么印刷优先（2026-09-24 用户裁定：给学生看的成品资料要进 PDF/Word）：
+ * 为什么自己画、为什么印刷优先（2026-09-24 用户裁定：给学生看的成品资料要进 PDF/Word）：
  *   · PDF 通道 = puppeteer setContent + page.pdf → 内联 SVG 是矢量，缩放/打印都不糊；
  *   · Word 通道 = utils/docxBuilder.buildImageRun 只认光栅图（不支持 svg）→ 由调用方光栅化。
  *   两条通道都不新增依赖（公共能力一律取自 ./shared.js）。
@@ -14,7 +14,7 @@
  *   · 黑白打印颜色会消失 → 层级**同时**靠字重 + 缩进（列位）表达；字号不小于 11px；
  *   · 文字左对齐；图形宽度由**实测文字宽度**反推（w = textW + 2*padX），保证文字不越出框。
  *
- * 🔴 结构上刻意拆成两个导出（同 mindmap.js 口径）：
+ * 结构上刻意拆成两个导出（同 mindmap.js 口径）：
  *   layoutBrace()    —— 只算版式，返回已平铺、已归一化的节点 + 花括号几何，**可被单测直接断言**；
  *   buildBraceSvg()  —— 只把版式画成 SVG。
  *   版式质量靠硬指标守住（不重叠/不越界/父子同列分列/父子纵向居中），不靠肉眼看图。
@@ -106,7 +106,7 @@ export const layoutBrace = (spec, opts = {}) => {
     const kids = raw && Array.isArray(raw.children) ? raw.children : [];
     node.children = kids.map((c, i) => (
       // 根的一级子节点各自取一个调色板色（主分支）；更深层**整棵子树继承**该分支色。
-      // 🔴 必须整棵继承：只给一级上色、深层又按层取色，会让同一条分支花花绿绿、语义错乱。
+      // 必须整棵继承：只给一级上色、深层又按层取色，会让同一条分支花花绿绿、语义错乱。
       prep(c, depth + 1, depth === 0 ? palette[i % palette.length] : color, false)
     ));
     return node;
@@ -144,7 +144,7 @@ export const layoutBrace = (spec, opts = {}) => {
   const contentH = Math.max(0, cursor - gapY);
 
   // ── 横向：按「每层最大节点宽」排柱 → 同层左边界天然对齐 ──
-  // 🔴 列宽用该层最大宽（而不是每个节点各自宽度）：同层节点 x 必须相同，
+  // 列宽用该层最大宽（而不是每个节点各自宽度）：同层节点 x 必须相同，
   //    否则同级节点左右错落、视觉上不像同一层，也会让花括号落在不同 x 上。
   const depthMaxW = {};
   let maxDepth = 0;

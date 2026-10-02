@@ -5,7 +5,7 @@
  *   ① 从答案页 HTML 中取出听力区文本（extractListeningSource）
  *   ② 解析模型的 JSON 输出（容忍代码块围栏/前后噪声）
  *   ③ 归一角色、校验结构、给出可读告警（normalizeListeningStructure）
- * 🔴 全链路不改写词句：解析器只做**结构化与角色归一**，任何文本内容原样保留。
+ * 全链路不改写词句：解析器只做**结构化与角色归一**，任何文本内容原样保留。
  * ============================================================
  */
 import { LISTENING_ROLE_LABELS } from '../config/listeningAudioProfile.js';
@@ -107,7 +107,7 @@ export function detectSourceLanguage(text = '') {
 /** 卷面部分标题（如「第一部分 听力部分（共3大题，满分30分）」，或按用户 2026-09-27 裁定
  *  卷面不再写"第X部分"后的「听力部分（共3大题，满分30分）」）——名称由音频按固定文案播报，
  *  这里整段剔除（避免它被当成材料或指令）；括号里的题数/分值属书面信息。
- *  🔴 2026-09-27 联动（g4 收尾）：buildStructureText 已按裁定去掉"第X部分"字眼（部分标题作大类居中），
+ *  2026-09-27 联动（g4 收尾）：buildStructureText 已按裁定去掉"第X部分"字眼（部分标题作大类居中），
  *    若正文出现「听力部分/笔试部分（共…）」而本正则只认"第X部分"，则部分标题漏剔、会被当材料误读；
  *    故兼容"无第X部分"的部分标题（仅听力部分/笔试部分，防误剔普通文本）。 */
 const PAPER_PART_RE = /(?:(?:第[一二三四五六七八九十零百]+部分)|(?:听力部分|笔试部分))[^（(]*[（(][^）)]*[）)]/g;
@@ -139,7 +139,7 @@ export function stripPaperNoise(text = '') {
 
 /**
  * 从播音指令里解析**声明的朗读遍数**（如「每段对话仅读一遍」→1、「每段对话或独白读两遍」→2）。
- * 🔴 为什么要解析：真题里第一节与第二节的遍数并不相同（高考第一节仅读一遍、第二节读两遍），
+ * 为什么要解析：真题里第一节与第二节的遍数并不相同（高考第一节仅读一遍、第二节读两遍），
  *   若音频一律读两遍而指令说"仅读一遍"，学生按指令作答就会错——这是"音频≠播报"的一致性红线。
  *   故本值将**决定该节实际朗读遍数**（以指令为准）。
  * @returns {number} 1/2/3/4；无法判定返回 0
@@ -158,7 +158,7 @@ const MATERIAL_RANGE_RE = /^听第\s*\d{1,3}\s*段材料/;
 
 /**
  * 解析题号范围：「听第6段材料，回答第6至第10题」→ { materialNo:6, from:6, to:10 }。
- * 🔴 为什么必须有它：源文本不给范围时，程序只能按条数顺编题号——实测把第三节报成"第七题"，
+ * 为什么必须有它：源文本不给范围时，程序只能按条数顺编题号——实测把第三节报成"第七题"，
  *   而该卷第二节实为第 6~10 题、第三节为第 11~15 题。拿不到范围就**不报**（宁可不报，也不报错）。
  * @returns {{materialNo:number, from:number, to:number}|null}
  */
@@ -189,7 +189,7 @@ export function normalizeRange(raw) {
 /** 从节指令里解析**作答时间**（秒）。真题两种说法都在此列：
  *  「听完每段对话后，你都有10秒钟的时间来回答有关小题」（秒数在"回答"前）
  *  「各小题将给出5秒钟的作答时间」（秒数在"作答"前）→ 统一按"秒数…作答/回答"取值。
- *  🔴 与遍数同理：**以指令为准**——指令声明了就照它给留白，不再由程序一律 10 秒。
+ *  与遍数同理：**以指令为准**——指令声明了就照它给留白，不再由程序一律 10 秒。
  *  @returns {number} 秒；未声明返回 0 */
 export function parseAnnouncedAnswerSeconds(text = '') {
   const s = String(text || '');
@@ -209,7 +209,7 @@ export function parseAnnouncedPreviewSeconds(text = '') {
 
 /**
  * 答案键行识别（如「T 7. F 8. F 9. T 10. F」「A 39. B 40. C 41. D 42. E」「May 12. three 13.…」）。
- * 🔴 判据取**连续递增题号 ≥3**：答案键的题号必然连号，而正常听力句中即便出现数字
+ * 判据取**连续递增题号 ≥3**：答案键的题号必然连号，而正常听力句中即便出现数字
  *    （如「He is 12. She is 13.」）也很少凑成三连号，以此把误伤压到最低。
  */
 export function looksLikeAnswerKey(text = '') {
@@ -235,7 +235,7 @@ export function hasEnglishListening(content = '') {
 
 /**
  * 角色归一：英文/中文/常见写法 → M(男) / W(女) / N(旁白·独白)
- * 🔴 未知但**可辨识的说话人标签**（A/B/C、S1/S2、Speaker1）**原样保留**，不折叠成 N——
+ * 未知但**可辨识的说话人标签**（A/B/C、S1/S2、Speaker1）**原样保留**，不折叠成 N——
  *   一旦折叠，双人对话会退化成单一音色（听不出谁在说），这是听力音频最容易出的错。
  *    说话人身份交给渲染层决定音色（见 listeningScript.voiceOf：未知标签按出现顺序交替男/女）。
  */
@@ -397,9 +397,9 @@ export function cnNum(s = '') {
 }
 
 /** 纯标题行（听力原文/录音稿/Text 之类），不进 lines
- *  🔴 必须含**答案区标题**：extractListeningSource 取的是 answer-section 段，
+ *  必须含**答案区标题**：extractListeningSource 取的是 answer-section 段，
  *    首行往往是"参考答案与评分标准"——若不剔除，它会被当成第一段听力材料朗读。
- *  🔴 `Text` 只匹配裸标题：写成 `\d*` 会把 "Text 2"（有效的材料题号）当标题丢掉。 */
+ *  `Text` 只匹配裸标题：写成 `\d*` 会把 "Text 2"（有效的材料题号）当标题丢掉。 */
 const HEADING_RES = [
   /^【?\s*(?:英语)?听力(?:原文|材料|文稿|录音稿|文本|稿)?\s*】?$/,
   /^【?\s*(?:录音|听力)?\s*原文\s*】?$/,
@@ -422,9 +422,9 @@ export function looksLikeAnswerRow(text = '') {
 }
 
 /** 中文播音指令行 → 归入导语/分节指令（不进 lines）
- *  🔴 含「第X节」：正规听力录音以「第一节，听下面5段对话…」起头，这是**播音指令**而非材料；
+ *  含「第X节」：正规听力录音以「第一节，听下面5段对话…」起头，这是**播音指令**而非材料；
  *     「第X部分」不在此列——那是卷面结构标题（由 stripPaperNoise 剔除），音/卷两者不可混同。
- *  🔴 2026-09-19 用户定：小学/校内卷直接以卷面标号起头（「一、听录音，选出你所听到的单词或图片」），
+ *  2026-09-19 用户定：小学/校内卷直接以卷面标号起头（「一、听录音，选出你所听到的单词或图片」），
  *     故补 `[一二三四五六七八九十]+、` + 听音动词 这一支——否则该行会被当成小题材料朗读。 */
 const INSTRUCTION_RE = /^(?:第[一二三四五六七八九十零百]+节|听下面|请听|听录音|听一段|下面请听|听第\s*\d|请根据|根据所听|Listen\s+(?:to|carefully)|[一二三四五六七八九十]+、\s*(?:听|请听|下面|Listen))/i;
 
@@ -466,7 +466,7 @@ export function matchItemNumber(line = '') {
 }
 
 /** 说话人前缀识别：返回 { role, text } 或 null（不匹配）
- *  🔴 只认**冒号**：`A.`/`A．` 是选项而非说话人（若也认点号，选项行会被当成说话人 A）。
+ *  只认**冒号**：`A.`/`A．` 是选项而非说话人（若也认点号，选项行会被当成说话人 A）。
  *    说话人标注在考试与答案页里的标准写法就是 "M:" / "W：" / "男："。 */
 export function splitSpeakerPrefix(line = '') {
   const s = String(line || '').trim();
@@ -551,7 +551,7 @@ export function parseListeningSourceText(rawText = '') {
     if (OPTION_LINE_RE.test(line)) { optionDropped++; continue; }
     // 答案键行（「T 7. F 8.…」「A 39. B 40.…」）：只有答案与题号，不是听力材料
     if (looksLikeAnswerKey(line)) { answerKeyDropped++; continue; }
-    // 🔴 题号范围行（「听第6段材料，回答第6至第10题。」）必须**先于节指令判断**：
+    // 题号范围行（「听第6段材料，回答第6至第10题。」）必须**先于节指令判断**：
     //    它以"听第…"开头，否则会被 INSTRUCTION_RE 误当成节指令。本行只作元数据，不作为材料朗读。
     if (MATERIAL_RANGE_RE.test(line)) {
       const rg = parseQuestionRange(line);
@@ -559,7 +559,7 @@ export function parseListeningSourceText(rawText = '') {
       continue;
     }
     if (INSTRUCTION_RE.test(line)) {
-      // 🔴 节边界驱动起条（2026-09-19 用户实测根治）：*节指令*（「第X节/第X部分…」）意味着"上一节到此结束、
+      // 节边界驱动起条（2026-09-19 用户实测根治）：*节指令*（「第X节/第X部分…」）意味着"上一节到此结束、
       //    本节材料另起一条"，必须 flush。否则后续**无题号**的节材料（独白/短文）会因"当前还有题"
       //    被并进上一题——实测第 5 题一口气吞掉了第二节独白＋第三节短文，且把两篇粘成一条女声。
       const isSection = SECTION_LABEL_RE.test(line);
@@ -571,7 +571,7 @@ export function parseListeningSourceText(rawText = '') {
       // 首条中文指令（尚未出题）→ 开场导语；其后出现的分节指令 → 挂到**下一题**（保"指令 → 该节材料"先后）
       if (!intro && !hadItemNumbers && !cur) intro = line;
       else pendingInstruction = line;
-      // 🔴 以指令为准：指令声明的遍数决定该节实际朗读遍数；声明的作答/读题秒数决定该节留白
+      // 以指令为准：指令声明的遍数决定该节实际朗读遍数；声明的作答/读题秒数决定该节留白
       const announced = parseAnnouncedRepeat(line);
       if (announced > 0) activeRepeat = announced;
       const ansSec = parseAnnouncedAnswerSeconds(line);

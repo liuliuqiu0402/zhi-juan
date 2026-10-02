@@ -6,9 +6,9 @@
  *      —— 双击拖动条复位默认宽度；宽度做上下限钳制，保证预览区不被挤没。
  *   ② **两级分组折叠状态**（学段 → 学科，见 utils/libraryGrouping）—— 记住用户收起了哪些组。
  *
- * 🔴 为什么抽成 composable：课本库与模板库是同一套交互，各写一份必然漂移
+ * 为什么抽成 composable：课本库与模板库是同一套交互，各写一份必然漂移
  *    （本仓库对"双份逐字副本各自演化"有过多次教训，如 autoDetectMeta）。
- * 🔴 纯计算部分（clampPanelWidth / collapsedKeysOf）单独导出，便于直接单测，无需挂载组件。
+ * 纯计算部分（clampPanelWidth / collapsedKeysOf）单独导出，便于直接单测，无需挂载组件。
  * ============================================================
  */
 import { ref, nextTick, onBeforeUnmount } from 'vue';
@@ -119,7 +119,7 @@ export function useLibraryView({ storageKey = 'library', defaultWidth = PANEL_DE
 
   /**
    * 折叠/展开分组 —— **原地收，不带着滚动位置一起跳**。
-   * 🔴 起因（2026-09-24 用户）：组头吸顶后一点"收"，被收组的内容消失、列表内容总高骤减，
+   * 起因（2026-09-24 用户）：组头吸顶后一点"收"，被收组的内容消失、列表内容总高骤减，
    *    浏览器把 scrollTop 夹回新的最大值 → 整个列表往上蹿一段，用户说"会出现幻觉"。
    * 做法：先把被点组头的屏幕纵坐标记下来，折叠并等布局落定后，用 scrollTop 补回同样的差值，
    *    让这个组头**待在原地不动**；之后滚不滚动、滚到哪里，全部交给用户自己操作。
@@ -152,7 +152,7 @@ export function useLibraryView({ storageKey = 'library', defaultWidth = PANEL_DE
 
   /**
    * 默认按类收起（2026-09-25 用户：教材库列表重启/刷新后应为"按类收起"而非全部展开）。
-   * 🔴 只在「从未手动设置过折叠状态」时应用——用户手动展开/收起的组合照旧被记住（持久化）。
+   * 只在「从未手动设置过折叠状态」时应用——用户手动展开/收起的组合照旧被记住（持久化）。
    *   不主动落盘，避免凭空生成"用户动过"的记录；一旦用户操作，persist 便接管后续。
    * @param {Array<{key:string, subjects:Array<{key:string}>}>} groups 由 groupLibrary 产出
    */

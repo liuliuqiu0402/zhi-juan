@@ -675,7 +675,7 @@ const STAGE_LABELS = {
 };
 /** 概览条学段短名（完整名过长导致第二行换行；悬浮 title 显示全名） */
 const SHORT_STAGE = { primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中' };
-// 🔴 类型中文名单一事实源 = GEN_TYPE_NAMES（曾本地写"正式试卷"等异名，与正式考卷漂移）
+// 类型中文名单一事实源 = GEN_TYPE_NAMES（曾本地写"正式试卷"等异名，与正式考卷漂移）
 const GEN_TYPE_KEYS_ALL = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
 const GEN_TYPE_LABELS = Object.fromEntries(GEN_TYPE_KEYS_ALL.map((k) => [k, GEN_TYPE_NAMES[k] || k]));
 /* ===== 数据源：内置 + 用户自定义（blueprintProvider） ===== */

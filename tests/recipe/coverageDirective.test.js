@@ -41,7 +41,10 @@ describe('前瞻覆盖指令（模板层按资料类型注入）', () => {
     expect(preview.template).toContain('围绕本次范围安排预习');
     expect(preview.template, '对账语不得回潮').not.toMatch(/为下限|不做清单外补充|【锚点清单】/);
     const dictation = getPromptTemplate({ genType: 'dictation' });
-    expect(dictation.template).toContain('默写严格对应教材要求，按本次范围安排');
+    // 2026-10-02（④精准）：原锁"默写严格对应教材要求，按本次范围安排"——"严格对应教材要求"作**正句**
+    //   收到【创作要求】分条1（同块只留一处正句），细致条只给具体对象＋范围 → 断言随新口径改锁。
+    expect(dictation.template).toContain('默写内容按本次范围安排');
+    expect(dictation.template).toContain('1. 严格对应教材要求');
     expect(dictation.template, '对账语不得回潮').not.toMatch(/以本次勾选范围为下限|不做清单外补充/);
     // 悬空块名已收敛（2026-09-13）：模板引用统一为实际注入的【锚点清单】，不再引用无生产者的旧块名
     for (const g of ['practice', 'preview', 'dictation']) {

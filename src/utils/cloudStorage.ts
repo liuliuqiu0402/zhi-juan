@@ -8,7 +8,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { compressDocArray, decompressDocArray } from './contentCompress.js';
-// 🔴 重试判据（纯函数、可单测）：区分"链路层立刻失败"与"冷启动慢失败"，见其文件头
+// 重试判据（纯函数、可单测）：区分"链路层立刻失败"与"冷启动慢失败"，见其文件头
 import { decideFetchRetry } from './netRetry.js';
 
 // ── 配置 ──
@@ -19,10 +19,10 @@ let _client: SupabaseClient | null = null;
 
 // 🔧 自定义 fetch：240s 超时（Supabase 免费版冷启动可达 30-120s，
 //    手机端拉取多设备大 JSON payload 可达 60-180s）
-// 🔴 重试策略（2026-09 修正）：**只对"冷启动型失败"重试**。
+// 重试策略（2026-09 修正）：**只对"冷启动型失败"重试**。
 //    判据与理由见 utils/netRetry.decideFetchRetry —— 链路层立刻失败（连接被重置/拒绝）
 //    重试没有修复价值，只会连发请求 + 连打日志刷屏（用户实测就是这个现象）。
-// 🔴 重试日志节流：同一次网络故障只提示一次，避免 3 次重试打 3 行（日志环形缓冲 500 条，
+// 重试日志节流：同一次网络故障只提示一次，避免 3 次重试打 3 行（日志环形缓冲 500 条，
 //    刷屏会把有用的诊断日志挤掉）。
 const FETCH_TIMEOUT = 240000; // 240s
 const RETRY_WARN_THROTTLE_MS = 30000;
@@ -966,7 +966,7 @@ export interface CloudDeviceInfo {
   isSelf: boolean;
 }
 let _lastCloudDevices: CloudDeviceInfo[] = [];
-/** 🔴 是否已探测过（时间戳）。用于防止"探测失败 → 设备列表恒为空 → 每次进设置页又重探"的反复刷屏 */
+/** 是否已探测过（时间戳）。用于防止"探测失败 → 设备列表恒为空 → 每次进设置页又重探"的反复刷屏 */
 let _lastProbeAt = 0;
 
 /** 启动时探测云端状态，暖机后输出数据摘要，用户据此决定何时同步 */
@@ -974,7 +974,7 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
   // 🔒 并发守卫：如果已有探测在进行，等待它完成（复用结果），而非放弃
   if (_probePromise) return _probePromise;
 
-  _lastProbeAt = Date.now(); // 🔴 记下"探测过"的事实，供 fetchCloudDevices 判断是否还需要自动补一次
+  _lastProbeAt = Date.now(); // 记下"探测过"的事实，供 fetchCloudDevices 判断是否还需要自动补一次
 
   _probePromise = (async () => {
   try {
@@ -1177,7 +1177,7 @@ export async function probeCloud(showReadyHint = true): Promise<void> {
  */
 export async function fetchCloudDevices(): Promise<CloudDeviceInfo[]> {
   // 只在"从未探测过"时自动补一次。
-  // 🔴 原先的判据是"列表为空就重探"，但**探测失败时列表恒为空** → 每次打开设备列表都会再触发
+  // 原先的判据是"列表为空就重探"，但**探测失败时列表恒为空** → 每次打开设备列表都会再触发
   //    一轮探测（云端不可达时就是反复发请求 + 反复打日志）。调用方（设置页）本来就先手动 probe 过，
   //    这里再探一次纯属重复。
   if (_lastCloudDevices.length === 0 && !_lastProbeAt) {

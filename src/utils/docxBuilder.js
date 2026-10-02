@@ -3,7 +3,7 @@
 // 输出：docx 库的 Document 对象 → Packer.toBlob()
 
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader, SimpleField } from 'docx';
-// 🔴 导图（知识梳理/括号图/流程图/时间轴/鱼骨图/概念关系图）在正文里是**内联 SVG**（PDF 通道靠它保持矢量），
+// 导图（知识梳理/括号图/流程图/时间轴/鱼骨图/概念关系图）在正文里是**内联 SVG**（PDF 通道靠它保持矢量），
 //    而 docx 的 ImageRun **不支持 svg** → Word 导出前必须把 SVG 光栅化成 PNG，否则图表在 Word 里直接消失。
 import { diagramToPngDataUrl } from './diagrams/index.js';
 import { TZG_MARKER, TZG_PINYIN_MARKER, MZG_MARKER, MZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, CIRCLE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
@@ -12,7 +12,7 @@ import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js';
 import { PAPER_PRESETS, normalizeLayout } from '../config/paperPresets.js';
 import { decodeEntities } from './escape.js'; // 实体解码唯一实现 utils/escape（曾 data-image-raw/data-graph-raw 两条同构链 + GenerateModule 副本）
 import { splitMathSegments, MATH_PREVIEW_ATTR, MATH_LATEX_ATTR, MATH_SRC_CLASS } from './mathSyntax.js'; // 公式定界语法与编辑器公式 widget 标记（零依赖，勿从 mathPreview 引以免拖入 Tiptap）
-// 🔴 有序列表编号形式的唯一事实源（1/a/A/i/I/（1）/一、/①）：Word 不认 CSS 编号，按字面前缀写；
+// 有序列表编号形式的唯一事实源（1/a/A/i/I/（1）/一、/①）：Word 不认 CSS 编号，按字面前缀写；
 //    与编辑器显示、HTML/PDF 导出共用同一份形式表，四处口径不许再各写一份。
 import { orderedPrefix } from './listNumberStyle.js';
 import { latexToDocxMath, latexToDocxDisplay } from './latexToDocxMath.js'; // LaTeX → Word 真公式对象（行内 / 展示式；不支持时返回 null）
@@ -21,7 +21,7 @@ import { convertFormulaToText } from './wordExporter.js'; // 公式可读化降�
 /**
  * 段落纯文本若"整段内容就是一个块级公式"→ 返回其 LaTeX；否则 null。
  * 用于判定该段是否应产出**展示式**（独占居中一行）而非行内公式。
- * 🔴 之所以按"整段文本"判定而不是按 run 数量：公式前后的空白/换行也会进 runs，
+ * 之所以按"整段文本"判定而不是按 run 数量：公式前后的空白/换行也会进 runs，
  *    按 run 数判断会漏掉常见写法（`<p>$$…$$</p>` 里常带首尾空白）。
  */
 const singleDisplayMath = (text) => {
@@ -344,7 +344,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
               runs.push({ __blankLineTab: true, size: ctxIn.size || readFontSizeHp(node), raw: line, color: '333333' });
               return;
             }
-            // 🔴 公式还原（2026-09）：行内 $…$ / 块级 $$…$$ → **Word 真公式对象**（docx 内置 OMML）。
+            // 公式还原（2026-09）：行内 $…$ / 块级 $$…$$ → **Word 真公式对象**（docx 内置 OMML）。
             //    改版前只在"整个文本节点恰好是 $…$"的**元素分支**命中（真实语句「半径为 $r$ 的圆」
             //    永不命中），命中时也只是剥掉 $ 涂成深蓝斜体 → Word 里 \frac{a}{b} 原样泄漏成乱码。
             //    现按文本节点内的公式**分段**输出：能确定性表达 → 真公式；否则降级为可读 Unicode
@@ -370,11 +370,11 @@ const buildTextRuns = (node, styleOverride = {}) => {
     }
     if (child.nodeType !== Node.ELEMENT_NODE) return;
 
-    // 🔴 编辑器公式装饰层的"隐藏源码"span：其同级 widget 已承载公式，这里必须**跳过**，
+    // 编辑器公式装饰层的"隐藏源码"span：其同级 widget 已承载公式，这里必须**跳过**，
     //    否则公式会出现两次（源码一次、widget 一次）。正常路径已在读取边界还原掉该 span。
     if (child.classList && child.classList.contains(MATH_SRC_CLASS)) return;
 
-    // 🔴 编辑器公式装饰层的 widget（第二道保险）：正常路径已在读实时 DOM 时用
+    // 编辑器公式装饰层的 widget（第二道保险）：正常路径已在读实时 DOM 时用
     //    restoreMathPreviewSource 还原成 $…$ 源码；万一日后新增了某条读取路径忘了还原，
     //    这里按 data-math-latex 直接出真公式，并**不递归子节点**——
     //    子节点是 KaTeX 的排版片段，递归会产出 "ab" 这类乱码文本（静默错内容）。
@@ -511,7 +511,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
       if (blankSpanMatch) {
         const nFromClass = parseInt(blankSpanMatch.split('-')[1]) || 2;
         const { raw, text: filledSpan, hasVisible: spanHasVisible } = extractGridContent(child);
-        // 🔴 2026-09-18 用户裁定（例题答案回填进作答位）：载体内含可见文字 = 该作答位**已回填**（例题示范形态），
+        // 2026-09-18 用户裁定（例题答案回填进作答位）：载体内含可见文字 = 该作答位**已回填**（例题示范形态），
         //    按"（）里装着答案"渲染（预览端 ::before/::after 画的也是括号，两侧口径一致）；
         //    不得再按空位宽度重画——那样会把答案整段丢掉（这正是"答案看不见"的导出侧根因）。
         if (spanHasVisible) {
@@ -520,7 +520,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
         }
         const emWidth = whitespaceEmWidth(raw);
         const effectiveN = Math.max(nFromClass, Math.round(emWidth), 2);
-        // 🔴 2026-09-29（用户指正："程序侧怎么可能知道答案长度？程序侧做不到"）：
+        // 2026-09-29（用户指正："程序侧怎么可能知道答案长度？程序侧做不到"）：
         //    宽度必须**逐档透传模型给的档位**，程序侧不得代它放大/加地板。NBSP 按本文件
         //    whitespaceEmWidth 的口径 = 0.5em，故 N 档 = N em = 2N 个 NBSP（与预览端
         //    `u/span.blank-N{min-width:N em}` 同宽）。原写 `N*4`（= 2N em）→ 导出比预览宽一倍。
@@ -539,7 +539,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
       // 读实际内容宽度（同 blank-line 逻辑）
       const { raw, text: filledU, hasVisible: uHasVisible } = extractGridContent(child);
       if (tag === 'u') {
-        // 🔴 2026-09-18 用户裁定（例题答案回填进作答位）：载体内含可见文字 = 该作答位**已回填**（例题示范形态），
+        // 2026-09-18 用户裁定（例题答案回填进作答位）：载体内含可见文字 = 该作答位**已回填**（例题示范形态），
         //    渲染为**带下划线的答案文字**（下划线=原作答位，文字=答案，学生一眼看出本处考什么）；
         //    不得再走下面的空位宽度分支——那里只按宽度画线，会把答案整段丢掉。
         if (uHasVisible) {
@@ -707,7 +707,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
     }
     // === 行内图片 ===
     if (tag === 'img') {
-      // 🔴 防御：编辑器自身的定位记号（ProseMirror-separator，无 src）不是内容。正常路径已在
+      // 防御：编辑器自身的定位记号（ProseMirror-separator，无 src）不是内容。正常路径已在
       //    读取边界由 restoreMathPreviewSource 剥掉；此处再兜一道，防某条路径漏了它而在 Word 里
       //    多出"【图片】"占位文字（2026-09-30 用户实证：段末公式导出多两个字）。
       if (/(^|\s)ProseMirror-separator(\s|$)/.test(child.getAttribute('class') || '')) return;
@@ -738,12 +738,12 @@ const buildTextRuns = (node, styleOverride = {}) => {
       return;
     }
     // === $...$ 公式 ===
-    // 🔴 2026-09 已移除：原实现在**元素分支**用 `child.textContent` 判断"整串是否 $…$"，
+    // 2026-09 已移除：原实现在**元素分支**用 `child.textContent` 判断"整串是否 $…$"，
     //    真实语句（「半径为 $r$ 的圆」）永不命中，命中时也只剥 $ 涂深蓝斜体、\frac 原样泄漏。
     //    公式现于**文本节点分支**按 $…$ 分段处理（含 Word 真公式对象与 Unicode 降级），见上方。
     // === 换行符 ===
     if (tag === 'br') {
-      // 🔴 防御：ProseMirror-trailingBreak 是编辑器定位记号，**不是用户换行**（同上双保险；
+      // 防御：ProseMirror-trailingBreak 是编辑器定位记号，**不是用户换行**（同上双保险；
       //    漏掉它会在 Word 里多一个空行——2026-09-30 用户实证）。
       if (/(^|\s)ProseMirror-trailingBreak(\s|$)/.test(child.getAttribute('class') || '')) return;
       // 🔧 田字格 marker 后紧跟的末尾 br：AI 原始内容残留，可连续多个
@@ -785,7 +785,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
     if (!r || !r.__blankLineTab) continue;
     if (i === runs.length - 1 && !tailTabDone && (!r.editableBlank || runs.length === 1)) {
       // 段落末尾：<w:ptab alignment=right relativeTo=indent leader=underscore/>
-      //    🔴 relativeTo=indent：延伸到"段落文字区右边界"（非页面边距）——段落带右缩进（题号/列表段落）
+      //    relativeTo=indent：延伸到"段落文字区右边界"（非页面边距）——段落带右缩进（题号/列表段落）
       //    时横线不会超出文字内边距；无缩进段落效果与 margin 一致
       runs[i] = new TextRun({
         children: [new PositionalTab({
@@ -803,7 +803,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
       const emWidth = whitespaceEmWidth(r.raw);
       const baseMin = r.minEm || (r.nFromClass ? Math.max(r.nFromClass, 2) : 2);
       const effectiveN = Math.max(baseMin, Math.round(emWidth));
-      // 🔴 2026-09-29（同上·**逐档透传**）：原 `Math.max(8, N*4)` 一边把宽度放大一倍（2N em）、
+      // 2026-09-29（同上·**逐档透传**）：原 `Math.max(8, N*4)` 一边把宽度放大一倍（2N em）、
       //    一边设了 4em 的地板 → 短答（1~2 字）的横线一律偏长、与答案长度无关（用户实样实证：
       //    一排越来越长的横线）。现按 N 档透传：N em = 2N 个 NBSP，与预览端同宽；地板取 N 的下限
       //    （minBlank=2 档 → 4 个 NBSP），不额外加宽。
@@ -1022,7 +1022,7 @@ const splitGridAwareContent = (node, runDefaults, opts = {}) => {
     textBuffer.forEach(c => tempEl.appendChild(c.cloneNode(true)));
     const mountTarget = node.isConnected ? node : document.body;
     mountTarget.appendChild(tempEl);
-    // 🔴 展示式（2026-09 P-B）：整段就是一个块级公式（$$…$$）时，产出**独占居中一行**的
+    // 展示式（2026-09 P-B）：整段就是一个块级公式（$$…$$）时，产出**独占居中一行**的
     //    m:oMathPara —— 行内 m:oMath 会把展示式挤进文字流（求根公式/分段函数/方程组都会走形）。
     //    仅当该段不承载编号前缀时才转换：有前缀说明段落还有别的职责，必须保持原样。
     if (!(isFirstFlush && prefixRuns && prefixRuns.length > 0)) {
@@ -1118,10 +1118,10 @@ const pageNumberParagraph = (totalField = PageNumber.TOTAL_PAGES_IN_SECTION) => 
 /** 多栏页脚（2026-08）：每栏一个页码、按栏计数——无边框表格，数据列与栏距空隙列交替，
  *  第 c 栏（1-index）域 = N*PAGE - (N-c)（N=2 → 2P-1 / 2P；N=3 → 3P-2 / 3P-1 / 3P；N=4 → 4P-3 … 4P），
  *  共X栏 = N*SECTIONPAGES。格式与 A4 一致"第X页　共X页"，每栏底部居中。
- *  🔴 页码中心对齐（2026-08 修复）：数据列间插入栏距空隙列（宽 = space），
+ *  页码中心对齐（2026-08 修复）：数据列间插入栏距空隙列（宽 = space），
  *    表格总宽 = 可用宽 → 每栏页码中心与正文各栏中心精确对齐
  *    （旧实现数据列连续排列、未插入栏距空隙，页码中心相对正文栏中心偏移）。
- *  🔴 公式域中 PAGE/SECTIONPAGES 必须用嵌套域语法 {PAGE}（injectDrawingML 后处理自动转换），
+ *  公式域中 PAGE/SECTIONPAGES 必须用嵌套域语法 {PAGE}（injectDrawingML 后处理自动转换），
  *    begin 带 w:dirty，Word 打开即按 updateFields 自动更新为真实栏数。 */
 const columnPageFooter = (availW = 0, space = 1134, cols = 2) => {
   const n = Math.max(2, cols);
@@ -1647,7 +1647,7 @@ const processBlockNode = (node, ctx = {}) => {
 
   // ===== 块级图片 <img> =====
   if (tag === 'img') {
-    // 🔴 防御：同"行内图片"——ProseMirror 定位记号不是内容（见 processChild 内注释）
+    // 防御：同"行内图片"——ProseMirror 定位记号不是内容（见 processChild 内注释）
     if (/(^|\s)ProseMirror-separator(\s|$)/.test(node.getAttribute('class') || '')) return children;
     const imgRun = buildImageRun(node);
     if (imgRun) children.push(new Paragraph({ children: [imgRun], spacing: { before: 80, after: 80 }, alignment: AlignmentType.CENTER }));
@@ -1969,7 +1969,7 @@ const processBlockNode = (node, ctx = {}) => {
       let prefix = '';
       if (isOrdered) {
         if (!hasTextNumber) {
-          // 🔴 编号形式的**唯一事实源**（src/utils/listNumberStyle.js）：Word 不认 CSS 编号，
+          // 编号形式的**唯一事实源**（src/utils/listNumberStyle.js）：Word 不认 CSS 编号，
           //    只能按字面前缀写；与编辑器显示、HTML/PDF 导出共用同一份形式表与前缀生成，
           //    故「1/a/A/i/I/（1）/一、/①」四处口径天然一致（此前此处自持一份分支）。
           //    传 `itemIndex`（含 start 起始值）——与 HTML 规范一致：<ol start="3" type="a"> 从 c. 起算。
@@ -2161,7 +2161,7 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
     // 🔧 作文格尺寸（mm）来自排版规格库（zwgCellByStage 已换算）
     const { widthMm: zwgCellMm } = zwgCellByStage(__zwgStage);
     // 🔧 每行格子数 = 每栏可用宽度 ÷ 格宽（向下取整放最多整数格，格子尺寸不缩放）
-    //    🔴 用 mm 口径与预览 CSS `repeat(auto-fill, Nmm)` 严格一致（DXA 换算有精度误差，会导致预览/导出行列差 1）：
+    //    用 mm 口径与预览 CSS `repeat(auto-fill, Nmm)` 严格一致（DXA 换算有精度误差，会导致预览/导出行列差 1）：
     //    可用宽 = 页面宽 − 左右边距（普通 20mm×2 / 密封线卷 25mm×2）；
     //            分栏时每栏 = (页面宽 − 左右边距 − 栏距×(N-1)) / N（栏距随预设 gapMm）
     const zwgMarginMm = hasSealDetect ? 50 : 40;
@@ -2331,7 +2331,7 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
 
 /**
  * 内联 `<svg>` → `<img src="data:image/png;base64,…">`（**Word 通道专用**）
- * 🔴 为什么必须做：正文里的导图是内联 SVG（PDF 走 puppeteer，矢量最清晰），但 docx 的
+ * 为什么必须做：正文里的导图是内联 SVG（PDF 走 puppeteer，矢量最清晰），但 docx 的
  *    ImageRun 只认光栅图（见 buildImageRun 的 typeMap：png/jpg/gif/bmp），不转就整张图消失。
  * 做法：把每个 `<svg>` 序列化 → canvas 光栅化（2 倍采样，印刷不发虚）→ 用 `<img>` 替换原节点。
  *    这样 buildImageRun 与整棵 walker 都不用改；调用方传的都是 clone（临时挂在 body 上），
