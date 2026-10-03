@@ -50,6 +50,22 @@ describe('指令"只增不扩"守卫（止住越滚越长）', () => {
     expect(over, '新增条款必须同时删/并旧条（总字数只减不增）').toEqual([]);
   });
 
+  // 🔴 2026-10-03（用户裁定·Q4"补题集类字数守卫"）：原守卫只锁 exam 两类，**题集/内容类无闸门**——
+  //    前几轮修复若只在教辅侧叠加条款，总字数照样能涨而不被拦。本条按 exam 同款口径锁 8 类（语文·primary_low，
+  //    取向B 删"以相同深度"后实测基线）；只减不增。新增条款必须同时删/并旧条，防"打补丁叠加"回潮。
+  it('题集/内容类总字数只减不增（与 exam 同款闸门，防教辅侧堆量）', () => {
+    const capT = {
+      practice: 7324, special: 7287, preview: 3130, reading: 7302,
+      summary: 3230, dictation: 7174, errorbook: 6683, review: 7206,
+    };
+    const over = [];
+    for (const [g, n0] of Object.entries(capT)) {
+      const n = clausesOf(tpl(g)).reduce((a, x) => a + x.length, 0);
+      if (n > n0) over.push(`${g} 总字数 ${n} > ${n0}`);
+    }
+    expect(over, '题集/内容类新增条款必须同时删/并旧条（总字数只减不增）').toEqual([]);
+  });
+
   it('单条字数不得超过基线（只减不增）', () => {
     const bad = [];
     for (const g of ['exam', 'practice', 'summary', 'preview', 'reading', 'dictation', 'errorbook', 'review', 'special']) {

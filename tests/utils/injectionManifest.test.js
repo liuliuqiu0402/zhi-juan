@@ -116,7 +116,8 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     expect(org).toContain('输出一律以委托书【卷面结构】的大题序列组织');
     expect(org).toContain('【锚点清单】陈述的是要练到的范围');
     expect(org).toContain('**必须逐项落实**');
-    expect(org, '在册复核动作不得丢').toContain('成稿前逐栏目对照自查');
+    // 🔴 2026-10-03（D16·用户裁定）：原"成稿前逐栏目对照自查"（I5 自查＋I2"二者取一"）已删 → 反向锁不得回潮。
+    expect(org, 'D16 自检类补丁不得回潮').not.toContain('逐栏目对照自查');
     expect(org.endsWith('\n\n'), '块尾留块间空行').toBe(true);
     expect(buildOrganizeBlock('exam'), '否定式关联不得回潮').not.toMatch(/不是组织方式|不得据此替代委托书结构/);
     // 🔒 2026-09-16 用户裁定（少约束）：教辅整类不再注入组织方式——题目怎么划分、叫什么全交模型，

@@ -214,6 +214,28 @@ describe('卷面固定件：注意事项 + 题号得分表（排版模块统一�
     expect(out.indexOf('class="exam-notice"')).toBeLessThan(out.indexOf('一、识字与写字。'));
   });
 
+  it('🔴 大类行为裸 <strong>（加粗、无分值）时同样认到：固定件仍在其上方（2026-10-03 真实产出报障）', () => {
+    // 真实产物：`<strong>第一部分　识字与写字</strong>`——大类层按【卷面层级】"居中加粗的独立段落（可用 <strong>）"，
+    //   且**不带分值**（分值写在其下的大题标题里）。旧判据只认"自带分值" 且只扫 p/h1-h4 → 两处都漏 →
+    //   固定件落到大类行之后，实测"第一部分 → 注意事项 → 得分表 → 一、〈大题〉"。
+    const boldBigCat = `<h1 class="main-title">二年级语文上册第一单元·阅读测试卷</h1>
+<p>（考试时间：60分钟　满分：100分）</p>
+<strong>第一部分　识字与写字</strong>
+<h2 class="heading1">一、汉字拼音小闯关（共6题，每题2分，共12分）</h2>
+<p class="question">1. 读一读，给加点字选择正确的读音，把序号填在括号里。</p>
+<strong>第二部分　积累与运用</strong>
+<h2 class="heading1">五、词语宝库大搜索（共4题，每题2分，共8分）</h2>
+<p class="question">19. 照样子组词。</p>`;
+    const out = injectExamShell(boldBigCat, 'primary_low');
+    const pos = (s) => out.indexOf(s);
+    expect(pos('二年级语文上册第一单元·阅读测试卷'), '标题在最上').toBeLessThan(pos('class="exam-notice"'));
+    expect(pos('class="exam-notice"'), '注意事项在得分表之前').toBeLessThan(pos('class="exam-score-table"'));
+    expect(pos('class="exam-score-table"'), '得分表在"第一部分"之前').toBeLessThan(pos('<strong>第一部分'));
+    expect(pos('<strong>第一部分'), '"第一部分"在第一个大题之前').toBeLessThan(pos('一、汉字拼音小闯关'));
+    // 幂等：二次注入不再移动
+    expect(injectExamShell(out, 'primary_low')).toBe(out);
+  });
+
   it('无大类行时插入点不变：仍紧贴第一个大题之前（旧行为不回归）', () => {
     const wrapped = wrapContentForTheme(CONTENT, 'sealed_exam');
     const pos = (s) => wrapped.indexOf(s);

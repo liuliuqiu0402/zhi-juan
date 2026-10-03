@@ -246,7 +246,7 @@ export const styleOptions = [
   // 2026-09-17（用户裁定"三处一起清"）：标签原为自造词「问题驱动」，改为与内部 value 同名的
   //    「任务驱动」（UI 标签，不进注入文本；注入的是 value + styleInstructions 说明）。
   { group: 'presentation', value: 'task_driven', label: '任务驱动', desc: '预习内容问题化',
-    tip: '以问题链驱动预习（圈画/概括/查阅/尝试），可操作可检查；适用于预习导学。',
+    tip: '以问题链驱动预习，可操作可检查；适用于预习导学。',
     appliesTo: ['preview'], required: false },
   { group: 'presentation', value: 'framework', label: '框架式', desc: '先立框架，再逐项梳理，后自测',
     tip: '围绕核心知识依次梳理与自测组织，内容完整；适用于复习资料。',

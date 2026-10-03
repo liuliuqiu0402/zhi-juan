@@ -76,19 +76,21 @@ describe('作答空间条款：选项行之后禁挂作答位', () => {
   it('条款写明"选项行之后"也在禁止范围内', () => {
     expect(text).toContain('选项行');
     expect(text).toContain('选项行之后');
-    expect(text).toContain('作答位只有上述那一处');
+    // 🔧 2026-10-03（问题3/6根治）：旧排他词"作答位只有上述那一处"已删（被模型读成"材料内不得有就地空位"），
+    //    禁止范围改由"一律不加作答位"承载。
+    expect(text).toContain('一律不加作答位');
   });
 
-  it('位置按学科分叉（2026-09-26 调研）：外语类题首／中文科目题干末尾；括号一律半角（英文状态）；禁用横线', () => {
+  it('位置按学科分叉（2026-09-26 调研，2026-10-03 中文锚点精确化）：外语类题首／中文在材料与设问之后、选项行之前；括号一律半角（英文状态）；禁用横线', () => {
     const en = buildAnswerSpaceInstruction('英语', 'primary_mid');
-    expect(en, '外语类：作答位在题号之前的题首').toContain('位置在题号之前的题首');
+    expect(en, '外语类：作答位在题号之前的题首').toContain('在题号之前的题首');
     expect(en).toContain('"( ) 1. 题干…"');
     const jp = buildAnswerSpaceInstruction('日语', 'high');
-    expect(jp, '外语类判定须覆盖日语（不认单一字面量，2026-09-26 用户定）').toContain('位置在题号之前的题首');
+    expect(jp, '外语类判定须覆盖日语（不认单一字面量，2026-09-26 用户定）').toContain('在题号之前的题首');
     const zh = buildAnswerSpaceInstruction('语文', 'primary_low');
-    expect(zh, '中文科目：作答位在题干末尾').toContain('位置在题干末尾');
+    expect(zh, '中文科目：作答位在材料与设问之后、选项行之前').toContain('在材料与设问之后、选项行之前');
     expect(zh).toContain('"1. ……的是( )"');
-    expect(zh, '中文科目不得用题首括号').not.toContain('位置在题号之前的题首');
+    expect(zh, '中文科目不得用题首括号').not.toContain('在题号之前的题首');
     for (const t of [en, jp, zh]) {
       expect(t, '作答位形态即判据条所指的圆括号空位').toContain('即上句判据所指的**圆括号空位**');
       expect(t, '括号一律半角（英文状态）——既有用户规格').toContain('括号一律用半角（英文状态）括号');

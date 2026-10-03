@@ -2436,26 +2436,38 @@ export const injectExamShell = (html, stage) => {
   //   · anchor —— **去重边界**：第一个大题行，保持旧有保守语义（只清它之前的旧固定件残留）。
   //   二者在无大类行的卷里是同一个元素，行为与旧版逐字一致。
   const PART_RE = /^第\s*[一二三四五六七八九十百零〇ⅠⅡⅢⅣⅤⅥ\d]+\s*(?:部分|卷)/;
-  // 大类层行的**叶子块**判据（与 markExamBigCategory 同口径：大类层可以是 <p>、也可以是 <div>）——
+  // 大类层行的**叶子块**判据（与 markExamBigCategory 同口径：大类层可以是 <p>、也可以是 <div>/<strong>）——
   //    旧实现只扫 p/h1-h4，模型把大类层写成 <div> 时被漏认 → 固定件落在大类行**之后**，
   //    实测渲染顺序成"第一部分 → 注意事项 → 得分表 → 一、〈大题〉"（2026-10-03 用户再次报障）。
   //    排除包装容器：含子块/表格/作答位载体者不作大类行。
   const isBigCatLeaf = (el) => !el.querySelector('p, div, h1, h2, h3, h4, table, ul, ol, u, [class*="blank-"]');
+  // 大类层判据（与【卷面层级】同口径）："第X部分/第X卷"独立成段的叶子块，满足其一即为大类行——
+  //   ① 自带分值标注（旧写法）；② **整段加粗**（现行写法：大类层"居中加粗的独立段落，可用 <strong>"）。
+  //   ② 是 2026-10-03 报障补入：真实产出的大类行是裸 `<strong>第一部分　识字与写字</strong>`（**无分值**），
+  //      旧判据只认分值 → 漏认 → 固定件落到大类行之后（实测"第一部分 → 注意事项 → 得分表 → 一、"）。
+  //      判据只认"整段即加粗"（裸 <strong>/<b>，或仅含一个加粗子元素且其文本即整段），
+  //      普通叙述段（如"第一部分 是本次资料说明"）不加粗、不误认。
+  const isBoldAlone = (el) => {
+    if (el.tagName === 'STRONG' || el.tagName === 'B') return true;
+    const fc = el.firstElementChild;
+    return !!fc && el.children.length === 1 && (fc.tagName === 'STRONG' || fc.tagName === 'B')
+      && (fc.textContent || '').trim() === (el.textContent || '').trim();
+  };
   let anchor = null;
-  let insertPoint = null;
-  for (const el of Array.from(tpl.content.querySelectorAll('p, div, h1, h2, h3, h4'))) {
+  let bigCat = null;
+  for (const el of Array.from(tpl.content.querySelectorAll('p, div, h1, h2, h3, h4, strong, b'))) {
     if (el.closest('.answer-section')) continue;
     const text = (el.textContent || '').trim();
     const scored = parseSectionScore(text) != null; // 与大题同一判据：须自带分值标注，防误认正文里的"第一部分…"
-    if (!insertPoint && scored && PART_RE.test(text) && isBigCatLeaf(el)) insertPoint = el;
-    // 去重边界仍只认大题行（p/标题，不取 div 容器）：保持旧有保守语义
-    if (el.tagName !== 'DIV' && /^[一二三四五六七八九十]+、/.test(text) && scored) {
+    if (!bigCat && PART_RE.test(text) && isBigCatLeaf(el) && (scored || isBoldAlone(el))) bigCat = el;
+    // 去重边界仍只认大题行（p/标题，不取 div 容器/裸加粗）：保持旧有保守语义
+    if (el.tagName !== 'DIV' && el.tagName !== 'STRONG' && el.tagName !== 'B' && /^[一二三四五六七八九十]+、/.test(text) && scored) {
       anchor = el;
-      if (!insertPoint) insertPoint = el;
       break;
     }
   }
-  if (!anchor) {
+  const insertPoint = bigCat || anchor;
+  if (!anchor && !insertPoint) {
     if (isNew) tpl.content.appendChild(shellNode);
     return tpl.innerHTML;
   }
@@ -2466,10 +2478,12 @@ export const injectExamShell = (html, stage) => {
   //    ⛔ 排除 .score-board（每大题评分栏，不是固定件）与 .exam-shell 内部节点
   const NOTICE_RE = /^注意事项[:：]?/;
   const NOTICE_ITEM_RE = /^[1-4][．.、]\s*(答题前|请在各题|本试卷共|考试结束|答案无效|超出答题区域)/;
+  // 去重边界 = 第一个大题行；无大题行（仅大类行）时回落到插入点，仍只清正文开头之前的旧固定件残留
+  const boundary = anchor || insertPoint;
   const beforeAnchor = (el) => {
-    if (!anchor) return true;
-    // DOCUMENT_POSITION_FOLLOWING：el 位于 anchor 之后 → 跳过（只处理第一个大题之前的旧固定件）
-    return !(anchor.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+    if (!boundary) return true;
+    // DOCUMENT_POSITION_FOLLOWING：el 位于 boundary 之后 → 跳过（只处理正文开头之前的旧固定件）
+    return !(boundary.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
   };
   for (const el of Array.from(tpl.content.querySelectorAll('.exam-notice, .notice-title, .notice-item, .exam-score-table, table, p, h1, h2, h3, h4'))) {
     if (el.closest('.exam-shell')) continue;

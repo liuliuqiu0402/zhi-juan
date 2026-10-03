@@ -26,9 +26,10 @@ import { buildProgramAttach } from '../../src/utils/programAttach.js';
 /** 改法类型（枚举 = 单一事实源）：一处复核对"没做到"开出的处方，只许取这几类之一 */
 const FIX_TYPES = {
   oneOfTwo: { label: '二选一修正（声明↔内容，改其一）', re: /二者取一/ },
-  swap: { label: '换要素（情境/数据/设问角度）', re: /换情境|换数据|换设问/ },
+  // 🔴 2026-10-03（用户裁定·去诱导）：原 swap 的 label 为"换要素（情境/数据/设问角度）"——**枚举式**改法，
+  //    与【尾约束·资料内多样】② 原枚举判据同源；该枚举判据已改判据式，改法相应改为"有即改"（不再点名换哪一维）。
+  fixNow: { label: '有即改（发现即当场改）', re: /凡有即当场改/ },
   selfRevise: { label: '不达标即自行修订', re: /自行修订/ },
-  fixNow: { label: '发现即改', re: /立即改正/ },
   fixGap: { label: '缺号即补、重启即改', re: /缺号即补|重启即改/ },
   deferToThreeDomains: { label: '引到三域（不另立判据）', re: /以上细目即【尾约束·全文自洽】三域在题类资料的展开/ },
 };
@@ -51,7 +52,7 @@ const REVIEW_ACTIONS = [
   },
   {
     id: 'tail-variety', block: '尾约束·资料内多样', channel: '用户消息（末尾锚定）', scope: '全类型',
-    action: '定稿前逐部分核对', anchor: '定稿前逐部分核对', fixType: 'swap', via: 'matrix',
+    action: '定稿前逐部分核对', anchor: '定稿前逐部分核对', fixType: 'fixNow', via: 'matrix',
   },
   {
     id: 'question-format', block: '题目自洽总纲①至⑰', channel: '委托正文【输出格式】', scope: '仅题类',
@@ -78,18 +79,10 @@ const REVIEW_ACTIONS = [
     //    故标 noAction：跳过"动作句形态"断言（实发文本里已无该动作句，属**有意**收口，非脱节）。
     action: '（无独立动作——已并入尾约束三域）', anchor: '任一不达即自行修订', fixType: 'selfRevise', via: 'matrix', noAction: true,
   },
-  {
-    id: 'organize-exam', block: '组织方式（exam 分支）', channel: '用户消息', scope: '仅 exam',
-    action: '成稿前逐栏目对照自查', anchor: '成稿前逐栏目对照自查', fixType: 'oneOfTwo', via: 'matrix',
-  },
-  {
-    id: 'req-fulfil-column', block: '要求落实（教辅·栏目版）', channel: '委托正文', scope: '教辅（非易错题本）',
-    action: '成稿前逐栏目对照自查', anchor: '成稿前逐栏目对照自查', fixType: 'oneOfTwo', via: 'matrix',
-  },
-  {
-    id: 'req-fulfil-per-item', block: '要求落实（易错题本·逐题项）', channel: '委托正文', scope: '易错题本',
-    action: '成稿前逐题逐项对照自查', anchor: '成稿前逐题逐项对照自查', fixType: 'oneOfTwo', via: 'matrix',
-  },
+  // 🔴 2026-10-03（D16·用户裁定）：原 3 条（organize-exam / req-fulfil-column / req-fulfil-per-item）的
+  //    动作句"成稿前逐栏目对照自查：凡写了而没做到的，改内容或改写法，二者取一"已**删除**——
+  //    ① I5 对账式自查＝D16 自检类补丁（优先清除）；② 后半"二者取一"＝I2 许可式留口。
+  //    前置已精准（栏目/大题行本就带【要求·须逐项落实】标注、"必须逐项落实"效力句仍在），故三处动作句一并删。
   {
     id: 'retry-gap-note', block: '上一轮复核发现的问题（重试附加段）', channel: '调用层追加（重试时）', scope: '整卷正文重试',
     action: '输出完成后逐题自查题号连续', anchor: '输出完成后逐题自查', fixType: 'fixGap', via: 'runtime',
@@ -98,6 +91,7 @@ const REVIEW_ACTIONS = [
 // 🔴 2026-10-01（③啰嗦·D16 自检类补丁清除）：原第 10 条 'question-numbering'（委托正文里的"逐题自查题号连续"）
 //    已删——题号编法前置已精准（QUESTION_NUMBERING_CALIBER 单源）、连续性由程序侧确定性校验并驱动重试
 //    （见上条 retry-gap-note）；模型侧"成稿后自查"属 D16 优先清除对象。条目数 10→9。
+// 🔴 2026-10-03（D16·用户裁定）：续删 3 处"成稿前逐栏目/逐题逐项对照自查"（I5 自查＋I2 许可式）→ 条目数 9→6。
 
 const GEN_TYPES = ['exam', 'practice', 'special', 'reading', 'dictation', 'errorbook', 'review', 'summary', 'preview'];
 const SUBJECTS = ['语文', '数学', '英语'];
@@ -130,7 +124,7 @@ const MATRIX = buildMatrixText();
 
 describe('模型侧复核动作登记表：完整性', () => {
   it('条目数与唯一性（新增/删除一处必须同步本表——这是故意的"手动同步"提醒）', () => {
-    expect(REVIEW_ACTIONS).toHaveLength(9);
+    expect(REVIEW_ACTIONS).toHaveLength(6);
     expect(new Set(REVIEW_ACTIONS.map((a) => a.id)).size).toBe(REVIEW_ACTIONS.length);
   });
 

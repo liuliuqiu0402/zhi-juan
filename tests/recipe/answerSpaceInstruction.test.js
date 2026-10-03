@@ -27,10 +27,10 @@ describe('buildAnswerSpaceInstruction（通用六行：形态按作答需要选�
       '填**符号**（字母/序号/√× 等，含带选项的题）→ **圆括号空位**',
       '1~2 字位',
       '填**短答**（词/句/数等，含"列举归类"）→ **横线空位**',
-      '作答位就在题面空位内（括号空位/圈选位）、不另设独立作答区的题，一律不再另附长横线作答区',
+      '作答位就在题面空位内的题不再另附长横线作答区',
       '· 题面带选项（A./B./C. 等）的题，其作答位即上句判据所指的**圆括号空位**',
       '括号一律用半角（英文状态）括号',
-      '选项行内、选项末尾，以及选项行之后，一律不加作答位',
+      '选项行内、选项末尾及选项行之后一律不加作答位',
       '与【题目自洽①】冲突时以本条为准',
       '· 短答空位宽度按"恰好容纳该空答案"换算',
       '严禁按题的先后递增、也严禁全卷一律等宽',
@@ -51,21 +51,21 @@ describe('buildAnswerSpaceInstruction（通用六行：形态按作答需要选�
     // 🔒 范围裁定（2026-09 用户）：只约束"题面带选项"这一个形态，不触碰判断√×位/数学方框圆圈等既有条款；
     //    且纯形态描述、不含题型名（防题型诱导）。
     const CLAUSE_COMMON = '其作答位即上句判据所指的**圆括号空位**';
-    const HEAD = '**位置在题号之前的题首**，写成"( ) 1. 题干…"';
-    const TAILPOS = '**位置在题干末尾**，写成"1. ……的是( )"';
+    const HEAD = '**在题号之前的题首**，写成"( ) 1. 题干…"';
+    const TAILPOS = '**在材料与设问之后、选项行之前**，写成"1. ……的是( )"';
     const PAREN_HALF = '括号一律用半角（英文状态）括号';
-    const BAN = '选项行内、选项末尾，以及选项行之后，一律不加作答位';
+    const BAN = '选项行内、选项末尾及选项行之后一律不加作答位';
     expect(generic).toContain(CLAUSE_COMMON);
     expect(generic, '括号一律半角（英文状态）——既有用户规格').toContain(PAREN_HALF);
-    expect(generic, '无学科兜底 → 题干末尾（2026-09-26 用户定）').toContain(TAILPOS);
+    expect(generic, '无学科兜底 → 中文支（材料与设问之后、选项行之前）（2026-10-03 问题3 根治）').toContain(TAILPOS);
     expect(generic).toContain(BAN);
-    expect(generic).toContain('不给整行横线、不给空白作答行、不另设作答区，作答位只有上述那一处');
+    // 2026-10-03（问题3/6根治）：旧排他词"作答位只有上述那一处"已删——它被模型读成"材料内不得有就地空位"
+    //    （实证：选词填空只剩"先操场。"），改由下方"材料内缺内容处就地留空"句承载；禁止范围判据不变。
+    expect(generic).toContain('不给整行横线、不给空白作答行、不另设作答区');
     expect(generic, '与自洽①冲突时以本条硬约束为准').toContain('改题面、不改本条');
     // 2026-09-17 用户裁定（第三卷第六题"题干内下划线空位 + 题首括号位并存"→「这个不是缺陷，正常的」）：
-    //    补的界定句必须在（防模型把"作答位只有题首那一处"读成"题干内不得有空位"而删掉正常写法）；
-    //    同时不得引入题型名（与上一句同一约束）。
-    expect(generic).toContain('题干内指示所填内容的那处空位不是作答位');
-    expect(generic).toContain('它是题面的一部分、由选项作答，照常保留');
+    //    就地空位与题末作答位并存的界定句必须在（防模型删掉正常写法）；同时不得引入题型名。
+    expect(generic).toContain('材料内缺内容处就地留空，与题末作答位并存、均须保留');
     const newLine = generic.split('\n').find((l) => l.includes('题面带选项'));
     expect(newLine, '新条款应纯形态描述、不含题型名（选择/判断/圈选/填空）').not.toMatch(/选择|判断|圈选|填空/);
     // 2026-09-26 用户定：按"外语类"判定（不只认"英语"）——故把日语也纳入用例，防回退成单一字面量
@@ -73,7 +73,7 @@ describe('buildAnswerSpaceInstruction（通用六行：形态按作答需要选�
       const isForeign = s === '英语' || s === '日语';
       const inst = buildAnswerSpaceInstruction(s, st);
       expect(inst, `${s}·${st} 缺作答位形态条款`).toContain(CLAUSE_COMMON);
-      expect(inst, `${s}·${st} 位置未按学科分叉（外语类题首／中文科目题干末尾）`).toContain(isForeign ? HEAD : TAILPOS);
+      expect(inst, `${s}·${st} 位置未按学科分叉（外语类题首／中文在材料与设问之后、选项行之前）`).toContain(isForeign ? HEAD : TAILPOS);
       expect(inst, `${s}·${st} 括号须为半角（英文状态）`).toContain(PAREN_HALF);
       expect(inst, `${s}·${st} 缺选项禁答位条款`).toContain(BAN);
     }
@@ -82,7 +82,7 @@ describe('buildAnswerSpaceInstruction（通用六行：形态按作答需要选�
   it('作答位即题面空位类不另附长横线条款恒在（2026-09 源头条款·阅读判断类实证）：通用段注入、全学科随行', () => {
     // 实证：英语卷阅读判断类题被模型在短文后额外出 2 行长横线——作答位本就在小题括号空位内；
     // 本条放在通用段（单一事实源），与补差端 2k 结构性排除（此类作答位本不补差）同口径。
-    const CLAUSE = '作答位就在题面空位内（括号空位/圈选位）、不另设独立作答区的题，一律不再另附长横线作答区';
+    const CLAUSE = '作答位就在题面空位内的题不再另附长横线作答区';
     expect(generic).toContain(CLAUSE);
     for (const [s, st] of [['英语', 'primary_high'], ['语文', 'primary_low'], ['数学', 'primary_mid'], ['物理', 'middle']]) {
       expect(buildAnswerSpaceInstruction(s, st), `${s}·${st} 缺"题面空位类不另附长横线"条款`).toContain(CLAUSE);

@@ -2,7 +2,7 @@
 // ============================================================
 // 唯一口径：
 //   · 括号**一律半角**（span.blank-N 载体渲染自带半角括号；与 contentCleaner 归一同形）；
-//   · 位置**按学科**：外语类 → 题首；中文科目（含无学科兜底） → 题干末尾。
+//   · 位置**按学科**：外语类 → 题首；中文科目（含无学科兜底） → 材料与设问之后、选项行之前（题干尾部）。
 // 本文件锁"四处同源"+回潮守卫：
 //   ① examValidator 2e0（choice-first-blank-fix）输出**半角 span**，不再产字面全角「（　）」；
 //   ② examValidator 2j-6 位置归并**方向按学科条款**（非多数票、非"同数题首优先"）；
@@ -42,10 +42,12 @@ describe('选择类作答位·位置按学科（单一出口 layoutSpec.getChoic
     expect(FOREIGN_LANG_SUBJECT_RE.test('七年级英语')).toBe(true); // 语言名包含即纳入
   });
 
-  it('与 buildAnswerSpaceInstruction 条款方向一致（外语题首 / 中文题干末尾）', () => {
-    expect(buildAnswerSpaceInstruction('英语', 'high')).toContain('位置在题号之前的题首');
-    expect(buildAnswerSpaceInstruction('语文', 'high')).toContain('位置在题干末尾');
-    expect(buildAnswerSpaceInstruction()).toContain('位置在题干末尾'); // 无学科兜底落中文支
+  it('与 buildAnswerSpaceInstruction 条款方向一致（外语题首 / 中文在材料与设问之后、选项行之前）', () => {
+    // 🔧 2026-10-03（问题3根治）：中文支旧字面"题干末尾"被模型读成"作答说明行末尾"（作答位挂错、选项上移），
+    //    改述为"材料与设问之后、选项行之前"——判据不变（仍属题干尾部），只把易误读的锚点说精确。
+    expect(buildAnswerSpaceInstruction('英语', 'high')).toContain('在题号之前的题首');
+    expect(buildAnswerSpaceInstruction('语文', 'high')).toContain('在材料与设问之后、选项行之前');
+    expect(buildAnswerSpaceInstruction()).toContain('在材料与设问之后、选项行之前'); // 无学科兜底落中文支
   });
 });
 
@@ -141,7 +143,7 @@ describe('③ validatorRules 两条 description 同源（按学科位置 + 半�
     const d = getValidatorRule('choice-answer-position-guard').description;
     expect(d).toContain('按学科');
     expect(d).toContain('外语');
-    expect(d).toContain('题干末尾');
+    expect(d, '中文支锚点=材料与设问之后、选项行之前（2026-10-03 问题3 根治）').toContain('材料与设问之后、选项行之前');
     expect(d).toContain('半角');
     for (const old of OLD) expect(d, `旧口径不得回潮：${old}`).not.toContain(old);
   });
@@ -167,7 +169,7 @@ describe('④ layoutSpec 头注与实现一致（按学科位置 + 一律半角�
     expect(src).toContain('其作答位**形态与位置按学科定死**');
     expect(src).toContain('括号**一律半角**');
     expect(src).toContain('**外语类**在题号之前的题首');
-    expect(src).toContain('**中文科目**在题干末尾');
+    expect(src).toContain('**中文科目**在材料与设问之后、选项行之前');
   });
 
   it('ANSWER_REGION.carrier 头注写实值 blank-area（非旧 "blank"）', () => {

@@ -41,4 +41,14 @@ describe('题号"编号对象"口径', () => {
     expect(QUESTION_NUMBERING_CALIBER.exam).toContain('全卷连续');
     expect(QUESTION_NUMBERING_CALIBER.teaching).toContain('分别从 1 起编');
   });
+
+  // 🔴 2026-10-03（用户报障根治·问题5）：「共N题」题量原写"只数**实际给号的小题**"——与账目绝对等式
+  //    （小题数×每题分=大题分）耦合，模型为凑等式把同型并列小项**逐项编号**（生编硬凑题号）。
+  //    已把"共N题/小题数"口径显式指向本题号对象条。本用例为**锁**：该耦合口径不得回潮。
+  it('「共N题」题量口径须指向编号对象条，不得为凑题量把同型并列逐项编号', () => {
+    const ex = tpl('exam');
+    expect(ex, '"共N题/小题数"须显式按编号对象口径计').toContain('一律按上条口径计');
+    expect(ex, '禁止为凑题量逐项编号的判据须在位').toContain('不得为凑题量而把一批同型并列小项逐项编号');
+    expect(QUESTION_OBJECT_CALIBER, '编号对象条须含"同型并列整栏不逐项编号"').toContain('同型并列、仅材料不同的一批小项**整栏**不逐项编号');
+  });
 });

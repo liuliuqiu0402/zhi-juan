@@ -54,8 +54,8 @@ const PINYIN_OPTION_RE = new RegExp(`[（(]\\s*[${PINYIN_CHARS}]+(?:[／/、，,
 const OPTION_P_RE = /<p[^>]*class=["'][^"']*option[^"']*["'][^>]*>/gi;
 const OPTION_LINE_RE = /(?:^|\n)\s*[A-H][.、．]\s*[^\n]+/g;
 // 🔧 选择题选项行内/末尾误挂作答空位（2026-09 用户实证：答案括号被模型挂到选项末尾 C. are; am＿）：
-//   根治在生成侧（作答空间条款：选择/判断/圈选类作答位的**位置按学科**——外语类题首 / 中文科目题干末尾，
-//   见 layoutSpec.getChoiceBlankPosition 单源），此处仅供 guard 静默计数取证。
+//   根治在生成侧（作答空间条款：选择/判断/圈选类作答位的**位置按学科**——外语类题首 / 中文科目在材料与设问
+//   之后、选项行之前（tail），见 layoutSpec.getChoiceBlankPosition 单源），此处仅供 guard 静默计数取证。
 //   2026-09-16 形态化改写：原来只认 `<p class="option">` 或 `<br> A.`——
 //     但实测产物的选项行用的是 `<p class="question">(1) A. stop　B. run…`（根本没 class="option"），
 //     于是连"选项行内挂空位"这一类都认不出来。改为按**形态**识别：段落以选项字母开头（可带 (1) 小题号）。

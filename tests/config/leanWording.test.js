@@ -95,7 +95,8 @@ describe('少约束·委托书不再给组织形态描述（教材颗粒只作�
     expect(org.split('\n').filter((l) => l.startsWith('· ')), '一条一行').toHaveLength(2);
     expect(org).toContain('输出一律以委托书【卷面结构】的大题序列组织'); // 守卷面结构
     expect(org).toContain('**必须逐项落实**');
-    expect(org).toContain('成稿前逐栏目对照自查');
+    // 🔴 2026-10-03（D16·用户裁定）：原断言"成稿前逐栏目对照自查"（I5 自查＋I2"二者取一"）已删 → 反向锁不得回潮。
+    expect(org, 'D16 自检类补丁不得回潮').not.toContain('逐栏目对照自查');
   });
 
   it('题型授权仍保留在输出格式里（删了组织方式块，不能把 <h3> 授权一起删掉）', () => {

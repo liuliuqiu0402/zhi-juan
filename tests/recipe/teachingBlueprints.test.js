@@ -88,7 +88,8 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
     }
     expect(inject).toContain('【要求落实】');
     // 效力 + 边界：注里写的内容与形态必须兑现，但**不是题组划分/命名依据**（与既有裁定不冲突）
-    expect(inject).toContain('成稿前逐栏目对照自查');
+    // 🔴 2026-10-03（D16·用户裁定）：原"成稿前逐栏目对照自查"（I5 自查＋I2"二者取一"）已删 → 反向锁不得回潮。
+    expect(inject, 'D16 自检类补丁不得回潮').not.toContain('逐栏目对照自查');
     expect(inject).toContain('不是题组划分或命名的依据');
   });
 
@@ -138,10 +139,10 @@ describe('buildTeachingInjection（教辅结构注入块）', () => {
       expectCol('summary', subject, '方法提炼');
       expectCol('review', subject, '复习目标');
     }
-    // 阅读选文口径统一：模板允许改编，栏目 note 不得再写「原创短文」与之打架（通用 + 语文）
+    // 阅读选文口径统一：模板允许改编、来源不限（可课内/课外），栏目 note 不得再写「原创短文」与之打架（通用 + 语文）
     for (const subject of ['', '语文']) {
       const inject = buildTeachingInjection({ genType: 'reading', stage: 'middle', subject });
-      expect(inject, `${subject || '通用'}·reading 选文口径应与模板一致（可改编）`).toContain('选编、改编自课外读物');
+      expect(inject, `${subject || '通用'}·reading 选文口径应与模板一致（可改编·来源不限）`).toContain('选编、改编自课内或课外读物');
       expect(inject).not.toContain('原创短文');
     }
     // 知识总结「知识框架」明确为结构化（结构图/网络）
@@ -164,13 +165,15 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(sections).toContain('迁移创新');
   });
 
-  it('语文同步练习栏目导向含学科语义（语段阅读/写话）', () => {
+  it('语文同步练习栏目导向含学科语义（语段阅读/表达运用）', () => {
     const inject = buildTeachingInjection({ genType: 'practice', stage: 'primary_mid', subject: '语文' });
     expect(inject).toContain('语文·同步练习');
     expect(inject).toContain('语段阅读与表达运用');
     // 🔧 2026-09-16 用户裁定：栏目 note 中「生活化」属产品自造的情境取向（跨学科取向推力），已删；
-    //    本句只锁"口语表达或写话 + 联系本单元主题"这一学科语义。
-    expect(inject).toContain('口语表达或写话，联系本单元主题');
+    //    本句锁"课标领域名 + 联系本单元主题"这一学科语义。
+    // 🔧 2026-10-03（⑤去诱导·一并执行）：作答方式枚举"口语表达或写话"（命题口径下的作答路径指向）已删，
+    //    保留课标领域名（表达与交流、梳理与探究）与中性范围句"联系本单元主题"。
+    expect(inject).toContain('表达与交流、梳理与探究：联系本单元主题');
     expect(inject).not.toContain('生活化口语表达');
   });
 
@@ -261,7 +264,8 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(inject).toContain('科学·同步练习');
     expect(inject).toContain('生活现象与观察');
     expect(inject).toContain('观察与实验题目');
-    expect(inject).toContain('观察自然、制作模型');
+    // 🔧 2026-10-03（⑤去诱导·一并执行）：自造举例括注"（观察自然、制作模型、调查记录）"已删，保留应用领域句"生活应用与实践题目"。
+    expect(inject).toContain('生活应用与实践题目');
     const dict = buildTeachingInjection({ genType: 'dictation', stage: 'middle', subject: '科学' });
     expect(dict).toContain('科学·默写积累');
     expect(dict).toContain('科学概念');
@@ -283,7 +287,9 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     expect(inject).toContain('物理·同步练习');
     expect(inject).toContain('概念、规律与公式');
     expect(inject).toContain('实验探究题目');
-    expect(inject).toContain('生活、科技、工程应用');
+    // 🔧 2026-10-03（⑤去诱导·一并执行）：自造举例括注"（生活、科技、工程应用）"与作答方式"含作图与计算"已删，
+    //    保留课标术语"问题解决"；课标课程理念"从生活走向物理"（学科级学段要求）另由下一行锁定。
+    expect(inject).toContain('科学思维、科学态度与责任：问题解决');
     expect(inject).toContain('从生活走向物理'); // 学科级学段要求·初中（课标课程理念）
     const high = buildTeachingInjection({ genType: 'practice', stage: 'high', subject: '物理' });
     expect(high).toContain('物理观念与科学思维'); // 学科级学段要求·高中
