@@ -166,7 +166,11 @@ describe('④ 模型侧：内容型"内部题的作答位"为条件式、不诱�
       const s = TPL(t);
       expect(s, `${t} 缺横线空位标记`).toContain('<u class="blank-N">&emsp;</u>');
       expect(s, `${t} 缺括号空位标记`).toContain('<span class="blank-N">&emsp;</span>');
-      expect(s, '须说明裸下划线会被当强调清理').toContain('没有空位语义');
+      // 🔴 2026-10-04（F5·越权注入对账）：原断言"须说明裸下划线会被当强调清理"锁的是**程序侧机制/免责描述**
+      //    （"无 class 的下划线在本产品没有空位语义…会被当作强调标注清理掉"）——§12.x 判为矛盾项、已清除；
+      //    判据由上面两条标记 ＋ 上一条"不得用无 class 的裸 <u>"承载。此处改**反向锁**防回潮。
+      expect(s, `${t} 不得回潮程序侧机制/免责解释`).not.toContain('在本产品');
+      expect(s, `${t} 不得回潮程序侧机制/免责解释`).not.toContain('会被当作强调标注清理掉');
     }
   });
 
@@ -195,7 +199,9 @@ describe('④ 模型侧：内容型"内部题的作答位"为条件式、不诱�
 
   it('内容型不注入题类格式块（载体协议只作条件式补充，不广播题目自洽总纲）', () => {
     const c = buildOutputFormatHint({ subject: '英语', stage: 'primary_high', genType: 'summary' });
-    expect(c).not.toContain('题目自洽');
+    // 🔴 2026-10-03（口径改准·用户质询）：内容型确有作答位；其载体规格由**内容型【输出格式】自带的作答位条款**
+    //    给出（空位标记协议＋长答书写载体），**不注入题类格式块**；《题目自洽》块一律不注入。
+    expect(c, '内容型不得注入《题目自洽》块').not.toMatch(/【题目自洽】\n/);
     expect(c).toContain('本资料若含需学生自行作答的题');
   });
 });

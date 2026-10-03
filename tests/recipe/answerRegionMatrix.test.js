@@ -54,24 +54,30 @@ describe('矩阵：生成端语义与程序端补差同源（buildAnswerSpaceIns
   }
 });
 
-// 🔴 2026-09-14（用户实证）：英语写作题的横线曾插在"要求：1. 2. 3."分条之间（每条各 4 行），
-//    卷面像"三条小题各带作答区"。本条把横线**位置**钉死：整题一处、分条之后；且只对英语注入。
-describe('矩阵：写作横线给在整题之后（英语专属，不插在要求分条之间）', () => {
-  it('英语各学段（横线载体）：注入"只在整题之后集中给一处 / 不插在分条之间"', () => {
+// 🔴 2026-09-14（用户实证·英语）：英语写作题的横线曾插在"要求：1. 2. 3."分条之间（每条各 4 行），
+//    卷面像"三条小题各带作答区"。本条把横线**位置**钉死：整题一处、分条之后。
+// 🔴 2026-10-03（①三维度·门控缺口补做）：原**只对英语注入** → 语文/科学等 line 载体学科缺此判据，
+//    实测伤情⑤：低段写话"要求(1)(2)(3)"分条之间被插入满行横线。现提为 **line 载体通用**
+//    （纯位置描述、零题型名/零学科名，不跨学科广播载体词）；非 line 载体不注入该句（只描述"整行书写横线"的位置）。
+describe('矩阵：写作横线给在整题之后（line 载体通用，不插在要求分条之间）', () => {
+  it('各 line 载体学科×学段：注入"只在整题之后集中给一处 / 不插在分条之间"', () => {
     let checked = 0;
-    for (const stage of STAGES) {
-      if (getAnswerRegion('英语', stage).carrier !== 'line') continue;
-      const s = buildAnswerSpaceInstruction('英语', stage);
-      expect(s).toContain('只在整题之后集中给一处');
-      expect(s).toContain('不插在分条之间');
-      checked += 1;
+    for (const subject of SUBJECTS) {
+      for (const stage of STAGES) {
+        if (getAnswerRegion(subject, stage).carrier !== 'line') continue;
+        const s = buildAnswerSpaceInstruction(subject, stage);
+        expect(s, `${subject}·${stage}`).toContain('只在整题之后集中给一处');
+        expect(s, `${subject}·${stage}`).toContain('不插在分条之间');
+        checked += 1;
+      }
     }
-    expect(checked, '未扫到英语横线分支（防假绿）').toBeGreaterThan(0);
+    expect(checked, '未扫到 line 载体分支（防假绿）').toBeGreaterThan(0);
   });
 
-  it('其他学科不注入该句（学科收敛，不跨学科广播写作载体词）', () => {
-    for (const subject of SUBJECTS.filter((x) => x !== '英语')) {
+  it('非 line 载体（无线空白行）不注入该句', () => {
+    for (const subject of SUBJECTS) {
       for (const stage of STAGES) {
+        if (getAnswerRegion(subject, stage).carrier === 'line') continue;
         expect(buildAnswerSpaceInstruction(subject, stage), `${subject}·${stage}`)
           .not.toContain('不插在分条之间');
       }

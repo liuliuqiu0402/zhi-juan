@@ -21,7 +21,7 @@ import { ERRORBOOK_FACET_NAMES } from '../../src/config/errorbookFacets.js';
 import { EXAM_BLUEPRINTS } from '../../src/config/examPaperBlueprints.js';
 import { GENERIC_SPECIAL_DESC } from '../../src/config/specialDomains.js';
 import { buildAnswerSpaceInstruction, buildCarrierInstruction, buildLongAnswerCarrierInstruction } from '../../src/config/layoutSpec.js';
-import { buildMaterialUsageBlock, buildOrganizeBlock, buildTailBlocks } from '../../src/utils/injectionManifest.js';
+import { buildMaterialUsageBlock, buildOrganizeBlock, buildTailBlocks, TAIL_VARIETY } from '../../src/utils/injectionManifest.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
@@ -220,15 +220,19 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(src).toContain('同一份资料内各部分的形式与先后应有变化，逐部分、逐单元换一套版式');
     expect(src, '否定式关联不得回潮').not.toMatch(/不得全份同类版式照搬|不可逐栏/);
     // 🔴 2026-09-27（用户裁定·质量问题须模型侧根治、不依赖程序侧报告）：原块只管"版式多样"（形式层），
-    //    而"同一考查点/情境/数据/设问反复出现"（组卷随意、同质化）**只在【质量底线】作陈述、无成稿前动作**。
-    //    现按项目既有范式（复核写成成稿前动作、判据可自判）补"不重复"这一查，与"题号连续性自查""自洽三域"同址。
-    expect(src, '"不重复"须落到成稿前动作').toContain('定稿前逐部分核对');
+    //    而"同一考查点/情境/数据/设问反复出现"（组卷随意、同质化）**只在【质量底线】作陈述**。
+    // 🔴 2026-10-04（D16 · 用户裁定"自检类块属优先清除对象"）：原**补的**"定稿前逐部分核对①版式换过／
+    //    ②内容不重复"是**定稿前自检动作壳**——两条判据已在本块**前置**（版式要求＋"各处内容不重复（按考查
+    //    作用判…）"）→ 依 D16 四步（前置已足 → 删动作壳）**删除**。判据改为单源常量断言（不再读含注释的 src，
+    //    防"注释里仍有该串"掩盖真身）。
     // 🔴 2026-10-03（用户裁定·去诱导）：原判据"同一考查点、同一情境、同一组数据、同一种设问方式不重复出现"
     //    是**枚举式禁止**＋许可式漏洞（换一维即合规）→ 改判据式（按考查作用判，可互相替代即重复）。
-    expect(src, '不重复的判据须为判据式').toContain('各处内容不重复');
-    expect(src, '不重复按考查作用判').toContain('重复按考查作用判');
-    expect(src, '枚举式判据不得回潮').not.toContain('同一考查点、同一情境、同一组数据');
-    expect(src, '雷同即当场改、只输出定稿').toContain('凡有即当场改，只输出改后的定稿');
+    expect(TAIL_VARIETY, '不重复的判据须为判据式').toContain('各处内容不重复');
+    expect(TAIL_VARIETY, '不重复按考查作用判').toContain('重复按考查作用判');
+    expect(TAIL_VARIETY, '枚举式判据不得回潮').not.toContain('同一考查点、同一情境、同一组数据');
+    expect(TAIL_VARIETY, '雷同即当场改、只输出定稿').toContain('凡有即当场改，只输出改后的定稿');
+    // 🔒 反向锁（D16）：定稿前自检动作壳删除后不得回潮——D16 禁"再加一块自检"作为修复手段。
+    expect(TAIL_VARIETY, 'D16：定稿前自检动作壳不得回潮').not.toContain('定稿前逐部分核对');
     expect(fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8'))
       .toContain('buildTailBlocks()');
   });
@@ -488,7 +492,7 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
   });
 
   it('低段课标取向词出现时必带作用域界定（且界定写明不涉题目与卷面的呈现形态）', () => {
-    // 低段"情境活动化、游戏化、生活化"出自课程方案的**学习设计**表述；无界定会被读成"每道题都要活动化包装"。
+    // 低段"活动化、游戏化、生活化的学习设计"出自课程方案的**学习设计**表述；无界定会被读成"每道题都要活动化包装"。
     // 2026-09-30：界定由"仅 exam"扩到**凡含该词即补**（教辅模板此前同词无界定＝同一缺陷）。
     let hit = 0;
     for (const subject of ['语文', '数学', '英语', '科学', '道德与法治', '音乐']) {

@@ -41,15 +41,17 @@ const REQUIRED_EXAM = [
   '【卷面结构（依', '【大题标题命名】', '【卷首】', '【卷面层级】',
   '【题号与分值】', '【卷面自洽】', '【情境与页码】',
 ];
-/** 作答载体与题目自洽两段；**"梳理型"按设计不注入**（无作答任务），**"要学生动手的"必注入**。
- *  🔴 2026-10-02（⑧ 首跑修正）：初版把 4 个内容型一律判为"不注入"→ 216 处假红。
- *  实际设计（`outputFormatSections(mode)` 的 `mode==='content'` 分支）：
- *    · **无载体** summary（知识总结＝纯梳理）、preview（预习导学＝引导性内容，学生圈画自记、不落格）
- *    · **有载体** 其余 7 类（含 review 复习资料＝含习题、dictation **默写纸**＝学生要落笔写答案）
- *  ⚠️ 该分组是**实测口径**（2026-10-02 逐 486 跑，两次判据写错后改为按实测锁定并加注理由）——
- *     与 `outputFormatSections` 的 `mode==='content'` 分支一一对应；若哪天设计变了，本断言会红，再由人判。 */
-const TYPE_ONLY = ['【作答位与载体】', '【题目自洽】'];
-const NO_CARRIER_TYPES = ['summary', 'preview'];
+/** 作答载体 与 题目自洽 两段（🔴 2026-10-03 **口径改准**·用户质询）：
+ *  · 原口径"纯梳理型没有作答位"**不准**——知识总结的【典型例题】是**一道完整的题**、**答案回填在其作答位上**；
+ *    预习的【课后问答】要求"预读与尝试作答" → **内容型也有作答位**。
+ *  · 但内容型的"载体规格"**不在题类格式块里**，而在内容型【输出格式】自带的作答位条款（`carrierHint`：
+ *    横线/括号空位标记 ＋ 长答书写载体）——故**题类格式块仍不向内容型广播**（三方审计"类型不串味"要求）；
+ *    内容型创作要求里的空指向（"按本学科本学段的作答载体规格"）已改为**指向【输出格式】的作答位条款**。
+ *  · 判据：**题类 7 类必注入**【作答位与载体】与【题目自洽】；**内容型一律不注入**这两块（其作答位条款自带）。
+ *  ⚠️ 设计若变，本断言会红，再由人判。 */
+const CARRIER_ALL = '【作答位与载体】';
+const SELF_CHECK = '【题目自洽】';
+const NO_SELF_CHECK_TYPES = ['summary', 'preview'];
 
 const pos = (t, m) => (t.startsWith(m) ? 0 : t.indexOf(`\n${m}`));
 
@@ -92,18 +94,18 @@ describe('⑧ 质量就绪：逐 486 真实三维度核对"产出必需判据齐
     expect(bad.slice(0, 20), `试卷卷面件缺失 ${bad.length} 处`).toEqual([]);
   });
 
-  it('要学生动手的必注入作答载体与题目自洽；**纯梳理型不注入**（防"梳理资料被塞作答要求"）', () => {
+  it('题类 7 类必注入作答载体块；内容型按 学科×学段 有载体则注入，且一律不注入《题目自洽》', () => {
     const bad = [];
     for (const genType of GEN_TYPE_KEYS) {
-      const noCarrier = NO_CARRIER_TYPES.includes(genType);
+      const noSelfCheck = NO_SELF_CHECK_TYPES.includes(genType);
       for (const { stage, subject } of OPEN_PAIRS) {
         const t = buildCell(genType, stage, subject);
         const tag = `${genType}|${subject}|${stage}`;
-        for (const m of TYPE_ONLY) {
-          const has = pos(t, m) >= 0;
-          if (noCarrier && has) bad.push(`${tag} —— 纯梳理型不应注入 ${m}`);
-          if (!noCarrier && !has) bad.push(`${tag} —— 需作答的资料缺 ${m}`);
-        }
+        // 题类必注入；内容型为"**有载体协议才有块**"（无书写载体的学科不注入——无载体可给）
+        if (!noSelfCheck && pos(t, CARRIER_ALL) < 0) bad.push(`${tag} —— 缺 ${CARRIER_ALL}`);
+        const hasSelf = pos(t, SELF_CHECK) >= 0;
+        if (noSelfCheck && hasSelf) bad.push(`${tag} —— ${genType} 不应注入 ${SELF_CHECK}`);
+        if (!noSelfCheck && !hasSelf) bad.push(`${tag} —— 需作答的资料缺 ${SELF_CHECK}`);
       }
     }
     expect(bad.slice(0, 30), `载体/自洽段归属违规 ${bad.length} 处`).toEqual([]);
@@ -157,6 +159,8 @@ describe('⑧ 质量就绪：逐 486 真实三维度核对"产出必需判据齐
   it('L2 反向锁：已清除的"内部机制/解释性"表述不得回潮（逐 486）', () => {
     const FORBIDDEN = [
       '在本产品语义',                    // 批C/批D 清除（本产品内部语义解释）
+      '在本产品',                        // F5 清除（本产品内部语义解释的**全族**——含"没有空位语义"变体，曾逃过上面那条精确锁）
+      '会被当作强调标注清理掉',           // F5 清除（程序侧清理机制/免责描述——§12.x 矛盾项）
       '程序拼装并在生成后统一替换',       // 项4 批A 清除（机制描述→结果式）
       '把它当"背景描述"读过去',           // ⑤ 回补清除（否定式植入）
       '下划线在本产品语义',               // 批D 清除

@@ -260,11 +260,15 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     expect(generic).not.toContain('four-line-three');
   });
 
-  it('内容型（preview/summary）走结构化格式，不注入作答载体条款', () => {
+  it('内容型（preview/summary）走结构化格式；自带作答位条款，不注入题类格式块', () => {
     const preview = buildOutputFormatHint({ subject: '语文', stage: 'primary_low', genType: 'preview' });
     expect(preview).toContain('栏目标题');
-    expect(preview).not.toContain('写汉字类题必须真实输出田字格');
-    expect(preview).not.toContain('作答空位形态与所填内容相称'); // 内容型不走 QUESTION_FORMAT，无作答空间语义
+    // 🔴 2026-10-03（口径改准·用户质询"纯梳理型也有例题/自测题"）：内容型确有作答位（例题答案回填位／
+    //    课后问答尝试位）；其"载体规格"由**内容型【输出格式】自带的作答位条款**给出（横线/括号空位标记＋长答书写载体），
+    //    **不注入题类格式块**（三方审计"类型不串味"）——创作要求里的空指向已改为指向这份条款。
+    expect(preview, '内容型须自带作答位条款（空位标记协议）').toContain('作答位与题类资料同一形态');
+    expect(preview, '内容型不得注入题类专属的书写载体协议条款').not.toContain('书写载体协议');
+    expect(preview, '内容型不得注入《题目自洽》块').not.toMatch(/【题目自洽】\n/);
     const summary = buildOutputFormatHint({ genType: 'summary' });
     expect(summary).toContain('知识梳理');
   });
@@ -314,7 +318,9 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
       const t = getPromptTemplate({ genType: g });
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
-        expect(t.template, `类型 ${g} 内容型不得注入作答空间语义`).not.toContain('作答空位形态与所填内容相称');
+        // 🔴 2026-10-03 口径改准（用户质询）：内容型确有作答位 → 注入"载体规格"（书写载体协议，**按 学科×学段 有则注入**，
+        //    故此处无 subject/stage 的模板级断言只判"不注入题类专属的作答空间条款"；有载体的学科见上一条含 subject 的用例）。
+        expect(t.template, `类型 ${g} 内容型不注入题类专属作答空间条款`).not.toContain('作答空位形态与所填内容相称');
       } else {
         expect(t.template, `类型 ${g} 缺作答空间形态语义`).toContain('作答空位形态与所填内容相称');
         expect(t.template, `类型 ${g} 缺换算锚`).toContain('1 字位≈1 个全角空格≈1 em 书写宽');
@@ -335,7 +341,9 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
       '填**符号**（字母/序号/√× 等，含带选项的题）→ **圆括号空位**',
       '1~2 字位',
       '填**短答**（词/句/数等，含"列举归类"）→ **横线空位**',
-      '作答位就在题面空位内的题不再另附长横线作答区',
+      // 2026-10-03（⑦排序·合并同义）：原锁"作答位就在题面空位内的题不再另附长横线作答区"——
+      //   该判据与**长答条款 dupClause**"同性质作答位只给一处…不得再在题后另起同性质的整行短答载体"**作用结果相同**，
+      //   已合并到 dupClause（正句）；本条不再复述 → 断言移除（防回潮见 `answerSpaceInstruction.test`）。
       '· 题面带选项（A./B./C. 等）的题，其作答位即上句判据所指的**圆括号空位**',
       '选项行内、选项末尾及选项行之后一律不加作答位',
       '与【题目自洽①】冲突时以本条为准',
@@ -360,12 +368,13 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
     expect(generic.template).not.toContain('超长改用整行书写位');
   });
 
-  it('形态语义按答案类型绑定（换算锚随 BLANK 动态注入；内容型无作答空间规则）', () => {
+  it('形态语义按答案类型绑定（换算锚随 BLANK 动态注入；内容型只取载体规格）', () => {
     for (const g of ALL_TYPES) {
       const t = getPromptTemplate({ genType: g });
       if (CONTENT_TYPES.includes(g)) {
-        expect(t.template, `类型 ${g}`).not.toContain('作答空位形态与所填内容相称');
-        expect(t.template, `类型 ${g} 内容型不得注入换算锚`).not.toContain('1 字位≈1 个全角空格≈1 em 书写宽');
+        // 🔴 2026-10-03 口径改准（用户质询）：内容型只取"载体规格"（书写载体协议，**按 学科×学段 有则注入**；
+        //    此处模板级无 subject/stage → 只判"不注入题类专属的作答空间形态判据/换算锚"）。
+        expect(t.template, `类型 ${g} 内容型不注入换算锚`).not.toContain('1 字位≈1 个全角空格≈1 em 书写宽');
       } else {
         // 🔧 换算锚随 BLANK 动态注入（字位→em 计数锚）；形态是"倾向引导非强制绑定"（2026-09 用户定稿：
         //    具体空位形态由模型按题干措辞与作答需要选定，只定死硬约束——宽度换算/同题同形态/一空一载体/禁文字占位）

@@ -11,7 +11,10 @@ describe('画线/加点真实标记规则补位（2026-09）', () => {
     expect(r).toBeTruthy();
     expect(r.promptHint).toContain('画线部分');
     expect(r.promptHint).toContain('<u class="underline-sentence">');
-    expect(r.promptHint).toContain('发音');
+    // 2026-10-03（①三维度·学科纯净）：原锁的英语语音示范（"…发音不同…see → ee"）已从这条**语英共用规则**中剥离——
+    //  一条生成请求＝一学段＋一学科，语文条里不得出现英语样例。判据"画线部分须在词内标出目标字母/字词"仍在；
+    //  英语语音辨析要求另由【英语学科事实底线】单源承载（"语音标注…字母组合须与题面标注范围逐字一致"）。
+    expect(r.promptHint).toContain('词内标出');
     expect(r.promptHint).toContain('无效题');
     expect([...r.subjects].sort().join('')).toBe('英语语文');
 

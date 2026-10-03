@@ -51,8 +51,12 @@ const REVIEW_ACTIONS = [
     action: '定稿前逐节逐题三域复核', anchor: '定稿前逐节逐题按下面三域复核', fixType: 'oneOfTwo', via: 'matrix',
   },
   {
+    // 🔴 2026-10-04（D16 · 用户裁定"自检类块属优先清除对象"）：原动作句"定稿前逐部分核对①版式换过／
+    //    ②内容不重复"是**定稿前自检动作壳**——两条判据已在本块**前置**（"逐部分…换一套版式"＝版式要求；
+    //    "各处内容不重复（重复按考查作用判…）"＝判据）→ 依 D16 四步删除动作句。本条目只登记**改法**
+    //    （有即改），故标 noAction；anchor 改指仍在的收尾句（守卫 B 仍断言其存在于实发文本）。
     id: 'tail-variety', block: '尾约束·资料内多样', channel: '用户消息（末尾锚定）', scope: '全类型',
-    action: '定稿前逐部分核对', anchor: '定稿前逐部分核对', fixType: 'fixNow', via: 'matrix',
+    action: '（无独立动作——判据已前置，复核动作不另立）', anchor: '凡有即当场改，只输出改后的定稿', fixType: 'fixNow', via: 'matrix', noAction: true,
   },
   {
     id: 'question-format', block: '题目自洽总纲①至⑰', channel: '委托正文【输出格式】', scope: '仅题类',
