@@ -10,6 +10,7 @@ import { CARRIER_CSS } from './styles/carrierCss.js'; // 作答载体 CSS 单一
 // 有序列表编号形式（1/a/A/i/I/（1）/一、/①）的 CSS 单一事实源：HTML/PDF 导出必须内联，
 //    否则自定义形式（（1）/一、/①）无原生 type 可依 → 浏览器退化成阿拉伯数字。
 import { LIST_NUMBER_CSS } from './utils/listNumberStyle.js';
+import { markExamBigCategory } from './utils/contentCleaner.js'; // 大类行居中兜底（J2：收口到 wrapContentForTheme 单源，预览与导出一致）
 
 export const themes = [
   // 我的样式
@@ -2529,6 +2530,13 @@ export const wrapContentForTheme = (html, themeId, stage) => {
 
   // 🔧 密封线结构归一化（旧结构信息栏横向 p → 并入 sealed-line 整体竖排），幂等
   html = normalizeSealStructure(html);
+
+  // 🔴 2026-10-04（J2 真机定案·"预览居左、导出居中"）：大类行/卷首时间行的**居中兜底**原分别写在
+  //    导出链（TypesetModule 导出）与生成端预览（GenerateModule），而**排版模块的预览/编辑链**（本函数）
+  //    漏调 → 大类行无 inline center、被主题 CSS 置左。现**收口到本函数单源**：凡经 wrapContentForTheme
+  //    的链（预览/编辑/导出）都得到同一兜底（幂等、纯渲染侧，无指令改动）。
+  //    注：本函数在 `!themeId` 无样式分支之前调用，保证无主题时预览同样居中。
+  html = markExamBigCategory(html);
   
   // 🔧 无样式：不需要包装
   if (!themeId) return html;
