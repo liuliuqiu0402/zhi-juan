@@ -5,6 +5,8 @@
 import { getPromptTemplate, buildStructureText } from '../src/config/promptLibrary.js';
 import { buildProgramAttach } from '../src/utils/programAttach.js';
 import { buildMaterialUsageBlock, buildOrganizeBlock, buildTailBlocks } from '../src/utils/injectionManifest.js';
+import { findBlueprint } from '../src/config/blueprintProvider.js';
+import { getExamBlueprint } from '../src/config/examPaperBlueprints.js';
 
 const subject = process.argv[2] || '语文';
 const stage = process.argv[3] || 'primary_low';
@@ -16,9 +18,12 @@ const tpl = getPromptTemplate({ grade: stage, subject, genType });
 show('1·cell 模板（占位版，看块结构）', tpl.template);
 let structureText = '';
 try {
-  const bp = tpl?.blueprint || tpl?.bp || tpl?.meta?.blueprint;
+  // 蓝图对象：优先走生成端同一出口 findBlueprint（含工具库停用判定），兜底 getExamBlueprint
+  let bp = null;
+  try { bp = findBlueprint({ genType, subject, stage }); } catch { /* fallthrough */ }
+  if (!bp) bp = getExamBlueprint(subject, stage);
   structureText = bp ? buildStructureText(bp) : '';
-  show('2·蓝图注入（buildStructureText）', structureText || '（模板未暴露蓝图对象 → 此处为空；真内容由装配层注入，见下）');
+  show('2·蓝图注入（buildStructureText）', structureText || '（未取到蓝图）');
 } catch (e) { show('2·蓝图注入（失败）', e.message); }
 
 show('3·cell（{structure} 已替换）', structureText ? tpl.template.replace('{structure}', structureText) : tpl.template);
