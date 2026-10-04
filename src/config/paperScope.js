@@ -68,10 +68,14 @@ export const applyPaperTitleToContent = (html, title) => {
   // 卷首标题命名是程序确定性职责，不依赖 AI 是否输出 <h1>：
   //    有 h1（模型已写）→ 替换为规范标题；无 h1（模型省略，同步练习等 question 型常见）→ 兜底前置规范 h1，
   //    否则正文缺卷首大标题、"标题未走命名路径"（此前仅 replace 无 fallback，模型省略 h1 即整个标题消失）
-  if (/<h1[^>]*>[\s\S]*?<\/h1>/i.test(String(html))) {
-    return String(html).replace(/<h1[^>]*>([\s\S]*?)<\/h1>/i, (m, t) => m.replace(t, title));
+  // 🔴 2026-10-04（真机回归·主标题字号不对）：本函数是**卷名唯一落点**，但此前只保留 h1 的**原始属性**——
+  //    模型若把卷首标题写成 `<h1 style="…">` 或干脆 `<p>`，导出端（docxBuilder：`tag==='h1' || class 含 main-title`
+  //    才给 18–20pt 黑体居中）就命不中样式 → "标题字号不对"。此处统一**规范成 `<h1 class="main-title">`**（单源保证）。
+  const src = String(html);
+  if (/<h1[^>]*>[\s\S]*?<\/h1>/i.test(src)) {
+    return src.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, `<h1 class="main-title">${title}</h1>`);
   }
-  return `<h1>${title}</h1>\n\n${String(html)}`;
+  return `<h1 class="main-title">${title}</h1>\n\n${src}`;
 };
 
 /**

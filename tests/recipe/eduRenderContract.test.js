@@ -309,7 +309,8 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     //    叠加"在语境中考查"推力 → 模型把整题改写成含目标词语的语境句（无拼音、无书写格）。
     //    仍按 学科×学段 门控（只进语文低段），故下条同时守卫"不跨学科/学段广播"。
     expect(yw.template).toContain('要求据拼音写词语的题');
-    expect(yw.template).toContain('其下紧跟对应的书写格（田字格）');
+    expect(yw.template, '① 须"就地挖空"（词的原位留空，拼音在上、其下书写格）').toContain('在原句中的位置就地留空');
+    expect(yw.template).toContain('拼音音节在上');
     expect(yw.template).toContain('田字格');
   });
 

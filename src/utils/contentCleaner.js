@@ -891,7 +891,10 @@ export function wrapBareBlankRuns(html = '') {
   //    实证：组词题 "9. 那（　）　　哪（　）" 的组间空格被 prevVisibleChar/nextVisibleChar 跳过
   //    两侧 span 载体标签后露出汉字"那↔哪"，误判成 CJK 夹缝空位 → 画成下划线。
   //    判据：紧邻（可含空白）前一个载体闭合 或 后一个载体开启 → 保留原空格。
-  const CARRIER_ADJ = '<(?:u|span)\\b[^>]*\\bclass=["\'][^"\']*\\bblank-\\d+[^"\']*["\'][^>]*>\\s*&emsp;\\s*<\\/(?:u|span)>';
+  //    2026-10-04（真机复现·问题3）：原守卫把载体内容字面写死为 `&emsp;` —— 模型载体内容一变成普通空格
+  //      （`<span class="blank-4"> </span>`）守卫即失灵 → 组间空格被误转成 `<u class="blank-N">`（空格被画横线）。
+  //      改为**按标签判**（`class="blank-\d+"`，不看内容），任何载体紧邻即保留原空格。
+  const CARRIER_ADJ = '<(?:u|span)\\b[^>]*\\bclass=["\'][^"\']*\\bblank-\\d+[^"\']*["\'][^>]*>[^<]*<\\/(?:u|span)>';
   const RE_CARRIER_BEFORE = new RegExp(`(?:${CARRIER_ADJ})\\s*$`, 'i');
   const RE_CARRIER_AFTER = /^\s*<(?:u|span)\b[^>]*\bclass=["'][^"']*\bblank-\d+/i;
   out = out.replace(/(?:[\u3000\u2003]|&emsp;){2,}/g, (m, off, all) => {
@@ -1891,8 +1894,12 @@ export function normalizeBodyHtml(raw = '', { trace = false, label = '' } = {}) 
  * 属"渲染实现"而非"内容补差"（不补加粗：加粗在模型侧职责内，程序不代劳——见准绳"源头模型侧必须做到位"）。
  * 只加 class="exam-bigcat" + 行内 text-align:center（行内样式同时被 docxBuilder 的 text-align 读取，
  * 预览/HTML/PDF/DOCX 四处同口径，无需各端再写一套）。
- * 判据（保守，防误伤正文）：① 叶子块（p/div）；② 文本以"第X部分／第I部分／活动X：／听力部分／笔试部分"开头；
+ * 判据（保守，防误伤正文）：① 叶子块（p/div/h1–h4）；② 文本以"第X部分／第I部分／活动X：／听力部分／笔试部分"开头；
  *   ③ 长度 ≤ 40 字且**无句末标点**（。！？；）→ 判为层级行而非正文句；④ 段内含作答位载体（u/blank-N）不动。
+ * 🔴 2026-10-04（真机回归·大类居中丢失）：扫描范围原只 `p, div`——模型把大类行写成 `<h2 style="text-align:center">`
+ *   （借标题标签承载居中）时**漏认**；一旦模型当次没写 inline 居中，就没有任何兜底 → 大类不居中。
+ *   现扩为 `p, div, h1, h2, h3, h4`（**与 injectExamShell 的大类锚点同口径**，那边本就认 h1–h4）——
+ *   层级行判据（"第X部分…"起头 + 叶子 + 短 + 无标点）仍把"大题标题 `<h2>一、…`"挡在外。
  * 幂等：已带 exam-bigcat 或已含 text-align 则不再改。
  * 无 DOMParser 环境（Node 校验脚本）原样返回。
  */
@@ -1903,8 +1910,10 @@ export function markExamBigCategory(html = '') {
   try {
     const doc = new DOMParser().parseFromString(`<body>${src}</body>`, 'text/html');
     let hit = 0;
-    for (const p of doc.body.querySelectorAll('p, div')) {
-      if (p.querySelector('p, div, h1, h2, h3, h4, table, ul, ol, u, [class*="blank-"]')) continue;
+    for (const p of doc.body.querySelectorAll('p, div, h1, h2, h3, h4')) {
+      // 标题标签本身跳过？不——大类行常见形态就是 `<h2><strong>第X部分…</strong></h2>`，故纳入；
+      //   但**含块级子节点**（h1–h4/p/div/载体）者视为容器，非叶子行，跳过。
+      if (p.querySelector('p, div, h1, h2, h3, h4, h5, h6, table, ul, ol, u, [class*="blank-"]')) continue;
       const text = (p.textContent || '').replace(/[\s\u3000]+/g, ' ').trim();
       if (!text || text.length > 40) continue;
       if (!RE.test(text)) continue;
@@ -1917,6 +1926,17 @@ export function markExamBigCategory(html = '') {
       if (!/text-align/.test(st)) p.setAttribute('style', `${st ? st.replace(/;\s*$/, '') + ';' : ''}text-align:center;`);
       hit += 1;
     }
+    // 🔧 临时诊断（2026-10-04 · 定位"大类未居中"后移除）：打印候选块与命中数
+    try {
+      const cands = [];
+      for (const el of doc.body.querySelectorAll('p, div, h1, h2, h3, h4')) {
+        const t = (el.textContent || '').replace(/[\s\u3000]+/g, ' ').trim();
+        if (!/^第[一二三四五六七八九十百]+部分/.test(t)) continue;
+        const leaf = !el.querySelector('p, div, h1, h2, h3, h4, h5, h6, table, ul, ol, u, [class*="blank-"]');
+        cands.push(`<${el.tagName.toLowerCase()}> "${t.slice(0, 26)}" 叶子=${leaf} 长度=${t.length} class="${el.getAttribute('class') || ''}" style="${el.getAttribute('style') || ''}"`);
+      }
+      console.log('[诊断·markExamBigCategory] hit=', hit, '｜候选=', cands.length ? cands.join(' ｜ ') : '（未找到"第X部分…"块）');
+    } catch (e) { console.log('[诊断·markExamBigCategory] 诊断异常', e && e.message); }
     return hit ? doc.body.innerHTML : src;
   } catch { return src; }
 }

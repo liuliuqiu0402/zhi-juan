@@ -110,16 +110,18 @@ describe('标题命名规范 buildPaperTitle', () => {
     const t = buildPaperTitle({ grade: '二年级', subject: '语文', scopeName: '期中综合测试', academic: '2025—2026学年度第一学期', isExam: true });
     expect(t).toBe('2025—2026学年度第一学期二年级语文期中综合测试');
   });
-  it('applyPaperTitleToContent：有 h1 → 替换为规范标题', async () => {
+  it('applyPaperTitleToContent：有 h1 → 替换为规范标题（并规范成 h1.main-title）', async () => {
     const { applyPaperTitleToContent } = await import('../../src/config/paperScope.js');
     const html = '<h1>XX市2026年春季期末质量检测</h1><p>正文</p>';
+    // 🔴 2026-10-04（真机回归·主标题字号不对）：卷名唯一落点统一规范成 `<h1 class="main-title">`——
+    //    导出端只认 `tag==='h1' || class 含 main-title` 才给 18–20pt 黑体居中；模型给的 h1 可能带别的属性/无 class。
     expect(applyPaperTitleToContent(html, '2025—2026学年度第二学期二年级语文期末综合测试'))
-      .toBe('<h1>2025—2026学年度第二学期二年级语文期末综合测试</h1><p>正文</p>');
+      .toBe('<h1 class="main-title">2025—2026学年度第二学期二年级语文期末综合测试</h1><p>正文</p>');
   });
   it('applyPaperTitleToContent：无 h1 → 兜底前置规范标题（标题命名不依赖 AI 是否输出）', async () => {
     const { applyPaperTitleToContent } = await import('../../src/config/paperScope.js');
     expect(applyPaperTitleToContent('<p>无标题正文</p>', '2025—2026学年度第一学期二年级英语第一单元课时练'))
-      .toBe('<h1>2025—2026学年度第一学期二年级英语第一单元课时练</h1>\n\n<p>无标题正文</p>');
+      .toBe('<h1 class="main-title">2025—2026学年度第一学期二年级英语第一单元课时练</h1>\n\n<p>无标题正文</p>');
     // 空标题 → 原样返回（Nothing to inject）
     expect(applyPaperTitleToContent('<h1>原标题</h1>', '')).toBe('<h1>原标题</h1>');
   });

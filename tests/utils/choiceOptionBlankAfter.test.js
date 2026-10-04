@@ -73,9 +73,11 @@ describe('选项行作答位取证（choice-answer-position-guard）', () => {
 describe('作答空间条款：选项行之后禁挂作答位', () => {
   const text = buildAnswerSpaceInstruction('英语', 'primary_high');
 
-  it('条款写明"选项行之后"也在禁止范围内', () => {
-    expect(text).toContain('选项行');
-    expect(text).toContain('选项行之后');
+  it('条款写明"选项之后"也在禁止范围内', () => {
+    // 2026-10-04（真机归因·问题④）：选项与设问**同段**时并不存在"选项行"这一行级锚点 →
+    //   禁用范围由"选项行内/末尾/之后"改述为"选项内、选项末尾及选项之后"（判据不变、锚点可自判）。
+    expect(text).toContain('选项');
+    expect(text).toContain('选项之后');
     // 🔧 2026-10-03（问题3/6根治）：旧排他词"作答位只有上述那一处"已删（被模型读成"材料内不得有就地空位"），
     //    禁止范围改由"一律不加作答位"承载。
     expect(text).toContain('一律不加作答位');
@@ -88,7 +90,7 @@ describe('作答空间条款：选项行之后禁挂作答位', () => {
     const jp = buildAnswerSpaceInstruction('日语', 'high');
     expect(jp, '外语类判定须覆盖日语（不认单一字面量，2026-09-26 用户定）').toContain('在题号之前的题首');
     const zh = buildAnswerSpaceInstruction('语文', 'primary_low');
-    expect(zh, '中文科目：作答位在材料与设问之后、选项行之前').toContain('在材料与设问之后、选项行之前');
+    expect(zh, '中文科目：作答位在材料与设问之后、选项之前').toContain('在材料与设问之后、选项之前');
     expect(zh).toContain('"1. ……的是( )"');
     expect(zh, '中文科目不得用题首括号').not.toContain('在题号之前的题首');
     for (const t of [en, jp, zh]) {

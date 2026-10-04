@@ -2590,6 +2590,16 @@ export const wrapContentForTheme = (html, themeId, stage) => {
       const contentBox = document.createElement('div');
       contentBox.className = 'sealed-content';
       contentNodes.forEach((node) => contentBox.appendChild(node));
+      // 🔧 2026-10-04（排版侧兜底·主标题字号）：卷首标题若是 `<h1>` 但**缺 `main-title` class**，
+      //    导出端样式命不中 → 此处**补 class**。**只补 h1、不把 `<p>` 提级**——曾试"卷首首块 `<p>` → h1"
+      //    会被守卫 `sealNormalize`（"正文不被吞并"）抓到**误伤正文首段**，故收紧为仅补 class（提级交给生成端
+      //    的卷名唯一落点 `applyPaperTitleToContent` 保证）。
+      {
+        const h1 = contentBox.querySelector('h1');
+        if (h1 && !/\bmain-title\b/.test(h1.getAttribute('class') || '')) {
+          h1.setAttribute('class', `${(h1.getAttribute('class') || '').trim()} main-title`.trim());
+        }
+      }
       wrapper.appendChild(zoneEl);
       wrapper.appendChild(contentBox);
       // 🔧 replaceChildren：清空 fragment 全部子节点（含残留的旧 wrapper 空壳）并放入新 wrapper

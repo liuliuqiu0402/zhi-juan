@@ -42,12 +42,12 @@ describe('选择类作答位·位置按学科（单一出口 layoutSpec.getChoic
     expect(FOREIGN_LANG_SUBJECT_RE.test('七年级英语')).toBe(true); // 语言名包含即纳入
   });
 
-  it('与 buildAnswerSpaceInstruction 条款方向一致（外语题首 / 中文在材料与设问之后、选项行之前）', () => {
+  it('与 buildAnswerSpaceInstruction 条款方向一致（外语题首 / 中文在材料与设问之后、选项之前）', () => {
     // 🔧 2026-10-03（问题3根治）：中文支旧字面"题干末尾"被模型读成"作答说明行末尾"（作答位挂错、选项上移），
     //    改述为"材料与设问之后、选项行之前"——判据不变（仍属题干尾部），只把易误读的锚点说精确。
     expect(buildAnswerSpaceInstruction('英语', 'high')).toContain('在题号之前的题首');
-    expect(buildAnswerSpaceInstruction('语文', 'high')).toContain('在材料与设问之后、选项行之前');
-    expect(buildAnswerSpaceInstruction()).toContain('在材料与设问之后、选项行之前'); // 无学科兜底落中文支
+    expect(buildAnswerSpaceInstruction('语文', 'high')).toContain('在材料与设问之后、选项之前');
+    expect(buildAnswerSpaceInstruction()).toContain('在材料与设问之后、选项之前'); // 无学科兜底落中文支
   });
 });
 
@@ -181,7 +181,7 @@ describe('④ layoutSpec 头注与实现一致（按学科位置 + 一律半角�
     expect(src).toContain('其作答位**形态与位置按学科定死**');
     expect(src).toContain('括号**一律半角**');
     expect(src).toContain('**外语类**在题号之前的题首');
-    expect(src).toContain('**中文科目**在材料与设问之后、选项行之前');
+    expect(src).toContain('**中文科目**在材料与设问之后、选项之前');
   });
 
   it('ANSWER_REGION.carrier 头注写实值 blank-area（非旧 "blank"）', () => {

@@ -31,7 +31,7 @@ describe('buildAnswerSpaceInstruction（通用六行：形态按作答需要选�
       //   （正句）；本条不再复述 → 断言移除（防回潮见下方专测）。
       '· 题面带选项（A./B./C. 等）的题，其作答位即上句判据所指的**圆括号空位**',
       '括号一律用半角（英文状态）括号',
-      '选项行内、选项末尾及选项行之后一律不加作答位',
+      '选项内、选项末尾及选项之后一律不加作答位',
       '与【题目自洽①】冲突时以本条为准',
       '· 短答空位宽度按"恰好容纳该空答案"换算',
       '严禁按题的先后递增、也严禁全卷一律等宽',
@@ -53,9 +53,9 @@ describe('buildAnswerSpaceInstruction（通用六行：形态按作答需要选�
     //    且纯形态描述、不含题型名（防题型诱导）。
     const CLAUSE_COMMON = '其作答位即上句判据所指的**圆括号空位**';
     const HEAD = '**在题号之前的题首**，写成"( ) 1. 题干…"';
-    const TAILPOS = '**在材料与设问之后、选项行之前**，写成"1. ……的是( )"';
+    const TAILPOS = '**在材料与设问之后、选项之前**';
     const PAREN_HALF = '括号一律用半角（英文状态）括号';
-    const BAN = '选项行内、选项末尾及选项行之后一律不加作答位';
+    const BAN = '选项内、选项末尾及选项之后一律不加作答位';
     expect(generic).toContain(CLAUSE_COMMON);
     expect(generic, '括号一律半角（英文状态）——既有用户规格').toContain(PAREN_HALF);
     expect(generic, '无学科兜底 → 中文支（材料与设问之后、选项行之前）（2026-10-03 问题3 根治）').toContain(TAILPOS);
@@ -74,7 +74,7 @@ describe('buildAnswerSpaceInstruction（通用六行：形态按作答需要选�
       const isForeign = s === '英语' || s === '日语';
       const inst = buildAnswerSpaceInstruction(s, st);
       expect(inst, `${s}·${st} 缺作答位形态条款`).toContain(CLAUSE_COMMON);
-      expect(inst, `${s}·${st} 位置未按学科分叉（外语类题首／中文在材料与设问之后、选项行之前）`).toContain(isForeign ? HEAD : TAILPOS);
+      expect(inst, `${s}·${st} 位置未按学科分叉（外语类题首／中文在材料与设问之后、选项之前）`).toContain(isForeign ? HEAD : TAILPOS);
       expect(inst, `${s}·${st} 括号须为半角（英文状态）`).toContain(PAREN_HALF);
       expect(inst, `${s}·${st} 缺选项禁答位条款`).toContain(BAN);
     }

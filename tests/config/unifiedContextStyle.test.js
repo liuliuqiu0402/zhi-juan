@@ -45,7 +45,10 @@ describe('课标卷型（unified_context）：情境口径归两课标 + 由必�
   it('注入句：锚到"本学科课程标准界定的情境类型"，且不含任何题型枚举', () => {
     const s = styleInstructions.unified_context;
     expect(s).toContain('本学科课程标准界定的情境类型');
-    expect(s).toContain('主题与设问在全卷连贯');
+    // 2026-10-04（#1 调研·根治"形式化包装"）：判据由"主题与设问连贯"升级为"**情境须承载任务**"——
+    //   课标原文关键＝"在**真实情境下解决问题**"；教研实证的反面正是"单题嵌入／情境设置形式化"。
+    //   断言随新口径改准（口径不放松：仍锚课标情境类型、仍禁题型名）。
+    expect(s).toContain('学生在情境中完成任务、解决问题');
     for (const q of QUESTION_TYPE_NAMES) {
       expect(s, `注入句不得点题型名「${q}」`).not.toContain(q);
     }
