@@ -117,12 +117,14 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     // 命题要求随大类行（原挂大题行）
     expect(domainLines.every((l) => l.includes('本大类命题要求')), '大类行须携带命题要求').toBe(true);
     // 大类下大题自拟 + 分值合计约束
-    expect(domainLines.every((l) => l.includes('各大题分值合计须等于')), '大类行须给大题自拟与分值约束').toBe(true);
+    // 2026-10-04（待办A·收口改准）：原按"每个大类行都含"断言——现改为**共用口径条**承载（置于首个大类行前、
+    //   只出一次），故断言改指向整段（inject），字段仍在、只是不再逐行重复。
+    expect(inject).toContain('各大题分值合计须等于该大类总分');
     // 2026-09-28：域型不再由注入给定大题序号 → 大类行须补"大题序号全卷连续、不得按大类重启"
     //    （否则模型可能在大类下重启"一、"，而现有题号守卫只认阿拉伯小题号，查不出中文大题号重复）
-    expect(domainLines.every((l) => l.includes('大题序号全卷连续')), '大类行须给大题序号全卷连续约束').toBe(true);
+    expect(inject).toContain('大题序号全卷连续');
     // 2026-09-28（去一刀切）：小学段大类（部分）层**自带序号**（真题"第一部分 积累与阅读（55分）"）
-    expect(domainLines.every((l) => l.includes('自带序号')), '小学段大类行须明示自带序号').toBe(true);
+    expect(inject).toContain('自带序号');
   });
 
   it('2026-09-28 去一刀切：中学段（语文 middle）域型栏目**直接作大题行**（不设大类层）', () => {
