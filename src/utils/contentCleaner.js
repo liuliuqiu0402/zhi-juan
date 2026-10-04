@@ -886,7 +886,16 @@ export function wrapBareBlankRuns(html = '') {
     }
     return false;
   };
+  // ②（2026-10-04 ②组间分隔误转下划线·根治）并列小项间的分隔守卫：空格段紧邻已有 blank-N 载体时，
+  //    属"两个并列小项之间的排版分隔"，不得转成书写空位。
+  //    实证：组词题 "9. 那（　）　　哪（　）" 的组间空格被 prevVisibleChar/nextVisibleChar 跳过
+  //    两侧 span 载体标签后露出汉字"那↔哪"，误判成 CJK 夹缝空位 → 画成下划线。
+  //    判据：紧邻（可含空白）前一个载体闭合 或 后一个载体开启 → 保留原空格。
+  const CARRIER_ADJ = '<(?:u|span)\\b[^>]*\\bclass=["\'][^"\']*\\bblank-\\d+[^"\']*["\'][^>]*>\\s*&emsp;\\s*<\\/(?:u|span)>';
+  const RE_CARRIER_BEFORE = new RegExp(`(?:${CARRIER_ADJ})\\s*$`, 'i');
+  const RE_CARRIER_AFTER = /^\s*<(?:u|span)\b[^>]*\bclass=["'][^"']*\bblank-\d+/i;
   out = out.replace(/(?:[\u3000\u2003]|&emsp;){2,}/g, (m, off, all) => {
+    if (RE_CARRIER_BEFORE.test(all.slice(0, off)) || RE_CARRIER_AFTER.test(all.slice(off + m.length))) return m;
     const prev = prevVisibleChar(all.slice(0, off));
     const next = nextVisibleChar(all.slice(off + m.length));
     if (!prev || !next) return m;

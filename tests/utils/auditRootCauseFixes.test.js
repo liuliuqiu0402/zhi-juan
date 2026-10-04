@@ -328,7 +328,7 @@ describe('根治回归：分值载体误报消除（每词词条语义 + 小题 
     expect(silentDetails.some(d => d.type === 'score-label' && d.message.includes('根据课文内容填空'))).toBe(false);
   });
 
-  it('分值抽检条目标记为 debug 级（不进问题列表，但保留诊断线索）', () => {
+  it('分值抽检条目升级为 notice 级（进问题列表，交编辑处置；仍只报不改）', () => {
     const html = SEC(`
 <p>5. 词语魔法桥——照样子，写一写。（每空1分，共4分）</p>
 <p>例：泡桐　白桦　云杉　翠柏</p>
@@ -337,7 +337,8 @@ describe('根治回归：分值载体误报消除（每词词条语义 + 小题 
     const { silentDetails } = run(html);
     const d = silentDetails.find(x => x.type === 'score-label' && x.message.includes('照样子'));
     expect(d).toBeTruthy();
-    expect(d.level).toBe('debug');
+    // 🔴 2026-10-04（③④分值账目·告警升级）：debug → notice（程序侧做不到改写，故升为可见告警）
+    expect(d.level).toBe('notice');
   });
 });
 

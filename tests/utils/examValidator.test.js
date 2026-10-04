@@ -170,6 +170,18 @@ describe('examValidator 分值标注修正（第4题案例）', () => {
     expect(silentDetails.some(d => d.type === 'score-label')).toBe(true);
   });
 
+  it('③④ 分值账目：每空1分共9分但实际8空 → 升级为可见告警（notice，只报不改）', () => {
+    const html = [
+      '<h2>七、根据课文内容填空（每空1分，共9分）</h2>',
+      ...Array.from({ length: 8 }, (_, i) => `<p>${i + 1}. <u class="blank-2">&emsp;</u></p>`),
+    ].join('\n');
+    const { html: out, silentDetails } = auditExamPaper(html, OPTS);
+    expect(out).toContain('每空1分，共9分'); // 只报不改：程序不改分值
+    const d = silentDetails.find(x => x.type === 'score-label');
+    expect(d).toBeTruthy();
+    expect(d.level).toBe('notice'); // 2026-10-04：由 debug 升级为可见告警，交编辑改准
+  });
+
   it('无单位分声称的标题不触发重算（程序推不出正确总分，保留）', () => {
     const { text } = fixScoreLabel('一、填空题（共16分）', 16, 3, 1);
     expect(text).toBe('一、填空题（共16分）');

@@ -96,7 +96,7 @@ export function inferCarriers(name = '', note = '') {
   // 表格
   if (HAS(t, /表格|填表|填写表格/)) out.add(CARRIERS.TABLE);
   // 填空横线
-  if (HAS(t, /填空|横线|填词|填一填|默写|看拼音写|按课文内容填空|＿＿|___|写一写|口算|直接写得数|写出/)) out.add(CARRIERS.BLANK);
+  if (HAS(t, /填空|横线|填词|填一填|默写|看拼音写|读拼音写|读拼音，写|按课文内容填空|＿＿|___|写一写|口算|直接写得数|写出/)) out.add(CARRIERS.BLANK);
   // 括号（选择/判断/选字/排序等圈选类）
   if (HAS(t, SYMBOL_ANSWER_DECL)) out.add(CARRIERS.BRACKET);
   // 空白作答区（简答/解答/赏析/理由/说明/做法/应用/材料分析/论述/综合）

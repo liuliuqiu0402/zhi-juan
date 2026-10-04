@@ -301,12 +301,27 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
       expect(t.template, `英语 ${g} 不应含"田字格"`).not.toContain('田字格');
       expect(t.template, `英语 ${g} 不应含"拼音格"`).not.toContain('拼音格');
     }
-    // 语文低段载体条款由排版规格库单一事实源注入（buildCarrierInstruction），不再广播"看拼音写词语→田字格"旧措辞
+    // 语文低段载体条款由排版规格库单一事实源注入（buildCarrierInstruction）
     const yw = getPromptTemplate({ grade: '小学低段', subject: '语文', genType: 'exam' });
     expect(yw.template).toContain('写汉字类题必须真实输出田字格');
     expect(yw.template).toContain('写拼音类题必须真实输出拼音格');
-    expect(yw.template).not.toContain('看拼音写词语'); // 词性推导演示已收敛（规则库 keywords 承载），模板不再出现题型词→载体直写
+    // 🔴 2026-10-04（①读拼音写词语根治）：低段语文**恢复**一条作答形态正句（结果导向、纯正向）——此前无条款，
+    //    叠加"在语境中考查"推力 → 模型把整题改写成含目标词语的语境句（无拼音、无书写格）。
+    //    仍按 学科×学段 门控（只进语文低段），故下条同时守卫"不跨学科/学段广播"。
+    expect(yw.template).toContain('要求据拼音写词语的题');
+    expect(yw.template).toContain('其下紧跟对应的书写格（田字格）');
     expect(yw.template).toContain('田字格');
+  });
+
+  it('①读拼音写词语·作答形态正句只进语文低段（不跨学科/学段广播）', () => {
+    for (const g of ['primary_mid', 'primary_high', 'middle', 'high']) {
+      expect(getPromptTemplate({ grade: g, subject: '语文', genType: 'exam' }).template,
+        `语文 ${g} 不应含低段读拼音写词语正句`).not.toContain('要求据拼音写词语的题');
+    }
+    for (const s of ['英语', '数学']) {
+      expect(getPromptTemplate({ grade: '小学低段', subject: s, genType: 'exam' }).template,
+        `${s} 不应含语文读拼音写词语正句`).not.toContain('要求据拼音写词语的题');
+    }
   });
 
   it('拼音注音半角示例 (háng xíng) 不跨学科广播（英语/数学模板不含拼音示例；分值半角示例全学科通用）', () => {

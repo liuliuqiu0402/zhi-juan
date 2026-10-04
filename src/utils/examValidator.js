@@ -84,6 +84,11 @@ const CHOICE_OPTION_BLANK_AFTER_RE = new RegExp(
 //    理由是这类题的载体应由括号空位或专用格承担）。2j-5c 反向引用它判断"这条题 2k 到底管不管"。
 //    （2026-09-16：原先只在 2k 内联一份，2j-5c 无法引用 → 两条通道对同一条编号书写题各补一次。）
 const WRITING_FILLIN_STEM_EXCLUDE = /(?:写话|习作|作文|写作|填一填|填空|填字)/;
+// 2k 的"就地作答（作答落点在原文/图上）"排除词（单一事实源）：题面写明"在原文/图上做标记"（画出/勾画/
+//    勾出/标出 等动作）时，答案本就落在短文或图里，**不得**在题后另补整行书写横线。
+//    2026-10-04 ⑥ 根治：原内联排除表只收"划出"，漏了"画出"等同族动作 → 阅读题"请用'——'在文中画出
+//    相关句子"被补出多余长横线。（"画一画/作图"类更早有 specNeeds 专用通道承接，不受本表影响。）
+export const IN_PLACE_ANSWER_STEM_RE = /(?:画出|勾画|勾出|标出|划出)/;
 // 连线结构
 const MATCH_ITEM_RE = /class=["'][^"']*match-item[^"']*["']/g;
 // 题组子题编号：（1）（2）或 1. 2.
@@ -898,9 +903,32 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const optLetters = (secHtml.match(/(?:^|[\s\u3000>])[A-H][.、．]/g) || []).length;
         if (has('choice-first-blank-fix') && (countOptions(secHtml) > 0 || optLetters >= 2)) {
           const toHead = getChoiceBlankPosition(subject) === 'head';
+          // 🔴 2026-10-04（⑤第26题误伤·根治）：原判据按**整大题**是否含选项触发，却对段内**每个**
+          //   "（空位+）题号开头且首元素为载体"的 <p> 动手——同一栏里夹一道含选项的题，就会把同栏
+          //   填空/简答题的**首个就地空位删掉、并在题末补出一枚括号空**（实证：阅读大题第 26 题
+          //   "短文共有[空]个自然段"→ 首空被删成"共有个"、题末多一个 "(    )"）。
+          //   现按"题号段"分块，**只对块自身含选项的题**做本题首空位归一（选项行可为后续独立段）。
+          const isNumP = (n) => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p'
+            && /^[\s\u3000\u2003]*\d{1,2}[.、．]/.test(n.textContent || '');
+          const optionBearing = new Set();
+          {
+            let cur = null;
+            const flush = () => {
+              if (!cur) return;
+              const h = cur.map((n) => n.outerHTML || n.textContent || '').join('');
+              const hasOpt = countOptions(h) > 0 || (h.match(/(?:^|[\s\u3000>])[A-H][.、．]/g) || []).length >= 2;
+              if (hasOpt) cur.forEach((n) => optionBearing.add(n));
+              cur = null;
+            };
+            for (const n of secNodes) {
+              if (isNumP(n)) { flush(); cur = [n]; } else if (cur) cur.push(n);
+            }
+            flush();
+          }
           let fx = 0;
           for (const n of secNodes) {
             if (n.nodeType !== Node.ELEMENT_NODE || n.tagName.toLowerCase() !== 'p') continue;
+            if (!optionBearing.has(n)) continue; // 非含选项的题（填空/简答等）不参与题首空位归一
             const t = n.textContent || '';
             if (!/^[\s\u3000\u2003]*\d{1,2}[.、．]/.test(t)) continue; // 段首必须是（空位 +）题号
             const fc0 = n.firstElementChild;
@@ -976,14 +1004,16 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             gridCells: countGridCells(secHtml2),
           });
           if (fsRes.text !== title) {
-            // 🔧 只报不改 + 强判定守卫 + debug 级（2026-08）：圈选/划去/涂色类（载体=句内文字）不按填空验算；
-            //    区域含非标准空位形态（引号空位/裸连续空格）时计数不可靠不做断言——误报侵蚀信任，
-            //    生成侧 promptHint 已强制模型自洽，此处仅保留强判定 debug 线索供开发诊断
+            // 🔧 只报不改 + 强判定守卫：圈选/划去/涂色类（载体=句内文字）不按填空验算；
+            //    区域含非标准空位形态（引号空位/裸连续空格）时计数不可靠不做断言。
+            //    2026-10-04（③④分值账目·告警升级）：原 debug 级（不进问题列表）→ **notice 级**（进【问题列表】）。
+            //    根因：模型侧即便有"空数×每空分=总分"判据仍会算错（实测"每空1分，共9分"实际8空），
+            //    程序侧**做不到改写**（改标题会破坏大类/全卷总分），故把不符**升为可见告警**交编辑处置。
             const secInteractive = /圈出|圈一?圈|划去|划掉|涂色|打[√×✓]|勾出|选出/.test(secText2);
             // 非标准空位形态（countBlanks 数不到→计数不可靠）：引号空位"　　"、双重括号 ((　))；
             //   注意不能判"连续全角空格"——标准单括号空位（　　　　）内部正是连续全角空格，是可靠载体
             const secAmbiguous = /[“"][　\s\u3000]{2,}[”"]|[(（]{2}[　\s\u3000]{2,}[)）]{2}/.test(secText2);
-            if (!secInteractive && !secAmbiguous) silentCount('score-label', `大题「${title.slice(0, 22)}」分值标注与实际载体不符，请抽检`, 'debug');
+            if (!secInteractive && !secAmbiguous) silentCount('score-label', `大题「${title.slice(0, 22)}」分值标注与实际载体不符（空数×每空分≠标注总分），请按正文实际空位数改准分值说明`, 'notice');
           }
         }
 
@@ -1041,7 +1071,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               // 非标准空位形态（countBlanks 数不到→计数不可靠）：引号空位"　　"、双重括号 ((　))；
               //   注意不能判"连续全角空格"——标准单括号空位（　　　　）内部正是连续全角空格，是可靠载体
               const segAmbiguous = /[“"][　\s\u3000]{2,}[”"]|[(（]{2}[　\s\u3000]{2,}[)）]{2}/.test(segText);
-              if (!segInteractive && !segAmbiguous) silentCount('score-label', `小题「${st.text.slice(0, 14)}」分值标注与实际载体不符，请抽检`, 'debug');
+              if (!segInteractive && !segAmbiguous) silentCount('score-label', `小题「${st.text.slice(0, 14)}」分值标注与实际载体不符（空数×每空分≠标注总分），请按正文实际空位数改准分值说明`, 'notice');
             }
           });
         }
@@ -1066,8 +1096,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               `(共${subCount}题，共${totalScore}分)`
             );
             if (newT !== head.textContent) {
-              // 🔧 debug 级（2026-08，同 2f/2g）：分值抽检降级，不进问题列表
-              silentCount('score-label', `大题各题分值不一致（标题含"每题X分"），请抽检`, 'debug');
+              // 2026-10-04（③④·告警升级）：原 debug 级 → notice 级（进问题列表）；只报不改（不改分值）。
+              silentCount('score-label', `大题各题分值不一致（标题含"每题X分"），请按实际各题分值改准标题`, 'notice');
             }
           }
         }
@@ -2074,7 +2104,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             // 2026-10-02（职责归属·用户裁定）：本条只认**题面自身写明的作答动作**（形态判据——题面写了动作，
             //   作答方式即由题面确定）；**纯题型名已移出**（"选择／选一选"，选择类由上方"选项行"形态判据承担）。
             //   程序不替模型判断"该不该有作答空间"，只排除"题面已明示动作"的确定形态。
-            if (/(?:选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|口算|直接写得数|照样子|例[：:、]|圈出|归类|选词|划出|仿写)/.test(`${ctxText} ${stem}`)) continue;
+            if (/(?:选出|判断|连线|连一连|连起来|排序|填序号|涂色|√|×|对(?:的)?画|打[√×✓]|口算|直接写得数|照样子|例[：:、]|圈出|归类|选词|仿写)/.test(`${ctxText} ${stem}`)) continue;
+            if (IN_PLACE_ANSWER_STEM_RE.test(`${ctxText} ${stem}`)) continue; // 作答落点在原文/图上（画出/勾画/勾出/标出）→ 不补作答横线
             if (WRITING_FILLIN_STEM_EXCLUDE.test(stem)) continue;
             // ↑ 排除词单源：WRITING_FILLIN_STEM_EXCLUDE（与 2j-5c 的分工判据共用同一份，防两处漂移）
           }

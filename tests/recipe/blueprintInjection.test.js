@@ -569,19 +569,21 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
   // 2026-09-28 书写格位置判据（根治"次次落句末"）：由"紧跟对应词"的弱句 + "不得单独成段"的
   //    可字面满足禁令，提权为**独立 位置行**——强调"同行紧邻、逐词一一对应"、明确"多组词的格子
   //    不得从各自位置抽出集中堆放"，并声明**优先于**"载体给在题后/整题之后集中一处"的通用表述。
-  it('书写格位置判据：独立一行（同行紧邻 + 逐词一一对应 + 禁集中堆放 + 优先于"集中一处"通用表述）', () => {
+  it('书写格位置判据：独立成条（同行紧邻 + 逐词一一对应 + 禁集中堆放 + 优先于"集中一处"通用表述）', () => {
     const clause = buildCarrierInstruction('语文', 'primary_low');
-    // 独立成行（协议行与位置行以换行分隔，位置行自成醒目条款）
+    // 独立成条（协议行与位置条以换行分隔，位置行自成醒目条款）
     // 2026-10-01（去 emoji）：原以 `startsWith('🔴')` 定位位置行——已全局去除，改按判据内容定位。
+    // 2026-10-04（拆长条·用户口径「块内一条一行」）：原 522 字一条拆为 4 条同类短条（各成 `· ` 一行），
+    //    判据逐字未改；「禁集中堆放」「优先于…」现各在独立条内 → 后两条改为对整段断言。
     const lines = clause.split('\n');
     const posLine = lines.find((l) => l.includes('同行紧邻'));
-    expect(posLine, '位置判据必须独立成行').toBeTruthy();
+    expect(posLine, '位置判据必须独立成条').toBeTruthy();
     expect(posLine).toContain('同行紧邻');
     expect(posLine).toContain('逐词一一对应');
-    expect(posLine).toContain('集中堆放');
-    expect(posLine, '必须声明优先于"给在题后/整题之后集中一处"一类通用表述').toContain('优先于');
+    expect(clause).toContain('集中堆放');
+    expect(clause, '必须声明优先于"给在题后/整题之后集中一处"一类通用表述').toContain('优先于');
     // 判据是"相邻/一一对应"，不是"不得出现在句末"（用户口径澄清）
-    expect(posLine).not.toContain('不得出现在句末');
+    expect(clause).not.toContain('不得出现在句末');
     // 无书写格的学科/学段不注入该位置行（不跨学科/学段广播）
     expect(buildCarrierInstruction('数学', 'primary_low')).not.toContain('同行紧邻');
     // 2026-09-29 口径订正（用户实样实证"看图写话没有作文格子"）：语文中学段不再整串返回空——
@@ -610,10 +612,11 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
   //    被"同题/同卷短答空位形态统一、一空一载体"覆盖，模型改用下划线空位替代 → 全卷零格子。
   //    现把优先级写进位置行（判据仍是"紧邻/一一对应"，只加"谁优先"）。
   it('书写格优先于"短答空位形态统一/一空一载体"（写字类不得用横线/括号空替代格子）', () => {
-    const posLine = buildCarrierInstruction('语文', 'primary_low').split('\n').find((l) => l.includes('同行紧邻'));
-    expect(posLine, '须声明优先于短答空位形态统一句').toContain('还优先于"同题/同卷短答空位形态统一、一个空位只写一种载体"');
-    expect(posLine).toContain('不得用下划线空/横线空/括号空去替代它');
-    expect(posLine).toContain('田字格');
+    // 2026-10-04（拆长条）：优先权声明自成一条，按该条定位（不再与"同行紧邻"同条）。
+    const prioLine = buildCarrierInstruction('语文', 'primary_low').split('\n').find((l) => l.includes('优先于一切通用表述'));
+    expect(prioLine, '须声明优先于短答空位形态统一句').toContain('还优先于"同题/同卷短答空位形态统一、一个空位只写一种载体"');
+    expect(prioLine).toContain('不得用下划线空/横线空/括号空去替代它');
+    expect(prioLine).toContain('田字格');
   });
 
   // 2026-09-29（**模型侧补缺口**·用户追问"逐条过一遍，确认模型生成时就能输出正确载体"）：

@@ -56,6 +56,14 @@ describe('wrapBareBlankRuns 中句语义填空位（规则③）', () => {
     expect(out).toBe(html);
   });
 
+  it('并列小项组间空格紧邻括号空位 → 保留空格不转下划线（组词题"那（　）　　哪（　）"）', () => {
+    const html = '<p>9. 那<span class="blank-2">&emsp;</span>　　&nbsp;哪<span class="blank-2">&emsp;</span></p>';
+    const out = wrapBareBlankRuns(html);
+    expect(out).not.toContain('<u class="blank-'); // 组间分隔不得被画成书写横线
+    expect(out).toContain('　　');                 // 原空格间隔保留
+    expect(out.match(/<span class="blank-2">&emsp;<\/span>/g) || []).toHaveLength(2);
+  });
+
   it('规则②行尾/句读前书写空仍生效（不受③影响）', () => {
     const html = '<p>口诀：　　　　。</p>';
     const out = wrapBareBlankRuns(html);

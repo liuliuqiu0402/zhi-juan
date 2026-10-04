@@ -101,6 +101,18 @@ describe('① 2e0（choice-first-blank-fix）：输出半角 span，与 contentC
     expect(r.html).toMatch(new RegExp(`26\\. 题干一${SPAN2}`));
     expect(r.html, '题首不得再留空位').not.toMatch(new RegExp(`${SPAN2}26\\.`));
   });
+
+  // 🔴 2026-10-04（⑤第26题误伤根治）：同栏内夹一道含选项的题，不得把填空/简答题的就地空位误删。
+  it('同栏"含选项的题"不得误伤其它题：填空题首个就地空位保留、题末不补括号空', () => {
+    const html = '<h2>八、阅读短文，完成练习（共4题，共16分）</h2>'
+      + '<p>26. 短文共有<span class="blank-2">&emsp;</span>个自然段，第2自然段有<span class="blank-2">&emsp;</span>句话。（每空2分，共4分）</p>'
+      + '<p>29. 下列说法最恰当的一项是(    )</p>'
+      + '<p>A. 甲　B. 乙　C. 丙</p>';
+    const r = auditExamPaper(html, OPTS('语文'));
+    expect(r.html, '填空题首个就地空位不得被删').toContain('短文共有<span class="blank-2">');
+    expect(r.html, '填空题末不得被补出括号空').not.toMatch(/共4分）<span class="blank-/);
+    expect((r.html.match(/<span class="blank-2">(?:&emsp;|\u2003)<\/span>/g) || []).length).toBe(2);
+  });
 });
 
 // ── ② 2j-6：方向按学科 ──
