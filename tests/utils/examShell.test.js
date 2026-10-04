@@ -243,6 +243,21 @@ describe('卷面固定件：注意事项 + 题号得分表（排版模块统一�
     expect(pos('class="exam-notice"')).toBeLessThan(pos('一、识字与写字。'));
   });
 
+  it('🔴 大类行是标题标签（h2，无分值、非裸 <strong>）时也认到：固定件仍在其上方（2026-10-04 回归根治）', () => {
+    // 实证回归：大类行"加粗"若走样式/CSS（非裸 <strong>）且**无分值**，旧判据"分值∨裸加粗"漏认 →
+    //   固定件落到大类之后（实测"导语 → 第一部分 → 注意事项 → 得分表 → 一、"）。现纳入标题标签兜底。
+    const headingBigCat = `<h1 class="main-title">卷名</h1>
+<p>（考试时间：60分钟　满分：100分）</p>
+<h2>第一部分　识字与写字</h2>
+<h2 class="heading1">一、读句子，看拼音写词语（共6题，每题2分，共12分）</h2>
+<p>1. 小蝌蚪……</p>`;
+    const out = injectExamShell(headingBigCat, 'primary_low');
+    const pos = (s) => out.indexOf(s);
+    expect(pos('class="exam-notice"'), '注意事项须在大类行之前').toBeLessThan(pos('第一部分　识字与写字'));
+    expect(pos('class="exam-score-table"'), '得分表须在大类行之前').toBeLessThan(pos('第一部分　识字与写字'));
+    expect(pos('第一部分　识字与写字'), '大类行仍在第一个大题之前').toBeLessThan(pos('一、读句子'));
+  });
+
   it('正文里出现"第一部分…"但无分值标注 → 不算结构行，不放行误判', () => {
     const html = `<h1 class="main-title">测试卷</h1>
 <p>第一部分 是本次资料说明（无分值）</p>

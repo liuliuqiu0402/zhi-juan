@@ -2459,7 +2459,10 @@ export const injectExamShell = (html, stage) => {
     if (el.closest('.answer-section')) continue;
     const text = (el.textContent || '').trim();
     const scored = parseSectionScore(text) != null; // 与大题同一判据：须自带分值标注，防误认正文里的"第一部分…"
-    if (!bigCat && PART_RE.test(text) && isBigCatLeaf(el) && (scored || isBoldAlone(el))) bigCat = el;
+    // 2026-10-04（③大类顺序回归·根治）：大类行**扩认标题标签**——真实产物的大类行是居中加粗独立段，加粗可能
+    //   走样式（非裸 <strong>）而无分值 → 旧判据"分值∨裸加粗"漏认 → 固定件落在大类之后（实测
+    //   "导语 → 第一部分 → 注意事项 → 得分表 → 一、"）。标题标签（h1–h4）是结构件、不会与正文句混淆 → 纳入。
+    if (!bigCat && PART_RE.test(text) && isBigCatLeaf(el) && (scored || isBoldAlone(el) || /^H[1-4]$/.test(el.tagName))) bigCat = el;
     // 去重边界仍只认大题行（p/标题，不取 div 容器/裸加粗）：保持旧有保守语义
     if (el.tagName !== 'DIV' && el.tagName !== 'STRONG' && el.tagName !== 'B' && /^[一二三四五六七八九十]+、/.test(text) && scored) {
       anchor = el;

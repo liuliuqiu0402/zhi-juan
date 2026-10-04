@@ -1981,6 +1981,26 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         };
         const subRe = /^\s*[(（]\d+[)）]/;
         const secNodesPs = (arr) => arr.filter((n) => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p');
+        // 🔴 2026-10-04（⑦分条间补空行·根治）：引导词（要求/提示…：）后的「（1）（2）（3）…」= **写作/长答要求分条**，
+        //   不是子题——从「引导词后首个（N）」起，把**其后续连续递增的（N）段**一并收进 branchSet（与
+        //   classifyNumberedBranches 对「1.」式同口径）。原只排到首个（isGuideLeadParagraph 只看上一兄弟），
+        //   后续（2）（3）仍被当子题各补作答行（实测看图写话分条间各多 2 空行）。
+        const branchSet = new Set();
+        {
+          const allPs = secNodesPs(secNodes);
+          for (let i = 0; i < allPs.length; i++) {
+            if (branchSet.has(allPs[i])) continue;
+            const m = (allPs[i].textContent || '').trim().match(/^[（(]\s*(\d+)\s*[)）]/);
+            if (!m || !isGuideLeadParagraph(allPs[i])) continue;
+            let last = Number(m[1]);
+            branchSet.add(allPs[i]);
+            for (let j = i + 1; j < allPs.length; j++) {
+              const mj = (allPs[j].textContent || '').trim().match(/^[（(]\s*(\d+)\s*[)）]/);
+              if (!mj || Number(mj[1]) !== last + 1) break;
+              branchSet.add(allPs[j]); last = Number(mj[1]);
+            }
+          }
+        }
         const items = [];
         const rawTopPs = secNodesPs(secNodes).filter((n) => QNUM_LINE_RE.test((n.textContent || '').trim()));
         // 2026-09-26 加固（消"题干内要求/提示分条被当子题块、每条各补作答行"的残余口子）：
@@ -1998,7 +2018,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const { top: topPs, lists: excludedBranches } = classifyNumberedBranches(rawTopPs);
         if (topPs.length === 0) {
           // 无顶层题号：回退子题号行；仍无 → 整段一块（书面表达等长答形态）
-          const subPs = secNodesPs(secNodes).filter((n) => subRe.test((n.textContent || '').trim()));
+          // 🔴 2026-10-04（⑦分条间补空行·根治）：排除"引导词（要求/提示…：）之后的（1）（2）…"分条——
+          //   原只排「1.」式分条（classifyNumberedBranches），漏了「（1）」式子题号 → 看图写话的"要求（1）(2)(3)"
+          //   被逐条当子题、每条补 NO_SCORE_SUB_ROWS 行（实测分条间各多 2 空行）。
+          const subPs = secNodesPs(secNodes).filter((n) => subRe.test((n.textContent || '').trim()) && !branchSet.has(n));
           if (subPs.length === 0) {
             if (excludedBranches === 0) {
             // 🔧 纯内容栏（无题号、无子题号）只在"栏目标题本身是长答任务"时才整块兜底补行——
@@ -2032,7 +2055,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const e2 = topPs[k + 1] || end; // 2026-09-10 栏边界兜底：本栏最后一块不得越界吞后续栏（曾致下栏空白行计入本块有效作答行，该补不补）
             const segNodes = []; let sn = p.nextSibling;
             while (sn && sn !== e2) { segNodes.push(sn); sn = sn.nextSibling; }
-            const subPs = secNodesPs(segNodes).filter((n) => subRe.test((n.textContent || '').trim()));
+            const subPs = secNodesPs(segNodes).filter((n) => subRe.test((n.textContent || '').trim()) && !branchSet.has(n));
             if (subPs.length === 0) {
               // 整题一块：题号行 + 其后全部内容（如题 19/20 长答任务、题 5/8 填空判断）
               items.push({ p, score: scoreOf(p), seg: segNodes, sub: false });
