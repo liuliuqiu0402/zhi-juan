@@ -100,7 +100,24 @@ const readBgColor = (el) => colorStrToHex(cs(el, 'background-color'), true);
 /** 读对齐（justify 不映射 JUSTIFIED —— Word 会拉伸 CJK 字间距，与浏览器预览不一致） */
 const readAlignment = (el) => {
   const map = { center: AlignmentType.CENTER, right: AlignmentType.RIGHT, left: AlignmentType.LEFT };
-  return map[cs(el, 'text-align')] || undefined;
+  const cur = map[cs(el, 'text-align')];
+  if (cur === AlignmentType.CENTER || cur === AlignmentType.RIGHT) return cur; // 显式中/右 → 尊重
+  // 🔧 2026-10-04（渲染侧兜底·大类/时间行居中）：行内 `text-align` 会在主题应用/编辑器往返中丢失，
+  //    或被主题 CSS 强制成 left → 导出即"居左"。此处按**文本模式**兜底（不依赖行内存活、纯渲染侧）：
+  //    ① 大类行（…部分／活动…：／听力部分／笔试部分）② 卷首"（考试时间…）"行 → 居中。
+  //    门控（防误伤正文）：仅 h1–h4/p/div、整段 ≤40 字、无句末标点。
+  try {
+    const tag = (el.tagName || '').toLowerCase();
+    if (['h1', 'h2', 'h3', 'h4', 'p', 'div'].includes(tag)) {
+      const t = (el.textContent || '').replace(/[\s\u3000]+/g, ' ').trim();
+      if (t && t.length <= 40 && !/[。！？；]/.test(t)
+        && (/^(第[一二三四五六七八九十百]+部分|第[IVXLC]+部分|活动[一二三四五六七八九十]+[：:]?|听力部分|笔试部分)/.test(t)
+          || /^[（(]\s*考试时间/.test(t))) {
+        return AlignmentType.CENTER;
+      }
+    }
+  } catch { /* 兜底失败不影响主流程 */ }
+  return cur;
 };
 
 /** 计算缩进 (px → twip, 1px ≈ 15 twip @96dpi)
