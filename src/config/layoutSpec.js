@@ -60,10 +60,11 @@ export const BLANK = {
   //    依据：低段田字格/方格 ≥14mm vs 印刷正文 ≈ 小4号 ≈ 4.2mm/字位 → ≈3×；
   //    其他学段 方格/行高 ≥8mm → ≈2×（与"试卷填空占 3 字格"惯例一致，低段更宽）。
   //    预览（carrierCss 的 --blank-scale）与导出（docxBuilder）**同源同值**，杜绝两端分叉。
-  writeScaleByStage: { primary_low: 3, primary_mid: 2, primary_high: 2, middle: 2, high: 2 },
+  //    `primary`＝3 档别名（未选/仅有 3 档时的小学）——**按低段口径取 3**（宁可宽、不可窄：手写空间不足会直接写不下）。
+  writeScaleByStage: { primary_low: 3, primary: 3, primary_mid: 2, primary_high: 2, middle: 2, high: 2 },
 };
 
-/** 学段 → 手写系数（未传/未知取 2；3 档别名 primary 亦按 2，保守不过宽） */
+/** 学段 → 手写系数（5 档或 3 档别名 `primary`→3；未传/未知取 2） */
 export const blankWriteScale = (stage = '') => {
   const m = (getMergedSpec().BLANK || {}).writeScaleByStage || {};
   const k = String(stage || '').trim();
