@@ -382,7 +382,7 @@ describe('🔢 组标题（大题标题）中文序号口径：教辅逐栏目�
     const ansSpec = buildAnswerFormatSpec('语文');
     // 🔴 2026-10-01（⑥拼接）：同义反复已收口，改断分型判据（教辅分组 / 试卷全卷连续）。
     expect(ansSpec).toContain('教辅按栏目（组）分别起编时，答案区按相同栏目（组）分组');
-    expect(ansSpec).toContain('正式考卷正文全卷连续时答案区同样全卷连续');
+    expect(ansSpec).toContain('正式考卷：正文全卷连续（中学）或各大题各自起编（小学）时，答案区按相同编排逐题对应');
   });
 
   it('程序侧同向：大题级序号判据仅 exam 生效（教辅不报）', () => {
