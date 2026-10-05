@@ -308,7 +308,7 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     // 🔴 2026-10-04（①读拼音写词语根治）：低段语文**恢复**一条作答形态正句（结果导向、纯正向）——此前无条款，
     //    叠加"在语境中考查"推力 → 模型把整题改写成含目标词语的语境句（无拼音、无书写格）。
     //    仍按 学科×学段 门控（只进语文低段），故下条同时守卫"不跨学科/学段广播"。
-    expect(yw.template).toContain('要求据拼音写词语的题');
+    expect(yw.template).toContain('以拼音为线索、要求据此书写的题');
     expect(yw.template, '① 须"就地挖空"（词的原位留空、词语不写进句子）').toContain('在原句中的位置就地留空');
     // 🔴 2026-10-04（J1 真机定案·消相抵·断言先解后锁）：原句尾"拼音音节在上、其下紧跟书写格"与位置条
     //    "书写格与书写对象**同行紧邻**…同一题干段内"**相抵**（一竖排一横排）→ 实发只看拼音、不给书写格
@@ -320,11 +320,11 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
   it('①读拼音写词语·作答形态正句只进语文低段（不跨学科/学段广播）', () => {
     for (const g of ['primary_mid', 'primary_high', 'middle', 'high']) {
       expect(getPromptTemplate({ grade: g, subject: '语文', genType: 'exam' }).template,
-        `语文 ${g} 不应含低段读拼音写词语正句`).not.toContain('要求据拼音写词语的题');
+        `语文 ${g} 不应含低段读拼音写词语正句`).not.toContain('以拼音为线索、要求据此书写的题');
     }
     for (const s of ['英语', '数学']) {
       expect(getPromptTemplate({ grade: '小学低段', subject: s, genType: 'exam' }).template,
-        `${s} 不应含语文读拼音写词语正句`).not.toContain('要求据拼音写词语的题');
+        `${s} 不应含语文读拼音写词语正句`).not.toContain('以拼音为线索、要求据此书写的题');
     }
   });
 
