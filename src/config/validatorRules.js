@@ -314,6 +314,17 @@ export const VALIDATOR_RULES = [
     genTypes: ['exam'],
     description: '试卷正文大题以「汉字序号＋、」（一、二、三…）编号时，序号**重复**（如两个"三、"）或**按小节重启**（如 三、之后又出现 一、）→ 静默抽检（warn 进生成报告【问题列表】）。2026-09-28 新增：**只提示不改写、不重试、不判失败**——区别于数字题号缺号/重启的拦截口径（detectBodyNumberingRestart），本判据仅如实报告交编辑核对。',
     enabled: true,
+  },
+
+  {
+    id: 'question-numbering-key',
+    name: '题号主键变化（无阿拉伯小题号）静默防护',
+    category: 'guard',
+    subjects: ['*'],
+    stages: ['*'],
+    genTypes: ['exam'],
+    description: '正文题号由**大类/大题汉字序号**承担（正文无阿拉伯小题号）时——缺号守卫 detectBodyNumberingGap 与答案覆盖守卫的**计数主键**（extractBodyQuestionNumbers，行首 `N.`）失效、会**静默放行** → 静默抽检（notice 进生成报告【问题列表】）如实说明"计数主键不适用，请人工核对题量与答案逐题覆盖"。2026-10-05（题号主键消相抵后）：大题唯一题用汉字序号是**应然**（非缺陷），本条**只报告可见性、不改写、不重试、不判失败**。',
+    enabled: true,
   }
 ]
 ;
@@ -333,7 +344,7 @@ export const VALIDATOR_GATES = new Set([
   'option-count-guard', 'choice-answer-position-guard', 'choice-first-blank-fix', 'score-label-fix', 'writing-expression-fix',
   'answer-area-fix', 'answer-section-exam', 'answer-section-teaching', 'answer-coverage-guard',
   'emphasis-form-fix',
-  'text-format-sup-sub', 'cn-ordinal-guard',
+  'text-format-sup-sub', 'cn-ordinal-guard', 'question-numbering-key',
   'formula-form-guard',
 ]);
 /** 无独立分支、由汇总/关联规则执行的子规则 */

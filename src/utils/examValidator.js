@@ -2426,6 +2426,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           '',
         );
         const bodyNum = analyzeQuestionNumbering(bodyHtml, { part: 'body' });
+        // 2026-10-05（题号主键消相抵·可见性兜底）：正文题号由**大类/大题汉字序号**承担（无阿拉伯小题号）时，
+        //   缺号守卫/答案覆盖守卫的**计数主键**（extractBodyQuestionNumbers，行首 `N.`）失效 → 会**静默放行**；
+        //   本条只**如实报告**（notice，不改写/不重试/不判失败），把"守卫不适用"这件事补回可见性。
+        //   判据：正文有题目结构（h2~h4 或 <p class="question">）却**无阿拉伯行首题号**（bodyNum.top < 3）。
+        if (has('question-numbering-key') && genType === 'exam' && bodyNum.top < 3
+          && (/<h[2-4]\b/i.test(bodyHtml) || /class=["'][^"']*\bquestion\b/i.test(bodyHtml))) {
+          silentCount('question-numbering-key', '本卷正文题号由**大类/大题汉字序号**承担（无阿拉伯小题号）——缺号/答案覆盖守卫的计数主键不适用，请人工核对题量与答案逐题覆盖');
+        }
         const ansNum = analyzeQuestionNumbering(stripAudioScript(ansMatch[1]), { part: 'answer' });
         const bodyTopQ = bodyNum.top;
         const ansTopQ = ansNum.top;

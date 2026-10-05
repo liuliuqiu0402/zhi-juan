@@ -382,6 +382,15 @@ describe('⑦ 题号编号体系：分段式编号改报体系问题，不再用
     expect(notes(r, 'answer-coverage')).toBe('');
   });
 
+  it('🔴 题号主键变化：正文题号由大题汉字序号承担（无阿拉伯小题号）→ 报"计数主键不适用"（notice·只报不改）', () => {
+    // 2026-10-05（题号主键消相抵）：大题唯一题用汉字序号后，缺号/答案覆盖守卫的计数主键失效 → 需补可见性（不改写/不重试/不判失败）。
+    const bodyNoArab = '<h2>一、读拼音写词语（共12分）</h2><p class="question">(1) chí táng</p>'
+      + '<h2>二、比一比再组词（共8分）</h2><p class="question">(1) 那( ) 哪( )</p>';
+    const ans = '<div class="answer-section"><h2>参考答案</h2><p>一、(1) 池塘</p><p>二、(1) 那里 哪里</p></div>';
+    const r = auditExamPaper(bodyNoArab + ans, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(notes(r, 'question-numbering-key')).toContain('计数主键不适用');
+  });
+
   it('🔴 非考卷类型（同步练习/课时练等）按大题分别编号是市场常态 → 不报"编号体系与全卷连续不符"', () => {
     // 2026-09-18 用户裁定：""全卷连续"只约束正式考卷；同步练习按大题分号不误报。
     const r = auditExamPaper(segBody + segAns, { subject: '英语', stage: 'primary_high', genType: 'practice' });
