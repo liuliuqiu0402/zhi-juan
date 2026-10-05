@@ -1190,13 +1190,7 @@ const exportDocument = async () => {
       //    而同一文档的编辑器(:741)/预览(:1094)/docx(:1365) 都是 `|| STAGE_NEUTRAL`（小学 12mm）
       //    → 同一份卷"导出预览"与"导出文件"格子尺寸不一致。四处口径统一。
     });
-    // 🔧 临时诊断（2026-10-04 · 定位"大类/时间行居中丢失"后移除）：打印"样式应用后"这两个块的真实形态
-    try {
-      const s = String(previewContentForExport || '');
-      const big = s.match(/<(h2|p)\b[^>]*>[^<]*部分[^<]*<\/\1>/);
-      const time = s.match(/<(h2|p|div)\b[^>]*>[^<]*考试时间[^<]*<\/\1>/);
-      console.log('[诊断·导出·居中] 大类=', big ? big[0].slice(0, 180) : '（未找到）', '｜时间行=', time ? time[0].slice(0, 180) : '（未找到）');
-    } catch (e) { console.log('[诊断·导出·居中] 异常', e && e.message); }
+    // 🔧 临时诊断已于 2026-10-05（J9）随"大类/时间行居中"收口撤除——居中兜底的常驻守卫见 tests/utils/examBigCategory.test.js。
   } else {
     // 降级：用预览流程
     await applyThemeAndPreview();

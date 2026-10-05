@@ -1894,7 +1894,7 @@ export function normalizeBodyHtml(raw = '', { trace = false, label = '' } = {}) 
  * 属"渲染实现"而非"内容补差"（不补加粗：加粗在模型侧职责内，程序不代劳——见准绳"源头模型侧必须做到位"）。
  * 只加 class="exam-bigcat" + 行内 text-align:center（行内样式同时被 docxBuilder 的 text-align 读取，
  * 预览/HTML/PDF/DOCX 四处同口径，无需各端再写一套）。
- * 判据（保守，防误伤正文）：① 叶子块（p/div/h1–h4）；② 文本以"第X部分／第I部分／活动X：／听力部分／笔试部分"开头；
+ * 判据（保守，防误伤正文）：① 叶子块（p/div/h1–h4）；② 文本以"第X部分／第I部分／活动X：／听力部分／笔试部分／〈领域名〉部分："开头；
  *   ③ 长度 ≤ 40 字且**无句末标点**（。！？；）→ 判为层级行而非正文句；④ 段内含作答位载体（u/blank-N）不动。
  * 🔴 2026-10-04（真机回归·大类居中丢失）：扫描范围原只 `p, div`——模型把大类行写成 `<h2 style="text-align:center">`
  *   （借标题标签承载居中）时**漏认**；一旦模型当次没写 inline 居中，就没有任何兜底 → 大类不居中。
@@ -1906,7 +1906,10 @@ export function normalizeBodyHtml(raw = '', { trace = false, label = '' } = {}) 
 export function markExamBigCategory(html = '') {
   const src = String(html || '');
   if (!src || typeof DOMParser === 'undefined') return src;
-  const RE = /^(第[一二三四五六七八九十百]+部分|第[IVXLC]+部分|活动[一二三四五六七八九十]+[：:]?|听力部分|笔试部分)/;
+  // 🔴 2026-10-05（真机复现·大类居中再次丢失 hit=0）：原形态表只认"第X部分／活动X：／听力部分／笔试部分"，
+  //    而【卷面层级】允许的大类形态**第二种是"〈领域名〉部分："**（实测：`识字与写字部分：汉字侦探基础关（40分）`）
+  //    → RE 不认 → hit=0 → **居中兜底完全失效**（预览/导出回到居左）。补入"〈名称〉部分[：]"形态。
+  const RE = /^(第[一二三四五六七八九十百]+部分|第[IVXLC]+部分|活动[一二三四五六七八九十]+[：:]?|听力部分|笔试部分|[\u4e00-\u9fa5]{2,10}部分[：:]?)/;
   try {
     const doc = new DOMParser().parseFromString(`<body>${src}</body>`, 'text/html');
     let hit = 0;
@@ -1926,17 +1929,6 @@ export function markExamBigCategory(html = '') {
       if (!/text-align/.test(st)) p.setAttribute('style', `${st ? st.replace(/;\s*$/, '') + ';' : ''}text-align:center;`);
       hit += 1;
     }
-    // 🔧 临时诊断（2026-10-04 · 定位"大类未居中"后移除）：打印候选块与命中数
-    try {
-      const cands = [];
-      for (const el of doc.body.querySelectorAll('p, div, h1, h2, h3, h4')) {
-        const t = (el.textContent || '').replace(/[\s\u3000]+/g, ' ').trim();
-        if (!/^第[一二三四五六七八九十百]+部分/.test(t)) continue;
-        const leaf = !el.querySelector('p, div, h1, h2, h3, h4, h5, h6, table, ul, ol, u, [class*="blank-"]');
-        cands.push(`<${el.tagName.toLowerCase()}> "${t.slice(0, 26)}" 叶子=${leaf} 长度=${t.length} class="${el.getAttribute('class') || ''}" style="${el.getAttribute('style') || ''}"`);
-      }
-      console.log('[诊断·markExamBigCategory] hit=', hit, '｜候选=', cands.length ? cands.join(' ｜ ') : '（未找到"第X部分…"块）');
-    } catch (e) { console.log('[诊断·markExamBigCategory] 诊断异常', e && e.message); }
     return hit ? doc.body.innerHTML : src;
   } catch { return src; }
 }
