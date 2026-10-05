@@ -534,9 +534,12 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
     expect(t, '严肃卷面：原则式表述').toContain('按正规考试的严肃卷面呈现');
     expect(t, '情境只作真实/拟真语境承载、不作形式化包装').toContain('不作任何形式化包装');
     // 反列举守卫：这些具体词不得再出现在指令里（否则＝反向植入）
-    for (const banned of ['闯关', '集齐宝石', '第X关', '第X部分', '关卡包装']) {
+    // 🔴 2026-10-05 先解后锁：'第X部分' **移出禁词表**——经调研（正规卷如"第一部分 识字与写字（40分）"），
+    //    它已是**大类层的正规形态**（旧列为禁词是防"关卡名"式反向植入，与正规卷面形式冲突）。
+    for (const banned of ['闯关', '集齐宝石', '第X关', '关卡包装']) {
       expect(t, `不得把「${banned}」这类禁词写进指令（否定式列举＝反向植入）`).not.toContain(banned);
     }
+    expect(t, '大类层正规形态：序号与名称间用空格、不加冒号').toContain('序号与名称间用空格、不加冒号');
     const practice = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'practice' }).template;
     expect(practice, '情境边界（正式卷）不得广播到教辅').not.toContain('情境边界');
   });
