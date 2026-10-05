@@ -2,7 +2,7 @@
 // 公式渲染出口：$…$ 交给 KaTeX 出印刷形态（原 convertFormulasInHtml 只降级成 a/b 文本，
 //    与渲染契约"公式禁止用文本堆砌"自相矛盾——见 utils/mathRender.js 文件头）
 import { renderMathInHtml } from './utils/mathRender.js';
-import { getMergedSpec, normalizeStage3 } from './config/layoutSpec.js';
+import { getMergedSpec, normalizeStage3, blankWriteScale } from './config/layoutSpec.js';
 import { stripSealSuffix, normalizeSealBlanks } from './utils/sealText.js'; // 密封线文本规整（与 docx 导出 drawingMLShapes 共用，曾同正文双份）
 import { escapeHtml as escHtml } from './utils/escape.js'; // HTML 转义唯一实现（曾本地 escHtml 与 drawingMLShapes/GenerateModule 等 5 份同构副本）
 
@@ -1443,7 +1443,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   if (!theme) {
     const styleTag = `<style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      :root { --flt-h: ${FLT_H_EM}; } /* 四线三格/拼音格行高：1.45em 随字号自适应（carrierCss 单一事实源） */
+      :root { --flt-h: ${FLT_H_EM}; --blank-scale: ${blankWriteScale(stage)}; } /* 四线三格/拼音格行高 + 空位手写系数（低段3/其他2，carrierCss 消费；与导出端 docxBuilder 同源） */
       body { font-family: SimSun, 'Microsoft YaHei', serif; font-size: 12pt; line-height: 1.6; margin: 20px; background: white; color: #1e1e1e; }
       ul, ol { padding-left: 2em; }
       li { display: list-item; }
@@ -1486,7 +1486,7 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   // 构建样式
   let styleTag = `<style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    :root { --flt-h: ${FLT_H_EM}; } /* 四线三格/拼音格行高：1.45em 随字号自适应（carrierCss 单一事实源） */
+    :root { --flt-h: ${FLT_H_EM}; --blank-scale: ${blankWriteScale(stage)}; } /* 四线三格/拼音格行高 + 空位手写系数（低段3/其他2，carrierCss 消费；与导出端 docxBuilder 同源） */
     body {
       font-family: ${theme.bodyFont};
       font-size: ${theme.bodySize}pt;

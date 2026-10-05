@@ -488,7 +488,7 @@ import {
 } from '../themeConfig.js';
 import { APP_EVENTS } from '../constants/events.js';
 import { PAPER_PRESETS } from '../config/paperPresets.js';
-import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js'; // 作文格/书写格尺寸按学段（排版规格库）
+import { getMergedSpec, normalizeStage3, blankWriteScale } from '../config/layoutSpec.js'; // 作文格/书写格尺寸按学段（排版规格库）＋ 空位手写系数
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { stripAiCodeFence, normalizeLeadingMarkers, normalizeMathCircleBlanks, markSoloBlankLines, wrapBareBlankRuns, markExamBigCategory, normalizeExamHeadOrder } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离 + 行首"项目符号+序号"归一 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（与 GenerateModule 共用，防同构副本各自演化）
@@ -811,7 +811,9 @@ const themeCSS = computed(() => {
     //       若用 .ProseMirror * — 则变成子元素的直接规则 (0,1,1)，会反杀 h1 的 !important
     const theme = getThemeById(selectedThemeId.value);
     if (theme) {
-      css += `\n.ProseMirror { font-family: ${theme.bodyFont}; font-size: ${theme.bodySize}pt; line-height: ${theme.lineHeight}; color: ${theme.bodyColor}; }\n`;
+      // 🔴 2026-10-05（手写空间）：按**文档学段**注入空位手写系数（低段3/其他2）——与导出端 docxBuilder
+      //    读同一 blankWriteScale 单源，杜绝"预览宽、导出窄"分叉。--blank-scale 由 carrierCss 消费。
+      css += `\n.ProseMirror { font-family: ${theme.bodyFont}; font-size: ${theme.bodySize}pt; line-height: ${theme.lineHeight}; color: ${theme.bodyColor}; --blank-scale: ${blankWriteScale(effStage.value || STAGE_NEUTRAL)}; }\n`;
       // 🔑 统一正文字号：AI 可能给 .option/.answer-item 等设 15px 内联样式，强制继承主题正文字号
       //    排除 h1-h6（标题有自己的主题字号），排除 sup/sub/superscript/subscript（上/下标需缩小）
       css += `.ProseMirror .answer-item,.ProseMirror .notice,.ProseMirror .card,.ProseMirror p,.ProseMirror li,.ProseMirror td p,.ProseMirror th p{font-size:inherit!important}\n`;

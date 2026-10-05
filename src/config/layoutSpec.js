@@ -56,6 +56,18 @@ export const BLANK = {
   wordGap: 1,     // 1 字位 ≈ 1 em
   minBlank: 2,
   maxBlank: 24,
+  // 🔴 2026-10-05（调研·手写空间 · GB 40070-2021）：**印刷字位 → 手写书写宽** 的系数（按学段）。
+  //    依据：低段田字格/方格 ≥14mm vs 印刷正文 ≈ 小4号 ≈ 4.2mm/字位 → ≈3×；
+  //    其他学段 方格/行高 ≥8mm → ≈2×（与"试卷填空占 3 字格"惯例一致，低段更宽）。
+  //    预览（carrierCss 的 --blank-scale）与导出（docxBuilder）**同源同值**，杜绝两端分叉。
+  writeScaleByStage: { primary_low: 3, primary_mid: 2, primary_high: 2, middle: 2, high: 2 },
+};
+
+/** 学段 → 手写系数（未传/未知取 2；3 档别名 primary 亦按 2，保守不过宽） */
+export const blankWriteScale = (stage = '') => {
+  const m = (getMergedSpec().BLANK || {}).writeScaleByStage || {};
+  const k = String(stage || '').trim();
+  return Number.isFinite(m[k]) ? m[k] : 2;
 };
 
 /** 空作文格默认补全：<div class="zuo-wen-ge"></div> → 默认 span 数 */

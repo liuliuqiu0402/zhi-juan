@@ -13,6 +13,7 @@ import { Packer } from 'docx';
 import JSZip from 'jszip';
 import { normalizeBlankMarkers } from '@/utils/contentCleaner.js';
 import { auditExamPaper } from '@/utils/examValidator.js';
+import { blankWriteScale } from '@/config/layoutSpec.js';
 
 const YW = { subject: '语文', stage: 'primary_low', genType: 'exam' };
 
@@ -58,19 +59,22 @@ describe('全链路验收：写话类（模型给横线 → 链路必须给出�
 });
 
 describe('全链路验收：空位宽度（程序侧只许透传，不许代模型定宽）', () => {
-  it('模型给 blank-3 → 全链路后 Word 空格数 = 6（=N×2，与预览 N em 同宽）', async () => {
+  it('模型给 blank-3 → 导出空格数 = N × 手写系数 × 2（与预览同源同值）', async () => {
     const { audited } = chain('<p>1. 水会变成<u class="blank-3">&emsp;</u>。</p>', YW);
     const xml = await toDocXml(audited, 'primary_low');
-    // NBSP = 0.5em → N 档 = 2N 个；3 档 = 6 个
-    expect(xml, '导出宽度未按 N 档透传（曾乘 4 = 2N em）').toContain('\u00A0'.repeat(6));
-    expect(xml, '不得再放大一倍').not.toContain('\u00A0'.repeat(12));
+    // 2026-10-05（手写空间·两端同源）：宽度 = N 字位 × blankWriteScale(stage) em → NBSP(0.5em) = N×S×2。
+    //    断言**从同一单源派生**（不写死数值）——若导出端与 blankWriteScale 分叉即红。
+    const S = blankWriteScale('primary_low');
+    expect(xml, '导出宽度未按 N × 手写系数透传').toContain('\u00A0'.repeat(3 * S * 2));
+    expect(xml, '不得再额外放大一倍').not.toContain('\u00A0'.repeat(3 * S * 4));
   });
 
   it('模型给 blank-2 / blank-5 → 各档位各自透传（宽度随答案长度，不随题序）', async () => {
     const { audited } = chain('<p>1. 甲<u class="blank-2">&emsp;</u>。</p><p>2. 乙<u class="blank-5">&emsp;</u>。</p>', YW);
     const xml = await toDocXml(audited, 'primary_low');
-    expect(xml).toContain('\u00A0'.repeat(4));   // 2 档
-    expect(xml).toContain('\u00A0'.repeat(10));  // 5 档
+    const S = blankWriteScale('primary_low');
+    expect(xml).toContain('\u00A0'.repeat(2 * S * 2));   // 2 档
+    expect(xml).toContain('\u00A0'.repeat(5 * S * 2));   // 5 档
   });
 });
 

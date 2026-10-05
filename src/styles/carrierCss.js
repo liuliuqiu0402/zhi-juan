@@ -23,12 +23,16 @@ const SPEC_MAX_TIER = (() => {
 })();
 const TIERS = Array.from({ length: SPEC_MAX_TIER }, (_, i) => i + 1);
 
-/** u.blank-N 宽度档位（1 档 = 1em） */
-const uWidthCss = () => TIERS.map((n) => `u.blank-${n}{min-width:${n}em;}`).join('\n');
+/** u.blank-N 宽度档位（1 档 = 1em × 手写系数 --blank-scale）
+ *  🔴 2026-10-05（手写空间）：书写宽 = **字位数 N × 手写系数**（低段 3／其他 2，由 themeConfig 按学段注入
+ *     `--blank-scale`，见 layoutSpec.BLANK.writeScaleByStage）；缺省回退 2，保证"未注入也不窄于手写所需"。
+ *    与导出端 docxBuilder（读同一 blankWriteScale）**同源同值**。 */
+const uWidthCss = () => TIERS.map((n) => `u.blank-${n}{min-width:calc(${n}em * var(--blank-scale,2));}`).join('\n');
 
-/** span.blank-N 括号填空：伪元素括号外置，书写空间 = 中间 minmax(N em,1fr) 轨
- *（与 Word 导出 "(" + NBSP×N + ")" 同口径，括号内恰为 N em） */
-const spanGridCss = () => TIERS.map((n) => `span.blank-${n}{grid-template-columns:auto minmax(${n}em,1fr) auto;}`).join('\n');
+/** span.blank-N 括号填空：伪元素括号外置，书写空间 = 中间**定宽**轨 = N em × 手写系数
+ *  （2026-10-05：原 `minmax(N em,1fr)` 的 `1fr` 会超出 N em → 与"恰为 N em"的注释不符、且预览比导出宽，
+ *    现改**定宽**，两端同口径 = "(" + NBSP×(N×scale) + ")"）。 */
+const spanGridCss = () => TIERS.map((n) => `span.blank-${n}{grid-template-columns:auto calc(${n}em * var(--blank-scale,2)) auto;}`).join('\n');
 
 /** 四线三格/六线格/拼音格（行高随字母字号自适应，字母行内垂直居中）
  * ============================================================

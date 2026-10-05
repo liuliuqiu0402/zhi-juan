@@ -8,7 +8,7 @@ import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Width
 import { diagramToPngDataUrl } from './diagrams/index.js';
 import { TZG_MARKER, TZG_PINYIN_MARKER, MZG_MARKER, MZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, CIRCLE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
-import { getMergedSpec, normalizeStage3 } from '../config/layoutSpec.js';
+import { getMergedSpec, normalizeStage3, blankWriteScale } from '../config/layoutSpec.js';
 import { PAPER_PRESETS, normalizeLayout } from '../config/paperPresets.js';
 import { decodeEntities } from './escape.js'; // 实体解码唯一实现 utils/escape（曾 data-image-raw/data-graph-raw 两条同构链 + GenerateModule 副本）
 import { splitMathSegments, MATH_PREVIEW_ATTR, MATH_LATEX_ATTR, MATH_SRC_CLASS } from './mathSyntax.js'; // 公式定界语法与编辑器公式 widget 标记（零依赖，勿从 mathPreview 引以免拖入 Tiptap）
@@ -536,7 +536,9 @@ const buildTextRuns = (node, styleOverride = {}) => {
           return;
         }
         const emWidth = whitespaceEmWidth(raw);
-        const effectiveN = Math.max(nFromClass, Math.round(emWidth), 2);
+        // 🔴 2026-10-05（手写空间）：宽度 = N 字位 × **手写系数**（低段3/其他2，同 carrierCss 的 --blank-scale）——
+        //    与预览端**同源同值**（blankWriteScale 单源），杜绝"预览宽、导出窄"分叉。
+        const effectiveN = Math.max(Math.round(nFromClass * blankWriteScale(__zwgStage)), Math.round(emWidth), 2);
         // 2026-09-29（用户指正："程序侧怎么可能知道答案长度？程序侧做不到"）：
         //    宽度必须**逐档透传模型给的档位**，程序侧不得代它放大/加地板。NBSP 按本文件
         //    whitespaceEmWidth 的口径 = 0.5em，故 N 档 = N em = 2N 个 NBSP（与预览端
@@ -572,7 +574,9 @@ const buildTextRuns = (node, styleOverride = {}) => {
       } else {
         // 非标标签：统一按括号处理（宽度同样**逐档透传**：N 档 = N em = 2N 个 NBSP，见 whitespaceEmWidth）
         const emWidth = whitespaceEmWidth(raw);
-        const effectiveN = Math.max(nFromClass, Math.round(emWidth), 2);
+        // 🔴 2026-10-05（手写空间）：宽度 = N 字位 × **手写系数**（低段3/其他2，同 carrierCss 的 --blank-scale）——
+        //    与预览端**同源同值**（blankWriteScale 单源），杜绝"预览宽、导出窄"分叉。
+        const effectiveN = Math.max(Math.round(nFromClass * blankWriteScale(__zwgStage)), Math.round(emWidth), 2);
         const innerText = '\u00A0'.repeat(effectiveN * 2);
         runs.push(new TextRun({ text: `(${innerText})`, font: 'Times New Roman', size: ctx.size || readFontSizeHp(child) }));
       }
@@ -818,7 +822,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
     } else {
       // 非末尾：退回 NBSP 固定宽度逻辑（宽度取 类型保底/class N 值/内部空白实体 中较大者）
       const emWidth = whitespaceEmWidth(r.raw);
-      const baseMin = r.minEm || (r.nFromClass ? Math.max(r.nFromClass, 2) : 2);
+      const baseMin = r.minEm || (r.nFromClass ? Math.max(Math.round(r.nFromClass * blankWriteScale(__zwgStage)), 2) : 2);
       const effectiveN = Math.max(baseMin, Math.round(emWidth));
       // 2026-09-29（同上·**逐档透传**）：原 `Math.max(8, N*4)` 一边把宽度放大一倍（2N em）、
       //    一边设了 4em 的地板 → 短答（1~2 字）的横线一律偏长、与答案长度无关（用户实样实证：
