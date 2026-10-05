@@ -149,7 +149,10 @@ const detectTaskMismatch = (html = '') => {
     if (/^\d+[.、．]/.test(txt)) { cur = { txt: '', html: '' }; blocks.push(cur); }
     if (cur) { cur.txt += ' ' + txt; cur.html += '\n' + inner; }
   }
-  const hasOption = (b) => /class=["'][^"']*option[^"']*["']|(?:^|\n)\s*[A-Ha-h][.、．]\s*|（\s*[A-Ha-h]\s*）/.test(b.html);
+  // 🔴 2026-10-05（用户实测·误报根治）：原判据只在**题块内**认选项，且要求选项**位于行首**
+  //    （`(?:^|\n)\s*[A-Ha-h][.、．]`）——而实测卷把选项做成**大题级共享备选池**（「备选读音：A. jiāo　B. jiào…」），
+  //    选项在行内、又在被切块的题之外 → 系统性误报"选择类题无选项可择"。补：**行内选项**（前有分隔符：，、　空格）同样算有选项。
+  const hasOption = (b) => /class=["'][^"']*option[^"']*["']|(?:^|\n)\s*[A-Ha-h][.、．]\s*|（\s*[A-Ha-h]\s*）|[：:，,、\s\u3000][A-Ha-h][.、．]\s*\S/.test(b.html);
   const hasLineBlank = (b) => /<u[^>]*class=["'][^"']*blank-|＿|blank-line/.test(b.html); // 横线空/书写行
   for (const b of blocks) {
     const t = b.txt;
