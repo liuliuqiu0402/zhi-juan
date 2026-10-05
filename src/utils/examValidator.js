@@ -11,6 +11,7 @@ import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATIO
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
 import { checkFigurePrompts } from './figurePromptCheck.js'; // 题干 ↔ 配图 PROMPT 数量交叉校验（2026-09-16）
+import { isPerBigQuestionNumbering } from './gradeStage.js'; // 题号编法按学段分叉（与指令侧同源，2026-10-05）
 import { analyzeQuestionNumbering, extractBodyQuestionNumbers, detectCnOrdinalHeadingIssues, spaceBlankWidth, bodyBeforeAnswer } from './contentCleaner.js'; // 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；extractBodyQuestionNumbers=同一口径的**题号序列**投影（2026-09-29 答案区逐题对应明细取证用，不新造正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
 
 // ---------- 通用正则 ----------
@@ -2471,11 +2472,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const v = arr.filter((s) => s >= 3);
           return v.length ? `${v.length} 段（段长 ${v.join('、')}）` : '无';
         };
-        if ((bodyNum.segmented || ansNum.segmented) && genType === 'exam') {
+        const perBigNumbering = genType === 'exam' && isPerBigQuestionNumbering(stage);
+        const numberingSegmented = bodyNum.segmented || ansNum.segmented;
+        if (numberingSegmented && genType === 'exam' && !perBigNumbering) {
           if (has('answer-coverage-guard')) {
             silentCount('question-numbering-system', `题号编号体系与"全卷连续"口径不符：题号**按大题分别从 1 重新编号**（正文 ${segText(bodyNum.segments)}；答案区 ${segText(ansNum.segments)}）——全卷题号应跨大题、跨部分逐题递增、且答案区与正文用同一套号（1. 2. 3.…，全卷连续同序；仅子题用 (1)(2)）；编号体系分段时，两侧"最长连续段"的对比本身不成立（计数口径已覆盖行首、空位自带括号、行内点号、紧凑连排四种形态，故两侧差异不出在形态识别），程序据此只报编号体系、不再报"答案区少于正文"，请按编号体系整改后抽检`);
           }
-        } else if (!isContentType && bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
+        } else if (!numberingSegmented && !isContentType && bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
           // 🔍 计数口径取证（2026-09-12）：本口径只认「行首/空白/[)）、]后 + N.[、．]」。
           //    2026-09-13（用户实证定版·根因分型）：答案区计 0 **是真实缺陷信号**（=一个可对应的题号锚点都没有，
           //       意味着答案与正文无法逐题对应），不是"口径不覆盖"的假告警——分型只为把排查方向说准，不改判"要修"。

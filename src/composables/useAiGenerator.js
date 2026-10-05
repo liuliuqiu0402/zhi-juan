@@ -37,7 +37,7 @@ import {
 } from '../utils/injectionManifest.js';
 // 2026-09-30：输入超长改为**只体检、不改文本**（原名 promptCompression，因无法安全划界而收口，见该模块注释）
 import { inspectOverlongPrompt } from '../utils/promptOversize.js';
-import { extractGradeNum, resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
+import { extractGradeNum, resolveStageKey, resolveCompetency, gradeDisplayLabel, isPerBigQuestionNumbering } from '../utils/gradeStage.js';
 import {
   genTypeTemplates,
   normalizeSubjectName
@@ -3980,6 +3980,11 @@ ${cardAnalysisText.substring(0, 1000)}
     }
     // 学科规范化（三维度答案提示词/作答载体按 subject 精确注入，避免跨学科噪音）
     const subject = normalizeSubjectName(book?.subject, book?.stage);
+    // 题号编法按学段分叉的唯一依据（与指令侧 QUESTION_NUMBERING_CALIBER 同源，见 gradeStage.isPerBigQuestionNumbering）：
+    //   小学正式卷＝各大题各自起编（分段式是**应然**，不算"重启"）；中学正式卷＝全卷连续（分段式才算重启）。
+    //   程序侧校验/回灌据此分叉，消除"指令已分学段、程序仍按全卷连续"的相抵（第 1 项·实测数学卷题号乱的根因）。
+    const stageKey = resolveStageKey(book?.stage, book?.grade, book?.name);
+    const perBigNumbering = genType === 'exam' && isPerBigQuestionNumbering(stageKey);
 
     // ── 覆盖锚构建（2026-09 P0）：章级层级知识点 → 原文片段绑定，覆盖/检索/缺料诊断的唯一事实源 ──
     //    锚来自 contentCards.anchorTree（knowledgeHierarchy 归一树），知识点→章归属由树结构成立；
@@ -4392,7 +4397,7 @@ ${cardAnalysisText.substring(0, 1000)}
         //    同型并列栏目（看拼音写词语/比一比再组词等）本就"整栏作一题"（＝合并），模型为满足"不得合并任何一题"
         //    就把**不该编号的小项也编上号**（实证：题号按小节重启＋回灌出多余小题号）。改为按"应给号"判，
         //    并把题号对象口径带给模型（与 QOC 同源），使"全卷连续"与"整栏不逐项编号"不再互拉。
-        ? `${prompt}\n\n【上一轮整卷生成复核发现的问题——本次必须修正】\n· ${lastGapNote}。本次必须逐题完整呈现全部题目：题号从 1 起逐题递增、连续不得跳号、全卷同序；**该给号的小题才给号**（小题编号对象见单源口径：同型并列整栏只作一题、**全大题仅一个小题即用大题序号**——均不逐项另起小题号），不得遗漏任何**应给号**的小题；输出完成后逐题自查题号连续性。`
+        ? `${prompt}\n\n【上一轮整卷生成复核发现的问题——本次必须修正】\n· ${lastGapNote}。本次必须逐题完整呈现全部题目：题号从 1 起逐题递增、连续不得跳号、${perBigNumbering ? '本大题内连续同序' : '全卷同序'}；**该给号的小题才给号**（小题编号对象见单源口径：同型并列整栏只作一题、**全大题仅一个小题即用大题序号**——均不逐项另起小题号），不得遗漏任何**应给号**的小题；输出完成后逐题自查题号连续性。`
         : prompt;
       try {
         const resp = await callAI(callPrompt, {
@@ -4529,7 +4534,7 @@ ${cardAnalysisText.substring(0, 1000)}
         //    从 1 编号时，答案区"逐题与正文同号 + 全卷连续同序"的对齐前提失效——模型失去可对齐基准，
         //    退化成只写尾部评分量表（实测：正文 `1、2、3` 后又从 1 数到 27；日志"答案区顶层题号 0"）。
         //    缺号守卫查不出重启（已出现集合就是 1..27、一个不缺），故此处独立判。仅试卷（exam）。
-        const bodyRestart = genType === 'exam'
+        const bodyRestart = genType === 'exam' && !perBigNumbering
           ? detectBodyNumberingRestart(content)
           : { restart: false, segments: [], top: 0 };
         if (content && isDeliverableBodyHtml(content) && !qGap && !bodyRestart.restart) break;

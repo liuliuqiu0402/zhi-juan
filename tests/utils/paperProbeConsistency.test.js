@@ -356,7 +356,8 @@ describe('自洽条款的注入面：9 类资料各按其分（不缺席、不�
 //   处置：countTopQuestions 同源升级为 analyzeQuestionNumbering（暴露"段"本身）→ 分段式改报**编号体系**，
 //   两侧计数对比与反向护栏在该情形下一并停用（口径不适用就不报，不用不适用口径出结论）。
 describe('⑦ 题号编号体系：分段式编号改报体系问题，不再用"最长段"做两侧对比', () => {
-  const run = (body, ans) => auditExamPaper(body + ans, { subject: '英语', stage: 'primary_high', genType: 'exam' });
+  // 🔴 2026-10-05（按学段分叉）：编号体系告警只对**中学**正式卷生效——小学正式卷"各大题各自起编"是应然，分段式不报。
+  const run = (body, ans) => auditExamPaper(body + ans, { subject: '英语', stage: 'middle', genType: 'exam' });
   const notes = (r, type) => (r.silentDetails || []).filter((d) => d.type === type).map((d) => d.message).join(' | ');
   // 分段式：一大题 1~5、二大题 1~10（各自从 1 重编号）
   const segBody = `<h2>一、听力（每题2分，共10分）</h2>`
@@ -372,6 +373,13 @@ describe('⑦ 题号编号体系：分段式编号改报体系问题，不再用
     expect(msg).toContain('按大题分别从 1 重新编号');
     expect(msg).toContain('2 段（段长 5、10）');          // 正文段长清单（只列大题级段）
     expect(msg).toContain('全卷连续');
+  });
+
+  it('🔴 小学正式卷（primary_*）：各大题各自起编＝应然 → 分段式**不报**"编号体系与全卷连续不符"（2026-10-05 按学段分叉）', () => {
+    const r = auditExamPaper(segBody + segAns, { subject: '英语', stage: 'primary_high', genType: 'exam' });
+    expect(notes(r, 'question-numbering-system')).toBe('');
+    // 分段式下"两侧最长段"对比不成立 → "少于"告警同样不报（口径不适用就不报）
+    expect(notes(r, 'answer-coverage')).toBe('');
   });
 
   it('🔴 非考卷类型（同步练习/课时练等）按大题分别编号是市场常态 → 不报"编号体系与全卷连续不符"', () => {

@@ -47,6 +47,18 @@ export const extractGradeFromName = (name = '') => {
 export const STAGE_KEYS = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
 export const STAGE_KEY_SET = new Set(STAGE_KEYS);
 
+/**
+ * 试卷小题号编法（按学段分叉 · 与指令侧 `QUESTION_NUMBERING_CALIBER` 同源）
+ * ============================================================
+ * 2026-10-05 调研落定：**小学**正式卷小题号＝各大题各自起编（本大题内连续）；**中学**正式卷＝全卷连续。
+ * 程序侧（题号连续性校验/回灌、编号体系告警）据此分叉——与指令侧**同一口径**，消除
+ * "指令已分学段、程序仍按全卷连续"的相抵（实测：小学卷按大题起编被误判重启→回灌"全卷连续"→题号乱）。
+ * 消费端一律引用本谓词，不得各写一份 `/^primary/` 正则。
+ * @param {string} stageKey 五档学段键（resolveStageKey 的输出）
+ * @returns {boolean} true＝各大题各自起编（小学）；false＝全卷连续（中学/未识别）
+ */
+export const isPerBigQuestionNumbering = (stageKey = '') => String(stageKey || '').startsWith('primary');
+
 /** 中文学段/年级/段位标签 → 五档键（不依赖 grade/name）。仅处理"非纯粗学段标签"（'小学低段'/'初一'/'六年级'等），
  * 纯 '小学'/'初中'/'高中' 由 resolveStageKey 主逻辑配 grade/name 处理。无法识别返回 ''。 */
 const resolveLabelKey = (s = '') => {
