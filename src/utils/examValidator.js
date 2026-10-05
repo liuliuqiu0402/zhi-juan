@@ -999,7 +999,16 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         if (has('score-label-fix')) {
           // 🔧 载体只取真实载体（填空数/连线数）——拼音选项（读音题括号）不是"空位"，不能当载体验证"每空X分"
           const carrierTotal = blanks || (matchSides ? matchSides.left : 0) || (/连/.test(title) ? countMatchLines(secText2) : 0);
-          const fsRes = fixScoreLabel(title, totalScore, carrierTotal, countSubInNodes(secNodes), {
+          // 🔴 2026-10-05（程序链②·校验口径）：单位="题"时，"小题数"**不能只数"题号行"**——
+          //    实测「题9 ＋ (1)(2)(3)(4)」被算成 1 题 → 与"每题2分，共8分"**误报不符**；
+          //    对照/连线型（比一比，再组词＝4 组）同理会算成 1 题。
+          //    故"题数"取 **题号行数、(1)(2)式子题数、对照/连线组数** 三者最大（按实际计分对象；真不符仍会报）。
+          const subCountForUnit = Math.max(
+            countSubInNodes(secNodes),
+            countSubNumbered(secHtml2),
+            matchSides ? (matchSides.left || 0) : 0,
+          );
+          const fsRes = fixScoreLabel(title, totalScore, carrierTotal, subCountForUnit, {
             pinyinGroups: countPinyinGroups(secHtml2),
             gridCells: countGridCells(secHtml2),
           });
