@@ -4529,7 +4529,11 @@ ${cardAnalysisText.substring(0, 1000)}
         //    缺号与截断共用同一重试槽（第 2 次尝试），但**病因与手段不同**：截断=预算不足 → 预算 ×1.4；
         //    缺号=生成行为 → 把缺号清单回灌模型令其逐题补全（与预算无关，勿再写成"升级预算"）。
         //    重试后仍缺号 → 由下方终极守卫判失败（宁失败不残缺）
-        const qGap = detectBodyNumberingGap(content);
+        // 2026-10-05（按学段分叉·同族补齐）：**小学**正式卷＝各大题各自起编 → 全卷"1~峰值连续"不是本口径，
+        //   且**行内数字**（如"找规律填数 6、12、18、__、__"里的 18）会被行内取号形态计成题号、把峰值抬高
+        //   → 全卷缺号判定**必误报**（实测：小学卷题号 [1-7][1-4][1-7][1-5]… 被判"1~18 缺 9~17"→
+        //   重试＋回灌"全卷连续"，反把应然的分段号改成全卷号）。故小学**不做全卷缺号拦截**。
+        const qGap = perBigNumbering ? null : detectBodyNumberingGap(content);
         // 2026-09-26 试卷正文题号"全卷连续"守卫（用户裁定：重启即不合格）：正文按小节/栏目重新
         //    从 1 编号时，答案区"逐题与正文同号 + 全卷连续同序"的对齐前提失效——模型失去可对齐基准，
         //    退化成只写尾部评分量表（实测：正文 `1、2、3` 后又从 1 数到 27；日志"答案区顶层题号 0"）。
@@ -4616,7 +4620,7 @@ ${cardAnalysisText.substring(0, 1000)}
     } // end if(!content) 单次生成 + 预算升级重试循环
     // 完整优先最终守卫：两次尝试（含续写链/缺号拦截）都未能完整输出 → 明确抛错并给行动建议，
     //    绝不把半截/缺题正文当作成功交付（generate 外层 MAX_RETRIES 会整卷级重试；再失败则由 UI 呈现此错误）
-    const finalGap = detectBodyNumberingGap(content);
+    const finalGap = perBigNumbering ? null : detectBodyNumberingGap(content);
     // 2026-09-17 根治：终检只认"全文任何位置都不出现"的实证缺号（finalLoss）；
     //    形态性缺号（能在别处找到）不再判失败——否则完整卷会被形态漏判反复判死（重试无解）。
     const finalCls = finalGap ? classifyNumberingGap(content) : null;
