@@ -37,6 +37,13 @@ describe('大类层居中：识别与打标', () => {
     }
   });
 
+  it('🔴 "（考试时间…）"卷首时间行 → 也居中（程序链④：预览侧原无兜底）', () => {
+    // 2026-10-05 真机复现：时间行"预览居左、导出居中"——导出端由 docxBuilder.readAlignment 兜底，预览侧没有。
+    const out = markExamBigCategory('<p>(考试时间：60分钟　满分：100分)</p>');
+    expect(out).toContain('exam-bigcat');
+    expect(centered(out)).toBe(true);
+  });
+
   it('幂等：重复调用不再改动（两次结果一致）', () => {
     const once = markExamBigCategory('<p><strong>第一部分 识字与写字（40分）</strong></p>');
     expect(markExamBigCategory(once)).toBe(once);

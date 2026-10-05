@@ -33,6 +33,22 @@ describe('卷面固定件：注意事项 + 题号得分表（排版模块统一�
     expect(shell).toContain('<td>得分</td>');
   });
 
+  it('🔴 大类行写成"〈领域名〉部分："时，固定件仍须在它**之前**（程序链③·固定件顺序）', () => {
+    // 2026-10-05 真机复现：大类行 `<h2>识字与写字部分：第一关·汉字探秘（共40分）</h2>` →
+    //    原 PART_RE 只认"第X部分/第X卷" → 大类锚点漏认 → 固定件落到大类行**之后**（实测"大类行在得分框上面"）。
+    const src = `<h1 class="main-title">二年级语文上册第一单元·阅读测试卷</h1>
+<p>(考试时间：60分钟　满分：100分)</p>
+<h2>识字与写字部分：第一关·汉字探秘（共40分）</h2>
+<h2>一、小小识字家——认一认，连一连（共6分）</h2>
+<p>1. 读一读，把动物和它的特点连起来。</p>`;
+    const wrapped = wrapContentForTheme(src, 'sealed_exam');
+    expect(wrapped).toContain('class="exam-notice"');
+    expect(
+      wrapped.indexOf('class="exam-notice"'),
+      '固定件（注意事项）必须在"……部分"大类行之前',
+    ).toBeLessThan(wrapped.indexOf('识字与写字部分'));
+  });
+
   it('wrapContentForTheme(sealed_exam)：注入固定件，位置在第一个大题标题前', () => {
     const wrapped = wrapContentForTheme(CONTENT, 'sealed_exam');
     expect(wrapped).toContain('class="exam-notice"');
