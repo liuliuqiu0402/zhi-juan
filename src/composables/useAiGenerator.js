@@ -4925,10 +4925,13 @@ ${cardAnalysisText.substring(0, 1000)}
           const m = String(s || '').match(/<div[^>]*class="[^"]*answer-section"[^>]*>[\s\S]*$/i);
           return m ? m[0] : '';
         };
+        // 2026-10-05（程序链·护栏判据改准）：原判据只数"**行首**题号"——质检若把短题**并段/重排**（题号不再位于行首），
+        //   计数即掉 → 误判"正文减少"→ 连**合规质检**一并回退并报"正文疑似减少"（实测：26→21、小节 0→0）。
+        //   改为**不依赖行首**（题号前为行首／空白／标签处皆计），两侧同一口径：**真删**（题号消失）照报，
+        //   **重排**（仅位置变）不再误报。行首限制本就是"数题"的代理，非判据本体。
         const qCount = (s) => (String(s || '')
-          .replace(/<\/(?:p|li|h[1-6]|div)>/gi, '\n')
-          .replace(/<[^>]+>/g, '')
-          .match(/(?:^|\n)\s*\d+[.、．](?![.\d])/g) || []).length;
+          .replace(/<[^>]+>/g, ' ')
+          .match(/(?:^|\s)\d+[.、．](?![.\d])/g) || []).length;
         const h3Count = (s) => (String(s || '').match(/<h3\b/gi) || []).length;
         const beforeBody = bodyOnly(beforeAudit);
         const bq = qCount(beforeBody), aq = qCount(bodyOnly(finalContent));
