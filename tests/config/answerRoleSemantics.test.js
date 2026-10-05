@@ -22,4 +22,13 @@ describe('ANSWER_ROLES 答案页角色措辞（2026-09）', () => {
     expect(ANSWER_ROLES.other('summary')).toContain('严禁');
     expect(ANSWER_ROLES.exam('语文')).toContain('评分标准');
   });
+
+  it('exam 分支同享解析下限（2026-10-05 同族补齐）：旧"客观题给出正确答案"口子已去除、整卷不得零解析', () => {
+    // 背景：2026-09-10 的"解析下限"只落到了 other 分支，exam 分支漏改（实测：数学低段卷答案区只有纯答案、无解析）。
+    const role = ANSWER_ROLES.exam('数学');
+    expect(role).not.toContain('客观题给出正确答案'); // 旧措辞被读成"客观题一律免解析"
+    expect(role).toContain('必须附');
+    expect(role).toContain('点到即止');
+    expect(role).toContain('不得完全没有解析'); // 补 exam 分支此前缺失的下限
+  });
 });
