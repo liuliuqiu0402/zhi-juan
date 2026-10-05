@@ -378,7 +378,7 @@ describe('🔢 组标题（大题标题）中文序号口径：教辅逐栏目�
   it('答案区同构：教辅按相同栏目（组）分组、组内与正文同号同序；试卷全卷连续同序', () => {
     const once = PAPER_OUTPUT_CONVENTIONS.once('语文', false);
     expect(once).toContain('教辅正文按栏目（组）分别起编则答案区按相同栏目（组）分组、组内与正文同号同序');
-    expect(once).toContain('正式考卷正文全卷连续则答案区同样全卷连续');
+    expect(once).toContain('正式考卷：正文题号全卷连续（中学）或各大题各自起编（小学），答案区按相同编排逐题对应');
     const ansSpec = buildAnswerFormatSpec('语文');
     // 🔴 2026-10-01（⑥拼接）：同义反复已收口，改断分型判据（教辅分组 / 试卷全卷连续）。
     expect(ansSpec).toContain('教辅按栏目（组）分别起编时，答案区按相同栏目（组）分组');

@@ -5328,6 +5328,11 @@ ${cardAnalysisText.substring(0, 1000)}
       progress.value = 85;
 
       const issues = [];
+      // 2026-10-05（题号按学段分叉·同族补齐）：出稿自检 ④ 的"不重启"口径须与指令侧同源——
+      //   小学正式卷＝各大题各自起编（分段是应然）、中学＝全卷连续。原先无条件写"全卷连续"，
+      //   会对小学卷的自检项"互相否定"（与 ①/④ 的题号条款也不一致）。
+      const perBigNumInCheck = genType === 'exam'
+        && isPerBigQuestionNumbering(resolveStageKey(selectedBooks?.[0]?.stage, selectedBooks?.[0]?.grade, selectedBooks?.[0]?.name));
       // 出稿自检表（2026-09-27，只进审核报告·问题列表）：程序确定性修复/检测已完成后，
       //    仍需**人工核对**的维度汇总成一节清单——程序只自动修复确定性错误、无法替编辑下价值判断，
       //    故凡存在抽检项时顶部给出核对指引；无抽检项则不插入（防噪音）。
@@ -5343,7 +5348,7 @@ ${cardAnalysisText.substring(0, 1000)}
           + `① ${genType === 'exam' ? '大类/大题层级与编号是否与【卷面结构】一致（大类层序号形态按本卷学段口径——小学段大类自带序号、中学段不设大类层；大题标题命名遵卷面单源规则并带序号、大题序号' + GROUP_TITLE_NUMBERING_CALIBER.exam + '、不按大类重启）' : '栏目（组）/组标题层级与编号是否与【教辅结构】一致（栏目（组）标题独立成行、不带序号；组标题命名遵卷面单源规则并带序号、组标题' + GROUP_TITLE_NUMBERING_CALIBER.teaching + '）'}；`
           + `② 大题分值合计与${genType === 'exam' ? '【卷面结构】' : '【教辅结构】'}闭合、小题分值标注齐全；`
           + '③ 作答载体（横线/括号/格子）与题面声明一致、形态同卷统一；'
-          + `④ 题号连续（不跳号${genType === 'exam' ? '、不重启（全卷连续）' : '；教辅本题号' + QUESTION_NUMBERING_CALIBER.teaching + '，进入新的栏目（组）即从 1 重新起编'}）；${QUESTION_OBJECT_CALIBER}；`
+          + `④ 题号连续（不跳号${genType === 'exam' ? '、不重启（' + (perBigNumInCheck ? '各大题各自起编' : '全卷连续') + '）' : '；教辅本题号' + QUESTION_NUMBERING_CALIBER.teaching + '，进入新的栏目（组）即从 1 重新起编'}）；${QUESTION_OBJECT_CALIBER}；`
           + '⑤ 答案区与正文逐题对应（同号、无遗漏、无多答）；'
           + '⑥ 情境与设问真实、符合本学段课标，无照搬教材原题。');
       }
