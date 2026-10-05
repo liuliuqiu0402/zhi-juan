@@ -698,15 +698,14 @@ export const BRACKET_GRID = {
  *  ⚠️ GRID_CELL['four-line-three'/'pinyin-line'].lineHeightMm 不再被消费端读取。 */
 export const GRID_CELL = {
   'tian-zi-ge': {
-    // ⏳ 2026-10-05（调研·待落地）：GB 40070-2021 规定小学一二年级田字格/方格 **宽＝高、≥14.0mm**（现 12mm 低于国标）。
-    //    改 14mm 需**成组先解后锁**（global.css 的 .tian-zi-ge/.mi-zi-ge 宽高、RichTextEditor 副本、
-    //    tzgBrSkip 派生格行距 800=12mm+6pt→914=14mm+6pt）→ 与"手写系数"一并做，避免中途留红。
-    primary: { widthMm: 12, heightMm: 12 },
+    // 🔴 2026-10-05（调研·强制国标落地）：GB 40070-2021 规定小学一、二年级田字格/方格 **宽＝高、≥14.0mm**
+    //    （原 12mm 低于国标下限 → 手写字憋挤）。低段统一取 **14mm**；中/高段无强制格，维持 9/8mm。
+    primary: { widthMm: 14, heightMm: 14 },
     middle: { widthMm: 9, heightMm: 9 },
     high: { widthMm: 8, heightMm: 8 },
   },
   'mi-zi-ge': {
-    primary: { widthMm: 12, heightMm: 12 },
+    primary: { widthMm: 14, heightMm: 14 },
     middle: { widthMm: 9, heightMm: 9 },
     high: { widthMm: 8, heightMm: 8 },
   },
