@@ -30,6 +30,16 @@ describe('validatorRules 规则启停开关（双阶段生效）', () => {
     expect(buildValidatorPrompt({ subject: '语文', stage: 'primary_low', genType: 'exam' })).toContain('分值标注与账目');
   });
 
+  // 🔴 2026-10-06（面 8 唯一性·假指针修正）：该 hint 原写"以正文'唯一考查目的/同一份不重复考查'条为准"，
+  //   而**全库只有它自己一行**出现该字面（回源核过）→ 正文并无此条 ⇒ 假指针（模型照它找不到条）。
+  //   正文真条名＝【质量底线】的"内容唯一性"与"题类资料中不重复设题"。本断言锁"指针为真"。
+  it('唯一性提示的指针须指向正文真条名（不得指向不存在的条）', () => {
+    const rule = VALIDATOR_RULES.find((r) => (r.promptHint || '').startsWith('严禁整份资料内出现两份相同内容'));
+    expect(rule, '唯一性规则须在位').toBeTruthy();
+    expect(rule.promptHint, '指针须指向正文真条名').toContain('内容唯一性／题类资料中不重复设题');
+    expect(rule.promptHint, '不得再指向不存在的旧条名').not.toContain('唯一考查目的');
+  });
+
   it('重新启用 → 恢复注入与执行', () => {
     const target = VALIDATOR_RULES.find((r) => r.id === 'template-cleanup');
     saveUserRule({ ...target, enabled: false });
