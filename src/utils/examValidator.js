@@ -813,7 +813,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 1.6. 大题标题明细式（规则 title-detail-fix：旧式"（X分）"→"共N题，每题X分，共X分"）──
+  // ── 1.6. 大题标题分值形态归一（规则 title-detail-fix：旧式"（X分）"→"（共X分）"，与 cell 分值条同口径）──
   if (has('title-detail-fix')) {
     try {
       const tpl = document.createElement('template');
@@ -839,13 +839,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           node = node.nextSibling;
         }
         if (count <= 0) return;
-        // 🔧 不再推断"每题X分"（total/count 整除判定依赖题号计数，不可靠时会给错每题分）；
-        //    只补全"共N题，共X分"，分值明细交由模型按标注规范自行保证，程序不做分值猜测
-        const detail = `共${count}题，共${totalScore}分`;
+        // 🔴 2026-10-06（A4 跨处一致·消相抵）：原只补"共N题，共X分"——**明细式**与 cell 分值条
+        //    「大题标题只写总分"（共Y分）"」**相抵**（用户实测"整卷两种标注并存"的另一头）。
+        //    现改写目标与 cell 同口径：**只补总分**（题数属【卷面结构】的命题依据、不进标题）。
+        const detail = `共${totalScore}分`;
         const newT = t.replace(/[（(]\s*\d{1,3}\s*分\s*[)）]\s*$/, `（${detail}）`);
         if (newT !== t) {
           h.textContent = newT;
-          issues.push({ severity: 'info', type: 'title-detail', message: `大题标题已补全明细式：${newT}` });
+          issues.push({ severity: 'info', type: 'title-detail', message: `大题标题已补总分：${newT}` });
           fixed += 1;
         }
       });
