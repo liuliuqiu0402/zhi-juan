@@ -4586,7 +4586,7 @@ ${cardAnalysisText.substring(0, 1000)}
               d.skeleton.forEach((s, i) => console.warn(`      ${String(i + 1).padStart(2, '0')}| ${s}`));
             }
           } catch (e) { /* 诊断失败不影响主流程 */ }
-          lastGapNote = `正文题号缺失：${qGap.missing.join('、')}（1~${qGap.peak} 中缺）——本次必须补全这些题，题号从 1 起逐题连续`;
+          lastGapNote = `正文题号缺失：${qGap.missing.join('、')}（1~${qGap.peak} 中缺）——本次必须补全这些题，题号从 1 起逐题连续（**题号只给独立作答单位；同型并列整栏不逐项编号**）`;
           bodyPathNotes.push(`⚠️ 正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——重试（缺号清单已回灌模型；非预算截断）`);
           throw new Error(`正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——正文疑似丢题${attempt === 0 ? '，重试（缺号清单已回灌模型）' : '，重试后仍未补齐'}`);
         }
@@ -4595,7 +4595,7 @@ ${cardAnalysisText.substring(0, 1000)}
           const note = `正文题号按小节/栏目重新从 1 编号（各段题数：${segText}），非全卷连续同序`;
           if (attempt === 0) {
             // 第 1 次：回灌"全卷连续编号"要求后重试（与缺号同槽：病因是生成行为，非预算）
-            lastGapNote = `${note}——本次必须把全卷题目**从 1 起连续编号、逐题递增、同序**，严禁按小节/栏目重启编号`;
+            lastGapNote = `${note}——本次必须把全卷题目**从 1 起连续编号、逐题递增、同序**（**题号只给独立作答单位；同型并列整栏不逐项编号**），严禁按小节/栏目重启编号`;
             bodyPathNotes.push(`⚠️ ${note}——重试（已回灌"全卷连续编号"要求）`);
             console.warn(`🔢 [题号·分段拦截] ${note} → 重试并回灌"全卷连续编号"（否则答案区无法逐题对齐）`);
             throw new Error(`${note}——试卷正文题号须全卷连续同序`);
