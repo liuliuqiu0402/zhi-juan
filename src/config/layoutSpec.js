@@ -232,7 +232,7 @@ export function buildCarrierInstruction(subject = '', stage = '') {
   //    → 两处互指 = 谁都不输出：模型只能给整行横线，格子随之消失。
   //    故在此给出**真协议**（仅语文：作文格是中文成篇书写载体；标记与 2j-5 补格产物逐字同形）。
   const compositionLine = subject === '语文'
-    ? '成篇成文类的作答位是**作文格**：输出 <div class="zuo-wen-ge"><span>&emsp;</span></div>（按该题篇幅给足格数）——此类题的作答载体就是作文格，**不得用整行书写横线代替**。'
+    ? '成篇成文类的作答位是**作文格**：输出 <div class="zuo-wen-ge"><span>&emsp;</span></div>（按该题篇幅给足格数）——**给在该题题干与配图之后**；此类题的作答载体就是作文格，**不得用整行书写横线代替**。'
     : '';
   if (!parts.length) return compositionLine;
   // 书写格位置判据（基准1/2 根治·2026-09-28 用户口径澄清）：纠正"田字格不得出现在句末"的误读——
