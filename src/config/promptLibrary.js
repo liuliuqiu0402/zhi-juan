@@ -409,7 +409,7 @@ const EXAM_BASE = (extra = '', ctx = {}) => `你是资深命题专家。请为{g
 【大题标题命名】
 ${bigTitleRule(ctx.stage)}
 · ${structNameRole(ctx.stage)}
-· "共X题"的 X 按**编号对象口径**（同型并列整栏算一题）填写
+· 【卷面结构】里的"题数 X"按**编号对象口径**（同型并列整栏算一题）计
 
 【创作要求】
 1. 依据{curriculum}命题：素养立意
@@ -1289,8 +1289,12 @@ export function buildInjectionInstruction(opts = {}) {
   return [taskLine, body, levelBlock, extraBlock].filter(Boolean).join('\n').trim();
 }
 
-/** 从蓝图生成卷面结构文本（明细式，供指令注入）；参数为 findBlueprint/getExamBlueprint 返回的蓝图对象
- * 注：大题标题"共X题"的 X 由模型按实际命制题数填写（题量是命题设计结果，非程序预知值）；
+/** 从蓝图生成卷面结构文本（**列式**，供指令注入）；参数为 findBlueprint/getExamBlueprint 返回的蓝图对象
+ * 注：结构里的"题数 X"由模型按实际命制题数计（题量是命题设计结果，非程序预知值）；
+ * 🔴 2026-10-06（A4 跨处一致·消相抵）：原输出"一、〈名〉(共X题，共Y分)"——**与大题标题同形**，
+ *    与 cell 分值条「大题标题只写总分"（共Y分）"」两形并现（模型两见即混用，实测"整卷两种标注并存"）。
+ *    现改**列式** `一、〈名〉｜题数 X｜分值 Y分`：**题数/分值作命题依据**留在结构里，
+ *    **标题形态只写总分**（命题依据不充当标题模板）。
  *    分值/大题固定由蓝图确定，生成后由规则库 score 系列验算账目自洽（程序职责）。
  * 部分层（2026-09 调研对齐，docs/design/标题层级与编号规范.md）：英语蓝本大题名含"听力·/笔试·"前缀时
  *    提升为正规"第X部分 听力/笔试部分（共N大题，满分M分）"层——组行在前、大题行去前缀，
@@ -1374,8 +1378,8 @@ export function buildStructureText(bp) {
       }
       const no = '一二三四五六七八九十'[seq] || String(seq + 1);
       seq += 1;
-      const scorePart = s.score ? `，共${s.score}分` : '';
-      out.push(`${no}、${s.name}(共X题${scorePart})${reqTag(s.note)}`);
+      const scorePart = s.score ? `｜分值 ${s.score}分` : '';
+      out.push(`${no}、${s.name}｜题数 X${scorePart}${reqTag(s.note)}`);
     }
     return out.join('\n');
   }
@@ -1397,12 +1401,12 @@ export function buildStructureText(bp) {
   for (const g of groups) {
     const sum = g.items.reduce((a, s) => a + (Number(s.score) || 0), 0);
     const partName = g.part === '听力' ? '听力部分' : '笔试部分';
-    out.push(`${partName}（共${g.items.length}大题，满分${sum}分）`);
+    out.push(`${partName}（本部分满分${sum}分）`);
     for (const s of g.items) {
       const no = '一二三四五六七八九十'[seq] || String(seq + 1);
       seq += 1;
-      const scorePart = s.score ? `，共${s.score}分` : '';
-      out.push(`${no}、${s.display}(共X题${scorePart})${reqTag(s.note)}`);
+      const scorePart = s.score ? `｜分值 ${s.score}分` : '';
+      out.push(`${no}、${s.display}｜题数 X${scorePart}${reqTag(s.note)}`);
     }
   }
   return out.join('\n');

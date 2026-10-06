@@ -68,10 +68,12 @@ describe('同一数字跨块一致（G3）：exam 实发内 满分/各分值 与
     expect(bad.slice(0, 10), '卷首满分须等于蓝图 fullScore（单源）').toEqual([]);
   });
 
-  it('【卷面结构】块内各「共N分」之和 === 蓝图 fullScore（逐份）', () => {
+  it('【卷面结构】块内各分值（「分值N分」或「共N分」）之和 === 蓝图 fullScore（逐份）', () => {
     const bad = [];
     for (const { key, all, fullScore } of docs) {
-      const nums = (structLinesOf(all).join('\n').match(/共(\d+)分/g) || []).map((s) => Number(s.match(/\d+/)[0]));
+      // 🔴 2026-10-06（A4·结构改列式·先解后锁）：大题行由"（共X题，共Y分）"改 `｜题数 X｜分值 Y分`
+      //    （题数作命题依据、标题形态只写总分），故分值字段现两种形态并存——「分值N分」与「共N分」。
+      const nums = (structLinesOf(all).join('\n').match(/共(\d+)分|分值\s*(\d+)分/g) || []).map((s) => Number(s.match(/\d+/)[0]));
       const sum = nums.reduce((a, b) => a + b, 0);
       if (sum !== fullScore) bad.push(`${key}: 卷面结构各分值之和 ${sum} ≠ 蓝图 ${fullScore}`);
     }

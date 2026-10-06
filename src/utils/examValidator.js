@@ -1088,7 +1088,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         }
 
         // 2h. 大题标题"每题X分"与实际各题分值一致性（规则 score-label-fix）：
-        //     标题"每题8分"但各题实际 12/6/8/6 分不一致 → 改为"共N题，共X分"
+        //     标题"每题8分"但各题实际 12/6/8/6 分不一致 → 建议改为"共X分"（与 cell 分值条同口径；本处只报不改）
         if (has('score-label-fix') && /每题\s*\d{1,3}\s*分/.test(head.textContent || '')) {
           const subHeadPs = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p');
           const scores = [];
@@ -1101,10 +1101,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           }
           const uniq = new Set(scores);
           if (scores.length >= 2 && uniq.size >= 2) {
-            const subCount = countSubInNodes(secNodes);
             const newT = head.textContent.replace(
               /[（(][^）)]*?每题\s*\d{1,3}\s*分[^）)]*?[)）]/,
-              `(共${subCount}题，共${totalScore}分)`
+              `(共${totalScore}分)`
             );
             if (newT !== head.textContent) {
               // 2026-10-04（③④·告警升级）：原 debug 级 → notice 级（进问题列表）；只报不改（不改分值）。
