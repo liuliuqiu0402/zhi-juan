@@ -445,18 +445,18 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
   it('作答载体条款按学科三维度：写作/表达硬约束仅语英，不广播到非语英学科', () => {
     // 数学卷：不出现任何写作/写话/作文词（写作/表达硬约束仅语英）
     const math = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'exam' });
-    expect(math.template).not.toContain('须成篇成文表达的题，其题目要求（含写作要求）须完整呈现');
+    expect(math.template).not.toContain('成篇成文表达的题，其题目要求（含写作要求）须完整呈现');
     expect(math.template).not.toContain('写话/作文题');
     // 语文/英语：写作/表达硬约束出现
     // 🔴 2026-10-06（收口复扫·去题型类名·先解后锁）：原锚"写作/表达类题须完整呈现题目要求"——
-    //    该字面随 clause 改**形态式**而退场（"须成篇成文表达的题…"）；门控（仅语英）不动、断言随改准。
+    //    该字面随 clause 改**形态式**而退场（"成篇成文表达的题…"）；门控（仅语英）不动、断言随改准。
     const chinese = getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' });
-    expect(chinese.template).toContain('须成篇成文表达的题，其题目要求（含写作要求）须完整呈现');
+    expect(chinese.template).toContain('成篇成文表达的题，其题目要求（含写作要求）须完整呈现');
     const english = getPromptTemplate({ grade: 'middle', subject: '英语', genType: 'exam' });
-    expect(english.template).toContain('须成篇成文表达的题，其题目要求（含写作要求）须完整呈现');
+    expect(english.template).toContain('成篇成文表达的题，其题目要求（含写作要求）须完整呈现');
     // 通用模板（无学科）：同样不含（无学科不注入表达约束）
     const generic = getPromptTemplate({ genType: 'practice' });
-    expect(generic.template).not.toContain('须成篇成文表达的题，其题目要求（含写作要求）须完整呈现');
+    expect(generic.template).not.toContain('成篇成文表达的题，其题目要求（含写作要求）须完整呈现');
     expect(generic.template).not.toContain('写话/作文题');
   });
 });
@@ -541,13 +541,13 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
     const low = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
     expect(low.template).toContain('写汉字类题必须真实输出田字格');
     expect(low.template).toContain('写拼音类题必须真实输出拼音格');
-    expect(low.template).toContain('须成篇成文表达的题，其题目要求（含写作要求）须完整呈现');
+    expect(low.template).toContain('成篇成文表达的题，其题目要求（含写作要求）须完整呈现');
     // 中段：无格子载体（WRITING_CARRIER 中段=line），不注入任何"写字/抄写→格"条款（曾全学段广播田字格诱导，已删）
     const mid = getPromptTemplate({ grade: 'primary_mid', subject: '语文', genType: 'exam' });
     expect(mid.template).not.toContain('写字/抄写类题须真实输出对应书写载体');
     expect(mid.template).not.toContain('tian-zi-ge');
     expect(mid.template).not.toContain('pinyin-line');
-    expect(mid.template).toContain('须成篇成文表达的题，其题目要求（含写作要求）须完整呈现'); // hasEx 通用写作要求仍在
+    expect(mid.template).toContain('成篇成文表达的题，其题目要求（含写作要求）须完整呈现'); // hasEx 通用写作要求仍在
   });
 
   it('英语低/中段都有四线三格载体条款（must 单一事实源；低段随候选5裁定补齐）', () => {
