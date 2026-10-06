@@ -5,6 +5,7 @@
 import { getPromptTemplate, STAGE_SUBJECTS } from '../src/config/promptLibrary.js';
 import { buildTeachingInjection } from '../src/config/teachingBlueprints.js';
 import { buildProgramAttach } from '../src/utils/programAttach.js';
+import { listValidatorRules } from '../src/config/validatorRules.js';
 
 const genType = process.argv[2] || 'exam';
 const pairs = Object.entries(STAGE_SUBJECTS).flatMap(([stage, subjects]) => subjects.map((subject) => ({ stage, subject })));
@@ -107,45 +108,73 @@ fs.appendFileSync(OUT,
   + `\n\n### 长条 >250（${longHits.length}）\n` + longHits.map((s, i) => `- L${i + 1}（${s.length}）${s}`).join('\n'), 'utf8');
 console.log(`候选池已追加（强${strongHits.length}／许可${permHits.length}／长条${longHits.length}）`);
 
-// —— 相抵候选扫描（2026-10-04 · 用户质疑"为啥没查全" → 由人读改为机检候选） ——
-// 相抵＝**同一对象上存在方向相反的两条要求**。人读按"条"看易漏**跨块/跨库的作用域重叠**
-//   （cell × system × 蓝图注入各写一条、范围却不同）——故此处按"对象词 × 方向词"反查，做成常驻候选。
-// 判据：同一对象词下，正向(必须/一律/应当) 与 反向(不得/禁止/不再/不复述) 两族句子、
-//   且两两 token 重叠 ≥ 阈值（＝确在说同一件事）→ 输出为**相抵候选**，交人读终判（宁漏不误）。
-const OBJECTS = ['分值', '大题标题', '小题题干', '标题', '题号', '序号', '作答位', '载体', '空位', '书写格', '情境', '唯一', '字数', '层级', '答案', '选项', '材料', '解析', '声明', '账目', '事实', '教材', '重复', '复述'];
+// —— 相抵候选扫描（2026-10-06 · 附·3 方法补齐：按**对象族**并组，不按单词配对） ——
+// 病症（第一批二次实测校准）：原实现按**单词**分组配正反 → `大题标题` 与 `小题题干` 分属两组、配不成对，
+//   而真相抵（"大题标题须点明作答方式" × "小题题干不得复述作答方式"）恰在此族之间 → 报 0。
+// 口径（执行文档 附·3）：设**对象族**，族内做正×反配对（阈值放到**线索级**、宁多不漏，交人读）；
+//   并另出「按族全量清单」——同一对象的相关判据常分散多条，逐条读都对、合起来才互拉，须**整族读**。
+const OBJECT_GROUPS = {
+  '层级/题号族': ['大题标题', '小题题干', '题名', '标题', '题号', '序号', '层级', '小题', '子题', '编号'],
+  '分值/账目族': ['分值', '账目', '满分', '小题分', '总分'],
+  '载体/作答位族': ['作答位', '载体', '空位', '书写格', '空白行', '横线', '留白'],
+  '段落/排版族': ['段落', '分行', '排布', '缩进', '居中'],
+  '材料/情境族': ['材料', '情境', '选文', '引文'],
+  '答案/解析族': ['答案', '解析', '评分', '正确答案'],
+  '唯一性族': ['唯一', '重复', '复述', '雷同', '不重复'],
+};
 const POS = /必须|一律|应当|须/;
 const NEG = /不得|禁止|严禁|不许|不再|不复述|不另|不逐|不与|不改/;
-const objGroups = new Map(); // obj -> { pos:[], neg:[] }
+const groupOf = new Map(); // 族 -> { pos:[], neg:[] }
 for (const s of lines) {
-  const dir = POS.test(s) ? 'pos' : (NEG.test(s) ? 'neg' : null);
-  if (!dir) continue;
-  for (const o of OBJECTS) {
-    if (!s.includes(o)) continue;
-    if (!objGroups.has(o)) objGroups.set(o, { pos: [], neg: [] });
-    objGroups.get(o)[dir].push(s);
+  const pos = POS.test(s), neg = NEG.test(s);
+  if (!pos && !neg) continue;
+  for (const [g, words] of Object.entries(OBJECT_GROUPS)) {
+    if (!words.some((o) => s.includes(o))) continue;
+    if (!groupOf.has(g)) groupOf.set(g, { pos: [], neg: [] });
+    if (pos) groupOf.get(g).pos.push(s);
+    if (neg) groupOf.get(g).neg.push(s);
   }
 }
 const oppos = [];
-for (const [o, { pos, neg }] of objGroups) {
+for (const [g, { pos, neg }] of groupOf) {
   for (const p of pos) for (const n of neg) {
-    // 排除**门控变体**（同一句的学段/学科分支）：句首 30 字相同 == 同一条的正反两版，非相抵
+    if (p === n) continue;
+    // 排除**门控变体**：①句首 30 字相同（同一条的正反两版）；②**去括注去标点后同句/互为子串**——
+    //    学科/学段分支只差括注与标点（"…书写的题，输出…"／"…书写的题（含成篇表达）输出…"），并非相抵。
     if (p.slice(0, 30) === n.slice(0, 30)) continue;
+    const strip = (s) => String(s).replace(/（[^）]*）/g, '').replace(/\([^)]*\)/g, '').replace(/[，。；、：,.;:\s·*]/g, '');
+    const sp = strip(p), sn = strip(n);
+    if (sp === sn || (sp.length !== sn.length && (sp.includes(sn) || sn.includes(sp)))) continue;
     const ov = jac(p, n);
-    if (ov >= 0.3) oppos.push([o, ov, p, n]);
+    if (ov >= 0.12) oppos.push([g, ov, p, n]); // 线索级阈值（附·3：宁多不漏）
   }
 }
-// 同条"正反并现"：**一条之内**既下正向要求、又下反向要求 —— 上述"同条的两半相反"高发形态的候选
+// 同条"正反并现"：**一条之内**既下正向要求、又下反向要求 —— "同条的两半相反"高发形态的候选
 //   （不自动判相抵：多为"须A、不得B"的合法并存 → 只作**人读候选**）
 const bothDir = lines.filter((s) => POS.test(s) && NEG.test(s));
-console.log(`\n== 相抵候选 ==  对象×方向可配对 ${oppos.length} 对；同条正反并现候选 ${bothDir.length} 条`);
-oppos.slice(0, 20).forEach(([o, ov, p, n]) => console.log(`  [${o}] ${ov.toFixed(2)} ${p.slice(0, 26)} ⇔ ${n.slice(0, 26)}`));
-console.log(`  （同条正反并现=${bothDir.length}，见文档候选表；人读终判）`);
+console.log(`\n== 相抵候选（对象族并组）==  族内可配对 ${oppos.length} 对；同条正反并现候选 ${bothDir.length} 条`);
+oppos.slice(0, 24).forEach(([o, ov, p, n]) => console.log(`  [${o}] ${ov.toFixed(2)} ${p.slice(0, 26)} ⇔ ${n.slice(0, 26)}`));
+
+// —— 按对象族全量清单（附·3 第 2 条：跨条同对象核对 · 整族读） ——
+const groupLists = Object.entries(OBJECT_GROUPS).map(([g, words]) => ({
+  g, set: lines.filter((s) => words.some((o) => s.includes(o))),
+}));
 fs.appendFileSync(OUT,
-  '\n\n## 相抵候选（对象×方向 · 人读终判）\n'
-  + `\n共 ${oppos.length} 对（已排除门控变体：句首 30 字相同）。\n`
-  + oppos.map(([o, ov, p, n], i) => `- O${i + 1} [${o} ${ov.toFixed(2)}]\n  - 正：${p}\n  - 反：${n}`).join('\n')
+  '\n\n## 相抵候选（**对象族**并组 · 人读终判）\n'
+  + `\n共 ${oppos.length} 对（族内正×反；已排除门控变体：句首 30 字相同；阈值＝线索级）。\n`
+  + oppos.map(([o, ov, p, n], i) => `- G${i + 1} [${o} ${ov.toFixed(2)}]\n  - 正：${p}\n  - 反：${n}`).join('\n')
+  + `\n\n## 按对象族全量清单（**跨条同对象核对** · 整族读，判"口子／相抵／层级错位"）\n`
+  + groupLists.map(({ g, set }) => `\n### ${g}（${set.length} 条）\n` + set.map((s, i) => `- ${i + 1}. ${s}`).join('\n')).join('\n')
   + `\n\n## 同条正反并现候选（须A、不得B 形态 · ${bothDir.length} 条 · 人读）\n`
   + bothDir.map((s, i) => `- B${i + 1} ${s}`).join('\n'), 'utf8');
+
+// —— 程序侧改写清单（附·3 第 3 条：程序链纳入体检） ——
+//   fix 类规则会**改写产物形态** → 逐条核"该形态的 cell 判据与程序改写结果同口径"（防"程序把模型给对的东西改坏"）。
+const fixRules = listValidatorRules().filter((r) => r.category === 'fix');
+fs.appendFileSync(OUT,
+  `\n\n## 程序侧改写清单（**fix 类规则** · ${fixRules.length} 条 · 逐条核"cell 判据 ↔ 改写结果"同口径）\n`
+  + fixRules.map((r) => `- \`${r.id}\`｜${r.name}｜注入：${r.promptHint || '（无 promptHint）'}`).join('\n'), 'utf8');
+console.log(`程序侧 fix 类规则 ${fixRules.length} 条已列入清单`);
 
 function poolPairs() {
   const out = [];
