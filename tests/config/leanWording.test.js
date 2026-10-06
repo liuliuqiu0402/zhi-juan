@@ -105,7 +105,9 @@ describe('少约束·委托书不再给组织形态描述（教材颗粒只作�
     expect(t).toContain('栏目标题用注入给出的栏目名');
     // 渲染端硬需求：标记层级与题号连续（真正的约束，不许被"少约束"顺手删掉）
     expect(t).toContain('大标题用 <h1>');
-    expect(t).toContain('题目以 <p class="question"> 包裹并带题号');
+    // 🔴 2026-10-06（第二批·面 3）：句首"题目以…"改锚为"**每个独立设问的题**以…"（与 QOC/exam 同口径）——
+    //   本处只锁"渲染端硬需求"本体（`<p class="question">` 包裹并带题号），不锁句首主语字面（主语另有专测）。
+    expect(t).toContain('以 <p class="question"> 包裹并带题号');
     expect(t).toContain('答案/解析/评分标准');
   });
 });
