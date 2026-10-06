@@ -760,9 +760,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     };
     const c = GT_CHECKS[genType];
     if (c?.minLen && pureLen < c.minLen) silentCount('teaching-volume', `「${genType}」正文过短（${pureLen}字），内容单薄，请抽检`);
-    // 题集类题量兜底（题量底线由教辅结构蓝本注入，此处仅静默计数防单薄）
+    // 题集类题量兜底（此处仅静默计数防单薄）
+    // 🔴 2026-10-06（第二批·面 5·账目·**计量对象锚**）：原 `bodyText.match(/\d+[.、．]/g)` 是**自持一份正则**——
+    //   ① 无行首锚 ⇒ 把正文里的小数点当题号（实测：4 道题的样例被计成 11 ⇒ 单薄被误判为充足、兜底失效）；
+    //   ② 未走单源（题号计数单源由 contentCleaner 提供，见 countTopQuestions 注释"此前 examValidator 自持一份正则"）；
+    //   ③ 计的是**整份**（含答案区逐题同号）⇒ 题数翻倍。与 面 5 判据（对象锚＝作答对象）**不同口径**。
+    //   现改走单源 extractBodyQuestionNumbers，且**只数正文区**（answerAreaStartIndex 单源切分）。
+    //   ⚠️ 不用 countTopQuestions——它取"最长 1 起始连续段"，对教辅"逐栏目（组）起编"只数得到一个栏目。
     if (['practice', 'special', 'review', 'dictation'].includes(genType)) {
-      const qCount = (bodyText.match(/\d+[.、．]/g) || []).length;
+      const volAns = answerAreaStartIndex(out);
+      const volBody = volAns >= 0 ? out.slice(0, volAns) : out;
+      const qCount = extractBodyQuestionNumbers(volBody).length;
       if (qCount > 0 && qCount < 5) silentCount('teaching-volume', `「${genType}」题目数仅 ${qCount} 道，疑单薄，请抽检`);
     }
   }

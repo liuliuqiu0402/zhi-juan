@@ -1085,3 +1085,30 @@ describe('examValidator 作文格位置纠正（2j-5a：不拿含关键词的大
   });
 });
 
+// 🔴 2026-10-06（第二批·面 5·账目）教辅题量兜底的**计量对象锚**
+//   病根：原 `bodyText.match(/\d+[.、．]/g)` 无行首锚 ⇒ 把正文里的小数点当题号（4 道题被计成 11）⇒
+//   单薄被误判为充足、兜底失效；且未走题号计数单源。现走 `extractBodyQuestionNumbers` 且只数正文区。
+describe('教辅题量兜底 · 计量对象锚（面 5·账目）', () => {
+  const V = { subject: '数学', stage: 'primary_mid', genType: 'practice' };
+  const q = (n, text) => `<p class="question">${n}. ${text}<u class="blank-2">&emsp;</u></p>`;
+  const volHit = (sd) => (sd || []).filter((d) => d.type === 'teaching-volume' && /题目数仅/.test(d.message || ''));
+  it('小数不得被计成题号：4 道（含 6 处小数）须被如实判为单薄', () => {
+    const html = [
+      '<h1>三年级数学 单元一 同步练习</h1>', '<h2>基础建构</h2>',
+      q(1, '3.5 ＋ 2.05 ＝'), q(2, '0.25 × 4 ＝'),
+      '<h2>探究进阶</h2>', q(1, '每千克 3.6 元，买 2.5 千克共多少元？'), q(2, '长 2.05 米，宽 1.5 米，面积是多少？'),
+    ].join('\n');
+    const { silentDetails } = auditExamPaper(html, V);
+    expect(volHit(silentDetails).some((d) => /题目数仅 4 道/.test(d.message)),
+      '旧正则把小数计成题号（11）⇒ 漏报；单源计数须如实报 4 道').toBe(true);
+  });
+  it('量足（6 道）不报单薄', () => {
+    const html = [
+      '<h1>三年级数学 单元一 同步练习</h1>', '<h2>基础建构</h2>',
+      ...[1, 2, 3, 4, 5, 6].map((n) => q(n, `${n}.5 ＋ 1.05 ＝`)),
+    ].join('\n');
+    const { silentDetails } = auditExamPaper(html, V);
+    expect(volHit(silentDetails), '6 道 ≥5 不应报单薄').toEqual([]);
+  });
+});
+
