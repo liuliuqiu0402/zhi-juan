@@ -58,6 +58,30 @@ describe('G1 载体形态按题面声明收口', () => {
     expect(alignCarrierFormByDeclaration(once)).toBe(once);
   });
 
+  // 🔴 2026-10-06（第二批·面 10·程序链 · A3 属主裁定"块级→按空判"）：
+  //   原按 h2 题块**整块**收口，与 cell"同一题内各空分别定形、可并存"、⑧"性质不同者不得整卷同形"
+  //   粒度不同 ⇒ 真机上"该横线"的空位会被整块翻成括号。现按**小题段**判、大题标题声明作兜底。
+  it('🆕按空判：同大题内，声明"括号"的段收口、声明"横线上"的段不动（互不牵连）', () => {
+    const s = [
+      '<h2>三、按要求作答。</h2>',
+      '<p class="question">1. 把正确的序号填在括号里<u class="blank-1"> </u>。</p>',
+      '<p class="question">2. 把词语写在横线上<u class="blank-2"> </u>。</p>',
+    ].join('\n');
+    const out = alignCarrierFormByDeclaration(s);
+    expect(out, '声明"括号"的段 → 收为括号型').toContain('<span class="blank-1">&emsp;</span>');
+    expect(out, '声明"横线上"的段 → 保持横线型（不得被整块牵连）').toContain('<u class="blank-2"> </u>');
+  });
+
+  it('🆕大题标题级声明仍生效：h2 含"括号"、段内无声明 → 其下各段一律收口', () => {
+    const s = [
+      '<h2>一、把序号填在括号里。（每题2分）</h2>',
+      '<p class="question">1. 甲<u class="blank-1"> </u>。</p>',
+      '<p class="question">2. 乙<u class="blank-1"> </u>。</p>',
+    ].join('\n');
+    const out = alignCarrierFormByDeclaration(s);
+    expect(out, '大题级声明 → 其下各段均应收口').not.toMatch(/<u\b[^>]*blank-/i);
+  });
+
   it('接入正文归一键（normalizeBodyHtml 链内，且只增一步、不动既有次序）', () => {
     const src = read('src/utils/contentCleaner.js');
     expect(src).toContain("['alignCarrierFormByDeclaration', alignCarrierFormByDeclaration],");

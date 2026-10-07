@@ -1834,12 +1834,26 @@ export function alignCarrierFormByDeclaration(html = '') {
   const body = at >= 0 ? src.slice(0, at) : src;
   const tail = at >= 0 ? src.slice(at) : '';
   const blocks = body.split(/(?=<h2\b)/i);
+  // 🔴 2026-10-06（第二批·面 10·程序链 · **A3 属主裁定"块级→按空判"**）：
+  //   原实现按 **h2 题块整块**收口（块内正文命中"括号"/符号声明即把**整块**横线翻成括号）——
+  //   与 cell 侧"同一题内各空按各自实际所填**分别定形、可并存**"及 ⑧"性质不同者不得整卷同形"
+  //   **粒度不同**（程序按块判、判据按空判）⇒ 真机上同一大题内"该横线"的空位会被整体翻成括号。
+  //   现改为**按小题段（`<p>` 段）判**：只看**该空所在段**的题面声明；段内无声明时，仅当
+  //   **该块 h2 大题标题文字本身**含符号声明（＝大题级声明）才收——不再拿整块正文当声明源。
+  //   保守边界全部保留：显式"横线"否决（改为**按段**否决，粒度同细）、只做单向（→括号型）、
+  //   答案区不处理、该段无声明则不动、幂等、已是 span 的不动。
   const out = blocks.map((blk) => {
-    const text = blk.replace(/<[^>]+>/g, '');
-    if (/横线/.test(text)) return blk; // 显式"横线"声明 → 否决（保守不动）
-    if (!SYMBOL_ANSWER_DECL.test(text) && !/括号/.test(text)) return blk;
-    return blk.replace(/<u\b([^>]*class="[^"]*\bblank-\d+\b[^"]*"[^>]*)>[\s\S]*?<\/u>/gi,
-      (m, attrs) => '<span' + attrs + '>&emsp;</span>');
+    const h2 = blk.match(/<h2\b[^>]*>[\s\S]*?<\/h2>/i);
+    const h2Text = h2 ? h2[0].replace(/<[^>]+>/g, '') : '';
+    const h2Decl = !/横线/.test(h2Text) && (SYMBOL_ANSWER_DECL.test(h2Text) || /括号/.test(h2Text));
+    return blk.split(/(?=<p\b)/i).map((seg) => {
+      if (!/<u\b[^>]*class="[^"]*\bblank-\d+/i.test(seg)) return seg;
+      const text = seg.replace(/<[^>]+>/g, '');
+      if (/横线/.test(text)) return seg; // 段内显式"横线"声明 → 该段否决（保守不动）
+      if (!SYMBOL_ANSWER_DECL.test(text) && !/括号/.test(text) && !h2Decl) return seg;
+      return seg.replace(/<u\b([^>]*class="[^"]*\bblank-\d+\b[^"]*"[^>]*)>[\s\S]*?<\/u>/gi,
+        (m, attrs) => '<span' + attrs + '>&emsp;</span>');
+    }).join('');
   }).join('');
   return out + tail;
 }
