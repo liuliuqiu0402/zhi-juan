@@ -96,6 +96,28 @@ describe('附·4 三·6 名池体检·机检臂（名性质：合规或已登记
     expect(off, `以下学科的 special 栏目与通用池不一致（应单源对齐）：${off.join('、')}`).toEqual([]);
   });
 
+  it('🔴 学科定制池与通用池**分型**：只许已登记的分型（防"漏同步"混进"分型"）', () => {
+    // 2026-10-07 属主追问"其他 7 种资料类型的大类名没问题吧"→ 实测：special 是**字面同名同注**（见上一条），
+    //   而 reading／dictation **本就学科分型**（见下表登记）。本断言锁"分型清单"：**新增分型必 fail**（逼逐条判"该分型/漏同步"）。
+    const registered = {
+      // 定制"阅读材料"（材料/案例阅读）vs 通用"原创选文"（语文学科的原创短文）——14 科（语文与通用同）
+      reading: ['数学', '英语', '科学', '物理', '化学', '生物', '历史', '地理', '思想政治', '道德与法治', '信息科技', '音乐', '美术', '体育'],
+      // 各科按本学科"默写对象"学科化（语文=看拼音写词语/积累默写/书写格；数学=公式法则/情境填空/书写规范；…）
+      dictation: ['语文', '数学', '英语', '科学', '物理', '化学', '生物', '历史', '地理', '思想政治', '道德与法治', '信息科技', '音乐', '美术', '体育'],
+    };
+    const actual = {};
+    for (const g of COLUMN_TYPES) {
+      const generic = poolOf(g);
+      for (const [sub, names] of subjectPoolsOf(g)) {
+        if (JSON.stringify(names) === JSON.stringify(generic)) continue;
+        (actual[g] = actual[g] || []).push(sub);
+      }
+    }
+    for (const g of new Set([...Object.keys(registered), ...Object.keys(actual)])) {
+      expect((actual[g] || []).sort(), `${g} 的分型学科清单须与登记一致（新增/减少都要更新登记）`).toEqual((registered[g] || []).sort());
+    }
+  });
+
   it('errorbook（题内分项型）：**不按栏目名判**（其 sections 是每题组成分项；取全修正）', () => {
     const names = poolOf('errorbook');
     expect(names.length, 'errorbook 有分项表').toBeGreaterThan(0);
