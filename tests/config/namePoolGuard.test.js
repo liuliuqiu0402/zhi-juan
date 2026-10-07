@@ -23,6 +23,7 @@
 //   并加一条**单源一致性**断言（special 通用池与 15 处学科定制池须逐字同名同注，防"改了通用没改定制"重演）。
 import { describe, it, expect } from 'vitest';
 import { TEACHING_BLUEPRINTS, TEACHING_SUBJECT_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
+import { readFileSync } from 'node:fs';
 import { specialDomainOptions, resolveSpecialDomain } from '../../src/config/specialDomains.js';
 
 const RULES = [
@@ -135,6 +136,13 @@ describe('附·4 三·6 名池体检·机检臂（名性质：合规或已登记
     }
     for (const n of taskTypeHits(domainNamesOf())) hit.push(`领域层「${n}」`);
     expect(hit, `以下栏目名含题型名（无题型诱导铁律）：${hit.join(' / ')}`).toEqual([]);
+  });
+
+  it('🔴 选择器同步：UI 必须直读注册库、**不得硬编码领域名**（改库→选择器自动跟上）', () => {
+    const src = readFileSync('src/modules/GenerateModule.vue', 'utf8'); // vitest cwd＝项目根
+    expect(src, 'UI 必须直读注册库（specialDomainOptions）').toContain('specialDomainOptions(');
+    const hard = [...new Set(domainNamesOf())].filter((n) => n && n.length >= 3 && src.includes(`'${n}'`));
+    expect(hard, `GenerateModule.vue 硬编码了领域/栏目名：${hard.join(' / ')}`).toEqual([]);
   });
 
   it('errorbook（题内分项型）：**不按栏目名判**（其 sections 是每题组成分项；取全修正）', () => {

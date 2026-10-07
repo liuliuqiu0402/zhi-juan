@@ -82,6 +82,15 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     expect(specialDomainOptions('英语', 'middle').map((o) => o.value)).toEqual(
       expect.arrayContaining(['阅读理解', '语法']),
     );
+    // 🔵 2026-10-07 S3·英语：中段起六条（现实两家通行）＋中学补 词汇/听力/书面表达；「阅读与书面表达」拆、「词法语法」并入语法
+    for (const k of ['primary_mid', 'primary_high']) {
+      expect(specialDomainOptions('英语', k).map((o) => o.value), k).toContain('字母与语音');
+    }
+    expect(specialDomainOptions('英语', 'middle').map((o) => o.value)).not.toContain('字母与语音'); // 小学两条止于高小
+    for (const k of ['primary_mid', 'primary_high', 'middle', 'high']) {
+      const vs = specialDomainOptions('英语', k).map((o) => o.value);
+      for (const d of ['词汇', '句型', '情景交际', '阅读理解', '书面表达', '听力']) expect(vs, `${k}·${d}`).toContain(d);
+    }
   });
 
   it("🔴 高中数学 7 知识模块（原 4 条已升 A·2026-09-20 裁定，2026-10-07 S3 改按知识模块）：候选可见且**自带专属栏目**", () => {
