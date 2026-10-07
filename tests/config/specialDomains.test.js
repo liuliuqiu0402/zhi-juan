@@ -24,13 +24,27 @@ import {
 } from '../../src/config/specialDomains.js';
 
 describe('specialDomains（三维度两档化：学科×学段×领域）', () => {
-  it('语文学段直列：文言文仅 初中/高中；阅读/古诗词/写作全学段', () => {
+  it('语文学段直列：文言文仅 初中/高中；现代文阅读/古诗词/写作全学段', () => {
+    // 🔵 2026-10-07 S3·语文：按现实通行名「阅读理解」→「现代文阅读」（多家教辅一致，先解后锁）
     const low = specialDomainOptions('语文', 'primary_low').map((o) => o.value);
-    expect(low).toEqual(expect.arrayContaining(['阅读理解', '古诗词', '写作']));
+    expect(low).toEqual(expect.arrayContaining(['现代文阅读', '古诗词', '写作']));
     expect(low).not.toContain('文言文');
     const mid = specialDomainOptions('语文', 'middle').map((o) => o.value);
     expect(mid).toContain('文言文');
     expect(specialDomainOptions('语文', 'high').map((o) => o.value)).toContain('文言文');
+  });
+
+  it('语文 S3 新增域：识字与写字/梳理与探究 中段起；整本书阅读 中段起；语言文字运用/名篇名句默写 见高中；低段不涉', () => {
+    const mid = specialDomainOptions('语文', 'primary_mid').map((o) => o.value);
+    for (const k of ['识字与写字', '梳理与探究', '整本书阅读']) expect(mid, k).toContain(k);
+    const low = specialDomainOptions('语文', 'primary_low').map((o) => o.value);
+    for (const k of ['识字与写字', '梳理与探究', '整本书阅读', '语言文字运用', '名篇名句默写']) expect(low, k).not.toContain(k);
+    const high = specialDomainOptions('语文', 'high').map((o) => o.value);
+    for (const k of ['语言文字运用', '名篇名句默写', '整本书阅读']) expect(high, k).toContain(k);
+    // 高中现代文阅读栏目取新高考二分（旧体系三方作 note 兼容）
+    const secs = resolveSpecialDomain('语文', 'high', '现代文阅读').sections.map((s) => s.name);
+    expect(secs).toContain('信息类文本阅读');
+    expect(secs).toContain('文学类文本阅读');
   });
 
   it('数学学段直列：计算/应用题/几何限义教学段（低小~初中）；高中另给课标五主题中的 4 个领域', () => {
