@@ -96,9 +96,46 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
   });
 
   it('未收录学科/未知学段 → 空清单（回退通用专项）', () => {
-    expect(specialDomainOptions('物理', 'middle')).toEqual([]);
+    // 2026-10-07 A5 起物理已收录 ⇒ 本断言改用**未收录学科名**（保留"未收录→空清单"的原意）
+    expect(specialDomainOptions('未知学科', 'middle')).toEqual([]);
     expect(specialDomainOptions('数学', '')).toEqual([]);
     expect(resolveSpecialDomain('', 'primary_high', '计算')).toBeNull();
+  });
+
+  it('🔴 物理（2026-10-07 A5·其余12学科领域层·试点）：义教=课标五主题（仅初中）；高中=模块主题原义归组', () => {
+    // 义教物理是初中科目（小学无物理）⇒ 小学段空清单、走通用兜底；同样口径见 eduRenderContract「小学无物理」
+    expect(specialDomainOptions('物理', 'primary_low')).toEqual([]);
+    expect(specialDomainOptions('物理', 'middle').map((o) => o.value)).toEqual([
+      '物质', '运动和相互作用', '能量', '实验探究', '跨学科实践',
+    ]);
+    const high = specialDomainOptions('物理', 'high').map((o) => o.value);
+    expect(high).toEqual(['力学', '电磁学', '热学', '光学', '近代物理', '物理实验']);
+    // 学段体系隔离：义教五主题不串到高中、高中板块不串到初中
+    expect(high).not.toEqual(expect.arrayContaining(['物质', '能量']));
+    expect(specialDomainOptions('物理', 'middle').map((o) => o.value)).not.toContain('力学');
+    // 锚句走各自学段课标名
+    for (const o of specialDomainOptions('物理', 'middle')) expect(o.curriculum).toContain('2022义教物理');
+    for (const o of specialDomainOptions('物理', 'high')) expect(o.curriculum).toContain('普通高中物理');
+    // A 档：每个领域都要**自带专属栏目**（缺一个就等于该领域退化成只挂锚句）
+    for (const key of ['物质', '运动和相互作用', '能量', '实验探究', '跨学科实践']) {
+      const d = resolveSpecialDomain('物理', 'middle', key);
+      expect(d, key).not.toBeNull();
+      expect(d.sections.length, key).toBeGreaterThan(0);
+    }
+    for (const key of ['力学', '电磁学', '热学', '光学', '近代物理', '物理实验']) {
+      const d = resolveSpecialDomain('物理', 'high', key);
+      expect(d, key).not.toBeNull();
+      expect(d.sections.length, key).toBeGreaterThan(0);
+    }
+    // 结构文本含领域名·学段名 与 课标语义锚（且不混学段名）
+    const t = buildSpecialDomainStructureText(resolveSpecialDomain('物理', 'middle', '能量'), 'middle');
+    expect(t).toContain('能量·初中');
+    expect(t).toContain('2022义教物理');
+    expect(t).not.toContain('普通高中物理');
+    const th = buildSpecialDomainStructureText(resolveSpecialDomain('物理', 'high', '电磁学'), 'high');
+    expect(th).toContain('电磁学·高中');
+    expect(th).toContain('普通高中物理');
+    expect(th).not.toContain('2022义教物理');
   });
 
   it('resolve：学科×学段×领域 全匹配才返回；A档有栏目、B档无栏目', () => {
