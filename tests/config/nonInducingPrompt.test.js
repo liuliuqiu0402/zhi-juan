@@ -553,9 +553,16 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(lib).not.toContain('titleSampleFor');
     for (const g of ['exam', 'practice']) {
       const t = getPromptTemplate({ grade: 'middle', subject: '数学', genType: g }).template;
-      expect(t, `${g} 应保留标题形态范式`).toContain('先说做什么、再说怎么做或选什么');
       expect(t, `${g} 不得再注入具体标题样例`).not.toContain('计算下面各题');
     }
+    // 🔴 2026-10-06（A1 属主裁定"**收紧**"）：exam 保留形态范式（其题名不由模型自拟，范式作定位用）；
+    //   教辅组标题**不再保留"先说做什么"**——"只说什么做什么"＝宽泛题名，会逼出"逐题复述作答说明"
+    //   （J4 产物实证的质感病）⇒ 与 exam 小学段同口径，只放行"点明本组怎么做或选什么"。
+    expect(getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'exam' }).template,
+      'exam 应保留标题形态范式').toContain('先说做什么、再说怎么做或选什么');
+    const pracT = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'practice' }).template;
+    expect(pracT, '教辅侧须已收紧为"点明本组怎么做或选什么"').toContain('点明本组怎么做或选什么');
+    expect(pracT, '教辅侧不得回退"先说做什么"').not.toContain('先说做什么、再说怎么做或选什么');
   });
 
   // 🔴 2026-09-27（用户裁定·去否定映射）：教辅组标题句原留「不要照抄【锚点清单】里的知识点名，也不得把它们
