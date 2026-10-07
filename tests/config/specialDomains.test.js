@@ -23,6 +23,9 @@ import {
   buildSpecialDomainsAnchorLines,
 } from '../../src/config/specialDomains.js';
 
+// 注入文本"零 emoji"判据（面 7·层级↔内容）：含 扩展象形（emoji）＋ 变体选择符(VS16) ＋ 零宽连接符(ZWJ)
+const EMOJI = /[\p{Extended_Pictographic}\uFE0F\u200D]/u;
+
 describe('specialDomains（三维度两档化：学科×学段×领域）', () => {
   it('语文学段直列：文言文仅 初中/高中；现代文阅读/古诗词/写作全学段', () => {
     // 🔵 2026-10-07 S3·语文：按现实通行名「阅读理解」→「现代文阅读」（多家教辅一致，先解后锁）
@@ -105,7 +108,11 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     expect(fn).not.toBeNull();
     expect(fn.sections.length).toBeGreaterThan(0); // A 档：自带专属栏目（不是只挂锚句）
     const text = buildSpecialDomainStructureText(fn, 'high');
-    expect(text).toContain('📈 函数与导数·高中');
+    // 🔵 2026-10-07（面 7·层级↔内容）：注入文本用**领域名 `key`**（不带 UI 图标）——
+    //   原断言锁的是 `📈 函数与导数·高中`（`label`＝UI 展示名）；随口径更正（与 blockStructure 登记
+    //   "注入用的是无图标字段"对齐）。先解后锁：改后仍锁"领域名·学段名"不混学段名。
+    expect(text).toContain('函数与导数·高中');
+    expect(text).not.toMatch(EMOJI); // 注入文本不得含 emoji（UI 展示名不进指令）
     expect(text).toContain('概念与表示');
     expect(text).toContain('普通高中数学·函数主线');
     expect(text).not.toContain('2022义教数学');
@@ -191,7 +198,9 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     const text = buildSpecialDomainStructureText(dom, 'primary_high');
     // 🔒 2026-09-16 少约束 + 课标挂钩：专项 A 档外壳同步为"大类标题（按课标活动类型与素养划分）"
     // 🔒 2026-09-16：专项 A 档外壳同步课标挂钩（按本领域课标要求划分）
-    expect(text).toContain('【大类标题（下面各行即本次大类标题；按本领域课标要求划分；🔢 计算·小学高段）】');
+    // 🔵 2026-10-07（面 7）：外壳里的领域标注随口径改用 `key`（原 `🔢 计算` ＝ UI 展示名）——先解后锁
+    expect(text).toContain('【大类标题（下面各行即本次大类标题；按本领域课标要求划分；计算·小学高段）】');
+    expect(text).not.toMatch(EMOJI); // 注入文本不得含 emoji
     expect(text).not.toContain('栏目框架');
     expect(text).toContain('数与代数·数与运算');
     expect(text).not.toContain('(共');
@@ -254,8 +263,8 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     expect((t.match(/课标语义锚/g) || []).length).toBe(2);
     // 并集去重：两领域同名栏目只出现一次
     const dup = [
-      { label: '甲', anchor: 'a', sections: [{ name: '同名栏', note: 'x' }] },
-      { label: '乙', anchor: 'b', sections: [{ name: '同名栏', note: 'y' }] },
+      { key: '甲', label: '🅰 甲', anchor: 'a', sections: [{ name: '同名栏', note: 'x' }] },
+      { key: '乙', label: '🅱 乙', anchor: 'b', sections: [{ name: '同名栏', note: 'y' }] },
     ];
     expect((buildSpecialDomainsStructureText(dup, 'middle').match(/· 同名栏——/g) || []).length).toBe(1);
     // 锚行（B 档 / A·B 混选时的锚句部分）

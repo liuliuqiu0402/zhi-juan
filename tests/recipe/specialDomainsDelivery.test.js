@@ -66,6 +66,7 @@ describe('S4 验收（专项领域·交付级）', () => {
           if (/\d+\s*[题道]/.test(text)) bad.push(`${tag} 注入文本含数字题量`);
           // ③ 不含旧名池文案
           if (text.includes('分板块组织') || text.includes('每板块配解析')) bad.push(`${tag} 注入文本含旧名池文案`);
+          if (/[\p{Extended_Pictographic}\uFE0F\u200D]/u.test(text)) bad.push(`${tag} 含emoji`);
         }
       }
     }
@@ -73,22 +74,27 @@ describe('S4 验收（专项领域·交付级）', () => {
   });
 
   it('③ A/B 混选：结构头须写明"未列栏目者只给课标语义锚"（面 1 声明↔实给 · 规格第六节）', () => {
-    const A = { key: 'x', label: '甲域', anchor: '甲域课标锚', sections: [{ name: '甲栏', note: '甲栏要求' }] };
-    const B = { key: 'y', label: '乙域', anchor: '乙域课标锚' }; // 无 sections ＝ B 档
+    // 夹具按**真实契约**：`key`＝领域名（进注入文本）／`label`＝UI 展示名（带图标，**不进**注入文本）
+    const A = { key: '甲域', label: '🅰 甲域', anchor: '甲域课标锚', sections: [{ name: '甲栏', note: '甲栏要求' }] };
+    const B = { key: '乙域', label: '🅱 乙域', anchor: '乙域课标锚' }; // 无 sections ＝ B 档
     const mix = buildSpecialDomainsStructureText([A, B], 'middle');
     expect(mix).toContain('甲栏');                       // A 档出栏目
     // 栏目行须与蓝图同口径带标注（2026-09-17 裁定"教辅栏目注与 exam 侧同口径、逐行带【要求·须逐项落实】标注"）
     expect(mix).toContain('· 甲栏——【要求·须逐项落实】甲栏要求');
     expect(mix).toContain('乙域课标锚');                  // B 档出锚
     expect(mix).toContain('乙域 只给课标语义锚、不另设栏目'); // 结构头写明（缺此句即缺口）
+    // 🔵 面 7（层级↔内容）：注入文本取领域名 `key`、**不得**带 UI 展示名 `label` 的图标（结构头／锚行皆然）
+    expect(mix).not.toContain('🅰');
+    expect(mix).not.toContain('🅱');
+    expect(buildSpecialDomainsAnchorLines([A, B])).not.toMatch(/[\p{Extended_Pictographic}\uFE0F\u200D]/u);
     // 纯 A 档不加此句（无 B 档领域时不引入噪声）
     expect(buildSpecialDomainsStructureText([A], 'middle')).not.toContain('不另设栏目');
   });
 
   it('④ 跨处一致：同名栏目去重**不得丢注**（同名不同注时，各条要求都须落实）', () => {
     // 合成用例：同名栏目的两条不同注 ⇒ 行内须同时出现（以"；"连接）
-    const A = { label: '甲域', anchor: 'a', sections: [{ name: 'X栏', note: '注一' }] };
-    const B = { label: '乙域', anchor: 'b', sections: [{ name: 'X栏', note: '注二' }] };
+    const A = { key: '甲域', label: '甲域', anchor: 'a', sections: [{ name: 'X栏', note: '注一' }] };
+    const B = { key: '乙域', label: '乙域', anchor: 'b', sections: [{ name: 'X栏', note: '注二' }] };
     expect(buildSpecialDomainsStructureText([A, B], 'middle')).toContain('· X栏——【要求·须逐项落实】注一；注二');
     // 真实数据：同学科内同名栏目的**每一条注**都必须出现在结构文本里（无静默丢弃）
     const bad = [];

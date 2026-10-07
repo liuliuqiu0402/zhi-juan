@@ -269,7 +269,7 @@ describe('项3 守卫：块界恰一空行 / 块内一条一行 / 零 emoji（�
     //   故从整文件扫描移出——它们的**指令文本**另有扫描面（实发装配 ① ② ③ ＋ E2 登记常量）；逐条登记理由，防悄悄放宽。
     const NON_INSTRUCTION_FILES = [
       { file: 'src/config/expertKnowledge.js', why: '资料类型选择项的**展示名**图标（设置页 UI；注入用的 styleInstructions 无图标）' },
-      { file: 'src/config/specialDomains.js', why: '专项领域**展示名**图标（UI）；注入用的是 name/desc/source 三个无图标字段' },
+      { file: 'src/config/specialDomains.js', why: '专项领域**展示名**图标（UI）；注入用的是 key/anchor/sections 等**无图标字段**（2026-10-07 面 7 收口：原注入误用带图标的 `label`，已改回 `key`）' },
       { file: 'src/utils/anchorTreeContract.js', why: '**入库校验诊断串**（违例报告，进报告/日志不进模型）' },
     ];
     for (const e of NON_INSTRUCTION_FILES) {
