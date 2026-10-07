@@ -381,7 +381,8 @@ describe('回归：教辅结构注入无数字区间（防诱导 AI 精确计数
     expect(review).not.toContain('2-3');
     expect(review).not.toContain('3-5');
     const special = buildTeachingInjection({ genType: 'special', stage: 'primary_high', subject: '语文' });
-    expect(special).toContain('按本单元内容分板块');
+    // 2026-10-07 先解后锁：名池由"分板块组织／每板块配解析"改为"基础巩固／典型例题解析" ⇒ 抽查句随改。
+    expect(special).toContain('本单元基础内容');
     expect(special).not.toContain('2-4');
     const preview = buildTeachingInjection({ genType: 'preview', stage: 'primary_low', subject: '数学' });
     expect(preview).toContain('明确本次范围概念与技能目标');

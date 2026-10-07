@@ -249,8 +249,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     special: {
       label: '专项突破',
       sections: [
-        { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-        { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+        { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+        { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
       ],
     },
     preview: {
@@ -329,8 +329,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     special: {
       label: '专项突破',
       sections: [
-        { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-        { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱环节' },
+        { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+        { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
       ],
     },
     preview: {
@@ -411,8 +411,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     special: {
       label: '专项突破',
       sections: [
-        { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-        { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+        { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+        { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
       ],
     },
     preview: {
@@ -490,8 +490,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     special: {
       label: '专项突破',
       sections: [
-        { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-        { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+        { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+        { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
       ],
     },
     preview: {
@@ -567,8 +567,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     special: {
       label: '专项突破',
       sections: [
-        { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-        { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+        { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+        { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
       ],
     },
     preview: {
@@ -639,8 +639,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新', note: '科学态度与责任：生产生活应用，含化学用语规范书写' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-      { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+      { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -692,8 +692,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新', note: '态度责任：健康生活与生态保护应用，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-      { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+      { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -745,8 +745,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新', note: '家国情怀：以史鉴今与现实联系，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-      { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+      { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -798,8 +798,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新', note: '人地协调观与地理实践力：人地关系与家乡实践，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-      { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+      { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -850,8 +850,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新', note: '法治意识与公共参与：时政辨析与实践参与，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-      { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+      { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -905,8 +905,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新', note: '责任意识：生活实践与社会参与，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-      { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+      { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -961,8 +961,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新', note: '数字化学习与创新、信息社会责任：数字化创作与信息社会责任，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-      { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+      { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -1017,8 +1017,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新', note: '创意实践与文化理解（联系）：音乐欣赏与生活联系，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-      { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+      { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -1073,8 +1073,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新', note: '创意实践与文化理解（综合·探索）：欣赏评述与生活应用，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-      { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+      { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -1129,8 +1129,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '迁移创新', note: '健康行为与体育品德（体育锻炼意识与习惯、体育精神、体育品格）：锻炼习惯与安全健康，联系本单元主题' },
     ] },
     special: { label: '专项突破', sections: [
-      { name: '分板块组织', note: '按本单元内容分板块；并给出具体做法与自查/完成标准' },
-      { name: '每板块配解析', note: '每板块适量题目并附解析，聚焦本单元薄弱点' },
+      { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
+      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -1182,7 +1182,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
  */
 const FORMAL_SECTIONS = {
   // ② 专项突破：与例题对应的变式训练
-  special: { add: [{ name: '变式训练', after: '每板块配解析', note: '对每板块的例题配一一对应的变式' }] },
+  special: { add: [{ name: '变式训练', after: '典型例题解析', note: '对每板块的例题配一一对应的变式' }] },
   // ③ 阅读训练：方法/策略引导（选文之后、设题之前）
   reading: { add: [{ name: '方法策略引导', before: '文本设题', note: '给出与本次选文相应的阅读方法与策略，供学生边读边用' }] },
   // ⑤ 预习导学：旧知回顾/联结（学习目标之后）
@@ -1240,7 +1240,7 @@ export const COLUMN_STYLE_SETS = {
     d: { columns: ['基础巩固', '方法运用', '实践运用'] },
   },
   special: {
-    a: { columns: ['分板块组织', '每板块配解析', '变式训练'] },
+    a: { columns: ['基础巩固', '典型例题解析', '变式训练'] },
     b: { columns: ['分项练习', '重点讲解', '变式训练'] },
     c: { columns: ['分类讲解', '错因讲解', '变式训练'] },
     d: { columns: ['分类练习', '易错讲解', '变式训练'] },

@@ -17,8 +17,12 @@
 //     题"；把"训练/练习/活动"结尾一律判为活动名 ⇒ **误报**教辅正规栏目名"片段/篇章训练""数学建模活动"
 //     （后者是 **2017 版课标原文的领域名**）。⇒ 删"应"、删"训练/练习/活动"结尾，只留**纯活动名**。
 // 豁免表 = 已登记的 C 类跨批移交项：**新增违规必 fail**（逼"进批体检"）；**名池改了而登记没更新也 fail**。
+// 🔴 2026-10-07 **取全修正（第三条，见台账〔83〕）**：机检此前**只扫通用池**（`TEACHING_BLUEPRINTS[g].sections`），
+//   **漏扫 15 个"学科定制"名池** ⇒ 〔74〕只把**通用池**改名，15 处学科定制的 special 名池**仍是**
+//   "分板块组织／每板块配解析"（做法句／要求句），而〔77〕体检据此误判"必改清单＝空"。现**同时扫通用池与学科定制池**，
+//   并加一条**单源一致性**断言（special 通用池与 15 处学科定制池须逐字同名同注，防"改了通用没改定制"重演）。
 import { describe, it, expect } from 'vitest';
-import { TEACHING_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
+import { TEACHING_BLUEPRINTS, TEACHING_SUBJECT_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
 import { specialDomainOptions, resolveSpecialDomain } from '../../src/config/specialDomains.js';
 
 const RULES = [
@@ -34,6 +38,11 @@ const check = (names) => names.map(bare).filter((n) => n && viol(n).length);
 /** columns 型（有 h2 栏目名池）；**题内分项型 errorbook 不入**（见文件头取全修正） */
 const COLUMN_TYPES = ['practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'review'];
 const poolOf = (g) => ((TEACHING_BLUEPRINTS[g]?.sections || []).map((s) => (typeof s === 'string' ? s : s.name)));
+/** 2026-10-07 取全修正：**学科定制名池**同扫（见文件头第三条）。题内分项型 errorbook 同样不入。 */
+const SUBJECTS_ALL = ['语文', '数学', '英语', '科学', '物理', '化学', '生物', '历史', '地理', '思想政治', '道德与法治', '信息科技', '音乐', '美术', '体育'];
+const subjectPoolsOf = (g) => SUBJECTS_ALL
+  .map((sub) => [sub, ((TEACHING_SUBJECT_BLUEPRINTS[sub]?.[g]?.sections || []).map((s) => (typeof s === 'string' ? s : s.name)))])
+  .filter(([, names]) => names.length);
 const STAGES = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
 const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '思想政治', '科学', '道德与法治', '信息科技', '音乐', '美术', '体育'];
 /** special 的生效层：各学科×学段的"专项领域"名与领域内 sections */
@@ -50,25 +59,42 @@ const domainNamesOf = () => {
   return out;
 };
 
-/** C 类豁免（跨批移交）：**待本批改名后移出**；此处逐名登记命中的规则面 */
-/** C 类豁免（跨批移交）：**本批已清空**——special 兜底池两名已按调研改名（"基础巩固／典型例题解析"），
- *  "变式训练"保留（FORMAL_SECTIONS 里 2026-09-28 用户裁定的必备栏目）。此后**任何新违规必 fail**（逼进批体检）。 */
-const PENDING = {};
+/** C 类豁免（跨批移交）：**待该批改名后移出**；此处逐名登记命中的规则面 */
+/** 🔴 2026-10-07（取全修正当日）：special 兜底池两名已按调研改名（"基础巩固／典型例题解析"）；
+ *  "变式训练"保留（FORMAL_SECTIONS 里 2026-09-28 用户裁定的必备栏目）。**扩到学科定制池后新报出 1 条**：
+ *  道德与法治·默写积累的「道德修养与法治观念」 ⇒ 按〔66〕机制登记为其所属批（dictation）的 **C 类跨批移交**：
+ *  须先做常规写法调研、结论入台账后方可改名池；**此后任何新违规仍必 fail**（逼进批体检）。 */
+const PENDING = {
+  dictation: { 道德修养与法治观念: '长度>8字｜"素养名当栏目名"（道德修养／法治观念为道法核心素养名）' },
+};
 
 describe('附·4 三·6 名池体检·机检臂（名性质：合规或已登记豁免）', () => {
   for (const g of COLUMN_TYPES) {
-    it(`${g}：栏目名池名性质`, () => {
-      const names = poolOf(g);
-      if (!names.length) return;
-      const bad = check(names);
-      const registered = Object.keys(PENDING[g] || {}).filter((n) => names.includes(n));
-      const unexpected = bad.filter((n) => !registered.includes(n));
-      expect(unexpected,
-        `${g} 出现未登记的"非栏目名"（做法句/要求句/活动名）——**须先做常规写法调研并把结论入台账**，方可登记豁免放行：`
-        + ` ${unexpected.map((n) => `${n}（${viol(n).join('、')}）`).join(' / ')}`).toEqual([]);
-      expect(bad.slice().sort(), `${g} 违规名单须与登记一致（名池改动而未更新登记 = 体检未做）`).toEqual(registered.slice().sort());
+    it(`${g}：栏目名池名性质（通用池 ＋ 15 学科定制池）`, () => {
+      const pools = [['通用', poolOf(g)], ...subjectPoolsOf(g)];
+      const hits = [];
+      for (const [who, names] of pools) {
+        const registered = Object.keys(PENDING[g] || {}).filter((n) => names.includes(n));
+        for (const n of check(names)) {
+          if (!registered.includes(n)) hits.push(`${who}「${n}」（${viol(n).join('、')}）`);
+        }
+      }
+      expect(hits,
+        `${g} 出现未登记的"非栏目名"（做法句/要求句/活动名）——**须先做常规写法调研并把结论入台账**，方可改名池：`
+        + ` ${hits.join(' / ')}`).toEqual([]);
     });
   }
+
+  it('special：通用池 与 15 学科定制池 **逐字同名同注**（单源；防"改了通用没改定制"重演）', () => {
+    const own = (bp) => (bp?.special?.sections || []).map((s) => `${s.name}｜${s.note}`);
+    const generic = own(TEACHING_BLUEPRINTS);
+    const off = [];
+    for (const sub of SUBJECTS_ALL) {
+      const mine = own(TEACHING_SUBJECT_BLUEPRINTS[sub]);
+      if (mine.length && JSON.stringify(mine) !== JSON.stringify(generic)) off.push(sub);
+    }
+    expect(off, `以下学科的 special 栏目与通用池不一致（应单源对齐）：${off.join('、')}`).toEqual([]);
+  });
 
   it('errorbook（题内分项型）：**不按栏目名判**（其 sections 是每题组成分项；取全修正）', () => {
     const names = poolOf('errorbook');
@@ -83,7 +109,9 @@ describe('附·4 三·6 名池体检·机检臂（名性质：合规或已登记
     expect(bad, `领域层出现"非栏目名"：${bad.map((n) => `${n}（${viol(n).join('、')}）`).join(' / ')}`).toEqual([]);
   });
 
-  it('豁免表已清空（special 兜底池两名已按调研改名；此后新违规必 fail）', () => {
-    expect(Object.keys(PENDING)).toEqual([]);
+  it('豁免表＝已登记的 C 类跨批移交（当前仅 dictation 1 条；不得静默增删）', () => {
+    // 2026-10-07 先解后锁：原断言"豁免表已清空"；扩扫学科定制池后新报出 dictation 1 条 ⇒ 随改。
+    expect(Object.keys(PENDING).sort()).toEqual(['dictation']);
+    expect(Object.keys(PENDING.dictation).sort()).toEqual(['道德修养与法治观念']);
   });
 });

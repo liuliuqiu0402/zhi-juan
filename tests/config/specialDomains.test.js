@@ -169,8 +169,11 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     expect(anchorY).not.toContain('普通高中语文'); // 义教学段不混入高中体系名
   });
 
-  it('通用说明与真实生效蓝图一致（分板块组织，无旧四段文案）', () => {
-    expect(GENERIC_SPECIAL_DESC).toContain('分板块组织');
+  it('通用说明与真实生效蓝图一致（现有名池＝基础巩固／典型例题解析；无旧四段文案）', () => {
+    // 🔴 2026-10-07 先解后锁：原断言锁的是旧名"分板块组织"；（74）已把名池改名，本说明同步改名 ⇒ 断言随改。
+    expect(GENERIC_SPECIAL_DESC).toContain('基础巩固');
+    expect(GENERIC_SPECIAL_DESC).toContain('典型例题解析');
+    expect(GENERIC_SPECIAL_DESC).not.toContain('分板块组织');
     expect(GENERIC_SPECIAL_DESC).not.toContain('方法指导→典例剖析');
   });
 

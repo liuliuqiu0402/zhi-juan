@@ -1571,7 +1571,7 @@
           class="empty-tip-small"
           style="padding:16px;"
         >
-          当前学科暂无专项子类型可用，将使用通用专项结构（分板块组织：按本单元内容分板块，板块依内容自然形成；每板块配解析）。
+          当前学科暂无专项子类型可用，将使用通用专项结构（基础巩固：本单元基础内容；典型例题解析：每类适量题目并附解析；变式训练：对例题配一一对应的变式）。
         </div>
         <div class="option-list">
           <label
@@ -1596,7 +1596,7 @@
               name="specialSubType"
             >
             <span class="option-label">🔄 通用专项</span>
-            <span class="option-desc">使用默认专项结构（分板块组织：按本单元内容分板块，板块依内容自然形成；每板块配解析）</span>
+            <span class="option-desc">使用默认专项结构（基础巩固：本单元基础内容；典型例题解析：每类适量题目并附解析；变式训练：对例题配一一对应的变式）</span>
           </label>
         </div>
         <div class="modal-actions">
