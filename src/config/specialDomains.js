@@ -362,6 +362,45 @@ ${lines}
 export const buildSpecialDomainAnchorLine = (dom = {}) =>
   dom.anchor ? `· 本领域课标语义锚：${dom.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料自行拟制。` : '';
 
+// ── S2 链路：领域**多选**（上限 1–3）合成单源 ─────────────────────────────────────
+//   口径（见 `docs/design/专项领域-全学科全学段规格-2026-10-07.md` 第六节）：
+//   ① 大类标题池＝各领域 `sections` 按**所选顺序并集去重**；② 课标语义锚**逐领域给一行**；
+//   ③ 题量/篇幅**不注入**（走程序护栏，多选不按领域分摊）；④ 上限 **1–3**（超限截断）。
+export const SPECIAL_DOMAIN_MAX = 3;
+
+/** 解析多选领域：按所选顺序、逐个校验（学科×学段×领域全匹配才返回）、超限截断、去空 */
+export const resolveSpecialDomains = (subject = '', stageKey = '', domainKeys = []) => {
+  const keys = (Array.isArray(domainKeys) ? domainKeys : [domainKeys]).filter(Boolean).slice(0, SPECIAL_DOMAIN_MAX);
+  return keys.map((k) => resolveSpecialDomain(subject, stageKey, k)).filter(Boolean);
+};
+
+/** 多领域（A 档）结构文本：合并栏目（同名去重）＋ 逐领域课标语义锚行 */
+export const buildSpecialDomainsStructureText = (doms = [], stageKey = '') => {
+  const list = (doms || []).filter(Boolean);
+  if (!list.length) return '';
+  const secs = [];
+  const seen = new Set();
+  for (const d of list) {
+    for (const s of d.sections || []) {
+      if (seen.has(s.name)) continue;
+      seen.add(s.name);
+      secs.push(s);
+    }
+  }
+  if (!secs.length) return '';
+  const lines = secs.map((s) => `· ${s.name}——${s.note}`).join('\n');
+  const names = list.map((d) => d.label).join('＋');
+  const anchors = list.map((d) => `· ${d.label} 课标语义锚：${d.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料自行拟制。`).join('\n');
+  return `【大类标题（下面各行即本次大类标题；按本领域课标要求划分；${names}·${学段名(stageKey)}）】\n${lines}\n${anchors}`;
+};
+
+/** 多领域锚行（B 档，或 A/B 混选时的锚句部分；供注入侧与 A 档结构拼接） */
+export const buildSpecialDomainsAnchorLines = (doms = []) =>
+  (doms || []).filter((d) => d && d.anchor)
+    .map((d) => `· ${d.label} 课标语义锚：${d.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料自行拟制。`)
+    .join('\n');
+
+
 /** 通用专项说明（与真实生效蓝图一致；供 UI/兜底展示）
  * 🔴 2026-10-07：原写"分板块组织：…每板块配解析"（旧名池的两条做法句）。〔74〕已把兜底池改名，
  *   本说明**未同步** ⇒ 表现为"UI 文案与蓝图现状不符"。现按现有名池（通用池＝学科定制池，单源）改写。 */

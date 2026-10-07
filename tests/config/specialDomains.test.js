@@ -17,6 +17,10 @@ import {
   buildSpecialDomainStructureText,
   buildSpecialDomainAnchorLine,
   GENERIC_SPECIAL_DESC,
+  SPECIAL_DOMAIN_MAX,
+  resolveSpecialDomains,
+  buildSpecialDomainsStructureText,
+  buildSpecialDomainsAnchorLines,
 } from '../../src/config/specialDomains.js';
 
 describe('specialDomains（三维度两档化：学科×学段×领域）', () => {
@@ -192,5 +196,34 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     const middleGeo = resolveSpecialDomain('数学', 'middle', '几何').anchor;
     expect(middleGeo).toContain('图形的性质');
     expect(middleGeo).not.toContain('位置与运动');
+  });
+
+  it('S2 多选合成单源：上限 1–3、按所选顺序、并集去重、逐领域锚行', () => {
+    expect(SPECIAL_DOMAIN_MAX).toBe(3);
+    // 超限截断（选 4 个 → 只取前 3，保序）
+    const four = resolveSpecialDomains('物理', 'middle', ['能量', '物质', '实验探究', '跨学科实践']);
+    expect(four.map((d) => d.key)).toEqual(['能量', '物质', '实验探究']);
+    // 未命中/空值过滤；单选亦可（向后兼容旧单选口径）
+    expect(resolveSpecialDomains('物理', 'middle', ['不存在', '能量']).map((d) => d.key)).toEqual(['能量']);
+    expect(resolveSpecialDomains('物理', 'middle', [])).toEqual([]);
+    expect(resolveSpecialDomains('物理', 'middle', '能量').map((d) => d.key)).toEqual(['能量']);
+    // 学段/学科不匹配即拒（沿用 resolveSpecialDomain 的三元校验）
+    expect(resolveSpecialDomains('物理', 'primary_low', ['能量'])).toEqual([]);
+    // A 档结构文本：领域名相联 ＋ 逐领域一行锚
+    const doms = resolveSpecialDomains('物理', 'middle', ['能量', '物质']);
+    const t = buildSpecialDomainsStructureText(doms, 'middle');
+    expect(t).toContain('能量');
+    expect(t).toContain('物质');
+    expect(t).toContain('初中');
+    expect((t.match(/课标语义锚/g) || []).length).toBe(2);
+    // 并集去重：两领域同名栏目只出现一次
+    const dup = [
+      { label: '甲', anchor: 'a', sections: [{ name: '同名栏', note: 'x' }] },
+      { label: '乙', anchor: 'b', sections: [{ name: '同名栏', note: 'y' }] },
+    ];
+    expect((buildSpecialDomainsStructureText(dup, 'middle').match(/· 同名栏——/g) || []).length).toBe(1);
+    // 锚行（B 档 / A·B 混选时的锚句部分）
+    expect(buildSpecialDomainsAnchorLines(doms).split('\n').length).toBe(2);
+    expect(buildSpecialDomainsAnchorLines([])).toBe('');
   });
 });
