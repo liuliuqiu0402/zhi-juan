@@ -6543,7 +6543,9 @@ const composeSpecialTeachingText = ({ genType, stageKey, subject, domainKey, dom
   const keys = Array.isArray(domainKeys) ? domainKeys : (domainKey ? [domainKey] : []);
   const doms = genType === 'special' ? resolveSpecialDomains(subj, stageKey, keys) : [];
   if (!doms.length) return { text: buildTeachingInjection({ genType, stage: stageKey, subject, columnStyle: effectiveColumnStyle }) || '', isDomain: false, doms: [] };
-  // A 档（任一选中的领域自带栏目）＝栏目**并集去重** + 逐领域课标语义锚行；B 档/混选＝通用（学科）蓝图栏目 + 逐领域锚行
+  // A 档/**混选**（**任一**选中领域自带栏目即走此支）＝自带栏目**并集去重** ＋ **逐领域课标语义锚行**；
+  //   未自带栏目者（B 档）在此支**只出锚行、不单设栏目**——不得改走"通用蓝图栏目"，否则自带栏目会被丢掉。
+  // 纯 B 档（选中领域**全部**不自带栏目）＝通用（学科）蓝图栏目 ＋ 逐领域锚行。
   if (doms.some((d) => d.sections && d.sections.length)) {
     return { text: buildSpecialDomainsStructureText(doms, stageKey), isDomain: true, doms };
   }

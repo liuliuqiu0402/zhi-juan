@@ -1795,8 +1795,14 @@ export const buildSpecialDomainsStructureText = (doms = [], stageKey = '') => {
   if (!secs.length) return '';
   const lines = secs.map((s) => `· ${s.name}——${s.note}`).join('\n');
   const names = list.map((d) => d.label).join('＋');
+  // A/B 混选：**须在结构头写明**（见规格第六节）——未列入上方栏目清单的领域只给课标语义锚、不另设栏目，
+  //   否则模型会把该领域内容硬塞进他人栏目，或误以为该领域未被选中（面 1 声明↔实给）。
+  const noSec = list.filter((d) => !(d.sections && d.sections.length));
+  const mixNote = noSec.length
+    ? `；其中 ${noSec.map((d) => d.label).join('、')} 只给课标语义锚、不另设栏目，其内容按锚自行组织`
+    : '';
   const anchors = list.map((d) => `· ${d.label} 课标语义锚：${d.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料自行拟制。`).join('\n');
-  return `【大类标题（下面各行即本次大类标题；按本领域课标要求划分；${names}·${学段名(stageKey)}）】\n${lines}\n${anchors}`;
+  return `【大类标题（下面各行即本次大类标题；按本领域课标要求划分；${names}·${学段名(stageKey)}${mixNote}）】\n${lines}\n${anchors}`;
 };
 
 /** 多领域锚行（B 档，或 A/B 混选时的锚句部分；供注入侧与 A 档结构拼接） */

@@ -67,4 +67,15 @@ describe('S4 验收（专项领域·交付级）', () => {
     }
     expect(bad, `产物级断言未过：${bad.join(' / ')}`).toEqual([]);
   });
+
+  it('③ A/B 混选：结构头须写明"未列栏目者只给课标语义锚"（面 1 声明↔实给 · 规格第六节）', () => {
+    const A = { key: 'x', label: '甲域', anchor: '甲域课标锚', sections: [{ name: '甲栏', note: '甲栏要求' }] };
+    const B = { key: 'y', label: '乙域', anchor: '乙域课标锚' }; // 无 sections ＝ B 档
+    const mix = buildSpecialDomainsStructureText([A, B], 'middle');
+    expect(mix).toContain('甲栏');                       // A 档出栏目
+    expect(mix).toContain('乙域课标锚');                  // B 档出锚
+    expect(mix).toContain('乙域 只给课标语义锚、不另设栏目'); // 结构头写明（缺此句即缺口）
+    // 纯 A 档不加此句（无 B 档领域时不引入噪声）
+    expect(buildSpecialDomainsStructureText([A], 'middle')).not.toContain('不另设栏目');
+  });
 });
