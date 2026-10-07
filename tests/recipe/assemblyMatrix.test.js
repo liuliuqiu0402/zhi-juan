@@ -337,18 +337,19 @@ describe('三维度完整指令逐句审计（真实开设矩阵 54 科段 × 9 
     expect(hits, `共 ${hits.length} 处句级重复（≥16 字同句 ≥2 次）：\n${hits.slice(0, 40).join('\n')}${hits.length > 40 ? `…(共${hits.length})` : ''}`).toEqual([]);
   });
 
-  it('基准G 术语逐句：非卷组合指令任何句子不得含"考点"（exam 卷面条款 + 专项归类锚除外；486 组合 × 每句枚举）', () => {
+  it('基准G 术语逐句：非卷组合指令任何句子不得含"考点"（exam 卷面条款除外；486 组合 × 每句枚举）', () => {
     const hits = [];
-    // 🔴 2026-09-28（用户裁定·专项突破正规形态）：专项按"考点/题型"归类属该类型的正规组织口径，
-    //    仅此锚句豁免；其余非卷指令面仍统一用"核心知识/知识层级"，不出现"考点"。
-    const KEEP_KIND_ANCHOR = /按考点\/题型归类|同类考点或同种题型/g;
+    // 🔴 2026-10-07（属主裁定·"既有裁定若与现行标准和方向相悖，那就改"）：**撤除 2026-09-28 的"专项归类锚"豁免**——
+    //    依现行方向（无题型诱导；现实对账后专项栏目名取"考点/知识板块"型，**题型名不入栏目名、不进指令**），
+    //    原豁免句 `按考点/题型归类` 已改为 `按核心知识归类`（promptLibrary.js:681）。
+    //    故非卷指令面**一律**不得出现"考点"，不再设任何豁免；原正则的另一分支 `同类考点或同种题型` 源码已无此句（死分支）一并撤除。
     for (const { subject, stage, genType } of LEGAL_COMBOS) {
       if (genType === 'exam') continue;
       const r = assemble(subject, stage, genType);
       if (!r) continue;
       const label = `${subject}|${STAGE_LABEL[stage]}|${GEN_TYPE_NAMES[genType]}`;
       for (const s of sentencesOf(r.full)) {
-        if (s.replace(KEEP_KIND_ANCHOR, '').includes('考点')) hits.push(`${label} 含"考点"句：${s.slice(0, 40)}…`);
+        if (s.includes('考点')) hits.push(`${label} 含"考点"句：${s.slice(0, 40)}…`);
       }
     }
     expect(hits, `共 ${hits.length} 处"考点"残留（须为 0，非卷指令面已统一核心知识/知识层级）：\n${hits.slice(0, 40).join('\n')}${hits.length > 40 ? `…(共${hits.length})` : ''}`).toEqual([]);
