@@ -579,11 +579,9 @@ describe('examValidator 书写格按学段（writing-grid-fix）', () => {
     expect(ywIssues.some((i) => i.type === 'writing-grid-clear')).toBe(false);
   });
 
-  it('2j-6 示范豁免：span 行式格紧邻"照样子/例"不清空（示范字保留）', () => {
-    const html = '<h2>一、字母与书写</h2>\n<p>1. 照样子抄写：cat <span class="four-line-three">cat</span></p>';
-    const { html: out } = auditExamPaper(html, { subject: '英语', stage: 'primary_mid', genType: 'exam' });
-    expect(out).toMatch(/<span class="four-line-three">cat<\/span>/); // 示范字保留
-  });
+  // 🔴 2026-10-08（〔94〕"观察项"收口）：原"2j-6 示范豁免：span 行式格紧邻'照样子/例'不清空"用例**已删**——
+  //    2j-6 整步下线后"示范豁免"分支不存在（不再按关键词猜示范格），该用例恒真、纯冗余；
+  //    "格内内容原样保留"已由上一条（L559）锁死，此处不再重复。
 });
 
 describe('examValidator 载体×题型正规化（CARRIER_RULES）', () => {
