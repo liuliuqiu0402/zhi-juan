@@ -29,6 +29,9 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     const low = specialDomainOptions('语文', 'primary_low').map((o) => o.value);
     expect(low).toEqual(expect.arrayContaining(['现代文阅读', '古诗词', '写作']));
     expect(low).not.toContain('文言文');
+    // 顺序＝课标四类实践活动序（识字与写字 → 阅读与鉴赏 → 表达与交流 → 梳理与探究），不再"往尾部追加"
+    expect(low.slice(0, 3)).toEqual(['识字与写字', '现代文阅读', '古诗词']);
+    expect(low[low.length - 1]).toBe('梳理与探究');
     const mid = specialDomainOptions('语文', 'middle').map((o) => o.value);
     expect(mid).toContain('文言文');
     expect(specialDomainOptions('语文', 'high').map((o) => o.value)).toContain('文言文');
