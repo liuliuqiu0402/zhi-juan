@@ -51,12 +51,9 @@ const domainNamesOf = () => {
 };
 
 /** C 类豁免（跨批移交）：**待本批改名后移出**；此处逐名登记命中的规则面 */
-const PENDING = {
-  // 用户已授权"按调研的来改"（台账〔68〕）；改完即从本表移出。注意"变式训练"是
-  // FORMAL_SECTIONS 里 2026-09-28 用户裁定的**必备栏目**（只改名/措辞，不删其存在），
-  // 且"训练"结尾在教辅栏目名里正规（如"片段/篇章训练"）⇒ 规则收窄后**不再判其违规**（改名随〔68〕授权走）。
-  special: { 分板块组织: '做法句', 每板块配解析: '要求句' },
-};
+/** C 类豁免（跨批移交）：**本批已清空**——special 兜底池两名已按调研改名（"基础巩固／典型例题解析"），
+ *  "变式训练"保留（FORMAL_SECTIONS 里 2026-09-28 用户裁定的必备栏目）。此后**任何新违规必 fail**（逼进批体检）。 */
+const PENDING = {};
 
 describe('附·4 三·6 名池体检·机检臂（名性质：合规或已登记豁免）', () => {
   for (const g of COLUMN_TYPES) {
@@ -86,8 +83,7 @@ describe('附·4 三·6 名池体检·机检臂（名性质：合规或已登记
     expect(bad, `领域层出现"非栏目名"：${bad.map((n) => `${n}（${viol(n).join('、')}）`).join(' / ')}`).toEqual([]);
   });
 
-  it('豁免项仅 special 两项（待本批改名后移出；见台账〔68〕〔72〕）', () => {
-    expect(Object.keys(PENDING)).toEqual(['special']);
-    expect(Object.keys(PENDING.special).sort()).toEqual(['分板块组织', '每板块配解析']);
+  it('豁免表已清空（special 兜底池两名已按调研改名；此后新违规必 fail）', () => {
+    expect(Object.keys(PENDING)).toEqual([]);
   });
 });
