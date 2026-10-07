@@ -34,18 +34,20 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     expect(specialDomainOptions('语文', 'high').map((o) => o.value)).toContain('文言文');
   });
 
-  it('语文 S3 新增域：识字与写字/梳理与探究 中段起；整本书阅读 中段起；语言文字运用/名篇名句默写 见高中；低段不涉', () => {
-    const mid = specialDomainOptions('语文', 'primary_mid').map((o) => o.value);
-    for (const k of ['识字与写字', '梳理与探究', '整本书阅读']) expect(mid, k).toContain(k);
+  it('语文 S3 新增域：低段给全（仅英语低段不开）', () => {
+    // 🔵 2026-10-07 属主明确：「低段不涉」**仅指英语**；语文低段按课标该给的要给 —— 先解后锁
     const low = specialDomainOptions('语文', 'primary_low').map((o) => o.value);
-    for (const k of ['识字与写字', '梳理与探究', '整本书阅读', '语言文字运用', '名篇名句默写']) expect(low, k).not.toContain(k);
+    for (const k of ['识字与写字', '梳理与探究', '整本书阅读', '名篇名句默写']) expect(low, k).toContain(k);
+    expect(low).not.toContain('语言文字运用'); // 该名取自高中课标任务群；低段由 识字与写字/梳理与探究 承接
+    expect(low).not.toContain('文言文');
     const high = specialDomainOptions('语文', 'high').map((o) => o.value);
     for (const k of ['语言文字运用', '名篇名句默写', '整本书阅读']) expect(high, k).toContain(k);
-    // 高中现代文阅读栏目取新高考二分（旧体系三方作 note 兼容）
+    // 高中现代文阅读栏目取新高考二分（旧体系三分作 note 兼容）
     const secs = resolveSpecialDomain('语文', 'high', '现代文阅读').sections.map((s) => s.name);
     expect(secs).toContain('信息类文本阅读');
     expect(secs).toContain('文学类文本阅读');
   });
+
 
   it('数学学段直列：计算/应用题/图形与几何限义教学段＋义教另两领域；高中按知识模块 7 条', () => {
     // 🔵 2026-10-07 S3·数学：①「几何」按课标原文改「图形与几何」；②义教补 统计与概率/综合与实践（中段起）；
@@ -54,13 +56,14 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
       const vs = specialDomainOptions('数学', k).map((o) => o.value);
       expect(vs).toEqual(expect.arrayContaining(['计算', '应用题', '图形与几何']));
     }
-    for (const k of ['primary_mid', 'primary_high', 'middle']) {
+    for (const k of ['primary_low', 'primary_mid', 'primary_high', 'middle']) {
       const vs = specialDomainOptions('数学', k).map((o) => o.value);
       expect(vs).toEqual(expect.arrayContaining(['统计与概率', '综合与实践']));
     }
+    // 🔵 2026-10-07 更正：低段**只有英语不开**（属主明确）⇒ 数学低段照开（课标第一学段：数据分类／主题活动）
     const low = specialDomainOptions('数学', 'primary_low').map((o) => o.value);
-    expect(low).not.toContain('统计与概率');
-    expect(low).not.toContain('综合与实践');
+    expect(low).toContain('统计与概率');
+    expect(low).toContain('综合与实践');
     const high = specialDomainOptions('数学', 'high').map((o) => o.value);
     expect(high).toEqual(['函数与导数', '三角函数', '数列', '立体几何', '解析几何', '概率与统计', '数学建模活动']);
     // 义教领域不得串到高中

@@ -75,11 +75,12 @@ const REGISTRY = {
           { name: '典例与升格', note: '示例讲解 + 修改方向' },
         ],
       }),
-    // 识字与写字（课标四类实践活动之一；现实＝小学"汉语拼音/汉字/词语/句子"专项、初中"基础知识"）：低段本轮不涉
+    // 识字与写字（课标四类实践活动之一；现实＝小学"汉语拼音/汉字/词语/句子"专项、初中"基础知识"）：低段照开（低段只有英语不开）
     domain('识字与写字', '🀄 识字与写字', '字音字形与书写（拼音/多音字/形近字/易错字形）', '2022义教语文·识字与写字（实践活动）/ 语言文字积累与梳理',
       '语文学习任务群·语言文字积累与梳理（义教·识字与写字）',
       {
-        stageList: ['primary_mid', 'primary_high', 'middle'],
+        // 🔵 2026-10-07 更正：低段**只有英语不开**（属主明确）⇒ 语文低段照开，本域含 primary_low
+        stageList: ['primary_low', 'primary_mid', 'primary_high', 'middle'],
         sections: [
           { name: '字音字形', note: '按学段取拼音/多音字/形近字/易错字形' },
           { name: '词语积累', note: '词语（含近反义词、成语）的理解与运用' },
@@ -90,18 +91,19 @@ const REGISTRY = {
     domain('梳理与探究', '🧩 梳理与探究', '积累与运用综合（默写/语文园地/综合性学习）', '2022义教语文·梳理与探究（实践活动）',
       '语文学习任务群·语言文字积累与梳理 + 跨学科学习（综合性学习）',
       {
-        stageList: ['primary_mid', 'primary_high', 'middle'],
+        // 🔵 2026-10-07 更正：低段**只有英语不开** ⇒ 语文低段照开（语文园地/日积月累）
+        stageList: ['primary_low', 'primary_mid', 'primary_high', 'middle'],
         sections: [
           { name: '日积月累', note: '教材日积月累与名句积累的运用' },
           { name: '综合性学习', note: '真实情境下的语文综合实践活动设问' },
           { name: '语言运用', note: '句式/标点/病句等语言运用设问' },
         ],
       }),
-    // 整本书阅读（课标任务群；现实＝"名著阅读"）：小学中段起
+    // 整本书阅读（课标任务群；现实＝小学"快乐读书吧"/"名著阅读"）：低段照开
     domain('整本书阅读', '📚 整本书阅读', '名著阅读（整本书内容梳理与人物/主题理解）', '2022义教语文·整本书阅读（拓展型学习任务群）',
       '语文学习任务群·整本书阅读（义教拓展型）',
       {
-        stageList: ['primary_mid', 'primary_high', 'middle', 'high'],
+        stageList: ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'],
         anchors: { 高中: '普通高中语文·必修学习任务群·整本书阅读与研讨' },
         sections: [
           { name: '名著导读', note: '作品概要与阅读方法（只作组织，不代写内容）' },
@@ -125,7 +127,7 @@ const REGISTRY = {
     domain('名篇名句默写', '🖋️ 名篇名句默写', '课标推荐篇目的名句默写', '2022义教语文·古诗文背诵推荐篇目 / 中华传统文化经典研习',
       '中华优秀传统文化（古诗文背诵推荐篇目）',
       {
-        stageList: ['primary_high', 'middle', 'high'],
+        stageList: ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'],
         anchors: { 高中: '普通高中语文·中华传统文化经典研习（名篇名句）' },
         sections: [
           { name: '直接默写', note: '给上句写下句；书写格内留空供作答' },
@@ -164,7 +166,8 @@ const REGISTRY = {
     domain('统计与概率', '📊 统计与概率', '数据的收集整理与表达、随机现象（义教）', '2022义教数学·统计与概率',
       '统计与概率（数据意识/数据观念·随机观念）',
       {
-        stageList: ['primary_mid', 'primary_high', 'middle'],
+        // 🔵 2026-10-07 更正：低段**只有英语不开** ⇒ 数学低段照开（课标第一学段"统计与概率·数据分类"）
+        stageList: ['primary_low', 'primary_mid', 'primary_high', 'middle'],
         anchors: { 义教小学: '统计与概率·数据的收集、整理与表达', 义教初中: '统计与概率·抽样与数据分析、随机事件的概率' },
         sections: [
           { name: '数据收集与整理', note: '真实情境下的数据收集、整理与描述' },
@@ -175,7 +178,8 @@ const REGISTRY = {
     domain('综合与实践', '🧩 综合与实践', '真实情境下的主题活动与项目学习（义教）', '2022义教数学·综合与实践',
       '综合与实践（主题活动＋项目学习；应用意识与模型观念）',
       {
-        stageList: ['primary_mid', 'primary_high', 'middle'],
+        // 🔵 2026-10-07 更正：低段**只有英语不开** ⇒ 数学低段照开（课标第一学段"综合与实践·主题活动"）
+        stageList: ['primary_low', 'primary_mid', 'primary_high', 'middle'],
         sections: [
           { name: '主题活动', note: '围绕真实情境提出并解决数学问题' },
           { name: '项目学习', note: '经历问题提出—方案设计—求解—表达的过程' },
