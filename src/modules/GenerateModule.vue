@@ -1564,7 +1564,7 @@
       <div class="modal">
         <h3>🎯 选择专项训练领域</h3>
         <p style="color:var(--text-secondary);margin-bottom:12px;">
-          选择一个聚焦的技能领域，AI 将围绕该领域生成针对性的专项训练资料。
+          选择一个或多个聚焦的技能领域（**可多选，最多 {{ specialDomainMax }} 个**），AI 将围绕所选领域生成针对性的专项训练资料。
         </p>
         <div
           v-if="specialSubTypeOptions.length === 0"
@@ -1573,30 +1573,37 @@
         >
           当前学科暂无专项子类型可用，将使用通用专项结构（基础巩固：本单元基础内容；典型例题解析：每类适量题目并附解析；变式训练：对例题配一一对应的变式）。
         </div>
+        <p
+          v-if="specialSubTypeOptions.length"
+          class="empty-tip-small"
+          style="padding:8px 0;"
+        >
+          已选 {{ specialSubType.length }} / {{ specialDomainMax }}{{ specialDomainMaxReached ? '（已达上限，需先取消一个才能再选）' : '' }}
+        </p>
         <div class="option-list">
           <label
             v-for="opt in specialSubTypeOptions"
             :key="opt.value"
             class="option-item"
+            :style="(specialDomainMaxReached && !specialSubType.includes(opt.value)) ? 'opacity:.5;' : ''"
           >
             <input
               v-model="specialSubType"
-              type="radio"
+              type="checkbox"
               :value="opt.value"
-              name="specialSubType"
+              :disabled="specialDomainMaxReached && !specialSubType.includes(opt.value)"
             >
             <span class="option-label">{{ opt.label }}</span>
             <span class="option-desc">{{ opt.desc }}</span>
           </label>
           <label class="option-item">
             <input
-              v-model="specialSubType"
-              type="radio"
-              :value="''"
-              name="specialSubType"
+              :checked="specialSubType.length === 0"
+              type="checkbox"
+              @change="specialSubType = []"
             >
             <span class="option-label">🔄 通用专项</span>
-            <span class="option-desc">使用默认专项结构（基础巩固：本单元基础内容；典型例题解析：每类适量题目并附解析；变式训练：对例题配一一对应的变式）</span>
+            <span class="option-desc">不选任何领域即使用默认专项结构（与领域互斥；点此清空已选领域）</span>
           </label>
         </div>
         <div class="modal-actions">
@@ -3216,7 +3223,7 @@ import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
 import { findBlueprint } from '../config/blueprintProvider.js';
 import { getPromptTemplate, buildInjectionInstruction, buildStructureText, getCurriculumLabel, applyMaterialChannel } from '../config/promptLibrary.js';
 import { materialChannelOf } from '../config/coverageContract.js'; // 📚 素材通道默认映射（auto 口径单一事实源，2026-09-14）
-import { specialDomainOptions, resolveSpecialDomain, buildSpecialDomainStructureText, buildSpecialDomainAnchorLine } from '../config/specialDomains.js'; // 🎯 专项领域注册库（学科×学段→栏目结构+课标语义锚）
+import { specialDomainOptions, resolveSpecialDomains, buildSpecialDomainsStructureText, buildSpecialDomainsAnchorLines, SPECIAL_DOMAIN_MAX } from '../config/specialDomains.js'; // 🎯 专项领域注册库（学科×学段→栏目结构+课标语义锚；2026-10-07 起支持**多选**，上限 SPECIAL_DOMAIN_MAX）
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
 // ✅ A21 已撤（2026-09-17）：buildNeedsImageText / needsImageHint 不再参与能力判定（改为能力就绪，见 eduRenderContract.resolveMarkCapability）
 import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, resolveColumnStyleChoices, advanceAutoColumnStyleId, getTeachingBlueprint, stripSourceMarkNote } from '../config/teachingBlueprints.js';
@@ -3291,7 +3298,7 @@ const visibleScopeOptions = computed(() =>
 watch(genTypes, (v) => { if (!v?.includes('exam') && EXAM_GRADUATION_TYPES.includes(scopeType.value)) scopeType.value = ''; });
 // 新架构：生成前置条件 = 已选教材章节（不再依赖指令文本）
 const hasSelectedChapters = computed(() => textbookStore.selectedChapterCount > 0);
-const specialSubType = ref('');  // 🎯 专项子类型（仅 genType=special 时生效）
+const specialSubType = ref([]);  // 🎯 专项子类型（**多选**，仅 genType=special 时生效；上限 SPECIAL_DOMAIN_MAX；空数组＝通用专项）
 const batchCount = ref(1);  // 同类型一次生成份数，默认1
 // 🔧 省市差异化：正式试卷（exam）按省市取考试时长/总分（如江苏中考语数英150分、北京100分制），默认全国通用
 const examRegion = ref('');
@@ -5136,10 +5143,17 @@ const resetScoreAdjust = () => {
 };
 const genTypeLabel = computed(() => '资料类型');
 const specialSubTypeLabel = computed(() => {
-  if (!specialSubType.value) return '';
-  const opt = specialSubTypeOptions.value.find(o => o.value === specialSubType.value);
-  return opt ? opt.label : specialSubType.value;
+  const keys = Array.isArray(specialSubType.value) ? specialSubType.value : (specialSubType.value ? [specialSubType.value] : []);
+  if (!keys.length) return '';
+  const opts = specialSubTypeOptions.value;
+  return keys.map(k => {
+    const opt = opts.find(o => o.value === k);
+    return opt ? opt.label : k;
+  }).join('＋');
 });
+// 🎯 多选上限（达上限时未选项置灰禁用；已选项可随时取消）
+const specialDomainMax = SPECIAL_DOMAIN_MAX;
+const specialDomainMaxReached = computed(() => (specialSubType.value || []).length >= SPECIAL_DOMAIN_MAX);
 
 // 根据当前资料类型，推荐最优模型（显示实际配置的模型名）
 const genTypeModelHint = computed(() => {
@@ -6393,14 +6407,13 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     }
   } else {
     // 🎯 专项突破两档（A档=领域自带栏目；B档=通用栏目+课标语义锚；未命中=通用/学科蓝图）——loadInstruction 与 restoreDefault 共用 composeSpecialTeachingText
-    const st = composeSpecialTeachingText({ genType, stageKey, subject, domainKey: specialSubType.value || '' });
+    const st = composeSpecialTeachingText({ genType, stageKey, subject, domainKeys: specialSubType.value });
     teachingText = st.text;
     if (teachingText) {
       instructionDraft.value += teachingText;
+      const doms = st.doms || [];
       blueprintDetail = st.isDomain
-        ? (st.dom.sections && st.dom.sections.length
-          ? `专项领域「${st.dom.label}」· ${st.dom.sections.length} 栏目 + 课标语义锚（${st.dom.anchor}）`
-          : `专项领域「${st.dom.label}」· 通用栏目 + 课标语义锚（${st.dom.anchor}）`)
+        ? `专项领域「${doms.map(d => d.label).join('＋')}」· ${doms.some(d => d.sections && d.sections.length) ? '领域自带栏目（多选已并集去重）' : '通用栏目'} + 课标语义锚（${doms.length} 条）`
         : `教辅结构「${genTypeLabel}」· 大类标题（按课标活动类型与素养划分）+ 学段要求`;
     }
   }
@@ -6491,7 +6504,7 @@ const restoreDefaultInstruction = async () => {
   // exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段，此处不重复；非 exam 追加教辅结构（委托正文栏目骨架）
   if (genType !== 'exam') {
     // 🎯 专项突破领域两档（与 loadInstructionFromLibrary 同源 compose，修复「恢复默认」遗漏领域分支）
-    const st = composeSpecialTeachingText({ genType, stageKey, subject, domainKey: specialSubType.value || '' });
+    const st = composeSpecialTeachingText({ genType, stageKey, subject, domainKeys: specialSubType.value });
     instructionDraft.value += st.text;
   }
   // 程序性附加段（渲染契约/质检规则/格式兜底）不进委托正文——统一走 buildProgramAttach，随写作请求 system 注入
@@ -6522,19 +6535,21 @@ const restoreDefaultInstruction = async () => {
 
 // 🎯 专项突破两档结构合成（单一入口：loadInstructionFromLibrary / restoreDefaultInstruction 共用）
 //   A档=领域自带栏目结构；B档=通用（学科）蓝图栏目 + 课标语义锚句；未命中领域=通用（学科）蓝图
-const composeSpecialTeachingText = ({ genType, stageKey, subject, domainKey }) => {
+const composeSpecialTeachingText = ({ genType, stageKey, subject, domainKey, domainKeys }) => {
   // 🎨 栏目标题风格实际生效套：''=自动轮换（按次轮换，生成结束才推进 → 预览与本次生成一致）；手动固定套直达
   const effectiveColumnStyle = resolveColumnStyleId(genType, columnStyle.value);
-  const dom = genType === 'special'
-    ? resolveSpecialDomain(String(subject || '').split('·').pop(), stageKey, domainKey || '')
-    : null;
-  if (!dom) return { text: buildTeachingInjection({ genType, stage: stageKey, subject, columnStyle: effectiveColumnStyle }) || '', isDomain: false };
-  if (dom.sections && dom.sections.length) {
-    return { text: buildSpecialDomainStructureText(dom, stageKey), isDomain: true, dom };
+  // 🎯 多选（2026-10-07）：按所选顺序解析、逐个三元校验、超限截断（SPECIAL_DOMAIN_MAX）；空数组＝通用专项
+  const subj = String(subject || '').split('·').pop();
+  const keys = Array.isArray(domainKeys) ? domainKeys : (domainKey ? [domainKey] : []);
+  const doms = genType === 'special' ? resolveSpecialDomains(subj, stageKey, keys) : [];
+  if (!doms.length) return { text: buildTeachingInjection({ genType, stage: stageKey, subject, columnStyle: effectiveColumnStyle }) || '', isDomain: false, doms: [] };
+  // A 档（任一选中的领域自带栏目）＝栏目**并集去重** + 逐领域课标语义锚行；B 档/混选＝通用（学科）蓝图栏目 + 逐领域锚行
+  if (doms.some((d) => d.sections && d.sections.length)) {
+    return { text: buildSpecialDomainsStructureText(doms, stageKey), isDomain: true, doms };
   }
-  const anchorLine = buildSpecialDomainAnchorLine(dom);
+  const anchorLines = buildSpecialDomainsAnchorLines(doms);
   const generic = buildTeachingInjection({ genType, stage: stageKey, subject, columnStyle: effectiveColumnStyle }) || '';
-  return { text: generic ? `${generic}\n${anchorLine}` : anchorLine, isDomain: true, dom };
+  return { text: generic ? `${generic}\n${anchorLines}` : anchorLines, isDomain: true, doms };
 };
 
 // 生成前确保注入指令非空（最小场景：选教材+类型后直接生成也能跑）
@@ -6637,7 +6652,7 @@ watch(
     //    原串只列"有章节被勾选"的教材 → "勾了但无章节"的教材（未提取章节/目录模式）勾选后不触发清空。
     textbookStore.instructionBookSignature,
     scopeType.value || '',
-    specialSubType.value || '', // 🎯 专项领域变化同样重置指令（生成时按当前领域重新组装）
+    (specialSubType.value || []).join('|'), // 🎯 专项领域（多选）变化同样重置指令（生成时按当前所选领域重新组装）
     apiConfig.generationSettings.materialChannel || 'auto', // 📚 素材通道（A18）：切换后素材段需按新通道重渲染
   ].join('~~'),
   () => {
@@ -9331,7 +9346,7 @@ watch(generatedDocs, () => {
 // 🎯 genTypes 变更时，若不再包含 special 则清空专项子类型选择
 watch(genTypes, (newTypes) => {
   if (!newTypes.includes('special')) {
-    specialSubType.value = '';
+    specialSubType.value = [];
   }
 });
 
