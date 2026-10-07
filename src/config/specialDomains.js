@@ -1784,18 +1784,19 @@ export const buildSpecialDomainsStructureText = (doms = [], stageKey = '') => {
   const list = (doms || []).filter(Boolean);
   if (!list.length) return '';
   const secs = [];
-  const seen = new Set();
+  const seen = new Map(); // name → 注数组（**去重不丢注**：同名栏目的多条要求都要落实，见面 4 跨处一致）
   for (const d of list) {
     for (const s of d.sections || []) {
-      if (seen.has(s.name)) continue;
-      seen.add(s.name);
-      secs.push(s);
+      if (!seen.has(s.name)) seen.set(s.name, []);
+      const arr = seen.get(s.name);
+      if (s.note && !arr.includes(s.note)) arr.push(s.note);
+      if (!secs.includes(s.name)) secs.push(s.name);
     }
   }
   if (!secs.length) return '';
   // 栏目行与**蓝图栏目行同口径**（2026-09-17 用户裁定"教辅栏目注与 exam 侧同口径、逐行带【要求·须逐项落实】标注"）：
   //   领域层栏目注同属"教辅栏目注"（A 档领域替代蓝图栏目），须带同款标注，否则同卷同型落实强度不齐（面 3 处内要素）。
-  const lines = secs.map((s) => `· ${s.name}——【要求·须逐项落实】${s.note}`).join('\n');
+  const lines = secs.map((n) => `· ${n}——【要求·须逐项落实】${seen.get(n).join('；')}`).join('\n');
   const names = list.map((d) => d.label).join('＋');
   // A/B 混选：**须在结构头写明**（见规格第六节）——未列入上方栏目清单的领域只给课标语义锚、不另设栏目，
   //   否则模型会把该领域内容硬塞进他人栏目，或误以为该领域未被选中（面 1 声明↔实给）。

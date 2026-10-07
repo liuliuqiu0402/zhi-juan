@@ -26,19 +26,9 @@ const INTENTIONAL_EMPTY = {
   '英语·primary_low': '属主裁定：英语低段不开（课标 1–2 年级为预备级）',
 };
 
-/** 已登记待改（**非结案** · 2026-10-07 面 4 六问命中 · 台账〔122〕）：
- *  同学科内**同名栏目 note 逐字不一致** ⇒ `buildSpecialDomainsStructureText` 按 name 去重会**静默丢注**。
- *  处置方向：**统一为同一句栏目要求**（同一份资料内"栏目名相同即同一栏目"，其要求应一致）。
- *  登记项若已不复现 ⇒ 测试 fail，强制移出登记（防"豁免掩盖真缺"）。 */
-const PENDING_SAME_NAME_NOTE = new Set([
-  '英语·primary_mid「辨析与纠错」', '英语·primary_high「辨析与纠错」',
-  '生物·middle「观察与实验」', '地理·middle「应用与辨析」',
-  '数学·high「综合与易错」', '化学·high「综合与辨析」',
-  '生物·high「实验与数据」', '生物·high「综合与辨析」',
-  '历史·high「解释与评价」', '历史·high「史事与线索」',
-  '地理·high「读图与用图」', '地理·high「综合与辨析」', '地理·high「读图与分析」',
-  '体育·high「要领与规则」',
-]);
+/* 面 4 收口（2026-10-07 · 台账〔122〕）：原登记的 14 处"同名不同注"**已由程序层根治**——
+ *  `buildSpecialDomainsStructureText` 改为"**名字去重、注不丢**"（同名栏目的多条要求合并到一行、以"；"连接），
+ *  故不再需要登记豁免；下列第④例改为"**去重不得丢注**"的通用断言（合成用例 ＋ 真实数据双向）。 */
 
 describe('S4 验收（专项领域·交付级）', () => {
   it('① 覆盖矩阵：每个开设格 ≥1 领域（"回退设计"与"缺"分开）', () => {
@@ -95,27 +85,26 @@ describe('S4 验收（专项领域·交付级）', () => {
     expect(buildSpecialDomainsStructureText([A], 'middle')).not.toContain('不另设栏目');
   });
 
-  it('④ 跨处一致：同学科内同名栏目的 note 必须逐字一致（否则并集去重会静默丢注）', () => {
-    const bad = []; const hitPending = new Set();
+  it('④ 跨处一致：同名栏目去重**不得丢注**（同名不同注时，各条要求都须落实）', () => {
+    // 合成用例：同名栏目的两条不同注 ⇒ 行内须同时出现（以"；"连接）
+    const A = { label: '甲域', anchor: 'a', sections: [{ name: 'X栏', note: '注一' }] };
+    const B = { label: '乙域', anchor: 'b', sections: [{ name: 'X栏', note: '注二' }] };
+    expect(buildSpecialDomainsStructureText([A, B], 'middle')).toContain('· X栏——【要求·须逐项落实】注一；注二');
+    // 真实数据：同学科内同名栏目的**每一条注**都必须出现在结构文本里（无静默丢弃）
+    const bad = [];
     for (const st of Object.keys(STAGE_SUBJECTS)) {
       for (const sub of STAGE_SUBJECTS[st]) {
-        const byName = {};
-        for (const o of specialDomainOptions(sub, st) || []) {
-          const d = resolveSpecialDomain(sub, st, o.value);
-          for (const s of (d && d.sections) || []) {
-            if (byName[s.name] === undefined) { byName[s.name] = s.note; continue; }
-            if (byName[s.name] !== s.note) {
-              const k = `${sub}·${st}「${s.name}」`;
-              if (PENDING_SAME_NAME_NOTE.has(k)) { hitPending.add(k); continue; }
-              bad.push(`${k} note 不一致（并集去重会丢注）`);
-            }
+        const doms = (specialDomainOptions(sub, st) || [])
+          .map((o) => resolveSpecialDomain(sub, st, o.value)).filter(Boolean);
+        if (doms.length < 2) continue;
+        const txt = buildSpecialDomainsStructureText(doms, st);
+        for (const d of doms) {
+          for (const s of d.sections || []) {
+            if (s.note && !txt.includes(s.note)) bad.push(`${sub}·${st}「${s.name}」注被丢弃`);
           }
         }
       }
     }
-    expect(bad, `同名不同注：${bad.join(' / ')}`).toEqual([]);
-    // 登记项若已不复现 ⇒ fail（防"豁免掩盖真缺"；与 blockStructure.test「登记过期须移回」同思路）
-    const stray = [...PENDING_SAME_NAME_NOTE].filter((k) => !hitPending.has(k));
-    expect(stray, `已登记的"同名不同注"不再复现，请移出登记：${stray.join(' / ')}`).toEqual([]);
+    expect([...new Set(bad)], `去重丢注：${[...new Set(bad)].join(' / ')}`).toEqual([]);
   });
 });
