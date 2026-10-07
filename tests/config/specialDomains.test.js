@@ -47,15 +47,24 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     expect(secs).toContain('文学类文本阅读');
   });
 
-  it('数学学段直列：计算/应用题/几何限义教学段（低小~初中）；高中另给课标五主题中的 4 个领域', () => {
+  it('数学学段直列：计算/应用题/图形与几何限义教学段＋义教另两领域；高中按知识模块 7 条', () => {
+    // 🔵 2026-10-07 S3·数学：①「几何」按课标原文改「图形与几何」；②义教补 统计与概率/综合与实践（中段起）；
+    //   ③高中由课标四主题改按**知识模块 7 条**（现实多家教辅一致，属主已点头）——先解后锁。
     for (const k of ['primary_low', 'primary_mid', 'primary_high', 'middle']) {
       const vs = specialDomainOptions('数学', k).map((o) => o.value);
-      expect(vs).toEqual(expect.arrayContaining(['计算', '应用题', '几何']));
+      expect(vs).toEqual(expect.arrayContaining(['计算', '应用题', '图形与几何']));
     }
+    for (const k of ['primary_mid', 'primary_high', 'middle']) {
+      const vs = specialDomainOptions('数学', k).map((o) => o.value);
+      expect(vs).toEqual(expect.arrayContaining(['统计与概率', '综合与实践']));
+    }
+    const low = specialDomainOptions('数学', 'primary_low').map((o) => o.value);
+    expect(low).not.toContain('统计与概率');
+    expect(low).not.toContain('综合与实践');
     const high = specialDomainOptions('数学', 'high').map((o) => o.value);
-    expect(high).toEqual(['函数', '几何与代数', '概率与统计', '数学建模活动']);
-    // 义教三领域（计算/应用题/几何）不得串到高中
-    expect(high).not.toEqual(expect.arrayContaining(['计算', '应用题', '几何']));
+    expect(high).toEqual(['函数与导数', '三角函数', '数列', '立体几何', '解析几何', '概率与统计', '数学建模活动']);
+    // 义教领域不得串到高中
+    expect(high).not.toEqual(expect.arrayContaining(['计算', '应用题', '图形与几何', '统计与概率', '综合与实践']));
   });
 
   it('英语：阅读 中高小起（低小不开）；语法 高小起', () => {
@@ -69,27 +78,24 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     );
   });
 
-  it("🔴 高中数学 4 领域已升 A（2026-09-20 用户裁定）：候选可见、resolve 可见且**自带专属栏目**", () => {
-    // 升 A 前这 4 条标 verified:'B'，而 ALLOW_VERIFIED_B=false → specialDomainOptions('数学','high') 为空，
-    // 用户在「专项训练」里"没得选"、只能落回「通用专项」。按课标补齐栏目后转 A。
-    // 注：本文件现有条目中已**无** verified:'B'（闸门保留为防御性开关，不再有被它挡住的学科）。
+  it("🔴 高中数学 7 知识模块（原 4 条已升 A·2026-09-20 裁定，2026-10-07 S3 改按知识模块）：候选可见且**自带专属栏目**", () => {
     const opts = specialDomainOptions('数学', 'high');
-    expect(opts.map((o) => o.value)).toEqual(['函数', '几何与代数', '概率与统计', '数学建模活动']);
+    expect(opts.map((o) => o.value)).toEqual(['函数与导数', '三角函数', '数列', '立体几何', '解析几何', '概率与统计', '数学建模活动']);
     for (const o of opts) {
       expect(o.label).toBeTruthy();
       expect(o.desc).toBeTruthy();
       expect(o.curriculum).toContain('普通高中'); // 学段体系隔离：高中锚走高中课标名，不混义教名
     }
-    const fn = resolveSpecialDomain('数学', 'high', '函数');
+    const fn = resolveSpecialDomain('数学', 'high', '函数与导数');
     expect(fn).not.toBeNull();
     expect(fn.sections.length).toBeGreaterThan(0); // A 档：自带专属栏目（不是只挂锚句）
     const text = buildSpecialDomainStructureText(fn, 'high');
-    expect(text).toContain('📈 函数·高中');
+    expect(text).toContain('📈 函数与导数·高中');
     expect(text).toContain('概念与表示');
     expect(text).toContain('普通高中数学·函数主线');
     expect(text).not.toContain('2022义教数学');
-    // 4 个领域的栏目都要齐（缺一个就等于该领域A档退化成只挂锚句）
-    for (const key of ['函数', '几何与代数', '概率与统计', '数学建模活动']) {
+    // 7 个模块的栏目都要齐（缺一个就等于该领域A档退化成只挂锚句）
+    for (const key of ['函数与导数', '三角函数', '数列', '立体几何', '解析几何', '概率与统计', '数学建模活动']) {
       expect(resolveSpecialDomain('数学', 'high', key).sections.length, key).toBeGreaterThan(0);
     }
   });
@@ -205,9 +211,10 @@ describe('specialDomains（三维度两档化：学科×学段×领域）', () =
     const middleApp = resolveSpecialDomain('数学', 'middle', '应用题').anchor;
     expect(middleApp).toContain('方程与不等式、函数');
     expect(middleApp).not.toContain('数量关系（解决问题）');
-    const primaryGeo = resolveSpecialDomain('数学', 'primary_high', '几何').anchor;
+    // 🔵 2026-10-07 S3·数学：键名「几何」→「图形与几何」（课标原文）——先解后锁
+    const primaryGeo = resolveSpecialDomain('数学', 'primary_high', '图形与几何').anchor;
     expect(primaryGeo).toContain('图形的认识与测量');
-    const middleGeo = resolveSpecialDomain('数学', 'middle', '几何').anchor;
+    const middleGeo = resolveSpecialDomain('数学', 'middle', '图形与几何').anchor;
     expect(middleGeo).toContain('图形的性质');
     expect(middleGeo).not.toContain('位置与运动');
   });
