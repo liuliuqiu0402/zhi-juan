@@ -61,11 +61,15 @@ console.log(`长条(>250)条数=${arr.filter((s) => s.length > 250).length}`);
 // —— 导出唯一文本池清单 ——
 import * as fs from 'node:fs';
 const lines = arr.slice();
-const doc = ['# 唯一文本池 · 正式考卷（exam）', '',
-  `> 生成：\`node scripts/auditPool.mjs exam\` ｜ 装配 ${assembled}/${pairs.length} ｜ 唯一条 **${lines.length}**`, '',
+const LABEL = { exam: '正式考卷（exam）', practice: '同步练习（practice）', special: '专项突破（special）', reading: '阅读训练（reading）', dictation: '默写（dictation）', review: '复习（review）', summary: '梳理（summary）', preview: '预习（preview）', errorbook: '错题本（errorbook）' };
+const label = LABEL[genType] || genType;
+const doc = ['# 唯一文本池 · ' + label, '',
+  `> 生成：\`node scripts/auditPool.mjs ${genType}\` ｜ 装配 ${assembled}/${pairs.length} ｜ 唯一条 **${lines.length}**`, '',
   '| # | 长度 | 源 | 文本 |', '|---:|---:|---|---|',
   ...lines.map((s, i) => `| ${i + 1} | ${s.length} | ${[...pool.get(s)].join('/')} | ${s.replace(/\|/g, '\\|')} |`)].join('\n');
-const OUT = 'docs/audit/池-正式考卷.md'; // 🔴 不得落 docs/design（singleSourceGuard 扫该目录、池含单源字面）
+// 🔴 2026-10-06（第二批·面出口复验）：OUT 原**硬编码**为"池-正式考卷.md" ⇒ 跑 `auditPool.mjs practice`
+//   会把 exam 池**覆盖**掉。现按资料类型分文件（exam 路径逐字未变，向后兼容）。
+const OUT = `docs/audit/池-${label.replace(/（.*$/, '')}.md`; // 🔴 不得落 docs/design（singleSourceGuard 扫该目录、池含单源字面）
 fs.mkdirSync('docs/audit', { recursive: true });
 fs.writeFileSync(OUT, doc, 'utf8');
 
