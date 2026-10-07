@@ -73,6 +73,8 @@ describe('S4 验收（专项领域·交付级）', () => {
     const B = { key: 'y', label: '乙域', anchor: '乙域课标锚' }; // 无 sections ＝ B 档
     const mix = buildSpecialDomainsStructureText([A, B], 'middle');
     expect(mix).toContain('甲栏');                       // A 档出栏目
+    // 栏目行须与蓝图同口径带标注（2026-09-17 裁定"教辅栏目注与 exam 侧同口径、逐行带【要求·须逐项落实】标注"）
+    expect(mix).toContain('· 甲栏——【要求·须逐项落实】甲栏要求');
     expect(mix).toContain('乙域课标锚');                  // B 档出锚
     expect(mix).toContain('乙域 只给课标语义锚、不另设栏目'); // 结构头写明（缺此句即缺口）
     // 纯 A 档不加此句（无 B 档领域时不引入噪声）

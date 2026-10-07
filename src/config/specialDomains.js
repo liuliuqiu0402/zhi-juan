@@ -1793,7 +1793,9 @@ export const buildSpecialDomainsStructureText = (doms = [], stageKey = '') => {
     }
   }
   if (!secs.length) return '';
-  const lines = secs.map((s) => `· ${s.name}——${s.note}`).join('\n');
+  // 栏目行与**蓝图栏目行同口径**（2026-09-17 用户裁定"教辅栏目注与 exam 侧同口径、逐行带【要求·须逐项落实】标注"）：
+  //   领域层栏目注同属"教辅栏目注"（A 档领域替代蓝图栏目），须带同款标注，否则同卷同型落实强度不齐（面 3 处内要素）。
+  const lines = secs.map((s) => `· ${s.name}——【要求·须逐项落实】${s.note}`).join('\n');
   const names = list.map((d) => d.label).join('＋');
   // A/B 混选：**须在结构头写明**（见规格第六节）——未列入上方栏目清单的领域只给课标语义锚、不另设栏目，
   //   否则模型会把该领域内容硬塞进他人栏目，或误以为该领域未被选中（面 1 声明↔实给）。
