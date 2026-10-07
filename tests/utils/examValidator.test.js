@@ -556,25 +556,27 @@ describe('examValidator 书写格按学段（writing-grid-fix）', () => {
     expect(issues.some((i) => i.type === 'writing-grid' && i.message.includes('剥离'))).toBe(true);
   });
 
-  it('2j-6 清空 span 形态行式格内预填内容（four-line-three/sixian-ge/pinyin-line，曾漏清）', () => {
-    // four-line-three/sixian-ge：英语中段卷（允许表内，1.5.8 不剥离，2j-6 生效清空）
+  it('2j-6【**已下线**】span 形态行式格内预填内容 → **原样保留**（不再替模型清空）', () => {
+    // 🔴 2026-10-07（属主裁定"下线"）：原"清空格内预填内容"＝替模型删内容的越权，且判定带四层豁免
+    //    （答案区／非语文作文格／示范格靠关键词猜／顺序依赖）⇒ **报不准** ⇒ 整步撤除。
+    //    本题改为锁"**不改动**"：载体 class 与格内内容都原样保留，且不再有 writing-grid-clear 上报。
     const en = [
       '<h2>一、字母与书写</h2>',
       '<p>1. 抄写单词：<span class="four-line-three">cat</span></p>',
       '<p>2. 抄写单词：<span class="sixian-ge">dog</span></p>',
     ].join('\n');
-    const { html: enOut, fixed: enFixed } = auditExamPaper(en, { subject: '英语', stage: 'primary_mid', genType: 'exam' });
+    const { html: enOut, issues: enIssues } = auditExamPaper(en, { subject: '英语', stage: 'primary_mid', genType: 'exam' });
     expect(enOut).toContain('class="four-line-three"');
     expect(enOut).toContain('class="sixian-ge"');
-    expect(enOut).not.toMatch(/<span class="four-line-three">cat<\/span>/);
-    expect(enOut).not.toMatch(/<span class="sixian-ge">dog<\/span>/);
-    expect(enFixed).toBeGreaterThan(0);
-    // pinyin-line：语文低段卷（允许表内），span 形态内嵌拼音漏清同样修复
+    expect(enOut).toContain('<span class="four-line-three">cat</span>'); // 内容原样保留（不再清空）
+    expect(enOut).toContain('<span class="sixian-ge">dog</span>');
+    expect(enIssues.some((i) => i.type === 'writing-grid-clear')).toBe(false);
+    // pinyin-line：语文低段卷（允许表内），span 形态内嵌拼音同样**不再清空**
     const yw = '<h2>一、识字与写字</h2>\n<p>1. 写音节：<span class="pinyin-line">ba</span></p>';
-    const { html: ywOut, fixed: ywFixed } = auditExamPaper(yw, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    const { html: ywOut, issues: ywIssues } = auditExamPaper(yw, { subject: '语文', stage: 'primary_low', genType: 'exam' });
     expect(ywOut).toContain('class="pinyin-line"');
-    expect(ywOut).not.toMatch(/<span class="pinyin-line">ba<\/span>/);
-    expect(ywFixed).toBeGreaterThan(0);
+    expect(ywOut).toContain('<span class="pinyin-line">ba</span>');
+    expect(ywIssues.some((i) => i.type === 'writing-grid-clear')).toBe(false);
   });
 
   it('2j-6 示范豁免：span 行式格紧邻"照样子/例"不清空（示范字保留）', () => {

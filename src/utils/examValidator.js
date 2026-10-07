@@ -2326,59 +2326,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 2j-6. 书写格内容剥离（规则 writing-grid-fix：格子内严禁预填字/拼音/答案——空格子才可作答）
-  //    🔧 2026-08 根治"田字格已填答案"（基准1/2）：AI 常把答案字直接写进格子 span/文本
-  //    （如 <div class="tian-zi-ge"><span>春</span></div>），正文混入答案且学生无法作答；
-  //    确定性修复：清空格内非空内容保留空格子（不剥离格子结构本身，与 countGridCells 口径一致）。
-  //    ⚠️ 必须在 2l（载体×题型正规化）之后执行：2l 会先剥离"表达/写话类题内混入的书写格 class"
-  //    （保留格子内文字），此处只处理剥离后仍保留的书写格（即该用格子的 must 类题）——顺序颠倒会把
-  //    表达类题混入格子里的示范字误清空（历史事故：forbid 回归测试"<span class=tian-zi-ge>海</span>"）
-  if (has('writing-grid-fix')) {
-    try {
-      const tpl6 = document.createElement('template');
-      tpl6.innerHTML = out;
-      const ansBound6 = findAnswerBound(tpl6.content);
-      const gridEls = Array.from(tpl6.content.querySelectorAll(
-        // 🔧 行式格 span 形态补齐（four-line-three/sixian-ge/pinyin-line）：四线三格/拼音格常以行内 span 出现
-        //   （<span class="four-line-three">cat</span>），曾选择器只收 div 形态与 span 田字格 → 内嵌答案字漏清
-        'div.tian-zi-ge, div.mi-zi-ge, div.four-line-three, div.sixian-ge, div.pinyin-line, div.zuo-wen-ge, span.tian-zi-ge, span.mi-zi-ge, span.four-line-three, span.sixian-ge, span.pinyin-line'
-      // 2026-09-29（补漏点·同源）：答案区内的格子**不得清空**——答案区里的格子常直接承载答案字
-      //    （答案呈现），清空即等于删答案。原 2j-6 无答案区排除，是"答案区判据未全通道接入"的漏点。
-      //    同批去一刀切：`zuo-wen-ge` 为**语文专属**载体，非语文学科若出现属误产，**不代其清空**
-      //    （避免跨学科一刀切改动他科内容）。
-      )).filter((g) => !isInAnswerArea(g, ansBound6))
-        .filter((g) => !(subject !== '语文' && g.classList.contains('zuo-wen-ge')));
-      let cleared = 0;
-      for (const g of gridEls) {
-        // 🔧 示范格豁免（2026-08）：格所在题块/紧邻文本含语义引导（例：/例如/示例/照样子/仿照/示范/仿写）
-        //    时视为示范字（题干一部分，非答案），保留不清空——避免误删"例：树"里的示范字；
-        //    判定作用域=上溯 3 层 + 紧邻前兄弟，防空跨大题污染
-        let demoCtx = '', dg = g;
-        for (let k = 0; k < 3 && dg; k++) { demoCtx = (dg.textContent || '') + demoCtx; dg = dg.parentElement; }
-        demoCtx += ' ' + (g.previousSibling?.textContent || '');
-        if (/例[:：]|例如|示例|照样子|仿照|示范|仿写/.test(demoCtx)) continue;
-        // 1) 清空内层 span 的非空文本（保留 span 结构；&emsp; 空格子不剥离）
-        for (const sp of Array.from(g.querySelectorAll('span'))) {
-          const nonBlank = (sp.textContent || '').replace(/\s|\u3000/g, '');
-          if (nonBlank) { sp.innerHTML = '&emsp;'; cleared += 1; }
-        }
-        // 2) 清空格子 div 内的直接文本节点（AI 直书"<div class=...>字</div>"形态）
-        for (const child of Array.from(g.childNodes)) {
-          if (child.nodeType === Node.TEXT_NODE) {
-            const nonBlank = (child.textContent || '').replace(/\s|\u3000/g, '');
-            if (nonBlank) { child.textContent = '　'; cleared += 1; }
-          }
-        }
-      }
-      if (cleared > 0) {
-        out = tpl6.innerHTML;
-        issues.push({ severity: 'info', type: 'writing-grid-clear', message: `已清空 ${cleared} 处书写格内预填内容（保留空格子，学生可作答）` });
-        fixed += cleared;
-      }
-    } catch (e) {
-      console.warn('⚠️ 书写格内容剥离失败:', e.message);
-    }
-  }
+  // ── 2j-6. 书写格内容剥离：**已下线（2026-10-07 · 属主裁定"下线"）** ────────────────
+  //    原实现把格内非空内容**直接改写**（span→`&emsp;`、格子直接文本节点→`　`）、`out = tpl6.innerHTML` 并计 `fixed`
+  //    ⇒ 属"**替模型删内容**"的**越权**（违"程序不越权／不依赖程序兜底"）。
+  //    且其判定带**四层豁免**：① 答案区排除 ② 非语文的作文格排除 ③ **示范格靠上下文关键词猜**（例:/例如/示例/照样子/仿照/示范/仿写）
+  //    ④ 执行顺序依赖（须在 2l 之后，颠倒即误清——历史事故已记原注释）⇒ **报不准**；③ 更与判据侧正句
+  //    "**严禁预填字或答案、格内留空供作答**"（本规则 `promptHint`）**相抵**，等于替违规形态开路。
+  //    ⇒ **整步撤除**，根因交回**判据侧**（正句在位，非判据缺失；属"判据在、模型未遵守"）。
+  //    若真机仍高频复现，按四问查"判据是否可自判／有口子／相抵"，**不再加程序兜底**。
+  //    ⚠️ 本规则（`writing-grid-fix`）**其余职责不受影响、保留**：越界剥离（按 学科×学段 允许表）＋ 载体×题型正规化。
 
   // ── 3. 答案区一致性（规则 answer-section-exam/answer-section-teaching：容器补全 / answer-coverage-guard：题号覆盖）──
   {

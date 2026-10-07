@@ -118,34 +118,37 @@ describe('根治回归：误报消除（答案区评分标准标题不判"缺描
   });
 });
 
-describe('根治回归：书写格内容剥离（田字格预填答案 → 空格子）', () => {
-  // ⚠️ 2026-09-29 待办（用户已同意）：这条"程序侧清空格内预填内容"是**替模型删内容**的越位，
-  //    计划改为"只报不改"。改动面牵扯 3 处编码旧口径的断言（本文件 2 处 + examValidator.test.js 1 处），
-  //    需连同那 3 处一并复核后再落，避免只改一半。**本轮未改**，保持既有行为。
-  it('div 内 span 预填字 → 清空为空格子，保留结构', () => {
+describe('根治回归：书写格内容剥离【**已下线**】——格内预填内容**原样保留**（交编辑核对）', () => {
+  // 🔴 2026-10-07（属主裁定"下线"）：原 2j-6"清空格内预填内容"＝**替模型删内容的越权**，且判定带**四层豁免**
+  //    （答案区／非语文作文格／**示范格靠上下文关键词猜**／执行顺序依赖）⇒ **报不准**；"示范格豁免"更与判据侧正句
+  //    "严禁预填字或答案、格内留空供作答"（`validatorRules` 的 `writing-grid-fix.promptHint`）**相抵**。
+  //    ⇒ **整步撤除**，根因交回**判据侧**（正句在位，非判据缺失）。
+  //    原 2026-09-29 待办（"改只报不改"）经复核**升级为"下线"**：报不准的 notice 即纯噪音，不留。
+  it('div 内 span 预填字 → **不再清空**（原样保留，格子结构不动）', () => {
     const html = [
       '<h2>一、识字与写字（共1题，共10分）</h2>',
       '<p>1. 看拼音写词语。（每词2分，共10分）</p>',
       '<p>qīng wā xiǎo hé</p>',
       '<div class="tian-zi-ge"><span>春</span></div><div class="tian-zi-ge"><span>天</span></div>',
     ].join('\n');
-    const { html: out } = run(html);
-    // 格子结构保留、内容已清空
+    const { html: out, issues } = run(html);
     expect((out.match(/class="tian-zi-ge"/g) || []).length).toBe(2);
-    expect(out).not.toContain('<span>春</span>');
-    expect(out).not.toContain('<span>天</span>');
+    expect(out).toContain('<span>春</span>'); // 不再替模型删内容
+    expect(out).toContain('<span>天</span>');
+    expect(issues.some((i) => i.type === 'writing-grid-clear')).toBe(false); // 该上报已随机制撤除
   });
 
-  it('span 形态格子直书字 → 清空保留空格子', () => {
+  it('span 形态格子直书字 → **不再清空**（原样保留）', () => {
     const html = [
       '<h2>一、识字与写字（共1题，共4分）</h2>',
       '<p>2. 抄写生字。（每字1分，共4分）</p>',
       '<span class="tian-zi-ge">日</span><span class="tian-zi-ge">月</span>',
     ].join('\n');
-    const { html: out } = run(html);
+    const { html: out, issues } = run(html);
     expect((out.match(/class="tian-zi-ge"/g) || []).length).toBe(2);
-    expect(out).not.toContain('>日<');
-    expect(out).not.toContain('>月<');
+    expect(out).toContain('>日<');
+    expect(out).toContain('>月<');
+    expect(issues.some((i) => i.type === 'writing-grid-clear')).toBe(false);
   });
 });
 
