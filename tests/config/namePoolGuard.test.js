@@ -30,6 +30,15 @@ const RULES = [
   ['以做法/要求词起句', (n) => !/^(每|把|请|按要求|分别|依次)/.test(n)],
   ['含做法/要求词、助词尾或纯活动名', (n) => !/(组织|安排|配置|须|的$|(闯关|游戏|大冒险)$)/.test(n)],
 ];
+/** 题型名（2026-10-07 · 配套"现实对账"）：现实专项名里混有题型名 ⇒ **一律不得进栏目名**（无题型诱导铁律）。
+ *  **豁免 `应用题`**——它同时是数学**既有裁定的领域/专项名**（〔73〕亦已因它删除裸字"应"的误报），故不判。
+ *  范围＝通用池 ＋ 15 学科定制池 ＋ 领域层；**不含 `examPaperBlueprints`**——其块名经 2026-10-05 用户裁定"**不算诱导、保留**"。 */
+const TASK_TYPE_NAMES = [
+  '选择题', '填空题', '判断题', '连线题', '简答题', '计算题', '作图题', '实验题', '材料题', '阅读题', '改错题', '排序题',
+  '完形填空', '七选五', '语法单选', '单项选择', '多项选择', '适当的形式填空',
+];
+const taskTypeHits = (names) => names.map(bare)
+  .filter((n) => n && n !== '应用题' && TASK_TYPE_NAMES.some((w) => n.includes(w)));
 const viol = (n) => RULES.filter(([, ok]) => !ok(n)).map(([label]) => label);
 /** 剥掉选项层 emoji 前缀后再判（emoji 是选择器前缀，不是栏目名的一部分） */
 const bare = (n) => String(n || '').replace(/^[\p{Extended_Pictographic}\uFE0F\u200D\s]+/u, '');
@@ -116,6 +125,17 @@ describe('附·4 三·6 名池体检·机检臂（名性质：合规或已登记
     for (const g of new Set([...Object.keys(registered), ...Object.keys(actual)])) {
       expect((actual[g] || []).sort(), `${g} 的分型学科清单须与登记一致（新增/减少都要更新登记）`).toEqual((registered[g] || []).sort());
     }
+  });
+
+  it('🔴 题型名不进栏目名（现实对账配套；examPaperBlueprints 不在范围内）', () => {
+    const hit = [];
+    for (const g of COLUMN_TYPES) {
+      for (const [who, names] of [['通用', poolOf(g)], ...subjectPoolsOf(g)]) {
+        for (const n of taskTypeHits(names)) hit.push(`${g}／${who}「${n}」`);
+      }
+    }
+    for (const n of taskTypeHits(domainNamesOf())) hit.push(`领域层「${n}」`);
+    expect(hit, `以下栏目名含题型名（无题型诱导铁律）：${hit.join(' / ')}`).toEqual([]);
   });
 
   it('errorbook（题内分项型）：**不按栏目名判**（其 sections 是每题组成分项；取全修正）', () => {
