@@ -23,6 +23,7 @@
 //   并加一条**单源一致性**断言（special 通用池与 15 处学科定制池须逐字同名同注，防"改了通用没改定制"重演）。
 import { describe, it, expect } from 'vitest';
 import { TEACHING_BLUEPRINTS, TEACHING_SUBJECT_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
+import { STAGE_SUBJECTS } from '../../src/config/promptLibrary.js';
 import { readFileSync } from 'node:fs';
 import { specialDomainOptions, resolveSpecialDomain } from '../../src/config/specialDomains.js';
 
@@ -143,6 +144,33 @@ describe('附·4 三·6 名池体检·机检臂（名性质：合规或已登记
     expect(src, 'UI 必须直读注册库（specialDomainOptions）').toContain('specialDomainOptions(');
     const hard = [...new Set(domainNamesOf())].filter((n) => n && n.length >= 3 && src.includes(`'${n}'`));
     expect(hard, `GenerateModule.vue 硬编码了领域/栏目名：${hard.join(' / ')}`).toEqual([]);
+  });
+
+  it('🔴 学段边界：领域只出现在**该学科实际开设**的学段（单一事实源 STAGE_SUBJECTS；防全学段广播/学段弄错）', () => {
+    // 属主 2026-10-07 提醒：有些学科只在指定学段开设（如 思想政治只高中、科学只到初中、物理/化学/生物/历史/地理只初高）
+    const subjStages = {};
+    for (const [st, subs] of Object.entries(STAGE_SUBJECTS)) {
+      for (const s of subs) (subjStages[s] = subjStages[s] || []).push(st);
+    }
+    const bad = [];
+    // ① 学科在该学段**不**开设 ⇒ 必须**没有**领域（防"全学段广播"）
+    for (const [st, subs] of Object.entries(STAGE_SUBJECTS)) {
+      for (const sub of Object.keys(subjStages)) {
+        if (subs.includes(sub)) continue;
+        const opts = specialDomainOptions(sub, st) || [];
+        if (opts.length) bad.push(`${sub}·${st}（该学段不开设，却给了 ${opts.length} 个领域）`);
+      }
+    }
+    // ② 已给出的领域，其 stageList 必须**含**该学段（防"学段错配"）
+    for (const [sub, stages] of Object.entries(subjStages)) {
+      for (const st of stages) {
+        for (const o of specialDomainOptions(sub, st) || []) {
+          const d = resolveSpecialDomain(sub, st, o.value);
+          if (!d || !d.stageList || !d.stageList.includes(st)) bad.push(`${sub}·${st}「${o.value}」（stageList 不含本学段）`);
+        }
+      }
+    }
+    expect(bad, `学段边界违规：${bad.join(' / ')}`).toEqual([]);
   });
 
   it('errorbook（题内分项型）：**不按栏目名判**（其 sections 是每题组成分项；取全修正）', () => {
