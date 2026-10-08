@@ -296,14 +296,10 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     },
     errorbook: {
       label: '易错题本',
-      sections: [
-        { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-        { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-        { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-        { name: '正确解答', note: '分步完整解答' },
-        { name: '方法提炼', note: '归纳本类题通用策略' },
-        { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-      ],
+      // 🔴 2026-10-08（第 7 批 errorbook 面 3·〔214〕〔215〕）：收敛到单源——原 15 处**手写短版注**（d5365af·2026-08-26）
+      //   与单源 ERRORBOOK_FACETS（793f8c0·2026-09-28 建立）分叉，且因**定制池覆盖通用池**使单源 fuller 注永不生效。
+      //   现统一引用单源（各池独立实例，防共享数组被 FORMAL_SECTIONS 就地改写）；名与注遂与通用池逐字同源。
+      sections: [...ERRORBOOK_FACETS],
     },
     review: {
       label: '复习资料',
@@ -378,14 +374,10 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     },
     errorbook: {
       label: '易错题本',
-      sections: [
-        { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-        { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-        { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-        { name: '正确解答', note: '分步完整解答' },
-        { name: '方法提炼', note: '归纳本类题通用策略' },
-        { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-      ],
+      // 🔴 2026-10-08（第 7 批 errorbook 面 3·〔214〕〔215〕）：收敛到单源——原 15 处**手写短版注**（d5365af·2026-08-26）
+      //   与单源 ERRORBOOK_FACETS（793f8c0·2026-09-28 建立）分叉，且因**定制池覆盖通用池**使单源 fuller 注永不生效。
+      //   现统一引用单源（各池独立实例，防共享数组被 FORMAL_SECTIONS 就地改写）；名与注遂与通用池逐字同源。
+      sections: [...ERRORBOOK_FACETS],
     },
     review: {
       label: '复习资料',
@@ -458,14 +450,10 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     },
     errorbook: {
       label: '易错题本',
-      sections: [
-        { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-        { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-        { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-        { name: '正确解答', note: '分步完整解答' },
-        { name: '方法提炼', note: '归纳本类题通用策略' },
-        { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-      ],
+      // 🔴 2026-10-08（第 7 批 errorbook 面 3·〔214〕〔215〕）：收敛到单源——原 15 处**手写短版注**（d5365af·2026-08-26）
+      //   与单源 ERRORBOOK_FACETS（793f8c0·2026-09-28 建立）分叉，且因**定制池覆盖通用池**使单源 fuller 注永不生效。
+      //   现统一引用单源（各池独立实例，防共享数组被 FORMAL_SECTIONS 就地改写）；名与注遂与通用池逐字同源。
+      sections: [...ERRORBOOK_FACETS],
     },
     review: {
       label: '复习资料',
@@ -537,14 +525,10 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     },
     errorbook: {
       label: '易错题本',
-      sections: [
-        { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-        { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-        { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-        { name: '正确解答', note: '分步完整解答' },
-        { name: '方法提炼', note: '归纳本类题通用策略' },
-        { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-      ],
+      // 🔴 2026-10-08（第 7 批 errorbook 面 3·〔214〕〔215〕）：收敛到单源——原 15 处**手写短版注**（d5365af·2026-08-26）
+      //   与单源 ERRORBOOK_FACETS（793f8c0·2026-09-28 建立）分叉，且因**定制池覆盖通用池**使单源 fuller 注永不生效。
+      //   现统一引用单源（各池独立实例，防共享数组被 FORMAL_SECTIONS 就地改写）；名与注遂与通用池逐字同源。
+      sections: [...ERRORBOOK_FACETS],
     },
     review: {
       label: '复习资料',
@@ -614,14 +598,10 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     },
     errorbook: {
       label: '易错题本',
-      sections: [
-        { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-        { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-        { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-        { name: '正确解答', note: '分步完整解答' },
-        { name: '方法提炼', note: '归纳本类题通用策略' },
-        { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-      ],
+      // 🔴 2026-10-08（第 7 批 errorbook 面 3·〔214〕〔215〕）：收敛到单源——原 15 处**手写短版注**（d5365af·2026-08-26）
+      //   与单源 ERRORBOOK_FACETS（793f8c0·2026-09-28 建立）分叉，且因**定制池覆盖通用池**使单源 fuller 注永不生效。
+      //   现统一引用单源（各池独立实例，防共享数组被 FORMAL_SECTIONS 就地改写）；名与注遂与通用池逐字同源。
+      sections: [...ERRORBOOK_FACETS],
     },
     review: {
       label: '复习资料',
@@ -671,14 +651,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '概念规律', note: '本单元要求掌握的概念与规律都涉及到' },
       { name: '书写呈现', note: '化学用语与单位书写规范呈现' },
     ] },
-    errorbook: { label: '易错题本', sections: [
-      { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-      { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-      { name: '正确解答', note: '分步完整解答' },
-      { name: '方法提炼', note: '归纳本类题通用策略' },
-      { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-    ] },
+    // 🔴 2026-10-08（第 7 批·〔214〕〔215〕）：收敛到单源 ERRORBOOK_FACETS（原手写短版注分叉·详见首个 errorbook 处说明）。
+    errorbook: { label: '易错题本', sections: [...ERRORBOOK_FACETS] },
     review: { label: '复习资料', sections: [
       { name: '知识框架', note: '本单元概念、物质性质、方程式与实验方法都涉及到' },
       { name: '核心知识梳理', note: '按知识点逐条梳理，重点难点突出' },
@@ -724,14 +698,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '结构功能', note: '本单元要求掌握的结构与功能要点都涉及到' },
       { name: '书写呈现', note: '结构与名称标注书写规范呈现' },
     ] },
-    errorbook: { label: '易错题本', sections: [
-      { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-      { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-      { name: '正确解答', note: '分步完整解答' },
-      { name: '方法提炼', note: '归纳本类题通用策略' },
-      { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-    ] },
+    // 🔴 2026-10-08（第 7 批·〔214〕〔215〕）：收敛到单源 ERRORBOOK_FACETS（原手写短版注分叉·详见首个 errorbook 处说明）。
+    errorbook: { label: '易错题本', sections: [...ERRORBOOK_FACETS] },
     review: { label: '复习资料', sections: [
       { name: '知识框架', note: '本单元概念、结构与功能、实验方法都涉及到' },
       { name: '核心知识梳理', note: '按知识点逐条梳理，重点难点突出' },
@@ -777,14 +745,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '阶段特征', note: '本单元阶段特征与线索都涉及到' },
       { name: '书写呈现', note: '时间与事件表述书写规范呈现' },
     ] },
-    errorbook: { label: '易错题本', sections: [
-      { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-      { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-      { name: '正确解答', note: '分步完整解答' },
-      { name: '方法提炼', note: '归纳本类题通用策略' },
-      { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-    ] },
+    // 🔴 2026-10-08（第 7 批·〔214〕〔215〕）：收敛到单源 ERRORBOOK_FACETS（原手写短版注分叉·详见首个 errorbook 处说明）。
+    errorbook: { label: '易错题本', sections: [...ERRORBOOK_FACETS] },
     review: { label: '复习资料', sections: [
       { name: '知识框架', note: '本单元史实、阶段特征与线索都涉及到' },
       { name: '核心知识梳理', note: '按知识点逐条梳理，重点难点突出' },
@@ -830,14 +792,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '地名数据', note: '本单元要求掌握的地名与关键数据都涉及到' },
       { name: '书写呈现', note: '地图要素与名称标注书写规范呈现' },
     ] },
-    errorbook: { label: '易错题本', sections: [
-      { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-      { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-      { name: '正确解答', note: '分步完整解答' },
-      { name: '方法提炼', note: '归纳本类题通用策略' },
-      { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-    ] },
+    // 🔴 2026-10-08（第 7 批·〔214〕〔215〕）：收敛到单源 ERRORBOOK_FACETS（原手写短版注分叉·详见首个 errorbook 处说明）。
+    errorbook: { label: '易错题本', sections: [...ERRORBOOK_FACETS] },
     review: { label: '复习资料', sections: [
       { name: '知识框架', note: '本单元地理要素与区域知识都涉及到' },
       { name: '核心知识梳理', note: '按知识点逐条梳理，重点难点突出' },
@@ -882,14 +838,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '时政术语', note: '本单元要求掌握的时政与学科术语都涉及到' },
       { name: '表述规范', note: '学科用语与观点表述书写规范呈现' },
     ] },
-    errorbook: { label: '易错题本', sections: [
-      { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-      { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-      { name: '正确解答', note: '分步完整解答' },
-      { name: '方法提炼', note: '归纳本类题通用策略' },
-      { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-    ] },
+    // 🔴 2026-10-08（第 7 批·〔214〕〔215〕）：收敛到单源 ERRORBOOK_FACETS（原手写短版注分叉·详见首个 errorbook 处说明）。
+    errorbook: { label: '易错题本', sections: [...ERRORBOOK_FACETS] },
     review: { label: '复习资料', sections: [
       { name: '知识框架', note: '本单元概念、原理与知识都涉及到' },
       { name: '核心知识梳理', note: '按知识点逐条梳理，重点难点突出' },
@@ -937,14 +887,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '核心观点', note: '本单元要求掌握的行为准则与判断要点都涉及到' },
       { name: '表述规范', note: '观点与做法表述书写规范呈现' },
     ] },
-    errorbook: { label: '易错题本', sections: [
-      { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-      { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-      { name: '正确解答', note: '分步完整解答' },
-      { name: '方法提炼', note: '归纳本类题通用策略' },
-      { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-    ] },
+    // 🔴 2026-10-08（第 7 批·〔214〕〔215〕）：收敛到单源 ERRORBOOK_FACETS（原手写短版注分叉·详见首个 errorbook 处说明）。
+    errorbook: { label: '易错题本', sections: [...ERRORBOOK_FACETS] },
     review: { label: '复习资料', sections: [
       { name: '知识框架', note: '本单元道德与法律知识都涉及到' },
       { name: '核心知识梳理', note: '按知识点逐条梳理，重点难点突出' },
@@ -993,14 +937,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '操作步骤', note: '本单元要求掌握的操作步骤都涉及到' },
       { name: '书写呈现', note: '流程图与代码书写规范呈现' },
     ] },
-    errorbook: { label: '易错题本', sections: [
-      { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-      { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-      { name: '正确解答', note: '分步完整解答' },
-      { name: '方法提炼', note: '归纳本类题通用策略' },
-      { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-    ] },
+    // 🔴 2026-10-08（第 7 批·〔214〕〔215〕）：收敛到单源 ERRORBOOK_FACETS（原手写短版注分叉·详见首个 errorbook 处说明）。
+    errorbook: { label: '易错题本', sections: [...ERRORBOOK_FACETS] },
     review: { label: '复习资料', sections: [
       { name: '知识框架', note: '本单元概念、原理与操作要点都涉及到' },
       { name: '核心知识梳理', note: '按知识点逐条梳理，重点难点突出' },
@@ -1049,14 +987,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '作品积累', note: '本单元要求掌握的作品与作者都涉及到' },
       { name: '书写呈现', note: '谱例与术语书写规范呈现' },
     ] },
-    errorbook: { label: '易错题本', sections: [
-      { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-      { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-      { name: '正确解答', note: '分步完整解答' },
-      { name: '方法提炼', note: '归纳本类题通用策略' },
-      { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-    ] },
+    // 🔴 2026-10-08（第 7 批·〔214〕〔215〕）：收敛到单源 ERRORBOOK_FACETS（原手写短版注分叉·详见首个 errorbook 处说明）。
+    errorbook: { label: '易错题本', sections: [...ERRORBOOK_FACETS] },
     review: { label: '复习资料', sections: [
       { name: '知识框架', note: '本单元乐理、作品与音乐要素都涉及到' },
       { name: '核心知识梳理', note: '按知识点逐条梳理，重点难点突出' },
@@ -1105,14 +1037,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '名作积累', note: '本单元要求掌握的名作与作者都涉及到' },
       { name: '书写呈现', note: '名称标注与画面描述书写规范呈现' },
     ] },
-    errorbook: { label: '易错题本', sections: [
-      { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-      { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-      { name: '正确解答', note: '分步完整解答' },
-      { name: '方法提炼', note: '归纳本类题通用策略' },
-      { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-    ] },
+    // 🔴 2026-10-08（第 7 批·〔214〕〔215〕）：收敛到单源 ERRORBOOK_FACETS（原手写短版注分叉·详见首个 errorbook 处说明）。
+    errorbook: { label: '易错题本', sections: [...ERRORBOOK_FACETS] },
     review: { label: '复习资料', sections: [
       { name: '知识框架', note: '本单元造型/色彩/构图知识与名作都涉及到' },
       { name: '核心知识梳理', note: '按知识点逐条梳理，重点难点突出' },
@@ -1161,14 +1087,8 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       { name: '健康常识', note: '本单元要求掌握的安全与健康常识都涉及到' },
       { name: '书写呈现', note: '动作步骤描述书写规范呈现' },
     ] },
-    errorbook: { label: '易错题本', sections: [
-      { name: '题目呈现', note: '呈现题目（保留关键信息，不省略题干）' },
-      { name: '典型错解', note: '本知识点的典型错法或错答，指出错在哪一步' },
-      { name: '错因剖析', note: '具体到知识点或解题步骤，归因明确' },
-      { name: '正确解答', note: '分步完整解答' },
-      { name: '方法提炼', note: '归纳本类题通用策略' },
-      { name: '变式训练', note: '1 道变式（不复刻本题思路）' },
-    ] },
+    // 🔴 2026-10-08（第 7 批·〔214〕〔215〕）：收敛到单源 ERRORBOOK_FACETS（原手写短版注分叉·详见首个 errorbook 处说明）。
+    errorbook: { label: '易错题本', sections: [...ERRORBOOK_FACETS] },
     review: { label: '复习资料', sections: [
       { name: '知识框架', note: '本单元动作要领、规则与健康知识都涉及到' },
       { name: '核心知识梳理', note: '按知识点逐条梳理，重点难点突出' },

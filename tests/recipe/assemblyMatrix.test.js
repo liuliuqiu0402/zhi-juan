@@ -458,4 +458,32 @@ describe('易错题本分项名单一事实源（promptLibrary 与 teachingBluep
       expect(tpl, `指令库不得回潮旧分项名「${stale}」`).not.toContain(stale);
     }
   });
+
+  // 🔴 2026-10-08（第 7 批 errorbook 面 3 · 台账〔214〕〔215〕）：上一条只守**分项名**；补守**分项注**——
+  //   病根：15 处学科定制池 `sections` 曾**手写短版注**（d5365af·2026-08-26），与单源 ERRORBOOK_FACETS
+  //   （793f8c0·2026-09-28 建立）**分叉**，且因 `getTeachingBlueprint` 取 `bp = custom || def`（**定制池整体覆盖通用池**）
+  //   ⇒ **单源 fuller 注永不生效**。处置：15 处定制池 `sections` 统一 `[...ERRORBOOK_FACETS]`。
+  //   本断言对齐 special 的单源断言（`tests/config/namePoolGuard.test.js:142`"通用池与 15 科定制池逐字同名同注"）。
+  it('🔴 errorbook 分项**注**亦单源：通用池 与 15 学科定制池 逐字同注（防"改了单源没改定制"重演）', () => {
+    const own = (bp) => (bp?.errorbook?.sections || []).map((s) => `${s.name}｜${s.note}`);
+    const generic = own(TEACHING_BLUEPRINTS);
+    const off = Object.keys(TEACHING_SUBJECT_BLUEPRINTS).filter((sub) => {
+      const mine = own(TEACHING_SUBJECT_BLUEPRINTS[sub]);
+      return mine.length && JSON.stringify(mine) !== JSON.stringify(generic);
+    });
+    expect(off, `以下学科的 errorbook 分项（名｜注）与通用池不一致（应单源对齐）：${off.join('、')}`).toEqual([]);
+    // 独立实例：定制池不得与通用池共享同一数组（防 `_applyFormalSections` 就地 splice 互相牵连）
+    expect(TEACHING_SUBJECT_BLUEPRINTS['语文'].errorbook.sections,
+      '定制池 errorbook.sections 应为独立实例（`[...ERRORBOOK_FACETS]`）').not.toBe(TEACHING_BLUEPRINTS.errorbook.sections);
+  });
+
+  it('🔴 errorbook 单源收敛**已生效**：注入的分项注带单源限定词（收敛前为短版，本断言必 fail）', () => {
+    const QUALIFIERS = ['归因明确，不写空泛套话', '分步完整解答，讲透解题思路', '归纳本类题可迁移的通用策略', '每题 1 道变式（不复刻本题思路）'];
+    for (const [sub, st] of [['语文', 'middle'], ['数学', 'middle'], ['英语', 'high']]) {
+      const inject = buildTeachingInjection({ genType: 'errorbook', stage: st, subject: sub });
+      for (const q of QUALIFIERS) {
+        expect(inject, `${sub}·${st} 生效分项注应含单源限定词「${q}」`).toContain(q);
+      }
+    }
+  });
 });
