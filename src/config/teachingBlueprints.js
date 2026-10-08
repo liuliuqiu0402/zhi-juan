@@ -927,7 +927,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     dictation: { label: '默写积累', sections: [
       { name: '道德法律常识', note: '本单元要求掌握的常识性内容，在语境中留空呈现（不孤立罗列）' },
-      { name: '道德修养与法治观念', note: '本单元要求掌握的行为准则与判断要点都涉及到' },
+      { name: '核心观点', note: '本单元要求掌握的行为准则与判断要点都涉及到' },
       { name: '表述规范', note: '观点与做法表述书写规范呈现' },
     ] },
     errorbook: { label: '易错题本', sections: [
