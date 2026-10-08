@@ -69,6 +69,36 @@ const domainNamesOf = () => {
   return out;
 };
 
+/** 2026-10-08（〔132〕领域层 note 零枚举）：领域层 sections 的 **note** 单列一支。
+ *  为什么必须机检 note：附·4 七 硬约束②（属主裁定）要求 note **零诱导**（无枚举清单／无"（如…）"举例），
+ *  但原机检只判**名**（`domainNamesOf`）⇒ note 从未被扫 ⇒ S3 时语文/数学等科的枚举漏网（英语科系属主手工收口）。
+ *  判定三条：① banned-list（本次收口的 27 条原串片段，照 `bpWordingGuard` 范式，防回潮）；
+ *           ② 括注内出现 `/` 或 `、` 并列（＝列举）；③ 括注以"等"收尾（＝开放举例）。
+ *  ⚠️ 只扫 note、**不扫 `desc`**——desc 是**选项层 UI 展示名、不进注入**，其枚举（如"儿歌/童话…"）是既有设计。 */
+const domainNotesOf = () => {
+  const out = [];
+  for (const sub of SUBJECTS) {
+    for (const st of STAGES) {
+      for (const o of specialDomainOptions(sub, st) || []) {
+        const d = resolveSpecialDomain(sub, st, o.value) || {};
+        for (const s of d.sections || []) if (s && s.note) out.push(s.note);
+      }
+    }
+  }
+  return out;
+};
+
+/** 领域层 note 枚举 banned-list（2026-10-08 收口的 27 条原串片段；防回潮） */
+const NOTE_ENUM_BANNED = [
+  '按学段取拼音/多音字', '含近反义词、成语', '旧体系对应论述类/实用类文本', '小说/散文等', '句式/标点/病句等',
+  '情节/人物/主题', '实词/句意/翻译', '成语/词语辨析', '病句/句式/衔接连贯',
+  '口算/直接写得数', '竖式/脱式', '统计表/统计图', '定义域/值域/对应关系', '单调性/奇偶性/周期性/最值等',
+  '随机事件与样本空间', '词形变化、句法功能、语用功能',
+  '函数与方程、含参讨论', '任意角与弧度制', '同角关系、诱导公式', '等差/等比数列的项与和',
+  '与函数/不等式', '体积/表面积', '椭圆/双曲线/抛物线', '与向量/代数',
+  '频率分布直方图、用样本估计总体', '地图、图表与示意图', '数据/情境自行拟制',
+];
+
 /** C 类豁免（跨批移交）：**待该批改名后移出**；此处逐名登记命中的规则面 */
 /** 🔴 2026-10-07（取全修正当日）：special 兜底池两名已按调研改名（"基础巩固／典型例题解析"）；
  *  "变式训练"保留（FORMAL_SECTIONS 里 2026-09-28 用户裁定的必备栏目）。**扩到学科定制池后新报出 1 条**：
@@ -184,6 +214,22 @@ describe('附·4 三·6 名池体检·机检臂（名性质：合规或已登记
     expect(names.length, '应扫到真正生效的领域层').toBeGreaterThan(0);
     const bad = check(names);
     expect(bad, `领域层出现"非栏目名"：${bad.map((n) => `${n}（${viol(n).join('、')}）`).join(' / ')}`).toEqual([]);
+  });
+
+  it('🔴 领域层 note 零枚举（硬约束②·2026-10-08 收口＋机检补漏）', () => {
+    const notes = [...new Set(domainNotesOf())];
+    expect(notes.length, '应扫到领域层 note（防假绿）').toBeGreaterThan(0);
+    const hit = [];
+    for (const n of notes) {
+      for (const w of NOTE_ENUM_BANNED) if (n.includes(w)) hit.push(`banned「${w}」：${n}`);
+      for (const p of n.match(/[（(][^（）()]*[）)]/g) || []) {
+        const inner = p.slice(1, -1);
+        if (/[\/、]/.test(inner)) hit.push(`括注并列：${n}`);
+        if (/等$/.test(inner)) hit.push(`开放举例：${n}`);
+      }
+    }
+    expect([...new Set(hit)],
+      `领域层 note 含枚举／举例（须改判据式，见台账〔132〕）：${[...new Set(hit)].join(' / ')}`).toEqual([]);
   });
 
   it('豁免表＝已登记的 C 类跨批移交（当前仅 dictation 1 条；不得静默增删）', () => {
