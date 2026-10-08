@@ -498,8 +498,11 @@ export function buildAnswerSpaceInstruction(subject = '', stage = '') {
  *    （examValidator：`!['summary','preview'].includes(genType)`）——于是成了"模型侧无条款 + 程序侧不补"的三不管，
  *    根因不是模型做不到，而是**协议缺位**。抽出后两处同源引用，内容型只多一条真协议、不多一套说法。
  * 载体形态由 ANSWER_REGION 决定（与程序补差 answer-area-fix 读同一张表，语义永不打架）：
- *   · carrier='line'（英语全学段/科学全学段/语文低中段）→ 整行书写横线；
- *   · 其余（数学等理科、理化生、史地政、语文中高段）→ 无线空白作答行（对齐中高考答题卡）。
+ *   · carrier='line'（**英语全学段／科学全学段／语文低·中·高段**）→ 整行书写横线；
+ *   · 其余（**语文初中／高中**，及数学等理科、理化生、史地政等 `'*'` 兜底学科）→ 无线空白作答行（对齐中高考答题卡）。
+ *   ⚠️ 2026-10-08 更正（面 10·〔156〕）：原写"语文低中段／语文中高段"，与 `ANSWER_REGION` **表本体相抵且自相矛盾**
+ *      （表：语文 `primary_low/primary_mid/primary_high` 均为 `line`、`middle/high` 为 `blank-area`，见 :653 理由"primary_high 亦保留"）
+ *      ⇒ 按表改准，**判据零变化**。
  * 消费方：buildAnswerSpaceInstruction（题类）、promptLibrary CONTENT_FORMAT（内容型内嵌题条款）。
  */
 export const buildLongAnswerCarrierInstruction = (subject = '', stage = '') => {
