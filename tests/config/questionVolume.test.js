@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { getPromptTemplate } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, STAGE_SUBJECTS } from '../../src/config/promptLibrary.js';
+import { buildTeachingInjection, getTeachingBlueprint, TEACHING_GEN_TYPES } from '../../src/config/teachingBlueprints.js';
 
 const tpl = (subject, stage, genType) => getPromptTemplate({ grade: stage, subject, genType })?.template || '';
 const KEY = '在本次勾选范围的基础上安排相应充实的训练量';
@@ -82,5 +83,33 @@ describe('题量充足（语义口径 · 2026-09-15 定版）', () => {
       const text = tpl('英语', 'primary_high', t);
       expect(text, `${t} 不得限制字数`).not.toMatch(CAP_RE);
     }
+  });
+
+  // 🔴 2026-10-08（第 5 批 dictation 面 5·〔174〕·属主提醒"不能给具体题量诱导"）：
+  //    蓝本 `stages.volume`（如"基础内容8-12条"／"正文800-1200字"）是**参考值**——**刻意不注入**（防限定 AI），
+  //    由程序侧**静默**兜底（见上方 2026-09-15 口径）；且据实查证 `teaching-volume-guard` 的阈值是**其自带硬编码**
+  //    （`GT_CHECKS` ＋ 题集类题号数<5），**并未读取本字段**（与 `teachingBlueprints.test.js` 旧注释"程序护栏配置"
+  //    相左，该注释已按本条口径改准）。**但**学科定制路径原先因 `getTeachingBlueprint` 的**对象级**浅合并把 `volume`
+  //    整档清掉（实测 472/600 为空、工具库页脚显示"—"），已按**逐档字段级**合并修回。
+  //    ⇒ **修回后必须守住"仍不进 prompt"**：本机检**逐格**核"该格解析出的 `volume` 串不得出现在
+  //      **cell 模板**与**教辅注入文本**里"（回潮即 fail）——把"题量底线永不进 prompt"这条口径受检。
+  it('🔴 题量底线（蓝本 volume）永不进 prompt：cell 与教辅注入皆不得含其字面（防题量诱导）', () => {
+    let n = 0;
+    for (const g of TEACHING_GEN_TYPES) {
+      for (const [stage, subjects] of Object.entries(STAGE_SUBJECTS)) {
+        for (const subject of subjects) {
+          const bp = getTeachingBlueprint({ genType: g, stage, subject });
+          if (!bp) continue;
+          n += 1;
+          const v = bp.stageParams?.volume || '';
+          // ① 参考值在位（学科路径同样在位；原对象级浅合并会丢）
+          expect(v, `${g}|${stage}|${subject} 题量底线（参考值）应到位`).toBeTruthy();
+          // ② 永不进 prompt：注入文本、cell 模板均不得含该字面
+          expect(buildTeachingInjection({ genType: g, stage, subject }), `${g}|${stage}|${subject} 注入不得含题量底线`).not.toContain(v);
+          expect(tpl(subject, stage, g), `${g}|${stage}|${subject} 模板不得含题量底线`).not.toContain(v);
+        }
+      }
+    }
+    expect(n, '应扫到 8 类型 × 54 开设格（防假绿）').toBeGreaterThan(400);
   });
 });

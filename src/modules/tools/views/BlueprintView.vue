@@ -689,9 +689,20 @@ for (const subj of SUBJECT_KEYS) {
     if (!def) continue;
     const custom = TEACHING_SUBJECT_BLUEPRINTS[subj]?.[t];
     const subjectStages = TEACHING_SUBJECT_BLUEPRINTS[subj]?.stages;
+    // 🔴 2026-10-08（〔174〕·同源修正）：原 `subjectStages || def.stages` 为**对象级**取用——学科级每档
+    //   只含 `note`（课标学业要求）⇒ 页脚"题量/篇幅底线"读到 `undefined`（显示"—"）。
+    //   现**逐档字段级**合并，与 `getTeachingBlueprint` **同口径**（note 覆盖、volume 保留、未覆盖档回退类型级）。
+    const typeStages = custom?.stages || def.stages || {};
     allTeach.push({
       key: `${subj}|${t}`, subject: subj, genType: t, label: def.label,
-      sections: (custom || def).sections, stages: subjectStages || def.stages, custom: !!custom,
+      sections: (custom || def).sections,
+      stages: subjectStages
+        ? Object.fromEntries(
+            [...new Set([...Object.keys(typeStages), ...Object.keys(subjectStages)])]
+              .map((k) => [k, { ...(typeStages[k] || {}), ...(subjectStages[k] || {}) }]),
+          )
+        : typeStages,
+      custom: !!custom,
     });
   }
 }

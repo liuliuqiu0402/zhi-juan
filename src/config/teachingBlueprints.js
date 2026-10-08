@@ -1412,7 +1412,20 @@ export function getTeachingBlueprint({ genType = '', stage = '', subject = '' } 
   if (!bp) return null;
   // 学段要求优先级：学科级（覆盖初高中档，未覆盖档回退通用）> 类型级 custom > 通用默认
   const subjectStages = TEACHING_SUBJECT_BLUEPRINTS[stdSubject]?.stages;
-  const stages = subjectStages ? { ...(custom?.stages || def?.stages || {}), ...subjectStages } : (custom?.stages || def?.stages || {});
+  const typeStages = custom?.stages || def?.stages || {};
+  // 🔴 2026-10-08（第 5 批 dictation 面 5·〔174〕·属主裁定"甲"·字段级合并收口）：
+  //   原为**对象级**浅合并 `{ ...typeStages, ...subjectStages }`——而 15 学科的**学科级 `stages[档]` 只含 `note`**
+  //   （课标学业要求）⇒ **整档替换**把类型级的 `volume`（**题量/篇幅底线·程序护栏配置**）一并清掉：
+  //   实测 **472 / 600** 学科×类型×学段 的 `stageParams.volume` 为空（15 学科全中、8 类型同病），
+  //   工具库页脚随之显示"题量/篇幅底线（— 等）"。**本条自述意图**（"未覆盖档回退通用"）只在**档位**粒度成立、
+  //   在**字段**粒度被违反。现改**逐档字段级**合并：`note` 仍由学科级覆盖、`volume` 保留、
+  //   学科级未覆盖的档位仍回退类型级；学科级若含类型级没有的档位也一并纳入（不丢键）。
+  const stages = subjectStages
+    ? Object.fromEntries(
+        [...new Set([...Object.keys(typeStages), ...Object.keys(subjectStages)])]
+          .map((k) => [k, { ...(typeStages[k] || {}), ...(subjectStages[k] || {}) }]),
+      )
+    : typeStages;
   const stageParams = stages[stageKey] || stages.primary_mid;
   return {
     label: bp.label, sections: bp.sections, stageParams,
