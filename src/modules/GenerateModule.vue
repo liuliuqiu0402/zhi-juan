@@ -6414,7 +6414,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
       const doms = st.doms || [];
       blueprintDetail = st.isDomain
         ? `专项领域「${doms.map(d => d.label).join('＋')}」· ${doms.some(d => d.sections && d.sections.length) ? '领域自带栏目（多选已并集去重）' : '通用栏目'} + 课标语义锚（${doms.length} 条）`
-        : `教辅结构「${genTypeLabel}」· 大类标题（按课标活动类型与素养划分）+ 学段要求`;
+        : `教辅结构「${genTypeLabel}」· 栏目标题（按课标活动类型与素养划分）+ 学段要求`;
     }
   }
   // 程序性附加段（渲染契约 + 质检规则 + 守门条款段级兜底）统一走 buildProgramAttach 单源：

@@ -267,7 +267,7 @@ describe('⑧ 质量就绪：逐 486 真实三维度核对"产出必需判据齐
         for (const m of ['【要求落实】', '【学段要求（']) {
           if (pos(t, m) < 0) bad.push(`${genType}|${subject}|${stage} —— 缺 ${m}`);
         }
-        if (genType !== 'errorbook' && pos(t, '【大类标题') < 0) bad.push(`${genType}|${subject}|${stage} —— 缺【大类标题`);
+        if (genType !== 'errorbook' && pos(t, '【栏目标题') < 0) bad.push(`${genType}|${subject}|${stage} —— 缺【栏目标题`);
       }
     }
     expect(bad.slice(0, 20), `教辅结构缺失 ${bad.length} 处`).toEqual([]);

@@ -1762,7 +1762,7 @@ const 学段名 = (stageKey = '') => STAGE_NAMES[stageKey] || '';
 export const buildSpecialDomainStructureText = (dom = {}, stageKey = '') => {
   if (!dom.sections || !dom.sections.length) return '';
   const lines = dom.sections.map((s) => `· ${s.name}——${s.note}`).join('\n');
-  return `【大类标题（下面各行即本次大类标题；按本领域课标要求划分；${dom.key}·${学段名(stageKey)}）】
+  return `【栏目标题（下面各行即本次栏目标题；按本领域课标要求划分；${dom.key}·${学段名(stageKey)}）】
 ${lines}
 · 本领域课标语义锚：${dom.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料自行拟制。`;
 };
@@ -1809,7 +1809,7 @@ export const buildSpecialDomainsStructureText = (doms = [], stageKey = '') => {
     ? `；其中 ${noSec.map((d) => d.key).join('、')} 只给课标语义锚、不另设栏目，其内容按锚自行组织`
     : '';
   const anchors = list.map((d) => `· ${d.key} 课标语义锚：${d.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料自行拟制。`).join('\n');
-  return `【大类标题（下面各行即本次大类标题；按本领域课标要求划分；${names}·${学段名(stageKey)}${mixNote}）】\n${lines}\n${anchors}`;
+  return `【栏目标题（下面各行即本次栏目标题；按本领域课标要求划分；${names}·${学段名(stageKey)}${mixNote}）】\n${lines}\n${anchors}`;
 };
 
 /** 多领域锚行（B 档，或 A/B 混选时的锚句部分；供注入侧与 A 档结构拼接） */
