@@ -478,12 +478,32 @@ describe('易错题本分项名单一事实源（promptLibrary 与 teachingBluep
   });
 
   it('🔴 errorbook 单源收敛**已生效**：注入的分项注带单源限定词（收敛前为短版，本断言必 fail）', () => {
-    const QUALIFIERS = ['归因明确，不写空泛套话', '分步完整解答，讲透解题思路', '归纳本类题可迁移的通用策略', '每题 1 道变式（不复刻本题思路）'];
+    const QUALIFIERS = ['归因明确，不写空泛套话', '分步完整解答，讲透解题思路', '归纳本类题可迁移的通用策略', '每题配变式（不复刻本题思路）'];
     for (const [sub, st] of [['语文', 'middle'], ['数学', 'middle'], ['英语', 'high']]) {
       const inject = buildTeachingInjection({ genType: 'errorbook', stage: st, subject: sub });
       for (const q of QUALIFIERS) {
         expect(inject, `${sub}·${st} 生效分项注应含单源限定词「${q}」`).toContain(q);
       }
     }
+  });
+
+  // 🔴 2026-10-08（第 7 批 errorbook 面 5 · 台账〔218〕观察项① → 〔219〕收口·属主口令"收口为零数字表述"）：
+  //   错误书本曾注入「每题 1 道变式」＋「留给学生练的一道题」——属**数字题量表述**。
+  //   口径依据：教辅"题量走程序护栏、不注入"（`specialDomainsDelivery.test.js:66` 代理 `\d+\s*[题道]`）。
+  //   收口：单源 `变式训练` 注 = 「每题配变式（不复刻本题思路）」；注入说明 = 「留给学生练的题」。
+  //   本断言把该代理**推广到全 54 格 × {注入, 指令库}**（防回潮）。
+  it('🔴 errorbook 注入／指令库 **不含数字题量**（对齐 specialDomainsDelivery:66；**排除"≥2 题"这类判重阈值**）', () => {
+    // 判据 `\d+\s*[题道]` 的**例外**：紧邻**比较符**者（如【数·量构造纪律】"同数值同运算不得在 ≥2 题复现"）
+    //   系**判重阈值**、非"资料应含多少题"，且属**计量科共享块**（改它越出本批范围）⇒ 用**负向后顾**排除。
+    const QTY = /(?<![≥＞>≤＜<])\d+\s*[题道]/;
+    const bad = [];
+    for (const cell of LEGAL_CELLS) {
+      const [subject, stage] = cell.split('|');
+      const inject = buildTeachingInjection({ genType: 'errorbook', stage, subject });
+      const tpl = getPromptTemplate({ grade: stage, subject, genType: 'errorbook' }).template || '';
+      if (QTY.test(inject)) bad.push(`${cell}·注入`);
+      if (QTY.test(tpl)) bad.push(`${cell}·指令库`);
+    }
+    expect(bad, `errorbook 含数字题量：${bad.join('、')}`).toEqual([]);
   });
 });
