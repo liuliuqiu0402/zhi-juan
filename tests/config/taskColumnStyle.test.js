@@ -44,8 +44,10 @@ describe('栏目标题风格套（2026-09）', () => {
     // 未知类型/未知套/名称不匹配 → 原样
     expect(applyColumnStyle(trio, 'summary', 'b')[0].name).toBe('基础建构');
     expect(applyColumnStyle(trio, 'practice', 'x')[0].name).toBe('基础建构');
-    const custom = mkSections(['看拼音写词语', '积累默写', '书写格']);
-    expect(applyColumnStyle(custom, 'dictation', 'b').map((s) => s.name)).toEqual(['看拼音写词语', '积累默写', '书写格']);
+    // 2026-10-08（第 5 批 dictation〔169〕·乙案）：语文 dictation 名池学段中立化（原"看拼音写词语/积累默写/书写格"）
+    //   ⇒ 样本随实况更新；仍与默认套 a 不同名 ⇒ 原样返回
+    const custom = mkSections(['字词积累', '积累默写', '书写呈现']);
+    expect(applyColumnStyle(custom, 'dictation', 'b').map((s) => s.name)).toEqual(['字词积累', '积累默写', '书写呈现']);
     // 兼容别名仍指向 practice
     expect(applyTaskColumnStyle(trio, 'd')[0].name).toBe('基础巩固');
   });
@@ -61,9 +63,10 @@ describe('栏目标题风格套（2026-09）', () => {
     expect(sum).toContain('知识网络');
     const def = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '语文' });
     expect(def).toContain('基础建构');
-    // 语文 dictation 定制栏目（看拼音写词语/积累默写/书写格）与默认套不同名 → 套不生效
+    // 语文 dictation 定制栏目（字词积累/积累默写/书写呈现；2026-10-08〔169〕学段中立化前＝"看拼音写词语/积累默写/书写格"）
+    //   与默认套不同名 → 套不生效
     const zhDict = buildTeachingInjection({ genType: 'dictation', stage: 'primary_low', subject: '语文', columnStyle: 'b' });
-    expect(zhDict).toContain('看拼音写词语');
+    expect(zhDict).toContain('字词积累');
     expect(zhDict).not.toContain('内容积累');
   });
 
