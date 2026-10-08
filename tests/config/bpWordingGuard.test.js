@@ -36,7 +36,8 @@ describe('蓝图库与指令库措辞守卫（2026-09-16 课标原则）', () =>
       if (!node || typeof node !== 'object') return;
       if (Array.isArray(node)) return node.forEach(collect);
       if (typeof node.note === 'string') notes.push(node.note);
-      if (typeof node.volume === 'string') notes.push(node.volume);
+      // 2026-10-08（台账〔279〕）：原此处同时收 `node.volume`（题量/篇幅参考值）一并查自造取向词；
+      //   `volume` 已整项退役（字段不复存在）⇒ 该行删除。
       for (const v of Object.values(node)) collect(v);
     };
     collect(TEACHING_BLUEPRINTS);

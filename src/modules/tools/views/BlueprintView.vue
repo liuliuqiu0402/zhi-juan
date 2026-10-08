@@ -385,7 +385,7 @@
               <span class="sec-note">{{ s.note }}</span>
             </div>
           </div>
-          <!-- 学段要求表：5 档全展示（生成时按所选学段注入对应档）；题量/篇幅底线由程序护栏校验，不注入 AI -->
+          <!-- 学段要求表：5 档全展示（生成时按所选学段注入对应档）；题量/篇幅不设程序侧数值、不注入 AI（见台账〔279〕） -->
           <div class="bp-stages">
             <div class="stages-head">
               📌 学段要求（5 档 · 生成时按所选学段注入对应档）
@@ -400,7 +400,7 @@
               <span class="st-note">{{ p.note || '—' }}</span>
             </div>
             <div class="stages-foot">
-              题量/篇幅参考值（{{ (bp.stages.primary_mid && bp.stages.primary_mid.volume) || '—' }} 等）：仅存档参考，<b>不注入 AI</b>、亦无程序校验；教辅无考试时长
+              本表只展示学段要求（note）：题量/篇幅<b>不设数值、不注入 AI、亦无程序校验</b>；教辅无考试时长
             </div>
           </div>
         </div>

@@ -76,7 +76,8 @@ describe('题量充足（语义口径 · 2026-09-15 定版）', () => {
   //    查证结论——**内容型提示词里没有任何字数要求**；当时程序侧 `teaching-volume-guard` 只有**下限**判据
   //    （summary 正文 <200 字、reading 选文 <80 字、题集类题号数 <5 才算"疑单薄"），且**静默**（不注入、不阻断、不改写）。
   //    ⚠️ **2026-10-08 更新（属主口令「一起下线」）**：该 guard **已整条撤除**（规则条目／执行点／`VALIDATOR_GATES` 全撤）
-  //    ⇒ 现阶段程序侧对篇幅与题量**无任何判据**；蓝本 volume 里的"正文800-1200字"仍是**参考值**——不注入、且**无程序消费方**（见台账〔276〕）。
+  //    ⇒ 现阶段程序侧对篇幅与题量**无任何判据**；**`stages.volume` 参考值亦已整项退役**（8 类全部删除，见台账〔279〕）
+  //    ⇒ 教辅侧只剩"充实的训练量"这类**非量词品质口径**（见本文件下方各用例）。
   //    本用例把"内容型与考卷不得出现字数上限/字数区间"锁死，防以后有人把篇幅做成限制。
   it('内容型与考卷不得出现"字数上限/字数区间"（篇幅只作下限静默校验，不做限制）', () => {
     // ⚠️ 勿误伤"1~2 字位"（那是空位宽度）→ 各分支加 (?!位)；
@@ -94,9 +95,12 @@ describe('题量充足（语义口径 · 2026-09-15 定版）', () => {
   //    （`GT_CHECKS` ＋ 题集类题号数<5），**并未读取本字段**（与 `teachingBlueprints.test.js` 旧注释"程序护栏配置"
   //    相左，该注释已按本条口径改准）。**但**学科定制路径原先因 `getTeachingBlueprint` 的**对象级**浅合并把 `volume`
   //    整档清掉（实测 472/600 为空、工具库页脚显示"—"），已按**逐档字段级**合并修回。
-  //    ⇒ **修回后必须守住"仍不进 prompt"**：本机检**逐格**核"该格解析出的 `volume` 串不得出现在
-  //      **cell 模板**与**教辅注入文本**里"（回潮即 fail）——把"题量底线永不进 prompt"这条口径受检。
-  it('🔴 题量底线（蓝本 volume）永不进 prompt：cell 与教辅注入皆不得含其字面（防题量诱导）', () => {
+  //    ⇒ 当时立的机检是"逐格核 `volume` 串不得进 cell／注入"；**该锁随 `volume` 整项退役而失效**（见下条·已改为反向锁）。
+  // 🗑 2026-10-08（属主口令「删」·台账〔279〕）：原「题量底线（蓝本 `volume`）永不进 prompt」机检**随 `volume` 整项退役**——
+  //    该字段已从 `TEACHING_BLUEPRINTS` 全部 8 类删除（既不进 prompt、也无消费方 ⇒ "守它不进 prompt"已无对象）。
+  //    历史留档：〔174〕曾修"学科路径 volume 丢失"，其教训（原对象级浅合并会整档丢字段）仍由
+  //    `teachingBlueprints.test.js` 的**学科路径逐格断言**承接。本条改为**反向锁**：字段不得回潮。
+  it('🔴 `stages.volume` 已退役：任何类型的 stageParams 都不得再有 volume 字段（防回潮）', () => {
     let n = 0;
     for (const g of TEACHING_GEN_TYPES) {
       for (const [stage, subjects] of Object.entries(STAGE_SUBJECTS)) {
@@ -104,12 +108,7 @@ describe('题量充足（语义口径 · 2026-09-15 定版）', () => {
           const bp = getTeachingBlueprint({ genType: g, stage, subject });
           if (!bp) continue;
           n += 1;
-          const v = bp.stageParams?.volume || '';
-          // ① 参考值在位（学科路径同样在位；原对象级浅合并会丢）
-          expect(v, `${g}|${stage}|${subject} 题量底线（参考值）应到位`).toBeTruthy();
-          // ② 永不进 prompt：注入文本、cell 模板均不得含该字面
-          expect(buildTeachingInjection({ genType: g, stage, subject }), `${g}|${stage}|${subject} 注入不得含题量底线`).not.toContain(v);
-          expect(tpl(subject, stage, g), `${g}|${stage}|${subject} 模板不得含题量底线`).not.toContain(v);
+          expect('volume' in (bp.stageParams || {}), `${g}|${stage}|${subject} stageParams 不应再有 volume（已退役·见台账〔279〕）`).toBe(false);
         }
       }
     }

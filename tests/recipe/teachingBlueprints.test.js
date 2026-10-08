@@ -25,24 +25,24 @@ describe('教辅蓝本三维度覆盖（类型 × 学段）', () => {
     }
   });
 
-  it('每个类型都覆盖 5 个学段要求（题量底线为程序护栏配置，教辅不含考试时长）', () => {
+  it('每个类型都覆盖 5 个学段要求（教辅不含考试时长；题量/篇幅不设数值·见台账〔279〕）', () => {
     for (const g of TEACHING_GEN_TYPES) {
       for (const s of STAGES) {
         const bp = getTeachingBlueprint({ genType: g, stage: s });
         expect(bp, `${g}|${s} 蓝本缺失`).toBeTruthy();
-        expect(bp.stageParams.volume, `${g}|${s} 缺题量/篇幅底线（参考值·刻意不注入 prompt）`).toBeTruthy();
+        expect(bp.stageParams.note?.trim(), `${g}|${s} 学段要求为空`).toBeTruthy();
         expect('duration' in bp.stageParams, `${g}|${s} 教辅不应含时长`).toBe(false);
         expect(bp.stageKey).toBe(s);
       }
     }
   });
 
-  it('🔴 学科定制路径同样覆盖 5 档（题量底线 ＋ 学段要求）——2026-10-08〔174〕收口（原对象级浅合并致 volume 丢失）', () => {
-    // 声明侧：每个 学科×类型×学段 都应有"题量/篇幅底线（**参考值·刻意不注入 prompt**）"＋非空学段要求。
-    // 原实现 `{ ...类型级stages, ...学科级stages }` 为**对象级**浅合并——学科级 `stages[档]` 只含 `note`
-    //   ⇒ **整档替换**把 `volume` 清掉（实测 **472/600** 为空，15 学科全中、8 类型同病）；
-    //   而上方断言只跑**无学科**（通用池）路径 ⇒ 学科路径**长期无断言**（批 2/3/4 亦未查出）。
-    // 本断言补上**学科路径**，把"漏测"变"受检"（防同类重演）。
+  // ⚠️ 2026-10-08（台账〔279〕）：本条原为〔174〕"学科路径 `volume` 丢失"的**回归锁**；`volume` 整项退役后该字段**已不存在**，
+  //   故断言只锁**学段要求 note 齐全**（"漏测→受检"的教训保留，锁对象随字段退场调整）。
+  it('🔴 学科定制路径同样覆盖 5 档**学段要求**（原〔174〕volume 回归锁随字段退役·见台账〔279〕）', () => {
+    // 原〔174〕教训（留档）：原实现 `{ ...类型级stages, ...学科级stages }` 为**对象级**浅合并，故有"整档替换丢字段"之虞；
+    //   当时被丢掉的是 `volume`（实测 472/600 为空、15 学科全中、8 类型同病），而**上方断言只跑无学科（通用池）路径** ⇒ 学科路径长期无断言。
+    //   现 `volume` 已退役（stageParams 只剩 `note`）⇒ 改为**按学科路径**逐格锁 `note` 非空。
     const subjects = Object.keys(TEACHING_SUBJECT_BLUEPRINTS);
     expect(subjects.length, '学科定制池不应为空').toBeGreaterThan(0);
     for (const subj of subjects) {
@@ -50,7 +50,6 @@ describe('教辅蓝本三维度覆盖（类型 × 学段）', () => {
         for (const s of STAGES) {
           const bp = getTeachingBlueprint({ genType: g, stage: s, subject: subj });
           expect(bp, `${subj}|${g}|${s} 蓝本缺失`).toBeTruthy();
-          expect(bp.stageParams.volume, `${subj}|${g}|${s} 缺题量/篇幅底线（学科路径被学段 note 覆盖丢失）`).toBeTruthy();
           expect(bp.stageParams.note?.trim(), `${subj}|${g}|${s} 学段要求为空`).toBeTruthy();
         }
       }

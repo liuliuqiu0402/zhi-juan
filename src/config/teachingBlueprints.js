@@ -45,8 +45,9 @@ export const TEACHING_STAGE_NAMES = {
 /**
  * 教辅结构蓝本：类型 × 学段参数
  * sections: 栏目框架（生成注入用，非固定分值）
- * stages:   各学段参数 { volume 题量/篇幅**参考值**（**无程序消费方**、不注入 prompt，仅存档参考）, note 学段要求 }
- *           —— 教辅无考试时限，不设时长；题量/篇幅一律不注入 AI（原 teaching-volume-guard 已于 2026-10-08 下线）
+ * stages:   各学段参数 { note 学段要求 }（**仅此一项**）
+ *           —— 教辅无考试时限，不设时长；**题量/篇幅不设任何程序侧数值**（原 `volume` 参考值 ＋ `teaching-volume-guard`
+ *              已于 2026-10-08 **整项退役**：既不进 prompt、也无消费方，见台账〔276〕〔279〕）
  *           —— note 为教学组织建议（符合课标理念、跨学科通用，非课标原文）；课标学段要求由指令库
  *              【学科·学段要点】+【学段特点】承载（可查可引用），本条不冒充课标条款
  */
@@ -65,11 +66,11 @@ export const TEACHING_BLUEPRINTS = {
       //    改为数学课标命题原则原义（适当提高应用性、探究性和综合性试题的比例）。
       //    ⚠️ 选面避开【学段特点】已承载的课标原义（低段"活动化、游戏化、生活化的学习设计"、高段"开放性/探究性设问"），
       //       防与同请求注入的【学段特点】构成多块同义。
-      primary_low: { volume: '6-9题', note: '注重幼小衔接' },
-      primary_mid: { volume: '8-12题', note: '内容在语境中呈现，书写与表达适度兼顾' },
-      primary_high: { volume: '10-15题', note: '提高应用性、综合性设问比例' },
-      middle: { volume: '8-12题', note: '步骤完整、书写规范' },
-      high: { volume: '10-15题', note: '题目指向综合运用' },
+      primary_low: { note: '注重幼小衔接' },
+      primary_mid: { note: '内容在语境中呈现，书写与表达适度兼顾' },
+      primary_high: { note: '提高应用性、综合性设问比例' },
+      middle: { note: '步骤完整、书写规范' },
+      high: { note: '题目指向综合运用' },
     },
   },
 
@@ -86,15 +87,15 @@ export const TEACHING_BLUEPRINTS = {
       { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
     ],
     stages: {
-      primary_low: { volume: '每板块3-4题，2-3板块', note: '题目短小，便于口头作答' },
-      primary_mid: { volume: '每板块3-5题，2-4板块', note: '围绕本单元内容，在语境中呈现' },
+      primary_low: { note: '题目短小，便于口头作答' },
+      primary_mid: { note: '围绕本单元内容，在语境中呈现' },
       // 🔧 2026-10-03（⑤去诱导·等量改写为课标原义）：原"含变式与开放设问"（≡已禁的"变式设问"类自造形式词）
       //    改为数学课标命题原则原义（适当提高应用性、探究性和综合性试题的比例）；原"含过程性设问，注重步骤与推理"
       //    改为 2022义教课程方案原义（加强知识学习与学生经验、现实生活、社会实践之间的联系）。
       //    ⚠️ 选面同样避开【学段特点】已承载的原义（高段"开放性/探究性设问"、中段"素养立意/情境真实"）。
-      primary_high: { volume: '每板块4-5题，3-4板块', note: '提高应用性、综合性设问比例' },
-      middle: { volume: '每板块3-5题，3-4板块', note: '加强知识学习与社会实践的联系' },
-      high: { volume: '每板块4-6题，3-5板块', note: '指向综合运用' },
+      primary_high: { note: '提高应用性、综合性设问比例' },
+      middle: { note: '加强知识学习与社会实践的联系' },
+      high: { note: '指向综合运用' },
     },
   },
 
@@ -111,11 +112,11 @@ export const TEACHING_BLUEPRINTS = {
     stages: {
       // 🔧 2026-10-03（⑤去诱导·等量改写为课标原义）：原自造作答方式枚举"以圈画、观察、口答等方式为主"
       //    改为 2022义教课程方案原义（注重幼小衔接），避开【学段特点】已承载的"活动化、游戏化、生活化的学习设计"。
-      primary_low: { volume: '检测2-3题', note: '注重幼小衔接' },
-      primary_mid: { volume: '检测3-4题', note: '题目含尝试作答与查资料，检测量适中' },
-      primary_high: { volume: '检测4-5题', note: '题目含自主梳理，鼓励带着疑问进课堂' },
-      middle: { volume: '检测4-5题', note: '题目含自主查阅与概括，指向重难点' },
-      high: { volume: '检测4-6题', note: '题目指向重难点与前置知识衔接' },
+      primary_low: { note: '注重幼小衔接' },
+      primary_mid: { note: '题目含尝试作答与查资料，检测量适中' },
+      primary_high: { note: '题目含自主梳理，鼓励带着疑问进课堂' },
+      middle: { note: '题目含自主查阅与概括，指向重难点' },
+      high: { note: '题目指向重难点与前置知识衔接' },
     },
   },
 
@@ -127,11 +128,11 @@ export const TEACHING_BLUEPRINTS = {
       { name: '文本设题', note: '设问指向理解运用与整体感受，题目不可直接在原文找到现成字面答案' },
     ],
     stages: {
-      primary_low: { volume: '2篇/80-150字/每篇3-4题', note: '选文短小，设问口语化' },
-      primary_mid: { volume: '2篇/150-300字/每篇3-5题', note: '选文篇幅适中，设问围绕内容大意与细节' },
-      primary_high: { volume: '2-3篇/300-500字/每篇4-6题', note: '选文类型多样，设问能引导抓住要点' },
-      middle: { volume: '2-3篇/500-900字/每篇4-6题', note: '设问能引导区分观点与事实，材料形式多样' },
-      high: { volume: '3篇/900-1500字/每篇5-7题', note: '设问可引导多角度理解与思辨，文本类型多样' },
+      primary_low: { note: '选文短小，设问口语化' },
+      primary_mid: { note: '选文篇幅适中，设问围绕内容大意与细节' },
+      primary_high: { note: '选文类型多样，设问能引导抓住要点' },
+      middle: { note: '设问能引导区分观点与事实，材料形式多样' },
+      high: { note: '设问可引导多角度理解与思辨，文本类型多样' },
     },
   },
 
@@ -145,11 +146,11 @@ export const TEACHING_BLUEPRINTS = {
       { name: '典型例题', note: '例题（含解析，讲解示范）' },
     ],
     stages: {
-      primary_low: { volume: '正文300-500字', note: '多用图表与图示' },
-      primary_mid: { volume: '正文500-800字', note: '条目清晰' },
-      primary_high: { volume: '正文800-1200字', note: '含易错点辨析' },
-      middle: { volume: '正文800-1200字', note: '含规律与方法归纳' },
-      high: { volume: '正文1200-1800字', note: '含知识网络梳理' },
+      primary_low: { note: '多用图表与图示' },
+      primary_mid: { note: '条目清晰' },
+      primary_high: { note: '含易错点辨析' },
+      middle: { note: '含规律与方法归纳' },
+      high: { note: '含知识网络梳理' },
     },
   },
 
@@ -162,11 +163,11 @@ export const TEACHING_BLUEPRINTS = {
       { name: '书写呈现', note: '书写载体按学科与学段规范给出' },
     ],
     stages: {
-      primary_low: { volume: '基础内容4-8条', note: '以本次范围核心内容为主，量小而精' },
-      primary_mid: { volume: '基础内容8-12条', note: '内容在语境中呈现，单元要求都涉及到' },
-      primary_high: { volume: '基础内容12-18条', note: '单元要求掌握的内容都涉及到，含易错点' },
-      middle: { volume: '基础内容12-16条', note: '内容在语境中考查（不留答案），含易错辨析' },
-      high: { volume: '基础内容15-20条', note: '要求内容都涉及到' },
+      primary_low: { note: '以本次范围核心内容为主，量小而精' },
+      primary_mid: { note: '内容在语境中呈现，单元要求都涉及到' },
+      primary_high: { note: '单元要求掌握的内容都涉及到，含易错点' },
+      middle: { note: '内容在语境中考查（不留答案），含易错辨析' },
+      high: { note: '要求内容都涉及到' },
     },
   },
 
@@ -182,11 +183,11 @@ export const TEACHING_BLUEPRINTS = {
     shape: 'perItem',
     sections: ERRORBOOK_FACETS,
     stages: {
-      primary_low: { volume: '4-6题', note: '按知识点或错因分类，每题结构完整' },
-      primary_mid: { volume: '5-8题', note: '归因明确' },
-      primary_high: { volume: '6-10题', note: '归因具体' },
-      middle: { volume: '6-10题', note: '归因具体到知识模块' },
-      high: { volume: '8-12题', note: '含方法性归因与迁移策略' },
+      primary_low: { note: '按知识点或错因分类，每题结构完整' },
+      primary_mid: { note: '归因明确' },
+      primary_high: { note: '归因具体' },
+      middle: { note: '归因具体到知识模块' },
+      high: { note: '含方法性归因与迁移策略' },
     },
   },
 
@@ -201,13 +202,13 @@ export const TEACHING_BLUEPRINTS = {
       { name: '综合自测', note: '自测，本单元知识点都涉及到' },
     ],
     stages: {
-      primary_low: { volume: '自测8-12题', note: '框架简明' },
-      primary_mid: { volume: '自测12-18题', note: '梳理完整，自测涉及本单元内容' },
+      primary_low: { note: '框架简明' },
+      primary_mid: { note: '梳理完整，自测涉及本单元内容' },
       // 🔧 2026-10-03（⑤去诱导·等量改写为课标原义）：原"含开放与思辨设问"（自造设问形式枚举）
       //    改为数学课标命题原则原义（适当提高应用性、探究性和综合性试题的比例），避开【学段特点】的"开放性设问"。
-      primary_high: { volume: '自测15-25题', note: '提高应用性、综合性设问比例' },
-      middle: { volume: '自测12-20题', note: '梳理成体系' },
-      high: { volume: '自测15-25题', note: '梳理成网络，自测指向综合运用' },
+      primary_high: { note: '提高应用性、综合性设问比例' },
+      middle: { note: '梳理成体系' },
+      high: { note: '梳理成网络，自测指向综合运用' },
     },
   },
 };
@@ -1365,7 +1366,7 @@ export function getTeachingBlueprint({ genType = '', stage = '', subject = '' } 
 
 /**
  * 构建教辅结构注入块（供生成指令尾部附加，与 exam 的 buildStructureText 对称）
- * 只注入栏目框架 + 学段要求；题量/篇幅一律不注入 prompt（防限定 AI；原 teaching-volume-guard 已于 2026-10-08 下线）
+ * 只注入栏目框架 + 学段要求；题量/篇幅不设数值、不注入（防限定 AI；`volume` 参考值与 teaching-volume-guard 已于 2026-10-08 整项退役）
  * @param {Object} opts { genType, stage, subject, columnStyle }
  * @returns {string} 空串 = 无蓝本
  */
