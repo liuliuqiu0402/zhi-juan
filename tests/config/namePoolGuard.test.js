@@ -22,7 +22,7 @@
 //   "分板块组织／每板块配解析"（做法句／要求句），而〔77〕体检据此误判"必改清单＝空"。现**同时扫通用池与学科定制池**，
 //   并加一条**单源一致性**断言（special 通用池与 15 处学科定制池须逐字同名同注，防"改了通用没改定制"重演）。
 import { describe, it, expect } from 'vitest';
-import { TEACHING_BLUEPRINTS, TEACHING_SUBJECT_BLUEPRINTS, getTeachingBlueprint } from '../../src/config/teachingBlueprints.js';
+import { TEACHING_BLUEPRINTS, TEACHING_SUBJECT_BLUEPRINTS, TEACHING_GEN_TYPES, getTeachingBlueprint } from '../../src/config/teachingBlueprints.js';
 import { STAGE_SUBJECTS } from '../../src/config/promptLibrary.js';
 import { readFileSync } from 'node:fs';
 import { specialDomainOptions, resolveSpecialDomain } from '../../src/config/specialDomains.js';
@@ -274,5 +274,33 @@ describe('附·4 三·6 名池体检·机检臂（名性质：合规或已登记
     // 2026-10-07 先解后锁：原断言"豁免表已清空"；扩扫学科定制池后新报出 dictation 1 条 ⇒ 随改。
     // 2026-10-08 dictation 进批前置·〔166〕：该条已改名池「核心观点」⇒ 豁免清空，回归"零豁免"。
     expect(Object.keys(PENDING)).toEqual([]);
+  });
+
+  it('🔴 载体声明不得进**蓝图栏目名/注**（面 10·2026-10-08〔179〕补机检臂：把〔169〕的修为受检）', () => {
+    // 判据（〔134〕〔135〕面 10 立）：载体由**唯一允许表** `layoutSpec.WRITING_CARRIER`（学科×学段）决定；
+    //   蓝图把**具体格类名**写进栏目名或注，在该学科该学段**可能根本没有该格**
+    //   （如 `WRITING_CARRIER.语文` 中/高段与初高中＝`line`）⇒ **声明与实际载体相抵**、
+    //   模型照注输出会被越界剥离**拆掉**（＝载体丢失）。
+    //   〔135〕已机检**领域层 note**；本轮补扫**蓝图栏目名＋注**（通用池 ＋ 15 学科定制池 × 8 类型）——
+    //   把〔169〕（语文 dictation 栏目名原为"书写格"）的修为**受检**，防回潮。
+    const hit = [];
+    const scan = (who, sections) => {
+      for (const s of sections || []) {
+        const name = typeof s === 'string' ? s : (s?.name || '');
+        const note = typeof s === 'string' ? '' : (s?.note || '');
+        for (const w of NOTE_CARRIER_NAMES) {
+          if (String(name).includes(w)) hit.push(`${who} 名「${name}」含「${w}」`);
+          if (String(note).includes(w)) hit.push(`${who} 注含「${w}」：${note}`);
+        }
+      }
+    };
+    let n = 0;
+    for (const g of TEACHING_GEN_TYPES) { scan(`通用·${g}`, TEACHING_BLUEPRINTS[g]?.sections); n++; }
+    for (const [sub, bp] of Object.entries(TEACHING_SUBJECT_BLUEPRINTS)) {
+      for (const g of TEACHING_GEN_TYPES) { scan(`${sub}·${g}`, bp?.[g]?.sections); n++; }
+    }
+    expect(n, '应扫到 8 通用池 ＋ 15×8 学科定制池（防假绿）').toBeGreaterThan(100);
+    expect([...new Set(hit)],
+      `蓝图栏目名/注声明了具体格类（须改用"作答位"并委由载体协议，见面 10〔134〕〔135〕）：${[...new Set(hit)].join(' / ')}`).toEqual([]);
   });
 });
