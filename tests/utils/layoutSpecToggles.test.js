@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getMergedSpec, saveLayoutSpecOverride, resetLayoutSpecOverride, blankWriteScale } from '../../src/config/layoutSpec.js';
+import { getMergedSpec, saveLayoutSpecOverride, resetLayoutSpecOverride, blankWriteScale, ZUOWEN_CELL, ZUOWEN_MARK_STEP, normalizeStage3 } from '../../src/config/layoutSpec.js';
+import { STAGE_KEYS } from '../../src/utils/gradeStage.js';
 import { setLibToggle, clearLibToggles } from '../../src/utils/libToggles.js';
 
 describe('排版规格库：规格组启停开关（停用 = 该组用户覆盖不生效，回退内置默认）', () => {
@@ -76,5 +77,34 @@ describe('排版规格库：空位手写系数（面 13·载体↔数量·宽度
     saveLayoutSpecOverride({ BLANK: { maxCap: 99 } }); // 用户只覆盖 maxCap
     expect(getMergedSpec().BLANK.maxCap).toBe(24);
     expect(getMergedSpec().BLANK.writeScaleByStage.primary_low).toBe(3); // 系数须仍透传
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// 🔴 2026-10-08（面 13·〔182〕B17 →〔188〕加固的**对偶**·属主裁定"确有必要就加"）
+//   立条缘由：`carrierMatrix` 已给**5 档表**（`WRITING_CARRIER`）立了"双向无游离 ＋ 防键名漂移成死规则"；
+//   而按学段取值的**3 档规格表**（作文格格宽 `ZUOWEN_CELL`／标注步长 `ZUOWEN_MARK_STEP`，其消费端
+//   `themeConfig:1419`／`docxBuilder:1295` **先经 `normalizeStage3` 归一**）**缺这条对偶** ——
+//   一旦有人往 3 档表塞 5 档键（如 `primary_low`），该键**永远命中不到**（消费端只会取 primary/middle/high）
+//   ⇒ 静默死键；反之若三档键被改名/漏配，则 5 档键归一后**落空**。本臂把这两种漂移都变红。
+//   基线：现状实测 **零违规**（纯加固、不改数据）。
+describe('排版规格库：3 档规格表键集（`carrierMatrix` 的对偶防漂移）', () => {
+  const THREE = new Set(['primary', 'middle', 'high']);
+  const TABLES = [['ZUOWEN_CELL', ZUOWEN_CELL], ['ZUOWEN_MARK_STEP', ZUOWEN_MARK_STEP]];
+
+  it('🔴 键集恰为三档（无游离键＝防死键）', () => {
+    for (const [name, tbl] of TABLES) {
+      for (const k of Object.keys(tbl)) {
+        expect(THREE.has(k), `${name} 含游离键「${k}」——3 档表不得出现 5 档键（消费端归一后命中不到＝静默死键）`).toBe(true);
+      }
+    }
+  });
+
+  it('🔴 5 档键经 `normalizeStage3` 归一后**必命中**该表（防三档键改名/漏配）', () => {
+    for (const [name, tbl] of TABLES) {
+      for (const st of STAGE_KEYS) {
+        expect(tbl[normalizeStage3(st)], `${name}：「${st}」归一为「${normalizeStage3(st)}」后未命中`).toBeTruthy();
+      }
+    }
   });
 });
