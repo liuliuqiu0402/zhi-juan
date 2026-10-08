@@ -22,7 +22,7 @@
 //   "分板块组织／每板块配解析"（做法句／要求句），而〔77〕体检据此误判"必改清单＝空"。现**同时扫通用池与学科定制池**，
 //   并加一条**单源一致性**断言（special 通用池与 15 处学科定制池须逐字同名同注，防"改了通用没改定制"重演）。
 import { describe, it, expect } from 'vitest';
-import { TEACHING_BLUEPRINTS, TEACHING_SUBJECT_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
+import { TEACHING_BLUEPRINTS, TEACHING_SUBJECT_BLUEPRINTS, getTeachingBlueprint } from '../../src/config/teachingBlueprints.js';
 import { STAGE_SUBJECTS } from '../../src/config/promptLibrary.js';
 import { readFileSync } from 'node:fs';
 import { specialDomainOptions, resolveSpecialDomain } from '../../src/config/specialDomains.js';
@@ -104,6 +104,14 @@ const NOTE_ENUM_BANNED = [
  *  领域层 note 若写死"书写格"，在**语文中/高段与初高中**（允许表只有 `line`、根本没有书写格）即与允许表**相抵**，
  *  模型照注输出会被越界剥离拆掉 ⇒ 载体丢失。故 note 一律写"**作答位**"并委由协议。 */
 const NOTE_CARRIER_NAMES = ['书写格', '田字格', '米字格', '拼音格', '四线三格', '方格纸'];
+
+/** 增栏（`FORMAL_SECTIONS`）的注 **不得含学科专属对象词**（2026-10-08 面 3·〔148〕收口＋机检补漏）——
+ *  为什么必须机检增栏注：`FORMAL_SECTIONS` 的增栏注是**类型级单条**（`_applyFormalSections` 按类型加栏），
+ *  会**逐字注入 15 科**；若注里写学科专属对象词（如"选文"＝语文术语），则 14 个**非语文**学科格里
+ *  "名说『阅读材料』、注说『本次选文』" ⇒ **名与注对象不相应**（面 3 处内要素）。
+ *  原机检只扫**名**与 special 的**领域层注**，增栏注从未被扫 ⇒ 漏网。 */
+const ADDED_SECTIONS = { special: '变式训练', reading: '方法策略引导', preview: '旧知回顾', summary: '方法提炼', review: '复习目标' };
+const ADDED_NOTE_BANNED = ['选文', '课文', '法条', '条文', '篇目', '字帖'];
 
 /** C 类豁免（跨批移交）：**待该批改名后移出**；此处逐名登记命中的规则面 */
 /** 🔴 2026-10-07（取全修正当日）：special 兜底池两名已按调研改名（"基础巩固／典型例题解析"）；
@@ -237,6 +245,29 @@ describe('附·4 三·6 名池体检·机检臂（名性质：合规或已登记
     }
     expect([...new Set(hit)],
       `领域层 note 含枚举／具体格类（须改判据式，见台账〔133〕/〔134〕）：${[...new Set(hit)].join(' / ')}`).toEqual([]);
+  });
+
+  it('🔴 增栏 note 不得含学科专属对象词 ＋ 定稿值锁（面3·2026-10-08 收口＋机检补漏）', () => {
+    const hit = [];
+    let n = 0;
+    for (const [g, name] of Object.entries(ADDED_SECTIONS)) {
+      for (const sub of SUBJECTS) {
+        for (const st of STAGES) {
+          const bp = getTeachingBlueprint({ genType: g, stage: st, subject: sub }) || {};
+          const sec = (bp.sections || []).find((s) => s && s.name === name);
+          if (!sec) continue;
+          n++;
+          for (const w of ADDED_NOTE_BANNED) if ((sec.note || '').includes(w)) hit.push(`${g}·${sub}·${st}「${name}」注含「${w}」：${sec.note}`);
+        }
+      }
+    }
+    expect(n, '应扫到增栏 note（防假绿）').toBeGreaterThan(0);
+    expect([...new Set(hit)],
+      `增栏 note 含学科专属对象词（须中性化，见台账〔148〕）：${[...new Set(hit)].join(' / ')}`).toEqual([]);
+    // 值锁：reading 增栏注定稿串（防回潮成"选文"）
+    const rd = (getTeachingBlueprint({ genType: 'reading', stage: 'middle', subject: '化学' }).sections || [])
+      .find((s) => s && s.name === '方法策略引导');
+    expect(rd?.note).toBe('给出与本次阅读材料相应的阅读方法与策略，供学生边读边用');
   });
 
   it('豁免表＝已登记的 C 类跨批移交（当前仅 dictation 1 条；不得静默增删）', () => {
