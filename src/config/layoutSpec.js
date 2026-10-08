@@ -803,7 +803,22 @@ export const sanitizeBlankSpec = (b = {}) => {
   const maxBlank = Math.min(24, Math.max(minBlank, Math.round(Number(b.maxBlank) || 24)));
   const maxCap = Math.min(maxBlank, Math.max(minBlank, Math.round(Number(b.maxCap) || 16)));
   const wordGap = Math.min(4, Math.max(1, Number(b.wordGap) || 1));
-  return { minBlank, maxBlank, maxCap, wordGap };
+  // 🔴 2026-10-08（面 13·〔138〕）**透传 `writeScaleByStage`（手写系数：低段 3／其余 2）**——
+  //   原实现只回上面 4 个键，把 2026-10-05（`a8cf793`）加的手写系数**整体丢掉** ⇒ `getMergedSpec().BLANK`
+  //   无该字段 ⇒ `blankWriteScale()` **恒落兜底 2**（低段手写空间偏窄，与 `docxBuilder`／`carrierCss`／
+  //   `themeConfig` 注释自陈的"低段3/其他2"单源口径不符；台账 `:530` 记的"已修·成组落地"因此**从未真正生效**）。
+  //   逐键透传并做最小校验（正数、限 1..4）；若传入无有效键 → 回落内置 `BLANK.writeScaleByStage`
+  //   （防"被消毒成空对象 → 系数全失效"）。
+  const scaleIn = (b && typeof b.writeScaleByStage === 'object' && b.writeScaleByStage) || BLANK.writeScaleByStage;
+  const writeScaleByStage = {};
+  for (const [k, v] of Object.entries(scaleIn)) {
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) writeScaleByStage[k] = Math.min(4, Math.max(1, n));
+  }
+  return {
+    minBlank, maxBlank, maxCap, wordGap,
+    writeScaleByStage: Object.keys(writeScaleByStage).length ? writeScaleByStage : { ...BLANK.writeScaleByStage },
+  };
 };
 
 /** 规格组 → 顶级字段映射（LayoutSpecView 启停开关按组控制） */
