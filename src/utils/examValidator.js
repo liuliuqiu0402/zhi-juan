@@ -723,7 +723,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   //       而非改文本（⊙/∅/`\ ` 就是这么修好的，见 utils/latexToDocxMath.js）。
   //    走 silentCount（notice 级）而非 issues：issues 是 fix 类的**修复记录**，只进 console 不进问题列表；
   //       生成报告【问题列表】取的是 silentDetails.filter(level!=='debug')（useAiGenerator 整卷质检段）。
-  //       静默计数 → 用户看不到 = 白做，故必须走这条通道（与 teaching-volume-guard 同口径）。
+  //       静默计数 → 用户看不到 = 白做，故必须走这条通道。
   //    门控：仅数理化生（其余学科不出现公式）；跳过 $…$ 与 $$…$$ 公式区（公式内书写由 FORMULA_RULES 管理）。
   if (has('formula-form-guard') && /数学|物理|化学|生物/.test(subject || '')) {
     const plain = out
@@ -747,33 +747,18 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 1.5.7b. 教辅内容充足性（规则 teaching-volume-guard：静默）──
-  if (has('teaching-volume-guard') && genType && genType !== 'exam') {
-    const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
-    const pureLen = bodyText.replace(/\s+/g, '').length;
-    // 2026-10-02（职责归属·用户裁定）：原 reading 用关键词 /短文|阅读|选文/ 判"有没有选文"——那是**浅层语义**，
-    //   程序理解不了语义，已删；"内容里有没有选文"交模型（reading 创作要求已含"阅读材料完整、无语病、主题与单元相关"）。
-    //   程序侧只留**可数**判据：正文长度、题号数（见下）。
-    const GT_CHECKS = {
-      reading: { minLen: 80 },
-      summary: { minLen: 200 },
-    };
-    const c = GT_CHECKS[genType];
-    if (c?.minLen && pureLen < c.minLen) silentCount('teaching-volume', `「${genType}」正文过短（${pureLen}字），内容单薄，请抽检`);
-    // 题集类题量兜底（此处仅静默计数防单薄）
-    // 🔴 2026-10-06（第二批·面 5·账目·**计量对象锚**）：原 `bodyText.match(/\d+[.、．]/g)` 是**自持一份正则**——
-    //   ① 无行首锚 ⇒ 把正文里的小数点当题号（实测：4 道题的样例被计成 11 ⇒ 单薄被误判为充足、兜底失效）；
-    //   ② 未走单源（题号计数单源由 contentCleaner 提供，见 countTopQuestions 注释"此前 examValidator 自持一份正则"）；
-    //   ③ 计的是**整份**（含答案区逐题同号）⇒ 题数翻倍。与 面 5 判据（对象锚＝作答对象）**不同口径**。
-    //   现改走单源 extractBodyQuestionNumbers，且**只数正文区**（answerAreaStartIndex 单源切分）。
-    //   ⚠️ 不用 countTopQuestions——它取"最长 1 起始连续段"，对教辅"逐栏目（组）起编"只数得到一个栏目。
-    if (['practice', 'special', 'review', 'dictation'].includes(genType)) {
-      const volAns = answerAreaStartIndex(out);
-      const volBody = volAns >= 0 ? out.slice(0, volAns) : out;
-      const qCount = extractBodyQuestionNumbers(volBody).length;
-      if (qCount > 0 && qCount < 5) silentCount('teaching-volume', `「${genType}」题目数仅 ${qCount} 道，疑单薄，请抽检`);
-    }
-  }
+  // 🗑 2026-10-08（属主口令「**一起下线**」）：原「1.5.7b. 教辅内容充足性」（规则 `teaching-volume-guard`）
+  //   **整条撤除**——规则条目已删、`VALIDATOR_GATES` 已摘除（`validatorWiring.test.js` 强制对账）。
+  //   下线理由（三条，皆有据）：
+  //   ① **题量半条**：判据＝题集类**题号数 < 5**（阈值自带硬编码）——「题量」本就不许作约束（蓝本 `stages.volume`
+  //      刻意不注入、三道锁守着），程序侧再数一遍题量既无对象也无意义；且实战多数不触发（默写类常 qCount=0 直接跳过）。
+  //   ② **篇幅半条**：`pureLen` 数的是**整卷（含答案区）**字数，而门槛只有 reading 80 字／summary 200 字
+  //      ⇒ 实战够不着（只在近乎空稿时才可能触发），且阈值同为自带硬编码。
+  //   ③ **原则**：程序只该管"**可数确定项**"，"够不够充实"属**品质判断**——模型侧已有【创作要求】"充实训练量"
+  //      ＋【质量底线】"内容充实：**是否充实可自判**／逐点都有实际的题目、材料或条目承载"承接
+  //      ⇒ 与 2026-10-02 砍掉 reading"须含选文"关键词判定**同一条原则**（程序读不懂语义）。
+  //   连带留痕：本块即 2026-10-06（批 2 面 5·㊾）"自持正则 → 单源 `extractBodyQuestionNumbers`"那次收口的
+  //      **唯一载体** ⇒ 该收口**随本项下线**（非被推翻；题号计数单源函数本身仍在别处使用）。见台账〔276〕。
 
   // ── 1.5.8. 书写格按学段（规则 writing-grid-fix：
   //    按 学科×学段 允许载体列表检查全卷载体是否越界——不在允许列表的格子 class 自动剥离保留文字

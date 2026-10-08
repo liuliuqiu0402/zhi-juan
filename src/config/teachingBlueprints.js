@@ -45,8 +45,8 @@ export const TEACHING_STAGE_NAMES = {
 /**
  * 教辅结构蓝本：类型 × 学段参数
  * sections: 栏目框架（生成注入用，非固定分值）
- * stages:   各学段参数 { volume 题量/篇幅下限（程序护栏校验参考，不注入 prompt）, note 学段要求 }
- *           —— 教辅无考试时限，不设时长；题量/篇幅由 teaching-volume-guard 生成后静默校验，不注入 AI 限定
+ * stages:   各学段参数 { volume 题量/篇幅**参考值**（**无程序消费方**、不注入 prompt，仅存档参考）, note 学段要求 }
+ *           —— 教辅无考试时限，不设时长；题量/篇幅一律不注入 AI（原 teaching-volume-guard 已于 2026-10-08 下线）
  *           —— note 为教学组织建议（符合课标理念、跨学科通用，非课标原文）；课标学段要求由指令库
  *              【学科·学段要点】+【学段特点】承载（可查可引用），本条不冒充课标条款
  */
@@ -1359,7 +1359,7 @@ export function getTeachingBlueprint({ genType = '', stage = '', subject = '' } 
 
 /**
  * 构建教辅结构注入块（供生成指令尾部附加，与 exam 的 buildStructureText 对称）
- * 只注入栏目框架 + 学段要求；题量/篇幅底线由 teaching-volume-guard 程序侧校验，不注入 prompt（防限定 AI）
+ * 只注入栏目框架 + 学段要求；题量/篇幅一律不注入 prompt（防限定 AI；原 teaching-volume-guard 已于 2026-10-08 下线）
  * @param {Object} opts { genType, stage, subject, columnStyle }
  * @returns {string} 空串 = 无蓝本
  */

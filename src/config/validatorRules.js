@@ -132,15 +132,10 @@ export const VALIDATOR_RULES = [
     enabled: true,
   },
 
-  {
-    id: 'teaching-volume-guard',
-    name: '教辅内容充足性静默防护',
-    category: 'guard',
-    subjects: ['*'],
-    stages: ['*'],
-    description: '教辅类资料（非 exam）生成后静默确认内容充足性：正文长度、题集类题号数——**只判可数项**（2026-10-02 职责归属裁定：原"阅读训练须含选文（短文）"用关键词近似判语义，已删，该项交模型侧创作要求）。缺失/过短仅 debug 计数（题量/篇幅底线由教辅结构蓝本 stages.volume 提供，程序侧校验参考，不注入 prompt 防限定 AI）。',
-    enabled: true,
-  },
+  // 🗑 2026-10-08（属主口令「一起下线」）：原规则条目 `teaching-volume-guard`（教辅内容充足性静默防护）**已删**。
+  //   程序执行点（`examValidator.js` 1.5.7b）同步撤除；`VALIDATOR_GATES` 已摘除（`validatorWiring.test.js` 强制对账）。
+  //   下线理由见 `examValidator.js` 该处留痕 ＋ 台账〔276〕：①题量半条无对象（题量本就不许作约束）；
+  //   ②篇幅半条门槛够不着（`pureLen` 数的是整卷含答案区，80／200 字实战不触发）；③"够不够充实"属品质判断，交模型侧。
 
   {
     id: 'text-format-fix',
@@ -190,8 +185,8 @@ export const VALIDATOR_RULES = [
     id: 'formula-form-guard',
     name: '公式形态抽检（数理化生）',
     // 2026-09-30 类别定 guard（不是 fix）：本条**不修任何东西**，只在生成报告【问题列表】里提示用户手改，
-    //    走的是 guard 通道的 silentCount(level='notice')（同 teaching-volume-guard，见 examValidator 的
-    //    silentCount；useAiGenerator 取 silentDetails.filter(level!=='debug') → 问题列表）。
+    //    走的是 guard 通道的 silentCount(level='notice')（见 examValidator 的 silentCount；
+    //    useAiGenerator 取 silentDetails.filter(level!=='debug') → 问题列表）。
     //    有意不给 promptHint：guard 类本就不注入生成前约束，且公式写法已由渲染契约 FORMULA_RULES 单源覆盖
     //    （行内 $…$、块级 $$…$$、禁止文本堆砌）——再加一条就是冗余指令；实发提示词零新增。
     category: 'guard',
@@ -340,7 +335,7 @@ export const VALIDATOR_RULES = [
 /** 引擎 has() 独立执行分支全集（由 validatorWiring 测试与 examValidator 源码自动对账） */
 export const VALIDATOR_GATES = new Set([
   'pinyin-norm', 'template-cleanup', 'image-block-fix', 'duplicate-content-fix',
-  'text-format-fix', 'teaching-volume-guard', 'writing-grid-fix', 'title-detail-fix',
+  'text-format-fix', 'writing-grid-fix', 'title-detail-fix',
   'option-count-guard', 'choice-answer-position-guard', 'choice-first-blank-fix', 'score-label-fix', 'writing-expression-fix',
   'answer-area-fix', 'answer-section-exam', 'answer-section-teaching', 'answer-coverage-guard',
   'emphasis-form-fix',

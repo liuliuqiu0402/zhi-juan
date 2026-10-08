@@ -400,7 +400,7 @@
               <span class="st-note">{{ p.note || '—' }}</span>
             </div>
             <div class="stages-foot">
-              题量/篇幅底线（{{ (bp.stages.primary_mid && bp.stages.primary_mid.volume) || '—' }} 等）由 teaching-volume-guard 生成后静默校验，不注入 AI；教辅无考试时长
+              题量/篇幅参考值（{{ (bp.stages.primary_mid && bp.stages.primary_mid.volume) || '—' }} 等）：仅存档参考，<b>不注入 AI</b>、亦无程序校验；教辅无考试时长
             </div>
           </div>
         </div>
