@@ -105,7 +105,14 @@ export const PROMPT_PARTIAL_CONTAINERS = {
   'src/config/examPaperBlueprints.js': ['EXAM_BLUEPRINTS'],
   'src/config/validatorRules.js': ['VALIDATOR_RULES'],
   'src/config/teachingBlueprints.js': ['TEACHING_BLUEPRINTS'],
-  'src/config/domainContract.js': ['DOMAIN_CONTRACT', 'HIGH_DOMAIN_CONTRACT'],
+  // 🗑 2026-10-08（C3 挂起项*收口*）：原登记行
+  //   `'src/config/domainContract.js': ['DOMAIN_CONTRACT', 'HIGH_DOMAIN_CONTRACT']` **已移除**。
+  //   真凭实据：该文件**全库零 import**（唯一消费方 `utils/domainReconciler.js` 已于 2026-09-20 砍除；
+  //   文件头部自陈"当前无程序消费方""不进 prompt"）⇒ 其内容占比**恒为 0**，与本表自身定义
+  //   "占比 <0.5 但**仍有内容进实发**"**相斥** ⇒ 属**陈旧登记**（原挂于〔144〕B9·跨批移交 C2/C3）。
+  //   文件本体**保留不动**（2026-10-08 属主裁定〔144〕B9＝「留」：课标领域名＋概念白名单存档，删则断源）。
+  //   防回归锁：`tests/config/promptSourceRegistry.test.js` 增
+  //   「PROMPT_PARTIAL_CONTAINERS 登记的文件必须有消费方（无 import ⇒ 不可能进实发）」。
   'src/config/caliberRegistry.js': ['CALIBERS'],
 };
 

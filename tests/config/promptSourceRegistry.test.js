@@ -63,6 +63,33 @@ const MEASURE_FILES = (() => {
 /** 允许导入失败的清单（新出现的失败即红；须带理由登记） */
 const IMPORT_FAIL_ALLOW = [];
 
+// 🔴 2026-10-08（C3 收口）：全库（src ＋ tests）**被 import 的文件**集合——
+//   解析相对说明符（`./` `../`）与 Vite 别名（`@/` → `src/`），归一为仓库相对 posix 路径。
+//   用途：锁"给模型文本的源登记表"不得登记**零 import 的死文件**（见下方 PROMPT_PARTIAL_CONTAINERS 用例）。
+const IMPORTED_FILES = (() => {
+  const set = new Set();
+  const walk = (d, out = []) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p, out);
+      else if (/\.(js|vue)$/.test(e.name)) out.push(p);
+    }
+    return out;
+  };
+  for (const f of [...walk('src'), ...walk('tests')]) {
+    const src = fs.readFileSync(f, 'utf8');
+    const re = /(?:from|import)\s+['"](\.{1,2}\/[^'"]+|@\/[^'"]+)['"]/g;
+    let m;
+    while ((m = re.exec(src))) {
+      const spec = m[1].startsWith('@/') ? m[1].replace(/^@\//, 'src/') : m[1];
+      const abs = spec.startsWith('src/') ? path.resolve(process.cwd(), spec) : path.resolve(path.dirname(f), spec);
+      const rel = path.relative(process.cwd(), abs).replace(/\\/g, '/');
+      [rel, `${rel}.js`, `${rel}.vue`, `${rel}/index.js`, `${rel}/index.vue`].forEach((x) => set.add(x));
+    }
+  }
+  return set;
+})();
+
 /** 合并三张登记表（**按文件累加**，不得用对象展开——同名文件会被后者覆盖，2026-10-01 实测踩过） */
 function mergeRegistries() {
   const all = {};
@@ -108,6 +135,19 @@ describe('给模型文本·源登记守卫（E 表 / 常量 / inline / 跳转不
     const missing = measured.filter((k) => !registered.has(k));
     expect(missing, `以下常量有内容进实发但未登记：\n${missing.join('\n')}`).toEqual([]);
   }, 120000); // 测量面＝全 src（122 模块）＋675 份实发装配，需放宽超时（默认 5s 不够，实测 ~6s）
+
+  // 🔴 2026-10-08（C3 挂起项**收口**·先解后锁）：本表定义为"占比 <0.5 但**仍有内容进实发**的数据表/容器"。
+  //   "进实发"的**必要条件**＝有消费方（被某处 import）。历史遗留：`src/config/domainContract.js`
+  //   曾被登记在此表，而其唯一消费方 `utils/domainReconciler.js` 已于 2026-09-20 砍除
+  //   ⇒ 该文件**全库零 import**、内容占比恒 0，与本表定义相斥（陈旧登记）⇒ 已移出本表。
+  it('PROMPT_PARTIAL_CONTAINERS 登记的文件必须有消费方（无 import ⇒ 不可能进实发）', () => {
+    for (const file of Object.keys(PROMPT_PARTIAL_CONTAINERS)) {
+      expect(
+        IMPORTED_FILES.has(file),
+        `${file} 全库零 import，不应登记在 PROMPT_PARTIAL_CONTAINERS（该表要求"仍有内容进实发"）`,
+      ).toBe(true);
+    }
+  });
 
   it('调用层 inline 文案：句级登记逐字校验 + 区间内无未登记中文字面量', () => {
     for (const [file, cfg] of Object.entries(PROMPT_INLINE_SOURCES)) {
