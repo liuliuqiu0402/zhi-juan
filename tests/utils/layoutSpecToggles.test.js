@@ -61,6 +61,14 @@ describe('排版规格库：空位手写系数（面 13·载体↔数量·宽度
     expect(blankWriteScale('high')).toBe(2);
     expect(blankWriteScale('primary')).toBe(3); // 3 档别名 → 按低段口径取 3
     expect(blankWriteScale('')).toBe(2);        // 未传/未知 → 兜底 2
+    // 🔴 2026-10-08（面 13·〔182〕B17 → 属主裁定"加固"）：**非键写法**须经 `normalizeStage3` 归一兜底，
+    //    不再静默落 2（低段因此不再被压窄）；**原键命中者优先**——`primary_mid`/`primary_high` 仍取 2，
+    //    不得被折成 `primary`→3（由上两行锁保证）。
+    expect(blankWriteScale('小学低段')).toBe(3);   // 中文非键写法 → primary → 3
+    expect(blankWriteScale('小学')).toBe(3);       // 同上
+    expect(blankWriteScale('高中一年级')).toBe(2);  // 中文非键写法 → high → 2
+    expect(blankWriteScale('初二')).toBe(2);       // 中文非键写法 → middle → 2
+    expect(blankWriteScale('grade_3')).toBe(2);    // 无关串 → middle → 2（与原兜底同值，零行为变化）
   });
 
   it('消毒后 writeScaleByStage 仍在（含用户覆盖 BLANK 的情形——防"被消毒成空对象"）', () => {

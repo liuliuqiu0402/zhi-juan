@@ -64,11 +64,21 @@ export const BLANK = {
   writeScaleByStage: { primary_low: 3, primary: 3, primary_mid: 2, primary_high: 2, middle: 2, high: 2 },
 };
 
-/** 学段 → 手写系数（5 档或 3 档别名 `primary`→3；未传/未知取 2） */
+/** 学段 → 手写系数（5 档或 3 档别名 `primary`→3；未传/未知取 2）
+ *  🔴 2026-10-08（面 13·〔182〕观察项 B17 → 属主裁定"**加固**"）：**未命中键再过一道 `normalizeStage3`**。
+ *     缘由：本表**自带两套键**（5 档 `primary_low/…/high` ＋ 3 档 `primary/middle/high`），故函数本体
+ *     只做**精确查表**即够；但若外部传入**非键写法**（如 `小学低段`／`小学`／`高中一年级`），精确查表会
+ *     **静默落到兜底 2** —— 低段因此偏窄，与本表自载取向"宁可宽、不可窄"（`carrierCss` 注释：
+ *     "缺省回退 2，保证**未注入也不窄于手写所需**"）相左。
+ *     加固口径：**原键命中优先**（`primary_mid`/`primary_high` 仍取 2，**不得**被折成 `primary`→3），
+ *     **未命中才**按 3 档归一取键（小学类→`primary`／高中类→`high`／其余→`middle`），归一无果仍回落 2。
+ *     ⇒ 对现有全部调用方（`themeConfig`／`docxBuilder`／`TypesetModule`）**零行为变化**。 */
 export const blankWriteScale = (stage = '') => {
   const m = (getMergedSpec().BLANK || {}).writeScaleByStage || {};
   const k = String(stage || '').trim();
-  return Number.isFinite(m[k]) ? m[k] : 2;
+  if (Number.isFinite(m[k])) return m[k];
+  const k3 = normalizeStage3(k);                 // 未命中键：3 档归一兜底（原键命中者不走此路）
+  return Number.isFinite(m[k3]) ? m[k3] : 2;
 };
 
 /** 空作文格默认补全：<div class="zuo-wen-ge"></div> → 默认 span 数 */
