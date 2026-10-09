@@ -269,6 +269,9 @@ describe('⑤ 尾约束·全文自洽：三域化 + 定稿前动作（模型侧�
     expect(TAIL_SELF_CONSISTENCY).toContain('唯一确定');
     expect(TAIL_SELF_CONSISTENCY).toContain('说话人与角色归属');
     expect(TAIL_SELF_CONSISTENCY).toContain('全篇只有一种表述');
+    // 🔴 2026-10-09（对象族扫·补缺态）：A3 原只覆盖"要素互不矛盾"，未覆盖"指代悬空/成分残缺"
+    //    （致不通顺病型·有课标依据）→ ② 补判句（判法式·不枚举）。
+    expect(TAIL_SELF_CONSISTENCY, '指代/成分判句在位').toContain('其先行词须在本句或上句明确出现');
   });
 
   it('🔴 执行面：写成"定稿前逐节逐题复核 + 当场改 + 只输出改后定稿"的动作', () => {
