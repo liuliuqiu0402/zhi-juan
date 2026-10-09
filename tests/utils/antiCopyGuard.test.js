@@ -95,4 +95,21 @@ describe('防照搬护栏（底线线 O5）', () => {
     const hits = scanCopyOverlap({ bodyHtml: body, corpus, subject: '英语' });
     expect(hits.filter((h) => h.kind === 'long')).not.toEqual([]);
   });
+
+  // 🔴 2026-10-09（用户裁定·甲案）：判据是"不得**整段照录**教材原文"，而语文"按课文内容填空／根据课文内容
+  //   回答／照课文…"这类题**必须引用课文原句**（引文即作答依据），8 字连续必然命中 → 全成噪音（实测：二年级
+  //   语文卷 4 条命中全是课文原句）。故：**语文卷**中，命中片段所在上下文窗口含课文类提示词 → 判课文引用、不报。
+  it('🔴 语文·课文类题引用课文原句 → 不报照搬（2026-10-09 甲案）', () => {
+    const c = ['小蝌蚪甩着长长的尾巴，快活地游来游去。'];
+    const body = '<p>三、按课文内容填空：小蝌蚪甩着长长的尾巴，快活地游来游去。</p>';
+    expect(scanCopyOverlap({ bodyHtml: body, corpus: c, subject: '语文' }).filter((h) => h.kind === 'long')).toEqual([]);
+  });
+
+  it('🔴 甲案边界：语文但无课文提示词的照录 → 仍报；非语文学科不受影响（防豁免变遮罩）', () => {
+    const c = ['小蝌蚪甩着长长的尾巴，快活地游来游去。'];
+    const plain = '<p>阅读下面的短文，回答问题。</p><p>小蝌蚪甩着长长的尾巴，快活地游来游去。</p>';
+    expect(scanCopyOverlap({ bodyHtml: plain, corpus: c, subject: '语文' }).filter((h) => h.kind === 'long').length).toBeGreaterThan(0);
+    const other = '<p>按课文内容填空：小蝌蚪甩着长长的尾巴，快活地游来游去。</p>';
+    expect(scanCopyOverlap({ bodyHtml: other, corpus: c, subject: '数学' }).filter((h) => h.kind === 'long').length).toBeGreaterThan(0);
+  });
 });

@@ -211,9 +211,25 @@ export function scanCopyOverlap({ bodyHtml = '', corpus = [], longN = 8, subject
     return core.length >= 4 && terms.some((t) => t.includes(core));
   };
   const longHits = longRunOverlap(body, srcs, Math.max(4, longN)).filter((h) => !isTerm(normWs(h.snippet)));
+  // 🔴 2026-10-09（用户裁定·甲案）：语文"课文类题"豁免——模型侧判据是"不得**整段照录**教材原文"，
+  //   而"按课文内容填空／根据课文内容回答／照课文…"这类题**必须引用课文原句**（引文即作答依据/答案），
+  //   8 字连续必然命中 → 全成噪音（实测：二年级语文卷 4 条命中全是课文原句，非"整段照录"）。
+  //   判据：**语文卷**中，命中片段**所在上下文窗口**含课文类提示词 → 判为课文引用，不报照搬。
+  //   边界（防变成"照搬遮罩"）：仅语文；必须以课文类提示词为据；无提示词的照录仍报；数/英等学科不受影响。
+  const KEWEN_HINT = /按课文内容|根据课文内容|照课文|课文/;
+  const inKewenContext = (snippet) => {
+    if (subject !== '语文') return false;
+    const i = body.indexOf(normWs(snippet));
+    if (i < 0) return false;
+    const win = body.slice(Math.max(0, i - 120), i + String(snippet).length + 120);
+    return KEWEN_HINT.test(win);
+  };
   // 连词成句/乱序词库豁免：命中的英文词窗全部落在正文某"裸词乱序词库"行 → 题型所需，不报照搬
   const unscrambleExempt = (h) => !(Array.isArray(h.tokens) && h.tokens.length && isUnscrambleBank(bodyHtml, h.tokens));
-  return [...longHits.filter(unscrambleExempt), ...numberRunOverlap(body, srcs)];
+  return [
+    ...longHits.filter(unscrambleExempt).filter((h) => !inKewenContext(h.snippet)),
+    ...numberRunOverlap(body, srcs),
+  ];
 }
 
 /** 命中清单 → 一条生成报告提示（供 auditWarnings / 编辑核对，程序不改内容）。 */

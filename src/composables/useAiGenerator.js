@@ -4777,7 +4777,10 @@ ${cardAnalysisText.substring(0, 1000)}
           // 🔧 答案页为空/过短/思考耗尽/续写后仍截断/缺正文前段题号 → 自动重试一次（思考耗尽/截断时强制关闭思考，防再次空转；
           //    模型偶发输出空或"略"式敷衍内容也覆盖）
           const ansReason = ansGap.severe
-            ? `缺正文前段逐题答案（正文顶层题号 ${ansGap.bodyTop}，答案区顶层题号 0）`
+            // 🔴 2026-10-09（文案按真因说准）：原一律说"缺正文前段逐题答案"——真因常是**编号形态不符**
+            //   （答案区改用括号序号/只写大题序号/连排无行首号），程序只认"行首 1./1、/1．"三形态故数成 0。
+            //   文案改为如实描述"未出现与正文同形的逐题题号"，并点明常见成因，避免误导编辑。
+            ? `答案区未出现与正文同形的逐题题号（正文顶层 ${ansGap.bodyTop}／答案区行首题号 0）——常见成因：答案区改用括号序号（1）或只写大题序号、或答案连排无行首号；本要求＝答案区逐题以与正文完全相同的题号起头`
             : (ansCapped
               ? `思考耗尽（${ansObj.reasoningChunkCount || 0} 推理chunks）`
               : (ansTruncated
@@ -4807,7 +4810,7 @@ ${cardAnalysisText.substring(0, 1000)}
             //    绝不静默——并入正文路径告警（审核报告可见），提示人工核对答案区完整性。
             const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
             answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml2)}</div>`;
-            const gapNote = `⚠️ 答案页两次生成仍缺正文前段逐题答案（正文顶层 ${ansGap2.bodyTop}，答案区顶层 ${ansGap2.ansTop}）——已保留现有答案内容，请人工核对该卷答案区完整性`;
+            const gapNote = `⚠️ 答案页两次生成仍未出现与正文同形的逐题题号（正文顶层 ${ansGap2.bodyTop}／答案区 ${ansGap2.ansTop}）——已保留现有答案内容，请人工核对该卷答案区是否逐题对齐（要求：逐题以与正文完全相同的题号起头）`;
             if (typeof bodyPathNotes !== 'undefined' && Array.isArray(bodyPathNotes)) bodyPathNotes.push(gapNote);
             console.warn(gapNote);
           } else {
