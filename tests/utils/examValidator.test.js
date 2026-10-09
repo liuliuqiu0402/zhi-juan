@@ -475,6 +475,32 @@ describe('examValidator 排版语义自洽（text-format-fix）', () => {
       expect(auditExamPaper(html, OPTS).silent, `应触发：${wording}`).toBeGreaterThan(0);
     }
   });
+
+  // 🔴 2026-10-09（属主实测·乙）：加点兜底原为**整卷** `/加点/` 一刀切 ⇒ 实测"**不该点的点了**"（他题的裸
+  //    `<u>汉字</u>` 被误点）。现**收窄到题块**。本处锁：① 含"加点"的题块内裸 <u>汉字</u> 须转（防渲染成下划线）；
+  //    ② 不含"加点"的题块内裸 <u>汉字</u> **不得被转**（防整卷误点回退）；③ 与题干同题块的例句亦适用。
+  it('加点兜底收窄到题块：含加点题转、不含加点题不动（防整卷误点）', () => {
+    const html = [
+      '<h2>一、积累与运用（20分）</h2>',
+      '<p class="question">1. 给加点的字选择正确的读音。（4分）</p>',
+      '<p>（1）<u>行</u>（háng xíng）白鹭飞上青天。</p>',
+      '<p class="question">2. 照样子写词语。（4分）</p>',
+      '<p>（1）他<u>慢慢</u>地走过来。</p>',
+    ].join('\n');
+    const r = auditExamPaper(html, OPTS);
+    expect(r.html, '含加点题块内的裸 <u>汉字</u> 须转为加点（不得渲染成下划线）').toContain('<span class="emphasis-dot">行</span>');
+    expect(r.html, '不含加点题块的裸 <u> 不得被误点').toContain('<u>慢慢</u>');
+  });
+
+  it('加点兜底：题干与例句同题块（题干写"加点的词语"、例句在下段）→ 例句仍被转', () => {
+    const html = [
+      '<h2>一、积累与运用（20分）</h2>',
+      '<p class="question">2. 照样子，用加点的词语写句子。（4分）</p>',
+      '<p>例：小蝌蚪<u>游</u>哇游，过了几天，长出了两条后腿。</p>',
+    ].join('\n');
+    const r = auditExamPaper(html, OPTS);
+    expect(r.html).toContain('<span class="emphasis-dot">游</span>');
+  });
 });
 
 // 🔴 2026-10-09（属主批"①可以"）：`text-format-phonetics`（英语音标斜杠包裹）原为 `RULE_NO_EXEC` 唯一成员

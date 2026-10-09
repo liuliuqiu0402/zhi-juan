@@ -686,11 +686,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     if (claims.length > 0 && markCount === 0) {
       silentCount('text-format', `题干要求加点/画线（${claims[0]}）但正文无对应标记（emphasis-dot/underline-sentence）——题目不自洽，请抽检`);
     }
-    // 🔧 加点字兜底：题干含"加点"时，AI 用无 class 的 <u>汉字</u>（下划线=错误表示）→ 自动转为 emphasis-dot 加点标记
-    //    （填空横线 <u>＿＿＿</u> 内容为下划线字符非汉字、带 class 的 <u> 均不受影响）
+    // 🔴 2026-10-09（属主实测·乙）：原为**整卷** `/加点/` 一刀切——卷内任一处"加点"即把**全卷**无 class 的
+    //    `<u>汉字</u>` 都点成加点 ⇒ 实测"**不该点的点了**"（他题把书写/强调写成裸 <u> 时被误点）。
+    //    现**收窄到题块**：仅当**该 <u> 所在题块**的题面含"加点"时才转。两点保证：
+    //    ① 整卷误点消失（无"加点"的题块一律不动）；② "该题含加点却写成裸 <u>"仍被转 ⇒ **不会渲染成下划线**。
     if (/加点/.test(bodyText)) {
       const beforeDot = out;
-      out = out.replace(/<u>([\u4e00-\u9fa5]{1,6})<\/u>/g, '<span class="emphasis-dot">$1</span>');
+      const dotInBlock = (blk) => (/加点/.test(blk.replace(/<[^>]+>/g, ' '))
+        ? blk.replace(/<u>([\u4e00-\u9fa5]{1,6})<\/u>/g, '<span class="emphasis-dot">$1</span>')
+        : blk);
+      // 以"题"为块：`<p class="question">` 为题界；题干与其下例句/小题同块（例句不被拆出）。
+      out = out.split(/(?=<p[^>]*\bclass=["'][^"']*\bquestion\b)/i).map(dotInBlock).join('');
       if (out !== beforeDot) {
         issues.push({ severity: 'info', type: 'emphasis-dot', message: '加点字已由 <u> 下划线自动转为 emphasis-dot 加点标记' });
         fixed += 1;
