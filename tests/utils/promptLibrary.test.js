@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS, ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS, buildAnswerFormatSpec, NUMBERING_HIERARCHY_RULE, QUESTION_NUMBERING_CALIBER, GROUP_TITLE_NUMBERING_CALIBER } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS, ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS, buildAnswerFormatSpec, NUMBERING_HIERARCHY_RULE, QUESTION_NUMBERING_CALIBER, GROUP_TITLE_NUMBERING_CALIBER, QUESTION_OBJECT_CALIBER } from '../../src/config/promptLibrary.js';
 import { TEACHING_SUBJECT_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
 import { styleInstructions, styleOptions, DEFAULT_STYLE_BY_TYPE } from '../../src/config/expertKnowledge.js';
 import { getValidatorRule } from '../../src/config/validatorRules.js';
@@ -308,6 +308,20 @@ describe('🔢 题号编法口径（2026-09-28 按正规收口）：教辅按大
     //   不再另起小题号）**相抵**：模型二选一→选给号，长出多余小题号。**exam 侧已于 2026-10-05 收口为
     //   "每个独立设问的题"，教辅侧一直是旧字面** → 本轮与 exam 同口径（补对象锚）。本处为锁：锚不得被去掉。
     expect(p, '教辅题号条须与 QOC／exam 同锚（每个独立设问的题）').toContain('**每个独立设问的题**以 <p class="question"> 包裹并带题号');
+  });
+
+  // 🔴 2026-10-09（〔291〕同款相抵残余·收口）："不得省略或合并任何一题"与 QOC（同型并列整栏只作一题＝"合并"）
+  //   同款相抵——`useAiGenerator:4396`（重试回灌）已于 2026-10-04（J7）改口，但 `promptLibrary:575`（错题本支）／
+  //   `:580`（教辅支）**字面残留**（主语虽已限定、当前不成相抵，仍属低风险残余）。本轮按同一口径收口：
+  //   **删去该尾句、保留连续性判据"不得跳号"**（省略＝跳号，已由"不得跳号"覆盖；编号对象由 QOC 单源承载）。
+  //   本处为锁：该尾句不得回潮；并防"删尾句连带丢了对象口径"。
+  it('教辅／错题本题号条：相抵尾句"不得省略或合并任何一题"须已移除', () => {
+    for (const g of ['practice', 'errorbook']) {
+      const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: g }).template;
+      expect(t, `${g}：相抵尾句须已移除`).not.toContain('不得省略或合并任何一题');
+      expect(t, `${g}：连续性判据"不得跳号"须保留`).toContain('不得跳号');
+    }
+    expect(practiceTpl(), '教辅侧编号对象仍由 QOC 单源承载').toContain(QUESTION_OBJECT_CALIBER);
   });
 
   it('正式考卷：小题号编法按学段分叉（小学本大题起编／中学全卷连续）', () => {
