@@ -1828,64 +1828,58 @@ export function stripRedundantInlineCarrierRows(html = '') {
  * （连题号数字本身都不在正文任何位置），直接导致整卷判失败。故把顺序固定成表，按步比对
  * 题号数即可点名是哪一步削掉的。
  * ⚠️ 顺序即行为，不得调整（与历史生产链逐字一致）：
- * 2026-09-30 新增 alignCarrierFormByDeclaration（紧跟 normalizeBlankMarkers 之后）：载体形态由题面声明收口（G1）；
- *    **只增一步、不动既有次序**。
- *    cleanSectionHtml → normalizeBlankMarkers → alignCarrierFormByDeclaration → normalizeMathCircleBlanks →
+ * 🔴 2026-10-09（属主裁定·**乙案**）：原 2026-09-30 加的 **`alignCarrierFormByDeclaration`（载体形态收口）已撤出本链**——
+ *    它与 cell 判据"同一题内各空按各自实际所填**分别定形、可并存**"**相抵**（大题标题含"选择/括号"就把该大题
+ *    所有横线翻成括号；真机实测"该横线的空位也变括号"）。现**程序不再改形态**，改为**只报不改**检出
+ *    （`detectCarrierFormMismatch`，不在此链内、由审核侧消费，与〔285〕"有歧义的形态判据→只报不改"同纪律）。
+ *    cleanSectionHtml → normalizeBlankMarkers → normalizeMathCircleBlanks →
  *    stripRedundantInlineCarrierRows → normalizeMatchQuestions →
  *    normalizeLeadingMarkers → normalizeIndents
  * @param {string} raw 模型直出（或续写片段）
  * @param {{trace?:boolean,label?:string}} [opts] trace=true 时只在"题号数掉落"的步骤打日志
  * @returns {string} 归一化后的正文
  */
-/**
- * 载体形态按题面声明收口（G1·2026-09-30 用户裁定）
+/** 作答位形态与题面声明**不符**的检出（只报不改）——2026-10-09（属主裁定·**乙案**·替代原"形态收口"）
  * ============================================================
- * 病根：载体形态原先由**输入长相**决定（输入下划线→横线型 u.blank-N，输入括号→括号型 span.blank-N）
- *   ——于是"题面声明填符号、卷面却给横线"（题干说"把序号填在括号里"、卷面一条横线；2026-09-30 源码级实证）。
- *   判定"该用哪种载体"的表本来就在（blueprintSchema 的括号判定），却只供展示层用——**两把尺子**。
- * 本步把它接进归一键：**形态由题面声明决定**——**题块粒度**（`<h2>` 起、到下一个 `<h2>` 止；大类层与大题标题同为 h2，
- *   与硬约束"同一大题内"同粒度）：该块题面命中"括号"/符号作答声明（SYMBOL_ANSWER_DECL）而其内空位是横线型，
- *   即收为括号型（同 class 档位、同 &emsp; 内容）。
- * 保守边界：① **显式"横线"声明否决**——块内含"横线"字样（如"写在横线上"）一律不动（2026-09-30 源码实证：
- *   "选字填空…写在横线上"命中符号词"选字"，若只按符号词转会把该题错改成括号）；② 只做单向（→括号型；
- *   不做反向，避免一刀切误伤低段"＝（　）"惯例）；③ 答案区不处理；④ 该块无声明则不动；⑤ 幂等；⑥ 已是 span 的不动。
- * 定位：随 normalizeBodyHtml 链走（生成归一 / 编辑器装载 / 导出前同源）；**提示词零新增、零题型名**。
+ * 沿革：原 2026-09-30（G1）是**改写**——题面声明符号作答（选择/判断/填序号…）而卷面空位是横线型时，
+ *   把该处横线**收成括号型**；2026-10-06（A3）把粒度从"h2 题块"收到"小题段"，**但仍保留"段内无声明时
+ *   用 h2 大题标题当大题级声明"** ⇒ 与 cell 判据"同一题内各空按各自实际所填**分别定形、可并存**"**相抵**：
+ *   一个大题标题含"选择/括号"就把该大题所有横线翻成括号（真机实测：**该横线的空位也变括号**）。
+ * 本轮（属主裁定·乙案）：**程序不再改形态**（形态由模型按所填内容定）——只**检出**"声明与实际不符"，
+ *   交人工核对（纪律同〔285〕：**有歧义的形态判据→只报不改**）。
+ * 判据（与 cell 同粒度·**按段**）：**该空所在段**的题面含符号作答声明（或"括号"）而该段空位为横线型 → 命中；
+ *   · 段内显式"横线"字样 → 否决（不命中）；
+ *   · 大题标题亦可作声明源，但**只认"形态词"**（`括号`/`填序号`/`序号填在`）——**不认题型词**（选择/判断）：
+ *     标题说"**把序号填在括号里**"而卷面给横线 ⇒ 真·声明↔实给不符（G1 病根）应报；
+ *     标题只叫"**选择题**"不等于该大题每一空都填符号 ⇒ 不报（防噪音）。
+ *   · 答案区不处理（答案区不重现状）。
+ * @returns {Array<{segment:string}>} 命中段清单（空=无不符）
  */
-export function alignCarrierFormByDeclaration(html = '') {
+/** 大题标题可作声明源**仅限形态词**（不含题型词）——防"选择题大题里的写字空"被误报 */
+const H2_CARRIER_FORM_DECL = /括号|填序号|序号填在/;
+export function detectCarrierFormMismatch(html = '') {
   const src = String(html || '');
-  if (!src || !/<u\b[^>]*class="[^"]*\bblank-\d+/i.test(src)) return src;
+  if (!src || !/<u\b[^>]*class="[^"]*\bblank-\d+/i.test(src)) return [];
   const at = src.search(ANSWER_SECTION_START_RE);
   const body = at >= 0 ? src.slice(0, at) : src;
-  const tail = at >= 0 ? src.slice(at) : '';
-  const blocks = body.split(/(?=<h2\b)/i);
-  // 🔴 2026-10-06（第二批·面 10·程序链 · **A3 属主裁定"块级→按空判"**）：
-  //   原实现按 **h2 题块整块**收口（块内正文命中"括号"/符号声明即把**整块**横线翻成括号）——
-  //   与 cell 侧"同一题内各空按各自实际所填**分别定形、可并存**"及 ⑧"性质不同者不得整卷同形"
-  //   **粒度不同**（程序按块判、判据按空判）⇒ 真机上同一大题内"该横线"的空位会被整体翻成括号。
-  //   现改为**按小题段（`<p>` 段）判**：只看**该空所在段**的题面声明；段内无声明时，仅当
-  //   **该块 h2 大题标题文字本身**含符号声明（＝大题级声明）才收——不再拿整块正文当声明源。
-  //   保守边界全部保留：显式"横线"否决（改为**按段**否决，粒度同细）、只做单向（→括号型）、
-  //   答案区不处理、该段无声明则不动、幂等、已是 span 的不动。
-  const out = blocks.map((blk) => {
+  const hits = [];
+  for (const blk of body.split(/(?=<h2\b)/i)) {
     const h2 = blk.match(/<h2\b[^>]*>[\s\S]*?<\/h2>/i);
-    const h2Text = h2 ? h2[0].replace(/<[^>]+>/g, '') : '';
-    const h2Decl = !/横线/.test(h2Text) && (SYMBOL_ANSWER_DECL.test(h2Text) || /括号/.test(h2Text));
-    return blk.split(/(?=<p\b)/i).map((seg) => {
-      if (!/<u\b[^>]*class="[^"]*\bblank-\d+/i.test(seg)) return seg;
+    const h2Decl = h2 ? H2_CARRIER_FORM_DECL.test(h2[0].replace(/<[^>]+>/g, '')) : false;
+    for (const seg of blk.split(/(?=<p\b)/i)) {
+      if (!/<u\b[^>]*class="[^"]*\bblank-\d+/i.test(seg)) continue;
       const text = seg.replace(/<[^>]+>/g, '');
-      if (/横线/.test(text)) return seg; // 段内显式"横线"声明 → 该段否决（保守不动）
-      if (!SYMBOL_ANSWER_DECL.test(text) && !/括号/.test(text) && !h2Decl) return seg;
-      return seg.replace(/<u\b([^>]*class="[^"]*\bblank-\d+\b[^"]*"[^>]*)>[\s\S]*?<\/u>/gi,
-        (m, attrs) => '<span' + attrs + '>&emsp;</span>');
-    }).join('');
-  }).join('');
-  return out + tail;
+      if (/横线/.test(text)) continue; // 段内显式"横线"声明 → 该段否决（保守）
+      if (!SYMBOL_ANSWER_DECL.test(text) && !/括号/.test(text) && !h2Decl) continue;
+      hits.push({ segment: seg.trim().slice(0, 80) });
+    }
+  }
+  return hits;
 }
 
 const BODY_NORMALIZE_STEPS = [
   ['cleanSectionHtml', cleanSectionHtml],
   ['normalizeBlankMarkers', normalizeBlankMarkers],
-  ['alignCarrierFormByDeclaration', alignCarrierFormByDeclaration],
   ['normalizeMathCircleBlanks', normalizeMathCircleBlanks],
   ['stripRedundantInlineCarrierRows', stripRedundantInlineCarrierRows],
   ['normalizeMatchQuestions', normalizeMatchQuestions],
@@ -2009,4 +2003,4 @@ export function normalizeExamHeadOrder(html = '') {
   } catch { return src; }
 }
 
-export default { cleanSectionHtml, normalizeTypographicSymbols, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, alignCarrierFormByDeclaration, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, ensureCarrierContent, markExamBigCategory, normalizeExamHeadOrder, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };
+export default { cleanSectionHtml, normalizeTypographicSymbols, stripAiCodeFence, hasAnswerCarrier, htmlToPlainText, analyzeQuestionHierarchy, countTopLevelQuestions, normalizeBlankMarkers, detectCarrierFormMismatch, normalizeWhitespaceCarriers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, ensureCarrierContent, markExamBigCategory, normalizeExamHeadOrder, clampBlankWidth, blankWidthForChars, shortBlankWidth, spaceBlankWidth, wrapBareBlankRuns };

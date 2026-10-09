@@ -1,13 +1,16 @@
-// G1 载体形态按题面声明收口 + G2 声明↔实给判据单源（2026-09-30 用户裁定·全局根治）
+// G1 载体形态「按题面声明收口」已按属主裁定改**乙案**（2026-10-09）：**程序不再改形态**，改为**只报不改**检出
 // ============================================================
-// G1 病根（源码级实证）：形态原先由**输入长相**决定（下划线→横线型 / 括号→括号型），于是"题干说填在括号里、
-//   卷面却是一条横线"。判"该用哪种载体"的表本来就在（blueprintSchema 的括号判定），却只供展示层用——两把尺子。
-// G2 病根：题面自洽①里"声明↔实给"那句**内联在题类模板**且点了 6 类实例，内容型无同口径 →
-//   "声明了'选'却无可选项"一类问题漏在内容型侧。
+// 沿革：2026-09-30（G1）原为**改写**——题面声明符号作答（选择/判断/填序号…）而卷面空位是横线型时，把该处
+//   横线**收成括号型**；2026-10-06（A3）把粒度从"h2 题块"收到"小题段"，**但仍保留"段内无声明时用 h2 大题
+//   标题当大题级声明"** ⇒ 与 cell 判据"同一题内各空按各自实际所填**分别定形、可并存**"**相抵**：一个大题
+//   标题含"选择/括号"就把该大题所有横线翻成括号（真机实测：**该横线的空位也变括号**）。
+//   ⇒ 属主裁定**乙案**：**程序不改形态**（形态由模型按所填内容定），只**检出**"声明与实际不符"交人工核对
+//     （纪律同〔285〕：有歧义的形态判据→只报不改）；**并去掉"h2 大题标题兜底"**（那正是相抵源）。
+// G2 声明↔实给判据单源（不变）。
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { alignCarrierFormByDeclaration, normalizeBodyHtml } from '../../src/utils/contentCleaner.js';
+import { detectCarrierFormMismatch, normalizeBodyHtml } from '../../src/utils/contentCleaner.js';
 import { SYMBOL_ANSWER_DECL, inferCarriers, CARRIERS } from '../../src/config/blueprintSchema.js';
 import { getPromptTemplate, DECLARATION_TRUTH_CLAUSE } from '../../src/config/promptLibrary.js';
 
@@ -28,75 +31,75 @@ const SRC_Q4 = [
   '<p class="question">16. 鲤鱼妈妈说：“你们的妈妈四条腿，<u class="blank-2"> </u>嘴巴。你们到那边去找吧！”</p>',
 ].join('\n');
 
-describe('G1 载体形态按题面声明收口', () => {
-  it('题块声明"把序号填在括号里" → 块内横线型空位一律收为括号型（真实源码 4 条全转）', () => {
-    const out = alignCarrierFormByDeclaration(SRC_Q1);
-    expect(out, '横线型应已无残留').not.toMatch(/<u\b[^>]*blank-/i);
-    expect((out.match(/<span class="blank-\d">&emsp;<\/span>/g) || []).length).toBe(4);
-    expect(out, '档位（N）不得变').toContain('<span class="blank-1">&emsp;</span>');
-    expect(out, '档位（N）不得变').toContain('<span class="blank-4">&emsp;</span>');
-    expect(out, '加点标记不得被牵连').toContain('<span class="emphasis-dot">教</span>');
+describe('G1 载体形态：程序不再改形态（乙案），只报不改', () => {
+  it('🔴 题面声明"把序号填在括号里"+该段为横线型 → 形态**不被改写** ＋ 检出命中', () => {
+    const out = normalizeBodyHtml(SRC_Q1);
+    expect(out, '乙案：横线型形态不得被程序改写').toMatch(/<u\b[^>]*\bblank-1\b/i);
+    expect(out, '也不得被翻成括号型（span.blank-N）').not.toMatch(/<span\b[^>]*class="[^"]*blank-\d/i);
+    expect(detectCarrierFormMismatch(SRC_Q1).length, '声明与实际不符须检出').toBeGreaterThan(0);
   });
 
-  it('显式"横线"声明否决：题块声明"选字填空…写在横线上" → 一律不动（防按符号词误转）', () => {
-    expect(alignCarrierFormByDeclaration(SRC_Q4)).toBe(SRC_Q4);
+  it('段内显式"横线"声明 → 否决（不检出）', () => {
+    expect(detectCarrierFormMismatch(SRC_Q4)).toEqual([]);
   });
 
-  it('题块无声明 → 不动（填空/组词/写句子等横线载体照旧）', () => {
+  it('段内无声明 → 不检出、形态不改写', () => {
     const s = '<h2>七、根据课文内容填空。（每空2分，共8分）</h2>\n<p class="question">29. 小蝌蚪先长出两条<u class="blank-2"> </u>腿。</p>';
-    expect(alignCarrierFormByDeclaration(s)).toBe(s);
+    expect(detectCarrierFormMismatch(s)).toEqual([]);
+    expect(normalizeBodyHtml(s)).toMatch(/<u\b[^>]*\bblank-2\b/i);
   });
 
-  it('答案区不处理', () => {
-    const s = '<h2>一、把序号填在括号里。（每题2分）</h2>\n<p class="question">1. 题<u class="blank-1"> </u></p>\n<div class="answer-section"><h1>参考答案</h1><p>1. 甲<u class="blank-1"> </u></p></div>';
-    const out = alignCarrierFormByDeclaration(s);
-    expect(out.slice(out.indexOf('answer-section')), '答案区内的横线型保持原样').toContain('<u class="blank-1">');
+  it('答案区不处理（不检出）', () => {
+    // 失配只在**答案区**（正文无声明、答案区标题声明"括号"却是横线）→ 不检（答案区不重现状）
+    const s = '<h2>一、积累与运用</h2>\n<p class="question">1. 题<u class="blank-1"> </u></p>\n<div class="answer-section"><h1>参考答案</h1><h2>把序号填在括号里</h2><p>1. 甲<u class="blank-1"> </u></p></div>';
+    expect(detectCarrierFormMismatch(s)).toEqual([]);
   });
 
-  it('幂等：已是括号型再跑一次不变', () => {
-    const once = alignCarrierFormByDeclaration(SRC_Q1);
-    expect(alignCarrierFormByDeclaration(once)).toBe(once);
+  // 🔴 相抵根治（乙案核心）：**形态不再被程序改**（无论声明源是段还是标题）；**检出**只认"形态词"、不认题型词。
+  it('🔴 大题标题声明"填在括号里" → 命中（报告）但**形态不改**（乙案核心：只报不改）', () => {
+    const s = [
+      '<h2>一、把序号填在括号里。（每题2分）</h2>',
+      '<p class="question">1. 看拼音写词语：<u class="blank-1"> </u>。</p>',
+    ].join('\n');
+    expect(detectCarrierFormMismatch(s).length, '声明↔实给不符应报').toBeGreaterThan(0);
+    expect(normalizeBodyHtml(s), '形态不得被改写（相抵根治）').toMatch(/<u\b[^>]*\bblank-1\b/i);
   });
 
-  // 🔴 2026-10-06（第二批·面 10·程序链 · A3 属主裁定"块级→按空判"）：
-  //   原按 h2 题块**整块**收口，与 cell"同一题内各空分别定形、可并存"、⑧"性质不同者不得整卷同形"
-  //   粒度不同 ⇒ 真机上"该横线"的空位会被整块翻成括号。现按**小题段**判、大题标题声明作兜底。
-  it('🆕按空判：同大题内，声明"括号"的段收口、声明"横线上"的段不动（互不牵连）', () => {
+  it('🔴 大题标题只含**题型词**（"选择题"）、无形态声明 → 不检出（防题型词牵连）', () => {
+    const s = [
+      '<h2>二、选择题</h2>',
+      '<p class="question">1. 看拼音写词语：<u class="blank-1"> </u>。</p>',
+    ].join('\n');
+    expect(detectCarrierFormMismatch(s)).toEqual([]);
+    expect(normalizeBodyHtml(s)).toMatch(/<u\b[^>]*\bblank-1\b/i);
+  });
+
+  it('同大题内互不牵连：声明"括号"的段命中、声明"横线上"的段不命中；两段形态都不被改', () => {
     const s = [
       '<h2>三、按要求作答。</h2>',
       '<p class="question">1. 把正确的序号填在括号里<u class="blank-1"> </u>。</p>',
       '<p class="question">2. 把词语写在横线上<u class="blank-2"> </u>。</p>',
     ].join('\n');
-    const out = alignCarrierFormByDeclaration(s);
-    expect(out, '声明"括号"的段 → 收为括号型').toContain('<span class="blank-1">&emsp;</span>');
-    expect(out, '声明"横线上"的段 → 保持横线型（不得被整块牵连）').toContain('<u class="blank-2"> </u>');
+    expect(detectCarrierFormMismatch(s).length).toBe(1);
+    const out = normalizeBodyHtml(s);
+    expect(out).toMatch(/<u\b[^>]*\bblank-1\b/i);
+    expect(out).toMatch(/<u\b[^>]*\bblank-2\b/i);
   });
 
-  it('🆕大题标题级声明仍生效：h2 含"括号"、段内无声明 → 其下各段一律收口', () => {
-    const s = [
-      '<h2>一、把序号填在括号里。（每题2分）</h2>',
-      '<p class="question">1. 甲<u class="blank-1"> </u>。</p>',
-      '<p class="question">2. 乙<u class="blank-1"> </u>。</p>',
-    ].join('\n');
-    const out = alignCarrierFormByDeclaration(s);
-    expect(out, '大题级声明 → 其下各段均应收口').not.toMatch(/<u\b[^>]*blank-/i);
-  });
-
-  it('接入正文归一键（normalizeBodyHtml 链内，且只增一步、不动既有次序）', () => {
+  it('归一键已**撤出**该步（程序不再改形态）', () => {
     const src = read('src/utils/contentCleaner.js');
-    expect(src).toContain("['alignCarrierFormByDeclaration', alignCarrierFormByDeclaration],");
-    expect(src.indexOf("['normalizeBlankMarkers'")).toBeLessThan(src.indexOf("['alignCarrierFormByDeclaration'"));
-    expect(src.indexOf("['alignCarrierFormByDeclaration'")).toBeLessThan(src.indexOf("['normalizeMathCircleBlanks'"));
-    expect(normalizeBodyHtml(SRC_Q1)).not.toMatch(/<u\b[^>]*blank-/i);
+    expect(src, '收口函数应已删除（不再定义）').not.toContain('export function alignCarrierFormByDeclaration');
+    expect(src, '链内不得再出现该步').not.toContain("['alignCarrierFormByDeclaration'");
+    expect(normalizeBodyHtml(SRC_Q1), '链归一后横线仍在').toMatch(/<u\b[^>]*blank-/i);
   });
 
-  it('单源：符号作答声明只有一处定义，展示层推断与形态收口共用（禁两把尺子）', () => {
+  it('单源：符号作答声明只有一处定义，展示层推断与**检出**共用（禁两把尺子）', () => {
     const bs = read('src/config/blueprintSchema.js');
     expect((bs.match(/export const SYMBOL_ANSWER_DECL/g) || []).length, '该正则只能定义一次').toBe(1);
     expect(bs, 'inferCarriers 必须引用同一定义').toContain('if (HAS(t, SYMBOL_ANSWER_DECL)) out.add(CARRIERS.BRACKET);');
     expect((bs.match(/选择\|判断\|选字/g) || []).length, '括号关键词只能出现一次（单源）').toBe(1);
     const cc = read('src/utils/contentCleaner.js');
-    expect(cc, '形态收口必须引用同一定义').toContain("import { SYMBOL_ANSWER_DECL } from '../config/blueprintSchema.js';");
+    expect(cc, '检出必须引用同一定义').toContain("import { SYMBOL_ANSWER_DECL } from '../config/blueprintSchema.js';");
     expect((cc.match(/选择\|判断\|选字/g) || []).length, 'contentCleaner 不得自写第二份括号关键词表').toBe(0);
     // 展示层口径不变：仍能判出括号载体
     expect(inferCarriers('选择', '')).toContain(CARRIERS.BRACKET);
@@ -104,7 +107,7 @@ describe('G1 载体形态按题面声明收口', () => {
     expect(SYMBOL_ANSWER_DECL.test('写在横线上')).toBe(false);
   });
 
-  it('零新增提示词：形态收口不进提示词（只在程序侧判定）', () => {
+  it('零新增提示词：该判定不进提示词（只在程序侧判定）', () => {
     const tpl = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template;
     expect(tpl, '提示词不得出现该判定的字样').not.toContain('SYMBOL_ANSWER_DECL');
     expect((tpl.match(/填序号|序号填在/g) || []).length, '该判定措辞不得进提示词').toBe(0);

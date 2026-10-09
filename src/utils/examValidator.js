@@ -12,7 +12,7 @@ import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
 import { checkFigurePrompts } from './figurePromptCheck.js'; // 题干 ↔ 配图 PROMPT 数量交叉校验（2026-09-16）
 import { isPerBigQuestionNumbering } from './gradeStage.js'; // 题号编法按学段分叉（与指令侧同源，2026-10-05）
-import { analyzeQuestionNumbering, extractBodyQuestionNumbers, detectCnOrdinalHeadingIssues, spaceBlankWidth, bodyBeforeAnswer } from './contentCleaner.js'; // 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；extractBodyQuestionNumbers=同一口径的**题号序列**投影（2026-09-29 答案区逐题对应明细取证用，不新造正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
+import { analyzeQuestionNumbering, extractBodyQuestionNumbers, detectCnOrdinalHeadingIssues, spaceBlankWidth, bodyBeforeAnswer, detectCarrierFormMismatch } from './contentCleaner.js'; // 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；extractBodyQuestionNumbers=同一口径的**题号序列**投影（2026-09-29 答案区逐题对应明细取证用，不新造正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
 
 // ---------- 通用正则 ----------
 // 全角拼音字符归一表（IPA 音标字符混入小学拼音、全角字母）
@@ -695,6 +695,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         issues.push({ severity: 'info', type: 'emphasis-dot', message: '加点字已由 <u> 下划线自动转为 emphasis-dot 加点标记' });
         fixed += 1;
       }
+    }
+    // 🔴 2026-10-09（属主裁定·乙案）：作答位形态与**题面声明**不符 → **只报不改**。
+    //    原程序侧"载体形态收口"（`alignCarrierFormByDeclaration`）会把题面声明符号作答处的横线**收成括号**，
+    //    与 cell 判据"同一题内各空按各自实际所填**分别定形、可并存**"相抵（大题标题含"选择/括号" → 该大题
+    //    所有横线翻括号，真机实测"该横线的空位也变括号"）⇒ 已撤出归一键，改为在此**只报不改**（形态交模型）。
+    const carrierMis = detectCarrierFormMismatch(out);
+    if (carrierMis.length) {
+      silentCount('text-format', `题面声明符号作答（选择/填序号/填在括号里等），但该处作答位是横线——共 ${carrierMis.length} 段，请抽检（程序只提示、不改形态）`);
     }
   }
 
