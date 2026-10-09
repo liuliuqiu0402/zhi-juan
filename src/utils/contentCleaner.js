@@ -431,9 +431,27 @@ export function detectBodyNumberingGap(html = '') {
  * 正文顶层题数取"最长 1 起始连续段"（与 countTopQuestions 同口径，抗题干内数字列举干扰）；
  * 答案区必须显式传 part:'answer'（否则整段被当"答案区"切掉 → 计数恒 0，恒漏判）。
  * 判据刻意保守：正文顶层题数 <4 不判（纯写作/口语等开放表达卷），避免纯评分式答案区误报。
- * ↔ 消费方 useAiGenerator 答案页接受判定：severe → 不静默接受，重试一次；重试仍缺 → 记告警。
+ * ↔ 消费方 useAiGenerator 答案页接受判定（2026-10-09 属主裁定改「**只报不改**」）：severe **不再驱动重试**，
+ *   仅并入报告提示人工核对（重试只留给"空/过短/截断"这类**无歧义硬伤**）。理由：本判据依赖**形态假设**
+ *   （行首 `1./1、/1．`），判不准——答案区改用括号序号/大字序号/连排即可能被误判 → 拿它去重试＝赌、白烧调用。
  */
 export const ANSWER_SECTION_MISSING_MIN_BODY_TOP = 4;
+
+/** 答案区是否含**小题级逐题编号**（任一形态）——2026-10-09（属主裁定·防"太窄致乱报"）：
+ *  "只报不改"的判据**必须先确认"真的没有逐题编号"**才报；只认行首三形态会把"改用括号序号／连排／行内"
+ *  的答案区（**其实已逐题作答**）误判成"前段缺失"＝乱报噪音。故纳入：
+ *    · 阿拉伯三形态（行首 ＋ 空位旁 ＋ 连排 compact，与 `countTopQuestions` **同源口径**）；
+ *    · **括号小题序** `（N）`/`(N)`（答案区常用的小题编号形态）。
+ *  边界（防判据失效）：**不纳**"一、二、"**大题汉字序**——评分表/栏目表也带它，计它会掩盖"只剩尾部评分表"
+ *  这一真缺陷（本判据 2026-09-26 的立项场景）。 */
+export function hasAnswerPerQuestionNumbering(html = '') {
+  const src = String(html || '');
+  if (!src.trim()) return false;
+  if (extractBodyQuestionNumbers(src, { part: 'answer', compact: true }).length) return true;
+  const text = src.replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;|&emsp;|&#8195;/gi, ' ');
+  return /[(（]\s*[1-9]\d?\s*[)）]/.test(text);
+}
+
 export function detectAnswerSectionMissing(content = '', answerHtml = '') {
   const peakRun = (nums) => {
     let best = 0, run = 0;
@@ -449,7 +467,13 @@ export function detectAnswerSectionMissing(content = '', answerHtml = '') {
   const ansTop = peakRun(extractBodyQuestionNumbers(String(answerHtml || ''), { part: 'answer' }));
   // 答案区为空/纯空白 → 不判"前段缺失"（那是"整体缺失"，由调用方的空/过短门先拦截，与本判据无关）
   const hasAnswer = String(answerHtml || '').trim().length > 0;
-  return { bodyTop, ansTop, severe: hasAnswer && bodyTop >= ANSWER_SECTION_MISSING_MIN_BODY_TOP && ansTop === 0 };
+  // 泛化（2026-10-09）：行首题号 0 **且** 任何小题级编号形态都没有 → 才算"前段整体缺失"；
+  //   有括号序号/连排即视为"已逐题作答"（编号形态与正文不一致另由判据侧约束，不在此处当"缺失"报）。
+  const severe = hasAnswer
+    && bodyTop >= ANSWER_SECTION_MISSING_MIN_BODY_TOP
+    && ansTop === 0
+    && !hasAnswerPerQuestionNumbering(answerHtml);
+  return { bodyTop, ansTop, severe };
 }
 
 /** 试卷正文题号"全卷连续"下限（题数过少不判，防小卷/片段误报） */

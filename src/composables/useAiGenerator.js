@@ -4767,25 +4767,29 @@ ${cardAnalysisText.substring(0, 1000)}
         //    会被静默放行 —— 这正是"答案区缺后半段"的静默路径。现口径：仍截断 = 未完整，
         //    与"空/过短"同档：重试一次；两次都不完整 → 判失败（宁失败不残缺），绝不交付半截答案。
         const ansTruncated = ansObj.finishReason === 'length' || ansObj.finishReason === 'reasoning_capped';
-        // 2026-09-26（答案区"只剩尾部、缺前段"静默根治）：续写只治"尾部被截断"，治不了"答案区缺正文前段逐题答案"——那是"模型没写前半"，尾部完整+finish=stop 会被误判完成。现加题号缺失检测（正文顶层题号≥4 而答案区一个/顶层都无）→ severe 视同"未完整"，走重试；重试仍缺 → 告警交付（内容在但半缺，不静默）。
+        // 2026-09-26（答案区"只剩尾部、缺前段"静默根治）：续写只治"尾部被截断"，治不了"答案区缺正文前段逐题答案"。
+        // 🔴 2026-10-09（属主裁定·改「只报不改」）：该题号缺失判据依赖**形态假设**（只认行首 1./1、/1．），判不准——
+        //   答案区改用括号序号/大字序号/连排即可能被误判 → 拿它去驱动重试＝赌、白烧一次调用。故 severe **不再重试**，
+        //   改为**告警交付**（进报告、人工核对）；重试只留给**无歧义硬伤**：空/过短/思考耗尽/截断。
+        //   识别范围同时放宽（`hasAnswerPerQuestionNumbering`：括号序号/连排也算"已逐题作答"），防"太窄致乱报"。
         const ansGap = detectAnswerSectionMissing(content || '', aHtml);
-        if (aHtml && aHtml.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansCapped && !ansTruncated && !ansGap.severe) {
+        if (aHtml && aHtml.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansCapped && !ansTruncated) {
           const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
           // 🔧 去重：模型自带 <h1>参考答案…</h1> 头部标题剥除（系统包装已加 <h2> 标题，见 stripLeadingAnswerTitle）
           answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml)}</div>`;
+          if (ansGap.severe) {
+            const gapNote = `⚠️ 答案区未出现与正文同形的逐题题号（正文顶层 ${ansGap.bodyTop}／答案区 0）——请人工核对答案区是否逐题对齐（要求：逐题以与正文完全相同的题号起头）。程序只提示、不改内容、不重试`;
+            if (typeof bodyPathNotes !== 'undefined' && Array.isArray(bodyPathNotes)) bodyPathNotes.push(gapNote);
+            console.warn(gapNote);
+          }
         } else {
           // 🔧 答案页为空/过短/思考耗尽/续写后仍截断/缺正文前段题号 → 自动重试一次（思考耗尽/截断时强制关闭思考，防再次空转；
           //    模型偶发输出空或"略"式敷衍内容也覆盖）
-          const ansReason = ansGap.severe
-            // 🔴 2026-10-09（文案按真因说准）：原一律说"缺正文前段逐题答案"——真因常是**编号形态不符**
-            //   （答案区改用括号序号/只写大题序号/连排无行首号），程序只认"行首 1./1、/1．"三形态故数成 0。
-            //   文案改为如实描述"未出现与正文同形的逐题题号"，并点明常见成因，避免误导编辑。
-            ? `答案区未出现与正文同形的逐题题号（正文顶层 ${ansGap.bodyTop}／答案区行首题号 0）——常见成因：答案区改用括号序号（1）或只写大题序号、或答案连排无行首号；本要求＝答案区逐题以与正文完全相同的题号起头`
-            : (ansCapped
-              ? `思考耗尽（${ansObj.reasoningChunkCount || 0} 推理chunks）`
-              : (ansTruncated
-                ? `续写后仍被截断（finish=${ansObj.finishReason}，清洗后 ${aHtml?.length || 0} 字符）`
-                : `过短（清洗后 ${aHtml?.length || 0} / 原始 ${(ansObj.content || '').length} 字符，finish=${ansObj.finishReason || 'unknown'}）`));
+          const ansReason = ansCapped
+            ? `思考耗尽（${ansObj.reasoningChunkCount || 0} 推理chunks）`
+            : (ansTruncated
+              ? `续写后仍被截断（finish=${ansObj.finishReason}，清洗后 ${aHtml?.length || 0} 字符）`
+              : `过短（清洗后 ${aHtml?.length || 0} / 原始 ${(ansObj.content || '').length} 字符，finish=${ansObj.finishReason || 'unknown'}）`);
           console.warn(`⚠️ 答案页内容${ansReason}，自动重试一次${ansCapped ? '（强制关闭思考）' : ''}`);
           const ansResp2 = await callAI(ansPrompt, {
             taskType: 'generation', timeout: getTimeout('answer'), retries: 1,
@@ -4802,17 +4806,15 @@ ${cardAnalysisText.substring(0, 1000)}
           const aHtml2 = normalizeMathCircleBlanks(normalizeLeadingMarkers(cleanSectionHtml(ansObj2.content || '')));
           const ansTruncated2 = ansObj2.finishReason === 'length' || ansObj2.finishReason === 'reasoning_capped';
           const ansGap2 = detectAnswerSectionMissing(content || '', aHtml2);
-          if (aHtml2 && aHtml2.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansTruncated2 && !ansGap2.severe) {
+          if (aHtml2 && aHtml2.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansTruncated2) {
             const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
             answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml2)}</div>`;
-          } else if (aHtml2 && aHtml2.length > GEN_CONST.ANSWER_ACCEPT_MIN_LEN && !ansTruncated2 && ansGap2.severe) {
-            // 2026-09-26：重试后内容有效但答案区仍缺正文前段题号 → **告警交付，不判整卷失败**（避免纯评分/开放表达卷被误杀）；
-            //    绝不静默——并入正文路径告警（审核报告可见），提示人工核对答案区完整性。
-            const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
-            answerHtml = `<div class="answer-section"><h2>${ansTitle}</h2>\n${stripLeadingAnswerTitle(aHtml2)}</div>`;
-            const gapNote = `⚠️ 答案页两次生成仍未出现与正文同形的逐题题号（正文顶层 ${ansGap2.bodyTop}／答案区 ${ansGap2.ansTop}）——已保留现有答案内容，请人工核对该卷答案区是否逐题对齐（要求：逐题以与正文完全相同的题号起头）`;
-            if (typeof bodyPathNotes !== 'undefined' && Array.isArray(bodyPathNotes)) bodyPathNotes.push(gapNote);
-            console.warn(gapNote);
+            // 2026-10-09（只报不改）：答案区题号形态类命中 → **告警交付**（不判整卷失败、不再重试）
+            if (ansGap2.severe) {
+              const gapNote = `⚠️ 答案区未出现与正文同形的逐题题号（正文顶层 ${ansGap2.bodyTop}／答案区 ${ansGap2.ansTop}）——请人工核对答案区是否逐题对齐（要求：逐题以与正文完全相同的题号起头）。程序只提示、不改内容、不重试`;
+              if (typeof bodyPathNotes !== 'undefined' && Array.isArray(bodyPathNotes)) bodyPathNotes.push(gapNote);
+              console.warn(gapNote);
+            }
           } else {
             // 两次生成必须成功（2026-09-11 用户定版）：split 模式答案页是唯一答案源——
             //    两次尝试仍失败且正文无答案区 → 判失败（进入外层整卷重试），绝不静默交付"正文-only"
