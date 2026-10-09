@@ -136,4 +136,11 @@ describe('G2 声明↔实给判据单源', () => {
     expect(DECLARATION_TRUTH_CLAUSE).not.toMatch(/例如|如“|比如/);
     expect(DECLARATION_TRUTH_CLAUSE).toContain('待选项');
   });
+
+  it('判据含"判定法"（不止给方向）：按其声明的量与指代逐一对上', () => {
+    // 2026-10-09 面 1：原句只给方向（"实给与题面所指相符"）→ 无客观判法、可自圆其说。
+    // 现须给判定法：声明几项就有几项＝量、声明指哪处就真在那一处＝指代（与标记侧"按题干要求判"同款）。
+    expect(DECLARATION_TRUTH_CLAUSE, '须给判定法而非只给方向').toContain('按其声明的量与指代逐一对上');
+    expect(DECLARATION_TRUTH_CLAUSE, '真实/足量两要件须在').toMatch(/真实.*足量/);
+  });
 });
