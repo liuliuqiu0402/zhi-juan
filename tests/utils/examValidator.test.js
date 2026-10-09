@@ -461,6 +461,20 @@ describe('examValidator 排版语义自洽（text-format-fix）', () => {
     const badHtml = okHtml.replace(/<span class="emphasis-dot">/g, '<u>').replace(/<\/span>/g, '</u>');
     expect(auditExamPaper(badHtml, OPTS).silent).toBeGreaterThan(0);
   });
+
+  // 🔴 2026-10-09（〔291〕触发对齐）：原 claims 为**枚举清单**且只认"加点字"，对题干常见措辞"照样子，用**加点的词语**…"
+  //    "给**加点的字**…""**加点词**"够不着 → "有要求而无标记"的自洽检查**漏触发**。现与模型侧原则式对齐（加点以"加点"为特征）。
+  //    本处锁：非"加点字"的措辞亦须触发（防漏报回退）。
+  it('题干写"用加点的词语/给加点的字/加点词"（非"加点字"）但无标记 → 仍触发静默计数（触发对齐）', () => {
+    for (const wording of ['照样子，用加点的词语写句子。（4分）', '给加点的字选择正确的读音。（4分）', '给加点词选择正确的解释。（4分）']) {
+      const html = [
+        '<h2>一、积累与运用（32分）</h2>',
+        `<p class="question">2. ${wording}</p>`,
+        '<p>（1）春天的花儿真好看。</p>',
+      ].join('\n');
+      expect(auditExamPaper(html, OPTS).silent, `应触发：${wording}`).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe('examValidator 书写格按学段（writing-grid-fix）', () => {

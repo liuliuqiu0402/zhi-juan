@@ -675,7 +675,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
     // 加点=emphasis-dot、画线=underline-sentence（加点严禁用 <u>，<u> 仅用于填空横线）
     const markCount = (out.match(/<span[^>]*class=["'][^"']*emphasis-dot[^"']*["'][^>]*>|<u[^>]*class=["'][^"']*underline-sentence[^"']*["'][^>]*>/gi) || []).length;
-    const claims = bodyText.match(/(圈出加点字|给加点字|加点字|画线(?:的)?(?:词语|句子|部分)|划(?:出|一划)|描出|用.{0,3}线(?:画出|划出))/g) || [];
+    // 🔴 2026-10-09（〔291〕触发对齐）：原为**枚举清单**且只认"加点字"，对题干常见措辞"照样子，用**加点的词语**…"
+    //    "给**加点的字**…""**加点词**"**够不着**——模型侧判据已原则式（"措辞如何变化都算"），程序侧仍是清单 ⇒
+    //    "有要求而无标记"的自洽检查**漏触发**。现与模型侧对齐：加点以"加点"为特征（覆盖加点的字/词语、加点字/词）；
+    //    画线以"画线/划线/划出/划一划/描出/用…线画出|划出"为特征。仅用于 silentCount 报告，不改写正文。
+    const claims = bodyText.match(/(加点|画线|划线|划(?:出|一划)|描出|用.{0,3}线(?:画出|划出))/g) || [];
     if (claims.length > 0 && markCount === 0) {
       silentCount('text-format', `题干要求加点/画线（${claims[0]}）但正文无对应标记（emphasis-dot/underline-sentence）——题目不自洽，请抽检`);
     }

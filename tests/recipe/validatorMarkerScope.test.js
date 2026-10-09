@@ -16,6 +16,11 @@ describe('画线/加点真实标记规则补位（2026-09）', () => {
     //  英语语音辨析要求另由【英语学科事实底线】单源承载（"语音标注…字母组合须与题面标注范围逐字一致"）。
     expect(r.promptHint).toContain('词内标出');
     expect(r.promptHint).toContain('无效题');
+    // 🔴 2026-10-09（〔291〕画线族·原则化）：原锚枚举"画线句子/画线词语/画线部分/划出文中…句"，对"划线/标出/描出"
+    //    等措辞够不着（与加点同构的"丁×乙"）。现锚改判据式"凡题干以画线/划线/划出/画出…标示待标处"，并明写对象类型不设限。
+    //    本处锁：原则化不得回退。
+    expect(r.promptHint, '锚须为判据式（不再枚举"画线句子/画线词语"）').toContain('凡题干以');
+    expect(r.promptHint, '对象类型不设限').toContain('画线对象不限于句子或词语');
     expect([...r.subjects].sort().join('')).toBe('英语语文');
 
     const en = buildValidatorPrompt({ subject: '英语', stage: 'primary_high', genType: 'practice' });
