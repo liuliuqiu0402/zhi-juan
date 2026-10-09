@@ -202,7 +202,7 @@ export const VALIDATOR_RULES = [
     subjects: ['英语'],
     stages: ['*'],
     promptHint: '排版语义标记规范（英语）：音标用斜杠包裹（/ˈæpl/）。',
-    description: '英语学科音标斜杠包裹约束，按学科精确注入（其他学科不注入）；纯生成前约束——音标形态无程序自动修复，属模型自律项（生成后不打扰）。',
+    description: '英语学科音标斜杠包裹约束，按学科精确注入（其他学科不注入）。2026-10-09（台账〔293〕后续·属主批"①可以"）：原为**纯生成前约束**（`RULE_NO_EXEC` 唯一成员、零兜底）——现补**只报不改**执行点：`examValidator` 1.5.6a 检出"正文有裸 IPA 符号却未用 /…/ 包裹"即 silentCount 报（notice 进生成报告【问题列表】）；**不自动修复、不重试、不判失败**（守判词单源 ＋〔285〕"只报不改、不接回灌"）。',
     enabled: true,
   },
   {
@@ -341,6 +341,7 @@ export const VALIDATOR_GATES = new Set([
   'emphasis-form-fix',
   'text-format-sup-sub', 'cn-ordinal-guard', 'question-numbering-key',
   'formula-form-guard',
+  'text-format-phonetics',
 ]);
 /** 无独立分支、由汇总/关联规则执行的子规则 */
 export const RULE_EXEC_BY = {
@@ -348,8 +349,11 @@ export const RULE_EXEC_BY = {
   'text-format-underline': 'text-format-fix',
   'text-format-zhuyin': 'pinyin-norm',
 };
-/** 显式声明的纯生成前约束（无程序执行点，模型自律） */
-export const RULE_NO_EXEC = new Set(['text-format-phonetics']);
+/** 显式声明的纯生成前约束（无程序执行点，模型自律）
+ *  🔴 2026-10-09（台账〔293〕后续 · 属主批"①可以"）：原唯一成员 `text-format-phonetics` 已**补执行点**
+ *     （`examValidator` 1.5.6a · silentCount 只报不改）⇒ 移入 `VALIDATOR_GATES`，本表**暂空**
+ *     （留表以保持接线自检 `validatorWiring` 的三分结构）。 */
+export const RULE_NO_EXEC = new Set();
 
 /** 全量内置规则（维护/展示用） */
 export const listValidatorRules = () => getMergedRules().map(r => ({ ...r }));

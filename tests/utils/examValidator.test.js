@@ -477,6 +477,28 @@ describe('examValidator 排版语义自洽（text-format-fix）', () => {
   });
 });
 
+// 🔴 2026-10-09（属主批"①可以"）：`text-format-phonetics`（英语音标斜杠包裹）原为 `RULE_NO_EXEC` 唯一成员
+//    （纯模型自律、**零兜底**）⇒ 现在 `examValidator` 1.5.6a 补**只报不改**执行点（silentCount）。
+//    本处锁：裸 IPA 须触发；已用 /…/ 包裹不得触发；非英语学科（未注入）不得触发；且**只报不改**（正文不得被改写）。
+describe('examValidator 英语音标斜杠包裹（text-format-phonetics · 只报不改）', () => {
+  const EN = { subject: '英语', stage: 'primary_high', genType: 'exam' };
+  const phonHits = (r) => r.silentDetails.filter((d) => d.type === 'text-format-phonetics');
+
+  it('正文有裸 IPA 符号却未用 /…/ 包裹 → 静默计数；且正文不被改写（只报不改）', () => {
+    const html = '<h2>一、语音（10分）</h2>\n<p class="question">1.选出划线部分发音不同的单词：apple（ˈæpl）</p>';
+    const r = auditExamPaper(html, EN);
+    expect(phonHits(r).length).toBe(1);
+    expect(r.html, '只报不改：IPA 原文须原样保留').toContain('（ˈæpl）');
+  });
+
+  it('IPA 已用 /…/ 包裹 → 不触发；非英语学科（未注入该规则）→ 不触发', () => {
+    const ok = '<h2>一、语音（10分）</h2>\n<p class="question">1.选出划线部分发音不同的单词：apple /ˈæpl/</p>';
+    expect(phonHits(auditExamPaper(ok, EN)).length, '已包裹不得触发').toBe(0);
+    const zh = '<h2>一、积累（10分）</h2>\n<p class="question">1.读音（ˈæpl）</p>';
+    expect(phonHits(auditExamPaper(zh, { subject: '语文', stage: 'primary_high', genType: 'exam' })).length, '语文不注入').toBe(0);
+  });
+});
+
 describe('examValidator 书写格按学段（writing-grid-fix）', () => {
   it('语文 3 年级及以上仍用田字格 → 自动剥离 class 保留文字（越界修复）', () => {
     const html = '<h1>默写纸</h1>\n<p>看拼音写词语：<span class="tian-zi-ge">海</span>边</p>';

@@ -698,6 +698,20 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
+  // ── 1.5.6a. 英语音标斜杠包裹抽检（规则 text-format-phonetics，2026-10-09 补执行点 · 属主批"①可以"）──
+  //    规则要求"音标用斜杠包裹（/ˈæpl/）"。此前它是 `RULE_NO_EXEC` 唯一成员（纯模型自律、**零兜底**），
+  //    模型漏用斜杠时**无人知**。本轮只补**可见性**：silentCount（notice 级）进生成报告【问题列表】。
+  //    纪律（守 2026-09-30 判词单源 ＋ 台账〔285〕）：**只报不改、不重试、不判失败、不接回灌**——
+  //    "该不该标音标"属语义、交模型侧；此处只兜"已标音标却未用 /…/ 包裹"这一**可机检子集**。
+  //    判据＝**本征**（防误报）：先剔除已用斜杠包裹的段，再看剩余正文有无裸 IPA 符号（强特征、非 ASCII）。
+  if (has('text-format-phonetics')) {
+    const plain = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+    const bare = plain.replace(/\/[^/\n]{0,60}\//g, ' '); // 剔除 /…/ 已包裹段（含斜杠词表）
+    if (/[ˈˌːˑæɑɒɔəɜɪʊʌʃʒθðŋɡʧʤɹɫ]/.test(bare)) {
+      silentCount('text-format-phonetics', '正文出现未被斜杠包裹的音标符号（英语音标应用 /…/ 包裹——如 /ˈæpl/）——请抽检');
+    }
+  }
+
   // ── 1.5.6b. Unicode 上下标归一（规则 text-format-sup-sub，2026-09 接线：此前仅 prompt 约束、无程序执行点）──
   //    模型漏用 <sup>/<sub> 直接输出 Unicode 上下标（²³⁺ₙ）时确定性转标记（仅数理化卷按 subject 门控；
   //    跳过 $…$ 公式区防破坏公式语法——公式内书写由渲染契约 FORMULA_RULES 管理）
