@@ -34,6 +34,10 @@ describe('画线/加点真实标记规则补位（2026-09）', () => {
     expect(r.promptHint).toContain('加粗不是加点');
     expect(r.promptHint).toContain('emphasis-dot');
     expect(r.promptHint).toContain('无效题');
+    // 🔴 2026-10-09（〔282〕〔283〕腿1·扩锚）：原锚写死"加点的词语"，对"照样子"类题的**句式样板**（如"有时候…"
+    //    "在…"）够不着 → 修复不生效。现锚改为判据式"加点对象"，并明写对象类型不设限。本处锁：扩锚不得回退。
+    expect(r.promptHint, '锚须为判据式"加点对象"（不再写死"词语"）').toContain('与题干所指加点对象相对应');
+    expect(r.promptHint, '对象类型不设限（覆盖句式标志成分）').toContain('加点对象不限于词语');
     expect(r.subjects).toEqual(['语文']);
 
     const zh = buildValidatorPrompt({ subject: '语文', stage: 'primary_mid', genType: 'practice' });

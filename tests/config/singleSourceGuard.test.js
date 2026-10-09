@@ -94,3 +94,35 @@ describe('单源守卫：卷首导语 / 严肃卷面 / 统一情境 / 大题标�
     expect(parseStyleFromInstruction('【组织风格】mindmap：示例').isUnifiedContext).toBe(false);
   });
 });
+
+// 🔴 2026-10-09（层2 补守卫 · 用户裁定"这个可以做" · 见台账〔290〕）：以下 5 项"已单源、但此前只靠注释纪律"
+//   （分值账目算式／强调口径／公式写法／作答位条款／载体形态）——为每项取一个"够独特、不误伤"的特征字面，
+//   断言其**只在属主文件出现**。
+//   扫描面＝**src**：这 5 项的规则字面属"进模型的指令源"，回潮风险在 src（再写第二处正句）；
+//   docs/design 属决策台账、允许引用原文，故不纳入本块（否则会把"台账引用"误判为回潮）。
+const LAYER2_SINGLE_SOURCE = [
+  { item: '分值账目算式', owner: 'src/config/promptLibrary.js', phrase: '账目算式判据' },
+  { item: '强调口径', owner: 'src/config/promptLibrary.js', phrase: '加粗只用于层级标题与讲解示范引出' },
+  { item: '公式写法', owner: 'src/config/eduRenderContract.js', phrase: '公式内分数用' },
+  { item: '作答位条款', owner: 'src/config/layoutSpec.js', phrase: '不得再在题后另起' },
+  { item: '载体形态', owner: 'src/config/layoutSpec.js', phrase: '题干未写明时按此书写惯例' },
+];
+
+describe('层2 单源守卫：5 项"已单源"规则的特征字面只在其属主文件出现（扫描面＝src）', () => {
+  it('每项特征字面在属主文件真实存在，且不在任何其它 src 文件出现', () => {
+    const bad = [];
+    for (const { item, owner, phrase } of LAYER2_SINGLE_SOURCE) {
+      const ownerAbs = path.join(ROOT, owner);
+      const ownerSrc = fs.existsSync(ownerAbs) ? fs.readFileSync(ownerAbs, 'utf8') : '';
+      if (!ownerSrc.includes(phrase)) {
+        bad.push(`「${item}」属主 ${owner} 内找不到特征字面「${phrase}」`);
+        continue;
+      }
+      const others = SRC_FILES
+        .filter((f) => rel(f) !== owner && fs.readFileSync(f, 'utf8').includes(phrase))
+        .map(rel);
+      if (others.length) bad.push(`「${item}」特征字面「${phrase}」在属主外出现：${others.join('、')}`);
+    }
+    expect(bad, '层2 单源被破坏（同一判据在第二处 src 再写一份；应改为引用属主）').toEqual([]);
+  });
+});
