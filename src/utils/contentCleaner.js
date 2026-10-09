@@ -1323,10 +1323,11 @@ export function normalizeBlankMarkers(html = '') {
   if (sealKeeps.length) {
     out = out.replace(/\uE000(\d+)/g, (_m, i) => '＿'.repeat(sealKeeps[Number(i)] || 0));
   }
-  // 同段书写空位形态统一（2026-09 复现收口：模型在同一句里混用 横线/方框/括号空，
-  //    如 "0.7×0.3＝<u>＿</u>×<span square-box>＿</span>"）→ 按多数形态统一（并列取 u 下划线）。
-  //    在叠写去重/拆壳之后执行；只动形态不涉内容（helper 定义紧接本函数下方）。
-  out = unifySameParagraphWriteBlanks(out);
+  // 🔴 2026-10-09（属主实测·载体相抵根治·续〔296〕乙案）：原此处调 `unifySameParagraphWriteBlanks`
+  //    （**同段按"多数形态"统一**）——同段内 ≥2 空位且形态≥2 种时，把该段所有空位重写成"最多的那一种"，
+  //    于是 `<u class="blank-N">`（横线）被改写成 `<span class="blank-N">`（括号）。这与 cell 判据
+  //    "**同一题内各空按各自实际所填分别定形、可并存**"**相抵**（横线空＝写字、括号空＝选符号，性质不同、
+  //    本就该并存；实测"该横线的空位整段变括号"）。⇒ **已撤出本链、函数删除**：程序不再改载体形态。
   // 畸形填空载体拆壳（不变量守卫）：blank-N 内出现正文文字/标题被包 → 还原纯文本（后置于一切包裹规则之后）
   out = unwrapMalformedBlankCarriers(out);
 
@@ -1339,72 +1340,10 @@ export function normalizeBlankMarkers(html = '') {
   return out;
 }
 
-/** 同段书写空位形态统一（2026-09 复现收口："0.7×0.3＝<u class=blank>×</u><span class=square-box>…</span>" 横线/方框混用）
- * ============================================================
- * 判定：同一 <p> 段内"纯书写型空位" ≥2 且形态种类 ≥2 → 全部改写为出现最多的形态
- * （并列取 u 下划线；square-box/oral-box 无档位按 2em 折算；span.blank-N 括号空并入同宽 u）。
- * 只统一书写空位形态，不碰：○（math-circle-blank-18，运算符选择语义不同）、
- * 整行结构（blank-line/blank-solo/田字格/竖式格等）；"结果位书写横线"（紧邻 ＝/≈ 之后、语义为
- * 得数留白，uCellRe/boxRe 共用 isResultPosition 判定）亦不参与合并——防破坏"口算行：方框单元 + 
- * 结果位留白"的角色区分（2026-09 实证修正）。幂等；生成归一/编辑器装载/粘贴同源消费。
- */
-export function unifySameParagraphWriteBlanks(html = '') {
-  const src = String(html || '');
-  if (!src || !/<(u|span)\b/i.test(src)) return src;
-  const unifyInPara = (para) => {
-    const tokens = [];
-    const push = (type, w, start, full, excluded) => tokens.push({ type, w, start, end: start + full.length, excluded: !!excluded });
-    const prevVisibleChar = (pos) => para.slice(0, pos).replace(/<[^>]+>/g, '').replace(/[　\s]+$/, '').slice(-1);
-    let m;
-    const reU = new RegExp(`<u\\b(?=[^>]*\\bclass=["'][^"']*\\bblank-(\\d+)\\b[^"']*["'])[^>]*>${BLANK_INNER}<\\/u>`, 'gi');
-    while ((m = reU.exec(para)) !== null) {
-      const prev = prevVisibleChar(m.index);
-      // 结果位书写横线（＝/≈ 之后）→ 排除（角色语义=得数留白，见函数头注释）
-      push('u', Number(m[1]) || 1, m.index, m[0], prev === '＝' || prev === '≈' || prev === '=');
-    }
-    const reSpan = new RegExp(`<span\\b(?=[^>]*\\bclass=["'][^"']*\\bblank-(\\d+)\\b[^"']*["'])(?![^>]*\\bsquare-box\\b)(?![^>]*\\bmath-circle-blank\\b)(?![^>]*\\boral-box\\b)[^>]*>${BLANK_INNER}<\\/span>`, 'gi');
-    while ((m = reSpan.exec(para)) !== null) {
-      const prev = prevVisibleChar(m.index);
-      push('span', Number(m[1]) || 1, m.index, m[0], prev === '＝' || prev === '≈' || prev === '=');
-    }
-    const reSq = new RegExp(`<span\\b(?=[^>]*\\bclass=["'][^"']*\\bsquare-box\\b[^"']*["'])[^>]*>${BLANK_INNER}<\\/span>`, 'gi');
-    while ((m = reSq.exec(para)) !== null) push('sq', 2, m.index, m[0], false);
-    const reOral = new RegExp(`<span\\b(?=[^>]*\\bclass=["'][^"']*\\boral-box\\b[^"']*["'])[^>]*>${BLANK_INNER}<\\/span>`, 'gi');
-    while ((m = reOral.exec(para)) !== null) push('oral', 2, m.index, m[0], false);
-    tokens.sort((a, b) => a.start - b.start);
-    const active = tokens.filter((t) => !t.excluded);
-    const kinds = new Set(active.map((t) => t.type));
-    if (active.length < 2 || kinds.size < 2) return para;
-    const count = {};
-    for (const t of active) count[t.type] = (count[t.type] || 0) + 1;
-    let target = 'u';
-    let best = -1;
-    for (const k of ['u', 'span', 'sq', 'oral']) {
-      if ((count[k] || 0) > best) { best = count[k]; target = k; }
-    }
-    // 2026-09-29（单一事实源·用户裁定"自洽、不各写一套"）：档位上下限改读规格库 BLANK
-    //    （原自持 `Math.min(24, Math.max(1, …))` 梯形，与规格库 maxBlank/minBlank 相抵——会写出超上限档位）
-    const blankSpec = getMergedSpec().BLANK || {};
-    const maxTier = Number.isFinite(blankSpec.maxBlank) ? blankSpec.maxBlank : 24;
-    const minTier = Number.isFinite(blankSpec.minBlank) ? blankSpec.minBlank : 2;
-    const render = (w) => {
-      const cw = Math.min(maxTier, Math.max(minTier, Math.round(w || minTier)));
-      if (target === 'u') return `<u class="blank-${cw}">&emsp;</u>`;
-      if (target === 'span') return `<span class="blank-${cw}">&emsp;</span>`;
-      if (target === 'sq') return '<span class="square-box">&nbsp;</span>';
-      return '<span class="oral-box">&nbsp;</span>';
-    };
-    const rewrite = (t) => (t.excluded || t.type === target ? para.slice(t.start, t.end) : render(t.w));
-    let out = '';
-    let pos = 0;
-    for (const t of tokens) {
-      out += para.slice(pos, t.start) + rewrite(t);
-      pos = t.end;
-    }
-    return out + para.slice(pos);
-  };
-  return src.replace(/(<p\b[^>]*>[\s\S]*?<\/p>)/gi, unifyInPara);
-}
+// 🔴 2026-10-09（属主实测·载体相抵根治·续〔296〕乙案）：**本函数已删除**——原 `unifySameParagraphWriteBlanks`
+//    （同一 <p> 段内纯书写型空位 ≥2 且形态 ≥2 种 → **全部改写为出现最多的形态**；并列取 u）。
+//    与 cell 判据"同一题内各空按各自实际所填**分别定形、可并存**"相抵：横线空（写字）与括号空（选符号）
+//    性质不同、本就该并存，程序却按"段"统一 ⇒ 实测"该横线的空位整段变括号"。**程序不再改载体形态。**
 
 /** 数学算式填空位：把"算式里做比较/填空位的 ○/□"归一为 1.8em 填空容器（○→圆圈、□→方框）。
  *  ============================================================
