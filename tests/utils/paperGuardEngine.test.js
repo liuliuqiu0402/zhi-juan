@@ -102,3 +102,22 @@ describe('paperGuardEngine: 报告分节去重', () => {
     }
   });
 });
+
+// 🔴 2026-10-09（属主实测·误报根治）：**语文**不跑"与教材参考段字面重合（照搬）"档——语文卷以课文为素材
+//   （课内阅读材料即课文原文；填空/仿写/按课文内容类题必引课文原句），重合是应然、此档纯噪音。
+describe('paperGuardEngine: 语文豁免"字面重合"档（2026-10-09）', () => {
+  const corpus = ['小蝌蚪甩着长长的尾巴，快活地游来游去。'];
+  const html = '<p>1. 小蝌蚪甩着长长的尾巴，快活地游来游去。</p>';
+
+  it('语文：命中参考段 → **不报** copy（copyHits/bannedList 均空、hits 无 copy）', () => {
+    const r = guardPaper({ html, corpus, subject: '语文' });
+    expect(r.copyHits).toEqual([]);
+    expect(r.bannedList).toEqual([]);
+    expect(r.hits.some((h) => h.cat === 'copy')).toBe(false);
+  });
+
+  it('非语文（数学）：同类重合 → 仍报（豁免仅限语文）', () => {
+    const r = guardPaper({ html, corpus, subject: '数学' });
+    expect(r.copyHits.length).toBeGreaterThan(0);
+  });
+});

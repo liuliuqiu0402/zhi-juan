@@ -191,7 +191,13 @@ export function guardPaper({ html = '', corpus = [], longN = 8, copy = true, sub
   //   copy=false（知识归纳型 mode=full：summary/preview/dictation/review）——正文职责=按原文归纳呈现，
   //   字面重述是本职，任何字面阈值检测都不适用 → 不比对、不报告、不进 bannedList；
   //   命题/抽样型（practice/special/reading/errorbook/exam）copy=true 全开（8 字）+修订。
-  const copyHits = copy
+  // 🔴 2026-10-09（属主实测·误报根治）：**语文**不跑"与教材参考段字面重合（照搬）"档——
+  //   语文卷以课文为素材：**课内阅读的材料本就是课文原文**（低段尤甚），填空/仿写/按课文内容类题也**必须**
+  //   引用课文原句 ⇒ 与教材原文重合是**应然**（实测一份低段语文卷即 8~11 处命中，全是课文原句）。
+  //   判据原意是"不得照搬教材**原题**"（题目），与"原文重合"不是一回事；此档对语文**无信息量、纯噪音**。
+  //   边界：仅"字面重合"档豁免；**算式重复/情境集中/首段自述/数据裂缝等其余档照常**（语文不涉算式，实际无影响）。
+  const copyOn = copy && subject !== '语文';
+  const copyHits = copyOn
     ? scanCopyOverlap({ bodyHtml: html, corpus, longN, subject }).map((h) => ({
         cat: 'copy', level: 'warn',
         text: `「${h.snippet}」（${h.kind === 'num' ? '数字串' : /[A-Za-z]/.test(h.snippet) ? `${h.n} 词连续` : `${h.n} 字连续`}命中教材参考段）`,

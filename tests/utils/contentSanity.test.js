@@ -220,6 +220,18 @@ describe('contentSanity 2026-09 同份资料引文复现一致性检测', () => 
     expect(detectQuoteConflicts('引文“小水滴聚在一起落下来”与“小水滴聚在一起掉下来”。').length).toBeGreaterThan(0);
   });
 
+  // 🔴 2026-10-09（用户实测·误报根治）：**句读差异**（。↔，）也只是标点不同、不是"引文两种写法"。
+  it('🔴 仅句读差异（。↔，）→ 不报（2026-10-09 用户实测误报）', () => {
+    expect(detectQuoteConflicts('引文“你们的妈妈四条腿，宽嘴巴。你们到那边去找吧！”与“你们的妈妈四条腿，宽嘴巴，你们到那边去找吧！”并存。')).toEqual([]);
+  });
+
+  // 🔴 2026-10-09（用户实测·误报根治）：声明"写在横线上"的题，空位若是**无 class 的 `<u>`** 也属横线载体，
+  //   原判据只认"带 class 的 `<u>`" → 漏认 → 误报"题内无横线空"。现放宽（画线标记 underline-sentence 除外）。
+  it('🔴 声明"写在横线上"＋无 class 的 `<u>` 空位 → 不报；真无横线空 → 仍报（2026-10-09 放宽）', () => {
+    expect(sanityScan('<p>2. 选字填空，把正确的字写在横线上。<u>　</u>【已　己】</p>').filter((s) => s.includes('写在横线上'))).toEqual([]);
+    expect(sanityScan('<p>2. 选字填空，把正确的字写在横线上。（　）【已　己】</p>').filter((s) => s.includes('写在横线上')).length).toBe(1);
+  });
+
   it('sanityScan 汇总含引文冲突；HTML 标签剥离后正常', () => {
     expect(sanityScan('<p>“床前明月光，疑是地上霜”</p><p>“床前明月光，疑是地霜”</p>')).toHaveLength(1);
     expect(sanityScan('<p>“春眠不觉晓”</p><p>“春眠不觉晓”</p>')).toEqual([]);

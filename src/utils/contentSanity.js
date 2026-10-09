@@ -153,7 +153,10 @@ const detectTaskMismatch = (html = '') => {
   //    （`(?:^|\n)\s*[A-Ha-h][.、．]`）——而实测卷把选项做成**大题级共享备选池**（「备选读音：A. jiāo　B. jiào…」），
   //    选项在行内、又在被切块的题之外 → 系统性误报"选择类题无选项可择"。补：**行内选项**（前有分隔符：，、　空格）同样算有选项。
   const hasOption = (b) => /class=["'][^"']*option[^"']*["']|(?:^|\n)\s*[A-Ha-h][.、．]\s*|（\s*[A-Ha-h]\s*）|[：:，,、\s\u3000][A-Ha-h][.、．]\s*\S/.test(b.html);
-  const hasLineBlank = (b) => /<u[^>]*class=["'][^"']*blank-|＿|blank-line/.test(b.html); // 横线空/书写行
+  // 🔴 2026-10-09（用户实测·误报根治）：原只认"带 class 的 `<u>`／`＿`／blank-line"——模型给**无 class 的 `<u>`**
+  //   （空位内容未归一）时会**漏认** → 系统性误报"声明写在横线上但题内无横线空"。放宽为：**任何 `<u>`**
+  //   （画线标记 `underline-sentence` 除外）、下划线字符、blank-line 皆算横线载体（宁漏不误）。
+  const hasLineBlank = (b) => /<u\b(?![^>]*underline-sentence)[^>]*>|＿|blank-line/.test(b.html); // 横线空/书写行
   for (const b of blocks) {
     const t = b.txt;
     if (!t || !b.html) continue;
@@ -260,7 +263,12 @@ export const detectQuoteConflicts = (html = '') => {
   //   （仅差一个 `…`，dist=1、L=10、占比 10%）被判"写法不一致"＝纯误报。现先**把省略号跑段归一到单字符**再比；
   //   真·文字差异（地上霜/地霜）不受影响。
   const canonEllipsis = (s) => String(s || '').replace(/(?:…|\.{2,}|。{2,})+/g, '…');
-  const normQuote = (s) => canonEllipsis(String(s || '').replace(TRIM_EDGE_PUNCT, '')).toLowerCase();
+  // 🔴 2026-10-09（用户实测·误报根治）：**句读差异**同样是噪音——"你们的妈妈四条腿，宽嘴巴**。**你们到那边去找吧！"
+  //   与"…宽嘴巴**，**你们到那边去找吧！"只差一个标点（断句不同），不是"引文两种写法"（实测被反复打扰）。
+  //   故比较前**归一省略号 ＋ 剥离全部标点**；真·文字差异（"地上霜/地上箱"）仍报（剥标点不动汉字）。
+  const stripPunctAll = (s) => String(s || '')
+    .replace(/[\s\u3000。．.!！?？；;，,、:：…—－~～“”‘’"'（）()【】《》〈〉「」『』\-]/g, '');
+  const normQuote = (s) => stripPunctAll(canonEllipsis(String(s || '').replace(TRIM_EDGE_PUNCT, ''))).toLowerCase();
   for (const { re } of matchers) {
     let m;
     while ((m = re.exec(src)) !== null) {

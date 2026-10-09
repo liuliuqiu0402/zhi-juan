@@ -5014,7 +5014,9 @@ ${cardAnalysisText.substring(0, 1000)}
     if (guardResult.hits.length) {
       const guardParas = guardReportOf(guardResult.hits, { copyLimit: 5 });
       guardParas.forEach((p) => auditWarnings.push(p));
-      console.warn(`⚠️ [出稿自检] ${guardResult.hits.length} 处命中（首段自述已由程序剔除，其余待编辑核对）：${guardResult.hits.slice(0, 4).map((h) => h.text).join('；')}…`);
+      // 🔴 2026-10-09（属主实测·去重复报）：原此处另打一句 `console.warn('⚠️ [出稿自检] N 处命中…')`——
+      //    与上方**问题列表**（`guardReportOf` 分节）内容重复：日志里报一次、问题列表里又报一次。
+      //    现**去掉日志侧**、只保留问题列表（属主："算重复报吧？建议日志里去掉"）。
     }
 
     // 🗑 领域覆盖对账已砍（2026-09-20 用户裁定："对不到精准，意义不大"）：
