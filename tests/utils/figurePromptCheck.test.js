@@ -51,6 +51,15 @@ describe('数量声明提取（量词锚定，避开题号/分值）', () => {
     expect(extractDeclaredCounts('从四个选项中选出').size).toBe(0);
     expect(extractDeclaredCounts('共3小题').size).toBe(0);
   });
+
+  // 🔴 2026-10-09（用户实测·误报根治）：篇幅量词"段"（+ 话/文字/段落/诗/课文）数的是**文字篇幅**、
+  //   不是图中要素个数；旧实现把"一段"当数量 → "题干「一段」× PROMPT「两个小朋友」"被判不一致＝纯误报。
+  it('🔴 篇幅量词「段」与「话/文字/段落/课文」不算图中要素数量（2026-10-09 用户实测误报）', () => {
+    expect(extractDeclaredCounts('观察图片，写一段话').size).toBe(0);
+    expect(extractDeclaredCounts('读下面的文字，写一段话').size).toBe(0);
+    expect(extractDeclaredCounts('按课文内容填空').size).toBe(0);
+    expect(extractDeclaredCounts('写两句话').size).toBe(0);
+  });
 });
 
 describe('块体解析', () => {
@@ -93,6 +102,11 @@ describe('交叉校验：题干 ↔ PROMPT', () => {
 
   it('🔴 保守判定：题干出现多个数量时不判定（宁漏不误）', () => {
     const r = checkFigurePrompts(wrap('<p>1. 图中有三只熊猫和两只猴子</p>', '一只熊猫'));
+    expect(r.mismatches).toEqual([]);
+  });
+
+  it('🔴 题干「写一段话」× PROMPT「两个小朋友」→ 不报（篇幅量词不算要素数·2026-10-09 用户实测误报）', () => {
+    const r = checkFigurePrompts(wrap('<p>1. 观察图片，写一段话。</p>', '两个小朋友在植物园里给小苗浇水'));
     expect(r.mismatches).toEqual([]);
   });
 

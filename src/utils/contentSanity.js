@@ -255,7 +255,12 @@ export const detectQuoteConflicts = (html = '') => {
   //    语义上并非"两种写法"；原实现按裸编辑距离比较，≥1 即报，这类纯尾标点差异会反复打扰编辑。
   //    只剥首尾标点，**内部标点/文字差异照报**（真·写法不一致完全不受影响）。
   const TRIM_EDGE_PUNCT = /^[\s。．.!！?？；;，,、:：]+|[\s。．.!！?？；;，,、:：]+$/g;
-  const normQuote = (s) => String(s || '').replace(TRIM_EDGE_PUNCT, '').toLowerCase();
+  // 🔴 2026-10-09（用户实测·误报根治）：省略号**写法变体**（`…` 单个／`……` 成对／`...`／`。。。`）是**同一标点**，
+  //   不是"同一句引文的两种写法"。旧实现按裸编辑距离比较——"有时候…有时候……" 与 "有时候……有时候……"
+  //   （仅差一个 `…`，dist=1、L=10、占比 10%）被判"写法不一致"＝纯误报。现先**把省略号跑段归一到单字符**再比；
+  //   真·文字差异（地上霜/地霜）不受影响。
+  const canonEllipsis = (s) => String(s || '').replace(/(?:…|\.{2,}|。{2,})+/g, '…');
+  const normQuote = (s) => canonEllipsis(String(s || '').replace(TRIM_EDGE_PUNCT, '')).toLowerCase();
   for (const { re } of matchers) {
     let m;
     while ((m = re.exec(src)) !== null) {

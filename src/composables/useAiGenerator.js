@@ -4995,7 +4995,13 @@ ${cardAnalysisText.substring(0, 1000)}
       const imgMarkN = (content.match(/\[IMAGE\]/g) || []).length;
       const graphMarkN = (content.match(/\[GRAPH\]/g) || []).length;
       const figAsked = FIGURE_DEPENDENCY_RE.test(bodyTextForFig);
-      console.warn(`🖼 [图标记取证] 正文 [IMAGE]=${imgMarkN} 个 [GRAPH]=${graphMarkN} 个 ｜ 正文命中图依赖词=${figAsked} ｜ ${figAsked && !imgMarkN && !graphMarkN ? '⚠️ 题干要图但正文无任何图标记（模型没写 or 程序删了）' : '一致（无需人工补图）'}`);
+      // 🔴 2026-10-09（用户实测·去噪）：原无条件 `console.warn` —— "一致（无需人工补图）"（正常态）也打成 ⚠️ 警告，
+      //   与"首段自述已剔除"等噪音一起刷屏。现**只在真异常时 warn**；一致态降为 `console.debug`（默认不显示，排查时可看）。
+      if (figAsked && !imgMarkN && !graphMarkN) {
+        console.warn(`🖼 [图标记取证] 正文 [IMAGE]=${imgMarkN} 个 [GRAPH]=${graphMarkN} 个 ｜ 正文命中图依赖词=${figAsked} ｜ ⚠️ 题干要图但正文无任何图标记（模型没写 or 程序删了）`);
+      } else {
+        console.debug(`🖼 [图标记取证] 正文 [IMAGE]=${imgMarkN} 个 [GRAPH]=${graphMarkN} 个 ｜ 图依赖词=${figAsked} ｜ 一致（无需人工补图）`);
+      }
     } catch (e) { /* 取证失败不影响主流程 */ }
 
     // 出稿自检报告（卷级守门最终状态：程序剔除首段自述后仍残留的命中统一分节透出——

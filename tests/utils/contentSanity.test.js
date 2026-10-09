@@ -210,6 +210,16 @@ describe('contentSanity 2026-09 同份资料引文复现一致性检测', () => 
     expect(detectQuoteConflicts('引文“床前明月光，疑是地上霜”与“床前明月光，疑是地上箱”并存。')).toHaveLength(1);
   });
 
+  // 🔴 2026-10-09（用户实测·误报根治）：省略号**写法变体**（`…` 单个／`……` 成对／`...`）是**同一标点**，
+  //   不是"同一句引文的两种写法"；旧实现按裸编辑距离比较 → "有时候…有时候……" 与 "有时候……有时候……"
+  //   （仅差一个 `…`）被判不一致＝纯误报。现按省略号归一后比较。
+  it('🔴 省略号写法变体（… ／ …… ／ ...）→ 不报；真·文字差异照报（2026-10-09 用户实测误报）', () => {
+    expect(detectQuoteConflicts('引用“有时候…有时候……”与“有时候……有时候……”同句。')).toEqual([]);
+    expect(detectQuoteConflicts('引文“我们回家吧...”与“我们回家吧……”。')).toEqual([]);
+    // 省略号归一不得变成"遮罩"：真·文字差异仍须检出
+    expect(detectQuoteConflicts('引文“小水滴聚在一起落下来”与“小水滴聚在一起掉下来”。').length).toBeGreaterThan(0);
+  });
+
   it('sanityScan 汇总含引文冲突；HTML 标签剥离后正常', () => {
     expect(sanityScan('<p>“床前明月光，疑是地上霜”</p><p>“床前明月光，疑是地霜”</p>')).toHaveLength(1);
     expect(sanityScan('<p>“春眠不觉晓”</p><p>“春眠不觉晓”</p>')).toEqual([]);
