@@ -17,7 +17,7 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     // 🔴 2026-10-06（A4 跨处一致·消相抵·先解后锁）：原断 "共X题"——该字面随结构改**列式**而退场：
     //    卷面结构以 `｜题数 X｜分值 Y分` 给**命题依据**，**大题标题形态由指令库分值条单源给**（avoid 两形并现）。
     expect(tpl.template).toContain('【卷面结构】');
-    expect(tpl.template).toContain('题数 X');
+    expect(tpl.template).not.toContain('题数 X');
     // 明细由 buildStructureText 注入（蓝图数据）；分值从蓝图推导，锁定"栏名 + 注入格式"而非写死数值
     const bp = getExamBlueprint('语文', 'primary_low');
     const inject = buildStructureText(bp);
@@ -76,7 +76,7 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(inject).not.toContain('【分值规则】');
     expect(inject).not.toContain('小题数×每题分=大题分');
     // 卷面结构仍在（语文·初中为域型栏目 → **中学段口径**：课标领域名直接作大题行，不设大类层）
-    expect(inject).toMatch(/^一、积累与运用｜题数 X/m);
+    expect(inject).toMatch(/^一、积累与运用｜分值 /m);
   });
 
   it('英语蓝本（听力·/笔试·前缀）→ 输出部分层作大类居中（不写"第X部分"），大题去前缀、序号全卷连续', () => {
@@ -132,16 +132,16 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     const inject = buildStructureText(mid);
     expect(inject, '中学段不得输出大类层').not.toContain('大类层');
     // 课标领域名即大题标题（带「一、」序号与分值），真题通行："一、积累与运用（30分）"
-    expect(inject).toMatch(/^一、积累与运用｜题数 X｜分值 24分/m);
-    expect(inject).toMatch(/^二、梳理与探究｜题数 X｜分值 10分/m);
-    expect(inject).toMatch(/^五、写作｜题数 X｜分值 36分/m);
+    expect(inject).toMatch(/^一、积累与运用｜分值 24分/m);
+    expect(inject).toMatch(/^二、梳理与探究｜分值 10分/m);
+    expect(inject).toMatch(/^五、写作｜分值 36分/m);
   });
 
   it('题型型栏目（数学等作答形式名）→ 不设大类层，块名即大题标题', () => {
     const mathBp = getExamBlueprint('数学', 'primary_mid');
     const inject = buildStructureText(mathBp);
     expect(inject, '数学全部为题型型，不得输出大类层').not.toContain('大类层');
-    expect(inject, '数学块名即大题行').toMatch(/^一、[^｜]+｜题数 X/);
+    expect(inject, '数学块名即大题行').toMatch(/^一、[^｜]+｜分值 /);
     // 历史/地理/道法/科学/生物等无域型栏目的学科同样不设大类层（用户裁定：分学科、非一刀切）
     for (const subj of ['历史', '地理', '道德与法治', '科学', '生物']) {
       const b2 = getExamBlueprint(subj, 'middle');
