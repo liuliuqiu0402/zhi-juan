@@ -297,7 +297,10 @@ import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
 // 🗑 领域覆盖对账（reconcileDomains）已于 2026-09-20 用户裁定砍除，见下方调用点的说明；不再引入
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, detectBodyNumberingGap, classifyNumberingGap, diagnoseNumberingGap, extractBodyQuestionNumbers, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth, detectAnswerSectionMissing, detectBodyNumberingRestart } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth, detectAnswerSectionMissing, detectBodyNumberingRestart } from '../utils/contentCleaner.js';
+// 🔴 2026-10-10（〔315〕死代码清理）：`detectBodyNumberingGap`／`classifyNumberingGap`／`diagnoseNumberingGap`／
+//    `extractBodyQuestionNumbers` 四个导入已随"编号连续性拦截"整块删除而**不再被引用**，故一并移除。
+//    （`detectBodyNumberingRestart` 暂留：它仍被两条既有"接线锁"以字面断言引用；待那两条锁改反向锁后再删。）
 import { getMergedSpec } from '../config/layoutSpec.js'; // 2026-09-29：宽度/档位窗口一律读规格库（禁写死数字）
 import { djb2 } from '../utils/hash.js'; // 原文变更检测哈希唯一实现（与 GenerateModule 写 _analyzedTextHash 共用，曾各自复制）
 import { FIGURE_DEPENDENCY_RE } from '../config/eduRenderContract.js'; // 图依赖词单一事实源（图标记取证用）
@@ -4541,69 +4544,9 @@ ${cardAnalysisText.substring(0, 1000)}
         const qGap = null;
         const bodyRestart = { restart: false, segments: [], top: 0 };
         if (content && isDeliverableBodyHtml(content)) break;
-        // 2026-09-17 根治（用户裁定·多形态容忍，不再靠枚举编号形态定罪）：
-        //    "我认得出题号" ≠ "题目存在"——只有"缺号在正文任何位置都不出现"才是丢题实证；
-        //    缺号能以别的形态被找到（行内编号空位/裸数字/作答位在题号前等）→ 记警告、照常交付
-        //    （形态问题重试也修不好：模型每次写法都不同，漏判恒在）。
-        if (qGap && content && isDeliverableBodyHtml(content)) {
-          const qCls = classifyNumberingGap(content);
-          if (qCls && qCls.nowhere.length === 0) {
-            console.warn(`🔢 [题号·形态放行] 缺号 ${qCls.missing.join('、')} 均能在正文其它位置找到（${qCls.elsewhere.length} 处，非丢题）→ 不重试、照常交付`);
-            // 2026-09-17（用户裁定·消重复）：本处**不再**写报告条目——终检处会按实际交付内容出**一条**
-            //    "形态未全部识别"说明；原先两处各写一条（措辞还略有差异）→ 报告里看着像重复告警。
-            break;
-          }
-        }
-        if (qGap) {
-          // 🔢 丢题根因取证（2026-09-12）：分辨"模型真跳号" vs "提取规则漏判"——只出证据、不参与判定
-          try {
-            const d = diagnoseNumberingGap(content);
-            console.warn(`🔢 [题号诊断·第${attempt + 1}次尝试] 正文${content.length}字符 行首题号=[${d.found.join(',')}] 峰值=${d?.gap?.peak} 缺=[${d.missing.join(',')}] 正文内1~2位数字总数=${d.anyDigitCount}`);
-            // 🔢 归一化前后对照取证（2026-09-12 用户裁定"从程序侧排查"）：题号诊断跑在归一化链**之后**
-            //    （content 是 4536 那一长串 normalizer 的产物），拿不出"模型到底写了什么"——
-            //    故此处用同一口径对**模型直出**（respObj.content，未含续写拼接）再量一次：
-            //      · 原始题号更全 ⇒ 程序侧削除（归一化链 bug，重试能过只是碰巧躲过触发条件）
-            //      · 原始即缺   ⇒ 模型侧行为（跳号/少写），缺号回灌重试是正解
-            //    ⚠️ 只出证据、不参与判定（判定仍由 detectBodyNumberingGap 决定）。
-            const rawSrc = String(respObj.content || '');
-            const rawNums = extractBodyQuestionNumbers(rawSrc);
-            const procNums = extractBodyQuestionNumbers(content);
-            const rawGap = detectBodyNumberingGap(rawSrc);
-            const who = rawNums.length > procNums.length
-              ? '⚠️ 程序侧削除（原始题号更全——须查归一化链）'
-              : '模型侧（原始输出即缺，非程序削除）';
-            console.warn(`🔢 [回归取证·第${attempt + 1}次尝试] 原始输出${rawSrc.length}字符/题号${rawNums.length}个=[${rawNums.join(',')}] 原始缺号=[${rawGap ? rawGap.missing.join(',') : '无'}] ｜ 归一化后${content.length}字符/题号${procNums.length}个=[${procNums.join(',')}] ｜ 判定=${who}`);
-            if (rawNums.length > procNums.length) {
-              try {
-                const rd = diagnoseNumberingGap(rawSrc);
-                rd.skeleton.forEach((s, i) => console.warn(`      原始骨架 ${String(i + 1).padStart(2, '0')}| ${s}`));
-              } catch (e2) { /* 原始骨架失败不影响主流程 */ }
-            }
-            d.peek.forEach((p) => console.warn(`   ↳ 缺号 ${p.n}：${p.where}${p.sample ? ` ｜ 上下文「${p.sample}」` : ''}`));
-            if (d.skeleton?.length) {
-              console.warn(`   ↳ 题号骨架（行首数字/括号序号/第N题，最多 40 行，各截 44 字）——据此判定缺号是大题还是子题：`);
-              d.skeleton.forEach((s, i) => console.warn(`      ${String(i + 1).padStart(2, '0')}| ${s}`));
-            }
-          } catch (e) { /* 诊断失败不影响主流程 */ }
-          lastGapNote = `正文题号缺失：${qGap.missing.join('、')}（1~${qGap.peak} 中缺）——本次必须补全这些题，题号从 1 起逐题连续（**题号只给独立作答单位；同型并列不逐项编号**）`;
-          bodyPathNotes.push(`⚠️ 正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——重试（缺号清单已回灌模型；非预算截断）`);
-          throw new Error(`正文题号不连续（1~${qGap.peak} 中缺：${qGap.missing.join('、')}）——正文疑似丢题${attempt === 0 ? '，重试（缺号清单已回灌模型）' : '，重试后仍未补齐'}`);
-        }
-        if (bodyRestart.restart) {
-          const segText = bodyRestart.segments.filter((s) => s >= 3).join(' / ');
-          const note = `正文题号按小节/栏目重新从 1 编号（各段题数：${segText}），非全卷连续同序`;
-          if (attempt === 0) {
-            // 第 1 次：回灌"全卷连续编号"要求后重试（与缺号同槽：病因是生成行为，非预算）
-            lastGapNote = `${note}——本次必须把全卷题目**从 1 起连续编号、逐题递增、同序**（**题号只给独立作答单位；同型并列不逐项编号**），严禁按小节/栏目重启编号`;
-            bodyPathNotes.push(`⚠️ ${note}——重试（已回灌"全卷连续编号"要求）`);
-            console.warn(`🔢 [题号·分段拦截] ${note} → 重试并回灌"全卷连续编号"（否则答案区无法逐题对齐）`);
-            throw new Error(`${note}——试卷正文题号须全卷连续同序`);
-          }
-          // 第 2 次仍重启 → **不判死**（避免把完整卷反复判失败）：如实进报告，答案侧按正文实际结构对齐
-          bodyPathNotes.push(`⚠️ ${note}——两次生成均按小节重启（不因此判失败）；答案区已按正文实际结构对齐，建议人工核对题号连续性`);
-          console.warn(`🔢 [题号·分段放行] ${note}——不判死（完整卷优先交付），答案侧按正文实际结构对齐`);
-          break;
-        }
+        // 🔴 2026-10-10（〔315〕死代码清理）：原"缺号拦截块／形态放行块／重启拦截块"（约 64 行，含各诊断日志、
+        //    归一化前后对照取证、缺号/重启回灌与重试）**已整块删除**——其行为早于〔315〕停用（编号连续性不得代
+        //    模型定卷面形态，编号对象口径见【题号与分值】）；此处只留此说明。
         lastGapNote = '正文为空/过短/无正文结构（疑似仅自述）——本次必须输出完整正文结构';
         throw new Error('整卷输出为空/过短/无正文结构（疑似仅自述）');
       } catch (e) {
@@ -4619,34 +4562,15 @@ ${cardAnalysisText.substring(0, 1000)}
     } // end if(!content) 单次生成 + 预算升级重试循环
     // 完整优先最终守卫：两次尝试（含续写链/缺号拦截）都未能完整输出 → 明确抛错并给行动建议，
     //    绝不把半截/缺题正文当作成功交付（generate 外层 MAX_RETRIES 会整卷级重试；再失败则由 UI 呈现此错误）
-    // 🔴 2026-10-10（用户裁定·砍"编号连续性"拦截）：终检原按"缺号全文任何位置都未出现＝真丢题"判失败——
-    //    同属"以编号连续性代模型定卷面形态"，与编号对象口径（见【题号与分值】）自相矛盾，已砍。
-    //    finalGap/finalCls/finalLoss 恒空/恒 false ⇒ 不再有"题号不连续即判失败/即重试"。
-    const finalGap = null;
-    const finalCls = null;
-    const finalLoss = false;
-    if (finalGap) {
-      // 🔢 终检丢题取证（同上，两次尝试都失败时再取一次证据）
-      try {
-        const d = diagnoseNumberingGap(content);
-        console.warn(`🔢 [题号诊断·终检] 正文${content.length}字符 行首题号=[${d.found.join(',')}] 峰值=${d?.gap?.peak} 缺=[${d.missing.join(',')}] 正文内1~2位数字总数=${d.anyDigitCount}`);
-        d.peek.forEach((p) => console.warn(`   ↳ 缺号 ${p.n}：${p.where}${p.sample ? ` ｜ 上下文「${p.sample}」` : ''}`));
-        if (finalCls) console.warn(`🔢 [题号·终检分类] 实证缺号(全文未出现)=[${finalCls.nowhere.join(',')}] ｜ 形态性缺号(能在别处找到)=[${finalCls.elsewhere.join(',')}]`);
-      } catch (e) { /* 诊断失败不影响主流程 */ }
-    }
-    if (truncFailNote || finalLoss || !isDeliverableBodyHtml(content)) {
+    // 🔴 2026-10-10（〔315〕死代码清理）：终检的"编号连续性"判定与全部取证已整块删除——编号连续性不得再代
+    //    模型定卷面形态（编号对象口径见【题号与分值】）。下方"完整优先"终检**只保留**：截断实况、正文不可交付。
+    if (truncFailNote || !isDeliverableBodyHtml(content)) {
       const advise = truncFailNote
         ? `${truncFailNote}。建议：① 缩小勾选范围降低单次体量；② 到「设置 → 整卷输出预算」调大该类型的「上限」或为该类型采纳「实测校准」；③ 内容较长时改用 deepseek-reasoner 等单次输出上限更高的模型（chat 单次仅 8K，长卷易截断）。`
-        : finalLoss
-          ? `正文题号缺失且**全文任何位置都未出现**（1~${finalCls.peak} 中缺：${finalCls.nowhere.join('、')}）——判定为真丢题，本次生成判失败（不交付残缺正文）。建议重试；若反复出现请到「问题列表」反馈。`
-          : `整卷生成失败: ${lastErr?.message || '未知错误'}`;
+        : `整卷生成失败: ${lastErr?.message || '未知错误'}`;
       throw new Error(advise);
     }
-    if (finalCls && finalCls.elsewhere.length) {
-      // 唯一落点（2026-09-17 用户裁定）：正文生成路径不再重复写这条，只在此按**实际交付内容**出一条。
-      bodyPathNotes.push(`ℹ️ 正文题号形态未全部识别（缺 ${finalCls.elsewhere.join('、')}，均以其它形态存在于正文内）——按"内容完整"放行（形态问题非丢题，重试无益）`);
-      console.warn(`🔢 [题号·终检形态放行] 形态性缺号 ${finalCls.elsewhere.join('、')} 不判丢题（内容已在正文其它位置存在）`);
-    }
+
 
     // 🔴 2026-10-10（用户裁定·删不实留证）：原台"🔢 [题号核对] …（连续无缺口，核验已执行）"**只统计"不同题号个数"、
     //    并未核连续性**——真有缺口也照打"连续无缺口"＝**不实留证**（属噪音）。按用户裁定删除。
@@ -4961,16 +4885,9 @@ ${cardAnalysisText.substring(0, 1000)}
         // 2026-09-15 用户定版：仅题号形态/顺序差异（集合与题数均未变）**不算**正文被改动 → 不进【问题列表】
         console.debug(`[正文冻结比对] 仅题号形态/顺序差异（非内容增删），不告警：[${bodyQSnapshot}] → [${finalSeq}]`);
       }
-      // 2026-09-17 口径统一（用户报"问题列表仍误报题号"）：问题列表与生成日志同口径——
-      //    只有"缺号在正文任何位置都不出现"（nowhere）才是丢题实证；形态性缺号（能在别处以其它形态找到）
-      //    不进问题列表（此前此处直接按缺号报警，与已改为"形态放行"的日志口径不一致 → 完整卷被误报）。
-      const cls = classifyNumberingGap(finalContent);
-      if (cls && cls.nowhere.length) {
-        const missTxt = cls.nowhere.length > 10 ? `${cls.nowhere.slice(0, 10).join('、')}…` : cls.nowhere.join('、');
-        auditWarnings.push(`⚠️ 正文题号缺失且全文任何位置都未出现（1~${cls.peak} 中缺：${missTxt}）——判定真丢题，请核对正文是否完整。`);
-      } else if (cls && cls.elsewhere.length) {
-        console.debug(`[题号] 形态性缺号 ${cls.elsewhere.join('、')}（正文其它位置存在）→ 不进问题列表`);
-      }
+      // 🔴 2026-10-10（〔315〕死代码清理）：此处原按"缺号全文任何位置都未出现＝真丢题"进【问题列表】——
+      //    同属"以编号连续性判丢题"，与编号对象口径（见【题号与分值】）自相矛盾（判据允许大题不编小题号），已删。
+      //    （上方"正文题号序列冻结比对"**保留**：它比的是**答案生成前后**的序列变化，不以连续性为准绳。）
     }
 
     // 答案页缺失可见性：独立调用尝试过但仍无答案区 → 透出原因到生成报告【问题列表】，
