@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getPromptTemplate, QUESTION_OBJECT_CALIBER, QUESTION_NUMBERING_CALIBER } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, QUESTION_OBJECT_CALIBER, QUESTION_NUMBERING_CALIBER, SCORING_OBJECT_CALIBER } from '../../src/config/promptLibrary.js';
 
 const ROOT = path.resolve(__dirname, '../..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -30,6 +30,8 @@ describe('题号"编号对象"口径', () => {
   });
 
   it('零诱导：不点题型名、不指定分问符号', () => {
+    // 🔴 2026-10-10（〔332〕单位取"作答什么"的通称，不写载体形态名）：原"单位即该载体"字面会产出"每横线1分／每括号1分" ⇒ 改判据＋锁。
+    expect(SCORING_OBJECT_CALIBER, '单位＝作答内容的通称、不写载体形态名').toContain('不写承载它的线条／括号等形态名');
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/看拼音|组词|连一连|口算|竖式|选择|判断|填空|选字|选词/);
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/①|②|（1）|\(1\)/);
     expect(QUESTION_OBJECT_CALIBER).toContain('独立作答单位');
