@@ -4400,7 +4400,7 @@ ${cardAnalysisText.substring(0, 1000)}
         //    同型并列栏目（看拼音写词语/比一比再组词等）本就"整栏作一题"（＝合并），模型为满足"不得合并任何一题"
         //    就把**不该编号的小项也编上号**（实证：题号按小节重启＋回灌出多余小题号）。改为按"应给号"判，
         //    并把题号对象口径带给模型（与 QOC 同源），使"全卷连续"与"整栏不逐项编号"不再互拉。
-        ? `${prompt}\n\n【上一轮整卷生成复核发现的问题——本次必须修正】\n· ${lastGapNote}。本次必须逐题完整呈现全部题目：**应给号的题**，其题号逐一给出、不得遗漏，**该给号的题才给号**（小题编号对象见单源口径：同型并列只作一题、**整大题只含一个编号对象即用大题序号**——均不逐项另起小题号）；输出完成后逐题自查是否遗漏**应给号**的题。`
+        ? `${prompt}\n\n【上一轮整卷生成复核发现的问题——本次必须修正】\n· ${lastGapNote}。本次必须逐题完整呈现全部题目：**应给号的题**，其题号逐一给出、不得遗漏，**该给号的题才给号**（编号对象见单源口径：同型并列只作一题、**整大题只含一个编号对象即用大题序号**——均不逐项另起题号）；输出完成后逐题自查是否遗漏**应给号**的题。`
         : prompt;
       try {
         const resp = await callAI(callPrompt, {
@@ -5087,12 +5087,17 @@ ${cardAnalysisText.substring(0, 1000)}
         if (tpl.analysis?.structure?.length) {
           const tplBlueprintStructure = tpl.analysis.结构分析 || tpl.analysis.structure || [];
           templateInfo += `结构分析：\n`;
+          // 🔴 2026-10-11（属主·自洽体检·"直接用蓝图结构做标题的那几个没补作答方式"）：参考卷的栏目名**不是标题**——
+          //    补正向说明：标题须按其下实际作答方式自拟（防直接照搬栏目名当大题标题、致标题缺"如何作答"）。
+          templateInfo += `（以上名称为参考卷的栏目名，**只描述命题范围**；本卷各个大题标题须按其下**实际的作答方式自拟**，不得直接照搬）\n`;
           for (const section of tplBlueprintStructure) {
-            // 🔧 仅 exam 显示分值列
+            // 🔴 2026-10-11（属主·自洽体检）：原注入「N小题×X分」／「N题」——"数量"预设了"有 N 个小题"，
+            //    正是**硬编小题号**的词义之源（数量是命题设计**结果**、非输入）。改为只给**名与总分**，
+            //    数量交模型按内容实产（促规范·去过度约束）。
             if (isExam) {
-              templateInfo += `  ${section.大题 || section.题型}：${section.小题数量 || 0}小题×${section.每小题分值 || 0}分，共${section.大题分值 || 0}分`;
+              templateInfo += `  ${section.大题 || section.题型}：共${section.大题分值 || 0}分`;
             } else {
-              templateInfo += `  ${section.大题 || section.题型}：${section.小题数量 || 0}题`;
+              templateInfo += `  ${section.大题 || section.题型}`;
             }
             if (section.设问风格) templateInfo += `，设问：${section.设问风格}`;
             if (section.难度) templateInfo += `，难度：${section.难度}`;

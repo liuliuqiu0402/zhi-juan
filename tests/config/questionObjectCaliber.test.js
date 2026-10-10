@@ -82,7 +82,8 @@ describe('题号"编号对象"口径', () => {
     expect(QUESTION_OBJECT_CALIBER, '可自判锚在位').toContain('整大题只含一个编号对象时');
     expect(QUESTION_OBJECT_CALIBER, '共用一条要求＝一个编号对象（哪怕并列多少项，防"并列即多小题"）').toContain('哪怕其下并列多少项');
     expect(QUESTION_OBJECT_CALIBER, '不可自判的旧锚不得回潮').not.toContain('全大题仅一个小题时');
-    expect(QUESTION_OBJECT_CALIBER, '治「1. 直接写出得数。」的判词保留').toContain('其下不再另起小题号与题干行');
+    // 🔴 2026-10-11（属主·自洽体检）：判词改中性（去"小题"预设）——"其下不再另起**题号**与题干行"。
+    expect(QUESTION_OBJECT_CALIBER, '治「1. 直接写出得数。」的判词保留').toContain('其下不再另起题号与题干行');
     // 【卷面自洽】"不另起同文题干"同用该旧锚 ⇒ 一并改准（同锚不同事）；全卷不得残留旧锚。
     expect(tpl('exam'), '卷面自洽条旧锚须一并改准').not.toContain('全大题仅一个小题时');
   });
