@@ -4533,15 +4533,14 @@ ${cardAnalysisText.substring(0, 1000)}
         //   且**行内数字**（如"找规律填数 6、12、18、__、__"里的 18）会被行内取号形态计成题号、把峰值抬高
         //   → 全卷缺号判定**必误报**（实测：小学卷题号 [1-7][1-4][1-7][1-5]… 被判"1~18 缺 9~17"→
         //   重试＋回灌"全卷连续"，反把应然的分段号改成全卷号）。故小学**不做全卷缺号拦截**。
-        const qGap = perBigNumbering ? null : detectBodyNumberingGap(content);
-        // 2026-09-26 试卷正文题号"全卷连续"守卫（用户裁定：重启即不合格）：正文按小节/栏目重新
-        //    从 1 编号时，答案区"逐题与正文同号 + 全卷连续同序"的对齐前提失效——模型失去可对齐基准，
-        //    退化成只写尾部评分量表（实测：正文 `1、2、3` 后又从 1 数到 27；日志"答案区顶层题号 0"）。
-        //    缺号守卫查不出重启（已出现集合就是 1..27、一个不缺），故此处独立判。仅试卷（exam）。
-        const bodyRestart = genType === 'exam' && !perBigNumbering
-          ? detectBodyNumberingRestart(content)
-          : { restart: false, segments: [], top: 0 };
-        if (content && isDeliverableBodyHtml(content) && !qGap && !bodyRestart.restart) break;
+        // 🔴 2026-10-10（用户裁定·彻底砍"编号连续性"拦截）：原"缺号守卫＋重启守卫"以**编号连续性**判定/纠正
+        //    卷面题号形态——而编号对象口径（见【题号与分值】）本就允许**大题不编小题号** ⇒ 该检查**自相矛盾**；
+        //    且实测必误报（小学分段号被判"1~18 缺 9~17"→回灌"全卷连续"，反把应然分段号改坏）。
+        //    按用户裁定：**不以编号连续性判丢题／不回灌／不重试／不代模型定形态**；一次成功靠判据。
+        //    ⚠️ 原判定值已置空/置 false（下方原拦截块随之不可达）；死代码文本清理见台账〔315〕待办。
+        const qGap = null;
+        const bodyRestart = { restart: false, segments: [], top: 0 };
+        if (content && isDeliverableBodyHtml(content)) break;
         // 2026-09-17 根治（用户裁定·多形态容忍，不再靠枚举编号形态定罪）：
         //    "我认得出题号" ≠ "题目存在"——只有"缺号在正文任何位置都不出现"才是丢题实证；
         //    缺号能以别的形态被找到（行内编号空位/裸数字/作答位在题号前等）→ 记警告、照常交付
@@ -4620,11 +4619,12 @@ ${cardAnalysisText.substring(0, 1000)}
     } // end if(!content) 单次生成 + 预算升级重试循环
     // 完整优先最终守卫：两次尝试（含续写链/缺号拦截）都未能完整输出 → 明确抛错并给行动建议，
     //    绝不把半截/缺题正文当作成功交付（generate 外层 MAX_RETRIES 会整卷级重试；再失败则由 UI 呈现此错误）
-    const finalGap = perBigNumbering ? null : detectBodyNumberingGap(content);
-    // 2026-09-17 根治：终检只认"全文任何位置都不出现"的实证缺号（finalLoss）；
-    //    形态性缺号（能在别处找到）不再判失败——否则完整卷会被形态漏判反复判死（重试无解）。
-    const finalCls = finalGap ? classifyNumberingGap(content) : null;
-    const finalLoss = !!(finalCls && finalCls.nowhere.length);
+    // 🔴 2026-10-10（用户裁定·砍"编号连续性"拦截）：终检原按"缺号全文任何位置都未出现＝真丢题"判失败——
+    //    同属"以编号连续性代模型定卷面形态"，与编号对象口径（见【题号与分值】）自相矛盾，已砍。
+    //    finalGap/finalCls/finalLoss 恒空/恒 false ⇒ 不再有"题号不连续即判失败/即重试"。
+    const finalGap = null;
+    const finalCls = null;
+    const finalLoss = false;
     if (finalGap) {
       // 🔢 终检丢题取证（同上，两次尝试都失败时再取一次证据）
       try {

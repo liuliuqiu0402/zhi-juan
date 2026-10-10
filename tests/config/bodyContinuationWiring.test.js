@@ -124,8 +124,13 @@ describe('正文题号"全卷连续"守卫 · 源码接线（2026-09-26 · 试�
   it('🔴 小学正式卷（各大题各自起编）：全卷"缺号/重启"拦截一并按学段分叉（2026-10-05 同族补齐）', () => {
     // 小学口径下"全卷 1~峰值连续"不成立；且行内数字（如"找规律填数 6、12、18、…"里的 18）会被计成题号、
     // 抬高峰值 → 全卷缺号判定必误报（实测："1~18 缺 9~17"→ 重试＋回灌"全卷连续"，反把应然的分段号改坏）。
-    expect(src, '重启拦截须按学段分叉').toContain("genType === 'exam' && !perBigNumbering");
-    expect(src, '缺号拦截须按学段分叉（正文采纳分支）').toContain('perBigNumbering ? null : detectBodyNumberingGap(content)');
+    // 🔴 2026-10-10（用户裁定·彻底砍"编号连续性"拦截）：原两条系"缺号/重启拦截须按学段分叉"的**前向锁**；
+    //    拦截已整体砍除（含"小学豁免"——无拦截即无误拦）⇒ 改为**反向锁**：不得再出现"编号连续性拦截"的接线
+    //    （编号连续性不得再代模型定卷面形态；编号对象口径见【题号与分值】——此处不复述其字面，免得触单源守卫）。
+    expect(src, '缺号拦截接线须已移除').not.toContain('perBigNumbering ? null : detectBodyNumberingGap(content)');
+    expect(src, '重启拦截接线须已移除').not.toContain('genType === \'exam\' && !perBigNumbering');
+    expect(src, '正文交付不得再以编号连续性门控').not.toContain('&& !qGap && !bodyRestart.restart');
+    expect(src, '终检不得再判"缺号全文未出现＝真丢题"').not.toContain('const finalLoss = !!(finalCls');
   });
 
   it('答案侧脱钩"全卷连续"假设：改为按正文实际编号对齐 + 逐题覆盖', () => {

@@ -425,9 +425,12 @@ describe('🔢 组标题（大题标题）中文序号口径：教辅逐栏目�
     expect(g).toContain('exam');
     expect(g).not.toContain('practice');
     expect(g).not.toContain('special');
-    // 数字题号"重启"判据：调用点按 genType 分型（仅 exam 判）
-    expect(readSrc('src/composables/useAiGenerator.js'))
-      .toMatch(/genType === 'exam'[\s\S]{0,60}detectBodyNumberingRestart\(content\)/);
+    // 🔴 2026-10-10（用户裁定·彻底砍"编号连续性"拦截·**先解后锁**）：原此条系**前向锁**（"重启"判据须在调用点按
+    //    genType 分型）；该拦截已整体砍除（含"小学豁免"——无拦截即无误拦）⇒ 改为**反向锁**：调用点不得再出现
+    //    "重启拦截"接线（编号连续性不得再代模型定卷面形态；编号对象口径见【题号与分值】，此处不复述其字面）。
+    expect(readSrc('src/composables/useAiGenerator.js'),
+      '重启拦截接线须已移除（编号连续性不得再代模型定卷面形态）')
+      .not.toMatch(/genType === 'exam'[\s\S]{0,60}detectBodyNumberingRestart\(content\)/);
   });
 
   it('回潮守卫：src 内"教辅…组标题…全卷连续"旧口径字面零出现', () => {
