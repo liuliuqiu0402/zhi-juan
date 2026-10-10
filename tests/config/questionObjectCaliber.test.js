@@ -76,4 +76,18 @@ describe('题号"编号对象"口径', () => {
     expect(ex.split(pointer).length - 1, '指针只允许一处——复述即成第二处正句').toBe(1);
     expect(ex, '题号条用对象式定名"应编号的题"（自承其义）').toContain('**应编号的题**');
   });
+
+  // 🔴 2026-10-10（〔340〕多源取证·两处"疑似"当场转锁）：M5／③ 经取证**均非拉扯** ⇒ 写成锁，挂账清零。
+  it('M5 自测：教辅"组标题自拟"与"只写作答方式"**同份在场**——来源 vs 写法两维，非同源冲突', () => {
+    const t = tpl('practice');
+    expect(t, '组标题来源句在场（自拟）').toContain('标题自拟');
+    expect(t, '组标题写法句在场（只说明本组实际的作答方式）').toContain('组标题只说明本组');
+  });
+  it('③ 自测：内容型栏目标题样例取自**名称池**（轮换多套 ⇒ 非硬编样例、不触趋同）', () => {
+    const lib = read('src/composables/useAiGenerator.js');
+    const m = /summary:\s*\[([^\]]+)\]/.exec(lib);
+    expect(m, '内容型名称池须存在').toBeTruthy();
+    expect((m[1].match(/'/g) || []).length, '池内 ≥2 套（轮换）').toBeGreaterThanOrEqual(4);
+    expect(m[1], '样例名取自池').toContain('知识梳理');
+  });
 });
