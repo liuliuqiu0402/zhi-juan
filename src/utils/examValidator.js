@@ -2423,7 +2423,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //   缺号守卫/答案覆盖守卫的**计数主键**（extractBodyQuestionNumbers，行首 `N.`）失效 → 会**静默放行**；
         //   本条只**如实报告**（notice，不改写/不重试/不判失败），把"守卫不适用"这件事补回可见性。
         //   判据：正文有题目结构（h2~h4 或 <p class="question">）却**无阿拉伯行首题号**（bodyNum.top < 3）。
-        if (has('question-numbering-key') && genType === 'exam' && bodyNum.top < 3
+        //   🔴 2026-10-10（〔325〕步骤4·"有则验、无则不臆断"）：原条件 `top < 3` 把 **top=0** 也包括进来——
+        //     而 top=0（正文以汉字大题序号/整栏一题为体例）本就**不该有阿拉伯小题号**，报它属**噪音**。
+        //     收紧为**只有零星题号（1~2 个）**时提示（那才可能是缺号/半途混排）；top=0 不再打扰。
+        if (has('question-numbering-key') && genType === 'exam' && bodyNum.top >= 1 && bodyNum.top < 3
           && (/<h[2-4]\b/i.test(bodyHtml) || /class=["'][^"']*\bquestion\b/i.test(bodyHtml))) {
           silentCount('question-numbering-key', '本卷正文题号由**大类/大题汉字序号**承担（无阿拉伯小题号）——缺号/答案覆盖守卫的计数主键不适用，请人工核对题量与答案逐题覆盖');
         }

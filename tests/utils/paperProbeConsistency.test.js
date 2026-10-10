@@ -385,13 +385,18 @@ describe('⑦ 题号编号体系：分段式编号改报体系问题，不再用
     expect(notes(r, 'answer-coverage')).toBe('');
   });
 
-  it('🔴 题号主键变化：正文题号由大题汉字序号承担（无阿拉伯小题号）→ 报"计数主键不适用"（notice·只报不改）', () => {
-    // 2026-10-05（题号主键消相抵）：大题唯一题用汉字序号后，缺号/答案覆盖守卫的计数主键失效 → 需补可见性（不改写/不重试/不判失败）。
+  it('🔴 题号主键**条件化**（2026-10-10〔325〕步4"有则验、无则不臆断"）：正文无阿拉伯小题号（top=0·以汉字大题序号/整栏一题为体例）→ **不报**；零星题号（1~2）才提示', () => {
+    // 〔325〕步4 改判：原条件 top<3 **含 top=0** → 对"以汉字大题序号为体例"的正当卷面发噪音提示；现收紧为 1≤top<3。
     const bodyNoArab = '<h2>一、读拼音写词语（共12分）</h2><p class="question">(1) chí táng</p>'
       + '<h2>二、比一比再组词（共8分）</h2><p class="question">(1) 那( ) 哪( )</p>';
     const ans = '<div class="answer-section"><h2>参考答案</h2><p>一、(1) 池塘</p><p>二、(1) 那里 哪里</p></div>';
     const r = auditExamPaper(bodyNoArab + ans, { subject: '语文', stage: 'primary_low', genType: 'exam' });
-    expect(notes(r, 'question-numbering-key')).toContain('计数主键不适用');
+    expect(notes(r, 'question-numbering-key'), 'top=0 不臆断').toBe('');
+    // 零星题号（1~2）＝可能是缺号/半途混排 → 仍如实提示（只报不改）
+    const bodyFew = '<h2>一、读拼音写词语（共12分）</h2><p class="question">1. 看拼音写词语</p>'
+      + '<p class="question">(1) chí táng</p>';
+    const r2 = auditExamPaper(bodyFew + ans, { subject: '语文', stage: 'primary_low', genType: 'exam' });
+    expect(notes(r2, 'question-numbering-key'), '1≤top<3 仍提示').toContain('计数主键不适用');
   });
 
   it('🔴 非考卷类型（同步练习/课时练等）按大题分别编号是市场常态 → 不报"编号体系与全卷连续不符"', () => {
