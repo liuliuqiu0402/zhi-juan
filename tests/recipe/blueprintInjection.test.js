@@ -15,7 +15,7 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     const tpl = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
     // 块头由指令库 EXAM_BASE 定义（含"题数 X"按**编号对象口径**计的口径）
     // 🔴 2026-10-06（A4 跨处一致·消相抵·先解后锁）：原断 "共X题"——该字面随结构改**列式**而退场：
-    //    卷面结构以 `｜题数 X｜分值 Y分` 给**命题依据**，**大题标题形态只写总分"（共Y分）"**（avoid 两形并现）。
+    //    卷面结构以 `｜题数 X｜分值 Y分` 给**命题依据**，**大题标题形态由指令库分值条单源给**（avoid 两形并现）。
     expect(tpl.template).toContain('【卷面结构】');
     expect(tpl.template).toContain('题数 X');
     // 明细由 buildStructureText 注入（蓝图数据）；分值从蓝图推导，锁定"栏名 + 注入格式"而非写死数值
