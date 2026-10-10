@@ -14,8 +14,12 @@
 import { getPromptTemplate } from '../src/config/promptLibrary.js';
 
 const FULL = process.argv.includes('--full');
+const DIFF = process.argv.includes('--diff'); // 只打"本批有、exam 没有"的条款（批特异块）
 const only = (process.argv.find((a) => a.startsWith('--batch=')) || '').split('=')[1];
 const BATCHES = only ? [only] : ['exam', 'practice', 'special', 'reading', 'dictation', 'review', 'summary', 'preview', 'errorbook'];
+
+const splitClauses = (t) => String(t || '').split(/\n|；/).map((s) => s.trim()).filter((s) => s.length > 6);
+const EXAM_SET = new Set(splitClauses(getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template));
 
 /** 事务表：按"事情"聚类（用词可增补，事务不可省） */
 const TOPICS = [
@@ -33,12 +37,13 @@ const TOPICS = [
 
 for (const g of BATCHES) {
   const tpl = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: g }).template || '';
-  const clauses = tpl.split(/\n|；/).map((s) => s.trim()).filter((s) => s.length > 6);
+  const all = splitClauses(tpl);
+  const clauses = DIFF ? all.filter((c) => !EXAM_SET.has(c)) : all; // 批特异块
   const rows = TOPICS.map(([n, re]) => [n, clauses.filter((c) => re.test(c))]).filter(([, h]) => h.length >= 2);
-  console.log(`\n===== ${g} | 语文·小学 | 条款 ${clauses.length} | 多命中事务 ${rows.length} =====`);
+  console.log(`\n===== ${g}${DIFF ? '(批特异)' : ''} | 语文·小学 | 条款 ${clauses.length} | 多命中事务 ${rows.length} =====`);
   for (const [n, hit] of rows) {
     console.log(`--[${n}] ${hit.length} 处`);
-    hit.slice(0, 5).forEach((c, i) => console.log(`   ${i + 1}. ${FULL ? c : c.slice(0, 60)}`));
+    hit.slice(0, DIFF ? 3 : 5).forEach((c, i) => console.log(`   ${i + 1}. ${FULL ? c : c.slice(0, 56)}`));
   }
 }
 console.log('\n（判读：同源分工／拉扯——同一对象同一时点两处各出要求或判词即为拉扯）');
