@@ -24,7 +24,7 @@ describe('题号"编号对象"口径', () => {
   it('只管编号对象：大题序号"全卷连续"与分值标注不得被削弱', () => {
     const ex = tpl('exam');
     expect(ex, '大题序号全卷连续仍在').toContain('全卷连续');
-    expect(ex, '账目算式判词仍在（2026-10-06 去"小题"锚词、判据不变）').toContain('大题总分=其下各题分值之和');
+    expect(ex, '账目算式判词仍在（2026-10-10 计分对象口径、判据不变）').toContain('大题总分=其下各计分对象分值之和');
     expect(QUESTION_OBJECT_CALIBER, '本条须声明自身不涉大题级').toContain('题号只标');
     expect(tpl('practice'), '教辅小题口径仍在（逐栏目起编）').toContain(QUESTION_NUMBERING_CALIBER.teaching);
   });
