@@ -47,13 +47,7 @@ describe('② 答案区题号计数：块边界口径补全（表格/换行也�
     expect(msgs, `不应报答案区题号缺口：${msgs}`).toBe('');
   });
 
-  it('反向护栏：答案区确实几乎无题号 → 仍报（防口径放宽后静默）', () => {
-    const body = `<h2>一、选择题（每题2分，共14分）</h2>${PARAS(7)}`;
-    const html = body
-      + `<div class="answer-section"><h2>参考答案</h2><table><tr><td>（1）A　（2）B　（3）C　（4）A　（5）B　（6）C　（7）A</td></tr></table></div>`;
-    const r = auditExamPaper(html, { subject: '英语', stage: 'primary_high', genType: 'exam' });
-    expect(r.silentDetails.some((d) => d.type === 'answer-coverage')).toBe(true);
-  });
+  // ⛔ 2026-10-10（属主删档）：`answer-coverage`「答案区几乎无题号」上报已移除，本档失效（原断言见 git 历史）。
 });
 
 describe('③ 行内题号（紧跟作答位）计入 —— 不再出"形式性缺号"提示', () => {

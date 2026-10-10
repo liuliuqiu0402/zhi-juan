@@ -169,17 +169,7 @@ describe('正文/答案 题号数双向守卫（auditExamPaper）', () => {
   const run = (html) => auditExamPaper(html, { subject: '英语', stage: 'primary_high', genType: 'practice' });
   const msgs = (html) => (run(html).silentDetails || []).map((d) => d.message).join(' | ');
 
-  it('🔴 正文题号明显少于答案区 → 报"正文疑似丢题"（本次实测缺口：正文缺第2~5题、答案区完整）', () => {
-    const bodyShort = [
-      '<h1>六年级英语上册Unit 1 Try your best课时训练</h1>',
-      '<h2>知识奠基</h2>',
-      '<p>1. 第一题（　）</p>', '<p>2. 第二题（　）</p>', '<p>6. 第六题（　）</p>',
-      '<div class="answer-section"><h2>参考答案与解析</h2>',
-      '<p>1. A</p><p>2. B</p><p>3. C</p><p>4. A</p><p>5. B</p><p>6. C</p>',
-      '</div>',
-    ].join('\n');
-    expect(msgs(bodyShort)).toContain('正文题号数');
-  });
+  // ⛔ 2026-10-10（属主删档）：`body-coverage`「正文题号少于答案区」上报已移除，本档失效（原断言见 git 历史）。
 
   it('正文与答案区题号一致 → 不报该提示（防误报）', () => {
     const ok = [
@@ -190,43 +180,9 @@ describe('正文/答案 题号数双向守卫（auditExamPaper）', () => {
     expect(msgs(ok)).not.toContain('正文题号数');
   });
 
-  it('反向：答案区题号明显少于正文 → 仍报原"答案区题号数"提示（原功能不回归）', () => {
-    const ansShort = [
-      '<h1>标题</h1>',
-      '<p>1. A（　）</p><p>2. B（　）</p><p>3. C（　）</p><p>4. D（　）</p><p>5. E（　）</p>',
-      '<div class="answer-section"><h2>参考答案与解析</h2><p>1. A</p></div>',
-    ].join('\n');
-    expect(msgs(ansShort)).toContain('答案区题号数');
-  });
-
-  it('🔴 答案区缺题号层（改用「(1)(2)」括号序号）→ 报"缺与正文一致的题号"（2026-09-13 用户实证）', () => {
-    const body = '<h1>六年级英语上册Unit 1 Try your best课堂练习</h1>'
-      + Array.from({ length: 6 }, (_, i) => `<p>${i + 1}. 第${i + 1}题（　）</p>`).join('');
-    const ans = '<div class="answer-section"><h2>参考答案与解析</h2>'
-      + '<p>一、 (1) saw　(2) wanted；asked　(3) were；practised　(4) used　(5) was；acted</p>'
-      + '</div>';
-    const m = msgs(body + ans);
-    // 根因直指"缺题号层/编号体系不同构"，不再归因成笼统的"题号数(0)明显少于正文"
-    expect(m).toContain('缺与正文一致的题号');
-    expect(m).toContain('编号体系与正文不同构');
-    expect(m).not.toContain('答案区题号数(0)');
-  });
-
-  it('🔴 2026-09-28 题号编法按正规收口：口径按类型分流（教辅=与正文同号同序；试卷=全卷连续同序）', () => {
-    const body = '<h1>六年级英语上册Unit 1 Try your best课堂练习</h1>'
-      + Array.from({ length: 6 }, (_, i) => `<p>${i + 1}. 第${i + 1}题（　）</p>`).join('');
-    const ans = '<div class="answer-section"><h2>参考答案与解析</h2>'
-      + '<p>一、 (1) saw　(2) wanted；asked　(3) were；practised　(4) used　(5) was；acted</p>'
-      + '</div>';
-    // 教辅（practice）：给"与正文同号同序"（按栏目（组）分别起编是常态），不得再要求"全卷连续同序"
-    const pMsg = msgs(body + ans);
-    expect(pMsg).toContain('与正文同号同序');
-    expect(pMsg, '教辅不得被要求"全卷连续同序"（一侧禁止一侧豁免）').not.toContain('全卷连续同序');
-    // 正式考卷（exam）：仍要求"全卷连续同序"
-    const eMsg = (auditExamPaper(body + ans, { subject: '英语', stage: 'primary_high', genType: 'exam' }).silentDetails || [])
-      .map((d) => d.message).join(' | ');
-    expect(eMsg).toContain('全卷连续同序');
-  });
+  // ⛔ 2026-10-10（属主删档）：`answer-coverage`（缺同号题号／题号少于正文／顺序错位）与
+  //    `question-numbering-system`（编号体系与"全卷连续"口径不符）上报**全部移除**，以下三档失效
+  //    （"教辅=同号同序／试卷=全卷连续同序"的类型分流口径亦随之作废）——原断言见 git 历史。
 
   it('🔴 紧凑连排答案（序号顿号层级/段内题号）→ 与正文口径对齐，不误报（用户实证：答案区题号数(2) vs 正文(12)）', () => {
     const body = '<h1>六年级英语上册Unit 1 Try your best课时训练</h1>'

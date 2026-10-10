@@ -301,15 +301,7 @@ describe('根治回归：分值载体误报消除（每词词条语义 + 小题 
     expect(silentDetails.some(d => d.type === 'score-label' && d.message.includes('照样子'))).toBe(false);
   });
 
-  it('真缺陷不误杀：声称"每空1分共4分"但实际仅 2 空 → 仍报"载体不符"', () => {
-    const html = SEC(`
-<p>5. 词语魔法桥——照样子，写一写。（每空1分，共4分）</p>
-<p>例：泡桐　白桦　云杉　翠柏</p>
-<p>杨(　　　　　　)　　松(　　　　　　)</p>
-`.trim());
-    const { silentDetails } = run(html);
-    expect(silentDetails.some(d => d.type === 'score-label' && d.message.includes('照样子'))).toBe(true);
-  });
+  // ⛔ 2026-10-10（属主删档）：`score-label`（分值标注与实际载体不符）上报已移除，本档失效。
 
   it('圈出类题（载体=句内文字）→ 不按填空验算，不报（强判定守卫）', () => {
     const html = SEC(`
@@ -331,18 +323,7 @@ describe('根治回归：分值载体误报消除（每词词条语义 + 小题 
     expect(silentDetails.some(d => d.type === 'score-label' && d.message.includes('根据课文内容填空'))).toBe(false);
   });
 
-  it('分值抽检条目升级为 notice 级（进问题列表，交编辑处置；仍只报不改）', () => {
-    const html = SEC(`
-<p>5. 词语魔法桥——照样子，写一写。（每空1分，共4分）</p>
-<p>例：泡桐　白桦　云杉　翠柏</p>
-<p>杨(　　　　　　)　　松(　　　　　　)</p>
-`.trim());
-    const { silentDetails } = run(html);
-    const d = silentDetails.find(x => x.type === 'score-label' && x.message.includes('照样子'));
-    expect(d).toBeTruthy();
-    // 🔴 2026-10-04（③④分值账目·告警升级）：debug → notice（程序侧做不到改写，故升为可见告警）
-    expect(d.level).toBe('notice');
-  });
+  // ⛔ 2026-10-10（属主删档）：`score-label` 上报已移除（连同其 notice 级），本档失效。
 });
 
 describe('根治回归：作文格按学科精准适配（2026-08 英语"无作文格"误报根因）', () => {
@@ -491,12 +472,7 @@ describe('根治回归：答案区题号覆盖度按块级行计数（不依赖�
     expect(silentDetails.some(d => d.type === 'answer-coverage' && d.message.includes('答案区题号数'))).toBe(false);
   });
 
-  it('答案区确缺题号时仍会告警（防护不失效：正文 5 题、答案区仅 2 题）', () => {
-    const poor = singleLine.replace(/<p>3\. 答案<\/p><p>4\. 答案<\/p><p>5\. 答案<\/p>/, '');
-    const { silentDetails } = auditExamPaper(poor, { subject: '数学', stage: 'primary_low', genType: 'practice' });
-    const d = silentDetails.find(x => x.type === 'answer-coverage' && x.message.includes('答案区题号数'));
-    expect(d).toBeTruthy();
-  });
+  // ⛔ 2026-10-10（属主删档）：`answer-coverage`「答案区题号数」上报已移除，本档失效。
 
   it('🔴 段内小数/枚举/长数字不误计（0.35、2.5×、4.8÷、"3、4、5"与 2024.5 均不算题号）', () => {
     const html = '<h1>口算</h1>'
@@ -527,27 +503,7 @@ describe('根治回归：答案区题号覆盖度按块级行计数（不依赖�
     expect(silentDetails.filter(d => d.type === 'answer-coverage'), '正文 14 题、答案区 14 题号，不应告警').toEqual([]);
   });
 
-  it('🔴 分型不误指：答案区题号偏少但已有同构 `N.` 题号 → 只报"数量少"，不得报"编号体系不同构"', () => {
-    const body = Array.from({ length: 10 }, (_, i) => `<p>${i + 1}. 第${i + 1}题</p>`).join('');
-    const html = '<h1>练习</h1>' + body
-      + '<div class="answer-section"><h2>参考答案与解析</h2>'
-      + Array.from({ length: 6 }, (_, i) => `<p>${i + 1}. (1) 答案</p>`).join('')
-      + '</div>';
-    const { silentDetails } = auditExamPaper(html, { subject: '英语', stage: 'primary_high', genType: 'practice' });
-    const msgs = silentDetails.filter(d => d.type === 'answer-coverage').map(d => d.message);
-    expect(msgs.some(m => m.includes('答案区题号数'))).toBe(true);
-    expect(msgs.some(m => m.includes('缺与正文一致的题号')), '已有同构题号时不得指为"体系不同构"').toBe(false);
-  });
-
-  it('真缺陷仍报：答案区只有「(1)(2)」括号序号、无任何顶层 `N.` 题号 → 仍报"编号体系不同构"', () => {
-    const body = Array.from({ length: 5 }, (_, i) => `<p>${i + 1}. 第${i + 1}题</p>`).join('');
-    const html = '<h1>练习</h1>' + body
-      + '<div class="answer-section"><h2>参考答案与解析</h2>'
-      + '<p>(1) 答案　(2) 答案　(3) 答案</p><p>(1) 答案　(2) 答案</p>'
-      + '</div>';
-    const { silentDetails } = auditExamPaper(html, { subject: '英语', stage: 'primary_high', genType: 'practice' });
-    expect(silentDetails.some(d => d.type === 'answer-coverage' && d.message.includes('缺与正文一致的题号'))).toBe(true);
-  });
+  // ⛔ 2026-10-10（属主删档）：`answer-coverage`「题号数偏少／编号体系不同构」上报已移除，两档失效。
 });
 
 // 🔴 2026-09-29 用户实证（语文·二年级上册第一单元试卷）：大题**最后一小题**的书写格（田字格）成稿后消失；

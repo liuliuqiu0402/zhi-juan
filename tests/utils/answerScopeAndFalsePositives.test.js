@@ -70,19 +70,8 @@ describe('② 题号误报根治：内容型不拿"知识条目编号"当题号�
     expect(notes(r, 'answer-coverage')).toBe('');
   });
 
-  // —— 反向护栏：题类不变（凡题号↔题的判据一律照旧）——
-  it('反向护栏：题类（practice）同结构仍报（判据域只收内容型）', () => {
-    const r = auditExamPaper(contentBody + contentAns, { subject: '英语', stage: 'primary_high', genType: 'practice' });
-    expect(notes(r, 'answer-coverage')).toContain('缺与正文一致的题号');
-  });
-
-  it('反向护栏：正式卷（exam）仍报编号体系/覆盖问题', () => {
-    const body = '<h2>一、听力（每题2分，共10分）</h2>'
-      + Array.from({ length: 10 }, (_, i) => `<p class="question">${i + 1}. 题</p>`).join('');
-    const ans = '<div class="answer-section"><h2>参考答案</h2><p>1. A</p><p>2. A</p></div>';
-    const r = auditExamPaper(body + ans, { subject: '英语', stage: 'primary_high', genType: 'exam' });
-    expect(notes(r, 'answer-coverage')).not.toBe('');
-  });
+  // ⛔ 2026-10-10（属主删档）：`answer-coverage`／`body-coverage`／`question-numbering-system` 上报已移除，
+  //    "反向护栏：题类仍报"两档随之失效（判据域不再存在）。
 });
 
 describe('① 答案区污染根治：作答对象只有正文实际出现的题（模型侧界定）', () => {
@@ -156,15 +145,7 @@ describe('⑤ 内容型答案区污染判据：改"报准对象"（不静默了�
     + '<h2>四、典型例题</h2><p>例题1　用所给动词的适当形式填空。Long ago, there <u class="blank-3">was</u> (be) a snail.</p>';
   const run5 = (ans, genType) => auditExamPaper(body + ans, { subject: '英语', stage: 'primary_high', genType });
 
-  it('答案区出现正文没有的栏目（教材栏目）→ 报"疑把素材题目当作答对象"', () => {
-    const ans = '<div class="answer-section"><h2>参考答案与解析</h2>'
-      + '<h3>Cartoon time</h3><p>A Read and order 3—(1)—(5)</p>'
-      + '<h3>Story time</h3><p>She asked Su Yang to practise.</p></div>';
-    const m = notes(run5(ans, 'summary'), 'answer-coverage');
-    expect(m).toContain('正文里没有的栏目');
-    expect(m).toContain('Cartoon time');
-    expect(m).toContain('素材');
-  });
+  // ⛔ 2026-10-10（属主删档）：`answer-coverage`「答案区出现正文没有的栏目」上报已移除，本档失效。
 
   it('答案区小节来自正文（与正文同构）→ 不报（不误伤正常答案区）', () => {
     const ans = '<div class="answer-section"><h2>参考答案与解析</h2>'
@@ -172,10 +153,7 @@ describe('⑤ 内容型答案区污染判据：改"报准对象"（不静默了�
     expect(notes(run5(ans, 'summary'), 'answer-coverage')).not.toContain('正文里没有的栏目');
   });
 
-  it('preview 同口径（内容型一致）', () => {
-    const ans = '<div class="answer-section"><h2>参考答案与解析</h2><h3>Grammar time</h3><p>…</p></div>';
-    expect(notes(run5(ans, 'preview'), 'answer-coverage')).toContain('正文里没有的栏目');
-  });
+  // ⛔ 2026-10-10（属主删档）：同上报已移除，preview 档失效。
 
   it('反向护栏：题类不启用该判据（判据域限内容型，防向试卷广播）', () => {
     const ans = '<div class="answer-section"><h2>参考答案</h2><h3>Cartoon time</h3><p>…</p></div>';
@@ -209,19 +187,7 @@ describe('③ 答案区逐题对应：中间缺题明细 + 顺序错位（only-r
     + Array.from({ length: 6 }, (_, i) => `<p class="question">${i + 1}. 第${i + 1}题</p>`).join('');
   const run = (ans) => notes(auditExamPaper(body6 + ans, { subject: '语文', stage: 'primary_low', genType: 'exam' }), 'answer-coverage');
 
-  it('答案区缺中间某题（正文 1~6、答案区无 5）→ 提示里**点名缺哪几号**', () => {
-    const m = run('<div class="answer-section"><h2>参考答案</h2>'
-      + '<p>1. A</p><p>2. B</p><p>3. C</p><p>4. D</p><p>6. F</p></div>');
-    expect(m).toContain('未见');
-    expect(m).toContain('缺 5');
-  });
-
-  it('答案区题号顺序错位（6 排到 4/5 之前）→ 报"题号顺序错位"（点名错位处）', () => {
-    const m = run('<div class="answer-section"><h2>参考答案</h2>'
-      + '<p>1. A</p><p>2. B</p><p>3. C</p><p>6. F</p><p>4. D</p><p>5. E</p></div>');
-    expect(m).toContain('题号顺序错位');
-    expect(m).toContain('第 4 题排在第 6 题之前');
-  });
+  // ⛔ 2026-10-10（属主删档）：`answer-coverage`「中间缺题明细／题号顺序错位」上报已移除，两档失效。
 
   it('答案区与正文逐题对齐（1~6 齐全同序）→ 不报（不误伤正常答案区）', () => {
     expect(run('<div class="answer-section"><h2>参考答案</h2>'

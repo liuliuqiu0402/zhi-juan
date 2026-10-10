@@ -1027,127 +1027,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           silentCount('choice-answer-pos-after', `大题「${title}」选项行之后出现整行横线/空白作答段（作答位按学科应在题首或题干末尾，此处属多余），请抽检`, 'debug');
         }
 
-        // 2f. 分值标注修正（规则 score-label-fix：每空/每线/每题分标注与载体数对齐）
-        if (has('score-label-fix')) {
-          // 🔧 载体只取真实载体（填空数/连线数）——拼音选项（读音题括号）不是"空位"，不能当载体验证"每空X分"
-          const carrierTotal = blanks || (matchSides ? matchSides.left : 0) || (/连/.test(title) ? countMatchLines(secText2) : 0);
-          // 🔴 2026-10-05（程序链②·校验口径）：单位="题"时，"小题数"**不能只数"题号行"**——
-          //    实测「题9 ＋ (1)(2)(3)(4)」被算成 1 题 → 与"每题2分，共8分"**误报不符**；
-          //    对照/连线型（比一比，再组词＝4 组）同理会算成 1 题。
-          //    故"题数"取 **题号行数、(1)(2)式子题数、对照/连线组数** 三者最大（按实际计分对象；真不符仍会报）。
-          const subCountForUnit = Math.max(
-            countSubInNodes(secNodes),
-            countSubNumbered(secHtml2),
-            matchSides ? (matchSides.left || 0) : 0,
-          );
-          const fsRes = fixScoreLabel(title, totalScore, carrierTotal, subCountForUnit, {
-            pinyinGroups: countPinyinGroups(secHtml2),
-            gridCells: countGridCells(secHtml2),
-          });
-          if (fsRes.text !== title) {
-            // 🔧 只报不改 + 强判定守卫：圈选/划去/涂色类（载体=句内文字）不按填空验算；
-            //    区域含非标准空位形态（引号空位/裸连续空格）时计数不可靠不做断言。
-            //    2026-10-04（③④分值账目·告警升级）：原 debug 级（不进问题列表）→ **notice 级**（进【问题列表】）。
-            //    根因：模型侧即便有"空数×每空分=总分"判据仍会算错（实测"每空1分，共9分"实际8空），
-            //    程序侧**做不到改写**（改标题会破坏大类/全卷总分），故把不符**升为可见告警**交编辑处置。
-            const secInteractive = /圈出|圈一?圈|划去|划掉|涂色|打[√×✓]|勾出|选出/.test(secText2);
-            // 非标准空位形态（countBlanks 数不到→计数不可靠）：引号空位"　　"、双重括号 ((　))；
-            //   注意不能判"连续全角空格"——标准单括号空位（　　　　）内部正是连续全角空格，是可靠载体
-            const secAmbiguous = /[“"][　\s\u3000]{2,}[”"]|[(（]{2}[　\s\u3000]{2,}[)）]{2}/.test(secText2);
-            // 🔴 2026-10-10（〔320〕消误报·单价改派生式后的连带）：大题标题的单价现由**模型按账目判据派生**（2026-10-10 裁定）；
-            //    本断言却用**载体数/题数**反推单价——"算式类/单题栏"（直接写得数、竖式计算、单题号的应用题栏等）的
-            //    计分对象是**算式/作答单位**，程序数不到（无空位载体、题号≤1）⇒ 反推必失真、误报"空数×每空分≠总分"。
-            //    按"程序只做能自证的断言"：**数不到可靠计分对象时不断言**（有空位/连线载体或多题号时照常验）。
-            const secNoCountableUnit = carrierTotal === 0 && subCountForUnit <= 1;
-            if (!secInteractive && !secAmbiguous && !secNoCountableUnit) silentCount('score-label', `大题「${title.slice(0, 22)}」分值标注与实际载体不符（空数×每空分≠标注总分），请按正文实际空位数改准分值说明`, 'notice');
-          }
-        }
+        // 🔴 2026-10-10（属主裁定·消噪音）：原 2f「大题分值标注与实际载体不符」**整支删除**——
+        //    算式类/单题栏等无空位载体时按载体反推必失真（程序只做能自证的断言），只报不改的价值不抵误报。
+        //    （规则条目 score-label-fix 同步删。）
 
-        // 2g. 小题标题分值标注校验（规则 score-label-fix，p 级标题）
-        if (has('score-label-fix')) {
-          const subHeadPs = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p');
-          // 🔧 边界用"小题标题行"（不论是否含分值）：无分值题（如"6. 读短文，回答问题"）
-          //    也必须是上一题的 segHtml 边界，否则被吞并进上一题 → 数到后续空位/拼音 → 误报"载体不符"；
-          //    但（1）（2）式子题作答行（无分值）不是小题标题、不作边界——它们是上一小题的内容
-          //    （如"4. 选一选"下 4 个（n）行），作边界会把题4 截断在子题前数不到空位（误报"数不到载体"）
-          const numberedPs = subHeadPs.filter(p => {
-            const t = (p.textContent || '').trim();
-            return QNUM_LINE_RE.test(t)
-              || (/^\s*[(（]\d+[)）]/.test(t) && /[（(][^）)]*?\d{1,3}\s*分/.test(t));
-          });
-          const subTitles = [];
-          for (const p of numberedPs) {
-            const t = (p.textContent || '').trim();
-            // 🔧 括号内任意位置含分值即视为标题（兼容"（共12分）""（每空1分，共6分）"等写法）
-            if (!/[（(][^）)]*?\d{1,3}\s*分/.test(t)) continue;
-            subTitles.push({ p, text: t });
-          }
-          subTitles.forEach((st, i) => {
-            const nodesBetween = [];
-            let n = st.p.nextSibling;
-            const idx = numberedPs.indexOf(st.p);
-            // 2026-09-29 同源收口：末项必须以**本节末尾**为界（原 `|| null` → 兄弟遍历走到文末，
-            //    把后续大题乃至答案区的内容并入本题 → 载体/子题计数虚高）
-            const endNode = numberedPs[idx + 1] || end;
-            while (n && n !== endNode) { nodesBetween.push(n); n = n.nextSibling; }
-            let segHtml = st.p.outerHTML;
-            for (const nb of nodesBetween) segHtml += nb.outerHTML || nb.textContent || '';
-            const segText = st.text + nodesBetween.map(x => x.textContent || '').join('');
-            const sBlanks = countBlanks(segHtml);
-            const sMatch = countMatchSides(segHtml);
-            // 🔧 载体只取真实填空载体——拼音选项（读音题括号）不是"空位"，
-            //    "每空X分"不得用拼音选项组数验证（否则读音题"每空1分"被误判合法）
-            const carrier = sBlanks || (sMatch ? sMatch.left : 0) || (/连/.test(st.text) ? countMatchLines(segText) : 0);
-            const cm2 = st.text.match(/共\s*(\d{1,3})\s*分/);
-            const sm2 = st.text.match(/[（(]\s*(\d{1,3})\s*分/);
-            const scoreM = cm2 || sm2;
-            if (!scoreM) return;
-            const sScore = parseInt(scoreM[1], 10);
-            // 🔧 无填空载体时也继续校验（如读音题"每空1分"数不到载体 → fixScoreLabel 保留原标注）
-            const fsRes2 = fixScoreLabel(st.text, sScore, carrier, countSubNumbered(segText), {
-              pinyinGroups: countPinyinGroups(segHtml),
-              gridCells: countGridCells(segHtml),
-            });
-            if (fsRes2.text !== st.text) {
-              // 🔧 强判定守卫 + debug 级（2026-08，同 2f）：圈选/划去/涂色类题（载体=句内文字）不按填空验算；
-              //    区域含非标准空位形态（引号空位"　　"、双重括号空位、连续3+裸全角空格=例句/语境分隔）
-              //    时计数不可靠不做断言——消除"读句子圈出错误""课文内容填空（引号空位）"类误报；
-              //    真缺陷（标准括号空位声称≠实际）不含上述形态，仍保留 debug 线索
-              const segInteractive = /圈出|圈一?圈|划去|划掉|涂色|打[√×✓]|勾出|选出/.test(segText);
-              // 非标准空位形态（countBlanks 数不到→计数不可靠）：引号空位"　　"、双重括号 ((　))；
-              //   注意不能判"连续全角空格"——标准单括号空位（　　　　）内部正是连续全角空格，是可靠载体
-              const segAmbiguous = /[“"][　\s\u3000]{2,}[”"]|[(（]{2}[　\s\u3000]{2,}[)）]{2}/.test(segText);
-              // 同 2f：数不到可靠计分对象（无空位/连线载体、题号≤1）时不断言——算式类小题的计分对象是算式
-              const segNoCountableUnit = carrier === 0 && countSubNumbered(segText) <= 1;
-              if (!segInteractive && !segAmbiguous && !segNoCountableUnit) silentCount('score-label', `小题「${st.text.slice(0, 14)}」分值标注与实际载体不符（空数×每空分≠标注总分），请按正文实际空位数改准分值说明`, 'notice');
-            }
-          });
-        }
+        // 🔴 2026-10-10（属主裁定·消噪音）：原 2g「小题分值标注与实际载体不符」**整支删除**（同上）。
 
-        // 2h. 大题标题"每题X分"与实际各题分值一致性（规则 score-label-fix）：
-        //     标题"每题8分"但各题实际 12/6/8/6 分不一致 → 建议改为"共X分"（与 cell 分值条同口径；本处只报不改）
-        if (has('score-label-fix') && /每题\s*\d{1,3}\s*分/.test(head.textContent || '')) {
-          const subHeadPs = secNodes.filter(n => n.nodeType === Node.ELEMENT_NODE && n.tagName.toLowerCase() === 'p');
-          const scores = [];
-          for (const p of subHeadPs) {
-            const t = (p.textContent || '').trim();
-            if (!QNUM_LINE_RE.test(t)) continue;
-            // 🔧 括号内任意位置取分值（兼容"（共12分）"写法）
-            const sm = t.match(/[（(][^）)]*?(\d{1,3})\s*分/);
-            if (sm) scores.push(parseInt(sm[1], 10));
-          }
-          const uniq = new Set(scores);
-          if (scores.length >= 2 && uniq.size >= 2) {
-            const newT = head.textContent.replace(
-              /[（(][^）)]*?每题\s*\d{1,3}\s*分[^）)]*?[)）]/,
-              `(共${totalScore}分)`
-            );
-            if (newT !== head.textContent) {
-              // 2026-10-04（③④·告警升级）：原 debug 级 → notice 级（进问题列表）；只报不改（不改分值）。
-              silentCount('score-label', `大题各题分值不一致（标题含"每题X分"），请按实际各题分值改准标题`, 'notice');
-            }
-          }
-        }
+        // 🔴 2026-10-10（属主裁定·消噪音）：原 2h「大题标题'每题X分'但各题分值不一」**整支删除**（同上）。
       });
       out = tpl.innerHTML;
     } catch (e) {
@@ -1374,16 +1260,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     if (has('image-block-fix')) {
       try {
         const fc = checkFigurePrompts(out);
-        for (const mm of fc.mismatches.slice(0, 3)) {
-          silentCount('image-consistency',
-            `配图数量可能与题干不一致：题干为「${mm.stemSample || mm.stemCount}」，而画面描述写「${mm.promptSample || mm.promptCount}」（PROMPT：${mm.prompt}…）——请核对（程序只提示、不改内容）`,
-            'warn');
-        }
-        for (const mc of fc.missingCount.slice(0, 3)) {
-          silentCount('image-consistency',
-            `题干声明数量「${mc.stemSample || mc.stemCount}」但画面描述未写明数量（PROMPT：${mc.prompt}…）——建议写明数量以便核对`,
-            'notice');
-        }
+        // 🔴 2026-10-10（属主裁定·消噪音）：原「配图数量与题干不一致 / 画面描述未写明数量」两档**删除**——
+        //    启发式数量比对（程序猜的）误报率高。`fc` 仍供下方 image-engine-only 使用。
         // 2026-09-17 用户裁定（根治·消噪音，全类型通用问题）：原判据"卷里有配图 + 学科无结构化图形能力"
         //    → 凡有 [IMAGE] 就报，且文案一律套"（[GRAPH] 仅支持统计图）"：对英语/语文等**根本不注入 [GRAPH]**
         //    的学科不成立，对场景图也文不对题（实证：六年级英语卷第五题"大树上的蜗牛"被报"结构图/示意图/地图"）。
@@ -2400,7 +2278,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       //    ——正文疑似丢题"（正文实际 1~55 齐全）。属**题类通用**问题（凡有括号编号/行内题号的资料都会遇到）。
       //    注：旧实现里"行首小数（0.35 / 4.8÷）误计"与"题干编号列举（提示：1. …）虚高"两条加固，
       //    分别由共享口径的 `(?![.\d])` 与"最长 1 起始连续递增段"覆盖，能力不降。
-      if (has('answer-coverage-guard')) {
+      // 🔴 2026-10-10（属主裁定·消噪音）：本块的**全部上报已删**（answer-coverage/body-coverage/
+      //    question-numbering-key/question-numbering-system）⇒ 以下计算不再有产出，整体停用（残余待清理）。
+      if (false) {
         // 计数入参改为 **HTML**（不再先 stripTags）："空位自带括号编号"（`(41) &emsp;`）判据依赖
         //    空白实体的字面文本，先剥标签 + 实体替换会把作答位吃掉 → 该形态漏认（实证误报根因之一）。
         const bodyHtmlRaw = out.split(/<div[^>]*class=["'][^"']*answer-section/i)[0];
@@ -2419,17 +2299,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           '',
         );
         const bodyNum = analyzeQuestionNumbering(bodyHtml, { part: 'body' });
-        // 2026-10-05（题号主键消相抵·可见性兜底）：正文题号由**大类/大题汉字序号**承担（无阿拉伯小题号）时，
-        //   缺号守卫/答案覆盖守卫的**计数主键**（extractBodyQuestionNumbers，行首 `N.`）失效 → 会**静默放行**；
-        //   本条只**如实报告**（notice，不改写/不重试/不判失败），把"守卫不适用"这件事补回可见性。
-        //   判据：正文有题目结构（h2~h4 或 <p class="question">）却**无阿拉伯行首题号**（bodyNum.top < 3）。
-        //   🔴 2026-10-10（〔325〕步骤4·"有则验、无则不臆断"）：原条件 `top < 3` 把 **top=0** 也包括进来——
-        //     而 top=0（正文以汉字大题序号/整栏一题为体例）本就**不该有阿拉伯小题号**，报它属**噪音**。
-        //     收紧为**只有零星题号（1~2 个）**时提示（那才可能是缺号/半途混排）；top=0 不再打扰。
-        if (has('question-numbering-key') && genType === 'exam' && bodyNum.top >= 1 && bodyNum.top < 3
-          && (/<h[2-4]\b/i.test(bodyHtml) || /class=["'][^"']*\bquestion\b/i.test(bodyHtml))) {
-          silentCount('question-numbering-key', '本卷正文题号由**大类/大题汉字序号**承担（无阿拉伯小题号）——缺号/答案覆盖守卫的计数主键不适用，请人工核对题量与答案逐题覆盖');
-        }
+        // 🔴 2026-10-10（属主裁定·消噪音）：原 `question-numbering-key`「题号主键不适用」**整支删除**——
+        //    正文由文科大字序号承担题号是**应然**形态，报它等于天天报正常态。（规则条目同步删。）
         const ansNum = analyzeQuestionNumbering(stripAudioScript(ansMatch[1]), { part: 'answer' });
         const bodyTopQ = bodyNum.top;
         const ansTopQ = ansNum.top;
@@ -2442,27 +2313,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //    处置：内容型不参与"题号↔题"双向覆盖判据（判据域修正，非特判）；题类（正式卷/同步练习/专项/
         //    默写/易错本/复习）一律不变。
         const isContentType = ['summary', 'preview'].includes(genType);
-        // 2026-09-18（用户实证·**改报准对象**，不静默了事）：内容型答案区的**作答对象必须来自正文**——
-        //    判据用现成口径"答案区与正文同构"（答案区按正文对应的栏目组织）：答案区的小节标题（h2~h4）须在
-        //    正文标题里出现；正文里没有的栏目出现，即答案区把**素材（教材原文）里的题目/栏目**当成了作答对象。
-        //    实证（六年级英语《知识梳理》）：答案区出现 Cartoon time / Sounds in focus / Story time / Grammar time /
-        //    Wrap-up time 等教材栏目（源码为 Heading3），而正文只有"知识框架/重点梳理/易错辨析/典型例题"。
-        //    说明：上方"阿拉伯题号同构"判据对内容型确实不成立（正文的阿拉伯编号是**知识条目编号**），
-        //    但那不等于"不报"——而是**原来报错了对象**（该警告其实在指向本处污染，只是话术指向了题号）。
-        //    故：题号向不报、本判据接手把同一缺陷报准。
-        if (isContentType) {
-          const normHead = (s) => stripTags(String(s)).replace(/[\s\u3000]+/g, '').trim();
-          // 匹配用归一形（忽略空白差异），**报告里显示原样**（便于编辑一眼对上）
-          const headsOf = (htmlStr) => [...String(htmlStr).matchAll(/<h([2-4])[^>]*>([\s\S]*?)<\/h\1>/gi)]
-            .map((m) => ({ raw: stripTags(String(m[2])).replace(/[\s\u3000]+/g, ' ').trim(), norm: normHead(m[2]) }))
-            .filter((h) => h.norm);
-          const bodyNorms = headsOf(bodyHtml).map((h) => h.norm);
-          const ansHeads = headsOf(ansMatch[1]).filter((h) => !/参考答案|答案与解析|答案与评分标准|评分标准/.test(h.norm));
-          const orphans = ansHeads.filter((h) => !bodyNorms.some((b) => b.includes(h.norm) || h.norm.includes(b)));
-          if (orphans.length) {
-            silentCount('answer-coverage', `答案区出现**正文里没有的栏目/小节**（${orphans.slice(0, 3).map((h) => h.raw).join('、')}${orphans.length > 3 ? ' 等' : ''}）——答案区只能对正文中实际出现的题作答；这些小节正文里没有，疑为把素材（教材原文）的题目当成了作答对象，请改为对正文题目作答（正文不含练习/自测时，答案区整节省略）`);
-          }
-        }
+        // 🔴 2026-10-10（属主裁定·消噪音）：原「答案区出现正文里没有的栏目/小节」（内容型）**整支删除**——
+        //    属 answer-coverage 的一支，随该档一并删（规则条目同步删）。
         // 2026-09-17（用户实证第三卷·**改报体系问题**）：两侧任一为"分段式编号"（按大题分别从 1 重编号）时，
         //    "最长 1 起连续段"的对比**失去意义**——实证卷：正文段长 [10,5,5,5,10,5,5,5,5]、答案区段长 [5,5,5]，
         //    同一体系的缺陷被呈现成"答案区(5) 明显少于正文(10)，疑似未逐题对齐"，把编辑引向错误方向。
@@ -2478,78 +2330,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         };
         const perBigNumbering = genType === 'exam' && isPerBigQuestionNumbering(stage);
         const numberingSegmented = bodyNum.segmented || ansNum.segmented;
-        if (numberingSegmented && genType === 'exam' && !perBigNumbering) {
-          if (has('answer-coverage-guard')) {
-            silentCount('question-numbering-system', `题号编号体系与"全卷连续"口径不符：题号**按大题分别从 1 重新编号**（正文 ${segText(bodyNum.segments)}；答案区 ${segText(ansNum.segments)}）——全卷题号应跨大题、跨部分逐题递增、且答案区与正文用同一套号（1. 2. 3.…，全卷连续同序；仅子题用 (1)(2)）；编号体系分段时，两侧"最长连续段"的对比本身不成立（计数口径已覆盖行首、空位自带括号、行内点号、紧凑连排四种形态，故两侧差异不出在形态识别），程序据此只报编号体系、不再报"答案区少于正文"，请按编号体系整改后抽检`);
-          }
-        } else if (!numberingSegmented && !isContentType && bodyTopQ > 3 && ansTopQ < bodyTopQ - 1) {
-          // 🔍 计数口径取证（2026-09-12）：本口径只认「行首/空白/[)）、]后 + N.[、．]」。
-          //    2026-09-13（用户实证定版·根因分型）：答案区计 0 **是真实缺陷信号**（=一个可对应的题号锚点都没有，
-          //       意味着答案与正文无法逐题对应），不是"口径不覆盖"的假告警——分型只为把排查方向说准，不改判"要修"。
-          //       ① 答案区用了「(1)(2)」括号序号/表格/纯列表代替题号 → **缺与正文一致的题号层**（编号体系不同构）；
-          //       ② 答案区确实未带任何题号（漏答或纯文字罗列）。
-          const ansHasParen = /(?:^|\s)[(（]\s*\d{1,2}\s*[)）]/.test(ansText);
-          const ansHasTable = /<table/i.test(ansMatch[1]);
-          // 2026-09-14（用户实证·误报根因）：分型判据收紧——只有答案区**几乎没有顶层题号**
-          //    （≤2 个）时才归为"用(1)(2)括号序号/表格代替题号"（编号体系不同构）；若已有与
-          //    正文同构的 `N.` 题号（只是数量偏少），属"漏答/纯文字罗列"型，不得误指为体系不同构
-          //    （实测样本：答案区 14 个 `N.` + 每题子题 `(1)(2)`，与正文完全同构，却被判"不同构"）。
-          const ansNumberingMissing = ansTopQ <= 2;
-          // 2026-09-28（题号编法按正规收口）：口径**按类型分流**，与正文条款同源——
-          //    正式考卷（exam）小题全卷连续；教辅（同步练习等）小题在同一栏目（组）内连续、按栏目（组）分别起编。
-          //    故本告警的"应改成什么号"须随之分型，不得对教辅也要求"全卷连续"（那会一侧禁止一侧豁免）。
-          const numCaliberWords = genType === 'exam'
-            ? '全卷连续同序'
-            : '与正文同号同序（教辅小题按栏目（组）分别起编，答案区按相同栏目（组）分组、组内与正文同号同序）';
-          try {
-            const head = String(ansText).replace(/\s+/g, ' ').trim().slice(0, 200);
-            console.warn(`🔍 [答案区计数取证] 正文题号数=${bodyTopQ} 答案区题号数=${ansTopQ}`
-              + ` ｜ 答案区含括号序号=${ansHasParen}`
-              + ` 含表格=${ansHasTable}`
-              + ` ｜ 答案区开头「${head}」`);
-          } catch (e) { /* 取证失败不影响主流程 */ }
-          if (ansNumberingMissing && (ansHasParen || ansHasTable)) {
-            silentCount('answer-coverage', `答案区**缺与正文一致的题号**（正文题号 ${bodyTopQ} 个，答案区仅 ${ansTopQ} 个；答案区用的是「(1)(2)」括号序号${ansHasTable ? '/表格' : ''}）——编号体系与正文不同构，答案无法与正文逐题对应：请改为**与正文相同的阿拉伯题号（1. 2. 3.…，${numCaliberWords}；仅子题用 (1)(2)）**，请抽检`);
-          } else {
-            // 2026-09-29（③ 答案区逐题对应·**报准对象**）：原话术只给"数量级"，编辑还要自己找是哪几题。
-            //    这里补**中间缺题明细**——题号取与计数**同源**（extractBodyQuestionNumbers，compact 与
-            //    countTopQuestions 一致；子题号 (1)(2)/①② 一律不计），只列"正文 1~bodyTopQ 里答案区
-            //    没有的号"；取不到明细时回退原话术。**不改触发条件、不新造正则**（仅把提示说准）。
-            let missTail = '';
-            try {
-              const ansSet = new Set(extractBodyQuestionNumbers(stripAudioScript(ansMatch[1]), { part: 'answer', compact: true })
-                .filter((n) => n >= 1 && n <= bodyTopQ));
-              const miss = [];
-              for (let i = 1; i <= bodyTopQ; i++) if (!ansSet.has(i)) miss.push(i);
-              if (miss.length) missTail = `：正文 1~${bodyTopQ} 题中，答案区未见 ${miss.length} 个题号（缺 ${miss.slice(0, 8).join('、')}${miss.length > 8 ? ' 等' : ''}）`;
-            } catch (e) { /* 取证失败不影响主流程 */ }
-            silentCount('answer-coverage', `答案区题号数(${ansTopQ})明显少于正文(${bodyTopQ})${missTail}——答案区可能未按与正文一致的题号逐题对齐（计数口径：两侧同源、各取"从 1 起最长连续递增段"；题号形态已覆盖行首题号、空位自带括号编号、行内点号与紧凑连排，故差异不出在形态识别），请抽检`);
-          }
-        }
-        // 反向护栏（2026-09-10 实证补）：正文题号明显少于答案区 → 正文疑似丢题。
-        //    实测样本：英语同步练习正文缺第2~5题（题号从1跳到6）、答案区却完整（一~九齐全）——
-        //    原守卫只查"答案区少于正文"这一向，此向漏检，导致正文丢题静默进交付。
-        //    2026-09-17：分段式编号（每大题从 1 重编号）下两侧计数不可比 → 该向同样不适用（已改报体系问题）。
-        if (!isContentType && !bodyNum.segmented && !ansNum.segmented && ansTopQ > 3 && bodyTopQ < ansTopQ - 1) {
-          silentCount('body-coverage', `正文题号数(${bodyTopQ})明显少于答案区(${ansTopQ})——正文疑似丢题，请核对正文是否完整`);
-        }
-        // 2026-09-29（③ 答案区逐题对应·**顺序错位**；only-report）：计数看起来对齐、但答案区题号
-        //    **次序逆序**时，上面两条都不报（计数相同 → 不触发"少于"判据）→ 逐题对应实则错位。
-        //    判据用**严格口径**（不带 compact：连排/题干内列举不入列，宁漏不误）取答案区题号序列，
-        //    去掉相邻重复后须随正文题号单调不减；出现"先大后小"只报**首处**（防长清单刷屏）。
-        //    子题号 (1)(2)/①② 不计（本口径只认顶层题号）。适用范围同题号体系判据：仅正式考卷（exam）
-        //    + 两侧均非分段式（教辅按栏目起编、分段式两侧不可比）。避免与上面"少于"告警重复。
-        if (genType === 'exam' && !bodyNum.segmented && !ansNum.segmented && bodyTopQ > 3 && !(ansTopQ < bodyTopQ - 1)) {
-          const seq = extractBodyQuestionNumbers(stripAudioScript(ansMatch[1]), { part: 'answer' })
-            .filter((n) => n >= 1 && n <= bodyTopQ);
-          const dedup = seq.filter((n, i) => i === 0 || n !== seq[i - 1]);
-          for (let i = 1; i < dedup.length; i++) {
-            if (dedup[i] < dedup[i - 1]) {
-              silentCount('answer-coverage', `答案区**题号顺序错位**：第 ${dedup[i]} 题排在第 ${dedup[i - 1]} 题之前（答案区须按与正文相同的题号顺序逐题作答），请按序重排后抽检`);
-              break;
-            }
-          }
-        }
+        // 🔴 2026-10-10（属主裁定·消噪音）：原 `question-numbering-system`「编号体系与'全卷连续'不符」＋
+        //    与之成对的 `answer-coverage`「缺同号题号／题号少于正文」两档**整支删除**——题号计数口径本身
+        //    不构成"真缺陷"判据（差 ±1 就报）。（规则条目同步删。）
+        // 🔴 2026-10-10（属主裁定·消噪音）：原 `body-coverage`「正文题号少于答案区」＋
+        //    `answer-coverage`「答案区题号顺序错位」两档**整支删除**（同上——题号计数口径不构成真缺陷判据）。
         // 2026-09-17 用户裁定（撤除"正确答案位置成规律"探针）："程序侧报这些意义不大，不依赖程序侧"——
         //    此类"命题技术"项（答案在选项序列中的位置分布）由**模型侧**承接：尾约束三域②要求
         //    "由该材料唯一确定答案 / 要素之间相互一致"，②并与题目自洽总纲的命题纪律同源；

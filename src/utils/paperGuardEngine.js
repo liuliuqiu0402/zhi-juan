@@ -196,7 +196,9 @@ export function guardPaper({ html = '', corpus = [], longN = 8, copy = true, sub
   //   引用课文原句 ⇒ 与教材原文重合是**应然**（实测一份低段语文卷即 8~11 处命中，全是课文原句）。
   //   判据原意是"不得照搬教材**原题**"（题目），与"原文重合"不是一回事；此档对语文**无信息量、纯噪音**。
   //   边界：仅"字面重合"档豁免；**算式重复/情境集中/首段自述/数据裂缝等其余档照常**（语文不涉算式，实际无影响）。
-  const copyOn = copy && subject !== '语文';
+  // 🔴 2026-10-10（属主裁定·消噪音）：**删"照搬"档**——原文作阅读材料本就该引用（语文尤甚），
+  //    "与教材参考段字面重合"对正式卷**无信息量、纯噪音** ⇒ 不再产出该档命中（连同 bannedList 一并空）。
+  const copyOn = false;
   const copyHits = copyOn
     ? scanCopyOverlap({ bodyHtml: html, corpus, longN, subject }).map((h) => ({
         cat: 'copy', level: 'warn',
@@ -209,7 +211,9 @@ export function guardPaper({ html = '', corpus = [], longN = 8, copy = true, sub
   //   知识归纳型（copy=false，正文按要点/条目归纳呈现）常含编号条目或同主题示例，
   //   被按题块误判为"算式复用/情境集中"即假报（2026-09 全维度语境词审计）→ 与 copy 同组门控。
   const questionBased = copy;
-  const formulaHits = questionBased ? detectFormulaDuplicates(html).map((t) => ({ cat: 'formula', level: 'warn', text: t })) : [];
+  // 🔴 2026-10-10（属主裁定·消噪音）：**删"算式重复"档**——同一单元就那几道（如 1~6 的乘法），
+  //    同型算式在多题出现是**应然**，按"卷内重复"报＝误报 ⇒ 不再产出该档命中。
+  const formulaHits = [];
   const topicHits = questionBased ? detectTopicRepeat(html).map((t) => ({ cat: 'topic', level: 'warn', text: t })) : [];
   const openingHits = detectOpeningMetaNarration(html).map((t) => ({ cat: 'opening', level: 'warn', text: t }));
 

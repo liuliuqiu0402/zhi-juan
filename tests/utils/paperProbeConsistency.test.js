@@ -33,14 +33,7 @@ describe('① 题号计数口径同源（正文/答案区不再各持正则）',
     expect(countTopQuestions(bodyWithInlineParenNumbering())).toBe(45);
   });
 
-  it('反向护栏：正文真的缺题（1~5 后直接跳 8~12）→ 仍报', () => {
-    const body = `<h2>一、听力（共80分）</h2>`
-      + Array.from({ length: 5 }, (_, i) => `<p class="question">${i + 1}. 题</p>`).join('')
-      + Array.from({ length: 5 }, (_, i) => `<p class="question">${i + 8}. 题</p>`).join('');
-    const ans = `<div class="answer-section"><h2>参考答案</h2>${Array.from({ length: 12 }, (_, i) => `<p>${i + 1}. A</p>`).join('')}</div>`;
-    const r = auditExamPaper(body + ans, { subject: '英语', stage: 'primary_high', genType: 'exam' });
-    expect((r.silentDetails || []).some((d) => d.type === 'body-coverage')).toBe(true);
-  });
+  // ⛔ 2026-10-10（属主删档）：`body-coverage`（正文题号少于答案区）上报已移除，本档失效。
 
   it('三种形态同源：行首 / 空位自带括号编号 / 行内点号+作答位 都计入且保序', () => {
     const html = `<p>1. 行首形态</p><p>B: (2) <u class="blank-3">&emsp;</u></p><p>Amy: 说点什么 3. <u class="blank-3">&emsp;</u></p>`;
@@ -224,16 +217,7 @@ describe('⑥ 答案区计数剔除「听力原文」板块（防遮蔽，与正
     expect(notes(run(body20, ans))).toBe('');
   });
 
-  it('🔴 遮蔽护栏：答案只给了 1~5、其余靠听力原文凑号 → 修前会被判对齐，现须报"答案区题号少于正文"', () => {
-    const ans = `<div class="answer-section"><h2>参考答案</h2>${ansItems(5)}`
-      + `<p><strong>听力原文</strong></p>${ansItems(20)}</div>`;
-    expect(notes(run(body20, ans))).toContain('答案区');
-  });
-
-  it('反向护栏：答案区确实无题号（只有文字罗列）→ 仍报（剔除原文不掩盖真缺陷）', () => {
-    const ans = `<div class="answer-section"><h2>参考答案</h2><p>一、略</p><p>二、略</p></div>`;
-    expect(notes(run(body20, ans))).not.toBe('');
-  });
+  // ⛔ 2026-10-10（属主删档）：`answer-coverage`（答案区题号少于正文／无题号）上报已移除，两档失效。
 });
 
 // ⑤ 尾约束·全文自洽：三域化 + "定稿前动作"（用户追问第三轮："让模型把指令切实执行、再做到自洽——模型侧，
@@ -371,12 +355,7 @@ describe('⑦ 题号编号体系：分段式编号改报体系问题，不再用
     + `<h2>一、听力</h2>${Array.from({ length: 5 }, (_, i) => `<p>${i + 1}. A</p>`).join('')}`
     + `<h2>二、单项选择</h2>${Array.from({ length: 10 }, (_, i) => `<p>${i + 1}. A</p>`).join('')}</div>`;
 
-  it('分段式编号 → 报"编号体系与全卷连续口径不符"，并给出两侧段长清单', () => {
-    const msg = notes(run(segBody, segAns), 'question-numbering-system');
-    expect(msg).toContain('按大题分别从 1 重新编号');
-    expect(msg).toContain('2 段（段长 5、10）');          // 正文段长清单（只列大题级段）
-    expect(msg).toContain('全卷连续');
-  });
+  // ⛔ 2026-10-10（属主删档）：`question-numbering-system`（编号体系与"全卷连续"口径不符）上报已移除，本档失效。
 
   it('🔴 小学正式卷（primary_*）：各大题各自起编＝应然 → 分段式**不报**"编号体系与全卷连续不符"（2026-10-05 按学段分叉）', () => {
     const r = auditExamPaper(segBody + segAns, { subject: '英语', stage: 'primary_high', genType: 'exam' });
@@ -385,19 +364,7 @@ describe('⑦ 题号编号体系：分段式编号改报体系问题，不再用
     expect(notes(r, 'answer-coverage')).toBe('');
   });
 
-  it('🔴 题号主键**条件化**（2026-10-10〔325〕步4"有则验、无则不臆断"）：正文无阿拉伯小题号（top=0·以汉字大题序号/整栏一题为体例）→ **不报**；零星题号（1~2）才提示', () => {
-    // 〔325〕步4 改判：原条件 top<3 **含 top=0** → 对"以汉字大题序号为体例"的正当卷面发噪音提示；现收紧为 1≤top<3。
-    const bodyNoArab = '<h2>一、读拼音写词语（共12分）</h2><p class="question">(1) chí táng</p>'
-      + '<h2>二、比一比再组词（共8分）</h2><p class="question">(1) 那( ) 哪( )</p>';
-    const ans = '<div class="answer-section"><h2>参考答案</h2><p>一、(1) 池塘</p><p>二、(1) 那里 哪里</p></div>';
-    const r = auditExamPaper(bodyNoArab + ans, { subject: '语文', stage: 'primary_low', genType: 'exam' });
-    expect(notes(r, 'question-numbering-key'), 'top=0 不臆断').toBe('');
-    // 零星题号（1~2）＝可能是缺号/半途混排 → 仍如实提示（只报不改）
-    const bodyFew = '<h2>一、读拼音写词语（共12分）</h2><p class="question">1. 看拼音写词语</p>'
-      + '<p class="question">(1) chí táng</p>';
-    const r2 = auditExamPaper(bodyFew + ans, { subject: '语文', stage: 'primary_low', genType: 'exam' });
-    expect(notes(r2, 'question-numbering-key'), '1≤top<3 仍提示').toContain('计数主键不适用');
-  });
+  // ⛔ 2026-10-10（属主删档）：`question-numbering-key`（题号主键不适用）上报已移除，本档失效。
 
   it('🔴 非考卷类型（同步练习/课时练等）按大题分别编号是市场常态 → 不报"编号体系与全卷连续不符"', () => {
     // 2026-09-18 用户裁定：""全卷连续"只约束正式考卷；同步练习按大题分号不误报。
@@ -413,15 +380,7 @@ describe('⑦ 题号编号体系：分段式编号改报体系问题，不再用
     expect(notes(r, 'body-coverage')).toBe('');
   });
 
-  it('非分段式（全卷连续）→ 体系探针不误报，原两侧对比照旧生效', () => {
-    const body = `<h2>一、听力（每题2分，共20分）</h2>`
-      + Array.from({ length: 20 }, (_, i) => `<p class="question">${i + 1}. 题</p>`).join('');
-    const ans = `<div class="answer-section"><h2>参考答案</h2>`
-      + Array.from({ length: 6 }, (_, i) => `<p>${i + 1}. A</p>`).join('') + '</div>';
-    const r = run(body, ans);
-    expect(notes(r, 'question-numbering-system')).toBe('');
-    expect(notes(r, 'answer-coverage')).toContain('明显少于正文');
-  });
+  // ⛔ 2026-10-10（属主删档）：`answer-coverage`「答案区题号明显少于正文」上报已移除，本档失效。
 
   it('段长清单只列大题级段（≥3 项）：零散命中（1 项长段）不进报告，避免误导', () => {
     const msg = notes(run(segBody, segAns), 'question-numbering-system');

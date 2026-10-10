@@ -140,15 +140,13 @@ describe('端到端：auditExamPaper 产出配图一致性提示', () => {
   const htmlOf = (stem, prompt) => '<h2>一、选择题</h2>'
     + `<p>${stem}</p>[IMAGE]\nPROMPT:${prompt}\n[/IMAGE]<p>2. 下一题</p>`;
 
-  it('生物卷：数量不一致 → image-consistency(warn)；且提示生图引擎需人工核对', () => {
+  // ⛔ 2026-10-10（属主删档）：`image-consistency`（配图数量与题干不一致）上报已移除；
+  //    本档保留同用例的 **image-engine-only**（生图引擎需人工核对）部分。
+  it('生物卷：画面涉结构图 → 提示生图引擎需人工核对（数量一致性上报已删档）', () => {
     const r = auditExamPaper(htmlOf('1. 观察下面的结构图，图中有三只熊猫在吃竹子', '一只熊猫在竹林中吃竹子'), {
       subject: '生物', stage: 'middle', genType: 'practice',
     });
     const msgs = r.silentDetails.map((d) => d.message).join(' | ');
-    expect(msgs).toContain('配图数量可能与题干不一致');
-    expect(msgs).toContain('三只');
-    expect(msgs).toContain('一只');
-    // 生物无结构化图形能力 + 画面涉及"结构图" → 追加生图引擎核对提示（文案按真实能力分档）
     expect(r.silentDetails.some((d) => d.type === 'image-engine-only')).toBe(true);
     expect(msgs).toContain('[GRAPH] 仅支持统计图');
   });

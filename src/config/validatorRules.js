@@ -63,18 +63,24 @@ export const VALIDATOR_RULES = [
     description: '清理非标准插图占位符、被转义的闭合标签、空条款，保证卷面无模板残留。',
     enabled: true,
   },
+  // 🔴 2026-10-10（属主裁定·消噪音）：`score-label-fix` **不再产出任何上报**（三支全删）——
+  //   但**保留条目本身**作为**纯生成前约束**（分值标注形态），故仍在 VALIDATOR_RULES、登记于 RULE_NO_EXEC。
   {
     id: 'score-label-fix',
-    name: '分值标注对齐',
+    name: '分值标注形态（纯生成前约束）',
     category: 'fix',
     subjects: ['*'],
     stages: ['*'],
     genTypes: ['exam'],
-    // 2026-10-02（③啰嗦·收口）：删"（不虚报、不缩水）"——"必须等于…实际输出"已说全，四字为同义补句。
     promptHint: '分值标注与账目：分值标注用中文全角括号，与卷面其余括注同形；账目口径由正文分值条单源承载。',
-    description: '大题/小题标题"每空/每组/每题/每词/每字 X 分"标注与实际载体数校验（**只报不改**：程序不重算、不改写分值，账目由模型自洽；声称数≠实际载体数时仅静默计数抽检）：空按 DOM 空位数、配对/匹配题按匹配对数、词按拼音组数（看拼音写词语）、字按田字格格子数。2026-09-17 括号口径统一为**全角**：原句"分值标注一律半角括号…不得用中文全角括号"与同一份提示词里委托正文的两处全角示范三处相抵（实测第②类打架）；程序侧解析（examValidator 2f/2g/2h）半角/全角均兼容，故按卷面括注形态统一为全角。2026-09-30（用户裁定·判词单源）：账目算式判词（小题数×每题分=大题分、空数×每空分=小题分、各大题分之和=满分）**只保留在** src/config/promptLibrary.js 的【卷面格式】分值条——该条恒注入，而本规则**用户可停用**，判据不能放在可停用处（原两处各写一份＝机制 A 无单一事实源，且停用后主指令只剩空判据）；本规则 promptHint 只留标注形态与"声称数=实际数"。（`fixScoreLabel` 为**形态/账目计算函数**，其返回值仅用于"只报不改"的抽检文本，不回写正文——与本节口径一致。）',
+    description: '**纯生成前约束（无程序执行点）**。2026-10-10（属主裁定·消噪音）：原"只报不改"的三支上报（大题/小题"空数×单价≠总分"、大题含"每题X分"但各题不等）**全部删除**——算式类/单题栏无空位载体时按载体反推必失真；且程序侧弄不到自洽的**不能改**，只报不改的价值不抵误报噪音（属主原话："程序侧弄不到自洽的，不能改"）。保留项＝分值标注**形态**（中文全角括号）＋"账目口径由正文分值条**单源**承载"。（`fixScoreLabel` 计算函数保留备用，不再产出告警。）',
     enabled: true,
   },
+
+  // 🗑 2026-10-10（属主裁定·消噪音·"整个都不要了"）：`score-label-fix` 条目**已删**。
+  //   理由：① 上报三支（大题/小题"空数×单价≠总分"、大题含"每题X分"但各题不等）**报不准**——
+  //    算式类/单题栏无空位载体时按载体反推必失真；② 程序侧弄不到自洽的**不能改**（只报不改的价值不抵噪音）。
+  //   分值标注形态仍由正文分值条**单源**承载（cell 恒注入，不依赖本规则）。执行点同步删除（examValidator 2f/2g/2h）。
 
   {
     id: 'title-detail-fix',
@@ -269,15 +275,8 @@ export const VALIDATOR_RULES = [
     enabled: true,
   },
 
-  {
-    id: 'answer-coverage-guard',
-    name: '答案覆盖度静默防护',
-    category: 'guard',
-    subjects: ['*'],
-    stages: ['*'],
-    description: '答案区题号明显少于正文时静默计数（提示答案页可能不完整）。',
-    enabled: true,
-  },
+  // 🗑 2026-10-10（属主裁定·消噪音）：`answer-coverage-guard` 条目**已删**——答案区题号计数口径
+  //   不构成"真缺陷"判据（差 ±1 就报；题号体系分段时更不可比）。执行点同步删除。
 
   {
     id: 'answer-area-fix',
@@ -311,18 +310,9 @@ export const VALIDATOR_RULES = [
     enabled: true,
   },
 
-  {
-    id: 'question-numbering-key',
-    name: '题号主键变化（无阿拉伯小题号）静默防护',
-    category: 'guard',
-    subjects: ['*'],
-    stages: ['*'],
-    genTypes: ['exam'],
-    description: '正文题号由**大类/大题汉字序号**承担（正文无阿拉伯小题号）时——缺号守卫 detectBodyNumberingGap 与答案覆盖守卫的**计数主键**（extractBodyQuestionNumbers，行首 `N.`）失效、会**静默放行** → 静默抽检（notice 进生成报告【问题列表】）如实说明"计数主键不适用，请人工核对题量与答案逐题覆盖"。2026-10-05（题号主键消相抵后）：大题唯一题用汉字序号是**应然**（非缺陷），本条**只报告可见性、不改写、不重试、不判失败**。',
-    enabled: true,
-  }
-]
-;
+  // 🗑 2026-10-10（属主裁定·消噪音）：`question-numbering-key` 条目**已删**——正文由文科大字序号
+  //   承担题号是**应然**形态，报它等于天天报正常态。执行点同步删除。
+];
 
 // ==================== 执行点注册表（生成端接线声明，单一事实源） ====================
 // 用途：规则库面板「接线状态自检」据此推导，不再硬编码假空——
@@ -336,10 +326,10 @@ export const VALIDATOR_RULES = [
 export const VALIDATOR_GATES = new Set([
   'pinyin-norm', 'template-cleanup', 'image-block-fix', 'duplicate-content-fix',
   'text-format-fix', 'writing-grid-fix', 'title-detail-fix',
-  'option-count-guard', 'choice-answer-position-guard', 'choice-first-blank-fix', 'score-label-fix', 'writing-expression-fix',
-  'answer-area-fix', 'answer-section-exam', 'answer-section-teaching', 'answer-coverage-guard',
+  'option-count-guard', 'choice-answer-position-guard', 'choice-first-blank-fix', 'writing-expression-fix',
+  'answer-area-fix', 'answer-section-exam', 'answer-section-teaching',
   'emphasis-form-fix',
-  'text-format-sup-sub', 'cn-ordinal-guard', 'question-numbering-key',
+  'text-format-sup-sub', 'cn-ordinal-guard',
   'formula-form-guard',
   'text-format-phonetics',
 ]);
@@ -353,7 +343,7 @@ export const RULE_EXEC_BY = {
  *  🔴 2026-10-09（台账〔293〕后续 · 属主批"①可以"）：原唯一成员 `text-format-phonetics` 已**补执行点**
  *     （`examValidator` 1.5.6a · silentCount 只报不改）⇒ 移入 `VALIDATOR_GATES`，本表**暂空**
  *     （留表以保持接线自检 `validatorWiring` 的三分结构）。 */
-export const RULE_NO_EXEC = new Set();
+export const RULE_NO_EXEC = new Set(['score-label-fix']);
 
 /** 全量内置规则（维护/展示用） */
 export const listValidatorRules = () => getMergedRules().map(r => ({ ...r }));
