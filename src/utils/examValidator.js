@@ -1054,7 +1054,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             // 非标准空位形态（countBlanks 数不到→计数不可靠）：引号空位"　　"、双重括号 ((　))；
             //   注意不能判"连续全角空格"——标准单括号空位（　　　　）内部正是连续全角空格，是可靠载体
             const secAmbiguous = /[“"][　\s\u3000]{2,}[”"]|[(（]{2}[　\s\u3000]{2,}[)）]{2}/.test(secText2);
-            if (!secInteractive && !secAmbiguous) silentCount('score-label', `大题「${title.slice(0, 22)}」分值标注与实际载体不符（空数×每空分≠标注总分），请按正文实际空位数改准分值说明`, 'notice');
+            // 🔴 2026-10-10（〔320〕消误报·单价改派生式后的连带）：大题标题的单价现由**模型按账目判据派生**（2026-10-10 裁定）；
+            //    本断言却用**载体数/题数**反推单价——"算式类/单题栏"（直接写得数、竖式计算、单题号的应用题栏等）的
+            //    计分对象是**算式/作答单位**，程序数不到（无空位载体、题号≤1）⇒ 反推必失真、误报"空数×每空分≠总分"。
+            //    按"程序只做能自证的断言"：**数不到可靠计分对象时不断言**（有空位/连线载体或多题号时照常验）。
+            const secNoCountableUnit = carrierTotal === 0 && subCountForUnit <= 1;
+            if (!secInteractive && !secAmbiguous && !secNoCountableUnit) silentCount('score-label', `大题「${title.slice(0, 22)}」分值标注与实际载体不符（空数×每空分≠标注总分），请按正文实际空位数改准分值说明`, 'notice');
           }
         }
 
@@ -1112,7 +1117,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               // 非标准空位形态（countBlanks 数不到→计数不可靠）：引号空位"　　"、双重括号 ((　))；
               //   注意不能判"连续全角空格"——标准单括号空位（　　　　）内部正是连续全角空格，是可靠载体
               const segAmbiguous = /[“"][　\s\u3000]{2,}[”"]|[(（]{2}[　\s\u3000]{2,}[)）]{2}/.test(segText);
-              if (!segInteractive && !segAmbiguous) silentCount('score-label', `小题「${st.text.slice(0, 14)}」分值标注与实际载体不符（空数×每空分≠标注总分），请按正文实际空位数改准分值说明`, 'notice');
+              // 同 2f：数不到可靠计分对象（无空位/连线载体、题号≤1）时不断言——算式类小题的计分对象是算式
+              const segNoCountableUnit = carrier === 0 && countSubNumbered(segText) <= 1;
+              if (!segInteractive && !segAmbiguous && !segNoCountableUnit) silentCount('score-label', `小题「${st.text.slice(0, 14)}」分值标注与实际载体不符（空数×每空分≠标注总分），请按正文实际空位数改准分值说明`, 'notice');
             }
           });
         }
