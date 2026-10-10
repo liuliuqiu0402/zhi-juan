@@ -26,7 +26,7 @@ describe('题号"编号对象"口径', () => {
     expect(ex, '大题序号全卷连续仍在').toContain('全卷连续');
     expect(ex, '账目算式判词仍在（2026-10-10 计分对象口径、判据不变）').toContain('大题总分=其下各计分对象分值之和');
     expect(QUESTION_OBJECT_CALIBER, '本条须声明自身不涉大题级').toContain('题号只标');
-    expect(tpl('practice'), '教辅小题口径仍在（逐栏目起编）').toContain(QUESTION_NUMBERING_CALIBER.teaching);
+    // 🔴 2026-10-10（属主裁定·删编法规定）：`QUESTION_NUMBERING_CALIBER.teaching` 已整块删除，该断言随之撤除。
   });
 
   it('零诱导：不点题型名、不指定分问符号', () => {
@@ -37,12 +37,9 @@ describe('题号"编号对象"口径', () => {
     expect(QUESTION_OBJECT_CALIBER).toContain('独立作答单位');
   });
 
-  it('旧口径不得被覆盖：全卷连续/逐栏目起编两套仍在（不得互相否定）', () => {
-    const lib = read('src/config/promptLibrary.js');
-    expect(lib).toContain('不得互相否定');
-    expect(QUESTION_NUMBERING_CALIBER.exam).toContain('全卷连续');
-    expect(QUESTION_NUMBERING_CALIBER.teaching).toContain('分别从 1 起编');
-  });
+  // ⛔ 2026-10-10（属主裁定·**删编法规定·去约束**）：原"旧口径不得被覆盖：全卷连续/逐栏目起编两套仍在
+  //   （不得互相否定）"**整档撤除**——小题号**编法**（含"不得互相否定"分型尾句）已按同一裁定**整体删除**；
+  //   "哪些题该编号"由【编号对象口径】单源承载，"号怎么排"不作规定即最正规。（原断言见 git 历史。）
 
   // 🔴 2026-10-03（用户报障根治·问题5）：「共N题」题量原写"只数**实际给号的小题**"——与账目绝对等式
   //    （小题数×每题分=大题分）耦合，模型为凑等式把同型并列小项**逐项编号**（生编硬凑题号）。

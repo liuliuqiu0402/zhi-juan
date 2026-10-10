@@ -30,7 +30,9 @@ const FIX_TYPES = {
   //    与【尾约束·资料内多样】② 原枚举判据同源；该枚举判据已改判据式，改法相应改为"有即改"（不再点名换哪一维）。
   fixNow: { label: '有即改（发现即当场改）', re: /凡有即当场改/ },
   selfRevise: { label: '不达标即自行修订', re: /自行修订/ },
-  fixGap: { label: '缺号即补、重启即改', re: /缺号即补|重启即改/ },
+  // 🔴 2026-10-10（属主裁定·**删编法规定**）：本类由"缺号即补、重启即改"（**连续性**）改为**完整度**
+  //   （"遗漏即补、完整呈现"）——编号连续性不得再作为复核动作（连续性不得代模型定卷面形态）。
+  fixGap: { label: '遗漏即补（完整呈现，不再要求连续）', re: /遗漏|完整呈现/ },
   deferToThreeDomains: { label: '引到三域（不另立判据）', re: /以上细目即【尾约束·全文自洽】三域在题类资料的展开/ },
 };
 
@@ -89,7 +91,9 @@ const REVIEW_ACTIONS = [
   //    前置已精准（栏目/大题行本就带【要求·须逐项落实】标注、"必须逐项落实"效力句仍在），故三处动作句一并删。
   {
     id: 'retry-gap-note', block: '上一轮复核发现的问题（重试附加段）', channel: '调用层追加（重试时）', scope: '整卷正文重试',
-    action: '输出完成后逐题自查题号连续', anchor: '输出完成后逐题自查', fixType: 'fixGap', via: 'runtime',
+    // 🔴 2026-10-10（属主裁定·删编法规定）：动作句由"逐题自查题号连续"改为**完整度**自查
+    //   （"逐题自查是否遗漏应给号的题"）——不再要求连续性；锚点随之改准。
+    action: '输出完成后逐题自查是否遗漏**应给号**的题', anchor: '输出完成后逐题自查是否遗漏', fixType: 'fixGap', via: 'runtime',
   },
 ];
 // 🔴 2026-10-01（③啰嗦·D16 自检类补丁清除）：原第 10 条 'question-numbering'（委托正文里的"逐题自查题号连续"）
@@ -175,7 +179,7 @@ describe('守卫 B/C：登记条目与实发文本不得脱节', () => {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const src = fs.readFileSync(path.resolve(__dirname, '../../src/composables/useAiGenerator.js'), 'utf8');
-    expect(src).toContain('输出完成后逐题自查题号连续性');
+    expect(src).toContain('逐题自查是否遗漏**应给号**的题');
   });
 });
 

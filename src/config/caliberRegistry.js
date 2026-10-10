@@ -72,7 +72,8 @@ export const PROMPT_CONSTANTS = {
     'DECLARATION_TRUTH_CLAUSE',
     'SUBJECT_FACT_DISCIPLINE',
     'NUMBERING_HIERARCHY_RULE',
-    'QUESTION_NUMBERING_CALIBER',
+    // 🗑 2026-10-10（属主裁定·删编法规定）：'QUESTION_NUMBERING_CALIBER' 已整块删除
+    //   （小题号"全卷连续／各自起编"是**约束**、会逼出硬编小题号；"哪些题该编号"由编号对象口径单源承载）。
     'QUESTION_OBJECT_CALIBER',
     'SCORING_OBJECT_CALIBER', // 🔴 2026-10-10（〔328〕三口径闭环）：计分对象口径（编号对象之姊妹条）
     'GROUP_TITLE_NUMBERING_CALIBER',
