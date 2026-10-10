@@ -578,8 +578,14 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     // 🔴 2026-10-06（A1 属主裁定"**收紧**"）：exam 保留形态范式（其题名不由模型自拟，范式作定位用）；
     //   教辅组标题**不再保留"先说做什么"**——"只说什么做什么"＝宽泛题名，会逼出"逐题复述作答说明"
     //   （J4 产物实证的质感病）⇒ 与 exam 小学段同口径，只放行"点明本组怎么做或选什么"。
-    expect(getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'exam' }).template,
-      'exam 应保留标题形态范式').toContain('先说做什么、再说怎么做或选什么');
+    // 🔴 2026-10-10（〔322〕"题目标题须作答方式"统一判据）：中学"先说做什么"亦属**宽泛口子**（与教辅/小学同口径，
+    //    "只说什么做什么"＝宽泛题名）⇒ 已删；exam 只保留**标题形态范式**（题名写法取本学科本学段试卷常用形态）。
+    const examT = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'exam' }).template;
+    expect(examT, 'exam 应保留标题形态范式').toContain('本学科本学段试卷里编辑常用的标题形态');
+    expect(examT, 'exam 不得回退"先说做什么"宽泛口子').not.toContain('先说做什么');
+    // 统一判据（不论层级）＋领域名/大类名例外
+    expect(examT, '题目标题须作答方式（不论哪一层）').toContain('不论哪一层');
+    expect(examT, '领域名/大类名可只作范围标识（例外）').toContain('可只作范围标识');
     const pracT = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'practice' }).template;
     expect(pracT, '教辅侧须已收紧为"点明本组怎么做或选什么"').toContain('点明本组怎么做或选什么');
     expect(pracT, '教辅侧不得回退"先说做什么"').not.toContain('先说做什么、再说怎么做或选什么');
