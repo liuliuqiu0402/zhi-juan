@@ -117,6 +117,8 @@ describe('buildAnswerSpaceInstruction（通用六行：形态按作答需要选�
       if (s === '数学') {
         expect(inst).toContain('算式求出、写在等号后的得数所在位');
         expect(inst).toContain('需书写计算过程（列竖式/笔算/脱式等）');
+        // 🔴 2026-10-10（〔346〕产物实证·竖式竖向堆叠根治）：补"多个算式同一行横向并排、不逐式各占一整段"。本条为锁。
+        expect(inst, '〔346〕竖式多算式须横向并排').toContain('多个算式在同一行横向并排');
       }
     }
   });

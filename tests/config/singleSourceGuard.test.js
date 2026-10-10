@@ -101,7 +101,7 @@ describe('单源守卫：卷首导语 / 严肃卷面 / 统一情境 / 大题标�
 //   扫描面＝**src**：这 5 项的规则字面属"进模型的指令源"，回潮风险在 src（再写第二处正句）；
 //   docs/design 属决策台账、允许引用原文，故不纳入本块（否则会把"台账引用"误判为回潮）。
 const LAYER2_SINGLE_SOURCE = [
-  { item: '分值账目算式', owner: 'src/config/promptLibrary.js', phrase: '账目算式判据' },
+  { item: '分值账目算式', owner: 'src/config/promptLibrary.js', phrase: '账目（对账，不作生成前提）' },
   { item: '强调口径', owner: 'src/config/promptLibrary.js', phrase: '加粗只用于层级标题与讲解示范引出' },
   { item: '公式写法', owner: 'src/config/eduRenderContract.js', phrase: '公式内分数用' },
   { item: '作答位条款', owner: 'src/config/layoutSpec.js', phrase: '不得再在题后另起' },

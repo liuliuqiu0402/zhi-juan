@@ -192,7 +192,8 @@ describe('⑧ 质量就绪：逐 486 真实三维度核对"产出必需判据齐
     for (const { stage, subject } of OPEN_PAIRS) {
       const t = buildCell('exam', stage, subject);
       const tag = `exam|${subject}|${stage}`;
-      need(t, '账目算式判据', tag);        // ↔ examValidator 分值算式校验
+      // 🔴 2026-10-10（〔347〕条款改名·促规范）：原「账目算式判据」条改「账目（对账，不作生成前提）」——同名同地，判据未变。
+      need(t, '账目（对账，不作生成前提）', tag);        // ↔ examValidator 分值算式校验
       need(t, '全卷连续', tag);            // ↔ 题号连续性检测
       need(t, '题干内的分条', tag);        // ↔ 载体/层级清洗（分条不与题号层混同）
     }
