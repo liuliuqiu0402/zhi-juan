@@ -120,10 +120,13 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(domainLines.every((l) => l.includes('本大类命题要求')), '大类行须携带命题要求').toBe(true);
     // 大类下大题自拟 + 分值合计约束
     // 2026-10-04（待办A·跨块收口改准）：本块只留"结构职责"（总分归拢/合计=大类总分）；
-    //   形态（自带序号/居中加粗）、大题命名、大题序号连续**改引用各单源块** → 断言随之指向引用。
+    //   形态（自带序号/居中加粗）、大题命名**改引用各单源块** → 断言随之指向引用。
+    // 🔴 2026-10-11（T02·G31·属主"一处＝注入后文本"）：**"大题序号"那半句已删**——原写作
+    //   "大题序号按【编号与组织】全卷连续"，但"全卷连续"在注入文本里就是**第二处表述**（与【题号与分值】重复）。
+    //   现断言：结构块**不再复述**大题序号口径（正句单源在【题号与分值】）。
     expect(inject).toContain('各大题分值合计须等于该大类总分');
     expect(inject, '大题命名改引用【大题标题命名】').toContain('【大题标题命名】');
-    expect(inject, '大题序号改引用【编号与组织】').toContain('【编号与组织】');
+    expect(inject, '大题序号口径不得在结构块复述（单源在【题号与分值】）').not.toContain('大题序号');
     expect(inject, '大类呈现形态改引用【卷面层级】').toContain('【卷面层级】');
   });
 
@@ -469,7 +472,8 @@ describe('质量底线三维度注入（类型/学科/学段各司其职，非�
     //   现锚**唯一判据**"两处可互相替代才算重复"（＝"同型多题属正规做法"的同一句话）。
     expect(practice.template).toContain('两处可互相替代才算重复');
     const special = getPromptTemplate({ genType: 'special' });
-    expect(special.template).toContain('每板块含易错点辨识与思路点拨'); // 🔒 2026-09-16：原锁'按委托书名称与先后搭好'已按少约束裁定撤除
+    // 🔴 2026-10-11（T02·G60）：special 创作要求的"每板块"（含类型名错词、原靠映射句翻译）→ 统一为"每栏"。
+    expect(special.template).toContain('每栏含易错点辨识与思路点拨'); // 🔒 2026-09-16：原锁'按委托书名称与先后搭好'已按少约束裁定撤除
     const reading = getPromptTemplate({ genType: 'reading' });
     expect(reading.template).toContain('阅读材料完整、无语病、主题与单元相关'); // 阅读材料规范由教辅结构蓝本承载（单一事实源）
     const dictation = getPromptTemplate({ genType: 'dictation' });

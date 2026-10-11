@@ -321,10 +321,16 @@ describe('🔢 组标题（大题标题）中文序号口径：教辅逐栏目�
     expect(p).not.toContain('跨大类顺延不重复');
   });
 
-  it('正式考卷：大题序号仍全卷连续、不得重新从「一、」开始（与教辅分型）', () => {
+  it('正式考卷：大题序号全卷连续（口径单源＝常量，模板只引用；与教辅分型）', () => {
     const e = examTpl();
-    expect(e).toContain('大题序号**全卷连续**（一、二、三…）');
-    expect(e).toContain('不得重新从「一、」开始');
+    // 🔴 2026-10-11（T02·G31）：口径**单源＝GROUP_TITLE_NUMBERING_CALIBER.exam**，模板改成引用它；
+    //   原模板内联的"不得重新从「一、」开始"（否定式）＋"（正式考卷口径）"（元话语）已删——
+    //   同一判据由常量的**正向**表述"跨大类/部分继续递增"承载。另：结构块（buildStructureText）里的
+    //   "大题序号按【编号与组织】全卷连续"半句已删（同一字面在注入文本里出现两次＝违"一处"）。
+    expect(e).toContain(GROUP_TITLE_NUMBERING_CALIBER.exam);
+    expect(e, '大题序号条仍在').toContain('大题序号');
+    expect(e, '否定式不得回潮').not.toContain('不得重新从「一、」开始');
+    expect(e, '元话语"（正式考卷口径）"不得回潮').not.toContain('（**正式考卷口径**）');
   });
 
   it('两口径单源常量各自成立，且条款显式声明"各自成立、不得互相否定"', () => {
@@ -506,8 +512,9 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
     // 🔴 2026-10-05（用户裁定）：原"同型客观小题只在大题级标一次"的例外（真题：武平县「一、选择题。（每题2分，共20分。）」）
     //    与"整卷标注方式统一"相抵 → 已删；选择/判断同样逐题标分，全卷一种标注方式。
     expect(t, '分值标注统一（例外已删、不再按题型分型）').toContain('全大题按同一单价计分时含单价');
-    expect(t).toContain('大题序号**全卷连续**');
-    expect(t).toContain('不得重新从「一、」开始');
+    expect(t).toContain('大题序号');
+    expect(t, '口径单源＝常量，模板只引用').toContain(GROUP_TITLE_NUMBERING_CALIBER.exam);
+    expect(t, '否定式不得回潮').not.toContain('不得重新从「一、」开始');
     expect(t, '旧的"跨部分不顺延不重复"自相矛盾句须已移除').not.toContain('跨部分不顺延不重复');
   });
 
@@ -531,9 +538,9 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
     expect(PAPER_OUTPUT_CONVENTIONS.once('语文', false)).not.toContain('阿拉伯题号');
   });
 
-  it('自洽①判据域=题面（含标题/要求行/材料引导语），不再只认"题干"', () => {
+  it('自洽①判据域=题面（含标题行/要求行/材料引导语），不再只认"题干"', () => {
     const t = examTpl();
-    expect(t).toContain('含题干、大题标题、大类名、要求行、材料引导语');
+    expect(t).toContain('含题干、标题行、要求行、材料引导语');
     expect(t).toContain('题面怎么说、卷面就怎么做');
     expect(t, '旧判据域"只认题干"须已扩为"题面"').not.toContain('判据只有题干自身措辞');
   });
