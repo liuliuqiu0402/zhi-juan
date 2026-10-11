@@ -111,7 +111,7 @@ export const ANALYSIS_PROMPTS = [
   { id: 'block_input_data_desc', category: '分析-知识图谱构建', type: 'fragment',
     content: '- 输入为"各课内容概要"数组（数组内每个元素 = 一课）：\n'
       + '  - title：章节标题\n'
-      + '  - summary：章节内容概要（含"仅目录模式"标记时按目录模式推断，见任务说明）\n'
+      + '  - summary：章节内容概要（**标注含"目录模式"**时按目录模式推断，见任务说明）\n'
       + '  - kpForTest：该课可考查知识点（每个对象含 名称/考查要求等）\n'
       + '  - keySegmentSamples：关键片段示例（每个对象含 type 类型、hasFormula 是否涉及公式、snippet 片段摘录）\n'
       + '  - totalSegments：该课总片段数\n'

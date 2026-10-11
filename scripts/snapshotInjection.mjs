@@ -232,3 +232,23 @@ console.log(`${cf.includes('【情境与页码】的情境边界条') && !cf.inc
 // —— T13·G70：渲染指令段头（system 侧，不在本快照装配链）——
 const rcText = buildRenderContract({ subject: '物理', stage: 'middle' });
 console.log(`${rcText.includes('【渲染指令】') && !rcText.includes('按需输出') && !rcText.includes('编造比例') ? '✓' : '✗'} T13·G70·L2：渲染指令段头只留【渲染指令】＋无机制解释`);
+// —— T09／T14／T15：分析提示与规则库不在本快照装配链 → 直接读源核字面（含"清零"与"正句"两侧）——
+const S = (p) => fs.readFileSync(path.resolve(p), 'utf8');
+// ⚠️ 注释里会**引用**旧字面（本项目的留痕惯例），核对"注入字面是否还在"必须**先剥注释**——否则留痕本身会把探针判红。
+const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const genS = stripComments(S('src/composables/useAiGenerator.js'));
+const lpS = stripComments(S('src/config/listeningExtractPrompt.js'));
+const vrS = stripComments(S('src/config/validatorRules.js'));
+const apS = stripComments(S('src/config/analysisPrompts.js'));
+const SRC_CHECKS = [
+  ['T09·G20 清零（"所有输出字段必须使用中文"）＋正句（随原文语言）', !genS.includes('所有输出字段必须使用中文') && genS.includes('逐字复制原文、随原文语言')],
+  ['T09·G21 清零（"必须为以下每种题型提取题目"）＋正句（仅作优先提示）', !genS.includes('必须为以下每种题型提取题目') && genS.includes('已知题型列表仅作优先提示')],
+  ['T09·G22 正句（绝对句已补 scope：除难度/小题数量外）', genS.includes('除【难度】判断与【小题数量】统计外')],
+  ['T09·G23 正句（分节播音指令给判据）＋通用开场限定', lpS.includes('说明该节听音方式与遍数**的分节指令') && lpS.includes('不属任何分节的通用开场')],
+  ['T14·G52 清零（"仅目录模式"判据）／正句（标注含"目录模式"，两处同步）', !genS.includes('标注"仅目录模式"') && genS.includes('标注含"目录模式"') && apS.includes('标注含"目录模式"')],
+  ['T14·G72 清零（操作者指引移出注入文本）', !genS.includes('如需完整命题素材')],
+  ['T15·G87 清零（自相抵的"字符归一半角/严禁 IPA 字符"）', !vrS.includes('字符归一半角') && !vrS.includes('IPA 音标字符（')],
+  ['T15·G90 清零（恒注入的配图块格式句）', !vrS.includes('配图块格式：凡输出配图')],
+];
+console.log('—— T09/T14/T15 源级核字面（不在本快照装配链）——');
+for (const [name, ok] of SRC_CHECKS) console.log(`${ok ? '✓' : '✗'} ${name}`);

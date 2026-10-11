@@ -45,7 +45,10 @@ export const VALIDATOR_RULES = [
     //    与 text-format-phonetics「音标用斜杠包裹」冲突——英语卷不再注入/执行本规则
     subjects: ['语文'],
     stages: ['primary_low', 'primary_mid'],
-    promptHint: '拼音字母与声调符号按标准注音写法输出（保留声调）；字符归一半角（ɡ→g、全角字母→半角），严禁混入 IPA 音标字符（ɡ/ŋ/ɑ/ə）。',
+    // 🔴 2026-10-11（T15·G87·自相抵）：原句"字符归一半角（**ɡ→g**、全角字母→半角），严禁混入 IPA 音标字符
+    //    （**ɡ**/ŋ/ɑ/ə）"——`ɡ` 既是要归一的目标、又是严禁项（一句自相抵）；且**字形归一属程序侧**
+    //    （`pinyin-norm` 已在生成后执行）⇒ 删该半句与 IPA 列举，只留"用标准注音、保留声调"。
+    promptHint: '拼音字母与声调符号按标准注音写法输出（保留声调）。',
     description: '将混入小学拼音的 IPA 音标字符与全角字母归一为标准拼音，防字体显示不一致。',
     enabled: true,
   },
@@ -126,8 +129,10 @@ export const VALIDATOR_RULES = [
     subjects: ['*'],
     stages: ['*'],
     // 2026-10-02（③啰嗦·收口）：删"（每图一个、单独成段）"——与渲染契约的配图条逐字同义（该条按能力注入，单源在彼）。
-    promptHint: '配图块格式：凡输出配图，一律用 [IMAGE] 块；参数独占一行、半角冒号。',
-    description: '把 AI 输出的 [IMAGE] 块规范化为 EduRender 标准格式：参数独占一行、半角冒号、清理 PROMPT 中混入的 HTML 残留、未闭合自动补 [/IMAGE]、不指定生图引擎（清除 TYPE:SD 等引擎参数，ICON 图标检索保留）。',
+    // 🔴 2026-10-11（T15·G90·无锚＋恒注入）：原 promptHint"配图块格式：凡输出配图，一律用 [IMAGE] 块；参数独占一行、
+    //    半角冒号"——① 与**渲染契约**复述（格式单源在 `eduRenderContract`）；② 本规则 `subjects:['*']` **恒注入**，
+    //    无图能力学科也被要求"一律用 [IMAGE]" ⇒ **删 promptHint**（本规则只做**生成后规范化**，不向模型提格式要求）。
+    description: '把 AI 输出的 [IMAGE] 块规范化为 EduRender 标准格式：参数独占一行、半角冒号、清理 PROMPT 中混入的 HTML 残留、未闭合自动补 [/IMAGE]、不指定生图引擎（清除 TYPE:SD 等引擎参数，ICON 图标检索保留）。配图块格式**单源注入**在渲染契约（按能力注入）——本规则**不再提供 promptHint**（本规则只做生成后规范化，且 `subjects:[\'*\']` 恒注入，向无图能力学科提格式要求即多余）。',
     enabled: true,
   },
   {
