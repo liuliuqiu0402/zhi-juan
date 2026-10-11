@@ -222,7 +222,11 @@ export const packSectionsIntoBatches = (sections = [], { maxCharsPerBatch = DEFA
 /** Map 阶段消息（**输入纯原文**，不含锚点清单——防假压缩 A4-3/A4-5） */
 export const buildMapMessages = ({ batch, mode = '', subject = '', grade = '' } = {}) => {
   const spec = compressionSpecOf(mode);
-  const scope = [grade, subject, batch?.title].filter(Boolean).join(' · ');
+  // 🔴 2026-10-11（T16·G102/G103）：原 `【范围】` 字段拼的是"学段·学科·**本节标题**"——**字段名与内容不符**
+  //   （范围≠一条标题），且 `batch.title` **同一次调用内注入三处**（此处／下方【本节标题】单列／【原文】正文标题行）
+  //   → 现：字段名改 **【教材信息】**；**标题从 scope 移出**、**删【本节标题】单列行** ⇒ 标题只在【原文】内出现一次
+  //   （范围由【原文】的真实节界承载，不再另立字段名）。
+  const scope = [grade, subject].filter(Boolean).join(' · ');
   return [
     {
       role: 'system',
@@ -234,8 +238,7 @@ export const buildMapMessages = ({ batch, mode = '', subject = '', grade = '' } 
         `【压缩任务】\n· ${spec.label}`,
         `【保真要求】\n· ${spec.instruction}`,
         '【硬约束】\n- 不得添加原文没有的内容；\n- **只保留原文已有的结构标题**，原样保留、不新造；',
-        scope ? `【范围】\n· ${scope}` : '',
-        batch?.title ? `【本节标题】\n· ${batch.title}` : '',
+        scope ? `【教材信息】\n· ${scope}` : '',
         `【原文】\n${String(batch?.text || '')}`,
         // 2026-10-02（项3·结构化）：各块的**块标题独占一行**（原为"【标题】内容"同段），块与块之间补**恰一空行**；
         //   文字未增未删（只把标题后的内容换行）。同轮另一处：原句点名"以下是压缩结果"这类**说明串**已按 ⑤ 改原则式。

@@ -1365,7 +1365,9 @@ export function useAiGenerator() {
               planRound: makeBudgetedPlanRound(maxTokens),
               onRound: ({ round, budget }) => console.log(`🔄 Ollama 输出被截断，第 ${round}/${contMaxRounds} 轮续写...（当前长度：${responseText.length}，本轮帽 ${budget}）`),
               requestNext: async ({ tail, budget }) => {
-                const continuationPrompt = `【继续】请从上一次输出的最后一个字开始，继续后面的内容。不要重复已有文字。\n\n上一段末尾：${tail}\n\n继续：`;
+                // 🔴 2026-10-11（T16·G105）：删"不要重复已有文字"——**双源去重**（去重已由程序侧
+                //    `appendContinuationWithDedup` 承担）；续写轮只发"断点＋衔接指令"。
+                const continuationPrompt = `【继续】请从上一次输出的最后一个字开始，继续后面的内容。\n\n上一段末尾：${tail}\n\n继续：`;
                 const resp = await axios.post(
                   `${config.baseUrl}/api/generate`,
                   {
@@ -4498,7 +4500,11 @@ ${cardAnalysisText.substring(0, 1000)}
             },
             requestNext: async ({ tail, budget }) => {
               const contResp = await callAI(
-                `${prompt}\n\n【续写】上次输出被截断（末尾：${tail}）。请直接从上次停止处继续完成剩余题目与内容，不要重复已有内容。`,
+                // 🔴 2026-10-11（T16·G105）：原"继续完成**剩余题目与内容**，不要重复已有内容"两处病——
+                //   ① "剩余题目"＝**模型不可自判**（无全文视图、不知"剩余"是哪几题）；
+                //   ② "不要重复已有内容"＝**双源去重**（程序侧 `appendContinuationWithDedup` 同事务）。
+                //   现只发"断点＋衔接指令"（去重交程序）。
+                `${prompt}\n\n【续写】上次输出被截断（末尾：${tail}）。请直接从上次停止处继续往下写完整。`,
                 {
                   taskType: 'generation', timeout: getTimeout('generation'), retries: 0,
                   systemMessage: programAttach.trim() ? programAttach : undefined,
