@@ -9,45 +9,8 @@
 //              数量被钉死，修复后须同步改本表与方法定稿 §5.5 —— 防"悄悄抹平"）
 // 判定层级＝程序校验；数据来源＝实发装配（与 `promptSourceRegistry` 同口径，含"生成期追加"通道）。
 import { describe, it, expect } from 'vitest';
-import {
-  getPromptTemplate, STAGE_SUBJECTS, ANSWER_ROLES, buildAnswerFormatSpec,
-} from '../../src/config/promptLibrary.js';
-import { GEN_TYPE_KEYS } from '../../src/config/toolLibrary.js';
-import { buildTeachingInjection } from '../../src/config/teachingBlueprints.js';
-import { buildUserMessagePrompt, buildCallLayerBlocks, buildDiffRegenBlock, buildMultiTypeDiffBlock } from '../../src/utils/injectionManifest.js';
-import { buildProgramAttach } from '../../src/utils/programAttach.js';
-import { styleOptions, buildStyleAppend } from '../../src/config/expertKnowledge.js';
-
-const stylesForType = (genType) => styleOptions
-  .filter((o) => !o.appliesTo.length || o.appliesTo.includes(genType))
-  .map((o) => o.value).filter((v) => buildStyleAppend(v));
-
-/** 某类型**全部真实 cell** 的实发文本（54 份；素材/锚点置空＝豁免输入；含生成期追加） */
-function textsOfType(genType) {
-  const out = [];
-  for (const [stage, subs] of Object.entries(STAGE_SUBJECTS)) {
-    for (const subject of subs) {
-      const t = (getPromptTemplate({ grade: stage, subject, genType }).template) || '';
-      out.push([
-        t,
-        buildTeachingInjection({ genType, stage, subject }) || '',
-        buildProgramAttach({ subject, stageKey: stage, genType, instructionText: t }) || '',
-        buildUserMessagePrompt({ genType, subject, materialChannel: 'anchor', anchorListText: '@@A@@', instructionText: t }) || '',
-        buildCallLayerBlocks().map((b) => b.text).join('\n'),
-        genType === 'exam' ? ANSWER_ROLES.exam(subject) : ANSWER_ROLES.other(genType),
-        buildAnswerFormatSpec(subject),
-        stylesForType(genType).map((s) => buildStyleAppend(s)).join('\n'),
-        buildDiffRegenBlock({ genType, diffKps: ['（已练知识点）'] }),
-        buildMultiTypeDiffBlock({ typeName: '（类型名）', prevTypes: '（前序类型）', coveredKps: ['（已覆盖知识点）'] }),
-      ].join('\n'));
-    }
-  }
-  return out;
-}
-const TEXTS = Object.fromEntries(GEN_TYPE_KEYS.map((t) => [t, textsOfType(t)]));
-const ALL = GEN_TYPE_KEYS;
-const NOT_CONTENT = ALL.filter((t) => t !== 'preview' && t !== 'summary');
-const hit = (genType, src) => TEXTS[genType].some((txt) => src.some((re) => re.test(txt)));
+// 装配与命中判定＝**共享 helper**（与覆盖测量／情形矩阵同源，防三处各写一套）
+import { ALL_TYPES as ALL, NOT_CONTENT_TYPES as NOT_CONTENT, hitAny as hit } from '../helpers/promptAssembly.js';
 
 // ===== 16 面的判据源（可机读）＋ 逐类型在场/缺席/缺口 =====
 const FACES = [
