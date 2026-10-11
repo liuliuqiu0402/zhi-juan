@@ -54,9 +54,12 @@ describe('promptLibrary 课标版本按学段注入', () => {
     expect(inj).not.toContain('{curriculum}');
   });
 
-  it('质量底线（QUALITY_BASE 通用一套）保留"不超出本学段课标学业质量要求"（学业质量为课标组成章节，可查）', () => {
+  it('质量底线（QUALITY_BASE 通用一套）保留"不超学段、不超学业质量要求"（学业质量为课标组成章节，可查）', () => {
     const tpl = getPromptTemplate({ grade: 'middle', subject: '物理', genType: 'exam' });
-    expect(tpl.template).toContain('不超出本学段课标学业质量要求');
+    // 🔴 2026-10-11（T10·G29）：原字面"不超出本学段课标学业质量要求"——同一判据原在【质量底线】与学段表 10 处并存
+    //   （同一判据多套＝多源）→ 现**单源收进本条**；学段表只留各档特有侧重（反向锁见 tests/config/stageExtrasNeutral.test.js）。
+    expect(tpl.template).toContain('不超学段、不超学业质量要求');
+    expect(tpl.template, '学段表不得再复述该通用判据').not.toContain('不超学段：');
   });
 
   it('getCurriculumLabel：学段键/中文标签均返回对应课标版本，无法识别回退通用', () => {

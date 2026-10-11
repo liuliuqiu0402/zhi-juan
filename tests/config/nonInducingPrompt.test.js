@@ -473,7 +473,7 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(mm, '意图不丢：导图块是核心交付物').toContain('核心交付物');
     expect(mm, '意图不丢：仍须输出真导图块').toContain('k-diagram');
     expect(mm, '意图不丢：条目为真实知识要点').toContain('真实的知识要点');
-    expect(mm, '层级/分支数量改由可读性原则承载').toContain('一眼可读');
+    expect(mm, '层级/分支数量改由可判据承载（T10·G67：无锚语"一眼可读"→结构关系判据）').toContain('按知识本身的从属关系分层');
     expect(mm, '按真实内容呈现（内容多少就呈现多少）').toContain('内容有多少就呈现多少');
   });
 

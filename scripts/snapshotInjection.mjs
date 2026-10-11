@@ -25,6 +25,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { getPromptTemplate, buildInjectionInstruction, buildStructureText, GEN_TYPE_NAMES } from '../src/config/promptLibrary.js';
+import { styleInstructions } from '../src/config/expertKnowledge.js';
 import { buildTeachingInjection } from '../src/config/teachingBlueprints.js';
 import { buildUserMessagePrompt, buildCallLayerBlocks } from '../src/utils/injectionManifest.js';
 import { buildProgramAttach } from '../src/utils/programAttach.js';
@@ -138,6 +139,11 @@ const ANCHORS = [
   { name: 'T04·正句（三处同位）', re: /待答之处＝空位之处＝载体之处/g, expect: 1 },
   { name: 'T04·正句（强调用的 <u> 与空位载体两分）', re: /正文不出现用于强调的 <u>/g, expect: 1 },
   { name: 'T04·清零（旧表述）', re: /正文不出现 <u>|（本条为准）|以其为准|格内留空|学科协议|严禁按题的先后递增/g, expect: 0 },
+  // T10 情境（取向·落点·学段冲突）
+  { name: 'T10·G29 不超学段（单源在【质量底线】，恰 1）', re: /不超学段/g, expect: 1 },
+  { name: 'T10·G29 清零（学段表"不超学段："分档尾）', re: /不超学段：/g, expect: 0 },
+  { name: 'T10·G30 清零（"情境真实、适切"多源广播）', re: /情境真实、适切|真实、适切的情境/g, expect: 0 },
+  { name: 'T10·G15 作用域界定（含取向词的档恰 1；其余 0）', re: /本取向只作用于情境取材与难度起点/g, expect: stage === 'primary_low' ? 1 : 0 },
   // ⚠️ `以本条为准`（选项题硬约束条）属 **G14 / T13**（批次 D），**不计入 T04**——故不列入上式。
 ];
 
@@ -154,4 +160,16 @@ for (const a of ANCHORS) {
 if (text.includes('不以机械套算')) {
   const ok = text.includes('以熟练为目的的运算训练不作此要求');
   console.log(`${ok ? '✓' : '✗'} T18·G5·L2：「不以机械套算」× 类型豁免句 同现 = ${ok}`);
+}
+// —— T10·G66/G67 风格注入句源（风格非默认注入 → 单独扫 styleInstructions 的**值**，不扫源码注释）——
+const styleText = Object.values(styleInstructions).join('\n');
+const STYLE_ANCHORS = [
+  { name: 'T10·G66 空锚清零（"情境类型锚"／"取向依课标"）', re: /本学科课程标准界定的情境类型|情境取向依本学科本学段的课标要求/g, expect: 0 },
+  { name: 'T10·G67 无锚语清零（一眼可读／层级不宜过深／不做形式化包装／清晰易读／重点突出）', re: /一眼可读|层级不宜过深|不做形式化包装|清晰易读|重点突出/g, expect: 0 },
+];
+console.log('—— L1 计数（styleInstructions 值域）——');
+for (const a of STYLE_ANCHORS) {
+  const hits = (styleText.match(a.re) || []).length;
+  const ok = a.expect === hits ? '✓' : '✗';
+  console.log(`${ok} ${a.name}: ${hits}（期望 ${a.expect}）`);
 }
