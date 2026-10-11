@@ -464,7 +464,10 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
 describe('质量底线三维度注入（类型/学科/学段各司其职，非一刀切）', () => {
   it('类型维度：各类型【要求】带专属底线（无诱导措辞）', () => {
     const practice = getPromptTemplate({ genType: 'practice' });
-    expect(practice.template).toContain('不扎堆反复出现'); // 防重复语义由质量底线承载（单一事实源，QUALITY_BASE 通用一套）
+    // 防重复语义由质量底线承载（单一事实源，QUALITY_BASE 通用一套）。
+    // 🔴 2026-10-11（T01）：原锚"不扎堆反复出现"已删——它把"同一单元同型多题"读成缺陷（与"出正规卷"相抵）；
+    //   现锚**唯一判据**"两处可互相替代才算重复"（＝"同型多题属正规做法"的同一句话）。
+    expect(practice.template).toContain('两处可互相替代才算重复');
     const special = getPromptTemplate({ genType: 'special' });
     expect(special.template).toContain('每板块含易错点辨识与思路点拨'); // 🔒 2026-09-16：原锁'按委托书名称与先后搭好'已按少约束裁定撤除
     const reading = getPromptTemplate({ genType: 'reading' });

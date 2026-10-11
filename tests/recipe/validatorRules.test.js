@@ -33,10 +33,16 @@ describe('validatorRules 规则启停开关（双阶段生效）', () => {
   // 🔴 2026-10-06（面 8 唯一性·假指针修正）：该 hint 原写"以正文'唯一考查目的/同一份不重复考查'条为准"，
   //   而**全库只有它自己一行**出现该字面（回源核过）→ 正文并无此条 ⇒ 假指针（模型照它找不到条）。
   //   正文真条名＝【质量底线】的"内容唯一性"与"题类资料中不重复设题"。本断言锁"指针为真"。
-  it('唯一性提示的指针须指向正文真条名（不得指向不存在的条）', () => {
-    const rule = VALIDATOR_RULES.find((r) => (r.promptHint || '').startsWith('严禁整份资料内出现两份相同内容'));
+  // 🔴 2026-10-11（T01·G91）：该指针现**整体撤除**——①【质量底线】已把"不重复"收敛为唯一正句，
+  //   本提示再引一次即注入文本里的**第二处表述**（违"一处"）；②"以…为准"属相抵兜底族；
+  //   ③术语"板块"与他处"正文标题/大题"不一。现本规则只留**自己真正执行的对象**（正文标题去重）。
+  it('唯一性规则只留"正文标题去重"（跨块指针与"以…为准"兜底已撤，不得回潮）', () => {
+    const rule = VALIDATOR_RULES.find((r) => r.id === 'duplicate-content-fix');
     expect(rule, '唯一性规则须在位').toBeTruthy();
-    expect(rule.promptHint, '指针须指向正文真条名').toContain('内容唯一性／题类资料中不重复设题');
+    expect(rule.promptHint, '只留标题去重（本规则真正执行的对象）').toContain('正文标题不得重复出现');
+    expect(rule.promptHint, '旧的跨块指针不得回潮（第二处表述）').not.toContain('以正文【质量底线】');
+    expect(rule.promptHint, '兜底句"以…为准"不得回潮').not.toContain('为准');
+    expect(rule.promptHint, '术语"板块"不得回潮（与他处"正文标题"统一）').not.toContain('板块');
     expect(rule.promptHint, '不得再指向不存在的旧条名').not.toContain('唯一考查目的');
   });
 
