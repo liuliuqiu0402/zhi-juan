@@ -1758,18 +1758,25 @@ const 学段名 = (stageKey = '') => STAGE_NAMES[stageKey] || '';
 //   ——`label` 带 emoji（如 `📖 现代文阅读`）属 **UI 展示层**；注入文本是模型的**命名依据**，
 //   若带 emoji 等于给模型示范"层级名可带 emoji" ⇒ 卷面层级名不纯、与「层级↔内容」相悖。
 //   口径：UI 侧仍用 `label`（展示需要）；**一切注入文本（本文件全部 build* 函数）一律用 `key`**。
+/** 🔴 2026-10-11（T12·G55·假指针·单源）：专项领域的课标口径尾句原写"命题遵守已注入的 **学科×学段 课标要点**
+ *   （不超学段学业质量）"——① "学科×学段 课标要点"是**未点名的描述**（形似指针却无名可查）；
+ *   ② 义教侧并无"学业质量水平"这一实体（那是高中学业质量水平体系的用语）⇒ "不超学段学业质量"在义教不成立。
+ *   现：**点真块名**【〈学科〉·〈学段〉要点】（该块在专项领域链路恒注入），判据改**"不超本学段课标要求"**（两学段皆成立）。
+ *   ⚠️ 4 处（A档结构文本／B档锚句／多选锚行×2）一律引用本常量，防各自漂移。 */
+export const DOMAIN_ANCHOR_CALIBER = '命题遵守已注入的【〈学科〉·〈学段〉要点】（不超本学段课标要求），数据/情境/语料自行拟制。';
+
 /** A档结构文本 + 锚句（与通用蓝图同一叙事口径；不含数字题量占位） */
 export const buildSpecialDomainStructureText = (dom = {}, stageKey = '') => {
   if (!dom.sections || !dom.sections.length) return '';
   const lines = dom.sections.map((s) => `· ${s.name}——${s.note}`).join('\n');
   return `【栏目标题（下面各行即本次栏目标题；按本领域课标要求划分；${dom.key}·${学段名(stageKey)}）】
 ${lines}
-· 本领域课标语义锚：${dom.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料自行拟制。`;
+· 本领域课标语义锚：${dom.anchor}——${DOMAIN_ANCHOR_CALIBER}`;
 };
 
 /** B档锚句（追加到通用/学科蓝图结构之后） */
 export const buildSpecialDomainAnchorLine = (dom = {}) =>
-  dom.anchor ? `· 本领域课标语义锚：${dom.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料自行拟制。` : '';
+  dom.anchor ? `· 本领域课标语义锚：${dom.anchor}——${DOMAIN_ANCHOR_CALIBER}` : '';
 
 // ── S2 链路：领域**多选**（上限 1–3）合成单源 ─────────────────────────────────────
 //   口径（见 `docs/design/专项领域-全学科全学段规格-2026-10-07.md` 第六节）：
@@ -1808,14 +1815,14 @@ export const buildSpecialDomainsStructureText = (doms = [], stageKey = '') => {
   const mixNote = noSec.length
     ? `；其中 ${noSec.map((d) => d.key).join('、')} 只给课标语义锚、不另设栏目，其内容按锚自行组织`
     : '';
-  const anchors = list.map((d) => `· ${d.key} 课标语义锚：${d.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料自行拟制。`).join('\n');
+  const anchors = list.map((d) => `· ${d.key} 课标语义锚：${d.anchor}——${DOMAIN_ANCHOR_CALIBER}`).join('\n');
   return `【栏目标题（下面各行即本次栏目标题；按本领域课标要求划分；${names}·${学段名(stageKey)}${mixNote}）】\n${lines}\n${anchors}`;
 };
 
 /** 多领域锚行（B 档，或 A/B 混选时的锚句部分；供注入侧与 A 档结构拼接） */
 export const buildSpecialDomainsAnchorLines = (doms = []) =>
   (doms || []).filter((d) => d && d.anchor)
-    .map((d) => `· ${d.key} 课标语义锚：${d.anchor}——命题遵守已注入的 学科×学段 课标要点（不超学段学业质量），数据/情境/语料自行拟制。`)
+    .map((d) => `· ${d.key} 课标语义锚：${d.anchor}——${DOMAIN_ANCHOR_CALIBER}`)
     .join('\n');
 
 

@@ -30,6 +30,9 @@ import { buildTeachingInjection } from '../src/config/teachingBlueprints.js';
 import { buildUserMessagePrompt, buildCallLayerBlocks } from '../src/utils/injectionManifest.js';
 import { buildProgramAttach } from '../src/utils/programAttach.js';
 import { materialChannelOf } from '../src/config/coverageContract.js';
+import { buildLevelInstruction } from '../src/config/levelMapping.js';
+import { buildSpecialDomainAnchorLine } from '../src/config/specialDomains.js';
+import { anchorListRoleNote } from '../src/utils/anchorTreeContract.js';
 
 const arg = (k, d) => {
   const hit = process.argv.slice(2).find((a) => a.startsWith(k + '='));
@@ -160,6 +163,14 @@ const ANCHORS = [
   { name: 'T19·G9 清零（卷面"本单元…内容都涉及到"＝全量口径）', re: /本单元[^，。；：]{0,20}内容都涉及到/g, expect: 0 },
   { name: 'T19·G9 抽样口径正句（语文 primary_low 卷面恰 2）', re: /领域的代表性知识点（抽样命题，不要求全量）/g, expect: (genType === 'exam' && subject === '语文' && stage === 'primary_low') ? 2 : 0 },
   { name: 'T19·G39 清零（"综合自测"栏复述覆盖口径）', re: /自测，本单元知识点都涉及到/g, expect: 0 },
+  // T12 跨块指针（假指针清零）
+  { name: 'T12·G49 清零（"清单所列要点"）', re: /清单所列要点/g, expect: 0 },
+  { name: 'T12·G49 正句（本次范围所列要点）', re: /本次范围所列要点/g, expect: 1 },
+  { name: 'T12·G50 清零（"见创作要求"跨块指针）', re: /见创作要求/g, expect: 0 },
+  { name: 'T12·G53 清零（"【情境边界】"假块名）', re: /【情境边界】/g, expect: 0 },
+  { name: 'T12·G54 清零（"不超该水平要求"悬空半句）', re: /不超该水平要求/g, expect: 0 },
+  { name: 'T12·G55 清零（"学科×学段 课标要点"未点名描述）', re: /学科×学段 课标要点/g, expect: 0 },
+  { name: 'T12·G98 清零（"见委托书【素材使用约定】"跨块指针）', re: /见委托书【素材使用约定】/g, expect: 0 },
   // ⚠️ `以本条为准`（选项题硬约束条）属 **G14 / T13**（批次 D），**不计入 T04**——故不列入上式。
 ];
 
@@ -194,3 +205,13 @@ if (genType === 'review') {
   const n = (text.match(/都涉及到/g) || []).length;
   console.log(`${n === 1 ? '✓' : '✗'} T19·G39·L2：review 覆盖口径出现 ${n} 处（期望 1）`);
 }
+// —— T12 假指针探针（三处**不在本快照装配链**里的注入面：直接调其构造入口核字面）——
+const lv = buildLevelInstruction({ stage: 'high', subject: '物理', genType: 'exam', scopeType: 'gaokao' });
+console.log(`${!lv.includes('不超该水平要求') ? '✓' : '✗'} T12·G54·L2：水平块不再含悬空难度要求 → 「${lv}」`);
+const dl = buildSpecialDomainAnchorLine({ anchor: '示例锚', key: '示例领域' });
+console.log(`${dl.includes('【〈学科〉·〈学段〉要点】') && !dl.includes('学科×学段 课标要点') ? '✓' : '✗'} T12·G55·L2：领域锚句点真块名 → 「${dl}」`);
+const rn = anchorListRoleNote();
+console.log(`${!rn.includes('见委托书【素材使用约定】') ? '✓' : '✗'} T12·G98·L2：清单角色说明无跨块指针`);
+const genSrc = fs.readFileSync(path.resolve('src/composables/useAiGenerator.js'), 'utf8');
+const cf = (genSrc.match(/contextFramework = `([\s\S]*?)`;/) || [])[1] || '';
+console.log(`${cf.includes('【情境与页码】的情境边界条') && !cf.includes('【情境边界】') ? '✓' : '✗'} T12·G53·L2：情境框架块引真块名（【情境与页码】）`);

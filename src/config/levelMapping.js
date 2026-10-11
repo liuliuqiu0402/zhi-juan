@@ -185,7 +185,11 @@ export function resolveAcademicLevel({ stage = '', subject = '', genType = '', s
 /**
  * 生成"学业质量水平"注入文本（**唯一出口**：指令正文只经此处注入一次）。
  * 非高中 / 资料类型缺失 / 无水平 → 返回空串（不注入）。
- * @returns {string} 形如「【学业质量水平】本卷为高中高考卷，对标学业质量水平四（…）；难度与情境不超该水平要求。」
+ * @returns {string} 形如「【学业质量水平】本卷为高中高考卷，对标学业质量水平四（《普通高中课程标准…》）。」
+ * 🔴 2026-10-11（T12·G54·假指针）：原尾句"；难度与情境不超**该水平要求**"——"该水平"的**内容从未注入**（只给了
+ *   水平级名与课标章节号）⇒ 模型无从核对＝**悬空要求**。该句所管的"难度/情境不超学段"判据**早已单源**在
+ *   【质量底线】（"知识与能力要求符合本学段课标：不超学段、不超学业质量要求"）⇒ 本块**只保留"对标哪一级"的
+ *   定位陈述**（可查：课标章节随文给出），删去悬空的难度要求。
  */
 export function buildLevelInstruction({ stage = '', subject = '', genType = '', scopeType = '', paperKind = '' } = {}) {
   if (!isHighStage(stage)) return '';
@@ -195,7 +199,7 @@ export function buildLevelInstruction({ stage = '', subject = '', genType = '', 
   const lead = kind
     ? `本卷为高中${kind}卷，对标学业质量${level}`
     : `高中教辅（无卷别），按毕业${TEACHING_BASELINE.kind}为教学基线，对标学业质量${level}`;
-  return `${LEVEL_INJECTION_MARKER}${lead}（${LEVEL_SOURCE}）；难度与情境不超该水平要求。`;
+  return `${LEVEL_INJECTION_MARKER}${lead}（${LEVEL_SOURCE}）。`;
 }
 
 /**
