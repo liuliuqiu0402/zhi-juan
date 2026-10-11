@@ -156,6 +156,10 @@ const ANCHORS = [
   { name: 'T11·G41 清零（"由你按本卷内容选用/自定"）', re: /由你按本卷内容/g, expect: 0 },
   { name: 'T11·G58 perItem 用单源全名', re: /其中「题目呈现」是讲解示范的题/g, expect: genType === 'errorbook' ? 1 : 0 },
   { name: 'T11·G58 清零（简称"题目/变式"指称）', re: /其中"题目"是讲解示范的题/g, expect: 0 },
+  // T19 覆盖口径（全量 vs 抽样）
+  { name: 'T19·G9 清零（卷面"本单元…内容都涉及到"＝全量口径）', re: /本单元[^，。；：]{0,20}内容都涉及到/g, expect: 0 },
+  { name: 'T19·G9 抽样口径正句（语文 primary_low 卷面恰 2）', re: /领域的代表性知识点（抽样命题，不要求全量）/g, expect: (genType === 'exam' && subject === '语文' && stage === 'primary_low') ? 2 : 0 },
+  { name: 'T19·G39 清零（"综合自测"栏复述覆盖口径）', re: /自测，本单元知识点都涉及到/g, expect: 0 },
   // ⚠️ `以本条为准`（选项题硬约束条）属 **G14 / T13**（批次 D），**不计入 T04**——故不列入上式。
 ];
 
@@ -184,4 +188,9 @@ for (const a of STYLE_ANCHORS) {
   const hits = (styleText.match(a.re) || []).length;
   const ok = a.expect === hits ? '✓' : '✗';
   console.log(`${ok} ${a.name}: ${hits}（期望 ${a.expect}）`);
+}
+// —— T19·G39 互斥探针：同一教辅注入内「覆盖口径」恰 1 处（review 为样本）——
+if (genType === 'review') {
+  const n = (text.match(/都涉及到/g) || []).length;
+  console.log(`${n === 1 ? '✓' : '✗'} T19·G39·L2：review 覆盖口径出现 ${n} 处（期望 1）`);
 }

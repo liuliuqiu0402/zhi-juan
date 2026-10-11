@@ -20,6 +20,11 @@ export const DEFAULT_EXAM_DURATION = '60分钟';
  * key: `${subject}|${stage}`，stage ∈ primary_low / primary_mid / primary_high / middle / high
  * sections: { name 规范题型名, score 大题分值, note 命题要求 }
  */
+/** 🔴 2026-10-11（T19·G9·消相抵）：卷面栏位注原写"本单元X内容**都涉及到**"＝**全量覆盖**口径，与覆盖契约
+ *   `COVERAGE_CONTRACT.exam === 'sampled'`（抽样命题、允许部分层级未出现、不补漏）**相抵**——模型据"都涉及到"
+ *   会把整单元内容硬塞进卷（把"抽样"读成"必须全覆盖"）。现统一为**抽样口径**（判据与契约同源，单源一处措辞）。 */
+const EXAM_COVERAGE_CN = (domain) => `覆盖本单元${domain}领域的代表性知识点（抽样命题，不要求全量）`;
+
 export const EXAM_BLUEPRINTS = {
   // ══════════════ 语文 ══════════════
   '语文|primary_low': {
@@ -27,8 +32,8 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       // 2026-09-19 调研（一二年级实际流通纸笔卷）：低段以字词基础为主，写话仅 10-15 分且不会写的字可用拼音，
       //    口语交际无法纸笔化。原"表达与交流 30 分"接近中高段习作权重，超出低段实际 → 下调。
-      { name: '识字与写字', score: 40, note: '本单元识字与写字内容都涉及到。' },
-      { name: '积累与运用', score: 28, note: '本单元积累与运用内容都涉及到，在语境中选填、仿写。' },
+      { name: '识字与写字', score: 40, note: `${EXAM_COVERAGE_CN('识字与写字')}。` },
+      { name: '积累与运用', score: 28, note: `${EXAM_COVERAGE_CN('积累与运用')}，在语境中选填、仿写。` },
       { name: '阅读与鉴赏', score: 16, note: '课内课外阅读结合；选文标注出处。' },
       { name: '表达与交流', score: 16, note: '看图写话为主，结合本单元主题；写话提供必要的词语支架，不会写的字可用拼音。' },
     ],
@@ -36,7 +41,7 @@ export const EXAM_BLUEPRINTS = {
   '语文|primary_mid': {
     label: '语文·小学中段（3-4年级）', fullScore: 100, duration: '90分钟',
     sections: [
-      { name: '积累与运用', score: 30, note: '本单元积累与运用内容都涉及到：字词句段在真实语境中考查，名句运用型填空。' },
+      { name: '积累与运用', score: 30, note: `${EXAM_COVERAGE_CN('积累与运用')}：字词句段在真实语境中考查，名句运用型填空。` },
       { name: '梳理与探究', score: 8, note: '对本单元字词、所读信息作归类整理、图表梳理或简要归纳，在真实语境中考查梳理与探究能力。' },
       { name: '阅读与鉴赏', score: 26, note: '课内阅读与课外阅读结合，课外选文主题相关并标注出处。' },
       { name: '表达与交流', score: 36, note: '口语交际与习作结合本单元主题；习作给选材支架。' },
@@ -45,7 +50,7 @@ export const EXAM_BLUEPRINTS = {
   '语文|primary_high': {
     label: '语文·小学高段（5-6年级）', fullScore: 100, duration: '90分钟',
     sections: [
-      { name: '积累与运用', score: 32, note: '本单元积累与运用内容都涉及到：字词句段在真实语境中考查，名句运用型填空，含文言词句积累。' },
+      { name: '积累与运用', score: 32, note: `${EXAM_COVERAGE_CN('积累与运用')}：字词句段在真实语境中考查，名句运用型填空，含文言词句积累。` },
       { name: '梳理与探究', score: 10, note: '对字词、阅读或材料信息作梳理分类、图表整理与归纳概括，含跨学科学习中的信息整理，考查梳理与探究能力。' },
       { name: '阅读与鉴赏', score: 24, note: '课内阅读与课外阅读结合，课外选文标注出处。' },
       { name: '表达与交流', score: 34, note: '跨学科学习任务群与习作结合本单元主题；习作给选材支架。' },

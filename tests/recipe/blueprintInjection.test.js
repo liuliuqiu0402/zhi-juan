@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { getExamBlueprint } from '@/config/examPaperBlueprints.js';
 import { getPromptTemplate, buildOutputFormatHint, buildStructureText, PAPER_OUTPUT_CONVENTIONS } from '@/config/promptLibrary.js';
 import { buildCarrierInstruction, buildLongAnswerCarrierInstruction } from '@/config/layoutSpec.js';
+import { buildTeachingInjection } from '@/config/teachingBlueprints.js';
 
 describe('buildStructureText（exam 卷面结构注入段，单一事实源）', () => {
   it('块头在指令库 EXAM_BASE（含"题数 X"口径说明），明细由 buildStructureText 注入（中文序号/分值/命题要求）', () => {
@@ -28,13 +29,28 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(inject).toContain(`大类层：阅读与鉴赏（本大类共${bp.sections[2].score}分）`);
     expect(inject).toContain(`大类层：表达与交流（本大类共${bp.sections[3].score}分）`);
     // 大类命题要求（note）被注入（原挂大题行，现随大类行）
-    // 2026-10-01（④精准·注入文本中性化）：原"覆盖本单元识字与写字内容"改"本单元识字与写字内容都涉及到"
-    //    ——与项目既定口径一致（避免"覆盖"的清单式暗示；蓝图库别处已用"涉及到"）。
-    expect(inject).toContain('本单元识字与写字内容都涉及到');
+    // 🔴 2026-10-11（T19·G9·消相抵）：原字面"本单元识字与写字内容都涉及到"＝**全量覆盖**口径，
+    //   与覆盖契约 `COVERAGE_CONTRACT.exam === 'sampled'`（抽样命题、允许部分层级未出现、不补漏）**相抵**
+    //   ⇒ 改**抽样口径**（判据与契约同源）。旧的"都涉及到"字面不得在卷面回潮。
+    expect(inject).toContain('覆盖本单元识字与写字领域的代表性知识点（抽样命题，不要求全量）');
+    expect(inject, 'G9：卷面栏位注不得再出现全量覆盖口径').not.toMatch(/本单元[^，。；：]*内容都涉及到/);
     // 大类名不得充当大题标题：不出现"一、识字与写字"这类同名大题行
     expect(inject, '域型栏目不得再输出同名大题行').not.toMatch(/^[一二三四五六七八九十]、/m);
     // 顺序：大类层随位置递增
     expect(inject.indexOf('大类层：识字与写字')).toBeLessThan(inject.indexOf('大类层：积累与运用'));
+  });
+
+  // 🔴 2026-10-11（T19·G39·覆盖口径只留首栏）：教辅蓝图里"本单元知识点都涉及到"（覆盖口径）原在
+  //   **首栏「知识框架」与末栏「综合自测」各写一遍**（同一事务两处表述＝多源，模型走弱线）⇒ 现只留首栏。
+  //   本用例即 L2 互斥探针：同一份教辅注入文本内覆盖口径**恰 1 处**，且「综合自测」栏不得再复述。
+  it('T19·G39：教辅同一注入内覆盖口径恰 1 处（复习资料＝首栏「知识框架」）', () => {
+    for (const subject of ['语文', '数学', '英语', '历史']) {
+      const inject = buildTeachingInjection({ genType: 'review', stage: 'middle', subject });
+      const n = (inject.match(/都涉及到/g) || []).length;
+      expect(n, `review|${subject} 覆盖口径应恰 1 处（实测 ${n}）`).toBe(1);
+      expect(inject, '「综合自测」栏不得再复述覆盖口径').not.toContain('自测，本单元知识点都涉及到');
+      expect(inject, '首栏覆盖口径仍在').toContain('本单元');
+    }
   });
 
   it('空蓝图/无 sections 返回空串', () => {
