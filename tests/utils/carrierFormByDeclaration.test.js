@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { detectCarrierFormMismatch, normalizeBodyHtml } from '../../src/utils/contentCleaner.js';
 import { SYMBOL_ANSWER_DECL, inferCarriers, CARRIERS } from '../../src/config/blueprintSchema.js';
-import { getPromptTemplate, DECLARATION_TRUTH_CLAUSE } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, DECLARATION_TRUTH_CLAUSE, DECLARATION_TRUTH_CLAUSE_CONTENT } from '../../src/config/promptLibrary.js';
 
 const ROOT = path.resolve(__dirname, '../..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -127,14 +127,31 @@ describe('G2 声明↔实给判据单源', () => {
 
   it('旧句（点 6 类实例的枚举式）已按"不覆盖"原则回补——实例不得丢、只加"待选项"', () => {
     const lib = read('src/config/promptLibrary.js');
-    expect(DECLARATION_TRUTH_CLAUSE, '原有 6 类实例必须保留').toContain('拼音、首字母、提示词、图、表、数据、待选项');
+    // 🔴 2026-10-11（T06·G8·按类型裁剪例证串）：例证原含"拼音／首字母／待选项"（语文/英语/**题类**专属），
+    //    而本常量**全类型共用**（题类①＋内容型 CONTENT_FORMAT）——题类专属要素注入内容型即**串味**
+    //    ⇒ 裁成各类型都成立的**中性集**；判据本体与"单一事实源"结构（一mut定义两消费）**未变**。
+    expect(DECLARATION_TRUTH_CLAUSE, '例证为全类型共有的中性集').toContain('提示词、图、表、数据、要点');
+    expect(DECLARATION_TRUTH_CLAUSE, '题类/学科专属例证不得回潮').not.toMatch(/待选项|拼音|首字母/);
     expect(lib, '回补后的完整句须在库内（单源）').toContain(DECLARATION_TRUTH_CLAUSE);
   });
 
   it('零诱导：该句不点题型名、不枚举实例、不给做法', () => {
     expect(DECLARATION_TRUTH_CLAUSE).not.toMatch(/选择|判断|填空|连线|选字|选词|看图|仿写|作文|朗读/);
     expect(DECLARATION_TRUTH_CLAUSE).not.toMatch(/例如|如“|比如/);
-    expect(DECLARATION_TRUTH_CLAUSE).toContain('待选项');
+    expect(DECLARATION_TRUTH_CLAUSE, '例证须为全类型共有的中性集').toContain('提示词、图、表、数据、要点');
+  });
+
+  it('🔴 例证串**按类型裁剪为中性集**：题类专属要素不再注入内容型（T06·G8）', () => {
+    // 2026-10-11（T06·G8）：题类专属要素（待选项）经 CONTENT_FORMAT 注入**内容型**（梳理/预习）＝串味
+    //   （内容型没有"选项"这类对象）⇒ 例证裁成各类型都成立的中性集；**判据本体与"一mut定义两消费"结构未变**。
+    expect(DECLARATION_TRUTH_CLAUSE, '中性例证').toContain('提示词、图、表、数据、要点');
+    expect(DECLARATION_TRUTH_CLAUSE, '题类/学科专属例证已裁掉').not.toMatch(/待选项|拼音|首字母/);
+    const lib = read('src/config/promptLibrary.js');
+    expect((lib.match(/export const DECLARATION_TRUTH_CLAUSE/g) || []).length, '仍是一定义').toBe(1);
+    expect((lib.match(/DECLARATION_TRUTH_CLAUSE/g) || []).length, '仍是一定义+两消费').toBe(3);
+    const content = getPromptTemplate({ grade: 'primary_high', subject: '语文', genType: 'summary' }).template;
+    expect(content, '内容型与题类消费同一常量').toContain('提示词、图、表、数据、要点等');
+    expect(content, '内容型不得出现题类专属例证').not.toContain('待选项');
   });
 
   it('判据含"判定法"（不止给方向）：按其声明的量与指代逐一对上', () => {

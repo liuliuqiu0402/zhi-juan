@@ -71,7 +71,9 @@ describe('蓝图库与指令库措辞守卫（2026-09-16 课标原则）', () =>
   });
 
   it('课标口径必须保留（防清过头）：语言实践活动写法/素养名与学段要求仍在', () => {
-    const raw = JSON.stringify(TEACHING_BLUEPRINTS);
+    // 🔴 2026-10-11（T06·G7）：**英语课标口径的落地处＝英语专属池**（`TEACHING_SUBJECT_BLUEPRINTS`）——
+    //   通用兜底池已去英语化（"语篇"→"文本/材料/情境"）⇒ 本处 `raw` 须把**两库都并进来**核（原只核通用库）。
+    const raw = JSON.stringify(TEACHING_BLUEPRINTS) + JSON.stringify(TEACHING_SUBJECT_BLUEPRINTS);
     // 🔓 2026-09-17（用户裁定·课标回归）：活动类型名不再当"栏目分类标准"——改按课标原义写为
     //    "基于/深入/超越语篇的语言实践活动（活动方式…）"，故锁新口径（防回退成"以活动类型为标准"的写法）。
     expect(raw).toContain('基于语篇的语言实践活动');
@@ -86,6 +88,27 @@ describe('蓝图库与指令库措辞守卫（2026-09-16 课标原则）', () =>
     const practice = getPromptTemplate({ grade: 'primary_high', subject: '英语', genType: 'practice' }).template;
     expect(practice).toContain('按课标倡导的学习方式组织');
     expect(practice).toContain('（依据2022年版义务教育课程标准）');
+  });
+
+  it('🔴 通用兜底池**去英语化**（T06·G7）：通用池不得含"语篇"；英语专属池仍持课标原义', () => {
+    // 2026-10-11（T06·G7）：通用兜底池（各学科无专属池时用它）原用**英语课标术语**（"语篇"＋学习活动观
+    //   的方式枚举）——对非英语学科**串味**；且同字面在**英语专属池**又各写一遍＝**多源**。现通用池改中性表述。
+    const generic = JSON.stringify(TEACHING_BLUEPRINTS.practice.sections);
+    expect(generic, '通用池不得含英语课标"语篇"术语').not.toContain('语篇');
+    expect(generic, '通用池用中性表述').toContain('围绕文本/材料/情境的实践活动');
+    // 英语专属池的课标原义不受影响（上文用例已正向锁"基于/深入/超越语篇的语言实践活动"仍在库内）
+    const enPool = JSON.stringify(TEACHING_SUBJECT_BLUEPRINTS);
+    expect(enPool, '英语专属池仍持课标原义').toContain('基于语篇的语言实践活动');
+  });
+
+  it('🔴 文字规范改中性句（T06·G100）：不再"一律用简体汉字"（对英语/数学无对象）', () => {
+    // 2026-10-11（T06·G100）：原句是**全学科注入**的"一律用**简体汉字**"——英语卷面含英文、数学含符号，
+    //   它读成"只能出现简体汉字"⇒与之相抵；改中性句"**凡出现汉字处一律用简体**"（仍然可判、仍防繁体异体）。
+    for (const s of ['英语', '数学', '语文']) {
+      const t = getPromptTemplate({ grade: 'primary_high', subject: s, genType: 'practice' }).template;
+      expect(t, `${s} 应用中性句`).toContain('凡出现汉字处一律用简体');
+      expect(t, `${s} 旧句不得回潮`).not.toContain('一律用**简体汉字**');
+    }
   });
 
   it('预习/默写的内容定位保留（strict 口径按类型分档，不属"锁死原文"）', () => {

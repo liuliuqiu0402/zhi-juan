@@ -139,6 +139,9 @@ describe('指令"只增不扩"守卫（止住越滚越长）', () => {
     const lib = read('src/config/promptLibrary.js');
     expect((lib.match(/export const DECLARATION_TRUTH_CLAUSE/g) || []).length).toBe(1);
     expect((lib.match(/DECLARATION_TRUTH_CLAUSE/g) || []).length).toBe(3);
-    expect(DECLARATION_TRUTH_CLAUSE, '旧句实例不得被新句盖掉').toContain('拼音、首字母、提示词、图、表、数据、待选项');
+    // 🔴 2026-10-11（T06·G8）：例证串**按类型裁剪为中性集**（原含"拼音／首字母／待选项"＝语文/英语/题类专属，
+    //    而本常量全类型共用，题类要素注入内容型即串味）——**仍是一定义、两消费**，不变量不破（上两行锁未动）。
+    expect(DECLARATION_TRUTH_CLAUSE, '例证为全类型共有的中性集').toContain('提示词、图、表、数据、要点');
+    expect(DECLARATION_TRUTH_CLAUSE, '题类/学科专属例证不得回潮').not.toMatch(/待选项|拼音|首字母/);
   });
 });
