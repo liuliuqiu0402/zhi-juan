@@ -42,6 +42,9 @@ export const TEACHING_STAGE_NAMES = {
   primary_low: '小学低段', primary_mid: '小学中段', primary_high: '小学高段', middle: '初中', high: '高中',
 };
 
+/** 🔴 2026-10-11（T11·G38·单源）：专项突破的「典型例题解析」栏原在**通用池与 15 个学科定制池各写一遍**
+ *   （16 处逐字重复，只有"每类"字样一致）⇒ 提为**单条共用**：各池以 spread 引用本常量，任一处漂移即整体同改。 */
+const SPECIAL_EXAMPLE_SECTION = { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' };
 /**
  * 教辅结构蓝本：类型 × 学段参数
  * sections: 栏目框架（生成注入用，非固定分值）
@@ -89,7 +92,7 @@ export const TEACHING_BLUEPRINTS = {
       //   **内容与形态要求**（"【要求·须逐项落实】"读的就是它）。同名保留"变式训练"（FORMAL_SECTIONS 里
       //   2026-09-28 用户裁定的**必备栏目**，不删）。
       { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+      { ...SPECIAL_EXAMPLE_SECTION },
     ],
     stages: {
       primary_low: { note: '题目短小，便于口头作答' },
@@ -130,7 +133,7 @@ export const TEACHING_BLUEPRINTS = {
     label: '阅读训练',
     sections: [
       { name: '原创选文', note: '选文可原创，或选编、改编自课内或课外读物（不复制课文/网络文章），主题须与单元相关，短文完整呈现（不截断），无语病' },
-      { name: '文本设题', note: '设问指向理解运用与整体感受，题目不可直接在原文找到现成字面答案' },
+      { name: '文本设题', note: '设问指向理解运用与整体感受；题目不可直接在原文找到原句答案' },
     ],
     stages: {
       primary_low: { note: '选文短小，设问口语化' },
@@ -170,7 +173,7 @@ export const TEACHING_BLUEPRINTS = {
     stages: {
       primary_low: { note: '以本次范围核心内容为主，量小而精' },
       primary_mid: { note: '内容在语境中呈现，单元要求都涉及到' },
-      primary_high: { note: '单元要求掌握的内容都涉及到，含易错点' },
+      primary_high: { note: '单元要求掌握的内容都涉及到' },
       middle: { note: '内容在语境中考查（不留答案），含易错辨析' },
       high: { note: '要求内容都涉及到' },
     },
@@ -188,7 +191,7 @@ export const TEACHING_BLUEPRINTS = {
     shape: 'perItem',
     sections: ERRORBOOK_FACETS,
     stages: {
-      primary_low: { note: '按知识点或错因分类，每题结构完整' },
+      primary_low: { note: '按知识点或易错点分类，每题结构完整' },
       primary_mid: { note: '归因明确' },
       primary_high: { note: '归因具体' },
       middle: { note: '归因具体到知识模块' },
@@ -256,7 +259,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       label: '专项突破',
       sections: [
         { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-        { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+        { ...SPECIAL_EXAMPLE_SECTION },
       ],
     },
     preview: {
@@ -273,7 +276,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       label: '阅读训练',
       sections: [
         { name: '原创选文', note: '选文可原创，或选编、改编自课内或课外读物（不复制课文），文体适本学段，主题与本单元相关，短文完整呈现' },
-        { name: '文本设题', note: '设问考查理解与感悟；并给出具体做法与自查/完成标准' },
+        { name: '文本设题', note: '设问考查理解与感悟；题目不可直接在原文找到原句答案；并给出具体做法与自查/完成标准' },
       ],
     },
     summary: {
@@ -339,7 +342,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       label: '专项突破',
       sections: [
         { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-        { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+        { ...SPECIAL_EXAMPLE_SECTION },
       ],
     },
     preview: {
@@ -356,7 +359,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       label: '阅读训练',
       sections: [
         { name: '阅读材料', note: '数学阅读材料，主题与本单元相关，原创或改编，完整呈现' },
-        { name: '文本设题', note: '设问考查理解与应用；并给出具体做法与自查/完成标准' },
+        { name: '文本设题', note: '设问考查理解与应用；题目不可直接在原文找到原句答案；并给出具体做法与自查/完成标准' },
       ],
     },
     summary: {
@@ -417,7 +420,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       label: '专项突破',
       sections: [
         { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-        { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+        { ...SPECIAL_EXAMPLE_SECTION },
       ],
     },
     preview: {
@@ -492,7 +495,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       label: '专项突破',
       sections: [
         { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-        { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+        { ...SPECIAL_EXAMPLE_SECTION },
       ],
     },
     preview: {
@@ -565,7 +568,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
       label: '专项突破',
       sections: [
         { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-        { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+        { ...SPECIAL_EXAMPLE_SECTION },
       ],
     },
     preview: {
@@ -633,7 +636,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     special: { label: '专项突破', sections: [
       { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+      { ...SPECIAL_EXAMPLE_SECTION },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -680,7 +683,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     special: { label: '专项突破', sections: [
       { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+      { ...SPECIAL_EXAMPLE_SECTION },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -727,7 +730,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     special: { label: '专项突破', sections: [
       { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+      { ...SPECIAL_EXAMPLE_SECTION },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -738,7 +741,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     reading: { label: '阅读训练', sections: [
       { name: '阅读材料', note: '历史材料阅读，主题与本单元相关，注明出处，完整呈现' },
-      { name: '文本设题', note: '设问答案须由材料与所学结合得出；并给出具体做法与自查/完成标准' },
+      { name: '文本设题', note: '设问答案须由材料与所学结合得出；题目不可直接在原文找到原句答案；并给出具体做法与自查/完成标准' },
     ] },
     summary: { label: '知识总结', sections: [
       { name: '知识框架', note: '本单元史实、阶段特征与线索都涉及到' },
@@ -774,7 +777,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     special: { label: '专项突破', sections: [
       { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+      { ...SPECIAL_EXAMPLE_SECTION },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -820,7 +823,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     special: { label: '专项突破', sections: [
       { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+      { ...SPECIAL_EXAMPLE_SECTION },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -831,7 +834,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     reading: { label: '阅读训练', sections: [
       { name: '阅读材料', note: '时政阅读材料，主题与本单元相关，注明出处，完整呈现' },
-      { name: '文本设题', note: '设问答案须由材料与所学结合得出；并给出具体做法与自查/完成标准' },
+      { name: '文本设题', note: '设问答案须由材料与所学结合得出；题目不可直接在原文找到原句答案；并给出具体做法与自查/完成标准' },
     ] },
     summary: { label: '知识总结', sections: [
       { name: '知识框架', note: '本单元概念、原理与知识结构都涉及到' },
@@ -869,7 +872,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     special: { label: '专项突破', sections: [
       { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+      { ...SPECIAL_EXAMPLE_SECTION },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -880,7 +883,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     reading: { label: '阅读训练', sections: [
       { name: '阅读材料', note: '案例阅读材料，主题与本单元相关，注明出处，完整呈现' },
-      { name: '文本设题', note: '设问答案须由材料与所学结合得出；并给出具体做法与自查/完成标准' },
+      { name: '文本设题', note: '设问答案须由材料与所学结合得出；题目不可直接在原文找到原句答案；并给出具体做法与自查/完成标准' },
     ] },
     summary: { label: '知识总结', sections: [
       { name: '知识框架', note: '本单元道德与法律知识都涉及到' },
@@ -919,7 +922,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     special: { label: '专项突破', sections: [
       { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+      { ...SPECIAL_EXAMPLE_SECTION },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -969,7 +972,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     special: { label: '专项突破', sections: [
       { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+      { ...SPECIAL_EXAMPLE_SECTION },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -1019,7 +1022,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     special: { label: '专项突破', sections: [
       { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+      { ...SPECIAL_EXAMPLE_SECTION },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -1069,7 +1072,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     ] },
     special: { label: '专项突破', sections: [
       { name: '基础巩固', note: '本单元基础内容：核心概念与基本技能，按本单元内容自然成栏' },
-      { name: '典型例题解析', note: '每类适量题目并附解析（讲明错因、避免与正确思路），聚焦本单元薄弱点' },
+      { ...SPECIAL_EXAMPLE_SECTION },
     ] },
     preview: { label: '预习导学', sections: [
       { name: '学习目标', note: '明确本次范围要达成的核心目标' },
@@ -1127,9 +1130,13 @@ const FORMAL_SECTIONS = {
   //   通用池路径掉到 5 栏）⇒ **即刻回退**（本条恢复原样）。**"清死键"口令因前提不成立而撤回**；A-2 候选**随之作废**（非死键 ⇒ 无可清）。
   preview: { add: [{ name: '旧知回顾', after: '学习目标', note: '回顾与本单元相关的旧知，建立新旧知识的联系' }] },
   // ⑥ 知识总结：方法提炼栏 +「知识框架」明确为结构化（结构图/网络）
+  // 🔴 2026-10-11（T11·G34·明确分工）：本注原只说"用结构图或网络图"（模型手绘的**静态图**），而
+  //   `expertKnowledge.styleInstructions.mindmap` 另说"以「导图块」真实呈现知识结构"（**程序绘图块**）——
+  //   同一件事两条路线，同时注入时模型不知走哪条。现按**分工**写清：默认走静态结构图/网络图；
+  //   **用户选用「导图式」呈现风格时改用导图块**（该风格注入句会同时给出导图块的格式与字段要求）。
   summary: {
     add: [{ name: '方法提炼', after: '典型例题', note: '归纳本单元可迁移的学习方法与思路' }],
-    noteSuffix: { 知识框架: '，用结构图或网络图呈现知识之间的联系' },
+    noteSuffix: { 知识框架: '，用结构图或网络图呈现知识之间的联系（选用「导图式」呈现风格时改用导图块）' },
   },
   // ⑦ 复习资料：复习目标（对标本单元学业要求，置于首栏）
   review: { add: [{ name: '复习目标', before: '知识框架', note: '对本单元学业要求，写明本次复习要达成的目标' }] },
@@ -1209,7 +1216,7 @@ export const COLUMN_STYLE_SETS = {
     d: { columns: ['基础默写', '积累内容', '书写要求'] },
   },
   // 2026-09-28（单一事实源·同步遗漏修复）：易错题本六分项名是**跨库结构单源**（errorbookFacets.js）——
-  //    指令库 promptLibrary 的 <h4> 小标题与答案区口径、以及注入侧 perItem 说明里"题目/变式"的指称，均以此为准。
+  //    指令库 promptLibrary 的 <h4> 小标题与答案区口径、以及注入侧 perItem 说明里「题目呈现／变式训练」的指称，均以此为准。
   //    旧 b/c/d 各写一套 09-16 换肤名（题目回放…／错因分析／同类练习…），与规范名"题目呈现/典型错解/错因剖析/
   //    正确解答/方法提炼/变式训练"双轨打架（且 c 第 6 项"同类练习"使注入里"变式…须带题号"的指称落空、答案区无从对齐）。
   //    故四套一律引用同一单源：本题型分项名**不换肤**（换肤恒等、栏目零错位），仅保留 a/b/c/d 四键维持既有契约。
@@ -1227,18 +1234,23 @@ export const COLUMN_STYLE_SETS = {
   },
 };
 
-/** 把某类型栏目标题替换为指定风格套（仅当 sections 前 N 项恰为该类型默认套时替换；类型未知/套未知 → 原样返回防误伤） */
+/** 把某类型栏目标题替换为指定风格套（**按栏目位次**替换；类型未知/套未知/位次不足以覆盖整套 → 原样返回防误伤） */
 export function applyColumnStyle(sections = [], genType = '', styleId = '') {
   const pool = COLUMN_STYLE_SETS[genType];
   if (!pool) return sections;
   const set = pool[styleId];
   if (!set) return sections;
-  const def = pool.a.columns;
-  const first = (sections || []).slice(0, def.length).map((s) => s && s.name);
-  if (def.every((n, i) => first[i] === n)) {
-    return sections.map((s, i) => (i < def.length ? { ...s, name: set.columns[i] } : s));
-  }
-  return sections;
+  // 🔴 2026-10-11（T11·G57）：原守卫"仅当栏目名**恰与默认套（a）逐一相同**才替换"——于是**学科定制名池**
+  //   （14 科 reading 首栏"阅读材料" vs 默认套"原创选文"、语文 dictation"字词积累"…）一律不匹配
+  //   ⇒ **风格套选项永不生效**（UI 里预设存在、点之无效果）。
+  //   现改**按栏目位次替换**：同一类型内各池的栏目**位次语义一致**（如 reading ＝〔选文/材料〕〔方法策略引导〕〔文本设题〕），
+  //   位次对应即语义对应 ⇒ 直接按位次换名，定制池同样生效。
+  //   · 安全闸：位次数不足以覆盖整套（`set.columns.length > sections.length`）→ 原样返回（防跨类型/残缺池误伤）。
+  //   · `a`＝默认套：**一律不动名**（保留蓝图原生栏目名，含学科定制名）——与改前行为一致（默认恒等、零变化）。
+  if (styleId === 'a') return sections;
+  const n = set.columns.length;
+  if (!Array.isArray(sections) || sections.length < n) return sections;
+  return sections.map((s, i) => (i < n ? { ...s, name: set.columns[i] } : s));
 }
 
 // 🔗 兼容别名（旧 practice 专用名，保留防止外部引用断裂）
@@ -1408,7 +1420,9 @@ export function buildTeachingInjection({ genType = '', stage = '', subject = '',
   //    **每道题的组成分项**（题目呈现→典型错解→错因剖析→正确解答→方法提炼→变式训练；单一事实源 ERRORBOOK_FACET_NAMES），不是资料的大类。
   //    故不走下方"下面各行即本次大类标题"（那会把六个分项读成六个跨题板块：先集中列题，再回头集中给错解/错因/正解——
   //    学生无法逐题对照，且"变式训练"独立成栏后其答案无处安放）。改为：按知识点/易错点分块 → 每块下逐题 → 每题依次成组。
-  //    题号只给"变式"（学生要做的题），"题目"是讲解示范单元（解答随题展示，等同典型例题）——答案区只对变式作答（甲）。
+  //    题号只给「变式训练」（学生要做的题），「题目呈现」是讲解示范单元（解答随题展示，等同典型例题）——答案区只对变式作答（甲）。
+  //    🔴 2026-10-11（T11·G58）：原此处用**简称**"题目/变式"，而单源分项名（ERRORBOOK_FACET_NAMES）是全名
+  //      "题目呈现/变式训练" ⇒ **指称落空**（模型对不上号）。现一律用**单源全名**。
   if (bp.shape === 'perItem') {
     const facetsText = sections.map(s => `  · ${s.name}${reqTag(stripSourceMarkNote(s.note))}`).join('\n');
     // 🔴 2026-10-03（D16·用户裁定·去诱导）：同栏目标注块——删"成稿前逐题逐项对照自查…二者取一"（I5＋I2）；
@@ -1418,7 +1432,7 @@ export function buildTeachingInjection({ genType = '', stage = '', subject = '',
 · 资料按**知识点或易错点分块**：每块以一个知识点或一类易错点为单位，块标题自拟（写清本块是哪一处知识、哪一类错法）
 · 每道题在所属块内**逐题成组**：同一道题的各分项紧接在该题之下依次给出——
 ${facetsText}
-· 其中"题目"是讲解示范的题（题干完整呈现，其解答随题展示）；"变式"是留给学生练的题，须带题号（1. 2. 3.…，全篇连续），其解答由答案区单独给出${perItemReq}${stageLine}`;
+· 其中「题目呈现」是讲解示范的题（题干完整呈现，其解答随题展示）；「变式训练」是留给学生练的题，须带题号（1. 2. 3.…，全篇连续），其解答由答案区单独给出${perItemReq}${stageLine}`;
   }
   // 🔴 2026-10-03（D16·用户裁定·去诱导）：原【要求落实】块含"成稿前逐栏目对照自查…改内容或改写法，二者取一"
   //    ——① I5 对账式自查（D16 自检类补丁，优先清除）；② I2 许可式留口（换写法即算落实）。二者均删。
@@ -1430,7 +1444,11 @@ ${facetsText}
   //    🔴 2026-10-08（属主口令「统一术语」）：原字面为【大类标题（下面各行即本次**大类标题**…）】——
   //      与 cell 侧（内容型 h2 说明句用的是"栏目标题"、且 `promptLibrary:537` 的头标签亦按类型分叉）
   //      形成"同一层两个名"⇒ 统一为「**栏目标题**」（全 columns 型一并：本处 ＋ specialDomains ×2 ＋ UI 文案）。
-  return `\n\n【栏目标题（下面各行即本次栏目标题；按${cur}的活动类型与素养划分；${bp.custom ? `${bp.subject}·` : ''}${bp.label}·${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）】
+  //    🔴 2026-10-11（T11·G24·相抵）：原"按${cur}的**活动类型与素养划分**"与块内 reqLine"该要求…**不是题组划分或
+  //      命名的依据**"**相抵**（一句说按课标活动类型划分栏目、一句说它不作划分依据）。现块头改**语义锚**口径：
+  //      "内容归属**参考**课标活动类型与素养（**语义锚，非分类标准**）"——只交代"栏目内容往哪类靠"，
+  //      不再声明"按它划分"，与 reqLine 的分工（栏目名与组名由模型自定）自洽。
+  return `\n\n【栏目标题（下面各行即本次栏目标题；栏目的**内容归属参考**${cur}的活动类型与素养（**语义锚，非分类标准**）；${bp.custom ? `${bp.subject}·` : ''}${bp.label}·${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）】
 ${sectionsText}${reqLine}${stageLine}`;
 }
 

@@ -1,7 +1,9 @@
 // 2026-09：各教辅类型栏目标题风格套（COLUMN_STYLE_SETS）
-// 结构语义确定性保留：仅当栏目名恰与该类型默认套（a）逐一相同时替换字面（note 不变），
-// exam 蓝本不轮换；''=自动轮换（按次：每次生成推进一格 a→b→c→d→a，持久化），a/b/c/d=手动固定套；
-// subject 定制栏目与默认套不同名时防误伤原样返回。
+// 🔴 2026-10-11（T11·G57）：替换口径由"栏目名须恰与该类型默认套（a）逐一相同"改为**按栏目位次**——
+//   原口径下**学科定制名池永不被替换**（14 科 reading 首栏"阅读材料" vs 默认套"原创选文"、语文 dictation"字词积累"…），
+//   风格套选项在 UI 里预设存在、点之却无效果。现：a＝默认套（**不动名**，保留蓝图原生/学科定制栏目名）；
+//   b/c/d＝**按栏目位次换名**（note 不变）；位次数不足以覆盖整套（跨类型/残缺池）→ 原样返回防误伤；
+//   exam 蓝本不轮换；''=自动轮换（按次：每次生成推进一格 a→b→c→d→a，持久化），a/b/c/d=手动固定套。
 import { describe, it, expect } from 'vitest';
 import {
   COLUMN_STYLE_SETS,
@@ -31,7 +33,7 @@ describe('栏目标题风格套（2026-09）', () => {
     }
   });
 
-  it('applyColumnStyle：命中默认套名才替换并保留 note；类型/套未知或栏目不匹配原样返回', () => {
+  it('applyColumnStyle：按栏目位次替换并保留 note；类型/套未知或位次不足原样返回', () => {
     const trio = mkSections(['基础建构', '探究进阶', '迁移创新']);
     const out = applyColumnStyle(trio, 'practice', 'c');
     expect(out.map((s) => s.name)).toEqual(['知识梳理', '变式练习', '综合提升']);
@@ -41,18 +43,21 @@ describe('栏目标题风格套（2026-09）', () => {
     const summary = mkSections(['知识框架', '重点梳理', '易错辨析', '典型例题', '方法提炼']);
     expect(applyColumnStyle(summary, 'summary', 'b').map((s) => s.name)).toEqual(['知识梳理', '要点详解', '易错辨析', '例题解析', '方法提炼']);
 
-    // 未知类型/未知套/名称不匹配 → 原样
+    // 未知类型/未知套/位次不足（summary 默认套 5 栏 > trio 3 栏）→ 原样
     expect(applyColumnStyle(trio, 'summary', 'b')[0].name).toBe('基础建构');
     expect(applyColumnStyle(trio, 'practice', 'x')[0].name).toBe('基础建构');
-    // 2026-10-08（第 5 批 dictation〔169〕·乙案）：语文 dictation 名池学段中立化（原"看拼音写词语/积累默写/书写格"）
-    //   ⇒ 样本随实况更新；仍与默认套 a 不同名 ⇒ 原样返回
+    // 🔴 2026-10-11（T11·G57）：原"定制名不同名 ⇒ 原样返回（防误伤）"——现改**按位次替换**，定制池同样生效：
+    //   语文 dictation 定制名（字词积累/积累默写/书写呈现）在指定 'b' 套时换为 基础默写/内容积累/规范书写
+    //   （**默认套 a 不动名**，见下一条用例的"默认原样"断言）。
     const custom = mkSections(['字词积累', '积累默写', '书写呈现']);
-    expect(applyColumnStyle(custom, 'dictation', 'b').map((s) => s.name)).toEqual(['字词积累', '积累默写', '书写呈现']);
+    expect(applyColumnStyle(custom, 'dictation', 'b').map((s) => s.name)).toEqual(['基础默写', '内容积累', '规范书写']);
+    // 默认套 a：一律不动名（保留蓝图原生/学科定制名）
+    expect(applyColumnStyle(custom, 'dictation', 'a').map((s) => s.name)).toEqual(['字词积累', '积累默写', '书写呈现']);
     // 兼容别名仍指向 practice
     expect(applyTaskColumnStyle(trio, 'd')[0].name).toBe('基础巩固');
   });
 
-  it('buildTeachingInjection：非 exam 类型指定套生效、默认原样；subject 定制不同名不误伤；exam 蓝本不经此函数', () => {
+  it('buildTeachingInjection：非 exam 类型指定套生效、默认原样（按位次，含学科定制池）；exam 蓝本不经此函数', () => {
     const b = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '数学', columnStyle: 'b' });
     expect(b).toContain('基础练习');
     expect(b).not.toContain('基础建构');
@@ -63,11 +68,13 @@ describe('栏目标题风格套（2026-09）', () => {
     expect(sum).toContain('知识网络');
     const def = buildTeachingInjection({ genType: 'practice', stage: 'primary_high', subject: '语文' });
     expect(def).toContain('基础建构');
-    // 语文 dictation 定制栏目（字词积累/积累默写/书写呈现；2026-10-08〔169〕学段中立化前＝"看拼音写词语/积累默写/书写格"）
-    //   与默认套不同名 → 套不生效
+    // 🔴 2026-10-11（T11·G57）：语文 dictation 定制名（字词积累/积累默写/书写呈现）原"与默认套不同名 → 套不生效"；
+    //   现按**位次替换** ⇒ 指定套生效（'b' → 基础默写/内容积累/规范书写）；**未指定套时名字原样保留**（默认不动名）。
     const zhDict = buildTeachingInjection({ genType: 'dictation', stage: 'primary_low', subject: '语文', columnStyle: 'b' });
-    expect(zhDict).toContain('字词积累');
-    expect(zhDict).not.toContain('内容积累');
+    expect(zhDict).toContain('内容积累');
+    expect(zhDict).not.toContain('字词积累');
+    const zhDictDefault = buildTeachingInjection({ genType: 'dictation', stage: 'primary_low', subject: '语文' });
+    expect(zhDictDefault, '未指定套 → 保留学科定制栏目名').toContain('字词积累');
   });
 
   it('resolveColumnStyleId：手动固定直达；空=自动取「当前待用套」（不推进）', () => {

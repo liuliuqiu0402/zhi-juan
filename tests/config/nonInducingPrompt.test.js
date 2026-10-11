@@ -437,8 +437,16 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     }
     // 模型侧动作不得丢（清"代劳主语"≠ 清要求）
     const ex = fs.readFileSync(path.join(ROOT, 'src', 'config', 'examPaperBlueprints.js'), 'utf8');
-    expect(ex, '配图须由模型给出标记（原"配图由系统注入"的要求改由模型承载）').toContain('须给出配图标记');
-    expect(ex, '图形须由模型给出标记').toContain('须给出图形标记');
+    // 🔴 2026-10-11（T11·G40）：原锁 examPaperBlueprints 源须含"须给出配图标记／须给出图形标记"——现栏位注那 11 处
+    //   形态句（措辞不一＝多源）已删 ⇒ 断言**改指真单源**：要求＝正文【输出格式】「图-题一致性」条款；
+    //   格式＝【渲染指令】(eduRenderContract)（2026-09-17 起"格式细节不在正文复述"）。
+    const libSrc = fs.readFileSync(path.join(ROOT, 'src', 'config', 'promptLibrary.js'), 'utf8');
+    expect(libSrc, '标记要求单源在正文「图-题一致性」条款').toContain('图-题一致性');
+    expect(libSrc, '标记要求单源：须按注入的【渲染指令】紧跟输出标记块').toContain('必须在题干后按注入的【渲染指令】紧跟输出');
+    const rcSrc = fs.readFileSync(path.join(ROOT, 'src', 'config', 'eduRenderContract.js'), 'utf8');
+    expect(rcSrc, '标记格式单源在【渲染指令】').toContain('【渲染指令');
+    expect(ex, 'G40：栏位注"须给出配图标记"形态句已删，不得回潮').not.toContain('须给出配图标记');
+    expect(ex, 'G40：栏位注"须给出图形标记"形态句已删，不得回潮').not.toContain('须给出图形标记');
     expect(ex, '竖式书写区须留出（作答载体）').toContain('竖式书写区按作答载体规范留出');
     expect(ex, '作图区域须留出').toContain('留出作图区域');
     const tb = fs.readFileSync(path.join(ROOT, 'src', 'config', 'teachingBlueprints.js'), 'utf8');

@@ -144,6 +144,18 @@ const ANCHORS = [
   { name: 'T10·G29 清零（学段表"不超学段："分档尾）', re: /不超学段：/g, expect: 0 },
   { name: 'T10·G30 清零（"情境真实、适切"多源广播）', re: /情境真实、适切|真实、适切的情境/g, expect: 0 },
   { name: 'T10·G15 作用域界定（含取向词的档恰 1；其余 0）', re: /本取向只作用于情境取材与难度起点/g, expect: stage === 'primary_low' ? 1 : 0 },
+  // T11 蓝图·栏目（命名·组织·覆盖·换肤）—— 教辅锚按 genType 计（exam 不注入教辅结构块）
+  { name: 'T11·G24 块头语义锚（内容归属参考…非分类标准）', re: /栏目的\*\*内容归属参考\*\*/g, expect: (genType === 'exam' || genType === 'errorbook') ? 0 : 1 },
+  { name: 'T11·G24 清零（"活动类型与素养划分"旧称谓）', re: /的活动类型与素养划分/g, expect: 0 },
+  { name: 'T11·G34 知识框架分工（选用导图式时改用导图块）', re: /选用「导图式」呈现风格时改用导图块/g, expect: genType === 'summary' ? 1 : 0 },
+  { name: 'T11·G35 清零（errorbook"按…错因分类"）', re: /按知识点或错因分类/g, expect: 0 },
+  { name: 'T11·G35 正句（按知识点或易错点分块）', re: /按\*\*知识点或易错点分块\*\*/g, expect: genType === 'errorbook' ? 1 : 0 },
+  { name: 'T11·G36 设题判据同源（不可直接在原文找到原句答案）', re: /不可直接在原文找到原句答案/g, expect: genType === 'reading' ? 1 : 0 },
+  { name: 'T11·G37 清零（dictation 学段注重复"含易错点"）', re: /单元要求掌握的内容都涉及到，含易错点/g, expect: 0 },
+  { name: 'T11·G40 清零（栏位注配图/图形标记形态句）', re: /须给出配图标记|须给出图形标记/g, expect: 0 },
+  { name: 'T11·G41 清零（"由你按本卷内容选用/自定"）', re: /由你按本卷内容/g, expect: 0 },
+  { name: 'T11·G58 perItem 用单源全名', re: /其中「题目呈现」是讲解示范的题/g, expect: genType === 'errorbook' ? 1 : 0 },
+  { name: 'T11·G58 清零（简称"题目/变式"指称）', re: /其中"题目"是讲解示范的题/g, expect: 0 },
   // ⚠️ `以本条为准`（选项题硬约束条）属 **G14 / T13**（批次 D），**不计入 T04**——故不列入上式。
 ];
 
