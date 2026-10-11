@@ -78,18 +78,14 @@ const FACES = [
   // ── 载体自洽 7 面 ──
   { id: 'Z1', group: '载体自洽', name: '载体↔所填内容', on: ALL,
     src: [/填空短答用横线空位/, /严禁用裸空格或全角空格串充当空位/, /书写载体协议/] },
-  { id: 'Z2', group: '载体自洽', name: '载体↔位置', on: NOT_CONTENT,
-    src: [/作答空行只跟在题干要求之后/, /作答位在材料与设问之后/, /就地留空/, /紧随其书写对象/],
-    gap: {
-      preview: '内容型（预习导学）含作答位（课后问答）但无"作答位相对材料/设问的落点"条款（【作答位与载体】块对内容型为空）',
-      summary: '内容型（知识总结）含作答位（典型例题）但无"作答位落点"条款（同上）',
-    } },
-  { id: 'Z3', group: '载体自洽', name: '载体↔声明', on: NOT_CONTENT,
-    src: [/题干指示作答所用的线形/, /声明了作答形态或给出材料/, /题干未写明时按此书写惯例/],
-    gap: {
-      preview: '内容型无"题面声明载体形态→载体照给"条款：C1 只覆盖"线索量与指代"，不覆盖载体形态',
-      summary: '内容型无"题面声明载体形态→载体照给"条款（同上）',
-    } },
+  { id: 'Z2', group: '载体自洽', name: '载体↔位置', on: ALL,
+    // 内容型（preview/summary）的"位置"判据源＝【内容组织格式】的 carrierPlacement（2026-10-11 属主裁定"要覆盖"后补）
+    src: [/作答空行只跟在题干要求之后/, /作答位在材料与设问之后/, /就地留空/, /紧随其书写对象/,
+      /作答位\*\*紧随其题、在设问之后\*\*/] },
+  { id: 'Z3', group: '载体自洽', name: '载体↔声明', on: ALL,
+    // 内容型的"题面声明→载体照给"判据源＝【内容组织格式】的 carrierPlacement（同上）
+    src: [/题干指示作答所用的线形/, /声明了作答形态或给出材料/, /题干未写明时按此书写惯例/,
+      /一律照声明给到/] },
   { id: 'Z4', group: '载体自洽', name: '载体↔数量宽度', on: ALL,
     src: [/N 为宽度档/, /宽度/] },
   { id: 'Z5', group: '载体自洽', name: '载体↔就位', on: ALL,
@@ -142,13 +138,13 @@ describe('自证 #3：面 × 类型 矩阵（在场有判据源 / 缺席有依�
     expect(bad, `以下"缺席"格缺依据：\n${bad.join('\n')}`).toEqual([]);
   });
 
-  it('"缺口"数量被钉死（4 格：Z2／Z3 × preview／summary）——修复后须同步改本表与方法定稿 §5.5', () => {
+  it('"缺口"为空（属主 2026-10-11 裁定"要覆盖"后已闭合）——若再出现缺口，须同步改本表与方法定稿 §5.5', () => {
     const gaps = [];
     for (const f of FACES) for (const [t, note] of Object.entries(f.gap || {})) {
       if (!note || !String(note).trim()) gaps.push(`${f.id}·${t} 缺口无登记说明`);
     }
     expect(gaps, `缺口登记不完整：\n${gaps.join('\n')}`).toEqual([]);
     const gapCells = FACES.flatMap((f) => Object.keys(f.gap || {}).map((t) => `${f.id}·${t}`));
-    expect(gapCells.sort()).toEqual(['Z2·preview', 'Z2·summary', 'Z3·preview', 'Z3·summary']);
+    expect(gapCells, `矩阵应无缺口；实得：${gapCells.join('、')}`).toEqual([]);
   });
 });
