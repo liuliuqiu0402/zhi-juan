@@ -15,9 +15,35 @@ import {
   getPromptTemplate, ANSWER_ROLES, buildAnswerFormatSpec,
 } from '../../src/config/promptLibrary.js';
 import { buildTeachingInjection } from '../../src/config/teachingBlueprints.js';
-import { buildUserMessagePrompt, buildCallLayerBlocks } from '../../src/utils/injectionManifest.js';
+import { buildUserMessagePrompt, buildCallLayerBlocks, buildDiffRegenBlock, buildMultiTypeDiffBlock } from '../../src/utils/injectionManifest.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../../src/utils/programAttach.js';
-import { SUBJECT_KEYS, STAGE_KEYS, GEN_TYPE_KEYS } from '../../src/config/toolLibrary.js';
+import { GEN_TYPE_KEYS } from '../../src/config/toolLibrary.js'; // 🔴 S1：SUBJECT_KEYS/STAGE_KEYS 已由 REAL_CELLS 取代（原按字典全量 675 属虚测）
+import { STAGE_SUBJECTS } from '../../src/config/promptLibrary.js'; // 🔴 S1 口径改准：实际开设组合唯一事实源
+import { styleOptions, buildStyleAppend } from '../../src/config/expertKnowledge.js'; // 🔴 S1：并入"生成期追加"通道（组织风格）
+
+// 🔴 2026-10-11（S1·**实发口径补全**·属主"验收对象＝注入后最终 prompt"）：覆盖测量的"实发"原先只拼了
+//   注入框（buildUserMessagePrompt）＋程序附加段（buildProgramAttach）＋教学注入＋调用层块，
+//   **漏了"生成期追加类"（组织风格 `【组织风格】`）**——它由 `GenerateModule.vue withStyle()` 追加到指令末尾。
+//   后果：`styleInstructions` 被覆盖测量判为 **0/11 死角源**，且"注入后最终 prompt"有一处文本不受管辖。
+//   现按**渲染唯一事实源** `buildStyleAppend` 把该通道并入（逐 cell 按该类型适用的风格枚举）；Vue 侧同读此函数。
+const stylesForType = (genType) => styleOptions
+  .filter((o) => !o.appliesTo.length || o.appliesTo.includes(genType))
+  .map((o) => o.value)
+  .filter((v) => buildStyleAppend(v));
+
+// 🔴 2026-10-11（S1·**口径改准**·属主明示"实际是 486"）：覆盖测量原先按 9×15×5 = **675** 迭代——含 **21 个不存在的
+//   "学科×学段"对**（如"物理|小学低段"）。那些组合在真实请求里**不会发生**（入口按 `STAGE_SUBJECTS` 过滤学科候选），
+//   且 `getPromptTemplate` 对其会**借用别的学段骨架**（实测告警："物理|primary_low 不在实际开设矩阵内 → 借用 物理|middle"）
+//   ⇒ 测出的是**任何真实请求都不会发出的文本**（虚测）：既白算，又会把"只在借骨架路径上出现的句子"当成真源、
+//   从而**掩盖真缺口**。现按**实际开设组合**迭代：54 对 × 9 类型 = **486 cell**（与本仓 `scripts/coverageDenominator.mjs`
+//   实测分母同源）。**不存在的 189 个空 cell 不进分母**（按八问①门控封杀）。
+const REAL_CELLS = (() => {
+  const out = [];
+  for (const genType of GEN_TYPE_KEYS)
+    for (const [stage, subs] of Object.entries(STAGE_SUBJECTS))
+      for (const subject of subs) out.push({ genType, subject, stage });
+  return out;
+})();
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -32,10 +58,10 @@ function flatten(v, out = [], depth = 0) {
   return out;
 }
 
-/** 实发文本样本（全量 675 份拼接；口径与生成端一致） */
+/** 实发文本样本（**全量 486 cell** 拼接；口径与生成端一致） */
 function liveText() {
   const parts = [];
-  for (const genType of GEN_TYPE_KEYS) for (const subject of SUBJECT_KEYS) for (const stage of STAGE_KEYS) {
+  for (const { genType, subject, stage } of REAL_CELLS) {
     const template = (getPromptTemplate({ grade: stage, subject, genType }).template) || '';
     const teaching = buildTeachingInjection({ genType, stage, subject }) || '';
     parts.push(buildUserMessagePrompt({ genType, subject, materialChannel: 'anchor', anchorListText: '@@A@@', instructionText: template }));
@@ -43,6 +69,10 @@ function liveText() {
     parts.push(teaching, buildCallLayerBlocks().map((b) => b.text).join('\n'));
     parts.push(genType === 'exam' ? ANSWER_ROLES.exam(subject) : ANSWER_ROLES.other(genType));
     parts.push(buildAnswerFormatSpec(subject));
+    stylesForType(genType).forEach((s) => parts.push(buildStyleAppend(s))); // 🔴 S1：生成期追加（组织风格）
+    // 🔴 S1：条件追加块（同属"生成期追加类"）——复生成差异化 / 多类型差异化（用代表入参，签名为静态句）
+    parts.push(buildDiffRegenBlock({ genType, diffKps: ['（已练知识点）'] }));
+    parts.push(buildMultiTypeDiffBlock({ typeName: '（类型名）', prevTypes: '（前序类型）', coveredKps: ['（已覆盖知识点）'] }));
   }
   return norm(parts.join('\n'));
 }
@@ -134,7 +164,7 @@ describe('给模型文本·源登记守卫（E 表 / 常量 / inline / 跳转不
     expect(importFailed, `以下模块导入失败但未登记理由：\n${importFailed.join('\n')}`).toEqual(IMPORT_FAIL_ALLOW);
     const missing = measured.filter((k) => !registered.has(k));
     expect(missing, `以下常量有内容进实发但未登记：\n${missing.join('\n')}`).toEqual([]);
-  }, 120000); // 测量面＝全 src（122 模块）＋675 份实发装配，需放宽超时（默认 5s 不够，实测 ~6s）
+  }, 120000); // 测量面＝全 src（122 模块）＋**486** 份实发装配（S1 口径改准：原 675，含 21 个不存在对），需放宽超时（默认 5s 不够）
 
   // 🔴 2026-10-08（C3 挂起项**收口**·先解后锁）：本表定义为"占比 <0.5 但**仍有内容进实发**的数据表/容器"。
   //   "进实发"的**必要条件**＝有消费方（被某处 import）。历史遗留：`src/config/domainContract.js`
@@ -193,7 +223,7 @@ describe('给模型文本·源登记守卫（E 表 / 常量 / inline / 跳转不
 
     // ===== 源句集：E 表函数产出 ＋ E2 常量 ＋ E3 inline =====
     const srcTexts = [];
-    for (const genType of GEN_TYPE_KEYS) for (const subject of SUBJECT_KEYS) for (const stage of STAGE_KEYS) {
+    for (const { genType, subject, stage } of REAL_CELLS) {
       const template = (getPromptTemplate({ grade: stage, subject, genType }).template) || '';
       srcTexts.push(template);
       srcTexts.push(buildTeachingInjection({ genType, stage, subject }) || '');
@@ -201,6 +231,9 @@ describe('给模型文本·源登记守卫（E 表 / 常量 / inline / 跳转不
       srcTexts.push(buildUserMessagePrompt({ genType, subject, materialChannel: 'anchor', anchorListText: '', instructionText: template }));
       srcTexts.push(genType === 'exam' ? ANSWER_ROLES.exam(subject) : ANSWER_ROLES.other(genType));
       srcTexts.push(buildAnswerFormatSpec(subject));
+      stylesForType(genType).forEach((s) => srcTexts.push(buildStyleAppend(s))); // 🔴 S1：生成期追加（组织风格）
+      srcTexts.push(buildDiffRegenBlock({ genType, diffKps: ['（已练知识点）'] }));            // 🔴 S1：生成期追加（复生成差异化）
+      srcTexts.push(buildMultiTypeDiffBlock({ typeName: '（类型名）', prevTypes: '（前序类型）', coveredKps: ['（已覆盖知识点）'] })); // 🔴 S1：生成期追加（多类型差异化）
     }
     buildCallLayerBlocks().forEach((b) => srcTexts.push(b.text));
     // E2 常量（其值即源）
@@ -218,7 +251,7 @@ describe('给模型文本·源登记守卫（E 表 / 常量 / inline / 跳转不
 
     // ===== 实发（指令部分；素材与锚点置空 = 豁免输入）=====
     const orphans = new Map();
-    for (const genType of GEN_TYPE_KEYS) for (const subject of SUBJECT_KEYS) for (const stage of STAGE_KEYS) {
+    for (const { genType, subject, stage } of REAL_CELLS) {
       const template = (getPromptTemplate({ grade: stage, subject, genType }).template) || '';
       const live = [
         buildUserMessagePrompt({ genType, subject, materialChannel: 'anchor', anchorListText: '', instructionText: template }),
@@ -227,6 +260,9 @@ describe('给模型文本·源登记守卫（E 表 / 常量 / inline / 跳转不
         buildCallLayerBlocks().map((b) => b.text).join('\n'),
         genType === 'exam' ? ANSWER_ROLES.exam(subject) : ANSWER_ROLES.other(genType),
         buildAnswerFormatSpec(subject),
+        stylesForType(genType).map((s) => buildStyleAppend(s)).join('\n'), // 🔴 S1：生成期追加（组织风格）
+        buildDiffRegenBlock({ genType, diffKps: ['（已练知识点）'] }),       // 🔴 S1：生成期追加（复生成差异化）
+        buildMultiTypeDiffBlock({ typeName: '（类型名）', prevTypes: '（前序类型）', coveredKps: ['（已覆盖知识点）'] }), // 🔴 S1：生成期追加（多类型差异化）
       ].filter(Boolean).join('\n');
       cutAll(live).forEach((p) => { if (!srcSig.has(S(p))) orphans.set(S(p), p.slice(0, 70)); });
     }
@@ -237,11 +273,9 @@ describe('给模型文本·源登记守卫（E 表 / 常量 / inline / 跳转不
 
   it('🔴 跳转不变式：程序附加段每一段都必须能映射到 (lib, key|name)', () => {
     const knownLibs = new Set(['instruction', 'rules', 'render-contract', 'layout-spec', 'blueprint']);
-    const combos = [];
-    for (const genType of GEN_TYPE_KEYS) for (const subject of ['语文', '数学', '英语']) {
-      combos.push({ genType, subject, stage: 'primary_low' });
-      combos.push({ genType, subject, stage: 'middle' });
-    }
+    // 🔴 S1 口径改准：原仅抽 6 组合（语文/数学/英语 × 低段/中段）＝**抽样**（违反"禁抽样"）；
+    //   现按全量真实开设组合（54 对 × 9 类型 = 486 cell）遍历，程序附加段的映射不变式全覆盖。
+    const combos = REAL_CELLS;
     for (const c of combos) {
       const template = (getPromptTemplate({ grade: c.stage, subject: c.subject, genType: c.genType }).template) || '';
       const blocks = buildProgramAttachBlocks({
@@ -254,4 +288,27 @@ describe('给模型文本·源登记守卫（E 表 / 常量 / inline / 跳转不
       }
     }
   });
+
+  // 🔴 2026-10-11（S1·完备性自证 #2 的**另一半方向**）：E 表是"给模型文本的源登记"，故每个**已登记的非函数源**
+  //   都必须在实发中真正落地（占比 > 0）；占比 0 ⇒ **死角源**（登记了却从不进实发）⇒ 差集非空 ⇒ 缺口。
+  //   与上方"实发每一句都有主（实发→源）"互为镜像；**二者同时为空**才等于方法定稿所说的"双向差集为空"。
+  //   （一望即知的坑：此向原**无人测**——`styleInstructions` 被漏掉的"生成期追加"通道即由此暴露。）
+  it('🔴 源→实发差集为空：每个已登记的非函数源都必须在实发中落地（死角源即红）', async () => {
+    const live = liveText();
+    const dead = [];
+    for (const [file, names] of Object.entries(mergeRegistries())) {
+      let mod;
+      try { mod = await import(`../../${file}`); } catch { dead.push(`${file}:<整文件导入失败>`); continue; }
+      for (const n of names) {
+        const val = mod[n];
+        // 函数/正则：其"内容"由 build 输出通道承载（已在 liveText 组装处覆盖），不按字面量测
+        if (typeof val === 'function' || val instanceof RegExp) continue;
+        const strs = flatten(val);
+        if (!strs.length) continue; // 无中文字面量（<8 字/无中文）：不构成"给模型文本的整句源"
+        const hits = strs.filter((s) => live.includes(sig(s))).length;
+        if (hits === 0) dead.push(`${file}:${n}  (0/${strs.length})`);
+      }
+    }
+    expect(dead, `以下已登记源在实发中占比为 0（死角源／或测量口径漏通道）：\n${dead.join('\n')}`).toEqual([]);
+  }, 120000);
 });

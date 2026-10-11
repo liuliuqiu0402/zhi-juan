@@ -27,7 +27,7 @@ import { buildListeningTranslateMessages } from '../../src/config/listeningTrans
 import { ANALYSIS_PROMPTS } from '../../src/config/analysisPrompts.js';
 import { GEN_TYPE_KEYS } from '../../src/config/toolLibrary.js';
 import { PROMPT_INLINE_SOURCES } from '../../src/config/caliberRegistry.js';
-import { styleInstructions } from '../../src/config/expertKnowledge.js';
+import { styleInstructions, buildStyleAppend } from '../../src/config/expertKnowledge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
@@ -153,9 +153,9 @@ function standaloneTexts() {
   out.push(buildListeningExtractMessages('1. M: Hi.').map((m) => m.content).join('\n'));
   out.push(buildListeningTranslateMessages('小明去图书馆。').map((m) => m.content).join('\n'));
   for (const p of ANALYSIS_PROMPTS) out.push(String(p.content || ''));
-  // E2：组织风格注入句（**生成期追加在指令框末尾**——按生产端 `withStyle` 的包装逐字镜像，
-  //   否则只扫说明句、漏掉 `【组织风格】` 这个块标题行本身）
-  for (const [v, t] of Object.entries(styleInstructions)) out.push(`【组织风格】\n· ${v}：${t}`);
+  // E2：组织风格注入句（**生成期追加在指令框末尾**——读渲染唯一事实源 `buildStyleAppend`，
+  //   确保 `【组织风格】` 块标题行本身也在扫描面内）
+  for (const v of Object.keys(styleInstructions)) out.push(buildStyleAppend(v));
   for (const t of ANS_INLINE) out.push(t);                                        // 答案页 inline（逐字镜像）
   const gen = fs.readFileSync(GEN_SRC, 'utf8');
   for (const [a, b] of ANCHOR_PAIRS) {

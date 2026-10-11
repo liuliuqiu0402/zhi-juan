@@ -338,6 +338,20 @@ export const styleInstructions = {
   'framework': '围绕核心知识依次梳理与自测组织；各项以要点成行成列列出，覆盖本范围核心知识。',
 };
 
+// ==================== 组织风格【指令框末尾追加类】渲染（单一事实源）====================
+// 🔴 2026-10-11（S1·覆盖对账抓出的真缺口·**促规范**）：本类文本（组织风格）既不在注入框内、也不属程序附加段，
+//   是**生成期追加**进最终 prompt 的第三通道。此前它的封装字面量 `【组织风格】\n· {style}：{desc}`
+//   **只写在 `GenerateModule.vue` 的 withStyle() 里** ⇒ ①「注入后最终 prompt」存在一处**不受登记/覆盖测量管辖**的文本；
+//   ②`caliberRegistry` 所记"测量面待同步扩"长期未闭合；③覆盖测量对 `styleInstructions` 判 **0/11 死角源**。
+//   修法＝**提为唯一事实源函数**（不新增约束）：渲染与测量同读本函数，Vue 只调用、不再自带字面量。
+export const STYLE_APPEND_HEAD = '【组织风格】';
+/** 组织风格追加块：无有效风格返回 ''（调用方据此决定是否加分隔）。落点：GenerateModule.vue withStyle()。 */
+export function buildStyleAppend(style = '') {
+  const desc = styleInstructions[style];
+  if (!style || !desc) return '';
+  return `${STYLE_APPEND_HEAD}\n· ${style}：${desc}`;
+}
+
 // ==================== 范围选项 ====================
 export const scopeOptions = [
   { value: 'default', label: '默认', desc: '按章节默认范围（选课→课名，整单元→单元名，跨单元→综合检测）' },

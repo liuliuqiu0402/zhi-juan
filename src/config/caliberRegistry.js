@@ -42,7 +42,7 @@ export const PROMPT_SOURCES = {
   'src/config/levelMapping.js': ['buildLevelInstruction'],
   'src/config/listeningExtractPrompt.js': ['buildListeningExtractMessages'],
   'src/config/listeningTranslatePrompt.js': ['buildListeningTranslateMessages'],
-  'src/utils/injectionManifest.js': ['buildUserMessageBlocks', 'buildUserMessagePrompt', 'buildCallLayerBlocks', 'buildAnchorListBlock', 'buildCompressedTextBlock', 'buildMaterialUsageBlock', 'buildOrganizeBlock', 'buildTemplateInfoBlock', 'buildContextBlock', 'buildDiffRegenBlock', 'buildOutputBlock', 'buildTailBlocks'],
+  'src/utils/injectionManifest.js': ['buildUserMessageBlocks', 'buildUserMessagePrompt', 'buildCallLayerBlocks', 'buildAnchorListBlock', 'buildCompressedTextBlock', 'buildMaterialUsageBlock', 'buildOrganizeBlock', 'buildTemplateInfoBlock', 'buildContextBlock', 'buildDiffRegenBlock', 'buildMultiTypeDiffBlock', 'buildOutputBlock', 'buildTailBlocks'],
   'src/utils/programAttach.js': ['buildProgramAttachBlocks'],
   'src/utils/textbookCompression.js': ['buildMapMessages', 'buildFoldMessages'],
   /** 非模型源（给下游引擎/渲染），留证在此，守卫不当作遗漏 */
@@ -96,7 +96,10 @@ export const PROMPT_CONSTANTS = {
   //    `styleInstructions` 是**指令框末尾追加类**的文本源（组织风格），既不在注入框内、也不属程序附加段
   //    （`injectionManifest` 的 instruction 块注释自认"这两块不在注入框里、也不属程序附加段"）。
   //    首轮覆盖测量漏了它——因为测量用的实发装配**没有包含"生成期追加"**。已登记；测量面待同步扩。
-  'src/config/expertKnowledge.js': ['styleInstructions'],
+  // 🔴 2026-10-11（S1·覆盖对账收口）：上句"测量面待同步扩"已闭合——`buildStyleAppend` 提为**渲染唯一事实源**
+  //    （`GenerateModule.vue withStyle()` 与覆盖测量同读一份）；本表同时登记该渲染函数，覆盖测量实发口径并入
+  //    "生成期追加"通道。此前覆盖测量对 `styleInstructions` 判 0/11 死角源，即为该缺口的表现。
+  'src/config/expertKnowledge.js': ['styleInstructions', 'buildStyleAppend'],
   // 2026-10-01 R2 闭合时由守卫抓出（扫描面 19→122 个模块后）：以下 5 条**进实发但此前从未登记**
   'src/utils/anchorTreeContract.js': ['ANCHOR_LIST_ROLE_NOTE'],
   'src/utils/injectionManifest.js': ['TAIL_SELF_CONSISTENCY', 'TAIL_VARIETY', 'TAIL_ANCHOR_MARKER'],

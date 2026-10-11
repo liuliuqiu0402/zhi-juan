@@ -2,13 +2,17 @@
 // 且以受控课标清单前缀开头（2022 义教课标 / 高中课标(2017/2020)），禁止无据自造出处；
 // 正文与出处非空、正文带句读收尾。防"AI 自造课标来源"与"来源漂移"，属审核基准 A（单一事实源）。
 import { describe, it, expect } from 'vitest';
-import { SUBJECT_STAGE_EXTRAS } from '@/config/promptLibrary.js';
+import { SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS } from '@/config/promptLibrary.js';
 
 // 受控课标前缀：新版本课标入库须先登记到本清单，否则 CI 即红（宁缺毋滥，防伪出处）
 const SOURCE_PREFIX = /^(2022义教|高中.+课标\(2017\/2020\))/;
 const SELF_MADE = /(自拟|据我|我认为|参考我|自编|个人理解)/;
 
 const CELLS = Object.entries(SUBJECT_STAGE_EXTRAS);
+// 🔴 2026-10-11（S1·附条 8 残留**收口**）：学段表（exam/教辅两版的学段特点）里保留的课标原文句此前
+//   只有**点检**（promptLibrary.test.js 只抽查 primary_low/mid/high 三档的部分表述）——不满足"全量、非抽样"。
+//   现补全量锁：两表每一档都必须带**非空且非自造**的 source。实测 10/10 已达标（无内容改动，仅防回归）。
+const STAGE_TABLES = { STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS };
 
 describe('课标出处受控：54 科段要点 source 单一受控清单（CI 免人工）', () => {
   it('全部科段要点非空，且正文长度、句读收尾达标', () => {
@@ -68,5 +72,20 @@ describe('课标出处受控：54 科段要点 source 单一受控清单（CI �
     const bad = CELLS.filter(([cell]) => !/^[^|]+\|[^|]+$/.test(cell)).map(([cell]) => cell);
     expect(bad, `非法科段键 ${bad.length} 个：${bad.join('、')}`).toEqual([]);
     expect(CELLS.length).toBe(54);
+  });
+
+  it('🔴 学段表（exam/教辅）每档 source 非空且非自造（附条 8 残留收口·全量非抽样）', () => {
+    const bad = [];
+    for (const [tname, table] of Object.entries(STAGE_TABLES)) {
+      for (const [stage, v] of Object.entries(table)) {
+        if (!v.source || !v.source.trim()) bad.push(`${tname}.${stage} 缺 source`);
+        else if (SELF_MADE.test(v.source)) bad.push(`${tname}.${stage} 自造出处：${v.source}`);
+        else if (!/^(2022义教|高中)/.test(v.source.trim())) bad.push(`${tname}.${stage} 出处前缀不受控：${v.source.trim().slice(0, 40)}`);
+      }
+    }
+    expect(bad, `学段表出处受控异常 ${bad.length} 处：\n${bad.join('\n')}`).toEqual([]);
+    // 5 学段 × 2 表 = 10 档，一档不少（防"表被清空/漏档"式假绿）
+    expect(Object.keys(STAGE_EXAM_EXTRAS).length).toBe(5);
+    expect(Object.keys(STAGE_TEACHING_EXTRAS).length).toBe(5);
   });
 });

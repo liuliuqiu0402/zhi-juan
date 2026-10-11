@@ -3184,7 +3184,8 @@ import {
   genTypeOptions,
   genTypeTemplates,
   scopeOptions,
-  normalizeSubjectName
+  normalizeSubjectName,
+  buildStyleAppend
 } from '../config/expertKnowledge.js';
 import { useAiGenerator, lastInjectSnapshot, chapterSigOf } from '../composables/useAiGenerator.js';
 // 🎧 听力工作台（2026-09-20）：听力配音已抽为独立功能（左侧导航「工具 → 🎧 听力配音」），
@@ -3228,7 +3229,7 @@ import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/l
 // ✅ A21 已撤（2026-09-17）：buildNeedsImageText / needsImageHint 不再参与能力判定（改为能力就绪，见 eduRenderContract.resolveMarkCapability）
 import { buildTeachingInjection, COLUMN_STYLE_SETS, resolveColumnStyleId, resolveColumnStyleChoices, advanceAutoColumnStyleId, getTeachingBlueprint, stripSourceMarkNote } from '../config/teachingBlueprints.js';
 import { buildProgramAttach, buildProgramAttachBlocks } from '../utils/programAttach.js'; // 复位工程·S3.2：程序性附加段（渲染契约/质检规则/格式兜底）——不进委托正文；blocks=分段明细（面板点击跳库）
-import { buildUserMessageBlocks, buildCallLayerBlocks } from '../utils/injectionManifest.js'; // ✅ A22：请求实发清单·单源（用户消息侧：锚点清单/素材约定/组织方式/输出约定/尾约束…与生成端同一份定义）；buildCallLayerBlocks=调用层追加块（输出前自检）同源可见
+import { buildUserMessageBlocks, buildCallLayerBlocks, buildMultiTypeDiffBlock } from '../utils/injectionManifest.js'; // ✅ A22：请求实发清单·单源（用户消息侧：锚点清单/素材约定/组织方式/输出约定/尾约束…与生成端同一份定义）；buildCallLayerBlocks=调用层追加块（输出前自检）同源可见；buildMultiTypeDiffBlock=多类型差异化追加块（S1：由内联提为单源）
 import { syncFloorClauseSections } from '../utils/instructionFloorSync.js'; // 2026-09-18 用户实证：草稿持久化恢复会把"程序内置守门条款段"冻住 → 之后所有条款修订都进不了模型；实发前按当前单源同步该段（用户内容不动）
 import { APP_EVENTS } from '../constants/events.js';
 import PdfPreview from '../components/PdfPreview.vue';
@@ -8429,9 +8430,12 @@ const generate = async (mode) => {
   //    唯一生成入口（generate 主路径，含复生成差异化与逐章循环），防止分支漏注入
   const withStyle = (instr = '') => {
     if (!propositionStyle.value || !styleInstructions[propositionStyle.value]) return instr;
-    // 2026-10-02（项3·块标题独占一行）：原为「【组织风格】{value}：{说明}」——**块标题行内拖内容**，
-    //   改「【组织风格】\n· {value}：{说明}」（标签独占一行、内容另起一条）；解析器已同步兼容两种形态。
-    return `${instr}\n\n【组织风格】\n· ${propositionStyle.value}：${styleInstructions[propositionStyle.value]}`;
+    // 🔴 2026-10-11（S1）：封装字面量已提为 config 单一事实源 `buildStyleAppend`（渲染与覆盖测量同读一份），
+    //   本处只负责"加分隔"，不再自带 `【组织风格】` 字面量（否则该文本又脱离登记/测量管辖）。
+    //   2026-10-02（项3·块标题独占一行）：改「【组织风格】\n· {value}：{说明}」（标签独占一行、内容另起一条）；
+    //   解析器已同步兼容两种形态。
+    const append = buildStyleAppend(propositionStyle.value);
+    return append ? `${instr}\n\n${append}` : instr;
   };
 
   // ✨ 新增：记录已生成资料的知识点，用于差异化（逐章模式下每章独立重置）
@@ -8461,19 +8465,11 @@ const generate = async (mode) => {
     if (typeIndex > 0 && generatedKps.length > 0) {
       const typeName = genTypeTemplates[genType]?.name || genType;
       const prevTypes = generatedTypes.join('、');
-      const coveredKps = [...new Set(generatedKps)].slice(0, 20);
-      
-      diffInstruction = instructionDraft.value + `
-
-【差异化要求——本类型为「${typeName}」，前面已生成「${prevTypes}」】
-以下知识点已在之前生成的资料中覆盖，请优先选择其他知识点或从不同角度考查：
-已覆盖知识点：${coveredKps.join('、')}
-
-差异化策略：
-1. 如果前面已生成考卷，本次同步练习应侧重基础巩固和变式训练
-2. 如果前面已生成同步练习，本次专项突破应选择前面未深入的知识点
-3. 如果前面已生成考卷，本次知识点总结应侧重梳理而非重复出题
-4. 允许同一知识点从不同角度考查，但避免完全相同的题型和难度`;
+      // 🔴 2026-10-11（S1）：追加块字面量已提为 `injectionManifest.buildMultiTypeDiffBlock` **唯一事实源**
+      //   （此前只内联在本文件 → 未登记、覆盖测量漏；与"组织风格"同类缺口）。本处只负责拼接。
+      diffInstruction = instructionDraft.value + buildMultiTypeDiffBlock({
+        typeName, prevTypes, coveredKps: generatedKps,
+      });
     }
     
     try {

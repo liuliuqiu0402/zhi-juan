@@ -246,6 +246,26 @@ export const buildDiffRegenBlock = ({ genType = '', diffKps = [] } = {}) => {
 · 情境错峰：本次为同一范围的再次出稿，新稿的情境、人物/场景、数据与设问角度须与已生成稿件全部错开（命中上稿任一要素即换）。`;
 };
 
+/** ⑦′ 差异化（**多类型混合生成**）：第二个类型起追加「本类型为「X」，前面已生成「Y」」＋已覆盖知识点＋差异化策略。
+ *  🔴 2026-10-11（S1·覆盖对账）：原字面量**只写在 `GenerateModule.vue`**（生成期追加、进最终 prompt），
+ *     既不在本表登记、覆盖测量亦未含 ⇒ 与【组织风格】**同类缺口**（"指令框末尾追加类"的第二成员）。
+ *     现提为**源唯一事实源函数**，Vue 只调用、不再自带字面量；覆盖测量与之一同纳入。 */
+export const buildMultiTypeDiffBlock = ({ typeName = '', prevTypes = '', coveredKps = [] } = {}) => {
+  if (!typeName) return '';
+  const kps = [...new Set(coveredKps)].slice(0, 20);
+  return `
+
+【差异化要求——本类型为「${typeName}」，前面已生成「${prevTypes}」】
+以下知识点已在之前生成的资料中覆盖，请优先选择其他知识点或从不同角度考查：
+已覆盖知识点：${kps.join('、')}
+
+差异化策略：
+1. 如果前面已生成考卷，本次同步练习应侧重基础巩固和变式训练
+2. 如果前面已生成同步练习，本次专项突破应选择前面未深入的知识点
+3. 如果前面已生成考卷，本次知识点总结应侧重梳理而非重复出题
+4. 允许同一知识点从不同角度考查，但避免完全相同的题型和难度`;
+};
+
 /** ⑧ 输出约定（once 一次成型 / split 两次生成；正文后答案区口径随自包含教辅分档） */
 export const buildOutputBlock = ({ subject = '', genType = '', outputMode = 'split' } = {}) => {
   const selfContained = SELF_CONTAINED_TEACHING.includes(genType);

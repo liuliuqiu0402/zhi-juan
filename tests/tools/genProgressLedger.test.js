@@ -23,7 +23,7 @@ import { getPromptTemplate, ANSWER_ROLES, buildAnswerFormatSpec, STAGE_SUBJECTS 
 import { buildTeachingInjection } from '../../src/config/teachingBlueprints.js';
 import { buildUserMessagePrompt } from '../../src/utils/injectionManifest.js';
 import { buildProgramAttach } from '../../src/utils/programAttach.js';
-import { styleOptionsForType, styleInstructions } from '../../src/config/expertKnowledge.js';
+import { styleOptionsForType, buildStyleAppend } from '../../src/config/expertKnowledge.js';
 import { GEN_TYPE_KEYS } from '../../src/config/toolLibrary.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -55,10 +55,12 @@ function structureViolations(text) {
   return bad;
 }
 
-/** 组织风格注入句（生成期追加在指令框末尾；格式与生成端 `withStyle` 逐字一致） */
-const styleLineOf = (style) => (style && style !== '（默认）' && styleInstructions[style]
-  ? `\n\n【组织风格】\n· ${style}：${styleInstructions[style]}`
-  : '');
+/** 组织风格注入句（生成期追加在指令框末尾；**读渲染唯一事实源 `buildStyleAppend`**，不再自带字面量） */
+const styleLineOf = (style) => {
+  if (!style || style === '（默认）') return '';
+  const append = buildStyleAppend(style);
+  return append ? `\n\n${append}` : '';
+};
 
 /** 全量枚举份（每份＝一条 id ＋ 其装配文本） */
 function* allCells() {
