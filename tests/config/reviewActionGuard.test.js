@@ -49,8 +49,10 @@ const ACTION_RE = /(?:定稿前|成稿前|输出前|输出完成后)[^，。；\
  */
 const REVIEW_ACTIONS = [
   {
-    id: 'tail-self', block: '尾约束·全文自洽', channel: '用户消息（末尾锚定）', scope: '全类型',
-    action: '定稿前逐节逐题三域复核', anchor: '定稿前逐节逐题按下面三域复核', fixType: 'oneOfTwo', via: 'matrix',
+    id: 'tail-self', block: '尾约束·全文自洽', channel: '用户消息（末尾锚定·**仅内容型**）', scope: '仅内容型（preview／summary）',
+    // 🔴 2026-10-11（T16·G75/G83·属主重判）：原动作壳"定稿前逐节逐题按下面三域复核"**已删**（自检壳＝
+    //   前置不精准的补丁）；且三域**不再对题类注入**（题类自洽判据单源在【题目自洽】①–⑰）⇒ 本条只登记改法。
+    action: '（无独立动作——复核壳已删；三域判据本体保留）', anchor: '仅凭正文自身即可完成或读懂', fixType: 'selfRevise', via: 'matrix', noAction: true,
   },
   {
     // 🔴 2026-10-04（D16 · 用户裁定"自检类块属优先清除对象"）：原动作句"定稿前逐部分核对①版式换过／
@@ -58,7 +60,9 @@ const REVIEW_ACTIONS = [
     //    "各处内容不重复（重复按考查作用判…）"＝判据）→ 依 D16 四步删除动作句。本条目只登记**改法**
     //    （有即改），故标 noAction；anchor 改指仍在的收尾句（守卫 B 仍断言其存在于实发文本）。
     id: 'tail-variety', block: '尾约束·资料内多样', channel: '用户消息（末尾锚定）', scope: '全类型',
-    action: '（无独立动作——判据已前置，复核动作不另立）', anchor: '凡有即当场改，只输出改后的定稿', fixType: 'fixNow', via: 'matrix', noAction: true,
+    // 🔴 2026-10-11（T16·G76）：原尾"凡有即当场改，只输出改后的定稿"**动作壳已删**（与 G75 同口径）；
+    //   本条只登记改法：同类内容形态统一、仅性质不同处才换版式。
+    action: '（无独立动作——判据已前置，动作壳已删）', anchor: '同类内容的形态与先后统一', fixType: 'selfRevise', via: 'matrix', noAction: true,
   },
   {
     id: 'question-format', block: '题目自洽总纲①至⑰', channel: '委托正文【输出格式】', scope: '仅题类',
@@ -73,9 +77,11 @@ const REVIEW_ACTIONS = [
     //    与【尾约束·全文自洽】的"定稿前逐节逐题按下面三域复核"构成**同一件事两处各写一遍** →
     //    动作句已删，复核动作统一由尾约束承载；本条目只登记**隶属引用**（同 quality-base 的既有处置），
     //    故标 noAction：跳过"动作句形态"断言，anchor 改为引用句（守卫 B 仍断言该引用必须在实发文本里）。
-    id: 'question-format-crossref', block: '题目自洽总纲（结尾·三域交叉引用）', channel: '委托正文【输出格式】', scope: '仅题类',
-    action: '（无独立动作——复核动作统一由尾约束三域承载，总纲只留隶属引用）',
-    anchor: '以上细目即【尾约束·全文自洽】三域在题类资料的展开', fixType: 'deferToThreeDomains', via: 'matrix', noAction: true,
+    id: 'question-format-crossref', block: '题目自洽总纲（原三域交叉引用）', channel: '委托正文【输出格式】', scope: '仅题类',
+    // 🔴 2026-10-11（T16·G83）：原"以上细目即【尾约束·全文自洽】三域在题类资料的展开"**已删**——
+    //   题类已不再注入三域（自洽判据单源在本块 ①–⑰），该"隶属引用"随之失效 ⇒ 本条只登记改法。
+    action: '（无独立动作——原"引到三域"句已删；题类自洽判据单源在本块）',
+    anchor: '同卷空位形态统一', fixType: 'selfRevise', via: 'matrix', noAction: true,
   },
   {
     id: 'quality-base', block: '质量底线（判据，不含独立复核动作）', channel: '委托正文（缺段则 system 兜底）', scope: '全类型',

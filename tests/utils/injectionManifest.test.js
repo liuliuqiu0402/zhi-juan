@@ -67,16 +67,21 @@ describe('buildUserMessagePrompt（实发拼接：顺序 + 逐字）', () => {
       + buildContextBlock(full.contextFramework)
       + buildDiffRegenBlock({ genType: 'practice', diffKps: full.diffKps })
       + buildOutputBlock({ subject: '数学', genType: 'practice', outputMode: 'split' })
-      + buildTailBlocks().join(''),
+      // 🔴 2026-10-11（T16·G83）：尾约束·全文自洽**仅内容型注入**（题类自洽判据单源在【题目自洽】①–⑰）
+      //   → practice 只拼【尾约束·资料内多样】。
+      + buildTailBlocks()[1],
     );
   });
 
-  it('无素材 → 素材使用约定/组织方式均不注入（既有门控口径不变）；尾约束照旧', () => {
+  it('无素材 → 素材使用约定/组织方式均不注入（既有门控口径不变）；尾约束按类型分流', () => {
     const p = buildUserMessagePrompt({ genType: 'exam', subject: '语文', materialChannel: 'full', outputMode: 'once' });
     expect(p).not.toContain('【素材使用约定】');
     expect(p).not.toContain('【组织方式】');
-    expect(p).toContain('【尾约束·全文自洽】');
+    // 🔴 2026-10-11（T16·G83）：exam（题类）**不再注入三域**；内容型仍注入。
+    expect(p).not.toContain('【尾约束·全文自洽】');
     expect(p).toContain('【尾约束·资料内多样】');
+    const c = buildUserMessagePrompt({ genType: 'summary', subject: '语文', materialChannel: 'full', outputMode: 'once' });
+    expect(c).toContain('【尾约束·全文自洽】');
   });
 
   it('差异化仅题类注入（内容型无情境设问不注入）', () => {
@@ -145,11 +150,15 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     for (const t of [anchor, full]) {
       expect(t).toContain('不得照搬教材原题');
       expect(t).toContain('不得直接复用所选教材原有语篇的情节、篇目结构与人物设定');
-      expect(t).toContain('标◇的材料用于把握难度与理解语境，不必为其单独设题');
       expect(t).toContain('连续重合即属照搬');
       expect(t, '禁用"载体"表示题目素材').not.toContain('题目载体');
       expect(t, '禁用"载体"表示题目素材').not.toContain('命题载体');
     }
+    // 🔴 2026-10-11（T16·G97）：原锁"两通道都在"——但该声明在**锚清单通道**已由清单的
+    //   `◇ 语言材料（…不必单独设题）：` 前缀给出（`anchorTreeContract.MATERIAL_LINE`），同份实发出现两遍
+    //   ＝同一事务两处正句 ⇒ **按通道分流**：锚清单通道不复述（清单前缀即正句）、full 通道保留（无清单）。
+    expect(anchor, '锚清单通道：清单前缀已给该声明，不再复述').not.toContain('标◇的材料用于把握难度与理解语境，不必为其单独设题');
+    expect(full, 'full 通道无清单 → 此半句是其唯一声明').toContain('标◇的材料用于把握难度与理解语境，不必为其单独设题');
   });
 
   it('素材使用约定：范围按 mode 分档、范围外按 extentOf 分档（2026-09-15 去对账语言）', () => {
@@ -204,10 +213,11 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     // "使每处内容…即可完成或读懂"（内容型资料没有"本题"，原措辞对新类型不成立），三域结构见其上方注释。
     expect(self).toContain('使每处内容**仅凭正文自身即可完成或读懂**');
     expect(variety.startsWith('\n\n【尾约束·资料内多样】\n')).toBe(true);
-    // 🔒 2026-09-15 去诱导：原"不得全份同类版式照搬／同一呈现方式与同一组织顺序不可逐栏…反复套用"
-    //    是"合法对象（上一部分版式）→ 结构位置（本部分）"的否定映射，改正向陈述（换一套版式）。
-    expect(variety).toContain('同一份资料内各部分的形式与先后应有变化，逐部分、逐单元换一套版式');
-    expect(variety, '否定式关联不得回潮').not.toMatch(/照搬|不可逐栏|不得全份/);
+    // 🔴 2026-10-11（T16·G76）：原"逐部分、逐单元换一套版式"**对试卷过度**（正规卷版式应统一）＋与自洽⑧相抵
+    //    → 改"**同类内容的形态与先后统一；仅在内容性质确实不同处才换版式**"；并删"凡有即当场改"动作壳。
+    expect(variety).toContain('同类内容的形态与先后统一');
+    expect(variety).toContain('仅在内容性质确实不同处才换版式');
+    expect(variety, '逐部分强制换版式不得回潮').not.toContain('逐部分、逐单元换一套版式');
     expect(TAIL_SELF_CONSISTENCY).toBe(self.slice(2));
   });
 
@@ -235,7 +245,12 @@ describe('buildUserMessageBlocks（面板清单）', () => {
     const usage = noMaterial.find((b) => b.id === 'material-usage');
     expect(usage.injected).toBe(false);
     expect(usage.text).toContain('【素材使用约定】');  // 预览：条款文本可先行展示
-    expect(noMaterial.find((b) => b.id === 'tail-self').injected).toBe(true);
+    // 🔴 2026-10-11（T16·G83）：**尾约束·全文自洽按类型分流**——题类（practice 等）已有【题目自洽】①–⑰，
+    //   不再注入三域（消"同一自洽事务两套体系并存"）；内容型（preview/summary）保留。
+    expect(noMaterial.find((b) => b.id === 'tail-self').injected).toBe(false);
+    expect(noMaterial.find((b) => b.id === 'tail-variety').injected).toBe(true);
+    expect(buildUserMessageBlocks({ genType: 'summary', subject: '语文', materialChannel: 'anchor' })
+      .find((b) => b.id === 'tail-self').injected).toBe(true);
 
     const withMaterial = buildUserMessageBlocks({
       genType: 'practice', subject: '数学', materialChannel: 'anchor',

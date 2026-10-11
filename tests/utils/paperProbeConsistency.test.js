@@ -258,10 +258,14 @@ describe('⑤ 尾约束·全文自洽：三域化 + 定稿前动作（模型侧�
     expect(TAIL_SELF_CONSISTENCY, '指代/成分判句在位').toContain('其先行词须在本句或上句明确出现');
   });
 
-  it('🔴 执行面：写成"定稿前逐节逐题复核 + 当场改 + 只输出改后定稿"的动作', () => {
-    expect(TAIL_SELF_CONSISTENCY).toContain('定稿前逐节逐题按下面三域复核');
-    expect(TAIL_SELF_CONSISTENCY).toContain('改声明或改内容，二者取一，只输出改后的定稿');
-    expect(TAIL_SELF_CONSISTENCY).toContain('不得以"已声明/已注明"代替"已满足"');
+  it('🔴 执行面：D16 口径——**复核动作壳已删**（判据本体保留）', () => {
+    // 🔴 2026-10-11（T16·G75·属主重判）：根因是"过度约束／多处牵扯／促规范不精准"，而"定稿前逐节逐题复核"
+    //    属**自检壳**（前置不精准的补丁）→ 删壳；三域**判据本体**一字未动。
+    expect(TAIL_SELF_CONSISTENCY, '复核动作壳不得回潮').not.toContain('定稿前逐节逐题按下面三域复核');
+    expect(TAIL_SELF_CONSISTENCY, '复核动作壳不得回潮').not.toContain('只输出改后的定稿');
+    expect(TAIL_SELF_CONSISTENCY, '三域判据本体仍在').toContain('声明与实给一致');
+    expect(TAIL_SELF_CONSISTENCY, '三域判据本体仍在').toContain('要素之间');
+    expect(TAIL_SELF_CONSISTENCY, '三域判据本体仍在').toContain('跨处之间');
   });
 
   it('零列举护栏：尾约束不得出现题型/载体名清单（防题型诱导回潮）', () => {
@@ -273,16 +277,14 @@ describe('⑤ 尾约束·全文自洽：三域化 + 定稿前动作（模型侧�
       .toContain('buildTailBlocks()[0]');
   });
 
-  it('前置条款与尾锚成闭环：题类自洽总纲明确指向尾锚三域（两处不各说各话）', () => {
+  it('题类自洽判据**单源＝【题目自洽】①–⑰**（不再引用三域；消"两套体系"牵扯）', () => {
     const q = buildOutputFormatHint({ subject: '英语', stage: 'primary_high', genType: 'exam' });
-    expect(q).toContain('以上细目即【尾约束·全文自洽】三域在题类资料的展开');
-    // 🔴 2026-10-01（用户裁定："每一次三维度前提下给到模型的，不可以存在多块同义的指令"）：
-    //    总纲结尾原另有一处卷尾复核动作句"定稿前按三域（声明↔实给、要素之间、跨处之间）逐项复核"，
-    //    与【尾约束·全文自洽】的"定稿前逐节逐题按下面三域复核"是**同一件事两处各写一遍** → 该动作句已删；
-    //    复核动作统一由【尾约束·全文自洽】承载，总纲只留**隶属引用**（同 quality-base 的既有处置）。
-    //    故本断言随之收紧：引用句必须在位，且**不得**再长出第二处卷尾复核动作句。
-    expect(q, '不得再出现第二处卷尾复核动作句（会与尾约束构成多块同义）')
-      .not.toContain('定稿前按三域（声明↔实给、要素之间、跨处之间）逐项复核');
+    // 🔴 2026-10-11（T16·G83·属主重判）：原尾句"以上细目即【尾约束·全文自洽】三域在题类资料的展开"
+    //    ＝**元话语＋自认多源**（等于告诉模型"另有一套同事务体系"）→ 删；且题类**不再注入三域**
+    //    （`injectionManifest` 的 `CONTENT_ONLY_TAIL_TYPES`）⇒ 题类自洽判据只有本块。
+    expect(q, '自认多源句不得回潮').not.toContain('以上细目即【尾约束·全文自洽】三域在题类资料的展开');
+    expect(q, '①–⑰ 本体仍在').toContain('同卷空位形态统一');
+    expect(q, '不得再出现第二处卷尾复核动作句').not.toContain('定稿前按三域（声明↔实给、要素之间、跨处之间）逐项复核');
   });
 });
 
@@ -326,12 +328,21 @@ describe('自洽条款的注入面：9 类资料各按其分（不缺席、不�
     expect(eb, 'errorbook 不出现 exam 专用的大题标题条').not.toContain('行首分类名与其中的知识点名只描述命题范围');
   });
 
-  it('尾约束·全文自洽对 9 类全部注入（同一份，含标题声明域与定稿前动作）', () => {
-    for (const g of [...QUESTION_TYPES, ...CONTENT_TYPES]) {
+  it('尾约束·全文自洽**只对内容型注入**（题类自洽判据单源在【题目自洽】①–⑰）', () => {
+    // 🔴 2026-10-11（T16·G83）：同一"自洽"事务原有两套体系并存（①–⑰ 与 三域）＝**牵扯**。
+    //   现按类型分流：题类→①–⑰；内容型→三域（其唯一自洽判据）。
+    for (const g of CONTENT_TYPES) {
       const msg = buildUserMessagePrompt({ genType: g, subject: '英语', materialChannel: 'full', outputMode: 'once' });
-      expect(msg, `${g} 应注入尾约束·全文自洽`).toContain('【尾约束·全文自洽】');
+      expect(msg, `${g}（内容型）应注入尾约束·全文自洽`).toContain('【尾约束·全文自洽】');
       expect(msg, `${g} 应含标题声明域`).toContain('写在标题、栏目标题、题干、导语、目录、图注、注释里的都算');
-      expect(msg, `${g} 应含定稿前动作`).toContain('定稿前逐节逐题按下面三域复核');
+    }
+    for (const g of QUESTION_TYPES) {
+      const msg = buildUserMessagePrompt({ genType: g, subject: '英语', materialChannel: 'full', outputMode: 'once' });
+      expect(msg, `${g}（题类）不得再注入三域（与 ①–⑰ 构成两套体系）`).not.toContain('【尾约束·全文自洽】');
+      // 题类自洽判据在**委托正文**的【题目自洽】①–⑰（此 helper 不拼 instructionText，故直接核模板）
+      expect(getPromptTemplate({ grade: 'primary_high', subject: '英语', genType: g }).template, `${g}（题类）自洽判据在【题目自洽】`)
+        .toContain('【题目自洽】');
+      expect(msg, `${g}（题类）尾约束·资料内多样仍在`).toContain('【尾约束·资料内多样】');
     }
   });
 });

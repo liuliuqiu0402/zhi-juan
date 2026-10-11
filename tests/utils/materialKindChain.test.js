@@ -61,11 +61,16 @@ describe('材料标签（kind）生成链路打通', () => {
     expect(inline).toContain('课文：蜗牛爬树');
   });
 
-  it('④ 两处声明同步：清单角色说明 + 【素材使用约定】都给出"材料不必单独设题"', () => {
-    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不必为其单独设题');
+  it('④ 该声明**每通道恰一处**：锚清单通道＝◇ 前缀（清单角色说明不复述）；full 通道＝【素材使用约定】', () => {
+    // 🔴 2026-10-11（T16·G97）：原"两处声明同步"（角色说明＋素材使用约定**都写**）在同一份实发里
+    //   出现两遍＝同一事务两处正句 ⇒ 按通道分流（锚清单通道由清单 ◇ 前缀承载、full 通道由素材使用约定承载）。
+    expect(anchorListRoleNote({ splitMaterial: true }), '清单角色说明不复述').not.toContain('不必为其单独设题');
     expect(anchorListRoleNote({ splitMaterial: false })).not.toContain('不必为其单独设题');
-    const usage = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'anchor' });
-    expect(usage).toContain('标◇的材料用于把握难度与理解语境，不必为其单独设题');
+    expect(MATERIAL_LINE, '锚清单通道的正句＝◇ 前缀').toContain('不必单独设题');
+    const fullUsage = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'full' });
+    expect(fullUsage, 'full 通道无清单 → 素材使用约定承载').toContain('标◇的材料用于把握难度与理解语境，不必为其单独设题');
+    const anchorUsage = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'anchor' });
+    expect(anchorUsage, '锚清单通道不复述').not.toContain('标◇的材料用于把握难度与理解语境，不必为其单独设题');
   });
 
   it('⑤ 人工改判即链路生效：材料改回知识后，该条不再出现在 ◇ 行', () => {
@@ -85,6 +90,9 @@ describe('材料标签（kind）生成链路打通', () => {
     // 生成端拼 prompt 的两件：buildAnchorListBlock(anchorListText, roleNote) —— 注入文本形态
     const injected = `【锚点清单】\n${roleNote}\n${anchorListText}\n\n`;
     expect(injected).toContain(MATERIAL_LINE);
-    expect(injected).toContain('不必为其单独设题');
+    // 🔴 2026-10-11（T16·G97）：该声明**单源＝◇ 前缀**（`MATERIAL_LINE` 自带"不必单独设题"）；
+    //   清单角色说明不再复述（同份实发里出现两遍＝同一事务两处正句）。
+    expect(injected, '◇ 前缀即该声明的正句').toContain('不必单独设题');
+    expect(roleNote, '角色说明不再复述').not.toContain('不必为其单独设题');
   });
 });

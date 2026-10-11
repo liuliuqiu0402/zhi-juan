@@ -77,7 +77,9 @@ const ORDER_MARKERS = {
   family: ['【输出格式】', '【编号与组织】', '【作答位与载体】', '【题目自洽】', '【答案区位置】', '【质量底线】'],
   examSurface: ['【卷首】', '【卷面层级】', '【题号与分值】', '【卷面自洽】', '【情境与页码】'],
   system: ['【渲染指令（', '【版面质检规则（生成前约束）】'],
-  tail: ['【尾约束·全文自洽】', '【尾约束·资料内多样】'],
+  // 🔴 2026-10-11（T16·G83）：【尾约束·全文自洽】**仅内容型注入**（题类自洽判据单源在【题目自洽】①–⑰）
+  //   ⇒ 末块不变量＝**【尾约束·资料内多样】恒为末块**；若【尾约束·全文自洽】在场须在其前（见下判据）。
+  tail: ['【尾约束·资料内多样】'],
 };
 
 /** 素材区起止（**块内空行**判定的豁免带：素材正文自带段落空行，属内容、不是"块内加空行"）
@@ -213,14 +215,18 @@ describe('项3 守卫：块界恰一空行 / 块内一条一行 / 零 emoji（�
       }
       asc(t, ORDER_MARKERS.family, '输出格式族', c.key);
       asc(t, ORDER_MARKERS.examSurface, '卷面格式族', c.key);
+      // 🔴 2026-10-11（T16·G83）：尾约束·全文自洽按类型分流 ⇒ 不变量＝【尾约束·资料内多样】恒为末块；
+      //   若【尾约束·全文自洽】在场（内容型），须在其前。
+      const iSelf = pos(t, '【尾约束·全文自洽】');
       const iTail = pos(t, ORDER_MARKERS.tail[0]);
-      const iTail2 = pos(t, ORDER_MARKERS.tail[1]);
-      if (iTail < 0 || iTail2 < iTail) bad.push(`${c.key} —— 尾约束块缺失或顺序倒置`);
-      else {
+      if (iTail < 0) bad.push(`${c.key} —— 缺【尾约束·资料内多样】`);
+      else if (iSelf >= 0 && iSelf > iTail) bad.push(`${c.key} —— 尾约束两块顺序倒置`);
+      if (iTail >= 0) {
+        const iFirstTail = iSelf >= 0 ? iSelf : iTail;
         for (const ms of [ORDER_MARKERS.family, ORDER_MARKERS.examSurface, ORDER_MARKERS.preInstruction, [ORDER_MARKERS.instruction], [ORDER_MARKERS.first]]) {
           for (const m of ms) {
             const i = pos(t, m);
-            if (i > iTail) bad.push(`${c.key} —— 尾约束之后还有块：${m}`);
+            if (i > iFirstTail) bad.push(`${c.key} —— 尾约束之后还有块：${m}`);
           }
         }
       }

@@ -16,6 +16,7 @@ import {
   anchorListRoleNote,
   MAX_SPECIFIC_CONCEPTS_PER_ANCHOR,
   ANCHOR_LIST_ROLE_NOTE,
+  MATERIAL_LINE,
   resolveAnchorKind,
 } from '../../src/utils/anchorTreeContract.js';
 import { buildAnchors } from '../../src/utils/coverageAnchor.js';
@@ -195,15 +196,18 @@ describe('🧩 清单第3层注入开关（2026-09-14 用户定版开关）', ()
     // 旧分析结果无 kind → 视为知识性条目（行为与分流前一致，安全无害）
     const legacy = formatAnchorListByChapter([{ chapterTitle: '第1课', name: '知识点A' }], { splitMaterial: true });
     expect(legacy).toBe('【第1课】知识点A');
-    // 角色说明随分流加一句（语言材料不必单独设题）
-    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不必为其单独设题');
+    // 🔴 2026-10-11（T16·G97）：角色说明**不再**复述"材料不必单独设题"——该声明单源在 `MATERIAL_LINE`
+    //   （◇ 前缀，见上方断言）；同份实发里出现两遍＝同一事务两处正句 → 已删该追加句。
+    expect(anchorListRoleNote({ splitMaterial: true }), '角色说明不再复述（正句单源在 ◇ 前缀）').not.toContain('不必为其单独设题');
     expect(anchorListRoleNote({ splitMaterial: false })).not.toContain('不必为其单独设题');
+    expect(MATERIAL_LINE, '◇ 前缀即该声明的正句').toContain('不必单独设题');
   });
 
   it('角色说明随后两处开关组合（第3层 × 语言材料分流）仍自洽', () => {
     const off = anchorListRoleNote({ withConcepts: false, splitMaterial: true });
     expect(off).not.toContain('（第3层）');
-    expect(off).toContain('不必为其单独设题');
+    // 🔴 2026-10-11（T16·G97）：角色说明不再复述"材料不必单独设题"（单源在 MATERIAL_LINE 的 ◇ 前缀）
+    expect(off).not.toContain('不必为其单独设题');
     expect(off).toContain('本次涉及的内容与材料'); // 2026-09-17 去'要练到的内容范围'的抬升表述
     // 默认导出 = 带第3层、不分流版本（兼容既有引用点）
     expect(ANCHOR_LIST_ROLE_NOTE).toBe(anchorListRoleNote());
@@ -303,8 +307,9 @@ describe('A1-4b 第1层（知识主题）入锚清单：表归属与范围，不
     expect(note, '不得回退为类别枚举').not.toMatch(/朗读|口语|观察|动手实践/);
     expect(note, '不得混入题型名').not.toMatch(/选择题|判断题|填空题|简答题|计算题|仿写题|连线题/);
     expect(note, '不得回退为强制对账语').not.toMatch(/不得静默略过|不得遗漏|须落到实位/);
-    // 与"语言材料不必单独设题"并存不冲突：语言材料在◇行，自成一类
-    expect(anchorListRoleNote({ splitMaterial: true })).toContain('不必为其单独设题');
+    // 🔴 2026-10-11（T16·G97）：该声明**单源在 `MATERIAL_LINE`（◇ 前缀）**，角色说明不再复述。
+    expect(anchorListRoleNote({ splitMaterial: true })).not.toContain('不必为其单独设题');
+    expect(MATERIAL_LINE).toContain('不必单独设题');
     expect(anchorListRoleNote({ splitMaterial: true })).toContain('以**可写、可判**的书面形态呈现');
     // 开关组合下恒在（第3层开关、材料分流开关都不得吞掉本句）
     expect(anchorListRoleNote({ withConcepts: false, splitMaterial: false })).toContain('以**可写、可判**的书面形态呈现');

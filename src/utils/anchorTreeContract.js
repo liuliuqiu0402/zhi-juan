@@ -299,8 +299,10 @@ export const anchorListRoleNote = ({ withConcepts = true, splitMaterial = false 
   + (withConcepts ? THIRD_LAYER_NOTE : '')
   + '不带「主题：」前缀的章 = 该章知识点未再分主题。'
   + '其中无法通过书面作答直接体现或检验的内容，以**可写、可判**的书面形态呈现。'
-  + '能否补充或整合，见委托书【素材使用约定】。'
-  + (splitMaterial ? '标◇的**语言材料**用于把握难度与理解语境，不必为其单独设题。' : '');
+  + '能否补充或整合，见委托书【素材使用约定】。';
+// 🔴 2026-10-11（T16·G97）：原 `splitMaterial` 时另追加"标◇的**语言材料**用于把握难度与理解语境，不必为其单独设题。"
+//   ——与本函数上方的 `MATERIAL_LINE`（`◇ 语言材料（用于把握难度与理解语境，不必单独设题）：`）**同事务两处正句**
+//   （同份实发里清单前缀已给出该声明）→ 删该追加句，**正句单源在 `MATERIAL_LINE`**。
 
 /** 默认形态（带第3层）——兼容既有引用点与测试 */
 export const ANCHOR_LIST_ROLE_NOTE = anchorListRoleNote();

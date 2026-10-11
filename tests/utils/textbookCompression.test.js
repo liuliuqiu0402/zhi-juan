@@ -44,9 +44,12 @@ describe('A4-6 压缩比按 mode 分流', () => {
       const spec = compressionSpecOf(m);
       expect(spec.fidelity, m).toBe('condense');
       expect(spec.instruction).toContain('结构与关键事实');
-      // 增删栏目/改写事实的不变式由 system 角色行**单源**承载（instruction 不再复述）
-      const sys = buildMapMessages({ batch: { title: 'x', text: 'y' }, mode: m })[0].content;
-      expect(sys).toContain('不改写事实、不增删栏目');
+      // 🔴 2026-10-11（T16·G104）：该不变式原在 system 行，与【硬约束】"不得添加原文没有的内容"
+      //    ＝**同一"保真/不增不删"事务两处复述**（同一次调用内）→ 现**单源在【硬约束】**（system 只留角色行）；
+      //    措辞统一为"只做压缩：不改写事实、不增删内容"。
+      const msgs = buildMapMessages({ batch: { title: 'x', text: 'y' }, mode: m });
+      expect(msgs[0].content, 'system 只留角色行').not.toContain('不改写事实');
+      expect(msgs[1].content, '保真/不增不删单源在【硬约束】').toContain('不改写事实、不增删内容');
     }
   });
 });

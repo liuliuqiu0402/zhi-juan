@@ -33,9 +33,11 @@ const REQUIRED_ALL = [
   '【答案区位置】',      // 答案归属（正文/答案区不混）
   '【质量底线】',        // 内容下限（充实/唯一/正确/不超学段…）
   '【输出约定】',        // 输出与篇幅约定
-  '【尾约束·全文自洽】', // 收口：自洽
   '【尾约束·资料内多样】',// 收口：多样
 ];
+/** 🔴 2026-10-11（T16·G83）：**尾约束·全文自洽（三域）仅内容型注入**——题类的自洽判据单源在
+ *  【题目自洽】①–⑰（消"同一自洽事务两套体系并存"＝牵扯）。与 `NO_SELF_CHECK_TYPES` 同口径。 */
+const REQUIRED_CONTENT_ONLY = ['【尾约束·全文自洽】'];
 /** 试卷专属（正式卷的卷面必需件） */
 const REQUIRED_EXAM = [
   '【卷面结构（依', '【大题标题命名】', '【卷首】', '【卷面层级】',
@@ -79,6 +81,12 @@ describe('⑧ 质量就绪：逐 486 真实三维度核对"产出必需判据齐
         const t = buildCell(genType, stage, subject);
         const tag = `${genType}|${subject}|${stage}`;
         for (const m of REQUIRED_ALL) if (pos(t, m) < 0) bad.push(`${tag} —— 缺 ${m}`);
+        // 🔴 2026-10-11（T16·G83）：三域只对内容型是"必需件"；题类**不得**有（自洽判据单源在 ①–⑰）。
+        const isContent = NO_SELF_CHECK_TYPES.includes(genType);
+        for (const m of REQUIRED_CONTENT_ONLY) {
+          if (isContent && pos(t, m) < 0) bad.push(`${tag} —— 内容型缺 ${m}`);
+          if (!isContent && pos(t, m) >= 0) bad.push(`${tag} —— 题类不得再注入 ${m}（与【题目自洽】①–⑰ 两套体系）`);
+        }
         if (!/【[^】]*要点】/.test(t)) bad.push(`${tag} —— 缺学科要点块（【…要点】）`);
       }
     }
