@@ -31,7 +31,11 @@ describe('题号"编号对象"口径', () => {
 
   it('零诱导：不点题型名、不指定分问符号', () => {
     // 🔴 2026-10-10（〔332〕单位取"作答什么"的通称，不写载体形态名）：原"单位即该载体"字面会产出"每横线1分／每括号1分" ⇒ 改判据＋锁。
-    expect(SCORING_OBJECT_CALIBER, '单位＝作答内容的通称、不写载体形态名').toContain('不写承载它的线条／括号等形态名');
+    // 🔴 2026-10-11（T03·G61）：「通称」无锚（不可自判）⇒ 改**可判法**——单位＝该处让学生作答**什么**的**名称**
+    //    （汉字／词语／数字／字母／选项），并点明**不得写空位形态名**（横线／括号／书写格）。
+    expect(SCORING_OBJECT_CALIBER, '单位＝作答对象的名称（可判法）').toContain('单位取"该处让学生作答什么"的名称');
+    expect(SCORING_OBJECT_CALIBER, '明确对象类型（可判）').toContain('汉字／词语／数字／字母／选项');
+    expect(SCORING_OBJECT_CALIBER, '不得写载体形态名').toContain('不得写承载它的空位形态名');
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/看拼音|组词|连一连|口算|竖式|选择|判断|填空|选字|选词/);
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/①|②|（1）|\(1\)/);
     expect(QUESTION_OBJECT_CALIBER).toContain('独立作答单位');

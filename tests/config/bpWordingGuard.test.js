@@ -281,10 +281,14 @@ describe('蓝图库与指令库措辞守卫（2026-09-16 课标原则）', () =>
     // ③ 质检规则不得反向拉回"按【卷面结构】定标题"（题量/分值也须按实际命制）
     const rule = getValidatorRule('title-detail-fix');
     expect(rule, 'title-detail-fix 规则应注册在册').toBeTruthy();
-    expect(rule.promptHint, '质检规则不得再写"按【卷面结构】"').not.toContain('按【卷面结构】');
+    // 🔴 2026-10-11（T03·G43）：该规则**已不再提供 promptHint**（与 score-label-fix 同义并置、且属元话语）
+    //    ⇒ 断言改为"无 hint（或空）时同样不得含旧指针"。
+    expect(String(rule.promptHint || ''), '质检规则不得再写"按【卷面结构】"').not.toContain('按【卷面结构】');
     // 2026-10-04（#1·收口）：大题级分值形式与账目口径回归"正文分值条单源"，本规则不再复述"按实际命制题数"
     //   （原写法与正文分值条双写＝稀释）；断言随新口径改准，口径不放松（仍不得写"按【卷面结构】"）。
-    expect(rule.promptHint).toContain('由正文分值条单源承载');
+    // 🔴 2026-10-11（T03·G43）：该断言原锁 `title-detail-fix.promptHint`，而那条 promptHint **已删**
+    //    （与 score-label-fix 同义并置、且纯属元话语）⇒ 改锁**唯一落点**：`score-label-fix` 的单源声明仍在位。
+    expect(getValidatorRule('score-label-fix').promptHint, '分值标注/账目单源声明须在位（唯一落点）').toContain('由正文分值条单源承载');
 
     /* ── 下半截：标题拟出后，题目必须与标题相符（声明↔实给一致）── */
     // 主张"标题里写到的提示方式与作答方式必须与题内实际一致"，双向都要管：
