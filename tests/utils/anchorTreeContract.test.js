@@ -273,12 +273,15 @@ describe('A1-4b 第1层（知识主题）入锚清单：表归属与范围，不
     expect(formatAnchorListByChapter(toc)).toBe('【第3课 桂花雨】一、摇花乐、二、思乡情');
   });
 
-  it('角色说明随清单注入：第1层只标归属、第2层是其中一条内容（正面表述，不用"不是…单位"式否定）', () => {
+  it('角色说明随清单注入：知识主题只标归属、其下每条即一个知识点（正面表述、无层号元描述）', () => {
     // 🔒 2026-09-15 用户裁定·去否定式关联：原句"不是写作栏目、不是命题单位"要读懂必须先建立
     //    "知识主题 ↔ 栏目/命题单位"这条映射，等于把错误做法反向植入（产物实证：把内容条目当大题标题）。
     //    现改为正面职责陈述，并反向锁死否定式措辞不得回潮。
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('知识主题（第1层）标示知识点的归属');
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('知识点（第2层）是其中的一条内容');
+    // 🔴 2026-10-11（T13·G96）：删**层号元描述**（"第1层/第2层"是渲染侧内部编号，模型无从对号；原后句
+    //    "不带「主题：」前缀的章 = …"是外观负向定义）⇒ 改正向语义，断言随之改准。
+    expect(ANCHOR_LIST_ROLE_NOTE).toContain('知识主题标示知识点的归属，其中每一条即一个知识点');
+    expect(ANCHOR_LIST_ROLE_NOTE, 'G96：层号元描述不得回潮').not.toMatch(/第1层|第2层|第3层/);
+    expect(ANCHOR_LIST_ROLE_NOTE, 'G96：外观负向定义不得回潮').not.toContain('不带「主题：」前缀的章 = ');
     expect(ANCHOR_LIST_ROLE_NOTE, '否定式关联不得回潮').not.toMatch(/不是写作栏目|不是命题单位|不作命题单位|不是组织方式/);
   });
 
@@ -299,25 +302,28 @@ describe('A1-4b 第1层（知识主题）入锚清单：表归属与范围，不
     expect(ANCHOR_LIST_ROLE_NOTE).not.toContain('适当补充');
   });
 
-  it('🔬 不可书面直测内容的呈现口径（2026-09-15 用户定版）：以性质为判据、零枚举、零题型名、零强制语', () => {
+  it('🔬 不可书面直测内容的呈现口径（2026-09-15 用户定版 + T13·G95）：以性质为判据、零枚举、零题型名、零强制语', () => {
     // 根因：书面资料上无法直接作答/检验的内容在书面资料中无自然呈现 → 模型静默跳过。
     // 🔒 定稿口径（用户裁定·三处否决）：
     //    ① 判据必须是**性质**，不得写成类别枚举——枚举既是活动类型提示，又必然不全；
     //       "无法通过书面作答直接体现或检验"这一性质，把没想到的类别也自动纳入。
-    //    ② 只给呈现方向（可写、可判的书面形态），不点任何题型名（防又成题型锚）。
-    //    ③ 用陈述式（"以…呈现"），不用强制句（"须…落到实位，不得静默略过"）——后者属对账语言。
+    //    ② 只给呈现方向（**能落笔写出答案**、给出作答位），不点任何题型名（防又成题型锚）。
+    //    ③ 用陈述式，不用强制句（"须…落到实位，不得静默略过"）——后者属对账语言。
+    // 🔴 2026-10-11（T13·G95）：原②写作"可写、可判的书面形态"——"可写/可判"**无锚**（谁判、判到哪步？）；
+    //    现改**可判的落点**"能落笔写出答案（在该处给出作答位）"（仍不点题型名）。
     const note = ANCHOR_LIST_ROLE_NOTE;
-    expect(note).toContain('其中无法通过书面作答直接体现或检验的内容，以**可写、可判**的书面形态呈现');
+    expect(note).toContain('其中无法通过书面作答直接体现或检验的内容，转为学生**能落笔写出答案**的形式（在该处给出作答位）');
     // 反向锁：全条角色说明都不得出现类别枚举、题型名、强制对账语
     expect(note, '不得回退为类别枚举').not.toMatch(/朗读|口语|观察|动手实践/);
     expect(note, '不得混入题型名').not.toMatch(/选择题|判断题|填空题|简答题|计算题|仿写题|连线题/);
     expect(note, '不得回退为强制对账语').not.toMatch(/不得静默略过|不得遗漏|须落到实位/);
+    expect(note, 'G95：无锚语"可写、可判"不得回潮').not.toContain('可写、可判');
     // 🔴 2026-10-11（T16·G97）：该声明**单源在 `MATERIAL_LINE`（◇ 前缀）**，角色说明不再复述。
     expect(anchorListRoleNote({ splitMaterial: true })).not.toContain('不必为其单独设题');
     expect(MATERIAL_LINE).toContain('不必单独设题');
-    expect(anchorListRoleNote({ splitMaterial: true })).toContain('以**可写、可判**的书面形态呈现');
+    expect(anchorListRoleNote({ splitMaterial: true })).toContain('转为学生**能落笔写出答案**的形式');
     // 开关组合下恒在（第3层开关、材料分流开关都不得吞掉本句）
-    expect(anchorListRoleNote({ withConcepts: false, splitMaterial: false })).toContain('以**可写、可判**的书面形态呈现');
+    expect(anchorListRoleNote({ withConcepts: false, splitMaterial: false })).toContain('转为学生**能落笔写出答案**的形式');
   });
 });
 
@@ -420,9 +426,10 @@ describe('A17 第3层具体概念并入锚点清单（锚清单注入通道的�
     expect(formatAnchorListByChapter(anchors)).toBe('【第1课】知识点A（甲、乙）');
   });
 
-  it('角色说明随清单注入：第3层只细化具体概念（正面表述）；措辞用「知识点」不用「考点」', () => {
+  it('角色说明随清单注入：具体概念只作细化（正面表述、无层号）；措辞用「知识点」不用「考点」', () => {
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('具体概念');
-    expect(ANCHOR_LIST_ROLE_NOTE).toContain('（第3层');
+    // 🔴 2026-10-11（T13·G96）：层号元描述（"（第3层）"）已删 ⇒ 断言改为"不得回潮"。
+    expect(ANCHOR_LIST_ROLE_NOTE, 'G96：层号元描述不得回潮').not.toContain('第3层');
     expect(ANCHOR_LIST_ROLE_NOTE).toContain('供把握深度');
     // 🔒 去否定式关联：原"不构成新的写作栏目，不得据此另立结构"同属反向植入，不得回潮
     expect(ANCHOR_LIST_ROLE_NOTE, '否定式关联不得回潮').not.toMatch(/不构成新的写作栏目|不得据此另立结构/);

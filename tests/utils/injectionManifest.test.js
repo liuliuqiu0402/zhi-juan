@@ -99,8 +99,9 @@ describe('buildUserMessagePrompt（实发拼接：顺序 + 逐字）', () => {
   it('锚点清单块：角色说明可传入（第3层关闭时用不带该句的版本，防假指针）', () => {
     const custom = '说明：清单只给知识点，本次不括注具体概念。';
     expect(buildAnchorListBlock('第一章\n· 甲', custom)).toContain(custom);
-    expect(buildAnchorListBlock('第一章\n· 甲', custom)).not.toContain('（第3层）');
-    expect(buildAnchorListBlock('第一章\n· 甲')).toContain('（第3层）'); // 默认仍带第3层说明
+    // 🔴 2026-10-11（T13·G96）：默认角色说明的"（第3层）"**层号元描述已删** ⇒ 改按**语义句**识别"是否带具体概念说明"。
+    expect(buildAnchorListBlock('第一章\n· 甲', custom)).not.toContain('该知识点的**具体概念**');
+    expect(buildAnchorListBlock('第一章\n· 甲')).toContain('该知识点的**具体概念**'); // 默认仍带具体概念说明
   });
 });
 
@@ -424,7 +425,9 @@ describe('(ii) 面板接实发素材正文（快照单源）', () => {
     // 2026-09-15 用户定版（同日第二次修订）：以**性质**为判据、陈述式表达（不用强制对账语）。
     // 本句挂在清单角色说明（ANCHOR_LIST_ROLE_NOTE）上 → 凡注入【锚点清单】的资料类型都拿到，
     // 无需在 9 类模板各写一遍（防多副本漂移，也防句级查重命中）。
-    const PHRASE = '以**可写、可判**的书面形态呈现';
+    // 🔴 2026-10-11（T13·G95）：原句"以**可写、可判**的书面形态呈现"——"可写/可判"**无锚** ⇒ 改可判落点
+    //   "转为学生**能落笔写出答案**的形式（在该处给出作答位）"（仍不点题型名）。
+    const PHRASE = '转为学生**能落笔写出答案**的形式';
     for (const genType of ['practice', 'special', 'reading', 'exam', 'summary', 'preview', 'dictation', 'errorbook', 'review']) {
       const blocks = buildUserMessageBlocks({
         genType, subject: '语文', materialChannel: 'anchor',

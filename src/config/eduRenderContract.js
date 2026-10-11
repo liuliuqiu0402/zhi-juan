@@ -202,7 +202,7 @@ const SUBJECT_GRAPH_PARTS = {
     GRAPH_SAMPLE_PIE,
   ],
   '物理': [
-    '· 受力分析用 TYPE:FORCE（OBJECT:形状,x,y,w,h；FORCES 每行"名称:方向,作用点,大小"，方向 down/up/left/right、作用点 center/corner；"大小"取题目给出的数值，题目未给出时各力写同一个数——渲染端按大小成比例定箭头长度，编造比例会画出误导性的图）：',
+    '· 受力分析用 TYPE:FORCE（OBJECT:形状,x,y,w,h；FORCES 每行"名称:方向,作用点,大小"，方向 down/up/left/right、作用点 center/corner；"大小"取题目给出的数值，题目未给出时各力写同一个数）：',
     GRAPH_SAMPLE_FORCE,
     '· 电路图用 TYPE:CIRCUIT（COMPONENTS 每行"元件,x,y,方向"，元件 battery/switch/bulb/resistor；WIRES 用 "x1,y1-x2,y2;..." 描述连线；元件与连线必须与题目一致）：',
     GRAPH_SAMPLE_CIRCUIT,
@@ -392,7 +392,11 @@ export function buildRenderContract({ subject = '', stage = '', userContract } =
   // 🔧 段头：2026-09-17 改"按需输出，图块随题、不单独计题"——原"仅需图/公式/配图时输出，不计题量"
   //    与正文"该图是本题必不可少的内容、无图可看则该题不可作答"语义相抵（把图讲成可挂可不挂的载荷，
   //    模型倾向保守不出图）。图块随题、不单独计题的口径两处一致。
-  parts.push('【渲染指令（EduRender Studio 格式，渲染端可直接解析；按需输出，图块随题、不单独计题）】');
+  parts.push('【渲染指令】');
+  // 🔴 2026-10-11（T13·G70 ＋ T15·G94·两事务同一处）：原段头为"【渲染指令（**EduRender Studio 格式，渲染端可直接解析**；
+  //   **按需输出**，图块随题、不单独计题）】"——① 括注前半是**元信息**（供人看，对模型无动作）；② "按需输出"**无判据**
+  //   （什么时候算"需"？）。现：**标题只留【渲染指令】**，并把"按需"改成**可判的条件句**（与正文图-题一致性条款同口径）。
+  parts.push('· 凡题干作答需要图中信息时输出图块（图块随题、不单独计题）。');
   if (typeLabel) {
     if (/COORDINATE|SHAPES/.test(typeLabel)) {
       parts.push(`· 图形用 [GRAPH]...[/GRAPH]，TYPE ∈ ${typeLabel}；${GRAPH_AXIS_PARAMS}。图形数据必须与题干完全一致。`);

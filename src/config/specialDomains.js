@@ -1813,7 +1813,7 @@ export const buildSpecialDomainsStructureText = (doms = [], stageKey = '') => {
   //   否则模型会把该领域内容硬塞进他人栏目，或误以为该领域未被选中（面 1 声明↔实给）。
   const noSec = list.filter((d) => !(d.sections && d.sections.length));
   const mixNote = noSec.length
-    ? `；其中 ${noSec.map((d) => d.key).join('、')} 只给课标语义锚、不另设栏目，其内容按锚自行组织`
+    ? `；其中 ${noSec.map((d) => d.key).join('、')} 只给课标语义锚、不另设栏目——其内容并入上述栏目中**语义最贴近的一栏**呈现（不另立标题）`
     : '';
   const anchors = list.map((d) => `· ${d.key} 课标语义锚：${d.anchor}——${DOMAIN_ANCHOR_CALIBER}`).join('\n');
   return `【栏目标题（下面各行即本次栏目标题；按本领域课标要求划分；${names}·${学段名(stageKey)}${mixNote}）】\n${lines}\n${anchors}`;

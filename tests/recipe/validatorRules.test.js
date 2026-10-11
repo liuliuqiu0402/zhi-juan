@@ -151,7 +151,10 @@ describe('validatorRules 生成前约束（阶段一：随指令注入）', () =
     expect(chem).toContain('<sub>');          // 化学式下标
     expect(chem).toContain('<sup>');          // 离子/幂上标
     expect(chem).toContain('<del>');          // 删除/划去
-    expect(chem).toContain('Unicode 上下标字符'); // 禁混用乱码字符
+    // 🔴 2026-10-11（T13·G73／T15·G86）：原尾禁令"禁止直接输出 Unicode 上下标字符（…导出后字号/基线不统一）"
+    //   ——括注是**程序侧成因解释**（G73），且 `cm²/10²` 在正规教材试卷普遍使用、一刀切禁属**超出规范**（G86）
+    //   ⇒ 已删（只留正向"需升降排版的用 <sup>/<sub>"，Unicode 上下标交**生成后程序归一**）。
+    expect(chem, 'G73/G86：Unicode 上下标禁令（含成因括注）已删').not.toContain('Unicode 上下标字符');
     expect(chem).toContain('<table>');        // 表格标准结构
     expect(chem).not.toContain('音标');        // 英语专属，不再注入化学卷
     expect(chem).not.toContain('拼音注音');     // 语文专属，不再注入化学卷

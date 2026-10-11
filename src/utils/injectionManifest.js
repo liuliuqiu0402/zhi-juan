@@ -143,7 +143,7 @@ export const buildMaterialUsageBlock = ({ genType = '', materialChannel = 'auto'
       ? '可把本课内容与同类概念归类、对照、勾连成网络，也可联系可确认的先行内容（不臆断学生是否已学）；'
       : '按本课/本单元内容呈现（默写类须严格对应教材要求）；';
   parts.push('【素材使用约定】\n'
-    + `· ${coverageFloor}${coverageExtent}${refClause}；情境、素材、人名、数据与句式可取自教材，也可取自课外真实生活（主题相关、难度适切），来源不限、不作指定；\n`);
+    + `· ${coverageFloor}${coverageExtent}${refClause}；情境、素材、人名、数据与句式可取自教材，也可取自课外真实生活（**与本资料主题一致、难度合本学段**），来源不限、不作指定；\n`);
   // 🔴 2026-10-11（T07·G78）：**默写类／预习类**的资料，"原题/原文"**就是教材内容本身**（dictation 的默写、
   //   preview 的"须原样引用教材原题"）——对它们套"不得整段照录"与之**相抵** ⇒ 这两类改"**按教材要求呈现**"。
   //   （不用 `extentKey === 'strict'` 判：该兜底把**未登记类型**也归 strict，会误伤归纳梳理类——见 `coverageContract`。）

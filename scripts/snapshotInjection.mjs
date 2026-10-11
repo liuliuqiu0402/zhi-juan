@@ -33,6 +33,7 @@ import { materialChannelOf } from '../src/config/coverageContract.js';
 import { buildLevelInstruction } from '../src/config/levelMapping.js';
 import { buildSpecialDomainAnchorLine } from '../src/config/specialDomains.js';
 import { anchorListRoleNote } from '../src/utils/anchorTreeContract.js';
+import { buildRenderContract } from '../src/config/eduRenderContract.js';
 
 const arg = (k, d) => {
   const hit = process.argv.slice(2).find((a) => a.startsWith(k + '='));
@@ -171,6 +172,19 @@ const ANCHORS = [
   { name: 'T12·G54 清零（"不超该水平要求"悬空半句）', re: /不超该水平要求/g, expect: 0 },
   { name: 'T12·G55 清零（"学科×学段 课标要点"未点名描述）', re: /学科×学段 课标要点/g, expect: 0 },
   { name: 'T12·G98 清零（"见委托书【素材使用约定】"跨块指针）', re: /见委托书【素材使用约定】/g, expect: 0 },
+  // T13 表述精准化（兜底句·元话语·无锚）
+  { name: 'T13·G12 清零（"本条优先于一切通用表述"）', re: /本条优先于一切通用表述/g, expect: 0 },
+  { name: 'T13·G14 清零（"本条是硬约束"／"以本条为准"）', re: /本条是硬约束|以本条为准/g, expect: 0 },
+  { name: 'T13·G59 清零（"不存在…清单"式元话语）', re: /不存在[“"]允许的形态清单[”"]|不存在[“"]图依赖措辞清单[”"]/g, expect: 0 },
+  { name: 'T13·G64 清零（"不宜在原文找现成字面答案"）', re: /不宜在原文找现成字面答案/g, expect: 0 },
+  { name: 'T13·G64 正句（设问须有归纳/推断/表达层级）', re: /设问须有\*\*归纳、推断或表达\*\*层级/g, expect: genType === 'reading' ? 1 : 0 },
+  { name: 'T13·G70 清零（"按需输出"／箭头比例机制解释）', re: /按需输出|渲染端按大小成比例定箭头长度/g, expect: 0 },
+  { name: 'T13·G73 清零（听力句子无阈值／按锚自行组织／字号基线成因／不超该水平）', re: /句子不宜过长|按锚自行组织|字号\/基线不统一|不超该水平要求/g, expect: 0 },
+  { name: 'T13·G82 清零（"主题相关、难度适切"）', re: /主题相关、难度适切/g, expect: 0 },
+  { name: 'T13·G82 正句（与本资料主题一致、难度合本学段）', re: /与本资料主题一致、难度合本学段/g, expect: 1 },
+  { name: 'T13·G95 清零（无锚语"可写、可判"）', re: /可写、可判/g, expect: 0 },
+  { name: 'T13·G96 清零（层号元描述"第N层"）', re: /第1层|第2层|第3层/g, expect: 0 },
+  { name: 'T13·G101 清零（"此处不另立"元话语）', re: /此处不另立/g, expect: 0 },
   // ⚠️ `以本条为准`（选项题硬约束条）属 **G14 / T13**（批次 D），**不计入 T04**——故不列入上式。
 ];
 
@@ -215,3 +229,6 @@ console.log(`${!rn.includes('见委托书【素材使用约定】') ? '✓' : '�
 const genSrc = fs.readFileSync(path.resolve('src/composables/useAiGenerator.js'), 'utf8');
 const cf = (genSrc.match(/contextFramework = `([\s\S]*?)`;/) || [])[1] || '';
 console.log(`${cf.includes('【情境与页码】的情境边界条') && !cf.includes('【情境边界】') ? '✓' : '✗'} T12·G53·L2：情境框架块引真块名（【情境与页码】）`);
+// —— T13·G70：渲染指令段头（system 侧，不在本快照装配链）——
+const rcText = buildRenderContract({ subject: '物理', stage: 'middle' });
+console.log(`${rcText.includes('【渲染指令】') && !rcText.includes('按需输出') && !rcText.includes('编造比例') ? '✓' : '✗'} T13·G70·L2：渲染指令段头只留【渲染指令】＋无机制解释`);

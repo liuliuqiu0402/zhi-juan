@@ -21,7 +21,7 @@ const STAGES = ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high'];
 const SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物', '科学', '历史', '地理', '道德与法治', '思想政治', '信息科技', '音乐', '美术', '体育'];
 const TYPES = ['exam', 'practice', 'special', 'reading', 'dictation', 'errorbook', 'review', 'preview', 'summary'];
 
-const CONTRACT_HEAD = '【渲染指令（EduRender Studio 格式';
+const CONTRACT_HEAD = '【渲染指令】'; // 🔴 2026-10-11（T13·G70／T15·G94）：段头由带元信息的括注改为**只留块名**
 const IMAGE_SKEL = 'PROMPT:画面描述';
 const GRAPH_SKEL = 'TYPE ∈';
 const SEE_CONTRACT = '按注入的【渲染指令】';
