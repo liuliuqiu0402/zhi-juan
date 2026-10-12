@@ -86,6 +86,6 @@ describe('大题标题命名：全库唯一一处规定（学段口径防回潮�
   it('〔346〕题目标题须作答方式：类别名不算；情境须可从标题剥离', () => {
     const t = getPromptTemplate({ grade: 'primary_high', subject: '语文', genType: 'exam' }).template;
     expect(t, '只写类别名不算点明作答方式（防"四、判断"）').toContain('只写一个空泛的类别名');
-    expect(t, '情境须可剥离（防情境包装标题）').toContain('大题标题删去情境词后须仍是完整的作答要求');
+    expect(t, '情境须可剥离（防情境包装标题）').toContain('大题标题本身须是完整的作答要求');
   });
 });
