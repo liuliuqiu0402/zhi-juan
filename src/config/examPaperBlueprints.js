@@ -391,11 +391,11 @@ export const EXAM_BLUEPRINTS = {
   '科学|middle': {
     label: '科学·初中（综合理科）', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '选择', score: 20, note: '概念应用' },
-      { name: '填空', score: 16, note: '原理应用与现象解释' },
-      { name: '判断', score: 10, note: '事实辨析、推理评价' },
-      { name: '实验探究', score: 28, note: '方案设计、变量控制、现象记录、数据分析、结论评价（体现科学探究完整过程）' },
-      { name: '综合运用', score: 26, note: '问题解决与跨学科概念运用，含开放性设问与说理' },
+      { name: '选择题', score: 20, note: '概念应用' },
+      { name: '填空题', score: 16, note: '原理应用与现象解释' },
+      { name: '判断题', score: 10, note: '事实辨析、推理评价' },
+      { name: '实验探究题', score: 28, note: '方案设计、变量控制、现象记录、数据分析、结论评价（体现科学探究完整过程）' },
+      { name: '综合运用题', score: 26, note: '问题解决与跨学科概念运用，含开放性设问与说理' },
     ],
   },
 

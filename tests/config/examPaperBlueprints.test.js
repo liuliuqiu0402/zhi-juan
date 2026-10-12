@@ -54,3 +54,42 @@ describe('getExamBlueprint —— 工具库停用告警（不再静默）', () =
     expect(warned).not.toContain('停用');
   });
 });
+
+// ============================================================
+// 2026-10-12（属主裁定·甲乙同选）：
+//   中学段「大题标题即【卷面结构】块名本身」成立的前提是——**块名本身就是本学段正规卷的完整大题名**。
+//   故块名**不得为省去"题"字的简称**（否则照抄会得到"一、判断（10分）"这种不完整标题）。
+//   🔴 科学|middle 原有 `选择/填空/判断/实验探究/综合运用` 属**唯一一处简称**（其余中学段档都是"X题"形态）
+//      ⇒ 已补全为 `选择题/填空题/判断题/实验探究题/综合运用题`（并已在 `bigTitleRule` 中学段分支加兜底口径）。
+// ============================================================
+describe('中学段蓝本块名 —— 须为完整大题名（非"省去题字的简称"）', () => {
+  // 例外：课标**领域名**（本身不是"题"）可作大题标题（与 bigTitleRule 的"领域名直接作大题标题"一致）
+  const DOMAIN_NAMES = new Set(['阅读', '语言文字运用', '写作', '听力', '完形填空', '阅读理解',
+    '词汇运用', '语法填空', '书面表达', '积累与运用', '梳理与探究', '古诗文阅读', '现代文阅读',
+    '识字与写字', '表达与交流', '阅读与鉴赏']);
+
+  it('中学段（middle/high）各档块名：要么是"X题"形态，要么是课标领域名（不得为简称）', () => {
+    const bad = [];
+    for (const [key, bp] of Object.entries(EXAM_BLUEPRINTS)) {
+      const stage = key.split('|')[1];
+      if (stage !== 'middle' && stage !== 'high') continue;
+      for (const s of (bp.sections || [])) {
+        if (DOMAIN_NAMES.has(s.name)) continue;
+        if (!s.name.endsWith('题')) bad.push(`${key} → ${s.name}`);
+      }
+    }
+    expect(bad, '中学段块名不得为省去"题"字的简称').toEqual([]);
+  });
+
+  it('🔴 反向锁：科学|middle 的旧简称不得回潮', () => {
+    const names = (EXAM_BLUEPRINTS['科学|middle'].sections || []).map((s) => s.name);
+    expect(names).toContain('选择题');
+    expect(names).toContain('填空题');
+    expect(names).toContain('判断题');
+    expect(names).toContain('实验探究题');
+    expect(names).toContain('综合运用题');
+    for (const old of ['选择', '填空', '判断', '实验探究', '综合运用']) {
+      expect(names, `旧简称 ${old} 不得回潮`).not.toContain(old);
+    }
+  });
+});
