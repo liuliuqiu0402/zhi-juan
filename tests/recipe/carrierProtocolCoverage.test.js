@@ -109,7 +109,7 @@ describe('载体协议全矩阵验收：冲突条款必须有仲裁（优先级�
         const hasUnify = tpl.includes('一个空位只写一种载体');
         if (!hasGrid || !hasUnify) return; // 不同时存在 → 无冲突
         expect(tpl, '共存却没仲裁：模型按其中一条执行、另一条被违反（实证：写字题被写成下划线空位、全卷零格子）')
-          .toContain('不得用下划线空/横线空/括号空去替代它');
+          .toContain('书写类题的作答位**就是书写格**');
       });
     }
   }

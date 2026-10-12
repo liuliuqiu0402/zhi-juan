@@ -773,7 +773,10 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     const yw = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template;
     expect(yw, '自造样例「云朵出发」不得回潮').not.toContain('云朵出发');
     expect(yw, '标题须功能性命名的要求仍在').toContain('功能性名称');
-    expect(yw, '不得写成场景名或故事名仍在').toContain('不写成场景名或故事名');
+    // 🔴 2026-10-12（S4 差集·禁令分诊 A9）：原"不写成场景名或故事名"是**否定式**（与"标题只写功能性名称"同义、属重复）
+    //    ⇒ 删否定式，**意图改由正向锚承载**（本用例判据不变：标题须为功能性名称）。
+    expect(yw, '标题命名意图须由正向锚承载（功能性名称）').toMatch(/标题只写功能性名称|功能性名称，不得泛说/);
+    expect(yw, '否定式旧句不得回潮').not.toContain('不写成场景名或故事名');
     expect(yw, '大类名不得充当大题标题的边界仍在').toContain('不得充当大题标题');
     // 英语听力原文契约（答案区口径，单源常量 LISTENING_SCRIPT_FORMAT）：照卷面原样 + 原则式否定
     expect(LISTENING_SCRIPT_FORMAT, '播音指令仍要求照卷面原样写').toContain('照卷面该大题的标号与题干原样写');

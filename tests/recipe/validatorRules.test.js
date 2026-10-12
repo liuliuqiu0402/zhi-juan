@@ -39,7 +39,9 @@ describe('validatorRules 规则启停开关（双阶段生效）', () => {
   it('唯一性规则只留"正文标题去重"（跨块指针与"以…为准"兜底已撤，不得回潮）', () => {
     const rule = VALIDATOR_RULES.find((r) => r.id === 'duplicate-content-fix');
     expect(rule, '唯一性规则须在位').toBeTruthy();
-    expect(rule.promptHint, '只留标题去重（本规则真正执行的对象）').toContain('正文标题不得重复出现');
+    // 🔴 2026-10-12（禁令分诊 A7）：原句含**事故解释**（"…即视为截断续写残留"）⇒ 改纯判据式（去事故解释、去否定式）。
+    expect(rule.promptHint, '只留标题去重（本规则真正执行的对象）').toContain('正文标题只出现一次');
+    expect(rule.promptHint, '事故解释不得回潮').not.toContain('截断续写残留');
     expect(rule.promptHint, '旧的跨块指针不得回潮（第二处表述）').not.toContain('以正文【质量底线】');
     expect(rule.promptHint, '兜底句"以…为准"不得回潮').not.toContain('为准');
     expect(rule.promptHint, '术语"板块"不得回潮（与他处"正文标题"统一）').not.toContain('板块');

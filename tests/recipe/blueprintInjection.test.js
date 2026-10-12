@@ -608,7 +608,7 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
     expect(posLine, '位置判据必须独立成条').toBeTruthy();
     expect(posLine).toContain('同行紧邻');
     expect(posLine).toContain('逐词一一对应');
-    expect(clause).toContain('集中堆放');
+    expect(clause).toContain('多组各就其位');
     expect(clause, '须声明与"给在题后/整题之后集中一处"一类通用表述的**管辖域**（T13·G12：不再用优先声明压平）').toContain('三处相关通用表述各有其管辖域');
     // 判据是"相邻/一一对应"，不是"不得出现在句末"（用户口径澄清）
     expect(clause).not.toContain('不得出现在句末');
@@ -644,7 +644,7 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
     const domLine = buildCarrierInstruction('语文', 'primary_low').split('\n').find((l) => l.includes('三处相关通用表述各有其管辖域'));
     expect(domLine, '须声明三处通用表述的管辖域').toContain('"同题/同卷短答空位形态统一、一个空位只写一种载体"只适用于**短答空位**');
     expect(domLine).toContain('均不适用于**书写格**');
-    expect(domLine).toContain('不得用下划线空/横线空/括号空去替代它');
+    expect(domLine).toContain('书写类题的作答位**就是书写格**');
     expect(domLine).toContain('田字格');
   });
 

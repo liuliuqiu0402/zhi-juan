@@ -32,7 +32,9 @@ describe('预习导学·课后问答（2026-09-17）', () => {
       expect(names.indexOf('我的疑问'), `${who}「我的疑问」应在「课后问答」之后`).toBeGreaterThan(i);
       const note = bp.sections[i].note || '';
       expect(note, `${who} 栏目说明须含省略规则`).toContain('省略');
-      expect(note, `${who} 栏目说明须含禁编造`).toContain('不得自行编造');
+      // 🔴 2026-10-12（禁令分诊 A12）："不得自行编造"已删 ⇒ 意图改由**正向条件**承载（无此类内容/未提供原文时省略）。
+      expect(note, `${who} 栏目说明须含条件性省略（正向）`).toContain('无此类内容或未提供原文时省略');
+      expect(note, `${who} 否定式旧句不得回潮`).not.toContain('不得自行编造');
     }
   });
 
@@ -65,7 +67,9 @@ describe('预习导学·课后问答（2026-09-17）', () => {
     expect(tpl).toContain('原样引用教材原题');
     expect(tpl).toContain('不按栏目名');
     expect(tpl).toContain('该栏目省略');
-    expect(tpl).toContain('不得自行编造');
+    // 🔴 2026-10-12（禁令分诊 A12）：模板内"不得自行编造"已删 ⇒ 意图改由**正向条件**承载。
+    expect(tpl).toContain('教材未含此类内容');
+    expect(tpl).not.toContain('不得自行编造');
     // 通道感知：锚清单通道（无教材原文）时省略——模板须给出该条件
     expect(tpl).toContain('未提供教材原文');
   });
