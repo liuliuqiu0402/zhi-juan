@@ -1433,7 +1433,7 @@ export function buildTeachingInjection({ genType = '', stage = '', subject = '',
     const perItemReq = '\n\n【要求落实】\n· 上列各项是**每道题的组成分项**（每行"【要求·须逐项落实】"后是该分项的内容与形态要求），不是资料的大类。';
     return `\n\n【易错题本结构（按${cur}的活动类型与素养选点；${bp.custom ? `${bp.subject}·` : ''}${bp.label}·${TEACHING_STAGE_NAMES[bp.stageKey] || bp.stageKey}）】
 · 资料按**知识点或易错点分块**：每块以一个知识点或一类易错点为单位，块标题自拟（写清本块是哪一处知识、哪一类错法）
-· 每道题在所属块内**逐题成组**：同一道题的各分项紧接在该题之下依次给出——
+· 每道题在所属块内**逐题成组**，各分项依次为——
 ${facetsText}
 · 其中「题目呈现」是讲解示范的题（题干完整呈现，其解答随题展示）；「变式训练」是留给学生练的题，须带题号（1. 2. 3.…，全篇连续），其解答由答案区单独给出${perItemReq}${stageLine}`;
   }
