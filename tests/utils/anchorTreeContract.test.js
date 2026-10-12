@@ -311,8 +311,11 @@ describe('A1-4b 第1层（知识主题）入锚清单：表归属与范围，不
     //    ③ 用陈述式，不用强制句（"须…落到实位，不得静默略过"）——后者属对账语言。
     // 🔴 2026-10-11（T13·G95）：原②写作"可写、可判的书面形态"——"可写/可判"**无锚**（谁判、判到哪步？）；
     //    现改**可判的落点**"能落笔写出答案（在该处给出作答位）"（仍不点题型名）。
+    // 🔴 2026-10-12（S4 差集·属主方向「都要书面考查」）：原句以"**无法通过书面作答直接体现或检验的内容**"为前提
+    //    （暗示"有些内容不书面考"），与既有裁定"**都要书面考查**"相悖 ⇒ 删前提，改**一律转为可书面作答**。
     const note = ANCHOR_LIST_ROLE_NOTE;
-    expect(note).toContain('其中无法通过书面作答直接体现或检验的内容，转为学生**能落笔写出答案**的形式（在该处给出作答位）');
+    expect(note).toContain('一律转为学生能落笔写出答案的形式');
+    expect(note, '旧前提（无法书面作答的内容）不得回潮').not.toContain('无法通过书面作答');
     // 反向锁：全条角色说明都不得出现类别枚举、题型名、强制对账语
     expect(note, '不得回退为类别枚举').not.toMatch(/朗读|口语|观察|动手实践/);
     expect(note, '不得混入题型名').not.toMatch(/选择题|判断题|填空题|简答题|计算题|仿写题|连线题/);
@@ -321,9 +324,9 @@ describe('A1-4b 第1层（知识主题）入锚清单：表归属与范围，不
     // 🔴 2026-10-11（T16·G97）：该声明**单源在 `MATERIAL_LINE`（◇ 前缀）**，角色说明不再复述。
     expect(anchorListRoleNote({ splitMaterial: true })).not.toContain('不必为其单独设题');
     expect(MATERIAL_LINE).toContain('不必单独设题');
-    expect(anchorListRoleNote({ splitMaterial: true })).toContain('转为学生**能落笔写出答案**的形式');
+    expect(anchorListRoleNote({ splitMaterial: true })).toContain('一律转为学生能落笔写出答案的形式');
     // 开关组合下恒在（第3层开关、材料分流开关都不得吞掉本句）
-    expect(anchorListRoleNote({ withConcepts: false, splitMaterial: false })).toContain('转为学生**能落笔写出答案**的形式');
+    expect(anchorListRoleNote({ withConcepts: false, splitMaterial: false })).toContain('一律转为学生能落笔写出答案的形式');
   });
 });
 

@@ -2,10 +2,15 @@
 // ============================================================
 // 口径（2026-10-11 S1 定）：**486 真实 cell**（54 个实际开设的"学科×学段"对 × 9 类型）；
 //   素材/锚点置空＝豁免输入；**含"生成期追加"通道**（组织风格／复生成差异化／多类型差异化）。
+// 🔴 2026-10-12（S4 差集·**混通道订正**）：原实现把**答案页通道**的 `ANSWER_ROLES`／`buildAnswerFormatSpec`
+//   也算进"正文实发" ⇒ 矩阵据此判 **C2 题干↔答案↔解析「全类型在场」是错的**：**正文 split 模式明令禁答**
+//   （"严禁在正文中输出任何答案、解析、评分标准——参考答案由系统在正文生成后单独调用生成"），
+//   C2 的判据**只存在于"答案页独立调用"通道**（见 §十二 独立调用表）。⇒ 本文件**只装配正文通道**，
+//   **不再并入**答案页文本。**通道口径**：一份实发**只含其一通道**。
 // 使用者：`tests/config/promptSourceRegistry.test.js`（每句有主）、`faceCoverageMatrix.test.js`（面×类型）、
 //   `faceScenarioMatrix.test.js`（面×情形面）。
 import {
-  getPromptTemplate, STAGE_SUBJECTS, ANSWER_ROLES, buildAnswerFormatSpec,
+  getPromptTemplate, STAGE_SUBJECTS,
 } from '../../src/config/promptLibrary.js';
 import { GEN_TYPE_KEYS } from '../../src/config/toolLibrary.js';
 import { buildTeachingInjection } from '../../src/config/teachingBlueprints.js';
@@ -34,8 +39,6 @@ export function textsOfType(genType) {
         buildProgramAttach({ subject, stageKey: stage, genType, instructionText: t }) || '',
         buildUserMessagePrompt({ genType, subject, materialChannel: 'anchor', anchorListText: '@@A@@', instructionText: t }) || '',
         buildCallLayerBlocks().map((b) => b.text).join('\n'),
-        genType === 'exam' ? ANSWER_ROLES.exam(subject) : ANSWER_ROLES.other(genType),
-        buildAnswerFormatSpec(subject),
         stylesForType(genType).map((s) => buildStyleAppend(s)).join('\n'),
         buildDiffRegenBlock({ genType, diffKps: ['（已练知识点）'] }),
         buildMultiTypeDiffBlock({ typeName: '（类型名）', prevTypes: '（前序类型）', coveredKps: ['（已覆盖知识点）'] }),

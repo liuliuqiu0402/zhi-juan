@@ -427,7 +427,9 @@ describe('(ii) 面板接实发素材正文（快照单源）', () => {
     // 无需在 9 类模板各写一遍（防多副本漂移，也防句级查重命中）。
     // 🔴 2026-10-11（T13·G95）：原句"以**可写、可判**的书面形态呈现"——"可写/可判"**无锚** ⇒ 改可判落点
     //   "转为学生**能落笔写出答案**的形式（在该处给出作答位）"（仍不点题型名）。
-    const PHRASE = '转为学生**能落笔写出答案**的形式';
+    // 🔴 2026-10-12（S4 差集·属主方向「都要书面考查」）：原句前提"无法通过书面作答直接体现或检验的内容"与裁定相悖
+    //   ⇒ 删前提，改"**一律转为学生能落笔写出答案的形式**"（仍不点题型名）。
+    const PHRASE = '一律转为学生能落笔写出答案的形式';
     for (const genType of ['practice', 'special', 'reading', 'exam', 'summary', 'preview', 'dictation', 'errorbook', 'review']) {
       const blocks = buildUserMessageBlocks({
         genType, subject: '语文', materialChannel: 'anchor',
