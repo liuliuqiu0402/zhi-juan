@@ -25,7 +25,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { getPromptTemplate, buildInjectionInstruction, buildStructureText, GEN_TYPE_NAMES } from '../src/config/promptLibrary.js';
-import { styleInstructions, styleOptions, buildStyleAppend, DEFAULT_STYLE_BY_TYPE } from '../src/config/expertKnowledge.js';
+import { styleInstructions, styleOptions, buildStyleAppend, DEFAULT_STYLE_BY_TYPE, subjectGradeSystem } from '../src/config/expertKnowledge.js';
 import { buildTeachingInjection } from '../src/config/teachingBlueprints.js';
 import { buildUserMessagePrompt, buildCallLayerBlocks } from '../src/utils/injectionManifest.js';
 import { buildProgramAttach } from '../src/utils/programAttach.js';
@@ -43,7 +43,16 @@ const arg = (k, d) => {
 const genType = arg('type', 'exam');
 const subject = arg('subject', '语文');
 const stage = arg('stage', 'primary_high');
-const grade = arg('grade', '三年级');
+// 🔴 2026-10-12（第四轮独立复核抓到）：原默认 `'三年级'` 是**硬编码**——对物理/中学段会渲染出
+//   "物理三年级"（头行与【任务】都取该值）⇒ **样本失真**，被独立复核判为"学段串·委托层硬伤"。
+//   现改为**学科×学段**推导：先取该学段的代表年级，再用 `subjectGradeSystem` 校验**该科在该学段
+//   是否真开设**（不吻合则取该科可开设年级的首个，如物理·初中→八年级）⇒ 不再出现"未开设年级"。
+//   仍可被显式 `grade=…` 覆盖；样本生成后须**逐份核头行**（纪律）。
+const STAGE_BUCKET = { primary_low: '小学', primary_mid: '小学', primary_high: '小学', middle: '初中', high: '高中' };
+const STAGE_GRADE_HINT = { primary_low: '一年级', primary_mid: '三年级', primary_high: '五年级', middle: '七年级', high: '高一' };
+const gradeGrades = subjectGradeSystem[STAGE_BUCKET[stage]]?.[subject]?.grades || [];
+const gradeHint = STAGE_GRADE_HINT[stage] || '';
+const grade = arg('grade', gradeGrades.includes(gradeHint) ? gradeHint : (gradeGrades[0] || gradeHint));
 
 const warn = [];
 const parts = [];
