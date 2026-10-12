@@ -222,9 +222,14 @@ const CARRIER_MUST_SEMANTICS = {
  *   - 其余（横线惯例/显式禁止格子/未定义学科）→ 返回空串（默认作答形态由通用句覆盖，不注入）
  * 消费方：promptLibrary QUESTION_FORMAT（按三维度 cell 组装时以 subject/stage 调用）
  */
-export function buildCarrierInstruction(subject = '', stage = '') {
+/** 语文成篇成文 → 作文格（真协议）——**单源**：`buildCarrierInstruction` 与 `buildCarrierFormLine` 共用同一字面 */
+const CARRIER_COMPOSITION_LINE_ZH = '成篇成文类的作答位是**作文格**：输出 <div class="zuo-wen-ge"><span>&emsp;</span></div>（按该题篇幅给足格数）——**给在该题题干与配图之后**；此类题的作答载体就是作文格，**不得用整行书写横线代替**。';
+
+/** must 载体清单（"所填内容 → 载体形态"正句串）——**单源**：`buildCarrierInstruction`（题类**完整块**）
+ *  与 `buildCarrierFormLine`（内容型只取**协议句**）共用；返回 `null` ＝该 学科×学段 无载体能力（与原 `return ''` 对齐）。 */
+const carrierMustParts = (subject = '', stage = '') => {
   const list = getCarrierAllowlist(subject, stage);
-  if (!list || list.length === 0) return '';
+  if (!list || list.length === 0) return null;
   const parts = [];
   for (const r of CARRIER_RULES.must) {
     if (r.subject && r.subject !== subject) continue;
@@ -235,15 +240,37 @@ export function buildCarrierInstruction(subject = '', stage = '') {
     else parts.push(`「${r.keywords.split('|')[0]}」类题必须真实输出${label}`);
   }
   if (list.includes('square-grid')) parts.push('作图类题用方格纸作答区（示例：<span class="square-grid"></span>）');
+  return parts;
+};
+
+/**
+ * 内容型用的**载体协议句**（只"所填内容→载体形态"这一件事；**不含**题类专属分条：拼音线索行／书写格位置条／
+ * 长答载体／算式结果位等）。单源取自本模块 `carrierMustParts` ＋ `CARRIER_COMPOSITION_LINE_ZH`，
+ * **不新增第二套措辞**、也不广播题类整块（守"类型不串味"）。
+ *   · must 命中（语文低段田字格/拼音格、英语中段四线三格…）→ 协议句（＋语文成篇句）；
+ *   · 无 must（语文高段等）→ 语文成篇句；其余学科无载体能力 → `''`。
+ * 消费方：promptLibrary `CONTENT_FORMAT`（2026-10-12 S4 第二轮·属主择 B）。
+ */
+export function buildCarrierFormLine(subject = '', stage = '') {
+  const parts = carrierMustParts(subject, stage);
+  if (parts === null) return '';
+  const compositionLine = subject === '语文' ? CARRIER_COMPOSITION_LINE_ZH : '';
+  if (!parts.length) return compositionLine;
+  const mustSem = parts.some((p) => p.includes('必须真实输出'));
+  const protocol = `${parts.join('；')}${mustSem ? '；题干未写明时按此书写惯例。' : '。'}`;
+  return [protocol, compositionLine].filter(Boolean).join(' ');
+}
+
+export function buildCarrierInstruction(subject = '', stage = '') {
+  const parts = carrierMustParts(subject, stage);
+  if (parts === null) return '';
   // 2026-09-29（**把假指针改成真协议**·用户实样实证"看图写话没有作文格子"）：
   //    成篇成文的作答载体（作文格 zuo-wen-ge）原先在本函数与 buildAnswerSpaceInstruction 里**都只写**
   //    "成篇成文类另有专用书写载体，由该载体通道约束"——模型端**从未拿到这个标记**（假指针）；
   //    而程序侧补格通道（2j-5）又以"题内已有任一作答载体即不补"为界（那是为消"横线+格子并存"的既有裁定）
   //    → 两处互指 = 谁都不输出：模型只能给整行横线，格子随之消失。
   //    故在此给出**真协议**（仅语文：作文格是中文成篇书写载体；标记与 2j-5 补格产物逐字同形）。
-  const compositionLine = subject === '语文'
-    ? '成篇成文类的作答位是**作文格**：输出 <div class="zuo-wen-ge"><span>&emsp;</span></div>（按该题篇幅给足格数）——**给在该题题干与配图之后**；此类题的作答载体就是作文格，**不得用整行书写横线代替**。'
-    : '';
+  const compositionLine = subject === '语文' ? CARRIER_COMPOSITION_LINE_ZH : '';
   if (!parts.length) return compositionLine;
   // 书写格位置判据（基准1/2 根治·2026-09-28 用户口径澄清）：纠正"田字格不得出现在句末"的误读——
   //    田字格**允许混排**（可在句中、也可在句末）；正确判据是"书写格必须与它所对应的那个拼音紧邻

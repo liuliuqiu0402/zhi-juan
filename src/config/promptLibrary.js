@@ -24,7 +24,7 @@
 
 import { isLibEntryEnabled } from '../utils/libToggles.js';
 import { resolveStageKey, STAGE_KEY_SET } from '../utils/gradeStage.js'; // 年级→学段唯一事实源（三维度与课标版本标签共用，禁止各自 parseInt 中文年级）
-import { buildCarrierInstruction, buildAnswerSpaceInstruction, buildLongAnswerCarrierInstruction, BLANK_CARRIER_MARKUP } from './layoutSpec.js'; // 书写载体（格子类）+ 作答空间形态语义 + 空位载体标记 + 成句成段答案的书写载体：均由排版规格库按 学科×学段 动态生成（单一事实源，禁止在模板里手写死第二套措辞/示例）
+import { buildCarrierInstruction, buildAnswerSpaceInstruction, buildLongAnswerCarrierInstruction, buildCarrierFormLine, BLANK_CARRIER_MARKUP } from './layoutSpec.js'; // 书写载体（格子类）+ 作答空间形态语义 + 空位载体标记 + 成句成段答案的书写载体 + **内容型载体协议句**：均由排版规格库按 学科×学段 动态生成（单一事实源，禁止在模板里手写死第二套措辞/示例）
 import { resolveMarkCapability, markCapabilitySignature } from './eduRenderContract.js'; // 标记能力判定单源（2026-09-17）：正文点名 [IMAGE]/[GRAPH] 与 system 给骨架用**同一判定**，防"正文点名而 system 无骨架"的悬空与假指针
 import { sectionKindOf } from './examPaperBlueprints.js'; // 蓝图栏目性质判定单源（2026-09-27）：域型→大类层 / 部分型→部分层 / 题型型→块名即大题标题；本处与【层级归并】条款同源，不再由模型从栏名再猜一遍
 import { buildLevelInstruction, gaokaoLevelOf } from './levelMapping.js'; // 卷别→学业质量水平 单源（2026-09-28）：高中正式卷按卷别/学科映射、教辅锚毕业合格要求；指令正文**只在此处注入一次**，勿在别处再写一份水平口径（各科高考对标水平统一取 gaokaoLevelOf 单源）
@@ -241,6 +241,11 @@ const CONTENT_FORMAT = (ctx = {}) => {
   //     与批C/批D 已清的"在本产品语义"同类（本条因措辞为"没有空位语义"逃过 L2 精确锁）。判据
   //     "不得用无 class 的裸 <u> 或空格串充当作答位"一字未丢，只删解释；理由留在上方 JS 注释（不进实发）。
   const carrierForm = `本资料若含需学生自行作答的题，这些题的作答位与题类资料同一形态——填空短答用横线空位 ${lineMarkup}、填字母/序号/√× 等符号用括号空位 ${parenMarkup}（N 为宽度档，按所填答案长度定），**不得用无 class 的裸 <u> 或空格串充当作答位**。`;
+  // 🔴 2026-10-12（S4 第二轮差集·属主择 B）：内容型此前只列"填空短答→横线／符号→括号"两类，**缺抄写类书写格与成篇载体**
+  //   （送审 A-3／A-4 核证属实：内容型确无 田字格/拼音格/作文格）。按属主裁定**不新增块**，用**同一事实源**
+  //   `buildCarrierInstruction`（与题类同一批字面）在现有载体条后补**一句**，按 **学科×学段** 精确给到
+  //   （语文低段田字格/拼音格、语文成篇作文格、数学方格纸；其余学科返回空串 ⇒ 不注入，无跨学科噪音）。
+  const carrierGrid = (buildCarrierFormLine(ctx.subject, ctx.stage) || '').trim();
   // 🔴 2026-10-11（T12·G50·假指针）：原括注尾是"例题示范另有定论，**见创作要求**"——句法上指向一个**跨块**目标，
   //   而"创作要求"块**仅知识总结（summary）有**、预览（preview）没有 ⇒ 预览侧**悬空**。现改指**真块名**：
   //   例题示范的答案归属口径单源在【答案区位置】（其正文原句已含"讲解示范型栏目…解答随例题即时展示（答案即回填在
@@ -259,6 +264,7 @@ const CONTENT_FORMAT = (ctx = {}) => {
   const fmtBlocks = [
     '· 内容用结构化呈现（条理清晰、便于自查）——呈现形式由你按内容本质自行选择；条目用 <ul><li> 嵌套，勿自造图形字符；正文段落用 <p>，条目列表用 <ul><li> 或带序号（1）（2），条目标记与序号只取其一、严禁叠加（同一条目仅保留一种标记，不得既用项目符号又带文本序号）',
     `· ${carrierForm}`,
+    carrierGrid ? `· ${carrierGrid}` : '',
     `· ${carrierPlacement}`,
     `· ${carrierMust}`,
     `· ${DECLARATION_TRUTH_CLAUSE}`,
@@ -485,7 +491,7 @@ ${bigTitleRule(ctx.stage)}
 2. 以{unit}为命题范围：选文、情境可来自课外
 3. 每道题可直接作答（材料与作答位齐备）；所有题目原创设计
 4. 需材料/选文的题目先给出完整材料再设问
-5. 设选项时，各选项须有真实迷惑性（取自学生常见错误）
+5. 设选项时，各选项须各自对应一种学生可能的思路
 6. 设问由易到难，考查理解与运用
 7. 练到本学段课标学业要求
 8. **每个大题只出一个标题**（标题写法见【大题标题命名】）；**大题标题之外的题默认不另配标题**；**仅当同一大题下各题的作答方式不同类时**，才须给出足以让答题者知道"怎么答"的小组标题或说明；**标题名须与其下实际内容自洽**（层级样式见"序号体系"）
