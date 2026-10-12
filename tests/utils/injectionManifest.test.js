@@ -429,7 +429,10 @@ describe('(ii) 面板接实发素材正文（快照单源）', () => {
     //   "转为学生**能落笔写出答案**的形式（在该处给出作答位）"（仍不点题型名）。
     // 🔴 2026-10-12（S4 差集·属主方向「都要书面考查」）：原句前提"无法通过书面作答直接体现或检验的内容"与裁定相悖
     //   ⇒ 删前提，改"**一律转为学生能落笔写出答案的形式**"（仍不点题型名）。
-    const PHRASE = '一律转为学生能落笔写出答案的形式';
+    // 🔴 2026-10-12（S4 第三轮·越权 8／§六 相抵项）：上版"**一律**转为…"对内容型（梳理/归纳为主）＝强制题化，
+    //   与命题立意条"内容与教材是承载材料"相抵 ⇒ 加**管辖域**"**凡设题处**"（不设题不受约束）。
+    const PHRASE = '凡设题处';
+    const PHRASE_CORE = '须转为学生能落笔写出答案的形式';
     for (const genType of ['practice', 'special', 'reading', 'exam', 'summary', 'preview', 'dictation', 'errorbook', 'review']) {
       const blocks = buildUserMessageBlocks({
         genType, subject: '语文', materialChannel: 'anchor',
@@ -437,6 +440,8 @@ describe('(ii) 面板接实发素材正文（快照单源）', () => {
       });
       const anchorBlk = blocks.find((b) => b.id === 'anchor-list');
       expect(anchorBlk?.text, `类型 ${genType} 缺呈现口径`).toContain(PHRASE);
+      expect(anchorBlk?.text, `类型 ${genType} 缺呈现口径（核心句）`).toContain(PHRASE_CORE);
+      expect(anchorBlk.text, `类型 ${genType} 旧"一律"强制语不得回潮`).not.toContain('一律转为');
       // 防题型锚：本句只给呈现方向，不得点名任何题型（否则又成题型锚）
       expect(anchorBlk.text, `类型 ${genType} 呈现口径混入题型名`).not.toMatch(/选择题|判断题|填空题|简答题|计算题|仿写题|连线题/);
       // 防对账语回潮
