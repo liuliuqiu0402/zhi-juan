@@ -171,6 +171,41 @@ const uHash = crypto.createHash('sha1').update(uKey).digest('hex').slice(0, 12);
  *    ⇒ 它不再是"9 类型逐字相同"的条，退出本集合。**只此一条变动**，其余 17 条未动。 */
 const UNIVERSAL_BASELINE = { count: 17, hash: '0e4faa17584e' };
 
+// ============================================================
+// 「对象词 × 类型集」集合等值锁（2026-10-12 增 · **能机检则机检**）
+// ------------------------------------------------------------
+// 背景（属主）：**测试只覆盖某一个三维度，486 组合不可能全测** ⇒ 凡能机检的必须机检——机检天然**遍历全部组合**。
+// 本块把"某条的对象只在某些类型存在"做成**集合等值**断言：该条**出现类型集**必须**恰等于登记集**
+//   （多一类＝空转／对象缺席而注入；少一类＝误门控缺判据）。**全 54 开设组合遍历**。
+// 纪律：新增此类条**必须登记**；登记集要改须显式改此表（离开"随手改"）。
+// ============================================================
+const OBJECT_FACE_CLAUSES = [
+  { name: '命题纪律·选项位置打散', re: /命题纪律：同一组题的正确答案在选项序列中的位置须打散/,
+    // 对象＝**选项序列** ⇒ keep ＝**非内容型**（内容型不走【题目自洽】本块）**且非默写**（dictation 无选项）。
+    keep: ['exam', 'practice', 'special', 'reading', 'errorbook', 'review'] },
+  { name: '设问分型定深浅', re: /设问分型定深浅：/,
+    // 对象＝**设问** ⇒ keep ＝ 除 dictation（默写不设问）。
+    keep: ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'errorbook', 'review'] },
+];
+
+describe('「对象词 × 类型集」集合等值锁（全组合遍历·能机检则机检）', () => {
+  it('每条的对象词条，其出现类型集须恰等于登记 keep 集', () => {
+    const bad = [];
+    for (const c of OBJECT_FACE_CLAUSES) {
+      const appears = new Set();
+      for (const { stage, subject } of OPEN_PAIRS) {
+        for (const g of GEN_TYPE_KEYS) {
+          if (c.re.test(buildMain(g, stage, subject))) appears.add(g);
+        }
+      }
+      const got = [...appears].sort().join(',');
+      const want = [...c.keep].sort().join(',');
+      if (got !== want) bad.push(`「${c.name}」实测出现于 [${got}] ≠ 登记 [${want}]`);
+    }
+    expect(bad, '对象词条的类型集漂移（多＝空转／少＝误门控）').toEqual([]);
+  });
+});
+
 describe('泛化守卫：全类型注入的条上，题面专属谓述必须有管辖域', () => {
   it('既存集合不得漂移（增／删／改一律判红）', () => {
     expect(
