@@ -142,8 +142,11 @@ describe('③ 模型侧：例题条款已反转（载体保留 + 答案回填）
     expect(s, '不得把例题一律指定为横线/下划线').not.toMatch(/一律用横线|统一用横线|都必须用横线|一律用下划线|统一用下划线|一律写成横线|统一写成横线/);
   });
 
-  it('三处答案纪律例外同步为"答案回填在例题自身作答位上"', () => {
-    for (const t of ['exam', 'practice', 'summary']) {
+  it('答案纪律例外同步为"答案回填在例题自身作答位上"（**限含讲解示范栏目的类型**）', () => {
+    // 🔴 2026-10-12（第六轮 P2·**面集门控**改准）：原锚 `['exam','practice','summary']`——但该"例外"的对象是
+    //   **讲解示范型栏目**，`exam`／`practice`／`reading`／`dictation` 的栏目清单里**没有**此类栏目 ⇒ 例外已改为
+    //   **只对 preview／summary／special／review 注入**（errorbook 走专属分支）⇒ 断言改指保留集。
+    for (const t of ['special', 'review', 'summary']) {
       const s = TPL(t);
       expect(s, `${t} 未同步`).toContain('答案即回填在例题自身的作答位上');
       expect(s, `${t} 仍留旧措辞`).not.toContain('不设作答空间');
