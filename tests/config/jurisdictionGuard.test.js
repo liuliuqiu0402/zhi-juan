@@ -12,11 +12,13 @@
 // 装配口径与 `intraRequestDuplicate.test.js` 的 buildCells 同源（用户消息＋system 附加段＋教辅块＋调用层）。
 // ============================================================
 import { describe, it, expect } from 'vitest';
+import crypto from 'node:crypto';
 import { getPromptTemplate, STAGE_SUBJECTS } from '../../src/config/promptLibrary.js';
 import { buildTeachingInjection } from '../../src/config/teachingBlueprints.js';
 import { buildUserMessagePrompt, buildCallLayerBlocks } from '../../src/utils/injectionManifest.js';
 import { buildProgramAttach } from '../../src/utils/programAttach.js';
 import { materialChannelOf } from '../../src/config/coverageContract.js';
+import { GEN_TYPE_KEYS } from '../../src/config/toolLibrary.js';
 
 /** 不产"题面设问"的资料类型：内容型（preview／summary）＋默写类（dictation）。
  *  这三类里，"设问"**没有默认对象** ⇒ 必须被管辖域条件化，否则悬空。 */
@@ -123,5 +125,60 @@ describe('管辖域守卫：不产题的资料上，"设问设计"指令必须�
     // eslint-disable-next-line no-console
     console.log('按类型 =', JSON.stringify(BY_TYPE), '\n指纹 =', JSON.stringify(UNIQ.map(fingerprint), null, 1));
     expect(UNIQ.length).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ============================================================
+// 泛化守卫：**面不匹配的唯一发生地**＝"全类型注入的条"
+// ------------------------------------------------------------
+// R4-1 的机制是：一条**在全部资料类型里都注入**的条，其谓述只对**某类资料**成立。
+// 故本块不问"某类型里有没有题面词"，而问——
+//   **在 9 个资料类型里逐字相同的那些条**（＝全类型注入的条），含**题面专属谓述**时是否带管辖域。
+// 这样：① 面不匹配**必被捕获**（不论哪个词）；② 不误伤题类专属块（内容型里根本没有该块 ⇒ 不在交集内）。
+// 纪律同前：**只减不增**——登记既存为基线，**新增即判红**。
+// ============================================================
+/** 题面专属谓述（"对象"只在**有题面**的资料里成立的那一类词） */
+const FACE_WORDS_WIDE = ['设问', '题号', '分值', '选项', '作答位', '卷面', '大题', '小题'];
+
+/** 取"在 9 个资料类型里逐字相同"的条（＝全类型注入的条） */
+function universalClauses(stage, subject) {
+  const perType = GEN_TYPE_KEYS.map((g) => new Set(clausesOf(buildMain(g, stage, subject))));
+  return [...perType[0]].filter((line) => perType.every((s) => s.has(line)));
+}
+
+function scanUniversal() {
+  const hits = [];
+  for (const { stage, subject } of OPEN_PAIRS) {
+    for (const line of universalClauses(stage, subject)) {
+      if (!FACE_WORDS_WIDE.some((w) => line.includes(w))) continue;
+      if (JURISDICTION.some((re) => re.test(line))) continue;
+      hits.push({ key: `${subject}|${stage}`, clause: line });
+    }
+  }
+  return hits;
+}
+
+const UHITS = scanUniversal();
+const UUNIQ = [...new Set(UHITS.map((h) => h.clause))].sort();
+const uKey = UUNIQ.map(fingerprint).join('\n');
+const uHash = crypto.createHash('sha1').update(uKey).digest('hex').slice(0, 12);
+
+/** 🔒 基线（2026-10-12 实测）：既存"全类型条上的裸谓述"。
+ *  用 **计数＋内容哈希** 锁死（条目是长句，逐条抄写易错）：**任何增/删/改都判红**，
+ *  逼"有意改动 ⇒ 复核后显式更新基线"。（修复掉一条也须更新——这正是我们要的留痕。） */
+const UNIVERSAL_BASELINE = { count: 18, hash: '80e79a7e675d' };
+
+describe('泛化守卫：全类型注入的条上，题面专属谓述必须有管辖域', () => {
+  it('既存集合不得漂移（增／删／改一律判红）', () => {
+    expect(
+      { count: UUNIQ.length, hash: uHash },
+      '全类型注入的条上的裸谓述集合发生漂移：新增＝面不匹配（在某些资料上必空转/相抵）；删除＝已修复（请复核后更新基线）；修改＝需复核',
+    ).toEqual(UNIVERSAL_BASELINE);
+  });
+
+  it('基线台账（人读镜像）', () => {
+    // eslint-disable-next-line no-console
+    console.log('全类型裸谓述 =', UUNIQ.length, uHash, '\n明细 =', JSON.stringify(UUNIQ.map(fingerprint), null, 1));
+    expect(UUNIQ.length).toBeGreaterThanOrEqual(0);
   });
 });
