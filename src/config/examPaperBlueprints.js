@@ -219,7 +219,7 @@ export const EXAM_BLUEPRINTS = {
 
   // ══════════════ 物理 ══════════════
   '物理|middle': {
-    label: '物理·初中', fullScore: 100, duration: '90分钟',
+    label: '物理·初中（中考结构）', fullScore: 100, duration: '90分钟',
     sections: [
       { name: '选择题', score: 36, note: '4选1，概念辨析' },
       { name: '填空题', score: 18, note: '现象分析、原理应用' },
@@ -240,7 +240,7 @@ export const EXAM_BLUEPRINTS = {
 
   // ══════════════ 化学 ══════════════
   '化学|middle': {
-    label: '化学·初中', fullScore: 100, duration: '90分钟',
+    label: '化学·初中（中考结构）', fullScore: 100, duration: '90分钟',
     sections: [
       { name: '选择题', score: 30, note: '概念辨析' },
       { name: '填空题', score: 26, note: '化学用语、物质推断、原理分析' },
@@ -261,7 +261,7 @@ export const EXAM_BLUEPRINTS = {
 
   // ══════════════ 生物 ══════════════
   '生物|middle': {
-    label: '生物·初中', fullScore: 100, duration: '60分钟',
+    label: '生物·初中（中考结构）', fullScore: 100, duration: '60分钟',
     sections: [
       { name: '选择题', score: 50, note: '概念辨析' },
       { name: '非选择题', score: 50, note: '识图填空、资料分析、实验探究；识图题考查结构与功能的关系' },
@@ -308,7 +308,7 @@ export const EXAM_BLUEPRINTS = {
     ],
   },
   '道德与法治|middle': {
-    label: '道德与法治·初中', fullScore: 100, duration: '90分钟',
+    label: '道德与法治·初中（中考结构）', fullScore: 100, duration: '90分钟',
     sections: [
       { name: '选择题', score: 32, note: '基础知识与价值判断' },
       { name: '判断题', score: 8, note: '观点辨析' },
@@ -325,7 +325,7 @@ export const EXAM_BLUEPRINTS = {
 
   // ══════════════ 历史 ══════════════
   '历史|middle': {
-    label: '历史·初中', fullScore: 100, duration: '90分钟',
+    label: '历史·初中（中考结构）', fullScore: 100, duration: '90分钟',
     sections: [
       { name: '选择题', score: 40, note: '以史料片段/时间轴/图表为载体的史实与概念辨析' },
       { name: '非选择题', score: 60, note: '材料解析、图表解读、论述探究，要求论从史出' },
@@ -341,7 +341,7 @@ export const EXAM_BLUEPRINTS = {
 
   // ══════════════ 地理 ══════════════
   '地理|middle': {
-    label: '地理·初中', fullScore: 100, duration: '60分钟',
+    label: '地理·初中（中考结构）', fullScore: 100, duration: '60分钟',
     sections: [
       { name: '选择题', score: 50, note: '以地图/图表为载体的概念辨析与空间定位' },
       { name: '综合题', score: 50, note: '读图分析、区域认知、人地协调观，以图表为载体；数据真实' },
