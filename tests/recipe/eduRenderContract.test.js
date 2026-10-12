@@ -385,8 +385,10 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     expect(getPromptTemplate({ grade: 'primary_low', genType: 'exam' }).template).toContain('【学段特点】');
     expect(getPromptTemplate({ grade: 'primary_low', genType: 'exam' }).name).toContain('小学低段');
     // 参照中/高考卷面结构仅注入考试科目（三维度精确）；无学科回落通用不注入
+    // 🔴 2026-10-12（S4 第三轮·越权 5·属主择 B）：高中侧由"参照**高考**卷面结构"改"参照**本学科高中学段正规**卷面结构"
+    //    ——高中各科蓝本只有新高考结构，而非升学高中卷按裁定属合格考 ⇒ '高考' 会与之相抵。断言随正句改准。
     expect(getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template).toContain('参照中考卷面结构');
-    expect(getPromptTemplate({ grade: 'high', subject: '语文', genType: 'exam' }).template).toContain('参照高考卷面结构');
+    expect(getPromptTemplate({ grade: 'high', subject: '语文', genType: 'exam' }).template).toContain('参照本学科高中学段正规卷面结构');
     expect(getPromptTemplate({ grade: 'middle', subject: '音乐', genType: 'exam' }).template).not.toContain('参照中考卷面结构');
     expect(getPromptTemplate({ grade: 'high', subject: '美术', genType: 'exam' }).template).not.toContain('参照高考卷面结构');
   });

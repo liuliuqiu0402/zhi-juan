@@ -196,8 +196,11 @@ export function buildLevelInstruction({ stage = '', subject = '', genType = '', 
   const level = resolveAcademicLevel({ stage, subject, genType, scopeType, paperKind });
   if (!level) return ''; // 资料类型缺失 / 无法解析 → 空串（不注入，宁可缺、不误标）
   const kind = resolvePaperKind({ genType, scopeType, paperKind });
+  // 🔴 2026-10-12（S4 第三轮·越权 5·属主择 B）：原"本卷为高中**合格考**卷"与卷面结构（高中各科蓝本只有**新高考**一套）
+  //   **相抵**（非升学高中卷按裁定属合格考、却用选拔结构）。属主裁定 B＝**先统一口径消自相矛盾**：
+  //   本块只陈述"**结构按本学科高中学段**"＋"**质量对标哪一级（卷别口径）**"，不再宣称"本卷即合格考/高考卷"。
   const lead = kind
-    ? `本卷为高中${kind}卷，对标学业质量${level}`
+    ? `本卷按本学科高中学段结构命题，对标学业质量${level}（${kind}口径）`
     : `高中教辅（无卷别），按毕业${TEACHING_BASELINE.kind}为教学基线，对标学业质量${level}`;
   return `${LEVEL_INJECTION_MARKER}${lead}（${LEVEL_SOURCE}）。`;
 }
