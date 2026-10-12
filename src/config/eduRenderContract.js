@@ -66,12 +66,12 @@ export const FIGURE_DEPENDENCY_RE = /看图|读图|看图形|识图|据图|依�
  *    ⚠️ 只强化 PROMPT 文本要求，**不新增字段**：examValidator 1.5 重建 [IMAGE] 块时仅保留 PROMPT，
  *    新增字段会被静默丢弃（既到不了渲染端也留不下供校验）。 */
 const IMAGE_SAMPLE = `[IMAGE]
-PROMPT:画面描述（**必须写明主体与数量**，如"三只熊猫在竹林中吃竹子"；图内不出现文字）
+PROMPT:画面描述（**必须写明主体与数量**，如"〈写明主体〉共〈数量〉个"；图内不出现文字）
 [/IMAGE]`;
 
 const IMAGE_SAMPLE_ICON = `[IMAGE]
 TYPE:ICON
-KEYWORDS:熊猫,竹子,卡通
+KEYWORDS:〈主体〉,〈场景〉,〈风格〉
 STYLE:flat
 [/IMAGE]`;
 
@@ -131,7 +131,7 @@ const GRAPH_SAMPLE_SHAPES_EXTRA = `· SHAPES 元素格式（一行一个元素�
 const GRAPH_SAMPLE_BAR = `[GRAPH]
 TYPE:BAR_CHART
 DATA:15,22,18,30,25
-LABELS:类别甲,类别乙,类别丙,类别丁,类别戊
+LABELS:〈类别1〉,〈类别2〉,〈类别3〉,〈类别4〉,〈类别5〉
 TITLE:各组数据分布
 XLABEL:类别
 YLABEL:数量
@@ -150,7 +150,7 @@ YLABEL:数值
 const GRAPH_SAMPLE_PIE = `[GRAPH]
 TYPE:PIE_CHART
 DATA:30,25,20,15,10
-LABELS:类别甲,类别乙,类别丙,类别丁,类别戊
+LABELS:〈类别1〉,〈类别2〉,〈类别3〉,〈类别4〉,〈类别5〉
 TITLE:占比分布
 [/GRAPH]`;
 

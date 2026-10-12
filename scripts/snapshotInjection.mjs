@@ -25,7 +25,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { getPromptTemplate, buildInjectionInstruction, buildStructureText, GEN_TYPE_NAMES } from '../src/config/promptLibrary.js';
-import { styleInstructions } from '../src/config/expertKnowledge.js';
+import { styleInstructions, styleOptions, buildStyleAppend } from '../src/config/expertKnowledge.js';
 import { buildTeachingInjection } from '../src/config/teachingBlueprints.js';
 import { buildUserMessagePrompt, buildCallLayerBlocks } from '../src/utils/injectionManifest.js';
 import { buildProgramAttach } from '../src/utils/programAttach.js';
@@ -94,8 +94,25 @@ push('user · 消息全文（含委托正文）', () => buildUserMessagePrompt({
 push('system · 程序附加段', () => buildProgramAttach({ subject, stageKey: stage, genType, instructionText }));
 if (genType !== 'exam') push('教辅 · 结构注入', () => buildTeachingInjection({ genType, stage, subject }));
 push('调用层 · 追加块', () => buildCallLayerBlocks().map((b) => b.text).join('\n'));
+// 🔴 2026-10-12（S4 差集·R1·**快照缺生成期追加块**）：原快照未并入"生成期追加"通道 ⇒ `【组织风格】` 16 份全 0 命中，
+//   导致"以随本委托注入的组织风格为准"等判据在快照里**悬空**（送审方据此误判为缺判据）。现按**该类型适用的第一档**
+//   注入 `buildStyleAppend`（渲染唯一事实源），并在头部标注本档取值。
+const stylesForType = (t) => styleOptions
+  .filter((o) => !o.appliesTo.length || o.appliesTo.includes(t))
+  .map((o) => o.value).filter((v) => buildStyleAppend(v));
+const styleVals = stylesForType(genType);
+push('生成期追加 · 组织风格', () => styleVals.map((s) => buildStyleAppend(s)).join('\n'));
 
-const text = parts.join('');
+// 头部标注（装配口径＋样本局限）：S4 差集指出"素材占位/配置未标"会被读成缺判据 ⇒ 显式写清
+const HEADER = `# 注入快照 · ${genType} / ${subject} / ${stage}（${grade}）
+# 装配口径：委托正文（模板）→ user 消息全文（含正文）→ system 程序附加段 → 教辅结构注入（非 exam）→ 调用层追加块 → **生成期追加块**（组织风格＝${styleVals.length ? styleVals.join('、') : '该类型无适用档'}）
+# 样本局限（2026-10-12 补）：
+#   ① 素材（锚点清单／压缩原文）为**占位串**——真实生成时放用户勾选的教材内容，属**豁免输入**（不在"每句有主"的指令源内）；
+#   ② **配置类**（生成方式／素材通道／第3层注入／模板对标／情境框架／卷别层级／库条目启停／三维度选择）为**外部输入**，本快照取基准（生成方式＝split，素材通道＝${materialChannel}）；
+#   ③ **条件追加块**（复生成差异化／多类型差异化）条件不成立、未含。
+`;
+
+const text = HEADER + parts.join('');
 
 const outDir = path.resolve('docs/audit/snapshot');
 fs.mkdirSync(outDir, { recursive: true });

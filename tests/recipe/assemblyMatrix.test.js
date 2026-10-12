@@ -67,7 +67,7 @@ function dupSentences(text) {
   const lines = String(text).split(/\n+/);
   const parts = [];
   for (const line of lines) {
-    if (/^(LABELS:|DATA:|COLORS:|TITLE:|XLABEL:|YLABEL:|SHAPES:|CIRCLE:|LINE:|POINT:|POLYGON:|ANGLE:)|类别甲|#e74c3c/.test(line.trim())) continue;
+    if (/^(LABELS:|DATA:|COLORS:|TITLE:|XLABEL:|YLABEL:|SHAPES:|CIRCLE:|LINE:|POINT:|POLYGON:|ANGLE:)|#e74c3c/.test(line.trim())) continue;
     const segs = line.split('；').map((s) => s.replace(/\s+/g, '').trim()).filter((s) => s.length >= 24);
     parts.push(...segs);
   }
@@ -115,7 +115,7 @@ function sentencesOf(text) {
   for (const line of String(text).split(/\n+/)) {
     const l = line.trim();
     if (!l) continue;
-    if (/^(LABELS:|DATA:|COLORS:|TITLE:|XLABEL:|YLABEL:|SHAPES:|CIRCLE:|LINE:|POINT:|POLYGON:|ANGLE:)|类别甲|#e74c3c/.test(l)) continue;
+    if (/^(LABELS:|DATA:|COLORS:|TITLE:|XLABEL:|YLABEL:|SHAPES:|CIRCLE:|LINE:|POINT:|POLYGON:|ANGLE:)|#e74c3c/.test(l)) continue;
     for (const chunk of l.split(/(?<=[。；！？])/)) {
       const s = chunk.trim().replace(/\s+/g, '');
       if (s) out.push(s);

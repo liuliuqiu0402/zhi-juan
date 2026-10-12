@@ -70,7 +70,8 @@ describe('EduRender 渲染契约（三维度注入）', () => {
     expect(out).not.toContain('WIDTH:');
     expect(out).not.toContain('HEIGHT:');
     expect(out).toContain('TYPE:ICON');
-    expect(out).toContain('KEYWORDS:熊猫,竹子,卡通');
+    // 🔴 2026-10-12（S4 差集·越权 9）：示例原含学科专属残留（"熊猫,竹子,卡通"）⇒ 改**学科中性占位**（防"举例当边界"＋跨学科残留）。
+    expect(out).toContain('KEYWORDS:〈主体〉,〈场景〉,〈风格〉');
   });
 
   it('学段门控：数学小学低段裁剪函数/几何（仅数轴+统计图）；公式**注入**（2026-09-30 撤门控）', () => {
