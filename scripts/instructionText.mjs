@@ -31,19 +31,29 @@ export const PAIRS = Object.entries(STAGE_SUBJECTS)
 export const FACES = PAIRS.flatMap(({ stage, subject }) =>
   GEN_TYPE_KEYS.map((genType) => ({ stage, subject, genType, key: `${subject}|${stage}|${genType}` })));
 
-export function buildInstructionText(genType, subject, stage) {
+export function buildInstructionText(genType, subject, stage, opts = {}) {
+  // opts（**仅供抽样核证**用，默认全走基准配置 ⇒ 门/守卫的调用逐字不变）：
+  //   style          覆盖组织风格档（默认＝DEFAULT_STYLE_BY_TYPE[genType]）
+  //   materialChannel 覆盖素材通道（默认＝materialChannelOf(genType)）
+  //   noStyle        强制不注入组织风格（用于核"不注入分支"）
+  //   scopeType      命题范围/卷别档（exam 升学卷别：xiaoshengchu|zhongkao|gaokao；教辅范围维度不驱动指令装配）
+  //   paperKind      高中卷别口径（'合格考'|'高考'；空＝由 scopeType 解析）
+  //   region         省市（仅 exam 蓝本覆盖，空＝不覆盖）
+  //   unit           命题范围名（替换模板 {unit}/{scope} 占位符；空＝模板落"本单元"兜底）
+  // 上述各项默认 '' ⇒ 与"无此参"逐字等价（门/守卫的调用不变）。
   const b = BUCKET[stage];
   const grades = subjectGradeSystem[b]?.[subject]?.grades || [];
   const hint = HINT[stage] || '';
   const grade = grades.includes(hint) ? hint : (grades[0] || hint);
   const tpl = getPromptTemplate({ grade: stage, subject, genType });
   let structure = ''; let fullScore = ''; let duration = '';
-  const bp = findBlueprint({ genType, subject, stage, region: '', scopeType: '' });
+  const bp = findBlueprint({ genType, subject, stage, region: opts.region || '', scopeType: opts.scopeType || '' });
   if (bp) { structure = buildStructureText(bp); fullScore = bp.fullScore || ''; duration = bp.duration || ''; }
-  const materialChannel = materialChannelOf(genType) || 'full';
+  const materialChannel = opts.materialChannel || materialChannelOf(genType) || 'full';
   const instructionText = buildInjectionInstruction({
     template: tpl.template, grade, stage, subject,
     genTypeLabel: GEN_TYPE_NAMES[genType] || genType, label: '', structure, fullScore, duration, genType, materialChannel,
+    scopeType: opts.scopeType || '', paperKind: opts.paperKind || '', unit: opts.unit || '',
   });
   const parts = [
     buildUserMessagePrompt({ genType, subject, materialChannel, anchorListText: '一、主题\n· 知识点。', instructionText }),
@@ -51,7 +61,7 @@ export function buildInstructionText(genType, subject, stage) {
   ];
   if (genType !== 'exam') parts.push(buildTeachingInjection({ genType, stage, subject }) || '');
   parts.push(buildCallLayerBlocks().map((x) => x.text).join('\n'));
-  const sv = DEFAULT_STYLE_BY_TYPE[genType] || '';
+  const sv = opts.noStyle ? '' : (opts.style !== undefined ? opts.style : (DEFAULT_STYLE_BY_TYPE[genType] || ''));
   if (sv) parts.push(buildStyleAppend(sv));
   return parts.filter(Boolean).join('\n');
 }
