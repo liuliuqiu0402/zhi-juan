@@ -102,7 +102,10 @@ describe('单源守卫：卷首导语 / 严肃卷面 / 统一情境 / 大题标�
 //   docs/design 属决策台账、允许引用原文，故不纳入本块（否则会把"台账引用"误判为回潮）。
 const LAYER2_SINGLE_SOURCE = [
   { item: '分值账目算式', owner: 'src/config/promptLibrary.js', phrase: '账目（对账，不作生成前提）' },
-  { item: '强调口径', owner: 'src/config/promptLibrary.js', phrase: '加粗只用于层级标题与讲解示范引出' },
+  // 强调口径｜🔴 2026-10-13（第 3 批核证·Z10·**锁字面同步**）：原特征字面为「加粗只用于层级标题与讲解示范引出」。
+  //   因 `review` 不属内容型、其「核心知识梳理」栏要求"重点难点突出"却**无标注手段**（加粗被锁、下划线属作答载体）
+  //   ⇒ 已**放宽**题类版口径为「…与**知识性正文的重点**」。**本条防回潮意图不变**（强调口径仍**只**在 promptLibrary.js 单源）。
+  { item: '强调口径', owner: 'src/config/promptLibrary.js', phrase: '加粗只用于层级标题、讲解示范引出与' },
   { item: '公式写法', owner: 'src/config/eduRenderContract.js', phrase: '公式内分数用' },
   { item: '作答位条款', owner: 'src/config/layoutSpec.js', phrase: '不得再在题后另起' },
   { item: '载体形态', owner: 'src/config/layoutSpec.js', phrase: '题干未写明时按此书写惯例' },
