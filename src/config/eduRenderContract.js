@@ -58,6 +58,43 @@ export const MATH_SUBJECTS = ['数学', '物理', '化学', '生物'];
  */
 export const FIGURE_DEPENDENCY_RE = /看图|读图|看图形|识图|据图|依图|如图|图表|统计图|图片|配图|插图|观察[^\n]{0,8}图形|格图/;
 
+// ==================== 载体—渲染契约（**单源**·2026-10-13 增） ====================
+/**
+ * 为什么需要它（暗伤类型）：**载体此前只有"指令侧枚举"**（`blueprintSchema.CARRIER_LABELS`），
+ *    **没有**"指令 ↔ 渲染/导出"的对账 ⇒ 一旦某个载体只在指令里被点名、渲染/导出侧没有实现，
+ *    模型按指令产出标记、渲染端却不认——**产出"看起来对"、到手是残缺的**（此类暗伤最贵）。
+ * 现状实测（2026-10-13）：19 个载体中 **18 个**在渲染/导出侧有实现；
+ *    `listening-script`（听力原文区）**零命中**——它是**声明型**：只指示"听力原文放**答案页**"，
+ *    正文不产标记（实际走 `utils/listeningExtract.js` 的文本抽取 ＋ 音频合成），故**不需**渲染实现。
+ *
+ * 契约形态：`kind: 'markup'` ⇒ 渲染/导出侧**必须**能查到该 id（查不到＝指令说了、渲染没实现）；
+ *          `kind: 'declarative'` ⇒ **显式登记"不出标记"**并写理由（防"零命中"被当成"已实现"）；
+ *          `where` ⇒ 实现落点（渲染/导出侧文件，供守卫逐文件核对）。
+ * 守卫：`tests/config/carrierRenderContract.test.js`（双向锁：markup 类零命中即红；declarative 类
+ *    若**将来被加了实现**而没改本契约，也红 ⇒ 逼同步）。
+ */
+export const CARRIER_RENDER_CONTRACT = {
+  blank: { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/styles/carrierCss.js', 'src/styles/global.css'] },
+  bracket: { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/utils/docxBuilder.js'] },
+  match: { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/styles/carrierCss.js', 'src/styles/global.css'] },
+  'zuo-wen-ge': { kind: 'markup', where: ['src/utils/zuoWenGrid.js', 'src/styles/carrierCss.js', 'src/utils/docxBuilder.js'] },
+  'square-grid': { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/styles/carrierCss.js'] },
+  'bracket-grid': { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/utils/docxBuilder.js'] },
+  'tian-zi-ge': { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/styles/carrierCss.js', 'src/themeConfig.js'] },
+  'four-line-three': { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/styles/carrierCss.js', 'src/themeConfig.js'] },
+  'sixian-ge': { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/styles/carrierCss.js'] },
+  'pinyin-line': { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/styles/carrierCss.js'] },
+  'mi-zi-ge': { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/styles/carrierCss.js'] },
+  table: { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/utils/docxBuilder.js'] },
+  'blank-area': { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/styles/carrierCss.js'] },
+  'draw-area': { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/utils/drawingMLShapes.js'] },
+  'listening-script': { kind: 'declarative', why: '只指示"听力原文放答案页"，正文不出标记；实际走 listeningExtract 文本抽取＋音频合成' },
+  image: { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/utils/docxBuilder.js'] },
+  graph: { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/utils/docxBuilder.js', 'src/utils/drawingMLShapes.js'] },
+  formula: { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/utils/docxBuilder.js'] },
+  line: { kind: 'markup', where: ['src/utils/carrierInsert.js', 'src/styles/carrierCss.js', 'src/styles/global.css'] },
+};
+
 // ==================== EduRender Studio 完整格式骨架 ====================
 
 /** [IMAGE] 示例（画面描述 + ICON 图标检索；不指定生图引擎，渲染端按其标准处理）
