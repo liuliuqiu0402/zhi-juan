@@ -34,9 +34,9 @@
 | 科学 | 4 | primary_low／primary_mid／primary_high／middle | 0 |
 | 音乐 | 5 | primary_low／primary_mid／primary_high／middle／high | 0 |
 | 美术 | 5 | primary_low／primary_mid／primary_high／middle／high | 0 |
-| 体育 | 5 | primary_low／primary_mid／primary_high／middle／high | 1（primary_mid） |
-| 信息科技 | 5 | primary_low／primary_mid／primary_high／middle／high | 2（high／primary_high） |
-| **合计** | **54** | — | **3** |
+| 体育 | 5 | primary_low／primary_mid／primary_high／middle／high | 2（primary_mid／middle） |
+| 信息科技 | 5 | primary_low／primary_mid／primary_high／middle／high | 5（全，已核 1：primary_high） |
+| **合计** | **54** | — | **7** |
 
 ## 三、收件核对（**机检**，不靠人眼数文件名）
 
@@ -52,6 +52,8 @@ node scripts/deepReadIntake.mjs --selftest # 合成样本自证（守卫有牙�
 - 学段写法可容错（`middle`＝`初中`、`high`＝`高中`、`primary_low`＝`小学低段`）；**学科名须用 canonical 15 科**，否则列"待归属"。
 
 **我方每批流程**：① 跑核对（`node scripts/deepReadIntake.mjs`）→ ② 先处置异常（待归属/重复/份数≠9 不进入判定）→ ③ 逐片核证〔真错／证伪／不适用〕＋逐字原文证据 → ④ 登记（本表"已收"＋片清单 §片级进度表）→ ⑤ 54 片齐 ＋ 机检层全绿 ⇒ 才谈"486 面收口"。
+
+**核证结论落盘**：`docs/audit/语义深读核证/<学科>-<学段>.md`（`<学科>-<学段>` 与片键同名）；采用三分法：〔真错 必改〕／〔口径须统一 须给向〕／〔未核 不冒充已核〕。首件：`语义深读核证/信息科技-primary_high.md`（第 1 批校准片）。
 
 ## 四、纪律
 

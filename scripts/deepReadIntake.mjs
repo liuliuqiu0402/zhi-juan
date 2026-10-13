@@ -73,15 +73,34 @@ function normStage(raw) {
 /** 从首行解析片键与自报份数 */
 function parseHead(firstLine) {
   if (!firstLine) return { ok: false, reason: '首行为空' };
+  const line = String(firstLine);
+  // 主口径：# 语义深读·<学科> × <学段>｜片自证：实际读到 N 份
   const re = /语义深读\s*[·・‧]?\s*([^×x✕｜|]+?)\s*[×x✕]\s*([^\s｜|]+)\s*[｜|]\s*片自证/;
-  const m = String(firstLine).match(re);
-  if (!m) return { ok: false, reason: '首行无「语义深读·<学科> × <学段>｜片自证」', raw: String(firstLine).trim() };
-  const subject = normSubject(m[1]);
-  const stage = normStage(m[2]);
-  if (!subject) return { ok: false, reason: `学科名不可识别：${String(m[1]).trim()}`, raw: String(firstLine).trim() };
-  if (!stage) return { ok: false, reason: `学段名不可识别：${String(m[2]).trim()}`, raw: String(firstLine).trim() };
-  const cm = String(firstLine).match(/实际读到\s*(\d+)\s*份/);
-  return { ok: true, key: `${subject}|${stage}`, subject, stage, reported: cm ? Number(cm[1]) : null };
+  // 宽容口径（仍属"内容归属"，非文件名）：标题内直接写「学科＝X／学段＝Y」
+  const alt = /学科\s*[＝=]\s*([^／/|｜)）]+)\s*[／/|｜]\s*学段\s*[＝=]\s*([^\s)）]+)/;
+  let subjectRaw = null;
+  let stageRaw = null;
+  let reported = null;
+  const m = line.match(re);
+  if (m) {
+    subjectRaw = m[1];
+    stageRaw = m[2];
+    const cm = line.match(/实际读到\s*(\d+)\s*份/);
+    reported = cm ? Number(cm[1]) : null;
+  } else {
+    const a = line.match(alt);
+    if (a) {
+      subjectRaw = a[1];
+      stageRaw = a[2];
+    } else {
+      return { ok: false, reason: '首行无「语义深读·<学科> × <学段>｜片自证」亦无「学科＝…／学段＝…」', raw: line.trim() };
+    }
+  }
+  const subject = normSubject(subjectRaw);
+  const stage = normStage(stageRaw);
+  if (!subject) return { ok: false, reason: `学科名不可识别：${String(subjectRaw).trim()}`, raw: line.trim() };
+  if (!stage) return { ok: false, reason: `学段名不可识别：${String(stageRaw).trim()}`, raw: line.trim() };
+  return { ok: true, key: `${subject}|${stage}`, subject, stage, reported };
 }
 
 /** 递归收集产出件（跳过 README 与下划线前缀的机器产物） */
@@ -204,6 +223,7 @@ function selftest() {
     ['# 语义深读·语文 × high', null, null],
     ['# 语义深读·体育学 × high｜片自证：实际读到 9 份', null, null],
     ['# 语义深读·体育 × 六年级｜片自证：实际读到 9 份', null, null],
+    ['# S4 · 语义深读 · 分片复核（学科＝体育／学段＝middle）', '体育|middle', null],
   ];
   let fail = 0;
   for (const [line, key, reported] of cases) {
