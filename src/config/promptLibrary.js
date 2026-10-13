@@ -621,6 +621,21 @@ export const GROUP_TITLE_NUMBERING_CALIBER = {
   teaching: '逐栏目（组）起编（在同一栏目（组）内 一、二、三… 顺排，进入下一栏目（组）即从「一、」重新起编，跨栏目（组）不接续）',
 };
 
+/** 🔢 大题中文序号（单一事实源）
+ *  🔴 2026-10-13（第 3 批核证·英语-primary_mid 缺口 2·**真错**）：原为 `'一二三四五六七八九十'[seq] || String(seq+1)`
+ *    —— 表**只到「十」**，第 **11** 个大题即退化为阿拉伯数字（实测快照出现"…十、阅读理解"紧接"**11、书写**"），
+ *    与 `GROUP_TITLE_NUMBERING_CALIBER.exam`「全卷连续（一、二、三…）」**字面相抵**；英语 primary_mid 卷面有 11 个大题 ⇒ 必现。
+ *    现补 十一…二十（超出二十仍以阿拉伯兜底，不臆造）。渲染等长（"11、"→"十一、"皆 3 字符）。 */
+const cnOrdinal = (n) => {
+  const D = '一二三四五六七八九';
+  if (n <= 0) return String(n);
+  if (n <= 9) return D[n - 1];
+  if (n === 10) return '十';
+  if (n < 20) return `十${D[n - 11]}`;
+  if (n === 20) return '二十';
+  return String(n);
+};
+
 const outputFormatSections = (mode = 'question', ctx = {}) => {
   const isContent = mode === 'content';
   // 2026-09-28（用户裁定·出版式易错题集）：易错题本走"块 → 逐题成组"——<h2> 只用于**块标题**
@@ -1499,7 +1514,7 @@ export function buildStructureText(bp) {
         }
         continue; // 域型不再占用大题序号、不输出大题行
       }
-      const no = '一二三四五六七八九十'[seq] || String(seq + 1);
+      const no = cnOrdinal(seq + 1);
       seq += 1;
       const scorePart = s.score ? `｜分值 ${s.score}分` : '';
       out.push(`${no}、${s.name}${scorePart}${reqTag(s.note)}`);
@@ -1526,7 +1541,7 @@ export function buildStructureText(bp) {
     const partName = g.part === '听力' ? '听力部分' : '笔试部分';
     out.push(`${partName}（本部分满分${sum}分）`);
     for (const s of g.items) {
-      const no = '一二三四五六七八九十'[seq] || String(seq + 1);
+      const no = cnOrdinal(seq + 1);
       seq += 1;
       const scorePart = s.score ? `｜分值 ${s.score}分` : '';
       out.push(`${no}、${s.display}${scorePart}${reqTag(s.note)}`);

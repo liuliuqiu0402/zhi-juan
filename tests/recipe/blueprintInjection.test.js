@@ -671,7 +671,13 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
   it('位置行锚点是"书写对象"而非仅"拼音"（覆盖无拼音的抄写/听写/默写类）', () => {
     const posLine = buildCarrierInstruction('语文', 'primary_low').split('\n').find((l) => l.includes('同行紧邻'));
     expect(posLine).toContain('书写对象');
-    expect(posLine, '须点明三类可写对象').toContain('拼音／词语／句子');
+    // 🔴 2026-10-13（第 3 批核证·Z8 词级串词·锁字面同步）：原锁字面为 `ToContain('拼音／词语／句子')`（"三类可写对象"）。
+    //   实测该枚举被注入**全 15 学科**（英语 45 份、数学/音乐/体育…），而**漏覆盖英语的"字母/单词"**
+    //   ——与该处源码注释（`layoutSpec.js:316-321` 自述"锚改为书写对象…含英语低/中段的字母单词书写"）**不符**。
+    //   已改为 `拼音、字母、单词、词语或句子`。**本条防回潮意图不变**：锚是**书写对象**，且**各类可写对象逐项在场**。
+    for (const obj of ['拼音', '字母', '单词', '词语', '句子']) {
+      expect(posLine, `可写对象须逐项在场：${obj}`).toContain(obj);
+    }
     expect(posLine).toContain('同行紧邻');
     expect(posLine).toContain('逐词一一对应');
     expect(posLine, '判据不得退回"句末禁令"（允许混排，只要紧邻）').not.toContain('不得出现在句末');
