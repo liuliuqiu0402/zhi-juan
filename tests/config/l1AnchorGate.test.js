@@ -20,36 +20,16 @@ import { materialChannelOf } from '../../src/config/coverageContract.js';
 import { findBlueprint } from '../../src/config/blueprintProvider.js';
 import { GEN_TYPE_KEYS } from '../../src/config/toolLibrary.js';
 import { anchorsFor } from '../../scripts/l1Anchors.mjs';
+// 🔴 2026-10-13（单源化）：面级装配原为**本文件私有**，`antiHomogenizationGuard` 需要同一份 ⇒
+//   已抽到 `scripts/instructionText.mjs`（**单源**），此处改为 import（装配口径逐字不变，断言一字未改）。
+import { buildInstructionText } from '../../scripts/instructionText.mjs';
 
 const BUCKET = { primary_low: '小学', primary_mid: '小学', primary_high: '小学', middle: '初中', high: '高中' };
 const HINT = { primary_low: '一年级', primary_mid: '三年级', primary_high: '五年级', middle: '七年级', high: '高一' };
 
 const PAIRS = Object.entries(STAGE_SUBJECTS).flatMap(([stage, subs]) => subs.map((subject) => ({ stage, subject })));
 
-function buildInstructionText(genType, subject, stage) {
-  const b = BUCKET[stage];
-  const grades = subjectGradeSystem[b]?.[subject]?.grades || [];
-  const hint = HINT[stage] || '';
-  const grade = grades.includes(hint) ? hint : (grades[0] || hint);
-  const tpl = getPromptTemplate({ grade: stage, subject, genType });
-  let structure = ''; let fullScore = ''; let duration = '';
-  const bp = findBlueprint({ genType, subject, stage, region: '', scopeType: '' });
-  if (bp) { structure = buildStructureText(bp); fullScore = bp.fullScore || ''; duration = bp.duration || ''; }
-  const materialChannel = materialChannelOf(genType) || 'full';
-  const instructionText = buildInjectionInstruction({
-    template: tpl.template, grade, stage, subject,
-    genTypeLabel: GEN_TYPE_NAMES[genType] || genType, label: '', structure, fullScore, duration, genType, materialChannel,
-  });
-  const parts = [
-    buildUserMessagePrompt({ genType, subject, materialChannel, anchorListText: '一、主题\n· 知识点。', instructionText }),
-    buildProgramAttach({ subject, stageKey: stage, genType, instructionText }),
-  ];
-  if (genType !== 'exam') parts.push(buildTeachingInjection({ genType, stage, subject }) || '');
-  parts.push(buildCallLayerBlocks().map((x) => x.text).join('\n'));
-  const sv = DEFAULT_STYLE_BY_TYPE[genType] || '';
-  if (sv) parts.push(buildStyleAppend(sv));
-  return parts.filter(Boolean).join('\n');
-}
+// （装配函数已单源化 ⇒ 见文件头 import：`scripts/instructionText.mjs`）
 
 /** 尚待按面条件化的锚（**显式登记**；修好一个删一个，只减不增）。
  *  成因：锚期望是照最初 16 面样本写死的，未按"类型／学科／学段"声明适用面。

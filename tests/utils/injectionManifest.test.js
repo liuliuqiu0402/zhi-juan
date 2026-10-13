@@ -174,7 +174,12 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     // summary = full + integrate（归纳型口吻）
     const summary = buildMaterialUsageBlock({ genType: 'summary', materialChannel: 'full' });
     expect(summary).toContain('以上内容是本次归纳的对象');
-    expect(summary).toContain('可把本课内容与同类概念归类、对照、勾连成网络');
+    // 🔴 2026-10-13（Z17·属主新要求"以前学过的要允许使用"·**锁字面同步**）：原锁字面为
+    //   `可把本课内容与同类概念归类、对照、勾连成网络` ＋（旧禁令）`不臆断学生是否已学`。
+    //   本处已**放宽**且**净减 6 字**：`可把同类概念归类、勾连成网络，也可联系**已学**内容（先前学段/册次）作铺垫`。
+    //   **本条防漂移意图不变**（仍锁"integrate 档＝归纳型口吻、与 expand 档可区分"）。
+    expect(summary).toContain('可把同类概念归类、勾连成网络，也可联系**已学**内容（先前学段/册次）作铺垫');
+    expect(summary, '旧禁令（封禁已学）不得回潮').not.toContain('不臆断学生是否已学');
     expect(summary).toContain('本资料为知识归纳型');
     expect(summary).not.toContain('本资料为命题/练习型');
     // errorbook = none + expand（不逐条对账口吻；2026-09-28 用户裁定：错题从勾选范围选取，非"用户错题"）
