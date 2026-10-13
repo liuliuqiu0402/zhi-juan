@@ -59,10 +59,10 @@ export const EXAM_BLUEPRINTS = {
   '语文|middle': {
     label: '语文·初中（中考结构）', fullScore: 120, duration: '120分钟',
     sections: [
-      { name: '积累与运用', score: 24, note: '名句语境默写与基础运用（字音字形、词语运用、病句等）。' },
-      { name: '梳理与探究', score: 10, note: '名著阅读与梳理探究（信息梳理、图表归纳、围绕主题整理探究），考查梳理与探究能力。' },
-      { name: '古诗文阅读', score: 22, note: '文言文课内外对比阅读与古诗词鉴赏，重理解与积累运用。' },
-      { name: '现代文阅读', score: 28, note: '记叙文与说明文/议论文阅读，课外选文标注出处。' },
+      { name: '积累与运用', score: 24, note: '名句语境默写与基础运用。' },
+      { name: '梳理与探究', score: 10, note: '对信息作梳理、图表归纳或围绕主题整理探究，考查梳理与探究能力。' },
+      { name: '古诗文阅读', score: 22, note: '课内外对比阅读形式，重理解与积累运用。' },
+      { name: '现代文阅读', score: 28, note: '课外选文标注出处。' },
       { name: '写作', score: 36, note: '命题/半命题/材料作文，提示语与写作要求。' },
     ],
   },
@@ -72,8 +72,8 @@ export const EXAM_BLUEPRINTS = {
       // 卷面结构以 **2025 年全国卷官方卷面**为准（2026-09-19 调研）：原"现代文阅读/古代诗文阅读"
       //    两栏自 2025 年起已整合为一个「阅读」大题（阅读Ⅰ/Ⅱ＋文言文＋古代诗歌＋名篇名句默写），
       //    语言文字运用降为 18 分。各块分值逐年微调（如 2026 年阅读 74 分），总量稳定，故只锁总量。
-      { name: '阅读', score: 72, note: '含信息类与文学类文本阅读、文言文、古代诗歌鉴赏与名篇名句默写；各块分值随年度微调，总量稳定。' },
-      { name: '语言文字运用', score: 18, note: '在语境中考查词语选用、病句修改、句式变换、表达得体、补写句子等（不留答案）。' },
+      { name: '阅读', score: 72, note: '各块分值随年度微调，总量稳定。' },
+      { name: '语言文字运用', score: 18, note: '在语境中作答（不留答案）。' },
       { name: '写作', score: 60, note: '材料作文，准确理解材料、立意明确、论证充分。' },
     ],
   },
@@ -84,9 +84,9 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       // 2026-09-19 调研（一二年级实际流通纸笔卷）：真实二年级卷**必设竖式/笔算题（8-18分）**，
       //    原骨架整题缺失（最实质缺项）；"直接写得数 20 / 看图列式 10"偏高、"填空 20"偏低 → 一并校正。
-      { name: '直接写得数', score: 14, note: '口算，直接写得数；含加减法（二年级含表内乘法）' },
-      { name: '竖式计算', score: 12, note: '列竖式计算（一年级下册起），要求书写规范；竖式书写区按作答载体规范留出' },
-      { name: '填空', score: 24, note: '数的组成、比大小、单位换算、找规律等基础内容' },
+      { name: '直接写得数', score: 14, note: '口算，直接写得数。' },
+      { name: '竖式计算', score: 12, note: '列竖式计算，要求书写规范；竖式书写区按作答载体规范留出' },
+      { name: '填空', score: 24, note: '基础内容直接作答' },
       { name: '判断', score: 10, note: '概念与算法辨析' },
       { name: '选择', score: 10, note: '基础辨析' },
       { name: '操作题', score: 8, note: '画一画、连一连、数一数、按要求涂色' },
@@ -98,11 +98,11 @@ export const EXAM_BLUEPRINTS = {
     label: '数学·小学中段（3-4年级）', fullScore: 100, duration: '90分钟',
     sections: [
       { name: '口算', score: 10, note: '口算，直接写得数。' },
-      { name: '用竖式计算', score: 18, note: '竖式计算（含验算），三年级含三位数加减、多位数乘一位数；竖式书写区按作答载体规范留出' },
-      { name: '填空', score: 20, note: '概念、单位换算、估算、图形特征等' },
+      { name: '用竖式计算', score: 18, note: '竖式计算（含验算），要求书写规范；竖式书写区按作答载体规范留出' },
+      { name: '填空', score: 20, note: '概念与技能的直接作答' },
       { name: '判断', score: 8, note: '概念辨析' },
       { name: '选择', score: 8, note: '基础辨析' },
-      { name: '操作题', score: 6, note: '画图、测量、平移旋转、周长面积操作；需动手画图的题留出作图区域' },
+      { name: '操作题', score: 6, note: '动手操作类；需动手画图的题留出作图区域' },
       { name: '解决问题', score: 30, note: '应用题，体现问题解决过程（列式、计算、作答完整）' },
     ],
   },
@@ -110,20 +110,20 @@ export const EXAM_BLUEPRINTS = {
     label: '数学·小学高段（5-6年级）', fullScore: 100, duration: '90分钟',
     sections: [
       { name: '口算', score: 8, note: '口算，直接写得数' },
-      { name: '脱式计算（能简算的要简算）', score: 18, note: '脱式计算（含简算），六年级含解方程' },
-      { name: '填空', score: 20, note: '概念、数感、几何度量、统计等' },
+      { name: '脱式计算（能简算的要简算）', score: 18, note: '脱式计算（含简算），要求书写规范' },
+      { name: '填空', score: 20, note: '概念、推理与度量的直接作答' },
       { name: '判断', score: 8, note: '概念辨析' },
       { name: '选择', score: 8, note: '基础辨析' },
-      { name: '操作题', score: 8, note: '画图、对称、面积体积操作、位置与方向' },
-      { name: '解决问题', score: 30, note: '应用题，含分数百分数、几何应用，体现模型意识' },
+      { name: '操作题', score: 8, note: '需动手画图的题留出作图区域' },
+      { name: '解决问题', score: 30, note: '应用题，体现模型意识' },
     ],
   },
   '数学|middle': {
     label: '数学·初中（中考结构）', fullScore: 120, duration: '120分钟',
     sections: [
-      { name: '选择题', score: 30, note: '4选1，涉及数与式、方程不等式、函数、几何、统计概率' },
+      { name: '选择题', score: 30, note: '4选1' },
       { name: '填空题', score: 18, note: '以计算推理为主' },
-      { name: '解答题', score: 72, note: '含计算、化简求值与统计概率、几何证明、函数综合（压轴题考查函数与几何综合）' },
+      { name: '解答题', score: 72, note: '含计算与推理；末题为压轴题，要求解答过程完整、步骤规范' },
     ],
   },
   '数学|high': {
@@ -132,7 +132,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '单选题', score: 40, note: '4选1' },
       { name: '多选题', score: 18, note: '全对得分、部分选对得部分分' },
       { name: '填空题', score: 15, note: '以计算推理为主' },
-      { name: '解答题', score: 77, note: '含解三角形或数列、立体几何、概率统计、解析几何、函数导数综合，末题为压轴题' },
+      { name: '解答题', score: 77, note: '含计算与推理；末题为压轴题，要求解答过程完整、步骤规范' },
     ],
   },
 
@@ -173,7 +173,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '听力·听音排序', score: 10, note: '听一段对话或独白，按顺序给图片标序号；每段材料读两遍' },
       { name: '笔试·语音辨析', score: 6, note: '选出画线部分发音不同的单词' },
       { name: '笔试·词汇运用', score: 8, note: '看图写词、词图匹配、词汇分类' },
-      { name: '笔试·单项选择', score: 10, note: '语境中考查语法与交际用语' },
+      { name: '笔试·单项选择', score: 10, note: '语境中作答' },
       { name: '笔试·情景交际', score: 10, note: '选句补全对话' },
       { name: '笔试·连词成句', score: 8, note: '按正确语序排列句子，注意首字母大写与标点' },
       { name: '笔试·阅读理解', score: 15, note: '图文短文，判断或选择' },
@@ -188,7 +188,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '听力·听音填空', score: 10, note: '听一篇完整短文后补全信息，每空一词或短语；整篇材料读两遍' },
       { name: '笔试·语音辨析', score: 5, note: '选出画线部分发音不同的单词' },
       { name: '笔试·词汇运用', score: 10, note: '词图匹配、词汇分类、根据提示写词' },
-      { name: '笔试·单项选择', score: 15, note: '语境中考查语法与交际用语' },
+      { name: '笔试·单项选择', score: 15, note: '语境中作答' },
       { name: '笔试·情景交际', score: 10, note: '选句补全对话' },
       { name: '笔试·连词成句', score: 10, note: '按正确语序排列句子' },
       { name: '笔试·阅读理解', score: 10, note: '短文，选择与判断' },
@@ -199,10 +199,10 @@ export const EXAM_BLUEPRINTS = {
     label: '英语·初中（中考结构）', fullScore: 120, duration: '100分钟',
     sections: [
       { name: '听力', score: 25, note: '含短对话理解、长对话理解、短文理解、信息转换（听短文填表，每空一词）；每段材料读两遍' },
-      { name: '完形填空', score: 10, note: '语境理解＋词法句法' },
+      { name: '完形填空', score: 10, note: '语境理解' },
       { name: '阅读理解', score: 40, note: '选择＋任务型阅读（还原句子/回答问题）' },
       { name: '词汇运用', score: 10, note: '根据首字母或汉语提示填词，短文语境' },
-      { name: '语法填空', score: 10, note: '短文语境考查语法' },
+      { name: '语法填空', score: 10, note: '短文语境作答' },
       { name: '书面表达', score: 25, note: '提示语给要点与格式要求' },
     ],
   },
@@ -211,8 +211,8 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '听力', score: 30, note: '短对话与长对话/独白；每段材料读两遍' },
       { name: '阅读理解', score: 50, note: '阅读＋七选五（还原句子）；设问围绕语篇内容' },
-      { name: '完形填空', score: 15, note: '语篇语境考查词汇与逻辑衔接' },
-      { name: '语法填空', score: 15, note: '短文语境考查语法与词汇' },
+      { name: '完形填空', score: 15, note: '语篇语境作答' },
+      { name: '语法填空', score: 15, note: '短文语境作答' },
       { name: '写作', score: 40, note: '应用文写作＋读后续写（给出前文与段首句，续写两段）' },
     ],
   },
@@ -225,7 +225,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '填空题', score: 18, note: '现象分析、原理应用' },
       { name: '作图题', score: 8, note: '按本单元涉及的作图类型命题' },
       { name: '实验探究题', score: 14, note: '方案设计、数据分析、结论表述' },
-      { name: '计算题', score: 24, note: '力学与电学综合，要求解答过程完整、步骤规范' },
+      { name: '计算题', score: 24, note: '要求解答过程完整、步骤规范' },
     ],
   },
   '物理|high': {
@@ -234,7 +234,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '单项选择题', score: 32, note: '4选1' },
       { name: '多项选择题', score: 18, note: '全对得分、选不全得部分分' },
       { name: '实验题', score: 18, note: '按本单元涉及的实验命题' },
-      { name: '计算题', score: 32, note: '力学综合与电磁学综合，要求规范作答' },
+      { name: '计算题', score: 32, note: '要求解答过程完整、步骤规范' },
     ],
   },
 
@@ -243,9 +243,9 @@ export const EXAM_BLUEPRINTS = {
     label: '化学·初中（中考结构）', fullScore: 100, duration: '90分钟',
     sections: [
       { name: '选择题', score: 30, note: '概念辨析' },
-      { name: '填空题', score: 26, note: '化学用语、物质推断、原理分析' },
+      { name: '填空题', score: 26, note: '概念与原理的直接作答' },
       { name: '实验探究题', score: 24, note: '方案设计、现象描述、数据分析、结论与反思' },
-      { name: '计算题', score: 20, note: '根据化学方程式计算，要求规范书写步骤' },
+      { name: '计算题', score: 20, note: '定量计算，要求规范书写步骤' },
     ],
   },
   '化学|high': {
@@ -253,7 +253,7 @@ export const EXAM_BLUEPRINTS = {
     sections: [
       { name: '单选题', score: 30, note: '4选1' },
       { name: '不定项选择题', score: 20, note: '全对得分、部分选对得部分分' },
-      { name: '填空题', score: 18, note: '工艺流程、反应原理、物质结构' },
+      { name: '填空题', score: 18, note: '概念与原理的直接作答' },
       { name: '实验探究题', score: 16, note: '方案设计、数据处理、评价反思' },
       { name: '计算题', score: 16, note: '定量计算，要求规范步骤' },
     ],
@@ -271,11 +271,10 @@ export const EXAM_BLUEPRINTS = {
     label: '生物·高中（新高考单科）', fullScore: 100, duration: '75分钟',
     sections: [
       { name: '单选题', score: 48, note: '4选1' },
-      // 🔴 2026-10-13（第 3 批核证·生物-high「不达标」·真错·同 H7 判例）：原 note 列了**选择性必修**领域
-      //   （生命活动调节＝选择性必修1稳态与调节、生态系统＝选择性必修2生物与环境），而同份【学业质量】
-      //   声明"对标学业质量水平二（**合格考口径**）"＝**必修**范围 ⇒ **越模块**（与信息科技 high"人工智能"同型）。
-      //   故只保留**必修**口径的三项（分子与细胞→细胞代谢、遗传与进化→遗传与变异、实验探究）。
-      { name: '非选择题', score: 52, note: '含细胞代谢、遗传与变异、实验探究' },
+      // 🔴 2026-10-13（属主裁定·"真题只是框架"）：原 note 列过**教材模块名**（细胞代谢＝必修1、遗传与变异＝必修2；
+      //   更早还列过选择性必修）——属**指定内容**，与"范围由用户勾选决定"相抵（勾选择性必修册次时反倒被要求出必修）。
+      //   现只留**作答形态**；考什么内容一律由【锚点清单】所勾范围＋课标要点决定，蓝图不指定。
+      { name: '非选择题', score: 52, note: '含实验探究类设问' },
     ],
   },
 
@@ -305,8 +304,8 @@ export const EXAM_BLUEPRINTS = {
   '道德与法治|primary_high': {
     label: '道德与法治·小学高段（5-6年级）', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '判断', score: 16, note: '法律常识与价值判断' },
-      { name: '选择', score: 30, note: '法理与是非判断' },
+      { name: '判断', score: 16, note: '观点与价值判断' },
+      { name: '选择', score: 30, note: '是非与价值判断' },
       { name: '材料分析', score: 24, note: '读案例或时政材料后分析说明，结合所学谈认识' },
       { name: '实践探究', score: 30, note: '围绕身边问题，提出做法并阐述理由' },
     ],
@@ -407,7 +406,7 @@ export const EXAM_BLUEPRINTS = {
   '信息科技|primary_low': {
     label: '信息科技·小学低段（1-2年级）', fullScore: 100, duration: '40分钟',
     sections: [
-      { name: '判断题', score: 16, note: '信息意识、数字设备初步认识、用眼卫生' },
+      { name: '判断题', score: 16, note: '信息意识与行为判断' },
       { name: '选择题', score: 24, note: '概念与行为判断' },
       { name: '连线题', score: 20, note: '设备与用途、行为与对错连线' },
       { name: '操作题', score: 40, note: '以文字/图示描述简单操作步骤，配评分要点' },
@@ -416,7 +415,7 @@ export const EXAM_BLUEPRINTS = {
   '信息科技|primary_mid': {
     label: '信息科技·小学中段（3-4年级）', fullScore: 100, duration: '40分钟',
     sections: [
-      { name: '选择题', score: 20, note: '在线学习与生活、数字媒体初步' },
+      { name: '选择题', score: 20, note: '概念与行为判断' },
       { name: '判断题', score: 16, note: '观点与行为辨析' },
       { name: '填空题', score: 16, note: '技术原理在数字化场景中运用' },
       { name: '操作题', score: 32, note: '以书面形式描述操作步骤、流程设计' },
@@ -426,7 +425,7 @@ export const EXAM_BLUEPRINTS = {
   '信息科技|primary_high': {
     label: '信息科技·小学高段（5-6年级）', fullScore: 100, duration: '45分钟',
     sections: [
-      { name: '选择题', score: 20, note: '数据与编码、算法初步、信息安全' },
+      { name: '选择题', score: 20, note: '概念与行为判断' },
       { name: '判断题', score: 16, note: '概念与行为辨析' },
       { name: '填空题', score: 16, note: '数字化场景中的原理运用' },
       { name: '操作题', score: 32, note: '流程设计、数据处理步骤描述' },
@@ -436,17 +435,17 @@ export const EXAM_BLUEPRINTS = {
   '信息科技|middle': {
     label: '信息科技·初中', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '选择题', score: 24, note: '互联网应用与创新、物联网、人工智能与智慧社会' },
+      { name: '选择题', score: 24, note: '概念与行为判断' },
       { name: '判断题', score: 12, note: '观点与行为辨析' },
       { name: '填空题', score: 16, note: '原理在场景中运用' },
-      { name: '操作题', score: 28, note: '流程设计、方案描述（含算法与数据）' },
+      { name: '操作题', score: 28, note: '流程设计、方案描述' },
       { name: '综合题', score: 20, note: '任务解决' },
     ],
   },
   '信息科技|high': {
     label: '信息技术·高中', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '选择题', score: 24, note: '数据与计算、信息系统与社会' },
+      { name: '选择题', score: 24, note: '概念与行为判断' },
       { name: '填空题', score: 16, note: '原理在数字化场景中运用' },
       { name: '操作题', score: 32, note: '程序填空/流程图/数据处理描述' },
       { name: '综合题', score: 28, note: '算法设计与信息系统分析，配评分要点' },

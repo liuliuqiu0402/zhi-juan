@@ -129,7 +129,8 @@ describe('配置维度轴·覆盖范围档 ⇔ 卷面蓝本备注（P1 判据：
   });
 
   it('⑫ 卷面蓝本备注**只在正式卷**注入（教辅面不得消费卷面蓝本 note）', () => {
-    const NOTES = ['力学与电学综合', '力学综合与电磁学综合', '4选1，涉及数与式'];
+    // 2026-10-13（属主裁定"真题只是框架"后）：卷面蓝本 note 已去"内容指定"⇒ 本处取样改为**形态类** note
+    const NOTES = ['要求解答过程完整、步骤规范', '4选1'];
     for (const g of NINE.filter((x) => x !== 'exam')) {
       for (const [s, st] of [['物理', 'middle'], ['物理', 'high'], ['数学', 'middle']]) {
         const t = buildInstructionText(g, s, st);
