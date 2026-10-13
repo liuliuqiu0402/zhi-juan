@@ -30,6 +30,10 @@ Thumbs.db
 # 可复现的生成产物（2026-10-02 用户定：文档类产物留本地、不入库）
 #   · 份表 1.5 MB、100% 可由 `GEN_LEDGER=1; npx vitest run tests/tools/genProgressLedger.test.js` 复现
 docs/design/实发份表-生成-*.md
+#   · 486 面全量快照（100% 可再生：`SNAPSHOT_DIR=docs/audit/snapshot-all node scripts/snapshotInjection.mjs type=… subject=… stage=…` 逐面生成）
+#     只入库汇总报告 _L1-report.txt，逐面 txt 不入库
+docs/audit/snapshot-all/*
+!docs/audit/snapshot-all/_L1-report.txt
 
 # Python缓存
 __pycache__/
