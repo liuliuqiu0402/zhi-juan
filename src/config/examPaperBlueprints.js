@@ -432,7 +432,7 @@ export const EXAM_BLUEPRINTS = {
   '信息科技|middle': {
     label: '信息科技·初中', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '选择题', score: 24, note: '互联网应用与创新、物联网、人工智能初步' },
+      { name: '选择题', score: 24, note: '互联网应用与创新、物联网、人工智能与智慧社会' },
       { name: '判断题', score: 12, note: '观点与行为辨析' },
       { name: '填空题', score: 16, note: '原理在场景中运用' },
       { name: '操作题', score: 28, note: '流程设计、方案描述（含算法与数据）' },
@@ -442,7 +442,7 @@ export const EXAM_BLUEPRINTS = {
   '信息科技|high': {
     label: '信息技术·高中', fullScore: 100, duration: '60分钟',
     sections: [
-      { name: '选择题', score: 24, note: '数据与计算、信息系统与社会、人工智能' },
+      { name: '选择题', score: 24, note: '数据与计算、信息系统与社会' },
       { name: '填空题', score: 16, note: '原理在数字化场景中运用' },
       { name: '操作题', score: 32, note: '程序填空/流程图/数据处理描述' },
       { name: '综合题', score: 28, note: '算法设计与信息系统分析，配评分要点' },
