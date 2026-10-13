@@ -244,7 +244,11 @@ describe('非exam教辅答案区不复述正文（自包含教辅防重复）', 
 
   it('PAPER_OUTPUT_CONVENTIONS.split：自包含教辅强调正文梳理不属于答案、无需答案区', () => {
     const conv = PAPER_OUTPUT_CONVENTIONS.split('语文', true);
-    expect(conv).toContain('知识梳理部分不属于“答案”');
+    // 🔴 2026-10-13（第 1 批核证·F2／F3 合修·锁字面同步）：原锁字面为"知识梳理部分不属于“答案”"。
+    //   因"知识梳理"是**具体栏目名**，而自包含教辅（dictation/errorbook/preview/summary/review）并无此栏
+    //   ⇒ 声明无对应对象、且各科对其"算不算缺口"划线不一（一类两判）。改为**泛称"知识内容"**（等长 4 字·净零），
+    //   对 5 类一律成立。**本条防回潮意图不变**：仍是"正文部分不属于答案、无需为它设答案区"。
+    expect(conv).toContain('知识内容部分不属于“答案”');
     expect(conv).toContain('无需为它设置答案区');
     expect(conv).toContain('参考答案由系统在正文生成后单独调用生成');
   });

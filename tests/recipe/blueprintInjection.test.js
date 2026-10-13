@@ -291,7 +291,12 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     expect(preview, '内容型不得注入题类专属的书写载体协议条款').not.toContain('书写载体协议');
     expect(preview, '内容型不得注入《题目自洽》块').not.toMatch(/【题目自洽】\n/);
     const summary = buildOutputFormatHint({ genType: 'summary' });
-    expect(summary).toContain('知识梳理');
+    // 🔴 2026-10-13（第 1 批核证·F4·锁字面同步）：原锁字面为 `ToContain('知识梳理')`——它实际命中的是
+    //   内容型 `<h2>` **示例**"如 <h2>一、知识梳理</h2>"。该示例有两个问题：①示例名与注入栏目名不符
+    //   （summary 实为"知识框架/重点梳理/…"）；②带"一、"序号与同族题类支"不带序号"口径相左。
+    //   已改为 `如 <h2>〈栏目标题〉</h2>`（净减 2 字·与题类支同形）。**本条防回潮意图不变**：
+    //   内容型 hint 须给"〈栏目标题〉"式**结构化栏目标题示例**。
+    expect(summary).toContain('〈栏目标题〉');
   });
 });
 
