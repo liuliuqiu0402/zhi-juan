@@ -78,6 +78,8 @@ function parseHead(firstLine) {
   const re = /语义深读\s*[·・‧]?\s*([^×x✕｜|]+?)\s*[×x✕]\s*([^\s｜|]+)\s*[｜|]\s*片自证/;
   // 宽容口径（仍属"内容归属"，非文件名）：标题内直接写「学科＝X／学段＝Y」
   const alt = /学科\s*[＝=]\s*([^／/|｜)）]+)\s*[／/|｜]\s*学段\s*[＝=]\s*([^\s)）]+)/;
+  // 宽容口径二（仍属"内容归属"，非文件名）：行内写「片键 <学科>|<学段>」
+  const alt2 = /片键\s*([^\s|｜]+)\s*[|｜]\s*([^\s—–\-|｜]+)/;
   let subjectRaw = null;
   let stageRaw = null;
   let reported = null;
@@ -88,12 +90,12 @@ function parseHead(firstLine) {
     const cm = line.match(/实际读到\s*(\d+)\s*份/);
     reported = cm ? Number(cm[1]) : null;
   } else {
-    const a = line.match(alt);
+    const a = line.match(alt) || line.match(alt2);
     if (a) {
       subjectRaw = a[1];
       stageRaw = a[2];
     } else {
-      return { ok: false, reason: '首行无「语义深读·<学科> × <学段>｜片自证」亦无「学科＝…／学段＝…」', raw: line.trim() };
+      return { ok: false, reason: '首行无「语义深读·<学科> × <学段>｜片自证」亦无「学科＝…／学段＝…」「片键 X|Y」', raw: line.trim() };
     }
   }
   const subject = normSubject(subjectRaw);
@@ -103,22 +105,29 @@ function parseHead(firstLine) {
   return { ok: true, key: `${subject}|${stage}`, subject, stage, reported };
 }
 
-/** 递归收集产出件（跳过 README 与下划线前缀的机器产物） */
+/** 递归收集产出件（跳过 README 与下划线前缀的机器产物；`.md` 与 `.html` 都收） */
 function walk(dir) {
   const out = [];
   if (!fs.existsSync(dir)) return out;
   for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, ent.name);
     if (ent.isDirectory()) out.push(...walk(full));
-    else if (ent.isFile() && /\.md$/i.test(ent.name) && ent.name !== 'README.md' && !ent.name.startsWith('_')) {
+    else if (ent.isFile() && /\.(md|html?)$/i.test(ent.name) && ent.name !== 'README.md' && !ent.name.startsWith('_')) {
       out.push(full);
     }
   }
   return out;
 }
 
+/** 取"片自证"所在行：md 取首个非空行；html 取首个 <h1>（去标签），退回首个非空行（去标签） */
 function firstLine(file) {
   const txt = fs.readFileSync(file, 'utf8');
+  const strip = (s) => s.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  if (/\.html?$/i.test(file)) {
+    const h1 = txt.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    if (h1) return strip(h1[1]);
+    return strip(txt).slice(0, 400);
+  }
   return (txt.split(/\r?\n/).find((l) => l.trim()) || '').trim();
 }
 
@@ -139,9 +148,10 @@ function runIntake() {
       anomalies.push(`份数自报 ${p.reported === null ? '(未写)' : p.reported} ≠ ${EXPECT_EACH}｜${rel(file)}`);
     }
     const wantDir = path.join(DIR, p.subject);
-    const wantName = `${p.subject}-${p.stage}.md`;
-    if (path.dirname(file) !== wantDir || path.basename(file) !== wantName) {
-      anomalies.push(`名称/位置不合约定（建议 ${path.join(p.subject, wantName)}）｜${rel(file)}`);
+    const wantBase = `${p.subject}-${p.stage}`;
+    const gotBase = path.basename(file).replace(/\.(md|html?)$/i, '');
+    if (path.dirname(file) !== wantDir || gotBase !== wantBase) {
+      anomalies.push(`名称/位置不合约定（建议 ${path.join(p.subject, wantBase + '.md')}）｜${rel(file)}`);
     }
   }
 
@@ -224,6 +234,7 @@ function selftest() {
     ['# 语义深读·体育学 × high｜片自证：实际读到 9 份', null, null],
     ['# 语义深读·体育 × 六年级｜片自证：实际读到 9 份', null, null],
     ['# S4 · 语义深读 · 分片复核（学科＝体育／学段＝middle）', '体育|middle', null],
+    ['片键 体育|high —— 9 份注入快照逐份语义深读', '体育|high', null],
   ];
   let fail = 0;
   for (const [line, key, reported] of cases) {

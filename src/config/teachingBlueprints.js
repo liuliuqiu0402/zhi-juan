@@ -947,7 +947,7 @@ export const TEACHING_SUBJECT_BLUEPRINTS = {
     dictation: { label: '默写积累', sections: [
       { name: '概念术语', note: '本单元要求掌握的概念与术语，在场景中呈现（不孤立罗列）' },
       { name: '操作步骤', note: '本单元要求掌握的操作步骤都涉及到' },
-      { name: '书写呈现', note: '流程图与代码书写规范呈现' },
+      { name: '书写呈现', note: '流程图与符号书写规范呈现' },
     ] },
     // 🔴 2026-10-08（第 7 批·〔214〕〔215〕）：收敛到单源 ERRORBOOK_FACETS（原手写短版注分叉·详见首个 errorbook 处说明）。
     errorbook: { label: '易错题本', sections: [...ERRORBOOK_FACETS] },
