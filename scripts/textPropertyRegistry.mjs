@@ -64,7 +64,7 @@ export const PROPERTIES = [
   // ── H 应零命中（回归锁：AI 味词/诱导词/旧措辞） ──
   { id: 'H1', name: 'AI 味套话·本题考查了', probe: '本题考查了', scope: 'all', expect: 'zero', guard: 'config/nonInducingPrompt.test.js', note: '回归锁' },
   { id: 'H2', name: 'AI 味过渡词·综上所述', probe: '综上所述', scope: 'all', expect: 'zero', guard: 'config/nonInducingPrompt.test.js', note: '回归锁' },
-  { id: 'H3', name: '空洞评价词·非常重要', probe: '非常重要', scope: 'all', expect: 'zero', guard: '—', note: '**缺口**：尚无黑名单守卫' },
+  { id: 'H3', name: '空洞评价词·非常重要', probe: '非常重要', scope: 'all', expect: 'zero', guard: 'config/aiTasteGuard.test.js', note: '2026-10-14 闭合：产物侧机检（`empty-praise-guard`·词表单源 EMPTY_PRAISE_WORDS）+ 模板零诱导' },
   { id: 'H4', name: '旧范围指代·本单元', probe: '本单元', scope: 'all', expect: 'zero', guard: 'config/scopeReferenceGuard.test.js', note: '回归锁' },
   { id: 'H5', name: '已退役的分层诱导词·由浅入深', probe: '由浅入深', scope: 'all', expect: 'zero', guard: 'config/bpWordingGuard.test.js', note: '回归锁（诱导链不作判据）' },
 ];

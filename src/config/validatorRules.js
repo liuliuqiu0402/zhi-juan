@@ -336,6 +336,27 @@ export const VALIDATOR_RULES = [
 
   // 🗑 2026-10-10（属主裁定·消噪音）：`question-numbering-key` 条目**已删**——正文由文科大字序号
   //   承担题号是**应然**形态，报它等于天天报正常态。执行点同步删除。
+  // ══ 2026-10-14（属主"AI 味不要太重"·《指令文本性质清单 v1》H3 缺口闭合）══
+  {
+    id: 'empty-praise-guard',
+    name: '空洞评价词抽检（AI 味）',
+    // 类别定 guard（不是 fix）：**本条不修任何东西**——"非常重要/十分关键"式评价词是**形容词在场、信息为零**
+    //   （不告诉你注意什么），属典型 AI 味；但删词会破坏句子结构、"该注意什么"属语义 ⇒ 只报不改，
+    //   经 guard 通道（silentCount·notice 级）进生成报告【问题列表】，交模型/编辑改写。
+    // 有意**不给 promptHint**：实发提示词**零新增**（守 promptGrowthGuard 净字纪律）——本条是**产物侧机检**，
+    //   与既有提示词侧条款（errorbook 的"不写空泛套话"等）互补，不重复注入。
+    // 判据词表**单源**＝`EMPTY_PRAISE_WORDS`（本文件导出，引擎与测试共用；新增词只改一处）。
+    category: 'guard',
+    subjects: ['*'],
+    stages: ['*'],
+    description: '空洞评价词抽检：生成物正文/解析里出现「非常重要／十分关键／需要特别注意／尤为关键／至关重要／不容忽视／极为重要」等**形容词在场面信息为零**的套话时报（notice 进生成报告【问题列表】）。只提示、不自动删改（删词会破坏句子结构，需人判断或交模型改写）。执行点：examValidator 1.5.6d。',
+    enabled: true,
+  },
+];
+
+/** 空洞评价词词表（**单源**：`empty-praise-guard` 引擎判定与测试共用；新增只改此处一处） */
+export const EMPTY_PRAISE_WORDS = [
+  '非常重要', '十分关键', '需要特别注意', '尤为关键', '至关重要', '不容忽视', '不可忽视', '极为重要',
 ];
 
 // ==================== 执行点注册表（生成端接线声明，单一事实源） ====================
@@ -356,6 +377,7 @@ export const VALIDATOR_GATES = new Set([
   'text-format-sup-sub', 'cn-ordinal-guard',
   'formula-form-guard',
   'text-format-phonetics',
+  'empty-praise-guard',
 ]);
 /** 无独立分支、由汇总/关联规则执行的子规则 */
 export const RULE_EXEC_BY = {

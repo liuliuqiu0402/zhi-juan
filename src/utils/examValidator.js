@@ -7,6 +7,7 @@
 //    本文件只负责规则的执行逻辑。
 // ============================================================
 import { getValidatorRules, normalizeStage } from '../config/validatorRules.js';
+import { EMPTY_PRAISE_WORDS } from '../config/validatorRules.js'; // 空洞评价词词表单源（2026-10-14 · AI 味·清单 H3）
 import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATION, getChoiceBlankPosition } from '../config/layoutSpec.js';
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
@@ -723,6 +724,19 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     const bare = plain.replace(/\/[^/\n]{0,60}\//g, ' '); // 剔除 /…/ 已包裹段（含斜杠词表）
     if (/[ˈˌːˑæɑɒɔəɜɪʊʌʃʒθðŋɡʧʤɹɫ]/.test(bare)) {
       silentCount('text-format-phonetics', '正文出现未被斜杠包裹的音标符号（英语音标应用 /…/ 包裹——如 /ˈæpl/）——请抽检');
+    }
+  }
+
+  // ── 1.5.6d. 空洞评价词抽检（规则 empty-praise-guard，2026-10-14 · 属主"AI 味不要太重"·清单 H3 缺口）──
+  //    判据："非常重要／十分关键／需要特别注意…"式评价词＝**形容词在场、信息为零**（不告诉你注意什么）——
+  //    属典型 AI 味。纪律（同 1.5.6a）：**只报不改、不重试、不判失败**——删词会破坏句子结构、
+  //    "该注意什么"属语义，交模型/编辑改写（guard 通道 notice 级进生成报告【问题列表】）。
+  //    词表**单源**＝validatorRules 的 EMPTY_PRAISE_WORDS（新增词只改一处）。
+  if (has('empty-praise-guard')) {
+    const plainP = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+    const hitsP = EMPTY_PRAISE_WORDS.filter((w) => plainP.includes(w));
+    if (hitsP.length) {
+      silentCount('empty-praise-guard', `空洞评价词出现：${hitsP.join('、')}——形容词在场面信息为零，请改为点明"要注意什么／为什么易错"（只提示、不改正文）`);
     }
   }
 
