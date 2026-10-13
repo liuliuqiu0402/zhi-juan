@@ -131,6 +131,42 @@ function firstLine(file) {
   return (txt.split(/\r?\n/).find((l) => l.trim()) || '').trim();
 }
 
+/**
+ * 别处扫描：当会话**开错工作区**时，产出常落在"它自己的目录"里（如
+ * `…\ModularData\ai-agent\work-mode-projects\<会话id>\`）。这里按**内容首行片自证**把它们认领回来。
+ * 只报"收件台里还没有的片"，故不会与收件台重复刷屏。
+ * 根可由 `EXTRA_SCAN_ROOTS`（分号分隔）覆盖。
+ */
+function scanExternal() {
+  const roots = (process.env.EXTRA_SCAN_ROOTS
+    || path.join(process.env.APPDATA || '', 'TRAE SOLO CN', 'ModularData', 'ai-agent', 'work-mode-projects'))
+    .split(';').map((s) => s.trim()).filter(Boolean);
+  const found = [];
+  for (const root of roots) {
+    if (!fs.existsSync(root)) continue;
+    const stack = [root];
+    while (stack.length) {
+      const dir = stack.pop();
+      let ents = [];
+      try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+      for (const ent of ents) {
+        const full = path.join(dir, ent.name);
+        if (ent.isDirectory()) {
+          if (ent.name === 'node_modules' || ent.name === '.git') continue;
+          stack.push(full);
+        } else if (ent.isFile() && /\.(md|html?)$/i.test(ent.name)) {
+          try {
+            if (fs.statSync(full).size > 800 * 1024) continue;
+            const p = parseHead(firstLine(full));
+            if (p.ok) found.push({ file: full, key: p.key });
+          } catch { /* 不可读则跳过 */ }
+        }
+      }
+    }
+  }
+  return found;
+}
+
 function runIntake() {
   const expected = expectedKeys();
   const files = walk(DIR).sort();
@@ -160,6 +196,9 @@ function runIntake() {
   const notExpected = received.filter((k) => !expected.has(k));
   const duplicated = received.filter((k) => byKey.get(k).length > 1);
 
+  // 别处扫描：只保留"期望集内、且收件台还没有"的（避免与收件台重复刷屏）
+  const external = scanExternal().filter((x) => expected.has(x.key) && !byKey.has(x.key));
+
   // 归位（--sweep）
   const swept = [];
   if (SWEEP) {
@@ -174,6 +213,16 @@ function runIntake() {
         fs.renameSync(it.file, dest);
         swept.push(`${rel(it.file)} → ${rel(dest)}`);
       }
+    }
+    // 外溢产出归位（不覆盖；同片已在收件台则跳过）
+    for (const x of external) {
+      const [subject, stage] = x.key.split('|');
+      const destDir = path.join(DIR, subject);
+      const dest = path.join(destDir, `${subject}-${stage}${path.extname(x.file)}`);
+      if (fs.existsSync(dest)) continue;
+      fs.mkdirSync(destDir, { recursive: true });
+      fs.renameSync(x.file, dest);
+      swept.push(`（外溢归位）${x.file} → ${rel(dest)}`);
     }
   }
 
@@ -205,6 +254,11 @@ function runIntake() {
   push('');
   push('【六、异常提示（份数≠9 / 名称与位置不合约定）】');
   push(anomalies.length ? anomalies.map((a) => `  · ${a}`).join('\n') : '  （无）');
+  push('');
+  push('【七、外溢产出（别处扫描；会话开错工作区时产出常落在这里）】');
+  push(external.length
+    ? external.map((x) => `  · ${x.key.split('|')[0]} × ${x.key.split('|')[1]} ⇒ ${x.file}`).join('\n') + '\n  ⇒ 用 `--sweep` 可自动归位到收件台。'
+    : '  （无：收件台外未发现"收件台还没有"的片）');
   if (SWEEP) {
     push('');
     push('【七、本次归位（--sweep）】');
