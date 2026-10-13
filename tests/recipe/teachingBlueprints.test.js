@@ -192,7 +192,7 @@ describe('教辅蓝本学科维度（三维度：学科×类型×学段）', () 
     //    本句锁"课标领域名 + 联系本单元主题"这一学科语义。
     // 🔧 2026-10-03（⑤去诱导·一并执行）：作答方式枚举"口语表达或写话"（命题口径下的作答路径指向）已删，
     //    保留课标领域名（表达与交流、梳理与探究）与中性范围句"联系本单元主题"。
-    expect(inject).toContain('表达与交流、梳理与探究：联系本单元主题');
+    expect(inject).toContain('表达与交流、梳理与探究：联系本次范围主题');
     expect(inject).not.toContain('生活化口语表达');
   });
 
@@ -403,7 +403,8 @@ describe('回归：教辅结构注入无数字区间（防诱导 AI 精确计数
     expect(review).not.toContain('3-5');
     const special = buildTeachingInjection({ genType: 'special', stage: 'primary_high', subject: '语文' });
     // 2026-10-07 先解后锁：名池由"分板块组织／每板块配解析"改为"基础巩固／典型例题解析" ⇒ 抽查句随改。
-    expect(special).toContain('本单元基础内容');
+    // 2026-10-13（属主：范围指代须与"勾选范围"一致）："本单元基础内容"→"本次范围基础内容"。
+    expect(special).toContain('本次范围基础内容');
     expect(special).not.toContain('2-4');
     const preview = buildTeachingInjection({ genType: 'preview', stage: 'primary_low', subject: '数学' });
     expect(preview).toContain('明确本次范围概念与技能目标');

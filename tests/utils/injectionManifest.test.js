@@ -168,7 +168,7 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
   it('素材使用约定：范围按 mode 分档、范围外按 extentOf 分档（2026-09-15 去对账语言）', () => {
     // practice = per-lesson-full + expand
     const practice = buildMaterialUsageBlock({ genType: 'practice', materialChannel: 'full' });
-    expect(practice).toContain('以上内容是本次涉及的内容与材料（本单元必学内容）');
+    expect(practice).toContain('以上内容是本次涉及的内容与材料（本次范围必学内容）');
     expect(practice).toContain('可依本学段课标学业要求另取其他知识点或考查角度');
     expect(practice).toContain('本资料为命题/练习型');
     // summary = full + integrate（归纳型口吻）

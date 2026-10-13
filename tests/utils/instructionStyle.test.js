@@ -66,7 +66,7 @@ describe('parseStyleFromInstruction（组织风格解析）', () => {
   });
 
   it('unit_context（单元情境卷）→ 统一情境类，需要情境框架', () => {
-    const r = parseStyleFromInstruction('【组织风格】unit_context：以本单元大情境组织，栏目间情境连贯递进');
+    const r = parseStyleFromInstruction('【组织风格】unit_context：以本次范围的大情境组织，栏目间情境连贯递进');
     expect(r.value).toBe('unit_context');
     expect(r.isUnifiedContext).toBe(true);
     expect(r.isContextStyle).toBe(true);

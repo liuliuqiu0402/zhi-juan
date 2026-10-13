@@ -48,8 +48,9 @@ describe('少约束·委托书不再给组织形态描述（教材颗粒只作�
     expect(getPromptTemplate({ subject: '英语', genType: 'exam' }).template).toContain('（参考以上内容颗粒命制本卷）');
     // summary/preview/dictation/review 段头本就不带括注（只写教材依据），无需改
     expect(getPromptTemplate({ subject: '英语', genType: 'summary' }).template).toContain('【{materialHead}】');
-    // reading 段头本就只讲"单元主题与相关语料风格"（无题型词），不在本次改动面内
-    expect(getPromptTemplate({ subject: '英语', genType: 'reading' }).template).toContain('单元主题与相关语料风格');
+    // reading 段头本就只讲"主题与相关语料风格"（无题型词），不在本次改动面内
+    // 2026-10-13（属主：范围指代须与"勾选范围"一致）："单元主题"→"本次范围主题"（勾选可一课/一单元/跨单元/全册）
+    expect(getPromptTemplate({ subject: '英语', genType: 'reading' }).template).toContain('本次范围主题与相关语料风格');
   });
 
   it('角色句都带课标依据（删掉结构词后模型手上的正当依据）', () => {
