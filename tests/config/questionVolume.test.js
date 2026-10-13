@@ -127,4 +127,23 @@ describe('题量充足（语义口径 · 2026-09-15 定版）', () => {
     }
     expect(n, '应扫到 8 类型 × 54 开设格（防假绿）').toBeGreaterThan(400);
   });
+
+  // 🔴 2026-10-13（属主裁定·原话）："要适量，不能改定量，**定量相当于给死了数值，不可以的**"。
+  //    例题量在三处（专项共用条／知识总结／复习资料）用**语义词"适量"**承载——它给的是**品质口径**
+  //    （既不注水也不单薄），而数字/区间会**锚定**模型（题少则显单薄、题多则凑数）。
+  //    本锁**双向**：①"适量"必须在（防清空）；②**该注内不得出现任何数字**（防"顺手改成 2–3 道"）。
+  it('例题量＝"适量"（语义词）· 不得改成定量数字（属主 2026-10-13 裁定）', () => {
+    const cases = [['语文', 'primary_high', 'special'], ['语文', 'primary_high', 'summary'], ['语文', 'primary_high', 'review']];
+    let hit = 0;
+    for (const [s, st, g] of cases) {
+      const bp = getTeachingBlueprint({ genType: g, stage: st, subject: s });
+      const secs = (bp?.sections || []).filter((x) => /适量/.test(x.note || ''));
+      expect(secs.length, `${g}|${st}|${s} 应有含"适量"的例题量注`).toBeGreaterThan(0);
+      for (const x of secs) {
+        hit += 1;
+        expect(x.note, `${g}「${x.name}」例题量不得定量（数字/区间）`).not.toMatch(/[0-9０-９一二三四五六七八九十两]/);
+      }
+    }
+    expect(hit, '应扫到 3 处例题量注（防假绿）').toBeGreaterThanOrEqual(3);
+  });
 });
