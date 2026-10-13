@@ -705,7 +705,7 @@ const outputFormatSections = (mode = 'question', ctx = {}) => {
   //   （第六轮越权 2）。⇒ **只对含该栏目的类型追加例外半句**；**主句（答案只在独立答案区）全类型保留**。
   const HAS_DEMO_COLUMN = ['preview', 'summary', 'special', 'review'];
   const demoException = HAS_DEMO_COLUMN.includes(ctx.genType)
-    ? '例外：明确标注为「典型例题（含解析）/示例讲解」的讲解示范型栏目，**其解答与解析随例题即时展示**（讲解本体：例题保留其原有作答形态，答案即回填在例题自身的作答位上、不留空待答），不属于需隐藏的学生答案'
+    ? '例外：明确标注为讲解示范型的栏目（如「典型例题」「典型题析」），**其解答与解析随例题即时展示**（讲解本体：例题保留其原有作答形态，答案即回填在例题自身的作答位上、不留空待答），不属于需隐藏的学生答案'
     : '';
   const answerPlacement = isErrorbook
     ? '· **变式**（学生作答的那道题）的答案与解析仅出现在独立答案区（once 模式在正文之后，split 模式由系统单独生成），题目区严禁混入；其余分项（' + EB_FACET_MIDDLE + '）是随题讲解，照常随题展示，不属于需隐藏的学生答案'

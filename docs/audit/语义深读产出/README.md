@@ -36,9 +36,9 @@
 | 科学 | 4 | primary_low／primary_mid／primary_high／middle | 0 |
 | 音乐 | 5 | primary_low／primary_mid／primary_high／middle／high | 0 |
 | 美术 | 5 | primary_low／primary_mid／primary_high／middle／high | 0 |
-| 体育 | 5 | primary_low／primary_mid／primary_high／middle／high | 2（primary_mid／middle） |
-| 信息科技 | 5 | primary_low／primary_mid／primary_high／middle／high | 5（全，已核 1：primary_high） |
-| **合计** | **54** | — | **7** |
+| 体育 | 5 | primary_low／primary_mid／primary_high／middle／high | 3（high·HTML／middle／primary_mid） |
+| 信息科技 | 5 | primary_low／primary_mid／primary_high／middle／high | 5（全，**已全部核证**） |
+| **合计** | **54** | — | **8** |
 
 ## 三、收件核对（**机检**，不靠人眼数文件名）
 
