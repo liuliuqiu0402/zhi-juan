@@ -18,6 +18,7 @@ import { getExamBlueprint } from '../../src/config/examPaperBlueprints.js';
 import { buildStructureText, getPromptTemplate } from '../../src/config/promptLibrary.js';
 import { gaokaoLevelOf, hegeLevelOf } from '../../src/config/levelMapping.js';
 import { inferPaperScope, SCOPE_LABEL_POOLS } from '../../src/config/paperScope.js';
+import { extentOf } from '../../src/config/coverageContract.js';
 import { clearLibToggles, setLibToggle } from '../../src/utils/libToggles.js';
 
 const NINE = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
@@ -104,6 +105,36 @@ describe('配置维度轴·L1′ 范围（档位不驱动装配 ⇔ 范围名文
       const changed = withName !== base;
       expect(changed, `${g}：占位符=${hasPh ? '有' : '无'} ⇒ 文本应变${hasPh ? '化' : '不变化'}`).toBe(hasPh);
       if (hasPh) expect(withName.includes(name), `${g} 应含范围名文本`).toBe(true);
+    }
+  });
+});
+
+describe('配置维度轴·覆盖范围档 ⇔ 卷面蓝本备注（P1 判据：是"合规扩张"还是"与范围相抵"）', () => {
+  it('⑩ 覆盖范围档取值表：expand／integrate／strict 三档归类稳定', () => {
+    const EXPAND = ['exam', 'practice', 'special', 'reading', 'errorbook'];
+    const INTEGRATE = ['summary', 'review'];
+    const STRICT = ['preview', 'dictation'];
+    for (const g of EXPAND) expect(extentOf(g), `${g} 应 expand`).toBe('expand');
+    for (const g of INTEGRATE) expect(extentOf(g), `${g} 应 integrate`).toBe('integrate');
+    for (const g of STRICT) expect(extentOf(g), `${g} 应 strict`).toBe('strict');
+  });
+
+  it('⑪ 正式卷＝expand ⇒ "可另取其他知识点或考查角度"原句须在场（这是蓝本领域字样的**授权依据**）', () => {
+    for (const [s, st] of [['物理', 'middle'], ['数学', 'high'], ['语文', 'primary_high']]) {
+      const t = buildInstructionText('exam', s, st);
+      expect(extentOf('exam')).toBe('expand');
+      expect(t.includes('另取其他知识点或考查角度'), `exam·${s}×${st} 缺 expand 授权句 ⇒ 蓝本领域字样将成"相抵"`).toBe(true);
+      expect(t.includes('不臆断学生是否已学'), '旧封禁句不得回归').toBe(false);
+    }
+  });
+
+  it('⑫ 卷面蓝本备注**只在正式卷**注入（教辅面不得消费卷面蓝本 note）', () => {
+    const NOTES = ['力学与电学综合', '力学综合与电磁学综合', '4选1，涉及数与式'];
+    for (const g of NINE.filter((x) => x !== 'exam')) {
+      for (const [s, st] of [['物理', 'middle'], ['物理', 'high'], ['数学', 'middle']]) {
+        const t = buildInstructionText(g, s, st);
+        for (const n of NOTES) expect(t.includes(n), `${g}·${s}×${st} 不应含卷面蓝本备注「${n}」`).toBe(false);
+      }
     }
   });
 });
