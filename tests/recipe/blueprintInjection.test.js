@@ -262,7 +262,7 @@ describe('buildOutputFormatHint（非 exam 统一输出格式）', () => {
     expect(hint).toContain('<h1>');
     expect(hint).toContain('<h2>');
     expect(hint).toContain('题目区严禁混入');
-    expect(hint).toContain('1 字位≈1 个全角空格≈1 em 书写宽'); // 换算锚（2026-09：旧"书写空间按照答案的长度倒推"收敛为计数锚句）
+    expect(hint).toContain('1 字位≈1 个全角空格；书写宽＝1 em'); // 换算锚（2026-09：旧"书写空间按照答案的长度倒推"收敛为计数锚句；2026-10-14 批 C-6：锚句去**链式假等式**改两段陈述）
   });
 
   it('含正文边界要求：答案仅出现在独立答案区；代码块由代码层拦截，不再要求模型', () => {
@@ -350,7 +350,7 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
         expect(t.template, `类型 ${g} 内容型不注入题类专属作答空间条款`).not.toContain('作答空位形态与所填内容相称');
       } else {
         expect(t.template, `类型 ${g} 缺作答空间形态语义`).toContain('作答空位形态与所填内容相称');
-        expect(t.template, `类型 ${g} 缺换算锚`).toContain('1 字位≈1 个全角空格≈1 em 书写宽');
+        expect(t.template, `类型 ${g} 缺换算锚`).toContain('1 字位≈1 个全角空格；书写宽＝1 em');
         // 🔧 客观题留白/空位位置不再由"模型既有能力"放任（形态已按答案类型绑定注入），残留旧引导句仍须为零
         expect(t.template, `类型 ${g} 残留客观题引导句`).not.toContain('不再额外整行留白');
         expect(t.template, `类型 ${g} 残留空位位置引导句`).not.toContain('随所属题目输出');
@@ -402,11 +402,11 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
       if (CONTENT_TYPES.includes(g)) {
         // 🔴 2026-10-03 口径改准（用户质询）：内容型只取"载体规格"（书写载体协议，**按 学科×学段 有则注入**；
         //    此处模板级无 subject/stage → 只判"不注入题类专属的作答空间形态判据/换算锚"）。
-        expect(t.template, `类型 ${g} 内容型不注入换算锚`).not.toContain('1 字位≈1 个全角空格≈1 em 书写宽');
+        expect(t.template, `类型 ${g} 内容型不注入换算锚`).not.toContain('1 字位≈1 个全角空格；书写宽＝1 em');
       } else {
         // 🔧 换算锚随 BLANK 动态注入（字位→em 计数锚）；形态是"倾向引导非强制绑定"（2026-09 用户定稿：
         //    具体空位形态由模型按题干措辞与作答需要选定，只定死硬约束——宽度换算/同题同形态/一空一载体/禁文字占位）
-        expect(t.template, `类型 ${g} 缺换算锚`).toContain('1 字位≈1 个全角空格≈1 em 书写宽');
+        expect(t.template, `类型 ${g} 缺换算锚`).toContain('1 字位≈1 个全角空格；书写宽＝1 em');
         // 2026-10-01 D17（用户裁定：载体语义改"判据式"、废"许可式"）：原断言锁的是"形态选择权句"
         //    （`由你按题干措辞与作答需要选定`）→ 改为锁定**判据式**，并**禁止许可式回潮**（属"改准＋收紧"）
         expect(t.template, `类型 ${g} 缺载体形态判据句`).toContain('按所填内容定');
@@ -424,7 +424,7 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
   it('书写载体条款按 学科×学段 精确注入（排版规格库唯一事实源，不广播跨学科示例）', () => {
     // 通用模板（无学科/学段）：只留通用句，不含任何具体格子示例（旧版全学科广播已移除）
     const generic = getPromptTemplate({ genType: 'practice' });
-    expect(generic.template).toContain('1 字位≈1 个全角空格≈1 em 书写宽');
+    expect(generic.template).toContain('1 字位≈1 个全角空格；书写宽＝1 em');
     expect(generic.template).not.toContain('不少于3行');
     expect(generic.template).not.toContain('tian-zi-ge');
     expect(generic.template).not.toContain('four-line-three');

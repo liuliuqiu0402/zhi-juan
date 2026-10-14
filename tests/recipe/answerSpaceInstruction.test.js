@@ -145,11 +145,16 @@ describe('buildAnswerSpaceInstruction（通用六行：形态按作答需要选�
     expect(s).toContain('填**短答**（词/句/数等');
   });
 
-  it('换算锚随 BLANK 动态注入（wordGap=3 时跟随）', () => {
+  it('换算锚随 BLANK 动态注入（wordGap 只经 BLANK 规格走；锚句不用链式等式，防 wordGap≠1 时自相抵）', () => {
     const s = buildAnswerSpaceInstruction('数学', 'middle');
     const s3 = buildAnswerSpaceInstruction().replace('1 em', '1 em');
-    expect(s).toContain('1 字位≈1 个全角空格≈1 em 书写宽');
-    expect(s3).toContain('≈1 em');
+    // 🔴 2026-10-14（批 C-6）：原锁 `1 字位≈1 个全角空格≈1 em 书写宽`（链式）——默认 wordGap=1 时数值巧合成立，
+    //   但 wordGap 面板可调 1..4：调成 2 时原句成"1 字位≈1 个全角空格≈2 em 书写宽"＝同一物两个宽度（自相抵）。
+    //   现锚句拆成两段陈述（字位↔全角空格 恒 1:1；书写宽单列换算值），故按新字面改准（判据/数值均未变）。
+    expect(s).toContain('1 字位≈1 个全角空格；书写宽＝1 em');
+    expect(s3).toContain('书写宽＝1 em');
+    // 链式假等式**反向锁**：任何 wordGap 下都不得再出现"全角空格≈…em 书写宽"
+    expect(s).not.toContain('个全角空格≈');
     // 直接验证 BLANK 联动（换算锚内嵌函数同源；wordGap 只经 BLANK 规格走，此处锁定默认 1）
     expect(BLANK.wordGap).toBe(1);
   });

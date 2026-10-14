@@ -5,6 +5,8 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getMergedSpec, LAYOUT_SPEC_DEFAULTS } from '../../src/config/layoutSpec.js';
+import { CARRIERS } from '../../src/config/blueprintSchema.js';       // 载体真类名枚举（面板候选值的下游真值集）
+import { subjects } from '../../src/config/expertKnowledge.js';        // canonical 学科清单（面板学科候选的下游真值集）
 
 const ROOT = path.resolve(__dirname, '../..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -110,5 +112,42 @@ describe('修复准则守卫：渲染静态尺寸等值守卫（第二副本不�
     expect(spec.BLANK, 'BLANK 未进 getMergedSpec').toBeTruthy();
     expect(Number.isFinite(spec.BLANK.maxBlank), 'maxBlank 应可调（面板值必须能被读取端拿到）').toBe(true);
     expect(Number.isFinite(spec.BLANK.minBlank), 'minBlank 应可调（1 字位被抬到 2 档这一越位点靠它调）').toBe(true);
+  });
+});
+
+// 🔴 2026-10-14（批 C-6）：面板**候选值**本身也必须是"下游认得的真值" —— 上一组守卫只钉"path 的顶级键
+//   在合并白名单内"（防死字段），但**不钉候选值**：`GRID_OPTIONS` 曾用 `square`（`CARRIERS.SQUARE` 自注
+//   "类名前缀、匹配 square-grid"、全库无消费方）**冒充**方格纸 → 面板选它即 ①注入 `<span class="square">`
+//   （渲染端不认＝C-5 契约要防的暗伤）②写进允许表则真类名 `square-grid` 反被判越界剥掉。学科候选同理：
+//   `carrierMustParts` 按 `r.subject !== subject` **原样比较**（不做归一）→ 用旧别名（道法/政治/信息）则该条
+//   **永不命中**（静默失效）。本组把"候选值 ⊆ 下游真值集"钉住（改名/删项即转红，防回潮）。
+describe('修复准则守卫：面板候选值必须是下游真值（学科用 canonical、载体用真类名）', () => {
+  const vueOf = () => read('src/modules/tools/views/LayoutSpecView.vue');
+  const arrValues = (src, name) => {
+    const m = src.match(new RegExp(`const ${name} = \\[([\\s\\S]*?)\\];`));
+    expect(m, `${name} 未取到（改名/删除 → 守卫失效，须同步更新本守卫）`).toBeTruthy();
+    return [...m[1].matchAll(/value:\s*'([^']+)'/g)].map((x) => x[1]);
+  };
+
+  it('载体候选（GRID_OPTIONS／CARRIER_OPTIONS）只含真类名，且不得再用前缀常量 square', () => {
+    const vue = vueOf();
+    const real = new Set(Object.values(CARRIERS));
+    for (const name of ['GRID_OPTIONS', 'CARRIER_OPTIONS']) {
+      const vals = arrValues(vue, name);
+      expect(vals, `${name} 须含真类名 square-grid（否则面板无法表达作图方格纸）`).toContain('square-grid');
+      expect(vals, `${name} 不得再含前缀常量 square（非渲染/剥离端认的 class）`).not.toContain('square');
+      const bad = vals.filter((v) => !real.has(v));
+      expect(bad, `${name} 含非载体类名：${bad.join('、')}（下游渲染/剥离只会认 CARRIERS 枚举值）`).toEqual([]);
+    }
+  });
+
+  it('学科候选（SUBJECT_OPTIONS）只含 canonical 名（用旧别名 = must 规则永不命中）', () => {
+    const vue = vueOf();
+    const m = vue.match(/const SUBJECT_OPTIONS = \[([\s\S]*?)\];/);
+    expect(m, 'SUBJECT_OPTIONS 未取到（改名/删除 → 守卫失效）').toBeTruthy();
+    const vals = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+    const canon = new Set(subjects);
+    const bad = vals.filter((v) => !canon.has(v));
+    expect(bad, `非 canonical 学科名：${bad.join('、')}（carrierMustParts 原样比较 r.subject !== subject，不会归一）`).toEqual([]);
   });
 });

@@ -360,13 +360,22 @@ for (const s of ANSWER_SUBJECTS) {
 const ANSWER_MATRIX = { subjects: ANSWER_SUBJECTS, stages: ANSWER_STAGES, params: ANSWER_MATRIX_PARAMS };
 
 // 载体×题型规则（CARRIER_RULES）编辑用常量
-const SUBJECT_OPTIONS = ['语文', '数学', '英语', '物理', '化学', '生物', '科学', '道法', '政治', '历史', '地理', '音乐', '美术', '体育', '信息'];
+// 🔴 2026-10-14（批 C-6·值必须是**真类名**）：学科候选原用旧别名（道法/政治/信息），与本库自载口径
+//    （`layoutSpec` 注释：键名必须与 `expertKnowledge.subjects` canonical 名完全同名）相抵 ——
+//    `carrierMustParts` 按 `r.subject !== subject` **原样比较**（不做学科归一），故面板改成别名后该条
+//    **永不命中**（静默失效）。现改用 canonical 15 科（与 STAGE_SUBJECTS 同名）。
+const SUBJECT_OPTIONS = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '道德与法治', '思想政治', '科学', '信息科技', '音乐', '美术', '体育'];
+// 🔴 2026-10-14（批 C-6·同上）：原写 `square`——它只是 **类名前缀常量**（`CARRIERS.SQUARE` 自注
+//    "作图方格纸类名前缀，匹配 square-grid"，全库无消费方），**不是任何渲染/剥离端认的 class**。
+//    选它注入给模型的是 `<span class="square"></span>`＝**指令点名一个渲染端不认的载体**（C-5
+//    `CARRIER_RENDER_CONTRACT` 要防的那类暗伤）；写进允许表则因与真类名 `square-grid` 不符，
+//    反而把合法方格纸判为越界剥掉。现改真类名。
 const GRID_OPTIONS = [
   { value: 'tian-zi-ge', label: '田字格' },
   { value: 'pinyin-line', label: '拼音格' },
   { value: 'four-line-three', label: '四线三格' },
   { value: 'mi-zi-ge', label: '米字格' },
-  { value: 'square', label: '方格' },
+  { value: 'square-grid', label: '方格纸' },
 ];
 const SPEC_GROUPS = [
   {
@@ -506,7 +515,7 @@ const CARRIER_OPTIONS = [
   { value: 'tian-zi-ge', label: '田字格' },
   { value: 'pinyin-line', label: '拼音格' },
   { value: 'four-line-three', label: '四线三格' },
-  { value: 'square', label: '方格' },
+  { value: 'square-grid', label: '方格纸' }, // 🔴 2026-10-14（批 C-6）：原为前缀常量 `square`（非真类名），见 GRID_OPTIONS 同处留痕
   { value: 'line', label: '横线' },
   { value: 'mi-zi-ge', label: '米字格' },
 ];

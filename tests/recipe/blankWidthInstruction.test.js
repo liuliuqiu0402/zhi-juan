@@ -5,6 +5,9 @@
 //    - 纯计数锚：只讲"字位↔书写宽"换算，不含任何形态词（横线/括号/下划线/＿/blank-N）
 //      ——2026-09 语义收敛：旧"按书写惯例输出对应作答书写载体，不得遗漏"整句已废弃，
 //      形态归属改由 buildAnswerSpaceInstruction 按答案类型绑定（见 answerSpaceInstruction.test.js）
+//    - 🔴 2026-10-14（批 C-6）：**锚句不用链式等式**。"字位↔全角空格"恒 1:1（与规格无关），
+//      "字位→书写宽"才是 wordGap（面板可调 1..4）——旧句 `…≈N em 书写宽` 把两者串成一条链，
+//      默认 1 时数值巧合成立，调到 ≠1 即"同一物两个宽度"＝自相抵。现拆两段陈述，本组按新字面改准。
 // ============================================================
 import { describe, it, expect } from 'vitest';
 import { buildBlankWidthInstruction, BLANK } from '@/config/layoutSpec.js';
@@ -12,18 +15,18 @@ import { buildBlankWidthInstruction, BLANK } from '@/config/layoutSpec.js';
 const FORM_WORDS = /横线|括号|下划线|＿|blank-\d|作答书写载体|书写惯例/;
 
 describe('buildBlankWidthInstruction（换算锚随 BLANK 动态生成）', () => {
-  it('默认规格：换算锚 = 字位↔全角空格↔em 计数锚（wordGap=1 默认 1:1）', () => {
+  it('默认规格：换算锚 = 字位↔全角空格（恒 1:1）＋ 书写宽单列换算值', () => {
     const s = buildBlankWidthInstruction();
     expect(s).toContain('1 字位');
     expect(s).toContain('1 个全角空格');
-    expect(s).toContain('≈1 em');
+    expect(s).toContain('书写宽＝1 em');
   });
 
   it('wordGap 调整后口径自动跟随（不写死默认值）', () => {
     const s = buildBlankWidthInstruction({ ...BLANK, wordGap: 3, maxCap: 15 });
-    expect(s).toContain('≈3 em');
+    expect(s).toContain('书写宽＝3 em');
     const s2 = buildBlankWidthInstruction({ ...BLANK, wordGap: 1 });
-    expect(s2).toContain('≈1 em');
+    expect(s2).toContain('书写宽＝1 em');
   });
 
   it('纯计数锚：无形态词、无旧"按书写惯例"句', () => {
@@ -32,13 +35,20 @@ describe('buildBlankWidthInstruction（换算锚随 BLANK 动态生成）', () =
   });
 
   it('默认换算锚整句逐字锁定（不漏一字）', () => {
-    expect(buildBlankWidthInstruction()).toBe('1 字位≈1 个全角空格≈1 em 书写宽');
+    expect(buildBlankWidthInstruction()).toBe('1 字位≈1 个全角空格；书写宽＝1 em');
+  });
+
+  it('🔴 反向锁：不得回潮为链式等式（"…全角空格≈N em 书写宽"会把两个不相干的宽度串成一个）', () => {
+    for (const gap of [1, 2, 3, 4]) {
+      const s = buildBlankWidthInstruction({ ...BLANK, wordGap: gap });
+      expect(s, `wordGap=${gap} 时锚句成了链式假等式`).not.toMatch(/个全角空格≈/);
+    }
   });
 
   it('与归一链换算口径一致：N em = 字位数 × wordGap（默认 1 字位 ≈ 1 em，不翻倍）', () => {
     const per = BLANK.wordGap;
     const s = buildBlankWidthInstruction();
-    expect(s).toContain(`≈${per} em`);
+    expect(s).toContain(`书写宽＝${per} em`);
     expect(BLANK.maxCap / per).toBeGreaterThanOrEqual(8); // 16 字位封顶 = maxCap 16 ÷ wordGap 1
   });
 });

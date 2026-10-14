@@ -358,7 +358,13 @@ export function buildBlankWidthInstruction(spec = BLANK) {
   const b = sanitizeBlankSpec(spec);
   const per = b.wordGap; // 1 字位 ≈ per em（字位→书写宽换算系数，渲染端参数；默认 1:1 不放大）
   const perText = String(per);
-  return `1 字位≈1 个全角空格≈${perText} em 书写宽`;
+  // 🔴 2026-10-14（批 C-6·消**链式假等式**）：原句 `1 字位≈1 个全角空格≈N em 书写宽` 把两件互不相干的事
+  //    串成一条等式链——"字位 ↔ 全角空格"恒 1:1（与规格无关），"字位 → 书写宽"才是 `wordGap`
+  //    （面板可调 1..4）。默认 1 时两者数值巧合相同、看不出问题；一旦面板把 `wordGap` 调到 ≠1，
+  //    注入句即成"1 字位≈1 个全角空格≈2 em 书写宽"＝**同一物两个宽度**（1 个全角空格恒 ≈1 em，
+  //    不可能 ＝2 em）＝自相抵。改为**两段陈述**（判据与数值均不变、净 0 字）：
+  //    全角空格只作"字位宽度"的等长锚，书写宽单列换算值。
+  return `1 字位≈1 个全角空格；书写宽＝${perText} em`;
 }
 
 /**
