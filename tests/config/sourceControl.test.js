@@ -5,7 +5,10 @@ import { describe, it, expect } from 'vitest';
 import { SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS } from '@/config/promptLibrary.js';
 
 // 受控课标前缀：新版本课标入库须先登记到本清单，否则 CI 即红（宁缺毋滥，防伪出处）
-const SOURCE_PREFIX = /^(2022义教|高中.+课标\(2017\/2020\))/;
+// 🔴 2026-10-14（属主裁定"**是同一个课标，要统一**"·附8 术语唯一）：高中课标此前有**三种写法**
+//   （科段要点表 `高中X课标(2017/2020)`／蓝图 note `普通高中X课程标准（2017年版2020年修订）`／学段表 `高中课标`），
+//   现**全库统一为正式全名**（单源常量 `GAOZHONG_CURRICULUM`）⇒ 本守卫受控前缀随之改准：`^普通高中`。
+const SOURCE_PREFIX = /^(2022义教|普通高中)/;
 const SELF_MADE = /(自拟|据我|我认为|参考我|自编|个人理解)/;
 
 const CELLS = Object.entries(SUBJECT_STAGE_EXTRAS);
@@ -24,7 +27,7 @@ describe('课标出处受控：54 科段要点 source 单一受控清单（CI �
     expect(bad, `正文规范异常 ${bad.length} 处：\n${bad.slice(0, 30).join('\n')}`).toEqual([]);
   });
 
-  it('每条要点带出处，且出处以受控课标前缀开头（2022义教 / 高中…课标(2017/2020)）', () => {
+  it('每条要点带出处，且出处以受控课标前缀开头（2022义教 / 普通高中…课程标准（2017年版2020年修订））', () => {
     const bad = [];
     for (const [cell, v] of CELLS) {
       if (!v.source || !v.source.trim()) bad.push(`${cell} 缺 source`);
@@ -38,18 +41,18 @@ describe('课标出处受控：54 科段要点 source 单一受控清单（CI �
     expect(bad, `自造出处 ${bad.length} 处：\n${bad.slice(0, 30).join('\n')}`).toEqual([]);
   });
 
-  it('课标体系与学段匹配：义教学段（小学低/中/高段、初中）出处仅允许 2022 义教课标；高中学段仅允许 高中…课标(2017/2020)', () => {
+  it('课标体系与学段匹配：义教学段（小学低/中/高段、初中）出处仅允许 2022 义教课标；高中学段仅允许 普通高中…课程标准（2017年版2020年修订）', () => {
     const bad = [];
     for (const [cell, v] of CELLS) {
       const stage = cell.split('|')[1];
       const src = (v.source || '').trim();
       if (stage === 'high') {
-        if (!/^高中.+课标\(2017\/2020\)/.test(src)) bad.push(`${cell}: 高中学段须用高中课标(2017/2020)出处，实得：${src.slice(0, 30)}`);
+        if (!/^普通高中/.test(src)) bad.push(`${cell}: 高中学段须用"普通高中…课程标准（2017年版2020年修订）"出处，实得：${src.slice(0, 30)}`);
       } else if (!/^2022义教/.test(src)) {
         bad.push(`${cell}: 义教学段(${stage})须用 2022 义教课标出处，实得：${src.slice(0, 30)}`);
       }
     }
-    expect(bad, `学段↔课标体系错配 ${bad.length} 处（义教=2022义教 / 高中=高中课标2017/2020，两体系素养与学段目标不同，禁止混用）：\n${bad.slice(0, 30).join('\n')}`).toEqual([]);
+    expect(bad, `学段↔课标体系错配 ${bad.length} 处（义教=2022义教 / 高中=普通高中·2017年版2020年修订，两体系素养与学段目标不同，禁止混用）：\n${bad.slice(0, 30).join('\n')}`).toEqual([]);
   });
 
   it('口径 CI（A-002 固化）：课标要点正文不得含未声明出处的命题形态词（设问/题型名/支架/载体等）', () => {
@@ -80,7 +83,7 @@ describe('课标出处受控：54 科段要点 source 单一受控清单（CI �
       for (const [stage, v] of Object.entries(table)) {
         if (!v.source || !v.source.trim()) bad.push(`${tname}.${stage} 缺 source`);
         else if (SELF_MADE.test(v.source)) bad.push(`${tname}.${stage} 自造出处：${v.source}`);
-        else if (!/^(2022义教|高中)/.test(v.source.trim())) bad.push(`${tname}.${stage} 出处前缀不受控：${v.source.trim().slice(0, 40)}`);
+        else if (!/^(2022义教|普通高中)/.test(v.source.trim())) bad.push(`${tname}.${stage} 出处前缀不受控：${v.source.trim().slice(0, 40)}`);
       }
     }
     expect(bad, `学段表出处受控异常 ${bad.length} 处：\n${bad.join('\n')}`).toEqual([]);
