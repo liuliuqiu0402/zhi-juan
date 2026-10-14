@@ -46,7 +46,7 @@ export const PROPERTIES = [
   { id: 'D6', name: '每题须对应一个典型错因（错因绑定）', probe: '每题须对应一个典型错因', scope: ['errorbook'], expect: 'must', guard: 'config/qualityReadiness.test.js', note: '治②解析不点错因' },
   { id: 'D7', name: '干扰项＝各对应一种学生可能的思路', probe: '各选项须各自对应一种学生可能的思路', scope: 'exam', expect: 'must', guard: 'config/questionFormatRules.test.js', note: '治⑧选项过于对称' },
   { id: 'D8', name: '变式不复刻本题思路', probe: '不复刻本题思路', scope: ['errorbook'], expect: 'must', guard: 'config/qualityReadiness.test.js', note: '与"允许另解"同族' },
-  { id: 'D9', name: '设问由易到难', probe: '设问由易到难', scope: 'exam', expect: 'must', guard: '—', note: '层次递进的既有判据（T20 同族）·**尚无独立守卫·缺口登记**' },
+  { id: 'D9', name: '设问由易到难', probe: '设问由易到难', scope: 'exam', expect: 'must', guard: 'config/riseDifficultyGuard.test.js', note: '层次递进的既有判据（T20 同族）。2026-10-14 **闭合"已登记·未上锁"缺口**：补独立守卫（exam 54 面在场／非 exam 432 面零命中／判据词逐字含锚"考查理解与运用"／与真分层判法 B4 共在）' },
   { id: 'D10', name: '跨学科背景须为解题所需·不作拼盘', probe: '跨学科背景须为解题所需，不作拼盘', scope: 'all', expect: 'must', guard: 'config/crossSubjectIntegrationGuard.test.js', note: '2026-10-14 属主解锁 §八 净字方案：同块收口三处真冗余（"以能力/素养点为纲"重复−10、"（不算注水）"−6、"正文直入"重字−2）／换入本句（+17）＝净 −1，过 promptGrowthGuard' },
 
   // ── E 篇幅与题量 ──
