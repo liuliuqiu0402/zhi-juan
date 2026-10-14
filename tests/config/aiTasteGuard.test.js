@@ -13,6 +13,7 @@ import path from 'node:path';
 import { VALIDATOR_RULES, VALIDATOR_GATES, EMPTY_PRAISE_WORDS, AI_CLICHE_PHRASES, AI_CLICHE_MIN, AI_OPTION_SYM } from '../../src/config/validatorRules.js';
 import { faceTexts } from '../../scripts/instructionText.mjs';
 import { detectOptionSymmetry } from '../../src/utils/optionSymmetry.js';
+import { detectAnswerEcho, ECHO_MIN_HANZI, ECHO_MIN_SAMPLE } from '../../src/utils/answerEcho.js';
 
 const rule = VALIDATOR_RULES.find((r) => r.id === 'empty-praise-guard');
 const engineSrc = fs.readFileSync(path.resolve(__dirname, '../../src/utils/examValidator.js'), 'utf8');
@@ -107,6 +108,38 @@ describe('去 AI 味 · AI 味套话指纹（ai-cliche-guard）', () => {
   it('⑩ 模板侧零诱导：486 面装配文本不得含套话指纹（避免自己教模型写）', () => {
     const bad = faces.filter((f) => allCliche.some((w) => f.text.includes(w))).map((f) => `${f.subject}×${f.stage}×${f.genType}`);
     expect(bad.slice(0, 5), `模板命中：${bad.length} 面`).toEqual([]);
+  });
+});
+
+// ── 第 4 条：答案区复述题干（纯函数判据·只报不改） ──
+describe('去 AI 味 · 答案区复述题干（answer-echo-guard）', () => {
+  const rule4 = VALIDATOR_RULES.find((r) => r.id === 'answer-echo-guard');
+  const UNIT = '本题要求同学们认真观察实验现象并记录数据然后分析得出结论'; // 28 汉字
+  const filler = UNIT.repeat(8);                                        // 224 汉字（过样本下限）
+  const other = '观察到的现象说明反应放热需注意温度控制与安全'.repeat(8);
+
+  it('⑭ 规则已注册为 guard 类、不得给 promptHint、接线自查', () => {
+    expect(rule4, '规则缺注册').toBeTruthy();
+    expect(rule4.category).toBe('guard');
+    expect('promptHint' in rule4).toBe(false);
+    expect(VALIDATOR_GATES.has('answer-echo-guard')).toBe(true);
+    expect(engineSrc).toContain("has('answer-echo-guard')");
+  });
+
+  it('⑮ 阈值单源：连续 ≥14 汉字、两侧样本 ≥200 汉字', () => {
+    expect(ECHO_MIN_HANZI).toBe(14);
+    expect(ECHO_MIN_SAMPLE).toBe(200);
+  });
+
+  it('⑯ 有牙自证：照搬题干 ⇒ 报；改写/过短/样本不足 ⇒ 不报', () => {
+    // ① 命中：答案区含与题干**连续相同**的长片段
+    const hit = detectAnswerEcho(filler + '请回答：现象说明什么？', '解析：' + UNIT + '，故可得结论。' + other);
+    expect(hit.length).toBeGreaterThanOrEqual(1);
+    expect(hit[0].length).toBeGreaterThanOrEqual(ECHO_MIN_HANZI);
+    // ② 不命中：解析为改写（无长同串）
+    expect(detectAnswerEcho(filler + '请回答：现象说明什么？', '解析：' + other)).toEqual([]);
+    // ③ 不命中：样本不足（题干区过短）⇒ 不自证
+    expect(detectAnswerEcho('请回答：现象说明什么？', '解析：' + UNIT + other)).toEqual([]);
   });
 });
 

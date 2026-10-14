@@ -379,6 +379,20 @@ export const VALIDATOR_RULES = [
     description: '选项对称指纹抽检：同一题内 ≥4 个文本型选项（各含 ≥4 汉字）而**字数完全相同**时报（notice 进生成报告【问题列表】）。只提示、不改写。短选项（数字/符号/单词）与拆不开结构的题**不参与**判定（防误报）。执行点：examValidator 1.5.6f。',
     enabled: true,
   },
+  {
+    id: 'answer-echo-guard',
+    name: '答案区复述题干抽检（AI 味·只报不改）',
+    // 2026-10-14（属主"AI 味继续"·属主症状第 ③ 条"重复题目措辞"）：答案/解析里**原样照搬题干**的
+    //   长片段（连续 ≥14 汉字且题干区也在）＝典型 AI 味。阈值取 14：术语/固定表述（4–6 字）不会命中。
+    //   **只报不改**：是否属"必要引述"（如阅读材料引文）需人判 ⇒ notice 进生成报告【问题列表】。
+    //   已知误报边界（如实登记）：阅读训练类解析**引用材料原句**可能命中 ⇒ 报告仅供抽检。
+    //   有意**不给 promptHint**（产物侧机检，实发提示词零新增）；阈值**单源**＝`ECHO_MIN_HANZI`／`ECHO_MIN_SAMPLE`。
+    category: 'guard',
+    subjects: ['*'],
+    stages: ['*'],
+    description: '答案区复述题干抽检：答案/解析里出现与题干**连续相同 ≥14 个汉字**的片段时报（附最长匹配片段，notice 进生成报告【问题列表】）。只提示、不改写；两侧文本过短（汉字 <200）不出结论。已知误报边界：阅读类解析引用材料原句可能命中（供抽检、不自动处置）。执行点：examValidator 1.5.6g。',
+    enabled: true,
+  },
 ];
 
 /** 空洞评价词词表（**单源**：`empty-praise-guard` 引擎判定与测试共用；新增只改此处一处） */
@@ -431,6 +445,7 @@ export const VALIDATOR_GATES = new Set([
   'empty-praise-guard',
   'ai-cliche-guard',
   'ai-option-symmetry-guard',
+  'answer-echo-guard',
 ]);
 /** 无独立分支、由汇总/关联规则执行的子规则 */
 export const RULE_EXEC_BY = {

@@ -10,6 +10,7 @@ import { getValidatorRules, normalizeStage } from '../config/validatorRules.js';
 import { EMPTY_PRAISE_WORDS } from '../config/validatorRules.js'; // 空洞评价词词表单源（2026-10-14 · AI 味·清单 H3）
 import { AI_CLICHE_PHRASES, AI_CLICHE_MIN } from '../config/validatorRules.js'; // AI 味套话指纹·阈值单源（2026-10-14）
 import { detectOptionSymmetry } from './optionSymmetry.js'; // 选项对称指纹判据（纯函数·可单测；阈值单源见其内 AI_OPTION_SYM，2026-10-14）
+import { detectAnswerEcho } from './answerEcho.js'; // 答案区复述题干判据（纯函数·可单测；阈值单源见其内，2026-10-14）
 import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATION, getChoiceBlankPosition } from '../config/layoutSpec.js';
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
@@ -768,6 +769,21 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   if (has('ai-option-symmetry-guard')) {
     for (const s of detectOptionSymmetry(out)) {
       silentCount('ai-option-symmetry', `第 ${s.group} 组选项（${s.labels.join('/')}）**字数完全相同**（各 ${s.hanzi} 个汉字）——选项过于整齐属 AI 味指纹，建议让干扰项长短参差些；只提示、不改正文`);
+    }
+  }
+
+  // ── 1.5.6g. 答案区复述题干抽检（规则 answer-echo-guard，2026-10-14 · 属主症状③"重复题目措辞"）──
+  //    答案/解析与题干区**连续相同 ≥14 汉字** ⇒ 报（阈值 14：术语级 4–6 字不会命中）。
+  //    答案区起点走**单源** `answerAreaStartIndex`（与 2j 系列同源，避免漏包容器切错）。
+  //    纪律同前：**只报不改、不重试、不判失败**——是否属必要引述（阅读材料引文）需人判。
+  if (has('answer-echo-guard')) {
+    const ansIdxE = answerAreaStartIndex(out);
+    if (ansIdxE >= 0) {
+      const bare = (h) => String(h).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
+      const echoes = detectAnswerEcho(bare(out.slice(0, ansIdxE)), bare(out.slice(ansIdxE)));
+      if (echoes.length) {
+        silentCount('answer-echo-guard', `答案/解析与题干**连续相同** ≥14 字的片段 ${echoes.length} 处——如「${echoes[0].slice(0, 20)}…」⇒ 疑似照搬题干，建议改为直接讲错因与思路（只提示、不改正文）`);
+      }
     }
   }
 
