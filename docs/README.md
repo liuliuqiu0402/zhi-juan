@@ -141,7 +141,7 @@ wisdom-workshop/
 │   ├── pdf_to_images.py   # PDF 转图片
 │   ├── split_columns.py   # 分栏检测
 │   └── add_bookmarks.py   # PDF 书签
-├── tests/                  # Vitest 单元测试（113 文件 / 1629 用例）
+├── tests/                  # Vitest 单元测试（258 文件 / 3864 用例）
 ├── docs/                   # 项目文档
 ├── main.js                 # Electron 主进程
 ├── preload.js              # 预加载脚本
@@ -228,6 +228,6 @@ curl http://localhost:11434/api/tags
 
 ---
 
-**最后更新**: 2026-09-10
+**最后更新**: 2026-10-14（校准测试数；目录/入口以 [文档索引.md](./文档索引.md) 为准）
 
 **祝您使用愉快！** 🎉
