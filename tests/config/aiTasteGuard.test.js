@@ -10,8 +10,9 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { VALIDATOR_RULES, VALIDATOR_GATES, EMPTY_PRAISE_WORDS, AI_CLICHE_PHRASES, AI_CLICHE_MIN } from '../../src/config/validatorRules.js';
+import { VALIDATOR_RULES, VALIDATOR_GATES, EMPTY_PRAISE_WORDS, AI_CLICHE_PHRASES, AI_CLICHE_MIN, AI_OPTION_SYM } from '../../src/config/validatorRules.js';
 import { faceTexts } from '../../scripts/instructionText.mjs';
+import { detectOptionSymmetry } from '../../src/utils/optionSymmetry.js';
 
 const rule = VALIDATOR_RULES.find((r) => r.id === 'empty-praise-guard');
 const engineSrc = fs.readFileSync(path.resolve(__dirname, '../../src/utils/examValidator.js'), 'utf8');
@@ -106,5 +107,38 @@ describe('去 AI 味 · AI 味套话指纹（ai-cliche-guard）', () => {
   it('⑩ 模板侧零诱导：486 面装配文本不得含套话指纹（避免自己教模型写）', () => {
     const bad = faces.filter((f) => allCliche.some((w) => f.text.includes(w))).map((f) => `${f.subject}×${f.stage}×${f.genType}`);
     expect(bad.slice(0, 5), `模板命中：${bad.length} 面`).toEqual([]);
+  });
+});
+
+// ── 第 3 条：选项对称指纹（纯函数判据·只在能自证时报） ──
+describe('去 AI 味 · 选项对称指纹（ai-option-symmetry-guard）', () => {
+  const rule3 = VALIDATOR_RULES.find((r) => r.id === 'ai-option-symmetry-guard');
+
+  it('⑪ 规则已注册为 guard 类，且不得给 promptHint（产物侧机检）', () => {
+    expect(rule3, '规则缺注册').toBeTruthy();
+    expect(rule3.category).toBe('guard');
+    expect('promptHint' in rule3).toBe(false);
+    expect(VALIDATOR_GATES.has('ai-option-symmetry-guard')).toBe(true);
+    expect(engineSrc).toContain("has('ai-option-symmetry-guard')");
+  });
+
+  it('⑫ 阈值单源：≥4 个选项、每个 ≥4 汉字（防"短选项天然同长"误报）', () => {
+    expect(AI_OPTION_SYM).toEqual({ minOptions: 4, minHanzi: 4 });
+  });
+
+  it('⑬ 有牙自证：文本型且字数完全相同 ⇒ 报；短选项/长度参差/断链 ⇒ 不报', () => {
+    // ① 命中：4 个 4 汉字选项，字数完全相同（AI 味"太对称"）
+    const hit = '<p>1. 下列说法正确的是（　）</p><p>A. 甲乙丙丁B. 戊己庚辛C. 壬癸子丑D. 寅卯辰巳</p>';
+    expect(detectOptionSymmetry(hit).length).toBe(1);
+    expect(detectOptionSymmetry(hit)[0].hanzi).toBe(4);
+    // ② 不命中：短数字选项（数学常见、天然同长）
+    const num = '<p>1. 3＋5＝（　）</p><p>A. 6B. 7C. 8D. 9</p>';
+    expect(detectOptionSymmetry(num)).toEqual([]);
+    // ③ 不命中：字数参差（真人常态）
+    const uneven = '<p>1. 下列说法正确的是（　）</p><p>A. 甲乙丙丁B. 戊己庚辛壬C. 壬癸D. 寅卯辰巳午未</p>';
+    expect(detectOptionSymmetry(uneven)).toEqual([]);
+    // ④ 不命中：选项号**断链**（A、B、D，不可自证 ⇒ 不报）
+    const broken = '<p>A. 甲乙丙丁B. 戊己庚辛D. 壬癸子丑</p>';
+    expect(detectOptionSymmetry(broken)).toEqual([]);
   });
 });

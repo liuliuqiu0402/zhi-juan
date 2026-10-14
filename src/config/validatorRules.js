@@ -366,6 +366,19 @@ export const VALIDATOR_RULES = [
     description: 'AI 味套话指纹抽检：生成物里「元话语」（值得注意的是／不难看出／众所周知…）、「并列套式」（不但／一方面…另一方面）、「总结套话」（综上所述／总而言之）**合计 ≥3 次**时报（notice 进生成报告【问题列表】）。只提示、不改写。阈值与词表单源见 AI_CLICHE_MIN／AI_CLICHE_PHRASES。执行点：examValidator 1.5.6e。',
     enabled: true,
   },
+  {
+    id: 'ai-option-symmetry-guard',
+    name: '选项对称指纹抽检（AI 味·只在能自证时报）',
+    // 2026-10-14（属主"AI 味继续"＋"不要破坏原来已定下的东西、促规范不过度约束"）：
+    //   属主列的第 ⑧ 条 AI 味＝"选项设置太对称"。判据只取**强信号**：同一题内 ≥4 个**文本型**选项
+    //   （各含 ≥4 汉字）而**字数完全相同**。**只报不改**；**能自证才断言**（题号切不开、选项组解析不出就不报）。
+    //   有意**不给 promptHint**（产物侧机检，实发提示词零新增）；阈值**单源**＝`AI_OPTION_SYM`。
+    category: 'guard',
+    subjects: ['*'],
+    stages: ['*'],
+    description: '选项对称指纹抽检：同一题内 ≥4 个文本型选项（各含 ≥4 汉字）而**字数完全相同**时报（notice 进生成报告【问题列表】）。只提示、不改写。短选项（数字/符号/单词）与拆不开结构的题**不参与**判定（防误报）。执行点：examValidator 1.5.6f。',
+    enabled: true,
+  },
 ];
 
 /** 空洞评价词词表（**单源**：`empty-praise-guard` 引擎判定与测试共用；新增只改此处一处） */
@@ -389,6 +402,14 @@ export const AI_CLICHE_PHRASES = {
 /** 触发阈值：三族合计出现 ≥3 次才报（防噪音；单次/两次可能是正常行文） */
 export const AI_CLICHE_MIN = 3;
 
+/** 选项对称指纹阈值（**单源**：`ai-option-symmetry-guard` 引擎与测试共用）
+ *  判据：**同一题内** ≥`minOptions` 个**文本型**选项（各含 ≥`minHanzi` 个汉字）而**字数完全相同** ⇒ 报。
+ *  为什么这样定（防过度约束/防破坏既有）：
+ *    · 只测"**文本型**"选项 ⇒ 数学"3、5、7、9"这类短选项天然同长，**不误报**；
+ *    · 只在**能自证**时断言（题号可切分、选项组可解析）⇒ 拆不开就不报（守项目"程序只做能自证的断言"）；
+ *    · **只报不改**：选项字数均衡本身是命题惯例（防暗示），本条只作"是否走到了极端整齐"的信号。 */
+export const AI_OPTION_SYM = { minOptions: 4, minHanzi: 4 };
+
 // ==================== 执行点注册表（生成端接线声明，单一事实源） ====================
 // 用途：规则库面板「接线状态自检」据此推导，不再硬编码假空——
 //   - VALIDATOR_GATES  引擎（auditExamPaper）中存在 has('<id>') 独立执行分支的规则 id 全集（含已注销规则的惰性残留分支）
@@ -409,6 +430,7 @@ export const VALIDATOR_GATES = new Set([
   'text-format-phonetics',
   'empty-praise-guard',
   'ai-cliche-guard',
+  'ai-option-symmetry-guard',
 ]);
 /** 无独立分支、由汇总/关联规则执行的子规则 */
 export const RULE_EXEC_BY = {

@@ -9,6 +9,7 @@
 import { getValidatorRules, normalizeStage } from '../config/validatorRules.js';
 import { EMPTY_PRAISE_WORDS } from '../config/validatorRules.js'; // 空洞评价词词表单源（2026-10-14 · AI 味·清单 H3）
 import { AI_CLICHE_PHRASES, AI_CLICHE_MIN } from '../config/validatorRules.js'; // AI 味套话指纹·阈值单源（2026-10-14）
+import { detectOptionSymmetry } from './optionSymmetry.js'; // 选项对称指纹判据（纯函数·可单测；阈值单源见其内 AI_OPTION_SYM，2026-10-14）
 import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATION, getChoiceBlankPosition } from '../config/layoutSpec.js';
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
@@ -757,6 +758,16 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     if (total >= AI_CLICHE_MIN) {
       const detail = Object.entries(fam).map(([k, hits]) => `${k}：${hits.map(([w, n]) => `${w}×${n}`).join('、')}`).join('；');
       silentCount('ai-cliche-guard', `AI 味套话指纹合计 ${total} 次（阈值 ${AI_CLICHE_MIN}）——${detail}；建议改写为直接给信息（只说"注意什么/为什么易错"），只提示、不改正文`);
+    }
+  }
+
+  // ── 1.5.6f. 选项对称指纹抽检（规则 ai-option-symmetry-guard，2026-10-14 · 属主"AI 味继续"）──
+  //    属主列的第 ⑧ 条 AI 味＝"选项设置太对称"。判据只取**强信号**且**能自证才断言**：
+  //    同一题内 A,B,C[,D] **连续有序**、各为**文本型**（≥4 汉字）、且**字数完全相同** ⇒ 报。
+  //    纪律同前：**只报不改、不重试、不判失败**（调整干扰项表述属语义）。判据纯函数见 `utils/optionSymmetry.js`。
+  if (has('ai-option-symmetry-guard')) {
+    for (const s of detectOptionSymmetry(out)) {
+      silentCount('ai-option-symmetry', `第 ${s.group} 组选项（${s.labels.join('/')}）**字数完全相同**（各 ${s.hanzi} 个汉字）——选项过于整齐属 AI 味指纹，建议让干扰项长短参差些；只提示、不改正文`);
     }
   }
 
