@@ -47,6 +47,7 @@ export const PROPERTIES = [
   { id: 'D7', name: '干扰项＝各对应一种学生可能的思路', probe: '各选项须各自对应一种学生可能的思路', scope: 'exam', expect: 'must', guard: 'config/questionFormatRules.test.js', note: '治⑧选项过于对称' },
   { id: 'D8', name: '变式不复刻本题思路', probe: '不复刻本题思路', scope: ['errorbook'], expect: 'must', guard: 'config/qualityReadiness.test.js', note: '与"允许另解"同族' },
   { id: 'D9', name: '设问由易到难', probe: '设问由易到难', scope: 'exam', expect: 'must', guard: '—', note: '层次递进的既有判据（T20 同族）·**尚无独立守卫·缺口登记**' },
+  { id: 'D10', name: '跨学科背景不作拼盘（须服务解题）', probe: '跨学科背景不作拼盘', scope: 'all', expect: 'must', guard: 'config/crossSubjectIntegrationGuard.test.js', note: '2026-10-14 属主解锁 §八 净字方案：同块收口"以能力/素养点为纲"重复（−10）／换入本句（+10）＝净 0，过 promptGrowthGuard' },
 
   // ── E 篇幅与题量 ──
   { id: 'E1', name: '篇幅/容量以本范围内容量为准（T20③）', probe: '以本范围的内容量为准', scope: 'all', expect: 'must', guard: 'config/promptGrowthGuard.test.js', note: '不设字数上限' },
