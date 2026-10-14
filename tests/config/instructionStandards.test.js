@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getPromptTemplate, DECLARATION_TRUTH_CLAUSE, QUESTION_OBJECT_CALIBER } from '../../src/config/promptLibrary.js';
+import { faceTexts } from '../../scripts/instructionText.mjs'; // 486 面装配（单源，与 L1 锚门/清单守卫同一份）
 
 const ROOT = path.resolve(__dirname, '../..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -78,25 +79,90 @@ describe('标准·单源完整性', () => {
 });
 
 describe('标准·结构（D 三项：M4 / S6 / M5）', () => {
-  it('M4 分值只属试卷：教辅等 8 类不得注入分值条款', () => {
-    const bad = [];
-    for (const g of ['practice', 'summary', 'preview', 'reading', 'dictation', 'errorbook', 'review', 'special']) {
-      const t = tpl(g);
-      if (/小题数×每题分|账目闭合/.test(t)) bad.push(`${g} 注入了分值账目条款`);
-    }
-    expect(bad, '分值只在试卷（exam）出现；教辅不带分').toEqual([]);
+  // 🔴 2026-10-14（属主"B 可以上锁的吧？是不是上锁更好？"·**补强**）：三条原先各只有**窄代理**
+  //   （M4 只测 2 个词串／S6 只测 exam×4 科的载体条／M5 只测 2 个文件的 <img>）——
+  //   与《指令改动标准》§五 标的"待机检"不符（守卫已在、强度不够）。现按 **486 面全量**补强；
+  //   白名单/基线一律**写明依据**，新增即判红（只减不增）。
+  // 面级口径单源：scripts/instructionText.mjs（与 L1 锚门、清单守卫同一份装配）。
+  const FACES486 = faceTexts();
+  const TYPES9 = [...new Set(FACES486.map((f) => f.genType))];
+
+  it('M4 分值只属试卷：exam 恒在场；其余 8 类 432 面**零**分值条款', () => {
+    // ① exam 正向锚（分值说明 + 满分）恒在场——防"删概念以过守卫"
+    const exam = FACES486.filter((f) => f.genType === 'exam');
+    const miss = exam.filter((f) => !/分值说明/.test(f.text) || !/满分/.test(f.text)).map((f) => f.key);
+    expect(miss.slice(0, 5), `exam 面缺分值条款（共 ${miss.length}）`).toEqual([]);
+    // ② 非 exam 432 面：零分值条款（满分／分值说明／（…N分…））——这才是 M4 的全面面口径
+    const RE = /满分|分值说明|[（(][^）)\n]{0,8}\d+\s*分\s*[）)]/;
+    const bad = FACES486.filter((f) => f.genType !== 'exam' && RE.test(f.text)).map((f) => f.key);
+    expect(bad.slice(0, 5), `非 exam 面注入分值条款（共 ${bad.length}）：${bad.join(',')}`).toEqual([]);
+    // ③ 原窄代理保留（分值账目条款）
+    const bad2 = TYPES9.filter((g) => g !== 'exam' && /小题数×每题分|账目闭合/.test(tpl(g)));
+    expect(bad2, '分值只在试卷（exam）出现；教辅不带分').toEqual([]);
   });
 
-  it('S6 数量型判据（至少/不少于）不得作载体与作答位判据', () => {
+  it('S6 数量型判据：486 面**除白名单外零命中**（至少/不少于/不低于/不多于/不超过/最多）', () => {
+    // 白名单（均属**产品参数／正规形态**，不是"内容凑数"的判据）：
+    //   ① 版面尺寸上限（行数）——产品参数表归程序（《指令改动标准》§六.2 附12/C10）
+    //   ② 写作字数下限（"不少于 N 字"）——正规卷写作题的通行形态
+    const WHITE = [
+      /不超过本学段卷面上限（\s*\d+\s*行）/,
+      /不超过本学段单题作答区上限\s*\d+\s*行/,
+      /不少于\s*\d+\s*字/,
+    ];
     const bad = [];
-    for (const s of ['语文', '数学', '英语', '物理']) {
-      for (const cl of tpl('exam', s).split(/\n(?=·|【)/)) {
-        if (!/作答位|空位|书写载体|书写格/.test(cl)) continue;
-        const m = cl.replace(/不存在["“][^"”]*["”]/g, '').match(/(至少|不少于)/g);
-        if (m) bad.push(`${s}: ${[...new Set(m)].join('/')} ← ${cl.slice(0, 36)}`);
-      }
+    for (const f of FACES486) {
+      const ctx = f.text.match(/[^\n]{0,24}(至少|不少于|不低于|不多于|不超过|最多)[^\n]{0,24}/g) || [];
+      for (const c of ctx) if (!WHITE.some((re) => re.test(c))) bad.push(`${f.key}: ${c.replace(/\s+/g, ' ')}`);
     }
-    expect(bad, '数量型判据（应改为判据式表述）').toEqual([]);
+    expect(bad.slice(0, 5), `数量型判据（白名单外；共 ${bad.length}）`).toEqual([]);
+  });
+
+  it('M5 渲染边界：标记只在登记文件出现；不得清空标记；契约字段在场', () => {
+    // ① 文件集合基线锁（只减不增）：src 内触碰 [IMAGE]/[GRAPH] 的文件须属登记集
+    const REGISTERED = new Set([
+      'src/config/promptLibrary.js', 'src/config/validatorRules.js', 'src/config/examPaperBlueprints.js',
+      'src/config/eduRenderContract.js', 'src/config/blueprintSchema.js', 'src/config/toolLibrary.js',
+      'src/utils/examValidator.js', 'src/utils/contentCleaner.js', 'src/utils/figurePromptCheck.js',
+      'src/utils/docxBuilder.js', 'src/utils/programAttach.js', 'src/utils/directiveBlocks.js',
+      'src/composables/useAiGenerator.js', 'src/modules/GenerateModule.vue',
+      'src/modules/tools/views/RenderContractView.vue',
+    ]);
+    const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const p = path.join(dir, e.name);
+      return e.isDirectory() ? walk(p) : [p];
+    });
+    const found = walk(path.join(ROOT, 'src'))
+      .filter((p) => /\.(js|vue|ts)$/.test(p))
+      .filter((p) => /\[(IMAGE|GRAPH)\]/.test(fs.readFileSync(p, 'utf8')))
+      .map((p) => path.relative(ROOT, p).replace(/\\/g, '/'));
+    const extra = found.filter((p) => !REGISTERED.has(p));
+    expect(extra, `新增文件触碰渲染标记（须先过 M5 准绳·docs/design/修复准则-检查清单.md §十二）：${extra.join(',')}`).toEqual([]);
+    // ② 清空禁令（准绳："不得把标记原文当'残留/泄漏'清理"）
+    const BAN = /\\?\[(?:IMAGE|GRAPH)\\?\][^\n]{0,80},\s*(?:''|"")\s*\)/;
+    const strippers = found.filter((p) => BAN.test(fs.readFileSync(path.join(ROOT, p), 'utf8')));
+    expect(strippers, `把标记清空的实现（越界＝当残留清理）：${strippers.join(',')}`).toEqual([]);
+    // ③ 契约正向锚（防"删概念以过守卫"）
+    const rc = read('src/config/eduRenderContract.js');
+    expect(rc, '[IMAGE] 契约字段 PROMPT 仍在').toContain('PROMPT');
+    expect(rc, '[GRAPH] 契约字段 TYPE 仍在').toContain('TYPE');
+  });
+
+  it('守卫有牙：三条锁对"合成违规"分别判红、对合规写法判绿（防守卫空转）', () => {
+    // S6
+    const W6 = [/不超过本学段卷面上限（\s*\d+\s*行）/, /不超过本学段单题作答区上限\s*\d+\s*行/, /不少于\s*\d+\s*字/];
+    expect(W6.some((re) => re.test('每知识点至少 3 道题')), '须抓"至少 3 道题"').toBe(false);
+    expect(W6.some((re) => re.test('写作不少于 300 字')), '须放过写作字数').toBe(true);
+    expect(W6.some((re) => re.test('不超过本学段单题作答区上限 6 行')), '须放过版面行数上限').toBe(true);
+    // M4
+    const R4 = /满分|分值说明|[（(][^）)\n]{0,8}\d+\s*分\s*[）)]/;
+    expect(R4.test('（共 5 分）'), '须抓非 exam 的（共 N 分）').toBe(true);
+    expect(R4.test('满分：100分'), '须抓满分').toBe(true);
+    expect(R4.test('不标注分值'), '不得把"不标注分值"误判为分值条款').toBe(false);
+    // M5
+    const BANX = /\\?\[(?:IMAGE|GRAPH)\\?\][^\n]{0,80},\s*(?:''|"")\s*\)/;
+    expect(BANX.test("body = body.replace(/\\[IMAGE\\][\\s\\S]*?\\[\\/IMAGE\\]/gi, '')"), '清空禁令须抓得住').toBe(true);
+    expect(BANX.test("body = body.replace(/\\[IMAGE\\][^\\n]*/gi, '（配图）')"), '不得误伤"转占位"实现').toBe(false);
   });
 
   it('M5 渲染边界：导出/归一链不得把 [IMAGE]/[GRAPH] 转成 <img>（读图 out-project）', () => {
