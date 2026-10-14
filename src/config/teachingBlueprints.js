@@ -1164,7 +1164,7 @@ const FORMAL_SECTIONS = {
     noteSuffix: { 知识框架: '，用结构图或网络图呈现知识之间的联系（选用「导图式」呈现风格时改用导图块）' },
   },
   // ⑦ 复习资料：复习目标（对标本次范围学业要求，置于首栏）
-  review: { add: [{ name: '复习目标', before: '知识框架', note: '对本次范围学业要求，写明本次复习要达成的目标' }] },
+  review: { add: [{ name: '复习目标', before: '知识框架', note: '围绕本次范围要求，写明本次复习要达成的目标' }] },
 };
 function _applyFormalSections(sections, genType) {
   const spec = FORMAL_SECTIONS[genType];
