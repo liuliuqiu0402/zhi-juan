@@ -35,5 +35,13 @@ jobs:
       - name: Run full test suite
         run: npm run test
 
+      # 🔴 2026-10-14（工程级收口）：补 **lint 门**——此前 CI 只跑"测试＋构建"，**lint 从未进门**
+      #    （首次核查发现 2 个 error：`TemplateStructureEditor.vue` 改 `analysis` prop；已在 `eslint.config.js`
+      #    按文件**豁免该单条规则并写明设计理由**，见台账〔421〕）。
+      #    口径：**不带 `--fix`**（CI 不得改文件）；**只有 error 会让本步失败**，warning（当前 437 条，多为
+      #    `no-unused-vars` 等风格项）**不拦**——避免把风格债混进质量门。
+      - name: Lint (errors block, warnings do not)
+        run: npx eslint src --ext .js,.vue
+
       - name: Build
         run: npm run build
