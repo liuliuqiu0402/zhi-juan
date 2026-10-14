@@ -8,6 +8,7 @@
 // ============================================================
 import { getValidatorRules, normalizeStage } from '../config/validatorRules.js';
 import { EMPTY_PRAISE_WORDS } from '../config/validatorRules.js'; // 空洞评价词词表单源（2026-10-14 · AI 味·清单 H3）
+import { AI_CLICHE_PHRASES, AI_CLICHE_MIN } from '../config/validatorRules.js'; // AI 味套话指纹·阈值单源（2026-10-14）
 import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATION, getChoiceBlankPosition } from '../config/layoutSpec.js';
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
@@ -737,6 +738,25 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     const hitsP = EMPTY_PRAISE_WORDS.filter((w) => plainP.includes(w));
     if (hitsP.length) {
       silentCount('empty-praise-guard', `空洞评价词出现：${hitsP.join('、')}——形容词在场面信息为零，请改为点明"要注意什么／为什么易错"（只提示、不改正文）`);
+    }
+  }
+
+  // ── 1.5.6e. AI 味套话指纹抽检（规则 ai-cliche-guard，2026-10-14 · 属主"AI 味尽量降"）──
+  //    "一眼全是 AI 味"的主要来源就是套话指纹：元话语（值得注意的是/不难看出）、并列套式（不但/一方面…另一方面）、
+  //    总结套话（综上所述）。**三族合计 ≥AI_CLICHE_MIN(3) 次才报**（单次/两次可能是正常行文，防噪音）。
+  //    纪律同 1.5.6d：**只报不改、不重试、不判失败**——改写属语义，交模型/编辑。词表与阈值**单源**。
+  if (has('ai-cliche-guard')) {
+    const plainC = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+    const fam = {};
+    let total = 0;
+    for (const [k, list] of Object.entries(AI_CLICHE_PHRASES)) {
+      const hits = list.map((w) => [w, plainC.split(w).length - 1]).filter(([, n]) => n > 0);
+      if (hits.length) fam[k] = hits;
+      total += hits.reduce((s, [, n]) => s + n, 0);
+    }
+    if (total >= AI_CLICHE_MIN) {
+      const detail = Object.entries(fam).map(([k, hits]) => `${k}：${hits.map(([w, n]) => `${w}×${n}`).join('、')}`).join('；');
+      silentCount('ai-cliche-guard', `AI 味套话指纹合计 ${total} 次（阈值 ${AI_CLICHE_MIN}）——${detail}；建议改写为直接给信息（只说"注意什么/为什么易错"），只提示、不改正文`);
     }
   }
 
