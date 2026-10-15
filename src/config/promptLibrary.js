@@ -764,9 +764,12 @@ const outputFormatSections = (mode = 'question', ctx = {}) => {
   const blocks = [
     { marker: '【输出格式】', name: '输出格式', text: format },
     { marker: '【编号与组织】', name: '编号与组织', text: numbering },
+    // 🔴 2026-10-15（顺序·按"首尾强/中段弱"）：【作答位与载体】【题目自洽】原在【编号与组织】之后、
+    //   【答案区位置】之前（＝委托正文中段）→ 后移到最后两位，使**最关键的载体形态与 17 条自洽判据落在尾区**。
+    //   （条序不变、块内容一字未改；仅调块位置。）
+    { marker: '【答案区位置】', name: '答案区位置', text: answer },
     { marker: '【作答位与载体】', name: '作答位与载体', text: carrier },
     { marker: '【题目自洽】', name: '题目自洽', text: selfCheck },
-    { marker: '【答案区位置】', name: '答案区位置', text: answer },
   ].filter((b) => b.text && b.text.trim());
   return { blocks, quality: buildQualityBase(ctx.genType) };
 };
