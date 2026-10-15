@@ -162,7 +162,7 @@ describe('③ validatorRules 两条 description 同源（按学科位置 + 半�
 
   it('choice-first-blank-fix：半角 span 归一目标，不含旧全角「（　）」口径', () => {
     const d = getValidatorRule('choice-first-blank-fix').description;
-    expect(d).toContain('半角圆括号空位');
+    expect(d).toContain('半角括号空位');
     expect(d).toContain('<span class="blank-N">&emsp;</span>');
     expect(d).toContain('按学科');
     for (const old of [...OLD, '归一为圆括号空位（　）', '（　）']) {
