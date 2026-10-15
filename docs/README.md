@@ -141,7 +141,7 @@ wisdom-workshop/
 │   ├── pdf_to_images.py   # PDF 转图片
 │   ├── split_columns.py   # 分栏检测
 │   └── add_bookmarks.py   # PDF 书签
-├── tests/                  # Vitest 单元测试（261 文件 / 3882 用例）
+├── tests/                  # Vitest 单元测试（262 文件 / 3886 用例）
 ├── docs/                   # 项目文档
 ├── main.js                 # Electron 主进程
 ├── preload.js              # 预加载脚本
