@@ -1427,12 +1427,16 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   const sgH = Math.round(sg.rows * sg.cellMm);
   const bg = spec.BRACKET_GRID;
   const sgBg = `${sg.cellMm}mm ${sg.cellMm}mm`;
-  // 🔧 书写格尺寸（GRID_CELL）：田字格/米字格仅语文低段存在（WRITING_CARRIER 白名单）→ 定档低段 primary（12mm），
-  //    三端统一（预览/HTML/编辑器/docx 均取同值）；四线三格/拼音格行高仍按学段（内容跨中/高段）
+  // 🔧 书写格尺寸（GRID_CELL）：田字格/米字格**仅语文低段存在**（`WRITING_CARRIER['语文'].primary_low` 白名单）
+  //    ⇒ **定档低段 `primary`**（不随文档学段取档），三端统一（预览/HTML/编辑器/docx 均取同值）。
+  //  🔴 2026-10-15（批 C-6 回证改准）：原注释写"定档低段 primary（**12mm**）"——**已过期**：该表 2026-10-05 按
+  //    **GB 40070-2021**（小学一、二年级田字格/方格 宽＝高、**≥14.0mm**）把 `primary` 上调为 **14mm**；
+  //    本处代码**读表**（故预览早已是 14mm），只有注释与下方兜底值（`?? 12`）没跟上 ⇒ 一并改准（兜底＝表缺失时的
+  //    最后防线，应与国标现值同值——与项目"兜底须与单源同值"的既有守卫同口径）。
+  //    原 `gcKey`（按学段取档）自"定档 primary"起即**无消费方**（死变量），随本次一并删除。
   const GRD = spec.GRID_CELL || {};
-  const gcKey = GRD['tian-zi-ge']?.[zwgKey] ? zwgKey : (GRD['tian-zi-ge']?.middle ? 'middle' : 'primary');
-  const tzW = GRD['tian-zi-ge']?.primary?.widthMm ?? 12;
-  const tzH = GRD['tian-zi-ge']?.primary?.heightMm ?? 12;
+  const tzW = GRD['tian-zi-ge']?.primary?.widthMm ?? 14;
+  const tzH = GRD['tian-zi-ge']?.primary?.heightMm ?? 14;
   const mzW = GRD['mi-zi-ge']?.primary?.widthMm ?? tzW;
   const mzH = GRD['mi-zi-ge']?.primary?.heightMm ?? tzH;
   // 四线三格/拼音格行高：--flt-h 恒为 1.45em（随字母字号自适应，见 carrierCss 注释；
@@ -1627,8 +1631,9 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
 
     /* ⭐ 四线三格/六线格/拼音格/英语书写格：画法与行高单一事实源见 carrierCss CARRIER_LINE_CSS（--flt-h 由 :root 注入）。
        曾在此维护 em(随字号) 副本，与上方 mm 规则叠加后后写覆盖，导致导出四线随字号 —— 已删除，勿在此重建副本 */
-    /* ⭐ 田字格/米字格 em 旧副本（1.8em 随字号）已于 2026-09 删除——1508-1511 mm 版（GRID_CELL）为唯一口径，
-       与编辑器/docx 固定 12mm 三端统一；勿在此重建 em 副本 */
+    /* ⭐ 田字格/米字格 em 旧副本（1.8em 随字号）已于 2026-09 删除——上方 mm 版（GRID_CELL）为唯一口径，
+       与编辑器/docx 同取该表（**现值 14mm**，2026-10-05 按 GB 40070-2021 由 12mm 上调；2026-10-15 批 C-6 改准原"12mm"旧注）；
+       勿在此重建 em 副本 */
 
     /* ⭐ 作文格（尺寸取上方 ZUOWEN_CELL 变量：小学 12mm / 中考 10mm / 高考 宽7.5×高8mm；
        auto-fill 每行格数按容器宽度放最多整数格，格子尺寸固定不缩放——与 docx 导出 perRow 同口径） */

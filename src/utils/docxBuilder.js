@@ -39,11 +39,14 @@ const singleDisplayMath = (text) => {
 //    1mm = 1440/25.4 ≈ 56.6929 DXA（Word 精确保留：1 inch = 25.4mm = 1440 DXA；
 //    必须用精确值而非 56.69 近似，否则 A4 210mm 会算成 11905 而非标准 11906）
 const MM2DXA = 1440 / 25.4;
-/** 田字格/米字格定档：仅语文低段存在（WRITING_CARRIER），统一取 GRID_CELL 'tian-zi-ge'.primary（低段 12mm），
+/** 田字格/米字格定档：仅语文低段存在（WRITING_CARRIER），统一取 GRID_CELL 'tian-zi-ge'.primary（**现值 14mm**），
  * 与预览/HTML/编辑器同口径——曾随字号 1.8em 或主题学段 mm 漂移。
+ *  🔴 2026-10-15（批 C-6 回证改准）：原注释写"低段 12mm"＋兜底 `|| 12`——**已过期**：该表 2026-10-05 按
+ *  **GB 40070-2021**（小学一、二年级田字格 宽＝高、≥14.0mm）由 12mm 上调为 **14mm**；本函数**读表**（故导出端
+ *  早已随表变为 14mm），只注释与兜底值没跟上 ⇒ 一并改准（兜底＝表缺失时的最后防线，须与国标现值同值）。
  *  🗑 2026-09-28 清理：原文尾引"layoutSpec 注释'docx 未接入本表，待统一'"，该注释在 layoutSpec 已不存在
- *  （现行 layoutSpec 头注已声明"docx 导出：方块格按 primary 12mm 统一"，接入点即本函数），属**悬空引用**，已去。 */
-const tzgCellMm = () => (getMergedSpec().GRID_CELL?.['tian-zi-ge']?.primary?.widthMm) || 12;
+ *  （现行 layoutSpec 头注已声明"docx 导出：方块格按 primary …统一"，接入点即本函数），属**悬空引用**，已去。 */
+const tzgCellMm = () => (getMergedSpec().GRID_CELL?.['tian-zi-ge']?.primary?.widthMm) || 14;
 
 // ============ 纸张版式预设 ============
 // 正规考试大试卷尺寸（2026-08 调研）与布局参数集中在 src/config/paperPresets.js：
@@ -416,7 +419,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
     if (cls.contains('tian-zi-ge') || cls.contains('mi-zi-ge')) {
       const { text: extractedText, hasVisible } = extractGridContent(child);
       const sizeHp = ctx.size || readFontSizeHp(child) || 32;
-      const cellW = Math.round(tzgCellMm() * MM2DXA); // 定档低段 12mm（曾 sizeHp*18 = 随字号 1.8em）
+      const cellW = Math.round(tzgCellMm() * MM2DXA); // 定档低段 14mm（曾 sizeHp*18 = 随字号 1.8em；2026-10-05 按 GB 40070-2021 由 12mm 上调）
       const cellWEmu = Math.round(cellW * EMU_PER_DXA);
       const isMi = cls.contains('mi-zi-ge'); // 米字格 → MZG 标记（Word 补两对角虚线，与预览一致）
       // 🔧 注音田字格：内部含 ruby-char → 拼音画进格子群组（格内带字，拼音浮在字上方）
@@ -657,8 +660,8 @@ const buildTextRuns = (node, styleOverride = {}) => {
       //    （旧逻辑直接 return 吞掉内部田字格，导出只剩注音字）
       const innerGrids = child.querySelectorAll('.tian-zi-ge, .mi-zi-ge');
       if (pinyin && innerGrids.length > 0) {
-        // 🔧 格宽统一 12mm（tzgCellMm 定档低段，与 inline/块级 buildTianZiGePinyinMarker 同口径）——
-        //    曾 baseSizeHp*18 = 1.8em 随字号（14pt≈8.9mm < 预览 12mm），ruby 内嵌格与正文格/块级格不一致
+        // 🔧 格宽统一 14mm（tzgCellMm 定档低段，与 inline/块级 buildTianZiGePinyinMarker 同口径；
+        //    2026-10-05 按 GB 40070-2021 由 12mm 上调）——曾 baseSizeHp*18 = 1.8em 随字号（14pt≈8.9mm < 预览 14mm），ruby 内嵌格与正文格/块级格不一致
         const cellW = Math.round(tzgCellMm() * MM2DXA);
         const cellWEmu = Math.round(cellW * EMU_PER_DXA);
         // 拼音按空格拆成逐字音节，与格子一一对应（数量不符时仅首格带整串）
@@ -900,7 +903,7 @@ const fltBlankWidthDxa = (raw, sizeHp) => {
 
 /** 田字格 → 标记 Paragraph（后处理替换为 1×1 Table + DrawingML 十字线；米字格带两对角虚线） */
 export const buildTianZiGeMarker = (gridChar, sizeHp, _fontFamily, isMi = false) => {
-  const cellW = Math.round(tzgCellMm() * MM2DXA); // 定档低段 12mm（曾 sizeHp*18 随字号）
+  const cellW = Math.round(tzgCellMm() * MM2DXA); // 定档低段 14mm（曾 sizeHp*18 随字号；2026-10-05 按 GB 40070-2021 由 12mm 上调）
   const cellWEmu = Math.round(cellW * EMU_PER_DXA);
   return new Paragraph({
     children: [new TextRun({ text: (isMi ? MZG_MARKER : TZG_MARKER)(gridChar, cellWEmu), size: sizeHp })],
@@ -910,7 +913,7 @@ export const buildTianZiGeMarker = (gridChar, sizeHp, _fontFamily, isMi = false)
 
 /** 注音田字格 → 标记 Paragraph（格内带字，拼音浮在格内字上方；米字格带两对角虚线） */
 export const buildTianZiGePinyinMarker = (gridChar, pinyin, sizeHp, _fontFamily, isMi = false) => {
-  const cellW = Math.round(tzgCellMm() * MM2DXA); // 定档低段 12mm（曾 sizeHp*18 随字号）
+  const cellW = Math.round(tzgCellMm() * MM2DXA); // 定档低段 14mm（曾 sizeHp*18 随字号；2026-10-05 按 GB 40070-2021 由 12mm 上调）
   const cellWEmu = Math.round(cellW * EMU_PER_DXA);
   return new Paragraph({
     children: [new TextRun({ text: (isMi ? MZG_PINYIN_MARKER : TZG_PINYIN_MARKER)(gridChar, pinyin, cellWEmu), size: sizeHp })],
@@ -973,9 +976,9 @@ const inlineImagesForExport = async (container) => {
 
 /** 表格单元格段落行距：固定值行距（exact）+ 段前段后 0
  *  🔧 用 exact：文字在行盒内垂直居中（auto 多倍行距贴顶→偏上；atLeast 文字贴行盒底→偏下），
- *     且行盒 ≥ 内容高度时不裁切（格行 = 田字格 12mm≈34.02pt + 上下各 3pt；普通行 25pt > 文字 12pt）；
+ *     且行盒 ≥ 内容高度时不裁切（格行 = 田字格 14mm≈39.69pt + 上下各 3pt；普通行 25pt > 文字 12pt）；
  *  🔧 普通行 = 2.08×字号（≈Word 多倍行距 1.6 的等价行盒，25pt 不拥挤，居中后上下各 6.5pt）；
- *  🔧 含田字格/米字格行：行盒 = 格子 12mm（tzgCellMm，与导出格几何一致）+ 上下各 3pt 间距，
+ *  🔧 含田字格/米字格行：行盒 = 格子 14mm（tzgCellMm，与导出格几何一致；2026-10-05 按 GB 40070-2021 由 12mm 上调）+ 上下各 3pt 间距，
  *     曾按 1.8em×字号 算（12pt 时仅 27.6pt < 格 34pt → 格线纵向越出行盒与上下行重叠），
  *     配合格子 anchor 下移 3pt → 格子中心与文字中心重合（同为行盒中心）、上下留白严格对称 */
 const tableCellLineSpacing = (el) => {
@@ -983,7 +986,7 @@ const tableCellLineSpacing = (el) => {
   const sizePt = fsPx ? fsPx * 0.75 : 12; // px → pt（96dpi，16px=12pt）
   const hasGrid = el.querySelector?.('.tian-zi-ge, .mi-zi-ge');
   const line = hasGrid
-    ? Math.round((tzgCellMm() * 72 / 25.4 + 6) * 20)  // 格行：12mm 格高（pt）+ 上下各 3pt 间距
+    ? Math.round((tzgCellMm() * 72 / 25.4 + 6) * 20)  // 格行：14mm 格高（pt）+ 上下各 3pt 间距
     : Math.round(2.08 * sizePt * 20);       // 普通行：2.08×字号 ≈ Word 多倍行距 1.6 的等价行盒（25pt，不拥挤）
   return { line, lineRule: LineRuleType.EXACT, before: 0, after: 0 };
 };
@@ -1012,8 +1015,8 @@ const splitGridAwareContent = (node, runDefaults, opts = {}) => {
   if (exactLine) {
     spacing = { ...spacing, ...tableCellLineSpacing(node) };
   } else if (node.querySelector?.('.tian-zi-ge, .mi-zi-ge')) {
-    // 🔧 含田字格/米字格的普通段落：行盒 = 格子 12mm（tzgCellMm，与导出格几何一致）+ 上下各 3pt（EXACT 固定行高）。
-    //    anchor 形状不占行高，若不预留行盒，12mm 的格子会与上下行文字重叠（曾按 1.8em×字号，
+    // 🔧 含田字格/米字格的普通段落：行盒 = 格子 14mm（tzgCellMm，与导出格几何一致；2026-10-05 按 GB 40070-2021 由 12mm 上调）+ 上下各 3pt（EXACT 固定行高）。
+    //    anchor 形状不占行高，若不预留行盒，14mm 的格子会与上下行文字重叠（曾按 1.8em×字号，
     //    12pt 时行盒 27.6pt < 格 34pt → 纵向越出重叠，2026-09 与格 mm 几何对齐）；
     //    EXACT 行盒内文字垂直居中，配合行内 anchor 下移 3pt → 格子中心与文字中心重合、
     //    上下留白严格对称（与表格单元格格行同一公式，单元格已调优验证）
