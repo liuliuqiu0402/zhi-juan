@@ -54,13 +54,13 @@ describe('大题标题命名：全库唯一一处规定（学段口径防回潮�
   });
 
   it('学段口径单一事实源：两条分支字面只允许出现在 promptLibrary.js（含 docs/design 扫描）', () => {
-    expect(ownersOf('大题标题即【卷面结构】里的块名本身')).toEqual(['src/config/promptLibrary.js']);
+    expect(ownersOf('大题标题以【卷面结构】里的块名为底')).toEqual(['src/config/promptLibrary.js']);
     expect(ownersOf('大题标题须你按本卷实际的作答方式自拟')).toEqual(['src/config/promptLibrary.js']);
   });
 
   it('中学段（middle）：标题＝【卷面结构】块名本身、不另自拟', () => {
     const t = getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template;
-    expect(t, '中学段应取"即块名"口径').toContain('大题标题即【卷面结构】里的块名本身');
+    expect(t, '中学段应取"以块名为底"口径').toContain('大题标题以【卷面结构】里的块名为底');
     expect(t, '中学段不得再出现"按作答方式自拟"').not.toContain('大题标题须你按本卷实际的作答方式自拟');
     expect(t, '中学段不得再出现无条件"自拟"半句').not.toContain('卷面标题一律以你自拟的写法为准');
     // 【卷面结构】名字角色：中学段不再把"行首分类名"说成"只描述命题范围、不构成标题"
@@ -69,14 +69,14 @@ describe('大题标题命名：全库唯一一处规定（学段口径防回潮�
 
   it('高中（high）：同中学段口径', () => {
     const t = getPromptTemplate({ grade: '高三', subject: '物理', genType: 'exam' }).template;
-    expect(t).toContain('大题标题即【卷面结构】里的块名本身');
+    expect(t).toContain('大题标题以【卷面结构】里的块名为底');
     expect(t).not.toContain('大题标题须你按本卷实际的作答方式自拟');
   });
 
   it('小学段（primary_high）：标题按本卷实际作答方式自拟', () => {
     const t = getPromptTemplate({ grade: 'primary_high', subject: '语文', genType: 'exam' }).template;
     expect(t, '小学段应取"自拟"口径').toContain('大题标题须你按本卷实际的作答方式自拟');
-    expect(t, '小学段不得出现"即块名"口径').not.toContain('大题标题即【卷面结构】里的块名本身');
+    expect(t, '小学段不得出现"以块名为底"口径').not.toContain('大题标题以【卷面结构】里的块名为底');
     expect(t, '小学段保留"分类名只描述命题范围"的正向角色陈述').toContain('行首分类名与其中的知识点名只描述命题范围');
   });
 

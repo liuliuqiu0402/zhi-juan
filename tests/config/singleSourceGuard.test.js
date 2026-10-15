@@ -68,7 +68,7 @@ describe('单源守卫：卷首导语 / 严肃卷面 / 统一情境 / 大题标�
   });
 
   it('④ 大题标题命名：规则字面（学段口径）只允许出现在 promptLibrary.js', () => {
-    expect(ownersOf('大题标题即【卷面结构】里的块名本身')).toEqual([OWNER]);
+    expect(ownersOf('大题标题以【卷面结构】里的块名为底')).toEqual([OWNER]);
     expect(ownersOf('大题标题须你按本卷实际的作答方式自拟')).toEqual([OWNER]);
   });
 
