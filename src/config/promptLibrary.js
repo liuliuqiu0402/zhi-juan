@@ -159,7 +159,7 @@ const QUESTION_FORMAT = (ctx = {}) => {
     markCap.graph ? '[GRAPH]（数据、图形类）' : '',
   ].filter(Boolean);
   if (markCap.on && capMarks.length) {
-    markerClause = `· 图-题一致性：判据只有一条——**该题作答是否需要图中信息**（题干怎么措辞都算）。需要则该图是本题必不可少的内容，**必须在题干后按注入的【渲染指令】紧跟输出 ${capMarks.join('／')}块**（要素与题干严格一致；该块交付渲染端出图，不需你描画）——**严禁**省略、**严禁**以文字描述替代图块（无图可看则该题不可作答）。不需要依据图中信息作答的题不必硬配图，也不得虚构图语（无图不写指向图的措辞）。`;
+    markerClause = `· 图-题一致性：判据只有一条——**该题作答是否需要图中信息**（题干怎么措辞都算）。需要则该图是本题必不可少的内容，**必须在题干后按注入的【渲染指令】紧跟输出 ${capMarks.join('／')}块**（要素与题干严格一致；该块交付渲染端出图，不需你描画）——**严禁**省略、**严禁**以文字描述替代图块。不需要依据图中信息作答的题不必硬配图，也不得虚构图语（无图不写指向图的措辞）。`;
   }
   const answerSpace = buildAnswerSpaceInstruction(ctx.subject, ctx.stage);
   if (answerSpace) carrierLines.push(answerSpace);
