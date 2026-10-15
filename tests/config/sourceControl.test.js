@@ -1,5 +1,5 @@
 // 课标出处受控（CI 免人工）：SUBJECT_STAGE_EXTRAS 54 科段要点的 source 字段必须非空、
-// 且以受控课标清单前缀开头（2022 义教课标 / 高中课标(2017/2020)），禁止无据自造出处；
+// 且以受控课标清单前缀开头（2022 义教课标 / 普通高中…课程标准（2017年版2020年修订）），禁止无据自造出处；
 // 正文与出处非空、正文带句读收尾。防"AI 自造课标来源"与"来源漂移"，属审核基准 A（单一事实源）。
 import { describe, it, expect } from 'vitest';
 import { SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS } from '@/config/promptLibrary.js';
@@ -7,8 +7,13 @@ import { SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS } from '
 // 受控课标前缀：新版本课标入库须先登记到本清单，否则 CI 即红（宁缺毋滥，防伪出处）
 // 🔴 2026-10-14（属主裁定"**是同一个课标，要统一**"·附8 术语唯一）：高中课标此前有**三种写法**
 //   （科段要点表 `高中X课标(2017/2020)`／蓝图 note `普通高中X课程标准（2017年版2020年修订）`／学段表 `高中课标`），
-//   现**全库统一为正式全名**（单源常量 `GAOZHONG_CURRICULUM`）⇒ 本守卫受控前缀随之改准：`^普通高中`。
-const SOURCE_PREFIX = /^(2022义教|普通高中)/;
+//   现**全库统一为正式全名**（单源常量 `GAOZHONG_CURRICULUM`）。
+// 🔴 2026-10-14（同批**回证**·防"改顺手了顺手放宽"）：统一时首版把受控前缀写成 `^普通高中`——
+//   比改前（`^高中.+课标\(2017\/2020\)`）**要求更松**（只认前四个字，自造串亦可通过）。现收回原强度：
+//   **普通高中 + 正式名限定词（2017年版2020年修订）**必须同现；三处引用共用下面**同一份源串**（不在本文件写第二套）。
+const GAOZHONG_FULL_SRC = '普通高中[^（]{0,30}（2017年版2020年修订）';
+const GAOZHONG_FULL = new RegExp(`^${GAOZHONG_FULL_SRC}`);
+const SOURCE_PREFIX = new RegExp(`^(2022义教|${GAOZHONG_FULL_SRC})`);
 const SELF_MADE = /(自拟|据我|我认为|参考我|自编|个人理解)/;
 
 const CELLS = Object.entries(SUBJECT_STAGE_EXTRAS);
@@ -47,7 +52,7 @@ describe('课标出处受控：54 科段要点 source 单一受控清单（CI �
       const stage = cell.split('|')[1];
       const src = (v.source || '').trim();
       if (stage === 'high') {
-        if (!/^普通高中/.test(src)) bad.push(`${cell}: 高中学段须用"普通高中…课程标准（2017年版2020年修订）"出处，实得：${src.slice(0, 30)}`);
+        if (!GAOZHONG_FULL.test(src)) bad.push(`${cell}: 高中学段须用"普通高中…课程标准（2017年版2020年修订）"出处，实得：${src.slice(0, 30)}`);
       } else if (!/^2022义教/.test(src)) {
         bad.push(`${cell}: 义教学段(${stage})须用 2022 义教课标出处，实得：${src.slice(0, 30)}`);
       }
@@ -83,12 +88,26 @@ describe('课标出处受控：54 科段要点 source 单一受控清单（CI �
       for (const [stage, v] of Object.entries(table)) {
         if (!v.source || !v.source.trim()) bad.push(`${tname}.${stage} 缺 source`);
         else if (SELF_MADE.test(v.source)) bad.push(`${tname}.${stage} 自造出处：${v.source}`);
-        else if (!/^(2022义教|普通高中)/.test(v.source.trim())) bad.push(`${tname}.${stage} 出处前缀不受控：${v.source.trim().slice(0, 40)}`);
+        else if (!SOURCE_PREFIX.test(v.source.trim())) bad.push(`${tname}.${stage} 出处前缀不受控：${v.source.trim().slice(0, 40)}`);
       }
     }
     expect(bad, `学段表出处受控异常 ${bad.length} 处：\n${bad.join('\n')}`).toEqual([]);
     // 5 学段 × 2 表 = 10 档，一档不少（防"表被清空/漏档"式假绿）
     expect(Object.keys(STAGE_EXAM_EXTRAS).length).toBe(5);
     expect(Object.keys(STAGE_TEACHING_EXTRAS).length).toBe(5);
+  });
+
+  // 🔴 2026-10-14（回证留痕·**守卫有牙**）：本守卫在 F1 统一时曾被写成 `^普通高中`（只认前四字 = 比改前更松）。
+  //   本用例把"放宽的形状"钉死：**光有"普通高中"四字不给过**，必须与正式名限定词同现；同时证明合规写法判绿。
+  it('受控前缀强度：只有"普通高中"四字（无正式名限定词）判红；正式全名判绿', () => {
+    // 合规：学科正式名 与 印发名（学科无关）两种形态都须放行
+    expect(SOURCE_PREFIX.test('普通高中语文课程标准（2017年版2020年修订）·语言建构与运用核心素养'), '学科正式名须放行').toBe(true);
+    expect(SOURCE_PREFIX.test('普通高中课程方案和语文等学科课程标准（2017年版2020年修订）·学业水平考试命题要求'), '印发名须放行').toBe(true);
+    // 放宽的形状：只写"普通高中"不得放行（防回潮为 `^普通高中`）
+    expect(SOURCE_PREFIX.test('普通高中随便编的出处（2020年）'), '只认前四字 = 放宽，须判红').toBe(false);
+    expect(SOURCE_PREFIX.test('普通高中语文课程标准（2017年版2017年修订）'), '限定词写错不得放行').toBe(false);
+    // 义教侧不受影响
+    expect(SOURCE_PREFIX.test('2022义教语文·第一学段识字与写字'), '义教写法须放行').toBe(true);
+    expect(GAOZHONG_FULL.test('普通高中数学课程标准（2017年版2020年修订）·核心素养'), '学段门用的同一份源串须同判').toBe(true);
   });
 });
