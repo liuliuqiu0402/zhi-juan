@@ -95,6 +95,23 @@ describe('标准文档守卫：逐条逐字复核的八问标准在册', () => {
     expect(std).toContain('产品参数表归程序');
   });
 
+  it('六.7 硬边界三档打标在册（B 类"禁令"处置口径：第一闸＝需不需要语义）', () => {
+    expect(std).toContain('硬边界三档打标');
+    expect(std).toContain('需不需要语义');
+    expect(std).toContain('档1·留模型');
+    expect(std).toContain('档2·可搬');
+    expect(std).toContain('档3·只报不改');
+    expect(std).toContain('删整句');
+    expect(std).toContain('删"禁令"');
+    // 两条红线：判定单位＝从句；程序确定性全覆盖才许删模型句
+    expect(std).toContain('判定单位＝从句');
+    expect(std).toContain('程序已确定性全覆盖才许删模型句');
+    // 打标台账在册且计数口径写明
+    const tier = read('docs/audit/禁令三档打标-2026-10-15.md');
+    expect(tier).toContain('禁令三档打标');
+    expect(tier).toMatch(/档1[\s\S]{0,40}44[\s\S]{0,40}档2[\s\S]{0,40}23[\s\S]{0,40}档3[\s\S]{0,40}9/);
+  });
+
   it('D1–D18 全部在册（防静默删条 / 防"下一轮就忘"）', () => {
     for (let i = 1; i <= 18; i += 1) {
       expect(std, `缺 D${i}（纪律条目被删或改号）`).toMatch(new RegExp(`\\|\\s*\\*{0,2}D${i}\\*{0,2}\\s*\\|`));
