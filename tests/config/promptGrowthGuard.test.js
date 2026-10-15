@@ -139,8 +139,11 @@ describe('指令"只增不扩"守卫（止住越滚越长）', () => {
       //    ＋"正文直入：正文直接呈现内容本身"的重字"正文"（−2）；换入"知识与能力要求符合本学段课标…尾附
       //    ；跨学科背景须为解题所需，不作拼盘"（+17）⇒ **净 −1**，各型同额、无一起帽（preview 实测仍在 3623 内）。
       //    清单新增 D10，守卫 `crossSubjectIntegrationGuard.test.js`。
-      preview: 3623,
-      summary: 3472, dictation: 7528, errorbook: 7022, review: 7560,
+      // 🔴 2026-10-15（**属主授权·方案乙**）：为"跨次不同质"的**留白机制**上调 —— preview 3623 → **3673**、
+      //    summary 3472 → **3507**。新增的是**留白项**（"同一知识点的考查角度与呈现形态由你自选、不指定"，
+      //    见 `antiHomogenizationGuard` 留白基线），**不是堆量**。属主原话："按方案 (乙) 执行，授权上调基线并标注留白机制"。
+      preview: 3673,
+      summary: 3507, dictation: 7528, errorbook: 7022, review: 7560,
     };
     const over = [];
     for (const [g, n0] of Object.entries(capT)) {
