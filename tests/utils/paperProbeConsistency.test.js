@@ -299,12 +299,12 @@ describe('自洽条款的注入面：9 类资料各按其分（不缺席、不�
   const CONTENT_TYPES = ['preview', 'summary'];
   const tplOf = (genType) => getPromptTemplate({ ...P, genType }).template;
 
-  it('7 类题类一律拿到「题目自洽（编辑自查总纲）」，2 类内容型一律不拿', () => {
+  it('7 类题类一律拿到【题目自洽】①–⑰，2 类内容型一律不拿', () => {
     for (const g of QUESTION_TYPES) {
-      expect(tplOf(g), `${g} 应含题类自洽总纲`).toContain('题目自洽（编辑自查总纲');
+      expect(tplOf(g), `${g} 应含题类自洽判据`).toContain('①题面与作答形态同义');
     }
     for (const g of CONTENT_TYPES) {
-      expect(tplOf(g), `${g} 不应含题类自洽总纲（内容型另有判据）`).not.toContain('题目自洽（编辑自查总纲');
+      expect(tplOf(g), `${g} 不应含题类自洽判据（内容型另有判据）`).not.toContain('①题面与作答形态同义');
     }
   });
 

@@ -63,7 +63,7 @@ describe('书写载体注入矩阵：内容型（summary / preview，2 类）', 
 
   it('内容型**不得**注入题类总纲（判据不同，避免噪音）', () => {
     for (const g of CONTENT_TYPES) {
-      expect(tplOf(g), `${g} 不应含题类自洽总纲`).not.toContain('题目自洽（编辑自查总纲');
+      expect(tplOf(g), `${g} 不应含题类自洽判据`).not.toContain('①题面与作答形态同义');
     }
   });
 

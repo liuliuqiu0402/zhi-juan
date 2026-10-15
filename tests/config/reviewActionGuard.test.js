@@ -65,10 +65,12 @@ const REVIEW_ACTIONS = [
     action: '（无独立动作——判据已前置，动作壳已删）', anchor: '同类内容的形态与先后统一', fixType: 'selfRevise', via: 'matrix', noAction: true,
   },
   {
-    id: 'question-format', block: '题目自洽总纲①至⑰', channel: '委托正文【输出格式】', scope: '仅题类',
-    // 🔴 2026-09-30（机制 A/D）：动作由"成稿前逐题核对"（**卷尾一次性**）改为**题内即时**——
-    //    长卷到卷尾再逐题复核等于没有；现为"每写完一题，即核该题"。
-    action: '每写完一题即核该题', anchor: '每写完一题，即核该题', fixType: 'oneOfTwo', via: 'matrix',
+    id: 'question-format', block: '题目自洽①–⑰（判据，不含独立复核动作）', channel: '委托正文【输出格式】', scope: '仅题类',
+    // 🔴 2026-10-15（属主裁定 A：**要精准判据，不要自检网**）：原动作句"每写完一题，即核该题"
+    //    ——矩阵内**最后一处**复核动作——已删（D16 优先清除对象）。依据：①–⑰ 本身即**判据式、可自判**，
+    //    无须再教模型"要自查"（"精准指令→模型照做"）。本条目只登记**改法**，故标 noAction；
+    //    anchor 改指仍在的判据句（守卫 B 仍断言其在实发文本里）。**矩阵内复核动作句自此清零。**
+    action: '（无独立动作——自检壳已删；前置判据 ①–⑰ 精准可自判）', anchor: '①题面与作答形态同义', fixType: 'oneOfTwo', via: 'matrix', noAction: true,
   },
   {
     // 守卫 A 逮到的第 11 处（原审计漏登记）：总纲**结尾**的"三域交叉引用"。
@@ -156,13 +158,12 @@ describe('模型侧复核动作登记表：完整性', () => {
   });
 });
 
-describe('守卫 A：实发文本里不得出现未登记的复核动作（防第 11 处悄悄长出来）', () => {
-  it('每一处动作句都能归属到登记条目', () => {
+describe('守卫 A：实发文本里**不得再有**复核动作句（属主裁定 A：要精准判据、不要自检网；防回潮）', () => {
+  it('复核动作句已清零（日后若又长出，此处转红）', () => {
+    // 🔴 2026-10-15（属主裁定 A）：口径由"矩阵内 ≥1 处复核动作"改为"**＝0**"——
+    //   末处自检壳（"每写完一题，即核该题"）已删；①–⑰ 为判据式、可自判，不再靠自检网兜底。
     const hits = [...MATRIX.matchAll(new RegExp(ACTION_RE.source, 'g'))].map((m) => m[0]);
-    expect(hits.length, '矩阵里应能找到复核动作句（否则判据失效）').toBeGreaterThan(0);
-    const anchors = REVIEW_ACTIONS.map((a) => a.anchor);
-    const uncovered = [...new Set(hits)].filter((h) => !anchors.some((a) => h.includes(a) || a.includes(h)));
-    expect(uncovered, `未登记的复核动作句：${uncovered.join(' | ')}`).toEqual([]);
+    expect(hits, `复核动作句应已清零，却仍在：${[...new Set(hits)].join(' | ')}`).toEqual([]);
   });
 });
 
