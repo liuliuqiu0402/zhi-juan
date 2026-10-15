@@ -169,7 +169,7 @@ const uHash = crypto.createHash('sha1').update(uKey).digest('hex').slice(0, 12);
  *  🔴 2026-10-12（R1·乙·面集门控落地后**显式更新**）：**18 → 17**。
  *    来源＝`promptLibrary.js` `QUALITY_FACE_GATES` 把「设问分型定深浅」按面集门控（`dictation` 无设问 ⇒ 该条不注入）
  *    ⇒ 它不再是"9 类型逐字相同"的条，退出本集合。**只此一条变动**，其余 17 条未动。 */
-const UNIVERSAL_BASELINE = { count: 17, hash: '0e4faa17584e' };
+const UNIVERSAL_BASELINE = { count: 17, hash: '0526b40d2262' }; // 2026-10-15 复核：随"下划线空位→横线空位"术语统一，集合文本变、hash 随之改准（count 17 未变）
 
 // ============================================================
 // 「对象词 × 类型集」集合等值锁（2026-10-12 增 · **能机检则机检**）
