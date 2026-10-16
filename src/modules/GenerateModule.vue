@@ -1401,6 +1401,34 @@
         >
           未选资料类型：名称池与栏目标题套按资料类型而定，先选类型即可看到该类型的全部可选项（下方"资料栏目标题风格"同理）。
         </div>
+        <!-- 🧩 结构来源（9 类通用 · 2026-10-16 属主裁定 · 纯增量新线）：默认固定结构，可选自由组织 -->
+        <div class="scope-style-block">
+          <p class="scope-style-title">
+            🧩 结构来源：默认「固定结构」（正式卷取卷面蓝图、练习类取教辅栏目）；选「自由组织」则不套用固定结构，由模型按本次课标范围与考点自定栏目/大题
+          </p>
+          <div class="option-list">
+            <label class="option-item">
+              <input
+                v-model="structureMode"
+                type="radio"
+                value="blueprint"
+                name="structureMode"
+              >
+              <span class="option-label">固定结构（默认）</span>
+              <span class="option-desc">沿用既有结构来源；判据与产出形态不变</span>
+            </label>
+            <label class="option-item">
+              <input
+                v-model="structureMode"
+                type="radio"
+                value="free"
+                name="structureMode"
+              >
+              <span class="option-label">自由组织</span>
+              <span class="option-desc">不套用固定栏目/蓝本；结构由模型自定，仍须覆盖本次考点（课标要求由内容层面承载）</span>
+            </label>
+          </div>
+        </div>
         <!-- 🎨 资料栏目标题风格（非考试类）：内联展开全部套 + 各栏语义 + 学段要求 -->
         <div
           v-if="genTypes[0] !== 'exam'"
@@ -3222,7 +3250,7 @@ import { useTextbookStore } from '../stores/textbookStore';
 import { useTemplateStore } from '../stores/templateStore.js';
 import { EXAM_REGION_OPTIONS } from '../config/examRegionConfig.js';
 import { findBlueprint } from '../config/blueprintProvider.js';
-import { getPromptTemplate, buildInjectionInstruction, buildStructureText, getCurriculumLabel, applyMaterialChannel } from '../config/promptLibrary.js';
+import { getPromptTemplate, buildInjectionInstruction, buildStructureText, buildFreeStructureInstruction, getCurriculumLabel, applyMaterialChannel } from '../config/promptLibrary.js';
 import { materialChannelOf } from '../config/coverageContract.js'; // 📚 素材通道默认映射（auto 口径单一事实源，2026-09-14）
 import { specialDomainOptions, resolveSpecialDomains, buildSpecialDomainsStructureText, buildSpecialDomainsAnchorLines, SPECIAL_DOMAIN_MAX } from '../config/specialDomains.js'; // 🎯 专项领域注册库（学科×学段→栏目结构+课标语义锚；2026-10-07 起支持**多选**，上限 SPECIAL_DOMAIN_MAX）
 import { buildBlankWidthInstruction, buildCarrierInstruction } from '../config/layoutSpec.js'; // 换算句→BLANK卡 / 协议句→载体卡（分段标注用，与 promptLibrary 同源）
@@ -3345,6 +3373,10 @@ const resolveMaterialChannel = (t) => {
 //   '' = 自动轮换（按次轮换：每次生成换下一套 a→b→c→d→a，持久化）；'a'/'b'/'c'/'d' = 固定该套
 const COLUMN_STYLE_STORAGE_KEY = 'ww_column_style_v1';
 const columnStyle = ref(''); // ''=自动轮换；否则固定 a/b/c/d 套
+// 🧩 结构来源（2026-10-16 属主裁定·**纯增量新线**）：'blueprint'（默认）＝固定结构（exam 取卷面蓝图、其余取教辅栏目）
+//    ｜'free'＝**自由组织**（结构由模型按本次课标范围与考点自定）。默认＝既有线，实发逐字不变；
+//    本开关**独立于栏目风格**（栏目风格对 exam 关闭，本开关 9 类全开）。仅本次会话内存态，不落盘。
+const structureMode = ref('blueprint');
 const loadColumnStyle = (genType) => {
   try {
     const map = JSON.parse(localStorage.getItem(COLUMN_STYLE_STORAGE_KEY) || '{}');
@@ -6334,7 +6366,10 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value, scopeType: scopeType.value });
     if (bp) {
       // 用户分值微调（本次生效不落库）应用在唯一注入点，保证【卷面结构】段与实际分值一致
-      structure = buildStructureText(applyScoreAdjust(bp));
+      // 🧩 结构来源＝自由组织时：结构槽改由 buildFreeStructureInstruction 承载（**既有线一字不动**）
+      structure = structureMode.value === 'free'
+        ? buildFreeStructureInstruction(genType)
+        : buildStructureText(applyScoreAdjust(bp));
       fullScore = bp.fullScore || '';
       duration = bp.duration || '';
     }
@@ -6410,7 +6445,10 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     }
   } else {
     // 🎯 专项突破两档（A档=领域自带栏目；B档=通用栏目+课标语义锚；未命中=通用/学科蓝图）——loadInstruction 与 restoreDefault 共用 composeSpecialTeachingText
-    const st = composeSpecialTeachingText({ genType, stageKey, subject, domainKeys: specialSubType.value });
+    // 🧩 结构来源＝自由组织时：结构槽改由 buildFreeStructureInstruction 承载（**既有线一字不动**）
+    const st = structureMode.value === 'free'
+      ? { text: buildFreeStructureInstruction(genType), isDomain: false, doms: [] }
+      : composeSpecialTeachingText({ genType, stageKey, subject, domainKeys: specialSubType.value });
     teachingText = st.text;
     if (teachingText) {
       instructionDraft.value += teachingText;
@@ -6487,7 +6525,10 @@ const restoreDefaultInstruction = async () => {
     bp = findBlueprint({ genType, subject, stage: stageKey, region: examRegion.value, scopeType: scopeType.value });
     if (bp) {
       // 恢复默认同样应用分值微调（与 loadInstructionFromLibrary 一致）
-      structure = buildStructureText(applyScoreAdjust(bp));
+      // 🧩 结构来源＝自由组织时：结构槽改由 buildFreeStructureInstruction 承载
+      structure = structureMode.value === 'free'
+        ? buildFreeStructureInstruction(genType)
+        : buildStructureText(applyScoreAdjust(bp));
       fullScore = bp.fullScore || '';
       duration = bp.duration || '';
     }
@@ -6507,7 +6548,10 @@ const restoreDefaultInstruction = async () => {
   // exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段，此处不重复；非 exam 追加教辅结构（委托正文栏目骨架）
   if (genType !== 'exam') {
     // 🎯 专项突破领域两档（与 loadInstructionFromLibrary 同源 compose，修复「恢复默认」遗漏领域分支）
-    const st = composeSpecialTeachingText({ genType, stageKey, subject, domainKeys: specialSubType.value });
+    // 🧩 结构来源＝自由组织时：结构槽改由 buildFreeStructureInstruction 承载
+    const st = structureMode.value === 'free'
+      ? { text: buildFreeStructureInstruction(genType), isDomain: false, doms: [] }
+      : composeSpecialTeachingText({ genType, stageKey, subject, domainKeys: specialSubType.value });
     instructionDraft.value += st.text;
   }
   // 程序性附加段（渲染契约/质检规则/格式兜底）不进委托正文——统一走 buildProgramAttach，随写作请求 system 注入

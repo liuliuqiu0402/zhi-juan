@@ -33,7 +33,7 @@ export const CALIBERS = [
 
 /** E：给模型文本的源登记表（src 相对路径 → 产出函数） */
 export const PROMPT_SOURCES = {
-  'src/config/promptLibrary.js': ['buildInjectionInstruction', 'buildOutputFormatHint'],
+  'src/config/promptLibrary.js': ['buildInjectionInstruction', 'buildOutputFormatHint', 'buildFreeStructureInstruction'],
   'src/config/layoutSpec.js': ['buildCarrierInstruction', 'buildBlankWidthInstruction', 'buildAnswerSpaceInstruction', 'buildLongAnswerCarrierInstruction'],
   'src/config/eduRenderContract.js': ['buildRenderContract'],
   'src/config/validatorRules.js': ['buildValidatorPrompt'],
