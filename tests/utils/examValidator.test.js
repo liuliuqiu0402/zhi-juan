@@ -267,7 +267,7 @@ describe('examValidator [IMAGE] 配图块标准化（image-block-fix）', () => 
 });
 
 describe('examValidator 正文重复内容检测截断（duplicate-content-fix）', () => {
-  it('同一大题标题出现两次（截断续写重出）→ 截断保留第一份', () => {
+  it('🔴 2026-10-16（抓本质）：同一大题标题出现两次 → **不截断正文**、只报（宁可少修复，不可丢内容）', () => {
     const html = [
       '<h2>一、识字与写字（共6题，共32分）</h2><p>1. 看拼音写词语。</p>',
       '<h2>二、积累与运用（共5题，共24分）</h2><p>7. 量词填空。</p>',
@@ -275,11 +275,11 @@ describe('examValidator 正文重复内容检测截断（duplicate-content-fix�
       '<div class="answer-section"><h2>参考答案</h2><p>1. 答案</p></div>',
     ].join('\n');
     const { html: out, issues } = auditExamPaper(html, OPTS);
-    // 第二个"一、"之后的内容被截断，答案区保留
-    expect(out).toContain('二、积累与运用');
-    expect((out.match(/一、识字与写字/g) || []).length).toBe(1);
+    expect(out, '正文一律不得被削').toContain('二、积累与运用');
+    expect((out.match(/一、识字与写字/g) || []).length, '两份都保留').toBe(2);
     expect(out).toContain('answer-section');
-    expect(issues.some(i => i.type === 'duplicate-content')).toBe(true);
+    expect(issues.some(i => i.type === 'duplicate-content-title'), '须报出交人工').toBe(true);
+    expect(issues.some(i => i.type === 'duplicate-content'), '不得走截断分支').toBe(false);
   });
 
   it('重复答案区 → 保留第一份', () => {
@@ -303,24 +303,26 @@ describe('examValidator 正文重复内容检测截断（duplicate-content-fix�
     expect(out).toContain('探究进阶');
   });
 
-  it('教辅（practice）：同一栏目（组）内"一、基础练习"重复两次 → 仍截断保留第一份', () => {
+  it('教辅（practice）：同一栏目（组）内"一、基础练习"重复两次 → 同样**只报不改**', () => {
     const OPTS_PRACTICE = { subject: '语文', stage: 'primary_low', genType: 'practice' };
     const html = [
       '<h2>基础建构</h2><h3>一、基础练习</h3><p>1. 题</p>',
       '<h3>一、基础练习</h3><p>2. 题（重复）</p>',
     ].join('\n');
     const { issues } = auditExamPaper(html, OPTS_PRACTICE);
-    expect(issues.some(i => i.type === 'duplicate-content')).toBe(true);
+    expect(issues.some(i => i.type === 'duplicate-content-title'), '只报').toBe(true);
+    expect(issues.some(i => i.type === 'duplicate-content'), '不截断').toBe(false);
   });
 
-  it('正式考卷（exam）：仍全局唯一（两个"一、识字与写字"→ 截断），行为不回归', () => {
+  it('正式考卷（exam）：同名大题标题同样**只报不改**（与 2j-0b 同口径）', () => {
     const html = [
       '<h2>一、识字与写字（共6题，共32分）</h2><p>1. 看拼音写词语。</p>',
       '<h2>二、积累与运用（共5题，共24分）</h2><p>7. 量词填空。</p>',
       '<h2>一、识字与写字（共6题，共32分）</h2><p>1. 看拼音写词语。（重复内容）</p>',
     ].join('\n');
     const { issues } = auditExamPaper(html, OPTS);
-    expect(issues.some(i => i.type === 'duplicate-content')).toBe(true);
+    expect(issues.some(i => i.type === 'duplicate-content-title')).toBe(true);
+    expect(issues.some(i => i.type === 'duplicate-content'), '不得走截断分支').toBe(false);
   });
 
   // 🔴 2026-10-16（属主裁定"根治"·实测事故 22→17）：只有"整卷重出"（第二份从**本卷第一个大题标题**重起）
