@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   htmlToLines, splitQuestionBlocks, extractFormulas, detectFormulaDuplicates,
-  detectTopicRepeat, detectOpeningMetaNarration, guardPaper, guardReportOf,
+  detectOpeningMetaNarration, guardPaper, guardReportOf,
 } from '../../src/utils/paperGuardEngine.js';
 
 describe('paperGuardEngine: 题块切分', () => {
@@ -29,18 +29,10 @@ describe('paperGuardEngine: 算式抽取与卷内重复', () => {
   });
 });
 
-describe('paperGuardEngine: 情境主题集中', () => {
-  it('图书角主题 ≥3 题 → 命中并列出题号', () => {
-    const html = '<p>1. 图书角买故事书 12 本。</p><p>2. 图书角科普书 8 本。</p><p>3. 图书角绘本 15 本。</p><p>4. 别的题甲。</p><p>5. 别的题乙。</p><p>6. 别的题丙。</p>';
-    const out = detectTopicRepeat(html);
-    expect(out).toHaveLength(1);
-    expect(out[0]).toContain('题 1、2、3');
-  });
-  it('题量不足 6 不提示（防小题卷误报）', () => {
-    const html = '<p>1. 图书角。</p><p>2. 图书角。</p><p>3. 图书角。</p>';
-    expect(detectTopicRepeat(html)).toEqual([]);
-  });
-});
+// 🗑 2026-10-16（属主裁定·消噪音·整档删除）：原 `describe('paperGuardEngine: 情境主题集中')`
+//   （两条用例：图书角 ≥3 题命中／题量不足 6 不提示）随 `detectTopicRepeat` ＋ `TOPIC_CLUSTERS` **一并删除**——
+//   属主原话"整张卷子卷首语中就是情境了、围绕这个情境展开的，出现这些属于正常的"：**采用统一情境时同词多题
+//   是设计使然**，该检测必然误报。同款先例＝2026-10-10 属主裁定删"算式重复"档。原用例见 git 历史。
 
 describe('paperGuardEngine: 首段过程自述', () => {
   it('实测句式命中（2026-09-07 产物首行）', () => {
@@ -75,7 +67,7 @@ describe('paperGuardEngine: guardPaper 集成', () => {
     expect(g.bannedList).toEqual([]);
     expect(g.hits.filter((h) => h.cat !== 'copy')).toBeDefined(); // sanity 等照常跑
   });
-  it('类型切片（2026-10 更新）：算式重复档已删 ⇒ formulaHits 恒空；情境集中仍按命题型门控', () => {
+  it('类型切片（2026-10-16 更新）：算式重复档、情境集中档**均已删** ⇒ 两档恒空（命题型亦然）', () => {
     // 数学知识总结（内容型）正文含编号条目与重复算式、同主题条目——不是"卷内两题复用"
     const contentLike = '<p>1. 0.6÷0.3 除数是小数，先移动小数点。</p><p>2. 0.6÷0.3 也可看成 6÷3。</p><p>3. 图书馆情境示例一则。</p><p>4. 图书馆情境示例二则。</p><p>5. 图书馆情境示例三则。</p><p>6. 图书馆情境示例四则。</p><p>7. 图书馆情境示例五则。</p>';
     const gContent = guardPaper({ html: contentLike, copy: false });
@@ -83,7 +75,8 @@ describe('paperGuardEngine: guardPaper 集成', () => {
     expect(gContent.topicHits).toEqual([]);
     const gExam = guardPaper({ html: contentLike, copy: true });
     expect(gExam.formulaHits).toEqual([]);                 // 🔴 算式重复档已删，命题型也不再报
-    expect(gExam.topicHits.length).toBeGreaterThan(0);     // 情境集中照常（命题型）
+    // 🗑 2026-10-16（属主裁定·消噪音）：情境集中档**已整档删除** ⇒ 命题型亦恒空（原断言"命题型照常报"已作废）。
+    expect(gExam.topicHits).toEqual([]);
   });
 });
 

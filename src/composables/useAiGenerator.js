@@ -37,7 +37,7 @@ import {
 } from '../utils/injectionManifest.js';
 // 2026-09-30：输入超长改为**只体检、不改文本**（原名 promptCompression，因无法安全划界而收口，见该模块注释）
 import { inspectOverlongPrompt } from '../utils/promptOversize.js';
-import { extractGradeNum, resolveStageKey, resolveCompetency, gradeDisplayLabel, isPerBigQuestionNumbering } from '../utils/gradeStage.js';
+import { extractGradeNum, resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
 import {
   genTypeTemplates,
   normalizeSubjectName
@@ -3994,11 +3994,15 @@ ${cardAnalysisText.substring(0, 1000)}
     }
     // 学科规范化（三维度答案提示词/作答载体按 subject 精确注入，避免跨学科噪音）
     const subject = normalizeSubjectName(book?.subject, book?.stage);
-    // 题号编法按学段分叉的唯一依据（与指令侧 QUESTION_NUMBERING_CALIBER 同源，见 gradeStage.isPerBigQuestionNumbering）：
-    //   小学正式卷＝各大题各自起编（分段式是**应然**，不算"重启"）；中学正式卷＝全卷连续（分段式才算重启）。
-    //   程序侧校验/回灌据此分叉，消除"指令已分学段、程序仍按全卷连续"的相抵（第 1 项·实测数学卷题号乱的根因）。
+    // 🗑 2026-10-16（属主追问"是不是哪里为了质检对题号数量，导致小题号问题解决不了"·**当场核证**）：
+    //   原此处三行注释（"题号编法按学段分叉的唯一依据（与指令侧 QUESTION_NUMBERING_CALIBER 同源）…程序侧
+    //   校验/回灌据此分叉"）与下一行 `const perBigNumbering = genType === 'exam' && isPerBigQuestionNumbering(stageKey);`
+    //   **均已失效**：① `QUESTION_NUMBERING_CALIBER` 已于 2026-10-10 整块删除；② 该变量的唯一消费方
+    //   （缺号拦截／形态放行／重启拦截三块）亦于同日按属主裁定**整块删除**（"不以编号连续性判丢题／不回灌／
+    //   不重试／不代模型定形态"）⇒ 本变量自那时起**从未被读**（死变量）。现一并删除 ＋ 订正注释。
+    //   ⇒ 结论（回应属主）：**程序侧现无任何按学段分叉的题号校验、也无题号回灌/重试**；
+    //     `isPerBigQuestionNumbering` 仍由 `examValidator` 的题号体系探针使用（**只报不改**、不进模型），故留在 gradeStage。
     const stageKey = resolveStageKey(book?.stage, book?.grade, book?.name);
-    const perBigNumbering = genType === 'exam' && isPerBigQuestionNumbering(stageKey);
 
     // ── 覆盖锚构建（2026-09 P0）：章级层级知识点 → 原文片段绑定，覆盖/检索/缺料诊断的唯一事实源 ──
     //    锚来自 contentCards.anchorTree（knowledgeHierarchy 归一树），知识点→章归属由树结构成立；
