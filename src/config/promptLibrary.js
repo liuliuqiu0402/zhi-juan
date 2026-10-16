@@ -1522,7 +1522,7 @@ export function buildFreeStructureInstruction(genType = '') {
  *    结构宣布成必须守的骨架，与块头"板块构成与所标分值都只是参考、可增可减"**同份相抵**。
  *    注：蓝本数据自身仍须闭合（Σ板块分＝fullScore；`blueprintGuard` G1 与 `scoreCrossBlockGuard` 数据自检），
  *    那是**数据卫生**，与"模型侧不照抄"不矛盾。 */
-export function buildStructureText(bp) {
+export function buildStructureText(bp, { withScore = true } = {}) {
   const sections = bp?.sections;
   if (!sections?.length) return '';
   // 2026-09-17 用户裁定（"课标里明确要求的被写在蓝本注里、而不是每一个栏目里的，要修正——确保模型知道课标的具体要求"）：
@@ -1596,16 +1596,14 @@ export function buildStructureText(bp) {
             );
           }
           out.push(
-            `大类层：${domainName(s)}（本大类参考${sum}分）`
+            `大类层：${domainName(s)}${withScore ? `（本大类参考${sum}分）` : ''}`
             + (notes.length ? `；本大类命题要求：${notes.join('；')}` : '')
           );
         }
         continue; // 域型不再占用大题序号、不输出大题行
       }
-      const no = cnOrdinal(seq + 1);
-      seq += 1;
-      const scorePart = s.score ? `｜参考分值 ${s.score}分` : '';
-      out.push(`${no}、${s.name}${scorePart}${reqTag(s.note)}`);
+      const scorePart = (withScore && s.score) ? `｜参考分值 ${s.score}分` : '';
+      out.push(`${s.name}${scorePart}${reqTag(s.note)}`);
     }
     return out.join('\n');
   }
@@ -1627,12 +1625,10 @@ export function buildStructureText(bp) {
   for (const g of groups) {
     const sum = g.items.reduce((a, s) => a + (Number(s.score) || 0), 0);
     const partName = g.part === '听力' ? '听力部分' : '笔试部分';
-    out.push(`${partName}（本部分参考${sum}分）`);
+    out.push(`${partName}${withScore ? `（本部分参考${sum}分）` : ''}`);
     for (const s of g.items) {
-      const no = cnOrdinal(seq + 1);
-      seq += 1;
-      const scorePart = s.score ? `｜参考分值 ${s.score}分` : '';
-      out.push(`${no}、${s.display}${scorePart}${reqTag(s.note)}`);
+      const scorePart = (withScore && s.score) ? `｜参考分值 ${s.score}分` : '';
+      out.push(`${s.display}${scorePart}${reqTag(s.note)}`);
     }
   }
   return out.join('\n');

@@ -22,7 +22,7 @@ describe('结构来源·自由组织（纯增量新线）', () => {
     const hits = gm.split("structureMode.value === 'free'").length - 1;
     expect(hits, '改道点应为 4 处（exam×2 ＋ 非 exam×2）').toBe(4);
     // 既有两侧的默认分支必须原样保留（防"新线把老线覆盖掉"）
-    expect(gm, 'exam 默认分支须仍是蓝图').toContain('buildStructureText(applyScoreAdjust(bp))');
+    expect(gm, 'exam 默认分支须仍是蓝图').toContain('buildStructureText(applyScoreAdjust(bp), { withScore:');
     expect(gm, '非 exam 默认分支须仍是教辅栏目').toContain('composeSpecialTeachingText({ genType, stageKey, subject, domainKeys: specialSubType.value })');
   });
 

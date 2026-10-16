@@ -217,8 +217,8 @@ describe('卷面结构文本', () => {
       ],
     };
     const text = buildStructureText(bp);
-    expect(text).toContain('一、选择题｜参考分值 30分');
-    expect(text).toContain('二、填空题｜参考分值 20分');
+    expect(text).toContain('选择题｜参考分值 30分');
+    expect(text).toContain('填空题｜参考分值 20分');
   });
 
   it('无蓝图返回空串', () => {

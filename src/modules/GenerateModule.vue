@@ -1421,6 +1421,16 @@
               <input
                 v-model="structureMode"
                 type="radio"
+                value="blueprint-noscore"
+                name="structureMode"
+              >
+              <span class="option-label">固定结构·不带分值</span>
+              <span class="option-desc">栏目/大题照蓝图，但不注入分值——分值由实际内容定（逐题数出判分处、逐题累加）</span>
+            </label>
+            <label class="option-item">
+              <input
+                v-model="structureMode"
+                type="radio"
                 value="free"
                 name="structureMode"
               >
@@ -6369,7 +6379,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
       // 🧩 结构来源＝自由组织时：结构槽改由 buildFreeStructureInstruction 承载（**既有线一字不动**）
       structure = structureMode.value === 'free'
         ? buildFreeStructureInstruction(genType)
-        : buildStructureText(applyScoreAdjust(bp));
+        : buildStructureText(applyScoreAdjust(bp), { withScore: structureMode.value !== 'blueprint-noscore' });
       fullScore = bp.fullScore || '';
       duration = bp.duration || '';
     }
@@ -6528,7 +6538,7 @@ const restoreDefaultInstruction = async () => {
       // 🧩 结构来源＝自由组织时：结构槽改由 buildFreeStructureInstruction 承载
       structure = structureMode.value === 'free'
         ? buildFreeStructureInstruction(genType)
-        : buildStructureText(applyScoreAdjust(bp));
+        : buildStructureText(applyScoreAdjust(bp), { withScore: structureMode.value !== 'blueprint-noscore' });
       fullScore = bp.fullScore || '';
       duration = bp.duration || '';
     }
