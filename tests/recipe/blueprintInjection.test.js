@@ -68,7 +68,9 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     const inject = buildStructureText(bp);
     expect(inject.match(/——【要求·须逐项落实】/g) || [], '逐行都要带标注').toHaveLength(bp.sections.length);
     // 注内容就是课标/正规卷要求，原样保留、不得改写或截断
-    expect(inject).toContain('短文，选择与判断');
+    //    🔴 2026-10-16（属主裁定·题型诱导去）：原注"短文，选择与判断"＝**把设问方式钉成两种**（正是本文档所记
+    //    实证的成因：注这么写，卷面只出"判断"一种设问）⇒ 已改准为"短文，设问方式不限"。本锚随新口径改锁。
+    expect(inject).toContain('短文，设问方式不限');
     expect(inject).toContain('每段材料读两遍');
     expect(inject).toContain('每空一词或短语');
     // 部分层（听力/笔试）下的大题行同样带标注
