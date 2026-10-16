@@ -94,7 +94,8 @@ describe('少约束·委托书不再给组织形态描述（教材颗粒只作�
     const org = buildOrganizeBlock('exam');
     expect(org, '块以【】开头、块标题独立成行、首条以 · 领起').toMatch(/^【组织方式】\n· /);
     expect(org.split('\n').filter((l) => l.startsWith('· ')), '一条一行').toHaveLength(2);
-    expect(org).toContain('输出一律以委托书【卷面结构】的大题序列组织'); // 守卷面结构
+    expect(org).toContain('输出以委托书【卷面结构】的板块为**组织基础**'); // 结构为组织基础（**非"一律守"**——2026-10-16 属主裁定"结构须是真参考"，可增可减口径交块头单源）
+    expect(org, '旧句"一律以委托书…大题序列组织"不得回潮（与"板块可增可减"相抵）').not.toContain('输出一律以委托书');
     expect(org).toContain('**必须逐项落实**');
     // 🔴 2026-10-03（D16·用户裁定）：原断言"成稿前逐栏目对照自查"（I5 自查＋I2"二者取一"）已删 → 反向锁不得回潮。
     expect(org, 'D16 自检类补丁不得回潮').not.toContain('逐栏目对照自查');

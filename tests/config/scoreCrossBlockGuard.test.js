@@ -68,12 +68,15 @@ describe('同一数字跨块一致（G3）：exam 实发内 满分/各分值 与
     expect(bad.slice(0, 10), '卷首满分须等于蓝图 fullScore（单源）').toEqual([]);
   });
 
-  it('【卷面结构】块内各分值（「分值N分」或「共N分」）之和 === 蓝图 fullScore（逐份）', () => {
+  it('【卷面结构】块内各分值（「参考分值 N分」或「本大类参考N分」）之和 === 蓝图 fullScore（逐份）', () => {
     const bad = [];
     for (const { key, all, fullScore } of docs) {
       // 🔴 2026-10-06（A4·结构改列式·先解后锁）：大题行由"（共X题，共Y分）"改 `｜题数 X｜分值 Y分`
-      //    （题数作命题依据、标题形态由指令库分值条单源给、2026-10-10 起含单价），故分值字段现两种形态并存——「分值N分」与「共N分」。
-      const nums = (structLinesOf(all).join('\n').match(/共(\d+)分|分值\s*(\d+)分/g) || []).map((s) => Number(s.match(/\d+/)[0]));
+      //    （题数作命题依据、标题形态由指令库分值条单源给、2026-10-10 起含单价）。
+      // 🔴 2026-10-16（属主裁定·**分值只做参考**）：结构行分值全部改标"参考"——大题行 `｜参考分值 N分`、
+      //    小学大类行 `（本大类参考N分）`、英语部分行 `（本部分参考N分）`。本行口径同步改准（仍是"结构所标
+      //    之和＝满分"这一**数据自检**，与"模型侧不照抄"不矛盾：蓝本数据自身仍须闭合）。
+      const nums = (structLinesOf(all).join('\n').match(/本大类参考(\d+)分|参考分值\s*(\d+)分/g) || []).map((s) => Number(s.match(/\d+/)[0]));
       const sum = nums.reduce((a, b) => a + b, 0);
       if (sum !== fullScore) bad.push(`${key}: 卷面结构各分值之和 ${sum} ≠ 蓝图 ${fullScore}`);
     }
@@ -83,11 +86,22 @@ describe('同一数字跨块一致（G3）：exam 实发内 满分/各分值 与
   it('部分行「满分M分」小计之和 === 蓝图 fullScore（有部分行时；听力/笔试）', () => {
     const bad = [];
     for (const { key, all, fullScore } of docs) {
-      const m = structLinesOf(all).filter((ln) => /满分\d+分/.test(ln)).map((ln) => Number(ln.match(/满分(\d+)分/)[1]));
+      const m = structLinesOf(all).filter((ln) => /本部分参考\d+分/.test(ln)).map((ln) => Number(ln.match(/本部分参考(\d+)分/)[1]));
       if (!m.length) continue;
       const sum = m.reduce((a, b) => a + b, 0);
       if (sum !== fullScore) bad.push(`${key}: 部分小计之和 ${sum} ≠ 蓝图 ${fullScore}`);
     }
     expect(bad.slice(0, 10), '部分行小计之和须等于蓝图 fullScore').toEqual([]);
+  });
+
+  it('反向锁：结构分值须为"参考"形态，旧形（｜分值 N分／本大类共N分／本部分满分N分）不得回潮', () => {
+    // 🔴 2026-10-16（属主裁定·**分值只做参考**）：旧形与"大题标题的分值说明"同形 ⇒ 模型照抄 ⇒ 实测
+    //    "三、填空（每空1分，共24分）"而实贴 21 空。回退任何一形即红（54 面遍历）。
+    const bad = [];
+    for (const { key, all } of docs) {
+      const lines = structLinesOf(all).join('\n');
+      if (/｜分值\s*\d+分|本大类共\d+分|本部分满分\d+分/.test(lines)) bad.push(key);
+    }
+    expect(bad.slice(0, 10), '结构分值须标"参考分值／本大类参考／本部分参考"（旧形不得回潮）').toEqual([]);
   });
 });

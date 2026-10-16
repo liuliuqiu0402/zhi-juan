@@ -24,10 +24,12 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     const inject = buildStructureText(bp);
     // 2026-09-28：语文课标内容领域为域型栏目 → **只作大类层**（自带本大类总分 + 命题要求），
     //    不再输出同名大题行（大类名不得充当大题标题，大题标题由模型按作答方式自拟）。
-    expect(inject).toContain(`大类层：识字与写字（本大类共${bp.sections[0].score}分）`);
-    expect(inject).toContain(`大类层：积累与运用（本大类共${bp.sections[1].score}分）`);
-    expect(inject).toContain(`大类层：阅读与鉴赏（本大类共${bp.sections[2].score}分）`);
-    expect(inject).toContain(`大类层：表达与交流（本大类共${bp.sections[3].score}分）`);
+    expect(inject).toContain(`大类层：识字与写字（本大类参考${bp.sections[0].score}分）`);
+    expect(inject).toContain(`大类层：积累与运用（本大类参考${bp.sections[1].score}分）`);
+    expect(inject).toContain(`大类层：阅读与鉴赏（本大类参考${bp.sections[2].score}分）`);
+    expect(inject).toContain(`大类层：表达与交流（本大类参考${bp.sections[3].score}分）`);
+    // 🔴 2026-10-16（属主裁定·分值只做参考）：标签由"（本大类共X分）"改"（本大类参考X分）"——结构分值不再
+    //   与标题分值同形，视为**份量参考**（"哪个是标题要照抄的标注"由此不再有歧义）。
     // 大类命题要求（note）被注入（原挂大题行，现随大类行）
     // 🔴 2026-10-11（T19·G9·消相抵）：原字面"本单元识字与写字内容都涉及到"＝**全量覆盖**口径，
     //   与覆盖契约 `COVERAGE_CONTRACT.exam === 'sampled'`（抽样命题、允许部分层级未出现、不补漏）**相抵**
@@ -86,7 +88,7 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(inject).not.toContain('情境化试题占比');
     expect(inject).not.toContain('禁止孤立罗列拼音');
     // 卷面结构仍在（大类名+本大类总分+命题要求 note）
-    expect(inject).toContain(`大类层：识字与写字（本大类共${bp.sections[0].score}分）`);
+    expect(inject).toContain(`大类层：识字与写字（本大类参考${bp.sections[0].score}分）`);
   });
 
   it('不再注入分值规则（分值分配回归 AI 命题常识，账目自洽由规则库 score 系列验算）', () => {
@@ -95,16 +97,16 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(inject).not.toContain('【分值规则】');
     expect(inject).not.toContain('小题数×每题分=大题分');
     // 卷面结构仍在（语文·初中为域型栏目 → **中学段口径**：课标领域名直接作大题行，不设大类层）
-    expect(inject).toMatch(/^一、积累与运用｜分值 /m);
+    expect(inject).toMatch(/^一、积累与运用｜参考分值 /m);
   });
 
   it('英语蓝本（听力·/笔试·前缀）→ 输出部分层作大类居中（不写"第X部分"），大题去前缀、序号全卷连续', () => {
     const bp = getExamBlueprint('英语', 'primary_high');
     const inject = buildStructureText(bp);
     // 部分层只写"听力部分/笔试部分"，不带"第X部分"字眼（2026-09-27 用户裁定：真题卷面即部分标题、不带序）
-    expect(inject).toContain('听力部分（本部分满分');
-    expect(inject).toContain('满分');
-    expect(inject).toContain('笔试部分（本部分满分');
+    expect(inject).toContain('听力部分（本部分参考');
+    expect(inject).toContain('本部分参考');
+    expect(inject).toContain('笔试部分（本部分参考');
     expect(inject, '不得再写"第X部分"字眼').not.toMatch(/第[一二三四五六七八九十]+部分/);
     // 大题行去"听力·/笔试·"前缀
     expect(inject).not.toContain('一、听力·');
@@ -125,10 +127,10 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     const bp = getExamBlueprint('语文', 'primary_low');
     const inject = buildStructureText(bp);
     // 大类行：居中加粗独立呈现、自带本大类总分（序号形态按学段，小学段自带序号，见下方断言）
-    expect(inject).toContain('大类层：识字与写字（本大类共40分）');
-    expect(inject).toContain('大类层：积累与运用（本大类共28分）');
-    expect(inject).toContain('大类层：阅读与鉴赏（本大类共16分）');
-    expect(inject).toContain('大类层：表达与交流（本大类共16分）');
+    expect(inject).toContain('大类层：识字与写字（本大类参考40分）');
+    expect(inject).toContain('大类层：积累与运用（本大类参考28分）');
+    expect(inject).toContain('大类层：阅读与鉴赏（本大类参考16分）');
+    expect(inject).toContain('大类层：表达与交流（本大类参考16分）');
     const domainLines = inject.split('\n').filter((l) => l.startsWith('大类层'));
     expect(domainLines, '四个域型栏目 → 四条大类行').toHaveLength(4);
     // 大类行不得用与大题同构的「一、」式编号（其自带序号样式须与大题序号相区分）
@@ -154,16 +156,16 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     const inject = buildStructureText(mid);
     expect(inject, '中学段不得输出大类层').not.toContain('大类层');
     // 课标领域名即大题标题（带「一、」序号与分值），真题通行："一、积累与运用（30分）"
-    expect(inject).toMatch(/^一、积累与运用｜分值 24分/m);
-    expect(inject).toMatch(/^二、梳理与探究｜分值 10分/m);
-    expect(inject).toMatch(/^五、写作｜分值 36分/m);
+    expect(inject).toMatch(/^一、积累与运用｜参考分值 24分/m);
+    expect(inject).toMatch(/^二、梳理与探究｜参考分值 10分/m);
+    expect(inject).toMatch(/^五、写作｜参考分值 36分/m);
   });
 
   it('题型型栏目（数学等作答形式名）→ 不设大类层，块名即大题标题', () => {
     const mathBp = getExamBlueprint('数学', 'primary_mid');
     const inject = buildStructureText(mathBp);
     expect(inject, '数学全部为题型型，不得输出大类层').not.toContain('大类层');
-    expect(inject, '数学块名即大题行').toMatch(/^一、[^｜]+｜分值 /);
+    expect(inject, '数学块名即大题行').toMatch(/^一、[^｜]+｜参考分值 /);
     // 历史/地理/道法/科学/生物等无域型栏目的学科同样不设大类层（用户裁定：分学科、非一刀切）
     for (const subj of ['历史', '地理', '道德与法治', '科学', '生物']) {
       const b2 = getExamBlueprint(subj, 'middle');
@@ -180,7 +182,7 @@ describe('buildStructureText（exam 卷面结构注入段，单一事实源）',
     expect(lines).toHaveLength(4);
     const sumOf = (name) => bp.sections.filter((s) => s.name === name).reduce((a, s) => a + s.score, 0);
     for (const l of lines) {
-      const m = l.match(/大类层：([^（]+)（本大类共(\d+)分）/);
+      const m = l.match(/大类层：([^（]+)（本大类参考(\d+)分）/);
       expect(m, `大类行格式异常：${l}`).toBeTruthy();
       expect(Number(m[2]), `${m[1]} 大类总分应=其下栏目分值合计`).toBe(sumOf(m[1]));
     }

@@ -203,8 +203,8 @@ describe('卷面结构文本', () => {
       ],
     };
     const text = buildStructureText(bp);
-    expect(text).toContain('大类层：识字与写字（本大类共32分）');
-    expect(text).toContain('大类层：积累与运用（本大类共24分）');
+    expect(text).toContain('大类层：识字与写字（本大类参考32分）');
+    expect(text).toContain('大类层：积累与运用（本大类参考24分）');
     // 大类名不得充当大题标题：不输出"一、识字与写字"这类同名大题行
     expect(text).not.toMatch(/^[一二三四五六七八九十]、/m);
   });
@@ -217,8 +217,8 @@ describe('卷面结构文本', () => {
       ],
     };
     const text = buildStructureText(bp);
-    expect(text).toContain('一、选择题｜分值 30分');
-    expect(text).toContain('二、填空题｜分值 20分');
+    expect(text).toContain('一、选择题｜参考分值 30分');
+    expect(text).toContain('二、填空题｜参考分值 20分');
   });
 
   it('无蓝图返回空串', () => {

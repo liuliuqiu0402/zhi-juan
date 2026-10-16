@@ -36,7 +36,10 @@ try {
 try {
   const ctx = { subject, stage, genType };
   show('5·user 块·素材使用约定', buildMaterialUsageBlock(ctx));
-  show('6·user 块·组织风格', buildOrganizeBlock(ctx));
+  // 🔴 2026-10-16（本脚本修正）：原写 `buildOrganizeBlock(ctx)`——该函数签名是 `(genType = '')`，传对象使它
+  //   恒走 `genType !== 'exam'` 分支返回空 ⇒ 转储**漏掉【组织方式】整块**（本人 2026-10-16 一次通读即因此漏看，
+  //   而【组织方式】里恰有"结构是不是必须守"的关键句）。correct：传字符串 genType。
+  show('6·user 块·组织方式', buildOrganizeBlock(genType));
   const tails = buildTailBlocks(ctx);
   show('7·user 块·尾约束', Array.isArray(tails) ? tails.join('\n') : (tails?.text || String(tails)));
 } catch (e) { show('5-7·user 块（失败）', e.message); }

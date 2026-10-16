@@ -119,7 +119,8 @@ describe('各块文本口径（防漂移的逐字锚点）', () => {
     const org = buildOrganizeBlock('exam');
     expect(org, '块以【】开头且块标题独立成行、首条以 · 领起').toMatch(/^【组织方式】\n· /);
     expect(org.split('\n').filter((l) => l.startsWith('· ')), '一条一行（原四件事挤一段 → 两条）').toHaveLength(2);
-    expect(org).toContain('输出一律以委托书【卷面结构】的大题序列组织');
+    expect(org).toContain('输出以委托书【卷面结构】的板块为**组织基础**');
+    expect(org, '旧句"一律以委托书…大题序列组织"不得回潮（与"板块可增可减"相抵）').not.toContain('输出一律以委托书');
     expect(org).toContain('【锚点清单】陈述的是要练到的范围');
     expect(org).toContain('**必须逐项落实**');
     // 🔴 2026-10-03（D16·用户裁定）：原"成稿前逐栏目对照自查"（I5 自查＋I2"二者取一"）已删 → 反向锁不得回潮。
