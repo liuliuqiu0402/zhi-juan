@@ -322,6 +322,24 @@ describe('examValidator 正文重复内容检测截断（duplicate-content-fix�
     const { issues } = auditExamPaper(html, OPTS);
     expect(issues.some(i => i.type === 'duplicate-content')).toBe(true);
   });
+
+  // 🔴 2026-10-16（属主裁定"根治"·实测事故 22→17）：只有"整卷重出"（第二份从**本卷第一个大题标题**重起）
+  //    才截断；**局部同名大题**不是重出证据，此后一律不得据它削正文（与 2j-0b 只报不改同口径）。
+  it('局部同名大题（非"整卷重出"）→ **不截断正文**、只报（治"质检削正文 22→17"）', () => {
+    const html = [
+      '<h2>一、直接写出得数（共4题，共8分）</h2><p>1. 5＋5＝</p><p>2. 3×6＝</p>',
+      '<h2>二、填空（共3题，共9分）</h2><p>5. 量词填空。</p>',
+      '<h2>三、判断（共5题，共10分）</h2><p>9. 判断下面各题。</p>',
+      '<h2>四、列式计算（共3题，共6分）</h2><p>14. 列式计算。</p>',
+      '<h2>三、判断（共5题，共10分）</h2><p>17. 判断下面各题。（同名大题的第二处）</p>',
+    ].join('\n');
+    const { html: out, issues } = auditExamPaper(html, OPTS);
+    expect(out, '非整卷重出 → 其后正文不得被削').toContain('四、列式计算');
+    expect(out, '其后各题仍须在场').toContain('17. 判断下面各题。');
+    expect((out.match(/三、判断/g) || []).length, '两份都保留').toBe(2);
+    expect(issues.some(i => i.type === 'duplicate-content-title'), '须报出交人工').toBe(true);
+    expect(issues.some(i => i.type === 'duplicate-content'), '不得走截断分支').toBe(false);
+  });
 });
 
 describe('examValidator 排版语义自洽（text-format-fix）', () => {

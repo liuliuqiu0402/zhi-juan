@@ -56,4 +56,19 @@ describe('判据式 vs 许可式残留（常驻机检）', () => {
       }
     }
   });
+
+  // 🔴 2026-10-16（属主裁定"根治"·大小标题同类重复）：【题目自洽】② 原许可式"**或题目明示的作答动作**"
+  //    把"题面写清作答动作"当成"可作答"的替代路径（＝允许不设作答位）⇒ 模型既不设括号作答位，
+  //    又在每道小题题面复述同一句作答要求（与大题标题同类重复，且与【卷面自洽】"只出一次"相抵）。已删。
+  it('② 的可作答判据＝判据式（题面内确有作答位）；许可式口子不得回潮', () => {
+    for (const [stage, subjects] of Object.entries(STAGE_SUBJECTS)) {
+      for (const subject of subjects) {
+        const cell = String(getPromptTemplate({ grade: stage, subject, genType: 'exam' })?.template || '');
+        if (!cell) continue;
+        expect(cell, `${subject}|${stage}：许可式口子"或题目明示的作答动作"不得回潮`).not.toContain('或题目明示的作答动作');
+      }
+    }
+    const probe = String(getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' })?.template || '');
+    expect(probe, '判据式须在场：可作答＝题面内确有可书写的作答位').toContain('"可作答"＝题面内确有可书写的作答位（空位/载体）');
+  });
 });

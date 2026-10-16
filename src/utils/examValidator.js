@@ -650,18 +650,27 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       heads.push({ kind: 'title', text: t, index: hm.index });
     }
     let dupIndex = -1;
+    let dupTitle = '';
     const seenTitles = new Set();
     let curBlock = '';
+    const firstTitle = (heads.find((h) => h.kind === 'title') || {}).text || '';
     for (const h of heads) {
       if (h.kind === 'block') { if (byBlock) curBlock = h.text; continue; }
       const key = byBlock ? `${curBlock}||${h.text}` : h.text;
-      if (seenTitles.has(key)) { dupIndex = h.index; break; }
+      if (seenTitles.has(key)) { dupIndex = h.index; dupTitle = h.text; break; }
       seenTitles.add(key);
     }
-    if (dupIndex > 0) {
+    // 🔴 2026-10-16（属主裁定"根治"，实测事故 22→17）：**只有"整卷重出"特征才截断**——
+    //    重出的第二份必然从**本卷第一个大题标题**重新起头；仅"局部同名大题"（如两个"三、填空"）
+    //    不是重出证据，此前一律截断 ⇒ 把该处之后的正文一并削掉，且与"大题标题不得重名"的
+    //    **只报不改**（2j-0b，`examValidator.js:1122`）方向相反（一处交人工、一处已动手删）。
+    //    现：**非同首题者不截断、只报**（与 2j-0b 同口径）；答案区重复半条（下方 2）依据明确，保留截断。
+    if (dupIndex > 0 && dupTitle === firstTitle) {
       issues.push({ severity: 'info', type: 'duplicate-content', message: '检测到正文重复（同一大题标题出现 ≥2 次，疑截断续写重出），已截断保留第一份' });
       fixed += 1;
       out = bodyPart.slice(0, dupIndex) + ansPart;
+    } else if (dupIndex > 0) {
+      issues.push({ severity: 'info', type: 'duplicate-content-title', message: `同名大题标题出现 ≥2 次（"${dupTitle}"），非"整卷重出"形态——不改正文，请人工核对是否重名` });
     }
     // 2) 重复答案区（once 模式正文含两份答案 → 保留第一份）
     const ansBlocks = out.match(/<div[^>]*class=["'][^"']*answer-section[^"']*["'][^>]*>/g) || [];
