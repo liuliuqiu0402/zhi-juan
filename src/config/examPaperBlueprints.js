@@ -35,7 +35,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '识字与写字', score: 40, note: `${EXAM_COVERAGE_CN('识字与写字')}。` },
       { name: '积累与运用', score: 28, note: `${EXAM_COVERAGE_CN('积累与运用')}。` },
       { name: '阅读与鉴赏', score: 16, note: '课内课外阅读结合；选文标注出处。' },
-      { name: '表达与交流', score: 16, note: '看图写话为主，结合本次范围主题；写话提供必要的词语支架，不会写的字可用拼音。' },
+      { name: '表达与交流', score: 16, note: '看图写话，结合本次范围主题；提供必要的词语支架，不会写的字可用拼音。' },
     ],
   },
   '语文|primary_mid': {
@@ -72,7 +72,7 @@ export const EXAM_BLUEPRINTS = {
       // 卷面结构以 **2025 年全国卷官方卷面**为准（2026-09-19 调研）：原"现代文阅读/古代诗文阅读"
       //    两栏自 2025 年起已整合为一个「阅读」大题（阅读Ⅰ/Ⅱ＋文言文＋古代诗歌＋名篇名句默写），
       //    语言文字运用降为 18 分。各块分值逐年微调（如 2026 年阅读 74 分），总量稳定，故只锁总量。
-      { name: '阅读', score: 72, note: '各块分值随年度微调，总量稳定。' },
+      { name: '阅读', score: 72, note: '现代文、古诗文阅读与名篇名句默写' },
       { name: '语言文字运用', score: 18, note: '在语境中作答（不留答案）。' },
       { name: '写作', score: 60, note: '材料作文，准确理解材料、立意明确、论证充分。' },
     ],
@@ -89,7 +89,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '填空', score: 24, note: '基础内容直接作答' },
       { name: '判断', score: 10, note: '概念与算法辨析' },
       { name: '选择', score: 10, note: '基础辨析' },
-      { name: '操作题', score: 8, note: '画一画、连一连、数一数、按要求涂色' },
+      { name: '操作题', score: 8, note: '动手操作；需作图的题留出相应作答区域' },
       { name: '看图列式计算', score: 6, note: '看图列出算式并计算' },
       { name: '解决问题', score: 16, note: '应用题，要求列式、计算并作答（写单位、写答语）' },
     ],
@@ -171,7 +171,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '听力·听音判断', score: 5, note: '听句子/对话判断图片或句子正误；每段材料读两遍' },
       { name: '听力·听音选答语', score: 10, note: '听问句（含简短对话语境）选出正确应答；每段材料读两遍' },
       { name: '听力·听音排序', score: 10, note: '听一段对话或独白，按顺序给图片标序号；每段材料读两遍' },
-      { name: '笔试·语音辨析', score: 6, note: '选出画线部分发音不同的单词' },
+      { name: '笔试·语音辨析', score: 6, note: '语音辨析（辨识发音差异）' },
       { name: '笔试·词汇运用', score: 8, note: '看图写词、词图匹配、词汇分类' },
       { name: '笔试·单项选择', score: 10, note: '语境中作答' },
       { name: '笔试·情景交际', score: 10, note: '选句补全对话' },
@@ -186,7 +186,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '听力·听音选词/选图', score: 10, note: '听词句完成选择；每段材料读两遍' },
       { name: '听力·听音判断', score: 10, note: '听简短对话判断句子正误；每段材料读两遍' },
       { name: '听力·听音填空', score: 10, note: '听一篇完整短文后补全信息，每空一词或短语；整篇材料读两遍' },
-      { name: '笔试·语音辨析', score: 5, note: '选出画线部分发音不同的单词' },
+      { name: '笔试·语音辨析', score: 5, note: '语音辨析（辨识发音差异）' },
       { name: '笔试·词汇运用', score: 10, note: '词图匹配、词汇分类、根据提示写词' },
       { name: '笔试·单项选择', score: 15, note: '语境中作答' },
       { name: '笔试·情景交际', score: 10, note: '选句补全对话' },
@@ -288,7 +288,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断', score: 20, note: '生活常识与行为习惯辨析' },
       { name: '选择', score: 15, note: '价值判断' },
       { name: '连线', score: 15, note: '做法与理由连线、行为与对错连线' },
-      { name: '写一写或画一画', score: 20, note: '看图或读短文后写出（或画出）该怎么做，一句话作答' },
+      { name: '书面表达', score: 20, note: '围绕本次范围主题作书面表达，一两句话作答' },
     ],
   },
   '道德与法治|primary_mid': {
@@ -508,7 +508,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '判断题', score: 20, note: '造型语言（点线面/色彩）、工具材料认识' },
       { name: '选择题', score: 20, note: '色彩与形状辨识' },
       { name: '连线题', score: 20, note: '工具与用途、颜色与情感连线' },
-      { name: '表现题', score: 40, note: '以文字描述创作思路（画什么/用什么颜色/怎样构图），配评分要点' },
+      { name: '表现题', score: 40, note: '以文字说明创作思路，配评分要点' },
     ],
   },
   '美术|primary_mid': {
