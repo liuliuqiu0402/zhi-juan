@@ -1068,7 +1068,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         let secHtml2 = '';
         for (const n of secNodes) secHtml2 += n.outerHTML || n.textContent || '';
         const secText2 = secNodes.map(n => n.textContent || '').join('');
-        const blanks = countBlanks(secHtml2);
+        // 🔴 2026-10-16（死变量清理）：原此处 `const blanks = countBlanks(secHtml2)` 在 2f/2g/2h
+        //    （2026-10-10 属主裁定"消噪音"整支删除）之后**再无消费方** ⇒ 已清。
+        //    注：`countBlanks` 函数本体**保留**（单测仍在用，且属通用工具）；属主亦已裁定**不再恢复**
+        //    "分值÷单价＝载体数"对账（2026-10-16：不解决问题、且计数不可靠、不能保证不误报）。
         const pinyinOpts = countPinyinOptions(secHtml2);
         const options = countOptions(secHtml2);
         const matchSides = countMatchSides(secHtml2);
