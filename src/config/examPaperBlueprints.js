@@ -159,7 +159,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '听力·听音排序', score: 15, note: '听词句给图片标序号；每段材料读两遍' },
       { name: '听力·听音选答语', score: 10, note: '听问句选出正确应答；每段材料读两遍' },
       { name: '笔试·看图连线', score: 10, note: '单词与图片连线' },
-      { name: '笔试·认读选择', score: 15, note: '看词选义、看图选词' },
+      { name: '笔试·认读选择', score: 15, note: '认读与词义辨识' },
       { name: '笔试·字母与词汇', score: 5, note: '字母大小写认读与抄写，书写规范' },
       { name: '笔试·趣味任务', score: 10, note: '操作型任务' },
     ],
@@ -172,7 +172,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '听力·听音选答语', score: 10, note: '听问句（含简短对话语境）选出正确应答；每段材料读两遍' },
       { name: '听力·听音排序', score: 10, note: '听一段对话或独白，按顺序给图片标序号；每段材料读两遍' },
       { name: '笔试·语音辨析', score: 6, note: '语音辨析（辨识发音差异）' },
-      { name: '笔试·词汇运用', score: 8, note: '看图写词、词图匹配、词汇分类' },
+      { name: '笔试·词汇运用', score: 8, note: '词汇运用（识别、拼写与归类）' },
       { name: '笔试·单项选择', score: 10, note: '语境中作答' },
       { name: '笔试·情景交际', score: 10, note: '选句补全对话' },
       { name: '笔试·连词成句', score: 8, note: '按正确语序排列句子，注意首字母大写与标点' },
@@ -187,7 +187,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '听力·听音判断', score: 10, note: '听简短对话判断句子正误；每段材料读两遍' },
       { name: '听力·听音填空', score: 10, note: '听一篇完整短文后补全信息，每空一词或短语；整篇材料读两遍' },
       { name: '笔试·语音辨析', score: 5, note: '语音辨析（辨识发音差异）' },
-      { name: '笔试·词汇运用', score: 10, note: '词图匹配、词汇分类、根据提示写词' },
+      { name: '笔试·词汇运用', score: 10, note: '词汇运用（识别、拼写与归类）' },
       { name: '笔试·单项选择', score: 15, note: '语境中作答' },
       { name: '笔试·情景交际', score: 10, note: '选句补全对话' },
       { name: '笔试·连词成句', score: 10, note: '按正确语序排列句子' },
@@ -198,7 +198,7 @@ export const EXAM_BLUEPRINTS = {
   '英语|middle': {
     label: '英语·初中（中考结构）', fullScore: 120, duration: '100分钟',
     sections: [
-      { name: '听力', score: 25, note: '含短对话理解、长对话理解、短文理解、信息转换（听短文填表，每空一词）；每段材料读两遍' },
+      { name: '听力', score: 25, note: '对话与短文理解（含信息提取，每空一词）；每段材料读两遍' },
       { name: '完形填空', score: 10, note: '语境理解' },
       { name: '阅读理解', score: 40, note: '选择＋任务型阅读（还原句子/回答问题）' },
       { name: '词汇运用', score: 10, note: '根据首字母或汉语提示填词，短文语境' },
@@ -264,7 +264,7 @@ export const EXAM_BLUEPRINTS = {
     label: '生物·初中（中考结构）', fullScore: 100, duration: '60分钟',
     sections: [
       { name: '选择题', score: 50, note: '概念辨析' },
-      { name: '非选择题', score: 50, note: '识图填空、资料分析、实验探究；识图题考查结构与功能的关系' },
+      { name: '非选择题', score: 50, note: '识图题考查结构与功能的关系；含资料分析与实验探究' },
     ],
   },
   '生物|high': {
@@ -366,7 +366,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '选择', score: 20, note: '概念与现象判断' },
       { name: '判断', score: 20, note: '现象辨析' },
       { name: '连线', score: 10, note: '概念关联、分类匹配' },
-      { name: '观察与探究', score: 20, note: '观察记录、排序、简单探究过程描述' },
+      { name: '观察与探究', score: 20, note: '观察与探究过程' },
       { name: '简答', score: 15, note: '用一两句话说明现象或做法' },
     ],
   },
