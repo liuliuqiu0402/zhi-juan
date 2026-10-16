@@ -4851,8 +4851,10 @@ const renderImagePlaceholders = (html) => {
     if (v.charAt(0) === ':' || v.charAt(0) === '：') v = v.slice(1).trim();
     return v;
   };
-  // 🔧 占位框构建（正常闭合与未闭合兜底共用）：data-image-raw 保存标准化 [IMAGE]…[/IMAGE] 标记，
-  //    导出 DOCX 时还原为标准标记；普通配图仅画面描述（不指定生图引擎），ICON 图标检索保留 TYPE/KEYWORDS
+  // 🔧 占位框构建（正常闭合与未闭合兜底共用）：data-image-raw **承载**标准化 [IMAGE]…[/IMAGE] 标记
+  //    （**标记原文不丢**：正文原件另存于 doc.rawContent，"复制原始源码/指令"即由此还原，供 EduRender 使用）；
+  //    导出 DOCX/PDF 时按〔配图位置：…〕占位文本落稿（**不还原标记原文**——v43 既定形态，
+  //    见 tests/utils/imagePlaceholderExport.test.js）；普通配图仅画面描述（不指定生图引擎），ICON 图标检索保留 TYPE/KEYWORDS
   const buildBox = (prompt, imgType, keywords) => {
     const isIcon = imgType === 'ICON';
     const rawMark = esc(isIcon
