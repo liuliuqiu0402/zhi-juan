@@ -128,7 +128,7 @@ describe('序号体系：同层同构、异层异构（全类型通用）', () =
     const q = fmtOf('practice');
     expect(q).toContain('不与题号层混同');
     expect(q).toContain('这些分条不是子题，不为其另配作答区');
-    expect(q).toContain('子题用 (1)(2)');
+    expect(q).toContain('确有子层时，其标示形式与外层相区分');
   });
 });
 

@@ -198,7 +198,7 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     // 🔴 2026-09-28：易错题本（题内分项型）分支同样注入本条 → 题类三分支各一处
     expect(src.split('不与题号层混同').length - 1, 'question/exam/errorbook 三分支各一处').toBe(3);
     expect(src).toContain('这些分条不是子题，不为其另配作答区');
-    expect(src, '与题号规范划清边界（子题才用 (1)(2)）').toContain('子题用 (1)(2)');
+    expect(src, '与题号规范划清边界（子题才用 (1)(2)）').toContain('确有子层时，其标示形式与外层相区分');
     expect(src, '内容型编号口径仍由 CONTENT_FORMAT 单源').toContain('条目标记与序号只取其一、严禁叠加');
   });
 
