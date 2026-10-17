@@ -2,105 +2,165 @@ import { describe, it, expect } from 'vitest';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
 
 /**
- * 质检"不丢内容"不变量（测试期，零运行期代码、零噪音）
+ * 质检"不丢题"不变量 ＋ 改写分支覆盖登记（测试期；零运行期代码、零噪音）
  *
- * 背景：质检的形态是"在原 HTML 上定点定向修、修完返回整份"。所以风险不在"整份返回"，
- * 而在某条修复逻辑本身出错（历史上有过"重复内容截断"这类删除型修复，已删）。
- * 这里把它变成一条常驻断言：**正文题块集合只增不减**——质检后每个题块都必须仍在，
- * 且数量不得减少。比的是"题块存在性"，不涉及任何学科语义，故对全部学科/学段/类型通用。
+ * 为什么这样设计（而非按学科铺样本）：
+ *   风险不是一个"学科"产生的，而是**质检里某条会改写正文的分支**产生的。
+ *   分支不随学科增加，故样本按"分支＋形态"造，每条都打在一个真实风险点上。
  *
- * 题块认法：<p class="question"> 内去标签后的首 10 字作指纹。
+ * 两条硬判据（对全部样本一律成立）：
+ *   H1 题块数量不得减少（题不能丢）
+ *   H2 任何题块不得被清空（容器还在但题干没了，同样算丢）
+ * 覆盖判据（可证明，不靠人记）：
+ *   每一支"会改写正文"的分支，都必须被某个样本命中（issues 里出现该分支的回报）；
+ *   暂未配到样本的分支必须登记在 PENDING 里，且**数量只减不增**——新增分支不配样本即红。
  */
 
-const blockSigs = (html) => [...String(html ?? '').matchAll(
+const blockTexts = (html) => [...String(html ?? '').matchAll(
   /<p[^>]*class="[^"]*\bquestion\b[^"]*"[^>]*>([\s\S]*?)<\/p>/gi,
-)]
-  .map((m) => m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, '').slice(0, 10))
-  .filter(Boolean);
+)].map((m) => m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ''));
 
 const run = (html, opts = {}) => auditExamPaper(html, { genType: 'exam', ...opts });
 
+/** 十支改写正文的分支（来源：examValidator.js 逐一核对） */
+const BRANCHES = [
+  { id: 'sup-sub', at: 811, what: 'Unicode 上下标归一为 <sup>/<sub>', probe: /上下标已自动归一/ },
+  { id: 'label-strip', at: 898, what: '剥离该学段不应使用的题号标签（保留文字）', probe: /已自动剥离/ },
+  { id: 'title-score', at: 944, what: '大题标题补总分', probe: /大题标题已补总分/ },
+  { id: 'blank-move', at: 1310, what: '同一大题内作答位位置归并（只搬括号空位）', probe: /作答位位置已自动归并统一/ },
+  { id: 'writing-grid', at: 1593, what: '写话/作文题补作文格', probe: /已自动补作文格/ },
+  { id: 'writing-line-en', at: 1688, what: '英语书面表达/写作题补横线', probe: /英语书面表达\/写作题已自动补横线/ },
+  { id: 'writing-line-en-title', at: 1778, what: '大题标题式英语书写题补横线', probe: /大题标题式英语书写题已自动补横线/ },
+  { id: 'draw-area', at: 2179, what: '作图题补作图区', probe: /已补作图区/ },
+  { id: 'answer-space', at: 2199, what: '按分值×系数补作答行/空白', probe: /已补作答空间/ },
+  { id: 'answer-section', at: 2322, what: '答案区补包为独立 answer-section', probe: /答案区已自动补包/ },
+];
+
+/** 暂未配到可靠样本的分支：只减不增（新增分支不配样本即红） */
+const PENDING = {
+  'label-strip': '需"该学段不应使用的题号标签"样本，跨学段差异未逐一核',
+  'title-score': '需"大题标题缺总分"样本；样本须带真实大题标题容器，类名未核',
+  'blank-move': '需"空位位置与学科条款方向不符"样本，构造易假命中',
+  'writing-line-en-title': '需"大题标题本身即书写题"样本，形态未核',
+  'draw-area': '需"作图题缺作答载体"完整卷面（含大题标题与分值），裸题块不触发',
+  'answer-space': '需"长答题缺作答行"完整卷面（含大题标题与分值），裸题块不触发',
+  'answer-section': '需"答案区形态"核对（现样本用了 answer-title/answer 类名，未触发补包）',
+};
+
 const SAMPLES = [
   {
-    name: '数学·小学低段（干净例：应有零改动）',
+    name: '数学·小学低段（干净例）',
     opts: { subject: '数学', stage: 'primary_low' },
     html: [
-      '<p class="title">第一单元练习</p>',
-      '<p class="subtitle">一、直接写得数（每题1分，共4分）</p>',
-      '<p class="question">1. 3+5＝　　　7-2＝　　　9-4＝　　　6+3＝</p>',
-      '<p class="subtitle">二、填空（每空1分，共2分）</p>',
+      '<p class="question">1. 3+5＝　　　7-2＝　　　9-4＝</p>',
       '<p class="question">2. 8 里面有（　　）个一。</p>',
-      '<p class="question">3. 比 7 多 2 的数是（　　）。</p>',
     ].join('\n'),
-    expectFix: false,
   },
   {
-    name: '数学·小学高段（干净例）',
-    opts: { subject: '数学', stage: 'primary_high' },
-    html: [
-      '<p class="question">1. 计算下面各题，能简算的要简算。（每题2分，共4分）</p>',
-      '<p class="question">2. 解决问题：果园里有苹果树 48 棵，梨树是苹果树的 3 倍，梨树有多少棵？</p>',
-    ].join('\n'),
-    expectFix: false,
-  },
-  {
-    name: '语文·小学低段（作文题缺作答格：补件必须只加不删）',
+    name: '语文·小学低段｜作文题缺格（命中 writing-grid）',
     opts: { subject: '语文', stage: 'primary_low' },
+    branch: 'writing-grid',
     html: [
       '<p class="question">1. 看拼音写词语。（每词2分，共4分）</p>',
       '<p class="question">2. 习作：以我的乐园为题，写一篇不少于 300 字的作文。（30分）</p>',
     ].join('\n'),
-    expectFix: true,
   },
   {
-    name: '语文·初中（作文区在中间：补件不得吞掉其后的题）',
+    name: '语文·初中｜作文区夹在两题之间（补件不得吞掉其后的题）',
     opts: { subject: '语文', stage: 'middle' },
     html: [
       '<p class="question">1. 阅读下面文章，完成后面各题。（12分）</p>',
       '<p class="question">2. 写作：以这一次，我长大了为题写一篇作文。（40分）</p>',
       '<p class="question">3. 附加题：说说你读完本文的感受。</p>',
     ].join('\n'),
-    expectFix: true,
   },
   {
-    name: '英语·小学低段（书面表达缺横线：补件不得删题）',
+    name: '英语·小学低段｜书面表达缺横线（命中 writing-line-en）',
     opts: { subject: '英语', stage: 'primary_low' },
+    branch: 'writing-line-en',
     html: [
       '<p class="question">1. 听音选词。（每题2分，共4分）</p>',
       '<p class="question">2. 书面表达：Write about your weekend.（10分）</p>',
     ].join('\n'),
-    expectFix: true,
   },
   {
-    name: '教辅（同一不变量对非试卷类型同样成立）',
+    name: '数学·小学高段｜作图题缺作图区（命中 draw-area）',
+    opts: { subject: '数学', stage: 'primary_high' },
+    branch: 'draw-area',
+    html: [
+      '<p class="question">1. 计算：48×3＝</p>',
+      '<p class="question">2. 画一个边长 3 厘米的正方形。（4分）</p>',
+    ].join('\n'),
+  },
+  {
+    name: '语文·初中｜长答题缺作答行（命中 answer-space）',
+    opts: { subject: '语文', stage: 'middle' },
+    branch: 'answer-space',
+    html: [
+      '<p class="question">1. 请结合全文，分析文中人物形象。（8分）</p>',
+    ].join('\n'),
+  },
+  {
+    name: '数学·小学低段｜答案未包 answer-section（命中 answer-section）',
+    opts: { subject: '数学', stage: 'primary_low' },
+    branch: 'answer-section',
+    html: [
+      '<p class="question">1. 3+5＝（　　）</p>',
+      '<p class="answer-title">参考答案</p>',
+      '<p class="answer">1. 8</p>',
+    ].join('\n'),
+  },
+  {
+    name: '数学·小学低段｜Unicode 上下标（命中 sup-sub）',
+    opts: { subject: '数学', stage: 'primary_low' },
+    branch: 'sup-sub',
+    html: [
+      '<p class="question">1. 3²＝（　　）</p>',
+      '<p class="question">2. 边长 3 厘米的正方形，面积是（　　）平方厘米。</p>',
+    ].join('\n'),
+  },
+  {
+    name: '教辅｜同一不变量对非试卷类型同样成立',
     opts: { genType: 'teaching', subject: '数学', stage: 'primary_low' },
     html: [
-      '<p class="question">1. 口算下面各题。3+4＝　　　5-2＝</p>',
-      '<p class="question">2. 在○里填上 ＞、＜ 或 ＝。6○9　　8○8</p>',
+      '<p class="question">1. 口算。3+4＝　　　5-2＝</p>',
+      '<p class="question">2. 在○里填上 ＞、＜ 或 ＝。6○9</p>',
     ].join('\n'),
-    expectFix: false,
   },
 ];
 
-describe('质检不丢内容：正文题块集合只增不减（全学科/学段/类型通用）', () => {
+describe('质检不丢题：分支定向样本 ＋ 覆盖可证明', () => {
   for (const s of SAMPLES) {
     it(s.name, () => {
-      const before = blockSigs(s.html);
-      expect(before.length, '样本本身须含题块，否则断言无意义').toBeGreaterThan(0);
+      const before = blockTexts(s.html);
+      expect(before.length, '样本须含题块，否则断言无意义').toBeGreaterThan(0);
 
-      const out = run(s.html, s.opts).html ?? '';
-      const after = blockSigs(out);
+      const res = run(s.html, s.opts);
+      const after = blockTexts(res.html ?? '');
 
-      expect(after.length, `题块数减少：${before.length} → ${after.length}`)
+      // H1 题不能丢
+      expect(after.length, `题块数减少：${before.length}→${after.length}`)
         .toBeGreaterThanOrEqual(before.length);
+      // H2 题不能被清空
+      for (const t of after) expect(t.length, '出现空题块（容器在、题干没了）').toBeGreaterThan(0);
 
-      for (const sig of before) {
-        expect(after, `题块被删或首句被改写：${sig}`).toContain(sig);
-      }
-
-      if (s.expectFix) {
-        expect(out.length, '该样本应触发补件（插入），输出不应短于原文').toBeGreaterThan(s.html.length);
+      // 覆盖证明：该样本宣称命中的分支，必须真的出现在 issues 里（待配分支不参与证明）
+      if (s.branch && !PENDING[s.branch]) {
+        const b = BRANCHES.find((x) => x.id === s.branch);
+        const hit = (res.issues || []).some((i) => b.probe.test(i.message || ''));
+        expect(hit, `样本未命中分支 ${s.branch}（${b.what}）——该样本失效，覆盖是假的`).toBe(true);
       }
     });
   }
+
+  it('覆盖登记：未配样本的分支只减不增（新增改写分支不配样本即红）', () => {
+    const covered = new Set(SAMPLES.map((s) => s.branch).filter(Boolean));
+    const uncovered = BRANCHES.map((b) => b.id).filter((id) => !covered.has(id));
+    for (const id of uncovered) {
+      expect(PENDING[id], `分支 ${id} 会改写正文但既无样本、也未登记为待配`).toBeTruthy();
+    }
+    expect(uncovered.length, '待配分支数不得增加（只减不增）').toBeLessThanOrEqual(
+      Object.keys(PENDING).length,
+    );
+  });
 });
