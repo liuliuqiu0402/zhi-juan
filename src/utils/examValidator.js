@@ -951,6 +951,52 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
+  // ── 1.6b. B·标题真题样式（规则 title-detail-fix，2026-10-17）──
+  //   1.6 只把旧式"（X分）"归一成"（共X分）"；本节再做**样式**归一：该大题按同一单价计分时，
+  //   把标题的"（共X分）"补成真题写法"（每〈计分对象〉X分，共Y分）"。
+  //   🔴 四条硬门（缺一不动）：①本大题内"每X分"恰好出现**一次**（模型按 576 逐题干标注时已含单价，
+  //      再补标题会一题三处并存 → 跳过）；②单价恰好一种；③总数能被单价整除且个数 >1
+  //      （→ 个数为整数、不出现除不尽；只有一处时"每X分，共X分"是废话）；④题内那一处**不是已经完整的
+  //      "每X分，共Y分"标注**（已完整 = 该处已承载单价与总数，标题再补就是重复，跳过）。
+  //   🔴 **只改写法、不改数**：Y 取标题既有总数，单价取题内既有标注，不重算、不回写——
+  //      "程序即使把分值凑齐了，也可能与内容不自洽"；总数与单价对不上（不能除尽）时一律不动。
+  if (has('title-detail-fix')) {
+    try {
+      const tplS = document.createElement('template');
+      tplS.innerHTML = out;
+      const headsS = Array.from(tplS.content.querySelectorAll('h2, h3, h4'));
+      headsS.forEach((h, i) => {
+        const t = (h.textContent || '').trim();
+        const mS = t.match(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
+        if (!mS) return;
+        const totalS = parseFloat(mS[1]);
+        const endS = headsS[i + 1] || null;
+        let regionText = '';
+        for (let node = h.nextSibling; node && node !== endS; node = node.nextSibling) regionText += node.textContent || '';
+        // 计分对象名不收数字（防"每空12分"被读成单位"空1"）
+        const hits = [...regionText.matchAll(/每([^\s，,。；;：:（）()0-9]{1,3})(\d+(?:\.\d+)?)分/g)];
+        if (hits.length !== 1) return;
+        // 门④：这一处已写成完整的"每X分，共Y分" → 单价与总数都已在该处承载，标题再补即重复
+        const at = hits[0].index;
+        if (/共\s*\d+(?:\.\d+)?\s*分/.test(regionText.slice(at, at + 24))) return;
+        const unitS = hits[0][1];
+        const price = parseFloat(hits[0][2]);
+        if (!(price > 0)) return;
+        const nS = totalS / price;
+        if (!Number.isInteger(nS) || nS <= 1) return;
+        const labelS = composeScoreLabel(unitS, price, nS);
+        if (!labelS) return;
+        const nextT = t.replace(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/, labelS);
+        if (nextT !== t) {
+          h.textContent = nextT;
+          issues.push({ severity: 'info', type: 'title-detail', message: `大题标题已补单价：${nextT}` });
+          fixed += 1;
+        }
+      });
+      out = tplS.innerHTML;
+    } catch (e) { console.warn('⚠️ 大题标题补单价失败（不影响其它修复）:', e.message); }
+  }
+
   // ── 2. 大题级：分值账目 + 载体结构校验（DOM 内直接操作，避免字符串与 DOM 序列化差异）──
   {
     let tpl = null;
