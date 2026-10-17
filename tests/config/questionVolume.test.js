@@ -67,9 +67,9 @@ describe('题量充足（语义口径 · 2026-09-15 定版）', () => {
     //   靠字符串前件"（正式考卷）"充闸——那正是**越界注入**（判据在错块、闸只是字面）⇒ 已删该半句；
     //   该判据本就由 **exam 专属的计分对象口径**（分值条内）真实承载 ⇒ 闸由"字符串前件"变为"**注入门控**"，
     //   教辅侧根本不注入。断言随之改准：两侧各锁"不外溢"与"不得回潮旧写法"。
-    expect(tpl('语文', 'primary_low', 'exam'), '考卷侧：计分对象判据在位').toContain('计分对象＝学生每答对一处即得 X 分');
-    expect(tpl('语文', 'primary_low', 'exam'), '考卷侧：单价单位须与判分处一致').toContain('单价单位必须与实际判分处一致');
-    expect(tpl('语文', 'primary_low', 'practice'), '教辅侧：不得外溢').not.toContain('计分对象＝学生每答对一处即得 X 分');
+    expect(tpl('语文', 'primary_low', 'exam'), '考卷侧：单位判据在位').toContain('单位取该处让学生作答什么的名称');
+    expect(tpl('语文', 'primary_low', 'exam'), '考卷侧：不写空位形态名').toContain('不写空位形态名');
+    expect(tpl('语文', 'primary_low', 'practice'), '教辅侧：不得外溢').not.toContain('单位取该处让学生作答什么的名称');
     expect(tpl('语文', 'primary_low', 'practice'), '旧字符串前件写法不得回潮').not.toContain('（正式考卷）**书写类题按单位');
   });
 

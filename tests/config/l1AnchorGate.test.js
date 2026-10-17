@@ -64,8 +64,8 @@ describe('L1 锚·门：486 面逐面核（新增 ✗ 即判红）', () => {
   });
 
   it('锚表可达（单源模块）；锚数＝绊线，增删锚须显式改此数', () => {
-    // 72 = 71（2026-10-13 抽表时）+ 1（T05·内容型强调口径正句，补"内容型支无锚"的缺口）
-    expect(anchorsFor({ genType: 'exam', subject: '语文', stage: 'primary_high' }).length).toBe(72);
+    // 71 = 72 − 1（2026-10-17：旧「计分对象口径」整条删除，T03 的两个同句锚并为 1 个）
+    expect(anchorsFor({ genType: 'exam', subject: '语文', stage: 'primary_high' }).length).toBe(71);
   });
 
   it('不得出现"登记表之外的 ✗"（新增即判红；修好后请从 PENDING 删除）', () => {

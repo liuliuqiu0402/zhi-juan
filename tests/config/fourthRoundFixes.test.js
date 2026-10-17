@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getPromptTemplate, SCORING_OBJECT_CALIBER } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate } from '../../src/config/promptLibrary.js';
 
 const ROOT = path.resolve(__dirname, '../..');
 const tpl = (g, s = '语文', st = 'primary_low') => getPromptTemplate({ grade: st, subject: s, genType: g }).template;
@@ -41,12 +41,9 @@ describe('第四轮真错修复 · 正向锁（防回潮）', () => {
     expect(t, '旧"材料中只能有一个可被答案指向的对象"不得回潮').not.toContain('材料中只能有');
   });
 
-  it('R4-4 计分对象：须给"整题按对错档给分"的出口（治与单价模型顶不上）', () => {
-    expect(SCORING_OBJECT_CALIBER, '须有对错档给分出口').toContain('题面已按整题对错档给分时');
-    expect(tpl('exam', '物理', 'high'), '须注入到正式卷').toContain('题面已按整题对错档给分时');
-    // 措辞不得写成"…的规则"式（触 referenceResolveGuard 的"悬空物件指针"）
-    expect(SCORING_OBJECT_CALIBER, '不得用"给分的规则"式措辞').not.toMatch(/给分的规则/);
-  });
+  // 🔴 2026-10-17（作废旧计分对象口径）：原 R4-4「须给整题按对错档给分的出口」随 `SCORING_OBJECT_CALIBER`
+  //    整条删除——新 A 方案下每题各自标「每〈单位〉X分，共Y分」，不需要"整题对错档"这一层出口。
+  //    若真机出现多选题按选项逐处标分的问题，再作为**学科评分习惯**单独加，不恢复旧口径。
 
   it('R4-5 样本工具：grade 默认须按"学科×学段"推导（不得硬编码三年级）', () => {
     const src = fs.readFileSync(path.join(ROOT, 'scripts', 'snapshotInjection.mjs'), 'utf8');

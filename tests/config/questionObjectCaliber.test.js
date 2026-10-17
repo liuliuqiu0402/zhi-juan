@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getPromptTemplate, QUESTION_OBJECT_CALIBER, QUESTION_NUMBERING_CALIBER, SCORING_OBJECT_CALIBER } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, QUESTION_OBJECT_CALIBER, QUESTION_NUMBERING_CALIBER } from '../../src/config/promptLibrary.js';
 
 const ROOT = path.resolve(__dirname, '../..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -38,9 +38,10 @@ describe('题号"编号对象"口径', () => {
     //    "汉字／词语／数字／字母／选项"枚举**已删**——枚举把注意力钉在那几个词上、诱导内容往枚举上凑，
     //    反而漏掉该学段通行的其它作答对象。判据（名称＋不写载体形态名）两半已可自判 ⇒ 断言随之改准：
     //    锁"判据仍在"，并加**反向锁**防枚举回潮。
-    expect(SCORING_OBJECT_CALIBER, '单位＝作答对象的名称（可判法）').toContain('单位取"该处让学生作答什么"的名称');
-    expect(SCORING_OBJECT_CALIBER, '枚举不得回潮（会诱导往枚举上凑、并漏掉其它作答对象）').not.toMatch(/汉字／词语|词语／数字|数字／字母|字母／选项/);
-    expect(SCORING_OBJECT_CALIBER, '不得写载体形态名').toContain('不得写承载它的空位形态名');
+    // 🔴 2026-10-17（作废旧「计分对象口径」整条）：常量已删，单位判据并入 576（单源）⇒ 断言改锚到模板。
+    const exTpl = tpl('exam');
+    expect(exTpl, '单位＝该处让学生作答什么的名称（不写空位形态名）').toContain('单位取该处让学生作答什么的名称');
+    expect(exTpl, '枚举不得回潮（会诱导往枚举上凑、并漏掉其它作答对象）').not.toMatch(/汉字／词语|词语／数字|数字／字母|字母／选项/);
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/看拼音|组词|连一连|口算|竖式|选择|判断|填空|选字|选词/);
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/①|②|（1）|\(1\)/);
     expect(QUESTION_OBJECT_CALIBER, '编号对象＝独立作答单位（语义族）').toMatch(/独立作答单位|编号的?\*\*层级/);
