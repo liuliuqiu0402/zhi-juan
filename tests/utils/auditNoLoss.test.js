@@ -38,13 +38,7 @@ const BRANCHES = [
 
 /** 暂未配到可靠样本的分支：只减不增（新增分支不配样本即红） */
 const PENDING = {
-  'label-strip': '需"该学段不应使用的题号标签"样本，跨学段差异未逐一核',
-  'title-score': '需"大题标题缺总分"样本；样本须带真实大题标题容器，类名未核',
-  'blank-move': '需"空位位置与学科条款方向不符"样本，构造易假命中',
-  'writing-line-en-title': '需"大题标题本身即书写题"样本，形态未核',
-  'draw-area': '需"作图题缺作答载体"完整卷面（含大题标题与分值），裸题块不触发',
-  'answer-space': '需"长答题缺作答行"完整卷面（含大题标题与分值），裸题块不触发',
-  'answer-section': '需"答案区形态"核对（现样本用了 answer-title/answer 类名，未触发补包）',
+  'draw-area': '规格库未把裸样本识别为作图题（specNeeds 不命中）——须用真机作图题完整卷面作样本，勿硬造',
 };
 
 const SAMPLES = [
@@ -84,12 +78,51 @@ const SAMPLES = [
     ].join('\n'),
   },
   {
-    name: '数学·小学高段｜作图题缺作图区（命中 draw-area）',
+    name: '数学·小学高段｜非语文误用作文格（命中 label-strip）',
     opts: { subject: '数学', stage: 'primary_high' },
-    branch: 'draw-area',
+    branch: 'label-strip',
     html: [
       '<p class="question">1. 计算：48×3＝</p>',
-      '<p class="question">2. 画一个边长 3 厘米的正方形。（4分）</p>',
+      '<p class="question">2. 写一写你的发现<span class="zuo-wen-ge"></span></p>',
+    ].join('\n'),
+  },
+  {
+    name: '数学·小学低段｜大题标题缺总分（命中 title-score）',
+    opts: { subject: '数学', stage: 'primary_low' },
+    branch: 'title-score',
+    html: [
+      '<h2>一、填空（24分）</h2>',
+      '<p class="question">1. 8 里面有（　　）个一。</p>',
+      '<p class="question">2. 比 7 多 2 的数是（　　）。</p>',
+    ].join('\n'),
+  },
+  {
+    name: '语文·初中｜作答位位置混用（命中 blank-move）',
+    opts: { subject: '语文', stage: 'middle' },
+    branch: 'blank-move',
+    html: [
+      '<h2>一、判断题（4分）</h2>',
+      '<p class="question">（　　）1. 他是一名教师。</p>',
+      '<p class="question">（　　）2. 这道题只有一个答案。</p>',
+      '<p class="question">3. 这句话用了比喻的手法。（　　）</p>',
+      '<p class="question">4. 全文按时间顺序写。（　　）</p>',
+    ].join('\n'),
+  },
+  {
+    name: '英语·小学高段｜大题标题式书写题缺横线（命中 writing-line-en-title）',
+    opts: { subject: '英语', stage: 'primary_high' },
+    branch: 'writing-line-en-title',
+    html: [
+      '<h3>五、书面表达（10分）</h3>',
+      '<p class="question">以 My Weekend 为题写一篇作文，不少于6句。</p>',
+    ].join('\n'),
+  },
+  {
+    name: '数学·小学高段｜作图题缺作图区（形态样本；分支待配，见 PENDING）',
+    opts: { subject: '数学', stage: 'primary_high' },
+    html: [
+      '<h3>一、作图题（4分）</h3>',
+      '<p class="question">1. 作图：在方格纸上画出边长 3 厘米的正方形，保留作图痕迹。（4分）</p>',
     ].join('\n'),
   },
   {
@@ -97,17 +130,18 @@ const SAMPLES = [
     opts: { subject: '语文', stage: 'middle' },
     branch: 'answer-space',
     html: [
+      '<h3>一、阅读理解（8分）</h3>',
       '<p class="question">1. 请结合全文，分析文中人物形象。（8分）</p>',
     ].join('\n'),
   },
   {
-    name: '数学·小学低段｜答案未包 answer-section（命中 answer-section）',
+    name: '数学·小学低段｜答案区未包 answer-section（命中 answer-section）',
     opts: { subject: '数学', stage: 'primary_low' },
     branch: 'answer-section',
     html: [
       '<p class="question">1. 3+5＝（　　）</p>',
-      '<p class="answer-title">参考答案</p>',
-      '<p class="answer">1. 8</p>',
+      '<h2>参考答案</h2>',
+      '<p>1. 8</p>',
     ].join('\n'),
   },
   {
