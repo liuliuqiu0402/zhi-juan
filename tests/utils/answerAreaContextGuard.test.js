@@ -59,6 +59,31 @@ describe('专用作答区语境防错配（竖式/作图/填表无载体 → 不
     expect(hasGuard(r, '作图')).toBe(false);
   });
 
+  // 🔴 2026-10-17（属主真机"方格纸相关的题，都没有方格"）：题干**点名方格纸**但无载体时，
+  //    兜底须是方格纸（square-grid），不能只给空白作图区（draw-area）——否则学生无从"照样子画格子"。
+  it('题干点名"在方格纸上画"且无载体 → 补 square-grid（不是 draw-area）', () => {
+    const html = [
+      '<h1>三上数学期中测试</h1><p>满分：100分</p>',
+      '<h2>五、操作（共1题，共4分）</h2>',
+      '<p>1. 在下面的方格纸上照样子画一画，表示"3个4"，并写出相应的加法算式和乘法算式。（4分）</p>',
+    ].join('\n');
+    const r = runMath(html);
+    expect(r.html).toContain('class="square-grid"');
+    expect(r.html).not.toContain('class="draw-area"');
+    expect(r.issues.some(i => i.type === 'answer-area' && i.message.includes('方格纸'))).toBe(true);
+  });
+
+  it('中学段题干点名"方格纸"→ 不补 square-grid（该载体仅小学段合法），仍走 draw-area', () => {
+    const html = [
+      '<h1>七年级数学</h1><p>满分：100分</p>',
+      '<h2>五、操作（共1题，共4分）</h2>',
+      '<p>1. 在方格纸上画出下面图形的对称轴。（4分）</p>',
+    ].join('\n');
+    const r = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'exam' });
+    expect(r.html).not.toContain('class="square-grid"');
+    expect(r.html).toContain('class="draw-area"');
+  });
+
   it('填表题（用表格整理…）无表格 → 不补 blank-area，报"填表"抽检', () => {
     const html = [
       '<h1>三上数学期中测试</h1><p>满分：100分</p>',

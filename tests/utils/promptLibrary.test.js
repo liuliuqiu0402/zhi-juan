@@ -344,7 +344,7 @@ describe('🔢 组标题（大题标题）中文序号口径：教辅逐栏目�
   });
 
   it('两口径单源常量各自成立，且条款显式声明"各自成立、不得互相否定"', () => {
-    expect(GROUP_TITLE_NUMBERING_CALIBER.exam).toContain('全卷连续');
+    expect(GROUP_TITLE_NUMBERING_CALIBER.exam).toContain('跨大类/部分接着编');
     expect(GROUP_TITLE_NUMBERING_CALIBER.teaching).toContain('逐栏目（组）起编');
     expect(GROUP_TITLE_NUMBERING_CALIBER.teaching).toContain('进入下一栏目（组）即从「一、」重新起编');
     // 🔴 2026-10-10（属主删编法规定）：题号条/组标题条里"不得互相否定"（两口径分型尾句）已删，本条断言随之撤除。
@@ -587,7 +587,7 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
     const t = examTpl();
     // 报障：大题＝一题时仍长出"1. 直接写出得数。"（又给小题号＋复述题干）。根因＝题号条句首**无条件**要求
     //   "题目…带题号"，与编号对象口径（同型并列整栏算一题）相抵；模型二选一→选了给号。锁四处收口后的判据。
-    expect(t, '题号对象＝应编号的题（呼应 QOC）').toContain('**应编号的题**以 <p class="question"> 包裹并带题号');
+    expect(t, '题号对象：每个独立题干都用 question 包裹（给不给号都包裹）').toContain('每个独立题干用 <p class="question"> 包裹');
     expect(t, '层级形态：题号层随该大题实际构成而定').toContain('**题号层随该大题实际构成而定**');
     // 🔴 2026-10-09（〔286〕根因·清双源相抵）：原卷面层级条自定判词"有独立设问的小题"与 QOC"逐项设问不同才编号"
     //    对"题干同文、只换材料"态**给相反答案**（模型倒向给号）。现卷面层级**不再自定判词**、改指【题号与分值】，

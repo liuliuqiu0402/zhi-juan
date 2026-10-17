@@ -215,7 +215,7 @@ describe('⑧ 质量就绪：逐 486 真实三维度核对"产出必需判据齐
       need(t, '账目（对账，不作生成前提）', tag);        // ↔ examValidator 只读抽取（不校验、不回写）
       //    ② 全卷连续 ↔ 程序侧：大题序号 cn-ordinal-guard（exam）＋ 正文题号序列读取（contentCleaner，只读）；
       //       "题号连续性拦截/回灌"已于 2026-10-10 整块砍除（会代模型定卷面形态）⇒ 该条是**唯一**落点，不可删；
-      need(t, '全卷连续', tag);            // ↔ cn-ordinal-guard ＋ 题号序列只读
+      need(t, '跨大类/部分', tag);          // ↔ cn-ordinal-guard ＋ 题号序列只读
       //    ③ 题干内的分条 ↔ contentCleaner 分条清洗（在位，程序侧能兜一部分）⇒ 模型侧源头仍须写。
       need(t, '题干内的分条', tag);        // ↔ 载体/层级清洗（分条不与题号层混同）
     }

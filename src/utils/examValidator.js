@@ -2242,6 +2242,21 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (specNeeds === '作图') {
             // 已有作图区/方格纸 → 有作图空间，不打扰
             if (/draw-area|square-grid/.test(segAll)) continue;
+            // 🔴 2026-10-17（属主真机"方格纸相关的题都没有方格"）：题干**明确点名方格纸/方格图**时，
+            //    兜底应是**方格纸**（square-grid）而不是空白作图区——否则给了框也无法"照样子画格子"。
+            //    只在小学段补（排版规格：square-grid 仅小学段合法；初中以上由答题纸自带网格）。
+            const wantsSquare = /方格纸|方格图|方格中|格子图|格子纸/.test(specText)
+              && /^primary/.test(String(normalizeStage(stage) || ''));
+            if (wantsSquare) {
+              const sg = document.createElement('div');
+              sg.className = 'square-grid';
+              const ancSg = it.seg.length > 0 ? it.seg[it.seg.length - 1] : it.p;
+              ancSg.parentNode.insertBefore(sg, ancSg.nextSibling);
+              fixed += 1;
+              fixedK += 1;
+              issues.push({ severity: 'info', type: 'answer-area', message: `已补方格纸（square-grid）：「${title.slice(0, 14)}」题干声明在方格纸上作答` });
+              continue;
+            }
             // 作图题确无任何作答载体 → 定向补虚线作图区（draw-area，高度按分值 30-70mm）。
             //    与作文格补格同级的确定性兜底（渲染/编辑器/Word 三端已支持 draw-area，2026-09 排版端）
             const mmH = Math.min(70, Math.max(30, Math.round(it.score * 5)));
