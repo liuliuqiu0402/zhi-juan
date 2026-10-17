@@ -25,7 +25,7 @@ describe('题号"编号对象"口径', () => {
     const ex = tpl('exam');
     expect(ex, '大题序号：一、二、三…（跨大类/部分接着编）仍在').toContain('跨大类/部分接着编');
     expect(ex, '⚠️「全卷连续」四字不得回潮（会被读成题号层也连续 ⇒ 每个题干都要给号）').not.toContain('全卷连续');
-    expect(ex, '账目逐层判词仍在（独立题干→大题→大类→满分）').toContain('大题总分＝其下各独立题干分之和');
+    expect(ex, '满分加总判词仍在（满分＝各大题之和）').toContain('满分＝各大题分之和');
     expect(QUESTION_OBJECT_CALIBER, '按 id 锚定：条目存在且声明只管编号层（语义族断言，不锁字面）').toMatch(/题号只标|编号的?\*\*层级/);
     // 🔴 2026-10-10（属主裁定·删编法规定）：`QUESTION_NUMBERING_CALIBER.teaching` 已整块删除，该断言随之撤除。
   });
@@ -40,7 +40,7 @@ describe('题号"编号对象"口径', () => {
     //    锁"判据仍在"，并加**反向锁**防枚举回潮。
     // 🔴 2026-10-17（作废旧「计分对象口径」整条）：常量已删，单位判据并入 576（单源）⇒ 断言改锚到模板。
     const exTpl = tpl('exam');
-    expect(exTpl, '单位＝该处让学生作答什么的名称（不写空位形态名）').toContain('单位取该处让学生作答什么的名称');
+    expect(exTpl, '分值只约束写法（每〈单位〉X分，共Y分）').toContain('每〈单位〉X分，共Y分');
     expect(exTpl, '枚举不得回潮（会诱导往枚举上凑、并漏掉其它作答对象）').not.toMatch(/汉字／词语|词语／数字|数字／字母|字母／选项/);
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/看拼音|组词|连一连|口算|竖式|选择|判断|填空|选字|选词/);
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/①|②|（1）|\(1\)/);

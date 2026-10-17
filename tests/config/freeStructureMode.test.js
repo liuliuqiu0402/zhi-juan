@@ -29,7 +29,7 @@ describe('结构来源·自由组织（纯增量新线）', () => {
   it('② exam 新线：结构自定，但分值账目与考点覆盖照旧（判据不放松）', () => {
     const t = buildFreeStructureInstruction('exam');
     expect(t).toContain('卷面结构由你按本次课标范围与考点自定');
-    expect(t, '分值账目判据不得放松').toContain('分值账目自洽');
+    expect(t, '满分加总判据不得放松').toContain('满分＝各大题分值之和');
     expect(t, '须覆盖锚点清单').toContain('覆盖【锚点清单】');
     expect(t, '课标要求改由内容层面承载').toContain('内容层面');
   });

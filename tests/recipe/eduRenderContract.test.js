@@ -349,7 +349,7 @@ describe('指令库内置学科×类型模板（按学科全面完善）', () =>
     //    两处全角示范、以及程序侧 fixScoreLabel 的确定性改写（写"（每空X分）"）三处相抵，已统一为全角。
     const eng = getPromptTemplate({ grade: 'primary_mid', subject: '英语', genType: 'exam' });
     const scoreRule = buildValidatorPrompt({ subject: '英语', stage: 'primary_mid', genType: 'exam' });
-    expect(scoreRule).toContain('分值标注用中文全角括号');
+    expect(scoreRule).toContain('用中文全角括号');
     expect(scoreRule, '半角禁令不得回潮').not.toContain('不得用中文全角括号做分值标注');
     // 模板侧与委托正文示例同形（全角），不再出现半角示例
     expect(eng.template).not.toContain('分值标注一律半角括号');
