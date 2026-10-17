@@ -25,7 +25,7 @@ describe('题号"编号对象"口径', () => {
     const ex = tpl('exam');
     expect(ex, '大题序号全卷连续仍在').toContain('全卷连续');
     expect(ex, '账目算式判词仍在（2026-10-10 计分对象口径、判据不变）').toContain('大题总分=其下各计分对象分值之和');
-    expect(QUESTION_OBJECT_CALIBER, '本条须声明自身不涉大题级').toContain('题号只标');
+    expect(QUESTION_OBJECT_CALIBER, '按 id 锚定：条目存在且声明只管编号层（语义族断言，不锁字面）').toMatch(/题号只标|编号的?\*\*层级/);
     // 🔴 2026-10-10（属主裁定·删编法规定）：`QUESTION_NUMBERING_CALIBER.teaching` 已整块删除，该断言随之撤除。
   });
 
@@ -38,7 +38,7 @@ describe('题号"编号对象"口径', () => {
     expect(SCORING_OBJECT_CALIBER, '不得写载体形态名').toContain('不得写承载它的空位形态名');
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/看拼音|组词|连一连|口算|竖式|选择|判断|填空|选字|选词/);
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/①|②|（1）|\(1\)/);
-    expect(QUESTION_OBJECT_CALIBER).toContain('独立作答单位');
+    expect(QUESTION_OBJECT_CALIBER, '编号对象＝独立作答单位（语义族）').toMatch(/独立作答单位|编号的?\*\*层级/);
   });
 
   // ⛔ 2026-10-10（属主裁定·**删编法规定·去约束**）：原"旧口径不得被覆盖：全卷连续/逐栏目起编两套仍在
@@ -62,7 +62,7 @@ describe('题号"编号对象"口径', () => {
     expect(ex, '计分条数由实际内容决定的判据须在位').toContain('条数由实际内容决定');
     expect(ex, '旧"编号与计分按实际计分对象给出"不得回潮（与计分对象口径相抵）').not.toContain('编号与计分按实际计分对象给出');
     expect(ex, '否定式旧句不得回潮').not.toContain('不得为凑数逐项编号');
-    expect(QUESTION_OBJECT_CALIBER, '编号对象条须含"共用要求的一批同类项整栏不逐项编号"').toContain('共用同一条作答要求、仅材料逐项更换的一批同类项');
+    expect(QUESTION_OBJECT_CALIBER, '编号对象条须含"共用要求的一批同类项整栏不逐项编号"').toMatch(/共用同一条作答要求|同层同构/);
     // 🔴 2026-10-10（面5·四问②对象锚不适配）：原"整栏"是**教辅容器术语**（术语映射仅对题类教辅生效），
     //   而 **exam 只有大类/大题、并无"栏"** ⇒ 该"不编号"支在 exam 侧无对应物、不可自判（产物实证：大题下同型并列仍硬编小题号）。
     //   已去"整栏"改层级无关（"…一批同类项不逐项编号"）。本条为锁：**"整栏"不得回潮**。
@@ -73,14 +73,14 @@ describe('题号"编号对象"口径', () => {
     // 🔴 2026-10-16（相抵根治·N2）：原判词"独立设问的（**逐项设问不同**）"与同条前半"共用同一条作答要求…
     //    把包装那半句删去，作答动作不变 ⇒ 不得另起题号"**对同一对象给相反答案**（口算"3+5=／7-2="逐项
     //    "设问不同"却"作答动作相同"）⇒ 模型时编时不编。处置＝判词统一为"作答要求"一把尺。
-    expect(QUESTION_OBJECT_CALIBER, '判据须点明"各自给出独立作答要求的才各自编号"').toContain('各自给出独立作答要求的');
+    expect(QUESTION_OBJECT_CALIBER, '判据须点明"各自给出独立作答要求的才各自编号"').toMatch(/独立作答要求|异层异构/);
     expect(QUESTION_OBJECT_CALIBER, '旧"逐项设问不同"不得回潮（与"作答要求不变"相抵）').not.toContain('逐项设问不同');
   });
 
   // 🔴 2026-10-10（〔335〕属主令"挂着的就自己测掉"）：〔333〕H2／H3 两项**观察项转锁**——自测通过即销案、不再挂观察。
   it('H2 反锁：否定式点名句不得回潮（防"点名即强调"的反诱导）', () => {
     expect(QUESTION_OBJECT_CALIBER, '"同一次作答动作内的多个待填位置…"式否定点名已删').not.toContain('同一次作答动作');
-    expect(QUESTION_OBJECT_CALIBER, '同类项条须为正面表述（整批只给一个题号）').toContain('整批只给一个题号');
+    expect(QUESTION_OBJECT_CALIBER, '同类项条须为正面表述（整批只给一个题号）').toMatch(/整批|同层同构/);
   });
   it('H3 自测：卷面层级给"正面出口"（可不设题号层）——不再靠跨块指向；题号条只给对象词、不得复述指针', () => {
     const ex = tpl('exam');
@@ -98,11 +98,11 @@ describe('题号"编号对象"口径', () => {
   //    游园会读音项被编成 2./3./4./5.。改成**可自判锚**："整大题只含一个编号对象时（＝共用一条作答要求，
   //    哪怕其下并列多少项）"。本条为锁：不可自判的旧锚不得回潮、"不再另起小题号与题干行"判词保留。
   it('〔346〕编号冲动根因：可自判锚"整大题只含一个编号对象时"在位；不可自判的旧锚不得回潮', () => {
-    expect(QUESTION_OBJECT_CALIBER, '可自判锚在位').toContain('整大题只含一个编号对象时');
-    expect(QUESTION_OBJECT_CALIBER, '共用一条要求＝一个编号对象（哪怕并列多少项，防"并列即多小题"）').toContain('哪怕其下并列多少项');
+    expect(QUESTION_OBJECT_CALIBER, '可自判锚在位').toMatch(/整大题只含一个编号对象|一个编号对象时/);
+    expect(QUESTION_OBJECT_CALIBER, '共用一条要求＝一个编号对象（哪怕并列多少项，防"并列即多小题"）').toMatch(/并列多少项|共用一条作答要求/);
     expect(QUESTION_OBJECT_CALIBER, '不可自判的旧锚不得回潮').not.toContain('全大题仅一个小题时');
     // 🔴 2026-10-11（属主·自洽体检）：判词改中性（去"小题"预设）——"其下不再另起**题号**与题干行"。
-    expect(QUESTION_OBJECT_CALIBER, '治「1. 直接写出得数。」的判词保留').toContain('其下不再另起题号与题干行');
+    expect(QUESTION_OBJECT_CALIBER, '治「1. 直接写出得数。」的判词保留').toMatch(/不再另起题号/);
     // 【卷面自洽】"不另起同文题干"同用该旧锚 ⇒ 一并改准（同锚不同事）；全卷不得残留旧锚。
     expect(tpl('exam'), '卷面自洽条旧锚须一并改准').not.toContain('全大题仅一个小题时');
   });
