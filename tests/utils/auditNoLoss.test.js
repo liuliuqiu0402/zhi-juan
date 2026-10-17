@@ -37,9 +37,7 @@ const BRANCHES = [
 ];
 
 /** 暂未配到可靠样本的分支：只减不增（新增分支不配样本即红） */
-const PENDING = {
-  'draw-area': '规格库未把裸样本识别为作图题（specNeeds 不命中）——须用真机作图题完整卷面作样本，勿硬造',
-};
+const PENDING = {};
 
 const SAMPLES = [
   {
@@ -118,11 +116,13 @@ const SAMPLES = [
     ].join('\n'),
   },
   {
-    name: '数学·小学高段｜作图题缺作图区（形态样本；分支待配，见 PENDING）',
+    name: '数学·小学高段｜作图题缺作图区（命中 draw-area）',
     opts: { subject: '数学', stage: 'primary_high' },
+    branch: 'draw-area',
     html: [
-      '<h3>一、作图题（4分）</h3>',
-      '<p class="question">1. 作图：在方格纸上画出边长 3 厘米的正方形，保留作图痕迹。（4分）</p>',
+      '<h3>一、作图题（共6分）</h3>',
+      '<p class="question">1. 作图：画出边长 3 厘米的正方形，并标出它的对称轴。（4分）</p>',
+      '<p class="question">2. 在下面的方格纸上作图，画出向右平移 3 格后的图形。（2分）</p>',
     ].join('\n'),
   },
   {
