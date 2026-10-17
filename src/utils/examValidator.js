@@ -2436,3 +2436,19 @@ const countSubNumbered = (raw) => {
 
 export default { auditExamPaper, normalizePinyinText, countBlanks, countPinyinGroups, countPinyinOptions, countOptions, countMatchSides, splitSections, fixScoreLabel };
 
+/**
+ * 🧮 **分值标注拼装（B 的原语）**——2026-10-17
+ *
+ * 只做一件事：把「单价 × 个数」拼成真题写法，**不做除法**，因此不会出现除不尽。
+ * · 单价与个数任一非法 → 返回 null（调用方保持原写法，不硬造）
+ * · 无单位名 → 只写“（共Y分）”（不硬造单位）
+ * 说明：本函数是纯函数，不接任何生成流程；接入点在 title-detail-fix（渲染期）另行落。
+ */
+export function composeScoreLabel(unitName, unitScore, count) {
+  const n = Number(count);
+  const x = Number(unitScore);
+  if (!Number.isFinite(n) || !Number.isFinite(x) || n <= 0 || x <= 0) return null;
+  const total = Math.round(x * n * 100) / 100;
+  const u = String(unitName == null ? '' : unitName).trim();
+  return u ? `（每${u}${x}分，共${total}分）` : `（共${total}分）`;
+}
