@@ -24,7 +24,7 @@ describe('题号"编号对象"口径', () => {
   it('只管编号对象：大题序号"全卷连续"与分值标注不得被削弱', () => {
     const ex = tpl('exam');
     expect(ex, '大题序号全卷连续仍在').toContain('全卷连续');
-    expect(ex, '账目算式判词仍在（2026-10-10 计分对象口径、判据不变）').toContain('大题总分=其下各计分对象分值之和');
+    expect(ex, '账目逐层判词仍在（独立题干→大题→大类→满分）').toContain('大题总分＝其下各独立题干分之和');
     expect(QUESTION_OBJECT_CALIBER, '按 id 锚定：条目存在且声明只管编号层（语义族断言，不锁字面）').toMatch(/题号只标|编号的?\*\*层级/);
     // 🔴 2026-10-10（属主裁定·删编法规定）：`QUESTION_NUMBERING_CALIBER.teaching` 已整块删除，该断言随之撤除。
   });

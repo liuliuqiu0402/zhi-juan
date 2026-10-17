@@ -955,10 +955,42 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 1.6b（2026-10-17 撤回）：原"B·标题真题样式"（标题「（共X分）」+ 题内唯一单价 → 补成「（每X分，共Y分）」）
-  //   撤回原因：分值标注的方向已改为**单价由大题标题承载**（`576`：同单价时标题直接写"（每〈计分对象〉X分，共Y分）"，
-  //   题内不再逐条复述）⇒ B 的设计前提（单价在题干、标题只有总数）不复存在；此时再补标题＝标题与题内各写一次单价，
-  //   正是"两种标注并存"要消的那类相抵。按"一条路"原则只留 A（模型侧直接写真题样式），B 与其原语 `composeScoreLabel` 一并撤除。
+  // ── 1.6b. B·标题样式的真题化（规则 title-detail-fix，2026-10-17 按属主方案重接）──
+  //   A 侧把单价写在**每个独立题干后**（"每〈计分对象〉X分，共Y分"），大题标题只写"（共X分）"；
+  //   B 只做**样式转换**：读题内那一层标注，把标题的"（共X分）"改写成真题写法"（每〈计分对象〉X分，共Y分）"。
+  //   🔴 三条硬门：①标题以"（共X分）"结尾（已带单价/无分值 → 不动）；②题内**单价只有一种**
+  //      （同一单价在多个题干后重复出现＝正常，不是"只能出现一处"）；③能取到单位与单价。
+  //   🔴 **不管自洽、不改数、不删正文**：Y 取标题既有总数、单位与单价取题内既有标注，不重算、不做除法；
+  //      单价不止一种（该大题不等分）→ 不动（标题保持"（共X分）"）；题内标注**保留不动**——它是逐题对账的落点。
+  if (has('title-detail-fix')) {
+    try {
+      const tplB = document.createElement('template');
+      tplB.innerHTML = out;
+      const headsB = Array.from(tplB.content.querySelectorAll('h2, h3, h4'));
+      headsB.forEach((h, i) => {
+        const t = (h.textContent || '').trim();
+        const mB = t.match(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
+        if (!mB) return;
+        const totalB = mB[1];
+        const endB = headsB[i + 1] || null;
+        let regionB = '';
+        for (let node = h.nextSibling; node && node !== endB; node = node.nextSibling) regionB += node.textContent || '';
+        // 计分对象名不收数字（防"每空12分"被读成单位"空1"）
+        const pairsB = [...new Set([...regionB.matchAll(/每([^\s，,。；;：:（）()0-9]{1,3})(\d+(?:\.\d+)?)分/g)]
+          .map((x) => `${x[1]}|${x[2]}`))];
+        if (pairsB.length !== 1) return;
+        const [unitB, priceB] = pairsB[0].split('|');
+        const labelB = `（每${unitB}${priceB}分，共${totalB}分）`;
+        const nextB = t.replace(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/, labelB);
+        if (nextB !== t) {
+          h.textContent = nextB;
+          issues.push({ severity: 'info', type: 'title-detail', message: `大题标题已改为真题标分样式：${nextB}` });
+          fixed += 1;
+        }
+      });
+      out = tplB.innerHTML;
+    } catch (e) { console.warn('⚠️ 大题标题样式转换失败（不影响其它修复）:', e.message); }
+  }
 
   // ── 2. 大题级：分值账目 + 载体结构校验（DOM 内直接操作，避免字符串与 DOM 序列化差异）──
   {
