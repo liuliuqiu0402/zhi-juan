@@ -955,18 +955,20 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 1.6b. B·标题样式的真题化（规则 title-detail-fix，2026-10-17 按属主方案重接）──
+  // ── 1.6b. B·标题样式的真题化（规则 title-detail-fix，2026-10-17 按属主方案）──
   //   A 侧把单价写在**每个独立题干后**（"每〈计分对象〉X分，共Y分"），大题标题只写"（共X分）"；
-  //   B 只做**样式转换**：读题内那一层标注，把标题的"（共X分）"改写成真题写法"（每〈计分对象〉X分，共Y分）"。
-  //   🔴 三条硬门：①标题以"（共X分）"结尾（已带单价/无分值 → 不动）；②题内**单价只有一种**
-  //      （同一单价在多个题干后重复出现＝正常，不是"只能出现一处"）；③能取到单位与单价。
-  //   🔴 **不管自洽、不改数、不删正文**：Y 取标题既有总数、单位与单价取题内既有标注，不重算、不做除法；
-  //      单价不止一种（该大题不等分）→ 不动（标题保持"（共X分）"）；题内标注**保留不动**——它是逐题对账的落点。
+  //   B 只做**样式转换**（读题内已有标注，把标题改写成真题写法），两条路：
+  //     ① 题内单价**只有一种** → "（每〈计分对象〉X分，共Y分）"；
+  //     ② 题内单价**有多种**且每个独立题干都带编号与单价标注 → 分组式
+  //        "（第1、3小题各1分，第2、4小题各2分，共6分）"（按单价归类，组内按出现顺序列号）。
+  //   🔴 不管自洽、不改数、不删正文：Y 取标题既有总数，不重算、不做除法；题内标注**保留不动**（逐题对账的落点）。
+  //   🔴 归不了类（无编号／有题干没标单价／标注条数与题干条数不等）→ 一律不动，标题保持"（共X分）"。
   if (has('title-detail-fix')) {
     try {
       const tplB = document.createElement('template');
       tplB.innerHTML = out;
       const headsB = Array.from(tplB.content.querySelectorAll('h2, h3, h4'));
+      const PRICE_RE = /每([^\s，,。；;：:（）()0-9]{1,3})(\d+(?:\.\d+)?)分/g;
       headsB.forEach((h, i) => {
         const t = (h.textContent || '').trim();
         const mB = t.match(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
@@ -974,13 +976,43 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const totalB = mB[1];
         const endB = headsB[i + 1] || null;
         let regionB = '';
-        for (let node = h.nextSibling; node && node !== endB; node = node.nextSibling) regionB += node.textContent || '';
-        // 计分对象名不收数字（防"每空12分"被读成单位"空1"）
-        const pairsB = [...new Set([...regionB.matchAll(/每([^\s，,。；;：:（）()0-9]{1,3})(\d+(?:\.\d+)?)分/g)]
-          .map((x) => `${x[1]}|${x[2]}`))];
-        if (pairsB.length !== 1) return;
-        const [unitB, priceB] = pairsB[0].split('|');
-        const labelB = `（每${unitB}${priceB}分，共${totalB}分）`;
+        const itemsB = [];
+        for (let node = h.nextSibling; node && node !== endB; node = node.nextSibling) {
+          const txt = node.textContent || '';
+          regionB += txt;
+          if (node.nodeType === 1) {
+            const tt = txt.trim();
+            const nm = tt.match(/^(\d{1,2})\s*[.、．]/);
+            const pm = tt.match(/每([^\s，,。；;：:（）()0-9]{1,3})(\d+(?:\.\d+)?)分/);
+            if (nm) itemsB.push({ num: nm[1], unit: pm ? pm[1] : '', price: pm ? parseFloat(pm[2]) : null });
+          }
+        }
+        const pairsB = [...new Set([...regionB.matchAll(PRICE_RE)].map((x) => `${x[1]}|${x[2]}`))];
+        const priceCountB = (regionB.match(PRICE_RE) || []).length;
+        const distinctB = [...new Set(itemsB.filter((x) => x.price != null).map((x) => x.price))];
+        const canGroup = itemsB.length >= 2
+          && itemsB.every((x) => x.price != null)
+          && priceCountB === itemsB.length
+          && distinctB.length >= 2;
+        // 单单价分支同样要求"每个独立题干都带标注"（缺一条就不转——否则标题会替没标的那题瞎写单价）
+        const allLabeled = itemsB.length === 0
+          || (itemsB.every((x) => x.price != null) && priceCountB === itemsB.length);
+        let labelB = null;
+        if (canGroup) {
+          const groups = [];
+          for (const it of itemsB) {
+            let g = groups.find((x) => x.price === it.price);
+            if (!g) { g = { price: it.price, nums: [] }; groups.push(g); }
+            g.nums.push(it.num);
+          }
+          labelB = `（${groups.map((g) => (g.nums.length >= 2
+            ? `第${g.nums.join('、')}小题各${g.price}分`
+            : `第${g.nums[0]}小题${g.price}分`)).join('，')}，共${totalB}分）`;
+        } else if (pairsB.length === 1 && allLabeled) {
+          const [unitB, priceB] = pairsB[0].split('|');
+          labelB = `（每${unitB}${priceB}分，共${totalB}分）`;
+        }
+        if (!labelB) return;
         const nextB = t.replace(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/, labelB);
         if (nextB !== t) {
           h.textContent = nextB;

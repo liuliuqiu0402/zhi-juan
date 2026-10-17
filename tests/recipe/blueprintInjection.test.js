@@ -336,7 +336,7 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
     const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
     // 2026-10-02 按主题拆块：原【卷面格式】拆为【卷首】【卷面层级】【题号与分值】【卷面自洽】【情境与页码】
     expect(t.template).toContain('【卷首】');
-    expect(t.template).toContain('【题号与分值】');
+    expect(t.template).toContain('【编号与分值】');
     expect(t.template).toContain('密封线');
     expect(t.template).toContain('【输出格式】');
   });
