@@ -256,13 +256,15 @@ describe('答案区题号体系：逐题沿用正文题号（禁括号序号代�
   it('once（题类）：明确"每题以与正文完全相同的题号起头"并禁括号序号代替', () => {
     const once = PAPER_OUTPUT_CONVENTIONS.once('英语', false);
     expect(once).toContain('每题以与正文完全相同的题号起头');
-    expect(once).toContain('严禁省略题号层或用括号序号代替题号');
+    // 🔴 2026-10-17（去硬编号推力）：原绝对句"严禁省略题号层或用括号序号代替题号"与同句"正文未编号的题，答案同样不编号"相抵
+    //    ⇒ 改条件式（只有正文有题号层的才不得省略），判据不放松。
+    expect(once).toContain('正文有题号层的，不得省略该层或用括号序号代替');
   });
 
   it('once（自包含教辅）：同样要求逐题沿用正文题号', () => {
     const onceSelf = PAPER_OUTPUT_CONVENTIONS.once('语文', true);
     expect(onceSelf).toContain('每题以与正文相同的题号起头');
-    expect(onceSelf).toContain('严禁省略题号层或用括号序号代替题号');
+    expect(onceSelf).toContain('正文有题号层的，不得省略该层或用括号序号代替');
   });
 
   it('split：正文不输出答案，故不携带答案区题号条款（不误注入）', () => {

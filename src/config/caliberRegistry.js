@@ -143,7 +143,7 @@ export const PROMPT_INLINE_SOURCES = {
     items: [
       { id: 'ANS_ALIGN_TAIL_REF', head: '本条（答案区与正文逐题对齐）即【尾约束·全文自洽】', cond: '恒（2026-09-30 用户裁定：显式声明隶属，防两处各写一段）' },
       { id: 'ansAlignNote(自包含分支)', head: '答案区按正文对应的栏目组织、并与正文同构', cond: 'isSelfContainedTeaching' },
-      { id: 'ansAlignNote(普通分支)', head: '**逐题对齐硬要求**：答案区**每个题目都以与正文完全相同的题号起头**', cond: '其余资料类型' },
+      { id: 'ansAlignNote(普通分支)', head: '**逐题对齐硬要求**：答案区与正文**同一套号**、逐一对应', cond: '其余资料类型（2026-10-17：绝对句"每个题目都以…题号起头"→条件式，防反推正文硬编号）' },
       // 2026-10-02（③啰嗦·一份实发内判据只准一处正句）：原 `selfContainedAnsNote`（【自包含教辅答案原则】）
       //   与同一次调用的 `ansRole`（库内常量 ANSWER_ROLES.other 自包含分支）同义 → 正句收口到库内常量，
       //   inline 整块删除，登记随之注销（原 head 为"【自包含教辅答案原则】答案区【只】给出正文中练习/自测/变式的解答"）。
