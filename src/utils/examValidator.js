@@ -786,7 +786,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       const bare = (h) => String(h).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
       const echoes = detectAnswerEcho(bare(out.slice(0, ansIdxE)), bare(out.slice(ansIdxE)));
       if (echoes.length) {
-        silentCount('answer-echo-guard', `答案/解析与题干**连续相同** ≥14 字的片段 ${echoes.length} 处——如「${echoes[0].slice(0, 20)}…」⇒ 疑似照搬题干，建议改为直接讲错因与思路（只提示、不改正文）`);
+        // 🔴 2026-10-17（属主真机追问"这个是噪音吗"）：原提示语只给一条出口（"建议改为直接讲错因与思路"），
+        //    而"错因"只适用错题本；本轮登记的必要引述情形（引用材料/条件原句）在提示语里没写 ⇒ 看起来像误报。
+        //    现给两条可判出口（必要引述可忽略／照搬则改思路与依据），仍在 notice 级进【问题列表】（本检测是属主要的
+        //    第③条"重复题目措辞"，不降级、不删）。
+        silentCount('answer-echo-guard', `答案/解析与题干**连续相同** ≥14 字的片段 ${echoes.length} 处——如「${echoes[0].slice(0, 20)}…」⇒ 若属必要引述（引用材料或条件原句）可忽略；若属照搬题干，建议改为直接讲思路与依据（只提示、不改正文）`);
       }
     }
   }
@@ -951,51 +955,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 1.6b. B·标题真题样式（规则 title-detail-fix，2026-10-17）──
-  //   1.6 只把旧式"（X分）"归一成"（共X分）"；本节再做**样式**归一：该大题按同一单价计分时，
-  //   把标题的"（共X分）"补成真题写法"（每〈计分对象〉X分，共Y分）"。
-  //   🔴 四条硬门（缺一不动）：①本大题内"每X分"恰好出现**一次**（模型按 576 逐题干标注时已含单价，
-  //      再补标题会一题三处并存 → 跳过）；②单价恰好一种；③总数能被单价整除且个数 >1
-  //      （→ 个数为整数、不出现除不尽；只有一处时"每X分，共X分"是废话）；④题内那一处**不是已经完整的
-  //      "每X分，共Y分"标注**（已完整 = 该处已承载单价与总数，标题再补就是重复，跳过）。
-  //   🔴 **只改写法、不改数**：Y 取标题既有总数，单价取题内既有标注，不重算、不回写——
-  //      "程序即使把分值凑齐了，也可能与内容不自洽"；总数与单价对不上（不能除尽）时一律不动。
-  if (has('title-detail-fix')) {
-    try {
-      const tplS = document.createElement('template');
-      tplS.innerHTML = out;
-      const headsS = Array.from(tplS.content.querySelectorAll('h2, h3, h4'));
-      headsS.forEach((h, i) => {
-        const t = (h.textContent || '').trim();
-        const mS = t.match(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
-        if (!mS) return;
-        const totalS = parseFloat(mS[1]);
-        const endS = headsS[i + 1] || null;
-        let regionText = '';
-        for (let node = h.nextSibling; node && node !== endS; node = node.nextSibling) regionText += node.textContent || '';
-        // 计分对象名不收数字（防"每空12分"被读成单位"空1"）
-        const hits = [...regionText.matchAll(/每([^\s，,。；;：:（）()0-9]{1,3})(\d+(?:\.\d+)?)分/g)];
-        if (hits.length !== 1) return;
-        // 门④：这一处已写成完整的"每X分，共Y分" → 单价与总数都已在该处承载，标题再补即重复
-        const at = hits[0].index;
-        if (/共\s*\d+(?:\.\d+)?\s*分/.test(regionText.slice(at, at + 24))) return;
-        const unitS = hits[0][1];
-        const price = parseFloat(hits[0][2]);
-        if (!(price > 0)) return;
-        const nS = totalS / price;
-        if (!Number.isInteger(nS) || nS <= 1) return;
-        const labelS = composeScoreLabel(unitS, price, nS);
-        if (!labelS) return;
-        const nextT = t.replace(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/, labelS);
-        if (nextT !== t) {
-          h.textContent = nextT;
-          issues.push({ severity: 'info', type: 'title-detail', message: `大题标题已补单价：${nextT}` });
-          fixed += 1;
-        }
-      });
-      out = tplS.innerHTML;
-    } catch (e) { console.warn('⚠️ 大题标题补单价失败（不影响其它修复）:', e.message); }
-  }
+  // ── 1.6b（2026-10-17 撤回）：原"B·标题真题样式"（标题「（共X分）」+ 题内唯一单价 → 补成「（每X分，共Y分）」）
+  //   撤回原因：分值标注的方向已改为**单价由大题标题承载**（`576`：同单价时标题直接写"（每〈计分对象〉X分，共Y分）"，
+  //   题内不再逐条复述）⇒ B 的设计前提（单价在题干、标题只有总数）不复存在；此时再补标题＝标题与题内各写一次单价，
+  //   正是"两种标注并存"要消的那类相抵。按"一条路"原则只留 A（模型侧直接写真题样式），B 与其原语 `composeScoreLabel` 一并撤除。
 
   // ── 2. 大题级：分值账目 + 载体结构校验（DOM 内直接操作，避免字符串与 DOM 序列化差异）──
   {
@@ -1275,7 +1238,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             || /提示/.test(secBody);
           silentCount('title-content-mismatch', hasAltHint
             ? '大题标题声称"图片提示/看图"，题内实际用的是**其它提示形态**（文字/中文/首字母提示）——标题与内容不符：请把标题改成与内容一致的写法（如"根据中文提示写单词"），或按标题补图（程序只提示、不改内容）'
-            : '大题标题声称"图片提示/看图"，但题内既无图也无其它提示形态——标题与内容不符或漏图，请核对（程序只提示、不改内容）', 'warn');
+            // 🔴 2026-10-17（属主真机追问"题目完整就不用给图了吧"）：本支＝题内**既无图也无任何提示形态**。
+            //    按判据"不看图能否作答"：这类通常题面已自足、是**标题多写了提示方式** ⇒ 先给"改标题"这条正解；
+            //    只有当本题本应配图（题面依赖图）时才补图。原句"或漏图"把两种情形并列，易把方向带向"硬补图"。
+            : '大题标题声称"图片提示/看图"，但题内既无图也无其它提示形态——标题与内容不符：若题面已自足（不看图也能作答），请把标题改成与内容一致的写法；若本题本应配图，则按标题补图（程序只提示、不改内容）', 'warn');
           break;   // 同类只报一处，避免多个大题重复刷屏
         }
       }
@@ -2482,19 +2448,6 @@ const countSubNumbered = (raw) => {
 
 export default { auditExamPaper, normalizePinyinText, countBlanks, countPinyinGroups, countPinyinOptions, countOptions, countMatchSides, splitSections, fixScoreLabel };
 
-/**
- * 🧮 **分值标注拼装（B 的原语）**——2026-10-17
- *
- * 只做一件事：把「单价 × 个数」拼成真题写法，**不做除法**，因此不会出现除不尽。
- * · 单价与个数任一非法 → 返回 null（调用方保持原写法，不硬造）
- * · 无单位名 → 只写“（共Y分）”（不硬造单位）
- * 说明：本函数是纯函数，不接任何生成流程；接入点在 title-detail-fix（渲染期）另行落。
- */
-export function composeScoreLabel(unitName, unitScore, count) {
-  const n = Number(count);
-  const x = Number(unitScore);
-  if (!Number.isFinite(n) || !Number.isFinite(x) || n <= 0 || x <= 0) return null;
-  const total = Math.round(x * n * 100) / 100;
-  const u = String(unitName == null ? '' : unitName).trim();
-  return u ? `（每${u}${x}分，共${total}分）` : `（共${total}分）`;
-}
+// 2026-10-17 撤除：`composeScoreLabel`（B 的原语，"单价×个数 → 真题写法"）随 B 段一并删除。
+//   原因见 1.6b 处注释：单价改由**大题标题**直接承载（`576`），程序侧不再拼分值标签；
+//   保留它会诱导"程序替模型补单价"，与"程序不改数、不重算"的裁定相反。

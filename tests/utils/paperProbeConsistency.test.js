@@ -91,11 +91,16 @@ describe('③ 标题与内容不符（图缺失的真实根因）', () => {
     expect(notes(r, 'title-content-mismatch')).not.toContain('漏图');
   });
 
-  it('标题声称图片提示、题内既无图也无其它提示 → 报（文案提示"或漏图"）', () => {
+  // 🔴 2026-10-17（属主真机追问"题目完整就不用给图了吧"）：本支＝题内既无图也无任何提示形态。
+  //    按判据"不看图能否作答"，这类通常**题面已自足、是标题多写了提示方式** ⇒ 文案须先给"改标题"，
+  //    "补图"只在本题本应配图时。断言随之由"须含'漏图'"改为"须含'标题与内容不符'且先指向改标题"。
+  it('标题声称图片提示、题内既无图也无其它提示 → 报（文案先指向"改标题"、配图仅限本应配图的题）', () => {
     const html = `<h2>五、根据图片提示写出正确的单词（每题2分，共4分）</h2>`
       + `<p class="question">1. The snail kept <u class="blank-6">&emsp;</u> up the tree.</p>${ANS}`;
-    const r = run(html);
-    expect(notes(r, 'title-content-mismatch')).toContain('漏图');
+    const msg = notes(run(html), 'title-content-mismatch');
+    expect(msg).toContain('标题与内容不符');
+    expect(msg, '先给"改标题"这条正解').toContain('把标题改成与内容一致的写法');
+    expect(msg, '补图须限定"本应配图"的情形').toContain('若本题本应配图');
   });
 
   it('题干要图（看图形/统计图）且整卷无图 → 仍报 image-missing（原探针能力不降）', () => {
