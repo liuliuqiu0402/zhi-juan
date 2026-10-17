@@ -902,14 +902,12 @@ export function wrapBareBlankRuns(html = '') {
   //    列分隔抑制（2026-09 收口·内容型排版防护）：CJK 夹缝内若同句（到句读/块边界止）还存在**同款空位**，
   //    "温暖　　寒冷　　明亮"式词表/罗列在内容型资料中是排版列分隔而非填空位——多空位无句读连续出现视为罗列，
   //    整体不转（编辑要留作答线时须按渲染契约给显式载体）；孤立单空位（句中仅此一处）才按语义空位转。
-  const hasSiblingGap = (win, mineLen) => {
-    const re = /(?:[\u3000\u2003]|&emsp;){2,}/g;
-    let mm;
-    while ((mm = re.exec(win)) !== null) {
-      if (Math.abs(blankRunEmUnits(mm[0]) - mineLen) <= 2) return true;
-    }
-    return false;
-  };
+  // 🔴 2026-10-17（属主真机"空格隔开的地方出现下划线"·根因收严）：原判据只认"同款空位（宽度 ±2）"才判罗列——
+  //    词表/列分隔的**宽度常不一样**（如"温暖　　寒冷　明亮"），于是每个孤立空位都被当成"语义填空位"包成
+  //    `<u class="blank-N">`（渲染即下划线），卷面凭空长横线。现改为：**同一分句内只要还有第二处裸空格段，
+  //    整段按排版分隔处理、一概不转**（真正的语义空位在同句里通常是唯一一处；算式空位由下方"运算符邻接"分支
+  //    单独承接，不受此收严影响）。宁可少画一条横线（模型侧本就要求用显式载体），也不要凭空画错。
+  const hasSiblingGap = (win) => /(?:[\u3000\u2003]|&emsp;){2,}/.test(win);
   // ②（2026-10-04 ②组间分隔误转下划线·根治）并列小项间的分隔守卫：空格段紧邻已有 blank-N 载体时，
   //    属"两个并列小项之间的排版分隔"，不得转成书写空位。
   //    实证：组词题 "9. 那（　）　　哪（　）" 的组间空格被 prevVisibleChar/nextVisibleChar 跳过
@@ -939,7 +937,7 @@ export function wrapBareBlankRuns(html = '') {
       const before = all.slice(0, off);
       const pIdx = Math.max(...['。', '，', '、', '；', '：', '？', '！'].map((ch) => before.lastIndexOf(ch)), before.lastIndexOf('>'));
       const behindWin = pIdx >= 0 ? before.slice(pIdx + 1) : before;
-      if (hasSiblingGap(aheadWin, mineLen) || hasSiblingGap(behindWin, mineLen)) return m;
+      if (hasSiblingGap(aheadWin) || hasSiblingGap(behindWin)) return m;
       return `<u class="blank-${blankWidthForChars(mineLen)}">&emsp;</u>`;
     }
     if (prevIsOp && (nextInChain || nextIsCjk)) {
