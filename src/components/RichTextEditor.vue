@@ -1215,7 +1215,7 @@ const emit = defineEmits(['update:modelValue', 'content-change']);
 const layoutVars = computed(() => {
   try {
     const spec = getMergedSpec();
-    const sg = spec.SQUARE_GRID.primary || { cols: 12, rows: 8, cellMm: 7 };
+    const sg = spec.SQUARE_GRID || { cols: 12, rows: 8, cellMm: 7 };
     const bg = spec.BRACKET_GRID;
     return {
       '--sg-w': `${Math.round(sg.cols * sg.cellMm)}mm`,

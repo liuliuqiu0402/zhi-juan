@@ -193,11 +193,11 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
   //    管内容型知识条目），实测模型把写作要求逐条当题（`1. 2. 3.` 与题号同构 + 每条各配作答区）。
   //    本条只定位"编号方式与作答区归属"，不涉题型、不涉覆盖；且**只进题类**（question/exam）——
   //    内容型编号口径仍由 CONTENT_FORMAT 单源给出（（1）（2）），两套口径不同时注入 → 不打架。
-  it('a：题干内分条不与题号层混同（题类两分支注入、内容型不注入）', () => {
+  it('a：题干内分条不与题号混同（题类两分支注入、内容型不注入）', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src', 'config', 'promptLibrary.js'), 'utf8');
     // 🔴 2026-09-28：易错题本（题内分项型）分支同样注入本条 → 题类三分支各一处
-    expect(src.split('不与题号层混同').length - 1, 'question/exam/errorbook 三分支各一处').toBe(3);
-    expect(src).toContain('这些分条不是子题，不为其另配作答区');
+    expect(src.split('不与题号混同').length - 1, 'question/exam/errorbook 三分支各一处').toBe(3);
+    expect(src).toContain('这些分条不单独编号、不另配作答区');
     expect(src, '层级边界由编号口径单源承载（不再在渲染段判子层）').toContain('编号的**层级**');
     expect(src, '内容型编号口径仍由 CONTENT_FORMAT 单源').toContain('条目标记与序号只取其一、严禁叠加');
   });
@@ -497,8 +497,15 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(rcSrc, '标记格式单源在【渲染指令】').toContain('【渲染指令');
     expect(ex, 'G40：栏位注"须给出配图标记"形态句已删，不得回潮').not.toContain('须给出配图标记');
     expect(ex, 'G40：栏位注"须给出图形标记"形态句已删，不得回潮').not.toContain('须给出图形标记');
-    expect(ex, '竖式书写区须留出（作答载体）').toContain('竖式书写区按作答载体规范留出');
-    expect(ex, '作图区域须留出').toContain('留出作图区域');
+    // 🔴 2026-10-18（用户裁定·名词预设＋重复源）：原锁"竖式书写区按作答载体规范留出""留出作图区域"——
+    //   这两句把**作答载体要求**（单源在 layoutSpec 作答载体条款）在蓝图 note 里又复述一遍，
+    //   模型据此在题干里写"（每题在算式下方留出竖式书写区，共3行）"＝**以文字说明充当作答载体**（用户实证）。
+    //   现删蓝图 note 的复述 ⇒ 断言**反转**：源不得回潮；载体要求仍由 layoutSpec 单源承载，
+    //   程序侧按确定性兜底补差（方格纸/竖式无线空白行）。
+    const layoutSrc = fs.readFileSync(path.join(ROOT, 'src', 'config', 'layoutSpec.js'), 'utf8');
+    expect(ex, '竖式书写区不得在蓝图 note 复述（作答载体单源在 layoutSpec）').not.toContain('竖式书写区');
+    expect(ex, '作图区域不得在蓝图 note 复述（作答载体单源在 layoutSpec）').not.toContain('留出作图区域');
+    expect(layoutSrc, '作答载体要求单源仍在 layoutSpec（算式后留无线空白行）').toContain('算式后留无线空白行');
     const tb = fs.readFileSync(path.join(ROOT, 'src', 'config', 'teachingBlueprints.js'), 'utf8');
     expect(tb, '书写载体须由模型给出').toContain('书写载体按学科与学段规范给出');
   });

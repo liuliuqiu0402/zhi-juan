@@ -68,7 +68,7 @@ describe('产物矩阵：line 族（语文/英语/科学）主观题 → 整行�
   }
 });
 
-describe('产物矩阵：已有作答形态 → 不误补（判断/口算/填空/竖式）', () => {
+describe('产物矩阵：已有作答形态 → 不误补（判断/口算/填空；竖式走专用通道补行）', () => {
   it('数学 practice：判断（括号空）与口算（算式连列）→ 不补空白', () => {
     const html = [
       '<h2>一、基础练习</h2>',
@@ -94,10 +94,10 @@ describe('产物矩阵：已有作答形态 → 不误补（判断/口算/填空
     expect(/blank-\d/.test(out)).toBe(true); // 括号空位归一带宽
   });
 
-  it('数学 practice：竖式题无专用书写区 → 不落通用空白补差（专用载体缺失走抽检）', () => {
+  it('数学 practice：竖式题无专用书写区 → 竖式专用通道确定性补无线空白行', () => {
     const html = '<h2>五、用竖式计算</h2><p>1. 用竖式计算 6.25×1.5。</p>';
     const { html: out } = produce(html, { subject: '数学', stage: 'primary_high', genType: 'practice' });
-    expect(countBlankArea(out)).toBe(0);
+    expect(countBlankArea(out), '竖式题须得到竖式书写区（过程区＝无线空白行）').toBeGreaterThan(0);
   });
 
   it('英语·primary_mid：模型输出合法四线三格 → 不被剥离（合法载体保留）', () => {

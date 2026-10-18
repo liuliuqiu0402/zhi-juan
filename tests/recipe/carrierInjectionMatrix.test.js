@@ -29,8 +29,10 @@ describe('书写载体注入矩阵：题类 6 类', () => {
     for (const g of QUESTION_TYPES) {
       expect(tplOf(g), `${g} 缺【书写载体协议】`).toContain('书写载体协议');
     }
-    // 学科×学段差异：数学中段无该协议（规格库返回空 → 不注入，属预期）
-    expect(tplOf('exam', '数学', 'middle')).not.toContain('书写载体协议');
+    // 学科×学段差异：数学**全学段**均有该协议（2026-10-18 属主"本项目不出答题卡"：
+    //   原"数学中段规格库返回空 → 不注入"随中学段开放方格纸而改准）；无格子学科（物理）仍不注入
+    expect(tplOf('exam', '数学', 'middle')).toContain('书写载体协议');
+    expect(tplOf('exam', '物理', 'middle')).not.toContain('书写载体协议');
   });
 
   // 🔴 2026-09-29（模型侧补缺口）：英语**低段**允许表已放开四线三格（用户候选5裁定），

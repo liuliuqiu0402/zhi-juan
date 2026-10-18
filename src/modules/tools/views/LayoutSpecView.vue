@@ -471,11 +471,11 @@ const SPEC_GROUPS = [
   {
     id: 'square',
     name: '方格纸/括号格',
-    desc: '作图方格纸（小学段；SQUARE_GRID）+ 竖式括号格（BRACKET_GRID）· themeConfig/RichTextEditor/docxBuilder 读取',
+    desc: '作图方格纸（全学段；SQUARE_GRID·学段无关单源）+ 竖式括号格（BRACKET_GRID）· themeConfig/RichTextEditor/docxBuilder 读取',
     fields: [
-      { path: 'SQUARE_GRID.primary.cols', label: '方格纸 列数', unit: '', type: 'number', min: 6, max: 20, step: 1 },
-      { path: 'SQUARE_GRID.primary.rows', label: '方格纸 行数', unit: '', type: 'number', min: 4, max: 20, step: 1 },
-      { path: 'SQUARE_GRID.primary.cellMm', label: '方格纸 格边长', unit: 'mm', type: 'number', min: 4, max: 12, step: 0.5 },
+      { path: 'SQUARE_GRID.cols', label: '方格纸 列数', unit: '', type: 'number', min: 6, max: 20, step: 1 },
+      { path: 'SQUARE_GRID.rows', label: '方格纸 行数', unit: '', type: 'number', min: 4, max: 20, step: 1 },
+      { path: 'SQUARE_GRID.cellMm', label: '方格纸 格边长', unit: 'mm', type: 'number', min: 4, max: 12, step: 0.5 },
       { path: 'BRACKET_GRID.rowHeightMm', label: '括号格 行高', unit: 'mm', type: 'number', min: 5, max: 20, step: 0.5 },
       { path: 'BRACKET_GRID.widthMm', label: '括号格 宽度', unit: 'mm', type: 'number', min: 30, max: 100, step: 1 },
       { path: 'ZUOWEN_FILL_CELLS', label: '作文格自动补全数', unit: '格', type: 'number', min: 50, max: 400, step: 10 },

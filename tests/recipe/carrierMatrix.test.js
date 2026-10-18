@@ -5,7 +5,7 @@
  *  1. WRITING_CARRIER 必须覆盖 全学科×全学段（15×5），每个组合显式数组、无意外空洞；
  *     新增/改名学科若漏配载体行 → 越界剥离防线失守（getCarrierAllowlist 回退 null=不检测），本测试即红；
  *  2. 允许值 / must.forbid / declaration 的 class 令牌必须合法（渲染/剥离/白名单可命中）；
- *  3. 数学方格纸仅小学段（middle/high=[]），防"用方格纸"越学段诱导；
+ *  3. 数学方格纸**全学段**合法（2026-10-18 属主"本项目不出答题卡"：中学段同样需方格纸作答区）；
  *  4. must/declaration 引用的学科与学段键必须在 SUBJECT_KEYS / STAGE_KEYS 内（防键名漂移成死规则）。
  */
 import { describe, it, expect } from 'vitest';
@@ -40,10 +40,8 @@ describe('书写载体三维度注册表（防漂移矩阵）', () => {
     for (const c of new Set(collect)) expect(c).toMatch(CLASS_RE);
   });
 
-  it('数学方格纸仅小学段（middle/high 显式空，防越学段诱导）', () => {
-    expect(WRITING_CARRIER['数学'].middle).toEqual([]);
-    expect(WRITING_CARRIER['数学'].high).toEqual([]);
-    for (const st of ['primary_low', 'primary_mid', 'primary_high']) {
+  it('数学方格纸全学段（2026-10-18 属主"本项目不出答题卡"：中学同样需方格纸作答区）', () => {
+    for (const st of ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high']) {
       expect(WRITING_CARRIER['数学'][st]).toContain('square-grid');
     }
   });
@@ -69,6 +67,6 @@ describe('书写载体三维度注册表（防漂移矩阵）', () => {
   it('getCarrierAllowlist：未知学科回退 null（不检测），已知返回数组', () => {
     expect(getCarrierAllowlist('不存在的学科', 'middle')).toBe(null);
     expect(Array.isArray(getCarrierAllowlist('语文', 'primary_low'))).toBe(true);
-    expect(getCarrierAllowlist('数学', 'middle')).toEqual([]);
+    expect(getCarrierAllowlist('数学', 'middle')).toContain('square-grid');
   });
 });

@@ -1369,7 +1369,7 @@ const processBlockNode = (node, ctx = {}) => {
       left: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
       right: { style: BorderStyle.SINGLE, size: 1, color: 'cccccc' },
     };
-    const sgSpec = getMergedSpec().SQUARE_GRID.primary || { cols: 12, rows: 8, cellMm: 7 };
+    const sgSpec = getMergedSpec().SQUARE_GRID || { cols: 12, rows: 8, cellMm: 7 };
     const cols = sgSpec.cols;
     const rows = sgSpec.rows;
     const cellW = Math.round(sgSpec.cellMm * MM2DXA); // 7mm ≈ 397 DXA

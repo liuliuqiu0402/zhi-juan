@@ -68,8 +68,10 @@ describe('单源守卫：卷首导语 / 严肃卷面 / 统一情境 / 大题标�
   });
 
   it('④ 大题标题命名：规则字面（学段口径）只允许出现在 promptLibrary.js', () => {
-    expect(ownersOf('大题标题以【卷面结构】里的块名为底')).toEqual([OWNER]);
+    expect(ownersOf('大题标题按本大题实际的作答方式命名')).toEqual([OWNER]);
     expect(ownersOf('大题标题须你按本卷实际的作答方式自拟')).toEqual([OWNER]);
+    // 🔴 2026-10-18：原中学段"以块名为底"（许可式 → 照搬块名）已改判据式；旧字面不得回潮
+    expect(hitsAnywhere('大题标题以【卷面结构】里的块名为底'), '照搬式旧口径不得回潮').toEqual([]);
   });
 
   it('已删除的并行/冲突表述：全库（src + docs/design）零出现（防回潮）', () => {

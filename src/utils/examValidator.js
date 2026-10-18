@@ -1200,8 +1200,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     // 2j-0b 大题标题重名抽检（2026-09-29 用户实证：「三、我的新发现」与「九、我的新发现」撞名）
     //   同一份卷内，**去序号后的题名（"——"前的名字段）**不得两处相同——卷面同名易混，答案区也更难逐题对应。
     //   命名口径唯见 promptLibrary.bigTitleRule 单源；本处只报不改（notice 级，交编辑核对）。
-    //    ⚠️ 过严/噪音防线（2026-09-29 自查）：**仅小学段**报告——中学段题名以【卷面结构】块名为底
-    //    （2026-10-16 起块名可改、可自拟，见 promptLibrary.bigTitleRule 中学段条），重名多源自结构本身同名块名；
+    //    ⚠️ 过严/噪音防线（2026-09-29 自查）：**仅小学段**报告——中学段题名按 bigTitleRule 中学段口径
+    //    （2026-10-18 起块名只作**范围标识**、不是标题文本），重名多源自结构本身同名块名；
     //    且"大题标题不得重名"条已覆盖全部学段（模型侧单源），程序侧不重复报，免增噪音。
     if (has('cn-ordinal-guard') && genType === 'exam' && /^primary/.test(String(normalizeStage(stage) || ''))) {
       try {
@@ -2152,7 +2152,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const segHasContent = it.seg.some((n) => n.nodeType === 1 || ((n.textContent || '').trim() !== ''));
           if (/^H[1-4]$/i.test(it.p.tagName || '') && !segHasContent) continue;
           const isNoScore = it.score == null;
-          if (!isNoScore && (it.score <= 0 || it.score > 15)) continue;
           // 题块首行 + 作答段统一克隆扫描（含嵌套 p/div/section）
           const wrap = document.createElement('div');
           wrap.appendChild(it.p.cloneNode(true));
@@ -2162,22 +2161,51 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const segAll = (it.p.outerHTML || '') + segHtml; // 块首行自身的括号空位/填空格/选项也要参与载体判定
           const stem = (it.p.textContent || '').trim();
           const ctxText = it.ctx || '';
-          // 已有载体/题型 → 跳过（填空括号、引号/全角空格空位、填空格、连线、专用格线、选项）
-          if (parenBlankTest.test(segAll) || blankTagTest.test(segAll) || fullWidthBlankTest.test(segAll)) continue;
-          if (CARRIER_STRUCT_RE.test(segAll)) continue;
-          if (countOptions(segAll) > 0) continue;
 
           // ── 2026-09-29（v2·专用通道优先；形态/规格词判据，不点题型名）────────────────────
           //    先从**题面文本**探"必需专用载体"（竖式书写区 / 作图区 / 表格）。命中后**不得**再被下方
           //    通用跳过判据短路——否则重回两类回归：竖式题被当"口算"类跳过（静默漏补）、作图题被跳过
-          //    （补不出 draw-area）。故探测提前到跳过判据**之前**，命中即绕过通用跳过（下方 `if (!specNeeds)`）。
-          //    只读题面文本（ctx 顶层语境 + 块首行 + 块内段；竖式/作图/填表语境多声明在父题题干），
-          //    不向模型注入任何新要求（不碰 prompt）。
-          const specText = (ctxText + '\n' + stem + '\n' + segHtml).replace(/\s+/g, '');
+          //    （补不出 draw-area）。只读题面文本（ctx 顶层语境 + 块首行 + 块内段；竖式/作图/填表语境多
+          //    声明在父题题干），不向模型注入任何新要求（不碰 prompt）。
+          //    2026-10-18（属主"方格纸相关的题都没有方格"）：探测**前置到"分值>15 整块跳过"与"已有载体
+          //    跳过"之前**——否则作图/方格纸大题（常 >15 分、或题内另有括号空位/空白行）兜不到。
+          //    2026-10-18（属主真机·载体声明多落在大题标题）：探测域**并入大题标题**——模型按指令把
+          //    "在方格纸上作图""列竖式计算"写进大题标题（子题题面不再复述）时，只看 ctx/题干/题内段会**看不见**
+          //    ⇒ 误判为普通题补 draw-area/横线。标题是"栏名+作答要求"的载体声明主位，必须纳入同一判文。
+          const specText = (title + '\n' + ctxText + '\n' + stem + '\n' + segHtml).replace(/\s+/g, '');
           let specNeeds = '';
           if (/用竖式计算|竖式计算|列竖式|竖式/.test(specText)) specNeeds = '竖式';
           else if (/画(?:出|一画).{0,8}?(?:线段|射线|直线|对称轴?|图形|示意|光路|电路)|示意图|光路图|电路图|作图|画一画|接着画|按规律(?:接着)?画/.test(specText)) specNeeds = '作图';
           else if (/填表|把表格|在表格(?:里|中)填|用表格(?:整理|表示|呈现)|整理成(?:统计|数位|记录|调查)?表|制作(?:统计|调查|记录|数位)表|补全(?:统计|数位|记录|调查)?表/.test(specText)) specNeeds = '填表';
+          // 🔴 2026-10-18（属主真机"方格纸相关的题都没有方格"）：题干/大题标题点名"方格纸/方格图/方格中/
+          //    格子图/格子纸/格子里/方格内/方格上" → 兜底必须是**方格纸本体**（square-grid）。**与"已有其它
+          //    空位/空白行"解耦**——括号空位不能代替方格纸；也不受"分值>15 整块跳过"影响。已有方格纸则不重复补。
+          //    2026-10-18（属主"本项目不出答题卡"）：**取消"仅小学段"硬门控**——中学段（初中/高中）同样不出
+          //    答题卡，作图题需方格纸 ⇒ 门控改由**允许表单源**承担（getCarrierAllowlist 含 square-grid 才补），
+          //    既放开中学数学、又挡住他科（允许表为空数组者提"方格纸"也不补）。
+          const wantsSquare = /方格纸|方格图|方格中|格子图|格子纸|格子里|方格内|方格上/.test(specText)
+            && (getCarrierAllowlist(subject, stage) || []).includes('square-grid')
+            && !/square-grid/.test(segAll);
+          if (wantsSquare) {
+            const sg = document.createElement('div');
+            sg.className = 'square-grid';
+            const ancSg = it.seg.length > 0 ? it.seg[it.seg.length - 1] : it.p;
+            ancSg.parentNode.insertBefore(sg, ancSg.nextSibling);
+            fixed += 1;
+            fixedK += 1;
+            issues.push({ severity: 'info', type: 'answer-area', message: `已补方格纸（square-grid）：「${title.slice(0, 14)}」题干声明在方格纸上作答` });
+            continue;
+          }
+          // 🔴 2026-10-18（属主"竖式书写区应由程序兜底"·真机实证）：**竖式题不得被下方通用跳过判据短路**——
+          //   算式题"等号后得数结果位"与"过程书写区"**不属重复**（layoutSpec 例外条明示二者必要时**并存**）：
+          //   ① 结果位空位（＝（　　）／＝<span class="blank-N">）不是过程区；② 分值>15 的竖式大题仍需过程区；
+          //   ③ 结果位写成内嵌填空线（＝＿＿）同理。若任一短路生效，竖式题将无处列竖式（本轮用户实证症状）。
+          const verticalForm = specNeeds === '竖式';
+          if (!isNoScore && (it.score <= 0 || it.score > 15) && !verticalForm) continue;
+          // 已有载体/题型 → 跳过（填空括号、引号/全角空格空位、填空格、连线、专用格线、选项）；竖式除外（见上）
+          if (!verticalForm && (parenBlankTest.test(segAll) || blankTagTest.test(segAll) || fullWidthBlankTest.test(segAll))) continue;
+          if (CARRIER_STRUCT_RE.test(segAll)) continue;
+          if (countOptions(segAll) > 0) continue;
 
           if (!specNeeds) {
             // 形态判据·**选项行**（不依赖"选择"题型词、也不依赖大题标题）：块内出现 ≥2 个**互不相同**的
@@ -2222,7 +2250,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               if (mm >= lhMm * 0.6) rows += Math.max(1, Math.round(mm / lhMm)); // 带高空白块
             }
           }
-          if (hasFillIn) continue;
+          if (hasFillIn && !verticalForm) continue; // 竖式：内嵌结果位填空线（＝＿＿）≠ 过程区，不得据此跳过
           // 2026-09-17 用户裁定（补收口·规格层封顶）：主规则仍是"分值×系数"，但**短答按分会给过量空间**——
           //    全矩阵实测（428 处受影响）真异常：语文·小低「按要求写句子（每题5分）」7 行/题、低段每题6分→9行。
           //    上限取自规格库 ANSWER_MAX_ROWS_BY_STAGE（按学段、学科无关；按地区差异改规格库即可），
@@ -2234,30 +2262,19 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const need = Math.min(needRaw, capRows);
           if (rows >= need) continue;
           // 🔧 专用作答区语境防错配（2026-09；遵守"补差不越权 / 静默不误报"固化基准）：
-          //    竖式（需格状书写区）、作图（需空白区）、填表（需表格）类题在题内确无任何作答载体时，
-          //    generic 横线/空白行是错配兜底 → 不落通用补差，改静默抽检提示（notice）交人工确认；
-          //    已有对应载体（bracket-grid/draw-area/square-grid/<table>）或已有填空位/作答行
-          //    （上方已 continue）一律不打扰；"观察统计表/图表回答问题"等读表题不含作答动词，不命中。
+          //    作图（需空白区）、填表（需表格）类题在题内确无任何作答载体时，generic 横线/空白行是错配兜底
+          //    → 不落通用补差：作图走下方定向补 draw-area、填表改静默抽检提示（notice）交人工确认；
+          //    竖式**不在"只抽检"之列**（2026-10-18 属主"竖式书写区应由程序兜底"）：layoutSpec 的竖式过程区
+          //    形态即"算式后留无线空白行"，与数学 region.carrier（blank）同形 → 归下方竖式支确定性补行。
+          //    已有对应载体（draw-area/square-grid/<table>）或已有填空位/作答行（上方已 continue）一律不打扰；
+          //    "观察统计表/图表回答问题"等读表题不含作答动词，不命中。
           // 2026-09-29（v2）：specText / specNeeds 已在跳过判据**之前**算好（见"专用通道优先"段），
           //    此处直接复用——勿重复计算（两处判据即漂移隐患）。
           if (specNeeds === '作图') {
             // 已有作图区/方格纸 → 有作图空间，不打扰
             if (/draw-area|square-grid/.test(segAll)) continue;
-            // 🔴 2026-10-17（属主真机"方格纸相关的题都没有方格"）：题干**明确点名方格纸/方格图**时，
-            //    兜底应是**方格纸**（square-grid）而不是空白作图区——否则给了框也无法"照样子画格子"。
-            //    只在小学段补（排版规格：square-grid 仅小学段合法；初中以上由答题纸自带网格）。
-            const wantsSquare = /方格纸|方格图|方格中|格子图|格子纸/.test(specText)
-              && /^primary/.test(String(normalizeStage(stage) || ''));
-            if (wantsSquare) {
-              const sg = document.createElement('div');
-              sg.className = 'square-grid';
-              const ancSg = it.seg.length > 0 ? it.seg[it.seg.length - 1] : it.p;
-              ancSg.parentNode.insertBefore(sg, ancSg.nextSibling);
-              fixed += 1;
-              fixedK += 1;
-              issues.push({ severity: 'info', type: 'answer-area', message: `已补方格纸（square-grid）：「${title.slice(0, 14)}」题干声明在方格纸上作答` });
-              continue;
-            }
+            // 方格纸类（题干/标题点名"方格纸/方格图…"且允许表含 square-grid）已在上方**专用通道前置段**确定性补齐
+            //    （2026-10-18 前置，与"分值>15 跳过/已有载体跳过"解耦）→ 此处只剩普通作图题。
             // 作图题确无任何作答载体 → 定向补虚线作图区（draw-area，高度按分值 30-70mm）。
             //    与作文格补格同级的确定性兜底（渲染/编辑器/Word 三端已支持 draw-area，2026-09 排版端）
             const mmH = Math.min(70, Math.max(30, Math.round(it.score * 5)));
@@ -2272,9 +2289,24 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             continue;
           }
           if (specNeeds === '填表' && /<table/i.test(segAll)) continue;       // 已有作答表格 → 有空间，不打扰
+          if (specNeeds === '竖式') {
+            // 🔴 2026-10-18（属主"竖式书写区应由程序兜底"）：竖式题无载体 → 按 layoutSpec"算式后留无线空白行、
+            //    算式少时每式 3 行、算式多时按学段单题上限平摊"确定性补**无线空白行**（不逐式铺满）。
+            const eqN = Math.max(1, (specText.match(/[=＝]/g) || []).length);
+            const wantRows = Math.min(capRows, eqN * 3);
+            if (rows < wantRows) {
+              const diffS = wantRows - rows;
+              const anchorS = it.seg.length > 0 ? it.seg[it.seg.length - 1] : it.p;
+              for (let d = 0; d < diffS; d++) anchorS.parentNode.insertBefore(padP('blank'), anchorS.nextSibling);
+              fixed += 1;
+              fixedK += 1;
+              issues.push({ severity: 'info', type: 'answer-area', message: `已补竖式书写区：大题「${title.slice(0, 14)}」补 ${diffS} 行无线空白（竖式题无载体；每式 3 行、按学段单题上限 ${capRows} 行收敛，原有效作答行${rows}）` });
+            }
+            continue;
+          }
           if (specNeeds) {
-            // 竖式/填表类无法确定性生成内容（竖式格行数/表格结构未知）→ 静默抽检交人工，不落错配补差
-            silentCount('answer-area', `「${stem.slice(0, 14)}…」属${specNeeds}题但题内无对应载体（${specNeeds === '竖式' ? '竖式书写区' : '表格'}），已跳过横线/空白补差（请抽检）`);
+            // 填表类无法确定性生成内容（表格结构未知）→ 静默抽检交人工，不落错配补差
+            silentCount('answer-area', `「${stem.slice(0, 14)}…」属填表题但题内无对应载体（表格），已跳过横线/空白补差（请抽检）`);
             continue;
           }
           const diff = Math.min(need - rows, 15);

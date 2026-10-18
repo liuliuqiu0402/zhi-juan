@@ -258,12 +258,13 @@ export const VALIDATOR_RULES = [
     //   ——该半句与**本规则自身 description** 自述的口径**相抵**（"具体载体条款（田字格/拼音格/四线三格/**方格纸**）
     //   由 `buildCarrierInstruction` 按 学科×学段 **精确注入**"），且本规则 `subjects:['*']` ⇒ 三处实伤：
     //   ① **跨学科噪音**：语文/英语/音乐/美术/体育/道法/历史/地理等**无作图**学科也收到"作图题用方格纸"；
-    //   ② **越学段诱导**：数学·初中/高中本不注入方格纸（`WRITING_CARRIER['数学'].middle/high=[]`、
-    //      `SQUARE_GRID.middle/high=null`，实证口径"由考试答题纸自带网格，**不给'用方格纸'诱导**"），
-    //      而本 hint 全学科全学段恒注入 ⇒ 同份 prompt 内与 cell 判据打架；
-    //   ③ 与项目自检件 `prompt-audit-checklist` 的"**同一句'作图类题用方格纸'只注入小学数学**……三处一致"相左。
-    //   处置＝**删该半句**（载体条款单源在 `layoutSpec.buildCarrierInstruction`，数学小学段仍由它注入
-    //   "作图类题用方格纸作答区（示例：<span class="square-grid"></span>）"——`blueprintInjection` 有正向锁）；
+    //   ② **越学段诱导**（2026-10-18 更新）：原据"数学·初中/高中不注入方格纸"（`WRITING_CARRIER['数学'].middle/high=[]`、
+    //      `SQUARE_GRID.middle/high=null`）判本半句与 cell 判据打架——该前提**已随属主裁定变更**（"本项目不出答题卡"⇒
+    //      方格纸改为**数学全学段**注入，允许表 middle/high 亦含 square-grid）；故本半句如今只在**跨学科**维度仍错
+    //      （①），"越学段"维度不再构成理由；
+    //   ③ 与项目自检件 `prompt-audit-checklist` 的"**同一句'作图类题用方格纸'只注入数学**……三处一致"相左。
+    //   处置＝**删该半句**（载体条款单源在 `layoutSpec.buildCarrierInstruction`，数学各学段仍由它注入
+    //   "作图类题用方格纸作答区（示例：<div class="square-grid"></div>）"——`blueprintInjection` 有正向锁）；
     //   本规则只留**全学科中性**的那半句（书写载体皆空位、严禁预填）。
     promptHint: '任何书写载体（横线/书写格/空白行）均为空位，严禁预填字或答案。',
     description: '书写格按学段与题型双向规范（数据源=排版规格库 WRITING_CARRIER/CARRIER_RULES）：按 学科×学段 允许载体列表越界自动剥离（如中段以上田字格/四线三格、非语英学科混入格子）；书写格内容剥离（格子内预填字清空保留空格子）；载体×题型正规化（must 提示抽检/forbid 自动剥离）。2026-08 拆分：表达类禁格子/载体缺失/作文格补格等 语英专属 逻辑拆至独立规则 writing-expression-fix（subjects 语/英），本规则保持全学科职责（越界剥离对数学 square-grid 等全学科生效）——杜绝向数学/科学等学科注入"写话/作文"词汇噪音，同时不破坏全学科载体治理。2026-08-31 生成前提示语中性化：原"写字/抄写/…拼音"为语英专属词，经 subjects=* 广播到数学/体育/音乐等学科构成跨学科诱导（A1），现改为中性措辞；具体载体条款（田字格/拼音格/四线三格/方格纸）由 buildCarrierInstruction 按 学科×学段 精确注入，本规则生成后剥离职责保持全学科不变。',

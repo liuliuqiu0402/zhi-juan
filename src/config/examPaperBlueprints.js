@@ -85,11 +85,11 @@ export const EXAM_BLUEPRINTS = {
       // 2026-09-19 调研（一二年级实际流通纸笔卷）：真实二年级卷**必设竖式/笔算题（8-18分）**，
       //    原骨架整题缺失（最实质缺项）；"直接写得数 20 / 看图列式 10"偏高、"填空 20"偏低 → 一并校正。
       { name: '直接写得数', score: 14, note: '口算，直接写得数。' },
-      { name: '竖式计算', score: 12, note: '列竖式计算，要求书写规范；竖式书写区按作答载体规范留出' },
+      { name: '竖式计算', score: 12, note: '列竖式计算，要求书写规范' },
       { name: '填空', score: 24, note: '基础内容直接作答' },
       { name: '判断', score: 10, note: '概念与算法辨析' },
       { name: '选择', score: 10, note: '基础辨析' },
-      { name: '操作题', score: 8, note: '动手操作；需作图的题留出相应作答区域' },
+      { name: '操作题', score: 8, note: '动手操作（含作图）' },
       { name: '看图列式计算', score: 6, note: '看图列出算式并计算' },
       { name: '解决问题', score: 16, note: '应用题，要求列式、计算并作答（写单位、写答语）' },
     ],
@@ -98,11 +98,11 @@ export const EXAM_BLUEPRINTS = {
     label: '数学·小学中段（3-4年级）', fullScore: 100, duration: '90分钟',
     sections: [
       { name: '口算', score: 10, note: '口算，直接写得数。' },
-      { name: '用竖式计算', score: 18, note: '竖式计算（含验算），要求书写规范；竖式书写区按作答载体规范留出' },
+      { name: '用竖式计算', score: 18, note: '竖式计算（含验算），要求书写规范' },
       { name: '填空', score: 20, note: '概念与技能的直接作答' },
       { name: '判断', score: 8, note: '概念辨析' },
       { name: '选择', score: 8, note: '基础辨析' },
-      { name: '操作题', score: 6, note: '动手操作类；需动手画图的题留出作图区域' },
+      { name: '操作题', score: 6, note: '动手操作类（含画图）' },
       { name: '解决问题', score: 30, note: '应用题，体现问题解决过程（列式、计算、作答完整）' },
     ],
   },
@@ -114,7 +114,7 @@ export const EXAM_BLUEPRINTS = {
       { name: '填空', score: 20, note: '概念、推理与度量的直接作答' },
       { name: '判断', score: 8, note: '概念辨析' },
       { name: '选择', score: 8, note: '基础辨析' },
-      { name: '操作题', score: 8, note: '需动手画图的题留出作图区域' },
+      { name: '操作题', score: 8, note: '需动手画图' },
       { name: '解决问题', score: 30, note: '应用题，体现模型意识' },
     ],
   },
@@ -713,7 +713,7 @@ const STAGE_FALLBACK = {
  * 口径（与注入条款一致，见 promptLibrary 的【层级归并】）：
  *   · 'part'   —— 名内带"·"前缀（如"听力·听音选图"）→ 前缀归并为**部分层**（居中、无编号）
  *   · 'domain' —— 课标内容领域/实践活动名（如"积累与运用"）→ 作**大类层**
- *   · 'item'   —— 其余（题型/作答形式名，如"选择题""直接写得数"）→ **不设大类层**，块名即大题标题
+ *   · 'item'   —— 其余（题型/作答形式名，如"选择题""直接写得数"）→ **不设大类层**（该行直接作大题行；题名按 promptLibrary 大题标题命名条）
  * 本判定是**唯一出口**，勿在别处另写一套名单。
  * @param {string} name 蓝图栏目的 name
  * @returns {'domain'|'part'|'item'}

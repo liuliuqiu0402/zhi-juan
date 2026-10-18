@@ -1420,9 +1420,9 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
   const ZC = getMergedSpec().ZUOWEN_CELL;
   const zwgMm = ZC[zwgKey].heightMm;   // 格高（主/初正方、高8mm）
   const zwgMmW = ZC[zwgKey].widthMm;   // 格宽（主12/初10/7.5）
-  // 🔧 方格纸/括号格尺寸（来自排版规格库 SQUARE_GRID / BRACKET_GRID）
+  // 🔧 方格纸/括号格尺寸（来自排版规格库 SQUARE_GRID / BRACKET_GRID；方格纸为**学段无关单源**，三端同尺寸）
   const spec = getMergedSpec();
-  const sg = spec.SQUARE_GRID.primary || { cols: 12, rows: 8, cellMm: 7 };
+  const sg = spec.SQUARE_GRID || { cols: 12, rows: 8, cellMm: 7 };
   const sgW = Math.round(sg.cols * sg.cellMm);
   const sgH = Math.round(sg.rows * sg.cellMm);
   const bg = spec.BRACKET_GRID;

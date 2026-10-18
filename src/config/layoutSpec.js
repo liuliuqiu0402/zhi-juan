@@ -88,7 +88,7 @@ export const ZUOWEN_DEFAULT_SPAN = 2;
  * 书写载体（学科 × 学段 → 允许的载体 class 列表）
  *  - 语文：低段田字格+米字格+拼音格；中段起正常横线
  *  - 英语：中段四线三格（英语 3 年级起点）；低段/高段起正常横线（低段显式声明，避免 null 漏检语文格子越界混入）
- *  - 数学：作图方格纸 square-grid 仅小学段合法（作图题；初中以上由考试答题纸自带网格，不给"用方格纸"诱导）；其余格子类一律不允许
+ *  - 数学：作图方格纸 square-grid **全学段**合法（作图题；本项目不出答题卡，中学段同样需方格纸作答区）；其余格子类一律不允许
  *  - 其余学科（物理/化学/生物/科学/道德与法治/思想政治/历史/地理/音乐/美术/体育/信息科技）：显式空数组
  *    = 不允许任何格子类（出现田字格/四线三格等即按越界自动剥离）
  *  - 未显式定义的学科（新学科兜底）：不检测（getCarrierAllowlist 返回 null）
@@ -123,8 +123,8 @@ export const WRITING_CARRIER = {
     primary_low: ['square-grid'],
     primary_mid: ['square-grid'],
     primary_high: ['square-grid'],
-    middle: [], // 作图方格纸仅小学段渲染（SQUARE_GRID middle/high=null）；初中以上由考试答题纸自带网格，不给"用方格纸"诱导
-    high: [],
+    middle: ['square-grid'], // 2026-10-18（属主"本项目不出答题卡"）：中学段同样需方格纸作答区（原 [] 为"考试答题纸自带网格"假设，本项目不成立）
+    high: ['square-grid'],
   },
   物理: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
   化学: { primary_low: [], primary_mid: [], primary_high: [], middle: [], high: [] },
@@ -218,7 +218,7 @@ const CARRIER_MUST_SEMANTICS = {
  * 生成"书写载体"指令条款（指令库 QUESTION_FORMAT 引用；数据源 = WRITING_CARRIER/CARRIER_RULES 唯一事实源）
  * 按 学科×学段 精确输出：
  *   - 命中 must 载体规则（语文低段田字格/拼音格、英语中段四线三格）→ 逐条输出"XX类题必须真实输出XX"
- *   - 允许方格纸（数学小学段作图题）→ 输出"作图类题用方格纸"
+ *   - 允许方格纸（数学作图题，全学段）→ 输出"作图类题用方格纸"
  *   - 其余（横线惯例/显式禁止格子/未定义学科）→ 返回空串（默认作答形态由通用句覆盖，不注入）
  * 消费方：promptLibrary QUESTION_FORMAT（按三维度 cell 组装时以 subject/stage 调用）
  */
@@ -239,7 +239,7 @@ const carrierMustParts = (subject = '', stage = '') => {
     if (sem) parts.push(`${sem.label}必须真实输出${label}（示例：<span class="${r.carrier}">${sem.demo}</span>）`);
     else parts.push(`「${r.keywords.split('|')[0]}」类题必须真实输出${label}`);
   }
-  if (list.includes('square-grid')) parts.push('作图类题用方格纸作答区（示例：<span class="square-grid"></span>）');
+  if (list.includes('square-grid')) parts.push('作图类题用方格纸作答区（示例：<div class="square-grid"></div>）');
   return parts;
 };
 
@@ -489,7 +489,7 @@ export function buildAnswerSpaceInstruction(subject = '', stage = '') {
     //    语境线索句、题干/材料内挖空、材料本就缺内容者皆然）；**并存/去重仍归 dupClause 单源**。
     `· **待答之处＝空位之处＝载体之处（三处同位）**——作答要求指向哪里，那个地方**本身就是空位**（该处让空，不得写成完整内容把它露出来）；**作答载体紧随该空位**（书写格/横线/括号空位——不另起一段、不另设一处、也不只在题末另给）；线索（${subject === '语文' ? '拼音、上下文提示等' : '上下文提示等'}）标在该空位处。`,
     `· 短答空位宽度按"恰好容纳该空答案"换算：按该空答案的字位数（数字/汉字/小数点各算 1 个字位），**在空位载体内**写等量的全角空格（${buildBlankWidthInstruction()}），连列空位全带、不得遗漏；空位载体标签里的档位号 **N 就是该空答案的字位数**，**不是空位的序号**——不同空位的宽窄随**各自答案**变化（N 各按各的答案字位数取值）；`,
-    '· 同一题（含并列子题）同性质空位的形态一致；一个空位只写一种载体，空位内不再嵌空位或载体、也不给任何载体外套一层括号、空位前不叠加空白宽度；同一大题内"所填为字母/序号/√×等符号"的作答位**位置整段统一**（不得同段混用两种位置）、**括号一律半角、同卷不混用全角半角**；**作答位个数＝作答对象个数**（一对象一位）；',
+    '· 同一题（含并列各项）同性质空位的形态一致；一个空位只写一种载体，空位内不再嵌空位或载体、也不给任何载体外套一层括号、空位前不叠加空白宽度；同一大题内"所填为字母/序号/√×等符号"的作答位**位置整段统一**（不得同段混用两种位置）、**括号一律半角、同卷不混用全角半角**；**作答位个数＝作答对象个数**（一对象一位）；',
     '· 作答空间只以真实留白或书写载体呈现：不得以任何文字（提示、标签、说明）充当或预置作答空间；',
   ];
   if (subject && stage) {
@@ -750,13 +750,15 @@ export function getAnswerRegion(subject = '', stage = '') {
 }
 
 /**
- * 方格纸 square-grid（作图答题区，小学段专用；初中以上由考试答题纸自带网格，不强制）
+ * 方格纸 square-grid（作图答题区，**全学段**；本项目不出答题卡，中学段同样需方格纸作答区）
  * cellMm：格子边长（CSS 背景网格与宽高换算用）
+ * 🔗 **学段无关·单源**（与 BRACKET_GRID 同模式，不设 primary/middle/high 三档键）：三端（预览/编辑器/Word）
+ *    必须读到同一组尺寸，避免"编辑器预览与导出 Word 不一致"；分档差异若将来需要，另开键再评估。
  */
 export const SQUARE_GRID = {
-  primary: { cols: 12, rows: 8, cellMm: 7 },
-  middle: null,
-  high: null,
+  cols: 12,
+  rows: 8,
+  cellMm: 7,
 };
 
 /** 括号答题格 bracket-grid（行高/宽度，themeConfig 与 RichTextEditor CSS 读取） */

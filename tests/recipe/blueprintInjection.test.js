@@ -385,7 +385,7 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
       '**选项题的作答位形态与位置**属本条管辖',
       '· 短答空位宽度按"恰好容纳该空答案"换算',
       '不同空位的宽窄随**各自答案**变化（N 各按各的答案字位数取值）',
-      '· 同一题（含并列子题）同性质空位的形态一致；一个空位只写一种载体',
+      '· 同一题（含并列各项）同性质空位的形态一致；一个空位只写一种载体',
       '· 作答空间只以真实留白或书写载体呈现：不得以任何文字（提示、标签、说明）充当或预置作答空间',
     ];
     const QUESTION_TYPES = ['exam', 'practice', 'special', 'reading', 'dictation', 'errorbook', 'review'];
@@ -457,12 +457,17 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
     // 数学小学段：作图方格纸（作图题）
     const mathPri = getPromptTemplate({ grade: 'primary_mid', subject: '数学', genType: 'practice' });
     expect(mathPri.template).toContain('作图类题用方格纸');
-    // 数学中/高学段：由考试答题纸自带网格，不注入"方格纸"诱导（SQUARE_GRID middle/high=null）
+    expect(mathPri.template).toContain('<div class="square-grid"></div>');
+    // 数学中/高学段：2026-10-18（属主"本项目不出答题卡"）**同样注入**方格纸作答区
+    //    （原"考试答题纸自带网格 → middle/high 不注入"假设不成立；SQUARE_GRID 已改学段无关单源）
     const mathMid = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'practice' });
-    expect(mathMid.template).not.toContain('方格纸');
-    // 无格子学科（物理）：不注入任何载体示例 span
+    expect(mathMid.template).toContain('作图类题用方格纸');
+    const mathHigh = getPromptTemplate({ grade: 'high', subject: '数学', genType: 'practice' });
+    expect(mathHigh.template).toContain('作图类题用方格纸');
+    // 无格子学科（物理）：不注入任何载体示例（含方格纸）
     const physics = getPromptTemplate({ grade: 'middle', subject: '物理', genType: 'practice' });
     expect(physics.template).not.toContain('<span class=');
+    expect(physics.template).not.toContain('square-grid');
   });
 
   it('学段特点无旧措辞 [配图说明]；配图要求走正文图-题一致性条款（点名 [IMAGE] 并指向【渲染指令】）', () => {
@@ -558,9 +563,10 @@ describe('载体允许表学科键归一化（道法/政治/信息 → canonical
     expect(buildCarrierInstruction('数学', 'primary_mid')).toContain('方格纸');
   });
 
-  it('数学中/高段不注入方格纸（归靠考试答题纸网格）', () => {
-    expect(buildCarrierInstruction('数学', 'middle')).toBe('');
-    expect(buildCarrierInstruction('数学', 'high')).toBe('');
+  it('数学全学段注入方格纸（2026-10-18 属主"本项目不出答题卡"：中学段同样需方格纸作答区）', () => {
+    expect(buildCarrierInstruction('数学', 'middle')).toContain('方格纸');
+    expect(buildCarrierInstruction('数学', 'high')).toContain('方格纸');
+    expect(buildCarrierInstruction('数学', 'middle')).toContain('<div class="square-grid"></div>');
   });
 });
 

@@ -127,30 +127,28 @@ describe('矩阵：特殊格子载体协议边界（buildCarrierInstruction 防�
   }
 });
 
-describe('矩阵：作图方格纸仅小学（中学作图走空白区，实证对齐）', () => {
-  // 真实中高考答题卡：作图在按题号分割的空白作答区内用 2B 铅笔自画（省考试院规范），不预印方格纸。
-  // 四层闭环契约：规格(SQUARE_GRID null) → 允许表(WRITING_CARRIER []) → 生成端(buildCarrierInstruction '')
-  //   → 语义(buildAnswerSpaceInstruction 无线空白、无"方格纸"诱导)；任一层被放开都会让方格纸回到中学卷，此处钉死。
-  it('SQUARE_GRID 仅 primary 有渲染参数，middle/high 为 null', () => {
-    expect(SQUARE_GRID.primary).not.toBeNull();
-    expect(SQUARE_GRID.middle).toBeNull();
-    expect(SQUARE_GRID.high).toBeNull();
+describe('矩阵：作图方格纸全学段（2026-10-18 属主"本项目不出答题卡"）', () => {
+  // 口径变更（原"仅小学、中学作图走空白区"假设"答题卡自带网格"，属主裁定本项目**不出答题卡** ⇒ 中学同样需方格纸作答区）。
+  // 四层闭环契约：规格(SQUARE_GRID 学段无关单源) → 允许表(WRITING_CARRIER 全学段含 square-grid) → 生成端(条款在)
+  //   → 语义；四层同源，任一层被收回都会让方格纸离开中学卷，此处钉死。
+  it('SQUARE_GRID 为学段无关单源（不设 primary/middle/high 三档键，三端同尺寸）', () => {
+    expect(SQUARE_GRID.cols).toBeGreaterThan(0);
+    expect(SQUARE_GRID.rows).toBeGreaterThan(0);
+    expect(SQUARE_GRID.cellMm).toBeGreaterThan(0);
+    expect(SQUARE_GRID.primary).toBeUndefined();
+    expect(SQUARE_GRID.middle).toBeUndefined();
+    expect(SQUARE_GRID.high).toBeUndefined();
   });
 
-  it('WRITING_CARRIER：数学小学允许 square-grid；middle/high 显式空数组（越界剥离防线）', () => {
-    for (const st of ['primary_low', 'primary_mid', 'primary_high']) {
+  it('WRITING_CARRIER：数学全学段允许 square-grid（越界剥离防线改为按学科）', () => {
+    for (const st of ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high']) {
       expect(getCarrierAllowlist('数学', st)).toContain('square-grid');
     }
-    expect(getCarrierAllowlist('数学', 'middle')).toEqual([]);
-    expect(getCarrierAllowlist('数学', 'high')).toEqual([]);
   });
 
-  it('生成端：数学 middle/high 无方格纸条款、长答语义为无线空白（作图题落空白区）', () => {
-    for (const st of ['middle', 'high']) {
-      expect(buildCarrierInstruction('数学', st)).toBe('');
-      const s = buildAnswerSpaceInstruction('数学', st);
-      expect(s).not.toContain('方格纸');
-      expect(s).toContain('无线空白');
+  it('生成端：数学全学段有方格纸条款', () => {
+    for (const st of ['primary_low', 'primary_mid', 'primary_high', 'middle', 'high']) {
+      expect(buildCarrierInstruction('数学', st)).toContain('方格纸');
     }
   });
 });

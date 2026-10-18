@@ -441,16 +441,16 @@ describe('根治回归：载体声明→输出一致性（题干明确声明载�
     expect(silent).toBeGreaterThan(0);
   });
 
-  it('数学初中"在方格纸上画"（该学段方格纸不合法）→ 不按"应输出"强检（越界剥离防线已处理）', () => {
+  it('数学初中"在方格纸上画"题内已有 square-grid → 不按"应输出"强检（中学段方格纸合法，不剥离）', () => {
     const html = `
 <h2>三、动手操作（共1题，共6分）</h2>
 <p>5. 在方格纸上画一个正方形。（共6分）</p>
 <div class="square-grid"><span>&emsp;</span></div>
 `.trim();
     const r = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'exam' });
-    // 初中以上 square-grid 被越界剥离（答题纸自带网格）→ 声明检测不应报"应输出"
+    // 中学段 square-grid 合法（本项目不出答题卡）→ 不剥离、声明检测不应报"应输出"
     expect(r.silentDetails.some(d => d.type === 'writing-grid' && d.message.includes('square-grid'))).toBe(false);
-    expect(r.html).not.toContain('square-grid');
+    expect(r.html).toContain('square-grid');
   });
 
   it('语文中段"在田字格中写"（中段田字格不合法）→ 不按"应输出"强检', () => {

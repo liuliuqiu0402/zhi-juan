@@ -1,6 +1,8 @@
-// 专用作答区语境防错配回归（2026-09）：
-// 竖式/作图/填表类题题内确无任何作答载体时，2k 通用补差（横线/空白行）属错配 → 改为静默抽检提示；
-// 已有对应载体（bracket-grid/draw-area/square-grid/<table>/填空位/作答行）一律不打扰；
+// 专用作答区语境防错配回归（2026-09；2026-10-18 按属主裁定改准竖式一支）：
+// 作图/填表类题题内确无任何作答载体时，2k 通用补差（横线/空白行）属错配 → 作图定向补 draw-area、
+// 填表改静默抽检提示；**竖式不属此列**（layoutSpec 竖式过程区＝"算式后留无线空白行"，与数学 region 同形）
+// → 归竖式支确定性补行（每式 3 行、按学段单题上限收敛）。
+// 已有对应载体（draw-area/square-grid/<table>/填空位/作答行）一律不打扰；
 // 普通解答应用题（无专用语境）仍维持原 blank-area 补差。全程只读判定，不碰模型 prompt。
 import { describe, it, expect } from 'vitest';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
@@ -8,9 +10,10 @@ import { auditExamPaper } from '../../src/utils/examValidator.js';
 const runMath = (html) => auditExamPaper(html, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
 const runYw = (html) => auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });
 const hasGuard = (r, kw) => r.silentDetails.some(d => d.type === 'answer-area' && d.message.includes(kw));
+const hasFix = (r, kw) => r.issues.some(i => i.type === 'answer-area' && i.message.includes(kw));
 
-describe('专用作答区语境防错配（竖式/作图/填表无载体 → 不补通用空白，静默抽检）', () => {
-  it('竖式题（用竖式计算）无任何载体 → 不补 blank-area，报"竖式"抽检', () => {
+describe('专用作答区语境防错配（作图/填表无载体 → 不补通用空白；竖式 → 确定性补无线空白行）', () => {
+  it('竖式题（用竖式计算）无任何载体 → 确定性补无线空白行（竖式书写区），不报"竖式"抽检', () => {
     const html = [
       '<h1>三上数学期中测试</h1><p>满分：100分</p>',
       '<h2>二、计算（共1题，共12分）</h2>',
@@ -18,11 +21,12 @@ describe('专用作答区语境防错配（竖式/作图/填表无载体 → 不
       '<p>（1）45＋27＝</p><p>（2）63－39＝</p>',
     ].join('\n');
     const r = runMath(html);
-    expect(r.html).not.toContain('blank-area'); // 不补 generic 空白行
-    expect(hasGuard(r, '竖式')).toBe(true);
+    expect(r.html).toContain('blank-area'); // 竖式过程区＝无线空白行（layoutSpec 形态）
+    expect(hasFix(r, '竖式书写区')).toBe(true);
+    expect(hasGuard(r, '竖式')).toBe(false);
   });
 
-  it('竖式题已有括号填空位（＝（　　））→ 视为已提供作答空间，不提示不补', () => {
+  it('竖式题仅有结果位括号空位（＝（　　））→ 过程区与结果位并存，仍补无线空白行', () => {
     const html = [
       '<h1>三上数学期中测试</h1><p>满分：100分</p>',
       '<h2>二、计算（共1题，共12分）</h2>',
@@ -30,7 +34,8 @@ describe('专用作答区语境防错配（竖式/作图/填表无载体 → 不
       '<p>（1）45＋27＝（　　）</p><p>（2）63－39＝（　　）</p>',
     ].join('\n');
     const r = runMath(html);
-    expect(r.html).not.toContain('blank-area');
+    expect(r.html).toContain('blank-area'); // 结果位只容得数，列竖式仍需过程区（layoutSpec 例外条：二者并存）
+    expect(hasFix(r, '竖式书写区')).toBe(true);
     expect(hasGuard(r, '竖式')).toBe(false);
   });
 
@@ -73,15 +78,15 @@ describe('专用作答区语境防错配（竖式/作图/填表无载体 → 不
     expect(r.issues.some(i => i.type === 'answer-area' && i.message.includes('方格纸'))).toBe(true);
   });
 
-  it('中学段题干点名"方格纸"→ 不补 square-grid（该载体仅小学段合法），仍走 draw-area', () => {
+  it('中学段题干点名"方格纸"→ 补 square-grid（数学全学段合法，本项目不出答题卡），不补 draw-area', () => {
     const html = [
       '<h1>七年级数学</h1><p>满分：100分</p>',
       '<h2>五、操作（共1题，共4分）</h2>',
       '<p>1. 在方格纸上画出下面图形的对称轴。（4分）</p>',
     ].join('\n');
     const r = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'exam' });
-    expect(r.html).not.toContain('class="square-grid"');
-    expect(r.html).toContain('class="draw-area"');
+    expect(r.html).toContain('class="square-grid"');
+    expect(r.html).not.toContain('class="draw-area"');
   });
 
   it('填表题（用表格整理…）无表格 → 不补 blank-area，报"填表"抽检', () => {

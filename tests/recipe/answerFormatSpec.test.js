@@ -10,7 +10,7 @@ import { buildAnswerFormatSpec } from '@/config/promptLibrary.js';
 describe('buildAnswerFormatSpec（答案页：与正文同构、不复述题干）', () => {
   it('只含两条精简语义（与正文同构 + 不复述题干/作答空位）', () => {
     const s = buildAnswerFormatSpec();
-    expect(s).toContain('按正文的大题与题号层级组织，与正文同构');
+    expect(s).toContain('按正文的大题与题号组织，与正文同构');
     expect(s).toContain('不复述题干原文');
     expect(s).toContain('不重现正文作答空位');
     // 层级/题号写法不再逐条列举（由"与正文同构"覆盖，避免诱导模型套用固定编号形态）

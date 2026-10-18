@@ -488,12 +488,14 @@ describe('examValidator 书写格按学段（writing-grid-fix）', () => {
     expect(out2).not.toContain('four-line-three');
   });
 
-  it('数学作图方格纸 square-grid：小学段合法保留；初中以上剥离（考试答题纸自带网格）', () => {
+  it('数学作图方格纸 square-grid：数学全学段合法保留（本项目不出答题卡，中学段同样需方格纸）', () => {
     const html = '<h2>二、作图（10分）</h2>\n<p>1. 在方格纸上画一个正方形。</p>\n<div class="square-grid"><span>&emsp;</span></div>';
     const { html: out1 } = auditExamPaper(html, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
     expect(out1).toContain('square-grid');
     const { html: out2 } = auditExamPaper(html, { subject: '数学', stage: 'middle', genType: 'exam' });
-    expect(out2).not.toContain('square-grid');
+    expect(out2).toContain('square-grid');
+    const { html: out3 } = auditExamPaper(html, { subject: '数学', stage: 'high', genType: 'exam' });
+    expect(out3).toContain('square-grid');
   });
 
   it('sixian-ge（four-line-three 旧名别名）英语中段不剥离；中段以上仍越界剥离（别名折叠）', () => {
@@ -796,10 +798,11 @@ describe('examValidator 书写作答空间保障（answer-area-fix）', () => {
     expect(issues.some(i => i.type === 'answer-area')).toBe(true);
   });
 
-  it('无分值竖式题 → 不落通用空白补差（竖式需专用书写区，静默抽检交人工）', () => {
+  it('无分值竖式题 → 按"每式 3 行"确定性补无线空白行（2026-10-18：静默抽检改为程序兜底）', () => {
     const html = ['<h2>三、用竖式计算</h2>', '<p>1. 用竖式计算 6.25×1.5。</p>'].join('\n');
-    const { html: out } = auditExamPaper(html, { subject: '数学', stage: 'primary_high', genType: 'practice' });
-    expect(countBlankArea(out)).toBe(0);
+    const { html: out, issues } = auditExamPaper(html, { subject: '数学', stage: 'primary_high', genType: 'practice' });
+    expect(countBlankArea(out)).toBe(3);
+    expect(issues.some(i => i.type === 'answer-area' && i.message.includes('竖式书写区'))).toBe(true);
   });
 
   it('混合大题（填空/判断/竖式/长答混排）：段级不再被"填空/判断"字样拖累，长答题独立补差（根治整卷无空间）', () => {
@@ -812,9 +815,36 @@ describe('examValidator 书写作答空间保障（answer-area-fix）', () => {
       '<p>5. 请写出这次活动的完整计算过程：先算总成本，再算收入与总利润。</p>',
     ].join('\n');
     const { html: out, issues } = auditExamPaper(html, { subject: '数学', stage: 'primary_high', genType: 'practice' });
-    // 题1/3 括号空、题2 判断、题4 竖式 → 不补；题5 长答（无子题）→ 补 4 行空白（曾因段内"填空/判断"字样整段 return）
-    expect(countBlankArea(out)).toBe(4);
+    // 题1/3 括号空、题2 判断 → 不补；题4 竖式 → 补 3 行无线空白（2026-10-18 程序兜底）；题5 长答（无子题）→ 补 4 行空白（曾因段内"填空/判断"字样整段 return）
+    expect(countBlankArea(out)).toBe(7);
     expect(issues.some((i) => i.type === 'answer-area' && i.message.includes('兜底4行'))).toBe(true);
+    expect(issues.some((i) => i.type === 'answer-area' && i.message.includes('竖式书写区'))).toBe(true);
+  });
+
+  it('方格纸兜底（2026-10-18）：题干/大题标题点名方格纸且无方格 → 数学全学段补 square-grid；与"已有括号空位/分值>15"解耦', () => {
+    const h = (title, stem, extra = '') => [`<h2>${title}</h2>`, `<p>${stem}</p>`, extra].join('\n');
+    // ① 小学段：题干点名"方格纸"、题内无任何载体 → 补 square-grid
+    const a = auditExamPaper(h('二、作图（10分）', '1. 在方格纸上画一个正方形。'), { subject: '数学', stage: 'primary_high', genType: 'practice' });
+    expect(a.html).toContain('square-grid');
+    expect(a.issues.some(i => i.type === 'answer-area' && i.message.includes('方格纸'))).toBe(true);
+    // ② 与"已有括号空位"解耦：题内另有括号空位，仍须补方格纸（括号空位不能代替方格纸）
+    const b = auditExamPaper(h('二、作图（10分）', '1. 在方格纸上画一个长（　　　　）厘米的正方形。'), { subject: '数学', stage: 'primary_high', genType: 'practice' });
+    expect(b.html).toContain('square-grid');
+    // ③ 与"分值>15 整块跳过"解耦：作图大题常 >15 分，仍须补方格纸
+    const c = auditExamPaper(h('二、动手操作（20分）', '1. 在方格纸上画出轴对称图形的另一半。'), { subject: '数学', stage: 'primary_high', genType: 'practice' });
+    expect(c.html).toContain('square-grid');
+    // ④ 已有方格纸 → 不重复补
+    const d = auditExamPaper(h('二、作图（10分）', '1. 在方格纸上画一个正方形。', '<div class="square-grid"></div>'), { subject: '数学', stage: 'primary_high', genType: 'practice' });
+    expect((d.html.match(/square-grid/g) || []).length).toBe(1);
+    // ⑤ 中学段：本项目不出答题卡 → 数学全学段允许 square-grid，同样补
+    const e = auditExamPaper(h('二、作图（10分）', '1. 在方格纸上画一个正方形。'), { subject: '数学', stage: 'middle', genType: 'practice' });
+    expect(e.html).toContain('square-grid');
+    // ⑥ 载体声明落在**大题标题**（子题题面不复述）→ 探测域须并入标题，同样补
+    const f = auditExamPaper(h('二、在方格纸上作图（10分）', '1. 画出一个边长为2厘米的正方形。'), { subject: '数学', stage: 'primary_high', genType: 'practice' });
+    expect(f.html).toContain('square-grid');
+    // ⑦ 他科（允许表不含 square-grid）提"方格纸" → 不补（防越界）
+    const g = auditExamPaper(h('二、作图（10分）', '1. 在方格纸上画一个正方形。'), { subject: '语文', stage: 'primary_high', genType: 'practice' });
+    expect(g.html).not.toContain('square-grid');
   });
 
   it('子题混合（(1)(2)填空 + (3)长答 同题）：填空子题不补、长答子题独立补 2 行（子题级根治）', () => {
