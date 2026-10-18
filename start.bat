@@ -1,5 +1,5 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 chcp 65001 >nul 2>&1
 title Wisdom Workshop
 
@@ -13,38 +13,17 @@ echo [0/4] Cleaning GPU memory...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-WmiObject Win32_Process -Filter \"Name='python.exe' and CommandLine LIKE '%%paddleocr_vl_chat%%'\" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
 echo [+] GPU memory released
 
-REM [1/4] Check Ollama
+REM [1/4] Check Ollama (可选：本应用当前走云端 API，未启动不影响使用)
 echo [1/4] Checking Ollama service...
 
-REM Check if Ollama is running using PowerShell
+REM 只检测、不拉起：Ollama 未运行属正常情况
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$wc=New-Object Net.WebClient;try{$wc.DownloadString('http://localhost:11434/api/tags')|Out-Null;exit 0}catch{exit 1}" >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [!] Ollama not running, starting with GPU support...
-    
-    REM Start Ollama from command line (GPU enabled)
-    start "" /B cmd /c "ollama serve"
-    
-    REM Wait for Ollama to be ready (max 15 seconds)
-    echo     Waiting for Ollama to be ready...
-    set /a retries=0
-    :wait_ollama
-    timeout /t 2 /nobreak >nul
-    
-    REM Simple check: try to access the API
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$wc=New-Object Net.WebClient;try{$wc.DownloadString('http://localhost:11434/api/tags')|Out-Null;exit 0}catch{exit 1}" >nul 2>&1
-    if !errorlevel! equ 0 (
-        echo [+] Ollama is ready!
-        goto ollama_ready
-    ) else (
-        set /a retries+=1
-        if !retries! lss 8 goto wait_ollama
-        echo [!] Ollama startup timeout, will retry when needed
-    )
+    echo [i] Ollama is not running - OK, the app uses cloud API.
+    echo     Ollama is optional. If you need local models, run: ollama serve
 ) else (
     echo [+] Ollama is running
 )
-
-:ollama_ready
 
 REM [2/4] Start Vite dev server
 echo [2/4] Starting Vite dev server...
@@ -54,7 +33,7 @@ REM [3/4] Launch Electron (npm runs in background)
 echo [3/4] Launching Electron...
 echo ========================================
 echo   All services started!
-echo   - Ollama: http://localhost:11434
+echo   - Models: cloud API (Ollama optional)
 echo   - App: Opening...
 echo ========================================
 echo.

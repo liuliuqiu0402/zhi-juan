@@ -1360,49 +1360,37 @@ ipcMain.handle('extract-pdf-outline', async (event, pdfPath) => {
 // ==================== Ollama 服务检测 ====================
 async function checkOllamaService() {
     const http = require('http');
-    const { exec } = require('child_process');
     
-    // 重试机制：等待 Ollama 启动
-    const maxRetries = 5;
-    const retryDelay = 2000; // 2秒
-    
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-            const result = await new Promise((resolve, reject) => {
-                const req = http.get('http://localhost:11434/api/tags', (res) => {
-                    if (res.statusCode === 200) {
-                        console.log('[✅] Ollama service is running');
-                        resolve(true);
-                    } else {
-                        resolve(false);
-                    }
-                });
-                
-                req.on('error', () => resolve(false));
-                req.setTimeout(2000, () => {
-                    req.destroy();
+    // 只检测一次：Ollama 为可选依赖，脚本侧不再自动拉起，无需轮询等待
+    try {
+        const result = await new Promise((resolve) => {
+            const req = http.get('http://localhost:11434/api/tags', (res) => {
+                if (res.statusCode === 200) {
+                    console.log('[✅] Ollama service is running');
+                    resolve(true);
+                } else {
                     resolve(false);
-                });
+                }
             });
-            
-            if (result) {
-                // Ollama 已就绪，检查 GPU
-                await checkOllamaGPU();
-                return true;
-            }
-            
-            // 未就绪，等待后重试
-            if (attempt < maxRetries - 1) {
-                console.log(`[] Waiting for Ollama... (${attempt + 1}/${maxRetries})`);
-                await new Promise(r => setTimeout(r, retryDelay));
-            }
-        } catch (e) {
-            // 忽略错误，继续重试
+
+            req.on('error', () => resolve(false));
+            req.setTimeout(2000, () => {
+                req.destroy();
+                resolve(false);
+            });
+        });
+
+        if (result) {
+            // Ollama 已就绪，检查 GPU
+            await checkOllamaGPU();
+            return true;
         }
+    } catch (e) {
+        // 忽略错误
     }
-    
-    // 所有重试失败，才显示提示
-    console.warn('[⚠️] Ollama service not detected after retries');
+
+    // 检测失败：给出提醒（Ollama 可选，不影响云端 API 使用）
+    console.warn('[ℹ️] Ollama service not detected (optional)');
     handleOllamaNotRunning();
     return false;
 }
@@ -1510,10 +1498,10 @@ function handleOllamaNotRunning() {
     // 延迟显示，避免阻塞启动
     setTimeout(() => {
         dialog.showMessageBox({
-            type: 'warning',
-            title: 'Ollama 服务未运行',
-            message: '检测到 Ollama AI 服务未启动',
-            detail: '智卷工坊需要 Ollama 服务才能使用 AI 功能。\n\n重要提示：\n• 不要从开始菜单启动 Ollama（无法启用 GPU）\n• 请从命令行启动：\n  1. 打开 PowerShell 或 CMD\n  2. 运行：ollama serve\n  3. 重启本应用\n\n安装 Ollama：https://ollama.com/download',
+            type: 'info',
+            title: 'Ollama 未运行（可选）',
+            message: 'Ollama 本地服务未启动',
+            detail: '本应用当前使用云端 API，无需 Ollama，可正常使用。\n\n仅当你要使用本地模型时，才需要启动 Ollama：\n  1. 打开 PowerShell 或 CMD\n  2. 运行：ollama serve\n\n安装 Ollama：https://ollama.com/download',
             buttons: ['我知道了', '打开 Ollama 官网'],
             defaultId: 0,
             cancelId: 0
@@ -1531,11 +1519,11 @@ app.whenReady().then(async () => {
     registerCustomProtocol();
     ensureStorageDir();
     
-    // 🔧 新增：检测 Ollama 服务
-    await checkOllamaService();
-    
     createWindow();
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+
+    // Ollama 为可选依赖（当前走云端 API）：后台检测并提醒，不阻塞启动
+    checkOllamaService();
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
