@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS, ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS, buildAnswerFormatSpec, NUMBERING_HIERARCHY_RULE, QUESTION_NUMBERING_CALIBER, GROUP_TITLE_NUMBERING_CALIBER, QUESTION_OBJECT_CALIBER } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS, ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS, buildAnswerFormatSpec, NUMBERING_HIERARCHY_RULE, GROUP_TITLE_NUMBERING_CALIBER, QUESTION_OBJECT_CALIBER } from '../../src/config/promptLibrary.js';
 import { TEACHING_SUBJECT_BLUEPRINTS } from '../../src/config/teachingBlueprints.js';
 import { styleInstructions, styleOptions, DEFAULT_STYLE_BY_TYPE } from '../../src/config/expertKnowledge.js';
 import { getValidatorRule } from '../../src/config/validatorRules.js';
@@ -280,8 +280,14 @@ describe('序号体系 · 层级样式（2026-09-26 补全：模型一次写对�
     //    属**举例当边界＋与正向重复** ⇒ 删；本用例判据不变（汉字序号被明确纳入"层级样式"）。
     expect(NUMBERING_HIERARCHY_RULE).toContain('「一、二、三…」汉字序号同样是一种样式');
     expect(NUMBERING_HIERARCHY_RULE, '反例式旧句不得回潮').not.toContain('下级就不得再用「一、」');
-    for (const form of ['一、二、三…', '1. 2. 3.…', '(1)(2)', '①②', '项目符号']) {
-      expect(NUMBERING_HIERARCHY_RULE, `层级样式词表漏了 ${form}`).toContain(form);
+    // 🔴 2026-10-18（属主质询·删 4 项枚举）：原句列举 5 种样式（含"项目符号"）——枚举把注意力钉在
+    //    "给每层挑一个样式"上，反过来**逼模型先把层级造出来**（＝造层级＋补小题号），且属**许可式**。
+    //    ⇒ 删枚举、只留判据（同一层级只用一种样式／若确有不同层级各用不同样式）＋汉字序号澄清。
+    //    本处改准为**反向锁**：判据仍在、枚举不得回潮。
+    expect(NUMBERING_HIERARCHY_RULE, '判据仍在（同一层级只用一种样式）').toContain('同一层级只用一种样式');
+    expect(NUMBERING_HIERARCHY_RULE, '"多层"须为条件式、不得预设').toContain('若确有不同层级');
+    for (const form of ['1. 2. 3.…', '(1)(2)', '①②', '项目符号']) {
+      expect(NUMBERING_HIERARCHY_RULE, `样式枚举不得回潮（${form}）`).not.toContain(form);
     }
   });
 
@@ -604,11 +610,14 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
     expect(PAPER_OUTPUT_CONVENTIONS.once('语文', false)).not.toContain('阿拉伯题号');
   });
 
-  it('自洽①判据域=题面（含标题行/要求行/材料引导语），不再只认"题干"', () => {
+  it('自洽①判据域=题面（凡卷面上出现的说明性文字都算），不再只认"题干"', () => {
     const t = examTpl();
-    expect(t).toContain('含题干、标题行、要求行、材料引导语');
+    expect(t).toContain('凡卷面上出现的说明性文字都算');
     expect(t).toContain('题面怎么说、卷面就怎么做');
     expect(t, '旧判据域"只认题干"须已扩为"题面"').not.toContain('判据只有题干自身措辞');
+    // 🔴 2026-10-18（属主质询·删枚举）：原括注枚举"含题干、标题行、要求行、材料引导语"——枚举被读成
+    //    "照这些项去造"（＝补小题号／重复标题的诱导源之一）⇒ 删枚举、只留外延判据"凡…说明性文字都算"。
+    expect(t, '题面枚举不得回潮').not.toContain('含题干、标题行、要求行、材料引导语');
   });
 
   it('📐 面10（载体↔所填内容）复诊：形态按所填内容定 + 性质不同者各自成形（治"整卷清一色括号"）', () => {

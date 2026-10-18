@@ -78,9 +78,10 @@ describe('守门条款段级兜底（缺哪段补哪段）', () => {
   it('注册表：marker 与段头一致、格式组含输出格式与质量底线、不含创作方向类', () => {
     const secs = floorClauseSections({ subject: '数学', stage: 'middle', genType: 'practice' });
     const formatGroup = secs.filter((s) => s.group === 'format').map((s) => s.marker);
-    // 2026-10-02 按主题拆块：格式化侧由 1 块拆为多块（输出格式/编号与组织/作答位与载体/题目自洽/答案区位置）＋质量底线
+    // 2026-10-02 按主题拆块：格式化侧由 1 块拆为多块（输出格式/层级与组织/作答位与载体/题目自洽/答案区位置）＋质量底线
+    // 2026-10-18 块名收口：【编号与组织】→【层级与组织】（重心＝层级、块名不带"编号"）
     expect(formatGroup[0]).toBe('【输出格式】');
-    expect(formatGroup).toContain('【编号与组织】');
+    expect(formatGroup).toContain('【层级与组织】');
     expect(formatGroup[formatGroup.length - 1]).toBe('【质量底线】');
     for (const s of secs) expect(s.text.startsWith(s.marker)).toBe(true);
     // 创作方向类（学科×学段要点 / 学段特点）不进注册表——兜底不得越界成第二份委托书

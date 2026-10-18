@@ -336,9 +336,10 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
 
   it('exam 三维度模板自带完整卷面格式（不依赖统一块）', () => {
     const t = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
-    // 2026-10-02 按主题拆块：原【卷面格式】拆为【卷首】【卷面层级】【题号与分值】【卷面自洽】【情境与页码】
+    // 2026-10-02 按主题拆块：原【卷面格式】拆为【卷首】【卷面层级】【分值标注】【卷面自洽】【情境与页码】
+    // 2026-10-18 块名收口：【编号与分值】→【分值标注】（分值标注＋账目，不再带"编号"）
     expect(t.template).toContain('【卷首】');
-    expect(t.template).toContain('【编号与分值】');
+    expect(t.template).toContain('【分值标注】');
     expect(t.template).toContain('密封线');
     expect(t.template).toContain('【输出格式】');
   });
@@ -676,19 +677,29 @@ describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听
   // 2026-09-29：位置行锚点由"拼音"扩到**书写对象**——must 命中里含 抄写/默写/听写/写字/书写
   //    （这些题没有拼音对象），原句对它们**无对应表述**，模型只能猜 → 载体位置失准。
   //    判据（同行紧邻／逐词一一对应／禁抽出集中堆放）逐字不变。
-  it('位置行锚点是"书写对象"而非仅"拼音"（覆盖无拼音的抄写/听写/默写类）', () => {
-    const posLine = buildCarrierInstruction('语文', 'primary_low').split('\n').find((l) => l.includes('同行紧邻'));
-    expect(posLine).toContain('书写对象');
-    // 🔴 2026-10-13（第 3 批核证·Z8 词级串词·锁字面同步）：原锁字面为 `ToContain('拼音／词语／句子')`（"三类可写对象"）。
-    //   实测该枚举被注入**全 15 学科**（英语 45 份、数学/音乐/体育…），而**漏覆盖英语的"字母/单词"**
-    //   ——与该处源码注释（`layoutSpec.js:316-321` 自述"锚改为书写对象…含英语低/中段的字母单词书写"）**不符**。
-    //   已改为 `拼音、字母、单词、词语或句子`。**本条防回潮意图不变**：锚是**书写对象**，且**各类可写对象逐项在场**。
-    for (const obj of ['拼音', '字母', '单词', '词语', '句子']) {
-      expect(posLine, `可写对象须逐项在场：${obj}`).toContain(obj);
+  // 🔴 2026-10-18（①三维度·跨学科裸奔·同族）：原句把"拼音、字母、单词、词语或句子"五类并列，
+  //    注入语文低段时英语专属"字母/单词"越界、注入英语低/中段时语文专属"拼音"越界（全 486 面实测）。
+  //    处置＝**按学科条件化**（语文＝拼音/字/词/句子；英语＝字母/单词/句子）——锚仍是"书写对象"，
+  //    各类可写对象**按本学科逐项在场**（防"删概念以过守卫"把路走窄）。注入面实测仅 语文低段＋英语低/中段。
+  it('位置行锚点是"书写对象"而非仅"拼音"（按学科逐项在场：语文＝拼音/字/词/句，英语＝字母/单词/句）', () => {
+    const zhLine = buildCarrierInstruction('语文', 'primary_low').split('\n').find((l) => l.includes('同行紧邻'));
+    const enLine = buildCarrierInstruction('英语', 'primary_low').split('\n').find((l) => l.includes('同行紧邻'));
+    expect(zhLine).toContain('书写对象');
+    expect(enLine).toContain('书写对象');
+    for (const obj of ['拼音', '字', '词', '句子']) {
+      expect(zhLine, `语文可写对象须逐项在场：${obj}`).toContain(obj);
     }
-    expect(posLine).toContain('同行紧邻');
-    expect(posLine).toContain('逐词一一对应');
-    expect(posLine, '判据不得退回"句末禁令"（允许混排，只要紧邻）').not.toContain('不得出现在句末');
+    for (const obj of ['字母', '单词', '句子']) {
+      expect(enLine, `英语可写对象须逐项在场：${obj}`).toContain(obj);
+    }
+    // 越界反向锁：各学科面不得夹带他科可写对象
+    expect(zhLine, '语文面不得夹带英语专属"字母/单词"').not.toMatch(/字母|单词/);
+    expect(enLine, '英语面不得夹带语文专属"拼音"').not.toContain('拼音');
+    for (const l of [zhLine, enLine]) {
+      expect(l).toContain('同行紧邻');
+      expect(l).toContain('逐词一一对应');
+      expect(l, '判据不得退回"句末禁令"（允许混排，只要紧邻）').not.toContain('不得出现在句末');
+    }
   });
 
   it('成段/成篇整行书写横线的"整题之后集中一处"已划清作用域（不适用于逐词书写格）', () => {

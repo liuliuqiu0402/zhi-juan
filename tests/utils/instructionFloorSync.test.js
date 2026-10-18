@@ -10,17 +10,17 @@ import { floorClauseSections, getPromptTemplate } from '../../src/config/promptL
 const CTX = { subject: '英语', stage: 'primary_high', genType: 'summary' };
 
 describe('守门条款段·实发前单源同步', () => {
-  it('旧版【编号与组织】段 → 同步为当前单源（序号体系句进得来），用户手写内容一字不动', () => {
-    // 2026-10-02 按主题拆块：序号体系已从【输出格式】迁到【编号与组织】——同步目标随之改指该段
-    const sec = floorClauseSections(CTX).find((s) => s.marker === '【编号与组织】');
-    expect(sec, '内容型应有【编号与组织】段').toBeTruthy();
+  it('旧版【层级与组织】段 → 同步为当前单源（序号体系句进得来），用户手写内容一字不动', () => {
+    // 2026-10-02 按主题拆块：序号体系已从【输出格式】迁到该段；2026-10-18 块名由【编号与组织】改【层级与组织】
+    const sec = floorClauseSections(CTX).find((s) => s.marker === '【层级与组织】');
+    expect(sec, '内容型应有【层级与组织】段').toBeTruthy();
     // 构造"旧版草稿"：把该段里的序号体系句删掉（模拟旧版本冻结的段），前后夹用户自己的内容
     const stale = sec.text.replace(/^.*序号体系.*$\n?/m, '');
     expect(stale).not.toContain('序号体系');
     const draft = `我的自定义要求：要贴近校园生活。\n\n${stale}\n【我的补充】\n请把重点词加粗。\n`;
 
     const { text, synced } = syncFloorClauseSections(draft, CTX);
-    expect(synced).toContain('编号与组织');
+    expect(synced).toContain('层级与组织');
     expect(text, '新条款已进入实发文本').toContain('序号体系（全类型通用）');
     expect(text, '用户内容一字不动').toContain('我的自定义要求：要贴近校园生活。');
     expect(text, '非 builtin 段一字不动').toContain('【我的补充】\n请把重点词加粗。');
@@ -58,12 +58,12 @@ describe('守门条款段·实发前单源同步', () => {
     expect(synced).toEqual([]);
   });
 
-  it('题类资料同样生效（【编号与组织】段按题类单源同步）', () => {
+  it('题类资料同样生效（【层级与组织】段按题类单源同步）', () => {
     const ctx = { subject: '英语', stage: 'primary_high', genType: 'practice' };
-    const sec = floorClauseSections(ctx).find((s) => s.marker === '【编号与组织】');
+    const sec = floorClauseSections(ctx).find((s) => s.marker === '【层级与组织】');
     const stale = sec.text.replace(/^.*序号体系.*$\n?/m, '');
     const { text, synced } = syncFloorClauseSections(`前缀\n${stale}`, ctx);
-    expect(synced).toContain('编号与组织');
+    expect(synced).toContain('层级与组织');
     expect(text).toContain('序号体系（全类型通用）');
   });
 });
