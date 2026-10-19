@@ -29,6 +29,15 @@ describe('A→B 契约：逐题标注进，真题标题出', () => {
     expect((r.html.match(/（2分）/g) || []).length, '题内（2分）全保留').toBe(5);
   });
 
+  it('⑥ 填空：各题空数不同（每空1分），单价唯一但每题总分不同 → 标题仍按单位合成（每空1分，共24分）', () => {
+    const blanks = [4, 4, 4, 2, 2, 4, 4]; // 7 题共 24 空
+    const items = blanks.map((n, i) => `<p>${i + 1}. ${'____ '.repeat(n)}（每空1分，共${n}分）</p>`);
+    const html = ['<h1>阶段测评</h1>', '<h3>三、填一填（共24分）</h3>', ...items].join('\n');
+    const r = run(html);
+    expect(titles(r.html), '单价唯一 ⇒ 按单位合成，不得拿"每小题X分"冒充').toContain('三、填一填（每空1分，共24分）');
+    expect((r.html.match(/每空1分，共\d+分/g) || []).length, '逐题标注全保留（7 条题内 + 标题 1 条）').toBe(8);
+  });
+
   it('③ 无题号层（整栏）：A 已写在标题，B 不动', () => {
     const html = [
       '<h1>阶段测评</h1>',
