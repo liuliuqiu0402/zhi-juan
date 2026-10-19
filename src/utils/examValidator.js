@@ -954,7 +954,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   //   🔴 归不了类（有题没标价／无编号）→ 不动，标题保持"（共X分）"。
   //   2026-10-19 扩展：A 对"单判分处"的题只写"（2分）"（无"每"），B 同样能读——
   //     该题单价＝该题总分，单位按"题"；这样选择题/判断题也能合成"（每题2分，共10分）"。
-  if (has('title-detail-fix')) {
+  // 🔴 2026-10-19（属主提醒：大类名分学段、位置不同）：中学段**不设大类层**，域型名（课标内容领域名）
+  //   直接作大题标题、只作范围标识、**不加作答要求** ⇒ B 不得把单价合成进这类标题。
+  //   故合成只在小学段（primary_*）启用；中学段只保留 1.6 的"裸分→（共X分）"归一。
+  const isMidHighStageB = /^(middle|high)$/.test(String(stage || '').trim());
+  if (!isMidHighStageB && has('title-detail-fix')) {
     try {
       const tplB = document.createElement('template');
       tplB.innerHTML = out;
