@@ -103,6 +103,14 @@ describe('答案完整性·split 正文混答剥离（stripAnswerSection）', ()
     expect(out).not.toContain('参考答案');
   });
 
+  it('answer-section 内有嵌套 div → 仍整块剥离，且不留半截容器（2026-10-19 属主"正文被删"根因）', () => {
+    const html = '<h2>二、基础建构</h2><p>1. 完成任务一。</p>'
+      + '<div class="answer-section"><h2>参考答案与解析</h2><div class="ans-item"><p>1. A</p></div></div>';
+    const out = stripAnswerSection(html);
+    expect(out).toBe('<h2>二、基础建构</h2><p>1. 完成任务一。</p>');
+    expect(out, '不得残留未闭合的答案容器（会把后续正文卷进去）').not.toContain('answer-section');
+  });
+
   it('无答案区 → 原样返回（不误剥正文）', () => {
     const html = '<h2>二、基础建构</h2><p>1. 完成任务一。（每空2分）</p>';
     expect(stripAnswerSection(html)).toBe(html);

@@ -414,6 +414,34 @@ export function isBodyQuestionSeqChanged(snapshotSeq = [], finalSeq = []) {
   return setOf(a) !== setOf(b) || a.length !== b.length;
 }
 
+/**
+ * 冻结比对的**归因**（2026-10-19 属主："正文被删了吧？明显少于答案的"）：
+ * 光看题号序列变化分不清"内容被删"与"题号不再在行首（并段/换形态）"——历史已实证后者会误报
+ * （2026-10-16 留痕：正文题号 30→25 实为分段变化）。本函数把两种情形分开，供告警文案自证：
+ *   · lost：缺失的号在正文文本里**任何位置都找不到**，或正文字符数明显缩水 ⇒ 真·内容被删；
+ *   · form：缺失的号仍在正文里（只是不在行首），且字符数没明显缩水 ⇒ 不算丢内容。
+ * @param {{snapshot?:number[]|string, finalSeq?:number[]|string, bodyText?:string, lenBefore?:number, lenAfter?:number}} o
+ * @returns {{kind:'none'|'same'|'form'|'lost', missing:number[], lost:number[], lenDelta:number}}
+ */
+export function classifyBodySeqChange({ snapshot = [], finalSeq = [], bodyText = '', lenBefore = 0, lenAfter = 0 } = {}) {
+  const toArr = (x) => (Array.isArray(x) ? x : String(x || '').split(',').filter(Boolean).map(Number));
+  const a = toArr(snapshot);
+  const b = toArr(finalSeq);
+  if (!a.length || !b.length) return { kind: 'none', missing: [], lost: [], lenDelta: 0 };
+  const setB = new Set(b);
+  const setA = new Set(a);
+  const missing = [...new Set(a)].filter((n) => !setB.has(n));
+  const added = [...setB].filter((n) => !setA.has(n));
+  const lenDelta = Number(lenAfter || 0) - Number(lenBefore || 0);
+  if (!missing.length && !added.length && a.length === b.length) return { kind: 'same', missing: [], lost: [], lenDelta };
+  const text = String(bodyText || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&emsp;/gi, ' ');
+  const still = (n) => new RegExp(`(^|[^0-9])${n}\\s*[.、．)）]`).test(text);
+  const lost = missing.filter((n) => !still(n));
+  // 字符数明显缩水（阈值 30 字，防标点/空白的正常浮动）——即便号“碰巧”还能找到，也算内容被删
+  if (lost.length || lenDelta < -30) return { kind: 'lost', missing, lost: lost.length ? lost : missing, lenDelta };
+  return { kind: 'form', missing, lost: [], lenDelta };
+}
+
 export function detectBodyNumberingGap(html = '') {
   const found = new Set(extractBodyQuestionNumbers(html));
   const peak = found.size ? Math.max(...found) : 0;

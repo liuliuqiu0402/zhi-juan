@@ -297,7 +297,7 @@ import { sanityScan, sanityNoteOf } from '../utils/contentSanity.js';
 import { scanCopyOverlap, copyOverlapNote } from '../utils/antiCopyGuard.js'; // 底线线 O5：防照搬字面护栏（只报不改）
 import { guardPaper, guardReportOf, stripOpeningNarration } from '../utils/paperGuardEngine.js'; // 卷级守门引擎（确定性检测；整卷重写修订轮已砍，自述句程序剔除）
 // 🗑 领域覆盖对账（reconcileDomains）已于 2026-09-20 用户裁定砍除，见下方调用点的说明；不再引入
-import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, extractBodyQuestionSequence, isBodyQuestionSeqChanged, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth, detectAnswerSectionMissing, detectBodyNumberingRestart } from '../utils/contentCleaner.js';
+import { cleanSectionHtml, htmlToPlainText, normalizeBlankMarkers, normalizeMatchQuestions, normalizeLeadingMarkers, normalizeMathCircleBlanks, stripRedundantInlineCarrierRows, normalizeIndents, stripPlanningPreamble, hasBodyContentStructure, isDeliverableBodyHtml, extractBodyQuestionSequence, classifyBodySeqChange, bodyBeforeAnswer, ANSWER_SECTION_START_RE, normalizeBodyHtml, blankWidthForChars, shortBlankWidth, spaceBlankWidth, detectAnswerSectionMissing, detectBodyNumberingRestart } from '../utils/contentCleaner.js';
 // 🔴 2026-10-10（〔315〕死代码清理）：`detectBodyNumberingGap`／`classifyNumberingGap`／`diagnoseNumberingGap`／
 //    `extractBodyQuestionNumbers` 四个导入已随"编号连续性拦截"整块删除而**不再被引用**，故一并移除。
 //    （`detectBodyNumberingRestart` 暂留：它仍被两条既有"接线锁"以字面断言引用；待那两条锁改反向锁后再删。）
@@ -937,12 +937,16 @@ export const wrapAnswerSection = (content) => {
 
 /** split 模式正文混答剥离：正文末尾若混入《参考答案…》区（完整或空壳）→ 整体剥离，
  *  答案统一由独立答案页承载（与 wrapAnswerSection 互为反向；once 模式不调用，防止误剥正文答案）
- *  支持两种形态：answer-section 包裹的整块（含 div 外壳）、裸 <h2>参考答案… 到结尾 */
+ *  🔴 2026-10-19（属主"正文被删了吧？"）：原实现用两条正则——
+ *    ① `/<div ...answer-section...>[\s\S]*?<\/div>\s*$/`（非贪婪）——答案区里**有嵌套 div** 时匹配不到；
+ *    ② `/<h[1-6]>参考答案[\s\S]*$/`——只能从标题切，**切完留下没闭合的 `<div class="answer-section">`**。
+ *    两者叠加：正文末尾残留一个**未闭合的答案容器**，后续拼接/DOM 归属就可能把正文尾部卷进去（正文变短）。
+ *    现改为**单源下标切口**（`ANSWER_SECTION_START_RE`，与 bodyBeforeAnswer / 审核侧同一口径）：
+ *    从答案区起点一刀切掉，容器与标题两种形态都覆盖，且不留半截标签。 */
 export const stripAnswerSection = (content) => {
-  let out = String(content || '');
-  out = out.replace(/<div[^>]*class="[^"]*answer-section[^"]*"[^>]*>[\s\S]*?<\/div>\s*$/i, '');
-  out = out.replace(/<h[1-6][^>]*>参考答案[\s\S]*$/i, '');
-  return out;
+  const src = String(content || '');
+  const at = src.search(ANSWER_SECTION_START_RE);
+  return at >= 0 ? src.slice(0, at).replace(/\s+$/, '') : src;
 };
 
 /** 答案页自带标题去重（段2 独立答案页）：模型常在答案内容开头自带 <h1>参考答案与解析</h1>
@@ -4632,6 +4636,8 @@ ${cardAnalysisText.substring(0, 1000)}
     //    比对用 extractBodyQuestionSequence（**形态归一**：括号序号与行首序号归一后再比），
     //    避免"排版类后处理把序号形态换了一种"被误报成正文被改动（2026-09-15 实证误报 21→34，正文实为完整）。
     const bodyQSnapshot = extractBodyQuestionSequence(content).join(',');
+    // 正文字符数快照（同日·"正文被删"归因用）：与题号序列一起比，才能把"内容被删"与"题号不再在行首"分开。
+    const bodyLenSnapshot = htmlToPlainText(bodyBeforeAnswer(content)).length;
     const skipAnswerPage = generateMode === 'once' && !ansInContent && !ansShellInContent && (genTypeCarriesAnswers || bodyCarriesAnswers);
     if (skipAnswerPage) {
       answerSkipNote = `ℹ️ 正文已含解析/答案标注（${genType} 为题+解析一体资料），未单独生成答案页。`;
@@ -4888,11 +4894,25 @@ ${cardAnalysisText.substring(0, 1000)}
     {
       const finalSeqArr = extractBodyQuestionSequence(finalContent);
       const finalSeq = finalSeqArr.join(',');
-      if (finalSeq && finalSeq !== bodyQSnapshot && isBodyQuestionSeqChanged(bodyQSnapshot, finalSeqArr)) {
-        auditWarnings.push(`⚠️ 答案生成后正文题号序列发生变化（[${bodyQSnapshot}] → [${finalSeq}]）——质检/后处理改动了正文，请核对正文完整性。`);
+      const finalBodyText = htmlToPlainText(bodyBeforeAnswer(finalContent));
+      // 2026-10-19（属主"正文被删了吧？明显少于答案的"）：原判据只看"题号集合变了" ⇒ 分不清
+      //   ① 真删内容；② 题号不再落在行首（并段/换形态，历史实测 30→25 即为后者）。
+      //   现同时看"缺失号在正文任何位置是否还在"＋"正文字符数增删"，并据此给不同文案：
+      //   真删 → 明确说"内容被删"（附缺号与字数变化）；仅形态 → 只进 console.debug，不进问题列表。
+      const cls = classifyBodySeqChange({
+        snapshot: bodyQSnapshot,
+        finalSeq: finalSeqArr,
+        bodyText: finalBodyText,
+        lenBefore: bodyLenSnapshot,
+        lenAfter: finalBodyText.length,
+      });
+      if (cls.kind === 'lost') {
+        auditWarnings.push(`⚠️ 答案生成后正文少了题（[${bodyQSnapshot}] → [${finalSeq}]；缺号 ${cls.lost.join('、')} 在正文任何位置都找不到）——正文字符数 ${bodyLenSnapshot}→${finalBodyText.length}（${cls.lenDelta >= 0 ? '+' : ''}${cls.lenDelta}）。这是正文内容被删，请重点核对末尾大题。`);
+      } else if (cls.kind === 'form' && finalSeq !== bodyQSnapshot) {
+        // 仅题号形态/分段差异（号仍在正文里、字数未明显缩水）**不算**正文被改动 → 不进【问题列表】
+        console.debug(`[正文冻结比对] 仅题号形态/分段差异（内容仍在，缺号 ${cls.missing.join('、') || '无'} 仍可在正文中找到；字数 ${cls.lenDelta}），不告警：[${bodyQSnapshot}] → [${finalSeq}]`);
       } else if (finalSeq && finalSeq !== bodyQSnapshot) {
-        // 2026-09-15 用户定版：仅题号形态/顺序差异（集合与题数均未变）**不算**正文被改动 → 不进【问题列表】
-        console.debug(`[正文冻结比对] 仅题号形态/顺序差异（非内容增删），不告警：[${bodyQSnapshot}] → [${finalSeq}]`);
+        console.debug(`[正文冻结比对] 题号序列差异（已归因为形态/新增，不告警）：[${bodyQSnapshot}] → [${finalSeq}]`);
       }
       // 🔴 2026-10-10（〔315〕死代码清理）：此处原按"缺号全文任何位置都未出现＝真丢题"进【问题列表】——
       //    同属"以编号连续性判丢题"，与编号对象口径（见【层级与组织】）自相矛盾（判据允许大题不编小题号），已删。
