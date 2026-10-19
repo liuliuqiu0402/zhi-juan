@@ -108,4 +108,14 @@ describe('大题标题命名：全库唯一一处规定（学段口径防回潮�
     expect(getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template,
       '旧否定句不得再管标题（单源已归标题条）').not.toContain('题干与标题');
   });
+
+  // 🔴 2026-10-19（真机："一、直接写出得数（共14分）"下又出现"1. 直接写出得数。（每题1分，共14分）"）：
+  //   大题级要求被写成**带题号的题干**（题号被要求行占用）。判据补死：题号只给真正作答的题。
+  it('大题要求不得写成带题号的题干（题号只给真正作答的题）', () => {
+    for (const stage of ['primary_low', 'middle']) {
+      const t = getPromptTemplate({ grade: stage, subject: '语文', genType: 'exam' }).template;
+      expect(t, `${stage}：要求行不得带题号`).toContain('不得把这条要求写成带题号的题干');
+      expect(t, `${stage}：题号只给真正作答的题`).toContain('题号只给真正作答的题');
+    }
+  });
 });

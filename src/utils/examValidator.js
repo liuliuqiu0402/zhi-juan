@@ -993,22 +993,27 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         }
         if (itemsB.length < 2 || itemsB.some((x) => x.total == null || x.price == null)) return;
         const pricesB = [...new Set(itemsB.map((x) => x.price))];
+        const unitsB = [...new Set(itemsB.map((x) => x.unit))];
+        const totalsB = itemsB.map((x) => x.total);
         let labelB = null;
-        if (pricesB.length === 1) {
-          const unitsB = [...new Set(itemsB.map((x) => x.unit))];
-          if (unitsB.length > 1) return; // 单价同但单位不同（如每空/每处）→ 标题无法用一个单位概括，不动
-          const unitB = unitsB[0];
-          labelB = `（每${unitB}${pricesB[0]}分，共${totalB}分）`;
+        if (unitsB.length === 1 && pricesB.length === 1) {
+          // 全部同单位、同单价（如全是"每空1分，共4分"）→ 按单位汇总
+          labelB = `（每${unitsB[0]}${pricesB[0]}分，共${totalB}分）`;
+        } else if (new Set(totalsB).size === 1) {
+          // 单位/单价不一，但**每题总分相同** → 按"每小题X分"（不得拿单价冒充题分）
+          const u = unitsB.length === 1 && unitsB[0] === '题' ? '题' : '小题';
+          labelB = `（每${u}${totalsB[0]}分，共${totalB}分）`;
         } else {
+          // 按**每题总分**分组（不是按单价）：第3、8小题各4分…
           const groups = [];
           for (const it of itemsB) {
-            let g = groups.find((x) => x.price === it.price);
-            if (!g) { g = { price: it.price, nums: [] }; groups.push(g); }
+            let g = groups.find((x) => x.total === it.total);
+            if (!g) { g = { total: it.total, nums: [] }; groups.push(g); }
             g.nums.push(it.num);
           }
           labelB = `（${groups.map((g) => (g.nums.length >= 2
-            ? `第${g.nums.join('、')}小题各${g.price}分`
-            : `第${g.nums[0]}小题${g.price}分`)).join('，')}，共${totalB}分）`;
+            ? `第${g.nums.join('、')}小题各${g.total}分`
+            : `第${g.nums[0]}小题${g.total}分`)).join('，')}，共${totalB}分）`;
         }
         const nextB = t.replace(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/, labelB);
         if (nextB !== t) {
