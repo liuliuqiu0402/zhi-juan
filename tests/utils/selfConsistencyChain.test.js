@@ -55,7 +55,7 @@ describe('② 大题标题已写全时，其下不得再出现带号说明行（
     for (const st of ['primary_low', 'middle']) {
       const t = tpl(st, '数学');
       expect(t, `${st}：要求不得写成带号题干`).toContain('不得把这条要求写成带题号的题干');
-      expect(t, `${st}：作答要求不是题干`).toContain('作答要求不是题干');
+      expect(t, `${st}：大题标题就是这一组的作答要求（不得再造一条组内题干）`).toContain('大题标题就是这一组的作答要求');
     }
   });
 
