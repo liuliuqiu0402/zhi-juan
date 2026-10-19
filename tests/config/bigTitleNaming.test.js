@@ -96,4 +96,16 @@ describe('大题标题命名：全库唯一一处规定（学段口径防回潮�
     expect(t, '只写类别名不算点明作答方式（防"四、判断"）').toContain('只写一个空泛的类别名');
     expect(t, '情境须可剥离（防情境包装标题）').toContain('大题标题本身须是完整的作答要求');
   });
+
+  // 🔴 2026-10-19（属主"看图告警总在飘忽"）：标题里的**提示方式**必须由题内实给决定——
+  //   病根＝蓝图块名含"看图/图片"，模型照搬进标题，题内给的却是文字/中文/首字母提示 ⇒ 告警反复。
+  //   本锁：可自判判据在位（写"看图"就得真有图），且**不得回退**成只靠"图-题一致性"那条否定句兜。
+  it('标题提示方式：以题内实给为准（看图/文字/首字母同一种）', () => {
+    for (const stage of ['primary_low', 'middle']) {
+      const t = getPromptTemplate({ grade: stage, subject: '语文', genType: 'exam' }).template;
+      expect(t, `${stage}：提示方式须与题内实给同一种`).toContain('标题里写到的提示方式，必须是题内真实给出的那一种');
+    }
+    expect(getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template,
+      '旧否定句不得再管标题（单源已归标题条）').not.toContain('题干与标题');
+  });
 });
