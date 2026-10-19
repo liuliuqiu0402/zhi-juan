@@ -716,7 +716,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     //    所有横线翻括号，真机实测"该横线的空位也变括号"）⇒ 已撤出归一键，改为在此**只报不改**（形态交模型）。
     const carrierMis = detectCarrierFormMismatch(out);
     if (carrierMis.length) {
-      silentCount('text-format', `题面声明符号作答（选择/填序号/填在括号里等），但该处作答位是横线——共 ${carrierMis.length} 段，请抽检（程序只提示、不改形态）`);
+      const seg = carrierMis[0].segment.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 36);
+      silentCount('text-format', `题面声明符号作答（选择/填序号/填在括号里等），但该处作答位是横线——共 ${carrierMis.length} 段，如「${seg}…」，请抽检（程序只提示、不改形态）`);
     }
   }
 

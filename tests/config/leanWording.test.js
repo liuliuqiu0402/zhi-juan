@@ -109,7 +109,7 @@ describe('少约束·委托书不再给组织形态描述（教材颗粒只作�
     expect(t).toContain('大标题用 <h1>');
     // 🔴 2026-10-06（第二批·面 3）：句首"题目以…"改锚为"**每个独立设问的题**以…"（与 QOC/exam 同口径）——
     //   本处只锁"渲染端硬需求"本体（`<p class="question">` 包裹），不锁句首主语字面（主语另有专测）。
-    expect(t).toContain('每个独立题干用 <p class="question"> 包裹');
+    expect(t).toContain('每道要作答的题用 <p class="question"> 包裹');
     expect(t).toContain('答案/解析/评分标准');
   });
 });

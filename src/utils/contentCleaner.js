@@ -8,7 +8,8 @@
  * ============================================================
  */
 import { getMergedSpec } from '../config/layoutSpec.js';
-import { SYMBOL_ANSWER_DECL } from '../config/blueprintSchema.js'; // 单源：符号作答声明（G1 形态收口与展示层载体推断共用同一正则）
+// 2026-10-19：宽口径 SYMBOL_ANSWER_DECL 不再用于本文件的**报告**（改由下方 SEG_SYMBOL_DECL 从严）；
+//   展示层载体推断仍用它（blueprintSchema.inferCarriers），故单源定义仍只有那一处。
 
 /**
  * 答案区起点 —— **唯一口径**（2026-09-17 起在本文件计数口径使用；2026-09-29 收为导出单源）
@@ -1794,6 +1795,11 @@ export function stripRedundantInlineCarrierRows(html = '') {
  */
 /** 大题标题可作声明源**仅限形态词**（不含题型词）——防"选择题大题里的写字空"被误报 */
 const H2_CARRIER_FORM_DECL = /括号|填序号|序号填在/;
+/** 段级从严（2026-10-19 属主问"是误报吗"）：只认**符号作答的强声明**——序号/括号/√×。
+ *  裸"选择/判断/排序/涂色"同时是普通动词（"选择恰当的词语填空""判断下面说法的对错并说明理由"），
+ *  拿它们当段级声明会把"写字空"误报成"符号空"。展示层载体推断仍用 SYMBOL_ANSWER_DECL（宽口径），
+ *  本正则只用于**报告**（只报不改），故不构成两把尺子。 */
+const SEG_SYMBOL_DECL = /填序号|序号填在|填在括号|填在（|把序号|选择[^。；]{0,12}(?:序号|答案)|判断[^。；]{0,8}对错|打[√×✓]|[（(]\s*[）)]/;
 export function detectCarrierFormMismatch(html = '') {
   const src = String(html || '');
   if (!src || !/<u\b[^>]*class="[^"]*\bblank-\d+/i.test(src)) return [];
@@ -1807,7 +1813,7 @@ export function detectCarrierFormMismatch(html = '') {
       if (!/<u\b[^>]*class="[^"]*\bblank-\d+/i.test(seg)) continue;
       const text = seg.replace(/<[^>]+>/g, '');
       if (/横线/.test(text)) continue; // 段内显式"横线"声明 → 该段否决（保守）
-      if (!SYMBOL_ANSWER_DECL.test(text) && !/括号/.test(text) && !h2Decl) continue;
+      if (!SEG_SYMBOL_DECL.test(text) && !h2Decl) continue;
       hits.push({ segment: seg.trim().slice(0, 80) });
     }
   }

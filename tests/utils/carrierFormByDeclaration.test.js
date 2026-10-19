@@ -93,18 +93,36 @@ describe('G1 载体形态：程序不再改形态（乙案），只报不改', (
     expect(normalizeBodyHtml(SRC_Q1), '链归一后横线仍在').toMatch(/<u\b[^>]*blank-/i);
   });
 
-  it('单源：符号作答声明只有一处定义，展示层推断与**检出**共用（禁两把尺子）', () => {
+  it('单源：宽口径只定义一次（展示层推断用）；**报告**改走从严口径（只认序号/括号/√×）', () => {
     const bs = read('src/config/blueprintSchema.js');
     expect((bs.match(/export const SYMBOL_ANSWER_DECL/g) || []).length, '该正则只能定义一次').toBe(1);
     expect(bs, 'inferCarriers 必须引用同一定义').toContain('if (HAS(t, SYMBOL_ANSWER_DECL)) out.add(CARRIERS.BRACKET);');
     expect((bs.match(/选择\|判断\|选字/g) || []).length, '括号关键词只能出现一次（单源）').toBe(1);
     const cc = read('src/utils/contentCleaner.js');
-    expect(cc, '检出必须引用同一定义').toContain("import { SYMBOL_ANSWER_DECL } from '../config/blueprintSchema.js';");
-    expect((cc.match(/选择\|判断\|选字/g) || []).length, 'contentCleaner 不得自写第二份括号关键词表').toBe(0);
+    expect(cc, '报告不再直接用宽口径').not.toContain("import { SYMBOL_ANSWER_DECL }");
+    expect(cc, '报告口径须从严（只认序号/括号/√×）').toContain('const SEG_SYMBOL_DECL');
+    expect((cc.match(/选择\|判断\|选字/g) || []).length, 'contentCleaner 不得自写第二份宽口径关键词表').toBe(0);
     // 展示层口径不变：仍能判出括号载体
     expect(inferCarriers('选择', '')).toContain(CARRIERS.BRACKET);
     expect(SYMBOL_ANSWER_DECL.test('把序号填在括号里')).toBe(true);
     expect(SYMBOL_ANSWER_DECL.test('写在横线上')).toBe(false);
+  });
+
+  // 🔴 2026-10-19（属主问"这个告警是误报吗"）：裸"选择/判断"是普通动词，不能当段级符号声明。
+  it('“选择”作普通动词（选择恰当的词语填空）+ 横线 → 不检出（防误报）', () => {
+    const s = [
+      '<h2>一、选择恰当的词语填空。（每空2分，共8分）</h2>',
+      '<p class="question">1. 他<u class="blank-2"> </u>地跑进教室。</p>',
+    ].join('\n');
+    expect(detectCarrierFormMismatch(s)).toEqual([]);
+  });
+
+  it('“判断”作普通动词（判断对错并说明理由）+ 横线 → 不检出（防误报）', () => {
+    const s = [
+      '<h2>二、判断下面说法的对错，并说明理由。</h2>',
+      '<p class="question">1. 这句话说得对。<u class="blank-4"> </u></p>',
+    ].join('\n');
+    expect(detectCarrierFormMismatch(s)).toEqual([]);
   });
 
   it('零新增提示词：该判定不进提示词（只在程序侧判定）', () => {

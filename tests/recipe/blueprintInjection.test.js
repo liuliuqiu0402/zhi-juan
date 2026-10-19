@@ -317,7 +317,7 @@ describe('非 exam 模板正文自带【输出格式】（指令库可见，无�
       // 题为主类型含作答载体规则；内容型含结构化呈现规则（不用题号）
       if (CONTENT_TYPES.includes(g)) {
         expect(t.template, `类型 ${g} 缺内容组织格式`).toContain('结构化呈现');
-        expect(t.template, `类型 ${g} 不应要求题号包裹`).not.toContain('每个独立题干用 <p class="question"> 包裹');
+        expect(t.template, `类型 ${g} 不应要求题号包裹`).not.toContain('每道要作答的题用 <p class="question"> 包裹');
       } else {
         expect(t.template, `类型 ${g} 缺作答空间语义`).toContain('作答空位形态与所填内容相称');
         // 题为主类型须有"题干用 question 包裹"的结构要求；易错题本走自身分支（"变式…以 question 包裹并带题号"），
